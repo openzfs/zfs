@@ -161,7 +161,8 @@ function test_n_check
 	fi
 
 	# Invoke 'zfs destroy [-rRf] <dataset>'
-	log_must zfs destroy $opt $dtst
+	log_must_busy zfs destroy $opt $dtst
+	block_device_wait
 
 	# Kill any lingering instances of mkbusy, and clear the list.
 	if ! is_linux ; then

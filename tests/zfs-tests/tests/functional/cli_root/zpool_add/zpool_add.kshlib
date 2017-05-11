@@ -36,11 +36,17 @@
 #
 function find_vfstab_dev
 {
-	typeset vfstab="/etc/vfstab"
-	typeset tmpfile="/tmp/vfstab.tmp"
 	typeset vfstabdev
 	typeset vfstabdevs=""
 	typeset line
+
+	if is_linux; then
+		vfstab="/etc/fstab"
+		tmpfile="/tmp/fstab.tmp"
+	else
+		vfstab="/etc/vfstab"
+		tmpfile="/tmp/vfstab.tmp"
+	fi
 
 	cat $vfstab | grep "^${DEV_DSKDIR}" >$tmpfile
 	while read -r line
@@ -59,11 +65,17 @@ function find_vfstab_dev
 #
 function find_mnttab_dev
 {
-	typeset mnttab="/etc/mnttab"
-	typeset tmpfile="/tmp/mnttab.tmp"
 	typeset mnttabdev
 	typeset mnttabdevs=""
 	typeset line
+
+	if is_linux; then
+		typeset mnttab="/etc/mtab"
+		typeset tmpfile="/tmp/mtab.tmp"
+	else
+		typeset mnttab="/etc/mnttab"
+		typeset tmpfile="/tmp/mnttab.tmp"
+	fi
 
 	cat $mnttab | grep "^${DEV_DSKDIR}" >$tmpfile
 	while read -r line
@@ -84,10 +96,14 @@ function save_dump_dev
 {
 
 	typeset dumpdev
-	typeset fnd="Dump device"
 
-	dumpdev=`dumpadm | grep "$fnd" | cut -f2 -d : | \
-		awk '{print $1}'`
+	if is_linux; then
+		dumpdev=""
+	else
+		typeset fnd="Dump device"
+		dumpdev=`dumpadm | grep "$fnd" | cut -f2 -d : | \
+			awk '{print $1}'`
+	fi
 	echo $dumpdev
 }
 
@@ -97,13 +113,13 @@ function save_dump_dev
 function partition_cleanup
 {
 
-        if [[ -n $DISK ]]; then
-                partition_disk $SIZE $DISK 7
-        else
-                typeset disk=""
-                for disk in $DISK0 $DISK1; do
-                        partition_disk $SIZE $disk 7
-                done
-        fi
+	if [[ -n $DISK ]]; then
+		partition_disk $SIZE $DISK 7
+	else
+		typeset disk=""
+		for disk in $DISK0 $DISK1; do
+			partition_disk $SIZE $disk 7
+		done
+	fi
 
 }

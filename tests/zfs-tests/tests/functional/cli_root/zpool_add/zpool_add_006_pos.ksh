@@ -59,19 +59,18 @@ function cleanup
 log_assert "Adding a large number of file based vdevs to a zpool works."
 log_onexit cleanup
 
-create_pool $TESTPOOL ${DISKS%% *}
-log_must zfs create -o mountpoint=$TESTDIR $TESTPOOL/$TESTFS
-log_must mkfile $MINVDEVSIZE $TESTDIR/file.00
+log_must mkdir -p $TESTDIR
+log_must truncate -s $MINVDEVSIZE $TESTDIR/file.00
 create_pool "$TESTPOOL1" "$TESTDIR/file.00"
 
 vdevs_list=$(echo $TESTDIR/file.{01..16})
-log_must mkfile $MINVDEVSIZE $vdevs_list
+log_must truncate -s $MINVDEVSIZE $vdevs_list
 
 log_must zpool add -f "$TESTPOOL1" $vdevs_list
 log_must vdevs_in_pool "$TESTPOOL1" "$vdevs_list"
 
 # Attempt to add a file based vdev that's too small.
-log_must mkfile 32m $TESTDIR/broken_file
+log_must truncate -s 32m $TESTDIR/broken_file
 log_mustnot zpool add -f "$TESTPOOL1" ${TESTDIR}/broken_file
 log_mustnot vdevs_in_pool "$TESTPOOL1" "${TESTDIR}/broken_file"
 

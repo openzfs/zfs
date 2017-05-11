@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/ksh -p
 #
 # CDDL HEADER START
 #
@@ -39,16 +39,26 @@
 #
 # STRATEGY:
 #	1. Create a new zvol and add it as swap
-#	2. Fill /tmp with 80% the size of the zvol
+#	2. Fill //var/tmp with 80% the size of the zvol
 #	5. Remove the new zvol, and restore original swap devices
 #
 
 verify_runnable "global"
-log_assert "Using a zvol as swap space, fill /tmp to 80%."
+
+function cleanup
+{
+	rm -rf $TEMPFILE
+
+	if is_swap_inuse $swapdev ; then
+		log_must swap_cleanup $swapdev
+	fi
+}
+
+log_assert "Using a zvol as swap space, fill /var/tmp to 80%."
 
 vol=$TESTPOOL/$TESTVOL
 swapdev=${ZVOL_DEVDIR}/$vol
-log_must swap -a $swapdev
+log_must swap_setup $swapdev
 
 # Get 80% of the number of 512 blocks in the zvol
 typeset -i count blks volsize=$(get_prop volsize $vol)
@@ -57,8 +67,8 @@ typeset -i count blks volsize=$(get_prop volsize $vol)
 ((count = blks / 2048))
 
 log_note "Fill 80% of swap"
-log_must dd if=/dev/urandom of=/tmp/$TESTFILE bs=1048576 count=$count
-log_must rm -f /tmp/$TESTFILE
-log_must swap -d $swapdev
+log_must dd if=/dev/urandom of=$TEMPFILE bs=1048576 count=$count
+log_must rm -f $TEMPFILE
+log_must swap_cleanup $swapdev
 
-log_pass "Using a zvol as swap space, fill /tmp to 80%."
+log_pass "Using a zvol as swap space, fill /var/tmp to 80%."

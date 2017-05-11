@@ -89,6 +89,7 @@ function setup_testenv #[dtst]
 		fi
 		if ! datasetexists $VOLCLONE && is_global_zone; then
 			log_must zfs clone $VOLSNAP $VOLCLONE
+			block_device_wait
 		fi
 	fi
 }

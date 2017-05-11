@@ -123,7 +123,7 @@ function checksum_all #alter_root
 	typeset checksum2
 
 	while (( id < number )); do
-		if (( id == 2 )); then
+		if (( id == $PRIMARY_SLICE )); then
 			(( id = id + 1 ))
 			continue
 		fi
@@ -165,12 +165,12 @@ log_must zpool export ${TESTPOOL}-0
 #
 number=1
 while (( number <= $GROUP_NUM )); do
-	if (( number == 2)); then
+	if (( number == $PRIMARY_SLICE)); then
 		(( number = number + 1 ))
 		continue
 	fi
 
-	setup_single_disk "${ZFS_DISK1}s${number}" \
+	setup_single_disk "${ZFS_DISK1}${SLICE_PREFIX}${number}" \
 		"${TESTPOOL}-$number" \
 		"$TESTFS" \
 		"$TESTDIR.$number"

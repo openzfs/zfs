@@ -3302,3 +3302,59 @@ function zed_stop
 		log_must rmdir $ZEDLET_DIR
 	fi
 }
+
+#
+# Check is provided device is being active used as a swap device.
+#
+function is_swap_inuse
+{
+	typeset device=$1
+
+	if [[ -z $device ]] ; then
+		log_note "No device specified."
+		return 1
+	fi
+
+	if is_linux; then
+		swapon -s | grep -w $(readlink -f $device) > /dev/null 2>&1
+	else
+		swap -l | grep -w $device > /dev/null 2>&1
+	fi
+
+	return $?
+}
+
+#
+# Setup a swap device using the provided device.
+#
+function swap_setup
+{
+	typeset swapdev=$1
+
+	if is_linux; then
+		log_must mkswap $swapdev > /dev/null 2>&1
+		log_must swapon $swapdev
+	else
+	        log_must swap -a $swapdev
+	fi
+
+	return 0
+}
+
+#
+# Cleanup a swap device on the provided device.
+#
+function swap_cleanup
+{
+	typeset swapdev=$1
+
+	if is_swap_inuse $swapdev; then
+		if is_linux; then
+			log_must swapoff $swapdev
+		else
+			log_must swap -d $swapdev
+		fi
+	fi
+
+	return 0
+}

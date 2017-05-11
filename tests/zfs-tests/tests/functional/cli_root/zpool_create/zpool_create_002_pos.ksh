@@ -80,9 +80,9 @@ log_must echo "y" | newfs \
 	${DEV_RDSKDIR}/${disk}${SLICE_PREFIX}${SLICE1} >/dev/null 2>&1
 create_blockfile $FILESIZE $TESTDIR0/$FILEDISK0 ${disk}${SLICE_PREFIX}${SLICE4}
 create_blockfile $FILESIZE1 $TESTDIR1/$FILEDISK1 ${disk}${SLICE_PREFIX}${SLICE5}
-log_must mkfile $SIZE /var/tmp/$FILEDISK0
-log_must mkfile $SIZE /var/tmp/$FILEDISK1
-log_must mkfile $SIZE /var/tmp/$FILEDISK2
+log_must truncate -s $SIZE /var/tmp/$FILEDISK0
+log_must truncate -s $SIZE /var/tmp/$FILEDISK1
+log_must truncate -s $SIZE /var/tmp/$FILEDISK2
 
 unset NOINUSE_CHECK
 log_must zpool export $TESTPOOL

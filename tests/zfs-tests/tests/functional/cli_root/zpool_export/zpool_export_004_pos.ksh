@@ -52,8 +52,8 @@ verify_runnable "global"
 
 function cleanup
 {
-	mntpnt=$(get_prop mountpoint $TESTPOOL)
-        datasetexists $TESTPOOL1 || log_must zpool import -d $mntpnt $TESTPOOL1
+	mntpnt=$TESTDIR0
+	datasetexists $TESTPOOL1 || log_must zpool import -d $mntpnt $TESTPOOL1
 	datasetexists $TESTPOOL1 && destroy_pool $TESTPOOL1
 	datasetexists $TESTPOOL2 && destroy_pool $TESTPOOL2
 	typeset -i i=0
@@ -63,17 +63,21 @@ function cleanup
 		fi
 		((i += 1))
 	done
+	log_must rmdir $mntpnt
 }
 
 
 log_assert "Verify zpool export succeed or fail with spare."
 log_onexit cleanup
 
-mntpnt=$(get_prop mountpoint $TESTPOOL)
+mntpnt=$TESTDIR0
+log_must mkdir -p $mntpnt
+
+# mntpnt=$(get_prop mountpoint $TESTPOOL)
 
 typeset -i i=0
 while ((i < 5)); do
-	log_must mkfile $MINVDEVSIZE $mntpnt/vdev$i
+	log_must truncate -s $MINVDEVSIZE $mntpnt/vdev$i
 	eval vdev$i=$mntpnt/vdev$i
 	((i += 1))
 done

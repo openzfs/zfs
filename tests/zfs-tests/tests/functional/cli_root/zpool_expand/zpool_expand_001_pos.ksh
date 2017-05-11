@@ -48,6 +48,11 @@
 
 verify_runnable "global"
 
+# See issue: https://github.com/zfsonlinux/zfs/issues/6065
+if is_linux; then
+	log_unsupported "Creating a pool containing a zvol may deadlock"
+fi
+
 function cleanup
 {
 	if poolexists $TESTPOOL1; then

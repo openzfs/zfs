@@ -45,6 +45,11 @@
 
 verify_runnable "global"
 
+# See issue: https://github.com/zfsonlinux/zfs/issues/6065
+if is_linux; then
+	log_unsupported "Creating a pool containing a zvol may deadlock"
+fi
+
 function cleanup
 {
 	poolexists $TESTPOOL && \
@@ -71,7 +76,7 @@ log_must poolexists "$TESTPOOL1"
 log_must zfs create -V $VOLSIZE $TESTPOOL1/$TESTVOL
 block_device_wait
 
-log_must zpool add "$TESTPOOL" /dev/zvol/dsk/$TESTPOOL1/$TESTVOL
+log_must zpool add "$TESTPOOL" $ZVOL_DEVDIR/$TESTPOOL1/$TESTVOL
 
 log_must vdevs_in_pool "$TESTPOOL" "$ZVOL_DEVDIR/$TESTPOOL1/$TESTVOL"
 

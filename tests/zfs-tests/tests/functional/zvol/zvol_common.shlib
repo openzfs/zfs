@@ -134,16 +134,3 @@ function is_zvol_dumpified
 	zdb -dddd $volume 2 | grep "dumpsize" > /dev/null 2>&1
 	return $?
 }
-
-function is_swap_inuse
-{
-	typeset device=$1
-
-	if [[ -z $device ]] ; then
-		log_note "No device specified."
-		return 1
-	fi
-
-	swap -l | grep -w $device > /dev/null 2>&1
-	return $?
-}
