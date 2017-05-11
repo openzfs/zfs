@@ -425,16 +425,12 @@ BIO_END_IO_PROTO(vdev_disk_physio_completion, bio, error)
 	dio_request_t *dr = bio->bi_private;
 	int rc;
 
-	if (dr->dr_error == 0) {
+	if (dr->dr_error == 0)
 #ifdef HAVE_1ARG_BIO_END_IO_T
 		dr->dr_error = -(bio->bi_error);
 #else
-		if (error)
-			dr->dr_error = -(error);
-		else if (!test_bit(BIO_UPTODATE, &bio->bi_flags))
-			dr->dr_error = EIO;
+		dr->dr_error = -(error);
 #endif
-	}
 
 	/* Drop reference acquired by __vdev_disk_physio */
 	rc = vdev_disk_dio_put(dr);
