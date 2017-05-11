@@ -670,6 +670,17 @@ Threshold for the number of block ditto copies. If the reference count for a ded
 .sp
 .ne 2
 .na
+\fB\fBdedupditto\fR=\fB\fInumber\fR\fR
+.ad
+.sp .6
+.RS 4n
+Threshold for the number of block ditto copies. If the reference count for a deduplicated block increases above this number, a new ditto copy of this block is automatically stored. The default setting is 0 which causes no ditto copies to be created for deduplicated blocks.  The miniumum legal nonzero setting is 100.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
 \fB\fBdelegation\fR=\fBon\fR | \fBoff\fR\fR
 .ad
 .sp .6
