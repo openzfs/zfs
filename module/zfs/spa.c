@@ -8347,7 +8347,7 @@ spa_trim_update_time_sync(void *arg, dmu_tx_t *tx)
  * Passing UINT64_MAX for either start_time or stop_time means that no
  * update to that value should be recorded.
  */
-static dmu_tx_t *
+static void
 spa_trim_update_time(spa_t *spa, uint64_t start_time, uint64_t stop_time)
 {
 	int err;
@@ -8362,12 +8362,11 @@ spa_trim_update_time(spa_t *spa, uint64_t start_time, uint64_t stop_time)
 	err = dmu_tx_assign(tx, TXG_WAIT);
 	if (err) {
 		dmu_tx_abort(tx);
-		return (NULL);
+		return;
 	}
 	dsl_sync_task_nowait(spa_get_dsl(spa), spa_trim_update_time_sync,
 	    spa, 1, ZFS_SPACE_CHECK_RESERVED, tx);
-
-	return (tx);
+	dmu_tx_commit(tx);
 }
 
 /*
@@ -8415,11 +8414,8 @@ spa_man_trim(spa_t *spa, uint64_t rate)
 		    (void (*)(void *))vdev_man_trim, vti, TQ_SLEEP);
 	}
 	spa_config_exit(spa, SCL_CONFIG, FTAG);
-	time_update_tx = spa_trim_update_time(spa, gethrestime_sec(), 0);
+	spa_trim_update_time(spa, gethrestime_sec(), 0);
 	mutex_exit(&spa->spa_man_trim_lock);
-	/* mustn't hold spa_man_trim_lock to prevent deadlock /w syncing ctx */
-	if (time_update_tx != NULL)
-		dmu_tx_commit(time_update_tx);
 }
 
 /*
@@ -8501,24 +8497,20 @@ spa_get_trim_prog(spa_t *spa, uint64_t *prog, uint64_t *rate,
 static void
 spa_vdev_man_trim_done(spa_t *spa)
 {
-	dmu_tx_t *time_update_tx = NULL;
-
 	mutex_enter(&spa->spa_man_trim_lock);
 	ASSERT(spa->spa_num_man_trimming > 0);
 	spa->spa_num_man_trimming--;
 	if (spa->spa_num_man_trimming == 0) {
 		/* if we were interrupted, leave stop_time at zero */
-		if (!spa->spa_man_trim_stop)
-			time_update_tx = spa_trim_update_time(spa, UINT64_MAX,
+		if (!spa->spa_man_trim_stop) {
+			spa_trim_update_time(spa, UINT64_MAX,
 			    gethrestime_sec());
+		}
 		spa_event_notify(spa, NULL, NULL, ESC_ZFS_TRIM_FINISH);
 		spa_async_request(spa, SPA_ASYNC_MAN_TRIM_TASKQ_DESTROY);
 		cv_broadcast(&spa->spa_man_trim_done_cv);
 	}
 	mutex_exit(&spa->spa_man_trim_lock);
-
-	if (time_update_tx != NULL)
-		dmu_tx_commit(time_update_tx);
 }
 
 /*
@@ -8538,13 +8530,15 @@ spa_vdev_auto_trim_done(spa_t *spa)
 
 /*
  * Determines the minimum sensible rate at which a manual TRIM can be
- * performed on a given spa and returns it. Since we perform TRIM in
- * metaslab-sized increments, we'll just let the longest step between
- * metaslab TRIMs be 100s (random number, really). Thus, on a typical
- * 200-metaslab vdev, the longest TRIM should take is about 5.5 hours.
- * It *can* take longer if the device is really slow respond to
- * zio_trim() commands or it contains more than 200 metaslabs, or
- * metaslab sizes vary widely between top-level vdevs.
+ * performed on a given spa and returns it (in bytes per second). The
+ * value is calculated by assuming that TRIMming a metaslab should take
+ * no more than 1000s. The exact value here is not important, we just want
+ * to make sure that the calculated delay values in vdev_man_trim aren't
+ * too large (which might cause integer precision issues). Thus, on a
+ * typical 200-metaslab vdev, the longest TRIM should take is about 55
+ * hours. It *can* take longer if the device is really slow respond to
+ * zio_trim() commands or it contains more than 200 metaslabs, or metaslab
+ * sizes vary widely between top-level vdevs.
  */
 static uint64_t
 spa_min_trim_rate(spa_t *spa)
@@ -8560,8 +8554,8 @@ spa_min_trim_rate(spa_t *spa)
 	spa_config_exit(spa, SCL_CONFIG, FTAG);
 	VERIFY(smallest_ms_sz != 0);
 
-	/* minimum TRIM rate is 1/100th of the smallest metaslab size */
-	return (smallest_ms_sz / 100);
+	/* minimum TRIM rate is 1/1000th of the smallest metaslab size */
+	return (smallest_ms_sz / 1000);
 }
 
 #if defined(_KERNEL)
