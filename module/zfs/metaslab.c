@@ -2100,21 +2100,10 @@ metaslab_condense(metaslab_t *msp, uint64_t txg, dmu_tx_t *tx)
 	range_tree_vacate(condense_tree, NULL, NULL);
 	range_tree_destroy(condense_tree);
 
-	if (msp->ms_trimming_ts == NULL) {
-		space_map_write(sm, msp->ms_tree, SM_FREE, tx);
-	} else {
-		/*
-		 * While trimming, the stuff being trimmed isn't in ms_tree,
-		 * but we still want our persistent state to reflect that. So
-		 * we construct a temporary union of the two trees.
-		 */
-		range_tree_t *rt = range_tree_create(NULL, NULL, &msp->ms_lock);
-		range_tree_walk(msp->ms_tree, range_tree_add, rt);
-		range_tree_walk(msp->ms_trimming_ts, range_tree_add, rt);
-		space_map_write(sm, rt, SM_FREE, tx);
-		range_tree_vacate(rt, NULL, NULL);
-		range_tree_destroy(rt);
-	}
+	space_map_write(sm, msp->ms_tree, SM_FREE, tx);
+	if (msp->ms_trimming_ts != NULL)
+		space_map_write(sm, msp->ms_trimming_ts, SM_FREE, tx);
+
 	msp->ms_condensing = B_FALSE;
 	cv_broadcast(&msp->ms_condensing_cv);
 }
@@ -3485,25 +3474,14 @@ metaslab_check_free(spa_t *spa, const blkptr_t *bp)
 		metaslab_t *msp = vd->vdev_ms[offset >> vd->vdev_ms_shift];
 
 		mutex_enter(&msp->ms_lock);
-		if (msp->ms_loaded) {
-			VERIFY(&msp->ms_lock == msp->ms_tree->rt_lock);
+		if (msp->ms_loaded)
 			range_tree_verify(msp->ms_tree, offset, size);
-			if (msp->ms_trimming_ts) {
-				range_tree_verify(msp->ms_trimming_ts,
-				    offset, size);
-			}
-#ifdef	DEBUG
-			VERIFY3P(&msp->ms_lock, ==, msp->ms_cur_ts->rt_lock);
-			range_tree_verify(msp->ms_cur_ts, offset, size);
-			if (msp->ms_prev_ts != NULL) {
-				VERIFY3P(&msp->ms_lock, ==,
-				    msp->ms_prev_ts->rt_lock);
-				range_tree_verify(msp->ms_prev_ts, offset,
-				    size);
-			}
-#endif
-		}
-
+		if (msp->ms_trimming_ts)
+			range_tree_verify(msp->ms_trimming_ts, offset, size);
+		ASSERT(msp->ms_cur_ts != NULL);
+		range_tree_verify(msp->ms_cur_ts, offset, size);
+		if (msp->ms_prev_ts != NULL)
+			range_tree_verify(msp->ms_prev_ts, offset, size);
 		range_tree_verify(msp->ms_freeingtree, offset, size);
 		range_tree_verify(msp->ms_freedtree, offset, size);
 		for (int j = 0; j < TXG_DEFER_SIZE; j++)
@@ -3514,17 +3492,32 @@ metaslab_check_free(spa_t *spa, const blkptr_t *bp)
 }
 
 /*
- * Trims all free space in the metaslab. Returns the root TRIM zio (that the
- * caller should zio_wait() for) and the amount of space in the metaslab that
- * has been scheduled for trimming in the `delta' return argument.
+ * This is used to trim all free space in a metaslab. The caller must
+ * initially set 'cursor' to the start offset of the metaslab. This function
+ * then walks the free space starting at or after this cursor and composes a
+ * TRIM zio for it. The function limits the number of bytes placed into the
+ * TRIM zio to at most zfs_max_bytes_per_trim. If the limit was hit before
+ * trimming all free space in the metaslab, the 'cursor' is updated to the
+ * last place we left off. The caller should keep calling this function in
+ * a loop as long as there is more space to trim. The function returns a TRIM
+ * zio that the caller should zio_wait for. If there is no more free space to
+ * trim in this metaslab, the function returns NULL instead. The 'delta'
+ * return argument contains the number of bytes scheduled for trimming in the
+ * returned TRIM zio.
+ * During execution, this function needs to load the metaslab. 'was_loaded'
+ * is an external state variable that is used to determine if the metaslab
+ * load was initiated by us and therefore whether we should unload the
+ * metaslab once we're done.
  */
 zio_t *
 metaslab_trim_all(metaslab_t *msp, uint64_t *cursor, uint64_t *delta,
     boolean_t *was_loaded)
 {
-	uint64_t cur = *cursor, trimmed_space = 0;
+	uint64_t cur = *cursor;
+	uint64_t trimmed_space = 0;
 	zio_t *trim_io = NULL;
-	range_seg_t rsearch, *rs;
+	range_seg_t rsearch;
+	range_seg_t *rs;
 	avl_index_t where;
 	const uint64_t max_bytes = zfs_max_bytes_per_trim;
 
@@ -3555,11 +3548,16 @@ metaslab_trim_all(metaslab_t *msp, uint64_t *cursor, uint64_t *delta,
 	}
 
 	/*
-	 * Flush out any scheduled extents and add everything in ms_tree
-	 * from the last cursor position, but not more than the trim run
-	 * limit.
+	 * Drop any scheduled extents and add everything in ms_tree from
+	 * the last cursor position, but not more than the trim run limit.
 	 */
 	range_tree_vacate(msp->ms_cur_ts, NULL, NULL);
+
+	/* Clear out ms_prev_ts, since we'll be trimming everything. */
+	if (msp->ms_prev_ts != NULL) {
+		metaslab_free_trimset(msp->ms_prev_ts);
+		msp->ms_prev_ts = NULL;
+	}
 
 	rsearch.rs_start = cur;
 	rsearch.rs_end = cur + SPA_MINBLOCKSIZE;
@@ -3568,12 +3566,6 @@ metaslab_trim_all(metaslab_t *msp, uint64_t *cursor, uint64_t *delta,
 		rs = avl_nearest(&msp->ms_tree->rt_root, where, AVL_AFTER);
 		if (rs != NULL)
 			cur = rs->rs_start;
-	}
-
-	/* Clear out ms_prev_ts, since we'll be trimming everything. */
-	if (msp->ms_prev_ts != NULL) {
-		metaslab_free_trimset(msp->ms_prev_ts);
-		msp->ms_prev_ts = NULL;
 	}
 
 	while (rs != NULL && trimmed_space < max_bytes) {
@@ -3644,6 +3636,11 @@ metaslab_trim_add(void *arg, uint64_t offset, uint64_t size)
 	range_tree_add(msp->ms_cur_ts, offset, size);
 	ASSERT(msp->ms_prev_ts == NULL ||
 	    !range_tree_contains_part(msp->ms_prev_ts, offset, size));
+	/*
+	 * This might have been called from the manual trim code path
+	 * while an autotrim is demolishing this extent, so we can't
+	 * ASSERT against ms_trimming_ts here.
+	 */
 }
 
 /*
@@ -3849,6 +3846,18 @@ metaslab_exec_trim(metaslab_t *msp, boolean_t auto_trim)
 		metaslab_free_trimset(msp->ms_trimming_ts);
 		msp->ms_trimming_ts = NULL;
 		return (zio_null(NULL, spa, NULL, NULL, NULL, 0));
+	}
+
+	if (msp->ms_loaded) {
+		/*
+		 * Recompute of the metaslab's weight & resort it. This is only
+		 * done when we're loaded, because then the trim_tree will have
+		 * affected ms_tree and its histogram. We cannot adjust the
+		 * histogram for the on-disk spacemap, however, because we
+		 * don't know which buckets to alter with what we have in
+		 * trim_tree.
+		 */
+		metaslab_group_sort(msp->ms_group, msp, metaslab_weight(msp));
 	}
 
 	if (auto_trim) {
