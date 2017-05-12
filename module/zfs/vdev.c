@@ -3887,7 +3887,7 @@ vdev_deadman(vdev_t *vd)
 void
 vdev_man_trim(vdev_trim_info_t *vti)
 {
-	clock_t t = ddi_get_lbolt();
+	hrtime_t t = gethrtime();
 	spa_t *spa = vti->vti_vdev->vdev_spa;
 	vdev_t *vd = vti->vti_vdev;
 	uint64_t i, cursor;
@@ -3926,19 +3926,20 @@ vdev_man_trim(vdev_trim_info_t *vti)
 		/* delay loop to handle fixed-rate trimming */
 		for (;;) {
 			uint64_t rate = spa->spa_man_trim_rate;
-			uint64_t sleep_delay;
-			clock_t t1;
+			hrtime_t sleep_delay;
+			hrtime_t t1;
 
 			if (rate == 0) {
 				/* No delay, just update 't' and move on. */
-				t = ddi_get_lbolt();
+				t = gethrtime();
 				break;
 			}
 
-			sleep_delay = (delta * hz) / rate;
+			sleep_delay = SEC2NSEC(delta) / rate;
 			mutex_enter(&spa->spa_man_trim_lock);
-			t1 = cv_timedwait(&spa->spa_man_trim_update_cv,
-			    &spa->spa_man_trim_lock, t + sleep_delay);
+			t1 = cv_timedwait_hires(&spa->spa_man_trim_update_cv,
+			    &spa->spa_man_trim_lock, t + sleep_delay,
+			    MSEC2NSEC(1), CALLOUT_FLAG_ABSOLUTE);
 			mutex_exit(&spa->spa_man_trim_lock);
 
 			/* If interrupted, don't try to relock, get out */
@@ -3981,19 +3982,26 @@ vdev_auto_trim(vdev_trim_info_t *vti)
 	uint64_t txg = vti->vti_txg;
 	uint64_t txgs_per_trim = zfs_txgs_per_trim;
 	uint64_t mlim = 0, mused = 0;
-	boolean_t limited;
+	boolean_t preserve_spilled;
 
 	ASSERT3P(vd->vdev_top, ==, vd);
 
 	if (vd->vdev_man_trimming)
 		goto out;
 
+	/*
+	 * In case trimming is slow and the previous trim run has no yet
+	 * finished, we order metaslab_auto_trim to keep the extents that
+	 * were about to be trimmed so that they can be trimmed in a future
+	 * autotrim run. But we only do so if the amount of memory consumed
+	 * by the extents doesn't exceed a threshold, otherwise we drop them.
+	 */
 	spa_config_enter(spa, SCL_STATE_ALL, FTAG, RW_READER);
 	for (uint64_t i = 0; i < vd->vdev_ms_count; i++)
 		mused += metaslab_trim_mem_used(vd->vdev_ms[i]);
 	mlim = (physmem * PAGESIZE) / (zfs_trim_mem_lim_fact *
 	    spa->spa_root_vdev->vdev_children);
-	limited = mused > mlim;
+	preserve_spilled = mused < mlim;
 	DTRACE_PROBE3(autotrim__mem__lim, vdev_t *, vd, uint64_t, mused,
 	    uint64_t, mlim);
 
@@ -4008,7 +4016,7 @@ vdev_auto_trim(vdev_trim_info_t *vti)
 	 */
 	for (uint64_t i = txg % txgs_per_trim; i < vd->vdev_ms_count;
 	    i += txgs_per_trim)
-		metaslab_auto_trim(vd->vdev_ms[i], !limited);
+		metaslab_auto_trim(vd->vdev_ms[i], preserve_spilled);
 
 	spa_config_exit(spa, SCL_STATE_ALL, FTAG);
 
