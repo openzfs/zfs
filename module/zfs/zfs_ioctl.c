@@ -2758,54 +2758,12 @@ zfs_ioc_inherit_prop(zfs_cmd_t *zc)
 	zprop_source_t source = (received
 	    ? ZPROP_SRC_NONE		/* revert to received value, if any */
 	    : ZPROP_SRC_INHERITED);	/* explicitly inherit */
+	nvlist_t *dummy;
+	nvpair_t *pair;
+	zprop_type_t type;
+	int err;
 
-	if (received) {
-		nvlist_t *dummy;
-		nvpair_t *pair;
-		zprop_type_t type;
-		int err;
-
-		/*
-		 * zfs_prop_set_special() expects properties in the form of an
-		 * nvpair with type info.
-		 */
-		if (prop == ZPROP_INVAL) {
-			if (!zfs_prop_user(propname))
-				return (SET_ERROR(EINVAL));
-
-			type = PROP_TYPE_STRING;
-		} else if (prop == ZFS_PROP_VOLSIZE ||
-		    prop == ZFS_PROP_VERSION) {
-			return (SET_ERROR(EINVAL));
-		} else {
-			type = zfs_prop_get_type(prop);
-		}
-
-		VERIFY(nvlist_alloc(&dummy, NV_UNIQUE_NAME, KM_SLEEP) == 0);
-
-		switch (type) {
-		case PROP_TYPE_STRING:
-			VERIFY(0 == nvlist_add_string(dummy, propname, ""));
-			break;
-		case PROP_TYPE_NUMBER:
-		case PROP_TYPE_INDEX:
-			VERIFY(0 == nvlist_add_uint64(dummy, propname, 0));
-			break;
-		default:
-			nvlist_free(dummy);
-			return (SET_ERROR(EINVAL));
-		}
-
-		pair = nvlist_next_nvpair(dummy, NULL);
-		if (pair == NULL) {
-			nvlist_free(dummy);
-			return (SET_ERROR(EINVAL));
-		}
-		err = zfs_prop_set_special(zc->zc_name, source, pair);
-		nvlist_free(dummy);
-		if (err != -1)
-			return (err); /* special property already handled */
-	} else {
+	if (!received) {
 		/*
 		 * Only check this in the non-received case. We want to allow
 		 * 'inherit -S' to revert non-inheritable properties like quota
@@ -2816,8 +2774,49 @@ zfs_ioc_inherit_prop(zfs_cmd_t *zc)
 			return (SET_ERROR(EINVAL));
 	}
 
-	/* property name has been validated by zfs_secpolicy_inherit_prop() */
-	return (dsl_prop_inherit(zc->zc_name, zc->zc_value, source));
+	if (prop == ZPROP_INVAL) {
+		if (!zfs_prop_user(propname))
+			return (SET_ERROR(EINVAL));
+
+		type = PROP_TYPE_STRING;
+	} else if (prop == ZFS_PROP_VOLSIZE || prop == ZFS_PROP_VERSION) {
+		return (SET_ERROR(EINVAL));
+	} else {
+		type = zfs_prop_get_type(prop);
+	}
+
+	/*
+	 * zfs_prop_set_special() expects properties in the form of an
+	 * nvpair with type info.
+	 */
+	dummy = fnvlist_alloc();
+
+	switch (type) {
+	case PROP_TYPE_STRING:
+		VERIFY(0 == nvlist_add_string(dummy, propname, ""));
+		break;
+	case PROP_TYPE_NUMBER:
+	case PROP_TYPE_INDEX:
+		VERIFY(0 == nvlist_add_uint64(dummy, propname, 0));
+		break;
+	default:
+		err = SET_ERROR(EINVAL);
+		goto errout;
+	}
+
+	pair = nvlist_next_nvpair(dummy, NULL);
+	if (pair == NULL) {
+		err = SET_ERROR(EINVAL);
+	} else {
+		err = zfs_prop_set_special(zc->zc_name, source, pair);
+		if (err == -1) /* property is not "special", needs handling */
+			err = dsl_prop_inherit(zc->zc_name, zc->zc_value,
+			    source);
+	}
+
+errout:
+	nvlist_free(dummy);
+	return (err);
 }
 
 static int

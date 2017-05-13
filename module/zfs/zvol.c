@@ -2136,20 +2136,18 @@ zvol_set_snapdev_check(void *arg, dmu_tx_t *tx)
 	return (error);
 }
 
+/* ARGSUSED */
 static int
 zvol_set_snapdev_sync_cb(dsl_pool_t *dp, dsl_dataset_t *ds, void *arg)
 {
-	zvol_set_snapdev_arg_t *zsda = arg;
 	char dsname[MAXNAMELEN];
 	zvol_task_t *task;
+	uint64_t snapdev;
 
 	dsl_dataset_name(ds, dsname);
-	dsl_prop_set_sync_impl(ds, zfs_prop_to_name(ZFS_PROP_SNAPDEV),
-	    zsda->zsda_source, sizeof (zsda->zsda_value), 1,
-	    &zsda->zsda_value, zsda->zsda_tx);
-
-	task = zvol_task_alloc(ZVOL_ASYNC_SET_SNAPDEV, dsname,
-	    NULL, zsda->zsda_value);
+	if (dsl_prop_get_int_ds(ds, "snapdev", &snapdev) != 0)
+		return (0);
+	task = zvol_task_alloc(ZVOL_ASYNC_SET_SNAPDEV, dsname, NULL, snapdev);
 	if (task == NULL)
 		return (0);
 
@@ -2159,7 +2157,11 @@ zvol_set_snapdev_sync_cb(dsl_pool_t *dp, dsl_dataset_t *ds, void *arg)
 }
 
 /*
- * Traverse all child snapshot datasets and apply snapdev appropriately.
+ * Traverse all child datasets and apply snapdev appropriately.
+ * We call dsl_prop_set_sync_impl() here to set the value only on the toplevel
+ * dataset and read the effective "snapdev" on every child in the callback
+ * function: this is because the value is not guaranteed to be the same in the
+ * whole dataset hierarchy.
  */
 static void
 zvol_set_snapdev_sync(void *arg, dmu_tx_t *tx)
@@ -2167,10 +2169,19 @@ zvol_set_snapdev_sync(void *arg, dmu_tx_t *tx)
 	zvol_set_snapdev_arg_t *zsda = arg;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	dsl_dir_t *dd;
+	dsl_dataset_t *ds;
+	int error;
 
 	VERIFY0(dsl_dir_hold(dp, zsda->zsda_name, FTAG, &dd, NULL));
 	zsda->zsda_tx = tx;
 
+	error = dsl_dataset_hold(dp, zsda->zsda_name, FTAG, &ds);
+	if (error == 0) {
+		dsl_prop_set_sync_impl(ds, zfs_prop_to_name(ZFS_PROP_SNAPDEV),
+		    zsda->zsda_source, sizeof (zsda->zsda_value), 1,
+		    &zsda->zsda_value, zsda->zsda_tx);
+		dsl_dataset_rele(ds, FTAG);
+	}
 	dmu_objset_find_dp(dp, dd->dd_object, zvol_set_snapdev_sync_cb,
 	    zsda, DS_FIND_CHILDREN);
 
