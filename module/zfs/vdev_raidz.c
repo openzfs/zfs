@@ -330,18 +330,18 @@ static const zio_vsd_ops_t vdev_raidz_vsd_ops = {
  * is this functions only caller, as small as possible on the stack.
  */
 noinline raidz_map_t *
-vdev_raidz_map_alloc(zio_t *zio, uint64_t unit_shift, uint64_t dcols,
+vdev_raidz_map_alloc(zio_t *zio, uint64_t ashift, uint64_t dcols,
     uint64_t nparity)
 {
 	raidz_map_t *rm;
 	/* The starting RAIDZ (parent) vdev sector of the block. */
-	uint64_t b = zio->io_offset >> unit_shift;
+	uint64_t b = zio->io_offset >> ashift;
 	/* The zio's size in units of the vdev's minimum sector size. */
-	uint64_t s = zio->io_size >> unit_shift;
+	uint64_t s = zio->io_size >> ashift;
 	/* The first column for this stripe. */
 	uint64_t f = b % dcols;
 	/* The starting byte offset on each child vdev. */
-	uint64_t o = (b / dcols) << unit_shift;
+	uint64_t o = (b / dcols) << ashift;
 	uint64_t q, r, c, bc, col, acols, scols, coff, devidx, asize, tot;
 	uint64_t off = 0;
 
@@ -400,7 +400,7 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t unit_shift, uint64_t dcols,
 		coff = o;
 		if (col >= dcols) {
 			col -= dcols;
-			coff += 1ULL << unit_shift;
+			coff += 1ULL << ashift;
 		}
 		rm->rm_col[c].rc_devidx = col;
 		rm->rm_col[c].rc_offset = coff;
@@ -413,17 +413,17 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t unit_shift, uint64_t dcols,
 		if (c >= acols)
 			rm->rm_col[c].rc_size = 0;
 		else if (c < bc)
-			rm->rm_col[c].rc_size = (q + 1) << unit_shift;
+			rm->rm_col[c].rc_size = (q + 1) << ashift;
 		else
-			rm->rm_col[c].rc_size = q << unit_shift;
+			rm->rm_col[c].rc_size = q << ashift;
 
 		asize += rm->rm_col[c].rc_size;
 	}
 
-	ASSERT3U(asize, ==, tot << unit_shift);
-	rm->rm_asize = roundup(asize, (nparity + 1) << unit_shift);
+	ASSERT3U(asize, ==, tot << ashift);
+	rm->rm_asize = roundup(asize, (nparity + 1) << ashift);
 	rm->rm_nskip = roundup(tot, nparity + 1) - tot;
-	ASSERT3U(rm->rm_asize - asize, ==, rm->rm_nskip << unit_shift);
+	ASSERT3U(rm->rm_asize - asize, ==, rm->rm_nskip << ashift);
 	ASSERT3U(rm->rm_nskip, <=, nparity);
 
 	for (c = 0; c < rm->rm_firstdatacol; c++)
@@ -2299,6 +2299,44 @@ vdev_raidz_state_change(vdev_t *vd, int faulted, int degraded)
 		vdev_set_state(vd, B_FALSE, VDEV_STATE_HEALTHY, VDEV_AUX_NONE);
 }
 
+/*
+ * Determine if any portion of the provided block resides on a child vdev
+ * with a dirty DTL and therefore needs to be resilvered.  The function
+ * assumes that at least one DTL is dirty which imples that full stripe
+ * width blocks must be resilvered.
+ */
+static boolean_t
+vdev_raidz_need_resilver(vdev_t *vd, uint64_t offset, size_t psize)
+{
+	uint64_t dcols = vd->vdev_children;
+	uint64_t nparity = vd->vdev_nparity;
+	uint64_t ashift = vd->vdev_top->vdev_ashift;
+	/* The starting RAIDZ (parent) vdev sector of the block. */
+	uint64_t b = offset >> ashift;
+	/* The zio's size in units of the vdev's minimum sector size. */
+	uint64_t s = ((psize - 1) >> ashift) + 1;
+	/* The first column for this stripe. */
+	uint64_t f = b % dcols;
+
+	if (s + nparity >= dcols)
+		return (B_TRUE);
+
+	for (uint64_t c = 0; c < s + nparity; c++) {
+		uint64_t devidx = (f + c) % dcols;
+		vdev_t *cvd = vd->vdev_child[devidx];
+
+		/*
+		 * dsl_scan_need_resilver() already checked vd with
+		 * vdev_dtl_contains(). So here just check cvd with
+		 * vdev_dtl_empty(), cheaper and a good approximation.
+		 */
+		if (!vdev_dtl_empty(cvd, DTL_PARTIAL))
+			return (B_TRUE);
+	}
+
+	return (B_FALSE);
+}
+
 vdev_ops_t vdev_raidz_ops = {
 	vdev_raidz_open,
 	vdev_raidz_close,
@@ -2306,6 +2344,7 @@ vdev_ops_t vdev_raidz_ops = {
 	vdev_raidz_io_start,
 	vdev_raidz_io_done,
 	vdev_raidz_state_change,
+	vdev_raidz_need_resilver,
 	NULL,
 	NULL,
 	VDEV_TYPE_RAIDZ,	/* name of this vdev type */
