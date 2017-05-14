@@ -2085,14 +2085,15 @@ ztest_get_done(zgd_t *zgd, int error)
 	ztest_object_unlock(zd, object);
 
 	if (error == 0 && zgd->zgd_bp)
-		zil_add_block(zgd->zgd_zilog, zgd->zgd_bp);
+		zil_add_block(zgd->zgd_zilw, zgd->zgd_bp);
 
 	umem_free(zgd, sizeof (*zgd));
 	umem_free(zzp, sizeof (*zzp));
 }
 
 static int
-ztest_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
+ztest_get_data(void *arg, struct zil_writer *zilw, lr_write_t *lr, char *buf,
+    zio_t *zio)
 {
 	ztest_ds_t *zd = arg;
 	objset_t *os = zd->zd_os;
@@ -2129,6 +2130,7 @@ ztest_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
 
 	zgd = umem_zalloc(sizeof (*zgd), UMEM_NOFAIL);
 	zgd->zgd_zilog = zd->zd_zilog;
+	zgd->zgd_zilw = zilw;
 	zgd_private = umem_zalloc(sizeof (ztest_zgd_private_t), UMEM_NOFAIL);
 	zgd_private->z_zd = zd;
 	zgd_private->z_object = object;
