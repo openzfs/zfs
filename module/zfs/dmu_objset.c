@@ -1706,6 +1706,7 @@ dmu_objset_userquota_get_ids(dnode_t *dn, boolean_t before, dmu_tx_t *tx)
 	int flags = dn->dn_id_flags;
 	int error;
 	boolean_t have_spill = B_FALSE;
+	boolean_t have_bonus = B_FALSE;
 
 	if (!dmu_objset_userused_enabled(dn->dn_objset))
 		return;
@@ -1717,8 +1718,21 @@ dmu_objset_userquota_get_ids(dnode_t *dn, boolean_t before, dmu_tx_t *tx)
 	if (before && dn->dn_bonuslen != 0)
 		data = DN_BONUS(dn->dn_phys);
 	else if (!before && dn->dn_bonuslen != 0) {
-		if (dn->dn_bonus) {
-			db = dn->dn_bonus;
+		db = dn->dn_bonus;
+		if (db != NULL) {
+			if (!RW_WRITE_HELD(&dn->dn_struct_rwlock)) {
+				have_bonus = dbuf_try_add_ref((dmu_buf_t *)db,
+				    dn->dn_objset, dn->dn_object,
+				    DMU_BONUS_BLKID, FTAG);
+
+				/*
+				 * The hold will fail if the buffer is
+				 * being evicted due to unlink, in which
+				 * case nothing needs to be done.
+				 */
+				if (!have_bonus)
+					return;
+			}
 			mutex_enter(&db->db_mtx);
 			data = dmu_objset_userquota_find_data(db, tx);
 		} else {
@@ -1793,7 +1807,7 @@ dmu_objset_userquota_get_ids(dnode_t *dn, boolean_t before, dmu_tx_t *tx)
 		dn->dn_id_flags |= DN_ID_CHKED_BONUS;
 	}
 	mutex_exit(&dn->dn_mtx);
-	if (have_spill)
+	if (have_spill || have_bonus)
 		dmu_buf_rele((dmu_buf_t *)db, FTAG);
 }
 
