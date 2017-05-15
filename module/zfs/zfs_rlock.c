@@ -202,7 +202,7 @@ zfs_range_proxify(avl_tree_t *tree, rl_t *rl)
 	rl->r_cnt = 0;
 
 	/* create a proxy range lock */
-	proxy = kmem_alloc(sizeof (rl_t), KM_SLEEP);
+	proxy = kmem_alloc(sizeof (rl_t), KM_PUSHPAGE);
 	proxy->r_off = rl->r_off;
 	proxy->r_len = rl->r_len;
 	proxy->r_cnt = 1;
@@ -231,7 +231,7 @@ zfs_range_split(avl_tree_t *tree, rl_t *rl, uint64_t off)
 	ASSERT(rl->r_read_wanted == B_FALSE);
 
 	/* create the rear proxy range lock */
-	rear = kmem_alloc(sizeof (rl_t), KM_SLEEP);
+	rear = kmem_alloc(sizeof (rl_t), KM_PUSHPAGE);
 	rear->r_off = off;
 	rear->r_len = rl->r_off + rl->r_len - off;
 	rear->r_cnt = rl->r_cnt;
