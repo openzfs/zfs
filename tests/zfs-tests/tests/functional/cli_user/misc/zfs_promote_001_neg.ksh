@@ -50,7 +50,7 @@ log_mustnot zfs promote $TESTPOOL/$TESTFS/clone
 # Now verify that the above command didn't do anything
 if datasetexists $TESTPOOL/$TESTFS/clone@snap
 then
-	log_fail "Clone $TESTPOOl/$TESTFS/clone was actually promoted!"
+	log_fail "Clone $TESTPOOL/$TESTFS/clone was actually promoted!"
 fi
 
 log_pass "zfs promote returns an error when run as a user"

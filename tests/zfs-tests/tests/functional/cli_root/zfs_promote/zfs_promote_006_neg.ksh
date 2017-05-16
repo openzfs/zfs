@@ -53,7 +53,7 @@ snap=$TESTPOOL/$TESTFS@$TESTSNAP
 set -A args "" \
 	"$TESTPOOL/blah" \
 	"$TESTPOOL" "$TESTPOOL/$TESTFS" "$snap" \
-	"$TESTPOOL/$TESTVOL" "$TESTPOL $TESTPOOL/$TESTFS" \
+	"$TESTPOOL/$TESTVOL" "$TESTPOOL $TESTPOOL/$TESTFS" \
 	"$clone $TESTPOOL/$TESTFS" "- $clone" "-? $clone"
 
 function cleanup
