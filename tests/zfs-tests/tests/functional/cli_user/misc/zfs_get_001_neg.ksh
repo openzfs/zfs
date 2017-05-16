@@ -41,7 +41,6 @@
 # 1. Run zfs get with an array of different arguments
 # 2. Verify for each property, we get the value that's expected
 #
-#
 
 log_assert "zfs get works when run as a user"
 
@@ -50,16 +49,16 @@ typeset -i i=0
 set -A props $PROP_NAMES
 set -A prop_vals $PROP_VALS
 
-while [[ $i -lt ${#args[*]} ]]
+while [[ $i -lt ${#props[*]} ]]
 do
 	PROP=${props[$i]}
 	EXPECTED=${prop_vals[$i]}
-	ACTUAL=$( zfs get $PROP -o value -H snapdir $TESTPOOl/$TESTFS/prop )
+	ACTUAL=$(zfs get -H -o value $PROP $TESTPOOL/$TESTFS/prop)
 	if [ "$ACTUAL" != "$EXPECTED" ]
 	then
 		log_fail "Property $PROP value was $ACTUAL, expected $EXPECTED"
 	fi
-        i=$(( $i + 1 ))
+	i=$(( $i + 1 ))
 done
 
 log_pass "zfs get works when run as a user"
