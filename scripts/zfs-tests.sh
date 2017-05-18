@@ -401,6 +401,8 @@ constrain_path
 # Check if ksh exists
 #
 [ -e "$STF_PATH/ksh" ] || fail "This test suite requires ksh."
+[ -e "$STF_SUITE/include/default.cfg" ] || fail \
+    "Missing $STF_SUITE/include/default.cfg file."
 
 #
 # Verify the ZFS module stack if loaded.
