@@ -3890,6 +3890,7 @@ vdev_man_trim(vdev_trim_info_t *vti)
 	hrtime_t t = gethrtime();
 	spa_t *spa = vti->vti_vdev->vdev_spa;
 	vdev_t *vd = vti->vti_vdev;
+	uint64_t ms_count;
 	uint64_t i, cursor;
 	boolean_t was_loaded = B_FALSE;
 
@@ -3897,20 +3898,22 @@ vdev_man_trim(vdev_trim_info_t *vti)
 	vd->vdev_trim_prog = 0;
 
 	spa_config_enter(spa, SCL_STATE_ALL, FTAG, RW_READER);
+	ms_count = vd->vdev_ms_count;
+	spa_config_exit(spa, SCL_STATE_ALL, FTAG);
+
 	ASSERT(vd->vdev_ms[0] != NULL);
 	cursor = vd->vdev_ms[0]->ms_start;
 	i = 0;
-	while (i < vti->vti_vdev->vdev_ms_count && !spa->spa_man_trim_stop) {
+	while (i < ms_count && !spa->spa_man_trim_stop) {
 		uint64_t delta;
 		metaslab_t *msp = vd->vdev_ms[i];
 		zio_t *trim_io;
 
 		trim_io = metaslab_trim_all(msp, &cursor, &delta, &was_loaded);
-		spa_config_exit(spa, SCL_STATE_ALL, FTAG);
 
 		if (trim_io != NULL) {
 			ASSERT3U(cursor, >=, vd->vdev_ms[0]->ms_start);
-			vd->vdev_trim_prog = cursor - vd->vdev_ms[0]->ms_start;
+			vd->vdev_trim_prog += delta;
 			(void) zio_wait(trim_io);
 		} else {
 			/*
@@ -3952,17 +3955,8 @@ vdev_man_trim(vdev_trim_info_t *vti)
 				break;
 			}
 		}
-		spa_config_enter(spa, SCL_STATE_ALL, FTAG, RW_READER);
 	}
-	spa_config_exit(spa, SCL_STATE_ALL, FTAG);
 out:
-	/*
-	 * Ensure we're marked as "completed" even if we've had to stop
-	 * before processing all metaslabs.
-	 */
-	mutex_enter(&vd->vdev_stat_lock);
-	vd->vdev_trim_prog = vd->vdev_stat.vs_space;
-	mutex_exit(&vd->vdev_stat_lock);
 	vd->vdev_man_trimming = B_FALSE;
 
 	ASSERT(vti->vti_done_cb != NULL);
@@ -3982,6 +3976,7 @@ vdev_auto_trim(vdev_trim_info_t *vti)
 	uint64_t txg = vti->vti_txg;
 	uint64_t txgs_per_trim = zfs_txgs_per_trim;
 	uint64_t mlim = 0, mused = 0;
+	uint64_t ms_count = vd->vdev_ms_count;
 	boolean_t preserve_spilled;
 
 	ASSERT3P(vd->vdev_top, ==, vd);
@@ -3996,8 +3991,7 @@ vdev_auto_trim(vdev_trim_info_t *vti)
 	 * autotrim run. But we only do so if the amount of memory consumed
 	 * by the extents doesn't exceed a threshold, otherwise we drop them.
 	 */
-	spa_config_enter(spa, SCL_STATE_ALL, FTAG, RW_READER);
-	for (uint64_t i = 0; i < vd->vdev_ms_count; i++)
+	for (uint64_t i = 0; i < ms_count; i++)
 		mused += metaslab_trim_mem_used(vd->vdev_ms[i]);
 	mlim = (physmem * PAGESIZE) / (zfs_trim_mem_lim_fact *
 	    spa->spa_root_vdev->vdev_children);
@@ -4014,11 +4008,8 @@ vdev_auto_trim(vdev_trim_info_t *vti)
 	 * txgs_per_trim. Thus, for the default 200 metaslabs and 32
 	 * txgs_per_trim, we'll only be trimming ~6.25 metaslabs per txg.
 	 */
-	for (uint64_t i = txg % txgs_per_trim; i < vd->vdev_ms_count;
-	    i += txgs_per_trim)
+	for (uint64_t i = txg % txgs_per_trim; i < ms_count; i += txgs_per_trim)
 		metaslab_auto_trim(vd->vdev_ms[i], preserve_spilled);
-
-	spa_config_exit(spa, SCL_STATE_ALL, FTAG);
 
 out:
 	ASSERT(vti->vti_done_cb != NULL);
@@ -4075,6 +4066,16 @@ vdev_trim_stop_wait(vdev_t *vd)
 	trim_stop_set(vd, B_TRUE);
 	trim_stop_wait(vd);
 	trim_stop_set(vd, B_FALSE);
+}
+
+/*
+ * Returns true if a management operation (such as attach/add) is trying to
+ * grab this vdev and therefore any ongoing trims should be canceled.
+ */
+boolean_t
+vdev_trim_should_stop(vdev_t *vd)
+{
+	return (vd->vdev_trim_zios_stop);
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)

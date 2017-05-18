@@ -7537,7 +7537,7 @@ static void
 spa_vdev_auto_trim_done(spa_t *spa)
 {
 	mutex_enter(&spa->spa_auto_trim_lock);
-	ASSERT(spa->spa_num_auto_trimming > 0);
+	VERIFY(spa->spa_num_auto_trimming > 0);
 	spa->spa_num_auto_trimming--;
 	if (spa->spa_num_auto_trimming == 0)
 		cv_broadcast(&spa->spa_auto_trim_done_cv);
