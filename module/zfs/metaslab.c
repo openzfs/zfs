@@ -2479,7 +2479,8 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 	metaslab_class_histogram_verify(mg->mg_class);
 	metaslab_group_histogram_remove(mg, msp);
 
-	if (msp->ms_loaded && metaslab_should_condense(msp)) {
+	if (msp->ms_loaded && spa_sync_pass(spa) == 1 &&
+	    metaslab_should_condense(msp) && msp->ms_trimming_ts == NULL) {
 		metaslab_condense(msp, txg, tx);
 	} else {
 		mutex_exit(&msp->ms_lock);
@@ -4366,9 +4367,6 @@ metaslab_trim_all(metaslab_t *msp, uint64_t *cursor, uint64_t *delta,
 
 	mutex_enter(&msp->ms_lock);
 
-	while (msp->ms_condensing)
-		cv_wait(&msp->ms_condensing_cv, &msp->ms_lock);
-
 	while (msp->ms_loading)
 		metaslab_load_wait(msp);
 	/*
@@ -4608,6 +4606,7 @@ metaslab_trim_done(zio_t *zio)
 	held = MUTEX_HELD(&msp->ms_lock);
 	if (!held)
 		mutex_enter(&msp->ms_lock);
+	VERIFY(!msp->ms_condensing);
 	if (msp->ms_loaded) {
 		range_tree_walk(msp->ms_trimming_ts, range_tree_add,
 		    msp->ms_tree);
@@ -4649,12 +4648,35 @@ metaslab_exec_trim(metaslab_t *msp, boolean_t auto_trim)
 	const enum zio_flag trim_flags = ZIO_FLAG_CANFAIL |
 	    ZIO_FLAG_DONT_PROPAGATE | ZIO_FLAG_DONT_RETRY |
 	    ZIO_FLAG_CONFIG_WRITER;
+	zio_t *zio = NULL;
 
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
 
+	/*
+	 * TRIM and condense are mutually exclusive, because during TRIM
+	 * we're manipulating ms_tree to remove the extents that we're
+	 * currently trimming. Metaslab condensing takes priority.
+	 */
+	while (msp->ms_condensing)
+		cv_wait(&msp->ms_condensing_cv, &msp->ms_lock);
+
 	/* wait for a preceding trim to finish */
-	while (msp->ms_trimming_ts != NULL)
+	while (msp->ms_trimming_ts != NULL && !vdev_trim_should_stop(vd))
 		cv_wait(&msp->ms_trim_cv, &msp->ms_lock);
+
+	spa_config_enter(spa, SCL_STATE_ALL, FTAG, RW_READER);
+
+	/*
+	 * If a management operation is about to happen, we need to stop
+	 * pushing new trims into the pipeline.
+	 */
+	if (vdev_trim_should_stop(vd)) {
+		metaslab_free_trimset(msp->ms_prev_ts);
+		msp->ms_prev_ts = NULL;
+		zio = zio_null(NULL, spa, NULL, NULL, NULL, 0);
+		goto out;
+	}
+
 	msp->ms_trimming_ts = msp->ms_prev_ts;
 	msp->ms_prev_ts = NULL;
 	trim_tree = msp->ms_trimming_ts;
@@ -4684,7 +4706,8 @@ metaslab_exec_trim(metaslab_t *msp, boolean_t auto_trim)
 	if (range_tree_space(trim_tree) == 0) {
 		metaslab_free_trimset(msp->ms_trimming_ts);
 		msp->ms_trimming_ts = NULL;
-		return (zio_null(NULL, spa, NULL, NULL, NULL, 0));
+		zio = zio_null(NULL, spa, NULL, NULL, NULL, 0);
+		goto out;
 	}
 
 	if (msp->ms_loaded) {
@@ -4704,8 +4727,8 @@ metaslab_exec_trim(metaslab_t *msp, boolean_t auto_trim)
 		range_seg_t *rs;
 		range_tree_t *sub_trim_tree = range_tree_create(NULL, NULL,
 		    &msp->ms_lock);
-		zio_t *pio = zio_null(NULL, spa, vd, metaslab_trim_done, msp,
-		    0);
+
+		zio = zio_null(NULL, spa, vd, metaslab_trim_done, msp, 0);
 
 		rs = avl_first(&trim_tree->rt_root);
 		if (rs != NULL)
@@ -4725,7 +4748,7 @@ metaslab_exec_trim(metaslab_t *msp, boolean_t auto_trim)
 			ASSERT3U(range_tree_space(sub_trim_tree), <=,
 			    max_bytes);
 			if (range_tree_space(sub_trim_tree) == max_bytes) {
-				zio_nowait(zio_trim_tree(pio, spa, vd,
+				zio_nowait(zio_trim_tree(zio, spa, vd,
 				    sub_trim_tree, auto_trim, NULL, NULL,
 				    trim_flags, msp));
 				range_tree_vacate(sub_trim_tree, NULL, NULL);
@@ -4733,17 +4756,20 @@ metaslab_exec_trim(metaslab_t *msp, boolean_t auto_trim)
 			start = end;
 		}
 		if (range_tree_space(sub_trim_tree) != 0) {
-			zio_nowait(zio_trim_tree(pio, spa, vd, sub_trim_tree,
+			zio_nowait(zio_trim_tree(zio, spa, vd, sub_trim_tree,
 			    auto_trim, NULL, NULL, trim_flags, msp));
 			range_tree_vacate(sub_trim_tree, NULL, NULL);
 		}
 		range_tree_destroy(sub_trim_tree);
-
-		return (pio);
 	} else {
-		return (zio_trim_tree(NULL, spa, vd, trim_tree, auto_trim,
-		    metaslab_trim_done, msp, trim_flags, msp));
+		zio = zio_trim_tree(NULL, spa, vd, trim_tree, auto_trim,
+		    metaslab_trim_done, msp, trim_flags, msp);
 	}
+
+	spa_config_exit(spa, SCL_STATE_ALL, FTAG);
+
+out:
+	return (zio);
 }
 
 /*
