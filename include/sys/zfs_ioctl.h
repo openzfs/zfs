@@ -100,8 +100,9 @@ typedef enum drr_headertype {
 /* flag #18 is reserved for a Delphix feature */
 #define	DMU_BACKUP_FEATURE_LARGE_BLOCKS		(1 << 19)
 #define	DMU_BACKUP_FEATURE_RESUMING		(1 << 20)
-#define	DMU_BACKUP_FEATURE_LARGE_DNODE		(1 << 21)
+/* flag #21 is reserved for a Delphix feature */
 #define	DMU_BACKUP_FEATURE_COMPRESSED		(1 << 22)
+#define	DMU_BACKUP_FEATURE_LARGE_DNODE		(1 << 23)
 
 /*
  * Mask of all supported backup features
