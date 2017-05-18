@@ -53,10 +53,10 @@ else
 	testpool="${TESTPOOL%%/*}"
 fi
 
-files="$(ls $ZPOOLSCRIPTDIR)"
+files="$(ls $ZPOOL_SCRIPT_DIR)"
 scripts=""
 for i in $files ; do
-	if [ ! -x "$ZPOOLSCRIPTDIR/$i" ] ; then
+	if [ ! -x "$ZPOOL_SCRIPT_DIR/$i" ] ; then
 		# Skip non-executables
 		continue
 	fi

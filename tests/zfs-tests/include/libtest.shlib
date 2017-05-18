@@ -3280,11 +3280,16 @@ function zed_setup
 
 	# Setup minimal ZED configuration.  Individual test cases should
 	# add additional ZEDLETs as needed for their specific test.
-	log_must cp ${ZEDLETDIR}/zed.rc $ZEDLET_DIR
-	log_must cp ${ZEDLETDIR}/zed-functions.sh $ZEDLET_DIR
-	log_must cp ${ZEDLETDIR}/all-syslog.sh $ZEDLET_DIR
+	log_must cp ${ZEDLET_ETC_DIR}/zed.rc $ZEDLET_DIR
+	log_must cp ${ZEDLET_ETC_DIR}/zed-functions.sh $ZEDLET_DIR
 
-	log_must zpool events -c
+	# Customize the zed.rc file to enable the full debug log.
+	log_must sed -i '/\#ZED_DEBUG_LOG=.*/d' $ZEDLET_DIR/zed.rc
+	echo "ZED_DEBUG_LOG=$ZEDLET_DIR/zed.debug.log" >>$ZEDLET_DIR/zed.rc
+
+	log_must cp ${ZEDLET_LIBEXEC_DIR}/all-syslog.sh $ZEDLET_DIR
+	log_must cp ${ZEDLET_LIBEXEC_DIR}/all-debug.sh $ZEDLET_DIR
+	log_must touch $ZEDLET_DIR/zed.debug.log
 }
 
 #
@@ -3299,8 +3304,10 @@ function zed_cleanup
 	log_must rm -f ${ZEDLET_DIR}/zed.rc
 	log_must rm -f ${ZEDLET_DIR}/zed-functions.sh
 	log_must rm -f ${ZEDLET_DIR}/all-syslog.sh
+	log_must rm -f ${ZEDLET_DIR}/all-debug.sh
 	log_must rm -f ${ZEDLET_DIR}/zed.pid
 	log_must rm -f ${ZEDLET_DIR}/zedlog
+	log_must rm -f ${ZEDLET_DIR}/zed.debug.log
 	log_must rm -f ${ZEDLET_DIR}/state
 	log_must rm -f $VDEVID_CONF_ETC
 	log_must rm -f $VDEVID_CONF
@@ -3332,6 +3339,8 @@ function zed_start
 	# output to zedlog
 	log_must eval "zed -vF -d $ZEDLET_DIR -p $ZEDLET_DIR/zed.pid" \
 	    "-s $ZEDLET_DIR/state 2>${ZEDLET_DIR}/zedlog &"
+
+	return 0
 }
 
 #
@@ -3343,10 +3352,13 @@ function zed_stop
 		return
 	fi
 
+	log_note "Stopping ZED"
 	if [[ -f ${ZEDLET_DIR}/zed.pid ]]; then
 		zedpid=$(cat ${ZEDLET_DIR}/zed.pid)
 		log_must kill $zedpid
 	fi
+
+	return 0
 }
 
 #

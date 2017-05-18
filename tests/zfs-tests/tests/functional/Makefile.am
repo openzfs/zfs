@@ -14,6 +14,7 @@ SUBDIRS = \
 	ctime \
 	delegate \
 	devices \
+	events \
 	exec \
 	fault \
 	features \

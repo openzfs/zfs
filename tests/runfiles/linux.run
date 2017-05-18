@@ -344,6 +344,9 @@ tests = ['zfs_allow_001_pos', 'zfs_allow_002_pos',
 [tests/functional/devices]
 tests = ['devices_001_pos', 'devices_002_neg', 'devices_003_pos']
 
+[tests/functional/events]
+tests = ['events_001_pos', 'events_002_pos']
+
 [tests/functional/exec]
 tests = ['exec_001_pos', 'exec_002_neg']
 

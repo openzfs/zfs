@@ -33,8 +33,11 @@
 . $STF_SUITE/include/libtest.shlib
 
 # ZFS Directories
-export ZEDLETDIR=${ZEDLETDIR:-/etc/zfs/zed.d}
-export ZPOOLSCRIPTDIR=${ZPOOLSCRIPTDIR:-/etc/zfs/zpool.d}
+export prefix=@prefix@
+export exec_prefix=@exec_prefix@
+export ZEDLET_ETC_DIR=${ZEDLET_ETC_DIR:-@sysconfdir@/zfs/zed.d}
+export ZEDLET_LIBEXEC_DIR=${ZEDLET_LIBEXEC_DIR:-@libexecdir@/zfs/zed.d}
+export ZPOOL_SCRIPT_DIR=${ZPOOL_SCRIPT_DIR:-@sysconfdir@/zfs/zpool.d}
 
 # Define run length constants
 export RT_LONG="3"

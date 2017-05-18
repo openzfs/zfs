@@ -1,0 +1,98 @@
+#
+# CDDL HEADER START
+#
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License (the "License").
+# You may not use this file except in compliance with the License.
+#
+# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+# or http://www.opensolaris.org/os/licensing.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+# If applicable, add the following below this CDDL HEADER, with the
+# fields enclosed by brackets "[]" replaced with your own identifying
+# information: Portions Copyright [yyyy] [name of copyright owner]
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright (c) 2017 by Lawrence Livermore National Security, LLC.
+# Use is subject to license terms.
+#
+
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/events/events.cfg
+
+function run_and_verify
+{
+	typeset event pool
+	set -A events
+
+	while getopts "e:p:z:" opt; do
+		case $opt in
+		e)
+			events[${#events[*]}+1]=$OPTARG
+			;;
+		p)
+			pool=$OPTARG
+			;;
+		z)
+			zedlog=$OPTARG
+			;;
+		esac
+	done
+	shift $(($OPTIND - 1))
+
+	pool=${pool:-$TESTPOOL}
+	zedlog=${zedlog:-$ZEDLET_DIR/zed.debug.log}
+	fullcmd="$1"
+	cmd=$(echo $fullcmd | awk '{print $1}')
+	subcmd=$(echo $fullcmd | awk '{print $2}')
+
+	# If we aren't running zpool or zfs, something is wrong
+	[[ $cmd == "zpool" || $cmd == "zfs" ]] || \
+	    log_fail "run_and_verify called with \"$cmd ($fullcmd)\""
+
+	# Run the command as provided and collect the new events.
+	log_must zpool events -c
+	if [[ -f $zedlog ]]; then
+		cp -f $zedlog $zedlog.old
+	fi
+
+	log_must eval "$fullcmd"
+
+	log_must zpool events > $TMP_EVENTS 2>/dev/null
+	log_must zpool events -v > $TMP_EVENTS_FULL 2>/dev/null
+	if [[ -f $zedlog ]]; then
+		sleep 1 # Brief delay for the ZED to handle the event.
+		diff $zedlog.old $zedlog | grep "^> " | sed 's/^> //g' \
+		    >$TMP_EVENTS_ZED
+	fi
+
+	# Verify all the expected events appear in the log.
+	for event in ${events[*]}; do
+
+		# Verify the event is in in the short output.
+		log_must grep -q "$event" $TMP_EVENTS
+
+		# Verify the event is in the verbose output with pool name.
+		log_must awk -v event="$event" \
+		    'BEGIN{FS="\n"; RS=""} $0 ~ event { print $0 }' \
+		    $TMP_EVENTS_FULL >$TMP_EVENT_FULL
+		log_must grep -q "pool = \"$pool\"" $TMP_EVENT_FULL
+
+		# Verify the event was received by the ZED and logged.
+		log_must awk -v event="$event" \
+		    'BEGIN{FS="\n"; RS=""} $0 ~ event { print $0 }' \
+		    $TMP_EVENTS_ZED >$TMP_EVENT_ZED
+		log_must grep -q "^ZEVENT_POOL=$pool" $TMP_EVENT_ZED
+
+	done
+
+	log_must rm -f $TMP_EVENTS $TMP_EVENTS_FULL $TMP_EVENT_FULL \
+	    $TMP_EVENTS_ZED $TMP_EVENT_ZED $zedlog.old
+}

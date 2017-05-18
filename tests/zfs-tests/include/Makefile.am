@@ -6,3 +6,8 @@ dist_pkgdata_SCRIPTS = \
 	math.shlib \
 	properties.shlib \
 	zpool_script.shlib
+
+EXTRA_DIST=default.cfg.in
+
+distclean-local::
+	-$(RM) $(dist_pkgdata_SCRIPTS)

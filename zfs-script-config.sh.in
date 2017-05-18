@@ -20,8 +20,10 @@ export ETCDIR=${SRCDIR}/etc
 export TESTSDIR=${SRCDIR}/tests
 export RUNFILEDIR=${TESTSDIR}/runfiles
 export UDEVRULEDIR=${BUILDDIR}/udev/rules.d
-export ZEDLETDIR=${SRCDIR}/cmd/zed/zed.d
-export ZPOOLSCRIPTDIR=${SRCDIR}/cmd/zpool/zpool.d
+
+export ZEDLET_ETC_DIR=${SRCDIR}/cmd/zed/zed.d
+export ZEDLET_LIBEXEC_DIR=${SRCDIR}/cmd/zed/zed.d
+export ZPOOL_SCRIPT_DIR=${SRCDIR}/cmd/zpool/zpool.d
 
 export ZDB=${CMDDIR}/zdb/zdb
 export ZFS=${CMDDIR}/zfs/zfs
