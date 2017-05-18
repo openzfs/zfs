@@ -139,6 +139,15 @@ AC_DEFUN([ZFS_AC_RPM], [
 	AC_MSG_CHECKING([whether spec files are available])
 	AC_MSG_RESULT([yes ($RPM_SPEC_DIR/*.spec.in)])
 
+	AC_MSG_CHECKING([whether rpms will use ksyms])
+	AC_ARG_ENABLE([rpm-ksym],
+		[AC_HELP_STRING([--enable-rpm-ksym],
+		[Build RPMs with ksym() in Provides])],[
+		       AC_MSG_RESULT([yes])
+		       RPM_DEFINE_KMOD=$RPM_DEFINE_KMOD' --define "_use_internal_dependency_generator 0"'
+		],
+		[AC_MSG_RESULT([no])])
+
 	AC_SUBST(HAVE_RPM)
 	AC_SUBST(RPM)
 	AC_SUBST(RPM_VERSION)
