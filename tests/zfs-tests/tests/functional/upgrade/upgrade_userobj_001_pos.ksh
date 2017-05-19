@@ -22,6 +22,7 @@
 
 #
 # Copyright (c) 2013 by Jinshan Xiong. No rights reserved.
+# Copyright (c) 2017 Datto Inc.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -71,7 +72,7 @@ zfs userspace -o objused -H $TESTPOOL | head -n 1 | grep -q "-" ||
 
 # Create a file in fs1 should trigger dataset upgrade
 log_must mkfile 1m $TESTDIR/fs1/tf
-sync_pool
+log_must sleep 1 # upgrade done in the background so let's give it a sec
 
 # Make sure userobj accounting is working for fs1
 zfs userspace -o objused -H $TESTPOOL/fs1 | head -n 1 | grep -q "-" &&
@@ -79,7 +80,7 @@ zfs userspace -o objused -H $TESTPOOL/fs1 | head -n 1 | grep -q "-" &&
 
 # Mount a dataset should trigger upgrade
 log_must zfs mount $TESTPOOL/fs2
-sync_pool
+log_must sleep 1 # upgrade done in the background so let's give it a sec
 
 # Make sure userobj accounting is working for fs2
 zfs userspace -o objused -H $TESTPOOL/fs2 | head -n 1 | grep -q "-" &&
@@ -91,6 +92,7 @@ zfs userspace -o objused -H $TESTPOOL | head -n 1 | grep -q "-" ||
 	log_fail "userobj accounting should be disabled for $TESTPOOL"
 
 # Manual upgrade root dataset
+# uses an ioctl which will wait for the upgrade to be done before returning
 log_must zfs set version=current $TESTPOOL
 zfs userspace -o objused -H $TESTPOOL | head -n 1 | grep -q "-" &&
 	log_fail "userobj accounting should be enabled for $TESTPOOL"

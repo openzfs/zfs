@@ -3,6 +3,7 @@
 .\" Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
 .\" Copyright (c) 2013 by Delphix. All rights reserved.
 .\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
+.\" Copyright (c) 2017 Datto Inc.
 .\" The contents of this file are subject to the terms of the Common Development
 .\" and Distribution License (the "License"). You may not use this file except
 .\" in compliance with the License. You can obtain a copy of the license at
@@ -15,7 +16,7 @@
 .\" CDDL HEADER, with the fields enclosed by brackets "[]" replaced with your
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
-.TH zpool 8 "May 11, 2016" "ZFS pool 28, filesystem 5" "System Administration Commands"
+.TH zpool 8 "April 12, 2017" "ZFS pool 28, filesystem 5" "System Administration Commands"
 .SH NAME
 zpool \- configures ZFS storage pools
 .SH SYNOPSIS
@@ -160,6 +161,11 @@ zpool \- configures ZFS storage pools
 .LP
 .nf
 \fBzpool status\fR [\fB-c\fR \fBSCRIPT\fR] [\fB-gLPvxD\fR] [\fB-T\fR d | u] [\fIpool\fR] ... [\fIinterval\fR [\fIcount\fR]]
+.fi
+
+.LP
+.nf
+\fBzpool sync\fR [\fBpool\fR] ...
 .fi
 
 .LP
@@ -2230,6 +2236,20 @@ Display a time stamp.
 Specify \fBu\fR for a printed representation of the internal representation of time. See \fBtime\fR(2). Specify \fBd\fR for standard date format. See \fBdate\fR(1).
 .RE
 
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBzpool sync\fR\fR [\fBpool\fR] ...
+.ad
+.sp .6
+.RS 4n
+This command forces all in-core dirty data to be written to the primary pool
+storage and not the ZIL. It will also update administrative information
+including quota reporting.
+Without arguments, \fBzpool sync\fR will sync all pools on the system.
+Otherwise, it will sync only the specified pool(s).
 .RE
 
 .sp

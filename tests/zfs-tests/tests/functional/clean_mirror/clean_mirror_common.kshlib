@@ -26,8 +26,10 @@
 
 #
 # Copyright (c) 2013, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2017 Datto Inc.
 #
 
+. $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/clean_mirror/default.cfg
 
 # Most of the code related to the clearing of mirrors is duplicated in all
@@ -35,32 +37,6 @@
 # involving the device to be affected and the 'object' to use to mangle
 # the contents of the mirror.
 # This code is sourced into each of these test cases.
-
-#
-# Synchronize all the data in pool
-#
-# $1 pool name
-#
-function sync_pool #pool
-{
-	typeset pool=$1
-
-	log_must sync
-	log_must sleep 2
-	# Flush all the pool data.
-	typeset -i ret
-	zpool scrub $pool >/dev/null 2>&1
-	ret=$?
-	(( $ret != 0 )) && \
-		log_fail "zpool scrub $pool failed."
-
-	while ! is_pool_scrubbed $pool; do
-		if is_pool_resilvered $pool ; then
-			log_fail "$pool should not be resilver completed."
-		fi
-		log_must sleep 2
-	done
-}
 
 function overwrite_verify_mirror
 {

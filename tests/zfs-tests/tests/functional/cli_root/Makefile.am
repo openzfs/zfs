@@ -45,4 +45,5 @@ SUBDIRS = \
 	zpool_scrub \
 	zpool_set \
 	zpool_status \
+	zpool_sync \
 	zpool_upgrade

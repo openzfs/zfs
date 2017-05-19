@@ -24,6 +24,7 @@
  * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2013, Joyent, Inc. All rights reserved.
+ * Copyright (c) 2017 Datto Inc.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -1019,6 +1020,7 @@ typedef enum zfs_ioc {
 	ZFS_IOC_GET_BOOKMARKS,
 	ZFS_IOC_DESTROY_BOOKMARKS,
 	ZFS_IOC_RECV_NEW,
+	ZFS_IOC_POOL_SYNC,
 
 	/*
 	 * Linux - 3/64 numbers reserved.

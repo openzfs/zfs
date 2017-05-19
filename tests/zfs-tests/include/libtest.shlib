@@ -26,6 +26,7 @@
 # Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 # Copyright 2016 Nexenta Systems, Inc.
 # Copyright (c) 2017 Lawrence Livermore National Security, LLC.
+# Copyright (c) 2017 Datto Inc.
 #
 
 . ${STF_TOOLS}/include/logapi.shlib
@@ -3203,29 +3204,23 @@ function get_objnum
 }
 
 #
-# Synchronize all the data in pool
+# Sync data to the pool
 #
 # $1 pool name
+# $2 boolean to force uberblock (and config including zpool cache file) update
 #
-function sync_pool #pool
+function sync_pool #pool <force>
 {
 	typeset pool=${1:-$TESTPOOL}
+	typeset force=${2:-false}
 
-	log_must $SYNC
-	log_must sleep 2
-	# Flush all the pool data.
-	typeset -i ret
-	zpool scrub $pool >/dev/null 2>&1
-	ret=$?
-	(( $ret != 0 )) && \
-	log_fail "zpool scrub $pool failed."
+	if [[ $force == true ]]; then
+		log_must zpool sync -f $pool
+	else
+		log_must zpool sync $pool
+	fi
 
-	while ! is_pool_scrubbed $pool; do
-		if is_pool_resilvered $pool ; then
-			log_fail "$pool should not be resilver completed."
-		fi
-		log_must sleep 2
-	done
+	return 0
 }
 
 #

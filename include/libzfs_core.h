@@ -21,6 +21,7 @@
 
 /*
  * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2017 Datto Inc.
  */
 
 #ifndef	_LIBZFS_CORE_H
@@ -88,6 +89,8 @@ int lzc_receive_with_cmdprops(const char *, nvlist_t *, nvlist_t *,
 boolean_t lzc_exists(const char *);
 
 int lzc_rollback(const char *, char *, int);
+
+int lzc_sync(const char *, nvlist_t *, nvlist_t **);
 
 #ifdef	__cplusplus
 }
