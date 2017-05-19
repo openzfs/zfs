@@ -40,6 +40,10 @@
 #	3. Verify we're unable to create a hard link
 #
 
+if is_linux; then
+	log_unsupported "Test case isn't applicable to Linux"
+fi
+
 function cleanup {
 
 	log_must rm $TESTDIR/myfile.$$

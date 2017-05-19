@@ -547,11 +547,11 @@ tests = ['vdev_zaps_001_pos', 'vdev_zaps_002_pos', 'vdev_zaps_003_pos',
 [tests/functional/write_dirs]
 tests = ['write_dirs_001_pos', 'write_dirs_002_pos']
 
-#[tests/functional/xattr]
-#tests = ['xattr_001_pos', 'xattr_002_neg', 'xattr_003_neg', 'xattr_004_pos',
-#    'xattr_005_pos', 'xattr_006_pos', 'xattr_007_neg', 'xattr_008_pos',
-#    'xattr_009_neg', 'xattr_010_neg', 'xattr_011_pos', 'xattr_012_pos',
-#    'xattr_013_pos']
+[tests/functional/xattr]
+tests = ['xattr_001_pos', 'xattr_002_neg', 'xattr_003_neg', 'xattr_004_pos',
+    'xattr_005_pos', 'xattr_006_pos', 'xattr_007_neg', 'xattr_008_pos',
+    'xattr_009_neg', 'xattr_010_neg', 'xattr_011_pos', 'xattr_012_pos',
+    'xattr_013_pos']
 
 [tests/functional/zvol/zvol_ENOSPC]
 tests = ['zvol_ENOSPC_001_pos']

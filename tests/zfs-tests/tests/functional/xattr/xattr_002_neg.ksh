@@ -46,11 +46,17 @@ function cleanup {
 
 }
 
+set -A args "on" "sa"
+
 log_assert "A read of a non-existent xattr fails"
 log_onexit cleanup
 
-# create a file
-log_must touch $TESTDIR/myfile.$$
-log_mustnot eval "cat $TESTDIR/myfile.$$ not-here.txt > /dev/null 2>&1"
+for arg in ${args[*]}; do
+	log_must zfs set xattr=$arg $TESTPOOL
 
-log_pass "A read of a non-existent xattr fails"
+	# create a file
+	log_must touch $TESTDIR/myfile.$$
+	log_mustnot eval "cat $TESTDIR/myfile.$$ not-here.txt > /dev/null 2>&1"
+
+	log_pass "A read of a non-existent xattr fails"
+done
