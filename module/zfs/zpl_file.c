@@ -45,6 +45,10 @@ zpl_open(struct inode *ip, struct file *filp)
 	if (error)
 		return (error);
 
+	error = generic_file_open(ip, filp);
+	if (error)
+		return (error);
+
 	crhold(cr);
 	cookie = spl_fstrans_mark();
 	error = -zfs_open(ip, filp->f_mode, filp->f_flags, cr);
