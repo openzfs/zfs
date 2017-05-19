@@ -13,10 +13,6 @@
 #TEST_ZTEST_DIR="/var/tmp/"
 #TEST_ZTEST_OPTIONS="-V"
 
-### zconfig
-#TEST_ZCONFIG_SKIP="yes"
-TEST_ZCONFIG_OPTIONS="-c -s10"
-
 ### zimport
 #TEST_ZIMPORT_SKIP="yes"
 #TEST_ZIMPORT_DIR="/var/tmp/zimport"
