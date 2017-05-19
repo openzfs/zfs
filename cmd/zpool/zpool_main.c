@@ -326,7 +326,7 @@ get_usage(zpool_help_t idx)
 		return (gettext("\tlist [-gHLpPv] [-o property[,...]] "
 		    "[-T d|u] [pool] ... [interval [count]]\n"));
 	case HELP_OFFLINE:
-		return (gettext("\toffline [-t] <pool> <device> ...\n"));
+		return (gettext("\toffline [-f] [-t] <pool> <device> ...\n"));
 	case HELP_ONLINE:
 		return (gettext("\tonline <pool> <device> ...\n"));
 	case HELP_REPLACE:
@@ -5437,11 +5437,9 @@ zpool_do_online(int argc, char **argv)
 /*
  * zpool offline [-ft] <pool> <device> ...
  *
- *	-f	Force the device into the offline state, even if doing
- *		so would appear to compromise pool availability.
- *		(not supported yet)
+ *	-f	Force the device into a faulted state.
  *
- *	-t	Only take the device off-line temporarily.  The offline
+ *	-t	Only take the device off-line temporarily.  The offline/faulted
  *		state will not be persistent across reboots.
  */
 /* ARGSUSED */
@@ -5453,14 +5451,17 @@ zpool_do_offline(int argc, char **argv)
 	zpool_handle_t *zhp;
 	int ret = 0;
 	boolean_t istmp = B_FALSE;
+	boolean_t fault = B_FALSE;
 
 	/* check options */
 	while ((c = getopt(argc, argv, "ft")) != -1) {
 		switch (c) {
+		case 'f':
+			fault = B_TRUE;
+			break;
 		case 't':
 			istmp = B_TRUE;
 			break;
-		case 'f':
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
 			    optopt);
@@ -5487,8 +5488,22 @@ zpool_do_offline(int argc, char **argv)
 		return (1);
 
 	for (i = 1; i < argc; i++) {
-		if (zpool_vdev_offline(zhp, argv[i], istmp) != 0)
-			ret = 1;
+		if (fault) {
+			uint64_t guid = zpool_vdev_path_to_guid(zhp, argv[i]);
+			vdev_aux_t aux;
+			if (istmp == B_FALSE) {
+				/* Force the fault to persist across imports */
+				aux = VDEV_AUX_EXTERNAL_PERSIST;
+			} else {
+				aux = VDEV_AUX_EXTERNAL;
+			}
+
+			if (guid == 0 || zpool_vdev_fault(zhp, guid, aux) != 0)
+				ret = 1;
+		} else {
+			if (zpool_vdev_offline(zhp, argv[i], istmp) != 0)
+				ret = 1;
+		}
 	}
 
 	zpool_close(zhp);

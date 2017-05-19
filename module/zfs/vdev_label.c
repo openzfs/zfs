@@ -519,6 +519,7 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 		if (vd->vdev_ishole)
 			fnvlist_add_uint64(nv, ZPOOL_CONFIG_IS_HOLE, B_TRUE);
 
+		/* Set the reason why we're FAULTED/DEGRADED. */
 		switch (vd->vdev_stat.vs_aux) {
 		case VDEV_AUX_ERR_EXCEEDED:
 			aux = "err_exceeded";
@@ -529,8 +530,15 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 			break;
 		}
 
-		if (aux != NULL)
+		if (aux != NULL && !vd->vdev_tmpoffline) {
 			fnvlist_add_string(nv, ZPOOL_CONFIG_AUX_STATE, aux);
+		} else {
+			/*
+			 * We're healthy - clear any previous AUX_STATE values.
+			 */
+			if (nvlist_exists(nv, ZPOOL_CONFIG_AUX_STATE))
+				nvlist_remove_all(nv, ZPOOL_CONFIG_AUX_STATE);
+		}
 
 		if (vd->vdev_splitting && vd->vdev_orig_guid != 0LL) {
 			fnvlist_add_uint64(nv, ZPOOL_CONFIG_ORIG_GUID,

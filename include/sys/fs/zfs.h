@@ -731,9 +731,10 @@ typedef enum vdev_aux {
 	VDEV_AUX_ERR_EXCEEDED,	/* too many errors			*/
 	VDEV_AUX_IO_FAILURE,	/* experienced I/O failure		*/
 	VDEV_AUX_BAD_LOG,	/* cannot read log chain(s)		*/
-	VDEV_AUX_EXTERNAL,	/* external diagnosis			*/
+	VDEV_AUX_EXTERNAL,	/* external diagnosis or forced fault	*/
 	VDEV_AUX_SPLIT_POOL,	/* vdev was split off into another pool	*/
-	VDEV_AUX_BAD_ASHIFT	/* vdev ashift is invalid		*/
+	VDEV_AUX_BAD_ASHIFT,	/* vdev ashift is invalid		*/
+	VDEV_AUX_EXTERNAL_PERSIST	/* persistent forced fault	*/
 } vdev_aux_t;
 
 /*

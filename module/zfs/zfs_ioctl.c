@@ -156,6 +156,7 @@
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
 #include <sys/vdev.h>
+#include <sys/vdev_impl.h>
 #include <sys/priv_impl.h>
 #include <sys/dmu.h>
 #include <sys/dsl_dir.h>
@@ -1896,7 +1897,8 @@ zfs_ioc_vdev_set_state(zfs_cmd_t *zc)
 
 	case VDEV_STATE_FAULTED:
 		if (zc->zc_obj != VDEV_AUX_ERR_EXCEEDED &&
-		    zc->zc_obj != VDEV_AUX_EXTERNAL)
+		    zc->zc_obj != VDEV_AUX_EXTERNAL &&
+		    zc->zc_obj != VDEV_AUX_EXTERNAL_PERSIST)
 			zc->zc_obj = VDEV_AUX_ERR_EXCEEDED;
 
 		error = vdev_fault(spa, zc->zc_guid, zc->zc_obj);
@@ -4919,7 +4921,7 @@ zfs_ioc_clear(zfs_cmd_t *zc)
 
 	vdev_clear(spa, vd);
 
-	(void) spa_vdev_state_exit(spa, NULL, 0);
+	(void) spa_vdev_state_exit(spa, spa->spa_root_vdev, 0);
 
 	/*
 	 * Resume any suspended I/Os.

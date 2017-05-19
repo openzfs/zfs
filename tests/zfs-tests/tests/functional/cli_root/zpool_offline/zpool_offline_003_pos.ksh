@@ -33,12 +33,13 @@
 
 #
 # DESCRIPTION:
-# Executing 'zpool offline' with valid parameters succeeds.
+# Test force faulting a VDEV with 'zpool offline -f'
 #
 # STRATEGY:
-# 1. Create an array of correctly formed 'zpool offline' options
-# 2. Execute each element of the array.
-# 3. Verify use of each option is successful.
+# For both temporary and persistent faults, do the following:
+# 1. Force fault a vdev, and clear the fault.
+# 2. Offline a vdev, force fault it, clear the fault, and online it.
+# 3. Force fault a vdev, export it, then import it.
 
 verify_runnable "global"
 
@@ -50,20 +51,17 @@ set -A args "" "-t"
 
 function cleanup
 {
-	#
 	# Ensure we don't leave disks in the offline state
-	#
 	for disk in $DISKLIST; do
 		log_must zpool online $TESTPOOL $disk
 		check_state $TESTPOOL $disk "online"
 		if [[ $? != 0 ]]; then
 			log_fail "Unable to online $disk"
 		fi
-
 	done
 }
 
-log_assert "Executing 'zpool offline' with correct options succeeds"
+log_assert "Executing 'zpool offline -f' with correct options succeeds"
 
 log_onexit cleanup
 
@@ -74,51 +72,40 @@ fi
 typeset -i i=0
 typeset -i j=1
 
-for disk in $DISKLIST; do
-	i=0
-	while [[ $i -lt ${#args[*]} ]]; do
-		if (( j < num )) ; then
-			log_must zpool offline ${args[$i]} $TESTPOOL $disk
-			check_state $TESTPOOL $disk "offline"
-			if [[ $? != 0 ]]; then
-				log_fail "$disk of $TESTPOOL did not match offline state"
-			fi
-		else
-			log_mustnot zpool offline ${args[$i]} $TESTPOOL $disk
-			check_state $TESTPOOL $disk "online"
-			if [[ $? != 0 ]]; then
-				log_fail "$disk of $TESTPOOL did not match online state"
-			fi
-		fi
+# Get name of the first disk in the pool
+disk=${DISKLIST%% *}
 
-		(( i = i + 1 ))
-	done
-	(( j = j + 1 ))
-done
+# Test temporary and persistent faults
+for arg in f tf ; do
+	# Force fault disk, and clear the fault
+	log_must zpool offline -$arg $TESTPOOL $disk
+	check_state $TESTPOOL $disk "faulted"
+	log_must zpool clear $TESTPOOL $disk
+	check_state $TESTPOOL $disk "online"
 
-log_note "Issuing repeated 'zpool offline' commands succeeds."
-
-typeset -i iters=20
-typeset -i index=0
-
-for disk in $DISKLIST; do
-        i=0
-        while [[ $i -lt $iters ]]; do
-		index=`expr $RANDOM % ${#args[*]}`
-                log_must zpool offline ${args[$index]} $TESTPOOL $disk
-                check_state $TESTPOOL $disk "offline"
-                if [[ $? != 0 ]]; then
-                        log_fail "$disk of $TESTPOOL is not offline."
-                fi
-
-                (( i = i + 1 ))
-        done
-
+	# Offline a disk, force fault it, clear the fault, and online it
+	log_must zpool offline $TESTPOOL $disk
+	check_state $TESTPOOL $disk "offline"
+	log_must zpool offline -$arg $TESTPOOL $disk
+	check_state $TESTPOOL $disk "faulted"
+	log_must zpool clear $TESTPOOL $disk
+	check_state $TESTPOOL $disk "offline"
 	log_must zpool online $TESTPOOL $disk
 	check_state $TESTPOOL $disk "online"
-	if [[ $? != 0 ]]; then
-		log_fail "$disk of $TESTPOOL did not match online state"
+
+	# Test faults across imports
+	log_must zpool offline -tf $TESTPOOL $disk
+	check_state $TESTPOOL $disk "faulted"
+	log_must zpool export $TESTPOOL
+	log_must zpool import $TESTPOOL
+	log_note "-$arg now imported"
+	if [[ "$arg" = "f" ]] ; then
+		# Persistent fault
+		check_state $TESTPOOL $disk "faulted"
+		log_must zpool clear $TESTPOOL $disk
+	else
+		# Temporary faults get cleared by imports
+		check_state $TESTPOOL $disk "online"
 	fi
 done
-
-log_pass "'zpool offline -f' succeeded"
+log_pass "'zpool offline -f' with correct options succeeded"

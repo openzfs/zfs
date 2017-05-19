@@ -287,7 +287,7 @@ pre =
 post =
 
 [tests/functional/cli_root/zpool_offline]
-tests = ['zpool_offline_001_pos', 'zpool_offline_002_neg']
+tests = ['zpool_offline_001_pos', 'zpool_offline_002_neg', 'zpool_offline_003_pos']
 
 [tests/functional/cli_root/zpool_online]
 tests = ['zpool_online_001_pos', 'zpool_online_002_neg']
