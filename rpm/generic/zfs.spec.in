@@ -47,6 +47,11 @@
 %define _systemd 1
 %endif
 
+# RHEL >= 7 comes with systemd
+%if 0%{?rhel} >= 7
+%define _systemd 1
+%endif
+
 # Fedora >= 15 comes with systemd, but only >= 18 has
 # the proper macros
 %if 0%{?fedora} >= 18
