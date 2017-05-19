@@ -28,21 +28,7 @@
 
 verify_runnable "global"
 
-if [[ ! -d $ZEDLET_DIR ]]; then
-	log_must mkdir $ZEDLET_DIR
-fi
-
-if [[ ! -e $VDEVID_CONF ]]; then
-	log_must touch $VDEVID_CONF
-fi
-
-if [[ -e $VDEVID_CONF_ETC ]]; then
-	log_fail "Must not have $VDEVID_CONF_ETC file present on system"
-fi
-
-# Create a symlink for /etc/zfs/vdev_id.conf file
-log_must ln -s $VDEVID_CONF $VDEVID_CONF_ETC
-
+zed_setup
 zed_start
 
 # Create a scsi_debug device to be used with auto-online (if using loop devices)

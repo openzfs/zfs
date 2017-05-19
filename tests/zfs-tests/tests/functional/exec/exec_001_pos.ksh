@@ -58,6 +58,6 @@ log_onexit cleanup
 log_must cp $STF_PATH/ls $TESTDIR/myls
 log_must zfs set exec=on $TESTPOOL/$TESTFS
 log_must $TESTDIR/myls
-log_must $MMAP_EXEC $TESTDIR/myls
+log_must mmap_exec $TESTDIR/myls
 
 log_pass "Setting exec=on on filesystem testing passed."

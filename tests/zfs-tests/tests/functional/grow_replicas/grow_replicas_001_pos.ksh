@@ -44,6 +44,10 @@
 
 verify_runnable "global"
 
+if is_32bit; then
+	log_unsupported "Test case fails on 32-bit systems"
+fi
+
 if ! is_physical_device $DISKS; then
 	log_unsupported "This test case cannot be run on raw files"
 fi
@@ -96,7 +100,9 @@ for pooltype in "mirror" "raidz"; do
 
 	# $DISK will be set if we're using slices on one disk
 	if [[ -n $DISK ]]; then
-		log_must zpool add $TESTPOOL $pooltype ${DISK}s3 ${DISK}s4
+		log_must zpool add $TESTPOOL $pooltype \
+		    ${DISK}${SLICE_PREFIX}${SLICE3} \
+		    ${DISK}${SLICE_PREFIX}${SLICE4}
 	else
 		[[ -z $DISK2 || -z $DISK3 ]] && 
 		    log_unsupported "No spare disks available"

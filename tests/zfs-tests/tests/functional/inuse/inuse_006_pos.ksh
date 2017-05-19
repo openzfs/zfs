@@ -44,6 +44,10 @@
 
 verify_runnable "global"
 
+if is_linux; then
+	log_unsupported "Test case isn't applicable to Linux"
+fi
+
 function cleanup
 {
 	if [[ -n $PREVDUMPDEV ]]; then
@@ -81,6 +85,11 @@ PREVDUMPDEV=`dumpadm | grep "Dump device" | awk '{print $3}'`
 
 unset NOINUSE_CHECK
 while (( i < ${#vdevs[*]} )); do
+
+	for num in 0 1 2 3 ; do
+		eval typeset disk=\${FS_DISK$num}
+		zero_partitions $disk
+	done
 
 	for num in 0 1 2 3 ; do
 		eval typeset slice=\${FS_SIDE$num}

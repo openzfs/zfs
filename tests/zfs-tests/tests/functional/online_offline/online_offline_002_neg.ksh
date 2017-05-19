@@ -30,6 +30,7 @@
 #
 
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/online_offline/online_offline.cfg
 
 #
 # DESCRIPTION:
@@ -89,6 +90,11 @@ while [[ $i -lt ${#disks[*]} ]]; do
 		log_must zpool online $TESTPOOL ${disks[$i]}
 		check_state $TESTPOOL ${disks[$i]} "online" || \
 		    log_fail "Failed to set ${disks[$i]} online"
+		# Delay for resilver to complete
+		while ! is_pool_resilvered $TESTPOOL; do
+			log_must sleep 1
+		done
+		log_must zpool clear $TESTPOOL
 		while [[ $j -lt ${#disks[*]} ]]; do
 			if [[ $j -eq $i ]]; then
 				((j++))
@@ -119,6 +125,11 @@ while [[ $i -lt ${#disks[*]} ]]; do
 		log_must zpool online $TESTPOOL ${disks[$i]}
 		check_state $TESTPOOL ${disks[$i]} "online" || \
 		    log_fail "Failed to set ${disks[$i]} online"
+		# Delay for resilver to complete
+		while ! is_pool_resilvered $TESTPOOL; do
+			log_must sleep 1
+		done
+		log_must zpool clear $TESTPOOL
 	fi
 	((i++))
 done

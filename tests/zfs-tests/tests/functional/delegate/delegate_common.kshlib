@@ -431,7 +431,7 @@ function verify_fs_receive
 		log_must zfs snapshot $dtstsnap
 
 		log_must eval "zfs send $dtstsnap > $bak_root"
-		log_must zfs destroy -rf $dtst
+		log_must_busy zfs destroy -rf $dtst
 
 		user_run $user eval "zfs receive $dtst < $bak_root"
 		if datasetexists $dtstsnap ; then
@@ -461,10 +461,10 @@ function verify_fs_receive
 
 		# check the data integrity
 		log_must eval "zfs send $dtstsnap > $bak_user"
-		log_must zfs destroy -rf $dtst
+		log_must_busy zfs destroy -rf $dtst
 		log_must eval "zfs receive $dtst < $bak_root"
 		log_must eval "zfs send $dtstsnap > $bak_root"
-		log_must zfs destroy -rf $dtst
+		log_must_busy zfs destroy -rf $dtst
 		if [[ $(checksum $bak_user) != $(checksum $bak_root) ]]; then
 			return 1
 		fi
@@ -612,26 +612,26 @@ function verify_fs_create
 			return 1
 		fi
 
-		log_must zfsallow $user mount $fs
-		user_run $user zfscreate -V 150m $newvol
+		log_must zfs allow $user mount $fs
+		user_run $user zfs create -V 150m $newvol
 		block_device_wait
-		log_must zfsunallow $user mount $fs
+		log_must zfs unallow $user mount $fs
 		if datasetexists $newvol ; then
 			return 1
 		fi
 
-		log_must zfsallow $user reservation $fs
-		user_run $user zfscreate -V 150m $newvol
+		log_must zfs allow $user reservation $fs
+		user_run $user zfs create -V 150m $newvol
 		block_device_wait
-		log_must zfsunallow $user reservation $fs
+		log_must zfs unallow $user reservation $fs
 		if datasetexists $newvol ; then
 			return 1
 		fi
 
-		log_must zfsallow $user refreservation $fs
-		user_run $user zfscreate -V 150m $newvol
+		log_must zfs allow $user refreservation $fs
+		user_run $user zfs create -V 150m $newvol
 		block_device_wait
-		log_must zfsunallow $user refreservation $fs
+		log_must zfs unallow $user refreservation $fs
 		if datasetexists $newvol ; then
 			return 1
 		fi
@@ -648,7 +648,7 @@ function verify_fs_create
 		fi
 
 		block_device_wait
-		log_must zfsdestroy $newvol
+		log_must zfs destroy $newvol
 		block_device_wait
 	fi
 
@@ -1123,7 +1123,7 @@ function verify_fs_dnodesize
 	typeset fs=$3
 	value="2k"
 
-	user_run $user zfsset dnodesize=$value $fs
+	user_run $user zfs set dnodesize=$value $fs
 	if [[ $value != $(get_prop dnodesize $fs) ]]; then
 		return 1
 	fi

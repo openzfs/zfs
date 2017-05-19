@@ -45,6 +45,10 @@
 
 verify_runnable "global"
 
+if is_linux; then
+	log_unsupported "Requires additional dependencies"
+fi
+
 log_assert "zfs unshare returns an error when run as a user"
 
 #  verify that the filesystem was shared initially

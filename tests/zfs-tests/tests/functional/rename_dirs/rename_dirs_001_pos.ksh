@@ -58,14 +58,14 @@ log_onexit cleanup
 cd $TESTDIR
 mkdir -p 1/2/3/4/5 a/b/c/d/e
 
-$RENAME_DIRS &
+rename_dir &
 
-sleep 500
+sleep 10
 typeset -i retval=1
-pgrep $RENAME_DIRS >/dev/null 2>&1
+pgrep -x rename_dir >/dev/null 2>&1
 retval=$?
 if (( $retval == 0 )); then
-	pkill -9 $RENAME_DIRS >/dev/null 2>&1
+	pkill -9 -x rename_dir >/dev/null 2>&1
 fi
 
 log_pass "ZFS handle race directory rename operation as expected."

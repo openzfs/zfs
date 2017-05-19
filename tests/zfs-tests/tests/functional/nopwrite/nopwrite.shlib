@@ -27,7 +27,7 @@ function verify_nopwrite
 	typeset low=1
 	typeset high=99
 
-	sync
+	sync_pool
 	for i in origin snap clone; do
 		for j in used refer usedbychildren written; do
 			typeset ${i}_$j=$(get_prop $j $(eval echo \$$i))

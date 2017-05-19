@@ -48,6 +48,10 @@
 
 verify_runnable "global"
 
+if is_32bit; then
+	log_unsupported "Test case fails on 32-bit systems"
+fi
+
 log_assert "Setting devices=off on file system, the devices files in this file"\
 	"system can not be used."
 log_onexit cleanup

@@ -60,6 +60,10 @@
 
 verify_runnable "both"
 
+if is_linux; then
+	log_unsupported "Requires pfexec command"
+fi
+
 log_assert "The RBAC profile \"ZFS File System Management\" works"
 
 ZFS_USER=$(cat /tmp/zfs-privs-test-user.txt)

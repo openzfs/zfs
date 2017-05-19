@@ -21,15 +21,10 @@
 #
 
 #
-# Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
+# Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
 
 . $STF_SUITE/include/libtest.shlib
-
-verify_runnable "global"
-
-zed_stop
-zed_cleanup
 
 default_cleanup

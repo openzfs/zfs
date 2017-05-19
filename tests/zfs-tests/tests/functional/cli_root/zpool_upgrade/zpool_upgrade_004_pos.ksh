@@ -43,6 +43,11 @@
 
 verify_runnable "global"
 
+# https://github.com/zfsonlinux/zfs/issues/6141
+if is_linux; then
+	log_unsupported "Test case occasionally fails"
+fi
+
 function cleanup
 {
 	for config in $CONFIGS; do

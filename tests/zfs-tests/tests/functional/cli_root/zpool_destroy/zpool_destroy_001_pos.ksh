@@ -45,6 +45,11 @@
 
 verify_runnable "global"
 
+# https://github.com/zfsonlinux/zfs/issues/6145
+if is_linux; then
+	log_unsupported "Test case occasionally fails"
+fi
+
 function cleanup
 {
 	poolexists $TESTPOOL2 && destroy_pool $TESTPOOL2
@@ -72,15 +77,10 @@ log_onexit cleanup
 partition_disk $SLICE_SIZE $DISK 2
 
 create_pool "$TESTPOOL" "${DISK}${SLICE_PREFIX}${SLICE0}"
-
-if is_linux; then
-	# Layering a pool on a zvol can deadlock and isn't supported.
-	create_pool "$TESTPOOL2" "${DISK}${SLICE_PREFIX}${SLICE1}"
-else
-	create_pool "$TESTPOOL1" "${DISK}${SLICE_PREFIX}${SLICE1}"
-	log_must zfs create -s -V $VOLSIZE $TESTPOOL1/$TESTVOL
-	create_pool "$TESTPOOL2" "${ZVOL_DEVDIR}/$TESTPOOL1/$TESTVOL"
-fi
+create_pool "$TESTPOOL1" "${DISK}${SLICE_PREFIX}${SLICE1}"
+log_must zfs create -s -V $VOLSIZE $TESTPOOL1/$TESTVOL
+block_device_wait
+create_pool "$TESTPOOL2" "${ZVOL_DEVDIR}/$TESTPOOL1/$TESTVOL"
 
 typeset -i i=0
 while (( i < ${#datasets[*]} )); do

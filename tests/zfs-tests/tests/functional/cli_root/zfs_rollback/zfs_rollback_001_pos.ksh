@@ -72,10 +72,15 @@ function test_n_check #opt num_snap_clone num_rollback
 		log_fail "Unsupported testing condition."
 
 	# Clean up the test environment
+	if pgrep -x dd 2>/dev/null; then
+		pkill -x dd
+	fi
+
 	datasetexists $FS && log_must zfs destroy -Rf $FS
 	if datasetexists $VOL; then
-		df -lhF ufs "$ZVOL_DEVDIR/$VOL" > /dev/null 2>&1
-		(( $? == 0 )) && log_must umount -f $TESTDIR1
+		if ismounted $TESTDIR1 $NEWFS_DEFAULT_FS; then
+			log_must umount -f $TESTDIR1
+		fi
 
 		log_must zfs destroy -Rf $VOL
 	fi
@@ -117,7 +122,9 @@ function test_n_check #opt num_snap_clone num_rollback
 		fi
 
 		if [[ $dtst == $VOL ]]; then
-			log_must umount -f $TESTDIR1
+			if ismounted $TESTDIR1 $NEWFS_DEFAULT_FS; then
+				log_must umount -f $TESTDIR1
+			fi
 			log_must zfs rollback $opt $dtst@$snap_point
 			log_must mount \
 				$ZVOL_DEVDIR/$TESTPOOL/$TESTVOL $TESTDIR1

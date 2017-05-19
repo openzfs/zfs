@@ -45,10 +45,15 @@ function create_dev_file
 	case $filetype in
 		b)
 			if is_linux; then
-				devtype=$(df -T / | awk '{print $2}')
-			else
-				devtype=$(df -n / | awk '{print $3}')
+				major=$(awk '/[hsv]d/ { print $1; exit }' \
+				    /proc/partitions)
+				minor=$(awk '/[hsv]d/ { print $2; exit }' \
+				    /proc/partitions)
+				log_must mknod $filename b $major $minor
+				return 0
 			fi
+
+			devtype=$(df -n / | awk '{print $3}')
 			case $devtype in
 				zfs)
 					rootpool=$(df / | \
@@ -75,9 +80,6 @@ function create_dev_file
 						awk '{print $1}')
 					[[ -z $devstr ]] && \
 						log_fail "Can not get block device file."
-					;;
-				ext2)
-					# TODO: Linux version
 					;;
 				*)
 					log_unsupported "Unsupported fstype " \
@@ -106,7 +108,13 @@ function create_dev_file
 			#
 			# Create device file '/dev/null'
 			#
-			log_must mknod $filename c $(getmajor mm) 2
+			if is_linux; then
+				major=$(stat -c %t /dev/null)
+				minor=$(stat -c %T /dev/null)
+				log_must mknod $filename c $major $minor
+			else
+				log_must mknod $filename c $(getmajor mm) 2
+			fi
 			;;
 		*)
 			log_fail "'$filetype' is wrong."

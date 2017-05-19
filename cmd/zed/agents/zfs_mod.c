@@ -763,12 +763,12 @@ zfs_deliver_dle(nvlist_t *nvl)
 	char *devname;
 
 	if (nvlist_lookup_string(nvl, DEV_PHYS_PATH, &devname) != 0) {
-		zed_log_msg(LOG_INFO, "zfs_deliver_event: no physpath");
+		zed_log_msg(LOG_INFO, "zfs_deliver_dle: no physpath");
 		return (-1);
 	}
 
 	if (zpool_iter(g_zfshdl, zfsdle_vdev_online, devname) != 1) {
-		zed_log_msg(LOG_INFO, "zfs_deliver_event: device '%s' not "
+		zed_log_msg(LOG_INFO, "zfs_deliver_dle: device '%s' not "
 		    "found", devname);
 		return (1);
 	}

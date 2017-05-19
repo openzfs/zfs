@@ -29,6 +29,9 @@
 
 verify_runnable "global"
 
+zed_setup
+zed_start
+
 DISK=${DISKS%% *}
 
 default_setup $DISK

@@ -96,8 +96,13 @@ for fs in $TESTPOOL/$TESTFS $TESTPOOL ; do
 	log_must cd .zfs/snapshot/$TESTSNAP
 
 	log_mustnot zfs unmount -a
-	log_must zfs unmount -fa
-	log_mustnot ls
+	if is_linux; then
+		log_mustnot zfs unmount -fa
+		log_must ls
+	else
+		log_must zfs unmount -fa
+		log_mustnot ls
+	fi
 	log_must cd /
 
 	log_must zfs mount -a
@@ -105,8 +110,13 @@ for fs in $TESTPOOL/$TESTFS $TESTPOOL ; do
 	log_must cd .zfs/snapshot/$TESTSNAP
 
 	if is_global_zone || [[ $fs != $TESTPOOL ]] ; then
-		log_must zfs destroy -rf $fs
-		log_mustnot ls
+		if is_linux; then
+			log_mustnot zfs destroy -rf $fs
+			log_must ls
+		else
+			log_must zfs destroy -rf $fs
+			log_mustnot ls
+		fi
 		log_must cd /
 	fi
 
@@ -114,8 +124,13 @@ for fs in $TESTPOOL/$TESTFS $TESTPOOL ; do
 done
 
 if is_global_zone ; then
-	log_must zpool destroy -f $TESTPOOL
-	log_mustnot ls
+	if is_linux; then
+		log_mustnot zpool destroy -f $TESTPOOL
+		log_must ls
+	else
+		log_must zpool destroy -f $TESTPOOL
+		log_mustnot ls
+	fi
 	log_must cd /
 fi
 
