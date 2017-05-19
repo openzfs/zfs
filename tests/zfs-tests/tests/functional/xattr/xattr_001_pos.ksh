@@ -52,12 +52,18 @@ function cleanup {
 	fi
 }
 
+set -A args "on" "sa"
+
 log_assert "Create/read/write/append of xattrs works"
 log_onexit cleanup
 
-log_must touch $TESTDIR/myfile.$$
-create_xattr $TESTDIR/myfile.$$ passwd /etc/passwd
-verify_write_xattr $TESTDIR/myfile.$$ passwd
-delete_xattr $TESTDIR/myfile.$$ passwd
+for arg in ${args[*]}; do
+	log_must zfs set xattr=$arg $TESTPOOL
+
+	log_must touch $TESTDIR/myfile.$$
+	create_xattr $TESTDIR/myfile.$$ passwd /etc/passwd
+	verify_write_xattr $TESTDIR/myfile.$$ passwd
+	delete_xattr $TESTDIR/myfile.$$ passwd
+done
 
 log_pass "Create/read/write of xattrs works"

@@ -49,6 +49,10 @@ function cleanup {
 	done
 }
 
+if is_linux; then
+	log_unsupported "Test case isn't applicable to Linux"
+fi
+
 log_assert "special . and .. dirs work as expected for xattrs"
 log_onexit cleanup
 

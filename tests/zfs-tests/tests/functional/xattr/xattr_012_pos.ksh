@@ -79,10 +79,16 @@ fi
 
 FS_SIZE=$(zfs get -p -H -o value used $TESTPOOL/$TESTFS)
 
-log_must runat $TESTDIR/myfile.$$ mkfile 200m xattr
+if is_linux; then
+	# Linux setxattr() syscalls limits individual xattrs to 64k.  Create
+	# 100 files, with 128 xattrs each of size 16k.  100*128*16k=200m
+	log_must xattrtest -k -f 100 -x 128 -s 16384 -p $TESTDIR
+else
+	log_must runat $TESTDIR/myfile.$$ mkfile 200m xattr
+fi
 
 #Make sure the newly created file is counted into zpool usage
-log_must sync
+sync_pool
 
 # now check to see if our pool disk usage has increased
 if is_global_zone

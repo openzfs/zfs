@@ -65,60 +65,74 @@ create_xattr $TESTDIR/myfile.$$ passwd /etc/passwd
 # and try various cpio options extracting the archives
 # with and without xattr support, checking for correct behaviour
 
+if is_linux; then
+	log_note "Checking cpio - unsupported"
+else
+	log_note "Checking cpio"
+	log_must touch $TESTDIR/cpio.$$
+	create_xattr $TESTDIR/cpio.$$ passwd /etc/passwd
+	echo $TESTDIR/cpio.$$ | cpio -o@ > /tmp/xattr.$$.cpio
+	echo $TESTDIR/cpio.$$ | cpio -o > /tmp/noxattr.$$.cpio
 
-log_note "Checking cpio"
-log_must touch $TESTDIR/cpio.$$
-create_xattr $TESTDIR/cpio.$$ passwd /etc/passwd
-echo $TESTDIR/cpio.$$ | cpio -o@ > /tmp/xattr.$$.cpio
-echo $TESTDIR/cpio.$$ | cpio -o > /tmp/noxattr.$$.cpio
+	# we should have no xattr here
+	log_must cpio -iu < /tmp/xattr.$$.cpio
+	log_mustnot eval "runat $TESTDIR/cpio.$$ cat passwd > /dev/null 2>&1"
 
-# we should have no xattr here
-log_must cpio -iu < /tmp/xattr.$$.cpio
-log_mustnot eval "runat $TESTDIR/cpio.$$ cat passwd > /dev/null 2>&1"
+	# we should have an xattr here
+	log_must cpio -iu@ < /tmp/xattr.$$.cpio
+	log_must eval "runat $TESTDIR/cpio.$$ cat passwd > /dev/null 2>&1"
 
-# we should have an xattr here
-log_must cpio -iu@ < /tmp/xattr.$$.cpio
-log_must eval "runat $TESTDIR/cpio.$$ cat passwd > /dev/null 2>&1"
+	# we should have no xattr here
+	log_must cpio -iu < /tmp/noxattr.$$.cpio
+	log_mustnot eval "runat $TESTDIR/cpio.$$ cat passwd > /dev/null 2>&1"
 
-# we should have no xattr here
-log_must cpio -iu < /tmp/noxattr.$$.cpio
-log_mustnot eval "runat $TESTDIR/cpio.$$ cat passwd > /dev/null 2>&1"
-
-# we should have no xattr here
-log_must cpio -iu@ < /tmp/noxattr.$$.cpio
-log_mustnot eval "runat $TESTDIR/cpio.$$ cat passwd > /dev/null 2>&1"
-log_must rm $TESTDIR/cpio.$$ /tmp/xattr.$$.cpio /tmp/noxattr.$$.cpio
-
-
+	# we should have no xattr here
+	log_must cpio -iu@ < /tmp/noxattr.$$.cpio
+	log_mustnot eval "runat $TESTDIR/cpio.$$ cat passwd > /dev/null 2>&1"
+	log_must rm $TESTDIR/cpio.$$ /tmp/xattr.$$.cpio /tmp/noxattr.$$.cpio
+fi
 
 log_note "Checking cp"
 # check that with the right flag, the xattr is preserved
-log_must cp -@ $TESTDIR/myfile.$$ $TESTDIR/myfile2.$$
-compare_xattrs $TESTDIR/myfile.$$ $TESTDIR/myfile2.$$ passwd
-log_must rm $TESTDIR/myfile2.$$
+if is_linux; then
+	log_must cp -a $TESTDIR/myfile.$$ $TESTDIR/myfile2.$$
 
-# without the right flag, there should be no xattr
-log_must cp $TESTDIR/myfile.$$ $TESTDIR/myfile2.$$
-log_mustnot eval "runat $TESTDIR/myfile2.$$ ls passwd > /dev/null 2>&1"
-log_must rm $TESTDIR/myfile2.$$
+	compare_xattrs $TESTDIR/myfile.$$ $TESTDIR/myfile2.$$ passwd
+	log_must rm $TESTDIR/myfile2.$$
 
+	# without the right flag, there should be no xattr
+	log_must cp $TESTDIR/myfile.$$ $TESTDIR/myfile2.$$
+	log_mustnot attr -q -g passwd $TESTDIR/myfile2.$$
+	log_must rm $TESTDIR/myfile2.$$
+else
+	log_must cp -@ $TESTDIR/myfile.$$ $TESTDIR/myfile2.$$
 
+	compare_xattrs $TESTDIR/myfile.$$ $TESTDIR/myfile2.$$ passwd
+	log_must rm $TESTDIR/myfile2.$$
 
-log_note "Checking find"
+	# without the right flag, there should be no xattr
+	log_must cp $TESTDIR/myfile.$$ $TESTDIR/myfile2.$$
+	log_mustnot eval "runat $TESTDIR/myfile2.$$ ls passwd > /dev/null 2>&1"
+	log_must rm $TESTDIR/myfile2.$$
+fi
+
 # create a file without xattrs, and check that find -xattr only finds
 # our test file that has an xattr.
-log_must mkdir $TESTDIR/noxattrs
-log_must touch $TESTDIR/noxattrs/no-xattr
+if is_linux; then
+	log_note "Checking find - unsupported"
+else
+	log_note "Checking find"
+	log_must mkdir $TESTDIR/noxattrs
+	log_must touch $TESTDIR/noxattrs/no-xattr
 
-find $TESTDIR -xattr | grep myfile.$$
-[[ $? -ne 0 ]] && \
-	log_fail "find -xattr didn't find our file that had an xattr."
-find $TESTDIR -xattr | grep no-xattr
-[[ $? -eq 0 ]] && \
-	log_fail "find -xattr found a file that didn't have an xattr."
-log_must rm -rf $TESTDIR/noxattrs
-
-
+	find $TESTDIR -xattr | grep myfile.$$
+	[[ $? -ne 0 ]] && \
+		log_fail "find -xattr didn't find our file that had an xattr."
+	find $TESTDIR -xattr | grep no-xattr
+	[[ $? -eq 0 ]] && \
+		log_fail "find -xattr found a file that didn't have an xattr."
+	log_must rm -rf $TESTDIR/noxattrs
+fi
 
 log_note "Checking mv"
 # mv doesn't have any flags to preserve/ommit xattrs - they're
@@ -129,65 +143,96 @@ log_must mv $TESTDIR/mvfile.$$ $TESTDIR/mvfile2.$$
 verify_xattr $TESTDIR/mvfile2.$$ passwd /etc/passwd
 log_must rm $TESTDIR/mvfile2.$$
 
+if is_linux; then
+	log_note "Checking pax - unsupported"
+else
+	log_note "Checking pax"
+	log_must touch $TESTDIR/pax.$$
+	create_xattr $TESTDIR/pax.$$ passwd /etc/passwd
+	log_must pax -w -f $TESTDIR/noxattr.pax $TESTDIR/pax.$$
+	log_must pax -w@ -f $TESTDIR/xattr.pax $TESTDIR/pax.$$
+	log_must rm $TESTDIR/pax.$$
 
-log_note "Checking pax"
-log_must touch $TESTDIR/pax.$$
-create_xattr $TESTDIR/pax.$$ passwd /etc/passwd
-log_must pax -w -f $TESTDIR/noxattr.pax $TESTDIR/pax.$$
-log_must pax -w@ -f $TESTDIR/xattr.pax $TESTDIR/pax.$$
-log_must rm $TESTDIR/pax.$$
+	# we should have no xattr here
+	log_must pax -r -f $TESTDIR/noxattr.pax
+	log_mustnot eval "runat $TESTDIR/pax.$$ cat passwd > /dev/null 2>&1"
+	log_must rm $TESTDIR/pax.$$
 
-# we should have no xattr here
-log_must pax -r -f $TESTDIR/noxattr.pax
-log_mustnot eval "runat $TESTDIR/pax.$$ cat passwd > /dev/null 2>&1"
-log_must rm $TESTDIR/pax.$$
+	# we should have no xattr here
+	log_must pax -r@ -f $TESTDIR/noxattr.pax
+	log_mustnot eval "runat $TESTDIR/pax.$$ cat passwd > /dev/null 2>&1"
+	log_must rm $TESTDIR/pax.$$
 
-# we should have no xattr here
-log_must pax -r@ -f $TESTDIR/noxattr.pax
-log_mustnot eval "runat $TESTDIR/pax.$$ cat passwd > /dev/null 2>&1"
-log_must rm $TESTDIR/pax.$$
+	# we should have an xattr here
+	log_must pax -r@ -f $TESTDIR/xattr.pax
+	verify_xattr $TESTDIR/pax.$$ passwd /etc/passwd
+	log_must rm $TESTDIR/pax.$$
 
-
-# we should have an xattr here
-log_must pax -r@ -f $TESTDIR/xattr.pax
-verify_xattr $TESTDIR/pax.$$ passwd /etc/passwd
-log_must rm $TESTDIR/pax.$$
-
-# we should have no xattr here
-log_must pax -r -f $TESTDIR/xattr.pax $TESTDIR
-log_mustnot eval "runat $TESTDIR/pax.$$ cat passwd > /dev/null 2>&1"
-log_must rm $TESTDIR/pax.$$ $TESTDIR/noxattr.pax $TESTDIR/xattr.pax
-
+	# we should have no xattr here
+	log_must pax -r -f $TESTDIR/xattr.pax $TESTDIR
+	log_mustnot eval "runat $TESTDIR/pax.$$ cat passwd > /dev/null 2>&1"
+	log_must rm $TESTDIR/pax.$$ $TESTDIR/noxattr.pax $TESTDIR/xattr.pax
+fi
 
 log_note "Checking tar"
-log_must touch $TESTDIR/tar.$$
-create_xattr $TESTDIR/tar.$$ passwd /etc/passwd
+if is_linux; then
+	log_must touch $TESTDIR/tar.$$
+	create_xattr $TESTDIR/tar.$$ passwd /etc/passwd
 
-log_must cd $TESTDIR
+	log_must cd $TESTDIR
 
-log_must tar cf noxattr.tar tar.$$
-log_must tar c@f xattr.tar tar.$$
-log_must rm $TESTDIR/tar.$$
+	log_must tar -cf noxattr.tar tar.$$
+	log_must tar --xattrs -cf xattr.tar tar.$$
+	log_must rm $TESTDIR/tar.$$
 
-# we should have no xattr here
-log_must tar xf xattr.tar
-log_mustnot eval "runat $TESTDIR/tar.$$ cat passwd > /dev/null 2>&1"
-log_must rm $TESTDIR/tar.$$
+	# we should have no xattr here
+	log_must tar --no-xattrs -xf xattr.tar
+	log_mustnot attr -q -g passwd $TESTDIR/tar.$$
+	log_must rm $TESTDIR/tar.$$
 
-# we should have an xattr here
-log_must tar x@f xattr.tar
-verify_xattr tar.$$ passwd /etc/passwd
-log_must rm $TESTDIR/tar.$$
+	# we should have an xattr here
+	log_must tar --xattrs -xf xattr.tar
+	verify_xattr tar.$$ passwd /etc/passwd
+	log_must rm $TESTDIR/tar.$$
 
-# we should have no xattr here
-log_must tar xf $TESTDIR/noxattr.tar
-log_mustnot eval "runat $TESTDIR/tar.$$ cat passwd > /dev/null 2>&1"
-log_must rm $TESTDIR/tar.$$
+	# we should have no xattr here
+	log_must tar --no-xattrs -xf $TESTDIR/noxattr.tar
+	log_mustnot attr -q -g passwd $TESTDIR/tar.$$
+	log_must rm $TESTDIR/tar.$$
 
-# we should have no xattr here
-log_must tar x@f $TESTDIR/noxattr.tar
-log_mustnot eval "runat $TESTDIR/tar.$$ cat passwd > /dev/null 2>&1"
-log_must rm $TESTDIR/tar.$$ $TESTDIR/noxattr.tar $TESTDIR/xattr.tar
+	# we should have no xattr here
+	log_must tar --xattrs -xf $TESTDIR/noxattr.tar
+	log_mustnot attr -q -g passwd $TESTDIR/tar.$$
+	log_must rm $TESTDIR/tar.$$ $TESTDIR/noxattr.tar $TESTDIR/xattr.tar
+else
+	log_must touch $TESTDIR/tar.$$
+	create_xattr $TESTDIR/tar.$$ passwd /etc/passwd
 
+	log_must cd $TESTDIR
+
+	log_must tar cf noxattr.tar tar.$$
+	log_must tar c@f xattr.tar tar.$$
+	log_must rm $TESTDIR/tar.$$
+
+	# we should have no xattr here
+	log_must tar xf xattr.tar
+	log_mustnot eval "runat $TESTDIR/tar.$$ cat passwd > /dev/null 2>&1"
+	log_must rm $TESTDIR/tar.$$
+
+	# we should have an xattr here
+	log_must tar x@f xattr.tar
+	verify_xattr tar.$$ passwd /etc/passwd
+	log_must rm $TESTDIR/tar.$$
+
+	# we should have no xattr here
+	log_must tar xf $TESTDIR/noxattr.tar
+	log_mustnot eval "runat $TESTDIR/tar.$$ cat passwd > /dev/null 2>&1"
+	log_must rm $TESTDIR/tar.$$
+
+	# we should have no xattr here
+	log_must tar x@f $TESTDIR/noxattr.tar
+	log_mustnot eval "runat $TESTDIR/tar.$$ cat passwd > /dev/null 2>&1"
+	log_must rm $TESTDIR/tar.$$ $TESTDIR/noxattr.tar $TESTDIR/xattr.tar
+fi
 
 log_assert "Basic applications work with xattrs: cpio cp find mv pax tar"
