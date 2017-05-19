@@ -22,6 +22,7 @@
 /*
  * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
+ * Copyright (c) 2017 Datto Inc.
  */
 
 /*
@@ -126,17 +127,20 @@ lzc_ioctl(zfs_ioc_t ioc, const char *name,
 {
 	zfs_cmd_t zc = {"\0"};
 	int error = 0;
-	char *packed;
-	size_t size;
+	char *packed = NULL;
+	size_t size = 0;
 
 	ASSERT3S(g_refcount, >, 0);
 	VERIFY3S(g_fd, !=, -1);
 
-	(void) strlcpy(zc.zc_name, name, sizeof (zc.zc_name));
+	if (name != NULL)
+		(void) strlcpy(zc.zc_name, name, sizeof (zc.zc_name));
 
-	packed = fnvlist_pack(source, &size);
-	zc.zc_nvlist_src = (uint64_t)(uintptr_t)packed;
-	zc.zc_nvlist_src_size = size;
+	if (source != NULL) {
+		packed = fnvlist_pack(source, &size);
+		zc.zc_nvlist_src = (uint64_t)(uintptr_t)packed;
+		zc.zc_nvlist_src_size = size;
+	}
 
 	if (resultp != NULL) {
 		*resultp = NULL;
@@ -341,6 +345,18 @@ lzc_exists(const char *dataset)
 }
 
 /*
+ * outnvl is unused.
+ * It was added to preserve the function signature in case it is
+ * needed in the future.
+ */
+/*ARGSUSED*/
+int
+lzc_sync(const char *pool_name, nvlist_t *innvl, nvlist_t **outnvl)
+{
+	return (lzc_ioctl(ZFS_IOC_POOL_SYNC, pool_name, innvl, NULL));
+}
+
+/*
  * Create "user holds" on snapshots.  If there is a hold on a snapshot,
  * the snapshot can not be destroyed.  (However, it can be marked for deletion
  * by lzc_destroy_snaps(defer=B_TRUE).)
@@ -440,11 +456,7 @@ lzc_release(nvlist_t *holds, nvlist_t **errlist)
 int
 lzc_get_holds(const char *snapname, nvlist_t **holdsp)
 {
-	int error;
-	nvlist_t *innvl = fnvlist_alloc();
-	error = lzc_ioctl(ZFS_IOC_GET_HOLDS, snapname, innvl, holdsp);
-	fnvlist_free(innvl);
-	return (error);
+	return (lzc_ioctl(ZFS_IOC_GET_HOLDS, snapname, NULL, holdsp));
 }
 
 /*

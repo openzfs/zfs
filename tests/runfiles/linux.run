@@ -319,6 +319,9 @@ tests = ['zpool_upgrade_001_pos', 'zpool_upgrade_002_pos',
     'zpool_upgrade_007_pos', 'zpool_upgrade_008_pos',
     'zpool_upgrade_009_neg']
 
+[tests/functional/cli_root/zpool_sync]
+tests = ['zpool_sync_001_pos', 'zpool_sync_002_neg']
+
 # DISABLED:
 # zfs_share_001_neg - requires additional dependencies
 # zfs_unshare_001_neg - requires additional dependencies

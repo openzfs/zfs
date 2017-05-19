@@ -22,6 +22,7 @@
 
 #
 # Copyright 2016, loli10K. All rights reserved.
+# Copyright (c) 2017 Datto Inc.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -48,30 +49,22 @@ function cleanup
 }
 
 #
-# FIXME: Ugly hack to force a $1 number of txg syncs.
-# This is used on Linux because we can't force it via sync(1) like on Illumos.
-# This could eventually (an hopefully) be replaced by a 'zpool sync' command.
+# Commit the specified number of TXGs to the provided pool
+# We use 'zpool sync' here because we can't force it via sync(1) like on illumos
 # $1 pool name
 # $2 number of txg syncs
 #
 function txg_sync
 {
 	typeset pool=$1
-	typeset count=$2
+	typeset -i count=$2
 	typeset -i i=0;
 
 	while [ $i -lt $count ]
 	do
-		zfs snapshot $pool@sync$$$i
-		if [[ $? -ne 0 ]]
-		then
-			log_fail "Failed to sync pool $pool (snapshot $i)"
-			return 1
-		fi
+		log_must sync_pool $pool true
 		((i = i + 1))
 	done
-
-	return 0
 }
 
 #
@@ -118,7 +111,7 @@ do
 		    "$ashift (current = $pprop)"
 	fi
 	# force 128 txg sync to fill the uberblock ring
-	log_must eval "txg_sync $TESTPOOL 128"
+	txg_sync $TESTPOOL 128
 	verify_device_uberblocks $disk ${ubcount[$i]}
 	if [[ $? -ne 0 ]]
 	then
