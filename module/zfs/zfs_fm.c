@@ -210,17 +210,17 @@ zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
 	    (vd->vdev_remove_wanted || vd->vdev_state == VDEV_STATE_REMOVED))
 		return;
 
+	if ((strcmp(subclass, FM_EREPORT_ZFS_DELAY) == 0) &&
+	    (zio != NULL) && (!zio->io_timestamp)) {
+		/* Ignore bogus delay events */
+		return;
+	}
+
 	if ((ereport = fm_nvlist_create(NULL)) == NULL)
 		return;
 
 	if ((detector = fm_nvlist_create(NULL)) == NULL) {
 		fm_nvlist_destroy(ereport, FM_NVA_FREE);
-		return;
-	}
-
-	if ((strcmp(subclass, FM_EREPORT_ZFS_DELAY) == 0) &&
-	    (zio != NULL) && (!zio->io_timestamp)) {
-		/* Ignore bogus delay events */
 		return;
 	}
 
