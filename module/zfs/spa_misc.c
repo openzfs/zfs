@@ -643,7 +643,7 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 
 	if (spa->spa_label_features == NULL) {
 		VERIFY(nvlist_alloc(&spa->spa_label_features, NV_UNIQUE_NAME,
-		    KM_SLEEP) == 0);
+		    KM_PUSHPAGE) == 0);
 	}
 
 	spa->spa_debug = ((zfs_flags & ZFS_DEBUG_SPA) != 0);
