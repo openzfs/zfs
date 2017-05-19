@@ -61,7 +61,10 @@ log_assert "'zfs clone -o property=value -V size volume' can successfully" \
 log_must zfs snapshot $SNAPFS1
 typeset -i i=0
 while (( $i < ${#RW_VOL_CLONE_PROP[*]} )); do
-	log_must zfs clone -o ${RW_VOL_CLONE_PROP[$i]} $SNAPFS1 $TESTPOOL/$TESTCLONE
+	log_must zfs clone -o ${RW_VOL_CLONE_PROP[$i]} $SNAPFS1 \
+	    $TESTPOOL/$TESTCLONE
+	block_device_wait
+
 	datasetexists $TESTPOOL/$TESTCLONE || \
 		log_fail "zfs clone $TESTPOOL/$TESTCLONE fail."
 	propertycheck $TESTPOOL/$TESTCLONE ${RW_VOL_CLONE_PROP[i]} || \

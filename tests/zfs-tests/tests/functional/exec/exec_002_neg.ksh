@@ -75,10 +75,15 @@ log_assert "Setting exec=off on a filesystem, processes can not be executed " \
 	"from this file system."
 log_onexit cleanup
 
-log_must cp /usr/bin/ls $TESTDIR/myls
+log_must cp  $STF_PATH/ls $TESTDIR/myls
 log_must zfs set exec=off $TESTPOOL/$TESTFS
 
-log_must exec_n_check 126 $TESTDIR/myls
-log_must exec_n_check 13 $MMAP_EXEC $TESTDIR/myls
+if is_linux; then
+	log_must exec_n_check 126 $TESTDIR/myls
+	log_must exec_n_check 1 mmap_exec $TESTDIR/myls	# EPERM
+else
+	log_must exec_n_check 126 $TESTDIR/myls
+	log_must exec_n_check 13 mmap_exec $TESTDIR/myls # EACCES
+fi
 
 log_pass "Setting exec=off on filesystem testing passed."

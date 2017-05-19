@@ -21,7 +21,7 @@
 #
 
 #
-# Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+# Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
 
@@ -29,38 +29,25 @@
 # Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
-. $STF_SUITE/tests/functional/redundancy/redundancy.kshlib
-
-#
-# DESCRIPTION:
-#	Striped pool have no data redundancy. Any device errors will
-#	cause data corruption.
-#
-# STRATEGY:
-#	1. Create N virtual disk file.
-#	2. Create stripe pool based on the virtual disk files.
-#	3. Fill the filesystem with directories and files.
-#	4. Record all the files and directories checksum information.
-#	5. Damage one of the virtual disk file.
-#	6. Verify the data is error.
-#
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/grow_pool/grow_pool.cfg
 
 verify_runnable "global"
 
-log_assert "Verify striped pool have no data redundancy."
-log_onexit cleanup
+ismounted $TESTFS && \
+	log_must zfs umount $TESTDIR
+destroy_pool "$TESTPOOL"
 
-typeset -i cnt=$(random 2 5)
-setup_test_env $TESTPOOL "" $cnt
+#
+# Here we create & destroy a zpool using the disks
+# because this resets the partitions to normal
+#
+if [[ -z $DISK ]]; then
+	create_pool ZZZ "$DISK0 $DISK1"
+	destroy_pool ZZZ
+else
+	create_pool ZZZ "$DISK"
+	destroy_pool ZZZ
+fi
 
-damage_devs $TESTPOOL 1 "keep_label"
-log_must zpool scrub $TESTPOOL
-
-# Wait for the scrub to wrap, or is_healthy will be wrong.
-while ! is_pool_scrubbed $TESTPOOL; do
-	sleep 1
-done
-
-log_mustnot is_healthy $TESTPOOL
-
-log_pass "Striped pool has no data redundancy as expected."
+log_pass

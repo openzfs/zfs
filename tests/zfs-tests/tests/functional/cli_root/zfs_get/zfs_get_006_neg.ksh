@@ -53,6 +53,8 @@ set -A  bad_combine "ALL" "\-R all" "-P all" "-h all" "-rph all" "-RpH all" "-Pr
 		"all -rph $TESTPOOL" "all,available,reservation $TESTPOOL" \
 		"all $TESTPOOL?" "all $TESTPOOL*" "all nonexistpool"
 
+export POSIXLY_CORRECT=1
+
 typeset -i i=0
 while (( i < ${#bad_combine[*]} ))
 do
@@ -60,5 +62,7 @@ do
 
 	(( i = i + 1 ))
 done
+
+unset POSIXLY_CORRECT
 
 log_pass "'zfs get all' fails with invalid combinations scenarios as expected."

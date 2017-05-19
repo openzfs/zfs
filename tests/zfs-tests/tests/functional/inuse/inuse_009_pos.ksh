@@ -45,6 +45,10 @@
 
 verify_runnable "global"
 
+if ! is_physical_device $FS_DISK0; then
+	log_unsupported "This directory cannot be run on raw files."
+fi
+
 function cleanup
 {
 	poolexists $TESTPOOL1 || zpool import $TESTPOOL1 >/dev/null 2>&1
@@ -62,7 +66,7 @@ function verify_assertion #disks
 	typeset targets=$1
 
 	for t in $targets; do
-		log_must set_partition 0 "" 0mb $t
+		log_must zero_partitions $t
 	done
 
 	return 0
@@ -78,11 +82,13 @@ typeset -i i=0
 
 while (( i < ${#vdevs[*]} )); do
 
+	typeset cyl=""
 	for num in 0 1 2 3 ; do
 		eval typeset slice=\${FS_SIDE$num}
 		disk=${slice%${SLICE_PREFIX}*}
 		slice=${slice##*${SLICE_PREFIX}}
-		log_must set_partition $slice "" $FS_SIZE $disk
+		log_must set_partition $slice "$cyl" $FS_SIZE $disk
+		cyl=$(get_endslice $disk $slice)
 	done
 
 	if [[ -n $SINGLE_DISK && -n ${vdevs[i]} ]]; then

@@ -50,7 +50,9 @@ export ITERS=10
 export NUMFILES=10000
 
 # Detect and make sure this test must be executed on a multi-process system
-is_mp || log_fail "This test requires a multi-processor system."
+if ! is_mp; then
+	log_unsupported "This test requires a multi-processor system."
+fi
 
 log_must mkdir -p ${TESTDIR}/tmp
 

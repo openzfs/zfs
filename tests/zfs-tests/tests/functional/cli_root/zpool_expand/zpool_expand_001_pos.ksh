@@ -48,9 +48,9 @@
 
 verify_runnable "global"
 
-# See issue: https://github.com/zfsonlinux/zfs/issues/6065
+# See issue: https://github.com/zfsonlinux/zfs/issues/5771
 if is_linux; then
-	log_unsupported "Creating a pool containing a zvol may deadlock"
+	log_unsupported "Requires additional ZED support"
 fi
 
 function cleanup
@@ -73,6 +73,7 @@ log_assert "zpool can be autoexpanded after set autoexpand=on on LUN expansion"
 for i in 1 2 3; do
 	log_must zfs create -V $org_size $VFS/vol$i
 done
+block_device_wait
 
 for type in " " mirror raidz raidz2; do
 

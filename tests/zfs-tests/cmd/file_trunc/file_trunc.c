@@ -25,7 +25,7 @@
  */
 
 /*
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  */
 
 #include <stdio.h>
@@ -87,11 +87,9 @@ main(int argc, char *argv[])
 		exit(3);
 	}
 
-	while (i < count) {
+	for (i = 0; count == 0 || i < count; i++) {
 		(void) do_write(fd);
 		(void) do_trunc(fd);
-
-		i++;
 	}
 
 	(void) close(fd);
@@ -188,7 +186,7 @@ do_write(int fd)
 		exit(5);
 	}
 
-	strcpy(buf, "ZFS Test Suite Truncation Test");
+	(void) strcpy(buf, "ZFS Test Suite Truncation Test");
 	if (write(fd, buf, bsize) < bsize) {
 		perror("write");
 		exit(6);

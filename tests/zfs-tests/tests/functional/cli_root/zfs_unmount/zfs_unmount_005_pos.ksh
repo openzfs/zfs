@@ -101,7 +101,11 @@ typeset -i i=0
 
 while (( i <  ${#options[*]} )); do
 	if [[ ${options[i]} == "-f" ]]; then
-		do_unmount_multiple "${options[i]}"
+		if is_linux; then
+			do_unmount_multiple "${options[i]}" 1
+		else
+			do_unmount_multiple "${options[i]}"
+		fi
 	else
 		do_unmount_multiple "${options[i]}" 1
 	fi

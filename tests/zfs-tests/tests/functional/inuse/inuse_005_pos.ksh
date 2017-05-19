@@ -44,6 +44,10 @@
 
 verify_runnable "global"
 
+if ! is_physical_device $FS_DISK0; then
+	log_unsupported "This directory cannot be run on raw files."
+fi
+
 function cleanup
 {
 	poolexists $TESTPOOL1 && destroy_pool $TESTPOOL1
@@ -80,10 +84,17 @@ unset NOINUSE_CHECK
 while (( i < ${#vdevs[*]} )); do
 
 	for num in 0 1 2 3 ; do
+		eval typeset disk=\${FS_DISK$num}
+		zero_partitions $disk
+	done
+
+	typeset cyl=""
+	for num in 0 1 2 3 ; do
 		eval typeset slice=\${FS_SIDE$num}
 		disk=${slice%${SLICE_PREFIX}*}
 		slice=${slice##*${SLICE_PREFIX}}
-		log_must set_partition $slice "" $FS_SIZE $disk
+		log_must set_partition $slice "$cyl" $FS_SIZE $disk
+	        cyl=$(get_endslice $disk $slice)
 	done
 
 	if [[ -n $SINGLE_DISK && -n ${vdevs[i]} ]]; then

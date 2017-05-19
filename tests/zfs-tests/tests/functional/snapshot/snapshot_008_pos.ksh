@@ -89,6 +89,7 @@ while [[ $i -lt $COUNT ]]; do
 done
 
 wait_freeing $TESTPOOL
+sync_pool
 
 new_size=`get_prop available $TESTPOOL`
 

@@ -83,7 +83,7 @@ function setup_snap_env
 
 		# Make sure the ufs|ext2 filesystem hasn't been mounted,
 		# then mount the new ufs|ext2 filesystem.
-		if ! ismounted "$ZVOL_DEVDIR/$VOL" $NEWFS_DEFAULT_FS; then
+		if ! ismounted $TESTDIR1 $NEWFS_DEFAULT_FS; then
 			log_must mount \
 				$ZVOL_DEVDIR/$TESTPOOL/$TESTVOL $TESTDIR1
 		fi
@@ -133,6 +133,7 @@ function setup_snap_env
 			if [[ $createclone == "true" ]]; then
 				if datasetnonexists $clone; then
 					log_must zfs clone $snap $clone
+					block_device_wait
 				fi
 			fi
 			(( ind += 1 ))
@@ -157,7 +158,7 @@ function cleanup_env
 	typeset dtst
 	typeset snap
 
-	pkill ${DD##*/}
+	pkill -x dd
 
 	if ismounted $TESTDIR1 $NEWFS_DEFAULT_FS; then
 		log_must umount -f $TESTDIR1

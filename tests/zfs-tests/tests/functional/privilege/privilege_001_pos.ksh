@@ -57,6 +57,10 @@
 # We can only run this in the global zone
 verify_runnable "global"
 
+if is_linux; then
+	log_unsupported "Requires pfexec command"
+fi
+
 log_assert "The RBAC profile \"ZFS Storage Management\" works"
 
 ZFS_USER=$(cat /tmp/zfs-privs-test-user.txt)

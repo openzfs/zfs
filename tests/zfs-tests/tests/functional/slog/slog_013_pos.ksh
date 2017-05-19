@@ -44,6 +44,10 @@
 
 verify_runnable "global"
 
+if ! $(is_physical_device $DISKS) ; then
+	log_unsupported "This directory cannot be run on raw files."
+fi
+
 function cleanup_testenv
 {
 	cleanup
@@ -51,7 +55,11 @@ function cleanup_testenv
 		log_must zpool destroy -f $TESTPOOL2
 	fi
 	if [[ -n $lofidev ]]; then
-		lofiadm -d $lofidev
+		if is_linux; then
+			losetup -d $lofidev
+		else
+			lofiadm -d $lofidev
+		fi
 	fi
 }
 
@@ -72,9 +80,15 @@ ldev=$(random_get $LDEV)
 log_must verify_slog_device $TESTPOOL $ldev 'ONLINE'
 
 # Add lofi device
-lofidev=${LDEV2%% *}
-log_must lofiadm -a $lofidev
-lofidev=$(lofiadm $lofidev)
+if is_linux; then
+	lofidev=$(losetup -f)
+	lofidev=${lofidev##*/}
+	log_must losetup $lofidev ${LDEV2%% *}
+else
+	lofidev=${LDEV2%% *}
+	log_must lofiadm -a $lofidev
+	lofidev=$(lofiadm $lofidev)
+fi
 log_must zpool add $TESTPOOL log $lofidev
 log_must verify_slog_device $TESTPOOL $lofidev 'ONLINE'
 

@@ -51,6 +51,8 @@ function cleanup
 		log_must zfs destroy -Rf $SNAPFS
 	datasetexists $TESTPOOL/$TESTFS@snap_a && \
 		log_must zfs destroy -Rf $TESTPOOL/$TESTFS@snap_a
+	datasetexists $TESTPOOL/$TESTFS@snap_b && \
+		log_must zfs destroy -Rf $TESTPOOL/$TESTFS@snap_b
 	datasetexists $TESTPOOL/$TESTCLONE@snap_a && \
 		log_must zfs destroy -Rf $TESTPOOL/$TESTCLONE@snap_a
 
@@ -79,15 +81,15 @@ log_must zfs destroy $TESTPOOL/$TESTFS@snap_a
 
 log_must zfs snapshot $SNAPFS
 log_must zfs clone $SNAPFS $TESTPOOL/$TESTCLONE
-log_must mv $TESTDIR/$SNAPROOT/$TESTSNAP $TESTDIR/$SNAPROOT/snap_a
+log_must mv $TESTDIR/$SNAPROOT/$TESTSNAP $TESTDIR/$SNAPROOT/snap_b
 
-datasetexists $TESTPOOL/$TESTFS@snap_a || \
+datasetexists $TESTPOOL/$TESTFS@snap_b || \
         log_fail "rename snapshot via mv in .zfs/snapshot fails."
 log_must zfs promote $TESTPOOL/$TESTCLONE
 # promote back to $TESTPOOL/$TESTFS for scenario 3
 log_must zfs promote $TESTPOOL/$TESTFS
 log_must zfs destroy $TESTPOOL/$TESTCLONE
-log_must zfs destroy $TESTPOOL/$TESTFS@snap_a
+log_must zfs destroy $TESTPOOL/$TESTFS@snap_b
 
 # scenario 3
 

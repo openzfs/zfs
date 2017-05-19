@@ -45,6 +45,11 @@
 
 verify_runnable "global"
 
+# See issue: https://github.com/zfsonlinux/zfs/issues/5657
+if is_linux; then
+	log_unsupported "Test case occasionally fails"
+fi
+
 function cleanup
 {
 	if datasetexists $fs ; then

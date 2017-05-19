@@ -30,6 +30,7 @@
 #
 
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/online_offline/online_offline.cfg
 
 #
 # DESCRIPTION:
@@ -70,19 +71,22 @@ file_trunc -f $((64 * 1024 * 1024)) -b 8192 -c 0 -r $TESTDIR/$TESTFILE1 &
 typeset killpid="$! "
 
 for disk in $DISKLIST; do
-        for i in 'do_offline' 'do_offline_while_already_offline'; do
+	for i in 'do_offline' 'do_offline_while_already_offline'; do
 		log_must zpool offline $TESTPOOL $disk
 		check_state $TESTPOOL $disk "offline"
-                if [[ $? != 0 ]]; then
-                        log_fail "$disk of $TESTPOOL is not offline."
-                fi
-        done
+		if [[ $? != 0 ]]; then
+			log_fail "$disk of $TESTPOOL is not offline."
+		fi
+	done
 
-        log_must zpool online $TESTPOOL $disk
-        check_state $TESTPOOL $disk "online"
-        if [[ $? != 0 ]]; then
-                log_fail "$disk of $TESTPOOL did not match online state"
-        fi
+	log_must zpool online $TESTPOOL $disk
+	check_state $TESTPOOL $disk "online"
+	if [[ $? != 0 ]]; then
+		log_fail "$disk of $TESTPOOL did not match online state"
+	fi
+
+	# Delay for resilver to complete
+	sleep 3
 done
 
 log_must kill $killpid

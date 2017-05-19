@@ -45,6 +45,11 @@
 
 verify_runnable "both"
 
+# See issue: https://github.com/zfsonlinux/zfs/issues/6136
+if is_linux; then
+	log_unsupported "Test case occasionally fails"
+fi
+
 log_assert "Ensure multiple threads performing write appends to the same" \
 	"ZFS file succeed"
 
@@ -67,7 +72,7 @@ fi
 # zfs_threadsappend tries to append to $TESTFILE using threads
 # so that the resulting file is $FILE_SIZE bytes in size
 #
-log_must $THREADSAPPEND ${TESTDIR}/${TESTFILE}
+log_must threadsappend ${TESTDIR}/${TESTFILE}
 
 #
 # Check the size of the resulting file

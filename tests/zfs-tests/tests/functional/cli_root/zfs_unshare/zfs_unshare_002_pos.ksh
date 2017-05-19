@@ -44,6 +44,10 @@
 
 verify_runnable "global"
 
+if is_linux; then
+	log_unsupported "zfs set sharenfs=off won't unshare if already off"
+fi
+
 function cleanup
 {
 	typeset -i i=0

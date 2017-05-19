@@ -751,6 +751,8 @@ function zero_partitions #<whole_disk_name>
 			set_partition $i "" 0mb $diskname
 		done
 	fi
+
+	return 0
 }
 
 #
@@ -3253,31 +3255,83 @@ function wait_replacing #pool
 }
 
 #
+# Setup custom environment for the ZED.
+#
+function zed_setup
+{
+	if ! is_linux; then
+		return
+	fi
+
+	if [[ ! -d $ZEDLET_DIR ]]; then
+		log_must mkdir $ZEDLET_DIR
+	fi
+
+	if [[ ! -e $VDEVID_CONF ]]; then
+		log_must touch $VDEVID_CONF
+	fi
+
+	if [[ -e $VDEVID_CONF_ETC ]]; then
+		log_fail "Must not have $VDEVID_CONF_ETC file present on system"
+	fi
+
+	# Create a symlink for /etc/zfs/vdev_id.conf file.
+	log_must ln -s $VDEVID_CONF $VDEVID_CONF_ETC
+
+	# Setup minimal ZED configuration.  Individual test cases should
+	# add additional ZEDLETs as needed for their specific test.
+	log_must cp ${ZEDLETDIR}/zed.rc $ZEDLET_DIR
+	log_must cp ${ZEDLETDIR}/zed-functions.sh $ZEDLET_DIR
+	log_must cp ${ZEDLETDIR}/all-syslog.sh $ZEDLET_DIR
+
+	log_must zpool events -c
+}
+
+#
+# Cleanup custom ZED environment.
+#
+function zed_cleanup
+{
+	if ! is_linux; then
+		return
+	fi
+
+	log_must rm -f ${ZEDLET_DIR}/zed.rc
+	log_must rm -f ${ZEDLET_DIR}/zed-functions.sh
+	log_must rm -f ${ZEDLET_DIR}/all-syslog.sh
+	log_must rm -f ${ZEDLET_DIR}/zed.pid
+	log_must rm -f ${ZEDLET_DIR}/zedlog
+	log_must rm -f ${ZEDLET_DIR}/state
+	log_must rm -f $VDEVID_CONF_ETC
+	log_must rm -f $VDEVID_CONF
+	rmdir $ZEDLET_DIR
+}
+
+#
 # Check if ZED is currently running, if not start ZED.
 #
 function zed_start
 {
-	if is_linux; then
-		# ZEDLET_DIR=/var/tmp/zed
-		if [[ ! -d $ZEDLET_DIR ]]; then
-			log_must mkdir $ZEDLET_DIR
-		fi
-
-		# Verify the ZED is not already running.
-		pgrep -x zed > /dev/null
-		if (($? == 0)); then
-			log_fail "ZED already running"
-		fi
-
-		# ZEDLETDIR=</etc/zfs/zed.d | ${SRCDIR}/cmd/zed/zed.d>
-		log_must cp ${ZEDLETDIR}/all-syslog.sh $ZEDLET_DIR
-
-		log_note "Starting ZED"
-		# run ZED in the background and redirect foreground logging
-		# output to zedlog
-		log_must eval "zed -vF -d $ZEDLET_DIR -p $ZEDLET_DIR/zed.pid" \
-		    "-s $ZEDLET_DIR/state 2>${ZEDLET_DIR}/zedlog &"
+	if ! is_linux; then
+		return
 	fi
+
+	# ZEDLET_DIR=/var/tmp/zed
+	if [[ ! -d $ZEDLET_DIR ]]; then
+		log_must mkdir $ZEDLET_DIR
+	fi
+
+	# Verify the ZED is not already running.
+	pgrep -x zed > /dev/null
+	if (($? == 0)); then
+		log_fail "ZED already running"
+	fi
+
+	log_note "Starting ZED"
+	# run ZED in the background and redirect foreground logging
+	# output to zedlog
+	log_must eval "zed -vF -d $ZEDLET_DIR -p $ZEDLET_DIR/zed.pid" \
+	    "-s $ZEDLET_DIR/state 2>${ZEDLET_DIR}/zedlog &"
 }
 
 #
@@ -3285,16 +3339,13 @@ function zed_start
 #
 function zed_stop
 {
-	if is_linux; then
-		if [[ -f ${ZEDLET_DIR}/zed.pid ]]; then
-			zedpid=$(cat ${ZEDLET_DIR}/zed.pid)
-			log_must kill $zedpid
-		fi
-		log_must rm -f ${ZEDLET_DIR}/all-syslog.sh
-		log_must rm -f ${ZEDLET_DIR}/zed.pid
-		log_must rm -f ${ZEDLET_DIR}/zedlog
-		log_must rm -f ${ZEDLET_DIR}/state
-		log_must rmdir $ZEDLET_DIR
+	if ! is_linux; then
+		return
+	fi
+
+	if [[ -f ${ZEDLET_DIR}/zed.pid ]]; then
+		zedpid=$(cat ${ZEDLET_DIR}/zed.pid)
+		log_must kill $zedpid
 	fi
 }
 

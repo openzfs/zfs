@@ -41,6 +41,10 @@
 
 verify_runnable "global"
 
+if is_linux; then
+	log_unsupported "some distros come with Samba "user shares" disabled"
+fi
+
 function cleanup
 {
 	log_must zfs unshare -a

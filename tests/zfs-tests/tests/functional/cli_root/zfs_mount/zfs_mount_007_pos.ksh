@@ -76,11 +76,19 @@ function get_reverse_option
 	typeset prop=$2
 
 	# Define property value: "reverse if value=on" "reverse if value=off"
-	set -A values "noatime"   "atime" \
-		      "nodevices" "devices" \
-		      "noexec"    "exec" \
-		      "rw"        "ro" \
-		      "nosetuid"  "setuid"
+	if is_linux; then
+		set -A values "noatime"   "atime" \
+			      "nodev"     "dev" \
+			      "noexec"    "exec" \
+			      "rw"        "ro" \
+			      "nosuid"    "suid"
+	else
+		set -A values "noatime"   "atime" \
+			      "nodevices" "devices" \
+			      "noexec"    "exec" \
+			      "rw"        "ro" \
+			      "nosetuid"  "setuid"
+	fi
 
 	typeset -i i=0
 	while (( i < ${#properties[@]} )); do

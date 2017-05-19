@@ -45,9 +45,9 @@
 
 verify_runnable "global"
 
-# See issue: https://github.com/zfsonlinux/zfs/issues/6065
+# https://github.com/zfsonlinux/zfs/issues/6145
 if is_linux; then
-	log_unsupported "Creating a pool containing a zvol may deadlock"
+	log_unsupported "Test case occasionally fails"
 fi
 
 function cleanup

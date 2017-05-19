@@ -161,7 +161,7 @@ zed_udev_monitor(void *arg)
 	struct udev_monitor *mon = arg;
 	char *tmp, *tmp2;
 
-	zed_log_msg(LOG_INFO, "Waiting for new uduev disk events...");
+	zed_log_msg(LOG_INFO, "Waiting for new udev disk events...");
 
 	while (1) {
 		struct udev_device *dev;

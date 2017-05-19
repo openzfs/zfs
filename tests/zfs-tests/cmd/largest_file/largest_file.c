@@ -108,8 +108,8 @@ main(int argc, char **argv)
 
 	write_ret = write(fd, mybuf, 1);
 	if (write_ret < 0) {
-		if (errno == EFBIG) {
-			(void) printf("write errno=EFBIG: success\n");
+		if (errno == EFBIG || errno == EINVAL) {
+			(void) printf("write errno=EFBIG|EINVAL: success\n");
 			err = 0;
 		} else {
 			err = errno;

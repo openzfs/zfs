@@ -21,15 +21,26 @@
 #
 
 #
-# Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
+# Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
 
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cachefile/cachefile.cfg
+. $STF_SUITE/tests/functional/cachefile/cachefile.kshlib
 
-verify_runnable "global"
+for pool in "$TESTPOOL" "$TESTPOOL2" "$TESTPOOL3" ; do
+	if poolexists $pool ; then
+		destroy_pool $pool
+	fi
+done
 
-zed_stop
-zed_cleanup
+for file in $CPATH1 $CPATH2 ; do
+	if [[ -f $file ]] ; then
+		log_must rm $file
+	fi
+done
 
-default_cleanup
+if pool_in_cache $TESTPOOL; then
+	log_unsupported "Skipping test group due to existing pool"
+fi

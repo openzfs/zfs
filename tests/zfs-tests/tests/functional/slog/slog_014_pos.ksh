@@ -65,6 +65,7 @@ do
 		log_must zpool scrub $TESTPOOL
 		log_must display_status $TESTPOOL
 		log_must zpool status $TESTPOOL 2>&1 >/dev/null
+		log_must zpool offline $TESTPOOL $VDIR/a
 
 		zpool status -v $TESTPOOL | \
 			grep "state: DEGRADED" 2>&1 >/dev/null
@@ -78,6 +79,7 @@ do
 			log_fail "log device should display correct status"
 		fi
 
+		log_must zpool online $TESTPOOL $VDIR/a
 		log_must zpool destroy -f $TESTPOOL
 	done
 done

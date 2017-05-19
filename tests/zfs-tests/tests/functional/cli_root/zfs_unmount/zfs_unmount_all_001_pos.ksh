@@ -181,6 +181,10 @@ for opt in "-a" "-fa"; do
 	fi
 
 	export __ZFS_POOL_RESTRICT="$TESTPOOL"
+	if [[ $opt == "-fa" ]] && is_linux; then
+		log_mustnot zfs unmount $opt
+		cd /tmp
+	fi
 	log_must zfs unmount $opt
 	unset __ZFS_POOL_RESTRICT
 

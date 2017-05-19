@@ -48,7 +48,9 @@ log_assert "write()s to a file and mmap() that file at the same time does not "\
 	"result in a deadlock."
 
 # Detect and make sure this test must be executed on a multi-process system
-is_mp || log_fail "This test requires a multi-processor system."
+if ! is_mp; then
+	log_unsupported "This test requires a multi-processor system."
+fi
 
 log_must chmod 777 $TESTDIR
 mmapwrite $TESTDIR/test-write-file &

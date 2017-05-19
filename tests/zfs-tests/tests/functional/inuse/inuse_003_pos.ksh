@@ -50,6 +50,10 @@
 
 verify_runnable "global"
 
+if is_linux; then
+	log_unsupported "Test case isn't applicable to Linux"
+fi
+
 function cleanup
 {
 	poolexists $TESTPOOL1 && destroy_pool $TESTPOOL1
@@ -94,12 +98,14 @@ typeset restored_files="${UFSMP}/restored_files"
 typeset -i dirnum=0
 typeset -i filenum=0
 typeset cwd=""
+typeset cyl=""
 
 for num in 0 1 2; do
 	eval typeset slice=\${FS_SIDE$num}
 	disk=${slice%s*}
 	slice=${slice##*${SLICE_PREFIX}}
-	log_must set_partition $slice "" $FS_SIZE $disk
+	log_must set_partition $slice "$cyl" $FS_SIZE $disk
+	cyl=$(get_endslice $disk $slice)
 done
 
 log_note "Make a ufs filesystem on source $rawdisk1"

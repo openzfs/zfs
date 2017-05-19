@@ -30,10 +30,8 @@ verify_runnable "global"
 
 cleanup_devices $DISKS
 
-# Remove symlink and vdev_id.conf in-tree file
-rm -f $VDEVID_CONF_ETC
-rm -f $VDEVID_CONF
 zed_stop
+zed_cleanup
 
 SD=$(lsscsi | nawk '/scsi_debug/ {print $6; exit}')
 SDDEVICE=$(echo $SD | nawk -F / '{print $3}')

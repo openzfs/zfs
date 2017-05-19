@@ -46,6 +46,11 @@
 
 verify_runnable "global"
 
+# See issue: https://github.com/zfsonlinux/zfs/issues/6145
+if is_linux; then
+	log_unsupported "Test case occasionally fails"
+fi
+
 #
 # Parse the results of zpool & zfs creation with specified size
 #
@@ -137,6 +142,7 @@ for volsize in $VOLSIZES; do
 			log_fail "zfs create -sV $volsize $TESTPOOL2/$TESTVOL"
 		fi
 	fi
+	block_device_wait
 
 	log_note "Create the largest pool allowed using the volume vdev"
 	create_pool $TESTPOOL "$VOL_PATH"
