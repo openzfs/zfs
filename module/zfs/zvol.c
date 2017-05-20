@@ -2378,6 +2378,7 @@ out_free:
 out_taskq:
 	taskq_destroy(zvol_taskq);
 out:
+	ida_destroy(&zvol_ida);
 	mutex_destroy(&zvol_state_lock);
 	list_destroy(&zvol_state_list);
 
