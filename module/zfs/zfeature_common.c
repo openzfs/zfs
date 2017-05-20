@@ -319,3 +319,8 @@ zpool_feature_init(void)
 	    userobj_accounting_deps);
 	}
 }
+
+#if defined(_KERNEL)
+module_param(zfeature_checks_disable, int, 0644);
+MODULE_PARM_DESC(zfeature_checks_disable, "Disable all feature checks while opening pools");
+#endif

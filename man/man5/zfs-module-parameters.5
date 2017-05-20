@@ -363,6 +363,18 @@ Default value: \fB5\fR.
 .sp
 .ne 2
 .na
+\fBzfeature_checks_disable\fR (int)
+.ad
+.RS 12n
+Set to disable all feature checks while opening pools, allowing pools with
+unsupported features to be opened. Set for testing only.
+.sp
+Use \fB1\fR for yes and \fB0\fR to disable (default).
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfetch_array_rd_sz\fR (ulong)
 .ad
 .RS 12n
