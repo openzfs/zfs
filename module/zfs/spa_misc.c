@@ -404,7 +404,11 @@ spa_config_lock_init(spa_t *spa)
 		spa_config_lock_t *scl = &spa->spa_config_lock[i];
 		mutex_init(&scl->scl_lock, NULL, MUTEX_DEFAULT, NULL);
 		cv_init(&scl->scl_cv, NULL, CV_DEFAULT, NULL);
+#ifdef	DEBUG
+		refcount_create_tracked(&scl->scl_count);
+#else	/* DEBUG */
 		refcount_create_untracked(&scl->scl_count);
+#endif	/* !DEBUG */
 		scl->scl_writer = NULL;
 		scl->scl_write_wanted = 0;
 	}

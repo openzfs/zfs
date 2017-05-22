@@ -3824,8 +3824,6 @@ metaslab_exec_trim(metaslab_t *msp, boolean_t auto_trim)
 	while (msp->ms_trimming_ts != NULL && !vdev_trim_should_stop(vd))
 		cv_wait(&msp->ms_trim_cv, &msp->ms_lock);
 
-	spa_config_enter(spa, SCL_STATE_ALL, FTAG, RW_READER);
-
 	/*
 	 * If a management operation is about to happen, we need to stop
 	 * pushing new trims into the pipeline.
@@ -3833,9 +3831,10 @@ metaslab_exec_trim(metaslab_t *msp, boolean_t auto_trim)
 	if (vdev_trim_should_stop(vd)) {
 		metaslab_free_trimset(msp->ms_prev_ts);
 		msp->ms_prev_ts = NULL;
-		zio = zio_null(NULL, spa, NULL, NULL, NULL, 0);
-		goto out;
+		return (zio_null(NULL, spa, NULL, NULL, NULL, 0));
 	}
+
+	spa_config_enter(spa, SCL_STATE_ALL, FTAG, RW_READER);
 
 	msp->ms_trimming_ts = msp->ms_prev_ts;
 	msp->ms_prev_ts = NULL;
@@ -3926,9 +3925,9 @@ metaslab_exec_trim(metaslab_t *msp, boolean_t auto_trim)
 		    metaslab_trim_done, msp, trim_flags, msp);
 	}
 
+out:
 	spa_config_exit(spa, SCL_STATE_ALL, FTAG);
 
-out:
 	return (zio);
 }
 
