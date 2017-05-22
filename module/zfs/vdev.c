@@ -4829,6 +4829,7 @@ vdev_man_trim(vdev_trim_info_t *vti)
 		for (;;) {
 			uint64_t rate = spa->spa_man_trim_rate;
 			uint64_t sleep_delay;
+			clock_t t1;
 
 			if (rate == 0) {
 				/* No delay, just update 't' and move on. */
@@ -4838,16 +4839,16 @@ vdev_man_trim(vdev_trim_info_t *vti)
 
 			sleep_delay = (delta * hz) / rate;
 			mutex_enter(&spa->spa_man_trim_lock);
-			(void) cv_timedwait(&spa->spa_man_trim_update_cv,
-			    &spa->spa_man_trim_lock, t);
+			t1 = cv_timedwait(&spa->spa_man_trim_update_cv,
+			    &spa->spa_man_trim_lock, t + sleep_delay);
 			mutex_exit(&spa->spa_man_trim_lock);
 
 			/* If interrupted, don't try to relock, get out */
 			if (spa->spa_man_trim_stop)
 				goto out;
 
-			/* Timeout passed, move on to the next metaslab. */
-			if (ddi_get_lbolt() >= t + sleep_delay) {
+			/* Timeout passed, move on to the next chunk. */
+			if (t1 == -1) {
 				t += sleep_delay;
 				break;
 			}
