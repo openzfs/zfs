@@ -32,27 +32,21 @@
 
 #
 # DESCRIPTION:
-#	Verify 'autotrim=on' pool data integrity.
+# 	Check various pool geometries (raidz[1-3], mirror, stripe)
 #
 # STRATEGY:
-#	1. Create a pool on the provided DISKS to TRIM.
+#	1. Create a pool on file vdevs to TRIM.
 #	2. Set 'autotrim=on' on pool.
-#	3. Concurrently write randomly sized files to the pool, files are
-#	   written with <=128K writes with an fsync after each write.
-#	4. Remove files after being written, the random nature of the IO
-#	   in intended to create a wide variety of TRIMable regions.
-#	5. Create and destroy snapshots and clones to create TRIMable blocks.
-#	6. Verify TRIM IOs of the expected type were issued for the pool.
-#	7. Verify data integrity of the pool after TRIM.
+#	3. Fill the pool to a known percentage of capacity.
+#	4. Verify the vdevs contain 25% or more allocated blocks.
+#	5. Remove all files making the free blocks TRIMable.
+#	6. Wait for autotrim to issue TRIM IOs for the free blocks.
+#	4. Verify the vdevs contain 5% or less allocated blocks.
 #	8. Repeat for test for striped, mirrored, and RAIDZ pools.
 
 verify_runnable "global"
 
-if [ $(echo ${TRIM_DISKS} | nawk '{print NF}') -lt 2 ]; then
-	log_unsupported "Too few disks available (2 disk minimum)"
-fi
-
-log_assert "Set 'autotrim=on' verify pool data integrity"
+log_assert "Set 'autotrim=on' verify pool vdevs shrink"
 log_onexit cleanup_trim
 
 # Minimum TRIM size is descreased to verity all TRIM sizes.
@@ -61,15 +55,37 @@ set_tunable64 zfs_trim_min_ext_sz 4096
 # Reduced zfs_txgs_per_trim to make TRIMing more frequent.
 set_tunable32 zfs_txgs_per_trim 2
 
-for type in "" "mirror" "raidz"; do
-	log_must zpool create -o cachefile=none -f $TRIMPOOL $type $TRIM_DISKS
+typeset vdev_max_mb=$(( floor(VDEV_SIZE * 0.25 / 1024 / 1024) ))
+typeset vdev_min_mb=$(( floor(VDEV_SIZE * 0.05 / 1024 / 1024) ))
+
+for type in "" "mirror" "raidz" "raidz2" "raidz3"; do
+	log_must truncate -s $VDEV_SIZE $VDEVS
+	log_must zpool create -o cachefile=none -f $TRIMPOOL $type $VDEVS
 	log_must zpool set autotrim=on $TRIMPOOL
-	write_remove
-	snap_clone
+
+	# Fill pool.  Striped, mirrored, and raidz pools are filled to
+	# different capacities due to differences in the reserved space.
+	typeset availspace=$(get_prop available $TRIMPOOL)
+	if [[ "$type" = "mirror" ]]; then
+		typeset fill_mb=$(( floor(availspace * 0.65 / 1024 / 1024) ))
+	elif [[ "$type" = "" ]]; then
+		typeset fill_mb=$(( floor(availspace * 0.35 / 1024 / 1024) ))
+	else
+		typeset fill_mb=$(( floor(availspace * 0.40 / 1024 / 1024) ))
+	fi
+
+	log_must file_write -o create -f /$TRIMPOOL/$TESTFILE \
+	    -b 1048576 -c $fill_mb -d R
+	log_must zpool sync
+	check_vdevs "-gt" "$vdev_max_mb"
+
+	# Remove the file vdev usage should drop to less than 5%.
+	log_must rm /$TRIMPOOL/$TESTFILE
 	wait_trim_io $TRIMPOOL "auto" 10
-	check_trim_io $TRIMPOOL "auto"
-	check_pool $TRIMPOOL
+	check_vdevs "-le" "$vdev_min_mb"
+
 	log_must zpool destroy $TRIMPOOL
+	log_must rm -f $VDEVS
 done
 
-log_pass "Auto TRIM successfully scrubbed vdevs"
+log_pass "Auto TRIM successfully shrunk vdevs"
