@@ -1659,6 +1659,7 @@ zvol_create_minor_impl(const char *name)
 	blk_queue_max_segments(zv->zv_queue, UINT16_MAX);
 	blk_queue_max_segment_size(zv->zv_queue, UINT_MAX);
 	blk_queue_physical_block_size(zv->zv_queue, zv->zv_volblocksize);
+	blk_queue_logical_block_size(zv->zv_queue, zv->zv_volblocksize);
 	blk_queue_io_opt(zv->zv_queue, zv->zv_volblocksize);
 	blk_queue_max_discard_sectors(zv->zv_queue,
 	    (zvol_max_discard_blocks * zv->zv_volblocksize) >> 9);
