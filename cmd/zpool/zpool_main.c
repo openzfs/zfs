@@ -6703,7 +6703,8 @@ zpool_do_resilver(int argc, char **argv)
  * zpool trim [-s|-r <rate>] <pool> ...
  *
  *	-s		Stop. Stops any in-progress trim.
- *	-r <rate>	Sets the TRIM rate.
+ *	-r <rate>	Sets the TRIM rate in bytes (per second). Supports
+ *			adding a multiplier suffix such as 'k' or 'm'.
  */
 int
 zpool_do_trim(int argc, char **argv)
@@ -7077,11 +7078,11 @@ print_trim_status(uint64_t trim_prog, uint64_t total_size, uint64_t rate,
 			char rate_str[32];
 			zfs_nicenum(rate, rate_str, sizeof (rate_str));
 			(void) printf("  trim: %.02f%%\tstarted: %s\t"
-			    "(rate: %s/s)\n", MIN((((double)trim_prog) /
+			    "(rate limit: %s/s)\n", MIN((((double)trim_prog) /
 			    total_size) * 100, 100), buf, rate_str);
 		} else {
 			(void) printf("  trim: %.02f%%\tstarted: %s\t"
-			    "(rate: max)\n", MIN((((double)trim_prog) /
+			    "(rate limit: none)\n", MIN((((double)trim_prog) /
 			    total_size) * 100, 100), buf);
 		}
 	} else {
