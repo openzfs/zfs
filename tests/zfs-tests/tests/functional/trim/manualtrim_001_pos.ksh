@@ -21,80 +21,54 @@
 #
 
 #
-# Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
-# Use is subject to license terms.
-#
-#
-# Copyright (c) 2013, 2014 by Delphix. All rights reserved.
+# Copyright (c) 2017 by Tim Chase. All rights reserved.
+# Copyright (c) 2017 by Nexenta Systems, Inc. All rights reserved.
+# Copyright (c) 2017 Lawrence Livermore National Security, LLC.
 #
 
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/trim/trim.cfg
 . $STF_SUITE/tests/functional/trim/trim.kshlib
 
-set_tunable zfs_trim_min_ext_sz 4096
-
-function getsizemb
-{
-	typeset rval
-
-	rval=$(du --block-size 1048576 -s "$1" | sed -e 's;[ 	].*;;')
-	echo -n "$rval"
-}
-
-function checkvdevs
-{
-	typeset vd sz
-
-	for vd in $VDEVS; do
-		sz=$(getsizemb $vd)
-		log_note Size of $vd is $sz MB
-		log_must test $sz -le $SHRUNK_SIZE_MB
-	done
-}
-
-function dotrim
-{
-	log_must rm "/$TRIMPOOL/$TESTFILE"
-	log_must zpool export $TRIMPOOL
-	log_must zpool import -d $VDEVDIR $TRIMPOOL
-	log_must zpool trim $TRIMPOOL
-	sleep 5
-	log_must zpool export $TRIMPOOL
-}
-
 #
-# Check various pool geometries:  Create the pool, fill it, remove the test file,
-# perform a manual trim, export the pool and verify that the vdevs shrunk.
+# DESCRIPTION:
+#	Verify manual trim pool data integrity.
 #
+# STRATEGY:
+#	1. Create a pool on the provided DISKS to TRIM.
+#	2. Concurrently write randomly sized files to the pool, files are
+#	   written with <=128K writes with an fsync after each write.
+#	3. Remove files after being written, the random nature of the IO
+#	   in intended to create a wide variety of TRIMable regions.
+#	4. Create and destroy snapshots and clones  to create TRIMable blocks.
+#	5. Manually TRIM the pool.
+#	6. Verify TRIM IOs of the expected type were issued for the pool.
+#	7. Verify data integrity of the pool after TRIM.
+#	8. Repeat for test for striped, mirrored, and RAIDZ pools.
 
-#
-# raidz
-#
-for z in 1 2 3; do
-	setupvdevs
-	log_must zpool create -f $TRIMPOOL raidz$z $VDEVS
-	log_must file_write -o create -f "/$TRIMPOOL/$TESTFILE" -b $BLOCKSIZE -c $NUM_WRITES -d R -w
-	dotrim
-	checkvdevs
+verify_runnable "global"
+
+if [ $(echo ${TRIM_DISKS} | nawk '{print NF}') -lt 2 ]; then
+        log_unsupported "Too few disks available (2 disk minimum)"
+fi
+
+log_assert "Run 'zpool trim' verify pool data integrity"
+log_onexit cleanup_trim
+
+# Minimum TRIM size is descreased to verity all TRIM sizes.
+set_tunable64 zfs_trim_min_ext_sz 4096
+
+# Reduced zfs_txgs_per_trim to make TRIMing more frequent.
+set_tunable32 zfs_txgs_per_trim 2
+
+for type in "" "mirror" "raidz"; do
+	log_must zpool create -o cachefile=none -f $TRIMPOOL $type $TRIM_DISKS
+	write_remove
+	snap_clone
+	do_trim $TRIMPOOL
+	check_trim_io $TRIMPOOL "man"
+	check_pool $TRIMPOOL
+	log_must zpool destroy $TRIMPOOL
 done
 
-#
-# mirror
-#
-setupvdevs
-log_must zpool create -f $TRIMPOOL mirror $MIRROR_VDEVS_1 mirror $MIRROR_VDEVS_2
-log_must file_write -o create -f "/$TRIMPOOL/$TESTFILE" -b $BLOCKSIZE -c $NUM_WRITES -d R -w
-dotrim
-checkvdevs
-
-#
-# stripe
-#
-setupvdevs
-log_must zpool create -f $TRIMPOOL $STRIPE_VDEVS
-log_must file_write -o create -f "/$TRIMPOOL/$TESTFILE" -b $BLOCKSIZE -c $NUM_WRITES -d R -w
-dotrim
-checkvdevs
-
-log_pass Manual TRIM successfully shrunk vdevs
+log_pass "Manual TRIM successfully scrubbed vdevs"
