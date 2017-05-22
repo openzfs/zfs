@@ -39,7 +39,7 @@ function getsizemb
 {
 	typeset rval
 
-	rval=$(du --block-size 1048576 -s "$1" | sed -e 's;[ 	].*;;')
+	rval=$(du --block-size 1048576 -s "$1" | awk '{print $1}')
 	echo -n "$rval"
 }
 
