@@ -25,7 +25,8 @@ function set_tunable
 
 function find_scsi_debug
 {
-	grep -H scsi_debug /sys/block/*/device/model | $AWK -F/ '{print $4}' | tr '\n' ' '
+	grep -H scsi_debug /sys/block/*/device/model | \
+	    awk -F/ '{print $4}' | tr '\n' ' '
 }
 
 function setupvdevs
