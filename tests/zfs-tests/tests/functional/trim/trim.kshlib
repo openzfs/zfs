@@ -1,3 +1,4 @@
+#!/bin/ksh -p
 #
 # This file and its contents are supplied under the terms of the
 # Common Development and Distribution License ("CDDL"), version 1.0.
@@ -9,28 +10,228 @@
 # http://www.illumos.org/license/CDDL.
 #
 
-function set_tunable
+#
+# Copyright (c) 2017 by Tim Chase. All rights reserved.
+# Copyright (c) 2017 by Nexenta Systems, Inc. All rights reserved.
+# Copyright (c) 2017 Lawrence Livermore National Security, LLC.
+#
+
+#
+# Get the actual on disk disk for the provided file.
+#
+function get_size_mb
 {
-	typeset tunable="$1"
-	typeset value="$2"
-	typeset zfs_tunables="/sys/module/zfs/parameters"
-
-	[[ -z "$tunable" ]] && return 1
-	[[ -z "$value" ]] && return 1
-	[[ -f "$zfs_tunables/$tunable" ]] || return 1
-
-	echo -n "$value" > "$zfs_tunables/$tunable"
-	return "$?"
+	case "$(uname)" in
+	Linux)
+		typeset rval
+		rval=$(du --block-size 1048576 -s "$1" | awk '{print $1}')
+		echo -n "$rval"
+		;;
+	SunOS)
+		du -m "$1" | awk '{print $1}'
+		;;
+	esac
 }
 
-function find_scsi_debug
+#
+# Get the number of auto|manual TRIM IOs issued for the pool.
+#
+function get_trim_io
 {
-	grep -H scsi_debug /sys/block/*/device/model | \
-	    awk -F/ '{print $4}' | tr '\n' ' '
+	typeset pool="${1-:$TRIMPOOL}"
+	typeset type="${2-:auto}"
+
+	case "$(uname)" in
+	Linux)
+		typeset rval
+
+		# Sum the auto|man columns of the TRIM request size histogram.
+		case "$type" in
+		auto)
+			rval=$(zpool iostat -pr $pool | awk \
+			    '$1 ~ /[0-9].*/ { sum += $12 } END { print sum }')
+			echo -n "$rval"
+			;;
+		man)
+			rval=$(zpool iostat -pr $pool | awk \
+			    '$1 ~ /[0-9].*/ { sum += $13 } END { print sum }')
+			echo -n "$rval"
+			;;
+		esac
+		;;
+	SunOS)
+		# 'zpool iostat -r' is not supported, this information may
+		# be available via another interface on Illumos.  For the
+		# moment return $MIN_TRIM_IOS and assume TRIM IOs were issued.
+		echo -n "$MIN_TRIM_IOS"
+		;;
+	esac
 }
 
-function setupvdevs
+#
+# Generic cleanup function for TRIM test cases.
+#
+function cleanup_trim
 {
+	pkill -x file_write
+	if poolexists $TRIMPOOL; then
+		log_must destroy_pool $TRIMPOOL
+	fi
 	log_must rm -f $VDEVS
-	log_must truncate -s 192m $VDEVS
+	set_tunable64 zfs_trim_min_ext_sz 32
+	set_tunable32 zfs_txgs_per_trim 32
+}
+
+#
+# Check that TRIM IOs were send to devices in the pool.
+#
+function check_trim_io
+{
+	typeset pool="${1-:$TRIMPOOL}"
+	typeset type="$2"
+	typeset ios
+
+	ios=$(get_trim_io $pool $type)
+	if [[ $ios -ge $MIN_TRIM_IOS ]]; then
+		log_note "Issued $ios $type TRIM IOs for pool $pool"
+	else
+		log_fail "Too few TRIM IOs issued $ios/$MIN_TRIM_IOS"
+	fi
+}
+
+#
+# Run N txgs which should be enough to TRIM the entire pool.
+#
+function wait_trim_io
+{
+	typeset pool="${1-:$TRIMPOOL}"
+	typeset type="${2-:auto}"
+	typeset txgs=${3:-10}
+	typeset timeout=30
+	typeset stop_time=$(( $(date +%s) + $timeout ))
+
+	typeset -i i=0
+	while [[ $i -lt $txgs ]]; do
+		typeset ios=$(get_trim_io $pool $type)
+		if [ "$(date +%s)" -ge $stop_time ]; then
+			log_fail "Exceeded TRIM time limit of ${timeout}s"
+			return
+		fi
+
+		log_note "Waiting for $type TRIM to complete ($i - $ios IOs)"
+		zpool sync -f
+		((i = i + 1))
+	done
+}
+
+#
+# Check that file vdevs against a taget value.
+#
+function check_vdevs
+{
+	typeset tgt_op=$1
+	typeset tgt_size=$2
+	typeset vdev
+
+	for vdev in $VDEVS; do
+		typeset size=$(get_size_mb $vdev)
+		if test $size $tgt_op $tgt_size; then
+			log_note "Success $vdev is $size MB which is $tgt_op" \
+			    "than $tgt_size MB"
+		else
+			log_fail "Failure $vdev is $size MB which is not" \
+			    "$tgt_op than $tgt_size MB"
+		fi
+	done
+}
+
+#
+# Scrub the pool and verify it completed without errors.
+#
+function check_pool # pool
+{
+	typeset pool="${1-:$TRIMPOOL}"
+
+	log_must zpool scrub $pool
+	while true; do
+		typeset st=$(zpool status $pool | awk '/scan:/ {print $3}')
+		if [[ "$st" == "repaired" ]] || [[ "$st" == "canceled" ]]; then
+			break
+		fi
+		log_note "Waiting for scrub to complete on $pool"
+		sleep 1
+	done
+
+	log_must zpool status -x $pool
+	log_must zpool clear $pool
+}
+
+#
+# Concurrently write files in randomly sized chunks fsync'ing every write
+# then remove a fraction of them.  This is intended to create TRIMable blocks.
+#
+function write_remove # destroy_files keep_files
+{
+	typeset destroy_files=${1:-3}
+	typeset keep_files=${2:-3}
+
+	for i in $(seq $destroy_files); do
+		log_must eval "(file_write -o create \
+		    -f \"/$TRIMPOOL/$TESTFILE-destroy.$i\" \
+		    -b $(random $BLOCKSIZE) -c $(random $NUM_WRITES) -d R -w; \
+		    rm \"/$TRIMPOOL/$TESTFILE-destroy.$i\") &"
+	done
+
+	for i in $(seq $keep_files); do
+		log_must eval "file_write -o create \
+		    -f \"/$TRIMPOOL/${TESTFILE}-keep.$i\" \
+		    -b $(random $BLOCKSIZE) -c $(random $NUM_WRITES) -d R -w &"
+	done
+
+	wait
+}
+
+#
+# Perform administrative commands which will create TRIMable blocks.
+#
+function snap_clone # passes
+{
+	typeset passes=${1:-3}
+
+	for i in $(seq $passes); do
+		log_must zfs snapshot $TRIMPOOL@snap
+		log_must zfs clone $TRIMPOOL@snap $TRIMPOOL/clone
+		log_must zfs destroy  $TRIMPOOL/clone
+		log_must zfs destroy  $TRIMPOOL@snap
+	done
+}
+
+#
+# Run manual trim for at most 30 seconds and verify the result.
+#
+function do_trim # pool options
+{
+	typeset pool="${1-:$TRIMPOOL}"
+	typeset options=$2
+	typeset stop_time=$(( $(date +%s) + 30 ))
+
+	log_must zpool trim $options $pool
+
+	while true; do
+		typeset status=$(zpool status $pool | awk '/trim:/ {print $2}')
+		if [ -z "$status" ]; then
+			log_fail "Pool reported '' TRIM status. Is TRIM" \
+			    "supported on this system?"
+		elif [[ "$status" = "completed" ]]; then
+			log_note "Pool completed TRIM successfully."
+			break
+		elif [[ "$status" = "interrupted" ]]; then
+			log_fail "TRIM interrupted it was expected to complete."
+		elif [ "$(date +%s)" -ge $stop_time ]; then
+			log_must zpool trim -s $pool
+			log_fail "Exceeded trim time limit of 30s, stopping."
+		else
+			sleep 1
+		fi
+	done
 }

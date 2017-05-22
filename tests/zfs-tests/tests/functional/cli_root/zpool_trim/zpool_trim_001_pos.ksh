@@ -21,20 +21,38 @@
 #
 
 #
-# Copyright (c) 2017 by Tim Chase. All rights reserved.
-# Copyright (c) 2017 by Nexenta Systems, Inc. All rights reserved.
+# Copyright (c) 2017 Lawrence Livermore National Security, LLC.
 #
 
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/trim/trim.cfg
 . $STF_SUITE/tests/functional/trim/trim.kshlib
 
-if [ -n "$HOST_POOL_NAME" ]; then
-	log_note "Creating TRIM host pool to control recordsize"
-	log_must zpool create -o cachefile=none -O recordsize=4k \
-	    -O mountpoint="$VDEV_DIR" "$HOST_POOL_NAME" "$HOST_POOL_DISK"
-fi
+#
+# DESCRIPTION:
+#	Verify manual 'zpool trim'.
+#
+# STRATEGY:
+#	1. Create a pool on the provided VDEVS to TRIM.
+#	2. Create a small file and sync the pool.
+#	3. Remove the file and sync the pool.
+#	4. Manually TRIM the pool.
+#	5. Verify the completion status.
 
-log_must rm -f $VDEVS
+verify_runnable "global"
 
-log_pass TRIM setup succeeded
+log_assert "Run 'zpool trim' to TRIM pool"
+log_onexit cleanup_trim
+
+log_must truncate -s $VDEV_SIZE $VDEVS
+log_must zpool create -o cachefile=none -f $TRIMPOOL raidz $VDEVS
+
+log_must file_write -o create -f "/$TRIMPOOL/$TESTFILE" -b $BLOCKSIZE -c 16 -w
+sync_pool $TRIMPOOL
+log_must rm "/$TRIMPOOL/$TESTFILE"
+sync_pool $TRIMPOOL
+
+do_trim $TRIMPOOL
+log_must zpool destroy $TRIMPOOL
+
+log_pass "Manual TRIM successful"
