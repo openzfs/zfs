@@ -137,10 +137,6 @@ vdev_raidz_map_free(raidz_map_t *rm)
 {
 	int c;
 
-	/* raidz_map_t without abd allocation from vdev_raidz_trim() */
-	if (rm->rm_col[0].rc_abd == NULL)
-		goto out;
-
 	for (c = 0; c < rm->rm_firstdatacol; c++) {
 		abd_free(rm->rm_col[c].rc_abd);
 
@@ -154,7 +150,6 @@ vdev_raidz_map_free(raidz_map_t *rm)
 	if (rm->rm_abd_copy != NULL)
 		abd_free(rm->rm_abd_copy);
 
-out:
 	kmem_free(rm, offsetof(raidz_map_t, rm_col[rm->rm_scols]));
 }
 
@@ -443,9 +438,8 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t ashift, uint64_t dcols,
 		off = rm->rm_col[c].rc_size;
 
 		for (c = c + 1; c < acols; c++) {
-			rm->rm_col[c].rc_abd =
-			    abd_get_offset_size(zio->io_abd, off,
-			    rm->rm_col[c].rc_size);
+			rm->rm_col[c].rc_abd = abd_get_offset_size(zio->io_abd,
+			    off, rm->rm_col[c].rc_size);
 			off += rm->rm_col[c].rc_size;
 		}
 	}
@@ -1627,38 +1621,6 @@ vdev_raidz_asize(vdev_t *vd, uint64_t psize)
 	return (asize);
 }
 
-/*
- * Converts an allocated size on a raidz vdev back to a logical block
- * size. This is used in trimming to figure out the appropriate logical
- * size to pass to vdev_raidz_map_alloc when splitting up extents of free
- * space obtained from metaslabs. However, a range of free space on a
- * raidz vdev might have originally consisted of multiple blocks and
- * those, taken together with their skip blocks, might not always align
- * neatly to a new vdev_raidz_map_alloc covering the entire unified
- * range. So to ensure that the newly allocated raidz map *always* fits
- * within the asize passed to this function and never exceeds it (since
- * that might trim allocated data past it), we round it down to the
- * nearest suitable multiple of the vdev ashift (hence the "_floor" in
- * this function's name).
- */
-static uint64_t
-vdev_raidz_psize_floor(vdev_t *vd, uint64_t asize)
-{
-	uint64_t psize;
-	uint64_t ashift = vd->vdev_top->vdev_ashift;
-	uint64_t cols = vd->vdev_children;
-	uint64_t nparity = vd->vdev_nparity;
-
-	psize = (asize - (nparity << ashift));
-	psize /= cols;
-	psize *= cols - nparity;
-	psize += (1 << ashift) - 1;
-
-	psize = P2ALIGN(psize, 1 << ashift);
-
-	return (psize);
-}
-
 static void
 vdev_raidz_child_done(zio_t *zio)
 {
@@ -2369,19 +2331,20 @@ vdev_raidz_need_resilver(vdev_t *vd, uint64_t offset, size_t psize)
 }
 
 static inline void
-vdev_raidz_trim_append_rc(dkioc_free_list_t *dfl, uint64_t *num_extsp,
-    const raidz_col_t *rc)
+vdev_raidz_trim_append(dkioc_free_list_t *dfl, uint64_t *num_extsp,
+    uint64_t offset, uint64_t size)
 {
 	uint64_t num_exts = *num_extsp;
-	ASSERT(rc->rc_size != 0);
+
+	ASSERT(size != 0);
 
 	if (dfl->dfl_num_exts > 0 &&
 	    dfl->dfl_exts[num_exts - 1].dfle_start +
-	    dfl->dfl_exts[num_exts - 1].dfle_length == rc->rc_offset) {
-		dfl->dfl_exts[num_exts - 1].dfle_length += rc->rc_size;
+	    dfl->dfl_exts[num_exts - 1].dfle_length == offset) {
+		dfl->dfl_exts[num_exts - 1].dfle_length += size;
 	} else {
-		dfl->dfl_exts[num_exts].dfle_start = rc->rc_offset;
-		dfl->dfl_exts[num_exts].dfle_length = rc->rc_size;
+		dfl->dfl_exts[num_exts].dfle_start = offset;
+		dfl->dfl_exts[num_exts].dfle_length = size;
 		(*num_extsp)++;
 	}
 }
@@ -2397,16 +2360,14 @@ static void
 vdev_raidz_trim(vdev_t *vd, zio_t *pio, dkioc_free_list_t *dfl,
     boolean_t auto_trim)
 {
+	const uint64_t children = vd->vdev_children;
 	dkioc_free_list_t **sub_dfls;
 	uint64_t *sub_dfls_num_exts;
-	zio_t *zio;
 
-	sub_dfls = kmem_zalloc(sizeof (*sub_dfls) * vd->vdev_children,
-	    KM_SLEEP);
-	sub_dfls_num_exts = kmem_zalloc(sizeof (uint64_t) * vd->vdev_children,
-	    KM_SLEEP);
-	zio = kmem_zalloc(sizeof (*zio), KM_SLEEP);
-	for (int i = 0; i < vd->vdev_children; i++) {
+	sub_dfls = kmem_zalloc(sizeof (*sub_dfls) * children, KM_SLEEP);
+	sub_dfls_num_exts = kmem_zalloc(sizeof (uint64_t) * children, KM_SLEEP);
+
+	for (int i = 0; i < children; i++) {
 		/*
 		 * We might over-allocate here, because the sub-lists can never
 		 * be longer than the parent list, but they can be shorter.
@@ -2420,34 +2381,62 @@ vdev_raidz_trim(vdev_t *vd, zio_t *pio, dkioc_free_list_t *dfl,
 	}
 
 	/*
-	 * Process all extents and redistribute them to the component vdevs
-	 * according to a computed raidz map geometry.
+	 * Process all extents and redistribute them to the component vdevs.
+	 *
+	 * 1. Calculate the number of child drives, i.e. cols, which may be
+	 *    smaller than vdev_children
+	 * 2. For each child drive, calculate offset and size:
+	 *    a. 'offset' needs to be increased by 1 sector, when the drive
+	 *       wraps around to the next row, because the 1st drive does
+	 *       not necessarily begin at the 1st raidz child drive.
+	 *    b. 'size' needs to be increased by 1 sector, for the first
+	 *       remainder drives, because the extent doesn't always divide
+	 *       cleanly by cols, i.e. some drives may contribute more space
+	 *       to the extent.
 	 */
 	for (int i = 0; i < dfl->dfl_num_exts; i++) {
 		uint64_t start = dfl->dfl_exts[i].dfle_start;
 		uint64_t length = dfl->dfl_exts[i].dfle_length;
-		uint64_t j;
-		raidz_map_t *rm;
+		uint64_t ashift = vd->vdev_top->vdev_ashift;
+		uint64_t b = start >> ashift;
+		uint64_t s = length >> ashift;
+		/* The first column for this stripe. */
+		uint64_t f = b % children;
+		uint64_t cols = (s < children) ? s : children;
+		uint64_t remainder = s % cols;
 
-		zio->io_offset = start;
-		zio->io_size = vdev_raidz_psize_floor(vd, length);
-		zio->io_abd = NULL;
+		ASSERT0(P2PHASE(start, 1ULL << ashift));
+		ASSERT0(P2PHASE(length, 1ULL << ashift));
 
-		rm = vdev_raidz_map_alloc(zio, vd->vdev_top->vdev_ashift,
-		    vd->vdev_children, vd->vdev_nparity);
+		if (length <= vd->vdev_nparity << vd->vdev_top->vdev_ashift)
+			continue;
 
-		for (j = 0; j < rm->rm_cols; j++) {
-			uint64_t devidx = rm->rm_col[j].rc_devidx;
-			vdev_raidz_trim_append_rc(sub_dfls[devidx],
-			    &sub_dfls_num_exts[devidx], &rm->rm_col[j]);
+		for (int j = 0; j < cols; j++) {
+			uint64_t devidx = f + j;
+			uint64_t offset = b / children;
+			uint64_t size = s / cols;
+
+			if (j < remainder)
+				size++;
+
+			if (devidx >= children) {
+				offset++;
+				devidx -= children;
+			}
+
+			size <<= ashift;
+			offset <<= ashift;
+			vdev_raidz_trim_append(sub_dfls[devidx],
+			    &sub_dfls_num_exts[devidx], offset, size);
+			length -= size;
 		}
-		vdev_raidz_map_free(rm);
+		ASSERT0(length);
 	}
 
 	/*
 	 * Issue the component ioctls as children of the parent zio.
 	 */
-	for (int i = 0; i < vd->vdev_children; i++) {
+	for (int i = 0; i < children; i++) {
 		if (sub_dfls_num_exts[i] != 0) {
 			vdev_t *child = vd->vdev_child[i];
 			zio_nowait(zio_trim_dfl(pio, child->vdev_spa, child,
@@ -2456,9 +2445,8 @@ vdev_raidz_trim(vdev_t *vd, zio_t *pio, dkioc_free_list_t *dfl,
 			dfl_free(sub_dfls[i]);
 		}
 	}
-	kmem_free(sub_dfls, sizeof (*sub_dfls) * vd->vdev_children);
-	kmem_free(sub_dfls_num_exts, sizeof (uint64_t) * vd->vdev_children);
-	kmem_free(zio, sizeof (*zio));
+	kmem_free(sub_dfls, sizeof (*sub_dfls) * children);
+	kmem_free(sub_dfls_num_exts, sizeof (uint64_t) * children);
 }
 
 vdev_ops_t vdev_raidz_ops = {
