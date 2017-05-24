@@ -83,7 +83,6 @@ while (( 1 )); do
         if (( $retval != 0 )); then
                 break
         fi
-
         (( fn = fn + 1 ))
 done
 
