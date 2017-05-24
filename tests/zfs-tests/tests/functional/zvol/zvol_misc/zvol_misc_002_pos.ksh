@@ -77,14 +77,13 @@ typeset -i fn=0
 typeset -i retval=0
 
 while (( 1 )); do
-        file_write -o create -f $TESTDIR/testfile$$.$fn \
-            -b $BLOCKSZ -c $NUM_WRITES
-        retval=$?
-        if (( $retval != 0 )); then
-                break
-        fi
-
-        (( fn = fn + 1 ))
+	file_write -o create -f $TESTDIR/testfile$$.$fn \
+	    -b $BLOCKSZ -c $NUM_WRITES
+	retval=$?
+	if (( $retval != 0 )); then
+		break
+	fi
+	(( fn = fn + 1 ))
 done
 
 if is_linux; then
