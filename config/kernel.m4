@@ -202,6 +202,7 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 		AS_IF([test "$kernelsrc" = "NONE"], [
 			kernsrcver=NONE
 		])
+		withlinux=yes
 	])
 
 	AC_MSG_RESULT([$kernelsrc])
@@ -214,7 +215,7 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 
 	AC_MSG_CHECKING([kernel build directory])
 	AS_IF([test -z "$kernelbuild"], [
-		AS_IF([test -e "/lib/modules/$(uname -r)/build"], [
+		AS_IF([test x$withlinux != xyes -a -e "/lib/modules/$(uname -r)/build"], [
 			kernelbuild=`readlink -f /lib/modules/$(uname -r)/build`
 		], [test -d ${kernelsrc}-obj/${target_cpu}/${target_cpu}], [
 			kernelbuild=${kernelsrc}-obj/${target_cpu}/${target_cpu}
