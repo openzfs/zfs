@@ -9,3 +9,5 @@ modules.order
 /.tmp_versions
 /Module.markers
 /Module.symvers
+
+!Makefile.in

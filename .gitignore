@@ -48,3 +48,5 @@ cscope.*
 *.rpm
 *.deb
 *.tar.gz
+*.patch
+*.orig
