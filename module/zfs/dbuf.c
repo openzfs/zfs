@@ -1300,6 +1300,11 @@ dbuf_unoverride(dbuf_dirty_record_t *dr)
 	uint64_t txg = dr->dr_txg;
 
 	ASSERT(MUTEX_HELD(&db->db_mtx));
+	/*
+	 * This assert is valid because dmu_sync() expects to be called by
+	 * a zilog's get_data while holding a range lock.  This call only
+	 * comes from dbuf_dirty() callers who must also hold a range lock.
+	 */
 	ASSERT(dr->dt.dl.dr_override_state != DR_IN_DMU_SYNC);
 	ASSERT(db->db_level == 0);
 

@@ -1511,6 +1511,7 @@ dsl_scan_active(dsl_scan_t *scn)
 	return (used != 0);
 }
 
+/* Called whenever a txg syncs. */
 void
 dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 {
@@ -1956,6 +1957,7 @@ dsl_scan_scrub_cb(dsl_pool_t *dp,
 	return (0);
 }
 
+/* Called by the ZFS_IOC_POOL_SCAN ioctl to start a scrub or resilver */
 int
 dsl_scan(dsl_pool_t *dp, pool_scan_func_t func)
 {
