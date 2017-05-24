@@ -113,6 +113,7 @@ AC_DEFUN([SPL_AC_KERNEL], [
 		if test "$kernelsrc" = "NONE"; then
 			kernsrcver=NONE
 		fi
+		withlinux=yes
 	fi
 
 	AC_MSG_RESULT([$kernelsrc])
@@ -125,7 +126,7 @@ AC_DEFUN([SPL_AC_KERNEL], [
 
 	AC_MSG_CHECKING([kernel build directory])
 	if test -z "$kernelbuild"; then
-		if test -e "/lib/modules/$(uname -r)/build"; then
+		if test x$withlinux != xyes -a -e "/lib/modules/$(uname -r)/build"; then
 			kernelbuild=`readlink -f /lib/modules/$(uname -r)/build`
 		elif test -d ${kernelsrc}-obj/${target_cpu}/${target_cpu}; then
 			kernelbuild=${kernelsrc}-obj/${target_cpu}/${target_cpu}
