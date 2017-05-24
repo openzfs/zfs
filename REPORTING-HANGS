@@ -1,0 +1,43 @@
+If you encounter a system hang that appears to be related to ZFSOnLinux, please
+file an issue in the github tracker:
+
+https://github.com/zfsonlinux/zfs/issues/new
+
+Please include the following information:
+
+0. The workload that the system was running. For example, clients were
+communicating with a Samba server configured to use AIO.
+
+1. The system pool configuration. This is usually contained within the output
+of `zdb`. Also, whether or not the system uses ECC.
+
+2. The Linux distribution, the release version of the Linux distribution, Linux
+kernel version, ZFSOnLinux ZFS and SPL versions.
+
+3. If possible, the kernel configuration file. e.g. `zcat /proc/config.gz`
+
+4. If possible, the output of `for i in /proc/*/stack; do echo $i; cat $i;
+done;` and `ps -ef` during the hang.
+
+5. If possible, any storage related dmesg output during the hang. This includes
+backtraces from hung threads. Note that backtraces from hung threads in dmesg
+rarely contain the cause of a hang because of asynchronous communication within
+the kernel, but such backtraces would be helpful in analyzing the information
+you provide for #3. If you are not sure what is related to ZFS, you should
+provide the full contents of dmesg for analysis.
+
+6. If possible, the contents of /proc/spl/kstat/zfs/arcstats and
+/proc/spl/kmem/slab during the hang.
+
+7. If you are comfortable providing it, the output of `zfs get all` and the
+specific names of the datasets/zvols involved in your workload would also be
+useful in enabling the developers to understand your system configuration and
+diagnose issues.
+
+8. Any other information that appears to be relevant.
+
+The various files and commands mentioned contain a large amount of data. You
+should use a service such as github's gist service to post the details from
+them to ensure that reports are easily read by the developers:
+
+https://gist.github.com/
