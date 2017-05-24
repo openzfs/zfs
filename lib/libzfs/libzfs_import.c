@@ -1915,15 +1915,29 @@ zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 		if (slice->rn_config != NULL) {
 			nvlist_t *config = slice->rn_config;
 			boolean_t matched = B_TRUE;
+			boolean_t aux = B_FALSE;
 			int fd;
 
-			if (iarg->poolname != NULL) {
+			/*
+			 * Check if it's a spare or l2cache device. If it is,
+			 * we need to skip the name and guid check since they
+			 * don't exist on aux device label.
+			 */
+			if (iarg->poolname != NULL || iarg->guid != 0) {
+				uint64_t state;
+				aux = nvlist_lookup_uint64(config,
+				    ZPOOL_CONFIG_POOL_STATE, &state) == 0 &&
+				    (state == POOL_STATE_SPARE ||
+				    state == POOL_STATE_L2CACHE);
+			}
+
+			if (iarg->poolname != NULL && !aux) {
 				char *pname;
 
 				matched = nvlist_lookup_string(config,
 				    ZPOOL_CONFIG_POOL_NAME, &pname) == 0 &&
 				    strcmp(iarg->poolname, pname) == 0;
-			} else if (iarg->guid != 0) {
+			} else if (iarg->guid != 0 && !aux) {
 				uint64_t this_guid;
 
 				matched = nvlist_lookup_uint64(config,
