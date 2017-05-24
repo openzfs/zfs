@@ -1,0 +1,13 @@
+[Unit]
+Description=Import ZFS pools
+DefaultDependencies=no
+Requires=zfs-module.service
+Requires=systemd-udev-settle.service
+After=zfs-module.service
+After=systemd-udev-settle.service
+ConditionPathExists=/etc/zfs/zpool.cache
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/sbin/zpool import -c /etc/zfs/zpool.cache -aN

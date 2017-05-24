@@ -1,0 +1,8 @@
+[Unit]
+Description=ZFS file system kernel modules
+DefaultDependencies=no
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/sbin/modprobe zfs
