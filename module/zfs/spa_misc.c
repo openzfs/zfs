@@ -2591,7 +2591,7 @@ spa_auto_trim_taskq_create(spa_t *spa)
 
 	ASSERT(MUTEX_HELD(&spa->spa_auto_trim_lock));
 	ASSERT(spa->spa_auto_trim_taskq == NULL);
-	(void) snprintf(name, MAXPATHLEN, "%s_auto_trim", spa->spa_name);
+	(void) snprintf(name, MAXPATHLEN, "z_atrim_%s", spa->spa_name);
 	spa->spa_auto_trim_taskq = taskq_create(name,
 	    zfs_auto_trim_taskq_batch_pct, minclsyspri, 1, INT_MAX,
 	    TASKQ_THREADS_CPU_PCT);
@@ -2618,7 +2618,7 @@ spa_man_trim_taskq_create(spa_t *spa)
 		 */
 		return;
 	}
-	(void) snprintf(name, MAXPATHLEN, "%s_man_trim", spa->spa_name);
+	(void) snprintf(name, MAXPATHLEN, "z_mtrim_%s", spa->spa_name);
 	spa->spa_man_trim_taskq = taskq_create(name,
 	    spa->spa_root_vdev->vdev_children, minclsyspri,
 	    spa->spa_root_vdev->vdev_children,
