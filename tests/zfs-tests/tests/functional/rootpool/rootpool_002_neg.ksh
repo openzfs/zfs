@@ -27,6 +27,7 @@
 
 #
 # Copyright (c) 2013, 2016 by Delphix. All rights reserved.
+# Copyright 2014 Nexenta Systems, Inc.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -34,35 +35,35 @@
 #
 # DESCRIPTION:
 #
-# the zfs rootpool can not be destroyed
+# the zfs rootpool/rootfs can not be destroyed
 #
 # STRATEGY:
 # 1) check if the current system is installed as zfs root
 # 2) get the rootpool
-# 3) try to destroy the rootpool, which should fail.
-# 4) try to destroy the rootpool filesystem, which should fail.
+# 3) try to destroy the rootpool, which should fail
+# 4) try to destroy the rootpool filesystem, which should fail
 #
 
 verify_runnable "global"
-log_assert "zpool/zfs destory <rootpool> should return error"
+log_assert "zpool/zfs destroy <rootpool> should fail"
 
 typeset rootpool=$(get_rootpool)
 typeset tmpfile="/tmp/mounted-datasets.$$"
 
 # Collect the currently mounted ZFS filesystems, so that we can repair any
-# damage done by the attempted pool destroy. The destroy itself should fail, but
-# some filesystems can become unmounted in the process, and aren't automatically
-# remounted.
-mount -p | awk '{if ($4 == "zfs") print $1" "$3}' > $tmpfile
+# damage done by the attempted pool destroy. The destroy itself should fail,
+# but some filesystems can become unmounted in the process, and aren't
+# automatically remounted.
+mount -p | awk '{if ($4 == "zfs") print $1}' > $tmpfile
 
 log_mustnot zpool destroy $rootpool
 
 # Remount any filesystems that the destroy attempt unmounted.
-while read ds mntpt; do
-	mounted $ds || log_must mount -Fzfs $ds $mntpt
+while read ds; do
+	mounted $ds || log_must zfs mount $ds
 done < $tmpfile
 rm -f $tmpfile
 
 log_mustnot zfs destroy $rootpool
 
-log_pass "rootpool can not be destroyed"
+log_pass "rootpool/rootfs can not be destroyed"
