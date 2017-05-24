@@ -4002,7 +4002,7 @@ vdev_auto_trim(vdev_trim_info_t *vti)
 	vdev_t *vd = vti->vti_vdev;
 	spa_t *spa = vd->vdev_spa;
 	uint64_t txg = vti->vti_txg;
-	uint64_t txgs_per_trim = zfs_txgs_per_trim;
+	uint64_t txgs_per_trim = MAX(zfs_txgs_per_trim, 1);
 	uint64_t mlim = 0, mused = 0;
 	uint64_t ms_count = vd->vdev_ms_count;
 	boolean_t preserve_spilled;
