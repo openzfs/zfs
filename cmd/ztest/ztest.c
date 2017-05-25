@@ -375,6 +375,7 @@ ztest_func_t ztest_spa_checkpoint_create_discard;
 ztest_func_t ztest_fletcher;
 ztest_func_t ztest_fletcher_incr;
 ztest_func_t ztest_verify_dnode_bt;
+ztest_func_t ztest_man_trim;
 
 uint64_t zopt_always = 0ULL * NANOSEC;		/* all the time */
 uint64_t zopt_incessant = 1ULL * NANOSEC / 10;	/* every 1/10 second */
@@ -428,6 +429,7 @@ ztest_info_t ztest_info[] = {
 	ZTI_INIT(ztest_fletcher, 1, &zopt_rarely),
 	ZTI_INIT(ztest_fletcher_incr, 1, &zopt_rarely),
 	ZTI_INIT(ztest_verify_dnode_bt, 1, &zopt_sometimes),
+	ZTI_INIT(ztest_man_trim, 1, &zopt_sometimes),
 };
 
 #define	ZTEST_FUNCS	(sizeof (ztest_info) / sizeof (ztest_info_t))
@@ -5521,6 +5523,21 @@ ztest_verify_dnode_bt(ztest_ds_t *zd, uint64_t id)
 	}
 }
 
+/*
+ * Start then stop a manual TRIM.
+ */
+void
+ztest_man_trim(ztest_ds_t *zd, uint64_t id)
+{
+	uint64_t rate = 1 << ztest_random(30);
+	boolean_t fulltrim = (ztest_random(5) > 0);
+	spa_t *spa = ztest_spa;
+
+	spa_man_trim(spa, rate, fulltrim);
+	(void) poll(NULL, 0, 100); /* wait a moment, then stop the TRIM. */
+	spa_man_trim_stop(spa);
+}
+
 /* ARGSUSED */
 void
 ztest_dsl_prop_get_set(ztest_ds_t *zd, uint64_t id)
@@ -5569,6 +5586,8 @@ ztest_spa_prop_get_set(ztest_ds_t *zd, uint64_t id)
 
 	(void) ztest_spa_prop_set_uint64(ZPOOL_PROP_DEDUPDITTO,
 	    ZIO_DEDUPDITTO_MIN + ztest_random(ZIO_DEDUPDITTO_MIN));
+
+	(void) ztest_spa_prop_set_uint64(ZPOOL_PROP_AUTOTRIM, ztest_random(2));
 
 	VERIFY0(spa_prop_get(ztest_spa, &props));
 
