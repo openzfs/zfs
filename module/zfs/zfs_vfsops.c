@@ -1568,8 +1568,7 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 	return (0);
 }
 
-#if !defined(HAVE_SUPER_SETUP_BDI_NAME) && \
-	!defined(HAVE_2ARGS_BDI_SETUP_AND_REGISTER) && \
+#if !defined(HAVE_2ARGS_BDI_SETUP_AND_REGISTER) && \
 	!defined(HAVE_3ARGS_BDI_SETUP_AND_REGISTER)
 atomic_long_t zfs_bdi_seq = ATOMIC_LONG_INIT(0);
 #endif
