@@ -47,6 +47,9 @@ verify_runnable "global"
 log_assert "Verify 'zpool online|offline|replace' while TRIMming"
 log_onexit cleanup_trim
 
+# XXX - Disabled for automated testing only
+log_unsupported "Skipping until issue is resolved"
+
 log_must truncate -s $VDEV_SIZE $VDEVS
 log_must zpool create -o cachefile=none -f $TRIMPOOL raidz $VDEVS
 
