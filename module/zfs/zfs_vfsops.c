@@ -1374,8 +1374,7 @@ zfs_sb_teardown(zfs_sb_t *zsb, boolean_t unmounting)
 }
 EXPORT_SYMBOL(zfs_sb_teardown);
 
-#if !defined(HAVE_SUPER_SETUP_BDI_NAME) && \
-	!defined(HAVE_2ARGS_BDI_SETUP_AND_REGISTER) && \
+#if !defined(HAVE_2ARGS_BDI_SETUP_AND_REGISTER) && \
 	!defined(HAVE_3ARGS_BDI_SETUP_AND_REGISTER)
 atomic_long_t zfs_bdi_seq = ATOMIC_LONG_INIT(0);
 #endif
