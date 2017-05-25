@@ -52,9 +52,7 @@ function cleanup
 	[[ -n $cwd ]] && log_must cd $cwd
 
 	if [[ -d $TESTDIR ]]; then
-		ismounted $TESTDIR
-		((  $? == 0 )) && \
-			log_must $UNMOUNT $TESTDIR
+		ismounted $TESTDIR && log_must umount $TESTDIR
 		log_must rm -rf $TESTDIR
 	fi
 
