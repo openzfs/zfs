@@ -73,10 +73,13 @@ truncate_setsize(struct inode *ip, loff_t new)
  * 4.12 - x.y, super_setup_bdi_name() new interface.
  */
 #if defined(HAVE_SUPER_SETUP_BDI_NAME)
+extern atomic_long_t zfs_bdi_seq;
+
 static inline int
 zpl_bdi_setup(struct super_block *sb, char *name)
 {
-	return (super_setup_bdi_name(sb, name));
+	return super_setup_bdi_name(sb, "%.28s-%ld", name,
+	    atomic_long_inc_return(&zfs_bdi_seq));
 }
 static inline void
 zpl_bdi_destroy(struct super_block *sb)
@@ -143,7 +146,6 @@ static inline int
 zpl_bdi_setup(struct super_block *sb, char *name)
 {
 	struct backing_dev_info *bdi;
-	char tmp[32];
 	int error;
 
 	bdi = kmem_zalloc(sizeof (struct backing_dev_info), KM_SLEEP);
@@ -156,8 +158,7 @@ zpl_bdi_setup(struct super_block *sb, char *name)
 		return (error);
 	}
 
-	sprintf(tmp, "%.28s%s", name, "-%d");
-	error = bdi_register(bdi, NULL, tmp,
+	error = bdi_register(bdi, NULL, "%.28s-%ld", name,
 	    atomic_long_inc_return(&zfs_bdi_seq));
 	if (error) {
 		bdi_destroy(bdi);
