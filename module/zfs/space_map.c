@@ -550,3 +550,27 @@ space_map_alloc_delta(space_map_t *sm)
 	ASSERT(sm->sm_dbuf != NULL);
 	return (sm->sm_phys->smp_alloc - space_map_allocated(sm));
 }
+
+map_alloc_bias_t
+space_map_get_alloc_bias(space_map_t *sm)
+{
+	if (sm == NULL)
+		return (SM_ALLOC_BIAS_DEFAULT);
+
+	ASSERT(sm->sm_dbuf != NULL);
+
+	return (sm->sm_phys->smp_alloc_info.alloc_bias);
+
+}
+
+void
+space_map_set_alloc_bias(space_map_t *sm, map_alloc_bias_t bias)
+{
+	ASSERT(sm != NULL && sm->sm_dbuf != NULL);
+	ASSERT(bias == SM_ALLOC_BIAS_DEFAULT ||
+	    bias == SM_ALLOC_BIAS_METADATA ||
+	    bias == SM_ALLOC_BIAS_LOG ||
+	    bias == SM_ALLOC_BIAS_SMALLBLKS);
+
+	sm->sm_phys->smp_alloc_info.alloc_bias = bias;
+}

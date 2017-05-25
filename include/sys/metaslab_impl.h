@@ -25,6 +25,7 @@
 
 /*
  * Copyright (c) 2011, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2017, Intel Corporation.
  */
 
 #ifndef _SYS_METASLAB_IMPL_H
@@ -160,6 +161,7 @@ struct metaslab_class {
 	 * updated the MOS config and the space has been added to the pool).
 	 */
 	uint64_t		mc_groups;
+	uint64_t		mc_partial_groups; /* from segregated vdevs */
 
 	/*
 	 * Toggle to enable/disable the allocation throttle.
@@ -198,6 +200,9 @@ struct metaslab_class {
  * space, fragmentation, or going offline. When this happens the allocator will
  * simply find the next metaslab group in the linked list and attempt
  * to allocate from that group instead.
+ *
+ * When vdev segregation is enabled (vdev_alloc_bias == VDEV_BIAS_SEGREGATE),
+ * a portion of the vdev's metaslabs will belong to another group.
  */
 struct metaslab_group {
 	kmutex_t		mg_lock;
@@ -221,6 +226,7 @@ struct metaslab_group {
 	taskq_t			*mg_taskq;
 	metaslab_group_t	*mg_prev;
 	metaslab_group_t	*mg_next;
+	uint64_t		mg_metaslab_cnt;	/* member metaslabs */
 
 	/*
 	 * Each metaslab group can handle mg_max_alloc_queue_depth allocations
@@ -367,6 +373,54 @@ struct metaslab {
 	avl_node_t	ms_group_node;	/* node in metaslab group tree	*/
 	txg_node_t	ms_txg_node;	/* per-txg dirty metaslab links	*/
 };
+
+/*
+ * With segregated top-level vdevs, a portion of the metaslabs are
+ * set aside for a specific allocation class. The following diagram
+ * shows the relationship between the vdev, its metaslabs, group and
+ * class when segregation is enabled.
+ *
+ *
+ *            +------------------------------------------+
+ *            |              TOP-LEVEL VDEV              |
+ *      +---->|                                          |<----+
+ *      |     |           ALLOC_BIAS=SEGREGATE           |     |
+ *      |     +------------------------------------------+     |
+ *      |         |        |                         |         |
+ *      |         |        |           vdev_custom_mg|         |mg_vd
+ *      |         |        |vdev_ms                  |         |
+ *      |         |        |                         V         |
+ * mg_vd|  vdev_mg|        |    ________   msg  +----------+   |
+ *      |         |        +-->|___00___|------>|          |---+
+ *      |         |            |___01___|------>|          |
+ *      |         |            |___02___|------>| MS_GROUP |<------+
+ *      |         V            |___03___|------>|          |       |
+ *      |   +----------+  msg  |___04___|------>|          |       |
+ *      +---|          |<------|___05___|       +----------+       |
+ *          |          |<------|___06___|            |             |
+ *          |          |<------|___07___|            |             |
+ *          |          |<------|___08___|            |             |
+ *          |          |<------|___09___|            |             |
+ *          |          |<------|___10___|            |             |
+ *          |          |<------|___11___|            |             |
+ *   +----->| MS_GROUP |<------|___12___|            |             |
+ *   |      |          |<------|___13___|            |             |
+ *   |      |          |<------|___14___|            |mg_class     |
+ *   |      |          |<------|___15___|            |             |
+ *   |      |          |<------|___16___|            |             |
+ *   |      |          |<------|___17___|            |             |
+ *   |      |          |<------|___18___|            |             |
+ *   |      |          |<------|___19___|            |             |
+ *   |      +----------+        METASLABS            |             |
+ *   |            |                                  |             |
+ *   |            |mg_class                          |             |
+ *   |            V                                  V             |
+ *   |   +------------------+               +------------------+   |
+ *   |   |                  |               |                  |   |
+ *   +---| SPA_NORMAL_CLASS |               | SPA_CUSTOM_CLASS |---+
+ * rotor |                  |               |                  | rotor
+ *       +------------------+               +------------------+
+ */
 
 #ifdef	__cplusplus
 }

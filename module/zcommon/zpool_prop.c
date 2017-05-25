@@ -51,6 +51,8 @@ zpool_prop_get_table(void)
 void
 zpool_prop_init(void)
 {
+	zprop_desc_t *prop_tbl = zpool_prop_get_table();
+
 	static zprop_index_t boolean_table[] = {
 		{ "off",	0},
 		{ "on",		1},
@@ -135,6 +137,20 @@ zpool_prop_init(void)
 	    PROP_ONETIME, ZFS_TYPE_POOL, "TNAME");
 	zprop_register_hidden(ZPOOL_PROP_MAXDNODESIZE, "maxdnodesize",
 	    PROP_TYPE_NUMBER, PROP_READONLY, ZFS_TYPE_POOL, "MAXDNODESIZE");
+
+	/* hidden boolean properties */
+	zprop_register_index(ZPOOL_PROP_SEGREGATE_LOG,
+	    "segregate_log", 0, PROP_ONETIME, ZFS_TYPE_POOL, "on",
+	    "SEGREGATE_LOG", boolean_table);
+	prop_tbl[ZPOOL_PROP_SEGREGATE_LOG].pd_visible = B_FALSE;
+	zprop_register_index(ZPOOL_PROP_SEGREGATE_METADATA,
+	    "segregate_metadata", 0, PROP_ONETIME, ZFS_TYPE_POOL, "on",
+	    "SEGREGATE_METADATA", boolean_table);
+	prop_tbl[ZPOOL_PROP_SEGREGATE_METADATA].pd_visible = B_FALSE;
+	zprop_register_index(ZPOOL_PROP_SEGREGATE_SMALLBLKS,
+	    "segregate_smallblks", 0, PROP_ONETIME, ZFS_TYPE_POOL, "on",
+	    "SEGREGATE_SMALLBLKS", boolean_table);
+	prop_tbl[ZPOOL_PROP_SEGREGATE_SMALLBLKS].pd_visible = B_FALSE;
 }
 
 /*
@@ -165,7 +181,18 @@ zpool_prop_get_type(zpool_prop_t prop)
 boolean_t
 zpool_prop_readonly(zpool_prop_t prop)
 {
-	return (zpool_prop_table[prop].pd_attr == PROP_READONLY);
+
+	return (zpool_prop_table[prop].pd_attr == PROP_READONLY ||
+	    zpool_prop_table[prop].pd_attr == PROP_ONETIME);
+}
+
+/*
+ * Returns TRUE if the property is only allowed to be set once.
+ */
+boolean_t
+zpool_prop_setonce(zfs_prop_t prop)
+{
+	return (zpool_prop_table[prop].pd_attr == PROP_ONETIME);
 }
 
 const char *
