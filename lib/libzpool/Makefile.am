@@ -40,12 +40,14 @@ KERNEL_C = \
 	zpool_prop.c \
 	zprop_common.c \
 	abd.c \
+	aggsum.c \
 	arc.c \
 	blkptr.c \
 	bplist.c \
 	bpobj.c \
 	bptree.c \
 	bqueue.c \
+	cityhash.c \
 	dbuf.c \
 	dbuf_stats.c \
 	ddt.c \

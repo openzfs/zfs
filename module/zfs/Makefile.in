@@ -17,10 +17,12 @@ endif
 ccflags-y += $(NO_UNUSED_BUT_SET_VARIABLE)
 
 $(MODULE)-objs += abd.o
+$(MODULE)-objs += aggsum.o
 $(MODULE)-objs += arc.o
 $(MODULE)-objs += blkptr.o
 $(MODULE)-objs += bplist.o
 $(MODULE)-objs += bpobj.o
+$(MODULE)-objs += cityhash.o
 $(MODULE)-objs += dbuf.o
 $(MODULE)-objs += dbuf_stats.o
 $(MODULE)-objs += bptree.o
