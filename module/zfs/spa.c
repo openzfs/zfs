@@ -1368,6 +1368,15 @@ spa_unload(spa_t *spa)
 	mutex_exit(&spa->spa_auto_trim_lock);
 
 	/*
+	 * Destroy manual trim taskq if needed, this may be required if the
+	 * async task was unable to run prior to being suspended.
+	 */
+	mutex_enter(&spa->spa_man_trim_lock);
+	if (spa->spa_man_trim_taskq)
+		spa_man_trim_taskq_destroy(spa);
+	mutex_exit(&spa->spa_man_trim_lock);
+
+	/*
 	 * Even though vdev_free() also calls vdev_metaslab_fini, we need
 	 * to call it earlier, before we wait for async i/o to complete.
 	 * This ensures that there is no async metaslab prefetching, by
