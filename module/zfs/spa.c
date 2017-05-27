@@ -3542,7 +3542,9 @@ spa_get_stats(const char *name, nvlist_t **config,
 
 			spa_add_spares(spa, *config);
 			spa_add_l2cache(spa, *config);
-			spa_add_feature_stats(spa, *config);
+
+			if (!spa_suspended(spa))
+				spa_add_feature_stats(spa, *config);
 		}
 	}
 
