@@ -1164,6 +1164,12 @@ zvol_resume(zvol_state_t *zv)
 	int error = 0;
 
 	ASSERT(RW_WRITE_HELD(&zv->zv_suspend_lock));
+
+	/*
+	 * Cannot take zv_state_lock here with zv_suspend_lock
+	 * held; however, the latter is held in exclusive mode,
+	 * so it is not necessary to do so
+	 */
 	if (zv->zv_open_count > 0) {
 		VERIFY0(dmu_objset_hold(zv->zv_name, zv, &zv->zv_objset));
 		VERIFY3P(zv->zv_objset->os_dsl_dataset->ds_owner, ==, zv);
@@ -1620,6 +1626,7 @@ zvol_create_minor_impl(const char *name)
 	zv = zvol_find_by_name_hash(name, hash);
 	if (zv) {
 		mutex_exit(&zvol_state_lock);
+		ida_simple_remove(&zvol_ida, idx);
 		return (SET_ERROR(EEXIST));
 	}
 
