@@ -62,6 +62,12 @@ AC_CONFIG_FILES([
 	udev/rules.d/Makefile
 	etc/Makefile
 	etc/init.d/Makefile
+	etc/init.d/zfs.arch
+	etc/init.d/zfs.gentoo
+	etc/init.d/zfs.lunar
+	etc/init.d/zfs.fedora
+	etc/init.d/zfs.lsb
+	etc/init.d/zfs.redhat
 	etc/zfs/Makefile
 	etc/systemd/Makefile
 	etc/systemd/system/Makefile

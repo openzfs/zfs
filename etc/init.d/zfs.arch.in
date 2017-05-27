@@ -1,0 +1,62 @@
+#!/bin/bash
+
+. /etc/rc.conf
+. /etc/rc.d/functions
+
+ZFS="@sbindir@/zfs"
+ZPOOL="@sbindir@/zpool"
+ZPOOL_CACHE="@sysconfdir@/zfs/zpool.cache"
+
+case "$1" in
+  start)
+    stat_busy "Starting zfs"
+
+    if [ ! -c /dev/zfs ]; then
+      modprobe zfs
+      if [ $? -ne 0 ]; then
+        stat_fail
+        exit 1
+      fi
+    fi
+
+    # Import ZFS pools (via cache file)
+    if [ -f $ZPOOL_CACHE ]; then
+      $ZPOOL import -c $ZPOOL_CACHE -aN 2>/dev/null
+      if [ $? -ne 0 ]; then
+        stat_fail
+        exit 1
+      fi
+    fi
+
+    # Mount ZFS filesystems
+    $ZFS mount -a
+    if [ $? -ne 0 ]; then
+        stat_fail
+        exit 1
+    fi
+
+    # Export ZFS flesystems
+    $ZFS share -a
+    if [ $? -ne 0 ]; then
+        stat_fail
+        exit 1
+    fi
+
+    add_daemon zfs
+    stat_done
+    ;;
+  stop)
+    stat_busy "Stopping zfs"
+    $ZFS umount -a
+    rm_daemon zfs
+    stat_done
+    ;;
+  restart)
+    $0 stop
+    $0 start
+    ;;
+  *)
+    echo "usage: $0 {start|stop|restart}"
+esac
+
+exit 0
