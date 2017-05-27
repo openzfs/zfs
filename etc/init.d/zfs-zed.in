@@ -129,6 +129,5 @@ else
 	depend() { do_depend; }
 	start() { do_start; }
 	stop() { do_stop; }
-	status() { do_status; }
 	reload() { do_reload; }
 fi
