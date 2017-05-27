@@ -335,6 +335,13 @@ zpl_write_common_iovec(struct inode *ip, const struct iovec *iovp, size_t count,
 	if (error < 0)
 		return (error);
 
+	/*
+	 * The SUS requires us to update the file offset to the EOF just before
+	 * doing an FAPPEND write. zfs_write() does this on Illumos by updating
+	 * the uio offset. Copy it back to get the same behavior on Linux.
+	 */
+	*ppos = uio.uio_loffset;
+
 	wrote = count - uio.uio_resid;
 	*ppos += wrote;
 	task_io_account_write(wrote);
