@@ -52,7 +52,10 @@ extern boolean_t spa_feature_is_active(struct spa *, spa_feature_t);
 extern boolean_t spa_feature_enabled_txg(spa_t *spa, spa_feature_t fid,
     uint64_t *txg);
 extern uint64_t spa_feature_refcount(spa_t *, spa_feature_t, uint64_t);
-extern boolean_t spa_features_check(spa_t *, boolean_t, nvlist_t *, nvlist_t *);
+extern boolean_t spa_features_read_supported(spa_t *);
+extern boolean_t spa_features_write_supported(spa_t *);
+extern void spa_features_get_unsupported(spa_t *, boolean_t, nvlist_t *);
+extern void spa_features_get_enabled(spa_t *, nvlist_t *);
 
 /*
  * These functions are only exported for zhack and zdb; normal callers should

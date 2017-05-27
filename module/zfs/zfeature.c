@@ -167,12 +167,10 @@ typedef enum {
 
 /*
  * Checks that the active features in the pool are supported by
- * this software.  Adds each unsupported feature (name -> description) to
- * the supplied nvlist.
+ * this software.
  */
-boolean_t
-spa_features_check(spa_t *spa, boolean_t for_write,
-    nvlist_t *unsup_feat, nvlist_t *enabled_feat)
+static boolean_t
+spa_features_supported(spa_t *spa, boolean_t for_write)
 {
 	objset_t *os = spa->spa_meta_objset;
 	boolean_t supported;
@@ -180,11 +178,9 @@ spa_features_check(spa_t *spa, boolean_t for_write,
 	zap_attribute_t *za;
 	uint64_t obj = for_write ?
 	    spa->spa_feat_for_write_obj : spa->spa_feat_for_read_obj;
-	char *buf;
 
 	zc = kmem_alloc(sizeof (zap_cursor_t), KM_SLEEP);
 	za = kmem_alloc(sizeof (zap_attribute_t), KM_SLEEP);
-	buf = kmem_alloc(MAXPATHLEN, KM_SLEEP);
 
 	supported = B_TRUE;
 	for (zap_cursor_init(zc, os, obj);
@@ -193,25 +189,77 @@ spa_features_check(spa_t *spa, boolean_t for_write,
 		ASSERT(za->za_integer_length == sizeof (uint64_t) &&
 		    za->za_num_integers == 1);
 
-		if (NULL != enabled_feat) {
-			fnvlist_add_uint64(enabled_feat, za->za_name,
-			    za->za_first_integer);
-		}
-
 		if (za->za_first_integer != 0 &&
 		    !zfeature_is_supported(za->za_name)) {
 			supported = B_FALSE;
+			break;
+		}
+	}
+	zap_cursor_fini(zc);
 
-			if (NULL != unsup_feat) {
-				char *desc = "";
+	kmem_free(za, sizeof (zap_attribute_t));
+	kmem_free(zc, sizeof (zap_cursor_t));
 
-				if (zap_lookup(os, spa->spa_feat_desc_obj,
-				    za->za_name, 1, MAXPATHLEN, buf) == 0)
-					desc = buf;
+	return (supported);
+}
 
-				VERIFY(nvlist_add_string(unsup_feat,
-				    za->za_name, desc) == 0);
-			}
+/*
+ * Checks that the active features required for read-only access to the pool are
+ * supported by this software.
+ */
+boolean_t
+spa_features_read_supported(spa_t *spa)
+{
+	return (spa_features_supported(spa, B_FALSE));
+}
+
+/*
+ * Checks that the active features required for write access to the pool are
+ * supported by this software.
+ */
+boolean_t
+spa_features_write_supported(spa_t *spa)
+{
+	return (spa_features_supported(spa, B_TRUE));
+}
+
+/*
+ * Adds each unsupported feature (name -> description) to the supplied nvlist.
+ */
+void
+spa_features_get_unsupported(spa_t *spa, boolean_t for_write,
+	nvlist_t *unsup_feat)
+{
+	objset_t *os = spa->spa_meta_objset;
+	zap_cursor_t *zc;
+	zap_attribute_t *za;
+	uint64_t obj = for_write ?
+	    spa->spa_feat_for_write_obj : spa->spa_feat_for_read_obj;
+	char *buf;
+
+	ASSERT3U(unsup_feat, !=, NULL);
+
+	zc = kmem_alloc(sizeof (zap_cursor_t), KM_SLEEP);
+	za = kmem_alloc(sizeof (zap_attribute_t), KM_SLEEP);
+	buf = kmem_alloc(MAXPATHLEN, KM_SLEEP);
+
+	for (zap_cursor_init(zc, os, obj);
+	    zap_cursor_retrieve(zc, za) == 0;
+	    zap_cursor_advance(zc)) {
+		ASSERT(za->za_integer_length == sizeof (uint64_t) &&
+		    za->za_num_integers == 1);
+
+		if (za->za_first_integer != 0 &&
+		    !zfeature_is_supported(za->za_name)) {
+
+			char *desc = "";
+
+			if (zap_lookup(os, spa->spa_feat_desc_obj,
+			    za->za_name, 1, MAXPATHLEN, buf) == 0)
+				desc = buf;
+
+			VERIFY0(nvlist_add_string(unsup_feat, za->za_name,
+			    desc));
 		}
 	}
 	zap_cursor_fini(zc);
@@ -219,8 +267,47 @@ spa_features_check(spa_t *spa, boolean_t for_write,
 	kmem_free(buf, MAXPATHLEN);
 	kmem_free(za, sizeof (zap_attribute_t));
 	kmem_free(zc, sizeof (zap_cursor_t));
+}
 
-	return (supported);
+/*
+ * Adds each enabled feature (name -> refcount) to the supplied nvlist.
+ */
+void
+spa_features_get_enabled(spa_t *spa, nvlist_t *enabled_feat)
+{
+	objset_t *os = spa->spa_meta_objset;
+	zap_cursor_t *zc;
+	zap_attribute_t *za;
+
+	ASSERT3U(enabled_feat, !=, NULL);
+
+	zc = kmem_alloc(sizeof (zap_cursor_t), KM_SLEEP);
+	za = kmem_alloc(sizeof (zap_attribute_t), KM_SLEEP);
+
+	for (zap_cursor_init(zc, os, spa->spa_feat_for_read_obj);
+	    zap_cursor_retrieve(zc, za) == 0;
+	    zap_cursor_advance(zc)) {
+		ASSERT(za->za_integer_length == sizeof (uint64_t) &&
+		    za->za_num_integers == 1);
+
+		fnvlist_add_uint64(enabled_feat, za->za_name,
+		    za->za_first_integer);
+	}
+	zap_cursor_fini(zc);
+
+	for (zap_cursor_init(zc, os, spa->spa_feat_for_write_obj);
+	    zap_cursor_retrieve(zc, za) == 0;
+	    zap_cursor_advance(zc)) {
+		ASSERT(za->za_integer_length == sizeof (uint64_t) &&
+		    za->za_num_integers == 1);
+
+		fnvlist_add_uint64(enabled_feat, za->za_name,
+		    za->za_first_integer);
+	}
+	zap_cursor_fini(zc);
+
+	kmem_free(za, sizeof (zap_attribute_t));
+	kmem_free(zc, sizeof (zap_cursor_t));
 }
 
 /*
