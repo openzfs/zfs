@@ -7,6 +7,7 @@ After=cryptsetup.target
 After=systemd-remount-fs.service
 Before=dracut-mount.service
 ConditionPathExists=@sysconfdir@/zfs/zpool.cache
+Conflicts=zfs-import.service
 
 [Service]
 Type=oneshot
