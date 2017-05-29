@@ -138,6 +138,10 @@ typedef struct abd_stats {
 	kstat_named_t abdstat_scatter_page_multi_zone;
 	kstat_named_t abdstat_scatter_page_alloc_retry;
 	kstat_named_t abdstat_scatter_sg_table_retry;
+#ifdef ZFS_DEBUG
+	kstat_named_t abdstat_scatter_sg_merge_unsorted;
+	kstat_named_t abdstat_scatter_sg_merge_sorted;
+#endif
 } abd_stats_t;
 
 static abd_stats_t abd_stats = {
@@ -192,6 +196,18 @@ static abd_stats_t abd_stats = {
 	 *  allocate the sg table for an ABD.
 	 */
 	{ "scatter_sg_table_retry",		KSTAT_DATA_UINT64 },
+
+#ifdef ZFS_DEBUG
+	/*
+	 *  Merged pages without sorting (total occurrences)
+	 */
+	{ "scatter_sg_merge_unsorted",		KSTAT_DATA_UINT64 },
+	/*
+	 *  Merged pages with sorting (total occurrences)
+	 */
+	{ "scatter_sg_merge_sorted",		KSTAT_DATA_UINT64 },
+#endif
+
 };
 
 #define	ABDSTAT(stat)		(abd_stats.stat.value.ui64)
@@ -199,6 +215,11 @@ static abd_stats_t abd_stats = {
 	atomic_add_64(&abd_stats.stat.value.ui64, (val))
 #define	ABDSTAT_BUMP(stat)	ABDSTAT_INCR(stat, 1)
 #define	ABDSTAT_BUMPDOWN(stat)	ABDSTAT_INCR(stat, -1)
+#ifdef ZFS_DEBUG
+#define	ABDSTAT_DEBUG_BUMP(stat)	ABDSTAT_INCR(stat, 1)
+#else
+#define	ABDSTAT_DEBUG_BUMP(stat)	do {} while (0)
+#endif
 
 #define	ABD_SCATTER(abd)	(abd->abd_u.abd_scatter)
 #define	ABD_BUF(abd)		(abd->abd_u.abd_linear.abd_buf)
@@ -237,6 +258,68 @@ abd_alloc_chunk(int nid, gfp_t gfp, unsigned int order)
 	return ((unsigned long) page_address(page));
 }
 
+static inline boolean_t
+abd_pages_seq(struct page *page1, struct page *page2)
+{
+	if (!page1 || !page2)
+		return (B_FALSE);
+
+	if (page_to_pfn(page2) == page_to_pfn(nth_page(page1,
+	    (1UL << compound_order(page1)) - 1)) + 1)
+		return (B_TRUE);
+	else
+		return (B_FALSE);
+}
+
+static inline int
+abd_page_add_merge(struct page *page, struct list_head *pages)
+{
+	struct page *ipage;
+	struct list_head *insert_after = pages;
+	int nr_pages_change = 1;
+
+	list_for_each_entry(ipage, pages, lru) {
+
+		if (abd_pages_seq(ipage, page)) {
+			/* | ipage | page | */
+			nr_pages_change = 0;
+			ABDSTAT_DEBUG_BUMP(abdstat_scatter_sg_merge_sorted);
+
+			if (abd_pages_seq(page, list_entry(ipage->lru.next,
+			    struct page, lru))) {
+				/* | ipage | page | ipage->next | */
+				nr_pages_change--;
+				ABDSTAT_DEBUG_BUMP(
+				    abdstat_scatter_sg_merge_sorted);
+			}
+
+			insert_after = &ipage->lru;
+			break;
+		} else if (abd_pages_seq(page, ipage)) {
+			/* xxx | page | ipage | */
+			nr_pages_change = 0;
+
+			ABDSTAT_DEBUG_BUMP(abdstat_scatter_sg_merge_sorted);
+			break;
+		} else if (page_to_pfn(ipage) > page_to_pfn(page)) {
+			/* | page | xxx | ipage | */
+			nr_pages_change = 1;
+			break;
+		}
+
+		/* | ipage | xx | page | */
+		insert_after = &ipage->lru;
+	}
+
+	list_add(&page->lru, insert_after);
+
+	ASSERT3S(nr_pages_change, >=, -1);
+	ASSERT3S(nr_pages_change, <=, 1);
+
+	return (nr_pages_change);
+}
+
+
 /*
  * The goal is to minimize fragmentation by preferentially populating ABDs
  * with higher order compound pages from a single zone.  Allocation size is
@@ -255,9 +338,11 @@ abd_alloc_pages(abd_t *abd, size_t size)
 	gfp_t gfp_comp = (gfp | __GFP_NORETRY | __GFP_COMP) & ~__GFP_RECLAIM;
 	int max_order = MIN(zfs_abd_scatter_max_order, MAX_ORDER - 1);
 	int nr_pages = abd_chunkcnt_for_bytes(size);
+	int nr_pages_merged1 = 0, nr_pages_merged2 = 0;
+	unsigned long pfn_last = 0;
+	unsigned long sg_length;
 	int chunks = 0, zones = 0;
 	size_t remaining_size;
-	int nid = NUMA_NO_NODE;
 	int alloc_pages = 0;
 	int order;
 
@@ -266,6 +351,7 @@ abd_alloc_pages(abd_t *abd, size_t size)
 	while (alloc_pages < nr_pages) {
 		unsigned long paddr;
 		unsigned chunk_pages;
+		int nid = NUMA_NO_NODE;
 
 		order = MIN(highbit64(nr_pages - alloc_pages) - 1, max_order);
 		chunk_pages = (1U << order);
@@ -282,7 +368,26 @@ abd_alloc_pages(abd_t *abd, size_t size)
 		}
 
 		page = virt_to_page(paddr);
-		list_add_tail(&page->lru, &pages);
+
+#ifdef ZFS_DEBUG
+		/* Attempt to merge with the last page */
+		if (pfn_last && (pfn_last == page_to_pfn(page) - 1))
+			ABDSTAT_DEBUG_BUMP(abdstat_scatter_sg_merge_unsorted);
+
+
+		pfn_last = page_to_pfn(nth_page(page, (1UL << order) - 1));
+
+		/* TODO: remove */
+		{
+			static unsigned long nallocs = 0;
+			if (++nallocs % 1000 == 0)
+			cmn_err(CE_NOTE, "abdstat_scatter_sg_merge %llu %llu",
+			    ABDSTAT(abdstat_scatter_sg_merge_unsorted),
+			    ABDSTAT(abdstat_scatter_sg_merge_sorted));
+		}
+#endif
+
+		nr_pages_merged1 += abd_page_add_merge(page, &pages);
 
 		if ((nid != NUMA_NO_NODE) && (page_to_nid(page) != nid))
 			zones++;
@@ -295,22 +400,37 @@ abd_alloc_pages(abd_t *abd, size_t size)
 
 	ASSERT3S(alloc_pages, ==, nr_pages);
 
-	while (sg_alloc_table(&table, chunks, gfp)) {
+	while (sg_alloc_table(&table, nr_pages_merged1, gfp)) {
 		ABDSTAT_BUMP(abdstat_scatter_sg_table_retry);
 		schedule_timeout_interruptible(1);
 	}
 
 	sg = table.sgl;
 	remaining_size = size;
+	pfn_last = 0;
 	list_for_each_entry_safe(page, tmp_page, &pages, lru) {
-		size_t sg_size = MIN(PAGESIZE << compound_order(page),
-		    remaining_size);
-		sg_set_page(sg, page, sg_size, 0);
-		remaining_size -= sg_size;
 
-		sg = sg_next(sg);
+		order = compound_order(page);
+		sg_length = MIN(PAGESIZE << order, remaining_size);
+
+		if (!pfn_last) {
+			sg_set_page(sg, page, sg_length, 0);
+			nr_pages_merged2++;
+		} else if (pfn_last == page_to_pfn(page) - 1) {
+			ASSERT3U(sg->length, >, 0);
+			sg->length += sg_length;
+		} else {
+			sg = sg_next(sg);
+			sg_set_page(sg, page, sg_length, 0);
+			nr_pages_merged2++;
+		}
+
+		pfn_last = page_to_pfn(nth_page(page, (1UL << order) - 1));
+		remaining_size -= sg_length;
 		list_del(&page->lru);
 	}
+
+	ASSERT3U(nr_pages_merged1, ==, nr_pages_merged2);
 
 	if (chunks > 1) {
 		ABDSTAT_BUMP(abdstat_scatter_page_multi_chunk);
