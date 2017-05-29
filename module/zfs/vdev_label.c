@@ -595,23 +595,21 @@ vdev_label_read_config(vdev_t *vd, uint64_t txg)
 {
 	spa_t *spa = vd->vdev_spa;
 	nvlist_t *config = NULL;
-	vdev_phys_t *vp;
+	vdev_phys_t *vp = NULL;
 	abd_t *vp_abd;
 	zio_t *zio;
 	uint64_t best_txg = 0;
 	int error = 0;
 	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL |
 	    ZIO_FLAG_SPECULATIVE;
-	int l;
+	int l, err;
 
 	ASSERT(spa_config_held(spa, SCL_STATE_ALL, RW_WRITER) == SCL_STATE_ALL);
 
 	if (!vdev_readable(vd))
 		return (NULL);
 
-	vp_abd = abd_alloc_linear(sizeof (vdev_phys_t), B_TRUE);
-	vp = abd_to_buf(vp_abd);
-
+	vp_abd = abd_alloc_for_io(sizeof (vdev_phys_t), B_TRUE);
 retry:
 	for (l = 0; l < VDEV_LABELS; l++) {
 		nvlist_t *label = NULL;
@@ -622,27 +620,36 @@ retry:
 		    offsetof(vdev_label_t, vl_vdev_phys),
 		    sizeof (vdev_phys_t), NULL, NULL, flags);
 
-		if (zio_wait(zio) == 0 &&
-		    nvlist_unpack(vp->vp_nvlist, sizeof (vp->vp_nvlist),
-		    &label, 0) == 0) {
-			uint64_t label_txg = 0;
+		if (zio_wait(zio) == 0) {
 
-			/*
-			 * Auxiliary vdevs won't have txg values in their
-			 * labels and newly added vdevs may not have been
-			 * completely initialized so just return the
-			 * configuration from the first valid label we
-			 * encounter.
-			 */
-			error = nvlist_lookup_uint64(label,
-			    ZPOOL_CONFIG_POOL_TXG, &label_txg);
-			if ((error || label_txg == 0) && !config) {
-				config = label;
-				break;
-			} else if (label_txg <= txg && label_txg > best_txg) {
-				best_txg = label_txg;
-				nvlist_free(config);
-				config = fnvlist_dup(label);
+			vp = abd_borrow_buf_copy(vp_abd, sizeof (vdev_phys_t));
+
+			err = nvlist_unpack(vp->vp_nvlist,
+			    sizeof (vp->vp_nvlist), &label, 0);
+
+			abd_return_buf_copy(vp_abd, vp, sizeof (vdev_phys_t));
+
+			if (err == 0) {
+				uint64_t label_txg = 0;
+
+				/*
+				 * Auxiliary vdevs won't have txg values in
+				 * their labels and newly added vdevs may not
+				 * have been completely initialized so just
+				 * return the configuration from the first valid
+				 * label we encounter.
+				 */
+				error = nvlist_lookup_uint64(label,
+				    ZPOOL_CONFIG_POOL_TXG, &label_txg);
+				if ((error || label_txg == 0) && !config) {
+					config = label;
+					break;
+				} else if (label_txg <= txg &&
+				    label_txg > best_txg) {
+					best_txg = label_txg;
+					nvlist_free(config);
+					config = fnvlist_dup(label);
+				}
 			}
 		}
 
@@ -880,9 +887,9 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 	/*
 	 * Initialize its label.
 	 */
-	vp_abd = abd_alloc_linear(sizeof (vdev_phys_t), B_TRUE);
-	abd_zero(vp_abd, sizeof (vdev_phys_t));
-	vp = abd_to_buf(vp_abd);
+	vp_abd = abd_alloc_for_io(sizeof (vdev_phys_t), B_TRUE);
+	vp = abd_borrow_buf(vp_abd, sizeof (vdev_phys_t));
+	bzero(vp, sizeof (vdev_phys_t));
 
 	/*
 	 * Generate a label describing the pool and our top-level vdev.
@@ -942,19 +949,22 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 	error = nvlist_pack(label, &buf, &buflen, NV_ENCODE_XDR, KM_SLEEP);
 	if (error != 0) {
 		nvlist_free(label);
+		abd_return_buf_copy(vp_abd, vp, sizeof (vdev_phys_t));
 		abd_free(vp_abd);
 		/* EFAULT means nvlist_pack ran out of room */
 		return (error == EFAULT ? ENAMETOOLONG : EINVAL);
 	}
 
+	abd_return_buf_copy(vp_abd, vp, sizeof (vdev_phys_t));
+
 	/*
 	 * Initialize uberblock template.
 	 */
-	ub_abd = abd_alloc_linear(VDEV_UBERBLOCK_RING, B_TRUE);
+	ub_abd = abd_alloc_for_io(VDEV_UBERBLOCK_RING, B_TRUE);
 	abd_zero(ub_abd, VDEV_UBERBLOCK_RING);
 	abd_copy_from_buf(ub_abd, &spa->spa_uberblock, sizeof (uberblock_t));
-	ub = abd_to_buf(ub_abd);
-	ub->ub_txg = 0;
+	abd_zero_off(ub_abd, offsetof(uberblock_t, ub_txg),
+	    sizeof (ub->ub_txg));
 
 	/* Initialize the 2nd padding area. */
 	pad2 = abd_alloc_for_io(VDEV_PAD_SIZE, B_TRUE);
@@ -1054,7 +1064,8 @@ vdev_uberblock_load_done(zio_t *zio)
 	vdev_t *vd = zio->io_vd;
 	spa_t *spa = zio->io_spa;
 	zio_t *rio = zio->io_private;
-	uberblock_t *ub = abd_to_buf(zio->io_abd);
+	uberblock_t *ub = abd_borrow_buf_copy(zio->io_abd,
+	    sizeof (uberblock_t));
 	struct ubl_cbdata *cbp = rio->io_private;
 
 	ASSERT3U(zio->io_size, ==, VDEV_UBERBLOCK_SIZE(vd));
@@ -1075,6 +1086,7 @@ vdev_uberblock_load_done(zio_t *zio)
 		mutex_exit(&rio->io_lock);
 	}
 
+	abd_return_buf_copy(zio->io_abd, ub, sizeof (uberblock_t));
 	abd_free(zio->io_abd);
 }
 
@@ -1091,7 +1103,7 @@ vdev_uberblock_load_impl(zio_t *zio, vdev_t *vd, int flags,
 		for (l = 0; l < VDEV_LABELS; l++) {
 			for (n = 0; n < VDEV_UBERBLOCK_COUNT(vd); n++) {
 				vdev_label_read(zio, vd, l,
-				    abd_alloc_linear(VDEV_UBERBLOCK_SIZE(vd),
+				    abd_alloc_for_io(VDEV_UBERBLOCK_SIZE(vd),
 				    B_TRUE), VDEV_UBERBLOCK_OFFSET(vd, n),
 				    VDEV_UBERBLOCK_SIZE(vd),
 				    vdev_uberblock_load_done, zio, flags);
@@ -1325,7 +1337,7 @@ vdev_label_sync(zio_t *zio, vdev_t *vd, int l, uint64_t txg, int flags)
 	abd_t *vp_abd;
 	char *buf;
 	size_t buflen;
-	int c;
+	int c, err;
 
 	for (c = 0; c < vd->vdev_children; c++)
 		vdev_label_sync(zio, vd->vdev_child[c], l, txg, flags);
@@ -1341,14 +1353,18 @@ vdev_label_sync(zio_t *zio, vdev_t *vd, int l, uint64_t txg, int flags)
 	 */
 	label = spa_config_generate(vd->vdev_spa, vd, txg, B_FALSE);
 
-	vp_abd = abd_alloc_linear(sizeof (vdev_phys_t), B_TRUE);
-	abd_zero(vp_abd, sizeof (vdev_phys_t));
-	vp = abd_to_buf(vp_abd);
+	vp_abd = abd_alloc_for_io(sizeof (vdev_phys_t), B_TRUE);
+	vp = abd_borrow_buf(vp_abd, sizeof (vdev_phys_t));
+	bzero(vp, sizeof (vdev_phys_t));
 
 	buf = vp->vp_nvlist;
 	buflen = sizeof (vp->vp_nvlist);
 
-	if (!nvlist_pack(label, &buf, &buflen, NV_ENCODE_XDR, KM_SLEEP)) {
+	err = nvlist_pack(label, &buf, &buflen, NV_ENCODE_XDR, KM_SLEEP);
+
+	abd_return_buf_copy(vp_abd, vp, sizeof (vdev_phys_t));
+
+	if (err == 0) {
 		for (; l < VDEV_LABELS; l += 2) {
 			vdev_label_write(zio, vd, l, vp_abd,
 			    offsetof(vdev_label_t, vl_vdev_phys),
