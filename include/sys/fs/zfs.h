@@ -629,6 +629,9 @@ typedef struct zpool_rewind_policy {
 #define	ZPOOL_CONFIG_COMMENT		"comment"
 #define	ZPOOL_CONFIG_SUSPENDED		"suspended"	/* not stored on disk */
 #define	ZPOOL_CONFIG_TIMESTAMP		"timestamp"	/* not stored on disk */
+#define	ZPOOL_CONFIG_IMPORT_TXG		"import_txg"	/* not stored on disk */
+#define	ZPOOL_CONFIG_IMPORT_HOSTNAME	"import_hostname"
+#define	ZPOOL_CONFIG_IMPORT_HOSTID	"import_hostid" /* not stored on disk */
 #define	ZPOOL_CONFIG_BOOTFS		"bootfs"	/* not stored on disk */
 #define	ZPOOL_CONFIG_MISSING_DEVICES	"missing_vdevs"	/* not stored on disk */
 #define	ZPOOL_CONFIG_LOAD_INFO		"load_info"	/* not stored on disk */
@@ -735,7 +738,8 @@ typedef enum vdev_aux {
 	VDEV_AUX_EXTERNAL,	/* external diagnosis or forced fault	*/
 	VDEV_AUX_SPLIT_POOL,	/* vdev was split off into another pool	*/
 	VDEV_AUX_BAD_ASHIFT,	/* vdev ashift is invalid		*/
-	VDEV_AUX_EXTERNAL_PERSIST	/* persistent forced fault	*/
+	VDEV_AUX_EXTERNAL_PERSIST,	/* persistent forced fault	*/
+	VDEV_AUX_ACTIVE,	/* vdev is active on a different host	*/
 } vdev_aux_t;
 
 /*
@@ -1104,6 +1108,7 @@ typedef enum {
 #define	ZFS_IMPORT_MISSING_LOG	0x4
 #define	ZFS_IMPORT_ONLY		0x8
 #define	ZFS_IMPORT_TEMP_NAME	0x10
+#define	ZFS_IMPORT_SKIP_MMP	0x20
 
 /*
  * Sysevent payload members.  ZFS will generate the following sysevents with the

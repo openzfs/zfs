@@ -238,6 +238,7 @@ struct vdev {
 	zio_t		*vdev_probe_zio; /* root of current probe	*/
 	vdev_aux_t	vdev_label_aux;	/* on-disk aux state		*/
 	uint64_t	vdev_leaf_zap;
+	hrtime_t	vdev_mmp_pending; /* 0 if write finished	*/
 
 	/*
 	 * For DTrace to work in userland (libzpool) context, these fields must
@@ -268,13 +269,28 @@ struct vdev {
 #define	VDEV_PHYS_SIZE		(112 << 10)
 #define	VDEV_UBERBLOCK_RING	(128 << 10)
 
+/*
+ * MMP blocks occupy slots in the uberblock ring.
+ *
+ * VDEV_UBERBLOCK_COUNT()	slots uberblocks are stored in
+ * MMP_BLOCKS_PER_LABEL		slots used for MMP blocks
+ *
+ * Non-MMP aware ZFS uses the entire uberblock ring for uberblocks, so
+ * on import the entire ring must be checked for valid uberblocks.
+ */
+#define	MMP_BLOCKS_PER_LABEL	1
+
 /* The largest uberblock we support is 8k. */
 #define	MAX_UBERBLOCK_SHIFT (13)
 #define	VDEV_UBERBLOCK_SHIFT(vd)	\
 	MIN(MAX((vd)->vdev_top->vdev_ashift, UBERBLOCK_SHIFT), \
 	    MAX_UBERBLOCK_SHIFT)
-#define	VDEV_UBERBLOCK_COUNT(vd)	\
-	(VDEV_UBERBLOCK_RING >> VDEV_UBERBLOCK_SHIFT(vd))
+#define	VDEV_UBERBLOCK_COUNT(vd)					\
+	((VDEV_UBERBLOCK_RING >> VDEV_UBERBLOCK_SHIFT(vd)) -		\
+	    MMP_BLOCKS_PER_LABEL)
+#define	VDEV_UBERBLOCK_SLOT(vd, txg)	\
+	(txg % VDEV_UBERBLOCK_COUNT(vd))
+#define	VDEV_FIRST_MMP_BLOCK(vd)	VDEV_UBERBLOCK_COUNT(vd)
 #define	VDEV_UBERBLOCK_OFFSET(vd, n)	\
 	offsetof(vdev_label_t, vl_uberblock[(n) << VDEV_UBERBLOCK_SHIFT(vd)])
 #define	VDEV_UBERBLOCK_SIZE(vd)		(1ULL << VDEV_UBERBLOCK_SHIFT(vd))

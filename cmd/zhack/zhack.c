@@ -127,7 +127,7 @@ import_pool(const char *target, boolean_t readonly)
 	nvlist_t *pools;
 	int error;
 	char *sepp;
-	spa_t *spa;
+	spa_t *spa = NULL;
 	nvpair_t *elem;
 	nvlist_t *props;
 	char *name;

@@ -43,6 +43,7 @@ extern "C" {
  */
 #define	UBERBLOCK_MAGIC		0x00bab10c		/* oo-ba-bloc!	*/
 #define	UBERBLOCK_SHIFT		10			/* up to 1K	*/
+#define	MMP_MAGIC		0xa11cea11		/* all-see-all  */
 
 struct uberblock {
 	uint64_t	ub_magic;	/* UBERBLOCK_MAGIC		*/
@@ -54,6 +55,10 @@ struct uberblock {
 
 	/* highest SPA_VERSION supported by software that wrote this txg */
 	uint64_t	ub_software_version;
+
+	/* Maybe missing in uberblocks we read, but always written */
+	uint64_t	ub_mmp_magic;	/* MMP_MAGIC			*/
+	uint64_t	ub_mmp_delay;	/* nanosec since last MMP write	*/
 };
 
 #ifdef	__cplusplus

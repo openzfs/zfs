@@ -84,7 +84,7 @@ function verify_device_uberblocks
 		count++;
 		if (uberblocks[i] != 4) { exit 1; }
 	    }
-	    if (count != ubcount) { exit 1; } }'
+	    if (count != ubcount) { exit 2; } }'
 
 	return $?
 }
@@ -97,7 +97,8 @@ log_must mkfile $SIZE $disk
 
 typeset ashifts=("9" "10" "11" "12" "13" "14" "15" "16")
 # since Illumos 4958 the largest uberblock is 8K so we have at least of 16/label
-typeset ubcount=("128" "128" "64" "32" "16" "16" "16" "16")
+# MMP occupies one uberblock slot
+typeset ubcount=("127" "127" "63" "31" "15" "15" "15" "15")
 typeset -i i=0;
 while [ $i -lt "${#ashifts[@]}" ]
 do

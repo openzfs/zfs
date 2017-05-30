@@ -1649,7 +1649,7 @@ zfs_ioc_pool_stats(zfs_cmd_t *zc)
 static int
 zfs_ioc_pool_tryimport(zfs_cmd_t *zc)
 {
-	nvlist_t *tryconfig, *config;
+	nvlist_t *tryconfig, *config = NULL;
 	int error;
 
 	if ((error = get_nvlist(zc->zc_nvlist_conf, zc->zc_nvlist_conf_size,

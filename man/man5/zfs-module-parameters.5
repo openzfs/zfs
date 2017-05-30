@@ -2089,6 +2089,72 @@ is present.
 Use \fB1\fR for yes and \fB0\fR for no (default).
 .RE
 
+.sp
+.ne 2
+.na
+\fBzfs_mmp_interval\fR (ulong)
+.ad
+.RS 12n
+Used to control mmp writes and the mmp activity check on import.
+.sp
+For zfs_mmp_interval == 0: No mmp writes are performed.
+Uberblocks written contain mmp_delay == 0.  On import, no
+activity check if best uberblock mmp_delay == 0.
+.sp
+For zfs_mmp_interval > 0: The mmp write period is
+zfs_mmp_interval/(# leaf vdevs) milliseconds, so that on
+average, an mmp write will be issued for each leaf vdev,
+every zfs_mmp_interval ms.  If there are I/O delays, i.e.
+due to a busy disk, the mmp updates may land on-disk at
+irregular, and possibly long, intervals.  mmp_delay in the
+uberblock written reflects the most recent interval.
+.sp
+If zfs_mmp_interval > 0 on import, the activity check waits up to
+zfs_mmp_import_intervals * zfs_mmp_interval + an additional random delay
+factor. The activity check time may be further extended if the value of
+mmp_delay in the best uberblock indicates actual MMP updates happened at
+longer intervals than zfs_mmp_interval.
+.sp
+Default value: \fB1000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_mmp_import_intervals\fR (uint)
+.ad
+.RS 12n
+Used to control the duration of the activity test on import.
+The duration of the test is
+.sp
+zfs_mmp_import_intervals * zfs_mmp_interval + random(25%)
+.sp
+A value of 0 is ignored, and treated as if it was set to 1.
+.sp
+Default value: \fB10\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_mmp_fail_intervals\fR (uint)
+.ad
+.RS 12n
+Used to respond to mmp write failures.
+.sp
+For zfs_mmp_fail_intervals == 0: MMP write failures are
+ignored by the mmp thread, although zfs may detect failures
+and report them to the ZED, which in turn may take action
+such as suspending the pool or taking a device offline.
+.sp
+For zfs_mmp_fail_intervals > 0: Suspend the pool if
+(zfs_mmp_fail_intervals * zfs_mmp_interval) ms have passed
+since the last successful mmp write.  This guarantees the
+activity test will see mmp writes if the pool is imported.
+.sp
+Default value: \fB5\fR.
+.RE
+
 .SH ZFS I/O SCHEDULER
 ZFS issues I/O operations to leaf vdevs to satisfy and complete I/Os.
 The I/O scheduler determines when and in what order those operations are
