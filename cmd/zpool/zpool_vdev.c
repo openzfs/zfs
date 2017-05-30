@@ -781,7 +781,7 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 	nvlist_t **child;
 	uint_t c, children;
 	nvlist_t *nv;
-	char *type, *alloc_bias;
+	char *type;
 	replication_level_t lastrep = {0};
 	replication_level_t rep;
 	replication_level_t *ret;
@@ -804,9 +804,6 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 		 */
 		(void) nvlist_lookup_uint64(nv, ZPOOL_CONFIG_IS_LOG, &is_log);
 		if (is_log)
-			continue;
-		if (nvlist_lookup_string(nv, ZPOOL_CONFIG_ALLOCATION_BIAS,
-		    &alloc_bias) == 0)
 			continue;
 
 		verify(nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE,
@@ -968,7 +965,7 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 		/*
 		 * At this point, we have the replication of the last toplevel
 		 * vdev in 'rep'.  Compare it to 'lastrep' to see if its
-		 * different. Skip checks involving dedicated top-level vdevs.
+		 * different.
 		 */
 		if (lastrep.zprl_type != NULL) {
 			if (is_raidz_mirror(&lastrep, &rep, &raidz, &mirror) ||
