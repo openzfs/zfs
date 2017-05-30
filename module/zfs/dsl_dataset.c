@@ -2254,9 +2254,9 @@ dsl_dataset_rollback_check(void *arg, dmu_tx_t *tx)
 	}
 
 	/* must not have any bookmarks after the most recent snapshot */
-	proprequest = fnvlist_alloc();
+	VERIFY0(nvlist_alloc(&proprequest, NV_UNIQUE_NAME, KM_PUSHPAGE));
 	fnvlist_add_boolean(proprequest, zfs_prop_to_name(ZFS_PROP_CREATETXG));
-	bookmarks = fnvlist_alloc();
+	VERIFY0(nvlist_alloc(&bookmarks, NV_UNIQUE_NAME, KM_PUSHPAGE));
 	error = dsl_get_bookmarks_impl(ds, proprequest, bookmarks);
 	fnvlist_free(proprequest);
 	if (error != 0)
