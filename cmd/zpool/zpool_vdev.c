@@ -1453,7 +1453,7 @@ is_grouping(const char *type, int *mindev, int *maxdev)
 	    strcmp(type, VDEV_ALLOC_BIAS_METADATA) == 0 ||
 	    strcmp(type, VDEV_ALLOC_BIAS_SMALLBLKS) == 0) {
 		if (mindev != NULL)
-			*mindev = 2;
+			*mindev = 1;
 		return (type);
 	}
 
@@ -1615,14 +1615,12 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 				is_log = is_dedup = is_metadata = B_FALSE;
 			}
 
-			if (is_log || is_dedup || is_metadata || is_smallblks) {
+			if (is_log) {
 				if (strcmp(type, VDEV_TYPE_MIRROR) != 0) {
 					(void) fprintf(stderr,
 					    gettext("invalid vdev "
-					    "specification: unsupported '%s' "
-					    "device: %s\n"), is_log ? "log" :
-					    is_dedup ? "dedup" : is_metadata ?
-					    "metadata" : "smallblks", type);
+					    "specification: unsupported 'log' "
+					    "device: %s\n"), type);
 					goto spec_out;
 				}
 				nlogs++;
@@ -1728,13 +1726,6 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 
 			if (is_log)
 				nlogs++;
-			if (is_dedup || is_metadata || is_smallblks) {
-				(void) fprintf(stderr,
-				    gettext("invalid vdev specification: '%s' "
-				    "expects mirror\n"), is_dedup ? "dedup" :
-				    is_metadata ? "metadata" : "smallblks");
-				goto spec_out;
-			}
 			argc--;
 			argv++;
 		}

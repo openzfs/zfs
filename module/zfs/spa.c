@@ -4948,16 +4948,6 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 	ASSERT(pvd->vdev_children >= 2);
 
 	/*
-	 * If dedicated class, then it must remain mirrored
-	 */
-	if (pvd->vdev_alloc_bias == VDEV_BIAS_DEDUP ||
-	    pvd->vdev_alloc_bias == VDEV_BIAS_METADATA ||
-	    pvd->vdev_alloc_bias == VDEV_BIAS_SMALLBLKS) {
-		if (pvd->vdev_children <= 2 && 0) {
-			return (spa_vdev_exit(spa, NULL, txg, ENOTSUP));
-		}
-	}
-	/*
 	 * If we are detaching the second disk from a replacing vdev, then
 	 * check to see if we changed the original vdev's path to have "/old"
 	 * at the end in spa_vdev_attach().  If so, undo that change now.
