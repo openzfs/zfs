@@ -21,6 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2015 Nexenta Systems, Inc.  All rights reserved.
+ * Copyright 2017 Joyent, Inc.
  */
 
 #ifndef	_SYS_SYSEVENT_EVENTDEFS_H
@@ -112,6 +113,7 @@ extern "C" {
 #define	ESC_ZFS_VDEV_AUTOEXPAND		"vdev_autoexpand"
 #define	ESC_ZFS_BOOTFS_VDEV_ATTACH	"bootfs_vdev_attach"
 #define	ESC_ZFS_POOL_REGUID		"pool_reguid"
+#define	ESC_ZFS_HISTORY_EVENT		"history_event"
 
 /*
  * datalink subclass definitions.

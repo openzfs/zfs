@@ -23,6 +23,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
+ * Copyright 2017 Joyent, Inc.
  */
 
 #include <sys/spa.h>
@@ -330,7 +331,7 @@ spa_config_sync(spa_t *target, boolean_t removing, boolean_t postsysevent)
 	spa_config_generation++;
 
 	if (postsysevent)
-		spa_event_notify(target, NULL, ESC_ZFS_CONFIG_SYNC);
+		spa_event_notify(target, NULL, NULL, ESC_ZFS_CONFIG_SYNC);
 }
 
 /*
