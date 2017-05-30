@@ -1053,6 +1053,7 @@ check_replication(nvlist_t *config, nvlist_t *newroot)
 	nvlist_t **child;
 	uint_t	children;
 	replication_level_t *current = NULL, *new;
+	replication_level_t *raidz, *mirror;
 	int ret;
 
 	/*
@@ -1100,7 +1101,21 @@ check_replication(nvlist_t *config, nvlist_t *newroot)
 	 */
 	ret = 0;
 	if (current != NULL) {
-		if (strcmp(current->zprl_type, new->zprl_type) != 0) {
+		if (is_raidz_mirror(current, new, &raidz, &mirror) ||
+		    is_raidz_mirror(new, current, &raidz, &mirror)) {
+			if (raidz->zprl_parity != mirror->zprl_children - 1) {
+				vdev_error(gettext(
+				    "mismatched replication level: pool and "
+				    "new vdev with different redundancy, %s "
+				    "and %s vdevs, %llu vs. %llu (%llu-way)\n"),
+				    raidz->zprl_type,
+				    mirror->zprl_type,
+				    raidz->zprl_parity,
+				    mirror->zprl_children - 1,
+				    mirror->zprl_children);
+				ret = -1;
+			}
+		} else if (strcmp(current->zprl_type, new->zprl_type) != 0) {
 			vdev_error(gettext(
 			    "mismatched replication level: pool uses %s "
 			    "and new vdev is %s\n"),
