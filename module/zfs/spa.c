@@ -30,6 +30,7 @@
  * Copyright 2016 Toomas Soome <tsoome@me.com>
  * Copyright (c) 2016 Actifio, Inc. All rights reserved.
  * Copyright (c) 2017 Datto Inc.
+ * Copyright 2017 Joyent, Inc.
  */
 
 /*
@@ -77,6 +78,8 @@
 #include <sys/zvol.h>
 
 #ifdef	_KERNEL
+#include <sys/fm/protocol.h>
+#include <sys/fm/util.h>
 #include <sys/bootprops.h>
 #include <sys/callb.h>
 #include <sys/cpupart.h>
@@ -146,6 +149,9 @@ const zio_taskq_info_t zio_taskqs[ZIO_TYPES][ZIO_TASKQ_TYPES] = {
 	{ ZTI_ONE,	ZTI_NULL,	ZTI_ONE,	ZTI_NULL }, /* IOCTL */
 };
 
+static sysevent_t *spa_event_create(spa_t *spa, vdev_t *vd, nvlist_t *hist_nvl,
+    const char *name);
+static void spa_event_post(sysevent_t *ev);
 static void spa_sync_version(void *arg, dmu_tx_t *tx);
 static void spa_sync_props(void *arg, dmu_tx_t *tx);
 static boolean_t spa_has_active_shared_spare(spa_t *spa);
@@ -801,7 +807,7 @@ spa_change_guid(spa_t *spa)
 
 	if (error == 0) {
 		spa_config_sync(spa, B_FALSE, B_TRUE);
-		spa_event_notify(spa, NULL, ESC_ZFS_POOL_REGUID);
+		spa_event_notify(spa, NULL, NULL, ESC_ZFS_POOL_REGUID);
 	}
 
 	mutex_exit(&spa_namespace_lock);
@@ -1701,7 +1707,7 @@ spa_check_removed(vdev_t *vd)
 	if (vd->vdev_ops->vdev_op_leaf && vdev_is_dead(vd) &&
 	    !vd->vdev_ishole) {
 		zfs_post_autoreplace(vd->vdev_spa, vd);
-		spa_event_notify(vd->vdev_spa, vd, ESC_ZFS_VDEV_CHECK);
+		spa_event_notify(vd->vdev_spa, vd, NULL, ESC_ZFS_VDEV_CHECK);
 	}
 }
 
@@ -3998,7 +4004,7 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	txg_wait_synced(spa->spa_dsl_pool, txg);
 
 	spa_config_sync(spa, B_FALSE, B_TRUE);
-	spa_event_notify(spa, NULL, ESC_ZFS_POOL_CREATE);
+	spa_event_notify(spa, NULL, NULL, ESC_ZFS_POOL_CREATE);
 
 	spa_history_log_version(spa, "create");
 
@@ -4062,7 +4068,7 @@ spa_import(char *pool, nvlist_t *config, nvlist_t *props, uint64_t flags)
 			spa_configfile_set(spa, props, B_FALSE);
 
 		spa_config_sync(spa, B_FALSE, B_TRUE);
-		spa_event_notify(spa, NULL, ESC_ZFS_POOL_IMPORT);
+		spa_event_notify(spa, NULL, NULL, ESC_ZFS_POOL_IMPORT);
 
 		mutex_exit(&spa_namespace_lock);
 		return (0);
@@ -4189,7 +4195,7 @@ spa_import(char *pool, nvlist_t *config, nvlist_t *props, uint64_t flags)
 
 	spa_history_log_version(spa, "import");
 
-	spa_event_notify(spa, NULL, ESC_ZFS_POOL_IMPORT);
+	spa_event_notify(spa, NULL, NULL, ESC_ZFS_POOL_IMPORT);
 
 	zvol_create_minors(spa, pool, B_TRUE);
 
@@ -4390,7 +4396,7 @@ spa_export_common(char *pool, int new_state, nvlist_t **oldconfig,
 	}
 
 export_spa:
-	spa_event_notify(spa, NULL, ESC_ZFS_POOL_DESTROY);
+	spa_event_notify(spa, NULL, NULL, ESC_ZFS_POOL_DESTROY);
 
 	if (spa->spa_state != POOL_STATE_UNINITIALIZED) {
 		spa_unload(spa);
@@ -4546,7 +4552,7 @@ spa_vdev_add(spa_t *spa, nvlist_t *nvroot)
 
 	mutex_enter(&spa_namespace_lock);
 	spa_config_update(spa, SPA_CONFIG_UPDATE_POOL);
-	spa_event_notify(spa, NULL, ESC_ZFS_VDEV_ADD);
+	spa_event_notify(spa, NULL, NULL, ESC_ZFS_VDEV_ADD);
 	mutex_exit(&spa_namespace_lock);
 
 	return (0);
@@ -4727,7 +4733,7 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 
 	if (newvd->vdev_isspare) {
 		spa_spare_activate(newvd);
-		spa_event_notify(spa, newvd, ESC_ZFS_VDEV_SPARE);
+		spa_event_notify(spa, newvd, NULL, ESC_ZFS_VDEV_SPARE);
 	}
 
 	oldvdpath = spa_strdup(oldvd->vdev_path);
@@ -4747,9 +4753,9 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 	dsl_resilver_restart(spa->spa_dsl_pool, dtl_max_txg);
 
 	if (spa->spa_bootfs)
-		spa_event_notify(spa, newvd, ESC_ZFS_BOOTFS_VDEV_ATTACH);
+		spa_event_notify(spa, newvd, NULL, ESC_ZFS_BOOTFS_VDEV_ATTACH);
 
-	spa_event_notify(spa, newvd, ESC_ZFS_VDEV_ATTACH);
+	spa_event_notify(spa, newvd, NULL, ESC_ZFS_VDEV_ATTACH);
 
 	/*
 	 * Commit the config
@@ -4963,7 +4969,7 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 	vd->vdev_detached = B_TRUE;
 	vdev_dirty(tvd, VDD_DTL, vd, txg);
 
-	spa_event_notify(spa, vd, ESC_ZFS_VDEV_REMOVE);
+	spa_event_notify(spa, vd, NULL, ESC_ZFS_VDEV_REMOVE);
 
 	/* hang on to the spa before we release the lock */
 	spa_open_ref(spa, FTAG);
@@ -5449,6 +5455,7 @@ int
 spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 {
 	vdev_t *vd;
+	sysevent_t *ev = NULL;
 	metaslab_group_t *mg;
 	nvlist_t **spares, **l2cache, *nv;
 	uint64_t txg = 0;
@@ -5474,7 +5481,8 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 		if (vd == NULL || unspare) {
 			if (vd == NULL)
 				vd = spa_lookup_by_guid(spa, guid, B_TRUE);
-			spa_event_notify(spa, vd, ESC_ZFS_VDEV_REMOVE_AUX);
+			ev = spa_event_create(spa, vd, NULL,
+			    ESC_ZFS_VDEV_REMOVE_AUX);
 			spa_vdev_remove_aux(spa->spa_spares.sav_config,
 			    ZPOOL_CONFIG_SPARES, spares, nspares, nv);
 			spa_load_spares(spa);
@@ -5490,7 +5498,7 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 		 * Cache devices can always be removed.
 		 */
 		vd = spa_lookup_by_guid(spa, guid, B_TRUE);
-		spa_event_notify(spa, vd, ESC_ZFS_VDEV_REMOVE_AUX);
+		ev = spa_event_create(spa, vd, NULL, ESC_ZFS_VDEV_REMOVE_AUX);
 		spa_vdev_remove_aux(spa->spa_l2cache.sav_config,
 		    ZPOOL_CONFIG_L2CACHE, l2cache, nl2cache, nv);
 		spa_load_l2cache(spa);
@@ -5531,7 +5539,7 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 		/*
 		 * Clean up the vdev namespace.
 		 */
-		spa_event_notify(spa, vd, ESC_ZFS_VDEV_REMOVE_DEV);
+		ev = spa_event_create(spa, vd, NULL, ESC_ZFS_VDEV_REMOVE_DEV);
 		spa_vdev_remove_from_namespace(spa, vd);
 
 	} else if (vd != NULL) {
@@ -5548,6 +5556,9 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 
 	if (!locked)
 		error = spa_vdev_exit(spa, NULL, txg, error);
+
+	if (ev)
+		spa_event_post(ev);
 
 	return (error);
 }
@@ -5831,7 +5842,7 @@ spa_async_autoexpand(spa_t *spa, vdev_t *vd)
 	if (!vd->vdev_ops->vdev_op_leaf || vd->vdev_physpath == NULL)
 		return;
 
-	spa_event_notify(vd->vdev_spa, vd, ESC_ZFS_VDEV_AUTOEXPAND);
+	spa_event_notify(vd->vdev_spa, vd, NULL, ESC_ZFS_VDEV_AUTOEXPAND);
 }
 
 static void
@@ -6944,6 +6955,33 @@ spa_has_active_shared_spare(spa_t *spa)
 	return (B_FALSE);
 }
 
+static sysevent_t *
+spa_event_create(spa_t *spa, vdev_t *vd, nvlist_t *hist_nvl, const char *name)
+{
+	sysevent_t *ev = NULL;
+#ifdef _KERNEL
+	nvlist_t *resource;
+
+	resource = zfs_event_create(spa, vd, FM_SYSEVENT_CLASS, name, hist_nvl);
+	if (resource) {
+		ev = kmem_alloc(sizeof (sysevent_t), KM_SLEEP);
+		ev->resource = resource;
+	}
+#endif
+	return (ev);
+}
+
+static void
+spa_event_post(sysevent_t *ev)
+{
+#ifdef _KERNEL
+	if (ev) {
+		zfs_zevent_post(ev->resource, NULL, zfs_zevent_post_cb);
+		kmem_free(ev, sizeof (*ev));
+	}
+#endif
+}
+
 /*
  * Post a zevent corresponding to the given sysevent.   The 'name' must be one
  * of the event definitions in sys/sysevent/eventdefs.h.  The payload will be
@@ -6952,9 +6990,9 @@ spa_has_active_shared_spare(spa_t *spa)
  * or zdb as real changes.
  */
 void
-spa_event_notify(spa_t *spa, vdev_t *vd, const char *name)
+spa_event_notify(spa_t *spa, vdev_t *vd, nvlist_t *hist_nvl, const char *name)
 {
-	zfs_post_sysevent(spa, vd, name);
+	spa_event_post(spa_event_create(spa, vd, hist_nvl, name));
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)

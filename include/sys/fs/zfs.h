@@ -23,7 +23,8 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
- * Copyright (c) 2013, Joyent, Inc. All rights reserved.
+ * Copyright (c) 2013, 2017 Joyent, Inc. All rights reserved.
+ * Copyright (c) 2014 Integros [integros.com]
  * Copyright (c) 2017 Datto Inc.
  */
 
@@ -1138,11 +1139,45 @@ typedef enum {
  *		ZFS_EV_POOL_GUID	DATA_TYPE_UINT64
  *		ZFS_EV_VDEV_PATH	DATA_TYPE_STRING	(optional)
  *		ZFS_EV_VDEV_GUID	DATA_TYPE_UINT64
+ *
+ *	ESC_ZFS_HISTORY_EVENT
+ *
+ *		ZFS_EV_POOL_NAME	DATA_TYPE_STRING
+ *		ZFS_EV_POOL_GUID	DATA_TYPE_UINT64
+ *		ZFS_EV_HIST_TIME	DATA_TYPE_UINT64	(optional)
+ *		ZFS_EV_HIST_CMD		DATA_TYPE_STRING	(optional)
+ *		ZFS_EV_HIST_WHO		DATA_TYPE_UINT64	(optional)
+ *		ZFS_EV_HIST_ZONE	DATA_TYPE_STRING	(optional)
+ *		ZFS_EV_HIST_HOST	DATA_TYPE_STRING	(optional)
+ *		ZFS_EV_HIST_TXG		DATA_TYPE_UINT64	(optional)
+ *		ZFS_EV_HIST_INT_EVENT	DATA_TYPE_UINT64	(optional)
+ *		ZFS_EV_HIST_INT_STR	DATA_TYPE_STRING	(optional)
+ *		ZFS_EV_HIST_INT_NAME	DATA_TYPE_STRING	(optional)
+ *		ZFS_EV_HIST_IOCTL	DATA_TYPE_STRING	(optional)
+ *		ZFS_EV_HIST_DSNAME	DATA_TYPE_STRING	(optional)
+ *		ZFS_EV_HIST_DSID	DATA_TYPE_UINT64	(optional)
+ *
+ * The ZFS_EV_HIST_* members will correspond to the ZPOOL_HIST_* members in the
+ * history log nvlist.  The keynames will be free of any spaces or other
+ * characters that could be potentially unexpected to consumers of the
+ * sysevents.
  */
 #define	ZFS_EV_POOL_NAME	"pool_name"
 #define	ZFS_EV_POOL_GUID	"pool_guid"
 #define	ZFS_EV_VDEV_PATH	"vdev_path"
 #define	ZFS_EV_VDEV_GUID	"vdev_guid"
+#define	ZFS_EV_HIST_TIME	"history_time"
+#define	ZFS_EV_HIST_CMD		"history_command"
+#define	ZFS_EV_HIST_WHO		"history_who"
+#define	ZFS_EV_HIST_ZONE	"history_zone"
+#define	ZFS_EV_HIST_HOST	"history_hostname"
+#define	ZFS_EV_HIST_TXG		"history_txg"
+#define	ZFS_EV_HIST_INT_EVENT	"history_internal_event"
+#define	ZFS_EV_HIST_INT_STR	"history_internal_str"
+#define	ZFS_EV_HIST_INT_NAME	"history_internal_name"
+#define	ZFS_EV_HIST_IOCTL	"history_ioctl"
+#define	ZFS_EV_HIST_DSNAME	"history_dsname"
+#define	ZFS_EV_HIST_DSID	"history_dsid"
 
 #ifdef	__cplusplus
 }
