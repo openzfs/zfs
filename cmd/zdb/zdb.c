@@ -1286,7 +1286,7 @@ visit_indirect(spa_t *spa, const dnode_phys_t *dnp,
 {
 	int err = 0;
 
-	if (bp->blk_birth == 0)
+	if (bp->blk_birth == 0 && dump_opt['d'] < 5)
 		return (0);
 
 	print_indirect(bp, zb, dnp);
@@ -1460,7 +1460,7 @@ dump_bptree_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
 {
 	char blkbuf[BP_SPRINTF_LEN];
 
-	if (bp->blk_birth != 0) {
+	if (bp->blk_birth != 0 || dump_opt['v'] >= 5) {
 		snprintf_blkptr(blkbuf, sizeof (blkbuf), bp);
 		(void) printf("\t%s\n", blkbuf);
 	}
@@ -3017,7 +3017,7 @@ zdb_blkptr_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	if (bp == NULL)
 		return (0);
 
-	if (dump_opt['b'] >= 5 && bp->blk_birth > 0) {
+	if (dump_opt['b'] >= 5 && (bp->blk_birth > 0 || dump_opt['v'] >= 5)) {
 		char blkbuf[BP_SPRINTF_LEN];
 		snprintf_blkptr(blkbuf, sizeof (blkbuf), bp);
 		(void) printf("objset %llu object %llu "
