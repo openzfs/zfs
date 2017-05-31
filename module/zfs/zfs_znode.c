@@ -1187,7 +1187,16 @@ zfs_rezget(znode_t *zp)
 	}
 	mutex_exit(&zp->z_acl_lock);
 
-	rw_enter(&zp->z_xattr_lock, RW_WRITER);
+	/*
+	 * Lock inversion with zpl_xattr_get->__zpl_xattr_get->zfs_lookup
+	 * between z_xattr_lock and z_teardown_lock.  Detect this case and
+	 * return EBUSY so zfs_resume_fs() will mark the inode stale and it
+	 * will safely be revalidated on next access.
+	 */
+	err = rw_tryenter(&zp->z_xattr_lock, RW_WRITER);
+	if (!err)
+		return (SET_ERROR(EBUSY));
+
 	if (zp->z_xattr_cached) {
 		nvlist_free(zp->z_xattr_cached);
 		zp->z_xattr_cached = NULL;
