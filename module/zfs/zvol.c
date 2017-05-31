@@ -419,11 +419,12 @@ zvol_set_volsize(const char *name, uint64_t volsize)
 		goto out;
 
 	error = zvol_update_volsize(volsize, os);
-	kmem_free(doi, sizeof (dmu_object_info_t));
 
 	if (error == 0 && zv != NULL)
 		error = zvol_update_live_volsize(zv, volsize);
 out:
+	kmem_free(doi, sizeof (dmu_object_info_t));
+
 	if (owned) {
 		dmu_objset_disown(os, FTAG);
 		if (zv != NULL)
