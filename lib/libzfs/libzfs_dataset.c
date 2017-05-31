@@ -2127,8 +2127,6 @@ get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
 		mnt.mnt_mntopts = zhp->zfs_mntopts;
 
 	switch (prop) {
-	case ZFS_PROP_ATIME:
-	case ZFS_PROP_RELATIME:
 	case ZFS_PROP_DEVICES:
 	case ZFS_PROP_EXEC:
 	case ZFS_PROP_READONLY:
@@ -2151,6 +2149,8 @@ get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
 		}
 		break;
 
+	case ZFS_PROP_ATIME:
+	case ZFS_PROP_RELATIME:
 	case ZFS_PROP_CANMOUNT:
 	case ZFS_PROP_VOLSIZE:
 	case ZFS_PROP_QUOTA:
