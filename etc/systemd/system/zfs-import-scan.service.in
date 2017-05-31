@@ -4,6 +4,7 @@ DefaultDependencies=no
 Requires=systemd-udev-settle.service
 After=systemd-udev-settle.service
 After=cryptsetup.target
+After=zfs-import-cache.service
 Before=dracut-mount.service
 ConditionPathExists=!@sysconfdir@/zfs/zpool.cache
 
