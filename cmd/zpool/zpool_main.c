@@ -307,7 +307,7 @@ get_usage(zpool_help_t idx)
 	case HELP_DETACH:
 		return (gettext("\tdetach <pool> <device>\n"));
 	case HELP_EXPORT:
-		return (gettext("\texport [-af] <pool> ...\n"));
+		return (gettext("\texport [-afF] <pool> ...\n"));
 	case HELP_HISTORY:
 		return (gettext("\thistory [-il] [<pool>] ...\n"));
 	case HELP_IMPORT:
@@ -1398,14 +1398,17 @@ zpool_export_one(zpool_handle_t *zhp, void *data)
 }
 
 /*
- * zpool export [-f] <pool> ...
+ * zpool export [-afF] <pool> ...
  *
  *	-a	Export all pools
  *	-f	Forcefully unmount datasets
+ *	-F	Don't update disk labels during export.  Can be used to
+ *		export a suspended pool all dirty data will be discard.
  *
  * Export the given pools.  By default, the command will attempt to cleanly
  * unmount any active datasets within the pool.  If the '-f' flag is specified,
- * then the datasets will be forcefully unmounted.
+ * then the datasets will be forcefully unmounted.  The '-F' flag can be added
+ * to export a suspended which cannot be resumed.
  */
 int
 zpool_do_export(int argc, char **argv)

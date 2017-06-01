@@ -1439,12 +1439,15 @@ spa_freeze(spa_t *spa)
 {
 	uint64_t freeze_txg = 0;
 
-	spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
-	if (spa->spa_freeze_txg == UINT64_MAX) {
+	spa_config_enter(spa, SCL_STATE_ALL, FTAG, RW_WRITER);
+	if (spa_suspended(spa)) {
+		freeze_txg = spa->spa_last_ubsync_txg;
+		spa->spa_freeze_txg = freeze_txg;
+	} else if (spa->spa_freeze_txg == UINT64_MAX) {
 		freeze_txg = spa_last_synced_txg(spa) + TXG_SIZE;
 		spa->spa_freeze_txg = freeze_txg;
 	}
-	spa_config_exit(spa, SCL_ALL, FTAG);
+	spa_config_exit(spa, SCL_STATE_ALL, FTAG);
 	if (freeze_txg != 0)
 		txg_wait_synced(spa_get_dsl(spa), freeze_txg);
 }

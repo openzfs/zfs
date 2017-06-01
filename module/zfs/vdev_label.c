@@ -1124,7 +1124,7 @@ vdev_uberblock_load(vdev_t *rvd, uberblock_t *ub, nvlist_t **config)
 	cb.ubl_ubbest = ub;
 	cb.ubl_vd = NULL;
 
-	spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
+	spa_config_enter(spa, SCL_STATE_ALL, FTAG, RW_WRITER);
 	zio = zio_root(spa, NULL, &cb, flags);
 	vdev_uberblock_load_impl(zio, rvd, flags, &cb);
 	(void) zio_wait(zio);
@@ -1137,7 +1137,7 @@ vdev_uberblock_load(vdev_t *rvd, uberblock_t *ub, nvlist_t **config)
 	 */
 	if (cb.ubl_vd != NULL)
 		*config = vdev_label_read_config(cb.ubl_vd, ub->ub_txg);
-	spa_config_exit(spa, SCL_ALL, FTAG);
+	spa_config_exit(spa, SCL_STATE_ALL, FTAG);
 }
 
 /*
@@ -1514,6 +1514,14 @@ retry:
 	 */
 	if ((error = vdev_label_sync_list(spa, 1, txg, flags)) != 0)
 		goto retry;
+
+	/*
+	 * The txg and timestamp for the last uberblock written to disk are
+	 * tracked by the spa.  They are used to verify that a resuming pool
+	 * has not been modified while suspended.
+	 */
+	spa->spa_last_ubsync_txg = ub->ub_txg;
+	spa->spa_last_ubsync_txg_ts = ub->ub_timestamp;
 
 	return (0);
 }

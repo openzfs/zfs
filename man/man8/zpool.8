@@ -64,7 +64,7 @@ zpool \- configures ZFS storage pools
 
 .LP
 .nf
-\fBzpool export\fR [\fB-a\fR] [\fB-f\fR] \fIpool\fR ...
+\fBzpool export\fR [\fB-a\fR] [\fB-f\fR] [\fB-F\fR] \fIpool\fR ...
 .fi
 
 .LP
@@ -1071,7 +1071,7 @@ Clear all previous events.
 .sp
 .ne 2
 .na
-\fB\fBzpool export\fR [\fB-a\fR] [\fB-f\fR] \fIpool\fR ...\fR
+\fB\fBzpool export\fR [\fB-a\fR] [\fB-f\fR] [\fB-F\fR] \fIpool\fR ...\fR
 .ad
 .sp .6
 .RS 4n
@@ -1098,6 +1098,21 @@ Exports all pools imported on the system.
 Forcefully unmount all datasets, using the "\fBunmount -f\fR" command.
 .sp
 This command will forcefully export the pool even if it has a shared spare that is currently being used. This may lead to potential data corruption.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fB-F\fR\fR
+.ad
+.RS 6n
+Forcefully export the pool without updating the ZFS disk labels.  Pools
+exported with this option will need to be force imported if they moved to
+a different system.
+.sp
+This option can be used to export a suspended pool which cannot be safely
+resumed with \fBzpool clear\fR.  When exporting a suspended pool all dirty
+in-core data will be discarded.  This may lead to potential data corruption.
 .RE
 
 .RE

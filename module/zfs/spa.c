@@ -3261,7 +3261,6 @@ spa_open_common(const char *pool, spa_t **spapp, void *tag, nvlist_t *nvpolicy,
 
 	if (locked) {
 		spa->spa_last_open_failed = 0;
-		spa->spa_last_ubsync_txg = 0;
 		spa->spa_load_txg = 0;
 		mutex_exit(&spa_namespace_lock);
 	}
@@ -4321,6 +4320,14 @@ spa_export_common(char *pool, int new_state, nvlist_t **oldconfig,
 	}
 
 	/*
+	 * Exporting the pool with hardforce when the pool is suspended will
+	 * cause all outstanding suspended IO to be discarded.  This is the
+	 * only safe way to export the pool if it cannot be resumed.
+	 */
+	if (hardforce && spa_suspended(spa))
+		zio_resume(spa, B_TRUE);
+
+	/*
 	 * Put a hold on the pool, drop the namespace lock, stop async tasks,
 	 * reacquire the namespace lock, and see if we can export.
 	 */
@@ -4342,7 +4349,8 @@ spa_export_common(char *pool, int new_state, nvlist_t **oldconfig,
 	 * so we have to force it to sync before checking spa_refcnt.
 	 */
 	if (spa->spa_sync_on) {
-		txg_wait_synced(spa->spa_dsl_pool, 0);
+		txg_wait_synced(spa->spa_dsl_pool, spa_suspended(spa) ?
+		    spa_freeze_txg(spa) : 0);
 		spa_evicting_os_wait(spa);
 	}
 
