@@ -295,25 +295,23 @@ uint64_t
 txg_hold_open(dsl_pool_t *dp, txg_handle_t *th)
 {
 	tx_state_t *tx = &dp->dp_tx;
-	tx_cpu_t *tc;
+	tx_cpu_t *tc = &tx->tx_cpu[CPU_SEQID];
 	uint64_t txg;
-
-	/*
-	 * It appears the processor id is simply used as a "random"
-	 * number to index into the array, and there isn't any other
-	 * significance to the chosen tx_cpu. Because.. Why not use
-	 * the current cpu to index into the array?
-	 */
-	kpreempt_disable();
-	tc = &tx->tx_cpu[CPU_SEQID];
-	kpreempt_enable();
 
 	mutex_enter(&tc->tc_open_lock);
 	txg = tx->tx_open_txg;
 
-	mutex_enter(&tc->tc_lock);
-	tc->tc_count[txg & TXG_MASK]++;
-	mutex_exit(&tc->tc_lock);
+	/*
+	 * We decrement ->tc_count inside of the critical section so that the
+	 * zero check in txg_quiesce() does not race with the increment. We use
+	 * an atomic here so that we can minimize potential contention on
+	 * &tc->tc_open_lock in txg_rele_to_sync(). This uses one less atomic
+	 * instruction on both increment and decrement than using &tc->tc_lock.
+	 * Additionally, avoiding a second lock reduces the potential for
+	 * contention to cause us to block while holding the open lock.
+	 */
+	atomic_inc_64(&tc->tc_count[txg & TXG_MASK]);
+	mutex_exit(&tc->tc_open_lock);
 
 	th->th_cpu = tc;
 	th->th_txg = txg;
@@ -321,13 +319,13 @@ txg_hold_open(dsl_pool_t *dp, txg_handle_t *th)
 	return (txg);
 }
 
+/*
+ * This is obsolete, but we keep it around to make porting patches easier and
+ * also so that it can be used as a tracepoint.
+ */
 void
 txg_rele_to_quiesce(txg_handle_t *th)
 {
-	tx_cpu_t *tc = th->th_cpu;
-
-	ASSERT(!MUTEX_HELD(&tc->tc_lock));
-	mutex_exit(&tc->tc_open_lock);
 }
 
 void
@@ -347,11 +345,9 @@ txg_rele_to_sync(txg_handle_t *th)
 	tx_cpu_t *tc = th->th_cpu;
 	int g = th->th_txg & TXG_MASK;
 
-	mutex_enter(&tc->tc_lock);
 	ASSERT(tc->tc_count[g] != 0);
-	if (--tc->tc_count[g] == 0)
+	if (atomic_dec_64_nv(&tc->tc_count[g]) == 0)
 		cv_broadcast(&tc->tc_cv[g]);
-	mutex_exit(&tc->tc_lock);
 
 	th->th_cpu = NULL;	/* defensive */
 }
@@ -369,6 +365,7 @@ txg_quiesce(dsl_pool_t *dp, uint64_t txg)
 	uint64_t tx_open_time;
 	int g = txg & TXG_MASK;
 	int c;
+	uint64_t tx_open_time;
 
 	/*
 	 * Grab all tc_open_locks so nobody else can get into this txg.

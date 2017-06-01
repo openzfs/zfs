@@ -66,7 +66,6 @@
 #include <sys/zfs_delay.h>
 #include <sys/sunddi.h>
 #include <sys/ctype.h>
-#include <sys/disp.h>
 #include <sys/trace.h>
 #include <linux/dcache_compat.h>
 #include <linux/utsname_compat.h>
@@ -262,9 +261,6 @@ extern kthread_t *zk_thread_create(caddr_t stk, size_t  stksize,
 	thread_func_t func, void *arg, uint64_t len,
 	proc_t *pp, int state, pri_t pri, int detachstate);
 extern void zk_thread_join(kt_did_t tid);
-
-#define	kpreempt_disable()	((void)0)
-#define	kpreempt_enable()	((void)0)
 
 #define	PS_NONE		-1
 
