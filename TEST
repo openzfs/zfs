@@ -35,17 +35,6 @@
 #TEST_ZFSTESTS_DISKSIZE="8G"
 #TEST_ZFSTESTS_RUNFILE="linux.run"
 
-### filebench
-#TEST_FILEBENCH_SKIP="yes"
-#TEST_FILEBENCH_URL="http://build.zfsonlinux.org/"
-#TEST_FILEBENCH_VER="filebench-1.4.9.1.tar.gz"
-#TEST_FILEBENCH_RUNTIME=10
-#TEST_FILEBENCH_POOL="tank"
-#TEST_FILEBENCH_FS="filebench"
-#TEST_FILEBENCH_VDEV="/var/tmp/vdev"
-#TEST_FILEBENCH_DIR="/$TEST_FILEBENCH_POOL/$TEST_FILEBENCH_FS"
-#TEST_FILEBENCH_OPTIONS=""
-
 ### zfsstress
 #TEST_ZFSSTRESS_SKIP="yes"
 #TEST_ZFSSTRESS_URL="https://github.com/nedbass/zfsstress/archive/"
@@ -87,7 +76,6 @@ SUSE*)
 Ubuntu-16.04*)
     # ZFS enabled xfstests fails to build
     TEST_XFSTESTS_SKIP="yes"
-    TEST_FILEBENCH_SKIP="yes"
     ;;
 Ubuntu*)
     ;;
@@ -101,7 +89,6 @@ esac
 #
 if [ $(getconf LONG_BIT) = "32" ]; then
     TEST_ZTEST_SKIP="yes"
-    TEST_FILEBENCH_SKIP="yes"
     TEST_XFSTESTS_SKIP="yes"
     TEST_ZFSSTRESS_SKIP="yes"
 fi
