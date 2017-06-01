@@ -210,6 +210,7 @@ dir_is_empty_readdir(const char *dirname)
 	}
 
 	if ((dirp = fdopendir(dirfd)) == NULL) {
+		(void) close(dirfd);
 		return (B_TRUE);
 	}
 
