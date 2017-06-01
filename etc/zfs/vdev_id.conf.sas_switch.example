@@ -1,7 +1,13 @@
 topology      sas_switch
 
-#       SWITCH PORT  CHANNEL NAME
-channel 1            A
-channel 2            B
-channel 3            C
-channel 4            D
+# In this example, enclosure "B" is daisy-chained off of
+# enclosure "A", so we specify an enclosure number to
+# distinguish between them.  Daisy-chained enclosures are
+# numbered starting from 0. The other channels are not
+# daisy-chained so the enclosure number is omitted.
+
+#       SWITCH PORT  ENCLOSURE  CHANNEL NAME
+channel 1            0          A
+channel 1            1          B
+channel 2                       C
+channel 3                       D
