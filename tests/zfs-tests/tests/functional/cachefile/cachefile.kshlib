@@ -43,5 +43,6 @@ function pool_in_cache {
 	then
 		return 1
 	fi
+	log_note "Found pool: $RESULT"
 	return 0
 }
