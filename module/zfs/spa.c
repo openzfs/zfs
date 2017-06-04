@@ -1728,13 +1728,15 @@ spa_config_valid(spa_t *spa, nvlist_t *config)
 	vdev_t *mrvd, *rvd = spa->spa_root_vdev;
 	nvlist_t *nv;
 	int c, i;
+	boolean_t is_valid = B_FALSE;
 
 	VERIFY(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE, &nv) == 0);
 
 	spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
 	VERIFY(spa_config_parse(spa, &mrvd, nv, NULL, 0, VDEV_ALLOC_LOAD) == 0);
 
-	ASSERT3U(rvd->vdev_children, ==, mrvd->vdev_children);
+	if (rvd->vdev_children != mrvd->vdev_children)
+		goto cleanup;
 
 	/*
 	 * If we're doing a normal import, then build up any additional
@@ -1842,13 +1844,16 @@ spa_config_valid(spa_t *spa, nvlist_t *config)
 		}
 	}
 
+	is_valid = (rvd->vdev_guid_sum == spa->spa_uberblock.ub_guid_sum);
+
+cleanup:
 	vdev_free(mrvd);
 	spa_config_exit(spa, SCL_ALL, FTAG);
 
 	/*
 	 * Ensure we were able to validate the config.
 	 */
-	return (rvd->vdev_guid_sum == spa->spa_uberblock.ub_guid_sum);
+	return (is_valid);
 }
 
 /*
