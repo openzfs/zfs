@@ -5,7 +5,7 @@ After=systemd-udev-settle.service
 After=zfs-import-cache.service
 After=zfs-import-scan.service
 After=systemd-remount-fs.service
-Before=local-fs.target
+Requires=local-fs.target
 
 [Service]
 Type=oneshot
