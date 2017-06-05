@@ -44,6 +44,10 @@
 
 verify_runnable "global"
 
+if is_32bit; then
+	log_unsupported "Test case runs slowly on 32 bit"
+fi
+
 volsize=$(zfs get -H -o value volsize $TESTPOOL/$TESTVOL)
 
 function cleanup
@@ -88,7 +92,7 @@ done
 
 if is_linux; then
 	EXIT_STATUS=4
-	sync
+	log_must sync
 else
 	EXIT_STATUS=39
 	log_must lockfs -f $TESTDIR
