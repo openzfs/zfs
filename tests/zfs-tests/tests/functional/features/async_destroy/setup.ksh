@@ -31,10 +31,6 @@
 
 . $STF_SUITE/include/libtest.shlib
 
-if is_32bit; then
-	log_unsupported "Test case fails on 32-bit systems"
-fi
-
 DISK=${DISKS%% *}
 
 default_setup $DISK
