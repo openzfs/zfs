@@ -59,7 +59,7 @@ mntpnt=$(get_prop mountpoint $TESTPOOL)
 
 typeset -i i=0
 while ((i < 10)); do
-	log_must mkfile $MINVDEVSIZE $mntpnt/vdev$i
+	log_must truncate -s $MINVDEVSIZE $mntpnt/vdev$i
 
 	eval vdev$i=$mntpnt/vdev$i
 	((i += 1))
