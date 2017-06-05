@@ -120,7 +120,6 @@ set -A forced_args \
 i=0
 while ((i < ${#valid_args[@]})); do
 	log_must zpool create $TESTPOOL1 ${valid_args[$i]}
-	sync; sync
 	log_must zpool destroy -f $TESTPOOL1
 
 	((i += 1))
@@ -130,7 +129,6 @@ i=0
 while ((i < ${#forced_args[@]})); do
 	log_mustnot zpool create $TESTPOOL1 ${forced_args[$i]}
 	log_must zpool create -f $TESTPOOL1 ${forced_args[$i]}
-	sync; sync
 	log_must zpool destroy -f $TESTPOOL1
 
 	((i += 1))
