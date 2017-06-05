@@ -65,6 +65,7 @@ AC_CONFIG_FILES([
 	etc/zfs/Makefile
 	etc/systemd/Makefile
 	etc/systemd/system/Makefile
+	etc/sudoers.d/Makefile
 	etc/modules-load.d/Makefile
 	man/Makefile
 	man/man1/Makefile

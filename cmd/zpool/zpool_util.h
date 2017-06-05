@@ -45,6 +45,11 @@ uint64_t array64_max(uint64_t array[], unsigned int len);
 int isnumber(char *str);
 
 /*
+ * Misc utility functions
+ */
+char *zpool_get_cmd_search_path(void);
+
+/*
  * Virtual device functions
  */
 

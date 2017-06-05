@@ -6,10 +6,10 @@
 helpstr="
 enc:		Show disk enclosure w:x:y:z value.
 slot:		Show disk slot number as reported by the enclosure.
-encdev:		Show the /dev/sg* device for the enclosure associated with the disk slot.
-fault_led:	Show the value of the disk enclosure slot fault LED.
-locate_led:	Show the value of the disk enclosure slot locate LED.
-ses:		Show disk's enclosure, enclosure dev, slot number, and fault/locate LED values."
+encdev:		Show /dev/sg* device associated with the enclosure disk slot.
+fault_led:	Show value of the disk enclosure slot fault LED.
+locate_led:	Show value of the disk enclosure slot locate LED.
+ses:		Show disk's enc, enc device, slot, and fault/locate LED values."
 
 script=$(basename "$0")
 if [ "$1" = "-h" ] ; then

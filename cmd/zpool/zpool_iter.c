@@ -521,28 +521,66 @@ out:
 			free(env[i]);
 }
 
+/*
+ * Generate the search path for zpool iostat/status -c scripts.
+ * The string returned must be freed.
+ */
+char *
+zpool_get_cmd_search_path(void)
+{
+	const char *env;
+	char *sp = NULL;
+
+	env = getenv("ZPOOL_SCRIPTS_PATH");
+	if (env != NULL)
+		return (strdup(env));
+
+	env = getenv("HOME");
+	if (env != NULL) {
+		if (asprintf(&sp, "%s/.zpool.d:%s",
+		    env, ZPOOL_SCRIPTS_DIR) != -1) {
+			return (sp);
+		}
+	}
+
+	if (asprintf(&sp, "%s", ZPOOL_SCRIPTS_DIR) != -1)
+		return (sp);
+
+	return (NULL);
+}
+
 /* Thread function run for each vdev */
 static void
 vdev_run_cmd_thread(void *cb_cmd_data)
 {
 	vdev_cmd_data_t *data = cb_cmd_data;
-	const char *sep = ",";
-	char *cmd = NULL, *cmddup, *rest;
-	char fullpath[MAXPATHLEN];
+	char *cmd = NULL, *cmddup, *cmdrest;
 
 	cmddup = strdup(data->cmd);
 	if (cmddup == NULL)
 		return;
 
-	rest = cmddup;
-	while ((cmd = strtok_r(rest, sep, &rest))) {
-		if (snprintf(fullpath, sizeof (fullpath), "%s/%s",
-		    ZPOOL_SCRIPTS_DIR, cmd) == -1)
+	cmdrest = cmddup;
+	while ((cmd = strtok_r(cmdrest, ",", &cmdrest))) {
+		char *dir = NULL, *sp, *sprest;
+		char fullpath[MAXPATHLEN];
+
+		sp = zpool_get_cmd_search_path();
+		if (sp == NULL)
 			continue;
 
-		/* Does the script exist in our zpool scripts dir? */
-		if (access(fullpath, X_OK) == 0)
-			vdev_run_cmd(data, fullpath);
+		sprest = sp;
+		while ((dir = strtok_r(sprest, ":", &sprest))) {
+			if (snprintf(fullpath, sizeof (fullpath),
+			    "%s/%s", dir, cmd) == -1)
+				continue;
+
+			if (access(fullpath, X_OK) == 0) {
+				vdev_run_cmd(data, fullpath);
+				break;
+			}
+		}
+		free(sp);
 	}
 	free(cmddup);
 }

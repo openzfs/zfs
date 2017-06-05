@@ -38,16 +38,15 @@
 #   DISC-ZERO  discard zeroes data
 #
 # If the script is run as just 'lsblk' then print out disk size, vendor,
-# model number and serial number.
+# and model number.
 
 
 helpstr="
 label:	Show filesystem label.
 model:	Show disk model number.
-serial:	Show disk serial number.
 size:	Show the disk capacity.
 vendor:	Show the disk vendor.
-lsblk:	Show the disk size, vendor, model number, and serial number."
+lsblk:	Show the disk size, vendor, and model number."
 
 script=$(basename "$0")
 
@@ -57,7 +56,7 @@ if [ "$1" = "-h" ] ; then
 fi
 
 if [ "$script" = "lsblk" ] ; then
-	list="size vendor model serial"
+	list="size vendor model"
 else
 	list=$(echo "$script" | tr '[:upper:]' '[:lower:]')
 fi
