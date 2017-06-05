@@ -492,6 +492,9 @@ zfsctl_inode_alloc(zfsvfs_t *zfsvfs, uint64_t id,
 	ip->i_ctime = now;
 	ip->i_fop = fops;
 	ip->i_op = ops;
+#if defined(IOP_XATTR)
+	ip->i_opflags &= ~IOP_XATTR;
+#endif
 
 	if (insert_inode_locked(ip)) {
 		unlock_new_inode(ip);
