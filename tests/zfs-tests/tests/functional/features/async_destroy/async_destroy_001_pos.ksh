@@ -46,11 +46,6 @@ TEST_FS=$TESTPOOL/async_destroy
 
 verify_runnable "both"
 
-# See issue: https://github.com/zfsonlinux/zfs/issues/5479
-if is_kmemleak; then
-	log_unsupported "Test case runs slowly when kmemleak is enabled"
-fi
-
 function cleanup
 {
 	datasetexists $TEST_FS && log_must zfs destroy $TEST_FS
@@ -61,8 +56,11 @@ log_assert "async_destroy can suspend and resume traversal"
 
 log_must zfs create -o recordsize=512 -o compression=off $TEST_FS
 
-# Fill with 1G
-log_must dd bs=1024k count=1024 if=/dev/zero of=/$TEST_FS/file
+# Create enough blocks that it will take 4 TXGs to free them all.
+typeset zfs_free_max_blocks=100000
+typeset blocks=$((zfs_free_max_blocks * 4 * 512 / 1024 / 1024))
+
+log_must dd bs=1024k count=$blocks if=/dev/zero of=/$TEST_FS/file
 
 log_must zfs destroy $TEST_FS
 
