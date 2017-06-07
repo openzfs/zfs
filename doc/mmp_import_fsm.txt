@@ -1,0 +1,69 @@
+                                start                                           
+                                  |                                             
+                                  v                                             
+                        +===================+                                   
+                        |Read All MMP Blocks|                                   
+                        +===================+                                   
+                                 |                                              
+                                 | import_id := /*random int, not in any block*/
+                                 |                                              
+                                 v                                              
+                        +===================+                                   
+                        |                   |                                   
+                        | Check MMP Blocks  |                                   
+ +----------------------|                   |------------------------------+    
+ |    all_clean==FALSE  +===================+   all_clean==TRUE            |    
+ |                                                                         |    
+ | max_delay := max(mmp block delays)*2                                    |    
+ | delayed := 0                                                            |    
+ |                                                                         |    
+ |                                                                idx := 0 |    
+ |                                       rperm := [/*random permutation*/] |    
+ |                                                                         |    
+ |                                                                         |    
+ |                                       +==================+              |    
+ |                                       |                  |<-------------+    
+ |                                       |Read rperm[idx].id|                   
+ |                                       |                  |                   
+ |                  +--------------------|                  |--------------+    
+ |                  |      clean==FALSE  |                  | clean==TRUE  |    
+ |                  |                    +==================+              |    
+ |                  |                               ^                      |    
+ |                  |                               |                      |    
+ |                  |                               | idx:= idx+1          |    
+ |                  |                               |                      |    
+ |                  v                               |                      |    
+ |               +======+                           |                      |    
+ |               |ABORT |                           | (idx+1)<num_blocks   v    
+ |               +======+                           |   +====================+  
+ |                  ^                               +---|                    |  
+ |                  |                                   |Write rperm[idx].id |  
+ |                  |                                   | == import_id       |  
+ |                  |                                   |                    |  
+ |                  |                                   +====================+  
+ |                  |                                  (idx+1)==num_blocks |    
+ |                  |                                                      |    
+ |                  |                                                      |    
+ |                  |                                                      |    
+ |                  |                                                      v    
+ |    changed==TRUE |     changed==FALSE &&               +==================+  
+ |   +=================+  delayed>=max_delay              | Write all        |  
+ |   |                 |--------------------------------->| MMP blocks       |  
+ |   |Reread all Blocks|                                  | mmp_id=import_id |  
+ |   |                 |                                  | mmp_seq=0        |  
+ |   |                 |                                  +==================+  
+ |   |                 |  changed==FALSE &&                                |    
+ |   |                 |  delayed<max_delay                                |    
+ |   |                 |----------------+                                  |    
+ |   +=================+                |                                  v    
+ |          ^                           |                             +======+  
+ |          |                           |                             |IMPORT|  
+ |          |                           |                             |      |  
+ |          | delayed := delayed+x      |                             +======+  
+ |          |                           |                                       
+ |   +=================+                |                                       
+ +-->|                 |                |                                       
+     |    sleep(x)     |<---------------+                                       
+     |                 |                                                        
+     +=================+                                                        
+                                                                                

@@ -1,0 +1,75 @@
+===============
+Test Techniques
+===============
+Ideas for methods used to test.
+
+1. use dd to overwrite uberblocks with foreign uberblocks
+
+Create a pool (say, with MMP on).  Export that pool.
+Now create a new pool.  While the pool is open, use dd to copy uberblocks from
+the first pool to the corresponding location in the second pool.  The checksums
+will validate but the mmp_open_id will not match.
+
+This simulates another node writing to the same pool.
+	- could write non-MMP uberblocks (one node does not support MMP)
+	- could write MMP uberblocks (both nodes support MMP)
+
+Could even produce a few special pools that are saved:
+	- modify MMP structure so offsets are different
+	- MMP supported but feature not enabled
+
+2. use dd to overwrite uberblocks with zeros, or junk
+
+3. create ZINJECT_MMP_FAULT and do something smart with it
+
+4. combine ZINJECT (e.g. DELAY_IO) with dd overwrites
+
+5. multiple node
+	repeated racing imports
+	reported import while open on another node
+	etc.
+
+==============
+Test Scenarios
+==============
+
+Ideas for what scenarios to test.  This should be boiled down into a matrix of
+critical scenarios and a matrix of optional ones.
+
+The critical ones, at least, should be marked to indicate whether single-
+node tests we have provide acceptable coverage.
+
+Most of factors below (ie pool state) are orthogonal and this should be
+a multi-dimensional matrix, not a list.  Just brainstorming right now.
+
+Create pool
+	- one or more devices in an existing, closed, (not imported) pool
+	- one or more devices in an existing, open, pool
+	- racing with another create, devices unused
+
+Import pool
+	- created by non-MMP-aware zfs, uberblocks stored in the
+		MMP slots are the most current ones
+	- pool had been exported
+	- pool had not been exported, zfs module unloaded
+	- pool had not been exported, node shut down
+	- one or more device not responsive
+	- pool suspended
+	- pool transitioning online <-> suspended
+	- one or more devices rebuilding
+	- 2-4 racing imports, pool in each of following states:
+	- already imported on another node, other node busy
+	- already imported on another node, other node quiet
+	- already imported on another node, other node exporting
+	- already imported on another node, other node unloading zfs module
+
+Pool imported more than once
+	- pool imported by 2 nodes at same time
+		- will have to somehow "pause" one or more nodes to force this to occur;
+		     is there a simpler way than using VMs?
+		- one or more nodes reading only
+		- one or more nodes high volume writes
+			- high throughput
+			- high metadata
+				- deletes
+				- creates
