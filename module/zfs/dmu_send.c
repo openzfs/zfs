@@ -922,7 +922,10 @@ dmu_send_impl(void *tag, dsl_pool_t *dp, dsl_dataset_t *to_ds,
 	}
 
 	err = dump_record(dsp, payload, payload_len);
-	fnvlist_pack_free(payload, payload_len);
+	if (payload_len != 0) {
+		fnvlist_pack_free(payload, payload_len);
+	}
+
 	if (err != 0) {
 		err = dsp->dsa_err;
 		goto out;
