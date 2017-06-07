@@ -24,6 +24,7 @@
  * Copyright 2015 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright 2013 Saso Kiselkov. All rights reserved.
+ * Copyright (c) 2017, Intel Corporation.
  */
 
 #include <sys/zfs_context.h>
@@ -1098,6 +1099,8 @@ spa_vdev_config_exit(spa_t *spa, vdev_t *vd, uint64_t txg, int error, char *tag)
 	 */
 	ASSERT(metaslab_class_validate(spa_normal_class(spa)) == 0);
 	ASSERT(metaslab_class_validate(spa_log_class(spa)) == 0);
+	ASSERT(metaslab_class_validate(spa_dedup_class(spa)) == 0);
+	ASSERT(metaslab_class_validate(spa_custom_class(spa)) == 0);
 
 	spa_config_exit(spa, SCL_ALL, spa);
 
@@ -1714,6 +1717,66 @@ spa_log_class(spa_t *spa)
 	return (spa->spa_log_class);
 }
 
+metaslab_class_t *
+spa_dedup_class(spa_t *spa)
+{
+	return (spa->spa_dedup_class);
+}
+
+metaslab_class_t *
+spa_custom_class(spa_t *spa)
+{
+	return (spa->spa_custom_class);
+}
+
+extern int zfs_class_smallblk_limit;
+
+/*
+ * Locate an appropriate allocation class
+ */
+metaslab_class_t *
+spa_preferred_class(spa_t *spa, uint64_t size, int objtype, int level,
+    uint64_t objset)
+{
+	if (DMU_OT_IS_DDT(objtype)) {
+		if (spa->spa_dedup_class->mc_rotor != NULL)
+			return (spa_dedup_class(spa));
+		else
+			return (spa_normal_class(spa));
+	}
+	if (DMU_OT_IS_ZIL(objtype)) {
+		if (spa->spa_log_class->mc_rotor != NULL)
+			return (spa_log_class(spa));
+		else
+			return (spa_normal_class(spa));
+	}
+	if (DMU_OT_IS_METADATA(objtype) || level > 0) {
+		if (spa->spa_custom_class->mc_rotor != NULL)
+			return (spa_custom_class(spa));
+	}
+	if (spa->spa_custom_class->mc_rotor != NULL) {
+		/*
+		 * Limit how many small blocks we place into the custom class.
+		 * Also allow large blocks to spill into the custom class when
+		 * the nomal class is full.
+		 */
+		if (size <= zfs_class_smallblk_limit) {
+			/*
+			 * For small blocks: try the custom (small block) class.
+			 */
+			return (spa_custom_class(spa));
+		} else {
+			/*
+			 * For this test, we do NOT spill into the
+			 * custom (small block) class when the big
+			 * class is full.
+			 */
+		}
+	}
+
+	return (spa_normal_class(spa));
+}
+
 void
 spa_evicting_os_register(spa_t *spa, objset_t *os)
 {
@@ -1927,12 +1990,15 @@ spa_fini(void)
 /*
  * Return whether this pool has slogs. No locking needed.
  * It's not a problem if the wrong answer is returned as it's only for
- * performance and not correctness
+ * performance and not correctness.
+ * Log groups from segregated vdevs don't count as a slog.
  */
 boolean_t
 spa_has_slogs(spa_t *spa)
 {
-	return (spa->spa_log_class->mc_rotor != NULL);
+	metaslab_class_t *mc = spa_log_class(spa);
+
+	return ((mc->mc_groups > 0) && (mc->mc_groups > mc->mc_partial_groups));
 }
 
 spa_log_state_t
@@ -2112,6 +2178,9 @@ EXPORT_SYMBOL(spa_update_dspace);
 EXPORT_SYMBOL(spa_deflate);
 EXPORT_SYMBOL(spa_normal_class);
 EXPORT_SYMBOL(spa_log_class);
+EXPORT_SYMBOL(spa_dedup_class);
+EXPORT_SYMBOL(spa_custom_class);
+EXPORT_SYMBOL(spa_preferred_class);
 EXPORT_SYMBOL(spa_max_replication);
 EXPORT_SYMBOL(spa_prev_software_version);
 EXPORT_SYMBOL(spa_get_failmode);

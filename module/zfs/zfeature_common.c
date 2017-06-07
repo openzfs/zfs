@@ -24,6 +24,7 @@
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  * Copyright (c) 2013, Joyent, Inc. All rights reserved.
  * Copyright (c) 2014, Nexenta Systems, Inc. All rights reserved.
+ * Copyright (c) 2017, Intel Corporation.
  */
 
 #ifdef _KERNEL
@@ -318,4 +319,10 @@ zpool_feature_init(void)
 	    ZFEATURE_FLAG_READONLY_COMPAT | ZFEATURE_FLAG_PER_DATASET,
 	    userobj_accounting_deps);
 	}
+
+	/* DJB TBD if ZFEATURE_FLAG_MOS applies to per-vdev zap data */
+	zfeature_register(SPA_FEATURE_ALLOCATION_CLASSES,
+	    "com.intel:allocation_classes", "allocation_classes",
+	    "Support for separate allocation classes.",
+	    ZFEATURE_FLAG_READONLY_COMPAT, NULL);
 }

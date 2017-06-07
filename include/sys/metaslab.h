@@ -21,6 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2017, Intel Corporation.
  */
 
 #ifndef _SYS_METASLAB_H
@@ -64,6 +65,15 @@ uint64_t metaslab_block_maxsize(metaslab_t *);
 #define	METASLAB_ASYNC_ALLOC		0x8
 #define	METASLAB_DONT_THROTTLE		0x10
 #define	METASLAB_FASTWRITE		0x20
+
+typedef enum metaslab_block_category {
+	MS_CATEGORY_REGULAR,	/* regular file data */
+	MS_CATEGORY_LOG,	/* log data */
+	MS_CATEGORY_METADATA,	/* metadata */
+	MS_CATEGORY_DEDUP,	/* dedup block */
+	MS_CATEGORY_SMALL	/* small block */
+} metaslab_block_category_t;
+
 
 int metaslab_alloc(spa_t *, metaslab_class_t *, uint64_t,
     blkptr_t *, int, uint64_t, blkptr_t *, int, zio_alloc_list_t *, zio_t *);

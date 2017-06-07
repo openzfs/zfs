@@ -568,6 +568,27 @@ The space usage properties report actual physical space available to the storage
 
 .sp
 .LP
+The following properties can be set at creation time:
+.ne 2
+.na
+.sp
+\fB\fBsegregate_log\fR=\fIon\fR\fR
+.sp
+\fB\fBsegregate_metadata\fR=\fIon\fR\fR
+.sp
+\fB\fBsegregate_smallblks\fR=\fIon\fR\fR
+.ad
+.sp .6
+.RS 4n
+The segregate properties direct the allocating vdevs in the pool
+to segregate a portion of their metaslabs to the allocation class
+indicated by the property's name. These properties require that
+\fIfeature@segregated_vdevs\fR be enabled and the feature becomes
+permanately active at pool create.
+.RE
+
+.sp
+.LP
 The following property can be set at creation time and import time:
 .sp
 .ne 2
