@@ -1,0 +1,28 @@
+RM = /bin/rm
+CC = /usr/bin/cc
+LD = /usr/bin/cc
+
+SCRIPTS = cleanup \
+	setup
+
+PROG = chg_usr_exec
+
+OBJS = $(PROG:%=%.o)
+SRCS = $(OBJS:%.o=%.c)
+
+CMDS = $(PROG:%=$(TESTDIR)/%) $(SCRIPTS:%=$(TESTDIR)/%)
+$(CMDS) := FILEMODE = 0555
+
+CPPFLAGS += -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -D_LINUX
+
+all: $(PROG)
+
+$(PROG): $(OBJS)
+	$(LD) $(OBJS) -o $@ $(LDLIBS)
+	$(POST_PROCESS)
+
+%.o: ../%.c
+	$(CC) $<
+
+clean:
+	-$(RM) $(OBJS) $(PROG)

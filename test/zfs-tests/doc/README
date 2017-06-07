@@ -1,0 +1,77 @@
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+
+#
+# Copyright (c) 2013 by Delphix. All rights reserved.
+#
+
+ZFS Test Suite README
+
+1. Building and installing the ZFS Test Suite
+2. Running the ZFS Test Suite
+3. Test results
+
+--------------------------------------------------------------------------------
+
+1. Building and installing the ZFS Test Suite
+
+The ZFS Test Suite runs under the testrunner framework (which can be installed
+as pkg:/system/test/testrunner). To build both the ZFS Test Suite and the
+testrunner without running a full nightly:
+
+	build_machine$ bldenv [-d] <your_env_file>
+	build_machine$ cd $SRC/test
+	build_machine$ dmake install
+	build_machine$ cd $SRC/pkg
+	build_machine$ dmake install
+
+Then set the publisher on the test machine to point to your repository and
+install the ZFS Test Suite.
+
+	test_machine# pkg install pkg:/system/test/zfstest
+
+Note, the framework will be installed automatically, as the ZFS Test Suite
+depends on it.
+
+2. Running the ZFS Test Suite
+
+The pre-requisites for running the ZFS Test Suite are:
+	- Three scratch disks
+	  - Specify the disks you wish to use in the $DISKS variable, as a
+	    space delimited list like this: DISKS='c3t1d0 c3t2d0 c3t3d0'
+	  - Use the '-a' option to the zfstest script and all unused disks on
+	    the system are eligible. With '-a' specified, $DISKS is ignored.
+	- A non-root user with the full set of basic privileges and the ability
+	  to sudo(1M) to root without a password to run the test.
+	- Specify any pools you wish to preserve as a space delimited list in
+	  the $KEEP variable. The root pool is added automatically.
+
+Once the pre-requisites are satisfied, simply run the zfstest script:
+
+	test_machine$ /opt/zfs-tests/bin/zfstest [-aq]
+
+When the '-q' option is specified, it is passed to run(1) which causes output
+to be written to the console only for tests that do not pass and the results
+summary.
+
+The ZFS Test Suite allows the user to specify a subset of the tests via a
+runfile. The format of the runfile is explained in run(1), and the files that
+zfstest uses are available for reference under /opt/zfs-tests/runfiles. To
+specify a custom runfile, use the -c option:
+
+	test_machine$ /opt/zfs-tests/bin/zfstest [-aq] -c my_tests.run
+
+3. Test results
+
+While the ZFS Test Suite is running, one informational line is printed at the
+end of each test, and a results summary is printed at the end of the run. The
+results summary includes the location of the complete logs, which is of the
+form /var/tmp/test_results/<ISO 8601 date>.

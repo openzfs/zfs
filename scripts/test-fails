@@ -1,0 +1,31 @@
+#!/bin/bash
+
+if [[ -z "$1" ]]; then
+    echo "Usage: `basename $0` <test_date>"
+    exit 1
+elif [[ ! -d "/var/tmp/test_results/$1" ]]; then
+    echo "Usage: `basename $0` <test_date>"
+    echo "THe directory /var/tmp/test_results/$1 does not exist."
+    exit 1
+fi
+tstnr=$1
+
+grep '^Test: .*\[FAIL\]' /var/tmp/test_results/$tstnr/log  | \
+    while read line; do
+	test=$(echo "$line" | sed "s@.*/\(.*\) (.*@\1@")
+	testdir=$(find /var/tmp/test_results/$tstnr -name "$test")
+
+	echo "$line"
+	if [[ -f "$testdir/merged" ]]; then
+		cat $testdir/merged | \
+		    while read merged; do
+			echo "  $merged"
+		done
+	else
+		cat $testdir/* | \
+		    while read merged; do
+			echo "  $merged"
+		done
+	fi
+	echo
+done

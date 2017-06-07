@@ -1,0 +1,63 @@
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+
+#
+# Copyright (c) 2012 by Delphix. All rights reserved.
+#
+
+typeset -a compress_props=('on' 'off' 'lzjb' 'gzip' 'gzip-1' 'gzip-2' 'gzip-3'
+    'gzip-4' 'gzip-5' 'gzip-6' 'gzip-7' 'gzip-8' 'gzip-9' 'zle')
+
+typeset -a checksum_props=('on' 'off' 'fletcher2' 'fletcher4' 'sha256')
+
+#
+# Given the property array passed in, return 'num_props' elements to the
+# user, excluding any elements below 'start.' This allows us to exclude
+# 'off' and 'on' which can be either unwanted, or a duplicate of another
+# property respectively.
+#
+function get_rand_prop
+{
+	typeset prop_array=($(eval echo \${$1[@]}))
+	typeset -i num_props=$2
+	typeset -i start=$3
+	typeset retstr=""
+
+	[[ -z $prop_array || -z $num_props || -z $start ]] && \
+	    log_fail "get_rand_prop: bad arguments"
+
+	typeset prop_max=$((${#prop_array[@]} - 1))
+	typeset -i i
+	for i in $($SHUF -i $start-$prop_max -n $num_props); do
+		retstr="${prop_array[$i]} $retstr"
+	done
+	echo $retstr
+}
+
+function get_rand_compress
+{
+	get_rand_prop compress_props $1 2
+}
+
+function get_rand_compress_any
+{
+	get_rand_prop compress_props $1 0
+}
+
+function get_rand_checksum
+{
+	get_rand_prop checksum_props $1 2
+}
+
+function get_rand_checksum_any
+{
+	get_rand_prop checksum_props $1 0
+}

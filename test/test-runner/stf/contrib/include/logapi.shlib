@@ -1,0 +1,384 @@
+#
+# CDDL HEADER START
+#
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License (the "License").
+# You may not use this file except in compliance with the License.
+#
+# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+# or http://www.opensolaris.org/os/licensing.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+# If applicable, add the following below this CDDL HEADER, with the
+# fields enclosed by brackets "[]" replaced with your own identifying
+# information: Portions Copyright [yyyy] [name of copyright owner]
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+# Use is subject to license terms.
+#
+# Copyright (c) 2012 by Delphix. All rights reserved.
+#
+
+. ${STF_TOOLS}/include/stf.shlib
+
+# Output an assertion
+#
+# $@ - assertion text
+
+function log_assert
+{
+	_printline ASSERTION: "$@"
+}
+
+# Output a comment
+#
+# $@ - comment text
+
+function log_note
+{
+	_printline NOTE: "$@"
+}
+
+# Execute and print command with status where success equals non-zero result
+#
+# $@ - command to execute
+#
+# return 0 if command fails, otherwise return 1
+
+function log_neg
+{
+	log_neg_expect ""  "$@"
+	return $?
+}
+
+# Execute a positive test and exit $STF_FAIL is test fails
+#
+# $@ - command to execute
+
+function log_must
+{
+	log_pos "$@"
+	(( $? != 0 )) && log_fail
+}
+
+# Execute a negative test and exit $STF_FAIL if test passes
+#
+# $@ - command to execute
+
+function log_mustnot
+{
+	log_neg "$@"
+	(( $? != 0 )) && log_fail
+}
+
+# Execute a negative test with keyword expected, and exit
+# $STF_FAIL if test passes
+#
+# $1 - keyword expected
+# $2-$@ - command to execute
+
+function log_mustnot_expect
+{
+	log_neg_expect "$@"
+	(( $? != 0 )) && log_fail
+}
+
+# Execute and print command with status where success equals non-zero result
+# or output includes expected keyword
+#
+# $1 - keyword expected
+# $2-$@ - command to execute
+#
+# return 0 if command fails, or the output contains the keyword expected,
+# return 1 otherwise
+
+function log_neg_expect
+{
+	typeset out=""
+	typeset logfile="/tmp/log.$$"
+	typeset ret=1
+	typeset expect=$1
+	shift
+
+	while [[ -e $logfile ]]; do
+		logfile="$logfile.$$"
+	done
+
+	"$@" 2>$logfile
+	typeset status=$?
+	out="$CAT $logfile"
+
+	# unexpected status
+	if (( $status == 0 )); then
+		 print -u2 $($out)
+		_printerror "$@" "unexpectedly exited $status"
+	# missing binary
+	elif (( $status == 127 )); then
+		print -u2 $($out)
+		_printerror "$@" "unexpectedly exited $status (File not found)"
+	# bus error - core dump
+	elif (( $status == 138 )); then
+		print -u2 $($out)
+		_printerror "$@" "unexpectedly exited $status (Bus Error)"
+	# segmentation violation - core dump
+	elif (( $status == 139 )); then
+		print -u2 $($out)
+		_printerror "$@" "unexpectedly exited $status (SEGV)"
+	else
+		$out | $EGREP -i "internal error|assertion failed" \
+			> /dev/null 2>&1
+		# internal error or assertion failed
+		if (( $? == 0 )); then
+			print -u2 $($out)
+			_printerror "$@" "internal error or assertion failure" \
+				" exited $status"
+		elif [[ -n $expect ]] ; then
+			$out | $GREP -i "$expect" > /dev/null 2>&1
+			if (( $? == 0 )); then
+				ret=0
+			else
+				print -u2 $($out)
+				_printerror "$@" "unexpectedly exited $status"
+			fi
+		else
+			ret=0
+		fi
+
+		if (( $ret == 0 )); then
+			[[ -n $LOGAPI_DEBUG ]] && print $($out)
+			_printsuccess "$@" "exited $status"
+		fi
+	fi
+	_recursive_output $logfile "false"
+	return $ret
+}
+
+# Execute and print command with status where success equals zero result
+#
+# $@ command to execute
+#
+# return command exit status
+
+function log_pos
+{
+	typeset out=""
+	typeset logfile="/tmp/log.$$"
+
+	while [[ -e $logfile ]]; do
+		logfile="$logfile.$$"
+	done
+
+	"$@" 2>$logfile
+	typeset status=$?
+	out="$CAT $logfile"
+
+	if (( $status != 0 )) ; then
+		print -u2 $($out)
+		_printerror "$@" "exited $status"
+	else
+		$out | $EGREP -i "internal error|assertion failed" \
+			> /dev/null 2>&1
+		# internal error or assertion failed
+		if [[ $? -eq 0 ]]; then
+			print -u2 $($out)
+			_printerror "$@" "internal error or assertion failure" \
+				" exited $status"
+			status=1
+		else
+			[[ -n $LOGAPI_DEBUG ]] && print $($out)
+			_printsuccess "$@"
+		fi
+	fi
+	_recursive_output $logfile "false"
+	return $status
+}
+
+# Set an exit handler
+#
+# $@ - function(s) to perform on exit
+
+function log_onexit
+{
+	_CLEANUP="$@"
+}
+
+#
+# Exit functions
+#
+
+# Perform cleanup and exit $STF_PASS
+#
+# $@ - message text
+
+function log_pass
+{
+	_endlog $STF_PASS "$@"
+}
+
+# Perform cleanup and exit $STF_FAIL
+#
+# $@ - message text
+
+function log_fail
+{
+	_endlog $STF_FAIL "$@"
+}
+
+# Perform cleanup and exit $STF_UNRESOLVED
+#
+# $@ - message text
+
+function log_unresolved
+{
+	_endlog $STF_UNRESOLVED "$@"
+}
+
+# Perform cleanup and exit $STF_NOTINUSE
+#
+# $@ - message text
+
+function log_notinuse
+{
+	_endlog $STF_NOTINUSE "$@"
+}
+
+# Perform cleanup and exit $STF_UNSUPPORTED
+#
+# $@ - message text
+
+function log_unsupported
+{
+	_endlog $STF_UNSUPPORTED "$@"
+}
+
+# Perform cleanup and exit $STF_UNTESTED
+#
+# $@ - message text
+
+function log_untested
+{
+	_endlog $STF_UNTESTED "$@"
+}
+
+# Perform cleanup and exit $STF_UNINITIATED
+#
+# $@ - message text
+
+function log_uninitiated
+{
+	_endlog $STF_UNINITIATED "$@"
+}
+
+# Perform cleanup and exit $STF_NORESULT
+#
+# $@ - message text
+
+function log_noresult
+{
+	_endlog $STF_NORESULT "$@"
+}
+
+# Perform cleanup and exit $STF_WARNING
+#
+# $@ - message text
+
+function log_warning
+{
+	_endlog $STF_WARNING "$@"
+}
+
+# Perform cleanup and exit $STF_TIMED_OUT
+#
+# $@ - message text
+
+function log_timed_out
+{
+	_endlog $STF_TIMED_OUT "$@"
+}
+
+# Perform cleanup and exit $STF_OTHER
+#
+# $@ - message text
+
+function log_other
+{
+	_endlog $STF_OTHER "$@"
+}
+
+#
+# Internal functions
+#
+
+# Perform cleanup and exit
+#
+# $1 - stf exit code
+# $2-$n - message text
+
+function _endlog
+{
+	typeset logfile="/tmp/log.$$"
+	_recursive_output $logfile
+
+	if [[ -n $_CLEANUP ]] ; then
+		typeset cleanup=$_CLEANUP
+		log_onexit ""
+		log_note "Performing local cleanup via log_onexit ($cleanup)"
+		$cleanup
+	fi
+	typeset exitcode=$1
+	shift
+	(( ${#@} > 0 )) && _printline "$@"
+	exit $exitcode
+}
+
+# Output a formatted line
+#
+# $@ - message text
+
+function _printline
+{
+	print "$@"
+}
+
+# Output an error message
+#
+# $@ - message text
+
+function _printerror
+{
+	_printline ERROR: "$@"
+}
+
+# Output a success message
+#
+# $@ - message text
+
+function _printsuccess
+{
+	_printline SUCCESS: "$@"
+}
+
+# Output logfiles recursively
+#
+# $1 - start file
+# $2 - indicate whether output the start file itself, default as yes.
+
+function _recursive_output #logfile
+{
+	typeset logfile=$1
+
+	while [[ -e $logfile ]]; do
+		if [[ -z $2 || $logfile != $1 ]]; then
+			$CAT $logfile
+		fi
+		$RM -f $logfile
+		logfile="$logfile.$$"
+        done
+}
