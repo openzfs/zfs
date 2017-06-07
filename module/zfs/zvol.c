@@ -1544,6 +1544,11 @@ zvol_alloc(dev_t dev, const char *name)
 	if (zv->zv_disk == NULL)
 		goto out_queue;
 
+	/*
+	 * NOTE: Linux read-ahead is disabled in favor of zfs read-ahead.
+	 */
+	zv->zv_queue->backing_dev_info.ra_pages = 0;
+
 	zv->zv_queue->queuedata = zv;
 	zv->zv_dev = dev;
 	zv->zv_open_count = 0;
