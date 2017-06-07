@@ -146,7 +146,7 @@ tests = ['zfs_rollback_001_pos', 'zfs_rollback_002_pos',
 [tests/functional/cli_root/zfs_send]
 tests = ['zfs_send_001_pos', 'zfs_send_002_pos', 'zfs_send_003_pos',
     'zfs_send_004_neg', 'zfs_send_005_pos', 'zfs_send_006_pos',
-    'zfs_send_007_pos']
+    'zfs_send_007_pos', 'zfs_send_008_pos']
 
 [tests/functional/cli_root/zfs_set]
 tests = ['cache_001_pos', 'cache_002_neg', 'canmount_001_pos',
