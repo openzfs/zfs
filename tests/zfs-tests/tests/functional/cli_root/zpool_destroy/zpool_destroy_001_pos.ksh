@@ -45,11 +45,6 @@
 
 verify_runnable "global"
 
-# https://github.com/zfsonlinux/zfs/issues/6145
-if is_linux; then
-	log_unsupported "Test case occasionally fails"
-fi
-
 function cleanup
 {
 	poolexists $TESTPOOL2 && destroy_pool $TESTPOOL2
@@ -71,7 +66,6 @@ if ! $(is_physical_device $DISKS) ; then
 fi
 
 log_assert "'zpool destroy <pool>' can destroy a specified pool."
-
 log_onexit cleanup
 
 partition_disk $SLICE_SIZE $DISK 2

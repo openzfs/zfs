@@ -29,6 +29,8 @@
 
 . ${STF_TOOLS}/include/stf.shlib
 
+trap 'log_timed_out "Test killed by SIGTERM' TERM
+
 # Output an assertion
 #
 # $@ - assertion text
@@ -418,7 +420,7 @@ function _endlog
 	typeset logfile="/tmp/log.$$"
 	_recursive_output $logfile
 
-	if [[ $1 == $STF_FAIL ]] ; then
+	if [[ $1 == $STF_FAIL ]] || [[ $1 == $STF_TIMED_OUT ]]; then
 		_execute_testfail_callbacks
 	fi
 
