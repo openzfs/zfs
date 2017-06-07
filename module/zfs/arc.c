@@ -6878,16 +6878,28 @@ l2arc_do_free_on_write(void)
 {
 	list_t *buflist;
 	l2arc_data_free_t *df, *df_prev;
+	arc_buf_contents_t type;
+	size_t size;
 
 	mutex_enter(&l2arc_free_on_write_mtx);
 	buflist = l2arc_free_on_write;
 
 	for (df = list_tail(buflist); df; df = df_prev) {
+		type = df->l2df_type;
+		size = df->l2df_size;
+
 		df_prev = list_prev(buflist, df);
 		ASSERT3P(df->l2df_abd, !=, NULL);
 		abd_free(df->l2df_abd);
 		list_remove(buflist, df);
 		kmem_free(df, sizeof (l2arc_data_free_t));
+
+		if (type == ARC_BUFC_METADATA) {
+			arc_space_return(size, ARC_SPACE_META);
+		} else {
+			ASSERT(type == ARC_BUFC_DATA);
+			arc_space_return(size, ARC_SPACE_DATA);
+		}
 	}
 
 	mutex_exit(&l2arc_free_on_write_mtx);
@@ -7396,7 +7408,8 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 				to_write = abd_alloc_for_io(size,
 				    HDR_ISTYPE_METADATA(hdr));
 				abd_copy(to_write, hdr->b_l1hdr.b_pabd, size);
-				l2arc_free_abd_on_write(to_write, size,
+				/* Use size of 0 to suppress accounting update */
+				l2arc_free_abd_on_write(to_write, 0,
 				    arc_buf_type(hdr));
 			}
 			wzio = zio_write_phys(pio, dev->l2ad_vdev,
