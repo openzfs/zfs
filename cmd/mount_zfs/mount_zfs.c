@@ -607,10 +607,23 @@ main(int argc, char **argv)
 				    "failed for unknown reason.\n"), dataset);
 			}
 			return (MOUNT_SYSERR);
+#ifdef MS_MANDLOCK
+		case EPERM:
+			if (mntflags & MS_MANDLOCK) {
+				(void) fprintf(stderr, gettext("filesystem "
+				    "'%s' has the 'nbmand=on' property set, "
+				    "this mount\noption may be disabled in "
+				    "your kernel.  Use 'zfs set nbmand=off'\n"
+				    "to disable this option and try to "
+				    "mount the filesystem again.\n"), dataset);
+				return (MOUNT_SYSERR);
+			}
+			/* fallthru */
+#endif
 		default:
 			(void) fprintf(stderr, gettext("filesystem "
-			    "'%s' can not be mounted due to error "
-			    "%d\n"), dataset, errno);
+			    "'%s' can not be mounted: %s\n"), dataset,
+			    strerror(errno));
 			return (MOUNT_USAGE);
 		}
 	}
