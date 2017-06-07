@@ -39,6 +39,10 @@
 
 verify_runnable "global"
 
+if is_32bit; then
+	log_unsupported "Test case runs slowly on 32 bit"
+fi
+
 function cleanup
 {
 	if [[ -n "$child_pids" ]]; then
