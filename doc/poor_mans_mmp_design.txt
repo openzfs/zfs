@@ -1,0 +1,83 @@
+MMP (Multi-Modifier Protection) attempts to prevent a user from
+importing a pool on more than one node at a time.
+
+See
+	https://github.com/zfsonlinux/zfs/issues/745
+and
+	https://github.com/zfsonlinux/zfs/pull/5821
+for more background.
+
+This design is for a very simple subset of MMP that can be coded,
+tested, and reviewed quickly.
+
+It attempts to detect and prevent the case of importing a pool via "zpool
+import -f", while it is already imported on another node.
+
+On-disk changes:
+
+The last uberblock slot in each ring is used only for MMP; uberblocks
+written by the sync thread always go into the first (N-1) slots.  The
+slot used for MMP is used to hold an uberblock which is exactly the
+same as the last written uberblock, except that its ub_timestamp is
+frequently updated, and its embedded checksum is different
+accordingly.
+
+This is used to provide the "heartbeat" without overwriting good
+uberblocks.
+
+During Import:
+
+zpool_do_import() (user space)
+1. Examine the system's hostid.  If it is 0,
+   skip the steps below and perform the import as normal.
+2. Issue the ZFS_IOC_POOL_TRYIMPORT ioctl
+3. Extract the hostid, txg and timestamp from the returned config nvlist and
+   save them.
+4. If the ZPOOL_CONFIG_HOSTID matches the system hostid, skip the steps below
+   and perform the import as normal.
+5. If the user did not use "--force" option, the import fails.
+6. Sleep 1 second.  Print something like "verifying pool is not in use".
+7. Issue the ZFS_IOC_POOL_TRYIMPORT ioctl again and compare the returned txg
+   and timestamp.  If they changed, the import fails.
+8. Repeat steps 6,7 until 10 seconds have passed.
+9. Import the pool normally via the ZFS_IOC_POOL_IMPORT ioctl
+
+spa_tryimport() (kernel space)
+1. Add an additional key to the config nvlist, with the value from
+   spa->spa_uberblock.ub_txg after spa_load() succeeds.  ub_timestamp is
+   already recorded in the config nvlist.
+
+spa_import() (kernel space)
+1. Start an mmp thread in a manner similar to the sync thread
+
+While the pool is open:
+mmp_thread() (kernel space)
+1. Sleep 1 second.
+2. If (now - spa->ubsync.ub_timestamp) < 1 second, go to step 1
+3. Choose a random leaf vdev.
+4. Copy the last synced uberblock from spa_ubsync to a buffer and update ub_timestamp.
+5. Write the buffer to the MMP uberblock slot in all 4 labels
+6. Go to step 1
+
+When a user attempts to resume a suspended pool via 'zpool clear':
+zio_resume() (kernel space)
+1. spa->spa_suspended = B_FALSE
+2. Obtain the latest txg on disk using vdev_uberblock_load()
+3. If the following is true, resume the pool as normal:
+	 txg_on_disk <= spa->spa_ubsync.ub_txg &&
+	 txg_on_disk >= (spa->spa_ubsync.ub_txg - TXG_DEFER_SIZE)
+Otherwise:
+4. spa->spa_suspended = B_TRUE and return failure.  This propogates back to
+user space and the 'zpool clear' fails, the pool remains suspended.
+
+Limitations:
+
+Once a node has the pool imported, it does not detect other nodes which
+have the pool imported or alter the pool's devices, except when resuming
+after the pool was suspended.
+
+It does not detect and prevent two nodes importing the pool at the
+same time.
+
+It does not detect changes to one or more individual devices by some outside
+process, e.g. "zpool labelclear -f" or "zpool add -f".
