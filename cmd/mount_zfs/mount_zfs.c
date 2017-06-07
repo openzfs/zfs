@@ -314,7 +314,7 @@ mtab_update(char *dataset, char *mntpoint, char *type, char *mntopts)
 	int error;
 
 	mnt.mnt_fsname = dataset;
-	mnt.mnt_dir = mntpoint;
+	mnt.mnt_dir = canonicalize_file_name(mntpoint);
 	mnt.mnt_type = type;
 	mnt.mnt_opts = mntopts ? mntopts : "";
 	mnt.mnt_freq = 0;
