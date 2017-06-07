@@ -105,12 +105,13 @@ lzjb_decompress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
 {
 	uchar_t *src = s_start;
 	uchar_t *dst = d_start;
+	uchar_t *s_end = (uchar_t *)s_start + s_len;
 	uchar_t *d_end = (uchar_t *)d_start + d_len;
 	uchar_t *cpy;
 	uchar_t copymap = 0;
 	int copymask = 1 << (NBBY - 1);
 
-	while (dst < d_end) {
+	while ((dst < d_end) && (src < s_end)) {
 		if ((copymask <<= 1) == (1 << NBBY)) {
 			copymask = 1;
 			copymap = *src++;
