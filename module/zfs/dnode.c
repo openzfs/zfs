@@ -1421,6 +1421,13 @@ dnode_setdirty(dnode_t *dn, dmu_tx_t *tx)
 	 */
 	dmu_objset_userquota_get_ids(dn, B_TRUE, tx);
 
+	/*
+	 * Performance optimization to avoid unnecessarily taking the
+	 * sublist lock when the dnode is dirty and there's nothing to do.
+	 */
+	if (list_link_active(&dn->dn_dirty_link[txg & TXG_MASK]))
+		return;
+
 	multilist_t *dirtylist = os->os_dirty_dnodes[txg & TXG_MASK];
 	multilist_sublist_t *mls = multilist_sublist_lock_obj(dirtylist, dn);
 
