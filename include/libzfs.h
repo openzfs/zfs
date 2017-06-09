@@ -775,11 +775,21 @@ extern int zfs_unshareall(zfs_handle_t *);
 extern int zfs_deleg_share_nfs(libzfs_handle_t *, char *, char *, char *,
     void *, void *, int, zfs_share_op_t);
 
+/*
+ * Formats for iostat numbers.  Examples: "12K", "30ms", "4B", "2321234", "-".
+ *
+ * ZFS_NICENUM_1024:	Print kilo, mega, tera, peta, exa..
+ * ZFS_NICENUM_BYTES:	Print single bytes ("13B"), kilo, mega, tera...
+ * ZFS_NICENUM_TIME:	Print nanosecs, microsecs, millisecs, seconds...
+ * ZFS_NICENUM_RAW:	Print the raw number without any formatting
+ * ZFS_NICENUM_RAWTIME:	Same as RAW, but print dashes ('-') for zero.
+ */
 enum zfs_nicenum_format {
 	ZFS_NICENUM_1024 = 0,
 	ZFS_NICENUM_BYTES = 1,
 	ZFS_NICENUM_TIME = 2,
-	ZFS_NICENUM_RAW = 3
+	ZFS_NICENUM_RAW = 3,
+	ZFS_NICENUM_RAWTIME = 4
 };
 
 /*
