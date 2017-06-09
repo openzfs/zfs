@@ -1964,21 +1964,26 @@ zvol_remove_minors_impl(const char *name)
 		    (strncmp(zv->zv_name, name, namelen) == 0 &&
 		    (zv->zv_name[namelen] == '/' ||
 		    zv->zv_name[namelen] == '@'))) {
-
-			/* If in use, leave alone */
-			if (zv->zv_open_count > 0 ||
-			    atomic_read(&zv->zv_suspend_ref))
-				continue;
 			/*
 			 * By taking zv_state_lock here, we guarantee that no
 			 * one is currently using this zv
 			 */
 			mutex_enter(&zv->zv_state_lock);
+
+			/* If in use, leave alone */
+			if (zv->zv_open_count > 0 ||
+			    atomic_read(&zv->zv_suspend_ref)) {
+				mutex_exit(&zv->zv_state_lock);
+				continue;
+			}
+
 			zvol_remove(zv);
-			mutex_exit(&zv->zv_state_lock);
 
 			/* clear this so zvol_open won't open it */
 			zv->zv_disk->private_data = NULL;
+
+			/* Drop zv_state_lock before zvol_free() */
+			mutex_exit(&zv->zv_state_lock);
 
 			/* try parallel zv_free, if failed do it in place */
 			t = taskq_dispatch(system_taskq, zvol_free, zv,
@@ -2021,19 +2026,24 @@ zvol_remove_minor_impl(const char *name)
 		zv_next = list_next(&zvol_state_list, zv);
 
 		if (strcmp(zv->zv_name, name) == 0) {
-			/* If in use, leave alone */
-			if (zv->zv_open_count > 0 ||
-			    atomic_read(&zv->zv_suspend_ref))
-				continue;
 			/*
 			 * By taking zv_state_lock here, we guarantee that no
 			 * one is currently using this zv
 			 */
 			mutex_enter(&zv->zv_state_lock);
+
+			/* If in use, leave alone */
+			if (zv->zv_open_count > 0 ||
+			    atomic_read(&zv->zv_suspend_ref)) {
+				mutex_exit(&zv->zv_state_lock);
+				continue;
+			}
 			zvol_remove(zv);
-			mutex_exit(&zv->zv_state_lock);
+
 			/* clear this so zvol_open won't open it */
 			zv->zv_disk->private_data = NULL;
+
+			mutex_exit(&zv->zv_state_lock);
 			break;
 		}
 	}
