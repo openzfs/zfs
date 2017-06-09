@@ -4149,7 +4149,7 @@ zfs_do_receive(int argc, char **argv)
 	if (abort_resumable) {
 		if (flags.isprefix || flags.istail || flags.dryrun ||
 		    flags.resumable || flags.nomount) {
-			(void) fprintf(stderr, gettext("invalid option"));
+			(void) fprintf(stderr, gettext("invalid option\n"));
 			usage(B_FALSE);
 		}
 
