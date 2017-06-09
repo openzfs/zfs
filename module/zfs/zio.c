@@ -3098,7 +3098,7 @@ zio_dva_unallocate(zio_t *zio, zio_gang_node_t *gn, blkptr_t *bp)
  */
 int
 zio_alloc_zil(spa_t *spa, uint64_t txg, blkptr_t *new_bp, uint64_t size,
-    boolean_t use_slog)
+    boolean_t *slog)
 {
 	int error = 1;
 	zio_alloc_list_t io_alloc_list;
@@ -3106,17 +3106,16 @@ zio_alloc_zil(spa_t *spa, uint64_t txg, blkptr_t *new_bp, uint64_t size,
 	ASSERT(txg > spa_syncing_txg(spa));
 
 	metaslab_trace_init(&io_alloc_list);
-
-	if (use_slog) {
-		error = metaslab_alloc(spa, spa_log_class(spa), size,
-		    new_bp, 1, txg, NULL, METASLAB_FASTWRITE,
-		    &io_alloc_list, NULL);
-	}
-
-	if (error) {
+	error = metaslab_alloc(spa, spa_log_class(spa), size, new_bp, 1,
+	    txg, NULL, METASLAB_FASTWRITE, &io_alloc_list, NULL);
+	if (error == 0) {
+		*slog = TRUE;
+	} else {
 		error = metaslab_alloc(spa, spa_normal_class(spa), size,
 		    new_bp, 1, txg, NULL, METASLAB_FASTWRITE,
 		    &io_alloc_list, NULL);
+		if (error == 0)
+			*slog = FALSE;
 	}
 	metaslab_trace_fini(&io_alloc_list);
 
