@@ -186,6 +186,29 @@ chmod u+x ${RPM_BUILD_ROOT}%{kmodinstdir_prefix}/*/extra/*/*/*
 rm -rf $RPM_BUILD_ROOT
 
 %changelog
+* Mon Jun 12 2017 Tony Hutter <hutter2@llnl.gov> - 0.6.5.10-1
+- OpenZFS 8005 - poor performance of 1MB writes on certain RAID-Z configurations zfsonlinux/zfs#5931
+- Add MS_MANDLOCK mount failure message zfsonlinux/zfs#4729 zfsonlinux/zfs#6199
+- Fix import wrong spare/l2 device when path change zfsonlinux/zfs#6158
+- Fix import finding spare/l2cache when path changes zfsonlinux/zfs#6158
+- Linux 4.9 compat: fix zfs_ctldir xattr handling zfsonlinux/zfs#6189
+- Linux 4.12 compat: fix super_setup_bdi_name() call zfsonlinux/zfs#6147
+- Linux 4.12 compat: CURRENT_TIME removed zfsonlinux/zfs#6114
+- Linux 4.12 compat: super_setup_bdi_name() zfsonlinux/zfs#6089
+- Limit zfs_dirty_data_max_max to 4G zfsonlinux/zfs#6072 zfsonlinux/zfs#6081
+- OpenZFS 8166 - zpool scrub thinks it repaired offline device zfsonlinux/zfs#5806 zfsonlinux/zfs#6103
+- vdev_id: fix failure due to multipath -l bug zfsonlinux/zfs#6039
+- Guarantee PAGESIZE alignment for large zio buffers zfsonlinux/zfs#6084
+- Fix harmless "BARRIER is deprecated" kernel warning on Centos 6.8 zfsonlinux/zfs#5739 zfsonlinux/zfs#5828
+- Add kmap_atomic in dmu_bio_copy- zdb: segfault in dump_bpobj_subobjs() zfsonlinux/zfs#3905
+- Fix atomic_sub_64() i386 assembly implementation zfsonlinux/zfs#5671 zfsonlinux/zfs#5717
+- Fix loop device becomes read-only zfsonlinux/zfs#5776 zfsonlinux/zfs#5855
+- Allow ZVOL bookmarks to be listed recursively zfsonlinux/zfs#4503 zfsonlinux/zfs#5072
+- Fix zfs-mount.service failure on boot zfsonlinux/zfs#5719
+- Fix iput() calls within a tx zfsonlinux/zfs#5758
+- Fix off by one in zpl_lookup zfsonlinux/zfs#5768
+- Linux 4.11 compat: iops.getattr and friends zfsonlinux/zfs#5875
+- Linux 4.11 compat: avoid refcount_t name conflict zfsonlinux/zfs#5823 zfsonlinux/zfs#5842
 * Fri Feb 3 2017 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.5.9-1
 - Use large stacks when available zfsonlinux/zfs#4059
 - Use set_cached_acl() and forget_cached_acl() when possible zfsonlinux/zfs#5378
