@@ -1119,11 +1119,16 @@ dsl_dir_tempreserve_impl(dsl_dir_t *dd, uint64_t asize, boolean_t netfree,
     boolean_t ignorequota, list_t *tr_list,
     dmu_tx_t *tx, boolean_t first)
 {
-	uint64_t txg = tx->tx_txg;
+	uint64_t txg;
 	uint64_t quota;
 	struct tempreserve *tr;
-	int retval = EDQUOT;
-	uint64_t ref_rsrv = 0;
+	int retval;
+	uint64_t ref_rsrv;
+
+top_of_function:
+	txg = tx->tx_txg;
+	retval = EDQUOT;
+	ref_rsrv = 0;
 
 	ASSERT3U(txg, !=, 0);
 	ASSERT3S(asize, >, 0);
@@ -1220,10 +1225,18 @@ dsl_dir_tempreserve_impl(dsl_dir_t *dd, uint64_t asize, boolean_t netfree,
 
 	/* see if it's OK with our parent */
 	if (dd->dd_parent != NULL && parent_rsrv != 0) {
-		boolean_t ismos = (dsl_dir_phys(dd)->dd_head_dataset_obj == 0);
+		/*
+		 * Recurse on our parent without recursion. This has been
+		 * observed to be potentially large stack usage even within
+		 * the test suite. Largest seen stack was 7632 bytes on linux.
+		 */
 
-		return (dsl_dir_tempreserve_impl(dd->dd_parent,
-		    parent_rsrv, netfree, ismos, tr_list, tx, B_FALSE));
+		dd = dd->dd_parent;
+		asize = parent_rsrv;
+		ignorequota = (dsl_dir_phys(dd)->dd_head_dataset_obj == 0);
+		first = B_FALSE;
+		goto top_of_function;
+
 	} else {
 		return (0);
 	}
