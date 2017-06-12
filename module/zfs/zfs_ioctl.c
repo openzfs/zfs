@@ -35,6 +35,7 @@
  * Copyright (c) 2016 Actifio, Inc. All rights reserved.
  * Copyright (c) 2017, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
  * Copyright (c) 2017 Datto Inc.
+ * Copyright 2017 RackTop Systems.
  */
 
 /*
@@ -4963,7 +4964,6 @@ zfs_ioc_pool_reopen(zfs_cmd_t *zc)
 /*
  * inputs:
  * zc_name	name of filesystem
- * zc_value	name of origin snapshot
  *
  * outputs:
  * zc_string	name of conflicting snapshot, if there is one
@@ -4971,16 +4971,49 @@ zfs_ioc_pool_reopen(zfs_cmd_t *zc)
 static int
 zfs_ioc_promote(zfs_cmd_t *zc)
 {
+	dsl_pool_t *dp;
+	dsl_dataset_t *ds, *ods;
+	char origin[ZFS_MAX_DATASET_NAME_LEN];
 	char *cp;
+	int error;
+
+	error = dsl_pool_hold(zc->zc_name, FTAG, &dp);
+	if (error != 0)
+		return (error);
+
+	error = dsl_dataset_hold(dp, zc->zc_name, FTAG, &ds);
+	if (error != 0) {
+		dsl_pool_rele(dp, FTAG);
+		return (error);
+	}
+
+	if (!dsl_dir_is_clone(ds->ds_dir)) {
+		dsl_dataset_rele(ds, FTAG);
+		dsl_pool_rele(dp, FTAG);
+		return (SET_ERROR(EINVAL));
+	}
+
+	error = dsl_dataset_hold_obj(dp,
+	    dsl_dir_phys(ds->ds_dir)->dd_origin_obj, FTAG, &ods);
+	if (error != 0) {
+		dsl_dataset_rele(ds, FTAG);
+		dsl_pool_rele(dp, FTAG);
+		return (error);
+	}
+
+	dsl_dataset_name(ods, origin);
+	dsl_dataset_rele(ods, FTAG);
+	dsl_dataset_rele(ds, FTAG);
+	dsl_pool_rele(dp, FTAG);
 
 	/*
 	 * We don't need to unmount *all* the origin fs's snapshots, but
 	 * it's easier.
 	 */
-	cp = strchr(zc->zc_value, '@');
+	cp = strchr(origin, '@');
 	if (cp)
 		*cp = '\0';
-	(void) dmu_objset_find(zc->zc_value,
+	(void) dmu_objset_find(origin,
 	    zfs_unmount_snap_cb, NULL, DS_FIND_SNAPSHOTS);
 	return (dsl_dataset_promote(zc->zc_name, zc->zc_string));
 }

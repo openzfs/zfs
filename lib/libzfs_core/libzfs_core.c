@@ -23,6 +23,7 @@
  * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  * Copyright (c) 2017 Datto Inc.
+ * Copyright 2017 RackTop Systems.
  */
 
 /*
@@ -206,6 +207,28 @@ lzc_clone(const char *fsname, const char *origin,
 	return (error);
 }
 
+int
+lzc_promote(const char *fsname, char *snapnamebuf, int snapnamelen)
+{
+	/*
+	 * The promote ioctl is still legacy, so we need to construct our
+	 * own zfs_cmd_t rather than using lzc_ioctl().
+	 */
+	zfs_cmd_t zc = { "\0" };
+
+	ASSERT3S(g_refcount, >, 0);
+	VERIFY3S(g_fd, !=, -1);
+
+	(void) strlcpy(zc.zc_name, fsname, sizeof (zc.zc_name));
+	if (ioctl(g_fd, ZFS_IOC_PROMOTE, &zc) != 0) {
+		int error = errno;
+		if (error == EEXIST && snapnamebuf != NULL)
+			(void) strlcpy(snapnamebuf, zc.zc_string, snapnamelen);
+		return (error);
+	}
+	return (0);
+}
+
 /*
  * Creates snapshots.
  *
@@ -333,7 +356,7 @@ lzc_exists(const char *dataset)
 {
 	/*
 	 * The objset_stats ioctl is still legacy, so we need to construct our
-	 * own zfs_cmd_t rather than using zfsc_ioctl().
+	 * own zfs_cmd_t rather than using lzc_ioctl().
 	 */
 	zfs_cmd_t zc = {"\0"};
 

@@ -29,6 +29,7 @@
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  * Copyright 2016 Nexenta Systems, Inc.
  * Copyright 2016 Igor Kozhukhov <ikozhukhov@gmail.com>
+ * Copyright 2017 RackTop Systems.
  */
 
 #include <ctype.h>
@@ -3731,8 +3732,7 @@ int
 zfs_promote(zfs_handle_t *zhp)
 {
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
-	zfs_cmd_t zc = {"\0"};
-	char parent[MAXPATHLEN];
+	char snapname[ZFS_MAX_DATASET_NAME_LEN];
 	int ret;
 	char errbuf[1024];
 
@@ -3745,31 +3745,25 @@ zfs_promote(zfs_handle_t *zhp)
 		return (zfs_error(hdl, EZFS_BADTYPE, errbuf));
 	}
 
-	(void) strlcpy(parent, zhp->zfs_dmustats.dds_origin, sizeof (parent));
-	if (parent[0] == '\0') {
+	if (zhp->zfs_dmustats.dds_origin[0] == '\0') {
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 		    "not a cloned filesystem"));
 		return (zfs_error(hdl, EZFS_BADTYPE, errbuf));
 	}
 
-	(void) strlcpy(zc.zc_value, zhp->zfs_dmustats.dds_origin,
-	    sizeof (zc.zc_value));
-	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
-	ret = zfs_ioctl(hdl, ZFS_IOC_PROMOTE, &zc);
+	ret = lzc_promote(zhp->zfs_name, snapname, sizeof (snapname));
 
 	if (ret != 0) {
-		int save_errno = errno;
-
-		switch (save_errno) {
+		switch (ret) {
 		case EEXIST:
 			/* There is a conflicting snapshot name. */
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "conflicting snapshot '%s' from parent '%s'"),
-			    zc.zc_string, parent);
+			    snapname, zhp->zfs_dmustats.dds_origin);
 			return (zfs_error(hdl, EZFS_EXISTS, errbuf));
 
 		default:
-			return (zfs_standard_error(hdl, save_errno, errbuf));
+			return (zfs_standard_error(hdl, ret, errbuf));
 		}
 	}
 	return (ret);
