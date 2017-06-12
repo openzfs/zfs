@@ -1496,20 +1496,11 @@ function destroy_pool #pool
 		if poolexists "$pool" ; then
 			mtpt=$(get_prop mountpoint "$pool")
 
-			# At times, syseventd activity can cause attempts to
-			# destroy a pool to fail with EBUSY. We retry a few
+			# At times, syseventd/udev activity can cause attempts
+			# to destroy a pool to fail with EBUSY. We retry a few
 			# times allowing failures before requiring the destroy
 			# to succeed.
-			typeset -i wait_time=10 ret=1 count=0
-			must=""
-			while [[ $ret -ne 0 ]]; do
-				$must zpool destroy -f $pool
-				ret=$?
-				[[ $ret -eq 0 ]] && break
-				log_note "zpool destroy failed with $ret"
-				[[ count++ -ge 7 ]] && must=log_must
-				sleep $wait_time
-			done
+			log_must_busy zpool destroy -f $pool
 
 			[[ -d $mtpt ]] && \
 				log_must rm -rf $mtpt
