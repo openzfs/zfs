@@ -604,7 +604,7 @@ fuidstr_to_sid(zfsvfs_t *zfsvfs, const char *fuidstr,
 	uint64_t fuid;
 	const char *domain;
 
-	fuid = strtonum(fuidstr, NULL);
+	fuid = zfs_strtonum(fuidstr, NULL);
 
 	domain = zfs_fuid_find_by_idx(zfsvfs, FUID_INDEX(fuid));
 	if (domain)

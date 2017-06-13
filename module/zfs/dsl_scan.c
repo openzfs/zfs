@@ -1512,7 +1512,7 @@ dsl_scan_visit(dsl_scan_t *scn, dmu_tx_t *tx)
 		dsl_dataset_t *ds;
 		uint64_t dsobj;
 
-		dsobj = strtonum(za->za_name, NULL);
+		dsobj = zfs_strtonum(za->za_name, NULL);
 		VERIFY3U(0, ==, zap_remove_int(dp->dp_meta_objset,
 		    scn->scn_phys.scn_queue_obj, dsobj, tx));
 

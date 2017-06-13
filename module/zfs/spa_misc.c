@@ -1465,7 +1465,7 @@ zfs_panic_recover(const char *fmt, ...)
  * lowercase hexadecimal numbers that don't overflow.
  */
 uint64_t
-strtonum(const char *str, char **nptr)
+zfs_strtonum(const char *str, char **nptr)
 {
 	uint64_t val = 0;
 	char c;
