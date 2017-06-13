@@ -1225,7 +1225,7 @@ xuio_stat_wbuf_nocopy(void)
 }
 
 #ifdef _KERNEL
-static int
+int
 dmu_read_uio_dnode(dnode_t *dn, uio_t *uio, uint64_t size)
 {
 	dmu_buf_t **dbp;
@@ -1334,7 +1334,7 @@ dmu_read_uio(objset_t *os, uint64_t object, uio_t *uio, uint64_t size)
 	return (err);
 }
 
-static int
+int
 dmu_write_uio_dnode(dnode_t *dn, uio_t *uio, uint64_t size, dmu_tx_t *tx)
 {
 	dmu_buf_t **dbp;
