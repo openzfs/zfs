@@ -626,6 +626,9 @@ extern void delay(clock_t ticks);
 
 #define	ptob(x)		((x) * PAGESIZE)
 
+#define	NN_DIVISOR_1000	(1U << 0)
+#define	NN_NUMBUF_SZ	(6)
+
 extern uint64_t physmem;
 
 extern int highbit64(uint64_t i);
@@ -639,7 +642,7 @@ extern void random_init(void);
 extern void random_fini(void);
 
 struct spa;
-extern void nicenum(uint64_t num, char *buf);
+extern void nicenum(uint64_t num, char *buf, size_t);
 extern void show_pool_stats(struct spa *);
 extern int set_global_var(char *arg);
 

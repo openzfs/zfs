@@ -281,12 +281,12 @@ dump_history_offsets(objset_t *os, uint64_t object, void *data, size_t size)
 }
 
 static void
-zdb_nicenum(uint64_t num, char *buf)
+zdb_nicenum(uint64_t num, char *buf, size_t buflen)
 {
 	if (dump_opt['P'])
-		(void) sprintf(buf, "%llu", (longlong_t)num);
+		(void) snprintf(buf, buflen, "%llu", (longlong_t)num);
 	else
-		nicenum(num, buf);
+		nicenum(num, buf, sizeof (buf));
 }
 
 static const char histo_stars[] = "****************************************";
@@ -464,12 +464,17 @@ dump_bpobj(objset_t *os, uint64_t object, void *data, size_t size)
 	uint64_t i;
 	char bytes[32], comp[32], uncomp[32];
 
+	/* make sure the output won't get truncated */
+	CTASSERT(sizeof (bytes) >= NN_NUMBUF_SZ);
+	CTASSERT(sizeof (comp) >= NN_NUMBUF_SZ);
+	CTASSERT(sizeof (uncomp) >= NN_NUMBUF_SZ);
+
 	if (bpop == NULL)
 		return;
 
-	zdb_nicenum(bpop->bpo_bytes, bytes);
-	zdb_nicenum(bpop->bpo_comp, comp);
-	zdb_nicenum(bpop->bpo_uncomp, uncomp);
+	zdb_nicenum(bpop->bpo_bytes, bytes, sizeof (bytes));
+	zdb_nicenum(bpop->bpo_comp, comp, sizeof (comp));
+	zdb_nicenum(bpop->bpo_uncomp, uncomp, sizeof (uncomp));
 
 	(void) printf("\t\tnum_blkptrs = %llu\n",
 	    (u_longlong_t)bpop->bpo_num_blkptrs);
@@ -763,7 +768,10 @@ dump_metaslab_stats(metaslab_t *msp)
 	avl_tree_t *t = &msp->ms_size_tree;
 	int free_pct = range_tree_space(rt) * 100 / msp->ms_size;
 
-	zdb_nicenum(metaslab_block_maxsize(msp), maxbuf);
+	/* max sure nicenum has enough space */
+	CTASSERT(sizeof (maxbuf) >= NN_NUMBUF_SZ);
+
+	zdb_nicenum(metaslab_block_maxsize(msp), maxbuf, sizeof (maxbuf));
 
 	(void) printf("\t %25s %10lu   %7s  %6s   %4s %4d%%\n",
 	    "segments", avl_numnodes(t), "maxsize", maxbuf,
@@ -780,7 +788,8 @@ dump_metaslab(metaslab_t *msp)
 	space_map_t *sm = msp->ms_sm;
 	char freebuf[32];
 
-	zdb_nicenum(msp->ms_size - space_map_allocated(sm), freebuf);
+	zdb_nicenum(msp->ms_size - space_map_allocated(sm), freebuf,
+	    sizeof (freebuf));
 
 	(void) printf(
 	    "\tmetaslab %6llu   offset %12llx   spacemap %6llu   free    %5s\n",
@@ -1354,6 +1363,9 @@ dump_dsl_dir(objset_t *os, uint64_t object, void *data, size_t size)
 	time_t crtime;
 	char nice[32];
 
+	/* make sure nicenum has enough space */
+	CTASSERT(sizeof (nice) >= NN_NUMBUF_SZ);
+
 	if (dd == NULL)
 		return;
 
@@ -1369,15 +1381,15 @@ dump_dsl_dir(objset_t *os, uint64_t object, void *data, size_t size)
 	    (u_longlong_t)dd->dd_origin_obj);
 	(void) printf("\t\tchild_dir_zapobj = %llu\n",
 	    (u_longlong_t)dd->dd_child_dir_zapobj);
-	zdb_nicenum(dd->dd_used_bytes, nice);
+	zdb_nicenum(dd->dd_used_bytes, nice, sizeof (nice));
 	(void) printf("\t\tused_bytes = %s\n", nice);
-	zdb_nicenum(dd->dd_compressed_bytes, nice);
+	zdb_nicenum(dd->dd_compressed_bytes, nice, sizeof (nice));
 	(void) printf("\t\tcompressed_bytes = %s\n", nice);
-	zdb_nicenum(dd->dd_uncompressed_bytes, nice);
+	zdb_nicenum(dd->dd_uncompressed_bytes, nice, sizeof (nice));
 	(void) printf("\t\tuncompressed_bytes = %s\n", nice);
-	zdb_nicenum(dd->dd_quota, nice);
+	zdb_nicenum(dd->dd_quota, nice, sizeof (nice));
 	(void) printf("\t\tquota = %s\n", nice);
-	zdb_nicenum(dd->dd_reserved, nice);
+	zdb_nicenum(dd->dd_reserved, nice, sizeof (nice));
 	(void) printf("\t\treserved = %s\n", nice);
 	(void) printf("\t\tprops_zapobj = %llu\n",
 	    (u_longlong_t)dd->dd_props_zapobj);
@@ -1387,7 +1399,8 @@ dump_dsl_dir(objset_t *os, uint64_t object, void *data, size_t size)
 	    (u_longlong_t)dd->dd_flags);
 
 #define	DO(which) \
-	zdb_nicenum(dd->dd_used_breakdown[DD_USED_ ## which], nice); \
+	zdb_nicenum(dd->dd_used_breakdown[DD_USED_ ## which], nice, \
+	    sizeof (nice)); \
 	(void) printf("\t\tused_breakdown[" #which "] = %s\n", nice)
 	DO(HEAD);
 	DO(SNAP);
@@ -1406,15 +1419,22 @@ dump_dsl_dataset(objset_t *os, uint64_t object, void *data, size_t size)
 	char used[32], compressed[32], uncompressed[32], unique[32];
 	char blkbuf[BP_SPRINTF_LEN];
 
+	/* make sure nicenum has enough space */
+	CTASSERT(sizeof (used) >= NN_NUMBUF_SZ);
+	CTASSERT(sizeof (compressed) >= NN_NUMBUF_SZ);
+	CTASSERT(sizeof (uncompressed) >= NN_NUMBUF_SZ);
+	CTASSERT(sizeof (unique) >= NN_NUMBUF_SZ);
+
 	if (ds == NULL)
 		return;
 
 	ASSERT(size == sizeof (*ds));
 	crtime = ds->ds_creation_time;
-	zdb_nicenum(ds->ds_referenced_bytes, used);
-	zdb_nicenum(ds->ds_compressed_bytes, compressed);
-	zdb_nicenum(ds->ds_uncompressed_bytes, uncompressed);
-	zdb_nicenum(ds->ds_unique_bytes, unique);
+	zdb_nicenum(ds->ds_referenced_bytes, used, sizeof (used));
+	zdb_nicenum(ds->ds_compressed_bytes, compressed, sizeof (compressed));
+	zdb_nicenum(ds->ds_uncompressed_bytes, uncompressed,
+	    sizeof (uncompressed));
+	zdb_nicenum(ds->ds_unique_bytes, unique, sizeof (unique));
 	snprintf_blkptr(blkbuf, sizeof (blkbuf), &ds->ds_bp);
 
 	(void) printf("\t\tdir_obj = %llu\n",
@@ -1473,12 +1493,15 @@ dump_bptree(objset_t *os, uint64_t obj, const char *name)
 	bptree_phys_t *bt;
 	dmu_buf_t *db;
 
+	/* make sure nicenum has enough space */
+	CTASSERT(sizeof (bytes) >= NN_NUMBUF_SZ);
+
 	if (dump_opt['d'] < 3)
 		return;
 
 	VERIFY3U(0, ==, dmu_bonus_hold(os, obj, FTAG, &db));
 	bt = db->db_data;
-	zdb_nicenum(bt->bt_bytes, bytes);
+	zdb_nicenum(bt->bt_bytes, bytes, sizeof (bytes));
 	(void) printf("\n    %s: %llu datasets, %s\n",
 	    name, (unsigned long long)(bt->bt_end - bt->bt_begin), bytes);
 	dmu_buf_rele(db, FTAG);
@@ -1511,13 +1534,18 @@ dump_full_bpobj(bpobj_t *bpo, const char *name, int indent)
 	char uncomp[32];
 	uint64_t i;
 
+	/* make sure nicenum has enough space */
+	CTASSERT(sizeof (bytes) >= NN_NUMBUF_SZ);
+	CTASSERT(sizeof (comp) >= NN_NUMBUF_SZ);
+	CTASSERT(sizeof (uncomp) >= NN_NUMBUF_SZ);
+
 	if (dump_opt['d'] < 3)
 		return;
 
-	zdb_nicenum(bpo->bpo_phys->bpo_bytes, bytes);
+	zdb_nicenum(bpo->bpo_phys->bpo_bytes, bytes, sizeof (bytes));
 	if (bpo->bpo_havesubobj && bpo->bpo_phys->bpo_subobjs != 0) {
-		zdb_nicenum(bpo->bpo_phys->bpo_comp, comp);
-		zdb_nicenum(bpo->bpo_phys->bpo_uncomp, uncomp);
+		zdb_nicenum(bpo->bpo_phys->bpo_comp, comp, sizeof (comp));
+		zdb_nicenum(bpo->bpo_phys->bpo_uncomp, uncomp, sizeof (uncomp));
 		(void) printf("    %*s: object %llu, %llu local blkptrs, "
 		    "%llu subobjs in object, %llu, %s (%s/%s comp)\n",
 		    indent * 8, name,
@@ -1571,6 +1599,11 @@ dump_deadlist(dsl_deadlist_t *dl)
 	char comp[32];
 	char uncomp[32];
 
+	/* make sure nicenum has enough space */
+	CTASSERT(sizeof (bytes) >= NN_NUMBUF_SZ);
+	CTASSERT(sizeof (comp) >= NN_NUMBUF_SZ);
+	CTASSERT(sizeof (uncomp) >= NN_NUMBUF_SZ);
+
 	if (dump_opt['d'] < 3)
 		return;
 
@@ -1579,9 +1612,9 @@ dump_deadlist(dsl_deadlist_t *dl)
 		return;
 	}
 
-	zdb_nicenum(dl->dl_phys->dl_used, bytes);
-	zdb_nicenum(dl->dl_phys->dl_comp, comp);
-	zdb_nicenum(dl->dl_phys->dl_uncomp, uncomp);
+	zdb_nicenum(dl->dl_phys->dl_used, bytes, sizeof (bytes));
+	zdb_nicenum(dl->dl_phys->dl_comp, comp, sizeof (comp));
+	zdb_nicenum(dl->dl_phys->dl_uncomp, uncomp, sizeof (uncomp));
 	(void) printf("\n    Deadlist: %s (%s/%s comp)\n",
 	    bytes, comp, uncomp);
 
@@ -1942,6 +1975,13 @@ dump_object(objset_t *os, uint64_t object, int verbosity, int *print_header,
 	char aux[50];
 	int error;
 
+	/* make sure nicenum has enough space */
+	CTASSERT(sizeof (iblk) >= NN_NUMBUF_SZ);
+	CTASSERT(sizeof (dblk) >= NN_NUMBUF_SZ);
+	CTASSERT(sizeof (lsize) >= NN_NUMBUF_SZ);
+	CTASSERT(sizeof (asize) >= NN_NUMBUF_SZ);
+	CTASSERT(sizeof (bonus_size) >= NN_NUMBUF_SZ);
+
 	if (*print_header) {
 		(void) printf("\n%10s  %3s  %5s  %5s  %5s  %6s  %5s  %6s  %s\n",
 		    "Object", "lvl", "iblk", "dblk", "dsize", "dnsize",
@@ -1982,12 +2022,12 @@ dump_object(objset_t *os, uint64_t object, int verbosity, int *print_header,
 	if (dnode_slots_used)
 		*dnode_slots_used = doi.doi_dnodesize / DNODE_MIN_SIZE;
 
-	zdb_nicenum(doi.doi_metadata_block_size, iblk);
-	zdb_nicenum(doi.doi_data_block_size, dblk);
-	zdb_nicenum(doi.doi_max_offset, lsize);
-	zdb_nicenum(doi.doi_physical_blocks_512 << 9, asize);
-	zdb_nicenum(doi.doi_bonus_size, bonus_size);
-	zdb_nicenum(doi.doi_dnodesize, dnsize);
+	zdb_nicenum(doi.doi_metadata_block_size, iblk, sizeof (iblk));
+	zdb_nicenum(doi.doi_data_block_size, dblk, sizeof (dblk));
+	zdb_nicenum(doi.doi_max_offset, lsize, sizeof (lsize));
+	zdb_nicenum(doi.doi_physical_blocks_512 << 9, asize, sizeof (asize));
+	zdb_nicenum(doi.doi_bonus_size, bonus_size, sizeof (bonus_size));
+	zdb_nicenum(doi.doi_dnodesize, dnsize, sizeof (dnsize));
 	(void) sprintf(fill, "%6.2f", 100.0 * doi.doi_fill_count *
 	    doi.doi_data_block_size / (object == 0 ? DNODES_PER_BLOCK : 1) /
 	    doi.doi_max_offset);
@@ -2063,6 +2103,8 @@ dump_object(objset_t *os, uint64_t object, int verbosity, int *print_header,
 
 		for (;;) {
 			char segsize[32];
+			/* make sure nicenum has enough space */
+			CTASSERT(sizeof (segsize) >= NN_NUMBUF_SZ);
 			error = dnode_next_offset(dn,
 			    0, &start, minlvl, blkfill, 0);
 			if (error)
@@ -2070,7 +2112,7 @@ dump_object(objset_t *os, uint64_t object, int verbosity, int *print_header,
 			end = start;
 			error = dnode_next_offset(dn,
 			    DNODE_FIND_HOLE, &end, minlvl, blkfill, 0);
-			zdb_nicenum(end - start, segsize);
+			zdb_nicenum(end - start, segsize, sizeof (segsize));
 			(void) printf("\t\tsegment [%016llx, %016llx)"
 			    " size %5s\n", (u_longlong_t)start,
 			    (u_longlong_t)end, segsize);
@@ -2107,6 +2149,9 @@ dump_dir(objset_t *os)
 	uint64_t max_slot_used = 0;
 	uint64_t dnode_slots;
 
+	/* make sure nicenum has enough space */
+	CTASSERT(sizeof (numbuf) >= NN_NUMBUF_SZ);
+
 	dsl_pool_config_enter(dmu_objset_pool(os), FTAG);
 	dmu_objset_fast_stat(os, &dds);
 	dsl_pool_config_exit(dmu_objset_pool(os), FTAG);
@@ -2125,7 +2170,7 @@ dump_dir(objset_t *os)
 
 	ASSERT3U(usedobjs, ==, BP_GET_FILL(os->os_rootbp));
 
-	zdb_nicenum(refdbytes, numbuf);
+	zdb_nicenum(refdbytes, numbuf, sizeof (numbuf));
 
 	if (verbosity >= 4) {
 		(void) snprintf(blkbuf, sizeof (blkbuf), ", rootbp ");
@@ -3142,6 +3187,9 @@ zdb_blkptr_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 		int sec_remaining =
 		    (zcb->zcb_totalasize - bytes) / 1024 / kb_per_sec;
 
+		/* make sure nicenum has enough space */
+		CTASSERT(sizeof (buf) >= NN_NUMBUF_SZ);
+
 		zfs_nicebytes(bytes, buf, sizeof (buf));
 		(void) fprintf(stderr,
 		    "\r%5s completed (%4dMB/s) "
@@ -3497,6 +3545,14 @@ dump_block_stats(spa_t *spa)
 			char avg[32], gang[32];
 			const char *typename;
 
+			/* make sure nicenum has enough space */
+			CTASSERT(sizeof (csize) >= NN_NUMBUF_SZ);
+			CTASSERT(sizeof (lsize) >= NN_NUMBUF_SZ);
+			CTASSERT(sizeof (psize) >= NN_NUMBUF_SZ);
+			CTASSERT(sizeof (asize) >= NN_NUMBUF_SZ);
+			CTASSERT(sizeof (avg) >= NN_NUMBUF_SZ);
+			CTASSERT(sizeof (gang) >= NN_NUMBUF_SZ);
+
 			if (t < DMU_OT_NUMTYPES)
 				typename = dmu_ot[t].ot_name;
 			else
@@ -3530,12 +3586,17 @@ dump_block_stats(spa_t *spa)
 				    zcb.zcb_type[ZB_TOTAL][t].zb_asize)
 					continue;
 
-				zdb_nicenum(zb->zb_count, csize);
-				zdb_nicenum(zb->zb_lsize, lsize);
-				zdb_nicenum(zb->zb_psize, psize);
-				zdb_nicenum(zb->zb_asize, asize);
-				zdb_nicenum(zb->zb_asize / zb->zb_count, avg);
-				zdb_nicenum(zb->zb_gangs, gang);
+				zdb_nicenum(zb->zb_count, csize,
+				    sizeof (csize));
+				zdb_nicenum(zb->zb_lsize, lsize,
+				    sizeof (lsize));
+				zdb_nicenum(zb->zb_psize, psize,
+				    sizeof (psize));
+				zdb_nicenum(zb->zb_asize, asize,
+				    sizeof (asize));
+				zdb_nicenum(zb->zb_asize / zb->zb_count, avg,
+				    sizeof (avg));
+				zdb_nicenum(zb->zb_gangs, gang, sizeof (gang));
 
 				(void) printf("%6s\t%5s\t%5s\t%5s\t%5s"
 				    "\t%5.2f\t%6.2f\t",
