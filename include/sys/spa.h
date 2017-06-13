@@ -860,7 +860,7 @@ extern int spa_maxdnodesize(spa_t *spa);
 extern void zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp);
 
 extern int spa_mode(spa_t *spa);
-extern uint64_t strtonum(const char *str, char **nptr);
+extern uint64_t zfs_strtonum(const char *str, char **nptr);
 
 extern char *spa_his_ievent_table[];
 

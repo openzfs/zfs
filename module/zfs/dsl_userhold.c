@@ -342,7 +342,7 @@ static int
 dsl_dataset_hold_obj_string(dsl_pool_t *dp, const char *dsobj, void *tag,
     dsl_dataset_t **dsp)
 {
-	return (dsl_dataset_hold_obj(dp, strtonum(dsobj, NULL), tag, dsp));
+	return (dsl_dataset_hold_obj(dp, zfs_strtonum(dsobj, NULL), tag, dsp));
 }
 
 static int

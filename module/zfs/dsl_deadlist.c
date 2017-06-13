@@ -78,10 +78,8 @@ dsl_deadlist_load_tree(dsl_deadlist_t *dl)
 	for (zap_cursor_init(&zc, dl->dl_os, dl->dl_object);
 	    zap_cursor_retrieve(&zc, &za) == 0;
 	    zap_cursor_advance(&zc)) {
-		dsl_deadlist_entry_t *dle;
-
-		dle = kmem_alloc(sizeof (*dle), KM_SLEEP);
-		dle->dle_mintxg = strtonum(za.za_name, NULL);
+		dsl_deadlist_entry_t *dle = kmem_alloc(sizeof (*dle), KM_SLEEP);
+		dle->dle_mintxg = zfs_strtonum(za.za_name, NULL);
 		VERIFY3U(0, ==, bpobj_open(&dle->dle_bpobj, dl->dl_os,
 		    za.za_first_integer));
 		avl_add(&dl->dl_tree, dle);
@@ -494,7 +492,7 @@ dsl_deadlist_merge(dsl_deadlist_t *dl, uint64_t obj, dmu_tx_t *tx)
 	for (zap_cursor_init(&zc, dl->dl_os, obj);
 	    zap_cursor_retrieve(&zc, &za) == 0;
 	    zap_cursor_advance(&zc)) {
-		uint64_t mintxg = strtonum(za.za_name, NULL);
+		uint64_t mintxg = zfs_strtonum(za.za_name, NULL);
 		dsl_deadlist_insert_bpobj(dl, za.za_first_integer, mintxg, tx);
 		VERIFY3U(0, ==, zap_remove_int(dl->dl_os, obj, mintxg, tx));
 	}
