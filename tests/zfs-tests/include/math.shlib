@@ -1,0 +1,43 @@
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+
+#
+# Copyright (c) 2012 by Delphix. All rights reserved.
+#
+
+#
+# Return 0 if the percentage difference between $a and $b is $percent or
+# greater. Return 1 if the percentage is lower or if we would divide by
+# zero. For use like this:
+#
+# Do $action if the calculated percentage is greater or equal to that passed in:
+#	within_percent A B P && $action
+# Do $action if the calculated percentage is less than that passed in:
+#	within_percent A B P || $action
+#
+function within_percent
+{
+	typeset a=$1
+	typeset b=$1
+	typeset percent=$3
+
+	# Set $a or $b to $2 such that a >= b
+	[[ '1' = $($ECHO "if ($2 > $a) 1" | $BC) ]] && a=$2 || b=$2
+
+	# Prevent division by 0
+	[[ $a =~ [1-9] ]] || return 1
+
+	typeset p=$($ECHO "scale=2; $b * 100 / $a" | $BC)
+	log_note "Comparing $a and $b given $percent% (calculated: $p%)"
+	[[ '1' = $($ECHO "scale=2; if ($p >= $percent) 1" | $BC) ]] && return 0
+
+	return 1
+}
