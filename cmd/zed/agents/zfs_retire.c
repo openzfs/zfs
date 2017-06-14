@@ -34,11 +34,13 @@
  * marking the vdev FAULTY (for I/O errors) or DEGRADED (for checksum errors).
  */
 
+#include <string.h>
+#include <stddef.h>
 #include <sys/fs/zfs.h>
 #include <sys/fm/protocol.h>
 #include <sys/fm/fs/zfs.h>
+#include <sys/list.h>
 #include <libzfs.h>
-#include <string.h>
 
 #include "zfs_agents.h"
 #include "fmd_api.h"
@@ -65,6 +67,17 @@ zfs_retire_clear_data(fmd_hdl_t *hdl, zfs_retire_data_t *zdp)
 		fmd_hdl_free(hdl, zrp, sizeof (zfs_retire_repaired_t));
 	}
 }
+
+/*
+ *	Create our deferred spare list and structures
+ */
+typedef struct deferred_spare {
+	uint64_t			zds_pool_guid;
+	uint64_t			zds_vdev_guid;
+	list_node_t			zds_node;
+} deferred_spare_t;
+
+static list_t deferred_spares;
 
 /*
  * Find a pool with a matching GUID.
@@ -165,6 +178,46 @@ find_by_guid(libzfs_handle_t *zhdl, uint64_t pool_guid, uint64_t vdev_guid,
 	return (zhp);
 }
 
+
+
+/*
+ * Take a spare attempt that failed with EBUSY and add it to
+ * the end of a list to try again later.
+ */
+static void
+save_deferred_spare(fmd_hdl_t *hdl, zpool_handle_t *zhp, nvlist_t *vdev)
+{
+	deferred_spare_t *deferred_spare;
+
+	deferred_spare = fmd_hdl_alloc(hdl, sizeof (deferred_spare_t),
+	    FMD_SLEEP);
+
+	deferred_spare->zds_pool_guid = zpool_get_prop_int(zhp,
+	    ZPOOL_PROP_GUID, NULL);
+	verify(nvlist_lookup_uint64(vdev, ZPOOL_CONFIG_GUID,
+	    &(deferred_spare->zds_vdev_guid)) == 0);
+
+	fmd_hdl_debug(hdl, "Saved request pool_guid %llu vdev_guid %llu.",
+	    deferred_spare->zds_pool_guid, deferred_spare->zds_vdev_guid);
+
+	list_insert_tail(&deferred_spares, deferred_spare);
+}
+
+static int
+spare_in_use(nvlist_t *spare)
+{
+	vdev_stat_t *vs;
+	uint_t c;
+
+	if (nvlist_lookup_uint64_array(spare, ZPOOL_CONFIG_VDEV_STATS,
+	    (uint64_t **)&vs, &c) != 0) {
+		/* We couldn't get the info so assume its in use */
+		return (1);
+	}
+
+	return (vs->vs_aux == VDEV_AUX_SPARED);
+}
+
 /*
  * Given a vdev, attempt to replace it with every known spare until one
  * succeeds.
@@ -202,6 +255,10 @@ replace_with_spare(fmd_hdl_t *hdl, zpool_handle_t *zhp, nvlist_t *vdev)
 	 */
 	for (s = 0; s < nspares; s++) {
 		char *spare_name;
+		int ret = 0;
+
+		if (spare_in_use(spares[s]))
+			continue;
 
 		if (nvlist_lookup_string(spares[s], ZPOOL_CONFIG_PATH,
 		    &spare_name) != 0)
@@ -213,15 +270,59 @@ replace_with_spare(fmd_hdl_t *hdl, zpool_handle_t *zhp, nvlist_t *vdev)
 		fmd_hdl_debug(hdl, "zpool_vdev_replace '%s' with spare '%s'",
 		    dev_name, basename(spare_name));
 
-		if (zpool_vdev_attach(zhp, dev_name, spare_name,
-		    replacement, B_TRUE) == 0)
+		ret = zpool_vdev_attach(zhp, dev_name, spare_name,
+		    replacement, B_TRUE);
+		if (ret == 0)
 			break;
+
+		if (libzfs_errno(zpool_get_handle(zhp)) == EZFS_BUSY) {
+			fmd_hdl_debug(hdl,
+			    "zpool_vdev_attach '%s' busy. Saving request.'",
+			    dev_name);
+			save_deferred_spare(hdl, zhp, vdev);
+			break;
+		}
 	}
 
 	free(dev_name);
 	nvlist_free(replacement);
 }
 
+/*
+ * We received a rebuild_finish event so try to spare in our next deferred
+ * spare. Regardless we remove the drive and if it is busy again
+ * replace_with_spare will add it back onto the list.
+ */
+static void
+replace_with_spare_deferred(fmd_hdl_t *hdl, libzfs_handle_t *zhdl,
+    uint64_t pool_guid)
+{
+	deferred_spare_t *request;
+	zpool_handle_t *zhp = NULL;
+	nvlist_t *vdev = NULL;
+
+	/*
+	 * Find the first deferred spare that matches our pool if
+	 * we don't find one then bail.
+	 */
+	for (request = list_head(&deferred_spares); request != NULL;
+	    request = list_next(&deferred_spares, request)) {
+		fmd_hdl_debug(hdl,
+		    "Replaying spare request pool_guid %llu vdev_guid %llu.",
+		    request->zds_pool_guid, request->zds_vdev_guid);
+		if ((zhp = find_by_guid(zhdl, pool_guid, request->zds_vdev_guid,
+		    &vdev)) == NULL)
+			return;
+
+		replace_with_spare(hdl, zhp, vdev);
+		/*
+		 * Remove our deferred request since it was requeued if
+		 * necessary.
+		 */
+		list_remove(&deferred_spares, request);
+		fmd_hdl_free(hdl, request, sizeof (deferred_spare_t));
+	}
+}
 /*
  * Repair this vdev if we had diagnosed a 'fault.fs.zfs.device' and
  * ASRU is now usable.  ZFS has found the device to be present and
@@ -291,6 +392,18 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 
 	fmd_hdl_debug(hdl, "zfs_retire_recv: '%s'", class);
 
+	/*
+	 * If we are finished rebuilding/resilvering the pool we need to check
+	 * if we deferred another spare request.
+	 */
+	if (strcmp(class, "sysevent.fs.zfs.rebuild_finish") == 0 ||
+	    strcmp(class, "sysevent.fs.zfs.resilver_finish") == 0) {
+		if (nvlist_lookup_uint64(nvl, FM_EREPORT_PAYLOAD_ZFS_POOL_GUID,
+		    &pool_guid) != 0)
+			return;
+		replace_with_spare_deferred(hdl, zhdl, pool_guid);
+		return;
+	}
 	/*
 	 * If this is a resource notifying us of device removal, then simply
 	 * check for an available spare and continue.
@@ -495,11 +608,15 @@ _zfs_retire_init(fmd_hdl_t *hdl)
 	zdp->zrd_hdl = zhdl;
 
 	fmd_hdl_setspecific(hdl, zdp);
+
+	list_create(&deferred_spares, sizeof (deferred_spare_t),
+	    offsetof(struct deferred_spare, zds_node));
 }
 
 void
 _zfs_retire_fini(fmd_hdl_t *hdl)
 {
+	deferred_spare_t *spare;
 	zfs_retire_data_t *zdp = fmd_hdl_getspecific(hdl);
 
 	if (zdp != NULL) {
@@ -507,4 +624,11 @@ _zfs_retire_fini(fmd_hdl_t *hdl)
 		__libzfs_fini(zdp->zrd_hdl);
 		fmd_hdl_free(hdl, zdp, sizeof (zfs_retire_data_t));
 	}
+
+	while ((spare = (list_head(&deferred_spares))) != NULL) {
+		list_remove(&deferred_spares, spare);
+		fmd_hdl_free(hdl, spare, sizeof (deferred_spare_t));
+	}
+
+	list_destroy(&deferred_spares);
 }
