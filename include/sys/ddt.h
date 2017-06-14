@@ -132,6 +132,7 @@ struct ddt {
 	objset_t	*ddt_os;
 	uint64_t	ddt_stat_object;
 	uint64_t	ddt_object[DDT_TYPES][DDT_CLASSES];
+	dnode_t		*ddt_dn[DDT_TYPES][DDT_CLASSES];
 	ddt_histogram_t	ddt_histogram[DDT_TYPES][DDT_CLASSES];
 	ddt_histogram_t	ddt_histogram_cache[DDT_TYPES][DDT_CLASSES];
 	ddt_object_t	ddt_object_stats[DDT_TYPES][DDT_CLASSES];
@@ -156,16 +157,12 @@ typedef struct ddt_ops {
 	int (*ddt_op_create)(objset_t *os, uint64_t *object, dmu_tx_t *tx,
 	    boolean_t prehash);
 	int (*ddt_op_destroy)(objset_t *os, uint64_t object, dmu_tx_t *tx);
-	int (*ddt_op_lookup)(objset_t *os, uint64_t object, ddt_entry_t *dde);
-	void (*ddt_op_prefetch)(objset_t *os, uint64_t object,
-	    ddt_entry_t *dde);
-	int (*ddt_op_update)(objset_t *os, uint64_t object, ddt_entry_t *dde,
-	    dmu_tx_t *tx);
-	int (*ddt_op_remove)(objset_t *os, uint64_t object, ddt_entry_t *dde,
-	    dmu_tx_t *tx);
-	int (*ddt_op_walk)(objset_t *os, uint64_t object, ddt_entry_t *dde,
-	    uint64_t *walk);
-	int (*ddt_op_count)(objset_t *os, uint64_t object, uint64_t *count);
+	int (*ddt_op_lookup)(dnode_t *dn, ddt_entry_t *dde);
+	void (*ddt_op_prefetch)(dnode_t *dn, ddt_entry_t *dde);
+	int (*ddt_op_update)(dnode_t *dn, ddt_entry_t *dde, dmu_tx_t *tx);
+	int (*ddt_op_remove)(dnode_t *dn, ddt_entry_t *dde, dmu_tx_t *tx);
+	int (*ddt_op_walk)(dnode_t *dn, ddt_entry_t *dde, uint64_t *walk);
+	int (*ddt_op_count)(dnode_t *dn, uint64_t *count);
 } ddt_ops_t;
 
 #define	DDT_NAMELEN	80
