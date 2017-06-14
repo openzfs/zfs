@@ -412,7 +412,7 @@ Default value: \fB2\fR.
 .RS 12n
 When the number of bytes consumed by dnodes in the ARC exceeds this number of
 bytes, try to unpin some of it in response to demand for non-metadata. This
-value acts as a floor to the amount of dnode metadata, and defaults to 0 which
+value acts as a ceiling to the amount of dnode metadata, and defaults to 0 which
 indicates that a percent which is based on \fBzfs_arc_dnode_limit_percent\fR of
 the ARC meta buffers that may be used for dnodes.
 
