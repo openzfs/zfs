@@ -1527,7 +1527,7 @@ zvol_alloc(dev_t dev, const char *name)
 	blk_queue_set_read_ahead(zv->zv_queue, 1);
 
 	/* Disable write merging in favor of the ZIO pipeline. */
-	queue_flag_set(QUEUE_FLAG_NOMERGES, zv->zv_queue);
+	queue_flag_set_unlocked(QUEUE_FLAG_NOMERGES, zv->zv_queue);
 
 	zv->zv_disk = alloc_disk(ZVOL_MINORS);
 	if (zv->zv_disk == NULL)
