@@ -747,10 +747,10 @@ zvol_op_hold(zvol_op_t *zvop)
 void
 zvol_op_release(zvol_op_t *zvop)
 {
+	rw_exit(&zvop->op_zv->zv_suspend_lock);
 	if (atomic_add_64_nv(&zvop->op_refcount, -1) == 0) {
 		kmem_cache_free(zvol_op_cache, zvop);
 	}
-	rw_exit(&zvop->op_zv->zv_suspend_lock);
 }
 
 static void
