@@ -213,9 +213,13 @@ int zap_lookup_norm(objset_t *ds, uint64_t zapobj, const char *name,
     boolean_t *normalization_conflictp);
 int zap_lookup_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
     int key_numints, uint64_t integer_size, uint64_t num_integers, void *buf);
+int zap_lookup_uint64_by_dnode(dnode_t *dn, const uint64_t *key,
+    int key_numints, uint64_t integer_size, uint64_t num_integers, void *buf);
 int zap_contains(objset_t *ds, uint64_t zapobj, const char *name);
 int zap_prefetch(objset_t *os, uint64_t zapobj, const char *name);
 int zap_prefetch_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
+    int key_numints);
+int zap_prefetch_uint64_by_dnode(dnode_t *dn, const uint64_t *key,
     int key_numints);
 
 int zap_lookup_by_dnode(dnode_t *dn, const char *name,
@@ -257,6 +261,9 @@ int zap_update(objset_t *ds, uint64_t zapobj, const char *name,
 int zap_update_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
     int key_numints,
     int integer_size, uint64_t num_integers, const void *val, dmu_tx_t *tx);
+int zap_update_uint64_by_dnode(dnode_t *dn, const uint64_t *key,
+    int key_numints,
+    int integer_size, uint64_t num_integers, const void *val, dmu_tx_t *tx);
 
 /*
  * Get the length (in integers) and the integer size of the specified
@@ -268,6 +275,8 @@ int zap_update_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
 int zap_length(objset_t *ds, uint64_t zapobj, const char *name,
     uint64_t *integer_size, uint64_t *num_integers);
 int zap_length_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
+    int key_numints, uint64_t *integer_size, uint64_t *num_integers);
+int zap_length_uint64_by_dnode(dnode_t *dn, const uint64_t *key,
     int key_numints, uint64_t *integer_size, uint64_t *num_integers);
 
 /*
@@ -282,12 +291,15 @@ int zap_remove_norm(objset_t *ds, uint64_t zapobj, const char *name,
 int zap_remove_by_dnode(dnode_t *dn, const char *name, dmu_tx_t *tx);
 int zap_remove_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
     int key_numints, dmu_tx_t *tx);
+int zap_remove_uint64_by_dnode(dnode_t *dn, const uint64_t *key,
+    int key_numints, dmu_tx_t *tx);
 
 /*
  * Returns (in *count) the number of attributes in the specified zap
  * object.
  */
 int zap_count(objset_t *ds, uint64_t zapobj, uint64_t *count);
+int zap_count_by_dnode(dnode_t *dn, uint64_t *count);
 
 /*
  * Returns (in name) the name of the entry whose (value & mask)
@@ -338,13 +350,13 @@ struct zap;
 struct zap_leaf;
 typedef struct zap_cursor {
 	/* This structure is opaque! */
-	objset_t *zc_objset;
+	dnode_t *zc_dn;
 	struct zap *zc_zap;
 	struct zap_leaf *zc_leaf;
-	uint64_t zc_zapobj;
 	uint64_t zc_serialized;
 	uint64_t zc_hash;
 	uint32_t zc_cd;
+	boolean_t zc_dn_held;
 } zap_cursor_t;
 
 typedef struct {
@@ -371,6 +383,7 @@ typedef struct {
  * zapobj.  You must _fini the cursor when you are done with it.
  */
 void zap_cursor_init(zap_cursor_t *zc, objset_t *ds, uint64_t zapobj);
+void zap_cursor_init_by_dnode(zap_cursor_t *zc, dnode_t *dn);
 void zap_cursor_fini(zap_cursor_t *zc);
 
 /*
@@ -402,7 +415,8 @@ uint64_t zap_cursor_serialize(zap_cursor_t *zc);
  */
 void zap_cursor_init_serialized(zap_cursor_t *zc, objset_t *ds,
     uint64_t zapobj, uint64_t serialized);
-
+void zap_cursor_init_serialized_by_dnode(zap_cursor_t *zc, dnode_t *dn,
+    uint64_t serialized);
 
 #define	ZAP_HISTOGRAM_SIZE 10
 
