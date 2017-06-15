@@ -1,5 +1,10 @@
 <!--- Provide a general summary of your changes in the Title above -->
 
+<!---
+Documentation on ZFS Buildbot options can be found at
+https://github.com/zfsonlinux/zfs/wiki/Buildbot-Options
+-->
+
 ### Description
 <!--- Describe your changes in detail -->
 
@@ -20,6 +25,7 @@
 - [ ] Performance enhancement (non-breaking change which improves efficiency)
 - [ ] Code cleanup (non-breaking change which makes code smaller or more readable)
 - [ ] Breaking change (fix or feature that would cause existing functionality to change)
+- [ ] Documentation (a change to man pages or other documentation)
 
 ### Checklist:
 <!--- Go over all the following points, and put an `x` in all the boxes that apply. -->

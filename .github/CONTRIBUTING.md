@@ -136,6 +136,8 @@ Buildbot](http://build.zfsonlinux.org/) builders before
 being accepted. If you are experiencing intermittent TEST
 builder failures, you may be experiencing a [test suite
 issue](https://github.com/zfsonlinux/zfs/issues?q=is%3Aissue+is%3Aopen+label%3A%22Test+Suite%22).
+There are also various [buildbot options](https://github.com/zfsonlinux/zfs/wiki/Buildbot-Options)
+to control how changes are tested.
 * All proposed changes must be approved by a ZFS on Linux organization member.
 
 ### Testing
