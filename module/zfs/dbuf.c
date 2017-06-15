@@ -3419,7 +3419,8 @@ dbuf_write_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 		if (dn->dn_type == DMU_OT_DNODE) {
 			i = 0;
 			while (i < db->db.db_size) {
-				dnode_phys_t *dnp = db->db.db_data + i;
+				dnode_phys_t *dnp =
+				    (void *)(((char *)db->db.db_data) + i);
 
 				i += DNODE_MIN_SIZE;
 				if (dnp->dn_type != DMU_OT_NONE) {

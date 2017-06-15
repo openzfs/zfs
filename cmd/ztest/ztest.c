@@ -4986,6 +4986,7 @@ ztest_dmu_commit_callbacks(ztest_ds_t *zd, uint64_t id)
  * are consistent what was stored in the block tag when it was created,
  * and that its unused bonus buffer space has not been overwritten.
  */
+/* ARGSUSED */
 void
 ztest_verify_dnode_bt(ztest_ds_t *zd, uint64_t id)
 {

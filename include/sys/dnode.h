@@ -177,19 +177,9 @@ typedef struct dnode_phys {
 	 * | dn_blkptr[0]  | dn_bonus[0..191]      | dn_spill      |
 	 * +---------------+-----------------------+---------------+
 	 */
-	union {
-		blkptr_t dn_blkptr[1+DN_OLD_MAX_BONUSLEN/sizeof (blkptr_t)];
-		struct {
-			blkptr_t __dn_ignore1;
-			uint8_t dn_bonus[DN_OLD_MAX_BONUSLEN];
-		};
-		struct {
-			blkptr_t __dn_ignore2;
-			uint8_t __dn_ignore3[DN_OLD_MAX_BONUSLEN -
-			    sizeof (blkptr_t)];
-			blkptr_t dn_spill;
-		};
-	};
+	blkptr_t dn_blkptr[1];
+	uint8_t dn_bonus[DN_OLD_MAX_BONUSLEN - sizeof (blkptr_t)];
+	blkptr_t dn_spill;
 } dnode_phys_t;
 
 #define	DN_SPILL_BLKPTR(dnp)	(blkptr_t *)((char *)(dnp) + \
