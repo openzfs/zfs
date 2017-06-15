@@ -748,7 +748,7 @@ function zero_partitions #<whole_disk_name>
 	else
 		for i in 0 1 3 4 5 6 7
 		do
-			set_partition $i "" 0mb $diskname
+			log_must set_partition $i "" 0mb $diskname
 		done
 	fi
 
@@ -788,7 +788,11 @@ function set_partition #<slice_num> <slice_start> <size_plus_units>  <whole_disk
 		parted $DEV_DSKDIR/$disk -s -- print 1 >/dev/null
 		typeset ret_val=$?
 		if [[ $slicenum -eq 0 || $ret_val -ne 0 ]]; then
-			log_must parted $DEV_DSKDIR/$disk -s -- mklabel gpt
+			parted $DEV_DSKDIR/$disk -s -- mklabel gpt
+			if [[ $? -ne 0 ]]; then
+				log_note "Failed to create GPT partition table on $disk"
+				return 1
+			fi
 		fi
 
 		# When no start is given align on the first cylinder.
@@ -804,8 +808,12 @@ function set_partition #<slice_num> <slice_start> <size_plus_units>  <whole_disk
 			awk -F '[:k.]' '{print $4}')
 		((end = (size_mb * 1024 / cly_size_kb) + start))
 
-		log_must parted $DEV_DSKDIR/$disk -s -- \
+		parted $DEV_DSKDIR/$disk -s -- \
 		    mkpart part$slicenum ${start}cyl ${end}cyl
+		if [[ $? -ne 0 ]]; then
+			log_note "Failed to create partition $slicenum on $disk"
+			return 1
+		fi
 
 		blockdev --rereadpt $DEV_DSKDIR/$disk 2>/dev/null
 		block_device_wait
@@ -828,8 +836,10 @@ function set_partition #<slice_num> <slice_start> <size_plus_units>  <whole_disk
 
 	typeset ret_val=$?
 	rm -f $format_file
-	[[ $ret_val -ne 0 ]] && \
-	    log_fail "Unable to format $disk slice $slicenum to $size"
+	if [[ $ret_val -ne 0 ]]; then
+		log_note "Unable to format $disk slice $slicenum to $size"
+		return 1
+	fi
 	return 0
 }
 
@@ -959,7 +969,7 @@ function partition_disk	#<slice_size> <whole_disk_name>	<total_slices>
 				continue
 			fi
 		fi
-		set_partition $i "$cyl" $slice_size $disk_name
+		log_must set_partition $i "$cyl" $slice_size $disk_name
 		cyl=$(get_endslice $disk_name $i)
 		((i = i+1))
 	done

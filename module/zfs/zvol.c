@@ -96,6 +96,7 @@ unsigned int zvol_threads = 32;
 unsigned int zvol_request_sync = 0;
 unsigned int zvol_prefetch_bytes = (128 * 1024);
 unsigned long zvol_max_discard_blocks = 16384;
+unsigned int zvol_volmode = ZFS_VOLMODE_GEOM;
 
 static taskq_t *zvol_taskq;
 static kmutex_t zvol_state_lock;
@@ -137,6 +138,7 @@ typedef enum {
 	ZVOL_ASYNC_REMOVE_MINORS,
 	ZVOL_ASYNC_RENAME_MINORS,
 	ZVOL_ASYNC_SET_SNAPDEV,
+	ZVOL_ASYNC_SET_VOLMODE,
 	ZVOL_ASYNC_MAX
 } zvol_async_op_t;
 
@@ -146,7 +148,7 @@ typedef struct {
 	char name1[MAXNAMELEN];
 	char name2[MAXNAMELEN];
 	zprop_source_t source;
-	uint64_t snapdev;
+	uint64_t value;
 } zvol_task_t;
 
 #define	ZVOL_RDONLY	0x1
@@ -1593,6 +1595,13 @@ static zvol_state_t *
 zvol_alloc(dev_t dev, const char *name)
 {
 	zvol_state_t *zv;
+	uint64_t volmode;
+
+	if (dsl_prop_get_integer(name, "volmode", &volmode, NULL) != 0)
+		return (NULL);
+
+	if (volmode == ZFS_VOLMODE_DEFAULT)
+		volmode = zvol_volmode;
 
 	zv = kmem_zalloc(sizeof (zvol_state_t), KM_SLEEP);
 
@@ -1626,6 +1635,22 @@ zvol_alloc(dev_t dev, const char *name)
 	rw_init(&zv->zv_suspend_lock, NULL, RW_DEFAULT, NULL);
 
 	zv->zv_disk->major = zvol_major;
+	if (volmode == ZFS_VOLMODE_DEV) {
+		/*
+		 * ZFS_VOLMODE_DEV disable partitioning on ZVOL devices: set
+		 * gendisk->minors = 1 as noted in include/linux/genhd.h.
+		 * Also disable extended partition numbers (GENHD_FL_EXT_DEVT)
+		 * and suppresses partition scanning (GENHD_FL_NO_PART_SCAN)
+		 * setting gendisk->flags accordingly.
+		 */
+		zv->zv_disk->minors = 1;
+#if defined(GENHD_FL_EXT_DEVT)
+		zv->zv_disk->flags &= ~GENHD_FL_EXT_DEVT;
+#endif
+#if defined(GENHD_FL_NO_PART_SCAN)
+		zv->zv_disk->flags |= GENHD_FL_NO_PART_SCAN;
+#endif
+	}
 	zv->zv_disk->first_minor = (dev & MINORMASK);
 	zv->zv_disk->fops = &zvol_ops;
 	zv->zv_disk->private_data = zv;
@@ -1691,6 +1716,9 @@ zvol_create_minor_impl(const char *name)
 	int error = 0;
 	int idx;
 	uint64_t hash = zvol_name_hash(name);
+
+	if (zvol_inhibit_dev)
+		return (0);
 
 	idx = ida_simple_get(&zvol_ida, 0, 0, kmem_flags_convert(KM_SLEEP));
 	if (idx < 0)
@@ -2095,16 +2123,13 @@ zvol_remove_minors_impl(const char *name)
 		taskq_wait_outstanding(system_taskq, tid);
 }
 
-/* Remove minor for this specific snapshot only */
+/* Remove minor for this specific volume only */
 static void
 zvol_remove_minor_impl(const char *name)
 {
 	zvol_state_t *zv = NULL, *zv_next;
 
 	if (zvol_inhibit_dev)
-		return;
-
-	if (strchr(name, '@') == NULL)
 		return;
 
 	mutex_enter(&zvol_state_lock);
@@ -2227,9 +2252,50 @@ zvol_set_snapdev_impl(char *name, uint64_t snapdev)
 	spl_fstrans_unmark(cookie);
 }
 
+typedef struct zvol_volmode_cb_arg {
+	uint64_t volmode;
+} zvol_volmode_cb_arg_t;
+
+static void
+zvol_set_volmode_impl(char *name, uint64_t volmode)
+{
+	fstrans_cookie_t cookie = spl_fstrans_mark();
+
+	if (strchr(name, '@') != NULL)
+		return;
+
+	/*
+	 * It's unfortunate we need to remove minors before we create new ones:
+	 * this is necessary because our backing gendisk (zvol_state->zv_disk)
+	 * coule be different when we set, for instance, volmode from "geom"
+	 * to "dev" (or vice versa).
+	 * A possible optimization is to modify our consumers so we don't get
+	 * called when "volmode" does not change.
+	 */
+	switch (volmode) {
+		case ZFS_VOLMODE_NONE:
+			(void) zvol_remove_minor_impl(name);
+			break;
+		case ZFS_VOLMODE_GEOM:
+		case ZFS_VOLMODE_DEV:
+			(void) zvol_remove_minor_impl(name);
+			(void) zvol_create_minor_impl(name);
+			break;
+		case ZFS_VOLMODE_DEFAULT:
+			(void) zvol_remove_minor_impl(name);
+			if (zvol_volmode == ZFS_VOLMODE_NONE)
+				break;
+			else /* if zvol_volmode is invalid defaults to "geom" */
+				(void) zvol_create_minor_impl(name);
+			break;
+	}
+
+	spl_fstrans_unmark(cookie);
+}
+
 static zvol_task_t *
 zvol_task_alloc(zvol_async_op_t op, const char *name1, const char *name2,
-    uint64_t snapdev)
+    uint64_t value)
 {
 	zvol_task_t *task;
 	char *delim;
@@ -2240,7 +2306,7 @@ zvol_task_alloc(zvol_async_op_t op, const char *name1, const char *name2,
 
 	task = kmem_zalloc(sizeof (zvol_task_t), KM_SLEEP);
 	task->op = op;
-	task->snapdev = snapdev;
+	task->value = value;
 	delim = strchr(name1, '/');
 	strlcpy(task->pool, name1, delim ? (delim - name1 + 1) : MAXNAMELEN);
 
@@ -2276,7 +2342,10 @@ zvol_task_cb(void *param)
 		zvol_rename_minors_impl(task->name1, task->name2);
 		break;
 	case ZVOL_ASYNC_SET_SNAPDEV:
-		zvol_set_snapdev_impl(task->name1, task->snapdev);
+		zvol_set_snapdev_impl(task->name1, task->value);
+		break;
+	case ZVOL_ASYNC_SET_VOLMODE:
+		zvol_set_volmode_impl(task->name1, task->value);
 		break;
 	default:
 		VERIFY(0);
@@ -2286,12 +2355,12 @@ zvol_task_cb(void *param)
 	zvol_task_free(task);
 }
 
-typedef struct zvol_set_snapdev_arg {
+typedef struct zvol_set_prop_int_arg {
 	const char *zsda_name;
 	uint64_t zsda_value;
 	zprop_source_t zsda_source;
 	dmu_tx_t *zsda_tx;
-} zvol_set_snapdev_arg_t;
+} zvol_set_prop_int_arg_t;
 
 /*
  * Sanity check the dataset for safe use by the sync task.  No additional
@@ -2300,7 +2369,7 @@ typedef struct zvol_set_snapdev_arg {
 static int
 zvol_set_snapdev_check(void *arg, dmu_tx_t *tx)
 {
-	zvol_set_snapdev_arg_t *zsda = arg;
+	zvol_set_prop_int_arg_t *zsda = arg;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	dsl_dir_t *dd;
 	int error;
@@ -2344,7 +2413,7 @@ zvol_set_snapdev_sync_cb(dsl_pool_t *dp, dsl_dataset_t *ds, void *arg)
 static void
 zvol_set_snapdev_sync(void *arg, dmu_tx_t *tx)
 {
-	zvol_set_snapdev_arg_t *zsda = arg;
+	zvol_set_prop_int_arg_t *zsda = arg;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	dsl_dir_t *dd;
 	dsl_dataset_t *ds;
@@ -2369,7 +2438,7 @@ zvol_set_snapdev_sync(void *arg, dmu_tx_t *tx)
 int
 zvol_set_snapdev(const char *ddname, zprop_source_t source, uint64_t snapdev)
 {
-	zvol_set_snapdev_arg_t zsda;
+	zvol_set_prop_int_arg_t zsda;
 
 	zsda.zsda_name = ddname;
 	zsda.zsda_source = source;
@@ -2377,6 +2446,93 @@ zvol_set_snapdev(const char *ddname, zprop_source_t source, uint64_t snapdev)
 
 	return (dsl_sync_task(ddname, zvol_set_snapdev_check,
 	    zvol_set_snapdev_sync, &zsda, 0, ZFS_SPACE_CHECK_NONE));
+}
+
+/*
+ * Sanity check the dataset for safe use by the sync task.  No additional
+ * conditions are imposed.
+ */
+static int
+zvol_set_volmode_check(void *arg, dmu_tx_t *tx)
+{
+	zvol_set_prop_int_arg_t *zsda = arg;
+	dsl_pool_t *dp = dmu_tx_pool(tx);
+	dsl_dir_t *dd;
+	int error;
+
+	error = dsl_dir_hold(dp, zsda->zsda_name, FTAG, &dd, NULL);
+	if (error != 0)
+		return (error);
+
+	dsl_dir_rele(dd, FTAG);
+
+	return (error);
+}
+
+/* ARGSUSED */
+static int
+zvol_set_volmode_sync_cb(dsl_pool_t *dp, dsl_dataset_t *ds, void *arg)
+{
+	char dsname[MAXNAMELEN];
+	zvol_task_t *task;
+	uint64_t volmode;
+
+	dsl_dataset_name(ds, dsname);
+	if (dsl_prop_get_int_ds(ds, "volmode", &volmode) != 0)
+		return (0);
+	task = zvol_task_alloc(ZVOL_ASYNC_SET_VOLMODE, dsname, NULL, volmode);
+	if (task == NULL)
+		return (0);
+
+	(void) taskq_dispatch(dp->dp_spa->spa_zvol_taskq, zvol_task_cb,
+	    task, TQ_SLEEP);
+	return (0);
+}
+
+/*
+ * Traverse all child datasets and apply volmode appropriately.
+ * We call dsl_prop_set_sync_impl() here to set the value only on the toplevel
+ * dataset and read the effective "volmode" on every child in the callback
+ * function: this is because the value is not guaranteed to be the same in the
+ * whole dataset hierarchy.
+ */
+static void
+zvol_set_volmode_sync(void *arg, dmu_tx_t *tx)
+{
+	zvol_set_prop_int_arg_t *zsda = arg;
+	dsl_pool_t *dp = dmu_tx_pool(tx);
+	dsl_dir_t *dd;
+	dsl_dataset_t *ds;
+	int error;
+
+	VERIFY0(dsl_dir_hold(dp, zsda->zsda_name, FTAG, &dd, NULL));
+	zsda->zsda_tx = tx;
+
+	error = dsl_dataset_hold(dp, zsda->zsda_name, FTAG, &ds);
+	if (error == 0) {
+		dsl_prop_set_sync_impl(ds, zfs_prop_to_name(ZFS_PROP_VOLMODE),
+		    zsda->zsda_source, sizeof (zsda->zsda_value), 1,
+		    &zsda->zsda_value, zsda->zsda_tx);
+		dsl_dataset_rele(ds, FTAG);
+	}
+
+	dmu_objset_find_dp(dp, dd->dd_object, zvol_set_volmode_sync_cb,
+	    zsda, DS_FIND_CHILDREN);
+
+	dsl_dir_rele(dd, FTAG);
+}
+
+int
+zvol_set_volmode(const char *ddname, zprop_source_t source, uint64_t volmode)
+{
+	zvol_set_prop_int_arg_t zsda;
+
+	zsda.zsda_name = ddname;
+	zsda.zsda_source = source;
+	zsda.zsda_value = volmode;
+
+	return (dsl_sync_task(ddname, zvol_set_volmode_check,
+	    zvol_set_volmode_sync, &zsda, 0, ZFS_SPACE_CHECK_NONE));
 }
 
 void
@@ -2510,4 +2666,7 @@ MODULE_PARM_DESC(zvol_max_discard_blocks, "Max number of blocks to discard");
 
 module_param(zvol_prefetch_bytes, uint, 0644);
 MODULE_PARM_DESC(zvol_prefetch_bytes, "Prefetch N bytes at zvol start+end");
+
+module_param(zvol_volmode, uint, 0644);
+MODULE_PARM_DESC(zvol_volmode, "Default volmode property value");
 /* END CSTYLED */

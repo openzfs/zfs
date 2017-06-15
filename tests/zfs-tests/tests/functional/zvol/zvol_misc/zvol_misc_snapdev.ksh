@@ -27,6 +27,7 @@
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zfs_set/zfs_set_common.kshlib
 . $STF_SUITE/tests/functional/zvol/zvol_common.shlib
+. $STF_SUITE/tests/functional/zvol/zvol_misc/zvol_misc_common.kshlib
 
 #
 # DESCRIPTION:
@@ -46,60 +47,7 @@ function cleanup
 	datasetexists $ZVOL && log_must zfs destroy -r $ZVOL
 	log_must zfs inherit snapdev $TESTPOOL
 	block_device_wait
-}
-
-#
-# Verify $device exists and is a block device
-#
-function blockdev_exists # device
-{
-	typeset device="$1"
-
-	# we wait here instead of doing it in a wrapper around 'zfs set snapdev'
-	# because there are other commands (zfs snap, zfs inherit, zfs destroy)
-	# that can affect device nodes
-	block_device_wait
-
-	if [[ ! -b "$device" ]]; then
-		log_fail "$device does not exist as a block device"
-	fi
-}
-
-#
-# Verify $device does not exist
-#
-function check_missing # device
-{
-	typeset device="$1"
-
-	# we wait here instead of doing it in a wrapper around 'zfs set snapdev'
-	# because there are other commands (zfs snap, zfs inherit, zfs destroy)
-	# that can affect device nodes
-	block_device_wait
-
-	if [[ -e "$device" ]]; then
-		log_fail "$device exists when not expected"
-	fi
-}
-
-#
-# Verify $property on $dataset is inherited by $parent and is set to $value
-#
-function verify_inherited # property value dataset parent
-{
-	typeset property="$1"
-	typeset value="$2"
-	typeset dataset="$3"
-	typeset parent="$4"
-
-	typeset val=$(get_prop "$property" "$dataset")
-	typeset src=$(get_source "$property" "$dataset")
-	if [[ "$val" != "$value" || "$src" != "inherited from $parent" ]]
-	then
-		log_fail "Dataset $dataset did not inherit $property properly:"\
-		    "expected=$value, value=$val, source=$src."
-	fi
-
+	udev_cleanup
 }
 
 log_assert "Verify that ZFS volume property 'snapdev' works as expected."
@@ -130,14 +78,14 @@ log_must zfs snapshot $SNAP
 log_must zfs set snapdev=visible $ZVOL
 blockdev_exists $SNAPDEV
 log_must zfs set snapdev=hidden $ZVOL
-check_missing $SNAPDEV
+blockdev_missing $SNAPDEV
 log_must zfs destroy $SNAP
 # 2.2 First set snapdev property then create a snapshot
 log_must zfs set snapdev=visible $ZVOL
 log_must zfs snapshot $SNAP
 blockdev_exists $SNAPDEV
 log_must zfs destroy $SNAP
-check_missing $SNAPDEV
+blockdev_missing $SNAPDEV
 # 2.3 Verify setting to the same value multiple times does not lead to issues
 log_must zfs snapshot $SNAP
 log_must zfs set snapdev=visible $ZVOL
@@ -145,9 +93,9 @@ blockdev_exists $SNAPDEV
 log_must zfs set snapdev=visible $ZVOL
 blockdev_exists $SNAPDEV
 log_must zfs set snapdev=hidden $ZVOL
-check_missing $SNAPDEV
+blockdev_missing $SNAPDEV
 log_must zfs set snapdev=hidden $ZVOL
-check_missing $SNAPDEV
+blockdev_missing $SNAPDEV
 log_must zfs destroy $SNAP
 
 # 3. Verify "snapdev" is inherited correctly
@@ -160,14 +108,14 @@ blockdev_exists $SNAPDEV
 # 3.2 Check snapdev=hidden case
 log_must zfs set snapdev=hidden $TESTPOOL
 verify_inherited 'snapdev' 'hidden' $ZVOL $TESTPOOL
-check_missing $SNAPDEV
+blockdev_missing $SNAPDEV
 # 3.3 Check inheritance on multiple levels
 log_must zfs snapshot $SUBSNAP
 log_must zfs inherit snapdev $SUBZVOL
 log_must zfs set snapdev=hidden $VOLFS
 log_must zfs set snapdev=visible $TESTPOOL
 verify_inherited 'snapdev' 'hidden' $SUBZVOL $VOLFS
-check_missing $SUBSNAPDEV
+blockdev_missing $SUBSNAPDEV
 blockdev_exists $SNAPDEV
 
 log_pass "ZFS volume property 'snapdev' works as expected"

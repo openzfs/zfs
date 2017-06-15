@@ -1757,6 +1757,35 @@ when the pool is low on space.
 For a sparse volume, changes to
 .Sy volsize
 are not reflected in the reservation.
+.It Sy volmode Ns = Ns Cm default | full | geom | dev | none
+This property specifies how volumes should be exposed to the OS.
+Setting it to
+.Sy full
+exposes volumes as fully fledged block devices, providing maximal
+functionality. The value
+.Sy geom
+is just an alias for
+.Sy full
+and is kept for compatibility.
+Setting it to
+.Sy dev
+hides its partitions.
+Volumes with property set to
+.Sy none
+are not exposed outside ZFS, but can be snapshoted, cloned, replicated, etc,
+that can be suitable for backup purposes.
+Value
+.Sy default
+means that volumes exposition is controlled by system-wide tunable
+.Va zvol_volmode ,
+where
+.Sy full ,
+.Sy dev
+and
+.Sy none
+are encoded as 1, 2 and 3 respectively.
+The default values is
+.Sy full .
 .It Sy vscan Ns = Ns Sy on Ns | Ns Sy off
 Controls whether regular files should be scanned for viruses when a file is
 opened and closed.

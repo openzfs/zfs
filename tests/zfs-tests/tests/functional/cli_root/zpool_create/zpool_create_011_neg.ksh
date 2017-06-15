@@ -81,13 +81,13 @@ vfstab_dev=$(find_vfstab_dev)
 if is_linux; then
 	partition_disk $SIZE $disk 7
 	cyl=$(get_endslice $disk $SLICE5)
-	set_partition $SLICE6 "$cyl" $SIZE1 $disk
+	log_must set_partition $SLICE6 "$cyl" $SIZE1 $disk
 else
 	specified_dump_dev=${disk}${SLICE_PREFIX}${SLICE0}
 	saved_dump_dev=$(save_dump_dev)
 
 	cyl=$(get_endslice $disk $SLICE6)
-	set_partition $SLICE7 "$cyl" $SIZE1 $disk
+	log_must set_partition $SLICE7 "$cyl" $SIZE1 $disk
 fi
 create_pool "$TESTPOOL" "$pooldev1"
 
