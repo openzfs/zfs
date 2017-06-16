@@ -59,9 +59,13 @@ dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot, int blocksize,
 	dnode_t *dn = NULL;
 	int dn_slots = dnodesize >> DNODE_SHIFT;
 	boolean_t restarted = B_FALSE;
-	uint64_t *cpuobj = &os->os_obj_next_percpu[CPU_SEQID %
-	    os->os_obj_next_percpu_len];
+	uint64_t *cpuobj = NULL;
 	int dnodes_per_chunk = 1 << dmu_object_alloc_chunk_shift;
+
+	kpreempt_disable();
+	cpuobj = &os->os_obj_next_percpu[CPU_SEQID %
+	    os->os_obj_next_percpu_len];
+	kpreempt_enable();
 
 	if (dn_slots == 0) {
 		dn_slots = DNODE_MIN_SLOTS;

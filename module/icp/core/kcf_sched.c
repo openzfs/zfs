@@ -1306,8 +1306,11 @@ kcf_reqid_insert(kcf_areq_node_t *areq)
 	int indx;
 	crypto_req_id_t id;
 	kcf_areq_node_t *headp;
-	kcf_reqid_table_t *rt =
-	    kcf_reqid_table[CPU_SEQID & REQID_TABLE_MASK];
+	kcf_reqid_table_t *rt;
+
+	kpreempt_disable();
+	rt = kcf_reqid_table[CPU_SEQID & REQID_TABLE_MASK];
+	kpreempt_enable();
 
 	mutex_enter(&rt->rt_lock);
 
