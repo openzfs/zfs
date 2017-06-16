@@ -748,7 +748,6 @@ void
 zvol_op_release(zvol_op_t *zvop)
 {
 	if (atomic_add_64_nv(&zvop->op_refcount, -1) == 0) {
-		rw_exit(&zvop->op_zv->zv_suspend_lock);
 		kmem_cache_free(zvol_op_cache, zvop);
 	}
 }
@@ -2397,6 +2396,8 @@ zvol_op_dtor(void *buf, void *args)
 
 	if (zvop->op_sync)
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
+
+	rw_exit(&zvop->op_zv->zv_suspend_lock);
 
 	generic_end_io_acct(bio_data_dir(bio),
 	    &zv->zv_disk->part0, zvop->op_start);
