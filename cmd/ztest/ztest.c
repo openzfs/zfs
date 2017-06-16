@@ -1620,6 +1620,7 @@ ztest_log_write(ztest_ds_t *zd, dmu_tx_t *tx, lr_write_t *lr)
 	itx->itx_private = zd;
 	itx->itx_wr_state = write_state;
 	itx->itx_sync = (ztest_random(8) == 0);
+	itx->itx_sod += (write_state == WR_NEED_COPY ? lr->lr_length : 0);
 
 	bcopy(&lr->lr_common + 1, &itx->itx_lr + 1,
 	    sizeof (*lr) - sizeof (lr_t));

@@ -611,44 +611,53 @@ zvol_log_write(zvol_state_t *zv, dmu_tx_t *tx, uint64_t offset,
 {
 	uint32_t blocksize = zv->zv_volblocksize;
 	zilog_t *zilog = zv->zv_zilog;
-	itx_wr_state_t write_state;
+	boolean_t slogging;
+	ssize_t immediate_write_sz;
 
 	if (zil_replaying(zilog, tx))
 		return;
 
-	if (zilog->zl_logbias == ZFS_LOGBIAS_THROUGHPUT)
-		write_state = WR_INDIRECT;
-	else if (!spa_has_slogs(zilog->zl_spa) &&
-	    size >= blocksize && blocksize > zvol_immediate_write_sz)
-		write_state = WR_INDIRECT;
-	else if (sync)
-		write_state = WR_COPIED;
-	else
-		write_state = WR_NEED_COPY;
+	immediate_write_sz = (zilog->zl_logbias == ZFS_LOGBIAS_THROUGHPUT)
+	    ? 0 : zvol_immediate_write_sz;
+	slogging = spa_has_slogs(zilog->zl_spa) &&
+	    (zilog->zl_logbias == ZFS_LOGBIAS_LATENCY);
 
 	while (size) {
 		itx_t *itx;
 		lr_write_t *lr;
-		itx_wr_state_t wr_state = write_state;
-		ssize_t len = size;
+		ssize_t len;
+		itx_wr_state_t write_state;
 
-		if (wr_state == WR_COPIED && size > ZIL_MAX_COPIED_DATA)
-			wr_state = WR_NEED_COPY;
-		else if (wr_state == WR_INDIRECT)
-			len = MIN(blocksize - P2PHASE(offset, blocksize), size);
+		/*
+		 * Unlike zfs_log_write() we can be called with
+		 * up to DMU_MAX_ACCESS/2 (5MB) writes.
+		 */
+		if (blocksize > immediate_write_sz && !slogging &&
+		    size >= blocksize && offset % blocksize == 0) {
+			write_state = WR_INDIRECT; /* uses dmu_sync */
+			len = blocksize;
+		} else if (sync) {
+			write_state = WR_COPIED;
+			len = MIN(ZIL_MAX_LOG_DATA, size);
+		} else {
+			write_state = WR_NEED_COPY;
+			len = MIN(ZIL_MAX_LOG_DATA, size);
+		}
 
 		itx = zil_itx_create(TX_WRITE, sizeof (*lr) +
-		    (wr_state == WR_COPIED ? len : 0));
+		    (write_state == WR_COPIED ? len : 0));
 		lr = (lr_write_t *)&itx->itx_lr;
-		if (wr_state == WR_COPIED && dmu_read_by_dnode(zv->zv_dn,
+		if (write_state == WR_COPIED && dmu_read_by_dnode(zv->zv_dn,
 		    offset, len, lr+1, DMU_READ_NO_PREFETCH) != 0) {
 			zil_itx_destroy(itx);
 			itx = zil_itx_create(TX_WRITE, sizeof (*lr));
 			lr = (lr_write_t *)&itx->itx_lr;
-			wr_state = WR_NEED_COPY;
+			write_state = WR_NEED_COPY;
 		}
 
-		itx->itx_wr_state = wr_state;
+		itx->itx_wr_state = write_state;
+		if (write_state == WR_NEED_COPY)
+			itx->itx_sod += len;
 		lr->lr_foid = ZVOL_OBJ;
 		lr->lr_offset = offset;
 		lr->lr_length = len;
