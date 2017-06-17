@@ -76,7 +76,7 @@ create 3 lanes on the device; one lane with a latency
 of 10 ms and two lanes with a 25 ms latency.
 
 .TP
-.B "zinject \-d \fIvdev\fB [\-e \fIdevice_error\fB] [\-L \fIlabel_error\fB] [\-T \fIfailure\fB] [\-F] \fIpool\fB"
+.B "zinject \-d \fIvdev\fB [\-e \fIdevice_error\fB] [\-L \fIlabel_error\fB] [\-T \fIfailure\fB] [\-f \fIfrequency\fB] [\-F] \fIpool\fB"
 Force a vdev error.
 .TP
 .B "zinject \-I [\-s \fIseconds\fB | \-g \fItxgs\fB] \fIpool\fB"
@@ -113,8 +113,8 @@ Specify
 .BR "nxio" " for an ENXIO error where reopening the device will fail."
 .TP
 .BI "\-f" " frequency"
-Only inject errors a fraction of the time. Expressed as an integer
-percentage between 1 and 100.
+Only inject errors a fraction of the time. Expressed as a real number
+percentage between 0.0001 and 100.
 .TP
 .BI "\-F"
 Fail faster. Do fewer checks.
