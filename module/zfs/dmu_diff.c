@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
  */
 
 #include <sys/dmu.h>
@@ -35,6 +35,7 @@
 #include <sys/dsl_dir.h>
 #include <sys/dsl_pool.h>
 #include <sys/dsl_synctask.h>
+#include <sys/dsl_bookmark.h>
 #include <sys/zfs_ioctl.h>
 #include <sys/zap.h>
 #include <sys/zio_checksum.h>
@@ -44,6 +45,7 @@ struct diffarg {
 	struct vnode *da_vp;		/* file to which we are reporting */
 	offset_t *da_offp;
 	int da_err;			/* error that stopped diff search */
+	boolean_t da_blockwise;
 	dmu_diff_record_t da_ddr;
 };
 
@@ -65,14 +67,14 @@ write_record(struct diffarg *da)
 }
 
 static int
-report_free_dnode_range(struct diffarg *da, uint64_t first, uint64_t last)
+report_type(struct diffarg *da, diff_type_t t, uint64_t first, uint64_t last)
 {
-	ASSERT(first <= last);
-	if (da->da_ddr.ddr_type != DDR_FREE ||
+	ASSERT3U(first, <=, last);
+	if (da->da_ddr.ddr_type != t ||
 	    first != da->da_ddr.ddr_last + 1) {
 		if (write_record(da) != 0)
 			return (da->da_err);
-		da->da_ddr.ddr_type = DDR_FREE;
+		da->da_ddr.ddr_type = t;
 		da->da_ddr.ddr_first = first;
 		da->da_ddr.ddr_last = last;
 		return (0);
@@ -81,28 +83,15 @@ report_free_dnode_range(struct diffarg *da, uint64_t first, uint64_t last)
 	return (0);
 }
 
-static int
-report_dnode(struct diffarg *da, uint64_t object, dnode_phys_t *dnp)
+static inline boolean_t
+overflow_multiply(uint64_t a, uint64_t b, uint64_t *c)
 {
-	ASSERT(dnp != NULL);
-	if (dnp->dn_type == DMU_OT_NONE)
-		return (report_free_dnode_range(da, object, object));
-
-	if (da->da_ddr.ddr_type != DDR_INUSE ||
-	    object != da->da_ddr.ddr_last + 1) {
-		if (write_record(da) != 0)
-			return (da->da_err);
-		da->da_ddr.ddr_type = DDR_INUSE;
-		da->da_ddr.ddr_first = da->da_ddr.ddr_last = object;
-		return (0);
-	}
-	da->da_ddr.ddr_last = object;
-	return (0);
+	uint64_t temp = a * b;
+	if (b != 0 && temp / b != a)
+		return (B_FALSE);
+	*c = temp;
+	return (B_TRUE);
 }
-
-#define	DBP_SPAN(dnp, level)				  \
-	(((uint64_t)dnp->dn_datablkszsec) << (SPA_MINBLOCKSHIFT + \
-	(level) * (dnp->dn_indblkshift - SPA_BLKPTRSHIFT)))
 
 /* ARGSUSED */
 static int
@@ -115,59 +104,110 @@ diff_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	if (issig(JUSTLOOKING) && issig(FORREAL))
 		return (SET_ERROR(EINTR));
 
-	if (bp == NULL || zb->zb_object != DMU_META_DNODE_OBJECT)
+	if (zb->zb_object != DMU_META_DNODE_OBJECT &&
+	    DMU_OBJECT_IS_SPECIAL(zb->zb_object))
 		return (0);
 
-	if (BP_IS_HOLE(bp)) {
-		uint64_t span = DBP_SPAN(dnp, zb->zb_level);
-		uint64_t dnobj = (zb->zb_blkid * span) >> DNODE_SHIFT;
-
-		err = report_free_dnode_range(da, dnobj,
-		    dnobj + (span >> DNODE_SHIFT) - 1);
-		if (err)
-			return (err);
-	} else if (zb->zb_level == 0) {
-		dnode_phys_t *blk;
-		arc_buf_t *abuf;
-		arc_flags_t aflags = ARC_FLAG_WAIT;
-		int blksz = BP_GET_LSIZE(bp);
-		int i;
-
-		if (arc_read(NULL, spa, bp, arc_getbuf_func, &abuf,
-		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL,
-		    &aflags, zb) != 0)
-			return (SET_ERROR(EIO));
-
-		blk = abuf->b_data;
-		for (i = 0; i < blksz >> DNODE_SHIFT; i++) {
-			uint64_t dnobj = (zb->zb_blkid <<
-			    (DNODE_BLOCK_SHIFT - DNODE_SHIFT)) + i;
-			err = report_dnode(da, dnobj, blk+i);
-			if (err)
-				break;
+	if (bp == NULL) {
+		/* This callback represents the dnode itself. */
+		if (zb->zb_object == DMU_META_DNODE_OBJECT)
+			return (0);
+		if (dnp->dn_type == DMU_OT_NONE) {
+			err = report_type(da, DDR_OBJECT_FREE,
+			    zb->zb_object, zb->zb_object);
+		} else {
+			err = report_type(da, DDR_OBJECT_INUSE,
+			    zb->zb_object, zb->zb_object);
 		}
-		arc_buf_destroy(abuf, &abuf);
-		if (err)
-			return (err);
-		/* Don't care about the data blocks */
-		return (TRAVERSE_VISIT_NO_CHILDREN);
+		return (err);
 	}
+
+	if (zb->zb_level < 0)
+		return (0);
+
+	if (zb->zb_object != DMU_META_DNODE_OBJECT &&
+	    DMU_OBJECT_IS_SPECIAL(zb->zb_object))
+		return (0);
+
+	uint64_t span_blkids =
+	    bp_span_in_blocks(dnp->dn_indblkshift, zb->zb_level);
+	uint64_t start_blkid;
+
+	/*
+	 * See comment in send_cb().
+	 */
+	if (!overflow_multiply(span_blkids, zb->zb_blkid, &start_blkid) ||
+	    (!DMU_OT_IS_METADATA(dnp->dn_type) &&
+	    span_blkids * zb->zb_blkid > dnp->dn_maxblkid)) {
+		ASSERT(BP_IS_HOLE(bp));
+		return (0);
+	}
+
+	if (zb->zb_object == DMU_META_DNODE_OBJECT) {
+		if (BP_IS_HOLE(bp)) {
+			uint64_t dnobj = start_blkid << DNODES_PER_BLOCK_SHIFT;
+
+			err = report_type(da, DDR_OBJECT_FREE, dnobj,
+			    ((start_blkid + span_blkids) <<
+			    DNODES_PER_BLOCK_SHIFT) - 1);
+			if (err) {
+				return (err);
+			}
+		}
+	} else {
+		if (!da->da_blockwise) {
+			return (TRAVERSE_VISIT_NO_CHILDREN);
+		}
+		if (DMU_OBJECT_IS_SPECIAL(zb->zb_object))
+			return (0);
+		uint64_t blksz = dnp->dn_datablkszsec * SPA_MINBLOCKSIZE;
+		uint64_t start_offset, end_offset;
+
+		if (!overflow_multiply(start_blkid, blksz, &start_offset)) {
+			ASSERT(BP_IS_HOLE(bp));
+			return (0);
+		}
+		if (!overflow_multiply(start_blkid + span_blkids, blksz,
+		    &end_offset)) {
+			end_offset = UINT64_MAX;
+		} else {
+			end_offset--;
+		}
+
+		if (BP_IS_HOLE(bp)) {
+			err = report_type(da, DDR_DATA_FREE,
+			    start_offset, end_offset);
+			if (err)
+				return (err);
+		} else if (zb->zb_level == 0) {
+			err = report_type(da, DDR_DATA_INUSE,
+			    start_offset, end_offset);
+			if (err)
+				return (err);
+		}
+	}
+
 	return (0);
 }
 
+/*
+ * Note, "from_name" must be a snapshot or a bookmark.
+ * Both tosnap_name and from_name must be full names
+ * (e.g. pool/fs[@#]snap_or_book), and "from_name" must be an earlier
+ * snapshot or bookmark in tosnap_name's history.
+ */
 int
-dmu_diff(const char *tosnap_name, const char *fromsnap_name,
-    struct vnode *vp, offset_t *offp)
+dmu_diff(const char *tosnap_name, const char *from_name,
+    boolean_t blockwise, struct vnode *vp, offset_t *offp)
 {
 	struct diffarg da;
-	dsl_dataset_t *fromsnap;
 	dsl_dataset_t *tosnap;
 	dsl_pool_t *dp;
 	int error;
 	uint64_t fromtxg;
 
 	if (strchr(tosnap_name, '@') == NULL ||
-	    strchr(fromsnap_name, '@') == NULL)
+	    strpbrk(from_name, "@#") == NULL)
 		return (SET_ERROR(EINVAL));
 
 	error = dsl_pool_hold(tosnap_name, FTAG, &dp);
@@ -180,22 +220,34 @@ dmu_diff(const char *tosnap_name, const char *fromsnap_name,
 		return (error);
 	}
 
-	error = dsl_dataset_hold(dp, fromsnap_name, FTAG, &fromsnap);
-	if (error != 0) {
-		dsl_dataset_rele(tosnap, FTAG);
-		dsl_pool_rele(dp, FTAG);
-		return (error);
-	}
+	if (strchr(from_name, '#')) {
+		zfs_bookmark_phys_t bmp;
+		error = dsl_bookmark_lookup(dp, from_name, tosnap, &bmp);
+		if (error != 0) {
+			dsl_dataset_rele(tosnap, FTAG);
+			dsl_pool_rele(dp, FTAG);
+			return (error);
+		}
+		fromtxg = bmp.zbm_creation_txg;
+	} else {
+		dsl_dataset_t *fromsnap;
+		error = dsl_dataset_hold(dp, from_name, FTAG, &fromsnap);
+		if (error != 0) {
+			dsl_dataset_rele(tosnap, FTAG);
+			dsl_pool_rele(dp, FTAG);
+			return (error);
+		}
 
-	if (!dsl_dataset_is_before(tosnap, fromsnap, 0)) {
+		if (!dsl_dataset_is_before(tosnap, fromsnap, 0)) {
+			dsl_dataset_rele(fromsnap, FTAG);
+			dsl_dataset_rele(tosnap, FTAG);
+			dsl_pool_rele(dp, FTAG);
+			return (SET_ERROR(EXDEV));
+		}
+		fromtxg = dsl_dataset_phys(fromsnap)->ds_creation_txg;
 		dsl_dataset_rele(fromsnap, FTAG);
-		dsl_dataset_rele(tosnap, FTAG);
-		dsl_pool_rele(dp, FTAG);
-		return (SET_ERROR(EXDEV));
 	}
 
-	fromtxg = dsl_dataset_phys(fromsnap)->ds_creation_txg;
-	dsl_dataset_rele(fromsnap, FTAG);
 
 	dsl_dataset_long_hold(tosnap, FTAG);
 	dsl_pool_rele(dp, FTAG);
@@ -205,6 +257,7 @@ dmu_diff(const char *tosnap_name, const char *fromsnap_name,
 	da.da_ddr.ddr_type = DDR_NONE;
 	da.da_ddr.ddr_first = da.da_ddr.ddr_last = 0;
 	da.da_err = 0;
+	da.da_blockwise = blockwise;
 
 	error = traverse_dataset(tosnap, fromtxg,
 	    TRAVERSE_PRE | TRAVERSE_PREFETCH_METADATA, diff_cb, &da);

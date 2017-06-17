@@ -14,7 +14,7 @@
  */
 
 /*
- * Copyright (c) 2013, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2017 by Delphix. All rights reserved.
  * Copyright 2017 Nexenta Systems, Inc.
  */
 
@@ -30,6 +30,7 @@
 #include <sys/zfeature.h>
 #include <sys/spa.h>
 #include <sys/dsl_bookmark.h>
+#include <sys/unique.h>
 #include <zfs_namecheck.h>
 
 static int
@@ -120,15 +121,19 @@ dsl_bookmark_create_check_impl(dsl_dataset_t *snapds, const char *bookmark_name,
 	int error;
 	zfs_bookmark_phys_t bmark_phys;
 
-	if (!snapds->ds_is_snapshot)
-		return (SET_ERROR(EINVAL));
-
 	error = dsl_bookmark_hold_ds(dp, bookmark_name,
 	    &bmark_fs, FTAG, &shortname);
 	if (error != 0)
 		return (error);
 
-	if (!dsl_dataset_is_before(bmark_fs, snapds, 0)) {
+	if (!dsl_dataset_is_snapshot(snapds) &&
+	    snapds != bmark_fs) {
+		dsl_dataset_rele(bmark_fs, FTAG);
+		return (SET_ERROR(EINVAL));
+	}
+
+	if (dsl_dataset_is_snapshot(snapds) &&
+	    !dsl_dataset_is_before(bmark_fs, snapds, 0)) {
 		dsl_dataset_rele(bmark_fs, FTAG);
 		return (SET_ERROR(EINVAL));
 	}
@@ -189,12 +194,12 @@ dsl_bookmark_create_sync(void *arg, dmu_tx_t *tx)
 
 	for (pair = nvlist_next_nvpair(dbca->dbca_bmarks, NULL);
 	    pair != NULL; pair = nvlist_next_nvpair(dbca->dbca_bmarks, pair)) {
-		dsl_dataset_t *snapds, *bmark_fs;
+		dsl_dataset_t *target_ds, *bmark_fs;
 		zfs_bookmark_phys_t bmark_phys;
 		char *shortname;
 
 		VERIFY0(dsl_dataset_hold(dp, fnvpair_value_string(pair),
-		    FTAG, &snapds));
+		    FTAG, &target_ds));
 		VERIFY0(dsl_bookmark_hold_ds(dp, nvpair_name(pair),
 		    &bmark_fs, FTAG, &shortname));
 		if (bmark_fs->ds_bookmarks == 0) {
@@ -210,11 +215,18 @@ dsl_bookmark_create_sync(void *arg, dmu_tx_t *tx)
 			    &bmark_fs->ds_bookmarks, tx));
 		}
 
-		bmark_phys.zbm_guid = dsl_dataset_phys(snapds)->ds_guid;
-		bmark_phys.zbm_creation_txg =
-		    dsl_dataset_phys(snapds)->ds_creation_txg;
-		bmark_phys.zbm_creation_time =
-		    dsl_dataset_phys(snapds)->ds_creation_time;
+		if (!dsl_dataset_is_snapshot(target_ds)) {
+			bmark_phys.zbm_guid = unique_create();
+			bmark_phys.zbm_creation_txg = dmu_tx_get_txg(tx);
+			bmark_phys.zbm_creation_time = gethrestime_sec();
+		} else {
+			bmark_phys.zbm_guid =
+			    dsl_dataset_phys(target_ds)->ds_guid;
+			bmark_phys.zbm_creation_txg =
+			    dsl_dataset_phys(target_ds)->ds_creation_txg;
+			bmark_phys.zbm_creation_time =
+			    dsl_dataset_phys(target_ds)->ds_creation_time;
+		}
 
 		VERIFY0(zap_add(mos, bmark_fs->ds_bookmarks,
 		    shortname, sizeof (uint64_t),
@@ -222,13 +234,14 @@ dsl_bookmark_create_sync(void *arg, dmu_tx_t *tx)
 		    &bmark_phys, tx));
 
 		spa_history_log_internal_ds(bmark_fs, "bookmark", tx,
-		    "name=%s creation_txg=%llu target_snap=%llu",
+		    "name=%s creation_txg=%llu target=%s (%llu)",
 		    shortname,
 		    (longlong_t)bmark_phys.zbm_creation_txg,
-		    (longlong_t)snapds->ds_object);
+		    fnvpair_value_string(pair),
+		    (longlong_t)target_ds->ds_object);
 
 		dsl_dataset_rele(bmark_fs, FTAG);
-		dsl_dataset_rele(snapds, FTAG);
+		dsl_dataset_rele(target_ds, FTAG);
 	}
 }
 

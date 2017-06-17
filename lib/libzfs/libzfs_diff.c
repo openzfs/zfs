@@ -59,10 +59,8 @@
 
 typedef struct differ_info {
 	zfs_handle_t *zhp;
-	char *fromsnap;
-	char *frommnt;
+	char *fromsnap; /* can bookmark, in which case isfrombookmark=TRUE */
 	char *tosnap;
-	char *tomnt;
 	char *ds;
 	char *dsmnt;
 	char *tmpsnap;
@@ -71,11 +69,14 @@ typedef struct differ_info {
 	boolean_t scripted;
 	boolean_t classify;
 	boolean_t timestamped;
+	boolean_t isfrombookmark;
 	uint64_t shares;
 	int zerr;
 	int cleanupfd;
 	int outputfd;
 	int datafd;
+	/* name of the last file printed */
+	char last_filename[MAXPATHLEN];
 } differ_info_t;
 
 /*
@@ -256,6 +257,18 @@ print_file(FILE *fp, differ_info_t *di, char type, const char *file,
 	(void) fprintf(fp, "\n");
 }
 
+static void
+print_file_range(FILE *fp, differ_info_t *di, char type,
+    uint64_t start, uint64_t end)
+{
+	if (di->last_filename[0] == '\0')
+		return;
+	(void) fprintf(fp, "%c\t", type);
+	print_cmn(fp, di, di->last_filename);
+	(void) fprintf(fp, " 0x%llx 0x%llx\n",
+	    (long long)start, (long long)end);
+}
+
 static int
 write_inuse_diffs_one(FILE *fp, differ_info_t *di, uint64_t dobj)
 {
@@ -264,6 +277,8 @@ write_inuse_diffs_one(FILE *fp, differ_info_t *di, uint64_t dobj)
 	char fobjname[MAXPATHLEN], tobjname[MAXPATHLEN];
 	int fobjerr, tobjerr;
 	int change;
+
+	di->last_filename[0] = '\0';
 
 	if (dobj == di->shares)
 		return (0);
@@ -274,14 +289,33 @@ write_inuse_diffs_one(FILE *fp, differ_info_t *di, uint64_t dobj)
 	 * snapshot.  If we get ENOTSUP, then we tried to get
 	 * info on a non-ZPL object, which we don't care about anyway.
 	 */
-	fobjerr = get_stats_for_obj(di, di->fromsnap, dobj, fobjname,
-	    MAXPATHLEN, &fsb);
-	if (fobjerr && di->zerr != ENOENT && di->zerr != ENOTSUP)
-		return (-1);
-
 	tobjerr = get_stats_for_obj(di, di->tosnap, dobj, tobjname,
 	    MAXPATHLEN, &tsb);
 	if (tobjerr && di->zerr != ENOENT && di->zerr != ENOTSUP)
+		return (-1);
+
+	if (di->isfrombookmark) {
+		/*
+		 * Since we are diffing from a bookmark, we can't determine
+		 * whether this object "really changed", if it was renamed,
+		 * or if it just happened to be in the same block of dnodes
+		 * with a changed object.  So we have to print them all
+		 * as "Modified".
+		 */
+		di->zerr = 0;
+		if (tobjerr == 0) {
+			print_file(fp, di, ZDIFF_MODIFIED, tobjname, &tsb);
+			if ((tsb.zs_mode & S_IFMT) == S_IFREG) {
+				(void) strlcpy(di->last_filename, tobjname,
+				    sizeof (di->last_filename));
+			}
+		}
+		return (0);
+	}
+
+	fobjerr = get_stats_for_obj(di, di->fromsnap, dobj, fobjname,
+	    MAXPATHLEN, &fsb);
+	if (fobjerr && di->zerr != ENOENT && di->zerr != ENOTSUP)
 		return (-1);
 
 	/*
@@ -301,6 +335,11 @@ write_inuse_diffs_one(FILE *fp, differ_info_t *di, uint64_t dobj)
 		change = 0;
 	else
 		change = tsb.zs_links - fsb.zs_links;
+
+	if (tobjerr == 0 && tmode == S_IFREG) {
+		(void) strlcpy(di->last_filename, tobjname,
+		    sizeof (di->last_filename));
+	}
 
 	if (fobjerr) {
 		if (change) {
@@ -363,6 +402,10 @@ describe_free(FILE *fp, differ_info_t *di, uint64_t object, char *namebuf,
 {
 	struct zfs_stat sb;
 
+	ASSERT(!di->isfrombookmark);
+
+	di->last_filename[0] = '\0';
+
 	if (get_stats_for_obj(di, di->fromsnap, object, namebuf,
 	    maxlen, &sb) != 0) {
 		/* Let it slide, if in the delete queue on from side */
@@ -383,6 +426,9 @@ write_free_diffs(FILE *fp, differ_info_t *di, dmu_diff_record_t *dr)
 	zfs_cmd_t zc = {"\0"};
 	libzfs_handle_t *lhdl = di->zhp->zfs_hdl;
 	char fobjname[MAXPATHLEN];
+
+	if (di->isfrombookmark)
+		return (0);
 
 	(void) strlcpy(zc.zc_name, di->fromsnap, sizeof (zc.zc_name));
 	zc.zc_obj = dr->ddr_first - 1;
@@ -456,11 +502,19 @@ differ(void *arg)
 		}
 
 		switch (dr.ddr_type) {
-		case DDR_FREE:
+		case DDR_OBJECT_FREE:
 			err = write_free_diffs(ofp, di, &dr);
 			break;
-		case DDR_INUSE:
+		case DDR_OBJECT_INUSE:
 			err = write_inuse_diffs(ofp, di, &dr);
+			break;
+		case DDR_DATA_FREE:
+			print_file_range(ofp, di, 'H',
+			    dr.ddr_first, dr.ddr_last + 1);
+			break;
+		case DDR_DATA_INUSE:
+			print_file_range(ofp, di, 'W',
+			    dr.ddr_first, dr.ddr_last + 1);
 			break;
 		default:
 			di->zerr = EPIPE;
@@ -542,10 +596,8 @@ teardown_differ_info(differ_info_t *di)
 	free(di->ds);
 	free(di->dsmnt);
 	free(di->fromsnap);
-	free(di->frommnt);
 	free(di->tosnap);
 	free(di->tmpsnap);
-	free(di->tomnt);
 	(void) close(di->cleanupfd);
 }
 
@@ -560,28 +612,42 @@ get_snapshot_names(differ_info_t *di, const char *fromsnap,
 	int tdslen, tsnlen;
 
 	/*
-	 * Can accept
+	 * There are 4 cases:
+	 *
+	 * diff from snapshot to current filesystem state
+	 *    dataset@snap1
+	 *
+	 * diff from bookmark to current filesystem state
+	 *    dataset#book1
+	 *
+	 * diff from snapshot to later snapshot
 	 *                                      fdslen fsnlen tdslen tsnlen
-	 *       dataset@snap1
 	 *    0. dataset@snap1 dataset@snap2      >0     >1     >0     >1
 	 *    1. dataset@snap1 @snap2             >0     >1    ==0     >1
 	 *    2. dataset@snap1 dataset            >0     >1     >0    ==0
 	 *    3. @snap1 dataset@snap2            ==0     >1     >0     >1
 	 *    4. @snap1 dataset                  ==0     >1     >0    ==0
+	 *
+	 * diff from bookmark to later bookmark
+	 *    (any of the above cases, with a bookmark instead of "@snap1")
 	 */
+
+	if (strchr(fromsnap, '#') != NULL)
+		di->isfrombookmark = B_TRUE;
+
 	if (tosnap == NULL) {
-		/* only a from snapshot given, must be valid */
+		/* only a from snapshot/bookmark given, must be valid */
 		(void) snprintf(di->errbuf, sizeof (di->errbuf),
 		    dgettext(TEXT_DOMAIN,
-		    "Badly formed snapshot name %s"), fromsnap);
+		    "Badly formed snapshot or bookmark name %s"), fromsnap);
 
-		if (!zfs_validate_name(hdl, fromsnap, ZFS_TYPE_SNAPSHOT,
-		    B_FALSE)) {
+		if (!zfs_validate_name(hdl, fromsnap,
+		    ZFS_TYPE_SNAPSHOT | ZFS_TYPE_BOOKMARK, B_FALSE)) {
 			return (zfs_error(hdl, EZFS_INVALIDNAME,
 			    di->errbuf));
 		}
 
-		atptrf = strchr(fromsnap, '@');
+		atptrf = strpbrk(fromsnap, "@#");
 		ASSERT(atptrf != NULL);
 		fdslen = atptrf - fromsnap;
 
@@ -597,7 +663,7 @@ get_snapshot_names(differ_info_t *di, const char *fromsnap,
 	    dgettext(TEXT_DOMAIN,
 	    "Unable to determine which snapshots to compare"));
 
-	atptrf = strchr(fromsnap, '@');
+	atptrf = strpbrk(fromsnap, "@#");
 	atptrt = strchr(tosnap, '@');
 	fdslen = atptrf ? atptrf - fromsnap : strlen(fromsnap);
 	tdslen = atptrt ? atptrt - tosnap : strlen(tosnap);
@@ -690,41 +756,8 @@ get_mountpoint(differ_info_t *di, char *dsnm, char **mntpt)
 static int
 get_mountpoints(differ_info_t *di)
 {
-	char *strptr;
-	char *frommntpt;
-
-	/*
-	 * first get the mountpoint for the parent dataset
-	 */
 	if (get_mountpoint(di, di->ds, &di->dsmnt) != 0)
 		return (-1);
-
-	strptr = strchr(di->tosnap, '@');
-	ASSERT3P(strptr, !=, NULL);
-	di->tomnt = zfs_asprintf(di->zhp->zfs_hdl, "%s%s%s", di->dsmnt,
-	    ZDIFF_SNAPDIR, ++strptr);
-
-	strptr = strchr(di->fromsnap, '@');
-	ASSERT3P(strptr, !=, NULL);
-
-	frommntpt = di->dsmnt;
-	if (di->isclone) {
-		char *mntpt;
-		int err;
-
-		*strptr = '\0';
-		err = get_mountpoint(di, di->fromsnap, &mntpt);
-		*strptr = '@';
-		if (err != 0)
-			return (-1);
-		frommntpt = mntpt;
-	}
-
-	di->frommnt = zfs_asprintf(di->zhp->zfs_hdl, "%s%s%s", frommntpt,
-	    ZDIFF_SNAPDIR, ++strptr);
-
-	if (di->isclone)
-		free(frommntpt);
 
 	return (0);
 }
@@ -750,6 +783,10 @@ setup_differ_info(zfs_handle_t *zhp, const char *fromsnap,
 	return (0);
 }
 
+/*
+ * Note, "fromsnap" can be a snapshot or a bookmark.  In either case
+ * it must be the full name (i.e. pool/fs[@#]book_or_snap).
+ */
 int
 zfs_show_diffs(zfs_handle_t *zhp, int outfd, const char *fromsnap,
     const char *tosnap, int flags)
@@ -795,6 +832,7 @@ zfs_show_diffs(zfs_handle_t *zhp, int outfd, const char *fromsnap,
 	(void) strlcpy(zc.zc_value, di.fromsnap, strlen(di.fromsnap) + 1);
 	(void) strlcpy(zc.zc_name, di.tosnap, strlen(di.tosnap) + 1);
 	zc.zc_cookie = pipefd[1];
+	zc.zc_flags = (flags & ZFS_DIFF_BLOCKWISE) != 0;
 
 	iocerr = ioctl(zhp->zfs_hdl->libzfs_fd, ZFS_IOC_DIFF, &zc);
 	if (iocerr != 0) {

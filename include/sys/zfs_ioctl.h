@@ -332,11 +332,17 @@ typedef struct dmu_replay_record {
 	} drr_u;
 } dmu_replay_record_t;
 
-/* diff record range types */
+/*
+ * diff record range types.
+ * Note, The enum starts at 1 for historical reasons, and to maintain
+ * compatibility when userland and kernel are mismatched, we haven't changed it.
+ */
 typedef enum diff_type {
-	DDR_NONE = 0x1,
-	DDR_INUSE = 0x2,
-	DDR_FREE = 0x4
+	DDR_NONE = 1,
+	DDR_OBJECT_INUSE,
+	DDR_DATA_INUSE,
+	DDR_OBJECT_FREE,
+	DDR_DATA_FREE,
 } diff_type_t;
 
 /*

@@ -331,9 +331,11 @@ get_usage(zfs_help_t idx)
 	case HELP_RELEASE:
 		return (gettext("\trelease [-r] <tag> <snapshot> ...\n"));
 	case HELP_DIFF:
-		return (gettext("\tdiff [-FHt] <snapshot> "
+		return (gettext("\tdiff [-FHta] <snapshot|bookmark> "
 		    "[snapshot|filesystem]\n"));
 	case HELP_BOOKMARK:
+		return (gettext("\tbookmark [<snapshot>] "
+		    "<bookmark>\n"));
 		return (gettext("\tbookmark <snapshot> <bookmark>\n"));
 	case HELP_LOAD_KEY:
 		return (gettext("\tload-key [-rn] [-L <keylocation>] "
@@ -6887,12 +6889,13 @@ zfs_do_diff(int argc, char **argv)
 	zfs_handle_t *zhp;
 	int flags = 0;
 	char *tosnap = NULL;
+	/* note, "fromsnap" can be a snapshot or a bookmark */
 	char *fromsnap = NULL;
 	char *atp, *copy;
 	int err = 0;
 	int c;
 
-	while ((c = getopt(argc, argv, "FHt")) != -1) {
+	while ((c = getopt(argc, argv, "FHta")) != -1) {
 		switch (c) {
 		case 'F':
 			flags |= ZFS_DIFF_CLASSIFY;
@@ -6902,6 +6905,9 @@ zfs_do_diff(int argc, char **argv)
 			break;
 		case 't':
 			flags |= ZFS_DIFF_TIMESTAMP;
+			break;
+		case 'a':
+			flags |= ZFS_DIFF_BLOCKWISE;
 			break;
 		default:
 			(void) fprintf(stderr,
@@ -6928,14 +6934,14 @@ zfs_do_diff(int argc, char **argv)
 	tosnap = (argc == 2) ? argv[1] : NULL;
 
 	copy = NULL;
-	if (*fromsnap != '@')
+	if (*fromsnap != '@' && *fromsnap != '#')
 		copy = strdup(fromsnap);
 	else if (tosnap)
 		copy = strdup(tosnap);
 	if (copy == NULL)
 		usage(B_FALSE);
 
-	if ((atp = strchr(copy, '@')) != NULL)
+	if ((atp = strpbrk(copy, "@#")) != NULL)
 		*atp = '\0';
 
 	if ((zhp = zfs_open(g_zfs, copy, ZFS_TYPE_FILESYSTEM)) == NULL) {
@@ -6958,19 +6964,27 @@ zfs_do_diff(int argc, char **argv)
 }
 
 /*
- * zfs bookmark <fs@snap> <fs#bmark>
+ * zfs bookmark [<fs@snap>] <fs#bmark>
  *
  * Creates a bookmark with the given name from the given snapshot.
+ * If the snapshot is not specified, the current state of the filesystem
+ * is bookmarked.  Such a bookmark can be used for "zfs diff", but isn't
+ * relevant to "zfs send".
  */
 static int
 zfs_do_bookmark(int argc, char **argv)
 {
-	char snapname[ZFS_MAX_DATASET_NAME_LEN];
+	/*
+	 * target_name will be the full name of the snapshot or filesystem
+	 * that we are bookmarking.
+	 */
+	char target_name[ZFS_MAX_DATASET_NAME_LEN];
 	char bookname[ZFS_MAX_DATASET_NAME_LEN];
 	zfs_handle_t *zhp;
 	nvlist_t *nvl;
 	int ret = 0;
 	int c;
+	char *bookmark_name, *snapshot_name;
 
 	/* check options */
 	while ((c = getopt(argc, argv, "")) != -1) {
@@ -6986,53 +7000,67 @@ zfs_do_bookmark(int argc, char **argv)
 	argv += optind;
 
 	/* check number of arguments */
-	if (argc < 1) {
-		(void) fprintf(stderr, gettext("missing snapshot argument\n"));
+	if (argc == 0) {
+		(void) fprintf(stderr,
+		    gettext("missing arguments\n"));
 		goto usage;
-	}
-	if (argc < 2) {
-		(void) fprintf(stderr, gettext("missing bookmark argument\n"));
+	} else if (argc == 1) {
+		snapshot_name = NULL;
+		bookmark_name = argv[0];
+	} else if (argc == 2) {
+		snapshot_name = argv[0];
+		bookmark_name = argv[1];
+	} else {
+		(void) fprintf(stderr,
+		    gettext("too many arguments\n"));
 		goto usage;
 	}
 
-	if (strchr(argv[1], '#') == NULL) {
+	if (strchr(bookmark_name, '#') == NULL) {
 		(void) fprintf(stderr,
 		    gettext("invalid bookmark name '%s': "
 		    "must contain a '#'\n"), argv[1]);
 		goto usage;
 	}
 
-	if (argv[0][0] == '@') {
+	if (snapshot_name == NULL) {
+		(void) strncpy(target_name, bookmark_name,
+		    sizeof (target_name));
+		*strchr(target_name, '#') = '\0';
+	} else if (snapshot_name[0] == '@') {
 		/*
 		 * Snapshot name begins with @.
 		 * Default to same fs as bookmark.
 		 */
-		(void) strlcpy(snapname, argv[1], sizeof (snapname));
-		*strchr(snapname, '#') = '\0';
-		(void) strlcat(snapname, argv[0], sizeof (snapname));
+		(void) strlcpy(target_name, bookmark_name,
+		    sizeof (target_name));
+		*strchr(target_name, '#') = '\0';
+		(void) strlcat(target_name, snapshot_name,
+		    sizeof (target_name));
 	} else {
-		(void) strlcpy(snapname, argv[0], sizeof (snapname));
+		(void) strlcpy(target_name, snapshot_name,
+		    sizeof (target_name));
 	}
-	if (argv[1][0] == '#') {
+	if (bookmark_name[0] == '#') {
 		/*
 		 * Bookmark name begins with #.
 		 * Default to same fs as snapshot.
 		 */
-		(void) strlcpy(bookname, argv[0], sizeof (bookname));
+		(void) strlcpy(bookname, snapshot_name, sizeof (bookname));
 		*strchr(bookname, '@') = '\0';
-		(void) strlcat(bookname, argv[1], sizeof (bookname));
+		(void) strlcat(bookname, bookmark_name, sizeof (bookname));
 	} else {
-		(void) strlcpy(bookname, argv[1], sizeof (bookname));
+		(void) strlcpy(bookname, bookmark_name, sizeof (bookname));
 	}
 
-	zhp = zfs_open(g_zfs, snapname, ZFS_TYPE_SNAPSHOT);
+	zhp = zfs_open(g_zfs, target_name, ZFS_TYPE_DATASET);
 	if (zhp == NULL)
 		goto usage;
 	zfs_close(zhp);
 
 
 	nvl = fnvlist_alloc();
-	fnvlist_add_string(nvl, bookname, snapname);
+	fnvlist_add_string(nvl, bookname, target_name);
 	ret = lzc_bookmark(nvl, NULL);
 	fnvlist_free(nvl);
 

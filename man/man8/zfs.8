@@ -163,7 +163,8 @@
 .Fl a | Ar filesystem Ns | Ns Ar mountpoint
 .Nm
 .Cm bookmark
-.Ar snapshot bookmark
+.Op Ar snapshot
+.Ar bookmark
 .Nm
 .Cm send
 .Op Fl DLPRcenpvw
@@ -268,8 +269,9 @@
 .Ar tag Ar snapshot Ns ...
 .Nm
 .Cm diff
-.Op Fl FHt
-.Ar snapshot Ar snapshot Ns | Ns Ar filesystem
+.Op Fl FHta
+.Ar snapshot Ns | Ns Ar bookmark
+.Op Ar snapshot Ns | Ns Ar filesystem
 .Nm
 .Cm load-key
 .Op Fl nr
@@ -3062,11 +3064,21 @@ The command can also be given a path to a ZFS file system shared on the system.
 .It Xo
 .Nm
 .Cm bookmark
-.Ar snapshot bookmark
+.Op Ar snapshot
+.Ar bookmark
 .Xc
-Creates a bookmark of the given snapshot.
-Bookmarks mark the point in time when the snapshot was created, and can be used
-as the incremental source for a
+Creates a bookmark.
+Bookmarks mark a particular point in the history of the containing filesystem
+or zvol.
+If a target snapshot is specified, the bookmark refers to the same point in
+time as the snapshot.
+Otherwise it refers to the current point in time.
+.Pp
+Bookmarks can be used as the earlier point in time for a
+.Nm zfs Cm diff
+command.
+If a target snapshot was specified, the bookmark can also be used as the
+incremental source for a
 .Nm zfs Cm send
 command.
 .Pp
@@ -3928,27 +3940,45 @@ descendent file systems.
 .It Xo
 .Nm
 .Cm diff
-.Op Fl FHt
-.Ar snapshot Ar snapshot Ns | Ns Ar filesystem
+.Op Fl FHta
+.Ar snapshot Ns | Ns Ar bookmark
+.Op Ar snapshot Ns | Ns Ar filesystem
 .Xc
-Display the difference between a snapshot of a given filesystem and another
-snapshot of that filesystem from a later time or the current contents of the
-filesystem.
-The first column is a character indicating the type of change, the other columns
-indicate pathname, new pathname
+Display the differences in a filesystem between two points in time.
+The earlier point in time is specified as the first argument, which can be a
+snapshot or a bookmark.
+The later point in time is specified by the second argument, which can be a
+snapshot, a filesystem, or absent.
+If the second argument is absent, it is assumed to be the current state of
+the first argument's filesystem.
+.sp
+If the earlier point in time
+.Pq first argument
+is a bookmark, some files may be spuriously reported as modified, and renames
+and file removals will not be detected, due to incomplete information about the
+old state.
+However, all modified files will be reported, and the modified byte ranges
+.Pq when requested by Fl a
+will be accurate.
+.sp
+The first column of the output is a character indicating the type of
+change.
+The other columns indicate pathname, new pathname
 .Pq in case of rename ,
-change in link count, and optionally file type and/or change time.
+change in link count, byte range, and optionally file type and/or change time.
 The types of change are:
 .Bd -literal
 -       The path has been removed
 +       The path has been created
 M       The path has been modified
 R       The path has been renamed
+W	The specified range of bytes in the file has been written
+H	The specified range of bytes in the file is now a hole
 .Ed
 .Bl -tag -width "-F"
 .It Fl F
 Display an indication of the type of file, in a manner similar to the
-.Fl
+.Fl l
 option of
 .Xr ls 1 .
 .Bd -literal
@@ -3962,6 +3992,9 @@ P       Event port
 =       Socket
 F       Regular file
 .Ed
+.It Fl a
+Include all modifications, including W and H lines which indicate which
+ranges of bytes in the file were modified.
 .It Fl H
 Give more parsable tab-separated output, without header lines and without
 arrows.

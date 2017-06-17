@@ -3571,7 +3571,7 @@ zfs_ioc_destroy_snaps(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
  * All bookmarks must be in the same pool.
  *
  * innvl: {
- *     bookmark1 -> snapshot1, bookmark2 -> snapshot2
+ *     bookmark1 -> snapshot1, bookmark2 -> snapshot2, bookmark3 -> fs3
  * }
  *
  * outnvl: bookmark -> error code (int32)
@@ -5355,6 +5355,7 @@ zfs_ioc_tmp_snapshot(zfs_cmd_t *zc)
  * zc_name		name of "to" snapshot
  * zc_value		name of "from" snapshot
  * zc_cookie		file descriptor to write diff data on
+ * zc_flags		set if blockwise diff is requested
  *
  * outputs:
  * dmu_diff_record_t's to the file descriptor
@@ -5372,7 +5373,8 @@ zfs_ioc_diff(zfs_cmd_t *zc)
 
 	off = fp->f_offset;
 
-	error = dmu_diff(zc->zc_name, zc->zc_value, fp->f_vnode, &off);
+	error = dmu_diff(zc->zc_name, zc->zc_value, zc->zc_flags,
+	    fp->f_vnode, &off);
 
 	if (VOP_SEEK(fp->f_vnode, fp->f_offset, &off, NULL) == 0)
 		fp->f_offset = off;

@@ -278,6 +278,8 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 
 	if (BP_IS_HOLE(bp)) {
 		err = td->td_func(td->td_spa, NULL, bp, zb, dnp, td->td_arg);
+		if (err == TRAVERSE_VISIT_NO_CHILDREN)
+			return (0);
 		if (err != 0)
 			goto post;
 		return (0);
