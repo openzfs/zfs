@@ -204,8 +204,11 @@ zfs_iter_bookmarks(zfs_handle_t *zhp, zfs_iter_f func, void *data)
 		bmark_name = nvpair_name(pair);
 		bmark_props = fnvpair_value_nvlist(pair);
 
-		(void) snprintf(name, sizeof (name), "%s#%s", zhp->zfs_name,
-		    bmark_name);
+		if (snprintf(name, sizeof (name), "%s#%s", zhp->zfs_name,
+		    bmark_name) >= sizeof (name)) {
+			err = EINVAL;
+			goto out;
+		}
 
 		nzhp = make_bookmark_handle(zhp, name, bmark_props);
 		if (nzhp == NULL)

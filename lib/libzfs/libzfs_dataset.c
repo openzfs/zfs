@@ -3566,8 +3566,9 @@ zfs_check_snap_cb(zfs_handle_t *zhp, void *arg)
 	char name[ZFS_MAX_DATASET_NAME_LEN];
 	int rv = 0;
 
-	(void) snprintf(name, sizeof (name),
-	    "%s@%s", zhp->zfs_name, dd->snapname);
+	if (snprintf(name, sizeof (name), "%s@%s", zhp->zfs_name,
+	    dd->snapname) >= sizeof (name))
+		return (EINVAL);
 
 	if (lzc_exists(name))
 		verify(nvlist_add_boolean(dd->nvl, name) == 0);
@@ -3788,8 +3789,9 @@ zfs_snapshot_cb(zfs_handle_t *zhp, void *arg)
 	int rv = 0;
 
 	if (zfs_prop_get_int(zhp, ZFS_PROP_INCONSISTENT) == 0) {
-		(void) snprintf(name, sizeof (name),
-		    "%s@%s", zfs_get_name(zhp), sd->sd_snapname);
+		if (snprintf(name, sizeof (name), "%s@%s", zfs_get_name(zhp),
+		    sd->sd_snapname) >= sizeof (name))
+			return (EINVAL);
 
 		fnvlist_add_boolean(sd->sd_nvl, name);
 
@@ -4533,8 +4535,9 @@ zfs_hold_one(zfs_handle_t *zhp, void *arg)
 	char name[ZFS_MAX_DATASET_NAME_LEN];
 	int rv = 0;
 
-	(void) snprintf(name, sizeof (name),
-	    "%s@%s", zhp->zfs_name, ha->snapname);
+	if (snprintf(name, sizeof (name), "%s@%s", zhp->zfs_name,
+	    ha->snapname) >= sizeof (name))
+		return (EINVAL);
 
 	if (lzc_exists(name))
 		fnvlist_add_string(ha->nvl, name, ha->tag);
@@ -4653,8 +4656,11 @@ zfs_release_one(zfs_handle_t *zhp, void *arg)
 	int rv = 0;
 	nvlist_t *existing_holds;
 
-	(void) snprintf(name, sizeof (name),
-	    "%s@%s", zhp->zfs_name, ha->snapname);
+	if (snprintf(name, sizeof (name), "%s@%s", zhp->zfs_name,
+	    ha->snapname) >= sizeof (name)) {
+		ha->error = EINVAL;
+		rv = EINVAL;
+	}
 
 	if (lzc_get_holds(name, &existing_holds) != 0) {
 		ha->error = ENOENT;

@@ -3627,8 +3627,10 @@ zfs_ioc_destroy(zfs_cmd_t *zc)
 			 */
 			char namebuf[ZFS_MAX_DATASET_NAME_LEN + 6];
 
-			(void) snprintf(namebuf, sizeof (namebuf),
-			    "%s/%s", zc->zc_name, recv_clone_name);
+			if (snprintf(namebuf, sizeof (namebuf), "%s/%s",
+			    zc->zc_name, recv_clone_name) >=
+			    sizeof (namebuf))
+				return (SET_ERROR(EINVAL));
 
 			/*
 			 * Try to remove the hidden child (%recv) and after
