@@ -482,10 +482,9 @@ tests = ['reservation_001_pos', 'reservation_002_pos', 'reservation_003_pos',
 tests = ['rootpool_002_neg', 'rootpool_003_neg', 'rootpool_007_pos']
 
 # rsend_008_pos - https://github.com/zfsonlinux/zfs/issues/6066
-# rsend_009_pos - https://github.com/zfsonlinux/zfs/issues/5887
 [tests/functional/rsend]
 tests = ['rsend_001_pos', 'rsend_002_pos', 'rsend_003_pos', 'rsend_004_pos',
-    'rsend_005_pos', 'rsend_006_pos', 'rsend_007_pos',
+    'rsend_005_pos', 'rsend_006_pos', 'rsend_007_pos', 'rsend_009_pos',
     'rsend_010_pos', 'rsend_011_pos', 'rsend_012_pos',
     'rsend_013_pos', 'rsend_014_pos',
     'rsend_019_pos', 'rsend_020_pos',
