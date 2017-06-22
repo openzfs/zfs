@@ -105,7 +105,6 @@ zfs_validate_name(libzfs_handle_t *hdl, const char *path, int type,
 	namecheck_err_t why;
 	char what;
 
-	(void) zfs_prop_get_table();
 	if (entity_namecheck(path, &why, &what) != 0) {
 		if (hdl != NULL) {
 			switch (why) {
