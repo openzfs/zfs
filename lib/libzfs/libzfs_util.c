@@ -623,8 +623,13 @@ zfs_nicenum_format(uint64_t num, char *buf, size_t buflen,
 	if (format == ZFS_NICENUM_RAW) {
 		snprintf(buf, buflen, "%llu", (u_longlong_t)num);
 		return;
+	} else if (format == ZFS_NICENUM_RAWTIME && num > 0) {
+		snprintf(buf, buflen, "%llu", (u_longlong_t)num);
+		return;
+	} else if (format == ZFS_NICENUM_RAWTIME && num == 0) {
+		snprintf(buf, buflen, "%s", "-");
+		return;
 	}
-
 
 	while (n >= k_unit[format] && index < units_len[format]) {
 		n /= k_unit[format];
@@ -633,7 +638,7 @@ zfs_nicenum_format(uint64_t num, char *buf, size_t buflen,
 
 	u = units[format][index];
 
-	/* Don't print 0ns times */
+	/* Don't print zero latencies since they're invalid */
 	if ((format == ZFS_NICENUM_TIME) && (num == 0)) {
 		(void) snprintf(buf, buflen, "-");
 	} else if ((index == 0) || ((num %

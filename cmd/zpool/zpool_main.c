@@ -3460,7 +3460,7 @@ print_iostat_latency(iostat_cbdata_t *cb, nvlist_t *oldnv,
 	nva = calc_and_alloc_stats_ex(names, ARRAY_SIZE(names), oldnv, newnv);
 
 	if (cb->cb_literal)
-		format = ZFS_NICENUM_RAW;
+		format = ZFS_NICENUM_RAWTIME;
 	else
 		format = ZFS_NICENUM_TIME;
 
