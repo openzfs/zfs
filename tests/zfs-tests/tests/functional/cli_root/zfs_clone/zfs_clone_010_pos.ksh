@@ -231,7 +231,7 @@ while((i <= $(( ZFS_MAXPROPLEN/200+1 )))); do
 done
 clone_list=$(zfs list -o clones $fs@snap)
 char_count=$(echo "$clone_list" | tail -1 | wc | awk '{print $3}')
-[[ $char_count -eq ZFS_MAXPROPLEN ]] || \
+[[ $char_count -eq $ZFS_MAXPROPLEN ]] || \
     log_fail "Clone list not truncated correctly. Unexpected character count" \
         "$char_count"
 
