@@ -6245,7 +6245,8 @@ arc_state_multilist_index_func(multilist_t *ml, void *obj)
 static void
 arc_tuning_update(void)
 {
-	uint64_t percent, allmem = arc_all_memory();
+	uint64_t allmem = arc_all_memory();
+	unsigned long limit;
 
 	/* Valid range: 64M - <all physical memory> */
 	if ((zfs_arc_max) && (zfs_arc_max != arc_c_max) &&
@@ -6254,11 +6255,10 @@ arc_tuning_update(void)
 		arc_c_max = zfs_arc_max;
 		arc_c = arc_c_max;
 		arc_p = (arc_c >> 1);
-		/* Valid range of arc_meta_limit: arc_meta_min - arc_c_max */
-		percent = MIN(zfs_arc_meta_limit_percent, 100);
-		arc_meta_limit = MAX(arc_meta_min, (percent * arc_c_max) / 100);
-		percent = MIN(zfs_arc_dnode_limit_percent, 100);
-		arc_dnode_limit = (percent * arc_meta_limit) / 100;
+		if (arc_meta_limit > arc_c_max)
+			arc_meta_limit = arc_c_max;
+		if (arc_dnode_limit > arc_meta_limit)
+			arc_dnode_limit = arc_meta_limit;
 	}
 
 	/* Valid range: 32M - <arc_c_max> */
@@ -6274,21 +6274,27 @@ arc_tuning_update(void)
 	    (zfs_arc_meta_min >= 1ULL << SPA_MAXBLOCKSHIFT) &&
 	    (zfs_arc_meta_min <= arc_c_max)) {
 		arc_meta_min = zfs_arc_meta_min;
-		arc_meta_limit = MAX(arc_meta_limit, arc_meta_min);
-		arc_dnode_limit = arc_meta_limit / 10;
+		if (arc_meta_limit < arc_meta_min)
+			arc_meta_limit = arc_meta_min;
+		if (arc_dnode_limit < arc_meta_min)
+			arc_dnode_limit = arc_meta_min;
 	}
 
 	/* Valid range: <arc_meta_min> - <arc_c_max> */
-	if ((zfs_arc_meta_limit) && (zfs_arc_meta_limit != arc_meta_limit) &&
-	    (zfs_arc_meta_limit >= zfs_arc_meta_min) &&
-	    (zfs_arc_meta_limit <= arc_c_max))
-		arc_meta_limit = zfs_arc_meta_limit;
+	limit = zfs_arc_meta_limit ? zfs_arc_meta_limit :
+	    MIN(zfs_arc_meta_limit_percent, 100) * arc_c_max / 100;
+	if ((limit != arc_meta_limit) &&
+	    (limit >= arc_meta_min) &&
+	    (limit <= arc_c_max))
+		arc_meta_limit = limit;
 
-	/* Valid range: <arc_meta_min> - <arc_c_max> */
-	if ((zfs_arc_dnode_limit) && (zfs_arc_dnode_limit != arc_dnode_limit) &&
-	    (zfs_arc_dnode_limit >= zfs_arc_meta_min) &&
-	    (zfs_arc_dnode_limit <= arc_c_max))
-		arc_dnode_limit = zfs_arc_dnode_limit;
+	/* Valid range: <arc_meta_min> - <arc_meta_limit> */
+	limit = zfs_arc_dnode_limit ? zfs_arc_dnode_limit :
+	    MIN(zfs_arc_dnode_limit_percent, 100) * arc_meta_limit / 100;
+	if ((limit != arc_dnode_limit) &&
+	    (limit >= arc_meta_min) &&
+	    (limit <= arc_meta_limit))
+		arc_dnode_limit = limit;
 
 	/* Valid range: 1 - N */
 	if (zfs_arc_grow_retry)
