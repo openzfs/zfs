@@ -142,7 +142,7 @@ abd_copy(abd_t *dabd, abd_t *sabd, size_t size)
 }
 
 static inline void
-abd_copy_from_buf(abd_t *abd, void *buf, size_t size)
+abd_copy_from_buf(abd_t *abd, const void *buf, size_t size)
 {
 	abd_copy_from_buf_off(abd, buf, 0, size);
 }
@@ -154,7 +154,7 @@ abd_copy_to_buf(void* buf, abd_t *abd, size_t size)
 }
 
 static inline int
-abd_cmp_buf(abd_t *abd, void *buf, size_t size)
+abd_cmp_buf(abd_t *abd, const void *buf, size_t size)
 {
 	return (abd_cmp_buf_off(abd, buf, 0, size));
 }
