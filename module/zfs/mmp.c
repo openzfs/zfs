@@ -416,13 +416,18 @@ mmp_write_uberblock(spa_t *spa)
 		return;
 
 	mutex_enter(&mmp->mmp_io_lock);
+
+	if (mmp->mmp_zio_root == NULL)
+		mmp->mmp_zio_root = zio_root(spa, NULL, NULL,
+		    flags | ZIO_FLAG_GODFATHER);
+
 	ub = &mmp->mmp_ub;
 	ub->ub_timestamp = gethrestime_sec();
 	ub->ub_mmp_magic = MMP_MAGIC;
 	ub->ub_mmp_delay = mmp->mmp_delay;
 	vd->vdev_mmp_pending = gethrtime();
 
-	zio_t *zio  = zio_root(spa, NULL, NULL, flags);
+	zio_t *zio  = zio_null(mmp->mmp_zio_root, spa, NULL, NULL, NULL, flags);
 	abd_t *ub_abd = abd_alloc_for_io(VDEV_UBERBLOCK_SIZE(vd), B_TRUE);
 	abd_zero(ub_abd, VDEV_UBERBLOCK_SIZE(vd));
 	abd_copy_from_buf(ub_abd, ub, sizeof (uberblock_t));
@@ -449,12 +454,19 @@ mmp_thread(spa_t *spa)
 
 	mmp_thread_enter(mmp, &cpr);
 
-	mmp->mmp_last_write = gethrtime();
+	/*
+	 * The done function calculates mmp_delay based on the prior
+	 * value of mmp_delay and the elapsed time since the last write.
+	 * For the first mmp write, there is no "last write", so we
+	 * start with fake, but reasonable, nonzero values.
+	 */
+	mmp->mmp_last_write = gethrtime() - MSEC2NSEC(zfs_mmp_interval);
+	mmp->mmp_delay = MSEC2NSEC(zfs_mmp_interval);
 
 	for (;;) {
 		/* for stable values within an iteration */
 		uint64_t mmp_fail_intervals = zfs_mmp_fail_intervals;
-		uint64_t mmp_interval = zfs_mmp_interval;
+		uint64_t mmp_interval = MSEC2NSEC(zfs_mmp_interval);
 		boolean_t suspended = spa_suspended(spa);
 		hrtime_t start, next_time;
 		hrtime_t max_fail_ns = (MSEC2NSEC(mmp_interval) *
@@ -523,6 +535,8 @@ mmp_thread(spa_t *spa)
 	}
 
 cleanup_and_exit:
+	zio_wait(mmp->mmp_zio_root);	/* let outstanding writes complete */
+	mmp->mmp_zio_root = NULL;
 	mmp_thread_exit(mmp, &mmp->mmp_thread, &cpr);
 }
 

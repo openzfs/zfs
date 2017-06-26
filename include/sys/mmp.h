@@ -40,6 +40,7 @@ typedef struct mmp_thread_state {
 	hrtime_t	mmp_last_write;	/* last successful MMP write */
 	uint64_t	mmp_delay;	/* decaying avg ns between MMP writes */
 	uberblock_t	mmp_ub;		/* last ub written by sync */
+	zio_t		*mmp_zio_root;	/* root of mmp write zios */
 } mmp_thread_state_t;
 
 

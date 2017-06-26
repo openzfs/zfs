@@ -75,18 +75,21 @@ function txg_sync
 function verify_device_uberblocks
 {
 	typeset device=$1
-	typeset ubcount=$2
+	typeset expected=$2
 
-	zdb -quuul $device | egrep '^(\s+)?Uberblock' |
-	    egrep -v 'invalid$' | awk \
-	    -v ubcount=$ubcount '{ uberblocks[$0]++; }
-	    END { for (i in uberblocks) {
-		count++;
-		if (uberblocks[i] != 4) { exit 1; }
-	    }
-	    if (count != ubcount) { exit 2; } }'
+	typeset ubcount=$(zdb -qul $device | egrep '^(\s+)?Uberblock' | wc -l)
+	typeset invalid=$(zdb -qul $device | egrep '^(\s+)?Uberblock' |
+	    egrep 'invalid$' | wc -l)
+	typeset labels_identical=$(zdb -qul $device | egrep 'labels = 0 1 2 3' |
+	    wc -l)
 
-	return $?
+	log_note "expected $expected ubcount $ubcount invalid $invalid " \
+	    " labels_identical $labels_identical"
+	if [[ $expected -ne $ubcount ]]; then
+		return 1
+	fi
+
+	return 0
 }
 
 log_assert "zpool create -o ashift=<n>' works with different ashift values"
