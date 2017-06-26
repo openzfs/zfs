@@ -80,7 +80,11 @@ log_must poolexists "$TESTPOOL1"
 unset NOINUSE_CHECK
 log_mustnot zpool add -f "$TESTPOOL" ${disk}${SLICE_PREFIX}${SLICE1}
 log_mustnot zpool add -f "$TESTPOOL" $mnttab_dev
-log_mustnot zpool add -f "$TESTPOOL" $vfstab_dev
+if is_linux; then
+       log_mustnot zpool add "$TESTPOOL" $vfstab_dev
+else
+       log_mustnot zpool add -f "$TESTPOOL" $vfstab_dev
+fi
 
 if ! is_linux; then
 	log_must echo "y" | newfs ${DEV_DSKDIR}/$dump_dev > /dev/null 2>&1
