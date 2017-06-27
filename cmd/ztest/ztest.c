@@ -126,6 +126,7 @@
 #include <sys/fs/zfs.h>
 #include <zfs_fletcher.h>
 #include <libnvpair.h>
+#include <libzfs.h>
 #ifdef __GLIBC__
 #include <execinfo.h> /* for backtrace() */
 #endif
@@ -6011,7 +6012,7 @@ ztest_resume(spa_t *spa)
 	spa_vdev_state_enter(spa, SCL_NONE);
 	vdev_clear(spa, NULL);
 	(void) spa_vdev_state_exit(spa, NULL, 0);
-	(void) zio_resume(spa);
+	(void) zio_resume(spa, B_FALSE);
 }
 
 static void *
@@ -6565,6 +6566,133 @@ make_random_props(void)
 	return (props);
 }
 
+static boolean_t
+pool_match(nvlist_t *cfg, char *tgt)
+{
+	uint64_t v, guid = strtoull(tgt, NULL, 0);
+	char *s;
+
+	if (guid != 0) {
+		if (nvlist_lookup_uint64(cfg, ZPOOL_CONFIG_POOL_GUID, &v) == 0)
+			return (v == guid);
+	} else {
+		if (nvlist_lookup_string(cfg, ZPOOL_CONFIG_POOL_NAME, &s) == 0)
+			return (strcmp(s, tgt) == 0);
+	}
+	return (B_FALSE);
+}
+
+static char *
+find_zpool(libzfs_handle_t *hdl, char **target,
+    nvlist_t **configp, int dirc, char **dirv)
+{
+	nvlist_t *pools;
+	nvlist_t *match = NULL;
+	char *name = NULL;
+	char *sepp = NULL;
+	char sep = '\0';
+	int count = 0;
+	importargs_t args = { 0 };
+
+	args.paths = dirc;
+	args.path = dirv;
+	args.can_be_active = B_TRUE;
+
+	if ((sepp = strpbrk(*target, "/@")) != NULL) {
+		sep = *sepp;
+		*sepp = '\0';
+	}
+
+	pools = zpool_search_import(hdl, &args);
+
+	if (pools != NULL) {
+		nvpair_t *elem = NULL;
+		while ((elem = nvlist_next_nvpair(pools, elem)) != NULL) {
+			verify(nvpair_value_nvlist(elem, configp) == 0);
+			if (pool_match(*configp, *target)) {
+				count++;
+				if (match != NULL) {
+					/* print previously found config */
+					if (name != NULL) {
+						(void) printf("%s\n", name);
+						dump_nvlist(match, 8);
+						name = NULL;
+					}
+					(void) printf("%s\n",
+					    nvpair_name(elem));
+					dump_nvlist(*configp, 8);
+				} else {
+					match = *configp;
+					name = nvpair_name(elem);
+				}
+			}
+		}
+	}
+	if (count > 1)
+		(void) fatal(0, "Matched %d pools - use pool GUID\n", count);
+
+	if (sepp)
+		*sepp = sep;
+	/*
+	 * pool GUID was specified for pool id, replace it with pool name
+	 */
+	if (name && (strstr(*target, name) != *target)) {
+		int sz = 1 + strlen(name) + ((sepp) ? strlen(sepp) : 0);
+
+		*target = umem_alloc(sz, UMEM_NOFAIL);
+		(void) snprintf(*target, sz, "%s%s", name, sepp ? sepp : "");
+	}
+
+	*configp = name ? match : NULL;
+
+	return (name);
+}
+
+
+/*
+ * Import a storage pool with the given name.
+ */
+static void
+ztest_import(ztest_shared_t *zs)
+{
+	libzfs_handle_t *hdl;
+	spa_t *spa;
+	nvlist_t *cfg = NULL;
+	int nsearch = 1;
+	char *searchdirs[nsearch];
+	char *name, *pool = ztest_opts.zo_pool;
+	int flags = ZFS_IMPORT_MISSING_LOG;
+
+	mutex_init(&ztest_vdev_lock, NULL, MUTEX_DEFAULT, NULL);
+	VERIFY(rwlock_init(&ztest_name_lock, USYNC_THREAD, NULL) == 0);
+
+	kernel_init(FREAD | FWRITE);
+	hdl = libzfs_init();
+
+	searchdirs[0] = ztest_opts.zo_dir;
+	name = find_zpool(hdl, &pool, &cfg, nsearch, searchdirs);
+	if (name == NULL)
+		(void) fatal(0, "No pools found\n");
+
+	VERIFY0(spa_import(name, cfg, NULL, flags));
+	VERIFY0(spa_open(ztest_opts.zo_pool, &spa, FTAG));
+	zs->zs_metaslab_sz =
+	    1ULL << spa->spa_root_vdev->vdev_child[0]->vdev_ms_shift;
+	spa_close(spa, FTAG);
+
+	libzfs_fini(hdl);
+	kernel_fini();
+
+	ztest_run_zdb(ztest_opts.zo_pool);
+
+	ztest_freeze();
+
+	ztest_run_zdb(ztest_opts.zo_pool);
+
+	(void) rwlock_destroy(&ztest_name_lock);
+	mutex_destroy(&ztest_vdev_lock);
+}
+
 /*
  * Create a storage pool with the given name and initial vdev size.
  * Then test spa_freeze() functionality.
@@ -6773,12 +6901,18 @@ ztest_run_init(void)
 
 	ztest_shared_t *zs = ztest_shared;
 
-	ASSERT(ztest_opts.zo_init != 0);
-
 	/*
 	 * Blow away any existing copy of zpool.cache
 	 */
 	(void) remove(spa_config_path);
+
+	if (ztest_opts.zo_init == 0) {
+		if (ztest_opts.zo_verbose >= 1)
+			(void) printf("Importing existing pool %s\n",
+			    ztest_opts.zo_pool);
+		ztest_import(zs);
+		return;
+	}
 
 	/*
 	 * Create and initialize our storage pool.

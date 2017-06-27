@@ -266,6 +266,8 @@ static int zfs_fill_zplprops_root(uint64_t, nvlist_t *, nvlist_t *,
     boolean_t *);
 int zfs_set_prop_nvlist(const char *, zprop_source_t, nvlist_t *, nvlist_t *);
 static int get_nvlist(uint64_t nvl, uint64_t size, int iflag, nvlist_t **nvp);
+static int pool_status_check(const char *, zfs_ioc_namecheck_t,
+    zfs_ioc_poolcheck_t);
 
 static void
 history_str_free(char *buf)
@@ -1578,12 +1580,25 @@ zfs_ioc_pool_import(zfs_cmd_t *zc)
 	return (error);
 }
 
+/*
+ * inputs:
+ * zc_name              name of the pool
+ * zc_zc_cookie         force flag
+ * zc->zc_guid          hardforce flag
+ */
 static int
 zfs_ioc_pool_export(zfs_cmd_t *zc)
 {
 	int error;
 	boolean_t force = (boolean_t)zc->zc_cookie;
 	boolean_t hardforce = (boolean_t)zc->zc_guid;
+
+	if (hardforce)
+		return (spa_export(zc->zc_name, NULL, force, hardforce));
+
+	error = pool_status_check(zc->zc_name, POOL_NAME, POOL_CHECK_SUSPENDED);
+	if (error)
+		return (error);
 
 	zfs_log_history(zc);
 	error = spa_export(zc->zc_name, NULL, force, hardforce);
@@ -4922,12 +4937,14 @@ zfs_ioc_clear(zfs_cmd_t *zc)
 
 	vdev_clear(spa, vd);
 
-	(void) spa_vdev_state_exit(spa, spa->spa_root_vdev, 0);
+	(void) spa_vdev_state_exit(spa, spa_suspended(spa) ?
+	    NULL : spa->spa_root_vdev, 0);
 
 	/*
 	 * Resume any suspended I/Os.
 	 */
-	if (zio_resume(spa) != 0)
+	error = zio_resume(spa, B_FALSE);
+	if (error && error != EBUSY)
 		error = SET_ERROR(EIO);
 
 	spa_close(spa, FTAG);
@@ -6122,7 +6139,7 @@ zfs_ioctl_init(void)
 	zfs_ioctl_register_pool(ZFS_IOC_POOL_DESTROY, zfs_ioc_pool_destroy,
 	    zfs_secpolicy_config, B_FALSE, POOL_CHECK_SUSPENDED);
 	zfs_ioctl_register_pool(ZFS_IOC_POOL_EXPORT, zfs_ioc_pool_export,
-	    zfs_secpolicy_config, B_FALSE, POOL_CHECK_SUSPENDED);
+	    zfs_secpolicy_config, B_FALSE, POOL_CHECK_NONE);
 
 	zfs_ioctl_register_pool(ZFS_IOC_POOL_STATS, zfs_ioc_pool_stats,
 	    zfs_secpolicy_read, B_FALSE, POOL_CHECK_NONE);
@@ -6215,7 +6232,7 @@ zfs_ioctl_init(void)
 	    zfs_secpolicy_config, NO_NAME, B_FALSE, POOL_CHECK_NONE);
 }
 
-int
+static int
 pool_status_check(const char *name, zfs_ioc_namecheck_t type,
     zfs_ioc_poolcheck_t check)
 {

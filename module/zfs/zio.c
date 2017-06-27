@@ -1866,7 +1866,7 @@ zio_suspend(spa_t *spa, zio_t *zio)
 		    "is set to panic.", spa_name(spa));
 
 	cmn_err(CE_WARN, "Pool '%s' has encountered an uncorrectable I/O "
-	    "failure and has been suspended.\n", spa_name(spa));
+	    "failure and has been suspended.", spa_name(spa));
 
 	zfs_ereport_post(FM_EREPORT_ZFS_IO_FAILURE, spa, NULL, NULL, 0, 0);
 
@@ -1891,10 +1891,35 @@ zio_suspend(spa_t *spa, zio_t *zio)
 	mutex_exit(&spa->spa_suspend_lock);
 }
 
+/*
+ * Attempt to resume a pool which has been suspended.  A pool may only be
+ * resumed when the txg in the "best" uberblock found on-disk matches the
+ * in-core last synced txg.  This is done to verify that the pool was not
+ * modified by another node or process while it was suspended.
+ *
+ * The 'discard' flag can be set to freeze the pool at the last synced txg.
+ * This makes it possible to export the pool cleanly without performing any
+ * writes to disk.
+ */
 int
-zio_resume(spa_t *spa)
+zio_resume(spa_t *spa, boolean_t discard)
 {
+	nvlist_t *label = NULL;
+	uberblock_t ub;
 	zio_t *pio;
+
+	if (discard) {
+		spa_freeze(spa);
+	} else {
+		vdev_uberblock_load(spa->spa_root_vdev, &ub, &label);
+		if (label != NULL)
+			nvlist_free(label);
+
+		if (ub.ub_guid_sum != spa->spa_ubsync.ub_guid_sum ||
+		    ub.ub_txg != spa->spa_last_ubsync_txg) {
+			return (SET_ERROR(EBUSY));
+		}
+	}
 
 	/*
 	 * Reexecute all previously suspended i/o.

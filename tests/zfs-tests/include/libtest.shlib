@@ -2005,9 +2005,9 @@ function check_pool_status # pool token keyword
 	typeset token=$2
 	typeset keyword=$3
 
-	zpool status -v "$pool" 2>/dev/null | nawk -v token="$token:" '
-		($1==token) {print $0}' \
-	| grep -i "$keyword" > /dev/null 2>&1
+	zpool status -v "$pool" 2>&1 | \
+	    nawk -v token="$token:" '($1==token) {print $0}' | \
+	    grep -i "$keyword" > /dev/null 2>&1
 
 	return $?
 }
@@ -2019,6 +2019,7 @@ function check_pool_status # pool token keyword
 #	is_pool_scrubbing - to check if the pool is scrub in progress
 #	is_pool_scrubbed - to check if the pool is scrub completed
 #	is_pool_scrub_stopped - to check if the pool is scrub stopped
+#	is_pool_suspended - to check if the pool is suspended
 #
 function is_pool_resilvering #pool
 {
@@ -2047,6 +2048,12 @@ function is_pool_scrubbed #pool
 function is_pool_scrub_stopped #pool
 {
 	check_pool_status "$1" "scan" "scrub canceled"
+	return $?
+}
+
+function is_pool_suspended #pool
+{
+	check_pool_status "$1" "errors" "pool I/O is currently suspended"
 	return $?
 }
 
