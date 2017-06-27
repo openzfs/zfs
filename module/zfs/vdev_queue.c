@@ -521,13 +521,14 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 	uint64_t maxgap = 0;
 	uint64_t size;
 	uint64_t limit;
+	int maxblocksize;
 	boolean_t stretch = B_FALSE;
 	avl_tree_t *t = vdev_queue_type_tree(vq, zio->io_type);
 	enum zio_flag flags = zio->io_flags & ZIO_FLAG_AGG_INHERIT;
 	abd_t *abd;
 
-	limit = MAX(MIN(zfs_vdev_aggregation_limit,
-	    spa_maxblocksize(vq->vq_vdev->vdev_spa)), 0);
+	maxblocksize = spa_maxblocksize(vq->vq_vdev->vdev_spa);
+	limit = MAX(MIN(zfs_vdev_aggregation_limit, maxblocksize), 0);
 
 	if (zio->io_flags & ZIO_FLAG_DONT_AGGREGATE || limit == 0)
 		return (NULL);
@@ -584,6 +585,7 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 	    (dio->io_flags & ZIO_FLAG_AGG_INHERIT) == flags &&
 	    (IO_SPAN(first, dio) <= limit ||
 	    (dio->io_flags & ZIO_FLAG_OPTIONAL)) &&
+	    IO_SPAN(first, dio) <= maxblocksize &&
 	    IO_GAP(last, dio) <= maxgap) {
 		last = dio;
 		if (!(last->io_flags & ZIO_FLAG_OPTIONAL))
@@ -635,6 +637,7 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 		return (NULL);
 
 	size = IO_SPAN(first, last);
+	ASSERT3U(size, <=, maxblocksize);
 
 	abd = abd_alloc_for_io(size, B_TRUE);
 	if (abd == NULL)
