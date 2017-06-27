@@ -2219,14 +2219,12 @@ static boolean_t
 zfs_force_import_required(nvlist_t *config)
 {
 	uint64_t state;
-	uint64_t hostid = 0, orig_txg = 0;
+	uint64_t hostid = 0;
 	unsigned long system_hostid = get_system_hostid();
 
 	state = fnvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_STATE);
 	(void) nvlist_lookup_uint64(config, ZPOOL_CONFIG_HOSTID,
 	    &hostid);
-	(void) nvlist_lookup_uint64(config, ZPOOL_CONFIG_IMPORT_TXG,
-	    &orig_txg);
 
 	if (state == POOL_STATE_ACTIVE &&
 	    (unsigned long)hostid != system_hostid)

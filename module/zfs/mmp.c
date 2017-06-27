@@ -535,7 +535,8 @@ mmp_thread(spa_t *spa)
 	}
 
 cleanup_and_exit:
-	zio_wait(mmp->mmp_zio_root);	/* let outstanding writes complete */
+	if (mmp->mmp_zio_root)		/* let outstanding writes complete */
+		zio_wait(mmp->mmp_zio_root);
 	mmp->mmp_zio_root = NULL;
 	mmp_thread_exit(mmp, &mmp->mmp_thread, &cpr);
 }

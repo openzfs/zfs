@@ -2346,13 +2346,13 @@ spa_activity_check_required(spa_t *spa, uberblock_t *ub, nvlist_t *config)
 {
 	uint64_t config_pool_state = 0;
 	uint64_t hostid = 0, myhostid = spa_get_hostid();
-	uint64_t orig_txg = 0;
-	uint64_t orig_timestamp = 0;
+	uint64_t tryconfig_txg = 0;
+	uint64_t tryconfig_timestamp = 0;
 
 	(void) nvlist_lookup_uint64(config, ZPOOL_CONFIG_IMPORT_TXG,
-	    &orig_txg);
+	    &tryconfig_txg);
 	(void) nvlist_lookup_uint64(config, ZPOOL_CONFIG_TIMESTAMP,
-	    &orig_timestamp);
+	    &tryconfig_timestamp);
 	(void) nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_STATE,
 	    &config_pool_state);
 	(void) nvlist_lookup_uint64(config, ZPOOL_CONFIG_HOSTID, &hostid);
@@ -2385,8 +2385,8 @@ spa_activity_check_required(spa_t *spa, uberblock_t *ub, nvlist_t *config)
 	 * tryimport.  If they match the uberblock we just found, then the pool
 	 * has not changed and we return false so we do not test a second time.
 	 */
-	if (orig_txg && orig_timestamp && orig_txg == ub->ub_txg &&
-	    orig_timestamp == ub->ub_timestamp)
+	if (tryconfig_txg && tryconfig_timestamp && tryconfig_txg ==
+	    ub->ub_txg && tryconfig_timestamp == ub->ub_timestamp)
 		return (B_FALSE);
 
 	if (hostid == myhostid)
@@ -2472,6 +2472,7 @@ spa_activity_check(spa_t *spa, uberblock_t *ub)
 	 */
 	if (error == EREMOTEIO) {
 		char *hostname = "unknown";
+		char *poolname;
 		uint64_t hostid = 0;
 
 		if (mmp_label) {
@@ -2489,9 +2490,12 @@ spa_activity_check(spa_t *spa, uberblock_t *ub)
 			    ZPOOL_CONFIG_IMPORT_HOSTID, hostid);
 		}
 
+		poolname = fnvlist_lookup_string(spa->spa_config,
+		    ZPOOL_CONFIG_POOL_NAME);
+
 		cmn_err(CE_WARN, "pool '%s' could not be loaded as it is being "
 		    "accessed by another system (host: %s hostid: 0x%lx)",
-		    spa_name(spa), hostname, (unsigned long)hostid);
+		    poolname, hostname, (unsigned long)hostid);
 
 		error = spa_vdev_err(rvd, VDEV_AUX_ACTIVE, EREMOTEIO);
 		nvlist_free(mmp_label);
@@ -4420,14 +4424,21 @@ spa_tryimport(nvlist_t *tryconfig)
 		    poolname) == 0);
 		VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_POOL_STATE,
 		    state) == 0);
-		VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_IMPORT_TXG,
-		    spa->spa_uberblock.ub_txg) == 0);
 		VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_TIMESTAMP,
 		    spa->spa_uberblock.ub_timestamp) == 0);
 		VERIFY(nvlist_add_nvlist(config, ZPOOL_CONFIG_LOAD_INFO,
 		    spa->spa_load_info) == 0);
 		VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_ERRATA,
 		    spa->spa_errata) == 0);
+
+		if (error == EREMOTEIO) {
+			VERIFY(nvlist_add_uint64(config,
+			    ZPOOL_CONFIG_IMPORT_TXG, 0) == 0);
+		} else {
+			VERIFY(nvlist_add_uint64(config,
+			    ZPOOL_CONFIG_IMPORT_TXG,
+			    spa->spa_uberblock.ub_txg) == 0);
+		}
 
 		/*
 		 * If the bootfs property exists on this pool then we
