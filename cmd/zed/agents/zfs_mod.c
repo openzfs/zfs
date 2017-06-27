@@ -192,6 +192,7 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 	int ret;
 	int is_dm = 0;
 	int is_sd = 0;
+	uint64_t part;
 	uint_t c;
 	vdev_stat_t *vs;
 
@@ -223,6 +224,9 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 	    physpath ? physpath : "NULL", wholedisk, is_dm,
 	    (long long unsigned int)guid);
 
+	/* Find out the partition type */
+	part = zpool_get_prop_int(zhp, ZPOOL_PROP_PARTITION, NULL);
+
 	/*
 	 * The VDEV guid is preferred for identification (gets passed in path)
 	 */
@@ -234,7 +238,7 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 		 * otherwise use path sans partition suffix for whole disks
 		 */
 		(void) strlcpy(fullpath, path, sizeof (fullpath));
-		if (wholedisk) {
+		if (wholedisk && part != ZPOOL_PARTITION_RAW) {
 			char *spath = zfs_strip_partition(fullpath);
 			if (!spath) {
 				zed_log_msg(LOG_INFO, "%s: Can't alloc",
@@ -309,7 +313,7 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 
 	nvlist_lookup_string(vdev, "new_devid", &new_devid);
 
-	if (is_dm) {
+	if (is_dm || part == ZPOOL_PARTITION_RAW) {
 		/* Don't label device mapper or multipath disks. */
 	} else if (!labeled) {
 		/*

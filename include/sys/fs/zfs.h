@@ -224,6 +224,7 @@ typedef enum {
 	ZPOOL_PROP_TNAME,
 	ZPOOL_PROP_MAXDNODESIZE,
 	ZPOOL_PROP_MULTIHOST,
+	ZPOOL_PROP_PARTITION,
 	ZPOOL_NUM_PROPS
 } zpool_prop_t;
 
@@ -857,6 +858,11 @@ typedef enum zpool_errata {
 	ZPOOL_ERRATA_ZOL_2094_SCRUB,
 	ZPOOL_ERRATA_ZOL_2094_ASYNC_DESTROY,
 } zpool_errata_t;
+
+enum zpool_part {
+	ZPOOL_PARTITION_LEGACY = 0,
+	ZPOOL_PARTITION_RAW,
+};
 
 /*
  * Vdev statistics.  Note: all fields should be 64-bit because this

@@ -1216,10 +1216,10 @@ zfs_resolve_shortname(const char *name, char *path, size_t len)
  * is done by checking all prefix expansions using either the default
  * 'zpool_default_import_paths' or the ZPOOL_IMPORT_PATH environment
  * variable.  Proper partition suffixes will be appended if this is a
- * whole disk.  When a match is found 0 is returned otherwise ENOENT.
+ * legacy whole disk.  When a match is found 0 is returned otherwise ENOENT.
  */
 static int
-zfs_strcmp_shortname(char *name, char *cmp_name, int wholedisk)
+zfs_strcmp_shortname(char *name, char *cmp_name, int append)
 {
 	int path_len, cmp_len, i = 0, error = ENOENT;
 	char *dir, *env, *envdup = NULL;
@@ -1241,7 +1241,7 @@ zfs_strcmp_shortname(char *name, char *cmp_name, int wholedisk)
 			dir[strlen(dir)-1] = '\0';
 
 		path_len = snprintf(path_name, MAXPATHLEN, "%s/%s", dir, name);
-		if (wholedisk)
+		if (append)
 			path_len = zfs_append_partition(path_name, MAXPATHLEN);
 
 		if ((path_len == cmp_len) && strcmp(path_name, cmp_name) == 0) {
@@ -1270,7 +1270,7 @@ zfs_strcmp_shortname(char *name, char *cmp_name, int wholedisk)
  * purposes and redundant slashes stripped to ensure an accurate match.
  */
 int
-zfs_strcmp_pathname(char *name, char *cmp, int wholedisk)
+zfs_strcmp_pathname(char *name, char *cmp, int append)
 {
 	int path_len, cmp_len;
 	char path_name[MAXPATHLEN];
@@ -1289,13 +1289,13 @@ zfs_strcmp_pathname(char *name, char *cmp, int wholedisk)
 	free(dup);
 
 	if (name[0] != '/')
-		return (zfs_strcmp_shortname(name, cmp_name, wholedisk));
+		return (zfs_strcmp_shortname(name, cmp_name, append));
 
 	(void) strlcpy(path_name, name, MAXPATHLEN);
 	path_len = strlen(path_name);
 	cmp_len = strlen(cmp_name);
 
-	if (wholedisk) {
+	if (append) {
 		path_len = zfs_append_partition(path_name, MAXPATHLEN);
 		if (path_len == -1)
 			return (ENOMEM);

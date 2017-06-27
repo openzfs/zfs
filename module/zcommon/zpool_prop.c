@@ -64,6 +64,12 @@ zpool_prop_init(void)
 		{ NULL }
 	};
 
+	static zprop_index_t part_table[] = {
+		{ "legacy",	ZPOOL_PARTITION_LEGACY },
+		{ "raw",	ZPOOL_PARTITION_RAW },
+		{ NULL }
+	};
+
 	/* string properties */
 	zprop_register_string(ZPOOL_PROP_ALTROOT, "altroot", NULL, PROP_DEFAULT,
 	    ZFS_TYPE_POOL, "<path>", "ALTROOT");
@@ -128,6 +134,10 @@ zpool_prop_init(void)
 	zprop_register_index(ZPOOL_PROP_FAILUREMODE, "failmode",
 	    ZIO_FAILURE_MODE_WAIT, PROP_DEFAULT, ZFS_TYPE_POOL,
 	    "wait | continue | panic", "FAILMODE", failuremode_table);
+	zprop_register_index(ZPOOL_PROP_PARTITION, "partition",
+	    ZPOOL_PARTITION_LEGACY, PROP_ONETIME, ZFS_TYPE_POOL,
+	    "legacy | raw", "PART", part_table);
+
 
 	/* hidden properties */
 	zprop_register_hidden(ZPOOL_PROP_NAME, "name", PROP_TYPE_STRING,

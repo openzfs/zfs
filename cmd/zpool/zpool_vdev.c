@@ -1188,7 +1188,7 @@ zero_label(char *path)
  * need to get the devid after we label the disk.
  */
 static int
-make_disks(zpool_handle_t *zhp, nvlist_t *nv)
+make_disks(zpool_handle_t *zhp, nvlist_t *props, nvlist_t *nv)
 {
 	nvlist_t **child;
 	uint_t c, children;
@@ -1196,12 +1196,30 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 	char devpath[MAXPATHLEN];
 	char udevpath[MAXPATHLEN];
 	uint64_t wholedisk;
+	uint64_t part = ZPOOL_PARTITION_LEGACY;
 	struct stat64 statbuf;
 	int is_exclusive = 0;
 	int fd;
 	int ret;
 
 	verify(nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &type) == 0);
+
+	/*
+	 * Find out the partition type. If zhp exists, this is an existing
+	 * pool, get it from pool property. Otherwise, this is pool creation,
+	 * get it from cmdline from props.
+	 */
+	if (zhp)
+		part = zpool_get_prop_int(zhp, ZPOOL_PROP_PARTITION, NULL);
+	else if (props) {
+		char *strval;
+		uint64_t index;
+		if (nvlist_lookup_string(props,
+		    zpool_prop_to_name(ZPOOL_PROP_PARTITION), &strval) == 0 &&
+		    zpool_prop_string_to_index(ZPOOL_PROP_PARTITION, strval,
+		    &index) == 0)
+			part = index;
+	}
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
 	    &child, &children) != 0) {
@@ -1210,7 +1228,7 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 			return (0);
 
 		/*
-		 * We have a disk device.  If this is a whole disk write
+		 * We have a disk device.  If this is a legacy whole disk write
 		 * out the efi partition table, otherwise write zero's to
 		 * the first 4k of the partition.  This is to ensure that
 		 * libblkid will not misidentify the partition due to a
@@ -1220,11 +1238,11 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 		verify(!nvlist_lookup_uint64(nv, ZPOOL_CONFIG_WHOLE_DISK,
 		    &wholedisk));
 
-		if (!wholedisk) {
+		if (!wholedisk || part == ZPOOL_PARTITION_RAW) {
 			/*
 			 * Update device id string for mpath nodes (Linux only)
 			 */
-			if (is_mpath_whole_disk(path))
+			if (wholedisk || is_mpath_whole_disk(path))
 				update_vdev_config_dev_strs(nv);
 
 			if (!is_spare(NULL, path))
@@ -1319,19 +1337,19 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 	}
 
 	for (c = 0; c < children; c++)
-		if ((ret = make_disks(zhp, child[c])) != 0)
+		if ((ret = make_disks(zhp, props, child[c])) != 0)
 			return (ret);
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_SPARES,
 	    &child, &children) == 0)
 		for (c = 0; c < children; c++)
-			if ((ret = make_disks(zhp, child[c])) != 0)
+			if ((ret = make_disks(zhp, props, child[c])) != 0)
 				return (ret);
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_L2CACHE,
 	    &child, &children) == 0)
 		for (c = 0; c < children; c++)
-			if ((ret = make_disks(zhp, child[c])) != 0)
+			if ((ret = make_disks(zhp, props, child[c])) != 0)
 				return (ret);
 
 	return (0);
@@ -1342,8 +1360,8 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
  * the majority of this task.
  */
 static boolean_t
-is_device_in_use(nvlist_t *config, nvlist_t *nv, boolean_t force,
-    boolean_t replacing, boolean_t isspare)
+is_device_in_use(zpool_handle_t *zhp, nvlist_t *config, nvlist_t *nv,
+    boolean_t force, boolean_t replacing, boolean_t isspare)
 {
 	nvlist_t **child;
 	uint_t c, children;
@@ -1369,8 +1387,13 @@ is_device_in_use(nvlist_t *config, nvlist_t *nv, boolean_t force,
 		 * regardless of what libblkid or zpool_in_use() says.
 		 */
 		if (replacing) {
+			uint64_t part = ZPOOL_PARTITION_LEGACY;
+			if (zhp)
+				part = zpool_get_prop_int(zhp,
+				    ZPOOL_PROP_PARTITION, NULL);
+
 			(void) strlcpy(buf, path, sizeof (buf));
-			if (wholedisk) {
+			if (wholedisk && part == ZPOOL_PARTITION_LEGACY) {
 				ret = zfs_append_partition(buf,  sizeof (buf));
 				if (ret == -1)
 					return (-1);
@@ -1390,22 +1413,22 @@ is_device_in_use(nvlist_t *config, nvlist_t *nv, boolean_t force,
 	}
 
 	for (c = 0; c < children; c++)
-		if (is_device_in_use(config, child[c], force, replacing,
+		if (is_device_in_use(zhp, config, child[c], force, replacing,
 		    B_FALSE))
 			anyinuse = B_TRUE;
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_SPARES,
 	    &child, &children) == 0)
 		for (c = 0; c < children; c++)
-			if (is_device_in_use(config, child[c], force, replacing,
-			    B_TRUE))
+			if (is_device_in_use(zhp, config, child[c], force,
+			    replacing, B_TRUE))
 				anyinuse = B_TRUE;
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_L2CACHE,
 	    &child, &children) == 0)
 		for (c = 0; c < children; c++)
-			if (is_device_in_use(config, child[c], force, replacing,
-			    B_FALSE))
+			if (is_device_in_use(zhp, config, child[c], force,
+			    replacing, B_FALSE))
 				anyinuse = B_TRUE;
 
 	return (anyinuse);
@@ -1706,7 +1729,7 @@ split_mirror_vdev(zpool_handle_t *zhp, char *newname, nvlist_t *props,
 			return (NULL);
 		}
 
-		if (!flags.dryrun && make_disks(zhp, newroot) != 0) {
+		if (!flags.dryrun && make_disks(zhp, props, newroot) != 0) {
 			nvlist_free(newroot);
 			return (NULL);
 		}
@@ -1775,7 +1798,8 @@ make_root_vdev(zpool_handle_t *zhp, nvlist_t *props, int force, int check_rep,
 	 * uses (such as a dedicated dump device) that even '-f' cannot
 	 * override.
 	 */
-	if (is_device_in_use(poolconfig, newroot, force, replacing, B_FALSE)) {
+	if (is_device_in_use(zhp, poolconfig, newroot, force, replacing,
+	    B_FALSE)) {
 		nvlist_free(newroot);
 		return (NULL);
 	}
@@ -1793,7 +1817,7 @@ make_root_vdev(zpool_handle_t *zhp, nvlist_t *props, int force, int check_rep,
 	/*
 	 * Run through the vdev specification and label any whole disks found.
 	 */
-	if (!dryrun && make_disks(zhp, newroot) != 0) {
+	if (!dryrun && make_disks(zhp, props, newroot) != 0) {
 		nvlist_free(newroot);
 		return (NULL);
 	}

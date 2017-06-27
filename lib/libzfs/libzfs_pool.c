@@ -2020,8 +2020,8 @@ zpool_scan(zpool_handle_t *zhp, pool_scan_func_t func, pool_scrub_cmd_t cmd)
  * spare; but FALSE if its an INUSE spare.
  */
 static nvlist_t *
-vdev_to_nvlist_iter(nvlist_t *nv, nvlist_t *search, boolean_t *avail_spare,
-    boolean_t *l2cache, boolean_t *log)
+vdev_to_nvlist_iter(zpool_handle_t *zhp, nvlist_t *nv, nvlist_t *search,
+    boolean_t *avail_spare, boolean_t *l2cache, boolean_t *log)
 {
 	uint_t c, children;
 	nvlist_t **child;
@@ -2060,8 +2060,8 @@ vdev_to_nvlist_iter(nvlist_t *nv, nvlist_t *search, boolean_t *avail_spare,
 		/*
 		 * Search for the requested value. Special cases:
 		 *
-		 * - ZPOOL_CONFIG_PATH for whole disk entries.  These end in
-		 *   "-part1", or "p1".  The suffix is hidden from the user,
+		 * - ZPOOL_CONFIG_PATH for legacy whole disk entries.  These end
+		 *   in "-part1", or "p1".  The suffix is hidden from the user,
 		 *   but included in the string, so this matches around it.
 		 * - ZPOOL_CONFIG_PATH for short names zfs_strcmp_shortname()
 		 *   is used to check all possible expanded paths.
@@ -2071,10 +2071,17 @@ vdev_to_nvlist_iter(nvlist_t *nv, nvlist_t *search, boolean_t *avail_spare,
 		 */
 		if (strcmp(srchkey, ZPOOL_CONFIG_PATH) == 0) {
 			uint64_t wholedisk = 0;
+			uint64_t part = ZPOOL_PARTITION_LEGACY;
+			boolean_t append;
 
+			if (zhp)
+				part = zpool_get_prop_int(zhp,
+				    ZPOOL_PROP_PARTITION, NULL);
 			(void) nvlist_lookup_uint64(nv, ZPOOL_CONFIG_WHOLE_DISK,
 			    &wholedisk);
-			if (zfs_strcmp_pathname(srchval, val, wholedisk) == 0)
+
+			append = wholedisk && (part == ZPOOL_PARTITION_LEGACY);
+			if (zfs_strcmp_pathname(srchval, val, append) == 0)
 				return (nv);
 
 		} else if (strcmp(srchkey, ZPOOL_CONFIG_TYPE) == 0 && val) {
@@ -2142,7 +2149,7 @@ vdev_to_nvlist_iter(nvlist_t *nv, nvlist_t *search, boolean_t *avail_spare,
 		return (NULL);
 
 	for (c = 0; c < children; c++) {
-		if ((ret = vdev_to_nvlist_iter(child[c], search,
+		if ((ret = vdev_to_nvlist_iter(zhp, child[c], search,
 		    avail_spare, l2cache, NULL)) != NULL) {
 			/*
 			 * The 'is_log' value is only set for the toplevel
@@ -2163,7 +2170,7 @@ vdev_to_nvlist_iter(nvlist_t *nv, nvlist_t *search, boolean_t *avail_spare,
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_SPARES,
 	    &child, &children) == 0) {
 		for (c = 0; c < children; c++) {
-			if ((ret = vdev_to_nvlist_iter(child[c], search,
+			if ((ret = vdev_to_nvlist_iter(zhp, child[c], search,
 			    avail_spare, l2cache, NULL)) != NULL) {
 				*avail_spare = B_TRUE;
 				return (ret);
@@ -2174,7 +2181,7 @@ vdev_to_nvlist_iter(nvlist_t *nv, nvlist_t *search, boolean_t *avail_spare,
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_L2CACHE,
 	    &child, &children) == 0) {
 		for (c = 0; c < children; c++) {
-			if ((ret = vdev_to_nvlist_iter(child[c], search,
+			if ((ret = vdev_to_nvlist_iter(zhp, child[c], search,
 			    avail_spare, l2cache, NULL)) != NULL) {
 				*l2cache = B_TRUE;
 				return (ret);
@@ -2205,7 +2212,8 @@ zpool_find_vdev_by_physpath(zpool_handle_t *zhp, const char *ppath,
 	*l2cache = B_FALSE;
 	if (log != NULL)
 		*log = B_FALSE;
-	ret = vdev_to_nvlist_iter(nvroot, search, avail_spare, l2cache, log);
+	ret = vdev_to_nvlist_iter(zhp, nvroot, search, avail_spare, l2cache,
+	    log);
 	nvlist_free(search);
 
 	return (ret);
@@ -2249,7 +2257,8 @@ zpool_find_vdev(zpool_handle_t *zhp, const char *path, boolean_t *avail_spare,
 	*l2cache = B_FALSE;
 	if (log != NULL)
 		*log = B_FALSE;
-	ret = vdev_to_nvlist_iter(nvroot, search, avail_spare, l2cache, log);
+	ret = vdev_to_nvlist_iter(zhp, nvroot, search, avail_spare, l2cache,
+	    log);
 	nvlist_free(search);
 
 	return (ret);
