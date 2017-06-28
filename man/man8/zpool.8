@@ -27,8 +27,8 @@
 .\" Copyright (c) 2017 George Melikov. All Rights Reserved.
 .\"
 .Dd June 22, 2017
-.Dt ZPOOL 8
-.Os
+.Dt ZPOOL 8 SMM
+.Os Linux
 .Sh NAME
 .Nm zpool
 .Nd configure ZFS storage pools
@@ -407,7 +407,7 @@ If a pool has a shared spare that is currently being used, the pool can not be
 exported since other pools may use this shared spare, which may lead to
 potential data corruption.
 .Pp
-An in-progress spare replacement can be cancelled by detaching the hot spare.
+An in-progress spare replacement can be canceled by detaching the hot spare.
 If the original faulted device is detached, then the hot spare assumes its
 place in the configuration, and is removed from the spare list of all active
 pools.
@@ -568,8 +568,8 @@ changed with the
 command:
 .Bl -tag -width Ds
 .It Sy ashift Ns = Ns Sy ashift
-Pool sector size exponent, to the power of 
-.Sy 2 
+Pool sector size exponent, to the power of
+.Sy 2
 (internally referred to as
 .Sy ashift
 ). Values from 9 to 16, inclusive, are valid; also, the special
@@ -582,8 +582,8 @@ sector size should be greater than or equal to the sector size of the
 underlying disks. The typical case for setting this property is when
 performance is important and the underlying disks use 4KiB sectors but
 report 512B sectors to the OS (for compatibility reasons); in that
-case, set 
-.Sy ashift=12 
+case, set
+.Sy ashift=12
 (which is 1<<12 = 4096). When set, this property is
 used as the default hint value in subsequent vdev operations (add,
 attach and replace). Changing this value will not modify any existing
@@ -617,15 +617,16 @@ belonged to the pool, is automatically formatted and replaced.
 The default behavior is
 .Sy off .
 This property can also be referred to by its shortened column name,
-.Sy replace . 
+.Sy replace .
 Autoreplace can also be used with virtual disks (like device
 mapper) provided that you use the /dev/disk/by-vdev paths setup by
-vdev_id.conf. See the 
+vdev_id.conf. See the
 .Xr vdev_id 8
 man page for more details.
-Autoreplace and autoonline require libudev to be present at build time.
-If you're using device mapper disks, you must have libdevmapper
-installed at build time as well.
+Autoreplace and autoonline require the ZFS Event Daemon be configured and
+running.  See the
+.Xr zed 8
+man page for more details.
 .It Sy bootfs Ns = Ns Sy (unset) Ns | Ns Ar pool Ns / Ns Ar dataset
 Identifies the default bootable dataset for the root pool. This property is
 expected to be set mainly by the installation and upgrade programs.
@@ -770,9 +771,9 @@ Display
 GUIDs instead of the normal device names. These GUIDs can be used in place of
 device names for the zpool detach/offline/remove/replace commands.
 .It Fl L
-Display real paths for 
+Display real paths for
 .Ar vdev Ns s
-resolving all symbolic links. This can be used to look up the current block 
+resolving all symbolic links. This can be used to look up the current block
 device name regardless of the /dev/disk/ path used to open it.
 .It Fl n
 Displays the configuration that would be used without actually adding the
@@ -780,12 +781,12 @@ Displays the configuration that would be used without actually adding the
 The actual pool creation can still fail due to insufficient privileges or
 device sharing.
 .It Fl P
-Display real paths for 
+Display real paths for
 .Ar vdev Ns s
-instead of only the last component of the path. This can be used in 
+instead of only the last component of the path. This can be used in
 conjunction with the -L flag.
 .It Fl o Ar property Ns = Ns Ar value
-Sets the given pool properties. See the 
+Sets the given pool properties. See the
 .Sx Properties
 section for a list of valid properties that can be set. The only property
 supported at the moment is ashift.
@@ -825,7 +826,7 @@ Forces use of
 even if its appears to be in use.
 Not all devices can be overridden in this manner.
 .It Fl o Ar property Ns = Ns Ar value
-Sets the given pool properties. See the 
+Sets the given pool properties. See the
 .Sx Properties
 section for a list of valid properties that can be set. The only property
 supported at the moment is ashift.
@@ -969,9 +970,9 @@ for a list of valid properties that can be set.
 Equivalent to
 .Fl o Sy cachefile Ns = Ns Sy none Fl o Sy altroot Ns = Ns Ar root
 .It Fl t Ar tname
-Sets the in-core pool name to 
-.Sy tname 
-while the on-disk name will be the name specified as the pool name 
+Sets the in-core pool name to
+.Sy tname
+while the on-disk name will be the name specified as the pool name
 .Sy pool .
 This will set the default cachefile property to none. This is intended
 to handle name space collisions when creating pools for other systems,
@@ -999,8 +1000,8 @@ Detaches
 .Ar device
 from a mirror.
 The operation is refused if there are no other valid replicas of the data.
-If device may be re-added to the pool later on then consider the 
-.Sy zpool offline 
+If device may be re-added to the pool later on then consider the
+.Sy zpool offline
 command instead.
 .It Xo
 .Nm
@@ -1008,10 +1009,14 @@ command instead.
 .Op Fl cfHv
 .Op Ar pool Ns ...
 .Xc
-Description of the different events generated by the ZFS kernel modules. See 
-.Xr zfs 1M
-for more information about the subclasses and event payloads that can be
-generated.
+Lists all recent events generated by the ZFS kernel modules.  These events
+are consumed by the
+.Xr zed 8
+and used to automate administrative tasks such as replacing a failed device
+with a hot spare. For more information about the subclasses and event payloads
+that can be generated see the
+.Xr zfs-events 5
+man page.
 .Bl -tag -width Ds
 .It Fl c
 Clear all previous events.
@@ -1021,7 +1026,7 @@ Follow mode.
 Scripted mode. Do not display headers, and separate fields by a
 single tab instead of arbitrary space.
 .It Fl v
-Get a full detail of the events and what information is available about it.
+Print the entire payload for each event.
 .El
 .It Xo
 .Nm
@@ -1251,7 +1256,7 @@ Scan using the default search path, the libblkid cache will not be
 consulted. A custom search path may be specified by setting the
 ZPOOL_IMPORT_PATH environment variable.
 .It Fl X
-Used with the 
+Used with the
 .Fl F
 recovery option. Determines whether extreme
 measures to find a valid txg should take place. This allows the pool to
@@ -1262,12 +1267,12 @@ checksum errors. For more details about pool recovery mode, see the
 option, above. WARNING: This option can be extremely hazardous to the
 health of your pool and should only be used as a last resort.
 .It Fl T
-Specify the txg to use for rollback. Implies 
+Specify the txg to use for rollback. Implies
 .Fl FX .
 For more details
-about pool recovery mode, see the 
+about pool recovery mode, see the
 .Fl X
-option, above. WARNING: This option can be extremely hazardous to the 
+option, above. WARNING: This option can be extremely hazardous to the
 health of your pool and should only be used as a last resort.
 .El
 .It Xo
@@ -1369,7 +1374,7 @@ Scan using the default search path, the libblkid cache will not be
 consulted. A custom search path may be specified by setting the
 ZPOOL_IMPORT_PATH environment variable.
 .It Fl X
-Used with the 
+Used with the
 .Fl F
 recovery option. Determines whether extreme
 measures to find a valid txg should take place. This allows the pool to
@@ -1380,19 +1385,19 @@ checksum errors. For more details about pool recovery mode, see the
 option, above. WARNING: This option can be extremely hazardous to the
 health of your pool and should only be used as a last resort.
 .It Fl T
-Specify the txg to use for rollback. Implies 
+Specify the txg to use for rollback. Implies
 .Fl FX .
 For more details
-about pool recovery mode, see the 
+about pool recovery mode, see the
 .Fl X
-option, above. WARNING: This option can be extremely hazardous to the 
+option, above. WARNING: This option can be extremely hazardous to the
 health of your pool and should only be used as a last resort.
 .It Fl s
-Used with 
+Used with
 .Sy newpool .
-Specifies that 
+Specifies that
 .Sy newpool
-is temporary. Temporary pool names last until export. Ensures that 
+is temporary. Temporary pool names last until export. Ensures that
 the original pool name will be used in all label updates and therefore
 is retained upon export.
 Will also set -o cachefile=none when not explicitly specified.
@@ -1415,40 +1420,38 @@ When given an
 the statistics are printed every
 .Ar interval
 seconds until ^C is pressed. If count is specified, the command exits
-after count reports are printed. The first report printed is always 
-the statistics since boot regardless of whether 
+after count reports are printed. The first report printed is always
+the statistics since boot regardless of whether
 .Ar interval
 and
 .Ar count
-are passed. However, this behavior can be suppressed with the 
-.Fl y 
-flag. Also note that the units of 
-.Sy K , 
+are passed. However, this behavior can be suppressed with the
+.Fl y
+flag. Also note that the units of
+.Sy K ,
 .Sy M ,
 .Sy G ...
 that are printed in the report are in base 1024. To get the raw
-values, use the 
+values, use the
 .Fl p
 flag.
 .Bl -tag -width Ds
 .It Fl c Op Ar SCRIPT1 , Ar SCRIPT2 ...
-Run a script (or scripts) on each vdev and include the output in zpool iostat.
-.Pp
-The 
-.Fl c
-option allows you to run script(s) for each vdev and display the
-output in zpool iostat. For security reasons, a user can only execute
-scripts as an unprivileged user. By default, a user may run a script
-from ~/.zpool.d or /etc/zfs/zpool.d. The default search path can be
-overriden by setting the ZPOOL_SCRIPTS_PATH environment variable. A
-privileged user can run 
+Run a script (or scripts) on each vdev and include the output as a new column
+in the
+.Nm zpool Cm iostat
+output. Users can run any script found in their
+.Pa ~/.zpool.d
+directory or from the system
+.Pa /etc/zfs/zpool.d
+directory. The default search path can be overridden by setting the
+ZPOOL_SCRIPTS_PATH environment variable. A privileged user can run
 .Fl c
 if they have the ZPOOL_SCRIPTS_AS_ROOT
 environment variable set. If a script requires the use of a privileged
-command (like 
+command, like
 .Xr smartctl 8
-) then it's recommended you allow the user
-access to it in 
+, then it's recommended you allow the user access to it in
 .Pa /etc/sudoers
 or add the user to the
 .Pa /etc/sudoers.d/zfs
@@ -1471,20 +1474,19 @@ awk-able.
 .Pp
 The following environment variables are set before running each script:
 .Pp
-.Ar $VDEV_PATH :
-Full path to the vdev. 
-.Ar $VDEV_UPATH :
-"Underlying path" to
-the vdev. For device mapper, multipath, or partitioned vdevs,
-.Ar VDEV_UPATH
-is the actual underlying 
-.Pa /dev/sd*
-disk. This can be useful
-if the command you're running requires a 
-.Pa /dev/sd*
-device.
-.Ar $VDEV_ENC_SYSFS_PATH :
-The sysfs path to the vdev's enclosure LEDs (if any).
+.Bl -tag -width "VDEV_PATH"
+.It Sy VDEV_PATH
+Full path to the vdev
+.El
+.Bl -tag -width "VDEV_UPATH"
+.It Sy VDEV_UPATH
+Underlying path to the vdev (/dev/sd*).  For use with device mapper,
+multipath, or partitioned vdevs.
+.El
+.Bl -tag -width "VDEV_ENC_SYSFS_PATH"
+.It Sy VDEV_ENC_SYSFS_PATH
+The sysfs path to the enclosure for the vdev (if any).
+.El
 .It Fl T Sy u Ns | Ns Sy d
 Display a time stamp.
 Specify
@@ -1514,7 +1516,7 @@ Display numbers in parsable (exact) values. Time values are in
 nanoseconds.
 .It Fl P
 Display full paths for vdevs instead of only the last component of
-the path. This can be used in conjunction with the 
+the path. This can be used in conjunction with the
 .Fl L
 flag.
 .It Fl r
@@ -1536,15 +1538,15 @@ pool, in addition to the pool-wide statistics.
 Include average latency statistics:
 .Pp
 .Ar total_wait :
-Average total IO time (queuing + disk IO time). 
+Average total IO time (queuing + disk IO time).
 .Ar disk_wait :
-Average disk IO time (time reading/writing the disk). 
+Average disk IO time (time reading/writing the disk).
 .Ar syncq_wait :
 Average amount of time IO spent in synchronous priority queues. Does
-not include disk time. 
+not include disk time.
 .Ar asyncq_wait :
 Average amount of time IO spent in asynchronous priority queues.
-Does not include disk time. 
+Does not include disk time.
 .Ar scrub :
 Average queuing time in scrub queue. Does not include disk time.
 .It Fl q
@@ -1634,7 +1636,7 @@ Display numbers in parsable
 values.
 .It Fl P
 Display full paths for vdevs instead of only the last component of
-the path. This can be used in conjunction with the 
+the path. This can be used in conjunction with the
 .Fl L flag.
 .It Fl T Sy u Ns | Ns Sy d
 Display a time stamp.
@@ -1758,10 +1760,10 @@ Forces use of
 even if its appears to be in use.
 Not all devices can be overridden in this manner.
 .It Fl o Ar property Ns = Ns Ar value
-Sets the given pool properties. See the 
+Sets the given pool properties. See the
 .Sx Properties
 section for a list of valid properties that can be set.
-The only property supported at the moment is 
+The only property supported at the moment is
 .Sy ashift .
 .El
 .It Xo
@@ -1875,7 +1877,7 @@ for
 .Ar newpool
 to
 .Ar root
-and automaticaly import it.
+and automatically import it.
 .El
 .It Xo
 .Nm
@@ -1900,59 +1902,14 @@ Both of these are only approximate, because the amount of data in the pool and
 the other workloads on the system can change.
 .Bl -tag -width Ds
 .It Fl c Op Ar SCRIPT1 , Ar SCRIPT2 ...
-Run a script (or scripts) on each vdev and include the output in zpool iostat.
-.Pp
-The 
+Run a script (or scripts) on each vdev and include the output as a new column
+in the
+.Nm zpool Cm status
+output.  See the
 .Fl c
-option allows you to run script(s) for each vdev and display the
-output in zpool iostat. For security reasons, a user can only execute
-scripts as an unprivileged user. By default, a user may run a script
-from ~/.zpool.d or /etc/zfs/zpool.d. The default search path can be
-overriden by setting the ZPOOL_SCRIPTS_PATH environment variable. A
-privileged user can run 
-.Fl c
-if they have the ZPOOL_SCRIPTS_AS_ROOT
-environment variable set. If a script requires the use of a privileged
-command (like 
-.Xr smartctl 8
-) then it's recommended you allow the user
-access to it in 
-.Pa /etc/sudoers
-or add the user to the
-.Pa /etc/sudoers.d/zfs
-file.
-.Pp
-If
-.Fl c
-is passed without a script name, it prints a list of all scripts.
-.Fl c
-also sets verbose mode (
-.Fl c ).
-.Pp
-Script output should be in the form of "name=value". The column name is
-set to "name" and the value is set to "value". Multiple lines can be
-used to output multiple columns. The first line of output not in the
-"name=value" format is displayed without a column title, and no more
-output after that is displayed. This can be useful for printing error
-messages. Blank or NULL values are printed as a '-' to make output
-awk-able.
-.Pp
-The following environment variables are set before running each script:
-.Pp
-.Ar $VDEV_PATH :
-Full path to the vdev. 
-.Ar $VDEV_UPATH :
-"Underlying path" to
-the vdev. For device mapper, multipath, or partitioned vdevs,
-.Ar VDEV_UPATH
-is the actual underlying 
-.Pa /dev/sd*
-disk. This can be useful
-if the command you're running requires a 
-.Pa /dev/sd*
-device.
-.Ar $VDEV_ENC_SYSFS_PATH :
-The sysfs path to the vdev's enclosure LEDs (if any).
+option of
+.Nm zpool Cm iostat
+for complete details.
 .It Fl g
 Display vdev GUIDs instead of the normal device names. These GUIDs
 can be used in place of device names for the zpool
@@ -2263,9 +2220,9 @@ data        23.9G  14.6G  9.30G    48%         -    61%  1.00x  ONLINE  -
 .Sh ENVIRONMENT VARIABLES
 .Bl -tag -width "ZFS_ABORT"
 .It Ev ZFS_ABORT
-Cause 
+Cause
 .Nm zpool
-to dump core on exit for the purposes of running 
+to dump core on exit for the purposes of running
 .Sy::findleaks .
 .El
 .Bl -tag -width "ZPOOL_IMPORT_PATH"
@@ -2273,16 +2230,16 @@ to dump core on exit for the purposes of running
 The search path for devices or files to use with the pool. This is a colon-separated list of directories in which
 .Nm zpool
 looks for device nodes and files.
-Similar to the 
+Similar to the
 .Fl d
-option in 
+option in
 .Nm zpool import .
 .El
 .Bl -tag -width "ZPOOL_VDEV_NAME_GUID"
 .It Ev ZPOOL_VDEV_NAME_GUID
 Cause
 .Nm zpool subcommands to output vdev guids by default.  This behavior
-is identical to the 
+is identical to the
 .Nm zpool status -g
 command line option.
 .El
@@ -2297,7 +2254,7 @@ command line option.
 .Bl -tag -width "ZPOOL_VDEV_NAME_PATH"
 .It Ev ZPOOL_VDEV_NAME_PATH
 Cause
-.Nm zpool 
+.Nm zpool
 subcommands to output full vdev path names by default.  This
 behavior is identical to the
 .Nm zpool status -p
@@ -2306,7 +2263,7 @@ command line option.
 .Bl -tag -width "ZFS_VDEV_DEVID_OPT_OUT"
 .It Ev ZFS_VDEV_DEVID_OPT_OUT
 Older ZFS on Linux implementations had issues when attempting to display pool
-config VDEV names if a 
+config VDEV names if a
 .Sy devid
 NVP value is present in the pool's config.
 .Pp
@@ -2323,14 +2280,14 @@ them on
 .Nm zpool create
 or
 .Nm zpool add
-by setting 
+by setting
 .Sy ZFS_VDEV_DEVID_OPT_OUT .
 .El
 .Bl -tag -width "ZPOOL_SCRIPTS_AS_ROOT"
 .It Ev ZPOOL_SCRIPTS_AS_ROOT
 Allow a privilaged user to run the
 .Nm zpool status/iostat
-with the 
+with the
 .Fl c
 option.  Normally, only unprivilaged users are allowed to run
 .Fl c .
@@ -2360,6 +2317,7 @@ is not set, it is assumed that the user is allowed to run
 .Sh INTERFACE STABILITY
 .Sy Evolving
 .Sh SEE ALSO
+.Xr zed 8
 .Xr zfs 8 ,
 .Xr zfs-events 5 ,
 .Xr zfs-module-parameters 5 ,
