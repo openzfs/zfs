@@ -40,6 +40,20 @@ libspl_assert(const char *buf, const char *file, const char *func, int line)
 	abort();
 }
 
+/* printf version of libspl_assert */
+static inline void
+libspl_assertf(const char *file, const char *func, int line, char *format, ...)
+{
+	va_list args;
+
+	va_start(args, format);
+	vfprintf(stderr, format, args);
+	fprintf(stderr, "\n");
+	fprintf(stderr, "ASSERT at %s:%d:%s()", file, line, func);
+	va_end(args);
+	abort();
+}
+
 #ifdef verify
 #undef verify
 #endif
@@ -55,13 +69,9 @@ libspl_assert(const char *buf, const char *file, const char *func, int line)
 do {									\
 	const TYPE __left = (TYPE)(LEFT);				\
 	const TYPE __right = (TYPE)(RIGHT);				\
-	if (!(__left OP __right)) {					\
-		char *__buf = alloca(256);				\
-		(void) snprintf(__buf, 256,				\
-		    "%s %s %s (0x%llx %s 0x%llx)", #LEFT, #OP, #RIGHT,	\
-		    (u_longlong_t)__left, #OP, (u_longlong_t)__right);	\
-		libspl_assert(__buf, __FILE__, __FUNCTION__, __LINE__);	\
-	}								\
+	if (!(__left OP __right))					\
+		libspl_assertf(__FILE__, __FUNCTION__, __LINE__,	\
+		    "%s %s %s (0x%llx %s 0x%llx)", #LEFT, #OP, #RIGHT);	\
 } while (0)
 
 #define	VERIFY3S(x, y, z)	VERIFY3_IMPL(x, y, z, int64_t)
