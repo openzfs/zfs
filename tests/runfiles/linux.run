@@ -409,6 +409,11 @@ tests = ['migration_001_pos', 'migration_002_pos', 'migration_003_pos',
 [tests/functional/mmap]
 tests = ['mmap_write_001_pos', 'mmap_read_001_pos']
 
+[tests/functional/mmp]
+tests = ['mmp_online_active_import', 'mmp_online_inactive_import',
+    'mmp_thread_basic', 'mmp_interval_0', 'mmp_interval_negative',
+    'mmp_interval_0_import', 'mmp_interval_uberblock_writes']
+
 [tests/functional/mount]
 tests = ['umount_001', 'umountall_001']
 

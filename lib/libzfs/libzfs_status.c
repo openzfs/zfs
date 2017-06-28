@@ -64,6 +64,7 @@ static char *zfs_msgid_table[] = {
 	"ZFS-8000-9P",
 	"ZFS-8000-A5",
 	"ZFS-8000-EY",
+	"ZFS-8000-EY",
 	"ZFS-8000-HC",
 	"ZFS-8000-JQ",
 	"ZFS-8000-K4",
@@ -216,6 +217,13 @@ check_status(nvlist_t *config, boolean_t isimport, zpool_errata_t *erratap)
 		return (ZPOOL_STATUS_RESILVERING);
 
 	/*
+	 * Pool is actively imported on another system.
+	 */
+	if (vs->vs_state == VDEV_STATE_CANT_OPEN &&
+	    vs->vs_aux == VDEV_AUX_ACTIVE)
+		return (ZPOOL_STATUS_HOSTID_ACTIVE);
+
+	/*
 	 * Pool last accessed by another system.
 	 */
 	(void) nvlist_lookup_uint64(config, ZPOOL_CONFIG_HOSTID, &hostid);
@@ -344,8 +352,9 @@ check_status(nvlist_t *config, boolean_t isimport, zpool_errata_t *erratap)
 		if (isimport) {
 			feat = fnvlist_lookup_nvlist(config,
 			    ZPOOL_CONFIG_LOAD_INFO);
-			feat = fnvlist_lookup_nvlist(feat,
-			    ZPOOL_CONFIG_ENABLED_FEAT);
+			if (nvlist_exists(feat, ZPOOL_CONFIG_ENABLED_FEAT))
+				feat = fnvlist_lookup_nvlist(feat,
+				    ZPOOL_CONFIG_ENABLED_FEAT);
 		} else {
 			feat = fnvlist_lookup_nvlist(config,
 			    ZPOOL_CONFIG_FEATURE_STATS);

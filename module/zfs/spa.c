@@ -53,6 +53,7 @@
 #include <sys/vdev_disk.h>
 #include <sys/metaslab.h>
 #include <sys/metaslab_impl.h>
+#include <sys/mmp.h>
 #include <sys/uberblock_impl.h>
 #include <sys/txg.h>
 #include <sys/avl.h>
@@ -1339,6 +1340,9 @@ spa_unload(spa_t *spa)
 		spa_config_exit(spa, SCL_ALL, FTAG);
 	}
 
+	if (spa->spa_mmp.mmp_thread)
+		mmp_thread_stop(spa);
+
 	/*
 	 * Wait for any outstanding async I/O to complete.
 	 */
@@ -2316,6 +2320,190 @@ vdev_count_verify_zaps(vdev_t *vd)
 }
 #endif
 
+static unsigned long
+spa_get_hostid(void)
+{
+	unsigned long myhostid;
+
+#ifdef	_KERNEL
+	myhostid = zone_get_hostid(NULL);
+#else	/* _KERNEL */
+	/*
+	 * We're emulating the system's hostid in userland, so
+	 * we can't use zone_get_hostid().
+	 */
+	(void) ddi_strtoul(hw_serial, NULL, 10, &myhostid);
+#endif	/* _KERNEL */
+
+	return (myhostid);
+}
+
+/*
+ * Determine whether the activity check is required.
+ */
+static boolean_t
+spa_activity_check_required(spa_t *spa, uberblock_t *ub, nvlist_t *config)
+{
+	uint64_t config_pool_state = 0;
+	uint64_t hostid = 0, myhostid = spa_get_hostid();
+	uint64_t tryconfig_txg = 0;
+	uint64_t tryconfig_timestamp = 0;
+
+	(void) nvlist_lookup_uint64(config, ZPOOL_CONFIG_IMPORT_TXG,
+	    &tryconfig_txg);
+	(void) nvlist_lookup_uint64(config, ZPOOL_CONFIG_TIMESTAMP,
+	    &tryconfig_timestamp);
+	(void) nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_STATE,
+	    &config_pool_state);
+	(void) nvlist_lookup_uint64(config, ZPOOL_CONFIG_HOSTID, &hostid);
+
+	/*
+	 * Special values to indicate test should be skipped, for zdb
+	 */
+	if (spa->spa_activity_check == B_FALSE)
+		return (B_FALSE);
+
+	/*
+	 * Since the hostid is likely to be different before the pivot than
+	 * it is after the pivot, and since it is hard to see how two nodes
+	 * could safely boot from the same pool anyway, we do not do MMP
+	 * for root pools.
+	 */
+	if (spa_is_root(spa))
+		return (B_FALSE);
+
+	/*
+	 * Skip the test if the current host, and the host who last imported the
+	 * pool, both have (or had) MMP disabled.  If the pool is successfully
+	 * imported, we will then respect the local setting for mmp writes.
+	 */
+	if (ub->ub_mmp_magic == MMP_MAGIC && ub->ub_mmp_delay == 0 &&
+	    zfs_mmp_interval == 0)
+		return (B_FALSE);
+	/*
+	 * If the orig_* values are nonzero, they are the results of an earlier
+	 * tryimport.  If they match the uberblock we just found, then the pool
+	 * has not changed and we return false so we do not test a second time.
+	 */
+	if (tryconfig_txg && tryconfig_timestamp && tryconfig_txg ==
+	    ub->ub_txg && tryconfig_timestamp == ub->ub_timestamp)
+		return (B_FALSE);
+
+	if (hostid == myhostid)
+		return (B_FALSE);
+
+	if (config_pool_state != POOL_STATE_ACTIVE)
+		return (B_FALSE);
+
+	return (B_TRUE);
+}
+
+/*
+ * Perform the import activity check.  If user canceled import or we
+ * detected activity then fail.
+ */
+static int
+spa_activity_check(spa_t *spa, uberblock_t *ub)
+{
+	uint64_t import_intervals = MAX(zfs_mmp_import_intervals, 1);
+	uint64_t txg = ub->ub_txg;
+	uint64_t timestamp = ub->ub_timestamp;
+	uint64_t import_delay = 0;
+	hrtime_t import_expire;
+	nvlist_t *mmp_label = NULL;
+	vdev_t *rvd = spa->spa_root_vdev;
+	kcondvar_t cv;
+	kmutex_t mtx;
+	int error = 0;
+
+	cv_init(&cv, NULL, CV_DEFAULT, NULL);
+	mutex_init(&mtx, NULL, MUTEX_DEFAULT, NULL);
+	mutex_enter(&mtx);
+
+	/*
+	 * Preferentially use the zfs_mmp_interval from the node which last
+	 * imported the pool.  This value is stored in an MMP uberblock as.
+	 *
+	 * ub_mmp_delay * vdev_count_leaves() == zfs_mmp_interval
+	 */
+	if (ub->ub_mmp_magic == MMP_MAGIC && ub->ub_mmp_delay)
+		import_delay = import_intervals * ub->ub_mmp_delay *
+		    vdev_count_leaves(spa);
+
+	/* Apply a floor using the local default values. */
+	import_delay = MAX(import_delay, import_intervals *
+	    MSEC2NSEC(zfs_mmp_interval));
+
+	/* Add a small random factor in case of simultaneous imports (0-25%) */
+	import_expire = gethrtime() + import_delay +
+	    (import_delay * spa_get_random(250) / 1000);
+
+	while (gethrtime() < import_expire) {
+		vdev_uberblock_load(rvd, ub, &mmp_label);
+
+		if (txg != ub->ub_txg || timestamp != ub->ub_timestamp) {
+			error = SET_ERROR(EREMOTEIO);
+			break;
+		}
+
+		if (mmp_label) {
+			nvlist_free(mmp_label);
+			mmp_label = NULL;
+		}
+
+		error = cv_timedwait_sig_hires(&cv, &mtx, NANOSEC, 1, 0);
+		if (error != -1) {
+			error = SET_ERROR(EINTR);
+			break;
+		}
+		error = 0;
+	}
+
+	mutex_exit(&mtx);
+	cv_destroy(&cv);
+
+	/*
+	 * If the pool is active store the hostname and hostid found in the
+	 * active configuration in spa->spa_load_info.  This allows for
+	 * a descriptive error message to be generated for the adminstrator.
+	 *
+	 * ZPOOL_CONFIG_IMPORT_HOSTNAME - hostname from the active pool
+	 * ZPOOL_CONFIG_IMPORT_HOSTID - hostid from the active pool
+	 */
+	if (error == EREMOTEIO) {
+		char *hostname = "unknown";
+		char *poolname;
+		uint64_t hostid = 0;
+
+		if (mmp_label) {
+			if (nvlist_exists(mmp_label, ZPOOL_CONFIG_HOSTNAME))
+				hostname = fnvlist_lookup_string(mmp_label,
+				    ZPOOL_CONFIG_HOSTNAME);
+
+			if (nvlist_exists(mmp_label, ZPOOL_CONFIG_HOSTID))
+				hostid = fnvlist_lookup_uint64(mmp_label,
+				    ZPOOL_CONFIG_HOSTID);
+
+			fnvlist_add_string(spa->spa_load_info,
+			    ZPOOL_CONFIG_IMPORT_HOSTNAME, hostname);
+			fnvlist_add_uint64(spa->spa_load_info,
+			    ZPOOL_CONFIG_IMPORT_HOSTID, hostid);
+		}
+
+		poolname = fnvlist_lookup_string(spa->spa_config,
+		    ZPOOL_CONFIG_POOL_NAME);
+
+		cmn_err(CE_WARN, "pool '%s' could not be loaded as it is being "
+		    "accessed by another system (host: %s hostid: 0x%lx)",
+		    poolname, hostname, (unsigned long)hostid);
+
+		error = spa_vdev_err(rvd, VDEV_AUX_ACTIVE, EREMOTEIO);
+		nvlist_free(mmp_label);
+	}
+
+	return (error);
+}
+
 /*
  * Load an existing storage pool, using the pool's builtin spa_config as a
  * source of configuration information.
@@ -2424,6 +2612,18 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 	 * Find the best uberblock.
 	 */
 	vdev_uberblock_load(rvd, ub, &label);
+
+	/*
+	 * If the pool might be in use on another node, check for changes
+	 * in the uberblocks on disk.
+	 */
+	if (spa_activity_check_required(spa, ub, config)) {
+		error = spa_activity_check(spa, ub);
+		if (error) {
+			nvlist_free(label);
+			return (error);
+		}
+	}
 
 	/*
 	 * If we weren't able to find a single valid uberblock, return failure.
@@ -2660,21 +2860,13 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 			VERIFY(nvlist_lookup_string(nvconfig,
 			    ZPOOL_CONFIG_HOSTNAME, &hostname) == 0);
 
-#ifdef	_KERNEL
-			myhostid = zone_get_hostid(NULL);
-#else	/* _KERNEL */
-			/*
-			 * We're emulating the system's hostid in userland, so
-			 * we can't use zone_get_hostid().
-			 */
-			(void) ddi_strtoul(hw_serial, NULL, 10, &myhostid);
-#endif	/* _KERNEL */
+			myhostid = spa_get_hostid();
 			if (hostid != 0 && myhostid != 0 &&
 			    hostid != myhostid) {
 				nvlist_free(nvconfig);
 				cmn_err(CE_WARN, "pool '%s' could not be "
-				    "loaded as it was last accessed by another "
-				    "system (host: %s hostid: 0x%lx). See: "
+				    "loaded as it was last accessed by "
+				    "another system (host: %s hostid: 0x%lx). "
 				    "http://zfsonlinux.org/msg/ZFS-8000-EY",
 				    spa_name(spa), hostname,
 				    (unsigned long)hostid);
@@ -2973,6 +3165,7 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 		spa_set_log_state(spa, SPA_LOG_GOOD);
 		spa->spa_sync_on = B_TRUE;
 		txg_sync_start(spa->spa_dsl_pool);
+		mmp_thread_start(spa);
 
 		/*
 		 * Wait for all claims to sync.  We sync up to the highest
@@ -3625,18 +3818,6 @@ spa_validate_aux_devs(spa_t *spa, nvlist_t *nvroot, uint64_t crtxg, int mode,
 			goto out;
 		}
 
-		/*
-		 * The L2ARC currently only supports disk devices in
-		 * kernel context.  For user-level testing, we allow it.
-		 */
-#ifdef _KERNEL
-		if ((strcmp(config, ZPOOL_CONFIG_L2CACHE) == 0) &&
-		    strcmp(vd->vdev_ops->vdev_op_type, VDEV_TYPE_DISK) != 0) {
-			error = SET_ERROR(ENOTBLK);
-			vdev_free(vd);
-			goto out;
-		}
-#endif
 		vd->vdev_top = vd;
 
 		if ((error = vdev_open(vd)) == 0 &&
@@ -3989,6 +4170,7 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 
 	spa->spa_sync_on = B_TRUE;
 	txg_sync_start(spa->spa_dsl_pool);
+	mmp_thread_start(spa);
 
 	/*
 	 * We explicitly wait for the first transaction to complete so that our
@@ -4066,6 +4248,13 @@ spa_import(char *pool, nvlist_t *config, nvlist_t *props, uint64_t flags)
 		mutex_exit(&spa_namespace_lock);
 		return (0);
 	}
+
+	/*
+	 * Disable the MMP activity check - This is used by zdb which
+	 * is intended to be used on potentially active pools.
+	 */
+	if (spa->spa_import_flags & ZFS_IMPORT_SKIP_MMP)
+		spa->spa_activity_check = B_FALSE;
 
 	spa_activate(spa, mode);
 
@@ -4241,6 +4430,15 @@ spa_tryimport(nvlist_t *tryconfig)
 		    spa->spa_load_info) == 0);
 		VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_ERRATA,
 		    spa->spa_errata) == 0);
+
+		if (error == EREMOTEIO) {
+			VERIFY(nvlist_add_uint64(config,
+			    ZPOOL_CONFIG_IMPORT_TXG, 0) == 0);
+		} else {
+			VERIFY(nvlist_add_uint64(config,
+			    ZPOOL_CONFIG_IMPORT_TXG,
+			    spa->spa_uberblock.ub_txg) == 0);
+		}
 
 		/*
 		 * If the bootfs property exists on this pool then we

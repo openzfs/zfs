@@ -598,6 +598,7 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	spa->spa_load_max_txg = UINT64_MAX;
 	spa->spa_proc = &p0;
 	spa->spa_proc_state = SPA_PROC_NONE;
+	spa->spa_activity_check = B_TRUE;
 
 	spa->spa_deadman_synctime = MSEC2NSEC(zfs_deadman_synctime_ms);
 
@@ -1382,6 +1383,9 @@ spa_get_random(uint64_t range)
 	uint64_t r;
 
 	ASSERT(range != 0);
+
+	if (range == 1)
+		return (0);
 
 	(void) random_get_pseudo_bytes((void *)&r, sizeof (uint64_t));
 

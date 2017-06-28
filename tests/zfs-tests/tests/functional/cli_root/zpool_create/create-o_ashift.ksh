@@ -75,18 +75,21 @@ function txg_sync
 function verify_device_uberblocks
 {
 	typeset device=$1
-	typeset ubcount=$2
+	typeset expected=$2
 
-	zdb -quuul $device | egrep '^(\s+)?Uberblock' |
-	    egrep -v 'invalid$' | awk \
-	    -v ubcount=$ubcount '{ uberblocks[$0]++; }
-	    END { for (i in uberblocks) {
-		count++;
-		if (uberblocks[i] != 4) { exit 1; }
-	    }
-	    if (count != ubcount) { exit 1; } }'
+	typeset ubcount=$(zdb -qul $device | egrep '^(\s+)?Uberblock' | wc -l)
+	typeset invalid=$(zdb -qul $device | egrep '^(\s+)?Uberblock' |
+	    egrep 'invalid$' | wc -l)
+	typeset labels_identical=$(zdb -qul $device | egrep 'labels = 0 1 2 3' |
+	    wc -l)
 
-	return $?
+	log_note "expected $expected ubcount $ubcount invalid $invalid " \
+	    " labels_identical $labels_identical"
+	if [[ $expected -ne $ubcount ]]; then
+		return 1
+	fi
+
+	return 0
 }
 
 log_assert "zpool create -o ashift=<n>' works with different ashift values"
@@ -97,7 +100,8 @@ log_must mkfile $SIZE $disk
 
 typeset ashifts=("9" "10" "11" "12" "13" "14" "15" "16")
 # since Illumos 4958 the largest uberblock is 8K so we have at least of 16/label
-typeset ubcount=("128" "128" "64" "32" "16" "16" "16" "16")
+# MMP occupies one uberblock slot
+typeset ubcount=("127" "127" "63" "31" "15" "15" "15" "15")
 typeset -i i=0;
 while [ $i -lt "${#ashifts[@]}" ]
 do

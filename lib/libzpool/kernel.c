@@ -1288,11 +1288,22 @@ umem_out_of_memory(void)
 	return (0);
 }
 
+#define	HOSTID_MASK 0xffffffff
 static unsigned long
 get_spl_hostid(void)
 {
 	FILE *f;
 	unsigned long hostid;
+	char *env;
+
+	/*
+	 * Allow the hostid to be subverted for testing.
+	 */
+	env = getenv("ZFS_HOSTID");
+	if (env) {
+		hostid = strtoull(env, NULL, 10);
+		return (hostid & HOSTID_MASK);
+	}
 
 	f = fopen("/sys/module/spl/parameters/spl_hostid", "r");
 	if (!f)
@@ -1300,15 +1311,34 @@ get_spl_hostid(void)
 	if (fscanf(f, "%lu", &hostid) != 1)
 		hostid = 0;
 	fclose(f);
-	return (hostid & 0xffffffff);
+	return (hostid & HOSTID_MASK);
 }
 
 unsigned long
 get_system_hostid(void)
 {
 	unsigned long system_hostid = get_spl_hostid();
-	if (system_hostid == 0)
-		system_hostid = gethostid() & 0xffffffff;
+	/*
+	 * We do not use the library call gethostid() because
+	 * it generates a hostid value that the kernel is
+	 * unaware of, if the spl_hostid module parameter has not
+	 * been set and there is no system hostid file (e.g.
+	 * /etc/hostid).  The kernel and userspace must agree.
+	 * See comments above hostid_read() in the SPL.
+	 */
+	if (system_hostid == 0) {
+		int fd, rc;
+		unsigned long hostid;
+		int hostid_size = 4;  /* 4 bytes regardless of arch */
+
+		fd = open("/etc/hostid", O_RDONLY);
+		if (fd >= 0) {
+			rc = read(fd, &hostid, hostid_size);
+			if (rc > 0)
+				system_hostid = (hostid & HOSTID_MASK);
+			close(fd);
+		}
+	}
 	return (system_hostid);
 }
 
