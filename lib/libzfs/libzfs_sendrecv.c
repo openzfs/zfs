@@ -1487,9 +1487,13 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 			    drr_versioninfo, DMU_COMPOUNDSTREAM);
 			DMU_SET_FEATUREFLAGS(drr.drr_u.drr_begin.
 			    drr_versioninfo, featureflags);
-			(void) snprintf(drr.drr_u.drr_begin.drr_toname,
+			if (snprintf(drr.drr_u.drr_begin.drr_toname,
 			    sizeof (drr.drr_u.drr_begin.drr_toname),
-			    "%s@%s", zhp->zfs_name, tosnap);
+			    "%s@%s", zhp->zfs_name, tosnap) >=
+			    sizeof (drr.drr_u.drr_begin.drr_toname)) {
+				err = EINVAL;
+				goto stderr_out;
+			}
 			drr.drr_payloadlen = buflen;
 			err = cksum_and_write(&drr, sizeof (drr), &zc, outfd);
 
