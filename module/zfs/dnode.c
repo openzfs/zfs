@@ -330,7 +330,7 @@ dnode_buf_byteswap(void *vbuf, size_t size)
 	ASSERT((size & (sizeof (dnode_phys_t)-1)) == 0);
 
 	while (i < size) {
-		dnode_phys_t *dnp = vbuf + i;
+		dnode_phys_t *dnp = (void *)(((char *)vbuf) + i);
 		dnode_byteswap(dnp);
 
 		i += DNODE_MIN_SIZE;
@@ -733,6 +733,7 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 	ndn->dn_datablkszsec = odn->dn_datablkszsec;
 	ndn->dn_datablksz = odn->dn_datablksz;
 	ndn->dn_maxblkid = odn->dn_maxblkid;
+	ndn->dn_num_slots = odn->dn_num_slots;
 	bcopy(&odn->dn_next_nblkptr[0], &ndn->dn_next_nblkptr[0],
 	    sizeof (odn->dn_next_nblkptr));
 	bcopy(&odn->dn_next_nlevels[0], &ndn->dn_next_nlevels[0],
