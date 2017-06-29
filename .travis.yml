@@ -1,0 +1,31 @@
+language: c
+sudo: required
+env:
+  global:
+    - ZFS_TEST_TRAVIS_LOG_MAX_LENGTH=400
+  matrix:
+    - ZFS_TEST_TRAVIS_BUILDER_FROM='[tests/functional/acl/posix]' ZFS_TEST_TRAVIS_BUILDER_TO='[tests/functional/cli_root/zpool_import]'
+    - ZFS_TEST_TRAVIS_BUILDER_FROM='[tests/functional/cli_root/zpool_import]' ZFS_TEST_TRAVIS_BUILDER_TO='[tests/functional/cli_root/zpool_set]'
+    - ZFS_TEST_TRAVIS_BUILDER_FROM='[tests/functional/cli_root/zpool_set]' ZFS_TEST_TRAVIS_BUILDER_TO='[tests/functional/replacement]'
+    - ZFS_TEST_TRAVIS_BUILDER_FROM='[tests/functional/replacement]'
+before_install:
+- sudo apt-get -qq update
+- sudo apt-get install --yes -qq build-essential autoconf libtool gawk alien fakeroot linux-headers-$(uname -r)
+- sudo apt-get install --yes -qq zlib1g-dev uuid-dev libattr1-dev libblkid-dev libselinux-dev libudev-dev libdevmapper-dev parted lsscsi ksh attr acl nfs-kernel-server
+install:
+- git clone --depth=50 https://github.com/zfsonlinux/spl
+- cd spl
+- git checkout master
+- sh autogen.sh
+- ./configure
+- make pkg
+- sudo dpkg -i *.deb
+- cd ..
+- sh autogen.sh
+- ./configure
+- make pkg
+- sudo dpkg -i *.deb
+script:
+- travis_wait 50 ./scripts/zfs-tests-travis.sh
+after_failure: find /var/tmp/test_results/current/log -type f -name '*' -printf "%f\n" -exec cut -c -$ZFS_TEST_TRAVIS_LOG_MAX_LENGTH {} \;
+after_success: find /var/tmp/test_results/current/log -type f -name '*' -printf "%f\n" -exec cut -c -$ZFS_TEST_TRAVIS_LOG_MAX_LENGTH {} \;
