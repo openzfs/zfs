@@ -13,6 +13,7 @@
 
 #
 # Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+# Copyright (c) 2017 Datto Inc.
 #
 
 import ConfigParser
@@ -702,7 +703,7 @@ class TestRun(object):
 
     def summary(self):
         if Result.total is 0:
-            return
+            return 2
 
         print '\nResults Summary'
         for key in Result.runresults.keys():
@@ -715,6 +716,10 @@ class TestRun(object):
         print 'Percent passed:\t%.1f%%' % ((float(Result.runresults['PASS']) /
                                             float(Result.total)) * 100)
         print 'Log directory:\t%s' % self.outputdir
+
+        if Result.runresults['FAIL'] > 0:
+            return 1
+        return 0
 
 
 def verify_file(pathname):
@@ -871,8 +876,7 @@ def main():
 
     testrun.complete_outputdirs()
     testrun.run(options)
-    testrun.summary()
-    exit(0)
+    exit(testrun.summary())
 
 
 if __name__ == '__main__':
