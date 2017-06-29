@@ -130,6 +130,10 @@ struct zvol_state {
 	kmutex_t		zv_state_lock;	/* protects zvol_state_t */
 	atomic_t		zv_suspend_ref;	/* refcount for suspend */
 	krwlock_t		zv_suspend_lock;	/* suspend lock */
+	kcondvar_t		zv_write_cv;	/* write queue wait */
+	unsigned long		zv_writes;	/* in-flight writes */
+	kcondvar_t		zv_read_cv;	/* read queue wait */
+	unsigned long		zv_reads;	/* in-flight reads */
 };
 
 typedef enum {
@@ -784,6 +788,10 @@ zvol_write(void *arg)
 	generic_end_io_acct(WRITE, &zv->zv_disk->part0, start_jif);
 	BIO_END_IO(bio, -error);
 	kmem_free(zvr, sizeof (zv_request_t));
+	mutex_enter(&zv->zv_state_lock);
+	zv->zv_writes--;
+	cv_signal(&zv->zv_write_cv);
+	mutex_exit(&zv->zv_state_lock);
 }
 
 /*
@@ -907,6 +915,10 @@ zvol_read(void *arg)
 	generic_end_io_acct(READ, &zv->zv_disk->part0, start_jif);
 	BIO_END_IO(bio, -error);
 	kmem_free(zvr, sizeof (zv_request_t));
+	mutex_enter(&zv->zv_state_lock);
+	zv->zv_reads--;
+	cv_signal(&zv->zv_read_cv);
+	mutex_exit(&zv->zv_state_lock);
 }
 
 static MAKE_REQUEST_FN_RET
@@ -953,6 +965,12 @@ zvol_request(struct request_queue *q, struct bio *bio)
 			goto out;
 		}
 
+		mutex_enter(&zv->zv_state_lock);
+		while (zv->zv_writes >= blk_queue_nr_requests(zv->zv_queue))
+			cv_wait(&zv->zv_write_cv, &zv->zv_state_lock);
+		zv->zv_writes++;
+		mutex_exit(&zv->zv_state_lock);
+
 		zvr = kmem_alloc(sizeof (zv_request_t), KM_SLEEP);
 		zvr->zv = zv;
 		zvr->bio = bio;
@@ -974,6 +992,12 @@ zvol_request(struct request_queue *q, struct bio *bio)
 				zvol_write(zvr);
 		}
 	} else {
+		mutex_enter(&zv->zv_state_lock);
+		while (zv->zv_reads >= blk_queue_nr_requests(zv->zv_queue))
+			cv_wait(&zv->zv_read_cv, &zv->zv_state_lock);
+		zv->zv_reads++;
+		mutex_exit(&zv->zv_state_lock);
+
 		zvr = kmem_alloc(sizeof (zv_request_t), KM_SLEEP);
 		zvr->zv = zv;
 		zvr->bio = bio;
@@ -1597,6 +1621,10 @@ zvol_alloc(dev_t dev, const char *name)
 	list_link_init(&zv->zv_next);
 
 	mutex_init(&zv->zv_state_lock, NULL, MUTEX_DEFAULT, NULL);
+	cv_init(&zv->zv_write_cv, NULL, CV_DEFAULT, NULL);
+	cv_init(&zv->zv_read_cv, NULL, CV_DEFAULT, NULL);
+	zv->zv_reads = 0;
+	zv->zv_writes = 0;
 
 	zv->zv_queue = blk_alloc_queue(GFP_ATOMIC);
 	if (zv->zv_queue == NULL)
@@ -1668,6 +1696,8 @@ zvol_free(void *arg)
 	ida_simple_remove(&zvol_ida, MINOR(zv->zv_dev) >> ZVOL_MINOR_BITS);
 
 	mutex_destroy(&zv->zv_state_lock);
+	cv_destroy(&zv->zv_write_cv);
+	cv_destroy(&zv->zv_read_cv);
 
 	kmem_free(zv, sizeof (zvol_state_t));
 }
