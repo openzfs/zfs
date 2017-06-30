@@ -24,7 +24,7 @@
  */
 
 /*
- * Copyright (c) 2013, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2017 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -205,7 +205,8 @@ dmu_zfetch_stream_create(zfetch_t *zf, uint64_t blkid)
  *   TRUE -- prefetch predicted data blocks plus following indirect blocks.
  */
 void
-dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data)
+dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data,
+    boolean_t have_lock)
 {
 	zstream_t *zs;
 	int64_t pf_start, ipf_start, ipf_istart, ipf_iend;
@@ -236,6 +237,8 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data)
 		return;
 
 retry:
+	if (!have_lock)
+		rw_enter(&zf->zf_dnode->dn_struct_rwlock, RW_READER);
 	rw_enter(&zf->zf_rwlock, rw);
 
 	/*
@@ -260,6 +263,10 @@ retry:
 					/* Already prefetched this before. */
 					mutex_exit(&zs->zs_lock);
 					rw_exit(&zf->zf_rwlock);
+					if (!have_lock) {
+						rw_exit(&zf->zf_dnode->
+						    dn_struct_rwlock);
+					}
 					return;
 				}
 				break;
@@ -276,12 +283,16 @@ retry:
 		ZFETCHSTAT_BUMP(zfetchstat_misses);
 		if (rw == RW_READER && !rw_tryupgrade(&zf->zf_rwlock)) {
 			rw_exit(&zf->zf_rwlock);
+			if (!have_lock)
+				rw_exit(&zf->zf_dnode->dn_struct_rwlock);
 			rw = RW_WRITER;
 			goto retry;
 		}
 
 		dmu_zfetch_stream_create(zf, end_of_access_blkid);
 		rw_exit(&zf->zf_rwlock);
+		if (!have_lock)
+			rw_exit(&zf->zf_dnode->dn_struct_rwlock);
 		return;
 	}
 
@@ -361,6 +372,8 @@ retry:
 		dbuf_prefetch(zf->zf_dnode, 1, iblk,
 		    ZIO_PRIORITY_ASYNC_READ, ARC_FLAG_PREDICTIVE_PREFETCH);
 	}
+	if (!have_lock)
+		rw_exit(&zf->zf_dnode->dn_struct_rwlock);
 	ZFETCHSTAT_BUMP(zfetchstat_hits);
 }
 
