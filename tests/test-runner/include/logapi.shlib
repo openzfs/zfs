@@ -418,7 +418,11 @@ function _endlog
 	typeset logfile="/tmp/log.$$"
 	_recursive_output $logfile
 
-	if [[ $1 == $STF_FAIL ]] ; then
+	typeset exitcode=$1
+	shift
+	(( ${#@} > 0 )) && _printline "$@"
+
+	if [[ $exitcode == $STF_FAIL ]] ; then
 		_execute_testfail_callbacks
 	fi
 
@@ -428,9 +432,7 @@ function _endlog
 		log_note "Performing local cleanup via log_onexit ($cleanup)"
 		$cleanup
 	fi
-	typeset exitcode=$1
-	shift
-	(( ${#@} > 0 )) && _printline "$@"
+
 	exit $exitcode
 }
 
