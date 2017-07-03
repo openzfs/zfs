@@ -85,7 +85,7 @@ The following zfs-tests.sh options are supported:
     -d DIR      Create sparse files for vdevs in the DIR directory.  By
                 default these files are created under /var/tmp/.
 
-    -s SIZE     Use vdevs of SIZE (default: 2G)
+    -s SIZE     Use vdevs of SIZE (default: 4G)
 
     -r RUNFILE  Run tests in RUNFILE (default: linux.run)
 
@@ -116,7 +116,7 @@ FILES:           /mnt/file-vdev0 /mnt/file-vdev1 /mnt/file-vdev2
 LOOPBACKS:       /dev/loop0 /dev/loop1 /dev/loop2 
 DISKS:           loop0 loop1 loop2 
 NUM_DISKS:       3
-FILESIZE:        2G
+FILESIZE:        4G
 Keep pool(s):    rpool
 
 /usr/share/zfs/test-runner/bin/test-runner.py  -c \

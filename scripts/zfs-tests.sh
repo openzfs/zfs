@@ -482,7 +482,7 @@ if [ -x "$STF_PATH/setenforce" ]; then
 fi
 
 #
-# Enable interal ZFS debug log and clear it.
+# Enable internal ZFS debug log and clear it.
 #
 if [ -e /sys/module/zfs/parameters/zfs_dbgmsg_enable ]; then
 	sudo /bin/sh -c "echo 1 >/sys/module/zfs/parameters/zfs_dbgmsg_enable"
