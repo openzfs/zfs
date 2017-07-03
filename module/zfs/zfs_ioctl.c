@@ -3653,18 +3653,29 @@ zfs_ioc_destroy(zfs_cmd_t *zc)
 /*
  * fsname is name of dataset to rollback (to most recent snapshot)
  *
- * innvl is not used.
+ * innvl may contain name of expected target snapshot
  *
  * outnvl: "target" -> name of most recent snapshot
  * }
  */
 /* ARGSUSED */
 static int
-zfs_ioc_rollback(const char *fsname, nvlist_t *args, nvlist_t *outnvl)
+zfs_ioc_rollback(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 {
 	zfsvfs_t *zfsvfs;
 	zvol_state_t *zv;
+	char *target = NULL;
 	int error;
+
+	(void) nvlist_lookup_string(innvl, "target", &target);
+	if (target != NULL) {
+		int fslen = strlen(fsname);
+
+		if (strncmp(fsname, target, fslen) != 0)
+			return (SET_ERROR(EINVAL));
+		if (target[fslen] != '@')
+			return (SET_ERROR(EINVAL));
+	}
 
 	if (getzfsvfs(fsname, &zfsvfs) == 0) {
 		dsl_dataset_t *ds;
@@ -3674,16 +3685,18 @@ zfs_ioc_rollback(const char *fsname, nvlist_t *args, nvlist_t *outnvl)
 		if (error == 0) {
 			int resume_err;
 
-			error = dsl_dataset_rollback(fsname, zfsvfs, outnvl);
+			error = dsl_dataset_rollback(fsname, target, zfsvfs,
+			    outnvl);
 			resume_err = zfs_resume_fs(zfsvfs, ds);
 			error = error ? error : resume_err;
 		}
 		deactivate_super(zfsvfs->z_sb);
 	} else if ((zv = zvol_suspend(fsname)) != NULL) {
-		error = dsl_dataset_rollback(fsname, zvol_tag(zv), outnvl);
+		error = dsl_dataset_rollback(fsname, target, zvol_tag(zv),
+		    outnvl);
 		zvol_resume(zv);
 	} else {
-		error = dsl_dataset_rollback(fsname, NULL, outnvl);
+		error = dsl_dataset_rollback(fsname, target, NULL, outnvl);
 	}
 	return (error);
 }

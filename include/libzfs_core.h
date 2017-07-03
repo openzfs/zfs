@@ -91,6 +91,7 @@ int lzc_receive_with_cmdprops(const char *, nvlist_t *, nvlist_t *,
 boolean_t lzc_exists(const char *);
 
 int lzc_rollback(const char *, char *, int);
+int lzc_rollback_to(const char *, const char *);
 
 int lzc_sync(const char *, nvlist_t *, nvlist_t **);
 
