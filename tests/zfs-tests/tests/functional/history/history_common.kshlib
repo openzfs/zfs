@@ -74,7 +74,7 @@ function run_and_verify
 	if [[ $user == "root" ]]; then
 		log_must eval "$fullcmd"
 	else
-		log_must su $user -c "eval $fullcmd"
+		log_must user_run $user "$fullcmd"
 	fi
 	zpool history $flags $pool > $TMP_HISTORY 2>/dev/null
 	diff $OLD_HISTORY $TMP_HISTORY | grep "^> " | sed 's/^> //g' \

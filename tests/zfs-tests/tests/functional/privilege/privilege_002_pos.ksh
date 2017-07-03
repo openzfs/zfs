@@ -77,29 +77,29 @@ else
 fi
 
 # A user shouldn't be able to create filesystems
-log_mustnot su $ZFS_USER -c "zfs create $DATASET/zfsprivfs"
+log_mustnot user_run $ZFS_USER "zfs create $DATASET/zfsprivfs"
 
 # Insist this invocation of usermod works
 log_must usermod -P "ZFS File System Management" $ZFS_USER
 
 # Now try to create file systems as the user
-log_mustnot su $ZFS_USER -c "zfs create $DATASET/zfsprivfs"
-log_must su $ZFS_USER -c "pfexec zfs create $DATASET/zfsprivfs"
+log_mustnot user_run $ZFS_USER "zfs create $DATASET/zfsprivfs"
+log_must user_run $ZFS_USER "pfexec zfs create $DATASET/zfsprivfs"
 
 # Ensure the user can't do anything to pools in this state:
-log_mustnot su $ZFS_USER -c "zpool destroy $DATASET"
-log_mustnot su $ZFS_USER -c "pfexec zpool destroy $DATASET"
+log_mustnot user_run $ZFS_USER "zpool destroy $DATASET"
+log_mustnot user_run $ZFS_USER "pfexec zpool destroy $DATASET"
 
 # revoke File System Management profile
 usermod -P, $ZFS_USER
 
 # Ensure the user can't create more filesystems
-log_mustnot su $ZFS_USER -c "zfs create $DATASET/zfsprivfs2"
-log_mustnot su $ZFS_USER -c "pfexec zfs create $DATASET/zfsprivfs2"
+log_mustnot user_run $ZFS_USER "zfs create $DATASET/zfsprivfs2"
+log_mustnot user_run $ZFS_USER "pfexec zfs create $DATASET/zfsprivfs2"
 
 # assign the profile again and destroy the fs.
 usermod -P "ZFS File System Management" $ZFS_USER
-log_must su $ZFS_USER -c "pfexec zfs destroy $DATASET/zfsprivfs"
+log_must user_run $ZFS_USER "pfexec zfs destroy $DATASET/zfsprivfs"
 usermod -P, $ZFS_USER
 
 log_pass "The RBAC profile \"ZFS File System Management\" works"
