@@ -229,7 +229,7 @@ dnode_verify(dnode_t *dn)
 		return;
 
 	if (!RW_WRITE_HELD(&dn->dn_struct_rwlock)) {
-		rw_enter(&dn->dn_struct_rwlock, RW_READER);
+//		rw_enter(&dn->dn_struct_rwlock, RW_READER);
 		drop_struct_lock = TRUE;
 	}
 	if (dn->dn_phys->dn_type != DMU_OT_NONE || dn->dn_allocated_txg != 0) {
@@ -263,8 +263,8 @@ dnode_verify(dnode_t *dn)
 		    (dnode_phys_t *)dn->dn_dbuf->db.db_data +
 		    (dn->dn_object % (dn->dn_dbuf->db.db_size >> DNODE_SHIFT)));
 	}
-	if (drop_struct_lock)
-		rw_exit(&dn->dn_struct_rwlock);
+//	if (drop_struct_lock)
+//		rw_exit(&dn->dn_struct_rwlock);
 }
 #endif
 
@@ -710,7 +710,7 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 {
 	int i;
 
-	ASSERT(!RW_LOCK_HELD(&odn->dn_struct_rwlock));
+//	ASSERT(!RW_LOCK_HELD(&odn->dn_struct_rwlock));
 	ASSERT(MUTEX_NOT_HELD(&odn->dn_mtx));
 	ASSERT(MUTEX_NOT_HELD(&odn->dn_dbufs_mtx));
 	ASSERT(!RW_LOCK_HELD(&odn->dn_zfetch.zf_rwlock));
@@ -1236,15 +1236,15 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 	DNODE_VERIFY(mdn);
 
 	if (!RW_WRITE_HELD(&mdn->dn_struct_rwlock)) {
-		rw_enter(&mdn->dn_struct_rwlock, RW_READER);
+//		rw_enter(&mdn->dn_struct_rwlock, RW_READER);
 		drop_struct_lock = TRUE;
 	}
 
 	blk = dbuf_whichblock(mdn, 0, object * sizeof (dnode_phys_t));
 
 	db = dbuf_hold(mdn, blk, FTAG);
-	if (drop_struct_lock)
-		rw_exit(&mdn->dn_struct_rwlock);
+//	if (drop_struct_lock)
+//		rw_exit(&mdn->dn_struct_rwlock);
 	if (db == NULL)
 		return (SET_ERROR(EIO));
 	err = dbuf_read(db, NULL, DB_RF_CANFAIL);
@@ -1555,14 +1555,15 @@ dnode_new_blkid(dnode_t *dn, uint64_t blkid, dmu_tx_t *tx, boolean_t have_read)
 
 	ASSERT(blkid != DMU_BONUS_BLKID);
 
-	ASSERT(have_read ?
-	    RW_READ_HELD(&dn->dn_struct_rwlock) :
-	    RW_WRITE_HELD(&dn->dn_struct_rwlock));
+//	ASSERT(have_read ?
+//	    RW_READ_HELD(&dn->dn_struct_rwlock) :
+//	    RW_WRITE_HELD(&dn->dn_struct_rwlock));
 
 	/*
 	 * if we have a read-lock, check to see if we need to do any work
 	 * before upgrading to a write-lock.
 	 */
+#if 0
 	if (have_read) {
 		if (blkid <= dn->dn_maxblkid)
 			return;
@@ -1572,6 +1573,8 @@ dnode_new_blkid(dnode_t *dn, uint64_t blkid, dmu_tx_t *tx, boolean_t have_read)
 			rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
 		}
 	}
+#endif
+	rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
 
 	if (blkid <= dn->dn_maxblkid)
 		goto out;
@@ -1626,8 +1629,9 @@ dnode_new_blkid(dnode_t *dn, uint64_t blkid, dmu_tx_t *tx, boolean_t have_read)
 	}
 
 out:
-	if (have_read)
-		rw_downgrade(&dn->dn_struct_rwlock);
+//	if (have_read)
+//		rw_downgrade(&dn->dn_struct_rwlock);
+		rw_exit(&dn->dn_struct_rwlock);
 }
 
 static void
@@ -2100,8 +2104,8 @@ dnode_next_offset(dnode_t *dn, int flags, uint64_t *offset,
 	int lvl, maxlvl;
 	int error = 0;
 
-	if (!(flags & DNODE_FIND_HAVELOCK))
-		rw_enter(&dn->dn_struct_rwlock, RW_READER);
+//	if (!(flags & DNODE_FIND_HAVELOCK))
+//		rw_enter(&dn->dn_struct_rwlock, RW_READER);
 
 	if (dn->dn_phys->dn_nlevels == 0) {
 		error = SET_ERROR(ESRCH);
@@ -2145,8 +2149,8 @@ dnode_next_offset(dnode_t *dn, int flags, uint64_t *offset,
 	    initial_offset < *offset : initial_offset > *offset))
 		error = SET_ERROR(ESRCH);
 out:
-	if (!(flags & DNODE_FIND_HAVELOCK))
-		rw_exit(&dn->dn_struct_rwlock);
+//	if (!(flags & DNODE_FIND_HAVELOCK))
+//		rw_exit(&dn->dn_struct_rwlock);
 
 	return (error);
 }
