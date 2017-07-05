@@ -48,21 +48,21 @@ log_assert "Verify acltype=posixacl works on file"
 # Test access to FILE
 log_note "Testing access to FILE"
 log_must touch $TESTDIR/file.0
-log_must setfacl -m g:zfsgrp:rw $TESTDIR/file.0
-getfacl $TESTDIR/file.0 2> /dev/null | egrep -q "^group:zfsgrp:rw-$"
+log_must setfacl -m g:$ZFS_ACL_STAFF_GROUP:rw $TESTDIR/file.0
+getfacl $TESTDIR/file.0 2> /dev/null | egrep -q "^group:$ZFS_ACL_STAFF_GROUP:rw-$"
 if [ "$?" -eq "0" ]; then
 	# Should be able to write to file
-	log_must su staff1 -c "echo \"echo test > /dev/null\" > $TESTDIR/file.0"
+	log_must user_run $ZFS_ACL_STAFF1 "echo 'echo test > /dev/null' > $TESTDIR/file.0"
 
 	# Should NOT be able to create new file
-	log_mustnot su staff1 -c "touch $TESTDIR/file.1"
+	log_mustnot user_run $ZFS_ACL_STAFF1 "touch $TESTDIR/file.1"
 
 	# Root should be able to run file, but not user
 	chmod +x $TESTDIR/file.0
 	log_must $TESTDIR/file.0
-	log_mustnot su staff1 -c $TESTDIR/file.0
+	log_mustnot user_run $ZFS_ACL_STAFF1 $TESTDIR/file.0
 
 	log_pass "POSIX ACL mode works on files"
 else
-	log_fail "Group 'zfsgrp' does not have 'rw' as specified"
+	log_fail "Group '$ZFS_ACL_STAFF_GROUP' does not have 'rw' as specified"
 fi

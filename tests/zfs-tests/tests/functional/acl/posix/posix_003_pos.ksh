@@ -37,25 +37,25 @@ verify_runnable "both"
 log_assert "Verify regular and default POSIX ACLs survive  remount"
 
 typeset output=/tmp/zfs-posixacl.$$
-typeset acl_str1="^group:${ZFS_ACL_STAFF_GROUP}:-wx$"
-typeset acl_str2="^default:group:${ZFS_ACL_STAFF_GROUP}:-wx$"
-typeset ACLDIR="${TESTDIR}/dir.1"
+typeset acl_str1="^group:$ZFS_ACL_STAFF_GROUP:-wx$"
+typeset acl_str2="^default:group:$ZFS_ACL_STAFF_GROUP:-wx$"
+typeset ACLDIR="$TESTDIR/dir.1"
 
 log_note "Testing access to DIRECTORY"
 log_must mkdir $ACLDIR
-log_must setfacl -m g:${ZFS_ACL_STAFF_GROUP}:wx $ACLDIR
-log_must setfacl -d -m g:${ZFS_ACL_STAFF_GROUP}:wx $ACLDIR
-getfacl $ACLDIR 2> /dev/null | egrep -q "${acl_str1}"
+log_must setfacl -m g:$ZFS_ACL_STAFF_GROUP:wx $ACLDIR
+log_must setfacl -d -m g:$ZFS_ACL_STAFF_GROUP:wx $ACLDIR
+getfacl $ACLDIR 2> /dev/null | egrep -q "$acl_str1"
 if [ "$?" -eq "0" ]; then
-	getfacl $ACLDIR 2> /dev/null | egrep -q "${acl_str2}"
+	getfacl $ACLDIR 2> /dev/null | egrep -q "$acl_str2"
 fi
 
 if [ "$?" -eq "0" ]; then
 	log_must zfs unmount $TESTPOOL/$TESTFS
 	log_must zfs mount $TESTPOOL/$TESTFS
-	log_must eval 'getfacl $ACLDIR 2> /dev/null | egrep -q "${acl_str1}"'
-	log_must eval 'getfacl $ACLDIR 2> /dev/null | egrep -q "${acl_str2}"'
+	log_must eval "getfacl $ACLDIR 2> /dev/null | egrep -q \"$acl_str1\""
+	log_must eval "getfacl $ACLDIR 2> /dev/null | egrep -q \"$acl_str2\""
 	log_pass "POSIX ACLs survive remount"
 else
-	log_fail "Group '${ZFS_ACL_STAFF_GROUP}' does not have 'rwx'"
+	log_fail "Group '$ZFS_ACL_STAFF_GROUP' does not have 'rwx'"
 fi
