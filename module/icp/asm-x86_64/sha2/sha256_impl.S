@@ -100,12 +100,12 @@ ENTRY_NP(SHA256TransformBlocks)
 	mov	%rdx,16*4+2*8(%rsp)		# save end pointer, "3rd" arg
 	mov	%rbp,16*4+3*8(%rsp)		# save copy of %rsp
 
-	/.picmeup %rbp
-	/ The .picmeup pseudo-directive, from perlasm/x86_64_xlate.pl, puts
-	/ the address of the "next" instruction into the target register
-	/ (%rbp).  This generates these 2 instructions:
+	#.picmeup %rbp
+	# The .picmeup pseudo-directive, from perlasm/x86_64_xlate.pl, puts
+	# the address of the "next" instruction into the target register
+	# (%rbp).  This generates these 2 instructions:
 	lea	.Llea(%rip),%rbp
-	/nop	/ .picmeup generates a nop for mod 8 alignment--not needed here
+	#nop	# .picmeup generates a nop for mod 8 alignment--not needed here
 
 .Llea:
 	lea	K256-.(%rbp),%rbp
