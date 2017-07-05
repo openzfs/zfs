@@ -31,6 +31,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 
 static inline int
 libspl_assert(const char *buf, const char *file, const char *func, int line)
