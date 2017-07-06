@@ -1358,6 +1358,8 @@ out_mutex:
 	mutex_exit(&zv->zv_state_lock);
 	if (drop_suspend)
 		rw_exit(&zv->zv_suspend_lock);
+	if (error == -ERESTARTSYS)
+		schedule();
 
 	return (SET_ERROR(error));
 }
