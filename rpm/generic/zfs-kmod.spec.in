@@ -186,6 +186,16 @@ chmod u+x ${RPM_BUILD_ROOT}%{kmodinstdir_prefix}/*/extra/*/*/*
 rm -rf $RPM_BUILD_ROOT
 
 %changelog
+* Mon Jul 10 2017 Tony Hutter <hutter2@llnl.gov> - 0.6.5.11-1
+- Linux 4.12 compat: super_setup_bdi_name() - add missing code zfsonlinux/zfs#6089 zfsonlinux/zfs#6324
+- Musl libc fixes zfsonlinux/zfs#6310
+- Increase zfs_vdev_async_write_min_active to 2 zfsonlinux/zfs#5926
+- Fix int overflow in zbookmark_is_before()- Fix RHEL 7.4 bio_set_op_attrs build error zfsonlinux/zfs#6234 zfsonlinux/zfs#6271
+- Fix RHEL 7.4 bio_set_op_attrs build error zfsonlinux/zfs#6253 zfsonlinux/zfs#6271
+- GCC 7.1 fixes zfsonlinux/zfs#6253
+- Remove complicated libspl assert wrappers zfsonlinux/zfs#4449
+- Compatibilty with glibc-2.23 zfsonlinux/zfs#6132
+- glibc 2.5 compat: use correct header for makedev() et al. zfsonlinux/zfs#5945
 * Mon Jun 12 2017 Tony Hutter <hutter2@llnl.gov> - 0.6.5.10-1
 - OpenZFS 8005 - poor performance of 1MB writes on certain RAID-Z configurations zfsonlinux/zfs#5931
 - Add MS_MANDLOCK mount failure message zfsonlinux/zfs#4729 zfsonlinux/zfs#6199
