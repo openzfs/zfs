@@ -184,10 +184,10 @@ free_verify(dmu_buf_impl_t *db, uint64_t start, uint64_t end, dmu_tx_t *tx)
 
 		ASSERT(db->db_level == 1);
 
-		rw_enter(&dn->dn_struct_rwlock, RW_READER);
+//		rw_enter(&dn->dn_struct_rwlock, RW_READER);
 		err = dbuf_hold_impl(dn, db->db_level-1,
 		    (db->db_blkid << epbs) + i, TRUE, FALSE, FTAG, &child);
-		rw_exit(&dn->dn_struct_rwlock);
+//		rw_exit(&dn->dn_struct_rwlock);
 		if (err == ENOENT)
 			continue;
 		ASSERT(err == 0);
@@ -282,10 +282,10 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
 		for (id = start; id <= end; id++, bp++) {
 			if (BP_IS_HOLE(bp))
 				continue;
-			rw_enter(&dn->dn_struct_rwlock, RW_READER);
+//			rw_enter(&dn->dn_struct_rwlock, RW_READER);
 			VERIFY0(dbuf_hold_impl(dn, db->db_level - 1,
 			    id, TRUE, FALSE, FTAG, &subdb));
-			rw_exit(&dn->dn_struct_rwlock);
+//			rw_exit(&dn->dn_struct_rwlock);
 			ASSERT3P(bp, ==, subdb->db_blkptr);
 
 			free_children(subdb, blkid, nblks, tx);
@@ -362,10 +362,10 @@ dnode_sync_free_range_impl(dnode_t *dn, uint64_t blkid, uint64_t nblks,
 		for (i = start; i <= end; i++, bp++) {
 			if (BP_IS_HOLE(bp))
 				continue;
-			rw_enter(&dn->dn_struct_rwlock, RW_READER);
+//			rw_enter(&dn->dn_struct_rwlock, RW_READER);
 			VERIFY0(dbuf_hold_impl(dn, dnlevel - 1, i,
 			    TRUE, FALSE, FTAG, &db));
-			rw_exit(&dn->dn_struct_rwlock);
+//			rw_exit(&dn->dn_struct_rwlock);
 
 			free_children(db, blkid, nblks, tx);
 			dbuf_rele(db, FTAG);
