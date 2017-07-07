@@ -568,7 +568,7 @@ zio_add_child(zio_t *pio, zio_t *cio)
 	 * Vdev I/Os can only have vdev children.
 	 * The following ASSERT captures all of these constraints.
 	 */
-	ASSERT(cio->io_child_type <= pio->io_child_type);
+	ASSERT3S(cio->io_child_type, <=, pio->io_child_type);
 
 	zl->zl_parent = pio;
 	zl->zl_child = cio;
@@ -1281,9 +1281,9 @@ zio_flush(zio_t *zio, vdev_t *vd)
 void
 zio_shrink(zio_t *zio, uint64_t size)
 {
-	ASSERT(zio->io_executor == NULL);
-	ASSERT(zio->io_orig_size == zio->io_size);
-	ASSERT(size <= zio->io_size);
+	ASSERT3P(zio->io_executor, ==, NULL);
+	ASSERT3U(zio->io_orig_size, ==, zio->io_size);
+	ASSERT3U(size, <=, zio->io_size);
 
 	/*
 	 * We don't shrink for raidz because of problems with the
@@ -1877,8 +1877,8 @@ zio_wait(zio_t *zio)
 {
 	int error;
 
-	ASSERT(zio->io_stage == ZIO_STAGE_OPEN);
-	ASSERT(zio->io_executor == NULL);
+	ASSERT3S(zio->io_stage, ==, ZIO_STAGE_OPEN);
+	ASSERT3P(zio->io_executor, ==, NULL);
 
 	zio->io_waiter = curthread;
 	ASSERT0(zio->io_queued_timestamp);
@@ -1900,7 +1900,7 @@ zio_wait(zio_t *zio)
 void
 zio_nowait(zio_t *zio)
 {
-	ASSERT(zio->io_executor == NULL);
+	ASSERT3P(zio->io_executor, ==, NULL);
 
 	if (zio->io_child_type == ZIO_CHILD_LOGICAL &&
 	    zio_unique_parent(zio) == NULL) {
@@ -1926,7 +1926,7 @@ zio_nowait(zio_t *zio)
 
 /*
  * ==========================================================================
- * Reexecute or suspend/resume failed I/O
+ * Reexecute, cancel, or suspend/resume failed I/O
  * ==========================================================================
  */
 
@@ -1981,6 +1981,20 @@ zio_reexecute(zio_t *pio)
 		pio->io_queued_timestamp = gethrtime();
 		__zio_execute(pio);
 	}
+}
+
+void
+zio_cancel(zio_t *zio)
+{
+	/*
+	 * Disallow cancellation of a zio that's already been issued.
+	 */
+	VERIFY3P(zio->io_executor, ==, NULL);
+
+	zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;
+	zio->io_done = NULL;
+
+	zio_nowait(zio);
 }
 
 void
@@ -3276,6 +3290,9 @@ zio_alloc_zil(spa_t *spa, objset_t *os, uint64_t txg, blkptr_t *new_bp,
 
 			zio_crypt_encode_params_bp(new_bp, salt, iv);
 		}
+	} else {
+		zfs_dbgmsg("%s: zil block allocation failure: "
+		    "size %llu, error %d", spa_name(spa), size, error);
 	}
 
 	return (error);
