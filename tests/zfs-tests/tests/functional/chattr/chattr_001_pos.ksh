@@ -65,11 +65,11 @@ log_must chattr -i $TESTDIR/writable
 log_must chattr +i $TESTDIR/immutable
 log_must chattr +a $TESTDIR/append
 
-log_must echo test > $TESTDIR/writable
-log_must echo test >> $TESTDIR/writable
-log_mustnot echo test > $TESTDIR/immutable
-log_mustnot echo test >> $TESTDIR/immutable
-log_mustnot echo test > $TESTDIR/append
-log_must echo test >> $TESTDIR/append
+log_must eval "echo test > $TESTDIR/writable"
+log_must eval "echo test >> $TESTDIR/writable"
+log_mustnot eval "echo test > $TESTDIR/immutable"
+log_mustnot eval "echo test >> $TESTDIR/immutable"
+log_mustnot eval "echo test > $TESTDIR/append"
+log_must eval "echo test >> $TESTDIR/append"
 
 log_pass "chattr works as expected"
