@@ -1052,7 +1052,7 @@ zvol_get_done(zgd_t *zgd, int error)
 	zfs_range_unlock(zgd->zgd_rl);
 
 	if (error == 0 && zgd->zgd_bp)
-		zil_add_block(zgd->zgd_zilog, zgd->zgd_bp);
+		zil_lwb_add_block(zgd->zgd_lwb, zgd->zgd_bp);
 
 	kmem_free(zgd, sizeof (zgd_t));
 }
@@ -1061,7 +1061,7 @@ zvol_get_done(zgd_t *zgd, int error)
  * Get data to generate a TX_WRITE intent log record.
  */
 static int
-zvol_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
+zvol_get_data(void *arg, lr_write_t *lr, char *buf, struct lwb *lwb, zio_t *zio)
 {
 	zvol_state_t *zv = arg;
 	uint64_t offset = lr->lr_offset;
@@ -1070,11 +1070,12 @@ zvol_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
 	zgd_t *zgd;
 	int error;
 
-	ASSERT(zio != NULL);
-	ASSERT(size != 0);
+	ASSERT3P(lwb, !=, NULL);
+	ASSERT3P(zio, !=, NULL);
+	ASSERT3U(size, !=, 0);
 
 	zgd = (zgd_t *)kmem_zalloc(sizeof (zgd_t), KM_SLEEP);
-	zgd->zgd_zilog = zv->zv_zilog;
+	zgd->zgd_lwb = lwb;
 
 	/*
 	 * Write records come in two flavors: immediate and indirect.
