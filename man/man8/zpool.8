@@ -25,8 +25,9 @@
 .\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
 .\" Copyright (c) 2017 Datto Inc.
 .\" Copyright (c) 2017 George Melikov. All Rights Reserved.
+.\" Copyright (c) 2017 Datto Inc.
 .\"
-.Dd June 22, 2017
+.Dd June 28, 2017
 .Dt ZPOOL 8 SMM
 .Os Linux
 .Sh NAME
@@ -151,7 +152,7 @@
 .Ar pool Ar device Op Ar new_device
 .Nm
 .Cm scrub
-.Op Fl s
+.Op Fl s | Fl p
 .Ar pool Ns ...
 .Nm
 .Cm set
@@ -1769,10 +1770,10 @@ The only property supported at the moment is
 .It Xo
 .Nm
 .Cm scrub
-.Op Fl s
+.Op Fl s | Fl p
 .Ar pool Ns ...
 .Xc
-Begins a scrub.
+Begins a scrub or resumes a paused scrub.
 The scrub examines all data in the specified pools to verify that it checksums
 correctly.
 For replicated
@@ -1795,14 +1796,24 @@ faults or disk failure.
 .Pp
 Because scrubbing and resilvering are I/O-intensive operations, ZFS only allows
 one at a time.
-If a scrub is already in progress, the
+If a scrub is paused, the
 .Nm zpool Cm scrub
-command terminates it and starts a new scrub.
+resumes it.
 If a resilver is in progress, ZFS does not allow a scrub to be started until the
 resilver completes.
 .Bl -tag -width Ds
 .It Fl s
 Stop scrubbing.
+.El
+.Bl -tag -width Ds
+.It Fl p
+Pause scrubbing.
+Scrub progress is periodically synced to disk so if the system
+is restarted or pool is exported during a paused scrub, the scrub will resume
+from the place where it was last checkpointed to disk.
+To resume a paused scrub issue
+.Nm zpool Cm scrub
+again.
 .El
 .It Xo
 .Nm

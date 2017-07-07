@@ -342,7 +342,7 @@ get_usage(zpool_help_t idx)
 	case HELP_REOPEN:
 		return (gettext("\treopen <pool>\n"));
 	case HELP_SCRUB:
-		return (gettext("\tscrub [-s] <pool> ...\n"));
+		return (gettext("\tscrub [-s | -p] <pool> ...\n"));
 	case HELP_STATUS:
 		return (gettext("\tstatus [-c [script1,script2,...]] [-gLPvxD]"
 		    "[-T d|u] [pool] ... [interval [count]]\n"));
@@ -5759,6 +5759,7 @@ typedef struct scrub_cbdata {
 	int	cb_type;
 	int	cb_argc;
 	char	**cb_argv;
+	pool_scrub_cmd_t cb_scrub_cmd;
 } scrub_cbdata_t;
 
 int
@@ -5776,15 +5777,16 @@ scrub_callback(zpool_handle_t *zhp, void *data)
 		return (1);
 	}
 
-	err = zpool_scan(zhp, cb->cb_type);
+	err = zpool_scan(zhp, cb->cb_type, cb->cb_scrub_cmd);
 
 	return (err != 0);
 }
 
 /*
- * zpool scrub [-s] <pool> ...
+ * zpool scrub [-s | -p] <pool> ...
  *
  *	-s	Stop.  Stops any in-progress scrub.
+ *	-p	Pause. Pause in-progress scrub.
  */
 int
 zpool_do_scrub(int argc, char **argv)
@@ -5793,18 +5795,29 @@ zpool_do_scrub(int argc, char **argv)
 	scrub_cbdata_t cb;
 
 	cb.cb_type = POOL_SCAN_SCRUB;
+	cb.cb_scrub_cmd = POOL_SCRUB_NORMAL;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "s")) != -1) {
+	while ((c = getopt(argc, argv, "sp")) != -1) {
 		switch (c) {
 		case 's':
 			cb.cb_type = POOL_SCAN_NONE;
+			break;
+		case 'p':
+			cb.cb_scrub_cmd = POOL_SCRUB_PAUSE;
 			break;
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
 			    optopt);
 			usage(B_FALSE);
 		}
+	}
+
+	if (cb.cb_type == POOL_SCAN_NONE &&
+	    cb.cb_scrub_cmd == POOL_SCRUB_PAUSE) {
+		(void) fprintf(stderr, gettext("invalid option combination: "
+		    "-s and -p are mutually exclusive\n"));
+		usage(B_FALSE);
 	}
 
 	cb.cb_argc = argc;
@@ -5826,7 +5839,7 @@ zpool_do_scrub(int argc, char **argv)
 void
 print_scan_status(pool_scan_stat_t *ps)
 {
-	time_t start, end;
+	time_t start, end, pause;
 	uint64_t elapsed, mins_left, hours_left;
 	uint64_t pass_exam, examined, total;
 	uint_t rate;
@@ -5844,6 +5857,7 @@ print_scan_status(pool_scan_stat_t *ps)
 
 	start = ps->pss_start_time;
 	end = ps->pss_end_time;
+	pause = ps->pss_pass_scrub_pause;
 	zfs_nicebytes(ps->pss_processed, processed_buf, sizeof (processed_buf));
 
 	assert(ps->pss_func == POOL_SCAN_SCRUB ||
@@ -5886,8 +5900,17 @@ print_scan_status(pool_scan_stat_t *ps)
 	 * Scan is in progress.
 	 */
 	if (ps->pss_func == POOL_SCAN_SCRUB) {
-		(void) printf(gettext("scrub in progress since %s"),
-		    ctime(&start));
+		if (pause == 0) {
+			(void) printf(gettext("scrub in progress since %s"),
+			    ctime(&start));
+		} else {
+			char buf[32];
+			struct tm *p = localtime(&pause);
+			(void) strftime(buf, sizeof (buf), "%a %b %e %T %Y", p);
+			(void) printf(gettext("scrub paused since %s\n"), buf);
+			(void) printf(gettext("\tscrub started on   %s"),
+			    ctime(&start));
+		}
 	} else if (ps->pss_func == POOL_SCAN_RESILVER) {
 		(void) printf(gettext("resilver in progress since %s"),
 		    ctime(&start));
@@ -5899,6 +5922,7 @@ print_scan_status(pool_scan_stat_t *ps)
 
 	/* elapsed time for this pass */
 	elapsed = time(NULL) - ps->pss_pass_start;
+	elapsed -= ps->pss_pass_scrub_spent_paused;
 	elapsed = elapsed ? elapsed : 1;
 	pass_exam = ps->pss_pass_exam ? ps->pss_pass_exam : 1;
 	rate = pass_exam / elapsed;
@@ -5908,19 +5932,25 @@ print_scan_status(pool_scan_stat_t *ps)
 
 	zfs_nicebytes(examined, examined_buf, sizeof (examined_buf));
 	zfs_nicebytes(total, total_buf, sizeof (total_buf));
-	zfs_nicebytes(rate, rate_buf, sizeof (rate_buf));
 
 	/*
 	 * do not print estimated time if hours_left is more than 30 days
+	 * or we have a paused scrub
 	 */
-	(void) printf(gettext("\t%s scanned out of %s at %s/s"),
-	    examined_buf, total_buf, rate_buf);
-	if (hours_left < (30 * 24)) {
-		(void) printf(gettext(", %lluh%um to go\n"),
-		    (u_longlong_t)hours_left, (uint_t)(mins_left % 60));
+	if (pause == 0) {
+		zfs_nicebytes(rate, rate_buf, sizeof (rate_buf));
+		(void) printf(gettext("\t%s scanned out of %s at %s/s"),
+		    examined_buf, total_buf, rate_buf);
+		if (hours_left < (30 * 24)) {
+			(void) printf(gettext(", %lluh%um to go\n"),
+			    (u_longlong_t)hours_left, (uint_t)(mins_left % 60));
+		} else {
+			(void) printf(gettext(
+			    ", (scan is slow, no estimated time)\n"));
+		}
 	} else {
-		(void) printf(gettext(
-		    ", (scan is slow, no estimated time)\n"));
+		(void) printf(gettext("\t%s scanned out of %s\n"),
+		    examined_buf, total_buf);
 	}
 
 	if (ps->pss_func == POOL_SCAN_RESILVER) {
