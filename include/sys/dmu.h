@@ -935,7 +935,7 @@ uint64_t dmu_tx_get_txg(dmu_tx_t *tx);
  * {zfs,zvol,ztest}_get_done() args
  */
 typedef struct zgd {
-	struct zilog	*zgd_zilog;
+	struct lwb	*zgd_lwb;
 	struct blkptr	*zgd_bp;
 	dmu_buf_t	*zgd_db;
 	struct rl	*zgd_rl;

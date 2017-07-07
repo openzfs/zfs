@@ -1637,6 +1637,13 @@ dmu_sync_late_arrival(zio_t *pio, objset_t *os, dmu_sync_cb_t *done, zgd_t *zgd,
 		return (SET_ERROR(EIO));
 	}
 
+	/*
+	 * In order to prevent the zgd's lwb from being free'd prior to
+	 * dmu_sync_late_arrival_done() being called, we have to ensure
+	 * the lwb's "max txg" takes this tx's txg into account.
+	 */
+	zil_lwb_add_txg(zgd->zgd_lwb, dmu_tx_get_txg(tx));
+
 	dsa = kmem_alloc(sizeof (dmu_sync_arg_t), KM_SLEEP);
 	dsa->dsa_dr = NULL;
 	dsa->dsa_done = done;
