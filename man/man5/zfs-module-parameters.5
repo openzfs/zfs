@@ -1413,6 +1413,79 @@ Default value: \fB0\fR.
 .sp
 .ne 2
 .na
+\fBzfs_multihost_history\fR (int)
+.ad
+.RS 12n
+Historical statistics for the last N multihost updates will be available in
+\fB/proc/spl/kstat/zfs/<pool>/multihost\fR
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_multihost_interval\fR (ulong)
+.ad
+.RS 12n
+Used to control the frequency of multihost writes which are performed when the
+\fBmultihost\fR pool property is on.  This is one factor used to determine
+the length of the activity check during import.
+.sp
+The multihost write period is \fBzfs_multihost_interval / leaf-vdevs\fR milliseconds.
+This means that on average a multihost write will be issued for each leaf vdev every
+\fBzfs_multihost_interval\fR milliseconds.  In practice, the observed period can
+vary with the I/O load and this observed value is the delay which is stored in
+the uberblock.
+.sp
+On import the activity check waits a minimum amount of time determined by
+\fBzfs_multihost_interval * zfs_multihost_import_intervals\fR.  The activity
+check time may be further extended if the value of mmp delay found in the best
+uberblock indicates actual multihost updates happened at longer intervals than
+\fBzfs_multihost_interval\fR.  A minimum value of \fB100ms\fR is enforced.
+.sp
+Default value: \fB1000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_multihost_import_intervals\fR (uint)
+.ad
+.RS 12n
+Used to control the duration of the activity test on import.  Smaller values of
+\fBzfs_multihost_import_intervals\fR will reduce the import time but increase
+the risk of failing to detect an active pool.  The total activity check time is
+never allowed to drop below one second.  A value of 0 is ignored and treated as
+if it was set to 1
+.sp
+Default value: \fB10\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_multihost_fail_intervals\fR (uint)
+.ad
+.RS 12n
+Controls the behavior of the pool when multihost write failures are detected.
+.sp
+When \fBzfs_multihost_fail_intervals = 0\fR then multihost write failures are ignored.
+The failures will still be reported to the ZED which depending on its
+configuration may take action such as suspending the pool or offlining a device.
+.sp
+When \fBzfs_multihost_fail_intervals > 0\fR then sequential multihost write failures
+will cause the pool to be suspended.  This occurs when
+\fBzfs_multihost_fail_intervals * zfs_multihost_interval\fR milliseconds have
+passed since the last successful multihost write.  This guarantees the activity test
+will see multihost writes if the pool is imported.
+.sp
+Default value: \fB5\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_no_scrub_io\fR (int)
 .ad
 .RS 12n
@@ -1529,8 +1602,8 @@ Default value: \fB1,048,576\fR.
 \fBzfs_read_history\fR (int)
 .ad
 .RS 12n
-Historic statistics for the last N reads will be available in
-\fR/proc/spl/kstat/zfs/POOLNAME/reads\fB
+Historical statistics for the last N reads will be available in
+\fB/proc/spl/kstat/zfs/<pool>/reads\fR
 .sp
 Default value: \fB0\fR (no data is kept).
 .RE
@@ -1684,8 +1757,8 @@ Default value: \fB32\fR.
 \fBzfs_txg_history\fR (int)
 .ad
 .RS 12n
-Historic statistics for the last N txgs will be available in
-\fR/proc/spl/kstat/zfs/POOLNAME/txgs\fB
+Historical statistics for the last N txgs will be available in
+\fB/proc/spl/kstat/zfs/<pool>/txgs\fR
 .sp
 Default value: \fB0\fR.
 .RE

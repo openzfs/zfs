@@ -29,6 +29,7 @@ SUBDIRS = \
 	link_count \
 	migration \
 	mmap \
+	mmp \
 	mount \
 	mv_files \
 	nestedfs \

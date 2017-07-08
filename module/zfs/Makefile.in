@@ -43,6 +43,7 @@ $(MODULE)-objs += gzip.o
 $(MODULE)-objs += lzjb.o
 $(MODULE)-objs += lz4.o
 $(MODULE)-objs += metaslab.o
+$(MODULE)-objs += mmp.o
 $(MODULE)-objs += multilist.o
 $(MODULE)-objs += pathname.o
 $(MODULE)-objs += policy.o
