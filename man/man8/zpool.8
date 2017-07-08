@@ -717,6 +717,25 @@ The default value is
 .Sy off .
 This property can also be referred to by its shortened name,
 .Sy listsnaps .
+.It Sy multihost Ns = Ns Sy on Ns | Ns Sy off
+Controls whether a pool activity check should be performed during
+.Nm zpool Cm import .
+When a pool is determined to be active it cannot be imported, even with the
+.Fl f
+option.  This property is intended to be used in failover configurations
+where multiple hosts have access to a pool on shared storage.  When this
+property is on, periodic writes to storage occur to show the pool is in use.
+See
+.Sy zfs_multihost_interval
+in the
+.Xr zfs-module-parameters 5
+man page.  In order to enable this property each host must set a unique hostid.
+See
+.Xr genhostid 1
+and
+.Xr spl-module-paramters 5
+for additional details.  The default value is
+.Sy off .
 .It Sy version Ns = Ns Ar version
 The current on-disk version of the pool.
 This can be increased, but never decreased.
@@ -2335,7 +2354,7 @@ is not set, it is assumed that the user is allowed to run
 .Sh INTERFACE STABILITY
 .Sy Evolving
 .Sh SEE ALSO
-.Xr zed 8
+.Xr zed 8 ,
 .Xr zfs 8 ,
 .Xr zfs-events 5 ,
 .Xr zfs-module-parameters 5 ,

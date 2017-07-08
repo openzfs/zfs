@@ -38,6 +38,7 @@
 #include <sys/bpobj.h>
 #include <sys/bptree.h>
 #include <sys/rrwlock.h>
+#include <sys/mmp.h>
 
 #ifdef	__cplusplus
 extern "C" {

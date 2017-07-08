@@ -64,6 +64,8 @@ static char *zfs_msgid_table[] = {
 	"ZFS-8000-9P",
 	"ZFS-8000-A5",
 	"ZFS-8000-EY",
+	"ZFS-8000-EY",
+	"ZFS-8000-EY",
 	"ZFS-8000-HC",
 	"ZFS-8000-JQ",
 	"ZFS-8000-K4",
@@ -216,6 +218,26 @@ check_status(nvlist_t *config, boolean_t isimport, zpool_errata_t *erratap)
 		return (ZPOOL_STATUS_RESILVERING);
 
 	/*
+	 * The multihost property is set and the pool may be active.
+	 */
+	if (vs->vs_state == VDEV_STATE_CANT_OPEN &&
+	    vs->vs_aux == VDEV_AUX_ACTIVE) {
+		mmp_state_t mmp_state;
+		nvlist_t *nvinfo;
+
+		nvinfo = fnvlist_lookup_nvlist(config, ZPOOL_CONFIG_LOAD_INFO);
+		mmp_state = fnvlist_lookup_uint64(nvinfo,
+		    ZPOOL_CONFIG_MMP_STATE);
+
+		if (mmp_state == MMP_STATE_ACTIVE)
+			return (ZPOOL_STATUS_HOSTID_ACTIVE);
+		else if (mmp_state == MMP_STATE_NO_HOSTID)
+			return (ZPOOL_STATUS_HOSTID_REQUIRED);
+		else
+			return (ZPOOL_STATUS_HOSTID_MISMATCH);
+	}
+
+	/*
 	 * Pool last accessed by another system.
 	 */
 	(void) nvlist_lookup_uint64(config, ZPOOL_CONFIG_HOSTID, &hostid);
@@ -344,8 +366,9 @@ check_status(nvlist_t *config, boolean_t isimport, zpool_errata_t *erratap)
 		if (isimport) {
 			feat = fnvlist_lookup_nvlist(config,
 			    ZPOOL_CONFIG_LOAD_INFO);
-			feat = fnvlist_lookup_nvlist(feat,
-			    ZPOOL_CONFIG_ENABLED_FEAT);
+			if (nvlist_exists(feat, ZPOOL_CONFIG_ENABLED_FEAT))
+				feat = fnvlist_lookup_nvlist(feat,
+				    ZPOOL_CONFIG_ENABLED_FEAT);
 		} else {
 			feat = fnvlist_lookup_nvlist(config,
 			    ZPOOL_CONFIG_FEATURE_STATS);
