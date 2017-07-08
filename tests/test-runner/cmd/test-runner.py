@@ -719,6 +719,10 @@ class TestRun(object):
 
         if Result.runresults['FAIL'] > 0:
             return 1
+
+        if Result.runresults['KILLED'] > 0:
+            return 1
+
         return 0
 
 
