@@ -1403,8 +1403,6 @@ zfs_domount(struct super_block *sb, zfs_mntopts_t *zmo, int silent)
 	sb->s_time_gran = 1;
 	sb->s_blocksize = recordsize;
 	sb->s_blocksize_bits = ilog2(recordsize);
-	zsb->z_bdi.ra_pages = 0;
-	sb->s_bdi = &zsb->z_bdi;
 
 	error = -zpl_bdi_setup(sb, "zfs");
 	if (error)
