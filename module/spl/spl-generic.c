@@ -499,80 +499,63 @@ module_param(spl_hostid_path, charp, 0444);
 MODULE_PARM_DESC(spl_hostid_path, "The system hostid file (/etc/hostid)");
 
 static int
-hostid_read(void)
+hostid_read(uint32_t *hostid)
 {
-	int result;
 	uint64_t size;
 	struct _buf *file;
-	uint32_t hostid = 0;
+	uint32_t value = 0;
+	int error;
 
 	file = kobj_open_file(spl_hostid_path);
-
 	if (file == (struct _buf *)-1)
-		return -1;
+		return (ENOENT);
 
-	result = kobj_get_filesize(file, &size);
-
-	if (result != 0) {
-		printk(KERN_WARNING
-		       "SPL: kobj_get_filesize returned %i on %s\n",
-		       result, spl_hostid_path);
+	error = kobj_get_filesize(file, &size);
+	if (error) {
 		kobj_close_file(file);
-		return -2;
+		return (error);
 	}
 
 	if (size < sizeof(HW_HOSTID_MASK)) {
-		printk(KERN_WARNING
-		       "SPL: Ignoring the %s file because it is %llu bytes; "
-		       "expecting %lu bytes instead.\n", spl_hostid_path,
-		       size, (unsigned long)sizeof(HW_HOSTID_MASK));
 		kobj_close_file(file);
-		return -3;
+		return (EINVAL);
 	}
 
-	/* Read directly into the variable like eglibc does. */
-	/* Short reads are okay; native behavior is preserved. */
-	result = kobj_read_file(file, (char *)&hostid, sizeof(hostid), 0);
-
-	if (result < 0) {
-		printk(KERN_WARNING
-		       "SPL: kobj_read_file returned %i on %s\n",
-		       result, spl_hostid_path);
+	/*
+	 * Read directly into the variable like eglibc does.
+	 * Short reads are okay; native behavior is preserved.
+	 */
+	error = kobj_read_file(file, (char *)&value, sizeof(value), 0);
+	if (error < 0) {
 		kobj_close_file(file);
-		return -4;
+		return (EIO);
 	}
 
 	/* Mask down to 32 bits like coreutils does. */
-	spl_hostid = hostid & HW_HOSTID_MASK;
+	*hostid = (value & HW_HOSTID_MASK);
 	kobj_close_file(file);
+
 	return 0;
 }
 
+/*
+ * Return the system hostid.  Preferentially use the spl_hostid module option
+ * when set, otherwise use the value in the /etc/hostid file.
+ */
 uint32_t
 zone_get_hostid(void *zone)
 {
-	static int first = 1;
+	uint32_t hostid;
 
-	/* Only the global zone is supported */
-	ASSERT(zone == NULL);
+	ASSERT3P(zone, ==, NULL);
 
-	if (first) {
-		first = 0;
+	if (spl_hostid != 0)
+		return ((uint32_t)(spl_hostid & HW_HOSTID_MASK));
 
-		spl_hostid &= HW_HOSTID_MASK;
-		/*
-		 * Get the hostid if it was not passed as a module parameter.
-		 * Try reading the /etc/hostid file directly.
-		 */
-		if (spl_hostid == 0 && hostid_read())
-			spl_hostid = 0;
+	if (hostid_read(&hostid) == 0)
+		return (hostid);
 
-
-		printk(KERN_NOTICE "SPL: using hostid 0x%08x\n",
-			(unsigned int) spl_hostid);
-	}
-
-	return spl_hostid;
+	return (0);
 }
 EXPORT_SYMBOL(zone_get_hostid);
 

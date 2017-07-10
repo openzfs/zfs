@@ -203,7 +203,8 @@ proc_dohostid(struct ctl_table *table, int write,
                         return (-EINVAL);
 
         } else {
-                len = snprintf(str, sizeof(str), "%lx", spl_hostid);
+                len = snprintf(str, sizeof(str), "%lx",
+		    (unsigned long) zone_get_hostid(NULL));
                 if (*ppos >= len)
                         rc = 0;
                 else
