@@ -51,6 +51,7 @@ extern void zvol_create_cb(objset_t *os, void *arg, cred_t *cr, dmu_tx_t *tx);
 extern int zvol_set_volsize(const char *, uint64_t);
 extern int zvol_set_volblocksize(const char *, uint64_t);
 extern int zvol_set_snapdev(const char *, zprop_source_t, uint64_t);
+extern int zvol_set_volmode(const char *, zprop_source_t, uint64_t);
 extern zvol_state_t *zvol_suspend(const char *);
 extern int zvol_resume(zvol_state_t *);
 extern void *zvol_tag(zvol_state_t *);

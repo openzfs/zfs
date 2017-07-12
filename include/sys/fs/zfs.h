@@ -154,6 +154,7 @@ typedef enum {
 	ZFS_PROP_LOGICALUSED,
 	ZFS_PROP_LOGICALREFERENCED,
 	ZFS_PROP_INCONSISTENT,		/* not exposed to the user */
+	ZFS_PROP_VOLMODE,
 	ZFS_PROP_FILESYSTEM_LIMIT,
 	ZFS_PROP_SNAPSHOT_LIMIT,
 	ZFS_PROP_FILESYSTEM_COUNT,
@@ -393,6 +394,13 @@ typedef enum {
 	ZFS_REDUNDANT_METADATA_ALL,
 	ZFS_REDUNDANT_METADATA_MOST
 } zfs_redundant_metadata_type_t;
+
+typedef enum {
+	ZFS_VOLMODE_DEFAULT = 0,
+	ZFS_VOLMODE_GEOM = 1,
+	ZFS_VOLMODE_DEV = 2,
+	ZFS_VOLMODE_NONE = 3
+} zfs_volmode_t;
 
 /*
  * On-disk version number.
