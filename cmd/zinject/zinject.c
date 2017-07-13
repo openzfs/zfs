@@ -36,12 +36,15 @@
  *
  * Errors can be injected into a particular vdev using the '-d' option.  This
  * option takes a path or vdev GUID to uniquely identify the device within a
- * pool.  There are two types of errors that can be injected, EIO and ENXIO,
- * that can be controlled through the '-e' option.  The default is ENXIO.  For
- * EIO failures, any attempt to read data from the device will return EIO, but
- * subsequent attempt to reopen the device will succeed.  For ENXIO failures,
- * any attempt to read from the device will return EIO, but any attempt to
- * reopen the device will also return ENXIO.
+ * pool.  There are four types of errors that can be injected, IO, ENXIO,
+ * ECHILD, and EILSEQ.  These can be controlled through the '-e' option and the
+ * default is ENXIO.  For EIO failures, any attempt to read data from the device
+ * will return EIO, but a subsequent attempt to reopen the device will succeed.
+ * For ENXIO failures, any attempt to read from the device will return EIO, but
+ * any attempt to reopen the device will also return ENXIO.  The EILSEQ failures
+ * only apply to read operations (-T read) and will flip a bit after the device
+ * has read the original data.
+ *
  * For label faults, the -L option must be specified. This allows faults
  * to be injected into either the nvlist, uberblock, pad1, or pad2 region
  * of all the labels for the specified device.
@@ -231,11 +234,12 @@ usage(void)
 	    "\t\tspa_vdev_exit() will trigger a panic.\n"
 	    "\n"
 	    "\tzinject -d device [-e errno] [-L <nvlist|uber|pad1|pad2>] [-F]\n"
-	    "\t    [-T <read|write|free|claim|all>] [-f frequency] pool\n"
+	    "\t\t[-T <read|write|free|claim|all>] [-f frequency] pool\n\n"
 	    "\t\tInject a fault into a particular device or the device's\n"
 	    "\t\tlabel.  Label injection can either be 'nvlist', 'uber',\n "
 	    "\t\t'pad1', or 'pad2'.\n"
-	    "\t\t'errno' can be 'nxio' (the default), 'io', or 'dtl'.\n"
+	    "\t\t'errno' can be 'nxio' (the default), 'io', 'dtl', or\n"
+	    "\t\t'corrupt' (bit flip).\n"
 	    "\t\t'frequency' is a value between 0.0001 and 100.0 that limits\n"
 	    "\t\tdevice error injection to a percentage of the IOs.\n"
 	    "\n"
@@ -774,6 +778,8 @@ main(int argc, char **argv)
 				error = ENXIO;
 			} else if (strcasecmp(optarg, "dtl") == 0) {
 				error = ECHILD;
+			} else if (strcasecmp(optarg, "corrupt") == 0) {
+				error = EILSEQ;
 			} else {
 				(void) fprintf(stderr, "invalid error type "
 				    "'%s': must be 'io', 'checksum' or "
@@ -981,7 +987,15 @@ main(int argc, char **argv)
 
 		if (error == ECKSUM) {
 			(void) fprintf(stderr, "device error type must be "
-			    "'io' or 'nxio'\n");
+			    "'io', 'nxio' or 'corrupt'\n");
+			libzfs_fini(g_zfs);
+			return (1);
+		}
+
+		if (error == EILSEQ &&
+		    (record.zi_freq == 0 || io_type != ZIO_TYPE_READ)) {
+			(void) fprintf(stderr, "device corrupt errors require "
+			    "io type read and a frequency value\n");
 			libzfs_fini(g_zfs);
 			return (1);
 		}
@@ -1109,7 +1123,7 @@ main(int argc, char **argv)
 			return (2);
 		}
 
-		if (error == ENXIO) {
+		if (error == ENXIO || error == EILSEQ) {
 			(void) fprintf(stderr, "data error type must be "
 			    "'checksum' or 'io'\n");
 			libzfs_fini(g_zfs);

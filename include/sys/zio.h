@@ -589,6 +589,8 @@ extern int zio_clear_fault(int id);
 extern void zio_handle_panic_injection(spa_t *spa, char *tag, uint64_t type);
 extern int zio_handle_fault_injection(zio_t *zio, int error);
 extern int zio_handle_device_injection(vdev_t *vd, zio_t *zio, int error);
+extern int zio_handle_device_injections(vdev_t *vd, zio_t *zio, int err1,
+    int err2);
 extern int zio_handle_label_injection(zio_t *zio, int error);
 extern void zio_handle_ignored_writes(zio_t *zio);
 extern hrtime_t zio_handle_io_delay(zio_t *zio);
