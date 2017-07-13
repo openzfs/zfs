@@ -102,7 +102,7 @@
  * ereport with information about the differences.
  */
 #ifdef _KERNEL
-static void
+void
 zfs_zevent_post_cb(nvlist_t *nvl, nvlist_t *detector)
 {
 	if (nvl)
@@ -904,19 +904,25 @@ zfs_ereport_post_checksum(spa_t *spa, vdev_t *vd,
 #endif
 }
 
-static void
-zfs_post_common(spa_t *spa, vdev_t *vd, const char *type, const char *name,
+/*
+ * The 'sysevent.fs.zfs.*' events are signals posted to notify user space of
+ * change in the pool.  All sysevents are listed in sys/sysevent/eventdefs.h
+ * and are designed to be consumed by the ZFS Event Daemon (ZED).  For
+ * additional details refer to the zed(8) man page.
+ */
+nvlist_t *
+zfs_event_create(spa_t *spa, vdev_t *vd, const char *type, const char *name,
     nvlist_t *aux)
 {
+	nvlist_t *resource = NULL;
 #ifdef _KERNEL
-	nvlist_t *resource;
 	char class[64];
 
 	if (spa_load_state(spa) == SPA_LOAD_TRYIMPORT)
-		return;
+		return (NULL);
 
 	if ((resource = fm_nvlist_create(NULL)) == NULL)
-		return;
+		return (NULL);
 
 	(void) snprintf(class, sizeof (class), "%s.%s.%s", type,
 	    ZFS_ERROR_CLASS, name);
@@ -949,16 +955,30 @@ zfs_post_common(spa_t *spa, vdev_t *vd, const char *type, const char *name,
 			VERIFY0(nvlist_add_string(resource,
 			    FM_EREPORT_PAYLOAD_ZFS_VDEV_ENC_SYSFS_PATH,
 			    vd->vdev_enc_sysfs_path));
-		/* also copy any optional payload data */
-		if (aux) {
-			nvpair_t *elem = NULL;
-
-			while ((elem = nvlist_next_nvpair(aux, elem)) != NULL)
-				(void) nvlist_add_nvpair(resource, elem);
-		}
 	}
 
-	zfs_zevent_post(resource, NULL, zfs_zevent_post_cb);
+	/* also copy any optional payload data */
+	if (aux) {
+		nvpair_t *elem = NULL;
+
+		while ((elem = nvlist_next_nvpair(aux, elem)) != NULL)
+			(void) nvlist_add_nvpair(resource, elem);
+	}
+
+#endif
+	return (resource);
+}
+
+static void
+zfs_post_common(spa_t *spa, vdev_t *vd, const char *type, const char *name,
+    nvlist_t *aux)
+{
+#ifdef _KERNEL
+	nvlist_t *resource;
+
+	resource = zfs_event_create(spa, vd, type, name, aux);
+	if (resource)
+		zfs_zevent_post(resource, NULL, zfs_zevent_post_cb);
 #endif
 }
 
@@ -1025,23 +1045,10 @@ zfs_post_state_change(spa_t *spa, vdev_t *vd, uint64_t laststate)
 #endif
 }
 
-/*
- * The 'sysevent.fs.zfs.*' events are signals posted to notify user space of
- * change in the pool.  All sysevents are listed in sys/sysevent/eventdefs.h
- * and are designed to be consumed by the ZFS Event Daemon (ZED).  For
- * additional details refer to the zed(8) man page.
- */
-void
-zfs_post_sysevent(spa_t *spa, vdev_t *vd, const char *name)
-{
-	zfs_post_common(spa, vd, FM_SYSEVENT_CLASS, name, NULL);
-}
-
 #if defined(_KERNEL) && defined(HAVE_SPL)
 EXPORT_SYMBOL(zfs_ereport_post);
 EXPORT_SYMBOL(zfs_ereport_post_checksum);
 EXPORT_SYMBOL(zfs_post_remove);
 EXPORT_SYMBOL(zfs_post_autoreplace);
 EXPORT_SYMBOL(zfs_post_state_change);
-EXPORT_SYMBOL(zfs_post_sysevent);
 #endif /* _KERNEL */
