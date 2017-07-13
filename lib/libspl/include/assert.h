@@ -72,7 +72,8 @@ do {									\
 	const TYPE __right = (TYPE)(RIGHT);				\
 	if (!(__left OP __right))					\
 		libspl_assertf(__FILE__, __FUNCTION__, __LINE__,	\
-		    "%s %s %s (0x%llx %s 0x%llx)", #LEFT, #OP, #RIGHT);	\
+		    "%s %s %s (0x%llx %s 0x%llx)", #LEFT, #OP, #RIGHT,	\
+		    (u_longlong_t)__left, #OP, (u_longlong_t)__right);	\
 } while (0)
 
 #define	VERIFY3S(x, y, z)	VERIFY3_IMPL(x, y, z, int64_t)
