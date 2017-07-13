@@ -43,7 +43,8 @@ SINGLETEST=()
 SINGLETESTUSER="root"
 ZFS_DBGMSG="$STF_SUITE/callbacks/zfs_dbgmsg.ksh"
 ZFS_DMESG="$STF_SUITE/callbacks/zfs_dmesg.ksh"
-TESTFAIL_CALLBACKS=${TESTFAIL_CALLBACKS:-"$ZFS_DBGMSG:$ZFS_DMESG"}
+ZFS_MMP="$STF_SUITE/callbacks/zfs_mmp.ksh"
+TESTFAIL_CALLBACKS=${TESTFAIL_CALLBACKS:-"$ZFS_DBGMSG:$ZFS_DMESG:$ZFS_MMP"}
 
 #
 # Attempt to remove loopback devices and files which where created earlier

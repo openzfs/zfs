@@ -2166,6 +2166,80 @@ zpool_search_import(libzfs_handle_t *hdl, importargs_t *import)
 	return (zpool_find_import_impl(hdl, import));
 }
 
+static boolean_t
+pool_match(nvlist_t *cfg, char *tgt)
+{
+	uint64_t v, guid = strtoull(tgt, NULL, 0);
+	char *s;
+
+	if (guid != 0) {
+		if (nvlist_lookup_uint64(cfg, ZPOOL_CONFIG_POOL_GUID, &v) == 0)
+			return (v == guid);
+	} else {
+		if (nvlist_lookup_string(cfg, ZPOOL_CONFIG_POOL_NAME, &s) == 0)
+			return (strcmp(s, tgt) == 0);
+	}
+	return (B_FALSE);
+}
+
+int
+zpool_tryimport(libzfs_handle_t *hdl, char *target, nvlist_t **configp,
+    importargs_t *args)
+{
+	nvlist_t *pools;
+	nvlist_t *match = NULL;
+	nvlist_t *config = NULL;
+	char *name = NULL, *sepp = NULL;
+	char sep = '\0';
+	int count = 0;
+	char *targetdup = strdup(target);
+
+	*configp = NULL;
+
+	if ((sepp = strpbrk(targetdup, "/@")) != NULL) {
+		sep = *sepp;
+		*sepp = '\0';
+	}
+
+	pools = zpool_search_import(hdl, args);
+
+	if (pools != NULL) {
+		nvpair_t *elem = NULL;
+		while ((elem = nvlist_next_nvpair(pools, elem)) != NULL) {
+			VERIFY0(nvpair_value_nvlist(elem, &config));
+			if (pool_match(config, targetdup)) {
+				count++;
+				if (match != NULL) {
+					/* multiple matches found */
+					continue;
+				} else {
+					match = config;
+					name = nvpair_name(elem);
+				}
+			}
+		}
+	}
+
+	if (count == 0) {
+		(void) zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "no pools found"));
+		free(targetdup);
+		return (ENOENT);
+	}
+
+	if (count > 1) {
+		(void) zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "%d pools found, use pool GUID\n"), count);
+		free(targetdup);
+		return (EINVAL);
+	}
+
+	*configp = match;
+	free(targetdup);
+
+	return (0);
+}
+
 boolean_t
 find_guid(nvlist_t *nv, uint64_t guid)
 {
