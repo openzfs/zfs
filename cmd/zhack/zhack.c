@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  */
 
@@ -48,7 +48,6 @@
 #include <sys/zio_compress.h>
 #include <sys/zfeature.h>
 #include <sys/dmu_tx.h>
-#undef ZFS_MAXNAMELEN
 #include <libzfs.h>
 
 extern boolean_t zfeature_checks_disable;
@@ -70,9 +69,10 @@ usage(void)
 	(void) fprintf(stderr,
 	    "    feature stat <pool>\n"
 	    "        print information about enabled features\n"
-	    "    feature enable [-d desc] <pool> <feature>\n"
+	    "    feature enable [-r] [-d desc] <pool> <feature>\n"
 	    "        add a new enabled feature to the pool\n"
 	    "        -d <desc> sets the feature's description\n"
+	    "        -r set read-only compatible flag for feature\n"
 	    "    feature ref [-md] <pool> <feature>\n"
 	    "        change the refcount on the given feature\n"
 	    "        -d decrease instead of increase the refcount\n"
@@ -121,16 +121,11 @@ space_delta_cb(dmu_object_type_t bonustype, void *data,
  * Target is the dataset whose pool we want to open.
  */
 static void
-import_pool(const char *target, boolean_t readonly)
+zhack_import(char *target, boolean_t readonly)
 {
 	nvlist_t *config;
-	nvlist_t *pools;
-	int error;
-	char *sepp;
-	spa_t *spa;
-	nvpair_t *elem;
 	nvlist_t *props;
-	char *name;
+	int error;
 
 	kernel_init(readonly ? FREAD : (FREAD | FWRITE));
 	g_zfs = libzfs_init();
@@ -139,43 +134,14 @@ import_pool(const char *target, boolean_t readonly)
 	dmu_objset_register_type(DMU_OST_ZFS, space_delta_cb);
 
 	g_readonly = readonly;
-
-	/*
-	 * If we only want readonly access, it's OK if we find
-	 * a potentially-active (ie, imported into the kernel) pool from the
-	 * default cachefile.
-	 */
-	if (readonly && spa_open(target, &spa, FTAG) == 0) {
-		spa_close(spa, FTAG);
-		return;
-	}
-
 	g_importargs.unique = B_TRUE;
 	g_importargs.can_be_active = readonly;
 	g_pool = strdup(target);
-	if ((sepp = strpbrk(g_pool, "/@")) != NULL)
-		*sepp = '\0';
-	g_importargs.poolname = g_pool;
-	pools = zpool_search_import(g_zfs, &g_importargs);
 
-	if (nvlist_empty(pools)) {
-		if (!g_importargs.can_be_active) {
-			g_importargs.can_be_active = B_TRUE;
-			if (zpool_search_import(g_zfs, &g_importargs) != NULL ||
-			    spa_open(target, &spa, FTAG) == 0) {
-				fatal(spa, FTAG, "cannot import '%s': pool is "
-				    "active; run " "\"zpool export %s\" "
-				    "first\n", g_pool, g_pool);
-			}
-		}
-
-		fatal(NULL, FTAG, "cannot import '%s': no such pool "
-		    "available\n", g_pool);
-	}
-
-	elem = nvlist_next_nvpair(pools, NULL);
-	name = nvpair_name(elem);
-	VERIFY(nvpair_value_nvlist(elem, &config) == 0);
+	error = zpool_tryimport(g_zfs, target, &config, &g_importargs);
+	if (error)
+		fatal(NULL, FTAG, "cannot import '%s': %s", target,
+		    libzfs_error_description(g_zfs));
 
 	props = NULL;
 	if (readonly) {
@@ -185,22 +151,22 @@ import_pool(const char *target, boolean_t readonly)
 	}
 
 	zfeature_checks_disable = B_TRUE;
-	error = spa_import(name, config, props, ZFS_IMPORT_NORMAL);
+	error = spa_import(target, config, props, ZFS_IMPORT_NORMAL);
 	zfeature_checks_disable = B_FALSE;
 	if (error == EEXIST)
 		error = 0;
 
 	if (error)
-		fatal(NULL, FTAG, "can't import '%s': %s", name,
+		fatal(NULL, FTAG, "can't import '%s': %s", target,
 		    strerror(error));
 }
 
 static void
-zhack_spa_open(const char *target, boolean_t readonly, void *tag, spa_t **spa)
+zhack_spa_open(char *target, boolean_t readonly, void *tag, spa_t **spa)
 {
 	int err;
 
-	import_pool(target, readonly);
+	zhack_import(target, readonly);
 
 	zfeature_checks_disable = B_TRUE;
 	err = spa_open(target, spa, tag);
@@ -294,8 +260,8 @@ zhack_feature_enable_sync(void *arg, dmu_tx_t *tx)
 	feature_enable_sync(spa, feature, tx);
 
 	spa_history_log_internal(spa, "zhack enable feature", tx,
-	    "name=%s can_readonly=%u",
-	    feature->fi_guid, feature->fi_can_readonly);
+	    "name=%s flags=%u",
+	    feature->fi_guid, feature->fi_flags);
 }
 
 static void
@@ -314,17 +280,15 @@ zhack_do_feature_enable(int argc, char **argv)
 	 */
 	desc = NULL;
 	feature.fi_uname = "zhack";
-	feature.fi_mos = B_FALSE;
-	feature.fi_can_readonly = B_FALSE;
-	feature.fi_activate_on_enable = B_FALSE;
+	feature.fi_flags = 0;
 	feature.fi_depends = nodeps;
 	feature.fi_feature = SPA_FEATURE_NONE;
 
 	optind = 1;
-	while ((c = getopt(argc, argv, "rmd:")) != -1) {
+	while ((c = getopt(argc, argv, "+rd:")) != -1) {
 		switch (c) {
 		case 'r':
-			feature.fi_can_readonly = B_TRUE;
+			feature.fi_flags |= ZFEATURE_FLAG_READONLY_COMPAT;
 			break;
 		case 'd':
 			desc = strdup(optarg);
@@ -362,7 +326,7 @@ zhack_do_feature_enable(int argc, char **argv)
 		    feature.fi_guid);
 
 	VERIFY0(dsl_sync_task(spa_name(spa), NULL,
-	    zhack_feature_enable_sync, &feature, 5));
+	    zhack_feature_enable_sync, &feature, 5, ZFS_SPACE_CHECK_NORMAL));
 
 	spa_close(spa, FTAG);
 
@@ -413,16 +377,16 @@ zhack_do_feature_ref(int argc, char **argv)
 	 * disk later.
 	 */
 	feature.fi_uname = "zhack";
-	feature.fi_mos = B_FALSE;
+	feature.fi_flags = 0;
 	feature.fi_desc = NULL;
 	feature.fi_depends = nodeps;
 	feature.fi_feature = SPA_FEATURE_NONE;
 
 	optind = 1;
-	while ((c = getopt(argc, argv, "md")) != -1) {
+	while ((c = getopt(argc, argv, "+md")) != -1) {
 		switch (c) {
 		case 'm':
-			feature.fi_mos = B_TRUE;
+			feature.fi_flags |= ZFEATURE_FLAG_MOS;
 			break;
 		case 'd':
 			decr = B_TRUE;
@@ -455,10 +419,10 @@ zhack_do_feature_ref(int argc, char **argv)
 
 	if (0 == zap_contains(mos, spa->spa_feat_for_read_obj,
 	    feature.fi_guid)) {
-		feature.fi_can_readonly = B_FALSE;
+		feature.fi_flags &= ~ZFEATURE_FLAG_READONLY_COMPAT;
 	} else if (0 == zap_contains(mos, spa->spa_feat_for_write_obj,
 	    feature.fi_guid)) {
-		feature.fi_can_readonly = B_TRUE;
+		feature.fi_flags |= ZFEATURE_FLAG_READONLY_COMPAT;
 	} else {
 		fatal(spa, FTAG, "feature is not enabled: %s", feature.fi_guid);
 	}
@@ -466,14 +430,15 @@ zhack_do_feature_ref(int argc, char **argv)
 	if (decr) {
 		uint64_t count;
 		if (feature_get_refcount_from_disk(spa, &feature,
-		    &count) == 0 && count != 0) {
+		    &count) == 0 && count == 0) {
 			fatal(spa, FTAG, "feature refcount already 0: %s",
 			    feature.fi_guid);
 		}
 	}
 
 	VERIFY0(dsl_sync_task(spa_name(spa), NULL,
-	    decr ? feature_decr_sync : feature_incr_sync, &feature, 5));
+	    decr ? feature_decr_sync : feature_incr_sync, &feature,
+	    5, ZFS_SPACE_CHECK_NORMAL));
 
 	spa_close(spa, FTAG);
 }
@@ -524,7 +489,7 @@ main(int argc, char **argv)
 	dprintf_setup(&argc, argv);
 	zfs_prop_init();
 
-	while ((c = getopt(argc, argv, "c:d:")) != -1) {
+	while ((c = getopt(argc, argv, "+c:d:")) != -1) {
 		switch (c) {
 		case 'c':
 			g_importargs.cachefile = optarg;

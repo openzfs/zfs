@@ -24,7 +24,7 @@
  */
 
 /*
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -33,9 +33,11 @@
 #include <sys/zio.h>
 #include <sys/avl.h>
 #include <sys/dsl_pool.h>
+#include <sys/metaslab_impl.h>
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
 #include <sys/kstat.h>
+#include <sys/abd.h>
 
 /*
  * ZFS I/O Scheduler
@@ -146,7 +148,7 @@ uint32_t zfs_vdev_sync_write_min_active = 10;
 uint32_t zfs_vdev_sync_write_max_active = 10;
 uint32_t zfs_vdev_async_read_min_active = 1;
 uint32_t zfs_vdev_async_read_max_active = 3;
-uint32_t zfs_vdev_async_write_min_active = 1;
+uint32_t zfs_vdev_async_write_min_active = 2;
 uint32_t zfs_vdev_async_write_max_active = 10;
 uint32_t zfs_vdev_scrub_min_active = 1;
 uint32_t zfs_vdev_scrub_max_active = 2;
@@ -167,46 +169,69 @@ int zfs_vdev_async_write_active_max_dirty_percent = 60;
  * we include spans of optional I/Os to aid aggregation at the disk even when
  * they aren't able to help us aggregate at this level.
  */
-int zfs_vdev_aggregation_limit = SPA_MAXBLOCKSIZE;
+int zfs_vdev_aggregation_limit = SPA_OLD_MAXBLOCKSIZE;
 int zfs_vdev_read_gap_limit = 32 << 10;
 int zfs_vdev_write_gap_limit = 4 << 10;
+
+/*
+ * Define the queue depth percentage for each top-level. This percentage is
+ * used in conjunction with zfs_vdev_async_max_active to determine how many
+ * allocations a specific top-level vdev should handle. Once the queue depth
+ * reaches zfs_vdev_queue_depth_pct * zfs_vdev_async_write_max_active / 100
+ * then allocator will stop allocating blocks on that top-level device.
+ * The default kernel setting is 1000% which will yield 100 allocations per
+ * device. For userland testing, the default setting is 300% which equates
+ * to 30 allocations per device.
+ */
+#ifdef _KERNEL
+int zfs_vdev_queue_depth_pct = 1000;
+#else
+int zfs_vdev_queue_depth_pct = 300;
+#endif
+
 
 int
 vdev_queue_offset_compare(const void *x1, const void *x2)
 {
-	const zio_t *z1 = x1;
-	const zio_t *z2 = x2;
+	const zio_t *z1 = (const zio_t *)x1;
+	const zio_t *z2 = (const zio_t *)x2;
 
-	if (z1->io_offset < z2->io_offset)
-		return (-1);
-	if (z1->io_offset > z2->io_offset)
-		return (1);
+	int cmp = AVL_CMP(z1->io_offset, z2->io_offset);
 
-	if (z1 < z2)
-		return (-1);
-	if (z1 > z2)
-		return (1);
+	if (likely(cmp))
+		return (cmp);
 
-	return (0);
+	return (AVL_PCMP(z1, z2));
+}
+
+static inline avl_tree_t *
+vdev_queue_class_tree(vdev_queue_t *vq, zio_priority_t p)
+{
+	return (&vq->vq_class[p].vqc_queued_tree);
+}
+
+static inline avl_tree_t *
+vdev_queue_type_tree(vdev_queue_t *vq, zio_type_t t)
+{
+	ASSERT(t == ZIO_TYPE_READ || t == ZIO_TYPE_WRITE);
+	if (t == ZIO_TYPE_READ)
+		return (&vq->vq_read_offset_tree);
+	else
+		return (&vq->vq_write_offset_tree);
 }
 
 int
 vdev_queue_timestamp_compare(const void *x1, const void *x2)
 {
-	const zio_t *z1 = x1;
-	const zio_t *z2 = x2;
+	const zio_t *z1 = (const zio_t *)x1;
+	const zio_t *z2 = (const zio_t *)x2;
 
-	if (z1->io_timestamp < z2->io_timestamp)
-		return (-1);
-	if (z1->io_timestamp > z2->io_timestamp)
-		return (1);
+	int cmp = AVL_CMP(z1->io_timestamp, z2->io_timestamp);
 
-	if (z1 < z2)
-		return (-1);
-	if (z1 > z2)
-		return (1);
+	if (likely(cmp))
+		return (cmp);
 
-	return (0);
+	return (AVL_PCMP(z1, z2));
 }
 
 static int
@@ -230,14 +255,32 @@ vdev_queue_class_min_active(zio_priority_t p)
 }
 
 static int
-vdev_queue_max_async_writes(uint64_t dirty)
+vdev_queue_max_async_writes(spa_t *spa)
 {
 	int writes;
+	uint64_t dirty = 0;
+	dsl_pool_t *dp = spa_get_dsl(spa);
 	uint64_t min_bytes = zfs_dirty_data_max *
 	    zfs_vdev_async_write_active_min_dirty_percent / 100;
 	uint64_t max_bytes = zfs_dirty_data_max *
 	    zfs_vdev_async_write_active_max_dirty_percent / 100;
 
+	/*
+	 * Async writes may occur before the assignment of the spa's
+	 * dsl_pool_t if a self-healing zio is issued prior to the
+	 * completion of dmu_objset_open_impl().
+	 */
+	if (dp == NULL)
+		return (zfs_vdev_async_write_max_active);
+
+	/*
+	 * Sync tasks correspond to interactive user actions. To reduce the
+	 * execution time of those actions we push data out as fast as possible.
+	 */
+	if (spa_has_pending_synctask(spa))
+		return (zfs_vdev_async_write_max_active);
+
+	dirty = dp->dp_dirty_total;
 	if (dirty < min_bytes)
 		return (zfs_vdev_async_write_min_active);
 	if (dirty > max_bytes)
@@ -270,8 +313,7 @@ vdev_queue_class_max_active(spa_t *spa, zio_priority_t p)
 	case ZIO_PRIORITY_ASYNC_READ:
 		return (zfs_vdev_async_read_max_active);
 	case ZIO_PRIORITY_ASYNC_WRITE:
-		return (vdev_queue_max_async_writes(
-		    spa->spa_dsl_pool->dp_dirty_total));
+		return (vdev_queue_max_async_writes(spa));
 	case ZIO_PRIORITY_SCRUB:
 		return (zfs_vdev_scrub_max_active);
 	default:
@@ -295,7 +337,7 @@ vdev_queue_class_to_issue(vdev_queue_t *vq)
 
 	/* find a queue that has not reached its minimum # outstanding i/os */
 	for (p = 0; p < ZIO_PRIORITY_NUM_QUEUEABLE; p++) {
-		if (avl_numnodes(&vq->vq_class[p].vqc_queued_tree) > 0 &&
+		if (avl_numnodes(vdev_queue_class_tree(vq, p)) > 0 &&
 		    vq->vq_class[p].vqc_active <
 		    vdev_queue_class_min_active(p))
 			return (p);
@@ -306,7 +348,7 @@ vdev_queue_class_to_issue(vdev_queue_t *vq)
 	 * maximum # outstanding i/os.
 	 */
 	for (p = 0; p < ZIO_PRIORITY_NUM_QUEUEABLE; p++) {
-		if (avl_numnodes(&vq->vq_class[p].vqc_queued_tree) > 0 &&
+		if (avl_numnodes(vdev_queue_class_tree(vq, p)) > 0 &&
 		    vq->vq_class[p].vqc_active <
 		    vdev_queue_class_max_active(spa, p))
 			return (p);
@@ -320,62 +362,51 @@ void
 vdev_queue_init(vdev_t *vd)
 {
 	vdev_queue_t *vq = &vd->vdev_queue;
-	int max_active_sum;
 	zio_priority_t p;
-	int i;
 
 	mutex_init(&vq->vq_lock, NULL, MUTEX_DEFAULT, NULL);
 	vq->vq_vdev = vd;
+	taskq_init_ent(&vd->vdev_queue.vq_io_search.io_tqent);
 
 	avl_create(&vq->vq_active_tree, vdev_queue_offset_compare,
 	    sizeof (zio_t), offsetof(struct zio, io_queue_node));
+	avl_create(vdev_queue_type_tree(vq, ZIO_TYPE_READ),
+	    vdev_queue_offset_compare, sizeof (zio_t),
+	    offsetof(struct zio, io_offset_node));
+	avl_create(vdev_queue_type_tree(vq, ZIO_TYPE_WRITE),
+	    vdev_queue_offset_compare, sizeof (zio_t),
+	    offsetof(struct zio, io_offset_node));
 
 	for (p = 0; p < ZIO_PRIORITY_NUM_QUEUEABLE; p++) {
+		int (*compfn) (const void *, const void *);
+
 		/*
-		 * The synchronous i/o queues are FIFO rather than LBA ordered.
-		 * This provides more consistent latency for these i/os, and
-		 * they tend to not be tightly clustered anyway so there is
-		 * little to no throughput loss.
+		 * The synchronous i/o queues are dispatched in FIFO rather
+		 * than LBA order. This provides more consistent latency for
+		 * these i/os.
 		 */
-		boolean_t fifo = (p == ZIO_PRIORITY_SYNC_READ ||
-		    p == ZIO_PRIORITY_SYNC_WRITE);
-		avl_create(&vq->vq_class[p].vqc_queued_tree,
-		    fifo ? vdev_queue_timestamp_compare :
-		    vdev_queue_offset_compare,
+		if (p == ZIO_PRIORITY_SYNC_READ || p == ZIO_PRIORITY_SYNC_WRITE)
+			compfn = vdev_queue_timestamp_compare;
+		else
+			compfn = vdev_queue_offset_compare;
+		avl_create(vdev_queue_class_tree(vq, p), compfn,
 		    sizeof (zio_t), offsetof(struct zio, io_queue_node));
 	}
 
-	/*
-	 * A list of buffers which can be used for aggregate I/O, this
-	 * avoids the need to allocate them on demand when memory is low.
-	 */
-	list_create(&vq->vq_io_list, sizeof (vdev_io_t),
-	    offsetof(vdev_io_t, vi_node));
-
-	max_active_sum = zfs_vdev_sync_read_max_active +
-	    zfs_vdev_sync_write_max_active + zfs_vdev_async_read_max_active +
-	    zfs_vdev_async_write_max_active + zfs_vdev_scrub_max_active;
-	for (i = 0; i < max_active_sum; i++)
-		list_insert_tail(&vq->vq_io_list, zio_vdev_alloc());
+	vq->vq_lastoffset = 0;
 }
 
 void
 vdev_queue_fini(vdev_t *vd)
 {
 	vdev_queue_t *vq = &vd->vdev_queue;
-	vdev_io_t *vi;
 	zio_priority_t p;
 
 	for (p = 0; p < ZIO_PRIORITY_NUM_QUEUEABLE; p++)
-		avl_destroy(&vq->vq_class[p].vqc_queued_tree);
+		avl_destroy(vdev_queue_class_tree(vq, p));
 	avl_destroy(&vq->vq_active_tree);
-
-	while ((vi = list_head(&vq->vq_io_list)) != NULL) {
-		list_remove(&vq->vq_io_list, vi);
-		zio_vdev_free(vi);
-	}
-
-	list_destroy(&vq->vq_io_list);
+	avl_destroy(vdev_queue_type_tree(vq, ZIO_TYPE_READ));
+	avl_destroy(vdev_queue_type_tree(vq, ZIO_TYPE_WRITE));
 
 	mutex_destroy(&vq->vq_lock);
 }
@@ -387,7 +418,8 @@ vdev_queue_io_add(vdev_queue_t *vq, zio_t *zio)
 	spa_stats_history_t *ssh = &spa->spa_stats.io_history;
 
 	ASSERT3U(zio->io_priority, <, ZIO_PRIORITY_NUM_QUEUEABLE);
-	avl_add(&vq->vq_class[zio->io_priority].vqc_queued_tree, zio);
+	avl_add(vdev_queue_class_tree(vq, zio->io_priority), zio);
+	avl_add(vdev_queue_type_tree(vq, zio->io_type), zio);
 
 	if (ssh->kstat != NULL) {
 		mutex_enter(&ssh->lock);
@@ -403,7 +435,8 @@ vdev_queue_io_remove(vdev_queue_t *vq, zio_t *zio)
 	spa_stats_history_t *ssh = &spa->spa_stats.io_history;
 
 	ASSERT3U(zio->io_priority, <, ZIO_PRIORITY_NUM_QUEUEABLE);
-	avl_remove(&vq->vq_class[zio->io_priority].vqc_queued_tree, zio);
+	avl_remove(vdev_queue_class_tree(vq, zio->io_priority), zio);
+	avl_remove(vdev_queue_type_tree(vq, zio->io_type), zio);
 
 	if (ssh->kstat != NULL) {
 		mutex_enter(&ssh->lock);
@@ -460,20 +493,16 @@ vdev_queue_pending_remove(vdev_queue_t *vq, zio_t *zio)
 static void
 vdev_queue_agg_io_done(zio_t *aio)
 {
-	vdev_queue_t *vq = &aio->io_vd->vdev_queue;
-	vdev_io_t *vi = aio->io_data;
-
 	if (aio->io_type == ZIO_TYPE_READ) {
 		zio_t *pio;
-		while ((pio = zio_walk_parents(aio)) != NULL) {
-			bcopy((char *)aio->io_data + (pio->io_offset -
-			    aio->io_offset), pio->io_data, pio->io_size);
+		zio_link_t *zl = NULL;
+		while ((pio = zio_walk_parents(aio, &zl)) != NULL) {
+			abd_copy_off(pio->io_abd, aio->io_abd,
+			    0, pio->io_offset - aio->io_offset, pio->io_size);
 		}
 	}
 
-	mutex_enter(&vq->vq_lock);
-	list_insert_tail(&vq->vq_io_list, vi);
-	mutex_exit(&vq->vq_lock);
+	abd_free(aio->io_abd);
 }
 
 /*
@@ -488,44 +517,26 @@ vdev_queue_agg_io_done(zio_t *aio)
 static zio_t *
 vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 {
-	vdev_io_t *vi;
 	zio_t *first, *last, *aio, *dio, *mandatory, *nio;
 	uint64_t maxgap = 0;
 	uint64_t size;
+	uint64_t limit;
+	int maxblocksize;
 	boolean_t stretch = B_FALSE;
-	vdev_queue_class_t *vqc = &vq->vq_class[zio->io_priority];
-	avl_tree_t *t = &vqc->vqc_queued_tree;
+	avl_tree_t *t = vdev_queue_type_tree(vq, zio->io_type);
 	enum zio_flag flags = zio->io_flags & ZIO_FLAG_AGG_INHERIT;
+	abd_t *abd;
 
-	if (zio->io_flags & ZIO_FLAG_DONT_AGGREGATE)
-		return (NULL);
+	maxblocksize = spa_maxblocksize(vq->vq_vdev->vdev_spa);
+	limit = MAX(MIN(zfs_vdev_aggregation_limit, maxblocksize), 0);
 
-	/*
-	 * Prevent users from setting the zfs_vdev_aggregation_limit
-	 * tuning larger than SPA_MAXBLOCKSIZE.
-	 */
-	zfs_vdev_aggregation_limit =
-	    MIN(zfs_vdev_aggregation_limit, SPA_MAXBLOCKSIZE);
-
-	/*
-	 * The synchronous i/o queues are not sorted by LBA, so we can't
-	 * find adjacent i/os.  These i/os tend to not be tightly clustered,
-	 * or too large to aggregate, so this has little impact on performance.
-	 */
-	if (zio->io_priority == ZIO_PRIORITY_SYNC_READ ||
-	    zio->io_priority == ZIO_PRIORITY_SYNC_WRITE)
+	if (zio->io_flags & ZIO_FLAG_DONT_AGGREGATE || limit == 0)
 		return (NULL);
 
 	first = last = zio;
 
 	if (zio->io_type == ZIO_TYPE_READ)
 		maxgap = zfs_vdev_read_gap_limit;
-
-	vi = list_head(&vq->vq_io_list);
-	if (vi == NULL) {
-		vi = zio_vdev_alloc();
-		list_insert_head(&vq->vq_io_list, vi);
-	}
 
 	/*
 	 * We can aggregate I/Os that are sufficiently adjacent and of
@@ -544,11 +555,11 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 
 	/*
 	 * Walk backwards through sufficiently contiguous I/Os
-	 * recording the last non-option I/O.
+	 * recording the last non-optional I/O.
 	 */
 	while ((dio = AVL_PREV(t, first)) != NULL &&
 	    (dio->io_flags & ZIO_FLAG_AGG_INHERIT) == flags &&
-	    IO_SPAN(dio, last) <= zfs_vdev_aggregation_limit &&
+	    IO_SPAN(dio, last) <= limit &&
 	    IO_GAP(dio, first) <= maxgap) {
 		first = dio;
 		if (mandatory == NULL && !(first->io_flags & ZIO_FLAG_OPTIONAL))
@@ -566,10 +577,15 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 
 	/*
 	 * Walk forward through sufficiently contiguous I/Os.
+	 * The aggregation limit does not apply to optional i/os, so that
+	 * we can issue contiguous writes even if they are larger than the
+	 * aggregation limit.
 	 */
 	while ((dio = AVL_NEXT(t, last)) != NULL &&
 	    (dio->io_flags & ZIO_FLAG_AGG_INHERIT) == flags &&
-	    IO_SPAN(first, dio) <= zfs_vdev_aggregation_limit &&
+	    (IO_SPAN(first, dio) <= limit ||
+	    (dio->io_flags & ZIO_FLAG_OPTIONAL)) &&
+	    IO_SPAN(first, dio) <= maxblocksize &&
 	    IO_GAP(last, dio) <= maxgap) {
 		last = dio;
 		if (!(last->io_flags & ZIO_FLAG_OPTIONAL))
@@ -600,10 +616,16 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 	}
 
 	if (stretch) {
-		/* This may be a no-op. */
+		/*
+		 * We are going to include an optional io in our aggregated
+		 * span, thus closing the write gap.  Only mandatory i/os can
+		 * start aggregated spans, so make sure that the next i/o
+		 * after our span is mandatory.
+		 */
 		dio = AVL_NEXT(t, last);
 		dio->io_flags &= ~ZIO_FLAG_OPTIONAL;
 	} else {
+		/* do not include the optional i/o */
 		while (last != mandatory && last != first) {
 			ASSERT(last->io_flags & ZIO_FLAG_OPTIONAL);
 			last = AVL_PREV(t, last);
@@ -614,13 +636,15 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 	if (first == last)
 		return (NULL);
 
-	ASSERT(vi != NULL);
-
 	size = IO_SPAN(first, last);
-	ASSERT3U(size, <=, zfs_vdev_aggregation_limit);
+	ASSERT3U(size, <=, maxblocksize);
+
+	abd = abd_alloc_for_io(size, B_TRUE);
+	if (abd == NULL)
+		return (NULL);
 
 	aio = zio_vdev_delegated_io(first->io_vd, first->io_offset,
-	    vi, size, first->io_type, zio->io_priority,
+	    abd, size, first->io_type, zio->io_priority,
 	    flags | ZIO_FLAG_DONT_CACHE | ZIO_FLAG_DONT_QUEUE,
 	    vdev_queue_agg_io_done, NULL);
 	aio->io_timestamp = first->io_timestamp;
@@ -633,12 +657,11 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 
 		if (dio->io_flags & ZIO_FLAG_NODATA) {
 			ASSERT3U(dio->io_type, ==, ZIO_TYPE_WRITE);
-			bzero((char *)aio->io_data + (dio->io_offset -
-			    aio->io_offset), dio->io_size);
+			abd_zero_off(aio->io_abd,
+			    dio->io_offset - aio->io_offset, dio->io_size);
 		} else if (dio->io_type == ZIO_TYPE_WRITE) {
-			bcopy(dio->io_data, (char *)aio->io_data +
-			    (dio->io_offset - aio->io_offset),
-			    dio->io_size);
+			abd_copy_off(aio->io_abd, dio->io_abd,
+			    dio->io_offset - aio->io_offset, 0, dio->io_size);
 		}
 
 		zio_add_child(dio, aio);
@@ -646,8 +669,6 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 		zio_vdev_io_bypass(dio);
 		zio_execute(dio);
 	} while (dio != last);
-
-	list_remove(&vq->vq_io_list, vi);
 
 	return (aio);
 }
@@ -658,7 +679,7 @@ vdev_queue_io_to_issue(vdev_queue_t *vq)
 	zio_t *zio, *aio;
 	zio_priority_t p;
 	avl_index_t idx;
-	vdev_queue_class_t *vqc;
+	avl_tree_t *tree;
 
 again:
 	ASSERT(MUTEX_HELD(&vq->vq_lock));
@@ -676,14 +697,14 @@ again:
 	 *
 	 * For FIFO queues (sync), issue the i/o with the lowest timestamp.
 	 */
-	vqc = &vq->vq_class[p];
+	tree = vdev_queue_class_tree(vq, p);
 	vq->vq_io_search.io_timestamp = 0;
 	vq->vq_io_search.io_offset = vq->vq_last_offset + 1;
-	VERIFY3P(avl_find(&vqc->vqc_queued_tree, &vq->vq_io_search,
+	VERIFY3P(avl_find(tree, &vq->vq_io_search,
 	    &idx), ==, NULL);
-	zio = avl_nearest(&vqc->vqc_queued_tree, idx, AVL_AFTER);
+	zio = avl_nearest(tree, idx, AVL_AFTER);
 	if (zio == NULL)
-		zio = avl_first(&vqc->vqc_queued_tree);
+		zio = avl_first(tree);
 	ASSERT3U(zio->io_priority, ==, p);
 
 	aio = vdev_queue_aggregate(vq, zio);
@@ -762,9 +783,6 @@ vdev_queue_io_done(zio_t *zio)
 	vdev_queue_t *vq = &zio->io_vd->vdev_queue;
 	zio_t *nio;
 
-	if (zio_injection_enabled)
-		delay(SEC_TO_TICK(zio_handle_io_delay(zio)));
-
 	mutex_enter(&vq->vq_lock);
 
 	vdev_queue_pending_remove(vq, zio);
@@ -785,6 +803,30 @@ vdev_queue_io_done(zio_t *zio)
 	}
 
 	mutex_exit(&vq->vq_lock);
+}
+
+/*
+ * As these three methods are only used for load calculations we're not
+ * concerned if we get an incorrect value on 32bit platforms due to lack of
+ * vq_lock mutex use here, instead we prefer to keep it lock free for
+ * performance.
+ */
+int
+vdev_queue_length(vdev_t *vd)
+{
+	return (avl_numnodes(&vd->vdev_queue.vq_active_tree));
+}
+
+uint64_t
+vdev_queue_lastoffset(vdev_t *vd)
+{
+	return (vd->vdev_queue.vq_lastoffset);
+}
+
+void
+vdev_queue_register_lastoffset(vdev_t *vd, zio_t *zio)
+{
+	vd->vdev_queue.vq_lastoffset = zio->io_offset + zio->io_size;
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
@@ -844,5 +886,9 @@ MODULE_PARM_DESC(zfs_vdev_sync_write_max_active,
 
 module_param(zfs_vdev_sync_write_min_active, int, 0644);
 MODULE_PARM_DESC(zfs_vdev_sync_write_min_active,
-	"Min active sync write I/Osper vdev");
+	"Min active sync write I/Os per vdev");
+
+module_param(zfs_vdev_queue_depth_pct, int, 0644);
+MODULE_PARM_DESC(zfs_vdev_queue_depth_pct,
+	"Queue depth percentage for each top-level vdev");
 #endif

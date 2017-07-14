@@ -25,7 +25,7 @@
  */
 
 /*
- * Copyright (c) 2013, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2016 by Delphix. All rights reserved.
  */
 
 /*
@@ -42,6 +42,7 @@
 #include <sys/resource.h>
 #include <sys/zil.h>
 #include <sys/zil_impl.h>
+#include <sys/abd.h>
 
 extern uint8_t dump_opt[256];
 
@@ -80,8 +81,10 @@ zil_prt_rec_create(zilog_t *zilog, int txtype, lr_create_t *lr)
 	}
 
 	(void) printf("%s%s", prefix, ctime(&crtime));
-	(void) printf("%sdoid %llu, foid %llu, mode %llo\n", prefix,
-	    (u_longlong_t)lr->lr_doid, (u_longlong_t)lr->lr_foid,
+	(void) printf("%sdoid %llu, foid %llu, slots %llu, mode %llo\n", prefix,
+	    (u_longlong_t)lr->lr_doid,
+	    (u_longlong_t)LR_FOID_GET_OBJ(lr->lr_foid),
+	    (u_longlong_t)LR_FOID_GET_SLOTS(lr->lr_foid),
 	    (longlong_t)lr->lr_mode);
 	(void) printf("%suid %llu, gid %llu, gen %llu, rdev 0x%llx\n", prefix,
 	    (u_longlong_t)lr->lr_uid, (u_longlong_t)lr->lr_gid,
@@ -118,13 +121,29 @@ zil_prt_rec_rename(zilog_t *zilog, int txtype, lr_rename_t *lr)
 }
 
 /* ARGSUSED */
+static int
+zil_prt_rec_write_cb(void *data, size_t len, void *unused)
+{
+	char *cdata = data;
+	int i;
+
+	for (i = 0; i < len; i++) {
+		if (isprint(*cdata))
+			(void) printf("%c ", *cdata);
+		else
+			(void) printf("%2X", *cdata);
+		cdata++;
+	}
+	return (0);
+}
+
+/* ARGSUSED */
 static void
 zil_prt_rec_write(zilog_t *zilog, int txtype, lr_write_t *lr)
 {
-	char *data, *dlimit;
+	abd_t *data;
 	blkptr_t *bp = &lr->lr_blkptr;
 	zbookmark_phys_t zb;
-	char buf[SPA_MAXBLOCKSIZE];
 	int verbose = MAX(dump_opt['d'], dump_opt['i']);
 	int error;
 
@@ -145,7 +164,6 @@ zil_prt_rec_write(zilog_t *zilog, int txtype, lr_write_t *lr)
 		if (BP_IS_HOLE(bp)) {
 			(void) printf("\t\t\tLSIZE 0x%llx\n",
 			    (u_longlong_t)BP_GET_LSIZE(bp));
-			bzero(buf, sizeof (buf));
 			(void) printf("%s<hole>\n", prefix);
 			return;
 		}
@@ -158,28 +176,26 @@ zil_prt_rec_write(zilog_t *zilog, int txtype, lr_write_t *lr)
 		    lr->lr_foid, ZB_ZIL_LEVEL,
 		    lr->lr_offset / BP_GET_LSIZE(bp));
 
+		data = abd_alloc(BP_GET_LSIZE(bp), B_FALSE);
 		error = zio_wait(zio_read(NULL, zilog->zl_spa,
-		    bp, buf, BP_GET_LSIZE(bp), NULL, NULL,
+		    bp, data, BP_GET_LSIZE(bp), NULL, NULL,
 		    ZIO_PRIORITY_SYNC_READ, ZIO_FLAG_CANFAIL, &zb));
 		if (error)
-			return;
-		data = buf;
+			goto out;
 	} else {
-		data = (char *)(lr + 1);
+		/* data is stored after the end of the lr_write record */
+		data = abd_alloc(lr->lr_length, B_FALSE);
+		abd_copy_from_buf(data, lr + 1, lr->lr_length);
 	}
-
-	dlimit = data + MIN(lr->lr_length,
-	    (verbose < 6 ? 20 : SPA_MAXBLOCKSIZE));
 
 	(void) printf("%s", prefix);
-	while (data < dlimit) {
-		if (isprint(*data))
-			(void) printf("%c ", *data);
-		else
-			(void) printf("%2hhX", *data);
-		data++;
-	}
+	(void) abd_iterate_func(data,
+	    0, MIN(lr->lr_length, (verbose < 6 ? 20 : SPA_MAXBLOCKSIZE)),
+	    zil_prt_rec_write_cb, NULL);
 	(void) printf("\n");
+
+out:
+	abd_free(data);
 }
 
 /* ARGSUSED */

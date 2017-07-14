@@ -45,19 +45,18 @@ static dbuf_stats_t dbuf_stats_hash_table;
 static int
 dbuf_stats_hash_table_headers(char *buf, size_t size)
 {
-	size = snprintf(buf, size - 1,
+	(void) snprintf(buf, size,
 	    "%-88s | %-124s | %s\n"
 	    "%-16s %-8s %-8s %-8s %-8s %-8s %-8s %-5s %-5s %5s | "
-	    "%-5s %-5s %-6s %-8s %-6s %-8s %-12s "
+	    "%-5s %-5s %-8s %-6s %-8s %-12s "
 	    "%-6s %-6s %-6s %-6s %-6s %-8s %-8s %-8s %-5s | "
 	    "%-6s %-6s %-8s %-8s %-6s %-6s %-5s %-8s %-8s\n",
 	    "dbuf", "arcbuf", "dnode", "pool", "objset", "object", "level",
 	    "blkid", "offset", "dbsize", "meta", "state", "dbholds", "list",
-	    "atype", "index", "flags", "count", "asize", "access",
+	    "atype", "flags", "count", "asize", "access",
 	    "mru", "gmru", "mfu", "gmfu", "l2", "l2_dattr", "l2_asize",
 	    "l2_comp", "aholds", "dtype", "btype", "data_bs", "meta_bs",
 	    "bsize", "lvls", "dholds", "blocks", "dsize");
-	buf[size] = '\0';
 
 	return (0);
 }
@@ -68,6 +67,7 @@ __dbuf_stats_hash_table_data(char *buf, size_t size, dmu_buf_impl_t *db)
 	arc_buf_info_t abi = { 0 };
 	dmu_object_info_t doi = { 0 };
 	dnode_t *dn = DB_DNODE(db);
+	size_t nwritten;
 
 	if (db->db_buf)
 		arc_buf_info(db->db_buf, &abi, zfs_dbuf_state_index);
@@ -75,9 +75,9 @@ __dbuf_stats_hash_table_data(char *buf, size_t size, dmu_buf_impl_t *db)
 	if (dn)
 		__dmu_object_info_from_dnode(dn, &doi);
 
-	size = snprintf(buf, size - 1,
+	nwritten = snprintf(buf, size,
 	    "%-16s %-8llu %-8lld %-8lld %-8lld %-8llu %-8llu %-5d %-5d %-5lu | "
-	    "%-5d %-5d %-6lld 0x%-6x %-6lu %-8llu %-12llu "
+	    "%-5d %-5d 0x%-6x %-6lu %-8llu %-12llu "
 	    "%-6lu %-6lu %-6lu %-6lu %-6lu %-8llu %-8llu %-8d %-5lu | "
 	    "%-6d %-6d %-8lu %-8lu %-6llu %-6lu %-5lu %-8llu %-8llu\n",
 	    /* dmu_buf_impl_t */
@@ -94,9 +94,8 @@ __dbuf_stats_hash_table_data(char *buf, size_t size, dmu_buf_impl_t *db)
 	    /* arc_buf_info_t */
 	    abi.abi_state_type,
 	    abi.abi_state_contents,
-	    (longlong_t)abi.abi_state_index,
 	    abi.abi_flags,
-	    (ulong_t)abi.abi_datacnt,
+	    (ulong_t)abi.abi_bufcnt,
 	    (u_longlong_t)abi.abi_size,
 	    (u_longlong_t)abi.abi_access,
 	    (ulong_t)abi.abi_mru_hits,
@@ -118,9 +117,11 @@ __dbuf_stats_hash_table_data(char *buf, size_t size, dmu_buf_impl_t *db)
 	    (ulong_t)refcount_count(&dn->dn_holds),
 	    (u_longlong_t)doi.doi_fill_count,
 	    (u_longlong_t)doi.doi_max_offset);
-	buf[size] = '\0';
 
-	return (size);
+	if (nwritten >= size)
+		return (size);
+
+	return (nwritten + 1);
 }
 
 static int
@@ -147,14 +148,14 @@ dbuf_stats_hash_table_data(char *buf, size_t size, void *data)
 		}
 
 		mutex_enter(&db->db_mtx);
-		mutex_exit(DBUF_HASH_MUTEX(h, dsh->idx));
 
-		length = __dbuf_stats_hash_table_data(buf, size, db);
-		buf += length;
-		size -= length;
+		if (db->db_state != DB_EVICTING) {
+			length = __dbuf_stats_hash_table_data(buf, size, db);
+			buf += length;
+			size -= length;
+		}
 
 		mutex_exit(&db->db_mtx);
-		mutex_enter(DBUF_HASH_MUTEX(h, dsh->idx));
 	}
 	mutex_exit(DBUF_HASH_MUTEX(h, dsh->idx));
 

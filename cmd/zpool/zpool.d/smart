@@ -1,0 +1,123 @@
+#!/bin/sh
+#
+# Show SMART stats
+#
+
+helpstr="
+smart:		Show SMART temperature and error stats (specific to drive type)
+smartx:		Show SMART extended drive stats (specific to drive type).
+temp:		Show SMART drive temperature in celsius (all drives).
+health:		Show reported SMART status (all drives).
+r_proc:		Show SMART read GBytes processed over drive lifetime (SAS).
+w_proc:		Show SMART write GBytes processed over drive lifetime (SAS).
+r_ucor:		Show SMART read uncorrectable errors (SAS).
+w_ucor:		Show SMART write uncorrectable errors (SAS).
+nonmed:		Show SMART non-medium errors (SAS).
+defect:		Show SMART grown defect list (SAS).
+hours_on:	Show number of hours drive powered on (all drives).
+realloc:	Show SMART reallocated sectors count (ATA).
+rep_ucor:	Show SMART reported uncorrectable count (ATA).
+cmd_to:		Show SMART command timeout count (ATA).
+pend_sec:	Show SMART current pending sector count (ATA).
+off_ucor:	Show SMART offline uncorrectable errors (ATA).
+ata_err:	Show SMART ATA errors (ATA).
+pwr_cyc:	Show SMART power cycle count (ATA).
+serial:		Show disk serial number.
+"
+
+script=$(basename "$0")
+
+if [ "$1" = "-h" ] ; then
+        echo "$helpstr" | grep "$script:" | tr -s '\t' | cut -f 2-
+        exit
+fi
+
+smartctl_path=$(which smartctl)
+
+if [ -b "$VDEV_UPATH" ] && [ -x "$smartctl_path" ]; then
+	raw_out=$(eval "sudo $smartctl_path -a $VDEV_UPATH")
+
+	# Are we a SAS or ATA drive?  Look for the right line in smartctl:
+	#
+	# SAS:
+	#	Transport protocol:   SAS
+	#
+	# SATA:
+	#	ATA Version is:   8
+	#
+	type=$(echo "$raw_out" | grep -m 1 -Eo '^ATA|SAS$')
+	out=$(echo "$raw_out" | awk '
+# SAS specific
+/read:/{print "rrd="$4"\nr_cor="$5"\nr_proc="$7"\nr_ucor="$8}
+/write:/{print "rwr="$4"\nw_cor="$5"\nw_proc="$7"\nw_ucor="$8}
+/Non-medium error count/{print "nonmed="$4}
+/Elements in grown defect list/{print "defect="$6}
+
+# SAS common
+/Drive Temperature:/{print "temp="$4}
+# Status can be a long string, substitute spaces for '_'
+/SMART Health Status:/{printf "health="; for(i=4;i<=NF-1;i++){printf "%s_", $i}; printf "%s\n", $i}
+/number of hours powered up/{print "hours_on="$7}
+/Serial number:/{print "serial="$3}
+
+# SATA specific
+/Reallocated_Sector_Ct/{print "realloc="$10}
+/Reported_Uncorrect/{print "rep_ucor="$10}
+/Command_Timeout/{print "cmd_to="$10}
+/Current_Pending_Sector/{print "pend_sec="$10}
+/Offline_Uncorrectable/{print "off_ucor="$10}
+/ATA Error Count:/{print "ata_err="$4}
+/Power_Cycle_Count/{print "pwr_cyc="$10}
+
+# SATA common
+/Temperature_Celsius/{print "temp="$10}
+/SMART overall-health self-assessment test result:/{print "health="$6}
+/Power_On_Hours/{print "hours_on="$10}
+/Serial Number:/{print "serial="$3}
+
+END {ORS="\n"; print ""}
+');
+fi
+
+# if type is not set by now, either we don't have a block device
+# or smartctl failed. Either way, default to ATA and set out to
+# nothing
+if [ -z "$type" ]; then
+	type="ATA"
+	out=
+fi
+
+case $script in
+smart)
+	# Print temperature plus common predictors of drive failure
+	if [ "$type" = "SAS" ] ; then
+		scripts="temp|health|r_ucor|w_ucor"
+	elif [ "$type" = "ATA" ] ; then
+		scripts="temp|health|ata_err|realloc|rep_ucor|cmd_to|pend_sec|off_ucor"
+	fi
+	;;
+smartx)
+	# Print some other interesting stats
+	if [ "$type" = "SAS" ] ; then
+		scripts="hours_on|defect|nonmed|r_proc|w_proc"
+	elif [ "$type" = "ATA" ] ; then
+		scripts="hours_on|pwr_cyc"
+	fi
+	;;
+*)
+	scripts="$script"
+esac
+
+with_vals=$(echo "$out" | grep -E "$scripts")
+if [ ! -z "$with_vals" ]; then
+	echo "$with_vals"
+	without_vals=$(echo "$scripts" | tr "|" "\n" |
+		grep -v -E "$(echo "$with_vals" |
+		awk -F "=" '{print $1}')" | awk '{print $0"="}')
+else
+	without_vals=$(echo "$scripts" | tr "|" "\n" | awk '{print $0"="}')
+fi
+
+if [ ! -z "$without_vals" ]; then
+	echo "$without_vals"
+fi

@@ -1,0 +1,141 @@
+#!/bin/ksh -p
+#
+# CDDL HEADER START
+#
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License (the "License").
+# You may not use this file except in compliance with the License.
+#
+# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+# or http://www.opensolaris.org/os/licensing.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+# If applicable, add the following below this CDDL HEADER, with the
+# fields enclosed by brackets "[]" replaced with your own identifying
+# information: Portions Copyright [yyyy] [name of copyright owner]
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright 2017, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
+#
+
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_root/zfs_set/zfs_set_common.kshlib
+. $STF_SUITE/tests/functional/zvol/zvol_common.shlib
+
+#
+# Wait for udev to settle, completely.
+# This is quite discomforting, but there's a race condition here
+# (Amazon 2015.09 x86_64 Release (TEST) is good at triggering this)  where the
+# kernel tries to remove zvol device nodes while they're open by [blkid],
+# [zvol_id] or other udev related processes.
+# Calling 'udevadm settle' is not enough: wait for those processes "manually".
+#
+function udev_wait
+{
+	sleep 1
+	udevadm trigger --action=change
+	udevadm settle
+	for i in {1..3}; do
+		blkid="$(pgrep blkid | wc -l)"
+		zvol_id="$(pgrep zvol_id | wc -l)"
+		[[ "0" == "$zvol_id" && "0" == "$blkid" ]] && return
+		udevadm settle
+	done
+	log_fail "Wait timeout reached for udev_wait"
+}
+
+#
+# Clean up udev status
+# This is also a problem on "Amazon 2015.09 x86_64 Release (TEST)" where udev,
+# sometimes, does not clean up /dev/zvol symlinks correctly for removed ZVOLs.
+# Prune those links manually, then tell udev to forget them.
+#
+function udev_cleanup
+{
+	log_note "Pruning broken ZVOL symlinks ..."
+	udevadm settle
+	# find all dangling links and delete them
+	find -L "${ZVOL_DEVDIR}" -type l -print -delete
+	# purge those links from udev database
+	udevadm info --cleanup-db
+}
+
+#
+# Verify $device exists and is a block device
+#
+function blockdev_exists # device
+{
+	typeset device="$1"
+
+	# we wait here instead of doing it in a wrapper around 'zfs set snapdev'
+	# because there are other commands (zfs snap, zfs inherit, zfs destroy)
+	# that can affect device nodes
+	for i in {1..3}; do
+		udev_wait
+		[[ -b "$device" ]] && return 0
+	done
+	log_fail "$device does not exist as a block device"
+}
+
+#
+# Verify $device does not exist
+#
+function blockdev_missing # device
+{
+	typeset device="$1"
+
+	# we wait here instead of doing it in a wrapper around 'zfs set snapdev'
+	# because there are other commands (zfs snap, zfs inherit, zfs destroy)
+	# that can affect device nodes
+	for i in {1..3}; do
+		udev_wait
+		[[ ! -e "$device" ]] && return 0
+	done
+	log_fail "$device exists when not expected"
+}
+
+#
+# Verify $property on $dataset is inherited by $parent and is set to $value
+#
+function verify_inherited # property value dataset parent
+{
+	typeset property="$1"
+	typeset value="$2"
+	typeset dataset="$3"
+	typeset parent="$4"
+
+	typeset val=$(get_prop "$property" "$dataset")
+	typeset src=$(get_source "$property" "$dataset")
+	if [[ "$val" != "$value" || "$src" != "inherited from $parent" ]]; then
+		log_fail "Dataset $dataset did not inherit $property properly:"\
+		    "expected=$value, value=$val, source=$src."
+	fi
+}
+
+#
+# Create a small partition on $device, then verify if we can access it
+#
+function verify_partition # device
+{
+	typeset device="$1"
+
+	if [[ ! -b "$device" ]]; then
+		log_fail "$device is not a block device"
+	fi
+	# create a small dummy partition
+	set_partition 0 1 1m $device
+	# verify we can access the partition on the device
+	devname="$(readlink -f "$device")"
+	if is_linux; then
+		[[ -b "$devname""p1" ]]
+	else
+		[[ -b "$devname""s0" ]]
+	fi
+	return $?
+}

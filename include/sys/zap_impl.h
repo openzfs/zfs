@@ -18,8 +18,12 @@
  *
  * CDDL HEADER END
  */
+
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
+ * Copyright (c) 2013, 2016 by Delphix. All rights reserved.
+ * Copyright 2017 Nexenta Systems, Inc.
  */
 
 #ifndef	_SYS_ZAP_IMPL_H
@@ -41,8 +45,7 @@ extern int fzap_default_block_shift;
 
 #define	MZAP_ENT_LEN		64
 #define	MZAP_NAME_LEN		(MZAP_ENT_LEN - 8 - 4 - 2)
-#define	MZAP_MAX_BLKSHIFT	SPA_MAXBLOCKSHIFT
-#define	MZAP_MAX_BLKSZ		(1 << MZAP_MAX_BLKSHIFT)
+#define	MZAP_MAX_BLKSZ		SPA_OLD_MAXBLOCKSIZE
 
 #define	ZAP_NEED_CD		(-1U)
 
@@ -70,7 +73,7 @@ typedef struct mzap_ent {
 } mzap_ent_t;
 
 #define	MZE_PHYS(zap, mze) \
-	(&(zap)->zap_m.zap_phys->mz_chunk[(mze)->mze_chunkid])
+	(&zap_m_phys(zap)->mz_chunk[(mze)->mze_chunkid])
 
 /*
  * The (fat) zap is stored in one object. It is an array of
@@ -104,7 +107,7 @@ struct zap_leaf;
  * word number (1<<ZAP_EMBEDDED_PTRTBL_SHIFT(zap)).
  */
 #define	ZAP_EMBEDDED_PTRTBL_ENT(zap, idx) \
-	((uint64_t *)(zap)->zap_f.zap_phys) \
+	((uint64_t *)zap_f_phys(zap)) \
 	[(idx) + (1<<ZAP_EMBEDDED_PTRTBL_SHIFT(zap))]
 
 /*
@@ -140,6 +143,7 @@ typedef struct zap_phys {
 typedef struct zap_table_phys zap_table_phys_t;
 
 typedef struct zap {
+	dmu_buf_user_t zap_dbu;
 	objset_t *zap_objset;
 	uint64_t zap_object;
 	struct dmu_buf *zap_dbuf;
@@ -149,8 +153,6 @@ typedef struct zap {
 	uint64_t zap_salt;
 	union {
 		struct {
-			zap_phys_t *zap_phys;
-
 			/*
 			 * zap_num_entries_mtx protects
 			 * zap_num_entries
@@ -159,7 +161,6 @@ typedef struct zap {
 			int zap_block_shift;
 		} zap_fat;
 		struct {
-			mzap_phys_t *zap_phys;
 			int16_t zap_num_entries;
 			int16_t zap_num_chunks;
 			int16_t zap_alloc_next;
@@ -167,6 +168,18 @@ typedef struct zap {
 		} zap_micro;
 	} zap_u;
 } zap_t;
+
+static inline zap_phys_t *
+zap_f_phys(zap_t *zap)
+{
+	return (zap->zap_dbuf->db_data);
+}
+
+static inline mzap_phys_t *
+zap_m_phys(zap_t *zap)
+{
+	return (zap->zap_dbuf->db_data);
+}
 
 typedef struct zap_name {
 	zap_t *zn_zap;
@@ -177,6 +190,7 @@ typedef struct zap_name {
 	int zn_key_norm_numints;
 	uint64_t zn_hash;
 	matchtype_t zn_matchtype;
+	int zn_normflags;
 	char zn_normbuf[ZAP_MAXNAMELEN];
 } zap_name_t;
 
@@ -185,9 +199,9 @@ typedef struct zap_name {
 
 boolean_t zap_match(zap_name_t *zn, const char *matchname);
 int zap_lockdir(objset_t *os, uint64_t obj, dmu_tx_t *tx,
-    krw_t lti, boolean_t fatreader, boolean_t adding, zap_t **zapp);
-void zap_unlockdir(zap_t *zap);
-void zap_evict(dmu_buf_t *db, void *vmzap);
+    krw_t lti, boolean_t fatreader, boolean_t adding, void *tag, zap_t **zapp);
+void zap_unlockdir(zap_t *zap, void *tag);
+void zap_evict_sync(void *dbu);
 zap_name_t *zap_name_alloc(zap_t *zap, const char *key, matchtype_t mt);
 void zap_name_free(zap_name_t *zn);
 int zap_hashbits(zap_t *zap);
@@ -202,12 +216,11 @@ int fzap_lookup(zap_name_t *zn,
     uint64_t integer_size, uint64_t num_integers, void *buf,
     char *realname, int rn_len, boolean_t *normalization_conflictp);
 void fzap_prefetch(zap_name_t *zn);
-int fzap_count_write(zap_name_t *zn, int add, uint64_t *towrite,
-    uint64_t *tooverwrite);
 int fzap_add(zap_name_t *zn, uint64_t integer_size, uint64_t num_integers,
-    const void *val, dmu_tx_t *tx);
+    const void *val, void *tag, dmu_tx_t *tx);
 int fzap_update(zap_name_t *zn,
-    int integer_size, uint64_t num_integers, const void *val, dmu_tx_t *tx);
+    int integer_size, uint64_t num_integers, const void *val,
+    void *tag, dmu_tx_t *tx);
 int fzap_length(zap_name_t *zn,
     uint64_t *integer_size, uint64_t *num_integers);
 int fzap_remove(zap_name_t *zn, dmu_tx_t *tx);
@@ -217,9 +230,8 @@ void zap_put_leaf(struct zap_leaf *l);
 
 int fzap_add_cd(zap_name_t *zn,
     uint64_t integer_size, uint64_t num_integers,
-    const void *val, uint32_t cd, dmu_tx_t *tx);
+    const void *val, uint32_t cd, void *tag, dmu_tx_t *tx);
 void fzap_upgrade(zap_t *zap, dmu_tx_t *tx, zap_flags_t flags);
-int fzap_cursor_move_to_key(zap_cursor_t *zc, zap_name_t *zn);
 
 #ifdef	__cplusplus
 }

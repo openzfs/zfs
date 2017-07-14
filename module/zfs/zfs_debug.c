@@ -20,159 +20,216 @@
  */
 /*
  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
+#include <sys/kstat.h>
 
-#if !defined(_KERNEL) || !defined(__linux__)
 list_t zfs_dbgmsgs;
-int zfs_dbgmsg_size;
+int zfs_dbgmsg_size = 0;
 kmutex_t zfs_dbgmsgs_lock;
 int zfs_dbgmsg_maxsize = 4<<20; /* 4MB */
+kstat_t *zfs_dbgmsg_kstat;
+
+/*
+ * By default only enable the internal ZFS debug messages when running
+ * in userspace (ztest).  The kernel log must be manually enabled.
+ *
+ * # Enable the kernel debug message log.
+ * echo 1 > /sys/module/zfs/parameters/zfs_dbgmsg_enable
+ *
+ * # Clear the kernel debug message log.
+ * echo 0 >/proc/spl/kstat/zfs/dbgmsg
+ */
+#if defined(_KERNEL) && !defined(ZFS_DEBUG)
+int zfs_dbgmsg_enable = 0;
+#else
+int zfs_dbgmsg_enable = 1;
 #endif
 
-/*
- * Enable various debugging features.
- */
-int zfs_flags = 0;
-
-/*
- * zfs_recover can be set to nonzero to attempt to recover from
- * otherwise-fatal errors, typically caused by on-disk corruption.  When
- * set, calls to zfs_panic_recover() will turn into warning messages.
- * This should only be used as a last resort, as it typically results
- * in leaked space, or worse.
- */
-int zfs_recover = B_FALSE;
-
-/*
- * If destroy encounters an EIO while reading metadata (e.g. indirect
- * blocks), space referenced by the missing metadata can not be freed.
- * Normally this causes the background destroy to become "stalled", as
- * it is unable to make forward progress.  While in this stalled state,
- * all remaining space to free from the error-encountering filesystem is
- * "temporarily leaked".  Set this flag to cause it to ignore the EIO,
- * permanently leak the space from indirect blocks that can not be read,
- * and continue to free everything else that it can.
- *
- * The default, "stalling" behavior is useful if the storage partially
- * fails (i.e. some but not all i/os fail), and then later recovers.  In
- * this case, we will be able to continue pool operations while it is
- * partially failed, and when it recovers, we can continue to free the
- * space, with no leaks.  However, note that this case is actually
- * fairly rare.
- *
- * Typically pools either (a) fail completely (but perhaps temporarily,
- * e.g. a top-level vdev going offline), or (b) have localized,
- * permanent errors (e.g. disk returns the wrong data due to bit flip or
- * firmware bug).  In case (a), this setting does not matter because the
- * pool will be suspended and the sync thread will not be able to make
- * forward progress regardless.  In case (b), because the error is
- * permanent, the best we can do is leak the minimum amount of space,
- * which is what setting this flag will do.  Therefore, it is reasonable
- * for this flag to normally be set, but we chose the more conservative
- * approach of not setting it, so that there is no possibility of
- * leaking space in the "partial temporary" failure case.
- */
-int zfs_free_leak_on_eio = B_FALSE;
-
-
-void
-zfs_panic_recover(const char *fmt, ...)
+static int
+zfs_dbgmsg_headers(char *buf, size_t size)
 {
-	va_list adx;
+	(void) snprintf(buf, size, "%-12s %-8s\n", "timestamp", "message");
 
-	va_start(adx, fmt);
-	vcmn_err(zfs_recover ? CE_WARN : CE_PANIC, fmt, adx);
-	va_end(adx);
+	return (0);
 }
 
-/*
- * Debug logging is enabled by default for production kernel builds.
- * The overhead for this is negligible and the logs can be valuable when
- * debugging.  For non-production user space builds all debugging except
- * logging is enabled since performance is no longer a concern.
- */
+static int
+zfs_dbgmsg_data(char *buf, size_t size, void *data)
+{
+	zfs_dbgmsg_t *zdm = (zfs_dbgmsg_t *)data;
+
+	(void) snprintf(buf, size, "%-12llu %-s\n",
+	    (u_longlong_t)zdm->zdm_timestamp, zdm->zdm_msg);
+
+	return (0);
+}
+
+static void *
+zfs_dbgmsg_addr(kstat_t *ksp, loff_t n)
+{
+	zfs_dbgmsg_t *zdm = (zfs_dbgmsg_t *)ksp->ks_private;
+
+	ASSERT(MUTEX_HELD(&zfs_dbgmsgs_lock));
+
+	if (n == 0)
+		ksp->ks_private = list_head(&zfs_dbgmsgs);
+	else if (zdm)
+		ksp->ks_private = list_next(&zfs_dbgmsgs, zdm);
+
+	return (ksp->ks_private);
+}
+
+static void
+zfs_dbgmsg_purge(int max_size)
+{
+	zfs_dbgmsg_t *zdm;
+	int size;
+
+	ASSERT(MUTEX_HELD(&zfs_dbgmsgs_lock));
+
+	while (zfs_dbgmsg_size > max_size) {
+		zdm = list_remove_head(&zfs_dbgmsgs);
+		if (zdm == NULL)
+			return;
+
+		size = zdm->zdm_size;
+		kmem_free(zdm, size);
+		zfs_dbgmsg_size -= size;
+	}
+}
+
+static int
+zfs_dbgmsg_update(kstat_t *ksp, int rw)
+{
+	if (rw == KSTAT_WRITE)
+		zfs_dbgmsg_purge(0);
+
+	return (0);
+}
+
 void
 zfs_dbgmsg_init(void)
 {
-#if !defined(_KERNEL) || !defined(__linux__)
 	list_create(&zfs_dbgmsgs, sizeof (zfs_dbgmsg_t),
 	    offsetof(zfs_dbgmsg_t, zdm_node));
 	mutex_init(&zfs_dbgmsgs_lock, NULL, MUTEX_DEFAULT, NULL);
-#endif
 
-	if (zfs_flags == 0) {
-#if defined(_KERNEL)
-		zfs_flags = ZFS_DEBUG_DPRINTF;
-		spl_debug_set_mask(spl_debug_get_mask() | SD_DPRINTF);
-		spl_debug_set_subsys(spl_debug_get_subsys() | SS_USER1);
-#else
-		zfs_flags = ~ZFS_DEBUG_DPRINTF;
-#endif /* _KERNEL */
+	zfs_dbgmsg_kstat = kstat_create("zfs", 0, "dbgmsg", "misc",
+	    KSTAT_TYPE_RAW, 0, KSTAT_FLAG_VIRTUAL);
+	if (zfs_dbgmsg_kstat) {
+		zfs_dbgmsg_kstat->ks_lock = &zfs_dbgmsgs_lock;
+		zfs_dbgmsg_kstat->ks_ndata = UINT32_MAX;
+		zfs_dbgmsg_kstat->ks_private = NULL;
+		zfs_dbgmsg_kstat->ks_update = zfs_dbgmsg_update;
+		kstat_set_raw_ops(zfs_dbgmsg_kstat, zfs_dbgmsg_headers,
+		    zfs_dbgmsg_data, zfs_dbgmsg_addr);
+		kstat_install(zfs_dbgmsg_kstat);
 	}
 }
 
 void
 zfs_dbgmsg_fini(void)
 {
-#if !defined(_KERNEL) || !defined(__linux__)
-	zfs_dbgmsg_t *zdm;
+	if (zfs_dbgmsg_kstat)
+		kstat_delete(zfs_dbgmsg_kstat);
 
-	while ((zdm = list_remove_head(&zfs_dbgmsgs)) != NULL) {
-		int size = sizeof (zfs_dbgmsg_t) + strlen(zdm->zdm_msg);
-		kmem_free(zdm, size);
-		zfs_dbgmsg_size -= size;
-	}
+	mutex_enter(&zfs_dbgmsgs_lock);
+	zfs_dbgmsg_purge(0);
+	mutex_exit(&zfs_dbgmsgs_lock);
 	mutex_destroy(&zfs_dbgmsgs_lock);
-	ASSERT0(zfs_dbgmsg_size);
-#endif
 }
 
-#if !defined(_KERNEL) || !defined(__linux__)
-/*
- * Print these messages by running:
- * echo ::zfs_dbgmsg | mdb -k
- *
- * Monitor these messages by running:
- * 	dtrace -q -n 'zfs-dbgmsg{printf("%s\n", stringof(arg0))}'
- */
 void
-zfs_dbgmsg(const char *fmt, ...)
+__zfs_dbgmsg(char *buf)
 {
-	int size;
-	va_list adx;
 	zfs_dbgmsg_t *zdm;
+	int size;
 
-	va_start(adx, fmt);
-	size = vsnprintf(NULL, 0, fmt, adx);
-	va_end(adx);
-
-	/*
-	 * There is one byte of string in sizeof (zfs_dbgmsg_t), used
-	 * for the terminating null.
-	 */
-	zdm = kmem_alloc(sizeof (zfs_dbgmsg_t) + size, KM_SLEEP);
+	size = sizeof (zfs_dbgmsg_t) + strlen(buf);
+	zdm = kmem_zalloc(size, KM_SLEEP);
+	zdm->zdm_size = size;
 	zdm->zdm_timestamp = gethrestime_sec();
-
-	va_start(adx, fmt);
-	(void) vsnprintf(zdm->zdm_msg, size + 1, fmt, adx);
-	va_end(adx);
-
-	DTRACE_PROBE1(zfs__dbgmsg, char *, zdm->zdm_msg);
+	strcpy(zdm->zdm_msg, buf);
 
 	mutex_enter(&zfs_dbgmsgs_lock);
 	list_insert_tail(&zfs_dbgmsgs, zdm);
-	zfs_dbgmsg_size += sizeof (zfs_dbgmsg_t) + size;
-	while (zfs_dbgmsg_size > zfs_dbgmsg_maxsize) {
-		zdm = list_remove_head(&zfs_dbgmsgs);
-		size = sizeof (zfs_dbgmsg_t) + strlen(zdm->zdm_msg);
-		kmem_free(zdm, size);
-		zfs_dbgmsg_size -= size;
-	}
+	zfs_dbgmsg_size += size;
+	zfs_dbgmsg_purge(MAX(zfs_dbgmsg_maxsize, 0));
 	mutex_exit(&zfs_dbgmsgs_lock);
 }
+
+#ifdef _KERNEL
+void
+__dprintf(const char *file, const char *func, int line, const char *fmt, ...)
+{
+	const char *newfile;
+	va_list adx;
+	size_t size;
+	char *buf;
+	char *nl;
+
+	if (!zfs_dbgmsg_enable && !(zfs_flags & ZFS_DEBUG_DPRINTF))
+		return;
+
+	size = 1024;
+	buf = kmem_alloc(size, KM_SLEEP);
+
+	/*
+	 * Get rid of annoying prefix to filename.
+	 */
+	newfile = strrchr(file, '/');
+	if (newfile != NULL) {
+		newfile = newfile + 1; /* Get rid of leading / */
+	} else {
+		newfile = file;
+	}
+
+	va_start(adx, fmt);
+	(void) vsnprintf(buf, size, fmt, adx);
+	va_end(adx);
+
+	/*
+	 * Get rid of trailing newline.
+	 */
+	nl = strrchr(buf, '\n');
+	if (nl != NULL)
+		*nl = '\0';
+
+	/*
+	 * To get this data enable the zfs__dprintf trace point as shown:
+	 *
+	 * # Enable zfs__dprintf tracepoint, clear the tracepoint ring buffer
+	 * $ echo 1 > /sys/module/zfs/parameters/zfs_flags
+	 * $ echo 1 > /sys/kernel/debug/tracing/events/zfs/enable
+	 * $ echo 0 > /sys/kernel/debug/tracing/trace
+	 *
+	 * # Dump the ring buffer.
+	 * $ cat /sys/kernel/debug/tracing/trace
+	 */
+	if (zfs_flags & ZFS_DEBUG_DPRINTF)
+		DTRACE_PROBE4(zfs__dprintf,
+		    char *, newfile, char *, func, int, line, char *, buf);
+
+	/*
+	 * To get this data enable the zfs debug log as shown:
+	 *
+	 * # Set zfs_dbgmsg enable, clear the log buffer
+	 * $ echo 1 > /sys/module/zfs/parameters/zfs_dbgmsg_enable
+	 * $ echo 0 > /proc/spl/kstat/zfs/dbgmsg
+	 *
+	 * # Dump the log buffer.
+	 * $ cat /proc/spl/kstat/zfs/dbgmsg
+	 */
+	if (zfs_dbgmsg_enable)
+		__zfs_dbgmsg(buf);
+
+	kmem_free(buf, size);
+}
+
+#else
 
 void
 zfs_dbgmsg_print(const char *tag)
@@ -186,16 +243,12 @@ zfs_dbgmsg_print(const char *tag)
 		(void) printf("%s\n", zdm->zdm_msg);
 	mutex_exit(&zfs_dbgmsgs_lock);
 }
-#endif
-
-#if defined(_KERNEL)
-module_param(zfs_flags, int, 0644);
-MODULE_PARM_DESC(zfs_flags, "Set additional debugging flags");
-
-module_param(zfs_recover, int, 0644);
-MODULE_PARM_DESC(zfs_recover, "Set to attempt to recover from fatal errors");
-
-module_param(zfs_free_leak_on_eio, int, 0644);
-MODULE_PARM_DESC(zfs_free_leak_on_eio,
-	"Set to ignore IO errors during free and permanently leak the space");
 #endif /* _KERNEL */
+
+#ifdef _KERNEL
+module_param(zfs_dbgmsg_enable, int, 0644);
+MODULE_PARM_DESC(zfs_dbgmsg_enable, "Enable ZFS debug message log");
+
+module_param(zfs_dbgmsg_maxsize, int, 0644);
+MODULE_PARM_DESC(zfs_dbgmsg_maxsize, "Maximum ZFS debug log size");
+#endif

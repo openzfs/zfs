@@ -1,13 +1,13 @@
 modulesload_DATA = \
-	$(top_srcdir)/etc/modules-load.d/zfs.conf
+	zfs.conf
 
 EXTRA_DIST = \
 	$(top_srcdir)/etc/modules-load.d/zfs.conf.in
 
-$(modulesload_DATA):
+$(modulesload_DATA):%:%.in
 	-$(SED) \
 		-e '' \
-		'$@.in' >'$@'
+		$< >'$@'
 
 distclean-local::
 	-$(RM) $(modulesload_DATA)

@@ -21,6 +21,7 @@
 
 /*
  * Copyright (c) 2002, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright 2012 Nexenta Systems, Inc.  All rights reserved.
  */
 
 #include <stdio.h>
@@ -69,7 +70,72 @@ static struct uuid_to_ptag {
 	{ EFI_DELL_LVM },
 	{ EFI_DELL_RESV },
 	{ EFI_AAPL_HFS },
-	{ EFI_AAPL_UFS }
+	{ EFI_AAPL_UFS },
+	{ EFI_FREEBSD_BOOT },
+	{ EFI_FREEBSD_SWAP },
+	{ EFI_FREEBSD_UFS },
+	{ EFI_FREEBSD_VINUM },
+	{ EFI_FREEBSD_ZFS },
+	{ EFI_BIOS_BOOT },
+	{ EFI_INTC_RS },
+	{ EFI_SNE_BOOT },
+	{ EFI_LENOVO_BOOT },
+	{ EFI_MSFT_LDMM },
+	{ EFI_MSFT_LDMD },
+	{ EFI_MSFT_RE },
+	{ EFI_IBM_GPFS },
+	{ EFI_MSFT_STORAGESPACES },
+	{ EFI_HPQ_DATA },
+	{ EFI_HPQ_SVC },
+	{ EFI_RHT_DATA },
+	{ EFI_RHT_HOME },
+	{ EFI_RHT_SRV },
+	{ EFI_RHT_DMCRYPT },
+	{ EFI_RHT_LUKS },
+	{ EFI_FREEBSD_DISKLABEL },
+	{ EFI_AAPL_RAID },
+	{ EFI_AAPL_RAIDOFFLINE },
+	{ EFI_AAPL_BOOT },
+	{ EFI_AAPL_LABEL },
+	{ EFI_AAPL_TVRECOVERY },
+	{ EFI_AAPL_CORESTORAGE },
+	{ EFI_NETBSD_SWAP },
+	{ EFI_NETBSD_FFS },
+	{ EFI_NETBSD_LFS },
+	{ EFI_NETBSD_RAID },
+	{ EFI_NETBSD_CAT },
+	{ EFI_NETBSD_CRYPT },
+	{ EFI_GOOG_KERN },
+	{ EFI_GOOG_ROOT },
+	{ EFI_GOOG_RESV },
+	{ EFI_HAIKU_BFS },
+	{ EFI_MIDNIGHTBSD_BOOT },
+	{ EFI_MIDNIGHTBSD_DATA },
+	{ EFI_MIDNIGHTBSD_SWAP },
+	{ EFI_MIDNIGHTBSD_UFS },
+	{ EFI_MIDNIGHTBSD_VINUM },
+	{ EFI_MIDNIGHTBSD_ZFS },
+	{ EFI_CEPH_JOURNAL },
+	{ EFI_CEPH_DMCRYPTJOURNAL },
+	{ EFI_CEPH_OSD },
+	{ EFI_CEPH_DMCRYPTOSD },
+	{ EFI_CEPH_CREATE },
+	{ EFI_CEPH_DMCRYPTCREATE },
+	{ EFI_OPENBSD_DISKLABEL },
+	{ EFI_BBRY_QNX },
+	{ EFI_BELL_PLAN9 },
+	{ EFI_VMW_KCORE },
+	{ EFI_VMW_VMFS },
+	{ EFI_VMW_RESV },
+	{ EFI_RHT_ROOTX86 },
+	{ EFI_RHT_ROOTAMD64 },
+	{ EFI_RHT_ROOTARM },
+	{ EFI_RHT_ROOTARM64 },
+	{ EFI_ACRONIS_SECUREZONE },
+	{ EFI_ONIE_BOOT },
+	{ EFI_ONIE_CONFIG },
+	{ EFI_IBM_PPRPBOOT },
+	{ EFI_FREEDESKTOP_BOOT }
 };
 
 /*
@@ -88,7 +154,8 @@ struct dk_map2  default_vtoc_map[NDKMAP] = {
 #if defined(_SUNOS_VTOC_16)
 
 #if defined(i386) || defined(__amd64) || defined(__arm) || \
-    defined(__powerpc) || defined(__sparc)
+    defined(__powerpc) || defined(__sparc) || defined(__s390__) || \
+    defined(__mips__)
 	{	V_BOOT,		V_UNMNT	},		/* i - 8 */
 	{	V_ALTSCTR,	0	},		/* j - 9 */
 
@@ -105,11 +172,7 @@ struct dk_map2  default_vtoc_map[NDKMAP] = {
 #endif			/* defined(_SUNOS_VTOC_16) */
 };
 
-#ifdef DEBUG
-int efi_debug = 1;
-#else
 int efi_debug = 0;
-#endif
 
 static int efi_read(int, struct dk_gpt *);
 
@@ -200,6 +263,18 @@ efi_get_info(int fd, struct dk_cinfo *dki_info)
 		    &dki_info->dki_partition);
 	} else if ((strncmp(dev_path, "/dev/vd", 7) == 0)) {
 		strcpy(dki_info->dki_cname, "vd");
+		dki_info->dki_ctype = DKC_MD;
+		rval = sscanf(dev_path, "/dev/%[a-zA-Z]%hu",
+		    dki_info->dki_dname,
+		    &dki_info->dki_partition);
+	} else if ((strncmp(dev_path, "/dev/xvd", 8) == 0)) {
+		strcpy(dki_info->dki_cname, "xvd");
+		dki_info->dki_ctype = DKC_MD;
+		rval = sscanf(dev_path, "/dev/%[a-zA-Z]%hu",
+		    dki_info->dki_dname,
+		    &dki_info->dki_partition);
+	} else if ((strncmp(dev_path, "/dev/zd", 7) == 0)) {
+		strcpy(dki_info->dki_cname, "zd");
 		dki_info->dki_ctype = DKC_MD;
 		rval = sscanf(dev_path, "/dev/%[a-zA-Z]%hu",
 		    dki_info->dki_dname,
@@ -558,8 +633,8 @@ check_label(int fd, dk_efi_t *dk_ioc)
 	if (headerSize < EFI_MIN_LABEL_SIZE || headerSize > EFI_LABEL_SIZE) {
 		if (efi_debug)
 			(void) fprintf(stderr,
-				"Invalid EFI HeaderSize %llu.  Assuming %d.\n",
-				headerSize, EFI_MIN_LABEL_SIZE);
+			    "Invalid EFI HeaderSize %llu.  Assuming %d.\n",
+			    headerSize, EFI_MIN_LABEL_SIZE);
 	}
 
 	if ((headerSize > dk_ioc->dki_length) ||
@@ -861,11 +936,11 @@ write_pmbr(int fd, struct dk_gpt *vtoc)
 	/* LINTED -- always longlong aligned */
 	dk_ioc.dki_data = (efi_gpt_t *)buf;
 	if (efi_ioctl(fd, DKIOCGETEFI, &dk_ioc) == -1) {
-		(void *) memcpy(&mb, buf, sizeof (mb));
+		(void) memcpy(&mb, buf, sizeof (mb));
 		bzero(&mb, sizeof (mb));
 		mb.signature = LE_16(MBB_MAGIC);
 	} else {
-		(void *) memcpy(&mb, buf, sizeof (mb));
+		(void) memcpy(&mb, buf, sizeof (mb));
 		if (mb.signature != LE_16(MBB_MAGIC)) {
 			bzero(&mb, sizeof (mb));
 			mb.signature = LE_16(MBB_MAGIC);
@@ -905,7 +980,7 @@ write_pmbr(int fd, struct dk_gpt *vtoc)
 		*cp++ = 0xff;
 	}
 
-	(void *) memcpy(buf, &mb, sizeof (mb));
+	(void) memcpy(buf, &mb, sizeof (mb));
 	/* LINTED -- always longlong aligned */
 	dk_ioc.dki_data = (efi_gpt_t *)buf;
 	dk_ioc.dki_lba = 0;
@@ -1031,7 +1106,7 @@ check_input(struct dk_gpt *vtoc)
 int
 efi_use_whole_disk(int fd)
 {
-	struct dk_gpt		*efi_label;
+	struct dk_gpt		*efi_label = NULL;
 	int			rval;
 	int			i;
 	uint_t			resv_index = 0, data_index = 0;
@@ -1040,6 +1115,8 @@ efi_use_whole_disk(int fd)
 
 	rval = efi_alloc_and_read(fd, &efi_label);
 	if (rval < 0) {
+		if (efi_label != NULL)
+			efi_free(efi_label);
 		return (rval);
 	}
 

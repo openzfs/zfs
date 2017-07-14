@@ -1,24 +1,8 @@
 dnl #
 dnl # Preferred interface for setting FAILFAST on a bio:
-dnl #   2.6.12-2.6.27: BIO_RW_FAILFAST
 dnl #   2.6.28-2.6.35: BIO_RW_FAILFAST_{DEV|TRANSPORT|DRIVER}
-dnl #   2.6.36-2.6.xx: REQ_FAILFAST_{DEV|TRANSPORT|DRIVER}
+dnl #       >= 2.6.36: REQ_FAILFAST_{DEV|TRANSPORT|DRIVER}
 dnl #
-AC_DEFUN([ZFS_AC_KERNEL_BIO_FAILFAST], [
-	AC_MSG_CHECKING([whether BIO_RW_FAILFAST is defined])
-	ZFS_LINUX_TRY_COMPILE([
-		#include <linux/bio.h>
-	],[
-		int flags __attribute__ ((unused));
-		flags = (1 << BIO_RW_FAILFAST);
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_BIO_RW_FAILFAST, 1,
-		          [BIO_RW_FAILFAST is defined])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
 
 AC_DEFUN([ZFS_AC_KERNEL_BIO_FAILFAST_DTD], [
 	AC_MSG_CHECKING([whether BIO_RW_FAILFAST_* are defined])
@@ -47,7 +31,7 @@ AC_DEFUN([ZFS_AC_KERNEL_REQ_FAILFAST_MASK], [
 		flags = REQ_FAILFAST_MASK;
 	],[
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_BIO_REQ_FAILFAST_MASK, 1,
+		AC_DEFINE(HAVE_REQ_FAILFAST_MASK, 1,
 		          [REQ_FAILFAST_MASK is defined])
 	],[
 		AC_MSG_RESULT(no)

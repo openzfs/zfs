@@ -1,0 +1,68 @@
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+
+#
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+#
+
+. $STF_SUITE/include/math.shlib
+
+export TESTVOL="testvol.nopwrite"
+export VOLSIZE="256M"
+export MEGS="64"
+
+function verify_nopwrite
+{
+	typeset origin=$1
+	typeset snap=$2
+	typeset clone=$3
+	typeset low=1
+	typeset high=99
+
+	sync_pool
+	for i in origin snap clone; do
+		for j in used refer usedbychildren written; do
+			typeset ${i}_$j=$(get_prop $j $(eval echo \$$i))
+		done
+	done
+
+	#
+	# If we are dealing with a volume, deduct the refreserv from the used
+	# value to prevent real failures from being masked by the unexpected
+	# extra space. Also, volumes use more space for metadata, so adjust the
+	# percentages to be more forgiving.
+	#
+	if [[ "$(get_prop type $origin)" = "volume" ]]; then
+		typeset rr=$(get_prop refreserv $origin)
+		((origin_used -= rr ))
+		low=2
+		high=98
+	fi
+
+	# These values should differ greatly with nopwrite.
+	within_percent $origin_used $clone_used $low && return 1
+	within_percent $origin_refer $origin_usedbychildren $low && return 1
+	within_percent $snap_written $clone_written $low && return 1
+
+	# These values should be nearly the same with nopwrite.
+	within_percent $origin_used $clone_refer $high || return 1
+	within_percent $origin_used $snap_refer $high || return 1
+
+	#
+	# The comparisons below should pass regardless of nopwrite. They're
+	# here for sanity.
+	#
+	typeset deadlist=$(zdb -Pddd $clone | awk '/Deadlist:/ {print $2}')
+	within_percent $deadlist $clone_written $high || return 1
+	within_percent $snap_refer $snap_written $high || return 1
+
+	return 0
+}

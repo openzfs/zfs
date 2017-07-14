@@ -68,7 +68,8 @@ uu_dprintf_create(const char *name, uu_dprintf_severity_t severity,
 {
 	uu_dprintf_t *D;
 
-	if (uu_check_name(name, UU_NAME_DOMAIN) == -1) {
+	if (name != NULL &&
+	    uu_check_name(name, UU_NAME_DOMAIN) == -1) {
 		uu_set_error(UU_ERROR_INVALID_ARGUMENT);
 		return (NULL);
 	}

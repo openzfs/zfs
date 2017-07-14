@@ -45,7 +45,7 @@ bplist_destroy(bplist_t *bpl)
 void
 bplist_append(bplist_t *bpl, const blkptr_t *bp)
 {
-	bplist_entry_t *bpe = kmem_alloc(sizeof (*bpe), KM_PUSHPAGE);
+	bplist_entry_t *bpe = kmem_alloc(sizeof (*bpe), KM_SLEEP);
 
 	mutex_enter(&bpl->bpl_lock);
 	bpe->bpe_blk = *bp;

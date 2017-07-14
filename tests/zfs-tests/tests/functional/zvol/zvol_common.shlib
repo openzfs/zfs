@@ -1,0 +1,136 @@
+#
+# CDDL HEADER START
+#
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License (the "License").
+# You may not use this file except in compliance with the License.
+#
+# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+# or http://www.opensolaris.org/os/licensing.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+# If applicable, add the following below this CDDL HEADER, with the
+# fields enclosed by brackets "[]" replaced with your own identifying
+# information: Portions Copyright [yyyy] [name of copyright owner]
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
+# Use is subject to license terms.
+#
+
+#
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
+#
+
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/zvol/zvol.cfg
+
+#
+# Create a simple zvol volume
+#
+# Where disk_device: is the name of the disk to be used
+#       volume_size: is the size of the volume, e.g. 2G
+#       block_size:  is the block size of the volume
+#
+function default_zvol_setup # disk_device volume_size block_size
+{
+	typeset disk=$1
+	typeset size=$2
+	typeset blocksize=$3
+	typeset savedumpdev
+	typeset -i output
+	typeset create_args
+
+	create_pool $TESTPOOL "$disk"
+
+	if [ -n "$blocksize" ]; then
+		create_args="-b $blocksize"
+	fi
+
+	log_must zfs create $create_args -V $size $TESTPOOL/$TESTVOL
+	block_device_wait
+}
+
+#
+# Destroy the default zvol which was setup using
+# default_zvol_setup().
+#
+function default_zvol_cleanup
+{
+        if datasetexists $TESTPOOL/$TESTVOL ; then
+		log_must zfs destroy $TESTPOOL/$TESTVOL
+	fi
+
+        destroy_pool $TESTPOOL
+}
+
+function get_dumpdevice
+{
+	typeset ret=$(dumpadm | grep "Dump device:" | awk '{print $3}')
+	echo $ret
+}
+
+function set_dumpsize
+{
+	typeset volume=$1
+
+	if [[ -z $volume ]] ; then
+		log_note "No volume specified."
+		return 1
+	fi
+
+	log_must zfs set volsize=64m $volume
+
+	if ! is_linux; then
+		output=$(dumpadm -d /dev/zvol/dsk/$volume 2>&1 | \
+				tail -1 | awk '{print $3}')
+
+		if [[ -n $output ]]; then
+			(( output = output / 1024 / 1024 ))
+			(( output = output + output / 5 ))
+			log_must zfs set volsize=${output}m $volume
+		fi
+	fi
+
+	return 0
+}
+
+function safe_dumpadm
+{
+	typeset device=$1
+
+	if [[ -z $device || $device == "none" ]] ; then
+		log_note "No dump device volume specified."
+		return 1
+	fi
+	if [[ $device == "${ZVOL_DEVDIR}/"* ]] ; then
+		typeset volume=${device#${ZVOL_DEVDIR}/}
+		set_dumpsize $volume
+		log_must dumpadm -d $device
+	else
+		log_must swapadd
+		if ! is_swap_inuse $device ; then
+			log_must swap -a $device
+		fi
+		log_must dumpadm -d swap
+	fi
+}
+
+function is_zvol_dumpified
+{
+	typeset volume=$1
+
+	if [[ -z $volume ]] ; then
+		log_note "No volume specified."
+		return 1
+	fi
+
+	zdb -dddd $volume 2 | grep "dumpsize" > /dev/null 2>&1
+	return $?
+}

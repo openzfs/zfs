@@ -1,0 +1,33 @@
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+
+#
+# Copyright (c) 2015, 2016 by Delphix. All rights reserved.
+#
+
+[global]
+filename_format=file$jobnum
+group_reporting=1
+fallocate=0
+thread=1
+rw=randwrite
+time_based=1
+directory=/${TESTFS}
+runtime=${RUNTIME}
+bs=${BLOCKSIZE}
+ioengine=psync
+sync=${SYNC_TYPE}
+numjobs=${NUMJOBS}
+filesize=${FILESIZE}
+buffer_compress_percentage=66
+buffer_compress_chunk=4096
+
+[job]

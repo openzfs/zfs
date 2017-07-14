@@ -29,6 +29,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <strings.h>
+#include <ctype.h>
 
 #include "zpool_util.h"
 
@@ -83,4 +84,30 @@ num_logs(nvlist_t *nv)
 			nlogs++;
 	}
 	return (nlogs);
+}
+
+/* Find the max element in an array of uint64_t values */
+uint64_t
+array64_max(uint64_t array[], unsigned int len)
+{
+	uint64_t max = 0;
+	int i;
+	for (i = 0; i < len; i++)
+		max = MAX(max, array[i]);
+
+	return (max);
+}
+
+/*
+ * Return 1 if "str" is a number string, 0 otherwise.  Works for integer and
+ * floating point numbers.
+ */
+int
+isnumber(char *str)
+{
+	for (; *str; str++)
+		if (!(isdigit(*str) || (*str == '.')))
+			return (0);
+
+	return (1);
 }

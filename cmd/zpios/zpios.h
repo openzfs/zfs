@@ -1,7 +1,7 @@
 /*
  *  ZPIOS is a heavily modified version of the original PIOS test code.
  *  It is designed to have the test code running in the Linux kernel
- *  against ZFS while still being flexibly controled from user space.
+ *  against ZFS while still being flexibly controlled from user space.
  *
  *  Copyright (C) 2008-2010 Lawrence Livermore National Security, LLC.
  *  Produced at Lawrence Livermore National Laboratory (cf, DISCLAIMER).
@@ -29,6 +29,8 @@
  *
  *  You should have received a copy of the GNU General Public License along
  *  with ZPIOS.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ *  Copyright (c) 2015, Intel Corporation.
  */
 
 #ifndef _ZPIOS_H
@@ -39,10 +41,10 @@
 #define	VERSION_SIZE		64
 
 /* Regular expressions */
-#define	REGEX_NUMBERS		"^[0-9]*[0-9]$"
+#define	REGEX_NUMBERS		"^[0-9]+$"
 #define	REGEX_NUMBERS_COMMA	"^([0-9]+,)*[0-9]+$"
-#define	REGEX_SIZE		"^[0-9][0-9]*[kmgt]$"
-#define	REGEX_SIZE_COMMA	"^([0-9][0-9]*[kmgt]+,)*[0-9][0-9]*[kmgt]$"
+#define	REGEX_SIZE		"^[0-9]+[kKmMgGtT]?$"
+#define	REGEX_SIZE_COMMA	"^([0-9]+[kKmMgGtT]?,)*[0-9]+[kKmMgGtT]?$"
 
 /* Flags for low, high, incr */
 #define	FLAG_SET		0x01
@@ -82,10 +84,12 @@ typedef struct cmd_args {
 	range_repeat_t O;		/* Offset count */
 	range_repeat_t C;		/* Chunksize */
 	range_repeat_t S;		/* Regionsize */
+	range_repeat_t B;		/* Blocksize */
 
 	const char *pool;		/* Pool */
 	const char *name;		/* Name */
 	uint32_t flags;			/* Flags */
+	uint32_t block_size;		/* ZFS block size */
 	uint32_t io_type;		/* DMUIO only */
 	uint32_t verbose;		/* Verbose */
 	uint32_t human_readable;	/* Human readable output */
@@ -105,6 +109,7 @@ typedef struct cmd_args {
 	uint64_t current_C;
 	uint64_t current_S;
 	uint64_t current_O;
+	uint64_t current_B;
 
 	uint32_t rc;
 } cmd_args_t;

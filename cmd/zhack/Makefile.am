@@ -7,7 +7,7 @@ DEFAULT_INCLUDES += \
 sbin_PROGRAMS = zhack
 
 zhack_SOURCES = \
-	$(top_srcdir)/cmd/zhack/zhack.c
+	zhack.c
 
 zhack_LDADD = \
 	$(top_builddir)/lib/libnvpair/libnvpair.la \
@@ -15,5 +15,3 @@ zhack_LDADD = \
 	$(top_builddir)/lib/libzpool/libzpool.la \
 	$(top_builddir)/lib/libzfs/libzfs.la \
 	$(top_builddir)/lib/libzfs_core/libzfs_core.la
-
-zhack_LDADD += $(ZLIB)

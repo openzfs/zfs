@@ -1,0 +1,94 @@
+#!/bin/sh
+
+### prepare
+#TEST_PREPARE_WATCHDOG="no"
+
+### SPLAT
+#TEST_SPLAT_SKIP="yes"
+#TEST_SPLAT_OPTIONS="-acvx"
+
+### ztest
+#TEST_ZTEST_SKIP="yes"
+#TEST_ZTEST_TIMEOUT=1800
+#TEST_ZTEST_DIR="/var/tmp/"
+#TEST_ZTEST_OPTIONS="-V"
+
+### zimport
+#TEST_ZIMPORT_SKIP="yes"
+#TEST_ZIMPORT_DIR="/var/tmp/zimport"
+#TEST_ZIMPORT_VERSIONS="master installed"
+#TEST_ZIMPORT_POOLS="zol-0.6.1 zol-0.6.2 master installed"
+#TEST_ZIMPORT_OPTIONS="-c"
+
+### xfstests
+#TEST_XFSTESTS_SKIP="yes"
+#TEST_XFSTESTS_URL="https://github.com/behlendorf/xfstests/archive/"
+#TEST_XFSTESTS_VER="zfs.tar.gz"
+#TEST_XFSTESTS_POOL="tank"
+#TEST_XFSTESTS_FS="xfstests"
+#TEST_XFSTESTS_VDEV="/var/tmp/vdev"
+#TEST_XFSTESTS_OPTIONS=""
+
+### zfs-tests.sh
+#TEST_ZFSTESTS_SKIP="yes"
+#TEST_ZFSTESTS_DISKS="vdb vdc vdd"
+#TEST_ZFSTESTS_DISKSIZE="8G"
+#TEST_ZFSTESTS_RUNFILE="linux.run"
+
+### zfsstress
+#TEST_ZFSSTRESS_SKIP="yes"
+#TEST_ZFSSTRESS_URL="https://github.com/nedbass/zfsstress/archive/"
+#TEST_ZFSSTRESS_VER="master.tar.gz"
+#TEST_ZFSSTRESS_RUNTIME=300
+#TEST_ZFSSTRESS_POOL="tank"
+#TEST_ZFSSTRESS_FS="fish"
+#TEST_ZFSSTRESS_VDEV="/var/tmp/vdev"
+#TEST_ZFSSTRESS_DIR="/$TEST_ZFSSTRESS_POOL/$TEST_ZFSSTRESS_FS"
+#TEST_ZFSSTRESS_OPTIONS=""
+
+### per-builder customization
+#
+# BB_NAME=builder-name <distribution-version-architecture-type>
+# - distribution=Amazon,Debian,Fedora,RHEL,SUSE,Ubuntu
+# - version=x.y
+# - architecture=x86_64,i686,arm,aarch64
+# - type=build,test
+#
+case "$BB_NAME" in
+Amazon*)
+    # ZFS enabled xfstests fails to build
+    TEST_XFSTESTS_SKIP="yes"
+    ;;
+CentOS-7*)
+    # ZFS enabled xfstests fails to build
+    TEST_XFSTESTS_SKIP="yes"
+    ;;
+CentOS-6*)
+    ;;
+Debian*)
+    ;;
+Fedora*)
+    ;;
+RHEL*)
+    ;;
+SUSE*)
+    ;;
+Ubuntu-16.04*)
+    # ZFS enabled xfstests fails to build
+    TEST_XFSTESTS_SKIP="yes"
+    ;;
+Ubuntu*)
+    ;;
+*)
+    ;;
+esac
+
+###
+#
+# Disable the following test suites on 32-bit systems.
+#
+if [ $(getconf LONG_BIT) = "32" ]; then
+    TEST_ZTEST_SKIP="yes"
+    TEST_XFSTESTS_SKIP="yes"
+    TEST_ZFSSTRESS_SKIP="yes"
+fi

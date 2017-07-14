@@ -88,6 +88,19 @@ switch port.
 .BR vdev_id (8)
 internally uses this value to determine which HBA or switch port a
 device is connected to.  The default is 4.
+
+.TP
+\fIslot\fR <bay|phy|id|lun>
+Specifies from which element of a SAS identifier the slot number is
+taken.  The default is bay.
+
+\fIbay\fR - read the slot number from the bay identifier.
+
+\fIphy\fR - read the slot number from the phy identifier.
+
+\fIid\fR - use the scsi id as the slot number.
+
+\fIlun\fR - use the scsi lun as the slot number.
 .SH EXAMPLES
 A non-multipath configuration with direct-attached SAS enclosures and an
 arbitrary slot re-mapping.
@@ -96,6 +109,7 @@ arbitrary slot re-mapping.
 	multipath     no
 	topology      sas_direct
 	phys_per_port 4
+	slot          bay
 
 	#       PCI_SLOT HBA PORT  CHANNEL NAME
 	channel 85:00.0  1         A

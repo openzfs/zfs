@@ -284,7 +284,7 @@ libzfs_fru_refresh(libzfs_handle_t *hdl)
 
 	if (hdl->libzfs_fru_hash == NULL &&
 	    (hdl->libzfs_fru_hash =
-	    calloc(ZFS_FRU_HASH_SIZE * sizeof (void *), 1)) == NULL)
+	    calloc(ZFS_FRU_HASH_SIZE, sizeof (void *))) == NULL)
 		return;
 
 	/*
@@ -454,6 +454,15 @@ libzfs_fru_clear(libzfs_handle_t *hdl, boolean_t final)
 }
 
 #else /* HAVE_LIBTOPO */
+
+/*
+ * Compare to two FRUs, ignoring any authority information.
+ */
+boolean_t
+libzfs_fru_compare(libzfs_handle_t *hdl, const char *a, const char *b)
+{
+	return (B_FALSE);
+}
 
 /*
  * Clear memory associated with the FRU hash.

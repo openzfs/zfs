@@ -20,8 +20,12 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
+ * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
+ * Copyright 2013 Saso Kiselkov. All rights reserved.
+ * Copyright (c) 2016 Actifio, Inc. All rights reserved.
+ * Copyright (c) 2017 Datto Inc.
  */
 
 #ifndef _SYS_SPA_IMPL_H
@@ -114,11 +118,18 @@ typedef struct spa_taskqs {
 	taskq_t **stqs_taskq;
 } spa_taskqs_t;
 
+typedef enum spa_all_vdev_zap_action {
+	AVZ_ACTION_NONE = 0,
+	AVZ_ACTION_DESTROY,	/* Destroy all per-vdev ZAPs and the AVZ. */
+	AVZ_ACTION_REBUILD,	/* Populate the new AVZ, see spa_avz_rebuild */
+	AVZ_ACTION_INITIALIZE
+} spa_avz_action_t;
+
 struct spa {
 	/*
 	 * Fields protected by spa_namespace_lock.
 	 */
-	char		spa_name[MAXNAMELEN];	/* pool name */
+	char		spa_name[ZFS_MAX_DATASET_NAME_LEN];	/* pool name */
 	char		*spa_comment;		/* comment */
 	avl_node_t	spa_avl;		/* node in spa_namespace_avl */
 	nvlist_t	*spa_config;		/* last synced config */
@@ -144,13 +155,20 @@ struct spa {
 	uint64_t	spa_claim_max_txg;	/* highest claimed birth txg */
 	timespec_t	spa_loaded_ts;		/* 1st successful open time */
 	objset_t	*spa_meta_objset;	/* copy of dp->dp_meta_objset */
+	kmutex_t	spa_evicting_os_lock;	/* Evicting objset list lock */
+	list_t		spa_evicting_os_list;	/* Objsets being evicted. */
+	kcondvar_t	spa_evicting_os_cv;	/* Objset Eviction Completion */
 	txg_list_t	spa_vdev_txg_list;	/* per-txg dirty vdev list */
 	vdev_t		*spa_root_vdev;		/* top-level vdev container */
+	int		spa_min_ashift;		/* of vdevs in normal class */
+	int		spa_max_ashift;		/* of vdevs in normal class */
 	uint64_t	spa_config_guid;	/* config pool guid */
 	uint64_t	spa_load_guid;		/* spa_load initialized guid */
 	uint64_t	spa_last_synced_guid;	/* last synced guid */
 	list_t		spa_config_dirty_list;	/* vdevs with dirty config */
 	list_t		spa_state_dirty_list;	/* vdevs with dirty state */
+	kmutex_t	spa_alloc_lock;
+	avl_tree_t	spa_alloc_tree;
 	spa_aux_vdev_t	spa_spares;		/* hot spares */
 	spa_aux_vdev_t	spa_l2cache;		/* L2ARC cache devices */
 	nvlist_t	*spa_label_features;	/* Features for reading MOS */
@@ -159,6 +177,10 @@ struct spa {
 	uint64_t	spa_syncing_txg;	/* txg currently syncing */
 	bpobj_t		spa_deferred_bpobj;	/* deferred-free bplist */
 	bplist_t	spa_free_bplist[TXG_SIZE]; /* bplist of stuff to free */
+	zio_cksum_salt_t spa_cksum_salt;	/* secret salt for cksum */
+	/* checksum context templates */
+	kmutex_t	spa_cksum_tmpls_lock;
+	void		*spa_cksum_tmpls[ZIO_CHECKSUM_FUNCTIONS];
 	uberblock_t	spa_ubsync;		/* last synced uberblock */
 	uberblock_t	spa_uberblock;		/* current uberblock */
 	boolean_t	spa_extreme_rewind;	/* rewind past deferred frees */
@@ -172,6 +194,8 @@ struct spa {
 	uint8_t		spa_scrub_started;	/* started since last boot */
 	uint8_t		spa_scrub_reopen;	/* scrub doing vdev_reopen */
 	uint64_t	spa_scan_pass_start;	/* start time per pass/reboot */
+	uint64_t	spa_scan_pass_scrub_pause; /* scrub pause time */
+	uint64_t	spa_scan_pass_scrub_spent_paused; /* total paused */
 	uint64_t	spa_scan_pass_exam;	/* examined bytes per pass */
 	kmutex_t	spa_async_lock;		/* protect async state */
 	kthread_t	*spa_async_thread;	/* thread doing async task */
@@ -204,7 +228,8 @@ struct spa {
 	uint64_t	spa_failmode;		/* failure mode for the pool */
 	uint64_t	spa_delegation;		/* delegation on/off */
 	list_t		spa_config_list;	/* previous cache file(s) */
-	zio_t		*spa_async_zio_root;	/* root of all async I/O */
+	/* per-CPU array of root of async I/O: */
+	zio_t		**spa_async_zio_root;
 	zio_t		*spa_suspend_zio_root;	/* root of all suspended I/O */
 	kmutex_t	spa_suspend_lock;	/* protects suspend_zio_root */
 	kcondvar_t	spa_suspend_cv;		/* notification of resume */
@@ -218,6 +243,7 @@ struct spa {
 	uint64_t	spa_autoexpand;		/* lun expansion on/off */
 	ddt_t		*spa_ddt[ZIO_CHECKSUM_FUNCTIONS]; /* in-core DDTs */
 	uint64_t	spa_ddt_stat_object;	/* DDT statistics */
+	uint64_t	spa_dedup_dspace;	/* Cache get_dedup_dspace() */
 	uint64_t	spa_dedup_ditto;	/* dedup ditto threshold */
 	uint64_t	spa_dedup_checksum;	/* default dedup checksum */
 	uint64_t	spa_dspace;		/* dspace in normal class */
@@ -235,14 +261,22 @@ struct spa {
 	uint64_t	spa_feat_for_read_obj;	/* required to read from pool */
 	uint64_t	spa_feat_desc_obj;	/* Feature descriptions */
 	uint64_t	spa_feat_enabled_txg_obj; /* Feature enabled txg */
+	kmutex_t	spa_feat_stats_lock;	/* protects spa_feat_stats */
+	nvlist_t	*spa_feat_stats;	/* Cache of enabled features */
 	/* cache feature refcounts */
 	uint64_t	spa_feat_refcount_cache[SPA_FEATURES];
 	taskqid_t	spa_deadman_tqid;	/* Task id */
 	uint64_t	spa_deadman_calls;	/* number of deadman calls */
 	hrtime_t	spa_sync_starttime;	/* starting time of spa_sync */
 	uint64_t	spa_deadman_synctime;	/* deadman expiration timer */
+	uint64_t	spa_all_vdev_zaps;	/* ZAP of per-vd ZAP obj #s */
+	spa_avz_action_t	spa_avz_action;	/* destroy/rebuild AVZ? */
 	uint64_t	spa_errata;		/* errata issues detected */
 	spa_stats_t	spa_stats;		/* assorted spa statistics */
+	hrtime_t	spa_ccw_fail_time;	/* Conf cache write fail time */
+	taskq_t		*spa_zvol_taskq;	/* Taskq for minor management */
+	uint64_t	spa_multihost;		/* multihost aware (mmp) */
+	mmp_thread_t	spa_mmp;		/* multihost mmp thread */
 
 	/*
 	 * spa_refcount & spa_config_lock must be the last elements
@@ -252,6 +286,8 @@ struct spa {
 	 */
 	spa_config_lock_t spa_config_lock[SCL_LOCKS]; /* config changes */
 	refcount_t	spa_refcount;		/* number of opens */
+
+	taskq_t		*spa_upgrade_taskq;	/* taskq for upgrade jobs */
 };
 
 extern char *spa_config_path;

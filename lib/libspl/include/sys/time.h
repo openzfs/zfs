@@ -58,6 +58,20 @@
 #define	NSEC2MSEC(n)    ((n) / (NANOSEC / MILLISEC))
 #endif
 
+#ifndef	NSEC2SEC
+#define	NSEC2SEC(n)	((n) / (NANOSEC / SEC))
+#endif
+
+#ifndef SEC2NSEC
+#define	SEC2NSEC(m)	((hrtime_t)(m) * (NANOSEC / SEC))
+#endif
+
+
+typedef	long long		hrtime_t;
+typedef	struct	timespec	timestruc_t;
+typedef	struct	timespec	timespec_t;
+
+
 extern hrtime_t gethrtime(void);
 extern void gethrestime(timestruc_t *);
 

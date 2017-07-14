@@ -1,0 +1,9 @@
+This directory contains scripts that can be run the zpool status/iostat
+-c option:
+
+	zpool status -c script1,script2, ...
+
+	zpool iostat -vc script1,script2, ...
+
+Some scripts output different values depending on the symlink name that is
+used to run them.  See the zpool(8) man page for more details.

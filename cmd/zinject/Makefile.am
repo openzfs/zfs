@@ -7,9 +7,9 @@ DEFAULT_INCLUDES += \
 sbin_PROGRAMS = zinject
 
 zinject_SOURCES = \
-	$(top_srcdir)/cmd/zinject/translate.c \
-	$(top_srcdir)/cmd/zinject/zinject.c \
-	$(top_srcdir)/cmd/zinject/zinject.h
+	translate.c \
+	zinject.c \
+	zinject.h
 
 zinject_LDADD = \
 	$(top_builddir)/lib/libnvpair/libnvpair.la \

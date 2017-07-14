@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
  */
 
 #include <sys/arc.h>
@@ -65,7 +65,7 @@ bptree_alloc(objset_t *os, dmu_tx_t *tx)
 	bptree_phys_t *bt;
 
 	obj = dmu_object_alloc(os, DMU_OTN_UINT64_METADATA,
-	    SPA_MAXBLOCKSIZE, DMU_OTN_UINT64_METADATA,
+	    SPA_OLD_MAXBLOCKSIZE, DMU_OTN_UINT64_METADATA,
 	    sizeof (bptree_phys_t), tx);
 
 	/*
@@ -134,7 +134,7 @@ bptree_add(objset_t *os, uint64_t obj, blkptr_t *bp, uint64_t birth_txg,
 	VERIFY3U(0, ==, dmu_bonus_hold(os, obj, FTAG, &db));
 	bt = db->db_data;
 
-	bte = kmem_zalloc(sizeof (*bte), KM_PUSHPAGE);
+	bte = kmem_zalloc(sizeof (*bte), KM_SLEEP);
 	bte->be_birth_txg = birth_txg;
 	bte->be_bp = *bp;
 	dmu_write(os, obj, bt->bt_end * sizeof (*bte), sizeof (*bte), bte, tx);
@@ -156,7 +156,7 @@ bptree_visit_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	int err;
 	struct bptree_args *ba = arg;
 
-	if (BP_IS_HOLE(bp))
+	if (bp == NULL || BP_IS_HOLE(bp))
 		return (0);
 
 	err = ba->ba_func(ba->ba_arg, bp, ba->ba_tx);
@@ -221,9 +221,10 @@ bptree_iterate(objset_t *os, uint64_t obj, boolean_t free, bptree_itor_t func,
 
 		if (zfs_free_leak_on_eio)
 			flags |= TRAVERSE_HARD;
-		zfs_dbgmsg("bptree index %d: traversing from min_txg=%lld "
+		zfs_dbgmsg("bptree index %lld: traversing from min_txg=%lld "
 		    "bookmark %lld/%lld/%lld/%lld",
-		    i, (longlong_t)bte.be_birth_txg,
+		    (longlong_t)i,
+		    (longlong_t)bte.be_birth_txg,
 		    (longlong_t)bte.be_zb.zb_objset,
 		    (longlong_t)bte.be_zb.zb_object,
 		    (longlong_t)bte.be_zb.zb_level,

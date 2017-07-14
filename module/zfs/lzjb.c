@@ -57,7 +57,7 @@ lzjb_compress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
 	uint16_t *hp;
 	uint16_t *lempel;
 
-	lempel = kmem_zalloc(LEMPEL_SIZE * sizeof (uint16_t), KM_PUSHPAGE);
+	lempel = kmem_zalloc(LEMPEL_SIZE * sizeof (uint16_t), KM_SLEEP);
 	while (src < (uchar_t *)s_start + s_len) {
 		if ((copymask <<= 1) == (1 << NBBY)) {
 			if (dst >= (uchar_t *)d_start + d_len - 1 - 2 * NBBY) {

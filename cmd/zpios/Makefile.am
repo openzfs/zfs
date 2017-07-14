@@ -6,7 +6,6 @@ DEFAULT_INCLUDES += \
 sbin_PROGRAMS = zpios
 
 zpios_SOURCES = \
-	$(top_srcdir)/cmd/zpios/zpios_main.c \
-	$(top_srcdir)/cmd/zpios/zpios_util.c \
-	$(top_srcdir)/cmd/zpios/zpios.h
-
+	zpios_main.c \
+	zpios_util.c \
+	zpios.h

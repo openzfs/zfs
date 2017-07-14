@@ -1,0 +1,317 @@
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+
+#
+# Copyright (c) 2015, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2016, Intel Corporation.
+#
+
+. $STF_SUITE/include/libtest.shlib
+
+# If neither is specified, do a nightly run.
+[[ -z $PERF_REGRESSION_WEEKLY ]] && export PERF_REGRESSION_NIGHTLY=1
+
+# Default runtime for each type of test run.
+export PERF_RUNTIME_WEEKLY=$((30 * 60))
+export PERF_RUNTIME_NIGHTLY=$((10 * 60))
+
+# Default fs creation options
+export PERF_FS_OPTS=${PERF_FS_OPTS:-'-o recsize=8k -o compress=lz4' \
+    ' -o checksum=sha256 -o redundant_metadata=most'}
+
+function get_sync_str
+{
+	typeset sync=$1
+	typeset sync_str=''
+
+	[[ $sync -eq 0 ]] && sync_str='async'
+	[[ $sync -eq 1 ]] && sync_str='sync'
+	echo $sync_str
+}
+
+#
+# This function will run fio in a loop, according to the .fio file passed
+# in and a number of environment variables. The following variables can be
+# set before launching zfstest to override the defaults.
+#
+# PERF_RUNTIME: The time in seconds each fio invocation should run.
+# PERF_RUNTYPE: A human readable tag that appears in logs. The defaults are
+#    nightly and weekly.
+# PERF_NTHREADS: A list of how many threads each fio invocation will use.
+# PERF_SYNC_TYPES: Whether to use (O_SYNC) or not. 1 is sync IO, 0 is async IO.
+# PERF_IOSIZES: A list of blocksizes in which each fio invocation will do IO.
+# PERF_COLLECT_SCRIPTS: A comma delimited list of 'command args, logfile_tag'
+#    pairs that will be added to the scripts specified in each test.
+#
+function do_fio_run
+{
+	typeset script=$1
+	typeset do_recreate=$2
+	typeset clear_cache=$3
+	typeset threads sync iosize
+
+	for threads in $PERF_NTHREADS; do
+		for sync in $PERF_SYNC_TYPES; do
+			for iosize in $PERF_IOSIZES; do
+				typeset sync_str=$(get_sync_str $sync)
+				log_note "Running with $threads" \
+				    "$sync_str threads, $iosize ios"
+
+				if $do_recreate; then
+					recreate_perfpool
+					log_must zfs create $PERF_FS_OPTS \
+					    $TESTFS
+				fi
+
+				if $clear_cache; then
+					# Clear the ARC
+					zpool export $PERFPOOL
+					zpool import $PERFPOOL
+				fi
+
+				export RUNTIME=$PERF_RUNTIME
+				export FILESIZE=$((TOTAL_SIZE / threads))
+				export NUMJOBS=$threads
+				export SYNC_TYPE=$sync
+				export BLOCKSIZE=$iosize
+				sync
+
+				# Start the data collection
+				do_collect_scripts $threads $sync $iosize
+
+				# This will be part of the output filename.
+				typeset suffix="$sync_str.$iosize-ios.$threads-threads"
+
+				# Define output file
+				typeset logbase="$(get_perf_output_dir)/$(basename \
+				    $SUDO_COMMAND)"
+				typeset outfile="$logbase.fio.$suffix"
+
+				# Start the load
+				log_must fio --output $outfile $FIO_SCRIPTS/$script
+			done
+		done
+	done
+}
+
+#
+# This function iterates through the value pairs in $PERF_COLLECT_SCRIPTS.
+# The script at index N is launched in the background, with its output
+# redirected to a logfile containing the tag specified at index N + 1.
+#
+function do_collect_scripts
+{
+	typeset threads=$1
+	typeset sync=$2
+	typeset iosize=$3
+
+	[[ -n $collect_scripts ]] || log_fail "No data collection scripts."
+	[[ -n $PERF_RUNTIME ]] || log_fail "No runtime specified."
+
+	# This will be part of the output filename.
+	typeset sync_str=$(get_sync_str $sync)
+	typeset suffix="$sync_str.$iosize-ios.$threads-threads"
+
+	# Add in user supplied scripts and logfiles, if any.
+	typeset oIFS=$IFS
+	IFS=','
+	for item in $PERF_COLLECT_SCRIPTS; do
+		collect_scripts+=($(echo $item | sed 's/^ *//g'))
+	done
+	IFS=$oIFS
+
+	typeset idx=0
+	while [[ $idx -lt "${#collect_scripts[@]}" ]]; do
+		typeset logbase="$(get_perf_output_dir)/$(basename \
+		    $SUDO_COMMAND)"
+		typeset outfile="$logbase.${collect_scripts[$idx + 1]}.$suffix"
+
+		timeout $PERF_RUNTIME ${collect_scripts[$idx]} >$outfile 2>&1 &
+		((idx += 2))
+	done
+
+	# Need to explicitly return 0 because timeout(1) will kill
+	# a child process and cause us to return non-zero.
+	return 0
+}
+
+# Find a place to deposit performance data collected while under load.
+function get_perf_output_dir
+{
+	typeset dir="$(pwd)/perf_data"
+	[[ -d $dir ]] || mkdir -p $dir
+
+	echo $dir
+}
+
+#
+# Destroy and create the pool used for performance tests. The
+# PERFPOOL_CREATE_CMD variable allows users to test with a custom pool
+# configuration by specifying the pool creation command in their environment.
+# If PERFPOOL_CREATE_CMD is empty, a pool using all available disks is created.
+#
+function recreate_perfpool
+{
+	[[ -n $PERFPOOL ]] || log_fail "The \$PERFPOOL variable isn't set."
+
+	poolexists $PERFPOOL && destroy_pool $PERFPOOL
+
+	if [[ -n $PERFPOOL_CREATE_CMD ]]; then
+		log_must $PERFPOOL_CREATE_CMD
+	else
+		log_must eval "zpool create -f $PERFPOOL $DISKS"
+	fi
+}
+
+function get_max_arc_size
+{
+	if is_linux; then
+		typeset -l max_arc_size=`awk '$1 == "c_max" { print $3 }' \
+		    /proc/spl/kstat/zfs/arcstats`
+	else
+		typeset -l max_arc_size=$(dtrace -qn 'BEGIN {
+		    printf("%u\n", `arc_stats.arcstat_c_max.value.ui64);
+		    exit(0);
+		}')
+	fi
+
+	[[ $? -eq 0 ]] || log_fail "get_max_arc_size failed"
+
+	echo $max_arc_size
+}
+
+# Create a file with some information about how this system is configured.
+function get_system_config
+{
+	typeset config=$PERF_DATA_DIR/$1
+
+	echo "{" >>$config
+	if is_linux; then
+		echo "  \"ncpus\": \"$(nproc --all)\"," >>$config
+		echo "  \"physmem\": \"$(free -b | \
+		    awk '$1 == "Mem:" { print $2 }')\"," >>$config
+		echo "  \"c_max\": \"$(get_max_arc_size)\"," >>$config
+		echo "  \"hostname\": \"$(uname -n)\"," >>$config
+		echo "  \"kernel version\": \"$(uname -sr)\"," >>$config
+	else
+		dtrace -qn 'BEGIN{
+		    printf("  \"ncpus\": %d,\n", `ncpus);
+		    printf("  \"physmem\": %u,\n", `physmem * `_pagesize);
+		    printf("  \"c_max\": %u,\n", `arc_stats.arcstat_c_max.value.ui64);
+		    printf("  \"kmem_flags\": \"0x%x\",", `kmem_flags);
+		    exit(0)}' >>$config
+		echo "  \"hostname\": \"$(uname -n)\"," >>$config
+		echo "  \"kernel version\": \"$(uname -v)\"," >>$config
+	fi
+	if is_linux; then
+		lsblk -dino NAME,SIZE | awk 'BEGIN {
+		    printf("  \"disks\": {\n"); first = 1}
+		    {disk = $1} {size = $2;
+		    if (first != 1) {printf(",\n")} else {first = 0}
+		    printf("    \"%s\": \"%s\"", disk, size)}
+		    END {printf("\n  },\n")}' >>$config
+
+		zfs_tunables="/sys/module/zfs/parameters"
+
+		printf "  \"tunables\": {\n" >>$config
+		for tunable in \
+		    zfs_arc_max \
+		    zfs_arc_meta_limit \
+		    zfs_arc_sys_free \
+		    zfs_dirty_data_max \
+		    zfs_flags \
+		    zfs_prefetch_disable \
+		    zfs_txg_timeout \
+		    zfs_vdev_aggregation_limit \
+		    zfs_vdev_async_read_max_active \
+		    zfs_vdev_async_write_max_active \
+		    zfs_vdev_sync_read_max_active \
+		    zfs_vdev_sync_write_max_active \
+		    zio_delay_max
+		do
+			if [ "$tunable" != "zfs_arc_max" ]
+			then
+				printf ",\n" >>$config
+			fi
+			printf  "    \"$tunable\": \"$(cat $zfs_tunables/$tunable)\"" \
+			    >>$config
+		done
+		printf "\n  }\n" >>$config
+	else
+		iostat -En | awk 'BEGIN {
+		    printf("  \"disks\": {\n"); first = 1}
+		    /^c/ {disk = $1}
+		    /^Size: [^0]/ {size = $2;
+		    if (first != 1) {printf(",\n")} else {first = 0}
+		    printf("    \"%s\": \"%s\"", disk, size)}
+		    END {printf("\n  },\n")}' >>$config
+
+		sed -n 's/^set \(.*\)[ ]=[ ]\(.*\)/\1=\2/p' /etc/system | \
+		    awk -F= 'BEGIN {printf("  \"system\": {\n"); first = 1}
+		    {if (first != 1) {printf(",\n")} else {first = 0};
+		    printf("    \"%s\": %s", $1, $2)}
+		    END {printf("\n  }\n")}' >>$config
+	fi
+	echo "}" >>$config
+}
+
+function num_jobs_by_cpu
+{
+	if is_linux; then
+		typeset ncpu=$($NPROC --all)
+	else
+		typeset ncpu=$(psrinfo | $WC -l)
+	fi
+	typeset num_jobs=$ncpu
+
+	[[ $ncpu -gt 8 ]] && num_jobs=$(echo "$ncpu * 3 / 4" | bc)
+
+	echo $num_jobs
+}
+
+#
+# On illumos this looks like: ":sd3:sd4:sd1:sd2:"
+#
+function pool_to_lun_list
+{
+	typeset pool=$1
+	typeset ctd ctds devname lun
+	typeset lun_list=':'
+
+	if is_linux; then
+		ctds=$(zpool list -HLv $pool | \
+		    awk '/sd[a-z]*|loop[0-9]*|dm-[0-9]*/ {print $1}')
+
+		for ctd in $ctds; do
+			lun_list="$lun_list$ctd:"
+		done
+	else
+		ctds=$(zpool list -v $pool |
+		    awk '/c[0-9]*t[0-9a-fA-F]*d[0-9]*/ {print $1}')
+
+		for ctd in $ctds; do
+		# Get the device name as it appears in /etc/path_to_inst
+		devname=$(readlink -f /dev/dsk/${ctd}s0 | sed -n \
+		    's/\/devices\([^:]*\):.*/\1/p')
+		# Add a string composed of the driver name and instance
+		# number to the list for comparison with dev_statname.
+		lun=$(sed 's/"//g' /etc/path_to_inst | grep \
+		    $devname | awk '{print $3$2}')
+		un_list="$lun_list$lun:"
+		done
+	fi
+	echo $lun_list
+}
+
+# Create a perf_data directory to hold performance statistics and
+# configuration information.
+export PERF_DATA_DIR=$(get_perf_output_dir)
+[[ -f $PERF_DATA_DIR/config.json ]] || get_system_config config.json

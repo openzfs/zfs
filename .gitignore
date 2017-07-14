@@ -21,6 +21,7 @@
 *.swp
 .deps
 .libs
+.dirstamp
 .DS_Store
 modules.order
 Makefile
@@ -29,6 +30,7 @@ Makefile.in
 #
 # Top level generated files specific to this top level dir
 #
+/bin
 /configure
 /config.log
 /config.status
@@ -48,7 +50,10 @@ Makefile.in
 !.gitignore
 tags
 TAGS
+current
 cscope.*
 *.rpm
 *.deb
 *.tar.gz
+*.patch
+*.orig

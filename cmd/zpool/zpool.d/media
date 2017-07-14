@@ -1,0 +1,27 @@
+#!/bin/sh
+#
+# Print out the type of device
+#
+
+if [ "$1" = "-h" ] ; then
+	echo "Show whether a vdev is a file, hdd, or ssd."
+	exit
+fi
+
+if [ -b "$VDEV_UPATH" ]; then
+	device=$(basename "$VDEV_UPATH")
+	val=$(cat "/sys/block/$device/queue/rotational" 2>/dev/null)
+	if [ "$val" = "0" ]; then
+		MEDIA="ssd"
+	fi
+
+	if [ "$val" = "1" ]; then
+		MEDIA="hdd"
+	fi
+else
+	if [ -f "$VDEV_UPATH" ]; then
+		MEDIA="file"
+	fi
+fi
+
+echo "media=$MEDIA"

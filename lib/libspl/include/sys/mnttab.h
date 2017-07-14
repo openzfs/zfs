@@ -38,8 +38,8 @@
 #undef MNTTAB
 #endif /* MNTTAB */
 
-#define	MNTTAB		"/etc/mtab"
-#define	MNT_LINE_MAX	1024
+#define	MNTTAB		"/proc/self/mounts"
+#define	MNT_LINE_MAX	4096
 
 #define	MNT_TOOLONG	1	/* entry exceeds MNT_LINE_MAX */
 #define	MNT_TOOMANY	2	/* too many fields in line */

@@ -519,6 +519,7 @@ nfs_validate_shareopts(const char *shareopts)
 static boolean_t
 nfs_is_share_active(sa_share_impl_t impl_share)
 {
+	int fd;
 	char line[512];
 	char *tab, *cur;
 	FILE *nfs_exportfs_temp_fp;
@@ -526,10 +527,15 @@ nfs_is_share_active(sa_share_impl_t impl_share)
 	if (!nfs_available())
 		return (B_FALSE);
 
-	nfs_exportfs_temp_fp = fdopen(dup(nfs_exportfs_temp_fd), "r");
+	if ((fd = dup(nfs_exportfs_temp_fd)) == -1)
+		return (B_FALSE);
 
-	if (nfs_exportfs_temp_fp == NULL ||
-	    fseek(nfs_exportfs_temp_fp, 0, SEEK_SET) < 0) {
+	nfs_exportfs_temp_fp = fdopen(fd, "r");
+
+	if (nfs_exportfs_temp_fp == NULL)
+		return (B_FALSE);
+
+	if (fseek(nfs_exportfs_temp_fp, 0, SEEK_SET) < 0) {
 		fclose(nfs_exportfs_temp_fp);
 		return (B_FALSE);
 	}
@@ -594,7 +600,7 @@ nfs_update_shareopts(sa_share_impl_t impl_share, const char *resource,
 	old_shareopts = FSINFO(impl_share, nfs_fstype)->shareopts;
 
 	if (strcmp(shareopts, "on") == 0)
-		shareopts = "rw";
+		shareopts = "rw,crossmnt";
 
 	if (FSINFO(impl_share, nfs_fstype)->active && old_shareopts != NULL &&
 	    strcmp(old_shareopts, shareopts) != 0) {
@@ -671,7 +677,7 @@ nfs_check_exportfs(void)
 
 	unlink(nfs_exportfs_tempfile);
 
-	fcntl(nfs_exportfs_temp_fd, F_SETFD, FD_CLOEXEC);
+	(void) fcntl(nfs_exportfs_temp_fd, F_SETFD, FD_CLOEXEC);
 
 	pid = fork();
 
@@ -682,7 +688,8 @@ nfs_check_exportfs(void)
 	}
 
 	if (pid > 0) {
-		while ((rc = waitpid(pid, &status, 0)) <= 0 && errno == EINTR);
+		while ((rc = waitpid(pid, &status, 0)) <= 0 &&
+		    errno == EINTR) { }
 
 		if (rc <= 0) {
 			(void) close(nfs_exportfs_temp_fd);
@@ -716,7 +723,7 @@ nfs_check_exportfs(void)
 }
 
 /*
- * Provides a convenient wrapper for determing nfs availability
+ * Provides a convenient wrapper for determining nfs availability
  */
 static boolean_t
 nfs_available(void)

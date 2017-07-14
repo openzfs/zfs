@@ -1,0 +1,134 @@
+#!@SHELL@
+#
+# zfs-zed
+#
+# chkconfig:    2345 29 99
+# description:  This script will start and stop the ZFS Event Daemon.
+# probe: true
+#
+### BEGIN INIT INFO
+# Provides:          zfs-zed
+# Required-Start:    zfs-mount
+# Required-Stop:     zfs-mount
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# X-Stop-After:      zfs-share
+# Short-Description: ZFS Event Daemon
+# Description:       zed monitors ZFS events. When a zevent is posted, zed
+#                    will run any scripts that have been enabled for the
+#                    corresponding zevent class.
+### END INIT INFO
+#
+# Released under the 2-clause BSD license.
+#
+# The original script that acted as a template for this script came from
+# the Debian GNU/Linux kFreeBSD ZFS packages (which did not include a
+# licensing stansa) in the commit dated Mar 24, 2011:
+#   https://github.com/zfsonlinux/pkg-zfs/commit/80a3ae582b59c0250d7912ba794dca9e669e605a
+
+# Source the common init script
+. @sysconfdir@/zfs/zfs-functions
+
+ZED_NAME="zed"
+ZED_PIDFILE="@runstatedir@/$ZED_NAME.pid"
+
+extra_started_commands="reload"
+
+# Exit if the package is not installed
+[ -x "$ZED" ] || exit 0
+
+# ----------------------------------------------------
+
+do_depend()
+{
+	after zfs-mount localmount
+}
+
+do_start()
+{
+	check_module_loaded "zfs" || exit 0
+
+	ZED_ARGS="$ZED_ARGS -p $ZED_PIDFILE"
+
+	zfs_action "Starting ZFS Event Daemon" zfs_daemon_start \
+	    "$ZED_PIDFILE" "$ZED" "$ZED_ARGS"
+	return "$?"
+}
+
+do_stop()
+{
+	local pools RET
+	check_module_loaded "zfs" || exit 0
+
+	zfs_action "Stopping ZFS Event Daemon" zfs_daemon_stop \
+	   "$ZED_PIDFILE" "$ZED" "$ZED_NAME"
+	if [ "$?" -eq "0" ]
+	then
+		# Let's see if we have any pools imported
+		pools=$("$ZPOOL" list -H -oname)
+		if [ -z "$pools" ]
+		then
+			# No pools imported, it is/should be safe/possible to
+			# unload modules.
+			zfs_action "Unloading modules" rmmod zfs zunicode \
+			    zavl zcommon znvpair spl
+			return "$?"
+		fi
+	else
+		return "$?"
+	fi
+}
+
+do_status()
+{
+	check_module_loaded "zfs" || exit 0
+
+	zfs_daemon_status "$ZED_PIDFILE" "$ZED" "$ZED_NAME"
+	return "$?"
+}
+
+do_reload()
+{
+	check_module_loaded "zfs" || exit 0
+
+	zfs_action "Reloading ZFS Event Daemon" zfs_daemon_reload \
+	    "$ZED_PIDFILE" "$ZED_NAME"
+	return "$?"
+}
+
+# ----------------------------------------------------
+
+if [ ! -e /sbin/openrc-run ]; then
+	case "$1" in
+		start)
+			do_start
+			;;
+		stop)
+			do_stop
+			;;
+		status)
+			do_status
+			;;
+		reload|force-reload)
+			do_reload
+			;;
+		restart)
+			do_stop
+			do_start
+			;;
+		*)
+			[ -n "$1" ] && echo "Error: Unknown command $1."
+			echo "Usage: $0 {start|stop|status|reload|restart}"
+			exit 1
+			;;
+	esac
+
+	exit $?
+else
+	# Create wrapper functions since Gentoo don't use the case part.
+	depend() { do_depend; }
+	start() { do_start; }
+	stop() { do_stop; }
+	status() { do_status; }
+	reload() { do_reload; }
+fi

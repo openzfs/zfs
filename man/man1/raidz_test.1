@@ -1,0 +1,97 @@
+'\" t
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\"
+.\" Copyright (c) 2016 Gvozden Nešković. All rights reserved.
+.\"
+.TH raidz_test 1 "2016" "ZFS on Linux" "User Commands"
+
+.SH NAME
+\fBraidz_test\fR \- raidz implementation verification and bencmarking tool
+.SH SYNOPSIS
+.LP
+.BI "raidz_test <options>"
+.SH DESCRIPTION
+.LP
+This manual page documents briefly the \fBraidz_test\fR command.
+.LP
+Purpose of this tool is to run all supported raidz implementation and verify
+results of all methods. Tool also contains a parameter sweep option where all
+parameters affecting RAIDZ block are verified (like ashift size, data offset,
+data size, etc...).
+The tool also supports a benchmarking mode using -B option.
+.SH OPTION
+.HP
+.BI "\-h" ""
+.IP
+Print a help summary.
+.HP
+.BI "\-a" " ashift (default: 9)"
+.IP
+Ashift value.
+.HP
+.BI "\-o" " zio_off_shift" " (default: 0)"
+.IP
+Zio offset for raidz block. Offset value is 1 << (zio_off_shift)
+.HP
+.BI "\-d" " raidz_data_disks" " (default: 8)"
+.IP
+Number of raidz data disks to use. Additional disks for parity will be used
+during testing.
+.HP
+.BI "\-s" " zio_size_shift" " (default: 19)"
+.IP
+Size of data for raidz block. Size is 1 << (zio_size_shift).
+.HP
+.BI "\-S(weep)"
+.IP
+Sweep parameter space while verifying the raidz implementations. This option
+will exhaust all most of valid values for -a -o -d -s options. Runtime using
+this option will be long.
+.HP
+.BI "\-t(imeout)"
+.IP
+Wall time for sweep test in seconds. The actual runtime could be longer.
+.HP
+.BI "\-B(enchmark)"
+.IP
+This options starts the benchmark mode. All implementations are benchmarked
+using increasing per disk data size. Results are given as throughput per disk,
+measured in MiB/s.
+.HP
+.BI "\-v(erbose)"
+.IP
+Increase verbosity.
+.HP
+.BI "\-T(est the test)"
+.IP
+Debugging option. When this option is specified tool is supposed to fail
+all tests. This is to check if tests would properly verify bit-exactness.
+.HP
+.BI "\-D(ebug)"
+.IP
+Debugging option. Specify to attach gdb when SIGSEGV or SIGABRT are received.
+.HP
+
+.SH "SEE ALSO"
+.BR "ztest (1)"
+.SH "AUTHORS"
+vdev_raidz, created for ZFS on Linux by Gvozden Nešković <neskovic@gmail.com>

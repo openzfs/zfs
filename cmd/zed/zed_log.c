@@ -1,27 +1,15 @@
 /*
- * CDDL HEADER START
- *
- * The contents of this file are subject to the terms of the
- * Common Development and Distribution License (the "License").
- * You may not use this file except in compliance with the License.
- *
- * You can obtain a copy of the license from the top-level
- * OPENSOLARIS.LICENSE or <http://opensource.org/licenses/CDDL-1.0>.
- * See the License for the specific language governing permissions
- * and limitations under the License.
- *
- * When distributing Covered Code, include this CDDL HEADER in each file
- * and include the License file from the top-level OPENSOLARIS.LICENSE.
- * If applicable, add the following below this CDDL HEADER, with the
- * fields enclosed by brackets "[]" replaced with your own identifying
- * information: Portions Copyright [yyyy] [name of copyright owner]
- *
- * CDDL HEADER END
- */
-
-/*
+ * This file is part of the ZFS Event Daemon (ZED)
+ * for ZFS on Linux (ZoL) <http://zfsonlinux.org/>.
  * Developed at Lawrence Livermore National Laboratory (LLNL-CODE-403049).
  * Copyright (C) 2013-2014 Lawrence Livermore National Security, LLC.
+ * Refer to the ZoL git commit log for authoritative copyright attribution.
+ *
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License Version 1.0 (CDDL-1.0).
+ * You can obtain a copy of the license from the top-level file
+ * "OPENSOLARIS.LICENSE" or at <http://opensource.org/licenses/CDDL-1.0>.
+ * You may not use this file except in compliance with the license.
  */
 
 #include <assert.h>
@@ -30,7 +18,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
 #include <syslog.h>
+#include <unistd.h>
 #include "zed_log.h"
 
 #define	ZED_LOG_MAX_LOG_LEN	1024
@@ -71,24 +61,25 @@ zed_log_fini(void)
 
 /*
  * Create pipe for communicating daemonization status between the parent and
- *   child processes across the double-fork().
+ * child processes across the double-fork().
  */
 void
 zed_log_pipe_open(void)
 {
 	if ((_ctx.pipe_fd[0] != -1) || (_ctx.pipe_fd[1] != -1))
 		zed_log_die("Invalid use of zed_log_pipe_open in PID %d",
-		    (int) getpid());
+		    (int)getpid());
 
 	if (pipe(_ctx.pipe_fd) < 0)
 		zed_log_die("Failed to create daemonize pipe in PID %d: %s",
-		    (int) getpid(), strerror(errno));
+		    (int)getpid(), strerror(errno));
 }
 
 /*
  * Close the read-half of the daemonize pipe.
+ *
  * This should be called by the child after fork()ing from the parent since
- *   the child will never read from this pipe.
+ * the child will never read from this pipe.
  */
 void
 zed_log_pipe_close_reads(void)
@@ -96,22 +87,24 @@ zed_log_pipe_close_reads(void)
 	if (_ctx.pipe_fd[0] < 0)
 		zed_log_die(
 		    "Invalid use of zed_log_pipe_close_reads in PID %d",
-		    (int) getpid());
+		    (int)getpid());
 
 	if (close(_ctx.pipe_fd[0]) < 0)
 		zed_log_die(
 		    "Failed to close reads on daemonize pipe in PID %d: %s",
-		    (int) getpid(), strerror(errno));
+		    (int)getpid(), strerror(errno));
 
 	_ctx.pipe_fd[0] = -1;
 }
 
 /*
  * Close the write-half of the daemonize pipe.
+ *
  * This should be called by the parent after fork()ing its child since the
- *   parent will never write to this pipe.
+ * parent will never write to this pipe.
+ *
  * This should also be called by the child once initialization is complete
- *   in order to signal the parent that it can safely exit.
+ * in order to signal the parent that it can safely exit.
  */
 void
 zed_log_pipe_close_writes(void)
@@ -119,21 +112,22 @@ zed_log_pipe_close_writes(void)
 	if (_ctx.pipe_fd[1] < 0)
 		zed_log_die(
 		    "Invalid use of zed_log_pipe_close_writes in PID %d",
-		    (int) getpid());
+		    (int)getpid());
 
 	if (close(_ctx.pipe_fd[1]) < 0)
 		zed_log_die(
 		    "Failed to close writes on daemonize pipe in PID %d: %s",
-		    (int) getpid(), strerror(errno));
+		    (int)getpid(), strerror(errno));
 
 	_ctx.pipe_fd[1] = -1;
 }
 
 /*
  * Block on reading from the daemonize pipe until signaled by the child
- *   (via zed_log_pipe_close_writes()) that initialization is complete.
+ * (via zed_log_pipe_close_writes()) that initialization is complete.
+ *
  * This should only be called by the parent while waiting to exit after
- *   fork()ing the child.
+ * fork()ing the child.
  */
 void
 zed_log_pipe_wait(void)
@@ -143,7 +137,7 @@ zed_log_pipe_wait(void)
 
 	if (_ctx.pipe_fd[0] < 0)
 		zed_log_die("Invalid use of zed_log_pipe_wait in PID %d",
-		    (int) getpid());
+		    (int)getpid());
 
 	for (;;) {
 		n = read(_ctx.pipe_fd[0], &c, sizeof (c));
@@ -152,7 +146,7 @@ zed_log_pipe_wait(void)
 				continue;
 			zed_log_die(
 			    "Failed to read from daemonize pipe in PID %d: %s",
-			    (int) getpid(), strerror(errno));
+			    (int)getpid(), strerror(errno));
 		}
 		if (n == 0) {
 			break;
@@ -162,7 +156,7 @@ zed_log_pipe_wait(void)
 
 /*
  * Start logging messages at the syslog [priority] level or higher to stderr.
- *   Refer to syslog(3) for valid priority values.
+ * Refer to syslog(3) for valid priority values.
  */
 void
 zed_log_stderr_open(int priority)
@@ -183,7 +177,7 @@ zed_log_stderr_close(void)
 
 /*
  * Start logging messages to syslog.
- *   Refer to syslog(3) for valid option/facility values.
+ * Refer to syslog(3) for valid option/facility values.
  */
 void
 zed_log_syslog_open(int facility)
@@ -231,7 +225,7 @@ _zed_log_aux(int priority, const char *fmt, va_list vargs)
 
 /*
  * Log a message at the given [priority] level specified by the printf-style
- *   format string [fmt].
+ * format string [fmt].
  */
 void
 zed_log_msg(int priority, const char *fmt, ...)

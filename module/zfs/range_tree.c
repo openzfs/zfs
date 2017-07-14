@@ -33,7 +33,7 @@
 #include <sys/zio.h>
 #include <sys/range_tree.h>
 
-static kmem_cache_t *range_seg_cache;
+kmem_cache_t *range_seg_cache;
 
 void
 range_tree_init(void)
@@ -111,20 +111,13 @@ range_tree_stat_decr(range_tree_t *rt, range_seg_t *rs)
 static int
 range_tree_seg_compare(const void *x1, const void *x2)
 {
-	const range_seg_t *r1 = x1;
-	const range_seg_t *r2 = x2;
+	const range_seg_t *r1 = (const range_seg_t *)x1;
+	const range_seg_t *r2 = (const range_seg_t *)x2;
 
-	if (r1->rs_start < r2->rs_start) {
-		if (r1->rs_end > r2->rs_start)
-			return (0);
-		return (-1);
-	}
-	if (r1->rs_start > r2->rs_start) {
-		if (r1->rs_start < r2->rs_end)
-			return (0);
-		return (1);
-	}
-	return (0);
+	ASSERT3U(r1->rs_start, <=, r1->rs_end);
+	ASSERT3U(r2->rs_start, <=, r2->rs_end);
+
+	return ((r1->rs_start >= r2->rs_end) - (r1->rs_end <= r2->rs_start));
 }
 
 range_tree_t *
@@ -132,7 +125,7 @@ range_tree_create(range_tree_ops_t *ops, void *arg, kmutex_t *lp)
 {
 	range_tree_t *rt;
 
-	rt = kmem_zalloc(sizeof (range_tree_t), KM_PUSHPAGE);
+	rt = kmem_zalloc(sizeof (range_tree_t), KM_SLEEP);
 
 	avl_create(&rt->rt_root, range_tree_seg_compare,
 	    sizeof (range_seg_t), offsetof(range_seg_t, rs_node));
@@ -221,7 +214,7 @@ range_tree_add(void *arg, uint64_t start, uint64_t size)
 		rs_after->rs_start = start;
 		rs = rs_after;
 	} else {
-		rs = kmem_cache_alloc(range_seg_cache, KM_PUSHPAGE);
+		rs = kmem_cache_alloc(range_seg_cache, KM_SLEEP);
 		rs->rs_start = start;
 		rs->rs_end = end;
 		avl_insert(&rt->rt_root, rs, where);
@@ -270,7 +263,7 @@ range_tree_remove(void *arg, uint64_t start, uint64_t size)
 		rt->rt_ops->rtop_remove(rt, rs, rt->rt_arg);
 
 	if (left_over && right_over) {
-		newseg = kmem_cache_alloc(range_seg_cache, KM_PUSHPAGE);
+		newseg = kmem_cache_alloc(range_seg_cache, KM_SLEEP);
 		newseg->rs_start = end;
 		newseg->rs_end = rs->rs_end;
 		range_tree_stat_incr(rt, newseg);

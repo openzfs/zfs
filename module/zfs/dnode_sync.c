@@ -21,7 +21,8 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -59,24 +60,19 @@ dnode_increase_indirection(dnode_t *dn, dmu_tx_t *tx)
 	dprintf("os=%p obj=%llu, increase to %d\n", dn->dn_objset,
 	    dn->dn_object, dn->dn_phys->dn_nlevels);
 
-	/* check for existing blkptrs in the dnode */
-	for (i = 0; i < nblkptr; i++)
-		if (!BP_IS_HOLE(&dn->dn_phys->dn_blkptr[i]))
-			break;
-	if (i != nblkptr) {
-		/* transfer dnode's block pointers to new indirect block */
-		(void) dbuf_read(db, NULL, DB_RF_MUST_SUCCEED|DB_RF_HAVESTRUCT);
-		ASSERT(db->db.db_data);
-		ASSERT(arc_released(db->db_buf));
-		ASSERT3U(sizeof (blkptr_t) * nblkptr, <=, db->db.db_size);
-		bcopy(dn->dn_phys->dn_blkptr, db->db.db_data,
-		    sizeof (blkptr_t) * nblkptr);
-		arc_buf_freeze(db->db_buf);
-	}
+	/* transfer dnode's block pointers to new indirect block */
+	(void) dbuf_read(db, NULL, DB_RF_MUST_SUCCEED|DB_RF_HAVESTRUCT);
+	ASSERT(db->db.db_data);
+	ASSERT(arc_released(db->db_buf));
+	ASSERT3U(sizeof (blkptr_t) * nblkptr, <=, db->db.db_size);
+	bcopy(dn->dn_phys->dn_blkptr, db->db.db_data,
+	    sizeof (blkptr_t) * nblkptr);
+	arc_buf_freeze(db->db_buf);
 
 	/* set dbuf's parent pointers to new indirect buf */
 	for (i = 0; i < nblkptr; i++) {
-		dmu_buf_impl_t *child = dbuf_find(dn, old_toplvl, i);
+		dmu_buf_impl_t *child =
+		    dbuf_find(dn->dn_objset, dn->dn_object, old_toplvl, i);
 
 		if (child == NULL)
 			continue;
@@ -190,7 +186,7 @@ free_verify(dmu_buf_impl_t *db, uint64_t start, uint64_t end, dmu_tx_t *tx)
 
 		rw_enter(&dn->dn_struct_rwlock, RW_READER);
 		err = dbuf_hold_impl(dn, db->db_level-1,
-		    (db->db_blkid << epbs) + i, TRUE, FTAG, &child);
+		    (db->db_blkid << epbs) + i, TRUE, FALSE, FTAG, &child);
 		rw_exit(&dn->dn_struct_rwlock);
 		if (err == ENOENT)
 			continue;
@@ -244,8 +240,9 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
 	dnode_t *dn;
 	blkptr_t *bp;
 	dmu_buf_impl_t *subdb;
-	uint64_t start, end, dbstart, dbend, i;
-	int epbs, shift;
+	uint64_t start, end, dbstart, dbend;
+	unsigned int epbs, shift, i;
+	uint64_t id;
 
 	/*
 	 * There is a small possibility that this block will not be cached:
@@ -262,6 +259,7 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
 	DB_DNODE_ENTER(db);
 	dn = DB_DNODE(db);
 	epbs = dn->dn_phys->dn_indblkshift - SPA_BLKPTRSHIFT;
+	ASSERT3U(epbs, <, 31);
 	shift = (db->db_level - 1) * epbs;
 	dbstart = db->db_blkid << epbs;
 	start = blkid >> shift;
@@ -281,12 +279,12 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
 		FREE_VERIFY(db, start, end, tx);
 		free_blocks(dn, bp, end-start+1, tx);
 	} else {
-		for (i = start; i <= end; i++, bp++) {
+		for (id = start; id <= end; id++, bp++) {
 			if (BP_IS_HOLE(bp))
 				continue;
 			rw_enter(&dn->dn_struct_rwlock, RW_READER);
 			VERIFY0(dbuf_hold_impl(dn, db->db_level - 1,
-			    i, B_TRUE, FTAG, &subdb));
+			    id, TRUE, FALSE, FTAG, &subdb));
 			rw_exit(&dn->dn_struct_rwlock);
 			ASSERT3P(bp, ==, subdb->db_blkptr);
 
@@ -296,13 +294,19 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
 	}
 
 	/* If this whole block is free, free ourself too. */
-	for (i = 0, bp = db->db.db_data; i < 1 << epbs; i++, bp++) {
+	for (i = 0, bp = db->db.db_data; i < 1ULL << epbs; i++, bp++) {
 		if (!BP_IS_HOLE(bp))
 			break;
 	}
 	if (i == 1 << epbs) {
-		/* didn't find any non-holes */
+		/*
+		 * We only found holes. Grab the rwlock to prevent
+		 * anybody from reading the blocks we're about to
+		 * zero out.
+		 */
+		rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
 		bzero(db->db.db_data, db->db.db_size);
+		rw_exit(&dn->dn_struct_rwlock);
 		free_blocks(dn, db->db_blkptr, 1, tx);
 	} else {
 		/*
@@ -360,7 +364,7 @@ dnode_sync_free_range_impl(dnode_t *dn, uint64_t blkid, uint64_t nblks,
 				continue;
 			rw_enter(&dn->dn_struct_rwlock, RW_READER);
 			VERIFY0(dbuf_hold_impl(dn, dnlevel - 1, i,
-			    TRUE, FTAG, &db));
+			    TRUE, FALSE, FTAG, &db));
 			rw_exit(&dn->dn_struct_rwlock);
 
 			free_children(db, blkid, nblks, tx);
@@ -402,63 +406,58 @@ dnode_sync_free_range(void *arg, uint64_t blkid, uint64_t nblks)
 void
 dnode_evict_dbufs(dnode_t *dn)
 {
-	int progress;
-	int pass = 0;
+	dmu_buf_impl_t *db_marker;
+	dmu_buf_impl_t *db, *db_next;
 
-	do {
-		dmu_buf_impl_t *db, marker;
-		int evicting = FALSE;
+	db_marker = kmem_alloc(sizeof (dmu_buf_impl_t), KM_SLEEP);
 
-		progress = FALSE;
-		mutex_enter(&dn->dn_dbufs_mtx);
-		list_insert_tail(&dn->dn_dbufs, &marker);
-		db = list_head(&dn->dn_dbufs);
-		for (; db != &marker; db = list_head(&dn->dn_dbufs)) {
-			list_remove(&dn->dn_dbufs, db);
-			list_insert_tail(&dn->dn_dbufs, db);
+	mutex_enter(&dn->dn_dbufs_mtx);
+	for (db = avl_first(&dn->dn_dbufs); db != NULL; db = db_next) {
+
 #ifdef	DEBUG
-			DB_DNODE_ENTER(db);
-			ASSERT3P(DB_DNODE(db), ==, dn);
-			DB_DNODE_EXIT(db);
+		DB_DNODE_ENTER(db);
+		ASSERT3P(DB_DNODE(db), ==, dn);
+		DB_DNODE_EXIT(db);
 #endif	/* DEBUG */
 
-			mutex_enter(&db->db_mtx);
-			if (db->db_state == DB_EVICTING) {
-				progress = TRUE;
-				evicting = TRUE;
-				mutex_exit(&db->db_mtx);
-			} else if (refcount_is_zero(&db->db_holds)) {
-				progress = TRUE;
-				dbuf_clear(db); /* exits db_mtx for us */
-			} else {
-				mutex_exit(&db->db_mtx);
-			}
+		mutex_enter(&db->db_mtx);
+		if (db->db_state != DB_EVICTING &&
+		    refcount_is_zero(&db->db_holds)) {
+			db_marker->db_level = db->db_level;
+			db_marker->db_blkid = db->db_blkid;
+			db_marker->db_state = DB_SEARCH;
+			avl_insert_here(&dn->dn_dbufs, db_marker, db,
+			    AVL_BEFORE);
 
+			dbuf_destroy(db);
+
+			db_next = AVL_NEXT(&dn->dn_dbufs, db_marker);
+			avl_remove(&dn->dn_dbufs, db_marker);
+		} else {
+			db->db_pending_evict = TRUE;
+			mutex_exit(&db->db_mtx);
+			db_next = AVL_NEXT(&dn->dn_dbufs, db);
 		}
-		list_remove(&dn->dn_dbufs, &marker);
-		/*
-		 * NB: we need to drop dn_dbufs_mtx between passes so
-		 * that any DB_EVICTING dbufs can make progress.
-		 * Ideally, we would have some cv we could wait on, but
-		 * since we don't, just wait a bit to give the other
-		 * thread a chance to run.
-		 */
-		mutex_exit(&dn->dn_dbufs_mtx);
-		if (evicting)
-			delay(1);
-		pass++;
-		if ((pass % 100) == 0)
-			dprintf("Exceeded %d passes evicting dbufs\n", pass);
-	} while (progress);
+	}
+	mutex_exit(&dn->dn_dbufs_mtx);
 
-	if (pass >= 100)
-		dprintf("Required %d passes to evict dbufs\n", pass);
+	kmem_free(db_marker, sizeof (dmu_buf_impl_t));
 
+	dnode_evict_bonus(dn);
+}
+
+void
+dnode_evict_bonus(dnode_t *dn)
+{
 	rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
-	if (dn->dn_bonus && refcount_is_zero(&dn->dn_bonus->db_holds)) {
-		mutex_enter(&dn->dn_bonus->db_mtx);
-		dbuf_evict(dn->dn_bonus);
-		dn->dn_bonus = NULL;
+	if (dn->dn_bonus != NULL) {
+		if (refcount_is_zero(&dn->dn_bonus->db_holds)) {
+			mutex_enter(&dn->dn_bonus->db_mtx);
+			dbuf_destroy(dn->dn_bonus);
+			dn->dn_bonus = NULL;
+		} else {
+			dn->dn_bonus->db_pending_evict = TRUE;
+		}
 	}
 	rw_exit(&dn->dn_struct_rwlock);
 }
@@ -485,6 +484,9 @@ dnode_undirty_dbufs(list_t *list)
 			ASSERT(db->db_blkid == DMU_BONUS_BLKID ||
 			    dr->dt.dl.dr_data == db->db_buf);
 			dbuf_unoverride(dr);
+		} else {
+			mutex_destroy(&dr->dt.di.dr_mtx);
+			list_destroy(&dr->dt.di.dr_children);
 		}
 		kmem_free(dr, sizeof (dbuf_dirty_record_t));
 		dbuf_rele_and_unlock(db, (void *)(uintptr_t)txg);
@@ -507,8 +509,6 @@ dnode_sync_free(dnode_t *dn, dmu_tx_t *tx)
 
 	dnode_undirty_dbufs(&dn->dn_dirty_records[txgoff]);
 	dnode_evict_dbufs(dn);
-	ASSERT3P(list_head(&dn->dn_dbufs), ==, NULL);
-	ASSERT3P(dn->dn_bonus, ==, NULL);
 
 	/*
 	 * XXX - It would be nice to assert this, but we may still
@@ -532,7 +532,7 @@ dnode_sync_free(dnode_t *dn, dmu_tx_t *tx)
 	ASSERT(dn->dn_free_txg > 0);
 	if (dn->dn_allocated_txg != dn->dn_free_txg)
 		dmu_buf_will_dirty(&dn->dn_dbuf->db, tx);
-	bzero(dn->dn_phys, sizeof (dnode_phys_t));
+	bzero(dn->dn_phys, sizeof (dnode_phys_t) * dn->dn_num_slots);
 
 	mutex_enter(&dn->dn_mtx);
 	dn->dn_type = DMU_OT_NONE;
@@ -547,7 +547,7 @@ dnode_sync_free(dnode_t *dn, dmu_tx_t *tx)
 	dnode_rele(dn, (void *)(uintptr_t)tx->tx_txg);
 	/*
 	 * Now that we've released our hold, the dnode may
-	 * be evicted, so we musn't access it.
+	 * be evicted, so we mustn't access it.
 	 */
 }
 
@@ -567,7 +567,7 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 	ASSERT(dmu_tx_is_syncing(tx));
 	ASSERT(dnp->dn_type != DMU_OT_NONE || dn->dn_allocated_txg);
 	ASSERT(dnp->dn_type != DMU_OT_NONE ||
-	    bcmp(dnp, &zerodn, DNODE_SIZE) == 0);
+	    bcmp(dnp, &zerodn, DNODE_MIN_SIZE) == 0);
 	DNODE_VERIFY(dn);
 
 	ASSERT(dn->dn_dbuf == NULL || arc_released(dn->dn_dbuf->db_buf));
@@ -578,12 +578,17 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 		dn->dn_oldused = DN_USED_BYTES(dn->dn_phys);
 		dn->dn_oldflags = dn->dn_phys->dn_flags;
 		dn->dn_phys->dn_flags |= DNODE_FLAG_USERUSED_ACCOUNTED;
+		if (dmu_objset_userobjused_enabled(dn->dn_objset))
+			dn->dn_phys->dn_flags |=
+			    DNODE_FLAG_USEROBJUSED_ACCOUNTED;
 		mutex_exit(&dn->dn_mtx);
 		dmu_objset_userquota_get_ids(dn, B_FALSE, tx);
 	} else {
 		/* Once we account for it, we should always account for it. */
 		ASSERT(!(dn->dn_phys->dn_flags &
 		    DNODE_FLAG_USERUSED_ACCOUNTED));
+		ASSERT(!(dn->dn_phys->dn_flags &
+		    DNODE_FLAG_USEROBJUSED_ACCOUNTED));
 	}
 
 	mutex_enter(&dn->dn_mtx);
@@ -599,6 +604,9 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 		dnp->dn_bonustype = dn->dn_bonustype;
 		dnp->dn_bonuslen = dn->dn_bonuslen;
 	}
+
+	dnp->dn_extra_slots = dn->dn_num_slots - 1;
+
 	ASSERT(dnp->dn_nlevels > 1 ||
 	    BP_IS_HOLE(&dnp->dn_blkptr[0]) ||
 	    BP_IS_EMBEDDED(&dnp->dn_blkptr[0]) ||
@@ -631,7 +639,8 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 			dnp->dn_bonuslen = 0;
 		else
 			dnp->dn_bonuslen = dn->dn_next_bonuslen[txgoff];
-		ASSERT(dnp->dn_bonuslen <= DN_MAX_BONUSLEN);
+		ASSERT(dnp->dn_bonuslen <=
+		    DN_SLOTS_TO_BONUSLEN(dnp->dn_extra_slots + 1));
 		dn->dn_next_bonuslen[txgoff] = 0;
 	}
 
@@ -644,12 +653,11 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 	freeing_dnode = dn->dn_free_txg > 0 && dn->dn_free_txg <= tx->tx_txg;
 
 	/*
-	 * We will either remove a spill block when a file is being removed
-	 * or we have been asked to remove it.
+	 * Remove the spill block if we have been explicitly asked to
+	 * remove it, or if the object is being removed.
 	 */
-	if (dn->dn_rm_spillblk[txgoff] ||
-	    ((dnp->dn_flags & DNODE_FLAG_SPILL_BLKPTR) && freeing_dnode)) {
-		if ((dnp->dn_flags & DNODE_FLAG_SPILL_BLKPTR))
+	if (dn->dn_rm_spillblk[txgoff] || freeing_dnode) {
+		if (dnp->dn_flags & DNODE_FLAG_SPILL_BLKPTR)
 			kill_spill = B_TRUE;
 		dn->dn_rm_spillblk[txgoff] = 0;
 	}
@@ -671,7 +679,7 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 	mutex_exit(&dn->dn_mtx);
 
 	if (kill_spill) {
-		free_blocks(dn, &dn->dn_phys->dn_spill, 1, tx);
+		free_blocks(dn, DN_SPILL_BLKPTR(dn->dn_phys), 1, tx);
 		mutex_enter(&dn->dn_mtx);
 		dnp->dn_flags &= ~DNODE_FLAG_SPILL_BLKPTR;
 		mutex_exit(&dn->dn_mtx);
@@ -691,8 +699,17 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 	}
 
 	if (freeing_dnode) {
+		dn->dn_objset->os_freed_dnodes++;
 		dnode_sync_free(dn, tx);
 		return;
+	}
+
+	if (dn->dn_num_slots > DNODE_MIN_SLOTS) {
+		dsl_dataset_t *ds = dn->dn_objset->os_dsl_dataset;
+		mutex_enter(&ds->ds_lock);
+		ds->ds_feature_activation_needed[SPA_FEATURE_LARGE_DNODE] =
+		    B_TRUE;
+		mutex_exit(&ds->ds_lock);
 	}
 
 	if (dn->dn_next_nlevels[txgoff]) {
@@ -725,7 +742,7 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 		mutex_exit(&dn->dn_mtx);
 	}
 
-	dbuf_sync_list(list, tx);
+	dbuf_sync_list(list, dn->dn_phys->dn_nlevels - 1, tx);
 
 	if (!DMU_OBJECT_IS_SPECIAL(dn->dn_object)) {
 		ASSERT3P(list_head(list), ==, NULL);

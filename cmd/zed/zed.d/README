@@ -1,0 +1,30 @@
+Shell scripts are the recommended choice for ZEDLETs that mostly call
+other utilities and do relatively little data manipulation.
+
+Shell scripts MUST work on both bash and dash.
+
+Shell scripts MUST run cleanly through ShellCheck:
+  http://www.shellcheck.net/
+
+General functions reside in "zed-functions.sh".  Use them where applicable.
+
+Additional references that may be of use:
+
+  Google Shell Style Guide
+  https://github.com/google/styleguide/blob/gh-pages/shell.xml
+
+  Dash as /bin/sh
+  https://wiki.ubuntu.com/DashAsBinSh
+
+  Common shell script mistakes
+  http://www.pixelbeat.org/programming/shell_script_mistakes.html
+
+  Filenames and Pathnames in Shell: How to do it Correctly
+  http://www.dwheeler.com/essays/filenames-in-shell.html
+
+  Autoconf: Portable Shell Programming
+  https://www.gnu.org/software/autoconf/manual/autoconf.html#Portable-Shell
+
+Please BE CONSISTENT with the existing style, check for errors,
+minimize dependencies where possible, try to be portable,
+and comment anything non-obvious.  Festina lente.

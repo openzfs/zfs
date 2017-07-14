@@ -43,7 +43,40 @@ Cancel injection records.
 .B "zinject \-d \fIvdev\fB \-A <degrade|fault> \fIpool\fB
 Force a vdev into the DEGRADED or FAULTED state.
 .TP
-.B "zinject \-d \fIvdev\fB [\-e \fIdevice_error\fB] [\-L \fIlabel_error\fB] [\-T \fIfailure\fB] [\-F] \fIpool\fB"
+.B "zinject -d \fIvdev\fB -D latency:lanes \fIpool\fB
+
+Add an artificial delay to IO requests on a particular
+device, such that the requests take a minimum of 'latency'
+milliseconds to complete. Each delay has an associated
+number of 'lanes' which defines the number of concurrent
+IO requests that can be processed.
+
+For example, with a single lane delay of 10 ms (-D 10:1),
+the device will only be able to service a single IO request
+at a time with each request taking 10 ms to complete. So,
+if only a single request is submitted every 10 ms, the
+average latency will be 10 ms; but if more than one request
+is submitted every 10 ms, the average latency will be more
+than 10 ms.
+
+Similarly, if a delay of 10 ms is specified to have two
+lanes (-D 10:2), then the device will be able to service
+two requests at a time, each with a minimum latency of
+10 ms. So, if two requests are submitted every 10 ms, then
+the average latency will be 10 ms; but if more than two
+requests are submitted every 10 ms, the average latency
+will be more than 10 ms.
+
+Also note, these delays are additive. So two invocations
+of '-D 10:1', is roughly equivalent to a single invocation
+of '-D 10:2'. This also means, one can specify multiple
+lanes with differing target latencies. For example, an
+invocation of '-D 10:1' followed by '-D 25:2' will
+create 3 lanes on the device; one lane with a latency
+of 10 ms and two lanes with a 25 ms latency.
+
+.TP
+.B "zinject \-d \fIvdev\fB [\-e \fIdevice_error\fB] [\-L \fIlabel_error\fB] [\-T \fIfailure\fB] [\-f \fIfrequency\fB] [\-F] \fIpool\fB"
 Force a vdev error.
 .TP
 .B "zinject \-I [\-s \fIseconds\fB | \-g \fItxgs\fB] \fIpool\fB"
@@ -67,7 +100,7 @@ Flush the ARC before injection.
 .TP
 .BI "\-b" " objset:object:level:start:end"
 Force an error into the pool at this bookmark tuple. Each number is
-in hexidecimal, and only one block can be specified.
+in hexadecimal, and only one block can be specified.
 .TP
 .BI "\-d" " vdev"
 A vdev specified by path or GUID.
@@ -80,8 +113,8 @@ Specify
 .BR "nxio" " for an ENXIO error where reopening the device will fail."
 .TP
 .BI "\-f" " frequency"
-Only inject errors a fraction of the time. Expressed as an integer
-percentage between 1 and 100.
+Only inject errors a fraction of the time. Expressed as a real number
+percentage between 0.0001 and 100.
 .TP
 .BI "\-F"
 Fail faster. Do fewer checks.

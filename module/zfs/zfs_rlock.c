@@ -65,7 +65,7 @@
  * Otherwise, the proxy lock is split into smaller lock ranges and
  * new proxy locks created for non overlapping ranges.
  * The reference counts are adjusted accordingly.
- * Meanwhile, the orginal lock is kept around (this is the callers handle)
+ * Meanwhile, the original lock is kept around (this is the callers handle)
  * and its offset and length are used when releasing the lock.
  *
  * Thread coordination
@@ -87,7 +87,7 @@
  *
  * Grow block handling
  * -------------------
- * ZFS supports multiple block sizes currently upto 128K. The smallest
+ * ZFS supports multiple block sizes currently up to 128K. The smallest
  * block size is used for the file which is grown as needed. During this
  * growth all other writers and readers must be excluded.
  * So if the block size needs to be grown then the whole file is
@@ -101,9 +101,9 @@
  * Check if a write lock can be grabbed, or wait and recheck until available.
  */
 static void
-zfs_range_lock_writer(znode_t *zp, rl_t *new)
+zfs_range_lock_writer(zfs_rlock_t *zrl, rl_t *new)
 {
-	avl_tree_t *tree = &zp->z_range_avl;
+	avl_tree_t *tree = &zrl->zr_avl;
 	rl_t *rl;
 	avl_index_t where;
 	uint64_t end_size;
@@ -112,32 +112,32 @@ zfs_range_lock_writer(znode_t *zp, rl_t *new)
 
 	for (;;) {
 		/*
-		 * Range locking is also used by zvol and uses a
-		 * dummied up znode. However, for zvol, we don't need to
-		 * append or grow blocksize, and besides we don't have
-		 * a "sa" data or zfs_sb_t - so skip that processing.
+		 * Range locking is also used by zvol. However, for zvol, we
+		 * don't need to append or grow blocksize, so skip that
+		 * processing.
 		 *
 		 * Yes, this is ugly, and would be solved by not handling
 		 * grow or append in range lock code. If that was done then
 		 * we could make the range locking code generically available
 		 * to other non-zfs consumers.
 		 */
-		if (!zp->z_is_zvol) { /* caller is ZPL */
+		if (zrl->zr_size) { /* caller is ZPL */
 			/*
 			 * If in append mode pick up the current end of file.
 			 * This is done under z_range_lock to avoid races.
 			 */
 			if (new->r_type == RL_APPEND)
-				new->r_off = zp->z_size;
+				new->r_off = *zrl->zr_size;
 
 			/*
 			 * If we need to grow the block size then grab the whole
 			 * file range. This is also done under z_range_lock to
 			 * avoid races.
 			 */
-			end_size = MAX(zp->z_size, new->r_off + len);
-			if (end_size > zp->z_blksz && (!ISP2(zp->z_blksz) ||
-			    zp->z_blksz < ZTOZSB(zp)->z_max_blksz)) {
+			end_size = MAX(*zrl->zr_size, new->r_off + len);
+			if (end_size > *zrl->zr_blksz &&
+			    (!ISP2(*zrl->zr_blksz) ||
+			    *zrl->zr_blksz < *zrl->zr_max_blksz)) {
 				new->r_off = 0;
 				new->r_len = UINT64_MAX;
 			}
@@ -175,7 +175,7 @@ wait:
 			cv_init(&rl->r_wr_cv, NULL, CV_DEFAULT, NULL);
 			rl->r_write_wanted = B_TRUE;
 		}
-		cv_wait(&rl->r_wr_cv, &zp->z_range_lock);
+		cv_wait(&rl->r_wr_cv, &zrl->zr_mutex);
 
 		/* reset to original */
 		new->r_off = off;
@@ -202,7 +202,7 @@ zfs_range_proxify(avl_tree_t *tree, rl_t *rl)
 	rl->r_cnt = 0;
 
 	/* create a proxy range lock */
-	proxy = kmem_alloc(sizeof (rl_t), KM_PUSHPAGE);
+	proxy = kmem_alloc(sizeof (rl_t), KM_SLEEP);
 	proxy->r_off = rl->r_off;
 	proxy->r_len = rl->r_len;
 	proxy->r_cnt = 1;
@@ -231,7 +231,7 @@ zfs_range_split(avl_tree_t *tree, rl_t *rl, uint64_t off)
 	ASSERT(rl->r_read_wanted == B_FALSE);
 
 	/* create the rear proxy range lock */
-	rear = kmem_alloc(sizeof (rl_t), KM_PUSHPAGE);
+	rear = kmem_alloc(sizeof (rl_t), KM_SLEEP);
 	rear->r_off = off;
 	rear->r_len = rl->r_off + rl->r_len - off;
 	rear->r_cnt = rl->r_cnt;
@@ -256,7 +256,7 @@ zfs_range_new_proxy(avl_tree_t *tree, uint64_t off, uint64_t len)
 	rl_t *rl;
 
 	ASSERT(len);
-	rl = kmem_alloc(sizeof (rl_t), KM_PUSHPAGE);
+	rl = kmem_alloc(sizeof (rl_t), KM_SLEEP);
 	rl->r_off = off;
 	rl->r_len = len;
 	rl->r_cnt = 1;
@@ -353,9 +353,9 @@ zfs_range_add_reader(avl_tree_t *tree, rl_t *new, rl_t *prev, avl_index_t where)
  * Check if a reader lock can be grabbed, or wait and recheck until available.
  */
 static void
-zfs_range_lock_reader(znode_t *zp, rl_t *new)
+zfs_range_lock_reader(zfs_rlock_t *zrl, rl_t *new)
 {
-	avl_tree_t *tree = &zp->z_range_avl;
+	avl_tree_t *tree = &zrl->zr_avl;
 	rl_t *prev, *next;
 	avl_index_t where;
 	uint64_t off = new->r_off;
@@ -378,7 +378,7 @@ retry:
 				cv_init(&prev->r_rd_cv, NULL, CV_DEFAULT, NULL);
 				prev->r_read_wanted = B_TRUE;
 			}
-			cv_wait(&prev->r_rd_cv, &zp->z_range_lock);
+			cv_wait(&prev->r_rd_cv, &zrl->zr_mutex);
 			goto retry;
 		}
 		if (off + len < prev->r_off + prev->r_len)
@@ -401,7 +401,7 @@ retry:
 				cv_init(&next->r_rd_cv, NULL, CV_DEFAULT, NULL);
 				next->r_read_wanted = B_TRUE;
 			}
-			cv_wait(&next->r_rd_cv, &zp->z_range_lock);
+			cv_wait(&next->r_rd_cv, &zrl->zr_mutex);
 			goto retry;
 		}
 		if (off + len <= next->r_off + next->r_len)
@@ -423,14 +423,14 @@ got_lock:
  * previously locked as RL_WRITER).
  */
 rl_t *
-zfs_range_lock(znode_t *zp, uint64_t off, uint64_t len, rl_type_t type)
+zfs_range_lock(zfs_rlock_t *zrl, uint64_t off, uint64_t len, rl_type_t type)
 {
 	rl_t *new;
 
 	ASSERT(type == RL_READER || type == RL_WRITER || type == RL_APPEND);
 
-	new = kmem_alloc(sizeof (rl_t), KM_PUSHPAGE);
-	new->r_zp = zp;
+	new = kmem_alloc(sizeof (rl_t), KM_SLEEP);
+	new->r_zrl = zrl;
 	new->r_off = off;
 	if (len + off < off)	/* overflow */
 		len = UINT64_MAX - off;
@@ -441,18 +441,18 @@ zfs_range_lock(znode_t *zp, uint64_t off, uint64_t len, rl_type_t type)
 	new->r_write_wanted = B_FALSE;
 	new->r_read_wanted = B_FALSE;
 
-	mutex_enter(&zp->z_range_lock);
+	mutex_enter(&zrl->zr_mutex);
 	if (type == RL_READER) {
 		/*
 		 * First check for the usual case of no locks
 		 */
-		if (avl_numnodes(&zp->z_range_avl) == 0)
-			avl_add(&zp->z_range_avl, new);
+		if (avl_numnodes(&zrl->zr_avl) == 0)
+			avl_add(&zrl->zr_avl, new);
 		else
-			zfs_range_lock_reader(zp, new);
-	} else
-		zfs_range_lock_writer(zp, new); /* RL_WRITER or RL_APPEND */
-	mutex_exit(&zp->z_range_lock);
+			zfs_range_lock_reader(zrl, new);
+	} else /* RL_WRITER or RL_APPEND */
+		zfs_range_lock_writer(zrl, new);
+	mutex_exit(&zrl->zr_mutex);
 	return (new);
 }
 
@@ -474,9 +474,9 @@ zfs_range_free(void *arg)
  * Unlock a reader lock
  */
 static void
-zfs_range_unlock_reader(znode_t *zp, rl_t *remove, list_t *free_list)
+zfs_range_unlock_reader(zfs_rlock_t *zrl, rl_t *remove, list_t *free_list)
 {
-	avl_tree_t *tree = &zp->z_range_avl;
+	avl_tree_t *tree = &zrl->zr_avl;
 	rl_t *rl, *next = NULL;
 	uint64_t len;
 
@@ -543,7 +543,7 @@ zfs_range_unlock_reader(znode_t *zp, rl_t *remove, list_t *free_list)
 void
 zfs_range_unlock(rl_t *rl)
 {
-	znode_t *zp = rl->r_zp;
+	zfs_rlock_t *zrl = rl->r_zrl;
 	list_t free_list;
 	rl_t *free_rl;
 
@@ -552,10 +552,10 @@ zfs_range_unlock(rl_t *rl)
 	ASSERT(!rl->r_proxy);
 	list_create(&free_list, sizeof (rl_t), offsetof(rl_t, rl_node));
 
-	mutex_enter(&zp->z_range_lock);
+	mutex_enter(&zrl->zr_mutex);
 	if (rl->r_type == RL_WRITER) {
 		/* writer locks can't be shared or split */
-		avl_remove(&zp->z_range_avl, rl);
+		avl_remove(&zrl->zr_avl, rl);
 		if (rl->r_write_wanted)
 			cv_broadcast(&rl->r_wr_cv);
 
@@ -568,9 +568,9 @@ zfs_range_unlock(rl_t *rl)
 		 * lock may be shared, let zfs_range_unlock_reader()
 		 * release the zp->z_range_lock lock and free the rl_t
 		 */
-		zfs_range_unlock_reader(zp, rl, &free_list);
+		zfs_range_unlock_reader(zrl, rl, &free_list);
 	}
-	mutex_exit(&zp->z_range_lock);
+	mutex_exit(&zrl->zr_mutex);
 
 	while ((free_rl = list_head(&free_list)) != NULL) {
 		list_remove(&free_list, free_rl);
@@ -588,17 +588,17 @@ zfs_range_unlock(rl_t *rl)
 void
 zfs_range_reduce(rl_t *rl, uint64_t off, uint64_t len)
 {
-	znode_t *zp = rl->r_zp;
+	zfs_rlock_t *zrl = rl->r_zrl;
 
 	/* Ensure there are no other locks */
-	ASSERT(avl_numnodes(&zp->z_range_avl) == 1);
+	ASSERT(avl_numnodes(&zrl->zr_avl) == 1);
 	ASSERT(rl->r_off == 0);
 	ASSERT(rl->r_type == RL_WRITER);
 	ASSERT(!rl->r_proxy);
 	ASSERT3U(rl->r_len, ==, UINT64_MAX);
 	ASSERT3U(rl->r_cnt, ==, 1);
 
-	mutex_enter(&zp->z_range_lock);
+	mutex_enter(&zrl->zr_mutex);
 	rl->r_off = off;
 	rl->r_len = len;
 
@@ -607,7 +607,7 @@ zfs_range_reduce(rl_t *rl, uint64_t off, uint64_t len)
 	if (rl->r_read_wanted)
 		cv_broadcast(&rl->r_rd_cv);
 
-	mutex_exit(&zp->z_range_lock);
+	mutex_exit(&zrl->zr_mutex);
 }
 
 /*
@@ -617,12 +617,15 @@ zfs_range_reduce(rl_t *rl, uint64_t off, uint64_t len)
 int
 zfs_range_compare(const void *arg1, const void *arg2)
 {
-	const rl_t *rl1 = arg1;
-	const rl_t *rl2 = arg2;
+	const rl_t *rl1 = (const rl_t *)arg1;
+	const rl_t *rl2 = (const rl_t *)arg2;
 
-	if (rl1->r_off > rl2->r_off)
-		return (1);
-	if (rl1->r_off < rl2->r_off)
-		return (-1);
-	return (0);
+	return (AVL_CMP(rl1->r_off, rl2->r_off));
 }
+
+#ifdef _KERNEL
+EXPORT_SYMBOL(zfs_range_lock);
+EXPORT_SYMBOL(zfs_range_unlock);
+EXPORT_SYMBOL(zfs_range_reduce);
+EXPORT_SYMBOL(zfs_range_compare);
+#endif

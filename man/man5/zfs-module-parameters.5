@@ -27,10 +27,24 @@ Description of the different parameters to the ZFS module.
 .sp
 .ne 2
 .na
+\fBignore_hole_birth\fR (int)
+.ad
+.RS 12n
+When set, the hole_birth optimization will not be used, and all holes will
+always be sent on zfs send. Useful if you suspect your datasets are affected
+by a bug in hole_birth.
+.sp
+Use \fB1\fR for on (default) and \fB0\fR for off.
+.RE
+
+.sp
+.ne 2
+.na
 \fBl2arc_feed_again\fR (int)
 .ad
 .RS 12n
-Turbo L2ARC warmup
+Turbo L2ARC warm-up. When the L2ARC is cold the fill interval will be set as
+fast as possible.
 .sp
 Use \fB1\fR for yes (default) and \fB0\fR to disable.
 .RE
@@ -41,7 +55,8 @@ Use \fB1\fR for yes (default) and \fB0\fR to disable.
 \fBl2arc_feed_min_ms\fR (ulong)
 .ad
 .RS 12n
-Min feed interval in milliseconds
+Min feed interval in milliseconds. Requires \fBl2arc_feed_again=1\fR and only
+applicable in related situations.
 .sp
 Default value: \fB200\fR.
 .RE
@@ -63,7 +78,8 @@ Default value: \fB1\fR.
 \fBl2arc_headroom\fR (ulong)
 .ad
 .RS 12n
-Number of max device writes to precache
+How far through the ARC lists to search for L2ARC cacheable content, expressed
+as a multiplier of \fBl2arc_write_max\fR
 .sp
 Default value: \fB2\fR.
 .RE
@@ -74,7 +90,8 @@ Default value: \fB2\fR.
 \fBl2arc_headroom_boost\fR (ulong)
 .ad
 .RS 12n
-Compressed l2arc_headroom multiplier
+Scales \fBl2arc_headroom\fR by this percentage when L2ARC contents are being
+successfully compressed before writing. A value of 100 disables this feature.
 .sp
 Default value: \fB200\fR.
 .RE
@@ -96,7 +113,8 @@ Use \fB1\fR for yes and \fB0\fR for no (default).
 \fBl2arc_noprefetch\fR (int)
 .ad
 .RS 12n
-Skip caching prefetched buffers
+Do not write buffers to L2ARC if they were prefetched but not used by
+applications
 .sp
 Use \fB1\fR for yes (default) and \fB0\fR to disable.
 .RE
@@ -118,7 +136,8 @@ Use \fB1\fR for yes and \fB0\fR for no (default).
 \fBl2arc_write_boost\fR (ulong)
 .ad
 .RS 12n
-Extra write bytes during device warmup
+Cold L2ARC devices will have \fBl2arc_write_max\fR increased by this amount
+while they remain cold.
 .sp
 Default value: \fB8,388,608\fR.
 .RE
@@ -137,6 +156,20 @@ Default value: \fB8,388,608\fR.
 .sp
 .ne 2
 .na
+\fBmetaslab_aliquot\fR (ulong)
+.ad
+.RS 12n
+Metaslab granularity, in bytes. This is roughly similar to what would be
+referred to as the "stripe size" in traditional RAID arrays. In normal
+operation, ZFS will try to write this amount of data to a top-level vdev
+before moving on to the next one.
+.sp
+Default value: \fB524,288\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBmetaslab_bias_enabled\fR (int)
 .ad
 .RS 12n
@@ -144,6 +177,30 @@ Enable metaslab group biasing based on its vdev's over- or under-utilization
 relative to the pool.
 .sp
 Use \fB1\fR for yes (default) and \fB0\fR for no.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_metaslab_segment_weight_enabled\fR (int)
+.ad
+.RS 12n
+Enable/disable segment-based metaslab selection.
+.sp
+Use \fB1\fR for yes (default) and \fB0\fR for no.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_metaslab_switch_threshold\fR (int)
+.ad
+.RS 12n
+When using segment-based metaslab selection, continue allocating
+from the active metaslab until \fBzfs_metaslab_switch_threshold\fR
+worth of buckets have been exhausted.
+.sp
+Default value: \fB2\fR.
 .RE
 
 .sp
@@ -177,6 +234,17 @@ Use \fB1\fR for yes and \fB0\fR for no (default).
 Enable use of the fragmentation metric in computing metaslab weights.
 .sp
 Use \fB1\fR for yes (default) and \fB0\fR for no.
+.RE
+
+.sp
+.ne 2
+.na
+\fBmetaslabs_per_vdev\fR (int)
+.ad
+.RS 12n
+When a vdev is added, it will be divided into approximately (but no more than) this number of metaslabs.
+.sp
+Default value: \fB200\fR.
 .RE
 
 .sp
@@ -227,7 +295,7 @@ configuration.  Pool administrators who understand the factors involved
 may wish to specify a more realistic inflation factor, particularly if
 they operate close to quota or capacity limits.
 .sp
-Default value: 24
+Default value: \fB24\fR.
 .RE
 
 .sp
@@ -244,7 +312,7 @@ blocks in the pool for verification.  If this parameter is set to 0,
 the traversal skips non-metadata blocks.  It can be toggled once the
 import has started to stop or start the traversal of non-metadata blocks.
 .sp
-Default value: 1
+Default value: \fB1\fR.
 .RE
 
 .sp
@@ -257,11 +325,11 @@ Whether to traverse blocks during an "extreme rewind" (\fB-X\fR)
 pool import.  Use 0 to disable and 1 to enable.
 
 An extreme rewind import normally performs a full traversal of all
-blocks in the pool for verification.  If this parameter is set to 1,
+blocks in the pool for verification.  If this parameter is set to 0,
 the traversal is not performed.  It can be toggled once the import has
 started to stop or start the traversal.
 .sp
-Default value: 1
+Default value: \fB1\fR.
 .RE
 
 .sp
@@ -273,7 +341,23 @@ Default value: 1
 Maximum concurrent I/Os during the traversal performed during an "extreme
 rewind" (\fB-X\fR) pool import.
 .sp
-Default value: 10000
+Default value: \fB10000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBspa_slop_shift\fR (int)
+.ad
+.RS 12n
+Normally, we don't allow the last 3.2% (1/(2^spa_slop_shift)) of space
+in the pool to be consumed.  This ensures that we don't run the pool
+completely out of space, due to unaccounted changes (e.g. to the MOS).
+It also limits the worst-case time to allocate space.  If we have
+less than this amount of free space, most ZPL operations (e.g. write,
+create) will return ENOSPC.
+.sp
+Default value: \fB5\fR.
 .RE
 
 .sp
@@ -290,12 +374,12 @@ Default value: \fB1,048,576\fR.
 .sp
 .ne 2
 .na
-\fBzfetch_block_cap\fR (uint)
+\fBzfetch_max_distance\fR (uint)
 .ad
 .RS 12n
-Max number of blocks to prefetch at a time
+Max bytes to prefetch per stream (default 8MB).
 .sp
-Default value: \fB256\fR.
+Default value: \fB8,388,608\fR.
 .RE
 
 .sp
@@ -323,6 +407,53 @@ Default value: \fB2\fR.
 .sp
 .ne 2
 .na
+\fBzfs_arc_dnode_limit\fR (ulong)
+.ad
+.RS 12n
+When the number of bytes consumed by dnodes in the ARC exceeds this number of
+bytes, try to unpin some of it in response to demand for non-metadata. This
+value acts as a ceiling to the amount of dnode metadata, and defaults to 0 which
+indicates that a percent which is based on \fBzfs_arc_dnode_limit_percent\fR of
+the ARC meta buffers that may be used for dnodes.
+
+See also \fBzfs_arc_meta_prune\fR which serves a similar purpose but is used
+when the amount of metadata in the ARC exceeds \fBzfs_arc_meta_limit\fR rather
+than in response to overall demand for non-metadata.
+
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_arc_dnode_limit_percent\fR (ulong)
+.ad
+.RS 12n
+Percentage that can be consumed by dnodes of ARC meta buffers.
+.sp
+See also \fBzfs_arc_dnode_limit\fR which serves a similar purpose but has a
+higher priority if set to nonzero value.
+.sp
+Default value: \fB10\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_arc_dnode_reduce_percent\fR (ulong)
+.ad
+.RS 12n
+Percentage of ARC dnodes to try to scan in response to demand for non-metadata
+when the number of bytes consumed by dnodes exceeds \fBzfs_arc_dnode_limit\fR.
+
+.sp
+Default value: \fB10% of the number of dnodes in the ARC\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_arc_average_blocksize\fR (int)
 .ad
 .RS 12n
@@ -339,12 +470,38 @@ Default value: \fB8192\fR.
 .sp
 .ne 2
 .na
+\fBzfs_arc_evict_batch_limit\fR (int)
+.ad
+.RS 12n
+Number ARC headers to evict per sub-list before proceeding to another sub-list.
+This batch-style operation prevents entire sub-lists from being evicted at once
+but comes at a cost of additional unlocking and locking.
+.sp
+Default value: \fB10\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_arc_grow_retry\fR (int)
 .ad
 .RS 12n
-Seconds before growing arc size
+After a memory pressure event the ARC will wait this many seconds before trying
+to resume growth
 .sp
 Default value: \fB5\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_arc_lotsfree_percent\fR (int)
+.ad
+.RS 12n
+Throttle I/O when free system memory drops below this percentage of total
+system memory.  Setting this value to 0 will disable the throttle.
+.sp
+Default value: \fB10\fR.
 .RE
 
 .sp
@@ -353,20 +510,14 @@ Default value: \fB5\fR.
 \fBzfs_arc_max\fR (ulong)
 .ad
 .RS 12n
-Max arc size
+Max arc size of ARC in bytes. If set to 0 then it will consume 1/2 of system
+RAM. This value must be at least 67108864 (64 megabytes).
+.sp
+This value can be changed dynamically with some caveats. It cannot be set back
+to 0 while running and reducing it below the current ARC size will not cause
+the ARC to shrink without memory pressure to induce shrinking.
 .sp
 Default value: \fB0\fR.
-.RE
-
-.sp
-.ne 2
-.na
-\fBzfs_arc_memory_throttle_disable\fR (int)
-.ad
-.RS 12n
-Disable memory throttle
-.sp
-Use \fB1\fR for yes (default) and \fB0\fR to disable.
 .RE
 
 .sp
@@ -375,7 +526,42 @@ Use \fB1\fR for yes (default) and \fB0\fR to disable.
 \fBzfs_arc_meta_limit\fR (ulong)
 .ad
 .RS 12n
-Meta limit for arc size
+The maximum allowed size in bytes that meta data buffers are allowed to
+consume in the ARC.  When this limit is reached meta data buffers will
+be reclaimed even if the overall arc_c_max has not been reached.  This
+value defaults to 0 which indicates that a percent which is based on
+\fBzfs_arc_meta_limit_percent\fR of the ARC may be used for meta data.
+.sp
+This value my be changed dynamically except that it cannot be set back to 0
+for a specific percent of the ARC; it must be set to an explicit value.
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_arc_meta_limit_percent\fR (ulong)
+.ad
+.RS 12n
+Percentage of ARC buffers that can be used for meta data.
+
+See also \fBzfs_arc_meta_limit\fR which serves a similar purpose but has a
+higher priority if set to nonzero value.
+
+.sp
+Default value: \fB75\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_arc_meta_min\fR (ulong)
+.ad
+.RS 12n
+The minimum allowed size in bytes that meta data buffers may consume in
+the ARC.  This value defaults to 0 which disables a floor on the amount
+of the ARC devoted meta data.
 .sp
 Default value: \fB0\fR.
 .RE
@@ -386,9 +572,28 @@ Default value: \fB0\fR.
 \fBzfs_arc_meta_prune\fR (int)
 .ad
 .RS 12n
-Bytes of meta data to prune
+The number of dentries and inodes to be scanned looking for entries
+which can be dropped.  This may be required when the ARC reaches the
+\fBzfs_arc_meta_limit\fR because dentries and inodes can pin buffers
+in the ARC.  Increasing this value will cause to dentry and inode caches
+to be pruned more aggressively.  Setting this value to 0 will disable
+pruning the inode and dentry caches.
 .sp
-Default value: \fB1,048,576\fR.
+Default value: \fB10,000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_arc_meta_adjust_restarts\fR (ulong)
+.ad
+.RS 12n
+The number of restart passes to make while scanning the ARC attempting
+the free buffers in order to stay below the \fBzfs_arc_meta_limit\fR.
+This value should not need to be tuned but is available to facilitate
+performance analysis.
+.sp
+Default value: \fB4096\fR.
 .RE
 
 .sp
@@ -408,9 +613,57 @@ Default value: \fB100\fR.
 \fBzfs_arc_min_prefetch_lifespan\fR (int)
 .ad
 .RS 12n
-Min life of prefetch block
+Minimum time prefetched blocks are locked in the ARC, specified in jiffies.
+A value of 0 will default to 1 second.
 .sp
-Default value: \fB100\fR.
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_multilist_num_sublists\fR (int)
+.ad
+.RS 12n
+To allow more fine-grained locking, each ARC state contains a series
+of lists for both data and meta data objects.  Locking is performed at
+the level of these "sub-lists".  This parameters controls the number of
+sub-lists per ARC state, and also applies to other uses of the
+multilist data structure.
+.sp
+Default value: \fB4\fR or the number of online CPUs, whichever is greater
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_arc_overflow_shift\fR (int)
+.ad
+.RS 12n
+The ARC size is considered to be overflowing if it exceeds the current
+ARC target size (arc_c) by a threshold determined by this parameter.
+The threshold is calculated as a fraction of arc_c using the formula
+"arc_c >> \fBzfs_arc_overflow_shift\fR".
+
+The default value of 8 causes the ARC to be considered to be overflowing
+if it exceeds the target size by 1/256th (0.3%) of the target size.
+
+When the ARC is overflowing, new buffer allocations are stalled until
+the reclaim thread catches up and the overflow condition no longer exists.
+.sp
+Default value: \fB8\fR.
+.RE
+
+.sp
+.ne 2
+.na
+
+\fBzfs_arc_p_min_shift\fR (int)
+.ad
+.RS 12n
+arc_c shift to calc min/max arc_p
+.sp
+Default value: \fB4\fR.
 .RE
 
 .sp
@@ -449,12 +702,68 @@ Default value: \fB5\fR.
 .sp
 .ne 2
 .na
+\fBzfs_arc_pc_percent\fR (uint)
+.ad
+.RS 12n
+Percent of pagecache to reclaim arc to
+
+This tunable allows ZFS arc to play more nicely with the kernel's LRU
+pagecache. It can guarantee that the arc size won't collapse under scanning
+pressure on the pagecache, yet still allows arc to be reclaimed down to
+zfs_arc_min if necessary. This value is specified as percent of pagecache
+size (as measured by NR_FILE_PAGES) where that percent may exceed 100. This
+only operates during memory pressure/reclaim.
+.sp
+Default value: \fB0\fR (disabled).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_arc_sys_free\fR (ulong)
+.ad
+.RS 12n
+The target number of bytes the ARC should leave as free memory on the system.
+Defaults to the larger of 1/64 of physical memory or 512K.  Setting this
+option to a non-zero value will override the default.
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_autoimport_disable\fR (int)
 .ad
 .RS 12n
 Disable pool import at module load by ignoring the cache file (typically \fB/etc/zfs/zpool.cache\fR).
 .sp
-Use \fB1\fR for yes and \fB0\fR for no (default).
+Use \fB1\fR for yes (default) and \fB0\fR for no.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_dbgmsg_enable\fR (int)
+.ad
+.RS 12n
+Internally ZFS keeps a small log to facilitate debugging.  By default the log
+is disabled, to enable it set this option to 1.  The contents of the log can
+be accessed by reading the /proc/spl/kstat/zfs/dbgmsg file.  Writing 0 to
+this proc file clears the log.
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_dbgmsg_maxsize\fR (int)
+.ad
+.RS 12n
+The maximum size in bytes of the internal ZFS debug log.
+.sp
+Default value: \fB4M\fR.
 .RE
 
 .sp
@@ -463,7 +772,8 @@ Use \fB1\fR for yes and \fB0\fR for no (default).
 \fBzfs_dbuf_state_index\fR (int)
 .ad
 .RS 12n
-Calculate arc header index
+This feature is currently unused. It is normally used for controlling what
+reporting is available under /proc/spl/kstat/zfs.
 .sp
 Default value: \fB0\fR.
 .RE
@@ -474,9 +784,28 @@ Default value: \fB0\fR.
 \fBzfs_deadman_enabled\fR (int)
 .ad
 .RS 12n
-Enable deadman timer
+When a pool sync operation takes longer than \fBzfs_deadman_synctime_ms\fR
+milliseconds, a "slow spa_sync" message is logged to the debug log
+(see \fBzfs_dbgmsg_enable\fR).  If \fBzfs_deadman_enabled\fR is set,
+all pending IO operations are also checked and if any haven't completed
+within \fBzfs_deadman_synctime_ms\fR milliseconds, a "SLOW IO" message
+is logged to the debug log and a "delay" system event with the details of
+the hung IO is posted.
 .sp
-Use \fB1\fR for yes (default) and \fB0\fR to disable.
+Use \fB1\fR (default) to enable the slow IO check and \fB0\fR to disable.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_deadman_checktime_ms\fR (int)
+.ad
+.RS 12n
+Once a pool sync operation has taken longer than
+\fBzfs_deadman_synctime_ms\fR milliseconds, continue to check for slow
+operations every \fBzfs_deadman_checktime_ms\fR milliseconds.
+.sp
+Default value: \fB5,000\fR.
 .RE
 
 .sp
@@ -485,12 +814,11 @@ Use \fB1\fR for yes (default) and \fB0\fR to disable.
 \fBzfs_deadman_synctime_ms\fR (ulong)
 .ad
 .RS 12n
-Expiration time in milliseconds. This value has two meanings. First it is
-used to determine when the spa_deadman() logic should fire. By default the
-spa_deadman() will fire if spa_sync() has not completed in 1000 seconds.
-Secondly, the value determines if an I/O is considered "hung". Any I/O that
-has not completed in zfs_deadman_synctime_ms is considered "hung" resulting
-in a zevent being logged.
+Interval in milliseconds after which the deadman is triggered and also
+the interval after which an IO operation is considered to be "hung"
+if \fBzfs_deadman_enabled\fR is set.
+
+See \fBzfs_deadman_enabled\fR.
 .sp
 Default value: \fB1,000,000\fR.
 .RE
@@ -543,6 +871,21 @@ Default value: \fB500,000\fR.
 .sp
 .ne 2
 .na
+\fBzfs_delete_blocks\fR (ulong)
+.ad
+.RS 12n
+This is the used to define a large file for the purposes of delete.  Files
+containing more than \fBzfs_delete_blocks\fR will be deleted asynchronously
+while smaller files are deleted synchronously.  Decreasing this value will
+reduce the time spent in an unlink(2) system call at the expense of a longer
+delay before the freed space is available.
+.sp
+Default value: \fB20,480\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_dirty_data_max\fR (int)
 .ad
 .RS 12n
@@ -581,7 +924,7 @@ time, and will be ignored if \fBzfs_dirty_data_max\fR is later changed.
 The parameter \fBzfs_dirty_data_max_max\fR takes precedence over this
 one. See the section "ZFS TRANSACTION DELAY".
 .sp
-Default value: 25
+Default value: \fB25\fR.
 .RE
 
 .sp
@@ -612,10 +955,53 @@ Default value: \fB67,108,864\fR.
 .sp
 .ne 2
 .na
+\fBzfs_fletcher_4_impl\fR (string)
+.ad
+.RS 12n
+Select a fletcher 4 implementation.
+.sp
+Supported selectors are: \fBfastest\fR, \fBscalar\fR, \fBsse2\fR, \fBssse3\fR,
+\fBavx2\fR, \fBavx512f\fR, and \fBaarch64_neon\fR.
+All of the selectors except \fBfastest\fR and \fBscalar\fR require instruction
+set extensions to be available and will only appear if ZFS detects that they are
+present at runtime. If multiple implementations of fletcher 4 are available,
+the \fBfastest\fR will be chosen using a micro benchmark. Selecting \fBscalar\fR
+results in the original, CPU based calculation, being used. Selecting any option
+other than \fBfastest\fR and \fBscalar\fR results in vector instructions from
+the respective CPU instruction set being used.
+.sp
+Default value: \fBfastest\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_free_bpobj_enabled\fR (int)
+.ad
+.RS 12n
+Enable/disable the processing of the free_bpobj object.
+.sp
+Default value: \fB1\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_free_max_blocks\fR (ulong)
+.ad
+.RS 12n
+Maximum number of blocks freed in a single txg.
+.sp
+Default value: \fB100,000\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_vdev_async_read_max_active\fR (int)
 .ad
 .RS 12n
-Maxium asynchronous read I/Os active to each device.
+Maximum asynchronous read I/Os active to each device.
 See the section "ZFS I/O SCHEDULER".
 .sp
 Default value: \fB3\fR.
@@ -669,7 +1055,7 @@ Default value: \fB30\fR.
 \fBzfs_vdev_async_write_max_active\fR (int)
 .ad
 .RS 12n
-Maxium asynchronous write I/Os active to each device.
+Maximum asynchronous write I/Os active to each device.
 See the section "ZFS I/O SCHEDULER".
 .sp
 Default value: \fB10\fR.
@@ -684,7 +1070,12 @@ Default value: \fB10\fR.
 Minimum asynchronous write I/Os active to each device.
 See the section "ZFS I/O SCHEDULER".
 .sp
-Default value: \fB1\fR.
+Lower values are associated with better latency on rotational media but poorer
+resilver performance. The default value of 2 was chosen as a compromise. A
+value of 3 has been shown to improve resilver performance further at a cost of
+further increasing latency.
+.sp
+Default value: \fB2\fR.
 .RE
 
 .sp
@@ -706,7 +1097,7 @@ Default value: \fB1,000\fR.
 \fBzfs_vdev_scrub_max_active\fR (int)
 .ad
 .RS 12n
-Maxium scrub I/Os active to each device.
+Maximum scrub I/Os active to each device.
 See the section "ZFS I/O SCHEDULER".
 .sp
 Default value: \fB2\fR.
@@ -730,7 +1121,7 @@ Default value: \fB1\fR.
 \fBzfs_vdev_sync_read_max_active\fR (int)
 .ad
 .RS 12n
-Maxium synchronous read I/Os active to each device.
+Maximum synchronous read I/Os active to each device.
 See the section "ZFS I/O SCHEDULER".
 .sp
 Default value: \fB10\fR.
@@ -754,7 +1145,7 @@ Default value: \fB10\fR.
 \fBzfs_vdev_sync_write_max_active\fR (int)
 .ad
 .RS 12n
-Maxium synchronous write I/Os active to each device.
+Maximum synchronous write I/Os active to each device.
 See the section "ZFS I/O SCHEDULER".
 .sp
 Default value: \fB10\fR.
@@ -770,6 +1161,24 @@ Minimum synchronous write I/Os active to each device.
 See the section "ZFS I/O SCHEDULER".
 .sp
 Default value: \fB10\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_queue_depth_pct\fR (int)
+.ad
+.RS 12n
+Maximum number of queued allocations per top-level vdev expressed as
+a percentage of \fBzfs_vdev_async_write_max_active\fR which allows the
+system to detect devices that are more capable of handling allocations
+and to allocate more blocks to those devices.  It allows for dynamic
+allocation distribution when devices are imbalanced as fuller devices
+will tend to be slower than empty devices.
+
+See also \fBzio_dva_throttle_enabled\fR.
+.sp
+Default value: \fB1000\fR.
 .RE
 
 .sp
@@ -797,12 +1206,63 @@ Default value: \fB300\fR.
 .sp
 .ne 2
 .na
+\fBzfs_admin_snapshot\fR (int)
+.ad
+.RS 12n
+Allow the creation, removal, or renaming of entries in the .zfs/snapshot
+directory to cause the creation, destruction, or renaming of snapshots.
+When enabled this functionality works both locally and over NFS exports
+which have the 'no_root_squash' option set. This functionality is disabled
+by default.
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_flags\fR (int)
 .ad
 .RS 12n
-Set additional debugging flags
+Set additional debugging flags. The following flags may be bitwise-or'd
+together.
 .sp
-Default value: \fB1\fR.
+.TS
+box;
+rB lB
+lB lB
+r l.
+Value	Symbolic Name
+	Description
+_
+1	ZFS_DEBUG_DPRINTF
+	Enable dprintf entries in the debug log.
+_
+2	ZFS_DEBUG_DBUF_VERIFY *
+	Enable extra dbuf verifications.
+_
+4	ZFS_DEBUG_DNODE_VERIFY *
+	Enable extra dnode verifications.
+_
+8	ZFS_DEBUG_SNAPNAMES
+	Enable snapshot name verification.
+_
+16	ZFS_DEBUG_MODIFY
+	Check for illegally modified ARC buffers.
+_
+32	ZFS_DEBUG_SPA
+	Enable spa_dbgmsg entries in the debug log.
+_
+64	ZFS_DEBUG_ZIO_FREE
+	Enable verification of block frees.
+_
+128	ZFS_DEBUG_HISTOGRAM_VERIFY
+	Enable extra spacemap histogram verifications.
+.TE
+.sp
+* Requires debug build.
+.sp
+Default value: \fB0\fR.
 .RE
 
 .sp
@@ -848,7 +1308,8 @@ Default value: \fB0\fR.
 \fBzfs_free_min_time_ms\fR (int)
 .ad
 .RS 12n
-Min millisecs to free per txg
+During a \fBzfs destroy\fR operation using \fBfeature@async_destroy\fR a minimum
+of this much time will be spent working on freeing blocks per txg.
 .sp
 Default value: \fB1,000\fR.
 .RE
@@ -859,9 +1320,28 @@ Default value: \fB1,000\fR.
 \fBzfs_immediate_write_sz\fR (long)
 .ad
 .RS 12n
-Largest data block to write to zil
+Largest data block to write to zil. Larger blocks will be treated as if the
+dataset being written to had the property setting \fBlogbias=throughput\fR.
 .sp
 Default value: \fB32,768\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_max_recordsize\fR (int)
+.ad
+.RS 12n
+We currently support block sizes from 512 bytes to 16MB.  The benefits of
+larger blocks, and thus larger IO, need to be weighed against the cost of
+COWing a giant block to modify one byte.  Additionally, very large blocks
+can have an impact on i/o latency, and also potentially on the memory
+allocator.  Therefore, we do not allow the recordsize to be set larger than
+zfs_max_recordsize (default 1MB).  Larger blocks can be created by changing
+this tunable, and pools with larger blocks can always be imported and used,
+regardless of this setting.
+.sp
+Default value: \fB1,048,576\fR.
 .RE
 
 .sp
@@ -896,7 +1376,7 @@ Default value: \fB70\fR.
 .ad
 .RS 12n
 Metaslab groups are considered eligible for allocations if their
-fragmenation metric (measured as a percentage) is less than or equal to
+fragmentation metric (measured as a percentage) is less than or equal to
 this value. If a metaslab group exceeds this threshold then it will be
 skipped unless all metaslab groups within the metaslab class have also
 crossed this threshold.
@@ -914,7 +1394,7 @@ Defines a threshold at which metaslab groups should be eligible for
 allocations.  The value is expressed as a percentage of free space
 beyond which a metaslab group is always eligible for allocations.
 If a metaslab group's free space is less than or equal to the
-the threshold, the allocator will avoid allocating to that group
+threshold, the allocator will avoid allocating to that group
 unless all groups in the pool have reached the threshold.  Once all
 groups have reached the threshold, all groups are allowed to accept
 allocations.  The default value of 0 disables the feature and causes
@@ -933,10 +1413,84 @@ Default value: \fB0\fR.
 .sp
 .ne 2
 .na
+\fBzfs_multihost_history\fR (int)
+.ad
+.RS 12n
+Historical statistics for the last N multihost updates will be available in
+\fB/proc/spl/kstat/zfs/<pool>/multihost\fR
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_multihost_interval\fR (ulong)
+.ad
+.RS 12n
+Used to control the frequency of multihost writes which are performed when the
+\fBmultihost\fR pool property is on.  This is one factor used to determine
+the length of the activity check during import.
+.sp
+The multihost write period is \fBzfs_multihost_interval / leaf-vdevs\fR milliseconds.
+This means that on average a multihost write will be issued for each leaf vdev every
+\fBzfs_multihost_interval\fR milliseconds.  In practice, the observed period can
+vary with the I/O load and this observed value is the delay which is stored in
+the uberblock.
+.sp
+On import the activity check waits a minimum amount of time determined by
+\fBzfs_multihost_interval * zfs_multihost_import_intervals\fR.  The activity
+check time may be further extended if the value of mmp delay found in the best
+uberblock indicates actual multihost updates happened at longer intervals than
+\fBzfs_multihost_interval\fR.  A minimum value of \fB100ms\fR is enforced.
+.sp
+Default value: \fB1000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_multihost_import_intervals\fR (uint)
+.ad
+.RS 12n
+Used to control the duration of the activity test on import.  Smaller values of
+\fBzfs_multihost_import_intervals\fR will reduce the import time but increase
+the risk of failing to detect an active pool.  The total activity check time is
+never allowed to drop below one second.  A value of 0 is ignored and treated as
+if it was set to 1
+.sp
+Default value: \fB10\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_multihost_fail_intervals\fR (uint)
+.ad
+.RS 12n
+Controls the behavior of the pool when multihost write failures are detected.
+.sp
+When \fBzfs_multihost_fail_intervals = 0\fR then multihost write failures are ignored.
+The failures will still be reported to the ZED which depending on its
+configuration may take action such as suspending the pool or offlining a device.
+.sp
+When \fBzfs_multihost_fail_intervals > 0\fR then sequential multihost write failures
+will cause the pool to be suspended.  This occurs when
+\fBzfs_multihost_fail_intervals * zfs_multihost_interval\fR milliseconds have
+passed since the last successful multihost write.  This guarantees the activity test
+will see multihost writes if the pool is imported.
+.sp
+Default value: \fB5\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_no_scrub_io\fR (int)
 .ad
 .RS 12n
-Set for no scrub I/O
+Set for no scrub I/O. This results in scrubs not actually scrubbing data and
+simply doing a metadata crawl of the pool instead.
 .sp
 Use \fB1\fR for yes and \fB0\fR for no (default).
 .RE
@@ -947,7 +1501,7 @@ Use \fB1\fR for yes and \fB0\fR for no (default).
 \fBzfs_no_scrub_prefetch\fR (int)
 .ad
 .RS 12n
-Set for no scrub prefetching
+Set to disable block prefetching for scrubs.
 .sp
 Use \fB1\fR for yes and \fB0\fR for no (default).
 .RE
@@ -958,7 +1512,8 @@ Use \fB1\fR for yes and \fB0\fR for no (default).
 \fBzfs_nocacheflush\fR (int)
 .ad
 .RS 12n
-Disable cache flushes
+Disable cache flush operations on disks when writing. Beware, this may cause
+corruption if disks re-order writes.
 .sp
 Use \fB1\fR for yes and \fB0\fR for no (default).
 .RE
@@ -977,13 +1532,44 @@ Use \fB1\fR for yes (default) and \fB0\fR to disable.
 .sp
 .ne 2
 .na
-\fBzfs_pd_blks_max\fR (int)
+\fBzfs_dmu_offset_next_sync\fR (int)
 .ad
 .RS 12n
-Max number of blocks to prefetch
+Enable forcing txg sync to find holes. When enabled forces ZFS to act
+like prior versions when SEEK_HOLE or SEEK_DATA flags are used, which
+when a dnode is dirty causes txg's to be synced so that this data can be
+found.
 .sp
-Default value: \fB100\fR.
+Use \fB1\fR for yes and \fB0\fR to disable (default).
 .RE
+
+.sp
+.ne 2
+.na
+\fBzfs_pd_bytes_max\fR (int)
+.ad
+.RS 12n
+The number of bytes which should be prefetched during a pool traversal
+(eg: \fBzfs send\fR or other data crawling operations)
+.sp
+Default value: \fB52,428,800\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_per_txg_dirty_frees_percent \fR (ulong)
+.ad
+.RS 12n
+Tunable to control percentage of dirtied blocks from frees in one TXG.
+After this threshold is crossed, additional dirty blocks from frees
+wait until the next TXG.
+A value of zero will disable this throttle.
+.sp
+Default value: \fB30\fR and \fB0\fR to disable.
+.RE
+
+
 
 .sp
 .ne 2
@@ -991,7 +1577,10 @@ Default value: \fB100\fR.
 \fBzfs_prefetch_disable\fR (int)
 .ad
 .RS 12n
-Disable all ZFS prefetching
+This tunable disables predictive prefetch.  Note that it leaves "prescient"
+prefetch (e.g. prefetch for zfs send) intact.  Unlike predictive prefetch,
+prescient prefetch never issues i/os that end up not being needed, so it
+can't hurt performance.
 .sp
 Use \fB1\fR for yes and \fB0\fR for no (default).
 .RE
@@ -1013,9 +1602,10 @@ Default value: \fB1,048,576\fR.
 \fBzfs_read_history\fR (int)
 .ad
 .RS 12n
-Historic statistics for the last N reads
+Historical statistics for the last N reads will be available in
+\fB/proc/spl/kstat/zfs/<pool>/reads\fR
 .sp
-Default value: \fB0\fR.
+Default value: \fB0\fR (no data is kept).
 .RE
 
 .sp
@@ -1060,7 +1650,8 @@ Default value: \fB2\fR.
 \fBzfs_resilver_min_time_ms\fR (int)
 .ad
 .RS 12n
-Min millisecs to resilver per txg
+Resilvers are processed by the sync thread. While resilvering it will spend
+at least this much time working on a resilver between txg flushes.
 .sp
 Default value: \fB3,000\fR.
 .RE
@@ -1085,7 +1676,8 @@ Default value: \fB50\fR.
 \fBzfs_scan_min_time_ms\fR (int)
 .ad
 .RS 12n
-Min millisecs to scrub per txg
+Scrubs are processed by the sync thread. While scrubbing it will spend
+at least this much time working on a scrub between txg flushes.
 .sp
 Default value: \fB1,000\fR.
 .RE
@@ -1109,7 +1701,7 @@ Default value: \fB4\fR.
 \fBzfs_send_corrupt_data\fR (int)
 .ad
 .RS 12n
-Allow to send corrupt data (ignore read/checksum errors when sending data)
+Allow sending of corrupt data (ignore read/checksum errors when sending data)
 .sp
 Use \fB1\fR for yes and \fB0\fR for no (default).
 .RE
@@ -1120,7 +1712,7 @@ Use \fB1\fR for yes and \fB0\fR for no (default).
 \fBzfs_sync_pass_deferred_free\fR (int)
 .ad
 .RS 12n
-Defer frees starting in this pass
+Flushing of data to disk is done in passes. Defer frees starting in this pass
 .sp
 Default value: \fB2\fR.
 .RE
@@ -1142,7 +1734,7 @@ Default value: \fB5\fR.
 \fBzfs_sync_pass_rewrite\fR (int)
 .ad
 .RS 12n
-Rewrite new bps starting in this pass
+Rewrite new block pointers starting in this pass
 .sp
 Default value: \fB2\fR.
 .RE
@@ -1153,7 +1745,8 @@ Default value: \fB2\fR.
 \fBzfs_top_maxinflight\fR (int)
 .ad
 .RS 12n
-Max I/Os per top-level vdev during scrub or resilver operations.
+Max concurrent I/Os per top-level vdev (mirrors or raidz arrays) allowed during
+scrub or resilver operations.
 .sp
 Default value: \fB32\fR.
 .RE
@@ -1164,7 +1757,8 @@ Default value: \fB32\fR.
 \fBzfs_txg_history\fR (int)
 .ad
 .RS 12n
-Historic statistics for the last N txgs
+Historical statistics for the last N txgs will be available in
+\fB/proc/spl/kstat/zfs/<pool>/txgs\fR
 .sp
 Default value: \fB0\fR.
 .RE
@@ -1175,7 +1769,7 @@ Default value: \fB0\fR.
 \fBzfs_txg_timeout\fR (int)
 .ad
 .RS 12n
-Max seconds worth of delta per txg
+Flush dirty data to disk at least every N seconds (maximum txg duration)
 .sp
 Default value: \fB5\fR.
 .RE
@@ -1199,7 +1793,7 @@ Default value: \fB131,072\fR.
 .RS 12n
 Shift size to inflate reads too
 .sp
-Default value: \fB16\fR.
+Default value: \fB16\fR (effectively 65536).
 .RE
 
 .sp
@@ -1208,7 +1802,10 @@ Default value: \fB16\fR.
 \fBzfs_vdev_cache_max\fR (int)
 .ad
 .RS 12n
-Inflate reads small than max
+Inflate reads small than this value to meet the \fBzfs_vdev_cache_bshift\fR
+size.
+.sp
+Default value: \fB16384\fR.
 .RE
 
 .sp
@@ -1217,7 +1814,10 @@ Inflate reads small than max
 \fBzfs_vdev_cache_size\fR (int)
 .ad
 .RS 12n
-Total size of the per-disk cache
+Total size of the per-disk cache in bytes.
+.sp
+Currently this feature is disabled as it has been found to not be helpful
+for performance and in some cases harmful.
 .sp
 Default value: \fB0\fR.
 .RE
@@ -1225,12 +1825,71 @@ Default value: \fB0\fR.
 .sp
 .ne 2
 .na
-\fBzfs_vdev_mirror_switch_us\fR (int)
+\fBzfs_vdev_mirror_rotating_inc\fR (int)
 .ad
 .RS 12n
-Switch mirrors every N usecs
+A number by which the balancing algorithm increments the load calculation for
+the purpose of selecting the least busy mirror member when an I/O immediately
+follows its predecessor on rotational vdevs for the purpose of making decisions
+based on load.
 .sp
-Default value: \fB10,000\fR.
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_mirror_rotating_seek_inc\fR (int)
+.ad
+.RS 12n
+A number by which the balancing algorithm increments the load calculation for
+the purpose of selecting the least busy mirror member when an I/O lacks
+locality as defined by the zfs_vdev_mirror_rotating_seek_offset.  I/Os within
+this that are not immediately following the previous I/O are incremented by
+half.
+.sp
+Default value: \fB5\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_mirror_rotating_seek_offset\fR (int)
+.ad
+.RS 12n
+The maximum distance for the last queued I/O in which the balancing algorithm
+considers an I/O to have locality.
+See the section "ZFS I/O SCHEDULER".
+.sp
+Default value: \fB1048576\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_mirror_non_rotating_inc\fR (int)
+.ad
+.RS 12n
+A number by which the balancing algorithm increments the load calculation for
+the purpose of selecting the least busy mirror member on non-rotational vdevs
+when I/Os do not immediately follow one another.
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_mirror_non_rotating_seek_inc\fR (int)
+.ad
+.RS 12n
+A number by which the balancing algorithm increments the load calculation for
+the purpose of selecting the least busy mirror member when an I/O lacks
+locality as defined by the zfs_vdev_mirror_rotating_seek_offset. I/Os within
+this that are not immediately following the previous I/O are incremented by
+half.
+.sp
+Default value: \fB1\fR.
 .RE
 
 .sp
@@ -1239,7 +1898,8 @@ Default value: \fB10,000\fR.
 \fBzfs_vdev_read_gap_limit\fR (int)
 .ad
 .RS 12n
-Aggregate read I/O over gap
+Aggregate read I/O operations if the gap on-disk between them is within this
+threshold.
 .sp
 Default value: \fB32,768\fR.
 .RE
@@ -1250,7 +1910,7 @@ Default value: \fB32,768\fR.
 \fBzfs_vdev_scheduler\fR (charp)
 .ad
 .RS 12n
-I/O scheduler
+Set the Linux I/O scheduler on whole disk vdevs to this scheduler
 .sp
 Default value: \fBnoop\fR.
 .RE
@@ -1269,10 +1929,42 @@ Default value: \fB4,096\fR.
 .sp
 .ne 2
 .na
+\fBzfs_vdev_raidz_impl\fR (string)
+.ad
+.RS 12n
+Parameter for selecting raidz parity implementation to use.
+
+Options marked (always) below may be selected on module load as they are
+supported on all systems.
+The remaining options may only be set after the module is loaded, as they
+are available only if the implementations are compiled in and supported
+on the running system.
+
+Once the module is loaded, the content of
+/sys/module/zfs/parameters/zfs_vdev_raidz_impl will show available options
+with the currently selected one enclosed in [].
+Possible options are:
+  fastest  - (always) implementation selected using built-in benchmark
+  original - (always) original raidz implementation
+  scalar   - (always) scalar raidz implementation
+  sse2     - implementation using SSE2 instruction set (64bit x86 only)
+  ssse3    - implementation using SSSE3 instruction set (64bit x86 only)
+  avx2     - implementation using AVX2 instruction set (64bit x86 only)
+  avx512f  - implementation using AVX512F instruction set (64bit x86 only)
+  avx512bw - implementation using AVX512F & AVX512BW instruction sets (64bit x86 only)
+  aarch64_neon - implementation using NEON (Aarch64/64 bit ARMv8 only)
+  aarch64_neonx2 - implementation using NEON with more unrolling (Aarch64/64 bit ARMv8 only)
+.sp
+Default value: \fBfastest\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_zevent_cols\fR (int)
 .ad
 .RS 12n
-Max event column width
+When zevents are logged to the console use this as the word wrap width.
 .sp
 Default value: \fB80\fR.
 .RE
@@ -1294,7 +1986,9 @@ Use \fB1\fR for yes and \fB0\fR for no (default).
 \fBzfs_zevent_len_max\fR (int)
 .ad
 .RS 12n
-Max event queue length
+Max event queue length. A value of 0 will result in a calculated value which
+increases with the number of CPUs in the system (minimum 64 events). Events
+in the queue can be viewed with the \fBzpool events\fR command.
 .sp
 Default value: \fB0\fR.
 .RE
@@ -1305,7 +1999,8 @@ Default value: \fB0\fR.
 \fBzil_replay_disable\fR (int)
 .ad
 .RS 12n
-Disable intent logging replay
+Disable intent logging replay. Can be disabled for recovery from corrupted
+ZIL
 .sp
 Use \fB1\fR for yes and \fB0\fR for no (default).
 .RE
@@ -1313,23 +2008,14 @@ Use \fB1\fR for yes and \fB0\fR for no (default).
 .sp
 .ne 2
 .na
-\fBzil_slog_limit\fR (ulong)
+\fBzil_slog_bulk\fR (ulong)
 .ad
 .RS 12n
-Max commit bytes to separate log device
+Limit SLOG write size per commit executed with synchronous priority.
+Any writes above that will be executed with lower (asynchronous) priority
+to limit potential SLOG device abuse by single active ZIL writer.
 .sp
-Default value: \fB1,048,576\fR.
-.RE
-
-.sp
-.ne 2
-.na
-\fBzio_bulk_flags\fR (int)
-.ad
-.RS 12n
-Additional flags to pass to bulk buffers
-.sp
-Default value: \fB0\fR.
+Default value: \fB786,432\fR.
 .RE
 
 .sp
@@ -1338,7 +2024,9 @@ Default value: \fB0\fR.
 \fBzio_delay_max\fR (int)
 .ad
 .RS 12n
-Max zio millisec delay before posting event
+A zevent will be logged if a ZIO operation takes more than N milliseconds to
+complete. Note that this is only a logging facility, not a timeout on
+operations.
 .sp
 Default value: \fB30,000\fR.
 .RE
@@ -1346,12 +2034,15 @@ Default value: \fB30,000\fR.
 .sp
 .ne 2
 .na
-\fBzio_injection_enabled\fR (int)
+\fBzio_dva_throttle_enabled\fR (int)
 .ad
 .RS 12n
-Enable fault injection
+Throttle block allocations in the ZIO pipeline. This allows for
+dynamic allocation distribution when devices are imbalanced.
+When enabled, the maximum number of pending allocations per top-level vdev
+is limited by \fBzfs_vdev_queue_depth_pct\fR.
 .sp
-Use \fB1\fR for yes and \fB0\fR for no (default).
+Default value: \fB1\fR.
 .RE
 
 .sp
@@ -1368,10 +2059,28 @@ Default value: \fB0\fR.
 .sp
 .ne 2
 .na
+\fBzio_taskq_batch_pct\fR (uint)
+.ad
+.RS 12n
+Percentage of online CPUs (or CPU cores, etc) which will run a worker thread
+for IO. These workers are responsible for IO work such as compression and
+checksum calculations. Fractional number of CPUs will be rounded down.
+.sp
+The default value of 75 was chosen to avoid using all CPUs which can result in
+latency issues and inconsistent application performance, especially when high
+compression is enabled.
+.sp
+Default value: \fB75\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzvol_inhibit_dev\fR (uint)
 .ad
 .RS 12n
-Do not create zvol device nodes
+Do not create zvol device nodes. This may slightly improve startup time on
+systems with a very large number of zvols.
 .sp
 Use \fB1\fR for yes and \fB0\fR for no (default).
 .RE
@@ -1382,7 +2091,7 @@ Use \fB1\fR for yes and \fB0\fR for no (default).
 \fBzvol_major\fR (uint)
 .ad
 .RS 12n
-Major number for zvol device
+Major number for zvol block devices
 .sp
 Default value: \fB230\fR.
 .RE
@@ -1393,9 +2102,40 @@ Default value: \fB230\fR.
 \fBzvol_max_discard_blocks\fR (ulong)
 .ad
 .RS 12n
-Max number of blocks to discard at once
+Discard (aka TRIM) operations done on zvols will be done in batches of this
+many blocks, where block size is determined by the \fBvolblocksize\fR property
+of a zvol.
 .sp
 Default value: \fB16,384\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzvol_prefetch_bytes\fR (uint)
+.ad
+.RS 12n
+When adding a zvol to the system prefetch \fBzvol_prefetch_bytes\fR
+from the start and end of the volume.  Prefetching these regions
+of the volume is desirable because they are likely to be accessed
+immediately by \fBblkid(8)\fR or by the kernel scanning for a partition
+table.
+.sp
+Default value: \fB131,072\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzvol_request_sync\fR (uint)
+.ad
+.RS 12n
+When processing I/O requests for a zvol submit them synchronously.  This
+effectively limits the queue depth to 1 for each I/O submitter.  When set
+to 0 requests are handled asynchronously by a thread pool.  The number of
+requests which can be handled concurrently is controller by \fBzvol_threads\fR.
+.sp
+Default value: \fB0\fR.
 .RE
 
 .sp
@@ -1404,9 +2144,34 @@ Default value: \fB16,384\fR.
 \fBzvol_threads\fR (uint)
 .ad
 .RS 12n
-Number of threads for zvol device
+Max number of threads which can handle zvol I/O requests concurrently.
 .sp
 Default value: \fB32\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzvol_volmode\fR (uint)
+.ad
+.RS 12n
+Defines zvol block devices behaviour when \fBvolmode\fR is set to \fBdefault\fR.
+Valid values are \fB1\fR (full), \fB2\fR (dev) and \fB3\fR (none).
+.sp
+Default value: \fB1\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_qat_disable\fR (int)
+.ad
+.RS 12n
+This tunable disables qat hardware acceleration for gzip compression.
+It is available only if qat acceleration is compiled in and qat driver
+is present.
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
 .RE
 
 .SH ZFS I/O SCHEDULER

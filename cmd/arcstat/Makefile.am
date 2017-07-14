@@ -1,2 +1,1 @@
-bin_SCRIPTS = arcstat.py
-EXTRA_DIST = $(bin_SCRIPTS)
+dist_bin_SCRIPTS = arcstat.py

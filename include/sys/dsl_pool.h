@@ -20,7 +20,8 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2017 by Delphix. All rights reserved.
+ * Copyright 2016 Nexenta Systems, Inc.  All rights reserved.
  */
 
 #ifndef	_SYS_DSL_POOL_H
@@ -37,6 +38,7 @@
 #include <sys/bpobj.h>
 #include <sys/bptree.h>
 #include <sys/rrwlock.h>
+#include <sys/mmp.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -106,6 +108,7 @@ typedef struct dsl_pool {
 	kcondvar_t dp_spaceavail_cv;
 	uint64_t dp_dirty_pertxg[TXG_SIZE];
 	uint64_t dp_dirty_total;
+	uint64_t dp_long_free_dirty_pertxg[TXG_SIZE];
 	uint64_t dp_mos_used_delta;
 	uint64_t dp_mos_compressed_delta;
 	uint64_t dp_mos_uncompressed_delta;
@@ -122,6 +125,7 @@ typedef struct dsl_pool {
 	txg_list_t dp_dirty_zilogs;
 	txg_list_t dp_dirty_dirs;
 	txg_list_t dp_sync_tasks;
+	taskq_t *dp_sync_taskq;
 
 	/*
 	 * Protects administrative changes (properties, namespace)
@@ -156,8 +160,10 @@ void dsl_pool_mos_diduse_space(dsl_pool_t *dp,
     int64_t used, int64_t comp, int64_t uncomp);
 boolean_t dsl_pool_need_dirty_delay(dsl_pool_t *dp);
 void dsl_pool_config_enter(dsl_pool_t *dp, void *tag);
+void dsl_pool_config_enter_prio(dsl_pool_t *dp, void *tag);
 void dsl_pool_config_exit(dsl_pool_t *dp, void *tag);
 boolean_t dsl_pool_config_held(dsl_pool_t *dp);
+boolean_t dsl_pool_config_held_writer(dsl_pool_t *dp);
 
 taskq_t *dsl_pool_iput_taskq(dsl_pool_t *dp);
 

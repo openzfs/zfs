@@ -23,7 +23,7 @@
  * Use is subject to license terms.
  */
 /*
- * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -38,15 +38,12 @@
 #include <sys/zfeature.h>
 
 /*
- * This value controls how the space map's block size is allowed to grow.
- * If the value is set to the same size as SPACE_MAP_INITIAL_BLOCKSIZE then
- * the space map block size will remain fixed. Setting this value to something
- * greater than SPACE_MAP_INITIAL_BLOCKSIZE will allow the space map to
- * increase its block size as needed. To maintain backwards compatibilty the
- * space map's block size must be a power of 2 and SPACE_MAP_INITIAL_BLOCKSIZE
- * or larger.
+ * The data for a given space map can be kept on blocks of any size.
+ * Larger blocks entail fewer i/o operations, but they also cause the
+ * DMU to keep more data in-core, and also to waste more i/o bandwidth
+ * when only a few blocks have changed since the last transaction group.
  */
-int space_map_max_blksz = (1 << 12);
+int space_map_blksz = (1 << 12);
 
 /*
  * Load the space map disk into the specified range tree. Segments of maptype
@@ -75,12 +72,12 @@ space_map_load(space_map_t *sm, range_tree_t *rt, maptype_t maptype)
 	}
 
 	bufsize = MAX(sm->sm_blksz, SPA_MINBLOCKSIZE);
-	entry_map = zio_buf_alloc(bufsize);
+	entry_map = vmem_alloc(bufsize, KM_SLEEP);
 
 	mutex_exit(sm->sm_lock);
 	if (end > bufsize) {
-		dmu_prefetch(sm->sm_os, space_map_object(sm), bufsize,
-		    end - bufsize);
+		dmu_prefetch(sm->sm_os, space_map_object(sm), 0, bufsize,
+		    end - bufsize, ZIO_PRIORITY_SYNC_READ);
 	}
 	mutex_enter(sm->sm_lock);
 
@@ -131,7 +128,7 @@ space_map_load(space_map_t *sm, range_tree_t *rt, maptype_t maptype)
 	else
 		range_tree_vacate(rt, NULL, NULL);
 
-	zio_buf_free(entry_map, bufsize);
+	vmem_free(entry_map, bufsize);
 	return (error);
 }
 
@@ -176,7 +173,6 @@ space_map_histogram_add(space_map_t *sm, range_tree_t *rt, dmu_tx_t *tx)
 	dmu_buf_will_dirty(sm->sm_dbuf, tx);
 
 	ASSERT(space_map_histogram_verify(sm, rt));
-
 	/*
 	 * Transfer the content of the range tree histogram to the space
 	 * map histogram. The space map histogram contains 32 buckets ranging
@@ -236,58 +232,6 @@ space_map_entries(space_map_t *sm, range_tree_t *rt)
 	return (entries);
 }
 
-void
-space_map_set_blocksize(space_map_t *sm, uint64_t size, dmu_tx_t *tx)
-{
-	uint32_t blksz;
-	u_longlong_t blocks;
-
-	ASSERT3U(sm->sm_blksz, !=, 0);
-	ASSERT3U(space_map_object(sm), !=, 0);
-	ASSERT(sm->sm_dbuf != NULL);
-	VERIFY(ISP2(space_map_max_blksz));
-
-	if (sm->sm_blksz >= space_map_max_blksz)
-		return;
-
-	/*
-	 * The object contains more than one block so we can't adjust
-	 * its size.
-	 */
-	if (sm->sm_phys->smp_objsize > sm->sm_blksz)
-		return;
-
-	if (size > sm->sm_blksz) {
-		uint64_t newsz;
-
-		/*
-		 * Older software versions treat space map blocks as fixed
-		 * entities. The DMU is capable of handling different block
-		 * sizes making it possible for us to increase the
-		 * block size and maintain backwards compatibility. The
-		 * caveat is that the new block sizes must be a
-		 * power of 2 so that old software can append to the file,
-		 * adding more blocks. The block size can grow until it
-		 * reaches space_map_max_blksz.
-		 */
-		newsz = ISP2(size) ? size : 1ULL << highbit64(size);
-		if (newsz > space_map_max_blksz)
-			newsz = space_map_max_blksz;
-
-		VERIFY0(dmu_object_set_blocksize(sm->sm_os,
-		    space_map_object(sm), newsz, 0, tx));
-		dmu_object_size_from_db(sm->sm_dbuf, &blksz, &blocks);
-
-		zfs_dbgmsg("txg %llu, spa %s, increasing blksz from %d to %d",
-		    dmu_tx_get_txg(tx), spa_name(dmu_objset_spa(sm->sm_os)),
-		    sm->sm_blksz, blksz);
-
-		VERIFY3U(newsz, ==, blksz);
-		VERIFY3U(sm->sm_blksz, <, blksz);
-		sm->sm_blksz = blksz;
-	}
-}
-
 /*
  * Note: space_map_write() will drop sm_lock across dmu_write() calls.
  */
@@ -301,7 +245,7 @@ space_map_write(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
 	range_seg_t *rs;
 	uint64_t size, total, rt_space, nodes;
 	uint64_t *entry, *entry_map, *entry_map_end;
-	uint64_t newsz, expected_entries, actual_entries = 1;
+	uint64_t expected_entries, actual_entries = 1;
 
 	ASSERT(MUTEX_HELD(rt->rt_lock));
 	ASSERT(dsl_pool_sync_context(dmu_objset_pool(os)));
@@ -327,14 +271,7 @@ space_map_write(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
 
 	expected_entries = space_map_entries(sm, rt);
 
-	/*
-	 * Calculate the new size for the space map on-disk and see if
-	 * we can grow the block size to accommodate the new size.
-	 */
-	newsz = sm->sm_phys->smp_objsize + expected_entries * sizeof (uint64_t);
-	space_map_set_blocksize(sm, newsz, tx);
-
-	entry_map = zio_buf_alloc(sm->sm_blksz);
+	entry_map = vmem_alloc(sm->sm_blksz, KM_SLEEP);
 	entry_map_end = entry_map + (sm->sm_blksz / sizeof (uint64_t));
 	entry = entry_map;
 
@@ -397,7 +334,7 @@ space_map_write(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
 	VERIFY3U(range_tree_space(rt), ==, rt_space);
 	VERIFY3U(range_tree_space(rt), ==, total);
 
-	zio_buf_free(entry_map, sm->sm_blksz);
+	vmem_free(entry_map, sm->sm_blksz);
 }
 
 static int
@@ -426,7 +363,7 @@ space_map_open(space_map_t **smp, objset_t *os, uint64_t object,
 	ASSERT(os != NULL);
 	ASSERT(object != 0);
 
-	sm = kmem_alloc(sizeof (space_map_t), KM_PUSHPAGE);
+	sm = kmem_alloc(sizeof (space_map_t), KM_SLEEP);
 
 	sm->sm_start = start;
 	sm->sm_size = size;
@@ -465,46 +402,50 @@ space_map_close(space_map_t *sm)
 	kmem_free(sm, sizeof (*sm));
 }
 
-static void
-space_map_reallocate(space_map_t *sm, dmu_tx_t *tx)
-{
-	ASSERT(dmu_tx_is_syncing(tx));
-
-	space_map_free(sm, tx);
-	dmu_buf_rele(sm->sm_dbuf, sm);
-
-	sm->sm_object = space_map_alloc(sm->sm_os, tx);
-	VERIFY0(space_map_open_impl(sm));
-}
-
 void
 space_map_truncate(space_map_t *sm, dmu_tx_t *tx)
 {
 	objset_t *os = sm->sm_os;
 	spa_t *spa = dmu_objset_spa(os);
 	dmu_object_info_t doi;
-	int bonuslen;
 
 	ASSERT(dsl_pool_sync_context(dmu_objset_pool(os)));
 	ASSERT(dmu_tx_is_syncing(tx));
+	VERIFY3U(dmu_tx_get_txg(tx), <=, spa_final_dirty_txg(spa));
 
-	VERIFY0(dmu_free_range(os, space_map_object(sm), 0, -1ULL, tx));
 	dmu_object_info_from_db(sm->sm_dbuf, &doi);
 
-	if (spa_feature_is_enabled(spa, SPA_FEATURE_SPACEMAP_HISTOGRAM)) {
-		bonuslen = sizeof (space_map_phys_t);
-		ASSERT3U(bonuslen, <=, dmu_bonus_max());
-	} else {
-		bonuslen = SPACE_MAP_SIZE_V0;
-	}
+	/*
+	 * If the space map has the wrong bonus size (because
+	 * SPA_FEATURE_SPACEMAP_HISTOGRAM has recently been enabled), or
+	 * the wrong block size (because space_map_blksz has changed),
+	 * free and re-allocate its object with the updated sizes.
+	 *
+	 * Otherwise, just truncate the current object.
+	 */
+	if ((spa_feature_is_enabled(spa, SPA_FEATURE_SPACEMAP_HISTOGRAM) &&
+	    doi.doi_bonus_size != sizeof (space_map_phys_t)) ||
+	    doi.doi_data_block_size != space_map_blksz) {
+		zfs_dbgmsg("txg %llu, spa %s, sm %p, reallocating "
+		    "object[%llu]: old bonus %u, old blocksz %u",
+		    dmu_tx_get_txg(tx), spa_name(spa), sm, sm->sm_object,
+		    doi.doi_bonus_size, doi.doi_data_block_size);
 
-	if (bonuslen != doi.doi_bonus_size ||
-	    doi.doi_data_block_size != SPACE_MAP_INITIAL_BLOCKSIZE) {
-		zfs_dbgmsg("txg %llu, spa %s, reallocating: "
-		    "old bonus %u, old blocksz %u", dmu_tx_get_txg(tx),
-		    spa_name(spa), doi.doi_bonus_size, doi.doi_data_block_size);
-		space_map_reallocate(sm, tx);
-		VERIFY3U(sm->sm_blksz, ==, SPACE_MAP_INITIAL_BLOCKSIZE);
+		space_map_free(sm, tx);
+		dmu_buf_rele(sm->sm_dbuf, sm);
+
+		sm->sm_object = space_map_alloc(sm->sm_os, tx);
+		VERIFY0(space_map_open_impl(sm));
+	} else {
+		VERIFY0(dmu_free_range(os, space_map_object(sm), 0, -1ULL, tx));
+
+		/*
+		 * If the spacemap is reallocated, its histogram
+		 * will be reset.  Do the same in the common case so that
+		 * bugs related to the uncommon case do not go unnoticed.
+		 */
+		bzero(sm->sm_phys->smp_histogram,
+		    sizeof (sm->sm_phys->smp_histogram));
 	}
 
 	dmu_buf_will_dirty(sm->sm_dbuf, tx);
@@ -543,7 +484,7 @@ space_map_alloc(objset_t *os, dmu_tx_t *tx)
 	}
 
 	object = dmu_object_alloc(os,
-	    DMU_OT_SPACE_MAP, SPACE_MAP_INITIAL_BLOCKSIZE,
+	    DMU_OT_SPACE_MAP, space_map_blksz,
 	    DMU_OT_SPACE_MAP_HEADER, bonuslen, tx);
 
 	return (object);

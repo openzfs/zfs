@@ -24,6 +24,8 @@
  * Use is subject to license terms.
  *
  * Portions Copyright 2007 Ramprakash Jelari
+ * Copyright (c) 2014, 2015 by Delphix. All rights reserved.
+ * Copyright 2016 Igor Kozhukhov <ikozhukhov@gmail.com>
  */
 
 #include <libintl.h>
@@ -131,6 +133,7 @@ changelist_prefix(prop_changelist_t *clp)
 			case ZFS_PROP_SHARESMB:
 				(void) zfs_unshare_smb(cn->cn_handle, NULL);
 				break;
+
 			default:
 				break;
 			}
@@ -287,7 +290,7 @@ void
 changelist_rename(prop_changelist_t *clp, const char *src, const char *dst)
 {
 	prop_changenode_t *cn;
-	char newname[ZFS_MAXNAMELEN];
+	char newname[ZFS_MAX_DATASET_NAME_LEN];
 
 	for (cn = uu_list_first(clp->cl_list); cn != NULL;
 	    cn = uu_list_next(clp->cl_list, cn)) {
@@ -303,7 +306,8 @@ changelist_rename(prop_changelist_t *clp, const char *src, const char *dst)
 		remove_mountpoint(cn->cn_handle);
 
 		(void) strlcpy(newname, dst, sizeof (newname));
-		(void) strcat(newname, cn->cn_handle->zfs_name + strlen(src));
+		(void) strlcat(newname, cn->cn_handle->zfs_name + strlen(src),
+		    sizeof (newname));
 
 		(void) strlcpy(cn->cn_handle->zfs_name, newname,
 		    sizeof (cn->cn_handle->zfs_name));
@@ -395,8 +399,8 @@ change_one(zfs_handle_t *zhp, void *data)
 	char property[ZFS_MAXPROPLEN];
 	char where[64];
 	prop_changenode_t *cn;
-	zprop_source_t sourcetype;
-	zprop_source_t share_sourcetype;
+	zprop_source_t sourcetype = ZPROP_SRC_NONE;
+	zprop_source_t share_sourcetype = ZPROP_SRC_NONE;
 
 	/*
 	 * We only want to unmount/unshare those filesystems that may inherit

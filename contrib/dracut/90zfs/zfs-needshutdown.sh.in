@@ -1,0 +1,10 @@
+#!/bin/sh
+
+type getarg >/dev/null 2>&1 || . /lib/dracut-lib.sh
+
+if zpool list 2>&1 | grep -q 'no pools available' ; then
+    info "ZFS: No active pools, no need to export anything."
+else
+    info "ZFS: There is an active pool, will export it."
+    need_shutdown
+fi

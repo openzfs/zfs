@@ -23,6 +23,8 @@
  * Use is subject to license terms.
  */
 
+#include <ctype.h>
+#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
@@ -37,14 +39,14 @@ static int
 ioctl_get_msg(char *var, int fd)
 {
 	int error = 0;
-	char msg[ZFS_MAXNAMELEN];
+	char msg[ZFS_MAX_DATASET_NAME_LEN];
 
 	error = ioctl(fd, BLKZNAME, msg);
 	if (error < 0) {
 		return (error);
 	}
 
-	snprintf(var, ZFS_MAXNAMELEN, "%s", msg);
+	snprintf(var, ZFS_MAX_DATASET_NAME_LEN, "%s", msg);
 	return (error);
 }
 
@@ -52,10 +54,12 @@ int
 main(int argc, char **argv)
 {
 	int fd, error = 0;
-	char zvol_name[ZFS_MAXNAMELEN], zvol_name_part[ZFS_MAXNAMELEN];
+	char zvol_name[ZFS_MAX_DATASET_NAME_LEN];
+	char zvol_name_part[ZFS_MAX_DATASET_NAME_LEN];
 	char *dev_name;
 	struct stat64 statbuf;
 	int dev_minor, dev_part;
+	int i;
 
 	if (argc < 2) {
 		printf("Usage: %s /dev/zvol_device_node\n", argv[0]);
@@ -84,10 +88,16 @@ main(int argc, char **argv)
 		return (errno);
 	}
 	if (dev_part > 0)
-		snprintf(zvol_name_part, ZFS_MAXNAMELEN, "%s-part%d", zvol_name,
-		    dev_part);
+		snprintf(zvol_name_part, ZFS_MAX_DATASET_NAME_LEN,
+		    "%s-part%d", zvol_name, dev_part);
 	else
-		snprintf(zvol_name_part, ZFS_MAXNAMELEN, "%s", zvol_name);
+		snprintf(zvol_name_part, ZFS_MAX_DATASET_NAME_LEN,
+		    "%s", zvol_name);
+
+	for (i = 0; i < strlen(zvol_name_part); i++) {
+		if (isblank(zvol_name_part[i]))
+			zvol_name_part[i] = '+';
+	}
 
 	printf("%s\n", zvol_name_part);
 	close(fd);

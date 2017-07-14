@@ -1,5 +1,7 @@
 include $(top_srcdir)/config/Rules.am
 
+VPATH = $(top_srcdir)/module/unicode
+
 AM_CFLAGS += $(DEBUG_STACKFLAGS) $(FRAME_LARGER_THAN)
 
 DEFAULT_INCLUDES += \
@@ -8,6 +10,14 @@ DEFAULT_INCLUDES += \
 
 noinst_LTLIBRARIES = libunicode.la
 
-libunicode_la_SOURCES = \
-	$(top_srcdir)/module/unicode/u8_textprep.c \
-	$(top_srcdir)/module/unicode/uconv.c
+USER_C =
+
+KERNEL_C = \
+	u8_textprep.c \
+	uconv.c
+
+nodist_libunicode_la_SOURCES = \
+	$(USER_C) \
+	$(KERNEL_C)
+
+EXTRA_DIST = $(USER_C)

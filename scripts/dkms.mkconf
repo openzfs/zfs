@@ -27,7 +27,7 @@ PRE_BUILD="configure
   --with-config=kernel
   --with-linux=\${kernel_source_dir}
   --with-linux-obj=\${kernel_source_dir}
-  --with-spl=\${dkms_tree}/spl/\${PACKAGE_VERSION}/build
+  --with-spl=\${source_tree}/spl-\${PACKAGE_VERSION}
   --with-spl-obj=\${dkms_tree}/spl/\${PACKAGE_VERSION}/\${kernelver}/\${arch}
   --with-spl-timeout=300
   \$(
@@ -47,7 +47,7 @@ PRE_BUILD="configure
     }
   )
 "
-POST_INSTALL="scripts/dkms.postinst
+POST_BUILD="scripts/dkms.postbuild
   -n \${PACKAGE_NAME}
   -v \${PACKAGE_VERSION}
   -a \${arch}
@@ -70,6 +70,7 @@ STRIP[2]="\${STRIP[0]}"
 STRIP[3]="\${STRIP[0]}"
 STRIP[4]="\${STRIP[0]}"
 STRIP[5]="\${STRIP[0]}"
+STRIP[6]="\${STRIP[0]}"
 BUILT_MODULE_NAME[0]="zavl"
 BUILT_MODULE_LOCATION[0]="module/avl/"
 DEST_MODULE_LOCATION[0]="/extra/avl/avl"
@@ -88,4 +89,7 @@ DEST_MODULE_LOCATION[4]="/extra/zfs/zfs"
 BUILT_MODULE_NAME[5]="zpios"
 BUILT_MODULE_LOCATION[5]="module/zpios/"
 DEST_MODULE_LOCATION[5]="/extra/zpios/zpios"
+BUILT_MODULE_NAME[6]="icp"
+BUILT_MODULE_LOCATION[6]="module/icp/"
+DEST_MODULE_LOCATION[6]="/extra/icp/icp"
 EOF

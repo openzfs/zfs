@@ -1,27 +1,15 @@
 /*
- * CDDL HEADER START
- *
- * The contents of this file are subject to the terms of the
- * Common Development and Distribution License (the "License").
- * You may not use this file except in compliance with the License.
- *
- * You can obtain a copy of the license from the top-level
- * OPENSOLARIS.LICENSE or <http://opensource.org/licenses/CDDL-1.0>.
- * See the License for the specific language governing permissions
- * and limitations under the License.
- *
- * When distributing Covered Code, include this CDDL HEADER in each file
- * and include the License file from the top-level OPENSOLARIS.LICENSE.
- * If applicable, add the following below this CDDL HEADER, with the
- * fields enclosed by brackets "[]" replaced with your own identifying
- * information: Portions Copyright [yyyy] [name of copyright owner]
- *
- * CDDL HEADER END
- */
-
-/*
+ * This file is part of the ZFS Event Daemon (ZED)
+ * for ZFS on Linux (ZoL) <http://zfsonlinux.org/>.
  * Developed at Lawrence Livermore National Laboratory (LLNL-CODE-403049).
  * Copyright (C) 2013-2014 Lawrence Livermore National Security, LLC.
+ * Refer to the ZoL git commit log for authoritative copyright attribution.
+ *
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License Version 1.0 (CDDL-1.0).
+ * You can obtain a copy of the license from the top-level file
+ * "OPENSOLARIS.LICENSE" or at <http://opensource.org/licenses/CDDL-1.0>.
+ * You may not use this file except in compliance with the license.
  */
 
 #include <assert.h>
@@ -40,15 +28,15 @@ struct zed_strings {
 
 struct zed_strings_node {
 	avl_node_t node;
-	char string[];
+	char *key;
+	char *val;
 };
 
 typedef struct zed_strings_node zed_strings_node_t;
 
 /*
  * Compare zed_strings_node_t nodes [x1] and [x2].
- * As required for the AVL tree, return exactly
- *   -1 for <, 0 for ==, and +1 for >.
+ * As required for the AVL tree, return -1 for <, 0 for ==, and +1 for >.
  */
 static int
 _zed_strings_node_compare(const void *x1, const void *x2)
@@ -60,9 +48,9 @@ _zed_strings_node_compare(const void *x1, const void *x2)
 	assert(x1 != NULL);
 	assert(x2 != NULL);
 
-	s1 = ((const zed_strings_node_t *) x1)->string;
+	s1 = ((const zed_strings_node_t *) x1)->key;
 	assert(s1 != NULL);
-	s2 = ((const zed_strings_node_t *) x2)->string;
+	s2 = ((const zed_strings_node_t *) x2)->key;
 	assert(s2 != NULL);
 	rv = strcmp(s1, s2);
 
@@ -83,11 +71,10 @@ zed_strings_create(void)
 {
 	zed_strings_t *zsp;
 
-	zsp = malloc(sizeof (*zsp));
+	zsp = calloc(1, sizeof (*zsp));
 	if (!zsp)
 		return (NULL);
 
-	memset(zsp, 0, sizeof (*zsp));
 	avl_create(&zsp->tree, _zed_strings_node_compare,
 	    sizeof (zed_strings_node_t), offsetof(zed_strings_node_t, node));
 
@@ -96,7 +83,62 @@ zed_strings_create(void)
 }
 
 /*
- * Destroy the string container [zsp] and all strings within.
+ * Destroy the string node [np].
+ */
+static void
+_zed_strings_node_destroy(zed_strings_node_t *np)
+{
+	if (!np)
+		return;
+
+	if (np->key) {
+		if (np->key != np->val)
+			free(np->key);
+		np->key = NULL;
+	}
+	if (np->val) {
+		free(np->val);
+		np->val = NULL;
+	}
+	free(np);
+}
+
+/*
+ * Return a new string node for storing the string [val], or NULL on error.
+ * If [key] is specified, it will be used to index the node; otherwise,
+ * the string [val] will be used.
+ */
+zed_strings_node_t *
+_zed_strings_node_create(const char *key, const char *val)
+{
+	zed_strings_node_t *np;
+
+	assert(val != NULL);
+
+	np = calloc(1, sizeof (*np));
+	if (!np)
+		return (NULL);
+
+	np->val = strdup(val);
+	if (!np->val)
+		goto nomem;
+
+	if (key) {
+		np->key = strdup(key);
+		if (!np->key)
+			goto nomem;
+	} else {
+		np->key = np->val;
+	}
+	return (np);
+
+nomem:
+	_zed_strings_node_destroy(np);
+	return (NULL);
+}
+
+/*
+ * Destroy the string container [zsp] and all nodes within.
  */
 void
 zed_strings_destroy(zed_strings_t *zsp)
@@ -109,36 +151,41 @@ zed_strings_destroy(zed_strings_t *zsp)
 
 	cookie = NULL;
 	while ((np = avl_destroy_nodes(&zsp->tree, &cookie)))
-		free(np);
+		_zed_strings_node_destroy(np);
 
 	avl_destroy(&zsp->tree);
 	free(zsp);
 }
 
 /*
- * Add a copy of the string [s] to the container [zsp].
+ * Add a copy of the string [s] indexed by [key] to the container [zsp].
+ * If [key] already exists within the container [zsp], it will be replaced
+ * with the new string [s].
+ * If [key] is NULL, the string [s] will be used as the key.
  * Return 0 on success, or -1 on error.
- * FIXME: Handle dup strings.
  */
 int
-zed_strings_add(zed_strings_t *zsp, const char *s)
+zed_strings_add(zed_strings_t *zsp, const char *key, const char *s)
 {
-	size_t len;
-	zed_strings_node_t *np;
+	zed_strings_node_t *newp, *oldp;
 
 	if (!zsp || !s) {
 		errno = EINVAL;
 		return (-1);
 	}
-	len = sizeof (zed_strings_node_t) + strlen(s) + 1;
-	np = malloc(len);
-	if (!np)
+	if (key == s)
+		key = NULL;
+
+	newp = _zed_strings_node_create(key, s);
+	if (!newp)
 		return (-1);
 
-	memset(np, 0, len);
-	assert((char *) np->string + strlen(s) < (char *) np + len);
-	(void) strcpy(np->string, s);
-	avl_add(&zsp->tree, np);
+	oldp = avl_find(&zsp->tree, newp, NULL);
+	if (oldp) {
+		avl_remove(&zsp->tree, oldp);
+		_zed_strings_node_destroy(oldp);
+	}
+	avl_add(&zsp->tree, newp);
 	return (0);
 }
 
@@ -159,7 +206,7 @@ zed_strings_first(zed_strings_t *zsp)
 	if (!zsp->iteratorp)
 		return (NULL);
 
-	return (((zed_strings_node_t *) zsp->iteratorp)->string);
+	return (((zed_strings_node_t *)zsp->iteratorp)->val);
 
 }
 
@@ -183,7 +230,7 @@ zed_strings_next(zed_strings_t *zsp)
 	if (!zsp->iteratorp)
 		return (NULL);
 
-	return (((zed_strings_node_t *)zsp->iteratorp)->string);
+	return (((zed_strings_node_t *)zsp->iteratorp)->val);
 }
 
 /*

@@ -1,27 +1,15 @@
 /*
- * CDDL HEADER START
- *
- * The contents of this file are subject to the terms of the
- * Common Development and Distribution License (the "License").
- * You may not use this file except in compliance with the License.
- *
- * You can obtain a copy of the license from the top-level
- * OPENSOLARIS.LICENSE or <http://opensource.org/licenses/CDDL-1.0>.
- * See the License for the specific language governing permissions
- * and limitations under the License.
- *
- * When distributing Covered Code, include this CDDL HEADER in each file
- * and include the License file from the top-level OPENSOLARIS.LICENSE.
- * If applicable, add the following below this CDDL HEADER, with the
- * fields enclosed by brackets "[]" replaced with your own identifying
- * information: Portions Copyright [yyyy] [name of copyright owner]
- *
- * CDDL HEADER END
- */
-
-/*
+ * This file is part of the ZFS Event Daemon (ZED)
+ * for ZFS on Linux (ZoL) <http://zfsonlinux.org/>.
  * Developed at Lawrence Livermore National Laboratory (LLNL-CODE-403049).
  * Copyright (C) 2013-2014 Lawrence Livermore National Security, LLC.
+ * Refer to the ZoL git commit log for authoritative copyright attribution.
+ *
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License Version 1.0 (CDDL-1.0).
+ * You can obtain a copy of the license from the top-level file
+ * "OPENSOLARIS.LICENSE" or at <http://opensource.org/licenses/CDDL-1.0>.
+ * You may not use this file except in compliance with the license.
  */
 
 #include <assert.h>
@@ -32,6 +20,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <time.h>
 #include <unistd.h>
 #include "zed_file.h"
 #include "zed_log.h"
@@ -41,7 +30,7 @@
 
 /*
  * Create an environment string array for passing to execve() using the
- *   NAME=VALUE strings in container [zsp].
+ * NAME=VALUE strings in container [zsp].
  * Return a newly-allocated environment, or NULL on error.
  */
 static char **
@@ -61,11 +50,11 @@ _zed_exec_create_env(zed_strings_t *zsp)
 	for (q = zed_strings_first(zsp); q; q = zed_strings_next(zsp))
 		buflen += strlen(q) + 1;
 
-	buf = malloc(buflen);
+	buf = calloc(1, buflen);
 	if (!buf)
 		return (NULL);
 
-	pp = (char **) buf;
+	pp = (char **)buf;
 	p = buf + (num_ptrs * sizeof (char *));
 	i = 0;
 	for (q = zed_strings_first(zsp); q; q = zed_strings_next(zsp)) {
@@ -77,14 +66,15 @@ _zed_exec_create_env(zed_strings_t *zsp)
 	}
 	pp[i] = NULL;
 	assert(buf + buflen == p);
-	return ((char **) buf);
+	return ((char **)buf);
 }
 
 /*
  * Fork a child process to handle event [eid].  The program [prog]
- *   in directory [dir] is executed with the envionment [env].
+ * in directory [dir] is executed with the environment [env].
+ *
  * The file descriptor [zfd] is the zevent_fd used to track the
- *   current cursor location within the zevent nvlist.
+ * current cursor location within the zevent nvlist.
  */
 static void
 _zed_exec_fork_child(uint64_t eid, const char *dir, const char *prog,
@@ -117,27 +107,48 @@ _zed_exec_fork_child(uint64_t eid, const char *dir, const char *prog,
 		return;
 	} else if (pid == 0) {
 		(void) umask(022);
-		fd = open("/dev/null", O_RDWR);
-		(void) dup2(fd, STDIN_FILENO);
-		(void) dup2(fd, STDOUT_FILENO);
-		(void) dup2(fd, STDERR_FILENO);
+		if ((fd = open("/dev/null", O_RDWR)) != -1) {
+			(void) dup2(fd, STDIN_FILENO);
+			(void) dup2(fd, STDOUT_FILENO);
+			(void) dup2(fd, STDERR_FILENO);
+		}
 		(void) dup2(zfd, ZEVENT_FILENO);
 		zed_file_close_from(ZEVENT_FILENO + 1);
 		execle(path, prog, NULL, env);
 		_exit(127);
-	} else {
-		zed_log_msg(LOG_INFO, "Invoking \"%s\" eid=%llu pid=%d",
-		    prog, eid, pid);
-		/* FIXME: Timeout rogue child processes with sigalarm? */
-restart:
-		wpid = waitpid(pid, &status, 0);
-		if (wpid == (pid_t) -1) {
+	}
+
+	/* parent process */
+
+	zed_log_msg(LOG_INFO, "Invoking \"%s\" eid=%llu pid=%d",
+	    prog, eid, pid);
+
+	/* FIXME: Timeout rogue child processes with sigalarm? */
+
+	/*
+	 * Wait for child process using WNOHANG to limit
+	 * the time spent waiting to 10 seconds (10,000ms).
+	 */
+	for (n = 0; n < 1000; n++) {
+		wpid = waitpid(pid, &status, WNOHANG);
+		if (wpid == (pid_t)-1) {
 			if (errno == EINTR)
-				goto restart;
+				continue;
 			zed_log_msg(LOG_WARNING,
 			    "Failed to wait for \"%s\" eid=%llu pid=%d",
 			    prog, eid, pid);
-		} else if (WIFEXITED(status)) {
+			break;
+		} else if (wpid == 0) {
+			struct timespec t;
+
+			/* child still running */
+			t.tv_sec = 0;
+			t.tv_nsec = 10000000;	/* 10ms */
+			(void) nanosleep(&t, NULL);
+			continue;
+		}
+
+		if (WIFEXITED(status)) {
 			zed_log_msg(LOG_INFO,
 			    "Finished \"%s\" eid=%llu pid=%d exit=%d",
 			    prog, eid, pid, WEXITSTATUS(status));
@@ -151,33 +162,46 @@ restart:
 			    "Finished \"%s\" eid=%llu pid=%d status=0x%X",
 			    prog, eid, (unsigned int) status);
 		}
+		break;
+	}
+
+	/*
+	 * kill child process after 10 seconds
+	 */
+	if (wpid == 0) {
+		zed_log_msg(LOG_WARNING, "Killing hung \"%s\" pid=%d",
+		    prog, pid);
+		(void) kill(pid, SIGKILL);
 	}
 }
 
 /*
- * Process the event [eid] by synchronously invoking all scripts with a
- *   matching class prefix.
- * Each executable in [scripts] from the directory [dir] is matched against
- *   the event's [class], [subclass], and the "all" class (which matches
- *   all events).  Every script with a matching class prefix is invoked.
- *   The NAME=VALUE strings in [envs] will be passed to the script as
- *   environment variables.
+ * Process the event [eid] by synchronously invoking all zedlets with a
+ * matching class prefix.
+ *
+ * Each executable in [zedlets] from the directory [dir] is matched against
+ * the event's [class], [subclass], and the "all" class (which matches
+ * all events).  Every zedlet with a matching class prefix is invoked.
+ * The NAME=VALUE strings in [envs] will be passed to the zedlet as
+ * environment variables.
+ *
  * The file descriptor [zfd] is the zevent_fd used to track the
- *   current cursor location within the zevent nvlist.
+ * current cursor location within the zevent nvlist.
+ *
  * Return 0 on success, -1 on error.
  */
 int
 zed_exec_process(uint64_t eid, const char *class, const char *subclass,
-    const char *dir, zed_strings_t *scripts, zed_strings_t *envs, int zfd)
+    const char *dir, zed_strings_t *zedlets, zed_strings_t *envs, int zfd)
 {
 	const char *class_strings[4];
 	const char *allclass = "all";
 	const char **csp;
-	const char *s;
+	const char *z;
 	char **e;
 	int n;
 
-	if (!dir || !scripts || !envs || zfd < 0)
+	if (!dir || !zedlets || !envs || zfd < 0)
 		return (-1);
 
 	csp = class_strings;
@@ -195,11 +219,11 @@ zed_exec_process(uint64_t eid, const char *class, const char *subclass,
 
 	e = _zed_exec_create_env(envs);
 
-	for (s = zed_strings_first(scripts); s; s = zed_strings_next(scripts)) {
+	for (z = zed_strings_first(zedlets); z; z = zed_strings_next(zedlets)) {
 		for (csp = class_strings; *csp; csp++) {
 			n = strlen(*csp);
-			if ((strncmp(s, *csp, n) == 0) && !isalpha(s[n]))
-				_zed_exec_fork_child(eid, dir, s, e, zfd);
+			if ((strncmp(z, *csp, n) == 0) && !isalpha(z[n]))
+				_zed_exec_fork_child(eid, dir, z, e, zfd);
 		}
 	}
 	free(e);

@@ -33,7 +33,7 @@
 
 #define	FREAD	1
 #define	FWRITE	2
-// #define FAPPEND  8
+// #define	FAPPEND  8
 
 #define	FCREAT	O_CREAT
 #define	FTRUNC	O_TRUNC

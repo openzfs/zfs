@@ -21,12 +21,15 @@
 
 /*
  * Copyright (C) 2011 Lawrence Livermore National Security, LLC.
+ * Copyright (C) 2015 Jörg Thalheim.
  */
 
 #ifndef _ZFS_VFS_H
 #define	_ZFS_VFS_H
 
 #include <sys/taskq.h>
+#include <sys/cred.h>
+#include <linux/backing-dev.h>
 
 /*
  * 2.6.28 API change,
@@ -64,40 +67,120 @@ truncate_setsize(struct inode *ip, loff_t new)
 }
 #endif /* HAVE_TRUNCATE_SETSIZE */
 
-#if defined(HAVE_BDI) && !defined(HAVE_BDI_SETUP_AND_REGISTER)
 /*
- * 2.6.34 API change,
- * Add bdi_setup_and_register() function if not yet provided by kernel.
- * It is used to quickly initialize and register a BDI for the filesystem.
+ * 2.6.32 - 2.6.33, bdi_setup_and_register() is not available.
+ * 2.6.34 - 3.19, bdi_setup_and_register() takes 3 arguments.
+ * 4.0 - 4.11, bdi_setup_and_register() takes 2 arguments.
+ * 4.12 - x.y, super_setup_bdi_name() new interface.
  */
+#if defined(HAVE_SUPER_SETUP_BDI_NAME)
 extern atomic_long_t zfs_bdi_seq;
 
 static inline int
-bdi_setup_and_register(
-	struct backing_dev_info *bdi,
-	char *name,
-	unsigned int cap)
+zpl_bdi_setup(struct super_block *sb, char *name)
 {
-	char tmp[32];
+	return super_setup_bdi_name(sb, "%.28s-%ld", name,
+	    atomic_long_inc_return(&zfs_bdi_seq));
+}
+static inline void
+zpl_bdi_destroy(struct super_block *sb)
+{
+}
+#elif defined(HAVE_2ARGS_BDI_SETUP_AND_REGISTER)
+static inline int
+zpl_bdi_setup(struct super_block *sb, char *name)
+{
+	struct backing_dev_info *bdi;
 	int error;
 
-	bdi->name = name;
-	bdi->capabilities = cap;
-	error = bdi_init(bdi);
-	if (error)
-		return (error);
-
-	sprintf(tmp, "%.28s%s", name, "-%d");
-	error = bdi_register(bdi, NULL, tmp,
-	    atomic_long_inc_return(&zfs_bdi_seq));
+	bdi = kmem_zalloc(sizeof (struct backing_dev_info), KM_SLEEP);
+	error = bdi_setup_and_register(bdi, name);
 	if (error) {
-		bdi_destroy(bdi);
+		kmem_free(bdi, sizeof (struct backing_dev_info));
 		return (error);
 	}
 
-	return (error);
+	sb->s_bdi = bdi;
+
+	return (0);
 }
-#endif /* HAVE_BDI && !HAVE_BDI_SETUP_AND_REGISTER */
+static inline void
+zpl_bdi_destroy(struct super_block *sb)
+{
+	struct backing_dev_info *bdi = sb->s_bdi;
+
+	bdi_destroy(bdi);
+	kmem_free(bdi, sizeof (struct backing_dev_info));
+	sb->s_bdi = NULL;
+}
+#elif defined(HAVE_3ARGS_BDI_SETUP_AND_REGISTER)
+static inline int
+zpl_bdi_setup(struct super_block *sb, char *name)
+{
+	struct backing_dev_info *bdi;
+	int error;
+
+	bdi = kmem_zalloc(sizeof (struct backing_dev_info), KM_SLEEP);
+	error = bdi_setup_and_register(bdi, name, BDI_CAP_MAP_COPY);
+	if (error) {
+		kmem_free(sb->s_bdi, sizeof (struct backing_dev_info));
+		return (error);
+	}
+
+	sb->s_bdi = bdi;
+
+	return (0);
+}
+static inline void
+zpl_bdi_destroy(struct super_block *sb)
+{
+	struct backing_dev_info *bdi = sb->s_bdi;
+
+	bdi_destroy(bdi);
+	kmem_free(bdi, sizeof (struct backing_dev_info));
+	sb->s_bdi = NULL;
+}
+#else
+extern atomic_long_t zfs_bdi_seq;
+
+static inline int
+zpl_bdi_setup(struct super_block *sb, char *name)
+{
+	struct backing_dev_info *bdi;
+	int error;
+
+	bdi = kmem_zalloc(sizeof (struct backing_dev_info), KM_SLEEP);
+	bdi->name = name;
+	bdi->capabilities = BDI_CAP_MAP_COPY;
+
+	error = bdi_init(bdi);
+	if (error) {
+		kmem_free(bdi, sizeof (struct backing_dev_info));
+		return (error);
+	}
+
+	error = bdi_register(bdi, NULL, "%.28s-%ld", name,
+	    atomic_long_inc_return(&zfs_bdi_seq));
+	if (error) {
+		bdi_destroy(bdi);
+		kmem_free(bdi, sizeof (struct backing_dev_info));
+		return (error);
+	}
+
+	sb->s_bdi = bdi;
+
+	return (0);
+}
+static inline void
+zpl_bdi_destroy(struct super_block *sb)
+{
+	struct backing_dev_info *bdi = sb->s_bdi;
+
+	bdi_destroy(bdi);
+	kmem_free(bdi, sizeof (struct backing_dev_info));
+	sb->s_bdi = NULL;
+}
+#endif
 
 /*
  * 2.6.38 API change,
@@ -190,22 +273,11 @@ lseek_execute(
  * At 60 seconds the kernel will also begin issuing RCU stall warnings.
  */
 #include <linux/posix_acl.h>
-#ifndef HAVE_POSIX_ACL_CACHING
-#define	ACL_NOT_CACHED ((void *)(-1))
-#endif /* HAVE_POSIX_ACL_CACHING */
 
 #if defined(HAVE_POSIX_ACL_RELEASE) && !defined(HAVE_POSIX_ACL_RELEASE_GPL_ONLY)
-
 #define	zpl_posix_acl_release(arg)		posix_acl_release(arg)
-#define	zpl_set_cached_acl(ip, ty, n)		set_cached_acl(ip, ty, n)
-#define	zpl_forget_cached_acl(ip, ty)		forget_cached_acl(ip, ty)
-
 #else
-
-static inline void
-zpl_posix_acl_free(void *arg) {
-	kfree(arg);
-}
+void zpl_posix_acl_release_impl(struct posix_acl *);
 
 static inline void
 zpl_posix_acl_release(struct posix_acl *acl)
@@ -213,15 +285,18 @@ zpl_posix_acl_release(struct posix_acl *acl)
 	if ((acl == NULL) || (acl == ACL_NOT_CACHED))
 		return;
 
-	if (atomic_dec_and_test(&acl->a_refcount)) {
-		taskq_dispatch_delay(system_taskq, zpl_posix_acl_free, acl,
-		    TQ_SLEEP, ddi_get_lbolt() + 60*HZ);
-	}
+	if (atomic_dec_and_test(&acl->a_refcount))
+		zpl_posix_acl_release_impl(acl);
 }
+#endif /* HAVE_POSIX_ACL_RELEASE */
 
+#ifdef HAVE_SET_CACHED_ACL_USABLE
+#define	zpl_set_cached_acl(ip, ty, n)		set_cached_acl(ip, ty, n)
+#define	zpl_forget_cached_acl(ip, ty)		forget_cached_acl(ip, ty)
+#else
 static inline void
-zpl_set_cached_acl(struct inode *ip, int type, struct posix_acl *newer) {
-#ifdef HAVE_POSIX_ACL_CACHING
+zpl_set_cached_acl(struct inode *ip, int type, struct posix_acl *newer)
+{
 	struct posix_acl *older = NULL;
 
 	spin_lock(&ip->i_lock);
@@ -243,14 +318,14 @@ zpl_set_cached_acl(struct inode *ip, int type, struct posix_acl *newer) {
 	spin_unlock(&ip->i_lock);
 
 	zpl_posix_acl_release(older);
-#endif /* HAVE_POSIX_ACL_CACHING */
 }
 
 static inline void
-zpl_forget_cached_acl(struct inode *ip, int type) {
+zpl_forget_cached_acl(struct inode *ip, int type)
+{
 	zpl_set_cached_acl(ip, type, (struct posix_acl *)ACL_NOT_CACHED);
 }
-#endif /* HAVE_POSIX_ACL_RELEASE */
+#endif /* HAVE_SET_CACHED_ACL_USABLE */
 
 #ifndef HAVE___POSIX_ACL_CHMOD
 #ifdef HAVE_POSIX_ACL_CHMOD
@@ -258,7 +333,8 @@ zpl_forget_cached_acl(struct inode *ip, int type) {
 #define	__posix_acl_create(acl, gfp, mode)	posix_acl_create(acl, gfp, mode)
 #else
 static inline int
-__posix_acl_chmod(struct posix_acl **acl, int flags, umode_t umode) {
+__posix_acl_chmod(struct posix_acl **acl, int flags, umode_t umode)
+{
 	struct posix_acl *oldacl = *acl;
 	mode_t mode = umode;
 	int error;
@@ -279,7 +355,8 @@ __posix_acl_chmod(struct posix_acl **acl, int flags, umode_t umode) {
 }
 
 static inline int
-__posix_acl_create(struct posix_acl **acl, int flags, umode_t *umodep) {
+__posix_acl_create(struct posix_acl **acl, int flags, umode_t *umodep)
+{
 	struct posix_acl *oldacl = *acl;
 	mode_t mode = *umodep;
 	int error;
@@ -308,15 +385,19 @@ typedef umode_t zpl_equivmode_t;
 #else
 typedef mode_t zpl_equivmode_t;
 #endif /* HAVE_POSIX_ACL_EQUIV_MODE_UMODE_T */
-#endif /* CONFIG_FS_POSIX_ACL */
 
-#ifndef HAVE_CURRENT_UMASK
-static inline int
-current_umask(void)
-{
-	return (current->fs->umask);
-}
-#endif /* HAVE_CURRENT_UMASK */
+/*
+ * 4.8 API change,
+ * posix_acl_valid() now must be passed a namespace, the namespace from
+ * from super block associated with the given inode is used for this purpose.
+ */
+#ifdef HAVE_POSIX_ACL_VALID_WITH_NS
+#define	zpl_posix_acl_valid(ip, acl)  posix_acl_valid(ip->i_sb->s_user_ns, acl)
+#else
+#define	zpl_posix_acl_valid(ip, acl)  posix_acl_valid(acl)
+#endif
+
+#endif /* CONFIG_FS_POSIX_ACL */
 
 /*
  * 2.6.38 API change,
@@ -327,5 +408,174 @@ current_umask(void)
 #else
 #define	zpl_inode_owner_or_capable(ip)		is_owner_or_cap(ip)
 #endif /* HAVE_INODE_OWNER_OR_CAPABLE */
+
+/*
+ * 3.19 API change
+ * struct access f->f_dentry->d_inode was replaced by accessor function
+ * file_inode(f)
+ */
+#ifndef HAVE_FILE_INODE
+static inline struct inode *file_inode(const struct file *f)
+{
+	return (f->f_dentry->d_inode);
+}
+#endif /* HAVE_FILE_INODE */
+
+/*
+ * 4.1 API change
+ * struct access file->f_path.dentry was replaced by accessor function
+ * file_dentry(f)
+ */
+#ifndef HAVE_FILE_DENTRY
+static inline struct dentry *file_dentry(const struct file *f)
+{
+	return (f->f_path.dentry);
+}
+#endif /* HAVE_FILE_DENTRY */
+
+#ifdef HAVE_KUID_HELPERS
+static inline uid_t zfs_uid_read_impl(struct inode *ip)
+{
+#ifdef HAVE_SUPER_USER_NS
+	return (from_kuid(ip->i_sb->s_user_ns, ip->i_uid));
+#else
+	return (from_kuid(kcred->user_ns, ip->i_uid));
+#endif
+}
+
+static inline uid_t zfs_uid_read(struct inode *ip)
+{
+	return (zfs_uid_read_impl(ip));
+}
+
+static inline gid_t zfs_gid_read_impl(struct inode *ip)
+{
+#ifdef HAVE_SUPER_USER_NS
+	return (from_kgid(ip->i_sb->s_user_ns, ip->i_gid));
+#else
+	return (from_kgid(kcred->user_ns, ip->i_gid));
+#endif
+}
+
+static inline gid_t zfs_gid_read(struct inode *ip)
+{
+	return (zfs_gid_read_impl(ip));
+}
+
+static inline void zfs_uid_write(struct inode *ip, uid_t uid)
+{
+#ifdef HAVE_SUPER_USER_NS
+	ip->i_uid = make_kuid(ip->i_sb->s_user_ns, uid);
+#else
+	ip->i_uid = make_kuid(kcred->user_ns, uid);
+#endif
+}
+
+static inline void zfs_gid_write(struct inode *ip, gid_t gid)
+{
+#ifdef HAVE_SUPER_USER_NS
+	ip->i_gid = make_kgid(ip->i_sb->s_user_ns, gid);
+#else
+	ip->i_gid = make_kgid(kcred->user_ns, gid);
+#endif
+}
+
+#else
+static inline uid_t zfs_uid_read(struct inode *ip)
+{
+	return (ip->i_uid);
+}
+
+static inline gid_t zfs_gid_read(struct inode *ip)
+{
+	return (ip->i_gid);
+}
+
+static inline void zfs_uid_write(struct inode *ip, uid_t uid)
+{
+	ip->i_uid = uid;
+}
+
+static inline void zfs_gid_write(struct inode *ip, gid_t gid)
+{
+	ip->i_gid = gid;
+}
+#endif
+
+/*
+ * 2.6.38 API change
+ */
+#ifdef HAVE_FOLLOW_DOWN_ONE
+#define	zpl_follow_down_one(path)		follow_down_one(path)
+#define	zpl_follow_up(path)			follow_up(path)
+#else
+#define	zpl_follow_down_one(path)		follow_down(path)
+#define	zpl_follow_up(path)			follow_up(path)
+#endif
+
+/*
+ * 4.9 API change
+ */
+#ifndef HAVE_SETATTR_PREPARE
+static inline int
+setattr_prepare(struct dentry *dentry, struct iattr *ia)
+{
+	return (inode_change_ok(dentry->d_inode, ia));
+}
+#endif
+
+/*
+ * 4.11 API change
+ * These macros are defined by kernel 4.11.  We define them so that the same
+ * code builds under kernels < 4.11 and >= 4.11.  The macros are set to 0 so
+ * that it will create obvious failures if they are accidentally used when built
+ * against a kernel >= 4.11.
+ */
+
+#ifndef STATX_BASIC_STATS
+#define	STATX_BASIC_STATS	0
+#endif
+
+#ifndef AT_STATX_SYNC_AS_STAT
+#define	AT_STATX_SYNC_AS_STAT	0
+#endif
+
+/*
+ * 4.11 API change
+ * 4.11 takes struct path *, < 4.11 takes vfsmount *
+ */
+
+#ifdef HAVE_VFSMOUNT_IOPS_GETATTR
+#define	ZPL_GETATTR_WRAPPER(func)					\
+static int								\
+func(struct vfsmount *mnt, struct dentry *dentry, struct kstat *stat)	\
+{									\
+	struct path path = { .mnt = mnt, .dentry = dentry };		\
+	return func##_impl(&path, stat, STATX_BASIC_STATS,		\
+	    AT_STATX_SYNC_AS_STAT);					\
+}
+#elif defined(HAVE_PATH_IOPS_GETATTR)
+#define	ZPL_GETATTR_WRAPPER(func)					\
+static int								\
+func(const struct path *path, struct kstat *stat, u32 request_mask,	\
+    unsigned int query_flags)						\
+{									\
+	return (func##_impl(path, stat, request_mask, query_flags));	\
+}
+#else
+#error
+#endif
+
+/*
+ * 4.9 API change
+ * Preferred interface to get the current FS time.
+ */
+#if !defined(HAVE_CURRENT_TIME)
+static inline struct timespec
+current_time(struct inode *ip)
+{
+	return (timespec_trunc(current_kernel_time(), ip->i_sb->s_time_gran));
+}
+#endif
 
 #endif /* _ZFS_VFS_H */

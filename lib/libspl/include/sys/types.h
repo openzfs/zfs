@@ -27,10 +27,15 @@
 #ifndef _LIBSPL_SYS_TYPES_H
 #define	_LIBSPL_SYS_TYPES_H
 
+#if defined(HAVE_MAKEDEV_IN_SYSMACROS)
+#include <sys/sysmacros.h>
+#elif defined(HAVE_MAKEDEV_IN_MKDEV)
+#include <sys/mkdev.h>
+#endif
+
 #include <sys/isa_defs.h>
 #include <sys/feature_tests.h>
 #include_next <sys/types.h>
-#include <sys/param.h> /* for NBBY */
 #include <sys/types32.h>
 #include <sys/va_list.h>
 
@@ -53,13 +58,8 @@ typedef u_longlong_t	u_offset_t;
 typedef u_longlong_t	len_t;
 typedef longlong_t	diskaddr_t;
 
-typedef ulong_t		pfn_t;		/* page frame number */
 typedef ulong_t		pgcnt_t;	/* number of pages */
 typedef long		spgcnt_t;	/* signed number of pages */
-
-typedef longlong_t	hrtime_t;
-typedef struct timespec	timestruc_t;
-typedef struct timespec timespec_t;
 
 typedef short		pri_t;
 
@@ -70,6 +70,7 @@ typedef int		major_t;
 typedef int		minor_t;
 
 typedef ushort_t o_mode_t; /* old file attribute type */
+typedef short		index_t;
 
 /*
  * Definitions remaining from previous partial support for 64-bit file
@@ -95,5 +96,7 @@ typedef union {
 	} _p;
 } lloff_t;
 #endif
+
+#include <sys/param.h> /* for NBBY */
 
 #endif

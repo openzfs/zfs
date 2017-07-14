@@ -20,6 +20,8 @@
  */
 /*
  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2014, 2015 by Delphix. All rights reserved.
+ * Copyright 2016 The MathWorks, Inc. All rights reserved.
  */
 
 /*
@@ -37,12 +39,13 @@
  * function calls.
  */
 #include <sys/zrlock.h>
+#include <sys/trace_zrlock.h>
 
 /*
  * A ZRL can be locked only while there are zero references, so ZRL_LOCKED is
  * treated as zero references.
  */
-#define	ZRL_LOCKED	((uint32_t)-1)
+#define	ZRL_LOCKED	-1
 #define	ZRL_DESTROYED	-2
 
 void
@@ -60,7 +63,7 @@ zrl_init(zrlock_t *zrl)
 void
 zrl_destroy(zrlock_t *zrl)
 {
-	ASSERT(zrl->zr_refcount == 0);
+	ASSERT0(zrl->zr_refcount);
 
 	mutex_destroy(&zrl->zr_mtx);
 	zrl->zr_refcount = ZRL_DESTROYED;
@@ -68,43 +71,34 @@ zrl_destroy(zrlock_t *zrl)
 }
 
 void
-#ifdef	ZFS_DEBUG
-zrl_add_debug(zrlock_t *zrl, const char *zc)
-#else
-zrl_add(zrlock_t *zrl)
-#endif
+zrl_add_impl(zrlock_t *zrl, const char *zc)
 {
-	uint32_t n = (uint32_t)zrl->zr_refcount;
-
-	while (n != ZRL_LOCKED) {
-		uint32_t cas = atomic_cas_32(
-		    (uint32_t *)&zrl->zr_refcount, n, n + 1);
-		if (cas == n) {
-			ASSERT((int32_t)n >= 0);
+	for (;;) {
+		uint32_t n = (uint32_t)zrl->zr_refcount;
+		while (n != ZRL_LOCKED) {
+			uint32_t cas = atomic_cas_32(
+			    (uint32_t *)&zrl->zr_refcount, n, n + 1);
+			if (cas == n) {
+				ASSERT3S((int32_t)n, >=, 0);
 #ifdef	ZFS_DEBUG
-			if (zrl->zr_owner == curthread) {
-				DTRACE_PROBE2(zrlock__reentry,
-				    zrlock_t *, zrl, uint32_t, n);
+				if (zrl->zr_owner == curthread) {
+					DTRACE_PROBE2(zrlock__reentry,
+					    zrlock_t *, zrl, uint32_t, n);
+				}
+				zrl->zr_owner = curthread;
+				zrl->zr_caller = zc;
+#endif
+				return;
 			}
-			zrl->zr_owner = curthread;
-			zrl->zr_caller = zc;
-#endif
-			return;
+			n = cas;
 		}
-		n = cas;
-	}
 
-	mutex_enter(&zrl->zr_mtx);
-	while (zrl->zr_refcount == ZRL_LOCKED) {
-		cv_wait(&zrl->zr_cv, &zrl->zr_mtx);
+		mutex_enter(&zrl->zr_mtx);
+		while (zrl->zr_refcount == ZRL_LOCKED) {
+			cv_wait(&zrl->zr_cv, &zrl->zr_mtx);
+		}
+		mutex_exit(&zrl->zr_mtx);
 	}
-	ASSERT(zrl->zr_refcount >= 0);
-	zrl->zr_refcount++;
-#ifdef	ZFS_DEBUG
-	zrl->zr_owner = curthread;
-	zrl->zr_caller = zc;
-#endif
-	mutex_exit(&zrl->zr_mtx);
 }
 
 void
@@ -112,14 +106,14 @@ zrl_remove(zrlock_t *zrl)
 {
 	uint32_t n;
 
-	n = atomic_dec_32_nv((uint32_t *)&zrl->zr_refcount);
-	ASSERT((int32_t)n >= 0);
 #ifdef	ZFS_DEBUG
 	if (zrl->zr_owner == curthread) {
 		zrl->zr_owner = NULL;
 		zrl->zr_caller = NULL;
 	}
 #endif
+	n = atomic_dec_32_nv((uint32_t *)&zrl->zr_refcount);
+	ASSERT3S((int32_t)n, >=, 0);
 }
 
 int
@@ -132,14 +126,14 @@ zrl_tryenter(zrlock_t *zrl)
 		    (uint32_t *)&zrl->zr_refcount, 0, ZRL_LOCKED);
 		if (cas == 0) {
 #ifdef	ZFS_DEBUG
-			ASSERT(zrl->zr_owner == NULL);
+			ASSERT3P(zrl->zr_owner, ==, NULL);
 			zrl->zr_owner = curthread;
 #endif
 			return (1);
 		}
 	}
 
-	ASSERT((int32_t)n > ZRL_DESTROYED);
+	ASSERT3S((int32_t)n, >, ZRL_DESTROYED);
 
 	return (0);
 }
@@ -147,11 +141,11 @@ zrl_tryenter(zrlock_t *zrl)
 void
 zrl_exit(zrlock_t *zrl)
 {
-	ASSERT(zrl->zr_refcount == ZRL_LOCKED);
+	ASSERT3S(zrl->zr_refcount, ==, ZRL_LOCKED);
 
 	mutex_enter(&zrl->zr_mtx);
 #ifdef	ZFS_DEBUG
-	ASSERT(zrl->zr_owner == curthread);
+	ASSERT3P(zrl->zr_owner, ==, curthread);
 	zrl->zr_owner = NULL;
 	membar_producer();	/* make sure the owner store happens first */
 #endif
@@ -165,7 +159,7 @@ zrl_refcount(zrlock_t *zrl)
 {
 	int n;
 
-	ASSERT(zrl->zr_refcount > ZRL_DESTROYED);
+	ASSERT3S(zrl->zr_refcount, >, ZRL_DESTROYED);
 
 	n = (int)zrl->zr_refcount;
 	return (n <= 0 ? 0 : n);
@@ -174,7 +168,7 @@ zrl_refcount(zrlock_t *zrl)
 int
 zrl_is_zero(zrlock_t *zrl)
 {
-	ASSERT(zrl->zr_refcount > ZRL_DESTROYED);
+	ASSERT3S(zrl->zr_refcount, >, ZRL_DESTROYED);
 
 	return (zrl->zr_refcount <= 0);
 }
@@ -182,7 +176,7 @@ zrl_is_zero(zrlock_t *zrl)
 int
 zrl_is_locked(zrlock_t *zrl)
 {
-	ASSERT(zrl->zr_refcount > ZRL_DESTROYED);
+	ASSERT3S(zrl->zr_refcount, >, ZRL_DESTROYED);
 
 	return (zrl->zr_refcount == ZRL_LOCKED);
 }
@@ -197,11 +191,7 @@ zrl_owner(zrlock_t *zrl)
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
 
-#ifdef ZFS_DEBUG
-EXPORT_SYMBOL(zrl_add_debug);
-#else
-EXPORT_SYMBOL(zrl_add);
-#endif
+EXPORT_SYMBOL(zrl_add_impl);
 EXPORT_SYMBOL(zrl_remove);
 
 #endif

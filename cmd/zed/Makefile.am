@@ -4,64 +4,89 @@ DEFAULT_INCLUDES += \
 	-I$(top_srcdir)/include \
 	-I$(top_srcdir)/lib/libspl/include
 
+EXTRA_DIST = zed.d/README
+
 sbin_PROGRAMS = zed
 
-zed_SOURCES = \
-	$(top_srcdir)/cmd/zed/zed.c \
-	$(top_srcdir)/cmd/zed/zed.h \
-	$(top_srcdir)/cmd/zed/zed_conf.c \
-	$(top_srcdir)/cmd/zed/zed_conf.h \
-	$(top_srcdir)/cmd/zed/zed_event.c \
-	$(top_srcdir)/cmd/zed/zed_event.h \
-	$(top_srcdir)/cmd/zed/zed_exec.c \
-	$(top_srcdir)/cmd/zed/zed_exec.h \
-	$(top_srcdir)/cmd/zed/zed_file.c \
-	$(top_srcdir)/cmd/zed/zed_file.h \
-	$(top_srcdir)/cmd/zed/zed_log.c \
-	$(top_srcdir)/cmd/zed/zed_log.h \
-	$(top_srcdir)/cmd/zed/zed_strings.c \
-	$(top_srcdir)/cmd/zed/zed_strings.h
+ZED_SRC = \
+	zed.c \
+	zed.h \
+	zed_conf.c \
+	zed_conf.h \
+	zed_disk_event.c \
+	zed_disk_event.h \
+	zed_event.c \
+	zed_event.h \
+	zed_exec.c \
+	zed_exec.h \
+	zed_file.c \
+	zed_file.h \
+	zed_log.c \
+	zed_log.h \
+	zed_strings.c \
+	zed_strings.h
+
+FMA_SRC = \
+	agents/zfs_agents.c \
+	agents/zfs_agents.h \
+	agents/zfs_diagnosis.c \
+	agents/zfs_mod.c \
+	agents/zfs_retire.c \
+	agents/fmd_api.c \
+	agents/fmd_api.h \
+	agents/fmd_serd.c \
+	agents/fmd_serd.h
+
+zed_SOURCES = $(ZED_SRC) $(FMA_SRC)
 
 zed_LDADD = \
 	$(top_builddir)/lib/libavl/libavl.la \
 	$(top_builddir)/lib/libnvpair/libnvpair.la \
 	$(top_builddir)/lib/libspl/libspl.la \
+	$(top_builddir)/lib/libuutil/libuutil.la \
+	$(top_builddir)/lib/libzpool/libzpool.la \
 	$(top_builddir)/lib/libzfs/libzfs.la \
 	$(top_builddir)/lib/libzfs_core/libzfs_core.la
+
+zed_LDFLAGS = -lrt -pthread
 
 zedconfdir = $(sysconfdir)/zfs/zed.d
 
 dist_zedconf_DATA = \
-	$(top_srcdir)/cmd/zed/zed.d/zed.rc
+	zed.d/zed-functions.sh \
+	zed.d/zed.rc
 
 zedexecdir = $(libexecdir)/zfs/zed.d
 
 dist_zedexec_SCRIPTS = \
-	$(top_srcdir)/cmd/zed/zed.d/all-debug.sh \
-	$(top_srcdir)/cmd/zed/zed.d/all-syslog.sh \
-	$(top_srcdir)/cmd/zed/zed.d/checksum-email.sh \
-	$(top_srcdir)/cmd/zed/zed.d/checksum-spare.sh \
-	$(top_srcdir)/cmd/zed/zed.d/data-email.sh \
-	$(top_srcdir)/cmd/zed/zed.d/generic-email.sh \
-	$(top_srcdir)/cmd/zed/zed.d/io-email.sh \
-	$(top_srcdir)/cmd/zed/zed.d/io-spare.sh \
-	$(top_srcdir)/cmd/zed/zed.d/resilver.finish-email.sh \
-	$(top_srcdir)/cmd/zed/zed.d/scrub.finish-email.sh
+	zed.d/all-debug.sh \
+	zed.d/all-syslog.sh \
+	zed.d/data-notify.sh \
+	zed.d/generic-notify.sh \
+	zed.d/resilver_finish-notify.sh \
+	zed.d/scrub_finish-notify.sh \
+	zed.d/statechange-led.sh \
+	zed.d/statechange-notify.sh \
+	zed.d/vdev_clear-led.sh \
+	zed.d/vdev_attach-led.sh \
+	zed.d/pool_import-led.sh
 
 zedconfdefaults = \
 	all-syslog.sh \
-	checksum-email.sh \
-	checksum-spare.sh \
-	data-email.sh \
-	io-email.sh \
-	io-spare.sh \
-	resilver.finish-email.sh \
-	scrub.finish-email.sh
+	data-notify.sh \
+	resilver_finish-notify.sh \
+	scrub_finish-notify.sh \
+	statechange-led.sh \
+	statechange-notify.sh \
+	vdev_clear-led.sh \
+	vdev_attach-led.sh \
+	pool_import-led.sh
 
-install-data-local:
+install-data-hook:
 	$(MKDIR_P) "$(DESTDIR)$(zedconfdir)"
 	for f in $(zedconfdefaults); do \
 	  test -f "$(DESTDIR)$(zedconfdir)/$${f}" -o \
 	       -L "$(DESTDIR)$(zedconfdir)/$${f}" || \
 	    ln -s "$(zedexecdir)/$${f}" "$(DESTDIR)$(zedconfdir)"; \
 	done
+	chmod 0600 "$(DESTDIR)$(zedconfdir)/zed.rc"

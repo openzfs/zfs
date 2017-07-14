@@ -1,0 +1,114 @@
+#
+# CDDL HEADER START
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright (c) 2015, 2016 by Delphix. All rights reserved.
+#
+
+function get_conf_section # regex conf
+{
+        typeset dsk_line next_vd_line conf section
+        typeset regex="$1"
+        typeset conf="$2"
+
+        dsk_line=$(grep -n "$regex" "$conf" | awk -F: '{print $1}')
+        if [[ -z "$dsk_line" ]]; then
+                return
+        fi
+        next_vd_line=$(tail -n +$dsk_line "$conf" | \
+                grep -n "children\[" | awk -F: '{print $1}' | head -n 1)
+
+        if [[ -n "$next_vd_line" ]]; then
+                section=$(cat "$conf" | sed "1,${dsk_line}d" | head -n \
+                        $(($next_vd_line - 2)))
+
+        else
+                section=$(tail -n +$dsk_line "$conf")
+        fi
+        echo "$section"
+}
+
+function get_leaf_vd_zap # dsk conf
+{
+        typeset section=$(get_conf_section "$1" "$2")
+        echo "$section" | egrep \
+                "com.delphix:vdev_zap_leaf: [0-9]+" | awk '{print $2}'
+}
+
+function get_top_vd_zap # dsk conf
+{
+        typeset section=$(get_conf_section "$1" "$2")
+        echo "$section" | egrep \
+                "com.delphix:vdev_zap_top: [0-9]+" | awk '{print $2}'
+}
+
+function assert_has_sentinel # conf
+{
+        res=$(grep "com.delphix:has_per_vdev_zaps" "$1")
+        [[ -z "$res" ]] && log_fail "Pool missing ZAP feature sentinel value"
+}
+
+function assert_zap_common # pool vd lvl zapobj
+{
+        typeset pool=$1
+        typeset vd="$2"
+        typeset lvl=$3
+        typeset zapobj=$4
+
+        if [[ -z "$zapobj" ]]; then
+                log_fail "$vd on $pool has no $lvl ZAP in config"
+        elif [[ -z "$(zdb -d $pool $zapobj | grep 'zap')" ]]; then
+                log_fail "$vd on $pool has no $lvl ZAP in MOS"
+        fi
+}
+
+function assert_top_zap # pool vd conf
+{
+        typeset pool=$1
+        typeset vd="$2"
+        typeset conf=$3
+
+        top_zap=$(get_top_vd_zap "$vd" $conf)
+        assert_zap_common $pool "$vd" "top" $top_zap
+}
+
+function assert_leaf_zap # pool vd conf
+{
+        typeset pool=$1
+        typeset vd="$2"
+        typeset conf=$3
+
+        leaf_zap=$(get_leaf_vd_zap "$vd" $conf)
+        assert_zap_common $pool "$vd" "leaf" $leaf_zap
+}
+
+#
+# Code common to setup/teardown for each test.
+#
+
+function cleanup
+{
+        if datasetexists $TESTPOOL ; then
+                log_must zpool destroy -f $TESTPOOL
+        fi
+        if [[ -e $conf ]]; then
+                log_must rm -f "$conf"
+        fi
+        if [[ -e $POOL2 ]]; then
+                log_must zpool destroy -f $POOL2
+        fi
+}
+
+log_onexit cleanup

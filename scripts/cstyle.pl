@@ -1,4 +1,4 @@
-#!/usr/bin/perl -w
+#!/usr/bin/env perl
 #
 # CDDL HEADER START
 #
@@ -19,6 +19,7 @@
 #
 # CDDL HEADER END
 #
+# Copyright 2016 Nexenta Systems, Inc.
 #
 # Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
@@ -51,6 +52,7 @@
 #
 
 require 5.0;
+use warnings;
 use IO::File;
 use Getopt::Std;
 use strict;
@@ -64,7 +66,7 @@ my $usage =
 	-C	don't check anything in header block comments
 	-P	check for use of non-POSIX types
 	-o constructs
-		allow a comma-seperated list of optional constructs:
+		allow a comma-separated list of optional constructs:
 		    doxygen	allow doxygen-style block comments (/** /*!)
 		    splint	allow splint-style lint comments (/*@ ... @*/)
 ";
@@ -191,7 +193,11 @@ my $no_errs = 0;		# set for CSTYLED-protected lines
 sub err($) {
 	my ($error) = @_;
 	unless ($no_errs) {
-		printf $fmt, $filename, $., $error, $line;
+		if ($verbose) {
+			printf $fmt, $filename, $., $error, $line;
+		} else {
+			printf $fmt, $filename, $., $error;
+		}	
 		$err_stat = 1;
 	}
 }
@@ -200,7 +206,11 @@ sub err_prefix($$) {
 	my ($prevline, $error) = @_;
 	my $out = $prevline."\n".$line;
 	unless ($no_errs) {
-		printf $fmt, $filename, $., $error, $out;
+		if ($verbose) {
+			printf $fmt, $filename, $., $error, $out;
+		} else {
+			printf $fmt, $filename, $., $error;
+		}
 		$err_stat = 1;
 	}
 }
@@ -208,7 +218,11 @@ sub err_prefix($$) {
 sub err_prev($) {
 	my ($error) = @_;
 	unless ($no_errs) {
-		printf $fmt, $filename, $. - 1, $error, $prev;
+		if ($verbose) {
+			printf $fmt, $filename, $. - 1, $error, $prev;
+		} else {
+			printf $fmt, $filename, $. - 1, $error;
+		}
 		$err_stat = 1;
 	}
 }
@@ -227,6 +241,7 @@ my $comment_done = 0;
 my $in_warlock_comment = 0;
 my $in_function = 0;
 my $in_function_header = 0;
+my $function_header_full_indent = 0;
 my $in_declaration = 0;
 my $note_level = 0;
 my $nextok = 0;
@@ -372,6 +387,7 @@ line: while (<$filehandle>) {
 		$in_function = 1;
 		$in_declaration = 1;
 		$in_function_header = 0;
+		$function_header_full_indent = 0;
 		$prev = $line;
 		next line;
 	}
@@ -384,8 +400,54 @@ line: while (<$filehandle>) {
 		$prev = $line;
 		next line;
 	}
-	if (/^\w*\($/) {
+	if ($in_function_header && ! /^    (\w|\.)/ ) {
+		if (/^{}$/ # empty functions
+		|| /;/ #run function with multiline arguments
+		|| /#/ #preprocessor commands
+		|| /^[^\s\\]*\(.*\)$/ #functions without ; at the end
+		|| /^$/ #function declaration can't have empty line
+		) {
+			$in_function_header = 0;
+			$function_header_full_indent = 0;
+		} elsif ($prev =~ /^__attribute__/) { #__attribute__((*))
+			$in_function_header = 0;
+			$function_header_full_indent = 0;
+			$prev = $line;
+			next line;
+		} elsif ($picky	&& ! (/^\t/ && $function_header_full_indent != 0)) {
+			
+			err("continuation line should be indented by 4 spaces");
+		}
+	}
+
+	#
+	# If this matches something of form "foo(", it's probably a function
+	# definition, unless it ends with ") bar;", in which case it's a declaration
+	# that uses a macro to generate the type.
+	#
+	if (/^\w+\(/ && !/\) \w+;/) {
 		$in_function_header = 1;
+		if (/\($/) {
+			$function_header_full_indent = 1;
+		}
+	}
+	if ($in_function_header && /^{$/) {
+		$in_function_header = 0;
+		$function_header_full_indent = 0;
+		$in_function = 1;
+	}
+	if ($in_function_header && /\);$/) {
+		$in_function_header = 0;
+		$function_header_full_indent = 0;
+	}
+	if ($in_function_header && /{$/ ) {
+		if ($picky) {
+			err("opening brace on same line as function header");
+		}
+		$in_function_header = 0;
+		$function_header_full_indent = 0;
+		$in_function = 1;
+		next line;
 	}
 
 	if ($in_warlock_comment && /\*\//) {
@@ -446,7 +508,7 @@ line: while (<$filehandle>) {
 		err("spaces instead of tabs");
 	}
 	if (/^ / && !/^ \*[ \t\/]/ && !/^ \*$/ &&
-	    (!/^    \w/ || $in_function != 0)) {
+	    (!/^    (\w|\.)/ || $in_function != 0)) {
 		err("indent by spaces instead of tabs");
 	}
 	if (/^\t+ [^ \t\*]/ || /^\t+  \S/ || /^\t+   \S/) {
@@ -597,14 +659,15 @@ line: while (<$filehandle>) {
 	if (/\(\s/) {
 		err("whitespace after left paren");
 	}
-	# allow "for" statements to have empty "continue" clauses
-	if (/\s\)/ && !/^\s*for \([^;]*;[^;]*; \)/) {
+	# Allow "for" statements to have empty "continue" clauses.
+	# Allow right paren on its own line unless we're being picky (-p).
+	if (/\s\)/ && !/^\s*for \([^;]*;[^;]*; \)/ && ($picky || !/^\s*\)/)) {
 		err("whitespace before right paren");
 	}
 	if (/^\s*\(void\)[^ ]/) {
 		err("missing space after (void) cast");
 	}
-	if (/\S{/ && !/{{/) {
+	if (/\S\{/ && !/\{\{/) {
 		err("missing space before left brace");
 	}
 	if ($in_function && /^\s+{/ &&

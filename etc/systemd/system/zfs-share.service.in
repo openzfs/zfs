@@ -1,11 +1,16 @@
 [Unit]
 Description=ZFS file system shares
-After=nfs-server.service
+After=nfs-server.service nfs-kernel-server.service
 After=smb.service
-PartOf=nfs-server.service
+After=zfs-mount.service
+PartOf=nfs-server.service nfs-kernel-server.service
 PartOf=smb.service
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
+ExecStartPre=-/bin/rm -f /etc/dfs/sharetab
 ExecStart=@sbindir@/zfs share -a
+
+[Install]
+WantedBy=zfs.target

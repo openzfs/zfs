@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  */
 
 #ifndef	_SYS_ZAP_LEAF_H
@@ -83,7 +84,7 @@ struct zap_stats;
  */
 #define	ZAP_LEAF_CHUNK(l, idx) \
 	((zap_leaf_chunk_t *) \
-	((l)->l_phys->l_hash + ZAP_LEAF_HASH_NUMENTRIES(l)))[idx]
+	(zap_leaf_phys(l)->l_hash + ZAP_LEAF_HASH_NUMENTRIES(l)))[idx]
 #define	ZAP_LEAF_ENTRY(l, idx) (&ZAP_LEAF_CHUNK(l, idx).l_entry)
 
 typedef enum zap_chunk_type {
@@ -152,13 +153,18 @@ typedef union zap_leaf_chunk {
 } zap_leaf_chunk_t;
 
 typedef struct zap_leaf {
+	dmu_buf_user_t l_dbu;
 	krwlock_t l_rwlock;
 	uint64_t l_blkid;		/* 1<<ZAP_BLOCK_SHIFT byte block off */
 	int l_bs;			/* block size shift */
 	dmu_buf_t *l_dbuf;
-	zap_leaf_phys_t *l_phys;
 } zap_leaf_t;
 
+static inline zap_leaf_phys_t *
+zap_leaf_phys(zap_leaf_t *l)
+{
+	return (l->l_dbuf->db_data);
+}
 
 typedef struct zap_entry_handle {
 	/* Set by zap_leaf and public to ZAP */

@@ -1,0 +1,85 @@
+#!@SHELL@
+#
+# zfs-share     This script will network share zfs filesystems and volumes.
+#
+# chkconfig:    2345 30 99
+# description:  Run the `zfs share -a` or `zfs unshare -a` commands
+#               for controlling iSCSI, NFS, or CIFS network shares.
+# probe: true
+#
+### BEGIN INIT INFO
+# Provides:          zfs-share
+# Required-Start:    $local_fs $network $remote_fs zfs-mount zfs-zed
+# Required-Stop:     $local_fs $network $remote_fs zfs-mount zfs-zed
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Should-Start:      iscsi iscsitarget istgt scst @NFS_SRV@ samba samba4 zfs-mount zfs-zed
+# Should-Stop:       iscsi iscsitarget istgt scst @NFS_SRV@ samba samba4 zfs-mount zfs-zed
+# Short-Description: Network share ZFS datasets and volumes.
+# Description:       Run the `zfs share -a` or `zfs unshare -a` commands
+#                    for controlling iSCSI, NFS, or CIFS network shares.
+### END INIT INFO
+#
+# Released under the 2-clause BSD license.
+#
+# The original script that acted as a template for this script came from
+# the Debian GNU/Linux kFreeBSD ZFS packages (which did not include a
+# licensing stansa) in the commit dated Mar 24, 2011:
+#   https://github.com/zfsonlinux/pkg-zfs/commit/80a3ae582b59c0250d7912ba794dca9e669e605a
+
+# Source the common init script
+. @sysconfdir@/zfs/zfs-functions
+
+# ----------------------------------------------------
+
+do_depend()
+{
+	after sysfs zfs-mount zfs-zed
+	keyword -lxc -openvz -prefix -vserver
+}
+
+do_start()
+{
+	check_boolean "$ZFS_SHARE" || exit 0
+
+	check_module_loaded "zfs" || exit 0
+
+	zfs_action "Sharing ZFS filesystems" "$ZFS" share -a
+}
+
+do_stop()
+{
+	check_boolean "$ZFS_UNSHARE" || exit 0
+
+	check_module_loaded "zfs" || exit 0
+
+	zfs_action "Unsharing ZFS filesystems" "$ZFS" unshare -a
+}
+
+# ----------------------------------------------------
+
+if [ ! -e /sbin/openrc-run ]; then
+	case "$1" in
+		start)
+			do_start
+			;;
+		stop)
+			do_stop
+			;;
+		force-reload|reload|restart|status)
+			# no-op
+			;;
+		*)
+			[ -n "$1" ] && echo "Error: Unknown command $1."
+			echo "Usage: $0 {start|stop}"
+			exit 3
+			;;
+	esac
+
+	exit $?
+else
+	# Create wrapper functions since Gentoo don't use the case part.
+	depend() { do_depend; }
+	start() { do_start; }
+	stop() { do_stop; }
+fi

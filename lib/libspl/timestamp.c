@@ -28,6 +28,14 @@
 #include <langinfo.h>
 #include "statcommon.h"
 
+#ifndef _DATE_FMT
+#ifdef D_T_FMT
+#define	_DATE_FMT D_T_FMT
+#else /* D_T_FMT */
+#define	_DATE_FMT "%+"
+#endif /* !D_T_FMT */
+#endif /* _DATE_FMT */
+
 /*
  * Print timestamp as decimal reprentation of time_t value (-T u was specified)
  * or in date(1) format (-T d was specified).

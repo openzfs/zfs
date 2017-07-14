@@ -86,6 +86,11 @@ BuildRequires:             kmod-spl-devel = %{version}
 %global KmodsMetaRequires  spl-kmod
 %endif
 
+# LDFLAGS are not sanitized by arch/powerpc/Makefile (unlike other arches)
+%ifarch ppc ppc64 ppc64le
+%global __global_ldflags %{nil}
+%endif
+
 %if 0%{?fedora} >= 17
 %define prefix  /usr
 %endif
@@ -177,6 +182,7 @@ for kernel_version in %{?kernel_versions}; do
         INSTALL_MOD_DIR=%{kmodinstdir_postfix}
     cd ..
 done
+# find-debuginfo.sh only considers executables
 chmod u+x ${RPM_BUILD_ROOT}%{kmodinstdir_prefix}/*/extra/*/*/*
 %{?akmod_install}
 
@@ -185,6 +191,11 @@ chmod u+x ${RPM_BUILD_ROOT}%{kmodinstdir_prefix}/*/extra/*/*/*
 rm -rf $RPM_BUILD_ROOT
 
 %changelog
+* Fri Sep 11 2015 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.5-1
+- Released 0.6.5-1, detailed release notes are available at:
+- https://github.com/zfsonlinux/zfs/releases/tag/zfs-0.6.5
+* Wed Apr  8 2015 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.4-1
+- Released 0.6.4-1
 * Thu Jun 12 2014 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.3-1
 - Released 0.6.3-1
 * Wed Aug 21 2013 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.2-1

@@ -1,0 +1,671 @@
+#
+# CDDL HEADER START
+#
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License (the "License").
+# You may not use this file except in compliance with the License.
+#
+# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+# or http://www.opensolaris.org/os/licensing.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+# If applicable, add the following below this CDDL HEADER, with the
+# fields enclosed by brackets "[]" replaced with your own identifying
+# information: Portions Copyright [yyyy] [name of copyright owner]
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
+# Use is subject to license terms.
+#
+
+#
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
+#
+
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/include/math.shlib
+. $STF_SUITE/tests/functional/rsend/rsend.cfg
+
+#
+# Set up test model which includes various datasets
+#
+#               @final
+#               @snapB
+#               @init
+#               |
+#   ______ pclone
+#  |      /
+#  |@psnap
+#  ||                         @final
+#  ||@final       @final      @snapC
+#  ||@snapC       @snapC      @snapB
+#  ||@snapA       @snapB      @snapA
+#  ||@init        @init       @init
+#  |||            |           |
+# $pool -------- $FS ------- fs1 ------- fs2
+#    \             \\_____     \          |
+#     vol           vol   \____ \         @fsnap
+#      |              |        \ \              \
+#      @init          @vsnap   |  ------------ fclone
+#      @snapA         @init \  |                    |
+#      @final         @snapB \ |                    @init
+#                     @snapC  vclone                @snapA
+#                     @final       |                @final
+#                                 @init
+#                                 @snapC
+#                                 @final
+#
+# $1 pool name
+#
+function setup_test_model
+{
+	typeset pool=$1
+
+	log_must zfs create -p $pool/$FS/fs1/fs2
+
+	log_must zfs snapshot $pool@psnap
+	log_must zfs clone $pool@psnap $pool/pclone
+
+	if is_global_zone ; then
+		log_must zfs create -V 16M $pool/vol
+		log_must zfs create -V 16M $pool/$FS/vol
+		block_device_wait
+
+		log_must zfs snapshot $pool/$FS/vol@vsnap
+		log_must zfs clone $pool/$FS/vol@vsnap $pool/$FS/vclone
+		block_device_wait
+	fi
+
+	log_must snapshot_tree $pool/$FS/fs1/fs2@fsnap
+	log_must zfs clone $pool/$FS/fs1/fs2@fsnap $pool/$FS/fs1/fclone
+	log_must zfs snapshot -r $pool@init
+
+	log_must snapshot_tree $pool@snapA
+	log_must snapshot_tree $pool@snapC
+	log_must snapshot_tree $pool/pclone@snapB
+	log_must snapshot_tree $pool/$FS@snapB
+	log_must snapshot_tree $pool/$FS@snapC
+	log_must snapshot_tree $pool/$FS/fs1@snapA
+	log_must snapshot_tree $pool/$FS/fs1@snapB
+	log_must snapshot_tree $pool/$FS/fs1@snapC
+	log_must snapshot_tree $pool/$FS/fs1/fclone@snapA
+
+	if is_global_zone ; then
+		log_must zfs snapshot $pool/vol@snapA
+		log_must zfs snapshot $pool/$FS/vol@snapB
+		log_must zfs snapshot $pool/$FS/vol@snapC
+		log_must zfs snapshot $pool/$FS/vclone@snapC
+	fi
+
+	log_must zfs snapshot -r $pool@final
+
+	return 0
+}
+
+#
+# Cleanup the BACKDIR and given pool content and all the sub datasets
+#
+# $1 pool name
+#
+function cleanup_pool
+{
+	typeset pool=$1
+	log_must rm -rf $BACKDIR/*
+
+	if is_global_zone ; then
+		log_must zfs destroy -Rf $pool
+	else
+		typeset list=$(zfs list -H -r -t all -o name $pool)
+		for ds in $list ; do
+			if [[ $ds != $pool ]] ; then
+				if datasetexists $ds ; then
+					log_must zfs destroy -Rf $ds
+				fi
+			fi
+		done
+	fi
+
+	typeset mntpnt=$(get_prop mountpoint $pool)
+	if ! ismounted $pool ; then
+		# Make sure mountpoint directory is empty
+		if [[ -d $mntpnt ]]; then
+			log_must rm -rf $mntpnt/*
+		fi
+
+		log_must zfs mount $pool
+	fi
+	if [[ -d $mntpnt ]]; then
+		rm -rf $mntpnt/*
+	fi
+
+	return 0
+}
+
+function cleanup_pools
+{
+	cleanup_pool $POOL2
+	destroy_pool $POOL3
+}
+
+#
+# Detect if the given two filesystems have same sub-datasets
+#
+# $1 source filesystem
+# $2 destination filesystem
+#
+function cmp_ds_subs
+{
+	typeset src_fs=$1
+	typeset dst_fs=$2
+
+	zfs list -r -H -t all -o name $src_fs > $BACKDIR/src1
+	zfs list -r -H -t all -o name $dst_fs > $BACKDIR/dst1
+
+	eval sed -e 's:^$src_fs:PREFIX:g' < $BACKDIR/src1 > $BACKDIR/src
+	eval sed -e 's:^$dst_fs:PREFIX:g' < $BACKDIR/dst1 > $BACKDIR/dst
+
+	diff $BACKDIR/src $BACKDIR/dst
+	typeset -i ret=$?
+
+	rm -f $BACKDIR/src $BACKDIR/dst $BACKDIR/src1 $BACKDIR/dst1
+
+	return $ret
+}
+
+#
+# Compare all the directories and files in two filesystems
+#
+# $1 source filesystem
+# $2 destination filesystem
+#
+function cmp_ds_cont
+{
+	typeset src_fs=$1
+	typeset dst_fs=$2
+
+	typeset srcdir dstdir
+	srcdir=$(get_prop mountpoint $src_fs)
+	dstdir=$(get_prop mountpoint $dst_fs)
+
+	diff -r $srcdir $dstdir > /dev/null 2>&1
+	return $?
+}
+
+#
+# Compare the given two dataset properties
+#
+# $1 dataset 1
+# $2 dataset 2
+#
+function cmp_ds_prop
+{
+	typeset dtst1=$1
+	typeset dtst2=$2
+
+	for item in "type" "origin" "volblocksize" "acltype" "dnodesize" \
+	    "atime" "canmount" "checksum" "compression" "copies" "devices" \
+	    "exec" "quota" "readonly" "recordsize" "reservation" "setuid" \
+	    "snapdir" "version" "volsize" "xattr" "zoned" "mountpoint";
+	do
+		zfs get -H -o property,value,source $item $dtst1 >> \
+		    $BACKDIR/dtst1
+		zfs get -H -o property,value,source $item $dtst2 >> \
+		    $BACKDIR/dtst2
+	done
+
+	eval sed -e 's:$dtst1:PREFIX:g' < $BACKDIR/dtst1 > $BACKDIR/dtst1
+	eval sed -e 's:$dtst2:PREFIX:g' < $BACKDIR/dtst2 > $BACKDIR/dtst2
+
+	diff $BACKDIR/dtst1 $BACKDIR/dtst2
+	typeset -i ret=$?
+
+	rm -f $BACKDIR/dtst1 $BACKDIR/dtst2
+
+	return $ret
+
+}
+
+#
+# Random create directories and files
+#
+# $1 directory
+#
+function random_tree
+{
+	typeset dir=$1
+
+	if [[ -d $dir ]]; then
+		rm -rf $dir
+	fi
+	mkdir -p $dir
+	typeset -i ret=$?
+
+	typeset -i nl nd nf
+	((nl = RANDOM % 6 + 1))
+	((nd = RANDOM % 3 ))
+	((nf = RANDOM % 5 ))
+	mktree -b $dir -l $nl -d $nd -f $nf
+	((ret |= $?))
+
+	return $ret
+}
+
+#
+# Put data in filesystem and take snapshot
+#
+# $1 snapshot name
+#
+function snapshot_tree
+{
+	typeset snap=$1
+	typeset ds=${snap%%@*}
+	typeset type=$(get_prop "type" $ds)
+
+	typeset -i ret=0
+	if [[ $type == "filesystem" ]]; then
+		typeset mntpnt=$(get_prop mountpoint $ds)
+		((ret |= $?))
+
+		if ((ret == 0)) ; then
+			eval random_tree $mntpnt/${snap##$ds}
+			((ret |= $?))
+		fi
+	fi
+
+	if ((ret == 0)) ; then
+		zfs snapshot $snap
+		((ret |= $?))
+	fi
+
+	return $ret
+}
+
+#
+# Destroy the given snapshot and stuff
+#
+# $1 snapshot
+#
+function destroy_tree
+{
+	typeset -i ret=0
+	typeset snap
+	for snap in "$@" ; do
+		zfs destroy $snap
+		ret=$?
+
+		typeset ds=${snap%%@*}
+		typeset type=$(get_prop "type" $ds)
+		if [[ $type == "filesystem" ]]; then
+			typeset mntpnt=$(get_prop mountpoint $ds)
+			((ret |= $?))
+
+			if ((ret != 0)); then
+				rm -r $mntpnt/$snap
+				((ret |= $?))
+			fi
+		fi
+
+		if ((ret != 0)); then
+			return $ret
+		fi
+	done
+
+	return 0
+}
+
+#
+# Get all the sub-datasets of give dataset with specific suffix
+#
+# $1 Given dataset
+# $2 Suffix
+#
+function getds_with_suffix
+{
+	typeset ds=$1
+	typeset suffix=$2
+
+	typeset list=$(zfs list -r -H -t all -o name $ds | grep "$suffix$")
+
+	echo $list
+}
+
+#
+# Output inherited properties whitch is edited for file system
+#
+function fs_inherit_prop
+{
+	typeset fs_prop
+	if is_global_zone ; then
+		fs_prop=$(zfs inherit 2>&1 | \
+		    awk '$2=="YES" && $3=="YES" {print $1}')
+		if ! is_te_enabled ; then
+		        fs_prop=$(echo $fs_prop | grep -v "mlslabel")
+		fi
+	else
+		fs_prop=$(zfs inherit 2>&1 | \
+		    awk '$2=="YES" && $3=="YES" {print $1}'|
+		    egrep -v "devices|mlslabel|sharenfs|sharesmb|zoned")
+	fi
+
+	echo $fs_prop
+}
+
+#
+# Output inherited properties for volume
+#
+function vol_inherit_prop
+{
+	echo "checksum readonly"
+}
+
+#
+# Get the destination dataset to compare
+#
+function get_dst_ds
+{
+	typeset srcfs=$1
+	typeset dstfs=$2
+
+	#
+	# If the srcfs is not pool
+	#
+	if ! zpool list $srcfs > /dev/null 2>&1 ; then
+		eval dstfs="$dstfs/${srcfs#*/}"
+	fi
+
+	echo $dstfs
+}
+
+#
+# Make test files
+#
+# $1 Number of files to create
+# $2 Maximum file size
+# $3 File ID offset
+# $4 File system to create the files on
+#
+function mk_files
+{
+	nfiles=$1
+	maxsize=$2
+	file_id_offset=$3
+	fs=$4
+
+	for ((i=0; i<$nfiles; i=i+1)); do
+		dd if=/dev/urandom \
+		    of=/$fs/file-$maxsize-$((i+$file_id_offset)) \
+		    bs=$((($RANDOM * $RANDOM % ($maxsize - 1)) + 1)) \
+		    count=1 >/dev/null 2>&1 || log_fail \
+		    "Failed to create /$fs/file-$maxsize-$((i+$file_id_offset))"
+	done
+	echo Created $nfiles files of random sizes up to $maxsize bytes
+}
+
+#
+# Remove test files
+#
+# $1 Number of files to remove
+# $2 Maximum file size
+# $3 File ID offset
+# $4 File system to remove the files from
+#
+function rm_files
+{
+	nfiles=$1
+	maxsize=$2
+	file_id_offset=$3
+	fs=$4
+
+	for ((i=0; i<$nfiles; i=i+1)); do
+		rm -f /$fs/file-$maxsize-$((i+$file_id_offset))
+	done
+	echo Removed $nfiles files of random sizes up to $maxsize bytes
+}
+
+#
+# Mess up file contents
+#
+# $1 The file path
+#
+function mess_file
+{
+	file=$1
+
+	filesize=$(stat -c '%s' $file)
+	offset=$(($RANDOM * $RANDOM % $filesize))
+	if (($RANDOM % 7 <= 1)); then
+		#
+		# We corrupt 2 bytes to minimize the chance that we
+		# write the same value that's already there.
+		#
+		log_must eval "dd if=/dev/urandom of=$file conv=notrunc " \
+		    "bs=1 count=2 seek=$offset >/dev/null 2>&1"
+	else
+		log_must truncate -s $offset $file
+	fi
+}
+
+#
+# Diff the send/receive filesystems
+#
+# $1 The sent filesystem
+# $2 The received filesystem
+#
+function file_check
+{
+	sendfs=$1
+	recvfs=$2
+
+	if [[ -d /$recvfs/.zfs/snapshot/a && -d \
+	    /$sendfs/.zfs/snapshot/a ]]; then
+		diff -r /$recvfs/.zfs/snapshot/a /$sendfs/.zfs/snapshot/a
+		[[ $? -eq 0 ]] || log_fail "Differences found in snap a"
+	fi
+	if [[ -d /$recvfs/.zfs/snapshot/b && -d \
+	    /$sendfs/.zfs/snapshot/b ]]; then
+		diff -r /$recvfs/.zfs/snapshot/b /$sendfs/.zfs/snapshot/b
+		[[ $? -eq 0 ]] || log_fail "Differences found in snap b"
+	fi
+}
+
+#
+# Resume test helper
+#
+# $1 The ZFS send command
+# $2 The filesystem where the streams are sent
+# $3 The receive filesystem
+#
+function resume_test
+{
+	sendcmd=$1
+	streamfs=$2
+	recvfs=$3
+
+	stream_num=1
+	log_must eval "$sendcmd >/$streamfs/$stream_num"
+
+	for ((i=0; i<2; i=i+1)); do
+		mess_file /$streamfs/$stream_num
+		log_mustnot zfs recv -suv $recvfs </$streamfs/$stream_num
+		stream_num=$((stream_num+1))
+
+		token=$(zfs get -Hp -o value receive_resume_token $recvfs)
+		log_must eval "zfs send -v -t $token >/$streamfs/$stream_num"
+		[[ -f /$streamfs/$stream_num ]] || \
+		    log_fail "NO FILE /$streamfs/$stream_num"
+	done
+	log_must zfs recv -suv $recvfs </$streamfs/$stream_num
+}
+
+#
+# Setup filesystems for the resumable send/receive tests
+#
+# $1 The "send" filesystem
+# $2 The "recv" filesystem
+#
+function test_fs_setup
+{
+	typeset sendfs=$1
+	typeset recvfs=$2
+	typeset sendpool=${sendfs%%/*}
+	typeset recvpool=${recvfs%%/*}
+
+	datasetexists $sendfs && log_must zfs destroy -r $sendpool
+	datasetexists $recvfs && log_must zfs destroy -r $recvpool
+
+	if $(datasetexists $sendfs || zfs create -o compress=lz4 $sendfs); then
+		mk_files 1000 256 0 $sendfs &
+		mk_files 1000 131072 0 $sendfs &
+		mk_files 100 1048576 0 $sendfs &
+		mk_files 10 10485760 0 $sendfs &
+		mk_files 1 104857600 0 $sendfs &
+		log_must wait
+		log_must zfs snapshot $sendfs@a
+
+		rm_files 200 256 0 $sendfs &
+		rm_files 200 131072 0 $sendfs &
+		rm_files 20 1048576 0 $sendfs &
+		rm_files 2 10485760 0 $sendfs &
+		log_must wait
+
+		mk_files 400 256 0 $sendfs &
+		mk_files 400 131072 0 $sendfs &
+		mk_files 40 1048576 0 $sendfs &
+		mk_files 4 10485760 0 $sendfs &
+		log_must wait
+
+		log_must zfs snapshot $sendfs@b
+		log_must eval "zfs send -v $sendfs@a >/$sendpool/initial.zsend"
+		log_must eval "zfs send -v -i @a $sendfs@b " \
+		    ">/$sendpool/incremental.zsend"
+	fi
+
+	if datasetexists $streamfs; then
+		log_must zfs destroy -r $streamfs
+	fi
+	log_must zfs create -o compress=lz4 $sendpool/stream
+}
+
+#
+# Check to see if the specified features are set in a send stream.
+# The values for these features are found in include/sys/zfs_ioctl.h
+#
+# $1 The stream file
+# $2-$n The flags expected in the stream
+#
+function stream_has_features
+{
+	typeset file=$1
+	shift
+
+	[[ -f $file ]] || log_fail "Couldn't find file: $file"
+	typeset flags=$(cat $file | zstreamdump | \
+	    awk '/features =/ {features = $3} END {print features}')
+	typeset -A feature
+	feature[dedup]="1"
+	feature[dedupprops]="2"
+	feature[sa_spill]="4"
+	feature[embed_data]="10000"
+	feature[lz4]="20000"
+	feature[mooch_byteswap]="40000"
+	feature[large_blocks]="80000"
+	feature[resuming]="100000"
+	feature[redacted]="200000"
+	feature[compressed]="400000"
+
+	typeset flag known derived=0
+	for flag in "$@"; do
+		known=${feature[$flag]}
+		[[ -z $known ]] && log_fail "Unknown feature: $flag"
+
+		derived=$(printf "%x" $((0x${flags} & 0x${feature[$flag]})))
+		[[ $derived = $known ]] || return 1
+	done
+
+	return 0
+}
+
+#
+# Parse zstreamdump -v output.  The output varies for each kind of record:
+# BEGIN records are simply output as "BEGIN"
+# END records are output as "END"
+# OBJECT records become "OBJECT <object num>"
+# FREEOBJECTS records become "FREEOBJECTS <startobj> <numobjs>"
+# FREE records become "<record type> <start> <length>"
+# WRITE records become:
+# "<record type> <compression type> <start> <logical size> <compressed size>
+#  <data size>"
+#
+function parse_dump
+{
+	sed '/^WRITE/{N;s/\n/ /;}' | grep "^[A-Z]" | awk '{
+	    if ($1 == "BEGIN" || $1 == "END") print $1
+	    if ($1 == "OBJECT") print $1" "$4
+	    if ($1 == "FREEOBJECTS") print $1" "$4" "$7
+	    if ($1 == "FREE") print $1" "$7" "$10
+	    if ($1 == "WRITE") print $1" "$15" "$18" "$21" "$24" "$27}'
+}
+
+#
+# Given a send stream, verify that the size of the stream matches what's
+# expected based on the source or target dataset. If the stream is an
+# incremental stream, subtract the size of the source snapshot before
+# comparing. This function does not currently handle incremental streams
+# that remove data.
+#
+# $1 The zstreamdump output file
+# $2 The dataset to compare against
+#    This can be a source of a send or recv target (fs, not snapshot)
+# $3 The percentage below which verification is deemed a failure
+# $4 The source snapshot of an incremental send
+#
+
+function verify_stream_size
+{
+	typeset stream=$1
+	typeset ds=$2
+	typeset percent=${3:-90}
+	typeset inc_src=$4
+
+	[[ -f $stream ]] || log_fail "No such file: $stream"
+	datasetexists $ds || log_fail "No such dataset: $ds"
+
+	typeset stream_size=$(cat $stream | zstreamdump | sed -n \
+	    's/	Total write size = \(.*\) (0x.*)/\1/p')
+
+	typeset inc_size=0
+	if [[ -n $inc_src ]]; then
+		inc_size=$(get_prop lrefer $inc_src)
+		if stream_has_features $stream compressed; then
+			inc_size=$(get_prop refer $inc_src)
+		fi
+	fi
+
+	if stream_has_features $stream compressed; then
+		ds_size=$(get_prop refer $ds)
+	else
+		ds_size=$(get_prop lrefer $ds)
+	fi
+	ds_size=$((ds_size - inc_size))
+
+	within_percent $stream_size $ds_size $percent || log_fail \
+	    "$stream_size $ds_size differed by too much"
+}
+
+# Cleanup function for tests involving resumable send
+function resume_cleanup
+{
+	typeset sendfs=$1
+	typeset streamfs=$2
+
+	datasetexists $sendfs && log_must zfs destroy -r $sendfs
+	datasetexists $streamfs && log_must zfs destroy -r $streamfs
+	cleanup_pool $POOL2
+	rm -f /$POOL/initial.zsend /$POOL/incremental.zsend
+}

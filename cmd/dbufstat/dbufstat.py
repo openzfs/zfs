@@ -34,7 +34,7 @@ import errno
 
 bhdr = ["pool", "objset", "object", "level", "blkid", "offset", "dbsize"]
 bxhdr = ["pool", "objset", "object", "level", "blkid", "offset", "dbsize",
-         "meta", "state", "dbholds", "list", "atype", "index", "flags",
+         "meta", "state", "dbholds", "list", "atype", "flags",
          "count", "asize", "access", "mru", "gmru", "mfu", "gmfu", "l2",
          "l2_dattr", "l2_asize", "l2_comp", "aholds", "dtype", "btype",
          "data_bs", "meta_bs", "bsize", "lvls", "dholds", "blocks", "dsize"]
@@ -45,7 +45,7 @@ dxhdr = ["pool", "objset", "object", "dtype", "btype", "data_bs", "meta_bs",
          "bsize", "lvls", "dholds", "blocks", "dsize", "cached", "direct",
          "indirect", "bonus", "spill"]
 dincompat = ["level", "blkid", "offset", "dbsize", "meta", "state", "dbholds",
-             "list", "atype", "index", "flags", "count", "asize", "access",
+             "list", "atype", "flags", "count", "asize", "access",
              "mru", "gmru", "mfu", "gmfu", "l2", "l2_dattr", "l2_asize",
              "l2_comp", "aholds"]
 
@@ -53,7 +53,7 @@ thdr = ["pool", "objset", "dtype", "cached"]
 txhdr = ["pool", "objset", "dtype", "cached", "direct", "indirect",
          "bonus", "spill"]
 tincompat = ["object", "level", "blkid", "offset", "dbsize", "meta", "state",
-             "dbholds", "list", "atype", "index", "flags", "count", "asize",
+             "dbholds", "list", "atype", "flags", "count", "asize",
              "access", "mru", "gmru", "mfu", "gmfu", "l2", "l2_dattr",
              "l2_asize", "l2_comp", "aholds", "btype", "data_bs", "meta_bs",
              "bsize", "lvls", "dholds", "blocks", "dsize"]
@@ -72,7 +72,6 @@ cols = {
     "dbholds":    [7,  1000, "number of holds on buffer"],
     "list":       [4,    -1, "which ARC list contains this buffer"],
     "atype":      [7,    -1, "ARC header type (data or metadata)"],
-    "index":      [5,    -1, "buffer's index into its ARC list"],
     "flags":      [8,    -1, "ARC read flags"],
     "count":      [5,    -1, "ARC data count"],
     "asize":      [7,  1024, "size of this ARC buffer"],
@@ -144,7 +143,7 @@ def detailed_usage():
         sys.stderr.write("%11s : %s\n" % (key, cols[key][2]))
     sys.stderr.write("\n")
 
-    sys.exit(1)
+    sys.exit(0)
 
 
 def usage():
@@ -387,9 +386,9 @@ def update_dict(d, k, line, labels):
 
 def print_dict(d):
     print_header()
-    for pool in d.keys():
-        for objset in d[pool].keys():
-            for v in d[pool][objset].values():
+    for pool in list(d.keys()):
+        for objset in list(d[pool].keys()):
+            for v in list(d[pool][objset].values()):
                 print_values(v)
 
 
@@ -577,6 +576,7 @@ def main():
 
     if tflag:
         print_dict(types_build_dict(sys.stdin))
+
 
 if __name__ == '__main__':
     main()

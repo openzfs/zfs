@@ -64,6 +64,8 @@ static char *zfs_msgid_table[] = {
 	"ZFS-8000-9P",
 	"ZFS-8000-A5",
 	"ZFS-8000-EY",
+	"ZFS-8000-EY",
+	"ZFS-8000-EY",
 	"ZFS-8000-HC",
 	"ZFS-8000-JQ",
 	"ZFS-8000-K4",
@@ -195,7 +197,7 @@ check_status(nvlist_t *config, boolean_t isimport, zpool_errata_t *erratap)
 	uint64_t suspended;
 	uint64_t hostid = 0;
 	uint64_t errata = 0;
-	unsigned long system_hostid = gethostid() & 0xffffffff;
+	unsigned long system_hostid = get_system_hostid();
 
 	verify(nvlist_lookup_uint64(config, ZPOOL_CONFIG_VERSION,
 	    &version) == 0);
@@ -214,6 +216,26 @@ check_status(nvlist_t *config, boolean_t isimport, zpool_errata_t *erratap)
 	if (ps && ps->pss_func == POOL_SCAN_RESILVER &&
 	    ps->pss_state == DSS_SCANNING)
 		return (ZPOOL_STATUS_RESILVERING);
+
+	/*
+	 * The multihost property is set and the pool may be active.
+	 */
+	if (vs->vs_state == VDEV_STATE_CANT_OPEN &&
+	    vs->vs_aux == VDEV_AUX_ACTIVE) {
+		mmp_state_t mmp_state;
+		nvlist_t *nvinfo;
+
+		nvinfo = fnvlist_lookup_nvlist(config, ZPOOL_CONFIG_LOAD_INFO);
+		mmp_state = fnvlist_lookup_uint64(nvinfo,
+		    ZPOOL_CONFIG_MMP_STATE);
+
+		if (mmp_state == MMP_STATE_ACTIVE)
+			return (ZPOOL_STATUS_HOSTID_ACTIVE);
+		else if (mmp_state == MMP_STATE_NO_HOSTID)
+			return (ZPOOL_STATUS_HOSTID_REQUIRED);
+		else
+			return (ZPOOL_STATUS_HOSTID_MISMATCH);
+	}
 
 	/*
 	 * Pool last accessed by another system.
@@ -344,8 +366,9 @@ check_status(nvlist_t *config, boolean_t isimport, zpool_errata_t *erratap)
 		if (isimport) {
 			feat = fnvlist_lookup_nvlist(config,
 			    ZPOOL_CONFIG_LOAD_INFO);
-			feat = fnvlist_lookup_nvlist(feat,
-			    ZPOOL_CONFIG_ENABLED_FEAT);
+			if (nvlist_exists(feat, ZPOOL_CONFIG_ENABLED_FEAT))
+				feat = fnvlist_lookup_nvlist(feat,
+				    ZPOOL_CONFIG_ENABLED_FEAT);
 		} else {
 			feat = fnvlist_lookup_nvlist(config,
 			    ZPOOL_CONFIG_FEATURE_STATS);
@@ -412,13 +435,13 @@ dump_ddt_stat(const ddt_stat_t *dds, int h)
 		zfs_nicenum(1ULL << h, refcnt, sizeof (refcnt));
 
 	zfs_nicenum(dds->dds_blocks, blocks, sizeof (blocks));
-	zfs_nicenum(dds->dds_lsize, lsize, sizeof (lsize));
-	zfs_nicenum(dds->dds_psize, psize, sizeof (psize));
-	zfs_nicenum(dds->dds_dsize, dsize, sizeof (dsize));
+	zfs_nicebytes(dds->dds_lsize, lsize, sizeof (lsize));
+	zfs_nicebytes(dds->dds_psize, psize, sizeof (psize));
+	zfs_nicebytes(dds->dds_dsize, dsize, sizeof (dsize));
 	zfs_nicenum(dds->dds_ref_blocks, ref_blocks, sizeof (ref_blocks));
-	zfs_nicenum(dds->dds_ref_lsize, ref_lsize, sizeof (ref_lsize));
-	zfs_nicenum(dds->dds_ref_psize, ref_psize, sizeof (ref_psize));
-	zfs_nicenum(dds->dds_ref_dsize, ref_dsize, sizeof (ref_dsize));
+	zfs_nicebytes(dds->dds_ref_lsize, ref_lsize, sizeof (ref_lsize));
+	zfs_nicebytes(dds->dds_ref_psize, ref_psize, sizeof (ref_psize));
+	zfs_nicebytes(dds->dds_ref_dsize, ref_dsize, sizeof (ref_dsize));
 
 	(void) printf("%6s   %6s   %5s   %5s   %5s   %6s   %5s   %5s   %5s\n",
 	    refcnt,

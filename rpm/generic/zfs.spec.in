@@ -28,13 +28,18 @@
 %endif
 %endif
 
+# Set the default _initconfdir when undefined.
+%if %{undefined _initconfdir}
+%global _initconfdir /etc/sysconfig
+%endif
+
 %bcond_with    debug
-%bcond_with    blkid
 %bcond_with    systemd
 
 # Generic enable switch for systemd
 %if %{with systemd}
 %define _systemd 1
+%define systemd_svcs zfs-import-cache.service zfs-import-scan.service zfs-mount.service zfs-share.service zfs-zed.service zfs.target
 %endif
 
 # RHEL >= 7 comes with systemd
@@ -64,11 +69,6 @@ License:        @ZFS_META_LICENSE@
 URL:            http://zfsonlinux.org/
 Source0:        %{name}-%{version}.tar.gz
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
-ExclusiveArch:  i386 i686 x86_64
-
-# May build but untested on ppc/ppc64
-ExcludeArch:    ppc ppc64
-
 Requires:       spl = %{version}
 Requires:       libzpool2 = %{version}
 Requires:       libnvpair1 = %{version}
@@ -84,9 +84,9 @@ Conflicts:      zfs-fuse
 %if 0%{?rhel}%{?fedora}%{?suse_version}
 BuildRequires:  zlib-devel
 BuildRequires:  libuuid-devel
-%if %{with blkid}
 BuildRequires:  libblkid-devel
-%endif
+BuildRequires:  libudev-devel
+BuildRequires:  libattr-devel
 %endif
 %if 0%{?_systemd}
 Requires(post): systemd
@@ -94,6 +94,10 @@ Requires(preun): systemd
 Requires(postun): systemd
 BuildRequires: systemd
 %endif
+
+# The zpool iostat/status -c scripts call some utilities like lsblk and iostat
+Requires:  util-linux
+Requires:  sysstat
 
 %description
 This package contains the ZFS command line utilities.
@@ -106,7 +110,7 @@ Group:          System Environment/Kernel
 This package contains the zpool library, which provides support
 for managing zpools
 
-%post-n libzpool2 -p /sbin/ldconfig
+%post -n libzpool2 -p /sbin/ldconfig
 %postun -n libzpool2 -p /sbin/ldconfig
 
 %package -n libnvpair1
@@ -119,7 +123,7 @@ pairs.  This functionality is used to portably transport data across
 process boundaries, between kernel and user space, and can be used
 to write self describing data structures on disk.
 
-%post-n libnvpair1 -p /sbin/ldconfig
+%post -n libnvpair1 -p /sbin/ldconfig
 %postun -n libnvpair1 -p /sbin/ldconfig
 
 %package -n libuutil1
@@ -137,7 +141,7 @@ This library provides a variety of compatibility functions for ZFS on Linux:
    partitioning.
  * libshare: NFS, SMB, and iSCSI service integration for ZFS.
 
-%post-n libuutil1 -p /sbin/ldconfig
+%post -n libuutil1 -p /sbin/ldconfig
 %postun -n libuutil1 -p /sbin/ldconfig
 
 %package -n libzfs2
@@ -147,7 +151,7 @@ Group:          System Environment/Kernel
 %description -n libzfs2
 This package provides support for managing ZFS filesystems
 
-%post-n libzfs2 -p /sbin/ldconfig
+%post -n libzfs2 -p /sbin/ldconfig
 %postun -n libzfs2 -p /sbin/ldconfig
 
 %package -n libzfs2-devel
@@ -174,6 +178,11 @@ Requires:       parted
 Requires:       lsscsi
 Requires:       mdadm
 Requires:       bc
+Requires:       ksh
+Requires:	fio
+Requires:	acl
+Requires:	sudo
+Requires:	sysstat
 
 %description test
 This package contains test infrastructure and support scripts for
@@ -189,16 +198,24 @@ Requires:       dracut
 This package contains a dracut module used to construct an initramfs
 image which is ZFS aware.
 
+%if 0%{?_initramfs}
+%package initramfs
+Summary:        Initramfs module
+Group:          System Environment/Kernel
+Requires:       %{name}%{?_isa} = %{version}-%{release}
+Requires:       %{name} = %{version}-%{release}
+Requires:       initramfs-tools
+
+%description initramfs
+This package contains a initramfs module used to construct an initramfs
+image which is ZFS aware.
+%endif
+
 %prep
 %if %{with debug}
     %define debug --enable-debug
 %else
     %define debug --disable-debug
-%endif
-%if %{with blkid}
-    %define blkid --with-blkid
-%else
-    %define blkid --without-blkid
 %endif
 %if 0%{?_systemd}
     %define systemd --enable-systemd --with-systemdunitdir=%{_unitdir} --with-systemdpresetdir=%{_presetdir} --disable-sysvinit
@@ -216,7 +233,6 @@ image which is ZFS aware.
     --with-dracutdir=%{_dracutdir} \
     --disable-static \
     %{debug} \
-    %{blkid} \
     %{systemd}
 make %{?_smp_mflags}
 
@@ -227,25 +243,33 @@ find %{?buildroot}%{_libdir} -name '*.la' -exec rm -f {} \;
 
 %post
 %if 0%{?_systemd}
-%systemd_post zfs.target
+%systemd_post %{systemd_svcs}
 %else
-[ -x /sbin/chkconfig ] && /sbin/chkconfig --add zfs
+if [ -x /sbin/chkconfig ]; then
+    /sbin/chkconfig --add zfs-import
+    /sbin/chkconfig --add zfs-mount
+    /sbin/chkconfig --add zfs-share
+    /sbin/chkconfig --add zfs-zed
+fi
 %endif
 exit 0
 
 %preun
 %if 0%{?_systemd}
-%systemd_preun zfs.target
+%systemd_preun %{systemd_svcs}
 %else
-if [ $1 -eq 0 ] ; then
-    [ -x /sbin/chkconfig ] && /sbin/chkconfig --del zfs
+if [ "$1" = "0" ] && [ -x /sbin/chkconfig ]; then
+    /sbin/chkconfig --del zfs-import
+    /sbin/chkconfig --del zfs-mount
+    /sbin/chkconfig --del zfs-share
+    /sbin/chkconfig --del zfs-zed
 fi
 %endif
 exit 0
 
 %postun
 %if 0%{?_systemd}
-%systemd_postun zfs.target
+%systemd_postun %{systemd_svcs}
 %endif
 
 %files
@@ -258,14 +282,16 @@ exit 0
 %{_udevdir}/vdev_id
 %{_udevdir}/zvol_id
 %{_udevdir}/rules.d/*
-%config(noreplace) %{_sysconfdir}/%{name}
 %if 0%{?_systemd}
 /usr/lib/modules-load.d/*
 %{_unitdir}/*
 %{_presetdir}/*
 %else
-%{_sysconfdir}/init.d/*
+%config(noreplace) %{_sysconfdir}/init.d/*
+%config(noreplace) %{_initconfdir}/zfs
 %endif
+%config(noreplace) %{_sysconfdir}/%{name}
+%attr(440, root, root) %config(noreplace) %{_sysconfdir}/sudoers.d/*
 
 %files -n libzpool2
 %{_libdir}/libzpool.so.*
@@ -291,10 +317,25 @@ exit 0
 %{_datadir}/%{name}
 
 %files dracut
-%doc dracut/README.dracut.markdown
+%doc contrib/dracut/README.dracut.markdown
 %{_dracutdir}/modules.d/*
 
+%if 0%{?_initramfs}
+%files initramfs
+%doc contrib/initramfs/README.initramfs.markdown
+/usr/share/initramfs-tools/*
+%else
+# Since we're not building the initramfs package,
+# ignore those files.
+%exclude /usr/share/initramfs-tools
+%endif
+
 %changelog
+* Fri Sep 11 2015 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.5-1
+- Released 0.6.5-1, detailed release notes are available at:
+- https://github.com/zfsonlinux/zfs/releases/tag/zfs-0.6.5
+* Wed Apr  8 2015 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.4-1
+- Released 0.6.4-1
 * Thu Jun 12 2014 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.3-1
 - Released 0.6.3-1
 * Wed Aug 21 2013 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.2-1
