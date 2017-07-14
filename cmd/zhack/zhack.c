@@ -151,7 +151,8 @@ zhack_import(char *target, boolean_t readonly)
 	}
 
 	zfeature_checks_disable = B_TRUE;
-	error = spa_import(target, config, props, ZFS_IMPORT_NORMAL);
+	error = spa_import(target, config, props,
+	    (readonly ?  ZFS_IMPORT_SKIP_MMP : ZFS_IMPORT_NORMAL));
 	zfeature_checks_disable = B_FALSE;
 	if (error == EEXIST)
 		error = 0;
