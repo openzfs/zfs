@@ -1745,6 +1745,7 @@ print_status_config(zpool_handle_t *zhp, status_cbdata_t *cb, const char *name,
 
 		case VDEV_AUX_ACTIVE:
 			(void) printf(gettext("currently in use"));
+			break;
 
 		default:
 			(void) printf(gettext("corrupted data"));
