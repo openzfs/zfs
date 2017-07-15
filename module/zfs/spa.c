@@ -2653,18 +2653,18 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 	 */
 	activity_check = spa_activity_check_required(spa, ub, config);
 	if (activity_check) {
-		error = spa_activity_check(spa, ub, config);
-		if (error) {
-			nvlist_free(label);
-			return (error);
-		}
-
 		if (ub->ub_mmp_magic == MMP_MAGIC && ub->ub_mmp_delay &&
 		    spa_get_hostid() == 0) {
 			nvlist_free(label);
 			fnvlist_add_uint64(spa->spa_load_info,
 			    ZPOOL_CONFIG_MMP_STATE, MMP_STATE_NO_HOSTID);
 			return (spa_vdev_err(rvd, VDEV_AUX_ACTIVE, EREMOTEIO));
+		}
+
+		error = spa_activity_check(spa, ub, config);
+		if (error) {
+			nvlist_free(label);
+			return (error);
 		}
 
 		fnvlist_add_uint64(spa->spa_load_info,
