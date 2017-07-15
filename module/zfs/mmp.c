@@ -378,7 +378,7 @@ mmp_thread(spa_t *spa)
 	 * with fake, but reasonable, default non-zero values.
 	 */
 	mmp->mmp_delay = MSEC2NSEC(MAX(zfs_multihost_interval,
-	    MMP_MIN_INTERVAL)) / vdev_count_leaves(spa);
+	    MMP_MIN_INTERVAL)) / MAX(vdev_count_leaves(spa), 1);
 	mmp->mmp_last_write = gethrtime() - mmp->mmp_delay;
 
 	while (!mmp->mmp_thread_exiting) {
@@ -392,7 +392,7 @@ mmp_thread(spa_t *spa)
 		start = gethrtime();
 		if (multihost) {
 			next_time = start + mmp_interval /
-			    vdev_count_leaves(spa);
+			    MAX(vdev_count_leaves(spa), 1);
 		} else {
 			next_time = start + MSEC2NSEC(MMP_DEFAULT_INTERVAL);
 		}

@@ -2448,7 +2448,7 @@ spa_activity_check(spa_t *spa, uberblock_t *ub, nvlist_t *config)
 	 */
 	if (ub->ub_mmp_magic == MMP_MAGIC && ub->ub_mmp_delay)
 		import_delay = MAX(import_delay, import_intervals *
-		    ub->ub_mmp_delay * vdev_count_leaves(spa));
+		    ub->ub_mmp_delay * MAX(vdev_count_leaves(spa), 1));
 
 	/* Apply a floor using the local default values. */
 	import_delay = MAX(import_delay, import_intervals *
