@@ -592,7 +592,8 @@ is_spare(nvlist_t *config, const char *path)
  *	xxx		Shorthand for <zfs_vdev_paths>/xxx
  */
 static nvlist_t *
-make_leaf_vdev(nvlist_t *props, const char *arg, uint64_t is_log)
+make_leaf_vdev(nvlist_t *props, const char *arg, uint64_t is_log,
+    uint64_t is_special)
 {
 	char path[MAXPATHLEN];
 	struct stat64 statbuf;
@@ -685,6 +686,9 @@ make_leaf_vdev(nvlist_t *props, const char *arg, uint64_t is_log)
 	if (is_log)
 		verify(nvlist_add_string(vdev, ZPOOL_CONFIG_ALLOCATION_BIAS,
 		    VDEV_ALLOC_BIAS_LOG) == 0);
+	if (is_special)
+		verify(nvlist_add_string(vdev, ZPOOL_CONFIG_ALLOCATION_BIAS,
+		    VDEV_ALLOC_BIAS_SPECIAL) == 0);
 	if (strcmp(type, VDEV_TYPE_DISK) == 0)
 		verify(nvlist_add_uint64(vdev, ZPOOL_CONFIG_WHOLE_DISK,
 		    (uint64_t)wholedisk) == 0);
@@ -968,7 +972,7 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 		/*
 		 * At this point, we have the replication of the last toplevel
 		 * vdev in 'rep'.  Compare it to 'lastrep' to see if its
-		 * different. Skip checks involving dedicated top-level vdevs.
+		 * different.
 		 */
 		if (lastrep.zprl_type != NULL) {
 			if (is_raidz_mirror(&lastrep, &rep, &raidz, &mirror) ||
@@ -1469,7 +1473,7 @@ is_grouping(const char *type, int *mindev, int *maxdev)
 
 	if (strcmp(type, VDEV_ALLOC_BIAS_SPECIAL) == 0) {
 		if (mindev != NULL)
-			*mindev = 2;
+			*mindev = 1;
 		return (type);
 	}
 
@@ -1603,13 +1607,12 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 				is_log = is_special = B_FALSE;
 			}
 
-			if (is_log || is_special) {
+			if (is_log) {
 				if (strcmp(type, VDEV_TYPE_MIRROR) != 0) {
 					(void) fprintf(stderr,
 					    gettext("invalid vdev "
-					    "specification: unsupported '%s' "
-					    "device: %s\n"), is_log ? "log" :
-					    "special", type);
+					    "specification: unsupported 'log' "
+					    "device: %s\n"), type);
 					goto spec_out;
 				}
 				nlogs++;
@@ -1624,7 +1627,7 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 				if (child == NULL)
 					zpool_no_memory();
 				if ((nv = make_leaf_vdev(props, argv[c],
-				    B_FALSE)) == NULL) {
+				    B_FALSE, B_FALSE)) == NULL) {
 					for (c = 0; c < children - 1; c++)
 						nvlist_free(child[c]);
 					free(child);
@@ -1700,17 +1703,11 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 			 * construct the appropriate nvlist describing the vdev.
 			 */
 			if ((nv = make_leaf_vdev(props, argv[0],
-			    is_log)) == NULL)
+			    is_log, is_special)) == NULL)
 				goto spec_out;
 
 			if (is_log)
 				nlogs++;
-			if (is_special) {
-				(void) fprintf(stderr,
-				    gettext("invalid vdev specification: "
-				    "special expects mirror\n"));
-				goto spec_out;
-			}
 			argc--;
 			argv++;
 		}

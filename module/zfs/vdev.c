@@ -513,11 +513,6 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 
 		if (nvlist_lookup_string(nv, ZPOOL_CONFIG_ALLOCATION_BIAS,
 		    &bias) == 0) {
-			/* dedicated vdevs are expected to be mirrored */
-			if (ops != &vdev_mirror_ops && strcmp(bias,
-			    VDEV_ALLOC_BIAS_LOG) != 0) {
-				return (SET_ERROR(ENOTSUP));
-			}
 			alloc_bias = vdev_derive_alloc_bias(bias);
 
 			/* Disallow a dedicated bias if already segregating */

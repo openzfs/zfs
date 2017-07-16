@@ -3658,6 +3658,19 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 		    == 0 && value && !(name_flags & VDEV_NAME_PATH)) {
 			return (zfs_strip_partition(path));
 		}
+
+		/*
+		 * if requested add classes info for top-level vdevs
+		 */
+		if ((name_flags & VDEV_NAME_GUID) == 0 &&
+		    (name_flags & VDEV_NAME_ALLOC_BIAS) &&
+		    nvlist_lookup_string(nv, ZPOOL_CONFIG_ALLOCATION_BIAS,
+		    &type) == 0 &&
+		    strcmp(type, VDEV_ALLOC_BIAS_SEGREGATE) != 0) {
+			(void) snprintf(altbuf, sizeof (altbuf), "%s:%s",
+			    type, path);
+			path = altbuf;
+		}
 	} else {
 		verify(nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &path) == 0);
 

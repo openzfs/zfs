@@ -5225,14 +5225,6 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 	ASSERT(pvd->vdev_children >= 2);
 
 	/*
-	 * If dedicated class, then it must remain mirrored
-	 */
-	if (pvd->vdev_alloc_bias == VDEV_BIAS_SPECIAL) {
-		if (pvd->vdev_children <= 2) {
-			return (spa_vdev_exit(spa, NULL, txg, ENOTSUP));
-		}
-	}
-	/*
 	 * If we are detaching the second disk from a replacing vdev, then
 	 * check to see if we changed the original vdev's path to have "/old"
 	 * at the end in spa_vdev_attach().  If so, undo that change now.
@@ -5472,7 +5464,6 @@ spa_vdev_split_mirror(spa_t *spa, char *newname, nvlist_t *config,
 	/* then, loop over each vdev and validate it */
 	for (c = 0; c < children; c++) {
 		uint64_t is_hole = 0;
-		vdev_alloc_bias_t alloc_bias;
 
 		(void) nvlist_lookup_uint64(child[c], ZPOOL_CONFIG_IS_HOLE,
 		    &is_hole);
@@ -5485,15 +5476,6 @@ spa_vdev_split_mirror(spa_t *spa, char *newname, nvlist_t *config,
 				error = SET_ERROR(EINVAL);
 				break;
 			}
-		}
-
-		/* disallow splitting for allocation classes */
-		alloc_bias = spa->spa_root_vdev->vdev_child[c]->vdev_alloc_bias;
-		if (alloc_bias == VDEV_BIAS_SPECIAL) {
-			cmn_err(CE_NOTE, "%s pool split with allocation "
-			    "classes not allowed", spa_name(spa));
-			error = SET_ERROR(EINVAL);
-			break;
 		}
 
 		/* which disk is going to be split? */
