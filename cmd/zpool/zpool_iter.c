@@ -565,6 +565,9 @@ vdev_run_cmd_thread(void *cb_cmd_data)
 		char *dir = NULL, *sp, *sprest;
 		char fullpath[MAXPATHLEN];
 
+		if (strchr(cmd, '/') != NULL)
+			continue;
+
 		sp = zpool_get_cmd_search_path();
 		if (sp == NULL)
 			continue;

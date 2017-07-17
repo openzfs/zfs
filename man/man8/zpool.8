@@ -1464,7 +1464,8 @@ output. Users can run any script found in their
 .Pa ~/.zpool.d
 directory or from the system
 .Pa /etc/zfs/zpool.d
-directory. The default search path can be overridden by setting the
+directory. Script names containing the slash (/) character are not allowed.
+The default search path can be overridden by setting the
 ZPOOL_SCRIPTS_PATH environment variable. A privileged user can run
 .Fl c
 if they have the ZPOOL_SCRIPTS_AS_ROOT
