@@ -1009,7 +1009,24 @@ zil_lwb_write_start(zilog_t *zilog, lwb_t *lwb)
 	 * to clean up in the event of allocation failure or I/O failure.
 	 */
 	tx = dmu_tx_create(zilog->zl_os);
-	VERIFY(dmu_tx_assign(tx, TXG_WAIT) == 0);
+
+	/*
+	 * Since we are not going to create any new dirty data and we can even
+	 * help with clearing the existing dirty data, we should not be subject
+	 * to the dirty data based delays.
+	 * We (ab)use TXG_WAITED to bypass the delay mechanism.
+	 * One side effect from using TXG_WAITED is that dmu_tx_assign() can
+	 * fail if the pool is suspended.  Those are dramatic circumstances,
+	 * so we return NULL to signal that the normal ZIL processing is not
+	 * possible and txg_wait_synced() should be used to ensure that the data
+	 * is on disk.
+	 */
+	error = dmu_tx_assign(tx, TXG_WAITED);
+	if (error != 0) {
+		ASSERT3S(error, ==, EIO);
+		dmu_tx_abort(tx);
+		return (NULL);
+	}
 	dsl_dataset_dirty(dmu_objset_ds(zilog->zl_os), tx);
 	txg = dmu_tx_get_txg(tx);
 
