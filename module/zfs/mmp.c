@@ -446,7 +446,7 @@ mmp_thread(spa_t *spa)
 		CALLB_CPR_SAFE_BEGIN(&cpr);
 		(void) cv_timedwait_sig(&mmp->mmp_thread_cv,
 		    &mmp->mmp_thread_lock, ddi_get_lbolt() +
-		    ((next_time - gethrtime()) / (NANOSEC / HZ)));
+		    ((next_time - gethrtime()) / (NANOSEC / hz)));
 		CALLB_CPR_SAFE_END(&cpr, &mmp->mmp_thread_lock);
 	}
 
