@@ -1227,7 +1227,8 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 			if (is_mpath_whole_disk(path))
 				update_vdev_config_dev_strs(nv);
 
-			(void) zero_label(path);
+			if (!is_spare(NULL, path))
+				(void) zero_label(path);
 			return (0);
 		}
 
