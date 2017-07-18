@@ -91,8 +91,17 @@ function get_rand_large_recsize
 #
 # Functions to toggle on/off properties
 #
-typeset -a binary_props=('atime' 'devices' 'exec' 'nbmand' 'readonly' 'setuid'
-    'xattr' 'zoned')
+typeset -a binary_props=('atime' 'devices' 'exec' 'readonly' 'setuid' 'xattr'
+    'zoned')
+
+if is_linux; then
+	# Only older kernels support non-blocking mandatory locks
+	if [[ $(linux_version) -lt $(linux_version "4.4") ]]; then
+		binary_props+=('nbmand')
+	fi
+else
+	binary_props+=('nbmand')
+fi
 
 function toggle_prop
 {

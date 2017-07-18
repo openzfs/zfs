@@ -40,6 +40,29 @@ if [ -n "$STF_PATH" ]; then
 	PATH="$STF_PATH"
 fi
 
+# Linux kernel version comparison function
+#
+# $1 Linux version ("4.10", "2.6.32") or blank for installed Linux version
+#
+# Used for comparison: if [ $(linux_version) -ge $(linux_version "2.6.32") ]
+#
+function linux_version
+{
+	typeset ver="$1"
+
+	[[ -z "$ver" ]] && ver=$(uname -r | grep -Eo "^[0-9]+\.[0-9]+\.[0-9]+")
+
+	typeset version=$(echo $ver | cut -d '.' -f 1)
+	typeset major=$(echo $ver | cut -d '.' -f 2)
+	typeset minor=$(echo $ver | cut -d '.' -f 3)
+
+	[[ -z "$version" ]] && version=0
+	[[ -z "$major" ]] && major=0
+	[[ -z "$minor" ]] && minor=0
+
+	echo $((version * 10000 + major * 100 + minor))
+}
+
 # Determine if this is a Linux test system
 #
 # Return 0 if platform Linux, 1 if otherwise

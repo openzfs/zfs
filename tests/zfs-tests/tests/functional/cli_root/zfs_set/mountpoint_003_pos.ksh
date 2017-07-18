@@ -67,11 +67,15 @@ if is_linux; then
 	set -A args \
 	"nodev"		"dev"	\
 	"noexec"	"exec"	\
-	"mand"		"nomand"	\
 	"ro"		"rw"	\
 	"nosuid"	"suid"	\
 	"xattr"		"noxattr"	\
 	"atime"		"noatime"
+
+	# Only older kernels support non-blocking mandatory locks
+	if [[ $(linux_version) -lt $(linux_version "4.4") ]]; then
+		args+=("mand" "nomand")
+	fi
 else
 	set -A args \
 	"devices"	"/devices/"	"nodevices"	"/nodevices/"	\
