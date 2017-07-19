@@ -1,0 +1,72 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\"
+.\" Copyright (c) 2017 by Lawrence Livermore National Security, LLC.
+.\"
+.Dd July 24, 2017
+.Dt ZGENHOSTID 8 SMM
+.Os Linux
+.Sh NAME
+.Nm zgenhostid
+.Nd generate and store a hostid in
+.Em /etc/hostid
+.Sh SYNOPSIS
+.Nm
+.Op Ar hostid
+.Sh DESCRIPTION
+If
+.Em /etc/hostid
+does not exist, create it and store a hostid in it.  If the user provides
+.Op Ar hostid
+on the command line, store that value.  Otherwise, randomly generate a
+value to store.
+.Pp
+This emulates the
+.Xr genhostid 1
+utility and is provided for use on systems which do not include the utility.
+.Pp
+.Sh OPTIONS
+.Op Ar hostid
+Specifies the value to be placed in
+.Em /etc/hostid .
+It must be a number with a value between 1 and 2^32-1.  This value
+.Sy must
+be unique among your systems.  It must be expressed in hexadecimal and be
+exactly 8 digits long.
+.Sh EXAMPLES
+.Bl -tag -width Ds
+.It Generate a random hostid and store it
+.Bd -literal
+# zgenhostid
+.Ed
+.It Record the libc-generated hostid in Em /etc/hostid
+.Bd -literal
+# zgenhostid $(hostid)
+.Ed
+.It Record a custom hostid (0xdeadbeef) in Em etc/hostid
+.Bd -literal
+# zgenhostid deadbeef
+.Ed
+.El
+.Sh SEE ALSO
+.Xr spl-module-parameters 5 ,
+.Xr genhostid 1 ,
+.Xr hostid 1
