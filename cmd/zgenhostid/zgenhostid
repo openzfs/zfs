@@ -1,0 +1,61 @@
+#!/bin/bash
+
+# Emulate genhostid(1) available on RHEL/CENTOS, for use on distros
+# which do not provide that utility.
+#
+# Usage:
+#    zgenhostid
+#    zgenhostid <value>
+#
+# If /etc/hostid already exists and is size > 0, the script exits immediately
+# and changes nothing.  Unlike genhostid, this generates an error message.
+#
+# The first form generates a random hostid and stores it in /etc/hostid.
+# The second form checks that the provided value is between 0x1 and 0xFFFFFFFF
+# and if so, stores it in /etc/hostid.  This form is not supported by
+# genhostid(1).
+
+hostid_file=/etc/hostid
+
+function usage {
+	echo "$0 [value]"
+	echo "If $hostid_file is not present, store a hostid in it." >&2
+	echo "The optional value must be an 8-digit hex number between" >&2
+	echo "1 and 2^32-1.  If no value is provided, a random one will" >&2
+	echo "be generated.  The value must be unique among your systems." >&2
+}
+
+# hostid(1) ignores contents of /etc/hostid if size < 4 bytes.  It would
+# be better if this checked size >= 4 bytes but it the method must be
+# widely portable.
+if [ -s $hostid_file ]; then
+	echo "$hostid_file already exists.  No change made." >&2
+	exit 1
+fi
+
+if [ -n "$1" ]; then
+	host_id=$1
+else
+	# $RANDOM goes from 0..32k-1
+	number=$((((RANDOM % 4) * 32768 + RANDOM) * 32768 + RANDOM))
+	host_id=$(printf "%08x" $number)
+fi
+
+if egrep -o '^0{8}$' <<< $host_id >/dev/null 2>&1; then
+	usage
+	exit 2
+fi
+
+if ! egrep -o '^[a-fA-F0-9]{8}$' <<< $host_id >/dev/null 2>&1; then
+	usage
+	exit 3
+fi
+
+a=${host_id:6:2}
+b=${host_id:4:2}
+c=${host_id:2:2}
+d=${host_id:0:2}
+
+echo -ne \\x$a\\x$b\\x$c\\x$d > $hostid_file
+
+exit 0

@@ -1865,7 +1865,7 @@ zpool_import_props(libzfs_handle_t *hdl, nvlist_t *config, const char *newname,
 					    "the multihost property on and "
 					    "the\nsystem's hostid is not set. "
 					    "Set a unique system hostid with "
-					    "the genhostid(1) command.\n"));
+					    "the zgenhostid(8) command.\n"));
 				}
 
 				(void) zfs_error_aux(hdl, aux);
