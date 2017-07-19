@@ -1,0 +1,38 @@
+.TH zgenhostid 8
+.SH NAME
+zgenhostid \- generate and store a hostid in /etc/hostid
+.SH SYNOPSIS
+.LP
+.nf
+\fBzgenhostid\fR [hostid]
+.fi
+.SH DESCRIPTION
+If \fB/etc/hostid\fR does not exist, create it and store a hostid in
+it.  If the user provides \fBhostid\fR on the command line, store that value.
+Otherwise, randomly generate a value to store.
+
+This emulates the \fBgenhostid(1)\fR utility, and is provided for users on
+SUSE which does not include the utility.
+
+.SH OPTIONS
+.TP
+\fBhostid\fR
+Specifies the value to be placed in \fB/etc/hostid\fR.  It must be a
+number with a value between 1 and 2^32-1.  This value \fBmust\fR be
+unique among your systems.  It must be expressed in hexadecimal and be
+exactly 8 digits long.
+.SH EXAMPLES
+.TP
+zgenhostid
+Generate a random hostid and store it
+.TP
+zgenhostid $(hostid)
+Record the libc-generated hostid in /etc/hostid
+.TP
+zgenhostid deadbeef
+Record a custom hostid (0xdeadbeef) in /etc/hostid
+.SH SEE ALSO
+.LP
+\fBspl-module-parameters\fR(5)
+\fBgenhostid\fR(1)
+\fBhostid\fR(1)

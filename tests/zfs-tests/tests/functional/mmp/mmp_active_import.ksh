@@ -86,6 +86,7 @@ log_must mmp_set_hostid $HOSTID1
 MMP_IMPORTED_MSG="The pool can be imported"
 log_must check_pool_import $MMP_POOL "-d $MMP_DIR" "action" $MMP_IMPORTED_MSG
 
+log_must mmp_clear_hostid
 log_must mmp_set_hostid $HOSTID2
 MMP_IMPORTED_MSG="The pool was last accessed by another system."
 log_must check_pool_import $MMP_POOL "-d $MMP_DIR" "status" $MMP_IMPORTED_MSG

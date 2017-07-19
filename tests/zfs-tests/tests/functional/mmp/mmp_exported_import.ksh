@@ -62,6 +62,7 @@ done
 for opt in "" "-f"; do
 	log_must mmp_pool_set_hostid $TESTPOOL $HOSTID1
 	log_must zpool export $TESTPOOL
+	log_must mmp_clear_hostid
 	log_must mmp_set_hostid $HOSTID2
 	log_must import_no_activity_check $TESTPOOL $opt
 done
@@ -87,6 +88,7 @@ done
 for opt in "" "-f"; do
 	log_must mmp_pool_set_hostid $TESTPOOL $HOSTID1
 	log_must zpool export $TESTPOOL
+	log_must mmp_clear_hostid
 	log_must mmp_set_hostid $HOSTID2
 	log_must import_no_activity_check $TESTPOOL $opt
 done
