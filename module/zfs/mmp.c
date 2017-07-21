@@ -458,13 +458,60 @@ mmp_thread(spa_t *spa)
 	mmp_thread_exit(mmp, &mmp->mmp_thread, &cpr);
 }
 
+/*
+ * Signal the MMP thread to wake it, when it is sleeping on
+ * its cv.  Used when some module parameter has changed and
+ * we want the thread to know about it.
+ * Only signal if the pool is active and mmp thread is
+ * running, otherwise there is no thread to wake.
+ */
+static void
+mmp_signal_thread(spa_t *spa)
+{
+	mmp_thread_t *mmp = &spa->spa_mmp;
+
+	mutex_enter(&mmp->mmp_thread_lock);
+	if (mmp->mmp_thread)
+		cv_broadcast(&mmp->mmp_thread_cv);
+	mutex_exit(&mmp->mmp_thread_lock);
+}
+
+void
+mmp_signal_all_threads(void)
+{
+	spa_t *spa = NULL;
+
+	mutex_enter(&spa_namespace_lock);
+	while ((spa = spa_next(spa)))
+		if (spa->spa_state == POOL_STATE_ACTIVE)
+			mmp_signal_thread(spa);
+	mutex_exit(&spa_namespace_lock);
+}
+
 #if defined(_KERNEL) && defined(HAVE_SPL)
+#include <linux/mod_compat.h>
+
+static int
+param_set_multihost_interval(const char *val, zfs_kernel_param_t *kp)
+{
+	int ret;
+
+	ret = param_set_ulong(val, kp);
+	if (ret < 0)
+		return (ret);
+
+	mmp_signal_all_threads();
+
+	return (ret);
+}
+
 /* BEGIN CSTYLED */
 module_param(zfs_multihost_fail_intervals, uint, 0644);
 MODULE_PARM_DESC(zfs_multihost_fail_intervals,
 	"Max allowed period without a successful mmp write");
 
-module_param(zfs_multihost_interval, ulong, 0644);
+module_param_call(zfs_multihost_interval, param_set_multihost_interval,
+    param_get_ulong, &zfs_multihost_interval, 0644);
 MODULE_PARM_DESC(zfs_multihost_interval,
 	"Milliseconds between mmp writes to each leaf");
 

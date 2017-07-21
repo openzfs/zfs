@@ -7,6 +7,7 @@ dist_pkgdata_SCRIPTS = \
 	mmp_active_import.ksh \
 	mmp_inactive_import.ksh \
 	mmp_exported_import.ksh \
+	mmp_reset_interval.ksh \
 	setup.ksh \
 	cleanup.ksh \
 	mmp.kshlib \
