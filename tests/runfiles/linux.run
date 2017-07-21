@@ -413,7 +413,7 @@ tests = ['mmap_write_001_pos', 'mmap_read_001_pos']
 [tests/functional/mmp]
 tests = ['mmp_on_thread', 'mmp_on_uberblocks', 'mmp_on_off', 'mmp_interval',
     'mmp_active_import', 'mmp_inactive_import', 'mmp_exported_import',
-    'mmp_write_uberblocks']
+    'mmp_write_uberblocks', 'mmp_reset_interval']
 
 [tests/functional/mount]
 tests = ['umount_001', 'umountall_001']
