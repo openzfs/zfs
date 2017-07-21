@@ -1456,7 +1456,7 @@ values, use the
 .Fl p
 flag.
 .Bl -tag -width Ds
-.It Fl c Op Ar SCRIPT1 , Ar SCRIPT2 ...
+.It Fl c Op Ar SCRIPT1 Ns Oo , Ns Ar SCRIPT2 Oc Ns ...
 Run a script (or scripts) on each vdev and include the output as a new column
 in the
 .Nm zpool Cm iostat
@@ -1470,8 +1470,8 @@ ZPOOL_SCRIPTS_PATH environment variable. A privileged user can run
 if they have the ZPOOL_SCRIPTS_AS_ROOT
 environment variable set. If a script requires the use of a privileged
 command, like
-.Xr smartctl 8
-, then it's recommended you allow the user access to it in
+.Xr smartctl 8 ,
+then it's recommended you allow the user access to it in
 .Pa /etc/sudoers
 or add the user to the
 .Pa /etc/sudoers.d/zfs
@@ -1481,8 +1481,8 @@ If
 .Fl c
 is passed without a script name, it prints a list of all scripts.
 .Fl c
-also sets verbose mode (
-.Fl c ).
+also sets verbose mode
+.No ( Ns Fl v Ns No ).
 .Pp
 Script output should be in the form of "name=value". The column name is
 set to "name" and the value is set to "value". Multiple lines can be
@@ -1912,7 +1912,7 @@ and automatically import it.
 .It Xo
 .Nm
 .Cm status
-.Op Fl c Op Ar SCRIPT1 , Ar SCRIPT2 ...
+.Op Fl c Op Ar SCRIPT1 Ns Oo , Ns Ar SCRIPT2 Oc Ns ...
 .Op Fl gLPvxD
 .Op Fl T Sy u Ns | Ns Sy d
 .Oo Ar pool Oc Ns ...
@@ -1931,7 +1931,7 @@ and the estimated time to completion.
 Both of these are only approximate, because the amount of data in the pool and
 the other workloads on the system can change.
 .Bl -tag -width Ds
-.It Fl c Op Ar SCRIPT1 , Ar SCRIPT2 ...
+.It Fl c Op Ar SCRIPT1 Ns Oo , Ns Ar SCRIPT2 Oc Ns ...
 Run a script (or scripts) on each vdev and include the output as a new column
 in the
 .Nm zpool Cm status
@@ -2322,11 +2322,11 @@ by setting
 .El
 .Bl -tag -width "ZPOOL_SCRIPTS_AS_ROOT"
 .It Ev ZPOOL_SCRIPTS_AS_ROOT
-Allow a privilaged user to run the
+Allow a privileged user to run the
 .Nm zpool status/iostat
 with the
 .Fl c
-option.  Normally, only unprivilaged users are allowed to run
+option.  Normally, only unprivileged users are allowed to run
 .Fl c .
 .El
 .Bl -tag -width "ZPOOL_SCRIPTS_PATH"
