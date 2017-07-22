@@ -3325,7 +3325,7 @@ zio_vdev_io_done(zio_t *zio)
 
 	ops->vdev_op_io_done(zio);
 
-	if (unexpected_error && zio->io_waiter != NULL)
+	if (unexpected_error)
 		VERIFY(vdev_probe(vd, zio) == NULL);
 
 	return (ZIO_PIPELINE_CONTINUE);
