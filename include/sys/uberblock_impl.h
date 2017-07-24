@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2017 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_UBERBLOCK_IMPL_H
@@ -60,6 +61,7 @@ struct uberblock {
 	uint64_t	ub_mmp_magic;	/* MMP_MAGIC			*/
 	uint64_t	ub_mmp_delay;	/* nanosec since last MMP write	*/
 	uint64_t	ub_mmp_seq;	/* reserved for sequence number	*/
+	uint64_t	ub_checkpoint_txg;
 };
 
 #ifdef	__cplusplus
