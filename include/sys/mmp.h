@@ -50,6 +50,7 @@ extern void mmp_fini(struct spa *spa);
 extern void mmp_thread_start(struct spa *spa);
 extern void mmp_thread_stop(struct spa *spa);
 extern void mmp_update_uberblock(struct spa *spa, struct uberblock *ub);
+extern void mmp_signal_all_threads(void);
 
 /* Global tuning */
 extern ulong_t zfs_multihost_interval;
