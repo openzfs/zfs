@@ -1428,17 +1428,12 @@ dmu_recv_begin_check(void *arg, dmu_tx_t *tx)
 	/*
 	 * The receiving code doesn't know how to translate large blocks
 	 * to smaller ones, so the pool must have the LARGE_BLOCKS
-	 * feature enabled if the stream has LARGE_BLOCKS.
+	 * feature enabled if the stream has LARGE_BLOCKS. Same with
+	 * large dnodes.
 	 */
 	if ((featureflags & DMU_BACKUP_FEATURE_LARGE_BLOCKS) &&
 	    !spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_LARGE_BLOCKS))
 		return (SET_ERROR(ENOTSUP));
-
-	/*
-	 * The receiving code doesn't know how to translate large dnodes
-	 * to smaller ones, so the pool must have the LARGE_DNODE
-	 * feature enabled if the stream has LARGE_DNODE.
-	 */
 	if ((featureflags & DMU_BACKUP_FEATURE_LARGE_DNODE) &&
 	    !spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_LARGE_DNODE))
 		return (SET_ERROR(ENOTSUP));
@@ -1676,6 +1671,19 @@ dmu_recv_resume_begin_check(void *arg, dmu_tx_t *tx)
 		return (SET_ERROR(ENOTSUP));
 	if ((featureflags & DMU_BACKUP_FEATURE_LZ4) &&
 	    !spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_LZ4_COMPRESS))
+		return (SET_ERROR(ENOTSUP));
+
+	/*
+	 * The receiving code doesn't know how to translate large blocks
+	 * to smaller ones, so the pool must have the LARGE_BLOCKS
+	 * feature enabled if the stream has LARGE_BLOCKS. Same with
+	 * large dnodes.
+	 */
+	if ((featureflags & DMU_BACKUP_FEATURE_LARGE_BLOCKS) &&
+	    !spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_LARGE_BLOCKS))
+		return (SET_ERROR(ENOTSUP));
+	if ((featureflags & DMU_BACKUP_FEATURE_LARGE_DNODE) &&
+	    !spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_LARGE_DNODE))
 		return (SET_ERROR(ENOTSUP));
 
 	(void) snprintf(recvname, sizeof (recvname), "%s/%s",
@@ -2121,7 +2129,9 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 	    drro->drr_blksz < SPA_MINBLOCKSIZE ||
 	    drro->drr_blksz > spa_maxblocksize(dmu_objset_spa(rwa->os)) ||
 	    drro->drr_bonuslen >
-	    DN_BONUS_SIZE(spa_maxdnodesize(dmu_objset_spa(rwa->os)))) {
+	    DN_BONUS_SIZE(spa_maxdnodesize(dmu_objset_spa(rwa->os))) ||
+	    drro->drr_dn_slots >
+	    (spa_maxdnodesize(dmu_objset_spa(rwa->os)) >> DNODE_SHIFT))  {
 		return (SET_ERROR(EINVAL));
 	}
 
