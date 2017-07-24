@@ -15,7 +15,7 @@
 #
 
 #
-# Copyright (c) 2014, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2014, 2017 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -23,12 +23,12 @@
 
 function cleanup
 {
-	log_must set_tunable64 metaslab_gang_bang $((2**17 + 1))
+	log_must set_tunable64 metaslab_force_ganging $((2**17 + 1))
 	default_cleanup_noexit
 }
 
 default_setup_noexit "$DISKS"
-log_must set_tunable64 metaslab_gang_bang $((2**12))
+log_must set_tunable64 metaslab_force_ganging $((2**14))
 log_onexit cleanup
 
 FILE_CONTENTS="Leeloo Dallas mul-ti-pass."

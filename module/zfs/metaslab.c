@@ -48,8 +48,10 @@
  */
 unsigned long metaslab_aliquot = 512 << 10;
 
-/* force gang blocks */
-unsigned long metaslab_gang_bang = SPA_MAXBLOCKSIZE + 1;
+/*
+ * For testing, make some blocks above a certain size be gang blocks.
+ */
+unsigned long metaslab_force_ganging = SPA_MAXBLOCKSIZE + 1;
 
 /*
  * The in-core space map representation is more compact than its on-disk form.
@@ -2952,7 +2954,7 @@ metaslab_alloc_dva(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 	/*
 	 * For testing, make some blocks above a certain size be gang blocks.
 	 */
-	if (psize >= metaslab_gang_bang && (ddi_get_lbolt() & 3) == 0) {
+	if (psize >= metaslab_force_ganging && (ddi_get_lbolt() & 3) == 0) {
 		metaslab_trace_add(zal, NULL, NULL, psize, d, TRACE_FORCE_GANG);
 		return (SET_ERROR(ENOSPC));
 	}
@@ -3900,7 +3902,7 @@ MODULE_PARM_DESC(zfs_metaslab_switch_threshold,
 	"segment-based metaslab selection maximum buckets before switching");
 
 /* CSTYLED */
-module_param(metaslab_gang_bang, ulong, 0644);
-MODULE_PARM_DESC(metaslab_gang_bang,
+module_param(metaslab_force_ganging, ulong, 0644);
+MODULE_PARM_DESC(metaslab_force_ganging,
 	"blocks larger than this size are forced to be gang blocks");
 #endif /* _KERNEL && HAVE_SPL */
