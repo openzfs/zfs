@@ -287,6 +287,7 @@ mmp_write_done(zio_t *zio)
 
 unlock:
 	mutex_exit(&mts->mmp_io_lock);
+	spa_config_exit(spa, SCL_STATE, FTAG);
 
 	abd_free(zio->io_abd);
 }
@@ -322,9 +323,12 @@ mmp_write_uberblock(spa_t *spa)
 	int label;
 	uint64_t offset;
 
+	spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
 	vd = vdev_random_leaf(spa);
-	if (vd == NULL || !vdev_writeable(vd))
+	if (vd == NULL || !vdev_writeable(vd)) {
+		spa_config_exit(spa, SCL_STATE, FTAG);
 		return;
+	}
 
 	mutex_enter(&mmp->mmp_io_lock);
 
@@ -437,11 +441,8 @@ mmp_thread(spa_t *spa)
 			zio_suspend(spa, NULL);
 		}
 
-		if (multihost) {
-			spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
+		if (multihost)
 			mmp_write_uberblock(spa);
-			spa_config_exit(spa, SCL_STATE, FTAG);
-		}
 
 		CALLB_CPR_SAFE_BEGIN(&cpr);
 		(void) cv_timedwait_sig(&mmp->mmp_thread_cv,
