@@ -244,7 +244,7 @@ taskq_seq_show_impl(struct seq_file *f, void *p, boolean_t allflag)
 {
 	taskq_t *tq = p;
 	taskq_thread_t *tqt;
-	wait_queue_t *wq;
+	spl_wait_queue_entry_t *wq;
 	struct task_struct *tsk;
 	taskq_ent_t *tqe;
 	char name[100];
@@ -261,7 +261,11 @@ taskq_seq_show_impl(struct seq_file *f, void *p, boolean_t allflag)
 	lheads[LHEAD_PEND] = &tq->tq_pend_list;
 	lheads[LHEAD_PRIO] = &tq->tq_prio_list;
 	lheads[LHEAD_DELAY] = &tq->tq_delay_list;
+#ifdef HAVE_WAIT_QUEUE_HEAD_ENTRY
+	lheads[LHEAD_WAIT] = &tq->tq_wait_waitq.head;
+#else
 	lheads[LHEAD_WAIT] = &tq->tq_wait_waitq.task_list;
+#endif
 	lheads[LHEAD_ACTIVE] = &tq->tq_active_list;
 
 	for (i = 0; i < LHEAD_SIZE; ++i) {
@@ -320,7 +324,13 @@ taskq_seq_show_impl(struct seq_file *f, void *p, boolean_t allflag)
 				}
 				/* show the wait waitq list */
 				if (i == LHEAD_WAIT) {
-					wq = list_entry(lh, wait_queue_t, task_list);
+#ifdef HAVE_WAIT_QUEUE_HEAD_ENTRY
+					wq = list_entry(lh,
+					    spl_wait_queue_entry_t, entry);
+#else
+					wq = list_entry(lh,
+					    spl_wait_queue_entry_t, task_list);
+#endif
 					if (j == 0)
 						seq_printf(f, "\t%s:",
 						    list_names[i]);

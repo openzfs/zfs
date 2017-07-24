@@ -30,6 +30,7 @@
 #include <linux/slab.h>
 #include <linux/interrupt.h>
 #include <linux/kthread.h>
+#include <linux/wait_compat.h>
 #include <sys/types.h>
 #include <sys/thread.h>
 #include <sys/rwlock.h>
@@ -96,14 +97,14 @@ typedef struct taskq {
 	struct list_head	tq_prio_list;	/* priority pending taskq_ent_t's */
 	struct list_head	tq_delay_list;	/* delayed taskq_ent_t's */
 	struct list_head	tq_taskqs;	/* all taskq_t's */
-	wait_queue_head_t	tq_work_waitq;	/* new work waitq */
-	wait_queue_head_t	tq_wait_waitq;	/* wait waitq */
+	spl_wait_queue_head_t	tq_work_waitq;	/* new work waitq */
+	spl_wait_queue_head_t	tq_wait_waitq;	/* wait waitq */
 	tq_lock_role_t		tq_lock_class;	/* class when taking tq_lock */
 } taskq_t;
 
 typedef struct taskq_ent {
 	spinlock_t		tqent_lock;
-	wait_queue_head_t	tqent_waitq;
+	spl_wait_queue_head_t	tqent_waitq;
 	struct timer_list	tqent_timer;
 	struct list_head	tqent_list;
 	taskqid_t		tqent_id;
