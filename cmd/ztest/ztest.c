@@ -168,7 +168,7 @@ typedef struct ztest_shared_opts {
 	int zo_init;
 	uint64_t zo_time;
 	uint64_t zo_maxloops;
-	uint64_t zo_metaslab_gang_bang;
+	uint64_t zo_metaslab_force_ganging;
 	int zo_mmp_test;
 } ztest_shared_opts_t;
 
@@ -192,10 +192,10 @@ static const ztest_shared_opts_t ztest_opts_defaults = {
 	.zo_init = 1,
 	.zo_time = 300,			/* 5 minutes */
 	.zo_maxloops = 50,		/* max loops during spa_freeze() */
-	.zo_metaslab_gang_bang = 32 << 10
+	.zo_metaslab_force_ganging = 32 << 10
 };
 
-extern uint64_t metaslab_gang_bang;
+extern uint64_t metaslab_force_ganging;
 extern uint64_t metaslab_df_alloc_threshold;
 extern unsigned long zfs_deadman_synctime_ms;
 extern int metaslab_preload_limit;
@@ -635,12 +635,12 @@ usage(boolean_t requested)
 	const ztest_shared_opts_t *zo = &ztest_opts_defaults;
 
 	char nice_vdev_size[NN_NUMBUF_SZ];
-	char nice_gang_bang[NN_NUMBUF_SZ];
+	char nice_force_ganging[NN_NUMBUF_SZ];
 	FILE *fp = requested ? stdout : stderr;
 
 	nicenum(zo->zo_vdev_size, nice_vdev_size, sizeof (nice_vdev_size));
-	nicenum(zo->zo_metaslab_gang_bang, nice_gang_bang,
-	    sizeof (nice_gang_bang));
+	nicenum(zo->zo_metaslab_force_ganging, nice_force_ganging,
+	    sizeof (nice_force_ganging));
 
 	(void) fprintf(fp, "Usage: %s\n"
 	    "\t[-v vdevs (default: %llu)]\n"
@@ -677,7 +677,7 @@ usage(boolean_t requested)
 	    zo->zo_raidz_parity,			/* -R */
 	    zo->zo_datasets,				/* -d */
 	    zo->zo_threads,				/* -t */
-	    nice_gang_bang,				/* -g */
+	    nice_force_ganging,				/* -g */
 	    zo->zo_init,				/* -i */
 	    (u_longlong_t)zo->zo_killrate,		/* -k */
 	    zo->zo_pool,				/* -p */
@@ -746,8 +746,8 @@ process_options(int argc, char **argv)
 			zo->zo_threads = MAX(1, value);
 			break;
 		case 'g':
-			zo->zo_metaslab_gang_bang = MAX(SPA_MINBLOCKSIZE << 1,
-			    value);
+			zo->zo_metaslab_force_ganging =
+			    MAX(SPA_MINBLOCKSIZE << 1, value);
 			break;
 		case 'i':
 			zo->zo_init = value;
@@ -7299,7 +7299,7 @@ main(int argc, char **argv)
 	zs = ztest_shared;
 
 	if (fd_data_str) {
-		metaslab_gang_bang = ztest_opts.zo_metaslab_gang_bang;
+		metaslab_force_ganging = ztest_opts.zo_metaslab_force_ganging;
 		metaslab_df_alloc_threshold =
 		    zs->zs_metaslab_df_alloc_threshold;
 
