@@ -46,11 +46,11 @@ verify_runnable "both"
 function cleanup
 {
 	if snapexists $TESTPOOL/$TESTFS@$TESTSNAP; then
-		log_must zfs destroy $TESTPOOL/$TESTFS@$TESTSNAP
+		log_must_busy zfs destroy $TESTPOOL/$TESTFS@$TESTSNAP
 	fi
 
 	if is_global_zone && datasetexists $TESTPOOL/$TESTVOL; then
-		log_must zfs destroy $TESTPOOL/$TESTVOL
+		log_must_busy zfs destroy $TESTPOOL/$TESTVOL
 	fi
 }
 
