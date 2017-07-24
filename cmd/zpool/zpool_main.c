@@ -2177,7 +2177,7 @@ show_import(nvlist_t *config)
 			break;
 		case ZPOOL_STATUS_HOSTID_REQUIRED:
 			(void) printf(gettext(" action: Set a unique system "
-			    "hostid with the genhostid(1) command.\n"));
+			    "hostid with the zgenhostid(8) command.\n"));
 			break;
 		default:
 			(void) printf(gettext(" action: The pool cannot be "
@@ -2304,7 +2304,7 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 			(void) fprintf(stderr, gettext("Cannot import '%s': "
 			    "pool has the multihost property on and the\n"
 			    "system's hostid is not set. Set a unique hostid "
-			    "with the genhostid(1) command.\n"), name);
+			    "with the zgenhostid(8) command.\n"), name);
 		} else {
 			char *hostname = "<unknown>";
 			uint64_t timestamp = 0;
