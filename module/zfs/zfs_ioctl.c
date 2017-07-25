@@ -4946,7 +4946,8 @@ zfs_ioc_clear(zfs_cmd_t *zc)
 
 	vdev_clear(spa, vd);
 
-	(void) spa_vdev_state_exit(spa, spa->spa_root_vdev, 0);
+	(void) spa_vdev_state_exit(spa, spa_suspended(spa) ?
+	    NULL : spa->spa_root_vdev, 0);
 
 	/*
 	 * Resume any suspended I/Os.
