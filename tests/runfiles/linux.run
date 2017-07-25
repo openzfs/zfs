@@ -201,7 +201,7 @@ tests = ['zpool_attach_001_neg', 'attach-o_ashift']
 
 [tests/functional/cli_root/zpool_clear]
 tests = ['zpool_clear_001_pos', 'zpool_clear_002_neg', 'zpool_clear_003_neg',
-    'zpool_clear_readonly']
+    'zpool_clear_readonly', 'zpool_clear_suspended']
 
 [tests/functional/cli_root/zpool_create]
 tests = ['zpool_create_001_pos', 'zpool_create_002_pos',
