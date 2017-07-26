@@ -207,15 +207,6 @@ extern int aok;
 	(unsigned long)i)
 
 /*
- * We use the comma operator so that this macro can be used without much
- * additional code.  For example, "return (EINVAL);" becomes
- * "return (SET_ERROR(EINVAL));".  Note that the argument will be evaluated
- * twice, so it should not have side effects (e.g. something like:
- * "return (SET_ERROR(log_error(EINVAL, info)));" would log the error twice).
- */
-#define	SET_ERROR(err) (ZFS_SET_ERROR(err), err)
-
-/*
  * Threads.  TS_STACK_MIN is dictated by the minimum allowed pthread stack
  * size.  While TS_STACK_MAX is somewhat arbitrary, it was selected to be
  * large enough for the expected stack depth while small enough to avoid

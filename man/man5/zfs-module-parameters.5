@@ -1258,6 +1258,12 @@ _
 _
 128	ZFS_DEBUG_HISTOGRAM_VERIFY
 	Enable extra spacemap histogram verifications.
+_
+256	ZFS_DEBUG_METASLAB_VERIFY
+	Verify space accounting on disk matches in-core range_trees.
+_
+512	ZFS_DEBUG_SET_ERROR
+	Enable SET_ERROR and dprintf entries in the debug log.
 .TE
 .sp
 * Requires debug build.
