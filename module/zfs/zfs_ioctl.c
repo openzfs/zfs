@@ -3773,11 +3773,14 @@ zfs_ioc_rollback(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 
 	(void) nvlist_lookup_string(innvl, "target", &target);
 	if (target != NULL) {
-		int fslen = strlen(fsname);
+		const char *cp = strchr(target, '@');
 
-		if (strncmp(fsname, target, fslen) != 0)
-			return (SET_ERROR(EINVAL));
-		if (target[fslen] != '@')
+		/*
+		 * The snap name must contain an @, and the part after it must
+		 * contain only valid characters.
+		 */
+		if (cp == NULL ||
+		    zfs_component_namecheck(cp + 1, NULL, NULL) != 0)
 			return (SET_ERROR(EINVAL));
 	}
 
