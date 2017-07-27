@@ -29,7 +29,7 @@
 
 function cleanup
 {
-	log_must zfs destroy -r $vol
+	log_must_busy zfs destroy -r $vol
 	cleanup_pool $POOL2
 }
 
