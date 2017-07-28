@@ -53,14 +53,11 @@ log_must mmp_set_hostid $HOSTID1
 default_setup_noexit $DISK
 log_must zpool set multihost=on $TESTPOOL
 
-prev_count=$(wc -l /proc/spl/kstat/zfs/$TESTPOOL/multihost | cut -f1 -d' ')
+clear_mmp_history
 log_must set_tunable64 zfs_multihost_interval $MMP_INTERVAL_DEFAULT
+uber_count=$(count_uberblocks $TESTPOOL 1)
 
-# slight delay to allow time for the mmp write to complete
-sleep 1
-curr_count=$(wc -l /proc/spl/kstat/zfs/$TESTPOOL/multihost | cut -f1 -d' ')
-
-if [ $curr_count -eq $prev_count ]; then
+if [ $uber_count -eq 0 ]; then
 	log_fail "mmp writes did not start when zfs_multihost_interval reduced"
 fi
 

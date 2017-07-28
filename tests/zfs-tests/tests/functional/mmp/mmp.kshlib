@@ -182,3 +182,19 @@ function import_activity_check # pool opts
 
 	return $rc
 }
+
+function clear_mmp_history
+{
+	log_must set_tunable64 zfs_multihost_history $MMP_HISTORY_OFF
+	log_must set_tunable64 zfs_multihost_history $MMP_HISTORY
+}
+
+function count_uberblocks # pool duration
+{
+	typeset pool=$1
+	typeset -i duration=$2
+	typeset hist_path="/proc/spl/kstat/zfs/$pool/multihost"
+
+	log_must sleep $duration
+	echo $(cat "$hist_path" | sed '1,2d' | wc -l)
+}
