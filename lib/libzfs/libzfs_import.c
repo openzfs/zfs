@@ -1677,6 +1677,47 @@ zpool_clear_label(int fd)
 }
 
 /*
+ * Scan a list of devices for zfs devices.
+ */
+static int
+zpool_find_import_path(libzfs_handle_t *hdl, pthread_mutex_t *lock,
+    avl_tree_t **slice_cache, char **path, int paths)
+{
+	rdsk_node_t *slice;
+	avl_index_t where;
+	int i;
+
+	*slice_cache = zfs_alloc(hdl, sizeof (avl_tree_t));
+
+	avl_create(*slice_cache, slice_cache_compare, sizeof (rdsk_node_t),
+	    offsetof(rdsk_node_t, rn_node));
+
+	for (i = 0; i < paths; i++) {
+		slice = zfs_alloc(hdl, sizeof (rdsk_node_t));
+
+		slice->rn_name = zfs_strdup(hdl, path[i]);
+		slice->rn_vdev_guid = 0;
+		slice->rn_lock = lock;
+		slice->rn_avl = *slice_cache;
+		slice->rn_hdl = hdl;
+		slice->rn_order = i + IMPORT_ORDER_SCAN_OFFSET;
+		slice->rn_labelpaths = B_FALSE;
+
+		pthread_mutex_lock(lock);
+		if (avl_find(*slice_cache, slice, &where)) {
+			free(slice->rn_name);
+			free(slice);
+		} else {
+			avl_insert(*slice_cache, slice, where);
+		}
+		pthread_mutex_unlock(lock);
+	}
+
+	return (0);
+}
+
+
+/*
  * Scan a list of directories for zfs devices.
  */
 static int
@@ -1876,7 +1917,14 @@ zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 	 * entry for each discovered vdev will be returned as the cache.
 	 * It's the callers responsibility to consume and destroy this tree.
 	 */
-	if (iarg->scan || iarg->paths != 0) {
+	if (iarg->fullpaths) {
+		int paths = iarg->paths;
+		char **path = iarg->path;
+
+		if (zpool_find_import_path(hdl, &lock, &cache, path,
+		    paths) != 0)
+			return (NULL);
+	} else if (iarg->scan || iarg->paths != 0) {
 		int dirs = iarg->paths;
 		char **dir = iarg->path;
 
