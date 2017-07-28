@@ -71,7 +71,7 @@ pthread_mutex_t kthread_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_key_t kthread_key;
 int kthread_nr = 0;
 
-void
+static void
 thread_init(void)
 {
 	kthread_t *kt;
@@ -90,7 +90,7 @@ thread_init(void)
 	kthread_nr = 1;
 }
 
-void
+static void
 thread_fini(void)
 {
 	kthread_t *kt = curthread;
@@ -1051,149 +1051,30 @@ delay(clock_t ticks)
 
 /*
  * Find highest one bit set.
- *	Returns bit number + 1 of highest bit that is set, otherwise returns 0.
- * High order bit is 31 (or 63 in _LP64 kernel).
+ * Returns bit number + 1 of highest bit that is set, otherwise returns 0.
+ * The __builtin_clzll() function is supported by both GCC and Clang.
  */
 int
 highbit64(uint64_t i)
 {
-	register int h = 1;
-
 	if (i == 0)
-		return (0);
-	if (i & 0xffffffff00000000ULL) {
-		h += 32; i >>= 32;
-	}
-	if (i & 0xffff0000) {
-		h += 16; i >>= 16;
-	}
-	if (i & 0xff00) {
-		h += 8; i >>= 8;
-	}
-	if (i & 0xf0) {
-		h += 4; i >>= 4;
-	}
-	if (i & 0xc) {
-		h += 2; i >>= 2;
-	}
-	if (i & 0x2) {
-		h += 1;
-	}
-	return (h);
+	return (0);
+
+	return (NBBY * sizeof (uint64_t) - __builtin_clzll(i));
 }
 
 /*
  * Find lowest one bit set.
  * Returns bit number + 1 of lowest bit that is set, otherwise returns 0.
- * This is basically a reimplementation of ffsll(), which is GNU specific.
+ * The __builtin_ffsll() function is supported by both GCC and Clang.
  */
 int
 lowbit64(uint64_t i)
 {
-	register int h = 64;
 	if (i == 0)
 		return (0);
 
-	if (i & 0x00000000ffffffffULL)
-		h -= 32;
-	else
-		i >>= 32;
-
-	if (i & 0x0000ffff)
-		h -= 16;
-	else
-		i >>= 16;
-
-	if (i & 0x00ff)
-		h -= 8;
-	else
-		i >>= 8;
-
-	if (i & 0x0f)
-		h -= 4;
-	else
-		i >>= 4;
-
-	if (i & 0x3)
-		h -= 2;
-	else
-		i >>= 2;
-
-	if (i & 0x1)
-		h -= 1;
-
-	return (h);
-}
-
-/*
- * Find highest one bit set.
- * Returns bit number + 1 of highest bit that is set, otherwise returns 0.
- * High order bit is 31 (or 63 in _LP64 kernel).
- */
-int
-highbit(ulong_t i)
-{
-register int h = 1;
-
-	if (i == 0)
-		return (0);
-#ifdef _LP64
-	if (i & 0xffffffff00000000ul) {
-		h += 32; i >>= 32;
-	}
-#endif
-	if (i & 0xffff0000) {
-		h += 16; i >>= 16;
-	}
-	if (i & 0xff00) {
-		h += 8; i >>= 8;
-	}
-	if (i & 0xf0) {
-		h += 4; i >>= 4;
-	}
-	if (i & 0xc) {
-		h += 2; i >>= 2;
-	}
-	if (i & 0x2) {
-		h += 1;
-	}
-	return (h);
-}
-
-/*
- * Find lowest one bit set.
- *     Returns bit number + 1 of lowest bit that is set, otherwise returns 0.
- * Low order bit is 0.
- */
-int
-lowbit(ulong_t i)
-{
-	register int h = 1;
-
-	if (i == 0)
-		return (0);
-
-#ifdef _LP64
-	if (!(i & 0xffffffff)) {
-		h += 32; i >>= 32;
-	}
-#endif
-	if (!(i & 0xffff)) {
-		h += 16; i >>= 16;
-	}
-	if (!(i & 0xff)) {
-		h += 8; i >>= 8;
-	}
-	if (!(i & 0xf)) {
-		h += 4; i >>= 4;
-	}
-	if (!(i & 0x3)) {
-		h += 2; i >>= 2;
-	}
-	if (!(i & 0x1)) {
-		h += 1;
-	}
-	return (h);
+	return (__builtin_ffsll(i));
 }
 
 static int random_fd = -1, urandom_fd = -1;
@@ -1286,64 +1167,6 @@ umem_out_of_memory(void)
 	(void) fprintf(stderr, "%s", errmsg);
 	abort();
 	return (0);
-}
-
-#define	HOSTID_MASK 0xffffffff
-
-static unsigned long
-get_spl_hostid(void)
-{
-	FILE *f;
-	unsigned long hostid;
-	char *env;
-
-	/*
-	 * Allow the hostid to be subverted for testing.
-	 */
-	env = getenv("ZFS_HOSTID");
-	if (env) {
-		hostid = strtoull(env, NULL, 0);
-		return (hostid & HOSTID_MASK);
-	}
-
-	f = fopen("/sys/module/spl/parameters/spl_hostid", "r");
-	if (!f)
-		return (0);
-
-	if (fscanf(f, "%lu", &hostid) != 1)
-		hostid = 0;
-
-	fclose(f);
-
-	return (hostid & HOSTID_MASK);
-}
-
-unsigned long
-get_system_hostid(void)
-{
-	unsigned long system_hostid = get_spl_hostid();
-	/*
-	 * We do not use the library call gethostid() because
-	 * it generates a hostid value that the kernel is
-	 * unaware of, if the spl_hostid module parameter has not
-	 * been set and there is no system hostid file (e.g.
-	 * /etc/hostid).  The kernel and userspace must agree.
-	 * See comments above hostid_read() in the SPL.
-	 */
-	if (system_hostid == 0) {
-		int fd, rc;
-		unsigned long hostid;
-		int hostid_size = 4;  /* 4 bytes regardless of arch */
-
-		fd = open("/etc/hostid", O_RDONLY);
-		if (fd >= 0) {
-			rc = read(fd, &hostid, hostid_size);
-			if (rc > 0)
-				system_hostid = (hostid & HOSTID_MASK);
-			close(fd);
-		}
-	}
-	return (system_hostid);
 }
 
 void

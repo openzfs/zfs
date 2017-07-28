@@ -25,9 +25,7 @@ nodist_libnvpair_la_SOURCES = \
 	$(USER_C) \
 	$(KERNEL_C)
 
-libnvpair_la_LIBADD = \
-	$(top_builddir)/lib/libuutil/libuutil.la \
-	$(LIBTIRPC)
+libnvpair_la_LIBADD = $(LIBTIRPC)
 libnvpair_la_LDFLAGS = -version-info 1:1:0
 
 EXTRA_DIST = $(USER_C)

@@ -27,11 +27,12 @@
 #ifndef _LIBSPL_SYS_SYSTEMINFO_H
 #define	_LIBSPL_SYS_SYSTEMINFO_H
 
+#define	HOSTID_MASK		0xFFFFFFFF
 #define	HW_INVALID_HOSTID	0xFFFFFFFF	/* an invalid hostid */
 #define	HW_HOSTID_LEN		11		/* minimum buffer size needed */
 						/* to hold a decimal or hex */
 						/* hostid string */
 
-#define	sysinfo(cmd, buf, cnt)		(-1)
+unsigned long get_system_hostid(void);
 
 #endif

@@ -368,7 +368,6 @@ typedef enum {
 	ZPOOL_STATUS_OK
 } zpool_status_t;
 
-extern unsigned long get_system_hostid(void);
 extern zpool_status_t zpool_get_status(zpool_handle_t *, char **,
     zpool_errata_t *);
 extern zpool_status_t zpool_import_status(nvlist_t *, char **,

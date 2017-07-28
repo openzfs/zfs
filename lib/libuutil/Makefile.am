@@ -28,8 +28,7 @@ nodist_libuutil_la_SOURCES = \
 
 libuutil_la_LIBADD = \
 	$(top_builddir)/lib/libavl/libavl.la \
-	$(top_builddir)/lib/libspl/libspl.la \
-	$(top_builddir)/lib/libefi/libefi.la
+	$(top_builddir)/lib/libspl/libspl.la
 
 libuutil_la_LDFLAGS = -pthread -version-info 1:1:0
 

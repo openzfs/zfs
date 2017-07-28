@@ -212,7 +212,9 @@ static struct fletcher_4_impl_selector {
 	{ "scalar",	IMPL_SCALAR }
 };
 
+#if defined(_KERNEL)
 static kstat_t *fletcher_4_kstat;
+#endif
 
 static struct fletcher_4_kstat {
 	uint64_t native;
@@ -589,7 +591,7 @@ fletcher_4_incremental_byteswap(void *buf, size_t size, void *data)
 	return (0);
 }
 
-
+#if defined(_KERNEL)
 /* Fletcher 4 kstats */
 
 static int
@@ -642,6 +644,7 @@ fletcher_4_kstat_addr(kstat_t *ksp, loff_t n)
 
 	return (ksp->ks_private);
 }
+#endif
 
 #define	FLETCHER_4_FASTEST_FN_COPY(type, src)				  \
 {									  \
@@ -753,6 +756,7 @@ fletcher_4_init(void)
 
 	vmem_free(databuf, data_size);
 
+#if defined(_KERNEL)
 	/* install kstats for all implementations */
 	fletcher_4_kstat = kstat_create("zfs", 0, "fletcher_4_bench", "misc",
 	    KSTAT_TYPE_RAW, 0, KSTAT_FLAG_VIRTUAL);
@@ -765,6 +769,7 @@ fletcher_4_init(void)
 		    fletcher_4_kstat_addr);
 		kstat_install(fletcher_4_kstat);
 	}
+#endif
 
 	/* Finish initialization */
 	fletcher_4_initialized = B_TRUE;
@@ -773,10 +778,12 @@ fletcher_4_init(void)
 void
 fletcher_4_fini(void)
 {
+#if defined(_KERNEL)
 	if (fletcher_4_kstat != NULL) {
 		kstat_delete(fletcher_4_kstat);
 		fletcher_4_kstat = NULL;
 	}
+#endif
 }
 
 /* ABD adapters */
