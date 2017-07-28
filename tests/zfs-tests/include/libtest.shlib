@@ -351,6 +351,41 @@ function create_bookmark
 	log_must zfs bookmark $fs_vol@$snap $fs_vol#$bkmark
 }
 
+#
+# Create a temporary clone result of an interrupted resumable 'zfs receive'
+# $1 Destination filesystem name. Must not exist, will be created as the result
+#    of this function along with its %recv temporary clone
+# $2 Source filesystem name. Must not exist, will be created and destroyed
+#
+function create_recv_clone
+{
+	typeset recvfs="$1"
+	typeset sendfs="${2:-$TESTPOOL/create_recv_clone}"
+	typeset snap="$sendfs@snap1"
+	typeset incr="$sendfs@snap2"
+	typeset mountpoint="$TESTDIR/create_recv_clone"
+	typeset sendfile="$TESTDIR/create_recv_clone.zsnap"
+
+	[[ -z $recvfs ]] && log_fail "Recv filesystem's name is undefined."
+
+	datasetexists $recvfs && log_fail "Recv filesystem must not exist."
+	datasetexists $sendfs && log_fail "Send filesystem must not exist."
+
+	log_must zfs create -o mountpoint="$mountpoint" $sendfs
+	log_must zfs snapshot $snap
+	log_must eval "zfs send $snap | zfs recv -u $recvfs"
+	log_must mkfile 1m "$mountpoint/data"
+	log_must zfs snapshot $incr
+	log_must eval "zfs send -i $snap $incr | dd bs=10K count=1 > $sendfile"
+	log_mustnot eval "zfs recv -su $recvfs < $sendfile"
+	log_must zfs destroy -r $sendfs
+	log_must rm -f "$sendfile"
+
+	if [[ $(get_prop 'inconsistent' "$recvfs/%recv") -ne 1 ]]; then
+		log_fail "Error creating temporary $recvfs/%recv clone"
+	fi
+}
+
 function default_mirror_setup
 {
 	default_mirror_setup_noexit $1 $2 $3
