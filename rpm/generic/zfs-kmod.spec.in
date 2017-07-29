@@ -86,8 +86,8 @@ BuildRequires:             kmod-spl-devel = %{version}
 %global KmodsMetaRequires  spl-kmod
 %endif
 
-# LDFLAGS are not sanitized by arch/powerpc/Makefile (unlike other arches)
-%ifarch ppc ppc64 ppc64le
+# LDFLAGS are not sanitized by arch/*/Makefile for these architectures.
+%ifarch ppc ppc64 ppc64le aarch64
 %global __global_ldflags %{nil}
 %endif
 
