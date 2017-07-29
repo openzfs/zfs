@@ -26,8 +26,8 @@
 .\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
 .\" Copyright (c) 2014 by Adam Stevko. All rights reserved.
 .\" Copyright (c) 2014 Integros [integros.com]
-.\" Copyright 2016 Nexenta Systems, Inc.
 .\" Copyright 2016 Richard Laager. All rights reserved.
+.\" Copyright 2017 Nexenta Systems, Inc.
 .\"
 .Dd June 28, 2017
 .Dt ZFS 8 SMM
@@ -2086,7 +2086,7 @@ dataset.
 The
 .Sy nosuid
 option is an alias for
-.Sy nodevices Ns , Ns Sy nosetuid .
+.Sy nodevices Ns \&, Ns Sy nosetuid .
 These properties are reported as
 .Qq temporary
 by the
@@ -2115,7 +2115,7 @@ and underscore
 .Pq Qq Sy _ .
 The expected convention is that the property name is divided into two portions
 such as
-.Em module Ns : Ns Em property ,
+.Em module Ns \&: Ns Em property ,
 but this namespace is not enforced by ZFS.
 User property names can be at most 256 characters, and cannot begin with a dash
 .Pq Qq Sy - .
@@ -2598,7 +2598,7 @@ property is
 .Sy off
 .Pc .
 The following fields are displayed,
-.Sy name Ns , Ns Sy used Ns , Ns Sy available Ns , Ns Sy referenced Ns , Ns
+.Sy name Ns \&, Ns Sy used Ns \&, Ns Sy available Ns \&, Ns Sy referenced Ns \&, Ns
 .Sy mountpoint .
 .Bl -tag -width "-H"
 .It Fl H
@@ -2636,9 +2636,9 @@ The value
 .Sy space
 to display space usage properties on file systems and volumes.
 This is a shortcut for specifying
-.Fl o Sy name Ns , Ns Sy avail Ns , Ns Sy used Ns , Ns Sy usedsnap Ns , Ns
-.Sy usedds Ns , Ns Sy usedrefreserv Ns , Ns Sy usedchild Fl t
-.Sy filesystem Ns , Ns Sy volume
+.Fl o Sy name Ns \&, Ns Sy avail Ns \&, Ns Sy used Ns \&, Ns Sy usedsnap Ns \&, Ns
+.Sy usedds Ns \&, Ns Sy usedrefreserv Ns \&, Ns Sy usedchild Fl t
+.Sy filesystem Ns \&, Ns Sy volume
 syntax.
 .El
 .It Fl p
@@ -2760,7 +2760,7 @@ A depth of
 will display only the dataset and its direct children.
 .It Fl o Ar field
 A comma-separated list of columns to display.
-.Sy name Ns , Ns Sy property Ns , Ns Sy value Ns , Ns Sy source
+.Sy name Ns \&, Ns Sy property Ns \&, Ns Sy value Ns \&, Ns Sy source
 is the default value.
 .It Fl p
 Display numbers in parsable
@@ -2944,7 +2944,7 @@ Print only the specified types from the following set:
 .Sy posixgroup ,
 .Sy smbgroup .
 The default is
-.Fl t Sy posixuser Ns , Ns Sy smbuser .
+.Fl t Sy posixuser Ns \&, Ns Sy smbuser .
 The default can be changed to include group types.
 .El
 .It Xo
@@ -2962,7 +2962,7 @@ filesystem or snapshot.
 This subcommand is identical to
 .Nm zfs Cm userspace ,
 except that the default types to display are
-.Fl t Sy posixgroup Ns , Ns Sy smbgroup .
+.Fl t Sy posixgroup Ns \&, Ns Sy smbgroup .
 .It Xo
 .Nm
 .Cm mount
@@ -3111,7 +3111,7 @@ snapshot to the second snapshot.
 For example,
 .Fl I Em @a Em fs@d
 is similar to
-.Fl i Em @a Em fs@b Ns ; Fl i Em @b Em fs@c Ns ; Fl i Em @c Em fs@d .
+.Fl i Em @a Em fs@b Ns \&; Fl i Em @b Em fs@c Ns \&; Fl i Em @c Em fs@d .
 The incremental source may be specified as with the
 .Fl i
 option.
