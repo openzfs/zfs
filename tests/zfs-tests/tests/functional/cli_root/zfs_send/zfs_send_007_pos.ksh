@@ -36,6 +36,11 @@
 
 verify_runnable "both"
 
+# See issue: https://github.com/zfsonlinux/zfs/issues/6421
+if is_linux; then
+	log_unsupported "Test often runs for longer than 10 minutes."
+fi
+
 function cleanup
 {
 	zfs destroy -rf $TESTPOOL/fs
