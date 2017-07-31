@@ -3460,7 +3460,7 @@ function swap_setup
 	typeset swapdev=$1
 
 	if is_linux; then
-		log_must mkswap $swapdev > /dev/null 2>&1
+		log_must eval "mkswap $swapdev > /dev/null 2>&1"
 		log_must swapon $swapdev
 	else
 	        log_must swap -a $swapdev
