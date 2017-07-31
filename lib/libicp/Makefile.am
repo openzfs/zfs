@@ -28,7 +28,7 @@ if TARGET_ASM_I386
 ASM_SOURCES_C =
 ASM_SOURCES_AS =
 endif
-	
+
 if TARGET_ASM_GENERIC
 ASM_SOURCES_C =
 ASM_SOURCES_AS =
@@ -81,5 +81,5 @@ nodist_libicp_la_SOURCES = \
 	$(USER_ASM) \
 	$(KERNEL_C) \
 	$(KERNEL_ASM)
-	
+
 libicp_la_LIBADD = -lrt

@@ -619,5 +619,26 @@ files.
 
 .RE
 
+.sp
+.ne 2
+.na
+\fB\fBencryption\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.datto:encryption
+READ\-ONLY COMPATIBLE	no
+DEPENDENCIES	extensible_dataset
+.TE
+
+This feature enables the creation and management of natively encrypted datasets.
+
+This feature becomes \fBactive\fR when an encrypted dataset is created and will
+be returned to the \fBenabled\fR state when all datasets that use this feature
+are destroyed.
+
+.RE
+
 .SH "SEE ALSO"
 \fBzpool\fR(8)

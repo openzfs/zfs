@@ -11,4 +11,5 @@ dist_pkgdata_SCRIPTS = \
 	zfs_clone_007_pos.ksh \
 	zfs_clone_008_neg.ksh \
 	zfs_clone_009_neg.ksh \
-	zfs_clone_010_pos.ksh
+	zfs_clone_010_pos.ksh \
+	zfs_clone_encrypted.ksh

@@ -179,7 +179,7 @@ object_from_path(const char *dataset, const char *path, struct stat64 *statbuf,
 	 */
 	sync();
 
-	err = dmu_objset_own(dataset, DMU_OST_ZFS, B_TRUE, FTAG, &os);
+	err = dmu_objset_own(dataset, DMU_OST_ZFS, B_TRUE, B_FALSE, FTAG, &os);
 	if (err != 0) {
 		(void) fprintf(stderr, "cannot open dataset '%s': %s\n",
 		    dataset, strerror(err));
@@ -189,7 +189,7 @@ object_from_path(const char *dataset, const char *path, struct stat64 *statbuf,
 	record->zi_objset = dmu_objset_id(os);
 	record->zi_object = statbuf->st_ino;
 
-	dmu_objset_disown(os, FTAG);
+	dmu_objset_disown(os, B_FALSE, FTAG);
 
 	return (0);
 }
@@ -267,7 +267,7 @@ calculate_range(const char *dataset, err_type_t type, int level, char *range,
 	 * size.
 	 */
 	if ((err = dmu_objset_own(dataset, DMU_OST_ANY,
-	    B_TRUE, FTAG, &os)) != 0) {
+	    B_TRUE, B_FALSE, FTAG, &os)) != 0) {
 		(void) fprintf(stderr, "cannot open dataset '%s': %s\n",
 		    dataset, strerror(err));
 		goto out;
@@ -329,7 +329,7 @@ out:
 			dnode_rele(dn, FTAG);
 	}
 	if (os)
-		dmu_objset_disown(os, FTAG);
+		dmu_objset_disown(os, B_FALSE, FTAG);
 
 	return (ret);
 }

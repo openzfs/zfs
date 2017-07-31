@@ -54,6 +54,7 @@ extern "C" {
 #define	DB_RF_NOPREFETCH	(1 << 3)
 #define	DB_RF_NEVERWAIT		(1 << 4)
 #define	DB_RF_CACHED		(1 << 5)
+#define	DB_RF_NO_DECRYPT	(1 << 6)
 
 /*
  * The simplified state transition diagram for dbufs looks like:
@@ -146,6 +147,7 @@ typedef struct dbuf_dirty_record {
 			override_states_t dr_override_state;
 			uint8_t dr_copies;
 			boolean_t dr_nopwrite;
+			boolean_t dr_raw;
 		} dl;
 	} dt;
 } dbuf_dirty_record_t;

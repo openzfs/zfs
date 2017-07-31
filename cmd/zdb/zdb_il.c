@@ -311,8 +311,13 @@ print_log_record(zilog_t *zilog, lr_t *lr, void *arg, uint64_t claim_txg)
 	    (u_longlong_t)lr->lrc_txg,
 	    (u_longlong_t)lr->lrc_seq);
 
-	if (txtype && verbose >= 3)
-		zil_rec_info[txtype].zri_print(zilog, txtype, lr);
+	if (txtype && verbose >= 3) {
+		if (!zilog->zl_os->os_encrypted) {
+			zil_rec_info[txtype].zri_print(zilog, txtype, lr);
+		} else {
+			(void) printf("%s(encrypted)\n", prefix);
+		}
+	}
 
 	zil_rec_info[txtype].zri_count++;
 	zil_rec_info[0].zri_count++;
@@ -399,7 +404,7 @@ dump_intent_log(zilog_t *zilog)
 	if (verbose >= 2) {
 		(void) printf("\n");
 		(void) zil_parse(zilog, print_log_block, print_log_record, NULL,
-		    zh->zh_claim_txg);
+		    zh->zh_claim_txg, B_FALSE);
 		print_log_stats(verbose);
 	}
 }

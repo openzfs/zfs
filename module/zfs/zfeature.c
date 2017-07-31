@@ -424,8 +424,8 @@ spa_feature_create_zap_objects(spa_t *spa, dmu_tx_t *tx)
 	 * We create feature flags ZAP objects in two instances: during pool
 	 * creation and during pool upgrade.
 	 */
-	ASSERT(dsl_pool_sync_context(spa_get_dsl(spa)) || (!spa->spa_sync_on &&
-	    tx->tx_txg == TXG_INITIAL));
+	ASSERT((!spa->spa_sync_on && tx->tx_txg == TXG_INITIAL) ||
+	    dsl_pool_sync_context(spa_get_dsl(spa)));
 
 	spa->spa_feat_for_read_obj = zap_create_link(spa->spa_meta_objset,
 	    DMU_OTN_ZAP_METADATA, DMU_POOL_DIRECTORY_OBJECT,

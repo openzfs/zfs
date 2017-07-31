@@ -683,7 +683,7 @@ dsl_scan_zil(dsl_pool_t *dp, zil_header_t *zh)
 	zilog = zil_alloc(dp->dp_meta_objset, zh);
 
 	(void) zil_parse(zilog, dsl_scan_zil_block, dsl_scan_zil_record, &zsa,
-	    claim_txg);
+	    claim_txg, B_FALSE);
 
 	zil_free(zilog);
 }
@@ -695,6 +695,7 @@ dsl_scan_prefetch(dsl_scan_t *scn, arc_buf_t *buf, blkptr_t *bp,
 {
 	zbookmark_phys_t czb;
 	arc_flags_t flags = ARC_FLAG_NOWAIT | ARC_FLAG_PREFETCH;
+	int zio_flags = ZIO_FLAG_CANFAIL | ZIO_FLAG_SCAN_THREAD;
 
 	if (zfs_no_scrub_prefetch)
 		return;
@@ -703,11 +704,16 @@ dsl_scan_prefetch(dsl_scan_t *scn, arc_buf_t *buf, blkptr_t *bp,
 	    (BP_GET_LEVEL(bp) == 0 && BP_GET_TYPE(bp) != DMU_OT_DNODE))
 		return;
 
+	if (BP_IS_PROTECTED(bp)) {
+		ASSERT3U(BP_GET_TYPE(bp), ==, DMU_OT_DNODE);
+		ASSERT3U(BP_GET_LEVEL(bp), ==, 0);
+		zio_flags |= ZIO_FLAG_RAW;
+	}
+
 	SET_BOOKMARK(&czb, objset, object, BP_GET_LEVEL(bp), blkid);
 
 	(void) arc_read(scn->scn_zio_root, scn->scn_dp->dp_spa, bp,
-	    NULL, NULL, ZIO_PRIORITY_ASYNC_READ,
-	    ZIO_FLAG_CANFAIL | ZIO_FLAG_SCAN_THREAD, &flags, &czb);
+	    NULL, NULL, ZIO_PRIORITY_ASYNC_READ, zio_flags, &flags, &czb);
 }
 
 static boolean_t
@@ -792,6 +798,11 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 		int i, j;
 		int epb = BP_GET_LSIZE(bp) >> DNODE_SHIFT;
 		arc_buf_t *buf;
+
+		if (BP_IS_PROTECTED(bp)) {
+			ASSERT3U(BP_GET_COMPRESS(bp), ==, ZIO_COMPRESS_OFF);
+			zio_flags |= ZIO_FLAG_RAW;
+		}
 
 		err = arc_read(NULL, dp->dp_spa, bp, arc_getbuf_func, &buf,
 		    ZIO_PRIORITY_ASYNC_READ, zio_flags, &flags, zb);

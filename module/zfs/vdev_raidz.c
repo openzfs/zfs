@@ -1766,9 +1766,9 @@ raidz_checksum_error(zio_t *zio, raidz_col_t *rc, abd_t *bad_data)
 		zbc.zbc_has_cksum = 0;
 		zbc.zbc_injected = rm->rm_ecksuminjected;
 
-		zfs_ereport_post_checksum(zio->io_spa, vd, zio,
-		    rc->rc_offset, rc->rc_size, rc->rc_abd, bad_data,
-		    &zbc);
+		zfs_ereport_post_checksum(zio->io_spa, vd,
+		    &zio->io_bookmark, zio, rc->rc_offset, rc->rc_size,
+		    rc->rc_abd, bad_data, &zbc);
 	}
 }
 
@@ -2256,7 +2256,8 @@ vdev_raidz_io_done(zio_t *zio)
 					zfs_ereport_start_checksum(
 					    zio->io_spa,
 					    vd->vdev_child[rc->rc_devidx],
-					    zio, rc->rc_offset, rc->rc_size,
+					    &zio->io_bookmark, zio,
+					    rc->rc_offset, rc->rc_size,
 					    (void *)(uintptr_t)c, &zbc);
 				}
 			}

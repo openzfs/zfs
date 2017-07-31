@@ -60,6 +60,7 @@ KERNEL_C = \
 	dsl_deadlist.c \
 	dsl_deleg.c \
 	dsl_dir.c \
+	dsl_crypt.c \
 	dsl_pool.c \
 	dsl_prop.c \
 	dsl_scan.c \
@@ -128,6 +129,7 @@ KERNEL_C = \
 	zio.c \
 	zio_checksum.c \
 	zio_compress.c \
+	zio_crypt.c \
 	zio_inject.c \
 	zle.c \
 	zrlock.c

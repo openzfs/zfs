@@ -49,6 +49,15 @@ typedef int (blkptr_cb_t)(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 #define	TRAVERSE_PREFETCH (TRAVERSE_PREFETCH_METADATA | TRAVERSE_PREFETCH_DATA)
 #define	TRAVERSE_HARD			(1<<4)
 
+/*
+ * Encrypted dnode blocks have encrypted bonus buffers while the rest
+ * of the dnode is left unencrypted. Callers can specify the
+ * TRAVERSE_NO_DECRYPT flag to indicate to the traversal code that
+ * they wish to receive the raw encrypted dnodes instead of attempting
+ * to read the logical data.
+ */
+#define	TRAVERSE_NO_DECRYPT		(1<<5)
+
 /* Special traverse error return value to indicate skipping of children */
 #define	TRAVERSE_VISIT_NO_CHILDREN	-1
 
