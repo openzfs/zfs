@@ -1603,6 +1603,9 @@ zvol_alloc(dev_t dev, const char *name)
 	if (volmode == ZFS_VOLMODE_DEFAULT)
 		volmode = zvol_volmode;
 
+	if (volmode == ZFS_VOLMODE_NONE)
+		return (NULL);
+
 	zv = kmem_zalloc(sizeof (zvol_state_t), KM_SLEEP);
 
 	list_link_init(&zv->zv_next);

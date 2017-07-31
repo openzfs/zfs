@@ -40,7 +40,8 @@
 # 4. Verify "volmode=dev" hides partition info on the device
 # 5. Verify "volmode=default" behaves accordingly to "volmode" module parameter
 # 6. Verify "volmode" property is inherited correctly
-# 7. Verify "volmode" behaves accordingly to zvol_inhibit_dev (Linux only)
+# 7. Verify "volmode" behaves correctly at import time
+# 8. Verify "volmode" behaves accordingly to zvol_inhibit_dev (Linux only)
 #
 # NOTE: changing volmode may need to remove minors, which could be open, so call
 #       udev_wait() before we "zfs set volmode=<value>".
@@ -54,6 +55,7 @@ function cleanup
 	log_must zfs inherit volmode $TESTPOOL
 	udev_wait
 	sysctl_inhibit_dev 0
+	sysctl_volmode 1
 	udev_cleanup
 }
 
@@ -194,10 +196,18 @@ log_must zfs set volmode=full $TESTPOOL
 verify_inherited 'volmode' 'none' $SUBZVOL $VOLFS
 blockdev_missing $SUBZDEV
 blockdev_exists $ZDEV
+
+# 7. Verify "volmode" behaves correctly at import time
+log_must zpool export $TESTPOOL
+blockdev_missing $ZDEV
+blockdev_missing $SUBZDEV
+log_must zpool import $TESTPOOL
+blockdev_exists $ZDEV
+blockdev_missing $SUBZDEV
 log_must_busy zfs destroy $ZVOL
 log_must_busy zfs destroy $SUBZVOL
 
-# 7. Verify "volmode" behaves accordingly to zvol_inhibit_dev (Linux only)
+# 8. Verify "volmode" behaves accordingly to zvol_inhibit_dev (Linux only)
 if is_linux; then
 	sysctl_inhibit_dev 1
 	# 7.1 Verify device nodes not are not created with "volmode=full"
