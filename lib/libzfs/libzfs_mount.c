@@ -345,8 +345,9 @@ zfs_is_mountable(zfs_handle_t *zhp, char *buf, size_t buflen,
 static int
 do_mount(const char *src, const char *mntpt, char *opts)
 {
-	char *argv[8] = {
+	char *argv[9] = {
 	    "/bin/mount",
+	    "--no-canonicalize",
 	    "-t", MNTTYPE_ZFS,
 	    "-o", opts,
 	    (char *)src,
