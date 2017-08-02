@@ -49,7 +49,6 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_USLEEP_RANGE
 	SPL_AC_KMEM_CACHE_ALLOCFLAGS
 	SPL_AC_WAIT_ON_BIT
-	SPL_AC_MUTEX_OWNER
 	SPL_AC_INODE_LOCK
 	SPL_AC_GROUP_INFO_GID
 	SPL_AC_KMEM_CACHE_CREATE_USERCOPY
@@ -1560,35 +1559,6 @@ AC_DEFUN([SPL_AC_WAIT_ON_BIT], [
 	],[
 		AC_MSG_RESULT(no)
 	])
-])
-
-dnl #
-dnl # Check whether mutex has owner with task_struct type.
-dnl #
-dnl # Note that before Linux 3.0, mutex owner is of type thread_info.
-dnl #
-dnl # Note that in Linux 3.18, the condition for owner is changed from
-dnl # defined(CONFIG_DEBUG_MUTEXES) || defined(CONFIG_SMP) to
-dnl # defined(CONFIG_DEBUG_MUTEXES) || defined(CONFIG_MUTEX_SPIN_ON_OWNER)
-dnl #
-AC_DEFUN([SPL_AC_MUTEX_OWNER], [
-	AC_MSG_CHECKING([whether mutex has owner])
-	tmp_flags="$EXTRA_KCFLAGS"
-	EXTRA_KCFLAGS="-Werror"
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/mutex.h>
-		#include <linux/spinlock.h>
-	],[
-		DEFINE_MUTEX(m);
-		struct task_struct *t __attribute__ ((unused));
-		t = m.owner;
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_MUTEX_OWNER, 1, [yes])
-	],[
-		AC_MSG_RESULT(no)
-	])
-	EXTRA_KCFLAGS="$tmp_flags"
 ])
 
 dnl #
