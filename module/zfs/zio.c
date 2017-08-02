@@ -3278,9 +3278,9 @@ zio_vdev_io_start(zio_t *zio)
 			zio_interrupt(zio);
 			return (ZIO_PIPELINE_STOP);
 		}
+		zio->io_delay = gethrtime();
 	}
 
-	zio->io_delay = gethrtime();
 	vd->vdev_ops->vdev_op_io_start(zio);
 	return (ZIO_PIPELINE_STOP);
 }
