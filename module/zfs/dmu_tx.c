@@ -888,7 +888,7 @@ dmu_tx_try_assign(dmu_tx_t *tx, txg_how_t txg_how)
 	    dsl_pool_need_dirty_delay(tx->tx_pool)) {
 		tx->tx_wait_dirty = B_TRUE;
 		DMU_TX_STAT_BUMP(dmu_tx_dirty_delay);
-		return (ERESTART);
+		return (SET_ERROR(ERESTART));
 	}
 
 	tx->tx_txg = txg_hold_open(tx->tx_pool, &tx->tx_txgh);

@@ -2013,7 +2013,7 @@ zfs_obj_to_pobj(objset_t *osp, sa_handle_t *hdl, sa_attr_type_t *sa_table,
 	 * Otherwise the parent must be a directory.
 	 */
 	if (!*is_xattrdir && !S_ISDIR(parent_mode))
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 
 	*pobjp = parent;
 

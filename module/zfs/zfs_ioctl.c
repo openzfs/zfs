@@ -595,7 +595,7 @@ out_check:
 		return (PRIV_POLICY(cr, needed_priv, B_FALSE, EPERM, NULL));
 	return (0);
 #else
-	return (ENOTSUP);
+	return (SET_ERROR(ENOTSUP));
 #endif /* HAVE_MLSLABEL */
 }
 
@@ -3652,7 +3652,7 @@ zfs_ioc_destroy(zfs_cmd_t *zc)
 			if (err == 0)
 				err = dsl_destroy_head(zc->zc_name);
 			else if (err == ENOENT)
-				err = EEXIST;
+				err = SET_ERROR(EEXIST);
 		}
 	}
 
@@ -6313,7 +6313,7 @@ zfsdev_getminor(struct file *filp, minor_t *minorp)
 
 	fpd = filp->private_data;
 	if (fpd == NULL)
-		return (EBADF);
+		return (SET_ERROR(EBADF));
 
 	mutex_enter(&zfsdev_state_lock);
 
@@ -6331,7 +6331,7 @@ zfsdev_getminor(struct file *filp, minor_t *minorp)
 
 	mutex_exit(&zfsdev_state_lock);
 
-	return (EBADF);
+	return (SET_ERROR(EBADF));
 }
 
 /*

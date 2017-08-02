@@ -525,7 +525,7 @@ zap_get_leaf_byblk(zap_t *zap, uint64_t blkid, dmu_tx_t *tx, krw_t lt,
 	 * already be freed, so this should be perfectly fine.
 	 */
 	if (blkid == 0)
-		return (ENOENT);
+		return (SET_ERROR(ENOENT));
 
 	dn = dmu_buf_dnode_enter(zap->zap_dbuf);
 	err = dmu_buf_hold_by_dnode(dn,
@@ -767,7 +767,7 @@ fzap_checksize(uint64_t integer_size, uint64_t num_integers)
 	}
 
 	if (integer_size * num_integers > ZAP_MAXVALUELEN)
-		return (E2BIG);
+		return (SET_ERROR(E2BIG));
 
 	return (0);
 }

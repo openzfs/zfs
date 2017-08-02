@@ -589,7 +589,7 @@ zap_entry_create(zap_leaf_t *l, zap_name_t *zn, uint32_t cd,
 	numchunks = 1 + ZAP_LEAF_ARRAY_NCHUNKS(zn->zn_key_orig_numints *
 	    zn->zn_key_intlen) + ZAP_LEAF_ARRAY_NCHUNKS(valuelen);
 	if (numchunks > ZAP_LEAF_NUMCHUNKS(l))
-		return (E2BIG);
+		return (SET_ERROR(E2BIG));
 
 	if (cd == ZAP_NEED_CD) {
 		/* find the lowest unused cd */

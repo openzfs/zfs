@@ -143,7 +143,7 @@ dbuf_stats_hash_table_data(char *buf, size_t size, void *data)
 		 * to be called with a larger scratch buffers.
 		 */
 		if (size < 512) {
-			error = ENOMEM;
+			error = SET_ERROR(ENOMEM);
 			break;
 		}
 

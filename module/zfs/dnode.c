@@ -1288,11 +1288,11 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 
 	if ((flag & DNODE_MUST_BE_FREE) && !dnode_is_free(db, idx, slots)) {
 		dbuf_rele(db, FTAG);
-		return (ENOSPC);
+		return (SET_ERROR(ENOSPC));
 	} else if ((flag & DNODE_MUST_BE_ALLOCATED) &&
 	    !dnode_is_allocated(db, idx)) {
 		dbuf_rele(db, FTAG);
-		return (ENOENT);
+		return (SET_ERROR(ENOENT));
 	}
 
 	dnh = &children_dnodes->dnc_children[idx];
@@ -1308,7 +1308,7 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 		mutex_exit(&dn->dn_mtx);
 		zrl_remove(&dnh->dnh_zrlock);
 		dbuf_rele(db, FTAG);
-		return (type == DMU_OT_NONE ? ENOENT : EEXIST);
+		return (SET_ERROR(type == DMU_OT_NONE ? ENOENT : EEXIST));
 	}
 	if (refcount_add(&dn->dn_holds, tag) == 1)
 		dbuf_add_ref(db, dnh);

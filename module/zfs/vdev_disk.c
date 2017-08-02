@@ -533,7 +533,7 @@ __vdev_disk_physio(struct block_device *bdev, zio_t *zio,
 retry:
 	dr = vdev_disk_dio_alloc(bio_count);
 	if (dr == NULL)
-		return (ENOMEM);
+		return (SET_ERROR(ENOMEM));
 
 	if (zio && !(zio->io_flags & (ZIO_FLAG_IO_RETRY | ZIO_FLAG_TRYHARD)))
 		bio_set_flags_failfast(bdev, &flags);
@@ -574,7 +574,7 @@ retry:
 		    BIO_MAX_PAGES));
 		if (unlikely(dr->dr_bio[i] == NULL)) {
 			vdev_disk_dio_free(dr);
-			return (ENOMEM);
+			return (SET_ERROR(ENOMEM));
 		}
 
 		/* Matching put called by vdev_disk_physio_completion */
@@ -645,12 +645,12 @@ vdev_disk_io_flush(struct block_device *bdev, zio_t *zio)
 
 	q = bdev_get_queue(bdev);
 	if (!q)
-		return (ENXIO);
+		return (SET_ERROR(ENXIO));
 
 	bio = bio_alloc(GFP_NOIO, 0);
 	/* bio_alloc() with __GFP_WAIT never returns NULL */
 	if (unlikely(bio == NULL))
-		return (ENOMEM);
+		return (SET_ERROR(ENOMEM));
 
 	bio->bi_end_io = vdev_disk_io_flush_completion;
 	bio->bi_private = zio;
