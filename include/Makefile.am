@@ -6,11 +6,7 @@ COMMON_H = \
 	$(top_srcdir)/include/zfs_deleg.h \
 	$(top_srcdir)/include/zfs_fletcher.h \
 	$(top_srcdir)/include/zfs_namecheck.h \
-	$(top_srcdir)/include/zfs_prop.h \
-	$(top_srcdir)/include/zpios-ctl.h
-
-KERNEL_H = \
-	$(top_srcdir)/include/zpios-internal.h
+	$(top_srcdir)/include/zfs_prop.h
 
 USER_H = \
 	$(top_srcdir)/include/libnvpair.h \
@@ -22,7 +18,7 @@ USER_H = \
 	$(top_srcdir)/include/libzfs_impl.h \
 	$(top_srcdir)/include/thread_pool.h
 
-EXTRA_DIST = $(COMMON_H) $(KERNEL_H) $(USER_H)
+EXTRA_DIST = $(COMMON_H) $(USER_H)
 
 if CONFIG_USER
 libzfsdir = $(includedir)/libzfs
@@ -31,5 +27,5 @@ endif
 
 if CONFIG_KERNEL
 kerneldir = @prefix@/src/zfs-$(VERSION)/include
-kernel_HEADERS = $(COMMON_H) $(KERNEL_H)
+kernel_HEADERS = $(COMMON_H)
 endif

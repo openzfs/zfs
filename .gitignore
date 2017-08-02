@@ -39,8 +39,6 @@ Makefile.in
 /zfs_config.h.in
 /zfs.release
 /stamp-h1
-/.script-config
-/zfs-script-config.sh
 /aclocal.m4
 /autom4te.cache
 

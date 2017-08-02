@@ -10,10 +10,6 @@ and attributed properly.  These exceptions include, but are not limited
 to, the vdev_disk.c and zvol.c implementation which are licensed under
 the CDDL.
 
-The zpios test code is originally derived from the Lustre pios test code
-which is licensed under the GPLv2.  As such the heavily modified zpios
-kernel test code also remains licensed under the GPLv2.
-
 The latest stable and development versions of this port can be downloaded
 from the official ZFS on Linux site located at:
 

@@ -40,10 +40,6 @@ PRE_BUILD="configure
       then
         echo --enable-debug
       fi
-      if [[ \${ZFS_DKMS_ENABLE_DMU_TX,,} == @(y|yes) ]]
-      then
-        echo --enable-debug-dmu-tx
-      fi
     }
   )
 "
@@ -86,10 +82,7 @@ DEST_MODULE_LOCATION[3]="/extra/zcommon/zcommon"
 BUILT_MODULE_NAME[4]="zfs"
 BUILT_MODULE_LOCATION[4]="module/zfs/"
 DEST_MODULE_LOCATION[4]="/extra/zfs/zfs"
-BUILT_MODULE_NAME[5]="zpios"
-BUILT_MODULE_LOCATION[5]="module/zpios/"
-DEST_MODULE_LOCATION[5]="/extra/zpios/zpios"
-BUILT_MODULE_NAME[6]="icp"
-BUILT_MODULE_LOCATION[6]="module/icp/"
-DEST_MODULE_LOCATION[6]="/extra/icp/icp"
+BUILT_MODULE_NAME[5]="icp"
+BUILT_MODULE_LOCATION[5]="module/icp/"
+DEST_MODULE_LOCATION[5]="/extra/icp/icp"
 EOF
