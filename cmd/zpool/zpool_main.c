@@ -7347,7 +7347,7 @@ typedef struct ev_opts {
 } ev_opts_t;
 
 static void
-zpool_do_events_short(nvlist_t *nvl)
+zpool_do_events_short(nvlist_t *nvl, ev_opts_t *opts)
 {
 	char ctime_str[26], str[32], *ptr;
 	int64_t *tv;
@@ -7360,7 +7360,10 @@ zpool_do_events_short(nvlist_t *nvl)
 	(void) strncpy(str+7, ctime_str+20, 4);		/* '1993' */
 	(void) strncpy(str+12, ctime_str+11, 8);	/* '21:49:08' */
 	(void) sprintf(str+20, ".%09lld", (longlong_t)tv[1]); /* '.123456789' */
-	(void) printf(gettext("%s "), str);
+	if (opts->scripted)
+		(void) printf(gettext("%s\t"), str);
+	else
+		(void) printf(gettext("%s "), str);
 
 	verify(nvlist_lookup_string(nvl, FM_CLASS, &ptr) == 0);
 	(void) printf(gettext("%s\n"), ptr);
@@ -7624,7 +7627,7 @@ zpool_do_events_next(ev_opts_t *opts)
 		if (dropped > 0)
 			(void) printf(gettext("dropped %d events\n"), dropped);
 
-		zpool_do_events_short(nvl);
+		zpool_do_events_short(nvl, opts);
 
 		if (opts->verbose) {
 			zpool_do_events_nvprint(nvl, 8);
