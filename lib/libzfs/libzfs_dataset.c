@@ -2601,9 +2601,14 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 	case ZFS_PROP_COMPRESSRATIO:
 		if (get_numeric_property(zhp, prop, src, &source, &val) != 0)
 			return (-1);
-		(void) snprintf(propbuf, proplen, "%llu.%02llux",
-		    (u_longlong_t)(val / 100),
-		    (u_longlong_t)(val % 100));
+		if (literal)
+			(void) snprintf(propbuf, proplen, "%llu.%02llu",
+			    (u_longlong_t)(val / 100),
+			    (u_longlong_t)(val % 100));
+		else
+			(void) snprintf(propbuf, proplen, "%llu.%02llux",
+			    (u_longlong_t)(val / 100),
+			    (u_longlong_t)(val % 100));
 		break;
 
 	case ZFS_PROP_TYPE:
