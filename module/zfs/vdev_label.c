@@ -944,7 +944,7 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 		nvlist_free(label);
 		abd_free(vp_abd);
 		/* EFAULT means nvlist_pack ran out of room */
-		return (error == EFAULT ? ENAMETOOLONG : EINVAL);
+		return (SET_ERROR(error == EFAULT ? ENAMETOOLONG : EINVAL));
 	}
 
 	/*

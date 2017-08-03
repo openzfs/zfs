@@ -6187,7 +6187,7 @@ arc_kstat_update(kstat_t *ksp, int rw)
 	arc_stats_t *as = ksp->ks_data;
 
 	if (rw == KSTAT_WRITE) {
-		return (EACCES);
+		return (SET_ERROR(EACCES));
 	} else {
 		arc_kstat_update_state(arc_anon,
 		    &as->arcstat_anon_size,

@@ -370,7 +370,7 @@ dump_write_embedded(dmu_sendarg_t *dsp, uint64_t object, uint64_t offset,
 
 	if (dsp->dsa_pending_op != PENDING_NONE) {
 		if (dump_record(dsp, NULL, 0) != 0)
-			return (EINTR);
+			return (SET_ERROR(EINTR));
 		dsp->dsa_pending_op = PENDING_NONE;
 	}
 
@@ -390,7 +390,7 @@ dump_write_embedded(dmu_sendarg_t *dsp, uint64_t object, uint64_t offset,
 	decode_embedded_bp_compressed(bp, buf);
 
 	if (dump_record(dsp, buf, P2ROUNDUP(drrw->drr_psize, 8)) != 0)
-		return (EINTR);
+		return (SET_ERROR(EINTR));
 	return (0);
 }
 
@@ -2380,15 +2380,15 @@ receive_write_embedded(struct receive_writer_arg *rwa,
 	int err;
 
 	if (drrwe->drr_offset + drrwe->drr_length < drrwe->drr_offset)
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 
 	if (drrwe->drr_psize > BPE_PAYLOAD_SIZE)
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 
 	if (drrwe->drr_etype >= NUM_BP_EMBEDDED_TYPES)
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 	if (drrwe->drr_compression >= ZIO_COMPRESS_FUNCTIONS)
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 
 	tx = dmu_tx_create(rwa->os);
 

@@ -229,7 +229,7 @@ zfs_sa_set_xattr(znode_t *zp)
 
 	error = nvlist_size(zp->z_xattr_cached, &size, NV_ENCODE_XDR);
 	if ((error == 0) && (size > SA_ATTR_MAX_LEN))
-		error = EFBIG;
+		error = SET_ERROR(EFBIG);
 	if (error)
 		goto out;
 

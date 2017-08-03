@@ -2735,12 +2735,12 @@ zfs_setattr(struct inode *ip, vattr_t *vap, int flags, cred_t *cr)
 	if ((zp->z_pflags & ZFS_IMMUTABLE) &&
 	    ((mask & (ATTR_SIZE|ATTR_UID|ATTR_GID|ATTR_MTIME|ATTR_MODE)) ||
 	    ((mask & ATTR_XVATTR) && XVA_ISSET_REQ(xvap, XAT_CREATETIME)))) {
-		err = EPERM;
+		err = SET_ERROR(EPERM);
 		goto out3;
 	}
 
 	if ((mask & ATTR_SIZE) && (zp->z_pflags & ZFS_READONLY)) {
-		err = EPERM;
+		err = SET_ERROR(EPERM);
 		goto out3;
 	}
 
@@ -2755,7 +2755,7 @@ zfs_setattr(struct inode *ip, vattr_t *vap, int flags, cred_t *cr)
 		    TIMESPEC_OVERFLOW(&vap->va_atime)) ||
 		    ((mask & ATTR_MTIME) &&
 		    TIMESPEC_OVERFLOW(&vap->va_mtime))) {
-			err = EOVERFLOW;
+			err = SET_ERROR(EOVERFLOW);
 			goto out3;
 		}
 	}
@@ -2766,7 +2766,7 @@ top:
 
 	/* Can this be moved to before the top label? */
 	if (zfs_is_readonly(zfsvfs)) {
-		err = EROFS;
+		err = SET_ERROR(EROFS);
 		goto out3;
 	}
 
@@ -2927,7 +2927,7 @@ top:
 
 		if (XVA_ISSET_REQ(xvap, XAT_REPARSE)) {
 			mutex_exit(&zp->z_lock);
-			err = EPERM;
+			err = SET_ERROR(EPERM);
 			goto out3;
 		}
 
@@ -2997,7 +2997,7 @@ top:
 			    zfs_fuid_overquota(zfsvfs, B_FALSE, new_kuid)) {
 				if (attrzp)
 					iput(ZTOI(attrzp));
-				err = EDQUOT;
+				err = SET_ERROR(EDQUOT);
 				goto out2;
 			}
 		}
@@ -3009,7 +3009,7 @@ top:
 			    zfs_fuid_overquota(zfsvfs, B_TRUE, new_kgid)) {
 				if (attrzp)
 					iput(ZTOI(attrzp));
-				err = EDQUOT;
+				err = SET_ERROR(EDQUOT);
 				goto out2;
 			}
 		}

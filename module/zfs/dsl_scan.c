@@ -157,7 +157,7 @@ dsl_scan_init(dsl_pool_t *dp, uint64_t txg)
 				    scn->scn_async_destroying) {
 					spa->spa_errata =
 					    ZPOOL_ERRATA_ZOL_2094_ASYNC_DESTROY;
-					return (EOVERFLOW);
+					return (SET_ERROR(EOVERFLOW));
 				}
 
 				bcopy(zaptmp, &scn->scn_phys,
@@ -2081,7 +2081,7 @@ dsl_scan(dsl_pool_t *dp, pool_scan_func_t func)
 		int err = dsl_scrub_set_pause_resume(scn->scn_dp,
 		    POOL_SCRUB_NORMAL);
 		if (err == 0)
-			return (ECANCELED);
+			return (SET_ERROR(ECANCELED));
 
 		return (SET_ERROR(err));
 	}

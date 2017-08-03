@@ -871,7 +871,7 @@ dsl_props_set_check(void *arg, dmu_tx_t *tx)
 			    SPA_VERSION_STMF_PROP ?
 			    ZAP_OLDMAXVALUELEN : ZAP_MAXVALUELEN)) {
 				dsl_dataset_rele(ds, FTAG);
-				return (E2BIG);
+				return (SET_ERROR(E2BIG));
 			}
 		}
 	}
