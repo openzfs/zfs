@@ -20,7 +20,6 @@
 
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
-: ${HELPERS_DIR=${OCF_ROOT}/lib/heartbeat/helpers}
 
 # Set the variable below to '1' to enable zpool import/export logging.
 # This is useful to determine how long these operations take on your system.
@@ -85,16 +84,9 @@ zpool_is_imported () {
 # Forcibly imports a ZFS pool, mounting all of its auto-mounted filesystems
 # (as configured in the `mountpoint' and `canmount' properties)
 # If the pool is already imported, no operation is taken.
-# You can use the zfs-helper script to assist pool setup before and/or
-# after import.
 zpool_import () {
     if ! zpool_is_imported; then
         debug_log "starting import"
-        if [ -x "${HELPERS_DIR}/zfs-helper" ]; then
-            debug_log "pre-import: start"
-            "${HELPERS_DIR}/zfs-helper" pre-import "$OCF_RESKEY_pool"
-            debug_log "pre-import: done"
-        fi
 
         # The meanings of the options to import are as follows:
         #   -f : import even if the pool is marked as imported to another
@@ -105,11 +97,6 @@ zpool_import () {
         #        the CRM to explicitly control imports of this pool.
         if zpool import -f $OCF_RESKEY_importargs -o cachefile=none "$OCF_RESKEY_pool" ; then
             debug_log "import successful"
-            if [ -x "${HELPERS_DIR}/zfs-helper" ]; then
-                debug_log "post-import: starting"
-                "${HELPERS_DIR}/zfs-helper" post-import "$OCF_RESKEY_pool"
-                debug_log "post-import: done"
-            fi
             return $OCF_SUCCESS
         else
             debug_log "import failed"
@@ -120,16 +107,9 @@ zpool_import () {
 
 # Forcibly exports a ZFS pool, unmounting all of its filesystems in the process
 # If the pool is not imported, no operation is taken.
-# You can use the zfs-helper script to assist pool setup before and/or
-# after export.
 zpool_export () {
     if zpool_is_imported; then
         debug_log "starting export"
-        if [ -x "${HELPERS_DIR}/zfs-helper" ]; then
-            debug_log "pre-export: start"
-            "${HELPERS_DIR}/zfs-helper" pre-export "$OCF_RESKEY_pool"
-            debug_log "pre-export: done"
-        fi
 
         # -f : force the export, even if we have mounted filesystems
         # Please note that this may fail with a "busy" error if there are
@@ -137,11 +117,6 @@ zpool_export () {
         # Always make sure the pool export is last in your failover logic.
         if zpool export -f "$OCF_RESKEY_pool" ; then
             debug_log "export successful"
-            if [ -x "${HELPERS_DIR}/zfs-helper" ]; then
-                debug_log "post-export: starting"
-                "${HELPERS_DIR}/zfs-helper" post-export "$OCF_RESKEY_pool"
-                debug_log "post-export: done"
-            fi
             return $OCF_SUCCESS
 	else
             debug_log "export failed"
