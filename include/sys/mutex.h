@@ -183,12 +183,13 @@ spl_mutex_lockdep_on_maybe(kmutex_t *mp)			\
  */
 #define	mutex_exit(mp)						\
 {								\
-	spl_mutex_lockdep_off_maybe(mp);			\
-	spin_lock(&(mp)->m_lock);				\
 	spl_mutex_clear_owner(mp);				\
+	spin_lock(&(mp)->m_lock);				\
+	spl_mutex_lockdep_off_maybe(mp);			\
 	mutex_unlock(MUTEX(mp));				\
-	spin_unlock(&(mp)->m_lock);				\
 	spl_mutex_lockdep_on_maybe(mp);				\
+	spin_unlock(&(mp)->m_lock);				\
+	/* NOTE: do not dereference mp after this point */	\
 }
 
 int spl_mutex_init(void);
