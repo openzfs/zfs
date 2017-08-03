@@ -277,6 +277,49 @@ __umoddi3(uint64_t dividend, uint64_t divisor)
 }
 EXPORT_SYMBOL(__umoddi3);
 
+/*
+ * Implementation of 64-bit unsigned division/modulo for 32-bit machines.
+ */
+uint64_t
+__udivmoddi4(uint64_t n, uint64_t d, uint64_t *r)
+{
+	uint64_t q = __udivdi3(n, d);
+	if (r)
+		*r = n - d * q;
+	return (q);
+}
+EXPORT_SYMBOL(__udivmoddi4);
+
+/*
+ * Implementation of 64-bit signed division/modulo for 32-bit machines.
+ */
+int64_t
+__divmoddi4(int64_t n, int64_t d, int64_t *r)
+{
+	int64_t q, rr;
+	boolean_t nn = B_FALSE;
+	boolean_t nd = B_FALSE;
+	if (n < 0) {
+		nn = B_TRUE;
+		n = -n;
+	}
+	if (d < 0) {
+		nd = B_TRUE;
+		d = -d;
+	}
+
+	q = __udivmoddi4(n, d, (uint64_t *)&rr);
+
+	if (nn != nd)
+		q = -q;
+	if (nn)
+		rr = -rr;
+	if (r)
+		*r = rr;
+	return (q);
+}
+EXPORT_SYMBOL(__divmoddi4);
+
 #if defined(__arm) || defined(__arm__)
 /*
  * Implementation of 64-bit (un)signed division for 32-bit arm machines.
