@@ -50,8 +50,8 @@ datasetexists $POOL3 && log_must zpool destroy $POOL3
 log_must zpool create -d $POOL3 $DISK3
 
 for compress in $compress_types; do
-	datasetexists $send_ds && log_must zfs destroy -r $send_ds
-	datasetexists $recv_ds && log_must zfs destroy -r $recv_ds
+	datasetexists $send_ds && log_must_busy zfs destroy -r $send_ds
+	datasetexists $recv_ds && log_must_busy zfs destroy -r $recv_ds
 
 	log_must zfs create -o compress=$compress $send_ds
 	typeset dir=$(get_prop mountpoint $send_ds)

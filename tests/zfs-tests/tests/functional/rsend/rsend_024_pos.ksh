@@ -50,7 +50,7 @@ streamfs=$POOL/stream
 log_onexit resume_cleanup $sendfs $streamfs
 
 test_fs_setup $sendfs $recvfs
-log_must zfs unmount $sendfs
+log_must zfs unmount -f $sendfs
 resume_test "zfs send $sendfs" $streamfs $recvfs
 file_check $sendfs $recvfs
 

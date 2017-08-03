@@ -33,6 +33,11 @@
 
 verify_runnable "both"
 
+# See issue: https://github.com/zfsonlinux/zfs/issues/6446
+if is_linux; then
+	log_unsupported "Test often hangs. Skipping."
+fi
+
 log_assert "Verify resumability of full ZFS send/receive with the -D " \
     "(dedup) flag"
 

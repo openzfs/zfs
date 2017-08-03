@@ -45,9 +45,6 @@ verify_runnable "both"
 
 function cleanup
 {
-	export __ZFS_POOL_RESTRICT="$POOL $POOL2"
-	log_must zfs unmount -a
-	unset __ZFS_POOL_RESTRICT
 	log_must cleanup_pool $POOL
 	log_must cleanup_pool $POOL2
 
