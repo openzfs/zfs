@@ -56,7 +56,7 @@ verify_runnable "both"
 function cleanup {
 
 	for obj in $OBJ_LIST; do
-		datasetexists $obj && log_must zfs destroy -f $obj
+		datasetexists $obj && log_must_busy zfs destroy -f $obj
 	done
 }
 
@@ -112,7 +112,7 @@ for obj in $OBJ_LIST ; do
 		"($resv_size_set != $resv_size_get)"
 	fi
 
-	log_must zfs destroy -f $obj
+	log_must_busy zfs destroy -f $obj
 
 	new_space_avail=`get_prop available $TESTPOOL`
 	new_space_used=`get_prop used $TESTPOOL`

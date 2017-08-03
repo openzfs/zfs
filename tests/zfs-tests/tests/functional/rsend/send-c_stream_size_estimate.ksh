@@ -56,8 +56,8 @@ log_onexit cleanup_pool $POOL2
 write_compressible $BACKDIR ${megs}m
 
 for compress in $compress_types; do
-	datasetexists $send_ds && log_must zfs destroy -r $send_ds
-	datasetexists $send_vol && log_must zfs destroy -r $send_vol
+	datasetexists $send_ds && log_must_busy zfs destroy -r $send_ds
+	datasetexists $send_vol && log_must_busy zfs destroy -r $send_vol
 	log_must zfs create -o compress=$compress $send_ds
 	log_must zfs create -V 1g -o compress=$compress $send_vol
 

@@ -59,7 +59,7 @@ for prop in $(get_rand_compress_any 6); do
 		verify_stream_size $BACKDIR/compressed $sendfs
 
 		log_must rm $BACKDIR/uncompressed $BACKDIR/compressed
-		log_must zfs destroy -r $sendfs
+		log_must_busy zfs destroy -r $sendfs
 	done
 done
 
