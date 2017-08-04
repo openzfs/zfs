@@ -52,6 +52,8 @@ install() {
 	fi
 	dracut_install @sbindir@/mount.zfs
 	dracut_install @udevdir@/vdev_id
+	dracut_install awk
+	dracut_install head
 	dracut_install @udevdir@/zvol_id
 	inst_hook cmdline 95 "${moddir}/parse-zfs.sh"
 	if [ -n "$systemdutildir" ] ; then
