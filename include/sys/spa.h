@@ -905,6 +905,10 @@ extern void spa_get_errlists(spa_t *spa, avl_tree_t *last, avl_tree_t *scrub);
 extern void vdev_cache_stat_init(void);
 extern void vdev_cache_stat_fini(void);
 
+/* vdev mirror */
+extern void vdev_mirror_stat_init(void);
+extern void vdev_mirror_stat_fini(void);
+
 /* Initialization and termination */
 extern void spa_init(int flags);
 extern void spa_fini(void);
