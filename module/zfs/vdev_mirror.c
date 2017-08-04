@@ -116,7 +116,8 @@ static const zio_vsd_ops_t vdev_mirror_vsd_ops = {
 static int
 vdev_mirror_load(mirror_map_t *mm, vdev_t *vd, uint64_t zio_offset)
 {
-	uint64_t lastoffset;
+	uint64_t last_offset;
+	int64_t offset_diff;
 	int load;
 
 	/* All DVAs have equal weight at the root. */
@@ -129,13 +130,17 @@ vdev_mirror_load(mirror_map_t *mm, vdev_t *vd, uint64_t zio_offset)
 	 * worse overall when resilvering with compared to without.
 	 */
 
+	/* Fix zio_offset for leaf vdevs */
+	if (vd->vdev_ops->vdev_op_leaf)
+		zio_offset += VDEV_LABEL_START_SIZE;
+
 	/* Standard load based on pending queue length. */
 	load = vdev_queue_length(vd);
-	lastoffset = vdev_queue_lastoffset(vd);
+	last_offset = vdev_queue_last_offset(vd);
 
 	if (vd->vdev_nonrot) {
 		/* Non-rotating media. */
-		if (lastoffset == zio_offset)
+		if (last_offset == zio_offset)
 			return (load + zfs_vdev_mirror_non_rotating_inc);
 
 		/*
@@ -148,16 +153,16 @@ vdev_mirror_load(mirror_map_t *mm, vdev_t *vd, uint64_t zio_offset)
 	}
 
 	/* Rotating media I/O's which directly follow the last I/O. */
-	if (lastoffset == zio_offset)
+	if (last_offset == zio_offset)
 		return (load + zfs_vdev_mirror_rotating_inc);
 
 	/*
 	 * Apply half the seek increment to I/O's within seek offset
-	 * of the last I/O queued to this vdev as they should incur less
+	 * of the last I/O issued to this vdev as they should incur less
 	 * of a seek increment.
 	 */
-	if (ABS(lastoffset - zio_offset) <
-	    zfs_vdev_mirror_rotating_seek_offset)
+	offset_diff = (int64_t)(last_offset - zio_offset);
+	if (ABS(offset_diff) < zfs_vdev_mirror_rotating_seek_offset)
 		return (load + (zfs_vdev_mirror_rotating_seek_inc / 2));
 
 	/* Apply the full seek increment to all other I/O's. */
@@ -382,29 +387,20 @@ vdev_mirror_child_select(zio_t *zio)
 		mm->mm_preferred_cnt++;
 	}
 
-	if (mm->mm_preferred_cnt == 1) {
-		vdev_queue_register_lastoffset(
-		    mm->mm_child[mm->mm_preferred[0]].mc_vd, zio);
+	if (mm->mm_preferred_cnt == 1)
 		return (mm->mm_preferred[0]);
-	}
 
-	if (mm->mm_preferred_cnt > 1) {
-		int c = vdev_mirror_preferred_child_randomize(zio);
 
-		vdev_queue_register_lastoffset(mm->mm_child[c].mc_vd, zio);
-		return (c);
-	}
+	if (mm->mm_preferred_cnt > 1)
+		return (vdev_mirror_preferred_child_randomize(zio));
 
 	/*
 	 * Every device is either missing or has this txg in its DTL.
 	 * Look for any child we haven't already tried before giving up.
 	 */
 	for (c = 0; c < mm->mm_children; c++) {
-		if (!mm->mm_child[c].mc_tried) {
-			vdev_queue_register_lastoffset(mm->mm_child[c].mc_vd,
-			    zio);
+		if (!mm->mm_child[c].mc_tried)
 			return (c);
-		}
 	}
 
 	/*
