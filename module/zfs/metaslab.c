@@ -2025,17 +2025,6 @@ metaslab_group_preload(metaslab_group_t *mg)
  *
  * 3. The on-disk size of the space map should actually decrease.
  *
- * Checking the first condition is tricky since we don't want to walk
- * the entire AVL tree calculating the estimated on-disk size. Instead we
- * use the size-ordered range tree in the metaslab and calculate the
- * size required to write out the largest segment in our free tree. If the
- * size required to represent that segment on disk is larger than the space
- * map object then we avoid condensing this map.
- *
- * To determine the second criterion we use a best-case estimate and assume
- * each segment can be represented on-disk as a single 64-bit entry. We refer
- * to this best-case estimate as the space map's minimal form.
- *
  * Unfortunately, we cannot compute the on-disk size of the space map in this
  * context because we cannot accurately compute the effects of compression, etc.
  * Instead, we apply the heuristic described in the block comment for
@@ -2046,9 +2035,6 @@ static boolean_t
 metaslab_should_condense(metaslab_t *msp)
 {
 	space_map_t *sm = msp->ms_sm;
-	range_seg_t *rs;
-	uint64_t size, entries, segsz, object_size, optimal_size, record_size;
-	dmu_object_info_t doi;
 	vdev_t *vd = msp->ms_group->mg_vd;
 	uint64_t vdev_blocksize = 1 << vd->vdev_ashift;
 	uint64_t current_txg = spa_syncing_txg(vd->vdev_spa);
@@ -2074,34 +2060,22 @@ metaslab_should_condense(metaslab_t *msp)
 	msp->ms_condense_checked_txg = current_txg;
 
 	/*
-	 * Use the ms_allocatable_by_size range tree, which is ordered by
-	 * size, to obtain the largest segment in the free tree. We always
-	 * condense metaslabs that are empty and metaslabs for which a
-	 * condense request has been made.
+	 * We always condense metaslabs that are empty and metaslabs for
+	 * which a condense request has been made.
 	 */
-	rs = avl_last(&msp->ms_allocatable_by_size);
-	if (rs == NULL || msp->ms_condense_wanted)
+	if (avl_is_empty(&msp->ms_allocatable_by_size) ||
+	    msp->ms_condense_wanted)
 		return (B_TRUE);
 
-	/*
-	 * Calculate the number of 64-bit entries this segment would
-	 * require when written to disk. If this single segment would be
-	 * larger on-disk than the entire current on-disk structure, then
-	 * clearly condensing will increase the on-disk structure size.
-	 */
-	size = (rs->rs_end - rs->rs_start) >> sm->sm_shift;
-	entries = size / (MIN(size, SM_RUN_MAX));
-	segsz = entries * sizeof (uint64_t);
+	uint64_t object_size = space_map_length(msp->ms_sm);
+	uint64_t optimal_size = space_map_estimate_optimal_size(sm,
+	    msp->ms_allocatable, SM_NO_VDEVID);
 
-	optimal_size =
-	    sizeof (uint64_t) * avl_numnodes(&msp->ms_allocatable->rt_root);
-	object_size = space_map_length(msp->ms_sm);
-
+	dmu_object_info_t doi;
 	dmu_object_info_from_db(sm->sm_dbuf, &doi);
-	record_size = MAX(doi.doi_data_block_size, vdev_blocksize);
+	uint64_t record_size = MAX(doi.doi_data_block_size, vdev_blocksize);
 
-	return (segsz <= object_size &&
-	    object_size >= (optimal_size * zfs_condense_pct / 100) &&
+	return (object_size >= (optimal_size * zfs_condense_pct / 100) &&
 	    object_size > zfs_metaslab_condense_block_threshold * record_size);
 }
 
@@ -2177,11 +2151,11 @@ metaslab_condense(metaslab_t *msp, uint64_t txg, dmu_tx_t *tx)
 	 * optimal, this is typically close to optimal, and much cheaper to
 	 * compute.
 	 */
-	space_map_write(sm, condense_tree, SM_ALLOC, tx);
+	space_map_write(sm, condense_tree, SM_ALLOC, SM_NO_VDEVID, tx);
 	range_tree_vacate(condense_tree, NULL, NULL);
 	range_tree_destroy(condense_tree);
 
-	space_map_write(sm, msp->ms_allocatable, SM_FREE, tx);
+	space_map_write(sm, msp->ms_allocatable, SM_FREE, SM_NO_VDEVID, tx);
 	mutex_enter(&msp->ms_lock);
 	msp->ms_condensing = B_FALSE;
 }
@@ -2293,8 +2267,10 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 		metaslab_condense(msp, txg, tx);
 	} else {
 		mutex_exit(&msp->ms_lock);
-		space_map_write(msp->ms_sm, alloctree, SM_ALLOC, tx);
-		space_map_write(msp->ms_sm, msp->ms_freeing, SM_FREE, tx);
+		space_map_write(msp->ms_sm, alloctree, SM_ALLOC,
+		    SM_NO_VDEVID, tx);
+		space_map_write(msp->ms_sm, msp->ms_freeing, SM_FREE,
+		    SM_NO_VDEVID, tx);
 		mutex_enter(&msp->ms_lock);
 	}
 
@@ -2309,7 +2285,7 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 		 */
 		mutex_exit(&msp->ms_lock);
 		space_map_write(vd->vdev_checkpoint_sm,
-		    msp->ms_checkpointing, SM_FREE, tx);
+		    msp->ms_checkpointing, SM_FREE, SM_NO_VDEVID, tx);
 		mutex_enter(&msp->ms_lock);
 		space_map_update(vd->vdev_checkpoint_sm);
 

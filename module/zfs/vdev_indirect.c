@@ -825,7 +825,7 @@ vdev_indirect_sync_obsolete(vdev_t *vd, dmu_tx_t *tx)
 	    space_map_object(vd->vdev_obsolete_sm));
 
 	space_map_write(vd->vdev_obsolete_sm,
-	    vd->vdev_obsolete_segments, SM_ALLOC, tx);
+	    vd->vdev_obsolete_segments, SM_ALLOC, SM_NO_VDEVID, tx);
 	space_map_update(vd->vdev_obsolete_sm);
 	range_tree_vacate(vd->vdev_obsolete_segments, NULL, NULL);
 }

@@ -2634,7 +2634,7 @@ vdev_dtl_sync(vdev_t *vd, uint64_t txg)
 	mutex_exit(&vd->vdev_dtl_lock);
 
 	space_map_truncate(vd->vdev_dtl_sm, vdev_dtl_sm_blksz, tx);
-	space_map_write(vd->vdev_dtl_sm, rtsync, SM_ALLOC, tx);
+	space_map_write(vd->vdev_dtl_sm, rtsync, SM_ALLOC, SM_NO_VDEVID, tx);
 	range_tree_vacate(rtsync, NULL, NULL);
 
 	range_tree_destroy(rtsync);
