@@ -393,7 +393,7 @@ vdev_queue_init(vdev_t *vd)
 		    sizeof (zio_t), offsetof(struct zio, io_queue_node));
 	}
 
-	vq->vq_lastoffset = 0;
+	vq->vq_last_offset = 0;
 }
 
 void
@@ -699,9 +699,8 @@ again:
 	 */
 	tree = vdev_queue_class_tree(vq, p);
 	vq->vq_io_search.io_timestamp = 0;
-	vq->vq_io_search.io_offset = vq->vq_last_offset + 1;
-	VERIFY3P(avl_find(tree, &vq->vq_io_search,
-	    &idx), ==, NULL);
+	vq->vq_io_search.io_offset = vq->vq_last_offset - 1;
+	VERIFY3P(avl_find(tree, &vq->vq_io_search, &idx), ==, NULL);
 	zio = avl_nearest(tree, idx, AVL_AFTER);
 	if (zio == NULL)
 		zio = avl_first(tree);
@@ -728,7 +727,7 @@ again:
 	}
 
 	vdev_queue_pending_add(vq, zio);
-	vq->vq_last_offset = zio->io_offset;
+	vq->vq_last_offset = zio->io_offset + zio->io_size;
 
 	return (zio);
 }
@@ -806,7 +805,7 @@ vdev_queue_io_done(zio_t *zio)
 }
 
 /*
- * As these three methods are only used for load calculations we're not
+ * As these two methods are only used for load calculations we're not
  * concerned if we get an incorrect value on 32bit platforms due to lack of
  * vq_lock mutex use here, instead we prefer to keep it lock free for
  * performance.
@@ -818,15 +817,9 @@ vdev_queue_length(vdev_t *vd)
 }
 
 uint64_t
-vdev_queue_lastoffset(vdev_t *vd)
+vdev_queue_last_offset(vdev_t *vd)
 {
-	return (vd->vdev_queue.vq_lastoffset);
-}
-
-void
-vdev_queue_register_lastoffset(vdev_t *vd, zio_t *zio)
-{
-	vd->vdev_queue.vq_lastoffset = zio->io_offset + zio->io_size;
+	return (vd->vdev_queue.vq_last_offset);
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
