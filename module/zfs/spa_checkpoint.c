@@ -203,13 +203,12 @@ typedef struct spa_checkpoint_discard_sync_callback_arg {
 } spa_checkpoint_discard_sync_callback_arg_t;
 
 static int
-spa_checkpoint_discard_sync_callback(maptype_t type, uint64_t offset,
-    uint64_t size, void *arg)
+spa_checkpoint_discard_sync_callback(space_map_entry_t *sme, void *arg)
 {
 	spa_checkpoint_discard_sync_callback_arg_t *sdc = arg;
 	vdev_t *vd = sdc->sdc_vd;
-	metaslab_t *ms = vd->vdev_ms[offset >> vd->vdev_ms_shift];
-	uint64_t end = offset + size;
+	metaslab_t *ms = vd->vdev_ms[sme->sme_offset >> vd->vdev_ms_shift];
+	uint64_t end = sme->sme_offset + sme->sme_run;
 
 	if (sdc->sdc_entry_limit == 0)
 		return (EINTR);
@@ -224,8 +223,8 @@ spa_checkpoint_discard_sync_callback(maptype_t type, uint64_t offset,
 	 * metaslab boundaries. So if needed we could add code
 	 * that handles metaslab-crossing segments in the future.
 	 */
-	VERIFY3U(type, ==, SM_FREE);
-	VERIFY3U(offset, >=, ms->ms_start);
+	VERIFY3U(sme->sme_type, ==, SM_FREE);
+	VERIFY3U(sme->sme_offset, >=, ms->ms_start);
 	VERIFY3U(end, <=, ms->ms_start + ms->ms_size);
 
 	/*
@@ -237,14 +236,15 @@ spa_checkpoint_discard_sync_callback(maptype_t type, uint64_t offset,
 	mutex_enter(&ms->ms_lock);
 	if (range_tree_is_empty(ms->ms_freeing))
 		vdev_dirty(vd, VDD_METASLAB, ms, sdc->sdc_txg);
-	range_tree_add(ms->ms_freeing, offset, size);
+	range_tree_add(ms->ms_freeing, sme->sme_offset, sme->sme_run);
 	mutex_exit(&ms->ms_lock);
 
-	ASSERT3U(vd->vdev_spa->spa_checkpoint_info.sci_dspace, >=, size);
-	ASSERT3U(vd->vdev_stat.vs_checkpoint_space, >=, size);
+	ASSERT3U(vd->vdev_spa->spa_checkpoint_info.sci_dspace, >=,
+	    sme->sme_run);
+	ASSERT3U(vd->vdev_stat.vs_checkpoint_space, >=, sme->sme_run);
 
-	vd->vdev_spa->spa_checkpoint_info.sci_dspace -= size;
-	vd->vdev_stat.vs_checkpoint_space -= size;
+	vd->vdev_spa->spa_checkpoint_info.sci_dspace -= sme->sme_run;
+	vd->vdev_stat.vs_checkpoint_space -= sme->sme_run;
 	sdc->sdc_entry_limit--;
 
 	return (0);
@@ -291,12 +291,13 @@ spa_checkpoint_discard_thread_sync(void *arg, dmu_tx_t *tx)
 	 * Thus, we set the maximum entries that the space map callback
 	 * will be applied to be half the entries that could fit in the
 	 * imposed memory limit.
+	 *
+	 * Note that since this is a conservative estimate we also
+	 * assume the worst case scenario in our computation where each
+	 * entry is two-word.
 	 */
 	uint64_t max_entry_limit =
-	    (zfs_spa_discard_memory_limit / sizeof (uint64_t)) >> 1;
-
-	uint64_t entries_in_sm =
-	    space_map_length(vd->vdev_checkpoint_sm) / sizeof (uint64_t);
+	    (zfs_spa_discard_memory_limit / (2 * sizeof (uint64_t))) >> 1;
 
 	/*
 	 * Iterate from the end of the space map towards the beginning,
@@ -320,14 +321,15 @@ spa_checkpoint_discard_thread_sync(void *arg, dmu_tx_t *tx)
 	spa_checkpoint_discard_sync_callback_arg_t sdc;
 	sdc.sdc_vd = vd;
 	sdc.sdc_txg = tx->tx_txg;
-	sdc.sdc_entry_limit = MIN(entries_in_sm, max_entry_limit);
+	sdc.sdc_entry_limit = max_entry_limit;
 
-	uint64_t entries_before = entries_in_sm;
+	uint64_t words_before =
+	    space_map_length(vd->vdev_checkpoint_sm) / sizeof (uint64_t);
 
 	error = space_map_incremental_destroy(vd->vdev_checkpoint_sm,
 	    spa_checkpoint_discard_sync_callback, &sdc, tx);
 
-	uint64_t entries_after =
+	uint64_t words_after =
 	    space_map_length(vd->vdev_checkpoint_sm) / sizeof (uint64_t);
 
 #ifdef ZFS_DEBUG
@@ -335,9 +337,9 @@ spa_checkpoint_discard_thread_sync(void *arg, dmu_tx_t *tx)
 #endif
 
 	zfs_dbgmsg("discarding checkpoint: txg %llu, vdev id %d, "
-	    "deleted %llu entries - %llu entries are left",
-	    tx->tx_txg, vd->vdev_id, (entries_before - entries_after),
-	    entries_after);
+	    "deleted %llu words - %llu words are left",
+	    tx->tx_txg, vd->vdev_id, (words_before - words_after),
+	    words_after);
 
 	if (error != EINTR) {
 		if (error != 0) {
@@ -346,15 +348,15 @@ spa_checkpoint_discard_thread_sync(void *arg, dmu_tx_t *tx)
 			    "space map of vdev %llu\n",
 			    error, vd->vdev_id);
 		}
-		ASSERT0(entries_after);
+		ASSERT0(words_after);
 		ASSERT0(vd->vdev_checkpoint_sm->sm_alloc);
-		ASSERT0(vd->vdev_checkpoint_sm->sm_length);
+		ASSERT0(space_map_length(vd->vdev_checkpoint_sm));
 
 		space_map_free(vd->vdev_checkpoint_sm, tx);
 		space_map_close(vd->vdev_checkpoint_sm);
 		vd->vdev_checkpoint_sm = NULL;
 
-		VERIFY0(zap_remove(vd->vdev_spa->spa_meta_objset,
+		VERIFY0(zap_remove(spa_meta_objset(vd->vdev_spa),
 		    vd->vdev_top_zap, VDEV_TOP_ZAP_POOL_CHECKPOINT_SM, tx));
 	}
 }

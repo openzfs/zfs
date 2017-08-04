@@ -507,6 +507,29 @@ is rewound or the checkpoint has been discarded.
 .sp
 .ne 2
 .na
+\fB\fBspacemap_v2\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.delphix:spacemap_v2
+READ\-ONLY COMPATIBLE	yes
+DEPENDENCIES	none
+.TE
+
+This feature enables the use of the new space map encoding which
+consists of two words (instead of one) whenever it is advantageous.
+The new encoding allows space maps to represent large regions of
+space more efficiently on-disk while also increasing their maximum
+addressable offset.
+
+This feature becomes \fBactive\fR once it is \fBenabled\fR, and never
+returns back to being \fBenabled\fR.
+
+.RE
+.sp
+.ne 2
+.na
 \fB\fBlarge_blocks\fR\fR
 .ad
 .RS 4n

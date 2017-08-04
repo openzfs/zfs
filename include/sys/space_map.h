@@ -93,50 +93,100 @@ typedef struct space_map {
 /*
  * debug entry
  *
- *    1      3         10                     50
- *  ,---+--------+------------+---------------------------------.
- *  | 1 | action |  syncpass  |        txg (lower bits)         |
- *  `---+--------+------------+---------------------------------'
- *   63  62    60 59        50 49                               0
+ *     2     2        10                     50
+ *  +-----+-----+------------+----------------------------------+
+ *  | 1 0 | act |  syncpass  |        txg (lower bits)          |
+ *  +-----+-----+------------+----------------------------------+
+ *   63 62 61 60 59        50 49                                0
  *
  *
- * non-debug entry
+ * one-word entry
  *
  *    1               47                   1           15
- *  ,-----------------------------------------------------------.
+ *  +-----------------------------------------------------------+
  *  | 0 |   offset (sm_shift units)    | type |       run       |
- *  `-----------------------------------------------------------'
- *   63  62                          17   16   15               0
+ *  +-----------------------------------------------------------+
+ *   63  62                          16   15   14               0
+ *
+ *
+ * two-word entry
+ *
+ *     2     2               36                      24
+ *  +-----+-----+---------------------------+-------------------+
+ *  | 1 1 | pad |            run            |       vdev        |
+ *  +-----+-----+---------------------------+-------------------+
+ *   63 62 61 60 59                       24 23                 0
+ *
+ *     1                            63
+ *  +------+----------------------------------------------------+
+ *  | type |                      offset                        |
+ *  +------+----------------------------------------------------+
+ *     63   62                                                  0
+ *
+ * Note that a two-word entry will not strandle a block boundary.
+ * If necessary, the last word of a block will be padded with a
+ * debug entry (with act = syncpass = txg = 0).
  */
-
-/* All this stuff takes and returns bytes */
-#define	SM_RUN_DECODE(x)	(BF64_DECODE(x, 0, 15) + 1)
-#define	SM_RUN_ENCODE(x)	BF64_ENCODE((x) - 1, 0, 15)
-#define	SM_TYPE_DECODE(x)	BF64_DECODE(x, 15, 1)
-#define	SM_TYPE_ENCODE(x)	BF64_ENCODE(x, 15, 1)
-#define	SM_OFFSET_DECODE(x)	BF64_DECODE(x, 16, 47)
-#define	SM_OFFSET_ENCODE(x)	BF64_ENCODE(x, 16, 47)
-#define	SM_DEBUG_DECODE(x)	BF64_DECODE(x, 63, 1)
-#define	SM_DEBUG_ENCODE(x)	BF64_ENCODE(x, 63, 1)
-
-#define	SM_DEBUG_ACTION_DECODE(x)	BF64_DECODE(x, 60, 3)
-#define	SM_DEBUG_ACTION_ENCODE(x)	BF64_ENCODE(x, 60, 3)
-
-#define	SM_DEBUG_SYNCPASS_DECODE(x)	BF64_DECODE(x, 50, 10)
-#define	SM_DEBUG_SYNCPASS_ENCODE(x)	BF64_ENCODE(x, 50, 10)
-
-#define	SM_DEBUG_TXG_DECODE(x)		BF64_DECODE(x, 0, 50)
-#define	SM_DEBUG_TXG_ENCODE(x)		BF64_ENCODE(x, 0, 50)
-
-#define	SM_RUN_MAX			SM_RUN_DECODE(~0ULL)
 
 typedef enum {
 	SM_ALLOC,
 	SM_FREE
 } maptype_t;
 
-typedef int (*sm_cb_t)(maptype_t type, uint64_t offset, uint64_t size,
-    void *arg);
+typedef struct space_map_entry {
+	maptype_t sme_type;
+	uint32_t sme_vdev;	/* max is 2^24-1; SM_NO_VDEVID if not present */
+	uint64_t sme_offset;	/* max is 2^63-1; units of sm_shift */
+	uint64_t sme_run;	/* max is 2^36; units of sm_shift */
+} space_map_entry_t;
+
+#define	SM_NO_VDEVID	(1 << SPA_VDEVBITS)
+
+/* one-word entry constants */
+#define	SM_DEBUG_PREFIX	2
+#define	SM_OFFSET_BITS	47
+#define	SM_RUN_BITS	15
+
+/* two-word entry constants */
+#define	SM2_PREFIX	3
+#define	SM2_OFFSET_BITS	63
+#define	SM2_RUN_BITS	36
+
+#define	SM_PREFIX_DECODE(x)	BF64_DECODE(x, 62, 2)
+#define	SM_PREFIX_ENCODE(x)	BF64_ENCODE(x, 62, 2)
+
+#define	SM_DEBUG_ACTION_DECODE(x)	BF64_DECODE(x, 60, 2)
+#define	SM_DEBUG_ACTION_ENCODE(x)	BF64_ENCODE(x, 60, 2)
+#define	SM_DEBUG_SYNCPASS_DECODE(x)	BF64_DECODE(x, 50, 10)
+#define	SM_DEBUG_SYNCPASS_ENCODE(x)	BF64_ENCODE(x, 50, 10)
+#define	SM_DEBUG_TXG_DECODE(x)		BF64_DECODE(x, 0, 50)
+#define	SM_DEBUG_TXG_ENCODE(x)		BF64_ENCODE(x, 0, 50)
+
+#define	SM_OFFSET_DECODE(x)	BF64_DECODE(x, 16, SM_OFFSET_BITS)
+#define	SM_OFFSET_ENCODE(x)	BF64_ENCODE(x, 16, SM_OFFSET_BITS)
+#define	SM_TYPE_DECODE(x)	BF64_DECODE(x, 15, 1)
+#define	SM_TYPE_ENCODE(x)	BF64_ENCODE(x, 15, 1)
+#define	SM_RUN_DECODE(x)	(BF64_DECODE(x, 0, SM_RUN_BITS) + 1)
+#define	SM_RUN_ENCODE(x)	BF64_ENCODE((x) - 1, 0, SM_RUN_BITS)
+#define	SM_RUN_MAX		SM_RUN_DECODE(~0ULL)
+#define	SM_OFFSET_MAX		SM_OFFSET_DECODE(~0ULL)
+
+#define	SM2_RUN_DECODE(x)	(BF64_DECODE(x, SPA_VDEVBITS, SM2_RUN_BITS) + 1)
+#define	SM2_RUN_ENCODE(x)	BF64_ENCODE((x) - 1, SPA_VDEVBITS, SM2_RUN_BITS)
+#define	SM2_VDEV_DECODE(x)	BF64_DECODE(x, 0, SPA_VDEVBITS)
+#define	SM2_VDEV_ENCODE(x)	BF64_ENCODE(x, 0, SPA_VDEVBITS)
+#define	SM2_TYPE_DECODE(x)	BF64_DECODE(x, SM2_OFFSET_BITS, 1)
+#define	SM2_TYPE_ENCODE(x)	BF64_ENCODE(x, SM2_OFFSET_BITS, 1)
+#define	SM2_OFFSET_DECODE(x)	BF64_DECODE(x, 0, SM2_OFFSET_BITS)
+#define	SM2_OFFSET_ENCODE(x)	BF64_ENCODE(x, 0, SM2_OFFSET_BITS)
+#define	SM2_RUN_MAX		SM2_RUN_DECODE(~0ULL)
+#define	SM2_OFFSET_MAX		SM2_OFFSET_DECODE(~0ULL)
+
+boolean_t sm_entry_is_debug(uint64_t e);
+boolean_t sm_entry_is_single_word(uint64_t e);
+boolean_t sm_entry_is_double_word(uint64_t e);
+
+typedef int (*sm_cb_t)(space_map_entry_t *sme, void *arg);
 
 int space_map_load(space_map_t *sm, range_tree_t *rt, maptype_t maptype);
 int space_map_iterate(space_map_t *sm, sm_cb_t callback, void *arg);
@@ -154,7 +204,9 @@ uint64_t space_map_allocated(space_map_t *sm);
 uint64_t space_map_length(space_map_t *sm);
 
 void space_map_write(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
-    dmu_tx_t *tx);
+    uint64_t vdev_id, dmu_tx_t *tx);
+uint64_t space_map_estimate_optimal_size(space_map_t *sm, range_tree_t *rt,
+    uint64_t vdev_id);
 void space_map_truncate(space_map_t *sm, int blocksize, dmu_tx_t *tx);
 uint64_t space_map_alloc(objset_t *os, int blocksize, dmu_tx_t *tx);
 void space_map_free(space_map_t *sm, dmu_tx_t *tx);
