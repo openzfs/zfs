@@ -49,6 +49,10 @@ dmu_object_alloc(objset_t *os, dmu_object_type_t ot, int blocksize,
 	    0, tx);
 }
 
+
+static unsigned percpu_debug[1024];
+
+
 uint64_t
 dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot, int blocksize,
     dmu_object_type_t bonustype, int bonuslen, int dnodesize, dmu_tx_t *tx)
@@ -62,7 +66,14 @@ dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot, int blocksize,
 	uint64_t *cpuobj = NULL;
 	int dnodes_per_chunk = 1 << dmu_object_alloc_chunk_shift;
 
+	unsigned int cpuid;
+
+
 	kpreempt_disable();
+
+	cpuid = CPU_SEQID;
+	percpu_debug[cpuid]++;
+
 	cpuobj = &os->os_obj_next_percpu[CPU_SEQID %
 	    os->os_obj_next_percpu_len];
 	kpreempt_enable();
@@ -153,6 +164,17 @@ dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot, int blocksize,
 			os->os_obj_next_chunk =
 			    P2ALIGN(object, dnodes_per_chunk) +
 			    dnodes_per_chunk;
+
+			kpreempt_disable();
+			if (cpuid != CPU_SEQID)
+				cmn_err(CE_WARN, "thread preempted %u != %u",
+				    cpuid, CPU_SEQID);
+
+			if (percpu_debug[CPU_SEQID] != 1)
+				cmn_err(CE_WARN, "data race use[%d] = %d",
+				    CPU_SEQID, percpu_debug[cpuid]);
+			kpreempt_enable();
+
 			(void) atomic_swap_64(cpuobj, object);
 			mutex_exit(&os->os_obj_lock);
 		}
@@ -178,8 +200,22 @@ dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot, int blocksize,
 				dmu_tx_add_new_object(tx, dn);
 				dnode_rele(dn, FTAG);
 
+
+				kpreempt_disable();
+				if (cpuid != CPU_SEQID)
+					cmn_err(CE_WARN, "preempted %u != %u",
+					    cpuid, CPU_SEQID);
+
+				if (percpu_debug[CPU_SEQID] != 1)
+					cmn_err(CE_WARN, "race ref[%d] = %d",
+					    CPU_SEQID, percpu_debug[cpuid]);
+				kpreempt_enable();
+
 				(void) atomic_swap_64(cpuobj,
 				    object + dn_slots);
+
+				percpu_debug[cpuid]--;
+
 				return (object);
 			}
 			rw_exit(&dn->dn_struct_rwlock);
@@ -193,8 +229,22 @@ dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot, int blocksize,
 			 */
 			object = P2ROUNDUP(object + 1, DNODES_PER_BLOCK);
 		}
+
+		kpreempt_disable();
+		if (cpuid != CPU_SEQID)
+			cmn_err(CE_WARN, "thread preempted %u != %u",
+			    cpuid, CPU_SEQID);
+
+		if (percpu_debug[CPU_SEQID] != 1)
+			cmn_err(CE_WARN, "data race use[%d] = %d",
+			    CPU_SEQID, percpu_debug[cpuid]);
+		kpreempt_enable();
+
 		(void) atomic_swap_64(cpuobj, object);
 	}
+
+		percpu_debug[cpuid]--;
+
 }
 
 int
