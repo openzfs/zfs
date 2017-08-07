@@ -813,6 +813,38 @@ zpl_ioctl_setflags(struct file *filp, void __user *arg)
 }
 
 static long
+zpl_ioctl_count_filled(struct file *filep, void __user *arg)
+{
+	struct inode *ip = file_inode(filep);
+	znode_t *zp = ITOZ(ip);
+	zfsvfs_t *zfsvfs = ITOZSB(ip);
+	uint64_t ndata;
+	int error;
+	dmu_object_info_t doi;
+
+	ZFS_ENTER(zfsvfs);
+	ZFS_VERIFY_ZP(zp);
+
+	error = -dmu_object_wait_synced(zfsvfs->z_os, zp->z_id);
+	if (error != 0) {
+		ZFS_EXIT(zfsvfs);
+		return (error);
+	}
+
+	error = -dmu_object_info(zfsvfs->z_os, zp->z_id, &doi);
+	if (error != 0) {
+		ZFS_EXIT(zfsvfs);
+		return (error);
+	}
+
+	ndata = doi.doi_fill_count;
+	error = copy_to_user(arg, &ndata, sizeof (ndata));
+	ZFS_EXIT(zfsvfs);
+	return (error);
+
+}
+
+static long
 zpl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	switch (cmd) {
@@ -820,6 +852,8 @@ zpl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		return (zpl_ioctl_getflags(filp, (void *)arg));
 	case FS_IOC_SETFLAGS:
 		return (zpl_ioctl_setflags(filp, (void *)arg));
+	case ZFS_IOC_COUNT_FILLED:
+		return (zpl_ioctl_count_filled(filp, (void *)arg));
 	default:
 		return (-ENOTTY);
 	}

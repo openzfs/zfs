@@ -953,6 +953,15 @@ int dmu_offset_next(objset_t *os, uint64_t object, boolean_t hole,
     uint64_t *off);
 
 /*
+ * Check if a DMU object has any dirty blocks. If so, sync out
+ * all pending transaction groups. Otherwise, this function
+ * does not alter DMU state. This could be improved to only sync
+ * out the necessary transaction groups for this particular
+ * object.
+ */
+int dmu_object_wait_synced(objset_t *os, uint64_t object);
+
+/*
  * Initial setup and final teardown.
  */
 extern void dmu_init(void);

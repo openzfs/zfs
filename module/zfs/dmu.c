@@ -2094,6 +2094,36 @@ __dmu_object_info_from_dnode(dnode_t *dn, dmu_object_info_t *doi)
 		doi->doi_fill_count += BP_GET_FILL(&dnp->dn_blkptr[i]);
 }
 
+/*
+ * Give the ZFS object, if it contains any dirty nodes
+ * this function flushes all dirty blocks to disk. This
+ * ensures the DMU object info is updated. A more efficient
+ * future version might just find the TXG with the maximum
+ * ID and wait for that to be synced.
+ */
+int
+dmu_object_wait_synced(objset_t *os, uint64_t object) {
+	dnode_t *dn;
+	int error, i;
+
+	error = dnode_hold(os, object, FTAG, &dn);
+	if (error) {
+		return (error);
+	}
+
+	for (i = 0; i < TXG_SIZE; i++) {
+		if (list_link_active(&dn->dn_dirty_link[i])) {
+			break;
+		}
+	}
+	dnode_rele(dn, FTAG);
+	if (i != TXG_SIZE) {
+		txg_wait_synced(dmu_objset_pool(os), 0);
+	}
+
+	return (0);
+}
+
 void
 dmu_object_info_from_dnode(dnode_t *dn, dmu_object_info_t *doi)
 {

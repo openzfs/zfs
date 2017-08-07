@@ -882,6 +882,8 @@ extern int zfs_device_get_devid(struct udev_device *, char *, size_t);
 extern int zfs_device_get_physical(struct udev_device *, char *, size_t);
 #endif
 
+extern int zfs_get_hole_count(const char *, uint64_t *, uint64_t *);
+
 #ifdef	__cplusplus
 }
 #endif
