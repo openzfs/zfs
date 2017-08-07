@@ -429,7 +429,7 @@ zcp_lua_to_nvlist_impl(lua_State *state, int index, nvlist_t *nvl,
 /*
  * Convert a lua value to an nvpair, adding it to an nvlist with the given key.
  */
-void
+static void
 zcp_lua_to_nvlist(lua_State *state, int index, nvlist_t *nvl, const char *key)
 {
 	/*
@@ -441,7 +441,7 @@ zcp_lua_to_nvlist(lua_State *state, int index, nvlist_t *nvl, const char *key)
 		(void) lua_error(state);
 }
 
-int
+static int
 zcp_lua_to_nvlist_helper(lua_State *state)
 {
 	nvlist_t *nv = (nvlist_t *)lua_touserdata(state, 2);
@@ -450,11 +450,12 @@ zcp_lua_to_nvlist_helper(lua_State *state)
 	return (0);
 }
 
-void
+static void
 zcp_convert_return_values(lua_State *state, nvlist_t *nvl,
     const char *key, zcp_eval_arg_t *evalargs)
 {
 	int err;
+	VERIFY3U(1, ==, lua_gettop(state));
 	lua_pushcfunction(state, zcp_lua_to_nvlist_helper);
 	lua_pushlightuserdata(state, (char *)key);
 	lua_pushlightuserdata(state, nvl);
@@ -900,6 +901,7 @@ zcp_eval_impl(dmu_tx_t *tx, boolean_t sync, zcp_eval_arg_t *evalargs)
 			    ZCP_RET_RETURN, evalargs);
 		} else if (return_count > 1) {
 			evalargs->ea_result = SET_ERROR(ECHRNG);
+			lua_settop(state, 0);
 			(void) lua_pushfstring(state, "Multiple return "
 			    "values not supported");
 			zcp_convert_return_values(state, evalargs->ea_outnvl,
@@ -967,6 +969,7 @@ static void
 zcp_pool_error(zcp_eval_arg_t *evalargs, const char *poolname)
 {
 	evalargs->ea_result = SET_ERROR(ECHRNG);
+	lua_settop(evalargs->ea_state, 0);
 	(void) lua_pushfstring(evalargs->ea_state, "Could not open pool: %s",
 	    poolname);
 	zcp_convert_return_values(evalargs->ea_state, evalargs->ea_outnvl,
