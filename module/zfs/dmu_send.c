@@ -2792,6 +2792,91 @@ receive_read_record(struct receive_arg *ra)
 	}
 }
 
+static void
+dprintf_drr(struct receive_record_arg *rrd, int err)
+{
+	switch (rrd->header.drr_type) {
+	case DRR_OBJECT:
+	{
+		struct drr_object *drro = &rrd->header.drr_u.drr_object;
+		dprintf("drr_type = OBJECT obj = %llu type = %u "
+		    "bonustype = %u blksz = %u bonuslen = %u cksumtype = %u "
+		    "compress = %u dn_slots = %u err = %d\n",
+		    drro->drr_object, drro->drr_type,  drro->drr_bonustype,
+		    drro->drr_blksz, drro->drr_bonuslen,
+		    drro->drr_checksumtype, drro->drr_compress,
+		    drro->drr_dn_slots, err);
+		break;
+	}
+	case DRR_FREEOBJECTS:
+	{
+		struct drr_freeobjects *drrfo =
+		    &rrd->header.drr_u.drr_freeobjects;
+		dprintf("drr_type = FREEOBJECTS firstobj = %llu "
+		    "numobjs = %llu err = %d\n",
+		    drrfo->drr_firstobj, drrfo->drr_numobjs, err);
+		break;
+	}
+	case DRR_WRITE:
+	{
+		struct drr_write *drrw = &rrd->header.drr_u.drr_write;
+		dprintf("drr_type = WRITE obj = %llu type = %u offset = %llu "
+		    "lsize = %llu cksumtype = %u cksumflags = %u "
+		    "compress = %u psize = %llu err = %d\n",
+		    drrw->drr_object, drrw->drr_type, drrw->drr_offset,
+		    drrw->drr_logical_size, drrw->drr_checksumtype,
+		    drrw->drr_checksumflags, drrw->drr_compressiontype,
+		    drrw->drr_compressed_size, err);
+		break;
+	}
+	case DRR_WRITE_BYREF:
+	{
+		struct drr_write_byref *drrwbr =
+		    &rrd->header.drr_u.drr_write_byref;
+		dprintf("drr_type = WRITE_BYREF obj = %llu offset = %llu "
+		    "length = %llu toguid = %llx refguid = %llx "
+		    "refobject = %llu refoffset = %llu cksumtype = %u "
+		    "cksumflags = %u err = %d\n",
+		    drrwbr->drr_object, drrwbr->drr_offset,
+		    drrwbr->drr_length, drrwbr->drr_toguid,
+		    drrwbr->drr_refguid, drrwbr->drr_refobject,
+		    drrwbr->drr_refoffset, drrwbr->drr_checksumtype,
+		    drrwbr->drr_checksumflags, err);
+		break;
+	}
+	case DRR_WRITE_EMBEDDED:
+	{
+		struct drr_write_embedded *drrwe =
+		    &rrd->header.drr_u.drr_write_embedded;
+		dprintf("drr_type = WRITE_EMBEDDED obj = %llu offset = %llu "
+		    "length = %llu compress = %u etype = %u lsize = %u "
+		    "psize = %u err = %d\n",
+		    drrwe->drr_object, drrwe->drr_offset, drrwe->drr_length,
+		    drrwe->drr_compression, drrwe->drr_etype,
+		    drrwe->drr_lsize, drrwe->drr_psize, err);
+		break;
+	}
+	case DRR_FREE:
+	{
+		struct drr_free *drrf = &rrd->header.drr_u.drr_free;
+		dprintf("drr_type = FREE obj = %llu offset = %llu "
+		    "length = %lld err = %d\n",
+		    drrf->drr_object, drrf->drr_offset, drrf->drr_length,
+		    err);
+		break;
+	}
+	case DRR_SPILL:
+	{
+		struct drr_spill *drrs = &rrd->header.drr_u.drr_spill;
+		dprintf("drr_type = SPILL obj = %llu length = %llu "
+		    "err = %d\n", drrs->drr_object, drrs->drr_length, err);
+		break;
+	}
+	default:
+		return;
+	}
+}
+
 /*
  * Commit the records to the pool.
  */
@@ -2812,13 +2897,14 @@ receive_process_record(struct receive_writer_arg *rwa,
 		err = receive_object(rwa, drro, rrd->payload);
 		kmem_free(rrd->payload, rrd->payload_size);
 		rrd->payload = NULL;
-		return (err);
+		break;
 	}
 	case DRR_FREEOBJECTS:
 	{
 		struct drr_freeobjects *drrfo =
 		    &rrd->header.drr_u.drr_freeobjects;
-		return (receive_freeobjects(rwa, drrfo));
+		err = receive_freeobjects(rwa, drrfo);
+		break;
 	}
 	case DRR_WRITE:
 	{
@@ -2829,13 +2915,14 @@ receive_process_record(struct receive_writer_arg *rwa,
 			dmu_return_arcbuf(rrd->write_buf);
 		rrd->write_buf = NULL;
 		rrd->payload = NULL;
-		return (err);
+		break;
 	}
 	case DRR_WRITE_BYREF:
 	{
 		struct drr_write_byref *drrwbr =
 		    &rrd->header.drr_u.drr_write_byref;
-		return (receive_write_byref(rwa, drrwbr));
+		err = receive_write_byref(rwa, drrwbr);
+		break;
 	}
 	case DRR_WRITE_EMBEDDED:
 	{
@@ -2844,12 +2931,13 @@ receive_process_record(struct receive_writer_arg *rwa,
 		err = receive_write_embedded(rwa, drrwe, rrd->payload);
 		kmem_free(rrd->payload, rrd->payload_size);
 		rrd->payload = NULL;
-		return (err);
+		break;
 	}
 	case DRR_FREE:
 	{
 		struct drr_free *drrf = &rrd->header.drr_u.drr_free;
-		return (receive_free(rwa, drrf));
+		err = receive_free(rwa, drrf);
+		break;
 	}
 	case DRR_SPILL:
 	{
@@ -2857,11 +2945,16 @@ receive_process_record(struct receive_writer_arg *rwa,
 		err = receive_spill(rwa, drrs, rrd->payload);
 		kmem_free(rrd->payload, rrd->payload_size);
 		rrd->payload = NULL;
-		return (err);
+		break;
 	}
 	default:
 		return (SET_ERROR(EINVAL));
 	}
+
+	if (err != 0)
+		dprintf_drr(rrd, err);
+
+	return (err);
 }
 
 /*
