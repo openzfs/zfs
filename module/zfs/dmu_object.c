@@ -61,6 +61,7 @@ dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot, int blocksize,
 	boolean_t restarted = B_FALSE;
 	uint64_t *cpuobj = NULL;
 	int dnodes_per_chunk = 1 << dmu_object_alloc_chunk_shift;
+	int error;
 
 	kpreempt_disable();
 	cpuobj = &os->os_obj_next_percpu[CPU_SEQID %
@@ -129,7 +130,6 @@ dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot, int blocksize,
 				uint64_t offset;
 				uint64_t blkfill;
 				int minlvl;
-				int error;
 				if (os->os_rescan_dnodes) {
 					offset = 0;
 					os->os_rescan_dnodes = B_FALSE;
@@ -163,9 +163,9 @@ dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot, int blocksize,
 		 * dmu_tx_assign(), but there is currently no mechanism
 		 * to do so.
 		 */
-		(void) dnode_hold_impl(os, object, DNODE_MUST_BE_FREE,
+		error = dnode_hold_impl(os, object, DNODE_MUST_BE_FREE,
 		    dn_slots, FTAG, &dn);
-		if (dn != NULL) {
+		if (error == 0) {
 			rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
 			/*
 			 * Another thread could have allocated it; check
