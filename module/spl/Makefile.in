@@ -2,17 +2,14 @@ src = @abs_top_srcdir@/module/spl
 obj = @abs_builddir@
 
 SPL_MODULE_CFLAGS  = -I@abs_top_srcdir@/include/spl
-SPL_MODULE_CFLAGS += -include @abs_top_builddir@/spl_config.h
+SPL_MODULE_CFLAGS += -include @abs_top_builddir@/zfs_config.h
 export SPL_MODULE_CFLAGS
-
-CONFIG_SPL=m
-export CONFIG_SPL
 
 MODULE := spl
 
 EXTRA_CFLAGS = $(SPL_MODULE_CFLAGS) @KERNELCPPFLAGS@
 
-obj-$(CONFIG_SPL) := $(MODULE).o
+obj-$(CONFIG_ZFS) := $(MODULE).o
 
 $(MODULE)-objs += spl-proc.o
 $(MODULE)-objs += spl-kmem.o

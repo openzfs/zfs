@@ -27,7 +27,7 @@
 #include <sys/kmem.h>
 #include <sys/vmem.h>
 #include <linux/mm.h>
-#include <linux/ratelimit.h>
+#include <linux/ratelimit_compat.h>
 
 /*
  * As a general rule kmem_alloc() allocations should be small, preferably
@@ -132,11 +132,7 @@ strfree(char *str)
 }
 EXPORT_SYMBOL(strfree);
 
-/*
- * Limit the number of large allocation stack traces dumped to not more than
- * 5 every 60 seconds to prevent denial-of-service attacks from debug code.
- */
-DEFINE_RATELIMIT_STATE(kmem_alloc_ratelimit_state, 60 * HZ, 5);
+struct ratelimit_state kmem_alloc_ratelimit_state;
 
 /*
  * General purpose unified implementation of kmem_alloc(). It is an
@@ -498,6 +494,12 @@ static int
 spl_kmem_init_tracking(struct list_head *list, spinlock_t *lock, int size)
 {
 	int i;
+
+	/*
+	 * Limit the number of large allocation stack traces dumped to not more than
+	 * 5 every 60 seconds to prevent denial-of-service attacks from debug code.
+	 */
+	RATELIMIT_STATE_INIT(kmem_alloc_ratelimit_state, 60 * HZ, 5);
 
 	spin_lock_init(lock);
 	INIT_LIST_HEAD(list);

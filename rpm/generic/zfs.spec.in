@@ -69,7 +69,6 @@ License:        @ZFS_META_LICENSE@
 URL:            http://zfsonlinux.org/
 Source0:        %{name}-%{version}.tar.gz
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
-Requires:       spl = %{version}
 Requires:       libzpool2 = %{version}
 Requires:       libnvpair1 = %{version}
 Requires:       libuutil1 = %{version}

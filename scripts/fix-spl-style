@@ -1,0 +1,18 @@
+#!/usr/bin/bash
+
+if [ -n "$1" ]; then
+	fname=$1
+
+	echo "Altering file $fname"
+	sed --in-place 's=^/\*\*\**\\=/*=' $fname
+	sed --in-place 's=^\\\*\*\**/= */=' $fname
+	sed --in-place 's/^# define/#define/' $fname
+	sed --in-place 's/^#define /#define	/' $fname
+
+	sed --in-place -r 's/^ {8}/	/g' $fname
+	sed --in-place -r 's/	 {8}/		/g' $fname
+
+	sed --in-place -r 's/return ([^(][a-zA-Z0-9_->.]+);$/return (\1);/' $fname
+fi
+
+

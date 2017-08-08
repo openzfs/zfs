@@ -46,6 +46,7 @@
 #include <linux/kmod.h>
 #include <linux/math64_compat.h>
 #include <linux/proc_compat.h>
+#include <linux/ratelimit_compat.h>
 
 char spl_version[32] = "SPL v" ZFS_META_VERSION "-" ZFS_META_RELEASE;
 EXPORT_SYMBOL(spl_version);
@@ -630,6 +631,8 @@ spl_init(void)
 	bzero(&p0, sizeof (proc_t));
 	spl_random_init();
 
+	spl_err_init();
+
 	if ((rc = spl_kvmem_init()))
 		goto out1;
 
@@ -712,5 +715,5 @@ module_exit(spl_fini);
 
 MODULE_DESCRIPTION("Solaris Porting Layer");
 MODULE_AUTHOR(ZFS_META_AUTHOR);
-MODULE_LICENSE(ZFS_META_LICENSE);
+MODULE_LICENSE("GPL");
 MODULE_VERSION(ZFS_META_VERSION "-" ZFS_META_RELEASE);

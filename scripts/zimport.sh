@@ -223,6 +223,8 @@ fail() {
 
 #
 # Set several helper variables which are derived from a source tag.
+# SPL_DIR is only created with older versions where the SPL was
+# in a separate repo, for which SPL_TAG exists.
 #
 # SPL_TAG - The tag zfs-x.y.z is translated to spl-x.y.z.
 # SPL_DIR - The spl directory name.
@@ -412,7 +414,9 @@ for TAG in $SRC_TAGS; do
 			mkdir -p "$SRC_DIR_SPL"
 		fi
 
-		git archive --format=tar --prefix="$SPL_TAG/ $SPL_TAG" \
+		# For newer versions there is no corresponding SPL tag.
+		# In that case, report not found but do not fail.
+		git archive --format=tar --prefix="$SPL_TAG/" "$SPL_TAG" \
 		    -o "$SRC_DIR_SPL/$SPL_TAG.tar" &>/dev/null || \
 		    rm "$SRC_DIR_SPL/$SPL_TAG.tar"
 		if [ -s "$SRC_DIR_SPL/$SPL_TAG.tar" ]; then
@@ -420,11 +424,15 @@ for TAG in $SRC_TAGS; do
 			rm "$SRC_DIR_SPL/$SPL_TAG.tar"
 			echo -n -e "${COLOR_GREEN}Local${COLOR_RESET}\t\t"
 		else
+			status="${COLOR_GREEN}Remote"
 			mkdir -p "$SPL_DIR" || fail "Failed to create $SPL_DIR"
-			curl -sL "$SPL_URL" | tar -xz -C "$SPL_DIR" \
-			    --strip-components=1 || \
-			    fail "Failed to download $SPL_URL"
-			echo -n -e "${COLOR_GREEN}Remote${COLOR_RESET}\t\t"
+			curl -sL "$SPL_URL" 2>/dev/null | tar -xz -C "$SPL_DIR" \
+			    --strip-components=1 &>/dev/null
+			if [ $? -ne 0 ]; then
+				status="${COLOR_YELLOW}Not_Found"
+				rm -fr $SPL_DIR
+			fi
+			echo -n -e "${status}${COLOR_RESET}\t\t"
 		fi
 	fi
 done
@@ -472,9 +480,11 @@ printf "%-16s" "Build SPL"
 for TAG in $SRC_TAGS; do
 	src_set_vars "$TAG"
 
-	if [ -f "$SPL_DIR/module/spl/spl.ko" ]; then
+	if [ ! -d "$SPL_DIR" ]; then
 		skip_nonewline
-	elif  [ "$SPL_TAG" = "installed" ]; then
+	elif [ -f "$SPL_DIR/module/spl/spl.ko" ]; then
+		skip_nonewline
+	elif [ "$SPL_TAG" = "installed" ]; then
 		skip_nonewline
 	else
 		cd "$SPL_DIR"
@@ -496,6 +506,7 @@ printf "\n"
 printf "%-16s" "Build ZFS"
 for TAG in $SRC_TAGS; do
 	src_set_vars "$TAG"
+	with_spl=""
 
 	if [ -f "$ZFS_DIR/module/zfs/zfs.ko" ]; then
 		skip_nonewline
@@ -503,11 +514,14 @@ for TAG in $SRC_TAGS; do
 		skip_nonewline
 	else
 		cd "$ZFS_DIR"
+		if [ -d $SPL_DIR ]; then
+			with_spl="--with-spl=$SPL_DIR"
+		fi
 		make distclean &>/dev/null
 		./autogen.sh >>"$CONFIG_LOG" 2>&1 || \
 		    fail "Failed ZFS 'autogen.sh'"
 		# shellcheck disable=SC2086
-		./configure --with-spl="$SPL_DIR" $CONFIG_OPTIONS \
+		./configure ${with_spl} $CONFIG_OPTIONS \
 		    >>"$CONFIG_LOG" 2>&1 || \
 		    fail "Failed ZFS 'configure $CONFIG_OPTIONS'"
 		# shellcheck disable=SC2086

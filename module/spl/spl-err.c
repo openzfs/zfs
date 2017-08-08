@@ -26,7 +26,7 @@
 
 #include <sys/sysmacros.h>
 #include <sys/cmn_err.h>
-#include <linux/ratelimit.h>
+#include <linux/ratelimit_compat.h>
 
 /*
  * It is often useful to actually have the panic crash the node so you
@@ -39,11 +39,17 @@ module_param(spl_panic_halt, uint, 0644);
 MODULE_PARM_DESC(spl_panic_halt,
 		 "Cause kernel panic on assertion failures");
 
-/*
- * Limit the number of stack traces dumped to not more than 5 every
- * 60 seconds to prevent denial-of-service attacks from debug code.
- */
-DEFINE_RATELIMIT_STATE(dumpstack_ratelimit_state, 60 * HZ, 5);
+struct ratelimit_state dumpstack_ratelimit_state;
+
+void
+spl_err_init(void)
+{
+	/*
+	 * Limit the number of stack traces dumped to not more than 5 every
+	 * 60 seconds to prevent denial-of-service attacks from debug code.
+	 */
+	RATELIMIT_STATE_INIT(dumpstack_ratelimit_state, 60 * HZ, 5);
+}
 
 void
 spl_dumpstack(void)

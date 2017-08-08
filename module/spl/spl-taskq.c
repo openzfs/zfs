@@ -60,7 +60,7 @@ static taskq_thread_t *taskq_thread_create(taskq_t *);
 
 /* List of all taskqs */
 LIST_HEAD(tq_list);
-DECLARE_RWSEM(tq_list_sem);
+struct rw_semaphore tq_list_sem;
 static uint_t taskq_tsd;
 
 static int
@@ -1234,6 +1234,8 @@ MODULE_PARM_DESC(spl_taskq_kick,
 int
 spl_taskq_init(void)
 {
+	init_rwsem(&tq_list_sem);
+
 	tsd_create(&taskq_tsd, NULL);
 
 	system_taskq = taskq_create("spl_system_taskq", MAX(boot_ncpus, 64),
