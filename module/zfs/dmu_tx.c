@@ -1242,11 +1242,13 @@ dmu_tx_sa_registration_hold(sa_os_t *sa, dmu_tx_t *tx)
 void
 dmu_tx_hold_spill(dmu_tx_t *tx, uint64_t object)
 {
-	dmu_tx_hold_t *txh = dmu_tx_hold_object_impl(tx,
-	    tx->tx_objset, object, THT_SPILL, 0, 0);
+	dmu_tx_hold_t *txh;
 
-	(void) refcount_add_many(&txh->txh_space_towrite,
-	    SPA_OLD_MAXBLOCKSIZE, FTAG);
+	txh = dmu_tx_hold_object_impl(tx, tx->tx_objset, object,
+	    THT_SPILL, 0, 0);
+	if (txh != NULL)
+		(void) refcount_add_many(&txh->txh_space_towrite,
+		    SPA_OLD_MAXBLOCKSIZE, FTAG);
 }
 
 void

@@ -364,7 +364,7 @@ tests = ['async_destroy_001_pos']
 [tests/functional/features/large_dnode]
 tests = ['large_dnode_001_pos', 'large_dnode_002_pos', 'large_dnode_003_pos',
          'large_dnode_004_neg', 'large_dnode_005_pos', 'large_dnode_006_pos',
-         'large_dnode_007_neg']
+         'large_dnode_007_neg', 'large_dnode_008_pos']
 
 [tests/functional/grow_pool]
 tests = ['grow_pool_001_pos']
