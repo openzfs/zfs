@@ -684,6 +684,12 @@ taskq_dispatch_ent(taskq_t *tq, task_func_t func, void *arg, uint_t flags,
 	spin_lock(&t->tqent_lock);
 
 	/*
+	 * Make sure the entry is not on some other taskq; it is important to
+	 * ASSERT() under lock
+	 */
+	ASSERT(taskq_empty_ent(t));
+
+	/*
 	 * Mark it as a prealloc'd task.  This is important
 	 * to ensure that we don't free it later.
 	 */
