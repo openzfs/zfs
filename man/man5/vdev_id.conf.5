@@ -90,13 +90,15 @@ internally uses this value to determine which HBA or switch port a
 device is connected to.  The default is 4.
 
 .TP
-\fIslot\fR <bay|phy|id|lun>
+\fIslot\fR <bay|phy|port|id|lun>
 Specifies from which element of a SAS identifier the slot number is
 taken.  The default is bay.
 
 \fIbay\fR - read the slot number from the bay identifier.
 
 \fIphy\fR - read the slot number from the phy identifier.
+
+\fIport\fR - use the SAS port as the slot number.
 
 \fIid\fR - use the scsi id as the slot number.
 
