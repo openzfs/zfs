@@ -319,3 +319,12 @@ zpool_feature_init(void)
 	    userobj_accounting_deps);
 	}
 }
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+EXPORT_SYMBOL(zfeature_lookup_name);
+EXPORT_SYMBOL(zfeature_is_supported);
+EXPORT_SYMBOL(zfeature_is_valid_guid);
+EXPORT_SYMBOL(zfeature_depends_on);
+EXPORT_SYMBOL(zpool_feature_init);
+EXPORT_SYMBOL(spa_feature_table);
+#endif

@@ -7,16 +7,17 @@ EXTRA_CFLAGS = $(ZFS_MODULE_CFLAGS) @KERNELCPPFLAGS@
 
 obj-$(CONFIG_ZFS) := $(MODULE).o
 
-$(MODULE)-objs += zfs_deleg.o
-$(MODULE)-objs += zfs_prop.o
-$(MODULE)-objs += zprop_common.o
-$(MODULE)-objs += zfs_namecheck.o
+$(MODULE)-objs += zfeature_common.o
 $(MODULE)-objs += zfs_comutil.o
+$(MODULE)-objs += zfs_deleg.o
 $(MODULE)-objs += zfs_fletcher.o
-$(MODULE)-objs += zfs_uio.o
-$(MODULE)-objs += zpool_prop.o
 $(MODULE)-objs += zfs_fletcher_superscalar.o
 $(MODULE)-objs += zfs_fletcher_superscalar4.o
+$(MODULE)-objs += zfs_namecheck.o
+$(MODULE)-objs += zfs_prop.o
+$(MODULE)-objs += zfs_uio.o
+$(MODULE)-objs += zpool_prop.o
+$(MODULE)-objs += zprop_common.o
 
 $(MODULE)-$(CONFIG_X86) += zfs_fletcher_intel.o
 $(MODULE)-$(CONFIG_X86) += zfs_fletcher_sse.o

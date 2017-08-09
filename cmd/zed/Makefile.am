@@ -40,15 +40,12 @@ FMA_SRC = \
 zed_SOURCES = $(ZED_SRC) $(FMA_SRC)
 
 zed_LDADD = \
-	$(top_builddir)/lib/libavl/libavl.la \
 	$(top_builddir)/lib/libnvpair/libnvpair.la \
-	$(top_builddir)/lib/libspl/libspl.la \
 	$(top_builddir)/lib/libuutil/libuutil.la \
-	$(top_builddir)/lib/libzpool/libzpool.la \
-	$(top_builddir)/lib/libzfs/libzfs.la \
-	$(top_builddir)/lib/libzfs_core/libzfs_core.la
+	$(top_builddir)/lib/libzfs/libzfs.la
 
-zed_LDFLAGS = -lrt -pthread
+zed_LDADD += -lrt
+zed_LDFLAGS = -pthread
 
 zedconfdir = $(sysconfdir)/zfs/zed.d
 
