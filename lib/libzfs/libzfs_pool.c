@@ -25,6 +25,7 @@
  * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  * Copyright 2016 Igor Kozhukhov <ikozhukhov@gmail.com>
  * Copyright (c) 2017 Datto Inc.
+ * Copyright (c) 2017, Intel Corporation.
  */
 
 #include <ctype.h>
@@ -504,7 +505,8 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 			goto error;
 		}
 
-		if (zpool_prop_readonly(prop)) {
+		if (zpool_prop_readonly(prop) &&
+		    !(flags.create && zpool_prop_setonce(prop))) {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "'%s' "
 			    "is readonly"), propname);
 			(void) zfs_error(hdl, EZFS_PROPREADONLY, errbuf);
@@ -3559,6 +3561,7 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 	uint64_t value;
 	char buf[PATH_BUF_LEN];
 	char tmpbuf[PATH_BUF_LEN];
+	char altbuf[PATH_BUF_LEN];
 
 	env = getenv("ZPOOL_VDEV_NAME_PATH");
 	if (env && (strtoul(env, NULL, 0) > 0 ||
@@ -3655,6 +3658,19 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 		    == 0 && value && !(name_flags & VDEV_NAME_PATH)) {
 			return (zfs_strip_partition(path));
 		}
+
+		/*
+		 * if requested add classes info for top-level vdevs
+		 */
+		if ((name_flags & VDEV_NAME_GUID) == 0 &&
+		    (name_flags & VDEV_NAME_ALLOC_BIAS) &&
+		    nvlist_lookup_string(nv, ZPOOL_CONFIG_ALLOCATION_BIAS,
+		    &type) == 0 &&
+		    strcmp(type, VDEV_ALLOC_BIAS_SEGREGATE) != 0) {
+			(void) snprintf(altbuf, sizeof (altbuf), "%s:%s",
+			    type, path);
+			path = altbuf;
+		}
 	} else {
 		verify(nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &path) == 0);
 
@@ -3667,6 +3683,19 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 			(void) snprintf(buf, sizeof (buf), "%s%llu", path,
 			    (u_longlong_t)value);
 			path = buf;
+		}
+
+		/*
+		 * if requested add classes info for top-level vdevs
+		 */
+		if ((name_flags & VDEV_NAME_GUID) == 0 &&
+		    (name_flags & VDEV_NAME_ALLOC_BIAS) &&
+		    nvlist_lookup_string(nv, ZPOOL_CONFIG_ALLOCATION_BIAS,
+		    &type) == 0 &&
+		    strcmp(type, VDEV_ALLOC_BIAS_SEGREGATE) != 0) {
+			(void) snprintf(altbuf, sizeof (altbuf), "%s:%s",
+			    type, path);
+			path = altbuf;
 		}
 
 		/*
