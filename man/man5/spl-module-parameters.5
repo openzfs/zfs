@@ -153,7 +153,7 @@ function takes a single global lock over the entire virtual address range
 which serializes all allocations.  Using slightly different allocation
 functions for small and large objects allows us to handle a wide range of
 object sizes.
-.sh
+.sp
 The \fBspl_kmem_cache_kmem_limit\fR value is used to determine this cutoff
 size.  One quarter the PAGE_SIZE is used as the default value because
 \fBspl_kmem_cache_obj_per_slab\fR defaults to 16.  This means that at
