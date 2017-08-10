@@ -1028,6 +1028,11 @@ spa_create_zio_taskqs(spa_t *spa)
 	}
 }
 
+/*
+ * Disabled until spa_thread() can be adapted for Linux.
+ */
+#undef HAVE_SPA_THREAD
+
 #if defined(_KERNEL) && defined(HAVE_SPA_THREAD)
 static void
 spa_thread(void *arg)

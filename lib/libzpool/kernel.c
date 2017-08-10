@@ -75,14 +75,19 @@ struct proc p0;
 
 /*ARGSUSED*/
 kthread_t *
-zk_thread_create(void (*func)(void *), void *arg, uint64_t len, size_t stksize)
+zk_thread_create(void (*func)(void *), void *arg, size_t stksize, int state)
 {
 	pthread_attr_t attr;
 	pthread_t tid;
 	char *stkstr;
+	int detachstate = PTHREAD_CREATE_DETACHED;
 
-	ASSERT0(len);
 	VERIFY0(pthread_attr_init(&attr));
+
+	if (state & TS_JOINABLE)
+		detachstate = PTHREAD_CREATE_JOINABLE;
+
+	VERIFY0(pthread_attr_setdetachstate(&attr, detachstate));
 
 	/*
 	 * We allow the default stack size in user space to be specified by
@@ -187,7 +192,7 @@ void
 mutex_init(kmutex_t *mp, char *name, int type, void *cookie)
 {
 	VERIFY0(pthread_mutex_init(&mp->m_lock, NULL));
-	mp->m_owner = 0;
+	memset(&mp->m_owner, 0, sizeof (pthread_t));
 }
 
 void
@@ -221,7 +226,7 @@ mutex_tryenter(kmutex_t *mp)
 void
 mutex_exit(kmutex_t *mp)
 {
-	mp->m_owner = 0;
+	memset(&mp->m_owner, 0, sizeof (pthread_t));
 	VERIFY0(pthread_mutex_unlock(&mp->m_lock));
 }
 
@@ -278,8 +283,14 @@ rw_tryenter(krwlock_t *rwlp, krw_t rw)
 	else
 		error = pthread_rwlock_trywrlock(&rwlp->rw_lock);
 
-	if (error == 0)
+	if (error == 0) {
+		if (rw == RW_READER)
+			atomic_inc_uint(&rwlp->rw_readers);
+		else
+			rwlp->rw_owner = pthread_self();
+
 		return (1);
+	}
 
 	VERIFY3S(error, ==, EBUSY);
 
@@ -313,7 +324,7 @@ cv_destroy(kcondvar_t *cv)
 void
 cv_wait(kcondvar_t *cv, kmutex_t *mp)
 {
-	mp->m_owner = 0;
+	memset(&mp->m_owner, 0, sizeof (pthread_t));
 	VERIFY0(pthread_cond_wait(cv, &mp->m_lock));
 	mp->m_owner = pthread_self();
 }
@@ -339,7 +350,7 @@ cv_timedwait(kcondvar_t *cv, kmutex_t *mp, clock_t abstime)
 		ts.tv_nsec -= NANOSEC;
 	}
 
-	mp->m_owner = 0;
+	memset(&mp->m_owner, 0, sizeof (pthread_t));
 	error = pthread_cond_timedwait(cv, &mp->m_lock, &ts);
 	mp->m_owner = pthread_self();
 
@@ -379,7 +390,7 @@ cv_timedwait_hires(kcondvar_t *cv, kmutex_t *mp, hrtime_t tim, hrtime_t res,
 		ts.tv_nsec -= NANOSEC;
 	}
 
-	mp->m_owner = 0;
+	memset(&mp->m_owner, 0, sizeof (pthread_t));
 	error = pthread_cond_timedwait(cv, &mp->m_lock, &ts);
 	mp->m_owner = pthread_self();
 

@@ -6370,7 +6370,7 @@ ztest_run(ztest_shared_t *zs)
 	 * Create a thread to periodically resume suspended I/O.
 	 */
 	resume_thread = thread_create(NULL, 0, ztest_resume_thread,
-	    spa, 0, NULL, TS_RUN, defclsyspri);
+	    spa, 0, NULL, TS_RUN | TS_JOINABLE, defclsyspri);
 
 #if 0
 	/*
@@ -6414,11 +6414,15 @@ ztest_run(ztest_shared_t *zs)
 	 * Kick off all the tests that run in parallel.
 	 */
 	for (t = 0; t < ztest_opts.zo_threads; t++) {
-		if (t < ztest_opts.zo_datasets && ztest_dataset_open(t) != 0)
+		if (t < ztest_opts.zo_datasets && ztest_dataset_open(t) != 0) {
+			umem_free(run_threads, ztest_opts.zo_threads *
+			    sizeof (kthread_t *));
 			return;
+		}
 
 		run_threads[t] = thread_create(NULL, 0, ztest_thread,
-		    (void *)(uintptr_t)t, 0, NULL, TS_RUN, defclsyspri);
+		    (void *)(uintptr_t)t, 0, NULL, TS_RUN | TS_JOINABLE,
+		    defclsyspri);
 	}
 
 	/*
@@ -6426,7 +6430,7 @@ ztest_run(ztest_shared_t *zs)
 	 * so we don't close datasets while threads are still using them.
 	 */
 	for (t = ztest_opts.zo_threads - 1; t >= 0; t--) {
-		VERIFY0(pthread_join((pthread_t)run_threads[t], NULL));
+		VERIFY0(thread_join(run_threads[t]));
 		if (t < ztest_opts.zo_datasets)
 			ztest_dataset_close(t);
 	}
@@ -6440,7 +6444,7 @@ ztest_run(ztest_shared_t *zs)
 
 	/* Kill the resume thread */
 	ztest_exiting = B_TRUE;
-	VERIFY0(pthread_join((pthread_t)resume_thread, NULL));
+	VERIFY0(thread_join(resume_thread));
 	ztest_resume(spa);
 
 	/*

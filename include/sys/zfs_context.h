@@ -211,14 +211,17 @@ extern int aok;
  */
 typedef pthread_t	kthread_t;
 
+#define	TS_RUN		0x00000002
+#define	TS_JOINABLE	0x00000004
+
 #define	curthread	((void *)(uintptr_t)pthread_self())
 #define	kpreempt(x)	yield()
 #define	getcomm()	"unknown"
 
 #define	thread_create(stk, stksize, func, arg, len, pp, state, pri)	\
-	zk_thread_create(func, arg, len, stksize)
-#define	thread_exit()   pthread_exit(NULL)
-#define	thread_join(t)  panic("libzpool cannot join threads")
+	zk_thread_create(func, arg, stksize, state)
+#define	thread_exit()	pthread_exit(NULL)
+#define	thread_join(t)	pthread_join((pthread_t)(t), NULL)
 
 #define	newproc(f, a, cid, pri, ctp, pid)	(ENOSYS)
 
@@ -233,7 +236,7 @@ extern struct proc p0;
 #define	PS_NONE		-1
 
 extern kthread_t *zk_thread_create(void (*func)(void *), void *arg,
-    uint64_t len, size_t stksize);
+    size_t stksize, int state);
 
 #define	issig(why)	(FALSE)
 #define	ISSIG(thr, why)	(FALSE)
