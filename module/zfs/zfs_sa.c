@@ -300,7 +300,7 @@ zfs_sa_upgrade(sa_handle_t *hdl, dmu_tx_t *tx)
 	 * Otherwise, we know we are doing the
 	 * sa_update() that caused us to enter this function.
 	 */
-	if (mutex_owner(&zp->z_lock) != curthread) {
+	if (MUTEX_NOT_HELD(&zp->z_lock)) {
 		if (mutex_tryenter(&zp->z_lock) == 0)
 			return;
 		else

@@ -702,10 +702,8 @@ run_sweep(void)
 		opts->rto_dsize = size_v[s];
 		opts->rto_v = 0; /* be quiet */
 
-		VERIFY3P(zk_thread_create(NULL, 0,
-		    (thread_func_t)sweep_thread,
-		    (void *) opts, 0, NULL, TS_RUN, 0,
-		    PTHREAD_CREATE_JOINABLE), !=, NULL);
+		VERIFY3P(thread_create(NULL, 0, sweep_thread, (void *) opts,
+		    0, NULL, TS_RUN, defclsyspri), !=, NULL);
 	}
 
 exit:

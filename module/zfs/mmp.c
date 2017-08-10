@@ -123,7 +123,7 @@ uint_t zfs_multihost_import_intervals = MMP_DEFAULT_IMPORT_INTERVALS;
  */
 uint_t zfs_multihost_fail_intervals = MMP_DEFAULT_FAIL_INTERVALS;
 
-static void mmp_thread(spa_t *spa);
+static void mmp_thread(void *arg);
 
 void
 mmp_init(spa_t *spa)
@@ -364,8 +364,9 @@ mmp_write_uberblock(spa_t *spa)
 }
 
 static void
-mmp_thread(spa_t *spa)
+mmp_thread(void *arg)
 {
+	spa_t *spa = (spa_t *)arg;
 	mmp_thread_t *mmp = &spa->spa_mmp;
 	boolean_t last_spa_suspended = spa_suspended(spa);
 	boolean_t last_spa_multihost = spa_multihost(spa);
