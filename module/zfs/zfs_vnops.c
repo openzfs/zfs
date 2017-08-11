@@ -482,8 +482,10 @@ zfs_read(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 
 	/*
 	 * If we're in FRSYNC mode, sync out this znode before reading it.
+	 * Only do this for non-snapshots.
 	 */
-	if (ioflag & FRSYNC || zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
+	if (zfsvfs->z_log &&
+	    (ioflag & FRSYNC || zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS))
 		zil_commit(zfsvfs->z_log, zp->z_id);
 
 	/*
