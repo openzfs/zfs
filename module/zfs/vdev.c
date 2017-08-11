@@ -52,14 +52,20 @@
 #include <sys/zvol.h>
 #include <sys/zfs_ratelimit.h>
 
-/* maximum number of metaslabs per top-level vdev */
+/* target number of metaslabs per top-level vdev */
 int vdev_max_ms_count = 200;
 
-/* minimum amount of metaslabs per top-level vdev */
+/* minimum number of metaslabs per top-level vdev */
 int vdev_min_ms_count = 16;
 
-/* see comment in vdev_metaslab_set_size() */
+/* practical upper limit of total metaslabs per top-level vdev */
+int vdev_ms_count_limit = 1ULL << 17;
+
+/* lower limit for metaslab size (512M) */
 int vdev_default_ms_shift = 29;
+
+/* upper limit for metaslab size (256G) */
+int vdev_max_ms_shift = 38;
 
 int vdev_validate_skip = B_FALSE;
 
@@ -2130,34 +2136,53 @@ void
 vdev_metaslab_set_size(vdev_t *vd)
 {
 	uint64_t asize = vd->vdev_asize;
-	uint64_t ms_shift = 0;
+	uint64_t ms_count = asize >> vdev_default_ms_shift;
+	uint64_t ms_shift;
 
 	/*
-	 * For vdevs that are bigger than 8G the metaslab size varies in
-	 * a way that the number of metaslabs increases in powers of two,
-	 * linearly in terms of vdev_asize, starting from 16 metaslabs.
-	 * So for vdev_asize of 8G we get 16 metaslabs, for 16G, we get 32,
-	 * and so on, until we hit the maximum metaslab count limit
-	 * [vdev_max_ms_count] from which point the metaslab count stays
-	 * the same.
+	 * There are two dimensions to the metaslab sizing calculation:
+	 * the size of the metaslab and the count of metaslabs per vdev.
+	 * In general, we aim for vdev_max_ms_count (200) metaslabs. The
+	 * range of the dimensions are as follows:
+	 *
+	 *	2^29 <= ms_size  <= 2^38
+	 *	  16 <= ms_count <= 131,072
+	 *
+	 * On the lower end of vdev sizes, we aim for metaslabs sizes of
+	 * at least 512MB (2^29) to minimize fragmentation effects when
+	 * testing with smaller devices.  However, the count constraint
+	 * of at least 16 metaslabs will override this minimum size goal.
+	 *
+	 * On the upper end of vdev sizes, we aim for a maximum metaslab
+	 * size of 256GB.  However, we will cap the total count to 2^17
+	 * metaslabs to keep our memory footprint in check.
+	 *
+	 * The net effect of applying above constrains is summarized below.
+	 *
+	 *	vdev size	metaslab count
+	 *	-------------|-----------------
+	 *	< 8GB		~16
+	 *	8GB - 100GB	one per 512MB
+	 *	100GB - 50TB	~200
+	 *	50TB - 32PB	one per 256GB
+	 *	> 32PB		~131,072
+	 *	-------------------------------
 	 */
-	ms_shift = vdev_default_ms_shift;
 
-	if ((asize >> ms_shift) < vdev_min_ms_count) {
-		/*
-		 * For devices that are less than 8G we want to have
-		 * exactly 16 metaslabs. We don't want less as integer
-		 * division rounds down, so less metaslabs mean more
-		 * wasted space. We don't want more as these vdevs are
-		 * small and in the likely event that we are running
-		 * out of space, the SPA will have a hard time finding
-		 * space due to fragmentation.
-		 */
+	if (ms_count < vdev_min_ms_count)
 		ms_shift = highbit64(asize / vdev_min_ms_count);
-		ms_shift = MAX(ms_shift, SPA_MAXBLOCKSHIFT);
-
-	} else if ((asize >> ms_shift) > vdev_max_ms_count) {
+	else if (ms_count > vdev_max_ms_count)
 		ms_shift = highbit64(asize / vdev_max_ms_count);
+	else
+		ms_shift = vdev_default_ms_shift;
+
+	if (ms_shift < SPA_MAXBLOCKSHIFT) {
+		ms_shift = SPA_MAXBLOCKSHIFT;
+	} else if (ms_shift > vdev_max_ms_shift) {
+		ms_shift = vdev_max_ms_shift;
+		/* cap the total count to constrain memory footprint */
+		if ((asize >> ms_shift) > vdev_ms_count_limit)
+			ms_shift = highbit64(asize / vdev_ms_count_limit);
 	}
 
 	vd->vdev_ms_shift = ms_shift;
@@ -4392,12 +4417,15 @@ EXPORT_SYMBOL(vdev_clear);
 /* BEGIN CSTYLED */
 module_param(vdev_max_ms_count, int, 0644);
 MODULE_PARM_DESC(vdev_max_ms_count,
-	"Divide added vdev into approximately (but no more than) this number "
-	"of metaslabs");
+	"Target number of metaslabs per top-level vdev");
 
 module_param(vdev_min_ms_count, int, 0644);
 MODULE_PARM_DESC(vdev_min_ms_count,
 	"Minimum number of metaslabs per top-level vdev");
+
+module_param(vdev_ms_count_limit, int, 0644);
+MODULE_PARM_DESC(vdev_ms_count_limit,
+	"Practical upper limit of total metaslabs per top-level vdev");
 
 module_param(zfs_delays_per_second, uint, 0644);
 MODULE_PARM_DESC(zfs_delays_per_second, "Rate limit delay events to this many "
