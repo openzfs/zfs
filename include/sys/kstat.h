@@ -32,7 +32,7 @@
 #include <sys/kmem.h>
 #include <sys/mutex.h>
 
-#define KSTAT_STRLEN            31
+#define KSTAT_STRLEN            255
 #define KSTAT_RAW_MAX		(128*1024)
 
 /* For reference valid classes are:

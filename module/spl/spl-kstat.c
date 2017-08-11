@@ -614,21 +614,26 @@ kstat_detect_collision(kstat_t *ksp)
 {
 	kstat_module_t *module;
 	kstat_t *tmp;
-	char parent[KSTAT_STRLEN+1];
+	char *parent;
 	char *cp;
 
-	(void) strlcpy(parent, ksp->ks_module, sizeof(parent));
+	parent = kmem_asprintf("%s", ksp->ks_module);
 
-	if ((cp = strrchr(parent, '/')) == NULL)
+	if ((cp = strrchr(parent, '/')) == NULL) {
+		strfree(parent);
 		return (0);
+	}
 
 	cp[0] = '\0';
 	if ((module = kstat_find_module(parent)) != NULL) {
 		list_for_each_entry(tmp, &module->ksm_kstat_list, ks_list)
-			if (strncmp(tmp->ks_name, cp+1, KSTAT_STRLEN) == 0)
+			if (strncmp(tmp->ks_name, cp+1, KSTAT_STRLEN) == 0) {
+				strfree(parent);
 				return (EEXIST);
+			}
 	}
 
+	strfree(parent);
 	return (0);
 }
 
