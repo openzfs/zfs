@@ -142,7 +142,7 @@ static void
 spa_read_history_init(spa_t *spa)
 {
 	spa_stats_history_t *ssh = &spa->spa_stats.read_history;
-	char name[KSTAT_STRLEN];
+	char *name;
 	kstat_t *ksp;
 
 	mutex_init(&ssh->lock, NULL, MUTEX_DEFAULT, NULL);
@@ -153,7 +153,7 @@ spa_read_history_init(spa_t *spa)
 	ssh->size = 0;
 	ssh->private = NULL;
 
-	(void) snprintf(name, KSTAT_STRLEN, "zfs/%s", spa_name(spa));
+	name = kmem_asprintf("zfs/%s", spa_name(spa));
 
 	ksp = kstat_create(name, 0, "reads", "misc",
 	    KSTAT_TYPE_RAW, 0, KSTAT_FLAG_VIRTUAL);
@@ -168,6 +168,7 @@ spa_read_history_init(spa_t *spa)
 		    spa_read_history_data, spa_read_history_addr);
 		kstat_install(ksp);
 	}
+	strfree(name);
 }
 
 static void
@@ -365,7 +366,7 @@ static void
 spa_txg_history_init(spa_t *spa)
 {
 	spa_stats_history_t *ssh = &spa->spa_stats.txg_history;
-	char name[KSTAT_STRLEN];
+	char *name;
 	kstat_t *ksp;
 
 	mutex_init(&ssh->lock, NULL, MUTEX_DEFAULT, NULL);
@@ -376,7 +377,7 @@ spa_txg_history_init(spa_t *spa)
 	ssh->size = 0;
 	ssh->private = NULL;
 
-	(void) snprintf(name, KSTAT_STRLEN, "zfs/%s", spa_name(spa));
+	name = kmem_asprintf("zfs/%s", spa_name(spa));
 
 	ksp = kstat_create(name, 0, "txgs", "misc",
 	    KSTAT_TYPE_RAW, 0, KSTAT_FLAG_VIRTUAL);
@@ -391,6 +392,7 @@ spa_txg_history_init(spa_t *spa)
 		    spa_txg_history_data, spa_txg_history_addr);
 		kstat_install(ksp);
 	}
+	strfree(name);
 }
 
 static void
@@ -598,7 +600,7 @@ static void
 spa_tx_assign_init(spa_t *spa)
 {
 	spa_stats_history_t *ssh = &spa->spa_stats.tx_assign_histogram;
-	char name[KSTAT_STRLEN];
+	char *name;
 	kstat_named_t *ks;
 	kstat_t *ksp;
 	int i;
@@ -609,7 +611,7 @@ spa_tx_assign_init(spa_t *spa)
 	ssh->size = ssh->count * sizeof (kstat_named_t);
 	ssh->private = kmem_alloc(ssh->size, KM_SLEEP);
 
-	(void) snprintf(name, KSTAT_STRLEN, "zfs/%s", spa_name(spa));
+	name = kmem_asprintf("zfs/%s", spa_name(spa));
 
 	for (i = 0; i < ssh->count; i++) {
 		ks = &((kstat_named_t *)ssh->private)[i];
@@ -632,6 +634,7 @@ spa_tx_assign_init(spa_t *spa)
 		ksp->ks_update = spa_tx_assign_update;
 		kstat_install(ksp);
 	}
+	strfree(name);
 }
 
 static void
@@ -678,12 +681,12 @@ static void
 spa_io_history_init(spa_t *spa)
 {
 	spa_stats_history_t *ssh = &spa->spa_stats.io_history;
-	char name[KSTAT_STRLEN];
+	char *name;
 	kstat_t *ksp;
 
 	mutex_init(&ssh->lock, NULL, MUTEX_DEFAULT, NULL);
 
-	(void) snprintf(name, KSTAT_STRLEN, "zfs/%s", spa_name(spa));
+	name = kmem_asprintf("zfs/%s", spa_name(spa));
 
 	ksp = kstat_create(name, 0, "io", "disk", KSTAT_TYPE_IO, 1, 0);
 	ssh->kstat = ksp;
@@ -694,6 +697,7 @@ spa_io_history_init(spa_t *spa)
 		ksp->ks_update = spa_io_history_update;
 		kstat_install(ksp);
 	}
+	strfree(name);
 }
 
 static void
@@ -806,7 +810,7 @@ static void
 spa_mmp_history_init(spa_t *spa)
 {
 	spa_stats_history_t *ssh = &spa->spa_stats.mmp_history;
-	char name[KSTAT_STRLEN];
+	char *name;
 	kstat_t *ksp;
 
 	mutex_init(&ssh->lock, NULL, MUTEX_DEFAULT, NULL);
@@ -817,7 +821,7 @@ spa_mmp_history_init(spa_t *spa)
 	ssh->size = 0;
 	ssh->private = NULL;
 
-	(void) snprintf(name, KSTAT_STRLEN, "zfs/%s", spa_name(spa));
+	name = kmem_asprintf("zfs/%s", spa_name(spa));
 
 	ksp = kstat_create(name, 0, "multihost", "misc",
 	    KSTAT_TYPE_RAW, 0, KSTAT_FLAG_VIRTUAL);
@@ -832,6 +836,7 @@ spa_mmp_history_init(spa_t *spa)
 		    spa_mmp_history_data, spa_mmp_history_addr);
 		kstat_install(ksp);
 	}
+	strfree(name);
 }
 
 static void
