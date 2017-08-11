@@ -531,7 +531,7 @@ dbuf_evict_one(void)
  * out of the cache it is destroyed and becomes eligible for arc eviction.
  */
 static void
-dbuf_evict_thread(void)
+dbuf_evict_thread(void *unused)
 {
 	callb_cpr_t cpr;
 

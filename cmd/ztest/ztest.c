@@ -2218,7 +2218,7 @@ ztest_lookup(ztest_ds_t *zd, ztest_od_t *od, int count)
 	int error;
 	int i;
 
-	ASSERT(mutex_held(&zd->zd_dirobj_lock));
+	ASSERT(MUTEX_HELD(&zd->zd_dirobj_lock));
 
 	for (i = 0; i < count; i++, od++) {
 		od->od_object = 0;
@@ -2259,7 +2259,7 @@ ztest_create(ztest_ds_t *zd, ztest_od_t *od, int count)
 	int missing = 0;
 	int i;
 
-	ASSERT(mutex_held(&zd->zd_dirobj_lock));
+	ASSERT(MUTEX_HELD(&zd->zd_dirobj_lock));
 
 	for (i = 0; i < count; i++, od++) {
 		if (missing) {
@@ -2305,7 +2305,7 @@ ztest_remove(ztest_ds_t *zd, ztest_od_t *od, int count)
 	int error;
 	int i;
 
-	ASSERT(mutex_held(&zd->zd_dirobj_lock));
+	ASSERT(MUTEX_HELD(&zd->zd_dirobj_lock));
 
 	od += count - 1;
 
@@ -6081,7 +6081,7 @@ ztest_resume(spa_t *spa)
 	(void) zio_resume(spa);
 }
 
-static void *
+static void
 ztest_resume_thread(void *arg)
 {
 	spa_t *spa = arg;
@@ -6105,8 +6105,6 @@ ztest_resume_thread(void *arg)
 	}
 
 	thread_exit();
-
-	return (NULL);
 }
 
 #define	GRACE	300
@@ -6140,7 +6138,7 @@ ztest_execute(int test, ztest_info_t *zi, uint64_t id)
 		    (double)functime / NANOSEC, zi->zi_funcname);
 }
 
-static void *
+static void
 ztest_thread(void *arg)
 {
 	int rand;
@@ -6180,8 +6178,6 @@ ztest_thread(void *arg)
 	}
 
 	thread_exit();
-
-	return (NULL);
 }
 
 static void
@@ -6309,10 +6305,10 @@ ztest_dataset_close(int d)
 static void
 ztest_run(ztest_shared_t *zs)
 {
-	kt_did_t *tid;
 	spa_t *spa;
 	objset_t *os;
 	kthread_t *resume_thread;
+	kthread_t **run_threads;
 	uint64_t object;
 	int error;
 	int t, d;
@@ -6373,9 +6369,8 @@ ztest_run(ztest_shared_t *zs)
 	/*
 	 * Create a thread to periodically resume suspended I/O.
 	 */
-	VERIFY3P((resume_thread = zk_thread_create(NULL, 0,
-	    (thread_func_t)ztest_resume_thread, spa, 0, NULL, TS_RUN, 0,
-	    PTHREAD_CREATE_JOINABLE)), !=, NULL);
+	resume_thread = thread_create(NULL, 0, ztest_resume_thread,
+	    spa, 0, NULL, TS_RUN | TS_JOINABLE, defclsyspri);
 
 #if 0
 	/*
@@ -6409,7 +6404,7 @@ ztest_run(ztest_shared_t *zs)
 	}
 	zs->zs_enospc_count = 0;
 
-	tid = umem_zalloc(ztest_opts.zo_threads * sizeof (kt_did_t),
+	run_threads = umem_zalloc(ztest_opts.zo_threads * sizeof (kthread_t *),
 	    UMEM_NOFAIL);
 
 	if (ztest_opts.zo_verbose >= 4)
@@ -6419,20 +6414,15 @@ ztest_run(ztest_shared_t *zs)
 	 * Kick off all the tests that run in parallel.
 	 */
 	for (t = 0; t < ztest_opts.zo_threads; t++) {
-		kthread_t *thread;
-
-		if (t < ztest_opts.zo_datasets &&
-		    ztest_dataset_open(t) != 0) {
-			umem_free(tid,
-			    ztest_opts.zo_threads * sizeof (kt_did_t));
+		if (t < ztest_opts.zo_datasets && ztest_dataset_open(t) != 0) {
+			umem_free(run_threads, ztest_opts.zo_threads *
+			    sizeof (kthread_t *));
 			return;
 		}
 
-		VERIFY3P(thread = zk_thread_create(NULL, 0,
-		    (thread_func_t)ztest_thread,
-		    (void *)(uintptr_t)t, 0, NULL, TS_RUN, 0,
-		    PTHREAD_CREATE_JOINABLE), !=, NULL);
-		tid[t] = thread->t_tid;
+		run_threads[t] = thread_create(NULL, 0, ztest_thread,
+		    (void *)(uintptr_t)t, 0, NULL, TS_RUN | TS_JOINABLE,
+		    defclsyspri);
 	}
 
 	/*
@@ -6440,7 +6430,7 @@ ztest_run(ztest_shared_t *zs)
 	 * so we don't close datasets while threads are still using them.
 	 */
 	for (t = ztest_opts.zo_threads - 1; t >= 0; t--) {
-		thread_join(tid[t]);
+		VERIFY0(thread_join(run_threads[t]));
 		if (t < ztest_opts.zo_datasets)
 			ztest_dataset_close(t);
 	}
@@ -6450,11 +6440,11 @@ ztest_run(ztest_shared_t *zs)
 	zs->zs_alloc = metaslab_class_get_alloc(spa_normal_class(spa));
 	zs->zs_space = metaslab_class_get_space(spa_normal_class(spa));
 
-	umem_free(tid, ztest_opts.zo_threads * sizeof (kt_did_t));
+	umem_free(run_threads, ztest_opts.zo_threads * sizeof (kthread_t *));
 
 	/* Kill the resume thread */
 	ztest_exiting = B_TRUE;
-	thread_join(resume_thread->t_tid);
+	VERIFY0(thread_join(resume_thread));
 	ztest_resume(spa);
 
 	/*

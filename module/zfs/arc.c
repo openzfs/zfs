@@ -4214,7 +4214,7 @@ arc_kmem_reap_now(void)
  * using mutex_tryenter() from arc_reclaim_thread().
  */
 static void
-arc_reclaim_thread(void)
+arc_reclaim_thread(void *unused)
 {
 	fstrans_cookie_t	cookie = spl_fstrans_mark();
 	hrtime_t		growtime = 0;
@@ -7515,7 +7515,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
  * heart of the L2ARC.
  */
 static void
-l2arc_feed_thread(void)
+l2arc_feed_thread(void *unused)
 {
 	callb_cpr_t cpr;
 	l2arc_dev_t *dev;

@@ -207,15 +207,23 @@ extern int aok;
 	(unsigned long)i)
 
 /*
- * Threads.  TS_STACK_MIN is dictated by the minimum allowed pthread stack
- * size.  While TS_STACK_MAX is somewhat arbitrary, it was selected to be
- * large enough for the expected stack depth while small enough to avoid
- * exhausting address space with high thread counts.
+ * Threads.
  */
-#define	TS_MAGIC		0x72f158ab4261e538ull
-#define	TS_RUN			0x00000002
-#define	TS_STACK_MIN		MAX(PTHREAD_STACK_MIN, 32768)
-#define	TS_STACK_MAX		(256 * 1024)
+typedef pthread_t	kthread_t;
+
+#define	TS_RUN		0x00000002
+#define	TS_JOINABLE	0x00000004
+
+#define	curthread	((void *)(uintptr_t)pthread_self())
+#define	kpreempt(x)	yield()
+#define	getcomm()	"unknown"
+
+#define	thread_create(stk, stksize, func, arg, len, pp, state, pri)	\
+	zk_thread_create(func, arg, stksize, state)
+#define	thread_exit()	pthread_exit(NULL)
+#define	thread_join(t)	pthread_join((pthread_t)(t), NULL)
+
+#define	newproc(f, a, cid, pri, ctp, pid)	(ENOSYS)
 
 /* in libzpool, p0 exists only to have its address taken */
 typedef struct proc {
@@ -225,100 +233,55 @@ typedef struct proc {
 extern struct proc p0;
 #define	curproc		(&p0)
 
-typedef void (*thread_func_t)(void *);
-typedef void (*thread_func_arg_t)(void *);
-typedef pthread_t kt_did_t;
-
-#define	kpreempt(x)	((void)0)
-
-typedef struct kthread {
-	kt_did_t	t_tid;
-	thread_func_t	t_func;
-	void *		t_arg;
-	pri_t		t_pri;
-} kthread_t;
-
-#define	curthread			zk_thread_current()
-#define	getcomm()			"unknown"
-#define	thread_exit			zk_thread_exit
-#define	thread_create(stk, stksize, func, arg, len, pp, state, pri)	\
-	zk_thread_create(stk, stksize, (thread_func_t)func, arg,	\
-	    len, NULL, state, pri, PTHREAD_CREATE_DETACHED)
-#define	thread_join(t)			zk_thread_join(t)
-#define	newproc(f, a, cid, pri, ctp, pid)	(ENOSYS)
-
-extern kthread_t *zk_thread_current(void);
-extern void zk_thread_exit(void);
-extern kthread_t *zk_thread_create(caddr_t stk, size_t  stksize,
-	thread_func_t func, void *arg, uint64_t len,
-	proc_t *pp, int state, pri_t pri, int detachstate);
-extern void zk_thread_join(kt_did_t tid);
-
-#define	kpreempt_disable()	((void)0)
-#define	kpreempt_enable()	((void)0)
-
 #define	PS_NONE		-1
+
+extern kthread_t *zk_thread_create(void (*func)(void *), void *arg,
+    size_t stksize, int state);
 
 #define	issig(why)	(FALSE)
 #define	ISSIG(thr, why)	(FALSE)
 
+#define	kpreempt_disable()	((void)0)
+#define	kpreempt_enable()	((void)0)
+
 /*
  * Mutexes
  */
-#define	MTX_MAGIC	0x9522f51362a6e326ull
-#define	MTX_INIT	((void *)NULL)
-#define	MTX_DEST	((void *)-1UL)
-
 typedef struct kmutex {
-	void		*m_owner;
-	uint64_t	m_magic;
-	pthread_mutex_t	m_lock;
+	pthread_mutex_t		m_lock;
+	pthread_t		m_owner;
 } kmutex_t;
 
-#define	MUTEX_DEFAULT	0
-#define	MUTEX_NOLOCKDEP	MUTEX_DEFAULT
-#define	MUTEX_HELD(m)	((m)->m_owner == curthread)
-#define	MUTEX_NOT_HELD(m) (!MUTEX_HELD(m))
+#define	MUTEX_DEFAULT		0
+#define	MUTEX_NOLOCKDEP		MUTEX_DEFAULT
+#define	MUTEX_HELD(mp)		pthread_equal((mp)->m_owner, pthread_self())
+#define	MUTEX_NOT_HELD(mp)	!MUTEX_HELD(mp)
 
 extern void mutex_init(kmutex_t *mp, char *name, int type, void *cookie);
 extern void mutex_destroy(kmutex_t *mp);
 extern void mutex_enter(kmutex_t *mp);
 extern void mutex_exit(kmutex_t *mp);
 extern int mutex_tryenter(kmutex_t *mp);
-extern void *mutex_owner(kmutex_t *mp);
-extern int mutex_held(kmutex_t *mp);
 
 /*
  * RW locks
  */
-#define	RW_MAGIC	0x4d31fb123648e78aull
-#define	RW_INIT		((void *)NULL)
-#define	RW_DEST		((void *)-1UL)
-
 typedef struct krwlock {
-	void			*rw_owner;
-	void			*rw_wr_owner;
-	uint64_t		rw_magic;
 	pthread_rwlock_t	rw_lock;
+	pthread_t		rw_owner;
 	uint_t			rw_readers;
 } krwlock_t;
 
 typedef int krw_t;
 
-#define	RW_READER	0
-#define	RW_WRITER	1
-#define	RW_DEFAULT	RW_READER
-#define	RW_NOLOCKDEP	RW_READER
+#define	RW_READER		0
+#define	RW_WRITER		1
+#define	RW_DEFAULT		RW_READER
+#define	RW_NOLOCKDEP		RW_READER
 
-#define	RW_READ_HELD(x)		((x)->rw_readers > 0)
-#define	RW_WRITE_HELD(x)	((x)->rw_wr_owner == curthread)
-#define	RW_LOCK_HELD(x)		(RW_READ_HELD(x) || RW_WRITE_HELD(x))
-
-#undef RW_LOCK_HELD
-#define	RW_LOCK_HELD(x)		(RW_READ_HELD(x) || RW_WRITE_HELD(x))
-
-#undef RW_LOCK_HELD
-#define	RW_LOCK_HELD(x)		(RW_READ_HELD(x) || RW_WRITE_HELD(x))
+#define	RW_READ_HELD(rw)	((rw)->rw_readers > 0)
+#define	RW_WRITE_HELD(rw)	pthread_equal((rw)->rw_owner, pthread_self())
+#define	RW_LOCK_HELD(rw)	(RW_READ_HELD(rw) || RW_WRITE_HELD(rw))
 
 extern void rw_init(krwlock_t *rwlp, char *name, int type, void *arg);
 extern void rw_destroy(krwlock_t *rwlp);
@@ -328,6 +291,9 @@ extern int rw_tryupgrade(krwlock_t *rwlp);
 extern void rw_exit(krwlock_t *rwlp);
 #define	rw_downgrade(rwlp) do { } while (0)
 
+/*
+ * Credentials
+ */
 extern uid_t crgetuid(cred_t *cr);
 extern uid_t crgetruid(cred_t *cr);
 extern gid_t crgetgid(cred_t *cr);
@@ -337,14 +303,9 @@ extern gid_t *crgetgroups(cred_t *cr);
 /*
  * Condition variables
  */
-#define	CV_MAGIC	0xd31ea9a83b1b30c4ull
+typedef pthread_cond_t		kcondvar_t;
 
-typedef struct kcondvar {
-	uint64_t		cv_magic;
-	pthread_cond_t		cv;
-} kcondvar_t;
-
-#define	CV_DEFAULT	0
+#define	CV_DEFAULT		0
 #define	CALLOUT_FLAG_ABSOLUTE	0x2
 
 extern void cv_init(kcondvar_t *cv, char *name, int type, void *arg);
@@ -355,6 +316,7 @@ extern clock_t cv_timedwait_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t tim,
     hrtime_t res, int flag);
 extern void cv_signal(kcondvar_t *cv);
 extern void cv_broadcast(kcondvar_t *cv);
+
 #define	cv_timedwait_sig(cv, mp, at)		cv_timedwait(cv, mp, at)
 #define	cv_wait_sig(cv, mp)			cv_wait(cv, mp)
 #define	cv_wait_io(cv, mp)			cv_wait(cv, mp)
