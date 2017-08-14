@@ -181,6 +181,12 @@ zpool_prop_readonly(zpool_prop_t prop)
 	return (zpool_prop_table[prop].pd_attr == PROP_READONLY);
 }
 
+boolean_t
+zpool_prop_setonce(zpool_prop_t prop)
+{
+	return (zpool_prop_table[prop].pd_attr == PROP_ONETIME);
+}
+
 const char *
 zpool_prop_default_string(zpool_prop_t prop)
 {
