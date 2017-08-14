@@ -78,6 +78,7 @@
 #include <sys/mount.h>
 #include <sys/stat.h>
 #include <sys/vfs.h>
+#include <sys/dsl_crypt.h>
 
 #include <libzfs.h>
 
@@ -465,6 +466,7 @@ zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
 	char mntopts[MNT_LINE_MAX];
 	char overlay[ZFS_MAXPROPLEN];
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
+	uint64_t keystatus;
 	int remount = 0, rc;
 
 	if (options == NULL) {
@@ -499,6 +501,39 @@ zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
 		return (zfs_error_fmt(hdl, EZFS_MOUNTFAILED,
 		    dgettext(TEXT_DOMAIN, "cannot mount '%s'"),
 		    mountpoint));
+	}
+
+	/*
+	 * If the filesystem is encrypted the key must be loaded  in order to
+	 * mount. If the key isn't loaded, the MS_CRYPT flag decides whether
+	 * or not we attempt to load the keys. Note: we must call
+	 * zfs_refresh_properties() here since some callers of this function
+	 * (most notably zpool_enable_datasets()) may implicitly load our key
+	 * by loading the parent's key first.
+	 */
+	if (zfs_prop_get_int(zhp, ZFS_PROP_ENCRYPTION) != ZIO_CRYPT_OFF) {
+		zfs_refresh_properties(zhp);
+		keystatus = zfs_prop_get_int(zhp, ZFS_PROP_KEYSTATUS);
+
+		/*
+		 * If the key is unavailable and MS_CRYPT is set give the
+		 * user a chance to enter the key. Otherwise just fail
+		 * immediately.
+		 */
+		if (keystatus == ZFS_KEYSTATUS_UNAVAILABLE) {
+			if (flags & MS_CRYPT) {
+				rc = zfs_crypto_load_key(zhp, B_FALSE, NULL);
+				if (rc)
+					return (rc);
+			} else {
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "encryption key not loaded"));
+				return (zfs_error_fmt(hdl, EZFS_MOUNTFAILED,
+				    dgettext(TEXT_DOMAIN, "cannot mount '%s'"),
+				    mountpoint));
+			}
+		}
+
 	}
 
 	/*
@@ -1136,6 +1171,12 @@ mount_cb(zfs_handle_t *zhp, void *data)
 		return (0);
 	}
 
+	if (zfs_prop_get_int(zhp, ZFS_PROP_KEYSTATUS) ==
+	    ZFS_KEYSTATUS_UNAVAILABLE) {
+		zfs_close(zhp);
+		return (0);
+	}
+
 	/*
 	 * If this filesystem is inconsistent and has a receive resume
 	 * token, we can not mount it.
@@ -1225,6 +1266,14 @@ zpool_enable_datasets(zpool_handle_t *zhp, const char *mntopts, int flags)
 
 	ret = 0;
 	for (i = 0; i < cb.cb_used; i++) {
+		/*
+		 * don't attempt to mount encrypted datasets with
+		 * unloaded keys
+		 */
+		if (zfs_prop_get_int(cb.cb_handles[i], ZFS_PROP_KEYSTATUS) ==
+		    ZFS_KEYSTATUS_UNAVAILABLE)
+			continue;
+
 		if (zfs_mount(cb.cb_handles[i], mntopts, flags) != 0)
 			ret = -1;
 		else

@@ -27,6 +27,8 @@ dist_pkgdata_SCRIPTS = \
 	zpool_create_022_pos.ksh \
 	zpool_create_023_neg.ksh \
 	zpool_create_024_pos.ksh \
+	zpool_create_encrypted.ksh \
+	zpool_create_crypt_combos.ksh \
 	zpool_create_features_001_pos.ksh \
 	zpool_create_features_002_pos.ksh \
 	zpool_create_features_003_pos.ksh \

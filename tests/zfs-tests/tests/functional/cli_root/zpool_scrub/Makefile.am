@@ -7,4 +7,5 @@ dist_pkgdata_SCRIPTS = \
 	zpool_scrub_002_pos.ksh \
 	zpool_scrub_003_pos.ksh \
 	zpool_scrub_004_pos.ksh \
-	zpool_scrub_005_pos.ksh
+	zpool_scrub_005_pos.ksh \
+	zpool_scrub_encrypted_unloaded.ksh

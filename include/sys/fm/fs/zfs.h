@@ -33,6 +33,7 @@ extern "C" {
 #define	ZFS_ERROR_CLASS				"fs.zfs"
 
 #define	FM_EREPORT_ZFS_CHECKSUM			"checksum"
+#define	FM_EREPORT_ZFS_AUTHENTICATION		"authentication"
 #define	FM_EREPORT_ZFS_IO			"io"
 #define	FM_EREPORT_ZFS_DATA			"data"
 #define	FM_EREPORT_ZFS_DELAY			"delay"

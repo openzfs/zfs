@@ -269,6 +269,10 @@ ddt_bp_fill(const ddt_phys_t *ddp, blkptr_t *bp, uint64_t txg)
 	BP_SET_BIRTH(bp, txg, ddp->ddp_phys_birth);
 }
 
+/*
+ * The bp created via this function may be used for repairs and scrub, but it
+ * will be missing the salt / IV required to do a full decrypting read.
+ */
 void
 ddt_bp_create(enum zio_checksum checksum,
     const ddt_key_t *ddk, const ddt_phys_t *ddp, blkptr_t *bp)
@@ -279,11 +283,12 @@ ddt_bp_create(enum zio_checksum checksum,
 		ddt_bp_fill(ddp, bp, ddp->ddp_phys_birth);
 
 	bp->blk_cksum = ddk->ddk_cksum;
-	bp->blk_fill = 1;
 
 	BP_SET_LSIZE(bp, DDK_GET_LSIZE(ddk));
 	BP_SET_PSIZE(bp, DDK_GET_PSIZE(ddk));
 	BP_SET_COMPRESS(bp, DDK_GET_COMPRESS(ddk));
+	BP_SET_CRYPT(bp, DDK_GET_CRYPT(ddk));
+	BP_SET_FILL(bp, 1);
 	BP_SET_CHECKSUM(bp, checksum);
 	BP_SET_TYPE(bp, DMU_OT_DEDUP);
 	BP_SET_LEVEL(bp, 0);
@@ -297,9 +302,12 @@ ddt_key_fill(ddt_key_t *ddk, const blkptr_t *bp)
 	ddk->ddk_cksum = bp->blk_cksum;
 	ddk->ddk_prop = 0;
 
+	ASSERT(BP_IS_ENCRYPTED(bp) || !BP_USES_CRYPT(bp));
+
 	DDK_SET_LSIZE(ddk, BP_GET_LSIZE(bp));
 	DDK_SET_PSIZE(ddk, BP_GET_PSIZE(bp));
 	DDK_SET_COMPRESS(ddk, BP_GET_COMPRESS(bp));
+	DDK_SET_CRYPT(ddk, BP_USES_CRYPT(bp));
 }
 
 void
@@ -389,7 +397,7 @@ ddt_stat_generate(ddt_t *ddt, ddt_entry_t *dde, ddt_stat_t *dds)
 		if (ddp->ddp_phys_birth == 0)
 			continue;
 
-		for (d = 0; d < SPA_DVAS_PER_BP; d++)
+		for (d = 0; d < DDE_GET_NDVAS(dde); d++)
 			dsize += dva_get_dsize_sync(spa, &ddp->ddp_dva[d]);
 
 		dds->dds_blocks += 1;
@@ -562,6 +570,7 @@ ddt_ditto_copies_needed(ddt_t *ddt, ddt_entry_t *dde, ddt_phys_t *ddp_willref)
 	uint64_t ditto = spa->spa_dedup_ditto;
 	int total_copies = 0;
 	int desired_copies = 0;
+	int copies_needed = 0;
 	int p;
 
 	for (p = DDT_PHYS_SINGLE; p <= DDT_PHYS_TRIPLE; p++) {
@@ -588,7 +597,13 @@ ddt_ditto_copies_needed(ddt_t *ddt, ddt_entry_t *dde, ddt_phys_t *ddp_willref)
 	if (total_refcnt >= ditto * ditto)
 		desired_copies++;
 
-	return (MAX(desired_copies, total_copies) - total_copies);
+	copies_needed = MAX(desired_copies, total_copies) - total_copies;
+
+	/* encrypted blocks store their IV in DVA[2] */
+	if (DDK_GET_CRYPT(&dde->dde_key))
+		copies_needed = MIN(copies_needed, SPA_DVAS_PER_BP - 1);
+
+	return (copies_needed);
 }
 
 int
@@ -599,7 +614,7 @@ ddt_ditto_copies_present(ddt_entry_t *dde)
 	int copies = 0 - DVA_GET_GANG(dva);
 	int d;
 
-	for (d = 0; d < SPA_DVAS_PER_BP; d++, dva++)
+	for (d = 0; d < DDE_GET_NDVAS(dde); d++, dva++)
 		if (DVA_IS_VALID(dva))
 			copies++;
 

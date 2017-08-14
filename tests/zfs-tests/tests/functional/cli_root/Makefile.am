@@ -5,12 +5,14 @@ dist_pkgdata_SCRIPTS = \
 SUBDIRS = \
 	zdb \
 	zfs \
+	zfs_change-key \
 	zfs_clone \
 	zfs_copies \
 	zfs_create \
 	zfs_destroy \
 	zfs_get \
 	zfs_inherit \
+	zfs_load-key \
 	zfs_mount \
 	zfs_promote \
 	zfs_property \
@@ -22,6 +24,7 @@ SUBDIRS = \
 	zfs_set \
 	zfs_share \
 	zfs_snapshot \
+	zfs_unload-key \
 	zfs_unmount \
 	zfs_unshare \
 	zfs_upgrade \

@@ -601,7 +601,7 @@ function parse_dump
 	    if ($1 == "OBJECT") print $1" "$4
 	    if ($1 == "FREEOBJECTS") print $1" "$4" "$7
 	    if ($1 == "FREE") print $1" "$7" "$10
-	    if ($1 == "WRITE") print $1" "$15" "$18" "$21" "$24" "$27}'
+	    if ($1 == "WRITE") print $1" "$15" "$21" "$24" "$27" "$30}'
 }
 
 #

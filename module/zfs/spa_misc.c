@@ -1414,6 +1414,7 @@ snprintf_blkptr(char *buf, size_t buflen, const blkptr_t *bp)
 	char type[256];
 	char *checksum = NULL;
 	char *compress = NULL;
+	char *crypt_type = NULL;
 
 	if (bp != NULL) {
 		if (BP_GET_TYPE(bp) & DMU_OT_NEWTYPE) {
@@ -1427,6 +1428,15 @@ snprintf_blkptr(char *buf, size_t buflen, const blkptr_t *bp)
 			(void) strlcpy(type, dmu_ot[BP_GET_TYPE(bp)].ot_name,
 			    sizeof (type));
 		}
+		if (BP_IS_ENCRYPTED(bp)) {
+			crypt_type = "encrypted";
+		} else if (BP_IS_AUTHENTICATED(bp)) {
+			crypt_type = "authenticated";
+		} else if (BP_HAS_INDIRECT_MAC_CKSUM(bp)) {
+			crypt_type = "indirect-MAC";
+		} else {
+			crypt_type = "unencrypted";
+		}
 		if (!BP_IS_EMBEDDED(bp)) {
 			checksum =
 			    zio_checksum_table[BP_GET_CHECKSUM(bp)].ci_name;
@@ -1435,7 +1445,7 @@ snprintf_blkptr(char *buf, size_t buflen, const blkptr_t *bp)
 	}
 
 	SNPRINTF_BLKPTR(snprintf, ' ', buf, buflen, bp, type, checksum,
-	    compress);
+	    crypt_type, compress);
 }
 
 void

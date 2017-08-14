@@ -183,6 +183,7 @@ Requires:	fio
 Requires:	acl
 Requires:	sudo
 Requires:	sysstat
+Requires:       rng-tools
 
 %description test
 This package contains test infrastructure and support scripts for

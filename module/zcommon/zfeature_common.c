@@ -318,6 +318,17 @@ zpool_feature_init(void)
 	    ZFEATURE_FLAG_READONLY_COMPAT | ZFEATURE_FLAG_PER_DATASET,
 	    userobj_accounting_deps);
 	}
+
+	{
+	static const spa_feature_t encryption_deps[] = {
+		SPA_FEATURE_EXTENSIBLE_DATASET,
+		SPA_FEATURE_NONE
+	};
+	zfeature_register(SPA_FEATURE_ENCRYPTION,
+	    "com.datto:encryption", "encryption",
+	    "Support for dataset level encryption",
+	    ZFEATURE_FLAG_PER_DATASET, encryption_deps);
+	}
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)

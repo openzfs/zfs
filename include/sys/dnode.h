@@ -74,9 +74,7 @@ extern "C" {
 /*
  * dnode id flags
  *
- * Note: a file will never ever have its
- * ids moved from bonus->spill
- * and only in a crypto environment would it be on spill
+ * Note: a file will never ever have its ids moved from bonus->spill
  */
 #define	DN_ID_CHKED_BONUS	0x1
 #define	DN_ID_CHKED_SPILL	0x2
@@ -115,6 +113,10 @@ extern "C" {
 
 #define	DN_BONUS(dnp)	((void*)((dnp)->dn_bonus + \
 	(((dnp)->dn_nblkptr - 1) * sizeof (blkptr_t))))
+#define	DN_MAX_BONUS_LEN(dnp) \
+	((dnp->dn_flags & DNODE_FLAG_SPILL_BLKPTR) ? \
+	(uint8_t *)DN_SPILL_BLKPTR(dnp) - (uint8_t *)DN_BONUS(dnp) : \
+	(uint8_t *)(dnp + (dnp->dn_extra_slots + 1)) - (uint8_t *)DN_BONUS(dnp))
 
 #define	DN_USED_BYTES(dnp) (((dnp)->dn_flags & DNODE_FLAG_USED_BYTES) ? \
 	(dnp)->dn_used : (dnp)->dn_used << SPA_MINBLOCKSHIFT)
@@ -140,6 +142,8 @@ enum dnode_dirtycontext {
 
 /* User/Group dnode accounting */
 #define	DNODE_FLAG_USEROBJUSED_ACCOUNTED	(1 << 3)
+
+#define	DNODE_CRYPT_PORTABLE_FLAGS_MASK		(DNODE_FLAG_SPILL_BLKPTR)
 
 typedef struct dnode_phys {
 	uint8_t dn_type;		/* dmu_object_type_t */
@@ -342,6 +346,7 @@ void dnode_free(dnode_t *dn, dmu_tx_t *tx);
 void dnode_byteswap(dnode_phys_t *dnp);
 void dnode_buf_byteswap(void *buf, size_t size);
 void dnode_verify(dnode_t *dn);
+int dnode_set_nlevels(dnode_t *dn, int nlevels, dmu_tx_t *tx);
 int dnode_set_blksz(dnode_t *dn, uint64_t size, int ibs, dmu_tx_t *tx);
 void dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx);
 void dnode_diduse_space(dnode_t *dn, int64_t space);

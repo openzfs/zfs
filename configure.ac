@@ -186,12 +186,14 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/clean_mirror/Makefile
 	tests/zfs-tests/tests/functional/cli_root/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zdb/Makefile
+	tests/zfs-tests/tests/functional/cli_root/zfs_change-key/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zfs_clone/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zfs_copies/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zfs_create/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zfs_destroy/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zfs_get/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zfs_inherit/Makefile
+	tests/zfs-tests/tests/functional/cli_root/zfs_load-key/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zfs/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zfs_mount/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zfs_promote/Makefile
@@ -204,6 +206,7 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/cli_root/zfs_set/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zfs_share/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zfs_snapshot/Makefile
+	tests/zfs-tests/tests/functional/cli_root/zfs_unload-key/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zfs_unmount/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zfs_unshare/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zfs_upgrade/Makefile

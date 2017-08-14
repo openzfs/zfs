@@ -18,6 +18,7 @@ lib_LTLIBRARIES = libzfs.la
 USER_C = \
 	libzfs_changelist.c \
 	libzfs_config.c \
+	libzfs_crypto.c \
 	libzfs_dataset.c \
 	libzfs_diff.c \
 	libzfs_fru.c \
@@ -30,7 +31,6 @@ USER_C = \
 	libzfs_util.c
 
 KERNEL_C = \
-	algs/sha2/sha2.c \
 	zfeature_common.c \
 	zfs_comutil.c \
 	zfs_deleg.c \
@@ -53,10 +53,12 @@ nodist_libzfs_la_SOURCES = \
 
 libzfs_la_LIBADD = \
         $(top_builddir)/lib/libefi/libefi.la \
+	$(top_builddir)/lib/libicp/libicp.la \
 	$(top_builddir)/lib/libnvpair/libnvpair.la \
 	$(top_builddir)/lib/libshare/libshare.la \
 	$(top_builddir)/lib/libtpool/libtpool.la \
 	$(top_builddir)/lib/libuutil/libuutil.la \
+	$(top_builddir)/lib/libzpool/libzpool.la \
 	$(top_builddir)/lib/libzfs_core/libzfs_core.la
 
 libzfs_la_LIBADD += -lm $(LIBBLKID) $(LIBUDEV)

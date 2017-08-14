@@ -264,6 +264,8 @@ libzfs_error_description(libzfs_handle_t *hdl)
 	case EZFS_ACTIVE_POOL:
 		return (dgettext(TEXT_DOMAIN, "pool is imported on a "
 		    "different host"));
+	case EZFS_CRYPTOFAILED:
+		return (dgettext(TEXT_DOMAIN, "encryption failure"));
 	case EZFS_UNKNOWN:
 		return (dgettext(TEXT_DOMAIN, "unknown error"));
 	default:

@@ -171,6 +171,14 @@ typedef enum {
 	ZFS_PROP_OVERLAY,
 	ZFS_PROP_PREV_SNAP,
 	ZFS_PROP_RECEIVE_RESUME_TOKEN,
+	ZFS_PROP_ENCRYPTION,
+	ZFS_PROP_KEYLOCATION,
+	ZFS_PROP_KEYFORMAT,
+	ZFS_PROP_PBKDF2_SALT,
+	ZFS_PROP_PBKDF2_ITERS,
+	ZFS_PROP_ENCRYPTION_ROOT,
+	ZFS_PROP_KEY_GUID,
+	ZFS_PROP_KEYSTATUS,
 	ZFS_NUM_PROPS
 } zfs_prop_t;
 
@@ -281,6 +289,8 @@ uint64_t zfs_prop_default_numeric(zfs_prop_t);
 boolean_t zfs_prop_readonly(zfs_prop_t);
 boolean_t zfs_prop_inheritable(zfs_prop_t);
 boolean_t zfs_prop_setonce(zfs_prop_t);
+boolean_t zfs_prop_encryption_key_param(zfs_prop_t);
+boolean_t zfs_prop_valid_keylocation(const char *, boolean_t);
 const char *zfs_prop_to_name(zfs_prop_t);
 zfs_prop_t zfs_name_to_prop(const char *);
 boolean_t zfs_prop_user(const char *);
@@ -403,6 +413,30 @@ typedef enum {
 	ZFS_VOLMODE_DEV = 2,
 	ZFS_VOLMODE_NONE = 3
 } zfs_volmode_t;
+
+typedef enum zfs_keystatus {
+	ZFS_KEYSTATUS_NONE = 0,
+	ZFS_KEYSTATUS_UNAVAILABLE,
+	ZFS_KEYSTATUS_AVAILABLE,
+} zfs_keystatus_t;
+
+typedef enum zfs_keyformat {
+	ZFS_KEYFORMAT_NONE = 0,
+	ZFS_KEYFORMAT_RAW,
+	ZFS_KEYFORMAT_HEX,
+	ZFS_KEYFORMAT_PASSPHRASE,
+	ZFS_KEYFORMAT_FORMATS
+} zfs_keyformat_t;
+
+typedef enum zfs_key_location {
+	ZFS_KEYLOCATION_NONE = 0,
+	ZFS_KEYLOCATION_PROMPT,
+	ZFS_KEYLOCATION_URI,
+	ZFS_KEYLOCATION_LOCATIONS
+} zfs_keylocation_t;
+
+#define	DEFAULT_PBKDF2_ITERATIONS 350000
+#define	MIN_PBKDF2_ITERATIONS 100000
 
 /*
  * On-disk version number.
@@ -1061,6 +1095,9 @@ typedef enum zfs_ioc {
 	ZFS_IOC_DESTROY_BOOKMARKS,
 	ZFS_IOC_RECV_NEW,
 	ZFS_IOC_POOL_SYNC,
+	ZFS_IOC_LOAD_KEY,
+	ZFS_IOC_UNLOAD_KEY,
+	ZFS_IOC_CHANGE_KEY,
 
 	/*
 	 * Linux - 3/64 numbers reserved.
@@ -1126,6 +1163,12 @@ typedef enum {
 #define	ZPOOL_HIST_DSID		"dsid"
 
 /*
+ * Special nvlist name that will not have its args recorded in the pool's
+ * history log.
+ */
+#define	ZPOOL_HIDDEN_ARGS	"hidden_args"
+
+/*
  * Flags for ZFS_IOC_VDEV_SET_STATE
  */
 #define	ZFS_ONLINE_CHECKREMOVE	0x1
@@ -1144,6 +1187,7 @@ typedef enum {
 #define	ZFS_IMPORT_ONLY		0x8
 #define	ZFS_IMPORT_TEMP_NAME	0x10
 #define	ZFS_IMPORT_SKIP_MMP	0x20
+#define	ZFS_IMPORT_LOAD_KEYS	0x40
 
 /*
  * Sysevent payload members.  ZFS will generate the following sysevents with the

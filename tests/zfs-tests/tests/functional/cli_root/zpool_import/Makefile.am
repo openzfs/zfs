@@ -24,7 +24,9 @@ dist_pkgdata_SCRIPTS = \
 	zpool_import_missing_001_pos.ksh \
 	zpool_import_missing_002_pos.ksh \
 	zpool_import_missing_003_pos.ksh \
-	zpool_import_rename_001_pos.ksh
+	zpool_import_rename_001_pos.ksh \
+	zpool_import_encrypted.ksh \
+	zpool_import_encrypted_load.ksh
 
 BLOCKFILES = \
 	unclean_export.dat.bz2

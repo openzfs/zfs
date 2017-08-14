@@ -69,6 +69,8 @@ zfs_deleg_perm_tab_t zfs_deleg_perm_tab[] = {
 	{ZFS_DELEG_PERM_GROUPOBJUSED},
 	{ZFS_DELEG_PERM_HOLD},
 	{ZFS_DELEG_PERM_RELEASE},
+	{ZFS_DELEG_PERM_LOAD_KEY},
+	{ZFS_DELEG_PERM_CHANGE_KEY},
 	{NULL}
 };
 

@@ -42,6 +42,7 @@
 #include <sys/refcount.h>
 #include <sys/bplist.h>
 #include <sys/bpobj.h>
+#include <sys/dsl_crypt.h>
 #include <sys/zfeature.h>
 #include <zfeature_common.h>
 
@@ -273,6 +274,7 @@ struct spa {
 	spa_avz_action_t	spa_avz_action;	/* destroy/rebuild AVZ? */
 	uint64_t	spa_errata;		/* errata issues detected */
 	spa_stats_t	spa_stats;		/* assorted spa statistics */
+	spa_keystore_t	spa_keystore;		/* loaded crypto keys */
 	hrtime_t	spa_ccw_fail_time;	/* Conf cache write fail time */
 	taskq_t		*spa_zvol_taskq;	/* Taskq for minor management */
 	uint64_t	spa_multihost;		/* multihost aware (mmp) */

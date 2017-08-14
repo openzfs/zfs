@@ -210,14 +210,14 @@ zpios_dmu_setup(run_args_t *run_args)
 	t->start = zpios_timespec_now();
 
 	(void) snprintf(name, 32, "%s/id_%d", run_args->pool, run_args->id);
-	rc = dmu_objset_create(name, DMU_OST_OTHER, 0, NULL, NULL);
+	rc = dmu_objset_create(name, DMU_OST_OTHER, 0, NULL, NULL, NULL);
 	if (rc) {
 		zpios_print(run_args->file, "Error dmu_objset_create(%s, ...) "
 		    "failed: %d\n", name, rc);
 		goto out;
 	}
 
-	rc = dmu_objset_own(name, DMU_OST_OTHER, 0, zpios_tag, &os);
+	rc = dmu_objset_own(name, DMU_OST_OTHER, 0, 1, zpios_tag, &os);
 	if (rc) {
 		zpios_print(run_args->file, "Error dmu_objset_own(%s, ...) "
 		    "failed: %d\n", name, rc);
@@ -429,7 +429,7 @@ zpios_remove_objset(run_args_t *run_args)
 		}
 	}
 
-	dmu_objset_disown(run_args->os, zpios_tag);
+	dmu_objset_disown(run_args->os, 1, zpios_tag);
 
 	if (run_args->flags & DMU_REMOVE) {
 		rc = dsl_destroy_head(name);

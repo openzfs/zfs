@@ -90,9 +90,8 @@ name_to_bookmark(char *buf, zbookmark_phys_t *zb)
  * during spa_errlog_sync().
  */
 void
-spa_log_error(spa_t *spa, zio_t *zio)
+spa_log_error(spa_t *spa, const zbookmark_phys_t *zb)
 {
-	zbookmark_phys_t *zb = &zio->io_logical->io_bookmark;
 	spa_error_entry_t search;
 	spa_error_entry_t *new;
 	avl_tree_t *tree;

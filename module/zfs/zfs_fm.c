@@ -142,8 +142,8 @@ zfs_is_ratelimiting_event(const char *subclass, vdev_t *vd)
 
 static void
 zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
-    const char *subclass, spa_t *spa, vdev_t *vd, zio_t *zio,
-    uint64_t stateoroffset, uint64_t size)
+    const char *subclass, spa_t *spa, vdev_t *vd, zbookmark_phys_t *zb,
+    zio_t *zio, uint64_t stateoroffset, uint64_t size)
 {
 	nvlist_t *ereport, *detector;
 
@@ -413,24 +413,6 @@ zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
 				    FM_EREPORT_PAYLOAD_ZFS_ZIO_SIZE,
 				    DATA_TYPE_UINT64, zio->io_size, NULL);
 		}
-
-		/*
-		 * Payload for I/Os with corresponding logical information.
-		 */
-		if (zio->io_logical != NULL)
-			fm_payload_set(ereport,
-			    FM_EREPORT_PAYLOAD_ZFS_ZIO_OBJSET,
-			    DATA_TYPE_UINT64,
-			    zio->io_logical->io_bookmark.zb_objset,
-			    FM_EREPORT_PAYLOAD_ZFS_ZIO_OBJECT,
-			    DATA_TYPE_UINT64,
-			    zio->io_logical->io_bookmark.zb_object,
-			    FM_EREPORT_PAYLOAD_ZFS_ZIO_LEVEL,
-			    DATA_TYPE_INT64,
-			    zio->io_logical->io_bookmark.zb_level,
-			    FM_EREPORT_PAYLOAD_ZFS_ZIO_BLKID,
-			    DATA_TYPE_UINT64,
-			    zio->io_logical->io_bookmark.zb_blkid, NULL);
 	} else if (vd != NULL) {
 		/*
 		 * If we have a vdev but no zio, this is a device fault, and the
@@ -441,6 +423,20 @@ zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
 		    FM_EREPORT_PAYLOAD_ZFS_PREV_STATE,
 		    DATA_TYPE_UINT64, stateoroffset, NULL);
 	}
+
+	/*
+	 * Payload for I/Os with corresponding logical information.
+	 */
+	if (zb != NULL && (zio == NULL || zio->io_logical != NULL))
+		fm_payload_set(ereport,
+		    FM_EREPORT_PAYLOAD_ZFS_ZIO_OBJSET,
+		    DATA_TYPE_UINT64, zb->zb_objset,
+		    FM_EREPORT_PAYLOAD_ZFS_ZIO_OBJECT,
+		    DATA_TYPE_UINT64, zb->zb_object,
+		    FM_EREPORT_PAYLOAD_ZFS_ZIO_LEVEL,
+		    DATA_TYPE_INT64, zb->zb_level,
+		    FM_EREPORT_PAYLOAD_ZFS_ZIO_BLKID,
+		    DATA_TYPE_UINT64, zb->zb_blkid, NULL);
 
 	mutex_exit(&spa->spa_errlist_lock);
 
@@ -771,8 +767,8 @@ annotate_ecksum(nvlist_t *ereport, zio_bad_cksum_t *info,
 #endif
 
 void
-zfs_ereport_post(const char *subclass, spa_t *spa, vdev_t *vd, zio_t *zio,
-    uint64_t stateoroffset, uint64_t size)
+zfs_ereport_post(const char *subclass, spa_t *spa, vdev_t *vd,
+    zbookmark_phys_t *zb, zio_t *zio, uint64_t stateoroffset, uint64_t size)
 {
 #ifdef _KERNEL
 	nvlist_t *ereport = NULL;
@@ -781,8 +777,8 @@ zfs_ereport_post(const char *subclass, spa_t *spa, vdev_t *vd, zio_t *zio,
 	if (zfs_is_ratelimiting_event(subclass, vd))
 		return;
 
-	zfs_ereport_start(&ereport, &detector,
-	    subclass, spa, vd, zio, stateoroffset, size);
+	zfs_ereport_start(&ereport, &detector, subclass, spa, vd,
+	    zb, zio, stateoroffset, size);
 
 	if (ereport == NULL)
 		return;
@@ -793,7 +789,7 @@ zfs_ereport_post(const char *subclass, spa_t *spa, vdev_t *vd, zio_t *zio,
 }
 
 void
-zfs_ereport_start_checksum(spa_t *spa, vdev_t *vd,
+zfs_ereport_start_checksum(spa_t *spa, vdev_t *vd, zbookmark_phys_t *zb,
     struct zio *zio, uint64_t offset, uint64_t length, void *arg,
     zio_bad_cksum_t *info)
 {
@@ -823,7 +819,7 @@ zfs_ereport_start_checksum(spa_t *spa, vdev_t *vd,
 
 #ifdef _KERNEL
 	zfs_ereport_start(&report->zcr_ereport, &report->zcr_detector,
-	    FM_EREPORT_ZFS_CHECKSUM, spa, vd, zio, offset, length);
+	    FM_EREPORT_ZFS_CHECKSUM, spa, vd, zb, zio, offset, length);
 
 	if (report->zcr_ereport == NULL) {
 		zfs_ereport_free_checksum(report);
@@ -879,7 +875,7 @@ zfs_ereport_free_checksum(zio_cksum_report_t *rpt)
 
 
 void
-zfs_ereport_post_checksum(spa_t *spa, vdev_t *vd,
+zfs_ereport_post_checksum(spa_t *spa, vdev_t *vd, zbookmark_phys_t *zb,
     struct zio *zio, uint64_t offset, uint64_t length,
     const abd_t *good_data, const abd_t *bad_data, zio_bad_cksum_t *zbc)
 {
@@ -888,8 +884,8 @@ zfs_ereport_post_checksum(spa_t *spa, vdev_t *vd,
 	nvlist_t *detector = NULL;
 	zfs_ecksum_info_t *info;
 
-	zfs_ereport_start(&ereport, &detector,
-	    FM_EREPORT_ZFS_CHECKSUM, spa, vd, zio, offset, length);
+	zfs_ereport_start(&ereport, &detector, FM_EREPORT_ZFS_CHECKSUM,
+	    spa, vd, zb, zio, offset, length);
 
 	if (ereport == NULL)
 		return;
