@@ -237,7 +237,7 @@ sas_handler() {
 
 	PHY=`ls -d $port_dir/phy* 2>/dev/null | head -1 | awk -F: '{print $NF}'`
 	if [ -z "$PHY" ] ; then
-		return
+		PHY=0
 	fi
 	PORT=$(( $PHY / $PHYS_PER_PORT ))
 
@@ -261,6 +261,10 @@ sas_handler() {
 		;;
 	"phy")
 		SLOT=`cat $end_device_dir/phy_identifier 2>/dev/null`
+		;;
+	"port")
+		d=$(eval echo \${$i})
+		SLOT=`echo $d | sed -e 's/^.*://'`
 		;;
 	"id")
 		i=$(($i + 1))
