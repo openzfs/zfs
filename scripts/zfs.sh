@@ -125,8 +125,13 @@ load_module() {
 load_modules() {
 	mkdir -p /etc/zfs
 
-	modprobe "$KMOD_ZLIB_DEFLATE" >/dev/null
-	modprobe "$KMOD_ZLIB_INFLATE" >/dev/null
+	if modinfo "$KMOD_ZLIB_DEFLATE" >/dev/null 2>&1; then
+		modprobe "$KMOD_ZLIB_DEFLATE" >/dev/null 2>&1
+	fi
+
+	if modinfo "$KMOD_ZLIB_INFLATE">/dev/null 2>&1; then
+		modprobe "$KMOD_ZLIB_INFLATE" >/dev/null 2>&1
+	fi
 
 	for KMOD in $KMOD_SPL $KMOD_SPLAT $KMOD_ZAVL $KMOD_ZNVPAIR \
 	    $KMOD_ZUNICODE $KMOD_ZCOMMON $KMOD_ICP $KMOD_ZFS; do
@@ -166,6 +171,14 @@ unload_modules() {
 			unload_module "$KMOD" || return 1
 		fi
 	done
+
+	if modinfo "$KMOD_ZLIB_DEFLATE" >/dev/null 2>&1; then
+		modprobe -r "$KMOD_ZLIB_DEFLATE" >/dev/null 2>&1
+	fi
+
+	if modinfo "$KMOD_ZLIB_INFLATE">/dev/null 2>&1; then
+		modprobe -r "$KMOD_ZLIB_INFLATE" >/dev/null 2>&1
+	fi
 
 	if [ "$VERBOSE" = "yes" ]; then
 		echo "Successfully unloaded ZFS module stack"
