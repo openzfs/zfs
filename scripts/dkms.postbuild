@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 PROG=$0
 
@@ -19,6 +19,6 @@ if [ -z "${arch}" -o -z "${kver}" -o -z "${pkgname}" -o \
 	exit 1
 fi
 
-cp ${tree}/${pkgname}/${pkgver}/build/zfs_config.h          \
-   ${tree}/${pkgname}/${pkgver}/build/module/Module.symvers \
-   ${tree}/${pkgname}/${pkgver}/${kver}/${arch}/
+cp "${tree}/${pkgname}/${pkgver}/build/zfs_config.h"          \
+   "${tree}/${pkgname}/${pkgver}/build/module/Module.symvers" \
+   "${tree}/${pkgname}/${pkgver}/${kver}/${arch}/"

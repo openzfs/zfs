@@ -152,5 +152,7 @@ icp_init(void)
 #if defined(_KERNEL) && defined(HAVE_SPL)
 module_exit(icp_fini);
 module_init(icp_init);
+MODULE_AUTHOR(ZFS_META_AUTHOR);
 MODULE_LICENSE(ZFS_META_LICENSE);
+MODULE_VERSION(ZFS_META_VERSION "-" ZFS_META_RELEASE);
 #endif

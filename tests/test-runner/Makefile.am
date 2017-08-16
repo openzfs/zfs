@@ -1,1 +1,1 @@
-SUBDIRS = cmd include man
+SUBDIRS = bin include man

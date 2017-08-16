@@ -29,9 +29,8 @@ distclean-local::
 		-o -name .pc -o -name .hg -o -name .git \) -prune -o \
 		\( -name '*.orig' -o -name '*.rej' -o -name '*~' \
 		-o -name '*.bak' -o -name '#*#' -o -name '.*.orig' \
-		-o -name '.*.rej' -o -name '.script-config' -o -size 0 \
-		-o -name '*%' -o -name '.*.cmd' -o -name 'core' \
-		-o -name 'Makefile' -o -name 'Module.symvers' \
+		-o -name '.*.rej' -o -size 0 -o -name '*%' -o -name '.*.cmd' \
+		-o -name 'core' -o -name 'Makefile' -o -name 'Module.symvers' \
 		-o -name '*.order' -o -name '*.markers' \) \
 		-type f -print | xargs $(RM)
 
@@ -52,11 +51,8 @@ cstyle:
 
 shellcheck:
 	@if type shellcheck > /dev/null 2>&1; then \
-		shellcheck --exclude=SC1090 --format=gcc scripts/paxcheck.sh \
-			scripts/zloop.sh \
-			scripts/zfs-tests.sh \
-			scripts/zfs.sh \
-			scripts/commitcheck.sh \
+		shellcheck --exclude=SC1090 --format=gcc \
+			$$(find scripts/*.sh -type f) \
 			$$(find cmd/zed/zed.d/*.sh -type f) \
 			$$(find cmd/zpool/zpool.d/* -executable); \
 	fi

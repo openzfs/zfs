@@ -3,7 +3,6 @@ subdir-m += nvpair
 subdir-m += unicode
 subdir-m += zcommon
 subdir-m += zfs
-subdir-m += zpios
 subdir-m += icp
 
 INSTALL_MOD_DIR ?= extra

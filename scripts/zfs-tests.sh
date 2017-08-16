@@ -20,21 +20,21 @@
 #
 # CDDL HEADER END
 #
-basedir=$(dirname "$0")
 
+BASE_DIR=$(dirname "$0")
 SCRIPT_COMMON=common.sh
-if [ -f "${basedir}/${SCRIPT_COMMON}" ]; then
-. "${basedir}/${SCRIPT_COMMON}"
+if [ -f "${BASE_DIR}/${SCRIPT_COMMON}" ]; then
+. "${BASE_DIR}/${SCRIPT_COMMON}"
 else
 echo "Missing helper script ${SCRIPT_COMMON}" && exit 1
 fi
 
 PROG=zfs-tests.sh
-VERBOSE=
+VERBOSE="no"
 QUIET=
-CLEANUP=1
-CLEANUPALL=0
-LOOPBACK=1
+CLEANUP="yes"
+CLEANUPALL="no"
+LOOPBACK="yes"
 FILESIZE="4G"
 RUNFILE=${RUNFILE:-"linux.run"}
 FILEDIR=${FILEDIR:-/var/tmp}
@@ -45,6 +45,26 @@ ZFS_DBGMSG="$STF_SUITE/callbacks/zfs_dbgmsg.ksh"
 ZFS_DMESG="$STF_SUITE/callbacks/zfs_dmesg.ksh"
 ZFS_MMP="$STF_SUITE/callbacks/zfs_mmp.ksh"
 TESTFAIL_CALLBACKS=${TESTFAIL_CALLBACKS:-"$ZFS_DBGMSG:$ZFS_DMESG:$ZFS_MMP"}
+LOSETUP=${LOSETUP:-/sbin/losetup}
+DMSETUP=${DMSETUP:-/sbin/dmsetup}
+
+#
+# Log an informational message when additional verbosity is enabled.
+#
+msg() {
+	if [ "$VERBOSE" = "yes" ]; then
+		echo "$@"
+	fi
+}
+
+#
+# Log a failure message, cleanup, and return an error.
+#
+fail() {
+        echo -e "$PROG: $1" >&2
+	cleanup
+	exit 1
+}
 
 #
 # Attempt to remove loopback devices and files which where created earlier
@@ -52,11 +72,11 @@ TESTFAIL_CALLBACKS=${TESTFAIL_CALLBACKS:-"$ZFS_DBGMSG:$ZFS_DMESG:$ZFS_MMP"}
 # to the script to suppress cleanup for debugging purposes.
 #
 cleanup() {
-	if [ $CLEANUP -eq 0 ]; then
+	if [ "$CLEANUP" = "no" ]; then
 		return 0
 	fi
 
-	if [ $LOOPBACK -eq 1 ]; then
+	if [ "$LOOPBACK" = "yes" ]; then
 		for TEST_LOOPBACK in ${LOOPBACKS}; do
 			LOOP_DEV=$(basename "$TEST_LOOPBACK")
 			DM_DEV=$(sudo "${DMSETUP}" ls 2>/dev/null | \
@@ -78,8 +98,7 @@ cleanup() {
 		rm -f "${TEST_FILE}" &>/dev/null
 	done
 
-	# Preserve in-tree symlinks to aid debugging.
-	if [ -z "${INTREE}" ] && [ -d "$STF_PATH" ]; then
+	if [ "$STF_PATH_REMOVE" = "yes" ] && [ -d "$STF_PATH" ]; then
 		rm -Rf "$STF_PATH"
 	fi
 }
@@ -122,20 +141,11 @@ cleanup_all() {
 }
 
 #
-# Log a failure message, cleanup, and return an error.
-#
-fail() {
-        echo -e "${PROG}: $1" >&2
-	cleanup
-	exit 1
-}
-
-#
 # Takes a name as the only arguments and looks for the following variations
 # on that name.  If one is found it is returned.
 #
-# $RUNFILEDIR/<name>
-# $RUNFILEDIR/<name>.run
+# $RUNFILE_DIR/<name>
+# $RUNFILE_DIR/<name>.run
 # <name>
 # <name>.run
 #
@@ -143,10 +153,10 @@ find_runfile() {
 	local NAME=$1
 	local RESULT=""
 
-	if [ -f "$RUNFILEDIR/$NAME" ]; then
-		RESULT="$RUNFILEDIR/$NAME"
-	elif [ -f "$RUNFILEDIR/$NAME.run" ]; then
-		RESULT="$RUNFILEDIR/$NAME.run"
+	if [ -f "$RUNFILE_DIR/$NAME" ]; then
+		RESULT="$RUNFILE_DIR/$NAME"
+	elif [ -f "$RUNFILE_DIR/$NAME.run" ]; then
+		RESULT="$RUNFILE_DIR/$NAME.run"
 	elif [ -f "$NAME" ]; then
 		RESULT="$NAME"
 	elif [ -f "$NAME.run" ]; then
@@ -188,39 +198,43 @@ create_links() {
 constrain_path() {
 	. "$STF_SUITE/include/commands.cfg"
 
-	if [ -n "${INTREE}" ]; then
-		STF_PATH="$BUILDDIR/bin"
+	if [ "$INTREE" = "yes" ]; then
+		# Constrained path set to ./zfs/bin/
+		STF_PATH="$BIN_DIR"
+		STF_PATH_REMOVE="no"
+		STF_MISSING_BIN=""
 		if [ ! -d "$STF_PATH" ]; then
 			mkdir "$STF_PATH"
+			chmod 755 "$STF_PATH" || fail "Couldn't chmod $STF_PATH"
 		fi
-	else
-		SYSTEMDIR=${SYSTEMDIR:-/var/tmp/constrained_path.XXXX}
-		STF_PATH=$(/bin/mktemp -d "$SYSTEMDIR")
-	fi
 
-	STF_MISSING_BIN=""
-	chmod 755 "$STF_PATH" || fail "Couldn't chmod $STF_PATH"
-
-	# Standard system utilities
-	create_links "/bin /usr/bin /sbin /usr/sbin" "$SYSTEM_FILES"
-
-	if [ -z "${INTREE}" ]; then
 		# Special case links for standard zfs utilities
-		create_links "/bin /usr/bin /sbin /usr/sbin" "$ZFS_FILES"
-
-		# Special case links for zfs test suite utilties
-		create_links "$TESTSDIR/bin" "$ZFSTEST_FILES"
-	else
-		# Special case links for standard zfs utilities
-		DIRS="$(find "$CMDDIR" -type d \( ! -name .deps -a \
+		DIRS="$(find "$CMD_DIR" -type d \( ! -name .deps -a \
 		    ! -name .libs \) -print | tr '\n' ' ')"
 		create_links "$DIRS" "$ZFS_FILES"
 
-		# Special case links for zfs test suite utilties
-		DIRS="$(find "$TESTSDIR" -type d \( ! -name .deps -a \
+		# Special case links for zfs test suite utilities
+		DIRS="$(find "$STF_SUITE" -type d \( ! -name .deps -a \
 		    ! -name .libs \) -print | tr '\n' ' ')"
 		create_links "$DIRS" "$ZFSTEST_FILES"
+	else
+		# Constrained path set to /var/tmp/constrained_path.*
+		SYSTEMDIR=${SYSTEMDIR:-/var/tmp/constrained_path.XXXX}
+		STF_PATH=$(/bin/mktemp -d "$SYSTEMDIR")
+		STF_PATH_REMOVE="yes"
+		STF_MISSING_BIN=""
+
+		chmod 755 "$STF_PATH" || fail "Couldn't chmod $STF_PATH"
+
+		# Special case links for standard zfs utilities
+		create_links "/bin /usr/bin /sbin /usr/sbin" "$ZFS_FILES"
+
+		# Special case links for zfs test suite utilities
+		create_links "$STF_SUITE/bin" "$ZFSTEST_FILES"
 	fi
+
+	# Standard system utilities
+	create_links "/bin /usr/bin /sbin /usr/sbin" "$SYSTEM_FILES"
 
 	# Exceptions
 	ln -fs "$STF_PATH/awk" "$STF_PATH/nawk"
@@ -250,6 +264,7 @@ OPTIONS:
 	-x          Remove all testpools, dm, lo, and files (unsafe)
 	-k          Disable cleanup after test failure
 	-f          Use files only, disables block device tests
+	-c          Only create and populate constrained path
 	-d DIR      Use DIR for files and loopback devices
 	-s SIZE     Use vdevs of SIZE (default: 4G)
 	-r RUNFILE  Run tests in RUNFILE (default: linux.run)
@@ -270,7 +285,7 @@ $0 -x
 EOF
 }
 
-while getopts 'hvqxkfd:s:r:?t:u:' OPTION; do
+while getopts 'hvqxkfcd:s:r:?t:u:' OPTION; do
 	case $OPTION in
 	h)
 		usage
@@ -278,19 +293,23 @@ while getopts 'hvqxkfd:s:r:?t:u:' OPTION; do
 		;;
 	v)
 		# shellcheck disable=SC2034
-		VERBOSE=1
+		VERBOSE="yes"
 		;;
 	q)
 		QUIET="-q"
 		;;
 	x)
-		CLEANUPALL=1
+		CLEANUPALL="yes"
 		;;
 	k)
-		CLEANUP=0
+		CLEANUP="no"
 		;;
 	f)
-		LOOPBACK=0
+		LOOPBACK="no"
+		;;
+	c)
+		constrain_path
+		exit
 		;;
 	d)
 		FILEDIR="$OPTARG"
@@ -323,7 +342,7 @@ FILES=${FILES:-"$FILEDIR/file-vdev0 $FILEDIR/file-vdev1 $FILEDIR/file-vdev2"}
 LOOPBACKS=${LOOPBACKS:-""}
 
 if [ ${#SINGLETEST[@]} -ne 0 ]; then
-	RUNFILEDIR="/var/tmp"
+	RUNFILE_DIR="/var/tmp"
 	RUNFILE="zfs-tests.$$.run"
 	SINGLEQUIET="False"
 
@@ -331,7 +350,7 @@ if [ ${#SINGLETEST[@]} -ne 0 ]; then
 		SINGLEQUIET="True"
 	fi
 
-	cat >$RUNFILEDIR/$RUNFILE << EOF
+	cat >$RUNFILE_DIR/$RUNFILE << EOF
 [DEFAULT]
 pre =
 quiet = $SINGLEQUIET
@@ -357,7 +376,7 @@ EOF
 			CLEANUPSCRIPT="cleanup"
 		fi
 
-		cat >>$RUNFILEDIR/$RUNFILE << EOF
+		cat >>$RUNFILE_DIR/$RUNFILE << EOF
 
 [$SINGLETESTDIR]
 tests = ['$SINGLETESTFILE']
@@ -394,7 +413,7 @@ if [ "$(sudo whoami)" != "root" ]; then
 fi
 
 #
-# Constain the available binaries to a known set.
+# Constrain the available binaries to a known set.
 #
 constrain_path
 
@@ -406,14 +425,14 @@ constrain_path
     "Missing $STF_SUITE/include/default.cfg file."
 
 #
-# Verify the ZFS module stack if loaded.
+# Verify the ZFS module stack is loaded.
 #
 sudo "${ZFS_SH}" &>/dev/null
 
 #
 # Attempt to cleanup all previous state for a new test run.
 #
-if [ $CLEANUPALL -ne 0 ]; then
+if [ "$CLEANUPALL" = "yes" ]; then
 	cleanup_all
 fi
 
@@ -457,9 +476,10 @@ if [ -z "${DISKS}" ]; then
 	#
 	# If requested setup loopback devices backed by the sparse files.
 	#
-	if [ $LOOPBACK -eq 1 ]; then
+	if [ "$LOOPBACK" = "yes" ]; then
 		DISKS=""
-		check_loop_utils
+
+		test -x "$LOSETUP" || fail "$LOSETUP utility must be installed"
 
 		for TEST_FILE in ${FILES}; do
 			TEST_LOOPBACK=$(sudo "${LOSETUP}" -f)
@@ -472,7 +492,7 @@ if [ -z "${DISKS}" ]; then
 	fi
 fi
 
-NUM_DISKS=$(echo "${DISKS}" | $AWK '{print NF}')
+NUM_DISKS=$(echo "${DISKS}" | awk '{print NF}')
 [ "$NUM_DISKS" -lt 3 ] && fail "Not enough disks ($NUM_DISKS/3 minimum)"
 
 #

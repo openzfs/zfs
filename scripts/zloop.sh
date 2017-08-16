@@ -20,11 +20,10 @@
 # Copyright (C) 2016 Lawrence Livermore National Security, LLC.
 #
 
-basedir=$(dirname "$0")
-
+BASE_DIR=$(dirname "$0")
 SCRIPT_COMMON=common.sh
-if [ -f "${basedir}/${SCRIPT_COMMON}" ]; then
-	. "${basedir}/${SCRIPT_COMMON}"
+if [ -f "${BASE_DIR}/${SCRIPT_COMMON}" ]; then
+	. "${BASE_DIR}/${SCRIPT_COMMON}"
 else
 	echo "Missing helper script ${SCRIPT_COMMON}" && exit 1
 fi

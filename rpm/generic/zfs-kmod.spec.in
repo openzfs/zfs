@@ -37,7 +37,6 @@
 #define buildforkernels akmod
 
 %bcond_with     debug
-%bcond_with     debug_dmu_tx
 
 
 Name:           %{module}-kmod
@@ -117,12 +116,6 @@ bash %{SOURCE10}  --target %{_target_cpu} %{?repo:--repo %{?repo}} --kmodname %{
     %define debug --disable-debug
 %endif
 
-%if %{with debug_dmu_tx}
-    %define debug_dmu_tx --enable-debug-dmu-tx
-%else
-    %define debug_dmu_tx --disable-debug-dmu-tx
-%endif
-
 #
 # Allow the overriding of spl locations
 #
@@ -163,8 +156,7 @@ for kernel_version in %{?kernel_versions}; do
         --with-linux-obj=%{kobj} \
         --with-spl="%{spldir}" \
         --with-spl-obj="%{splobj}" \
-        %{debug} \
-        %{debug_dmu_tx}
+        %{debug}
     make %{?_smp_mflags}
     cd ..
 done

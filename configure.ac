@@ -104,7 +104,6 @@ AC_CONFIG_FILES([
 	cmd/zpool/Makefile
 	cmd/zstreamdump/Makefile
 	cmd/ztest/Makefile
-	cmd/zpios/Makefile
 	cmd/mount_zfs/Makefile
 	cmd/fsck_zfs/Makefile
 	cmd/zvol_id/Makefile
@@ -127,7 +126,6 @@ AC_CONFIG_FILES([
 	module/unicode/Makefile
 	module/zcommon/Makefile
 	module/zfs/Makefile
-	module/zpios/Makefile
 	module/icp/Makefile
 	include/Makefile
 	include/linux/Makefile
@@ -138,13 +136,9 @@ AC_CONFIG_FILES([
 	include/sys/crypto/Makefile
 	include/sys/sysevent/Makefile
 	scripts/Makefile
-	scripts/zpios-profile/Makefile
-	scripts/zpios-test/Makefile
-	scripts/zpool-config/Makefile
-	scripts/common.sh
 	tests/Makefile
 	tests/test-runner/Makefile
-	tests/test-runner/cmd/Makefile
+	tests/test-runner/bin/Makefile
 	tests/test-runner/include/Makefile
 	tests/test-runner/man/Makefile
 	tests/runfiles/Makefile
@@ -310,7 +304,6 @@ AC_CONFIG_FILES([
 	rpm/generic/zfs.spec
 	rpm/generic/zfs-kmod.spec
 	rpm/generic/zfs-dkms.spec
-	zfs-script-config.sh
 	zfs.release
 ])
 
