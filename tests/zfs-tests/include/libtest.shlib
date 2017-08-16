@@ -1989,6 +1989,31 @@ function check_hotspare_state # pool disk state{inuse,avail}
 }
 
 #
+# Wait until a hotspare transitions to a given state or times out.
+#
+# Return 0 when  pool/disk matches expected state, 1 on timeout.
+#
+function wait_hotspare_state # pool disk state timeout
+{
+	typeset pool=$1
+	typeset disk=${2#$/DEV_DSKDIR/}
+	typeset state=$3
+	typeset timeout=${4:-60}
+	typeset -i i=0
+
+	while [[ $i -lt $timeout ]]; do
+		if check_hotspare_state $pool $disk $state; then
+			return 0
+		fi
+
+		i=$((i+1))
+		sleep 1
+	done
+
+	return 1
+}
+
+#
 # Verify a given slog disk is inuse or avail
 #
 # Return 0 is pool/disk matches expected state, 1 otherwise
@@ -2024,6 +2049,31 @@ function check_vdev_state # pool disk state{online,offline,unavail}
 		return 1
 	fi
 	return 0
+}
+
+#
+# Wait until a vdev transitions to a given state or times out.
+#
+# Return 0 when  pool/disk matches expected state, 1 on timeout.
+#
+function wait_vdev_state # pool disk state timeout
+{
+	typeset pool=$1
+	typeset disk=${2#$/DEV_DSKDIR/}
+	typeset state=$3
+	typeset timeout=${4:-60}
+	typeset -i i=0
+
+	while [[ $i -lt $timeout ]]; do
+		if check_vdev_state $pool $disk $state; then
+			return 0
+		fi
+
+		i=$((i+1))
+		sleep 1
+	done
+
+	return 1
 }
 
 #
@@ -3394,11 +3444,23 @@ function zed_stop
 	if [[ -f ${ZEDLET_DIR}/zed.pid ]]; then
 		zedpid=$(cat ${ZEDLET_DIR}/zed.pid)
 		kill $zedpid
-		wait $zedpid
+		while ps -p $zedpid > /dev/null; do
+			sleep 1
+		done
 		rm -f ${ZEDLET_DIR}/zed.pid
 	fi
-
 	return 0
+}
+
+#
+# Drain all zevents
+#
+function zed_events_drain
+{
+       while [ $(zpool events -H | wc -l) -ne 0 ]; do
+	       sleep 1
+	       zpool events -c >/dev/null
+       done
 }
 
 #

@@ -52,6 +52,8 @@ function usage
 	    "    -s  Size of vdev devices.\n" \
 	    "    -f  Specify working directory for ztest vdev files.\n" \
 	    "    -c  Specify a core dump directory to use.\n" \
+	    "    -m  Max number of core dumps to allow before exiting.\n" \
+	    "    -l  Create 'ztest.core.N' symlink to core directory.\n" \
 	    "    -h  Print this help message.\n" \
 	    "" >&2
 }
@@ -70,12 +72,12 @@ function or_die
 
 # core file helpers
 origcorepattern="$(cat /proc/sys/kernel/core_pattern)"
-coreglob="$(egrep -o '^([^|%[:space:]]*)' /proc/sys/kernel/core_pattern)*"
+coreglob="$(grep -E -o '^([^|%[:space:]]*)' /proc/sys/kernel/core_pattern)*"
 
 if [[ $coreglob = "*" ]]; then
         echo "Setting core file pattern..."
         echo "core" > /proc/sys/kernel/core_pattern
-        coreglob="$(egrep -o '^([^|%[:space:]]*)' \
+        coreglob="$(grep -E -o '^([^|%[:space:]]*)' \
             /proc/sys/kernel/core_pattern)*"
 fi
 
@@ -101,17 +103,28 @@ function store_core
 {
 	core="$(core_file)"
 	if [[ $ztrc -ne 0 ]] || [[ -f "$core" ]]; then
+		df -h "$workdir" >>ztest.out
 		coreid=$(date "+zloop-%y%m%d-%H%M%S")
 		foundcrashes=$((foundcrashes + 1))
+
+		# zdb debugging
+		zdbcmd="$ZDB -U "$workdir/zpool.cache" -dddMmDDG ztest"
+		zdbdebug=$($zdbcmd 2>&1)
+		echo -e "$zdbcmd\n" >>ztest.zdb
+		echo "$zdbdebug" >>ztest.zdb
 
 		dest=$coredir/$coreid
 		or_die mkdir -p "$dest"
 		or_die mkdir -p "$dest/vdev"
 
+		if [[ $symlink -ne 0 ]]; then
+			or_die ln -sf "$dest" ztest.core.$foundcrashes
+		fi
+
 		echo "*** ztest crash found - moving logs to $dest"
 
 		or_die mv ztest.history "$dest/"
-		or_die mv ztest.ddt "$dest/"
+		or_die mv ztest.zdb "$dest/"
 		or_die mv ztest.out "$dest/"
 		or_die mv "$workdir/ztest*" "$dest/vdev/"
 		or_die mv "$workdir/zpool.cache" "$dest/vdev/"
@@ -119,7 +132,7 @@ function store_core
 		# check for core
 		if [[ -f "$core" ]]; then
 			coreprog=$(core_prog "$core")
-			corestatus=$($GDB --batch --quiet \
+			coredebug=$($GDB --batch --quiet \
 			    -ex "set print thread-events off" \
 			    -ex "printf \"*\n* Backtrace \n*\n\"" \
 			    -ex "bt" \
@@ -131,34 +144,45 @@ function store_core
 			    -ex "thread apply all bt" \
 			    -ex "printf \"*\n* Backtraces (full) \n*\n\"" \
 			    -ex "thread apply all bt full" \
-			    -ex "quit" "$coreprog" "$core" | grep -v "New LWP")
+			    -ex "quit" "$coreprog" "$core" 2>&1 | \
+			    grep -v "New LWP")
 
 			# Dump core + logs to stored directory
-			echo "$corestatus" >>"$dest/status"
+			echo "$coredebug" >>"$dest/ztest.gdb"
 			or_die mv "$core" "$dest/"
 
 			# Record info in cores logfile
 			echo "*** core @ $coredir/$coreid/$core:" | \
 			    tee -a ztest.cores
-			echo "$corestatus" | tee -a ztest.cores
-			echo "" | tee -a ztest.cores
 		fi
-		echo "continuing..."
+
+		if [[ $coremax -gt 0 ]] &&
+		   [[ $foundcrashes -ge $coremax ]]; then
+			echo "exiting... max $coremax allowed cores"
+			exit 1
+		else
+			echo "continuing..."
+		fi
 	fi
 }
 
 # parse arguments
 # expected format: zloop [-t timeout] [-c coredir] [-- extra ztest args]
 coredir=$DEFAULTCOREDIR
-workdir=$DEFAULTWORKDIR
+basedir=$DEFAULTWORKDIR
+rundir="zloop-run"
 timeout=0
 size="512m"
-while getopts ":ht:s:c:f:" opt; do
+coremax=0
+symlink=0
+while getopts ":ht:m:s:c:f:l" opt; do
 	case $opt in
 		t ) [[ $OPTARG -gt 0 ]] && timeout=$OPTARG ;;
+		m ) [[ $OPTARG -gt 0 ]] && coremax=$OPTARG ;;
 		s ) [[ $OPTARG ]] && size=$OPTARG ;;
 		c ) [[ $OPTARG ]] && coredir=$OPTARG ;;
-		f ) [[ $OPTARG ]] && workdir=$(readlink -f "$OPTARG") ;;
+		f ) [[ $OPTARG ]] && basedir=$(readlink -f "$OPTARG") ;;
+		l ) symlink=1 ;;
 		h ) usage
 		    exit 2
 		    ;;
@@ -176,6 +200,7 @@ ulimit -c unlimited
 if [[ -f "$(core_file)" ]]; then
 	echo -n "There's a core dump here you might want to look at first... "
 	core_file
+	echo
 	exit 1
 fi
 
@@ -190,7 +215,7 @@ if [[ ! -w $coredir ]]; then
 fi
 
 or_die rm -f ztest.history
-or_die rm -f ztest.ddt
+or_die rm -f ztest.zdb
 or_die rm -f ztest.cores
 
 ztrc=0		# ztest return value
@@ -201,6 +226,11 @@ curtime=$starttime
 # if no timeout was specified, loop forever.
 while [[ $timeout -eq 0 ]] || [[ $curtime -le $((starttime + timeout)) ]]; do
 	zopt="-VVVVV"
+
+	# start each run with an empty directory
+	workdir="$basedir/$rundir"
+	or_die rm -rf "$workdir"
+	or_die mkdir "$workdir"
 
 	# switch between common arrangements & fully randomized
 	if [[ $((RANDOM % 2)) -eq 0 ]]; then
@@ -235,8 +265,7 @@ while [[ $timeout -eq 0 ]] || [[ $curtime -le $((starttime + timeout)) ]]; do
 	echo "$desc" >>ztest.out
 	$cmd >>ztest.out 2>&1
 	ztrc=$?
-	egrep '===|WARNING' ztest.out >>ztest.history
-	$ZDB -U "$workdir/zpool.cache" -DD ztest >>ztest.ddt
+	grep -E '===|WARNING' ztest.out >>ztest.history
 
 	store_core
 

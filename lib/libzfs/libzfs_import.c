@@ -309,7 +309,7 @@ zpool_label_disk_wait(char *path, int timeout_ms)
 		dev = udev_device_new_from_subsystem_sysname(udev,
 		    "block", sysname);
 		if ((dev != NULL) && udev_device_is_ready(dev)) {
-			struct udev_list_entry *links, *link;
+			struct udev_list_entry *links, *link = NULL;
 
 			ret = 0;
 			links = udev_device_get_devlinks_list_entry(dev);

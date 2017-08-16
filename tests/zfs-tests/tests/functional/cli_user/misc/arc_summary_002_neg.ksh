@@ -1,4 +1,4 @@
-#! /bin/ksh -p
+#!/bin/ksh -p
 #
 # CDDL HEADER START
 #
@@ -27,17 +27,12 @@
 
 . $STF_SUITE/include/libtest.shlib
 
-set -A args  "" "-a" "-d" "-p 1"
+typeset args=("-x" "-r" "-5" "-p 7" "--err" "-@")
 
-log_assert "arc_summary.py generates output and doesn't return an error code"
+log_assert "arc_summary.py generates an error code with invalid options"
 
-typeset -i i=0
-while [[ $i -lt ${#args[*]} ]]; do
-        log_must eval "arc_summary.py ${args[i]} > /dev/null"
-        ((i = i + 1))
+for arg in "${args[@]}"; do
+        log_mustnot eval "arc_summary.py $arg > /dev/null"
 done
 
-log_must eval "arc_summary.py | head > /dev/null"
-log_must eval "arc_summary.py | head -1 > /dev/null"
-
-log_pass "arc_summary.py generates output and doesn't return an error code"
+log_pass "arc_summary.py generates an error code with invalid options"

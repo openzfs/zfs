@@ -32,38 +32,56 @@
 # If you are having troubles when using this script from cron(8) please try
 # adjusting your PATH before reporting problems.
 #
-# /usr/bin & /sbin
-#
-# Binaries used are:
-#
-# dc(1), kldstat(8), sed(1), sysctl(8) & vmstat(8)
-#
-# Binaries that I am working on phasing out are:
-#
-# dc(1) & sed(1)
+# Note some of this code uses older code (eg getopt instead of argparse,
+# subprocess.Popen() instead of subprocess.run()) because we need to support
+# some very old versions of Python.
+"""Print statistics on the ZFS Adjustable Replacement Cache (ARC)
 
+Provides basic information on the ARC, its efficiency, the L2ARC (if present),
+the Data Management Unit (DMU), Virtual Devices (VDEVs), and tunables. See the
+in-source documentation and code at
+https://github.com/zfsonlinux/zfs/blob/master/module/zfs/arc.c for details.
+"""
+
+import getopt
+import os
 import sys
 import time
-import getopt
-import re
-from os import listdir
+import errno
+
 from subprocess import Popen, PIPE
 from decimal import Decimal as D
 
-
-usetunable = True
 show_tunable_descriptions = False
 alternate_tunable_layout = False
-kstat_pobj = re.compile("^([^:]+):\s+(.+)\s*$", flags=re.M)
+
+
+def handle_Exception(ex_cls, ex, tb):
+    if ex is IOError:
+        if ex.errno == errno.EPIPE:
+            sys.exit()
+
+    if ex is KeyboardInterrupt:
+        sys.exit()
+
+
+sys.excepthook = handle_Exception
 
 
 def get_Kstat():
+    """Collect information on the ZFS subsystem from the /proc virtual
+    file system. The name "kstat" is a holdover from the Solaris utility
+    of the same name.
+    """
+
     def load_proc_kstats(fn, namespace):
+        """Collect information on a specific subsystem of the ARC"""
+
         kstats = [line.strip() for line in open(fn)]
         del kstats[0:2]
         for kstat in kstats:
             kstat = kstat.strip()
-            name, unused, value = kstat.split()
+            name, _, value = kstat.split()
             Kstat[namespace + name] = D(value)
 
     Kstat = {}
@@ -77,82 +95,79 @@ def get_Kstat():
     return Kstat
 
 
-def div1():
-    sys.stdout.write("\n")
-    for i in range(18):
-        sys.stdout.write("%s" % "----")
-    sys.stdout.write("\n")
+def fBytes(b=0):
+    """Return human-readable representation of a byte value in
+    powers of 2 (eg "KiB" for "kibibytes", etc) to two decimal
+    points. Values smaller than one KiB are returned without
+    decimal points.
+    """
 
+    prefixes = [
+        [2**80, "YiB"],   # yobibytes (yotta)
+        [2**70, "ZiB"],   # zebibytes (zetta)
+        [2**60, "EiB"],   # exbibytes (exa)
+        [2**50, "PiB"],   # pebibytes (peta)
+        [2**40, "TiB"],   # tebibytes (tera)
+        [2**30, "GiB"],   # gibibytes (giga)
+        [2**20, "MiB"],   # mebibytes (mega)
+        [2**10, "KiB"]]   # kibibytes (kilo)
 
-def div2():
-    sys.stdout.write("\n")
+    if b >= 2**10:
 
+        for limit, unit in prefixes:
 
-def fBytes(Bytes=0, Decimal=2):
-    kbytes = (2 ** 10)
-    mbytes = (2 ** 20)
-    gbytes = (2 ** 30)
-    tbytes = (2 ** 40)
-    pbytes = (2 ** 50)
-    ebytes = (2 ** 60)
-    zbytes = (2 ** 70)
-    ybytes = (2 ** 80)
+            if b >= limit:
+                value = b / limit
+                break
 
-    if Bytes >= ybytes:
-        return str("%0." + str(Decimal) + "f") % (Bytes / ybytes) + "\tYiB"
-    elif Bytes >= zbytes:
-        return str("%0." + str(Decimal) + "f") % (Bytes / zbytes) + "\tZiB"
-    elif Bytes >= ebytes:
-        return str("%0." + str(Decimal) + "f") % (Bytes / ebytes) + "\tEiB"
-    elif Bytes >= pbytes:
-        return str("%0." + str(Decimal) + "f") % (Bytes / pbytes) + "\tPiB"
-    elif Bytes >= tbytes:
-        return str("%0." + str(Decimal) + "f") % (Bytes / tbytes) + "\tTiB"
-    elif Bytes >= gbytes:
-        return str("%0." + str(Decimal) + "f") % (Bytes / gbytes) + "\tGiB"
-    elif Bytes >= mbytes:
-        return str("%0." + str(Decimal) + "f") % (Bytes / mbytes) + "\tMiB"
-    elif Bytes >= kbytes:
-        return str("%0." + str(Decimal) + "f") % (Bytes / kbytes) + "\tKiB"
-    elif Bytes == 0:
-        return str("%d" % 0) + "\tBytes"
+        result = "%0.2f\t%s" % (value, unit)
+
     else:
-        return str("%d" % Bytes) + "\tBytes"
+
+        result = "%d\tBytes" % b
+
+    return result
 
 
-def fHits(Hits=0, Decimal=2):
-    khits = (10 ** 3)
-    mhits = (10 ** 6)
-    bhits = (10 ** 9)
-    thits = (10 ** 12)
-    qhits = (10 ** 15)
-    Qhits = (10 ** 18)
-    shits = (10 ** 21)
-    Shits = (10 ** 24)
+def fHits(hits=0):
+    """Create a human-readable representation of the number of hits.
+    The single-letter symbols used are SI to avoid the confusion caused
+    by the different "short scale" and "long scale" representations in
+    English, which use the same words for different values. See
+    https://en.wikipedia.org/wiki/Names_of_large_numbers and
+    https://physics.nist.gov/cuu/Units/prefixes.html
+    """
 
-    if Hits >= Shits:
-        return str("%0." + str(Decimal) + "f") % (Hits / Shits) + "S"
-    elif Hits >= shits:
-        return str("%0." + str(Decimal) + "f") % (Hits / shits) + "s"
-    elif Hits >= Qhits:
-        return str("%0." + str(Decimal) + "f") % (Hits / Qhits) + "Q"
-    elif Hits >= qhits:
-        return str("%0." + str(Decimal) + "f") % (Hits / qhits) + "q"
-    elif Hits >= thits:
-        return str("%0." + str(Decimal) + "f") % (Hits / thits) + "t"
-    elif Hits >= bhits:
-        return str("%0." + str(Decimal) + "f") % (Hits / bhits) + "b"
-    elif Hits >= mhits:
-        return str("%0." + str(Decimal) + "f") % (Hits / mhits) + "m"
-    elif Hits >= khits:
-        return str("%0." + str(Decimal) + "f") % (Hits / khits) + "k"
-    elif Hits == 0:
-        return str("%d" % 0)
+    numbers = [
+            [10**24, 'Y'],  # yotta (septillion)
+            [10**21, 'Z'],  # zetta (sextillion)
+            [10**18, 'E'],  # exa   (quintrillion)
+            [10**15, 'P'],  # peta  (quadrillion)
+            [10**12, 'T'],  # tera  (trillion)
+            [10**9, 'G'],   # giga  (billion)
+            [10**6, 'M'],   # mega  (million)
+            [10**3, 'k']]   # kilo  (thousand)
+
+    if hits >= 1000:
+
+        for limit, symbol in numbers:
+
+            if hits >= limit:
+                value = hits/limit
+                break
+
+        result = "%0.2f%s" % (value, symbol)
+
     else:
-        return str("%d" % Hits)
+
+        result = "%d" % hits
+
+    return result
 
 
 def fPerc(lVal=0, rVal=0, Decimal=2):
+    """Calculate percentage value and return in human-readable format"""
+
     if rVal > 0:
         return str("%0." + str(Decimal) + "f") % (100 * (lVal / rVal)) + "%"
     else:
@@ -160,6 +175,7 @@ def fPerc(lVal=0, rVal=0, Decimal=2):
 
 
 def get_arc_summary(Kstat):
+    """Collect general data on the ARC"""
 
     output = {}
     memory_throttle_count = Kstat[
@@ -176,12 +192,13 @@ def get_arc_summary(Kstat):
     # ARC Misc.
     deleted = Kstat["kstat.zfs.misc.arcstats.deleted"]
     mutex_miss = Kstat["kstat.zfs.misc.arcstats.mutex_miss"]
+    evict_skip = Kstat["kstat.zfs.misc.arcstats.evict_skip"]
 
     # ARC Misc.
     output["arc_misc"] = {}
     output["arc_misc"]["deleted"] = fHits(deleted)
     output["arc_misc"]['mutex_miss'] = fHits(mutex_miss)
-    output["arc_misc"]['evict_skips'] = fHits(mutex_miss)
+    output["arc_misc"]['evict_skips'] = fHits(evict_skip)
 
     # ARC Sizing
     arc_size = Kstat["kstat.zfs.misc.arcstats.size"]
@@ -261,6 +278,8 @@ def get_arc_summary(Kstat):
 
 
 def _arc_summary(Kstat):
+    """Print information on the ARC"""
+
     # ARC Sizing
     arc = get_arc_summary(Kstat)
 
@@ -276,7 +295,7 @@ def _arc_summary(Kstat):
     sys.stdout.write("\tMutex Misses:\t\t\t\t%s\n" %
                      arc['arc_misc']['mutex_miss'])
     sys.stdout.write("\tEvict Skips:\t\t\t\t%s\n" %
-                     arc['arc_misc']['mutex_miss'])
+                     arc['arc_misc']['evict_skips'])
     sys.stdout.write("\n")
 
     # ARC Sizing
@@ -335,6 +354,8 @@ def _arc_summary(Kstat):
 
 
 def get_arc_efficiency(Kstat):
+    """Collect information on the efficiency of the ARC"""
+
     output = {}
 
     arc_hits = Kstat["kstat.zfs.misc.arcstats.hits"]
@@ -458,6 +479,8 @@ def get_arc_efficiency(Kstat):
 
 
 def _arc_efficiency(Kstat):
+    """Print information on the efficiency of the ARC"""
+
     arc = get_arc_efficiency(Kstat)
 
     sys.stdout.write("ARC Total accesses:\t\t\t\t\t%s\n" %
@@ -568,6 +591,8 @@ def _arc_efficiency(Kstat):
 
 
 def get_l2arc_summary(Kstat):
+    """Collection information on the L2ARC"""
+
     output = {}
 
     l2_abort_lowmem = Kstat["kstat.zfs.misc.arcstats.l2_abort_lowmem"]
@@ -662,6 +687,7 @@ def get_l2arc_summary(Kstat):
 
 
 def _l2arc_summary(Kstat):
+    """Print information on the L2ARC"""
 
     arc = get_l2arc_summary(Kstat)
 
@@ -746,6 +772,8 @@ def _l2arc_summary(Kstat):
 
 
 def get_dmu_summary(Kstat):
+    """Collect information on the DMU"""
+
     output = {}
 
     zfetch_hits = Kstat["kstat.zfs.misc.zfetchstats.hits"]
@@ -771,6 +799,7 @@ def get_dmu_summary(Kstat):
 
 
 def _dmu_summary(Kstat):
+    """Print information on the DMU"""
 
     arc = get_dmu_summary(Kstat)
 
@@ -792,6 +821,8 @@ def _dmu_summary(Kstat):
 
 
 def get_vdev_summary(Kstat):
+    """Collect information on the VDEVs"""
+
     output = {}
 
     vdev_cache_delegations = \
@@ -822,6 +853,8 @@ def get_vdev_summary(Kstat):
 
 
 def _vdev_summary(Kstat):
+    """Print information on the VDEVs"""
+
     arc = get_vdev_summary(Kstat)
 
     if arc['vdev_cache_total'] > 0:
@@ -841,10 +874,12 @@ def _vdev_summary(Kstat):
 
 
 def _tunable_summary(Kstat):
+    """Print information on tunables, including descriptions if requested"""
+
     global show_tunable_descriptions
     global alternate_tunable_layout
 
-    names = listdir("/sys/module/zfs/parameters/")
+    names = os.listdir("/sys/module/zfs/parameters/")
 
     values = {}
     for name in names:
@@ -855,13 +890,21 @@ def _tunable_summary(Kstat):
     descriptions = {}
 
     if show_tunable_descriptions:
+
+        command = ["/sbin/modinfo", "zfs", "-0"]
+
         try:
-            command = ["/sbin/modinfo", "zfs", "-0"]
             p = Popen(command, stdin=PIPE, stdout=PIPE,
                       stderr=PIPE, shell=False, close_fds=True)
             p.wait()
 
-            description_list = p.communicate()[0].strip().split('\0')
+            # By default, Python 2 returns a string as the first element of the
+            # tuple from p.communicate(), while Python 3 returns bytes which
+            # must be decoded first. The better way to do this would be with
+            # subprocess.run() or at least .check_output(), but this fails on
+            # CentOS 6 because of its old version of Python 2
+            desc = bytes.decode(p.communicate()[0])
+            description_list = desc.strip().split('\0')
 
             if p.returncode == 0:
                 for tunable in description_list:
@@ -880,19 +923,23 @@ def _tunable_summary(Kstat):
                              (sys.argv[0], command[0], e.strerror))
             sys.stderr.write("Tunable descriptions will be disabled.\n")
 
-    sys.stdout.write("ZFS Tunable:\n")
+    sys.stdout.write("ZFS Tunables:\n")
+    names.sort()
+
+    if alternate_tunable_layout:
+        fmt = "\t%s=%s\n"
+    else:
+        fmt = "\t%-50s%s\n"
+
     for name in names:
+
         if not name:
             continue
-
-        format = "\t%-50s%s\n"
-        if alternate_tunable_layout:
-            format = "\t%s=%s\n"
 
         if show_tunable_descriptions and name in descriptions:
             sys.stdout.write("\t# %s\n" % descriptions[name])
 
-        sys.stdout.write(format % (name, values[name]))
+        sys.stdout.write(fmt % (name, values[name]))
 
 
 unSub = [
@@ -906,14 +953,18 @@ unSub = [
 
 
 def zfs_header():
-    daydate = time.strftime("%a %b %d %H:%M:%S %Y")
+    """Print title string with date"""
 
-    div1()
-    sys.stdout.write("ZFS Subsystem Report\t\t\t\t%s" % daydate)
-    div2()
+    daydate = time.strftime('%a %b %d %H:%M:%S %Y')
+
+    sys.stdout.write('\n'+'-'*72+'\n')
+    sys.stdout.write('ZFS Subsystem Report\t\t\t\t%s' % daydate)
+    sys.stdout.write('\n')
 
 
 def usage():
+    """Print usage information"""
+
     sys.stdout.write("Usage: arc_summary.py [-h] [-a] [-d] [-p PAGE]\n\n")
     sys.stdout.write("\t -h, --help           : "
                      "Print this help message and exit\n")
@@ -934,12 +985,20 @@ def usage():
 
 
 def main():
+    """Main function"""
+
     global show_tunable_descriptions
     global alternate_tunable_layout
 
-    opts, args = getopt.getopt(
-        sys.argv[1:], "adp:h", ["alternate", "description", "page=", "help"]
-    )
+    try:
+        opts, args = getopt.getopt(
+            sys.argv[1:],
+            "adp:h", ["alternate", "description", "page=", "help"]
+        )
+    except getopt.error as e:
+        sys.stderr.write("Error: %s\n" % e.msg)
+        usage()
+        sys.exit(1)
 
     args = {}
     for opt, arg in opts:
@@ -951,7 +1010,7 @@ def main():
             args['p'] = arg
         if opt in ('-h', '--help'):
             usage()
-            sys.exit()
+            sys.exit(0)
 
     Kstat = get_Kstat()
 
@@ -966,14 +1025,14 @@ def main():
         except IndexError:
             sys.stderr.write('the argument to -p must be between 1 and ' +
                              str(len(unSub)) + '\n')
-            sys.exit()
+            sys.exit(1)
     else:
         pages = unSub
 
     zfs_header()
     for page in pages:
         page(Kstat)
-        div2()
+        sys.stdout.write("\n")
 
 
 if __name__ == '__main__':

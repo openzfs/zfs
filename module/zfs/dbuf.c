@@ -2719,8 +2719,10 @@ __dbuf_hold_impl(struct dbuf_hold_impl_data *dh)
 		return (SET_ERROR(ENOENT));
 	}
 
-	if (dh->dh_db->db_buf != NULL)
+	if (dh->dh_db->db_buf != NULL) {
+		arc_buf_access(dh->dh_db->db_buf);
 		ASSERT3P(dh->dh_db->db.db_data, ==, dh->dh_db->db_buf->b_data);
+	}
 
 	ASSERT(dh->dh_db->db_buf == NULL || arc_referenced(dh->dh_db->db_buf));
 

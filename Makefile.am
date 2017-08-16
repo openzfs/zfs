@@ -65,10 +65,10 @@ lint: cppcheck paxcheck
 
 cppcheck:
 	@if type cppcheck > /dev/null 2>&1; then \
-		cppcheck --quiet --force --error-exitcode=2 \
+		cppcheck --quiet --force --error-exitcode=2 --inline-suppr \
 			--suppressions-list=.github/suppressions.txt \
-			-UHAVE_SSE2 -UHAVE_AVX512F \
-			${top_srcdir}; \
+			-UHAVE_SSE2 -UHAVE_AVX512F -UHAVE_UIO_ZEROCOPY \
+			-UHAVE_DNLC ${top_srcdir}; \
 	fi
 
 paxcheck:
