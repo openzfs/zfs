@@ -22,7 +22,7 @@ $(init_SCRIPTS) $(initconf_SCRIPTS) $(initcommon_SCRIPTS):%:%.in
 		NFS_SRV=nfs; \
 	  fi; \
 	  if [ -e /sbin/openrc-run ]; then \
-		SHELL=/sbin/runscript; \
+		SHELL=/sbin/openrc-run; \
 	  else \
 		SHELL=/bin/sh; \
 	  fi; \
