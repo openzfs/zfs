@@ -161,6 +161,7 @@ static inline int spa_load_impl(spa_t *spa, uint64_t, nvlist_t *config,
     char **ereport);
 static void spa_vdev_resilver_done(spa_t *spa);
 
+extern int zfs_hash_mb_disable;
 uint_t		zio_taskq_batch_pct = 75;	/* 1 thread per cpu in pset */
 id_t		zio_taskq_psrset_bind = PS_NONE;
 boolean_t	zio_taskq_sysdc = B_TRUE;	/* use SDC scheduling class */
@@ -899,6 +900,13 @@ spa_taskqs_init(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 	case ZTI_MODE_BATCH:
 		batch = B_TRUE;
 		flags |= TASKQ_THREADS_CPU_PCT;
+
+#if defined(__x86_64) && defined(_KERNEL) && defined(HAVE_HASH_MB)
+		/* Eightfold threads cpu percentage */
+		if (!zfs_hash_mb_disable)
+			value = zio_taskq_batch_pct * 8;
+		else
+#endif
 		value = MIN(zio_taskq_batch_pct, 100);
 		break;
 
