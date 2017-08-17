@@ -22,6 +22,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2017 by Delphix. All rights reserved.
  * Copyright (c) 2014 Integros [integros.com]
+ * Copyright (c) 2017 ProphetStor Data Services, Inc. All rights reserved.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -110,11 +111,37 @@ int zfs_nocacheflush = 0;
 unsigned long zil_slog_bulk = 768 * 1024;
 
 static kmem_cache_t *zil_lwb_cache;
+static kmem_cache_t *zil_writer_cache;
 
 static void zil_async_to_sync(zilog_t *zilog, uint64_t foid);
 
 #define	LWB_EMPTY(lwb) ((BP_GET_LSIZE(&lwb->lwb_blk) - \
     sizeof (zil_chain_t)) == (lwb->lwb_sz - lwb->lwb_nused))
+
+zil_writer_t *
+zilw_alloc_held(zilog_t *zilog)
+{
+	zil_writer_t *zilw;
+
+	zilw = kmem_cache_alloc(zil_writer_cache, KM_SLEEP);
+	zilw->zilw_zilog = zilog;
+
+	return (zilw);
+}
+
+void
+zilw_hold(zil_writer_t *zilw)
+{
+	atomic_add_64(&zilw->zilw_refcount, 1);
+}
+
+void
+zilw_unhold(zil_writer_t *zilw)
+{
+	if (atomic_add_64_nv(&zilw->zilw_refcount, -1) == 0) {
+		kmem_cache_free(zil_writer_cache, zilw);
+	}
+}
 
 static int
 zil_bp_compare(const void *x1, const void *x2)
@@ -563,8 +590,9 @@ zilog_is_dirty(zilog_t *zilog)
  * Create an on-disk intent log.
  */
 static lwb_t *
-zil_create(zilog_t *zilog)
+zil_create(zil_writer_t *zilw)
 {
+	zilog_t *zilog = zilw->zilw_zilog;
 	const zil_header_t *zh = zilog->zl_header;
 	lwb_t *lwb = NULL;
 	uint64_t txg = 0;
@@ -634,13 +662,16 @@ zil_create(zilog_t *zilog)
  * If keep_first is set, then we're replaying a log with no content.
  * We want to keep the first block, however, so that the first
  * synchronous transaction doesn't require a txg_wait_synced()
- * in zil_create().  We don't need to txg_wait_synced() here either
- * when keep_first is set, because both zil_create() and zil_destroy()
- * will wait for any in-progress destroys to complete.
+ * in zil_create().  We don't need to txg_wait_synced() here either when
+ * keep_first is set, because both zil_create() and zil_destroy() will wait for
+ * any in-progress destroys to complete. We do need to ensure that the ZIL
+ * pipeline has been drained. Otherwise, we run the risk of freeing a lwb_t
+ * that it is about to use.
  */
 void
 zil_destroy(zilog_t *zilog, boolean_t keep_first)
 {
+	zil_writer_t *zilw, *prev, *prev2;
 	const zil_header_t *zh = zilog->zl_header;
 	lwb_t *lwb;
 	dmu_tx_t *tx;
@@ -661,12 +692,33 @@ zil_destroy(zilog_t *zilog, boolean_t keep_first)
 	dsl_dataset_dirty(dmu_objset_ds(zilog->zl_os), tx);
 	txg = dmu_tx_get_txg(tx);
 
-	mutex_enter(&zilog->zl_lock);
+	mutex_enter(&zilog->zl_destroy_lock);
 
 	ASSERT3U(zilog->zl_destroy_txg, <, txg);
 	zilog->zl_destroy_txg = txg;
 	zilog->zl_keep_first = keep_first;
 
+	/*
+	 * We need to enter the ZIL pipeline as a fake ZIL commit to
+	 * avoid a situation where we free a lwb as the pipeline is
+	 * about to use it.
+	 */
+	zilw = kmem_cache_alloc(zil_writer_cache, KM_SLEEP);
+	zilw->zilw_zilog = zilog;
+	mutex_enter(&zilog->zl_writer_lock);
+	zilw->zilw_batch = zilog->zl_next_batch++;
+	prev = list_tail(&zilog->zl_writer_list);
+	list_insert_tail(&zilog->zl_writer_list, zilw);
+
+	if (prev != NULL) {
+		atomic_add_64(&prev->zilw_refcount, 1);
+		while ((prev2 = list_prev(&zilog->zl_writer_list, zilw)) !=
+		    NULL) {
+			cv_wait(&prev2->zilw_cv_waiter, &zilog->zl_writer_lock);
+		}
+	}
+
+	mutex_enter(&zilog->zl_lock);
 	if (!list_is_empty(&zilog->zl_lwb_list)) {
 		ASSERT(zh->zh_claim_txg == 0);
 		VERIFY(!keep_first);
@@ -681,10 +733,34 @@ zil_destroy(zilog_t *zilog, boolean_t keep_first)
 			zio_free_zil(zilog->zl_spa, txg, &lwb->lwb_blk);
 			kmem_cache_free(zil_lwb_cache, lwb);
 		}
+
 	} else if (!keep_first) {
 		zil_destroy_sync(zilog, tx);
 	}
 	mutex_exit(&zilog->zl_lock);
+	/*
+	 * This is somewhat backward, but we to block ZIL commit
+	 * threads from entering like having ->zl_lock used to do.
+	 */
+	if (zilw->zilw_stage == 1) {
+		zilw->zilw_stage = 2;
+		cv_signal(&zilw->zilw_cv_waiter);
+	} else {
+		zilw->zilw_stage = 2;
+	}
+	list_remove(&zilog->zl_writer_list, zilw);
+	cv_broadcast(&zilw->zilw_cv_noop);
+	mutex_exit(&zilog->zl_writer_lock);
+	mutex_exit(&zilog->zl_destroy_lock);
+
+	if (prev != NULL &&
+	    atomic_add_64_nv(&prev->zilw_refcount, -1) == 0) {
+		kmem_cache_free(zil_writer_cache, prev);
+	}
+
+	if (atomic_add_64_nv(&zilw->zilw_refcount, -1) == 0) {
+		kmem_cache_free(zil_writer_cache, zilw);
+	}
 
 	dmu_tx_commit(tx);
 }
@@ -831,9 +907,9 @@ zil_vdev_compare(const void *x1, const void *x2)
 }
 
 void
-zil_add_block(zilog_t *zilog, const blkptr_t *bp)
+zil_add_block(zil_writer_t *zilw, const blkptr_t *bp)
 {
-	avl_tree_t *t = &zilog->zl_vdev_tree;
+	avl_tree_t *t = &zilw->zilw_vdev_tree;
 	avl_index_t where;
 	zil_vdev_node_t *zv, zvsearch;
 	int ndvas = BP_GET_NDVAS(bp);
@@ -842,14 +918,12 @@ zil_add_block(zilog_t *zilog, const blkptr_t *bp)
 	if (zfs_nocacheflush)
 		return;
 
-	ASSERT(zilog->zl_writer);
-
 	/*
 	 * Even though we're zl_writer, we still need a lock because the
 	 * zl_get_data() callbacks may have dmu_sync() done callbacks
 	 * that will run concurrently.
 	 */
-	mutex_enter(&zilog->zl_vdev_lock);
+	mutex_enter(&zilw->zilw_vdev_lock);
 	for (i = 0; i < ndvas; i++) {
 		zvsearch.zv_vdev = DVA_GET_VDEV(&bp->blk_dva[i]);
 		if (avl_find(t, &zvsearch, &where) == NULL) {
@@ -858,19 +932,18 @@ zil_add_block(zilog_t *zilog, const blkptr_t *bp)
 			avl_insert(t, zv, where);
 		}
 	}
-	mutex_exit(&zilog->zl_vdev_lock);
+	mutex_exit(&zilw->zilw_vdev_lock);
 }
 
 static void
-zil_flush_vdevs(zilog_t *zilog)
+zil_flush_vdevs(zil_writer_t *zilw)
 {
+	zilog_t *zilog = zilw->zilw_zilog;
 	spa_t *spa = zilog->zl_spa;
-	avl_tree_t *t = &zilog->zl_vdev_tree;
+	avl_tree_t *t = &zilw->zilw_vdev_tree;
 	void *cookie = NULL;
 	zil_vdev_node_t *zv;
 	zio_t *zio;
-
-	ASSERT(zilog->zl_writer);
 
 	/*
 	 * We don't need zl_vdev_lock here because we're the zl_writer,
@@ -916,6 +989,7 @@ zil_lwb_write_done(zio_t *zio)
 	ASSERT(!BP_IS_GANG(zio->io_bp));
 	ASSERT(!BP_IS_HOLE(zio->io_bp));
 	ASSERT(BP_GET_FILL(zio->io_bp) == 0);
+	ASSERT(lwb->lwb_zio == zio);
 
 	/*
 	 * Ensure the lwb buffer pointer is cleared before releasing
@@ -946,8 +1020,9 @@ zil_lwb_write_done(zio_t *zio)
  * Initialize the io for a log block.
  */
 static void
-zil_lwb_write_init(zilog_t *zilog, lwb_t *lwb)
+zil_lwb_write_init(zil_writer_t *zilw, lwb_t *lwb)
 {
+	zilog_t *zilog = zilw->zilw_zilog;
 	zbookmark_phys_t zb;
 	zio_priority_t prio;
 
@@ -955,8 +1030,8 @@ zil_lwb_write_init(zilog_t *zilog, lwb_t *lwb)
 	    ZB_ZIL_OBJECT, ZB_ZIL_LEVEL,
 	    lwb->lwb_blk.blk_cksum.zc_word[ZIL_ZC_SEQ]);
 
-	if (zilog->zl_root_zio == NULL) {
-		zilog->zl_root_zio = zio_root(zilog->zl_spa, NULL, NULL,
+	if (zilw->zilw_root_zio == NULL) {
+		zilw->zilw_root_zio = zio_root(zilog->zl_spa, NULL, NULL,
 		    ZIO_FLAG_CANFAIL);
 	}
 
@@ -973,7 +1048,7 @@ zil_lwb_write_init(zilog_t *zilog, lwb_t *lwb)
 			prio = ZIO_PRIORITY_SYNC_WRITE;
 		else
 			prio = ZIO_PRIORITY_ASYNC_WRITE;
-		lwb->lwb_zio = zio_rewrite(zilog->zl_root_zio, zilog->zl_spa,
+		lwb->lwb_zio = zio_rewrite(zilw->zilw_root_zio, zilog->zl_spa,
 		    0, &lwb->lwb_blk, lwb_abd, BP_GET_LSIZE(&lwb->lwb_blk),
 		    zil_lwb_write_done, lwb, prio,
 		    ZIO_FLAG_CANFAIL | ZIO_FLAG_DONT_PROPAGATE |
@@ -995,14 +1070,14 @@ uint64_t zil_block_buckets[] = {
     32*1024 + 4096, 	/* NFS writes */
     UINT64_MAX
 };
-
 /*
  * Start a log block write and advance to the next log block.
  * Calls are serialized.
  */
 static lwb_t *
-zil_lwb_write_start(zilog_t *zilog, lwb_t *lwb)
+zil_lwb_write_start(zil_writer_t *zilw, lwb_t *lwb)
 {
+	zilog_t *zilog = zilw->zilw_zilog;
 	lwb_t *nlwb = NULL;
 	zil_chain_t *zilc;
 	spa_t *spa = zilog->zl_spa;
@@ -1103,7 +1178,7 @@ zil_lwb_write_start(zilog_t *zilog, lwb_t *lwb)
 		nlwb = zil_alloc_lwb(zilog, bp, slog, txg, TRUE);
 
 		/* Record the block for later vdev flushing */
-		zil_add_block(zilog, &lwb->lwb_blk);
+		zil_add_block(zilw, &lwb->lwb_blk);
 	}
 
 	if (BP_GET_CHECKSUM(&lwb->lwb_blk) == ZIO_CHECKSUM_ZILOG2) {
@@ -1135,8 +1210,9 @@ zil_lwb_write_start(zilog_t *zilog, lwb_t *lwb)
 }
 
 static lwb_t *
-zil_lwb_commit(zilog_t *zilog, itx_t *itx, lwb_t *lwb)
+zil_lwb_commit(zil_writer_t *zilw, itx_t *itx, lwb_t *lwb)
 {
+	zilog_t *zilog = zilw->zilw_zilog;
 	lr_t *lrcb, *lrc;
 	lr_write_t *lrwb, *lrw;
 	char *lr_buf;
@@ -1159,7 +1235,7 @@ zil_lwb_commit(zilog_t *zilog, itx_t *itx, lwb_t *lwb)
 	zilog->zl_cur_used += (reclen + dlen);
 	txg = lrc->lrc_txg;
 
-	zil_lwb_write_init(zilog, lwb);
+	zil_lwb_write_init(zilw, lwb);
 
 cont:
 	/*
@@ -1170,10 +1246,10 @@ cont:
 	if (reclen > lwb_sp || (reclen + dlen > lwb_sp &&
 	    lwb_sp < ZIL_MAX_WASTE_SPACE && (dlen % ZIL_MAX_LOG_DATA == 0 ||
 	    lwb_sp < reclen + dlen % ZIL_MAX_LOG_DATA))) {
-		lwb = zil_lwb_write_start(zilog, lwb);
+		lwb = zil_lwb_write_start(zilw, lwb);
 		if (lwb == NULL)
 			return (NULL);
-		zil_lwb_write_init(zilog, lwb);
+		zil_lwb_write_init(zilw, lwb);
 		ASSERT(LWB_EMPTY(lwb));
 		lwb_sp = lwb->lwb_sz - lwb->lwb_nused;
 		ASSERT3U(reclen + MIN(dlen, sizeof (uint64_t)), <=, lwb_sp);
@@ -1218,7 +1294,7 @@ cont:
 				    lrw->lr_length);
 			}
 			error = zilog->zl_get_data(
-			    itx->itx_private, lrwb, dbuf, lwb->lwb_zio);
+			    itx->itx_private, zilw, lrwb, dbuf, lwb->lwb_zio);
 			if (error == EIO) {
 				txg_wait_synced(zilog->zl_dmu_pool, txg);
 				return (lwb);
@@ -1494,10 +1570,11 @@ zil_clean(zilog_t *zilog, uint64_t synced_txg)
  * Get the list of itxs to commit into zl_itx_commit_list.
  */
 static void
-zil_get_commit_list(zilog_t *zilog)
+zil_get_commit_list(zil_writer_t *zilw)
 {
+	zilog_t *zilog = zilw->zilw_zilog;
 	uint64_t otxg, txg;
-	list_t *commit_list = &zilog->zl_itx_commit_list;
+	list_t *commit_list = &zilw->zilw_itx_commit_list;
 
 	if (spa_freeze_txg(zilog->zl_spa) != UINT64_MAX) /* ziltest support */
 		otxg = ZILTEST_TXG;
@@ -1593,38 +1670,83 @@ zil_async_to_sync(zilog_t *zilog, uint64_t foid)
 static void
 zil_commit_writer(zilog_t *zilog)
 {
+	zil_writer_t *zilw;
 	uint64_t txg;
 	itx_t *itx;
 	lwb_t *lwb;
 	spa_t *spa = zilog->zl_spa;
 	int error = 0;
+	zil_writer_t *prev, *prev2;
 
-	ASSERT(zilog->zl_root_zio == NULL);
+	zilw = zilw_alloc_held(zilog);
 
-	mutex_exit(&zilog->zl_lock);
+	mutex_enter(&zilog->zl_writer_lock);
+	zilw->zilw_batch = zilog->zl_next_batch++;
 
-	zil_get_commit_list(zilog);
+	zil_get_commit_list(zilw);
+
+	prev = list_tail(&zilog->zl_writer_list);
+	if (prev != NULL)
+		zilw_hold(prev);
 
 	/*
-	 * Return if there's nothing to commit before we dirty the fs by
-	 * calling zil_create().
+	 * If we have no itx commits, it might be that the previous thread
+	 * grabbed them. Short-circuit to wait on the previous thread leaving
+	 * the pipeline. Otherwise, we can exit early. We do not add ourselves
+	 * to the list to simplify the logistics of supporting no-ops in the
+	 * pipeline.
 	 */
-	if (list_head(&zilog->zl_itx_commit_list) == NULL) {
-		mutex_enter(&zilog->zl_lock);
+	if (list_head(&zilw->zilw_itx_commit_list) == NULL) {
+		if (prev != NULL) {
+			while (prev->zilw_stage != 3) {
+				cv_wait(&prev->zilw_cv_noop,
+				    &zilog->zl_writer_lock);
+			}
+			mutex_exit(&zilog->zl_writer_lock);
+			if (atomic_add_64_nv(&prev->zilw_refcount, -1) == 0) {
+				kmem_cache_free(zil_writer_cache, prev);
+			}
+
+		} else {
+			mutex_exit(&zilog->zl_writer_lock);
+		}
+		kmem_cache_free(zil_writer_cache, zilw);
 		return;
 	}
 
 	if (zilog->zl_suspend) {
 		lwb = NULL;
 	} else {
+		list_insert_tail(&zilog->zl_writer_list, zilw);
+		if (prev != NULL) {
+
+			/*
+			 * If the previous thread in the pipeline has not yet
+			 * determined a location for the next lwb, we must
+			 * block until signalled that we have a location. Then
+			 * we are free to continue. Otherwise, we have no idea
+			 * where we should start writing.
+			 */
+			while (prev->zilw_stage < 2) {
+				prev->zilw_stage = 1;
+				cv_wait(&prev->zilw_cv_waiter,
+				    &zilog->zl_writer_lock);
+			}
+		}
+
+		mutex_enter(&zilog->zl_lock);
 		lwb = list_tail(&zilog->zl_lwb_list);
+		mutex_exit(&zilog->zl_lock);
+
 		if (lwb == NULL)
-			lwb = zil_create(zilog);
+			lwb = zil_create(zilw);
 	}
 
+	mutex_exit(&zilog->zl_writer_lock);
+
 	DTRACE_PROBE1(zil__cw1, zilog_t *, zilog);
-	for (itx = list_head(&zilog->zl_itx_commit_list); itx != NULL;
-	    itx = list_next(&zilog->zl_itx_commit_list, itx)) {
+	for (itx = list_head(&zilw->zilw_itx_commit_list); itx != NULL;
+	    itx = list_next(&zilw->zilw_itx_commit_list, itx)) {
 		txg = itx->itx_lr.lrc_txg;
 		ASSERT3U(txg, !=, 0);
 
@@ -1635,39 +1757,85 @@ zil_commit_writer(zilog_t *zilog)
 		 * time we call zil_sync().
 		 */
 		if (txg > spa_last_synced_txg(spa) || txg > spa_freeze_txg(spa))
-			lwb = zil_lwb_commit(zilog, itx, lwb);
+			lwb = zil_lwb_commit(zilw, itx, lwb);
 	}
 	DTRACE_PROBE1(zil__cw2, zilog_t *, zilog);
 
 	/* write the last block out */
-	if (lwb != NULL && lwb->lwb_zio != NULL)
-		lwb = zil_lwb_write_start(zilog, lwb);
-
-	zilog->zl_cur_used = 0;
-
-	/*
-	 * Wait if necessary for the log blocks to be on stable storage.
-	 */
-	if (zilog->zl_root_zio) {
-		error = zio_wait(zilog->zl_root_zio);
-		zilog->zl_root_zio = NULL;
-		zil_flush_vdevs(zilog);
+	if (lwb != NULL && lwb->lwb_zio != NULL) {
+		/*
+		 * If we fail to allocate the next block, we must call
+		 * txg_wait_synced() to keep the next writer from grabbing our
+		 * lwb from the list. Otherwise, it will race with
+		 * zil_lwb_write_done().
+		 *
+		 * txg_wait_synced() must be called outside of the critical
+		 * section formed by ->zilw_stage = 2 and ->zilw_stage = 3.
+		 * Otherwise, the next thread in the pipeline might hold the
+		 * txg open, causing us to deadlock.
+		 */
+		if (zil_lwb_write_start(zilw, lwb) == NULL)
+			txg_wait_synced(zilog->zl_dmu_pool, 0);
 	}
 
-	if (error || lwb == NULL)
+	zilog->zl_cur_used = 0;
+	/*
+	 * Signal next thread, if any, for entry into the pipeline.
+	 */
+	mutex_enter(&zilog->zl_writer_lock);
+	if (zilw->zilw_stage == 1) {
+		zilw->zilw_stage = 2;
+		cv_signal(&zilw->zilw_cv_waiter);
+	} else {
+		zilw->zilw_stage = 2;
+	}
+	mutex_exit(&zilog->zl_writer_lock);
+
+	/*
+	 * Wait if necessary for the log blocks to be on stable
+	 * storage.
+	 */
+	if (zilw->zilw_root_zio) {
+		error = zio_wait(zilw->zilw_root_zio);
+		zil_flush_vdevs(zilw);
+	}
+
+	/*
+	 * Enforce pipeline semantics when on ->zl_writer_list. Block until
+	 * every thread that started sooner has finished. Then leave the
+	 * pipeline and signal the next thread.
+	 */
+	if (list_link_active(&zilw->zilw_writer_link)) {
+		mutex_enter(&zilog->zl_writer_lock);
+		while ((prev2 = list_prev(&zilog->zl_writer_list, zilw)) !=
+		    NULL) {
+			cv_wait(&prev2->zilw_cv_waiter, &zilog->zl_writer_lock);
+		}
+		list_remove(&zilog->zl_writer_list, zilw);
+		zilw->zilw_stage = 3;
+
+		cv_signal(&zilw->zilw_cv_waiter);
+		cv_broadcast(&zilw->zilw_cv_noop);
+		mutex_exit(&zilog->zl_writer_lock);
+	}
+
+	if (error)
 		txg_wait_synced(zilog->zl_dmu_pool, 0);
 
-	while ((itx = list_head(&zilog->zl_itx_commit_list))) {
+	while ((itx = list_head(&zilw->zilw_itx_commit_list))) {
 		txg = itx->itx_lr.lrc_txg;
 		ASSERT(txg);
 
 		if (itx->itx_callback != NULL)
 			itx->itx_callback(itx->itx_callback_data);
-		list_remove(&zilog->zl_itx_commit_list, itx);
+		list_remove(&zilw->zilw_itx_commit_list, itx);
 		zil_itx_destroy(itx);
 	}
 
-	mutex_enter(&zilog->zl_lock);
+	if (prev != NULL)
+		zilw_unhold(prev);
+
+	zilw_unhold(zilw);
 
 	/*
 	 * Remember the highest committed log sequence number for ztest.
@@ -1683,61 +1851,25 @@ zil_commit_writer(zilog_t *zilog)
  * If foid is 0 push out all transactions, otherwise push only those
  * for that object or might reference that object.
  *
- * itxs are committed in batches. In a heavily stressed zil there will be
- * a commit writer thread who is writing out a bunch of itxs to the log
- * for a set of committing threads (cthreads) in the same batch as the writer.
- * Those cthreads are all waiting on the same cv for that batch.
- *
- * There will also be a different and growing batch of threads that are
- * waiting to commit (qthreads). When the committing batch completes
- * a transition occurs such that the cthreads exit and the qthreads become
- * cthreads. One of the new cthreads becomes the writer thread for the
- * batch. Any new threads arriving become new qthreads.
- *
- * Only 2 condition variables are needed and there's no transition
- * between the two cvs needed. They just flip-flop between qthreads
- * and cthreads.
- *
- * Using this scheme we can efficiently wakeup up only those threads
- * that have been committed.
+ * itxs are committed in batches through a pipeline. In a heavily
+ * stressed zil some of the itxs can end up in earlier threads in
+ * the pipeline, but the thread that intended to write them out
+ * will not return to userspace before they have been written out.
  */
 void
 zil_commit(zilog_t *zilog, uint64_t foid)
 {
-	uint64_t mybatch;
-
 	if (zilog->zl_sync == ZFS_SYNC_DISABLED)
 		return;
+
 
 	ZIL_STAT_BUMP(zil_commit_count);
 
 	/* move the async itxs for the foid to the sync queues */
 	zil_async_to_sync(zilog, foid);
 
-	mutex_enter(&zilog->zl_lock);
-	mybatch = zilog->zl_next_batch;
-	while (zilog->zl_writer) {
-		cv_wait(&zilog->zl_cv_batch[mybatch & 1], &zilog->zl_lock);
-		if (mybatch <= zilog->zl_com_batch) {
-			mutex_exit(&zilog->zl_lock);
-			return;
-		}
-	}
-
-	zilog->zl_next_batch++;
-	zilog->zl_writer = B_TRUE;
 	ZIL_STAT_BUMP(zil_commit_writer_count);
 	zil_commit_writer(zilog);
-	zilog->zl_com_batch = mybatch;
-	zilog->zl_writer = B_FALSE;
-
-	/* wake up one thread to become the next writer */
-	cv_signal(&zilog->zl_cv_batch[(mybatch+1) & 1]);
-
-	/* wake up all threads waiting for this batch to be committed */
-	cv_broadcast(&zilog->zl_cv_batch[mybatch & 1]);
-
-	mutex_exit(&zilog->zl_lock);
 }
 
 /*
@@ -1827,11 +1959,54 @@ zil_sync(zilog_t *zilog, dmu_tx_t *tx)
 	mutex_exit(&zilog->zl_lock);
 }
 
+int
+zil_writer_ctor(void *buf, void *args, int kmflags)
+{
+	zil_writer_t *zilw = buf;
+
+	bzero(buf, sizeof (zil_writer_t));
+
+	zilw->zilw_magic = ZILW_MAGIC;
+
+	cv_init(&zilw->zilw_cv_waiter, NULL, CV_DEFAULT, NULL);
+	cv_init(&zilw->zilw_cv_noop, NULL, CV_DEFAULT, NULL);
+	mutex_init(&zilw->zilw_vdev_lock, NULL, MUTEX_DEFAULT, NULL);
+	avl_create(&zilw->zilw_vdev_tree, zil_vdev_compare,
+	    sizeof (zil_vdev_node_t), offsetof(zil_vdev_node_t, zv_node));
+	list_create(&zilw->zilw_itx_commit_list, sizeof (itx_t),
+	    offsetof(itx_t, itx_node));
+	list_link_init(&zilw->zilw_writer_link);
+
+	zilw->zilw_refcount = 1;
+
+	return (0);
+}
+
+void
+zil_writer_dtor(void *buf, void *args)
+{
+	zil_writer_t *zilw = buf;
+
+	ASSERT(zilw->zilw_magic == ZILW_MAGIC);
+
+	zilw->zilw_magic = 0xDEADBEEFDEADBEEF;
+	cv_destroy(&zilw->zilw_cv_waiter);
+	cv_destroy(&zilw->zilw_cv_noop);
+	mutex_destroy(&zilw->zilw_vdev_lock);
+	avl_destroy(&zilw->zilw_vdev_tree);
+	list_destroy(&zilw->zilw_itx_commit_list);
+}
+
+
 void
 zil_init(void)
 {
 	zil_lwb_cache = kmem_cache_create("zil_lwb_cache",
 	    sizeof (struct lwb), 0, NULL, NULL, NULL, NULL, NULL, 0);
+
+	zil_writer_cache = kmem_cache_create("zil_writer_cache",
+	    sizeof (struct zil_writer), 0, &zil_writer_ctor,
+	    &zil_writer_dtor, NULL, NULL, NULL, 0);
 
 	zil_ksp = kstat_create("zfs", 0, "zil", "misc",
 	    KSTAT_TYPE_NAMED, sizeof (zil_stats) / sizeof (kstat_named_t),
@@ -1884,6 +2059,8 @@ zil_alloc(objset_t *os, zil_header_t *zh_phys)
 	zilog->zl_next_batch = 1;
 
 	mutex_init(&zilog->zl_lock, NULL, MUTEX_DEFAULT, NULL);
+	mutex_init(&zilog->zl_destroy_lock, NULL, MUTEX_DEFAULT, NULL);
+	mutex_init(&zilog->zl_writer_lock, NULL, MUTEX_DEFAULT, NULL);
 
 	for (i = 0; i < TXG_SIZE; i++) {
 		mutex_init(&zilog->zl_itxg[i].itxg_lock, NULL,
@@ -1893,18 +2070,11 @@ zil_alloc(objset_t *os, zil_header_t *zh_phys)
 	list_create(&zilog->zl_lwb_list, sizeof (lwb_t),
 	    offsetof(lwb_t, lwb_node));
 
-	list_create(&zilog->zl_itx_commit_list, sizeof (itx_t),
-	    offsetof(itx_t, itx_node));
+	list_create(&zilog->zl_writer_list, sizeof (zil_writer_t),
+	    offsetof(zil_writer_t, zilw_writer_link));
 
-	mutex_init(&zilog->zl_vdev_lock, NULL, MUTEX_DEFAULT, NULL);
 
-	avl_create(&zilog->zl_vdev_tree, zil_vdev_compare,
-	    sizeof (zil_vdev_node_t), offsetof(zil_vdev_node_t, zv_node));
-
-	cv_init(&zilog->zl_cv_writer, NULL, CV_DEFAULT, NULL);
 	cv_init(&zilog->zl_cv_suspend, NULL, CV_DEFAULT, NULL);
-	cv_init(&zilog->zl_cv_batch[0], NULL, CV_DEFAULT, NULL);
-	cv_init(&zilog->zl_cv_batch[1], NULL, CV_DEFAULT, NULL);
 
 	return (zilog);
 }
@@ -1922,11 +2092,8 @@ zil_free(zilog_t *zilog)
 	ASSERT(list_is_empty(&zilog->zl_lwb_list));
 	list_destroy(&zilog->zl_lwb_list);
 
-	avl_destroy(&zilog->zl_vdev_tree);
-	mutex_destroy(&zilog->zl_vdev_lock);
-
-	ASSERT(list_is_empty(&zilog->zl_itx_commit_list));
-	list_destroy(&zilog->zl_itx_commit_list);
+	ASSERT(list_is_empty(&zilog->zl_writer_list));
+	list_destroy(&zilog->zl_writer_list);
 
 	for (i = 0; i < TXG_SIZE; i++) {
 		/*
@@ -1942,11 +2109,10 @@ zil_free(zilog_t *zilog)
 	}
 
 	mutex_destroy(&zilog->zl_lock);
+	mutex_destroy(&zilog->zl_writer_lock);
+	mutex_destroy(&zilog->zl_destroy_lock);
 
-	cv_destroy(&zilog->zl_cv_writer);
 	cv_destroy(&zilog->zl_cv_suspend);
-	cv_destroy(&zilog->zl_cv_batch[0]);
-	cv_destroy(&zilog->zl_cv_batch[1]);
 
 	kmem_free(zilog, sizeof (zilog_t));
 }
@@ -1987,6 +2153,7 @@ zil_close(zilog_t *zilog)
 	 * callbacks have occurred that may clean the zil.  Only then can we
 	 * destroy the zl_clean_taskq.
 	 */
+	mutex_enter(&zilog->zl_writer_lock);
 	mutex_enter(&zilog->zl_lock);
 	lwb = list_tail(&zilog->zl_lwb_list);
 	if (lwb != NULL)
@@ -2019,6 +2186,7 @@ zil_close(zilog_t *zilog)
 		kmem_cache_free(zil_lwb_cache, lwb);
 	}
 	mutex_exit(&zilog->zl_lock);
+	mutex_exit(&zilog->zl_writer_lock);
 }
 
 static char *suspend_tag = "zil suspending";

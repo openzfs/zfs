@@ -53,7 +53,6 @@ DECLARE_EVENT_CLASS(zfs_zil_class,
 	    __field(uint8_t,	zl_keep_first)
 	    __field(uint8_t,	zl_replay)
 	    __field(uint8_t,	zl_stop_sync)
-	    __field(uint8_t,	zl_writer)
 	    __field(uint8_t,	zl_logbias)
 	    __field(uint8_t,	zl_sync)
 	    __field(int,	zl_parse_error)
@@ -77,7 +76,6 @@ DECLARE_EVENT_CLASS(zfs_zil_class,
 	    __entry->zl_keep_first	= zilog->zl_keep_first;
 	    __entry->zl_replay		= zilog->zl_replay;
 	    __entry->zl_stop_sync	= zilog->zl_stop_sync;
-	    __entry->zl_writer		= zilog->zl_writer;
 	    __entry->zl_logbias		= zilog->zl_logbias;
 	    __entry->zl_sync		= zilog->zl_sync;
 	    __entry->zl_parse_error	= zilog->zl_parse_error;
@@ -100,7 +98,7 @@ DECLARE_EVENT_CLASS(zfs_zil_class,
 	    __entry->zl_lr_seq, __entry->zl_commit_lr_seq,
 	    __entry->zl_destroy_txg, __entry->zl_replaying_seq,
 	    __entry->zl_suspend, __entry->zl_suspending, __entry->zl_keep_first,
-	    __entry->zl_replay, __entry->zl_stop_sync, __entry->zl_writer,
+	    __entry->zl_replay, __entry->zl_stop_sync,
 	    __entry->zl_logbias, __entry->zl_sync, __entry->zl_parse_error,
 	    __entry->zl_parse_blk_seq, __entry->zl_parse_lr_seq,
 	    __entry->zl_parse_blk_count, __entry->zl_parse_lr_count,

@@ -94,20 +94,18 @@ struct zilog {
 	const zil_header_t *zl_header;	/* log header buffer */
 	objset_t	*zl_os;		/* object set we're logging */
 	zil_get_data_t	*zl_get_data;	/* callback to get object content */
-	zio_t		*zl_root_zio;	/* log writer root zio */
 	uint64_t	zl_lr_seq;	/* on-disk log record sequence number */
 	uint64_t	zl_commit_lr_seq; /* last committed on-disk lr seq */
+	kmutex_t	zl_destroy_lock; /* prevents concurrent destroy */
 	uint64_t	zl_destroy_txg;	/* txg of last zil_destroy() */
 	uint64_t	zl_replayed_seq[TXG_SIZE]; /* last replayed rec seq */
 	uint64_t	zl_replaying_seq; /* current replay seq number */
 	uint32_t	zl_suspend;	/* log suspend count */
-	kcondvar_t	zl_cv_writer;	/* log writer thread completion */
 	kcondvar_t	zl_cv_suspend;	/* log suspend completion */
 	uint8_t		zl_suspending;	/* log is currently suspending */
 	uint8_t		zl_keep_first;	/* keep first log block in destroy */
 	uint8_t		zl_replay;	/* replaying records while set */
 	uint8_t		zl_stop_sync;	/* for debugging */
-	uint8_t		zl_writer;	/* boolean: write setup in progress */
 	uint8_t		zl_logbias;	/* latency or throughput */
 	uint8_t		zl_sync;	/* synchronous or asynchronous */
 	int		zl_parse_error;	/* last zil_parse() error */
@@ -122,8 +120,6 @@ struct zilog {
 	list_t		zl_itx_commit_list; /* itx list to be committed */
 	uint64_t	zl_cur_used;	/* current commit log size used */
 	list_t		zl_lwb_list;	/* in-flight log write list */
-	kmutex_t	zl_vdev_lock;	/* protects zl_vdev_tree */
-	avl_tree_t	zl_vdev_tree;	/* vdevs to flush in zil_commit() */
 	taskq_t		*zl_clean_taskq; /* runs lwb and itx clean tasks */
 	avl_tree_t	zl_bp_tree;	/* track bps during log parse */
 	clock_t		zl_replay_time;	/* lbolt of when replay started */
@@ -132,6 +128,31 @@ struct zilog {
 	uint_t		zl_prev_blks[ZIL_PREV_BLKS]; /* size - sector rounded */
 	uint_t		zl_prev_rotor;	/* rotor for zl_prev[] */
 	txg_node_t	zl_dirty_link;	/* protected by dp_dirty_zilogs list */
+	kmutex_t	zl_writer_lock;	/* protects writer list */
+	list_t		zl_writer_list;	/* list of writers */
+};
+
+#define	ZILW_MAGIC 0x2F221100001122F2
+
+/*
+ * Intent log writer synchronization structure. One per commit.
+ */
+struct zil_writer;
+typedef struct zil_writer zil_writer_t;
+
+struct zil_writer {
+	uint64_t	zilw_magic;	/* log writer root zio */
+	zilog_t		*zilw_zilog;	/* our zilog */
+	list_node_t	zilw_writer_link;
+	boolean_t	zilw_stage;	/* stage of write */
+	kcondvar_t	zilw_cv_waiter;	/* later commits block here */
+	kcondvar_t	zilw_cv_noop;	/* no-op waiters block on this */
+	list_t		zilw_itx_commit_list; /* itx list to be committed */
+	uint64_t	zilw_batch;	/* Batch no. (debugging) */
+	kmutex_t	zilw_vdev_lock;	/* protects zilw_vdev_tree */
+	avl_tree_t	zilw_vdev_tree;	/* vdevs to flush in zil_commit() */
+	uint64_t	zilw_refcount;	/* Refcount */
+	zio_t		*zilw_root_zio;	/* log writer root zio */
 };
 
 typedef struct zil_bp_node {

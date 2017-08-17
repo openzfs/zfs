@@ -40,7 +40,7 @@ extern "C" {
 
 struct dsl_pool;
 struct dsl_dataset;
-
+struct zil_writer;
 /*
  * Intent log format:
  *
@@ -464,7 +464,8 @@ typedef int zil_parse_blk_func_t(zilog_t *zilog, blkptr_t *bp, void *arg,
 typedef int zil_parse_lr_func_t(zilog_t *zilog, lr_t *lr, void *arg,
     uint64_t txg);
 typedef int (*const zil_replay_func_t)(void *, char *, boolean_t);
-typedef int zil_get_data_t(void *arg, lr_write_t *lr, char *dbuf, zio_t *zio);
+typedef int zil_get_data_t(void *arg, struct zil_writer *zilw,
+    lr_write_t *lr, char *dbuf, zio_t *zio);
 
 extern int zil_parse(zilog_t *zilog, zil_parse_blk_func_t *parse_blk_func,
     zil_parse_lr_func_t *parse_lr_func, void *arg, uint64_t txg,
@@ -502,7 +503,8 @@ extern void	zil_clean(zilog_t *zilog, uint64_t synced_txg);
 extern int	zil_suspend(const char *osname, void **cookiep);
 extern void	zil_resume(void *cookie);
 
-extern void	zil_add_block(zilog_t *zilog, const blkptr_t *bp);
+extern void	zil_add_block(struct zil_writer *zilw, const
+    blkptr_t *bp);
 extern int	zil_bp_tree_add(zilog_t *zilog, const blkptr_t *bp);
 
 extern void	zil_set_sync(zilog_t *zilog, uint64_t syncval);
