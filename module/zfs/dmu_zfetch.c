@@ -55,26 +55,48 @@ unsigned int	zfetch_max_idistance = 64 * 1024 * 1024;
 /* max number of bytes in an array_read in which we allow prefetching (1MB) */
 unsigned long	zfetch_array_rd_sz = 1024 * 1024;
 
+#define	PREFETCH_MAX_ORDER	32
+
 typedef struct zfetch_stats {
 	kstat_named_t zfetchstat_hits;
+	kstat_named_t zfetchstat_hits_data;
+	kstat_named_t zfetchstat_hits_meta;
 	kstat_named_t zfetchstat_misses;
+	kstat_named_t zfetchstat_misses_lock;
+	kstat_named_t zfetchstat_reaps;
 	kstat_named_t zfetchstat_max_streams;
+	kstat_named_t zfetchstat_max_streams_small;
+	kstat_named_t zfetchstat_prefetch_order[PREFETCH_MAX_ORDER];
+	kstat_named_t zfetchstat_prefetch_miss_diff[PREFETCH_MAX_ORDER];
 } zfetch_stats_t;
 
 static zfetch_stats_t zfetch_stats = {
 	{ "hits",			KSTAT_DATA_UINT64 },
+	{ "hits_data",			KSTAT_DATA_UINT64 },
+	{ "hits_meta",			KSTAT_DATA_UINT64 },
 	{ "misses",			KSTAT_DATA_UINT64 },
+	{ "misses_lock",		KSTAT_DATA_UINT64 },
+	{ "reaps",			KSTAT_DATA_UINT64 },
 	{ "max_streams",		KSTAT_DATA_UINT64 },
+	{ "max_streams_small",		KSTAT_DATA_UINT64 },
+	{ { "prefetch_size_N",		KSTAT_DATA_UINT64 } },
+	{ { "prefetch_miss_diff_N",	KSTAT_DATA_UINT64 } },
 };
 
-#define	ZFETCHSTAT_BUMP(stat) \
-	atomic_inc_64(&zfetch_stats.stat.value.ui64);
+#define	ZFETCHSTAT_BUMP(stat)    atomic_inc_64(&zfetch_stats.stat.value.ui64)
+#define	ZFETCHSTAT_BUMP_ORDER(stat, size)				\
+do {									\
+	int _oidx = highbit64(size) - 1;				\
+	if (_oidx < PREFETCH_MAX_ORDER)					\
+		atomic_inc_64(&zfetch_stats.stat[_oidx].value.ui64);	\
+} while (0)
 
 kstat_t		*zfetch_ksp;
 
 void
 zfetch_init(void)
 {
+	int i;
 	zfetch_ksp = kstat_create("zfs", 0, "zfetchstats", "misc",
 	    KSTAT_TYPE_NAMED, sizeof (zfetch_stats) / sizeof (kstat_named_t),
 	    KSTAT_FLAG_VIRTUAL);
@@ -82,6 +104,19 @@ zfetch_init(void)
 	if (zfetch_ksp != NULL) {
 		zfetch_ksp->ks_data = &zfetch_stats;
 		kstat_install(zfetch_ksp);
+
+		for (i = 0; i < PREFETCH_MAX_ORDER; i++) {
+			snprintf(zfetch_stats.zfetchstat_prefetch_order[i].name,
+			    KSTAT_STRLEN, "prefetch_bytes_%lu", 1UL << i);
+			zfetch_stats.zfetchstat_prefetch_order[i].data_type =
+			    KSTAT_DATA_UINT64;
+
+			snprintf(zfetch_stats.zfetchstat_prefetch_miss_diff[i]
+			    .name, KSTAT_STRLEN, "prefetch_miss_bytes_%lu",
+			    1UL << i);
+			zfetch_stats.zfetchstat_prefetch_miss_diff[i]
+			    .data_type = KSTAT_DATA_UINT64;
+		}
 	}
 }
 
@@ -162,14 +197,14 @@ dmu_zfetch_stream_create(zfetch_t *zf, uint64_t blkid)
 	/*
 	 * Clean up old streams.
 	 */
-	for (zs = list_head(&zf->zf_stream);
-	    zs != NULL; zs = zs_next) {
+	for (zs = list_head(&zf->zf_stream); zs != NULL; zs = zs_next) {
 		zs_next = list_next(&zf->zf_stream, zs);
-		if (((gethrtime() - zs->zs_atime) / NANOSEC) >
-		    zfetch_min_sec_reap)
+		if (NSEC2SEC(gethrtime()-zs->zs_atime) > zfetch_min_sec_reap) {
+			ZFETCHSTAT_BUMP(zfetchstat_reaps);
 			dmu_zfetch_stream_remove(zf, zs);
-		else
+		} else {
 			numstreams++;
+		}
 	}
 
 	/*
@@ -185,6 +220,8 @@ dmu_zfetch_stream_create(zfetch_t *zf, uint64_t blkid)
 	    zfetch_max_distance));
 	if (numstreams >= max_streams) {
 		ZFETCHSTAT_BUMP(zfetchstat_max_streams);
+		if (max_streams < zfetch_max_streams)
+			ZFETCHSTAT_BUMP(zfetchstat_max_streams_small);
 		return;
 	}
 
@@ -215,6 +252,7 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data)
 	int epbs, max_dist_blks, pf_nblks, ipf_nblks, i;
 	uint64_t end_of_access_blkid;
 	end_of_access_blkid = blkid + nblks;
+	uint64_t best_match = UINT64_MAX;
 
 	if (zfs_prefetch_disable)
 		return;
@@ -232,16 +270,24 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data)
 	    zs = list_next(&zf->zf_stream, zs)) {
 		if (blkid == zs->zs_blkid) {
 			mutex_enter(&zs->zs_lock);
-			/*
-			 * zs_blkid could have changed before we
-			 * acquired zs_lock; re-check them here.
-			 */
-			if (blkid != zs->zs_blkid) {
-				mutex_exit(&zs->zs_lock);
-				continue;
-			}
 			break;
+		} else if (blkid > zs->zs_blkid && blkid <= zs->zs_pf_blkid) {
+			mutex_enter(&zs->zs_lock);
+			break;
+		} else {
+			best_match = MIN(best_match,
+			    ABS((int64_t)(blkid - zs->zs_blkid)) <<
+			    zf->zf_dnode->dn_datablkshift);
 		}
+	}
+
+	/*
+	 * zs_blkid could have changed before we
+	 * acquired zs_lock; re-check them here.
+	 */
+	if (zs != NULL && (blkid < zs->zs_blkid || blkid > zs->zs_pf_blkid)) {
+		mutex_exit(&zs->zs_lock);
+		return;
 	}
 
 	if (zs == NULL) {
@@ -250,8 +296,14 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data)
 		 * a new stream for it.
 		 */
 		ZFETCHSTAT_BUMP(zfetchstat_misses);
+		ZFETCHSTAT_BUMP_ORDER(zfetchstat_prefetch_miss_diff,
+		    best_match);
+
 		if (rw_tryupgrade(&zf->zf_rwlock))
 			dmu_zfetch_stream_create(zf, end_of_access_blkid);
+		else
+			ZFETCHSTAT_BUMP(zfetchstat_misses_lock);
+
 		rw_exit(&zf->zf_rwlock);
 		return;
 	}
@@ -273,8 +325,16 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data)
 	 * prefetch get further ahead than zfetch_max_distance.
 	 */
 	if (fetch_data) {
+
+		/* Make sure zfetch_max_distance is sane */
+		uint64_t zfetch_max_distance_loc = MAX(zfetch_max_distance,
+		    16ULL << zf->zf_dnode->dn_datablkshift);
+
+		zfetch_max_distance_loc = MAX(zfetch_max_distance_loc,
+		    16ULL * (nblks << zf->zf_dnode->dn_datablkshift));
+
 		max_dist_blks =
-		    zfetch_max_distance >> zf->zf_dnode->dn_datablkshift;
+		    zfetch_max_distance_loc >> zf->zf_dnode->dn_datablkshift;
 		/*
 		 * Previously, we were (zs_pf_blkid - blkid) ahead.  We
 		 * want to now be double that, so read that amount again,
@@ -284,8 +344,12 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data)
 		pf_ahead_blks = zs->zs_pf_blkid - blkid + nblks;
 		max_blks = max_dist_blks - (pf_start - end_of_access_blkid);
 		pf_nblks = MIN(pf_ahead_blks, max_blks);
+		ZFETCHSTAT_BUMP(zfetchstat_hits_data);
+		ZFETCHSTAT_BUMP_ORDER(zfetchstat_prefetch_order, pf_nblks <<
+		    zf->zf_dnode->dn_datablkshift);
 	} else {
 		pf_nblks = 0;
+		ZFETCHSTAT_BUMP(zfetchstat_hits_meta);
 	}
 
 	zs->zs_pf_blkid = pf_start + pf_nblks;
