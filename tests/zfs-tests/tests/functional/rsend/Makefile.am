@@ -23,6 +23,7 @@ dist_pkgdata_SCRIPTS = \
 	rsend_021_pos.ksh \
 	rsend_022_pos.ksh \
 	rsend_024_pos.ksh \
+	send_changed_dnodesize.ksh \
 	send_encrypted_heirarchy.ksh \
 	send-cD.ksh \
 	send-c_embedded_blocks.ksh \
