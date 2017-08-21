@@ -90,6 +90,9 @@ void range_tree_clear(range_tree_t *rt, uint64_t start, uint64_t size);
 void range_tree_vacate(range_tree_t *rt, range_tree_func_t *func, void *arg);
 void range_tree_walk(range_tree_t *rt, range_tree_func_t *func, void *arg);
 
+uint64_t range_tree_space_start(range_tree_t *rt);
+uint64_t range_tree_space_end(range_tree_t *rt);
+
 #ifdef	__cplusplus
 }
 #endif

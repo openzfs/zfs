@@ -402,3 +402,27 @@ range_tree_space(range_tree_t *rt)
 {
 	return (rt->rt_space);
 }
+
+uint64_t
+range_tree_space_start(range_tree_t *rt)
+{
+	range_seg_t *rs;
+
+	if (range_tree_space(rt) == 0)
+		return (0);
+
+	rs = avl_first(&rt->rt_root);
+	return (rs->rs_start);
+}
+
+uint64_t
+range_tree_space_end(range_tree_t *rt)
+{
+	range_seg_t *rs;
+
+	if (range_tree_space(rt) == 0)
+		return (0);
+
+	rs = avl_last(&rt->rt_root);
+	return (rs->rs_end);
+}
