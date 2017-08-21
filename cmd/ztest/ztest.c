@@ -2145,6 +2145,7 @@ ztest_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
 	if (buf != NULL) {	/* immediate write */
 		zgd_private->z_rl = ztest_range_lock(zd, object, offset, size,
 		    RL_READER);
+		zgd->zgd_rl = zgd_private->z_rl->z_rl;
 
 		error = dmu_read(os, object, offset, size, buf,
 		    DMU_READ_NO_PREFETCH);
@@ -2160,6 +2161,7 @@ ztest_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
 
 		zgd_private->z_rl = ztest_range_lock(zd, object, offset, size,
 		    RL_READER);
+		zgd->zgd_rl = zgd_private->z_rl->z_rl;
 
 		error = dmu_buf_hold(os, object, offset, zgd, &db,
 		    DMU_READ_NO_PREFETCH);
