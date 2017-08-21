@@ -62,8 +62,10 @@ else
 	echo "Missing helper script ${SCRIPT_COMMON}" && exit 1
 fi
 
+PROG=zimport.sh
 SRC_TAGS="zfs-0.6.5.11 master"
 POOL_TAGS="all master"
+POOL_CREATE_OPTIONS=
 TEST_DIR=$(mktemp -u -d -p /var/tmp zimport.XXXXXXXX)
 KEEP="no"
 VERBOSE="no"
@@ -86,7 +88,8 @@ COLOR_RESET="\033[0m"
 usage() {
 cat << EOF
 USAGE:
-zimport.sh [hvl] [-r repo] [-s src-tag] [-i pool-dir] [-p pool-tag] [-f path]
+zimport.sh [hvl] [-r repo] [-s src-tag] [-i pool-dir] [-p pool-tag]
+    [-f path] [-o options]
 
 DESCRIPTION:
 	ZPOOL import verification tests
@@ -101,11 +104,12 @@ OPTIONS:
 	-i <pool-dir>     Pool image directory
 	-p <pool-tag>...  Verify pools created with the listed tags
 	-f <path>         Temporary directory to use
+	-o <options>      Additional options to pass to 'zpool create'
 
 EOF
 }
 
-while getopts 'hvckr:s:i:p:f:?' OPTION; do
+while getopts 'hvckr:s:i:p:f:o:?' OPTION; do
 	case $OPTION in
 	h)
 		usage
@@ -135,9 +139,12 @@ while getopts 'hvckr:s:i:p:f:?' OPTION; do
 	f)
 		TEST_DIR="$OPTARG"
 		;;
+	o)
+		POOL_CREATE_OPTIONS="$OPTARG"
+		;;
 	?)
 		usage
-		exit
+		exit 1
 		;;
 	esac
 done
@@ -205,9 +212,13 @@ fail_nonewline() {
 	echo -n -e "${COLOR_RED}Fail${COLOR_RESET}\t\t"
 }
 
+#
+# Log a failure message, cleanup, and return an error.
+#
 fail() {
-	echo -e "${COLOR_RED}Fail${COLOR_RESET} ($1)"
-	exit "$1"
+	echo -e "$PROG: $1" >&2
+	$ZFS_SH -u >/dev/null 2>&1
+	exit 1
 }
 
 #
@@ -278,35 +289,44 @@ pool_create() {
 		cd "$POOL_DIR_SRC"
 	fi
 
-	$ZFS_SH zfs="spa_config_path=$POOL_DIR_PRISTINE" || fail 1
+	$ZFS_SH zfs="spa_config_path=$POOL_DIR_PRISTINE" || \
+	    fail "Failed to load kmods"
 
 	# Create a file vdev RAIDZ pool.
 	truncate -s 1G \
 	    "$POOL_DIR_PRISTINE/vdev1" "$POOL_DIR_PRISTINE/vdev2" \
-	    "$POOL_DIR_PRISTINE/vdev3" "$POOL_DIR_PRISTINE/vdev4"
-	$ZPOOL_CMD create "$POOL_TAG" raidz \
+	    "$POOL_DIR_PRISTINE/vdev3" "$POOL_DIR_PRISTINE/vdev4" || \
+	    fail "Failed 'truncate -s 1G ...'"
+	# shellcheck disable=SC2086
+	$ZPOOL_CMD create $POOL_CREATE_OPTIONS "$POOL_TAG" raidz \
 	    "$POOL_DIR_PRISTINE/vdev1" "$POOL_DIR_PRISTINE/vdev2" \
-            "$POOL_DIR_PRISTINE/vdev3" "$POOL_DIR_PRISTINE/vdev4"
+	    "$POOL_DIR_PRISTINE/vdev3" "$POOL_DIR_PRISTINE/vdev4" || \
+	    fail "Failed '$ZPOOL_CMD create $POOL_CREATE_OPTIONS $POOL_TAG ...'"
 
 	# Create a pool/fs filesystem with some random contents.
-	$ZFS_CMD create "$POOL_TAG/fs" || fail 3
+	$ZFS_CMD create "$POOL_TAG/fs" || \
+	    fail "Failed '$ZFS_CMD create $POOL_TAG/fs'"
 	populate "/$POOL_TAG/fs/" 10 100
 
 	# Snapshot that filesystem, clone it, remove the files/dirs,
 	# replace them with new files/dirs.
-	$ZFS_CMD snap "$POOL_TAG/fs@snap" || fail 4
-	$ZFS_CMD clone "$POOL_TAG/fs@snap" "$POOL_TAG/clone" || fail 5
+	$ZFS_CMD snap "$POOL_TAG/fs@snap" || \
+	    fail "Failed '$ZFS_CMD snap $POOL_TAG/fs@snap'"
+	$ZFS_CMD clone "$POOL_TAG/fs@snap" "$POOL_TAG/clone" || \
+	    fail "Failed '$ZFS_CMD clone $POOL_TAG/fs@snap $POOL_TAG/clone'"
 	# shellcheck disable=SC2086
-	rm -Rf /$POOL_TAG/clone/* || fail 6
+	rm -Rf /$POOL_TAG/clone/*
 	populate "/$POOL_TAG/clone/" 10 100
 
 	# Scrub the pool, delay slightly, then export it.  It is now
 	# somewhat interesting for testing purposes.
-	$ZPOOL_CMD scrub "$POOL_TAG" || fail 7
+	$ZPOOL_CMD scrub "$POOL_TAG" || \
+	    fail "Failed '$ZPOOL_CMD scrub $POOL_TAG'"
 	sleep 10
-	$ZPOOL_CMD export "$POOL_TAG" || fail 8
+	$ZPOOL_CMD export "$POOL_TAG" || \
+	    fail "Failed '$ZPOOL_CMD export $POOL_TAG'"
 
-	$ZFS_SH -u || fail 9
+	$ZFS_SH -u || fail "Failed to unload kmods"
 }
 
 # If the zfs-images directory doesn't exist fetch a copy from Github then
@@ -315,7 +335,8 @@ if [ ! -d "$IMAGES_DIR" ]; then
 	IMAGES_DIR="$TEST_DIR/zfs-images"
 	mkdir -p "$IMAGES_DIR"
 	curl -sL "$IMAGES_TAR" | \
-	    tar -xz -C "$IMAGES_DIR" --strip-components=1 || fail 10
+	    tar -xz -C "$IMAGES_DIR" --strip-components=1 || \
+	    fail "Failed to download pool images"
 fi
 
 # Given the available images in the zfs-images directory substitute the
@@ -341,6 +362,7 @@ if [ "$VERBOSE" = "yes" ]; then
 	echo "SRC_TAGS=$SRC_TAGS"
 	echo "POOL_TAGS=$POOL_TAGS"
 	echo "PATH=$TEST_DIR"
+	echo "POOL_CREATE_OPTIONS=$POOL_CREATE_OPTIONS"
 	echo
 fi
 
@@ -363,8 +385,7 @@ for TAG in $SRC_TAGS; do
 		if [ -n "$ZFS_VERSION" ]; then
 			printf "%-16s" "$ZFS_VERSION"
 		else
-			echo -e "ZFS is not installed\n"
-			fail
+			fail "ZFS is not installed"
 		fi
 	else
 		printf "%-16s" "$TAG"
@@ -392,16 +413,17 @@ for TAG in $SRC_TAGS; do
 		fi
 
 		git archive --format=tar --prefix="$SPL_TAG/ $SPL_TAG" \
-		    -o "$SRC_DIR_SPL/$SPL_TAG.tar" &>/dev/nul || \
+		    -o "$SRC_DIR_SPL/$SPL_TAG.tar" &>/dev/null || \
 		    rm "$SRC_DIR_SPL/$SPL_TAG.tar"
 		if [ -s "$SRC_DIR_SPL/$SPL_TAG.tar" ]; then
 			tar -xf "$SRC_DIR_SPL/$SPL_TAG.tar" -C "$SRC_DIR_SPL"
 			rm "$SRC_DIR_SPL/$SPL_TAG.tar"
 			echo -n -e "${COLOR_GREEN}Local${COLOR_RESET}\t\t"
 		else
-			mkdir -p "$SPL_DIR" || fail 1
+			mkdir -p "$SPL_DIR" || fail "Failed to create $SPL_DIR"
 			curl -sL "$SPL_URL" | tar -xz -C "$SPL_DIR" \
-			    --strip-components=1 || fail 2
+			    --strip-components=1 || \
+			    fail "Failed to download $SPL_URL"
 			echo -n -e "${COLOR_GREEN}Remote${COLOR_RESET}\t\t"
 		fi
 	fi
@@ -428,16 +450,17 @@ for TAG in $SRC_TAGS; do
 		fi
 
 		git archive --format=tar --prefix="$ZFS_TAG/ $ZFS_TAG" \
-		    -o "$SRC_DIR_ZFS/$ZFS_TAG.tar" &>/dev/nul || \
+		    -o "$SRC_DIR_ZFS/$ZFS_TAG.tar" &>/dev/null || \
 		    rm "$SRC_DIR_ZFS/$ZFS_TAG.tar"
 		if [ -s "$SRC_DIR_ZFS/$ZFS_TAG.tar" ]; then
 			tar -xf "$SRC_DIR_ZFS/$ZFS_TAG.tar" -C "$SRC_DIR_ZFS"
 			rm "$SRC_DIR_ZFS/$ZFS_TAG.tar"
 			echo -n -e "${COLOR_GREEN}Local${COLOR_RESET}\t\t"
 		else
-			mkdir -p "$ZFS_DIR" || fail 1
+			mkdir -p "$ZFS_DIR" || fail "Failed to create $ZFS_DIR"
 			curl -sL "$ZFS_URL" | tar -xz -C "$ZFS_DIR" \
-			    --strip-components=1 || fail 2
+			    --strip-components=1 || \
+			    fail "Failed to download $ZFS_URL"
 			echo -n -e "${COLOR_GREEN}Remote${COLOR_RESET}\t\t"
 		fi
 	fi
@@ -456,11 +479,14 @@ for TAG in $SRC_TAGS; do
 	else
 		cd "$SPL_DIR"
 		make distclean &>/dev/null
-		./autogen.sh >>"$CONFIG_LOG" 2>&1 || fail 1
+		./autogen.sh >>"$CONFIG_LOG" 2>&1 || \
+		    fail "Failed SPL 'autogen.sh'"
 		# shellcheck disable=SC2086
-		./configure $CONFIG_OPTIONS >>"$CONFIG_LOG" 2>&1 || fail 2
+		./configure $CONFIG_OPTIONS >>"$CONFIG_LOG" 2>&1 || \
+		    fail "Failed SPL 'configure $CONFIG_OPTIONS'"
 		# shellcheck disable=SC2086
-		make $MAKE_OPTIONS >>"$MAKE_LOG" 2>&1 || fail 3
+		make $MAKE_OPTIONS >>"$MAKE_LOG" 2>&1 || \
+		    fail "Failed SPL 'make $MAKE_OPTIONS'"
 		pass_nonewline
 	fi
 done
@@ -478,12 +504,15 @@ for TAG in $SRC_TAGS; do
 	else
 		cd "$ZFS_DIR"
 		make distclean &>/dev/null
-		./autogen.sh >>"$CONFIG_LOG" 2>&1 || fail 1
+		./autogen.sh >>"$CONFIG_LOG" 2>&1 || \
+		    fail "Failed ZFS 'autogen.sh'"
 		# shellcheck disable=SC2086
 		./configure --with-spl="$SPL_DIR" $CONFIG_OPTIONS \
-                    >>"$CONFIG_LOG" 2>&1 || fail 2
+		    >>"$CONFIG_LOG" 2>&1 || \
+		    fail "Failed ZFS 'configure $CONFIG_OPTIONS'"
 		# shellcheck disable=SC2086
-		make $MAKE_OPTIONS >>"$MAKE_LOG" 2>&1 || fail 3
+		make $MAKE_OPTIONS >>"$MAKE_LOG" 2>&1 || \
+		    fail "Failed ZFS 'make $MAKE_OPTIONS'"
 		pass_nonewline
 	fi
 done
@@ -503,7 +532,8 @@ for TAG in $POOL_TAGS; do
 	# Use the existing compressed image if available.
 	if [ -f "$POOL_BZIP" ]; then
 		tar -xjf "$POOL_BZIP" -C "$POOL_DIR_PRISTINE" \
-		    --strip-components=1 || fail 1
+		    --strip-components=1 || \
+		    fail "Failed 'tar -xjf $POOL_BZIP"
 	# Use the installed version to create the pool.
 	elif  [ "$TAG" = "installed" ]; then
 		pool_create "$TAG"
@@ -529,7 +559,8 @@ for TAG in $POOL_TAGS; do
 		$ZFS_SH zfs="spa_config_path=$POOL_DIR_COPY"
 
 		cp -a --sparse=always "$POOL_DIR_PRISTINE" \
-		    "$POOL_DIR_COPY" || fail 2
+		    "$POOL_DIR_COPY" || \
+		    fail "Failed to copy $POOL_DIR_PRISTINE to $POOL_DIR_COPY"
 		POOL_NAME=$($ZPOOL_CMD import -d "$POOL_DIR_COPY" | \
 		    awk '/pool:/ { print $2; exit 0 }')
 
@@ -539,13 +570,14 @@ for TAG in $POOL_TAGS; do
 			fail_nonewline
 			ERROR=1
 		else
-			$ZPOOL_CMD export "$POOL_NAME" || fail 3
+			$ZPOOL_CMD export "$POOL_NAME" || \
+			    fail "Failed to export pool"
 			pass_nonewline
 		fi
 
 		rm -Rf "$POOL_DIR_COPY"
 
-		$ZFS_SH -u || fail 4
+		$ZFS_SH -u || fail "Failed to unload kmods"
 	done
 	printf "\n"
 done
