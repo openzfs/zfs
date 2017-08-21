@@ -821,6 +821,7 @@ zvol_discard(void *arg)
 	uint64_t start = BIO_BI_SECTOR(bio) << 9;
 	uint64_t size = BIO_BI_SIZE(bio);
 	uint64_t end = start + size;
+	boolean_t sync;
 	int error = 0;
 	dmu_tx_t *tx;
 	unsigned long start_jif;
@@ -830,9 +831,11 @@ zvol_discard(void *arg)
 	start_jif = jiffies;
 	generic_start_io_acct(WRITE, bio_sectors(bio), &zv->zv_disk->part0);
 
+	sync = bio_is_fua(bio) || zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS;
+
 	if (end > zv->zv_volsize) {
 		error = SET_ERROR(EIO);
-		goto out;
+		goto unlock;
 	}
 
 	/*
@@ -848,7 +851,7 @@ zvol_discard(void *arg)
 	}
 
 	if (start >= end)
-		goto out;
+		goto unlock;
 
 	tx = dmu_tx_create(zv->zv_objset);
 	dmu_tx_mark_netfree(tx);
@@ -861,9 +864,11 @@ zvol_discard(void *arg)
 		error = dmu_free_long_range(zv->zv_objset,
 		    ZVOL_OBJ, start, size);
 	}
-
-out:
+unlock:
 	zfs_range_unlock(zvr->rl);
+	if (error == 0 && sync)
+		zil_commit(zv->zv_zilog, ZVOL_OBJ);
+
 	rw_exit(&zv->zv_suspend_lock);
 	generic_end_io_acct(WRITE, &zv->zv_disk->part0, start_jif);
 	BIO_END_IO(bio, -error);
@@ -933,6 +938,8 @@ zvol_request(struct request_queue *q, struct bio *bio)
 	}
 
 	if (rw == WRITE) {
+		boolean_t need_sync = B_FALSE;
+
 		if (unlikely(zv->zv_flags & ZVOL_RDONLY)) {
 			BIO_END_IO(bio, -SET_ERROR(EROFS));
 			goto out;
@@ -966,13 +973,24 @@ zvol_request(struct request_queue *q, struct bio *bio)
 		 */
 		zvr->rl = zfs_range_lock(&zv->zv_range_lock, offset, size,
 		    RL_WRITER);
+		/*
+		 * Sync writes and discards execute zil_commit() which may need
+		 * to take a RL_READER lock on the whole block being modified
+		 * via its zillog->zl_get_data(): to avoid circular dependency
+		 * issues with taskq threads execute these requests
+		 * synchronously here in zvol_request().
+		 */
+		need_sync = bio_is_fua(bio) ||
+		    zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS;
 		if (bio_is_discard(bio) || bio_is_secure_erase(bio)) {
-			if (zvol_request_sync || taskq_dispatch(zvol_taskq,
-			    zvol_discard, zvr, TQ_SLEEP) == TASKQID_INVALID)
+			if (zvol_request_sync || need_sync ||
+			    taskq_dispatch(zvol_taskq, zvol_discard, zvr,
+			    TQ_SLEEP) == TASKQID_INVALID)
 				zvol_discard(zvr);
 		} else {
-			if (zvol_request_sync || taskq_dispatch(zvol_taskq,
-			    zvol_write, zvr, TQ_SLEEP) == TASKQID_INVALID)
+			if (zvol_request_sync || need_sync ||
+			    taskq_dispatch(zvol_taskq, zvol_write, zvr,
+			    TQ_SLEEP) == TASKQID_INVALID)
 				zvol_write(zvr);
 		}
 	} else {
@@ -1030,8 +1048,6 @@ zvol_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
 
 	zgd = (zgd_t *)kmem_zalloc(sizeof (zgd_t), KM_SLEEP);
 	zgd->zgd_zilog = zv->zv_zilog;
-	zgd->zgd_rl = zfs_range_lock(&zv->zv_range_lock, offset, size,
-	    RL_READER);
 
 	/*
 	 * Write records come in two flavors: immediate and indirect.
@@ -1041,11 +1057,21 @@ zvol_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
 	 * we don't have to write the data twice.
 	 */
 	if (buf != NULL) { /* immediate write */
+		zgd->zgd_rl = zfs_range_lock(&zv->zv_range_lock, offset, size,
+		    RL_READER);
 		error = dmu_read_by_dnode(zv->zv_dn, offset, size, buf,
 		    DMU_READ_NO_PREFETCH);
-	} else {
+	} else { /* indirect write */
+		/*
+		 * Have to lock the whole block to ensure when it's written out
+		 * and its checksum is being calculated that no one can change
+		 * the data. Contrarily to zfs_get_data we need not re-check
+		 * blocksize after we get the lock because it cannot be changed.
+		 */
 		size = zv->zv_volblocksize;
 		offset = P2ALIGN_TYPED(offset, size, uint64_t);
+		zgd->zgd_rl = zfs_range_lock(&zv->zv_range_lock, offset, size,
+		    RL_READER);
 		error = dmu_buf_hold_by_dnode(zv->zv_dn, offset, zgd, &db,
 		    DMU_READ_NO_PREFETCH);
 		if (error == 0) {
