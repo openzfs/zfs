@@ -5901,20 +5901,26 @@ static int
 zfs_ioc_pool_sync(const char *pool, nvlist_t *innvl, nvlist_t *onvl)
 {
 	int err;
-	boolean_t force;
+	boolean_t force = B_FALSE;
 	spa_t *spa;
 
 	if ((err = spa_open(pool, &spa, FTAG)) != 0)
 		return (err);
 
-	force = fnvlist_lookup_boolean_value(innvl, "force");
+	if (innvl) {
+		if (nvlist_lookup_boolean_value(innvl, "force", &force) != 0) {
+			err = SET_ERROR(EINVAL);
+			goto out;
+		}
+	}
+
 	if (force) {
 		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_WRITER);
 		vdev_config_dirty(spa->spa_root_vdev);
 		spa_config_exit(spa, SCL_CONFIG, FTAG);
 	}
 	txg_wait_synced(spa_get_dsl(spa), 0);
-
+out:
 	spa_close(spa, FTAG);
 
 	return (err);
