@@ -717,7 +717,7 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 	ASSERT(!RW_LOCK_HELD(&odn->dn_struct_rwlock));
 	ASSERT(MUTEX_NOT_HELD(&odn->dn_mtx));
 	ASSERT(MUTEX_NOT_HELD(&odn->dn_dbufs_mtx));
-	ASSERT(!RW_LOCK_HELD(&odn->dn_zfetch.zf_rwlock));
+	// ASSERT(!RW_LOCK_HELD(&odn->dn_zfetch.zf_rwlock));
 
 	/* Copy fields. */
 	ndn->dn_objset = odn->dn_objset;
@@ -779,8 +779,11 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 	ndn->dn_newgid = odn->dn_newgid;
 	ndn->dn_id_flags = odn->dn_id_flags;
 	dmu_zfetch_init(&ndn->dn_zfetch, NULL);
-	list_move_tail(&ndn->dn_zfetch.zf_stream, &odn->dn_zfetch.zf_stream);
+	// TODO: swap?
+	// range_tree_swap(&ndn->dn_zfetch.zf_pftree,
+	// &odn->dn_zfetch.zf_pftree);
 	ndn->dn_zfetch.zf_dnode = odn->dn_zfetch.zf_dnode;
+	ndn->dn_zfetch.zf_atime = 0;
 
 	/*
 	 * Update back pointers. Updating the handle fixes the back pointer of
