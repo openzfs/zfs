@@ -120,12 +120,13 @@ range_tree_seg_compare(const void *x1, const void *x2)
 	return ((r1->rs_start >= r2->rs_end) - (r1->rs_end <= r2->rs_start));
 }
 
-range_tree_t *
-range_tree_create(range_tree_ops_t *ops, void *arg, kmutex_t *lp)
+void
+range_tree_initialize(range_tree_t *rt, range_tree_ops_t *ops, void *arg,
+    kmutex_t *lp)
 {
-	range_tree_t *rt;
+	ASSERT(rt != NULL);
 
-	rt = kmem_zalloc(sizeof (range_tree_t), KM_SLEEP);
+	bzero(rt, sizeof (*rt));
 
 	avl_create(&rt->rt_root, range_tree_seg_compare,
 	    sizeof (range_seg_t), offsetof(range_seg_t, rs_node));
@@ -136,12 +137,20 @@ range_tree_create(range_tree_ops_t *ops, void *arg, kmutex_t *lp)
 
 	if (rt->rt_ops != NULL)
 		rt->rt_ops->rtop_create(rt, rt->rt_arg);
+}
 
+range_tree_t *
+range_tree_create(range_tree_ops_t *ops, void *arg, kmutex_t *lp)
+{
+	range_tree_t *rt;
+
+	rt = kmem_alloc(sizeof (range_tree_t), KM_SLEEP);
+	range_tree_initialize(rt, ops, arg, lp);
 	return (rt);
 }
 
 void
-range_tree_destroy(range_tree_t *rt)
+range_tree_deinitialize(range_tree_t *rt)
 {
 	VERIFY0(rt->rt_space);
 
@@ -149,6 +158,12 @@ range_tree_destroy(range_tree_t *rt)
 		rt->rt_ops->rtop_destroy(rt, rt->rt_arg);
 
 	avl_destroy(&rt->rt_root);
+}
+
+void
+range_tree_destroy(range_tree_t *rt)
+{
+	range_tree_deinitialize(rt);
 	kmem_free(rt, sizeof (*rt));
 }
 
@@ -293,7 +308,7 @@ range_tree_remove(void *arg, uint64_t start, uint64_t size)
 	rt->rt_space -= size;
 }
 
-static range_seg_t *
+static inline range_seg_t *
 range_tree_find_impl(range_tree_t *rt, uint64_t start, uint64_t size)
 {
 	avl_index_t where;
@@ -308,7 +323,7 @@ range_tree_find_impl(range_tree_t *rt, uint64_t start, uint64_t size)
 	return (avl_find(&rt->rt_root, &rsearch, &where));
 }
 
-static range_seg_t *
+static inline range_seg_t *
 range_tree_find(range_tree_t *rt, uint64_t start, uint64_t size)
 {
 	range_seg_t *rs = range_tree_find_impl(rt, start, size);
@@ -335,6 +350,12 @@ range_tree_contains(range_tree_t *rt, uint64_t start, uint64_t size)
 	return (range_tree_find(rt, start, size) != NULL);
 }
 
+boolean_t
+range_tree_overlaps(range_tree_t *rt, uint64_t start, uint64_t size)
+{
+	return (range_tree_find_impl(rt, start, size) != NULL);
+}
+
 /*
  * Ensure that this range is not in the tree, regardless of whether
  * it is currently in the tree.
@@ -348,6 +369,48 @@ range_tree_clear(range_tree_t *rt, uint64_t start, uint64_t size)
 		uint64_t free_start = MAX(rs->rs_start, start);
 		uint64_t free_end = MIN(rs->rs_end, start + size);
 		range_tree_remove(rt, free_start, free_end - free_start);
+	}
+}
+
+/*
+ * Union: Make sure the range is added to the tree
+ */
+void
+range_tree_set(range_tree_t *rt, uint64_t start, uint64_t size)
+{
+	range_seg_t *rs;
+	uint64_t istart, iend;
+	const uint64_t end = start + size;
+
+	ASSERT(MUTEX_HELD(rt->rt_lock));
+
+	for (;;) {
+		rs = range_tree_find_impl(rt, start, size);
+
+		if (rs == NULL) {
+			range_tree_add(rt, start, size);
+			return;
+		} else if (rs->rs_start <= start && rs->rs_end >= end) {
+			return;
+		} else if (rs->rs_start > start) {
+			iend = rs->rs_start;
+			rs = AVL_PREV(&rt->rt_root, rs);
+			if (rs == NULL)
+				istart = start;
+			else
+				istart = MAX(rs->rs_end, start);
+
+			range_tree_add(rt, istart, iend - istart);
+		} else if (rs->rs_end < end) {
+			istart = rs->rs_end;
+			rs = AVL_NEXT(&rt->rt_root, rs);
+			if (rs == NULL)
+				iend = end;
+			else
+				iend = MIN(rs->rs_start, end);
+
+			range_tree_add(rt, istart, iend - istart);
+		}
 	}
 }
 
@@ -397,8 +460,58 @@ range_tree_walk(range_tree_t *rt, range_tree_func_t *func, void *arg)
 		func(arg, rs->rs_start, rs->rs_end - rs->rs_start);
 }
 
+void
+range_tree_range_walk(range_tree_t *rt, uint64_t start, uint64_t end,
+    range_tree_func_t *func, void *arg)
+{
+	avl_index_t where;
+	range_seg_t *rs, rsearch;
+
+	ASSERT(MUTEX_HELD(rt->rt_lock));
+	ASSERT(func != NULL);
+
+	rsearch.rs_start = start;
+	rsearch.rs_end = start + 1;
+	rs = avl_find(&rt->rt_root, &rsearch, &where);
+	if (rs == NULL)
+		rs = avl_nearest(&rt->rt_root, where, AVL_AFTER);
+
+	for (; rs && rs->rs_start < end; rs = AVL_NEXT(&rt->rt_root, rs)) {
+		uint64_t func_start = MAX(rs->rs_start, start);
+		uint64_t func_size = MIN(end, rs->rs_end) - func_start;
+
+		ASSERT3U(MIN(end, rs->rs_end), >, func_start);
+
+		func(arg, func_start, func_size);
+	}
+}
+
 uint64_t
 range_tree_space(range_tree_t *rt)
 {
 	return (rt->rt_space);
+}
+
+uint64_t
+range_tree_space_start(range_tree_t *rt)
+{
+	range_seg_t *rs;
+
+	if (range_tree_space(rt) == 0)
+		return (0);
+
+	rs = avl_first(&rt->rt_root);
+	return (rs->rs_start);
+}
+
+uint64_t
+range_tree_space_end(range_tree_t *rt)
+{
+	range_seg_t *rs;
+
+	if (range_tree_space(rt) == 0)
+		return (0);
+
+	rs = avl_last(&rt->rt_root);
+	return (rs->rs_end);
 }
