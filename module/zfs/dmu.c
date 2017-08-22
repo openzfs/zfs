@@ -2010,6 +2010,25 @@ dmu_object_set_compress(objset_t *os, uint64_t object, uint8_t compress,
 	dnode_rele(dn, FTAG);
 }
 
+/*
+ * Dirty an object and set the dirty record's raw flag. This is used
+ * when writing raw data to an object that will not effect the
+ * encryption parameters, specifically during raw receives.
+ */
+int
+dmu_object_dirty_raw(objset_t *os, uint64_t object, dmu_tx_t *tx)
+{
+	dnode_t *dn;
+	int err;
+
+	err = dnode_hold(os, object, FTAG, &dn);
+	if (err)
+		return (err);
+	dmu_buf_will_change_crypt_params((dmu_buf_t *)dn->dn_dbuf, tx);
+	dnode_rele(dn, FTAG);
+	return (err);
+}
+
 int zfs_mdcomp_disable = 0;
 
 /*
