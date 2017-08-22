@@ -1846,9 +1846,11 @@ Stop scrubbing.
 .Bl -tag -width Ds
 .It Fl p
 Pause scrubbing.
-Scrub progress is periodically synced to disk so if the system
-is restarted or pool is exported during a paused scrub, the scrub will resume
-from the place where it was last checkpointed to disk.
+Scrub pause state and progress are periodically synced to disk.
+If the system is restarted or pool is exported during a paused scrub,
+even after import, scrub will remain paused until it is resumed.
+Once resumed the scrub will pick up from the place where it was last
+checkpointed to disk.
 To resume a paused scrub issue
 .Nm zpool Cm scrub
 again.
