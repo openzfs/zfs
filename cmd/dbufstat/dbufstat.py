@@ -228,7 +228,8 @@ def print_header():
 
 
 def get_typestring(t):
-    type_strings = ["DMU_OT_NONE",
+    ot_strings = [
+                    "DMU_OT_NONE",
                     # general:
                     "DMU_OT_OBJECT_DIRECTORY",
                     "DMU_OT_OBJECT_ARRAY",
@@ -291,15 +292,39 @@ def get_typestring(t):
                     "DMU_OT_DEADLIST_HDR",
                     "DMU_OT_DSL_CLONES",
                     "DMU_OT_BPOBJ_SUBOBJ"]
+    otn_strings = {
+                    0x80: "DMU_OTN_UINT8_DATA",
+                    0xc0: "DMU_OTN_UINT8_METADATA",
+                    0x81: "DMU_OTN_UINT16_DATA",
+                    0xc1: "DMU_OTN_UINT16_METADATA",
+                    0x82: "DMU_OTN_UINT32_DATA",
+                    0xc2: "DMU_OTN_UINT32_METADATA",
+                    0x83: "DMU_OTN_UINT64_DATA",
+                    0xc3: "DMU_OTN_UINT64_METADATA",
+                    0x84: "DMU_OTN_ZAP_DATA",
+                    0xc4: "DMU_OTN_ZAP_METADATA",
+                    0xa0: "DMU_OTN_UINT8_ENC_DATA",
+                    0xe0: "DMU_OTN_UINT8_ENC_METADATA",
+                    0xa1: "DMU_OTN_UINT16_ENC_DATA",
+                    0xe1: "DMU_OTN_UINT16_ENC_METADATA",
+                    0xa2: "DMU_OTN_UINT32_ENC_DATA",
+                    0xe2: "DMU_OTN_UINT32_ENC_METADATA",
+                    0xa3: "DMU_OTN_UINT64_ENC_DATA",
+                    0xe3: "DMU_OTN_UINT64_ENC_METADATA",
+                    0xa4: "DMU_OTN_ZAP_ENC_DATA",
+                    0xe4: "DMU_OTN_ZAP_ENC_METADATA"}
 
     # If "-rr" option is used, don't convert to string representation
     if raw > 1:
         return "%i" % t
 
     try:
-        return type_strings[t]
-    except IndexError:
-        return "%i" % t
+        if t < len(ot_strings):
+            return ot_strings[t]
+        else:
+            return otn_strings[t]
+    except (IndexError, KeyError):
+        return "(UNKNOWN)"
 
 
 def get_compstring(c):
