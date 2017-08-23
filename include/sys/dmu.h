@@ -448,8 +448,9 @@ void dmu_object_set_checksum(objset_t *os, uint64_t object, uint8_t checksum,
 void dmu_object_set_compress(objset_t *os, uint64_t object, uint8_t compress,
     dmu_tx_t *tx);
 
-void
-dmu_write_embedded(objset_t *os, uint64_t object, uint64_t offset,
+int dmu_object_dirty_raw(objset_t *os, uint64_t object, dmu_tx_t *tx);
+
+void dmu_write_embedded(objset_t *os, uint64_t object, uint64_t offset,
     void *data, uint8_t etype, uint8_t comp, int uncompressed_size,
     int compressed_size, int byteorder, dmu_tx_t *tx);
 

@@ -327,12 +327,11 @@ dump_write(dmu_sendarg_t *dsp, dmu_object_type_t type, uint64_t object,
 			ASSERT(BP_IS_PROTECTED(bp));
 
 			/*
-			 * This is a raw protected block so we set the encrypted
-			 * flag. We need to pass along everything the receiving
-			 * side will need to interpret this block, including the
-			 * byteswap, salt, IV, and MAC.
+			 * This is a raw protected block so we need to pass
+			 * along everything the receiving side will need to
+			 * interpret this block, including the byteswap, salt,
+			 * IV, and MAC.
 			 */
-			drrw->drr_flags |= DRR_RAW_ENCRYPTED;
 			if (BP_SHOULD_BYTESWAP(bp))
 				drrw->drr_flags |= DRR_RAW_BYTESWAP;
 			zio_crypt_decode_params_bp(bp, drrw->drr_salt,
@@ -435,9 +434,9 @@ dump_spill(dmu_sendarg_t *dsp, const blkptr_t *bp, uint64_t object, void *data)
 	drrs->drr_toguid = dsp->dsa_toguid;
 
 	/* handle raw send fields */
-	if ((dsp->dsa_featureflags & DMU_BACKUP_FEATURE_RAW) != 0 &&
-	    BP_IS_PROTECTED(bp)) {
-		drrs->drr_flags |= DRR_RAW_ENCRYPTED;
+	if (dsp->dsa_featureflags & DMU_BACKUP_FEATURE_RAW) {
+		ASSERT(BP_IS_PROTECTED(bp));
+
 		if (BP_SHOULD_BYTESWAP(bp))
 			drrs->drr_flags |= DRR_RAW_BYTESWAP;
 		drrs->drr_compressiontype = BP_GET_COMPRESS(bp);
@@ -543,9 +542,9 @@ dump_dnode(dmu_sendarg_t *dsp, const blkptr_t *bp, uint64_t object,
 	    drro->drr_blksz > SPA_OLD_MAXBLOCKSIZE)
 		drro->drr_blksz = SPA_OLD_MAXBLOCKSIZE;
 
-	if ((dsp->dsa_featureflags & DMU_BACKUP_FEATURE_RAW) &&
-	    BP_IS_PROTECTED(bp)) {
-		drro->drr_flags |= DRR_RAW_ENCRYPTED;
+	if ((dsp->dsa_featureflags & DMU_BACKUP_FEATURE_RAW)) {
+		ASSERT(BP_IS_ENCRYPTED(bp));
+
 		if (BP_SHOULD_BYTESWAP(bp))
 			drro->drr_flags |= DRR_RAW_BYTESWAP;
 
@@ -602,7 +601,6 @@ dump_object_range(dmu_sendarg_t *dsp, const blkptr_t *bp, uint64_t firstobj,
 	drror->drr_firstobj = firstobj;
 	drror->drr_numslots = numslots;
 	drror->drr_toguid = dsp->dsa_toguid;
-	drror->drr_flags |= DRR_RAW_ENCRYPTED;
 	if (BP_SHOULD_BYTESWAP(bp))
 		drror->drr_flags |= DRR_RAW_BYTESWAP;
 	zio_crypt_decode_params_bp(bp, drror->drr_salt, drror->drr_iv);
@@ -1725,15 +1723,13 @@ dmu_recv_begin_check(void *arg, dmu_tx_t *tx)
 				return (error);
 			}
 			if (!origin->ds_is_snapshot) {
-				dsl_dataset_rele_flags(origin,
-				    DS_HOLD_FLAG_DECRYPT, FTAG);
+				dsl_dataset_rele_flags(origin, dsflags, FTAG);
 				dsl_dataset_rele_flags(ds, dsflags, FTAG);
 				return (SET_ERROR(EINVAL));
 			}
 			if (dsl_dataset_phys(origin)->ds_guid != fromguid &&
 			    fromguid != 0) {
-				dsl_dataset_rele_flags(origin,
-				    DS_HOLD_FLAG_DECRYPT, FTAG);
+				dsl_dataset_rele_flags(origin, dsflags, FTAG);
 				dsl_dataset_rele_flags(ds, dsflags, FTAG);
 				return (SET_ERROR(ENODEV));
 			}
@@ -2136,6 +2132,7 @@ struct receive_writer_arg {
 	/* A map from guid to dataset to help handle dedup'd streams. */
 	avl_tree_t *guid_to_ds_map;
 	boolean_t resumable;
+	boolean_t raw;
 	uint64_t last_object, last_offset;
 	uint64_t bytes_read; /* bytes read when current record created */
 };
@@ -2170,6 +2167,7 @@ struct receive_arg  {
 	zio_cksum_t prev_cksum;
 	int err;
 	boolean_t byteswap;
+	boolean_t raw;
 	uint64_t featureflags;
 	/* Sorted list of objects not to issue prefetches for. */
 	struct objlist ignore_objlist;
@@ -2416,7 +2414,7 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 		return (SET_ERROR(EINVAL));
 	}
 
-	if (DRR_IS_RAW_ENCRYPTED(drro->drr_flags)) {
+	if (rwa->raw) {
 		if (drro->drr_raw_bonuslen < drro->drr_bonuslen ||
 		    drro->drr_indblkshift > SPA_MAXBLOCKSHIFT ||
 		    drro->drr_nlevels > DN_MAX_LEVELS ||
@@ -2451,13 +2449,12 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 		    drro->drr_bonuslen);
 
 		/* nblkptr will be bounded by the bonus size and type */
-		if (DRR_IS_RAW_ENCRYPTED(drro->drr_flags) &&
-		    nblkptr != drro->drr_nblkptr)
+		if (rwa->raw && nblkptr != drro->drr_nblkptr)
 			return (SET_ERROR(EINVAL));
 
 		if (drro->drr_blksz != doi.doi_data_block_size ||
 		    nblkptr < doi.doi_nblkptr ||
-		    (DRR_IS_RAW_ENCRYPTED(drro->drr_flags) &&
+		    (rwa->raw &&
 		    (indblksz != doi.doi_metadata_block_size ||
 		    drro->drr_nlevels < doi.doi_indirection))) {
 			err = dmu_free_long_range(rwa->os, drro->drr_object,
@@ -2492,9 +2489,12 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 		    drro->drr_bonustype, drro->drr_bonuslen, tx);
 	}
 	if (err != 0) {
-		dmu_tx_abort(tx);
+		dmu_tx_commit(tx);
 		return (SET_ERROR(EINVAL));
 	}
+
+	if (rwa->raw)
+		VERIFY0(dmu_object_dirty_raw(rwa->os, drro->drr_object, tx));
 
 	dmu_object_set_checksum(rwa->os, drro->drr_object,
 	    drro->drr_checksumtype, tx);
@@ -2502,7 +2502,7 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 	    drro->drr_compress, tx);
 
 	/* handle more restrictive dnode structuring for raw recvs */
-	if (DRR_IS_RAW_ENCRYPTED(drro->drr_flags)) {
+	if (rwa->raw) {
 		/*
 		 * Set the indirect block shift and nlevels. This will not fail
 		 * because we ensured all of the blocks were free earlier if
@@ -2518,7 +2518,7 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 		dmu_buf_t *db;
 		uint32_t flags = DMU_READ_NO_PREFETCH;
 
-		if (DRR_IS_RAW_ENCRYPTED(drro->drr_flags))
+		if (rwa->raw)
 			flags |= DMU_READ_NO_DECRYPT;
 
 		VERIFY0(dmu_bonus_hold_impl(rwa->os, drro->drr_object,
@@ -2532,7 +2532,7 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 		 * Raw bonus buffers have their byteorder determined by the
 		 * DRR_OBJECT_RANGE record.
 		 */
-		if (rwa->byteswap && !DRR_IS_RAW_ENCRYPTED(drro->drr_flags)) {
+		if (rwa->byteswap && !rwa->raw) {
 			dmu_object_byteswap_t byteswap =
 			    DMU_OT_BYTESWAP(drro->drr_bonustype);
 			dmu_ot_byteswap[byteswap].ob_func(db->db_data,
@@ -2615,6 +2615,10 @@ receive_write(struct receive_writer_arg *rwa, struct drr_write *drrw,
 		dmu_tx_abort(tx);
 		return (err);
 	}
+
+	if (rwa->raw)
+		VERIFY0(dmu_object_dirty_raw(rwa->os, drrw->drr_object, tx));
+
 	if (rwa->byteswap && !arc_is_encrypted(abuf) &&
 	    arc_get_compression(abuf) == ZIO_COMPRESS_OFF) {
 		dmu_object_byteswap_t byteswap =
@@ -2680,9 +2684,8 @@ receive_write_byref(struct receive_writer_arg *rwa,
 		ref_os = rwa->os;
 	}
 
-	if (DRR_IS_RAW_ENCRYPTED(drrwbr->drr_flags)) {
+	if (rwa->raw)
 		flags |= DMU_READ_NO_DECRYPT;
-	}
 
 	/* may return either a regular db or an encrypted one */
 	err = dmu_buf_hold(ref_os, drrwbr->drr_refobject,
@@ -2700,7 +2703,8 @@ receive_write_byref(struct receive_writer_arg *rwa,
 		return (err);
 	}
 
-	if (DRR_IS_RAW_ENCRYPTED(drrwbr->drr_flags)) {
+	if (rwa->raw) {
+		VERIFY0(dmu_object_dirty_raw(rwa->os, drrwbr->drr_object, tx));
 		dmu_copy_from_buf(rwa->os, drrwbr->drr_object,
 		    drrwbr->drr_offset, dbp, tx);
 	} else {
@@ -2766,7 +2770,7 @@ receive_spill(struct receive_writer_arg *rwa, struct drr_spill *drrs,
 	    drrs->drr_length > spa_maxblocksize(dmu_objset_spa(rwa->os)))
 		return (SET_ERROR(EINVAL));
 
-	if (DRR_IS_RAW_ENCRYPTED(drrs->drr_flags)) {
+	if (rwa->raw) {
 		if (!DMU_OT_IS_VALID(drrs->drr_type) ||
 		    drrs->drr_compressiontype >= ZIO_COMPRESS_FUNCTIONS ||
 		    drrs->drr_compressed_size == 0)
@@ -2794,6 +2798,8 @@ receive_spill(struct receive_writer_arg *rwa, struct drr_spill *drrs,
 		return (err);
 	}
 	dmu_buf_will_dirty(db_spill, tx);
+	if (rwa->raw)
+		VERIFY0(dmu_object_dirty_raw(rwa->os, drrs->drr_object, tx));
 
 	if (db_spill->db_size < drrs->drr_length)
 		VERIFY(0 == dbuf_spill_set_blksz(db_spill,
@@ -2859,7 +2865,7 @@ receive_object_range(struct receive_writer_arg *rwa,
 	 */
 	if (drror->drr_numslots != DNODES_PER_BLOCK ||
 	    P2PHASE(drror->drr_firstobj, DNODES_PER_BLOCK) != 0 ||
-	    !DRR_IS_RAW_ENCRYPTED(drror->drr_flags))
+	    !rwa->raw)
 		return (SET_ERROR(EINVAL));
 
 	offset = drror->drr_firstobj * sizeof (dnode_phys_t);
@@ -3143,7 +3149,7 @@ receive_read_record(struct receive_arg *ra)
 		arc_buf_t *abuf;
 		boolean_t is_meta = DMU_OT_IS_METADATA(drrw->drr_type);
 
-		if (DRR_IS_RAW_ENCRYPTED(drrw->drr_flags)) {
+		if (ra->raw) {
 			boolean_t byteorder = ZFS_HOST_BYTEORDER ^
 			    !!DRR_IS_RAW_BYTESWAPPED(drrw->drr_flags) ^
 			    ra->byteswap;
@@ -3227,7 +3233,7 @@ receive_read_record(struct receive_arg *ra)
 		int len = DRR_SPILL_PAYLOAD_SIZE(drrs);
 
 		/* DRR_SPILL records are either raw or uncompressed */
-		if (DRR_IS_RAW_ENCRYPTED(drrs->drr_flags)) {
+		if (ra->raw) {
 			boolean_t byteorder = ZFS_HOST_BYTEORDER ^
 			    !!DRR_IS_RAW_BYTESWAPPED(drrs->drr_flags) ^
 			    ra->byteswap;
@@ -3529,6 +3535,7 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp,
 	rwa = kmem_zalloc(sizeof (*rwa), KM_SLEEP);
 
 	ra->byteswap = drc->drc_byteswap;
+	ra->raw = drc->drc_raw;
 	ra->cksum = drc->drc_cksum;
 	ra->vp = vp;
 	ra->voff = *voffp;
@@ -3556,16 +3563,23 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp,
 	featureflags = DMU_GET_FEATUREFLAGS(drc->drc_drrb->drr_versioninfo);
 	ra->featureflags = featureflags;
 
+	/* embedded data is incompatible with encrypted datasets */
+	if (ra->os->os_encrypted &&
+	    (featureflags & DMU_BACKUP_FEATURE_EMBED_DATA)) {
+		err = SET_ERROR(EINVAL);
+		goto out;
+	}
+
 	/* if this stream is dedup'ed, set up the avl tree for guid mapping */
 	if (featureflags & DMU_BACKUP_FEATURE_DEDUP) {
 		minor_t minor;
 
 		if (cleanup_fd == -1) {
-			ra->err = SET_ERROR(EBADF);
+			err = SET_ERROR(EBADF);
 			goto out;
 		}
-		ra->err = zfs_onexit_fd_hold(cleanup_fd, &minor);
-		if (ra->err != 0) {
+		err = zfs_onexit_fd_hold(cleanup_fd, &minor);
+		if (err != 0) {
 			cleanup_fd = -1;
 			goto out;
 		}
@@ -3579,12 +3593,12 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp,
 			err = zfs_onexit_add_cb(minor,
 			    free_guid_map_onexit, rwa->guid_to_ds_map,
 			    action_handlep);
-			if (ra->err != 0)
+			if (err != 0)
 				goto out;
 		} else {
 			err = zfs_onexit_cb_data(minor, *action_handlep,
 			    (void **)&rwa->guid_to_ds_map);
-			if (ra->err != 0)
+			if (err != 0)
 				goto out;
 		}
 
@@ -3640,6 +3654,7 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp,
 	rwa->os = ra->os;
 	rwa->byteswap = drc->drc_byteswap;
 	rwa->resumable = drc->drc_resumable;
+	rwa->raw = drc->drc_raw;
 
 	(void) thread_create(NULL, 0, receive_writer_thread, rwa, 0, curproc,
 	    TS_RUN, minclsyspri);

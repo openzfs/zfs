@@ -164,11 +164,9 @@ typedef enum dmu_send_resume_token_version {
  * DRR_WRITE_BYREF, and DRR_OBJECT_RANGE blocks
  */
 #define	DRR_CHECKSUM_DEDUP	(1<<0) /* not used for DRR_SPILL blocks */
-#define	DRR_RAW_ENCRYPTED	(1<<1)
-#define	DRR_RAW_BYTESWAP	(1<<2)
+#define	DRR_RAW_BYTESWAP	(1<<1)
 
 #define	DRR_IS_DEDUP_CAPABLE(flags)	((flags) & DRR_CHECKSUM_DEDUP)
-#define	DRR_IS_RAW_ENCRYPTED(flags)	((flags) & DRR_RAW_ENCRYPTED)
 #define	DRR_IS_RAW_BYTESWAPPED(flags)	((flags) & DRR_RAW_BYTESWAP)
 
 /* deal with compressed drr_write replay records */
@@ -177,11 +175,11 @@ typedef enum dmu_send_resume_token_version {
 	(DRR_WRITE_COMPRESSED(drrw) ? (drrw)->drr_compressed_size : \
 	(drrw)->drr_logical_size)
 #define	DRR_SPILL_PAYLOAD_SIZE(drrs) \
-	(DRR_IS_RAW_ENCRYPTED(drrs->drr_flags) ? \
+	((drrs)->drr_compressed_size ? \
 	(drrs)->drr_compressed_size : (drrs)->drr_length)
 #define	DRR_OBJECT_PAYLOAD_SIZE(drro) \
-	(DRR_IS_RAW_ENCRYPTED(drro->drr_flags) ? \
-	drro->drr_raw_bonuslen : P2ROUNDUP(drro->drr_bonuslen, 8))
+	((drro)->drr_raw_bonuslen != 0 ? \
+	(drro)->drr_raw_bonuslen : P2ROUNDUP((drro)->drr_bonuslen, 8))
 
 /*
  * zfs ioctl command structure
@@ -221,7 +219,7 @@ typedef struct dmu_replay_record {
 			uint8_t drr_flags;
 			uint32_t drr_raw_bonuslen;
 			uint64_t drr_toguid;
-			/* only nonzero if DRR_RAW_ENCRYPTED flag is set */
+			/* only nonzero for raw streams */
 			uint8_t drr_indblkshift;
 			uint8_t drr_nlevels;
 			uint8_t drr_nblkptr;
@@ -247,7 +245,7 @@ typedef struct dmu_replay_record {
 			ddt_key_t drr_key;
 			/* only nonzero if drr_compressiontype is not 0 */
 			uint64_t drr_compressed_size;
-			/* only nonzero if DRR_RAW_ENCRYPTED flag is set */
+			/* only nonzero for raw streams */
 			uint8_t drr_salt[ZIO_DATA_SALT_LEN];
 			uint8_t drr_iv[ZIO_DATA_IV_LEN];
 			uint8_t drr_mac[ZIO_DATA_MAC_LEN];
@@ -282,7 +280,7 @@ typedef struct dmu_replay_record {
 			uint8_t drr_flags;
 			uint8_t drr_compressiontype;
 			uint8_t drr_pad[6];
-			/* only nonzero if DRR_RAW_ENCRYPTED flag is set */
+			/* only nonzero for raw streams */
 			uint64_t drr_compressed_size;
 			uint8_t drr_salt[ZIO_DATA_SALT_LEN];
 			uint8_t drr_iv[ZIO_DATA_IV_LEN];

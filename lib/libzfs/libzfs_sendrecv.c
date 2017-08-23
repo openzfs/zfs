@@ -3735,6 +3735,8 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	    DMU_BACKUP_FEATURE_RESUMING;
 	boolean_t raw = DMU_GET_FEATUREFLAGS(drrb->drr_versioninfo) &
 	    DMU_BACKUP_FEATURE_RAW;
+	boolean_t embedded = DMU_GET_FEATUREFLAGS(drrb->drr_versioninfo) &
+	    DMU_BACKUP_FEATURE_EMBED_DATA;
 	stream_wantsnewfs = (drrb->drr_fromguid == 0 ||
 	    (drrb->drr_flags & DRR_FLAG_CLONE) || originsnap) && !resuming;
 
@@ -4132,6 +4134,10 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "kernel modules must be upgraded to "
 				    "receive this stream."));
+			if (embedded && !raw)
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "incompatible embedded data stream "
+				    "feature with encrypted receive."));
 			(void) zfs_error(hdl, EZFS_BADSTREAM, errbuf);
 			break;
 		case ECKSUM:

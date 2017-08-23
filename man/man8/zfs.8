@@ -3338,7 +3338,8 @@ feature enabled.
 If the
 .Sy lz4_compress
 feature is active on the sending system, then the receiving system must have
-that feature enabled as well.
+that feature enabled as well. Note that streams generated using this flag are
+unable to be received into an encrypted dataset.
 See
 .Xr zpool-features 5
 for details on ZFS feature flags and the
