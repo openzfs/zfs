@@ -34,29 +34,12 @@
 %endif
 
 %bcond_with    debug
-%bcond_with    systemd
+%bcond_without systemd
 
-# Generic enable switch for systemd
-%if %{with systemd}
+# Enable systemd when _unitdir is defined or with generic enable switch.
+%if %{with systemd} && %{defined _unitdir}
 %define _systemd 1
 %define systemd_svcs zfs-import-cache.service zfs-import-scan.service zfs-mount.service zfs-share.service zfs-zed.service zfs.target
-%endif
-
-# RHEL >= 7 comes with systemd
-%if 0%{?rhel} >= 7
-%define _systemd 1
-%endif
-
-# Fedora >= 15 comes with systemd, but only >= 18 has
-# the proper macros
-%if 0%{?fedora} >= 18
-%define _systemd 1
-%endif
-
-# opensuse >= 12.1 comes with systemd, but only >= 13.1
-# has the proper macros
-%if 0%{?suse_version} >= 1310
-%define _systemd 1
 %endif
 
 Name:           @PACKAGE@
