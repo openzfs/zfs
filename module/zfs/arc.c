@@ -4387,8 +4387,13 @@ arc_evictable_memory(void)
 	 * Scale reported evictable memory in proportion to page cache, cap
 	 * at specified min/max.
 	 */
+#ifdef ZFS_GLOBAL_NODE_PAGE_STATE
+	uint64_t min = (ptob(global_node_page_state(NR_FILE_PAGES)) / 100) *
+	    zfs_arc_pc_percent;
+#else
 	uint64_t min = (ptob(global_page_state(NR_FILE_PAGES)) / 100) *
 	    zfs_arc_pc_percent;
+#endif
 	min = MAX(arc_c_min, MIN(arc_c_max, min));
 
 	if (arc_dirty >= min)
