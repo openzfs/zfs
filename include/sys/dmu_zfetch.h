@@ -42,7 +42,10 @@ struct range_tree;
 typedef struct zfetch {
 	kmutex_t		zf_lock;    /* protects zfetch structure */
 	struct dnode		*zf_dnode;  /* dnode that owns this zfetch */
-	struct range_tree	*zf_pftree; /* range tree of prefetched blkid */
+	/* range tree of prefetched blkid */
+	struct range_tree	*zf_demand_tree;
+	/* range tree of prefetched blkid */
+	struct range_tree	*zf_pf_tree;
 	hrtime_t		zf_atime;   /* time last prefetch issued */
 } zfetch_t;
 
