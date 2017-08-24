@@ -165,7 +165,7 @@ enum dnode_dirtycontext {
  * in the dnode bonus buffer as an alternative to the traditional
  * directory-based format. Workloads such as SELinux and the Lustre
  * distributed filesystem often store enough xattr data to force spill
- * bocks when xattr=sa is in effect. Large dnodes may therefore provide a
+ * blocks when xattr=sa is in effect. Large dnodes may therefore provide a
  * performance benefit to such systems. Other use cases that benefit from
  * this feature include files with large ACLs and symbolic links with long
  * target names.
