@@ -167,7 +167,6 @@ dbuf_cons(void *vdb, void *unused, int kmflag)
 	cv_init(&db->db_changed, NULL, CV_DEFAULT, NULL);
 	multilist_link_init(&db->db_cache_link);
 	refcount_create(&db->db_holds);
-	multilist_link_init(&db->db_cache_link);
 
 	return (0);
 }
