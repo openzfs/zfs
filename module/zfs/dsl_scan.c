@@ -449,7 +449,6 @@ dsl_scrub_pause_resume_sync(void *arg, dmu_tx_t *tx)
 	spa_t *spa = dp->dp_spa;
 	dsl_scan_t *scn = dp->dp_scan;
 
-
 	if (*cmd == POOL_SCRUB_PAUSE) {
 		/* can't pause a scrub when there is no in-progress scrub */
 		spa->spa_scan_pass_scrub_pause = gethrestime_sec();

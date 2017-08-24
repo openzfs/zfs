@@ -21,10 +21,10 @@
 .\"
 .\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright (c) 2013 by Delphix. All rights reserved.
-.\" Copyright 2016 Nexenta Systems, Inc.
 .\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
 .\" Copyright (c) 2017 Datto Inc.
 .\" Copyright (c) 2017 George Melikov. All Rights Reserved.
+.\" Copyright 2017 Nexenta Systems, Inc.
 .\"
 .Dd June 28, 2017
 .Dt ZPOOL 8 SMM
@@ -1116,7 +1116,7 @@ Do not display headers, and separate fields by a single tab instead of arbitrary
 space.
 .It Fl o Ar field
 A comma-separated list of columns to display.
-.Sy name Ns , Ns Sy property Ns , Ns Sy value Ns , Ns Sy source
+.Sy name Ns \&, Ns Sy property Ns \&, Ns Sy value Ns \&, Ns Sy source
 is the default value.
 .It Fl p
 Display numbers in parsable (exact) values.
@@ -1845,9 +1845,11 @@ Stop scrubbing.
 .Bl -tag -width Ds
 .It Fl p
 Pause scrubbing.
-Scrub progress is periodically synced to disk so if the system
-is restarted or pool is exported during a paused scrub, the scrub will resume
-from the place where it was last checkpointed to disk.
+Scrub pause state and progress are periodically synced to disk.
+If the system is restarted or pool is exported during a paused scrub,
+even after import, scrub will remain paused until it is resumed.
+Once resumed the scrub will pick up from the place where it was last
+checkpointed to disk.
 To resume a paused scrub issue
 .Nm zpool Cm scrub
 again.
