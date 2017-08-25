@@ -44,6 +44,8 @@ AC_CONFIG_HEADERS([zfs_config.h], [
 	(mv zfs_config.h zfs_config.h.tmp &&
 	awk -f ${ac_srcdir}/config/config.awk zfs_config.h.tmp >zfs_config.h &&
 	rm zfs_config.h.tmp) || exit 1])
+AC_CACHE_VAL([lt_cv_sys_lib_dlsearch_path_spec],[
+	lt_cv_sys_lib_dlsearch_path_spec="\$libdir `rpm --eval '/%{_lib}'`"])
 
 AC_PROG_INSTALL
 AC_PROG_CC
