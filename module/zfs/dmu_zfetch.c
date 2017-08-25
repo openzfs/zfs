@@ -61,7 +61,8 @@ unsigned int	zfetch_stream_skip_blk = 1;
 int zfetch_stream_allow_stride = B_TRUE;
 
 
-#define	PREFETCH_MAX_ORDER	32
+#define	ZFETCHSTAT_ORDER_SHIFT	9
+#define	ZFETCHSTAT_MAX_ORDER	(32 - ZFETCHSTAT_ORDER_SHIFT)
 
 typedef struct zfetch_stats {
 	kstat_named_t zfetchstat_hits;
@@ -74,7 +75,8 @@ typedef struct zfetch_stats {
 	kstat_named_t zfetchstat_lock;
 	kstat_named_t zfetchstat_stream_fwd;
 	kstat_named_t zfetchstat_stream_bwd;
-	kstat_named_t zfetchstat_prefetch_order[PREFETCH_MAX_ORDER];
+	kstat_named_t zfetchstat_prefetch_bytes[ZFETCHSTAT_MAX_ORDER];
+	kstat_named_t zfetchstat_prefetch_ahead[ZFETCHSTAT_MAX_ORDER];
 } zfetch_stats_t;
 
 static zfetch_stats_t zfetch_stats = {
@@ -94,8 +96,8 @@ static zfetch_stats_t zfetch_stats = {
 #define	ZFETCHSTAT_BUMP(stat)    atomic_inc_64(&zfetch_stats.stat.value.ui64)
 #define	ZFETCHSTAT_BUMP_ORDER(stat, size)				\
 do {									\
-	unsigned _oidx = highbit64(size) - 1;				\
-	if (_oidx < PREFETCH_MAX_ORDER)					\
+	unsigned _oidx = highbit64(size) - ZFETCHSTAT_ORDER_SHIFT - 1;	\
+	if (_oidx < ZFETCHSTAT_MAX_ORDER)				\
 		atomic_inc_64(&zfetch_stats.stat[_oidx].value.ui64);	\
 } while (0)
 
@@ -113,10 +115,17 @@ zfetch_init(void)
 		zfetch_ksp->ks_data = &zfetch_stats;
 		kstat_install(zfetch_ksp);
 
-		for (i = 0; i < PREFETCH_MAX_ORDER; i++) {
-			snprintf(zfetch_stats.zfetchstat_prefetch_order[i].name,
-			    KSTAT_STRLEN, "prefetch_bytes_%lu", 1UL << i);
-			zfetch_stats.zfetchstat_prefetch_order[i].data_type =
+		for (i = 0; i < ZFETCHSTAT_MAX_ORDER; i++) {
+			snprintf(zfetch_stats.zfetchstat_prefetch_bytes[i].name,
+			    KSTAT_STRLEN, "prefetch_bytes_%lu",
+			    1UL << (i + ZFETCHSTAT_ORDER_SHIFT));
+			zfetch_stats.zfetchstat_prefetch_bytes[i].data_type =
+			    KSTAT_DATA_UINT64;
+
+			snprintf(zfetch_stats.zfetchstat_prefetch_ahead[i].name,
+			    KSTAT_STRLEN, "prefetch_ahead_%lu",
+			    1UL << (i + ZFETCHSTAT_ORDER_SHIFT));
+			zfetch_stats.zfetchstat_prefetch_ahead[i].data_type =
 			    KSTAT_DATA_UINT64;
 		}
 	}
@@ -157,6 +166,12 @@ dmu_zfetch_init(zfetch_t *zf, dnode_t *dno)
 void
 dmu_zfetch_fini(zfetch_t *zf)
 {
+	if (zf->zf_dnode == NULL) {
+		ASSERT(zf->zf_pf_tree == NULL);
+		ASSERT(zf->zf_demand_tree == NULL);
+		return;
+	}
+
 	mutex_enter(&zf->zf_lock);
 	range_tree_vacate(zf->zf_pf_tree, NULL, NULL);
 	range_tree_vacate(zf->zf_demand_tree, NULL, NULL);
@@ -168,6 +183,7 @@ dmu_zfetch_fini(zfetch_t *zf)
 
 	zf->zf_dnode = NULL;
 	zf->zf_pf_tree = NULL;
+	zf->zf_demand_tree = NULL;
 	zf->zf_atime = 0;
 }
 
@@ -191,22 +207,17 @@ typedef struct zfetch_access_info {
 	unsigned	zai_right_st_space;
 } zfetch_access_info_t;
 
-static void
-zfetch_access_walk_cb(void *arg, uint64_t start, uint64_t size)
-{
-	zfetch_access_info_t *zai = (zfetch_access_info_t *)arg;
-	const uint64_t end = start + size;
-
 // [a, b] overlaps with [x, y] iff b > x and a < y
 #define	L_OVERLAP(s)		((end > (s)) && (start < zai->zai_req_start))
 #define	L_OVERLAP_SEG(e)	(MIN(end, zai->zai_req_start) - MAX(e, start))
 #define	R_OVERLAP(b)		((end > zai->zai_req_end) && (start < (b)))
 #define	R_OVERLAP_SEG(b)	(MIN(end, b) - MAX(zai->zai_req_end, start))
 
-	if (L_OVERLAP(zai->zai_pf_min_blk)) {
-		zai->zai_left_pf_seg++;
-		zai->zai_left_pf_space += L_OVERLAP_SEG(zai->zai_pf_min_blk);
-	}
+static void
+zfetch_demand_walk_cb(void *arg, uint64_t start, uint64_t size)
+{
+	zfetch_access_info_t *zai = (zfetch_access_info_t *)arg;
+	const uint64_t end = start + size;
 
 	if (L_OVERLAP(zai->zai_st_min_blk)) {
 		zai->zai_left_st_seg++;
@@ -216,6 +227,18 @@ zfetch_access_walk_cb(void *arg, uint64_t start, uint64_t size)
 	if (R_OVERLAP(zai->zai_st_max_blk)) {
 		zai->zai_right_st_seg++;
 		zai->zai_right_st_space += R_OVERLAP_SEG(zai->zai_st_max_blk);
+	}
+}
+
+static void
+zfetch_prefetch_walk_cb(void *arg, uint64_t start, uint64_t size)
+{
+	zfetch_access_info_t *zai = (zfetch_access_info_t *)arg;
+	const uint64_t end = start + size;
+
+	if (L_OVERLAP(zai->zai_pf_min_blk)) {
+		zai->zai_left_pf_seg++;
+		zai->zai_left_pf_space += L_OVERLAP_SEG(zai->zai_pf_min_blk);
 	}
 
 	if (R_OVERLAP(zai->zai_pf_max_blk)) {
@@ -236,7 +259,6 @@ void
 dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data)
 {
 	int i;
-
 	uint64_t pf_space, pf_range, pf_start, pf_end;
 	uint64_t pf_fwd = 0, pf_fwd_skip = 0, pf_fwd_cnt = 0;
 	uint64_t pf_bwd = 0, pf_bwd_skip = 0, pf_bwd_cnt = 0;
@@ -244,15 +266,17 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data)
 
 	const uint64_t blkid_end = blkid + nblks;
 	zfetch_access_info_t zai = { 0 };
-	// uint64_t stream_start, stream_end;
 
-	const int shift = zf->zf_dnode->dn_datablkshift;
+	const int dshift = zf->zf_dnode->dn_datablkshift;
+
+	if (blkid == DMU_BONUS_BLKID || blkid == DMU_SPILL_BLKID)
+		return;
 
 	if (zfs_prefetch_disable)
 		return;
 
 	// ?
-	if (shift == 0)
+	if (dshift == 0)
 		return;
 
 	if (!mutex_tryenter(&zf->zf_lock)) {
@@ -283,7 +307,7 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data)
 
 	if (fetch_data) {
 		st_blk_max = MAX(1, zfetch_stream_req * nblks);
-		pf_blk_max = MAX(st_blk_max + 1, zfetch_max_distance >> shift);
+		pf_blk_max = MAX(st_blk_max + 1, zfetch_max_distance >> dshift);
 
 		zai.zai_req_start = blkid;
 		zai.zai_req_end = blkid_end;
@@ -298,8 +322,12 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data)
 		ASSERT3U(zai.zai_st_max_blk, >, blkid);
 
 		range_tree_range_walk(zf->zf_demand_tree,
+		    zai.zai_st_min_blk, zai.zai_st_max_blk,
+		    zfetch_demand_walk_cb, &zai);
+
+		range_tree_range_walk(zf->zf_pf_tree,
 		    zai.zai_pf_min_blk, zai.zai_pf_max_blk,
-		    zfetch_access_walk_cb, &zai);
+		    zfetch_prefetch_walk_cb, &zai);
 
 		/* Check how much to prefetch */
 		pf_space = range_tree_space(zf->zf_pf_tree);
@@ -312,12 +340,14 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data)
 		mutex_exit(&zf->zf_lock);
 
 		/* FORWARD stream */
-		if (zai.zai_left_st_space == (blkid - zai.zai_st_min_blk) &&
+		if (zai.zai_left_st_space == st_blk_max &&
 		    (zfetch_stream_allow_stride ||
 		    zai.zai_right_st_space == 0)) {
 			ZFETCHSTAT_BUMP(zfetchstat_stream_fwd);
-			pf_fwd = pf_blk_max;
 			pf_fwd_skip = zfetch_stream_skip_blk;
+			pf_fwd = zai.zai_right_pf_space * 3 / 4 +
+			    pf_blk_max / 4;
+			pf_fwd = MAX(pf_fwd, pf_fwd_skip + 2);
 			goto do_prefetch;
 		}
 
@@ -326,8 +356,10 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data)
 		    (zfetch_stream_allow_stride ||
 		    zai.zai_left_st_space == 0)) {
 			ZFETCHSTAT_BUMP(zfetchstat_stream_bwd);
-			pf_bwd = pf_blk_max;
 			pf_bwd_skip = zfetch_stream_skip_blk;
+			pf_bwd = zai.zai_left_pf_space * 3 / 4 +
+			    pf_blk_max / 4;
+			pf_bwd = MAX(pf_bwd, pf_bwd_skip + 2);
 			goto do_prefetch;
 		}
 
@@ -337,7 +369,7 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data)
 
 		goto miss;
 	} else {
-		pf_fwd = 1;
+		pf_fwd = 0;
 		mutex_exit(&zf->zf_lock);
 		goto do_prefetch;
 	}
@@ -395,8 +427,12 @@ do_prefetch:
 		}
 	}
 
-	ZFETCHSTAT_BUMP_ORDER(zfetchstat_prefetch_order,
-	    (pf_fwd_cnt + pf_bwd_cnt) << zf->zf_dnode->dn_datablkshift);
+	ZFETCHSTAT_BUMP_ORDER(zfetchstat_prefetch_bytes,
+	    (pf_fwd_cnt + pf_bwd_cnt) <<dshift);
+
+
+	ZFETCHSTAT_BUMP_ORDER(zfetchstat_prefetch_ahead,
+	    MAX(pf_fwd, pf_bwd) << dshift);
 
 	// TODO: metadata prefetching
 #if 0
@@ -425,7 +461,7 @@ do_prefetch:
 		max_blks = max_dist_blks - (pf_start - end_of_access_blkid);
 		pf_nblks = MIN(pf_ahead_blks, max_blks);
 		ZFETCHSTAT_BUMP(zfetchstat_hits_data);
-		ZFETCHSTAT_BUMP_ORDER(zfetchstat_prefetch_order, pf_nblks <<
+		ZFETCHSTAT_BUMP_ORDER(zfetchstat_prefetch_bytes, pf_nblks <<
 		    zf->zf_dnode->dn_datablkshift);
 	} else {
 		pf_nblks = 0;
