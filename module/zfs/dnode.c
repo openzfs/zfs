@@ -1313,7 +1313,9 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 	mutex_enter(&dn->dn_mtx);
 	type = dn->dn_type;
 	if (dn->dn_free_txg ||
-	    ((flag & DNODE_MUST_BE_FREE) && !refcount_is_zero(&dn->dn_holds))) {
+	    ((flag & DNODE_MUST_BE_ALLOCATED) && type == DMU_OT_NONE) ||
+	    ((flag & DNODE_MUST_BE_FREE) &&
+	    (type != DMU_OT_NONE || !refcount_is_zero(&dn->dn_holds)))) {
 		mutex_exit(&dn->dn_mtx);
 		dnode_rele_slots(children_dnodes, idx, slots);
 		dbuf_rele(db, FTAG);
