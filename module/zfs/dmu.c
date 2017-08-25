@@ -530,7 +530,7 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 	}
 
 	if ((flags & DMU_READ_NO_PREFETCH) == 0 &&
-	    DNODE_META_IS_CACHEABLE(dn) && length <= zfetch_array_rd_sz) {
+	    DNODE_META_IS_CACHEABLE(dn)) {
 		dmu_zfetch(&dn->dn_zfetch, blkid, nblks,
 		    read && DNODE_IS_CACHEABLE(dn));
 	}

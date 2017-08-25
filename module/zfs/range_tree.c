@@ -397,8 +397,58 @@ range_tree_walk(range_tree_t *rt, range_tree_func_t *func, void *arg)
 		func(arg, rs->rs_start, rs->rs_end - rs->rs_start);
 }
 
+void
+range_tree_range_walk(range_tree_t *rt, uint64_t start, uint64_t end,
+    range_tree_func_t *func, void *arg)
+{
+	avl_index_t where;
+	range_seg_t *rs, rsearch;
+
+	ASSERT(MUTEX_HELD(rt->rt_lock));
+	ASSERT(func != NULL);
+
+	rsearch.rs_start = start;
+	rsearch.rs_end = start + 1;
+	rs = avl_find(&rt->rt_root, &rsearch, &where);
+	if (rs == NULL)
+		rs = avl_nearest(&rt->rt_root, where, AVL_AFTER);
+
+	for (; rs && rs->rs_start < end; rs = AVL_NEXT(&rt->rt_root, rs)) {
+		uint64_t func_start = MAX(rs->rs_start, start);
+		uint64_t func_size = MIN(end, rs->rs_end) - func_start;
+
+		ASSERT3U(MIN(end, rs->rs_end), >, func_start);
+
+		func(arg, func_start, func_size);
+	}
+}
+
 uint64_t
 range_tree_space(range_tree_t *rt)
 {
 	return (rt->rt_space);
+}
+
+uint64_t
+range_tree_space_start(range_tree_t *rt)
+{
+	range_seg_t *rs;
+
+	if (range_tree_space(rt) == 0)
+		return (0);
+
+	rs = avl_first(&rt->rt_root);
+	return (rs->rs_start);
+}
+
+uint64_t
+range_tree_space_end(range_tree_t *rt)
+{
+	range_seg_t *rs;
+
+	if (range_tree_space(rt) == 0)
+		return (0);
+
+	rs = avl_last(&rt->rt_root);
+	return (rs->rs_end);
 }
