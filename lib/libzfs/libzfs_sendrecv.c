@@ -2691,8 +2691,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	    ENOENT);
 
 	if (stream_avl != NULL) {
-		char *snapname = NULL;
-		nvlist_t *lookup = NULL;
+		char *snapname;
 		nvlist_t *fs = fsavl_find(stream_avl, drrb->drr_toguid,
 		    &snapname);
 		nvlist_t *props;
@@ -2713,11 +2712,6 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			nvlist_free(props);
 		if (ret != 0)
 			return (-1);
-
-		if (0 == nvlist_lookup_nvlist(fs, "snapprops", &lookup)) {
-			VERIFY(0 == nvlist_lookup_nvlist(lookup,
-			    snapname, &snapprops_nvlist));
-		}
 	}
 
 	cp = NULL;
