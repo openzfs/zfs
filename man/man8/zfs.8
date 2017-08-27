@@ -184,12 +184,12 @@ zfs \- configures ZFS file systems
 
 .LP
 .nf
-\fBzfs\fR \fBreceive | recv\fR [\fB-vnFu\fR] \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR
+\fBzfs\fR \fBreceive\fR [\fB-vnFu\fR] [\fB-o origin\fR=\fIsnapshot\fR] \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBreceive | recv\fR [\fB-vnFu\fR] [\fB-d\fR|\fB-e\fR] \fIfilesystem\fR
+\fBzfs\fR \fBreceive\fR [\fB-vnFu\fR] [\fB-d\fR|\fB-e\fR] [\fB-o origin\fR=\fIsnapshot\fR] \fIfilesystem\fR
 .fi
 
 .LP
@@ -2942,11 +2942,11 @@ then the receiving system must have that feature enabled as well. See
 .ne 2
 .mk
 .na
-\fB\fBzfs receive\fR [\fB-vnFu\fR] \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR\fR
+\fB\fBzfs receive\fR [\fB-vnFu\fR] [\fB-o origin\fR=\fIsnapshot\fR] \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR\fR
 .ad
 .br
 .na
-\fB\fBzfs receive\fR [\fB-vnFu\fR] [\fB-d\fR|\fB-e\fR] \fIfilesystem\fR\fR
+\fB\fBzfs receive\fR [\fB-vnFu\fR] [\fB-d\fR|\fB-e\fR] [\fB-o origin\fR=\fIsnapshot\fR] \fIfilesystem\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -3012,6 +3012,17 @@ Print verbose information about the stream and the time required to perform the 
 .sp .6
 .RS 4n
 Do not actually receive the stream. This can be useful in conjunction with the \fB-v\fR option to verify the name the receive operation would use.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-o\fR \fBorigin\fR=\fIsnapshot\fR
+.ad
+.sp .6
+.RS 4n
+Forces the stream to be received as a clone of the given snapshot. This is only valid if the stream is an incremental stream whose source is the same as the provided origin.
 .RE
 
 .sp

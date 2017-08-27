@@ -44,7 +44,7 @@ typedef const struct zio_checksum_info {
 	zio_checksum_func_t *ci_func[2]; /* checksum function per byteorder */
 	int		ci_correctable;	/* number of correctable bits	*/
 	int		ci_eck;		/* uses zio embedded checksum? */
-	int		ci_dedup;	/* strong enough for dedup? */
+	boolean_t	ci_dedup;	/* strong enough for dedup? */
 	char		*ci_name;	/* descriptive name */
 } zio_checksum_info_t;
 
