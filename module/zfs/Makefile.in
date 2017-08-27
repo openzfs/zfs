@@ -14,6 +14,7 @@ $(MODULE)-objs += bpobj.o
 $(MODULE)-objs += dbuf.o
 $(MODULE)-objs += dbuf_stats.o
 $(MODULE)-objs += bptree.o
+$(MODULE)-objs += bqueue.o
 $(MODULE)-objs += ddt.o
 $(MODULE)-objs += ddt_zap.o
 $(MODULE)-objs += dmu.o

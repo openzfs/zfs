@@ -27,7 +27,7 @@
  */
 
 /*
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2014 by Delphix. All rights reserved.
  */
 
 #include <ctype.h>
@@ -36,6 +36,7 @@
 #include <stdlib.h>
 #include <strings.h>
 #include <unistd.h>
+#include <stddef.h>
 
 #include <sys/dmu.h>
 #include <sys/zfs_ioctl.h>
@@ -73,8 +74,8 @@ safe_malloc(size_t size)
 {
 	void *rv = malloc(size);
 	if (rv == NULL) {
-		(void) fprintf(stderr, "ERROR; failed to allocate %u bytes\n",
-		    (unsigned)size);
+		(void) fprintf(stderr, "ERROR; failed to allocate %zu bytes\n",
+		    size);
 		abort();
 	}
 	return (rv);
@@ -85,7 +86,6 @@ safe_malloc(size_t size)
  *
  * Read while computing incremental checksum
  */
-
 static size_t
 ssread(void *buf, size_t len, zio_cksum_t *cksum)
 {
@@ -94,7 +94,7 @@ ssread(void *buf, size_t len, zio_cksum_t *cksum)
 	if ((outlen = fread(buf, len, 1, send_stream)) == 0)
 		return (0);
 
-	if (do_cksum && cksum) {
+	if (do_cksum) {
 		if (do_byteswap)
 			fletcher_4_incremental_byteswap(buf, len, cksum);
 		else
@@ -102,6 +102,34 @@ ssread(void *buf, size_t len, zio_cksum_t *cksum)
 	}
 	total_stream_len += len;
 	return (outlen);
+}
+
+static size_t
+read_hdr(dmu_replay_record_t *drr, zio_cksum_t *cksum)
+{
+	ASSERT3U(offsetof(dmu_replay_record_t, drr_u.drr_checksum.drr_checksum),
+	    ==, sizeof (dmu_replay_record_t) - sizeof (zio_cksum_t));
+	size_t r = ssread(drr, sizeof (*drr) - sizeof (zio_cksum_t), cksum);
+	if (r == 0)
+		return (0);
+	zio_cksum_t saved_cksum = *cksum;
+	r = ssread(&drr->drr_u.drr_checksum.drr_checksum,
+	    sizeof (zio_cksum_t), cksum);
+	if (r == 0)
+		return (0);
+	if (!ZIO_CHECKSUM_IS_ZERO(&drr->drr_u.drr_checksum.drr_checksum) &&
+	    !ZIO_CHECKSUM_EQUAL(saved_cksum,
+	    drr->drr_u.drr_checksum.drr_checksum)) {
+		fprintf(stderr, "invalid checksum\n");
+		(void) printf("Incorrect checksum in record header.\n");
+		(void) printf("Expected checksum = %llx/%llx/%llx/%llx\n",
+		    (longlong_t)saved_cksum.zc_word[0],
+		    (longlong_t)saved_cksum.zc_word[1],
+		    (longlong_t)saved_cksum.zc_word[2],
+		    (longlong_t)saved_cksum.zc_word[3]);
+		exit(1);
+	}
+	return (sizeof (*drr));
 }
 
 /*
@@ -135,7 +163,7 @@ print_block(char *buf, int length)
 	 * Start printing ASCII characters at a constant offset, after
 	 * the hex prints. Leave 3 characters per byte on a line (2 digit
 	 * hex number plus 1 space) plus spaces between characters and
-	 * groupings
+	 * groupings.
 	 */
 	int ascii_start = BYTES_PER_LINE * 3 +
 	    BYTES_PER_LINE / DUMP_GROUPING + 2;
@@ -185,8 +213,10 @@ main(int argc, char *argv[])
 	struct drr_free *drrf = &thedrr.drr_u.drr_free;
 	struct drr_spill *drrs = &thedrr.drr_u.drr_spill;
 	struct drr_write_embedded *drrwe = &thedrr.drr_u.drr_write_embedded;
+	struct drr_checksum *drrc = &thedrr.drr_u.drr_checksum;
 	char c;
 	boolean_t verbose = B_FALSE;
+	boolean_t very_verbose = B_FALSE;
 	boolean_t first = B_TRUE;
 	/*
 	 * dump flag controls whether the contents of any modified data blocks
@@ -204,11 +234,14 @@ main(int argc, char *argv[])
 			do_cksum = B_FALSE;
 			break;
 		case 'v':
+			if (verbose)
+				very_verbose = B_TRUE;
 			verbose = B_TRUE;
 			break;
 		case 'd':
 			dump = B_TRUE;
 			verbose = B_TRUE;
+			very_verbose = B_TRUE;
 			break;
 		case ':':
 			(void) fprintf(stderr,
@@ -231,7 +264,7 @@ main(int argc, char *argv[])
 	}
 
 	send_stream = stdin;
-	while (ssread(drr, sizeof (dmu_replay_record_t), &zc)) {
+	while (read_hdr(drr, &zc)) {
 
 		/*
 		 * If this is the first DMU record being processed, check for
@@ -437,7 +470,7 @@ main(int argc, char *argv[])
 			if (verbose) {
 				(void) printf("WRITE object = %llu type = %u "
 				    "checksum type = %u\n"
-				    "offset = %llu length = %llu "
+				    "    offset = %llu length = %llu "
 				    "props = %llx\n",
 				    (u_longlong_t)drrw->drr_object,
 				    drrw->drr_type,
@@ -481,9 +514,9 @@ main(int argc, char *argv[])
 			if (verbose) {
 				(void) printf("WRITE_BYREF object = %llu "
 				    "checksum type = %u props = %llx\n"
-				    "offset = %llu length = %llu\n"
+				    "    offset = %llu length = %llu\n"
 				    "toguid = %llx refguid = %llx\n"
-				    "refobject = %llu refoffset = %llu\n",
+				    "    refobject = %llu refoffset = %llu\n",
 				    (u_longlong_t)drrwbr->drr_object,
 				    drrwbr->drr_checksumtype,
 				    (u_longlong_t)drrwbr->drr_key.ddk_prop,
@@ -544,7 +577,7 @@ main(int argc, char *argv[])
 			if (verbose) {
 				(void) printf("WRITE_EMBEDDED object = %llu "
 				    "offset = %llu length = %llu\n"
-				    "toguid = %llx comp = %u etype = %u "
+				    "    toguid = %llx comp = %u etype = %u "
 				    "lsize = %u psize = %u\n",
 				    (u_longlong_t)drrwe->drr_object,
 				    (u_longlong_t)drrwe->drr_offset,
@@ -561,6 +594,13 @@ main(int argc, char *argv[])
 		case DRR_NUMTYPES:
 			/* should never be reached */
 			exit(1);
+		}
+		if (drr->drr_type != DRR_BEGIN && very_verbose) {
+			(void) printf("    checksum = %llx/%llx/%llx/%llx\n",
+			    (longlong_t)drrc->drr_checksum.zc_word[0],
+			    (longlong_t)drrc->drr_checksum.zc_word[1],
+			    (longlong_t)drrc->drr_checksum.zc_word[2],
+			    (longlong_t)drrc->drr_checksum.zc_word[3]);
 		}
 		pcksum = zc;
 	}

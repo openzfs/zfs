@@ -26,6 +26,7 @@
  * Copyright (c) 2012 Pawel Jakub Dawidek <pawel@dawidek.net>.
  * All rights reserved
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
+ * Copyright 2015, OmniTI Computer Consulting, Inc. All rights reserved.
  */
 
 #include <assert.h>
@@ -63,8 +64,9 @@
 /* in libzfs_dataset.c */
 extern void zfs_setprop_error(libzfs_handle_t *, zfs_prop_t, int, char *);
 
-static int zfs_receive_impl(libzfs_handle_t *, const char *, recvflags_t *,
-    int, const char *, nvlist_t *, avl_tree_t *, char **, int, uint64_t *);
+static int zfs_receive_impl(libzfs_handle_t *, const char *, const char *,
+    recvflags_t *, int, const char *, nvlist_t *, avl_tree_t *, char **, int,
+    uint64_t *, const char *);
 
 static const zio_cksum_t zero_cksum = { { 0 } };
 
@@ -187,10 +189,28 @@ ddt_update(libzfs_handle_t *hdl, dedup_table_t *ddt, zio_cksum_t *cs,
 }
 
 static int
-cksum_and_write(const void *buf, uint64_t len, zio_cksum_t *zc, int outfd)
+dump_record(dmu_replay_record_t *drr, void *payload, int payload_len,
+    zio_cksum_t *zc, int outfd)
 {
-	fletcher_4_incremental_native(buf, len, zc);
-	return (write(outfd, buf, len));
+	ASSERT3U(offsetof(dmu_replay_record_t, drr_u.drr_checksum.drr_checksum),
+	    ==, sizeof (dmu_replay_record_t) - sizeof (zio_cksum_t));
+	fletcher_4_incremental_native(drr,
+	    offsetof(dmu_replay_record_t, drr_u.drr_checksum.drr_checksum), zc);
+	if (drr->drr_type != DRR_BEGIN) {
+		ASSERT(ZIO_CHECKSUM_IS_ZERO(&drr->drr_u.
+		    drr_checksum.drr_checksum));
+		drr->drr_u.drr_checksum.drr_checksum = *zc;
+	}
+	fletcher_4_incremental_native(&drr->drr_u.drr_checksum.drr_checksum,
+	    sizeof (zio_cksum_t), zc);
+	if (write(outfd, drr, sizeof (*drr)) == -1)
+		return (errno);
+	if (payload_len != 0) {
+		fletcher_4_incremental_native(payload, payload_len, zc);
+		if (write(outfd, payload, payload_len) == -1)
+			return (errno);
+	}
+	return (0);
 }
 
 /*
@@ -217,26 +237,18 @@ cksummer(void *arg)
 	char *buf = zfs_alloc(dda->dedup_hdl, SPA_MAXBLOCKSIZE);
 	dmu_replay_record_t thedrr;
 	dmu_replay_record_t *drr = &thedrr;
-	struct drr_begin *drrb = &thedrr.drr_u.drr_begin;
-	struct drr_end *drre = &thedrr.drr_u.drr_end;
-	struct drr_object *drro = &thedrr.drr_u.drr_object;
-	struct drr_write *drrw = &thedrr.drr_u.drr_write;
-	struct drr_spill *drrs = &thedrr.drr_u.drr_spill;
-	struct drr_write_embedded *drrwe = &thedrr.drr_u.drr_write_embedded;
 	FILE *ofp;
 	int outfd;
-	dmu_replay_record_t wbr_drr = {0};
-	struct drr_write_byref *wbr_drrr = &wbr_drr.drr_u.drr_write_byref;
 	dedup_table_t ddt;
 	zio_cksum_t stream_cksum;
 	uint64_t physmem = sysconf(_SC_PHYS_PAGES) * sysconf(_SC_PAGESIZE);
 	uint64_t numbuckets;
 
 	ddt.max_ddt_size =
-	    MAX((physmem * MAX_DDT_PHYSMEM_PERCENT)/100,
-	    SMALLEST_POSSIBLE_MAX_DDT_MB<<20);
+	    MAX((physmem * MAX_DDT_PHYSMEM_PERCENT) / 100,
+	    SMALLEST_POSSIBLE_MAX_DDT_MB << 20);
 
-	numbuckets = ddt.max_ddt_size/(sizeof (dedup_entry_t));
+	numbuckets = ddt.max_ddt_size / (sizeof (dedup_entry_t));
 
 	/*
 	 * numbuckets must be a power of 2.  Increase number to
@@ -252,19 +264,19 @@ cksummer(void *arg)
 	ddt.numhashbits = high_order_bit(numbuckets) - 1;
 	ddt.ddt_full = B_FALSE;
 
-	/* Initialize the write-by-reference block. */
-	wbr_drr.drr_type = DRR_WRITE_BYREF;
-	wbr_drr.drr_payloadlen = 0;
-
 	outfd = dda->outputfd;
 	ofp = fdopen(dda->inputfd, "r");
-	while (ssread(drr, sizeof (dmu_replay_record_t), ofp) != 0) {
+	while (ssread(drr, sizeof (*drr), ofp) != 0) {
 
 		switch (drr->drr_type) {
 		case DRR_BEGIN:
 		{
-			int	fflags;
+			struct drr_begin *drrb = &drr->drr_u.drr_begin;
+			int fflags;
+			int sz = 0;
 			ZIO_SET_CHECKSUM(&stream_cksum, 0, 0, 0, 0);
+
+			ASSERT3U(drrb->drr_magic, ==, DMU_BACKUP_MAGIC);
 
 			/* set the DEDUP feature flag for this stream */
 			fflags = DMU_GET_FEATUREFLAGS(drrb->drr_versioninfo);
@@ -272,12 +284,9 @@ cksummer(void *arg)
 			    DMU_BACKUP_FEATURE_DEDUPPROPS);
 			DMU_SET_FEATUREFLAGS(drrb->drr_versioninfo, fflags);
 
-			if (cksum_and_write(drr, sizeof (dmu_replay_record_t),
-			    &stream_cksum, outfd) == -1)
-				goto out;
 			if (DMU_GET_STREAM_HDRTYPE(drrb->drr_versioninfo) ==
 			    DMU_COMPOUNDSTREAM && drr->drr_payloadlen != 0) {
-				int sz = drr->drr_payloadlen;
+				sz = drr->drr_payloadlen;
 
 				if (sz > SPA_MAXBLOCKSIZE) {
 					buf = zfs_realloc(dda->dedup_hdl, buf,
@@ -286,64 +295,60 @@ cksummer(void *arg)
 				(void) ssread(buf, sz, ofp);
 				if (ferror(stdin))
 					perror("fread");
-				if (cksum_and_write(buf, sz, &stream_cksum,
-				    outfd) == -1)
-					goto out;
 			}
+			if (dump_record(drr, buf, sz, &stream_cksum,
+			    outfd) != 0)
+				goto out;
 			break;
 		}
 
 		case DRR_END:
 		{
+			struct drr_end *drre = &drr->drr_u.drr_end;
 			/* use the recalculated checksum */
-			ZIO_SET_CHECKSUM(&drre->drr_checksum,
-			    stream_cksum.zc_word[0], stream_cksum.zc_word[1],
-			    stream_cksum.zc_word[2], stream_cksum.zc_word[3]);
-			if ((write(outfd, drr,
-			    sizeof (dmu_replay_record_t))) == -1)
+			drre->drr_checksum = stream_cksum;
+			if (dump_record(drr, NULL, 0, &stream_cksum,
+			    outfd) != 0)
 				goto out;
 			break;
 		}
 
 		case DRR_OBJECT:
 		{
-			if (cksum_and_write(drr, sizeof (dmu_replay_record_t),
-			    &stream_cksum, outfd) == -1)
-				goto out;
+			struct drr_object *drro = &drr->drr_u.drr_object;
 			if (drro->drr_bonuslen > 0) {
 				(void) ssread(buf,
 				    P2ROUNDUP((uint64_t)drro->drr_bonuslen, 8),
 				    ofp);
-				if (cksum_and_write(buf,
-				    P2ROUNDUP((uint64_t)drro->drr_bonuslen, 8),
-				    &stream_cksum, outfd) == -1)
-					goto out;
 			}
+			if (dump_record(drr, buf,
+			    P2ROUNDUP((uint64_t)drro->drr_bonuslen, 8),
+			    &stream_cksum, outfd) != 0)
+				goto out;
 			break;
 		}
 
 		case DRR_SPILL:
 		{
-			if (cksum_and_write(drr, sizeof (dmu_replay_record_t),
-			    &stream_cksum, outfd) == -1)
-				goto out;
+			struct drr_spill *drrs = &drr->drr_u.drr_spill;
 			(void) ssread(buf, drrs->drr_length, ofp);
-			if (cksum_and_write(buf, drrs->drr_length,
-			    &stream_cksum, outfd) == -1)
+			if (dump_record(drr, buf, drrs->drr_length,
+			    &stream_cksum, outfd) != 0)
 				goto out;
 			break;
 		}
 
 		case DRR_FREEOBJECTS:
 		{
-			if (cksum_and_write(drr, sizeof (dmu_replay_record_t),
-			    &stream_cksum, outfd) == -1)
+			if (dump_record(drr, NULL, 0, &stream_cksum,
+			    outfd) != 0)
 				goto out;
 			break;
 		}
 
 		case DRR_WRITE:
 		{
+			struct drr_write *drrw = &drr->drr_u.drr_write;
 			dataref_t	dataref;
 
 			(void) ssread(buf, drrw->drr_length, ofp);
@@ -380,7 +385,13 @@ cksummer(void *arg)
 			if (ddt_update(dda->dedup_hdl, &ddt,
 			    &drrw->drr_key.ddk_cksum, drrw->drr_key.ddk_prop,
 			    &dataref)) {
+				dmu_replay_record_t wbr_drr = {0};
+				struct drr_write_byref *wbr_drrr =
+				    &wbr_drr.drr_u.drr_write_byref;
+
 				/* block already present in stream */
+				wbr_drr.drr_type = DRR_WRITE_BYREF;
+
 				wbr_drrr->drr_object = drrw->drr_object;
 				wbr_drrr->drr_offset = drrw->drr_offset;
 				wbr_drrr->drr_length = drrw->drr_length;
@@ -400,19 +411,13 @@ cksummer(void *arg)
 				wbr_drrr->drr_key.ddk_prop =
 				    drrw->drr_key.ddk_prop;
 
-				if (cksum_and_write(&wbr_drr,
-				    sizeof (dmu_replay_record_t), &stream_cksum,
-				    outfd) == -1)
+				if (dump_record(&wbr_drr, NULL, 0,
+				    &stream_cksum, outfd) != 0)
 					goto out;
 			} else {
 				/* block not previously seen */
-				if (cksum_and_write(drr,
-				    sizeof (dmu_replay_record_t), &stream_cksum,
-				    outfd) == -1)
-					goto out;
-				if (cksum_and_write(buf,
-				    drrw->drr_length,
-				    &stream_cksum, outfd) == -1)
+				if (dump_record(drr, buf, drrw->drr_length,
+				    &stream_cksum, outfd) != 0)
 					goto out;
 			}
 			break;
@@ -420,28 +425,27 @@ cksummer(void *arg)
 
 		case DRR_WRITE_EMBEDDED:
 		{
-			if (cksum_and_write(drr, sizeof (dmu_replay_record_t),
-			    &stream_cksum, outfd) == -1)
-				goto out;
+			struct drr_write_embedded *drrwe =
+			    &drr->drr_u.drr_write_embedded;
 			(void) ssread(buf,
 			    P2ROUNDUP((uint64_t)drrwe->drr_psize, 8), ofp);
-			if (cksum_and_write(buf,
+			if (dump_record(drr, buf,
 			    P2ROUNDUP((uint64_t)drrwe->drr_psize, 8),
-			    &stream_cksum, outfd) == -1)
+			    &stream_cksum, outfd) != 0)
 				goto out;
 			break;
 		}
 
 		case DRR_FREE:
 		{
-			if (cksum_and_write(drr, sizeof (dmu_replay_record_t),
-			    &stream_cksum, outfd) == -1)
+			if (dump_record(drr, NULL, 0, &stream_cksum,
+			    outfd) != 0)
 				goto out;
 			break;
 		}
 
 		default:
-			(void) printf("INVALID record type 0x%x\n",
+			(void) fprintf(stderr, "INVALID record type 0x%x\n",
 			    drr->drr_type);
 			/* should never happen, so assert */
 			assert(B_FALSE);
@@ -1495,18 +1499,11 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 				goto stderr_out;
 			}
 			drr.drr_payloadlen = buflen;
-			err = cksum_and_write(&drr, sizeof (drr), &zc, outfd);
 
-			/* write header nvlist */
-			if (err != -1 && packbuf != NULL) {
-				err = cksum_and_write(packbuf, buflen, &zc,
-				    outfd);
-			}
+			err = dump_record(&drr, packbuf, buflen, &zc, outfd);
 			free(packbuf);
-			if (err == -1) {
-				err = errno;
+			if (err != 0)
 				goto stderr_out;
-			}
 
 			/* write end record */
 			bzero(&drr, sizeof (drr));
@@ -1739,6 +1736,8 @@ recv_read(libzfs_handle_t *hdl, int fd, void *buf, int ilen,
 	char *cp = buf;
 	int rv;
 	int len = ilen;
+
+	assert(ilen <= SPA_MAXBLOCKSIZE);
 
 	do {
 		rv = read(fd, cp, len);
@@ -2370,6 +2369,7 @@ zfs_receive_package(libzfs_handle_t *hdl, int fd, const char *destname,
 	nvlist_t *stream_nv = NULL;
 	avl_tree_t *stream_avl = NULL;
 	char *fromsnap = NULL;
+	char *sendsnap = NULL;
 	char *cp;
 	char tofs[ZFS_MAXNAMELEN];
 	char sendfs[ZFS_MAXNAMELEN];
@@ -2518,8 +2518,16 @@ zfs_receive_package(libzfs_handle_t *hdl, int fd, const char *destname,
 	 */
 	(void) strlcpy(sendfs, drr->drr_u.drr_begin.drr_toname,
 	    ZFS_MAXNAMELEN);
-	if ((cp = strchr(sendfs, '@')) != NULL)
+	if ((cp = strchr(sendfs, '@')) != NULL) {
 		*cp = '\0';
+		/*
+		 * Find the "sendsnap", the final snapshot in a replication
+		 * stream.  zfs_receive_one() handles certain errors
+		 * differently, depending on if the contained stream is the
+		 * last one or not.
+		 */
+		sendsnap = (cp + 1);
+	}
 
 	/* Finally, receive each contained stream */
 	do {
@@ -2530,9 +2538,9 @@ zfs_receive_package(libzfs_handle_t *hdl, int fd, const char *destname,
 		 * zfs_receive_one() will take care of it (ie,
 		 * recv_skip() and return 0).
 		 */
-		error = zfs_receive_impl(hdl, destname, flags, fd,
+		error = zfs_receive_impl(hdl, destname, NULL, flags, fd,
 		    sendfs, stream_nv, stream_avl, top_zfs, cleanup_fd,
-		    action_handlep);
+		    action_handlep, sendsnap);
 		if (error == ENODATA) {
 			error = 0;
 			break;
@@ -2663,10 +2671,10 @@ recv_skip(libzfs_handle_t *hdl, int fd, boolean_t byteswap)
  */
 static int
 zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
-    recvflags_t *flags, dmu_replay_record_t *drr,
-    dmu_replay_record_t *drr_noswap, const char *sendfs,
-    nvlist_t *stream_nv, avl_tree_t *stream_avl, char **top_zfs, int cleanup_fd,
-    uint64_t *action_handlep)
+    const char *originsnap, recvflags_t *flags, dmu_replay_record_t *drr,
+    dmu_replay_record_t *drr_noswap, const char *sendfs, nvlist_t *stream_nv,
+    avl_tree_t *stream_avl, char **top_zfs, int cleanup_fd,
+    uint64_t *action_handlep, const char *finalsnap)
 {
 	zfs_cmd_t zc = {"\0"};
 	time_t begin_time;
@@ -2683,6 +2691,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	nvlist_t *snapprops_nvlist = NULL;
 	zprop_errflags_t prop_errflags;
 	boolean_t recursive;
+	char *snapname = NULL;
 
 	begin_time = time(NULL);
 
@@ -2693,8 +2702,6 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	    ENOENT);
 
 	if (stream_avl != NULL) {
-		char *snapname = NULL;
-		nvlist_t *lookup = NULL;
 		nvlist_t *fs = fsavl_find(stream_avl, drrb->drr_toguid,
 		    &snapname);
 		nvlist_t *props;
@@ -2715,11 +2722,6 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			nvlist_free(props);
 		if (ret != 0)
 			return (-1);
-
-		if (0 == nvlist_lookup_nvlist(fs, "snapprops", &lookup)) {
-			VERIFY(0 == nvlist_lookup_nvlist(lookup,
-			    snapname, &snapprops_nvlist));
-		}
 	}
 
 	cp = NULL;
@@ -2821,10 +2823,15 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		}
 		if (flags->verbose)
 			(void) printf("found clone origin %s\n", zc.zc_string);
+	} else if (originsnap) {
+		(void) strncpy(zc.zc_string, originsnap, ZFS_MAXNAMELEN);
+		if (flags->verbose)
+			(void) printf("using provided clone origin %s\n",
+			    zc.zc_string);
 	}
 
 	stream_wantsnewfs = (drrb->drr_fromguid == 0 ||
-	    (drrb->drr_flags & DRR_FLAG_CLONE));
+	    (drrb->drr_flags & DRR_FLAG_CLONE) || originsnap);
 
 	if (stream_wantsnewfs) {
 		/*
@@ -3019,7 +3026,21 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			    ZPROP_N_MORE_ERRORS) == 0) {
 				trunc_prop_errs(intval);
 				break;
-			} else {
+			} else if (snapname == NULL || finalsnap == NULL ||
+			    strcmp(finalsnap, snapname) == 0 ||
+			    strcmp(nvpair_name(prop_err),
+			    zfs_prop_to_name(ZFS_PROP_REFQUOTA)) != 0) {
+				/*
+				 * Skip the special case of, for example,
+				 * "refquota", errors on intermediate
+				 * snapshots leading up to a final one.
+				 * That's why we have all of the checks above.
+				 *
+				 * See zfs_ioctl.c's extract_delay_props() for
+				 * a list of props which can fail on
+				 * intermediate snapshots, but shouldn't
+				 * affect the overall receive.
+				 */
 				(void) snprintf(tbuf, sizeof (tbuf),
 				    dgettext(TEXT_DOMAIN,
 				    "cannot receive %s property on %s"),
@@ -3202,9 +3223,10 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 }
 
 static int
-zfs_receive_impl(libzfs_handle_t *hdl, const char *tosnap, recvflags_t *flags,
-    int infd, const char *sendfs, nvlist_t *stream_nv, avl_tree_t *stream_avl,
-    char **top_zfs, int cleanup_fd, uint64_t *action_handlep)
+zfs_receive_impl(libzfs_handle_t *hdl, const char *tosnap,
+    const char *originsnap, recvflags_t *flags, int infd, const char *sendfs,
+    nvlist_t *stream_nv, avl_tree_t *stream_avl, char **top_zfs, int cleanup_fd,
+    uint64_t *action_handlep, const char *finalsnap)
 {
 	int err;
 	dmu_replay_record_t drr, drr_noswap;
@@ -3221,6 +3243,12 @@ zfs_receive_impl(libzfs_handle_t *hdl, const char *tosnap, recvflags_t *flags,
 	    !zfs_dataset_exists(hdl, tosnap, ZFS_TYPE_DATASET)) {
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "specified fs "
 		    "(%s) does not exist"), tosnap);
+		return (zfs_error(hdl, EZFS_NOENT, errbuf));
+	}
+	if (originsnap &&
+	    !zfs_dataset_exists(hdl, originsnap, ZFS_TYPE_DATASET)) {
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "specified origin fs "
+		    "(%s) does not exist"), originsnap);
 		return (zfs_error(hdl, EZFS_NOENT, errbuf));
 	}
 
@@ -3294,15 +3322,16 @@ zfs_receive_impl(libzfs_handle_t *hdl, const char *tosnap, recvflags_t *flags,
 			if ((cp = strchr(nonpackage_sendfs, '@')) != NULL)
 				*cp = '\0';
 			sendfs = nonpackage_sendfs;
+			VERIFY(finalsnap == NULL);
 		}
-		return (zfs_receive_one(hdl, infd, tosnap, flags,
-		    &drr, &drr_noswap, sendfs, stream_nv, stream_avl,
-		    top_zfs, cleanup_fd, action_handlep));
+		return (zfs_receive_one(hdl, infd, tosnap, originsnap, flags,
+		    &drr, &drr_noswap, sendfs, stream_nv, stream_avl, top_zfs,
+		    cleanup_fd, action_handlep, finalsnap));
 	} else {
 		assert(DMU_GET_STREAM_HDRTYPE(drrb->drr_versioninfo) ==
 		    DMU_COMPOUNDSTREAM);
-		return (zfs_receive_package(hdl, infd, tosnap, flags,
-		    &drr, &zcksum, top_zfs, cleanup_fd, action_handlep));
+		return (zfs_receive_package(hdl, infd, tosnap, flags, &drr,
+		    &zcksum, top_zfs, cleanup_fd, action_handlep));
 	}
 }
 
@@ -3313,14 +3342,15 @@ zfs_receive_impl(libzfs_handle_t *hdl, const char *tosnap, recvflags_t *flags,
  * (-1 will override -2).
  */
 int
-zfs_receive(libzfs_handle_t *hdl, const char *tosnap, recvflags_t *flags,
-    int infd, avl_tree_t *stream_avl)
+zfs_receive(libzfs_handle_t *hdl, const char *tosnap, nvlist_t *props,
+    recvflags_t *flags, int infd, avl_tree_t *stream_avl)
 {
 	char *top_zfs = NULL;
 	int err;
 	int cleanup_fd;
 	uint64_t action_handle = 0;
 	struct stat sb;
+	char *originsnap = NULL;
 
 	/*
 	 * The only way fstat can fail is if we do not have a valid file
@@ -3363,11 +3393,17 @@ zfs_receive(libzfs_handle_t *hdl, const char *tosnap, recvflags_t *flags,
 	}
 #endif /* __linux__ */
 
+	if (props) {
+		err = nvlist_lookup_string(props, "origin", &originsnap);
+		if (err && err != ENOENT)
+			return (err);
+	}
+
 	cleanup_fd = open(ZFS_DEV, O_RDWR);
 	VERIFY(cleanup_fd >= 0);
 
-	err = zfs_receive_impl(hdl, tosnap, flags, infd, NULL, NULL,
-	    stream_avl, &top_zfs, cleanup_fd, &action_handle);
+	err = zfs_receive_impl(hdl, tosnap, originsnap, flags, infd, NULL, NULL,
+	    stream_avl, &top_zfs, cleanup_fd, &action_handle, NULL);
 
 	VERIFY(0 == close(cleanup_fd));
 

@@ -76,8 +76,8 @@ space_map_load(space_map_t *sm, range_tree_t *rt, maptype_t maptype)
 
 	mutex_exit(sm->sm_lock);
 	if (end > bufsize) {
-		dmu_prefetch(sm->sm_os, space_map_object(sm), bufsize,
-		    end - bufsize);
+		dmu_prefetch(sm->sm_os, space_map_object(sm), 0, bufsize,
+		    end - bufsize, ZIO_PRIORITY_SYNC_READ);
 	}
 	mutex_enter(sm->sm_lock);
 

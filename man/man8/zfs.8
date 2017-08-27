@@ -22,7 +22,7 @@
 .\"
 .\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
-.\" Copyright (c) 2014 by Delphix. All rights reserved.
+.\" Copyright (c) 2011, 2014 by Delphix. All rights reserved.
 .\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
 .\" Copyright 2012 Nexenta Systems, Inc. All Rights Reserved.
 .\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
@@ -106,7 +106,7 @@ zfs \- configures ZFS file systems
 
 .LP
 .nf
-\fBzfs\fR \fBset\fR \fIproperty\fR=\fIvalue\fR \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR ...
++\fBzfs\fR \fBset\fR \fIproperty\fR=\fIvalue\fR... \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR...
 .fi
 
 .LP
@@ -184,12 +184,12 @@ zfs \- configures ZFS file systems
 
 .LP
 .nf
-\fBzfs\fR \fBreceive | recv\fR [\fB-vnFu\fR] \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR
+\fBzfs\fR \fBreceive\fR [\fB-vnFu\fR] [\fB-o origin\fR=\fIsnapshot\fR] \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR
 .fi
 
 .LP
 .nf
-\fBzfs\fR \fBreceive | recv\fR [\fB-vnFu\fR] [\fB-d\fR|\fB-e\fR] \fIfilesystem\fR
+\fBzfs\fR \fBreceive\fR [\fB-vnFu\fR] [\fB-d\fR|\fB-e\fR] [\fB-o origin\fR=\fIsnapshot\fR] \fIfilesystem\fR
 .fi
 
 .LP
@@ -2182,11 +2182,19 @@ A comma-separated list of types to display, where \fItype\fR is one of \fBfilesy
 .ne 2
 .mk
 .na
-\fB\fBzfs set\fR \fIproperty\fR=\fIvalue\fR \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR ...\fR
+\fB\fBzfs set\fR \fIproperty\fR=\fIvalue\fR[ \fIproperty\fR=\fIvalue\fR]...
+\fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR ...\fR
 .ad
 .sp .6
 .RS 4n
-Sets the property to the given value for each dataset. Only some properties can be edited. See the "Properties" section for more information on what properties can be set and acceptable values. Numeric values can be specified as exact values, or in a human-readable form with a suffix of \fBB\fR, \fBK\fR, \fBM\fR, \fBG\fR, \fBT\fR, \fBP\fR, \fBE\fR, \fBZ\fR (for bytes, kilobytes, megabytes, gigabytes, terabytes, petabytes, exabytes, or zettabytes, respectively). User properties can be set on snapshots. For more information, see the "User Properties" section.
+Sets the property or list of properties to the given value(s) for each dataset.
+Only some properties can be edited. See the "Properties" section for more
+information on what properties can be set and acceptable values. Numeric values
+can be specified as exact values, or in a human-readable form with a suffix of
+\fBB\fR, \fBK\fR, \fBM\fR, \fBG\fR, \fBT\fR, \fBP\fR, \fBE\fR, \fBZ\fR (for
+bytes, kilobytes, megabytes, gigabytes, terabytes, petabytes, exabytes, or
+zettabytes, respectively). User properties can be set on snapshots. For more
+information, see the "User Properties" section.
 .RE
 
 .sp
@@ -2934,11 +2942,11 @@ then the receiving system must have that feature enabled as well. See
 .ne 2
 .mk
 .na
-\fB\fBzfs receive\fR [\fB-vnFu\fR] \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR\fR
+\fB\fBzfs receive\fR [\fB-vnFu\fR] [\fB-o origin\fR=\fIsnapshot\fR] \fIfilesystem\fR|\fIvolume\fR|\fIsnapshot\fR\fR
 .ad
 .br
 .na
-\fB\fBzfs receive\fR [\fB-vnFu\fR] [\fB-d\fR|\fB-e\fR] \fIfilesystem\fR\fR
+\fB\fBzfs receive\fR [\fB-vnFu\fR] [\fB-d\fR|\fB-e\fR] [\fB-o origin\fR=\fIsnapshot\fR] \fIfilesystem\fR\fR
 .ad
 .sp .6
 .RS 4n
@@ -3004,6 +3012,17 @@ Print verbose information about the stream and the time required to perform the 
 .sp .6
 .RS 4n
 Do not actually receive the stream. This can be useful in conjunction with the \fB-v\fR option to verify the name the receive operation would use.
+.RE
+
+.sp
+.ne 2
+.mk
+.na
+\fB\fB-o\fR \fBorigin\fR=\fIsnapshot\fR
+.ad
+.sp .6
+.RS 4n
+Forces the stream to be received as a clone of the given snapshot. This is only valid if the stream is an incremental stream whose source is the same as the provided origin.
 .RE
 
 .sp

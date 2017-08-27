@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  */
 
 #ifndef	_SYS_ZFS_IOCTL_H
@@ -237,6 +237,22 @@ typedef struct dmu_replay_record {
 			uint32_t drr_psize; /* compr. (real) size of payload */
 			/* (possibly compressed) content follows */
 		} drr_write_embedded;
+
+		/*
+		 * Nore: drr_checksum is overlaid with all record types
+		 * except DRR_BEGIN.  Therefore its (non-pad) members
+		 * must not overlap with members from the other structs.
+		 * We accomplish this by putting its members at the very
+		 * end of the struct.
+		 */
+		struct drr_checksum {
+			uint64_t drr_pad[34];
+			/*
+			 * fletcher-4 checksum of everything preceding the
+			 * checksum.
+			 */
+			zio_cksum_t drr_checksum;
+		} drr_checksum;
 	} drr_u;
 } dmu_replay_record_t;
 
