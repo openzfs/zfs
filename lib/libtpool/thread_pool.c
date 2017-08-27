@@ -252,6 +252,7 @@ pthread_attr_clone(pthread_attr_t *attr, const pthread_attr_t *old_attr)
 	if (error || (old_attr == NULL))
 		return (error);
 
+#ifdef __GLIBC__
 	cpu_set_t cpuset;
 	size_t cpusetsize = sizeof (cpuset);
 	error = pthread_attr_getaffinity_np(old_attr, cpusetsize, &cpuset);
@@ -259,6 +260,7 @@ pthread_attr_clone(pthread_attr_t *attr, const pthread_attr_t *old_attr)
 		error = pthread_attr_setaffinity_np(attr, cpusetsize, &cpuset);
 	if (error)
 		goto error;
+#endif /* __GLIBC__ */
 
 	int detachstate;
 	error = pthread_attr_getdetachstate(old_attr, &detachstate);
