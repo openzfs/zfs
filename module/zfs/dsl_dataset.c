@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
  * Copyright (c) 2014, Joyent, Inc. All rights reserved.
  * Copyright (c) 2014 RackTop Systems.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
@@ -127,8 +127,10 @@ dsl_dataset_block_born(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx)
 	dsl_dataset_phys(ds)->ds_compressed_bytes += compressed;
 	dsl_dataset_phys(ds)->ds_uncompressed_bytes += uncompressed;
 	dsl_dataset_phys(ds)->ds_unique_bytes += used;
-	if (BP_GET_LSIZE(bp) > SPA_OLD_MAXBLOCKSIZE)
-		ds->ds_need_large_blocks = B_TRUE;
+	if (BP_GET_LSIZE(bp) > SPA_OLD_MAXBLOCKSIZE) {
+		ds->ds_feature_activation_needed[SPA_FEATURE_LARGE_BLOCKS] =
+		    B_TRUE;
+	}
 	mutex_exit(&ds->ds_lock);
 	dsl_dir_diduse_space(ds->ds_dir, DD_USED_HEAD, delta,
 	    compressed, uncompressed, tx);
@@ -433,19 +435,25 @@ dsl_dataset_hold_obj(dsl_pool_t *dp, uint64_t dsobj, void *tag,
 		    offsetof(dmu_sendarg_t, dsa_link));
 
 		if (doi.doi_type == DMU_OTN_ZAP_METADATA) {
-			int zaperr = zap_contains(mos, dsobj,
-			    DS_FIELD_LARGE_BLOCKS);
-			if (zaperr != ENOENT) {
-				VERIFY0(zaperr);
-				ds->ds_large_blocks = B_TRUE;
+			spa_feature_t f;
+
+			for (f = 0; f < SPA_FEATURES; f++) {
+				if (!(spa_feature_table[f].fi_flags &
+				    ZFEATURE_FLAG_PER_DATASET))
+					continue;
+				err = zap_contains(mos, dsobj,
+				    spa_feature_table[f].fi_guid);
+				if (err == 0) {
+					ds->ds_feature_inuse[f] = B_TRUE;
+				} else {
+					ASSERT3U(err, ==, ENOENT);
+					err = 0;
+				}
 			}
 		}
 
-		if (err == 0) {
-			err = dsl_dir_hold_obj(dp,
-			    dsl_dataset_phys(ds)->ds_dir_obj, NULL, ds,
-			    &ds->ds_dir);
-		}
+		err = dsl_dir_hold_obj(dp,
+		    dsl_dataset_phys(ds)->ds_dir_obj, NULL, ds, &ds->ds_dir);
 		if (err != 0) {
 			mutex_destroy(&ds->ds_lock);
 			mutex_destroy(&ds->ds_opening_lock);
@@ -714,6 +722,34 @@ dsl_dataset_tryown(dsl_dataset_t *ds, void *tag)
 	return (gotit);
 }
 
+static void
+dsl_dataset_activate_feature(uint64_t dsobj, spa_feature_t f, dmu_tx_t *tx)
+{
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+	objset_t *mos = dmu_tx_pool(tx)->dp_meta_objset;
+	uint64_t zero = 0;
+
+	VERIFY(spa_feature_table[f].fi_flags & ZFEATURE_FLAG_PER_DATASET);
+
+	spa_feature_incr(spa, f, tx);
+	dmu_object_zapify(mos, dsobj, DMU_OT_DSL_DATASET, tx);
+
+	VERIFY0(zap_add(mos, dsobj, spa_feature_table[f].fi_guid,
+	    sizeof (zero), 1, &zero, tx));
+}
+
+void
+dsl_dataset_deactivate_feature(uint64_t dsobj, spa_feature_t f, dmu_tx_t *tx)
+{
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+	objset_t *mos = dmu_tx_pool(tx)->dp_meta_objset;
+
+	VERIFY(spa_feature_table[f].fi_flags & ZFEATURE_FLAG_PER_DATASET);
+
+	VERIFY0(zap_remove(mos, dsobj, spa_feature_table[f].fi_guid, tx));
+	spa_feature_decr(spa, f, tx);
+}
+
 uint64_t
 dsl_dataset_create_sync_dd(dsl_dir_t *dd, dsl_dataset_t *origin,
     uint64_t flags, dmu_tx_t *tx)
@@ -752,6 +788,7 @@ dsl_dataset_create_sync_dd(dsl_dir_t *dd, dsl_dataset_t *origin,
 	if (origin == NULL) {
 		dsphys->ds_deadlist_obj = dsl_deadlist_alloc(mos, tx);
 	} else {
+		spa_feature_t f;
 		dsl_dataset_t *ohds; /* head of the origin snapshot */
 
 		dsphys->ds_prev_snap_obj = origin->ds_object;
@@ -772,8 +809,10 @@ dsl_dataset_create_sync_dd(dsl_dir_t *dd, dsl_dataset_t *origin,
 		dsphys->ds_flags |= dsl_dataset_phys(origin)->ds_flags &
 		    (DS_FLAG_INCONSISTENT | DS_FLAG_CI_DATASET);
 
-		if (origin->ds_large_blocks)
-			dsl_dataset_activate_large_blocks_sync_impl(dsobj, tx);
+		for (f = 0; f < SPA_FEATURES; f++) {
+			if (origin->ds_feature_inuse[f])
+				dsl_dataset_activate_feature(dsobj, f, tx);
+		}
 
 		dmu_buf_will_dirty(origin->ds_dbuf, tx);
 		dsl_dataset_phys(origin)->ds_num_children++;
@@ -1249,6 +1288,7 @@ dsl_dataset_snapshot_sync_impl(dsl_dataset_t *ds, const char *snapname,
 	dsl_dataset_phys_t *dsphys;
 	uint64_t dsobj, crtxg;
 	objset_t *mos = dp->dp_meta_objset;
+	spa_feature_t f;
 	ASSERTV(static zil_header_t zero_zil);
 	ASSERTV(objset_t *os);
 
@@ -1298,8 +1338,10 @@ dsl_dataset_snapshot_sync_impl(dsl_dataset_t *ds, const char *snapname,
 	dsphys->ds_bp = dsl_dataset_phys(ds)->ds_bp;
 	dmu_buf_rele(dbuf, FTAG);
 
-	if (ds->ds_large_blocks)
-		dsl_dataset_activate_large_blocks_sync_impl(dsobj, tx);
+	for (f = 0; f < SPA_FEATURES; f++) {
+		if (ds->ds_feature_inuse[f])
+			dsl_dataset_activate_feature(dsobj, f, tx);
+	}
 
 	ASSERT3U(ds->ds_prev != 0, ==,
 	    dsl_dataset_phys(ds)->ds_prev_snap_obj != 0);
@@ -1568,6 +1610,8 @@ dsl_dataset_snapshot_tmp(const char *fsname, const char *snapname,
 void
 dsl_dataset_sync(dsl_dataset_t *ds, zio_t *zio, dmu_tx_t *tx)
 {
+	spa_feature_t f;
+
 	ASSERT(dmu_tx_is_syncing(tx));
 	ASSERT(ds->ds_objset != NULL);
 	ASSERT(dsl_dataset_phys(ds)->ds_next_snap_obj == 0);
@@ -1581,9 +1625,13 @@ dsl_dataset_sync(dsl_dataset_t *ds, zio_t *zio, dmu_tx_t *tx)
 
 	dmu_objset_sync(ds->ds_objset, zio, tx);
 
-	if (ds->ds_need_large_blocks && !ds->ds_large_blocks) {
-		dsl_dataset_activate_large_blocks_sync_impl(ds->ds_object, tx);
-		ds->ds_large_blocks = B_TRUE;
+	for (f = 0; f < SPA_FEATURES; f++) {
+		if (ds->ds_feature_activation_needed[f]) {
+			if (ds->ds_feature_inuse[f])
+				continue;
+			dsl_dataset_activate_feature(ds->ds_object, f, tx);
+			ds->ds_feature_inuse[f] = B_TRUE;
+		}
 	}
 }
 
@@ -2694,6 +2742,7 @@ void
 dsl_dataset_clone_swap_sync_impl(dsl_dataset_t *clone,
     dsl_dataset_t *origin_head, dmu_tx_t *tx)
 {
+	spa_feature_t f;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	int64_t unused_refres_delta;
 
@@ -2701,6 +2750,43 @@ dsl_dataset_clone_swap_sync_impl(dsl_dataset_t *clone,
 	ASSERT(origin_head->ds_quota == 0 ||
 	    dsl_dataset_phys(clone)->ds_unique_bytes <= origin_head->ds_quota);
 	ASSERT3P(clone->ds_prev, ==, origin_head->ds_prev);
+
+	/*
+	 * Swap per-dataset feature flags.
+	 */
+	for (f = 0; f < SPA_FEATURES; f++) {
+		boolean_t clone_inuse;
+		boolean_t origin_head_inuse;
+
+		if (!(spa_feature_table[f].fi_flags &
+		    ZFEATURE_FLAG_PER_DATASET)) {
+			ASSERT(!clone->ds_feature_inuse[f]);
+			ASSERT(!origin_head->ds_feature_inuse[f]);
+			continue;
+		}
+
+		clone_inuse = clone->ds_feature_inuse[f];
+		origin_head_inuse = origin_head->ds_feature_inuse[f];
+
+		if (clone_inuse) {
+			dsl_dataset_deactivate_feature(clone->ds_object, f, tx);
+			clone->ds_feature_inuse[f] = B_FALSE;
+		}
+		if (origin_head_inuse) {
+			dsl_dataset_deactivate_feature(origin_head->ds_object,
+			    f, tx);
+			origin_head->ds_feature_inuse[f] = B_FALSE;
+		}
+		if (clone_inuse) {
+			dsl_dataset_activate_feature(origin_head->ds_object,
+			    f, tx);
+			origin_head->ds_feature_inuse[f] = B_TRUE;
+		}
+		if (origin_head_inuse) {
+			dsl_dataset_activate_feature(clone->ds_object, f, tx);
+			clone->ds_feature_inuse[f] = B_TRUE;
+		}
+	}
 
 	dmu_buf_will_dirty(clone->ds_dbuf, tx);
 	dmu_buf_will_dirty(origin_head->ds_dbuf, tx);
@@ -3256,77 +3342,6 @@ dsl_dataset_space_wouldfree(dsl_dataset_t *firstsnap,
 	return (err);
 }
 
-static int
-dsl_dataset_activate_large_blocks_check(void *arg, dmu_tx_t *tx)
-{
-	const char *dsname = arg;
-	dsl_dataset_t *ds;
-	dsl_pool_t *dp = dmu_tx_pool(tx);
-	int error = 0;
-
-	if (!spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_LARGE_BLOCKS))
-		return (SET_ERROR(ENOTSUP));
-
-	ASSERT(spa_feature_is_enabled(dp->dp_spa,
-	    SPA_FEATURE_EXTENSIBLE_DATASET));
-
-	error = dsl_dataset_hold(dp, dsname, FTAG, &ds);
-	if (error != 0)
-		return (error);
-
-	if (ds->ds_large_blocks)
-		error = EALREADY;
-	dsl_dataset_rele(ds, FTAG);
-
-	return (error);
-}
-
-void
-dsl_dataset_activate_large_blocks_sync_impl(uint64_t dsobj, dmu_tx_t *tx)
-{
-	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
-	objset_t *mos = dmu_tx_pool(tx)->dp_meta_objset;
-	uint64_t zero = 0;
-
-	spa_feature_incr(spa, SPA_FEATURE_LARGE_BLOCKS, tx);
-	dmu_object_zapify(mos, dsobj, DMU_OT_DSL_DATASET, tx);
-
-	VERIFY0(zap_add(mos, dsobj, DS_FIELD_LARGE_BLOCKS,
-	    sizeof (zero), 1, &zero, tx));
-}
-
-static void
-dsl_dataset_activate_large_blocks_sync(void *arg, dmu_tx_t *tx)
-{
-	const char *dsname = arg;
-	dsl_dataset_t *ds;
-
-	VERIFY0(dsl_dataset_hold(dmu_tx_pool(tx), dsname, FTAG, &ds));
-
-	dsl_dataset_activate_large_blocks_sync_impl(ds->ds_object, tx);
-	ASSERT(!ds->ds_large_blocks);
-	ds->ds_large_blocks = B_TRUE;
-	dsl_dataset_rele(ds, FTAG);
-}
-
-int
-dsl_dataset_activate_large_blocks(const char *dsname)
-{
-	int error;
-
-	error = dsl_sync_task(dsname,
-	    dsl_dataset_activate_large_blocks_check,
-	    dsl_dataset_activate_large_blocks_sync, (void *)dsname,
-	    1, ZFS_SPACE_CHECK_RESERVED);
-
-	/*
-	 * EALREADY indicates that this dataset already supports large blocks.
-	 */
-	if (error == EALREADY)
-		error = 0;
-	return (error);
-}
-
 /*
  * Return TRUE if 'earlier' is an earlier snapshot in 'later's timeline.
  * For example, they could both be snapshots of the same filesystem, and
@@ -3370,7 +3385,6 @@ dsl_dataset_is_before(dsl_dataset_t *later, dsl_dataset_t *earlier,
 	dsl_dataset_rele(origin, FTAG);
 	return (ret);
 }
-
 
 void
 dsl_dataset_zapify(dsl_dataset_t *ds, dmu_tx_t *tx)

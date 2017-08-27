@@ -1615,6 +1615,11 @@ dmu_buf_write_embedded(dmu_buf_t *dbuf, void *data,
 	struct dirty_leaf *dl;
 	dmu_object_type_t type;
 
+	if (etype == BP_EMBEDDED_TYPE_DATA) {
+		ASSERT(spa_feature_is_active(dmu_objset_spa(db->db_objset),
+		    SPA_FEATURE_EMBEDDED_DATA));
+	}
+
 	DB_DNODE_ENTER(db);
 	type = DB_DNODE(db)->dn_type;
 	DB_DNODE_EXIT(db);

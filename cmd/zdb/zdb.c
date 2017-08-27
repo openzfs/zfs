@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
  * Copyright (c) 2015, Intel Corporation.
  */
 
@@ -2283,7 +2283,7 @@ dump_label(const char *dev)
 	(void) close(fd);
 }
 
-static uint64_t num_large_blocks;
+static uint64_t dataset_feature_count[SPA_FEATURES];
 
 /*ARGSUSED*/
 static int
@@ -2291,14 +2291,22 @@ dump_one_dir(const char *dsname, void *arg)
 {
 	int error;
 	objset_t *os;
+	spa_feature_t f;
 
 	error = dmu_objset_own(dsname, DMU_OST_ANY, B_TRUE, FTAG, &os);
 	if (error) {
 		(void) printf("Could not open %s, error %d\n", dsname, error);
 		return (0);
 	}
-	if (dmu_objset_ds(os)->ds_large_blocks)
-		num_large_blocks++;
+
+	for (f = 0; f < SPA_FEATURES; f++) {
+		if (!dmu_objset_ds(os)->ds_feature_inuse[f])
+			continue;
+		ASSERT(spa_feature_table[f].fi_flags &
+		    ZFEATURE_FLAG_PER_DATASET);
+		dataset_feature_count[f]++;
+	}
+
 	dump_dir(os);
 	dmu_objset_disown(os, FTAG);
 	fuid_table_destroy();
@@ -3103,7 +3111,7 @@ dump_zpool(spa_t *spa)
 		dump_metaslab_groups(spa);
 
 	if (dump_opt['d'] || dump_opt['i']) {
-		uint64_t refcount;
+		spa_feature_t f;
 
 		dump_dir(dp->dp_meta_objset);
 		if (dump_opt['d'] >= 3) {
@@ -3126,18 +3134,28 @@ dump_zpool(spa_t *spa)
 		(void) dmu_objset_find(spa_name(spa), dump_one_dir,
 		    NULL, DS_FIND_SNAPSHOTS | DS_FIND_CHILDREN);
 
-		if (feature_get_refcount(spa,
-		    &spa_feature_table[SPA_FEATURE_LARGE_BLOCKS],
-		    &refcount) != ENOTSUP) {
-			if (num_large_blocks != refcount) {
-				(void) printf("large_blocks feature refcount "
-				    "mismatch: expected %lld != actual %lld\n",
-				    (longlong_t)num_large_blocks,
+		for (f = 0; f < SPA_FEATURES; f++) {
+			uint64_t refcount;
+
+			if (!(spa_feature_table[f].fi_flags &
+			    ZFEATURE_FLAG_PER_DATASET)) {
+				ASSERT0(dataset_feature_count[f]);
+				continue;
+			}
+			if (feature_get_refcount(spa, &spa_feature_table[f],
+			    &refcount) == ENOTSUP)
+				continue;
+			if (dataset_feature_count[f] != refcount) {
+				(void) printf("%s feature refcount mismatch: "
+				    "%lld datasets != %lld refcount\n",
+				    spa_feature_table[f].fi_uname,
+				    (longlong_t)dataset_feature_count[f],
 				    (longlong_t)refcount);
 				rc = 2;
 			} else {
-				(void) printf("Verified large_blocks feature "
-				    "refcount is correct (%llu)\n",
+				(void) printf("Verified %s feature refcount "
+				    "of %llu is correct\n",
+				    spa_feature_table[f].fi_uname,
 				    (longlong_t)refcount);
 			}
 		}
