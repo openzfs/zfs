@@ -145,6 +145,57 @@ enum dnode_dirtycontext {
 
 #define	DNODE_CRYPT_PORTABLE_FLAGS_MASK		(DNODE_FLAG_SPILL_BLKPTR)
 
+/*
+ * VARIABLE-LENGTH (LARGE) DNODES
+ *
+ * The motivation for variable-length dnodes is to eliminate the overhead
+ * associated with using spill blocks.  Spill blocks are used to store
+ * system attribute data (i.e. file metadata) that does not fit in the
+ * dnode's bonus buffer. By allowing a larger bonus buffer area the use of
+ * a spill block can be avoided.  Spill blocks potentially incur an
+ * additional read I/O for every dnode in a dnode block. As a worst case
+ * example, reading 32 dnodes from a 16k dnode block and all of the spill
+ * blocks could issue 33 separate reads. Now suppose those dnodes have size
+ * 1024 and therefore don't need spill blocks. Then the worst case number
+ * of blocks read is reduced to from 33 to two--one per dnode block.
+ *
+ * ZFS-on-Linux systems that make heavy use of extended attributes benefit
+ * from this feature. In particular, ZFS-on-Linux supports the xattr=sa
+ * dataset property which allows file extended attribute data to be stored
+ * in the dnode bonus buffer as an alternative to the traditional
+ * directory-based format. Workloads such as SELinux and the Lustre
+ * distributed filesystem often store enough xattr data to force spill
+ * blocks when xattr=sa is in effect. Large dnodes may therefore provide a
+ * performance benefit to such systems. Other use cases that benefit from
+ * this feature include files with large ACLs and symbolic links with long
+ * target names.
+ *
+ * The size of a dnode may be a multiple of 512 bytes up to the size of a
+ * dnode block (currently 16384 bytes). The dn_extra_slots field of the
+ * on-disk dnode_phys_t structure describes the size of the physical dnode
+ * on disk. The field represents how many "extra" dnode_phys_t slots a
+ * dnode consumes in its dnode block. This convention results in a value of
+ * 0 for 512 byte dnodes which preserves on-disk format compatibility with
+ * older software which doesn't support large dnodes.
+ *
+ * Similarly, the in-memory dnode_t structure has a dn_num_slots field
+ * to represent the total number of dnode_phys_t slots consumed on disk.
+ * Thus dn->dn_num_slots is 1 greater than the corresponding
+ * dnp->dn_extra_slots. This difference in convention was adopted
+ * because, unlike on-disk structures, backward compatibility is not a
+ * concern for in-memory objects, so we used a more natural way to
+ * represent size for a dnode_t.
+ *
+ * The default size for newly created dnodes is determined by the value of
+ * the "dnodesize" dataset property. By default the property is set to
+ * "legacy" which is compatible with older software. Setting the property
+ * to "auto" will allow the filesystem to choose the most suitable dnode
+ * size. Currently this just sets the default dnode size to 1k, but future
+ * code improvements could dynamically choose a size based on observed
+ * workload patterns. Dnodes of varying sizes can coexist within the same
+ * dataset and even within the same dnode block.
+ */
+
 typedef struct dnode_phys {
 	uint8_t dn_type;		/* dmu_object_type_t */
 	uint8_t dn_indblkshift;		/* ln2(indirect block size) */

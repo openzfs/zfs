@@ -318,7 +318,7 @@ dmu_object_next(objset_t *os, uint64_t *objectp, boolean_t hole, uint64_t txg)
 			dmu_object_info_t doi;
 
 			error = dmu_object_info(os, i, &doi);
-			if (error)
+			if (error != 0)
 				skip = 1;
 			else
 				skip = doi.doi_dnodesize >> DNODE_SHIFT;
