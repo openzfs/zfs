@@ -1853,6 +1853,7 @@ dmu_objset_space_upgrade(objset_t *os)
 		dmu_tx_hold_bonus(tx, obj);
 		objerr = dmu_tx_assign(tx, TXG_WAIT);
 		if (objerr != 0) {
+			dmu_buf_rele(db, FTAG);
 			dmu_tx_abort(tx);
 			continue;
 		}
