@@ -4758,6 +4758,9 @@ zfs_ioc_recv_new(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
  *
  * outputs:
  * zc_objset_type	estimated size, if zc_guid is set
+ *
+ * NOTE: This is no longer the preferred interface, any new functionality
+ *	  should be added to zfs_ioc_send_new() instead.
  */
 static int
 zfs_ioc_send(zfs_cmd_t *zc)
@@ -5876,6 +5879,8 @@ zfs_ioc_send_new(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
  *         presence indicates DRR_WRITE_EMBEDDED records are permitted
  *     (optional) "compressok" -> (value ignored)
  *         presence indicates compressed DRR_WRITE records are permitted
+ *	(optional) "rawok" -> (value ignored)
+ *         presence indicates raw encrypted records should be used.
  * }
  *
  * outnvl: {
