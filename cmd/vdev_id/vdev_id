@@ -100,7 +100,7 @@ usage() {
 	cat << EOF
 Usage: vdev_id [-h]
        vdev_id <-d device> [-c config_file] [-p phys_per_port]
-               [-g sas_direct|sas_switch] [-m]
+               [-g sas_direct|sas_switch|scsi] [-m]
 
   -c    specify name of alernate config file [default=$CONFIG]
   -d    specify basename of device (i.e. sda)
@@ -135,7 +135,7 @@ map_channel() {
 		MAPPED_CHAN=`awk "\\$1 == \"channel\" && \\$2 == ${PORT} \
 			{ print \\$3; exit }" $CONFIG`
 		;;
-		"sas_direct")
+		"sas_direct"|"scsi")
 		MAPPED_CHAN=`awk "\\$1 == \"channel\" && \
 			\\$2 == \"${PCI_ID}\" && \\$3 == ${PORT} \
 			{ print \\$4; exit }" $CONFIG`
@@ -289,6 +289,117 @@ sas_handler() {
 	echo ${CHAN}${SLOT}${PART}
 }
 
+scsi_handler() {
+	if [ -z "$FIRST_BAY_NUMBER" ] ; then
+		FIRST_BAY_NUMBER=`awk "\\$1 == \"first_bay_number\" \
+			{print \\$2; exit}" $CONFIG`
+	fi
+	FIRST_BAY_NUMBER=${FIRST_BAY_NUMBER:-0}
+
+	if [ -z "$PHYS_PER_PORT" ] ; then
+		PHYS_PER_PORT=`awk "\\$1 == \"phys_per_port\" \
+			{print \\$2; exit}" $CONFIG`
+	fi
+	PHYS_PER_PORT=${PHYS_PER_PORT:-4}
+	if ! echo $PHYS_PER_PORT | grep -q -E '^[0-9]+$' ; then
+		echo "Error: phys_per_port value $PHYS_PER_PORT is non-numeric"
+		exit 1
+	fi
+
+	if [ -z "$MULTIPATH_MODE" ] ; then
+		MULTIPATH_MODE=`awk "\\$1 == \"multipath\" \
+			{print \\$2; exit}" $CONFIG`
+	fi
+
+	# Use first running component device if we're handling a dm-mpath device
+	if [ "$MULTIPATH_MODE" = "yes" ] ; then
+		# If udev didn't tell us the UUID via DM_NAME, check /dev/mapper
+		if [ -z "$DM_NAME" ] ; then
+			DM_NAME=`ls -l --full-time /dev/mapper |
+				awk "/\/$DEV$/{print \\$9}"`
+		fi
+
+		# For raw disks udev exports DEVTYPE=partition when
+		# handling partitions, and the rules can be written to
+		# take advantage of this to append a -part suffix.  For
+		# dm devices we get DEVTYPE=disk even for partitions so
+		# we have to append the -part suffix directly in the
+		# helper.
+		if [ "$DEVTYPE" != "partition" ] ; then
+			PART=`echo $DM_NAME | awk -Fp '/p/{print "-part"$2}'`
+		fi
+
+		# Strip off partition information.
+		DM_NAME=`echo $DM_NAME | sed 's/p[0-9][0-9]*$//'`
+		if [ -z "$DM_NAME" ] ; then
+			return
+		fi
+
+		# Get the raw scsi device name from multipath -ll. Strip off
+		# leading pipe symbols to make field numbering consistent.
+		DEV=`multipath -ll $DM_NAME |
+			awk '/running/{gsub("^[|]"," "); print $3 ; exit}'`
+		if [ -z "$DEV" ] ; then
+			return
+		fi
+	fi
+
+	if echo $DEV | grep -q ^/devices/ ; then
+		sys_path=$DEV
+	else
+		sys_path=`udevadm info -q path -p /sys/block/$DEV 2>/dev/null`
+	fi
+
+	# expect sys_path like this, for example:
+	# /devices/pci0000:00/0000:00:0b.0/0000:09:00.0/0000:0a:05.0/0000:0c:00.0/host3/target3:1:0/3:1:0:21/block/sdv
+
+	# Use positional parameters as an ad-hoc array
+	set -- $(echo "$sys_path" | tr / ' ')
+	num_dirs=$#
+	scsi_host_dir="/sys"
+
+	# Get path up to /sys/.../hostX
+	i=1
+	while [ $i -le $num_dirs ] ; do
+		d=$(eval echo \${$i})
+		scsi_host_dir="$scsi_host_dir/$d"
+		echo $d | grep -q -E '^host[0-9]+$' && break
+		i=$(($i + 1))
+	done
+
+	if [ $i = $num_dirs ] ; then
+		return
+	fi
+
+	PCI_ID=$(eval echo \${$(($i -1))} | awk -F: '{print $2":"$3}')
+
+	# In scsi mode, the directory two levels beneath
+	# /sys/.../hostX reveals the port and slot.
+	port_dir=$scsi_host_dir
+	j=$(($i + 2))
+
+	i=$(($i + 1))
+	while [ $i -le $j ] ; do
+		port_dir="$port_dir/$(eval echo \${$i})"
+		i=$(($i + 1))
+	done
+
+	set -- $(echo $port_dir | sed -e 's/^.*:\([^:]*\):\([^:]*\)$/\1 \2/')
+	PORT=$1
+	SLOT=$(($2 + $FIRST_BAY_NUMBER))
+
+	if [ -z "$SLOT" ] ; then
+		return
+	fi
+
+	CHAN=`map_channel $PCI_ID $PORT`
+	SLOT=`map_slot $SLOT $CHAN`
+	if [ -z "$CHAN" ] ; then
+		return
+	fi
+	echo ${CHAN}${SLOT}${PART}
+}
+
 alias_handler () {
 	# Special handling is needed to correctly append a -part suffix
 	# to partitions of device mapper devices.  The DEVTYPE attribute
@@ -393,6 +504,9 @@ if [ -z "$ID_VDEV" ] ; then
 	case $TOPOLOGY in
 		sas_direct|sas_switch)
 			ID_VDEV=`sas_handler`
+			;;
+		scsi)
+			ID_VDEV=`scsi_handler`
 			;;
 		*)
 			echo "Error: unknown topology $TOPOLOGY"
