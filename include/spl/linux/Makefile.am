@@ -9,7 +9,6 @@ KERNEL_H = \
 	$(top_srcdir)/include/spl/linux/math64_compat.h \
 	$(top_srcdir)/include/spl/linux/mm_compat.h \
 	$(top_srcdir)/include/spl/linux/proc_compat.h \
-	$(top_srcdir)/include/spl/linux/ratelimit_compat.h \
 	$(top_srcdir)/include/spl/linux/rwsem_compat.h \
 	$(top_srcdir)/include/spl/linux/wait_compat.h \
 	$(top_srcdir)/include/spl/linux/zlib_compat.h
