@@ -42,21 +42,6 @@ function cleanup
 	datasetexists $TEST_FS && log_must zfs destroy $TEST_FS
 }
 
-function verify_dnode_packing
-{
-	zdb -dd $TEST_FS | grep -A 3 'Dnode slots' | awk '
-		/Total used:/ {total_used=$NF}
-		/Max used:/ {max_used=$NF}
-		/Percent empty:/ {print total_used, max_used, int($NF)}
-	' | while read total_used max_used pct_empty
-	do
-		log_note "total_used $total_used max_used $max_used pct_empty $pct_empty"
-		if [ $pct_empty -gt 5 ]; then
-			log_fail "Holes in dnode array: pct empty $pct_empty > 5"
-		fi
-	done
-}
-
 log_onexit cleanup
 log_assert "xattrtest runs concurrently on dataset with large dnodes"
 
@@ -67,11 +52,20 @@ log_must zfs set xattr=sa $TEST_FS
 for ((i=0; i < 100; i++)); do
 	dir="/$TEST_FS/dir.$i"
 	log_must mkdir "$dir"
-	log_must eval "xattrtest -R -r -y -x 1 -f 1024 -k -p $dir >/dev/null 2>&1 &"
+
+	do_unlink=""
+	if [ $((RANDOM % 2)) -eq 0 ]; then
+		do_unlink="-k -f 1024"
+	else
+		do_unlink="-f $((RANDOM % 1024))"
+	fi
+	log_must eval "xattrtest -R -r -y -x 1 $do_unlink -p $dir >/dev/null 2>&1 &"
 done
 
 log_must wait
 
-verify_dnode_packing
-
+log_must zpool export $TESTPOOL
+log_must zpool import $TESTPOOL
+log_must ls -lR "/$TEST_FS/" >/dev/null 2>&1
+log_must zdb -d $TESTPOOL
 log_pass

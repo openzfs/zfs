@@ -98,6 +98,13 @@ extern "C" {
 #define	DN_ZERO_BONUSLEN	(DN_BONUS_SIZE(DNODE_MAX_SIZE) + 1)
 #define	DN_KILL_SPILLBLK (1)
 
+#define	DN_SLOT_UNINIT		((void *)NULL)	/* Uninitialized */
+#define	DN_SLOT_FREE		((void *)1UL)	/* Free slot */
+#define	DN_SLOT_ALLOCATED	((void *)2UL)	/* Allocated slot */
+#define	DN_SLOT_INTERIOR	((void *)3UL)	/* Interior allocated slot */
+#define	DN_SLOT_IS_PTR(dn)	((void *)dn > DN_SLOT_INTERIOR)
+#define	DN_SLOT_IS_VALID(dn)	((void *)dn != NULL)
+
 #define	DNODES_PER_BLOCK_SHIFT	(DNODE_BLOCK_SHIFT - DNODE_SHIFT)
 #define	DNODES_PER_BLOCK	(1ULL << DNODES_PER_BLOCK_SHIFT)
 
@@ -418,6 +425,135 @@ void dnode_evict_bonus(dnode_t *dn);
 #define	DNODE_META_IS_CACHEABLE(_dn)					\
 	((_dn)->dn_objset->os_primary_cache == ZFS_CACHE_ALL ||		\
 	(_dn)->dn_objset->os_primary_cache == ZFS_CACHE_METADATA)
+
+/*
+ * Used for dnodestats kstat.
+ */
+typedef struct dnode_stats {
+	/*
+	 * Number of failed attempts to hold a meta dnode dbuf.
+	 */
+	kstat_named_t dnode_hold_dbuf_hold;
+	/*
+	 * Number of failed attempts to read a meta dnode dbuf.
+	 */
+	kstat_named_t dnode_hold_dbuf_read;
+	/*
+	 * Number of times dnode_hold(..., DNODE_MUST_BE_ALLOCATED) was able
+	 * to hold the requested object number which was allocated.  This is
+	 * the common case when looking up any allocated object number.
+	 */
+	kstat_named_t dnode_hold_alloc_hits;
+	/*
+	 * Number of times dnode_hold(..., DNODE_MUST_BE_ALLOCATED) was not
+	 * able to hold the request object number because it was not allocated.
+	 */
+	kstat_named_t dnode_hold_alloc_misses;
+	/*
+	 * Number of times dnode_hold(..., DNODE_MUST_BE_ALLOCATED) was not
+	 * able to hold the request object number because the object number
+	 * refers to an interior large dnode slot.
+	 */
+	kstat_named_t dnode_hold_alloc_interior;
+	/*
+	 * Number of times dnode_hold(..., DNODE_MUST_BE_ALLOCATED) needed
+	 * to retry acquiring slot zrl locks due to contention.
+	 */
+	kstat_named_t dnode_hold_alloc_lock_retry;
+	/*
+	 * Number of times dnode_hold(..., DNODE_MUST_BE_ALLOCATED) did not
+	 * need to create the dnode because another thread did so after
+	 * dropping the read lock but before acquiring the write lock.
+	 */
+	kstat_named_t dnode_hold_alloc_lock_misses;
+	/*
+	 * Number of times dnode_hold(..., DNODE_MUST_BE_ALLOCATED) found
+	 * a free dnode instantiated by dnode_create() but not yet allocated
+	 * by dnode_allocate().
+	 */
+	kstat_named_t dnode_hold_alloc_type_none;
+	/*
+	 * Number of times dnode_hold(..., DNODE_MUST_BE_FREE) was able
+	 * to hold the requested range of free dnode slots.
+	 */
+	kstat_named_t dnode_hold_free_hits;
+	/*
+	 * Number of times dnode_hold(..., DNODE_MUST_BE_FREE) was not
+	 * able to hold the requested range of free dnode slots because
+	 * at least one slot was allocated.
+	 */
+	kstat_named_t dnode_hold_free_misses;
+	/*
+	 * Number of times dnode_hold(..., DNODE_MUST_BE_FREE) was not
+	 * able to hold the requested range of free dnode slots because
+	 * after acquiring the zrl lock at least one slot was allocated.
+	 */
+	kstat_named_t dnode_hold_free_lock_misses;
+	/*
+	 * Number of times dnode_hold(..., DNODE_MUST_BE_FREE) needed
+	 * to retry acquiring slot zrl locks due to contention.
+	 */
+	kstat_named_t dnode_hold_free_lock_retry;
+	/*
+	 * Number of times dnode_hold(..., DNODE_MUST_BE_FREE) requested
+	 * a range of dnode slots which were held by another thread.
+	 */
+	kstat_named_t dnode_hold_free_refcount;
+	/*
+	 * Number of times dnode_hold(..., DNODE_MUST_BE_FREE) requested
+	 * a range of dnode slots which would overflow the dnode_phys_t.
+	 */
+	kstat_named_t dnode_hold_free_overflow;
+	/*
+	 * Number of times a dnode_hold(...) was attempted on a dnode
+	 * which had already been unlinked in an earlier txg.
+	 */
+	kstat_named_t dnode_hold_free_txg;
+	/*
+	 * Number of new dnodes allocated by dnode_allocate().
+	 */
+	kstat_named_t dnode_allocate;
+	/*
+	 * Number of dnodes re-allocated by dnode_reallocate().
+	 */
+	kstat_named_t dnode_reallocate;
+	/*
+	 * Number of meta dnode dbufs evicted.
+	 */
+	kstat_named_t dnode_buf_evict;
+	/*
+	 * Number of times dmu_object_alloc*() reached the end of the existing
+	 * object ID chunk and advanced to a new one.
+	 */
+	kstat_named_t dnode_alloc_next_chunk;
+	/*
+	 * Number of times multiple threads attempted to allocate a dnode
+	 * from the same block of free dnodes.
+	 */
+	kstat_named_t dnode_alloc_race;
+	/*
+	 * Number of times dmu_object_alloc*() was forced to advance to the
+	 * next meta dnode dbuf due to an error from  dmu_object_next().
+	 */
+	kstat_named_t dnode_alloc_next_block;
+	/*
+	 * Statistics for tracking dnodes which have been moved.
+	 */
+	kstat_named_t dnode_move_invalid;
+	kstat_named_t dnode_move_recheck1;
+	kstat_named_t dnode_move_recheck2;
+	kstat_named_t dnode_move_special;
+	kstat_named_t dnode_move_handle;
+	kstat_named_t dnode_move_rwlock;
+	kstat_named_t dnode_move_active;
+} dnode_stats_t;
+
+extern dnode_stats_t dnode_stats;
+
+#define	DNODE_STAT_INCR(stat, val) \
+    atomic_add_64(&dnode_stats.stat.value.ui64, (val));
+#define	DNODE_STAT_BUMP(stat) \
+    DNODE_STAT_INCR(stat, 1);
 
 #ifdef ZFS_DEBUG
 
