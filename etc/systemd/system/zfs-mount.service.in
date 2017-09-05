@@ -1,5 +1,6 @@
 [Unit]
 Description=Mount ZFS filesystems
+Documentation=man:zfs(8)
 DefaultDependencies=no
 After=systemd-udev-settle.service
 After=zfs-import-cache.service

@@ -1,5 +1,6 @@
 [Unit]
 Description=Import ZFS pools by device scanning
+Documentation=man:zpool(8)
 DefaultDependencies=no
 Requires=systemd-udev-settle.service
 After=systemd-udev-settle.service
