@@ -79,30 +79,23 @@ fi
 
 for obj in $TESTPOOL/$TESTFS $OBJ_LIST ; do
 
-	space_avail=`get_prop available $TESTPOOL`
+	space_avail=`get_prop available $obj`
 	((quota_set_size = space_avail / 3))
 
 	#
-	# A regular (non-sparse) volume's size is effectively
-	# its quota so only need to explicitly set quotas for
-	# filesystems and datasets.
+	# Volumes do not support quota so only need to explicitly
+	# set quotas for filesystems.
 	#
-	# A volumes size is effectively its quota. The maximum
-	# reservation value that can be set on a volume is
-	# determined by the size of the volume or the amount of
-	# space in the pool, whichever is smaller.
+	# The maximum reservation value that can be set on a volume
+	# is determined by the quota set on its parent filesystems or
+	# the amount of space in the pool, whichever is smaller.
 	#
 	if [[ $obj == $TESTPOOL/$TESTFS ]]; then
 		log_must zfs set quota=$quota_set_size $obj
 		((resv_set_size = quota_set_size + RESV_SIZE))
-
-	elif [[ $obj == $TESTPOOL/$TESTVOL2 ]] ; then
-
-		((resv_set_size = sparse_vol_set_size + RESV_SIZE))
-
-	elif [[ $obj == $TESTPOOL/$TESTVOL ]] ; then
-
-		((resv_set_size = vol_set_size + RESV_SIZE))
+	elif [[ $obj == $TESTPOOL/$TESTVOL || $obj == $TESTPOOL/$TESTVOL2 ]]
+	then
+		resv_set_size=`expr $space_avail + $RESV_DELTA`
 	fi
 
 	orig_quota=`get_prop quota $obj`

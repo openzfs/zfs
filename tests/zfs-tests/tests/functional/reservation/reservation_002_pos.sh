@@ -84,16 +84,8 @@ fi
 
 for obj in $TESTPOOL/$TESTFS $OBJ_LIST ; do
 
-	space_avail=`get_prop available $TESTPOOL`
+	space_avail=`get_prop available $obj`
 	resv_size_set=`expr $space_avail + $RESV_DELTA`
-
-	#
-	# For regular (non-sparse) volumes the upper limit is determined
-	# not by the space available in the pool but rather by the size
-	# of the volume itself.
-	#
-	[[ $obj == $TESTPOOL/$TESTVOL ]] && \
-	    ((resv_size_set = vol_set_size + RESV_DELTA))
 
 	log_must zero_reservation $obj
 	log_mustnot zfs set reservation=$resv_size_set $obj

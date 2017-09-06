@@ -1451,25 +1451,11 @@ badlabel:
 		 * checks to enforce.
 		 */
 		if (type == ZFS_TYPE_VOLUME && zhp != NULL) {
-			uint64_t volsize = zfs_prop_get_int(zhp,
-			    ZFS_PROP_VOLSIZE);
 			uint64_t blocksize = zfs_prop_get_int(zhp,
 			    ZFS_PROP_VOLBLOCKSIZE);
 			char buf[64];
 
 			switch (prop) {
-			case ZFS_PROP_RESERVATION:
-			case ZFS_PROP_REFRESERVATION:
-				if (intval > volsize) {
-					zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-					    "'%s' is greater than current "
-					    "volume size"), propname);
-					(void) zfs_error(hdl, EZFS_BADPROP,
-					    errbuf);
-					goto error;
-				}
-				break;
-
 			case ZFS_PROP_VOLSIZE:
 				if (intval % blocksize != 0) {
 					zfs_nicebytes(blocksize, buf,
