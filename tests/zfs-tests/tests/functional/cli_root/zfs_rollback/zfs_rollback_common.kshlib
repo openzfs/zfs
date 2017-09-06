@@ -73,7 +73,7 @@ function setup_snap_env
 		[[ $type == 'volume' ]]; then
 		#
 		# At the first time, Make a UFS file system in volume and
-		# mount it. Otherwise, only check if this ufs|ext2 file system
+		# mount it. Otherwise, only check if this ufs|ext file system
 		# was mounted.
 		#
 		log_must eval "echo "y" | \
@@ -81,8 +81,8 @@ function setup_snap_env
 
 		[[ ! -d $TESTDIR1 ]] && log_must mkdir $TESTDIR1
 
-		# Make sure the ufs|ext2 filesystem hasn't been mounted,
-		# then mount the new ufs|ext2 filesystem.
+		# Make sure the ufs|ext filesystem hasn't been mounted,
+		# then mount the new ufs|ext filesystem.
 		if ! ismounted $TESTDIR1 $NEWFS_DEFAULT_FS; then
 			log_must mount \
 				$ZVOL_DEVDIR/$TESTPOOL/$TESTVOL $TESTDIR1

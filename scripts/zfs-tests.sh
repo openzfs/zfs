@@ -224,8 +224,8 @@ constrain_path() {
 
 	# Exceptions
 	ln -fs "$STF_PATH/awk" "$STF_PATH/nawk"
-	ln -fs /sbin/fsck.ext2 "$STF_PATH/fsck"
-	ln -fs /sbin/mkfs.ext2 "$STF_PATH/newfs"
+	ln -fs /sbin/fsck.ext4 "$STF_PATH/fsck"
+	ln -fs /sbin/mkfs.ext4 "$STF_PATH/newfs"
 	ln -fs "$STF_PATH/gzip" "$STF_PATH/compress"
 	ln -fs "$STF_PATH/gunzip" "$STF_PATH/uncompress"
 	ln -fs "$STF_PATH/exportfs" "$STF_PATH/share"

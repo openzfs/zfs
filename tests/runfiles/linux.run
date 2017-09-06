@@ -511,7 +511,7 @@ tests = ['scrub_mirror_001_pos', 'scrub_mirror_002_pos',
 tests = ['slog_001_pos', 'slog_002_pos', 'slog_003_pos', 'slog_004_pos',
     'slog_005_pos', 'slog_006_pos', 'slog_007_pos', 'slog_008_neg',
     'slog_009_neg', 'slog_010_neg', 'slog_011_neg', 'slog_012_neg',
-    'slog_013_pos', 'slog_014_pos', 'slog_015_pos']
+    'slog_013_pos', 'slog_014_pos', 'slog_replay_fs', 'slog_replay_volume']
 
 [tests/functional/snapshot]
 tests = ['clone_001_pos', 'rollback_001_pos', 'rollback_002_pos',

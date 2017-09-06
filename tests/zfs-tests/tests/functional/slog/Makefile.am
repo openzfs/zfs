@@ -18,4 +18,5 @@ dist_pkgdata_SCRIPTS = \
 	slog_012_neg.ksh \
 	slog_013_pos.ksh \
 	slog_014_pos.ksh \
-	slog_015_pos.ksh
+	slog_replay_fs.ksh \
+	slog_replay_volume.ksh
