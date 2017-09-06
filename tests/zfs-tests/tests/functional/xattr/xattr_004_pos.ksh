@@ -33,23 +33,21 @@
 #
 # DESCRIPTION:
 #
-# Creating files on ufs|ext2 and tmpfs, and copying those files to ZFS with
+# Creating files on ufs|ext and tmpfs, and copying those files to ZFS with
 # appropriate cp flags, the xattrs will still be readable.
 #
 # STRATEGY:
-#	1. Create files in ufs|ext2 and tmpfs with xattrs
-#       2. Copy those files to zfs
+#	1. Create files in ufs|ext and tmpfs with xattrs
+#	2. Copy those files to zfs
 #	3. Ensure the xattrs can be read and written
 #	4. Do the same in reverse.
 #
 
-# we need to be able to create zvols to hold our test
-# ufs|ext2 filesystem.
+# we need to be able to create zvols to hold our test ufs|ext filesystem.
 verify_runnable "global"
 
 # Make sure we clean up properly
 function cleanup {
-
 	if ismounted /tmp/$NEWFS_DEFAULT_FS.$$ $NEWFS_DEFAULT_FS; then
 		log_must umount /tmp/$NEWFS_DEFAULT_FS.$$
 		log_must rm -rf /tmp/$NEWFS_DEFAULT_FS.$$
@@ -59,7 +57,7 @@ function cleanup {
 log_assert "Files from $NEWFS_DEFAULT_FS,tmpfs with xattrs copied to zfs retain xattr info."
 log_onexit cleanup
 
-# Create a UFS|EXT2 file system that we can work in
+# Create a ufs|ext file system that we can work in
 log_must zfs create -V128m $TESTPOOL/$TESTFS/zvol
 block_device_wait
 log_must eval "echo y | newfs $ZVOL_DEVDIR/$TESTPOOL/$TESTFS/zvol > /dev/null 2>&1"
@@ -69,8 +67,8 @@ if is_linux; then
 	log_must mount -o user_xattr \
 	    $ZVOL_DEVDIR/$TESTPOOL/$TESTFS/zvol /tmp/$NEWFS_DEFAULT_FS.$$
 
-	# Create files in ext2 and tmpfs, and set some xattrs on them.
-	# Use small values for xattrs for ext2 compatibility.
+	# Create files in ext and tmpfs, and set some xattrs on them.
+	# Use small values for xattrs for ext compatibility.
 	log_must touch /tmp/$NEWFS_DEFAULT_FS.$$/$NEWFS_DEFAULT_FS-file.$$
 
 	log_must touch /tmp/tmpfs-file.$$

@@ -48,18 +48,24 @@
 #	1. Create an empty file system (TESTFS)
 #	2. Freeze TESTFS
 #	3. Run various user commands that create files, directories and ACLs
-#	4. Copy TESTFS to temporary location (TESTDIR)
+#	4. Copy TESTFS to temporary location (TESTDIR/copy)
 #	5. Unmount filesystem
 #	   <at this stage TESTFS is empty again and unfrozen, and the
 #	   intent log contains a complete set of deltas to replay it>
 #	6. Remount TESTFS <which replays the intent log>
-#	7. Compare TESTFS against the TESTDIR copy
+#	7. Compare TESTFS against the TESTDIR/copy
 #
 
 verify_runnable "global"
 
+function cleanup_fs
+{
+	rm -f $TESTDIR/checksum
+	cleanup
+}
+
 log_assert "Replay of intent log succeeds."
-log_onexit cleanup
+log_onexit cleanup_fs
 
 #
 # 1. Create an empty file system (TESTFS)
@@ -67,7 +73,6 @@ log_onexit cleanup
 log_must zpool create $TESTPOOL $VDEV log mirror $LDEV
 log_must zfs set compression=on $TESTPOOL
 log_must zfs create $TESTPOOL/$TESTFS
-log_must mkdir -p $TESTDIR
 
 #
 # This dd command works around an issue where ZIL records aren't created
@@ -107,8 +112,9 @@ log_must mkdir /$TESTPOOL/$TESTFS/dir_to_delete
 log_must rmdir /$TESTPOOL/$TESTFS/dir_to_delete
 
 # Create a simple validation payload
+log_must mkdir -p $TESTDIR
 log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/payload bs=1k count=8
-CHECKSUM_BEFORE=$(sha256sum -b /$TESTPOOL/$TESTFS/payload)
+log_must eval "sha256sum -b /$TESTPOOL/$TESTFS/payload >$TESTDIR/checksum"
 
 # TX_WRITE (small file with ordering)
 log_must mkfile 1k /$TESTPOOL/$TESTFS/small_file
@@ -132,7 +138,7 @@ log_must truncate -s 0 /$TESTPOOL/$TESTFS/truncated_file
 log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/large \
     bs=128k count=64 oflag=sync
 
-# Write zeroes, which compresss to holes, in the middle of a file
+# Write zeros, which compress to holes, in the middle of a file
 log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/holes.1 bs=128k count=8
 log_must dd if=/dev/zero of=/$TESTPOOL/$TESTFS/holes.1 bs=128k count=2
 
@@ -155,15 +161,16 @@ log_must attr -qs tmpattr -V HelloWorld /$TESTPOOL/$TESTFS/xattr.file
 log_must attr -qr tmpattr /$TESTPOOL/$TESTFS/xattr.file
 
 #
-# 4. Copy TESTFS to temporary location (TESTDIR)
+# 4. Copy TESTFS to temporary location (TESTDIR/copy)
 #
-log_must cp -a /$TESTPOOL/$TESTFS/* $TESTDIR
+log_must mkdir -p $TESTDIR/copy
+log_must cp -a /$TESTPOOL/$TESTFS/* $TESTDIR/copy/
 
 #
 # 5. Unmount filesystem and export the pool
 #
-# At this stage TESTFS is empty again and unfrozen, and the
-# intent log contains a complete set of deltas to replay it.
+# At this stage TESTFS is empty again and frozen, the intent log contains
+# a complete set of deltas to replay.
 #
 log_must zfs unmount /$TESTPOOL/$TESTFS
 
@@ -181,7 +188,7 @@ log_must zpool export $TESTPOOL
 log_must zpool import -f -d $VDIR $TESTPOOL
 
 #
-# 7. Compare TESTFS against the TESTDIR copy
+# 7. Compare TESTFS against the TESTDIR/copy
 #
 log_note "Verify current block usage:"
 log_must zdb -bcv $TESTPOOL
@@ -191,11 +198,9 @@ log_must attr -l /$TESTPOOL/$TESTFS/xattr.dir
 log_must attr -l /$TESTPOOL/$TESTFS/xattr.file
 
 log_note "Verify working set diff:"
-log_must diff -r /$TESTPOOL/$TESTFS $TESTDIR >/dev/null || \
-    diff -r /$TESTPOOL/$TESTFS $TESTDIR
+log_must diff -r /$TESTPOOL/$TESTFS $TESTDIR/copy
 
 log_note "Verify file checksum:"
-log_note "$CHECKSUM_BEFORE"
-log_must echo "$CHECKSUM_BEFORE" | sha256sum -c
+log_must sha256sum -c $TESTDIR/checksum
 
 log_pass "Replay of intent log succeeds."
