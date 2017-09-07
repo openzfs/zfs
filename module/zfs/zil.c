@@ -2399,7 +2399,7 @@ zil_commit_waiter_timeout(zilog_t *zilog, zil_commit_waiter_t *zcw)
 	 */
 	lwb_t *nlwb = zil_lwb_write_issue(zilog, lwb);
 
-	ASSERT3S(lwb->lwb_state, !=, LWB_STATE_OPENED);
+	IMPLY(nlwb != NULL, lwb->lwb_state != LWB_STATE_OPENED);
 
 	/*
 	 * Since the lwb's zio hadn't been issued by the time this thread
