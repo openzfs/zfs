@@ -599,26 +599,37 @@ static int
 zvol_replay_write(zvol_state_t *zv, lr_write_t *lr, boolean_t byteswap)
 {
 	objset_t *os = zv->zv_objset;
-	char *data = (char *)(lr + 1);	/* data follows lr_write_t */
-	uint64_t off = lr->lr_offset;
-	uint64_t len = lr->lr_length;
+	char *data = (char *)(lr + 1);  /* data follows lr_write_t */
+	uint64_t offset, length;
 	dmu_tx_t *tx;
 	int error;
 
 	if (byteswap)
 		byteswap_uint64_array(lr, sizeof (*lr));
 
+	offset = lr->lr_offset;
+	length = lr->lr_length;
+
+	/* If it's a dmu_sync() block, write the whole block */
+	if (lr->lr_common.lrc_reclen == sizeof (lr_write_t)) {
+		uint64_t blocksize = BP_GET_LSIZE(&lr->lr_blkptr);
+		if (length < blocksize) {
+			offset -= offset % blocksize;
+			length = blocksize;
+		}
+	}
+
 	tx = dmu_tx_create(os);
-	dmu_tx_hold_write(tx, ZVOL_OBJ, off, len);
+	dmu_tx_hold_write(tx, ZVOL_OBJ, offset, length);
 	error = dmu_tx_assign(tx, TXG_WAIT);
 	if (error) {
 		dmu_tx_abort(tx);
 	} else {
-		dmu_write(os, ZVOL_OBJ, off, len, data, tx);
+		dmu_write(os, ZVOL_OBJ, offset, length, data, tx);
 		dmu_tx_commit(tx);
 	}
 
-	return (SET_ERROR(error));
+	return (error);
 }
 
 static int
