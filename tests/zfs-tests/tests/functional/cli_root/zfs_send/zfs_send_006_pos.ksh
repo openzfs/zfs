@@ -60,10 +60,8 @@ function get_estimate_size
 		typeset total_size=$(zfs send $option $base_snapshot $snapshot \
 		     2>&1 | tail -1)
 	fi
-	if [[ $options == *"P"* ]]; then
-		total_size=$(echo "$total_size" | awk '{print $2}')
-	else
-		total_size=$(echo "$total_size" | awk '{print $5}')
+	total_size=$(echo "$total_size" | awk '{print $NF}')
+	if [[ $options != *"P"* ]]; then
 		total_size=${total_size%M}
 		total_size=$(echo "$total_size * $block_count" | bc)
 	fi
@@ -106,14 +104,18 @@ for block_size in 64 128 256; do
 	log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS1/file$block_size \
 	    bs=1M count=$block_size
 	log_must zfs snapshot $TESTPOOL/$TESTFS1@snap$block_size
+	log_must zfs bookmark $TESTPOOL/$TESTFS1@snap$block_size \
+	    "$TESTPOOL/$TESTFS1#bmark$block_size"
 done
 
 full_snapshot="$TESTPOOL/$TESTFS1@snap64"
-increamental_snapshot="$TESTPOOL/$TESTFS1@snap256"
+incremental_snapshot="$TESTPOOL/$TESTFS1@snap256"
+full_bookmark="$TESTPOOL/$TESTFS1#bmark64"
+incremental_bookmark="$TESTPOOL/$TESTFS1#bmark256"
 
 full_size=$(zfs send $full_snapshot 2>&1 | wc -c)
-increamental_size=$(zfs send $increamental_snapshot 2>&1 | wc -c)
-increamental_send=$(zfs send -i $full_snapshot $increamental_snapshot 2>&1 | wc -c)
+incremental_size=$(zfs send $incremental_snapshot 2>&1 | wc -c)
+incremental_send=$(zfs send -i $full_snapshot $incremental_snapshot 2>&1 | wc -c)
 
 log_note "verify zfs send -nv"
 options="-nv"
@@ -129,31 +131,35 @@ log_must verify_size_estimates $options $full_size
 
 log_note "verify zfs send -nv for multiple snapshot send"
 options="-nv"
-refer_size=$(get_prop refer $increamental_snapshot)
+refer_size=$(get_prop refer $incremental_snapshot)
 
-estimate_size=$(get_estimate_size $increamental_snapshot $options)
-log_must verify_size_estimates $options $increamental_size
+estimate_size=$(get_estimate_size $incremental_snapshot $options)
+log_must verify_size_estimates $options $incremental_size
 
 log_note "verify zfs send -vPn for multiple snapshot send"
 options="-vPn"
 
-estimate_size=$(get_estimate_size $increamental_snapshot $options)
-log_must verify_size_estimates $options $increamental_size
+estimate_size=$(get_estimate_size $incremental_snapshot $options)
+log_must verify_size_estimates $options $incremental_size
 
-log_note "verify zfs send -inv for increamental send"
+log_note "verify zfs send -inv for incremental send"
 options="-nvi"
-refer_size=$(get_prop refer $increamental_snapshot)
+refer_size=$(get_prop refer $incremental_snapshot)
 deduct_size=$(get_prop refer $full_snapshot)
 refer_size=$(echo "$refer_size - $deduct_size" | bc)
 
-estimate_size=$(get_estimate_size $increamental_snapshot $options $full_snapshot)
-log_must verify_size_estimates $options $increamental_send
+estimate_size=$(get_estimate_size $incremental_snapshot $options $full_snapshot)
+log_must verify_size_estimates $options $incremental_send
+estimate_size=$(get_estimate_size $incremental_snapshot $options $full_bookmark)
+log_must verify_size_estimates $options $incremental_send
 
-log_note "verify zfs send -ivPn for increamental send"
+log_note "verify zfs send -ivPn for incremental send"
 options="-vPni"
 
-estimate_size=$(get_estimate_size $increamental_snapshot $options $full_snapshot)
-log_must verify_size_estimates $options $increamental_send
+estimate_size=$(get_estimate_size $incremental_snapshot $options $full_snapshot)
+log_must verify_size_estimates $options $incremental_send
+estimate_size=$(get_estimate_size $incremental_snapshot $options $full_bookmark)
+log_must verify_size_estimates $options $incremental_send
 
 log_must zfs destroy -r $TESTPOOL/$TESTFS1
 
