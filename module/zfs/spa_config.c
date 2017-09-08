@@ -162,6 +162,11 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 	 */
 	if (nvl == NULL) {
 		err = vn_remove(dp->scd_path, UIO_SYSSPACE, RMFILE);
+		/*
+		 * Don't report an error when the cache file is already removed
+		 */
+		if (err == ENOENT)
+			err = 0;
 		return (err);
 	}
 
