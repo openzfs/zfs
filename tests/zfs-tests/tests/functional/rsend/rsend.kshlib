@@ -505,11 +505,13 @@ function test_fs_setup
 {
 	typeset sendfs=$1
 	typeset recvfs=$2
+	typeset streamfs=$3
 	typeset sendpool=${sendfs%%/*}
 	typeset recvpool=${recvfs%%/*}
 
 	datasetexists $sendfs && log_must_busy zfs destroy -r $sendpool
 	datasetexists $recvfs && log_must_busy zfs destroy -r $recvpool
+	datasetexists $streamfs && log_must_busy zfs destroy -r $streamfs
 
 	if $(datasetexists $sendfs || zfs create -o compress=lz4 $sendfs); then
 		mk_files 1000 256 0 $sendfs &
@@ -538,10 +540,7 @@ function test_fs_setup
 		    ">/$sendpool/incremental.zsend"
 	fi
 
-	if datasetexists $streamfs; then
-		log_must_busy zfs destroy -r $streamfs
-	fi
-	log_must zfs create -o compress=lz4 $sendpool/stream
+	log_must zfs create -o compress=lz4 $streamfs
 }
 
 #
@@ -655,9 +654,10 @@ function resume_cleanup
 {
 	typeset sendfs=$1
 	typeset streamfs=$2
+	typeset sendpool=${sendfs%%/*}
 
 	datasetexists $sendfs && log_must_busy zfs destroy -r $sendfs
 	datasetexists $streamfs && log_must_busy zfs destroy -r $streamfs
 	cleanup_pool $POOL2
-	rm -f /$POOL/initial.zsend /$POOL/incremental.zsend
+	rm -f /$sendpool/initial.zsend /$sendpool/incremental.zsend
 }
