@@ -179,11 +179,12 @@ Requires:       lsscsi
 Requires:       mdadm
 Requires:       bc
 Requires:       ksh
-Requires:	fio
-Requires:	acl
-Requires:	sudo
-Requires:	sysstat
+Requires:       fio
+Requires:       acl
+Requires:       sudo
+Requires:       sysstat
 Requires:       rng-tools
+Requires:       bzip2
 
 %description test
 This package contains test infrastructure and support scripts for
