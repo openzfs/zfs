@@ -261,7 +261,7 @@ crypto_register_provider(crypto_provider_info_t *info,
 			prov_desc->pd_kstat->ks_update = kcf_prov_kstat_update;
 			kstat_install(prov_desc->pd_kstat);
 		}
-		strfree(ks_name);
+		kmem_free(ks_name, strlen(ks_name) + 1);
 	}
 
 	if (prov_desc->pd_prov_type == CRYPTO_HW_PROVIDER)

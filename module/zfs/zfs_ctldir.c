@@ -137,8 +137,8 @@ zfsctl_snapshot_alloc(char *full_name, char *full_path, spa_t *spa,
 
 	se = kmem_zalloc(sizeof (zfs_snapentry_t), KM_SLEEP);
 
-	se->se_name = strdup(full_name);
-	se->se_path = strdup(full_path);
+	se->se_name = spa_strdup(full_name);
+	se->se_path = spa_strdup(full_path);
 	se->se_spa = spa;
 	se->se_objsetid = objsetid;
 	se->se_root_dentry = root_dentry;
@@ -157,8 +157,8 @@ static void
 zfsctl_snapshot_free(zfs_snapentry_t *se)
 {
 	refcount_destroy(&se->se_refcount);
-	strfree(se->se_name);
-	strfree(se->se_path);
+	spa_strfree(se->se_name);
+	spa_strfree(se->se_path);
 
 	kmem_free(se, sizeof (zfs_snapentry_t));
 }
@@ -311,8 +311,8 @@ zfsctl_snapshot_rename(char *old_snapname, char *new_snapname)
 		return (SET_ERROR(ENOENT));
 
 	zfsctl_snapshot_remove(se);
-	strfree(se->se_name);
-	se->se_name = strdup(new_snapname);
+	spa_strfree(se->se_name);
+	se->se_name = spa_strdup(new_snapname);
 	zfsctl_snapshot_add(se);
 	zfsctl_snapshot_rele(se);
 

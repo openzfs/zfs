@@ -698,7 +698,7 @@ __zpl_xattr_user_get(struct inode *ip, const char *name,
 
 	xattr_name = kmem_asprintf("%s%s", XATTR_USER_PREFIX, name);
 	error = zpl_xattr_get(ip, xattr_name, value, size);
-	strfree(xattr_name);
+	spa_strfree(xattr_name);
 
 	return (error);
 }
@@ -720,7 +720,7 @@ __zpl_xattr_user_set(struct inode *ip, const char *name,
 
 	xattr_name = kmem_asprintf("%s%s", XATTR_USER_PREFIX, name);
 	error = zpl_xattr_set(ip, xattr_name, value, size, flags);
-	strfree(xattr_name);
+	spa_strfree(xattr_name);
 
 	return (error);
 }
@@ -767,7 +767,7 @@ __zpl_xattr_trusted_get(struct inode *ip, const char *name,
 #endif
 	xattr_name = kmem_asprintf("%s%s", XATTR_TRUSTED_PREFIX, name);
 	error = zpl_xattr_get(ip, xattr_name, value, size);
-	strfree(xattr_name);
+	spa_strfree(xattr_name);
 
 	return (error);
 }
@@ -789,7 +789,7 @@ __zpl_xattr_trusted_set(struct inode *ip, const char *name,
 #endif
 	xattr_name = kmem_asprintf("%s%s", XATTR_TRUSTED_PREFIX, name);
 	error = zpl_xattr_set(ip, xattr_name, value, size, flags);
-	strfree(xattr_name);
+	spa_strfree(xattr_name);
 
 	return (error);
 }
@@ -836,7 +836,7 @@ __zpl_xattr_security_get(struct inode *ip, const char *name,
 #endif
 	xattr_name = kmem_asprintf("%s%s", XATTR_SECURITY_PREFIX, name);
 	error = zpl_xattr_get(ip, xattr_name, value, size);
-	strfree(xattr_name);
+	spa_strfree(xattr_name);
 
 	return (error);
 }
@@ -855,7 +855,7 @@ __zpl_xattr_security_set(struct inode *ip, const char *name,
 #endif
 	xattr_name = kmem_asprintf("%s%s", XATTR_SECURITY_PREFIX, name);
 	error = zpl_xattr_set(ip, xattr_name, value, size, flags);
-	strfree(xattr_name);
+	spa_strfree(xattr_name);
 
 	return (error);
 }

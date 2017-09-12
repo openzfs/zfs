@@ -1891,7 +1891,7 @@ get_receive_resume_stats(dsl_dataset_t *ds, nvlist_t *nv)
 		kmem_free(packed, packed_size);
 		kmem_free(str, compressed_size * 2 + 1);
 		kmem_free(compressed, packed_size);
-		strfree(propval);
+		spa_strfree(propval);
 	}
 }
 

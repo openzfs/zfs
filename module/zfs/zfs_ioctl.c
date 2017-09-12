@@ -3461,7 +3461,7 @@ zfs_ioc_log_history(const char *unused, nvlist_t *innvl, nvlist_t *outnvl)
 		return (SET_ERROR(EINVAL));
 	(void) tsd_set(zfs_allow_log_key, NULL);
 	error = spa_open(poolname, &spa, FTAG);
-	strfree(poolname);
+	spa_strfree(poolname);
 	if (error != 0)
 		return (error);
 
@@ -3779,7 +3779,7 @@ recursive_unmount(const char *fsname, void *arg)
 
 	fullname = kmem_asprintf("%s@%s", fsname, snapname);
 	error = zfs_unmount_snap(fullname);
-	strfree(fullname);
+	spa_strfree(fullname);
 
 	return (error);
 }
@@ -5347,8 +5347,8 @@ zfs_ioc_tmp_snapshot(zfs_cmd_t *zc)
 	if (error == 0)
 		(void) strlcpy(zc->zc_value, snap_name,
 		    sizeof (zc->zc_value));
-	strfree(snap_name);
-	strfree(hold_name);
+	spa_strfree(snap_name);
+	spa_strfree(hold_name);
 	zfs_onexit_fd_rele(zc->zc_cleanup_fd);
 	return (error);
 }
@@ -6754,7 +6754,7 @@ zfsdev_ioctl(struct file *filp, unsigned cmd, unsigned long arg)
 		goto out;
 
 	/* legacy ioctls can modify zc_name */
-	saved_poolname = strdup(zc->zc_name);
+	saved_poolname = spa_strdup(zc->zc_name);
 	if (saved_poolname == NULL) {
 		error = SET_ERROR(ENOMEM);
 		goto out;
@@ -6828,11 +6828,11 @@ out:
 	if (error == 0 && vec->zvec_allow_log) {
 		char *s = tsd_get(zfs_allow_log_key);
 		if (s != NULL)
-			strfree(s);
+			spa_strfree(s);
 		(void) tsd_set(zfs_allow_log_key, saved_poolname);
 	} else {
 		if (saved_poolname != NULL)
-			strfree(saved_poolname);
+			spa_strfree(saved_poolname);
 	}
 
 	kmem_free(zc, sizeof (zfs_cmd_t));
@@ -6904,7 +6904,7 @@ zfs_allow_log_destroy(void *arg)
 	char *poolname = arg;
 
 	if (poolname != NULL)
-		strfree(poolname);
+		spa_strfree(poolname);
 }
 
 #ifdef DEBUG
