@@ -761,7 +761,8 @@ zvol_write(void *arg)
 	ASSERT(zv && zv->zv_open_count > 0);
 
 	start_jif = jiffies;
-	generic_start_io_acct(WRITE, bio_sectors(bio), &zv->zv_disk->part0);
+	blk_generic_start_io_acct(zv->zv_queue, WRITE, bio_sectors(bio),
+	    &zv->zv_disk->part0);
 
 	sync = bio_is_fua(bio) || zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS;
 
@@ -794,7 +795,8 @@ zvol_write(void *arg)
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
 
 	rw_exit(&zv->zv_suspend_lock);
-	generic_end_io_acct(WRITE, &zv->zv_disk->part0, start_jif);
+	blk_generic_end_io_acct(zv->zv_queue, WRITE, &zv->zv_disk->part0,
+	    start_jif);
 	BIO_END_IO(bio, -error);
 	kmem_free(zvr, sizeof (zv_request_t));
 }
@@ -840,7 +842,8 @@ zvol_discard(void *arg)
 	ASSERT(zv && zv->zv_open_count > 0);
 
 	start_jif = jiffies;
-	generic_start_io_acct(WRITE, bio_sectors(bio), &zv->zv_disk->part0);
+	blk_generic_start_io_acct(zv->zv_queue, WRITE, bio_sectors(bio),
+	    &zv->zv_disk->part0);
 
 	sync = bio_is_fua(bio) || zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS;
 
@@ -881,7 +884,8 @@ unlock:
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
 
 	rw_exit(&zv->zv_suspend_lock);
-	generic_end_io_acct(WRITE, &zv->zv_disk->part0, start_jif);
+	blk_generic_end_io_acct(zv->zv_queue, WRITE, &zv->zv_disk->part0,
+	    start_jif);
 	BIO_END_IO(bio, -error);
 	kmem_free(zvr, sizeof (zv_request_t));
 }
@@ -902,7 +906,8 @@ zvol_read(void *arg)
 	ASSERT(zv && zv->zv_open_count > 0);
 
 	start_jif = jiffies;
-	generic_start_io_acct(READ, bio_sectors(bio), &zv->zv_disk->part0);
+	blk_generic_start_io_acct(zv->zv_queue, READ, bio_sectors(bio),
+	    &zv->zv_disk->part0);
 
 	while (uio.uio_resid > 0 && uio.uio_loffset < volsize) {
 		uint64_t bytes = MIN(uio.uio_resid, DMU_MAX_ACCESS >> 1);
@@ -922,7 +927,8 @@ zvol_read(void *arg)
 	zfs_range_unlock(zvr->rl);
 
 	rw_exit(&zv->zv_suspend_lock);
-	generic_end_io_acct(READ, &zv->zv_disk->part0, start_jif);
+	blk_generic_end_io_acct(zv->zv_queue, READ, &zv->zv_disk->part0,
+	    start_jif);
 	BIO_END_IO(bio, -error);
 	kmem_free(zvr, sizeof (zv_request_t));
 }
