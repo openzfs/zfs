@@ -873,17 +873,6 @@ extern int zpool_enable_datasets(zpool_handle_t *, const char *, int);
 extern int zpool_disable_datasets(zpool_handle_t *, boolean_t);
 
 /*
- * Mappings between vdev and FRU.
- */
-extern void libzfs_fru_refresh(libzfs_handle_t *);
-extern const char *libzfs_fru_lookup(libzfs_handle_t *, const char *);
-extern const char *libzfs_fru_devpath(libzfs_handle_t *, const char *);
-extern boolean_t libzfs_fru_compare(libzfs_handle_t *, const char *,
-    const char *);
-extern boolean_t libzfs_fru_notself(libzfs_handle_t *, const char *);
-extern int zpool_fru_set(zpool_handle_t *, uint64_t, const char *);
-
-/*
  * Support for Linux libudev derived persistent device strings
  */
 extern boolean_t is_mpath_whole_disk(const char *);

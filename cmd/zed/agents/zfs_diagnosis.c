@@ -377,11 +377,6 @@ zfs_case_solve(fmd_hdl_t *hdl, zfs_case_t *zcp, const char *faultname,
 	nvlist_t *detector, *fault;
 	boolean_t serialize;
 	nvlist_t *fru = NULL;
-#ifdef HAVE_LIBTOPO
-	nvlist_t *fmri;
-	topo_hdl_t *thp;
-	int err;
-#endif
 	fmd_hdl_debug(hdl, "solving fault '%s'", faultname);
 
 	/*
@@ -400,64 +395,6 @@ zfs_case_solve(fmd_hdl_t *hdl, zfs_case_t *zcp, const char *faultname,
 		    zcp->zc_data.zc_vdev_guid);
 	}
 
-#ifdef HAVE_LIBTOPO
-	/*
-	 * We also want to make sure that the detector (pool or vdev) properly
-	 * reflects the diagnosed state, when the fault corresponds to internal
-	 * ZFS state (i.e. not checksum or I/O error-induced).  Otherwise, a
-	 * device which was unavailable early in boot (because the driver/file
-	 * wasn't available) and is now healthy will be mis-diagnosed.
-	 */
-	if (!fmd_nvl_fmri_present(hdl, detector) ||
-	    (checkunusable && !fmd_nvl_fmri_unusable(hdl, detector))) {
-		fmd_case_close(hdl, zcp->zc_case);
-		nvlist_free(detector);
-		return;
-	}
-
-
-	fru = NULL;
-	if (zcp->zc_fru != NULL &&
-	    (thp = fmd_hdl_topo_hold(hdl, TOPO_VERSION)) != NULL) {
-		/*
-		 * If the vdev had an associated FRU, then get the FRU nvlist
-		 * from the topo handle and use that in the suspect list.  We
-		 * explicitly lookup the FRU because the fmri reported from the
-		 * kernel may not have up to date details about the disk itself
-		 * (serial, part, etc).
-		 */
-		if (topo_fmri_str2nvl(thp, zcp->zc_fru, &fmri, &err) == 0) {
-			libzfs_handle_t *zhdl = fmd_hdl_getspecific(hdl);
-
-			/*
-			 * If the disk is part of the system chassis, but the
-			 * FRU indicates a different chassis ID than our
-			 * current system, then ignore the error.  This
-			 * indicates that the device was part of another
-			 * cluster head, and for obvious reasons cannot be
-			 * imported on this system.
-			 */
-			if (libzfs_fru_notself(zhdl, zcp->zc_fru)) {
-				fmd_case_close(hdl, zcp->zc_case);
-				nvlist_free(fmri);
-				fmd_hdl_topo_rele(hdl, thp);
-				nvlist_free(detector);
-				return;
-			}
-
-			/*
-			 * If the device is no longer present on the system, or
-			 * topo_fmri_fru() fails for other reasons, then fall
-			 * back to the fmri specified in the vdev.
-			 */
-			if (topo_fmri_fru(thp, fmri, &fru, &err) != 0)
-				fru = fmd_nvl_dup(hdl, fmri, FMD_SLEEP);
-			nvlist_free(fmri);
-		}
-
-		fmd_hdl_topo_rele(hdl, thp);
-	}
-#endif
 	fault = fmd_nvl_create_fault(hdl, faultname, 100, detector,
 	    fru, detector);
 	fmd_case_add_suspect(hdl, zcp->zc_case, fault);
