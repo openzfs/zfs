@@ -68,6 +68,7 @@ KERNEL_C = \
 	dsl_destroy.c \
 	dsl_userhold.c \
 	edonr_zfs.c \
+	hkdf.c \
 	fm.c \
 	gzip.c \
 	lzjb.c \

@@ -90,9 +90,9 @@ dsl_wrapping_key_free(dsl_wrapping_key_t *wkey)
 
 	if (wkey->wk_key.ck_data) {
 		bzero(wkey->wk_key.ck_data,
-		    BITS_TO_BYTES(wkey->wk_key.ck_length));
+		    CRYPTO_BITS2BYTES(wkey->wk_key.ck_length));
 		kmem_free(wkey->wk_key.ck_data,
-		    BITS_TO_BYTES(wkey->wk_key.ck_length));
+		    CRYPTO_BITS2BYTES(wkey->wk_key.ck_length));
 	}
 
 	refcount_destroy(&wkey->wk_refcnt);
@@ -119,7 +119,7 @@ dsl_wrapping_key_create(uint8_t *wkeydata, zfs_keyformat_t keyformat,
 	}
 
 	wkey->wk_key.ck_format = CRYPTO_KEY_RAW;
-	wkey->wk_key.ck_length = BYTES_TO_BITS(WRAPPING_KEY_LEN);
+	wkey->wk_key.ck_length = CRYPTO_BYTES2BITS(WRAPPING_KEY_LEN);
 	bcopy(wkeydata, wkey->wk_key.ck_data, WRAPPING_KEY_LEN);
 
 	/* initialize the rest of the struct */
@@ -433,7 +433,6 @@ dsl_crypto_can_set_keylocation(const char *dsname, const char *keylocation)
 	int ret = 0;
 	dsl_dir_t *dd = NULL;
 	dsl_pool_t *dp = NULL;
-	dsl_wrapping_key_t *wkey = NULL;
 	uint64_t rddobj;
 
 	/* hold the dsl dir */
@@ -472,16 +471,12 @@ dsl_crypto_can_set_keylocation(const char *dsname, const char *keylocation)
 		goto out;
 	}
 
-	if (wkey != NULL)
-		dsl_wrapping_key_rele(wkey, FTAG);
 	dsl_dir_rele(dd, FTAG);
 	dsl_pool_rele(dp, FTAG);
 
 	return (0);
 
 out:
-	if (wkey != NULL)
-		dsl_wrapping_key_rele(wkey, FTAG);
 	if (dd != NULL)
 		dsl_dir_rele(dd, FTAG);
 	if (dp != NULL)
@@ -1831,6 +1826,8 @@ dsl_dataset_create_crypt_sync(uint64_t dsobj, dsl_dir_t *dd,
 		wkey->wk_ddobj = dd->dd_object;
 	}
 
+	ASSERT3P(wkey, !=, NULL);
+
 	/* Create or clone the DSL crypto key and activate the feature */
 	dd->dd_crypto_obj = dsl_crypto_key_create_sync(crypt, wkey, tx);
 	VERIFY0(zap_add(dp->dp_meta_objset, dd->dd_object,
@@ -2488,7 +2485,8 @@ spa_do_crypt_mac_abd(boolean_t generate, spa_t *spa, uint64_t dsobj, abd_t *abd,
 		goto error;
 
 	/* perform the hmac */
-	ret = zio_crypt_do_hmac(&dck->dck_key, buf, datalen, digestbuf);
+	ret = zio_crypt_do_hmac(&dck->dck_key, buf, datalen,
+	    digestbuf, ZIO_DATA_MAC_LEN);
 	if (ret != 0)
 		goto error;
 
@@ -2604,8 +2602,7 @@ error:
 		abd_return_buf(cabd, cipherbuf, datalen);
 	}
 
-	if (dck != NULL)
-		spa_keystore_dsl_key_rele(spa, dck, FTAG);
+	spa_keystore_dsl_key_rele(spa, dck, FTAG);
 
 	return (ret);
 }

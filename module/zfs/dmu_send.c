@@ -517,7 +517,7 @@ dump_dnode(dmu_sendarg_t *dsp, const blkptr_t *bp, uint64_t object,
     dnode_phys_t *dnp)
 {
 	struct drr_object *drro = &(dsp->dsa_drr->drr_u.drr_object);
-	int bonuslen = P2ROUNDUP(dnp->dn_bonuslen, 8);
+	int bonuslen;
 
 	if (object < dsp->dsa_resume_object) {
 		/*
@@ -558,6 +558,8 @@ dump_dnode(dmu_sendarg_t *dsp, const blkptr_t *bp, uint64_t object,
 	    drro->drr_blksz > SPA_OLD_MAXBLOCKSIZE)
 		drro->drr_blksz = SPA_OLD_MAXBLOCKSIZE;
 
+	bonuslen = P2ROUNDUP(dnp->dn_bonuslen, 8);
+
 	if ((dsp->dsa_featureflags & DMU_BACKUP_FEATURE_RAW)) {
 		ASSERT(BP_IS_ENCRYPTED(bp));
 
@@ -571,7 +573,7 @@ dump_dnode(dmu_sendarg_t *dsp, const blkptr_t *bp, uint64_t object,
 
 		/*
 		 * Since we encrypt the entire bonus area, the (raw) part
-		 * beyond the the bonuslen is actually nonzero, so we need
+		 * beyond the bonuslen is actually nonzero, so we need
 		 * to send it.
 		 */
 		if (bonuslen != 0) {

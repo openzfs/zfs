@@ -6698,6 +6698,9 @@ arc_write_ready(zio_t *zio)
 	HDR_SET_PSIZE(hdr, psize);
 	arc_hdr_set_compress(hdr, compress);
 
+	if (zio->io_error != 0 || psize == 0)
+		goto out;
+
 	/*
 	 * Fill the hdr with data. If the buffer is encrypted we have no choice
 	 * but to copy the data into b_radb. If the hdr is compressed, the data
@@ -6713,6 +6716,7 @@ arc_write_ready(zio_t *zio)
 	 * the data into it; otherwise, we share the data directly if we can.
 	 */
 	if (ARC_BUF_ENCRYPTED(buf)) {
+		ASSERT3U(psize, >, 0);
 		ASSERT(ARC_BUF_COMPRESSED(buf));
 		arc_hdr_alloc_abd(hdr, B_TRUE);
 		abd_copy(hdr->b_crypt_hdr.b_rabd, zio->io_abd, psize);
@@ -6745,6 +6749,7 @@ arc_write_ready(zio_t *zio)
 		arc_share_buf(hdr, buf);
 	}
 
+out:
 	arc_hdr_verify(hdr, bp);
 	spl_fstrans_unmark(cookie);
 }
@@ -8321,7 +8326,7 @@ l2arc_apply_transforms(spa_t *spa, arc_buf_hdr_t *hdr, uint64_t asize,
 	boolean_t bswap = (hdr->b_l1hdr.b_byteswap != DMU_BSWAP_NUMFUNCS);
 	dsl_crypto_key_t *dck = NULL;
 	uint8_t mac[ZIO_DATA_MAC_LEN] = { 0 };
-	boolean_t no_crypt;
+	boolean_t no_crypt = B_FALSE;
 
 	ASSERT((HDR_GET_COMPRESS(hdr) != ZIO_COMPRESS_OFF &&
 	    !HDR_COMPRESSION_ENABLED(hdr)) ||
@@ -8333,6 +8338,15 @@ l2arc_apply_transforms(spa_t *spa, arc_buf_hdr_t *hdr, uint64_t asize,
 	 * and copy the data. This may be done to elimiate a depedency on a
 	 * shared buffer or to reallocate the buffer to match asize.
 	 */
+	if (HDR_HAS_RABD(hdr) && asize != psize) {
+		ASSERT3U(size, ==, psize);
+		to_write = abd_alloc_for_io(asize, ismd);
+		abd_copy(to_write, hdr->b_crypt_hdr.b_rabd, size);
+		if (size != asize)
+			abd_zero_off(to_write, size, asize - size);
+		goto out;
+	}
+
 	if ((compress == ZIO_COMPRESS_OFF || HDR_COMPRESSION_ENABLED(hdr)) &&
 	    !HDR_ENCRYPTED(hdr)) {
 		ASSERT3U(size, ==, psize);
@@ -8377,11 +8391,8 @@ l2arc_apply_transforms(spa_t *spa, arc_buf_hdr_t *hdr, uint64_t asize,
 		if (ret != 0)
 			goto error;
 
-		if (no_crypt) {
-			spa_keystore_dsl_key_rele(spa, dck, FTAG);
-			abd_free(eabd);
-			goto out;
-		}
+		if (no_crypt)
+			abd_copy(eabd, to_write, psize);
 
 		if (psize != asize)
 			abd_zero_off(eabd, psize, asize - psize);

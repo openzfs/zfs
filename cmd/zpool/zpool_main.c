@@ -8049,10 +8049,17 @@ main(int argc, char **argv)
 		 * 'freeze' is a vile debugging abomination, so we treat
 		 * it as such.
 		 */
-		char buf[16384];
-		int fd = open(ZFS_DEV, O_RDWR);
-		(void) strlcpy((void *)buf, argv[2], sizeof (buf));
-		return (!!ioctl(fd, ZFS_IOC_POOL_FREEZE, buf));
+		zfs_cmd_t zc = {"\0"};
+
+		(void) strlcpy(zc.zc_name, argv[2], sizeof (zc.zc_name));
+		ret = zfs_ioctl(g_zfs, ZFS_IOC_POOL_FREEZE, &zc);
+		if (ret != 0) {
+			(void) fprintf(stderr,
+			gettext("failed to freeze pool: %d\n"), errno);
+			ret = 1;
+		}
+
+		log_history = 0;
 	} else {
 		(void) fprintf(stderr, gettext("unrecognized "
 		    "command '%s'\n"), cmdname);

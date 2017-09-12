@@ -7267,28 +7267,27 @@ zfs_do_change_key(int argc, char **argv)
 		keystatus = zfs_prop_get_int(zhp, ZFS_PROP_KEYSTATUS);
 		if (keystatus != ZFS_KEYSTATUS_AVAILABLE) {
 			ret = zfs_crypto_load_key(zhp, B_FALSE, NULL);
-			if (ret != 0)
-				goto error;
+			if (ret != 0) {
+				nvlist_free(props);
+				zfs_close(zhp);
+				return (-1);
+			}
 		}
 
-		/* refresh the properties so the new keystatus is visable */
+		/* refresh the properties so the new keystatus is visible */
 		zfs_refresh_properties(zhp);
 	}
 
 	ret = zfs_crypto_rewrap(zhp, props, inheritkey);
-	if (ret != 0)
-		goto error;
+	if (ret != 0) {
+		nvlist_free(props);
+		zfs_close(zhp);
+		return (-1);
+	}
 
 	nvlist_free(props);
 	zfs_close(zhp);
 	return (0);
-
-error:
-	if (props != NULL)
-		nvlist_free(props);
-	if (zhp != NULL)
-		zfs_close(zhp);
-	return (-1);
 }
 
 int

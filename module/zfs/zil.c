@@ -2115,6 +2115,21 @@ zil_suspend(const char *osname, void **cookiep)
 		return (0);
 	}
 
+	/*
+	 * The ZIL has work to do. Ensure that the associated encryption
+	 * key will remain mapped while we are committing the log by
+	 * grabbing a reference to it. If the key isn't loaded we have no
+	 * choice but to return an error until the wrapping key is loaded.
+	 */
+	if (os->os_encrypted && spa_keystore_create_mapping(os->os_spa,
+	    dmu_objset_ds(os), FTAG) != 0) {
+		zilog->zl_suspend--;
+		mutex_exit(&zilog->zl_lock);
+		dsl_dataset_long_rele(dmu_objset_ds(os), suspend_tag);
+		dsl_dataset_rele(dmu_objset_ds(os), suspend_tag);
+		return (SET_ERROR(EBUSY));
+	}
+
 	zilog->zl_suspending = B_TRUE;
 	mutex_exit(&zilog->zl_lock);
 
@@ -2126,6 +2141,20 @@ zil_suspend(const char *osname, void **cookiep)
 	zilog->zl_suspending = B_FALSE;
 	cv_broadcast(&zilog->zl_cv_suspend);
 	mutex_exit(&zilog->zl_lock);
+
+	if (os->os_encrypted) {
+		/*
+		 * Encrypted datasets need to wait for all data to be
+		 * synced out before removing the mapping.
+		 *
+		 * XXX: Depending on the number of datasets with
+		 * outstanding ZIL data on a given log device, this
+		 * might cause spa_offline_log() to take a long time.
+		 */
+		txg_wait_synced(zilog->zl_dmu_pool, zilog->zl_destroy_txg);
+		VERIFY0(spa_keystore_remove_mapping(os->os_spa,
+		    dmu_objset_id(os), FTAG));
+	}
 
 	if (cookiep == NULL)
 		zil_resume(os);

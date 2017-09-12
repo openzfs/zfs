@@ -20,11 +20,11 @@
 #include <sys/zfs_context.h>
 #include <sys/fs/zfs.h>
 #include <sys/dsl_crypt.h>
-#include <sys/crypto/icp.h>
 #include <libintl.h>
 #include <termios.h>
 #include <signal.h>
 #include <errno.h>
+#include <openssl/evp.h>
 #include <libzfs.h>
 #include "libzfs_impl.h"
 #include "zfeature_common.h"
@@ -438,139 +438,6 @@ error:
 }
 
 static int
-pbkdf2(uint8_t *passphrase, size_t passphraselen, uint8_t *salt,
-    size_t saltlen, uint64_t iterations, uint8_t *output,
-    size_t outputlen)
-{
-	int ret;
-	uint64_t iter;
-	uint32_t blockptr, i;
-	uint16_t hmac_key_len;
-	uint8_t *hmac_key;
-	uint8_t block[SHA1_DIGEST_LEN * 2];
-	uint8_t *hmacresult = block + SHA1_DIGEST_LEN;
-	crypto_mechanism_t mech;
-	crypto_key_t key;
-	crypto_data_t in_data, out_data;
-	crypto_ctx_template_t tmpl = NULL;
-
-	/* initialize output */
-	memset(output, 0, outputlen);
-
-	/* initialize icp for use */
-	icp_init();
-
-	/* HMAC key size is max(sizeof(uint32_t) + salt len, sha 256 len) */
-	if (saltlen > SHA1_DIGEST_LEN) {
-		hmac_key_len = saltlen + sizeof (uint32_t);
-	} else {
-		hmac_key_len = SHA1_DIGEST_LEN;
-	}
-
-	hmac_key = calloc(hmac_key_len, 1);
-	if (!hmac_key) {
-		ret = ENOMEM;
-		goto error;
-	}
-
-	/* initialize sha 256 hmac mechanism */
-	mech.cm_type = crypto_mech2id(SUN_CKM_SHA1_HMAC);
-	mech.cm_param = NULL;
-	mech.cm_param_len = 0;
-
-	/* initialize passphrase as a crypto key */
-	key.ck_format = CRYPTO_KEY_RAW;
-	key.ck_length = BYTES_TO_BITS(passphraselen);
-	key.ck_data = passphrase;
-
-	/*
-	 * initialize crypto data for the input data. length will change
-	 * after the first iteration, so we will initialize it in the loop.
-	 */
-	in_data.cd_format = CRYPTO_DATA_RAW;
-	in_data.cd_offset = 0;
-	in_data.cd_raw.iov_base = (char *)hmac_key;
-
-	/* initialize crypto data for the output data */
-	out_data.cd_format = CRYPTO_DATA_RAW;
-	out_data.cd_offset = 0;
-	out_data.cd_length = SHA1_DIGEST_LEN;
-	out_data.cd_raw.iov_base = (char *)hmacresult;
-	out_data.cd_raw.iov_len = out_data.cd_length;
-
-	/* initialize the context template */
-	ret = crypto_create_ctx_template(&mech, &key, &tmpl, KM_SLEEP);
-	if (ret != CRYPTO_SUCCESS) {
-		ret = EIO;
-		goto error;
-	}
-
-	/* main loop */
-	for (blockptr = 0; blockptr < outputlen; blockptr += SHA1_DIGEST_LEN) {
-
-		/*
-		 * for the first iteration, the HMAC key is the user-provided
-		 * salt concatenated with the block index (1-indexed)
-		 */
-		i = htobe32(1 + (blockptr / SHA1_DIGEST_LEN));
-		memmove(hmac_key, salt, saltlen);
-		memmove(hmac_key + saltlen, (uint8_t *)(&i), sizeof (uint32_t));
-
-		/* block initializes to zeroes (no XOR) */
-		memset(block, 0, SHA1_DIGEST_LEN);
-
-		for (iter = 0; iter < iterations; iter++) {
-			if (iter > 0) {
-				in_data.cd_length = SHA1_DIGEST_LEN;
-				in_data.cd_raw.iov_len = in_data.cd_length;
-			} else {
-				in_data.cd_length = saltlen + sizeof (uint32_t);
-				in_data.cd_raw.iov_len = in_data.cd_length;
-			}
-
-			ret = crypto_mac(&mech, &in_data, &key, tmpl,
-			    &out_data, NULL);
-			if (ret != CRYPTO_SUCCESS) {
-				ret = EIO;
-				goto error;
-			}
-
-			/* HMAC key now becomes the output of this iteration */
-			memmove(hmac_key, hmacresult, SHA1_DIGEST_LEN);
-
-			/* XOR this iteration's result with the current block */
-			for (i = 0; i < SHA1_DIGEST_LEN; i++) {
-				block[i] ^= hmacresult[i];
-			}
-		}
-
-		/*
-		 * compute length of this block, make sure we don't write
-		 * beyond the end of the output, truncating if necessary
-		 */
-		if (blockptr + SHA1_DIGEST_LEN > outputlen) {
-			memmove(output + blockptr, block, outputlen - blockptr);
-		} else {
-			memmove(output + blockptr, block, SHA1_DIGEST_LEN);
-		}
-	}
-
-	crypto_destroy_ctx_template(tmpl);
-	free(hmac_key);
-	icp_fini();
-
-	return (0);
-
-error:
-	crypto_destroy_ctx_template(tmpl);
-	if (hmac_key != NULL)
-		free(hmac_key);
-	icp_fini();
-
-	return (ret);
-}
-
-static int
 derive_key(libzfs_handle_t *hdl, zfs_keyformat_t format, uint64_t iters,
     uint8_t *key_material, size_t key_material_len, uint64_t salt,
     uint8_t **key_out)
@@ -599,10 +466,12 @@ derive_key(libzfs_handle_t *hdl, zfs_keyformat_t format, uint64_t iters,
 		break;
 	case ZFS_KEYFORMAT_PASSPHRASE:
 		salt = LE_64(salt);
-		ret = pbkdf2(key_material, strlen((char *)key_material),
-		    ((uint8_t *)&salt), sizeof (uint64_t), iters,
-		    key, WRAPPING_KEY_LEN);
-		if (ret != 0) {
+
+		ret = PKCS5_PBKDF2_HMAC_SHA1((char *)key_material,
+		    strlen((char *)key_material), ((uint8_t *)&salt),
+		    sizeof (uint64_t), iters, WRAPPING_KEY_LEN, key);
+		if (ret != 1) {
+			ret = EIO;
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "Failed to generate key from passphrase."));
 			goto error;
@@ -1207,9 +1076,13 @@ try_again:
 	ret = lzc_load_key(zhp->zfs_name, noop, key_data, WRAPPING_KEY_LEN);
 	if (ret != 0) {
 		switch (ret) {
+		case EPERM:
+			zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
+			    "Permission denied."));
+			break;
 		case EINVAL:
 			zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
-			    "Invalid parameters provided for %s."),
+			    "Invalid parameters provided for dataset %s."),
 			    zfs_get_name(zhp));
 			break;
 		case EEXIST:
@@ -1318,6 +1191,10 @@ zfs_crypto_unload_key(zfs_handle_t *zhp)
 
 	if (ret != 0) {
 		switch (ret) {
+		case EPERM:
+			zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
+			    "Permission denied."));
+			break;
 		case ENOENT:
 			zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
 			    "Key already unloaded for '%s'."),
@@ -1375,8 +1252,10 @@ zfs_crypto_verify_rewrap_nvlist(zfs_handle_t *zhp, nvlist_t *props,
 	new_props = zfs_valid_proplist(zhp->zfs_hdl, zhp->zfs_type, props,
 	    zfs_prop_get_int(zhp, ZFS_PROP_ZONED), NULL, zhp->zpool_hdl,
 	    B_TRUE, errbuf);
-	if (new_props == NULL)
+	if (new_props == NULL) {
+		ret = EINVAL;
 		goto error;
+	}
 
 	*props_out = new_props;
 	return (0);
@@ -1475,6 +1354,13 @@ zfs_crypto_rewrap(zfs_handle_t *zhp, nvlist_t *raw_props, boolean_t inheritkey)
 				ret = nvlist_add_uint64(props,
 				    zfs_prop_to_name(ZFS_PROP_KEYFORMAT),
 				    keyformat);
+				if (ret != 0) {
+					zfs_error_aux(zhp->zfs_hdl,
+					    dgettext(TEXT_DOMAIN, "Failed to "
+					    "get existing keyformat "
+					    "property."));
+					goto error;
+				}
 			}
 
 			if (keylocation == NULL) {
@@ -1578,6 +1464,10 @@ zfs_crypto_rewrap(zfs_handle_t *zhp, nvlist_t *raw_props, boolean_t inheritkey)
 	ret = lzc_change_key(zhp->zfs_name, cmd, props, wkeydata, wkeylen);
 	if (ret != 0) {
 		switch (ret) {
+		case EPERM:
+			zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
+			    "Permission denied."));
+			break;
 		case EINVAL:
 			zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
 			    "Invalid properties for key change."));

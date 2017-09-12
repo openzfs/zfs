@@ -44,6 +44,18 @@
 
 verify_runnable "global"
 
+if is_linux; then
+	# Versions of libblkid older than 2.27.0 will not always detect member
+	# devices of a pool, therefore skip this test case for old versions.
+	currentver="$(blkid -v | tr ',' ' ' | awk '/libblkid/ { print $6 }')"
+	requiredver="2.27.0"
+
+	if [ "$(printf "$requiredver\n$currentver" | sort -V | head -n1)" ==  \
+	    "$currentver" ] && [ "$currentver" != "$requiredver" ]; then
+		log_unsupported "libblkid ($currentver) may not detect pools"
+	fi
+fi
+
 function cleanup
 {
 	if [[ $exported_pool == true ]]; then
