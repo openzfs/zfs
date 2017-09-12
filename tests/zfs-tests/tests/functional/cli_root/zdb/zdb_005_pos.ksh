@@ -36,6 +36,7 @@ log_onexit cleanup
 function cleanup
 {
 	datasetexists $TESTPOOL && destroy_pool $TESTPOOL
+	rm -f $TEMPFILE
 }
 
 verify_runnable "global"

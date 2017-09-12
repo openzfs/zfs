@@ -438,15 +438,28 @@ fi
 
 #
 # By default preserve any existing pools
+# NOTE: Since 'zpool list' outputs a newline-delimited list convert $KEEP from
+# space-delimited to newline-delimited.
 #
 if [ -z "${KEEP}" ]; then
-	KEEP=$(sudo "$ZPOOL" list -H -o name)
+	KEEP="$(sudo "$ZPOOL" list -H -o name)"
 	if [ -z "${KEEP}" ]; then
 		KEEP="rpool"
 	fi
+else
+	KEEP="$(echo -e "${KEEP//[[:blank:]]/\n}")"
 fi
 
-__ZFS_POOL_EXCLUDE="$(echo $KEEP | sed ':a;N;s/\n/ /g;ba')"
+#
+# NOTE: The following environment variables are undocumented
+# and should be used for testing purposes only:
+#
+# __ZFS_POOL_EXCLUDE - don't iterate over the pools it lists
+# __ZFS_POOL_RESTRICT - iterate only over the pools it lists
+#
+# See libzfs/libzfs_config.c for more information.
+#
+__ZFS_POOL_EXCLUDE="$(echo "$KEEP" | sed ':a;N;s/\n/ /g;ba')"
 
 . "$STF_SUITE/include/default.cfg"
 
@@ -524,6 +537,7 @@ export STF_TOOLS
 export STF_SUITE
 export STF_PATH
 export DISKS
+export FILEDIR
 export KEEP
 export __ZFS_POOL_EXCLUDE
 export TESTFAIL_CALLBACKS

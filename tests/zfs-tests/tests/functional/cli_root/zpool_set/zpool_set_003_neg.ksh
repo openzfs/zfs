@@ -45,8 +45,8 @@ verify_runnable "global"
 
 function cleanup
 {
-        zpool destroy $TESTPOOL
-        rm /tmp/zpool_set_003.$$.dat
+        zpool destroy $TESTPOOL1
+        rm $FILEVDEV
 }
 
 set -A props "available" "capacity" "guid"  "health"  "size" "used"
@@ -56,14 +56,15 @@ log_onexit cleanup
 
 log_assert "zpool set cannot set a readonly property"
 
-log_must mkfile $MINVDEVSIZE /tmp/zpool_set_003.$$.dat
-log_must zpool create $TESTPOOL /tmp/zpool_set_003.$$.dat
+FILEVDEV="$TEST_BASE_DIR/zpool_set_003.$$.dat"
+log_must mkfile $MINVDEVSIZE $FILEVDEV
+log_must zpool create $TESTPOOL1 $FILEVDEV
 
 typeset -i i=0;
 while [ $i -lt "${#props[@]}" ]
 do
 	# try to set each property in the prop list with it's corresponding val
-        log_mustnot eval "zpool set ${props[$i]}=${vals[$i]} $TESTPOOL \
+        log_mustnot eval "zpool set ${props[$i]}=${vals[$i]} $TESTPOOL1 \
  > /dev/null 2>&1"
         i=$(( $i + 1))
 done

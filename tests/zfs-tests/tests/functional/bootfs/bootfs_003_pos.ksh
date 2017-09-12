@@ -50,7 +50,7 @@ function cleanup {
 	if poolexists $POOL ; then
 		log_must zpool destroy $POOL
 	fi
-	rm /bootfs_003.$$.dat
+	rm $TESTDIR/bootfs_003.$$.dat
 }
 
 

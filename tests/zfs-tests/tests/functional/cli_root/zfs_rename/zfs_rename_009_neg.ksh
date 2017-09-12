@@ -47,25 +47,10 @@ verify_runnable "both"
 
 function cleanup
 {
-	typeset snaps=$(zfs list -H -t snapshot -o name)
-	typeset exclude
-	typeset snap
-	typeset pool_name
-
-	if [[ -n $KEEP ]]; then
-		exclude=`eval echo \"'(${KEEP})'\"`
-	fi
-
-	for snap in $snaps; do
-		pool_name=$(echo "$snap" | awk -F/ '{print $1}')
-		if [[ -n $exclude ]]; then
-			echo "$pool_name" | egrep -v "$exclude" > /dev/null 2>&1
-			if [[ $? -eq 0 ]]; then
-				log_must zfs destroy $snap
-			fi
-		else
+	for poolname in $(get_all_pools); do
+		for snap in $(zfs list -H -t snapshot -o name -r $poolname); do
 			log_must zfs destroy $snap
-		fi
+		done
 	done
 }
 

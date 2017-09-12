@@ -70,6 +70,9 @@ post =
 [tests/functional/cli_root/zfs]
 tests = ['zfs_001_neg', 'zfs_002_pos', 'zfs_003_neg']
 
+[tests/functional/cli_root/zfs_bookmark]
+tests = ['zfs_bookmark_cliargs']
+
 [tests/functional/cli_root/zfs_change-key]
 tests = ['zfs_change-key', 'zfs_change-key_child', 'zfs_change-key_format',
     'zfs_change-key_inherit', 'zfs_change-key_load', 'zfs_change-key_location',
@@ -293,12 +296,10 @@ tests = ['zpool_replace_001_neg', 'replace-o_ashift', 'replace_prop_ashift']
 [tests/functional/cli_root/zpool_scrub]
 tests = ['zpool_scrub_001_neg', 'zpool_scrub_002_pos', 'zpool_scrub_003_pos',
     'zpool_scrub_004_pos', 'zpool_scrub_005_pos',
-    'zpool_scrub_encrypted_unloaded']
+    'zpool_scrub_encrypted_unloaded', 'zpool_scrub_offline_device']
 
 [tests/functional/cli_root/zpool_set]
 tests = ['zpool_set_001_pos', 'zpool_set_002_neg', 'zpool_set_003_neg']
-pre =
-post =
 
 [tests/functional/cli_root/zpool_status]
 tests = ['zpool_status_001_pos', 'zpool_status_002_pos','zpool_status_003_pos',

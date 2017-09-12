@@ -52,7 +52,7 @@ fi
 
 function cleanup
 {
-	[[ -f /tmp/$TESTFILE ]] && log_must rm -f /tmp/$TESTFILE
+	[[ -f $TESTDIR/$TESTFILE ]] && log_must rm -f $TESTDIR/$TESTFILE
 	[[ -f $NEW_VFSTAB_FILE ]] && log_must rm -f $NEW_VFSTAB_FILE
 	[[ -f $PREV_VFSTAB_FILE ]] && \
 	    log_must mv $PREV_VFSTAB_FILE $VFSTAB_FILE
@@ -86,13 +86,13 @@ log_must cp $VFSTAB_FILE $PREV_VFSTAB_FILE
 log_must cp $NEW_VFSTAB_FILE $VFSTAB_FILE
 log_must swapadd $VFSTAB_FILE
 
-log_must file_write -o create -f /tmp/$TESTFILE \
+log_must file_write -o create -f $TESTDIR/$TESTFILE \
     -b $BLOCKSZ -c $NUM_WRITES -d $DATA
 
-[[ ! -f /tmp/$TESTFILE ]] &&
-    log_fail "Unable to create file under /tmp"
+[[ ! -f $TESTDIR/$TESTFILE ]] &&
+    log_fail "Unable to create file under $TESTDIR"
 
-filesize=`ls -l /tmp/$TESTFILE | awk '{print $5}'`
+filesize=`ls -l $TESTDIR/$TESTFILE | awk '{print $5}'`
 tf_size=$((BLOCKSZ * NUM_WRITES))
 (($tf_size != $filesize)) && \
     log_fail "testfile is ($filesize bytes), expected ($tf_size bytes)"

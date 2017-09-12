@@ -6729,7 +6729,7 @@ unshare_unmount(int op, int argc, char **argv)
 
 			case OP_MOUNT:
 				if (zfs_unmount(node->un_zhp,
-				    node->un_mountp, flags) != 0)
+				    node->un_zhp->zfs_name, flags) != 0)
 					ret = 1;
 				break;
 			}

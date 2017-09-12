@@ -481,7 +481,7 @@ function default_raidz_setup
 	fi
 
 	[[ -d /$TESTPOOL ]] && rm -rf /$TESTPOOL
-	log_must zpool create -f $TESTPOOL raidz $1 $2 $3
+	log_must zpool create -f $TESTPOOL raidz $disklist
 	log_must zfs create $TESTPOOL/$TESTFS
 	log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 
@@ -503,9 +503,19 @@ function default_cleanup
 	log_pass
 }
 
+#
+# Utility function used to list all available pool names.
+#
+# NOTE: $KEEP is a variable containing pool names, separated by a newline
+# character, that must be excluded from the returned list.
+#
+function get_all_pools
+{
+	zpool list -H -o name | grep -Fvx "$KEEP" | grep -v "$NO_POOLS"
+}
+
 function default_cleanup_noexit
 {
-	typeset exclude=""
 	typeset pool=""
 	#
 	# Destroying the pool will also destroy any
@@ -513,9 +523,7 @@ function default_cleanup_noexit
 	#
 	if is_global_zone; then
 		zfs unmount -a > /dev/null 2>&1
-		exclude=`eval echo \"'(${KEEP})'\"`
-		ALL_POOLS=$(zpool list -H -o name \
-		    | grep -v "$NO_POOLS" | egrep -v "$exclude")
+		ALL_POOLS=$(get_all_pools)
 		# Here, we loop through the pools we're allowed to
 		# destroy, only destroying them if it's safe to do
 		# so.
@@ -527,9 +535,7 @@ function default_cleanup_noexit
 				then
 					destroy_pool $pool
 				fi
-				ALL_POOLS=$(zpool list -H -o name \
-				    | grep -v "$NO_POOLS" \
-				    | egrep -v "$exclude")
+				ALL_POOLS=$(get_all_pools)
 			done
 		done
 
@@ -1617,7 +1623,7 @@ function zfs_zones_setup #zone_name zone_root zone_ip
 	# If current system support slog, add slog device for pool
 	#
 	if verify_slog_support ; then
-		typeset sdevs="/var/tmp/sdev1 /var/tmp/sdev2"
+		typeset sdevs="$TEST_BASE_DIR/sdev1 $TEST_BASE_DIR/sdev2"
 		log_must mkfile $MINVDEVSIZE $sdevs
 		log_must zpool add $pool_name log mirror $sdevs
 	fi
@@ -2615,7 +2621,7 @@ function random_get
 #
 function verify_slog_support
 {
-	typeset dir=/tmp/disk.$$
+	typeset dir=$TEST_BASE_DIR/disk.$$
 	typeset pool=foo.$$
 	typeset vdev=$dir/a
 	typeset sdev=$dir/b

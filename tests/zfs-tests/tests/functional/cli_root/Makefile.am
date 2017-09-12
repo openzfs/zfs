@@ -5,6 +5,7 @@ dist_pkgdata_SCRIPTS = \
 SUBDIRS = \
 	zdb \
 	zfs \
+	zfs_bookmark \
 	zfs_change-key \
 	zfs_clone \
 	zfs_copies \

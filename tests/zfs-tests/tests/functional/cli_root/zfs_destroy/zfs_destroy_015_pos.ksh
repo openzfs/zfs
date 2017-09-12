@@ -138,7 +138,7 @@ log_must snapexists $TESTPOOL/$TESTFS1/$TESTFS2@fs12snap
 log_must snapexists $TESTPOOL/$TESTFS1@snap3
 
 log_note "zfs destroy for snapshots from different pools"
-VIRTUAL_DISK=/var/tmp/disk
+VIRTUAL_DISK=$TEST_BASE_DIR/disk
 log_must mkfile $MINVDEVSIZE $VIRTUAL_DISK
 log_must zpool create $TESTPOOL2 $VIRTUAL_DISK
 log_must poolexists $TESTPOOL2
