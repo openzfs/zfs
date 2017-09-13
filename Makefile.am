@@ -31,7 +31,8 @@ distclean-local::
 		-o -name '*.bak' -o -name '#*#' -o -name '.*.orig' \
 		-o -name '.*.rej' -o -size 0 -o -name '*%' -o -name '.*.cmd' \
 		-o -name 'core' -o -name 'Makefile' -o -name 'Module.symvers' \
-		-o -name '*.order' -o -name '*.markers' \) \
+		-o -name '*.order' -o -name '*.markers' -o -name '*.gcda' \
+		-o -name '*.gcno' \) \
 		-type f -print | xargs $(RM)
 
 dist-hook:
