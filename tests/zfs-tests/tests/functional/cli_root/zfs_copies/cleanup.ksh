@@ -33,7 +33,7 @@
 . $STF_SUITE/tests/functional/cli_root/zfs_copies/zfs_copies.cfg
 
 #
-# umount the ufs|ext2 fs if there is timedout in the ufs|ext2 test
+# umount the ufs|ext fs if there is timedout in the ufs|ext test
 #
 
 if ismounted $FS_MNTPOINT $NEWFS_DEFAULT_FS ; then

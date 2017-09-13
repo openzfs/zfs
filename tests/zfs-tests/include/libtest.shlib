@@ -140,7 +140,7 @@ function ismounted
 
 			[[ "$1" == "$dir" || "$1" == "$name" ]] && return 0
 		;;
-		ext2)
+		ext*)
 			out=$(df -t $fstype $1 2>/dev/null)
 			return $?
 		;;
