@@ -248,8 +248,17 @@ zfs_sa_set_xattr(znode_t *zp)
 	if (error) {
 		dmu_tx_abort(tx);
 	} else {
-		VERIFY0(sa_update(zp->z_sa_hdl, SA_ZPL_DXATTR(zfsvfs),
-		    obj, size, tx));
+		int count = 0;
+		sa_bulk_attr_t bulk[2];
+		uint64_t ctime[2];
+
+		zfs_tstamp_update_setup(zp, STATE_CHANGED, NULL, ctime);
+		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_DXATTR(zfsvfs),
+		    NULL, obj, size);
+		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CTIME(zfsvfs),
+		    NULL, &ctime, 16);
+		VERIFY0(sa_bulk_update(zp->z_sa_hdl, bulk, count, tx));
+
 		dmu_tx_commit(tx);
 	}
 out_free:
