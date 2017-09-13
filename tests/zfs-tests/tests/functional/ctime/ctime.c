@@ -31,6 +31,7 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/xattr.h>
 #include <utime.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -250,6 +251,24 @@ do_chown(const char *pfile)
 	return (ret);
 }
 
+static int
+do_xattr(const char *pfile)
+{
+	int ret = 0;
+	char *value = "user.value";
+
+	if (pfile == NULL) {
+		return (-1);
+	}
+
+	if (setxattr(pfile, "user.x", value, strlen(value), 0) == -1) {
+		(void) fprintf(stderr, "setxattr(%s, %d, %d) failed with errno "
+		    "%d\n", pfile, (int)getuid(), (int)getgid(), errno);
+		return (1);
+	}
+	return (ret);
+}
+
 static void
 cleanup(void)
 {
@@ -270,6 +289,7 @@ static timetest_t timetest_table[] = {
 	{ ST_CTIME,	"st_ctime",	do_chown 	},
 	{ ST_CTIME,	"st_ctime",	do_link		},
 	{ ST_CTIME,	"st_ctime",	do_utime	},
+	{ ST_CTIME,	"st_ctime",	do_xattr	},
 };
 
 #define	NCOMMAND (sizeof (timetest_table) / sizeof (timetest_table[0]))
@@ -281,7 +301,6 @@ main(int argc, char *argv[])
 	int i, ret, fd;
 	char *penv[] = {"TESTDIR", "TESTFILE0"};
 
-	(void) fprintf(stdout, "Verify [acm]time is modified appropriately.\n");
 	(void) atexit(cleanup);
 
 	/*
@@ -347,6 +366,5 @@ main(int argc, char *argv[])
 		}
 	}
 
-	(void) fprintf(stdout, "PASS\n");
 	return (0);
 }
