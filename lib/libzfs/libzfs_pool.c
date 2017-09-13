@@ -459,7 +459,7 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 		const char *propname = nvpair_name(elem);
 
 		prop = zpool_name_to_prop(propname);
-		if (prop == ZPROP_INVAL && zpool_prop_feature(propname)) {
+		if (prop == ZPOOL_PROP_INVAL && zpool_prop_feature(propname)) {
 			int err;
 			char *fname = strchr(propname, '@') + 1;
 
@@ -499,7 +499,7 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 		/*
 		 * Make sure this property is valid and applies to this type.
 		 */
-		if (prop == ZPROP_INVAL) {
+		if (prop == ZPOOL_PROP_INVAL) {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "invalid property '%s'"), propname);
 			(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
