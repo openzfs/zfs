@@ -10,4 +10,4 @@ dist_pkgdata_SCRIPTS = \
 EXTRA_DIST=default.cfg.in
 
 distclean-local::
-	-$(RM) $(dist_pkgdata_SCRIPTS)
+	-$(RM) default.cfg
