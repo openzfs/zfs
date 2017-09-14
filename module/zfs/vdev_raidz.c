@@ -1848,6 +1848,9 @@ vdev_raidz_mirror_child_select(raidz_map_t *rm, zio_t *zio)
  *      vdevs have had errors, then create zio read operations to the parity
  *      columns' VDevs as well.
  */
+static uint64_t raidz_read_mirror_cnt = 0;
+static uint64_t raidz_write_mirror_cnt = 0;
+
 static void
 vdev_raidz_io_start(zio_t *zio)
 {
@@ -1857,6 +1860,11 @@ vdev_raidz_io_start(zio_t *zio)
 	raidz_map_t *rm;
 	raidz_col_t *rc;
 	int c, i;
+
+	if (((raidz_write_mirror_cnt + raidz_read_mirror_cnt) % 1000) == 0) {
+		cmn_err(CE_WARN, "raidz_mirror_rd: %lu, raidz_mirror_wr: %lu",
+		    raidz_read_mirror_cnt, raidz_write_mirror_cnt);
+	}
 
 	rm = vdev_raidz_map_alloc(zio, tvd->vdev_ashift, vd->vdev_children,
 	    vd->vdev_nparity);
@@ -1874,6 +1882,7 @@ vdev_raidz_io_start(zio_t *zio)
 				rc->rc_abd = arc->rc_abd;
 				rc->rc_mirror = B_TRUE;
 			}
+			raidz_write_mirror_cnt++;
 		} else {
 			/* Multi column write: calculate parity */
 			vdev_raidz_map_alloc_parity(rm);
@@ -1942,6 +1951,7 @@ vdev_raidz_io_start(zio_t *zio)
 		    0, vdev_raidz_child_done, rc));
 
 		zio_execute(zio);
+		raidz_read_mirror_cnt++;
 		return;
 	}
 
