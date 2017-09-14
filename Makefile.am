@@ -39,7 +39,7 @@ dist-hook:
 	sed -i 's/Release:[[:print:]]*/Release:      $(RELEASE)/' \
 		$(distdir)/META
 
-checkstyle: cstyle shellcheck flake8 commitcheck
+checkstyle: cstyle shellcheck flake8 commitcheck mancheck
 
 commitcheck:
 	@if git rev-parse --git-dir > /dev/null 2>&1; then \
@@ -56,6 +56,13 @@ shellcheck:
 			$$(find scripts/*.sh -type f) \
 			$$(find cmd/zed/zed.d/*.sh -type f) \
 			$$(find cmd/zpool/zpool.d/* -executable); \
+	fi
+
+mancheck:
+	@if type mandoc > /dev/null 2>&1; then \
+		for file in zfs zpool zdb zgenhostid; do \
+			mandoc -Tlint -Werror ${top_srcdir}/man/man8/$$file.8; \
+		done \
 	fi
 
 lint: cppcheck paxcheck
