@@ -286,7 +286,7 @@ pool_create() {
 	src_set_vars "$1"
 
 	if [ "$POOL_TAG" != "installed" ]; then
-		cd "$POOL_DIR_SRC"
+		cd "$POOL_DIR_SRC" || fail "Failed 'cd $POOL_DIR_SRC'"
 	fi
 
 	$ZFS_SH zfs="spa_config_path=$POOL_DIR_PRISTINE" || \
@@ -406,7 +406,7 @@ for TAG in $SRC_TAGS; do
 	elif  [ "$SPL_TAG" = "installed" ]; then
 		skip_nonewline
 	else
-		cd "$SRC_DIR"
+		cd "$SRC_DIR" || fail "Failed 'cd $SRC_DIR'"
 
 		if [ ! -d "$SRC_DIR_SPL" ]; then
 			mkdir -p "$SRC_DIR_SPL"
@@ -443,7 +443,7 @@ for TAG in $SRC_TAGS; do
 	elif  [ "$ZFS_TAG" = "installed" ]; then
 		skip_nonewline
 	else
-		cd "$SRC_DIR"
+		cd "$SRC_DIR" || fail "Failed 'cd $SRC_DIR'"
 
 		if [ ! -d "$SRC_DIR_ZFS" ]; then
 			mkdir -p "$SRC_DIR_ZFS"
@@ -477,7 +477,7 @@ for TAG in $SRC_TAGS; do
 	elif  [ "$SPL_TAG" = "installed" ]; then
 		skip_nonewline
 	else
-		cd "$SPL_DIR"
+		cd "$SPL_DIR" || fail "Failed 'cd $SPL_DIR'"
 		make distclean &>/dev/null
 		./autogen.sh >>"$CONFIG_LOG" 2>&1 || \
 		    fail "Failed SPL 'autogen.sh'"
@@ -502,7 +502,7 @@ for TAG in $SRC_TAGS; do
 	elif  [ "$ZFS_TAG" = "installed" ]; then
 		skip_nonewline
 	else
-		cd "$ZFS_DIR"
+		cd "$ZFS_DIR" || fail "Failed 'cd $ZFS_DIR'"
 		make distclean &>/dev/null
 		./autogen.sh >>"$CONFIG_LOG" 2>&1 || \
 		    fail "Failed ZFS 'autogen.sh'"
@@ -545,16 +545,16 @@ for TAG in $POOL_TAGS; do
 	fi
 
 	# Verify 'zpool import' works for all listed source versions.
-	for TAG in $SRC_TAGS; do
+	for SRC_TAG in $SRC_TAGS; do
 
 		if [ $SKIP -eq 1 ]; then
 			skip_nonewline
 			continue
 		fi
 
-		src_set_vars "$TAG"
-		if [ "$TAG" != "installed" ]; then
-			cd "$ZFS_DIR"
+		src_set_vars "$SRC_TAG"
+		if [ "$SRC_TAG" != "installed" ]; then
+			cd "$ZFS_DIR" || fail "Failed 'cd $ZFS_DIR'"
 		fi
 		$ZFS_SH zfs="spa_config_path=$POOL_DIR_COPY"
 
