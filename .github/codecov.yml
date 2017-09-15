@@ -1,0 +1,9 @@
+codecov:
+  strict_yaml_branch: master # only use the latest copy on master branch
+
+comment: off
+
+coverage:
+  status:
+    project: off
+    patch: off
