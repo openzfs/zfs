@@ -26,7 +26,7 @@
 .\" Copyright (c) 2017 George Melikov. All Rights Reserved.
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\"
-.Dd June 28, 2017
+.Dd August 23, 2017
 .Dt ZPOOL 8 SMM
 .Os Linux
 .Sh NAME
@@ -87,7 +87,7 @@
 .Nm
 .Cm import
 .Op Fl D
-.Op Fl c Ar cachefile Ns | Ns Fl d Ar dir
+.Op Fl d Ar dir
 .Nm
 .Cm import
 .Fl a
@@ -407,7 +407,7 @@ If a pool has a shared spare that is currently being used, the pool can not be
 exported since other pools may use this shared spare, which may lead to
 potential data corruption.
 .Pp
-An in-progress spare replacement can be canceled by detaching the hot spare.
+An in-progress spare replacement can be cancelled by detaching the hot spare.
 If the original faulted device is detached, then the hot spare assumes its
 place in the configuration, and is removed from the spare list of all active
 pools.
@@ -1141,7 +1141,7 @@ performed.
 .Nm
 .Cm import
 .Op Fl D
-.Op Fl c Ar cachefile Ns | Ns Fl d Ar dir
+.Op Fl d Ar dir
 .Xc
 Lists pools available to import.
 If the
@@ -1722,7 +1722,7 @@ Upon reboot, the specified physical device reverts to its previous state.
 .Ar pool Ar device Ns ...
 .Xc
 Brings the specified physical device online.
-This command is not applicable to spares or cache devices.
+This command is not applicable to spares.
 .Bl -tag -width Ds
 .It Fl e
 Expand the device to use all available space.
@@ -2174,7 +2174,7 @@ The failed device can be replaced using the following command:
 .Ed
 .Pp
 Once the data has been resilvered, the spare is automatically removed and is
-made available for use should another device fails.
+made available for use should another device fail.
 The hot spare can be permanently removed from the pool using the following
 command:
 .Bd -literal
