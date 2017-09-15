@@ -19,6 +19,8 @@
 *.mod.c
 *~
 *.swp
+*.gcno
+*.gcda
 .deps
 .libs
 .dirstamp
