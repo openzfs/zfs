@@ -90,7 +90,7 @@ done
 
 # 5. Start the ZED and verify it only handled the new missed events.
 log_must zed_start
-log_must sleep 3
+log_must sleep 20
 diff $ZEDLET_DIR/zed.debug.log.old $ZEDLET_DIR/zed.debug.log | \
     grep "^> " | sed 's/^> //g' >$TMP_EVENTS_ZED
 
