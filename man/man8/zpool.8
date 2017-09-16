@@ -878,11 +878,11 @@ The pool name must begin with a letter, and can only contain
 alphanumeric characters as well as underscore
 .Pq Qq Sy _ ,
 dash
-.Pq Qq Sy \&. ,
+.Pq Qq Sy \&- ,
 colon
 .Pq Qq Sy \&: ,
 space
-.Pq Qq Sy - ,
+.Pq Qq Sy \&\  ,
 and period
 .Pq Qq Sy \&. .
 The pool names
@@ -1500,7 +1500,7 @@ If
 is passed without a script name, it prints a list of all scripts.
 .Fl c
 also sets verbose mode
-.No ( Ns Fl v Ns No ).
+.No \&( Ns Fl v Ns No \&).
 .Pp
 Script output should be in the form of "name=value". The column name is
 set to "name" and the value is set to "value". Multiple lines can be
@@ -1511,7 +1511,6 @@ messages. Blank or NULL values are printed as a '-' to make output
 awk-able.
 .Pp
 The following environment variables are set before running each script:
-.Pp
 .Bl -tag -width "VDEV_PATH"
 .It Sy VDEV_PATH
 Full path to the vdev
@@ -2289,7 +2288,7 @@ option.
 Cause
 .Nm zpool
 to dump core on exit for the purposes of running
-.Sy::findleaks .
+.Sy ::findleaks .
 .El
 .Bl -tag -width "ZPOOL_IMPORT_PATH"
 .It Ev ZPOOL_IMPORT_PATH
@@ -2380,11 +2379,12 @@ option. If
 .Sy ZPOOL_SCRIPTS_ENABLED
 is not set, it is assumed that the user is allowed to run
 .Nm zpool status/iostat -c .
+.El
 .Sh INTERFACE STABILITY
 .Sy Evolving
 .Sh SEE ALSO
-.Xr zed 8 ,
-.Xr zfs 8 ,
 .Xr zfs-events 5 ,
 .Xr zfs-module-parameters 5 ,
-.Xr zpool-features 5
+.Xr zpool-features 5 ,
+.Xr zed 8 ,
+.Xr zfs 8

@@ -64,7 +64,7 @@
 .Nm
 .Cm snapshot
 .Op Fl r
-.Oo Fl o Ar property Ns = Ns value Oc Ns ...
+.Oo Fl o Ar property Ns = Ns Ar value Oc Ns ...
 .Ar filesystem Ns @ Ns Ar snapname Ns | Ns Ar volume Ns @ Ns Ar snapname Ns ...
 .Nm
 .Cm rollback
@@ -2174,8 +2174,7 @@ Creating an encrypted dataset requires specifying the
 and
 .Sy keyformat
 properties at creation time, along with an optional
-.Sy
-keylocation
+.Sy keylocation
 and
 .Sy pbkdf2iters .
 After entering an encryption key, the
@@ -3443,9 +3442,9 @@ destroyed by using the
 command.
 .Pp
 If
-.Sy Fl o Em property=value
+.Fl o Em property Ns = Ns Ar value
 or
-.Sy Fl x Em property
+.Fl x Em property
 is specified, it applies to the effective value of the property throughout
 the entire subtree of replicated datasets. Effective property values will be
 set (
@@ -3458,7 +3457,7 @@ property to be inherited from the top‐most file system. Received properties
 are retained in spite of being overridden and may be restored with
 .Nm zfs Cm inherit Fl S .
 Specifying
-.Sy Fl o Em origin=snapshot
+.Fl o Sy origin Ns = Ns Em snapshot
 is a special case because, even if
 .Sy origin
 is a read-only property and cannot be set, it's allowed to receive the send
@@ -3537,9 +3536,9 @@ Which snapshot was specified will not affect the success or failure of the
 receive, as long as the snapshot does exist.
 If the stream is an incremental send stream, all the normal verification will be
 performed.
-.It Fl o Em property=value
+.It Fl o Em property Ns = Ns Ar value
 Sets the specified property as if the command
-.Nm zfs Cm set Em property=value
+.Nm zfs Cm set Em property Ns = Ns Ar value
 was invoked immediately before the receive. When receiving a stream from
 .Nm zfs Cm send Fl R ,
 causes the property to be inherited by all descendant datasets, as through
@@ -4536,18 +4535,18 @@ command will be undone if the share is ever unshared (such as at a reboot etc).
 .Sh INTERFACE STABILITY
 .Sy Committed .
 .Sh SEE ALSO
+.Xr attr 1 ,
 .Xr gzip 1 ,
 .Xr ssh 1 ,
-.Xr mount 8 ,
-.Xr zpool 8 ,
-.Xr selinux 8 ,
 .Xr chmod 2 ,
+.Xr fsync 2 ,
 .Xr stat 2 ,
 .Xr write 2 ,
-.Xr fsync 2 ,
-.Xr attr 1 ,
 .Xr acl 5 ,
+.Xr attributes 5 ,
 .Xr exports 5 ,
 .Xr exportfs 8 ,
+.Xr mount 8 ,
 .Xr net 8 ,
-.Xr attributes 5
+.Xr selinux 8 ,
+.Xr zpool 8
