@@ -503,6 +503,14 @@ vdev_submit_bio_impl(struct bio *bio)
 #endif
 }
 
+#ifndef HAVE_BIO_SET_DEV
+static inline void
+bio_set_dev(struct bio *bio, struct block_device *bdev)
+{
+	bio->bi_bdev = bdev;
+}
+#endif /* !HAVE_BIO_SET_DEV */
+
 static inline void
 vdev_submit_bio(struct bio *bio)
 {
@@ -585,11 +593,7 @@ retry:
 		/* Matching put called by vdev_disk_physio_completion */
 		vdev_disk_dio_get(dr);
 
-#ifndef HAVE_BIO_SET_DEV
-		dr->dr_bio[i]->bi_bdev = bdev;
-#else
 		bio_set_dev(dr->dr_bio[i], bdev);
-#endif
 		BIO_BI_SECTOR(dr->dr_bio[i]) = bio_offset >> 9;
 		dr->dr_bio[i]->bi_end_io = vdev_disk_physio_completion;
 		dr->dr_bio[i]->bi_private = dr;
@@ -663,11 +667,7 @@ vdev_disk_io_flush(struct block_device *bdev, zio_t *zio)
 
 	bio->bi_end_io = vdev_disk_io_flush_completion;
 	bio->bi_private = zio;
-#ifndef HAVE_BIO_SET_DEV
-	bio->bi_bdev = bdev;
-#else
 	bio_set_dev(bio, bdev);
-#endif
 	bio_set_flush(bio);
 	vdev_submit_bio(bio);
 	invalidate_bdev(bdev);
