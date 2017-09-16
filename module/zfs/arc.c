@@ -4665,6 +4665,24 @@ arc_all_memory(void)
 #endif
 }
 
+#ifdef _KERNEL
+static uint64_t
+arc_free_memory(void)
+{
+#ifdef ZFS_GLOBAL_NODE_PAGE_STATE
+	return (nr_free_pages() +
+	    global_node_page_state(NR_INACTIVE_FILE) +
+	    global_node_page_state(NR_INACTIVE_ANON) +
+	    global_node_page_state(NR_SLAB_RECLAIMABLE));
+#else
+	return (nr_free_pages() +
+	    global_page_state(NR_INACTIVE_FILE) +
+	    global_page_state(NR_INACTIVE_ANON) +
+	    global_page_state(NR_SLAB_RECLAIMABLE));
+#endif
+}
+#endif
+
 typedef enum free_memory_reason_t {
 	FMR_UNKNOWN,
 	FMR_NEEDFREE,
@@ -4701,7 +4719,7 @@ arc_available_memory(void)
 	int64_t lowest = INT64_MAX;
 	free_memory_reason_t r = FMR_UNKNOWN;
 #ifdef _KERNEL
-	uint64_t available_memory = ptob(freemem);
+	uint64_t available_memory = ptob(arc_free_memory());
 	int64_t n;
 #ifdef __linux__
 	pgcnt_t needfree = btop(arc_need_free);
@@ -6904,7 +6922,7 @@ static int
 arc_memory_throttle(uint64_t reserve, uint64_t txg)
 {
 #ifdef _KERNEL
-	uint64_t available_memory = ptob(freemem);
+	uint64_t available_memory = ptob(arc_free_memory());
 	static uint64_t page_load = 0;
 	static uint64_t last_txg = 0;
 #ifdef __linux__
