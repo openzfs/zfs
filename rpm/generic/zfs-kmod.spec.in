@@ -78,13 +78,6 @@ BuildRequires:  %{_bindir}/kmodtool
 %endif
 %endif
 
-%if 0%{?rhel}%{?fedora}%{?suse_version}
-BuildRequires:             kmod-spl-devel = %{version}
-%global KmodsRequires      kmod-spl
-%global KmodsDevelRequires kmod-spl-devel
-%global KmodsMetaRequires  spl-kmod
-%endif
-
 # LDFLAGS are not sanitized by arch/*/Makefile for these architectures.
 %ifarch ppc ppc64 ppc64le aarch64
 %global __global_ldflags %{nil}
@@ -116,28 +109,6 @@ bash %{SOURCE10}  --target %{_target_cpu} %{?repo:--repo %{?repo}} --kmodname %{
     %define debug --disable-debug
 %endif
 
-#
-# Allow the overriding of spl locations
-#
-%if %{defined require_splver}
-%define splver %{require_splver}
-%else
-%define splver %{version}
-%endif
-
-%if %{defined require_spldir}
-%define spldir %{require_spldir}
-%else
-%define spldir %{_usrsrc}/spl-%{splver}
-%endif
-
-%if %{defined require_splobj}
-%define splobj %{require_splobj}
-%else
-%define splobj %{spldir}/${kernel_version%%___*}
-%endif
-
-
 # Leverage VPATH from configure to avoid making multiple copies.
 %define _configure ../%{module}-%{version}/configure
 
@@ -154,13 +125,10 @@ for kernel_version in %{?kernel_versions}; do
         --with-config=kernel \
         --with-linux=%{ksrc} \
         --with-linux-obj=%{kobj} \
-        --with-spl="%{spldir}" \
-        --with-spl-obj="%{splobj}" \
         %{debug}
     make %{?_smp_mflags}
     cd ..
 done
-
 
 %install
 rm -rf ${RPM_BUILD_ROOT}

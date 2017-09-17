@@ -3,10 +3,6 @@
 ### prepare
 #TEST_PREPARE_WATCHDOG="no"
 
-### SPLAT
-#TEST_SPLAT_SKIP="yes"
-#TEST_SPLAT_OPTIONS="-acvx"
-
 ### ztest
 #TEST_ZTEST_SKIP="yes"
 #TEST_ZTEST_TIMEOUT=1800

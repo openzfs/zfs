@@ -21,7 +21,6 @@ LDMOD=${LDMOD:-/sbin/modprobe}
 KMOD_ZLIB_DEFLATE=${KMOD_ZLIB_DEFLATE:-zlib_deflate}
 KMOD_ZLIB_INFLATE=${KMOD_ZLIB_INFLATE:-zlib_inflate}
 KMOD_SPL=${KMOD_SPL:-spl}
-KMOD_SPLAT=${KMOD_SPLAT:-splat}
 KMOD_ZAVL=${KMOD_ZAVL:-zavl}
 KMOD_ZNVPAIR=${KMOD_ZNVPAIR:-znvpair}
 KMOD_ZUNICODE=${KMOD_ZUNICODE:-zunicode}
@@ -75,7 +74,7 @@ check_modules() {
 	local LOADED_MODULES=""
 	local MISSING_MODULES=""
 
-	for KMOD in $KMOD_SPL $KMOD_SPLAT $KMOD_ZAVL $KMOD_ZNVPAIR \
+	for KMOD in $KMOD_SPL $KMOD_ZAVL $KMOD_ZNVPAIR \
 	    $KMOD_ZUNICODE $KMOD_ZCOMMON $KMOD_ICP $KMOD_ZFS; do
 		NAME=$(basename "$KMOD" .ko)
 
@@ -133,7 +132,7 @@ load_modules() {
 		modprobe "$KMOD_ZLIB_INFLATE" >/dev/null 2>&1
 	fi
 
-	for KMOD in $KMOD_SPL $KMOD_SPLAT $KMOD_ZAVL $KMOD_ZNVPAIR \
+	for KMOD in $KMOD_SPL $KMOD_ZAVL $KMOD_ZNVPAIR \
 	    $KMOD_ZUNICODE $KMOD_ZCOMMON $KMOD_ICP $KMOD_ZFS; do
 		load_module "$KMOD" || return 1
 	done
@@ -163,7 +162,7 @@ unload_module() {
 
 unload_modules() {
 	for KMOD in $KMOD_ZFS $KMOD_ICP $KMOD_ZCOMMON $KMOD_ZUNICODE \
-	    $KMOD_ZNVPAIR  $KMOD_ZAVL $KMOD_SPLAT $KMOD_SPL; do
+	    $KMOD_ZNVPAIR  $KMOD_ZAVL $KMOD_SPL; do
 		NAME=$(basename "$KMOD" .ko)
 		USE_COUNT=$(lsmod | egrep "^${NAME} " | awk '{print $3}')
 

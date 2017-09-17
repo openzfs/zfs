@@ -51,6 +51,8 @@ AC_PROG_LIBTOOL
 AM_PROG_AS
 AM_PROG_CC_C_O
 
+SPL_AC_CONFIG
+
 ZFS_AC_LICENSE
 ZFS_AC_PACKAGE
 ZFS_AC_CONFIG
@@ -125,12 +127,24 @@ AC_CONFIG_FILES([
 	module/Makefile
 	module/avl/Makefile
 	module/nvpair/Makefile
+	module/spl/Makefile
 	module/unicode/Makefile
 	module/zcommon/Makefile
 	module/zfs/Makefile
 	module/icp/Makefile
 	include/Makefile
 	include/linux/Makefile
+	include/spl/Makefile
+	include/spl/fs/Makefile
+	include/spl/linux/Makefile
+	include/spl/rpc/Makefile
+	include/spl/sharefs/Makefile
+	include/spl/sys/Makefile
+	include/spl/sys/fm/Makefile
+	include/spl/sys/fs/Makefile
+	include/spl/sys/sysevent/Makefile
+	include/spl/util/Makefile
+	include/spl/vm/Makefile
 	include/sys/Makefile
 	include/sys/fs/Makefile
 	include/sys/fm/Makefile

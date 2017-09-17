@@ -27,9 +27,6 @@ PRE_BUILD="configure
   --with-config=kernel
   --with-linux=\${kernel_source_dir}
   --with-linux-obj=\${kernel_source_dir}
-  --with-spl=\${source_tree}/spl-\${PACKAGE_VERSION}
-  --with-spl-obj=\${dkms_tree}/spl/\${PACKAGE_VERSION}/\${kernelver}/\${arch}
-  --with-spl-timeout=300
   \$(
     [[ -r \${PACKAGE_CONFIG} ]] \\
     && source \${PACKAGE_CONFIG} \\
@@ -50,7 +47,6 @@ POST_BUILD="scripts/dkms.postbuild
   -k \${kernelver}
   -t \${dkms_tree}
 "
-BUILD_DEPENDS[0]="spl"
 AUTOINSTALL="yes"
 REMAKE_INITRD="no"
 MAKE[0]="make"
@@ -67,6 +63,7 @@ STRIP[3]="\${STRIP[0]}"
 STRIP[4]="\${STRIP[0]}"
 STRIP[5]="\${STRIP[0]}"
 STRIP[6]="\${STRIP[0]}"
+STRIP[7]="\${STRIP[0]}"
 BUILT_MODULE_NAME[0]="zavl"
 BUILT_MODULE_LOCATION[0]="module/avl/"
 DEST_MODULE_LOCATION[0]="/extra/avl/avl"
@@ -85,4 +82,7 @@ DEST_MODULE_LOCATION[4]="/extra/zfs/zfs"
 BUILT_MODULE_NAME[5]="icp"
 BUILT_MODULE_LOCATION[5]="module/icp/"
 DEST_MODULE_LOCATION[5]="/extra/icp/icp"
+BUILT_MODULE_NAME[6]="spl"
+BUILT_MODULE_LOCATION[6]="module/spl/"
+DEST_MODULE_LOCATION[6]="/extra/spl/spl"
 EOF

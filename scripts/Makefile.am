@@ -36,8 +36,7 @@ export INSTALL_UDEV_RULE_DIR=@udevruledir@
 export INSTALL_MOUNT_HELPER_DIR=@mounthelperdir@
 export INSTALL_SYSCONF_DIR=@sysconfdir@
 
-export KMOD_SPL=@SPL_OBJ@/module/spl/spl.ko
-export KMOD_SPLAT=@SPL_OBJ@/module/splat/splat.ko
+export KMOD_SPL=@abs_top_builddir@/module/spl/spl.ko
 export KMOD_ZAVL=@abs_top_builddir@/module/avl/zavl.ko
 export KMOD_ZNVPAIR=@abs_top_builddir@/module/nvpair/znvpair.ko
 export KMOD_ZUNICODE=@abs_top_builddir@/module/unicode/zunicode.ko
