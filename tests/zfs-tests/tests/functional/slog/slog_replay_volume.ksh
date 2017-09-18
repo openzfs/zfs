@@ -81,7 +81,7 @@ log_onexit cleanup_volume
 # 1. Create an empty volume (TESTVOL), set sync=always, and format
 #    it with an ext4 filesystem and mount it.
 #
-log_must zpool create $TESTPOOL $VDEV log mirror $LDEV
+log_must zpool create $TESTPOOL ${DISKS%% *}
 log_must zfs create -V 128M $TESTPOOL/$TESTVOL
 log_must zfs set compression=on $TESTPOOL/$TESTVOL
 log_must zfs set sync=always $TESTPOOL/$TESTVOL
@@ -148,7 +148,7 @@ log_must zpool export $TESTPOOL
 # Import the pool to unfreeze it and claim log blocks.  It has to be
 # `zpool import -f` because we can't write a frozen pool's labels!
 #
-log_must zpool import -f -d $VDIR $TESTPOOL
+log_must zpool import -f $TESTPOOL
 log_must block_device_wait
 log_must mount $VOLUME $MNTPNT
 
