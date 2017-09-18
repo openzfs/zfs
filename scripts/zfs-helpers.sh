@@ -88,11 +88,11 @@ while getopts 'hdirv' OPTION; do
 	esac
 done
 
-if [ "$INSTALL" = "yes" -a "$REMOVE" = "yes" ]; then
+if [ "$INSTALL" = "yes" ] && [ "$REMOVE" = "yes" ]; then
 	fail "Specify -i or -r but not both"
 fi
 
-if [ "$INSTALL" = "no" -a "$REMOVE" = "no" ]; then
+if [ "$INSTALL" = "no" ] && [ "$REMOVE" = "no" ]; then
 	fail "Either -i or -r must be specified"
 fi
 
@@ -115,8 +115,8 @@ if [ "$VERBOSE" = "yes" ]; then
 fi
 
 install() {
-	local src=$1
-	local dst=$2
+	src=$1
+	dst=$2
 
 	if [ -h "$dst" ]; then
 		echo "Symlink exists: $dst"
@@ -136,7 +136,7 @@ install() {
 }
 
 remove() {
-	local dst=$1
+	dst=$1
 
 	if [ -h "$dst" ]; then
 		msg "rm $dst"

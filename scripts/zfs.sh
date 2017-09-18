@@ -72,8 +72,8 @@ kill_zed() {
 }
 
 check_modules() {
-	local LOADED_MODULES=""
-	local MISSING_MODULES=""
+	LOADED_MODULES=""
+	MISSING_MODULES=""
 
 	for KMOD in $KMOD_SPL $KMOD_SPLAT $KMOD_ZAVL $KMOD_ZNVPAIR \
 	    $KMOD_ZUNICODE $KMOD_ZCOMMON $KMOD_ICP $KMOD_ZFS; do
@@ -104,7 +104,7 @@ check_modules() {
 }
 
 load_module() {
-	local KMOD=$1
+	KMOD=$1
 
 	FILE=$(modinfo "$KMOD" | awk '/^filename:/ {print $2}')
 	VERSION=$(modinfo "$KMOD" | awk '/^version:/ {print $2}')
@@ -146,7 +146,7 @@ load_modules() {
 }
 
 unload_module() {
-	local KMOD=$1
+	KMOD=$1
 
 	NAME=$(basename "$KMOD" .ko)
 	FILE=$(modinfo "$KMOD" | awk '/^filename:/ {print $2}')
@@ -188,8 +188,8 @@ unload_modules() {
 }
 
 stack_clear() {
-	local STACK_MAX_SIZE=/sys/kernel/debug/tracing/stack_max_size
-	local STACK_TRACER_ENABLED=/proc/sys/kernel/stack_tracer_enabled
+	STACK_MAX_SIZE=/sys/kernel/debug/tracing/stack_max_size
+	STACK_TRACER_ENABLED=/proc/sys/kernel/stack_tracer_enabled
 
 	if [ -e "$STACK_MAX_SIZE" ]; then
 		echo 1 >"$STACK_TRACER_ENABLED"
@@ -198,9 +198,9 @@ stack_clear() {
 }
 
 stack_check() {
-	local STACK_MAX_SIZE=/sys/kernel/debug/tracing/stack_max_size
-	local STACK_TRACE=/sys/kernel/debug/tracing/stack_trace
-	local STACK_LIMIT=7600
+	STACK_MAX_SIZE=/sys/kernel/debug/tracing/stack_max_size
+	STACK_TRACE=/sys/kernel/debug/tracing/stack_trace
+	STACK_LIMIT=7600
 
 	if [ -e "$STACK_MAX_SIZE" ]; then
 		STACK_SIZE=$(cat "$STACK_MAX_SIZE")
