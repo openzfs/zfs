@@ -17,8 +17,7 @@ USER_C = \
 	uu_misc.c \
 	uu_open.c \
 	uu_pname.c \
-	uu_string.c \
-	uu_strtoint.c
+	uu_string.c
 
 KERNEL_C =
 
