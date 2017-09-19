@@ -1070,7 +1070,6 @@ libzfs_fini(libzfs_handle_t *hdl)
 		(void) fclose(hdl->libzfs_sharetab);
 	zfs_uninit_libshare(hdl);
 	zpool_free_handles(hdl);
-	libzfs_fru_clear(hdl, B_TRUE);
 	namespace_clear(hdl);
 	libzfs_mnttab_fini(hdl);
 	libzfs_core_fini();
