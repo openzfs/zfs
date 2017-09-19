@@ -71,7 +71,7 @@ zfs_retire_clear_data(fmd_hdl_t *hdl, zfs_retire_data_t *zdp)
  */
 typedef struct find_cbdata {
 	uint64_t	cb_guid;
-	zpool_handle_t  *cb_zhp;
+	zpool_handle_t	*cb_zhp;
 	nvlist_t	*cb_vdev;
 } find_cbdata_t;
 
