@@ -1637,7 +1637,8 @@ zfs_trunc(znode_t *zp, uint64_t end)
 		return (0);
 	}
 
-	error = dmu_free_long_range(zfsvfs->z_os, zp->z_id, end,  -1);
+	error = dmu_free_long_range(zfsvfs->z_os, zp->z_id, end,
+	    DMU_OBJECT_END);
 	if (error) {
 		zfs_range_unlock(rl);
 		return (error);
