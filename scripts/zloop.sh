@@ -99,6 +99,7 @@ function store_core
 {
 	core="$(core_file)"
 	if [[ $ztrc -ne 0 ]] || [[ -f "$core" ]]; then
+		df -h "$workdir" >>ztest.out
 		coreid=$(date "+zloop-%y%m%d-%H%M%S")
 		foundcrashes=$((foundcrashes + 1))
 
@@ -148,13 +149,14 @@ function store_core
 # parse arguments
 # expected format: zloop [-t timeout] [-c coredir] [-- extra ztest args]
 coredir=$DEFAULTCOREDIR
-workdir=$DEFAULTWORKDIR
+basedir=$DEFAULTWORKDIR
+rundir="zloop-run"
 timeout=0
 while getopts ":ht:c:f:" opt; do
 	case $opt in
 		t ) [[ $OPTARG -gt 0 ]] && timeout=$OPTARG ;;
 		c ) [[ $OPTARG ]] && coredir=$OPTARG ;;
-		f ) [[ $OPTARG ]] && workdir=$(readlink -f "$OPTARG") ;;
+		f ) [[ $OPTARG ]] && basedir=$(readlink -f "$OPTARG") ;;
 		h ) usage
 		    exit 2
 		    ;;
@@ -197,6 +199,11 @@ curtime=$starttime
 # if no timeout was specified, loop forever.
 while [[ $timeout -eq 0 ]] || [[ $curtime -le $((starttime + timeout)) ]]; do
 	zopt="-VVVVV"
+
+	# start each run with an empty directory
+	workdir="$basedir/$rundir"
+	or_die rm -rf "$workdir"
+	or_die mkdir "$workdir"
 
 	# switch between common arrangements & fully randomized
 	if [[ $((RANDOM % 2)) -eq 0 ]]; then
