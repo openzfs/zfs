@@ -76,37 +76,6 @@ AC_DEFUN([ZFS_AC_DEBUGINFO], [
 	AC_MSG_RESULT([$enable_debuginfo])
 ])
 
-AC_DEFUN([ZFS_AC_GCOV_KERNEL], [
-])
-
-AC_DEFUN([ZFS_AC_GCOV_USER], [
-	DEBUG_CFLAGS="$DEBUG_CFLAGS -fprofile-arcs -ftest-coverage"
-])
-
-AC_DEFUN([ZFS_AC_GCOV], [
-	AC_MSG_CHECKING([whether gcov profiling will be enabled])
-	AC_ARG_ENABLE([gcov],
-		[AS_HELP_STRING([--enable-gcov],
-		[Enable gcov profiling @<:@default=no@:>@])],
-		[],
-		[enable_gcov=no])
-
-	AS_CASE(["x$enable_gcov"],
-		["xyes"],
-		[ZFS_AC_GCOV_KERNEL
-		ZFS_AC_GCOV_USER],
-		["xkernel"],
-		[ZFS_AC_GCOV_KERNEL],
-		["xuser"],
-		[ZFS_AC_GCOV_USER],
-		["xno"],
-		[],
-		[AC_MSG_ERROR([Unknown option $enable_gcov])])
-
-	AC_SUBST(DEBUG_CFLAGS)
-	AC_MSG_RESULT([$enable_gcov])
-])
-
 AC_DEFUN([ZFS_AC_CONFIG_ALWAYS], [
 	ZFS_AC_CONFIG_ALWAYS_NO_UNUSED_BUT_SET_VARIABLE
 	ZFS_AC_CONFIG_ALWAYS_NO_BOOL_COMPARE
