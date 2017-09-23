@@ -23,6 +23,8 @@ EXTRA_DIST  = autogen.sh copy-builtin
 EXTRA_DIST += config/config.awk config/rpm.am config/deb.am config/tgz.am
 EXTRA_DIST += META DISCLAIMER COPYRIGHT README.markdown OPENSOLARIS.LICENSE
 
+@CODE_COVERAGE_RULES@
+
 distclean-local::
 	-$(RM) -R autom4te*.cache
 	-find . \( -name SCCS -o -name BitKeeper -o -name .svn -o -name CVS \
