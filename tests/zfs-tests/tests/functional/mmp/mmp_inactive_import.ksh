@@ -90,8 +90,8 @@ log_must import_activity_check $TESTPOOL "-f"
 # 7. Verify multihost=on and hostid zero fails (no activity check)
 log_must zpool export -F $TESTPOOL
 log_must mmp_clear_hostid
-MMP_IMPORTED_MSG="Set the system hostid"
-log_must check_pool_import $TESTPOOL "-f" "action" $MMP_IMPORTED_MSG
+MMP_IMPORTED_MSG="Set a unique system hostid"
+log_must check_pool_import $TESTPOOL "-f" "action" "$MMP_IMPORTED_MSG"
 log_mustnot import_no_activity_check $TESTPOOL "-f"
 
 log_pass "multihost=on|off inactive pool activity checks passed"

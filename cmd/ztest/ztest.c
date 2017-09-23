@@ -5665,6 +5665,9 @@ ztest_reguid(ztest_ds_t *zd, uint64_t id)
 	uint64_t orig, load;
 	int error;
 
+	if (ztest_opts.zo_mmp_test)
+		return;
+
 	orig = spa_guid(spa);
 	load = spa_load_guid(spa);
 
