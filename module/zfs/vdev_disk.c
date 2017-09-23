@@ -99,7 +99,7 @@ static void
 vdev_disk_error(zio_t *zio)
 {
 #ifdef ZFS_DEBUG
-	printk("ZFS: zio error=%d type=%d offset=%llu size=%llu "
+	printk(KERN_WARNING "ZFS: zio error=%d type=%d offset=%llu size=%llu "
 	    "flags=%x\n", zio->io_error, zio->io_type,
 	    (u_longlong_t)zio->io_offset, (u_longlong_t)zio->io_size,
 	    zio->io_flags);
@@ -173,8 +173,9 @@ vdev_elevator_switch(vdev_t *v, char *elevator)
 	strfree(argv[2]);
 #endif /* HAVE_ELEVATOR_CHANGE */
 	if (error)
-		printk("ZFS: Unable to set \"%s\" scheduler for %s (%s): %d\n",
-		    elevator, v->vdev_path, device, error);
+		printk(KERN_NOTICE "ZFS: Unable to set \"%s\" scheduler"
+		    " for %s (%s): %d\n", elevator, v->vdev_path, device,
+		    error);
 }
 
 /*
