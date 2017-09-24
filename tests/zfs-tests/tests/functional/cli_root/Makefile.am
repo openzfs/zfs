@@ -11,6 +11,7 @@ SUBDIRS = \
 	zfs_copies \
 	zfs_create \
 	zfs_destroy \
+	zfs_diff \
 	zfs_get \
 	zfs_inherit \
 	zfs_load-key \
