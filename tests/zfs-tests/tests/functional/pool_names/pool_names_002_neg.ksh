@@ -63,12 +63,10 @@ function cleanup
 
 log_onexit cleanup
 
-typeset exclude=`eval echo \"'(${KEEP})'\"`
-for pool in $(zpool list -H -o name | \
-	egrep -v "$exclude" | \
-	grep -v "$TESTPOOL" | \
-	egrep -v "$NO_POOLS"); do
-	log_must zpool destroy $pool
+for pool in $(get_all_pools); do
+	if [[ "$pool" != "$TESTPOOL" ]]; then
+		log_must zpool destroy $pool
+	fi
 done
 
 DISK=${DISKS%% *}

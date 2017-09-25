@@ -54,7 +54,7 @@ verify_runnable "both"
 function cleanup
 {
 	for obj in $OBJ_LIST; do
-		datasetexists $obj && log_must zfs destroy -f $obj
+		datasetexists $obj && log_must_busy zfs destroy -f $obj
 	done
 
 	log_must zero_reservation $TESTPOOL/$TESTFS

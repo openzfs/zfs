@@ -136,6 +136,10 @@ is_shared(libzfs_handle_t *hdl, const char *mountpoint, zfs_share_proto_t proto)
 	if (hdl->libzfs_sharetab == NULL)
 		return (SHARED_NOT_SHARED);
 
+	/* Reopen ZFS_SHARETAB to prevent reading stale data from open file */
+	if (freopen(ZFS_SHARETAB, "r", hdl->libzfs_sharetab) == NULL)
+		return (SHARED_NOT_SHARED);
+
 	(void) fseek(hdl->libzfs_sharetab, 0, SEEK_SET);
 
 	while (fgets(buf, sizeof (buf), hdl->libzfs_sharetab) != NULL) {
@@ -660,7 +664,7 @@ zfs_unmount(zfs_handle_t *zhp, const char *mountpoint, int flags)
 		 * then get freed later. We strdup it to play it safe.
 		 */
 		if (mountpoint == NULL)
-			mntpt = zfs_strdup(hdl, entry.mnt_mountp);
+			mntpt = zfs_strdup(hdl, entry.mnt_special);
 		else
 			mntpt = zfs_strdup(hdl, mountpoint);
 

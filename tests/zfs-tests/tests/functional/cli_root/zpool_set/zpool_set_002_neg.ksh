@@ -49,7 +49,7 @@ verify_runnable "global"
 function cleanup {
 
 	zpool destroy bootfs
-	rm /tmp/zpool_set_002.$$.dat
+	rm $FILEVDEV
 }
 
 log_assert "Malformed zpool set commands are rejected"
@@ -103,8 +103,9 @@ arguments[${#arguments[@]}]="bootfs=$bigname"
 # Create a pool called bootfs (so-called, so as to trip any clashes between
 # property name, and pool name)
 # Also create a filesystem in this pool
-log_must mkfile $MINVDEVSIZE /tmp/zpool_set_002.$$.dat
-log_must zpool create bootfs /tmp/zpool_set_002.$$.dat
+FILEVDEV="$TEST_BASE_DIR/zpool_set_002.$$.dat"
+log_must mkfile $MINVDEVSIZE $FILEVDEV
+log_must zpool create bootfs $FILEVDEV
 log_must zfs create bootfs/root
 
 typeset -i i=0;
