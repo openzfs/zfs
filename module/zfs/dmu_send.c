@@ -454,6 +454,22 @@ static int
 dump_freeobjects(dmu_sendarg_t *dsp, uint64_t firstobj, uint64_t numobjs)
 {
 	struct drr_freeobjects *drrfo = &(dsp->dsa_drr->drr_u.drr_freeobjects);
+	uint64_t maxobj = DNODES_PER_BLOCK *
+	    (DMU_META_DNODE(dsp->dsa_os)->dn_maxblkid + 1);
+
+	/*
+	 * ZoL < 0.7 does not handle large FREEOBJECTS records correctly,
+	 * leading to zfs recv never completing. to avoid this issue, don't
+	 * send FREEOBJECTS records for object IDs which cannot exist on the
+	 * receiving side.
+	 */
+	if (maxobj > 0) {
+		if (maxobj < firstobj)
+			return (0);
+
+		if (maxobj < firstobj + numobjs)
+			numobjs = maxobj - firstobj;
+	}
 
 	/*
 	 * If there is a pending op, but it's not PENDING_FREEOBJECTS,
