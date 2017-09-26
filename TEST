@@ -85,6 +85,20 @@ esac
 
 ###
 #
+# Run ztest longer on the "coverage" builders to gain more code coverage
+# data out of ztest, libzpool, etc.
+#
+case "$BB_NAME" in
+*coverage*)
+    TEST_ZTEST_TIMEOUT=3600
+    ;;
+*)
+    TEST_ZTEST_TIMEOUT=900
+    ;;
+esac
+
+###
+#
 # Disable the following test suites on 32-bit systems.
 #
 if [ $(getconf LONG_BIT) = "32" ]; then
