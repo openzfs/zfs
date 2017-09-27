@@ -1,0 +1,9 @@
+multipath     no
+topology      scsi
+phys_per_port 1
+# Usually scsi disks are numbered from 0, but this can be offset, to
+# match the physical bay numbers, as follows:
+first_bay_number 1
+
+#       PCI_ID  HBA PORT  CHANNEL NAME
+channel 0c:00.0 0         Y
