@@ -1416,7 +1416,7 @@ dsl_dir_tempreserve_space(dsl_dir_t *dd, uint64_t lsize, uint64_t asize,
 	    offsetof(struct tempreserve, tr_node));
 	ASSERT3S(asize, >, 0);
 
-	err = arc_tempreserve_space(lsize, tx->tx_txg);
+	err = arc_tempreserve_space(dd->dd_pool->dp_spa, lsize, tx->tx_txg);
 	if (err == 0) {
 		struct tempreserve *tr;
 
