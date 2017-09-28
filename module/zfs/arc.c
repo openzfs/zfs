@@ -3155,13 +3155,14 @@ arc_buf_destroy_impl(arc_buf_t *buf)
 			hdr->b_crypt_hdr.b_ebufcnt -= 1;
 
 		/*
-		 * if we have no more encrypted buffers and we've already
+		 * If we have no more encrypted buffers and we've already
 		 * gotten a copy of the decrypted data we can free b_rabd to
 		 * save some space.
 		 */
 		if (hdr->b_crypt_hdr.b_ebufcnt == 0 && HDR_HAS_RABD(hdr) &&
-		    hdr->b_l1hdr.b_pabd != NULL)
+		    hdr->b_l1hdr.b_pabd != NULL && !HDR_IO_IN_PROGRESS(hdr)) {
 			arc_hdr_free_abd(hdr, B_TRUE);
+		}
 	}
 
 	arc_buf_t *lastbuf = arc_buf_remove(hdr, buf);
@@ -3716,9 +3717,8 @@ arc_hdr_destroy(arc_buf_hdr_t *hdr)
 			arc_hdr_free_abd(hdr, B_FALSE);
 		}
 
-		if (HDR_HAS_RABD(hdr)) {
+		if (HDR_HAS_RABD(hdr))
 			arc_hdr_free_abd(hdr, B_TRUE);
-		}
 	}
 
 	ASSERT3P(hdr->b_hash_next, ==, NULL);
@@ -5746,16 +5746,15 @@ arc_read_done(zio_t *zio)
 		callback_cnt++;
 
 		int error = arc_buf_alloc_impl(hdr, zio->io_spa,
-		    zio->io_bookmark.zb_objset, acb->acb_private,
-		    acb->acb_encrypted, acb->acb_compressed, acb->acb_noauth,
-		    no_zio_error, &acb->acb_buf);
+		    acb->acb_dsobj, acb->acb_private, acb->acb_encrypted,
+		    acb->acb_compressed, acb->acb_noauth, no_zio_error,
+		    &acb->acb_buf);
 
 		/*
-		 * assert non-speculative zios didn't fail because an
+		 * Assert non-speculative zios didn't fail because an
 		 * encryption key wasn't loaded
 		 */
-		ASSERT((zio->io_flags & ZIO_FLAG_SPECULATIVE) ||
-		    error == 0 || error != ENOENT);
+		ASSERT((zio->io_flags & ZIO_FLAG_SPECULATIVE) || error == 0);
 
 		/*
 		 * If we failed to decrypt, report an error now (as the zio
@@ -5778,10 +5777,8 @@ arc_read_done(zio_t *zio)
 	}
 	hdr->b_l1hdr.b_acb = NULL;
 	arc_hdr_clear_flags(hdr, ARC_FLAG_IO_IN_PROGRESS);
-	if (callback_cnt == 0) {
-		ASSERT(HDR_PREFETCH(hdr) || HDR_HAS_RABD(hdr));
+	if (callback_cnt == 0)
 		ASSERT(hdr->b_l1hdr.b_pabd != NULL || HDR_HAS_RABD(hdr));
-	}
 
 	ASSERT(refcount_is_zero(&hdr->b_l1hdr.b_refcnt) ||
 	    callback_list != NULL);
@@ -5943,6 +5940,9 @@ top:
 				acb->acb_done = done;
 				acb->acb_private = private;
 				acb->acb_compressed = compressed_read;
+				acb->acb_encrypted = encrypted_read;
+				acb->acb_noauth = noauth_read;
+				acb->acb_dsobj = zb->zb_objset;
 				if (pio != NULL)
 					acb->acb_zio_dummy = zio_null(pio,
 					    spa, NULL, NULL, NULL, zio_flags);
@@ -5981,9 +5981,7 @@ top:
 			rc = arc_buf_alloc_impl(hdr, spa, zb->zb_objset,
 			    private, encrypted_read, compressed_read,
 			    noauth_read, B_TRUE, &buf);
-
-			ASSERT((zio_flags & ZIO_FLAG_SPECULATIVE) ||
-			    rc == 0 || rc != ENOENT);
+			ASSERT((zio_flags & ZIO_FLAG_SPECULATIVE) || rc == 0);
 		} else if (*arc_flags & ARC_FLAG_PREFETCH &&
 		    refcount_count(&hdr->b_l1hdr.b_refcnt) == 0) {
 			arc_hdr_set_flags(hdr, ARC_FLAG_PREFETCH);
@@ -6008,7 +6006,7 @@ top:
 		uint64_t addr = 0;
 		boolean_t devw = B_FALSE;
 		uint64_t size;
-		void *hdr_abd;
+		abd_t *hdr_abd;
 
 		/*
 		 * Gracefully handle a damaged logical block size as a
@@ -6131,6 +6129,7 @@ top:
 		acb->acb_compressed = compressed_read;
 		acb->acb_encrypted = encrypted_read;
 		acb->acb_noauth = noauth_read;
+		acb->acb_dsobj = zb->zb_objset;
 
 		ASSERT3P(hdr->b_l1hdr.b_acb, ==, NULL);
 		hdr->b_l1hdr.b_acb = acb;
@@ -7961,9 +7960,15 @@ l2arc_untransform(zio_t *zio, l2arc_read_callback_t *cb)
 	 */
 	ASSERT3U(BP_GET_TYPE(bp), !=, DMU_OT_INTENT_LOG);
 	ASSERT(MUTEX_HELD(HDR_LOCK(hdr)));
+	ASSERT3P(hdr->b_l1hdr.b_pabd, !=, NULL);
 
-	/* If the data was encrypted, decrypt it now */
-	if (HDR_ENCRYPTED(hdr)) {
+	/*
+	 * If the data was encrypted, decrypt it now. Note that
+	 * we must check the bp here and not the hdr, since the
+	 * hdr does not have its encryption parameters updated
+	 * until arc_read_done().
+	 */
+	if (BP_IS_ENCRYPTED(bp)) {
 		abd_t *eabd = arc_get_data_abd(hdr,
 		    arc_hdr_size(hdr), hdr);
 
@@ -8089,7 +8094,16 @@ l2arc_read_done(zio_t *zio)
 		 */
 		abd_free(cb->l2rcb_abd);
 		zio->io_size = zio->io_orig_size = arc_hdr_size(hdr);
-		zio->io_abd = zio->io_orig_abd = hdr->b_l1hdr.b_pabd;
+
+		if (BP_IS_ENCRYPTED(&cb->l2rcb_bp) &&
+		    (cb->l2rcb_flags & ZIO_FLAG_RAW_ENCRYPT)) {
+			ASSERT(HDR_HAS_RABD(hdr));
+			zio->io_abd = zio->io_orig_abd =
+			    hdr->b_crypt_hdr.b_rabd;
+		} else {
+			ASSERT3P(hdr->b_l1hdr.b_pabd, !=, NULL);
+			zio->io_abd = zio->io_orig_abd = hdr->b_l1hdr.b_pabd;
+		}
 	}
 
 	ASSERT3P(zio->io_abd, !=, NULL);
