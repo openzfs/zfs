@@ -34,9 +34,9 @@ int zfs_read_history = 0;
 int zfs_read_history_hits = 0;
 
 /*
- * Keeps stats on the last N txgs, disabled by default.
+ * Keeps stats on the last 100 txgs by default.
  */
-int zfs_txg_history = 0;
+int zfs_txg_history = 100;
 
 /*
  * Keeps stats on the last N MMP updates, disabled by default.
