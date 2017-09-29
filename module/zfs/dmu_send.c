@@ -2088,6 +2088,7 @@ dmu_recv_begin(char *tofs, char *tosnap, dmu_replay_record_t *drr_begin,
 	drc->drc_force = force;
 	drc->drc_resumable = resumable;
 	drc->drc_cred = CRED();
+	drc->drc_clone = (origin != NULL);
 
 	if (drc->drc_drrb->drr_magic == BSWAP_64(DMU_BACKUP_MAGIC)) {
 		drc->drc_byteswap = B_TRUE;
@@ -2149,7 +2150,9 @@ struct receive_writer_arg {
 	avl_tree_t *guid_to_ds_map;
 	boolean_t resumable;
 	boolean_t raw;
-	uint64_t last_object, last_offset;
+	uint64_t last_object;
+	uint64_t last_offset;
+	uint64_t max_object; /* highest object ID referenced in stream */
 	uint64_t bytes_read; /* bytes read when current record created */
 };
 
@@ -2451,6 +2454,9 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 		return (SET_ERROR(EINVAL));
 	object = err == 0 ? drro->drr_object : DMU_NEW_OBJECT;
 
+	if (drro->drr_object > rwa->max_object)
+		rwa->max_object = drro->drr_object;
+
 	/*
 	 * If we are losing blkptrs or changing the block size this must
 	 * be a new file instance.  We must clear out the previous file
@@ -2587,6 +2593,9 @@ receive_freeobjects(struct receive_writer_arg *rwa,
 		err = dmu_free_long_object(rwa->os, obj);
 		if (err != 0)
 			return (err);
+
+		if (obj > rwa->max_object)
+			rwa->max_object = obj;
 	}
 	if (next_err != ESRCH)
 		return (next_err);
@@ -2616,6 +2625,9 @@ receive_write(struct receive_writer_arg *rwa, struct drr_write *drrw,
 	}
 	rwa->last_object = drrw->drr_object;
 	rwa->last_offset = drrw->drr_offset;
+
+	if (rwa->last_object > rwa->max_object)
+		rwa->max_object = rwa->last_object;
 
 	if (dmu_object_info(rwa->os, drrw->drr_object, NULL) != 0)
 		return (SET_ERROR(EINVAL));
@@ -2698,6 +2710,9 @@ receive_write_byref(struct receive_writer_arg *rwa,
 		ref_os = rwa->os;
 	}
 
+	if (drrwbr->drr_object > rwa->max_object)
+		rwa->max_object = drrwbr->drr_object;
+
 	if (rwa->raw)
 		flags |= DMU_READ_NO_DECRYPT;
 
@@ -2751,6 +2766,9 @@ receive_write_embedded(struct receive_writer_arg *rwa,
 	if (drrwe->drr_compression >= ZIO_COMPRESS_FUNCTIONS)
 		return (SET_ERROR(EINVAL));
 
+	if (drrwe->drr_object > rwa->max_object)
+		rwa->max_object = drrwe->drr_object;
+
 	tx = dmu_tx_create(rwa->os);
 
 	dmu_tx_hold_write(tx, drrwe->drr_object,
@@ -2793,6 +2811,9 @@ receive_spill(struct receive_writer_arg *rwa, struct drr_spill *drrs,
 
 	if (dmu_object_info(rwa->os, drrs->drr_object, NULL) != 0)
 		return (SET_ERROR(EINVAL));
+
+	if (drrs->drr_object > rwa->max_object)
+		rwa->max_object = drrs->drr_object;
 
 	VERIFY0(dmu_bonus_hold(rwa->os, drrs->drr_object, FTAG, &db));
 	if ((err = dmu_spill_hold_by_bonus(db, FTAG, &db_spill)) != 0) {
@@ -2840,6 +2861,9 @@ receive_free(struct receive_writer_arg *rwa, struct drr_free *drrf)
 	if (dmu_object_info(rwa->os, drrf->drr_object, NULL) != 0)
 		return (SET_ERROR(EINVAL));
 
+	if (drrf->drr_object > rwa->max_object)
+		rwa->max_object = drrf->drr_object;
+
 	err = dmu_free_long_range(rwa->os, drrf->drr_object,
 	    drrf->drr_offset, drrf->drr_length);
 
@@ -2881,6 +2905,9 @@ receive_object_range(struct receive_writer_arg *rwa,
 	    P2PHASE(drror->drr_firstobj, DNODES_PER_BLOCK) != 0 ||
 	    !rwa->raw)
 		return (SET_ERROR(EINVAL));
+
+	if (drror->drr_firstobj > rwa->max_object)
+		rwa->max_object = drror->drr_firstobj;
 
 	offset = drror->drr_firstobj * sizeof (dnode_phys_t);
 	mdn = DMU_META_DNODE(rwa->os);
@@ -3719,6 +3746,32 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp,
 		cv_wait(&rwa->cv, &rwa->mutex);
 	}
 	mutex_exit(&rwa->mutex);
+
+	/*
+	 * If we are receiving a full stream as a clone, all object IDs which
+	 * are greater than the maximum ID referenced in the stream are
+	 * by definition unused and must be freed.
+	 */
+	if (drc->drc_clone && drc->drc_drrb->drr_fromguid == 0) {
+		uint64_t obj = rwa->max_object + 1;
+		int free_err = 0;
+		int next_err = 0;
+
+		while (next_err == 0) {
+			free_err = dmu_free_long_object(rwa->os, obj);
+			if (free_err != 0 && free_err != ENOENT)
+				break;
+
+			next_err = dmu_object_next(rwa->os, &obj, FALSE, 0);
+		}
+
+		if (err == 0) {
+			if (free_err != 0 && free_err != ENOENT)
+				err = free_err;
+			else if (next_err != ESRCH)
+				err = next_err;
+		}
+	}
 
 	cv_destroy(&rwa->cv);
 	mutex_destroy(&rwa->mutex);
