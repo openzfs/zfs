@@ -463,24 +463,35 @@ dbuf_cache_multilist_index_func(multilist_t *ml, void *obj)
 	    multilist_get_num_sublists(ml));
 }
 
+static inline unsigned long
+dbuf_cache_target_bytes(void)
+{
+	return MIN(dbuf_cache_max_bytes,
+	    arc_target_bytes() >> dbuf_cache_max_shift);
+}
+
 static inline boolean_t
 dbuf_cache_above_hiwater(void)
 {
+	uint64_t dbuf_cache_target = dbuf_cache_target_bytes();
+
 	uint64_t dbuf_cache_hiwater_bytes =
-	    (dbuf_cache_max_bytes * dbuf_cache_hiwater_pct) / 100;
+	    (dbuf_cache_target * dbuf_cache_hiwater_pct) / 100;
 
 	return (refcount_count(&dbuf_cache_size) >
-	    dbuf_cache_max_bytes + dbuf_cache_hiwater_bytes);
+	    dbuf_cache_target + dbuf_cache_hiwater_bytes);
 }
 
 static inline boolean_t
 dbuf_cache_above_lowater(void)
 {
+	uint64_t dbuf_cache_target = dbuf_cache_target_bytes();
+
 	uint64_t dbuf_cache_lowater_bytes =
-	    (dbuf_cache_max_bytes * dbuf_cache_lowater_pct) / 100;
+	    (dbuf_cache_target * dbuf_cache_lowater_pct) / 100;
 
 	return (refcount_count(&dbuf_cache_size) >
-	    dbuf_cache_max_bytes - dbuf_cache_lowater_bytes);
+	    dbuf_cache_target - dbuf_cache_lowater_bytes);
 }
 
 /*
@@ -600,7 +611,7 @@ dbuf_evict_notify(void)
 	 * because it's OK to occasionally make the wrong decision here,
 	 * and grabbing the lock results in massive lock contention.
 	 */
-	if (refcount_count(&dbuf_cache_size) > dbuf_cache_max_bytes) {
+	if (refcount_count(&dbuf_cache_size) > dbuf_cache_target_bytes()) {
 		if (dbuf_cache_above_hiwater())
 			dbuf_evict_one();
 		cv_signal(&dbuf_evict_cv);
@@ -657,7 +668,7 @@ retry:
 	 * dbuf cache to 1/32nd (default) of the size of the ARC.
 	 */
 	dbuf_cache_max_bytes = MIN(dbuf_cache_max_bytes,
-	    arc_max_bytes() >> dbuf_cache_max_shift);
+	    arc_target_bytes() >> dbuf_cache_max_shift);
 
 	/*
 	 * All entries are queued via taskq_dispatch_ent(), so min/maxalloc

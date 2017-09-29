@@ -7320,9 +7320,9 @@ arc_state_fini(void)
 }
 
 uint64_t
-arc_max_bytes(void)
+arc_target_bytes(void)
 {
-	return (arc_c_max);
+	return (arc_c);
 }
 
 void
