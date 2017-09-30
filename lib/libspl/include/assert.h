@@ -33,7 +33,6 @@
 #include <stdlib.h>
 #include <stdarg.h>
 
-/* LCOV_EXCL_START */
 static inline int
 libspl_assert(const char *buf, const char *file, const char *func, int line)
 {
@@ -55,29 +54,26 @@ libspl_assertf(const char *file, const char *func, int line, char *format, ...)
 	va_end(args);
 	abort();
 }
-/* LCOV_EXCL_STOP */
 
 #ifdef verify
 #undef verify
 #endif
 
 #define	VERIFY(cond)							\
-	(void) (("LCOV_EXCL_BR_LINE") && ((!(cond)) &&			\
-	    libspl_assert(#cond, __FILE__, __FUNCTION__, __LINE__)))
+	(void) ((!(cond)) &&						\
+	    libspl_assert(#cond, __FILE__, __FUNCTION__, __LINE__))
 #define	verify(cond)							\
-	(void) (("LCOV_EXCL_BR_LINE") && ((!(cond)) &&			\
-	    libspl_assert(#cond, __FILE__, __FUNCTION__, __LINE__)))
+	(void) ((!(cond)) &&						\
+	    libspl_assert(#cond, __FILE__, __FUNCTION__, __LINE__))
 
 #define	VERIFY3_IMPL(LEFT, OP, RIGHT, TYPE)				\
 do {									\
-	(void) ("LCOV_EXCL_START");					\
 	const TYPE __left = (TYPE)(LEFT);				\
 	const TYPE __right = (TYPE)(RIGHT);				\
 	if (!(__left OP __right))					\
 		libspl_assertf(__FILE__, __FUNCTION__, __LINE__,	\
 		    "%s %s %s (0x%llx %s 0x%llx)", #LEFT, #OP, #RIGHT,	\
 		    (u_longlong_t)__left, #OP, (u_longlong_t)__right);	\
-	(void) ("LCOV_EXCL_STOP");					\
 } while (0)
 
 #define	VERIFY3S(x, y, z)	VERIFY3_IMPL(x, y, z, int64_t)
@@ -115,14 +111,14 @@ do {									\
 #define	ASSERT(x)		VERIFY(x)
 #define	assert(x)		VERIFY(x)
 #define	ASSERTV(x)		x
-#define	IMPLY(A, B)							\
-	((void) (("LCOV_EXCL_BR_LINE") && (((!(A)) || (B)) ||		\
-	    libspl_assert("(" #A ") implies (" #B ")",			\
-	    __FILE__, __FUNCTION__, __LINE__))))
-#define	EQUIV(A, B)							\
-	((void) (("LCOV_EXCL_BR_LINE") && ((!!(A) == !!(B)) ||		\
-	    libspl_assert("(" #A ") is equivalent to (" #B ")",		\
-	    __FILE__, __FUNCTION__, __LINE__))))
+#define	IMPLY(A, B) \
+	((void)(((!(A)) || (B)) || \
+	    libspl_assert("(" #A ") implies (" #B ")", \
+	    __FILE__, __FUNCTION__, __LINE__)))
+#define	EQUIV(A, B) \
+	((void)((!!(A) == !!(B)) || \
+	    libspl_assert("(" #A ") is equivalent to (" #B ")", \
+	    __FILE__, __FUNCTION__, __LINE__)))
 
 #endif  /* NDEBUG */
 
