@@ -62,10 +62,10 @@ libspl_assertf(const char *file, const char *func, int line, char *format, ...)
 #endif
 
 #define	VERIFY(cond)							\
-	(void) (("LCOV_EXCL_LINE") && ((!(cond)) &&			\
+	(void) (("LCOV_EXCL_BR_LINE") && ((!(cond)) &&			\
 	    libspl_assert(#cond, __FILE__, __FUNCTION__, __LINE__)))
 #define	verify(cond)							\
-	(void) (("LCOV_EXCL_LINE") && ((!(cond)) &&			\
+	(void) (("LCOV_EXCL_BR_LINE") && ((!(cond)) &&			\
 	    libspl_assert(#cond, __FILE__, __FUNCTION__, __LINE__)))
 
 #define	VERIFY3_IMPL(LEFT, OP, RIGHT, TYPE)				\
@@ -116,11 +116,11 @@ do {									\
 #define	assert(x)		VERIFY(x)
 #define	ASSERTV(x)		x
 #define	IMPLY(A, B)							\
-	((void) (("LCOV_EXCL_LINE") && (((!(A)) || (B)) ||		\
+	((void) (("LCOV_EXCL_BR_LINE") && (((!(A)) || (B)) ||		\
 	    libspl_assert("(" #A ") implies (" #B ")",			\
 	    __FILE__, __FUNCTION__, __LINE__))))
 #define	EQUIV(A, B)							\
-	((void) (("LCOV_EXCL_LINE") && ((!!(A) == !!(B)) ||		\
+	((void) (("LCOV_EXCL_BR_LINE") && ((!!(A) == !!(B)) ||		\
 	    libspl_assert("(" #A ") is equivalent to (" #B ")",		\
 	    __FILE__, __FUNCTION__, __LINE__))))
 
