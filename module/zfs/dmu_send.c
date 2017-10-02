@@ -2233,12 +2233,10 @@ receive_freeobjects(struct receive_writer_arg *rwa,
 		int err;
 
 		err = dmu_object_info(rwa->os, obj, &doi);
-		if (err == ENOENT) {
-			obj++;
+		if (err == ENOENT)
 			continue;
-		} else if (err != 0) {
+		else if (err != 0)
 			return (err);
-		}
 
 		err = dmu_free_long_object(rwa->os, obj);
 		if (err != 0)
