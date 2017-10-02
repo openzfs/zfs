@@ -112,12 +112,13 @@ AC_DEFUN([AX_CODE_COVERAGE],[
 		])
 
 		AC_CHECK_PROG([LCOV], [lcov], [lcov])
-		AC_CHECK_PROG([GENHTML], [genhtml], [genhtml])
-
 		AS_IF([ test -z "$LCOV" ], [
 			AC_MSG_ERROR([To enable code coverage reporting you must have lcov installed])
+		], [
+			AC_MSG_RESULT([using: lcov version $(lcov --version | $AWK '{print $NF}')])
 		])
 
+		AC_CHECK_PROG([GENHTML], [genhtml], [genhtml])
 		AS_IF([ test -z "$GENHTML" ], [
 			AC_MSG_ERROR([Could not find genhtml from the lcov package])
 		])
