@@ -155,6 +155,7 @@ static sysevent_t *spa_event_create(spa_t *spa, vdev_t *vd, nvlist_t *hist_nvl,
 static void spa_event_post(sysevent_t *ev);
 static void spa_sync_version(void *arg, dmu_tx_t *tx);
 static void spa_sync_props(void *arg, dmu_tx_t *tx);
+static void spa_log_props(spa_t *spa, void *arg);
 static boolean_t spa_has_active_shared_spare(spa_t *spa);
 static inline int spa_load_impl(spa_t *spa, uint64_t, nvlist_t *config,
     spa_load_state_t state, spa_import_type_t type, boolean_t mosconfig,
@@ -4281,6 +4282,10 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	spa_event_notify(spa, NULL, NULL, ESC_ZFS_POOL_CREATE);
 
 	spa_history_log_version(spa, "create");
+	/* Since properties set during create aren't logged because not
+	 * everything is setup during spa_sync_props(), log them now.
+	 */
+	spa_log_props(spa, props);
 
 	/*
 	 * Don't count references from objsets that are already closed
@@ -6551,14 +6556,16 @@ spa_sync_version(void *arg, dmu_tx_t *tx)
  * Set zpool properties.
  */
 static void
-spa_sync_props(void *arg, dmu_tx_t *tx)
+__spa_sync_props(void *arg, dmu_tx_t *tx, int dowrite)
 {
+
 	nvlist_t *nvp = arg;
 	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
 	objset_t *mos = spa->spa_meta_objset;
 	nvpair_t *elem = NULL;
 
-	mutex_enter(&spa->spa_props_lock);
+	if (dowrite)
+		mutex_enter(&spa->spa_props_lock);
 
 	while ((elem = nvlist_next_nvpair(nvp, elem))) {
 		uint64_t intval;
@@ -6574,17 +6581,21 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 			/*
 			 * We checked this earlier in spa_prop_validate().
 			 */
-			ASSERT(zpool_prop_feature(nvpair_name(elem)));
+			if (dowrite) {
+				ASSERT(zpool_prop_feature(nvpair_name(elem)));
 
-			fname = strchr(nvpair_name(elem), '@') + 1;
-			VERIFY0(zfeature_lookup_name(fname, &fid));
+				fname = strchr(nvpair_name(elem), '@') + 1;
+				VERIFY0(zfeature_lookup_name(fname, &fid));
+				spa_feature_enable(spa, fid, tx);
+			}
 
-			spa_feature_enable(spa, fid, tx);
 			spa_history_log_internal(spa, "set", tx,
 			    "%s=enabled", nvpair_name(elem));
 			break;
 
 		case ZPOOL_PROP_VERSION:
+			if (!dowrite)
+				break;
 			intval = fnvpair_value_uint64(elem);
 			/*
 			 * The version is synced separately before other
@@ -6594,6 +6605,8 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 			break;
 
 		case ZPOOL_PROP_ALTROOT:
+			if (!dowrite)
+				break;
 			/*
 			 * 'altroot' is a non-persistent property. It should
 			 * have been set temporarily at creation or import time.
@@ -6610,17 +6623,20 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 			break;
 		case ZPOOL_PROP_COMMENT:
 			strval = fnvpair_value_string(elem);
-			if (spa->spa_comment != NULL)
-				spa_strfree(spa->spa_comment);
-			spa->spa_comment = spa_strdup(strval);
-			/*
-			 * We need to dirty the configuration on all the vdevs
-			 * so that their labels get updated.  It's unnecessary
-			 * to do this for pool creation since the vdev's
-			 * configuration has already been dirtied.
-			 */
-			if (tx->tx_txg != TXG_INITIAL)
-				vdev_config_dirty(spa->spa_root_vdev);
+			if (dowrite) {
+				if (spa->spa_comment != NULL)
+					spa_strfree(spa->spa_comment);
+				spa->spa_comment = spa_strdup(strval);
+				/*
+				 * We need to dirty the configuration on all the
+				 * vdevs so that their labels get updated.  It's
+				 * unnecessary to do this for pool creation
+				 * since the vdev's configuration has already
+				 * been dirtied.
+				 */
+				if (tx->tx_txg != TXG_INITIAL)
+					vdev_config_dirty(spa->spa_root_vdev);
+			}
 			spa_history_log_internal(spa, "set", tx,
 			    "%s=%s", nvpair_name(elem), strval);
 			break;
@@ -6628,7 +6644,7 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 			/*
 			 * Set pool property values in the poolprops mos object.
 			 */
-			if (spa->spa_pool_props_object == 0) {
+			if (dowrite && spa->spa_pool_props_object == 0) {
 				spa->spa_pool_props_object =
 				    zap_create_link(mos, DMU_OT_POOL_PROPS,
 				    DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_PROPS,
@@ -6642,9 +6658,11 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 			if (nvpair_type(elem) == DATA_TYPE_STRING) {
 				ASSERT(proptype == PROP_TYPE_STRING);
 				strval = fnvpair_value_string(elem);
-				VERIFY0(zap_update(mos,
-				    spa->spa_pool_props_object, propname,
-				    1, strlen(strval) + 1, strval, tx));
+				if (dowrite)
+					VERIFY0(zap_update(mos,
+					    spa->spa_pool_props_object,
+					    propname, 1, strlen(strval) + 1,
+					    strval, tx));
 				spa_history_log_internal(spa, "set", tx,
 				    "%s=%s", nvpair_name(elem), strval);
 			} else if (nvpair_type(elem) == DATA_TYPE_UINT64) {
@@ -6655,14 +6673,17 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 					VERIFY0(zpool_prop_index_to_string(
 					    prop, intval, &unused));
 				}
-				VERIFY0(zap_update(mos,
-				    spa->spa_pool_props_object, propname,
-				    8, 1, &intval, tx));
+				if (dowrite)
+					VERIFY0(zap_update(mos,
+					    spa->spa_pool_props_object,
+					    propname, 8, 1, &intval, tx));
 				spa_history_log_internal(spa, "set", tx,
 				    "%s=%lld", nvpair_name(elem), intval);
 			} else {
 				ASSERT(0); /* not allowed */
 			}
+			if (!dowrite)
+				continue;
 
 			switch (prop) {
 			case ZPOOL_PROP_DELEGATION:
@@ -6693,8 +6714,30 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 
 	}
 
-	mutex_exit(&spa->spa_props_lock);
+	if (dowrite)
+		mutex_exit(&spa->spa_props_lock);
 }
+
+static void
+spa_sync_props(void *arg, dmu_tx_t *tx)
+{
+	__spa_sync_props(arg, tx, 1);
+}
+
+static void
+spa_log_props(spa_t *spa, void *arg)
+{
+	dmu_tx_t *tx;
+	tx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
+	if (dmu_tx_assign(tx, TXG_WAIT) != 0) {
+		dmu_tx_abort(tx);
+		return;
+	}
+	__spa_sync_props(arg, tx, 0);
+	dmu_tx_commit(tx);
+}
+
+
 
 /*
  * Perform one-time upgrade on-disk changes.  spa_version() does not
