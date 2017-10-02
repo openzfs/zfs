@@ -1960,7 +1960,7 @@ zvol_create_snap_minor_cb(const char *dsname, void *arg)
 		    "%s is not a shapshot name\n", dsname);
 	} else {
 		minors_job_t *job;
-		char *n = strdup(dsname);
+		char *n = spa_strdup(dsname);
 		if (n == NULL)
 			return (0);
 
@@ -2002,7 +2002,7 @@ zvol_create_minors_cb(const char *dsname, void *arg)
 	 */
 	if (strchr(dsname, '@') == 0) {
 		minors_job_t *job;
-		char *n = strdup(dsname);
+		char *n = spa_strdup(dsname);
 		if (n == NULL)
 			return (0);
 
@@ -2103,7 +2103,7 @@ zvol_create_minors_impl(const char *name)
 		list_remove(&minors_list, job);
 		if (!job->error)
 			zvol_create_minor_impl(job->name);
-		strfree(job->name);
+		spa_strfree(job->name);
 		kmem_free(job, sizeof (minors_job_t));
 	}
 

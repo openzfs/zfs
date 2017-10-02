@@ -168,7 +168,7 @@ spa_read_history_init(spa_t *spa)
 		    spa_read_history_data, spa_read_history_addr);
 		kstat_install(ksp);
 	}
-	strfree(name);
+	spa_strfree(name);
 }
 
 static void
@@ -392,7 +392,7 @@ spa_txg_history_init(spa_t *spa)
 		    spa_txg_history_data, spa_txg_history_addr);
 		kstat_install(ksp);
 	}
-	strfree(name);
+	spa_strfree(name);
 }
 
 static void
@@ -634,7 +634,7 @@ spa_tx_assign_init(spa_t *spa)
 		ksp->ks_update = spa_tx_assign_update;
 		kstat_install(ksp);
 	}
-	strfree(name);
+	spa_strfree(name);
 }
 
 static void
@@ -697,7 +697,7 @@ spa_io_history_init(spa_t *spa)
 		ksp->ks_update = spa_io_history_update;
 		kstat_install(ksp);
 	}
-	strfree(name);
+	spa_strfree(name);
 }
 
 static void
@@ -793,7 +793,7 @@ spa_mmp_history_update(kstat_t *ksp, int rw)
 		while ((smh = list_remove_head(&ssh->list))) {
 			ssh->size--;
 			if (smh->vdev_path)
-				strfree(smh->vdev_path);
+				spa_strfree(smh->vdev_path);
 			kmem_free(smh, sizeof (spa_mmp_history_t));
 		}
 
@@ -836,7 +836,7 @@ spa_mmp_history_init(spa_t *spa)
 		    spa_mmp_history_data, spa_mmp_history_addr);
 		kstat_install(ksp);
 	}
-	strfree(name);
+	spa_strfree(name);
 }
 
 static void
@@ -854,7 +854,7 @@ spa_mmp_history_destroy(spa_t *spa)
 	while ((smh = list_remove_head(&ssh->list))) {
 		ssh->size--;
 		if (smh->vdev_path)
-			strfree(smh->vdev_path);
+			spa_strfree(smh->vdev_path);
 		kmem_free(smh, sizeof (spa_mmp_history_t));
 	}
 
@@ -885,7 +885,7 @@ spa_mmp_history_add(uint64_t txg, uint64_t timestamp, uint64_t mmp_delay,
 	smh->mmp_delay = mmp_delay;
 	smh->vdev_guid = vd->vdev_guid;
 	if (vd->vdev_path)
-		smh->vdev_path = strdup(vd->vdev_path);
+		smh->vdev_path = spa_strdup(vd->vdev_path);
 	smh->vdev_label = label;
 
 	mutex_enter(&ssh->lock);
@@ -897,7 +897,7 @@ spa_mmp_history_add(uint64_t txg, uint64_t timestamp, uint64_t mmp_delay,
 		ssh->size--;
 		rm = list_remove_tail(&ssh->list);
 		if (rm->vdev_path)
-			strfree(rm->vdev_path);
+			spa_strfree(rm->vdev_path);
 		kmem_free(rm, sizeof (spa_mmp_history_t));
 	}
 
