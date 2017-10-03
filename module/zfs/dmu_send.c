@@ -2064,7 +2064,8 @@ dmu_recv_resume_begin_sync(void *arg, dmu_tx_t *tx)
 	dsl_dataset_phys(ds)->ds_flags |= DS_FLAG_INCONSISTENT;
 
 	rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
-	ASSERT(!BP_IS_HOLE(dsl_dataset_get_blkptr(ds)));
+	ASSERT(!BP_IS_HOLE(dsl_dataset_get_blkptr(ds)) ||
+	    drba->drba_cookie->drc_raw);
 	rrw_exit(&ds->ds_bp_rwlock, FTAG);
 
 	drba->drba_cookie->drc_ds = ds;
@@ -2958,6 +2959,7 @@ receive_object_range(struct receive_writer_arg *rwa,
 static void
 dmu_recv_cleanup_ds(dmu_recv_cookie_t *drc)
 {
+	dsl_dataset_t *ds = drc->drc_ds;
 	ds_hold_flags_t dsflags = (drc->drc_raw) ? 0 : DS_HOLD_FLAG_DECRYPT;
 
 	/*
@@ -2967,14 +2969,17 @@ dmu_recv_cleanup_ds(dmu_recv_cookie_t *drc)
 	 * that the user accounting code will not attempt to do anything
 	 * after we stopped receiving the dataset.
 	 */
-	txg_wait_synced(drc->drc_ds->ds_dir->dd_pool, 0);
+	txg_wait_synced(ds->ds_dir->dd_pool, 0);
 
-	if (drc->drc_resumable) {
-		dsl_dataset_disown(drc->drc_ds, dsflags, dmu_recv_tag);
+	rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
+	if (drc->drc_resumable && !BP_IS_HOLE(dsl_dataset_get_blkptr(ds))) {
+		rrw_exit(&ds->ds_bp_rwlock, FTAG);
+		dsl_dataset_disown(ds, dsflags, dmu_recv_tag);
 	} else {
 		char name[ZFS_MAX_DATASET_NAME_LEN];
-		dsl_dataset_name(drc->drc_ds, name);
-		dsl_dataset_disown(drc->drc_ds, dsflags, dmu_recv_tag);
+		rrw_exit(&ds->ds_bp_rwlock, FTAG);
+		dsl_dataset_name(ds, name);
+		dsl_dataset_disown(ds, dsflags, dmu_recv_tag);
 		(void) dsl_destroy_head(name);
 	}
 }

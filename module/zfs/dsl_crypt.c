@@ -723,6 +723,7 @@ spa_keystore_load_wkey(const char *dsname, dsl_crypto_params_t *dcp,
 	dsl_crypto_key_t *dck = NULL;
 	dsl_wrapping_key_t *wkey = dcp->cp_wkey;
 	dsl_pool_t *dp = NULL;
+	uint64_t keyformat, salt, iters;
 
 	/*
 	 * We don't validate the wrapping key's keyformat, salt, or iters
@@ -757,8 +758,36 @@ spa_keystore_load_wkey(const char *dsname, dsl_crypto_params_t *dcp,
 	if (ret != 0)
 		goto error;
 
+	/* initialize the wkey encryption parameters from the DSL Crypto Key */
+	ret = zap_lookup(dp->dp_meta_objset, dd->dd_crypto_obj,
+	    zfs_prop_to_name(ZFS_PROP_KEYFORMAT), 8, 1, &keyformat);
+	if (ret != 0)
+		goto error;
+
+	ret = zap_lookup(dp->dp_meta_objset, dd->dd_crypto_obj,
+	    zfs_prop_to_name(ZFS_PROP_PBKDF2_SALT), 8, 1, &salt);
+	if (ret != 0)
+		goto error;
+
+	ret = zap_lookup(dp->dp_meta_objset, dd->dd_crypto_obj,
+	    zfs_prop_to_name(ZFS_PROP_PBKDF2_ITERS), 8, 1, &iters);
+	if (ret != 0)
+		goto error;
+
+	ASSERT3U(keyformat, <, ZFS_KEYFORMAT_FORMATS);
+	ASSERT3U(keyformat, !=, ZFS_KEYFORMAT_NONE);
+	IMPLY(keyformat == ZFS_KEYFORMAT_PASSPHRASE, iters != 0);
+	IMPLY(keyformat == ZFS_KEYFORMAT_PASSPHRASE, salt != 0);
+	IMPLY(keyformat != ZFS_KEYFORMAT_PASSPHRASE, iters == 0);
+	IMPLY(keyformat != ZFS_KEYFORMAT_PASSPHRASE, salt == 0);
+
+	wkey->wk_keyformat = keyformat;
+	wkey->wk_salt = salt;
+	wkey->wk_iters = iters;
+
 	/*
-	 * At this point we have verified the key. We can simply cleanup and
+	 * At this point we have verified the wkey and confirmed that it can
+	 * be used to decrypt a DSL Crypto Key. We can simply cleanup and
 	 * return if this is all the user wanted to do.
 	 */
 	if (noop)
@@ -2176,6 +2205,7 @@ dsl_crypto_populate_key_nvlist(dsl_dataset_t *ds, nvlist_t **nvl_out)
 	uint64_t rddobj;
 	nvlist_t *nvl = NULL;
 	uint64_t dckobj = ds->ds_dir->dd_crypto_obj;
+	dsl_dir_t *rdd = NULL;
 	dsl_pool_t *dp = ds->ds_dir->dd_pool;
 	objset_t *mos = dp->dp_meta_objset;
 	uint64_t crypt = 0, guid = 0, format = 0, iters = 0, salt = 0;
@@ -2194,10 +2224,6 @@ dsl_crypto_populate_key_nvlist(dsl_dataset_t *ds, nvlist_t **nvl_out)
 		goto error;
 
 	/* lookup values from the DSL Crypto Key */
-	ret = dsl_dir_get_encryption_root_ddobj(ds->ds_dir, &rddobj);
-	if (ret != 0)
-		goto error;
-
 	ret = zap_lookup(mos, dckobj, DSL_CRYPTO_KEY_CRYPTO_SUITE, 8, 1,
 	    &crypt);
 	if (ret != 0)
@@ -2227,23 +2253,42 @@ dsl_crypto_populate_key_nvlist(dsl_dataset_t *ds, nvlist_t **nvl_out)
 	if (ret != 0)
 		goto error;
 
-	/* lookup wrapping key properties */
-	ret = zap_lookup(dp->dp_meta_objset, dckobj,
-	    zfs_prop_to_name(ZFS_PROP_KEYFORMAT), 8, 1, &format);
+	/*
+	 * Lookup wrapping key properties. An early version of the code did
+	 * not correctly add these values to the wrapping key or the DSL
+	 * Crypto Key on disk for non encryption roots, so to be safe we
+	 * always take the slightly circuitous route of looking it up from
+	 * the encryption root's key.
+	 */
+	ret = dsl_dir_get_encryption_root_ddobj(ds->ds_dir, &rddobj);
 	if (ret != 0)
 		goto error;
 
+	dsl_pool_config_enter(dp, FTAG);
+
+	ret = dsl_dir_hold_obj(dp, rddobj, NULL, FTAG, &rdd);
+	if (ret != 0)
+		goto error_unlock;
+
+	ret = zap_lookup(dp->dp_meta_objset, rdd->dd_crypto_obj,
+	    zfs_prop_to_name(ZFS_PROP_KEYFORMAT), 8, 1, &format);
+	if (ret != 0)
+		goto error_unlock;
+
 	if (format == ZFS_KEYFORMAT_PASSPHRASE) {
-		ret = zap_lookup(dp->dp_meta_objset, dckobj,
+		ret = zap_lookup(dp->dp_meta_objset, rdd->dd_crypto_obj,
 		    zfs_prop_to_name(ZFS_PROP_PBKDF2_ITERS), 8, 1, &iters);
 		if (ret != 0)
-			goto error;
+			goto error_unlock;
 
-		ret = zap_lookup(dp->dp_meta_objset, dckobj,
+		ret = zap_lookup(dp->dp_meta_objset, rdd->dd_crypto_obj,
 		    zfs_prop_to_name(ZFS_PROP_PBKDF2_SALT), 8, 1, &salt);
 		if (ret != 0)
-			goto error;
+			goto error_unlock;
 	}
+
+	dsl_dir_rele(rdd, FTAG);
+	dsl_pool_config_exit(dp, FTAG);
 
 	fnvlist_add_uint64(nvl, DSL_CRYPTO_KEY_CRYPTO_SUITE, crypt);
 	fnvlist_add_uint64(nvl, DSL_CRYPTO_KEY_GUID, guid);
@@ -2270,7 +2315,11 @@ dsl_crypto_populate_key_nvlist(dsl_dataset_t *ds, nvlist_t **nvl_out)
 	*nvl_out = nvl;
 	return (0);
 
+error_unlock:
+	dsl_pool_config_exit(dp, FTAG);
 error:
+	if (rdd != NULL)
+		dsl_dir_rele(rdd, FTAG);
 	nvlist_free(nvl);
 
 	*nvl_out = NULL;
