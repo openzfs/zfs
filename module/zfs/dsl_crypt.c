@@ -1321,10 +1321,12 @@ spa_keystore_change_key_sync_impl(uint64_t rddobj, uint64_t ddobj,
 		return;
 	}
 
-	/* stop recursing if this dsl dir didn't inherit from the root */
+	/*
+	 * Stop recursing if this dsl dir didn't inherit from the root
+	 * or if this dd is a clone.
+	 */
 	VERIFY0(dsl_dir_get_encryption_root_ddobj(dd, &curr_rddobj));
-
-	if (curr_rddobj != rddobj) {
+	if (curr_rddobj != rddobj || dsl_dir_is_clone(dd)) {
 		dsl_dir_rele(dd, FTAG);
 		return;
 	}
@@ -1350,27 +1352,13 @@ spa_keystore_change_key_sync_impl(uint64_t rddobj, uint64_t ddobj,
 	zc = kmem_alloc(sizeof (zap_cursor_t), KM_SLEEP);
 	za = kmem_alloc(sizeof (zap_attribute_t), KM_SLEEP);
 
-	/* Recurse into all child and clone dsl dirs. */
+	/* Recurse into all child dsl dirs. */
 	for (zap_cursor_init(zc, dp->dp_meta_objset,
 	    dsl_dir_phys(dd)->dd_child_dir_zapobj);
 	    zap_cursor_retrieve(zc, za) == 0;
 	    zap_cursor_advance(zc)) {
 		spa_keystore_change_key_sync_impl(rddobj,
 		    za->za_first_integer, new_rddobj, wkey, tx);
-	}
-	zap_cursor_fini(zc);
-
-	for (zap_cursor_init(zc, dp->dp_meta_objset,
-	    dsl_dir_phys(dd)->dd_clones);
-	    zap_cursor_retrieve(zc, za) == 0;
-	    zap_cursor_advance(zc)) {
-		dsl_dataset_t *clone;
-
-		VERIFY0(dsl_dataset_hold_obj(dp,
-		    za->za_first_integer, FTAG, &clone));
-		spa_keystore_change_key_sync_impl(rddobj,
-		    clone->ds_dir->dd_object, new_rddobj, wkey, tx);
-		dsl_dataset_rele(clone, FTAG);
 	}
 	zap_cursor_fini(zc);
 
