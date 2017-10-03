@@ -118,11 +118,11 @@ typedef enum {
 	ZFS_PROP_PRIVATE,		/* not exposed to user, temporary */
 	ZFS_PROP_ACLINHERIT,
 	ZFS_PROP_CREATETXG,
-	ZFS_PROP_NAME,			/* not exposed to the user */
+	ZFS_PROP_NAME,
 	ZFS_PROP_CANMOUNT,
-	ZFS_PROP_ISCSIOPTIONS,		/* not exposed to the user */
+	ZFS_PROP_ISCSIOPTIONS,
 	ZFS_PROP_XATTR,
-	ZFS_PROP_NUMCLONES,		/* not exposed to the user */
+	ZFS_PROP_NUMCLONES,
 	ZFS_PROP_COPIES,
 	ZFS_PROP_VERSION,
 	ZFS_PROP_UTF8ONLY,
@@ -140,12 +140,12 @@ typedef enum {
 	ZFS_PROP_USEDDS,
 	ZFS_PROP_USEDCHILD,
 	ZFS_PROP_USEDREFRESERV,
-	ZFS_PROP_USERACCOUNTING,	/* not exposed to the user */
-	ZFS_PROP_STMF_SHAREINFO,	/* not exposed to the user */
+	ZFS_PROP_USERACCOUNTING,
+	ZFS_PROP_STMF_SHAREINFO,
 	ZFS_PROP_DEFER_DESTROY,
 	ZFS_PROP_USERREFS,
 	ZFS_PROP_LOGBIAS,
-	ZFS_PROP_UNIQUE,		/* not exposed to the user */
+	ZFS_PROP_UNIQUE,
 	ZFS_PROP_OBJSETID,
 	ZFS_PROP_DEDUP,
 	ZFS_PROP_MLSLABEL,
@@ -156,7 +156,7 @@ typedef enum {
 	ZFS_PROP_CLONES,
 	ZFS_PROP_LOGICALUSED,
 	ZFS_PROP_LOGICALREFERENCED,
-	ZFS_PROP_INCONSISTENT,		/* not exposed to the user */
+	ZFS_PROP_INCONSISTENT,
 	ZFS_PROP_VOLMODE,
 	ZFS_PROP_FILESYSTEM_LIMIT,
 	ZFS_PROP_SNAPSHOT_LIMIT,
@@ -183,6 +183,8 @@ typedef enum {
 	ZFS_PROP_KEYSTATUS,
 	ZFS_PROP_REMAPTXG,		/* not exposed to the user */
 	ZFS_PROP_SPECIAL_SMALL_BLOCKS,
+	ZFS_PROP_REDACTED,
+	ZFS_PROP_REDACT_SNAPS,
 	ZFS_NUM_PROPS
 } zfs_prop_t;
 
@@ -207,8 +209,7 @@ extern const char *zfs_userquota_prop_prefixes[ZFS_NUM_USERQUOTA_PROPS];
 /*
  * Pool properties are identified by these constants and must be added to the
  * end of this list to ensure that external consumers are not affected
- * by the change. If you make any changes to this list, be sure to update
- * the property table in module/zcommon/zpool_prop.c.
+ * by the change.  Properties must be registered in zfs_prop_init().
  */
 typedef enum {
 	ZPOOL_PROP_INVAL = -1,
@@ -1094,7 +1095,7 @@ typedef struct ddt_histogram {
  */
 typedef enum zfs_ioc {
 	/*
-	 * Illumos - 71/128 numbers reserved.
+	 * Illumos - 73/128 numbers reserved.
 	 */
 	ZFS_IOC_FIRST =	('Z' << 8),
 	ZFS_IOC = ZFS_IOC_FIRST,
@@ -1167,16 +1168,18 @@ typedef enum zfs_ioc {
 	ZFS_IOC_CLONE,				/* 0x5a42 */
 	ZFS_IOC_BOOKMARK,			/* 0x5a43 */
 	ZFS_IOC_GET_BOOKMARKS,			/* 0x5a44 */
-	ZFS_IOC_DESTROY_BOOKMARKS,		/* 0x5a45 */
-	ZFS_IOC_CHANNEL_PROGRAM,		/* 0x5a46 */
-	ZFS_IOC_RECV_NEW,			/* 0x5a47 */
-	ZFS_IOC_POOL_SYNC,			/* 0x5a48 */
-	ZFS_IOC_LOAD_KEY,			/* 0x5a49 */
-	ZFS_IOC_UNLOAD_KEY,			/* 0x5a4a */
-	ZFS_IOC_CHANGE_KEY,			/* 0x5a4b */
-	ZFS_IOC_REMAP,				/* 0x5a4c */
-	ZFS_IOC_POOL_CHECKPOINT,		/* 0x5a4d */
-	ZFS_IOC_POOL_DISCARD_CHECKPOINT,	/* 0x5a4e */
+	ZFS_IOC_GET_BOOKMARK_PROPS,			/* 0x5a45 */
+	ZFS_IOC_DESTROY_BOOKMARKS,		/* 0x5a46 */
+	ZFS_IOC_CHANNEL_PROGRAM,		/* 0x5a47 */
+	ZFS_IOC_RECV_NEW,			/* 0x5a48 */
+	ZFS_IOC_POOL_SYNC,			/* 0x5a49 */
+	ZFS_IOC_LOAD_KEY,			/* 0x5a4a */
+	ZFS_IOC_UNLOAD_KEY,			/* 0x5a4b */
+	ZFS_IOC_CHANGE_KEY,			/* 0x5a4c */
+	ZFS_IOC_REMAP,				/* 0x5a4d */
+	ZFS_IOC_POOL_CHECKPOINT,		/* 0x5a4e */
+	ZFS_IOC_POOL_DISCARD_CHECKPOINT,	/* 0x5a4f */
+	ZFS_IOC_REDACT,			/* 0x5a50 */
 
 	/*
 	 * Linux - 3/64 numbers reserved.

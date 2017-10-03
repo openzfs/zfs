@@ -337,7 +337,8 @@ dmu_object_next(objset_t *os, uint64_t *objectp, boolean_t hole, uint64_t txg)
 
 	if (*objectp == 0) {
 		start_obj = 1;
-	} else if (ds && ds->ds_feature_inuse[SPA_FEATURE_LARGE_DNODE]) {
+	} else if (ds && dsl_dataset_feature_is_active(ds,
+	    SPA_FEATURE_LARGE_DNODE)) {
 		uint64_t i = *objectp + 1;
 		uint64_t last_obj = *objectp | (DNODES_PER_BLOCK - 1);
 		dmu_object_info_t doi;
