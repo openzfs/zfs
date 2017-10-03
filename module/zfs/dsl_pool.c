@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright 2016 Nexenta Systems, Inc.  All rights reserved.
@@ -42,7 +42,6 @@
 #include <sys/fs/zfs.h>
 #include <sys/zfs_znode.h>
 #include <sys/spa_impl.h>
-#include <sys/dsl_deadlist.h>
 #include <sys/vdev_impl.h>
 #include <sys/metaslab_impl.h>
 #include <sys/bptree.h>

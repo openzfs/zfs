@@ -94,13 +94,19 @@ _NOTE(CONSTCOND) } while (0)
 #define	BF64_GET_SB(x, low, len, shift, bias)	\
 	((BF64_GET(x, low, len) + (bias)) << (shift))
 
+/*
+ * We use ASSERT3U instead of ASSERT in these macros to prevent a lint error in
+ * the case where val is a constant.  We can't fix ASSERT because it's used as
+ * an expression in several places in the kernel; as a result, changing it to
+ * the do{} while() syntax to allow us to _NOTE the CONSTCOND is not an option.
+ */
 #define	BF32_SET_SB(x, low, len, shift, bias, val) do { \
-	ASSERT(IS_P2ALIGNED(val, 1U << shift)); \
+	ASSERT3U(IS_P2ALIGNED(val, 1U << shift), !=, B_FALSE); \
 	ASSERT3S((val) >> (shift), >=, bias); \
 	BF32_SET(x, low, len, ((val) >> (shift)) - (bias)); \
 _NOTE(CONSTCOND) } while (0)
 #define	BF64_SET_SB(x, low, len, shift, bias, val) do { \
-	ASSERT(IS_P2ALIGNED(val, 1ULL << shift)); \
+	ASSERT3U(IS_P2ALIGNED(val, 1ULL << shift), !=, B_FALSE); \
 	ASSERT3S((val) >> (shift), >=, bias); \
 	BF64_SET(x, low, len, ((val) >> (shift)) - (bias)); \
 _NOTE(CONSTCOND) } while (0)
@@ -402,6 +408,7 @@ _NOTE(CONSTCOND) } while (0)
 typedef enum bp_embedded_type {
 	BP_EMBEDDED_TYPE_DATA,
 	BP_EMBEDDED_TYPE_RESERVED, /* Reserved for an unintegrated feature. */
+	BP_EMBEDDED_TYPE_REDACTED,
 	NUM_BP_EMBEDDED_TYPES = BP_EMBEDDED_TYPE_RESERVED
 } bp_embedded_type_t;
 
@@ -602,6 +609,14 @@ _NOTE(CONSTCOND) } while (0)
 #define	BP_IS_HOLE(bp) \
 	(!BP_IS_EMBEDDED(bp) && DVA_IS_EMPTY(BP_IDENTITY(bp)))
 
+#define	BP_SET_REDACTED(bp) \
+{							\
+	BP_SET_EMBEDDED(bp, B_TRUE);			\
+	BPE_SET_ETYPE(bp, BP_EMBEDDED_TYPE_REDACTED);	\
+}
+#define	BP_IS_REDACTED(bp) \
+	(BP_IS_EMBEDDED(bp) && BPE_GET_ETYPE(bp) == BP_EMBEDDED_TYPE_REDACTED)
+
 /* BP_IS_RAIDZ(bp) assumes no block compression */
 #define	BP_IS_RAIDZ(bp)		(DVA_GET_ASIZE(&(bp)->blk_dva[0]) > \
 				BP_GET_PSIZE(bp))
@@ -677,6 +692,13 @@ _NOTE(CONSTCOND) } while (0)
 		    compress,						\
 		    (u_longlong_t)BPE_GET_LSIZE(bp),			\
 		    (u_longlong_t)BPE_GET_PSIZE(bp),			\
+		    (u_longlong_t)bp->blk_birth);			\
+	} else if (BP_IS_REDACTED(bp)) {				\
+		len += func(buf + len, size - len,			\
+		    "REDACTED [L%llu %s] size=%llxL birth=%lluL",	\
+		    (u_longlong_t)BP_GET_LEVEL(bp),			\
+		    type,						\
+		    (u_longlong_t)BP_GET_LSIZE(bp),			\
 		    (u_longlong_t)bp->blk_birth);			\
 	} else {							\
 		for (int d = 0; d < BP_GET_NDVAS(bp); d++) {		\

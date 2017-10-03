@@ -36,6 +36,7 @@
 #include <sys/rrwlock.h>
 #include <sys/dsl_dataset.h>
 #include <sys/zfs_ioctl.h>
+#include <sys/objlist.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -197,6 +198,7 @@ extern uint_t zfs_fsyncer_key;
 
 extern int zfs_suspend_fs(zfsvfs_t *zfsvfs);
 extern int zfs_resume_fs(zfsvfs_t *zfsvfs, struct dsl_dataset *ds);
+extern int zfs_end_fs(zfsvfs_t *zfsvfs, struct dsl_dataset *ds);
 extern int zfs_userspace_one(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
     const char *domain, uint64_t rid, uint64_t *valuep);
 extern int zfs_userspace_many(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
@@ -214,6 +216,7 @@ extern int zfsvfs_create(const char *name, boolean_t readony, zfsvfs_t **zfvp);
 extern int zfsvfs_create_impl(zfsvfs_t **zfvp, zfsvfs_t *zfsvfs, objset_t *os);
 extern void zfsvfs_free(zfsvfs_t *zfsvfs);
 extern int zfs_check_global_label(const char *dsname, const char *hexsl);
+extern objlist_t *zfs_get_deleteq(objset_t *os);
 
 extern boolean_t zfs_is_readonly(zfsvfs_t *zfsvfs);
 extern int zfs_domount(struct super_block *sb, zfs_mnt_t *zm, int silent);

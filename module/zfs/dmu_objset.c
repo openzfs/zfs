@@ -412,6 +412,7 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 	int i, err;
 
 	ASSERT(ds == NULL || MUTEX_HELD(&ds->ds_opening_lock));
+	ASSERT(!BP_IS_REDACTED(bp));
 
 	/*
 	 * The $ORIGIN dataset (if it exists) doesn't have an associated

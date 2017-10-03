@@ -177,7 +177,7 @@
 .Cm mount
 .Nm
 .Cm mount
-.Op Fl Olv
+.Op Fl Oflv
 .Op Fl o Ar options
 .Fl a | Ar filesystem
 .Nm
@@ -200,9 +200,16 @@
 .Ar snapshot
 .Nm
 .Cm send
-.Op Fl LPcenvw
-.Op Fl i Ar snapshot Ns | Ns Ar bookmark
+.Op Fl DLPcenpvw
+.Oo Fl i Ar snapshot Ns | Ns Ar bookmark
+.Oc
 .Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot
+.Nm
+.Cm send
+.Fl -redact Ar redaction_bookmark
+.Op Fl DLPcenpv
+.Op Fl i Ar snapshot Ns | Ns Ar bookmark
+.Ar snapshot
 .Nm
 .Cm send
 .Op Fl Penv
@@ -226,6 +233,10 @@
 .Cm receive
 .Fl A
 .Ar filesystem Ns | Ns Ar volume
+.Nm
+.Cm redact
+.Ar snapshot redaction_bookmark
+.Op Ar redaction_snapshot Ns ...
 .Nm
 .Cm allow
 .Ar filesystem Ns | Ns Ar volume
@@ -740,6 +751,11 @@ this opaque token can be provided to
 .Sy zfs send -t
 to resume and complete the
 .Sy zfs receive .
+.It Sy redact_snaps
+For bookmarks, this is the list of snapshot guids the bookmark contains a redaction
+list for.
+For snapshots, this is the list of snapshot guids the snapshot is redacted with
+respect to.
 .It Sy referenced
 The amount of data that is accessible by this dataset, which may or may not be
 shared with other datasets in the pool.
@@ -3329,7 +3345,7 @@ Displays all ZFS file systems currently mounted.
 .It Xo
 .Nm
 .Cm mount
-.Op Fl Olv
+.Op Fl Oflv
 .Op Fl o Ar options
 .Fl a | Ar filesystem
 .Xc
@@ -3370,6 +3386,8 @@ of
 this will cause the terminal to interactively block after asking for the key.
 .It Fl v
 Report mount progress.
+.It Fl f
+Attempt to force mounting of all filesystems, even those that couldn't normally be mounted.
 .El
 .It Xo
 .Nm
@@ -3650,7 +3668,7 @@ You will be able to receive your streams on future versions of ZFS.
 .It Xo
 .Nm
 .Cm send
-.Op Fl LPcenvw
+.Op Fl DLPRcenpvw
 .Op Fl i Ar snapshot Ns | Ns Ar bookmark
 .Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot
 .Xc
@@ -3772,6 +3790,94 @@ and the verbose output goes to standard error
 Print verbose information about the stream package generated.
 This information includes a per-second report of how much data has been sent.
 .El
+.It Xo
+.Nm
+.Cm send
+.Fl -redact Ar redaction_bookmark
+.Op Fl DLPcenpv
+.br
+.Op Fl i Ar snapshot Ns | Ns Ar bookmark
+.Ar snapshot
+.Xc
+Generate a redacted send stream.
+This send stream contains all blocks from the snapshot being sent that aren't
+included in the redaction list contained in the bookmark specified by the
+.Fl -redact
+flag.
+The resulting send stream is said to be redacted with respect to the snapshots
+the bookmark specified by the
+.Fl -redact No flag was created with.
+The bookmark must have been created by running
+.Sy zfs redact
+on the snapshot being sent.
+.sp
+This feature can be used to allow clones of a filesystem to be made available on
+a remote system, in the case where their parent need not (or needs to not) be
+usable.
+For example, if a filesystem contains sensitive data, and it has clones where
+that sensitive data has been secured or replaced with dummy data, redacted sends
+can be used to replicate the secured data without replicating the original
+sensitive data, while still sharing all possible blocks.
+A snapshot that has been redacted with respect to a set of snapshots will
+contain all blocks referenced by at least one snapshot in the set, but will
+contain none of the blocks referenced by none of the snapshots in the set.
+In other words, if all snapshots in the set have modified a given block in the
+parent, that block will not be sent; but if one or more snapshots have not
+modified a block in the parent, they will still reference the parent's block, so
+that block will be sent.
+Note that only user data will be redacted.
+.sp
+When the redacted send stream is received, we will generate a redacted
+snapshot.
+Due to the nature of redaction, a redacted dataset can only be used in the
+following ways:
+.sp
+1. To receive, as a clone, an incremental send from the original snapshot to one
+of the snapshots it was redacted with respect to.
+In this case, the stream will produce a valid dataset when received because all
+blocks that were redacted in the parent are guaranteed to be present in the
+child's send stream.
+This use case will produce a normal snapshot, which can be used just like other
+snapshots.
+.sp
+2. To receive an incremental send from the original snapshot to something
+redacted with respect to a subset of the set of snapshots the initial snapshot
+was redacted with respect to.
+In this case, each block that was redacted in the original is still redacted
+(redacting with respect to additional snapshots causes less data to be redacted
+(because the snapshots define what is permitted, and everything else is
+redacted)).
+This use case will produce a new redacted snapshot.
+.sp
+3. To receive an incremental send from a redaction bookmark on the original
+snapshot that was created when redacting with respect to a subset of the set of
+snapshots the initial snapshot was created with respect to to
+anything else.
+A send stream from such a redaction bookmark will contain all of the blocks
+necessary to fill in any redacted data, should it be needed, because the sending
+system is aware of what blocks were originally redacted.
+This will either produce a normal snapshot or a redacted one, depending on
+whether the new send stream is redacted.
+.sp
+4. To receive an incremental send from a redacted version of the initial
+snapshot that is redacted with respect to a subect of the set of snapshots the
+initial snapshot was created with respect to.
+A send stream from a compatible redacted dataset will contain all of the blocks
+necessary to fill in any redacted data.
+This will either produce a normal snapshot or a redacted one, depending on
+whether the new send stream is redacted.
+.sp
+5. To receive a full send as a clone of the redacted snapshot.
+Since the stream is a full send, it definitionally contains all the data needed
+to create a new dataset.
+This use case will either produce a normal snapshot or a redacted one, depending
+on whether the full send stream was redacted.
+.sp
+These restrictions are detected and enforced by \fBzfs receive\fR; a
+redacted send stream will contain the list of snapshots that the stream is
+redacted with respsect to.
+These are stored with the redacted snapshot, and are used to detect and
+correctly handle the cases above.
 .It Xo
 .Nm
 .Cm send
@@ -4089,6 +4195,24 @@ restrictions (e.g. set-once) apply equally to
 Abort an interrupted
 .Nm zfs Cm receive Fl s ,
 deleting its saved partially received state.
+.It Xo
+.Nm
+.Cm redact
+.Ar snapshot redaction_bookmark
+.Op Ar redaction_snapshot Ns ...
+.Xc
+Generate a new redaction bookmark.
+In addition to the typical bookmark information, a redaction bookmark contains
+the list of redacted blocks and the list of redaction snapshots specified.
+The redacted blocks are blocks in the snapshot which are not referenced by any
+of the redaction snapshots.
+These blocks are found by iterating over the metadata in each redaction snapshot
+to determine what has been changed since the target snapshot.
+Redaction is designed to support redacted zfs sends; see the entry for
+.Sy zfs send
+for more information on the purpose of this operation.
+If a redact operation fails partway through (due to an error or a system
+failure), the redaction can be resumed by rerunning the same command.
 .It Xo
 .Nm
 .Cm allow
