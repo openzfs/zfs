@@ -20,6 +20,8 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/dmu.h \
 	$(top_srcdir)/include/sys/dmu_impl.h \
 	$(top_srcdir)/include/sys/dmu_objset.h \
+	$(top_srcdir)/include/sys/dmu_recv.h \
+	$(top_srcdir)/include/sys/dmu_redact.h \
 	$(top_srcdir)/include/sys/dmu_send.h \
 	$(top_srcdir)/include/sys/dmu_traverse.h \
 	$(top_srcdir)/include/sys/dmu_tx.h \
@@ -49,6 +51,7 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/note.h \
 	$(top_srcdir)/include/sys/nvpair.h \
 	$(top_srcdir)/include/sys/nvpair_impl.h \
+	$(top_srcdir)/include/sys/objlist.h \
 	$(top_srcdir)/include/sys/pathname.h \
 	$(top_srcdir)/include/sys/policy.h \
 	$(top_srcdir)/include/sys/range_tree.h \
