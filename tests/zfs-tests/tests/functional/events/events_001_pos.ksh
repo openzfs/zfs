@@ -55,13 +55,21 @@ log_assert "Verify zpool sub-commands generate expected events"
 log_onexit cleanup
 
 log_must truncate -s $MINVDEVSIZE $VDEV1 $VDEV2 $VDEV3 $VDEV4
+
+log_must zpool events -c
 log_must zed_start
 
 # Create a mirrored pool with two devices.
 run_and_verify -p "$MPOOL" \
-    -e "sysevent.fs.zfs.config_sync" \
     -e "sysevent.fs.zfs.pool_create" \
+    -e "sysevent.fs.zfs.history_event" \
+    -e "sysevent.fs.zfs.config_sync" \
     "zpool create $MPOOL mirror $VDEV1 $VDEV2"
+
+# Set a pool property.
+run_and_verify -p "$MPOOL" \
+    -e "sysevent.fs.zfs.history_event" \
+    "zpool set comment=string $MPOOL"
 
 # Add a cache device then remove it.
 run_and_verify -p "$MPOOL" \
@@ -86,15 +94,22 @@ run_and_verify -p "$MPOOL"\
     -e "resource.fs.zfs.statechange" \
     -e "sysevent.fs.zfs.config_sync" \
     "zpool offline $MPOOL $VDEV1"
-run_and_verify -p "$MPOOL" \
+run_and_verify -p "$MPOOL" -d 10 \
     -e "resource.fs.zfs.statechange" \
     -e "sysevent.fs.zfs.vdev_online" \
+    -e "sysevent.fs.zfs.resilver_start" \
+    -e "sysevent.fs.zfs.resilver_finish" \
+    -e "sysevent.fs.zfs.history_event" \
     -e "sysevent.fs.zfs.config_sync" \
     "zpool online $MPOOL $VDEV1"
 
 # Attach then detach a device from the mirror.
-run_and_verify -p "$MPOOL" \
-     -e "sysevent.fs.zfs.vdev_attach" \
+run_and_verify -p "$MPOOL" -d 10 \
+    -e "sysevent.fs.zfs.vdev_attach" \
+    -e "sysevent.fs.zfs.resilver_start" \
+    -e "sysevent.fs.zfs.resilver_finish" \
+    -e "sysevent.fs.zfs.history_event" \
+    -e "sysevent.fs.zfs.config_sync" \
     "zpool attach $MPOOL $VDEV1 $VDEV4"
 run_and_verify -p "$MPOOL" \
     -e "sysevent.fs.zfs.vdev_remove" \
@@ -102,26 +117,30 @@ run_and_verify -p "$MPOOL" \
     "zpool detach $MPOOL $VDEV4"
 
 # Replace a device
-run_and_verify -p "$MPOOL" \
+run_and_verify -p "$MPOOL" -d 10 \
     -e "sysevent.fs.zfs.vdev_attach" \
     -e "sysevent.fs.zfs.resilver_start" \
     -e "sysevent.fs.zfs.resilver_finish" \
+    -e "sysevent.fs.zfs.vdev_remove" \
+    -e "sysevent.fs.zfs.history_event" \
     -e "sysevent.fs.zfs.config_sync" \
     "zpool replace -f $MPOOL $VDEV1 $VDEV4"
 
 # Scrub a pool.
-run_and_verify -p "$MPOOL" \
+run_and_verify -p "$MPOOL" -d 10 \
     -e "sysevent.fs.zfs.scrub_start" \
     -e "sysevent.fs.zfs.scrub_finish" \
+    -e "sysevent.fs.zfs.history_event" \
     "zpool scrub $MPOOL"
 
-# Export then import a pool (may change to a pool_export event)
+# Export then import a pool
 run_and_verify -p "$MPOOL" \
-    -e "sysevent.fs.zfs.pool_destroy" \
+    -e "sysevent.fs.zfs.pool_export" \
     -e "sysevent.fs.zfs.config_sync" \
     "zpool export $MPOOL"
 run_and_verify -p "$MPOOL" \
     -e "sysevent.fs.zfs.pool_import" \
+    -e "sysevent.fs.zfs.history_event" \
     -e "sysevent.fs.zfs.config_sync" \
     "zpool import -d $TEST_BASE_DIR $MPOOL"
 
