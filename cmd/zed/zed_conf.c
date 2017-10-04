@@ -367,7 +367,7 @@ zed_conf_scan_dir(struct zed_conf *zcp)
 		n = snprintf(pathname, sizeof (pathname),
 		    "%s/%s", zcp->zedlet_dir, direntp->d_name);
 		if ((n < 0) || (n >= sizeof (pathname))) {
-			zed_log_msg(LOG_WARNING, "Failed to stat \"%s\": %s",
+			zed_log_msg(LOG_WARNING, "Failed to snprintf \"%s\": %s",
 			    direntp->d_name, strerror(ENAMETOOLONG));
 			continue;
 		}
