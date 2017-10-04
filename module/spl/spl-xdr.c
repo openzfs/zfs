@@ -1,4 +1,4 @@
-/*****************************************************************************\
+/*
  *  Copyright (c) 2008-2010 Sun Microsystems, Inc.
  *  Written by Ricardo Correia <Ricardo.M.Correia@Sun.COM>
  *
@@ -19,7 +19,7 @@
  *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
  *****************************************************************************
  *  Solaris Porting Layer (SPL) XDR Implementation.
-\*****************************************************************************/
+ */
 
 #include <linux/string.h>
 #include <sys/kmem.h>

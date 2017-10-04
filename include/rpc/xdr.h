@@ -1,4 +1,4 @@
-/*****************************************************************************\
+/*
  *  Copyright (c) 2008 Sun Microsystems, Inc.
  *  Written by Ricardo Correia <Ricardo.M.Correia@Sun.COM>
  *
@@ -17,7 +17,7 @@
  *
  *  You should have received a copy of the GNU General Public License along
  *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
-\*****************************************************************************/
+ */
 
 #ifndef _SPL_RPC_XDR_H
 #define _SPL_RPC_XDR_H

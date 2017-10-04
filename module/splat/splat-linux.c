@@ -1,4 +1,4 @@
-/*****************************************************************************\
+/*
  *  Copyright (C) 2011 Lawrence Livermore National Security, LLC.
  *  Produced at Lawrence Livermore National Laboratory (cf, DISCLAIMER).
  *  Written by Brian Behlendorf <behlendorf1@llnl.gov>.
@@ -21,7 +21,7 @@
  *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
  *****************************************************************************
  *  Solaris Porting LAyer Tests (SPLAT) Kernel Compatibility Tests.
-\*****************************************************************************/
+ */
 
 #include <sys/kmem.h>
 #include <linux/mm_compat.h>

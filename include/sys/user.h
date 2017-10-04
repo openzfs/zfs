@@ -1,4 +1,4 @@
-/*****************************************************************************\
+/*
  *  Copyright (C) 2015 Cluster Inc.
  *  Produced at ClusterHQ Inc (cf, DISCLAIMER).
  *  Written by Richard Yao <richard.yao@clusterhq.com>.
@@ -18,7 +18,7 @@
  *
  *  You should have received a copy of the GNU General Public License along
  *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
-\*****************************************************************************/
+ */
 
 #ifndef _SPL_USER_H
 #define _SPL_USER_H
