@@ -1164,7 +1164,7 @@ vdev_copy_uberblocks(vdev_t *vd)
 
 	spa_config_enter(vd->vdev_spa, locks, FTAG, RW_READER);
 
-	ub_abd = abd_alloc(VDEV_UBERBLOCK_SIZE(vd), B_TRUE);
+	ub_abd = abd_alloc_linear(VDEV_UBERBLOCK_SIZE(vd), B_TRUE);
 
 	write_zio = zio_root(vd->vdev_spa, NULL, NULL, flags);
 	for (int n = 0; n < VDEV_UBERBLOCK_COUNT(vd); n++) {
