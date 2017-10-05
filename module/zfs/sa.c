@@ -980,7 +980,8 @@ bail:
 	kmem_free(sa->sa_user_table, count * sizeof (sa_attr_type_t));
 	sa->sa_user_table = NULL;
 	sa_free_attr_table(sa);
-	return ((error != 0) ? error : EINVAL);
+	ASSERT(error != 0);
+	return (error);
 }
 
 int
