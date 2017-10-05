@@ -1251,8 +1251,8 @@ zio_crypt_init_uios_zil(boolean_t encrypt, uint8_t *plainbuf,
     boolean_t *no_crypt)
 {
 	int ret;
-	uint64_t txtype;
-	uint_t nr_src, nr_dst, lr_len, crypt_len;
+	uint64_t txtype, lr_len;
+	uint_t nr_src, nr_dst, crypt_len;
 	uint_t aad_len = 0, nr_iovecs = 0, total_len = 0;
 	iovec_t *src_iovecs = NULL, *dst_iovecs = NULL;
 	uint8_t *src, *dst, *slrp, *dlrp, *blkend, *aadp;
