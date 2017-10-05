@@ -23,7 +23,7 @@
  */
 
 #ifndef _SPL_RWSEM_COMPAT_H
-#define _SPL_RWSEM_COMPAT_H
+#define	_SPL_RWSEM_COMPAT_H
 
 #include <linux/rwsem.h>
 
@@ -53,15 +53,16 @@
 int rwsem_tryupgrade(struct rw_semaphore *rwsem);
 
 #if defined(RWSEM_SPINLOCK_IS_RAW)
-#define spl_rwsem_lock_irqsave(lk, fl)       raw_spin_lock_irqsave(lk, fl)
-#define spl_rwsem_unlock_irqrestore(lk, fl)  raw_spin_unlock_irqrestore(lk, fl)
-#define spl_rwsem_trylock_irqsave(lk, fl)    raw_spin_trylock_irqsave(lk, fl)
+#define	spl_rwsem_lock_irqsave(lk, fl)		raw_spin_lock_irqsave(lk, fl)
+#define	spl_rwsem_unlock_irqrestore(lk, fl)	\
+    raw_spin_unlock_irqrestore(lk, fl)
+#define	spl_rwsem_trylock_irqsave(lk, fl)	raw_spin_trylock_irqsave(lk, fl)
 #else
-#define spl_rwsem_lock_irqsave(lk, fl)       spin_lock_irqsave(lk, fl)
-#define spl_rwsem_unlock_irqrestore(lk, fl)  spin_unlock_irqrestore(lk, fl)
-#define spl_rwsem_trylock_irqsave(lk, fl)    spin_trylock_irqsave(lk, fl)
+#define	spl_rwsem_lock_irqsave(lk, fl)		spin_lock_irqsave(lk, fl)
+#define	spl_rwsem_unlock_irqrestore(lk, fl)	spin_unlock_irqrestore(lk, fl)
+#define	spl_rwsem_trylock_irqsave(lk, fl)	spin_trylock_irqsave(lk, fl)
 #endif /* RWSEM_SPINLOCK_IS_RAW */
 
-#define spl_rwsem_is_locked(rwsem)           rwsem_is_locked(rwsem)
+#define	spl_rwsem_is_locked(rwsem)		rwsem_is_locked(rwsem)
 
 #endif /* _SPL_RWSEM_COMPAT_H */

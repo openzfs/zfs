@@ -23,7 +23,7 @@
  */
 
 #ifndef _SPL_PROC_COMPAT_H
-#define _SPL_PROC_COMPAT_H
+#define	_SPL_PROC_COMPAT_H
 
 #include <linux/proc_fs.h>
 

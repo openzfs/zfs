@@ -23,9 +23,8 @@
  */
 
 #ifndef _SPL_BITOPS_COMPAT_H
-#define _SPL_BITOPS_COMPAT_H
+#define	_SPL_BITOPS_COMPAT_H
 
 #include <linux/bitops.h>
 
 #endif /* _SPL_BITOPS_COMPAT_H */
-

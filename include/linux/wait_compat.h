@@ -23,23 +23,23 @@
  */
 
 #ifndef _SPL_WAIT_COMPAT_H
-#define _SPL_WAIT_COMPAT_H
+#define	_SPL_WAIT_COMPAT_H
 
 #include <linux/sched.h>
 #include <linux/wait.h>
 
 #ifndef HAVE_WAIT_ON_BIT_ACTION
-#  define spl_wait_on_bit(word, bit, mode) wait_on_bit(word, bit, mode)
+#define	spl_wait_on_bit(word, bit, mode)	wait_on_bit(word, bit, mode)
 #else
 
 static inline int
 spl_bit_wait(void *word)
 {
-        schedule();
-        return 0;
+	schedule();
+	return (0);
 }
 
-#define spl_wait_on_bit(word, bit, mode)			\
+#define	spl_wait_on_bit(word, bit, mode)		\
 	wait_on_bit(word, bit, spl_bit_wait, mode)
 
 #endif /* HAVE_WAIT_ON_BIT_ACTION */

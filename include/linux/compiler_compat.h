@@ -23,7 +23,7 @@
  */
 
 #ifndef _SPL_COMPILER_COMPAT_H
-#define _SPL_COMPILER_COMPAT_H
+#define	_SPL_COMPILER_COMPAT_H
 
 #include <linux/compiler.h>
 
@@ -41,7 +41,7 @@
  * handlers, all running on the same CPU.
  */
 /* Taken from 2.6.33.2 */
-# define ACCESS_ONCE(x) (*(volatile typeof(x) *)&(x))
+#define	ACCESS_ONCE(x) (*(volatile typeof(x) *)&(x))
 #endif
 
 #endif /* _SPL_COMPILER_COMPAT_H */

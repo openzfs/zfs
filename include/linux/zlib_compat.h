@@ -22,15 +22,15 @@
  */
 
 #ifndef _SPL_ZLIB_COMPAT_H
-#define _SPL_ZLIB_COMPAT_H
+#define	_SPL_ZLIB_COMPAT_H
 
 #include <linux/zlib.h>
 
 #ifdef HAVE_2ARGS_ZLIB_DEFLATE_WORKSPACESIZE
-#define spl_zlib_deflate_workspacesize(wb, ml) \
+#define	spl_zlib_deflate_workspacesize(wb, ml) \
 	zlib_deflate_workspacesize(wb, ml)
 #else
-#define spl_zlib_deflate_workspacesize(wb, ml) \
+#define	spl_zlib_deflate_workspacesize(wb, ml) \
 	zlib_deflate_workspacesize()
 #endif /* HAVE_2ARGS_ZLIB_DEFLATE_WORKSPACESIZE */
 

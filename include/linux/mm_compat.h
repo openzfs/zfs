@@ -23,7 +23,7 @@
  */
 
 #ifndef _SPL_MM_COMPAT_H
-#define _SPL_MM_COMPAT_H
+#define	_SPL_MM_COMPAT_H
 
 #include <linux/mm.h>
 #include <linux/fs.h>

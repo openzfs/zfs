@@ -23,7 +23,7 @@
  */
 
 #ifndef _SPL_DELAY_COMPAT_H
-#define _SPL_DELAY_COMPAT_H
+#define	_SPL_DELAY_COMPAT_H
 
 #include <linux/delay.h>
 #include <linux/time.h>

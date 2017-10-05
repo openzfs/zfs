@@ -23,7 +23,7 @@
  */
 
 #ifndef _SPL_FILE_COMPAT_H
-#define _SPL_FILE_COMPAT_H
+#define	_SPL_FILE_COMPAT_H
 
 #include <linux/fs.h>
 #ifdef HAVE_FDTABLE_HEADER
@@ -33,22 +33,22 @@
 static inline struct file *
 spl_filp_open(const char *name, int flags, int mode, int *err)
 {
-        struct file *filp = NULL;
-        int rc;
+	struct file *filp = NULL;
+	int rc;
 
-        filp = filp_open(name, flags, mode);
-        if (IS_ERR(filp)) {
-                rc = PTR_ERR(filp);
-                if (err)
-                        *err = rc;
-                filp = NULL;
-        }
-        return filp;
+	filp = filp_open(name, flags, mode);
+	if (IS_ERR(filp)) {
+		rc = PTR_ERR(filp);
+		if (err)
+			*err = rc;
+		filp = NULL;
+	}
+	return (filp);
 }
 
-#define spl_filp_close(f)		filp_close(f, NULL)
-#define spl_filp_poff(f)		(&(f)->f_pos)
-#define spl_filp_write(fp, b, s, p)	(fp)->f_op->write((fp), (b), (s), p)
+#define	spl_filp_close(f)		filp_close(f, NULL)
+#define	spl_filp_poff(f)		(&(f)->f_pos)
+#define	spl_filp_write(fp, b, s, p)	(fp)->f_op->write((fp), (b), (s), p)
 
 static inline int
 spl_filp_fallocate(struct file *fp, int mode, loff_t offset, loff_t len)
@@ -65,7 +65,7 @@ spl_filp_fallocate(struct file *fp, int mode, loff_t offset, loff_t len)
 		error = fp->f_dentry->d_inode->i_op->fallocate(
 		    fp->f_dentry->d_inode, mode, offset, len);
 #endif /* HAVE_INODE_FALLOCATE */
-#endif /*HAVE_FILE_FALLOCATE */
+#endif /* HAVE_FILE_FALLOCATE */
 
 	return (error);
 }
@@ -97,4 +97,3 @@ spl_filp_fallocate(struct file *fp, int mode, loff_t offset, loff_t len)
 #endif
 
 #endif /* SPL_FILE_COMPAT_H */
-

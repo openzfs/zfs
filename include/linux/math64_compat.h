@@ -23,10 +23,10 @@
  */
 
 #ifndef _SPL_MATH64_COMPAT_H
-#define _SPL_MATH64_COMPAT_H
+#define	_SPL_MATH64_COMPAT_H
 
 #ifndef abs64
-#define abs64(x)	({ uint64_t t = (x) >> 63; ((x) ^ t) - t; })
+#define	abs64(x)	({ uint64_t t = (x) >> 63; ((x) ^ t) - t; })
 #endif
 
 #endif /* _SPL_MATH64_COMPAT_H */
