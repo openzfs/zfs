@@ -24,6 +24,17 @@ if CONFIG_KERNEL
 	$(RM) $$pkg1
 endif
 
+
+deb-dkms: deb-local rpm-dkms
+if CONFIG_KERNEL
+	name=${PACKAGE}; \
+	version=${VERSION}-${RELEASE}; \
+	arch=`$(RPM) -qp $${name}-dkms-$${version}.src.rpm --qf %{arch} | tail -1`; \
+	pkg1=$${name}-dkms-$${version}.$${arch}.rpm; \
+	fakeroot $(ALIEN) --bump=0 --scripts --to-deb $$pkg1; \
+	$(RM) $$pkg1
+endif
+
 deb-utils: deb-local rpm-utils
 if CONFIG_USER
 	name=${PACKAGE}; \
@@ -60,4 +71,4 @@ if CONFIG_USER
 	    $$pkg8 $$pkg9;
 endif
 
-deb: deb-kmod deb-utils
+deb: deb-kmod deb-dkms deb-utils
