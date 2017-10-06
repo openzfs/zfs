@@ -649,6 +649,9 @@ typedef struct arc_stats {
 	kstat_named_t arcstat_memory_throttle_count;
 	kstat_named_t arcstat_memory_direct_count;
 	kstat_named_t arcstat_memory_indirect_count;
+	kstat_named_t arcstat_memory_all_bytes;
+	kstat_named_t arcstat_memory_free_bytes;
+	kstat_named_t arcstat_memory_available_bytes;
 	kstat_named_t arcstat_no_grow;
 	kstat_named_t arcstat_tempreserve;
 	kstat_named_t arcstat_loaned_bytes;
@@ -745,6 +748,9 @@ static arc_stats_t arc_stats = {
 	{ "memory_throttle_count",	KSTAT_DATA_UINT64 },
 	{ "memory_direct_count",	KSTAT_DATA_UINT64 },
 	{ "memory_indirect_count",	KSTAT_DATA_UINT64 },
+	{ "memory_all_bytes",		KSTAT_DATA_UINT64 },
+	{ "memory_free_bytes",		KSTAT_DATA_UINT64 },
+	{ "memory_available_bytes",	KSTAT_DATA_INT64 },
 	{ "arc_no_grow",		KSTAT_DATA_UINT64 },
 	{ "arc_tempreserve",		KSTAT_DATA_UINT64 },
 	{ "arc_loaned_bytes",		KSTAT_DATA_UINT64 },
@@ -4658,30 +4664,46 @@ static uint64_t
 arc_all_memory(void)
 {
 #ifdef _KERNEL
-	return (MIN(ptob(physmem),
-	    vmem_size(heap_arena, VMEM_FREE | VMEM_ALLOC)));
+#ifdef CONFIG_HIGHMEM
+	return (ptob(totalram_pages - totalhigh_pages));
+#else
+	return (ptob(totalram_pages));
+#endif /* CONFIG_HIGHMEM */
 #else
 	return (ptob(physmem) / 2);
-#endif
+#endif /* _KERNEL */
 }
 
-#ifdef _KERNEL
+/*
+ * Return the amount of memory that is considered free.  In user space
+ * which is primarily used for testing we pretend that free memory ranges
+ * from 0-20% of all memory.
+ */
 static uint64_t
 arc_free_memory(void)
 {
+#ifdef _KERNEL
+#ifdef CONFIG_HIGHMEM
+	struct sysinfo si;
+	si_meminfo(&si);
+	return (ptob(si.freeram - si.freehigh));
+#else
 #ifdef ZFS_GLOBAL_NODE_PAGE_STATE
-	return (nr_free_pages() +
+	return (ptob(nr_free_pages() +
 	    global_node_page_state(NR_INACTIVE_FILE) +
 	    global_node_page_state(NR_INACTIVE_ANON) +
-	    global_node_page_state(NR_SLAB_RECLAIMABLE));
+	    global_node_page_state(NR_SLAB_RECLAIMABLE)));
 #else
-	return (nr_free_pages() +
+	return (ptob(nr_free_pages() +
 	    global_page_state(NR_INACTIVE_FILE) +
 	    global_page_state(NR_INACTIVE_ANON) +
-	    global_page_state(NR_SLAB_RECLAIMABLE));
-#endif
+	    global_page_state(NR_SLAB_RECLAIMABLE)));
+#endif /* ZFS_GLOBAL_NODE_PAGE_STATE */
+#endif /* CONFIG_HIGHMEM */
+#else
+	return (spa_get_random(arc_all_memory() * 20 / 100));
+#endif /* _KERNEL */
 }
-#endif
 
 typedef enum free_memory_reason_t {
 	FMR_UNKNOWN,
@@ -4719,17 +4741,15 @@ arc_available_memory(void)
 	int64_t lowest = INT64_MAX;
 	free_memory_reason_t r = FMR_UNKNOWN;
 #ifdef _KERNEL
-	uint64_t available_memory = ptob(arc_free_memory());
 	int64_t n;
 #ifdef __linux__
+#ifdef freemem
+#undef freemem
+#endif
 	pgcnt_t needfree = btop(arc_need_free);
 	pgcnt_t lotsfree = btop(arc_sys_free);
 	pgcnt_t desfree = 0;
-#endif
-
-#if defined(__i386)
-	available_memory =
-	    MIN(available_memory, vmem_size(heap_arena, VMEM_FREE));
+	pgcnt_t freemem = btop(arc_free_memory());
 #endif
 
 	if (needfree > 0) {
@@ -4747,7 +4767,7 @@ arc_available_memory(void)
 	 * number of needed free pages.  We add extra pages here to make sure
 	 * the scanner doesn't start up while we're freeing memory.
 	 */
-	n = PAGESIZE * (btop(available_memory) - lotsfree - needfree - desfree);
+	n = PAGESIZE * (freemem - lotsfree - needfree - desfree);
 	if (n < lowest) {
 		lowest = n;
 		r = FMR_LOTSFREE;
@@ -4768,7 +4788,6 @@ arc_available_memory(void)
 		r = FMR_SWAPFS_MINFREE;
 	}
 
-
 	/*
 	 * Check that we have enough availrmem that memory locking (e.g., via
 	 * mlock(3C) or memcntl(2)) can still succeed.  (pages_pp_maximum
@@ -4784,9 +4803,9 @@ arc_available_memory(void)
 	}
 #endif
 
-#if defined(__i386)
+#if defined(_ILP32)
 	/*
-	 * If we're on an i386 platform, it's possible that we'll exhaust the
+	 * If we're on a 32-bit platform, it's possible that we'll exhaust the
 	 * kernel heap space before we ever run out of available physical
 	 * memory.  Most checks of the size of the heap_area compare against
 	 * tune.t_minarmem, which is the minimum available real memory that we
@@ -4855,6 +4874,7 @@ arc_kmem_reap_now(void)
 	extern kmem_cache_t	*zio_data_buf_cache[];
 	extern kmem_cache_t	*range_seg_cache;
 
+#ifdef _KERNEL
 	if ((arc_meta_used >= arc_meta_limit) && zfs_arc_meta_prune) {
 		/*
 		 * We are exceeding our meta-data cache limit.
@@ -4862,9 +4882,16 @@ arc_kmem_reap_now(void)
 		 */
 		arc_prune_async(zfs_arc_meta_prune);
 	}
+#if defined(_ILP32)
+	/*
+	 * Reclaim unused memory from all kmem caches.
+	 */
+	kmem_reap();
+#endif
+#endif
 
 	for (i = 0; i < SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT; i++) {
-#ifdef _ILP32
+#if defined(_ILP32)
 		/* reach upper limit of cache size on 32-bit */
 		if (zio_buf_cache[i] == NULL)
 			break;
@@ -6922,14 +6949,11 @@ static int
 arc_memory_throttle(uint64_t reserve, uint64_t txg)
 {
 #ifdef _KERNEL
-	uint64_t available_memory = ptob(arc_free_memory());
+	uint64_t available_memory = arc_free_memory();
 	static uint64_t page_load = 0;
 	static uint64_t last_txg = 0;
-#ifdef __linux__
-	pgcnt_t minfree = btop(arc_sys_free / 4);
-#endif
 
-#if defined(__i386)
+#if defined(_ILP32)
 	available_memory =
 	    MIN(available_memory, vmem_size(heap_arena, VMEM_FREE));
 #endif
@@ -6947,7 +6971,7 @@ arc_memory_throttle(uint64_t reserve, uint64_t txg)
 	 * continue to let page writes occur as quickly as possible.
 	 */
 	if (current_is_kswapd()) {
-		if (page_load > MAX(ptob(minfree), available_memory) / 4) {
+		if (page_load > MAX(arc_sys_free / 4, available_memory) / 4) {
 			DMU_TX_STAT_BUMP(dmu_tx_memory_reclaim);
 			return (SET_ERROR(ERESTART));
 		}
@@ -7077,6 +7101,13 @@ arc_kstat_update(kstat_t *ksp, int rw)
 		    &as->arcstat_mfu_ghost_size,
 		    &as->arcstat_mfu_ghost_evictable_data,
 		    &as->arcstat_mfu_ghost_evictable_metadata);
+
+		as->arcstat_memory_all_bytes.value.ui64 =
+		    arc_all_memory();
+		as->arcstat_memory_free_bytes.value.ui64 =
+		    arc_free_memory();
+		as->arcstat_memory_available_bytes.value.i64 =
+		    arc_available_memory();
 	}
 
 	return (0);

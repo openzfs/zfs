@@ -50,7 +50,7 @@ function cleanup
         poolexists $TESTPOOL1 && \
                 log_must zpool destroy -f $TESTPOOL1
 
-        for file in `ls $TESTDIR/file.*`; do
+        for file in `ls $TEST_BASE_DIR/file.*`; do
 		log_must rm -f $file
         done
 }
@@ -62,12 +62,12 @@ log_onexit cleanup
 #make raw files to create various configuration pools
 typeset -i i=0
 while (( i < 3 )); do
-	log_must mkfile $FILESIZE $TESTDIR/file.$i
+	log_must truncate -s $FILESIZE $TEST_BASE_DIR/file.$i
 
 	(( i = i + 1 ))
 done
 
-fbase=$TESTDIR/file
+fbase=$TEST_BASE_DIR/file
 set -A poolconf "mirror $fbase.0 $fbase.1 $fbase.2" \
                 "raidz1 $fbase.0 $fbase.1 $fbase.2" \
                 "raidz2 $fbase.0 $fbase.1 $fbase.2"
