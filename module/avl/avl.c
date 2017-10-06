@@ -626,25 +626,16 @@ avl_insert_here(
 }
 
 /*
- * Add a new node to an AVL tree.
+ * Add a new node to an AVL tree.  Strictly enforce that no duplicates can
+ * be added to the tree with a VERIFY which is enabled for non-DEBUG builds.
  */
 void
 avl_add(avl_tree_t *tree, void *new_node)
 {
 	avl_index_t where = 0;
 
-	/*
-	 * This is unfortunate.  We want to call panic() here, even for
-	 * non-DEBUG kernels.  In userland, however, we can't depend on anything
-	 * in libc or else the rtld build process gets confused.  So, all we can
-	 * do in userland is resort to a normal ASSERT().
-	 */
-	if (avl_find(tree, new_node, &where) != NULL)
-#ifdef _KERNEL
-		panic("avl_find() succeeded inside avl_add()");
-#else
-		ASSERT(0);
-#endif
+	VERIFY(avl_find(tree, new_node, &where) == NULL);
+
 	avl_insert(tree, new_node, where);
 }
 
@@ -815,64 +806,6 @@ avl_remove(avl_tree_t *tree, void *data)
 		else if (!avl_rotation(tree, node, new_balance))
 			break;
 	} while (parent != NULL);
-}
-
-#define	AVL_REINSERT(tree, obj)		\
-	avl_remove((tree), (obj));	\
-	avl_add((tree), (obj))
-
-boolean_t
-avl_update_lt(avl_tree_t *t, void *obj)
-{
-	void *neighbor;
-
-	ASSERT(((neighbor = AVL_NEXT(t, obj)) == NULL) ||
-	    (t->avl_compar(obj, neighbor) <= 0));
-
-	neighbor = AVL_PREV(t, obj);
-	if ((neighbor != NULL) && (t->avl_compar(obj, neighbor) < 0)) {
-		AVL_REINSERT(t, obj);
-		return (B_TRUE);
-	}
-
-	return (B_FALSE);
-}
-
-boolean_t
-avl_update_gt(avl_tree_t *t, void *obj)
-{
-	void *neighbor;
-
-	ASSERT(((neighbor = AVL_PREV(t, obj)) == NULL) ||
-	    (t->avl_compar(obj, neighbor) >= 0));
-
-	neighbor = AVL_NEXT(t, obj);
-	if ((neighbor != NULL) && (t->avl_compar(obj, neighbor) > 0)) {
-		AVL_REINSERT(t, obj);
-		return (B_TRUE);
-	}
-
-	return (B_FALSE);
-}
-
-boolean_t
-avl_update(avl_tree_t *t, void *obj)
-{
-	void *neighbor;
-
-	neighbor = AVL_PREV(t, obj);
-	if ((neighbor != NULL) && (t->avl_compar(obj, neighbor) < 0)) {
-		AVL_REINSERT(t, obj);
-		return (B_TRUE);
-	}
-
-	neighbor = AVL_NEXT(t, obj);
-	if ((neighbor != NULL) && (t->avl_compar(obj, neighbor) > 0)) {
-		AVL_REINSERT(t, obj);
-		return (B_TRUE);
-	}
-
-	return (B_FALSE);
 }
 
 void
