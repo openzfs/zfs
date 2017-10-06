@@ -4562,7 +4562,7 @@ convoff(struct inode *ip, flock64_t *lckdat, int  whence, offset_t offset)
 	int error;
 
 	if ((lckdat->l_whence == 2) || (whence == 2)) {
-		if ((error = zfs_getattr(ip, &vap, 0, CRED()) != 0))
+		if ((error = zfs_getattr(ip, &vap, 0, CRED())))
 			return (error);
 	}
 
