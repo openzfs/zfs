@@ -65,6 +65,11 @@ struct dbuf_hold_impl_data {
 	dbuf_dirty_record_t *dh_dr;
 	arc_buf_contents_t dh_type;
 	int dh_depth;
+	enum zio_compress dh_compress_type;
+	boolean_t dh_byteorder;
+	uint8_t dh_salt[ZIO_DATA_SALT_LEN];
+	uint8_t dh_iv[ZIO_DATA_IV_LEN];
+	uint8_t dh_mac[ZIO_DATA_MAC_LEN];
 };
 
 static void __dbuf_hold_impl_init(struct dbuf_hold_impl_data *dh,
@@ -2784,15 +2789,45 @@ __dbuf_hold_impl(struct dbuf_hold_impl_data *dh)
 	    dh->dh_dn->dn_object != DMU_META_DNODE_OBJECT &&
 	    dh->dh_db->db_state == DB_CACHED && dh->dh_db->db_data_pending) {
 		dh->dh_dr = dh->dh_db->db_data_pending;
-
 		if (dh->dh_dr->dt.dl.dr_data == dh->dh_db->db_buf) {
+			dh->dh_compress_type = arc_get_compression(
+			    dh->dh_dr->dt.dl.dr_data);
 			dh->dh_type = DBUF_GET_BUFC_TYPE(dh->dh_db);
-
-			dbuf_set_data(dh->dh_db,
-			    arc_alloc_buf(dh->dh_dn->dn_objset->os_spa,
-			    dh->dh_db, dh->dh_type, dh->dh_db->db.db_size));
+			if (arc_is_encrypted(dh->dh_dr->dt.dl.dr_data)) {
+				arc_get_raw_params(dh->dh_dr->dt.dl.dr_data,
+				    &dh->dh_byteorder, dh->dh_salt, dh->dh_iv,
+				    dh->dh_mac);
+				dbuf_set_data(dh->dh_db,
+				    arc_alloc_raw_buf(
+				    dh->dh_dn->dn_objset->os_spa,
+				    dh->dh_db,
+				    dmu_objset_id(dh->dh_dn->dn_objset),
+				    dh->dh_byteorder,
+				    dh->dh_salt,
+				    dh->dh_iv,
+				    dh->dh_mac,
+				    dh->dh_dn->dn_type,
+				    arc_buf_size(dh->dh_dr->dt.dl.dr_data),
+				    arc_buf_lsize(dh->dh_dr->dt.dl.dr_data),
+				    dh->dh_compress_type));
+			} else if (dh->dh_compress_type != ZIO_COMPRESS_OFF) {
+				dbuf_set_data(dh->dh_db,
+				    arc_alloc_compressed_buf(
+				    dh->dh_dn->dn_objset->os_spa,
+				    dh->dh_db,
+				    arc_buf_size(dh->dh_dr->dt.dl.dr_data),
+				    arc_buf_lsize(dh->dh_dr->dt.dl.dr_data),
+				    dh->dh_compress_type));
+			} else {
+				dbuf_set_data(dh->dh_db,
+				    arc_alloc_buf(dh->dh_dn->dn_objset->os_spa,
+				    dh->dh_db,
+				    dh->dh_type,
+				    dh->dh_db->db.db_size));
+			}
 			bcopy(dh->dh_dr->dt.dl.dr_data->b_data,
-			    dh->dh_db->db.db_data, dh->dh_db->db.db_size);
+			    dh->dh_db->db.db_data,
+			    arc_buf_size(dh->dh_dr->dt.dl.dr_data));
 		}
 	}
 
