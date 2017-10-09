@@ -28,6 +28,7 @@
  * Copyright (c) 2013 by Prasad Joshi (sTec). All rights reserved.
  * Copyright 2016 Igor Kozhukhov <ikozhukhov@gmail.com>.
  * Copyright (c) 2017 Datto Inc.
+ * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
  */
 
 #include <assert.h>
@@ -342,7 +343,7 @@ get_usage(zpool_help_t idx)
 	case HELP_REMOVE:
 		return (gettext("\tremove <pool> <device> ...\n"));
 	case HELP_REOPEN:
-		return (gettext("\treopen <pool>\n"));
+		return (gettext("\treopen [-n] <pool>\n"));
 	case HELP_SCRUB:
 		return (gettext("\tscrub [-s | -p] <pool> ...\n"));
 	case HELP_STATUS:
@@ -5855,12 +5856,14 @@ zpool_do_reopen(int argc, char **argv)
 {
 	int c;
 	int ret = 0;
-	zpool_handle_t *zhp;
-	char *pool;
+	boolean_t scrub_restart = B_TRUE;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "")) != -1) {
+	while ((c = getopt(argc, argv, "n")) != -1) {
 		switch (c) {
+		case 'n':
+			scrub_restart = B_FALSE;
+			break;
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
 			    optopt);
@@ -5868,25 +5871,13 @@ zpool_do_reopen(int argc, char **argv)
 		}
 	}
 
-	argc--;
-	argv++;
+	argc -= optind;
+	argv += optind;
 
-	if (argc < 1) {
-		(void) fprintf(stderr, gettext("missing pool name\n"));
-		usage(B_FALSE);
-	}
+	/* if argc == 0 we will execute zpool_reopen_one on all pools */
+	ret = for_each_pool(argc, argv, B_TRUE, NULL, zpool_reopen_one,
+	    &scrub_restart);
 
-	if (argc > 1) {
-		(void) fprintf(stderr, gettext("too many arguments\n"));
-		usage(B_FALSE);
-	}
-
-	pool = argv[0];
-	if ((zhp = zpool_open_canfail(g_zfs, pool)) == NULL)
-		return (1);
-
-	ret = zpool_reopen(zhp);
-	zpool_close(zhp);
 	return (ret);
 }
 

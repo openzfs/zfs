@@ -23,6 +23,7 @@
  * Copyright (c) 2012 by Delphix. All rights reserved.
  * Copyright 2014 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2016, 2017, Intel Corporation.
+ * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
  */
 
 /*
@@ -722,6 +723,8 @@ zfsdle_vdev_online(zpool_handle_t *zhp, void *data)
 		(void) strlcpy(fullpath, path, sizeof (fullpath));
 		if (wholedisk) {
 			char *spath = zfs_strip_partition(fullpath);
+			boolean_t scrub_restart = B_TRUE;
+
 			if (!spath) {
 				zed_log_msg(LOG_INFO, "%s: Can't alloc",
 				    __func__);
@@ -736,7 +739,7 @@ zfsdle_vdev_online(zpool_handle_t *zhp, void *data)
 			 * device so that the kernel can update the size
 			 * of the expanded device.
 			 */
-			(void) zpool_reopen(zhp);
+			(void) zpool_reopen_one(zhp, &scrub_restart);
 		}
 
 		if (zpool_get_prop_int(zhp, ZPOOL_PROP_AUTOEXPAND, NULL)) {

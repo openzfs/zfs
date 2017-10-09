@@ -1,0 +1,117 @@
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+#
+# Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+#
+
+. $STF_SUITE/tests/functional/cli_root/zpool_reopen/zpool_reopen.cfg
+
+#
+# Clear labels on the given disks
+#
+function clear_labels #disks
+{
+	for disk in $@; do
+		if ( is_loop_device $disk ) || ( is_mpath_device $disk ); then
+			zpool labelclear -f /dev/$disk
+		else
+			zpool labelclear -f /dev/${disk}1
+		fi
+	done
+}
+
+#
+# Set the REMOVED_DISK and REMOVED_DISK_ID constants for device
+# used for re-plugging. When the disk is loop device use the
+# scsi_debug emulated drive. Otherwise use the real drive.
+#
+function set_removed_disk
+{
+	if is_loop_device $DISK1; then
+		export REMOVED_DISK=$(get_debug_device)
+		export REMOVED_DISK_ID=$(get_persistent_disk_name $REMOVED_DISK)
+	elif ( is_real_device $DISK1 ) || ( is_mpath_device $DISK1 ); then
+		export REMOVED_DISK="$DISK1"
+		export REMOVED_DISK_ID=${devs_id[0]}
+	else
+		log_fail "No drives that supports removal"
+	fi
+}
+
+#
+# Generate random file of the given size in MiB
+#
+function generate_random_file #path size_mb
+{
+	typeset path=$1
+	typeset -i size_mb=$2
+	file_write -o create -f $path -b 1048576 -s0 -c $size_mb -d R
+}
+
+#
+# Wait until specific event or timeout occur.
+#
+# The passed function is executed with pool name as argument
+# with an interval of 1 second until it succeeds or until the
+# timeout occurs.
+# It returns 1 on timeout or 0 otherwise.
+#
+function wait_for_action #pool timeout function
+{
+	typeset pool=$1
+	typeset -i timeout=$2
+	typeset func=$3
+
+	while [ $timeout -gt 0 ]; do
+		(( --timeout ))
+		if ( $func $pool ); then
+			return 0
+		fi
+		sleep 1
+	done
+
+	return 1
+}
+
+#
+# Helpers for wait_for_action function:
+# wait_for_resilver_start - wait until resilver is started
+# wait_for_resilver_end - wait until resilver is finished
+# wait_for_scrub_end - wait until scrub is finished
+#
+function wait_for_resilver_start #pool timeout
+{
+	wait_for_action $1 $2 is_pool_resilvering
+	return $?
+}
+
+function wait_for_resilver_end #pool timeout
+{
+	wait_for_action $1 $2 is_pool_resilvered
+	return $?
+}
+
+function wait_for_scrub_end #pool timeout
+{
+	wait_for_action $1 $2 is_pool_scrubbed
+	return $?
+}
+
+#
+# Check if scan action has been restarted on the given pool
+#
+
+function is_scan_restarted #pool
+{
+	typeset pool=$1
+	zpool history -i $pool | grep -q "scan aborted, restarting"
+	return $?
+}

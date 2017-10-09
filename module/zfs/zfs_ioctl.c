@@ -36,6 +36,7 @@
  * Copyright (c) 2017, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
  * Copyright (c) 2017 Datto Inc. All rights reserved.
  * Copyright 2017 RackTop Systems.
+ * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
  */
 
 /*
@@ -5032,25 +5033,46 @@ zfs_ioc_clear(zfs_cmd_t *zc)
 	return (error);
 }
 
+/*
+ * Reopen all the vdevs associated with the pool.
+ *
+ * innvl: {
+ *  "scrub_restart" -> when true and scrub is running, allow to restart
+ *              scrub as the side effect of the reopen (boolean).
+ * }
+ *
+ * outnvl is unused
+ */
+/* ARGSUSED */
 static int
-zfs_ioc_pool_reopen(zfs_cmd_t *zc)
+zfs_ioc_pool_reopen(const char *pool, nvlist_t *innvl, nvlist_t *outnvl)
 {
 	spa_t *spa;
 	int error;
+	boolean_t scrub_restart = B_TRUE;
 
-	error = spa_open(zc->zc_name, &spa, FTAG);
+	if (innvl) {
+		if (nvlist_lookup_boolean_value(innvl, "scrub_restart",
+		    &scrub_restart) != 0) {
+			return (SET_ERROR(EINVAL));
+		}
+	}
+
+	error = spa_open(pool, &spa, FTAG);
 	if (error != 0)
 		return (error);
 
 	spa_vdev_state_enter(spa, SCL_NONE);
 
 	/*
-	 * If a resilver is already in progress then set the
-	 * spa_scrub_reopen flag to B_TRUE so that we don't restart
-	 * the scan as a side effect of the reopen. Otherwise, let
-	 * vdev_open() decided if a resilver is required.
+	 * If the scrub_restart flag is B_FALSE and a scrub is already
+	 * in progress then set spa_scrub_reopen flag to B_TRUE so that
+	 * we don't restart the scrub as a side effect of the reopen.
+	 * Otherwise, let vdev_open() decided if a resilver is required.
 	 */
-	spa->spa_scrub_reopen = dsl_scan_resilvering(spa->spa_dsl_pool);
+
+	spa->spa_scrub_reopen = (!scrub_restart &&
+	    dsl_scan_scrubbing(spa->spa_dsl_pool));
 	vdev_reopen(spa->spa_root_vdev);
 	spa->spa_scrub_reopen = B_FALSE;
 
@@ -5058,6 +5080,7 @@ zfs_ioc_pool_reopen(zfs_cmd_t *zc)
 	spa_close(spa, FTAG);
 	return (0);
 }
+
 /*
  * inputs:
  * zc_name	name of filesystem
@@ -6316,6 +6339,9 @@ zfs_ioctl_init(void)
 	zfs_ioctl_register("sync", ZFS_IOC_POOL_SYNC,
 	    zfs_ioc_pool_sync, zfs_secpolicy_none, POOL_NAME,
 	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_FALSE, B_FALSE);
+	zfs_ioctl_register("reopen", ZFS_IOC_POOL_REOPEN, zfs_ioc_pool_reopen,
+	    zfs_secpolicy_config, POOL_NAME, POOL_CHECK_SUSPENDED, B_TRUE,
+	    B_TRUE);
 
 	/* IOCTLS that use the legacy function signature */
 
@@ -6389,8 +6415,6 @@ zfs_ioctl_init(void)
 
 	zfs_ioctl_register_pool(ZFS_IOC_CLEAR, zfs_ioc_clear,
 	    zfs_secpolicy_config, B_TRUE, POOL_CHECK_READONLY);
-	zfs_ioctl_register_pool(ZFS_IOC_POOL_REOPEN, zfs_ioc_pool_reopen,
-	    zfs_secpolicy_config, B_TRUE, POOL_CHECK_SUSPENDED);
 
 	zfs_ioctl_register_dataset_read(ZFS_IOC_SPACE_WRITTEN,
 	    zfs_ioc_space_written);
