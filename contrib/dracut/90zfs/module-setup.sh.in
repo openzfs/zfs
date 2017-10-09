@@ -46,6 +46,9 @@ install() {
 		# On systems with gcc-config (Gentoo, Funtoo, etc.):
 		# Use the current profile to resolve the appropriate path
 		dracut_install "/usr/lib/gcc/$(s=$(gcc-config -c); echo ${s%-*}/${s##*-})/libgcc_s.so.1"
+	elif [[ -n "$(ls /usr/lib/libgcc_s.so* 2>/dev/null)" ]]; then
+		# Try a simple path first
+		dracut_install /usr/lib/libgcc_s.so*
 	else
 		# Fallback: Guess the path and include all matches
 		dracut_install /usr/lib/gcc/*/*/libgcc_s.so*
