@@ -579,10 +579,10 @@ ask_user_snap()
 	    eval `echo SNAP_$i=$snap`
 	    i=$((i + 1))
 	done <<EOT
-$("${ZFS}" list -H -oname -tsnapshot "${fs}")
+$("${ZFS}" list -H -oname -tsnapshot -r "${fs}")
 EOT
 
-	echo -n "  Snap nr [0-$((i-1))]? " > /dev/stderr
+	echo -n "  Snap nr [1-$((i-1))]? " > /dev/stderr
 	read snapnr
 
 	# Re-enable debugging.
