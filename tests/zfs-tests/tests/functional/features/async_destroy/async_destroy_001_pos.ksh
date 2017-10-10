@@ -56,12 +56,9 @@ log_assert "async_destroy can suspend and resume traversal"
 
 log_must zfs create -o recordsize=512 -o compression=off $TEST_FS
 
-# Create enough blocks that it will take 4 TXGs to free them all.
-typeset zfs_free_max_blocks=100000
-typeset blocks=$((zfs_free_max_blocks * 4 * 512 / 1024 / 1024))
-
-log_must dd bs=1024k count=$blocks if=/dev/zero of=/$TEST_FS/file
-
+# Create enough blocks that it will take multiple TXGs to free them all.
+log_must dd bs=1024k count=128 if=/dev/zero of=/$TEST_FS/file
+log_must sync
 log_must zfs destroy $TEST_FS
 
 #
