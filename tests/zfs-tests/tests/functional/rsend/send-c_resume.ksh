@@ -41,7 +41,7 @@ streamfs=$POOL/stream
 log_assert "Verify compressed send streams can be resumed if interrupted"
 log_onexit resume_cleanup $sendfs $streamfs
 
-test_fs_setup $sendfs $recvfs
+test_fs_setup $sendfs $recvfs $streamfs
 resume_test "zfs send -c -v $sendfs@a" $streamfs $recvfs
 resume_test "zfs send -c -v -i @a $sendfs@b" $streamfs $recvfs
 file_check $sendfs $recvfs

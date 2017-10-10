@@ -44,7 +44,7 @@ streamfs=$POOL/stream
 
 log_onexit resume_cleanup $sendfs $streamfs
 
-test_fs_setup $sendfs $recvfs
+test_fs_setup $sendfs $recvfs $streamfs
 resume_test "zfs send -v -e $sendfs@a" $streamfs $recvfs
 resume_test "zfs send -v -e -i @a $sendfs@b" $streamfs $recvfs
 file_check $sendfs $recvfs
