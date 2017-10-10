@@ -2001,13 +2001,13 @@ dump_object(objset_t *os, uint64_t object, int verbosity, int *print_header,
 	aux[0] = '\0';
 
 	if (doi.doi_checksum != ZIO_CHECKSUM_INHERIT || verbosity >= 6) {
-		(void) snprintf(aux + strlen(aux), sizeof (aux), " (K=%s)",
-		    ZDB_CHECKSUM_NAME(doi.doi_checksum));
+		(void) snprintf(aux + strlen(aux), sizeof (aux) - strlen(aux),
+		    " (K=%s)", ZDB_CHECKSUM_NAME(doi.doi_checksum));
 	}
 
 	if (doi.doi_compress != ZIO_COMPRESS_INHERIT || verbosity >= 6) {
-		(void) snprintf(aux + strlen(aux), sizeof (aux), " (Z=%s)",
-		    ZDB_COMPRESS_NAME(doi.doi_compress));
+		(void) snprintf(aux + strlen(aux), sizeof (aux) - strlen(aux),
+		    " (Z=%s)", ZDB_COMPRESS_NAME(doi.doi_compress));
 	}
 
 	(void) printf("%10lld  %3u  %5s  %5s  %5s  %6s  %5s  %6s  %s%s\n",
