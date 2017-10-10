@@ -50,9 +50,9 @@ function create_old_pool
 	for pool_file in $pool_files; do
 		log_must bzcat \
 		    $STF_SUITE/tests/functional/cli_root/zpool_upgrade/$pool_file.bz2 \
-		    >/$TESTPOOL/$pool_file
+		    >$TEST_BASE_DIR/$pool_file
 	done
-	log_must zpool import -d /$TESTPOOL $pool_name
+	log_must zpool import -d $TEST_BASE_DIR $pool_name
 
 	# Put some random contents into the pool
 	for i in {1..1024} ; do
@@ -97,7 +97,7 @@ function destroy_upgraded_pool
 		log_must zpool destroy $pool_name
 	fi
 	for file in $pool_files; do
-		rm -f /$TESTPOOL/$file
+		rm -f $TEST_BASE_DIR/$file
 	done
 }
 
@@ -112,8 +112,8 @@ function check_pool
 	typeset pool=$1
 	typeset flag=$2
 	find /$pool -type f -exec cksum {} + > \
-		/$TESTPOOL/pool-checksums.$pool.$flag
-	echo /$TESTPOOL/pool-checksums.$pool.$flag
+		$TEST_BASE_DIR/pool-checksums.$pool.$flag
+	echo $TEST_BASE_DIR/pool-checksums.$pool.$flag
 }
 
 # This function simply checks that a pool has a particular version number

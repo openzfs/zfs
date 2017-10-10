@@ -78,10 +78,10 @@ for config in $CONFIGS ; do
 	typeset -n pool_name=ZPOOL_VERSION_${config}_NAME
 
 	check_pool $pool_name post > /dev/null
-	log_must diff /$TESTPOOL/pool-checksums.$pool_name.pre \
-	    /$TESTPOOL/pool-checksums.$pool_name.post
-	rm /$TESTPOOL/pool-checksums.$pool_name.pre \
-	    /$TESTPOOL/pool-checksums.$pool_name.post
+	log_must diff $TEST_BASE_DIR/pool-checksums.$pool_name.pre \
+	    $TEST_BASE_DIR/pool-checksums.$pool_name.post
+	rm $TEST_BASE_DIR/pool-checksums.$pool_name.pre \
+	    $TEST_BASE_DIR/pool-checksums.$pool_name.post
 	destroy_upgraded_pool $config
 done
 
