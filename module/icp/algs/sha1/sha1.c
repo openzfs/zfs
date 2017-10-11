@@ -817,10 +817,22 @@ Encode(uint8_t *_RESTRICT_KYWD output, const uint32_t *_RESTRICT_KYWD input,
 {
 	size_t		i, j;
 
-	for (i = 0, j = 0; j < len; i++, j += 4) {
-		output[j]	= (input[i] >> 24) & 0xff;
-		output[j + 1]	= (input[i] >> 16) & 0xff;
-		output[j + 2]	= (input[i] >>  8) & 0xff;
-		output[j + 3]	= input[i] & 0xff;
+#if defined(__sparc)
+	if (IS_P2ALIGNED(output, sizeof (uint32_t))) {
+		for (i = 0, j = 0; j < len; i++, j += 4) {
+			/* LINTED E_BAD_PTR_CAST_ALIGN */
+			*((uint32_t *)(output + j)) = input[i];
+		}
+	} else {
+#endif /* little endian -- will work on big endian, but slowly */
+
+		for (i = 0, j = 0; j < len; i++, j += 4) {
+			output[j]	= (input[i] >> 24) & 0xff;
+			output[j + 1]	= (input[i] >> 16) & 0xff;
+			output[j + 2]	= (input[i] >>  8) & 0xff;
+			output[j + 3]	= input[i] & 0xff;
+		}
+#if defined(__sparc)
 	}
+#endif
 }
