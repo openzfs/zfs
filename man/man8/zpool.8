@@ -654,7 +654,7 @@ Because the kernel destroys and recreates this file when pools are added and
 removed, care should be taken when attempting to access this file.
 When the last pool using a
 .Sy cachefile
-is exported or destroyed, the file is removed.
+is exported or destroyed, the file will be empty.
 .It Sy comment Ns = Ns Ar text
 A text string consisting of printable ASCII characters that will be stored
 such that it is available even if the pool becomes faulted.
