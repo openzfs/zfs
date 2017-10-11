@@ -13,7 +13,8 @@ DEFAULT_INCLUDES += \
 	-I$(top_srcdir)/lib/libspl/include
 
 AM_CCASFLAGS = \
-	-I$(top_srcdir)/lib/libspl/include
+	-I$(top_srcdir)/lib/libspl/include \
+	$(CFLAGS)
 
 noinst_LTLIBRARIES = libspl.la
 
