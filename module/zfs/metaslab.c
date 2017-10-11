@@ -1937,7 +1937,8 @@ metaslab_passivate(metaslab_t *msp, uint64_t weight)
 	 * this metaslab again.  In that case, it had better be empty,
 	 * or we would be leaving space on the table.
 	 */
-	ASSERT(size >= SPA_MINBLOCKSIZE ||
+	ASSERT(!WEIGHT_IS_SPACEBASED(msp->ms_weight) ||
+	    size >= SPA_MINBLOCKSIZE ||
 	    range_tree_space(msp->ms_tree) == 0);
 	ASSERT0(weight & METASLAB_ACTIVE_MASK);
 
