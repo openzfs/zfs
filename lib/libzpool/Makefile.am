@@ -41,6 +41,7 @@ KERNEL_C = \
 	bpobj.c \
 	bptree.c \
 	bqueue.c \
+	compress_auto.c \
 	dbuf.c \
 	dbuf_stats.c \
 	ddt.c \

@@ -420,6 +420,7 @@ vdev_queue_io_add(vdev_queue_t *vq, zio_t *zio)
 	ASSERT3U(zio->io_priority, <, ZIO_PRIORITY_NUM_QUEUEABLE);
 	avl_add(vdev_queue_class_tree(vq, zio->io_priority), zio);
 	avl_add(vdev_queue_type_tree(vq, zio->io_type), zio);
+	vq->vq_class[zio->io_priority].vqc_queued_size += zio->io_size;
 
 	if (ssh->kstat != NULL) {
 		mutex_enter(&ssh->lock);
@@ -437,6 +438,7 @@ vdev_queue_io_remove(vdev_queue_t *vq, zio_t *zio)
 	ASSERT3U(zio->io_priority, <, ZIO_PRIORITY_NUM_QUEUEABLE);
 	avl_remove(vdev_queue_class_tree(vq, zio->io_priority), zio);
 	avl_remove(vdev_queue_type_tree(vq, zio->io_type), zio);
+	vq->vq_class[zio->io_priority].vqc_queued_size -= zio->io_size;
 
 	if (ssh->kstat != NULL) {
 		mutex_enter(&ssh->lock);

@@ -12,6 +12,7 @@ $(MODULE)-objs += arc.o
 $(MODULE)-objs += blkptr.o
 $(MODULE)-objs += bplist.o
 $(MODULE)-objs += bpobj.o
+$(MODULE)-objs += compress_auto.o
 $(MODULE)-objs += dbuf.o
 $(MODULE)-objs += dbuf_stats.o
 $(MODULE)-objs += bptree.o

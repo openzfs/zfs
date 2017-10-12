@@ -44,7 +44,7 @@
 #include <sys/trace_zio.h>
 #include <sys/abd.h>
 #include <sys/dsl_crypt.h>
-
+#include <sys/compress_auto.h>
 /*
  * ==========================================================================
  * I/O type descriptions
@@ -1473,7 +1473,13 @@ zio_write_compress(zio_t *zio)
 	if (compress != ZIO_COMPRESS_OFF &&
 	    !(zio->io_flags & ZIO_FLAG_RAW_COMPRESS)) {
 		void *cbuf = zio_buf_alloc(lsize);
-		psize = zio_compress_data(compress, zio->io_abd, cbuf, lsize);
+		if (compress == ZIO_COMPRESS_AUTO) {
+			psize = compress_auto(zio, zio->io_abd,
+			    cbuf, lsize, &compress);
+		} else {
+			psize = zio_compress_data(compress, zio->io_abd,
+			    cbuf, lsize);
+		}
 		if (psize == 0 || psize == lsize) {
 			compress = ZIO_COMPRESS_OFF;
 			zio_buf_free(cbuf, lsize);
