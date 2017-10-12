@@ -258,6 +258,33 @@ returned to the \fBenabled\fR state when all bookmarks with these fields are des
 .sp
 .ne 2
 .na
+\fB\fBcompress_auto\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	org.zfsonlinux:compress_auto
+READ\-ONLY COMPATIBLE	yes
+DEPENDENCIES	lz4_compress,extensible_dataset
+.TE
+
+\fBcompress_auto\fR chooses the compression algorithm out lz4 and gzip[1-9] 
+to perform the optimal write throughput.
+
+When the \fBcompress_auto\fR feature is set to \fBenabled\fR, the
+administrator can turn on \fBcompress_auto\fR on any dataset on the
+pool using the \fBzfs\fR(8) command. Please note that doing so will
+immediately activate the \fB\fR feature on the underlying
+pool.
+
+This feature becomes \fBactive\fR as soon as it is used on one dataset and will 
+return to being \fBenabled\fR once all filesystems that have ever had their compression set to
++\fBcompress_auto\fR are destroyed.
+.RE
+
+.sp
+.ne 2
+.na
 \fBdevice_removal\fR
 .ad
 .RS 4n

@@ -274,6 +274,19 @@ zpool_feature_init(void)
 	    "LZ4 compression algorithm support.",
 	    ZFEATURE_FLAG_ACTIVATE_ON_ENABLE, ZFEATURE_TYPE_BOOLEAN, NULL);
 
+	{
+	static const spa_feature_t compress_auto_deps[] = {
+			SPA_FEATURE_LZ4_COMPRESS,
+			SPA_FEATURE_EXTENSIBLE_DATASET,
+			SPA_FEATURE_NONE
+	};
+	zfeature_register(SPA_FEATURE_COMPRESS_AUTO,
+	    "org.zfsonlinux:compress_auto", "compress_auto",
+	    "auto compression algorithm support.",
+	    ZFEATURE_FLAG_PER_DATASET | ZFEATURE_FLAG_READONLY_COMPAT,
+	    compress_auto_deps);
+	}
+
 	zfeature_register(SPA_FEATURE_MULTI_VDEV_CRASH_DUMP,
 	    "com.joyent:multi_vdev_crash_dump", "multi_vdev_crash_dump",
 	    "Crash dumps to multiple vdev pools.",
