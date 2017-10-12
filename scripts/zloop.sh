@@ -36,7 +36,7 @@ DEFAULTCOREDIR=/var/tmp/zloop
 
 function usage
 {
-	echo -e "\n$0 [-t <timeout>] [-c <dump directory>]" \
+	echo -e "\n$0 [-t <timeout>] [ -s <vdev size> ] [-c <dump directory>]" \
 	    "[ -- [extra ztest parameters]]\n" \
 	    "\n" \
 	    "  This script runs ztest repeatedly with randomized arguments.\n" \
@@ -48,6 +48,7 @@ function usage
 	    "  Options:\n" \
 	    "    -t  Total time to loop for, in seconds. If not provided,\n" \
 	    "        zloop runs forever.\n" \
+	    "    -s  Size of vdev devices.\n" \
 	    "    -f  Specify working directory for ztest vdev files.\n" \
 	    "    -c  Specify a core dump directory to use.\n" \
 	    "    -h  Print this help message.\n" \
@@ -152,9 +153,11 @@ coredir=$DEFAULTCOREDIR
 basedir=$DEFAULTWORKDIR
 rundir="zloop-run"
 timeout=0
-while getopts ":ht:c:f:" opt; do
+size="512m"
+while getopts ":ht:s:c:f:" opt; do
 	case $opt in
 		t ) [[ $OPTARG -gt 0 ]] && timeout=$OPTARG ;;
+		s ) [[ $OPTARG ]] && size=$OPTARG ;;
 		c ) [[ $OPTARG ]] && coredir=$OPTARG ;;
 		f ) [[ $OPTARG ]] && basedir=$(readlink -f "$OPTARG") ;;
 		h ) usage
@@ -220,7 +223,6 @@ while [[ $timeout -eq 0 ]] || [[ $curtime -le $((starttime + timeout)) ]]; do
 	align=$(((RANDOM % 2) * 3 + 9))
 	runtime=$((RANDOM % 100))
 	passtime=$((RANDOM % (runtime / 3 + 1) + 10))
-	size=128m
 
 	zopt="$zopt -m $mirrors"
 	zopt="$zopt -r $raidz"
