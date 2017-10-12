@@ -897,7 +897,8 @@ zpool_do_labelclear(int argc, char **argv)
 	if (zpool_read_label(fd, &config, NULL) != 0 || config == NULL) {
 		(void) fprintf(stderr,
 		    gettext("failed to check state for %s\n"), vdev);
-		return (1);
+		ret = 1;
+		goto errout;
 	}
 	nvlist_free(config);
 
@@ -905,7 +906,8 @@ zpool_do_labelclear(int argc, char **argv)
 	if (ret != 0) {
 		(void) fprintf(stderr,
 		    gettext("failed to check state for %s\n"), vdev);
-		return (1);
+		ret = 1;
+		goto errout;
 	}
 
 	if (!inuse)
