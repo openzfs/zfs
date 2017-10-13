@@ -517,7 +517,7 @@ dump_dnode(dmu_sendarg_t *dsp, const blkptr_t *bp, uint64_t object,
     dnode_phys_t *dnp)
 {
 	struct drr_object *drro = &(dsp->dsa_drr->drr_u.drr_object);
-	int bonuslen = P2ROUNDUP(dnp->dn_bonuslen, 8);
+	int bonuslen;
 
 	if (object < dsp->dsa_resume_object) {
 		/*
@@ -558,6 +558,8 @@ dump_dnode(dmu_sendarg_t *dsp, const blkptr_t *bp, uint64_t object,
 	    drro->drr_blksz > SPA_OLD_MAXBLOCKSIZE)
 		drro->drr_blksz = SPA_OLD_MAXBLOCKSIZE;
 
+	bonuslen = P2ROUNDUP(dnp->dn_bonuslen, 8);
+
 	if ((dsp->dsa_featureflags & DMU_BACKUP_FEATURE_RAW)) {
 		ASSERT(BP_IS_ENCRYPTED(bp));
 
@@ -571,7 +573,7 @@ dump_dnode(dmu_sendarg_t *dsp, const blkptr_t *bp, uint64_t object,
 
 		/*
 		 * Since we encrypt the entire bonus area, the (raw) part
-		 * beyond the the bonuslen is actually nonzero, so we need
+		 * beyond the bonuslen is actually nonzero, so we need
 		 * to send it.
 		 */
 		if (bonuslen != 0) {
@@ -2062,7 +2064,8 @@ dmu_recv_resume_begin_sync(void *arg, dmu_tx_t *tx)
 	dsl_dataset_phys(ds)->ds_flags |= DS_FLAG_INCONSISTENT;
 
 	rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
-	ASSERT(!BP_IS_HOLE(dsl_dataset_get_blkptr(ds)));
+	ASSERT(!BP_IS_HOLE(dsl_dataset_get_blkptr(ds)) ||
+	    drba->drba_cookie->drc_raw);
 	rrw_exit(&ds->ds_bp_rwlock, FTAG);
 
 	drba->drba_cookie->drc_ds = ds;
@@ -2590,7 +2593,11 @@ receive_freeobjects(struct receive_writer_arg *rwa,
 		else if (err != 0)
 			return (err);
 
-		err = dmu_free_long_object(rwa->os, obj);
+		if (rwa->raw)
+			err = dmu_free_long_object_raw(rwa->os, obj);
+		else
+			err = dmu_free_long_object(rwa->os, obj);
+
 		if (err != 0)
 			return (err);
 
@@ -2606,9 +2613,9 @@ noinline static int
 receive_write(struct receive_writer_arg *rwa, struct drr_write *drrw,
     arc_buf_t *abuf)
 {
-	dmu_tx_t *tx;
-	dmu_buf_t *bonus;
 	int err;
+	dmu_tx_t *tx;
+	dnode_t *dn;
 
 	if (drrw->drr_offset + drrw->drr_logical_size < drrw->drr_offset ||
 	    !DMU_OT_IS_VALID(drrw->drr_type))
@@ -2633,7 +2640,6 @@ receive_write(struct receive_writer_arg *rwa, struct drr_write *drrw,
 		return (SET_ERROR(EINVAL));
 
 	tx = dmu_tx_create(rwa->os);
-
 	dmu_tx_hold_write(tx, drrw->drr_object,
 	    drrw->drr_offset, drrw->drr_logical_size);
 	err = dmu_tx_assign(tx, TXG_WAIT);
@@ -2653,10 +2659,9 @@ receive_write(struct receive_writer_arg *rwa, struct drr_write *drrw,
 		    DRR_WRITE_PAYLOAD_SIZE(drrw));
 	}
 
-	/* use the bonus buf to look up the dnode in dmu_assign_arcbuf */
-	if (dmu_bonus_hold(rwa->os, drrw->drr_object, FTAG, &bonus) != 0)
-		return (SET_ERROR(EINVAL));
-	dmu_assign_arcbuf(bonus, drrw->drr_offset, abuf, tx);
+	VERIFY0(dnode_hold(rwa->os, drrw->drr_object, FTAG, &dn));
+	dmu_assign_arcbuf_by_dnode(dn, drrw->drr_offset, abuf, tx);
+	dnode_rele(dn, FTAG);
 
 	/*
 	 * Note: If the receive fails, we want the resume stream to start
@@ -2666,7 +2671,6 @@ receive_write(struct receive_writer_arg *rwa, struct drr_write *drrw,
 	 */
 	save_resume_state(rwa, drrw->drr_object, drrw->drr_offset, tx);
 	dmu_tx_commit(tx);
-	dmu_buf_rele(bonus, FTAG);
 
 	return (0);
 }
@@ -2765,6 +2769,8 @@ receive_write_embedded(struct receive_writer_arg *rwa,
 		return (SET_ERROR(EINVAL));
 	if (drrwe->drr_compression >= ZIO_COMPRESS_FUNCTIONS)
 		return (SET_ERROR(EINVAL));
+	if (rwa->raw)
+		return (SET_ERROR(EINVAL));
 
 	if (drrwe->drr_object > rwa->max_object)
 		rwa->max_object = drrwe->drr_object;
@@ -2839,7 +2845,7 @@ receive_spill(struct receive_writer_arg *rwa, struct drr_spill *drrs,
 	if (db_spill->db_size < drrs->drr_length)
 		VERIFY(0 == dbuf_spill_set_blksz(db_spill,
 		    drrs->drr_length, tx));
-	dmu_assign_arcbuf_impl(db_spill, abuf, tx);
+	dbuf_assign_arcbuf((dmu_buf_impl_t *)db_spill, abuf, tx);
 
 	dmu_buf_rele(db, FTAG);
 	dmu_buf_rele(db_spill, FTAG);
@@ -2864,8 +2870,13 @@ receive_free(struct receive_writer_arg *rwa, struct drr_free *drrf)
 	if (drrf->drr_object > rwa->max_object)
 		rwa->max_object = drrf->drr_object;
 
-	err = dmu_free_long_range(rwa->os, drrf->drr_object,
-	    drrf->drr_offset, drrf->drr_length);
+	if (rwa->raw) {
+		err = dmu_free_long_range_raw(rwa->os, drrf->drr_object,
+		    drrf->drr_offset, drrf->drr_length);
+	} else {
+		err = dmu_free_long_range(rwa->os, drrf->drr_object,
+		    drrf->drr_offset, drrf->drr_length);
+	}
 
 	return (err);
 }
@@ -2948,6 +2959,7 @@ receive_object_range(struct receive_writer_arg *rwa,
 static void
 dmu_recv_cleanup_ds(dmu_recv_cookie_t *drc)
 {
+	dsl_dataset_t *ds = drc->drc_ds;
 	ds_hold_flags_t dsflags = (drc->drc_raw) ? 0 : DS_HOLD_FLAG_DECRYPT;
 
 	/*
@@ -2957,14 +2969,17 @@ dmu_recv_cleanup_ds(dmu_recv_cookie_t *drc)
 	 * that the user accounting code will not attempt to do anything
 	 * after we stopped receiving the dataset.
 	 */
-	txg_wait_synced(drc->drc_ds->ds_dir->dd_pool, 0);
+	txg_wait_synced(ds->ds_dir->dd_pool, 0);
 
-	if (drc->drc_resumable) {
-		dsl_dataset_disown(drc->drc_ds, dsflags, dmu_recv_tag);
+	rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
+	if (drc->drc_resumable && !BP_IS_HOLE(dsl_dataset_get_blkptr(ds))) {
+		rrw_exit(&ds->ds_bp_rwlock, FTAG);
+		dsl_dataset_disown(ds, dsflags, dmu_recv_tag);
 	} else {
 		char name[ZFS_MAX_DATASET_NAME_LEN];
-		dsl_dataset_name(drc->drc_ds, name);
-		dsl_dataset_disown(drc->drc_ds, dsflags, dmu_recv_tag);
+		rrw_exit(&ds->ds_bp_rwlock, FTAG);
+		dsl_dataset_name(ds, name);
+		dsl_dataset_disown(ds, dsflags, dmu_recv_tag);
 		(void) dsl_destroy_head(name);
 	}
 }

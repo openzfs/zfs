@@ -1175,7 +1175,7 @@ dbuf_fix_old_data(dmu_buf_impl_t *db, uint64_t txg)
 	 * or (if there a no active holders)
 	 *	just null out the current db_data pointer.
 	 */
-	ASSERT(dr->dr_txg >= txg - 2);
+	ASSERT3U(dr->dr_txg, >=, txg - 2);
 	if (db->db_blkid == DMU_BONUS_BLKID) {
 		dnode_t *dn = DB_DNODE(db);
 		int bonuslen = DN_SLOTS_TO_BONUSLEN(dn->dn_num_slots);
@@ -2153,6 +2153,13 @@ dbuf_assign_arcbuf(dmu_buf_impl_t *db, arc_buf_t *buf, dmu_tx_t *tx)
 
 	if (db->db_state == DB_CACHED &&
 	    refcount_count(&db->db_holds) - 1 > db->db_dirtycnt) {
+		/*
+		 * In practice, we will never have a case where we have an
+		 * encrypted arc buffer while additional holds exist on the
+		 * dbuf. We don't handle this here so we simply assert that
+		 * fact instead.
+		 */
+		ASSERT(!arc_is_encrypted(buf));
 		mutex_exit(&db->db_mtx);
 		(void) dbuf_dirty(db, tx);
 		bcopy(buf->b_data, db->db.db_data, db->db.db_size);
@@ -2168,6 +2175,8 @@ dbuf_assign_arcbuf(dmu_buf_impl_t *db, arc_buf_t *buf, dmu_tx_t *tx)
 		ASSERT(db->db_buf != NULL);
 		if (dr != NULL && dr->dr_txg == tx->tx_txg) {
 			ASSERT(dr->dt.dl.dr_data == db->db_buf);
+			IMPLY(arc_is_encrypted(buf), dr->dt.dl.dr_raw);
+
 			if (!arc_released(db->db_buf)) {
 				ASSERT(dr->dt.dl.dr_override_state ==
 				    DR_OVERRIDDEN);
@@ -3458,7 +3467,6 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 			    dn->dn_type, psize, lsize, compress_type);
 		} else if (compress_type != ZIO_COMPRESS_OFF) {
 			ASSERT3U(type, ==, ARC_BUFC_DATA);
-			int lsize = arc_buf_lsize(*datap);
 			*datap = arc_alloc_compressed_buf(os->os_spa, db,
 			    psize, lsize, compress_type);
 		} else {

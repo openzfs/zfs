@@ -21,6 +21,7 @@ SUBDIRS = \
 	grow_pool \
 	grow_replicas \
 	history \
+	hkdf \
 	inheritance \
 	inuse \
 	large_files \

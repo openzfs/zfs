@@ -90,9 +90,9 @@ dsl_wrapping_key_free(dsl_wrapping_key_t *wkey)
 
 	if (wkey->wk_key.ck_data) {
 		bzero(wkey->wk_key.ck_data,
-		    BITS_TO_BYTES(wkey->wk_key.ck_length));
+		    CRYPTO_BITS2BYTES(wkey->wk_key.ck_length));
 		kmem_free(wkey->wk_key.ck_data,
-		    BITS_TO_BYTES(wkey->wk_key.ck_length));
+		    CRYPTO_BITS2BYTES(wkey->wk_key.ck_length));
 	}
 
 	refcount_destroy(&wkey->wk_refcnt);
@@ -119,7 +119,7 @@ dsl_wrapping_key_create(uint8_t *wkeydata, zfs_keyformat_t keyformat,
 	}
 
 	wkey->wk_key.ck_format = CRYPTO_KEY_RAW;
-	wkey->wk_key.ck_length = BYTES_TO_BITS(WRAPPING_KEY_LEN);
+	wkey->wk_key.ck_length = CRYPTO_BYTES2BITS(WRAPPING_KEY_LEN);
 	bcopy(wkeydata, wkey->wk_key.ck_data, WRAPPING_KEY_LEN);
 
 	/* initialize the rest of the struct */
@@ -433,7 +433,6 @@ dsl_crypto_can_set_keylocation(const char *dsname, const char *keylocation)
 	int ret = 0;
 	dsl_dir_t *dd = NULL;
 	dsl_pool_t *dp = NULL;
-	dsl_wrapping_key_t *wkey = NULL;
 	uint64_t rddobj;
 
 	/* hold the dsl dir */
@@ -472,16 +471,12 @@ dsl_crypto_can_set_keylocation(const char *dsname, const char *keylocation)
 		goto out;
 	}
 
-	if (wkey != NULL)
-		dsl_wrapping_key_rele(wkey, FTAG);
 	dsl_dir_rele(dd, FTAG);
 	dsl_pool_rele(dp, FTAG);
 
 	return (0);
 
 out:
-	if (wkey != NULL)
-		dsl_wrapping_key_rele(wkey, FTAG);
 	if (dd != NULL)
 		dsl_dir_rele(dd, FTAG);
 	if (dp != NULL)
@@ -728,6 +723,7 @@ spa_keystore_load_wkey(const char *dsname, dsl_crypto_params_t *dcp,
 	dsl_crypto_key_t *dck = NULL;
 	dsl_wrapping_key_t *wkey = dcp->cp_wkey;
 	dsl_pool_t *dp = NULL;
+	uint64_t keyformat, salt, iters;
 
 	/*
 	 * We don't validate the wrapping key's keyformat, salt, or iters
@@ -762,8 +758,36 @@ spa_keystore_load_wkey(const char *dsname, dsl_crypto_params_t *dcp,
 	if (ret != 0)
 		goto error;
 
+	/* initialize the wkey encryption parameters from the DSL Crypto Key */
+	ret = zap_lookup(dp->dp_meta_objset, dd->dd_crypto_obj,
+	    zfs_prop_to_name(ZFS_PROP_KEYFORMAT), 8, 1, &keyformat);
+	if (ret != 0)
+		goto error;
+
+	ret = zap_lookup(dp->dp_meta_objset, dd->dd_crypto_obj,
+	    zfs_prop_to_name(ZFS_PROP_PBKDF2_SALT), 8, 1, &salt);
+	if (ret != 0)
+		goto error;
+
+	ret = zap_lookup(dp->dp_meta_objset, dd->dd_crypto_obj,
+	    zfs_prop_to_name(ZFS_PROP_PBKDF2_ITERS), 8, 1, &iters);
+	if (ret != 0)
+		goto error;
+
+	ASSERT3U(keyformat, <, ZFS_KEYFORMAT_FORMATS);
+	ASSERT3U(keyformat, !=, ZFS_KEYFORMAT_NONE);
+	IMPLY(keyformat == ZFS_KEYFORMAT_PASSPHRASE, iters != 0);
+	IMPLY(keyformat == ZFS_KEYFORMAT_PASSPHRASE, salt != 0);
+	IMPLY(keyformat != ZFS_KEYFORMAT_PASSPHRASE, iters == 0);
+	IMPLY(keyformat != ZFS_KEYFORMAT_PASSPHRASE, salt == 0);
+
+	wkey->wk_keyformat = keyformat;
+	wkey->wk_salt = salt;
+	wkey->wk_iters = iters;
+
 	/*
-	 * At this point we have verified the key. We can simply cleanup and
+	 * At this point we have verified the wkey and confirmed that it can
+	 * be used to decrypt a DSL Crypto Key. We can simply cleanup and
 	 * return if this is all the user wanted to do.
 	 */
 	if (noop)
@@ -1326,10 +1350,12 @@ spa_keystore_change_key_sync_impl(uint64_t rddobj, uint64_t ddobj,
 		return;
 	}
 
-	/* stop recursing if this dsl dir didn't inherit from the root */
+	/*
+	 * Stop recursing if this dsl dir didn't inherit from the root
+	 * or if this dd is a clone.
+	 */
 	VERIFY0(dsl_dir_get_encryption_root_ddobj(dd, &curr_rddobj));
-
-	if (curr_rddobj != rddobj) {
+	if (curr_rddobj != rddobj || dsl_dir_is_clone(dd)) {
 		dsl_dir_rele(dd, FTAG);
 		return;
 	}
@@ -1355,27 +1381,13 @@ spa_keystore_change_key_sync_impl(uint64_t rddobj, uint64_t ddobj,
 	zc = kmem_alloc(sizeof (zap_cursor_t), KM_SLEEP);
 	za = kmem_alloc(sizeof (zap_attribute_t), KM_SLEEP);
 
-	/* Recurse into all child and clone dsl dirs. */
+	/* Recurse into all child dsl dirs. */
 	for (zap_cursor_init(zc, dp->dp_meta_objset,
 	    dsl_dir_phys(dd)->dd_child_dir_zapobj);
 	    zap_cursor_retrieve(zc, za) == 0;
 	    zap_cursor_advance(zc)) {
 		spa_keystore_change_key_sync_impl(rddobj,
 		    za->za_first_integer, new_rddobj, wkey, tx);
-	}
-	zap_cursor_fini(zc);
-
-	for (zap_cursor_init(zc, dp->dp_meta_objset,
-	    dsl_dir_phys(dd)->dd_clones);
-	    zap_cursor_retrieve(zc, za) == 0;
-	    zap_cursor_advance(zc)) {
-		dsl_dataset_t *clone;
-
-		VERIFY0(dsl_dataset_hold_obj(dp,
-		    za->za_first_integer, FTAG, &clone));
-		spa_keystore_change_key_sync_impl(rddobj,
-		    clone->ds_dir->dd_object, new_rddobj, wkey, tx);
-		dsl_dataset_rele(clone, FTAG);
 	}
 	zap_cursor_fini(zc);
 
@@ -1831,6 +1843,8 @@ dsl_dataset_create_crypt_sync(uint64_t dsobj, dsl_dir_t *dd,
 		wkey->wk_ddobj = dd->dd_object;
 	}
 
+	ASSERT3P(wkey, !=, NULL);
+
 	/* Create or clone the DSL crypto key and activate the feature */
 	dd->dd_crypto_obj = dsl_crypto_key_create_sync(crypt, wkey, tx);
 	VERIFY0(zap_add(dp->dp_meta_objset, dd->dd_object,
@@ -2191,6 +2205,7 @@ dsl_crypto_populate_key_nvlist(dsl_dataset_t *ds, nvlist_t **nvl_out)
 	uint64_t rddobj;
 	nvlist_t *nvl = NULL;
 	uint64_t dckobj = ds->ds_dir->dd_crypto_obj;
+	dsl_dir_t *rdd = NULL;
 	dsl_pool_t *dp = ds->ds_dir->dd_pool;
 	objset_t *mos = dp->dp_meta_objset;
 	uint64_t crypt = 0, guid = 0, format = 0, iters = 0, salt = 0;
@@ -2209,10 +2224,6 @@ dsl_crypto_populate_key_nvlist(dsl_dataset_t *ds, nvlist_t **nvl_out)
 		goto error;
 
 	/* lookup values from the DSL Crypto Key */
-	ret = dsl_dir_get_encryption_root_ddobj(ds->ds_dir, &rddobj);
-	if (ret != 0)
-		goto error;
-
 	ret = zap_lookup(mos, dckobj, DSL_CRYPTO_KEY_CRYPTO_SUITE, 8, 1,
 	    &crypt);
 	if (ret != 0)
@@ -2242,23 +2253,42 @@ dsl_crypto_populate_key_nvlist(dsl_dataset_t *ds, nvlist_t **nvl_out)
 	if (ret != 0)
 		goto error;
 
-	/* lookup wrapping key properties */
-	ret = zap_lookup(dp->dp_meta_objset, dckobj,
-	    zfs_prop_to_name(ZFS_PROP_KEYFORMAT), 8, 1, &format);
+	/*
+	 * Lookup wrapping key properties. An early version of the code did
+	 * not correctly add these values to the wrapping key or the DSL
+	 * Crypto Key on disk for non encryption roots, so to be safe we
+	 * always take the slightly circuitous route of looking it up from
+	 * the encryption root's key.
+	 */
+	ret = dsl_dir_get_encryption_root_ddobj(ds->ds_dir, &rddobj);
 	if (ret != 0)
 		goto error;
 
+	dsl_pool_config_enter(dp, FTAG);
+
+	ret = dsl_dir_hold_obj(dp, rddobj, NULL, FTAG, &rdd);
+	if (ret != 0)
+		goto error_unlock;
+
+	ret = zap_lookup(dp->dp_meta_objset, rdd->dd_crypto_obj,
+	    zfs_prop_to_name(ZFS_PROP_KEYFORMAT), 8, 1, &format);
+	if (ret != 0)
+		goto error_unlock;
+
 	if (format == ZFS_KEYFORMAT_PASSPHRASE) {
-		ret = zap_lookup(dp->dp_meta_objset, dckobj,
+		ret = zap_lookup(dp->dp_meta_objset, rdd->dd_crypto_obj,
 		    zfs_prop_to_name(ZFS_PROP_PBKDF2_ITERS), 8, 1, &iters);
 		if (ret != 0)
-			goto error;
+			goto error_unlock;
 
-		ret = zap_lookup(dp->dp_meta_objset, dckobj,
+		ret = zap_lookup(dp->dp_meta_objset, rdd->dd_crypto_obj,
 		    zfs_prop_to_name(ZFS_PROP_PBKDF2_SALT), 8, 1, &salt);
 		if (ret != 0)
-			goto error;
+			goto error_unlock;
 	}
+
+	dsl_dir_rele(rdd, FTAG);
+	dsl_pool_config_exit(dp, FTAG);
 
 	fnvlist_add_uint64(nvl, DSL_CRYPTO_KEY_CRYPTO_SUITE, crypt);
 	fnvlist_add_uint64(nvl, DSL_CRYPTO_KEY_GUID, guid);
@@ -2285,7 +2315,11 @@ dsl_crypto_populate_key_nvlist(dsl_dataset_t *ds, nvlist_t **nvl_out)
 	*nvl_out = nvl;
 	return (0);
 
+error_unlock:
+	dsl_pool_config_exit(dp, FTAG);
 error:
+	if (rdd != NULL)
+		dsl_dir_rele(rdd, FTAG);
 	nvlist_free(nvl);
 
 	*nvl_out = NULL;
@@ -2488,7 +2522,8 @@ spa_do_crypt_mac_abd(boolean_t generate, spa_t *spa, uint64_t dsobj, abd_t *abd,
 		goto error;
 
 	/* perform the hmac */
-	ret = zio_crypt_do_hmac(&dck->dck_key, buf, datalen, digestbuf);
+	ret = zio_crypt_do_hmac(&dck->dck_key, buf, datalen,
+	    digestbuf, ZIO_DATA_MAC_LEN);
 	if (ret != 0)
 		goto error;
 
@@ -2604,8 +2639,7 @@ error:
 		abd_return_buf(cabd, cipherbuf, datalen);
 	}
 
-	if (dck != NULL)
-		spa_keystore_dsl_key_rele(spa, dck, FTAG);
+	spa_keystore_dsl_key_rele(spa, dck, FTAG);
 
 	return (ret);
 }

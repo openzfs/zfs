@@ -2657,6 +2657,13 @@ recv_fix_encryption_heirarchy(libzfs_handle_t *hdl, const char *destname,
 	int err;
 	nvpair_t *fselem = NULL;
 	nvlist_t *stream_fss;
+	char *cp;
+	char top_zfs[ZFS_MAX_DATASET_NAME_LEN];
+
+	(void) strcpy(top_zfs, destname);
+	cp = strrchr(top_zfs, '@');
+	if (cp != NULL)
+		*cp = '\0';
 
 	VERIFY(0 == nvlist_lookup_nvlist(stream_nv, "fss", &stream_fss));
 
@@ -2758,9 +2765,11 @@ recv_fix_encryption_heirarchy(libzfs_handle_t *hdl, const char *destname,
 		/*
 		 * If the dataset is not flagged as an encryption root and is
 		 * currently an encryption root, force it to inherit from its
-		 * parent.
+		 * parent. The root of a raw send should never be
+		 * force-inherited.
 		 */
-		if (!stream_encroot && is_encroot) {
+		if (!stream_encroot && is_encroot &&
+		    strcmp(top_zfs, fsname) != 0) {
 			err = lzc_change_key(fsname, DCP_CMD_FORCE_INHERIT,
 			    NULL, NULL, 0);
 			if (err != 0) {

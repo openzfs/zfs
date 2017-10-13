@@ -87,6 +87,8 @@ BuildRequires:  libuuid-devel
 BuildRequires:  libblkid-devel
 BuildRequires:  libudev-devel
 BuildRequires:  libattr-devel
+BuildRequires:  openssl-devel
+Requires:       openssl
 %endif
 %if 0%{?_systemd}
 Requires(post): systemd
@@ -183,7 +185,7 @@ Requires:	fio
 Requires:	acl
 Requires:	sudo
 Requires:	sysstat
-Requires:       rng-tools
+Requires:	rng-tools
 
 %description test
 This package contains test infrastructure and support scripts for

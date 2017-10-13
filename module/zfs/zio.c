@@ -2518,13 +2518,14 @@ zio_write_gang_block(zio_t *pio)
 
 		zp.zp_checksum = gio->io_prop.zp_checksum;
 		zp.zp_compress = ZIO_COMPRESS_OFF;
-		zp.zp_encrypt = gio->io_prop.zp_encrypt;
 		zp.zp_type = DMU_OT_NONE;
 		zp.zp_level = 0;
 		zp.zp_copies = gio->io_prop.zp_copies;
 		zp.zp_dedup = B_FALSE;
 		zp.zp_dedup_verify = B_FALSE;
 		zp.zp_nopwrite = B_FALSE;
+		zp.zp_encrypt = gio->io_prop.zp_encrypt;
+		zp.zp_byteorder = gio->io_prop.zp_byteorder;
 		bzero(zp.zp_salt, ZIO_DATA_SALT_LEN);
 		bzero(zp.zp_iv, ZIO_DATA_IV_LEN);
 		bzero(zp.zp_mac, ZIO_DATA_MAC_LEN);

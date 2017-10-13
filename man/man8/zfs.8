@@ -2179,18 +2179,31 @@ and
 .Sy pbkdf2iters .
 After entering an encryption key, the
 created dataset will become an encryption root. Any descendant datasets will
-inherit their encryption key from the encryption root, meaning that loading,
-unloading, or changing the key for the encryption root will implicitly do the
-same for all inheriting datasets. If this inheritence is not desired, simply
-supply a new
-.Sy encryption
-and
+inherit their encryption key from the encryption root by default, meaning that
+loading, unloading, or changing the key for the encryption root will implicitly
+do the same for all inheriting datasets. If this inheritance is not desired,
+simply supply a
 .Sy keyformat
 when creating the child dataset or use
 .Nm zfs Cm change-key
-to break the relationship. The one exception is that clones will always use
-their origin's encryption key. Encryption root inheritence can be tracked via
-the read-only
+to break an existing relationship, creating a new encryption root on the child.
+Note that the child's
+.Sy keyformat
+may match that of the parent while still creating a new encryption root, and
+that changing the
+.Sy encryption
+property alone does not create a new encryption root; this would simply use a
+different cipher suite with the same key as its encryption root. The one
+exception is that clones will always use their origin's encryption key.
+As a result of this exception, some encryption-related properties (namely
+.Sy keystatus ,
+.Sy keyformat ,
+.Sy keylocation ,
+and
+.Sy pbkdf2iters )
+do not inherit like other ZFS properties and instead use the value determined
+by their encryption root. Encryption root inheritance can be tracked via the
+read-only
 .Sy encryptionroot
 property.
 .Pp
@@ -3165,7 +3178,10 @@ feature enabled.
 If the
 .Sy lz4_compress
 feature is active on the sending system, then the receiving system must have
-that feature enabled as well.
+that feature enabled as well. Datasets that are sent with this flag may not be
+received as an encrypted dataset, since encrypted datasets cannot use the
+.Sy embedded_data
+feature.
 See
 .Xr zpool-features 5
 for details on ZFS feature flags and the
@@ -3248,7 +3264,10 @@ Include the dataset's properties in the stream.
 This flag is implicit when
 .Fl R
 is specified.
-The receiving system must also support this feature.
+The receiving system must also support this feature. Sends of encrypted datasets
+must use
+.Fl w
+when using this flag.
 .It Fl v, -verbose
 Print verbose information about the stream package generated.
 This information includes a per-second report of how much data has been sent.
@@ -3339,8 +3358,10 @@ feature enabled.
 If the
 .Sy lz4_compress
 feature is active on the sending system, then the receiving system must have
-that feature enabled as well. Note that streams generated using this flag are
-unable to be received into an encrypted dataset.
+that feature enabled as well. Datasets that are sent with this flag may not be
+received as an encrypted dataset, since encrypted datasets cannot use the
+.Sy embedded_data
+feature.
 See
 .Xr zpool-features 5
 for details on ZFS feature flags and the
@@ -3462,6 +3483,15 @@ is a special case because, even if
 .Sy origin
 is a read-only property and cannot be set, it's allowed to receive the send
 stream as a clone of the given snapshot.
+.Pp
+Raw encrypted send streams (created with
+.Nm zfs Cm send Fl w
+) may only be received as is, and cannot be re-encrypted, decrypted, or
+recompressed by the receive process. Unencrypted streams can be received as
+encrypted datasets, either through inheritance or by specifying encryption
+parameters with the
+.Fl o
+options.
 .Pp
 The name of the snapshot
 .Pq and file system, if a full stream is received

@@ -201,6 +201,7 @@ extern int  zfs_abd_scatter_enabled;
 
 static ztest_shared_opts_t *ztest_shared_opts;
 static ztest_shared_opts_t ztest_opts;
+static char *ztest_wkeydata = "abcdefghijklmnopqrstuvwxyz012345";
 
 typedef struct ztest_shared_ds {
 	uint64_t	zd_seq;
@@ -1180,6 +1181,42 @@ ztest_spa_prop_set_uint64(zpool_prop_t prop, uint64_t value)
 	return (error);
 }
 
+static int
+ztest_dmu_objset_own(const char *name, dmu_objset_type_t type,
+    boolean_t readonly, boolean_t decrypt, void *tag, objset_t **osp)
+{
+	int err;
+
+	err = dmu_objset_own(name, type, readonly, decrypt, tag, osp);
+	if (decrypt && err == EACCES) {
+		char ddname[ZFS_MAX_DATASET_NAME_LEN];
+		dsl_crypto_params_t *dcp;
+		nvlist_t *crypto_args = fnvlist_alloc();
+		char *cp = NULL;
+
+		/* spa_keystore_load_wkey() expects a dsl dir name */
+		strcpy(ddname, name);
+		cp = strchr(ddname, '@');
+		if (cp != NULL)
+			*cp = '\0';
+
+		fnvlist_add_uint8_array(crypto_args, "wkeydata",
+		    (uint8_t *)ztest_wkeydata, WRAPPING_KEY_LEN);
+		VERIFY0(dsl_crypto_params_create_nvlist(DCP_CMD_NONE, NULL,
+		    crypto_args, &dcp));
+		err = spa_keystore_load_wkey(ddname, dcp, B_FALSE);
+		dsl_crypto_params_free(dcp, B_FALSE);
+		fnvlist_free(crypto_args);
+
+		if (err != 0)
+			return (err);
+
+		err = dmu_objset_own(name, type, readonly, decrypt, tag, osp);
+	}
+
+	return (err);
+}
+
 
 /*
  * Object and range lock mechanics
@@ -1921,7 +1958,7 @@ ztest_replay_write(ztest_ds_t *zd, lr_write_t *lr, boolean_t byteswap)
 		dmu_write(os, lr->lr_foid, offset, length, data, tx);
 	} else {
 		bcopy(data, abuf->b_data, length);
-		dmu_assign_arcbuf(db, offset, abuf, tx);
+		dmu_assign_arcbuf_by_dbuf(db, offset, abuf, tx);
 	}
 
 	(void) ztest_log_write(zd, tx, lr);
@@ -3532,11 +3569,57 @@ ztest_objset_create_cb(objset_t *os, void *arg, cred_t *cr, dmu_tx_t *tx)
 static int
 ztest_dataset_create(char *dsname)
 {
-	uint64_t zilset = ztest_random(100);
-	int err = dmu_objset_create(dsname, DMU_OST_OTHER, 0, NULL,
-	    ztest_objset_create_cb, NULL);
+	int err;
+	uint64_t rand;
+	dsl_crypto_params_t *dcp = NULL;
 
-	if (err || zilset < 80)
+	/*
+	 * 50% of the time, we create encrypted datasets
+	 * using a random cipher suite and a hard-coded
+	 * wrapping key.
+	 */
+	rand = ztest_random(2);
+	if (rand != 0) {
+		nvlist_t *crypto_args = fnvlist_alloc();
+		nvlist_t *props = fnvlist_alloc();
+
+		/* slight bias towards the default cipher suite */
+		rand = ztest_random(ZIO_CRYPT_FUNCTIONS);
+		if (rand < ZIO_CRYPT_AES_128_CCM)
+			rand = ZIO_CRYPT_ON;
+
+		fnvlist_add_uint64(props,
+		    zfs_prop_to_name(ZFS_PROP_ENCRYPTION), rand);
+		fnvlist_add_uint8_array(crypto_args, "wkeydata",
+		    (uint8_t *)ztest_wkeydata, WRAPPING_KEY_LEN);
+
+		/*
+		 * These parameters aren't really used by the kernel. They
+		 * are simply stored so that userspace knows how to load
+		 * the wrapping key.
+		 */
+		fnvlist_add_uint64(props,
+		    zfs_prop_to_name(ZFS_PROP_KEYFORMAT), ZFS_KEYFORMAT_RAW);
+		fnvlist_add_string(props,
+		    zfs_prop_to_name(ZFS_PROP_KEYLOCATION), "prompt");
+		fnvlist_add_uint64(props,
+		    zfs_prop_to_name(ZFS_PROP_PBKDF2_SALT), 0ULL);
+		fnvlist_add_uint64(props,
+		    zfs_prop_to_name(ZFS_PROP_PBKDF2_ITERS), 0ULL);
+
+		VERIFY0(dsl_crypto_params_create_nvlist(DCP_CMD_NONE, props,
+		    crypto_args, &dcp));
+
+		fnvlist_free(crypto_args);
+		fnvlist_free(props);
+	}
+
+	err = dmu_objset_create(dsname, DMU_OST_OTHER, 0, dcp,
+	    ztest_objset_create_cb, NULL);
+	dsl_crypto_params_free(dcp, !!err);
+
+	rand = ztest_random(100);
+	if (err || rand < 80)
 		return (err);
 
 	if (ztest_opts.zo_verbose >= 5)
@@ -3556,7 +3639,8 @@ ztest_objset_destroy_cb(const char *name, void *arg)
 	/*
 	 * Verify that the dataset contains a directory object.
 	 */
-	VERIFY0(dmu_objset_own(name, DMU_OST_OTHER, B_TRUE, B_TRUE, FTAG, &os));
+	VERIFY0(ztest_dmu_objset_own(name, DMU_OST_OTHER, B_TRUE,
+	    B_TRUE, FTAG, &os));
 	error = dmu_object_info(os, ZTEST_DIROBJ, &doi);
 	if (error != ENOENT) {
 		/* We could have crashed in the middle of destroying it */
@@ -3640,11 +3724,12 @@ ztest_dmu_objset_create_destroy(ztest_ds_t *zd, uint64_t id)
 	 * (invoked from ztest_objset_destroy_cb()) should just throw it away.
 	 */
 	if (ztest_random(2) == 0 &&
-	    dmu_objset_own(name, DMU_OST_OTHER, B_FALSE,
+	    ztest_dmu_objset_own(name, DMU_OST_OTHER, B_FALSE,
 	    B_TRUE, FTAG, &os) == 0) {
 		ztest_zd_init(zdtmp, NULL, os);
 		zil_replay(os, zdtmp, ztest_replay_vector);
 		ztest_zd_fini(zdtmp);
+		txg_wait_synced(dmu_objset_pool(os), 0);
 		dmu_objset_disown(os, B_TRUE, FTAG);
 	}
 
@@ -3659,8 +3744,8 @@ ztest_dmu_objset_create_destroy(ztest_ds_t *zd, uint64_t id)
 	/*
 	 * Verify that the destroyed dataset is no longer in the namespace.
 	 */
-	VERIFY3U(ENOENT, ==, dmu_objset_own(name, DMU_OST_OTHER, B_TRUE, B_TRUE,
-	    FTAG, &os));
+	VERIFY3U(ENOENT, ==, ztest_dmu_objset_own(name, DMU_OST_OTHER, B_TRUE,
+	    B_TRUE, FTAG, &os));
 
 	/*
 	 * Verify that we can create a new dataset.
@@ -3674,7 +3759,7 @@ ztest_dmu_objset_create_destroy(ztest_ds_t *zd, uint64_t id)
 		fatal(0, "dmu_objset_create(%s) = %d", name, error);
 	}
 
-	VERIFY0(dmu_objset_own(name, DMU_OST_OTHER, B_FALSE, B_TRUE,
+	VERIFY0(ztest_dmu_objset_own(name, DMU_OST_OTHER, B_FALSE, B_TRUE,
 	    FTAG, &os));
 
 	ztest_zd_init(zdtmp, NULL, os);
@@ -3710,10 +3795,11 @@ ztest_dmu_objset_create_destroy(ztest_ds_t *zd, uint64_t id)
 	/*
 	 * Verify that we cannot own an objset that is already owned.
 	 */
-	VERIFY3U(EBUSY, ==,
-	    dmu_objset_own(name, DMU_OST_OTHER, B_FALSE, B_TRUE, FTAG, &os2));
+	VERIFY3U(EBUSY, ==, ztest_dmu_objset_own(name, DMU_OST_OTHER,
+	    B_FALSE, B_TRUE, FTAG, &os2));
 
 	zil_close(zilog);
+	txg_wait_synced(spa_get_dsl(os->os_spa), 0);
 	dmu_objset_disown(os, B_TRUE, FTAG);
 	ztest_zd_fini(zdtmp);
 out:
@@ -3868,7 +3954,7 @@ ztest_dsl_dataset_promote_busy(ztest_ds_t *zd, uint64_t id)
 		fatal(0, "dmu_objset_create(%s) = %d", clone2name, error);
 	}
 
-	error = dmu_objset_own(snap2name, DMU_OST_ANY, B_TRUE, B_TRUE,
+	error = ztest_dmu_objset_own(snap2name, DMU_OST_ANY, B_TRUE, B_TRUE,
 	    FTAG, &os);
 	if (error)
 		fatal(0, "dmu_objset_own(%s) = %d", snap2name, error);
@@ -4260,7 +4346,7 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 	 *	bigobj, at the tail of the nth chunk
 	 *
 	 * The chunk size is set equal to bigobj block size so that
-	 * dmu_assign_arcbuf() can be tested for object updates.
+	 * dmu_assign_arcbuf_by_dbuf() can be tested for object updates.
 	 */
 
 	/*
@@ -4322,7 +4408,7 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 		/*
 		 * In iteration 5 (i == 5) use arcbufs
 		 * that don't match bigobj blksz to test
-		 * dmu_assign_arcbuf() when it can't directly
+		 * dmu_assign_arcbuf_by_dbuf() when it can't directly
 		 * assign an arcbuf to a dbuf.
 		 */
 		for (j = 0; j < s; j++) {
@@ -4368,8 +4454,8 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 
 		/*
 		 * 50% of the time don't read objects in the 1st iteration to
-		 * test dmu_assign_arcbuf() for the case when there're no
-		 * existing dbufs for the specified offsets.
+		 * test dmu_assign_arcbuf_by_dbuf() for the case when there are
+		 * no existing dbufs for the specified offsets.
 		 */
 		if (i != 0 || ztest_random(2) != 0) {
 			error = dmu_read(os, packobj, packoff,
@@ -4414,12 +4500,12 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 				    FTAG, &dbt, DMU_READ_NO_PREFETCH) == 0);
 			}
 			if (i != 5 || chunksize < (SPA_MINBLOCKSIZE * 2)) {
-				dmu_assign_arcbuf(bonus_db, off,
+				dmu_assign_arcbuf_by_dbuf(bonus_db, off,
 				    bigbuf_arcbufs[j], tx);
 			} else {
-				dmu_assign_arcbuf(bonus_db, off,
+				dmu_assign_arcbuf_by_dbuf(bonus_db, off,
 				    bigbuf_arcbufs[2 * j], tx);
-				dmu_assign_arcbuf(bonus_db,
+				dmu_assign_arcbuf_by_dbuf(bonus_db,
 				    off + chunksize / 2,
 				    bigbuf_arcbufs[2 * j + 1], tx);
 			}
@@ -6262,7 +6348,8 @@ ztest_dataset_open(int d)
 	}
 	ASSERT(error == 0 || error == EEXIST);
 
-	VERIFY0(dmu_objset_own(name, DMU_OST_OTHER, B_FALSE, B_TRUE, zd, &os));
+	VERIFY0(ztest_dmu_objset_own(name, DMU_OST_OTHER, B_FALSE,
+	    B_TRUE, zd, &os));
 	(void) rw_unlock(&ztest_name_lock);
 
 	ztest_zd_init(zd, ZTEST_GET_SHARED_DS(d), os);
@@ -6303,6 +6390,7 @@ ztest_dataset_close(int d)
 	ztest_ds_t *zd = &ztest_ds[d];
 
 	zil_close(zd->zd_zilog);
+	txg_wait_synced(spa_get_dsl(zd->zd_os->os_spa), 0);
 	dmu_objset_disown(zd->zd_os, B_TRUE, zd);
 
 	ztest_zd_fini(zd);
@@ -6355,7 +6443,7 @@ ztest_run(ztest_shared_t *zs)
 	ztest_spa = spa;
 
 	dmu_objset_stats_t dds;
-	VERIFY0(dmu_objset_own(ztest_opts.zo_pool,
+	VERIFY0(ztest_dmu_objset_own(ztest_opts.zo_pool,
 	    DMU_OST_ANY, B_TRUE, B_TRUE, FTAG, &os));
 	dsl_pool_config_enter(dmu_objset_pool(os), FTAG);
 	dmu_objset_fast_stat(os, &dds);
@@ -6582,11 +6670,10 @@ ztest_freeze(void)
 	VERIFY3U(0, ==, spa_open(ztest_opts.zo_pool, &spa, FTAG));
 	ASSERT(spa_freeze_txg(spa) == UINT64_MAX);
 	VERIFY3U(0, ==, ztest_dataset_open(0));
-	ztest_dataset_close(0);
-
 	spa->spa_debug = B_TRUE;
 	ztest_spa = spa;
 	txg_wait_synced(spa_get_dsl(spa), 0);
+	ztest_dataset_close(0);
 	ztest_reguid(NULL, 0);
 
 	spa_close(spa, FTAG);

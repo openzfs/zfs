@@ -1,0 +1,235 @@
+/*
+ * CDDL HEADER START
+ *
+ * This file and its contents are supplied under the terms of the
+ * Common Development and Distribution License ("CDDL"), version 1.0.
+ * You may only use this file in accordance with the terms of version
+ * 1.0 of the CDDL.
+ *
+ * A full copy of the text of the CDDL should have accompanied this
+ * source.  A copy of the CDDL is also available via the Internet at
+ * http://www.illumos.org/license/CDDL.
+ *
+ * CDDL HEADER END
+ */
+
+/*
+ * Copyright (c) 2017, Datto, Inc. All rights reserved.
+ */
+
+#include <stdio.h>
+#include <strings.h>
+#include <sys/crypto/icp.h>
+#include <sys/sha2.h>
+#include <sys/hkdf.h>
+
+#define	NELEMS(x)  (sizeof (x) / sizeof ((x)[0]))
+
+/*
+ * Byte arrays are given as char pointers so that they
+ * can be specified as strings.
+ */
+typedef struct hkdf_tv {
+	/* test vector input values */
+	char		*ikm;
+	uint_t		ikm_len;
+	char		*salt;
+	uint_t		salt_len;
+	char		*info;
+	uint_t		info_len;
+	uint_t		okm_len;
+
+	/* expected output */
+	char		*okm;
+} hkdf_tv_t;
+
+/*
+ * XXX Neither NIST nor IETF has published official test
+ * vectors for testing HKDF with SHA512. The following
+ * vectors should be updated if these are ever published.
+ * The current vectors were taken from:
+ * https://www.kullo.net/blog/hkdf-sha-512-test-vectors/
+ */
+static hkdf_tv_t test_vectors[] = {
+	{
+		.ikm =	"\x0b\x0b\x0b\x0b\x0b\x0b\x0b\x0b"
+			"\x0b\x0b\x0b\x0b\x0b\x0b\x0b\x0b"
+			"\x0b\x0b\x0b\x0b\x0b\x0b",
+		.ikm_len = 22,
+		.salt =	"\x00\x01\x02\x03\x04\x05\x06\x07"
+			"\x08\x09\x0a\x0b\x0c",
+		.salt_len = 13,
+		.info =	"\xf0\xf1\xf2\xf3\xf4\xf5\xf6\xf7"
+			"\xf8\xf9",
+		.info_len = 10,
+		.okm_len = 42,
+		.okm =	"\x83\x23\x90\x08\x6c\xda\x71\xfb"
+			"\x47\x62\x5b\xb5\xce\xb1\x68\xe4"
+			"\xc8\xe2\x6a\x1a\x16\xed\x34\xd9"
+			"\xfc\x7f\xe9\x2c\x14\x81\x57\x93"
+			"\x38\xda\x36\x2c\xb8\xd9\xf9\x25"
+			"\xd7\xcb",
+	},
+	{
+		.ikm = 	"\x00\x01\x02\x03\x04\x05\x06\x07"
+			"\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f"
+			"\x10\x11\x12\x13\x14\x15\x16\x17"
+			"\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f"
+			"\x20\x21\x22\x23\x24\x25\x26\x27"
+			"\x28\x29\x2a\x2b\x2c\x2d\x2e\x2f"
+			"\x30\x31\x32\x33\x34\x35\x36\x37"
+			"\x38\x39\x3a\x3b\x3c\x3d\x3e\x3f"
+			"\x40\x41\x42\x43\x44\x45\x46\x47"
+			"\x48\x49\x4a\x4b\x4c\x4d\x4e\x4f",
+		.ikm_len = 80,
+		.salt =	"\x60\x61\x62\x63\x64\x65\x66\x67"
+			"\x68\x69\x6a\x6b\x6c\x6d\x6e\x6f"
+			"\x70\x71\x72\x73\x74\x75\x76\x77"
+			"\x78\x79\x7a\x7b\x7c\x7d\x7e\x7f"
+			"\x80\x81\x82\x83\x84\x85\x86\x87"
+			"\x88\x89\x8a\x8b\x8c\x8d\x8e\x8f"
+			"\x90\x91\x92\x93\x94\x95\x96\x97"
+			"\x98\x99\x9a\x9b\x9c\x9d\x9e\x9f"
+			"\xa0\xa1\xa2\xa3\xa4\xa5\xa6\xa7"
+			"\xa8\xa9\xaa\xab\xac\xad\xae\xaf",
+		.salt_len = 80,
+		.info =	"\xb0\xb1\xb2\xb3\xb4\xb5\xb6\xb7"
+			"\xb8\xb9\xba\xbb\xbc\xbd\xbe\xbf"
+			"\xc0\xc1\xc2\xc3\xc4\xc5\xc6\xc7"
+			"\xc8\xc9\xca\xcb\xcc\xcd\xce\xcf"
+			"\xd0\xd1\xd2\xd3\xd4\xd5\xd6\xd7"
+			"\xd8\xd9\xda\xdb\xdc\xdd\xde\xdf"
+			"\xe0\xe1\xe2\xe3\xe4\xe5\xe6\xe7"
+			"\xe8\xe9\xea\xeb\xec\xed\xee\xef"
+			"\xf0\xf1\xf2\xf3\xf4\xf5\xf6\xf7"
+			"\xf8\xf9\xfa\xfb\xfc\xfd\xfe\xff",
+		.info_len = 80,
+		.okm_len = 42,
+		.okm =	"\xce\x6c\x97\x19\x28\x05\xb3\x46"
+			"\xe6\x16\x1e\x82\x1e\xd1\x65\x67"
+			"\x3b\x84\xf4\x00\xa2\xb5\x14\xb2"
+			"\xfe\x23\xd8\x4c\xd1\x89\xdd\xf1"
+			"\xb6\x95\xb4\x8c\xbd\x1c\x83\x88"
+			"\x44\x11\x37\xb3\xce\x28\xf1\x6a"
+			"\xa6\x4b\xa3\x3b\xa4\x66\xb2\x4d"
+			"\xf6\xcf\xcb\x02\x1e\xcf\xf2\x35"
+			"\xf6\xa2\x05\x6c\xe3\xaf\x1d\xe4"
+			"\x4d\x57\x20\x97\xa8\x50\x5d\x9e"
+			"\x7a\x93",
+	},
+	{
+		.ikm =	"\x0b\x0b\x0b\x0b\x0b\x0b\x0b\x0b"
+			"\x0b\x0b\x0b\x0b\x0b\x0b\x0b\x0b"
+			"\x0b\x0b\x0b\x0b\x0b\x0b",
+		.ikm_len = 22,
+		.salt =	NULL,
+		.salt_len = 0,
+		.info =	NULL,
+		.info_len = 0,
+		.okm_len = 42,
+		.okm =	"\xf5\xfa\x02\xb1\x82\x98\xa7\x2a"
+			"\x8c\x23\x89\x8a\x87\x03\x47\x2c"
+			"\x6e\xb1\x79\xdc\x20\x4c\x03\x42"
+			"\x5c\x97\x0e\x3b\x16\x4b\xf9\x0f"
+			"\xff\x22\xd0\x48\x36\xd0\xe2\x34"
+			"\x3b\xac",
+	},
+	{
+		.ikm =	"\x0b\x0b\x0b\x0b\x0b\x0b\x0b\x0b"
+			"\x0b\x0b\x0b",
+		.ikm_len = 11,
+		.salt =	"\x00\x01\x02\x03\x04\x05\x06\x07"
+			"\x08\x09\x0a\x0b\x0c",
+		.salt_len = 13,
+		.info =	"\xf0\xf1\xf2\xf3\xf4\xf5\xf6\xf7"
+			"\xf8\xf9",
+		.info_len = 10,
+		.okm_len = 42,
+		.okm =	"\x74\x13\xe8\x99\x7e\x02\x06\x10"
+			"\xfb\xf6\x82\x3f\x2c\xe1\x4b\xff"
+			"\x01\x87\x5d\xb1\xca\x55\xf6\x8c"
+			"\xfc\xf3\x95\x4d\xc8\xaf\xf5\x35"
+			"\x59\xbd\x5e\x30\x28\xb0\x80\xf7"
+			"\xc0\x68",
+	},
+	{
+		.ikm =	"\x0c\x0c\x0c\x0c\x0c\x0c\x0c\x0c"
+			"\x0c\x0c\x0c\x0c\x0c\x0c\x0c\x0c"
+			"\x0c\x0c\x0c\x0c\x0c\x0c",
+		.ikm_len = 22,
+		.salt =	NULL,
+		.salt_len = 0,
+		.info = NULL,
+		.info_len = 0,
+		.okm_len = 42,
+		.okm =	"\x14\x07\xd4\x60\x13\xd9\x8b\xc6"
+			"\xde\xce\xfc\xfe\xe5\x5f\x0f\x90"
+			"\xb0\xc7\xf6\x3d\x68\xeb\x1a\x80"
+			"\xea\xf0\x7e\x95\x3c\xfc\x0a\x3a"
+			"\x52\x40\xa1\x55\xd6\xe4\xda\xa9"
+			"\x65\xbb",
+	},
+};
+
+static void
+hexdump(char *str, uint8_t *src, uint_t len)
+{
+	int i;
+
+	printf("\t%s\t", str);
+	for (i = 0; i < len; i++) {
+		printf("%02x", src[i] & 0xff);
+	}
+	printf("\n");
+}
+
+static int
+run_test(int i, hkdf_tv_t *tv)
+{
+	int ret;
+	uint8_t okey[SHA512_DIGEST_LENGTH];
+
+	printf("TEST %d:\t", i);
+
+	ret = hkdf_sha512((uint8_t *)tv->ikm, tv->ikm_len, (uint8_t *)tv->salt,
+	    tv->salt_len, (uint8_t *)tv->info, tv->info_len, okey, tv->okm_len);
+	if (ret != 0) {
+		printf("HKDF failed with error code %d\n", ret);
+		return (ret);
+	}
+
+	if (bcmp(okey, tv->okm, tv->okm_len) != 0) {
+		printf("Output Mismatch\n");
+		hexdump("Expected:", (uint8_t *)tv->okm, tv->okm_len);
+		hexdump("Actual:  ", okey, tv->okm_len);
+		return (1);
+	}
+
+	printf("Passed\n");
+
+	return (0);
+}
+
+int
+main(int argc, char **argv)
+{
+	int ret, i;
+
+	icp_init();
+
+	for (i = 0; i < NELEMS(test_vectors); i++) {
+		ret = run_test(i, &test_vectors[i]);
+		if (ret != 0)
+			break;
+	}
+
+	icp_fini();
+
+	if (ret == 0) {
+		printf("All tests passed successfully.\n");
+		return (0);
+	} else {
+		printf("Test failed.\n");
+		return (1);
+	}
+}

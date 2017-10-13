@@ -759,10 +759,13 @@ void dmu_tx_callback_register(dmu_tx_t *tx, dmu_tx_callback_func_t *dcb_func,
  * -1, the range from offset to end-of-file is freed.
  */
 int dmu_free_range(objset_t *os, uint64_t object, uint64_t offset,
-	uint64_t size, dmu_tx_t *tx);
+    uint64_t size, dmu_tx_t *tx);
 int dmu_free_long_range(objset_t *os, uint64_t object, uint64_t offset,
-	uint64_t size);
+    uint64_t size);
+int dmu_free_long_range_raw(objset_t *os, uint64_t object, uint64_t offset,
+    uint64_t size);
 int dmu_free_long_object(objset_t *os, uint64_t object);
+int dmu_free_long_object_raw(objset_t *os, uint64_t object);
 
 /*
  * Convenience functions.
@@ -797,10 +800,11 @@ int dmu_write_uio_dnode(dnode_t *dn, struct uio *uio, uint64_t size,
 #endif
 struct arc_buf *dmu_request_arcbuf(dmu_buf_t *handle, int size);
 void dmu_return_arcbuf(struct arc_buf *buf);
-void dmu_assign_arcbuf(dmu_buf_t *handle, uint64_t offset, struct arc_buf *buf,
-    dmu_tx_t *tx);
-void dmu_assign_arcbuf_impl(dmu_buf_t *handle, struct arc_buf *buf,
-    dmu_tx_t *tx);
+void dmu_assign_arcbuf_by_dnode(dnode_t *dn, uint64_t offset,
+    struct arc_buf *buf, dmu_tx_t *tx);
+void dmu_assign_arcbuf_by_dbuf(dmu_buf_t *handle, uint64_t offset,
+    struct arc_buf *buf, dmu_tx_t *tx);
+#define	dmu_assign_arcbuf	dmu_assign_arcbuf_by_dbuf
 void dmu_convert_to_raw(dmu_buf_t *handle, boolean_t byteorder,
     const uint8_t *salt, const uint8_t *iv, const uint8_t *mac, dmu_tx_t *tx);
 void dmu_copy_from_buf(objset_t *os, uint64_t object, uint64_t offset,

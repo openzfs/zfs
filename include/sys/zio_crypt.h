@@ -32,18 +32,9 @@ struct zbookmark_phys;
 
 #define	WRAPPING_KEY_LEN	32
 #define	WRAPPING_IV_LEN		ZIO_DATA_IV_LEN
-#define	WRAPPING_MAC_LEN	16
-
-#define	SHA1_DIGEST_LEN		20
-#define	SHA512_DIGEST_LEN	64
-#define	SHA512_HMAC_KEYLEN	64
-
+#define	WRAPPING_MAC_LEN	ZIO_DATA_MAC_LEN
 #define	MASTER_KEY_MAX_LEN	32
-#define	L2ARC_DEFAULT_CRYPT ZIO_CRYPT_AES_256_CCM
-
-/* utility macros */
-#define	BITS_TO_BYTES(x) ((x + NBBY - 1) / NBBY)
-#define	BYTES_TO_BITS(x) (x * NBBY)
+#define	SHA512_HMAC_KEYLEN	64
 
 typedef enum zio_crypt_type {
 	ZC_TYPE_NONE = 0,
@@ -133,7 +124,7 @@ int zio_crypt_do_indirect_mac_checksum(boolean_t generate, void *buf,
 int zio_crypt_do_indirect_mac_checksum_abd(boolean_t generate, abd_t *abd,
     uint_t datalen, boolean_t byteswap, uint8_t *cksum);
 int zio_crypt_do_hmac(zio_crypt_key_t *key, uint8_t *data, uint_t datalen,
-    uint8_t *digestbuf);
+    uint8_t *digestbuf, uint_t digestlen);
 int zio_crypt_do_objset_hmacs(zio_crypt_key_t *key, void *data, uint_t datalen,
     boolean_t byteswap, uint8_t *portable_mac, uint8_t *local_mac);
 int zio_do_crypt_data(boolean_t encrypt, zio_crypt_key_t *key, uint8_t *salt,

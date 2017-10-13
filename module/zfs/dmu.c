@@ -761,7 +761,7 @@ dmu_objset_zfs_unmounting(objset_t *os)
 
 static int
 dmu_free_long_range_impl(objset_t *os, dnode_t *dn, uint64_t offset,
-    uint64_t length)
+    uint64_t length, boolean_t raw)
 {
 	uint64_t object_size;
 	int err;
@@ -844,6 +844,17 @@ dmu_free_long_range_impl(objset_t *os, dnode_t *dn, uint64_t offset,
 		    uint64_t, long_free_dirty_all_txgs, uint64_t, chunk_len,
 		    uint64_t, dmu_tx_get_txg(tx));
 		dnode_free_range(dn, chunk_begin, chunk_len, tx);
+
+		/* if this is a raw free, mark the dirty record as such */
+		if (raw) {
+			dbuf_dirty_record_t *dr = dn->dn_dbuf->db_last_dirty;
+
+			while (dr != NULL && dr->dr_txg > tx->tx_txg)
+				dr = dr->dr_next;
+			if (dr != NULL && dr->dr_txg == tx->tx_txg)
+				dr->dt.dl.dr_raw = B_TRUE;
+		}
+
 		dmu_tx_commit(tx);
 
 		length -= chunk_len;
@@ -861,7 +872,7 @@ dmu_free_long_range(objset_t *os, uint64_t object,
 	err = dnode_hold(os, object, FTAG, &dn);
 	if (err != 0)
 		return (err);
-	err = dmu_free_long_range_impl(os, dn, offset, length);
+	err = dmu_free_long_range_impl(os, dn, offset, length, B_FALSE);
 
 	/*
 	 * It is important to zero out the maxblkid when freeing the entire
@@ -876,8 +887,37 @@ dmu_free_long_range(objset_t *os, uint64_t object,
 	return (err);
 }
 
+/*
+ * This function is equivalent to dmu_free_long_range(), but also
+ * marks the new dirty record as a raw write.
+ */
 int
-dmu_free_long_object(objset_t *os, uint64_t object)
+dmu_free_long_range_raw(objset_t *os, uint64_t object,
+    uint64_t offset, uint64_t length)
+{
+	dnode_t *dn;
+	int err;
+
+	err = dnode_hold(os, object, FTAG, &dn);
+	if (err != 0)
+		return (err);
+	err = dmu_free_long_range_impl(os, dn, offset, length, B_TRUE);
+
+	/*
+	 * It is important to zero out the maxblkid when freeing the entire
+	 * file, so that (a) subsequent calls to dmu_free_long_range_impl()
+	 * will take the fast path, and (b) dnode_reallocate() can verify
+	 * that the entire file has been freed.
+	 */
+	if (err == 0 && offset == 0 && length == DMU_OBJECT_END)
+		dn->dn_maxblkid = 0;
+
+	dnode_rele(dn, FTAG);
+	return (err);
+}
+
+static int
+dmu_free_long_object_impl(objset_t *os, uint64_t object, boolean_t raw)
 {
 	dmu_tx_t *tx;
 	int err;
@@ -893,6 +933,9 @@ dmu_free_long_object(objset_t *os, uint64_t object)
 	err = dmu_tx_assign(tx, TXG_WAIT);
 	if (err == 0) {
 		err = dmu_object_free(os, object, tx);
+		if (err == 0 && raw)
+			VERIFY0(dmu_object_dirty_raw(os, object, tx));
+
 		dmu_tx_commit(tx);
 	} else {
 		dmu_tx_abort(tx);
@@ -900,6 +943,19 @@ dmu_free_long_object(objset_t *os, uint64_t object)
 
 	return (err);
 }
+
+int
+dmu_free_long_object(objset_t *os, uint64_t object)
+{
+	return (dmu_free_long_object_impl(os, object, B_FALSE));
+}
+
+int
+dmu_free_long_object_raw(objset_t *os, uint64_t object)
+{
+	return (dmu_free_long_object_impl(os, object, B_TRUE));
+}
+
 
 int
 dmu_free_range(objset_t *os, uint64_t object, uint64_t offset,
@@ -1487,13 +1543,6 @@ dmu_return_arcbuf(arc_buf_t *buf)
 }
 
 void
-dmu_assign_arcbuf_impl(dmu_buf_t *handle, arc_buf_t *buf, dmu_tx_t *tx)
-{
-	dmu_buf_impl_t *db = (dmu_buf_impl_t *)handle;
-	dbuf_assign_arcbuf(db, buf, tx);
-}
-
-void
 dmu_convert_to_raw(dmu_buf_t *handle, boolean_t byteorder, const uint8_t *salt,
     const uint8_t *iv, const uint8_t *mac, dmu_tx_t *tx)
 {
@@ -1569,22 +1618,19 @@ dmu_copy_from_buf(objset_t *os, uint64_t object, uint64_t offset,
  * dmu_write().
  */
 void
-dmu_assign_arcbuf(dmu_buf_t *handle, uint64_t offset, arc_buf_t *buf,
+dmu_assign_arcbuf_by_dnode(dnode_t *dn, uint64_t offset, arc_buf_t *buf,
     dmu_tx_t *tx)
 {
-	dmu_buf_impl_t *dbuf = (dmu_buf_impl_t *)handle;
-	dnode_t *dn;
 	dmu_buf_impl_t *db;
+	objset_t *os = dn->dn_objset;
+	uint64_t object = dn->dn_object;
 	uint32_t blksz = (uint32_t)arc_buf_lsize(buf);
 	uint64_t blkid;
 
-	DB_DNODE_ENTER(dbuf);
-	dn = DB_DNODE(dbuf);
 	rw_enter(&dn->dn_struct_rwlock, RW_READER);
 	blkid = dbuf_whichblock(dn, 0, offset);
 	VERIFY((db = dbuf_hold(dn, blkid, FTAG)) != NULL);
 	rw_exit(&dn->dn_struct_rwlock);
-	DB_DNODE_EXIT(dbuf);
 
 	/*
 	 * We can only assign if the offset is aligned, the arc buf is the
@@ -1594,24 +1640,26 @@ dmu_assign_arcbuf(dmu_buf_t *handle, uint64_t offset, arc_buf_t *buf,
 		dbuf_assign_arcbuf(db, buf, tx);
 		dbuf_rele(db, FTAG);
 	} else {
-		objset_t *os;
-		uint64_t object;
-
 		/* compressed bufs must always be assignable to their dbuf */
 		ASSERT3U(arc_get_compression(buf), ==, ZIO_COMPRESS_OFF);
 		ASSERT(!(buf->b_flags & ARC_BUF_FLAG_COMPRESSED));
-
-		DB_DNODE_ENTER(dbuf);
-		dn = DB_DNODE(dbuf);
-		os = dn->dn_objset;
-		object = dn->dn_object;
-		DB_DNODE_EXIT(dbuf);
 
 		dbuf_rele(db, FTAG);
 		dmu_write(os, object, offset, blksz, buf->b_data, tx);
 		dmu_return_arcbuf(buf);
 		XUIOSTAT_BUMP(xuiostat_wbuf_copied);
 	}
+}
+
+void
+dmu_assign_arcbuf_by_dbuf(dmu_buf_t *handle, uint64_t offset, arc_buf_t *buf,
+    dmu_tx_t *tx)
+{
+	dmu_buf_impl_t *dbuf = (dmu_buf_impl_t *)handle;
+
+	DB_DNODE_ENTER(dbuf);
+	dmu_assign_arcbuf_by_dnode(DB_DNODE(dbuf), offset, buf, tx);
+	DB_DNODE_EXIT(dbuf);
 }
 
 typedef struct {
@@ -2424,7 +2472,9 @@ EXPORT_SYMBOL(dmu_buf_rele_array);
 EXPORT_SYMBOL(dmu_prefetch);
 EXPORT_SYMBOL(dmu_free_range);
 EXPORT_SYMBOL(dmu_free_long_range);
+EXPORT_SYMBOL(dmu_free_long_range_raw);
 EXPORT_SYMBOL(dmu_free_long_object);
+EXPORT_SYMBOL(dmu_free_long_object_raw);
 EXPORT_SYMBOL(dmu_read);
 EXPORT_SYMBOL(dmu_read_by_dnode);
 EXPORT_SYMBOL(dmu_write);
@@ -2443,7 +2493,8 @@ EXPORT_SYMBOL(dmu_write_policy);
 EXPORT_SYMBOL(dmu_sync);
 EXPORT_SYMBOL(dmu_request_arcbuf);
 EXPORT_SYMBOL(dmu_return_arcbuf);
-EXPORT_SYMBOL(dmu_assign_arcbuf);
+EXPORT_SYMBOL(dmu_assign_arcbuf_by_dnode);
+EXPORT_SYMBOL(dmu_assign_arcbuf_by_dbuf);
 EXPORT_SYMBOL(dmu_buf_hold);
 EXPORT_SYMBOL(dmu_ot);
 

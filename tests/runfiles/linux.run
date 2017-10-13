@@ -405,6 +405,9 @@ tests = ['history_001_pos', 'history_002_pos', 'history_003_pos',
     'history_007_pos', 'history_008_pos', 'history_009_pos',
     'history_010_pos']
 
+[tests/functional/hkdf]
+tests = ['run_hkdf_test']
+
 [tests/functional/inheritance]
 tests = ['inherit_001_pos']
 pre =
