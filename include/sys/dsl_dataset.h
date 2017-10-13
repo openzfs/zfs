@@ -294,8 +294,8 @@ spa_t *dsl_dataset_get_spa(dsl_dataset_t *ds);
 boolean_t dsl_dataset_modified_since_snap(dsl_dataset_t *ds,
     dsl_dataset_t *snap);
 
-void dsl_dataset_sync(dsl_dataset_t *os, zio_t *zio, dmu_tx_t *tx);
-void dsl_dataset_sync_done(dsl_dataset_t *os, dmu_tx_t *tx);
+void dsl_dataset_sync(dsl_dataset_t *ds, zio_t *zio, dmu_tx_t *tx);
+void dsl_dataset_sync_done(dsl_dataset_t *ds, dmu_tx_t *tx);
 
 void dsl_dataset_block_born(dsl_dataset_t *ds, const blkptr_t *bp,
     dmu_tx_t *tx);
@@ -305,7 +305,7 @@ int dsl_dataset_snap_lookup(dsl_dataset_t *ds, const char *name,
     uint64_t *value);
 
 void dsl_dataset_dirty(dsl_dataset_t *ds, dmu_tx_t *tx);
-void dsl_dataset_stats(dsl_dataset_t *os, nvlist_t *nv);
+void dsl_dataset_stats(dsl_dataset_t *ds, nvlist_t *nv);
 void dsl_dataset_fast_stat(dsl_dataset_t *ds, dmu_objset_stats_t *stat);
 void dsl_dataset_space(dsl_dataset_t *ds,
     uint64_t *refdbytesp, uint64_t *availbytesp,
