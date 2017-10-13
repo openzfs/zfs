@@ -2296,7 +2296,7 @@ find_aux(zpool_handle_t *zhp, void *data)
 
 /*
  * Determines if the pool is in use.  If so, it returns true and the state of
- * the pool as well as the name of the pool.  Both strings are allocated and
+ * the pool as well as the name of the pool.  Name string is allocated and
  * must be freed by the caller.
  */
 int
