@@ -4339,15 +4339,17 @@ static boolean_t zfs_ioc_recv_inject_err;
  */
 static int
 zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin, nvlist_t *recvprops,
-    nvlist_t *localprops, boolean_t force, boolean_t resumable, int input_fd,
-    dmu_replay_record_t *begin_record, int cleanup_fd, uint64_t *read_bytes,
-    uint64_t *errflags, uint64_t *action_handle, nvlist_t **errors)
+    nvlist_t *localprops, nvlist_t *hidden_args, boolean_t force,
+    boolean_t resumable, int input_fd, dmu_replay_record_t *begin_record,
+    int cleanup_fd, uint64_t *read_bytes, uint64_t *errflags,
+    uint64_t *action_handle, nvlist_t **errors)
 {
 	dmu_recv_cookie_t drc;
 	int error = 0;
 	int props_error = 0;
 	offset_t off;
-	nvlist_t *delayprops = NULL; /* sent properties applied post-receive */
+	nvlist_t *local_delayprops = NULL;
+	nvlist_t *recv_delayprops = NULL;
 	nvlist_t *origprops = NULL; /* existing properties */
 	nvlist_t *origrecvd = NULL; /* existing received properties */
 	boolean_t first_recvd_props = B_FALSE;
@@ -4361,8 +4363,8 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin, nvlist_t *recvprops,
 	if (input_fp == NULL)
 		return (SET_ERROR(EBADF));
 
-	error = dmu_recv_begin(tofs, tosnap,
-	    begin_record, force, resumable, origin, &drc);
+	error = dmu_recv_begin(tofs, tosnap, begin_record, force,
+	    resumable, localprops, hidden_args, origin, &drc);
 	if (error != 0)
 		goto out;
 
@@ -4379,8 +4381,8 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin, nvlist_t *recvprops,
 
 		/*
 		 * If new received properties are supplied, they are to
-		 * completely replace the existing received properties, so stash
-		 * away the existing ones.
+		 * completely replace the existing received properties,
+		 * so stash away the existing ones.
 		 */
 		if (dsl_prop_get_received(tofs, &origrecvd) == 0) {
 			nvlist_t *errlist = NULL;
@@ -4427,7 +4429,7 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin, nvlist_t *recvprops,
 		props_error = dsl_prop_set_hasrecvd(tofs);
 
 		if (props_error == 0) {
-			delayprops = extract_delay_props(recvprops);
+			recv_delayprops = extract_delay_props(recvprops);
 			(void) zfs_set_prop_nvlist(tofs, ZPROP_SRC_RECEIVED,
 			    recvprops, *errors);
 		}
@@ -4454,6 +4456,8 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin, nvlist_t *recvprops,
 				fnvlist_add_nvpair(oprops, nvp);
 			}
 		}
+
+		local_delayprops = extract_delay_props(oprops);
 		(void) zfs_set_prop_nvlist(tofs, ZPROP_SRC_LOCAL,
 		    oprops, *errors);
 		(void) zfs_set_prop_nvlist(tofs, ZPROP_SRC_INHERITED,
@@ -4495,26 +4499,33 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin, nvlist_t *recvprops,
 		}
 
 		/* Set delayed properties now, after we're done receiving. */
-		if (delayprops != NULL && error == 0) {
+		if (recv_delayprops != NULL && error == 0) {
 			(void) zfs_set_prop_nvlist(tofs, ZPROP_SRC_RECEIVED,
-			    delayprops, *errors);
+			    recv_delayprops, *errors);
+		}
+		if (local_delayprops != NULL && error == 0) {
+			(void) zfs_set_prop_nvlist(tofs, ZPROP_SRC_LOCAL,
+			    local_delayprops, *errors);
 		}
 	}
 
-	if (delayprops != NULL) {
-		/*
-		 * Merge delayed props back in with initial props, in case
-		 * we're DEBUG and zfs_ioc_recv_inject_err is set (which means
-		 * we have to make sure clear_received_props() includes
-		 * the delayed properties).
-		 *
-		 * Since zfs_ioc_recv_inject_err is only in DEBUG kernels,
-		 * using ASSERT() will be just like a VERIFY.
-		 */
-		ASSERT(nvlist_merge(recvprops, delayprops, 0) == 0);
-		nvlist_free(delayprops);
+	/*
+	 * Merge delayed props back in with initial props, in case
+	 * we're DEBUG and zfs_ioc_recv_inject_err is set (which means
+	 * we have to make sure clear_received_props() includes
+	 * the delayed properties).
+	 *
+	 * Since zfs_ioc_recv_inject_err is only in DEBUG kernels,
+	 * using ASSERT() will be just like a VERIFY.
+	 */
+	if (recv_delayprops != NULL) {
+		ASSERT(nvlist_merge(recvprops, recv_delayprops, 0) == 0);
+		nvlist_free(recv_delayprops);
 	}
-
+	if (local_delayprops != NULL) {
+		ASSERT(nvlist_merge(localprops, local_delayprops, 0) == 0);
+		nvlist_free(local_delayprops);
+	}
 
 	*read_bytes = off - input_fp->f_offset;
 	if (VOP_SEEK(input_fp->f_vnode, input_fp->f_offset, &off, NULL) == 0)
@@ -4689,7 +4700,7 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 	begin_record.drr_u.drr_begin = zc->zc_begin_record;
 
 	error = zfs_ioc_recv_impl(tofs, tosnap, origin, recvdprops, localprops,
-	    zc->zc_guid, B_FALSE, zc->zc_cookie, &begin_record,
+	    NULL, zc->zc_guid, B_FALSE, zc->zc_cookie, &begin_record,
 	    zc->zc_cleanup_fd, &zc->zc_cookie, &zc->zc_obj,
 	    &zc->zc_action_handle, &errors);
 	nvlist_free(recvdprops);
@@ -4743,6 +4754,7 @@ zfs_ioc_recv_new(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 	nvlist_t *errors = NULL;
 	nvlist_t *recvprops = NULL;
 	nvlist_t *localprops = NULL;
+	nvlist_t *hidden_args = NULL;
 	char *snapname = NULL;
 	char *origin = NULL;
 	char *tosnap;
@@ -4802,9 +4814,13 @@ zfs_ioc_recv_new(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 	if (error && error != ENOENT)
 		return (error);
 
+	error = nvlist_lookup_nvlist(innvl, ZPOOL_HIDDEN_ARGS, &hidden_args);
+	if (error && error != ENOENT)
+		return (error);
+
 	error = zfs_ioc_recv_impl(tofs, tosnap, origin, recvprops, localprops,
-	    force, resumable, input_fd, begin_record, cleanup_fd, &read_bytes,
-	    &errflags, &action_handle, &errors);
+	    hidden_args, force, resumable, input_fd, begin_record, cleanup_fd,
+	    &read_bytes, &errflags, &action_handle, &errors);
 
 	fnvlist_add_uint64(outnvl, "read_bytes", read_bytes);
 	fnvlist_add_uint64(outnvl, "error_flags", errflags);
