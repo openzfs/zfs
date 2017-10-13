@@ -30,6 +30,7 @@
 #define	_DMU_SEND_H
 
 #include <sys/inttypes.h>
+#include <sys/dsl_crypt.h>
 #include <sys/spa.h>
 
 struct vnode;
@@ -72,8 +73,9 @@ typedef struct dmu_recv_cookie {
 } dmu_recv_cookie_t;
 
 int dmu_recv_begin(char *tofs, char *tosnap,
-    struct dmu_replay_record *drr_begin,
-    boolean_t force, boolean_t resumable, char *origin, dmu_recv_cookie_t *drc);
+    struct dmu_replay_record *drr_begin, boolean_t force, boolean_t resumable,
+    nvlist_t *localprops, nvlist_t *hidden_args, char *origin,
+    dmu_recv_cookie_t *drc);
 int dmu_recv_stream(dmu_recv_cookie_t *drc, struct vnode *vp, offset_t *voffp,
     int cleanup_fd, uint64_t *action_handlep);
 int dmu_recv_end(dmu_recv_cookie_t *drc, void *owner);

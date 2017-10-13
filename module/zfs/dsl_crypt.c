@@ -1719,6 +1719,10 @@ dmu_objset_create_crypt_check(dsl_dir_t *parentdd, dsl_crypto_params_t *dcp)
 {
 	int ret;
 	uint64_t pcrypt, crypt;
+	dsl_crypto_params_t dummy_dcp = { 0 };
+
+	if (dcp == NULL)
+		dcp = &dummy_dcp;
 
 	if (dcp->cp_cmd != DCP_CMD_NONE)
 		return (SET_ERROR(EINVAL));

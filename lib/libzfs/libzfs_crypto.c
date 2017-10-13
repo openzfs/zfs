@@ -667,7 +667,8 @@ zfs_crypto_get_encryption_root(zfs_handle_t *zhp, boolean_t *is_encroot,
 
 int
 zfs_crypto_create(libzfs_handle_t *hdl, char *parent_name, nvlist_t *props,
-    nvlist_t *pool_props, uint8_t **wkeydata_out, uint_t *wkeylen_out)
+    nvlist_t *pool_props, boolean_t stdin_available, uint8_t **wkeydata_out,
+    uint_t *wkeylen_out)
 {
 	int ret;
 	char errbuf[1024];
@@ -808,6 +809,17 @@ zfs_crypto_create(libzfs_handle_t *hdl, char *parent_name, nvlist_t *props,
 	 * encryption root. Populate the encryption params.
 	 */
 	if (keylocation != NULL) {
+		/*
+		 * 'zfs recv -o keylocation=prompt' won't work because stdin
+		 * is being used by the send stream, so we disallow it.
+		 */
+		if (!stdin_available && strcmp(keylocation, "prompt") == 0) {
+			ret = EINVAL;
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "Cannot use "
+			    "'prompt' keylocation because stdin is in use."));
+			goto out;
+		}
+
 		ret = populate_create_encryption_params_nvlists(hdl, NULL,
 		    B_FALSE, keyformat, keylocation, props, &wkeydata,
 		    &wkeylen);
