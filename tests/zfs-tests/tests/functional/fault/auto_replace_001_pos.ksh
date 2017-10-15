@@ -122,7 +122,7 @@ if (($? != 0)); then
 fi
 
 # Clear zpool events
-zpool events -c $TESTPOOL
+log_must zpool events -c
 
 # Create another scsi_debug device
 setup

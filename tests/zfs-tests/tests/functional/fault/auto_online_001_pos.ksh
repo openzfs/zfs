@@ -112,7 +112,7 @@ do
 	fi
 
 	# Clear zpool events
-	zpool events -c $TESTPOOL
+	log_must zpool events -c
 
 	# Online disk
 	on_off_disk $offline_disk "online" $host
