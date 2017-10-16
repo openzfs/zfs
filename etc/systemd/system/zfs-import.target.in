@@ -1,0 +1,6 @@
+[Unit]
+Description=ZFS pool import target
+
+[Install]
+WantedBy=zfs-mount.service
+WantedBy=zfs.target

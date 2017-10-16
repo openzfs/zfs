@@ -7,6 +7,7 @@ systemdunit_DATA = \
 	zfs-import-scan.service \
 	zfs-mount.service \
 	zfs-share.service \
+	zfs-import.target \
 	zfs.target
 
 EXTRA_DIST = \
@@ -15,6 +16,7 @@ EXTRA_DIST = \
 	$(top_srcdir)/etc/systemd/system/zfs-import-scan.service.in \
 	$(top_srcdir)/etc/systemd/system/zfs-mount.service.in \
 	$(top_srcdir)/etc/systemd/system/zfs-share.service.in \
+	$(top_srcdir)/etc/systemd/system/zfs-import.target.in \
 	$(top_srcdir)/etc/systemd/system/zfs.target.in \
 	$(top_srcdir)/etc/systemd/system/50-zfs.preset.in
 

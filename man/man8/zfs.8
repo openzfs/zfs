@@ -461,7 +461,16 @@ If needed, ZFS file systems can also be managed with traditional tools
 If a file system's mount point is set to
 .Sy legacy ,
 ZFS makes no attempt to manage the file system, and the administrator is
-responsible for mounting and unmounting the file system.
+responsible for mounting and unmounting the file system. Because pools must
+be imported before a legacy mount can succeed, administrators should ensure
+that legacy mounts are only attempted after the zpool import process
+finishes at boot time. For example, on machines using systemd, the mount
+option
+.Pp
+.Nm x-systemd.requires=zfs-import.target
+.Pp
+will ensure that the zfs-import completes before systemd attempts mounting
+the filesystem. See systemd.mount(5) for details.
 .Ss Deduplication
 Deduplication is the process for removing redundant data at the block level,
 reducing the total amount of data stored. If a file system has the
