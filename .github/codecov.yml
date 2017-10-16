@@ -1,30 +1,21 @@
 codecov:
   notify:
-    require_ci_to_pass: no
+    require_ci_to_pass: false	# always post
+    after_n_builds: 2		# user and kernel
 
 coverage:
-  precision: 2
-  round: down
-  range: "50...100"
+  precision: 2			# 2 digits of precision
+  range: "50...90"		# red -> yellow -> green
 
   status:
     project:
       default:
-        threshold: 1%
+        threshold: 1%		# allow 1% coverage variance
 
     patch:
       default:
-        threshold: 1%
-
-parsers:
-  gcov:
-    branch_detection:
-      conditional: yes
-      loop: yes
-      method: no
-      macro: no
+        threshold: 1%		# allow 1% coverage variance
 
 comment:
-  layout: "header, sunburst, diff"
-  behavior: default
-  require_changes: no
+  layout: "reach, diff, flags, footer"
+  behavior: "new"		# delete old, post new
