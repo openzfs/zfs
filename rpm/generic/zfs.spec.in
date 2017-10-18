@@ -331,6 +331,9 @@ exit 0
 %endif
 
 %changelog
+* Wed Oct 18 2017 Tony Hutter <hutter2@llnl.gov> - 0.7.3-1
+- Released 0.7.3-1, detailed release notes are available at:
+- https://github.com/zfsonlinux/zfs/releases/tag/zfs-0.7.3
 * Fri Sep 22 2017 Tony Hutter <hutter2@llnl.gov> - 0.7.2-1
 - Released 0.7.2-1, detailed release notes are available at:
 - https://github.com/zfsonlinux/zfs/releases/tag/zfs-0.7.2
