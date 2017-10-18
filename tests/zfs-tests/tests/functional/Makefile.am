@@ -55,6 +55,7 @@ SUBDIRS = \
 	snapshot \
 	snapused \
 	sparse \
+	special \
 	threadsappend \
 	tmpfile \
 	truncate \

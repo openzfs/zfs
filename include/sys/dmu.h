@@ -26,6 +26,7 @@
  * Copyright 2014 HybridCluster. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright 2013 Saso Kiselkov. All rights reserved.
+ * Copyright (c) 2017, Intel Corporation.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -127,6 +128,12 @@ typedef enum dmu_object_byteswap {
 	((ot) & DMU_OT_ENCRYPTED) : \
 	dmu_ot[(int)(ot)].ot_encrypt)
 
+#define	DMU_OT_IS_DDT(ot) \
+	((ot) == DMU_OT_DDT_ZAP || (ot) == DMU_OT_DDT_STATS)
+
+#define	DMU_OT_IS_ZIL(ot) \
+	((ot) == DMU_OT_INTENT_LOG)
+
 /*
  * These object types use bp_fill != 1 for their L0 bp's. Therefore they can't
  * have their data embedded (i.e. use a BP_IS_EMBEDDED() bp), because bp_fill
@@ -213,7 +220,7 @@ typedef enum dmu_object_type {
 	 * values.
 	 *
 	 * The DMU_OTN_* types do not have entries in the dmu_ot table,
-	 * use the DMU_OT_IS_METDATA() and DMU_OT_BYTESWAP() macros instead
+	 * use the DMU_OT_IS_METADATA() and DMU_OT_BYTESWAP() macros instead
 	 * of indexing into dmu_ot directly (this works for both DMU_OT_* types
 	 * and DMU_OTN_* types).
 	 */

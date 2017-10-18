@@ -3663,7 +3663,7 @@ arc_hdr_l2hdr_destroy(arc_buf_hdr_t *hdr)
 	ARCSTAT_INCR(arcstat_l2_psize, -psize);
 	ARCSTAT_INCR(arcstat_l2_lsize, -HDR_GET_LSIZE(hdr));
 
-	vdev_space_update(dev->l2ad_vdev, -psize, 0, 0);
+	vdev_space_update(dev->l2ad_vdev, NULL, -psize, 0, 0);
 
 	(void) refcount_remove_many(&dev->l2ad_alloc, psize, hdr);
 	arc_hdr_clear_flags(hdr, ARC_FLAG_HAS_L2HDR);
@@ -7934,7 +7934,7 @@ top:
 	kmem_cache_free(hdr_l2only_cache, head);
 	mutex_exit(&dev->l2ad_mtx);
 
-	vdev_space_update(dev->l2ad_vdev, -bytes_dropped, 0, 0);
+	vdev_space_update(dev->l2ad_vdev, NULL, -bytes_dropped, 0, 0);
 
 	l2arc_do_free_on_write();
 
@@ -8665,7 +8665,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 	ARCSTAT_INCR(arcstat_l2_write_bytes, write_psize);
 	ARCSTAT_INCR(arcstat_l2_lsize, write_lsize);
 	ARCSTAT_INCR(arcstat_l2_psize, write_psize);
-	vdev_space_update(dev->l2ad_vdev, write_psize, 0, 0);
+	vdev_space_update(dev->l2ad_vdev, NULL, write_psize, 0, 0);
 
 	/*
 	 * Bump device hand to the device start if it is approaching the end.
@@ -8831,7 +8831,7 @@ l2arc_add_vdev(spa_t *spa, vdev_t *vd)
 	list_create(&adddev->l2ad_buflist, sizeof (arc_buf_hdr_t),
 	    offsetof(arc_buf_hdr_t, b_l2hdr.b_l2node));
 
-	vdev_space_update(vd, 0, 0, adddev->l2ad_end - adddev->l2ad_hand);
+	vdev_space_update(vd, NULL, 0, 0, adddev->l2ad_end - adddev->l2ad_hand);
 	refcount_create(&adddev->l2ad_alloc);
 
 	/*
