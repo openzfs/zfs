@@ -932,9 +932,10 @@ dmu_free_long_object_impl(objset_t *os, uint64_t object, boolean_t raw)
 	dmu_tx_mark_netfree(tx);
 	err = dmu_tx_assign(tx, TXG_WAIT);
 	if (err == 0) {
-		err = dmu_object_free(os, object, tx);
-		if (err == 0 && raw)
-			VERIFY0(dmu_object_dirty_raw(os, object, tx));
+		if (raw)
+			err = dmu_object_dirty_raw(os, object, tx);
+		if (err == 0)
+			err = dmu_object_free(os, object, tx);
 
 		dmu_tx_commit(tx);
 	} else {
