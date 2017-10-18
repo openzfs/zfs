@@ -7230,10 +7230,11 @@ arc_tuning_update(void)
 	unsigned long limit;
 
 	/* Valid range: 64M - <all physical memory> */
-	if ((zfs_arc_max) && (zfs_arc_max != arc_c_max) &&
-	    (zfs_arc_max > 64 << 20) && (zfs_arc_max < allmem) &&
-	    (zfs_arc_max > arc_c_min)) {
-		arc_c_max = zfs_arc_max;
+	/* By default, arc_c_max is half of memory */
+	limit = zfs_arc_max ? zfs_arc_max : MAX(64 << 20, allmem / 2);
+	if ((limit != arc_c_max) && (limit >= 64 << 20) &&
+	    (limit < allmem) && (limit > arc_c_min)) {
+		arc_c_max = limit;
 		arc_c = arc_c_max;
 		arc_p = (arc_c >> 1);
 		if (arc_meta_limit > arc_c_max)
@@ -7242,19 +7243,35 @@ arc_tuning_update(void)
 			arc_dnode_limit = arc_meta_limit;
 	}
 
+#ifdef	_KERNEL
+	/* Set min cache to 1/32 of all memory, or 32MB, whichever is more */
+	limit = zfs_arc_min ? zfs_arc_min :
+	    MAX(allmem / 32, 2ULL << SPA_MAXBLOCKSHIFT);
+#else
+	/*
+	 * In userland, there's only the memory pressure that we artificially
+	 * create (see arc_available_memory()).  Don't let arc_c get too
+	 * small, because it can cause transactions to be larger than
+	 * arc_c, causing arc_tempreserve_space() to fail.
+	 */
+	limit = zfs_arc_min ? zfs_arc_min :
+	    MAX(arc_c_max / 2, 2ULL << SPA_MAXBLOCKSHIFT);
+#endif
 	/* Valid range: 32M - <arc_c_max> */
-	if ((zfs_arc_min) && (zfs_arc_min != arc_c_min) &&
-	    (zfs_arc_min >= 2ULL << SPA_MAXBLOCKSHIFT) &&
-	    (zfs_arc_min <= arc_c_max)) {
-		arc_c_min = zfs_arc_min;
+	if ((limit != arc_c_min) &&
+	    (limit >= 2ULL << SPA_MAXBLOCKSHIFT) &&
+	    (limit <= arc_c_max)) {
+		arc_c_min = limit;
 		arc_c = MAX(arc_c, arc_c_min);
 	}
 
 	/* Valid range: 16M - <arc_c_max> */
-	if ((zfs_arc_meta_min) && (zfs_arc_meta_min != arc_meta_min) &&
-	    (zfs_arc_meta_min >= 1ULL << SPA_MAXBLOCKSHIFT) &&
-	    (zfs_arc_meta_min <= arc_c_max)) {
-		arc_meta_min = zfs_arc_meta_min;
+	limit = zfs_arc_meta_min ? zfs_arc_meta_min :
+	    1ULL << SPA_MAXBLOCKSHIFT;
+	if ((limit != arc_meta_min) &&
+	    (limit >= 1ULL << SPA_MAXBLOCKSHIFT) &&
+	    (limit <= arc_c_max)) {
+		arc_meta_min = limit;
 		if (arc_meta_limit < arc_meta_min)
 			arc_meta_limit = arc_meta_min;
 		if (arc_dnode_limit < arc_meta_min)
