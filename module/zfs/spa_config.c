@@ -148,6 +148,26 @@ out:
 }
 
 static int
+spa_config_remove(spa_config_dirent_t *dp)
+{
+#if defined(__linux__) && defined(_KERNEL)
+	int error, flags = FWRITE | FTRUNC;
+	uio_seg_t seg = UIO_SYSSPACE;
+	vnode_t *vp;
+
+	error = vn_open(dp->scd_path, seg, flags, 0644, &vp, 0, 0);
+	if (error == 0) {
+		(void) VOP_FSYNC(vp, FSYNC, kcred, NULL);
+		(void) VOP_CLOSE(vp, 0, 1, 0, kcred, NULL);
+	}
+
+	return (error);
+#else
+	return (vn_remove(dp->scd_path, UIO_SYSSPACE, RMFILE));
+#endif
+}
+
+static int
 spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 {
 	size_t buflen;
@@ -161,12 +181,10 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 	 * If the nvlist is empty (NULL), then remove the old cachefile.
 	 */
 	if (nvl == NULL) {
-		err = vn_remove(dp->scd_path, UIO_SYSSPACE, RMFILE);
-		/*
-		 * Don't report an error when the cache file is already removed
-		 */
+		err = spa_config_remove(dp);
 		if (err == ENOENT)
 			err = 0;
+
 		return (err);
 	}
 
@@ -179,9 +197,9 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 #if defined(__linux__) && defined(_KERNEL)
 	/*
 	 * Write the configuration to disk.  Due to the complexity involved
-	 * in performing a rename from within the kernel the file is truncated
-	 * and overwritten in place.  In the event of an error the file is
-	 * unlinked to make sure we always have a consistent view of the data.
+	 * in performing a rename and remove from within the kernel the file
+	 * is instead truncated and overwritten in place.  This way we always
+	 * have a consistent view of the data or a zero length file.
 	 */
 	err = vn_open(dp->scd_path, UIO_SYSSPACE, oflags, 0644, &vp, 0, 0);
 	if (err == 0) {
@@ -191,9 +209,8 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 			err = VOP_FSYNC(vp, FSYNC, kcred, NULL);
 
 		(void) VOP_CLOSE(vp, oflags, 1, 0, kcred, NULL);
-
 		if (err)
-			(void) vn_remove(dp->scd_path, UIO_SYSSPACE, RMFILE);
+			(void) spa_config_remove(dp);
 	}
 #else
 	/*
