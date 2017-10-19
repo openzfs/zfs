@@ -64,6 +64,7 @@
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"
 #include "libzfs_impl.h"
+#include "libzfs.h"
 #include "zfs_deleg.h"
 
 static int userquota_propname_decode(const char *propname, boolean_t zoned,
@@ -4351,6 +4352,21 @@ error:
 		changelist_free(cl);
 	}
 	return (ret);
+}
+
+nvlist_t *
+zfs_get_all_props(zfs_handle_t *zhp)
+{
+	return (zhp->zfs_props);
+}
+
+nvlist_t *
+zfs_get_recvd_props(zfs_handle_t *zhp)
+{
+	if (zhp->zfs_recvd_props == NULL)
+		if (get_recvd_props_ioctl(zhp) != 0)
+			return (NULL);
+	return (zhp->zfs_recvd_props);
 }
 
 nvlist_t *
