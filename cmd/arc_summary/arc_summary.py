@@ -78,10 +78,7 @@ def get_Kstat():
 
 
 def div1():
-    sys.stdout.write("\n")
-    for i in range(18):
-        sys.stdout.write("%s" % "----")
-    sys.stdout.write("\n")
+    sys.stdout.write('\n'+'-'*72+'\n')
 
 
 def div2():
