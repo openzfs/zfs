@@ -34,9 +34,11 @@
 
 /*
  * Max instances in QAT device, each instance is a channel to submit
- * jobs to QAT hardware
+ * jobs to QAT hardware, this is only for pre-allocating instance,
+ * and session arrays, the actual number of instances are defined in
+ * the QAT driver's configure file.
  */
-#define	MAX_INSTANCES		6
+#define	MAX_INSTANCES		48
 
 /*
  * ZLIB head and foot size
@@ -104,7 +106,7 @@ static kstat_t *qat_ksp;
 static CpaInstanceHandle dc_inst_handles[MAX_INSTANCES];
 static CpaDcSessionHandle session_handles[MAX_INSTANCES];
 static CpaBufferList **buffer_array[MAX_INSTANCES];
-static Cpa32U num_inst = 0;
+static Cpa16U num_inst = 0;
 static Cpa32U inst_num = 0;
 static boolean_t qat_init_done = B_FALSE;
 int zfs_qat_disable = 0;
