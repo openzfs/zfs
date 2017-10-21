@@ -381,7 +381,8 @@ tests = ['events_001_pos', 'events_002_pos']
 tests = ['exec_001_pos', 'exec_002_neg']
 
 [tests/functional/fault]
-tests = ['auto_online_001_pos', 'auto_replace_001_pos']
+tests = ['auto_online_001_pos', 'auto_replace_001_pos', 'auto_spare_001_pos',
+    'auto_spare_002_pos.ksh']
 
 [tests/functional/features/async_destroy]
 tests = ['async_destroy_001_pos']
