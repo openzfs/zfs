@@ -185,7 +185,8 @@ def get_arc_summary(Kstat):
 
     # ARC Sizing
     arc_size = Kstat["kstat.zfs.misc.arcstats.size"]
-    mru_size = Kstat["kstat.zfs.misc.arcstats.p"]
+    mru_size = Kstat["kstat.zfs.misc.arcstats.mru_size"]
+    mfu_size = Kstat["kstat.zfs.misc.arcstats.mfu_size"]
     target_max_size = Kstat["kstat.zfs.misc.arcstats.c_max"]
     target_min_size = Kstat["kstat.zfs.misc.arcstats.c_min"]
     target_size = Kstat["kstat.zfs.misc.arcstats.c"]
@@ -230,27 +231,14 @@ def get_arc_summary(Kstat):
         ]
 
     output['arc_size_break'] = {}
-    if arc_size > target_size:
-        mfu_size = (arc_size - mru_size)
-        output['arc_size_break']['recently_used_cache_size'] = {
-            'per': fPerc(mru_size, arc_size),
-            'num': fBytes(mru_size),
-        }
-        output['arc_size_break']['frequently_used_cache_size'] = {
-            'per': fPerc(mfu_size, arc_size),
-            'num': fBytes(mfu_size),
-        }
-
-    elif arc_size < target_size:
-        mfu_size = (target_size - mru_size)
-        output['arc_size_break']['recently_used_cache_size'] = {
-            'per': fPerc(mru_size, target_size),
-            'num': fBytes(mru_size),
-        }
-        output['arc_size_break']['frequently_used_cache_size'] = {
-            'per': fPerc(mfu_size, target_size),
-            'num': fBytes(mfu_size),
-        }
+    output['arc_size_break']['recently_used_cache_size'] = {
+        'per': fPerc(mru_size, mru_size + mfu_size),
+        'num': fBytes(mru_size),
+    }
+    output['arc_size_break']['frequently_used_cache_size'] = {
+        'per': fPerc(mfu_size, mru_size + mfu_size),
+        'num': fBytes(mfu_size),
+    }
 
     # ARC Hash Breakdown
     hash_chain_max = Kstat["kstat.zfs.misc.arcstats.hash_chain_max"]
