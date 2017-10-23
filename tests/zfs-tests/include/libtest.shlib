@@ -3361,11 +3361,14 @@ function zed_setup
 
 	# Customize the zed.rc file to enable the full debug log.
 	log_must sed -i '/\#ZED_DEBUG_LOG=.*/d' $ZEDLET_DIR/zed.rc
-	echo "ZED_DEBUG_LOG=$ZEDLET_DIR/zed.debug.log" >>$ZEDLET_DIR/zed.rc
+	echo "ZED_DEBUG_LOG=$ZED_DEBUG_LOG" >>$ZEDLET_DIR/zed.rc
 
+	# Scripts must only be user writable.
+	saved_umask=$(umask)
+	log_must umask 0022
 	log_must cp ${ZEDLET_LIBEXEC_DIR}/all-syslog.sh $ZEDLET_DIR
 	log_must cp ${ZEDLET_LIBEXEC_DIR}/all-debug.sh $ZEDLET_DIR
-	log_must touch $ZEDLET_DIR/zed.debug.log
+	log_must umask $saved_umask
 }
 
 #
@@ -3381,10 +3384,9 @@ function zed_cleanup
 	log_must rm -f ${ZEDLET_DIR}/zed-functions.sh
 	log_must rm -f ${ZEDLET_DIR}/all-syslog.sh
 	log_must rm -f ${ZEDLET_DIR}/all-debug.sh
-	log_must rm -f ${ZEDLET_DIR}/zed.pid
-	log_must rm -f ${ZEDLET_DIR}/zedlog
-	log_must rm -f ${ZEDLET_DIR}/zed.debug.log
 	log_must rm -f ${ZEDLET_DIR}/state
+	log_must rm -f $ZED_LOG
+	log_must rm -f $ZED_DEBUG_LOG
 	log_must rm -f $VDEVID_CONF_ETC
 	log_must rm -f $VDEVID_CONF
 	rmdir $ZEDLET_DIR
@@ -3412,9 +3414,10 @@ function zed_start
 
 	log_note "Starting ZED"
 	# run ZED in the background and redirect foreground logging
-	# output to zedlog
+	# output to $ZED_LOG.
+	log_must truncate -s 0 $ZED_DEBUG_LOG
 	log_must eval "zed -vF -d $ZEDLET_DIR -p $ZEDLET_DIR/zed.pid" \
-	    "-s $ZEDLET_DIR/state 2>${ZEDLET_DIR}/zedlog &"
+	    "-s $ZEDLET_DIR/state 2>$ZED_LOG &"
 
 	return 0
 }
@@ -3431,7 +3434,9 @@ function zed_stop
 	log_note "Stopping ZED"
 	if [[ -f ${ZEDLET_DIR}/zed.pid ]]; then
 		zedpid=$(cat ${ZEDLET_DIR}/zed.pid)
-		log_must kill $zedpid
+		kill $zedpid
+		wait $zedpid
+		rm -f ${ZEDLET_DIR}/zed.pid
 	fi
 
 	return 0
