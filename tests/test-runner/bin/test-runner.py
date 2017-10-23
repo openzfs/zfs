@@ -150,7 +150,7 @@ class Cmd(object):
         try:
             kp = Popen(cmd)
             kp.wait()
-        except:
+        except Exception:
             pass
 
     def update_cmd_privs(self, cmd, user):
@@ -629,16 +629,16 @@ class TestRun(object):
         base = self.outputdir
 
         while not done:
-            l = []
+            paths = []
             components -= 1
             for testfile in tmp_dict.keys():
                 uniq = '/'.join(testfile.split('/')[components:]).lstrip('/')
-                if uniq not in l:
-                    l.append(uniq)
+                if uniq not in paths:
+                    paths.append(uniq)
                     tmp_dict[testfile].outputdir = os.path.join(base, uniq)
                 else:
                     break
-            done = total == len(l)
+            done = total == len(paths)
 
     def setup_logging(self, options):
         """
