@@ -188,6 +188,7 @@ static vdev_disk_db_entry_t vdev_disk_database[] = {
 	{"ATA     INTEL SSDSC2BB60", 4096},
 	{"ATA     INTEL SSDSC2BB80", 4096},
 	{"ATA     INTEL SSDSC2BW24", 4096},
+	{"ATA     INTEL SSDSC2BW48", 4096},
 	{"ATA     INTEL SSDSC2BP24", 4096},
 	{"ATA     INTEL SSDSC2BP48", 4096},
 	{"NA      SmrtStorSDLKAE9W", 4096},
