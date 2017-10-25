@@ -90,8 +90,8 @@ def div2():
 
 def fBytes(b=0):
     """Return human-readable representation of a byte value in
-    powers of 2 (eg "KiB" for "kibibytes", etc) to two decimal 
-    points. Values smaller than one KiB are returned without 
+    powers of 2 (eg "KiB" for "kibibytes", etc) to two decimal
+    points. Values smaller than one KiB are returned without
     decimal points.
     """
 
