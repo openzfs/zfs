@@ -294,6 +294,11 @@ tests = ['zpool_online_001_pos', 'zpool_online_002_neg']
 tests = ['zpool_remove_001_neg', 'zpool_remove_002_pos',
     'zpool_remove_003_pos']
 
+[tests/functional/cli_root/zpool_reopen]
+tests = ['zpool_reopen_001_pos', 'zpool_reopen_002_pos',
+    'zpool_reopen_003_pos', 'zpool_reopen_004_pos', 'zpool_reopen_005_pos',
+    'zpool_reopen_006_neg']
+
 [tests/functional/cli_root/zpool_replace]
 tests = ['zpool_replace_001_neg', 'replace-o_ashift', 'replace_prop_ashift']
 

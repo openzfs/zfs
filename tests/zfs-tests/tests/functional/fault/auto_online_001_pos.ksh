@@ -55,7 +55,7 @@ fi
 function cleanup
 {
 	#online last disk before fail
-	on_off_disk $offline_disk "online" $host
+	insert_disk $offline_disk $host
 	poolexists $TESTPOOL && destroy_pool $TESTPOOL
 }
 
@@ -98,11 +98,10 @@ for offline_disk in $autoonline_disks
 do
 	log_must zpool export -F $TESTPOOL
 
-	host=$(ls /sys/block/$offline_disk/device/scsi_device \
-	    | nawk -F : '{ print $1}')
+	host=$(get_scsi_host $offline_disk)
 
 	# Offline disk
-	on_off_disk $offline_disk "offline"
+	remove_disk $offline_disk
 
 	# Reimport pool with drive missing
 	log_must zpool import $TESTPOOL
@@ -115,7 +114,7 @@ do
 	zpool events -c $TESTPOOL
 
 	# Online disk
-	on_off_disk $offline_disk "online" $host
+	insert_disk $offline_disk $host
 
 	log_note "Delay for ZED auto-online"
 	typeset -i timeout=0
