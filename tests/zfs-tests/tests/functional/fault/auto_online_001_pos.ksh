@@ -111,7 +111,7 @@ do
 	fi
 
 	# Clear zpool events
-	zpool events -c $TESTPOOL
+	log_must zpool events -c
 
 	# Online disk
 	insert_disk $offline_disk $host

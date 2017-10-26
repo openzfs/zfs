@@ -252,6 +252,10 @@ post =
 [tests/functional/cli_root/zpool_detach]
 tests = ['zpool_detach_001_neg']
 
+[tests/functional/cli_root/zpool_events]
+tests = ['zpool_events_clear', 'zpool_events_cliargs', 'zpool_events_follow',
+    'zpool_events_poolname']
+
 [tests/functional/cli_root/zpool_expand]
 tests = ['zpool_expand_001_pos', 'zpool_expand_002_pos',
     'zpool_expand_003_neg', 'zpool_expand_004_pos']

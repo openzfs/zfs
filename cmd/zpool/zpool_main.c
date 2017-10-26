@@ -354,7 +354,7 @@ get_usage(zpool_help_t idx)
 		    "\tupgrade -v\n"
 		    "\tupgrade [-V version] <-a | pool ...>\n"));
 	case HELP_EVENTS:
-		return (gettext("\tevents [-vHfc]\n"));
+		return (gettext("\tevents [-vHf [pool] | -c]\n"));
 	case HELP_GET:
 		return (gettext("\tget [-Hp] [-o \"all\" | field[,...]] "
 		    "<\"all\" | property[,...]> <pool> ...\n"));
@@ -7376,6 +7376,7 @@ typedef struct ev_opts {
 	int scripted;
 	int follow;
 	int clear;
+	char poolname[ZFS_MAX_DATASET_NAME_LEN];
 } ev_opts_t;
 
 static void
@@ -7643,6 +7644,7 @@ zpool_do_events_next(ev_opts_t *opts)
 {
 	nvlist_t *nvl;
 	int zevent_fd, ret, dropped;
+	char *pool;
 
 	zevent_fd = open(ZFS_DEV, O_RDWR);
 	VERIFY(zevent_fd >= 0);
@@ -7658,6 +7660,11 @@ zpool_do_events_next(ev_opts_t *opts)
 
 		if (dropped > 0)
 			(void) printf(gettext("dropped %d events\n"), dropped);
+
+		if (strlen(opts->poolname) > 0 &&
+		    nvlist_lookup_string(nvl, FM_FMRI_ZFS_POOL, &pool) == 0 &&
+		    strcmp(opts->poolname, pool) != 0)
+			continue;
 
 		zpool_do_events_short(nvl, opts);
 
@@ -7688,7 +7695,7 @@ zpool_do_events_clear(ev_opts_t *opts)
 }
 
 /*
- * zpool events [-vfc]
+ * zpool events [-vHf [pool] | -c]
  *
  * Displays events logs by ZFS.
  */
@@ -7722,6 +7729,25 @@ zpool_do_events(int argc, char **argv)
 	}
 	argc -= optind;
 	argv += optind;
+
+	if (argc > 1) {
+		(void) fprintf(stderr, gettext("too many arguments\n"));
+		usage(B_FALSE);
+	} else if (argc == 1) {
+		(void) strlcpy(opts.poolname, argv[0], sizeof (opts.poolname));
+		if (!zfs_name_valid(opts.poolname, ZFS_TYPE_POOL)) {
+			(void) fprintf(stderr,
+			    gettext("invalid pool name '%s'\n"), opts.poolname);
+			usage(B_FALSE);
+		}
+	}
+
+	if ((argc == 1 || opts.verbose || opts.scripted || opts.follow) &&
+	    opts.clear) {
+		(void) fprintf(stderr,
+		    gettext("invalid options combined with -c\n"));
+		usage(B_FALSE);
+	}
 
 	if (opts.clear)
 		ret = zpool_do_events_clear(&opts);

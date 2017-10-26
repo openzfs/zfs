@@ -37,6 +37,7 @@ SUBDIRS = \
 	zpool_create \
 	zpool_destroy \
 	zpool_detach \
+	zpool_events \
 	zpool_expand \
 	zpool_export \
 	zpool_get \
