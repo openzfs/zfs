@@ -11,4 +11,5 @@ dist_pkgdata_SCRIPTS = \
 	zfs_send_006_pos.ksh \
 	zfs_send_007_pos.ksh \
 	zfs_send_encrypted.ksh \
-	zfs_send_raw.ksh
+	zfs_send_raw.ksh \
+	zfs_send_sparse.ksh
