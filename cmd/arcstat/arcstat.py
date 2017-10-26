@@ -219,6 +219,7 @@ def print_values():
             sep
         ))
     sys.stdout.write("\n")
+    sys.stdout.flush()
 
 
 def print_header():
