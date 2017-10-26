@@ -2216,7 +2216,8 @@ show_import(nvlist_t *config)
 
 	(void) printf(gettext(" config:\n\n"));
 
-	cb.cb_namewidth = max_width(NULL, nvroot, 0, 0, VDEV_NAME_TYPE_ID);
+	cb.cb_namewidth = max_width(NULL, nvroot, 0, strlen(name),
+	    VDEV_NAME_TYPE_ID);
 	if (cb.cb_namewidth < 10)
 		cb.cb_namewidth = 10;
 
@@ -3925,7 +3926,7 @@ get_namewidth(zpool_handle_t *zhp, void *data)
 		    &nvroot) == 0);
 		unsigned int poolname_len = strlen(zpool_get_name(zhp));
 		if (!cb->cb_verbose)
-			cb->cb_namewidth = poolname_len;
+			cb->cb_namewidth = MAX(poolname_len, cb->cb_namewidth);
 		else
 			cb->cb_namewidth = MAX(poolname_len,
 			    max_width(zhp, nvroot, 0, cb->cb_namewidth,
