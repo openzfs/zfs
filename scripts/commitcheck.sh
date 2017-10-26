@@ -51,9 +51,14 @@ function check_tagged_line_with_url()
         return 1
     fi
 
-    if ! test_url "$foundline"; then
-        return 1
-    fi
+    OLDIFS=$IFS
+    IFS=$'\n'
+    for url in $(echo -e "$foundline"); do
+        if ! test_url "$url"; then
+            return 1
+        fi
+    done
+    IFS=$OLDIFS
 
     return 0
 }
@@ -99,7 +104,7 @@ function openzfs_port_commit()
     error=0
 
     # subject starts with OpenZFS dddd
-    subject=$(git log -n 1 --pretty=%s "$REF" | egrep -m 1 '^OpenZFS [[:digit:]]+ - ')
+    subject=$(git log -n 1 --pretty=%s "$REF" | egrep -m 1 '^OpenZFS [[:digit:]]+(, [[:digit:]]+)* - ')
     if [ -z "$subject" ]; then
         echo "error: OpenZFS patch ports must have a subject line that starts with \"OpenZFS dddd - \""
         error=1
