@@ -2,7 +2,7 @@
 .\"
 .\" Copyright 2013 Turbo Fredriksson <turbo@bayour.com>. All rights reserved.
 .\"
-.TH SPL-MODULE-PARAMETERS 5 "Nov 18, 2013"
+.TH SPL-MODULE-PARAMETERS 5 "Oct 28, 2017"
 .SH NAME
 spl\-module\-parameters \- SPL module parameters
 .SH DESCRIPTION
@@ -248,6 +248,20 @@ The expected path to locate the system hostid when specified.  This value
 may be overridden for non-standard configurations.
 .sp
 Default value: \fB/etc/hostid\fR
+.RE
+
+.sp
+.ne 2
+.na
+\fBspl_panic_halt\fR (uint)
+.ad
+.RS 12n
+Cause a kernel panic on assertion failures. When not enabled, the thread is 
+halted to facilitate further debugging.
+.sp
+Set to a non-zero value to enable.
+.sp
+Default value: \fB0\fR
 .RE
 
 .sp
