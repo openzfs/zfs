@@ -62,9 +62,10 @@ shellcheck:
 
 mancheck:
 	@if type mandoc > /dev/null 2>&1; then \
-		for file in zfs zpool zdb zgenhostid; do \
-			mandoc -Tlint -Werror ${top_srcdir}/man/man8/$$file.8; \
-		done \
+		find ${top_srcdir}/man/man8 -type f -name 'zfs.8' \
+			-o -name 'zpool.8' -o -name 'zdb.8' \
+			-o -name 'zgenhostid.8' | \
+			xargs mandoc -Tlint -Werror; \
 	fi
 
 lint: cppcheck paxcheck
