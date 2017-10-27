@@ -110,7 +110,7 @@ log_must mkfile $FSIZE /$TESTPOOL/data
 log_must zpool export -F $TESTPOOL
 
 # Offline disk
-on_off_disk $SD "offline"
+remove_disk $SD
 block_device_wait
 log_must modprobe -r scsi_debug
 
@@ -122,7 +122,7 @@ if (($? != 0)); then
 fi
 
 # Clear zpool events
-zpool events -c $TESTPOOL
+log_must zpool events -c
 
 # Create another scsi_debug device
 setup

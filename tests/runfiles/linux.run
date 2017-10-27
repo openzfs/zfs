@@ -167,7 +167,8 @@ tests = ['zfs_rollback_001_pos', 'zfs_rollback_002_pos',
 [tests/functional/cli_root/zfs_send]
 tests = ['zfs_send_001_pos', 'zfs_send_002_pos', 'zfs_send_003_pos',
     'zfs_send_004_neg', 'zfs_send_005_pos', 'zfs_send_006_pos',
-    'zfs_send_007_pos', 'zfs_send_encrypted', 'zfs_send_raw']
+    'zfs_send_007_pos', 'zfs_send_encrypted', 'zfs_send_raw',
+    'zfs_send_sparse']
 
 [tests/functional/cli_root/zfs_set]
 tests = ['cache_001_pos', 'cache_002_neg', 'canmount_001_pos',
@@ -252,6 +253,10 @@ post =
 [tests/functional/cli_root/zpool_detach]
 tests = ['zpool_detach_001_neg']
 
+[tests/functional/cli_root/zpool_events]
+tests = ['zpool_events_clear', 'zpool_events_cliargs', 'zpool_events_follow',
+    'zpool_events_poolname']
+
 [tests/functional/cli_root/zpool_expand]
 tests = ['zpool_expand_001_pos', 'zpool_expand_002_pos',
     'zpool_expand_003_neg', 'zpool_expand_004_pos']
@@ -293,6 +298,11 @@ tests = ['zpool_online_001_pos', 'zpool_online_002_neg']
 [tests/functional/cli_root/zpool_remove]
 tests = ['zpool_remove_001_neg', 'zpool_remove_002_pos',
     'zpool_remove_003_pos']
+
+[tests/functional/cli_root/zpool_reopen]
+tests = ['zpool_reopen_001_pos', 'zpool_reopen_002_pos',
+    'zpool_reopen_003_pos', 'zpool_reopen_004_pos', 'zpool_reopen_005_pos',
+    'zpool_reopen_006_neg']
 
 [tests/functional/cli_root/zpool_replace]
 tests = ['zpool_replace_001_neg', 'replace-o_ashift', 'replace_prop_ashift']

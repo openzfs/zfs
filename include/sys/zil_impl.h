@@ -124,7 +124,6 @@ struct zilog {
 	list_t		zl_lwb_list;	/* in-flight log write list */
 	kmutex_t	zl_vdev_lock;	/* protects zl_vdev_tree */
 	avl_tree_t	zl_vdev_tree;	/* vdevs to flush in zil_commit() */
-	taskq_t		*zl_clean_taskq; /* runs lwb and itx clean tasks */
 	avl_tree_t	zl_bp_tree;	/* track bps during log parse */
 	clock_t		zl_replay_time;	/* lbolt of when replay started */
 	uint64_t	zl_replay_blks;	/* number of log blocks replayed */

@@ -261,7 +261,7 @@ bpobj_iterate_impl(bpobj_t *bpo, bpobj_itor_t func, void *arg, dmu_tx_t *tx,
 	}
 	if (free) {
 		VERIFY3U(0, ==, dmu_free_range(bpo->bpo_os, bpo->bpo_object,
-		    (i + 1) * sizeof (blkptr_t), -1ULL, tx));
+		    (i + 1) * sizeof (blkptr_t), DMU_OBJECT_END, tx));
 	}
 	if (err || !bpo->bpo_havesubobj || bpo->bpo_phys->bpo_subobjs == 0)
 		goto out;
@@ -339,7 +339,7 @@ bpobj_iterate_impl(bpobj_t *bpo, bpobj_itor_t func, void *arg, dmu_tx_t *tx,
 	if (free) {
 		VERIFY3U(0, ==, dmu_free_range(bpo->bpo_os,
 		    bpo->bpo_phys->bpo_subobjs,
-		    (i + 1) * sizeof (uint64_t), -1ULL, tx));
+		    (i + 1) * sizeof (uint64_t), DMU_OBJECT_END, tx));
 	}
 
 out:

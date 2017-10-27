@@ -135,6 +135,36 @@ unsigned long zfs_delay_scale = 1000 * 1000 * 1000 / 2000;
  */
 int zfs_sync_taskq_batch_pct = 75;
 
+/*
+ * These tunables determine the behavior of how zil_itxg_clean() is
+ * called via zil_clean() in the context of spa_sync(). When an itxg
+ * list needs to be cleaned, TQ_NOSLEEP will be used when dispatching.
+ * If the dispatch fails, the call to zil_itxg_clean() will occur
+ * synchronously in the context of spa_sync(), which can negatively
+ * impact the performance of spa_sync() (e.g. in the case of the itxg
+ * list having a large number of itxs that needs to be cleaned).
+ *
+ * Thus, these tunables can be used to manipulate the behavior of the
+ * taskq used by zil_clean(); they determine the number of taskq entries
+ * that are pre-populated when the taskq is first created (via the
+ * "zfs_zil_clean_taskq_minalloc" tunable) and the maximum number of
+ * taskq entries that are cached after an on-demand allocation (via the
+ * "zfs_zil_clean_taskq_maxalloc").
+ *
+ * The idea being, we want to try reasonably hard to ensure there will
+ * already be a taskq entry pre-allocated by the time that it is needed
+ * by zil_clean(). This way, we can avoid the possibility of an
+ * on-demand allocation of a new taskq entry from failing, which would
+ * result in zil_itxg_clean() being called synchronously from zil_clean()
+ * (which can adversely affect performance of spa_sync()).
+ *
+ * Additionally, the number of threads used by the taskq can be
+ * configured via the "zfs_zil_clean_taskq_nthr_pct" tunable.
+ */
+int zfs_zil_clean_taskq_nthr_pct = 100;
+int zfs_zil_clean_taskq_minalloc = 1024;
+int zfs_zil_clean_taskq_maxalloc = 1024 * 1024;
+
 int
 dsl_pool_open_special_dir(dsl_pool_t *dp, const char *name, dsl_dir_t **ddp)
 {
@@ -175,6 +205,12 @@ dsl_pool_open_impl(spa_t *spa, uint64_t txg)
 	dp->dp_sync_taskq = taskq_create("dp_sync_taskq",
 	    zfs_sync_taskq_batch_pct, minclsyspri, 1, INT_MAX,
 	    TASKQ_THREADS_CPU_PCT);
+
+	dp->dp_zil_clean_taskq = taskq_create("dp_zil_clean_taskq",
+	    zfs_zil_clean_taskq_nthr_pct, minclsyspri,
+	    zfs_zil_clean_taskq_minalloc,
+	    zfs_zil_clean_taskq_maxalloc,
+	    TASKQ_PREPOPULATE | TASKQ_THREADS_CPU_PCT);
 
 	mutex_init(&dp->dp_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&dp->dp_spaceavail_cv, NULL, CV_DEFAULT, NULL);
@@ -334,6 +370,7 @@ dsl_pool_close(dsl_pool_t *dp)
 	txg_list_destroy(&dp->dp_sync_tasks);
 	txg_list_destroy(&dp->dp_dirty_dirs);
 
+	taskq_destroy(dp->dp_zil_clean_taskq);
 	taskq_destroy(dp->dp_sync_taskq);
 
 	/*
@@ -1155,5 +1192,18 @@ MODULE_PARM_DESC(zfs_delay_scale, "how quickly delay approaches infinity");
 module_param(zfs_sync_taskq_batch_pct, int, 0644);
 MODULE_PARM_DESC(zfs_sync_taskq_batch_pct,
 	"max percent of CPUs that are used to sync dirty data");
+
+module_param(zfs_zil_clean_taskq_nthr_pct, int, 0644);
+MODULE_PARM_DESC(zfs_zil_clean_taskq_nthr_pct,
+	"max percent of CPUs that are used per dp_sync_taskq");
+
+module_param(zfs_zil_clean_taskq_minalloc, int, 0644);
+MODULE_PARM_DESC(zfs_zil_clean_taskq_minalloc,
+	"number of taskq entries that are pre-populated");
+
+module_param(zfs_zil_clean_taskq_maxalloc, int, 0644);
+MODULE_PARM_DESC(zfs_zil_clean_taskq_maxalloc,
+	"max number of taskq entries that are cached");
+
 /* END CSTYLED */
 #endif

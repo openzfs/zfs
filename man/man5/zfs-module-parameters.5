@@ -1748,6 +1748,18 @@ Default value: \fB2\fR.
 .sp
 .ne 2
 .na
+\fBzfs_sync_taskq_batch_pct\fR (int)
+.ad
+.RS 12n
+This controls the number of threads used by the dp_sync_taskq.  The default
+value of 75% will create a maximum of one thread per cpu.
+.sp
+Default value: \fB75\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_top_maxinflight\fR (int)
 .ad
 .RS 12n
@@ -1997,6 +2009,42 @@ increases with the number of CPUs in the system (minimum 64 events). Events
 in the queue can be viewed with the \fBzpool events\fR command.
 .sp
 Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_zil_clean_taskq_maxalloc\fR (int)
+.ad
+.RS 12n
+The maximum number of taskq entries that are allowed to be cached.  When this
+limit is exceeded itx's will be cleaned synchronously.
+.sp
+Default value: \fB1048576\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_zil_clean_taskq_minalloc\fR (int)
+.ad
+.RS 12n
+The number of taskq entries that are pre-populated when the taskq is first
+created and are immediately available for use.
+.sp
+Default value: \fB1024\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_zil_clean_taskq_nthr_pct\fR (int)
+.ad
+.RS 12n
+This controls the number of threads used by the dp_zil_clean_taskq.  The default
+value of 100% will create a maximum of one thread per cpu.
+.sp
+Default value: \fB100\fR.
 .RE
 
 .sp
