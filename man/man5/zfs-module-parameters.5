@@ -12,7 +12,7 @@
 .\" CDDL HEADER, with the fields enclosed by brackets "[]" replaced with your
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
-.TH ZFS-MODULE-PARAMETERS 5 "Oct 26, 2017"
+.TH ZFS-MODULE-PARAMETERS 5 "Oct 28, 2017"
 .SH NAME
 zfs\-module\-parameters \- ZFS module parameters
 .SH DESCRIPTION
@@ -603,9 +603,10 @@ Default value: \fB10,000\fR.
 \fBzfs_arc_meta_strategy\fR (int)
 .ad
 .RS 12n
-Define the strategy for ARC meta data buffer eviction.
-A value of 0 will evict only the ARC meta data buffers
-A value of 1 will evict the ARC meta data buffers if needed.
+Define the strategy for ARC meta data buffer eviction (meta reclaim strategy).
+A value of 0 (META_ONLY) will evict only the ARC meta data buffers.
+A value of 1 (BALANCED) indicates that additional data buffers may be evicted if 
+that is required to in order to evict the required number of meta data buffers.
 .sp
 Default value: \fB1\fR.
 .RE
@@ -616,7 +617,8 @@ Default value: \fB1\fR.
 \fBzfs_arc_min\fR (ulong)
 .ad
 .RS 12n
-Min arc size of ARC in bytes. If set to 0 then arc_c_min will consume 32MB of system RAM.
+Min arc size of ARC in bytes. If set to 0 then arc_c_min will default to
+consuming the larger of 32M or 1/32 of total system memory.
 .sp
 Default value: \fB0\fR.
 .RE
