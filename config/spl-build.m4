@@ -27,8 +27,6 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_CONFIG_TRIM_UNUSED_KSYMS
 	SPL_AC_PDE_DATA
 	SPL_AC_SET_FS_PWD_WITH_CONST
-	SPL_AC_2ARGS_VFS_UNLINK
-	SPL_AC_4ARGS_VFS_RENAME
 	SPL_AC_2ARGS_VFS_FSYNC
 	SPL_AC_INODE_TRUNCATE_RANGE
 	SPL_AC_FS_STRUCT_SPINLOCK
@@ -931,105 +929,6 @@ AC_DEFUN([SPL_AC_SET_FS_PWD_WITH_CONST],
 		])
 	])
 	EXTRA_KCFLAGS="$tmp_flags"
-])
-
-dnl #
-dnl # 3.13 API change
-dnl # vfs_unlink() updated to take a third delegated_inode argument.
-dnl #
-AC_DEFUN([SPL_AC_2ARGS_VFS_UNLINK],
-	[AC_MSG_CHECKING([whether vfs_unlink() wants 2 args])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/fs.h>
-	],[
-		vfs_unlink((struct inode *) NULL, (struct dentry *) NULL);
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_2ARGS_VFS_UNLINK, 1,
-		          [vfs_unlink() wants 2 args])
-	],[
-		AC_MSG_RESULT(no)
-		dnl #
-		dnl # Linux 3.13 API change
-		dnl # Added delegated inode
-		dnl #
-		AC_MSG_CHECKING([whether vfs_unlink() wants 3 args])
-		SPL_LINUX_TRY_COMPILE([
-			#include <linux/fs.h>
-		],[
-			vfs_unlink((struct inode *) NULL,
-				(struct dentry *) NULL,
-				(struct inode **) NULL);
-		],[
-			AC_MSG_RESULT(yes)
-			AC_DEFINE(HAVE_3ARGS_VFS_UNLINK, 1,
-				  [vfs_unlink() wants 3 args])
-		],[
-			AC_MSG_ERROR(no)
-		])
-
-	])
-])
-
-dnl #
-dnl # 3.13 and 3.15 API changes
-dnl # Added delegated inode and flags argument.
-dnl #
-AC_DEFUN([SPL_AC_4ARGS_VFS_RENAME],
-	[AC_MSG_CHECKING([whether vfs_rename() wants 4 args])
-	SPL_LINUX_TRY_COMPILE([
-		#include <linux/fs.h>
-	],[
-		vfs_rename((struct inode *) NULL, (struct dentry *) NULL,
-			(struct inode *) NULL, (struct dentry *) NULL);
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_4ARGS_VFS_RENAME, 1,
-		          [vfs_rename() wants 4 args])
-	],[
-		AC_MSG_RESULT(no)
-		dnl #
-		dnl # Linux 3.13 API change
-		dnl # Added delegated inode
-		dnl #
-		AC_MSG_CHECKING([whether vfs_rename() wants 5 args])
-		SPL_LINUX_TRY_COMPILE([
-			#include <linux/fs.h>
-		],[
-			vfs_rename((struct inode *) NULL,
-				(struct dentry *) NULL,
-				(struct inode *) NULL,
-				(struct dentry *) NULL,
-				(struct inode **) NULL);
-		],[
-			AC_MSG_RESULT(yes)
-			AC_DEFINE(HAVE_5ARGS_VFS_RENAME, 1,
-				  [vfs_rename() wants 5 args])
-		],[
-			AC_MSG_RESULT(no)
-			dnl #
-			dnl # Linux 3.15 API change
-			dnl # Added flags
-			dnl #
-			AC_MSG_CHECKING([whether vfs_rename() wants 6 args])
-			SPL_LINUX_TRY_COMPILE([
-				#include <linux/fs.h>
-			],[
-				vfs_rename((struct inode *) NULL,
-					(struct dentry *) NULL,
-					(struct inode *) NULL,
-					(struct dentry *) NULL,
-					(struct inode **) NULL,
-					(unsigned int) 0);
-			],[
-				AC_MSG_RESULT(yes)
-				AC_DEFINE(HAVE_6ARGS_VFS_RENAME, 1,
-					  [vfs_rename() wants 6 args])
-			],[
-				AC_MSG_ERROR(no)
-			])
-		])
-	])
 ])
 
 dnl #

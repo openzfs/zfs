@@ -42,10 +42,6 @@
 #define SPLAT_VNODE_TEST3_NAME		"vn_rdwr"
 #define SPLAT_VNODE_TEST3_DESC		"Vn_rdwrt Test"
 
-#define SPLAT_VNODE_TEST4_ID		0x0904
-#define SPLAT_VNODE_TEST4_NAME		"vn_rename"
-#define SPLAT_VNODE_TEST4_DESC		"Vn_rename Test"
-
 #define SPLAT_VNODE_TEST5_ID		0x0905
 #define SPLAT_VNODE_TEST5_NAME		"vn_getattr"
 #define SPLAT_VNODE_TEST5_DESC		"Vn_getattr Test"
@@ -218,93 +214,9 @@ splat_vnode_test3(struct file *file, void *arg)
 
 out:
         VOP_CLOSE(vp, 0, 0, 0, 0, 0);
-	vn_remove(SPLAT_VNODE_TEST_FILE_RW, UIO_SYSSPACE, RMFILE);
 
         return -rc;
 } /* splat_vnode_test3() */
-
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(4,1,0)
-static int
-splat_vnode_test4(struct file *file, void *arg)
-{
-	vnode_t *vp;
-	char buf1[32] = "SPL VNode Interface Test File\n";
-	char buf2[32] = "";
-	int rc;
-
-	if ((rc = splat_vnode_unlink_all(file, arg, SPLAT_VNODE_TEST4_NAME)))
-		return rc;
-
-	if ((rc = vn_open(SPLAT_VNODE_TEST_FILE_RW1, UIO_SYSSPACE,
-			  FWRITE | FREAD | FCREAT | FEXCL, 0644, &vp, 0, 0))) {
-		splat_vprint(file, SPLAT_VNODE_TEST4_NAME,
-			     "Failed to vn_open test file: %s (%d)\n",
-			     SPLAT_VNODE_TEST_FILE_RW1, rc);
-		goto out;
-	}
-
-        rc = vn_rdwr(UIO_WRITE, vp, buf1, strlen(buf1), 0,
-                     UIO_SYSSPACE, 0, RLIM64_INFINITY, 0, NULL);
-	if (rc) {
-		splat_vprint(file, SPLAT_VNODE_TEST4_NAME,
-			     "Failed vn_rdwr write of test file: %s (%d)\n",
-			     SPLAT_VNODE_TEST_FILE_RW1, rc);
-		goto out2;
-	}
-
-        VOP_CLOSE(vp, 0, 0, 0, 0, 0);
-
-	rc = vn_rename(SPLAT_VNODE_TEST_FILE_RW1,SPLAT_VNODE_TEST_FILE_RW2,0);
-	if (rc) {
-		splat_vprint(file, SPLAT_VNODE_TEST4_NAME, "Failed vn_rename "
-			     "%s -> %s (%d)\n",
-			     SPLAT_VNODE_TEST_FILE_RW1,
-			     SPLAT_VNODE_TEST_FILE_RW2, rc);
-		goto out;
-	}
-
-	if ((rc = vn_open(SPLAT_VNODE_TEST_FILE_RW2, UIO_SYSSPACE,
-			  FREAD | FEXCL, 0644, &vp, 0, 0))) {
-		splat_vprint(file, SPLAT_VNODE_TEST4_NAME,
-			     "Failed to vn_open test file: %s (%d)\n",
-			     SPLAT_VNODE_TEST_FILE_RW2, rc);
-		goto out;
-	}
-
-        rc = vn_rdwr(UIO_READ, vp, buf2, strlen(buf1), 0,
-                     UIO_SYSSPACE, 0, RLIM64_INFINITY, 0, NULL);
-	if (rc) {
-		splat_vprint(file, SPLAT_VNODE_TEST4_NAME,
-			     "Failed vn_rdwr read of test file: %s (%d)\n",
-			     SPLAT_VNODE_TEST_FILE_RW2, rc);
-		goto out2;
-	}
-
-	if (strncmp(buf1, buf2, strlen(buf1))) {
-		rc = EINVAL;
-		splat_vprint(file, SPLAT_VNODE_TEST4_NAME,
-			     "Failed strncmp data written does not match "
-			     "data read\nWrote: %sRead:  %s\n", buf1, buf2);
-		goto out2;
-	}
-
-	rc = 0;
-	splat_vprint(file, SPLAT_VNODE_TEST4_NAME, "Wrote to %s:  %s",
-		     SPLAT_VNODE_TEST_FILE_RW1, buf1);
-	splat_vprint(file, SPLAT_VNODE_TEST4_NAME, "Read from %s: %s",
-		     SPLAT_VNODE_TEST_FILE_RW2, buf2);
-	splat_vprint(file, SPLAT_VNODE_TEST4_NAME, "Successfully renamed "
-		     "test file %s -> %s and verified data pattern\n",
-		     SPLAT_VNODE_TEST_FILE_RW1, SPLAT_VNODE_TEST_FILE_RW2);
-out2:
-        VOP_CLOSE(vp, 0, 0, 0, 0, 0);
-out:
-	vn_remove(SPLAT_VNODE_TEST_FILE_RW1, UIO_SYSSPACE, RMFILE);
-	vn_remove(SPLAT_VNODE_TEST_FILE_RW2, UIO_SYSSPACE, RMFILE);
-
-        return -rc;
-} /* splat_vnode_test4() */
-#endif
 
 static int
 splat_vnode_test5(struct file *file, void *arg)
@@ -387,7 +299,6 @@ splat_vnode_test6(struct file *file, void *arg)
 		     "fsync'ed test file %s\n", SPLAT_VNODE_TEST_FILE_RW);
 out:
         VOP_CLOSE(vp, 0, 0, 0, 0, 0);
-	vn_remove(SPLAT_VNODE_TEST_FILE_RW, UIO_SYSSPACE, RMFILE);
 
         return -rc;
 } /* splat_vnode_test6() */
@@ -415,10 +326,6 @@ splat_vnode_init(void)
 	                SPLAT_VNODE_TEST2_ID, splat_vnode_test2);
         splat_test_init(sub, SPLAT_VNODE_TEST3_NAME, SPLAT_VNODE_TEST3_DESC,
 	                SPLAT_VNODE_TEST3_ID, splat_vnode_test3);
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(4,1,0)
-        splat_test_init(sub, SPLAT_VNODE_TEST4_NAME, SPLAT_VNODE_TEST4_DESC,
-	                SPLAT_VNODE_TEST4_ID, splat_vnode_test4);
-#endif
         splat_test_init(sub, SPLAT_VNODE_TEST5_NAME, SPLAT_VNODE_TEST5_DESC,
 	                SPLAT_VNODE_TEST5_ID, splat_vnode_test5);
         splat_test_init(sub, SPLAT_VNODE_TEST6_NAME, SPLAT_VNODE_TEST6_DESC,
@@ -434,9 +341,6 @@ splat_vnode_fini(splat_subsystem_t *sub)
 
         splat_test_fini(sub, SPLAT_VNODE_TEST6_ID);
         splat_test_fini(sub, SPLAT_VNODE_TEST5_ID);
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(4,1,0)
-        splat_test_fini(sub, SPLAT_VNODE_TEST4_ID);
-#endif
         splat_test_fini(sub, SPLAT_VNODE_TEST3_ID);
         splat_test_fini(sub, SPLAT_VNODE_TEST2_ID);
         splat_test_fini(sub, SPLAT_VNODE_TEST1_ID);

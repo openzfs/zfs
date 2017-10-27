@@ -177,8 +177,6 @@ extern int vn_rdwr(uio_rw_t uio, vnode_t *vp, void *addr, ssize_t len,
 extern int vn_close(vnode_t *vp, int flags, int x1, int x2, void *x3, void *x4);
 extern int vn_seek(vnode_t *vp, offset_t o, offset_t *op, void *ct);
 
-extern int vn_remove(const char *path, uio_seg_t seg, int flags);
-extern int vn_rename(const char *path1, const char *path2, int x1);
 extern int vn_getattr(vnode_t *vp, vattr_t *vap, int flags, void *x3, void *x4);
 extern int vn_fsync(vnode_t *vp, int flags, void *x3, void *x4);
 extern int vn_space(vnode_t *vp, int cmd, struct flock *bfp, int flag,
