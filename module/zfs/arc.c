@@ -4968,6 +4968,13 @@ arc_reclaim_thread(void *unused)
 #endif
 		mutex_exit(&arc_reclaim_lock);
 
+		/* If arc size if 0, or below c_min, there
+		 * is no need to call arc_adjust as long as
+		 * the meta usage is under the limits.
+		 */
+		if (arc_size <= MIN(arc_meta_limit, arc_c_min))
+			goto skip_adjust;
+
 		/*
 		 * We call arc_adjust() before (possibly) calling
 		 * arc_kmem_reap_now(), so that we can wake up
@@ -5008,6 +5015,7 @@ arc_reclaim_thread(void *unused)
 			arc_no_grow = B_FALSE;
 		}
 
+skip_adjust:
 		mutex_enter(&arc_reclaim_lock);
 
 		/*
