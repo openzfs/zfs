@@ -540,6 +540,7 @@ dbuf_evict_one(void)
  * of the dbuf cache is at or below the maximum size. Once the dbuf is aged
  * out of the cache it is destroyed and becomes eligible for arc eviction.
  */
+/* ARGSUSED */
 static void
 dbuf_evict_thread(void *unused)
 {

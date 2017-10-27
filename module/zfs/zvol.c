@@ -578,8 +578,10 @@ zvol_set_volblocksize(const char *name, uint64_t volblocksize)
  * implement DKIOCFREE/free-long-range.
  */
 static int
-zvol_replay_truncate(zvol_state_t *zv, lr_truncate_t *lr, boolean_t byteswap)
+zvol_replay_truncate(void *arg1, void *arg2, boolean_t byteswap)
 {
+	zvol_state_t *zv = arg1;
+	lr_truncate_t *lr = arg2;
 	uint64_t offset, length;
 
 	if (byteswap)
@@ -596,8 +598,10 @@ zvol_replay_truncate(zvol_state_t *zv, lr_truncate_t *lr, boolean_t byteswap)
  * after a system failure
  */
 static int
-zvol_replay_write(zvol_state_t *zv, lr_write_t *lr, boolean_t byteswap)
+zvol_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 {
+	zvol_state_t *zv = arg1;
+	lr_write_t *lr = arg2;
 	objset_t *os = zv->zv_objset;
 	char *data = (char *)(lr + 1);  /* data follows lr_write_t */
 	uint64_t offset, length;
@@ -633,7 +637,7 @@ zvol_replay_write(zvol_state_t *zv, lr_write_t *lr, boolean_t byteswap)
 }
 
 static int
-zvol_replay_err(zvol_state_t *zv, lr_t *lr, boolean_t byteswap)
+zvol_replay_err(void *arg1, void *arg2, boolean_t byteswap)
 {
 	return (SET_ERROR(ENOTSUP));
 }
@@ -642,20 +646,26 @@ zvol_replay_err(zvol_state_t *zv, lr_t *lr, boolean_t byteswap)
  * Callback vectors for replaying records.
  * Only TX_WRITE and TX_TRUNCATE are needed for zvol.
  */
-zil_replay_func_t zvol_replay_vector[TX_MAX_TYPE] = {
-	(zil_replay_func_t)zvol_replay_err,	/* no such transaction type */
-	(zil_replay_func_t)zvol_replay_err,	/* TX_CREATE */
-	(zil_replay_func_t)zvol_replay_err,	/* TX_MKDIR */
-	(zil_replay_func_t)zvol_replay_err,	/* TX_MKXATTR */
-	(zil_replay_func_t)zvol_replay_err,	/* TX_SYMLINK */
-	(zil_replay_func_t)zvol_replay_err,	/* TX_REMOVE */
-	(zil_replay_func_t)zvol_replay_err,	/* TX_RMDIR */
-	(zil_replay_func_t)zvol_replay_err,	/* TX_LINK */
-	(zil_replay_func_t)zvol_replay_err,	/* TX_RENAME */
-	(zil_replay_func_t)zvol_replay_write,	/* TX_WRITE */
-	(zil_replay_func_t)zvol_replay_truncate, /* TX_TRUNCATE */
-	(zil_replay_func_t)zvol_replay_err,	/* TX_SETATTR */
-	(zil_replay_func_t)zvol_replay_err,	/* TX_ACL */
+zil_replay_func_t *zvol_replay_vector[TX_MAX_TYPE] = {
+	zvol_replay_err,	/* no such transaction type */
+	zvol_replay_err,	/* TX_CREATE */
+	zvol_replay_err,	/* TX_MKDIR */
+	zvol_replay_err,	/* TX_MKXATTR */
+	zvol_replay_err,	/* TX_SYMLINK */
+	zvol_replay_err,	/* TX_REMOVE */
+	zvol_replay_err,	/* TX_RMDIR */
+	zvol_replay_err,	/* TX_LINK */
+	zvol_replay_err,	/* TX_RENAME */
+	zvol_replay_write,	/* TX_WRITE */
+	zvol_replay_truncate,	/* TX_TRUNCATE */
+	zvol_replay_err,	/* TX_SETATTR */
+	zvol_replay_err,	/* TX_ACL */
+	zvol_replay_err,	/* TX_CREATE_ATTR */
+	zvol_replay_err,	/* TX_CREATE_ACL_ATTR */
+	zvol_replay_err,	/* TX_MKDIR_ACL */
+	zvol_replay_err,	/* TX_MKDIR_ATTR */
+	zvol_replay_err,	/* TX_MKDIR_ACL_ATTR */
+	zvol_replay_err,	/* TX_WRITE2 */
 };
 
 /*

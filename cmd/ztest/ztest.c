@@ -1709,8 +1709,10 @@ ztest_log_setattr(ztest_ds_t *zd, dmu_tx_t *tx, lr_setattr_t *lr)
  * ZIL replay ops
  */
 static int
-ztest_replay_create(ztest_ds_t *zd, lr_create_t *lr, boolean_t byteswap)
+ztest_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 {
+	ztest_ds_t *zd = arg1;
+	lr_create_t *lr = arg2;
 	char *name = (void *)(lr + 1);		/* name follows lr */
 	objset_t *os = zd->zd_os;
 	ztest_block_tag_t *bbt;
@@ -1797,8 +1799,10 @@ ztest_replay_create(ztest_ds_t *zd, lr_create_t *lr, boolean_t byteswap)
 }
 
 static int
-ztest_replay_remove(ztest_ds_t *zd, lr_remove_t *lr, boolean_t byteswap)
+ztest_replay_remove(void *arg1, void *arg2, boolean_t byteswap)
 {
+	ztest_ds_t *zd = arg1;
+	lr_remove_t *lr = arg2;
 	char *name = (void *)(lr + 1);		/* name follows lr */
 	objset_t *os = zd->zd_os;
 	dmu_object_info_t doi;
@@ -1848,8 +1852,10 @@ ztest_replay_remove(ztest_ds_t *zd, lr_remove_t *lr, boolean_t byteswap)
 }
 
 static int
-ztest_replay_write(ztest_ds_t *zd, lr_write_t *lr, boolean_t byteswap)
+ztest_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 {
+	ztest_ds_t *zd = arg1;
+	lr_write_t *lr = arg2;
 	objset_t *os = zd->zd_os;
 	void *data = lr + 1;			/* data follows lr */
 	uint64_t offset, length;
@@ -1974,8 +1980,10 @@ ztest_replay_write(ztest_ds_t *zd, lr_write_t *lr, boolean_t byteswap)
 }
 
 static int
-ztest_replay_truncate(ztest_ds_t *zd, lr_truncate_t *lr, boolean_t byteswap)
+ztest_replay_truncate(void *arg1, void *arg2, boolean_t byteswap)
 {
+	ztest_ds_t *zd = arg1;
+	lr_truncate_t *lr = arg2;
 	objset_t *os = zd->zd_os;
 	dmu_tx_t *tx;
 	uint64_t txg;
@@ -2013,8 +2021,10 @@ ztest_replay_truncate(ztest_ds_t *zd, lr_truncate_t *lr, boolean_t byteswap)
 }
 
 static int
-ztest_replay_setattr(ztest_ds_t *zd, lr_setattr_t *lr, boolean_t byteswap)
+ztest_replay_setattr(void *arg1, void *arg2, boolean_t byteswap)
 {
+	ztest_ds_t *zd = arg1;
+	lr_setattr_t *lr = arg2;
 	objset_t *os = zd->zd_os;
 	dmu_tx_t *tx;
 	dmu_buf_t *db;
@@ -2085,27 +2095,27 @@ ztest_replay_setattr(ztest_ds_t *zd, lr_setattr_t *lr, boolean_t byteswap)
 	return (0);
 }
 
-zil_replay_func_t ztest_replay_vector[TX_MAX_TYPE] = {
-	NULL,				/* 0 no such transaction type */
-	(zil_replay_func_t)ztest_replay_create,		/* TX_CREATE */
-	NULL,						/* TX_MKDIR */
-	NULL,						/* TX_MKXATTR */
-	NULL,						/* TX_SYMLINK */
-	(zil_replay_func_t)ztest_replay_remove,		/* TX_REMOVE */
-	NULL,						/* TX_RMDIR */
-	NULL,						/* TX_LINK */
-	NULL,						/* TX_RENAME */
-	(zil_replay_func_t)ztest_replay_write,		/* TX_WRITE */
-	(zil_replay_func_t)ztest_replay_truncate,	/* TX_TRUNCATE */
-	(zil_replay_func_t)ztest_replay_setattr,	/* TX_SETATTR */
-	NULL,						/* TX_ACL */
-	NULL,						/* TX_CREATE_ACL */
-	NULL,						/* TX_CREATE_ATTR */
-	NULL,						/* TX_CREATE_ACL_ATTR */
-	NULL,						/* TX_MKDIR_ACL */
-	NULL,						/* TX_MKDIR_ATTR */
-	NULL,						/* TX_MKDIR_ACL_ATTR */
-	NULL,						/* TX_WRITE2 */
+zil_replay_func_t *ztest_replay_vector[TX_MAX_TYPE] = {
+	NULL,			/* 0 no such transaction type */
+	ztest_replay_create,	/* TX_CREATE */
+	NULL,			/* TX_MKDIR */
+	NULL,			/* TX_MKXATTR */
+	NULL,			/* TX_SYMLINK */
+	ztest_replay_remove,	/* TX_REMOVE */
+	NULL,			/* TX_RMDIR */
+	NULL,			/* TX_LINK */
+	NULL,			/* TX_RENAME */
+	ztest_replay_write,	/* TX_WRITE */
+	ztest_replay_truncate,	/* TX_TRUNCATE */
+	ztest_replay_setattr,	/* TX_SETATTR */
+	NULL,			/* TX_ACL */
+	NULL,			/* TX_CREATE_ACL */
+	NULL,			/* TX_CREATE_ATTR */
+	NULL,			/* TX_CREATE_ACL_ATTR */
+	NULL,			/* TX_MKDIR_ACL */
+	NULL,			/* TX_MKDIR_ATTR */
+	NULL,			/* TX_MKDIR_ACL_ATTR */
+	NULL,			/* TX_WRITE2 */
 };
 
 /*

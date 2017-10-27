@@ -352,7 +352,7 @@ extern void zfs_unmap_page(page_t *, caddr_t);
 #endif /* HAVE_UIO_RW */
 
 extern zil_get_data_t zfs_get_data;
-extern zil_replay_func_t zfs_replay_vector[TX_MAX_TYPE];
+extern zil_replay_func_t *zfs_replay_vector[TX_MAX_TYPE];
 extern int zfsfstype;
 
 #endif /* _KERNEL */

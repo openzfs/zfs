@@ -6126,7 +6126,7 @@ static void
 spa_async_thread(void *arg)
 {
 	spa_t *spa = (spa_t *)arg;
-	int tasks, i;
+	int tasks;
 
 	ASSERT(spa->spa_sync_on);
 
@@ -6164,9 +6164,9 @@ spa_async_thread(void *arg)
 	if (tasks & SPA_ASYNC_REMOVE) {
 		spa_vdev_state_enter(spa, SCL_NONE);
 		spa_async_remove(spa, spa->spa_root_vdev);
-		for (i = 0; i < spa->spa_l2cache.sav_count; i++)
+		for (int i = 0; i < spa->spa_l2cache.sav_count; i++)
 			spa_async_remove(spa, spa->spa_l2cache.sav_vdevs[i]);
-		for (i = 0; i < spa->spa_spares.sav_count; i++)
+		for (int i = 0; i < spa->spa_spares.sav_count; i++)
 			spa_async_remove(spa, spa->spa_spares.sav_vdevs[i]);
 		(void) spa_vdev_state_exit(spa, NULL, 0);
 	}

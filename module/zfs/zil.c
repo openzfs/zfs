@@ -2175,7 +2175,7 @@ zil_resume(void *cookie)
 }
 
 typedef struct zil_replay_arg {
-	zil_replay_func_t *zr_replay;
+	zil_replay_func_t **zr_replay;
 	void		*zr_arg;
 	boolean_t	zr_byteswap;
 	char		*zr_lr;
@@ -2294,7 +2294,7 @@ zil_incr_blks(zilog_t *zilog, blkptr_t *bp, void *arg, uint64_t claim_txg)
  * If this dataset has a non-empty intent log, replay it and destroy it.
  */
 void
-zil_replay(objset_t *os, void *arg, zil_replay_func_t replay_func[TX_MAX_TYPE])
+zil_replay(objset_t *os, void *arg, zil_replay_func_t *replay_func[TX_MAX_TYPE])
 {
 	zilog_t *zilog = dmu_objset_zil(os);
 	const zil_header_t *zh = zilog->zl_header;

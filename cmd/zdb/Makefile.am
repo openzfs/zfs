@@ -10,7 +10,8 @@ sbin_PROGRAMS = zdb
 
 zdb_SOURCES = \
 	zdb.c \
-	zdb_il.c
+	zdb_il.c \
+	zdb.h
 
 zdb_LDADD = \
 	$(top_builddir)/lib/libnvpair/libnvpair.la \
