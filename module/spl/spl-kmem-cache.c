@@ -382,7 +382,6 @@ spl_slab_free(spl_kmem_slab_t *sks,
 
 	skc = sks->sks_cache;
 	ASSERT(skc->skc_magic == SKC_MAGIC);
-	ASSERT(spin_is_locked(&skc->skc_lock));
 
 	/*
 	 * Update slab/objects counters in the cache, then remove the
@@ -583,7 +582,6 @@ __spl_cache_flush(spl_kmem_cache_t *skc, spl_kmem_magazine_t *skm, int flush)
 
 	ASSERT(skc->skc_magic == SKC_MAGIC);
 	ASSERT(skm->skm_magic == SKM_MAGIC);
-	ASSERT(spin_is_locked(&skc->skc_lock));
 
 	for (i = 0; i < count; i++)
 		spl_cache_shrink(skc, skm->skm_objs[i]);
@@ -1125,7 +1123,6 @@ spl_cache_obj(spl_kmem_cache_t *skc, spl_kmem_slab_t *sks)
 
 	ASSERT(skc->skc_magic == SKC_MAGIC);
 	ASSERT(sks->sks_magic == SKS_MAGIC);
-	ASSERT(spin_is_locked(&skc->skc_lock));
 
 	sko = list_entry(sks->sks_free_list.next, spl_kmem_obj_t, sko_list);
 	ASSERT(sko->sko_magic == SKO_MAGIC);
@@ -1396,7 +1393,6 @@ spl_cache_shrink(spl_kmem_cache_t *skc, void *obj)
 	spl_kmem_obj_t *sko = NULL;
 
 	ASSERT(skc->skc_magic == SKC_MAGIC);
-	ASSERT(spin_is_locked(&skc->skc_lock));
 
 	sko = spl_sko_from_obj(skc, obj);
 	ASSERT(sko->sko_magic == SKO_MAGIC);

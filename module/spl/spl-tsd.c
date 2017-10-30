@@ -315,7 +315,6 @@ tsd_hash_add_pid(tsd_hash_table_t *table, pid_t pid)
 static void
 tsd_hash_del(tsd_hash_table_t *table, tsd_hash_entry_t *entry)
 {
-	ASSERT(spin_is_locked(&table->ht_lock));
 	hlist_del(&entry->he_list);
 	list_del_init(&entry->he_key_list);
 	list_del_init(&entry->he_pid_list);

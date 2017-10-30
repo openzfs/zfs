@@ -103,7 +103,6 @@ task_alloc(taskq_t *tq, uint_t flags, unsigned long *irqflags)
 	int count = 0;
 
 	ASSERT(tq);
-	ASSERT(spin_is_locked(&tq->tq_lock));
 retry:
 	/* Acquire taskq_ent_t's from free list if available */
 	if (!list_empty(&tq->tq_free_list) && !(flags & TQ_NEW)) {
@@ -168,7 +167,6 @@ task_free(taskq_t *tq, taskq_ent_t *t)
 {
 	ASSERT(tq);
 	ASSERT(t);
-	ASSERT(spin_is_locked(&tq->tq_lock));
 	ASSERT(list_empty(&t->tqent_list));
 	ASSERT(!timer_pending(&t->tqent_timer));
 
@@ -185,7 +183,6 @@ task_done(taskq_t *tq, taskq_ent_t *t)
 {
 	ASSERT(tq);
 	ASSERT(t);
-	ASSERT(spin_is_locked(&tq->tq_lock));
 
 	/* Wake tasks blocked in taskq_wait_id() */
 	wake_up_all(&t->tqent_waitq);
@@ -259,7 +256,6 @@ taskq_lowest_id(taskq_t *tq)
 	taskq_thread_t *tqt;
 
 	ASSERT(tq);
-	ASSERT(spin_is_locked(&tq->tq_lock));
 
 	if (!list_empty(&tq->tq_pend_list)) {
 		t = list_entry(tq->tq_pend_list.next, taskq_ent_t, tqent_list);
@@ -297,7 +293,6 @@ taskq_insert_in_order(taskq_t *tq, taskq_thread_t *tqt)
 
 	ASSERT(tq);
 	ASSERT(tqt);
-	ASSERT(spin_is_locked(&tq->tq_lock));
 
 	list_for_each_prev(l, &tq->tq_active_list) {
 		w = list_entry(l, taskq_thread_t, tqt_active_list);
@@ -319,8 +314,6 @@ taskq_find_list(taskq_t *tq, struct list_head *lh, taskqid_t id)
 {
 	struct list_head *l;
 	taskq_ent_t *t;
-
-	ASSERT(spin_is_locked(&tq->tq_lock));
 
 	list_for_each(l, lh) {
 		t = list_entry(l, taskq_ent_t, tqent_list);
@@ -347,8 +340,6 @@ taskq_find(taskq_t *tq, taskqid_t id)
 	taskq_thread_t *tqt;
 	struct list_head *l;
 	taskq_ent_t *t;
-
-	ASSERT(spin_is_locked(&tq->tq_lock));
 
 	t = taskq_find_list(tq, &tq->tq_delay_list, id);
 	if (t)
@@ -751,8 +742,6 @@ taskq_next_ent(taskq_t *tq)
 {
 	struct list_head *list;
 
-	ASSERT(spin_is_locked(&tq->tq_lock));
-
 	if (!list_empty(&tq->tq_prio_list))
 		list = &tq->tq_prio_list;
 	else if (!list_empty(&tq->tq_pend_list))
@@ -817,8 +806,6 @@ taskq_thread_spawn(taskq_t *tq)
 static int
 taskq_thread_should_stop(taskq_t *tq, taskq_thread_t *tqt)
 {
-	ASSERT(spin_is_locked(&tq->tq_lock));
-
 	if (!(tq->tq_flags & TASKQ_DYNAMIC))
 		return (0);
 

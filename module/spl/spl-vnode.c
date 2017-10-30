@@ -427,8 +427,6 @@ file_find(int fd, struct task_struct *task)
 {
         file_t *fp;
 
-	ASSERT(spin_is_locked(&vn_file_lock));
-
         list_for_each_entry(fp, &vn_file_list,  f_list) {
 		if (fd == fp->f_fd && fp->f_task == task) {
 			ASSERT(atomic_read(&fp->f_ref) != 0);
