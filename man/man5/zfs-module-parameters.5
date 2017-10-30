@@ -12,7 +12,7 @@
 .\" CDDL HEADER, with the fields enclosed by brackets "[]" replaced with your
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
-.TH ZFS-MODULE-PARAMETERS 5 "Nov 16, 2013"
+.TH ZFS-MODULE-PARAMETERS 5 "Oct 28, 2017" 
 .SH NAME
 zfs\-module\-parameters \- ZFS module parameters
 .SH DESCRIPTION
@@ -486,10 +486,11 @@ Default value: \fB10\fR.
 \fBzfs_arc_grow_retry\fR (int)
 .ad
 .RS 12n
-After a memory pressure event the ARC will wait this many seconds before trying
-to resume growth
+If set to a non zero value, it will replace the arc_grow_retry value with this value.
+The arc_grow_retry value (default 5) is the number of seconds the ARC will wait before 
+trying to resume growth after a memory pressure event.
 .sp
-Default value: \fB5\fR.
+Default value: \fB0\fR.
 .RE
 
 .sp
@@ -518,6 +519,20 @@ to 0 while running and reducing it below the current ARC size will not cause
 the ARC to shrink without memory pressure to induce shrinking.
 .sp
 Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_arc_meta_adjust_restarts\fR (ulong)
+.ad
+.RS 12n
+The number of restart passes to make while scanning the ARC attempting
+the free buffers in order to stay below the \fBzfs_arc_meta_limit\fR.
+This value should not need to be tuned but is available to facilitate
+performance analysis.
+.sp
+Default value: \fB4096\fR.
 .RE
 
 .sp
@@ -585,15 +600,15 @@ Default value: \fB10,000\fR.
 .sp
 .ne 2
 .na
-\fBzfs_arc_meta_adjust_restarts\fR (ulong)
+\fBzfs_arc_meta_strategy\fR (int)
 .ad
 .RS 12n
-The number of restart passes to make while scanning the ARC attempting
-the free buffers in order to stay below the \fBzfs_arc_meta_limit\fR.
-This value should not need to be tuned but is available to facilitate
-performance analysis.
+Define the strategy for ARC meta data buffer eviction (meta reclaim strategy).
+A value of 0 (META_ONLY) will evict only the ARC meta data buffers.
+A value of 1 (BALANCED) indicates that additional data buffers may be evicted if 
+that is required to in order to evict the required number of meta data buffers.
 .sp
-Default value: \fB4096\fR.
+Default value: \fB1\fR.
 .RE
 
 .sp
@@ -602,9 +617,10 @@ Default value: \fB4096\fR.
 \fBzfs_arc_min\fR (ulong)
 .ad
 .RS 12n
-Min arc size
+Min arc size of ARC in bytes. If set to 0 then arc_c_min will default to
+consuming the larger of 32M or 1/32 of total system memory.
 .sp
-Default value: \fB100\fR.
+Default value: \fB0\fR.
 .RE
 
 .sp
@@ -661,9 +677,12 @@ Default value: \fB8\fR.
 \fBzfs_arc_p_min_shift\fR (int)
 .ad
 .RS 12n
-arc_c shift to calc min/max arc_p
+If set to a non zero value, this will update arc_p_min_shift (default 4)
+with the new value.
+arc_p_min_shift is used to shift of arc_c for calculating both min and max 
+max arc_p
 .sp
-Default value: \fB4\fR.
+Default value: \fB0\fR.
 .RE
 
 .sp
@@ -694,9 +713,10 @@ Use \fB1\fR for yes (default) and \fB0\fR to disable.
 \fBzfs_arc_shrink_shift\fR (int)
 .ad
 .RS 12n
-log2(fraction of arc to reclaim)
+If set to a non zero value, this will update arc_shrink_shift (default 7)
+with the new value.
 .sp
-Default value: \fB5\fR.
+Default value: \fB0\fR.
 .RE
 
 .sp
@@ -1808,8 +1828,8 @@ Default value: \fB16\fR (effectively 65536).
 \fBzfs_vdev_cache_max\fR (int)
 .ad
 .RS 12n
-Inflate reads small than this value to meet the \fBzfs_vdev_cache_bshift\fR
-size.
+Inflate reads smaller than this value to meet the \fBzfs_vdev_cache_bshift\fR
+size (default 64k).
 .sp
 Default value: \fB16384\fR.
 .RE
@@ -1916,7 +1936,8 @@ Default value: \fB32,768\fR.
 \fBzfs_vdev_scheduler\fR (charp)
 .ad
 .RS 12n
-Set the Linux I/O scheduler on whole disk vdevs to this scheduler
+Set the Linux I/O scheduler on whole disk vdevs to this scheduler. Valid options
+are noop, cfq, bfq & deadline
 .sp
 Default value: \fBnoop\fR.
 .RE
