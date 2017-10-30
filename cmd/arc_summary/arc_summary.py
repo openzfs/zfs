@@ -88,36 +88,38 @@ def div2():
     sys.stdout.write("\n")
 
 
-def fBytes(Bytes=0, Decimal=2):
-    kbytes = (2 ** 10)
-    mbytes = (2 ** 20)
-    gbytes = (2 ** 30)
-    tbytes = (2 ** 40)
-    pbytes = (2 ** 50)
-    ebytes = (2 ** 60)
-    zbytes = (2 ** 70)
-    ybytes = (2 ** 80)
+def fBytes(b=0):
+    """Return human-readable representation of a byte value in
+    powers of 2 (eg "KiB" for "kibibytes", etc) to two decimal
+    points. Values smaller than one KiB are returned without
+    decimal points.
+    """
 
-    if Bytes >= ybytes:
-        return str("%0." + str(Decimal) + "f") % (Bytes / ybytes) + "\tYiB"
-    elif Bytes >= zbytes:
-        return str("%0." + str(Decimal) + "f") % (Bytes / zbytes) + "\tZiB"
-    elif Bytes >= ebytes:
-        return str("%0." + str(Decimal) + "f") % (Bytes / ebytes) + "\tEiB"
-    elif Bytes >= pbytes:
-        return str("%0." + str(Decimal) + "f") % (Bytes / pbytes) + "\tPiB"
-    elif Bytes >= tbytes:
-        return str("%0." + str(Decimal) + "f") % (Bytes / tbytes) + "\tTiB"
-    elif Bytes >= gbytes:
-        return str("%0." + str(Decimal) + "f") % (Bytes / gbytes) + "\tGiB"
-    elif Bytes >= mbytes:
-        return str("%0." + str(Decimal) + "f") % (Bytes / mbytes) + "\tMiB"
-    elif Bytes >= kbytes:
-        return str("%0." + str(Decimal) + "f") % (Bytes / kbytes) + "\tKiB"
-    elif Bytes == 0:
-        return str("%d" % 0) + "\tBytes"
+    prefixes = [
+        [2**80, "YiB"],   # yobibytes (yotta)
+        [2**70, "ZiB"],   # zebibytes (zetta)
+        [2**60, "EiB"],   # exbibytes (exa)
+        [2**50, "PiB"],   # pebibytes (peta)
+        [2**40, "TiB"],   # tebibytes (tera)
+        [2**30, "GiB"],   # gibibytes (giga)
+        [2**20, "MiB"],   # mebibytes (mega)
+        [2**10, "KiB"]]   # kibibytes (kilo)
+
+    if b >= 2**10:
+
+        for limit, unit in prefixes:
+
+            if b >= limit:
+                value = b / limit
+                break
+
+        result = "%0.2f\t%s" % (value, unit)
+
     else:
-        return str("%d" % Bytes) + "\tBytes"
+
+        result = "%d\tBytes" % b
+
+    return result
 
 
 def fHits(Hits=0, Decimal=2):
