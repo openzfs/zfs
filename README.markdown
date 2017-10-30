@@ -4,6 +4,7 @@ ZFS on Linux is an advanced file system and volume manager which was originally
 developed for Solaris and is now maintained by the OpenZFS community.
 
 [![codecov](https://codecov.io/gh/zfsonlinux/zfs/branch/master/graph/badge.svg)](https://codecov.io/gh/zfsonlinux/zfs)
+[![coverity](https://scan.coverity.com/projects/1973/badge.svg)](https://scan.coverity.com/projects/zfsonlinux-zfs)
 
 # Official Resources
   * [Site](http://zfsonlinux.org)
