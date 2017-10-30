@@ -2,8 +2,7 @@
 Description=Mount ZFS filesystems
 DefaultDependencies=no
 After=systemd-udev-settle.service
-After=zfs-import-cache.service
-After=zfs-import-scan.service
+After=zfs-import.target
 After=systemd-remount-fs.service
 Before=local-fs.target
 

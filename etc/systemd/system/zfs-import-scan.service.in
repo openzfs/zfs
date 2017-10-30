@@ -5,6 +5,7 @@ Requires=systemd-udev-settle.service
 After=systemd-udev-settle.service
 After=cryptsetup.target
 Before=dracut-mount.service
+Before=zfs-import.target
 ConditionPathExists=!@sysconfdir@/zfs/zpool.cache
 
 [Service]
@@ -14,5 +15,4 @@ ExecStartPre=/sbin/modprobe zfs
 ExecStart=@sbindir@/zpool import -aN -o cachefile=none
 
 [Install]
-WantedBy=zfs-mount.service
-WantedBy=zfs.target
+WantedBy=zfs-import.target
