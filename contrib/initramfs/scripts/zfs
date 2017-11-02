@@ -150,7 +150,7 @@ get_pools()
 		fi
 	fi
 
-        # Filter out any exceptions...
+	# Filter out any exceptions...
 	if [ -n "$ZFS_POOL_EXCEPTIONS" ]
 	then
 		local found=""
