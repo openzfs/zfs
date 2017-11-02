@@ -834,8 +834,13 @@ zfs_fuid_overobjquota(zfsvfs_t *zfsvfs, boolean_t isgroup, uint64_t fuid)
 	int err;
 
 	if (!dmu_objset_userobjspace_present(zfsvfs->z_os)) {
-		if (dmu_objset_userobjspace_upgradable(zfsvfs->z_os))
+		if (dmu_objset_userobjspace_upgradable(zfsvfs->z_os)) {
+			dsl_pool_config_enter(
+			    dmu_objset_pool(zfsvfs->z_os), FTAG);
 			dmu_objset_userobjspace_upgrade(zfsvfs->z_os);
+			dsl_pool_config_exit(
+			    dmu_objset_pool(zfsvfs->z_os), FTAG);
+		}
 		return (B_FALSE);
 	}
 

@@ -28,6 +28,7 @@
  * Copyright (c) 2015, STRATO AG, Inc. All rights reserved.
  * Copyright (c) 2016 Actifio, Inc. All rights reserved.
  * Copyright 2017 Nexenta Systems, Inc.
+ * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -78,6 +79,8 @@ int dmu_find_threads = 0;
  * if there are enough holes to fill.
  */
 int dmu_rescan_dnode_threshold = 1 << DN_MAX_INDBLKSHIFT;
+
+static char *upgrade_tag = "upgrade_tag";
 
 static void dmu_objset_find_dp_cb(void *arg);
 
@@ -704,13 +707,12 @@ dmu_objset_own(const char *name, dmu_objset_type_t type,
 		return (err);
 	}
 
-	dsl_pool_rele(dp, FTAG);
-
 	/* user accounting requires the dataset to be decrypted */
 	if (dmu_objset_userobjspace_upgradable(*osp) &&
 	    (ds->ds_dir->dd_crypto_obj == 0 || decrypt))
 		dmu_objset_userobjspace_upgrade(*osp);
 
+	dsl_pool_rele(dp, FTAG);
 	return (0);
 }
 
@@ -1311,6 +1313,7 @@ dmu_objset_upgrade_task_cb(void *data)
 	os->os_upgrade_exit = B_TRUE;
 	os->os_upgrade_id = 0;
 	mutex_exit(&os->os_upgrade_lock);
+	dsl_dataset_long_rele(dmu_objset_ds(os), upgrade_tag);
 }
 
 static void
@@ -1319,6 +1322,9 @@ dmu_objset_upgrade(objset_t *os, dmu_objset_upgrade_cb_t cb)
 	if (os->os_upgrade_id != 0)
 		return;
 
+	ASSERT(dsl_pool_config_held(dmu_objset_pool(os)));
+	dsl_dataset_long_hold(dmu_objset_ds(os), upgrade_tag);
+
 	mutex_enter(&os->os_upgrade_lock);
 	if (os->os_upgrade_id == 0 && os->os_upgrade_status == 0) {
 		os->os_upgrade_exit = B_FALSE;
@@ -1326,8 +1332,10 @@ dmu_objset_upgrade(objset_t *os, dmu_objset_upgrade_cb_t cb)
 		os->os_upgrade_id = taskq_dispatch(
 		    os->os_spa->spa_upgrade_taskq,
 		    dmu_objset_upgrade_task_cb, os, TQ_SLEEP);
-		if (os->os_upgrade_id == TASKQID_INVALID)
+		if (os->os_upgrade_id == TASKQID_INVALID) {
+			dsl_dataset_long_rele(dmu_objset_ds(os), upgrade_tag);
 			os->os_upgrade_status = ENOMEM;
+		}
 	}
 	mutex_exit(&os->os_upgrade_lock);
 }
@@ -1343,7 +1351,9 @@ dmu_objset_upgrade_stop(objset_t *os)
 		os->os_upgrade_id = 0;
 		mutex_exit(&os->os_upgrade_lock);
 
-		taskq_cancel_id(os->os_spa->spa_upgrade_taskq, id);
+		if ((taskq_cancel_id(os->os_spa->spa_upgrade_taskq, id)) == 0) {
+			dsl_dataset_long_rele(dmu_objset_ds(os), upgrade_tag);
+		}
 		txg_wait_synced(os->os_spa->spa_dsl_pool, 0);
 	} else {
 		mutex_exit(&os->os_upgrade_lock);
