@@ -925,7 +925,7 @@ mountroot()
 	#   NOTE: Mounted in the order specified in the
 	#         ZFS_INITRD_ADDITIONAL_DATASETS variable so take care!
 
-	# Go through the complete list (recursivly) of all filesystems below
+	# Go through the complete list (recursively) of all filesystems below
 	# the real root dataset
 	filesystems=$("${ZFS}" list -oname -tfilesystem -H -r "${ZFS_BOOTFS}")
 	for fs in $filesystems $ZFS_INITRD_ADDITIONAL_DATASETS
