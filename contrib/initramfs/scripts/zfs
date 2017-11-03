@@ -150,7 +150,7 @@ get_pools()
 		fi
 	fi
 
-        # Filter out any exceptions...
+	# Filter out any exceptions...
 	if [ -n "$ZFS_POOL_EXCEPTIONS" ]
 	then
 		local found=""
@@ -883,6 +883,24 @@ mountroot()
 		/bin/sh
 	fi
 
+	# Set elevator=noop on the root pool's vdevs' disks.  ZFS already
+	# does this for wholedisk vdevs (for all pools), so this is only
+	# important for partitions.
+	"${ZPOOL}" status -L "${ZFS_RPOOL}" 2> /dev/null |
+	    awk '/^\t / && !/(mirror|raidz)/ {
+	        dev=$1;
+	        sub(/[0-9]+$/, "", dev);
+	        print dev
+	    }' |
+	    while read i
+	do
+		if [ -e "/sys/block/$i/queue/scheduler" ]
+		then
+			echo noop > "/sys/block/$i/queue/scheduler"
+		fi
+	done
+
+
 	# ----------------------------------------------------------------
 	# P R E P A R E   R O O T   F I L E S Y S T E M
 
@@ -925,7 +943,7 @@ mountroot()
 	#   NOTE: Mounted in the order specified in the
 	#         ZFS_INITRD_ADDITIONAL_DATASETS variable so take care!
 
-	# Go through the complete list (recursivly) of all filesystems below
+	# Go through the complete list (recursively) of all filesystems below
 	# the real root dataset
 	filesystems=$("${ZFS}" list -oname -tfilesystem -H -r "${ZFS_BOOTFS}")
 	for fs in $filesystems $ZFS_INITRD_ADDITIONAL_DATASETS
