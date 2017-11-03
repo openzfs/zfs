@@ -119,7 +119,8 @@ class Output(object):
 class Cmd(object):
     verified_users = []
 
-    def __init__(self, pathname, outputdir=None, timeout=None, user=None):
+    def __init__(self, pathname, outputdir=None, timeout=None, user=None,
+                 tags=None):
         self.pathname = pathname
         self.outputdir = outputdir or 'BASEDIR'
         self.timeout = timeout
@@ -294,15 +295,17 @@ class Cmd(object):
 
 class Test(Cmd):
     props = ['outputdir', 'timeout', 'user', 'pre', 'pre_user', 'post',
-             'post_user']
+             'post_user', 'tags']
 
     def __init__(self, pathname, outputdir=None, timeout=None, user=None,
-                 pre=None, pre_user=None, post=None, post_user=None):
+                 pre=None, pre_user=None, post=None, post_user=None,
+                 tags=None):
         super(Test, self).__init__(pathname, outputdir, timeout, user)
         self.pre = pre or ''
         self.pre_user = pre_user or ''
         self.post = post or ''
         self.post_user = post_user or ''
+        self.tags = tags or []
 
     def __str__(self):
         post_user = pre_user = ''
@@ -311,9 +314,9 @@ class Test(Cmd):
         if len(self.post_user):
             post_user = ' (as %s)' % (self.post_user)
         return "Pathname: %s\nOutputdir: %s\nTimeout: %d\nPre: %s%s\nPost: " \
-               "%s%s\nUser: %s\n" % \
+               "%s%s\nUser: %s\nTags: %s\n" % \
                (self.pathname, self.outputdir, self.timeout, self.pre,
-                pre_user, self.post, post_user, self.user)
+                pre_user, self.post, post_user, self.user, self.tags)
 
     def verify(self, logger):
         """
@@ -374,9 +377,9 @@ class TestGroup(Test):
 
     def __init__(self, pathname, outputdir=None, timeout=None, user=None,
                  pre=None, pre_user=None, post=None, post_user=None,
-                 tests=None):
+                 tests=None, tags=None):
         super(TestGroup, self).__init__(pathname, outputdir, timeout, user,
-                                        pre, pre_user, post, post_user)
+                                        pre, pre_user, post, post_user, tags)
         self.tests = tests or []
 
     def __str__(self):
@@ -385,10 +388,10 @@ class TestGroup(Test):
             pre_user = ' (as %s)' % (self.pre_user)
         if len(self.post_user):
             post_user = ' (as %s)' % (self.post_user)
-        return "Pathname: %s\nOutputdir: %s\nTests: %s\nTimeout: %d\n" \
-               "Pre: %s%s\nPost: %s%s\nUser: %s\n" % \
+        return "Pathname: %s\nOutputdir: %s\nTests: %s\nTimeout: %s\n" \
+               "Pre: %s%s\nPost: %s%s\nUser: %s\nTags: %s\n" % \
                (self.pathname, self.outputdir, self.tests, self.timeout,
-                self.pre, pre_user, self.post, post_user, self.user)
+                self.pre, pre_user, self.post, post_user, self.user, self.tags)
 
     def verify(self, logger):
         """
@@ -441,6 +444,10 @@ class TestGroup(Test):
         doesn't pass, skip all the tests in this TestGroup. Run the post
         script regardless.
         """
+        # tags assigned to this test group also include the test names
+        if options.tags and not set(self.tags).intersection(set(options.tags)):
+            return
+
         odir = os.path.join(self.outputdir, os.path.basename(self.pre))
         pretest = Cmd(self.pre, outputdir=odir, timeout=self.timeout,
                       user=self.pre_user)
@@ -488,7 +495,8 @@ class TestRun(object):
             ('pre', ''),
             ('pre_user', ''),
             ('post', ''),
-            ('post_user', '')
+            ('post_user', ''),
+            ('tags', [])
         ]
 
     def __str__(self):
@@ -566,7 +574,12 @@ class TestRun(object):
                 for prop in TestGroup.props:
                     for sect in ['DEFAULT', section]:
                         if config.has_option(sect, prop):
-                            setattr(testgroup, prop, config.get(sect, prop))
+                            if prop is "tags":
+                                setattr(testgroup, prop,
+                                        eval(config.get(sect, prop)))
+                            else:
+                                setattr(testgroup, prop,
+                                        config.get(sect, prop))
 
                 # Repopulate tests using eval to convert the string to a list
                 testgroup.tests = eval(config.get(section, 'tests'))
@@ -696,10 +709,13 @@ class TestRun(object):
         else:
             print 'Could not make a symlink to directory %s' % (
                 self.outputdir)
-        for test in sorted(self.tests.keys()):
-            self.tests[test].run(self.logger, options)
-        for testgroup in sorted(self.testgroups.keys()):
-            self.testgroups[testgroup].run(self.logger, options)
+        iteration = 0
+        while iteration < options.iterations:
+            for test in sorted(self.tests.keys()):
+                self.tests[test].run(self.logger, options)
+            for testgroup in sorted(self.testgroups.keys()):
+                self.testgroups[testgroup].run(self.logger, options)
+            iteration += 1
 
     def summary(self):
         if Result.total is 0:
@@ -806,6 +822,8 @@ def options_cb(option, opt_str, value, parser):
         parser.values.cmd = 'rdconfig'
     if option.dest is 'template':
         parser.values.cmd = 'wrconfig'
+    if option.dest is 'tags':
+        value = [x.strip() for x in value.split(',')]
 
     setattr(parser.values, option.dest, value)
     if option.dest in path_options:
@@ -850,6 +868,12 @@ def parse_args():
     parser.add_option('-X', action='callback', callback=options_cb, default='',
                       dest='post_user', metavar='post_user', type='string',
                       help='Specify a user to execute the post script.')
+    parser.add_option('-T', action='callback', callback=options_cb, default='',
+                      dest='tags', metavar='tags', type='string',
+                      help='Specify tags to execute specific test groups.')
+    parser.add_option('-I', action='callback', callback=options_cb, default=1,
+                      dest='iterations', metavar='iterations', type='int',
+                      help='Number of times to run the test run.')
     (options, pathnames) = parser.parse_args()
 
     if not options.runfile and not options.template:
