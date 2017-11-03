@@ -63,7 +63,7 @@ def get_Kstat():
         del kstats[0:2]
         for kstat in kstats:
             kstat = kstat.strip()
-            name, unused, value = kstat.split()
+            name, _, value = kstat.split()
             Kstat[namespace + name] = D(value)
 
     Kstat = {}
@@ -75,17 +75,6 @@ def get_Kstat():
                      'kstat.zfs.misc.vdev_cache_stats.')
 
     return Kstat
-
-
-def div1():
-    sys.stdout.write("\n")
-    for i in range(18):
-        sys.stdout.write("%s" % "----")
-    sys.stdout.write("\n")
-
-
-def div2():
-    sys.stdout.write("\n")
 
 
 def fBytes(b=0):
@@ -908,11 +897,13 @@ unSub = [
 
 
 def zfs_header():
-    daydate = time.strftime("%a %b %d %H:%M:%S %Y")
+    """Print title string with date
+    """
+    daydate = time.strftime('%a %b %d %H:%M:%S %Y')
 
-    div1()
-    sys.stdout.write("ZFS Subsystem Report\t\t\t\t%s" % daydate)
-    div2()
+    sys.stdout.write('\n'+'-'*72+'\n')
+    sys.stdout.write('ZFS Subsystem Report\t\t\t\t%s' % daydate)
+    sys.stdout.write('\n')
 
 
 def usage():
@@ -975,7 +966,7 @@ def main():
     zfs_header()
     for page in pages:
         page(Kstat)
-        div2()
+        sys.stdout.write("\n")
 
 
 if __name__ == '__main__':
