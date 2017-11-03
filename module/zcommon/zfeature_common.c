@@ -91,26 +91,21 @@ zfeature_is_valid_guid(const char *name)
 boolean_t
 zfeature_is_supported(const char *guid)
 {
-	spa_feature_t i;
-
 	if (zfeature_checks_disable)
 		return (B_TRUE);
 
-	for (i = 0; i < SPA_FEATURES; i++) {
+	for (spa_feature_t i = 0; i < SPA_FEATURES; i++) {
 		zfeature_info_t *feature = &spa_feature_table[i];
 		if (strcmp(guid, feature->fi_guid) == 0)
 			return (B_TRUE);
 	}
-
 	return (B_FALSE);
 }
 
 int
 zfeature_lookup_name(const char *name, spa_feature_t *res)
 {
-	spa_feature_t i;
-
-	for (i = 0; i < SPA_FEATURES; i++) {
+	for (spa_feature_t i = 0; i < SPA_FEATURES; i++) {
 		zfeature_info_t *feature = &spa_feature_table[i];
 		if (strcmp(name, feature->fi_uname) == 0) {
 			if (res != NULL)
@@ -126,9 +121,8 @@ boolean_t
 zfeature_depends_on(spa_feature_t fid, spa_feature_t check)
 {
 	zfeature_info_t *feature = &spa_feature_table[fid];
-	int i;
 
-	for (i = 0; feature->fi_depends[i] != SPA_FEATURE_NONE; i++) {
+	for (int i = 0; feature->fi_depends[i] != SPA_FEATURE_NONE; i++) {
 		if (feature->fi_depends[i] == check)
 			return (B_TRUE);
 	}
@@ -138,9 +132,7 @@ zfeature_depends_on(spa_feature_t fid, spa_feature_t check)
 static boolean_t
 deps_contains_feature(const spa_feature_t *deps, const spa_feature_t feature)
 {
-	int i;
-
-	for (i = 0; deps[i] != SPA_FEATURE_NONE; i++)
+	for (int i = 0; deps[i] != SPA_FEATURE_NONE; i++)
 		if (deps[i] == feature)
 			return (B_TRUE);
 

@@ -360,9 +360,7 @@ uint64_t spa_min_slop = 128 * 1024 * 1024;
 static void
 spa_config_lock_init(spa_t *spa)
 {
-	int i;
-
-	for (i = 0; i < SCL_LOCKS; i++) {
+	for (int i = 0; i < SCL_LOCKS; i++) {
 		spa_config_lock_t *scl = &spa->spa_config_lock[i];
 		mutex_init(&scl->scl_lock, NULL, MUTEX_DEFAULT, NULL);
 		cv_init(&scl->scl_cv, NULL, CV_DEFAULT, NULL);
@@ -375,9 +373,7 @@ spa_config_lock_init(spa_t *spa)
 static void
 spa_config_lock_destroy(spa_t *spa)
 {
-	int i;
-
-	for (i = 0; i < SCL_LOCKS; i++) {
+	for (int i = 0; i < SCL_LOCKS; i++) {
 		spa_config_lock_t *scl = &spa->spa_config_lock[i];
 		mutex_destroy(&scl->scl_lock);
 		cv_destroy(&scl->scl_cv);
@@ -390,9 +386,7 @@ spa_config_lock_destroy(spa_t *spa)
 int
 spa_config_tryenter(spa_t *spa, int locks, void *tag, krw_t rw)
 {
-	int i;
-
-	for (i = 0; i < SCL_LOCKS; i++) {
+	for (int i = 0; i < SCL_LOCKS; i++) {
 		spa_config_lock_t *scl = &spa->spa_config_lock[i];
 		if (!(locks & (1 << i)))
 			continue;
@@ -424,11 +418,10 @@ void
 spa_config_enter(spa_t *spa, int locks, void *tag, krw_t rw)
 {
 	int wlocks_held = 0;
-	int i;
 
 	ASSERT3U(SCL_LOCKS, <, sizeof (wlocks_held) * NBBY);
 
-	for (i = 0; i < SCL_LOCKS; i++) {
+	for (int i = 0; i < SCL_LOCKS; i++) {
 		spa_config_lock_t *scl = &spa->spa_config_lock[i];
 		if (scl->scl_writer == curthread)
 			wlocks_held |= (1 << i);
@@ -457,9 +450,7 @@ spa_config_enter(spa_t *spa, int locks, void *tag, krw_t rw)
 void
 spa_config_exit(spa_t *spa, int locks, void *tag)
 {
-	int i;
-
-	for (i = SCL_LOCKS - 1; i >= 0; i--) {
+	for (int i = SCL_LOCKS - 1; i >= 0; i--) {
 		spa_config_lock_t *scl = &spa->spa_config_lock[i];
 		if (!(locks & (1 << i)))
 			continue;
@@ -478,9 +469,9 @@ spa_config_exit(spa_t *spa, int locks, void *tag)
 int
 spa_config_held(spa_t *spa, int locks, krw_t rw)
 {
-	int i, locks_held = 0;
+	int locks_held = 0;
 
-	for (i = 0; i < SCL_LOCKS; i++) {
+	for (int i = 0; i < SCL_LOCKS; i++) {
 		spa_config_lock_t *scl = &spa->spa_config_lock[i];
 		if (!(locks & (1 << i)))
 			continue;
@@ -562,8 +553,6 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 {
 	spa_t *spa;
 	spa_config_dirent_t *dp;
-	int t;
-	int i;
 
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
 
@@ -589,7 +578,7 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	cv_init(&spa->spa_scrub_io_cv, NULL, CV_DEFAULT, NULL);
 	cv_init(&spa->spa_suspend_cv, NULL, CV_DEFAULT, NULL);
 
-	for (t = 0; t < TXG_SIZE; t++)
+	for (int t = 0; t < TXG_SIZE; t++)
 		bplist_create(&spa->spa_free_bplist[t]);
 
 	(void) strlcpy(spa->spa_name, name, sizeof (spa->spa_name));
@@ -660,7 +649,7 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	 * setting SPA_FEATURE_DISABLED for all entries in the feature
 	 * refcount cache.
 	 */
-	for (i = 0; i < SPA_FEATURES; i++) {
+	for (int i = 0; i < SPA_FEATURES; i++) {
 		spa->spa_feat_refcount_cache[i] = SPA_FEATURE_DISABLED;
 	}
 
@@ -676,7 +665,6 @@ void
 spa_remove(spa_t *spa)
 {
 	spa_config_dirent_t *dp;
-	int t;
 
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
 	ASSERT(spa->spa_state == POOL_STATE_UNINITIALIZED);
@@ -710,7 +698,7 @@ spa_remove(spa_t *spa)
 	spa_stats_destroy(spa);
 	spa_config_lock_destroy(spa);
 
-	for (t = 0; t < TXG_SIZE; t++)
+	for (int t = 0; t < TXG_SIZE; t++)
 		bplist_destroy(&spa->spa_free_bplist[t]);
 
 	zio_checksum_templates_free(spa);
@@ -1077,9 +1065,10 @@ spa_vdev_config_enter(spa_t *spa)
 void
 spa_vdev_config_exit(spa_t *spa, vdev_t *vd, uint64_t txg, int error, char *tag)
 {
+	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+
 	int config_changed = B_FALSE;
 
-	ASSERT(MUTEX_HELD(&spa_namespace_lock));
 	ASSERT(txg > spa_last_synced_txg(spa));
 
 	spa->spa_pending_vdev = NULL;
@@ -1803,9 +1792,8 @@ uint64_t
 bp_get_dsize_sync(spa_t *spa, const blkptr_t *bp)
 {
 	uint64_t dsize = 0;
-	int d;
 
-	for (d = 0; d < BP_GET_NDVAS(bp); d++)
+	for (int d = 0; d < BP_GET_NDVAS(bp); d++)
 		dsize += dva_get_dsize_sync(spa, &bp->blk_dva[d]);
 
 	return (dsize);
@@ -1815,11 +1803,10 @@ uint64_t
 bp_get_dsize(spa_t *spa, const blkptr_t *bp)
 {
 	uint64_t dsize = 0;
-	int d;
 
 	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
 
-	for (d = 0; d < BP_GET_NDVAS(bp); d++)
+	for (int d = 0; d < BP_GET_NDVAS(bp); d++)
 		dsize += dva_get_dsize_sync(spa, &bp->blk_dva[d]);
 
 	spa_config_exit(spa, SCL_VDEV, FTAG);

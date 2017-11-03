@@ -675,10 +675,8 @@ dmu_prefetch(objset_t *os, uint64_t object, int64_t level, uint64_t offset,
 	}
 
 	if (nblks != 0) {
-		int i;
-
 		blkid = dbuf_whichblock(dn, level, offset);
-		for (i = 0; i < nblks; i++)
+		for (int i = 0; i < nblks; i++)
 			dbuf_prefetch(dn, level, blkid + i, pri, 0);
 	}
 
@@ -704,7 +702,6 @@ get_next_chunk(dnode_t *dn, uint64_t *start, uint64_t minimum)
 	/* bytes of data covered by a level-1 indirect block */
 	uint64_t iblkrange =
 	    dn->dn_datablksz * EPB(dn->dn_indblkshift, SPA_BLKPTRSHIFT);
-	uint64_t blks;
 
 	ASSERT3U(minimum, <=, *start);
 
@@ -714,7 +711,7 @@ get_next_chunk(dnode_t *dn, uint64_t *start, uint64_t minimum)
 	}
 	ASSERT(ISP2(iblkrange));
 
-	for (blks = 0; *start > minimum && blks < maxblks; blks++) {
+	for (uint64_t blks = 0; *start > minimum && blks < maxblks; blks++) {
 		int err;
 
 		/*
@@ -767,7 +764,6 @@ dmu_free_long_range_impl(objset_t *os, dnode_t *dn, uint64_t offset,
 	int err;
 	uint64_t dirty_frees_threshold;
 	dsl_pool_t *dp = dmu_objset_pool(os);
-	int t;
 
 	if (dn == NULL)
 		return (SET_ERROR(EINVAL));
@@ -805,7 +801,7 @@ dmu_free_long_range_impl(objset_t *os, dnode_t *dn, uint64_t offset,
 		chunk_len = chunk_end - chunk_begin;
 
 		mutex_enter(&dp->dp_lock);
-		for (t = 0; t < TXG_SIZE; t++) {
+		for (int t = 0; t < TXG_SIZE; t++) {
 			long_free_dirty_all_txgs +=
 			    dp->dp_long_free_dirty_pertxg[t];
 		}
@@ -2291,7 +2287,6 @@ void
 __dmu_object_info_from_dnode(dnode_t *dn, dmu_object_info_t *doi)
 {
 	dnode_phys_t *dnp = dn->dn_phys;
-	int i;
 
 	doi->doi_data_block_size = dn->dn_datablksz;
 	doi->doi_metadata_block_size = dn->dn_indblkshift ?
@@ -2307,7 +2302,7 @@ __dmu_object_info_from_dnode(dnode_t *dn, dmu_object_info_t *doi)
 	doi->doi_physical_blocks_512 = (DN_USED_BYTES(dnp) + 256) >> 9;
 	doi->doi_max_offset = (dn->dn_maxblkid + 1) * dn->dn_datablksz;
 	doi->doi_fill_count = 0;
-	for (i = 0; i < dnp->dn_nblkptr; i++)
+	for (int i = 0; i < dnp->dn_nblkptr; i++)
 		doi->doi_fill_count += BP_GET_FILL(&dnp->dn_blkptr[i]);
 }
 

@@ -392,7 +392,6 @@ dmu_tx_hold_free_impl(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 		    SPA_BLKPTRSHIFT;
 		uint64_t start = off >> shift;
 		uint64_t end = (off + len) >> shift;
-		uint64_t i;
 
 		ASSERT(dn->dn_indblkshift != 0);
 
@@ -406,7 +405,7 @@ dmu_tx_hold_free_impl(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 
 		zio_t *zio = zio_root(tx->tx_pool->dp_spa,
 		    NULL, NULL, ZIO_FLAG_CANFAIL);
-		for (i = start; i <= end; i++) {
+		for (uint64_t i = start; i <= end; i++) {
 			uint64_t ibyte = i << shift;
 			err = dnode_next_offset(dn, 0, &ibyte, 2, 1, 0);
 			i = ibyte >> shift;
@@ -1114,15 +1113,13 @@ dmu_tx_destroy(dmu_tx_t *tx)
 void
 dmu_tx_commit(dmu_tx_t *tx)
 {
-	dmu_tx_hold_t *txh;
-
 	ASSERT(tx->tx_txg != 0);
 
 	/*
 	 * Go through the transaction's hold list and remove holds on
 	 * associated dnodes, notifying waiters if no holds remain.
 	 */
-	for (txh = list_head(&tx->tx_holds); txh != NULL;
+	for (dmu_tx_hold_t *txh = list_head(&tx->tx_holds); txh != NULL;
 	    txh = list_next(&tx->tx_holds, txh)) {
 		dnode_t *dn = txh->txh_dnode;
 

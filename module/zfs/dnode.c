@@ -1921,8 +1921,7 @@ dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 	 *    amount of space if we copy the freed BPs into deadlists.
 	 */
 	if (dn->dn_nlevels > 1) {
-		uint64_t first, last, i, ibyte;
-		int shift, err;
+		uint64_t first, last;
 
 		first = blkid >> epbs;
 		dnode_dirty_l1(dn, first, tx);
@@ -1933,17 +1932,17 @@ dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 		if (last != first)
 			dnode_dirty_l1(dn, last, tx);
 
-		shift = dn->dn_datablkshift + dn->dn_indblkshift -
+		int shift = dn->dn_datablkshift + dn->dn_indblkshift -
 		    SPA_BLKPTRSHIFT;
-		for (i = first + 1; i < last; i++) {
+		for (uint64_t i = first + 1; i < last; i++) {
 			/*
 			 * Set i to the blockid of the next non-hole
 			 * level-1 indirect block at or after i.  Note
 			 * that dnode_next_offset() operates in terms of
 			 * level-0-equivalent bytes.
 			 */
-			ibyte = i << shift;
-			err = dnode_next_offset(dn, DNODE_FIND_HAVELOCK,
+			uint64_t ibyte = i << shift;
+			int err = dnode_next_offset(dn, DNODE_FIND_HAVELOCK,
 			    &ibyte, 2, 1, 0);
 			i = ibyte >> shift;
 			if (i >= last)

@@ -97,9 +97,8 @@ vdev_default_asize(vdev_t *vd, uint64_t psize)
 {
 	uint64_t asize = P2ROUNDUP(psize, 1ULL << vd->vdev_top->vdev_ashift);
 	uint64_t csize;
-	int c;
 
-	for (c = 0; c < vd->vdev_children; c++) {
+	for (int c = 0; c < vd->vdev_children; c++) {
 		csize = vdev_psize_to_asize(vd->vdev_child[c], psize);
 		asize = MAX(asize, csize);
 	}
@@ -146,10 +145,9 @@ vdev_get_min_asize(vdev_t *vd)
 void
 vdev_set_min_asize(vdev_t *vd)
 {
-	int c;
 	vd->vdev_min_asize = vdev_get_min_asize(vd);
 
-	for (c = 0; c < vd->vdev_children; c++)
+	for (int c = 0; c < vd->vdev_children; c++)
 		vdev_set_min_asize(vd->vdev_child[c]);
 }
 
@@ -172,12 +170,11 @@ vdev_t *
 vdev_lookup_by_guid(vdev_t *vd, uint64_t guid)
 {
 	vdev_t *mvd;
-	int c;
 
 	if (vd->vdev_guid == guid)
 		return (vd);
 
-	for (c = 0; c < vd->vdev_children; c++)
+	for (int c = 0; c < vd->vdev_children; c++)
 		if ((mvd = vdev_lookup_by_guid(vd->vdev_child[c], guid)) !=
 		    NULL)
 			return (mvd);
@@ -189,12 +186,11 @@ static int
 vdev_count_leaves_impl(vdev_t *vd)
 {
 	int n = 0;
-	int c;
 
 	if (vd->vdev_ops->vdev_op_leaf)
 		return (1);
 
-	for (c = 0; c < vd->vdev_children; c++)
+	for (int c = 0; c < vd->vdev_children; c++)
 		n += vdev_count_leaves_impl(vd->vdev_child[c]);
 
 	return (n);
@@ -289,17 +285,16 @@ vdev_compact_children(vdev_t *pvd)
 	vdev_t **newchild, *cvd;
 	int oldc = pvd->vdev_children;
 	int newc;
-	int c;
 
 	ASSERT(spa_config_held(pvd->vdev_spa, SCL_ALL, RW_WRITER) == SCL_ALL);
 
-	for (c = newc = 0; c < oldc; c++)
+	for (int c = newc = 0; c < oldc; c++)
 		if (pvd->vdev_child[c])
 			newc++;
 
 	newchild = kmem_zalloc(newc * sizeof (vdev_t *), KM_SLEEP);
 
-	for (c = newc = 0; c < oldc; c++) {
+	for (int c = newc = 0; c < oldc; c++) {
 		if ((cvd = pvd->vdev_child[c]) != NULL) {
 			newchild[newc] = cvd;
 			cvd->vdev_id = newc++;
@@ -318,7 +313,6 @@ vdev_t *
 vdev_alloc_common(spa_t *spa, uint_t id, uint64_t guid, vdev_ops_t *ops)
 {
 	vdev_t *vd;
-	int t;
 
 	vd = kmem_zalloc(sizeof (vdev_t), KM_SLEEP);
 
@@ -367,7 +361,7 @@ vdev_alloc_common(spa_t *spa, uint_t id, uint64_t guid, vdev_ops_t *ops)
 	mutex_init(&vd->vdev_probe_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&vd->vdev_queue_lock, NULL, MUTEX_DEFAULT, NULL);
 
-	for (t = 0; t < DTL_TYPES; t++) {
+	for (int t = 0; t < DTL_TYPES; t++) {
 		vd->vdev_dtl[t] = range_tree_create(NULL, NULL,
 		    &vd->vdev_dtl_lock);
 	}
@@ -651,7 +645,6 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 void
 vdev_free(vdev_t *vd)
 {
-	int c, t;
 	spa_t *spa = vd->vdev_spa;
 
 	/*
@@ -666,7 +659,7 @@ vdev_free(vdev_t *vd)
 	/*
 	 * Free all children.
 	 */
-	for (c = 0; c < vd->vdev_children; c++)
+	for (int c = 0; c < vd->vdev_children; c++)
 		vdev_free(vd->vdev_child[c]);
 
 	ASSERT(vd->vdev_child == NULL);
@@ -720,7 +713,7 @@ vdev_free(vdev_t *vd)
 
 	mutex_enter(&vd->vdev_dtl_lock);
 	space_map_close(vd->vdev_dtl_sm);
-	for (t = 0; t < DTL_TYPES; t++) {
+	for (int t = 0; t < DTL_TYPES; t++) {
 		range_tree_vacate(vd->vdev_dtl[t], NULL, NULL);
 		range_tree_destroy(vd->vdev_dtl[t]);
 	}
@@ -812,14 +805,12 @@ vdev_top_transfer(vdev_t *svd, vdev_t *tvd)
 static void
 vdev_top_update(vdev_t *tvd, vdev_t *vd)
 {
-	int c;
-
 	if (vd == NULL)
 		return;
 
 	vd->vdev_top = tvd;
 
-	for (c = 0; c < vd->vdev_children; c++)
+	for (int c = 0; c < vd->vdev_children; c++)
 		vdev_top_update(tvd, vd->vdev_child[c]);
 }
 
@@ -1081,7 +1072,6 @@ vdev_probe(vdev_t *vd, zio_t *zio)
 	spa_t *spa = vd->vdev_spa;
 	vdev_probe_stats_t *vps = NULL;
 	zio_t *pio;
-	int l;
 
 	ASSERT(vd->vdev_ops->vdev_op_leaf);
 
@@ -1151,7 +1141,7 @@ vdev_probe(vdev_t *vd, zio_t *zio)
 		return (NULL);
 	}
 
-	for (l = 1; l < VDEV_LABELS; l++) {
+	for (int l = 1; l < VDEV_LABELS; l++) {
 		zio_nowait(zio_read_phys(pio, vd,
 		    vdev_label_offset(vd->vdev_psize, l,
 		    offsetof(vdev_label_t, vl_pad2)), VDEV_PAD_SIZE,
@@ -1180,14 +1170,12 @@ vdev_open_child(void *arg)
 static boolean_t
 vdev_uses_zvols(vdev_t *vd)
 {
-	int c;
-
 #ifdef _KERNEL
 	if (zvol_is_zvol(vd->vdev_path))
 		return (B_TRUE);
 #endif
 
-	for (c = 0; c < vd->vdev_children; c++)
+	for (int c = 0; c < vd->vdev_children; c++)
 		if (vdev_uses_zvols(vd->vdev_child[c]))
 			return (B_TRUE);
 
@@ -1199,7 +1187,6 @@ vdev_open_children(vdev_t *vd)
 {
 	taskq_t *tq;
 	int children = vd->vdev_children;
-	int c;
 
 	/*
 	 * in order to handle pools on top of zvols, do the opens
@@ -1208,7 +1195,7 @@ vdev_open_children(vdev_t *vd)
 	 */
 	if (vdev_uses_zvols(vd)) {
 retry_sync:
-		for (c = 0; c < children; c++)
+		for (int c = 0; c < children; c++)
 			vd->vdev_child[c]->vdev_open_error =
 			    vdev_open(vd->vdev_child[c]);
 	} else {
@@ -1217,7 +1204,7 @@ retry_sync:
 		if (tq == NULL)
 			goto retry_sync;
 
-		for (c = 0; c < children; c++)
+		for (int c = 0; c < children; c++)
 			VERIFY(taskq_dispatch(tq, vdev_open_child,
 			    vd->vdev_child[c], TQ_SLEEP) != TASKQID_INVALID);
 
@@ -1226,7 +1213,7 @@ retry_sync:
 
 	vd->vdev_nonrot = B_TRUE;
 
-	for (c = 0; c < children; c++)
+	for (int c = 0; c < children; c++)
 		vd->vdev_nonrot &= vd->vdev_child[c]->vdev_nonrot;
 }
 
@@ -1242,7 +1229,6 @@ vdev_open(vdev_t *vd)
 	uint64_t max_osize = 0;
 	uint64_t asize, max_asize, psize;
 	uint64_t ashift = 0;
-	int c;
 
 	ASSERT(vd->vdev_open_thread == curthread ||
 	    spa_config_held(spa, SCL_STATE_ALL, RW_WRITER) == SCL_STATE_ALL);
@@ -1321,7 +1307,7 @@ vdev_open(vdev_t *vd)
 	if (vd->vdev_ishole || vd->vdev_ops == &vdev_missing_ops)
 		return (0);
 
-	for (c = 0; c < vd->vdev_children; c++) {
+	for (int c = 0; c < vd->vdev_children; c++) {
 		if (vd->vdev_child[c]->vdev_state != VDEV_STATE_HEALTHY) {
 			vdev_set_state(vd, B_TRUE, VDEV_STATE_DEGRADED,
 			    VDEV_AUX_NONE);
@@ -1479,9 +1465,8 @@ vdev_validate(vdev_t *vd, boolean_t strict)
 	nvlist_t *label;
 	uint64_t guid = 0, top_guid;
 	uint64_t state;
-	int c;
 
-	for (c = 0; c < vd->vdev_children; c++)
+	for (int c = 0; c < vd->vdev_children; c++)
 		if (vdev_validate(vd->vdev_child[c], strict) != 0)
 			return (SET_ERROR(EBADF));
 
@@ -1623,13 +1608,12 @@ void
 vdev_hold(vdev_t *vd)
 {
 	spa_t *spa = vd->vdev_spa;
-	int c;
 
 	ASSERT(spa_is_root(spa));
 	if (spa->spa_state == POOL_STATE_UNINITIALIZED)
 		return;
 
-	for (c = 0; c < vd->vdev_children; c++)
+	for (int c = 0; c < vd->vdev_children; c++)
 		vdev_hold(vd->vdev_child[c]);
 
 	if (vd->vdev_ops->vdev_op_leaf)
@@ -1639,10 +1623,8 @@ vdev_hold(vdev_t *vd)
 void
 vdev_rele(vdev_t *vd)
 {
-	int c;
-
 	ASSERT(spa_is_root(vd->vdev_spa));
-	for (c = 0; c < vd->vdev_children; c++)
+	for (int c = 0; c < vd->vdev_children; c++)
 		vdev_rele(vd->vdev_child[c]);
 
 	if (vd->vdev_ops->vdev_op_leaf)
@@ -1748,9 +1730,7 @@ vdev_dirty(vdev_t *vd, int flags, void *arg, uint64_t txg)
 void
 vdev_dirty_leaves(vdev_t *vd, int flags, uint64_t txg)
 {
-	int c;
-
-	for (c = 0; c < vd->vdev_children; c++)
+	for (int c = 0; c < vd->vdev_children; c++)
 		vdev_dirty_leaves(vd->vdev_child[c], flags, txg);
 
 	if (vd->vdev_ops->vdev_op_leaf)
@@ -1935,11 +1915,11 @@ vdev_dtl_reassess(vdev_t *vd, uint64_t txg, uint64_t scrub_txg, int scrub_done)
 {
 	spa_t *spa = vd->vdev_spa;
 	avl_tree_t reftree;
-	int c, t, minref;
+	int minref;
 
 	ASSERT(spa_config_held(spa, SCL_ALL, RW_READER) != 0);
 
-	for (c = 0; c < vd->vdev_children; c++)
+	for (int c = 0; c < vd->vdev_children; c++)
 		vdev_dtl_reassess(vd->vdev_child[c], txg,
 		    scrub_txg, scrub_done);
 
@@ -2020,9 +2000,7 @@ vdev_dtl_reassess(vdev_t *vd, uint64_t txg, uint64_t scrub_txg, int scrub_done)
 	}
 
 	mutex_enter(&vd->vdev_dtl_lock);
-	for (t = 0; t < DTL_TYPES; t++) {
-		int c;
-
+	for (int t = 0; t < DTL_TYPES; t++) {
 		/* account for child's outage in parent's missing map */
 		int s = (t == DTL_MISSING) ? DTL_OUTAGE: t;
 		if (t == DTL_SCRUB)
@@ -2034,7 +2012,7 @@ vdev_dtl_reassess(vdev_t *vd, uint64_t txg, uint64_t scrub_txg, int scrub_done)
 		else
 			minref = vd->vdev_children;	/* any kind of mirror */
 		space_reftree_create(&reftree);
-		for (c = 0; c < vd->vdev_children; c++) {
+		for (int c = 0; c < vd->vdev_children; c++) {
 			vdev_t *cvd = vd->vdev_child[c];
 			mutex_enter(&cvd->vdev_dtl_lock);
 			space_reftree_add_map(&reftree, cvd->vdev_dtl[s], 1);
@@ -2052,7 +2030,6 @@ vdev_dtl_load(vdev_t *vd)
 	spa_t *spa = vd->vdev_spa;
 	objset_t *mos = spa->spa_meta_objset;
 	int error = 0;
-	int c;
 
 	if (vd->vdev_ops->vdev_op_leaf && vd->vdev_dtl_object != 0) {
 		ASSERT(!vd->vdev_ishole);
@@ -2078,7 +2055,7 @@ vdev_dtl_load(vdev_t *vd)
 		return (error);
 	}
 
-	for (c = 0; c < vd->vdev_children; c++) {
+	for (int c = 0; c < vd->vdev_children; c++) {
 		error = vdev_dtl_load(vd->vdev_child[c]);
 		if (error != 0)
 			break;
@@ -2114,8 +2091,6 @@ vdev_create_link_zap(vdev_t *vd, dmu_tx_t *tx)
 void
 vdev_construct_zaps(vdev_t *vd, dmu_tx_t *tx)
 {
-	uint64_t i;
-
 	if (vd->vdev_ops != &vdev_hole_ops &&
 	    vd->vdev_ops != &vdev_missing_ops &&
 	    vd->vdev_ops != &vdev_root_ops &&
@@ -2127,7 +2102,7 @@ vdev_construct_zaps(vdev_t *vd, dmu_tx_t *tx)
 			vd->vdev_top_zap = vdev_create_link_zap(vd, tx);
 		}
 	}
-	for (i = 0; i < vd->vdev_children; i++) {
+	for (uint64_t i = 0; i < vd->vdev_children; i++) {
 		vdev_construct_zaps(vd->vdev_child[i], tx);
 	}
 }
@@ -2261,7 +2236,6 @@ vdev_resilver_needed(vdev_t *vd, uint64_t *minp, uint64_t *maxp)
 	boolean_t needed = B_FALSE;
 	uint64_t thismin = UINT64_MAX;
 	uint64_t thismax = 0;
-	int c;
 
 	if (vd->vdev_children == 0) {
 		mutex_enter(&vd->vdev_dtl_lock);
@@ -2274,7 +2248,7 @@ vdev_resilver_needed(vdev_t *vd, uint64_t *minp, uint64_t *maxp)
 		}
 		mutex_exit(&vd->vdev_dtl_lock);
 	} else {
-		for (c = 0; c < vd->vdev_children; c++) {
+		for (int c = 0; c < vd->vdev_children; c++) {
 			vdev_t *cvd = vd->vdev_child[c];
 			uint64_t cmin, cmax;
 
@@ -2296,12 +2270,10 @@ vdev_resilver_needed(vdev_t *vd, uint64_t *minp, uint64_t *maxp)
 void
 vdev_load(vdev_t *vd)
 {
-	int c;
-
 	/*
 	 * Recursively load all children.
 	 */
-	for (c = 0; c < vd->vdev_children; c++)
+	for (int c = 0; c < vd->vdev_children; c++)
 		vdev_load(vd->vdev_child[c]);
 
 	/*
@@ -2368,7 +2340,6 @@ vdev_remove(vdev_t *vd, uint64_t txg)
 	spa_t *spa = vd->vdev_spa;
 	objset_t *mos = spa->spa_meta_objset;
 	dmu_tx_t *tx;
-	int m, i;
 
 	tx = dmu_tx_create_assigned(spa_get_dsl(spa), txg);
 	ASSERT(vd == vd->vdev_top);
@@ -2380,7 +2351,7 @@ vdev_remove(vdev_t *vd, uint64_t txg)
 		metaslab_group_histogram_verify(mg);
 		metaslab_class_histogram_verify(mg->mg_class);
 
-		for (m = 0; m < vd->vdev_ms_count; m++) {
+		for (int m = 0; m < vd->vdev_ms_count; m++) {
 			metaslab_t *msp = vd->vdev_ms[m];
 
 			if (msp == NULL || msp->ms_sm == NULL)
@@ -2405,7 +2376,7 @@ vdev_remove(vdev_t *vd, uint64_t txg)
 
 		metaslab_group_histogram_verify(mg);
 		metaslab_class_histogram_verify(mg->mg_class);
-		for (i = 0; i < RANGE_TREE_HISTOGRAM_SIZE; i++)
+		for (int i = 0; i < RANGE_TREE_HISTOGRAM_SIZE; i++)
 			ASSERT0(mg->mg_histogram[i]);
 
 	}
@@ -2778,7 +2749,6 @@ void
 vdev_clear(spa_t *spa, vdev_t *vd)
 {
 	vdev_t *rvd = spa->spa_root_vdev;
-	int c;
 
 	ASSERT(spa_config_held(spa, SCL_STATE_ALL, RW_WRITER) == SCL_STATE_ALL);
 
@@ -2789,7 +2759,7 @@ vdev_clear(spa_t *spa, vdev_t *vd)
 	vd->vdev_stat.vs_write_errors = 0;
 	vd->vdev_stat.vs_checksum_errors = 0;
 
-	for (c = 0; c < vd->vdev_children; c++)
+	for (int c = 0; c < vd->vdev_children; c++)
 		vdev_clear(spa, vd->vdev_child[c]);
 
 	/*
@@ -2949,7 +2919,7 @@ vdev_get_child_stat_ex(vdev_t *cvd, vdev_stat_ex_t *vsx, vdev_stat_ex_t *cvsx)
 static void
 vdev_get_stats_ex_impl(vdev_t *vd, vdev_stat_t *vs, vdev_stat_ex_t *vsx)
 {
-	int c, t;
+	int t;
 	/*
 	 * If we're getting stats on the root vdev, aggregate the I/O counts
 	 * over all top-level vdevs (i.e. the direct children of the root).
@@ -2962,7 +2932,7 @@ vdev_get_stats_ex_impl(vdev_t *vd, vdev_stat_t *vs, vdev_stat_ex_t *vsx)
 		if (vsx)
 			memset(vsx, 0, sizeof (*vsx));
 
-		for (c = 0; c < vd->vdev_children; c++) {
+		for (int c = 0; c < vd->vdev_children; c++) {
 			vdev_t *cvd = vd->vdev_child[c];
 			vdev_stat_t *cvs = &cvd->vdev_stat;
 			vdev_stat_ex_t *cvsx = &cvd->vdev_stat_ex;
@@ -3049,9 +3019,8 @@ void
 vdev_scan_stat_init(vdev_t *vd)
 {
 	vdev_stat_t *vs = &vd->vdev_stat;
-	int c;
 
-	for (c = 0; c < vd->vdev_children; c++)
+	for (int c = 0; c < vd->vdev_children; c++)
 		vdev_scan_stat_init(vd->vdev_child[c]);
 
 	mutex_enter(&vd->vdev_stat_lock);
@@ -3418,10 +3387,9 @@ vdev_propagate_state(vdev_t *vd)
 	int degraded = 0, faulted = 0;
 	int corrupted = 0;
 	vdev_t *child;
-	int c;
 
 	if (vd->vdev_children > 0) {
-		for (c = 0; c < vd->vdev_children; c++) {
+		for (int c = 0; c < vd->vdev_children; c++) {
 			child = vd->vdev_child[c];
 
 			/*
@@ -3650,14 +3618,12 @@ vdev_is_bootable(vdev_t *vd)
 void
 vdev_load_log_state(vdev_t *nvd, vdev_t *ovd)
 {
-	int c;
-
 	ASSERT(nvd->vdev_top->vdev_islog);
 	ASSERT(spa_config_held(nvd->vdev_spa,
 	    SCL_STATE_ALL, RW_WRITER) == SCL_STATE_ALL);
 	ASSERT3U(nvd->vdev_guid, ==, ovd->vdev_guid);
 
-	for (c = 0; c < nvd->vdev_children; c++)
+	for (int c = 0; c < nvd->vdev_children; c++)
 		vdev_load_log_state(nvd->vdev_child[c], ovd->vdev_child[c]);
 
 	if (nvd->vdev_ops->vdev_op_leaf) {
@@ -3679,13 +3645,11 @@ vdev_load_log_state(vdev_t *nvd, vdev_t *ovd)
 boolean_t
 vdev_log_state_valid(vdev_t *vd)
 {
-	int c;
-
 	if (vd->vdev_ops->vdev_op_leaf && !vd->vdev_faulted &&
 	    !vd->vdev_removed)
 		return (B_TRUE);
 
-	for (c = 0; c < vd->vdev_children; c++)
+	for (int c = 0; c < vd->vdev_children; c++)
 		if (vdev_log_state_valid(vd->vdev_child[c]))
 			return (B_TRUE);
 
@@ -3729,9 +3693,7 @@ vdev_split(vdev_t *vd)
 void
 vdev_deadman(vdev_t *vd)
 {
-	int c;
-
-	for (c = 0; c < vd->vdev_children; c++) {
+	for (int c = 0; c < vd->vdev_children; c++) {
 		vdev_t *cvd = vd->vdev_child[c];
 
 		vdev_deadman(cvd);

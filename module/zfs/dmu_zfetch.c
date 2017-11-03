@@ -152,17 +152,15 @@ dmu_zfetch_fini(zfetch_t *zf)
 static void
 dmu_zfetch_stream_create(zfetch_t *zf, uint64_t blkid)
 {
-	zstream_t *zs;
 	zstream_t *zs_next;
 	int numstreams = 0;
-	uint32_t max_streams;
 
 	ASSERT(RW_WRITE_HELD(&zf->zf_rwlock));
 
 	/*
 	 * Clean up old streams.
 	 */
-	for (zs = list_head(&zf->zf_stream);
+	for (zstream_t *zs = list_head(&zf->zf_stream);
 	    zs != NULL; zs = zs_next) {
 		zs_next = list_next(&zf->zf_stream, zs);
 		if (((gethrtime() - zs->zs_atime) / NANOSEC) >
@@ -180,7 +178,7 @@ dmu_zfetch_stream_create(zfetch_t *zf, uint64_t blkid)
 	 * If we are already at the maximum number of streams for this file,
 	 * even after removing old streams, then don't create this stream.
 	 */
-	max_streams = MAX(1, MIN(zfetch_max_streams,
+	uint32_t max_streams = MAX(1, MIN(zfetch_max_streams,
 	    zf->zf_dnode->dn_maxblkid * zf->zf_dnode->dn_datablksz /
 	    zfetch_max_distance));
 	if (numstreams >= max_streams) {
@@ -188,7 +186,7 @@ dmu_zfetch_stream_create(zfetch_t *zf, uint64_t blkid)
 		return;
 	}
 
-	zs = kmem_zalloc(sizeof (*zs), KM_SLEEP);
+	zstream_t *zs = kmem_zalloc(sizeof (*zs), KM_SLEEP);
 	zs->zs_blkid = blkid;
 	zs->zs_pf_blkid = blkid;
 	zs->zs_ipf_blkid = blkid;
@@ -211,8 +209,8 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data)
 {
 	zstream_t *zs;
 	int64_t pf_start, ipf_start, ipf_istart, ipf_iend;
-	int64_t pf_ahead_blks, max_blks, iblk;
-	int epbs, max_dist_blks, pf_nblks, ipf_nblks, i;
+	int64_t pf_ahead_blks, max_blks;
+	int epbs, max_dist_blks, pf_nblks, ipf_nblks;
 	uint64_t end_of_access_blkid;
 	end_of_access_blkid = blkid + nblks;
 
@@ -324,11 +322,11 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data)
 	 * calling it to reduce the time we hold them.
 	 */
 
-	for (i = 0; i < pf_nblks; i++) {
+	for (int i = 0; i < pf_nblks; i++) {
 		dbuf_prefetch(zf->zf_dnode, 0, pf_start + i,
 		    ZIO_PRIORITY_ASYNC_READ, ARC_FLAG_PREDICTIVE_PREFETCH);
 	}
-	for (iblk = ipf_istart; iblk < ipf_iend; iblk++) {
+	for (int64_t iblk = ipf_istart; iblk < ipf_iend; iblk++) {
 		dbuf_prefetch(zf->zf_dnode, 1, iblk,
 		    ZIO_PRIORITY_ASYNC_READ, ARC_FLAG_PREDICTIVE_PREFETCH);
 	}

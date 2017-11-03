@@ -1020,9 +1020,8 @@ static int
 zfs_secpolicy_bookmark(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 {
 	int error = 0;
-	nvpair_t *pair;
 
-	for (pair = nvlist_next_nvpair(innvl, NULL);
+	for (nvpair_t *pair = nvlist_next_nvpair(innvl, NULL);
 	    pair != NULL; pair = nvlist_next_nvpair(innvl, pair)) {
 		char *name = nvpair_name(pair);
 		char *hashp = strchr(name, '#');
@@ -3390,7 +3389,7 @@ zfs_ioc_snapshot(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 	nvlist_t *snaps;
 	nvlist_t *props = NULL;
 	int error, poollen;
-	nvpair_t *pair, *pair2;
+	nvpair_t *pair;
 
 	(void) nvlist_lookup_nvlist(innvl, "props", &props);
 	if ((error = zfs_check_userprops(poolname, props)) != 0)
@@ -3424,7 +3423,7 @@ zfs_ioc_snapshot(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 			return (SET_ERROR(EXDEV));
 
 		/* This must be the only snap of this fs. */
-		for (pair2 = nvlist_next_nvpair(snaps, pair);
+		for (nvpair_t *pair2 = nvlist_next_nvpair(snaps, pair);
 		    pair2 != NULL; pair2 = nvlist_next_nvpair(snaps, pair2)) {
 			if (strncmp(name, nvpair_name(pair2), cp - name + 1)
 			    == 0) {
@@ -3582,9 +3581,7 @@ zfs_ioc_destroy_snaps(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 static int
 zfs_ioc_bookmark(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 {
-	nvpair_t *pair, *pair2;
-
-	for (pair = nvlist_next_nvpair(innvl, NULL);
+	for (nvpair_t *pair = nvlist_next_nvpair(innvl, NULL);
 	    pair != NULL; pair = nvlist_next_nvpair(innvl, pair)) {
 		char *snap_name;
 
@@ -3596,7 +3593,7 @@ zfs_ioc_bookmark(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 
 
 		/* Verify that the keys (bookmarks) are unique */
-		for (pair2 = nvlist_next_nvpair(innvl, pair);
+		for (nvpair_t *pair2 = nvlist_next_nvpair(innvl, pair);
 		    pair2 != NULL; pair2 = nvlist_next_nvpair(innvl, pair2)) {
 			if (strcmp(nvpair_name(pair), nvpair_name(pair2)) == 0)
 				return (SET_ERROR(EINVAL));
@@ -3636,10 +3633,9 @@ zfs_ioc_destroy_bookmarks(const char *poolname, nvlist_t *innvl,
     nvlist_t *outnvl)
 {
 	int error, poollen;
-	nvpair_t *pair;
 
 	poollen = strlen(poolname);
-	for (pair = nvlist_next_nvpair(innvl, NULL);
+	for (nvpair_t *pair = nvlist_next_nvpair(innvl, NULL);
 	    pair != NULL; pair = nvlist_next_nvpair(innvl, pair)) {
 		const char *name = nvpair_name(pair);
 		const char *cp = strchr(name, '#');
@@ -5191,17 +5187,15 @@ zfs_ioc_userspace_many(zfs_cmd_t *zc)
 {
 	zfsvfs_t *zfsvfs;
 	int bufsize = zc->zc_nvlist_dst_size;
-	int error;
-	void *buf;
 
 	if (bufsize <= 0)
 		return (SET_ERROR(ENOMEM));
 
-	error = zfsvfs_hold(zc->zc_name, FTAG, &zfsvfs, B_FALSE);
+	int error = zfsvfs_hold(zc->zc_name, FTAG, &zfsvfs, B_FALSE);
 	if (error != 0)
 		return (error);
 
-	buf = vmem_alloc(bufsize, KM_SLEEP);
+	void *buf = vmem_alloc(bufsize, KM_SLEEP);
 
 	error = zfs_userspace_many(zfsvfs, zc->zc_objset_type, &zc->zc_cookie,
 	    buf, &zc->zc_nvlist_dst_size);

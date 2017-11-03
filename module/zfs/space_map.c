@@ -144,13 +144,11 @@ space_map_histogram_clear(space_map_t *sm)
 boolean_t
 space_map_histogram_verify(space_map_t *sm, range_tree_t *rt)
 {
-	int i;
-
 	/*
 	 * Verify that the in-core range tree does not have any
 	 * ranges smaller than our sm_shift size.
 	 */
-	for (i = 0; i < sm->sm_shift; i++) {
+	for (int i = 0; i < sm->sm_shift; i++) {
 		if (rt->rt_histogram[i] != 0)
 			return (B_FALSE);
 	}
@@ -161,7 +159,6 @@ void
 space_map_histogram_add(space_map_t *sm, range_tree_t *rt, dmu_tx_t *tx)
 {
 	int idx = 0;
-	int i;
 
 	ASSERT(MUTEX_HELD(rt->rt_lock));
 	ASSERT(dmu_tx_is_syncing(tx));
@@ -181,7 +178,7 @@ space_map_histogram_add(space_map_t *sm, range_tree_t *rt, dmu_tx_t *tx)
 	 * map only cares about allocatable blocks (minimum of sm_shift) we
 	 * can safely ignore all ranges in the range tree smaller than sm_shift.
 	 */
-	for (i = sm->sm_shift; i < RANGE_TREE_HISTOGRAM_SIZE; i++) {
+	for (int i = sm->sm_shift; i < RANGE_TREE_HISTOGRAM_SIZE; i++) {
 
 		/*
 		 * Since the largest histogram bucket in the space map is

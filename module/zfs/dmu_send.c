@@ -744,7 +744,6 @@ do_dump(dmu_sendarg_t *dsa, struct send_block_record *data)
 	spa_t *spa = ds->ds_dir->dd_pool->dp_spa;
 	dmu_object_type_t type = bp ? BP_GET_TYPE(bp) : DMU_OT_NONE;
 	int err = 0;
-	uint64_t dnobj;
 
 	ASSERT3U(zb->zb_level, >=, 0);
 
@@ -780,12 +779,10 @@ do_dump(dmu_sendarg_t *dsa, struct send_block_record *data)
 	} else if (zb->zb_level > 0 || type == DMU_OT_OBJSET) {
 		return (0);
 	} else if (type == DMU_OT_DNODE) {
-		dnode_phys_t *blk;
 		int epb = BP_GET_LSIZE(bp) >> DNODE_SHIFT;
 		arc_flags_t aflags = ARC_FLAG_WAIT;
 		arc_buf_t *abuf;
 		enum zio_flag zioflags = ZIO_FLAG_CANFAIL;
-		int i;
 
 		if (dsa->dsa_featureflags & DMU_BACKUP_FEATURE_RAW) {
 			ASSERT(BP_IS_ENCRYPTED(bp));
@@ -799,8 +796,8 @@ do_dump(dmu_sendarg_t *dsa, struct send_block_record *data)
 		    ZIO_PRIORITY_ASYNC_READ, zioflags, &aflags, zb) != 0)
 			return (SET_ERROR(EIO));
 
-		blk = abuf->b_data;
-		dnobj = zb->zb_blkid * epb;
+		dnode_phys_t *blk = abuf->b_data;
+		uint64_t dnobj = zb->zb_blkid * epb;
 
 		/*
 		 * Raw sends require sending encryption parameters for the
@@ -813,7 +810,8 @@ do_dump(dmu_sendarg_t *dsa, struct send_block_record *data)
 		}
 
 		if (err == 0) {
-			for (i = 0; i < epb; i += blk[i].dn_extra_slots + 1) {
+			for (int i = 0; i < epb;
+			    i += blk[i].dn_extra_slots + 1) {
 				err = dump_dnode(dsa, bp, dnobj + i, blk + i);
 				if (err != 0)
 					break;
@@ -1836,9 +1834,6 @@ dmu_recv_begin_sync(void *arg, dmu_tx_t *tx)
 	VERIFY0(dmu_objset_from_ds(newds, &os));
 
 	if (drba->drba_cookie->drc_resumable) {
-		uint64_t one = 1;
-		uint64_t zero = 0;
-
 		dsl_dataset_zapify(newds, tx);
 		if (drrb->drr_fromguid != 0) {
 			VERIFY0(zap_add(mos, dsobj, DS_FIELD_RESUME_FROMGUID,
@@ -1848,6 +1843,8 @@ dmu_recv_begin_sync(void *arg, dmu_tx_t *tx)
 		    8, 1, &drrb->drr_toguid, tx));
 		VERIFY0(zap_add(mos, dsobj, DS_FIELD_RESUME_TONAME,
 		    1, strlen(drrb->drr_toname) + 1, drrb->drr_toname, tx));
+		uint64_t one = 1;
+		uint64_t zero = 0;
 		VERIFY0(zap_add(mos, dsobj, DS_FIELD_RESUME_OBJECT,
 		    8, 1, &one, tx));
 		VERIFY0(zap_add(mos, dsobj, DS_FIELD_RESUME_OFFSET,
@@ -1915,10 +1912,6 @@ dmu_recv_resume_begin_check(void *arg, dmu_tx_t *tx)
 	uint64_t featureflags = DMU_GET_FEATUREFLAGS(drrb->drr_versioninfo);
 	dsl_dataset_t *ds;
 	const char *tofs = drba->drba_cookie->drc_tofs;
-	uint64_t val;
-
-	/* 6 extra bytes for /%recv */
-	char recvname[ZFS_MAX_DATASET_NAME_LEN + 6];
 
 	/* already checked */
 	ASSERT3U(drrb->drr_magic, ==, DMU_BACKUP_MAGIC);
@@ -1960,6 +1953,8 @@ dmu_recv_resume_begin_check(void *arg, dmu_tx_t *tx)
 	    !spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_LARGE_DNODE))
 		return (SET_ERROR(ENOTSUP));
 
+	/* 6 extra bytes for /%recv */
+	char recvname[ZFS_MAX_DATASET_NAME_LEN + 6];
 	(void) snprintf(recvname, sizeof (recvname), "%s/%s",
 	    tofs, recv_clone_name);
 
@@ -1984,6 +1979,7 @@ dmu_recv_resume_begin_check(void *arg, dmu_tx_t *tx)
 		dsl_dataset_rele_flags(ds, dsflags, FTAG);
 		return (SET_ERROR(EINVAL));
 	}
+	uint64_t val;
 	error = zap_lookup(dp->dp_meta_objset, ds->ds_object,
 	    DS_FIELD_RESUME_TOGUID, sizeof (val), 1, &val);
 	if (error != 0 || drrb->drr_toguid != val) {
@@ -3085,9 +3081,7 @@ objlist_create(struct objlist *list)
 static void
 objlist_destroy(struct objlist *list)
 {
-	struct receive_objnode *n;
-
-	for (n = list_remove_head(&list->list);
+	for (struct receive_objnode *n = list_remove_head(&list->list);
 	    n != NULL; n = list_remove_head(&list->list)) {
 		kmem_free(n, sizeof (*n));
 	}

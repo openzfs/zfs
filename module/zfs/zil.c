@@ -550,9 +550,8 @@ boolean_t
 zilog_is_dirty(zilog_t *zilog)
 {
 	dsl_pool_t *dp = zilog->zl_dmu_pool;
-	int t;
 
-	for (t = 0; t < TXG_SIZE; t++) {
+	for (int t = 0; t < TXG_SIZE; t++) {
 		if (txg_list_member(&dp->dp_dirty_zilogs, zilog, t))
 			return (B_TRUE);
 	}
@@ -1872,7 +1871,6 @@ zilog_t *
 zil_alloc(objset_t *os, zil_header_t *zh_phys)
 {
 	zilog_t *zilog;
-	int i;
 
 	zilog = kmem_zalloc(sizeof (zilog_t), KM_SLEEP);
 
@@ -1887,7 +1885,7 @@ zil_alloc(objset_t *os, zil_header_t *zh_phys)
 
 	mutex_init(&zilog->zl_lock, NULL, MUTEX_DEFAULT, NULL);
 
-	for (i = 0; i < TXG_SIZE; i++) {
+	for (int i = 0; i < TXG_SIZE; i++) {
 		mutex_init(&zilog->zl_itxg[i].itxg_lock, NULL,
 		    MUTEX_DEFAULT, NULL);
 	}

@@ -413,7 +413,6 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 	boolean_t locked = B_FALSE;
 	uint64_t split_guid;
 	char *pool_name;
-	int config_gen_flags = 0;
 
 	if (vd == NULL) {
 		vd = rvd;
@@ -463,6 +462,7 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 		fnvlist_add_uint64(config, ZPOOL_CONFIG_HOSTID, hostid);
 	fnvlist_add_string(config, ZPOOL_CONFIG_HOSTNAME, utsname()->nodename);
 
+	int config_gen_flags = 0;
 	if (vd != rvd) {
 		fnvlist_add_uint64(config, ZPOOL_CONFIG_TOP_GUID,
 		    vd->vdev_top->vdev_guid);

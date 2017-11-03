@@ -852,11 +852,9 @@ dmu_objset_evict_dbufs(objset_t *os)
 void
 dmu_objset_evict(objset_t *os)
 {
-	int t;
-
 	dsl_dataset_t *ds = os->os_dsl_dataset;
 
-	for (t = 0; t < TXG_SIZE; t++)
+	for (int t = 0; t < TXG_SIZE; t++)
 		ASSERT(!dmu_objset_is_dirty(os, t));
 
 	if (ds)
@@ -1384,8 +1382,6 @@ dmu_objset_sync_dnodes(multilist_sublist_t *list, dmu_tx_t *tx)
 static void
 dmu_objset_write_ready(zio_t *zio, arc_buf_t *abuf, void *arg)
 {
-	int i;
-
 	blkptr_t *bp = zio->io_bp;
 	objset_t *os = arg;
 	dnode_phys_t *dnp = &os->os_phys->os_meta_dnode;
@@ -1401,7 +1397,7 @@ dmu_objset_write_ready(zio_t *zio, arc_buf_t *abuf, void *arg)
 	 * objects that are stored in the objset_phys_t -- the meta
 	 * dnode and user/group accounting objects).
 	 */
-	for (i = 0; i < dnp->dn_nblkptr; i++)
+	for (int i = 0; i < dnp->dn_nblkptr; i++)
 		fill += BP_GET_FILL(&dnp->dn_blkptr[i]);
 
 	BP_SET_FILL(bp, fill);
@@ -2273,7 +2269,6 @@ static void
 dmu_objset_find_dp_impl(dmu_objset_find_ctx_t *dcp)
 {
 	dsl_pool_t *dp = dcp->dc_dp;
-	dmu_objset_find_ctx_t *child_dcp;
 	dsl_dir_t *dd;
 	dsl_dataset_t *ds;
 	zap_cursor_t zc;
@@ -2315,7 +2310,7 @@ dmu_objset_find_dp_impl(dmu_objset_find_ctx_t *dcp)
 			    sizeof (uint64_t));
 			ASSERT3U(attr->za_num_integers, ==, 1);
 
-			child_dcp =
+			dmu_objset_find_ctx_t *child_dcp =
 			    kmem_alloc(sizeof (*child_dcp), KM_SLEEP);
 			*child_dcp = *dcp;
 			child_dcp->dc_ddobj = attr->za_first_integer;
