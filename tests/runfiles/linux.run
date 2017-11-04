@@ -688,7 +688,7 @@ tests = ['tmpfile_001_pos', 'tmpfile_002_pos', 'tmpfile_003_pos']
 tags = ['functional', 'tmpfile']
 
 [tests/functional/truncate]
-tests = ['truncate_001_pos', 'truncate_002_pos']
+tests = ['truncate_001_pos', 'truncate_002_pos', 'truncate_timestamps']
 tags = ['functional', 'truncate']
 
 [tests/functional/upgrade]
