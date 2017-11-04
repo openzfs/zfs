@@ -13,5 +13,4 @@ RemainAfterExit=yes
 ExecStart=@sbindir@/zfs mount -a
 
 [Install]
-WantedBy=zfs-share.service
 WantedBy=zfs.target
