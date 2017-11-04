@@ -2860,7 +2860,7 @@ zpool_vdev_attach(zpool_handle_t *zhp,
 	case EBUSY:
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "%s is busy"),
 		    new_disk);
-		(void) zfs_error(hdl, EZFS_BADDEV, msg);
+		(void) zfs_error(hdl, EZFS_BUSY, msg);
 		break;
 
 	case EOVERFLOW:
