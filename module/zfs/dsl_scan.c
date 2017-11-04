@@ -537,10 +537,6 @@ extern int zfs_vdev_async_write_active_min_dirty_percent;
 static boolean_t
 dsl_scan_check_suspend(dsl_scan_t *scn, const zbookmark_phys_t *zb)
 {
-	uint64_t elapsed_nanosecs;
-	int mintime;
-	int dirty_pct;
-
 	/* we never skip user/group accounting objects */
 	if (zb && (int64_t)zb->zb_object < 0)
 		return (B_FALSE);
@@ -569,10 +565,10 @@ dsl_scan_check_suspend(dsl_scan_t *scn, const zbookmark_phys_t *zb)
 	 *  - the spa is shutting down because this pool is being exported
 	 *    or the machine is rebooting.
 	 */
-	mintime = (scn->scn_phys.scn_func == POOL_SCAN_RESILVER) ?
+	int mintime = (scn->scn_phys.scn_func == POOL_SCAN_RESILVER) ?
 	    zfs_resilver_min_time_ms : zfs_scan_min_time_ms;
-	elapsed_nanosecs = gethrtime() - scn->scn_sync_start_time;
-	dirty_pct = scn->scn_dp->dp_dirty_total * 100 / zfs_dirty_data_max;
+	uint64_t elapsed_nanosecs = gethrtime() - scn->scn_sync_start_time;
+	int dirty_pct = scn->scn_dp->dp_dirty_total * 100 / zfs_dirty_data_max;
 	if (elapsed_nanosecs / NANOSEC >= zfs_txg_timeout ||
 	    (NSEC2MSEC(elapsed_nanosecs) > mintime &&
 	    (txg_sync_waiting(scn->scn_dp) ||
@@ -1183,7 +1179,6 @@ dsl_scan_visitds(dsl_scan_t *scn, uint64_t dsobj, dmu_tx_t *tx)
 	dsl_pool_t *dp = scn->scn_dp;
 	dsl_dataset_t *ds;
 	objset_t *os;
-	char *dsname;
 
 	VERIFY3U(0, ==, dsl_dataset_hold_obj(dp, dsobj, FTAG, &ds));
 
@@ -1248,7 +1243,7 @@ dsl_scan_visitds(dsl_scan_t *scn, uint64_t dsobj, dmu_tx_t *tx)
 	dsl_scan_visit_rootbp(scn, ds, &dsl_dataset_phys(ds)->ds_bp, tx);
 	rrw_exit(&ds->ds_bp_rwlock, FTAG);
 
-	dsname = kmem_alloc(ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
+	char *dsname = kmem_alloc(ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
 	dsl_dataset_name(ds, dsname);
 	zfs_dbgmsg("scanned dataset %llu (%s) with min=%llu max=%llu; "
 	    "suspending=%u",
@@ -1446,12 +1441,11 @@ dsl_scan_ddt_entry(dsl_scan_t *scn, enum zio_checksum checksum,
 	ddt_phys_t *ddp = dde->dde_phys;
 	blkptr_t bp;
 	zbookmark_phys_t zb = { 0 };
-	int p;
 
 	if (scn->scn_phys.scn_state != DSS_SCANNING)
 		return;
 
-	for (p = 0; p < DDT_PHYS_TYPES; p++, ddp++) {
+	for (int p = 0; p < DDT_PHYS_TYPES; p++, ddp++) {
 		if (ddp->ddp_phys_birth == 0 ||
 		    ddp->ddp_phys_birth > scn->scn_phys.scn_max_txg)
 			continue;
@@ -1890,13 +1884,12 @@ count_block(zfs_all_blkstats_t *zab, const blkptr_t *bp)
 	for (i = 0; i < 4; i++) {
 		int l = (i < 2) ? BP_GET_LEVEL(bp) : DN_MAX_LEVELS;
 		int t = (i & 1) ? BP_GET_TYPE(bp) : DMU_OT_TOTAL;
-		int equal;
-		zfs_blkstat_t *zb;
 
 		if (t & DMU_OT_NEWTYPE)
 			t = DMU_OT_OTHER;
+		zfs_blkstat_t *zb = &zab->zab_type[l][t];
+		int equal;
 
-		zb = &zab->zab_type[l][t];
 		zb->zb_count++;
 		zb->zb_asize += BP_GET_ASIZE(bp);
 		zb->zb_lsize += BP_GET_LSIZE(bp);
@@ -1993,7 +1986,6 @@ dsl_scan_scrub_cb(dsl_pool_t *dp,
 	boolean_t needs_io = B_FALSE;
 	int zio_flags = ZIO_FLAG_SCAN_THREAD | ZIO_FLAG_RAW | ZIO_FLAG_CANFAIL;
 	int scan_delay = 0;
-	int d;
 
 	if (phys_birth <= scn->scn_phys.scn_min_txg ||
 	    phys_birth >= scn->scn_phys.scn_max_txg)
@@ -2020,7 +2012,7 @@ dsl_scan_scrub_cb(dsl_pool_t *dp,
 	if (zb->zb_level == ZB_ZIL_LEVEL)
 		zio_flags |= ZIO_FLAG_SPECULATIVE;
 
-	for (d = 0; d < BP_GET_NDVAS(bp); d++) {
+	for (int d = 0; d < BP_GET_NDVAS(bp); d++) {
 		const dva_t *dva = &bp->blk_dva[d];
 
 		/*

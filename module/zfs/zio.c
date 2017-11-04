@@ -560,7 +560,6 @@ void
 zio_add_child(zio_t *pio, zio_t *cio)
 {
 	zio_link_t *zl = kmem_cache_alloc(zio_link_cache, KM_SLEEP);
-	int w;
 
 	/*
 	 * Logical I/Os can have logical, gang, or vdev children.
@@ -578,7 +577,7 @@ zio_add_child(zio_t *pio, zio_t *cio)
 
 	ASSERT(pio->io_state[ZIO_WAIT_DONE] == 0);
 
-	for (w = 0; w < ZIO_WAIT_TYPES; w++)
+	for (int w = 0; w < ZIO_WAIT_TYPES; w++)
 		pio->io_children[cio->io_child_type][w] += !cio->io_state[w];
 
 	list_insert_head(&pio->io_child_list, zl);
@@ -831,8 +830,6 @@ zio_root(spa_t *spa, zio_done_func_t *done, void *private, enum zio_flag flags)
 void
 zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp)
 {
-	int i;
-
 	if (!DMU_OT_IS_VALID(BP_GET_TYPE(bp))) {
 		zfs_panic_recover("blkptr at %p has invalid TYPE %llu",
 		    bp, (longlong_t)BP_GET_TYPE(bp));
@@ -871,17 +868,16 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp)
 	 * allows the birth time of log blocks (and dmu_sync()-ed blocks
 	 * that are in the log) to be arbitrarily large.
 	 */
-	for (i = 0; i < BP_GET_NDVAS(bp); i++) {
+	for (int i = 0; i < BP_GET_NDVAS(bp); i++) {
 		uint64_t vdevid = DVA_GET_VDEV(&bp->blk_dva[i]);
-		vdev_t *vd;
-		uint64_t offset, asize;
+
 		if (vdevid >= spa->spa_root_vdev->vdev_children) {
 			zfs_panic_recover("blkptr at %p DVA %u has invalid "
 			    "VDEV %llu",
 			    bp, i, (longlong_t)vdevid);
 			continue;
 		}
-		vd = spa->spa_root_vdev->vdev_child[vdevid];
+		vdev_t *vd = spa->spa_root_vdev->vdev_child[vdevid];
 		if (vd == NULL) {
 			zfs_panic_recover("blkptr at %p DVA %u has invalid "
 			    "VDEV %llu",
@@ -902,8 +898,8 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp)
 			 */
 			continue;
 		}
-		offset = DVA_GET_OFFSET(&bp->blk_dva[i]);
-		asize = DVA_GET_ASIZE(&bp->blk_dva[i]);
+		uint64_t offset = DVA_GET_OFFSET(&bp->blk_dva[i]);
+		uint64_t asize = DVA_GET_ASIZE(&bp->blk_dva[i]);
 		if (BP_IS_GANG(bp))
 			asize = vdev_psize_to_asize(vd, SPA_GANGBLOCKSIZE);
 		if (offset + asize > vd->vdev_asize) {
@@ -1501,11 +1497,8 @@ zio_write_compress(zio_t *zio)
 			 * in that we charge for the padding used to fill out
 			 * the last sector.
 			 */
-			size_t rounded;
-
 			ASSERT3U(spa->spa_min_ashift, >=, SPA_MINBLOCKSHIFT);
-
-			rounded = (size_t)P2ROUNDUP(psize,
+			size_t rounded = (size_t)P2ROUNDUP(psize,
 			    1ULL << spa->spa_min_ashift);
 			if (rounded >= lsize) {
 				compress = ZIO_COMPRESS_OFF;
@@ -1545,8 +1538,8 @@ zio_write_compress(zio_t *zio)
 	if (!BP_IS_HOLE(bp) && bp->blk_birth == zio->io_txg &&
 	    BP_GET_PSIZE(bp) == psize &&
 	    pass >= zfs_sync_pass_rewrite) {
-		enum zio_stage gang_stages = zio->io_pipeline & ZIO_GANG_STAGES;
 		ASSERT(psize != 0);
+		enum zio_stage gang_stages = zio->io_pipeline & ZIO_GANG_STAGES;
 		zio->io_pipeline = ZIO_REWRITE_PIPELINE | gang_stages;
 		zio->io_flags |= ZIO_FLAG_IO_REWRITE;
 	} else {
@@ -1654,9 +1647,8 @@ zio_taskq_member(zio_t *zio, zio_taskq_type_t q)
 {
 	kthread_t *executor = zio->io_executor;
 	spa_t *spa = zio->io_spa;
-	zio_type_t t;
 
-	for (t = 0; t < ZIO_TYPES; t++) {
+	for (zio_type_t t = 0; t < ZIO_TYPES; t++) {
 		spa_taskqs_t *tqs = &spa->spa_zio_taskq[t][q];
 		uint_t i;
 		for (i = 0; i < tqs->stqs_count; i++) {
@@ -1940,8 +1932,6 @@ static void
 zio_reexecute(zio_t *pio)
 {
 	zio_t *cio, *cio_next;
-	int c, w;
-	zio_link_t *zl = NULL;
 
 	ASSERT(pio->io_child_type == ZIO_CHILD_LOGICAL);
 	ASSERT(pio->io_orig_stage == ZIO_STAGE_OPEN);
@@ -1955,9 +1945,9 @@ zio_reexecute(zio_t *pio)
 	pio->io_flags |= ZIO_FLAG_REEXECUTED;
 	pio->io_pipeline_trace = 0;
 	pio->io_error = 0;
-	for (w = 0; w < ZIO_WAIT_TYPES; w++)
+	for (int w = 0; w < ZIO_WAIT_TYPES; w++)
 		pio->io_state[w] = 0;
-	for (c = 0; c < ZIO_CHILD_TYPES; c++)
+	for (int c = 0; c < ZIO_CHILD_TYPES; c++)
 		pio->io_child_error[c] = 0;
 
 	if (IO_IS_ALLOCATING(pio))
@@ -1970,10 +1960,11 @@ zio_reexecute(zio_t *pio)
 	 * the remainder of pio's io_child_list, from 'cio_next' onward,
 	 * cannot be affected by any side effects of reexecuting 'cio'.
 	 */
+	zio_link_t *zl = NULL;
 	for (cio = zio_walk_children(pio, &zl); cio != NULL; cio = cio_next) {
 		cio_next = zio_walk_children(pio, &zl);
 		mutex_enter(&pio->io_lock);
-		for (w = 0; w < ZIO_WAIT_TYPES; w++)
+		for (int w = 0; w < ZIO_WAIT_TYPES; w++)
 			pio->io_children[cio->io_child_type][w]++;
 		mutex_exit(&pio->io_lock);
 		zio_reexecute(cio);
@@ -2234,9 +2225,8 @@ static void
 zio_gang_node_free(zio_gang_node_t **gnpp)
 {
 	zio_gang_node_t *gn = *gnpp;
-	int g;
 
-	for (g = 0; g < SPA_GBH_NBLKPTRS; g++)
+	for (int g = 0; g < SPA_GBH_NBLKPTRS; g++)
 		ASSERT(gn->gn_child[g] == NULL);
 
 	zio_buf_free(gn->gn_gbh, SPA_GANGBLOCKSIZE);
@@ -2248,12 +2238,11 @@ static void
 zio_gang_tree_free(zio_gang_node_t **gnpp)
 {
 	zio_gang_node_t *gn = *gnpp;
-	int g;
 
 	if (gn == NULL)
 		return;
 
-	for (g = 0; g < SPA_GBH_NBLKPTRS; g++)
+	for (int g = 0; g < SPA_GBH_NBLKPTRS; g++)
 		zio_gang_tree_free(&gn->gn_child[g]);
 
 	zio_gang_node_free(gnpp);
@@ -2279,7 +2268,6 @@ zio_gang_tree_assemble_done(zio_t *zio)
 	zio_t *gio = zio->io_gang_leader;
 	zio_gang_node_t *gn = zio->io_private;
 	blkptr_t *bp = zio->io_bp;
-	int g;
 
 	ASSERT(gio == zio_unique_parent(zio));
 	ASSERT(zio->io_child_count == 0);
@@ -2297,7 +2285,7 @@ zio_gang_tree_assemble_done(zio_t *zio)
 
 	abd_put(zio->io_abd);
 
-	for (g = 0; g < SPA_GBH_NBLKPTRS; g++) {
+	for (int g = 0; g < SPA_GBH_NBLKPTRS; g++) {
 		blkptr_t *gbp = &gn->gn_gbh->zg_blkptr[g];
 		if (!BP_IS_GANG(gbp))
 			continue;
@@ -2311,7 +2299,6 @@ zio_gang_tree_issue(zio_t *pio, zio_gang_node_t *gn, blkptr_t *bp, abd_t *data,
 {
 	zio_t *gio = pio->io_gang_leader;
 	zio_t *zio;
-	int g;
 
 	ASSERT(BP_IS_GANG(bp) == !!gn);
 	ASSERT(BP_GET_CHECKSUM(bp) == BP_GET_CHECKSUM(gio->io_bp));
@@ -2326,7 +2313,7 @@ zio_gang_tree_issue(zio_t *pio, zio_gang_node_t *gn, blkptr_t *bp, abd_t *data,
 	if (gn != NULL) {
 		ASSERT(gn->gn_gbh->zg_tail.zec_magic == ZEC_MAGIC);
 
-		for (g = 0; g < SPA_GBH_NBLKPTRS; g++) {
+		for (int g = 0; g < SPA_GBH_NBLKPTRS; g++) {
 			blkptr_t *gbp = &gn->gn_gbh->zg_blkptr[g];
 			if (BP_IS_HOLE(gbp))
 				continue;
@@ -2387,7 +2374,6 @@ zio_write_gang_member_ready(zio_t *zio)
 	dva_t *cdva = zio->io_bp->blk_dva;
 	dva_t *pdva = pio->io_bp->blk_dva;
 	uint64_t asize;
-	int d;
 	ASSERTV(zio_t *gio = zio->io_gang_leader);
 
 	if (BP_IS_HOLE(zio->io_bp))
@@ -2402,7 +2388,7 @@ zio_write_gang_member_ready(zio_t *zio)
 	ASSERT3U(BP_GET_NDVAS(zio->io_bp), <=, BP_GET_NDVAS(pio->io_bp));
 
 	mutex_enter(&pio->io_lock);
-	for (d = 0; d < BP_GET_NDVAS(zio->io_bp); d++) {
+	for (int d = 0; d < BP_GET_NDVAS(zio->io_bp); d++) {
 		ASSERT(DVA_GET_GANG(&pdva[d]));
 		asize = DVA_GET_ASIZE(&pdva[d]);
 		asize += DVA_GET_ASIZE(&cdva[d]);
@@ -2434,8 +2420,7 @@ zio_write_gang_block(zio_t *pio)
 	int copies = gio->io_prop.zp_copies;
 	int gbh_copies;
 	zio_prop_t zp;
-	int g, error;
-	int flags = METASLAB_HINTBP_FAVOR | METASLAB_GANG_HEADER;
+	int error;
 
 	/*
 	 * encrypted blocks need DVA[2] free so encrypted gang headers can't
@@ -2445,6 +2430,7 @@ zio_write_gang_block(zio_t *pio)
 	if (gio->io_prop.zp_encrypt && gbh_copies >= SPA_DVAS_PER_BP)
 		gbh_copies = SPA_DVAS_PER_BP - 1;
 
+	int flags = METASLAB_HINTBP_FAVOR | METASLAB_GANG_HEADER;
 	if (pio->io_flags & ZIO_FLAG_IO_ALLOCATING) {
 		ASSERT(pio->io_priority == ZIO_PRIORITY_ASYNC_WRITE);
 		ASSERT(!(pio->io_flags & ZIO_FLAG_NODATA));
@@ -2509,9 +2495,7 @@ zio_write_gang_block(zio_t *pio)
 	/*
 	 * Create and nowait the gang children.
 	 */
-	for (g = 0; resid != 0; resid -= lsize, g++) {
-		zio_t *cio;
-
+	for (int g = 0; resid != 0; resid -= lsize, g++) {
 		lsize = P2ROUNDUP(resid / (SPA_GBH_NBLKPTRS - g),
 		    SPA_MINBLOCKSIZE);
 		ASSERT(lsize >= SPA_MINBLOCKSIZE && lsize <= resid);
@@ -2530,7 +2514,7 @@ zio_write_gang_block(zio_t *pio)
 		bzero(zp.zp_iv, ZIO_DATA_IV_LEN);
 		bzero(zp.zp_mac, ZIO_DATA_MAC_LEN);
 
-		cio = zio_write(zio, spa, txg, &gbh->zg_blkptr[g],
+		zio_t *cio = zio_write(zio, spa, txg, &gbh->zg_blkptr[g],
 		    abd_get_offset(pio->io_abd, pio->io_size - resid), lsize,
 		    lsize, &zp, zio_write_gang_member_ready, NULL, NULL,
 		    zio_write_gang_done, &gn->gn_child[g], pio->io_priority,
@@ -2664,7 +2648,6 @@ static int
 zio_ddt_read_start(zio_t *zio)
 {
 	blkptr_t *bp = zio->io_bp;
-	int p;
 
 	ASSERT(BP_GET_DEDUP(bp));
 	ASSERT(BP_GET_PSIZE(bp) == zio->io_size);
@@ -2683,7 +2666,7 @@ zio_ddt_read_start(zio_t *zio)
 		if (ddp_self == NULL)
 			return (ZIO_PIPELINE_CONTINUE);
 
-		for (p = 0; p < DDT_PHYS_TYPES; p++, ddp++) {
+		for (int p = 0; p < DDT_PHYS_TYPES; p++, ddp++) {
 			if (ddp->ddp_phys_birth == 0 || ddp == ddp_self)
 				continue;
 			ddt_bp_create(ddt->ddt_checksum, &dde->dde_key, ddp,
@@ -2746,7 +2729,6 @@ static boolean_t
 zio_ddt_collision(zio_t *zio, ddt_t *ddt, ddt_entry_t *dde)
 {
 	spa_t *spa = zio->io_spa;
-	int p;
 	boolean_t do_raw = !!(zio->io_flags & ZIO_FLAG_RAW);
 
 	ASSERT(!(zio->io_bp_override && do_raw));
@@ -2763,7 +2745,7 @@ zio_ddt_collision(zio_t *zio, ddt_t *ddt, ddt_entry_t *dde)
 	 * loaded).
 	 */
 
-	for (p = DDT_PHYS_SINGLE; p <= DDT_PHYS_TRIPLE; p++) {
+	for (int p = DDT_PHYS_SINGLE; p <= DDT_PHYS_TRIPLE; p++) {
 		zio_t *lio = dde->dde_lead_zio[p];
 
 		if (lio != NULL && do_raw) {
@@ -2775,7 +2757,7 @@ zio_ddt_collision(zio_t *zio, ddt_t *ddt, ddt_entry_t *dde)
 		}
 	}
 
-	for (p = DDT_PHYS_SINGLE; p <= DDT_PHYS_TRIPLE; p++) {
+	for (int p = DDT_PHYS_SINGLE; p <= DDT_PHYS_TRIPLE; p++) {
 		ddt_phys_t *ddp = &dde->dde_phys[p];
 
 		if (ddp->ddp_phys_birth != 0 && do_raw) {
@@ -2848,7 +2830,6 @@ zio_ddt_child_write_ready(zio_t *zio)
 	ddt_entry_t *dde = zio->io_private;
 	ddt_phys_t *ddp = &dde->dde_phys[p];
 	zio_t *pio;
-	zio_link_t *zl;
 
 	if (zio->io_error)
 		return;
@@ -2859,7 +2840,7 @@ zio_ddt_child_write_ready(zio_t *zio)
 
 	ddt_phys_fill(ddp, zio->io_bp);
 
-	zl = NULL;
+	zio_link_t *zl = NULL;
 	while ((pio = zio_walk_parents(zio, &zl)) != NULL)
 		ddt_bp_fill(ddp, pio->io_bp, zio->io_txg);
 
@@ -2895,12 +2876,12 @@ static void
 zio_ddt_ditto_write_done(zio_t *zio)
 {
 	int p = DDT_PHYS_DITTO;
+	ASSERTV(zio_prop_t *zp = &zio->io_prop);
 	blkptr_t *bp = zio->io_bp;
 	ddt_t *ddt = ddt_select(zio->io_spa, bp);
 	ddt_entry_t *dde = zio->io_private;
 	ddt_phys_t *ddp = &dde->dde_phys[p];
 	ddt_key_t *ddk = &dde->dde_key;
-	ASSERTV(zio_prop_t *zp = &zio->io_prop);
 
 	ddt_enter(ddt);
 
@@ -3225,8 +3206,6 @@ zio_dva_claim(zio_t *zio)
 static void
 zio_dva_unallocate(zio_t *zio, zio_gang_node_t *gn, blkptr_t *bp)
 {
-	int g;
-
 	ASSERT(bp->blk_birth == zio->io_txg || BP_IS_HOLE(bp));
 	ASSERT(zio->io_bp_override == NULL);
 
@@ -3234,7 +3213,7 @@ zio_dva_unallocate(zio_t *zio, zio_gang_node_t *gn, blkptr_t *bp)
 		metaslab_free(zio->io_spa, bp, bp->blk_birth, B_TRUE);
 
 	if (gn != NULL) {
-		for (g = 0; g < SPA_GBH_NBLKPTRS; g++) {
+		for (int g = 0; g < SPA_GBH_NBLKPTRS; g++) {
 			zio_dva_unallocate(zio, gn->gn_child[g],
 			    &gn->gn_gbh->zg_blkptr[g]);
 		}
@@ -3955,10 +3934,10 @@ zio_ready(zio_t *zio)
 static void
 zio_dva_throttle_done(zio_t *zio)
 {
+	ASSERTV(zio_t *lio = zio->io_logical);
 	zio_t *pio = zio_unique_parent(zio);
 	vdev_t *vd = zio->io_vd;
 	int flags = METASLAB_ASYNC_ALLOC;
-	ASSERTV(zio_t *lio = zio->io_logical);
 
 	ASSERT3P(zio->io_bp, !=, NULL);
 	ASSERT3U(zio->io_type, ==, ZIO_TYPE_WRITE);
@@ -4019,7 +3998,6 @@ zio_done(zio_t *zio)
 	 */
 	const uint64_t psize = zio->io_size;
 	zio_t *pio, *pio_next;
-	int c, w;
 	zio_link_t *zl = NULL;
 
 	/*
@@ -4059,8 +4037,8 @@ zio_done(zio_t *zio)
 	}
 
 
-	for (c = 0; c < ZIO_CHILD_TYPES; c++)
-		for (w = 0; w < ZIO_WAIT_TYPES; w++)
+	for (int c = 0; c < ZIO_CHILD_TYPES; c++)
+		for (int w = 0; w < ZIO_WAIT_TYPES; w++)
 			ASSERT(zio->io_children[c][w] == 0);
 
 	if (zio->io_bp != NULL && !BP_IS_EMBEDDED(zio->io_bp)) {

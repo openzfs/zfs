@@ -553,9 +553,8 @@ zio_checksum_error(zio_t *zio, zio_bad_cksum_t *info)
 void
 zio_checksum_templates_free(spa_t *spa)
 {
-	enum zio_checksum checksum;
-	for (checksum = 0; checksum < ZIO_CHECKSUM_FUNCTIONS;
-	    checksum++) {
+	for (enum zio_checksum checksum = 0;
+	    checksum < ZIO_CHECKSUM_FUNCTIONS; checksum++) {
 		if (spa->spa_cksum_tmpls[checksum] != NULL) {
 			zio_checksum_info_t *ci = &zio_checksum_table[checksum];
 

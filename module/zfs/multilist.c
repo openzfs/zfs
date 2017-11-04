@@ -121,11 +121,9 @@ multilist_create(size_t size, size_t offset,
 void
 multilist_destroy(multilist_t *ml)
 {
-	int i;
-
 	ASSERT(multilist_is_empty(ml));
 
-	for (i = 0; i < ml->ml_num_sublists; i++) {
+	for (int i = 0; i < ml->ml_num_sublists; i++) {
 		multilist_sublist_t *mls = &ml->ml_sublists[i];
 
 		ASSERT(list_is_empty(&mls->mls_list));
@@ -243,9 +241,7 @@ multilist_remove(multilist_t *ml, void *obj)
 int
 multilist_is_empty(multilist_t *ml)
 {
-	int i;
-
-	for (i = 0; i < ml->ml_num_sublists; i++) {
+	for (int i = 0; i < ml->ml_num_sublists; i++) {
 		multilist_sublist_t *mls = &ml->ml_sublists[i];
 		/* See comment in multilist_insert(). */
 		boolean_t need_lock = !MUTEX_HELD(&mls->mls_lock);

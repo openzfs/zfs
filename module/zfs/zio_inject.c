@@ -472,10 +472,6 @@ zio_handle_io_delay(zio_t *zio)
 	vdev_t *vd = zio->io_vd;
 	inject_handler_t *min_handler = NULL;
 	hrtime_t min_target = 0;
-	inject_handler_t *handler;
-	hrtime_t idle;
-	hrtime_t busy;
-	hrtime_t target;
 
 	rw_enter(&inject_lock, RW_READER);
 
@@ -528,7 +524,7 @@ zio_handle_io_delay(zio_t *zio)
 	 */
 	mutex_enter(&inject_delay_mtx);
 
-	for (handler = list_head(&inject_handlers);
+	for (inject_handler_t *handler = list_head(&inject_handlers);
 	    handler != NULL; handler = list_next(&inject_handlers, handler)) {
 		if (handler->zi_record.zi_cmd != ZINJECT_DELAY_IO)
 			continue;
@@ -580,10 +576,10 @@ zio_handle_io_delay(zio_t *zio)
 		 * each lane will become idle, we use that value to
 		 * determine when this request should complete.
 		 */
-		idle = handler->zi_record.zi_timer + gethrtime();
-		busy = handler->zi_record.zi_timer +
+		hrtime_t idle = handler->zi_record.zi_timer + gethrtime();
+		hrtime_t busy = handler->zi_record.zi_timer +
 		    handler->zi_lanes[handler->zi_next_lane];
-		target = MAX(idle, busy);
+		hrtime_t target = MAX(idle, busy);
 
 		if (min_handler == NULL) {
 			min_handler = handler;

@@ -638,7 +638,6 @@ _NOTE(CONSTCOND) } while (0)
 	    { "zero", "single", "double", "triple" };			\
 	int len = 0;							\
 	int copies = 0;							\
-	int d;								\
 									\
 	if (bp == NULL) {						\
 		len += func(buf + len, size - len, "<NULL>");		\
@@ -662,7 +661,7 @@ _NOTE(CONSTCOND) } while (0)
 		    (u_longlong_t)BPE_GET_PSIZE(bp),			\
 		    (u_longlong_t)bp->blk_birth);			\
 	} else {							\
-		for (d = 0; d < BP_GET_NDVAS(bp); d++) {		\
+		for (int d = 0; d < BP_GET_NDVAS(bp); d++) {		\
 			const dva_t *dva = &bp->blk_dva[d];		\
 			if (DVA_IS_VALID(dva))				\
 				copies++;				\

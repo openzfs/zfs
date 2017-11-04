@@ -282,7 +282,6 @@ vdev_mirror_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 {
 	int numerrors = 0;
 	int lasterror = 0;
-	int c;
 
 	if (vd->vdev_children == 0) {
 		vd->vdev_stat.vs_aux = VDEV_AUX_BAD_LABEL;
@@ -291,7 +290,7 @@ vdev_mirror_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 
 	vdev_open_children(vd);
 
-	for (c = 0; c < vd->vdev_children; c++) {
+	for (int c = 0; c < vd->vdev_children; c++) {
 		vdev_t *cvd = vd->vdev_child[c];
 
 		if (cvd->vdev_open_error) {
@@ -316,9 +315,7 @@ vdev_mirror_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 static void
 vdev_mirror_close(vdev_t *vd)
 {
-	int c;
-
-	for (c = 0; c < vd->vdev_children; c++)
+	for (int c = 0; c < vd->vdev_children; c++)
 		vdev_close(vd->vdev_child[c]);
 }
 
@@ -538,9 +535,9 @@ vdev_mirror_io_start(zio_t *zio)
 static int
 vdev_mirror_worst_error(mirror_map_t *mm)
 {
-	int c, error[2] = { 0, 0 };
+	int error[2] = { 0, 0 };
 
-	for (c = 0; c < mm->mm_children; c++) {
+	for (int c = 0; c < mm->mm_children; c++) {
 		mirror_child_t *mc = &mm->mm_child[c];
 		int s = mc->mc_speculative;
 		error[s] = zio_worst_error(error[s], mc->mc_error);

@@ -785,9 +785,7 @@ txg_list_empty(txg_list_t *tl, uint64_t txg)
 boolean_t
 txg_all_lists_empty(txg_list_t *tl)
 {
-	int i;
-
-	for (i = 0; i < TXG_SIZE; i++) {
+	for (int i = 0; i < TXG_SIZE; i++) {
 		if (!txg_list_empty(tl, i)) {
 			return (B_FALSE);
 		}

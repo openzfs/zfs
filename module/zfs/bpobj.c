@@ -378,7 +378,6 @@ bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx)
 {
 	bpobj_t subbpo;
 	uint64_t used, comp, uncomp, subsubobjs;
-	ASSERTV(dmu_object_info_t doi);
 
 	ASSERT(bpo->bpo_havesubobj);
 	ASSERT(bpo->bpo_havecomp);
@@ -407,6 +406,7 @@ bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx)
 		    DMU_OT_NONE, 0, tx);
 	}
 
+	ASSERTV(dmu_object_info_t doi);
 	ASSERT0(dmu_object_info(bpo->bpo_os, bpo->bpo_phys->bpo_subobjs, &doi));
 	ASSERT3U(doi.doi_type, ==, DMU_OT_BPOBJ_SUBOBJ);
 

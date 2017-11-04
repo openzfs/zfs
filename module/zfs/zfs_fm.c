@@ -525,13 +525,12 @@ zei_shrink_ranges(zfs_ecksum_info_t *eip)
 		uint32_t end = r[idx].zr_end;
 
 		while (idx < max - 1) {
-			uint32_t nstart, nend, gap;
-
 			idx++;
-			nstart = r[idx].zr_start;
-			nend = r[idx].zr_end;
 
-			gap = nstart - end;
+			uint32_t nstart = r[idx].zr_start;
+			uint32_t nend = r[idx].zr_end;
+
+			uint32_t gap = nstart - end;
 			if (gap < new_allowed_gap) {
 				end = nend;
 				continue;

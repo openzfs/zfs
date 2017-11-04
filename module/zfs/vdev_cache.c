@@ -215,7 +215,6 @@ vdev_cache_fill(zio_t *fio)
 	vdev_cache_t *vc = &vd->vdev_cache;
 	vdev_cache_entry_t *ve = fio->io_private;
 	zio_t *pio;
-	zio_link_t *zl;
 
 	ASSERT3U(fio->io_size, ==, VCBS);
 
@@ -235,7 +234,7 @@ vdev_cache_fill(zio_t *fio)
 	 * any reads that were queued up before the missed update are still
 	 * valid, so we can satisfy them from this line before we evict it.
 	 */
-	zl = NULL;
+	zio_link_t *zl = NULL;
 	while ((pio = zio_walk_parents(fio, &zl)) != NULL)
 		vdev_cache_hit(vc, ve, pio);
 

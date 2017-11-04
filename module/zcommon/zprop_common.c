@@ -166,7 +166,7 @@ int
 zprop_iter_common(zprop_func func, void *cb, boolean_t show_all,
     boolean_t ordered, zfs_type_t type)
 {
-	int i, j, num_props, size, prop;
+	int i, num_props, size, prop;
 	zprop_desc_t *prop_tbl;
 	zprop_desc_t **order;
 
@@ -181,7 +181,7 @@ zprop_iter_common(zprop_func func, void *cb, boolean_t show_all,
 		return (ZPROP_CONT);
 #endif
 
-	for (j = 0; j < num_props; j++)
+	for (int j = 0; j < num_props; j++)
 		order[j] = &prop_tbl[j];
 
 	if (ordered) {

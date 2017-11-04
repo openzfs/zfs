@@ -2266,7 +2266,6 @@ static void
 arc_evictable_space_increment(arc_buf_hdr_t *hdr, arc_state_t *state)
 {
 	arc_buf_contents_t type = arc_buf_type(hdr);
-	arc_buf_t *buf;
 
 	ASSERT(HDR_HAS_L1HDR(hdr));
 
@@ -2290,7 +2289,8 @@ arc_evictable_space_increment(arc_buf_hdr_t *hdr, arc_state_t *state)
 		    HDR_GET_PSIZE(hdr), hdr);
 	}
 
-	for (buf = hdr->b_l1hdr.b_buf; buf != NULL; buf = buf->b_next) {
+	for (arc_buf_t *buf = hdr->b_l1hdr.b_buf; buf != NULL;
+	    buf = buf->b_next) {
 		if (arc_buf_is_shared(buf))
 			continue;
 		(void) refcount_add_many(&state->arcs_esize[type],
@@ -2307,7 +2307,6 @@ static void
 arc_evictable_space_decrement(arc_buf_hdr_t *hdr, arc_state_t *state)
 {
 	arc_buf_contents_t type = arc_buf_type(hdr);
-	arc_buf_t *buf;
 
 	ASSERT(HDR_HAS_L1HDR(hdr));
 
@@ -2331,7 +2330,8 @@ arc_evictable_space_decrement(arc_buf_hdr_t *hdr, arc_state_t *state)
 		    HDR_GET_PSIZE(hdr), hdr);
 	}
 
-	for (buf = hdr->b_l1hdr.b_buf; buf != NULL; buf = buf->b_next) {
+	for (arc_buf_t *buf = hdr->b_l1hdr.b_buf; buf != NULL;
+	    buf = buf->b_next) {
 		if (arc_buf_is_shared(buf))
 			continue;
 		(void) refcount_remove_many(&state->arcs_esize[type],
@@ -2547,7 +2547,6 @@ arc_change_state(arc_state_t *new_state, arc_buf_hdr_t *hdr,
 			ASSERT3P(hdr->b_l1hdr.b_pabd, ==, NULL);
 			ASSERT(!HDR_HAS_RABD(hdr));
 		} else {
-			arc_buf_t *buf;
 			uint32_t buffers = 0;
 
 			/*
@@ -2555,7 +2554,7 @@ arc_change_state(arc_state_t *new_state, arc_buf_hdr_t *hdr,
 			 * thus we must remove each of these references one
 			 * at a time.
 			 */
-			for (buf = hdr->b_l1hdr.b_buf; buf != NULL;
+			for (arc_buf_t *buf = hdr->b_l1hdr.b_buf; buf != NULL;
 			    buf = buf->b_next) {
 				ASSERT3U(bufcnt, !=, 0);
 				buffers++;
@@ -2605,7 +2604,6 @@ arc_change_state(arc_state_t *new_state, arc_buf_hdr_t *hdr,
 			(void) refcount_remove_many(&old_state->arcs_size,
 			    HDR_GET_LSIZE(hdr), hdr);
 		} else {
-			arc_buf_t *buf;
 			uint32_t buffers = 0;
 
 			/*
@@ -2613,7 +2611,7 @@ arc_change_state(arc_state_t *new_state, arc_buf_hdr_t *hdr,
 			 * thus we must remove each of these references one
 			 * at a time.
 			 */
-			for (buf = hdr->b_l1hdr.b_buf; buf != NULL;
+			for (arc_buf_t *buf = hdr->b_l1hdr.b_buf; buf != NULL;
 			    buf = buf->b_next) {
 				ASSERT3U(bufcnt, !=, 0);
 				buffers++;
@@ -3344,10 +3342,11 @@ arc_hdr_alloc(uint64_t spa, int32_t psize, int32_t lsize,
 static arc_buf_hdr_t *
 arc_hdr_realloc(arc_buf_hdr_t *hdr, kmem_cache_t *old, kmem_cache_t *new)
 {
+	ASSERT(HDR_HAS_L2HDR(hdr));
+
 	arc_buf_hdr_t *nhdr;
 	l2arc_dev_t *dev = hdr->b_l2hdr.b_dev;
 
-	ASSERT(HDR_HAS_L2HDR(hdr));
 	ASSERT((old == hdr_full_cache && new == hdr_l2only_cache) ||
 	    (old == hdr_l2only_cache && new == hdr_full_cache));
 
@@ -4021,7 +4020,6 @@ arc_evict_state(arc_state_t *state, uint64_t spa, int64_t bytes,
 	multilist_t *ml = state->arcs_list[type];
 	int num_sublists;
 	arc_buf_hdr_t **markers;
-	int i;
 
 	IMPLY(bytes < 0, bytes == ARC_EVICT_ALL);
 
@@ -4035,7 +4033,7 @@ arc_evict_state(arc_state_t *state, uint64_t spa, int64_t bytes,
 	 * than starting from the tail each time.
 	 */
 	markers = kmem_zalloc(sizeof (*markers) * num_sublists, KM_SLEEP);
-	for (i = 0; i < num_sublists; i++) {
+	for (int i = 0; i < num_sublists; i++) {
 		multilist_sublist_t *mls;
 
 		markers[i] = kmem_cache_alloc(hdr_full_cache, KM_SLEEP);
@@ -4076,7 +4074,7 @@ arc_evict_state(arc_state_t *state, uint64_t spa, int64_t bytes,
 		 * (e.g. index 0) would cause evictions to favor certain
 		 * sublists over others.
 		 */
-		for (i = 0; i < num_sublists; i++) {
+		for (int i = 0; i < num_sublists; i++) {
 			uint64_t bytes_remaining;
 			uint64_t bytes_evicted;
 
@@ -4122,7 +4120,7 @@ arc_evict_state(arc_state_t *state, uint64_t spa, int64_t bytes,
 		}
 	}
 
-	for (i = 0; i < num_sublists; i++) {
+	for (int i = 0; i < num_sublists; i++) {
 		multilist_sublist_t *mls = multilist_sublist_lock(ml, i);
 		multilist_sublist_remove(mls, markers[i]);
 		multilist_sublist_unlock(mls);
@@ -4947,7 +4945,6 @@ arc_reclaim_thread(void *unused)
 
 	mutex_enter(&arc_reclaim_lock);
 	while (!arc_reclaim_thread_exit) {
-		int64_t to_free;
 		uint64_t evicted = 0;
 		uint64_t need_free = arc_need_free;
 		arc_tuning_update();
@@ -4996,7 +4993,8 @@ arc_reclaim_thread(void *unused)
 			 */
 			free_memory = arc_available_memory();
 
-			to_free = (arc_c >> arc_shrink_shift) - free_memory;
+			int64_t to_free =
+			    (arc_c >> arc_shrink_shift) - free_memory;
 			if (to_free > 0) {
 #ifdef _KERNEL
 				to_free = MAX(to_free, need_free);
@@ -5665,15 +5663,14 @@ arc_read_done(zio_t *zio)
 	 * read.
 	 */
 	if (HDR_IN_HASH_TABLE(hdr)) {
-		arc_buf_hdr_t *found;
-
 		ASSERT3U(hdr->b_birth, ==, BP_PHYSICAL_BIRTH(zio->io_bp));
 		ASSERT3U(hdr->b_dva.dva_word[0], ==,
 		    BP_IDENTITY(zio->io_bp)->dva_word[0]);
 		ASSERT3U(hdr->b_dva.dva_word[1], ==,
 		    BP_IDENTITY(zio->io_bp)->dva_word[1]);
 
-		found = buf_hash_find(hdr->b_spa, zio->io_bp, &hash_lock);
+		arc_buf_hdr_t *found = buf_hash_find(hdr->b_spa, zio->io_bp,
+		    &hash_lock);
 
 		ASSERT((found == hdr &&
 		    DVA_EQUAL(&hdr->b_dva, BP_IDENTITY(zio->io_bp))) ||
@@ -6372,8 +6369,6 @@ arc_freed(spa_t *spa, const blkptr_t *bp)
 void
 arc_release(arc_buf_t *buf, void *tag)
 {
-	kmutex_t *hash_lock;
-	arc_state_t *state;
 	arc_buf_hdr_t *hdr = buf->b_hdr;
 
 	/*
@@ -6414,7 +6409,7 @@ arc_release(arc_buf_t *buf, void *tag)
 		return;
 	}
 
-	hash_lock = HDR_LOCK(hdr);
+	kmutex_t *hash_lock = HDR_LOCK(hdr);
 	mutex_enter(hash_lock);
 
 	/*
@@ -6422,7 +6417,7 @@ arc_release(arc_buf_t *buf, void *tag)
 	 * held, we must be careful not to reference state or the
 	 * b_state field after dropping the lock.
 	 */
-	state = hdr->b_l1hdr.b_state;
+	arc_state_t *state = hdr->b_l1hdr.b_state;
 	ASSERT3P(hash_lock, ==, HDR_LOCK(hdr));
 	ASSERT3P(state, !=, arc_anon);
 
@@ -6622,7 +6617,6 @@ arc_write_ready(zio_t *zio)
 	arc_buf_hdr_t *hdr = buf->b_hdr;
 	blkptr_t *bp = zio->io_bp;
 	uint64_t psize = BP_IS_HOLE(bp) ? 0 : BP_GET_PSIZE(bp);
-	enum zio_compress compress;
 	fstrans_cookie_t cookie = spl_fstrans_mark();
 
 	ASSERT(HDR_HAS_L1HDR(hdr));
@@ -6689,6 +6683,7 @@ arc_write_ready(zio_t *zio)
 	/* this must be done after the buffer flags are adjusted */
 	arc_cksum_compute(buf);
 
+	enum zio_compress compress;
 	if (BP_IS_HOLE(bp) || BP_IS_EMBEDDED(bp)) {
 		compress = ZIO_COMPRESS_OFF;
 	} else {
@@ -8459,7 +8454,6 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 	l2arc_write_callback_t *cb;
 	zio_t *pio, *wzio;
 	uint64_t guid = spa_load_guid(spa);
-	int try;
 
 	ASSERT3P(dev->l2ad_vdev, !=, NULL);
 
@@ -8472,7 +8466,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 	/*
 	 * Copy buffers for L2ARC writing.
 	 */
-	for (try = 0; try < L2ARC_FEED_TYPES; try++) {
+	for (int try = 0; try < L2ARC_FEED_TYPES; try++) {
 		multilist_sublist_t *mls = l2arc_sublist_lock(try);
 		uint64_t passed_sz = 0;
 

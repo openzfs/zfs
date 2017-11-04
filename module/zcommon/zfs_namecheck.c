@@ -136,12 +136,13 @@ permset_namecheck(const char *path, namecheck_err_t *why, char *what)
 int
 entity_namecheck(const char *path, namecheck_err_t *why, char *what)
 {
-	const char *start, *end, *loc;
+	const char *start, *end;
 	int found_delim;
 
 	/*
 	 * Make sure the name is not too long.
 	 */
+
 	if (strlen(path) >= ZFS_MAX_DATASET_NAME_LEN) {
 		if (why)
 			*why = NAME_ERR_TOOLONG;
@@ -178,7 +179,7 @@ entity_namecheck(const char *path, namecheck_err_t *why, char *what)
 		}
 
 		/* Validate the contents of this component */
-		for (loc = start; loc != end; loc++) {
+		for (const char *loc = start; loc != end; loc++) {
 			if (!valid_char(*loc) && *loc != '%') {
 				if (why) {
 					*why = NAME_ERR_INVALCHAR;

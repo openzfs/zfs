@@ -400,9 +400,8 @@ void
 vdev_queue_fini(vdev_t *vd)
 {
 	vdev_queue_t *vq = &vd->vdev_queue;
-	zio_priority_t p;
 
-	for (p = 0; p < ZIO_PRIORITY_NUM_QUEUEABLE; p++)
+	for (zio_priority_t p = 0; p < ZIO_PRIORITY_NUM_QUEUEABLE; p++)
 		avl_destroy(vdev_queue_class_tree(vq, p));
 	avl_destroy(&vq->vq_active_tree);
 	avl_destroy(vdev_queue_type_tree(vq, ZIO_TYPE_READ));
