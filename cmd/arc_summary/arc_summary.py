@@ -111,36 +111,40 @@ def fBytes(b=0):
     return result
 
 
-def fHits(Hits=0, Decimal=2):
-    khits = (10 ** 3)
-    mhits = (10 ** 6)
-    bhits = (10 ** 9)
-    thits = (10 ** 12)
-    qhits = (10 ** 15)
-    Qhits = (10 ** 18)
-    shits = (10 ** 21)
-    Shits = (10 ** 24)
+def fHits(hits=0):
+    """Create a human-readable representation of the number of hits.
+    The single-letter symbols used are SI to avoid the confusion caused
+    by the different "short scale" and "long scale" representations in
+    English, which use the same words for different values. See
+    https://en.wikipedia.org/wiki/Names_of_large_numbers and
+    https://physics.nist.gov/cuu/Units/prefixes.html
+    """
 
-    if Hits >= Shits:
-        return str("%0." + str(Decimal) + "f") % (Hits / Shits) + "S"
-    elif Hits >= shits:
-        return str("%0." + str(Decimal) + "f") % (Hits / shits) + "s"
-    elif Hits >= Qhits:
-        return str("%0." + str(Decimal) + "f") % (Hits / Qhits) + "Q"
-    elif Hits >= qhits:
-        return str("%0." + str(Decimal) + "f") % (Hits / qhits) + "q"
-    elif Hits >= thits:
-        return str("%0." + str(Decimal) + "f") % (Hits / thits) + "t"
-    elif Hits >= bhits:
-        return str("%0." + str(Decimal) + "f") % (Hits / bhits) + "b"
-    elif Hits >= mhits:
-        return str("%0." + str(Decimal) + "f") % (Hits / mhits) + "m"
-    elif Hits >= khits:
-        return str("%0." + str(Decimal) + "f") % (Hits / khits) + "k"
-    elif Hits == 0:
-        return str("%d" % 0)
+    numbers = [
+            [10**24, 'Y'],  # yotta (septillion)
+            [10**21, 'Z'],  # zetta (sextillion)
+            [10**18, 'E'],  # exa   (quintrillion)
+            [10**15, 'P'],  # peta  (quadrillion)
+            [10**12, 'T'],  # tera  (trillion)
+            [10**9, 'G'],   # giga  (billion)
+            [10**6, 'M'],   # mega  (million)
+            [10**3, 'k']]   # kilo  (thousand)
+
+    if hits >= 1000:
+
+        for limit, symbol in numbers:
+
+            if hits >= limit:
+                value = hits/limit
+                break
+
+        result = "%0.2f%s" % (value, symbol)
+
     else:
-        return str("%d" % Hits)
+
+        result = "%d" % hits
+
+    return result
 
 
 def fPerc(lVal=0, rVal=0, Decimal=2):
