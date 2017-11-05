@@ -31,34 +31,37 @@
 #
 # If you are having troubles when using this script from cron(8) please try
 # adjusting your PATH before reporting problems.
-#
-# /usr/bin & /sbin
-#
-# Binaries used are:
-#
-# dc(1), kldstat(8), sed(1), sysctl(8) & vmstat(8)
-#
-# Binaries that I am working on phasing out are:
-#
-# dc(1) & sed(1)
+"""Print statistics on the ZFS Adjustable Replacement Cache (ARC)
+
+Provides basic information on the ARC, its efficiency, the L2ARC (if present),
+the Data Management Unit (DMU), Virtual Devices (VDEVs), and tunables. See the
+in-source documentation and code at
+https://github.com/zfsonlinux/zfs/blob/master/module/zfs/arc.c for details.
+"""
 
 import sys
 import time
 import getopt
 import re
+
 from os import listdir
 from subprocess import Popen, PIPE
 from decimal import Decimal as D
 
-
-usetunable = True
 show_tunable_descriptions = False
 alternate_tunable_layout = False
 kstat_pobj = re.compile("^([^:]+):\s+(.+)\s*$", flags=re.M)
 
 
 def get_Kstat():
+    """Collect information on the ZFS subsystem from the /proc virtual
+    file system. The name "kstat" is a holdover from the Solaris utility
+    of the same name.
+    """
+
     def load_proc_kstats(fn, namespace):
+        """Collect information on a specific subsystem of the ARC"""
+
         kstats = [line.strip() for line in open(fn)]
         del kstats[0:2]
         for kstat in kstats:
@@ -148,6 +151,8 @@ def fHits(hits=0):
 
 
 def fPerc(lVal=0, rVal=0, Decimal=2):
+    """Calculate percentage value and return in human-readable format"""
+
     if rVal > 0:
         return str("%0." + str(Decimal) + "f") % (100 * (lVal / rVal)) + "%"
     else:
@@ -155,6 +160,7 @@ def fPerc(lVal=0, rVal=0, Decimal=2):
 
 
 def get_arc_summary(Kstat):
+    """Collect general data on the ARC"""
 
     output = {}
     memory_throttle_count = Kstat[
@@ -256,6 +262,8 @@ def get_arc_summary(Kstat):
 
 
 def _arc_summary(Kstat):
+    """Print information on the ARC"""
+
     # ARC Sizing
     arc = get_arc_summary(Kstat)
 
@@ -330,6 +338,8 @@ def _arc_summary(Kstat):
 
 
 def get_arc_efficiency(Kstat):
+    """Collect information on the efficiency of the ARC"""
+
     output = {}
 
     arc_hits = Kstat["kstat.zfs.misc.arcstats.hits"]
@@ -453,6 +463,8 @@ def get_arc_efficiency(Kstat):
 
 
 def _arc_efficiency(Kstat):
+    """Print information on the efficiency of the ARC"""
+
     arc = get_arc_efficiency(Kstat)
 
     sys.stdout.write("ARC Total accesses:\t\t\t\t\t%s\n" %
@@ -563,6 +575,8 @@ def _arc_efficiency(Kstat):
 
 
 def get_l2arc_summary(Kstat):
+    """Collection information on the L2ARC"""
+
     output = {}
 
     l2_abort_lowmem = Kstat["kstat.zfs.misc.arcstats.l2_abort_lowmem"]
@@ -657,6 +671,7 @@ def get_l2arc_summary(Kstat):
 
 
 def _l2arc_summary(Kstat):
+    """Print information on the L2ARC"""
 
     arc = get_l2arc_summary(Kstat)
 
@@ -741,6 +756,8 @@ def _l2arc_summary(Kstat):
 
 
 def get_dmu_summary(Kstat):
+    """Collect information on the DMU"""
+
     output = {}
 
     zfetch_hits = Kstat["kstat.zfs.misc.zfetchstats.hits"]
@@ -766,6 +783,7 @@ def get_dmu_summary(Kstat):
 
 
 def _dmu_summary(Kstat):
+    """Print information on the DMU"""
 
     arc = get_dmu_summary(Kstat)
 
@@ -787,6 +805,8 @@ def _dmu_summary(Kstat):
 
 
 def get_vdev_summary(Kstat):
+    """Collect information on the VDEVs"""
+
     output = {}
 
     vdev_cache_delegations = \
@@ -817,6 +837,8 @@ def get_vdev_summary(Kstat):
 
 
 def _vdev_summary(Kstat):
+    """Print information on the VDEVs"""
+
     arc = get_vdev_summary(Kstat)
 
     if arc['vdev_cache_total'] > 0:
@@ -836,6 +858,8 @@ def _vdev_summary(Kstat):
 
 
 def _tunable_summary(Kstat):
+    """Print information on tunables"""
+
     global show_tunable_descriptions
     global alternate_tunable_layout
 
@@ -901,8 +925,8 @@ unSub = [
 
 
 def zfs_header():
-    """Print title string with date
-    """
+    """Print title string with date"""
+
     daydate = time.strftime('%a %b %d %H:%M:%S %Y')
 
     sys.stdout.write('\n'+'-'*72+'\n')
@@ -911,6 +935,8 @@ def zfs_header():
 
 
 def usage():
+    """Print usage information"""
+
     sys.stdout.write("Usage: arc_summary.py [-h] [-a] [-d] [-p PAGE]\n\n")
     sys.stdout.write("\t -h, --help           : "
                      "Print this help message and exit\n")
@@ -931,6 +957,8 @@ def usage():
 
 
 def main():
+    """Main function"""
+
     global show_tunable_descriptions
     global alternate_tunable_layout
 
