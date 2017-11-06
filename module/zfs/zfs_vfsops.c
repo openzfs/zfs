@@ -1587,9 +1587,17 @@ zfs_domount(struct super_block *sb, zfs_mnt_t *zm, int silent)
 	uint64_t recordsize;
 	int error = 0;
 	zfsvfs_t *zfsvfs;
+	cred_t *cred;
 
 	ASSERT(zm);
 	ASSERT(osname);
+
+	cred = CRED();
+	error = secpolicy_zfs(cred);
+	if (error == EACCES)
+		error = dsl_deleg_access(osname, "mount", cred);
+	if (error)
+		return (error);
 
 	error = zfsvfs_create(osname, &zfsvfs);
 	if (error)
