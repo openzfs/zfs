@@ -5663,14 +5663,15 @@ arc_read_done(zio_t *zio)
 	 * read.
 	 */
 	if (HDR_IN_HASH_TABLE(hdr)) {
+		arc_buf_hdr_t *found;
+
 		ASSERT3U(hdr->b_birth, ==, BP_PHYSICAL_BIRTH(zio->io_bp));
 		ASSERT3U(hdr->b_dva.dva_word[0], ==,
 		    BP_IDENTITY(zio->io_bp)->dva_word[0]);
 		ASSERT3U(hdr->b_dva.dva_word[1], ==,
 		    BP_IDENTITY(zio->io_bp)->dva_word[1]);
 
-		arc_buf_hdr_t *found = buf_hash_find(hdr->b_spa, zio->io_bp,
-		    &hash_lock);
+		found = buf_hash_find(hdr->b_spa, zio->io_bp, &hash_lock);
 
 		ASSERT((found == hdr &&
 		    DVA_EQUAL(&hdr->b_dva, BP_IDENTITY(zio->io_bp))) ||
