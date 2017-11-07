@@ -41,7 +41,7 @@ FILEDIR=${FILEDIR:-/var/tmp}
 DISKS=${DISKS:-""}
 SINGLETEST=()
 SINGLETESTUSER="root"
-TAGS="functional"
+TAGS=""
 ITERATIONS=1
 ZFS_DBGMSG="$STF_SUITE/callbacks/zfs_dbgmsg.ksh"
 ZFS_DMESG="$STF_SUITE/callbacks/zfs_dmesg.ksh"
@@ -272,7 +272,7 @@ OPTIONS:
 	-s SIZE     Use vdevs of SIZE (default: 4G)
 	-r RUNFILE  Run tests in RUNFILE (default: linux.run)
 	-t PATH     Run single test at PATH relative to test suite
-	-T TAGS     Comma separated list of tags
+	-T TAGS     Comma separated list of tags (default: 'functional')
 	-u USER     Run single test as USER (default: root)
 
 EXAMPLES:
@@ -355,6 +355,9 @@ FILES=${FILES:-"$FILEDIR/file-vdev0 $FILEDIR/file-vdev1 $FILEDIR/file-vdev2"}
 LOOPBACKS=${LOOPBACKS:-""}
 
 if [ ${#SINGLETEST[@]} -ne 0 ]; then
+	if [ -n "$TAGS" ]; then
+		fail "-t and -T are mutually exclusive."
+	fi
 	RUNFILE_DIR="/var/tmp"
 	RUNFILE="zfs-tests.$$.run"
 	SINGLEQUIET="False"
@@ -395,9 +398,15 @@ EOF
 tests = ['$SINGLETESTFILE']
 pre = $SETUPSCRIPT
 post = $CLEANUPSCRIPT
+tags = ['functional']
 EOF
 	done
 fi
+
+#
+# Use default tag if none was specified
+#
+TAGS=${TAGS:='functional'}
 
 #
 # Attempt to locate the runfile describing the test workload.
