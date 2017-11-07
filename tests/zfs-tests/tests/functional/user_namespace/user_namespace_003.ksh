@@ -65,6 +65,8 @@ log_mustnot chg_usr_exec $STAFF_USER zfs set ${perm}=${perm_state_2} $USER_TESTF
 # make sure the staff user *inside* the user namespace functions as expected
 log_must user_ns_exec chg_usr_exec $STAFF_USER zfs set ${perm}=${perm_state_2} $USER_TESTFS
 
+log_must user_ns_exec zfs unallow $STAFF_USER ${perm} $USER_TESTFS
+
 log_must zfs destroy -r $USER_TESTFS
 
 log_pass "Check user mapping in user namespaces"
