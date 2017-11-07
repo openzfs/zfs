@@ -321,6 +321,7 @@ tags = ['functional', 'cli_root', 'zpool_get']
 tests = ['zpool_history_001_neg', 'zpool_history_002_pos']
 tags = ['functional', 'cli_root', 'zpool_history']
 
+# zpool_import_missing_003_pos - https://github.com/zfsonlinux/zfs/issues/6839
 [tests/functional/cli_root/zpool_import]
 tests = ['zpool_import_001_pos', 'zpool_import_002_pos',
     'zpool_import_003_pos', 'zpool_import_004_pos', 'zpool_import_005_pos',
@@ -329,7 +330,7 @@ tests = ['zpool_import_001_pos', 'zpool_import_002_pos',
     'zpool_import_012_pos', 'zpool_import_013_neg', 'zpool_import_014_pos',
     'zpool_import_features_001_pos', 'zpool_import_features_002_neg',
     'zpool_import_features_003_pos','zpool_import_missing_001_pos',
-    'zpool_import_missing_002_pos', 'zpool_import_missing_003_pos',
+    'zpool_import_missing_002_pos',
     'zpool_import_rename_001_pos', 'zpool_import_all_001_pos',
     'zpool_import_encrypted', 'zpool_import_encrypted_load']
 tags = ['functional', 'cli_root', 'zpool_import']
