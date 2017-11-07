@@ -493,7 +493,10 @@ qat_compress(qat_compress_dir_t dir, char *src, int src_len,
 		    + ZLIB_FOOT_SZ > PAGE_SIZE)
 			goto fail;
 
-		flat_buf_dst->pData += (compressed_sz + hdr_sz) % PAGE_SIZE;
+		/* jump to the end of the buffer and append footer */
+		flat_buf_dst->pData =
+		    (char *)((unsigned long)flat_buf_dst->pData & PAGE_MASK)
+		    + ((compressed_sz + hdr_sz) % PAGE_SIZE);
 		flat_buf_dst->dataLenInBytes = ZLIB_FOOT_SZ;
 
 		dc_results.produced = 0;
@@ -504,9 +507,6 @@ qat_compress(qat_compress_dir_t dir, char *src, int src_len,
 		}
 
 		*c_len = compressed_sz + dc_results.produced + hdr_sz;
-
-		if (*c_len < PAGE_SIZE)
-			*c_len = 8 * PAGE_SIZE;
 
 		QAT_STAT_INCR(comp_total_out_bytes, *c_len);
 
