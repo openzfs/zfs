@@ -900,13 +900,17 @@ def _tunable_summary(Kstat):
             sys.stderr.write("Tunable descriptions will be disabled.\n")
 
     sys.stdout.write("ZFS Tunable:\n")
+    names.sort()
+
+    if alternate_tunable_layout:
+        format = "\t%s=%s\n"
+    else:
+        format = "\t%-50s%s\n"
+
     for name in names:
+
         if not name:
             continue
-
-        format = "\t%-50s%s\n"
-        if alternate_tunable_layout:
-            format = "\t%s=%s\n"
 
         if show_tunable_descriptions and name in descriptions:
             sys.stdout.write("\t# %s\n" % descriptions[name])
