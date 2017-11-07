@@ -8,11 +8,15 @@ PREREQ="zdev"
 
 # These prerequisites are provided by the zfsutils package. The zdb utility is
 # not strictly required, but it can be useful at the initramfs recovery prompt.
-COPY_EXEC_LIST="/sbin/zdb /sbin/zpool /sbin/zfs /sbin/mount.zfs"
-COPY_EXEC_LIST="$COPY_EXEC_LIST /usr/bin/dirname /lib/udev/vdev_id"
-COPY_FILE_LIST="/etc/hostid /etc/zfs/zpool.cache /etc/default/zfs"
-COPY_FILE_LIST="$COPY_FILE_LIST /etc/zfs/zfs-functions /etc/zfs/vdev_id.conf"
-COPY_FILE_LIST="$COPY_FILE_LIST /lib/udev/rules.d/69-vdev.rules"
+# The mount helper mount.zfs must be installed in /sbin because this path is
+# hardcoded in the mount(8) for security reasons.
+COPY_EXEC_LIST="@sbindir@/zdb @sbindir@/zpool @sbindir@/zfs /sbin/mount.zfs"
+COPY_EXEC_LIST="$COPY_EXEC_LIST @udevdir@/vdev_id"
+COPY_FILE_LIST="/etc/hostid @sysconfdir@/zfs/zpool.cache"
+COPY_FILE_LIST="$COPY_FILE_LIST @sysconfdir@/default/zfs"
+COPY_FILE_LIST="$COPY_FILE_LIST @sysconfdir@/zfs/zfs-functions"
+COPY_FILE_LIST="$COPY_FILE_LIST @sysconfdir@/zfs/vdev_id.conf"
+COPY_FILE_LIST="$COPY_FILE_LIST @udevruledir@/69-vdev.rules"
 
 # These prerequisites are provided by the base system.
 COPY_EXEC_LIST="$COPY_EXEC_LIST /usr/bin/dirname /bin/hostname /sbin/blkid"
@@ -83,7 +87,7 @@ else
 fi
 
 for ii in zfs zfs.conf spl spl.conf
-do  
+do
 	if [ -f "/etc/modprobe.d/$ii" ]; then
 		if [ ! -d "$DESTDIR/etc/modprobe.d" ]; then
 			mkdir -p $DESTDIR/etc/modprobe.d
