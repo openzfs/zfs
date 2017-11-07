@@ -3094,6 +3094,7 @@ zfs_ioc_set_fsacl(zfs_cmd_t *zc)
 {
 	int error;
 	nvlist_t *fsaclnv = NULL;
+	cred_t *cr;
 
 	if ((error = get_nvlist(zc->zc_nvlist_src, zc->zc_nvlist_src_size,
 	    zc->zc_iflags, &fsaclnv)) != 0)
@@ -3124,14 +3125,26 @@ zfs_ioc_set_fsacl(zfs_cmd_t *zc)
 	 * the nvlist(s)
 	 */
 
-	error = secpolicy_zfs(CRED());
+	cr = CRED();
+	error = secpolicy_zfs(cr);
 	if (error != 0) {
-		if (zc->zc_perm_action == B_FALSE) {
+		uint64_t action = zc->zc_perm_action;
+		/*
+		 * In user namespaces fsacl_map_user_ns already errored if the
+		 * user ids aren't mappable, and when we're privileged within
+		 * our user namespace use the same check for unallow as for
+		 * allow.
+		 */
+#if defined(CONFIG_USER_NS) && defined(HAVE_CRED_USER_NS)
+		if (ns_capable(cr->user_ns, CAP_SYS_ADMIN))
+			action = B_FALSE;
+#endif
+		if (action == B_FALSE) {
 			error = dsl_deleg_can_allow(zc->zc_name,
-			    fsaclnv, CRED());
+			    fsaclnv, cr);
 		} else {
 			error = dsl_deleg_can_unallow(zc->zc_name,
-			    fsaclnv, CRED());
+			    fsaclnv, cr);
 		}
 	}
 
