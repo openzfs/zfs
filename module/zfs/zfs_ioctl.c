@@ -2953,6 +2953,121 @@ zfs_ioc_pool_get_props(zfs_cmd_t *zc)
 	return (error);
 }
 
+#ifdef CONFIG_USER_NS
+static int
+zfs_map_who(char *whobuf, const char *who, struct user_namespace *ns,
+    boolean_t from_namespace)
+{
+	u_longlong_t id;
+	int error;
+
+	/* copy type, local/desendent flag and ZFS_DELEG_FIELD_SEP_CHR */
+	whobuf[0] = who[0];
+	whobuf[1] = who[1];
+	whobuf[2] = who[2];
+
+	/* map the uid and gid parts to/from the user namespace */
+	switch (whobuf[0]) {
+	case ZFS_DELEG_USER:
+	case ZFS_DELEG_USER_SETS:
+		if ((error = kstrtoull(&who[3], 10, &id)) != 0)
+			return (error);
+		if (from_namespace) {
+			kuid_t kuid = make_kuid(ns, (uid_t)id);
+			if (!uid_valid(kuid))
+				return (SET_ERROR(EINVAL));
+			(void) snprintf(&whobuf[3], ZFS_MAX_DELEG_NAME-3,
+			    "%lld", (longlong_t)__kuid_val(kuid));
+		} else {
+			(void) snprintf(&whobuf[3], ZFS_MAX_DELEG_NAME-3,
+			    "%lld", (longlong_t)from_kuid_munged(ns,
+			    KUIDT_INIT(id)));
+		}
+		break;
+	case ZFS_DELEG_GROUP:
+	case ZFS_DELEG_GROUP_SETS:
+		if ((error = kstrtoull(&who[3], 10, &id)) != 0)
+			return (error);
+		if (from_namespace) {
+			kgid_t kgid = make_kgid(ns, (gid_t)id);
+			if (!gid_valid(kgid))
+				return (SET_ERROR(EINVAL));
+			(void) snprintf(&whobuf[3], ZFS_MAX_DELEG_NAME-3,
+			    "%lld", (longlong_t)__kgid_val(kgid));
+		} else {
+			(void) snprintf(&whobuf[3], ZFS_MAX_DELEG_NAME-3,
+			    "%lld", (longlong_t)from_kgid_munged(ns,
+			    KGIDT_INIT(id)));
+		}
+		break;
+	default:
+		strlcpy(&whobuf[3], &who[3], ZFS_MAX_DELEG_NAME-3);
+		break;
+	}
+	return (0);
+}
+
+/*
+ * Assumes a correct nvlist (iow. chcked  with zfs_deleg_verify_nvlist(), or
+ * coming from the file system to be mapped into the querying user's namespace.
+ */
+static int
+fsacl_map_user_ns(nvlist_t **pnvp, struct user_namespace *ns,
+    boolean_t from_namespace)
+{
+	nvlist_t *nvp, *mapped_nvp;
+	nvpair_t *who;
+	int error;
+	char mapped_who[ZFS_MAX_DELEG_NAME];
+
+	ASSERT(pnvp);
+	nvp = *pnvp;
+	ASSERT(nvp);
+
+	who = nvlist_next_nvpair(nvp, NULL);
+	if (who == NULL)
+		return (SET_ERROR(ENOENT));
+
+	if ((error = nvlist_alloc(&mapped_nvp, NV_UNIQUE_NAME, KM_SLEEP)) != 0)
+		return (error);
+
+	do {
+		data_type_t type = nvpair_type(who);
+		char *whoname = nvpair_name(who);
+		error = zfs_map_who(mapped_who, whoname, ns, from_namespace);
+		if (error)
+			goto err;
+
+		/*
+		 * A set can be deleted as a whole by adding its name as a
+		 * boolean value.
+		 */
+		switch (type) {
+		case DATA_TYPE_BOOLEAN:
+			error = nvlist_add_boolean(mapped_nvp, mapped_who);
+			break;
+		case DATA_TYPE_NVLIST:
+			error = nvlist_add_nvlist(mapped_nvp, mapped_who,
+			    fnvpair_value_nvlist(who));
+			break;
+		default:
+			return (SET_ERROR(EINVAL));
+		}
+
+		if (error)
+			goto err;
+	} while ((who = nvlist_next_nvpair(nvp, who)) != NULL);
+
+	nvlist_free(nvp);
+	*pnvp = mapped_nvp;
+	return (0);
+
+err:
+	nvlist_free(mapped_nvp);
+	return (error);
+}
+#endif
+
 /*
  * inputs:
  * zc_name		name of filesystem
@@ -2979,6 +3094,17 @@ zfs_ioc_set_fsacl(zfs_cmd_t *zc)
 		return (SET_ERROR(EINVAL));
 	}
 
+#ifdef CONFIG_USER_NS
+	/*
+	 * Perform user/group mapping according to the current user namespace.
+	 */
+	error = fsacl_map_user_ns(&fsaclnv, current_user_ns(), B_TRUE);
+	if (error != 0) {
+		nvlist_free(fsaclnv);
+		return (error);
+	}
+#endif
+
 	/*
 	 * If we don't have PRIV_SYS_MOUNT, then validate
 	 * that user is allowed to hand out each permission in
@@ -3003,6 +3129,51 @@ zfs_ioc_set_fsacl(zfs_cmd_t *zc)
 	return (error);
 }
 
+#ifdef CONFIG_USER_NS
+static int
+deleg_map_user_ns(nvlist_t **pnvp)
+{
+	nvlist_t *nvp, *mapped_nvp;
+	nvpair_t *dditer;
+	int error;
+	struct user_namespace *ns = current_user_ns();
+
+	ASSERT(pnvp);
+	nvp = *pnvp;
+	ASSERT(nvp);
+
+	dditer = nvlist_next_nvpair(nvp, NULL);
+	if (dditer == NULL)
+		return (0);
+
+	if ((error = nvlist_alloc(&mapped_nvp, NV_UNIQUE_NAME, KM_SLEEP)) != 0)
+		return (error);
+
+	do {
+		nvlist_t *entry;
+		char *ddname = nvpair_name(dditer);
+		if ((error = nvpair_value_nvlist(dditer, &entry)) != 0)
+			goto err;
+
+		if ((error = fsacl_map_user_ns(&entry, ns, B_FALSE)) != 0)
+			goto err;
+
+		error = nvlist_add_nvlist(mapped_nvp, ddname, entry);
+		nvlist_free(entry);
+		if (error)
+			goto err;
+	} while ((dditer = nvlist_next_nvpair(nvp, dditer)) != NULL);
+
+	nvlist_free(nvp);
+	*pnvp = mapped_nvp;
+	return (0);
+
+err:
+	nvlist_free(mapped_nvp);
+	return (error);
+}
+#endif
+
 /*
  * inputs:
  * zc_name		name of filesystem
@@ -3016,10 +3187,13 @@ zfs_ioc_get_fsacl(zfs_cmd_t *zc)
 	nvlist_t *nvp;
 	int error;
 
-	if ((error = dsl_deleg_get(zc->zc_name, &nvp)) == 0) {
+	if ((error = dsl_deleg_get(zc->zc_name, &nvp)) != 0)
+		return (error);
+#ifdef CONFIG_USER_NS
+	if ((error = deleg_map_user_ns(&nvp)) == 0)
 		error = put_nvlist(zc, nvp);
-		nvlist_free(nvp);
-	}
+#endif
+	nvlist_free(nvp);
 
 	return (error);
 }
