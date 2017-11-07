@@ -39,7 +39,6 @@
 # Generic enable switch for systemd
 %if %{with systemd}
 %define _systemd 1
-%define systemd_svcs zfs-import-cache.service zfs-import-scan.service zfs-mount.service zfs-share.service zfs-zed.service zfs.target
 %endif
 
 # RHEL >= 7 comes with systemd
@@ -222,6 +221,7 @@ image which is ZFS aware.
 %endif
 %if 0%{?_systemd}
     %define systemd --enable-systemd --with-systemdunitdir=%{_unitdir} --with-systemdpresetdir=%{_presetdir} --disable-sysvinit
+    %define systemd_svcs zfs-import-cache.service zfs-import-scan.service zfs-mount.service zfs-share.service zfs-zed.service zfs.target
 %else
     %define systemd --enable-sysvinit --disable-systemd
 %endif
