@@ -11,9 +11,9 @@
 
 # Paths to what we need - in the initrd, these paths are hardcoded,
 # so override the defines in zfs-functions.
-ZFS="/sbin/zfs"
-ZPOOL="/sbin/zpool"
-ZPOOL_CACHE="/etc/zfs/zpool.cache"
+ZFS="@sbindir@/zfs"
+ZPOOL="@sbindir@/zpool"
+ZPOOL_CACHE="@sysconfdir@/zfs/zpool.cache"
 export ZFS ZPOOL ZPOOL_CACHE
 
 # This runs any scripts that should run before we start importing
@@ -616,7 +616,7 @@ setup_snapshot_booting()
 	# Separate the full snapshot ('$snap') into it's filesystem and
 	# snapshot names. Would have been nice with a split() function..
 	rootfs="${snap%%@*}"
-	snapname="${snap##*@}"	
+	snapname="${snap##*@}"
 	ZFS_BOOTFS="${rootfs}_${snapname}"
 
 	if ! grep -qiE '(^|[^\\](\\\\)* )(rollback)=(on|yes|1)( |$)' /proc/cmdline
