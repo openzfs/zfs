@@ -27,6 +27,7 @@ Requires:       gcc, make, perl
 Requires:       kernel-devel
 %endif
 Provides:       %{module}-kmod = %{version}
+AutoReqProv:    no
 
 %description
 This package contains the dkms ZFS kernel modules.
