@@ -1454,7 +1454,8 @@ spa_keystore_change_key_sync(void *arg, dmu_tx_t *tx)
 		    0, 0, NULL, tx);
 
 		rddobj = ds->ds_dir->dd_object;
-		new_rddobj = ds->ds_dir->dd_parent->dd_object;
+		VERIFY0(dsl_dir_get_encryption_root_ddobj(ds->ds_dir->dd_parent,
+		    &new_rddobj));
 	}
 
 	if (wkey == NULL) {
