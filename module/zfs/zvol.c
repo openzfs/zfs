@@ -1406,7 +1406,12 @@ zvol_open(struct block_device *bdev, fmode_t flag)
 			goto out_mutex;
 	}
 
-	if ((flag & FMODE_WRITE) && (zv->zv_flags & ZVOL_RDONLY)) {
+	/*
+	 * Check for a bad on-disk format version now since we
+	 * lied about owning the dataset readonly before.
+	 */
+	if ((flag & FMODE_WRITE) && ((zv->zv_flags & ZVOL_RDONLY) ||
+	    dmu_objset_incompatible_encryption_version(zv->zv_objset))) {
 		error = -EROFS;
 		goto out_open_count;
 	}

@@ -2029,6 +2029,23 @@ dmu_object_set_blocksize(objset_t *os, uint64_t object, uint64_t size, int ibs,
 	return (err);
 }
 
+int
+dmu_object_set_maxblkid(objset_t *os, uint64_t object, uint64_t maxblkid,
+    dmu_tx_t *tx)
+{
+	dnode_t *dn;
+	int err;
+
+	err = dnode_hold(os, object, FTAG, &dn);
+	if (err)
+		return (err);
+	rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
+	dnode_new_blkid(dn, maxblkid, tx, B_FALSE);
+	rw_exit(&dn->dn_struct_rwlock);
+	dnode_rele(dn, FTAG);
+	return (0);
+}
+
 void
 dmu_object_set_checksum(objset_t *os, uint64_t object, uint8_t checksum,
     dmu_tx_t *tx)
@@ -2214,8 +2231,10 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 			dedup = B_FALSE;
 		}
 
-		if (type == DMU_OT_DNODE || type == DMU_OT_OBJSET)
+		if (level <= 0 &&
+		    (type == DMU_OT_DNODE || type == DMU_OT_OBJSET)) {
 			compress = ZIO_COMPRESS_EMPTY;
+		}
 	}
 
 	zp->zp_compress = compress;
@@ -2488,6 +2507,7 @@ EXPORT_SYMBOL(dmu_object_size_from_db);
 EXPORT_SYMBOL(dmu_object_dnsize_from_db);
 EXPORT_SYMBOL(dmu_object_set_nlevels);
 EXPORT_SYMBOL(dmu_object_set_blocksize);
+EXPORT_SYMBOL(dmu_object_set_maxblkid);
 EXPORT_SYMBOL(dmu_object_set_checksum);
 EXPORT_SYMBOL(dmu_object_set_compress);
 EXPORT_SYMBOL(dmu_write_policy);

@@ -519,6 +519,7 @@ dnode_sync_free(dnode_t *dn, dmu_tx_t *tx)
 	dn->dn_next_nlevels[txgoff] = 0;
 	dn->dn_next_indblkshift[txgoff] = 0;
 	dn->dn_next_blksz[txgoff] = 0;
+	dn->dn_next_maxblkid[txgoff] = 0;
 
 	/* ASSERT(blkptrs are zero); */
 	ASSERT(dn->dn_phys->dn_type != DMU_OT_NONE);
@@ -716,6 +717,17 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 	if (dn->dn_next_nlevels[txgoff]) {
 		dnode_increase_indirection(dn, tx);
 		dn->dn_next_nlevels[txgoff] = 0;
+	}
+
+	/*
+	 * This must be done after dnode_sync_free_range()
+	 * and dnode_increase_indirection().
+	 */
+	if (dn->dn_next_maxblkid[txgoff]) {
+		mutex_enter(&dn->dn_mtx);
+		dnp->dn_maxblkid = dn->dn_next_maxblkid[txgoff];
+		dn->dn_next_maxblkid[txgoff] = 0;
+		mutex_exit(&dn->dn_mtx);
 	}
 
 	if (dn->dn_next_nblkptr[txgoff]) {
