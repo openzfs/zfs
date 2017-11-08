@@ -570,6 +570,7 @@ dump_dnode(dmu_sendarg_t *dsp, const blkptr_t *bp, uint64_t object,
 			drro->drr_flags |= DRR_RAW_BYTESWAP;
 
 		/* needed for reconstructing dnp on recv side */
+		drro->drr_maxblkid = dnp->dn_maxblkid;
 		drro->drr_indblkshift = dnp->dn_indblkshift;
 		drro->drr_nlevels = dnp->dn_nlevels;
 		drro->drr_nblkptr = dnp->dn_nblkptr;
@@ -2294,6 +2295,7 @@ byteswap_record(dmu_replay_record_t *drr)
 		DO32(drr_object.drr_bonuslen);
 		DO32(drr_object.drr_raw_bonuslen);
 		DO64(drr_object.drr_toguid);
+		DO64(drr_object.drr_maxblkid);
 		break;
 	case DRR_FREEOBJECTS:
 		DO64(drr_freeobjects.drr_firstobj);
@@ -2478,11 +2480,17 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 		if (rwa->raw && nblkptr != drro->drr_nblkptr)
 			return (SET_ERROR(EINVAL));
 
-		if (drro->drr_blksz != doi.doi_data_block_size ||
+		if (rwa->raw &&
+		    (drro->drr_blksz != doi.doi_data_block_size ||
 		    nblkptr < doi.doi_nblkptr ||
-		    (rwa->raw &&
-		    (indblksz != doi.doi_metadata_block_size ||
-		    drro->drr_nlevels < doi.doi_indirection))) {
+		    indblksz != doi.doi_metadata_block_size ||
+		    drro->drr_nlevels < doi.doi_indirection)) {
+			err = dmu_free_long_range_raw(rwa->os,
+			    drro->drr_object, 0, DMU_OBJECT_END);
+			if (err != 0)
+				return (SET_ERROR(EINVAL));
+		} else if (drro->drr_blksz != doi.doi_data_block_size ||
+		    nblkptr < doi.doi_nblkptr) {
 			err = dmu_free_long_range(rwa->os, drro->drr_object,
 			    0, DMU_OBJECT_END);
 			if (err != 0)
@@ -2538,6 +2546,8 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 		    drro->drr_blksz, drro->drr_indblkshift, tx));
 		VERIFY0(dmu_object_set_nlevels(rwa->os, drro->drr_object,
 		    drro->drr_nlevels, tx));
+		VERIFY0(dmu_object_set_maxblkid(rwa->os, drro->drr_object,
+		    drro->drr_maxblkid, tx));
 	}
 
 	if (data != NULL) {
@@ -2839,9 +2849,12 @@ receive_spill(struct receive_writer_arg *rwa, struct drr_spill *drrs,
 		dmu_tx_abort(tx);
 		return (err);
 	}
-	dmu_buf_will_dirty(db_spill, tx);
-	if (rwa->raw)
+	if (rwa->raw) {
 		VERIFY0(dmu_object_dirty_raw(rwa->os, drrs->drr_object, tx));
+		dmu_buf_will_change_crypt_params(db_spill, tx);
+	} else {
+		dmu_buf_will_dirty(db_spill, tx);
+	}
 
 	if (db_spill->db_size < drrs->drr_length)
 		VERIFY(0 == dbuf_spill_set_blksz(db_spill,
@@ -3772,7 +3785,12 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp,
 		int next_err = 0;
 
 		while (next_err == 0) {
-			free_err = dmu_free_long_object(rwa->os, obj);
+			if (drc->drc_raw) {
+				free_err = dmu_free_long_object_raw(rwa->os,
+				    obj);
+			} else {
+				free_err = dmu_free_long_object(rwa->os, obj);
+			}
 			if (free_err != 0 && free_err != ENOENT)
 				break;
 

@@ -26,10 +26,12 @@ dist_pkgdata_SCRIPTS = \
 	zpool_import_missing_003_pos.ksh \
 	zpool_import_rename_001_pos.ksh \
 	zpool_import_encrypted.ksh \
-	zpool_import_encrypted_load.ksh
+	zpool_import_encrypted_load.ksh \
+	zpool_import_errata3.ksh
 
 BLOCKFILES = \
-	unclean_export.dat.bz2
+	unclean_export.dat.bz2 \
+	cryptv0.dat.bz2
 
 dist_pkgdata_DATA = $(BLOCKFILES)
 EXTRA_DIST = $(BLOCKFILES)

@@ -1054,7 +1054,7 @@ zfs_crypto_load_key(zfs_handle_t *zhp, boolean_t noop, char *alt_keylocation)
 	}
 
 try_again:
-	/* fetching and deriving the key are correctible errors. set the flag */
+	/* fetching and deriving the key are correctable errors. set the flag */
 	correctible = B_TRUE;
 
 	/* get key material from key format and location */
@@ -1110,22 +1110,25 @@ try_again:
 
 error:
 	zfs_error(zhp->zfs_hdl, EZFS_CRYPTOFAILED, errbuf);
-	if (key_material != NULL)
+	if (key_material != NULL) {
 		free(key_material);
-	if (key_data != NULL)
+		key_material = NULL;
+	}
+	if (key_data != NULL) {
 		free(key_data);
+		key_data = NULL;
+	}
 
 	/*
 	 * Here we decide if it is ok to allow the user to retry entering their
 	 * key. The can_retry flag will be set if the user is entering their
-	 * key from an interactive prompt. The correctible flag will only be
-	 * set if an error that occured could be corrected by retrying. Both
+	 * key from an interactive prompt. The correctable flag will only be
+	 * set if an error that occurred could be corrected by retrying. Both
 	 * flags are needed to allow the user to attempt key entry again
 	 */
-	if (can_retry && correctible && attempts <= MAX_KEY_PROMPT_ATTEMPTS) {
-		attempts++;
+	attempts++;
+	if (can_retry && correctible && attempts < MAX_KEY_PROMPT_ATTEMPTS)
 		goto try_again;
-	}
 
 	return (ret);
 }

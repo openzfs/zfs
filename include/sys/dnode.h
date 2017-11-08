@@ -221,6 +221,13 @@ typedef struct dnode_phys {
 	uint64_t dn_maxblkid;		/* largest allocated block ID */
 	uint64_t dn_used;		/* bytes (or sectors) of disk space */
 
+	/*
+	 * Both dn_pad2 and dn_pad3 are protected by the block's MAC. This
+	 * allows us to protect any fields that might be added here in the
+	 * future. In either case, developers will want to check
+	 * zio_crypt_init_uios_dnode() to ensure the new field is being
+	 * protected properly.
+	 */
 	uint64_t dn_pad3[4];
 
 	/*
@@ -301,6 +308,7 @@ struct dnode {
 	uint8_t dn_rm_spillblk[TXG_SIZE];	/* for removing spill blk */
 	uint16_t dn_next_bonuslen[TXG_SIZE];
 	uint32_t dn_next_blksz[TXG_SIZE];	/* next block size in bytes */
+	uint64_t dn_next_maxblkid[TXG_SIZE];	/* next maxblkid in bytes */
 
 	/* protected by dn_dbufs_mtx; declared here to fill 32-bit hole */
 	uint32_t dn_dbufs_count;	/* count of dn_dbufs */

@@ -1100,6 +1100,15 @@ static int
 zfsvfs_setup(zfsvfs_t *zfsvfs, boolean_t mounting)
 {
 	int error;
+	boolean_t readonly = zfs_is_readonly(zfsvfs);
+
+	/*
+	 * Check for a bad on-disk format version now since we
+	 * lied about owning the dataset readonly before.
+	 */
+	if (!readonly &&
+	    dmu_objset_incompatible_encryption_version(zfsvfs->z_os))
+		return (SET_ERROR(EROFS));
 
 	error = zfs_register_callbacks(zfsvfs->z_vfs);
 	if (error)
@@ -1113,13 +1122,10 @@ zfsvfs_setup(zfsvfs_t *zfsvfs, boolean_t mounting)
 	 * operations out since we closed the ZIL.
 	 */
 	if (mounting) {
-		boolean_t readonly;
-
 		/*
 		 * During replay we remove the read only flag to
 		 * allow replays to succeed.
 		 */
-		readonly = zfs_is_readonly(zfsvfs);
 		if (readonly != 0)
 			readonly_changed_cb(zfsvfs, B_FALSE);
 		else

@@ -342,8 +342,8 @@ get_usage(zfs_help_t idx)
 		return (gettext("\tunload-key [-r] "
 		    "<-a | filesystem|volume>\n"));
 	case HELP_CHANGE_KEY:
-		return (gettext("\tchange-key [-l] [-o keyformat=<value>]"
-		    "\t    [-o keylocation=<value>] [-o pbkfd2iters=<value>]"
+		return (gettext("\tchange-key [-l] [-o keyformat=<value>]\n"
+		    "\t    [-o keylocation=<value>] [-o pbkfd2iters=<value>]\n"
 		    "\t    <filesystem|volume>\n"
 		    "\tchange-key -i [-l] <filesystem|volume>\n"));
 	}

@@ -443,6 +443,8 @@ main(int argc, char *argv[])
 				drro->drr_raw_bonuslen =
 				    BSWAP_32(drro->drr_raw_bonuslen);
 				drro->drr_toguid = BSWAP_64(drro->drr_toguid);
+				drro->drr_maxblkid =
+				    BSWAP_64(drro->drr_maxblkid);
 			}
 
 			payload_size = DRR_OBJECT_PAYLOAD_SIZE(drro);
@@ -451,7 +453,8 @@ main(int argc, char *argv[])
 				(void) printf("OBJECT object = %llu type = %u "
 				    "bonustype = %u blksz = %u bonuslen = %u "
 				    "dn_slots = %u raw_bonuslen = %u "
-				    "flags = %u indblkshift = %u nlevels = %u "
+				    "flags = %u maxblkid = %llu "
+				    "indblkshift = %u nlevels = %u "
 				    "nblkptr = %u\n",
 				    (u_longlong_t)drro->drr_object,
 				    drro->drr_type,
@@ -461,6 +464,7 @@ main(int argc, char *argv[])
 				    drro->drr_dn_slots,
 				    drro->drr_raw_bonuslen,
 				    drro->drr_flags,
+				    (u_longlong_t)drro->drr_maxblkid,
 				    drro->drr_indblkshift,
 				    drro->drr_nlevels,
 				    drro->drr_nblkptr);
