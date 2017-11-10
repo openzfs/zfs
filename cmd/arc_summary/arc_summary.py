@@ -31,6 +31,10 @@
 #
 # If you are having troubles when using this script from cron(8) please try
 # adjusting your PATH before reporting problems.
+#
+# Note some of this code uses older code (eg getopt instead of argparse,
+# subprocess.Popen() instead of subprocess.run()) because we need to support
+# some very old versions of Python.
 """Print statistics on the ZFS Adjustable Replacement Cache (ARC)
 
 Provides basic information on the ARC, its efficiency, the L2ARC (if present),
@@ -41,7 +45,6 @@ https://github.com/zfsonlinux/zfs/blob/master/module/zfs/arc.c for details.
 
 import getopt
 import os
-import re
 import sys
 import time
 
@@ -50,7 +53,6 @@ from decimal import Decimal as D
 
 show_tunable_descriptions = False
 alternate_tunable_layout = False
-kstat_pobj = re.compile("^([^:]+):\s+(.+)\s*$", flags=re.M)
 
 
 def get_Kstat():
@@ -911,9 +913,9 @@ def _tunable_summary(Kstat):
     names.sort()
 
     if alternate_tunable_layout:
-        format = "\t%s=%s\n"
+        fmt = "\t%s=%s\n"
     else:
-        format = "\t%-50s%s\n"
+        fmt = "\t%-50s%s\n"
 
     for name in names:
 
@@ -923,7 +925,7 @@ def _tunable_summary(Kstat):
         if show_tunable_descriptions and name in descriptions:
             sys.stdout.write("\t# %s\n" % descriptions[name])
 
-        sys.stdout.write(format % (name, values[name]))
+        sys.stdout.write(fmt % (name, values[name]))
 
 
 unSub = [
