@@ -1172,13 +1172,25 @@ ddt_sync_table(ddt_t *ddt, dmu_tx_t *tx, uint64_t txg)
 void
 ddt_sync(spa_t *spa, uint64_t txg)
 {
+	dsl_scan_t *scn = spa->spa_dsl_pool->dp_scan;
 	dmu_tx_t *tx;
-	zio_t *rio = zio_root(spa, NULL, NULL,
-	    ZIO_FLAG_CANFAIL | ZIO_FLAG_SPECULATIVE);
+	zio_t *rio;
 
 	ASSERT(spa_syncing_txg(spa) == txg);
 
 	tx = dmu_tx_create_assigned(spa->spa_dsl_pool, txg);
+
+	rio = zio_root(spa, NULL, NULL,
+	    ZIO_FLAG_CANFAIL | ZIO_FLAG_SPECULATIVE);
+
+	/*
+	 * This function may cause an immediate scan of ddt blocks (see
+	 * the comment above dsl_scan_ddt() for details). We set the
+	 * scan's root zio here so that we can wait for any scan IOs in
+	 * addition to the regular ddt IOs.
+	 */
+	ASSERT3P(scn->scn_zio_root, ==, NULL);
+	scn->scn_zio_root = rio;
 
 	for (enum zio_checksum c = 0; c < ZIO_CHECKSUM_FUNCTIONS; c++) {
 		ddt_t *ddt = spa->spa_ddt[c];
@@ -1189,6 +1201,7 @@ ddt_sync(spa_t *spa, uint64_t txg)
 	}
 
 	(void) zio_wait(rio);
+	scn->scn_zio_root = NULL;
 
 	dmu_tx_commit(tx);
 }
