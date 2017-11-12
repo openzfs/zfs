@@ -464,7 +464,7 @@ tags = ['functional', 'exec']
 
 [tests/functional/fault]
 tests = ['auto_online_001_pos', 'auto_replace_001_pos', 'auto_spare_001_pos',
-    'auto_spare_002_pos.ksh']
+    'auto_spare_002_pos', 'auto_spare_ashift', 'auto_spare_multiple']
 tags = ['functional', 'fault']
 
 [tests/functional/features/async_destroy]

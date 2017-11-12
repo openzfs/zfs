@@ -919,27 +919,27 @@ _zfs_diagnosis_init(fmd_hdl_t *hdl)
 {
 	libzfs_handle_t *zhdl;
 
-	if ((zhdl = __libzfs_init()) == NULL)
+	if ((zhdl = libzfs_init()) == NULL)
 		return;
 
 	if ((zfs_case_pool = uu_list_pool_create("zfs_case_pool",
 	    sizeof (zfs_case_t), offsetof(zfs_case_t, zc_node),
 	    NULL, UU_LIST_POOL_DEBUG)) == NULL) {
-		__libzfs_fini(zhdl);
+		libzfs_fini(zhdl);
 		return;
 	}
 
 	if ((zfs_cases = uu_list_create(zfs_case_pool, NULL,
 	    UU_LIST_DEBUG)) == NULL) {
 		uu_list_pool_destroy(zfs_case_pool);
-		__libzfs_fini(zhdl);
+		libzfs_fini(zhdl);
 		return;
 	}
 
 	if (fmd_hdl_register(hdl, FMD_API_VERSION, &fmd_info) != 0) {
 		uu_list_destroy(zfs_cases);
 		uu_list_pool_destroy(zfs_case_pool);
-		__libzfs_fini(zhdl);
+		libzfs_fini(zhdl);
 		return;
 	}
 
@@ -975,5 +975,5 @@ _zfs_diagnosis_fini(fmd_hdl_t *hdl)
 	uu_list_pool_destroy(zfs_case_pool);
 
 	zhdl = fmd_hdl_getspecific(hdl);
-	__libzfs_fini(zhdl);
+	libzfs_fini(zhdl);
 }

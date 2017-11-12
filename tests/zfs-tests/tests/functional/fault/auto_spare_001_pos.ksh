@@ -42,13 +42,16 @@ verify_runnable "both"
 function cleanup
 {
 	log_must zinject -c all
-	poolexists $TESTPOOL && destroy_pool $TESTPOOL
+	destroy_pool $TESTPOOL
 	rm -f $VDEV_FILES $SPARE_FILE
 }
 
 log_assert "Testing automated auto-spare FMA test"
 
 log_onexit cleanup
+
+# Clear events from previous runs
+zed_events_drain
 
 TESTFILE="/$TESTPOOL/$TESTFS/testfile"
 

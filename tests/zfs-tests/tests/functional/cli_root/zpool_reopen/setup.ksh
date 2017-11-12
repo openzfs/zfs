@@ -22,7 +22,7 @@ verify_runnable "global"
 
 # Create scsi_debug devices for the reopen tests
 if is_linux; then
-	load_scsi_debug $SDSIZE $SDHOSTS $SDTGTS $SDLUNS
+	load_scsi_debug $SDSIZE $SDHOSTS $SDTGTS $SDLUNS '512b'
 else
 	log_unsupported "scsi debug module unsupported"
 fi

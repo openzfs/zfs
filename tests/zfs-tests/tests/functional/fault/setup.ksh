@@ -31,8 +31,4 @@ verify_runnable "global"
 zed_setup
 zed_start
 
-# Create a scsi_debug device to be used with auto-online (if using loop devices)
-# and auto-replace regardless of other devices
-load_scsi_debug $SDSIZE $SDHOSTS $SDTGTS $SDLUNS
-
 log_pass

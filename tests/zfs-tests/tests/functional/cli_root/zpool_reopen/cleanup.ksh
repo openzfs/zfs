@@ -27,7 +27,7 @@ if is_linux; then
 	for SDDEVICE in $(get_debug_device); do
 		unplug $SDDEVICE
 	done
-	modprobe -r scsi_debug
+	unload_scsi_debug
 fi
 
 log_pass

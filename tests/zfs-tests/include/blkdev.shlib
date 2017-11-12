@@ -353,16 +353,35 @@ function insert_disk #disk scsi_host
 
 #
 # Load scsi_debug module with specified parameters
+# $blksz can be either one of: < 512b | 512e | 4Kn >
 #
-function load_scsi_debug # dev_size_mb add_host num_tgts max_luns
+function load_scsi_debug # dev_size_mb add_host num_tgts max_luns blksz
 {
 	typeset devsize=$1
 	typeset hosts=$2
 	typeset tgts=$3
 	typeset luns=$4
+	typeset blksz=$5
 
 	[[ -z $devsize ]] || [[ -z $hosts ]] || [[ -z $tgts ]] || \
-	    [[ -z $luns ]] && log_fail "Arguments invalid or missing"
+	    [[ -z $luns ]] || [[ -z $blksz ]] && \
+	    log_fail "Arguments invalid or missing"
+
+	case "$5" in
+		'512b')
+			typeset sector=512
+			typeset blkexp=0
+		;;
+		'512e')
+			typeset sector=512
+			typeset blkexp=3
+		;;
+		'4Kn')
+			typeset sector=4096
+			typeset blkexp=0
+		;;
+		*) log_fail "Unsupported blksz value: $5" ;;
+	esac
 
 	if is_linux; then
 		modprobe -n scsi_debug
@@ -375,13 +394,24 @@ function load_scsi_debug # dev_size_mb add_host num_tgts max_luns
 			log_fail "scsi_debug module already installed"
 		else
 			log_must modprobe scsi_debug dev_size_mb=$devsize \
-			    add_host=$hosts num_tgts=$tgts max_luns=$luns
+			    add_host=$hosts num_tgts=$tgts max_luns=$luns \
+			    sector_size=$sector physblk_exp=$blkexp
 			block_device_wait
 			lsscsi | egrep scsi_debug > /dev/null
 			if (($? == 1)); then
 				log_fail "scsi_debug module install failed"
 			fi
 		fi
+	fi
+}
+
+#
+# Unload scsi_debug module, if needed.
+#
+function unload_scsi_debug
+{
+	if lsmod | grep scsi_debug >/dev/null; then
+		log_must modprobe -r scsi_debug
 	fi
 }
 
