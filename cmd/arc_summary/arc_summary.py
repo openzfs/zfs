@@ -39,12 +39,12 @@ in-source documentation and code at
 https://github.com/zfsonlinux/zfs/blob/master/module/zfs/arc.c for details.
 """
 
+import getopt
+import os
+import re
 import sys
 import time
-import getopt
-import re
 
-from os import listdir
 from subprocess import Popen, PIPE
 from decimal import Decimal as D
 
@@ -858,12 +858,12 @@ def _vdev_summary(Kstat):
 
 
 def _tunable_summary(Kstat):
-    """Print information on tunables"""
+    """Print information on tunables, including descriptions if requested"""
 
     global show_tunable_descriptions
     global alternate_tunable_layout
 
-    names = listdir("/sys/module/zfs/parameters/")
+    names = os.listdir("/sys/module/zfs/parameters/")
 
     values = {}
     for name in names:
@@ -874,13 +874,21 @@ def _tunable_summary(Kstat):
     descriptions = {}
 
     if show_tunable_descriptions:
+
+        command = ["/sbin/modinfo", "zfs", "-0"]
+
         try:
-            command = ["/sbin/modinfo", "zfs", "-0"]
             p = Popen(command, stdin=PIPE, stdout=PIPE,
                       stderr=PIPE, shell=False, close_fds=True)
             p.wait()
 
-            description_list = p.communicate()[0].strip().split('\0')
+            # By default, Python 2 returns a string as the first element of the
+            # tuple from p.communicate(), while Python 3 returns bytes which
+            # must be decoded first. The better way to do this would be with
+            # subprocess.run() or at least .check_output(), but this fails on
+            # CentOS 6 because of its old version of Python 2
+            desc = bytes.decode(p.communicate()[0])
+            description_list = desc.strip().split('\0')
 
             if p.returncode == 0:
                 for tunable in description_list:
@@ -899,7 +907,7 @@ def _tunable_summary(Kstat):
                              (sys.argv[0], command[0], e.strerror))
             sys.stderr.write("Tunable descriptions will be disabled.\n")
 
-    sys.stdout.write("ZFS Tunable:\n")
+    sys.stdout.write("ZFS Tunables:\n")
     names.sort()
 
     if alternate_tunable_layout:
