@@ -6085,7 +6085,8 @@ arc_write(zio_t *pio, spa_t *spa, uint64_t txg,
 			arc_hdr_free_pabd(hdr);
 		}
 		VERIFY3P(buf->b_data, !=, NULL);
-		arc_hdr_set_compress(hdr, ZIO_COMPRESS_OFF);
+		if (!(zio_flags & ZIO_FLAG_RAW))
+			arc_hdr_set_compress(hdr, ZIO_COMPRESS_OFF);
 	}
 	ASSERT(!arc_buf_is_shared(buf));
 	ASSERT3P(hdr->b_l1hdr.b_pabd, ==, NULL);
