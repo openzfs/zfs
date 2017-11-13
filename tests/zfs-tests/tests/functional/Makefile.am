@@ -1,5 +1,6 @@
 SUBDIRS = \
 	acl \
+	arc \
 	atime \
 	bootfs \
 	cache \

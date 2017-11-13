@@ -27,6 +27,10 @@ tags = ['functional']
 tests = ['posix_003_pos']
 tags = ['functional', 'acl', 'posix']
 
+[tests/functional/arc]
+tests = ['dbufstats_001_pos', 'dbufstats_002_pos']
+tags = ['functional', 'arc']
+
 [tests/functional/atime]
 tests = ['atime_001_pos', 'atime_002_neg', 'atime_003_pos']
 tags = ['functional', 'atime']
