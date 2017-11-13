@@ -3155,7 +3155,7 @@ top:
 		    &atime, sizeof (atime));
 	}
 
-	if (mask & ATTR_MTIME) {
+	if (mask & (ATTR_MTIME | ATTR_SIZE)) {
 		ZFS_TIME_ENCODE(&vap->va_mtime, mtime);
 		ZTOI(zp)->i_mtime = timespec_trunc(vap->va_mtime,
 		    ZTOI(zp)->i_sb->s_time_gran);
@@ -3164,7 +3164,7 @@ top:
 		    mtime, sizeof (mtime));
 	}
 
-	if (mask & ATTR_CTIME) {
+	if (mask & (ATTR_CTIME | ATTR_SIZE)) {
 		ZFS_TIME_ENCODE(&vap->va_ctime, ctime);
 		ZTOI(zp)->i_ctime = timespec_trunc(vap->va_ctime,
 		    ZTOI(zp)->i_sb->s_time_gran);

@@ -537,7 +537,8 @@ tests = ['threadsappend_001_pos']
 tests = ['tmpfile_001_pos', 'tmpfile_002_pos', 'tmpfile_003_pos']
 
 [tests/functional/truncate]
-tests = ['truncate_001_pos', 'truncate_002_pos']
+tests = ['truncate_001_pos', 'truncate_002_pos', 'truncate_timestamps']
+tags = ['functional', 'truncate']
 
 [tests/functional/upgrade]
 tests = [ 'upgrade_userobj_001_pos' ]
