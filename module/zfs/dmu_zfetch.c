@@ -25,6 +25,7 @@
 
 /*
  * Copyright (c) 2013, 2015 by Delphix. All rights reserved.
+ * Copyright (C) 2017 Gvozden Nešković. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -34,6 +35,7 @@
 #include <sys/dmu.h>
 #include <sys/dbuf.h>
 #include <sys/kstat.h>
+#include <sys/range_tree.h>
 
 /*
  * This tunable disables predictive prefetch.  Note that it leaves "prescient"
@@ -44,37 +46,68 @@
 
 int zfs_prefetch_disable = B_FALSE;
 
-/* max # of streams per zfetch */
-unsigned int	zfetch_max_streams = 8;
 /* min time before stream reclaim */
-unsigned int	zfetch_min_sec_reap = 2;
+unsigned int	zfetch_min_sec_reap = 60;
 /* max bytes to prefetch per stream (default 8MB) */
 unsigned int	zfetch_max_distance = 8 * 1024 * 1024;
 /* max bytes to prefetch indirects for per stream (default 64MB) */
 unsigned int	zfetch_max_idistance = 64 * 1024 * 1024;
-/* max number of bytes in an array_read in which we allow prefetching (1MB) */
-unsigned long	zfetch_array_rd_sz = 1024 * 1024;
+
+/* Number of requests to look for stream access (default 4) */
+unsigned int	zfetch_stream_req = 4;
+/* Number of blocks to skip when stream prefetching (default 1) */
+unsigned int	zfetch_stream_skip_blk = 1;
+
+
+#define	ZFETCHSTAT_ORDER_SHIFT	9
+#define	ZFETCHSTAT_MAX_ORDER	(32 - ZFETCHSTAT_ORDER_SHIFT)
 
 typedef struct zfetch_stats {
 	kstat_named_t zfetchstat_hits;
 	kstat_named_t zfetchstat_misses;
-	kstat_named_t zfetchstat_max_streams;
+	kstat_named_t zfetchstat_hits_data;
+	kstat_named_t zfetchstat_hits_meta;
+	kstat_named_t zfetchstat_hits_fwd;
+	kstat_named_t zfetchstat_hits_bwd;
+	kstat_named_t zfetchstat_reaps;
+	kstat_named_t zfetchstat_lock;
+	kstat_named_t zfetchstat_sameblk;
+	kstat_named_t zfetchstat_stream_fwd;
+	kstat_named_t zfetchstat_stream_bwd;
+	kstat_named_t zfetchstat_prefetch_bytes[ZFETCHSTAT_MAX_ORDER];
+	kstat_named_t zfetchstat_prefetch_ahead[ZFETCHSTAT_MAX_ORDER];
 } zfetch_stats_t;
 
 static zfetch_stats_t zfetch_stats = {
 	{ "hits",			KSTAT_DATA_UINT64 },
 	{ "misses",			KSTAT_DATA_UINT64 },
-	{ "max_streams",		KSTAT_DATA_UINT64 },
+	{ "hits_data",			KSTAT_DATA_UINT64 },
+	{ "hits_meta",			KSTAT_DATA_UINT64 },
+	{ "hits_forward",		KSTAT_DATA_UINT64 },
+	{ "hits_backward",		KSTAT_DATA_UINT64 },
+	{ "reaps",			KSTAT_DATA_UINT64 },
+	{ "locked",			KSTAT_DATA_UINT64 },
+	{ "same_blk_access",		KSTAT_DATA_UINT64 },
+	{ "stream_forward",		KSTAT_DATA_UINT64 },
+	{ "stream_backward",		KSTAT_DATA_UINT64 },
+	{ { "prefetch_bytes_N",		KSTAT_DATA_UINT64 } },
+	{ { "prefetch_ahead_N",		KSTAT_DATA_UINT64 } },
 };
 
-#define	ZFETCHSTAT_BUMP(stat) \
-	atomic_inc_64(&zfetch_stats.stat.value.ui64);
+#define	ZFETCHSTAT_BUMP(stat)    atomic_inc_64(&zfetch_stats.stat.value.ui64)
+#define	ZFETCHSTAT_BUMP_ORDER(stat, size)				\
+do {									\
+	unsigned _oidx = highbit64(size) - ZFETCHSTAT_ORDER_SHIFT - 1;	\
+	if (_oidx < ZFETCHSTAT_MAX_ORDER)				\
+		atomic_inc_64(&zfetch_stats.stat[_oidx].value.ui64);	\
+} while (0)
 
 kstat_t		*zfetch_ksp;
 
 void
 zfetch_init(void)
 {
+	int i;
 	zfetch_ksp = kstat_create("zfs", 0, "zfetchstats", "misc",
 	    KSTAT_TYPE_NAMED, sizeof (zfetch_stats) / sizeof (kstat_named_t),
 	    KSTAT_FLAG_VIRTUAL);
@@ -82,6 +115,20 @@ zfetch_init(void)
 	if (zfetch_ksp != NULL) {
 		zfetch_ksp->ks_data = &zfetch_stats;
 		kstat_install(zfetch_ksp);
+
+		for (i = 0; i < ZFETCHSTAT_MAX_ORDER; i++) {
+			snprintf(zfetch_stats.zfetchstat_prefetch_bytes[i].name,
+			    KSTAT_STRLEN, "prefetch_bytes_%lu",
+			    1UL << (i + ZFETCHSTAT_ORDER_SHIFT));
+			zfetch_stats.zfetchstat_prefetch_bytes[i].data_type =
+			    KSTAT_DATA_UINT64;
+
+			snprintf(zfetch_stats.zfetchstat_prefetch_ahead[i].name,
+			    KSTAT_STRLEN, "prefetch_ahead_%lu",
+			    1UL << (i + ZFETCHSTAT_ORDER_SHIFT));
+			zfetch_stats.zfetchstat_prefetch_ahead[i].data_type =
+			    KSTAT_DATA_UINT64;
+		}
 	}
 }
 
@@ -105,21 +152,14 @@ dmu_zfetch_init(zfetch_t *zf, dnode_t *dno)
 	if (zf == NULL)
 		return;
 
+	ASSERT3P(dno, !=, NULL);
+
 	zf->zf_dnode = dno;
+	mutex_init(&zf->zf_lock, NULL, MUTEX_DEFAULT, NULL);
 
-	list_create(&zf->zf_stream, sizeof (zstream_t),
-	    offsetof(zstream_t, zs_node));
-
-	rw_init(&zf->zf_rwlock, NULL, RW_DEFAULT, NULL);
-}
-
-static void
-dmu_zfetch_stream_remove(zfetch_t *zf, zstream_t *zs)
-{
-	ASSERT(RW_WRITE_HELD(&zf->zf_rwlock));
-	list_remove(&zf->zf_stream, zs);
-	mutex_destroy(&zs->zs_lock);
-	kmem_free(zs, sizeof (*zs));
+	range_tree_initialize(&zf->zf_pf_tree, NULL, NULL, &zf->zf_lock);
+	range_tree_initialize(&zf->zf_demand_tree, NULL, NULL, &zf->zf_lock);
+	zf->zf_atime = gethrtime();
 }
 
 /*
@@ -129,71 +169,60 @@ dmu_zfetch_stream_remove(zfetch_t *zf, zstream_t *zs)
 void
 dmu_zfetch_fini(zfetch_t *zf)
 {
-	zstream_t *zs;
+	if (zf->zf_dnode == NULL)
+		return;
 
-	ASSERT(!RW_LOCK_HELD(&zf->zf_rwlock));
+	mutex_enter(&zf->zf_lock);
+	range_tree_vacate(&zf->zf_pf_tree, NULL, NULL);
+	range_tree_vacate(&zf->zf_demand_tree, NULL, NULL);
+	mutex_exit(&zf->zf_lock);
 
-	rw_enter(&zf->zf_rwlock, RW_WRITER);
-	while ((zs = list_head(&zf->zf_stream)) != NULL)
-		dmu_zfetch_stream_remove(zf, zs);
-	rw_exit(&zf->zf_rwlock);
-	list_destroy(&zf->zf_stream);
-	rw_destroy(&zf->zf_rwlock);
+	range_tree_deinitialize(&zf->zf_pf_tree);
+	range_tree_deinitialize(&zf->zf_demand_tree);
+	mutex_destroy(&zf->zf_lock);
 
 	zf->zf_dnode = NULL;
+	zf->zf_atime = 0;
 }
 
-/*
- * If there aren't too many streams already, create a new stream.
- * The "blkid" argument is the next block that we expect this stream to access.
- * While we're here, clean up old streams (which haven't been
- * accessed for at least zfetch_min_sec_reap seconds).
- */
+// [a, b] overlaps with [x, y] iff b > x and a < y
+#define	L_OVERLAP(s)		((end > (s)) && (start < zai->zai_req_start))
+#define	L_OVERLAP_SEG(e)	(MIN(end, zai->zai_req_start) - MAX(e, start))
+#define	R_OVERLAP(b)		((end > zai->zai_req_end) && (start < (b)))
+#define	R_OVERLAP_SEG(b)	(MIN(end, b) - MAX(zai->zai_req_end, start))
+
 static void
-dmu_zfetch_stream_create(zfetch_t *zf, uint64_t blkid)
+zfetch_demand_walk_cb(void *arg, uint64_t start, uint64_t size)
 {
-	zstream_t *zs_next;
-	int numstreams = 0;
+	zfetch_access_info_t *zai = (zfetch_access_info_t *)arg;
+	const uint64_t end = start + size;
 
-	ASSERT(RW_WRITE_HELD(&zf->zf_rwlock));
-
-	/*
-	 * Clean up old streams.
-	 */
-	for (zstream_t *zs = list_head(&zf->zf_stream);
-	    zs != NULL; zs = zs_next) {
-		zs_next = list_next(&zf->zf_stream, zs);
-		if (((gethrtime() - zs->zs_atime) / NANOSEC) >
-		    zfetch_min_sec_reap)
-			dmu_zfetch_stream_remove(zf, zs);
-		else
-			numstreams++;
+	if (L_OVERLAP(zai->zai_st_min_blk)) {
+		zai->zai_left_st_seg++;
+		zai->zai_left_st_space += L_OVERLAP_SEG(zai->zai_st_min_blk);
 	}
 
-	/*
-	 * The maximum number of streams is normally zfetch_max_streams,
-	 * but for small files we lower it such that it's at least possible
-	 * for all the streams to be non-overlapping.
-	 *
-	 * If we are already at the maximum number of streams for this file,
-	 * even after removing old streams, then don't create this stream.
-	 */
-	uint32_t max_streams = MAX(1, MIN(zfetch_max_streams,
-	    zf->zf_dnode->dn_maxblkid * zf->zf_dnode->dn_datablksz /
-	    zfetch_max_distance));
-	if (numstreams >= max_streams) {
-		ZFETCHSTAT_BUMP(zfetchstat_max_streams);
-		return;
+	if (R_OVERLAP(zai->zai_st_max_blk)) {
+		zai->zai_right_st_seg++;
+		zai->zai_right_st_space += R_OVERLAP_SEG(zai->zai_st_max_blk);
+	}
+}
+
+static void
+zfetch_prefetch_walk_cb(void *arg, uint64_t start, uint64_t size)
+{
+	zfetch_access_info_t *zai = (zfetch_access_info_t *)arg;
+	const uint64_t end = start + size;
+
+	if (L_OVERLAP(zai->zai_pf_min_blk)) {
+		zai->zai_left_pf_seg++;
+		zai->zai_left_pf_space += L_OVERLAP_SEG(zai->zai_pf_min_blk);
 	}
 
-	zstream_t *zs = kmem_zalloc(sizeof (*zs), KM_SLEEP);
-	zs->zs_blkid = blkid;
-	zs->zs_pf_blkid = blkid;
-	zs->zs_ipf_blkid = blkid;
-	zs->zs_atime = gethrtime();
-	mutex_init(&zs->zs_lock, NULL, MUTEX_DEFAULT, NULL);
-
-	list_insert_head(&zf->zf_stream, zs);
+	if (R_OVERLAP(zai->zai_pf_max_blk)) {
+		zai->zai_right_pf_seg++;
+		zai->zai_right_pf_space += R_OVERLAP_SEG(zai->zai_pf_max_blk);
+	}
 }
 
 /*
@@ -207,86 +236,195 @@ dmu_zfetch_stream_create(zfetch_t *zf, uint64_t blkid)
 void
 dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data)
 {
-	zstream_t *zs;
-	int64_t pf_start, ipf_start, ipf_istart, ipf_iend;
-	int64_t pf_ahead_blks, max_blks;
-	int epbs, max_dist_blks, pf_nblks, ipf_nblks;
-	uint64_t end_of_access_blkid;
-	end_of_access_blkid = blkid + nblks;
+	int i, stride;
+	size_t pf_fwd = 0, pf_fwd_skip = 0, pf_fwd_cnt = 0;
+	size_t pf_bwd = 0, pf_bwd_skip = 0, pf_bwd_cnt = 0;
+	uint64_t pf_blk_max, st_blk_max;
+
+	const uint64_t blkid_end = blkid + nblks;
+
+	const int dshift = zf->zf_dnode->dn_datablkshift;
+
+	if (blkid == 0 || blkid == DMU_BONUS_BLKID ||
+	    blkid == DMU_SPILL_BLKID || dshift == 0)
+		return;
 
 	if (zfs_prefetch_disable)
 		return;
 
-	/*
-	 * As a fast path for small (single-block) files, ignore access
-	 * to the first block.
-	 */
-	if (blkid == 0)
+	if (atomic_swap_64(&zf->zf_lastblkid, blkid) == blkid) {
+		ZFETCHSTAT_BUMP(zfetchstat_sameblk);
 		return;
+	}
 
-	rw_enter(&zf->zf_rwlock, RW_READER);
+	if (!mutex_tryenter(&zf->zf_lock)) {
+		ZFETCHSTAT_BUMP(zfetchstat_lock);
+		return;
+	}
 
-	for (zs = list_head(&zf->zf_stream); zs != NULL;
-	    zs = list_next(&zf->zf_stream, zs)) {
-		if (blkid == zs->zs_blkid) {
-			mutex_enter(&zs->zs_lock);
-			/*
-			 * zs_blkid could have changed before we
-			 * acquired zs_lock; re-check them here.
-			 */
-			if (blkid != zs->zs_blkid) {
-				mutex_exit(&zs->zs_lock);
-				continue;
-			}
+	if (NSEC2SEC(gethrtime() - zf->zf_atime) > zfetch_min_sec_reap) {
+		ZFETCHSTAT_BUMP(zfetchstat_reaps);
+		range_tree_vacate(&zf->zf_pf_tree, NULL, NULL);
+		range_tree_vacate(&zf->zf_demand_tree, NULL, NULL);
+		zf->zf_lastblkid = 0;
+	}
+
+	zf->zf_atime = gethrtime();
+
+	if (range_tree_overlaps(&zf->zf_demand_tree, blkid, nblks)) {
+		mutex_exit(&zf->zf_lock);
+		return;
+	}
+
+	/* ADD the request into prefetch tree */
+	range_tree_set(&zf->zf_demand_tree, blkid, nblks);
+	range_tree_set(&zf->zf_pf_tree, blkid, nblks);
+
+	if (fetch_data) {
+		zfetch_access_info_t *zai = &zf->zf_zai;
+		st_blk_max = MAX(1, zfetch_stream_req * nblks);
+		pf_blk_max = MAX(st_blk_max + 1, zfetch_max_distance >> dshift);
+
+		bzero(zai, sizeof (zfetch_access_info_t));
+
+		zai->zai_req_start = blkid;
+		zai->zai_req_end = blkid_end;
+		zai->zai_pf_min_blk = MAX(0, (int64_t)(blkid - pf_blk_max));
+		zai->zai_st_min_blk = MAX(0, (int64_t)(blkid - st_blk_max));
+		zai->zai_st_max_blk = blkid_end + st_blk_max;
+		zai->zai_pf_max_blk = blkid_end + pf_blk_max;
+
+		ASSERT3U(zai->zai_pf_min_blk, <=, zai->zai_st_min_blk);
+		ASSERT3U(zai->zai_st_min_blk, <=, blkid);
+		ASSERT3U(zai->zai_pf_max_blk, >, zai->zai_st_max_blk);
+		ASSERT3U(zai->zai_st_max_blk, >, blkid);
+
+		range_tree_range_walk(&zf->zf_demand_tree,
+		    zai->zai_st_min_blk, zai->zai_st_max_blk,
+		    zfetch_demand_walk_cb, zai);
+
+		range_tree_range_walk(&zf->zf_pf_tree,
+		    zai->zai_pf_min_blk, zai->zai_pf_max_blk,
+		    zfetch_prefetch_walk_cb, zai);
+
+		/* FORWARD stream */
+		if (zai->zai_left_st_space == st_blk_max &&
+		    zai->zai_left_st_space > zai->zai_right_st_space) {
+			ZFETCHSTAT_BUMP(zfetchstat_stream_fwd);
+			pf_fwd_skip = zfetch_stream_skip_blk;
+			pf_fwd = zai->zai_right_pf_space * 7 / 8 +
+			    pf_blk_max / 8;
+			pf_fwd = MAX(pf_fwd, pf_fwd_skip + 2);
+
+			mutex_exit(&zf->zf_lock);
+			goto do_prefetch;
+		}
+
+		/* BACKWARD stream */
+		if (zai->zai_right_st_space == st_blk_max &&
+		    zai->zai_right_st_space > zai->zai_left_st_space) {
+			ZFETCHSTAT_BUMP(zfetchstat_stream_bwd);
+			pf_bwd_skip = zfetch_stream_skip_blk;
+			pf_bwd = zai->zai_left_pf_space * 3 / 4 +
+			    pf_blk_max / 4;
+			pf_bwd = MAX(pf_bwd, pf_bwd_skip + 2);
+
+			mutex_exit(&zf->zf_lock);
+			goto do_prefetch;
+		}
+
+		mutex_exit(&zf->zf_lock);
+		goto miss;
+	} else {
+		pf_fwd = 0;
+		mutex_exit(&zf->zf_lock);
+		goto do_prefetch;
+	}
+
+miss:
+	ZFETCHSTAT_BUMP(zfetchstat_misses);
+	return;
+
+do_prefetch:
+	ZFETCHSTAT_BUMP(zfetchstat_hits);
+	if (fetch_data)
+		ZFETCHSTAT_BUMP(zfetchstat_hits_data);
+	else
+		ZFETCHSTAT_BUMP(zfetchstat_hits_meta);
+
+
+	stride = MAX(1, pf_fwd / 4);
+	for (i = pf_fwd_skip; i < pf_fwd; i += stride) {
+		boolean_t p = B_FALSE;
+		uint64_t pfblkid = blkid_end + i;
+
+		if (pfblkid > zf->zf_dnode->dn_maxblkid)
 			break;
+
+		if (!mutex_tryenter(&zf->zf_lock)) {
+			ZFETCHSTAT_BUMP(zfetchstat_lock);
+			continue;
+		}
+
+		p = range_tree_overlaps(&zf->zf_pf_tree, pfblkid, stride);
+		if (!p)
+			range_tree_add(&zf->zf_pf_tree, pfblkid, stride);
+		mutex_exit(&zf->zf_lock);
+
+		if (!p) {
+			int ps;
+			for (ps = 0; ps < stride; ps++, pfblkid++) {
+				if (pfblkid > zf->zf_dnode->dn_maxblkid)
+					break;
+
+				ZFETCHSTAT_BUMP(zfetchstat_hits_fwd);
+				pf_fwd_cnt++;
+				dbuf_prefetch(zf->zf_dnode, 0, pfblkid,
+				    ZIO_PRIORITY_ASYNC_READ,
+				    ARC_FLAG_PREDICTIVE_PREFETCH);
+			}
 		}
 	}
 
-	if (zs == NULL) {
-		/*
-		 * This access is not part of any existing stream.  Create
-		 * a new stream for it.
-		 */
-		ZFETCHSTAT_BUMP(zfetchstat_misses);
-		if (rw_tryupgrade(&zf->zf_rwlock))
-			dmu_zfetch_stream_create(zf, end_of_access_blkid);
-		rw_exit(&zf->zf_rwlock);
-		return;
+	stride = MAX(1, pf_bwd / 4);
+	for (i = pf_bwd_skip; i < pf_bwd; i += stride) {
+		boolean_t p = B_FALSE;
+		uint64_t pfblkid = blkid - i - stride;
+
+		if ((int64_t)(pfblkid) < 0)
+			break;
+
+		if (!mutex_tryenter(&zf->zf_lock)) {
+			ZFETCHSTAT_BUMP(zfetchstat_lock);
+			continue;
+		}
+
+		p = range_tree_overlaps(&zf->zf_pf_tree, pfblkid, stride);
+		if (!p)
+			range_tree_add(&zf->zf_pf_tree, pfblkid, stride);
+		mutex_exit(&zf->zf_lock);
+
+		if (!p) {
+			int ps;
+			for (ps = 0; ps < stride; ps++, pfblkid++) {
+				ZFETCHSTAT_BUMP(zfetchstat_hits_bwd);
+				pf_bwd_cnt++;
+				dbuf_prefetch(zf->zf_dnode, 0, pfblkid,
+				    ZIO_PRIORITY_ASYNC_READ,
+				    ARC_FLAG_PREDICTIVE_PREFETCH);
+			}
+		}
 	}
 
-	/*
-	 * This access was to a block that we issued a prefetch for on
-	 * behalf of this stream. Issue further prefetches for this stream.
-	 *
-	 * Normally, we start prefetching where we stopped
-	 * prefetching last (zs_pf_blkid).  But when we get our first
-	 * hit on this stream, zs_pf_blkid == zs_blkid, we don't
-	 * want to prefetch the block we just accessed.  In this case,
-	 * start just after the block we just accessed.
-	 */
-	pf_start = MAX(zs->zs_pf_blkid, end_of_access_blkid);
+	ZFETCHSTAT_BUMP_ORDER(zfetchstat_prefetch_bytes,
+	    (pf_fwd_cnt + pf_bwd_cnt) <<dshift);
 
-	/*
-	 * Double our amount of prefetched data, but don't let the
-	 * prefetch get further ahead than zfetch_max_distance.
-	 */
-	if (fetch_data) {
-		max_dist_blks =
-		    zfetch_max_distance >> zf->zf_dnode->dn_datablkshift;
-		/*
-		 * Previously, we were (zs_pf_blkid - blkid) ahead.  We
-		 * want to now be double that, so read that amount again,
-		 * plus the amount we are catching up by (i.e. the amount
-		 * read just now).
-		 */
-		pf_ahead_blks = zs->zs_pf_blkid - blkid + nblks;
-		max_blks = max_dist_blks - (pf_start - end_of_access_blkid);
-		pf_nblks = MIN(pf_ahead_blks, max_blks);
-	} else {
-		pf_nblks = 0;
-	}
 
-	zs->zs_pf_blkid = pf_start + pf_nblks;
+	ZFETCHSTAT_BUMP_ORDER(zfetchstat_prefetch_ahead,
+	    MAX(pf_fwd, pf_bwd) << dshift);
+
+	// TODO: metadata prefetching
+#if 0
 
 	/*
 	 * Do the same for indirects, starting from where we stopped last,
@@ -311,7 +449,7 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data)
 	ipf_istart = P2ROUNDUP(ipf_start, 1 << epbs) >> epbs;
 	ipf_iend = P2ROUNDUP(zs->zs_ipf_blkid, 1 << epbs) >> epbs;
 
-	zs->zs_atime = gethrtime();
+
 	zs->zs_blkid = end_of_access_blkid;
 	mutex_exit(&zs->zs_lock);
 	rw_exit(&zf->zf_rwlock);
@@ -331,15 +469,13 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data)
 		    ZIO_PRIORITY_ASYNC_READ, ARC_FLAG_PREDICTIVE_PREFETCH);
 	}
 	ZFETCHSTAT_BUMP(zfetchstat_hits);
+#endif
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
 /* BEGIN CSTYLED */
 module_param(zfs_prefetch_disable, int, 0644);
 MODULE_PARM_DESC(zfs_prefetch_disable, "Disable all ZFS prefetching");
-
-module_param(zfetch_max_streams, uint, 0644);
-MODULE_PARM_DESC(zfetch_max_streams, "Max number of streams per zfetch");
 
 module_param(zfetch_min_sec_reap, uint, 0644);
 MODULE_PARM_DESC(zfetch_min_sec_reap, "Min time before stream reclaim");
@@ -348,7 +484,13 @@ module_param(zfetch_max_distance, uint, 0644);
 MODULE_PARM_DESC(zfetch_max_distance,
 	"Max bytes to prefetch per stream (default 8MB)");
 
-module_param(zfetch_array_rd_sz, ulong, 0644);
-MODULE_PARM_DESC(zfetch_array_rd_sz, "Number of bytes in a array_read");
+module_param(zfetch_stream_req, uint, 0644);
+MODULE_PARM_DESC(zfetch_stream_req,
+	"Number of blocks to look for stream access (default 4)");
+
+module_param(zfetch_stream_skip_blk, uint, 0644);
+MODULE_PARM_DESC(zfetch_stream_skip_blk,
+	"Number of blocks to skip when stream prefetching (default 1)");
+
 /* END CSTYLED */
 #endif
