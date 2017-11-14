@@ -697,7 +697,7 @@ tags = ['functional', 'upgrade']
 
 # user_namespace_001 - https://github.com/zfsonlinux/zfs/issues/6800
 [tests/functional/user_namespace]
-tests = ['user_namespace_001']
+tests = ['user_namespace_001', 'user_namespace_002']
 tags = ['functional', 'user_namespace']
 
 [tests/functional/userquota]
