@@ -325,20 +325,20 @@ static kcondvar_t	arc_reclaim_waiters_cv;
 int zfs_arc_evict_batch_limit = 10;
 
 /* number of seconds before growing cache again */
-static int		arc_grow_retry = 5;
+static unsigned long	arc_grow_retry = 5;
 
 /* shift of arc_c for calculating overflow limit in arc_get_data_impl */
-int		zfs_arc_overflow_shift = 8;
+static unsigned long	zfs_arc_overflow_shift = 8;
 
 /* shift of arc_c for calculating both min and max arc_p */
-static int		arc_p_min_shift = 4;
+static unsigned long	arc_p_min_shift = 4;
 
 /* log2(fraction of arc to reclaim) */
-static int		arc_shrink_shift = 7;
+static unsigned long	arc_shrink_shift = 7;
 
 /* percent of pagecache to reclaim arc to */
 #ifdef _KERNEL
-static uint_t		zfs_arc_pc_percent = 0;
+static unsigned long	zfs_arc_pc_percent = 0;
 #endif
 
 /*
@@ -385,10 +385,10 @@ unsigned long zfs_arc_meta_limit = 0;
 unsigned long zfs_arc_meta_min = 0;
 unsigned long zfs_arc_dnode_limit = 0;
 unsigned long zfs_arc_dnode_reduce_percent = 10;
-int zfs_arc_grow_retry = 0;
-int zfs_arc_shrink_shift = 0;
-int zfs_arc_p_min_shift = 0;
-int zfs_arc_average_blocksize = 8 * 1024; /* 8KB */
+unsigned long zfs_arc_grow_retry = 0;
+unsigned long zfs_arc_shrink_shift = 0;
+unsigned long zfs_arc_p_min_shift = 0;
+unsigned long zfs_arc_average_blocksize = 8 * 1024; /* 8KB */
 
 int zfs_compressed_arc_enabled = B_TRUE;
 
@@ -407,13 +407,14 @@ unsigned long zfs_arc_dnode_limit_percent = 10;
  * These tunables are Linux specific
  */
 unsigned long zfs_arc_sys_free = 0;
+unsigned long zfs_arc_lotsfree_percent = 10;
 int zfs_arc_min_prefetch_lifespan = 0;
 int zfs_arc_p_aggressive_disable = 1;
 int zfs_arc_p_dampener_disable = 1;
 int zfs_arc_meta_prune = 10000;
 int zfs_arc_meta_strategy = ARC_STRATEGY_META_BALANCED;
 int zfs_arc_meta_adjust_restarts = 4096;
-int zfs_arc_lotsfree_percent = 10;
+char *zfs_arc_flush = "";
 
 /* The 6 states: */
 static arc_state_t ARC_anon;
@@ -1013,6 +1014,18 @@ typedef enum arc_fill_flags {
 	ARC_FILL_IN_PLACE	= 1 << 4  /* fill in place (special case) */
 } arc_fill_flags_t;
 
+typedef struct flush_state {
+	uint64_t	pool_guid;
+	boolean_t	arc_mru;
+	boolean_t	arc_mfu;
+	boolean_t	arc_mru_ghost;
+	boolean_t	arc_mfu_ghost;
+	boolean_t	l2arc;
+	boolean_t	data;
+	boolean_t	metadata;
+	boolean_t	retry;
+} flush_state_t;
+
 static kmutex_t l2arc_feed_thr_lock;
 static kcondvar_t l2arc_feed_thr_cv;
 static uint8_t l2arc_thread_exit;
@@ -1028,7 +1041,6 @@ static void arc_hdr_alloc_abd(arc_buf_hdr_t *, boolean_t);
 static void arc_access(arc_buf_hdr_t *, kmutex_t *);
 static boolean_t arc_is_overflowing(void);
 static void arc_buf_watch(arc_buf_t *);
-static void arc_tuning_update(void);
 static void arc_prune_async(int64_t);
 static uint64_t arc_all_memory(void);
 
@@ -1039,6 +1051,7 @@ static inline void arc_hdr_clear_flags(arc_buf_hdr_t *hdr, arc_flags_t flags);
 
 static boolean_t l2arc_write_eligible(uint64_t, arc_buf_hdr_t *);
 static void l2arc_read_done(zio_t *);
+static void l2arc_evict(l2arc_dev_t *dev, uint64_t distance, boolean_t all);
 
 static uint64_t
 buf_hash(uint64_t spa, const dva_t *dva, uint64_t birth)
@@ -4604,9 +4617,64 @@ arc_adjust(void)
 	return (total_evicted);
 }
 
+static void
+arc_flush_impl(flush_state_t *fs)
+{
+	uint64_t guid = fs->pool_guid;
+	boolean_t retry = fs->retry;
+
+	if (fs->arc_mru == B_TRUE && fs->data == B_TRUE)
+		(void) arc_flush_state(arc_mru, guid, ARC_BUFC_DATA, retry);
+
+	if (fs->arc_mru == B_TRUE && fs->metadata == B_TRUE)
+		(void) arc_flush_state(arc_mru, guid, ARC_BUFC_METADATA, retry);
+
+	if (fs->arc_mfu == B_TRUE && fs->data == B_TRUE)
+		(void) arc_flush_state(arc_mfu, guid, ARC_BUFC_DATA, retry);
+
+	if (fs->arc_mfu == B_TRUE && fs->metadata == B_TRUE)
+		(void) arc_flush_state(arc_mfu, guid, ARC_BUFC_METADATA, retry);
+
+	if (fs->arc_mru_ghost == B_TRUE && fs->data == B_TRUE)
+		(void) arc_flush_state(arc_mru_ghost, guid, ARC_BUFC_DATA,
+		    retry);
+	if (fs->arc_mru_ghost == B_TRUE && fs->metadata == B_TRUE)
+		(void) arc_flush_state(arc_mru_ghost, guid, ARC_BUFC_METADATA,
+		    retry);
+
+	if (fs->arc_mfu_ghost == B_TRUE && fs->data == B_TRUE)
+		(void) arc_flush_state(arc_mfu_ghost, guid, ARC_BUFC_DATA,
+		    retry);
+	if (fs->arc_mfu_ghost == B_TRUE && fs->metadata == B_TRUE)
+		(void) arc_flush_state(arc_mfu_ghost, guid, ARC_BUFC_METADATA,
+		    retry);
+
+	if (fs->l2arc) {
+		l2arc_dev_t *dev;
+
+		mutex_enter(&spa_namespace_lock);
+		mutex_enter(&l2arc_dev_mtx);
+
+		dev = list_head(l2arc_dev_list);
+		while (dev != NULL) {
+			spa_t *spa = dev->l2ad_spa;
+
+			spa_config_enter(spa, SCL_L2ARC, dev, RW_READER);
+			l2arc_evict(dev, 0, B_TRUE);
+			spa_config_exit(spa, SCL_L2ARC, dev);
+
+			dev = list_next(l2arc_dev_list, dev);
+		}
+
+		mutex_exit(&l2arc_dev_mtx);
+		mutex_exit(&spa_namespace_lock);
+	}
+}
+
 void
 arc_flush(spa_t *spa, boolean_t retry)
 {
+	flush_state_t fs;
 	uint64_t guid = 0;
 
 	/*
@@ -4619,17 +4687,15 @@ arc_flush(spa_t *spa, boolean_t retry)
 	if (spa != NULL)
 		guid = spa_load_guid(spa);
 
-	(void) arc_flush_state(arc_mru, guid, ARC_BUFC_DATA, retry);
-	(void) arc_flush_state(arc_mru, guid, ARC_BUFC_METADATA, retry);
+	memset(&fs, 0, sizeof (flush_state_t));
+	fs.pool_guid = guid;
+	fs.retry = retry;
+	fs.l2arc = B_FALSE;
+	fs.arc_mru = fs.arc_mfu = B_TRUE;
+	fs.arc_mru_ghost = fs.arc_mfu_ghost = B_TRUE;
+	fs.data = fs.metadata = B_TRUE;
 
-	(void) arc_flush_state(arc_mfu, guid, ARC_BUFC_DATA, retry);
-	(void) arc_flush_state(arc_mfu, guid, ARC_BUFC_METADATA, retry);
-
-	(void) arc_flush_state(arc_mru_ghost, guid, ARC_BUFC_DATA, retry);
-	(void) arc_flush_state(arc_mru_ghost, guid, ARC_BUFC_METADATA, retry);
-
-	(void) arc_flush_state(arc_mfu_ghost, guid, ARC_BUFC_DATA, retry);
-	(void) arc_flush_state(arc_mfu_ghost, guid, ARC_BUFC_METADATA, retry);
+	arc_flush_impl(&fs);
 }
 
 void
@@ -4947,7 +5013,6 @@ arc_reclaim_thread(void *unused)
 	while (!arc_reclaim_thread_exit) {
 		uint64_t evicted = 0;
 		uint64_t need_free = arc_need_free;
-		arc_tuning_update();
 
 		/*
 		 * This is necessary in order for the mdb ::arc dcmd to
@@ -7162,10 +7227,11 @@ arc_tuning_update(void)
 	unsigned long limit;
 
 	/* Valid range: 64M - <all physical memory> */
-	if ((zfs_arc_max) && (zfs_arc_max != arc_c_max) &&
-	    (zfs_arc_max > 64 << 20) && (zfs_arc_max < allmem) &&
-	    (zfs_arc_max > arc_c_min)) {
-		arc_c_max = zfs_arc_max;
+	/* By default, arc_c_max is half of memory */
+	limit = zfs_arc_max ? zfs_arc_max : MAX(64 << 20, allmem / 2);
+	if ((limit != arc_c_max) && (limit >= 64 << 20) &&
+	    (limit < allmem) && (limit > arc_c_min)) {
+		arc_c_max = limit;
 		arc_c = arc_c_max;
 		arc_p = (arc_c >> 1);
 		if (arc_meta_limit > arc_c_max)
@@ -7174,19 +7240,35 @@ arc_tuning_update(void)
 			arc_dnode_limit = arc_meta_limit;
 	}
 
+#ifdef	_KERNEL
+	/* Set min cache to 1/32 of all memory, or 32MB, whichever is more */
+	limit = zfs_arc_min ? zfs_arc_min :
+	    MAX(allmem / 32, 2ULL << SPA_MAXBLOCKSHIFT);
+#else
+	/*
+	 * In userland, there's only the memory pressure that we artificially
+	 * create (see arc_available_memory()).  Don't let arc_c get too
+	 * small, because it can cause transactions to be larger than
+	 * arc_c, causing arc_tempreserve_space() to fail.
+	 */
+	limit = zfs_arc_min ? zfs_arc_min :
+	    MAX(arc_c_max / 2, 2ULL << SPA_MAXBLOCKSHIFT);
+#endif
 	/* Valid range: 32M - <arc_c_max> */
-	if ((zfs_arc_min) && (zfs_arc_min != arc_c_min) &&
-	    (zfs_arc_min >= 2ULL << SPA_MAXBLOCKSHIFT) &&
-	    (zfs_arc_min <= arc_c_max)) {
-		arc_c_min = zfs_arc_min;
+	if ((limit != arc_c_min) &&
+	    (limit >= 2ULL << SPA_MAXBLOCKSHIFT) &&
+	    (limit <= arc_c_max)) {
+		arc_c_min = limit;
 		arc_c = MAX(arc_c, arc_c_min);
 	}
 
 	/* Valid range: 16M - <arc_c_max> */
-	if ((zfs_arc_meta_min) && (zfs_arc_meta_min != arc_meta_min) &&
-	    (zfs_arc_meta_min >= 1ULL << SPA_MAXBLOCKSHIFT) &&
-	    (zfs_arc_meta_min <= arc_c_max)) {
-		arc_meta_min = zfs_arc_meta_min;
+	limit = zfs_arc_meta_min ? zfs_arc_meta_min :
+	    1ULL << SPA_MAXBLOCKSHIFT;
+	if ((limit != arc_meta_min) &&
+	    (limit >= 1ULL << SPA_MAXBLOCKSHIFT) &&
+	    (limit <= arc_c_max)) {
+		arc_meta_min = limit;
 		if (arc_meta_limit < arc_meta_min)
 			arc_meta_limit = arc_meta_min;
 		if (arc_dnode_limit < arc_meta_min)
@@ -8946,6 +9028,8 @@ l2arc_stop(void)
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
+#include <linux/mod_compat.h>
+
 EXPORT_SYMBOL(arc_buf_size);
 EXPORT_SYMBOL(arc_write);
 EXPORT_SYMBOL(arc_read);
@@ -8954,104 +9038,280 @@ EXPORT_SYMBOL(arc_getbuf_func);
 EXPORT_SYMBOL(arc_add_prune_callback);
 EXPORT_SYMBOL(arc_remove_prune_callback);
 
+static int
+param_set_arc_tunable(const char *val, zfs_kernel_param_t *kp)
+{
+	int ret;
+
+	ret = param_set_ulong(val, kp);
+	if (ret < 0)
+		return (ret);
+
+	arc_tuning_update();
+
+	return (ret);
+}
+
+/*
+ * The passed string value is expected to include one of the allowed states
+ * listed below and an allowed type.
+ *
+ * Allowed States:
+ * - mru       - Only flush the MRU list
+ * - mfu       - Only flush the MFU list
+ * - mru_ghost - Only flush the MRU ghost list
+ * - mfu_ghost - Only flush the MFU ghost list
+ *
+ * Allowed Types:
+ * - data      - Only flush data
+ * - metadata  - Only flush metadata
+ *
+ * Aliases:
+ * - all-states = mru, mfu, mru_ghost, mfu_ghost
+ * - all-types  = data, metadata
+ * - all        = all-states, all-types
+ */
+enum {
+	TOKEN_STATE_MRU,
+	TOKEN_STATE_MFU,
+	TOKEN_STATE_MRU_GHOST,
+	TOKEN_STATE_MFU_GHOST,
+	TOKEN_STATE_L2ARC,
+	TOKEN_STATE_ALL,
+	TOKEN_TYPE_DATA,
+	TOKEN_TYPE_METADATA,
+	TOKEN_TYPE_ALL,
+	TOKEN_POOL_NAME,
+	TOKEN_ALL,
+	TOKEN_LAST,
+};
+
+static const match_table_t flush_tokens = {
+	{ TOKEN_STATE_MRU,		"mru" },
+	{ TOKEN_STATE_MFU,		"mfu" },
+	{ TOKEN_STATE_MRU_GHOST,	"mru_ghost" },
+	{ TOKEN_STATE_MFU_GHOST,	"mfu_ghost" },
+	{ TOKEN_STATE_L2ARC,		"l2arc" },
+	{ TOKEN_STATE_ALL,		"all-states" },
+	{ TOKEN_TYPE_DATA,		"data" },
+	{ TOKEN_TYPE_METADATA,		"metadata" },
+	{ TOKEN_TYPE_ALL,		"all-types" },
+	{ TOKEN_POOL_NAME,		"pool=%s" },
+	{ TOKEN_ALL,			"all" },
+	{ TOKEN_LAST,			NULL },
+};
+
+static int
+parse_arc_flush(char *option, int token, substring_t *args, flush_state_t *fs)
+{
+	spa_t *spa;
+	char *name = match_strdup(&args[0]);
+	int error = 0;
+
+	switch (token) {
+	case TOKEN_STATE_MRU:
+		fs->arc_mru = B_TRUE;
+		break;
+	case TOKEN_STATE_MFU:
+		fs->arc_mfu = B_TRUE;
+		break;
+	case TOKEN_STATE_MRU_GHOST:
+		fs->arc_mru_ghost = B_TRUE;
+		break;
+	case TOKEN_STATE_MFU_GHOST:
+		fs->arc_mfu_ghost = B_TRUE;
+		break;
+	case TOKEN_STATE_L2ARC:
+		fs->l2arc = B_TRUE;
+		break;
+	case TOKEN_STATE_ALL:
+		fs->arc_mru = fs->arc_mru_ghost = B_TRUE;
+		fs->arc_mfu = fs->arc_mfu_ghost = B_TRUE;
+		fs->l2arc = B_TRUE;
+		break;
+	case TOKEN_TYPE_DATA:
+		fs->data = B_TRUE;
+		break;
+	case TOKEN_TYPE_METADATA:
+		fs->metadata = B_TRUE;
+		break;
+	case TOKEN_TYPE_ALL:
+		fs->data = fs->metadata = B_TRUE;
+		break;
+	case TOKEN_POOL_NAME:
+		name = match_strdup(&args[0]);
+
+		mutex_enter(&spa_namespace_lock);
+		if ((spa = spa_lookup(name)) != NULL)
+			fs->pool_guid = spa_load_guid(spa);
+		else
+			error = SET_ERROR(-ENOENT);
+		mutex_exit(&spa_namespace_lock);
+
+		strfree(name);
+		break;
+	case TOKEN_ALL:
+		fs->arc_mru = fs->arc_mru_ghost = B_TRUE;
+		fs->arc_mfu = fs->arc_mfu_ghost = B_TRUE;
+		fs->l2arc = B_TRUE;
+		fs->data = fs->metadata = B_TRUE;
+	default:
+		break;
+	}
+
+	return (error);
+}
+
+static int
+param_set_arc_flush(const char *val, zfs_kernel_param_t *kp)
+{
+	substring_t args[MAX_OPT_ARGS];
+	flush_state_t fs;
+	char *tmp_val, *p, *t;
+	int error = 0, token;
+
+	if (val == NULL)
+		return (SET_ERROR(-EINVAL));
+
+	tmp_val = t = strdup(val);
+	if (tmp_val == NULL)
+		return (SET_ERROR(-ENOMEM));
+
+	if ((p = strchr(tmp_val, '\n')) != NULL)
+		*p = '\0';
+
+	memset(&fs, 0, sizeof (flush_state_t));
+
+	while ((p = strsep(&t, ",")) != NULL) {
+		if (!*p)
+			continue;
+
+		args[0].to = args[0].from = NULL;
+		token = match_token(p, flush_tokens, args);
+
+		error = parse_arc_flush(p, token, args, &fs);
+		if (error)
+			break;
+	}
+
+	strfree(tmp_val);
+
+	if (fs.data == B_FALSE && fs.metadata == B_FALSE)
+		error = SET_ERROR(-EINVAL);
+
+	if (fs.arc_mru == B_FALSE && fs.arc_mru_ghost == B_FALSE &&
+	    fs.arc_mfu == B_FALSE && fs.arc_mfu_ghost == B_FALSE)
+		error = SET_ERROR(-EINVAL);
+
+	dprintf("ARC flush: mru=%d mfu=%d mru_ghost=%d mfu_ghost=%d l2arc=%d "
+	    "data=%d metadata=%d guid=%llu\n", fs.arc_mru, fs.arc_mfu,
+	    fs.arc_mru_ghost, fs.arc_mfu_ghost, fs.l2arc, fs.data,
+	    fs.metadata, fs.pool_guid);
+
+	if (error == 0)
+		arc_flush_impl(&fs);
+
+	return (error);
+}
+
 /* BEGIN CSTYLED */
-module_param(zfs_arc_min, ulong, 0644);
-MODULE_PARM_DESC(zfs_arc_min, "Min arc size");
+#define MODULE_PARM_ARC_CALLBACK(x, str) \
+    module_param_call(x, param_set_arc_tunable, param_get_ulong, &x, 0644); \
+    MODULE_PARM_DESC(x, str)
 
-module_param(zfs_arc_max, ulong, 0644);
-MODULE_PARM_DESC(zfs_arc_max, "Max arc size");
+/*
+ * Changing the following tunings will result in param_set_arc_tunable() being
+ * called in order to apply the updated value as appropriate to the ARC.
+ */
+MODULE_PARM_ARC_CALLBACK(zfs_arc_min,
+    "Min ARC size");
+MODULE_PARM_ARC_CALLBACK(zfs_arc_max,
+    "Max ARC size");
+MODULE_PARM_ARC_CALLBACK(zfs_arc_meta_min,
+    "Min ARC meta data");
+MODULE_PARM_ARC_CALLBACK(zfs_arc_meta_limit,
+    "Bytes of ARC for meta data");
+MODULE_PARM_ARC_CALLBACK(zfs_arc_meta_limit_percent,
+    "Percent of ARC for meta data");
+MODULE_PARM_ARC_CALLBACK(zfs_arc_dnode_limit,
+    "Bytes of ARC meta data for dnodes");
+MODULE_PARM_ARC_CALLBACK(zfs_arc_dnode_limit_percent,
+    "Percent of ARC meta data for dnodes");
+MODULE_PARM_ARC_CALLBACK(zfs_arc_grow_retry,
+    "Seconds before growing ARC size");
+MODULE_PARM_ARC_CALLBACK(zfs_arc_shrink_shift,
+    "log2(fraction of ARC to reclaim)");
+MODULE_PARM_ARC_CALLBACK(zfs_arc_p_min_shift,
+    "arc_c shift to calc min/max arc_p");
+MODULE_PARM_ARC_CALLBACK(zfs_arc_min_prefetch_lifespan,
+    "Min life of prefetch block");
+MODULE_PARM_ARC_CALLBACK(zfs_arc_lotsfree_percent,
+    "System free memory I/O throttle in bytes");
+MODULE_PARM_ARC_CALLBACK(zfs_arc_sys_free,
+    "System free memory target size in bytes");
 
-module_param(zfs_arc_meta_limit, ulong, 0644);
-MODULE_PARM_DESC(zfs_arc_meta_limit, "Meta limit for arc size");
-
-module_param(zfs_arc_meta_limit_percent, ulong, 0644);
-MODULE_PARM_DESC(zfs_arc_meta_limit_percent,
-	"Percent of arc size for arc meta limit");
-
-module_param(zfs_arc_meta_min, ulong, 0644);
-MODULE_PARM_DESC(zfs_arc_meta_min, "Min arc metadata");
-
+/* ARC Tunings */
 module_param(zfs_arc_meta_prune, int, 0644);
-MODULE_PARM_DESC(zfs_arc_meta_prune, "Meta objects to scan for prune");
-
+MODULE_PARM_DESC(zfs_arc_meta_prune,
+    "Meta objects to scan for prune");
 module_param(zfs_arc_meta_adjust_restarts, int, 0644);
 MODULE_PARM_DESC(zfs_arc_meta_adjust_restarts,
-	"Limit number of restarts in arc_adjust_meta");
-
+    "Limit number of restarts in arc_adjust_meta");
 module_param(zfs_arc_meta_strategy, int, 0644);
-MODULE_PARM_DESC(zfs_arc_meta_strategy, "Meta reclaim strategy");
-
-module_param(zfs_arc_grow_retry, int, 0644);
-MODULE_PARM_DESC(zfs_arc_grow_retry, "Seconds before growing arc size");
-
+MODULE_PARM_DESC(zfs_arc_meta_strategy,
+    "Meta reclaim strategy");
 module_param(zfs_arc_p_aggressive_disable, int, 0644);
-MODULE_PARM_DESC(zfs_arc_p_aggressive_disable, "disable aggressive arc_p grow");
-
+MODULE_PARM_DESC(zfs_arc_p_aggressive_disable,
+    "Disable aggressive arc_p grow");
 module_param(zfs_arc_p_dampener_disable, int, 0644);
-MODULE_PARM_DESC(zfs_arc_p_dampener_disable, "disable arc_p adapt dampener");
-
-module_param(zfs_arc_shrink_shift, int, 0644);
-MODULE_PARM_DESC(zfs_arc_shrink_shift, "log2(fraction of arc to reclaim)");
-
-module_param(zfs_arc_pc_percent, uint, 0644);
-MODULE_PARM_DESC(zfs_arc_pc_percent,
-	"Percent of pagecache to reclaim arc to");
-
-module_param(zfs_arc_p_min_shift, int, 0644);
-MODULE_PARM_DESC(zfs_arc_p_min_shift, "arc_c shift to calc min/max arc_p");
-
-module_param(zfs_arc_average_blocksize, int, 0444);
-MODULE_PARM_DESC(zfs_arc_average_blocksize, "Target average block size");
-
+MODULE_PARM_DESC(zfs_arc_p_dampener_disable,
+    "Disable arc_p adapt dampener");
 module_param(zfs_compressed_arc_enabled, int, 0644);
-MODULE_PARM_DESC(zfs_compressed_arc_enabled, "Disable compressed arc buffers");
-
-module_param(zfs_arc_min_prefetch_lifespan, int, 0644);
-MODULE_PARM_DESC(zfs_arc_min_prefetch_lifespan, "Min life of prefetch block");
-
-module_param(l2arc_write_max, ulong, 0644);
-MODULE_PARM_DESC(l2arc_write_max, "Max write bytes per interval");
-
-module_param(l2arc_write_boost, ulong, 0644);
-MODULE_PARM_DESC(l2arc_write_boost, "Extra write bytes during device warmup");
-
-module_param(l2arc_headroom, ulong, 0644);
-MODULE_PARM_DESC(l2arc_headroom, "Number of max device writes to precache");
-
-module_param(l2arc_headroom_boost, ulong, 0644);
-MODULE_PARM_DESC(l2arc_headroom_boost, "Compressed l2arc_headroom multiplier");
-
-module_param(l2arc_feed_secs, ulong, 0644);
-MODULE_PARM_DESC(l2arc_feed_secs, "Seconds between L2ARC writing");
-
-module_param(l2arc_feed_min_ms, ulong, 0644);
-MODULE_PARM_DESC(l2arc_feed_min_ms, "Min feed interval in milliseconds");
-
-module_param(l2arc_noprefetch, int, 0644);
-MODULE_PARM_DESC(l2arc_noprefetch, "Skip caching prefetched buffers");
-
-module_param(l2arc_feed_again, int, 0644);
-MODULE_PARM_DESC(l2arc_feed_again, "Turbo L2ARC warmup");
-
-module_param(l2arc_norw, int, 0644);
-MODULE_PARM_DESC(l2arc_norw, "No reads during writes");
-
-module_param(zfs_arc_lotsfree_percent, int, 0644);
-MODULE_PARM_DESC(zfs_arc_lotsfree_percent,
-	"System free memory I/O throttle in bytes");
-
-module_param(zfs_arc_sys_free, ulong, 0644);
-MODULE_PARM_DESC(zfs_arc_sys_free, "System free memory target size in bytes");
-
-module_param(zfs_arc_dnode_limit, ulong, 0644);
-MODULE_PARM_DESC(zfs_arc_dnode_limit, "Minimum bytes of dnodes in arc");
-
-module_param(zfs_arc_dnode_limit_percent, ulong, 0644);
-MODULE_PARM_DESC(zfs_arc_dnode_limit_percent,
-	"Percent of ARC meta buffers for dnodes");
-
+MODULE_PARM_DESC(zfs_compressed_arc_enabled,
+    "Disable compressed ARC buffers");
+module_param(zfs_arc_pc_percent, ulong, 0644);
+MODULE_PARM_DESC(zfs_arc_pc_percent,
+    "Percent of pagecache to reclaim ARC to");
 module_param(zfs_arc_dnode_reduce_percent, ulong, 0644);
 MODULE_PARM_DESC(zfs_arc_dnode_reduce_percent,
-	"Percentage of excess dnodes to try to unpin");
+    "Percentage of excess dnodes to try to unpin");
+module_param(zfs_arc_average_blocksize, ulong, 0444);
+MODULE_PARM_DESC(zfs_arc_average_blocksize,
+    "Target average block size");
+
+module_param_call(zfs_arc_flush, param_set_arc_flush, param_get_charp,
+    &zfs_arc_flush, 0644);
+MODULE_PARM_DESC(zfs_arc_flush,
+    "A string describing what to flush from the ARC");
+
+/* L2ARC Tunings */
+module_param(l2arc_write_max, ulong, 0644);
+MODULE_PARM_DESC(l2arc_write_max,
+    "Max write bytes per interval");
+module_param(l2arc_write_boost, ulong, 0644);
+MODULE_PARM_DESC(l2arc_write_boost,
+    "Extra write bytes during device warmup");
+module_param(l2arc_headroom, ulong, 0644);
+MODULE_PARM_DESC(l2arc_headroom,
+    "Number of max device writes to precache");
+module_param(l2arc_headroom_boost, ulong, 0644);
+MODULE_PARM_DESC(l2arc_headroom_boost,
+     "Compressed L2ARC_headroom multiplier");
+module_param(l2arc_feed_secs, ulong, 0644);
+MODULE_PARM_DESC(l2arc_feed_secs,
+     "Seconds between L2ARC writing");
+module_param(l2arc_feed_min_ms, ulong, 0644);
+MODULE_PARM_DESC(l2arc_feed_min_ms,
+     "Min feed interval in milliseconds");
+module_param(l2arc_noprefetch, int, 0644);
+MODULE_PARM_DESC(l2arc_noprefetch,
+     "Skip caching prefetched buffers");
+module_param(l2arc_feed_again, int, 0644);
+MODULE_PARM_DESC(l2arc_feed_again,
+     "Turbo L2ARC warmup");
+module_param(l2arc_norw, int, 0644);
+MODULE_PARM_DESC(l2arc_norw,
+     "No reads during writes");
+
 /* END CSTYLED */
 #endif

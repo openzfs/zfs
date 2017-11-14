@@ -34,7 +34,7 @@ import errno
 
 bhdr = ["pool", "objset", "object", "level", "blkid", "offset", "dbsize"]
 bxhdr = ["pool", "objset", "object", "level", "blkid", "offset", "dbsize",
-         "meta", "state", "dbholds", "list", "atype", "flags",
+         "meta", "state", "dbholds", "dbc", "list", "atype", "flags",
          "count", "asize", "access", "mru", "gmru", "mfu", "gmfu", "l2",
          "l2_dattr", "l2_asize", "l2_comp", "aholds", "dtype", "btype",
          "data_bs", "meta_bs", "bsize", "lvls", "dholds", "blocks", "dsize"]
@@ -45,7 +45,7 @@ dxhdr = ["pool", "objset", "object", "dtype", "btype", "data_bs", "meta_bs",
          "bsize", "lvls", "dholds", "blocks", "dsize", "cached", "direct",
          "indirect", "bonus", "spill"]
 dincompat = ["level", "blkid", "offset", "dbsize", "meta", "state", "dbholds",
-             "list", "atype", "flags", "count", "asize", "access",
+             "dbc", "list", "atype", "flags", "count", "asize", "access",
              "mru", "gmru", "mfu", "gmfu", "l2", "l2_dattr", "l2_asize",
              "l2_comp", "aholds"]
 
@@ -53,7 +53,7 @@ thdr = ["pool", "objset", "dtype", "cached"]
 txhdr = ["pool", "objset", "dtype", "cached", "direct", "indirect",
          "bonus", "spill"]
 tincompat = ["object", "level", "blkid", "offset", "dbsize", "meta", "state",
-             "dbholds", "list", "atype", "flags", "count", "asize",
+             "dbc", "dbholds", "list", "atype", "flags", "count", "asize",
              "access", "mru", "gmru", "mfu", "gmfu", "l2", "l2_dattr",
              "l2_asize", "l2_comp", "aholds", "btype", "data_bs", "meta_bs",
              "bsize", "lvls", "dholds", "blocks", "dsize"]
@@ -70,9 +70,10 @@ cols = {
     "meta":       [4,    -1, "is this buffer metadata?"],
     "state":      [5,    -1, "state of buffer (read, cached, etc)"],
     "dbholds":    [7,  1000, "number of holds on buffer"],
+    "dbc":        [3,    -1, "in dbuf cache?"],
     "list":       [4,    -1, "which ARC list contains this buffer"],
     "atype":      [7,    -1, "ARC header type (data or metadata)"],
-    "flags":      [8,    -1, "ARC read flags"],
+    "flags":      [9,    -1, "ARC read flags"],
     "count":      [5,    -1, "ARC data count"],
     "asize":      [7,  1024, "size of this ARC buffer"],
     "access":     [10,   -1, "time this ARC buffer was last accessed"],
