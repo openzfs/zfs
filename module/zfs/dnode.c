@@ -732,7 +732,7 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 	ASSERT(!RW_LOCK_HELD(&odn->dn_struct_rwlock));
 	ASSERT(MUTEX_NOT_HELD(&odn->dn_mtx));
 	ASSERT(MUTEX_NOT_HELD(&odn->dn_dbufs_mtx));
-	ASSERT(!RW_LOCK_HELD(&odn->dn_zfetch.zf_rwlock));
+	// ASSERT(!RW_LOCK_HELD(&odn->dn_zfetch.zf_rwlock));
 
 	/* Copy fields. */
 	ndn->dn_objset = odn->dn_objset;
@@ -793,9 +793,7 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 	ndn->dn_newuid = odn->dn_newuid;
 	ndn->dn_newgid = odn->dn_newgid;
 	ndn->dn_id_flags = odn->dn_id_flags;
-	dmu_zfetch_init(&ndn->dn_zfetch, NULL);
-	list_move_tail(&ndn->dn_zfetch.zf_stream, &odn->dn_zfetch.zf_stream);
-	ndn->dn_zfetch.zf_dnode = odn->dn_zfetch.zf_dnode;
+	dmu_zfetch_init(&ndn->dn_zfetch, odn->dn_zfetch.zf_dnode);
 
 	/*
 	 * Update back pointers. Updating the handle fixes the back pointer of
@@ -816,7 +814,7 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 	    offsetof(dmu_buf_impl_t, db_link));
 	odn->dn_dbufs_count = 0;
 	odn->dn_bonus = NULL;
-	odn->dn_zfetch.zf_dnode = NULL;
+	dmu_zfetch_fini(&odn->dn_zfetch);
 
 	/*
 	 * Set the low bit of the objset pointer to ensure that dnode_move()
