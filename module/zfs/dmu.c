@@ -530,7 +530,7 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 	}
 
 	if ((flags & DMU_READ_NO_PREFETCH) == 0 &&
-	    DNODE_META_IS_CACHEABLE(dn) && length <= zfetch_array_rd_sz) {
+	    DNODE_META_IS_CACHEABLE(dn)) {
 		dmu_zfetch(&dn->dn_zfetch, blkid, nblks,
 		    read && DNODE_IS_CACHEABLE(dn));
 	}
@@ -1782,6 +1782,13 @@ dmu_sync_late_arrival(zio_t *pio, objset_t *os, dmu_sync_cb_t *done, zgd_t *zgd,
 		/* Make zl_get_data do txg_waited_synced() */
 		return (SET_ERROR(EIO));
 	}
+
+	/*
+	 * In order to prevent the zgd's lwb from being free'd prior to
+	 * dmu_sync_late_arrival_done() being called, we have to ensure
+	 * the lwb's "max txg" takes this tx's txg into account.
+	 */
+	zil_lwb_add_txg(zgd->zgd_lwb, dmu_tx_get_txg(tx));
 
 	dsa = kmem_alloc(sizeof (dmu_sync_arg_t), KM_SLEEP);
 	dsa->dsa_dr = NULL;
