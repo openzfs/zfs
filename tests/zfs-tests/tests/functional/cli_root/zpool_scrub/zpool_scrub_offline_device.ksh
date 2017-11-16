@@ -49,7 +49,7 @@ verify_runnable "global"
 function cleanup
 {
 	poolexists $TESTPOOL && destroy_pool $TESTPOOL
-	log_must rm -f $DISK1 $DISK2 $DISK3
+	log_must rm -f $DISK1 $DISK2 $DISK3 $DISK4
 }
 
 #
@@ -94,14 +94,16 @@ TESTDIR="$TEST_BASE_DIR/zpool_scrub_offline_device"
 DISK1="$TEST_BASE_DIR/zpool_disk1.dat"
 DISK2="$TEST_BASE_DIR/zpool_disk2.dat"
 DISK3="$TEST_BASE_DIR/zpool_disk3.dat"
+DISK4="$TEST_BASE_DIR/zpool_disk4.dat"
 
 # 1. Create the pool
 log_must truncate -s $DEVSIZE $DISK1
 log_must truncate -s $DEVSIZE $DISK2
 log_must truncate -s $DEVSIZE $DISK3
+log_must truncate -s $DEVSIZE $DISK4
 poolexists $TESTPOOL && destroy_pool $TESTPOOL
 log_must zpool create -O mountpoint=$TESTDIR $TESTPOOL \
-    raidz1 $DISK1 $DISK2 $DISK3
+    raidz2 $DISK1 $DISK2 $DISK3 $DISK4
 
 # 2. Offline the first device
 zpool_do_sync 'offline' $TESTPOOL $DISK1
