@@ -250,7 +250,7 @@ abd_alloc_pages(abd_t *abd, size_t size)
 	struct list_head pages;
 	struct sg_table table;
 	struct scatterlist *sg;
-	struct page *page, *tmp_page;
+	struct page *page, *tmp_page = NULL;
 	gfp_t gfp = __GFP_NOWARN | GFP_NOIO;
 	gfp_t gfp_comp = (gfp | __GFP_NORETRY | __GFP_COMP) & ~__GFP_RECLAIM;
 	int max_order = MIN(zfs_abd_scatter_max_order, MAX_ORDER - 1);
@@ -334,12 +334,12 @@ abd_alloc_pages(abd_t *abd, size_t size)
 static void
 abd_alloc_pages(abd_t *abd, size_t size)
 {
-	struct scatterlist *sg;
+	struct scatterlist *sg = NULL;
 	struct sg_table table;
 	struct page *page;
 	gfp_t gfp = __GFP_NOWARN | GFP_NOIO;
 	int nr_pages = abd_chunkcnt_for_bytes(size);
-	int i;
+	int i = 0;
 
 	while (sg_alloc_table(&table, nr_pages, gfp)) {
 		ABDSTAT_BUMP(abdstat_scatter_sg_table_retry);
@@ -370,11 +370,11 @@ abd_alloc_pages(abd_t *abd, size_t size)
 static void
 abd_free_pages(abd_t *abd)
 {
-	struct scatterlist *sg;
+	struct scatterlist *sg = NULL;
 	struct sg_table table;
 	struct page *page;
 	int nr_pages = ABD_SCATTER(abd).abd_nents;
-	int order, i;
+	int order, i = 0;
 
 	if (abd->abd_flags & ABD_FLAG_MULTI_ZONE)
 		ABDSTAT_BUMPDOWN(abdstat_scatter_page_multi_zone);
@@ -543,8 +543,8 @@ abd_verify(abd_t *abd)
 		ASSERT3P(abd->abd_u.abd_linear.abd_buf, !=, NULL);
 	} else {
 		size_t n;
-		int i;
-		struct scatterlist *sg;
+		int i = 0;
+		struct scatterlist *sg = NULL;
 
 		ASSERT3U(ABD_SCATTER(abd).abd_nents, >, 0);
 		ASSERT3U(ABD_SCATTER(abd).abd_offset, <,
@@ -747,8 +747,8 @@ abd_get_offset_impl(abd_t *sabd, size_t off, size_t size)
 		abd->abd_u.abd_linear.abd_buf =
 		    (char *)sabd->abd_u.abd_linear.abd_buf + off;
 	} else {
-		int i;
-		struct scatterlist *sg;
+		int i = 0;
+		struct scatterlist *sg = NULL;
 		size_t new_offset = sabd->abd_u.abd_scatter.abd_offset + off;
 
 		abd = abd_alloc_struct();
