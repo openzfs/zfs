@@ -1301,7 +1301,7 @@ zil_lwb_write_issue(zilog_t *zilog, lwb_t *lwb)
 	 */
 	error = dmu_tx_assign(tx, TXG_WAITED);
 	if (error != 0) {
-		ASSERT3S(error, ==, EIO);
+		ASSERT(error == EIO || error == ERESTART);
 		dmu_tx_abort(tx);
 		return (NULL);
 	}
