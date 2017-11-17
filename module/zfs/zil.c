@@ -1410,16 +1410,6 @@ zil_lwb_commit(zilog_t *zilog, itx_t *itx, lwb_t *lwb)
 	lrw = (lr_write_t *)lrc;
 
 	/*
-	 * TODO: What happens when the data for this itx is later (via
-	 * the logic further down in this function) gets split between
-	 * multiple lwb's? We want to add the itx and the waiter to that
-	 * "last" lwb for this itx, not the "first" like we're currently
-	 * doing, right? This seems bad.
-	 */
-
-	list_insert_tail(&lwb->lwb_itxs, itx);
-
-	/*
 	 * A commit itx doesn't represent any on-disk state; instead
 	 * it's simply used as a place holder on the commit list, and
 	 * provides a mechanism for attaching a "commit waiter" onto the
@@ -2075,6 +2065,11 @@ zil_process_commit_list(zilog_t *zilog)
 		if (!synced || frozen) {
 			if (lwb != NULL) {
 				lwb = zil_lwb_commit(zilog, itx, lwb);
+
+				if (lwb == NULL)
+					list_insert_tail(&nolwb_itxs, itx);
+				else
+					list_insert_tail(&lwb->lwb_itxs, itx);
 			} else {
 				ASSERT3P(lwb, ==, NULL);
 
