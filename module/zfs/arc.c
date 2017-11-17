@@ -3155,17 +3155,19 @@ arc_buf_destroy_impl(arc_buf_t *buf)
 		ASSERT(hdr->b_l1hdr.b_bufcnt > 0);
 		hdr->b_l1hdr.b_bufcnt -= 1;
 
-		if (ARC_BUF_ENCRYPTED(buf))
+		if (ARC_BUF_ENCRYPTED(buf)) {
 			hdr->b_crypt_hdr.b_ebufcnt -= 1;
 
-		/*
-		 * If we have no more encrypted buffers and we've already
-		 * gotten a copy of the decrypted data we can free b_rabd to
-		 * save some space.
-		 */
-		if (hdr->b_crypt_hdr.b_ebufcnt == 0 && HDR_HAS_RABD(hdr) &&
-		    hdr->b_l1hdr.b_pabd != NULL && !HDR_IO_IN_PROGRESS(hdr)) {
-			arc_hdr_free_abd(hdr, B_TRUE);
+			/*
+			 * If we have no more encrypted buffers and we've
+			 * already gotten a copy of the decrypted data we can
+			 * free b_rabd to save some space.
+			 */
+			if (hdr->b_crypt_hdr.b_ebufcnt == 0 &&
+			    HDR_HAS_RABD(hdr) && hdr->b_l1hdr.b_pabd != NULL &&
+			    !HDR_IO_IN_PROGRESS(hdr)) {
+				arc_hdr_free_abd(hdr, B_TRUE);
+			}
 		}
 	}
 
