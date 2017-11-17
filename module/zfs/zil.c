@@ -2079,9 +2079,6 @@ zil_process_commit_list(zilog_t *zilog)
 				list_insert_tail(&nolwb_itxs, itx);
 			}
 		} else {
-			ASSERT3B(synced, ==, B_TRUE);
-			ASSERT3B(frozen, ==, B_FALSE);
-
 			/*
 			 * If this is a commit itx, then there will be a
 			 * thread that is either: already waiting for
