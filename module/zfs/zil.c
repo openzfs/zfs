@@ -2071,8 +2071,6 @@ zil_process_commit_list(zilog_t *zilog)
 				else
 					list_insert_tail(&lwb->lwb_itxs, itx);
 			} else {
-				ASSERT3P(lwb, ==, NULL);
-
 				if (lrc->lrc_txtype == TX_COMMIT) {
 					zil_commit_waiter_link_nolwb(
 					    itx->itx_private, &nolwb_waiters);
