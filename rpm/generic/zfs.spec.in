@@ -34,6 +34,8 @@
 %endif
 
 %bcond_with    debug
+%bcond_with    debuginfo
+%bcond_with    asan
 %bcond_with    systemd
 
 # Generic enable switch for systemd
@@ -223,6 +225,19 @@ image which is ZFS aware.
 %else
     %define debug --disable-debug
 %endif
+
+%if %{with debuginfo}
+    %define debuginfo --enable-debuginfo
+%else
+    %define debuginfo --disable-debuginfo
+%endif
+
+%if %{with asan}
+    %define asan --enable-asan
+%else
+    %define asan --disable-asan
+%endif
+
 %if 0%{?_systemd}
     %define systemd --enable-systemd --with-systemdunitdir=%{_unitdir} --with-systemdpresetdir=%{_presetdir} --disable-sysvinit
     %define systemd_svcs zfs-import-cache.service zfs-import-scan.service zfs-mount.service zfs-share.service zfs-zed.service zfs.target zfs-import.target
@@ -240,6 +255,8 @@ image which is ZFS aware.
     --with-dracutdir=%{_dracutdir} \
     --disable-static \
     %{debug} \
+    %{debuginfo} \
+    %{asan} \
     %{systemd}
 make %{?_smp_mflags}
 
