@@ -202,7 +202,7 @@ static zvol_state_t *
 zvol_find_by_name_hash(const char *name, uint64_t hash, int mode)
 {
 	zvol_state_t *zv;
-	struct hlist_node *p;
+	struct hlist_node *p = NULL;
 
 	mutex_enter(&zvol_state_lock);
 	hlist_for_each(p, ZVOL_HT_HEAD(hash)) {
