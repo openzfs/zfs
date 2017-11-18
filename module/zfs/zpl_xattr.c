@@ -333,7 +333,7 @@ zpl_xattr_get_sa(struct inode *ip, const char *name, void *value, size_t size)
 	if (error)
 		return (error);
 
-	if (!size)
+	if (size == 0 || value == NULL)
 		return (nv_size);
 
 	if (size < nv_size)
