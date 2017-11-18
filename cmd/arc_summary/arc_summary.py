@@ -179,12 +179,13 @@ def get_arc_summary(Kstat):
     # ARC Misc.
     deleted = Kstat["kstat.zfs.misc.arcstats.deleted"]
     mutex_miss = Kstat["kstat.zfs.misc.arcstats.mutex_miss"]
+    evict_skip = Kstat["kstat.zfs.misc.arcstats.evict_skip"]
 
     # ARC Misc.
     output["arc_misc"] = {}
     output["arc_misc"]["deleted"] = fHits(deleted)
     output["arc_misc"]['mutex_miss'] = fHits(mutex_miss)
-    output["arc_misc"]['evict_skips'] = fHits(mutex_miss)
+    output["arc_misc"]['evict_skips'] = fHits(evict_skip)
 
     # ARC Sizing
     arc_size = Kstat["kstat.zfs.misc.arcstats.size"]
@@ -281,7 +282,7 @@ def _arc_summary(Kstat):
     sys.stdout.write("\tMutex Misses:\t\t\t\t%s\n" %
                      arc['arc_misc']['mutex_miss'])
     sys.stdout.write("\tEvict Skips:\t\t\t\t%s\n" %
-                     arc['arc_misc']['mutex_miss'])
+                     arc['arc_misc']['evict_skips'])
     sys.stdout.write("\n")
 
     # ARC Sizing
