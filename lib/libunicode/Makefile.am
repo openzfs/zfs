@@ -2,7 +2,7 @@ include $(top_srcdir)/config/Rules.am
 
 VPATH = $(top_srcdir)/module/unicode
 
-AM_CFLAGS += $(DEBUG_STACKFLAGS) $(FRAME_LARGER_THAN)
+AM_CFLAGS += $(DEBUG_STACKFLAGS) $(FRAME_LARGER_THAN) $(FSANITIZE_ADDRESS)
 
 DEFAULT_INCLUDES += \
 	-I$(top_srcdir)/include \

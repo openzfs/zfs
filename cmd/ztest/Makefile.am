@@ -3,6 +3,7 @@ include $(top_srcdir)/config/Rules.am
 # -Wnoformat-truncation to get rid of compiler warning for unchecked
 #  truncating snprintfs on gcc 7.1.1.
 AM_CFLAGS += $(DEBUG_STACKFLAGS) $(FRAME_LARGER_THAN) $(NO_FORMAT_TRUNCATION)
+AM_CFLAGS += $(FSANITIZE_ADDRESS)
 AM_CPPFLAGS += -DDEBUG -UNDEBUG
 
 DEFAULT_INCLUDES += \

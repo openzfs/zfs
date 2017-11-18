@@ -5,7 +5,7 @@ VPATH = \
 	$(top_srcdir)/module/zcommon \
 	$(top_srcdir)/lib/libzpool
 
-AM_CFLAGS += $(DEBUG_STACKFLAGS) $(FRAME_LARGER_THAN)
+AM_CFLAGS += $(DEBUG_STACKFLAGS) $(FRAME_LARGER_THAN) $(FSANITIZE_ADDRESS)
 
 DEFAULT_INCLUDES += \
 	-I$(top_srcdir)/include \

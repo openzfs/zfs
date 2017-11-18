@@ -4,7 +4,7 @@ VPATH = \
 	$(top_srcdir)/module/icp \
 	$(top_srcdir)/lib/libicp
 
-AM_CFLAGS += $(DEBUG_STACKFLAGS) $(FRAME_LARGER_THAN)
+AM_CFLAGS += $(DEBUG_STACKFLAGS) $(FRAME_LARGER_THAN) $(FSANITIZE_ADDRESS)
 
 DEFAULT_INCLUDES += \
 	-I$(top_srcdir)/include \

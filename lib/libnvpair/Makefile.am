@@ -5,6 +5,7 @@ VPATH = \
 	$(top_srcdir)/lib/libnvpair
 
 AM_CFLAGS += $(DEBUG_STACKFLAGS) $(FRAME_LARGER_THAN) $(LIBTIRPC_CFLAGS)
+AM_CFLAGS += $(FSANITIZE_ADDRESS)
 
 DEFAULT_INCLUDES += \
 	-I$(top_srcdir)/include \
