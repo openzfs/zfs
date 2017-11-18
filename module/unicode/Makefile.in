@@ -3,9 +3,9 @@ obj = @abs_builddir@
 
 MODULE := zunicode
 
-EXTRA_CFLAGS = $(ZFS_MODULE_CFLAGS) @KERNELCPPFLAGS@
-
 obj-$(CONFIG_ZFS) := $(MODULE).o
+
+ccflags-y := $(ZFS_MODULE_CFLAGS) $(ZFS_MODULE_CPPFLAGS)
 
 $(MODULE)-objs += u8_textprep.o
 $(MODULE)-objs += uconv.o

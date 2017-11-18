@@ -1,4 +1,5 @@
 %bcond_with     debug
+%bcond_with     debuginfo
 
 Name:           @PACKAGE@-kmod
 Version:        @VERSION@
@@ -58,6 +59,12 @@ fi
 %define debug --disable-debug
 %endif
 
+%if %{with debuginfo}
+%define debuginfo --enable-debuginfo
+%else
+%define debuginfo --disable-debuginfo
+%endif
+
 %setup -n %{kmod_name}-%{version}
 %build
 %configure \
@@ -66,7 +73,8 @@ fi
         --with-linux-obj=%{kobj} \
         --with-spl="%{splsrc}" \
         --with-spl-obj="%{splobj}" \
-        %{debug}
+        %{debug} \
+        %{debuginfo}
 make %{?_smp_mflags}
 
 %install

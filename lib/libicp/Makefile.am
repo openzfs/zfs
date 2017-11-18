@@ -4,7 +4,8 @@ VPATH = \
 	$(top_srcdir)/module/icp \
 	$(top_srcdir)/lib/libicp
 
-AM_CFLAGS += $(DEBUG_STACKFLAGS) $(FRAME_LARGER_THAN)
+# Includes kernel code, generate warnings for large stack frames
+AM_CFLAGS += $(FRAME_LARGER_THAN)
 
 DEFAULT_INCLUDES += \
 	-I$(top_srcdir)/include \
