@@ -2244,8 +2244,10 @@ static void
 get_source(zfs_handle_t *zhp, zprop_source_t *srctype, char *source,
     char *statbuf, size_t statlen)
 {
-	if (statbuf == NULL || *srctype == ZPROP_SRC_TEMPORARY)
+	if (statbuf == NULL ||
+	    srctype == NULL || *srctype == ZPROP_SRC_TEMPORARY) {
 		return;
+	}
 
 	if (source == NULL) {
 		*srctype = ZPROP_SRC_NONE;
