@@ -228,19 +228,33 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data)
 
 	rw_enter(&zf->zf_rwlock, RW_READER);
 
+	/*
+	 * Find matching prefetch stream.  Depending on whether the accesses
+	 * are block-aligned, first block of the new access may either follow
+	 * the last block of the previous access, or be equal to it.
+	 */
 	for (zs = list_head(&zf->zf_stream); zs != NULL;
 	    zs = list_next(&zf->zf_stream, zs)) {
-		if (blkid == zs->zs_blkid) {
+		if (blkid == zs->zs_blkid || blkid + 1 == zs->zs_blkid) {
 			mutex_enter(&zs->zs_lock);
 			/*
 			 * zs_blkid could have changed before we
 			 * acquired zs_lock; re-check them here.
 			 */
-			if (blkid != zs->zs_blkid) {
-				mutex_exit(&zs->zs_lock);
-				continue;
+			if (blkid == zs->zs_blkid) {
+				break;
+			} else if (blkid + 1 == zs->zs_blkid) {
+				blkid++;
+				nblks--;
+				if (nblks == 0) {
+					/* Already prefetched this before. */
+					mutex_exit(&zs->zs_lock);
+					rw_exit(&zf->zf_rwlock);
+					return;
+				}
+				break;
 			}
-			break;
+			mutex_exit(&zs->zs_lock);
 		}
 	}
 
