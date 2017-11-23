@@ -33,7 +33,7 @@
 # 8. Put another device offline and check if the test file checksum is correct.
 #
 # NOTES:
-#	A 250ms delay is added to make sure that the scrub is running while
+#	A 25ms delay is added to make sure that the scrub is running while
 #	the reopen kicks the resilver.
 #
 
@@ -70,7 +70,7 @@ log_must md5sum $TESTFILE > $TESTFILE_MD5
 
 # 4. Execute scrub.
 # add delay to I/O requests for remaining disk in pool
-log_must zinject -d $DISK2 -D250:1 $TESTPOOL
+log_must zinject -d $DISK2 -D25:1 $TESTPOOL
 log_must zpool scrub $TESTPOOL
 
 # 5. "Plug back" disk.
@@ -81,12 +81,12 @@ log_must check_state $TESTPOOL "$REMOVED_DISK_ID" "online"
 # 7. Check if scrub scan is replaced by resilver.
 # the scrub operation has to be running while reopen is executed
 log_must is_pool_scrubbing $TESTPOOL true
-# remove delay from disk
-log_must zinject -c all
 # the scrub will be replaced by resilver, wait until it ends
 log_must wait_for_resilver_end $TESTPOOL $MAXTIMEOUT
 # check if the scrub scan has been interrupted by resilver
 log_must is_scan_restarted $TESTPOOL
+# remove delay from disk
+log_must zinject -c all
 
 # 8. Put another device offline and check if the test file checksum is correct.
 log_must zpool offline $TESTPOOL $DISK2

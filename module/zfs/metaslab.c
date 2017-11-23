@@ -972,6 +972,85 @@ metaslab_rangesize_compare(const void *x1, const void *x2)
 }
 
 /*
+ * Create any block allocator specific components. The current allocators
+ * rely on using both a size-ordered range_tree_t and an array of uint64_t's.
+ */
+static void
+metaslab_rt_create(range_tree_t *rt, void *arg)
+{
+	metaslab_t *msp = arg;
+
+	ASSERT3P(rt->rt_arg, ==, msp);
+	ASSERT(msp->ms_tree == NULL);
+
+	avl_create(&msp->ms_size_tree, metaslab_rangesize_compare,
+	    sizeof (range_seg_t), offsetof(range_seg_t, rs_pp_node));
+}
+
+/*
+ * Destroy the block allocator specific components.
+ */
+static void
+metaslab_rt_destroy(range_tree_t *rt, void *arg)
+{
+	metaslab_t *msp = arg;
+
+	ASSERT3P(rt->rt_arg, ==, msp);
+	ASSERT3P(msp->ms_tree, ==, rt);
+	ASSERT0(avl_numnodes(&msp->ms_size_tree));
+
+	avl_destroy(&msp->ms_size_tree);
+}
+
+static void
+metaslab_rt_add(range_tree_t *rt, range_seg_t *rs, void *arg)
+{
+	metaslab_t *msp = arg;
+
+	ASSERT3P(rt->rt_arg, ==, msp);
+	ASSERT3P(msp->ms_tree, ==, rt);
+	VERIFY(!msp->ms_condensing);
+	avl_add(&msp->ms_size_tree, rs);
+}
+
+static void
+metaslab_rt_remove(range_tree_t *rt, range_seg_t *rs, void *arg)
+{
+	metaslab_t *msp = arg;
+
+	ASSERT3P(rt->rt_arg, ==, msp);
+	ASSERT3P(msp->ms_tree, ==, rt);
+	VERIFY(!msp->ms_condensing);
+	avl_remove(&msp->ms_size_tree, rs);
+}
+
+static void
+metaslab_rt_vacate(range_tree_t *rt, void *arg)
+{
+	metaslab_t *msp = arg;
+
+	ASSERT3P(rt->rt_arg, ==, msp);
+	ASSERT3P(msp->ms_tree, ==, rt);
+
+	/*
+	 * Normally one would walk the tree freeing nodes along the way.
+	 * Since the nodes are shared with the range trees we can avoid
+	 * walking all nodes and just reinitialize the avl tree. The nodes
+	 * will be freed by the range tree, so we don't want to free them here.
+	 */
+	avl_create(&msp->ms_size_tree, metaslab_rangesize_compare,
+	    sizeof (range_seg_t), offsetof(range_seg_t, rs_pp_node));
+}
+
+static range_tree_ops_t metaslab_rt_ops = {
+	metaslab_rt_create,
+	metaslab_rt_destroy,
+	metaslab_rt_add,
+	metaslab_rt_remove,
+	metaslab_rt_vacate
+};
+
+/*
  * ==========================================================================
  * Common allocator routines
  * ==========================================================================
@@ -1346,8 +1425,7 @@ metaslab_init(metaslab_group_t *mg, uint64_t id, uint64_t object, uint64_t txg,
 	 * addition of new space; and for debugging, it ensures that we'd
 	 * data fault on any attempt to use this metaslab before it's ready.
 	 */
-	ms->ms_tree = range_tree_create_impl(&rt_avl_ops, &ms->ms_size_tree,
-	    metaslab_rangesize_compare, &ms->ms_lock, 0);
+	ms->ms_tree = range_tree_create(&metaslab_rt_ops, ms, &ms->ms_lock);
 	metaslab_group_add(mg, ms);
 
 	metaslab_set_fragmentation(ms);

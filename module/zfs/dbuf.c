@@ -973,8 +973,7 @@ dbuf_whichblock(const dnode_t *dn, const int64_t level, const uint64_t offset)
 }
 
 static void
-dbuf_read_done(zio_t *zio, const zbookmark_phys_t *zb, const blkptr_t *bp,
-    arc_buf_t *buf, void *vdb)
+dbuf_read_done(zio_t *zio, int err, arc_buf_t *buf, void *vdb)
 {
 	dmu_buf_impl_t *db = vdb;
 
@@ -988,22 +987,19 @@ dbuf_read_done(zio_t *zio, const zbookmark_phys_t *zb, const blkptr_t *bp,
 	ASSERT(db->db.db_data == NULL);
 	if (db->db_level == 0 && db->db_freed_in_flight) {
 		/* we were freed in flight; disregard any error */
-		if (buf == NULL) {
-			buf = arc_alloc_buf(db->db_objset->os_spa,
-			    db, DBUF_GET_BUFC_TYPE(db), db->db.db_size);
-		}
 		arc_release(buf, db);
 		bzero(buf->b_data, db->db.db_size);
 		arc_buf_freeze(buf);
 		db->db_freed_in_flight = FALSE;
 		dbuf_set_data(db, buf);
 		db->db_state = DB_CACHED;
-	} else if (buf != NULL) {
+	} else if (err == 0) {
 		dbuf_set_data(db, buf);
 		db->db_state = DB_CACHED;
 	} else {
 		ASSERT(db->db_blkid != DMU_BONUS_BLKID);
 		ASSERT3P(db->db_buf, ==, NULL);
+		arc_buf_destroy(buf, db);
 		db->db_state = DB_UNCACHED;
 	}
 	cv_broadcast(&db->db_changed);
@@ -2516,8 +2512,7 @@ dbuf_issue_final_prefetch(dbuf_prefetch_arg_t *dpa, blkptr_t *bp)
  * prefetch if the next block down is our target.
  */
 static void
-dbuf_prefetch_indirect_done(zio_t *zio, const zbookmark_phys_t *zb,
-    const blkptr_t *iobp, arc_buf_t *abuf, void *private)
+dbuf_prefetch_indirect_done(zio_t *zio, int err, arc_buf_t *abuf, void *private)
 {
 	dbuf_prefetch_arg_t *dpa = private;
 
@@ -2556,18 +2551,13 @@ dbuf_prefetch_indirect_done(zio_t *zio, const zbookmark_phys_t *zb,
 		dbuf_rele(db, FTAG);
 	}
 
-	if (abuf == NULL) {
-		kmem_free(dpa, sizeof (*dpa));
-		return;
-	}
-
 	dpa->dpa_curlevel--;
+
 	uint64_t nextblkid = dpa->dpa_zb.zb_blkid >>
 	    (dpa->dpa_epbs * (dpa->dpa_curlevel - dpa->dpa_zb.zb_level));
 	blkptr_t *bp = ((blkptr_t *)abuf->b_data) +
 	    P2PHASE(nextblkid, 1ULL << dpa->dpa_epbs);
-
-	if (BP_IS_HOLE(bp)) {
+	if (BP_IS_HOLE(bp) || err != 0) {
 		kmem_free(dpa, sizeof (*dpa));
 	} else if (dpa->dpa_curlevel == dpa->dpa_zb.zb_level) {
 		ASSERT3U(nextblkid, ==, dpa->dpa_zb.zb_blkid);

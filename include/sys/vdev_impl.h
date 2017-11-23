@@ -198,13 +198,6 @@ struct vdev {
 	uint64_t	vdev_max_async_write_queue_depth;
 
 	/*
-	 * Protects the vdev_scan_io_queue field itself as well as the
-	 * structure's contents (when present).
-	 */
-	kmutex_t			vdev_scan_io_queue_lock;
-	struct dsl_scan_io_queue	*vdev_scan_io_queue;
-
-	/*
 	 * Leaf vdev state.
 	 */
 	range_tree_t	*vdev_dtl[DTL_TYPES]; /* dirty time logs	*/

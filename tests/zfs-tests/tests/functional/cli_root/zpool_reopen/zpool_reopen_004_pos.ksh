@@ -34,7 +34,7 @@
 #    replicas.
 #
 # NOTES:
-#	A 125ms delay is added to make sure that the scrub is running while
+#	A 25ms delay is added to make sure that the scrub is running while
 #	the reopen is invoked.
 #
 
@@ -64,18 +64,19 @@ log_must check_state $TESTPOOL "$REMOVED_DISK_ID" "unavail"
 log_must generate_random_file /$TESTPOOL/data $LARGE_FILE_SIZE
 # 4. Execute scrub.
 # add delay to I/O requests for remaining disk in pool
-log_must zinject -d $DISK2 -D125:1 $TESTPOOL
+log_must zinject -d $DISK2 -D25:1 $TESTPOOL
 log_must zpool scrub $TESTPOOL
 # 5. "Plug back" disk.
 insert_disk $REMOVED_DISK $scsi_host
 # 6. Reopen a pool with an -n flag.
 log_must zpool reopen -n $TESTPOOL
 log_must check_state $TESTPOOL "$REMOVED_DISK_ID" "online"
-# remove delay from disk
-log_must zinject -c all
 # 7. Check if scrub scan is NOT replaced by resilver.
 log_must wait_for_scrub_end $TESTPOOL $MAXTIMEOUT
 log_mustnot is_scan_restarted $TESTPOOL
+
+# remove delay from disk
+log_must zinject -c all
 
 # 8. Check if trying to put device to offline fails because of no valid
 #    replicas.

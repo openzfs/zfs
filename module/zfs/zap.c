@@ -1070,7 +1070,7 @@ zap_join_key(objset_t *os, uint64_t fromobj, uint64_t intoobj,
 		}
 		err = zap_add(os, intoobj, za.za_name,
 		    8, 1, &value, tx);
-		if (err != 0)
+		if (err)
 			break;
 	}
 	zap_cursor_fini(&zc);

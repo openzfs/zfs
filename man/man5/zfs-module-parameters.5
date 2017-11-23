@@ -1,6 +1,5 @@
 '\" te
 .\" Copyright (c) 2013 by Turbo Fredriksson <turbo@bayour.com>. All rights reserved.
-.\" Copyright (c) 2017 Datto Inc.
 .\" The contents of this file are subject to the terms of the Common Development
 .\" and Distribution License (the "License").  You may not use this file except
 .\" in compliance with the License. You can obtain a copy of the license at
@@ -13,7 +12,7 @@
 .\" CDDL HEADER, with the fields enclosed by brackets "[]" replaced with your
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
-.TH ZFS-MODULE-PARAMETERS 5 "Oct 28, 2017"
+.TH ZFS-MODULE-PARAMETERS 5 "Oct 28, 2017" 
 .SH NAME
 zfs\-module\-parameters \- ZFS module parameters
 .SH DESCRIPTION
@@ -488,7 +487,7 @@ Default value: \fB10\fR.
 .ad
 .RS 12n
 If set to a non zero value, it will replace the arc_grow_retry value with this value.
-The arc_grow_retry value (default 5) is the number of seconds the ARC will wait before
+The arc_grow_retry value (default 5) is the number of seconds the ARC will wait before 
 trying to resume growth after a memory pressure event.
 .sp
 Default value: \fB0\fR.
@@ -606,7 +605,7 @@ Default value: \fB10,000\fR.
 .RS 12n
 Define the strategy for ARC meta data buffer eviction (meta reclaim strategy).
 A value of 0 (META_ONLY) will evict only the ARC meta data buffers.
-A value of 1 (BALANCED) indicates that additional data buffers may be evicted if
+A value of 1 (BALANCED) indicates that additional data buffers may be evicted if 
 that is required to in order to evict the required number of meta data buffers.
 .sp
 Default value: \fB1\fR.
@@ -627,24 +626,11 @@ Default value: \fB0\fR.
 .sp
 .ne 2
 .na
-\fBzfs_arc_min_prefetch_ms\fR (int)
+\fBzfs_arc_min_prefetch_lifespan\fR (int)
 .ad
 .RS 12n
-Minimum time prefetched blocks are locked in the ARC, specified in ms.
-A value of \fB0\fR will default to 1 second.
-.sp
-Default value: \fB0\fR.
-.RE
-
-.sp
-.ne 2
-.na
-\fBzfs_arc_min_prescient_prefetch_ms\fR (int)
-.ad
-.RS 12n
-Minimum time "prescient prefetched" blocks are locked in the ARC, specified
-in ms. These blocks are meant to be prefetched fairly aggresively ahead of
-the code that may use them. A value of \fB0\fR will default to 6 seconds.
+Minimum time prefetched blocks are locked in the ARC, specified in jiffies.
+A value of 0 will default to 1 second.
 .sp
 Default value: \fB0\fR.
 .RE
@@ -693,7 +679,7 @@ Default value: \fB8\fR.
 .RS 12n
 If set to a non zero value, this will update arc_p_min_shift (default 4)
 with the new value.
-arc_p_min_shift is used to shift of arc_c for calculating both min and max
+arc_p_min_shift is used to shift of arc_c for calculating both min and max 
 max arc_p
 .sp
 Default value: \fB0\fR.
@@ -1674,6 +1660,19 @@ Use \fB1\fR for yes and \fB0\fR for no (default).
 .sp
 .ne 2
 .na
+\fBzfs_resilver_delay\fR (int)
+.ad
+.RS 12n
+Number of ticks to delay prior to issuing a resilver I/O operation when
+a non-resilver or non-scrub I/O operation has occurred within the past
+\fBzfs_scan_idle\fR ticks.
+.sp
+Default value: \fB2\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_resilver_min_time_ms\fR (int)
 .ad
 .RS 12n
@@ -1686,7 +1685,21 @@ Default value: \fB3,000\fR.
 .sp
 .ne 2
 .na
-\fBzfs_scrub_min_time_ms\fR (int)
+\fBzfs_scan_idle\fR (int)
+.ad
+.RS 12n
+Idle window in clock ticks.  During a scrub or a resilver, if
+a non-scrub or non-resilver I/O operation has occurred during this
+window, the next scrub or resilver operation is delayed by, respectively
+\fBzfs_scrub_delay\fR or \fBzfs_resilver_delay\fR ticks.
+.sp
+Default value: \fB50\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_scan_min_time_ms\fR (int)
 .ad
 .RS 12n
 Scrubs are processed by the sync thread. While scrubbing it will spend
@@ -1698,120 +1711,14 @@ Default value: \fB1,000\fR.
 .sp
 .ne 2
 .na
-\fBzfs_scan_checkpoint_intval\fR (int)
+\fBzfs_scrub_delay\fR (int)
 .ad
 .RS 12n
-To preserve progress across reboots the sequential scan algorithm periodically
-needs to stop metadata scanning and issue all the verifications I/Os to disk.
-The frequency of this flushing is determined by the
-\fBfBzfs_scan_checkpoint_intval\fR tunable.
+Number of ticks to delay prior to issuing a scrub I/O operation when
+a non-scrub or non-resilver I/O operation has occurred within the past
+\fBzfs_scan_idle\fR ticks.
 .sp
-Default value: \fB7200\fR seconds (every 2 hours).
-.RE
-
-.sp
-.ne 2
-.na
-\fBzfs_scan_fill_weight\fR (int)
-.ad
-.RS 12n
-This tunable affects how scrub and resilver I/O segments are ordered. A higher
-number indicates that we care more about how filled in a segment is, while a
-lower number indicates we care more about the size of the extent without
-considering the gaps within a segment. This value is only tunable upon module
-insertion. Changing the value afterwards will have no affect on scrub or
-resilver performance.
-.sp
-Default value: \fB3\fR.
-.RE
-
-.sp
-.ne 2
-.na
-\fBzfs_scan_issue_strategy\fR (int)
-.ad
-.RS 12n
-Determines the order that data will be verified while scrubbing or resilvering.
-If set to \fB1\fR, data will be verified as sequentially as possible, given the
-amount of memory reserved for scrubbing (see \fBzfs_scan_mem_lim_fact\fR). This
-may improve scrub performance if the pool's data is very fragmented. If set to
-\fB2\fR, the largest mostly-contiguous chunk of found data will be verified
-first. By deferring scrubbing of small segments, we may later find adjacent data
-to coalesce and increase the segment size. If set to \fB0\fR, zfs will use
-strategy \fB1\fR during normal verification and strategy \fB2\fR while taking a
-checkpoint.
-.sp
-Default value: \fB0\fR.
-.RE
-
-.sp
-.ne 2
-.na
-\fBzfs_scan_legacy\fR (int)
-.ad
-.RS 12n
-A value of 0 indicates that scrubs and resilvers will gather metadata in
-memory before issuing sequential I/O. A value of 1 indicates that the legacy
-algorithm will be used where I/O is initiated as soon as it is discovered.
-Changing this value to 0 will not affect scrubs or resilvers that are already
-in progress.
-.sp
-Default value: \fB0\fR.
-.RE
-
-.sp
-.ne 2
-.na
-\fBzfs_scan_max_ext_gap\fR (int)
-.ad
-.RS 12n
-Indicates the largest gap in bytes between scrub / resilver I/Os that will still
-be considered sequential for sorting purposes. Changing this value will not
-affect scrubs or resilvers that are already in progress.
-.sp
-Default value: \fB2097152 (2 MB)\fR.
-.RE
-
-.sp
-.ne 2
-.na
-\fBzfs_scan_mem_lim_fact\fR (int)
-.ad
-.RS 12n
-Maximum fraction of RAM used for I/O sorting by sequential scan algorithm.
-This tunable determines the hard limit for I/O sorting memory usage.
-When the hard limit is reached we stop scanning metadata and start issuing
-data verification I/O. This is done until we get below the soft limit.
-.sp
-Default value: \fB20\fR which is 5% of RAM (1/20).
-.RE
-
-.sp
-.ne 2
-.na
-\fBzfs_scan_mem_lim_soft_fact\fR (int)
-.ad
-.RS 12n
-The fraction of the hard limit used to determined the soft limit for I/O sorting
-by the sequential scan algorithm. When we cross this limit from bellow no action
-is taken. When we cross this limit from above it is because we are issuing
-verification I/O. In this case (unless the metadata scan is done) we stop
-issuing verification I/O and start scanning metadata again until we get to the
-hard limit.
-.sp
-Default value: \fB20\fR which is 5% of the hard limit (1/20).
-.RE
-
-.sp
-.ne 2
-.na
-\fBzfs_scan_vdev_limit\fR (int)
-.ad
-.RS 12n
-Maximum amount of data that can be concurrently issued at once for scrubs and
-resilvers per leaf device, given in bytes.
-.sp
-Default value: \fB41943040\fR.
+Default value: \fB4\fR.
 .RE
 
 .sp
@@ -1868,6 +1775,18 @@ This controls the number of threads used by the dp_sync_taskq.  The default
 value of 75% will create a maximum of one thread per cpu.
 .sp
 Default value: \fB75\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_top_maxinflight\fR (int)
+.ad
+.RS 12n
+Max concurrent I/Os per top-level vdev (mirrors or raidz arrays) allowed during
+scrub or resilver operations.
+.sp
+Default value: \fB32\fR.
 .RE
 
 .sp

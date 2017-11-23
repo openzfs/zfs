@@ -66,11 +66,11 @@ typedef struct arc_prune arc_prune_t;
  * while transforming data into its desired format - specifically, when
  * decrypting, the key may not be present, or the HMAC may not be correct
  * which signifies deliberate tampering with the on-disk state
- * (assuming that the checksum was correct). If any error occurs, the "buf"
- * parameter will be NULL.
+ * (assuming that the checksum was correct). The "error" parameter will be
+ * nonzero in this case, even if there is no associated zio.
  */
-typedef void arc_read_done_func_t(zio_t *zio, const zbookmark_phys_t *zb,
-    const blkptr_t *bp, arc_buf_t *buf, void *private);
+typedef void arc_read_done_func_t(zio_t *zio, int error, arc_buf_t *buf,
+    void *private);
 typedef void arc_write_done_func_t(zio_t *zio, arc_buf_t *buf, void *private);
 typedef void arc_prune_func_t(int64_t bytes, void *private);
 
@@ -106,45 +106,44 @@ typedef enum arc_flags
 	ARC_FLAG_CACHED			= 1 << 3,	/* I/O was in cache */
 	ARC_FLAG_L2CACHE		= 1 << 4,	/* cache in L2ARC */
 	ARC_FLAG_PREDICTIVE_PREFETCH	= 1 << 5,	/* I/O from zfetch */
-	ARC_FLAG_PRESCIENT_PREFETCH	= 1 << 6,	/* long min lifespan */
 
 	/*
 	 * Private ARC flags.  These flags are private ARC only flags that
 	 * will show up in b_flags in the arc_hdr_buf_t. These flags should
 	 * only be set by ARC code.
 	 */
-	ARC_FLAG_IN_HASH_TABLE		= 1 << 7,	/* buffer is hashed */
-	ARC_FLAG_IO_IN_PROGRESS		= 1 << 8,	/* I/O in progress */
-	ARC_FLAG_IO_ERROR		= 1 << 9,	/* I/O failed for buf */
-	ARC_FLAG_INDIRECT		= 1 << 10,	/* indirect block */
+	ARC_FLAG_IN_HASH_TABLE		= 1 << 6,	/* buffer is hashed */
+	ARC_FLAG_IO_IN_PROGRESS		= 1 << 7,	/* I/O in progress */
+	ARC_FLAG_IO_ERROR		= 1 << 8,	/* I/O failed for buf */
+	ARC_FLAG_INDIRECT		= 1 << 9,	/* indirect block */
 	/* Indicates that block was read with ASYNC priority. */
-	ARC_FLAG_PRIO_ASYNC_READ	= 1 << 11,
-	ARC_FLAG_L2_WRITING		= 1 << 12,	/* write in progress */
-	ARC_FLAG_L2_EVICTED		= 1 << 13,	/* evicted during I/O */
-	ARC_FLAG_L2_WRITE_HEAD		= 1 << 14,	/* head of write list */
+	ARC_FLAG_PRIO_ASYNC_READ	= 1 << 10,
+	ARC_FLAG_L2_WRITING		= 1 << 11,	/* write in progress */
+	ARC_FLAG_L2_EVICTED		= 1 << 12,	/* evicted during I/O */
+	ARC_FLAG_L2_WRITE_HEAD		= 1 << 13,	/* head of write list */
 	/*
 	 * Encrypted or authenticated on disk (may be plaintext in memory).
 	 * This header has b_crypt_hdr allocated. Does not include indirect
 	 * blocks with checksums of MACs which will also have their X
 	 * (encrypted) bit set in the bp.
 	 */
-	ARC_FLAG_PROTECTED		= 1 << 15,
+	ARC_FLAG_PROTECTED		= 1 << 14,
 	/* data has not been authenticated yet */
-	ARC_FLAG_NOAUTH			= 1 << 16,
+	ARC_FLAG_NOAUTH			= 1 << 15,
 	/* indicates that the buffer contains metadata (otherwise, data) */
-	ARC_FLAG_BUFC_METADATA		= 1 << 17,
+	ARC_FLAG_BUFC_METADATA		= 1 << 16,
 
 	/* Flags specifying whether optional hdr struct fields are defined */
-	ARC_FLAG_HAS_L1HDR		= 1 << 18,
-	ARC_FLAG_HAS_L2HDR		= 1 << 19,
+	ARC_FLAG_HAS_L1HDR		= 1 << 17,
+	ARC_FLAG_HAS_L2HDR		= 1 << 18,
 
 	/*
 	 * Indicates the arc_buf_hdr_t's b_pdata matches the on-disk data.
 	 * This allows the l2arc to use the blkptr's checksum to verify
 	 * the data without having to store the checksum in the hdr.
 	 */
-	ARC_FLAG_COMPRESSED_ARC		= 1 << 20,
-	ARC_FLAG_SHARED_DATA		= 1 << 21,
+	ARC_FLAG_COMPRESSED_ARC		= 1 << 19,
+	ARC_FLAG_SHARED_DATA		= 1 << 20,
 
 	/*
 	 * The arc buffer's compression mode is stored in the top 7 bits of the

@@ -214,7 +214,7 @@ check_status(nvlist_t *config, boolean_t isimport, zpool_errata_t *erratap)
 	 */
 	(void) nvlist_lookup_uint64_array(nvroot, ZPOOL_CONFIG_SCAN_STATS,
 	    (uint64_t **)&ps, &psc);
-	if (ps != NULL && ps->pss_func == POOL_SCAN_RESILVER &&
+	if (ps && ps->pss_func == POOL_SCAN_RESILVER &&
 	    ps->pss_state == DSS_SCANNING)
 		return (ZPOOL_STATUS_RESILVERING);
 
