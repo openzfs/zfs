@@ -329,11 +329,9 @@ mount_fs()
 		    "$mountpoint" = "-" ]
 		then
 			if [ "$fs" != "${ZFS_BOOTFS}" ]; then
-				# We don't have a proper mountpoint, this
-				# isn't the root fs. So extract the root fs
-				# value from the filesystem, and we should
-				# (hopefully!) have a mountpoint we can use.
-				mountpoint="${fs##$ZFS_BOOTFS}"
+				# We don't have a proper mountpoint and this
+				# isn't the root fs.
+				return 0
 			else
 				# Last hail-mary: Hope 'rootmnt' is set!
 				mountpoint=""
