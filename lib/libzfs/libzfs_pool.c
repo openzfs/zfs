@@ -1975,16 +1975,29 @@ zpool_import_props(libzfs_handle_t *hdl, nvlist_t *config, const char *newname,
  * Scan the pool.
  */
 int
-zpool_scan(zpool_handle_t *zhp, pool_scan_func_t func, pool_scrub_cmd_t cmd)
+zpool_scan(zpool_handle_t *zhp, zfs_handle_t *zfshp, pool_scan_func_t func,
+    pool_scrub_cmd_t cmd, pool_scan_flags_t flags)
 {
 	zfs_cmd_t zc = {"\0"};
 	char msg[1024];
 	int err;
-	libzfs_handle_t *hdl = zhp->zpool_hdl;
+	libzfs_handle_t *hdl;
+	char *name;
 
-	(void) strlcpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
+	if (zfshp != NULL) {
+		zhp = zfshp->zpool_hdl;
+		name = zfshp->zfs_name;
+		assert(flags & POOL_SCAN_FLAG_DATASET);
+	} else {
+		name = zhp->zpool_name;
+	}
+
+	hdl = zhp->zpool_hdl;
+
+	(void) strlcpy(zc.zc_name, name, sizeof (zc.zc_name));
 	zc.zc_cookie = func;
 	zc.zc_flags = cmd;
+	zc.zc_guid = flags;
 
 	if (zfs_ioctl(hdl, ZFS_IOC_POOL_SCAN, &zc) == 0)
 		return (0);

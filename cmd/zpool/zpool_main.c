@@ -5906,7 +5906,7 @@ scrub_callback(zpool_handle_t *zhp, void *data)
 		return (1);
 	}
 
-	err = zpool_scan(zhp, cb->cb_type, cb->cb_scrub_cmd);
+	err = zpool_scan(zhp, NULL, cb->cb_type, cb->cb_scrub_cmd, 0);
 
 	return (err != 0);
 }

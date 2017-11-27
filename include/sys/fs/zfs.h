@@ -816,6 +816,14 @@ typedef enum mmp_state {
 } mmp_state_t;
 
 /*
+ * Scan Flags.
+ */
+typedef enum pool_scan_flags {
+	POOL_SCAN_FLAG_DATASET =	1ULL << 0,
+	POOL_SCAN_FLAG_RECURSIVE =	1ULL << 1,
+} pool_scan_flags_t;
+
+/*
  * Scan Functions.
  */
 typedef enum pool_scan_func {

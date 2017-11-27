@@ -598,11 +598,84 @@ dsl_scan_sync_state(dsl_scan_t *scn, dmu_tx_t *tx, state_sync_type_t sync_type)
 	}
 }
 
+typedef struct dsl_scan_params {
+	pool_scan_func_t dsp_func;
+	char *dsp_dsname;
+	pool_scan_flags_t dsp_flags;
+} dsl_scan_params_t;
+
+/* ARGSUSED */
+static int
+enqueue_cb(dsl_pool_t *dp, dsl_dataset_t *hds, void *arg)
+{
+	dsl_dataset_t *ds;
+	int err;
+	dsl_scan_t *scn = dp->dp_scan;
+
+	err = dsl_dataset_hold_obj(dp, hds->ds_object, FTAG, &ds);
+	if (err)
+		return (err);
+
+	while (dsl_dataset_phys(ds)->ds_prev_snap_obj != 0) {
+		dsl_dataset_t *prev;
+		err = dsl_dataset_hold_obj(dp,
+		    dsl_dataset_phys(ds)->ds_prev_snap_obj, FTAG, &prev);
+		if (err) {
+			dsl_dataset_rele(ds, FTAG);
+			return (err);
+		}
+
+		/*
+		 * If this is a clone, we don't need to worry about it for now.
+		 */
+		if ((scn->scn_phys.scn_flags & DSF_SCRUB_DATASET) == 0 &&
+		    dsl_dataset_phys(prev)->ds_next_snap_obj != ds->ds_object) {
+			dsl_dataset_rele(ds, FTAG);
+			dsl_dataset_rele(prev, FTAG);
+			return (0);
+		}
+		dsl_dataset_rele(ds, FTAG);
+		ds = prev;
+	}
+
+	scan_ds_queue_insert(scn, ds->ds_object,
+	    dsl_dataset_phys(ds)->ds_prev_snap_txg);
+	dsl_dataset_rele(ds, FTAG);
+	return (0);
+}
+
+/* ARGSUSED */
+static int
+enqueue_ds_cb(dsl_pool_t *dp, dsl_dataset_t *ds, void *arg)
+{
+	dsl_scan_t *scn = dp->dp_scan;
+
+	scan_ds_queue_insert(scn, ds->ds_object,
+	    dsl_dataset_phys(ds)->ds_prev_snap_txg);
+	return (0);
+}
+
 /* ARGSUSED */
 static int
 dsl_scan_setup_check(void *arg, dmu_tx_t *tx)
 {
+	int ret;
+	dsl_dataset_t *ds;
+	dsl_scan_params_t *dsp = arg;
 	dsl_scan_t *scn = dmu_tx_pool(tx)->dp_scan;
+
+	if ((dsp->dsp_flags & POOL_SCAN_FLAG_RECURSIVE) &&
+	    (dsp->dsp_flags & POOL_SCAN_FLAG_DATASET) == 0)
+		return (SET_ERROR(EINVAL));
+
+	if (dsp->dsp_flags & POOL_SCAN_FLAG_DATASET) {
+		ret = dsl_dataset_hold(dmu_tx_pool(tx), dsp->dsp_dsname,
+		    FTAG, &ds);
+		if (ret != 0)
+			return (SET_ERROR(ENOENT));
+
+		dsl_dataset_rele(ds, FTAG);
+	}
 
 	if (dsl_scan_is_running(scn))
 		return (SET_ERROR(EBUSY));
@@ -614,15 +687,16 @@ static void
 dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 {
 	dsl_scan_t *scn = dmu_tx_pool(tx)->dp_scan;
-	pool_scan_func_t *funcp = arg;
+	dsl_scan_params_t *dsp = arg;
+	pool_scan_func_t func = dsp->dsp_func;
 	dmu_object_type_t ot = 0;
 	dsl_pool_t *dp = scn->scn_dp;
 	spa_t *spa = dp->dp_spa;
 
 	ASSERT(!dsl_scan_is_running(scn));
-	ASSERT(*funcp > POOL_SCAN_NONE && *funcp < POOL_SCAN_FUNCS);
+	ASSERT(func > POOL_SCAN_NONE && func < POOL_SCAN_FUNCS);
 	bzero(&scn->scn_phys, sizeof (scn->scn_phys));
-	scn->scn_phys.scn_func = *funcp;
+	scn->scn_phys.scn_func = func;
 	scn->scn_phys.scn_state = DSS_SCANNING;
 	scn->scn_phys.scn_min_txg = 0;
 	scn->scn_phys.scn_max_txg = tx->tx_txg;
@@ -680,11 +754,41 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 
 	bcopy(&scn->scn_phys, &scn->scn_phys_cached, sizeof (scn->scn_phys));
 
+	/*
+	 * If this is a dataset scan, we pre-populate the queue with
+	 * datasets instead of filling up the queue later.
+	 */
+	if (dsp->dsp_flags & POOL_SCAN_FLAG_DATASET) {
+		dsl_dir_t *dd;
+		const char *tail;
+
+		scn->scn_phys.scn_flags |= DSF_SCRUB_DATASET;
+
+		VERIFY0(dsl_dir_hold(dp, dsp->dsp_dsname, FTAG, &dd, &tail));
+		if (tail != NULL) {
+			dsl_dataset_t *ds;
+
+			VERIFY0(dsl_dataset_hold(dp, dsp->dsp_dsname,
+			    FTAG, &ds));
+			VERIFY0(enqueue_ds_cb(dp, ds, NULL));
+			dsl_dataset_rele(ds, FTAG);
+		} else {
+			int findflags = DS_FIND_SNAPSHOTS;
+
+			if (dsp->dsp_flags & POOL_SCAN_FLAG_RECURSIVE)
+				findflags |= DS_FIND_CHILDREN;
+
+			VERIFY0(dmu_objset_find_dp(dp, dd->dd_object,
+			    enqueue_ds_cb, NULL, findflags));
+		}
+		dsl_dir_rele(dd, FTAG);
+	}
+
 	dsl_scan_sync_state(scn, tx, SYNC_MANDATORY);
 
 	spa_history_log_internal(spa, "scan setup", tx,
 	    "func=%u mintxg=%llu maxtxg=%llu",
-	    *funcp, scn->scn_phys.scn_min_txg, scn->scn_phys.scn_max_txg);
+	    func, scn->scn_phys.scn_min_txg, scn->scn_phys.scn_max_txg);
 }
 
 /*
@@ -692,10 +796,12 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
  * Can also be called to resume a paused scrub.
  */
 int
-dsl_scan(dsl_pool_t *dp, pool_scan_func_t func)
+dsl_scan(dsl_pool_t *dp, pool_scan_func_t func, char *dsname,
+    pool_scan_flags_t flags)
 {
 	spa_t *spa = dp->dp_spa;
 	dsl_scan_t *scn = dp->dp_scan;
+	dsl_scan_params_t dsp = { 0 };
 
 	/*
 	 * Purge all vdev caches and probe all devices.  We do this here
@@ -720,8 +826,12 @@ dsl_scan(dsl_pool_t *dp, pool_scan_func_t func)
 		return (SET_ERROR(err));
 	}
 
+	dsp.dsp_func = func;
+	dsp.dsp_dsname = dsname;
+	dsp.dsp_flags = flags;
+
 	return (dsl_sync_task(spa_name(spa), dsl_scan_setup_check,
-	    dsl_scan_setup_sync, &func, 0, ZFS_SPACE_CHECK_NONE));
+	    dsl_scan_setup_sync, &dsp, 0, ZFS_SPACE_CHECK_NONE));
 }
 
 /* ARGSUSED */
@@ -963,6 +1073,7 @@ scan_ds_queue_clear(dsl_scan_t *scn)
 {
 	void *cookie = NULL;
 	scan_ds_t *sds;
+
 	while ((sds = avl_destroy_nodes(&scn->scn_queue, &cookie)) != NULL) {
 		kmem_free(sds, sizeof (*sds));
 	}
@@ -989,6 +1100,10 @@ scan_ds_queue_insert(dsl_scan_t *scn, uint64_t dsobj, uint64_t txg)
 	sds = kmem_zalloc(sizeof (*sds), KM_SLEEP);
 	sds->sds_dsobj = dsobj;
 	sds->sds_txg = txg;
+
+#ifdef _KERNEL
+	printk(KERN_DEBUG "dsobj = %llu, txg = %llu\n", dsobj, txg);
+#endif
 
 	VERIFY3P(avl_find(&scn->scn_queue, sds, &where), ==, NULL);
 	avl_insert(&scn->scn_queue, sds, where);
@@ -2066,6 +2181,9 @@ enqueue_clones_cb(dsl_pool_t *dp, dsl_dataset_t *hds, void *arg)
 	int err;
 	dsl_scan_t *scn = dp->dp_scan;
 
+	if (scn->scn_phys.scn_flags & DSF_SCRUB_DATASET)
+		return (0);
+
 	if (dsl_dir_phys(hds->ds_dir)->dd_origin_obj != originobj)
 		return (0);
 
@@ -2187,6 +2305,10 @@ dsl_scan_visitds(dsl_scan_t *scn, uint64_t dsobj, dmu_tx_t *tx)
 		goto out;
 	}
 
+	/* dataset scans should never add anything to the queue */
+	if (scn->scn_phys.scn_flags & DSF_SCRUB_DATASET)
+		goto out;
+
 	/*
 	 * Add descendent datasets to work queue.
 	 */
@@ -2234,45 +2356,6 @@ dsl_scan_visitds(dsl_scan_t *scn, uint64_t dsobj, dmu_tx_t *tx)
 
 out:
 	dsl_dataset_rele(ds, FTAG);
-}
-
-/* ARGSUSED */
-static int
-enqueue_cb(dsl_pool_t *dp, dsl_dataset_t *hds, void *arg)
-{
-	dsl_dataset_t *ds;
-	int err;
-	dsl_scan_t *scn = dp->dp_scan;
-
-	err = dsl_dataset_hold_obj(dp, hds->ds_object, FTAG, &ds);
-	if (err)
-		return (err);
-
-	while (dsl_dataset_phys(ds)->ds_prev_snap_obj != 0) {
-		dsl_dataset_t *prev;
-		err = dsl_dataset_hold_obj(dp,
-		    dsl_dataset_phys(ds)->ds_prev_snap_obj, FTAG, &prev);
-		if (err) {
-			dsl_dataset_rele(ds, FTAG);
-			return (err);
-		}
-
-		/*
-		 * If this is a clone, we don't need to worry about it for now.
-		 */
-		if (dsl_dataset_phys(prev)->ds_next_snap_obj != ds->ds_object) {
-			dsl_dataset_rele(ds, FTAG);
-			dsl_dataset_rele(prev, FTAG);
-			return (0);
-		}
-		dsl_dataset_rele(ds, FTAG);
-		ds = prev;
-	}
-
-	scan_ds_queue_insert(scn, ds->ds_object,
-	    dsl_dataset_phys(ds)->ds_prev_snap_txg);
-	dsl_dataset_rele(ds, FTAG);
-	return (0);
 }
 
 /* ARGSUSED */
@@ -2398,7 +2481,8 @@ dsl_scan_visit(dsl_scan_t *scn, dmu_tx_t *tx)
 			return;
 	}
 
-	if (scn->scn_phys.scn_bookmark.zb_objset == DMU_META_OBJSET) {
+	if ((scn->scn_phys.scn_flags & DSF_SCRUB_DATASET) == 0 &&
+	    scn->scn_phys.scn_bookmark.zb_objset == DMU_META_OBJSET) {
 		/* First do the MOS & ORIGIN */
 
 		scn->scn_phys.scn_cur_min_txg = scn->scn_phys.scn_min_txg;
@@ -2417,8 +2501,8 @@ dsl_scan_visit(dsl_scan_t *scn, dmu_tx_t *tx)
 			    dp->dp_origin_snap->ds_object, tx);
 		}
 		ASSERT(!scn->scn_suspending);
-	} else if (scn->scn_phys.scn_bookmark.zb_objset !=
-	    ZB_DESTROYED_OBJSET) {
+	} else if (scn->scn_phys.scn_bookmark.zb_objset != DMU_META_OBJSET &&
+	    scn->scn_phys.scn_bookmark.zb_objset != ZB_DESTROYED_OBJSET) {
 		uint64_t dsobj = scn->scn_phys.scn_bookmark.zb_objset;
 		/*
 		 * If we were suspended, continue from here. Note if the
@@ -2460,6 +2544,7 @@ dsl_scan_visit(dsl_scan_t *scn, dmu_tx_t *tx)
 			    MAX(scn->scn_phys.scn_min_txg,
 			    dsl_dataset_phys(ds)->ds_prev_snap_txg);
 		}
+
 		scn->scn_phys.scn_cur_max_txg = dsl_scan_ds_maxtxg(ds);
 		dsl_dataset_rele(ds, FTAG);
 

@@ -6007,7 +6007,8 @@ spa_scan_stop(spa_t *spa)
 }
 
 int
-spa_scan(spa_t *spa, pool_scan_func_t func)
+spa_scan(spa_t *spa, pool_scan_func_t func, char *dsname,
+    pool_scan_flags_t flags)
 {
 	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == 0);
 
@@ -6024,7 +6025,7 @@ spa_scan(spa_t *spa, pool_scan_func_t func)
 		return (0);
 	}
 
-	return (dsl_scan(spa->spa_dsl_pool, func));
+	return (dsl_scan(spa->spa_dsl_pool, func, dsname, flags));
 }
 
 /*

@@ -109,6 +109,7 @@ static int zfs_do_bookmark(int argc, char **argv);
 static int zfs_do_load_key(int argc, char **argv);
 static int zfs_do_unload_key(int argc, char **argv);
 static int zfs_do_change_key(int argc, char **argv);
+static int zfs_do_scrub(int, char **);
 
 /*
  * Enable a reasonable set of defaults for libumem debugging on DEBUG builds.
@@ -159,6 +160,7 @@ typedef enum {
 	HELP_LOAD_KEY,
 	HELP_UNLOAD_KEY,
 	HELP_CHANGE_KEY,
+	HELP_SCRUB
 } zfs_help_t;
 
 typedef struct zfs_command {
@@ -215,6 +217,7 @@ static zfs_command_t command_table[] = {
 	{ "load-key",	zfs_do_load_key,	HELP_LOAD_KEY		},
 	{ "unload-key",	zfs_do_unload_key,	HELP_UNLOAD_KEY		},
 	{ "change-key",	zfs_do_change_key,	HELP_CHANGE_KEY		},
+	{ "scrub", 	zfs_do_scrub, 		HELP_SCRUB		},
 };
 
 #define	NCOMMAND	(sizeof (command_table) / sizeof (command_table[0]))
@@ -346,6 +349,8 @@ get_usage(zfs_help_t idx)
 		    "\t    [-o keylocation=<value>] [-o pbkfd2iters=<value>]"
 		    "\t    <filesystem|volume>\n"
 		    "\tchange-key -i [-l] <filesystem|volume>\n"));
+	case HELP_SCRUB:
+		return (gettext("\tscrub [-s | -p] [-r] filesystem\n"));
 	}
 
 	abort();
@@ -7288,6 +7293,92 @@ zfs_do_change_key(int argc, char **argv)
 	zfs_close(zhp);
 	return (0);
 }
+
+typedef struct scrub_cbdata {
+	int	cb_type;
+	int	cb_argc;
+	char	**cb_argv;
+	pool_scrub_cmd_t cb_scrub_cmd;
+	uint64_t cb_flags;
+} scrub_cbdata_t;
+
+static int
+scrub_callback(zfs_handle_t *zhp, void *data)
+{
+	scrub_cbdata_t *cb = data;
+	int err;
+
+	if ((zhp->zfs_type & ZFS_TYPE_SNAPSHOT) != 0 &&
+	    (cb->cb_flags & POOL_SCAN_FLAG_RECURSIVE) != 0) {
+		(void) fprintf(stderr, gettext("cannot perform recursive "
+		    "scrub on snapshots\n"));
+		return (1);
+	}
+
+	err = zpool_scan(NULL, zhp, cb->cb_type, cb->cb_scrub_cmd,
+	    cb->cb_flags);
+
+	return (err != 0);
+}
+
+/*
+ * zfs scrub [-s | -p] [-r] <filesystem> ...
+ *
+ *	-s	Stop.  Stops any in-progress scrub.
+ *	-p	Pause. Pause in-progress scrub.
+ *	-r	Recursive.
+ */
+int
+zfs_do_scrub(int argc, char **argv)
+{
+	int c;
+	scrub_cbdata_t cb;
+
+	cb.cb_type = POOL_SCAN_SCRUB;
+	cb.cb_scrub_cmd = POOL_SCRUB_NORMAL;
+	cb.cb_flags = POOL_SCAN_FLAG_DATASET;
+
+	/* check options */
+	while ((c = getopt(argc, argv, "spr")) != -1) {
+		switch (c) {
+		case 's':
+			cb.cb_type = POOL_SCAN_NONE;
+			break;
+		case 'p':
+			cb.cb_scrub_cmd = POOL_SCRUB_PAUSE;
+			break;
+		case 'r':
+			cb.cb_flags |= POOL_SCAN_FLAG_RECURSIVE;
+			break;
+		case '?':
+			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
+			    optopt);
+			usage(B_FALSE);
+		}
+	}
+
+	if (cb.cb_type == POOL_SCAN_NONE &&
+	    cb.cb_scrub_cmd == POOL_SCRUB_PAUSE) {
+		(void) fprintf(stderr, gettext("invalid option combination: "
+		    "-s and -p are mutually exclusive\n"));
+		usage(B_FALSE);
+	}
+
+	cb.cb_argc = argc;
+	cb.cb_argv = argv;
+	argc -= optind;
+	argv += optind;
+
+	if (argc < 1) {
+		(void) fprintf(stderr,
+		    gettext("must provide filesystem to scrub\n"));
+		usage(B_FALSE);
+	}
+
+	return (zfs_for_each(argc, argv, 0, ZFS_TYPE_DATASET, NULL, NULL, 0,
+	    scrub_callback, &cb));
+}
+
 
 int
 main(int argc, char **argv)
