@@ -609,6 +609,7 @@ typedef struct zpool_rewind_policy {
 #define	ZPOOL_CONFIG_ASIZE		"asize"
 #define	ZPOOL_CONFIG_DTL		"DTL"
 #define	ZPOOL_CONFIG_SCAN_STATS		"scan_stats"	/* not stored on disk */
+#define	ZPOOL_CONFIG_SCAN_DSNAME	"scan_dsname"	/* not stored on disk */
 #define	ZPOOL_CONFIG_VDEV_STATS		"vdev_stats"	/* not stored on disk */
 
 /* container nvlist of extended stats */
@@ -825,6 +826,14 @@ typedef enum mmp_state {
 } mmp_state_t;
 
 /*
+ * Scan Flags.
+ */
+typedef enum pool_scan_flags {
+	POOL_SCAN_FLAG_DATASET =	1ULL << 0,
+	POOL_SCAN_FLAG_RECURSIVE =	1ULL << 1,
+} pool_scan_flags_t;
+
+/*
  * Scan Functions.
  */
 typedef enum pool_scan_func {
@@ -881,6 +890,7 @@ typedef struct pool_scan_stat {
 	uint64_t	pss_pass_scrub_spent_paused;
 	uint64_t	pss_pass_issued; /* issued bytes per scan pass */
 	uint64_t	pss_issued;	/* total bytes checked by scanner */
+	uint64_t	pss_dataset_scrub; /* dataset scrub */
 } pool_scan_stat_t;
 
 typedef enum dsl_scan_state {
