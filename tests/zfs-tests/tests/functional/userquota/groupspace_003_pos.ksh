@@ -30,6 +30,7 @@
 #
 
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/include/math.shlib
 . $STF_SUITE/tests/functional/userquota/userquota_common.kshlib
 
 #
@@ -56,10 +57,15 @@ function cleanup
 function group_object_count
 {
 	typeset fs=$1
-	typeset user=$2
-	typeset cnt=$(zfs groupspace -oname,objused $fs | grep $user |
-			awk '{print $2}')
-	echo $cnt
+	typeset group=$2
+	typeset -i groupspacecnt=$(zfs groupspace -oname,objused $fs |
+	    awk /$group/'{print $2}')
+	typeset -i zfsgetcnt=$(zfs get -H -ovalue groupobjused@$group $fs)
+
+	# 'zfs groupspace' and 'zfs get groupobjused@' should be equal
+	verify_eq "$groupspacecnt" "$zfsgetcnt" "groupobjused@$group"
+
+	echo $groupspacecnt
 }
 
 log_onexit cleanup
