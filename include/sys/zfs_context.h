@@ -157,8 +157,6 @@ extern void vpanic(const char *, va_list);
 
 #define	fm_panic	panic
 
-extern int aok;
-
 /*
  * DTrace SDT probes have different signatures in userland than they do in
  * the kernel.  If they're being used in kernel code, re-define them out of
