@@ -650,6 +650,21 @@ enqueue_ds_cb(dsl_pool_t *dp, dsl_dataset_t *ds, void *arg)
 {
 	dsl_scan_t *scn = dp->dp_scan;
 
+	if (dsl_dataset_phys(ds)->ds_prev_snap_obj != 0) {
+		dsl_dataset_t *oldsnap;
+		uint64_t used, comp, uncomp;
+
+		VERIFY0(dsl_dataset_hold_obj(dp,
+		    dsl_dataset_phys(ds)->ds_prev_snap_obj, FTAG, &oldsnap));
+		VERIFY0(dsl_dataset_space_written(oldsnap, ds, &used,
+		    &comp, &uncomp));
+		scn->scn_phys.scn_to_examine += comp;
+		dsl_dataset_rele(oldsnap, FTAG);
+	} else {
+		scn->scn_phys.scn_to_examine +=
+		    dsl_dataset_phys(ds)->ds_compressed_bytes;
+	}
+
 	scan_ds_queue_insert(scn, ds->ds_object,
 	    dsl_dataset_phys(ds)->ds_prev_snap_txg);
 	return (0);
@@ -770,7 +785,9 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 
 			VERIFY0(dsl_dataset_hold(dp, dsp->dsp_dsname,
 			    FTAG, &ds));
-			VERIFY0(enqueue_ds_cb(dp, ds, NULL));
+			scn->scn_phys.scn_to_examine =
+			    dsl_dataset_phys(ds)->ds_compressed_bytes;
+			scan_ds_queue_insert(scn, ds->ds_object, 0);
 			dsl_dataset_rele(ds, FTAG);
 		} else {
 			int findflags = DS_FIND_SNAPSHOTS;
@@ -778,6 +795,7 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 			if (dsp->dsp_flags & POOL_SCAN_FLAG_RECURSIVE)
 				findflags |= DS_FIND_CHILDREN;
 
+			scn->scn_phys.scn_to_examine = 0;
 			VERIFY0(dmu_objset_find_dp(dp, dd->dd_object,
 			    enqueue_ds_cb, NULL, findflags));
 		}
@@ -1100,10 +1118,6 @@ scan_ds_queue_insert(dsl_scan_t *scn, uint64_t dsobj, uint64_t txg)
 	sds = kmem_zalloc(sizeof (*sds), KM_SLEEP);
 	sds->sds_dsobj = dsobj;
 	sds->sds_txg = txg;
-
-#ifdef _KERNEL
-	printk(KERN_DEBUG "dsobj = %llu, txg = %llu\n", dsobj, txg);
-#endif
 
 	VERIFY3P(avl_find(&scn->scn_queue, sds, &where), ==, NULL);
 	avl_insert(&scn->scn_queue, sds, where);
