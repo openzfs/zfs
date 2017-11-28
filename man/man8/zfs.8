@@ -291,6 +291,10 @@
 .Fl i
 .Op Fl l
 .Ar filesystem
+.Nm
+.Cm scrub
+.Op Fl r
+.Ar snapshot Ns | Ns Ar filesystem Ns | Ns Ar volume
 .Sh DESCRIPTION
 The
 .Nm
@@ -4148,6 +4152,21 @@ Indicates that zfs should make
 .Ar filesystem
 inherit the key of its parent. Note that this command can only be run on an
 encryption root that has an encrypted parent.
+.El
+.It Xo
+.Nm
+.Cm scrub
+.Op Fl r
+.Ar snapshot Ns | Ns Ar filesystem Ns | Ns Ar volume
+.Xc
+Begins a scrub on a given dataset. This is similar to the
+.Nm zpool Cm scrub
+command, but it will only verify the requested dataset.
+.Bl -tag -width "-o"
+.It Fl r
+Recursively scan datasets under
+.Ar filesystem .
+This can only be used with filesystem arguments.
 .El
 .El
 .Sh EXIT STATUS

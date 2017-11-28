@@ -350,7 +350,7 @@ get_usage(zfs_help_t idx)
 		    "\t    <filesystem|volume>\n"
 		    "\tchange-key -i [-l] <filesystem|volume>\n"));
 	case HELP_SCRUB:
-		return (gettext("\tscrub [-s | -p] [-r] filesystem\n"));
+		return (gettext("\tscrub [-r] filesystem\n"));
 	}
 
 	abort();
@@ -7339,14 +7339,8 @@ zfs_do_scrub(int argc, char **argv)
 	cb.cb_flags = POOL_SCAN_FLAG_DATASET;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "spr")) != -1) {
+	while ((c = getopt(argc, argv, "r")) != -1) {
 		switch (c) {
-		case 's':
-			cb.cb_type = POOL_SCAN_NONE;
-			break;
-		case 'p':
-			cb.cb_scrub_cmd = POOL_SCRUB_PAUSE;
-			break;
 		case 'r':
 			cb.cb_flags |= POOL_SCAN_FLAG_RECURSIVE;
 			break;
@@ -7355,13 +7349,6 @@ zfs_do_scrub(int argc, char **argv)
 			    optopt);
 			usage(B_FALSE);
 		}
-	}
-
-	if (cb.cb_type == POOL_SCAN_NONE &&
-	    cb.cb_scrub_cmd == POOL_SCRUB_PAUSE) {
-		(void) fprintf(stderr, gettext("invalid option combination: "
-		    "-s and -p are mutually exclusive\n"));
-		usage(B_FALSE);
 	}
 
 	cb.cb_argc = argc;

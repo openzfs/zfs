@@ -6049,8 +6049,14 @@ print_scan_status(pool_scan_stat_t *ps, char *dsname)
 	}
 
 	/* If this is a dataset scan, print current dataset name. */
-	if (dsname != NULL)
-		(void) printf(gettext("currently scanning '%s'\n"), dsname);
+	if (ps->pss_dataset_scrub) {
+		if (dsname != NULL) {
+			(void) printf(gettext("\tcurrently scanning '%s'\n"),
+			    dsname);
+		} else {
+			(void) printf(gettext("\tfinishing dataset scrub\n"));
+		}
+	}
 
 	scanned = ps->pss_examined;
 	pass_scanned = ps->pss_pass_exam;

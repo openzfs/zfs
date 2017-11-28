@@ -775,7 +775,7 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 	 */
 	if (dsp->dsp_flags & POOL_SCAN_FLAG_DATASET) {
 		dsl_dir_t *dd;
-		const char *tail;
+		const char *tail = NULL;
 
 		scn->scn_phys.scn_flags |= DSF_SCRUB_DATASET;
 

@@ -881,6 +881,7 @@ typedef struct pool_scan_stat {
 	/* cumulative time scrub spent paused, needed for rate calculation */
 	uint64_t	pss_pass_scrub_spent_paused;
 	uint64_t	pss_issued;	/* total bytes checked by scanner */
+	uint64_t	pss_dataset_scrub; /* dataset scrub */
 } pool_scan_stat_t;
 
 typedef enum dsl_scan_state {
