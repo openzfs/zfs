@@ -600,6 +600,7 @@ typedef struct zpool_rewind_policy {
 #define	ZPOOL_CONFIG_ASIZE		"asize"
 #define	ZPOOL_CONFIG_DTL		"DTL"
 #define	ZPOOL_CONFIG_SCAN_STATS		"scan_stats"	/* not stored on disk */
+#define	ZPOOL_CONFIG_SCAN_DSNAME	"scan_dsname"	/* not stored on disk */
 #define	ZPOOL_CONFIG_VDEV_STATS		"vdev_stats"	/* not stored on disk */
 
 /* container nvlist of extended stats */

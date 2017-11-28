@@ -5966,7 +5966,7 @@ zpool_do_scrub(int argc, char **argv)
  * Print out detailed scrub status.
  */
 void
-print_scan_status(pool_scan_stat_t *ps)
+print_scan_status(pool_scan_stat_t *ps, char *dsname)
 {
 	time_t start, end, pause;
 	uint64_t total_secs_left;
@@ -6047,6 +6047,10 @@ print_scan_status(pool_scan_stat_t *ps)
 		(void) printf(gettext("resilver in progress since %s"),
 		    ctime(&start));
 	}
+
+	/* If this is a dataset scan, print current dataset name. */
+	if (dsname != NULL)
+		(void) printf(gettext("currently scanning '%s'\n"), dsname);
 
 	scanned = ps->pss_examined;
 	pass_scanned = ps->pss_pass_exam;
@@ -6518,10 +6522,13 @@ status_callback(zpool_handle_t *zhp, void *data)
 		nvlist_t **spares, **l2cache;
 		uint_t nspares, nl2cache;
 		pool_scan_stat_t *ps = NULL;
+		char *dsname = NULL;
 
 		(void) nvlist_lookup_uint64_array(nvroot,
 		    ZPOOL_CONFIG_SCAN_STATS, (uint64_t **)&ps, &c);
-		print_scan_status(ps);
+		(void) nvlist_lookup_string(nvroot, ZPOOL_CONFIG_SCAN_DSNAME,
+		    &dsname);
+		print_scan_status(ps, dsname);
 
 		cbp->cb_namewidth = max_width(zhp, nvroot, 0, 0,
 		    cbp->cb_name_flags | VDEV_NAME_TYPE_ID);

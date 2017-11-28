@@ -459,6 +459,25 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 
 		/* provide either current or previous scan information */
 		if (spa_scan_get_stats(spa, &ps) == 0) {
+			int err;
+			dsl_dataset_t *ds;
+			dsl_pool_t *dp = spa_get_dsl(spa);
+			dsl_scan_phys_t *scn_phys = &dp->dp_scan->scn_phys;
+			char dsname[ZFS_MAX_DATASET_NAME_LEN];
+
+			if (scn_phys->scn_flags & DSF_SCRUB_DATASET) {
+				dsl_pool_config_enter(dp, FTAG);
+				err = dsl_dataset_hold_obj(dp,
+				    scn_phys->scn_bookmark.zb_objset,
+				    FTAG, &ds);
+				if (err == 0) {
+					dsl_dataset_name(ds, dsname);
+					dsl_dataset_rele(ds, FTAG);
+					fnvlist_add_string(nv,
+					    ZPOOL_CONFIG_SCAN_DSNAME, dsname);
+				}
+				dsl_pool_config_exit(dp, FTAG);
+			}
 			fnvlist_add_uint64_array(nv,
 			    ZPOOL_CONFIG_SCAN_STATS, (uint64_t *)&ps,
 			    sizeof (pool_scan_stat_t) / sizeof (uint64_t));
