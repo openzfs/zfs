@@ -866,11 +866,11 @@ typedef struct pool_scan_stat {
 
 	/* values not stored on disk */
 	uint64_t	pss_pass_exam; /* examined bytes per scan pass */
-	uint64_t	pss_pass_issued; /* issued bytes per scan pass */
 	uint64_t	pss_pass_start;	/* start time of a scan pass */
 	uint64_t	pss_pass_scrub_pause; /* pause time of a scurb pass */
 	/* cumulative time scrub spent paused, needed for rate calculation */
 	uint64_t	pss_pass_scrub_spent_paused;
+	uint64_t	pss_pass_issued; /* issued bytes per scan pass */
 	uint64_t	pss_issued;	/* total bytes checked by scanner */
 } pool_scan_stat_t;
 
