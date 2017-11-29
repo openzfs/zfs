@@ -47,7 +47,6 @@
  * Emulation of kernel services in userland.
  */
 
-int aok;
 uint64_t physmem;
 vnode_t *rootdir = (vnode_t *)0xabcd1234;
 char hw_serial[HW_HOSTID_LEN];
