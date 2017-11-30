@@ -468,7 +468,7 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 			if (scn_phys->scn_flags & DSF_SCRUB_DATASET) {
 				dsl_pool_config_enter(dp, FTAG);
 				err = dsl_dataset_hold_obj(dp,
-				    scn_phys->scn_bookmark.zb_objset,
+				    spa->spa_scan_cur_ds_obj,
 				    FTAG, &ds);
 				if (err == 0) {
 					dsl_dataset_name(ds, dsname);

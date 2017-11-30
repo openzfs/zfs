@@ -2225,6 +2225,7 @@ static void
 dsl_scan_visitds(dsl_scan_t *scn, uint64_t dsobj, dmu_tx_t *tx)
 {
 	dsl_pool_t *dp = scn->scn_dp;
+	spa_t *spa;
 	dsl_dataset_t *ds;
 	objset_t *os;
 
@@ -2286,6 +2287,8 @@ dsl_scan_visitds(dsl_scan_t *scn, uint64_t dsobj, dmu_tx_t *tx)
 	/*
 	 * Iterate over the bps in this ds.
 	 */
+	spa = dmu_objset_spa(os);
+	spa->spa_scan_cur_ds_obj = ds->ds_object;
 	dmu_buf_will_dirty(ds->ds_dbuf, tx);
 	rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
 	dsl_scan_visit_rootbp(scn, ds, &dsl_dataset_phys(ds)->ds_bp, tx);
@@ -3369,6 +3372,7 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 				scn->scn_checkpointing = B_TRUE;
 				scn->scn_clearing = B_TRUE;
 			}
+			spa->spa_scan_cur_ds_obj = 0;
 			zfs_dbgmsg("scan complete txg %llu",
 			    (longlong_t)tx->tx_txg);
 		}
