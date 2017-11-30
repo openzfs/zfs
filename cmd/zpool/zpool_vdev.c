@@ -801,8 +801,11 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 		if (is_log)
 			continue;
 
-		verify(nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE,
-		    &type) == 0);
+		/* Ignore holes introduced by removing aux devices */
+		verify(nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &type) == 0);
+		if (strcmp(type, VDEV_TYPE_HOLE) == 0)
+			continue;
+
 		if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
 		    &child, &children) != 0) {
 			/*
