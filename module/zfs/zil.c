@@ -819,6 +819,8 @@ zil_claim(dsl_pool_t *dp, dsl_dataset_t *ds, void *txarg)
 		if (zilog->zl_parse_lr_count || zilog->zl_parse_blk_count > 1)
 			zh->zh_flags |= ZIL_REPLAY_NEEDED;
 		zh->zh_flags |= ZIL_CLAIM_LR_SEQ_VALID;
+		if (os->os_encrypted)
+			os->os_next_write_raw = B_TRUE;
 		dsl_dataset_dirty(dmu_objset_ds(os), tx);
 	}
 
