@@ -37,10 +37,10 @@
 #	Verify zpool add succeed when adding vdevs with matching redundancy.
 #
 # STRATEGY:
-#	1. Create base filesystem to hold virtual disk files.
-#	2. Create several files == $MINVDEVSIZE.
-#	3. Create pool with given redundancy.
-#	3. Verify 'zpool add' succeed with with matching redundancy.
+#	1. Create several files == $MINVDEVSIZE.
+#	2. Verify 'zpool add' succeeds with matching redundancy.
+#	3. Verify 'zpool add' warns with differing redundancy.
+#	4. Verify 'zpool add' warns with differing redundancy after removal.
 #
 
 verify_runnable "global"
@@ -48,21 +48,24 @@ verify_runnable "global"
 function cleanup
 {
 	datasetexists $TESTPOOL1 && destroy_pool $TESTPOOL1
-	datasetexists $TESTPOOL && destroy_pool $TESTPOOL
+
+	typeset -i i=0
+	while ((i < 10)); do
+		log_must rm -f $TEST_BASE_DIR/vdev$i
+		((i += 1))
+	done
 }
 
 
 log_assert "Verify 'zpool add' succeed with keywords combination."
 log_onexit cleanup
 
-create_pool $TESTPOOL $DISKS
-mntpnt=$(get_prop mountpoint $TESTPOOL)
-
+# 1. Create several files == $MINVDEVSIZE.
 typeset -i i=0
 while ((i < 10)); do
-	log_must truncate -s $MINVDEVSIZE $mntpnt/vdev$i
+	log_must truncate -s $MINVDEVSIZE $TEST_BASE_DIR/vdev$i
 
-	eval vdev$i=$mntpnt/vdev$i
+	eval vdev$i=$TEST_BASE_DIR/vdev$i
 	((i += 1))
 done
 
@@ -98,6 +101,10 @@ set -A redundancy2_add_args \
 set -A redundancy3_add_args \
 	"mirror $vdev5 $vdev6 $vdev7 $vdev8" \
 	"raidz3 $vdev5 $vdev6 $vdev7 $vdev8"
+
+set -A log_args "log" "$vdev4"
+set -A cache_args "cache" "$vdev4"
+set -A spare_args "spare" "$vdev4"
 
 typeset -i j=0
 
@@ -140,11 +147,37 @@ function zpool_create_forced_add
 	done
 }
 
+function zpool_create_rm_add
+{
+	typeset -n create_args=$1
+	typeset -n add_args=$2
+	typeset -n rm_args=$3
+
+	i=0
+	while ((i < ${#create_args[@]})); do
+		j=0
+		while ((j < ${#add_args[@]})); do
+			log_must zpool create $TESTPOOL1 ${create_args[$i]}
+			log_must zpool add $TESTPOOL1 ${rm_args[0]} ${rm_args[1]}
+			log_must zpool add $TESTPOOL1 ${add_args[$j]}
+			log_must zpool remove $TESTPOOL1 ${rm_args[1]}
+			log_mustnot zpool add $TESTPOOL1 ${rm_args[1]}
+			log_must zpool add $TESTPOOL1 ${rm_args[0]} ${rm_args[1]}
+			log_must zpool destroy -f $TESTPOOL1
+
+			((j += 1))
+		done
+		((i += 1))
+	done
+}
+
+# 2. Verify 'zpool add' succeeds with matching redundancy.
 zpool_create_add redundancy0_create_args redundancy0_add_args
 zpool_create_add redundancy1_create_args redundancy1_add_args
 zpool_create_add redundancy2_create_args redundancy2_add_args
 zpool_create_add redundancy3_create_args redundancy3_add_args
 
+# 3. Verify 'zpool add' warns with differing redundancy.
 zpool_create_forced_add redundancy0_create_args redundancy1_add_args
 zpool_create_forced_add redundancy0_create_args redundancy2_add_args
 zpool_create_forced_add redundancy0_create_args redundancy3_add_args
@@ -160,5 +193,18 @@ zpool_create_forced_add redundancy2_create_args redundancy3_add_args
 zpool_create_forced_add redundancy3_create_args redundancy0_add_args
 zpool_create_forced_add redundancy3_create_args redundancy1_add_args
 zpool_create_forced_add redundancy3_create_args redundancy2_add_args
+
+# 4. Verify 'zpool add' warns with differing redundancy after removal.
+zpool_create_rm_add redundancy1_create_args redundancy1_add_args log_args
+zpool_create_rm_add redundancy2_create_args redundancy2_add_args log_args
+zpool_create_rm_add redundancy3_create_args redundancy3_add_args log_args
+
+zpool_create_rm_add redundancy1_create_args redundancy1_add_args cache_args
+zpool_create_rm_add redundancy2_create_args redundancy2_add_args cache_args
+zpool_create_rm_add redundancy3_create_args redundancy3_add_args cache_args
+
+zpool_create_rm_add redundancy1_create_args redundancy1_add_args spare_args
+zpool_create_rm_add redundancy2_create_args redundancy2_add_args spare_args
+zpool_create_rm_add redundancy3_create_args redundancy3_add_args spare_args
 
 log_pass "'zpool add' succeed with keywords combination."
