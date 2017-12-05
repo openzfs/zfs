@@ -8087,6 +8087,7 @@ zpool_do_events_nvprint(nvlist_t *nvl, int depth)
 		case DATA_TYPE_BOOLEAN_ARRAY:
 		case DATA_TYPE_BYTE_ARRAY:
 		case DATA_TYPE_DOUBLE:
+		case DATA_TYPE_DONTCARE:
 		case DATA_TYPE_UNKNOWN:
 			printf(gettext("<unknown>"));
 			break;
