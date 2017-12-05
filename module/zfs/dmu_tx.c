@@ -1097,10 +1097,11 @@ dmu_tx_wait(dmu_tx_t *tx)
 		tx->tx_needassign_txh = NULL;
 	} else {
 		/*
-		 * A dnode is assigned to the quiescing txg.  Wait for its
-		 * transaction to complete.
+		 * If we have a lot of dirty data just wait until we sync
+		 * out a TXG at which point we'll hopefully have synced
+		 * a portion of the changes.
 		 */
-		txg_wait_open(tx->tx_pool, tx->tx_lasttried_txg + 1);
+		txg_wait_synced(dp, spa_last_synced_txg(spa) + 1);
 	}
 
 	spa_tx_assign_add_nsecs(spa, gethrtime() - before);
