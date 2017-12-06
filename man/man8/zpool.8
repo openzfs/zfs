@@ -27,7 +27,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd August 23, 2017
+.Dd January 10, 2018
 .Dt ZPOOL 8 SMM
 .Os Linux
 .Sh NAME
@@ -472,10 +472,8 @@ change the behavior of the pool.
 .Pp
 The following are read-only properties:
 .Bl -tag -width Ds
-.It Sy available
-Amount of storage available within the pool.
-This property can also be referred to by its shortened column name,
-.Sy avail .
+.It Cm allocated
+Amount of storage used within the pool.
 .It Sy capacity
 Percentage of pool space used.
 This property can also be referred to by its shortened column name,
@@ -516,8 +514,6 @@ Information about unsupported features that are enabled on the pool.
 See
 .Xr zpool-features 5
 for details.
-.It Sy used
-Amount of storage space used within the pool.
 .El
 .Pp
 The space usage properties report actual physical space available to the
@@ -1661,8 +1657,8 @@ See the
 .Sx Properties
 section for a list of valid properties.
 The default list is
-.Sy name, size, alloc, free, fragmentation, expandsize, capacity,
-.Sy dedupratio, health, altroot .
+.Cm name , size , allocated , free , expandsize , fragmentation , capacity ,
+.Cm dedupratio , health , altroot .
 .It Fl L
 Display real paths for vdevs resolving all symbolic links. This can
 be used to look up the current block device name regardless of the
