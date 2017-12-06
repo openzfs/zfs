@@ -56,9 +56,9 @@ typedef enum {
  * Log write block (lwb)
  *
  * Prior to an lwb being issued to disk via zil_lwb_write_issue(), it
- * will be protected by the zilog's "zl_writer_lock". Basically, prior
+ * will be protected by the zilog's "zl_issuer_lock". Basically, prior
  * to it being issued, it will only be accessed by the thread that's
- * holding the "zl_writer_lock". After the lwb is issued, the zilog's
+ * holding the "zl_issuer_lock". After the lwb is issued, the zilog's
  * "zl_lock" is used to protect the lwb against concurrent access.
  */
 typedef struct lwb {
@@ -92,10 +92,10 @@ typedef struct lwb {
  *
  * The "zcw_lock" field is used to protect the commit waiter against
  * concurrent access. This lock is often acquired while already holding
- * the zilog's "zl_writer_lock" or "zl_lock"; see the functions
+ * the zilog's "zl_issuer_lock" or "zl_lock"; see the functions
  * zil_process_commit_list() and zil_lwb_flush_vdevs_done() as examples
  * of this. Thus, one must be careful not to acquire the
- * "zl_writer_lock" or "zl_lock" when already holding the "zcw_lock";
+ * "zl_issuer_lock" or "zl_lock" when already holding the "zcw_lock";
  * e.g. see the zil_commit_waiter_timeout() function.
  */
 typedef struct zil_commit_waiter {
@@ -162,7 +162,7 @@ struct zilog {
 	uint8_t		zl_keep_first;	/* keep first log block in destroy */
 	uint8_t		zl_replay;	/* replaying records while set */
 	uint8_t		zl_stop_sync;	/* for debugging */
-	kmutex_t	zl_writer_lock;	/* single writer, per ZIL, at a time */
+	kmutex_t	zl_issuer_lock;	/* single writer, per ZIL, at a time */
 	uint8_t		zl_logbias;	/* latency or throughput */
 	uint8_t		zl_sync;	/* synchronous or asynchronous */
 	int		zl_parse_error;	/* last zil_parse() error */
