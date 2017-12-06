@@ -5172,8 +5172,11 @@ ztest_verify_dnode_bt(ztest_ds_t *zd, uint64_t id)
 		dmu_object_info_t doi;
 		dmu_buf_t *db;
 
-		if (dmu_bonus_hold(os, obj, FTAG, &db) != 0)
+		ztest_object_lock(zd, obj, RL_READER);
+		if (dmu_bonus_hold(os, obj, FTAG, &db) != 0) {
+			ztest_object_unlock(zd, obj);
 			continue;
+		}
 
 		dmu_object_info_from_db(db, &doi);
 		if (doi.doi_bonus_size >= sizeof (*bt))
@@ -5187,6 +5190,7 @@ ztest_verify_dnode_bt(ztest_ds_t *zd, uint64_t id)
 		}
 
 		dmu_buf_rele(db, FTAG);
+		ztest_object_unlock(zd, obj);
 	}
 }
 
