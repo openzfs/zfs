@@ -3648,7 +3648,7 @@ print_vdev_stats(zpool_handle_t *zhp, const char *name, nvlist_t *oldnv,
     nvlist_t *newnv, iostat_cbdata_t *cb, int depth)
 {
 	nvlist_t **oldchild, **newchild;
-	uint_t c, children;
+	uint_t c, children, oldchildren;
 	vdev_stat_t *oldvs, *newvs, *calcvs;
 	vdev_stat_t zerovs = { 0 };
 	char *vname;
@@ -3760,9 +3760,13 @@ children:
 	    &newchild, &children) != 0)
 		return (ret);
 
-	if (oldnv && nvlist_lookup_nvlist_array(oldnv, ZPOOL_CONFIG_CHILDREN,
-	    &oldchild, &c) != 0)
-		return (ret);
+	if (oldnv) {
+		if (nvlist_lookup_nvlist_array(oldnv, ZPOOL_CONFIG_CHILDREN,
+		    &oldchild, &oldchildren) != 0)
+			return (ret);
+
+		children = MIN(oldchildren, children);
+	}
 
 	for (c = 0; c < children; c++) {
 		uint64_t ishole = B_FALSE, islog = B_FALSE;
@@ -3818,9 +3822,13 @@ children:
 	    &newchild, &children) != 0)
 		return (ret);
 
-	if (oldnv && nvlist_lookup_nvlist_array(oldnv, ZPOOL_CONFIG_L2CACHE,
-	    &oldchild, &c) != 0)
-		return (ret);
+	if (oldnv) {
+		if (nvlist_lookup_nvlist_array(oldnv, ZPOOL_CONFIG_L2CACHE,
+		    &oldchild, &oldchildren) != 0)
+			return (ret);
+
+		children = MIN(oldchildren, children);
+	}
 
 	if (children > 0) {
 		if ((!(cb->cb_flags & IOS_ANYHISTO_M)) && !cb->cb_scripted &&
