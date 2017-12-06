@@ -26,6 +26,7 @@
 
 #include <linux/simd_x86.h>
 #include <sys/byteorder.h>
+#include <sys/frame.h>
 #include <sys/spa_checksum.h>
 #include <zfs_fletcher.h>
 #include <strings.h>
@@ -107,6 +108,7 @@ fletcher_4_avx512f_native(fletcher_4_ctx_t *ctx, const void *buf, uint64_t size)
 
 	kfpu_end();
 }
+STACK_FRAME_NON_STANDARD(fletcher_4_avx512f_native);
 
 static void
 fletcher_4_avx512f_byteswap(fletcher_4_ctx_t *ctx, const void *buf,
@@ -150,6 +152,7 @@ fletcher_4_avx512f_byteswap(fletcher_4_ctx_t *ctx, const void *buf,
 
 	kfpu_end();
 }
+STACK_FRAME_NON_STANDARD(fletcher_4_avx512f_byteswap);
 
 static boolean_t
 fletcher_4_avx512f_valid(void)
