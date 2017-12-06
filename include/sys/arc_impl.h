@@ -98,6 +98,7 @@ struct arc_callback {
 	boolean_t		acb_noauth;
 	uint64_t		acb_dsobj;
 	zio_t			*acb_zio_dummy;
+	zio_t			*acb_zio_head;
 	arc_callback_t		*acb_next;
 };
 

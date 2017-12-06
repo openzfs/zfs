@@ -586,6 +586,8 @@ extern void zio_vdev_io_bypass(zio_t *zio);
 extern void zio_vdev_io_reissue(zio_t *zio);
 extern void zio_vdev_io_redone(zio_t *zio);
 
+extern void zio_change_priority(zio_t *pio, zio_priority_t priority);
+
 extern void zio_checksum_verified(zio_t *zio);
 extern int zio_worst_error(int e1, int e2);
 
