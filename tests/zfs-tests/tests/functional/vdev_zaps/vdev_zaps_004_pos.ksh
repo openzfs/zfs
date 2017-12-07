@@ -31,6 +31,11 @@
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/vdev_zaps/vdev_zaps.kshlib
 
+# See issue: https://github.com/zfsonlinux/zfs/issues/6935
+if is_linux; then
+	log_unsupported "Test case occasionally fails"
+fi
+
 log_assert "Per-vdev ZAPs are transferred properly on attach/detach"
 
 DISK=${DISKS%% *}
