@@ -31,6 +31,12 @@ PRE_BUILD="configure
   --with-spl-obj=\${dkms_tree}/spl/\${PACKAGE_VERSION}/\${kernelver}/\${arch}
   --with-spl-timeout=300
   \$(
+    [[ -n \"\${ICP_ROOT}\" ]] && \\
+    {
+      echo --with-qat=\"\${ICP_ROOT}\"
+    }
+  )
+  \$(
     [[ -r \${PACKAGE_CONFIG} ]] \\
     && source \${PACKAGE_CONFIG} \\
     && shopt -q -s extglob \\
