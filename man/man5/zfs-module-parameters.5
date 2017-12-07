@@ -778,6 +778,21 @@ Use \fB1\fR for yes (default) and \fB0\fR for no.
 .sp
 .ne 2
 .na
+\fBzfs_commit_timeout_pct\fR (int)
+.ad
+.RS 12n
+This controls the amount of time that a ZIL block (lwb) will remain "open"
+when it isn't "full", and it has a thread waiting for it to be committed to
+stable storage.  The timeout is scaled based on a percentage of the last lwb
+latency to avoid significantly impacting the latency of each individual
+transaction record (itx).
+.sp
+Default value: \fB5\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_dbgmsg_enable\fR (int)
 .ad
 .RS 12n
@@ -2120,7 +2135,7 @@ Default value: \fB0\fR.
 .ad
 .RS 12n
 The maximum number of taskq entries that are allowed to be cached.  When this
-limit is exceeded itx's will be cleaned synchronously.
+limit is exceeded transaction records (itxs) will be cleaned synchronously.
 .sp
 Default value: \fB1048576\fR.
 .RE
