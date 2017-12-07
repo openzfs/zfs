@@ -2271,11 +2271,9 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 	int ret = 0;
 	zpool_handle_t *zhp;
 	char *name;
-	uint64_t state;
 	uint64_t version;
 
 	name = fnvlist_lookup_string(config, ZPOOL_CONFIG_POOL_NAME);
-	state = fnvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_STATE);
 	version = fnvlist_lookup_uint64(config, ZPOOL_CONFIG_VERSION);
 
 	if (!SPA_VERSION_IS_SUPPORTED(version)) {
