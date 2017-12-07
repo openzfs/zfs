@@ -167,14 +167,12 @@ zfs_case_unserialize(fmd_hdl_t *hdl, fmd_case_t *cp)
 static void
 zfs_mark_vdev(uint64_t pool_guid, nvlist_t *vd, er_timeval_t *loaded)
 {
-	uint64_t vdev_guid;
+	uint64_t vdev_guid = 0;
 	uint_t c, children;
 	nvlist_t **child;
 	zfs_case_t *zcp;
-	int ret;
 
-	ret = nvlist_lookup_uint64(vd, ZPOOL_CONFIG_GUID, &vdev_guid);
-	assert(ret == 0);
+	(void) nvlist_lookup_uint64(vd, ZPOOL_CONFIG_GUID, &vdev_guid);
 
 	/*
 	 * Mark any cases associated with this (pool, vdev) pair.
@@ -253,7 +251,10 @@ zfs_mark_pool(zpool_handle_t *zhp, void *unused)
 	}
 
 	ret = nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE, &vd);
-	assert(ret == 0);
+	if (ret) {
+		zpool_close(zhp);
+		return (-1);
+	}
 
 	zfs_mark_vdev(pool_guid, vd, &loaded);
 
