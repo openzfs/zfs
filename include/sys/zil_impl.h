@@ -36,13 +36,38 @@ extern "C" {
 #endif
 
 /*
- * Possbile states for a given lwb structure. An lwb will start out in
- * the "closed" state, and then transition to the "opened" state via a
- * call to zil_lwb_write_open(). After the lwb is "open", it can
- * transition into the "issued" state via zil_lwb_write_issue(). After
- * the lwb's zio completes, and the vdev's are flushed, the lwb will
- * transition into the "done" state via zil_lwb_write_done(), and the
- * structure eventually freed.
+ * Possbile states for a given lwb structure.
+ *
+ * An lwb will start out in the "closed" state, and then transition to
+ * the "opened" state via a call to zil_lwb_write_open(). When
+ * transitioning from "closed" to "opened" the zilog's "zl_issuer_lock"
+ * must be held.
+ *
+ * After the lwb is "opened", it can transition into the "issued" state
+ * via zil_lwb_write_issue(). Again, the zilog's "zl_issuer_lock" must
+ * be held when making this transition.
+ *
+ * After the lwb's zio completes, and the vdev's are flushed, the lwb
+ * will transition into the "done" state via zil_lwb_write_done(). When
+ * transitioning from "issued" to "done", the zilog's "zl_lock" must be
+ * held, *not* the "zl_issuer_lock".
+ *
+ * The zilog's "zl_issuer_lock" can become heavily contended in certain
+ * workloads, so we specifically avoid acquiring that lock when
+ * transitioning an lwb from "issued" to "done". This allows us to avoid
+ * having to acquire the "zl_issuer_lock" for each lwb ZIO completion,
+ * which would have added more lock contention on an already heavily
+ * contended lock.
+ *
+ * Additionally, correctness when reading an lwb's state is often
+ * acheived by exploiting the fact that these state transitions occur in
+ * this specific order; i.e. "closed" to "opened" to "issued" to "done".
+ *
+ * Thus, if an lwb is in the "closed" or "opened" state, holding the
+ * "zl_issuer_lock" will prevent a concurrent thread from transitioning
+ * that lwb to the "issued" state. Likewise, if an lwb is already in the
+ * "issued" state, holding the "zl_lock" will prevent a concurrent
+ * thread from transitioning that lwb to the "done" state.
  */
 typedef enum {
     LWB_STATE_CLOSED,

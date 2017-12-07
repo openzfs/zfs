@@ -1984,20 +1984,6 @@ zio_reexecute(zio_t *pio)
 }
 
 void
-zio_cancel(zio_t *zio)
-{
-	/*
-	 * Disallow cancellation of a zio that's already been issued.
-	 */
-	VERIFY3P(zio->io_executor, ==, NULL);
-
-	zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;
-	zio->io_done = NULL;
-
-	zio_nowait(zio);
-}
-
-void
 zio_suspend(spa_t *spa, zio_t *zio)
 {
 	if (spa_get_failmode(spa) == ZIO_FAILURE_MODE_PANIC)
