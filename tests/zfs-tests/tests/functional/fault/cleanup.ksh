@@ -33,14 +33,4 @@ cleanup_devices $DISKS
 zed_stop
 zed_cleanup
 
-SDDEVICE=$(get_debug_device)
-
-# Offline disk and remove scsi_debug module
-if is_linux; then
-	if [ -n "$SDDEVICE" ]; then
-		remove_disk $SDDEVICE
-	fi
-	modprobe -r scsi_debug
-fi
-
 log_pass

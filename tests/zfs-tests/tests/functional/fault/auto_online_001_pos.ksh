@@ -54,9 +54,8 @@ fi
 
 function cleanup
 {
-	#online last disk before fail
-	insert_disk $offline_disk $host
-	poolexists $TESTPOOL && destroy_pool $TESTPOOL
+	destroy_pool $TESTPOOL
+	unload_scsi_debug
 }
 
 log_assert "Testing automated auto-online FMA test"
@@ -65,8 +64,8 @@ log_onexit cleanup
 
 # If using the default loop devices, need a scsi_debug device for auto-online
 if is_loop_device $DISK1; then
-	SD=$(lsscsi | nawk '/scsi_debug/ {print $6; exit}')
-	SDDEVICE=$(echo $SD | nawk -F / '{print $3}')
+	load_scsi_debug $SDSIZE $SDHOSTS $SDTGTS $SDLUNS '512b'
+	SDDEVICE=$(get_debug_device)
 	SDDEVICE_ID=$(get_persistent_disk_name $SDDEVICE)
 	autoonline_disks="$SDDEVICE"
 else

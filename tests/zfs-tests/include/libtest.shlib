@@ -3158,11 +3158,23 @@ function zed_stop
 	if [[ -f ${ZEDLET_DIR}/zed.pid ]]; then
 		zedpid=$(cat ${ZEDLET_DIR}/zed.pid)
 		kill $zedpid
-		wait $zedpid
+		while ps -p $zedpid > /dev/null; do
+			sleep 1
+		done
 		rm -f ${ZEDLET_DIR}/zed.pid
 	fi
-
 	return 0
+}
+
+#
+# Drain all zevents
+#
+function zed_events_drain
+{
+	while [ $(zpool events -H | wc -l) -ne 0 ]; do
+		sleep 1
+		zpool events -c >/dev/null
+	done
 }
 
 #
