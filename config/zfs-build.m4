@@ -27,7 +27,7 @@ AC_DEFUN([ZFS_AC_DEBUG], [
 	AC_MSG_CHECKING([whether assertion support will be enabled])
 	AC_ARG_ENABLE([debug],
 		[AS_HELP_STRING([--enable-debug],
-		[Enable assertion support @<:@default=no@:>@])],
+		[Enable compiler and code assertions @<:@default=no@:>@])],
 		[],
 		[enable_debug=no])
 

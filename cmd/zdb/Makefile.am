@@ -2,6 +2,8 @@ include $(top_srcdir)/config/Rules.am
 
 AM_CPPFLAGS += -DDEBUG
 
+AM_CFLAGS += $(FSANITIZE_ADDRESS)
+
 DEFAULT_INCLUDES += \
 	-I$(top_srcdir)/include \
 	-I$(top_srcdir)/lib/libspl/include

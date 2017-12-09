@@ -4,7 +4,7 @@ VPATH = \
 	$(top_srcdir)/lib/libspl \
 	$(top_srcdir)/lib/libspl/$(TARGET_ASM_DIR)
 
-AM_CFLAGS += $(DEBUG_STACKFLAGS) $(FRAME_LARGER_THAN)
+AM_CFLAGS += $(DEBUG_STACKFLAGS) $(FRAME_LARGER_THAN) $(FSANITIZE_ADDRESS)
 
 SUBDIRS = include $(TARGET_ASM_DIR)
 DIST_SUBDIRS = include asm-generic asm-i386 asm-x86_64

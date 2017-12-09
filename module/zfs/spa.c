@@ -1563,7 +1563,7 @@ spa_load_spares(spa_t *spa)
 static void
 spa_load_l2cache(spa_t *spa)
 {
-	nvlist_t **l2cache;
+	nvlist_t **l2cache = NULL;
 	uint_t nl2cache;
 	int i, j, oldnvdevs;
 	uint64_t guid;
@@ -1647,7 +1647,9 @@ spa_load_l2cache(spa_t *spa)
 	VERIFY(nvlist_remove(sav->sav_config, ZPOOL_CONFIG_L2CACHE,
 	    DATA_TYPE_NVLIST_ARRAY) == 0);
 
-	l2cache = kmem_alloc(sav->sav_count * sizeof (void *), KM_SLEEP);
+	if (sav->sav_count > 0)
+		l2cache = kmem_alloc(sav->sav_count * sizeof (void *),
+		    KM_SLEEP);
 	for (i = 0; i < sav->sav_count; i++)
 		l2cache[i] = vdev_config_generate(spa,
 		    sav->sav_vdevs[i], B_TRUE, VDEV_CONFIG_L2CACHE);

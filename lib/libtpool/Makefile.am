@@ -1,6 +1,6 @@
 include $(top_srcdir)/config/Rules.am
 
-AM_CFLAGS += $(DEBUG_STACKFLAGS)
+AM_CFLAGS += $(DEBUG_STACKFLAGS) $(FSANITIZE_ADDRESS)
 
 DEFAULT_INCLUDES += \
 	-I$(top_srcdir)/include \
