@@ -2516,6 +2516,7 @@ zpool_vdev_online(zpool_handle_t *zhp, const char *path, int flags,
 {
 	zfs_cmd_t zc = {"\0"};
 	char msg[1024];
+	char *pathname;
 	nvlist_t *tgt;
 	boolean_t avail_spare, l2cache, islog;
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
@@ -2539,8 +2540,9 @@ zpool_vdev_online(zpool_handle_t *zhp, const char *path, int flags,
 	if (avail_spare)
 		return (zfs_error(hdl, EZFS_ISSPARE, msg));
 
-	if (flags & ZFS_ONLINE_EXPAND ||
-	    zpool_get_prop_int(zhp, ZPOOL_PROP_AUTOEXPAND, NULL)) {
+	if ((flags & ZFS_ONLINE_EXPAND ||
+	    zpool_get_prop_int(zhp, ZPOOL_PROP_AUTOEXPAND, NULL)) &&
+	    nvlist_lookup_string(tgt, ZPOOL_CONFIG_PATH, &pathname) == 0) {
 		uint64_t wholedisk = 0;
 
 		(void) nvlist_lookup_uint64(tgt, ZPOOL_CONFIG_WHOLE_DISK,
