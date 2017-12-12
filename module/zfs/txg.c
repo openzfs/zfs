@@ -517,7 +517,8 @@ txg_sync_thread(void *arg)
 		clock_t timeout = zfs_txg_timeout * hz;
 		clock_t timer;
 		uint64_t txg;
-		txg_stat_t *ts;
+		uint64_t dirty_min_bytes =
+		    zfs_dirty_data_max * zfs_dirty_data_sync_percent / 100;
 
 		/*
 		 * We sync when we're scanning, there's someone waiting
@@ -529,7 +530,7 @@ txg_sync_thread(void *arg)
 		    !tx->tx_exiting && timer > 0 &&
 		    tx->tx_synced_txg >= tx->tx_sync_txg_waiting &&
 		    !txg_has_quiesced_to_sync(dp) &&
-		    dp->dp_dirty_total < zfs_dirty_data_sync) {
+		    dp->dp_dirty_total < dirty_min_bytes) {
 			dprintf("waiting; tx_synced=%llu waiting=%llu dp=%p\n",
 			    tx->tx_synced_txg, tx->tx_sync_txg_waiting, dp);
 			txg_thread_wait(tx, &cpr, &tx->tx_sync_more_cv, timer);
@@ -561,7 +562,7 @@ txg_sync_thread(void *arg)
 		tx->tx_quiesced_txg = 0;
 		tx->tx_syncing_txg = txg;
 		DTRACE_PROBE2(txg__syncing, dsl_pool_t *, dp, uint64_t, txg);
-		ts = spa_txg_history_init_io(spa, txg, dp);
+		txg_stat_t *ts = spa_txg_history_init_io(spa, txg, dp);
 		cv_broadcast(&tx->tx_quiesce_more_cv);
 
 		dprintf("txg=%llu quiesce_txg=%llu sync_txg=%llu\n",
