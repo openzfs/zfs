@@ -88,12 +88,15 @@ BuildRequires:  libudev-devel
 BuildRequires:  libattr-devel
 BuildRequires:  openssl-devel
 Requires:       openssl
+%if 0%{?_systemd}
+BuildRequires: systemd
 %endif
+%endif
+
 %if 0%{?_systemd}
 Requires(post): systemd
 Requires(preun): systemd
 Requires(postun): systemd
-BuildRequires: systemd
 %endif
 
 # The zpool iostat/status -c scripts call some utilities like lsblk and iostat
