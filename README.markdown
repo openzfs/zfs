@@ -17,4 +17,4 @@ Full documentation for installing ZoL on your favorite Linux distribution can
 be found at [our site](http://zfsonlinux.org/).
 
 # Contribute & Develop
-We have a separate document with [contribution guidelines](./.github/CONTRIBUTING.md).
+We have a separate document with [contribution guidelines](./.github/CONTRIBUTING.md). 
