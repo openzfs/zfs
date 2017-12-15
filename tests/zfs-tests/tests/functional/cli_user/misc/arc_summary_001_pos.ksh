@@ -37,4 +37,7 @@ while [[ $i -lt ${#args[*]} ]]; do
         ((i = i + 1))
 done
 
+log_must eval "arc_summary.py | head > /dev/null"
+log_must eval "arc_summary.py | head -1 > /dev/null"
+
 log_pass "arc_summary.py generates output and doesn't return an error code"

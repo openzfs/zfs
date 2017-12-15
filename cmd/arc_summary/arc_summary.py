@@ -47,12 +47,25 @@ import getopt
 import os
 import sys
 import time
+import errno
 
 from subprocess import Popen, PIPE
 from decimal import Decimal as D
 
 show_tunable_descriptions = False
 alternate_tunable_layout = False
+
+
+def handle_Exception(ex_cls, ex, tb):
+    if ex is IOError:
+        if ex.errno == errno.EPIPE:
+            sys.exit()
+
+    if ex is KeyboardInterrupt:
+        sys.exit()
+
+
+sys.excepthook = handle_Exception
 
 
 def get_Kstat():
