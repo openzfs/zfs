@@ -5,7 +5,7 @@ check() {
 	[ "${1}" = "-d" ] && return 0
 
 	# Verify the zfs tool chain
-	for tool in "@sbindir@/zpool" "@sbindir@/zfs" "@sbindir@/mount.zfs" ; do
+	for tool in "@sbindir@/zpool" "@sbindir@/zfs" "@mounthelperdir@/mount.zfs" ; do
 		test -x "$tool" || return 1
 	done
 	# Verify grep exists
@@ -53,7 +53,7 @@ install() {
 		# Fallback: Guess the path and include all matches
 		dracut_install /usr/lib/gcc/*/*/libgcc_s.so*
 	fi
-	dracut_install @sbindir@/mount.zfs
+	dracut_install @mounthelperdir@/mount.zfs
 	dracut_install @udevdir@/vdev_id
 	dracut_install awk
 	dracut_install head

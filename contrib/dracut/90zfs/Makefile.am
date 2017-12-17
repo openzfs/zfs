@@ -24,6 +24,7 @@ $(pkgdracut_SCRIPTS):%:%.in
 		-e 's,@udevruledir\@,$(udevruledir),g' \
 		-e 's,@sysconfdir\@,$(sysconfdir),g' \
 		-e 's,@systemdunitdir\@,$(systemdunitdir),g' \
+		-e 's,@mounthelperdir\@,$(mounthelperdir),g' \
 		$< >'$@'
 
 distclean-local::
