@@ -87,11 +87,11 @@ BuildRequires:  libblkid-devel
 BuildRequires:  libudev-devel
 BuildRequires:  libattr-devel
 %endif
+
 %if 0%{?_systemd}
 Requires(post): systemd
 Requires(preun): systemd
 Requires(postun): systemd
-BuildRequires: systemd
 %endif
 
 # The zpool iostat/status -c scripts call some utilities like lsblk and iostat
