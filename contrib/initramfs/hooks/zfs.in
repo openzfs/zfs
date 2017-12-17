@@ -8,10 +8,8 @@ PREREQ="zdev"
 
 # These prerequisites are provided by the zfsutils package. The zdb utility is
 # not strictly required, but it can be useful at the initramfs recovery prompt.
-# The mount helper mount.zfs must be installed in /sbin because this path is
-# hardcoded in the mount(8) for security reasons.
-COPY_EXEC_LIST="@sbindir@/zdb @sbindir@/zpool @sbindir@/zfs /sbin/mount.zfs"
-COPY_EXEC_LIST="$COPY_EXEC_LIST @udevdir@/vdev_id"
+COPY_EXEC_LIST="@sbindir@/zdb @sbindir@/zpool @sbindir@/zfs"
+COPY_EXEC_LIST="$COPY_EXEC_LIST @mounthelperdir@/mount.zfs @udevdir@/vdev_id"
 COPY_FILE_LIST="/etc/hostid @sysconfdir@/zfs/zpool.cache"
 COPY_FILE_LIST="$COPY_FILE_LIST @sysconfdir@/default/zfs"
 COPY_FILE_LIST="$COPY_FILE_LIST @sysconfdir@/zfs/zfs-functions"
