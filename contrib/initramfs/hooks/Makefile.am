@@ -11,6 +11,7 @@ $(hooks_SCRIPTS):%:%.in
 		-e 's,@sysconfdir\@,$(sysconfdir),g' \
 		-e 's,@udevdir\@,$(udevdir),g' \
 		-e 's,@udevruledir\@,$(udevruledir),g' \
+		-e 's,@mounthelperdir\@,$(mounthelperdir),g' \
 		$< >'$@'
 
 clean-local::
