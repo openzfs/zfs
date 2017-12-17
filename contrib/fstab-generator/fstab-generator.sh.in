@@ -1,0 +1,244 @@
+#!/bin/bash
+
+# fstab-generator - generates fstab configuration for zfs filesystems
+# Copyright (c) 2017 Antonio Russo <antonio.e.russo@gmail.com>
+#
+# Permission is hereby granted, free of charge, to any person obtaining
+# a copy of this software and associated documentation files (the
+# "Software"), to deal in the Software without restriction, including
+# without limitation the rights to use, copy, modify, merge, publish,
+# distribute, sublicense, and/or sell copies of the Software, and to
+# permit persons to whom the Software is furnished to do so, subject to
+# the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+ZFS="@sbindir@/zfs"
+CAT="cat"
+MKTEMP="mktemp"
+DIFF="diff"
+FSTAB="/etc/fstab"
+
+print_help() {
+    cat << END
+Usage: $(basename ${0}) [OPTIONS] <FILESYSTEMS>
+Generates fstab configuration for each filesystem (and children)
+Available options:
+ --help               -- print this help
+ --option <mountopts> -- additional mountopts in fstab
+ --no-systemd         -- suppress x-systemd.requires=zfs-import.target
+ --section <name>     -- include the output in section <name>
+                         defaults to <FILESYSTEMS>
+ --no-recurse         -- do not recurse to child filesystems
+ --stdout             -- output to stdout instead of a file
+ --silent             -- do not inform if making modifications
+ --file <file>        -- include the output into <file>
+                         defaults to ${FSTAB}
+END
+}
+
+verbose=1
+enumerate="-Hr"
+
+do_fail() {
+    printf "$@" >&2
+    echo >&2
+    caller >&2
+    print_help >&2
+    exit 1
+}
+
+type $CAT 1>/dev/null 2>/dev/null || do_fail 'cat unavailable'
+type $MKTEMP 1>/dev/null 2>/dev/null || do_fail 'mktemp unavailable'
+
+EXTRA_OPTS=""
+conffile=""
+BASE_OPTS="zfsutil,x-systemd.requires=zfs-import.target"
+
+while [[ -n "${1}" ]] ; do
+    case "${1}" in
+        --help)
+            print_help
+            exit 0
+            ;;
+        --option)
+            shift
+            EXTRA_OPTS+=",${1}"
+            shift
+            ;;
+        --no-systemd)
+            shift
+            BASE_OPTS="zfsutil"
+            ;;
+        --section)
+            shift
+            [[ -z "${section}" ]] || do_fail "section already set"
+            [[ -n "$1" ]] || do_fail "a section name must be specified"
+            section="$1"
+            shift
+            ;;
+        --no-recurse)
+            shift
+            enumerate="-H"
+            ;;
+        --stdout)
+            shift
+            unset conffile
+            ;;
+        --silent)
+            verbose=0
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
+
+# default output file if conffile hasn't been set
+if ! [[ -z "${conffile+x}" ]] ; then
+    [[ -z "${conffile}" ]] && conffile="${FSTAB}"
+    [[ -f "${conffile}" ]] || do_fail '%s is not a regular file' "${conffile}"
+    [[ -w "${conffile}" ]] || do_fail 'unable to write to %s' "${conffile}"
+fi
+
+[[ -z ${0} ]] && do_fail "at least one filesystem required"
+
+if [[ -n "${conffile}" ]] ; then
+    [[ -z "${section+x}" ]] && section="$@"
+    lead="### zfs fstab-generator: BEGIN ${section}"
+    lend="### zfs fstab-generator: END ${section}"
+    outfile="$(${MKTEMP} "${conffile}.XXXX" )"
+else
+    outfile="$(${MKTEMP})"
+fi
+
+[[ -w "${outfile}" ]] || do_fail "cannot make temporary file"
+
+# cleanup $outfile if we fail
+do_fail() {
+    printf "$@" >&2
+    echo >&2
+    caller >&2
+    print_help >&2
+    rm $outfile
+    exit 1
+}
+
+# read in conffile up to header
+if [[ -n "${conffile}" ]] ; then
+    # parse $conffile
+    # offset is the line number we are at
+
+    offset=0
+    # found = 0 means we haven't found our section
+    # found = -1 means we're inside the section
+    # found = 1 means we've found the end of the section
+    found=0
+
+    cp --attributes-only "${conffile}" "${outfile}" || do_fail 'cannot preserve attributes'
+    while read in ; do
+        let offset=offset+1
+        if [[ found -eq 0 ]] ; then
+            # we haven't found the header
+            printf '%s\n' "${in}" >> "${outfile}"
+            # check if we found a broken fragment
+            [[ "${in}" = "${lend}" ]] && do_fail "WARING: corrupt configuration file"
+            [[ "${in}" = "${lead}" ]] && let found=-1
+        elif [[ found -eq -1 ]] ; then
+            # check if we found a broken fragment before advancing
+            [[ "${in}" = "${lead}" ]] && do_fail "WARING: corrupt configuration file"
+            if [[ "${in}" = "${lend}" ]] ; then
+                let found=1
+                break
+            fi
+        fi
+    done < "${conffile}"
+    # if we didn't find a header, install one
+    if [[ found -eq 0 ]] ; then
+        printf '\n%s\n' "${lead}" >> "${outfile}"
+        if [[ $verbose -ne 0 ]] ; then
+          printf 'Adding section %s to %s\n' "${section}" "${conffile}" >&2
+          # suppress the next
+          verbose=0
+        fi
+    elif [[ found -eq -1 ]] ; then
+        do_fail "WARING: corrupt configuration file"
+    fi
+fi
+
+$ZFS get canmount ${enumerate} -tfilesystem $@ | while read -a getcanmount ; do
+    [[ ${getcanmount[1]} = "canmount" ]] || do_fail "assertion failed"
+    [[ ${getcanmount[2]} = "off" ]] && continue
+    OPTS="${BASE_OPTS}"
+
+    if [[ ${getcanmount[2]} = "on" ]] ; then
+        OPTS+=",auto"
+    elif [[ ${getcanmount[2]} = "noauto" ]] ; then
+        OPTS+=",noauto"
+    else
+        do_fail "unknown canmount"
+    fi
+
+    read -a getmountpoint <<< $($ZFS get mountpoint -H ${getcanmount[0]})
+
+    [[ ${getcanmount[0]} = ${getmountpoint[0]} ]] || do_fail "assertion failed"
+    [[ ${getmountpoint[1]} = "mountpoint" ]] || do_fail "assertion failed"
+
+    [[ ${getmountpoint[2]} = "legacy" ]] && continue
+    [[ ${getmountpoint[2]} = "none" ]] && continue
+    [[ ${getmountpoint[2]:0:1} = "/" ]] || do_fail 'unexpected mountpoint for %s' "${getcanmount[0]}"
+
+    printf '%s\t%s\tzfs\t%s\t0\t0\n' "${getcanmount[0]}" "${getmountpoint[2]}" "${OPTS}${EXTRA_OPTS}" >> "${outfile}"
+done
+
+[[ ${PIPESTATUS[0]} -ne 0 ]] && do_fail 'bad pool name'
+
+if [[ -z "${conffile}" ]] ; then
+    # Just dump the configuration section to stdout
+    $CAT "${outfile}"
+    rm "${outfile}"
+    exit 0
+fi
+
+# place the footer
+printf '%s\n' "${lend}" >> "${outfile}"
+
+# place the remainder of fstab
+while read in ; do
+    # skip the first $offset lines
+    if [[ offset -gt 0 ]] ; then
+        let offset=offset-1
+    else
+        [[ "${in}" = "${lead}" ]] && do_fail "WARING: corrupt configuration file"
+        [[ "${in}" = "${lend}" ]] && do_fail "WARING: corrupt configuration file"
+        printf "%s\n" "${in}" >> "${outfile}"
+    fi
+done < "${conffile}"
+
+# replace $conffile if it differs from $outfile
+if type $DIFF 1>/dev/null 2>/dev/null ; then
+    if $DIFF -q "${conffile}" "${outfile}" >/dev/null ; then
+        rm "${outfile}"
+        exit
+    fi
+
+    if [[ $verbose -ne 0 ]] ; then
+        printf 'Updating %s\n' "${conffile}" >&2
+    fi
+else
+    if [[ $verbose -ne 0 ]] ; then
+      printf 'diff unavailable. Unconditionally replacing %s\n' "${conffile}" >&2
+    fi
+fi
+
+mv -f "${outfile}" "${conffile}"
+exit
