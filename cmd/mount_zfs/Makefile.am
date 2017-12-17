@@ -7,6 +7,8 @@ DEFAULT_INCLUDES += \
 #
 # Ignore the prefix for the mount helper.  It must be installed in /sbin/
 # because this path is hardcoded in the mount(8) for security reasons.
+# However, if needed, the configure option --with-mounthelperdir= can be used
+# to override the default install location.
 #
 sbindir=$(mounthelperdir)
 sbin_PROGRAMS = mount.zfs
