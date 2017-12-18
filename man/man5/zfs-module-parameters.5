@@ -823,14 +823,36 @@ Default value: \fB0\fR.
 .ad
 .RS 12n
 When a pool sync operation takes longer than \fBzfs_deadman_synctime_ms\fR
-milliseconds, a "slow spa_sync" message is logged to the debug log
-(see \fBzfs_dbgmsg_enable\fR).  If \fBzfs_deadman_enabled\fR is set,
-all pending IO operations are also checked and if any haven't completed
-within \fBzfs_deadman_synctime_ms\fR milliseconds, a "SLOW IO" message
-is logged to the debug log and a "delay" system event with the details of
-the hung IO is posted.
+milliseconds, or when an individual I/O takes longer than
+\fBzfs_deadman_ziotime_ms\fR milliseconds, then the operation is considered to
+be "hung".  If \fBzfs_deadman_enabled\fR is set then the deadman behavior is
+invoked as described by the \fBzfs_deadman_failmode\fR module option.
+By default the deadman is enabled and configured to \fBwait\fR which results
+in "hung" I/Os only being logged.  The deadman is automatically disabled
+when a pool gets suspended.
 .sp
-Use \fB1\fR (default) to enable the slow IO check and \fB0\fR to disable.
+Default value: \fB1\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_deadman_failmode\fR (charp)
+.ad
+.RS 12n
+Controls the failure behavior when the deadman detects a "hung" I/O.  Valid
+values are \fBwait\fR, \fBcontinue\fR, and \fBpanic\fR.
+.sp
+\fBwait\fR - Wait for a "hung" I/O to complete.  For each "hung" I/O a
+"deadman" event will be posted describing that I/O.
+.sp
+\fBcontinue\fR - Attempt to recover from a "hung" I/O by re-dispatching it
+to the I/O pipeline if possible.
+.sp
+\fBpanic\fR - Panic the system.  This can be used to facilitate an automatic
+fail-over to a properly configured fail-over partner.
+.sp
+Default value: \fBwait\fR.
 .RE
 
 .sp
@@ -839,11 +861,10 @@ Use \fB1\fR (default) to enable the slow IO check and \fB0\fR to disable.
 \fBzfs_deadman_checktime_ms\fR (int)
 .ad
 .RS 12n
-Once a pool sync operation has taken longer than
-\fBzfs_deadman_synctime_ms\fR milliseconds, continue to check for slow
-operations every \fBzfs_deadman_checktime_ms\fR milliseconds.
+Check time in milliseconds. This defines the frequency at which we check
+for hung I/O and potentially invoke the \fBzfs_deadman_failmode\fR behavior.
 .sp
-Default value: \fB5,000\fR.
+Default value: \fB60,000\fR.
 .RE
 
 .sp
@@ -853,12 +874,25 @@ Default value: \fB5,000\fR.
 .ad
 .RS 12n
 Interval in milliseconds after which the deadman is triggered and also
-the interval after which an IO operation is considered to be "hung"
-if \fBzfs_deadman_enabled\fR is set.
-
-See \fBzfs_deadman_enabled\fR.
+the interval after which a pool sync operation is considered to be "hung".
+Once this limit is exceeded the deadman will be invoked every
+\fBzfs_deadman_checktime_ms\fR milliseconds until the pool sync completes.
 .sp
-Default value: \fB1,000,000\fR.
+Default value: \fB600,000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_deadman_ziotime_ms\fR (ulong)
+.ad
+.RS 12n
+Interval in milliseconds after which the deadman is triggered and an
+individual IO operation is considered to be "hung".  As long as the I/O
+remains "hung" the deadman will be invoked every \fBzfs_deadman_checktime_ms\fR
+milliseconds until the I/O completes.
+.sp
+Default value: \fB300,000\fR.
 .RE
 
 .sp
