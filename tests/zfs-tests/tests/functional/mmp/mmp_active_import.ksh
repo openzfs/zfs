@@ -41,7 +41,7 @@ verify_runnable "both"
 
 function cleanup
 {
-	mmp_pool_destroy $MMP_DIR $MMP_POOL
+	mmp_pool_destroy $MMP_POOL $MMP_DIR
 	log_must set_tunable64 zfs_multihost_interval $MMP_INTERVAL_DEFAULT
 	log_must mmp_clear_hostid
 }
@@ -60,9 +60,17 @@ log_must is_pool_imported $MMP_POOL "-d $MMP_DIR"
 
 # 3. Verify 'zpool import [-f] $MMP_POOL' cannot import the pool.
 MMP_IMPORTED_MSG="Cannot import '$MMP_POOL': pool is imported"
+
 log_must try_pool_import $MMP_POOL "-d $MMP_DIR" "$MMP_IMPORTED_MSG"
 for i in {1..10}; do
 	log_must try_pool_import $MMP_POOL "-f -d $MMP_DIR" "$MMP_IMPORTED_MSG"
+done
+
+log_must try_pool_import $MMP_POOL "-c ${MMP_CACHE}.stale" "$MMP_IMPORTED_MSG"
+
+for i in {1..10}; do
+	log_must try_pool_import $MMP_POOL "-f -c ${MMP_CACHE}.stale" \
+	    "$MMP_IMPORTED_MSG"
 done
 
 # 4. Kill ztest to make pool eligible for import.  Poll with 'zpool status'.
