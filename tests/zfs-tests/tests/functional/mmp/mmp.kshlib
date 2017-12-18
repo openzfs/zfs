@@ -97,21 +97,24 @@ function mmp_pool_create # pool dir
 {
 	typeset pool=${1:-$MMP_POOL}
 	typeset dir=${2:-$MMP_DIR}
-	typeset opts="-T120 -M -k0 -f $dir -E -p $pool"
+	typeset opts="-VVVVV -T120 -M -k0 -f $dir -E -p $pool"
 
 	log_must mkdir -p $dir
+	log_must rm -f $dir/*
 	log_must truncate -s $MINVDEVSIZE $dir/vdev1 $dir/vdev2
 
 	log_must mmp_clear_hostid
 	log_must mmp_set_hostid $HOSTID1
-	log_must zpool create -f $pool mirror $dir/vdev1 $dir/vdev2
+	log_must zpool create -f -o cachefile=$MMP_CACHE $pool \
+	    mirror $dir/vdev1 $dir/vdev2
 	log_must zpool set multihost=on $pool
+	log_must mv $MMP_CACHE ${MMP_CACHE}.stale
 	log_must zpool export $pool
 	log_must mmp_clear_hostid
 	log_must mmp_set_hostid $HOSTID2
 
 	log_note "Starting ztest in the background as hostid $HOSTID1"
-	log_must eval "ZFS_HOSTID=$HOSTID1 ztest $opts >/dev/null 2>&1 &"
+	log_must eval "ZFS_HOSTID=$HOSTID1 ztest $opts >$MMP_ZTEST_LOG 2>&1 &"
 
 	while ! is_pool_imported "$pool" "-d $dir"; do
 		log_must pgrep ztest
@@ -134,7 +137,7 @@ function mmp_pool_destroy # pool dir
 		destroy_pool $pool
         fi
 
-	rm -Rf $dir
+	log_must rm -f $dir/*
 	mmp_clear_hostid
 }
 

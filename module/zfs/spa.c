@@ -2330,7 +2330,8 @@ vdev_count_verify_zaps(vdev_t *vd)
  * Determine whether the activity check is required.
  */
 static boolean_t
-spa_activity_check_required(spa_t *spa, uberblock_t *ub, nvlist_t *config)
+spa_activity_check_required(spa_t *spa, uberblock_t *ub, nvlist_t *label,
+    nvlist_t *config)
 {
 	uint64_t state = 0;
 	uint64_t hostid = 0;
@@ -2347,7 +2348,6 @@ spa_activity_check_required(spa_t *spa, uberblock_t *ub, nvlist_t *config)
 	}
 
 	(void) nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_STATE, &state);
-	(void) nvlist_lookup_uint64(config, ZPOOL_CONFIG_HOSTID, &hostid);
 
 	/*
 	 * Disable the MMP activity check - This is used by zdb which
@@ -2373,8 +2373,12 @@ spa_activity_check_required(spa_t *spa, uberblock_t *ub, nvlist_t *config)
 
 	/*
 	 * Allow the activity check to be skipped when importing the pool
-	 * on the same host which last imported it.
+	 * on the same host which last imported it.  Since the hostid from
+	 * configuration may be stale use the one read from the label.
 	 */
+	if (nvlist_exists(label, ZPOOL_CONFIG_HOSTID))
+		hostid = fnvlist_lookup_uint64(label, ZPOOL_CONFIG_HOSTID);
+
 	if (hostid == spa_get_hostid())
 		return (B_FALSE);
 
@@ -2639,7 +2643,7 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 	 * pool is truly inactive and can be safely imported.  Prevent
 	 * hosts which don't have a hostid set from importing the pool.
 	 */
-	activity_check = spa_activity_check_required(spa, ub, config);
+	activity_check = spa_activity_check_required(spa, ub, label, config);
 	if (activity_check) {
 		if (ub->ub_mmp_magic == MMP_MAGIC && ub->ub_mmp_delay &&
 		    spa_get_hostid() == 0) {
