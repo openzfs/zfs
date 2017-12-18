@@ -1748,6 +1748,80 @@ zio_delay_interrupt(zio_t *zio)
 	zio_interrupt(zio);
 }
 
+static void
+zio_deadman_impl(zio_t *pio)
+{
+	zio_t *cio, *cio_next;
+	zio_link_t *zl = NULL;
+	vdev_t *vd = pio->io_vd;
+
+	if (vd != NULL && vd->vdev_ops->vdev_op_leaf) {
+		vdev_queue_t *vq = &vd->vdev_queue;
+		zbookmark_phys_t *zb = &pio->io_bookmark;
+		uint64_t delta = gethrtime() - pio->io_timestamp;
+		uint64_t failmode = spa_get_deadman_failmode(pio->io_spa);
+
+		zfs_dbgmsg("slow zio: zio=%p timestamp=%llu "
+		    "delta=%llu queued=%llu io=%llu "
+		    "path=%s last=%llu "
+		    "type=%d priority=%d flags=0x%x "
+		    "stage=0x%x pipeline=0x%x pipeline-trace=0x%x "
+		    "objset=%llu object=%llu level=%llu blkid=%llu "
+		    "offset=%llu size=%llu error=%d",
+		    pio, pio->io_timestamp,
+		    delta, pio->io_delta, pio->io_delay,
+		    vd->vdev_path, vq->vq_io_complete_ts,
+		    pio->io_type, pio->io_priority, pio->io_flags,
+		    pio->io_state, pio->io_pipeline, pio->io_pipeline_trace,
+		    zb->zb_objset, zb->zb_object, zb->zb_level, zb->zb_blkid,
+		    pio->io_offset, pio->io_size, pio->io_error);
+		zfs_ereport_post(FM_EREPORT_ZFS_DEADMAN,
+		    pio->io_spa, vd, zb, pio, 0, 0);
+
+		if (failmode == ZIO_FAILURE_MODE_CONTINUE &&
+		    taskq_empty_ent(&pio->io_tqent)) {
+			zio_interrupt(pio);
+		}
+	}
+
+	mutex_enter(&pio->io_lock);
+	for (cio = zio_walk_children(pio, &zl); cio != NULL; cio = cio_next) {
+		cio_next = zio_walk_children(pio, &zl);
+		zio_deadman_impl(cio);
+	}
+	mutex_exit(&pio->io_lock);
+}
+
+/*
+ * Log the critical information describing this zio and all of its children
+ * using the zfs_dbgmsg() interface then post deadman event for the ZED.
+ */
+void
+zio_deadman(zio_t *pio, char *tag)
+{
+	spa_t *spa = pio->io_spa;
+	char *name = spa_name(spa);
+
+	if (!zfs_deadman_enabled || spa_suspended(spa))
+		return;
+
+	zio_deadman_impl(pio);
+
+	switch (spa_get_deadman_failmode(spa)) {
+	case ZIO_FAILURE_MODE_WAIT:
+		zfs_dbgmsg("%s waiting for hung I/O to pool '%s'", tag, name);
+		break;
+
+	case ZIO_FAILURE_MODE_CONTINUE:
+		zfs_dbgmsg("%s restarting hung I/O for pool '%s'", tag, name);
+		break;
+
+	case ZIO_FAILURE_MODE_PANIC:
+		fm_panic("%s determined I/O to pool '%s' is hung.", tag, name);
+		break;
+	}
+}
+
 /*
  * Execute the I/O pipeline until one of the following occurs:
  * (1) the I/O completes; (2) the pipeline stalls waiting for
@@ -1877,6 +1951,7 @@ __zio_execute(zio_t *zio)
 int
 zio_wait(zio_t *zio)
 {
+	long timeout = MSEC_TO_TICK(zfs_deadman_ziotime_ms);
 	int error;
 
 	ASSERT3S(zio->io_stage, ==, ZIO_STAGE_OPEN);
@@ -1889,8 +1964,19 @@ zio_wait(zio_t *zio)
 	__zio_execute(zio);
 
 	mutex_enter(&zio->io_lock);
-	while (zio->io_executor != NULL)
-		cv_wait_io(&zio->io_cv, &zio->io_lock);
+	while (zio->io_executor != NULL) {
+		error = cv_timedwait_io(&zio->io_cv, &zio->io_lock,
+		    ddi_get_lbolt() + timeout);
+
+		if (zfs_deadman_enabled && error == -1 &&
+		    gethrtime() - zio->io_queued_timestamp >
+		    spa_deadman_ziotime(zio->io_spa)) {
+			mutex_exit(&zio->io_lock);
+			timeout = MSEC_TO_TICK(zfs_deadman_checktime_ms);
+			zio_deadman(zio, FTAG);
+			mutex_enter(&zio->io_lock);
+		}
+	}
 	mutex_exit(&zio->io_lock);
 
 	error = zio->io_error;

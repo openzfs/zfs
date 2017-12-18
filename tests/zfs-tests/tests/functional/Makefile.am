@@ -12,6 +12,7 @@ SUBDIRS = \
 	cli_user \
 	compression \
 	ctime \
+	deadman \
 	delegate \
 	devices \
 	events \

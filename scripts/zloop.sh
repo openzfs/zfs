@@ -115,7 +115,10 @@ function store_core
 		or_die mv ztest.ddt "$dest/"
 		or_die mv ztest.out "$dest/"
 		or_die mv "$workdir/ztest*" "$dest/vdev/"
-		or_die mv "$workdir/zpool.cache" "$dest/vdev/"
+
+		if [[ -e "$workdir/zpool.cache" ]]; then
+			or_die mv "$workdir/zpool.cache" "$dest/vdev/"
+		fi
 
 		# check for core
 		if [[ -f "$core" ]]; then
@@ -141,8 +144,6 @@ function store_core
 			# Record info in cores logfile
 			echo "*** core @ $coredir/$coreid/$core:" | \
 			    tee -a ztest.cores
-			echo "$corestatus" | tee -a ztest.cores
-			echo "" | tee -a ztest.cores
 		fi
 		echo "continuing..."
 	fi
@@ -203,7 +204,7 @@ curtime=$starttime
 
 # if no timeout was specified, loop forever.
 while [[ $timeout -eq 0 ]] || [[ $curtime -le $((starttime + timeout)) ]]; do
-	zopt="-VVVVV"
+	zopt="-G -VVVVV"
 
 	# start each run with an empty directory
 	workdir="$basedir/$rundir"
