@@ -2788,16 +2788,16 @@ dump_label(const char *dev)
 		exit(1);
 	}
 
-	if (ioctl(fd, BLKFLSBUF) != 0)
-		(void) printf("failed to invalidate cache '%s' : %s\n", path,
-		    strerror(errno));
-
 	if (fstat64_blk(fd, &statbuf) != 0) {
 		(void) printf("failed to stat '%s': %s\n", path,
 		    strerror(errno));
 		(void) close(fd);
 		exit(1);
 	}
+
+	if (S_ISBLK(statbuf.st_mode) && ioctl(fd, BLKFLSBUF) != 0)
+		(void) printf("failed to invalidate cache '%s' : %s\n", path,
+		    strerror(errno));
 
 	avl_create(&config_tree, cksum_record_compare,
 	    sizeof (cksum_record_t), offsetof(cksum_record_t, link));
