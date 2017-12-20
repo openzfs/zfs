@@ -90,7 +90,7 @@ internally uses this value to determine which HBA or switch port a
 device is connected to.  The default is 4.
 
 .TP
-\fIslot\fR <bay|phy|port|id|lun>
+\fIslot\fR <bay|phy|port|id|lun|ses>
 Specifies from which element of a SAS identifier the slot number is
 taken.  The default is bay.
 
@@ -103,6 +103,12 @@ taken.  The default is bay.
 \fIid\fR - use the scsi id as the slot number.
 
 \fIlun\fR - use the scsi lun as the slot number.
+
+\fIses\fR - use the SCSI Enclosure Services (SES) enclosure device slot number,
+as reported by
+.BR sg_ses (8).
+This is intended for use only on systems where \fIbay\fR is unsupported,
+noting that \fIport\fR and \fIid\fR may be unstable across disk replacement.
 .SH EXAMPLES
 A non-multipath configuration with direct-attached SAS enclosures and an
 arbitrary slot re-mapping.
