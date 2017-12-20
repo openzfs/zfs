@@ -145,10 +145,6 @@ uint64_t dmu_tx_get_txg(dmu_tx_t *tx);
 struct dsl_pool *dmu_tx_pool(dmu_tx_t *tx);
 void dmu_tx_wait(dmu_tx_t *tx);
 
-void dmu_tx_callback_register(dmu_tx_t *tx, dmu_tx_callback_func_t *dcb_func,
-    void *dcb_data);
-void dmu_tx_do_callbacks(list_t *cb_list, int error);
-
 /*
  * These routines are defined in dmu_spa.h, and are called by the SPA.
  */
