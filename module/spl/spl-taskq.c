@@ -206,9 +206,9 @@ task_done(taskq_t *tq, taskq_ent_t *t)
  * add it to the priority list in order for immediate processing.
  */
 static void
-task_expire(unsigned long data)
+task_expire_impl(taskq_ent_t *t)
 {
-	taskq_ent_t *w, *t = (taskq_ent_t *)data;
+	taskq_ent_t *w;
 	taskq_t *tq = t->tqent_taskq;
 	struct list_head *l;
 	unsigned long flags;
@@ -241,6 +241,21 @@ task_expire(unsigned long data)
 
 	wake_up(&tq->tq_work_waitq);
 }
+
+#ifdef HAVE_KERNEL_TIMER_FUNCTION_TIMER_LIST
+static void
+task_expire(struct timer_list *tl)
+{
+	taskq_ent_t *t = from_timer(t, tl, tqent_timer);
+	task_expire_impl(t);
+}
+#else
+static void
+task_expire(unsigned long data)
+{
+	task_expire_impl((taskq_ent_t *)data);
+}
+#endif
 
 /*
  * Returns the lowest incomplete taskqid_t.  The taskqid_t may
@@ -581,7 +596,9 @@ taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t flags)
 	t->tqent_func = func;
 	t->tqent_arg = arg;
 	t->tqent_taskq = tq;
+#ifndef HAVE_KERNEL_TIMER_FUNCTION_TIMER_LIST
 	t->tqent_timer.data = 0;
+#endif
 	t->tqent_timer.function = NULL;
 	t->tqent_timer.expires = 0;
 	t->tqent_birth = jiffies;
@@ -631,7 +648,9 @@ taskq_dispatch_delay(taskq_t *tq, task_func_t func, void *arg,
 	t->tqent_func = func;
 	t->tqent_arg = arg;
 	t->tqent_taskq = tq;
+#ifndef HAVE_KERNEL_TIMER_FUNCTION_TIMER_LIST
 	t->tqent_timer.data = (unsigned long)t;
+#endif
 	t->tqent_timer.function = task_expire;
 	t->tqent_timer.expires = (unsigned long)expire_time;
 	add_timer(&t->tqent_timer);
@@ -723,7 +742,11 @@ taskq_init_ent(taskq_ent_t *t)
 {
 	spin_lock_init(&t->tqent_lock);
 	init_waitqueue_head(&t->tqent_waitq);
+#ifdef HAVE_KERNEL_TIMER_FUNCTION_TIMER_LIST
+	timer_setup(&t->tqent_timer, NULL, 0);
+#else
 	init_timer(&t->tqent_timer);
+#endif
 	INIT_LIST_HEAD(&t->tqent_list);
 	t->tqent_id = 0;
 	t->tqent_func = NULL;
