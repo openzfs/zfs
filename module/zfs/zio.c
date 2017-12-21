@@ -539,6 +539,8 @@ zio_walk_children(zio_t *pio, zio_link_t **zl)
 {
 	list_t *cl = &pio->io_child_list;
 
+	ASSERT(MUTEX_HELD(&pio->io_lock));
+
 	*zl = (*zl == NULL) ? list_head(cl) : list_next(cl, *zl);
 	if (*zl == NULL)
 		return (NULL);
@@ -573,8 +575,8 @@ zio_add_child(zio_t *pio, zio_t *cio)
 	zl->zl_parent = pio;
 	zl->zl_child = cio;
 
-	mutex_enter(&cio->io_lock);
 	mutex_enter(&pio->io_lock);
+	mutex_enter(&cio->io_lock);
 
 	ASSERT(pio->io_state[ZIO_WAIT_DONE] == 0);
 
@@ -587,8 +589,8 @@ zio_add_child(zio_t *pio, zio_t *cio)
 	pio->io_child_count++;
 	cio->io_parent_count++;
 
-	mutex_exit(&pio->io_lock);
 	mutex_exit(&cio->io_lock);
+	mutex_exit(&pio->io_lock);
 }
 
 static void
@@ -597,8 +599,8 @@ zio_remove_child(zio_t *pio, zio_t *cio, zio_link_t *zl)
 	ASSERT(zl->zl_parent == pio);
 	ASSERT(zl->zl_child == cio);
 
-	mutex_enter(&cio->io_lock);
 	mutex_enter(&pio->io_lock);
+	mutex_enter(&cio->io_lock);
 
 	list_remove(&pio->io_child_list, zl);
 	list_remove(&cio->io_parent_list, zl);
@@ -606,8 +608,8 @@ zio_remove_child(zio_t *pio, zio_t *cio, zio_link_t *zl)
 	pio->io_child_count--;
 	cio->io_parent_count--;
 
-	mutex_exit(&pio->io_lock);
 	mutex_exit(&cio->io_lock);
+	mutex_exit(&pio->io_lock);
 	kmem_cache_free(zio_link_cache, zl);
 }
 
@@ -1963,14 +1965,16 @@ zio_reexecute(zio_t *pio)
 	 * cannot be affected by any side effects of reexecuting 'cio'.
 	 */
 	zio_link_t *zl = NULL;
+	mutex_enter(&pio->io_lock);
 	for (cio = zio_walk_children(pio, &zl); cio != NULL; cio = cio_next) {
 		cio_next = zio_walk_children(pio, &zl);
-		mutex_enter(&pio->io_lock);
 		for (int w = 0; w < ZIO_WAIT_TYPES; w++)
 			pio->io_children[cio->io_child_type][w]++;
 		mutex_exit(&pio->io_lock);
 		zio_reexecute(cio);
+		mutex_enter(&pio->io_lock);
 	}
+	mutex_exit(&pio->io_lock);
 
 	/*
 	 * Now that all children have been reexecuted, execute the parent.
@@ -3472,6 +3476,35 @@ zio_vdev_io_done(zio_t *zio)
 		VERIFY(vdev_probe(vd, zio) == NULL);
 
 	return (ZIO_PIPELINE_CONTINUE);
+}
+
+/*
+ * This function is used to change the priority of an existing zio that is
+ * currently in-flight. This is used by the arc to upgrade priority in the
+ * event that a demand read is made for a block that is currently queued
+ * as a scrub or async read IO. Otherwise, the high priority read request
+ * would end up having to wait for the lower priority IO.
+ */
+void
+zio_change_priority(zio_t *pio, zio_priority_t priority)
+{
+	zio_t *cio, *cio_next;
+	zio_link_t *zl = NULL;
+
+	ASSERT3U(priority, <, ZIO_PRIORITY_NUM_QUEUEABLE);
+
+	if (pio->io_vd != NULL && pio->io_vd->vdev_ops->vdev_op_leaf) {
+		vdev_queue_change_io_priority(pio, priority);
+	} else {
+		pio->io_priority = priority;
+	}
+
+	mutex_enter(&pio->io_lock);
+	for (cio = zio_walk_children(pio, &zl); cio != NULL; cio = cio_next) {
+		cio_next = zio_walk_children(pio, &zl);
+		zio_change_priority(cio, priority);
+	}
+	mutex_exit(&pio->io_lock);
 }
 
 /*
