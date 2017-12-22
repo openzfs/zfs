@@ -713,11 +713,16 @@ void dmu_tx_mark_netfree(dmu_tx_t *tx);
  * to stable storage and will also be called if the dmu_tx is aborted.
  * If there is any error which prevents the transaction from being committed to
  * disk, the callback will be called with a value of error != 0.
+ *
+ * When multiple callbacks are registered to the transaction, the callbacks
+ * will be called in reverse order to let Lustre, the only user of commit
+ * callback currently, take the fast path of its commit callback handling.
  */
 typedef void dmu_tx_callback_func_t(void *dcb_data, int error);
 
 void dmu_tx_callback_register(dmu_tx_t *tx, dmu_tx_callback_func_t *dcb_func,
     void *dcb_data);
+void dmu_tx_do_callbacks(list_t *cb_list, int error);
 
 /*
  * Free up the data blocks for a defined range of a file.  If size is
