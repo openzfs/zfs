@@ -36,7 +36,7 @@ extern "C" {
 #endif
 
 /*
- * Possbile states for a given lwb structure.
+ * Possible states for a given lwb structure.
  *
  * An lwb will start out in the "closed" state, and then transition to
  * the "opened" state via a call to zil_lwb_write_open(). When
@@ -60,7 +60,7 @@ extern "C" {
  * contended lock.
  *
  * Additionally, correctness when reading an lwb's state is often
- * acheived by exploiting the fact that these state transitions occur in
+ * achieved by exploiting the fact that these state transitions occur in
  * this specific order; i.e. "closed" to "opened" to "issued" to "done".
  *
  * Thus, if an lwb is in the "closed" or "opened" state, holding the

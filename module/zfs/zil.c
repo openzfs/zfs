@@ -57,7 +57,7 @@
  *
  * In the event of a crash or power loss, the itxs contained by each
  * dataset's on-disk ZIL will be replayed when that dataset is first
- * instantianted (e.g. if the dataset is a normal fileystem, when it is
+ * instantiated (e.g. if the dataset is a normal fileystem, when it is
  * first mounted).
  *
  * As hinted at above, there is one ZIL per dataset (both the in-memory
@@ -682,7 +682,7 @@ zil_create(zilog_t *zilog)
 
 	/*
 	 * If we just allocated the first log block, commit our transaction
-	 * and wait for zil_sync() to stuff the block poiner into zh_log.
+	 * and wait for zil_sync() to stuff the block pointer into zh_log.
 	 * (zh is part of the MOS, so we cannot modify it in open context.)
 	 */
 	if (tx != NULL) {
@@ -1299,7 +1299,7 @@ zil_lwb_write_issue(zilog_t *zilog, lwb_t *lwb)
 	 *   close.
 	 * - next find the maximum from the new suggested size and an array of
 	 *   previous sizes. This lessens a picket fence effect of wrongly
-	 *   guesssing the size if we have a stream of say 2k, 64k, 2k, 64k
+	 *   guessing the size if we have a stream of say 2k, 64k, 2k, 64k
 	 *   requests.
 	 *
 	 * Note we only write what is used, but we can't just allocate
@@ -2061,10 +2061,10 @@ zil_process_commit_list(zilog_t *zilog)
 		 * situation could occur if we happened to be racing with
 		 * spa_sync:
 		 *
-		 * 1. we commit a non-TX_COMMIT itx to an lwb, where the
+		 * 1. We commit a non-TX_COMMIT itx to an lwb, where the
 		 *    itx's txg is 10 and the last synced txg is 9.
 		 * 2. spa_sync finishes syncing out txg 10.
-		 * 3. we move to the next itx in the list, it's a TX_COMMIT
+		 * 3. We move to the next itx in the list, it's a TX_COMMIT
 		 *    whose txg is 10, so we skip it rather than committing
 		 *    it to the lwb used in (1).
 		 *
@@ -2072,7 +2072,7 @@ zil_process_commit_list(zilog_t *zilog)
 		 * itx in the commit list, than it's possible for the lwb
 		 * used in (1) to remain in the OPENED state indefinitely.
 		 *
-		 * To prevent the above scenario from occuring, ensuring
+		 * To prevent the above scenario from occurring, ensuring
 		 * that once an lwb is OPENED it will transition to ISSUED
 		 * and eventually DONE, we always commit TX_COMMIT itx's to
 		 * an lwb here, even if that itx's txg has already been
@@ -2148,37 +2148,37 @@ zil_process_commit_list(zilog_t *zilog)
 		 * variable is in one of the following states: "closed"
 		 * or "open".
 		 *
-		 * If its "closed", then no itxs have been committed to
-		 * it, so there's no point in issueing its zio (i.e.
-		 * it's "empty").
+		 * If it's "closed", then no itxs have been committed to
+		 * it, so there's no point in issuing its zio (i.e. it's
+		 * "empty").
 		 *
-		 * If its "open" state, then it contains one or more
-		 * itxs that eventually need to be committed to stable
-		 * storage. In this case we intentionally do not issue
-		 * the lwb's zio to disk yet, and instead rely on one of
-		 * the following two mechanisms for issuing the zio:
+		 * If it's "open", then it contains one or more itxs that
+		 * eventually need to be committed to stable storage. In
+		 * this case we intentionally do not issue the lwb's zio
+		 * to disk yet, and instead rely on one of the following
+		 * two mechanisms for issuing the zio:
 		 *
-		 * 1. Ideally, there will be more ZIL activity occuring
+		 * 1. Ideally, there will be more ZIL activity occurring
 		 * on the system, such that this function will be
-		 * immeidately called again (not necessarily by the same
+		 * immediately called again (not necessarily by the same
 		 * thread) and this lwb's zio will be issued via
 		 * zil_lwb_commit(). This way, the lwb is guaranteed to
 		 * be "full" when it is issued to disk, and we'll make
 		 * use of the lwb's size the best we can.
 		 *
-		 * 2. If there isn't sufficient ZIL activity occuring on
+		 * 2. If there isn't sufficient ZIL activity occurring on
 		 * the system, such that this lwb's zio isn't issued via
 		 * zil_lwb_commit(), zil_commit_waiter() will issue the
 		 * lwb's zio. If this occurs, the lwb is not guaranteed
 		 * to be "full" by the time its zio is issued, and means
 		 * the size of the lwb was "too large" given the amount
-		 * of ZIL activity occuring on the system at that time.
+		 * of ZIL activity occurring on the system at that time.
 		 *
 		 * We do this for a couple of reasons:
 		 *
 		 * 1. To try and reduce the number of IOPs needed to
 		 * write the same number of itxs. If an lwb has space
-		 * available in it's buffer for more itxs, and more itxs
+		 * available in its buffer for more itxs, and more itxs
 		 * will be committed relatively soon (relative to the
 		 * latency of performing a write), then it's beneficial
 		 * to wait for these "next" itxs. This way, more itxs
@@ -2200,7 +2200,7 @@ zil_process_commit_list(zilog_t *zilog)
  * itxs will be processed. The assumption is the passed in waiter's
  * commit itx will found in the queue just like the other non-commit
  * itxs, such that when the entire queue is processed, the waiter will
- * have been commited to an lwb.
+ * have been committed to an lwb.
  *
  * The lwb associated with the passed in waiter is not guaranteed to
  * have been issued by the time this function completes. If the lwb is
@@ -2271,7 +2271,7 @@ zil_commit_waiter_timeout(zilog_t *zilog, zil_commit_waiter_t *zcw)
 	 * In order to call zil_lwb_write_issue() we must hold the
 	 * zilog's "zl_issuer_lock". We can't simply acquire that lock,
 	 * since we're already holding the commit waiter's "zcw_lock",
-	 * and those two locks are aquired in the opposite order
+	 * and those two locks are acquired in the opposite order
 	 * elsewhere.
 	 */
 	mutex_exit(&zcw->zcw_lock);
@@ -2335,7 +2335,7 @@ zil_commit_waiter_timeout(zilog_t *zilog, zil_commit_waiter_t *zcw)
 	 * By having to issue the lwb's zio here, it means the size of the
 	 * lwb was too large, given the incoming throughput of itxs.  By
 	 * setting "zl_cur_used" to zero, we communicate this fact to the
-	 * block size selection algorithm, so it can take this informaiton
+	 * block size selection algorithm, so it can take this information
 	 * into account, and potentially select a smaller size for the
 	 * next lwb block that is allocated.
 	 */
@@ -2478,7 +2478,7 @@ zil_commit_waiter(zilog_t *zilog, zil_commit_waiter_t *zcw)
 			 * complete.
 			 *
 			 * Additionally, if the lwb is NULL, the waiter
-			 * will soon be signalled and marked done via
+			 * will soon be signaled and marked done via
 			 * zil_clean() and zil_itxg_clean(), so no timeout
 			 * is required.
 			 */
@@ -2579,7 +2579,7 @@ zil_commit_itx_assign(zilog_t *zilog, zil_commit_waiter_t *zcw)
  * When a thread calls zil_commit() a special "commit itx" will be
  * generated, along with a corresponding "waiter" for this commit itx.
  * zil_commit() will wait on this waiter's CV, such that when the waiter
- * is marked done, and signalled, zil_commit() will return.
+ * is marked done, and signaled, zil_commit() will return.
  *
  * This commit itx is inserted into the queue of uncommitted itxs. This
  * provides an easy mechanism for determining which itxs were in the
@@ -2589,7 +2589,7 @@ zil_commit_itx_assign(zilog_t *zilog, zil_commit_waiter_t *zcw)
  * The commit it is special; it doesn't have any on-disk representation.
  * When a commit itx is "committed" to an lwb, the waiter associated
  * with it is linked onto the lwb's list of waiters. Then, when that lwb
- * completes, each waiter on the lwb's list is marked done and signalled
+ * completes, each waiter on the lwb's list is marked done and signaled
  * -- allowing the thread waiting on the waiter to return from zil_commit().
  *
  * It's important to point out a few critical factors that allow us
@@ -2597,10 +2597,10 @@ zil_commit_itx_assign(zilog_t *zilog, zil_commit_waiter_t *zcw)
  * commit waiters, and zio completion callbacks like we're doing:
  *
  *   1. The list of waiters for each lwb is traversed, and each commit
- *      waiter is marked "done" and signalled, in the zio completion
+ *      waiter is marked "done" and signaled, in the zio completion
  *      callback of the lwb's zio[*].
  *
- *      * Actually, the waiters are signalled in the zio completion
+ *      * Actually, the waiters are signaled in the zio completion
  *        callback of the root zio for the DKIOCFLUSHWRITECACHE commands
  *        that are sent to the vdevs upon completion of the lwb zio.
  *
@@ -2648,7 +2648,7 @@ zil_commit_itx_assign(zilog_t *zilog, zil_commit_waiter_t *zcw)
  *             the zilog's "zl_issuer_lock", which ensures only a single
  *             thread is creating and/or issuing lwb's at a time
  *          2. The "previous" lwb is a child of the "current" lwb
- *             (leveraging the zio parent-child depenency graph)
+ *             (leveraging the zio parent-child dependency graph)
  *
  *      By relying on this parent-child zio relationship, we can have
  *      many lwb zio's concurrently issued to the underlying storage,
@@ -2681,7 +2681,7 @@ zil_commit(zilog_t *zilog, uint64_t foid)
 		 * If the SPA is not writable, there should never be any
 		 * pending itxs waiting to be committed to disk. If that
 		 * weren't true, we'd skip writing those itxs out, and
-		 * would break the sematics of zil_commit(); thus, we're
+		 * would break the semantics of zil_commit(); thus, we're
 		 * verifying that truth before we return to the caller.
 		 */
 		ASSERT(list_is_empty(&zilog->zl_lwb_list));
@@ -3176,7 +3176,7 @@ zil_suspend(const char *osname, void **cookiep)
 
 	/*
 	 * We need to use zil_commit_impl to ensure we wait for all
-	 * LWB_STATE_OPENED and LWB_STATE_ISSUED lwb's to be committed
+	 * LWB_STATE_OPENED and LWB_STATE_ISSUED lwbs to be committed
 	 * to disk before proceeding. If we used zil_commit instead, it
 	 * would just call txg_wait_synced(), because zl_suspend is set.
 	 * txg_wait_synced() doesn't wait for these lwb's to be
@@ -3440,6 +3440,9 @@ EXPORT_SYMBOL(zil_set_sync);
 EXPORT_SYMBOL(zil_set_logbias);
 
 /* BEGIN CSTYLED */
+module_param(zfs_commit_timeout_pct, int, 0644);
+MODULE_PARM_DESC(zfs_commit_timeout_pct, "ZIL block open timeout percentage");
+
 module_param(zil_replay_disable, int, 0644);
 MODULE_PARM_DESC(zil_replay_disable, "Disable intent logging replay");
 
