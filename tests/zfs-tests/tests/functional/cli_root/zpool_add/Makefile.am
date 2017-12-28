@@ -15,4 +15,5 @@ dist_pkgdata_SCRIPTS = \
 	zpool_add_009_neg.ksh \
 	zpool_add_010_pos.ksh \
 	add-o_ashift.ksh \
-	add_prop_ashift.ksh
+	add_prop_ashift.ksh \
+	add_nested_replacing_spare.ksh
