@@ -860,9 +860,11 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 
 				/*
 				 * If this is a replacing or spare vdev, then
-				 * get the real first child of the vdev.
+				 * get the real first child of the vdev: do this
+				 * in a loop because replacing and spare vdevs
+				 * can be nested.
 				 */
-				if (strcmp(childtype,
+				while (strcmp(childtype,
 				    VDEV_TYPE_REPLACING) == 0 ||
 				    strcmp(childtype, VDEV_TYPE_SPARE) == 0) {
 					nvlist_t **rchild;
