@@ -14,6 +14,7 @@ Type=oneshot
 RemainAfterExit=yes
 ExecStartPre=/sbin/modprobe zfs
 ExecStart=@sbindir@/zpool import -c @sysconfdir@/zfs/zpool.cache -aN
+ExecStartPost=/bin/bash -c "/usr/bin/systemctl set-environment BOOTFS=$(@sbindir@/zpool list -H -o bootfs)"
 
 [Install]
 WantedBy=zfs-import.target
