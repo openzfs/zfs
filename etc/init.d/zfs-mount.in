@@ -70,6 +70,15 @@ do_mount()
 	check_boolean "$VERBOSE_MOUNT" && verbose=v
 	check_boolean "$DO_OVERLAY_MOUNTS" && overlay=O
 
+	if $(zfs list -H -o encryption "${root}" | grep -q -v off); then
+		TRY_COUNT=5
+		while [ $TRY_COUNT != 0 ]; do
+			zfs_action "Decrypting ZFS filesystem(s)" "$ZFS" load-key -a
+			[[ $? == 0 ]] && break
+			((TRY_COUNT-=1))
+		done
+	fi
+
 	zfs_action "Mounting ZFS filesystem(s)" \
 	    "$ZFS" mount -a$verbose$overlay "$MOUNT_EXTRA_OPTIONS"
 
