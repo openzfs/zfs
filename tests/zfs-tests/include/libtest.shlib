@@ -3081,6 +3081,21 @@ function wait_scrubbed
 	return 1
 }
 
+# Backup the zed.rc in our test directory so that we can edit it for our test.
+#
+# Returns: Backup file name.  You will need to pass this to zed_rc_restore().
+function zed_rc_backup
+{
+	zedrc_backup="$(mktemp)"
+	cp $ZEDLET_DIR/zed.rc $zedrc_backup
+	echo $zedrc_backup
+}
+
+function zed_rc_restore
+{
+	mv $1 $ZEDLET_DIR/zed.rc
+}
+
 #
 # Setup custom environment for the ZED.
 #
@@ -3218,6 +3233,23 @@ function zed_events_drain
 		zpool events -c >/dev/null
 	done
 }
+
+# Set a variable in zed.rc to something, un-commenting it in the process.
+#
+# $1 variable
+# $2 value
+function zed_rc_set
+{
+	var="$1"
+	val="$2"
+	# Remove the line
+	cmd="'/$var/d'"
+	eval sed -i $cmd $ZEDLET_DIR/zed.rc
+
+	# Add it at the end
+	echo "$var=$val" >> $ZEDLET_DIR/zed.rc
+}
+
 
 #
 # Check is provided device is being active used as a swap device.
