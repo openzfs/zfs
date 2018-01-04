@@ -1,0 +1,73 @@
+#!/bin/sh
+#
+# Track changes to enumerated pools for use in early-boot
+set -ef
+
+FSLIST_DIR="@sysconfdir@/zfs/zfs-list.cache"
+FSLIST_TMP="@runstatedir@/zfs-list.cache.new"
+FSLIST="${FSLIST_DIR}/${ZEVENT_POOL}"
+
+# If the pool specific cache file is not writeable, abort
+[ -w "${FSLIST}" ] || exit 0
+
+[ -f "${ZED_ZEDLET_DIR}/zed.rc" ] && . "${ZED_ZEDLET_DIR}/zed.rc"
+. "${ZED_ZEDLET_DIR}/zed-functions.sh"
+
+zed_exit_if_ignoring_this_event
+zed_check_cmd "${ZFS}" sort diff grep
+
+# If we are acting on a snapshot, we have nothing to do
+printf '%s' "${ZEVENT_HISTORY_DSNAME}" | grep '@' && exit 0
+
+# We obtain a lock on zfs-list to avoid any simultaneous writes.
+# If we run into trouble, log and drop the lock
+abort_alter() {
+  zed_log_msg "Error updating zfs-list.cache!"
+  zed_unlock zfs-list
+}
+
+finished() {
+  zed_unlock zfs-list
+  trap - EXIT
+  exit 0
+}
+
+case "${ZEVENT_HISTORY_INTERNAL_NAME}" in
+    create|"finish receiving"|import|destroy|rename)
+      ;;
+
+    export)
+        zed_lock zfs-list
+        trap abort_alter EXIT
+        echo > "${FSLIST}"
+        finished
+      ;;
+
+    set|inherit)
+        # Only act if the mountpoint or canmount setting is altered.
+        case "${ZEVENT_HISTORY_INTERNAL_STR}" in
+            canmount=*|mountpoint=*) ;;
+            *) exit 0 ;;
+        esac
+      ;;
+
+    *)
+        # Ignore all other events.
+        exit 0
+      ;;
+esac
+
+zed_lock zfs-list
+trap abort_alter EXIT
+
+"${ZFS}" list -H -tfilesystem -oname,mountpoint,canmount -r "${ZEVENT_POOL}" \
+    >"${FSLIST_TMP}"
+
+# Sort the output so that it is stable
+sort "${FSLIST_TMP}" -o "${FSLIST_TMP}"
+
+# Don't modify the file if it hasn't changed
+diff -q "${FSLIST_TMP}" "${FSLIST}" || mv "${FSLIST_TMP}" "${FSLIST}"
+rm -f "${FSLIST_TMP}"
+
+finished

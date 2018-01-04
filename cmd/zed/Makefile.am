@@ -4,7 +4,8 @@ DEFAULT_INCLUDES += \
 	-I$(top_srcdir)/include \
 	-I$(top_srcdir)/lib/libspl/include
 
-EXTRA_DIST = zed.d/README
+EXTRA_DIST = zed.d/README \
+	zed.d/history_event-zfs-list-cacher.sh.in
 
 sbin_PROGRAMS = zed
 
@@ -60,6 +61,7 @@ dist_zedexec_SCRIPTS = \
 	zed.d/all-syslog.sh \
 	zed.d/data-notify.sh \
 	zed.d/generic-notify.sh \
+	zed.d/history_event-zfs-list-cacher.sh \
 	zed.d/resilver_finish-notify.sh \
 	zed.d/scrub_finish-notify.sh \
 	zed.d/statechange-led.sh \
@@ -68,6 +70,13 @@ dist_zedexec_SCRIPTS = \
 	zed.d/vdev_attach-led.sh \
 	zed.d/pool_import-led.sh \
 	zed.d/resilver_finish-start-scrub.sh
+
+zed.d/history_event-zfs-list-cacher.sh: %: %.in
+	-$(SED) -e 's,@bindir\@,$(bindir),g' \
+		-e 's,@runstatedir\@,$(runstatedir),g' \
+		-e 's,@sbindir\@,$(sbindir),g' \
+		-e 's,@sysconfdir\@,$(sysconfdir),g' \
+		$< >'$@'
 
 zedconfdefaults = \
 	all-syslog.sh \
