@@ -102,12 +102,25 @@ fn(struct inode *ip, char *list, size_t list_size,			\
 #endif
 
 /*
+ * 4.7 API change,
+ * The xattr_handler->get() callback was changed to take a both dentry and
+ * inode, because the dentry might not be attached to an inode yet.
+ */
+#if defined(HAVE_XATTR_GET_DENTRY_INODE)
+#define	ZPL_XATTR_GET_WRAPPER(fn)					\
+static int								\
+fn(const struct xattr_handler *handler, struct dentry *dentry,		\
+    struct inode *inode, const char *name, void *buffer, size_t size)	\
+{									\
+	return (__ ## fn(inode, name, buffer, size));			\
+}
+/*
  * 4.4 API change,
  * The xattr_handler->get() callback was changed to take a xattr_handler,
  * and handler_flags argument was removed and should be accessed by
  * handler->flags.
  */
-#if defined(HAVE_XATTR_GET_HANDLER)
+#elif defined(HAVE_XATTR_GET_HANDLER)
 #define	ZPL_XATTR_GET_WRAPPER(fn)					\
 static int								\
 fn(const struct xattr_handler *handler, struct dentry *dentry,		\
@@ -141,12 +154,26 @@ fn(struct inode *ip, const char *name, void *buffer, size_t size)	\
 #endif
 
 /*
+ * 4.7 API change,
+ * The xattr_handler->set() callback was changed to take a both dentry and
+ * inode, because the dentry might not be attached to an inode yet.
+ */
+#if defined(HAVE_XATTR_SET_DENTRY_INODE)
+#define	ZPL_XATTR_SET_WRAPPER(fn)					\
+static int								\
+fn(const struct xattr_handler *handler, struct dentry *dentry,		\
+    struct inode *inode, const char *name, const void *buffer,		\
+    size_t size, int flags)						\
+{									\
+	return (__ ## fn(inode, name, buffer, size, flags));		\
+}
+/*
  * 4.4 API change,
  * The xattr_handler->set() callback was changed to take a xattr_handler,
  * and handler_flags argument was removed and should be accessed by
  * handler->flags.
  */
-#if defined(HAVE_XATTR_SET_HANDLER)
+#elif defined(HAVE_XATTR_SET_HANDLER)
 #define	ZPL_XATTR_SET_WRAPPER(fn)					\
 static int								\
 fn(const struct xattr_handler *handler, struct dentry *dentry,		\
@@ -190,20 +217,20 @@ fn(struct inode *ip, const char *name, const void *buffer,		\
 
 /*
  * Linux 3.7 API change. posix_acl_{from,to}_xattr gained the user_ns
- * parameter.  For the HAVE_POSIX_ACL_FROM_XATTR_USERNS version the
- * userns _may_ not be correct because it's used outside the RCU.
+ * parameter.  All callers are expected to pass the &init_user_ns which
+ * is available through the init credential (kcred).
  */
 #ifdef HAVE_POSIX_ACL_FROM_XATTR_USERNS
 static inline struct posix_acl *
 zpl_acl_from_xattr(const void *value, int size)
 {
-	return (posix_acl_from_xattr(CRED()->user_ns, value, size));
+	return (posix_acl_from_xattr(kcred->user_ns, value, size));
 }
 
 static inline int
 zpl_acl_to_xattr(struct posix_acl *acl, void *value, int size)
 {
-	return (posix_acl_to_xattr(CRED()->user_ns, acl, value, size));
+	return (posix_acl_to_xattr(kcred->user_ns, acl, value, size));
 }
 
 #else

@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -48,16 +48,16 @@ verify_runnable "global"
 function cleanup
 {
 	#
-	# Essentailly this is the default_cleanup rountine but I cannot get it
+	# Essentailly this is the default_cleanup routine but I cannot get it
 	# to work correctly.  So its reproduced below.  Still need to full
 	# understand why default_cleanup does not work correctly from here.
 	#
-        log_must $ZFS umount $TESTPOOL/$TESTFS
+        log_must zfs umount $TESTPOOL/$TESTFS
 
-        $RM -rf $TESTDIR || \
+        rm -rf $TESTDIR || \
             log_unresolved Could not remove $TESTDIR
 
-	log_must $ZFS destroy $TESTPOOL/$TESTFS
+	log_must zfs destroy $TESTPOOL/$TESTFS
 	destroy_pool $TESTPOOL
 }
 #
@@ -69,13 +69,19 @@ function mini_format
 {
         typeset disk=$1
 
-	typeset format_file=/var/tmp/format_in.$$.1
-	$ECHO "partition" > $format_file
-	$ECHO "modify" >> $format_file
+	if is_linux; then
+		parted $disk -s -- mklabel gpt
+		typeset -i retval=$?
+	else
+		typeset format_file=/var/tmp/format_in.$$.1
+		echo "partition" > $format_file
+		echo "modify" >> $format_file
 
-	$FORMAT -e -s -d $disk -f $format_file
-	typeset -i retval=$?
-	$RM -rf $format_file
+		format -e -s -d $disk -f $format_file
+		typeset -i retval=$?
+
+		rm -rf $format_file
+	fi
 	return $retval
 }
 
@@ -84,7 +90,7 @@ log_assert "format will disallow modification of a mounted zfs disk partition"\
 
 log_onexit cleanup
 log_must default_setup_noexit $FS_DISK0
-log_must $ZPOOL add $TESTPOOL spare $FS_DISK1
+log_must zpool add $TESTPOOL spare $FS_DISK1
 
 log_note "Attempt to format a ZFS disk"
 log_mustnot mini_format $FS_DISK0

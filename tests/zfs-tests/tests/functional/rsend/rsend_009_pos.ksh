@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/rsend/rsend.kshlib
@@ -48,31 +48,30 @@ verify_runnable "global"
 function cleanup
 {
 	if datasetexists bpool ; then
-		log_must $ZPOOL destroy -f bpool
+		log_must_busy zpool destroy -f bpool
 	fi
 	if datasetexists spool ; then
-		log_must $ZPOOL destroy -f spool
+		log_must_busy zpool destroy -f spool
 	fi
 }
 
 log_assert "Verify zfs receive can handle out of space correctly."
 log_onexit cleanup
 
-log_must $MKFILE 100M $TESTDIR/bfile
-log_must $MKFILE 64M  $TESTDIR/sfile
-log_must $ZPOOL create bpool $TESTDIR/bfile
-log_must $ZPOOL create spool $TESTDIR/sfile
+log_must mkfile $MINVDEVSIZE $TESTDIR/bfile
+log_must mkfile $SPA_MINDEVSIZE  $TESTDIR/sfile
+log_must zpool create bpool $TESTDIR/bfile
+log_must zpool create spool $TESTDIR/sfile
 
 #
 # Test out of space on sub-filesystem
 #
-log_must $ZFS create bpool/fs
-mntpnt=$(get_prop mountpoint bpool/fs)
-log_must $MKFILE 30M $mntpnt/file
+log_must zfs create bpool/fs
+log_must mkfile 30M /bpool/fs/file
 
-log_must $ZFS snapshot bpool/fs@snap
-log_must eval "$ZFS send -R bpool/fs@snap > $BACKDIR/fs-R"
-log_mustnot eval "$ZFS receive -d -F spool < $BACKDIR/fs-R"
+log_must zfs snapshot bpool/fs@snap
+log_must eval "zfs send -R bpool/fs@snap > $BACKDIR/fs-R"
+log_mustnot eval "zfs receive -d -F spool < $BACKDIR/fs-R"
 
 log_must datasetnonexists spool/fs
 log_must ismounted spool
@@ -80,13 +79,12 @@ log_must ismounted spool
 #
 # Test out of space on top filesystem
 #
-mntpnt2=$(get_prop mountpoint bpool)
-log_must $MV $mntpnt/file $mntpnt2
-log_must $ZFS destroy -rf bpool/fs
+log_must mv /bpool/fs/file /bpool
+log_must_busy zfs destroy -rf bpool/fs
 
-log_must $ZFS snapshot bpool@snap
-log_must eval "$ZFS send -R bpool@snap > $BACKDIR/bpool-R"
-log_mustnot eval "$ZFS receive -d -F spool < $BACKDIR/bpool-R"
+log_must zfs snapshot bpool@snap
+log_must eval "zfs send -R bpool@snap > $BACKDIR/bpool-R"
+log_mustnot eval "zfs receive -d -F spool < $BACKDIR/bpool-R"
 
 log_must datasetnonexists spool/fs
 log_must ismounted spool

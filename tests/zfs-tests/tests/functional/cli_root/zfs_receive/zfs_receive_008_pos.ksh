@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/tests/functional/cli_root/cli_common.kshlib
 
 #
@@ -44,20 +48,20 @@ function cleanup
 {
 	for dset in $rst_snap $rst_fs $orig_snap; do
 		if datasetexists $dset; then
-			log_must $ZFS destroy -fr $dset
+			log_must zfs destroy -fr $dset
 		fi
 	done
 
 	for file in $fbackup $mnt_file $tmp_out; do
 		if [[ -f $file ]]; then
-			log_must $RM -f $file
+			log_must rm -f $file
 		fi
 	done
 
 	if datasetexists $TESTPOOL/$TESTFS; then
-		log_must $ZFS destroy -Rf $TESTPOOL/$TESTFS
-		log_must $ZFS create $TESTPOOL/$TESTFS
-		log_must $ZFS set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
+		log_must zfs destroy -Rf $TESTPOOL/$TESTFS
+		log_must zfs create $TESTPOOL/$TESTFS
+		log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 	fi
 }
 
@@ -79,7 +83,7 @@ for orig_fs in $datasets ; do
 	typeset dryrun_msg="would receive full stream of ${orig_snap} into ${rst_snap}"
 
 	if ! datasetexists $orig_fs; then
-		log_must $ZFS create $orig_fs
+		log_must zfs create $orig_fs
 	fi
 
 	typeset mntpnt
@@ -90,24 +94,24 @@ for orig_fs in $datasets ; do
 
 	typeset mnt_file=$mntpnt/file1
 
-	log_must $MKFILE 100m $mnt_file
-	log_must $ZFS snapshot $orig_snap
-	log_must eval "$ZFS send $orig_snap > $fbackup"
+	log_must mkfile 100m $mnt_file
+	log_must zfs snapshot $orig_snap
+	log_must eval "zfs send $orig_snap > $fbackup"
 
 	for opt in "-v"  "-vn"; do
 		if datasetexists $rst_fs; then
-			log_must $ZFS destroy -fr $rst_fs
+			log_must zfs destroy -fr $rst_fs
 		fi
 		log_note "Check ZFS receive $opt [<filesystem|snapshot>]"
-		log_must eval "$ZFS receive $opt $rst_fs < $fbackup > $tmp_out 2>&1"
+		log_must eval "zfs receive $opt $rst_fs < $fbackup > $tmp_out 2>&1"
 		if [[ $opt == "-v" ]]; then
-			log_must eval "$GREP \"$verb_msg\" $tmp_out >/dev/null 2>&1"
+			log_must eval "grep \"$verb_msg\" $tmp_out >/dev/null 2>&1"
 			if ! datasetexists $rst_snap; then
 				log_fail "dataset was not received, even though the"\
 					" -v flag was used."
 			fi
 		else
-			log_must eval "$GREP \"$dryrun_msg\" $tmp_out >/dev/null 2>&1"
+			log_must eval "grep \"$dryrun_msg\" $tmp_out >/dev/null 2>&1"
 			if datasetexists $rst_snap; then
 				log_fail "dataset was received, even though the -nv"\
 					" flag was used."
@@ -117,9 +121,9 @@ for orig_fs in $datasets ; do
 
 	log_note "Check ZFS receive -vn -d <filesystem>"
 	if ! datasetexists $rst_fs; then
-		log_must $ZFS create $rst_fs
+		log_must zfs create $rst_fs
 	fi
-	log_must eval "$ZFS receive -vn -d -F $rst_fs <$fbackup >$tmp_out 2>&1"
+	log_must eval "zfs receive -vn -d -F $rst_fs <$fbackup >$tmp_out 2>&1"
 	typeset relative_path=""
 	if [[ ${orig_fs} == *"/"* ]]; then
 		relative_path=${orig_fs#*/}
@@ -130,12 +134,12 @@ for orig_fs in $datasets ; do
 	rst_snap=${leaf_fs}@snap
 	dryrun_msg="would receive full stream of ${orig_snap} into ${rst_snap}"
 
-	log_must eval "$GREP \"$dryrun_msg\" $tmp_out > /dev/null 2>&1"
+	log_must eval "grep \"$dryrun_msg\" $tmp_out > /dev/null 2>&1"
 
 	if datasetexists $rst_snap; then
 		log_fail "dataset $rst_snap should not existed."
 	fi
-	log_must $ZFS destroy -Rf $rst_fs
+	log_must zfs destroy -Rf $rst_fs
 
 	cleanup
 done

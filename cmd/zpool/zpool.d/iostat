@@ -1,0 +1,65 @@
+#!/bin/sh
+#
+# Display most relevant iostat bandwidth/latency numbers.  The output is
+# dependent on the name of the script/symlink used to call it.
+#
+
+helpstr="
+iostat:		Show iostat values since boot (summary page).
+iostat-1s:	Do a single 1-second iostat sample and show values.
+iostat-10s:	Do a single 10-second iostat sample and show values."
+
+script=$(basename "$0")
+if [ "$1" = "-h" ] ; then
+	echo "$helpstr" | grep "$script:" | tr -s '\t' | cut -f 2-
+	exit
+fi
+
+if [ "$script" = "iostat-1s" ] ; then
+	# Do a single one-second sample
+	extra="1 1"
+	# Don't show summary stats
+	y="-y"
+elif [ "$script" = "iostat-10s" ] ; then
+	# Do a single ten-second sample
+	extra="10 1"
+	# Don't show summary stats
+	y="-y"
+fi
+
+if [ -f "$VDEV_UPATH" ] ; then
+	# We're a file-based vdev, iostat doesn't work on us.  Do nothing.
+	exit
+fi
+
+out=$(eval "iostat $y -k -x $VDEV_UPATH $extra")
+
+# Sample output (we want the last two lines):
+#
+# Linux 2.6.32-642.13.1.el6.x86_64 (centos68) 	03/09/2017 	_x86_64_	(6 CPU)
+#
+# avg-cpu:  %user   %nice %system %iowait  %steal   %idle
+#           0.00    0.00    0.00    0.00    0.00  100.00
+#
+# Device:         rrqm/s   wrqm/s     r/s     w/s    rkB/s    wkB/s avgrq-sz avgqu-sz   await r_await w_await  svctm  %util
+# sdb               0.00     0.00    0.00    0.00     0.00     0.00     0.00     0.00    0.00    0.00    0.00   0.00   0.00
+#
+
+# Get the column names
+cols=$(echo "$out" | grep Device)
+
+# Get the values and tab separate them to make them cut-able.
+vals="$(echo "$out" | grep -A1 Device | tail -n 1 | sed -r 's/[[:blank:]]+/\t/g')"
+
+i=0
+for col in $cols ; do
+	i=$((i+1))
+	# Skip the first column since it's just the device name
+	if [ "$col" = "Device:" ] ; then
+		continue
+	fi
+
+	# Get i'th value
+	val=$(echo "$vals" | cut -f "$i")
+	echo "$col=$val"
+done

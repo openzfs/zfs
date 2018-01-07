@@ -28,6 +28,7 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/mman.h>
 #include <pthread.h>
 
@@ -67,8 +68,10 @@ int
 main(int argc, char **argv)
 {
 	int fd;
-	char buf[BUFSIZ];
+	char buf[1024];
 	pthread_t tid;
+
+	memset(buf, 'a', sizeof (buf));
 
 	if (argc != 2) {
 		(void) printf("usage: %s <file name>\n", argv[0]);
@@ -83,14 +86,18 @@ main(int argc, char **argv)
 	(void) pthread_setconcurrency(2);
 	if (pthread_create(&tid, NULL, mapper, &fd) != 0) {
 		perror("pthread_create");
+		close(fd);
 		exit(1);
 	}
 	for (;;) {
 		if (write(fd, buf, sizeof (buf)) == -1) {
 			perror("write");
+			close(fd);
 			exit(1);
 		}
 	}
+
+	close(fd);
 
 	/* NOTREACHED */
 	return (0);

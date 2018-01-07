@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/tests/functional/cli_root/zfs_set/zfs_set_common.kshlib
 
 #
@@ -43,7 +47,7 @@ function cleanup
 	for fs in $TESTPOOL/$TESTFS $TESTPOOL/$TESTVOL $TESTPOOL ; do
 		typeset fssnap=$fs@snap
 		if datasetexists $fssnap ; then
-			log_must $ZFS destroy -f $fssnap
+			log_must zfs destroy -f $fssnap
 		fi
 	done
 	cleanup_user_prop $TESTPOOL
@@ -68,7 +72,7 @@ log_onexit cleanup
 
 typeset snap_property=
 
-$ZPOOL upgrade -v | $GREP "Snapshot properties" > /dev/null 2>&1
+zpool upgrade -v | grep "Snapshot properties" > /dev/null 2>&1
 if (( $? == 0 )) ; then
 	snap_property="true"
 fi
@@ -77,19 +81,19 @@ for fs in $TESTPOOL/$TESTFS $TESTPOOL/$TESTVOL $TESTPOOL ; do
 	typeset fssnap=$fs@snap
 	prop_name=$(valid_user_property 10)
 	value=$(user_property_value 16)
-	log_must eval "$ZFS set $prop_name='$value' $fs"
+	log_must eval "zfs set $prop_name='$value' $fs"
 	log_must eval "check_user_prop $fs $prop_name '$value'"
 
-	log_must $ZFS snapshot $fssnap
+	log_must zfs snapshot $fssnap
 
 	if [[ -n $snap_property ]] ; then
 		log_mustnot nonexist_user_prop $prop_name $fssnap
 
-		log_must eval "$ZFS set $prop_name='$value' $fssnap"
+		log_must eval "zfs set $prop_name='$value' $fssnap"
 		log_mustnot nonexist_user_prop $prop_name $fssnap
 	else
 		log_must nonexist_user_prop $prop_name $fssnap
-		log_mustnot eval "$ZFS set $prop_name='$value' $fssnap"
+		log_mustnot eval "zfs set $prop_name='$value' $fssnap"
 		log_must nonexist_user_prop $prop_name $fssnap
 	fi
 done

@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/tests/functional/cli_root/zfs_set/zfs_set_common.kshlib
 
 #
@@ -43,7 +47,7 @@ function cleanup
 	for fs in $TESTPOOL/$TESTFS $TESTPOOL/$TESTVOL $TESTPOOL/$TESTCTR $TESTPOOL ; do
 		typeset fssnap=$fs@snap
 		if datasetexists $fssnap ; then
-			log_must $ZFS destroy -rf $fssnap
+			log_must zfs destroy -rf $fssnap
 		fi
 	done
 	cleanup_user_prop $TESTPOOL
@@ -72,7 +76,7 @@ typeset snap_ro_props="volsize recordsize recsize quota reservation reserv mount
 	sharenfs checksum compression compress atime devices exec readonly rdonly \
 	setuid zoned"
 
-$ZFS upgrade -v > /dev/null 2>&1
+zfs upgrade -v > /dev/null 2>&1
 if [[ $? -eq 0 ]]; then
 	snap_ro_props="$snap_ro_props version"
 fi
@@ -83,21 +87,21 @@ for fs in $TESTPOOL/$TESTFS $TESTPOOL/$TESTVOL $TESTPOOL/$TESTCTR $TESTPOOL ; do
 	prop_name=$(valid_user_property 10)
 	value=$(user_property_value 16)
 
-	log_must eval "$ZFS snapshot -o $prop_name='$value' $fssnap"
+	log_must eval "zfs snapshot -o $prop_name='$value' $fssnap"
 	log_must snapexists $fssnap
 	log_mustnot nonexist_user_prop $prop_name $fssnap
 
-	log_must $ZFS destroy -f $fssnap
+	log_must zfs destroy -f $fssnap
 
 	prop_name2=$(valid_user_property 10)
 	value2=$(user_property_value 16)
 
-	log_must eval "$ZFS snapshot -o $prop_name='$value' -o $prop_name2='$value2' $fssnap"
+	log_must eval "zfs snapshot -o $prop_name='$value' -o $prop_name2='$value2' $fssnap"
 	log_must snapexists $fssnap
 	log_mustnot nonexist_user_prop $prop_name $fssnap
 	log_mustnot nonexist_user_prop $prop_name2 $fssnap
 
-	log_must $ZFS destroy -f $fssnap
+	log_must zfs destroy -f $fssnap
 done
 
 cleanup
@@ -105,7 +109,7 @@ cleanup
 prop_name=$(valid_user_property 10)
 value=$(user_property_value 16)
 
-log_must eval "$ZFS snapshot -r -o $prop_name='$value' $TESTPOOL@snap"
+log_must eval "zfs snapshot -r -o $prop_name='$value' $TESTPOOL@snap"
 for fs in $TESTPOOL/$TESTFS $TESTPOOL/$TESTVOL $TESTPOOL/$TESTCTR $TESTPOOL ; do
 	typeset fssnap=$fs@snap
 	log_must snapexists $fssnap
@@ -117,7 +121,7 @@ cleanup
 prop_name2=$(valid_user_property 10)
 value2=$(user_property_value 16)
 
-log_must eval "$ZFS snapshot -r -o $prop_name='$value' -o $prop_name2='$value2' $TESTPOOL@snap"
+log_must eval "zfs snapshot -r -o $prop_name='$value' -o $prop_name2='$value2' $TESTPOOL@snap"
 for fs in $TESTPOOL/$TESTFS $TESTPOOL/$TESTVOL $TESTPOOL/$TESTCTR $TESTPOOL ; do
 	typeset fssnap=$fs@snap
 	log_must snapexists $fssnap

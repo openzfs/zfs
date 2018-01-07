@@ -26,11 +26,11 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
-. $STF_SUITE/tests/functional/cli_user/misc/misc.cfg
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_user/misc/misc.cfg
 
 #
 # DESCRIPTION:
@@ -52,7 +52,7 @@ log_assert "zpool destroy [-f] [pool_name ...]"
 
 typeset -i i=0
 while [[ $i -lt ${#args[*]} ]]; do
-	log_mustnot $ZPOOL ${args[i]}
+	log_mustnot zpool ${args[i]}
 	((i = i + 1))
 done
 

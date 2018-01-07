@@ -25,11 +25,15 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/acl/acl_common.kshlib
 
-log_must $GETFACL --version
-log_must $SETFACL --version
+log_must getfacl --version
+log_must setfacl --version
 
 cleanup_user_group
 
@@ -39,10 +43,10 @@ log_must add_user $ZFS_ACL_STAFF_GROUP $ZFS_ACL_STAFF1
 
 DISK=${DISKS%% *}
 default_setup_noexit $DISK
-log_must $CHMOD 777 $TESTDIR
+log_must chmod 777 $TESTDIR
 
 # Use POSIX ACLs on filesystem
-log_must $ZFS set acltype=posixacl $TESTPOOL/$TESTFS
-log_must $ZFS set xattr=sa $TESTPOOL/$TESTFS
+log_must zfs set acltype=posixacl $TESTPOOL/$TESTFS
+log_must zfs set xattr=sa $TESTPOOL/$TESTFS
 
 log_pass

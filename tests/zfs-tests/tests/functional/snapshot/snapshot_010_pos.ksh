@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -50,14 +50,14 @@ function cleanup
 	typeset snap
 
 	datasetexists $ctrvol && \
-		log_must $ZFS destroy -f $ctrvol
+		log_must zfs destroy -f $ctrvol
 
 	for snap in $ctrfs@$TESTSNAP1 \
 		$snappool $snapvol $snapctr $snapctrvol \
 		$snapctrclone $snapctrfs
 	do
 		snapexists $snap && \
-			log_must $ZFS destroy -rf $snap
+			log_must zfs destroy -rf $snap
 	done
 
 }
@@ -77,17 +77,17 @@ snapctrclone=$ctr/$TESTCLONE@$TESTSNAP
 snapctrfs=$SNAPCTR
 
 #preparation for testing
-log_must $ZFS snapshot $ctrfs@$TESTSNAP1
+log_must zfs snapshot $ctrfs@$TESTSNAP1
 if is_global_zone; then
-	log_must $ZFS create -V $VOLSIZE $ctrvol
+	log_must zfs create -V $VOLSIZE $ctrvol
 else
-	log_must $ZFS create $ctrvol
+	log_must zfs create $ctrvol
 fi
 
-log_must $ZFS snapshot -r $snappool
+log_must zfs snapshot -r $snappool
 
 #select the $TESTCTR as destroy point, $TESTCTR is a child of $TESTPOOL
-log_must $ZFS destroy -r $snapctr
+log_must zfs destroy -r $snapctr
 for snap in $snapctr $snapctrvol $snapctrclone $snapctrfs; do
 	snapexists $snap && \
 		log_fail "The snapshot $snap is not destroyed correctly."

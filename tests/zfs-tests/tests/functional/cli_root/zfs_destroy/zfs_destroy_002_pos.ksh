@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -50,7 +50,7 @@ function cleanup
 	typeset -i i=0
 	while (( $i < ${#data_objs[*]} )); do
 		datasetexists "${data_objs[i]}" && \
-			$ZFS destroy -rf ${data_objs[i]}
+			zfs destroy -rf ${data_objs[i]}
 		((i = i + 1))
 	done
 }
@@ -66,16 +66,16 @@ else
 	set -A data_objs "$TESTPOOL/$TESTFS@$TESTSNAP" "$TESTPOOL/$TESTFS1"
 fi
 
-log_must $ZFS create $TESTPOOL/$TESTFS1
-log_must $ZFS snapshot $TESTPOOL/$TESTFS@$TESTSNAP
+log_must zfs create $TESTPOOL/$TESTFS1
+log_must zfs snapshot $TESTPOOL/$TESTFS@$TESTSNAP
 
 if is_global_zone ; then
-	log_must $ZFS create -V $VOLSIZE $TESTPOOL/$TESTVOL
+	log_must zfs create -V $VOLSIZE $TESTPOOL/$TESTVOL
 
 	# Max volume size is 1TB on 32-bit systems
-	[[ $($ISAINFO -b) == 32 ]] && \
+	[[ is_32bit ]] && \
 		BIGVOLSIZE=1Tb
-	log_must $ZFS create -sV $BIGVOLSIZE $TESTPOOL/$TESTVOL1
+	log_must zfs create -sV $BIGVOLSIZE $TESTPOOL/$TESTVOL1
 fi
 
 typeset -i i=0
@@ -87,7 +87,7 @@ done
 
 i=0
 while (( $i < ${#data_objs[*]} )); do
-	log_must $ZFS destroy ${data_objs[i]}
+	log_must zfs destroy ${data_objs[i]}
 	datasetexists ${data_objs[i]} && \
 		log_fail "'zfs destroy <filesystem>|<volume>|<snapshot>' fail."
 	((i = i + 1))

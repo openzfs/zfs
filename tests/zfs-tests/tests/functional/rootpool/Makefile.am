@@ -4,4 +4,4 @@ dist_pkgdata_SCRIPTS = \
 	cleanup.ksh \
 	rootpool_002_neg.ksh \
 	rootpool_003_neg.ksh \
-	rootpool_007_neg.ksh
+	rootpool_007_pos.ksh

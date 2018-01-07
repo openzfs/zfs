@@ -27,7 +27,7 @@
 
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -54,13 +54,13 @@ function cleanup
 	typeset -i i=0
 	while ((i < snap_cnt)); do
 		typeset snap=$fs@snap.$i
-		datasetexists $snap && log_must $ZFS destroy -f $snap
+		datasetexists $snap && log_must zfs destroy -f $snap
 
 		((i += 1))
 	done
 }
 
-$ZFS 2>&1 | $GREP "allow" > /dev/null
+zfs 2>&1 | grep "allow" > /dev/null
 (($? != 0)) && log_unsupported
 
 log_assert "Verify snapshot can be created via mkdir in .zfs/snapshot."
@@ -73,10 +73,10 @@ snapdir=$mntpnt/.zfs
 set -A ro_dirs "$snapdir" "$snapdir/snap" "$snapdir/snapshot"
 for dir in ${ro_dirs[@]}; do
 	if [[ -d $dir ]]; then
-		log_mustnot $RM -rf $dir
-		log_mustnot $TOUCH $dir/testfile
+		log_mustnot rm -rf $dir
+		log_mustnot touch $dir/testfile
 	else
-		log_mustnot $MKDIR $dir
+		log_mustnot mkdir $dir
 	fi
 done
 
@@ -85,8 +85,8 @@ typeset -i snap_cnt=5
 typeset -i cnt=0
 while ((cnt < snap_cnt)); do
 	testfile=$mntpnt/testfile.$cnt
-	log_must $MKFILE 1M $testfile
-	log_must $MKDIR $snapdir/snapshot/snap.$cnt
+	log_must mkfile 1M $testfile
+	log_must mkdir $snapdir/snapshot/snap.$cnt
 	if ! datasetexists $fs@snap.$cnt ; then
 		log_fail "ERROR: $fs@snap.$cnt should exists."
 	fi
@@ -96,7 +96,7 @@ done
 
 # Verify rollback to previous snapshot succeed.
 ((cnt = RANDOM % snap_cnt))
-log_must $ZFS rollback -r $fs@snap.$cnt
+log_must zfs rollback -r $fs@snap.$cnt
 
 typeset -i i=0
 while ((i < snap_cnt)); do
@@ -115,7 +115,7 @@ while ((i < snap_cnt)); do
 done
 
 # Verify remove directory in snapdir can destroy snapshot.
-log_must $RMDIR $snapdir/snapshot/snap.$cnt
+log_must rmdir $snapdir/snapshot/snap.$cnt
 log_mustnot datasetexists $fs@snap.$cnt
 
 log_pass "Verify snapshot can be created via mkdir in .zfs/snapshot passed."

@@ -26,25 +26,25 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
-. $STF_SUITE/tests/functional/cli_user/misc/misc.cfg
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_user/misc/misc.cfg
 
 if poolexists $TESTPOOL.virt
 then
-	log_must $ZPOOL destroy $TESTPOOL.virt
+	log_must zpool destroy $TESTPOOL.virt
 fi
 
 if poolexists v1-pool
 then
-	log_must $ZPOOL destroy v1-pool
+	log_must zpool destroy v1-pool
 fi
 
 if [[ -f /tmp/zfstest_datastream.dat ]]
 then
-	log_must $RM -f /tmp/zfstest_datastream.dat
+	log_must rm -f /tmp/zfstest_datastream.dat
 fi
 
 default_cleanup

@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -40,7 +44,7 @@
 verify_runnable "global"
 
 
-$ZPOOL set 2>&1 | $GREP bootfs > /dev/null
+zpool set 2>&1 | grep bootfs > /dev/null
 if [ $? -ne 0 ]
 then
 	log_unsupported "bootfs pool property not supported on this release."
@@ -53,38 +57,38 @@ VDEV4=$TESTDIR/bootfs_006_pos_d.$$.dat
 
 function verify_bootfs { # $POOL
 	POOL=$1
-	log_must $ZFS create $POOL/$TESTFS
+	log_must zfs create $POOL/$TESTFS
 
-	log_must $ZPOOL set bootfs=$POOL/$TESTFS $POOL
-	VAL=$($ZPOOL get bootfs $POOL | $TAIL -1 | $AWK '{print $3}' )
+	log_must zpool set bootfs=$POOL/$TESTFS $POOL
+	VAL=$(zpool get bootfs $POOL | tail -1 | awk '{print $3}' )
 	if [ $VAL != "$POOL/$TESTFS" ]
 	then
-		log_must $ZPOOL status -v $POOL
+		log_must zpool status -v $POOL
 		log_fail \
 		    "set/get failed on $POOL - expected $VAL == $POOL/$TESTFS"
 	fi
-	log_must $ZPOOL destroy $POOL
+	log_must zpool destroy $POOL
 }
 
 function verify_no_bootfs { # $POOL
 	POOL=$1
-	log_must $ZFS create $POOL/$TESTFS
-	log_mustnot $ZPOOL set bootfs=$POOL/$TESTFS $POOL
-	VAL=$($ZPOOL get bootfs $POOL | $TAIL -1 | $AWK '{print $3}' )
+	log_must zfs create $POOL/$TESTFS
+	log_mustnot zpool set bootfs=$POOL/$TESTFS $POOL
+	VAL=$(zpool get bootfs $POOL | tail -1 | awk '{print $3}' )
 	if [ $VAL == "$POOL/$TESTFS" ]
 	then
-		log_must $ZPOOL status -v $POOL
+		log_must zpool status -v $POOL
 		log_fail "set/get unexpectedly failed $VAL != $POOL/$TESTFS"
 	fi
-	log_must $ZPOOL destroy $POOL
+	log_must zpool destroy $POOL
 }
 
 function cleanup {
 	if poolexists $TESTPOOL
 	then
-		log_must $ZPOOL destroy $TESTPOOL
+		log_must zpool destroy $TESTPOOL
 	fi
-	log_must $RM $VDEV1 $VDEV2 $VDEV3 $VDEV4
+	log_must rm $VDEV1 $VDEV2 $VDEV3 $VDEV4
 }
 
 log_assert "Pools of correct vdev types accept boot property"
@@ -92,51 +96,61 @@ log_assert "Pools of correct vdev types accept boot property"
 
 
 log_onexit cleanup
-log_must $MKFILE 64m $VDEV1 $VDEV2 $VDEV3 $VDEV4
+log_must mkfile $MINVDEVSIZE $VDEV1 $VDEV2 $VDEV3 $VDEV4
 
 
 ## the following configurations are supported bootable pools
 
 # normal
-log_must $ZPOOL create $TESTPOOL $VDEV1
+log_must zpool create $TESTPOOL $VDEV1
 verify_bootfs $TESTPOOL
 
 # normal + hotspare
-log_must $ZPOOL create $TESTPOOL $VDEV1 spare $VDEV2
+log_must zpool create $TESTPOOL $VDEV1 spare $VDEV2
 verify_bootfs $TESTPOOL
 
 # mirror
-log_must $ZPOOL create $TESTPOOL mirror $VDEV1 $VDEV2
+log_must zpool create $TESTPOOL mirror $VDEV1 $VDEV2
 verify_bootfs $TESTPOOL
 
 # mirror + hotspare
-log_must $ZPOOL create $TESTPOOL mirror $VDEV1 $VDEV2 spare $VDEV3
+log_must zpool create $TESTPOOL mirror $VDEV1 $VDEV2 spare $VDEV3
 verify_bootfs $TESTPOOL
 
-## the following configurations are not supported as bootable pools
+if is_linux; then
+	# stripe
+	log_must zpool create $TESTPOOL $VDEV1 $VDEV2
+	verify_bootfs $TESTPOOL
 
-# stripe
-log_must $ZPOOL create $TESTPOOL $VDEV1 $VDEV2
-verify_no_bootfs $TESTPOOL
+	# stripe + hotspare
+	log_must zpool create $TESTPOOL $VDEV1 $VDEV2 spare $VDEV3
+	verify_bootfs $TESTPOOL
+else
+	## the following configurations are not supported as bootable pools
 
-# stripe + hotspare
-log_must $ZPOOL create $TESTPOOL $VDEV1 $VDEV2 spare $VDEV3
-verify_no_bootfs $TESTPOOL
+	# stripe
+	log_must zpool create $TESTPOOL $VDEV1 $VDEV2
+	verify_no_bootfs $TESTPOOL
+
+	# stripe + hotspare
+	log_must zpool create $TESTPOOL $VDEV1 $VDEV2 spare $VDEV3
+	verify_no_bootfs $TESTPOOL
+fi
 
 # raidz
-log_must $ZPOOL create $TESTPOOL raidz $VDEV1 $VDEV2
-verify_no_bootfs $TESTPOOL
+log_must zpool create $TESTPOOL raidz $VDEV1 $VDEV2
+verify_bootfs $TESTPOOL
 
 # raidz + hotspare
-log_must $ZPOOL create $TESTPOOL raidz $VDEV1 $VDEV2 spare $VDEV3
-verify_no_bootfs $TESTPOOL
+log_must zpool create $TESTPOOL raidz $VDEV1 $VDEV2 spare $VDEV3
+verify_bootfs $TESTPOOL
 
 # raidz2
-log_must $ZPOOL create $TESTPOOL raidz2 $VDEV1 $VDEV2 $VDEV3
-verify_no_bootfs $TESTPOOL
+log_must zpool create $TESTPOOL raidz2 $VDEV1 $VDEV2 $VDEV3
+verify_bootfs $TESTPOOL
 
 # raidz2 + hotspare
-log_must $ZPOOL create $TESTPOOL raidz2 $VDEV1 $VDEV2 $VDEV3 spare $VDEV4
-verify_no_bootfs $TESTPOOL
+log_must zpool create $TESTPOOL raidz2 $VDEV1 $VDEV2 $VDEV3 spare $VDEV4
+verify_bootfs $TESTPOOL
 
 log_pass "Pools of correct vdev types accept boot property"

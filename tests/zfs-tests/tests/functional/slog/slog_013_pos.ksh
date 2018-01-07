@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/slog/slog.kshlib
@@ -44,14 +44,22 @@
 
 verify_runnable "global"
 
+if ! $(is_physical_device $DISKS) ; then
+	log_unsupported "This directory cannot be run on raw files."
+fi
+
 function cleanup_testenv
 {
 	cleanup
 	if datasetexists $TESTPOOL2 ; then
-		log_must $ZPOOL destroy -f $TESTPOOL2
+		log_must zpool destroy -f $TESTPOOL2
 	fi
 	if [[ -n $lofidev ]]; then
-		$LOFIADM -d $lofidev
+		if is_linux; then
+			losetup -d $lofidev
+		else
+			lofiadm -d $lofidev
+		fi
 	fi
 }
 
@@ -61,34 +69,38 @@ verify_disk_count "$DISKS" 2
 log_onexit cleanup_testenv
 
 dsk1=${DISKS%% *}
-log_must $ZPOOL create $TESTPOOL ${DISKS#$dsk1}
+log_must zpool create $TESTPOOL ${DISKS#$dsk1}
 
 # Add nomal disk
-log_must $ZPOOL add $TESTPOOL log $dsk1
+log_must zpool add $TESTPOOL log $dsk1
 log_must verify_slog_device $TESTPOOL $dsk1 'ONLINE'
 # Add nomal file
-log_must $ZPOOL add $TESTPOOL log $LDEV
+log_must zpool add $TESTPOOL log $LDEV
 ldev=$(random_get $LDEV)
 log_must verify_slog_device $TESTPOOL $ldev 'ONLINE'
 
 # Add lofi device
-lofidev=${LDEV2%% *}
-log_must $LOFIADM -a $lofidev
-lofidev=$($LOFIADM $lofidev)
-log_must $ZPOOL add $TESTPOOL log $lofidev
+if is_linux; then
+	lofidev=$(losetup -f)
+	lofidev=${lofidev##*/}
+	log_must losetup $lofidev ${LDEV2%% *}
+else
+	lofidev=${LDEV2%% *}
+	log_must lofiadm -a $lofidev
+	lofidev=$(lofiadm $lofidev)
+fi
+log_must zpool add $TESTPOOL log $lofidev
 log_must verify_slog_device $TESTPOOL $lofidev 'ONLINE'
 
 log_pass "Verify slog device can be disk, file, lofi device or any device " \
 	"that presents a block interface."
 
-# Temp disable fore bug 6569095
 # Add file which reside in the itself
 mntpnt=$(get_prop mountpoint $TESTPOOL)
-log_must $MKFILE 100M $mntpnt/vdev
-log_must $ZPOOL add $TESTPOOL $mntpnt/vdev
+log_must mkfile $MINVDEVSIZE $mntpnt/vdev
+log_must zpool add $TESTPOOL $mntpnt/vdev
 
-# Temp disable fore bug 6569072
 # Add ZFS volume
 vol=$TESTPOOL/vol
-log_must $ZPOOL create -V 64M $vol
-log_must $ZPOOL add $TESTPOOL ${ZVOL_DEVDIR}/$vol
+log_must zpool create -V $MINVDEVSIZE $vol
+log_must zpool add $TESTPOOL ${ZVOL_DEVDIR}/$vol

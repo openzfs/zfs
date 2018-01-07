@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/history/history_common.kshlib
@@ -47,7 +47,7 @@ function cleanup
 {
 	del_user $HIST_USER
 	del_group $HIST_GROUP
-	datasetexists $root_testfs && log_must $ZFS destroy -rf $root_testfs
+	datasetexists $root_testfs && log_must zfs destroy -rf $root_testfs
 }
 
 log_assert "Verify internal long history information are correct."
@@ -59,18 +59,18 @@ root_testfs=$TESTPOOL/$TESTFS1
 add_group $HIST_GROUP
 add_user $HIST_GROUP $HIST_USER
 
-run_and_verify "$ZFS create $root_testfs" "-l"
-run_and_verify "$ZFS allow $HIST_GROUP snapshot,mount $root_testfs" "-l"
-run_and_verify "$ZFS allow $HIST_USER destroy,mount $root_testfs" "-l"
-run_and_verify "$ZFS allow $HIST_USER reservation $root_testfs" "-l"
-run_and_verify "$ZFS allow $HIST_USER allow $root_testfs" "-l"
-run_and_verify -u "$HIST_USER" "$ZFS snapshot $root_testfs@snap" "-l"
-run_and_verify -u "$HIST_USER" "$ZFS destroy $root_testfs@snap" "-l"
-run_and_verify -u "$HIST_USER" "$ZFS set reservation=64M $root_testfs" "-l"
+run_and_verify "zfs create $root_testfs" "-l"
+run_and_verify "zfs allow $HIST_GROUP snapshot,mount $root_testfs" "-l"
+run_and_verify "zfs allow $HIST_USER destroy,mount $root_testfs" "-l"
+run_and_verify "zfs allow $HIST_USER reservation $root_testfs" "-l"
+run_and_verify "zfs allow $HIST_USER allow $root_testfs" "-l"
+run_and_verify -u "$HIST_USER" "zfs snapshot $root_testfs@snap" "-l"
+run_and_verify -u "$HIST_USER" "zfs destroy $root_testfs@snap" "-l"
+run_and_verify -u "$HIST_USER" "zfs set reservation=64M $root_testfs" "-l"
 run_and_verify -u "$HIST_USER" \
-    "$ZFS allow $HIST_USER reservation $root_testfs" "-l"
-run_and_verify "$ZFS unallow $HIST_USER create $root_testfs" "-l"
-run_and_verify "$ZFS unallow $HIST_GROUP snapshot $root_testfs" "-l"
-run_and_verify "$ZFS destroy -r $root_testfs" "-l"
+    "zfs allow $HIST_USER reservation $root_testfs" "-l"
+run_and_verify "zfs unallow $HIST_USER create $root_testfs" "-l"
+run_and_verify "zfs unallow $HIST_GROUP snapshot $root_testfs" "-l"
+run_and_verify "zfs destroy -r $root_testfs" "-l"
 
 log_pass "Verify internal long history information pass."

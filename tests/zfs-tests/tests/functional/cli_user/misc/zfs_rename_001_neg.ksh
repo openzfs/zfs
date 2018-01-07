@@ -26,11 +26,11 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
-. $STF_SUITE/tests/functional/cli_user/misc/misc.cfg
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_user/misc/misc.cfg
 
 #
 # DESCRIPTION:
@@ -45,7 +45,7 @@
 
 log_assert "zfs rename returns an error when run as a user"
 
-log_mustnot $ZFS rename $TESTPOOL/$TESTFS/renameme $TESTPOOL/$TESTFS/renameme1
+log_mustnot zfs rename $TESTPOOL/$TESTFS/renameme $TESTPOOL/$TESTFS/renameme1
 
 # now verify the above command didn't actually do anything
 if datasetexists $TESTPOOL/$TESTFS/renameme1

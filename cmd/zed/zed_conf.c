@@ -394,13 +394,13 @@ zed_conf_scan_dir(struct zed_conf *zcp)
 			    direntp->d_name);
 			continue;
 		}
-		if ((st.st_mode & S_IWGRP) & !zcp->do_force) {
+		if ((st.st_mode & S_IWGRP) && !zcp->do_force) {
 			zed_log_msg(LOG_NOTICE,
 			    "Ignoring \"%s\": writable by group",
 			    direntp->d_name);
 			continue;
 		}
-		if ((st.st_mode & S_IWOTH) & !zcp->do_force) {
+		if ((st.st_mode & S_IWOTH) && !zcp->do_force) {
 			zed_log_msg(LOG_NOTICE,
 			    "Ignoring \"%s\": writable by other",
 			    direntp->d_name);
@@ -513,7 +513,7 @@ zed_conf_write_pid(struct zed_conf *zcp)
 	/*
 	 * Write PID file.
 	 */
-	n = snprintf(buf, sizeof (buf), "%d\n", (int) getpid());
+	n = snprintf(buf, sizeof (buf), "%d\n", (int)getpid());
 	if ((n < 0) || (n >= sizeof (buf))) {
 		errno = ERANGE;
 		zed_log_msg(LOG_ERR, "Failed to write PID file \"%s\": %s",
@@ -637,7 +637,7 @@ zed_conf_read_state(struct zed_conf *zcp, uint64_t *eidp, int64_t etime[])
 		    "Failed to read state file: %s", strerror(errno));
 		return (-1);
 	}
-	if (lseek(zcp->state_fd, 0, SEEK_SET) == (off_t) -1) {
+	if (lseek(zcp->state_fd, 0, SEEK_SET) == (off_t)-1) {
 		zed_log_msg(LOG_WARNING,
 		    "Failed to reposition state file offset: %s",
 		    strerror(errno));
@@ -687,7 +687,7 @@ zed_conf_write_state(struct zed_conf *zcp, uint64_t eid, int64_t etime[])
 		    "Failed to write state file: %s", strerror(errno));
 		return (-1);
 	}
-	if (lseek(zcp->state_fd, 0, SEEK_SET) == (off_t) -1) {
+	if (lseek(zcp->state_fd, 0, SEEK_SET) == (off_t)-1) {
 		zed_log_msg(LOG_WARNING,
 		    "Failed to reposition state file offset: %s",
 		    strerror(errno));

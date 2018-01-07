@@ -26,11 +26,11 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
-. $STF_SUITE/tests/functional/cli_user/misc/misc.cfg
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_user/misc/misc.cfg
 
 #
 # DESCRIPTION:
@@ -47,14 +47,14 @@ function cleanup
 {
 	if [ -e /tmp/zfstest_datastream.$$ ]
 	then
-		log_must $RM /tmp/zfstest_datastream.$$
+		log_must rm /tmp/zfstest_datastream.$$
 	fi
 }
 
 log_assert "zfs send returns an error when run as a user"
 log_onexit cleanup
 
-log_mustnot eval "$ZFS send $TESTPOOL/$TESTFS@snap > /tmp/zfstest_datastream.$$"
+log_mustnot eval "zfs send $TESTPOOL/$TESTFS@snap > /tmp/zfstest_datastream.$$"
 
 # Now check that the above command actually did nothing
 

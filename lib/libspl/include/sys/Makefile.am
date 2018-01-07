@@ -1,4 +1,4 @@
-SUBDIRS = dktp sysevent
+SUBDIRS = dktp
 
 libspldir = $(includedir)/libspl/sys
 libspl_HEADERS = \
@@ -13,9 +13,9 @@ libspl_HEADERS = \
 	$(top_srcdir)/lib/libspl/include/sys/debug.h \
 	$(top_srcdir)/lib/libspl/include/sys/dkio.h \
 	$(top_srcdir)/lib/libspl/include/sys/dklabel.h \
+	$(top_srcdir)/lib/libspl/include/sys/errno.h \
 	$(top_srcdir)/lib/libspl/include/sys/feature_tests.h \
 	$(top_srcdir)/lib/libspl/include/sys/file.h \
-	$(top_srcdir)/lib/libspl/include/sys/frame.h \
 	$(top_srcdir)/lib/libspl/include/sys/int_limits.h \
 	$(top_srcdir)/lib/libspl/include/sys/int_types.h \
 	$(top_srcdir)/lib/libspl/include/sys/inttypes.h \
@@ -31,13 +31,14 @@ libspl_HEADERS = \
 	$(top_srcdir)/lib/libspl/include/sys/note.h \
 	$(top_srcdir)/lib/libspl/include/sys/param.h \
 	$(top_srcdir)/lib/libspl/include/sys/policy.h \
+	$(top_srcdir)/lib/libspl/include/sys/poll.h \
 	$(top_srcdir)/lib/libspl/include/sys/priv.h \
 	$(top_srcdir)/lib/libspl/include/sys/processor.h \
+	$(top_srcdir)/lib/libspl/include/sys/signal.h \
 	$(top_srcdir)/lib/libspl/include/sys/stack.h \
 	$(top_srcdir)/lib/libspl/include/sys/stat.h \
 	$(top_srcdir)/lib/libspl/include/sys/stropts.h \
 	$(top_srcdir)/lib/libspl/include/sys/sunddi.h \
-	$(top_srcdir)/lib/libspl/include/sys/sysevent.h \
 	$(top_srcdir)/lib/libspl/include/sys/sysmacros.h \
 	$(top_srcdir)/lib/libspl/include/sys/systeminfo.h \
 	$(top_srcdir)/lib/libspl/include/sys/systm.h \

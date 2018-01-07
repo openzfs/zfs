@@ -24,41 +24,32 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/xattr/xattr_common.kshlib
 
 # if we're running NIS, turn it off until we clean up
 # (it can cause useradd to take a long time, hitting our TIMEOUT)
-USES_NIS=FALSE
-$SVCS svc:/network/nis/client:default | $GREP online > /dev/null
-if [ $? -eq 0 ]
-then
-	$SVCADM disable -t svc:/network/nis/client:default
-	USES_NIS=true
+if is_linux; then
+	USED_NIS=false
+else
+	USES_NIS=false
+	svcs svc:/network/nis/client:default | grep online > /dev/null
+	if [ $? -eq 0 ]
+	then
+		svcadm disable -t svc:/network/nis/client:default
+		USES_NIS=true
+	fi
 fi
 
 # Make sure we use a brand new user for this
-ZFS_USER=zxtr
-ZFS_GROUP=staff
-while [ -z "${FOUND}" ]
-do
-	COUNT=0
-	USER_EXISTS=$( $GREP $ZFS_USER /etc/passwd )
-	if [ ! -z "${USER_EXISTS}" ]
-	then
-		ZFS_USER="${ZFS_USER}${COUNT}"
-		COUNT=$(( $COUNT + 1 ))
-	else
-		FOUND="true"
-	fi
-done
-
+log_must add_group $ZFS_GROUP
 log_must add_user $ZFS_GROUP $ZFS_USER
 
-$ECHO $ZFS_USER > /tmp/zfs-xattr-test-user.txt
-$ECHO $USES_NIS > /tmp/zfs-xattr-test-nis.txt
+echo $ZFS_USER > /tmp/zfs-xattr-test-user.txt
+echo $USES_NIS > /tmp/zfs-xattr-test-nis.txt
 
 DISK=${DISKS%% *}
 default_setup $DISK

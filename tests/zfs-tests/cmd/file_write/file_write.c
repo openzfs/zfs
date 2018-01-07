@@ -30,6 +30,9 @@
 #include <inttypes.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <stdlib.h>
+#include <time.h>
+#include <stdint.h>
 
 typedef unsigned char	uchar_t;
 typedef long long	longlong_t;
@@ -43,6 +46,16 @@ static unsigned char bigbuffer[BIGBUFFERSIZE];
  */
 
 static void usage(char *);
+
+/*
+ * psudo-randomize the buffer
+ */
+void randomize_buffer(int block_size) {
+	int i;
+	char rnd = rand() & 0xff;
+	for (i = 0; i < block_size; i++)
+		bigbuffer[i] ^= rnd;
+}
 
 int
 main(int argc, char **argv)
@@ -81,7 +94,10 @@ main(int argc, char **argv)
 				write_count = atoi(optarg);
 				break;
 			case 'd':
-				fillchar = atoi(optarg);
+				if (optarg[0] == 'R')
+					fillchar = 'R'; /* R = random data */
+				else
+					fillchar = atoi(optarg);
 				break;
 			case 's':
 				offset = atoll(optarg);
@@ -127,13 +143,19 @@ main(int argc, char **argv)
 		err++;
 	}
 
-	if (err) usage(prog);
+	if (err) {
+		usage(prog); /* no return */
+		return (1);
+	}
 
 	/*
 	 * Prepare the buffer and determine the requested operation
 	 */
 	nxtfillchar = fillchar;
 	k = 0;
+
+	if (fillchar == 'R')
+		srand(time(NULL));
 
 	for (i = 0; i < block_size; i++) {
 		bigbuffer[i] = nxtfillchar;
@@ -143,6 +165,8 @@ main(int argc, char **argv)
 				k = 0;
 			}
 			nxtfillchar = k++;
+		} else if (fillchar == 'R') {
+			nxtfillchar = rand() & 0xff;
 		}
 	}
 
@@ -188,14 +212,21 @@ main(int argc, char **argv)
 
 	if (verbose) {
 		(void) printf("%s: block_size = %d, write_count = %d, "
-		    "offset = %lld, data = %s%d\n", filename, block_size,
-		    write_count, offset,
-		    (fillchar == 0) ? "0->" : "",
-		    (fillchar == 0) ? DATA_RANGE : fillchar);
+		    "offset = %lld, ", filename, block_size,
+		    write_count, offset);
+		if (fillchar == 'R') {
+			(void) printf("data = [random]\n");
+		} else {
+			(void) printf("data = %s%d\n",
+			    (fillchar == 0) ? "0->" : "",
+			    (fillchar == 0) ? DATA_RANGE : fillchar);
+		}
 	}
 
 	for (i = 0; i < write_count; i++) {
 		ssize_t n;
+		if (fillchar == 'R')
+			randomize_buffer(block_size);
 
 		if ((n = write(bigfd, &bigbuffer, block_size)) == -1) {
 			(void) printf("write failed (%ld), good_writes = %"
@@ -221,9 +252,11 @@ usage(char *prog)
 {
 	(void) printf("Usage: %s [-v] -o {create,overwrite,append} -f file_name"
 	    " [-b block_size]\n"
-	    "\t[-s offset] [-c write_count] [-d data]\n"
-	    "\twhere [data] equal to zero causes chars "
-	    "0->%d to be repeated throughout\n", prog, DATA_RANGE);
+	    "\t[-s offset] [-c write_count] [-d data]\n\n"
+	    "Where [data] equal to zero causes chars "
+	    "0->%d to be repeated throughout, or [data]\n"
+	    "equal to 'R' for psudorandom data.\n",
+	    prog, DATA_RANGE);
 
 	exit(1);
 }

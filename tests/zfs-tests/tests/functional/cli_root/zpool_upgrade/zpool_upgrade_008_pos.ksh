@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 # Copyright 2015 Nexenta Systems, Inc.  All rights reserved.
 #
 
@@ -70,7 +70,7 @@ for ver_old in $VERSIONS; do
 	typeset ver_new=$(random $ver_old $MAX_VER)
 
 	create_old_pool $ver_old
-	log_must $ZPOOL upgrade -V $ver_new $pool_name > /dev/null
+	log_must zpool upgrade -V $ver_new $pool_name > /dev/null
 	check_poolversion $pool_name $ver_new
 	destroy_upgraded_pool $ver_old
 done

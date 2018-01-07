@@ -15,14 +15,14 @@ EXTRA_DIST = \
 	$(top_srcdir)/etc/init.d/zfs-zed.in \
 	$(top_srcdir)/etc/init.d/zfs.in
 
-$(init_SCRIPTS) $(initconf_SCRIPTS) $(initcommon_SCRIPTS): $(EXTRA_DIST)
+$(init_SCRIPTS) $(initconf_SCRIPTS) $(initcommon_SCRIPTS):%:%.in
 	-(if [ -e /etc/debian_version ]; then \
 		NFS_SRV=nfs-kernel-server; \
 	  else \
 		NFS_SRV=nfs; \
 	  fi; \
 	  if [ -e /sbin/openrc-run ]; then \
-		SHELL=/sbin/runscript; \
+		SHELL=/sbin/openrc-run; \
 	  else \
 		SHELL=/bin/sh; \
 	  fi; \
@@ -36,7 +36,7 @@ $(init_SCRIPTS) $(initconf_SCRIPTS) $(initcommon_SCRIPTS): $(EXTRA_DIST)
 		 -e 's,@runstatedir\@,$(runstatedir),g' \
 		 -e "s,@SHELL\@,$$SHELL,g" \
 		 -e "s,@NFS_SRV\@,$$NFS_SRV,g" \
-		 "$(top_srcdir)/etc/init.d/$@.in" >'$@'; \
+		 $< >'$@'; \
 	  [ '$@' = 'zfs-functions' -o '$@' = 'zfs' ] || \
 		chmod +x '$@')
 

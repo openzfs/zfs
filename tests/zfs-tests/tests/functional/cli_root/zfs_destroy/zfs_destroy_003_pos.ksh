@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -51,12 +51,12 @@ function cleanup
 {
 	for obj in $ctr2 $ctr1 $ctr; do
 		datasetexists $obj && \
-			log_must $ZFS destroy -Rf $obj
+			log_must zfs destroy -Rf $obj
 	done
 
 	for mntp in $TESTDIR1 $TESTDIR2; do
 		[[ -d $mntp ]] && \
-			log_must $RM -rf $mntp
+			log_must rm -rf $mntp
 	done
 }
 
@@ -69,7 +69,7 @@ log_onexit cleanup
 #
 for dir in $TESTDIR1 $TESTDIR2; do
 	[[ ! -d $dir ]] && \
-		log_must $MKDIR -p $dir
+		log_must mkdir -p $dir
 done
 
 ctr=$TESTPOOL/$TESTCTR
@@ -93,63 +93,63 @@ child_fs1_snap_clone1=$ctr/${TESTCLONE1}_across_ctr
 #
 # Create two datasets in the storage pool
 #
-log_must $ZFS create $ctr
-log_must $ZFS create $ctr1
+log_must zfs create $ctr
+log_must zfs create $ctr1
 
 #
 # Create children datasets fs,vol,snapshot in the datasets, and
 # clones across two datasets
 #
-log_must $ZFS create $ctr2
+log_must zfs create $ctr2
 
 for fs in $child_fs $child_fs1; do
-	log_must $ZFS create $fs
+	log_must zfs create $fs
 done
 
-log_must $ZFS set mountpoint=$child_fs_mntp $child_fs
-log_must $ZFS set mountpoint=$child_fs1_mntp $child_fs1
+log_must zfs set mountpoint=$child_fs_mntp $child_fs
+log_must zfs set mountpoint=$child_fs1_mntp $child_fs1
 
 for snap in $child_fs_snap $child_fs1_snap; do
-	log_must $ZFS snapshot $snap
+	log_must zfs snapshot $snap
 done
 
 if is_global_zone ; then
 	for vol in $child_vol $child_vol1; do
-		log_must $ZFS create -V $VOLSIZE $vol
+		log_must zfs create -V $VOLSIZE $vol
 	done
 fi
 
 for clone in $child_fs_snap_clone $child_fs_snap_clone1; do
-	log_must $ZFS clone $child_fs_snap $clone
+	log_must zfs clone $child_fs_snap $clone
 done
 
 
 for clone in $child_fs1_snap_clone $child_fs1_snap_clone1; do
-	log_must $ZFS clone $child_fs1_snap $clone
+	log_must zfs clone $child_fs1_snap $clone
 done
 
 log_note "Verify that 'zfs destroy -r' fails to destroy dataset " \
-	"with clone dependant outside it."
+	"with dependent clone outside it."
 
 for obj in $child_fs $child_fs1 $ctr $ctr1; do
-	log_mustnot $ZFS destroy -r $obj
+	log_mustnot zfs destroy -r $obj
 	datasetexists $obj || \
-		log_fail "'zfs destroy -r' fails to keep clone " \
-			"dependant outside the hirearchy."
+		log_fail "'zfs destroy -r' fails to keep dependent " \
+			"clone outside the hirearchy."
 done
 
 
 log_note "Verify that 'zfs destroy -R' succeeds to destroy dataset " \
-	"with clone dependant outside it."
+	"with dependent clone outside it."
 
-log_must $ZFS destroy -R $ctr1
+log_must zfs destroy -R $ctr1
 datasetexists $ctr1 && \
 	log_fail "'zfs destroy -R' fails to destroy dataset with clone outside it."
 
 log_note "Verify that 'zfs destroy -r' succeeds to destroy dataset " \
-	"without clone dependant outside it."
+	"without dependent clone outside it."
 
-log_must $ZFS destroy -r $ctr
+log_must zfs destroy -r $ctr
 datasetexists $ctr && \
 	log_fail "'zfs destroy -r' fails to destroy dataset with clone outside it."
 

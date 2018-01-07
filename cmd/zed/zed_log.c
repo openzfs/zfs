@@ -18,7 +18,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
 #include <syslog.h>
+#include <unistd.h>
 #include "zed_log.h"
 
 #define	ZED_LOG_MAX_LOG_LEN	1024
@@ -66,11 +68,11 @@ zed_log_pipe_open(void)
 {
 	if ((_ctx.pipe_fd[0] != -1) || (_ctx.pipe_fd[1] != -1))
 		zed_log_die("Invalid use of zed_log_pipe_open in PID %d",
-		    (int) getpid());
+		    (int)getpid());
 
 	if (pipe(_ctx.pipe_fd) < 0)
 		zed_log_die("Failed to create daemonize pipe in PID %d: %s",
-		    (int) getpid(), strerror(errno));
+		    (int)getpid(), strerror(errno));
 }
 
 /*
@@ -85,12 +87,12 @@ zed_log_pipe_close_reads(void)
 	if (_ctx.pipe_fd[0] < 0)
 		zed_log_die(
 		    "Invalid use of zed_log_pipe_close_reads in PID %d",
-		    (int) getpid());
+		    (int)getpid());
 
 	if (close(_ctx.pipe_fd[0]) < 0)
 		zed_log_die(
 		    "Failed to close reads on daemonize pipe in PID %d: %s",
-		    (int) getpid(), strerror(errno));
+		    (int)getpid(), strerror(errno));
 
 	_ctx.pipe_fd[0] = -1;
 }
@@ -110,12 +112,12 @@ zed_log_pipe_close_writes(void)
 	if (_ctx.pipe_fd[1] < 0)
 		zed_log_die(
 		    "Invalid use of zed_log_pipe_close_writes in PID %d",
-		    (int) getpid());
+		    (int)getpid());
 
 	if (close(_ctx.pipe_fd[1]) < 0)
 		zed_log_die(
 		    "Failed to close writes on daemonize pipe in PID %d: %s",
-		    (int) getpid(), strerror(errno));
+		    (int)getpid(), strerror(errno));
 
 	_ctx.pipe_fd[1] = -1;
 }
@@ -135,7 +137,7 @@ zed_log_pipe_wait(void)
 
 	if (_ctx.pipe_fd[0] < 0)
 		zed_log_die("Invalid use of zed_log_pipe_wait in PID %d",
-		    (int) getpid());
+		    (int)getpid());
 
 	for (;;) {
 		n = read(_ctx.pipe_fd[0], &c, sizeof (c));
@@ -144,7 +146,7 @@ zed_log_pipe_wait(void)
 				continue;
 			zed_log_die(
 			    "Failed to read from daemonize pipe in PID %d: %s",
-			    (int) getpid(), strerror(errno));
+			    (int)getpid(), strerror(errno));
 		}
 		if (n == 0) {
 			break;

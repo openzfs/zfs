@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2009, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2016 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_DDT_H
@@ -34,6 +35,8 @@
 #ifdef	__cplusplus
 extern "C" {
 #endif
+
+struct abd;
 
 /*
  * On-disk DDT formats, in the desired search order (newest version first).
@@ -64,9 +67,10 @@ enum ddt_class {
 typedef struct ddt_key {
 	zio_cksum_t	ddk_cksum;	/* 256-bit block checksum */
 	/*
-	 * Encoded with logical & physical size, and compression, as follows:
+	 * Encoded with logical & physical size, encryption, and compression,
+	 * as follows:
 	 *   +-------+-------+-------+-------+-------+-------+-------+-------+
-	 *   |   0   |   0   |   0   | comp  |     PSIZE     |     LSIZE     |
+	 *   |   0   |   0   |   0   |X| comp|     PSIZE     |     LSIZE     |
 	 *   +-------+-------+-------+-------+-------+-------+-------+-------+
 	 */
 	uint64_t	ddk_prop;
@@ -82,10 +86,16 @@ typedef struct ddt_key {
 #define	DDK_SET_PSIZE(ddk, x)	\
 	BF64_SET_SB((ddk)->ddk_prop, 16, 16, SPA_MINBLOCKSHIFT, 1, x)
 
-#define	DDK_GET_COMPRESS(ddk)		BF64_GET((ddk)->ddk_prop, 32, 8)
-#define	DDK_SET_COMPRESS(ddk, x)	BF64_SET((ddk)->ddk_prop, 32, 8, x)
+#define	DDK_GET_COMPRESS(ddk)		BF64_GET((ddk)->ddk_prop, 32, 7)
+#define	DDK_SET_COMPRESS(ddk, x)	BF64_SET((ddk)->ddk_prop, 32, 7, x)
+
+#define	DDK_GET_CRYPT(ddk)		BF64_GET((ddk)->ddk_prop, 39, 1)
+#define	DDK_SET_CRYPT(ddk, x)	BF64_SET((ddk)->ddk_prop, 39, 1, x)
 
 #define	DDT_KEY_WORDS	(sizeof (ddt_key_t) / sizeof (uint64_t))
+
+#define	DDE_GET_NDVAS(dde) (DDK_GET_CRYPT(&dde->dde_key) \
+	? SPA_DVAS_PER_BP : SPA_DVAS_PER_BP - 1)
 
 typedef struct ddt_phys {
 	dva_t		ddp_dva[SPA_DVAS_PER_BP];
@@ -108,7 +118,7 @@ struct ddt_entry {
 	ddt_key_t	dde_key;
 	ddt_phys_t	dde_phys[DDT_PHYS_TYPES];
 	zio_t		*dde_lead_zio[DDT_PHYS_TYPES];
-	void		*dde_repair_data;
+	struct abd	*dde_repair_abd;
 	enum ddt_type	dde_type;
 	enum ddt_class	dde_class;
 	uint8_t		dde_loading;

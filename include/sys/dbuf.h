@@ -36,6 +36,7 @@
 #include <sys/zfs_context.h>
 #include <sys/refcount.h>
 #include <sys/zrlock.h>
+#include <sys/multilist.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -53,6 +54,7 @@ extern "C" {
 #define	DB_RF_NOPREFETCH	(1 << 3)
 #define	DB_RF_NEVERWAIT		(1 << 4)
 #define	DB_RF_CACHED		(1 << 5)
+#define	DB_RF_NO_DECRYPT	(1 << 6)
 
 /*
  * The simplified state transition diagram for dbufs looks like:
@@ -121,6 +123,9 @@ typedef struct dbuf_dirty_record {
 	/* How much space was changed to dsl_pool_dirty_space() for this? */
 	unsigned int dr_accounted;
 
+	/* A copy of the bp that points to us */
+	blkptr_t dr_bp_copy;
+
 	union dirty_types {
 		struct dirty_indirect {
 
@@ -142,6 +147,7 @@ typedef struct dbuf_dirty_record {
 			override_states_t dr_override_state;
 			uint8_t dr_copies;
 			boolean_t dr_nopwrite;
+			boolean_t dr_raw;
 		} dl;
 	} dt;
 } dbuf_dirty_record_t;
@@ -225,6 +231,11 @@ typedef struct dmu_buf_impl {
 	 */
 	avl_node_t db_link;
 
+	/*
+	 * Link in dbuf_cache.
+	 */
+	multilist_node_t db_cache_link;
+
 	/* Data which is unique to data (leaf) blocks: */
 
 	/* User callback information. */
@@ -261,7 +272,8 @@ typedef struct dbuf_hash_table {
 	kmutex_t hash_mutexes[DBUF_MUTEXES];
 } dbuf_hash_table_t;
 
-uint64_t dbuf_whichblock(struct dnode *di, int64_t level, uint64_t offset);
+uint64_t dbuf_whichblock(const struct dnode *di, const int64_t level,
+    const uint64_t offset);
 
 void dbuf_create_bonus(struct dnode *dn);
 int dbuf_spill_set_blksz(dmu_buf_t *db, uint64_t blksz, dmu_tx_t *tx);
@@ -300,8 +312,7 @@ void dmu_buf_write_embedded(dmu_buf_t *dbuf, void *data,
     bp_embedded_type_t etype, enum zio_compress comp,
     int uncompressed_size, int compressed_size, int byteorder, dmu_tx_t *tx);
 
-void dbuf_clear(dmu_buf_impl_t *db);
-void dbuf_evict(dmu_buf_impl_t *db);
+void dbuf_destroy(dmu_buf_impl_t *db);
 
 void dbuf_unoverride(dbuf_dirty_record_t *dr);
 void dbuf_sync_list(list_t *list, int level, dmu_tx_t *tx);
@@ -339,9 +350,11 @@ boolean_t dbuf_is_metadata(dmu_buf_impl_t *db);
 	(dbuf_is_metadata(_db) &&					\
 	((_db)->db_objset->os_secondary_cache == ZFS_CACHE_METADATA)))
 
-#define	DBUF_IS_L2COMPRESSIBLE(_db)					\
-	((_db)->db_objset->os_compress != ZIO_COMPRESS_OFF ||		\
-	(dbuf_is_metadata(_db) && zfs_mdcomp_disable == B_FALSE))
+#define	DNODE_LEVEL_IS_L2CACHEABLE(_dn, _level)				\
+	((_dn)->dn_objset->os_secondary_cache == ZFS_CACHE_ALL ||	\
+	(((_level) > 0 ||						\
+	DMU_OT_IS_METADATA((_dn)->dn_handle->dnh_dnode->dn_type)) &&	\
+	((_dn)->dn_objset->os_secondary_cache == ZFS_CACHE_METADATA)))
 
 #ifdef ZFS_DEBUG
 

@@ -25,7 +25,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -39,7 +39,7 @@ function cleanup
 	typeset dir
 	for dir in $TESTDIR $BASEDIR; do
 		if [[ -d $dir ]]; then
-			log_must $RM -rf $dir
+			log_must rm -rf $dir
 		fi
 	done
 }
@@ -63,7 +63,7 @@ function random
 		fi
 	done
 
-	$ECHO $value
+	echo $value
 }
 
 #
@@ -79,16 +79,16 @@ function record_data
 	typeset recordfile=$2
 
 	[[ -z $pool ]] && log_fail "No specified pool."
-	[[ -f $recordfile ]] && log_must $RM -f $recordfile
+	[[ -f $recordfile ]] && log_must rm -f $recordfile
 
 	typeset mntpnt
 	mntpnt=$(get_prop mountpoint $pool)
-	log_must eval "$DU -a $mntpnt > $recordfile 2>&1"
+	log_must eval "du -a $mntpnt > $recordfile 2>&1"
 	#
 	# When the data was damaged, checksum is failing and return 1
 	# So, will not use log_must
 	#
-	$FIND $mntpnt -type f -exec $CKSUM {} + >> $recordfile 2>&1
+	find $mntpnt -type f -exec cksum {} + >> $recordfile 2>&1
 }
 
 #
@@ -112,29 +112,29 @@ function setup_test_env
 	done
 
 	if [[ ! -d $BASEDIR ]]; then
-		log_must $MKDIR $BASEDIR
+		log_must mkdir $BASEDIR
 	fi
 
 	if poolexists $pool ; then
 		destroy_pool $pool
 	fi
 
-	log_must $MKFILE $DEV_SIZE $vdevs
+	log_must mkfile $MINVDEVSIZE $vdevs
 
-	log_must $ZPOOL create -m $TESTDIR $pool $keyword $vdevs
+	log_must zpool create -m $TESTDIR $pool $keyword $vdevs
 
 	log_note "Filling up the filesystem ..."
 	typeset -i ret=0
 	typeset -i i=0
 	typeset file=$TESTDIR/file
-	while $TRUE ; do
-		$FILE_WRITE -o create -f $file.$i \
+	while true ; do
+		file_write -o create -f $file.$i \
 			-b $BLOCKSZ -c $NUM_WRITES
 		ret=$?
 		(( $ret != 0 )) && break
 		(( i = i + 1 ))
 	done
-	(($ret != 28 )) && log_note "$FILE_WRITE return value($ret) is unexpected."
+	(($ret != 28 )) && log_note "file_write return value($ret) is unexpected."
 
 	record_data $TESTPOOL $PRE_RECORD_FILE
 }
@@ -149,21 +149,21 @@ function is_healthy
 	typeset pool=$1
 
 	typeset healthy_output="pool '$pool' is healthy"
-	typeset real_output=$($ZPOOL status -x $pool)
+	typeset real_output=$(zpool status -x $pool)
 
 	if [[ "$real_output" == "$healthy_output" ]]; then
 		return 0
 	else
 		typeset -i ret
-		$ZPOOL status -x $pool | $GREP "state:" | \
-			$GREP "FAULTED" >/dev/null 2>&1
+		zpool status -x $pool | grep "state:" | \
+			grep "FAULTED" >/dev/null 2>&1
 		ret=$?
 		(( $ret == 0 )) && return 1
 		typeset l_scan
 		typeset errnum
-		l_scan=$($ZPOOL status -x $pool | $GREP "scan:")
+		l_scan=$(zpool status -x $pool | grep "scan:")
 		l_scan=${l_scan##*"with"}
-		errnum=$($ECHO $l_scan | $AWK '{print $1}')
+		errnum=$(echo $l_scan | awk '{print $1}')
 
 		return $errnum
 	fi
@@ -179,7 +179,7 @@ function is_data_valid
 	typeset pool=$1
 
 	record_data $pool $PST_RECORD_FILE
-	if ! $DIFF $PRE_RECORD_FILE $PST_RECORD_FILE > /dev/null 2>&1; then
+	if ! diff $PRE_RECORD_FILE $PST_RECORD_FILE > /dev/null 2>&1; then
 		return 1
 	fi
 
@@ -197,46 +197,20 @@ function get_vdevs #pool cnt
 	typeset pool=$1
 	typeset -i cnt=$2
 
-	typeset all_devs=$($ZPOOL iostat -v $pool | $AWK '{print $1}'| \
-		$EGREP -v "^pool$|^capacity$|^mirror$|^raidz1$|^raidz2$|---" | \
-		$EGREP -v "/old$|^$pool$")
+	typeset all_devs=$(zpool iostat -v $pool | awk '{print $1}'| \
+		egrep -v "^pool$|^capacity$|^mirror$|^raidz1$|^raidz2$|---" | \
+		egrep -v "/old$|^$pool$")
 	typeset -i i=0
 	typeset vdevs
 	while ((i < cnt)); do
-		typeset dev=$($ECHO $all_devs | $AWK '{print $1}')
+		typeset dev=$(echo $all_devs | awk '{print $1}')
 		eval all_devs=\${all_devs##*$dev}
 
 		vdevs="$dev $vdevs"
 		((i += 1))
 	done
 
-	$ECHO "$vdevs"
-}
-
-#
-# Synchronize all the data in pool
-#
-# $1 pool name
-#
-function sync_pool #pool
-{
-	typeset pool=$1
-
-	log_must $SYNC
-	log_must $SLEEP 2
-	# Flush all the pool data.
-	typeset -i ret
-	$ZPOOL scrub $pool >/dev/null 2>&1
-	ret=$?
-	(( $ret != 0 )) && \
-		log_fail "$ZPOOL scrub $pool failed."
-
-	while ! is_pool_scrubbed $pool; do
-		if is_pool_resilvered $pool ; then
-			log_fail "$pool should not be resilver completed."
-		fi
-		log_must $SLEEP 2
-	done
+	echo "$vdevs"
 }
 
 #
@@ -252,11 +226,13 @@ function replace_missing_devs
 
 	typeset vdev
 	for vdev in $@; do
-		log_must $MKFILE $DEV_SIZE $vdev
-		log_must $ZPOOL replace -f $pool $vdev $vdev
+		log_must gnudd if=/dev/zero of=$vdev \
+		    bs=1024k count=$(($MINDEVSIZE / (1024 * 1024))) \
+		    oflag=fdatasync
+		log_must zpool replace -f $pool $vdev $vdev
 		while true; do
 			if ! is_pool_resilvered $pool ; then
-				log_must $SLEEP 2
+				log_must sleep 2
 			else
 				break
 			fi
@@ -278,19 +254,20 @@ function damage_devs
 	typeset -i cnt=$2
 	typeset label="$3"
 	typeset vdevs
-	typeset -i bs_count
+	typeset -i bs_count=$((64 * 1024))
 
 	vdevs=$(get_vdevs $pool $cnt)
+	typeset dev
 	if [[ -n $label ]]; then
-		typeset dev
 		for dev in $vdevs; do
-			bs_count=$($LS -l $dev | $AWK '{print $5}')
-			(( bs_count = bs_count/1024 - 512 ))
-			$DD if=/dev/zero of=$dev seek=512 bs=1024 \
-				count=$bs_count conv=notrunc >/dev/null 2>&1
+			dd if=/dev/zero of=$dev seek=512 bs=1024 \
+			    count=$bs_count conv=notrunc >/dev/null 2>&1
 		done
 	else
-		log_must $MKFILE $DEV_SIZE $vdevs
+		for dev in $vdevs; do
+			dd if=/dev/zero of=$dev bs=1024 count=$bs_count \
+			    conv=notrunc >/dev/null 2>&1
+		done
 	fi
 
 	sync_pool $pool
@@ -305,7 +282,7 @@ function clear_errors
 {
 	typeset pool=$1
 
-	log_must $ZPOOL clear $pool
+	log_must zpool clear $pool
 
 	if ! is_healthy $pool ; then
 		log_note "$pool should be healthy."
@@ -332,7 +309,7 @@ function remove_devs
 	typeset vdevs
 
 	vdevs=$(get_vdevs $pool $cnt)
-	log_must $RM -f $vdevs
+	log_must rm -f $vdevs
 
 	sync_pool $pool
 }

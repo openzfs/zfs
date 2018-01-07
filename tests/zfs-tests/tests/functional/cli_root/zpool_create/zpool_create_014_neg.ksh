@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -48,13 +48,10 @@ verify_runnable "global"
 function cleanup
 {
 	if datasetexists $vol_name; then
-		$SWAP -l | $GREP $TMP_FILE > /dev/null 2>&1
-		if [[ $? -eq 0 ]]; then
-			log_must $SWAP -d $TMP_FILE
-		fi
-		$RM -f $TMP_FILE
-		log_must $UMOUNT $mntp
-		$ZFS destroy $vol_name
+		swap_cleanup $TMP_FILE
+		rm -f $TMP_FILE
+		log_must umount $mntp
+		zfs destroy $vol_name
 	fi
 
 	if poolexists $TESTPOOL; then
@@ -71,21 +68,28 @@ else
         disk=$DISK0
 fi
 
+if is_linux; then
+	set -A options "" "-f"
+else
+	set -A options "-n" "" "-f"
+fi
+
 typeset pool_dev=${disk}${SLICE_PREFIX}${SLICE0}
 typeset vol_name=$TESTPOOL/$TESTVOL
 typeset mntp=/mnt
 typeset TMP_FILE=$mntp/tmpfile.$$
 
 create_pool $TESTPOOL $pool_dev
-log_must $ZFS create -V 100m $vol_name
-log_must $ECHO "y" | $NEWFS ${ZVOL_DEVDIR}/$vol_name > /dev/null 2>&1
-log_must $MOUNT ${ZVOL_DEVDIR}/$vol_name $mntp
+log_must zfs create -V 100m $vol_name
+block_device_wait
+log_must echo "y" | newfs ${ZVOL_DEVDIR}/$vol_name > /dev/null 2>&1
+log_must mount ${ZVOL_DEVDIR}/$vol_name $mntp
 
-log_must $MKFILE 50m $TMP_FILE
-log_must $SWAP -a $TMP_FILE
+log_must mkfile 50m $TMP_FILE
+swap_setup $TMP_FILE
 
-for opt in "-n" "" "-f"; do
-	log_mustnot $ZPOOL create $opt $TESTPOOL $TMP_FILE
+for opt in options; do
+	log_mustnot zpool create $opt $TESTPOOL $TMP_FILE
 done
 
 log_pass "'zpool create' passed as expected with inapplicable scenario."

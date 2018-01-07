@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2014 by Delphix. All rights reserved.
+# Copyright (c) 2014, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -38,7 +38,7 @@
 #
 # STRATEGY:
 # 1. Create a file based pool.
-# 2. Add 32 file based vdevs to it.
+# 2. Add 16 file based vdevs to it.
 # 3. Attempt to add a file based vdev that's too small; verify failure.
 #
 
@@ -52,27 +52,26 @@ function cleanup
 	poolexists $TESTPOOL && \
 		destroy_pool $TESTPOOL
 
-	[[ -d $TESTDIR ]] && log_must $RM -rf $TESTDIR
+	[[ -d $TESTDIR ]] && log_must rm -rf $TESTDIR
 	partition_cleanup
 }
 
 log_assert "Adding a large number of file based vdevs to a zpool works."
 log_onexit cleanup
 
-create_pool $TESTPOOL ${DISKS%% *}
-log_must $ZFS create -o mountpoint=$TESTDIR $TESTPOOL/$TESTFS
-log_must $MKFILE 64m $TESTDIR/file.00
+log_must mkdir -p $TESTDIR
+log_must truncate -s $MINVDEVSIZE $TESTDIR/file.00
 create_pool "$TESTPOOL1" "$TESTDIR/file.00"
 
-vdevs_list=$($ECHO $TESTDIR/file.{01..32})
-log_must $MKFILE 64m $vdevs_list
+vdevs_list=$(echo $TESTDIR/file.{01..16})
+log_must truncate -s $MINVDEVSIZE $vdevs_list
 
-log_must $ZPOOL add -f "$TESTPOOL1" $vdevs_list
+log_must zpool add -f "$TESTPOOL1" $vdevs_list
 log_must vdevs_in_pool "$TESTPOOL1" "$vdevs_list"
 
 # Attempt to add a file based vdev that's too small.
-log_must $MKFILE 32m $TESTDIR/broken_file
-log_mustnot $ZPOOL add -f "$TESTPOOL1" ${TESTDIR}/broken_file
+log_must truncate -s 32m $TESTDIR/broken_file
+log_mustnot zpool add -f "$TESTPOOL1" ${TESTDIR}/broken_file
 log_mustnot vdevs_in_pool "$TESTPOOL1" "${TESTDIR}/broken_file"
 
 log_pass "Adding a large number of file based vdevs to a zpool works."

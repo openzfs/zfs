@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/tests/functional/cli_root/zfs_set/zfs_set_common.kshlib
 
 #
@@ -55,7 +59,7 @@ while ((i < 10)); do
 	typeset value=$(user_property_value $len)
 
 	for dtst in $TESTPOOL $TESTPOOL/$TESTFS $TESTPOOL/$TESTVOL; do
-		log_must eval "$ZFS set $user_prop='$value' $dtst"
+		log_must eval "zfs set $user_prop='$value' $dtst"
 		log_must eval "check_user_prop $dtst $user_prop '$value'"
 	done
 

@@ -1,0 +1,8 @@
+##
+## Allow any user to run `zpool iostat/status -c smart` in order
+## to read basic SMART health statistics for a pool.
+##
+## CAUTION: Any syntax error introduced here will break sudo.
+##
+
+# ALL ALL = (root) NOPASSWD: /usr/sbin/smartctl -a /dev/[hsv]d[a-z0-9]*

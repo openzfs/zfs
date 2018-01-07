@@ -294,11 +294,11 @@ mtab_is_writeable(void)
 	struct stat st;
 	int error, fd;
 
-	error = lstat(MNTTAB, &st);
+	error = lstat("/etc/mtab", &st);
 	if (error || S_ISLNK(st.st_mode))
 		return (0);
 
-	fd = open(MNTTAB, O_RDWR | O_CREAT, 0644);
+	fd = open("/etc/mtab", O_RDWR | O_CREAT, 0644);
 	if (fd < 0)
 		return (0);
 
@@ -320,21 +320,21 @@ mtab_update(char *dataset, char *mntpoint, char *type, char *mntopts)
 	mnt.mnt_freq = 0;
 	mnt.mnt_passno = 0;
 
-	fp = setmntent(MNTTAB, "a+");
+	fp = setmntent("/etc/mtab", "a+");
 	if (!fp) {
 		(void) fprintf(stderr, gettext(
-		    "filesystem '%s' was mounted, but %s "
+		    "filesystem '%s' was mounted, but /etc/mtab "
 		    "could not be opened due to error %d\n"),
-		    dataset, MNTTAB, errno);
+		    dataset, errno);
 		return (MOUNT_FILEIO);
 	}
 
 	error = addmntent(fp, &mnt);
 	if (error) {
 		(void) fprintf(stderr, gettext(
-		    "filesystem '%s' was mounted, but %s "
+		    "filesystem '%s' was mounted, but /etc/mtab "
 		    "could not be updated due to error %d\n"),
-		    dataset, MNTTAB, errno);
+		    dataset, errno);
 		return (MOUNT_FILEIO);
 	}
 
@@ -367,7 +367,7 @@ zfs_selinux_setcontext(zfs_handle_t *zhp, zfs_prop_t zpt, const char *name,
 	if (zfs_prop_get(zhp, zpt, context, sizeof (context),
 	    NULL, NULL, 0, B_FALSE) == 0) {
 		if (strcmp(context, "none") != 0)
-		    append_mntopt(name, context, mntopts, mtabopt, B_TRUE);
+			append_mntopt(name, context, mntopts, mtabopt, B_TRUE);
 	}
 }
 
@@ -600,17 +600,30 @@ main(int argc, char **argv)
 				    gettext("filesystem '%s' (v%d) is not "
 				    "supported by this implementation of "
 				    "ZFS (max v%d).\n"), dataset,
-				    (int) zfs_version, (int) ZPL_VERSION);
+				    (int)zfs_version, (int)ZPL_VERSION);
 			} else {
 				(void) fprintf(stderr,
 				    gettext("filesystem '%s' mount "
 				    "failed for unknown reason.\n"), dataset);
 			}
 			return (MOUNT_SYSERR);
+#ifdef MS_MANDLOCK
+		case EPERM:
+			if (mntflags & MS_MANDLOCK) {
+				(void) fprintf(stderr, gettext("filesystem "
+				    "'%s' has the 'nbmand=on' property set, "
+				    "this mount\noption may be disabled in "
+				    "your kernel.  Use 'zfs set nbmand=off'\n"
+				    "to disable this option and try to "
+				    "mount the filesystem again.\n"), dataset);
+				return (MOUNT_SYSERR);
+			}
+			/* fallthru */
+#endif
 		default:
 			(void) fprintf(stderr, gettext("filesystem "
-			    "'%s' can not be mounted due to error "
-			    "%d\n"), dataset, errno);
+			    "'%s' can not be mounted: %s\n"), dataset,
+			    strerror(errno));
 			return (MOUNT_USAGE);
 		}
 	}

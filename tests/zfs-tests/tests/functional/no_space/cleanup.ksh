@@ -25,7 +25,7 @@
 # Use is subject to license terms.
 #
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -37,9 +37,14 @@ DISK=${DISKS%% *}
 
 ismounted "$TESTPOOL/$TESTFS"
 (( $? == 0 )) && \
-        log_must $ZFS umount $TESTDIR
+        log_must zfs umount $TESTDIR
 
 destroy_pool $TESTPOOL
+
+if is_mpath_device $DISK; then
+	delete_partitions
+fi
+
 #
 # Remove 100mb partition.
 #

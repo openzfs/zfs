@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -51,14 +51,16 @@ else
 fi
 
 set -A args "" "-?" "-f" "nonexistpool" "$TESTPOOL/$TESTFS" \
-	"$testpool 1.23" "$testpool 0" "$testpool -1" "$testpool 1 0" \
-	"$testpool 0 0"
+	"$testpool 0" "$testpool -1" "$testpool 1 0" \
+	"$testpool 0 0" "$testpool -wl" "$testpool -wq" "$testpool -wr" \
+	"$testpool -rq" "$testpool -lr"
 
 log_assert "Executing 'zpool iostat' with bad options fails"
 
 typeset -i i=1
 while [[ $i -lt ${#args[*]} ]]; do
-	log_mustnot $ZPOOL iostat ${args[i]}
+	log_assert "doing zpool iostat ${args[i]}"
+	log_mustnot zpool iostat ${args[i]}
 	((i = i + 1))
 done
 

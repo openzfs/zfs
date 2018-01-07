@@ -20,9 +20,10 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2017 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
- * Copyright (c) 2014, Nexenta Systems, Inc. All rights reserved.
+ * Copyright (c) 2013, Joyent, Inc. All rights reserved.
+ * Copyright (c) 2016, Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
@@ -46,6 +47,9 @@
 #include <sys/zio_compress.h>
 #include <sys/sa.h>
 #include <sys/zfeature.h>
+#include <sys/abd.h>
+#include <sys/trace_dmu.h>
+#include <sys/zfs_rlock.h>
 #ifdef _KERNEL
 #include <sys/vmsystm.h>
 #include <sys/zfs_znode.h>
@@ -56,61 +60,74 @@
  */
 int zfs_nopwrite_enabled = 1;
 
+/*
+ * Tunable to control percentage of dirtied blocks from frees in one TXG.
+ * After this threshold is crossed, additional dirty blocks from frees
+ * wait until the next TXG.
+ * A value of zero will disable this throttle.
+ */
+unsigned long zfs_per_txg_dirty_frees_percent = 30;
+
+/*
+ * Enable/disable forcing txg sync when dirty in dmu_offset_next.
+ */
+int zfs_dmu_offset_next_sync = 0;
+
 const dmu_object_type_info_t dmu_ot[DMU_OT_NUMTYPES] = {
-	{	DMU_BSWAP_UINT8,	TRUE,	"unallocated"		},
-	{	DMU_BSWAP_ZAP,		TRUE,	"object directory"	},
-	{	DMU_BSWAP_UINT64,	TRUE,	"object array"		},
-	{	DMU_BSWAP_UINT8,	TRUE,	"packed nvlist"		},
-	{	DMU_BSWAP_UINT64,	TRUE,	"packed nvlist size"	},
-	{	DMU_BSWAP_UINT64,	TRUE,	"bpobj"			},
-	{	DMU_BSWAP_UINT64,	TRUE,	"bpobj header"		},
-	{	DMU_BSWAP_UINT64,	TRUE,	"SPA space map header"	},
-	{	DMU_BSWAP_UINT64,	TRUE,	"SPA space map"		},
-	{	DMU_BSWAP_UINT64,	TRUE,	"ZIL intent log"	},
-	{	DMU_BSWAP_DNODE,	TRUE,	"DMU dnode"		},
-	{	DMU_BSWAP_OBJSET,	TRUE,	"DMU objset"		},
-	{	DMU_BSWAP_UINT64,	TRUE,	"DSL directory"		},
-	{	DMU_BSWAP_ZAP,		TRUE,	"DSL directory child map"},
-	{	DMU_BSWAP_ZAP,		TRUE,	"DSL dataset snap map"	},
-	{	DMU_BSWAP_ZAP,		TRUE,	"DSL props"		},
-	{	DMU_BSWAP_UINT64,	TRUE,	"DSL dataset"		},
-	{	DMU_BSWAP_ZNODE,	TRUE,	"ZFS znode"		},
-	{	DMU_BSWAP_OLDACL,	TRUE,	"ZFS V0 ACL"		},
-	{	DMU_BSWAP_UINT8,	FALSE,	"ZFS plain file"	},
-	{	DMU_BSWAP_ZAP,		TRUE,	"ZFS directory"		},
-	{	DMU_BSWAP_ZAP,		TRUE,	"ZFS master node"	},
-	{	DMU_BSWAP_ZAP,		TRUE,	"ZFS delete queue"	},
-	{	DMU_BSWAP_UINT8,	FALSE,	"zvol object"		},
-	{	DMU_BSWAP_ZAP,		TRUE,	"zvol prop"		},
-	{	DMU_BSWAP_UINT8,	FALSE,	"other uint8[]"		},
-	{	DMU_BSWAP_UINT64,	FALSE,	"other uint64[]"	},
-	{	DMU_BSWAP_ZAP,		TRUE,	"other ZAP"		},
-	{	DMU_BSWAP_ZAP,		TRUE,	"persistent error log"	},
-	{	DMU_BSWAP_UINT8,	TRUE,	"SPA history"		},
-	{	DMU_BSWAP_UINT64,	TRUE,	"SPA history offsets"	},
-	{	DMU_BSWAP_ZAP,		TRUE,	"Pool properties"	},
-	{	DMU_BSWAP_ZAP,		TRUE,	"DSL permissions"	},
-	{	DMU_BSWAP_ACL,		TRUE,	"ZFS ACL"		},
-	{	DMU_BSWAP_UINT8,	TRUE,	"ZFS SYSACL"		},
-	{	DMU_BSWAP_UINT8,	TRUE,	"FUID table"		},
-	{	DMU_BSWAP_UINT64,	TRUE,	"FUID table size"	},
-	{	DMU_BSWAP_ZAP,		TRUE,	"DSL dataset next clones"},
-	{	DMU_BSWAP_ZAP,		TRUE,	"scan work queue"	},
-	{	DMU_BSWAP_ZAP,		TRUE,	"ZFS user/group used"	},
-	{	DMU_BSWAP_ZAP,		TRUE,	"ZFS user/group quota"	},
-	{	DMU_BSWAP_ZAP,		TRUE,	"snapshot refcount tags"},
-	{	DMU_BSWAP_ZAP,		TRUE,	"DDT ZAP algorithm"	},
-	{	DMU_BSWAP_ZAP,		TRUE,	"DDT statistics"	},
-	{	DMU_BSWAP_UINT8,	TRUE,	"System attributes"	},
-	{	DMU_BSWAP_ZAP,		TRUE,	"SA master node"	},
-	{	DMU_BSWAP_ZAP,		TRUE,	"SA attr registration"	},
-	{	DMU_BSWAP_ZAP,		TRUE,	"SA attr layouts"	},
-	{	DMU_BSWAP_ZAP,		TRUE,	"scan translations"	},
-	{	DMU_BSWAP_UINT8,	FALSE,	"deduplicated block"	},
-	{	DMU_BSWAP_ZAP,		TRUE,	"DSL deadlist map"	},
-	{	DMU_BSWAP_UINT64,	TRUE,	"DSL deadlist map hdr"	},
-	{	DMU_BSWAP_ZAP,		TRUE,	"DSL dir clones"	},
-	{	DMU_BSWAP_UINT64,	TRUE,	"bpobj subobj"		}
+	{ DMU_BSWAP_UINT8,	TRUE,	FALSE,	"unallocated"		},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"object directory"	},
+	{ DMU_BSWAP_UINT64,	TRUE,	FALSE,	"object array"		},
+	{ DMU_BSWAP_UINT8,	TRUE,	FALSE,	"packed nvlist"		},
+	{ DMU_BSWAP_UINT64,	TRUE,	FALSE,	"packed nvlist size"	},
+	{ DMU_BSWAP_UINT64,	TRUE,	FALSE,	"bpobj"			},
+	{ DMU_BSWAP_UINT64,	TRUE,	FALSE,	"bpobj header"		},
+	{ DMU_BSWAP_UINT64,	TRUE,	FALSE,	"SPA space map header"	},
+	{ DMU_BSWAP_UINT64,	TRUE,	FALSE,	"SPA space map"		},
+	{ DMU_BSWAP_UINT64,	TRUE,	TRUE,	"ZIL intent log"	},
+	{ DMU_BSWAP_DNODE,	TRUE,	TRUE,	"DMU dnode"		},
+	{ DMU_BSWAP_OBJSET,	TRUE,	FALSE,	"DMU objset"		},
+	{ DMU_BSWAP_UINT64,	TRUE,	FALSE,	"DSL directory"		},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"DSL directory child map"},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"DSL dataset snap map"	},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"DSL props"		},
+	{ DMU_BSWAP_UINT64,	TRUE,	FALSE,	"DSL dataset"		},
+	{ DMU_BSWAP_ZNODE,	TRUE,	FALSE,	"ZFS znode"		},
+	{ DMU_BSWAP_OLDACL,	TRUE,	TRUE,	"ZFS V0 ACL"		},
+	{ DMU_BSWAP_UINT8,	FALSE,	TRUE,	"ZFS plain file"	},
+	{ DMU_BSWAP_ZAP,	TRUE,	TRUE,	"ZFS directory"		},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"ZFS master node"	},
+	{ DMU_BSWAP_ZAP,	TRUE,	TRUE,	"ZFS delete queue"	},
+	{ DMU_BSWAP_UINT8,	FALSE,	TRUE,	"zvol object"		},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"zvol prop"		},
+	{ DMU_BSWAP_UINT8,	FALSE,	TRUE,	"other uint8[]"		},
+	{ DMU_BSWAP_UINT64,	FALSE,	TRUE,	"other uint64[]"	},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"other ZAP"		},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"persistent error log"	},
+	{ DMU_BSWAP_UINT8,	TRUE,	FALSE,	"SPA history"		},
+	{ DMU_BSWAP_UINT64,	TRUE,	FALSE,	"SPA history offsets"	},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"Pool properties"	},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"DSL permissions"	},
+	{ DMU_BSWAP_ACL,	TRUE,	TRUE,	"ZFS ACL"		},
+	{ DMU_BSWAP_UINT8,	TRUE,	TRUE,	"ZFS SYSACL"		},
+	{ DMU_BSWAP_UINT8,	TRUE,	TRUE,	"FUID table"		},
+	{ DMU_BSWAP_UINT64,	TRUE,	FALSE,	"FUID table size"	},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"DSL dataset next clones"},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"scan work queue"	},
+	{ DMU_BSWAP_ZAP,	TRUE,	TRUE,	"ZFS user/group used"	},
+	{ DMU_BSWAP_ZAP,	TRUE,	TRUE,	"ZFS user/group quota"	},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"snapshot refcount tags"},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"DDT ZAP algorithm"	},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"DDT statistics"	},
+	{ DMU_BSWAP_UINT8,	TRUE,	TRUE,	"System attributes"	},
+	{ DMU_BSWAP_ZAP,	TRUE,	TRUE,	"SA master node"	},
+	{ DMU_BSWAP_ZAP,	TRUE,	TRUE,	"SA attr registration"	},
+	{ DMU_BSWAP_ZAP,	TRUE,	TRUE,	"SA attr layouts"	},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"scan translations"	},
+	{ DMU_BSWAP_UINT8,	FALSE,	TRUE,	"deduplicated block"	},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"DSL deadlist map"	},
+	{ DMU_BSWAP_UINT64,	TRUE,	FALSE,	"DSL deadlist map hdr"	},
+	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"DSL dir clones"	},
+	{ DMU_BSWAP_UINT64,	TRUE,	FALSE,	"bpobj subobj"		}
 };
 
 const dmu_object_byteswap_info_t dmu_ot_byteswap[DMU_BSWAP_NUMFUNCS] = {
@@ -126,6 +143,26 @@ const dmu_object_byteswap_info_t dmu_ot_byteswap[DMU_BSWAP_NUMFUNCS] = {
 	{	zfs_acl_byteswap,	"acl"		}
 };
 
+int
+dmu_buf_hold_noread_by_dnode(dnode_t *dn, uint64_t offset,
+    void *tag, dmu_buf_t **dbp)
+{
+	uint64_t blkid;
+	dmu_buf_impl_t *db;
+
+	blkid = dbuf_whichblock(dn, 0, offset);
+	rw_enter(&dn->dn_struct_rwlock, RW_READER);
+	db = dbuf_hold(dn, blkid, tag);
+	rw_exit(&dn->dn_struct_rwlock);
+
+	if (db == NULL) {
+		*dbp = NULL;
+		return (SET_ERROR(EIO));
+	}
+
+	*dbp = &db->db;
+	return (0);
+}
 int
 dmu_buf_hold_noread(objset_t *os, uint64_t object, uint64_t offset,
     void *tag, dmu_buf_t **dbp)
@@ -154,6 +191,31 @@ dmu_buf_hold_noread(objset_t *os, uint64_t object, uint64_t offset,
 }
 
 int
+dmu_buf_hold_by_dnode(dnode_t *dn, uint64_t offset,
+    void *tag, dmu_buf_t **dbp, int flags)
+{
+	int err;
+	int db_flags = DB_RF_CANFAIL;
+
+	if (flags & DMU_READ_NO_PREFETCH)
+		db_flags |= DB_RF_NOPREFETCH;
+	if (flags & DMU_READ_NO_DECRYPT)
+		db_flags |= DB_RF_NO_DECRYPT;
+
+	err = dmu_buf_hold_noread_by_dnode(dn, offset, tag, dbp);
+	if (err == 0) {
+		dmu_buf_impl_t *db = (dmu_buf_impl_t *)(*dbp);
+		err = dbuf_read(db, NULL, db_flags);
+		if (err != 0) {
+			dbuf_rele(db, tag);
+			*dbp = NULL;
+		}
+	}
+
+	return (err);
+}
+
+int
 dmu_buf_hold(objset_t *os, uint64_t object, uint64_t offset,
     void *tag, dmu_buf_t **dbp, int flags)
 {
@@ -162,6 +224,8 @@ dmu_buf_hold(objset_t *os, uint64_t object, uint64_t offset,
 
 	if (flags & DMU_READ_NO_PREFETCH)
 		db_flags |= DB_RF_NOPREFETCH;
+	if (flags & DMU_READ_NO_DECRYPT)
+		db_flags |= DB_RF_NO_DECRYPT;
 
 	err = dmu_buf_hold_noread(os, object, offset, tag, dbp);
 	if (err == 0) {
@@ -179,7 +243,7 @@ dmu_buf_hold(objset_t *os, uint64_t object, uint64_t offset,
 int
 dmu_bonus_max(void)
 {
-	return (DN_MAX_BONUSLEN);
+	return (DN_OLD_MAX_BONUSLEN);
 }
 
 int
@@ -262,11 +326,18 @@ dmu_rm_spill(objset_t *os, uint64_t object, dmu_tx_t *tx)
  * returns ENOENT, EIO, or 0.
  */
 int
-dmu_bonus_hold(objset_t *os, uint64_t object, void *tag, dmu_buf_t **dbp)
+dmu_bonus_hold_impl(objset_t *os, uint64_t object, void *tag, uint32_t flags,
+    dmu_buf_t **dbp)
 {
 	dnode_t *dn;
 	dmu_buf_impl_t *db;
 	int error;
+	uint32_t db_flags = DB_RF_MUST_SUCCEED;
+
+	if (flags & DMU_READ_NO_PREFETCH)
+		db_flags |= DB_RF_NOPREFETCH;
+	if (flags & DMU_READ_NO_DECRYPT)
+		db_flags |= DB_RF_NO_DECRYPT;
 
 	error = dnode_hold(os, object, FTAG, &dn);
 	if (error)
@@ -296,10 +367,22 @@ dmu_bonus_hold(objset_t *os, uint64_t object, void *tag, dmu_buf_t **dbp)
 
 	dnode_rele(dn, FTAG);
 
-	VERIFY(0 == dbuf_read(db, NULL, DB_RF_MUST_SUCCEED | DB_RF_NOPREFETCH));
+	error = dbuf_read(db, NULL, db_flags);
+	if (error) {
+		dnode_evict_bonus(dn);
+		dbuf_rele(db, tag);
+		*dbp = NULL;
+		return (error);
+	}
 
 	*dbp = &db->db;
 	return (0);
+}
+
+int
+dmu_bonus_hold(objset_t *os, uint64_t obj, void *tag, dmu_buf_t **dbp)
+{
+	return (dmu_bonus_hold_impl(os, obj, tag, DMU_READ_NO_PREFETCH, dbp));
 }
 
 /*
@@ -325,12 +408,17 @@ dmu_spill_hold_by_dnode(dnode_t *dn, uint32_t flags, void *tag, dmu_buf_t **dbp)
 	if ((flags & DB_RF_HAVESTRUCT) == 0)
 		rw_exit(&dn->dn_struct_rwlock);
 
-	ASSERT(db != NULL);
+	if (db == NULL) {
+		*dbp = NULL;
+		return (SET_ERROR(EIO));
+	}
 	err = dbuf_read(db, NULL, flags);
 	if (err == 0)
 		*dbp = &db->db;
-	else
+	else {
 		dbuf_rele(db, tag);
+		*dbp = NULL;
+	}
 	return (err);
 }
 
@@ -441,9 +529,10 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 		dbp[i] = &db->db;
 	}
 
-	if ((flags & DMU_READ_NO_PREFETCH) == 0 && read &&
-	    length <= zfetch_array_rd_sz) {
-		dmu_zfetch(&dn->dn_zfetch, blkid, nblks);
+	if ((flags & DMU_READ_NO_PREFETCH) == 0 &&
+	    DNODE_META_IS_CACHEABLE(dn) && length <= zfetch_array_rd_sz) {
+		dmu_zfetch(&dn->dn_zfetch, blkid, nblks,
+		    read && DNODE_IS_CACHEABLE(dn));
 	}
 	rw_exit(&dn->dn_struct_rwlock);
 
@@ -536,8 +625,8 @@ dmu_buf_rele_array(dmu_buf_t **dbp_fake, int numbufs, void *tag)
  * indirect blocks prefeteched will be those that point to the blocks containing
  * the data starting at offset, and continuing to offset + len.
  *
- * Note that if the indirect blocks above the blocks being prefetched are not in
- * cache, they will be asychronously read in.
+ * Note that if the indirect blocks above the blocks being prefetched are not
+ * in cache, they will be asychronously read in.
  */
 void
 dmu_prefetch(objset_t *os, uint64_t object, int64_t level, uint64_t offset,
@@ -586,10 +675,8 @@ dmu_prefetch(objset_t *os, uint64_t object, int64_t level, uint64_t offset,
 	}
 
 	if (nblks != 0) {
-		int i;
-
 		blkid = dbuf_whichblock(dn, level, offset);
-		for (i = 0; i < nblks; i++)
+		for (int i = 0; i < nblks; i++)
 			dbuf_prefetch(dn, level, blkid + i, pri, 0);
 	}
 
@@ -615,7 +702,6 @@ get_next_chunk(dnode_t *dn, uint64_t *start, uint64_t minimum)
 	/* bytes of data covered by a level-1 indirect block */
 	uint64_t iblkrange =
 	    dn->dn_datablksz * EPB(dn->dn_indblkshift, SPA_BLKPTRSHIFT);
-	uint64_t blks;
 
 	ASSERT3U(minimum, <=, *start);
 
@@ -625,7 +711,7 @@ get_next_chunk(dnode_t *dn, uint64_t *start, uint64_t minimum)
 	}
 	ASSERT(ISP2(iblkrange));
 
-	for (blks = 0; *start > minimum && blks < maxblks; blks++) {
+	for (uint64_t blks = 0; *start > minimum && blks < maxblks; blks++) {
 		int err;
 
 		/*
@@ -654,12 +740,30 @@ get_next_chunk(dnode_t *dn, uint64_t *start, uint64_t minimum)
 	return (0);
 }
 
+/*
+ * If this objset is of type OST_ZFS return true if vfs's unmounted flag is set,
+ * otherwise return false.
+ * Used below in dmu_free_long_range_impl() to enable abort when unmounting
+ */
+/*ARGSUSED*/
+static boolean_t
+dmu_objset_zfs_unmounting(objset_t *os)
+{
+#ifdef _KERNEL
+	if (dmu_objset_type(os) == DMU_OST_ZFS)
+		return (zfs_get_vfs_flag_unmounted(os));
+#endif
+	return (B_FALSE);
+}
+
 static int
 dmu_free_long_range_impl(objset_t *os, dnode_t *dn, uint64_t offset,
-    uint64_t length)
+    uint64_t length, boolean_t raw)
 {
 	uint64_t object_size;
 	int err;
+	uint64_t dirty_frees_threshold;
+	dsl_pool_t *dp = dmu_objset_pool(os);
 
 	if (dn == NULL)
 		return (SET_ERROR(EINVAL));
@@ -668,12 +772,22 @@ dmu_free_long_range_impl(objset_t *os, dnode_t *dn, uint64_t offset,
 	if (offset >= object_size)
 		return (0);
 
+	if (zfs_per_txg_dirty_frees_percent <= 100)
+		dirty_frees_threshold =
+		    zfs_per_txg_dirty_frees_percent * zfs_dirty_data_max / 100;
+	else
+		dirty_frees_threshold = zfs_dirty_data_max / 4;
+
 	if (length == DMU_OBJECT_END || offset + length > object_size)
 		length = object_size - offset;
 
 	while (length != 0) {
-		uint64_t chunk_end, chunk_begin;
+		uint64_t chunk_end, chunk_begin, chunk_len;
+		uint64_t long_free_dirty_all_txgs = 0;
 		dmu_tx_t *tx;
+
+		if (dmu_objset_zfs_unmounting(dn->dn_objset))
+			return (SET_ERROR(EINTR));
 
 		chunk_end = chunk_begin = offset + length;
 
@@ -684,9 +798,28 @@ dmu_free_long_range_impl(objset_t *os, dnode_t *dn, uint64_t offset,
 		ASSERT3U(chunk_begin, >=, offset);
 		ASSERT3U(chunk_begin, <=, chunk_end);
 
+		chunk_len = chunk_end - chunk_begin;
+
+		mutex_enter(&dp->dp_lock);
+		for (int t = 0; t < TXG_SIZE; t++) {
+			long_free_dirty_all_txgs +=
+			    dp->dp_long_free_dirty_pertxg[t];
+		}
+		mutex_exit(&dp->dp_lock);
+
+		/*
+		 * To avoid filling up a TXG with just frees wait for
+		 * the next TXG to open before freeing more chunks if
+		 * we have reached the threshold of frees
+		 */
+		if (dirty_frees_threshold != 0 &&
+		    long_free_dirty_all_txgs >= dirty_frees_threshold) {
+			txg_wait_open(dp, 0);
+			continue;
+		}
+
 		tx = dmu_tx_create(os);
-		dmu_tx_hold_free(tx, dn->dn_object,
-		    chunk_begin, chunk_end - chunk_begin);
+		dmu_tx_hold_free(tx, dn->dn_object, chunk_begin, chunk_len);
 
 		/*
 		 * Mark this transaction as typically resulting in a net
@@ -698,10 +831,29 @@ dmu_free_long_range_impl(objset_t *os, dnode_t *dn, uint64_t offset,
 			dmu_tx_abort(tx);
 			return (err);
 		}
-		dnode_free_range(dn, chunk_begin, chunk_end - chunk_begin, tx);
+
+		mutex_enter(&dp->dp_lock);
+		dp->dp_long_free_dirty_pertxg[dmu_tx_get_txg(tx) & TXG_MASK] +=
+		    chunk_len;
+		mutex_exit(&dp->dp_lock);
+		DTRACE_PROBE3(free__long__range,
+		    uint64_t, long_free_dirty_all_txgs, uint64_t, chunk_len,
+		    uint64_t, dmu_tx_get_txg(tx));
+		dnode_free_range(dn, chunk_begin, chunk_len, tx);
+
+		/* if this is a raw free, mark the dirty record as such */
+		if (raw) {
+			dbuf_dirty_record_t *dr = dn->dn_dbuf->db_last_dirty;
+
+			while (dr != NULL && dr->dr_txg > tx->tx_txg)
+				dr = dr->dr_next;
+			if (dr != NULL && dr->dr_txg == tx->tx_txg)
+				dr->dt.dl.dr_raw = B_TRUE;
+		}
+
 		dmu_tx_commit(tx);
 
-		length -= chunk_end - chunk_begin;
+		length -= chunk_len;
 	}
 	return (0);
 }
@@ -716,7 +868,7 @@ dmu_free_long_range(objset_t *os, uint64_t object,
 	err = dnode_hold(os, object, FTAG, &dn);
 	if (err != 0)
 		return (err);
-	err = dmu_free_long_range_impl(os, dn, offset, length);
+	err = dmu_free_long_range_impl(os, dn, offset, length, B_FALSE);
 
 	/*
 	 * It is important to zero out the maxblkid when freeing the entire
@@ -731,8 +883,37 @@ dmu_free_long_range(objset_t *os, uint64_t object,
 	return (err);
 }
 
+/*
+ * This function is equivalent to dmu_free_long_range(), but also
+ * marks the new dirty record as a raw write.
+ */
 int
-dmu_free_long_object(objset_t *os, uint64_t object)
+dmu_free_long_range_raw(objset_t *os, uint64_t object,
+    uint64_t offset, uint64_t length)
+{
+	dnode_t *dn;
+	int err;
+
+	err = dnode_hold(os, object, FTAG, &dn);
+	if (err != 0)
+		return (err);
+	err = dmu_free_long_range_impl(os, dn, offset, length, B_TRUE);
+
+	/*
+	 * It is important to zero out the maxblkid when freeing the entire
+	 * file, so that (a) subsequent calls to dmu_free_long_range_impl()
+	 * will take the fast path, and (b) dnode_reallocate() can verify
+	 * that the entire file has been freed.
+	 */
+	if (err == 0 && offset == 0 && length == DMU_OBJECT_END)
+		dn->dn_maxblkid = 0;
+
+	dnode_rele(dn, FTAG);
+	return (err);
+}
+
+static int
+dmu_free_long_object_impl(objset_t *os, uint64_t object, boolean_t raw)
 {
 	dmu_tx_t *tx;
 	int err;
@@ -747,7 +928,11 @@ dmu_free_long_object(objset_t *os, uint64_t object)
 	dmu_tx_mark_netfree(tx);
 	err = dmu_tx_assign(tx, TXG_WAIT);
 	if (err == 0) {
-		err = dmu_object_free(os, object, tx);
+		if (raw)
+			err = dmu_object_dirty_raw(os, object, tx);
+		if (err == 0)
+			err = dmu_object_free(os, object, tx);
+
 		dmu_tx_commit(tx);
 	} else {
 		dmu_tx_abort(tx);
@@ -755,6 +940,19 @@ dmu_free_long_object(objset_t *os, uint64_t object)
 
 	return (err);
 }
+
+int
+dmu_free_long_object(objset_t *os, uint64_t object)
+{
+	return (dmu_free_long_object_impl(os, object, B_FALSE));
+}
+
+int
+dmu_free_long_object_raw(objset_t *os, uint64_t object)
+{
+	return (dmu_free_long_object_impl(os, object, B_TRUE));
+}
+
 
 int
 dmu_free_range(objset_t *os, uint64_t object, uint64_t offset,
@@ -765,23 +963,18 @@ dmu_free_range(objset_t *os, uint64_t object, uint64_t offset,
 	if (err)
 		return (err);
 	ASSERT(offset < UINT64_MAX);
-	ASSERT(size == -1ULL || size <= UINT64_MAX - offset);
+	ASSERT(size == DMU_OBJECT_END || size <= UINT64_MAX - offset);
 	dnode_free_range(dn, offset, size, tx);
 	dnode_rele(dn, FTAG);
 	return (0);
 }
 
-int
-dmu_read(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
+static int
+dmu_read_impl(dnode_t *dn, uint64_t offset, uint64_t size,
     void *buf, uint32_t flags)
 {
-	dnode_t *dn;
 	dmu_buf_t **dbp;
-	int numbufs, err;
-
-	err = dnode_hold(os, object, FTAG, &dn);
-	if (err)
-		return (err);
+	int numbufs, err = 0;
 
 	/*
 	 * Deal with odd block sizes, where there can't be data past the first
@@ -826,22 +1019,37 @@ dmu_read(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 		}
 		dmu_buf_rele_array(dbp, numbufs, FTAG);
 	}
+	return (err);
+}
+
+int
+dmu_read(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
+    void *buf, uint32_t flags)
+{
+	dnode_t *dn;
+	int err;
+
+	err = dnode_hold(os, object, FTAG, &dn);
+	if (err != 0)
+		return (err);
+
+	err = dmu_read_impl(dn, offset, size, buf, flags);
 	dnode_rele(dn, FTAG);
 	return (err);
 }
 
-void
-dmu_write(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
+int
+dmu_read_by_dnode(dnode_t *dn, uint64_t offset, uint64_t size, void *buf,
+    uint32_t flags)
+{
+	return (dmu_read_impl(dn, offset, size, buf, flags));
+}
+
+static void
+dmu_write_impl(dmu_buf_t **dbp, int numbufs, uint64_t offset, uint64_t size,
     const void *buf, dmu_tx_t *tx)
 {
-	dmu_buf_t **dbp;
-	int numbufs, i;
-
-	if (size == 0)
-		return;
-
-	VERIFY0(dmu_buf_hold_array(os, object, offset, size,
-	    FALSE, FTAG, &numbufs, &dbp));
+	int i;
 
 	for (i = 0; i < numbufs; i++) {
 		uint64_t tocpy;
@@ -869,6 +1077,37 @@ dmu_write(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 		size -= tocpy;
 		buf = (char *)buf + tocpy;
 	}
+}
+
+void
+dmu_write(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
+    const void *buf, dmu_tx_t *tx)
+{
+	dmu_buf_t **dbp;
+	int numbufs;
+
+	if (size == 0)
+		return;
+
+	VERIFY0(dmu_buf_hold_array(os, object, offset, size,
+	    FALSE, FTAG, &numbufs, &dbp));
+	dmu_write_impl(dbp, numbufs, offset, size, buf, tx);
+	dmu_buf_rele_array(dbp, numbufs, FTAG);
+}
+
+void
+dmu_write_by_dnode(dnode_t *dn, uint64_t offset, uint64_t size,
+    const void *buf, dmu_tx_t *tx)
+{
+	dmu_buf_t **dbp;
+	int numbufs;
+
+	if (size == 0)
+		return;
+
+	VERIFY0(dmu_buf_hold_array_by_dnode(dn, offset, size,
+	    FALSE, FTAG, &numbufs, &dbp, DMU_READ_PREFETCH));
+	dmu_write_impl(dbp, numbufs, offset, size, buf, tx);
 	dmu_buf_rele_array(dbp, numbufs, FTAG);
 }
 
@@ -942,6 +1181,7 @@ static xuio_stats_t xuio_stats = {
 	atomic_add_64(&xuio_stats.stat.value.ui64, (val))
 #define	XUIOSTAT_BUMP(stat)	XUIOSTAT_INCR(stat, 1)
 
+#ifdef HAVE_UIO_ZEROCOPY
 int
 dmu_xuio_init(xuio_t *xuio, int nblk)
 {
@@ -994,7 +1234,7 @@ dmu_xuio_add(xuio_t *xuio, arc_buf_t *abuf, offset_t off, size_t n)
 	int i = priv->next++;
 
 	ASSERT(i < priv->cnt);
-	ASSERT(off + n <= arc_buf_size(abuf));
+	ASSERT(off + n <= arc_buf_lsize(abuf));
 	iov = (iovec_t *)uio->uio_iov + i;
 	iov->iov_base = (char *)abuf->b_data + off;
 	iov->iov_len = n;
@@ -1026,6 +1266,7 @@ dmu_xuio_clear(xuio_t *xuio, int i)
 	ASSERT(i < priv->cnt);
 	priv->bufs[i] = NULL;
 }
+#endif /* HAVE_UIO_ZEROCOPY */
 
 static void
 xuio_stat_init(void)
@@ -1049,24 +1290,26 @@ xuio_stat_fini(void)
 }
 
 void
-xuio_stat_wbuf_copied()
+xuio_stat_wbuf_copied(void)
 {
 	XUIOSTAT_BUMP(xuiostat_wbuf_copied);
 }
 
 void
-xuio_stat_wbuf_nocopy()
+xuio_stat_wbuf_nocopy(void)
 {
 	XUIOSTAT_BUMP(xuiostat_wbuf_nocopy);
 }
 
 #ifdef _KERNEL
-static int
+int
 dmu_read_uio_dnode(dnode_t *dn, uio_t *uio, uint64_t size)
 {
 	dmu_buf_t **dbp;
 	int numbufs, i, err;
+#ifdef HAVE_UIO_ZEROCOPY
 	xuio_t *xuio = NULL;
+#endif
 
 	/*
 	 * NB: we could do this block-at-a-time, but it's nice
@@ -1087,6 +1330,7 @@ dmu_read_uio_dnode(dnode_t *dn, uio_t *uio, uint64_t size)
 		bufoff = uio->uio_loffset - db->db_offset;
 		tocpy = MIN(db->db_size - bufoff, size);
 
+#ifdef HAVE_UIO_ZEROCOPY
 		if (xuio) {
 			dmu_buf_impl_t *dbi = (dmu_buf_impl_t *)db;
 			arc_buf_t *dbuf_abuf = dbi->db_buf;
@@ -1101,10 +1345,10 @@ dmu_read_uio_dnode(dnode_t *dn, uio_t *uio, uint64_t size)
 				XUIOSTAT_BUMP(xuiostat_rbuf_nocopy);
 			else
 				XUIOSTAT_BUMP(xuiostat_rbuf_copied);
-		} else {
+		} else
+#endif
 			err = uiomove((char *)db->db_data + bufoff, tocpy,
 			    UIO_READ, uio);
-		}
 		if (err)
 			break;
 
@@ -1167,7 +1411,7 @@ dmu_read_uio(objset_t *os, uint64_t object, uio_t *uio, uint64_t size)
 	return (err);
 }
 
-static int
+int
 dmu_write_uio_dnode(dnode_t *dn, uio_t *uio, uint64_t size, dmu_tx_t *tx)
 {
 	dmu_buf_t **dbp;
@@ -1282,7 +1526,7 @@ dmu_request_arcbuf(dmu_buf_t *handle, int size)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)handle;
 
-	return (arc_loan_buf(db->db_objset->os_spa, size));
+	return (arc_loan_buf(db->db_objset->os_spa, B_FALSE, size));
 }
 
 /*
@@ -1292,7 +1536,77 @@ void
 dmu_return_arcbuf(arc_buf_t *buf)
 {
 	arc_return_buf(buf, FTAG);
-	VERIFY(arc_buf_remove_ref(buf, FTAG));
+	arc_buf_destroy(buf, FTAG);
+}
+
+void
+dmu_convert_to_raw(dmu_buf_t *handle, boolean_t byteorder, const uint8_t *salt,
+    const uint8_t *iv, const uint8_t *mac, dmu_tx_t *tx)
+{
+	dmu_object_type_t type;
+	dmu_buf_impl_t *db = (dmu_buf_impl_t *)handle;
+	uint64_t dsobj = dmu_objset_id(db->db_objset);
+
+	ASSERT3P(db->db_buf, !=, NULL);
+	ASSERT3U(dsobj, !=, 0);
+
+	dmu_buf_will_change_crypt_params(handle, tx);
+
+	DB_DNODE_ENTER(db);
+	type = DB_DNODE(db)->dn_type;
+	DB_DNODE_EXIT(db);
+
+	/*
+	 * This technically violates the assumption the dmu code makes
+	 * that dnode blocks are only released in syncing context.
+	 */
+	(void) arc_release(db->db_buf, db);
+	arc_convert_to_raw(db->db_buf, dsobj, byteorder, type, salt, iv, mac);
+}
+
+void
+dmu_copy_from_buf(objset_t *os, uint64_t object, uint64_t offset,
+    dmu_buf_t *handle, dmu_tx_t *tx)
+{
+	dmu_buf_t *dst_handle;
+	dmu_buf_impl_t *dstdb;
+	dmu_buf_impl_t *srcdb = (dmu_buf_impl_t *)handle;
+	arc_buf_t *abuf;
+	uint64_t datalen;
+	boolean_t byteorder;
+	uint8_t salt[ZIO_DATA_SALT_LEN];
+	uint8_t iv[ZIO_DATA_IV_LEN];
+	uint8_t mac[ZIO_DATA_MAC_LEN];
+
+	ASSERT3P(srcdb->db_buf, !=, NULL);
+
+	/* hold the db that we want to write to */
+	VERIFY0(dmu_buf_hold(os, object, offset, FTAG, &dst_handle,
+	    DMU_READ_NO_DECRYPT));
+	dstdb = (dmu_buf_impl_t *)dst_handle;
+	datalen = arc_buf_size(srcdb->db_buf);
+
+	/* allocated an arc buffer that matches the type of srcdb->db_buf */
+	if (arc_is_encrypted(srcdb->db_buf)) {
+		arc_get_raw_params(srcdb->db_buf, &byteorder, salt, iv, mac);
+		abuf = arc_loan_raw_buf(os->os_spa, dmu_objset_id(os),
+		    byteorder, salt, iv, mac, DB_DNODE(dstdb)->dn_type,
+		    datalen, arc_buf_lsize(srcdb->db_buf),
+		    arc_get_compression(srcdb->db_buf));
+	} else {
+		/* we won't get a compressed db back from dmu_buf_hold() */
+		ASSERT3U(arc_get_compression(srcdb->db_buf),
+		    ==, ZIO_COMPRESS_OFF);
+		abuf = arc_loan_buf(os->os_spa,
+		    DMU_OT_IS_METADATA(DB_DNODE(dstdb)->dn_type), datalen);
+	}
+
+	ASSERT3U(datalen, ==, arc_buf_size(abuf));
+
+	/* copy the data to the new buffer and assign it to the dstdb */
+	bcopy(srcdb->db_buf->b_data, abuf->b_data, datalen);
+	dbuf_assign_arcbuf(dstdb, abuf, tx);
+	dmu_buf_rele(dst_handle, FTAG);
 }
 
 /*
@@ -1301,48 +1615,48 @@ dmu_return_arcbuf(arc_buf_t *buf)
  * dmu_write().
  */
 void
-dmu_assign_arcbuf(dmu_buf_t *handle, uint64_t offset, arc_buf_t *buf,
+dmu_assign_arcbuf_by_dnode(dnode_t *dn, uint64_t offset, arc_buf_t *buf,
     dmu_tx_t *tx)
 {
-	dmu_buf_impl_t *dbuf = (dmu_buf_impl_t *)handle;
-	dnode_t *dn;
 	dmu_buf_impl_t *db;
-	uint32_t blksz = (uint32_t)arc_buf_size(buf);
+	objset_t *os = dn->dn_objset;
+	uint64_t object = dn->dn_object;
+	uint32_t blksz = (uint32_t)arc_buf_lsize(buf);
 	uint64_t blkid;
 
-	DB_DNODE_ENTER(dbuf);
-	dn = DB_DNODE(dbuf);
 	rw_enter(&dn->dn_struct_rwlock, RW_READER);
 	blkid = dbuf_whichblock(dn, 0, offset);
 	VERIFY((db = dbuf_hold(dn, blkid, FTAG)) != NULL);
 	rw_exit(&dn->dn_struct_rwlock);
-	DB_DNODE_EXIT(dbuf);
 
 	/*
 	 * We can only assign if the offset is aligned, the arc buf is the
-	 * same size as the dbuf, and the dbuf is not metadata.  It
-	 * can't be metadata because the loaned arc buf comes from the
-	 * user-data kmem area.
+	 * same size as the dbuf, and the dbuf is not metadata.
 	 */
-	if (offset == db->db.db_offset && blksz == db->db.db_size &&
-	    DBUF_GET_BUFC_TYPE(db) == ARC_BUFC_DATA) {
+	if (offset == db->db.db_offset && blksz == db->db.db_size) {
 		dbuf_assign_arcbuf(db, buf, tx);
 		dbuf_rele(db, FTAG);
 	} else {
-		objset_t *os;
-		uint64_t object;
-
-		DB_DNODE_ENTER(dbuf);
-		dn = DB_DNODE(dbuf);
-		os = dn->dn_objset;
-		object = dn->dn_object;
-		DB_DNODE_EXIT(dbuf);
+		/* compressed bufs must always be assignable to their dbuf */
+		ASSERT3U(arc_get_compression(buf), ==, ZIO_COMPRESS_OFF);
+		ASSERT(!(buf->b_flags & ARC_BUF_FLAG_COMPRESSED));
 
 		dbuf_rele(db, FTAG);
 		dmu_write(os, object, offset, blksz, buf->b_data, tx);
 		dmu_return_arcbuf(buf);
 		XUIOSTAT_BUMP(xuiostat_wbuf_copied);
 	}
+}
+
+void
+dmu_assign_arcbuf_by_dbuf(dmu_buf_t *handle, uint64_t offset, arc_buf_t *buf,
+    dmu_tx_t *tx)
+{
+	dmu_buf_impl_t *dbuf = (dmu_buf_impl_t *)handle;
+
+	DB_DNODE_ENTER(dbuf);
+	dmu_assign_arcbuf_by_dnode(DB_DNODE(dbuf), offset, buf, tx);
+	DB_DNODE_EXIT(dbuf);
 }
 
 typedef struct {
@@ -1369,7 +1683,7 @@ dmu_sync_ready(zio_t *zio, arc_buf_t *buf, void *varg)
 			BP_SET_LSIZE(bp, db->db_size);
 		} else if (!BP_IS_EMBEDDED(bp)) {
 			ASSERT(BP_GET_LEVEL(bp) == 0);
-			bp->blk_fill = 1;
+			BP_SET_FILL(bp, 1);
 		}
 	}
 }
@@ -1393,13 +1707,15 @@ dmu_sync_done(zio_t *zio, arc_buf_t *buf, void *varg)
 	if (zio->io_error == 0) {
 		dr->dt.dl.dr_nopwrite = !!(zio->io_flags & ZIO_FLAG_NOPWRITE);
 		if (dr->dt.dl.dr_nopwrite) {
-			ASSERTV(blkptr_t *bp = zio->io_bp);
-			ASSERTV(blkptr_t *bp_orig = &zio->io_bp_orig);
-			ASSERTV(uint8_t chksum = BP_GET_CHECKSUM(bp_orig));
+			blkptr_t *bp = zio->io_bp;
+			blkptr_t *bp_orig = &zio->io_bp_orig;
+			uint8_t chksum = BP_GET_CHECKSUM(bp_orig);
 
 			ASSERT(BP_EQUAL(bp, bp_orig));
+			VERIFY(BP_EQUAL(bp, db->db_blkptr));
 			ASSERT(zio->io_prop.zp_compress != ZIO_COMPRESS_OFF);
-			ASSERT(zio_checksum_table[chksum].ci_dedup);
+			VERIFY(zio_checksum_table[chksum].ci_flags &
+			    ZCHECKSUM_FLAG_NOPWRITE);
 		}
 		dr->dt.dl.dr_overridden_by = *zio->io_bp;
 		dr->dt.dl.dr_override_state = DR_OVERRIDDEN;
@@ -1437,25 +1753,18 @@ dmu_sync_late_arrival_done(zio_t *zio)
 	ASSERTV(blkptr_t *bp_orig = &zio->io_bp_orig);
 
 	if (zio->io_error == 0 && !BP_IS_HOLE(bp)) {
-		/*
-		 * If we didn't allocate a new block (i.e. ZIO_FLAG_NOPWRITE)
-		 * then there is nothing to do here. Otherwise, free the
-		 * newly allocated block in this txg.
-		 */
-		if (zio->io_flags & ZIO_FLAG_NOPWRITE) {
-			ASSERT(BP_EQUAL(bp, bp_orig));
-		} else {
-			ASSERT(BP_IS_HOLE(bp_orig) || !BP_EQUAL(bp, bp_orig));
-			ASSERT(zio->io_bp->blk_birth == zio->io_txg);
-			ASSERT(zio->io_txg > spa_syncing_txg(zio->io_spa));
-			zio_free(zio->io_spa, zio->io_txg, zio->io_bp);
-		}
+		ASSERT(!(zio->io_flags & ZIO_FLAG_NOPWRITE));
+		ASSERT(BP_IS_HOLE(bp_orig) || !BP_EQUAL(bp, bp_orig));
+		ASSERT(zio->io_bp->blk_birth == zio->io_txg);
+		ASSERT(zio->io_txg > spa_syncing_txg(zio->io_spa));
+		zio_free(zio->io_spa, zio->io_txg, zio->io_bp);
 	}
 
 	dmu_tx_commit(dsa->dsa_tx);
 
 	dsa->dsa_done(dsa->dsa_zgd, zio->io_error);
 
+	abd_put(zio->io_abd);
 	kmem_free(dsa, sizeof (*dsa));
 }
 
@@ -1474,16 +1783,47 @@ dmu_sync_late_arrival(zio_t *pio, objset_t *os, dmu_sync_cb_t *done, zgd_t *zgd,
 		return (SET_ERROR(EIO));
 	}
 
+	/*
+	 * In order to prevent the zgd's lwb from being free'd prior to
+	 * dmu_sync_late_arrival_done() being called, we have to ensure
+	 * the lwb's "max txg" takes this tx's txg into account.
+	 */
+	zil_lwb_add_txg(zgd->zgd_lwb, dmu_tx_get_txg(tx));
+
 	dsa = kmem_alloc(sizeof (dmu_sync_arg_t), KM_SLEEP);
 	dsa->dsa_dr = NULL;
 	dsa->dsa_done = done;
 	dsa->dsa_zgd = zgd;
 	dsa->dsa_tx = tx;
 
+	/*
+	 * Since we are currently syncing this txg, it's nontrivial to
+	 * determine what BP to nopwrite against, so we disable nopwrite.
+	 *
+	 * When syncing, the db_blkptr is initially the BP of the previous
+	 * txg.  We can not nopwrite against it because it will be changed
+	 * (this is similar to the non-late-arrival case where the dbuf is
+	 * dirty in a future txg).
+	 *
+	 * Then dbuf_write_ready() sets bp_blkptr to the location we will write.
+	 * We can not nopwrite against it because although the BP will not
+	 * (typically) be changed, the data has not yet been persisted to this
+	 * location.
+	 *
+	 * Finally, when dbuf_write_done() is called, it is theoretically
+	 * possible to always nopwrite, because the data that was written in
+	 * this txg is the same data that we are trying to write.  However we
+	 * would need to check that this dbuf is not dirty in any future
+	 * txg's (as we do in the normal dmu_sync() path). For simplicity, we
+	 * don't nopwrite in this case.
+	 */
+	zp->zp_nopwrite = B_FALSE;
+
 	zio_nowait(zio_write(pio, os->os_spa, dmu_tx_get_txg(tx), zgd->zgd_bp,
-	    zgd->zgd_db->db_data, zgd->zgd_db->db_size, zp,
-	    dmu_sync_late_arrival_ready, NULL, dmu_sync_late_arrival_done, dsa,
-	    ZIO_PRIORITY_SYNC_WRITE, ZIO_FLAG_CANFAIL|ZIO_FLAG_FASTWRITE, zb));
+	    abd_get_from_buf(zgd->zgd_db->db_data, zgd->zgd_db->db_size),
+	    zgd->zgd_db->db_size, zgd->zgd_db->db_size, zp,
+	    dmu_sync_late_arrival_ready, NULL, NULL, dmu_sync_late_arrival_done,
+	    dsa, ZIO_PRIORITY_SYNC_WRITE, ZIO_FLAG_CANFAIL, zb));
 
 	return (0);
 }
@@ -1516,7 +1856,6 @@ dmu_sync_late_arrival(zio_t *pio, objset_t *os, dmu_sync_cb_t *done, zgd_t *zgd,
 int
 dmu_sync(zio_t *pio, uint64_t txg, dmu_sync_cb_t *done, zgd_t *zgd)
 {
-	blkptr_t *bp = zgd->zgd_bp;
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)zgd->zgd_db;
 	objset_t *os = db->db_objset;
 	dsl_dataset_t *ds = os->os_dsl_dataset;
@@ -1528,6 +1867,11 @@ dmu_sync(zio_t *pio, uint64_t txg, dmu_sync_cb_t *done, zgd_t *zgd)
 
 	ASSERT(pio != NULL);
 	ASSERT(txg != 0);
+
+	/* dbuf is within the locked range */
+	ASSERT3U(db->db.db_offset, >=, zgd->zgd_rl->r_off);
+	ASSERT3U(db->db.db_offset + db->db.db_size, <=,
+	    zgd->zgd_rl->r_off + zgd->zgd_rl->r_len);
 
 	SET_BOOKMARK(&zb, ds->ds_object,
 	    db->db.db_object, db->db_level, db->db_blkid);
@@ -1583,6 +1927,21 @@ dmu_sync(zio_t *pio, uint64_t txg, dmu_sync_cb_t *done, zgd_t *zgd)
 
 	ASSERT(dr->dr_next == NULL || dr->dr_next->dr_txg < txg);
 
+	if (db->db_blkptr != NULL) {
+		/*
+		 * We need to fill in zgd_bp with the current blkptr so that
+		 * the nopwrite code can check if we're writing the same
+		 * data that's already on disk.  We can only nopwrite if we
+		 * are sure that after making the copy, db_blkptr will not
+		 * change until our i/o completes.  We ensure this by
+		 * holding the db_mtx, and only allowing nopwrite if the
+		 * block is not already dirty (see below).  This is verified
+		 * by dmu_sync_done(), which VERIFYs that the db_blkptr has
+		 * not changed.
+		 */
+		*zgd->zgd_bp = *db->db_blkptr;
+	}
+
 	/*
 	 * Assume the on-disk data is X, the current syncing data (in
 	 * txg - 1) is Y, and the current in-memory data is Z (currently
@@ -1634,17 +1993,30 @@ dmu_sync(zio_t *pio, uint64_t txg, dmu_sync_cb_t *done, zgd_t *zgd)
 	dsa->dsa_tx = NULL;
 
 	zio_nowait(arc_write(pio, os->os_spa, txg,
-	    bp, dr->dt.dl.dr_data, DBUF_IS_L2CACHEABLE(db),
-	    DBUF_IS_L2COMPRESSIBLE(db), &zp, dmu_sync_ready,
-	    NULL, dmu_sync_done, dsa, ZIO_PRIORITY_SYNC_WRITE,
-	    ZIO_FLAG_CANFAIL, &zb));
+	    zgd->zgd_bp, dr->dt.dl.dr_data, DBUF_IS_L2CACHEABLE(db),
+	    &zp, dmu_sync_ready, NULL, NULL, dmu_sync_done, dsa,
+	    ZIO_PRIORITY_SYNC_WRITE, ZIO_FLAG_CANFAIL, &zb));
 
 	return (0);
 }
 
 int
+dmu_object_set_nlevels(objset_t *os, uint64_t object, int nlevels, dmu_tx_t *tx)
+{
+	dnode_t *dn;
+	int err;
+
+	err = dnode_hold(os, object, FTAG, &dn);
+	if (err)
+		return (err);
+	err = dnode_set_nlevels(dn, nlevels, tx);
+	dnode_rele(dn, FTAG);
+	return (err);
+}
+
+int
 dmu_object_set_blocksize(objset_t *os, uint64_t object, uint64_t size, int ibs,
-	dmu_tx_t *tx)
+    dmu_tx_t *tx)
 {
 	dnode_t *dn;
 	int err;
@@ -1659,7 +2031,7 @@ dmu_object_set_blocksize(objset_t *os, uint64_t object, uint64_t size, int ibs,
 
 void
 dmu_object_set_checksum(objset_t *os, uint64_t object, uint8_t checksum,
-	dmu_tx_t *tx)
+    dmu_tx_t *tx)
 {
 	dnode_t *dn;
 
@@ -1679,7 +2051,7 @@ dmu_object_set_checksum(objset_t *os, uint64_t object, uint8_t checksum,
 
 void
 dmu_object_set_compress(objset_t *os, uint64_t object, uint8_t compress,
-	dmu_tx_t *tx)
+    dmu_tx_t *tx)
 {
 	dnode_t *dn;
 
@@ -1694,6 +2066,25 @@ dmu_object_set_compress(objset_t *os, uint64_t object, uint8_t compress,
 	dn->dn_compress = compress;
 	dnode_setdirty(dn, tx);
 	dnode_rele(dn, FTAG);
+}
+
+/*
+ * Dirty an object and set the dirty record's raw flag. This is used
+ * when writing raw data to an object that will not effect the
+ * encryption parameters, specifically during raw receives.
+ */
+int
+dmu_object_dirty_raw(objset_t *os, uint64_t object, dmu_tx_t *tx)
+{
+	dnode_t *dn;
+	int err;
+
+	err = dnode_hold(os, object, FTAG, &dn);
+	if (err)
+		return (err);
+	dmu_buf_will_change_crypt_params((dmu_buf_t *)dn->dn_dbuf, tx);
+	dnode_rele(dn, FTAG);
+	return (err);
 }
 
 int zfs_mdcomp_disable = 0;
@@ -1716,6 +2107,7 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 	boolean_t dedup = B_FALSE;
 	boolean_t nopwrite = B_FALSE;
 	boolean_t dedup_verify = os->os_dedup_verify;
+	boolean_t encrypt = B_FALSE;
 	int copies = os->os_copies;
 
 	/*
@@ -1744,8 +2136,10 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 		 * as well.  Otherwise, the metadata checksum defaults
 		 * to fletcher4.
 		 */
-		if (zio_checksum_table[checksum].ci_correctable < 1 ||
-		    zio_checksum_table[checksum].ci_eck)
+		if (!(zio_checksum_table[checksum].ci_flags &
+		    ZCHECKSUM_FLAG_METADATA) ||
+		    (zio_checksum_table[checksum].ci_flags &
+		    ZCHECKSUM_FLAG_EMBEDDED))
 			checksum = ZIO_CHECKSUM_FLETCHER_4;
 
 		if (os->os_redundant_metadata == ZFS_REDUNDANT_METADATA_ALL ||
@@ -1784,48 +2178,98 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 		 */
 		if (dedup_checksum != ZIO_CHECKSUM_OFF) {
 			dedup = (wp & WP_DMU_SYNC) ? B_FALSE : B_TRUE;
-			if (!zio_checksum_table[checksum].ci_dedup)
+			if (!(zio_checksum_table[checksum].ci_flags &
+			    ZCHECKSUM_FLAG_DEDUP))
 				dedup_verify = B_TRUE;
 		}
 
 		/*
-		 * Enable nopwrite if we have a cryptographically secure
-		 * checksum that has no known collisions (i.e. SHA-256)
-		 * and compression is enabled.  We don't enable nopwrite if
-		 * dedup is enabled as the two features are mutually exclusive.
+		 * Enable nopwrite if we have secure enough checksum
+		 * algorithm (see comment in zio_nop_write) and
+		 * compression is enabled.  We don't enable nopwrite if
+		 * dedup is enabled as the two features are mutually
+		 * exclusive.
 		 */
-		nopwrite = (!dedup && zio_checksum_table[checksum].ci_dedup &&
+		nopwrite = (!dedup && (zio_checksum_table[checksum].ci_flags &
+		    ZCHECKSUM_FLAG_NOPWRITE) &&
 		    compress != ZIO_COMPRESS_OFF && zfs_nopwrite_enabled);
 	}
 
-	zp->zp_checksum = checksum;
+	/*
+	 * All objects in an encrypted objset are protected from modification
+	 * via a MAC. Encrypted objects store their IV and salt in the last DVA
+	 * in the bp, so we cannot use all copies. Encrypted objects are also
+	 * not subject to nopwrite since writing the same data will still
+	 * result in a new ciphertext. Only encrypted blocks can be dedup'd
+	 * to avoid ambiguity in the dedup code since the DDT does not store
+	 * object types.
+	 */
+	if (os->os_encrypted && (wp & WP_NOFILL) == 0) {
+		encrypt = B_TRUE;
+
+		if (DMU_OT_IS_ENCRYPTED(type)) {
+			copies = MIN(copies, SPA_DVAS_PER_BP - 1);
+			nopwrite = B_FALSE;
+		} else {
+			dedup = B_FALSE;
+		}
+
+		if (type == DMU_OT_DNODE || type == DMU_OT_OBJSET)
+			compress = ZIO_COMPRESS_EMPTY;
+	}
+
 	zp->zp_compress = compress;
+	zp->zp_checksum = checksum;
 	zp->zp_type = (wp & WP_SPILL) ? dn->dn_bonustype : type;
 	zp->zp_level = level;
 	zp->zp_copies = MIN(copies, spa_max_replication(os->os_spa));
 	zp->zp_dedup = dedup;
 	zp->zp_dedup_verify = dedup && dedup_verify;
 	zp->zp_nopwrite = nopwrite;
+	zp->zp_encrypt = encrypt;
+	zp->zp_byteorder = ZFS_HOST_BYTEORDER;
+	bzero(zp->zp_salt, ZIO_DATA_SALT_LEN);
+	bzero(zp->zp_iv, ZIO_DATA_IV_LEN);
+	bzero(zp->zp_mac, ZIO_DATA_MAC_LEN);
+
+	ASSERT3U(zp->zp_compress, !=, ZIO_COMPRESS_INHERIT);
 }
 
+/*
+ * This function is only called from zfs_holey_common() for zpl_llseek()
+ * in order to determine the location of holes.  In order to accurately
+ * report holes all dirty data must be synced to disk.  This causes extremely
+ * poor performance when seeking for holes in a dirty file.  As a compromise,
+ * only provide hole data when the dnode is clean.  When a dnode is dirty
+ * report the dnode as having no holes which is always a safe thing to do.
+ */
 int
 dmu_offset_next(objset_t *os, uint64_t object, boolean_t hole, uint64_t *off)
 {
 	dnode_t *dn;
 	int i, err;
+	boolean_t clean = B_TRUE;
 
 	err = dnode_hold(os, object, FTAG, &dn);
 	if (err)
 		return (err);
+
 	/*
-	 * Sync any current changes before
-	 * we go trundling through the block pointers.
+	 * Check if dnode is dirty
 	 */
 	for (i = 0; i < TXG_SIZE; i++) {
-		if (list_link_active(&dn->dn_dirty_link[i]))
+		if (list_link_active(&dn->dn_dirty_link[i])) {
+			clean = B_FALSE;
 			break;
+		}
 	}
-	if (i != TXG_SIZE) {
+
+	/*
+	 * If compatibility option is on, sync any current changes before
+	 * we go trundling through the block pointers.
+	 */
+	if (!clean && zfs_dmu_offset_next_sync) {
+		clean = B_TRUE;
 		dnode_rele(dn, FTAG);
 		txg_wait_synced(dmu_objset_pool(os), 0);
 		err = dnode_hold(os, object, FTAG, &dn);
@@ -1833,7 +2277,12 @@ dmu_offset_next(objset_t *os, uint64_t object, boolean_t hole, uint64_t *off)
 			return (err);
 	}
 
-	err = dnode_next_offset(dn, (hole ? DNODE_FIND_HOLE : 0), off, 1, 1, 0);
+	if (clean)
+		err = dnode_next_offset(dn,
+		    (hole ? DNODE_FIND_HOLE : 0), off, 1, 1, 0);
+	else
+		err = SET_ERROR(EBUSY);
+
 	dnode_rele(dn, FTAG);
 
 	return (err);
@@ -1843,7 +2292,6 @@ void
 __dmu_object_info_from_dnode(dnode_t *dn, dmu_object_info_t *doi)
 {
 	dnode_phys_t *dnp = dn->dn_phys;
-	int i;
 
 	doi->doi_data_block_size = dn->dn_datablksz;
 	doi->doi_metadata_block_size = dn->dn_indblkshift ?
@@ -1851,6 +2299,7 @@ __dmu_object_info_from_dnode(dnode_t *dn, dmu_object_info_t *doi)
 	doi->doi_type = dn->dn_type;
 	doi->doi_bonus_type = dn->dn_bonustype;
 	doi->doi_bonus_size = dn->dn_bonuslen;
+	doi->doi_dnodesize = dn->dn_num_slots << DNODE_SHIFT;
 	doi->doi_indirection = dn->dn_nlevels;
 	doi->doi_checksum = dn->dn_checksum;
 	doi->doi_compress = dn->dn_compress;
@@ -1858,7 +2307,7 @@ __dmu_object_info_from_dnode(dnode_t *dn, dmu_object_info_t *doi)
 	doi->doi_physical_blocks_512 = (DN_USED_BYTES(dnp) + 256) >> 9;
 	doi->doi_max_offset = (dn->dn_maxblkid + 1) * dn->dn_datablksz;
 	doi->doi_fill_count = 0;
-	for (i = 0; i < dnp->dn_nblkptr; i++)
+	for (int i = 0; i < dnp->dn_nblkptr; i++)
 		doi->doi_fill_count += BP_GET_FILL(&dnp->dn_blkptr[i]);
 }
 
@@ -1922,9 +2371,21 @@ dmu_object_size_from_db(dmu_buf_t *db_fake, uint32_t *blksize,
 	dn = DB_DNODE(db);
 
 	*blksize = dn->dn_datablksz;
-	/* add 1 for dnode space */
+	/* add in number of slots used for the dnode itself */
 	*nblk512 = ((DN_USED_BYTES(dn->dn_phys) + SPA_MINBLOCKSIZE/2) >>
-	    SPA_MINBLOCKSHIFT) + 1;
+	    SPA_MINBLOCKSHIFT) + dn->dn_num_slots;
+	DB_DNODE_EXIT(db);
+}
+
+void
+dmu_object_dnsize_from_db(dmu_buf_t *db_fake, int *dnsize)
+{
+	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
+	dnode_t *dn;
+
+	DB_DNODE_ENTER(db);
+	dn = DB_DNODE(db);
+	*dnsize = dn->dn_num_slots << DNODE_SHIFT;
 	DB_DNODE_EXIT(db);
 }
 
@@ -1976,16 +2437,17 @@ byteswap_uint8_array(void *vbuf, size_t size)
 void
 dmu_init(void)
 {
+	abd_init();
 	zfs_dbgmsg_init();
 	sa_cache_init();
 	xuio_stat_init();
 	dmu_objset_init();
 	dnode_init();
-	dbuf_init();
 	zfetch_init();
 	dmu_tx_init();
 	l2arc_init();
 	arc_init();
+	dbuf_init();
 }
 
 void
@@ -2001,6 +2463,7 @@ dmu_fini(void)
 	xuio_stat_fini();
 	sa_cache_fini();
 	zfs_dbgmsg_fini();
+	abd_fini();
 }
 
 #if defined(_KERNEL) && defined(HAVE_SPL)
@@ -2010,14 +2473,20 @@ EXPORT_SYMBOL(dmu_buf_rele_array);
 EXPORT_SYMBOL(dmu_prefetch);
 EXPORT_SYMBOL(dmu_free_range);
 EXPORT_SYMBOL(dmu_free_long_range);
+EXPORT_SYMBOL(dmu_free_long_range_raw);
 EXPORT_SYMBOL(dmu_free_long_object);
+EXPORT_SYMBOL(dmu_free_long_object_raw);
 EXPORT_SYMBOL(dmu_read);
+EXPORT_SYMBOL(dmu_read_by_dnode);
 EXPORT_SYMBOL(dmu_write);
+EXPORT_SYMBOL(dmu_write_by_dnode);
 EXPORT_SYMBOL(dmu_prealloc);
 EXPORT_SYMBOL(dmu_object_info);
 EXPORT_SYMBOL(dmu_object_info_from_dnode);
 EXPORT_SYMBOL(dmu_object_info_from_db);
 EXPORT_SYMBOL(dmu_object_size_from_db);
+EXPORT_SYMBOL(dmu_object_dnsize_from_db);
+EXPORT_SYMBOL(dmu_object_set_nlevels);
 EXPORT_SYMBOL(dmu_object_set_blocksize);
 EXPORT_SYMBOL(dmu_object_set_checksum);
 EXPORT_SYMBOL(dmu_object_set_compress);
@@ -2025,14 +2494,26 @@ EXPORT_SYMBOL(dmu_write_policy);
 EXPORT_SYMBOL(dmu_sync);
 EXPORT_SYMBOL(dmu_request_arcbuf);
 EXPORT_SYMBOL(dmu_return_arcbuf);
-EXPORT_SYMBOL(dmu_assign_arcbuf);
+EXPORT_SYMBOL(dmu_assign_arcbuf_by_dnode);
+EXPORT_SYMBOL(dmu_assign_arcbuf_by_dbuf);
 EXPORT_SYMBOL(dmu_buf_hold);
 EXPORT_SYMBOL(dmu_ot);
 
+/* BEGIN CSTYLED */
 module_param(zfs_mdcomp_disable, int, 0644);
 MODULE_PARM_DESC(zfs_mdcomp_disable, "Disable meta data compression");
 
 module_param(zfs_nopwrite_enabled, int, 0644);
 MODULE_PARM_DESC(zfs_nopwrite_enabled, "Enable NOP writes");
+
+module_param(zfs_per_txg_dirty_frees_percent, ulong, 0644);
+MODULE_PARM_DESC(zfs_per_txg_dirty_frees_percent,
+	"percentage of dirtied blocks from frees in one TXG");
+
+module_param(zfs_dmu_offset_next_sync, int, 0644);
+MODULE_PARM_DESC(zfs_dmu_offset_next_sync,
+	"Enable forcing txg sync to find holes");
+
+/* END CSTYLED */
 
 #endif

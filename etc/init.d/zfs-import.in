@@ -98,7 +98,7 @@ do_import_all_visible()
 		if [ -n "$npools" ]
 		then
 			# Because we have found extra pool(s) here, which wasn't
-			# found 'normaly', we need to force USE_DISK_BY_ID to
+			# found 'normally', we need to force USE_DISK_BY_ID to
 			# make sure we're able to actually import it/them later.
 			USE_DISK_BY_ID='yes'
 
@@ -148,7 +148,7 @@ do_import_all_visible()
 		available_pools="$apools"
 	fi
 
-	# For backwards compability, make sure that ZPOOL_IMPORT_PATH is set
+	# For backwards compatibility, make sure that ZPOOL_IMPORT_PATH is set
 	# to something we can use later with the real import(s). We want to
 	# make sure we find all by* dirs, BUT by-vdev should be first (if it
 	# exists).
@@ -157,7 +157,7 @@ do_import_all_visible()
 		local dirs
 		dirs="$(for dir in $(echo /dev/disk/by-*)
 		do
-			# Ignore by-vdev here - we wan't it first!
+			# Ignore by-vdev here - we want it first!
 			echo "$dir" | grep -q /by-vdev && continue
 			[ ! -d "$dir" ] && continue
 
@@ -217,7 +217,7 @@ do_import_all_visible()
 
 		# Import by using ZPOOL_IMPORT_PATH (either set above or in
 		# the config file) _or_ with the 'built in' default search
-		# paths. This is the prefered way.
+		# paths. This is the preferred way.
 		"$ZPOOL" import -N ${ZPOOL_IMPORT_OPTS} "$pool" 2> /dev/null
 		r="$?" ; RET=$((RET + r))
 		if [ "$r" -eq 0 ]

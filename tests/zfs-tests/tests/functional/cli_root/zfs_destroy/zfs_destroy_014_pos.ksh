@@ -15,7 +15,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -45,12 +45,12 @@ datasets="$TESTPOOL/$TESTFS1 $TESTPOOL/$TESTFS1/$TESTFS2
 function cleanup
 {
 	for ds in $datasets; do
-		datasetexists $ds && $ZFS destroy -rf $ds
+		datasetexists $ds && zfs destroy -rf $ds
 	done
 }
 
 # create nested datasets
-log_must $ZFS create -p $TESTPOOL/$TESTFS1/$TESTFS2/$TESTFS3
+log_must zfs create -p $TESTPOOL/$TESTFS1/$TESTFS2/$TESTFS3
 
 # verify dataset creation
 for ds in $datasets; do
@@ -58,13 +58,13 @@ for ds in $datasets; do
 done
 
 # create recursive nestedd snapshot
-log_must $ZFS snapshot -r $TESTPOOL/$TESTFS1@snap
+log_must zfs snapshot -r $TESTPOOL/$TESTFS1@snap
 for ds in $datasets; do
 	datasetexists $ds@snap || log_fail "Create $ds@snap snapshot fail."
 done
 
 # destroy nested snapshot recursively
-log_must $ZFS destroy -R $TESTPOOL/$TESTFS1@snap
+log_must zfs destroy -R $TESTPOOL/$TESTFS1@snap
 
 # verify snapshot destroy
 for ds in $datasets; do

@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/rsend/rsend.kshlib
@@ -47,31 +47,31 @@ verify_runnable "both"
 log_assert "ZFS can handle stream with multiple identical (same GUID) snapshots"
 log_onexit cleanup_pool $POOL2
 
-log_must $ZFS create $POOL2/$FS
-log_must $ZFS snapshot $POOL2/$FS@snap
+log_must zfs create $POOL2/$FS
+log_must zfs snapshot $POOL2/$FS@snap
 
 #
 # First round restore the stream
 #
-log_must eval "$ZFS send -R $POOL2/$FS@snap > $BACKDIR/fs-R"
-log_must eval "$ZFS receive -d -F $POOL2/$FS < $BACKDIR/fs-R"
+log_must eval "zfs send -R $POOL2/$FS@snap > $BACKDIR/fs-R"
+log_must eval "zfs receive -d -F $POOL2/$FS < $BACKDIR/fs-R"
 
 #
 # In order to avoid 'zfs send -R' failed, create snapshot for
 # all the sub-systems
 #
-list=$($ZFS list -r -H -o name -t filesystem $POOL2/$FS)
+list=$(zfs list -r -H -o name -t filesystem $POOL2/$FS)
 for item in $list ; do
 	if datasetnonexists $item@snap ; then
-		log_must $ZFS snapshot $item@snap
+		log_must zfs snapshot $item@snap
 	fi
 done
 
 #
 # Second round restore the stream
 #
-log_must eval "$ZFS send -R $POOL2/$FS@snap > $BACKDIR/fs-R"
+log_must eval "zfs send -R $POOL2/$FS@snap > $BACKDIR/fs-R"
 dstds=$(get_dst_ds $POOL2/$FS $POOL2/$FS)
-log_must eval "$ZFS receive -d -F $dstds < $BACKDIR/fs-R"
+log_must eval "zfs receive -d -F $dstds < $BACKDIR/fs-R"
 
 log_pass "ZFS can handle stream with multiple identical (same GUID) snapshots"

@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -48,20 +48,20 @@ function cleanup
 {
 	destroy_pool $TESTPOOL1
 
-	log_must $RM $VDEV0 $VDEV1
-	log_must $MKFILE $FILE_SIZE $VDEV0 $VDEV1
+	log_must rm $VDEV0 $VDEV1
+	log_must mkfile $FILE_SIZE $VDEV0 $VDEV1
 }
 
 log_assert "Destroyed pools are not listed unless with -D option is specified."
 log_onexit cleanup
 
-log_must $ZPOOL create $TESTPOOL1 $VDEV0 $VDEV1
-log_must $ZPOOL destroy $TESTPOOL1
+log_must zpool create $TESTPOOL1 $VDEV0 $VDEV1
+log_must zpool destroy $TESTPOOL1
 
 #
 # 'pool:' is the keywords of 'zpool import -D' output.
 #
-log_mustnot eval "$ZPOOL import -d $DEVICE_DIR | $GREP pool:"
-log_must eval "$ZPOOL import -d $DEVICE_DIR -D | $GREP pool:"
+log_mustnot eval "zpool import -d $DEVICE_DIR | grep pool:"
+log_must eval "zpool import -d $DEVICE_DIR -D | grep pool:"
 
 log_pass "Destroyed pool only can be listed with -D option."

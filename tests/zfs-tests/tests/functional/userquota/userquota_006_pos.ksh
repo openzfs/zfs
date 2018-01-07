@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -45,7 +45,7 @@
 function cleanup
 {
 	if datasetexists $snap_fs; then
-		log_must $ZFS destroy $snap_fs
+		log_must zfs destroy $snap_fs
 	fi
 
 	log_must cleanup_quota
@@ -56,20 +56,20 @@ log_onexit cleanup
 log_assert "Check the invalid parameter of zfs get user|group quota"
 typeset snap_fs=$QFS@snap
 
-log_must $ZFS snapshot $snap_fs
+log_must zfs snapshot $snap_fs
 
 set -A no_users "mms1234" "ss@#" "root-122" "1234"
 for user in "${no_users[@]}"; do
-	log_mustnot eval "$ID $user >/dev/null 2>&1"
-	log_must eval "$ZFS get userquota@$user $QFS >/dev/null 2>&1"
-	log_must eval "$ZFS get userquota@$user $snap_fs >/dev/null 2>&1"
+	log_mustnot eval "id $user >/dev/null 2>&1"
+	log_must eval "zfs get userquota@$user $QFS >/dev/null 2>&1"
+	log_must eval "zfs get userquota@$user $snap_fs >/dev/null 2>&1"
 done
 
 set -A no_groups "aidsf@dfsd@" "123223-dsfds#sdfsd" "mss_#ss" "1234"
 for group in "${no_groups[@]}"; do
-	log_mustnot eval "$GROUPDEL $group > /dev/null 2>&1"
-	log_must eval "$ZFS get groupquota@$group $QFS >/dev/null 2>&1"
-	log_must eval "$ZFS get groupquota@$group $snap_fs >/dev/null 2>&1"
+	log_mustnot eval "groupdel $group > /dev/null 2>&1"
+	log_must eval "zfs get groupquota@$group $QFS >/dev/null 2>&1"
+	log_must eval "zfs get groupquota@$group $snap_fs >/dev/null 2>&1"
 done
 
 log_pass "Check the invalid parameter of zfs get user|group quota pass as expect"

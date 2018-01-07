@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 # Copyright 2016 Nexenta Systems, Inc.
 #
 
@@ -44,6 +44,10 @@
 
 verify_runnable "global"
 
+if is_32bit; then
+	log_unsupported "Test case fails on 32-bit systems"
+fi
+
 if ! is_physical_device $DISKS; then
 	log_unsupported "This test case cannot be run on raw files"
 fi
@@ -51,7 +55,7 @@ fi
 function cleanup
 {
 	datasetexists $TESTPOOL && log_must destroy_pool $TESTPOOL
-	[[ -d $TESTDIR ]] && log_must $RM -rf $TESTDIR
+	[[ -d $TESTDIR ]] && log_must rm -rf $TESTDIR
 }
 
 log_assert "mirror/raidz pool may be increased in capacity by adding a disk"
@@ -80,12 +84,12 @@ for pooltype in "mirror" "raidz"; do
 			${DISK1}${SLICE_PREFIX}${SLICE0}
 	fi
 
-	[[ -d $TESTDIR ]] && log_must $RM -rf $TESTDIR
-	log_must $ZFS create $TESTPOOL/$TESTFS
-	log_must $ZFS set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
+	[[ -d $TESTDIR ]] && log_must rm -rf $TESTDIR
+	log_must zfs create $TESTPOOL/$TESTFS
+	log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 
-	log_must $ZFS set compression=off $TESTPOOL/$TESTFS
-	$FILE_WRITE -o create -f $TESTDIR/$TESTFILE1 \
+	log_must zfs set compression=off $TESTPOOL/$TESTFS
+	file_write -o create -f $TESTDIR/$TESTFILE1 \
             -b $BLOCK_SIZE -c $WRITE_COUNT -d 0
 
 	[[ $? -ne $ENOSPC ]] && \
@@ -96,16 +100,18 @@ for pooltype in "mirror" "raidz"; do
 
 	# $DISK will be set if we're using slices on one disk
 	if [[ -n $DISK ]]; then
-		log_must $ZPOOL add $TESTPOOL $pooltype ${DISK}s3 ${DISK}s4
+		log_must zpool add $TESTPOOL $pooltype \
+		    ${DISK}${SLICE_PREFIX}${SLICE3} \
+		    ${DISK}${SLICE_PREFIX}${SLICE4}
 	else
 		[[ -z $DISK2 || -z $DISK3 ]] && 
 		    log_unsupported "No spare disks available"
-		log_must $ZPOOL add $TESTPOOL $pooltype \
+		log_must zpool add $TESTPOOL $pooltype \
 			${DISK2}${SLICE_PREFIX}${SLICE0} \
 			${DISK3}${SLICE_PREFIX}${SLICE0}
 	fi
 
-	log_must $FILE_WRITE -o append -f $TESTDIR/$TESTFILE1 \
+	log_must file_write -o append -f $TESTDIR/$TESTFILE1 \
 	    -b $BLOCK_SIZE -c $SMALL_WRITE_COUNT -d 0
 
 	log_must destroy_pool $TESTPOOL

@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -44,6 +44,11 @@
 #
 
 verify_runnable "both"
+
+# See issue: https://github.com/zfsonlinux/zfs/issues/6136
+if is_linux; then
+	log_unsupported "Test case occasionally fails"
+fi
 
 log_assert "Ensure multiple threads performing write appends to the same" \
 	"ZFS file succeed"
@@ -67,14 +72,14 @@ fi
 # zfs_threadsappend tries to append to $TESTFILE using threads
 # so that the resulting file is $FILE_SIZE bytes in size
 #
-log_must $THREADSAPPEND ${TESTDIR}/${TESTFILE}
+log_must threadsappend ${TESTDIR}/${TESTFILE}
 
 #
 # Check the size of the resulting file
 #
-SIZE=`$LS -l ${TESTDIR}/${TESTFILE} | $AWK '{print $5}'`
+SIZE=`ls -l ${TESTDIR}/${TESTFILE} | awk '{print $5}'`
 if [[ $SIZE -ne $FILE_SIZE ]]; then
-	log_fail "'The length of ${TESTDIR}/${TESTFILE}' doesnt equal 1310720."
+	log_fail "'The length of ${TESTDIR}/${TESTFILE}' doesn't equal 1310720."
 fi
 
 log_pass "Multiple thread appends succeeded. File size as expected"

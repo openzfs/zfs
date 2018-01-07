@@ -39,7 +39,7 @@ chkroot() {
 		if [ "$2" = "/" ]; then
 			return 0
 		fi
-	done < /etc/mtab
+	done < /proc/self/mounts
 
 	return 1
 }
@@ -73,7 +73,7 @@ do_mount()
 	zfs_action "Mounting ZFS filesystem(s)" \
 	    "$ZFS" mount -a$verbose$overlay "$MOUNT_EXTRA_OPTIONS"
 
-	# Require each volume/filesytem to have 'noauto' and no fsck
+	# Require each volume/filesystem to have 'noauto' and no fsck
 	# option. This shouldn't really be necessary, as long as one
 	# can get zfs-import to run sufficiently early on in the boot
 	# process - before local mounts. This is just here in case/if
@@ -178,7 +178,7 @@ do_start()
 
 	check_module_loaded "zfs" || exit 0
 
-	# Ensure / exists in /etc/mtab, if not update mtab accordingly.
+	# Ensure / exists in /proc/self/mounts.
 	# This should be handled by rc.sysinit but lets be paranoid.
 	if ! chkroot
 	then

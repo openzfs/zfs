@@ -64,7 +64,7 @@ main(int argc, char **argv)
 	offset_t	llseek_ret = 0;
 	int		write_ret = 0;
 	int		err = 0;
-	char		mybuf[5];
+	char		mybuf[5] = "aaaa\0";
 	char		*testfile;
 	mode_t		mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
 
@@ -78,41 +78,42 @@ main(int argc, char **argv)
 
 	fd = open(testfile, O_CREAT | O_RDWR, mode);
 	if (fd < 0) {
-		perror("Failed to create testfile");
 		err = errno;
-		goto out;
+		perror("Failed to create testfile");
+		free(testfile);
+		return (err);
 	}
 
 	llseek_ret = lseek64(fd, offset, SEEK_SET);
 	if (llseek_ret < 0) {
-		perror("Failed to seek to end of testfile");
 		err = errno;
+		perror("Failed to seek to end of testfile");
 		goto out;
 	}
 
 	write_ret = write(fd, mybuf, 1);
 	if (write_ret < 0) {
-		perror("Failed to write to end of file");
 		err = errno;
+		perror("Failed to write to end of file");
 		goto out;
 	}
 
 	offset = 0;
 	llseek_ret = lseek64(fd, offset, SEEK_CUR);
 	if (llseek_ret < 0) {
-		perror("Failed to seek to end of file");
 		err = errno;
+		perror("Failed to seek to end of file");
 		goto out;
 	}
 
 	write_ret = write(fd, mybuf, 1);
 	if (write_ret < 0) {
-		if (errno == EFBIG) {
-			(void) printf("write errno=EFBIG: success\n");
+		if (errno == EFBIG || errno == EINVAL) {
+			(void) printf("write errno=EFBIG|EINVAL: success\n");
 			err = 0;
 		} else {
-			perror("Did not receive EFBIG");
 			err = errno;
+			perror("Did not receive EFBIG");
 		}
 	} else {
 		(void) printf("write completed successfully, test failed\n");
@@ -122,6 +123,7 @@ main(int argc, char **argv)
 out:
 	(void) unlink(testfile);
 	free(testfile);
+	close(fd);
 	return (err);
 }
 

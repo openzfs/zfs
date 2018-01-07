@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -42,23 +42,23 @@ set -A cksumarray $CKSUMOPTS
 typeset -i index=0
 for dataset in $DATASETS
 do
-	log_must $ZFS create $TESTPOOL/$TESTFS/$dataset
-	$SLEEP 1
-        log_must $ZFS snapshot $TESTPOOL/$TESTFS/${dataset}@snap
+	log_must zfs create $TESTPOOL/$TESTFS/$dataset
+	sleep 1
+        log_must zfs snapshot $TESTPOOL/$TESTFS/${dataset}@snap
 
-	$SLEEP 1
+	sleep 1
 	if is_global_zone ; then
-		log_must $ZFS create -V 64M $TESTPOOL/$TESTFS/${dataset}-vol
-		$SLEEP 1
-		log_must $ZFS snapshot $TESTPOOL/$TESTFS/${dataset}-vol@snap
+		log_must zfs create -V 64M $TESTPOOL/$TESTFS/${dataset}-vol
+		sleep 1
+		log_must zfs snapshot $TESTPOOL/$TESTFS/${dataset}-vol@snap
 	fi
 
 	# sleep to ensure that the datasets have different creation dates
-	$SLEEP 1
-	log_must $ZFS set checksum=${cksumarray[$index]} \
+	sleep 1
+	log_must zfs set checksum=${cksumarray[$index]} \
 		$TESTPOOL/$TESTFS/$dataset
 	if datasetexists $TESTPOOL/$TESTFS/${dataset}-vol; then
-		log_must $ZFS set checksum=${cksumarray[$index]} \
+		log_must zfs set checksum=${cksumarray[$index]} \
 			$TESTPOOL/$TESTFS/${dataset}-vol
 	fi
 

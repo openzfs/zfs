@@ -19,14 +19,22 @@ USER_C = \
 	util.c
 
 KERNEL_C = \
+	zfeature_common.c \
 	zfs_comutil.c \
 	zfs_deleg.c \
 	zfs_fletcher.c \
+	zfs_fletcher_aarch64_neon.c \
+	zfs_fletcher_avx512.c \
+	zfs_fletcher_intel.c \
+	zfs_fletcher_sse.c \
+	zfs_fletcher_superscalar.c \
+	zfs_fletcher_superscalar4.c \
 	zfs_namecheck.c \
 	zfs_prop.c \
 	zfs_uio.c \
 	zpool_prop.c \
 	zprop_common.c \
+	abd.c \
 	arc.c \
 	blkptr.c \
 	bplist.c \
@@ -52,23 +60,29 @@ KERNEL_C = \
 	dsl_deadlist.c \
 	dsl_deleg.c \
 	dsl_dir.c \
+	dsl_crypt.c \
 	dsl_pool.c \
 	dsl_prop.c \
 	dsl_scan.c \
 	dsl_synctask.c \
 	dsl_destroy.c \
 	dsl_userhold.c \
+	edonr_zfs.c \
+	hkdf.c \
 	fm.c \
 	gzip.c \
 	lzjb.c \
 	lz4.c \
 	metaslab.c \
+	mmp.c \
 	multilist.c \
+	pathname.c \
 	range_tree.c \
 	refcount.c \
 	rrwlock.c \
 	sa.c \
 	sha256.c \
+	skein_zfs.c \
 	spa.c \
 	spa_boot.c \
 	spa_config.c \
@@ -90,22 +104,33 @@ KERNEL_C = \
 	vdev_missing.c \
 	vdev_queue.c \
 	vdev_raidz.c \
+	vdev_raidz_math.c \
+	vdev_raidz_math_scalar.c \
+	vdev_raidz_math_sse2.c \
+	vdev_raidz_math_ssse3.c \
+	vdev_raidz_math_avx2.c \
+	vdev_raidz_math_avx512f.c \
+	vdev_raidz_math_avx512bw.c \
+	vdev_raidz_math_aarch64_neon.c \
+	vdev_raidz_math_aarch64_neonx2.c \
 	vdev_root.c \
 	zap.c \
 	zap_leaf.c \
 	zap_micro.c \
 	zfeature.c \
-	zfeature_common.c \
 	zfs_byteswap.c \
 	zfs_debug.c \
 	zfs_fm.c \
 	zfs_fuid.c \
 	zfs_sa.c \
 	zfs_znode.c \
+	zfs_ratelimit.c \
+	zfs_rlock.c \
 	zil.c \
 	zio.c \
 	zio_checksum.c \
 	zio_compress.c \
+	zio_crypt.c \
 	zio_inject.c \
 	zle.c \
 	zrlock.c
@@ -115,11 +140,13 @@ nodist_libzpool_la_SOURCES = \
 	$(KERNEL_C)
 
 libzpool_la_LIBADD = \
-	$(top_builddir)/lib/libunicode/libunicode.la \
-	$(top_builddir)/lib/libuutil/libuutil.la \
-	$(top_builddir)/lib/libnvpair/libnvpair.la
+	$(top_builddir)/lib/libavl/libavl.la \
+	$(top_builddir)/lib/libicp/libicp.la \
+	$(top_builddir)/lib/libnvpair/libnvpair.la \
+	$(top_builddir)/lib/libspl/libspl.la \
+	$(top_builddir)/lib/libunicode/libunicode.la
 
-libzpool_la_LIBADD += $(ZLIB)
-libzpool_la_LDFLAGS = -version-info 2:0:0
+libzpool_la_LIBADD += $(ZLIB) -ldl
+libzpool_la_LDFLAGS = -pthread -version-info 2:0:0
 
 EXTRA_DIST = $(USER_C)

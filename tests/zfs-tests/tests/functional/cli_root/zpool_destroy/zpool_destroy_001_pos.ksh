@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -45,11 +45,16 @@
 
 verify_runnable "global"
 
+# https://github.com/zfsonlinux/zfs/issues/6145
+if is_linux; then
+	log_unsupported "Test case occasionally fails"
+fi
+
 function cleanup
 {
 	poolexists $TESTPOOL2 && destroy_pool $TESTPOOL2
 	datasetexists $TESTPOOL1/$TESTVOL && \
-		log_must $ZFS destroy -f $TESTPOOL1/$TESTVOL
+		log_must zfs destroy -f $TESTPOOL1/$TESTVOL
 
 	typeset pool
 	for pool in $TESTPOOL1 $TESTPOOL; do
@@ -73,13 +78,14 @@ partition_disk $SLICE_SIZE $DISK 2
 
 create_pool "$TESTPOOL" "${DISK}${SLICE_PREFIX}${SLICE0}"
 create_pool "$TESTPOOL1" "${DISK}${SLICE_PREFIX}${SLICE1}"
-log_must $ZFS create -s -V $VOLSIZE $TESTPOOL1/$TESTVOL
+log_must zfs create -s -V $VOLSIZE $TESTPOOL1/$TESTVOL
+block_device_wait
 create_pool "$TESTPOOL2" "${ZVOL_DEVDIR}/$TESTPOOL1/$TESTVOL"
 
 typeset -i i=0
 while (( i < ${#datasets[*]} )); do
 	log_must poolexists "${datasets[i]}"
-	log_must $ZPOOL destroy "${datasets[i]}"
+	log_must zpool destroy "${datasets[i]}"
 	log_mustnot poolexists "${datasets[i]}"
 	((i = i + 1))
 done

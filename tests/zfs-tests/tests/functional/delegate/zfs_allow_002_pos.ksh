@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/delegate/delegate_common.kshlib
@@ -48,7 +48,7 @@ verify_runnable "both"
 
 function cleanup
 {
-	if $ID $STAFF_GROUP > /dev/null 2>&1; then
+	if id $STAFF_GROUP > /dev/null 2>&1; then
 		log_must del_user $STAFF_GROUP
 	fi
 
@@ -61,9 +61,9 @@ log_onexit cleanup
 eval set -A dataset $DATASETS
 typeset perms="snapshot,reservation,compression,checksum,send,userprop"
 
-log_must $USERADD $STAFF_GROUP
+log_must add_user $STAFF_GROUP $STAFF_GROUP
 for dtst in $DATASETS ; do
-	log_must $ZFS allow $STAFF_GROUP $perms $dtst
+	log_must zfs allow $STAFF_GROUP $perms $dtst
 	log_must verify_perm $dtst $perms $STAFF_GROUP
 	log_must verify_noperm $dtst $perms $STAFF1 $STAFF2
 done
@@ -72,7 +72,7 @@ log_must restore_root_datasets
 
 log_must del_user $STAFF_GROUP
 for dtst in $datasets ; do
-	log_must $ZFS allow $STAFF_GROUP $perms $dtst
+	log_must zfs allow $STAFF_GROUP $perms $dtst
 	log_must verify_perm $dtst $perms $STAFF1 $STAFF2
 done
 

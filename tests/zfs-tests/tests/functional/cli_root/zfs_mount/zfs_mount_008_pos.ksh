@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/tests/functional/cli_root/zfs_mount/zfs_mount.kshlib
 
 #
@@ -41,14 +45,14 @@
 
 function cleanup
 {
-	! ismounted $fs && log_must $ZFS mount $fs
+	! ismounted $fs && log_must zfs mount $fs
 
 	if datasetexists $fs1; then
-		log_must $ZFS destroy $fs1
+		log_must zfs destroy $fs1
 	fi
 
 	if [[ -f $testfile ]]; then
-		log_must $RM -f $testfile
+		log_must rm -f $testfile
 	fi
 }
 
@@ -61,32 +65,32 @@ cleanup
 
 # Get the original mountpoint of $fs and $fs1
 mntpnt=$(get_prop mountpoint $fs)
-log_must $ZFS create $fs1
+log_must zfs create $fs1
 mntpnt1=$(get_prop mountpoint $fs1)
 
 testfile=$mntpnt/$TESTFILE0; testfile1=$mntpnt1/$TESTFILE1
-log_must $MKFILE 1M $testfile $testfile1
+log_must mkfile 1M $testfile $testfile1
 
-log_must $ZFS unmount $fs1
-log_must $ZFS set mountpoint=$mntpnt $fs1
-log_mustnot $ZFS mount $fs1
-log_must $ZFS mount -O $fs1
+log_must zfs unmount $fs1
+log_must zfs set mountpoint=$mntpnt $fs1
+log_mustnot zfs mount $fs1
+log_must zfs mount -O $fs1
 
 # Create new file in override mountpoint
-log_must $MKFILE 1M $mntpnt/$TESTFILE2
+log_must mkfile 1M $mntpnt/$TESTFILE2
 
 # Verify the underlying file system inaccessible
-log_mustnot $LS $testfile
-log_must $LS $mntpnt/$TESTFILE1 $mntpnt/$TESTFILE2
+log_mustnot ls $testfile
+log_must ls $mntpnt/$TESTFILE1 $mntpnt/$TESTFILE2
 
 # Verify $TESTFILE2 was created in $fs1, rather then $fs
-log_must $ZFS unmount $fs1
-log_must $ZFS set mountpoint=$mntpnt1 $fs1
-log_must $ZFS mount $fs1
-log_must $LS $testfile1 $mntpnt1/$TESTFILE2
+log_must zfs unmount $fs1
+log_must zfs set mountpoint=$mntpnt1 $fs1
+log_must zfs mount $fs1
+log_must ls $testfile1 $mntpnt1/$TESTFILE2
 
-# Verify $TESTFILE2 was not created in $fs, and $fs is accessable again.
-log_mustnot $LS $mntpnt/$TESTFILE2
-log_must $LS $testfile
+# Verify $TESTFILE2 was not created in $fs, and $fs is accessible again.
+log_mustnot ls $mntpnt/$TESTFILE2
+log_must ls $testfile
 
 log_pass "Verify 'zfs mount -O' override mount point passed."

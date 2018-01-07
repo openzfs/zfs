@@ -31,27 +31,55 @@
 
 #include <linux/blkdev.h>
 #include <linux/elevator.h>
+#include <linux/backing-dev.h>
 
 #ifndef HAVE_FMODE_T
 typedef unsigned __bitwise__ fmode_t;
 #endif /* HAVE_FMODE_T */
 
 /*
- * 2.6.36 API change,
+ * 4.7 - 4.x API,
+ * The blk_queue_write_cache() interface has replaced blk_queue_flush()
+ * interface.  However, the new interface is GPL-only thus we implement
+ * our own trivial wrapper when the GPL-only version is detected.
+ *
+ * 2.6.36 - 4.6 API,
  * The blk_queue_flush() interface has replaced blk_queue_ordered()
  * interface.  However, while the old interface was available to all the
  * new one is GPL-only.   Thus if the GPL-only version is detected we
- * implement our own trivial helper compatibility funcion.   The hope is
- * that long term this function will be opened up.
+ * implement our own trivial helper.
+ *
+ * 2.6.x - 2.6.35
+ * Legacy blk_queue_ordered() interface.
  */
-#if defined(HAVE_BLK_QUEUE_FLUSH) && defined(HAVE_BLK_QUEUE_FLUSH_GPL_ONLY)
-#define	blk_queue_flush __blk_queue_flush
 static inline void
-__blk_queue_flush(struct request_queue *q, unsigned int flags)
+blk_queue_set_write_cache(struct request_queue *q, bool wc, bool fua)
 {
-	q->flush_flags = flags & (REQ_FLUSH | REQ_FUA);
+#if defined(HAVE_BLK_QUEUE_WRITE_CACHE_GPL_ONLY)
+	spin_lock_irq(q->queue_lock);
+	if (wc)
+		queue_flag_set(QUEUE_FLAG_WC, q);
+	else
+		queue_flag_clear(QUEUE_FLAG_WC, q);
+	if (fua)
+		queue_flag_set(QUEUE_FLAG_FUA, q);
+	else
+		queue_flag_clear(QUEUE_FLAG_FUA, q);
+	spin_unlock_irq(q->queue_lock);
+#elif defined(HAVE_BLK_QUEUE_WRITE_CACHE)
+	blk_queue_write_cache(q, wc, fua);
+#elif defined(HAVE_BLK_QUEUE_FLUSH_GPL_ONLY)
+	if (wc)
+		q->flush_flags |= REQ_FLUSH;
+	if (fua)
+		q->flush_flags |= REQ_FUA;
+#elif defined(HAVE_BLK_QUEUE_FLUSH)
+	blk_queue_flush(q, (wc ? REQ_FLUSH : 0) | (fua ? REQ_FUA : 0));
+#else
+	blk_queue_ordered(q, QUEUE_ORDERED_DRAIN, NULL);
+#endif
 }
-#endif /* HAVE_BLK_QUEUE_FLUSH && HAVE_BLK_QUEUE_FLUSH_GPL_ONLY */
+
 /*
  * Most of the blk_* macros were removed in 2.6.36.  Ostensibly this was
  * done to improve readability and allow easier grepping.  However, from
@@ -100,6 +128,16 @@ __blk_queue_max_segments(struct request_queue *q, unsigned short max_segments)
 	blk_queue_max_hw_segments(q, max_segments);
 }
 #endif
+
+static inline void
+blk_queue_set_read_ahead(struct request_queue *q, unsigned long ra_pages)
+{
+#ifdef HAVE_BLK_QUEUE_BDI_DYNAMIC
+	q->backing_dev_info->ra_pages = ra_pages;
+#else
+	q->backing_dev_info.ra_pages = ra_pages;
+#endif
+}
 
 #ifndef HAVE_GET_DISK_RO
 static inline int
@@ -183,14 +221,104 @@ bio_set_flags_failfast(struct block_device *bdev, int *flags)
 #define	DISK_NAME_LEN	32
 #endif /* DISK_NAME_LEN */
 
+#ifdef HAVE_BIO_BI_STATUS
+static inline int
+bi_status_to_errno(blk_status_t status)
+{
+	switch (status)	{
+	case BLK_STS_OK:
+		return (0);
+	case BLK_STS_NOTSUPP:
+		return (EOPNOTSUPP);
+	case BLK_STS_TIMEOUT:
+		return (ETIMEDOUT);
+	case BLK_STS_NOSPC:
+		return (ENOSPC);
+	case BLK_STS_TRANSPORT:
+		return (ENOLINK);
+	case BLK_STS_TARGET:
+		return (EREMOTEIO);
+	case BLK_STS_NEXUS:
+		return (EBADE);
+	case BLK_STS_MEDIUM:
+		return (ENODATA);
+	case BLK_STS_PROTECTION:
+		return (EILSEQ);
+	case BLK_STS_RESOURCE:
+		return (ENOMEM);
+	case BLK_STS_AGAIN:
+		return (EAGAIN);
+	case BLK_STS_IOERR:
+		return (EIO);
+	default:
+		return (EIO);
+	}
+}
+
+static inline blk_status_t
+errno_to_bi_status(int error)
+{
+	switch (error) {
+	case 0:
+		return (BLK_STS_OK);
+	case EOPNOTSUPP:
+		return (BLK_STS_NOTSUPP);
+	case ETIMEDOUT:
+		return (BLK_STS_TIMEOUT);
+	case ENOSPC:
+		return (BLK_STS_NOSPC);
+	case ENOLINK:
+		return (BLK_STS_TRANSPORT);
+	case EREMOTEIO:
+		return (BLK_STS_TARGET);
+	case EBADE:
+		return (BLK_STS_NEXUS);
+	case ENODATA:
+		return (BLK_STS_MEDIUM);
+	case EILSEQ:
+		return (BLK_STS_PROTECTION);
+	case ENOMEM:
+		return (BLK_STS_RESOURCE);
+	case EAGAIN:
+		return (BLK_STS_AGAIN);
+	case EIO:
+		return (BLK_STS_IOERR);
+	default:
+		return (BLK_STS_IOERR);
+	}
+}
+#endif /* HAVE_BIO_BI_STATUS */
+
 /*
  * 4.3 API change
  * The bio_endio() prototype changed slightly.  These are helper
  * macro's to ensure the prototype and invocation are handled.
  */
 #ifdef HAVE_1ARG_BIO_END_IO_T
+#ifdef HAVE_BIO_BI_STATUS
+#define	BIO_END_IO_ERROR(bio)		bi_status_to_errno(bio->bi_status)
 #define	BIO_END_IO_PROTO(fn, x, z)	static void fn(struct bio *x)
-#define	BIO_END_IO(bio, error)		bio->bi_error = error; bio_endio(bio);
+#define	BIO_END_IO(bio, error)		bio_set_bi_status(bio, error)
+static inline void
+bio_set_bi_status(struct bio *bio, int error)
+{
+	ASSERT3S(error, <=, 0);
+	bio->bi_status = errno_to_bi_status(-error);
+	bio_endio(bio);
+}
+#else
+#define	BIO_END_IO_ERROR(bio)		(-(bio->bi_error))
+#define	BIO_END_IO_PROTO(fn, x, z)	static void fn(struct bio *x)
+#define	BIO_END_IO(bio, error)		bio_set_bi_error(bio, error)
+static inline void
+bio_set_bi_error(struct bio *bio, int error)
+{
+	ASSERT3S(error, <=, 0);
+	bio->bi_error = error;
+	bio_endio(bio);
+}
+#endif /* HAVE_BIO_BI_STATUS */
+
 #else
 #define	BIO_END_IO_PROTO(fn, x, z)	static void fn(struct bio *x, int z)
 #define	BIO_END_IO(bio, error)		bio_endio(bio, error);
@@ -236,12 +364,21 @@ bio_set_flags_failfast(struct block_device *bdev, int *flags)
 
 /*
  * 2.6.27 API change
- * The function was exported for use, prior to this it existed by the
+ * The function was exported for use, prior to this it existed but the
  * symbol was not exported.
+ *
+ * 4.4.0-6.21 API change for Ubuntu
+ * lookup_bdev() gained a second argument, FMODE_*, to check inode permissions.
  */
-#ifndef HAVE_LOOKUP_BDEV
-#define	lookup_bdev(path)		ERR_PTR(-ENOTSUP)
-#endif
+#ifdef HAVE_1ARG_LOOKUP_BDEV
+#define	vdev_lookup_bdev(path)	lookup_bdev(path)
+#else
+#ifdef HAVE_2ARGS_LOOKUP_BDEV
+#define	vdev_lookup_bdev(path)	lookup_bdev(path, 0)
+#else
+#define	vdev_lookup_bdev(path)	ERR_PTR(-ENOTSUP)
+#endif /* HAVE_2ARGS_LOOKUP_BDEV */
+#endif /* HAVE_1ARG_LOOKUP_BDEV */
 
 /*
  * 2.6.30 API change
@@ -267,48 +404,167 @@ bio_set_flags_failfast(struct block_device *bdev, int *flags)
 #endif /* HAVE_BDEV_LOGICAL_BLOCK_SIZE */
 #endif /* HAVE_BDEV_PHYSICAL_BLOCK_SIZE */
 
+#ifndef HAVE_BIO_SET_OP_ATTRS
 /*
- * 2.6.37 API change
- * The WRITE_FLUSH, WRITE_FUA, and WRITE_FLUSH_FUA flags have been
- * introduced as a replacement for WRITE_BARRIER.  This was done to
- * allow richer semantics to be expressed to the block layer.  It is
- * the block layers responsibility to choose the correct way to
- * implement these semantics.
- *
- * The existence of these flags implies that REQ_FLUSH an REQ_FUA are
- * defined.  Thus we can safely define VDEV_REQ_FLUSH and VDEV_REQ_FUA
- * compatibility macros.
+ * Kernels without bio_set_op_attrs use bi_rw for the bio flags.
  */
-#ifdef WRITE_FLUSH_FUA
-#define	VDEV_WRITE_FLUSH_FUA		WRITE_FLUSH_FUA
-#define	VDEV_REQ_FLUSH			REQ_FLUSH
-#define	VDEV_REQ_FUA			REQ_FUA
-#else
-#define	VDEV_WRITE_FLUSH_FUA		WRITE_BARRIER
-#ifdef HAVE_BIO_RW_BARRIER
-#define	VDEV_REQ_FLUSH			(1 << BIO_RW_BARRIER)
-#define	VDEV_REQ_FUA			(1 << BIO_RW_BARRIER)
-#else
-#define	VDEV_REQ_FLUSH			REQ_HARDBARRIER
-#define	VDEV_REQ_FUA			REQ_FUA
-#endif
+static inline void
+bio_set_op_attrs(struct bio *bio, unsigned rw, unsigned flags)
+{
+	bio->bi_rw |= rw | flags;
+}
 #endif
 
 /*
- * 2.6.32 API change
- * Use the normal I/O patch for discards.
+ * bio_set_flush - Set the appropriate flags in a bio to guarantee
+ * data are on non-volatile media on completion.
+ *
+ * 2.6.X - 2.6.36 API,
+ *   WRITE_BARRIER - Tells the block layer to commit all previously submitted
+ *   writes to stable storage before this one is started and that the current
+ *   write is on stable storage upon completion.  Also prevents reordering
+ *   on both sides of the current operation.
+ *
+ * 2.6.37 - 4.8 API,
+ *   Introduce  WRITE_FLUSH, WRITE_FUA, and WRITE_FLUSH_FUA flags as a
+ *   replacement for WRITE_BARRIER to allow expressing richer semantics
+ *   to the block layer.  It's up to the block layer to implement the
+ *   semantics correctly. Use the WRITE_FLUSH_FUA flag combination.
+ *
+ * 4.8 - 4.9 API,
+ *   REQ_FLUSH was renamed to REQ_PREFLUSH.  For consistency with previous
+ *   ZoL releases, prefer the WRITE_FLUSH_FUA flag set if it's available.
+ *
+ * 4.10 API,
+ *   The read/write flags and their modifiers, including WRITE_FLUSH,
+ *   WRITE_FUA and WRITE_FLUSH_FUA were removed from fs.h in
+ *   torvalds/linux@70fd7614 and replaced by direct flag modification
+ *   of the REQ_ flags in bio->bi_opf.  Use REQ_PREFLUSH.
  */
-#ifdef QUEUE_FLAG_DISCARD
-#ifdef HAVE_BIO_RW_DISCARD
-#define	VDEV_REQ_DISCARD		(1 << BIO_RW_DISCARD)
+static inline void
+bio_set_flush(struct bio *bio)
+{
+#if defined(REQ_PREFLUSH)	/* >= 4.10 */
+	bio_set_op_attrs(bio, 0, REQ_PREFLUSH);
+#elif defined(WRITE_FLUSH_FUA)	/* >= 2.6.37 and <= 4.9 */
+	bio_set_op_attrs(bio, 0, WRITE_FLUSH_FUA);
+#elif defined(WRITE_BARRIER)	/* < 2.6.37 */
+	bio_set_op_attrs(bio, 0, WRITE_BARRIER);
 #else
-#define	VDEV_REQ_DISCARD		REQ_DISCARD
+#error	"Allowing the build will cause bio_set_flush requests to be ignored."
 #endif
+}
+
+/*
+ * 4.8 - 4.x API,
+ *   REQ_OP_FLUSH
+ *
+ * 4.8-rc0 - 4.8-rc1,
+ *   REQ_PREFLUSH
+ *
+ * 2.6.36 - 4.7 API,
+ *   REQ_FLUSH
+ *
+ * 2.6.x - 2.6.35 API,
+ *   HAVE_BIO_RW_BARRIER
+ *
+ * Used to determine if a cache flush has been requested.  This check has
+ * been left intentionally broad in order to cover both a legacy flush
+ * and the new preflush behavior introduced in Linux 4.8.  This is correct
+ * in all cases but may have a performance impact for some kernels.  It
+ * has the advantage of minimizing kernel specific changes in the zvol code.
+ *
+ */
+static inline boolean_t
+bio_is_flush(struct bio *bio)
+{
+#if defined(HAVE_REQ_OP_FLUSH) && defined(HAVE_BIO_BI_OPF)
+	return ((bio_op(bio) == REQ_OP_FLUSH) || (bio->bi_opf & REQ_PREFLUSH));
+#elif defined(REQ_PREFLUSH) && defined(HAVE_BIO_BI_OPF)
+	return (bio->bi_opf & REQ_PREFLUSH);
+#elif defined(REQ_PREFLUSH) && !defined(HAVE_BIO_BI_OPF)
+	return (bio->bi_rw & REQ_PREFLUSH);
+#elif defined(REQ_FLUSH)
+	return (bio->bi_rw & REQ_FLUSH);
+#elif defined(HAVE_BIO_RW_BARRIER)
+	return (bio->bi_rw & (1 << BIO_RW_BARRIER));
 #else
-#error	"Allowing the build will cause discard requests to become writes "
-	"potentially triggering the DMU_MAX_ACCESS assertion. Please file a "
-	"an issue report at: https://github.com/zfsonlinux/zfs/issues/new"
+#error	"Allowing the build will cause flush requests to be ignored."
 #endif
+}
+
+/*
+ * 4.8 - 4.x API,
+ *   REQ_FUA flag moved to bio->bi_opf
+ *
+ * 2.6.x - 4.7 API,
+ *   REQ_FUA
+ */
+static inline boolean_t
+bio_is_fua(struct bio *bio)
+{
+#if defined(HAVE_BIO_BI_OPF)
+	return (bio->bi_opf & REQ_FUA);
+#elif defined(REQ_FUA)
+	return (bio->bi_rw & REQ_FUA);
+#else
+#error	"Allowing the build will cause fua requests to be ignored."
+#endif
+}
+
+/*
+ * 4.8 - 4.x API,
+ *   REQ_OP_DISCARD
+ *
+ * 2.6.36 - 4.7 API,
+ *   REQ_DISCARD
+ *
+ * 2.6.28 - 2.6.35 API,
+ *   BIO_RW_DISCARD
+ *
+ * In all cases the normal I/O path is used for discards.  The only
+ * difference is how the kernel tags individual I/Os as discards.
+ *
+ * Note that 2.6.32 era kernels provide both BIO_RW_DISCARD and REQ_DISCARD,
+ * where BIO_RW_DISCARD is the correct interface.  Therefore, it is important
+ * that the HAVE_BIO_RW_DISCARD check occur before the REQ_DISCARD check.
+ */
+static inline boolean_t
+bio_is_discard(struct bio *bio)
+{
+#if defined(HAVE_REQ_OP_DISCARD)
+	return (bio_op(bio) == REQ_OP_DISCARD);
+#elif defined(HAVE_BIO_RW_DISCARD)
+	return (bio->bi_rw & (1 << BIO_RW_DISCARD));
+#elif defined(REQ_DISCARD)
+	return (bio->bi_rw & REQ_DISCARD);
+#else
+/* potentially triggering the DMU_MAX_ACCESS assertion.  */
+#error	"Allowing the build will cause discard requests to become writes."
+#endif
+}
+
+/*
+ * 4.8 - 4.x API,
+ *   REQ_OP_SECURE_ERASE
+ *
+ * 2.6.36 - 4.7 API,
+ *   REQ_SECURE
+ *
+ * 2.6.x - 2.6.35 API,
+ *   Unsupported by kernel
+ */
+static inline boolean_t
+bio_is_secure_erase(struct bio *bio)
+{
+#if defined(HAVE_REQ_OP_SECURE_ERASE)
+	return (bio_op(bio) == REQ_OP_SECURE_ERASE);
+#elif defined(REQ_SECURE)
+	return (bio->bi_rw & REQ_SECURE);
+#else
+	return (0);
+#endif
+}
 
 /*
  * 2.6.33 API change
@@ -342,9 +598,26 @@ blk_queue_discard_granularity(struct request_queue *q, unsigned int dg)
  */
 #define	VDEV_HOLDER			((void *)0x2401de7)
 
-#ifndef HAVE_GENERIC_IO_ACCT
-#define	generic_start_io_acct(rw, slen, part)		((void)0)
-#define	generic_end_io_acct(rw, part, start_jiffies)	((void)0)
+static inline void
+blk_generic_start_io_acct(struct request_queue *q, int rw,
+    unsigned long sectors, struct hd_struct *part)
+{
+#if defined(HAVE_GENERIC_IO_ACCT_3ARG)
+	generic_start_io_acct(rw, sectors, part);
+#elif defined(HAVE_GENERIC_IO_ACCT_4ARG)
+	generic_start_io_acct(q, rw, sectors, part);
 #endif
+}
+
+static inline void
+blk_generic_end_io_acct(struct request_queue *q, int rw,
+    struct hd_struct *part, unsigned long start_time)
+{
+#if defined(HAVE_GENERIC_IO_ACCT_3ARG)
+	generic_end_io_acct(rw, part, start_time);
+#elif defined(HAVE_GENERIC_IO_ACCT_4ARG)
+	generic_end_io_acct(q, rw, part, start_time);
+#endif
+}
 
 #endif /* _ZFS_BLKDEV_H */

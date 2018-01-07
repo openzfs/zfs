@@ -26,20 +26,20 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
 
 #
 # DESCRIPTION:
-# Verify that 'zpool iostat [interval [count]' can be executed as non-root.
+# Verify that 'zpool iostat [interval [count]]' can be executed as non-root.
 #
 # STRATEGY:
 # 1. Set the interval to 1 and count to 4.
 # 2. Sleep for 4 seconds.
 # 3. Verify that the output has 4 records.
-#
+# 4. Set interval to 0.5 and count to 1 to test floating point intervals.
 
 verify_runnable "both"
 
@@ -49,7 +49,7 @@ typeset -i stat_count=0
 function cleanup
 {
 	if [[ -f $tmpfile ]]; then
-		$RM -f $tmpfile
+		rm -f $tmpfile
 	fi
 }
 
@@ -60,12 +60,15 @@ if ! is_global_zone ; then
 	TESTPOOL=${TESTPOOL%%/*}
 fi
 
-$ZPOOL iostat $TESTPOOL 1 4 > $tmpfile 2>&1 &
+zpool iostat $TESTPOOL 1 4 > $tmpfile 2>&1 &
 sleep 4
-stat_count=$($GREP $TESTPOOL $tmpfile | $WC -l)
+stat_count=$(grep $TESTPOOL $tmpfile | wc -l)
 
 if [[ $stat_count -ne 4 ]]; then
 	log_fail "zpool iostat [pool_name] [interval] [count] failed"
 fi
+
+# Test a floating point interval value
+log_must zpool iostat -v 0.5 1
 
 log_pass "zpool iostat [pool_name ...] [interval] [count] passed"

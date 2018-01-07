@@ -24,7 +24,11 @@
 # Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
 #
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zfs_upgrade/zfs_upgrade.kshlib
 
@@ -44,9 +48,9 @@ verify_runnable "both"
 function cleanup
 {
 	if datasetexists $rootfs ; then
-		log_must $ZFS destroy -Rf $rootfs
+		log_must zfs destroy -Rf $rootfs
 	fi
-	log_must $ZFS create $rootfs
+	log_must zfs create $rootfs
 }
 
 function setup_datasets
@@ -58,9 +62,9 @@ function setup_datasets
 		typeset current_fs=$rootfs/$verfs
 		typeset current_snap=${current_fs}@snap
 		typeset current_clone=$rootfs/clone$verfs
-		log_must $ZFS create -o version=${version} ${current_fs}
-		log_must $ZFS snapshot ${current_snap}
-		log_must $ZFS clone ${current_snap} ${current_clone}
+		log_must zfs create -o version=${version} ${current_fs}
+		log_must zfs snapshot ${current_snap}
+		log_must zfs clone ${current_snap} ${current_clone}
 		datasets="$datasets ${current_fs} ${current_clone}"
 	done
 }
@@ -87,10 +91,10 @@ for newv in "" "current" $ZFS_ALL_VERSIONS; do
 		fi
 
 		if (( newv >= oldv )); then
-			log_must eval '$ZFS upgrade $opt $fs > /dev/null 2>&1'
+			log_must eval 'zfs upgrade $opt $fs > /dev/null 2>&1'
 			log_must check_fs_version $fs $newv
 		else
-			log_mustnot eval '$ZFS upgrade $opt $fs > /dev/null 2>&1'
+			log_mustnot eval 'zfs upgrade $opt $fs > /dev/null 2>&1'
 			log_must check_fs_version $fs $oldv
 		fi
 	done

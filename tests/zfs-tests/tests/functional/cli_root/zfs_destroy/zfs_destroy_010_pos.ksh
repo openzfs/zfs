@@ -21,7 +21,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -30,7 +30,7 @@
 
 ################################################################################
 #
-# When using 'zfs destroy -R' on a file system heirarchy that inclues a
+# When using 'zfs destroy -R' on a file system hierarchy that includes a
 # snapshot and a clone of that snapshot, and the snapshot has been
 # defer-destroyed, make sure that the 'zfs destroy -R' works as expected.
 # In particular make sure that libzfs is not confused by the fact that the
@@ -45,21 +45,33 @@
 #
 ################################################################################
 
+function test_clone_run
+{
+    typeset dstype=$1
+
+    ds=$(eval echo \$${dstype})
+    snap=$(eval echo \$${dstype}SNAP)
+    clone=$(eval echo \$${dstype}CLONE)
+    log_must zfs destroy -d $snap
+    log_must datasetexists $snap
+    log_must_busy zfs destroy -R $clone
+    log_mustnot datasetexists $snap
+    log_mustnot datasetexists $clone
+}
+
 log_assert "'zfs destroy -R' works on deferred destroyed snapshots"
 log_onexit cleanup_testenv
 
 setup_testenv clone
-log_must $UMOUNT -f $TESTDIR1
 
 for dstype in FS VOL; do
-    ds=$(eval echo \$${dstype})
-    snap=$(eval echo \$${dstype}SNAP)
-    clone=$(eval echo \$${dstype}CLONE)
-    log_must $ZFS destroy -d $snap
-    log_must datasetexists $snap
-    log_must $ZFS destroy -R $ds
-    log_mustnot datasetexists $snap
-    log_mustnot datasetexists $clone
+    if [[ $dstype == VOL ]]; then
+		if is_global_zone; then
+			test_clone_run $dstype
+		fi
+	else
+		test_clone_run $dstype
+	fi
 done
 
 log_pass "'zfs destroy -R' works on deferred destroyed snapshots"

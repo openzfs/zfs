@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/tests/functional/cli_root/zfs_get/zfs_get_common.kshlib
 
 #
@@ -52,7 +56,7 @@ set -A  badargs "o name,property,value,resource" "o name" \
 typeset -i i=0
 while (( i < ${#badargs[*]} ))
 do
-	log_mustnot eval "$ZFS get \"${badargs[i]}\" >/dev/null 2>&1"
+	log_mustnot eval "zfs get \"${badargs[i]}\" >/dev/null 2>&1"
 
 	(( i = i + 1 ))
 done

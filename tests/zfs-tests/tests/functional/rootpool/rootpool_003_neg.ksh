@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -47,15 +47,15 @@
 #
 
 verify_runnable "global"
-log_assert "system related filesytems can not be renamed or destroyed"
+log_assert "system related filesystems can not be renamed or destroyed"
 
 typeset rootpool=$(get_rootpool)
 typeset rootfs=$(get_rootfs)
 
-log_mustnot $ZFS rename $rootfs $rootpool/newfs
-log_mustnot $ZFS rename -f $rootfs $rootpool/newfs
+log_mustnot zfs rename $rootfs $rootpool/newfs
+log_mustnot zfs rename -f $rootfs $rootpool/newfs
 
-log_mustnot $ZFS destroy $rootfs
-log_mustnot $ZFS destroy -f $rootfs
+log_mustnot zfs destroy $rootfs
+log_mustnot zfs destroy -f $rootfs
 
 log_pass "system related filesystems can not be renamed or destroyed"

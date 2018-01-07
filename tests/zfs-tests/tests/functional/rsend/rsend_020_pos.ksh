@@ -12,7 +12,7 @@
 #
 
 #
-# Copyright (c) 2014 by Delphix. All rights reserved.
+# Copyright (c) 2014, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -28,21 +28,27 @@
 # 2. Mess up the contents of the stream state file on disk
 # 3. Try ZFS receive, which should fail with a checksum mismatch error
 # 4. ZFS send to the stream state file again using the receive_resume_token
-# 5. ZFS receieve and verify the receive completes successfully
+# 5. ZFS receive and verify the receive completes successfully
 #
 
 verify_runnable "both"
 
+# See issue: https://github.com/zfsonlinux/zfs/issues/6446
+if is_linux; then
+	log_unsupported "Test often hangs. Skipping."
+fi
+
 log_assert "Verify resumability of full ZFS send/receive with the -D " \
     "(dedup) flag"
-log_onexit cleanup_pool $POOL2
 
 sendfs=$POOL/sendfs
 recvfs=$POOL2/recvfs
 streamfs=$POOL/stream
 
-test_fs_setup $POOL $POOL2
-resume_test "$ZFS send -D -v $sendfs@a" $streamfs $recvfs
+log_onexit resume_cleanup $sendfs $streamfs
+
+test_fs_setup $sendfs $recvfs $streamfs
+resume_test "zfs send -D -v $sendfs@a" $streamfs $recvfs
 file_check $sendfs $recvfs
 
 log_pass "Verify resumability of full ZFS send/receive with the -D " \

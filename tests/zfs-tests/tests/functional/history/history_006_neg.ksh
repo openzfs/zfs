@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/history/history_common.kshlib
@@ -45,12 +45,17 @@
 
 verify_runnable "global"
 
+# See issue: https://github.com/zfsonlinux/zfs/issues/5657
+if is_linux; then
+	log_unsupported "Test case occasionally fails"
+fi
+
 function cleanup
 {
 	if datasetexists $fs ; then
-		log_must $ZFS destroy -rf $fs
+		log_must zfs destroy -rf $fs
 	fi
-	log_must $ZFS create $fs
+	log_must zfs create $fs
 }
 
 log_assert "Verify 'zfs list|get|holds|mount|unmount|share|unshare|send' " \
@@ -60,29 +65,29 @@ log_onexit cleanup
 # Create initial test environment
 fs=$TESTPOOL/$TESTFS; snap1=$fs@snap1; snap2=$fs@snap2
 if ! is_linux; then
-	log_must $ZFS set sharenfs=on $fs
+	log_must zfs set sharenfs=on $fs
 fi
-log_must $ZFS snapshot $snap1
-log_must $ZFS hold tag $snap1
-log_must $ZFS snapshot $snap2
+log_must zfs snapshot $snap1
+log_must zfs hold tag $snap1
+log_must zfs snapshot $snap2
 
 # Save initial TESTPOOL history
-log_must eval "$ZPOOL history $TESTPOOL > $OLD_HISTORY"
+log_must eval "zpool history $TESTPOOL > $OLD_HISTORY"
 
-log_must $ZFS list $fs > /dev/null
-log_must $ZFS get mountpoint $fs > /dev/null
-log_must $ZFS unmount $fs
-log_must $ZFS mount $fs
+log_must zfs list $fs > /dev/null
+log_must zfs get mountpoint $fs > /dev/null
+log_must zfs unmount $fs
+log_must zfs mount $fs
 if ! is_linux; then
-	log_must $ZFS share $fs
-	log_must $ZFS unshare $fs
+	log_must zfs share $fs
+	log_must zfs unshare $fs
 fi
-log_must $ZFS send -i $snap1 $snap2 > /dev/null
-log_must $ZFS holds $snap1
+log_must zfs send -i $snap1 $snap2 > /dev/null
+log_must zfs holds $snap1
 
-log_must eval "$ZPOOL history $TESTPOOL > $NEW_HISTORY"
-log_must $DIFF $OLD_HISTORY $NEW_HISTORY
+log_must eval "zpool history $TESTPOOL > $NEW_HISTORY"
+log_must diff $OLD_HISTORY $NEW_HISTORY
 
-log_must $ZFS release tag $snap1
+log_must zfs release tag $snap1
 
 log_pass "Verify 'zfs list|get|mount|unmount|share|unshare|send' passed."

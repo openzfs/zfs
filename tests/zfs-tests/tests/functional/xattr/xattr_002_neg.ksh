@@ -24,7 +24,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -42,15 +42,21 @@
 
 function cleanup {
 
-	log_must $RM $TESTDIR/myfile.$$
+	log_must rm $TESTDIR/myfile.$$
 
 }
+
+set -A args "on" "sa"
 
 log_assert "A read of a non-existent xattr fails"
 log_onexit cleanup
 
-# create a file
-log_must $TOUCH $TESTDIR/myfile.$$
-log_mustnot eval "$CAT $TESTDIR/myfile.$$ not-here.txt > /dev/null 2>&1"
+for arg in ${args[*]}; do
+	log_must zfs set xattr=$arg $TESTPOOL
 
-log_pass "A read of a non-existent xattr fails"
+	# create a file
+	log_must touch $TESTDIR/myfile.$$
+	log_mustnot eval "cat $TESTDIR/myfile.$$ not-here.txt > /dev/null 2>&1"
+
+	log_pass "A read of a non-existent xattr fails"
+done

@@ -1,0 +1,425 @@
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+
+#
+# Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
+# Use is subject to license terms.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+# Copyright 2016 Nexenta Systems, Inc.
+# Copyright (c) 2016, 2017 by Intel Corporation. All rights reserved.
+# Copyright (c) 2017 Lawrence Livermore National Security, LLC.
+# Copyright (c) 2017 Datto Inc.
+# Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+#
+
+#
+# Returns SCSI host number for the given disk
+#
+function get_scsi_host #disk
+{
+	typeset disk=$1
+	ls /sys/block/${disk}/device/scsi_device | cut -d : -f 1
+}
+
+#
+# Cause a scan of all scsi host adapters by default
+#
+# $1 optional host number
+#
+function scan_scsi_hosts
+{
+	typeset hostnum=${1}
+
+	if is_linux; then
+		if [[ -z $hostnum ]]; then
+			for host in /sys/class/scsi_host/host*; do
+				log_must eval "echo '- - -' > $host/scan"
+			done
+		else
+			log_must eval \
+			    "echo /sys/class/scsi_host/host$hostnum/scan" \
+			    > /dev/null
+			log_must eval \
+			    "echo '- - -' > /sys/class/scsi_host/host$hostnum/scan"
+		fi
+	fi
+}
+
+#
+# Wait for newly created block devices to have their minors created.
+#
+function block_device_wait
+{
+	if is_linux; then
+		udevadm trigger
+		udevadm settle
+	fi
+}
+
+#
+# Check if the given device is physical device
+#
+function is_physical_device #device
+{
+	typeset device=${1#$DEV_DSKDIR}
+	device=${device#$DEV_RDSKDIR}
+
+	if is_linux; then
+		[[ -b "$DEV_DSKDIR/$device" ]] && \
+		[[ -f /sys/module/loop/parameters/max_part ]]
+		return $?
+	else
+		echo $device | egrep "^c[0-F]+([td][0-F]+)+$" > /dev/null 2>&1
+		return $?
+	fi
+}
+
+#
+# Check if the given device is a real device (ie SCSI device)
+#
+function is_real_device #disk
+{
+	typeset disk=$1
+	[[ -z $disk ]] && log_fail "No argument for disk given."
+
+	if is_linux; then
+		lsblk $DEV_RDSKDIR/$disk -o TYPE 2>/dev/null | \
+		    egrep disk >/dev/null
+		return $?
+	fi
+}
+
+#
+# Check if the given device is a loop device
+#
+function is_loop_device #disk
+{
+	typeset disk=$1
+	[[ -z $disk ]] && log_fail "No argument for disk given."
+
+	if is_linux; then
+		lsblk $DEV_RDSKDIR/$disk -o TYPE 2>/dev/null | \
+		    egrep loop >/dev/null
+		return $?
+	fi
+}
+
+#
+# Check if the given device is a multipath device and if there is a sybolic
+# link to a device mapper and to a disk
+# Currently no support for dm devices alone without multipath
+#
+function is_mpath_device #disk
+{
+	typeset disk=$1
+	[[ -z $disk ]] && log_fail "No argument for disk given."
+
+	if is_linux; then
+		lsblk $DEV_MPATHDIR/$disk -o TYPE 2>/dev/null | \
+		   egrep mpath >/dev/null
+		if (($? == 0)); then
+			readlink $DEV_MPATHDIR/$disk > /dev/null 2>&1
+			return $?
+		else
+			return $?
+		fi
+	fi
+}
+
+# Set the slice prefix for disk partitioning depending
+# on whether the device is a real, multipath, or loop device.
+# Currently all disks have to be of the same type, so only
+# checks first disk to determine slice prefix.
+#
+function set_slice_prefix
+{
+	typeset disk
+	typeset -i i=0
+
+	if is_linux; then
+		while (( i < $DISK_ARRAY_NUM )); do
+			disk="$(echo $DISKS | nawk '{print $(i + 1)}')"
+			if ( is_mpath_device $disk ) && [[ -z $(echo $disk | awk 'substr($1,18,1)\
+			     ~ /^[[:digit:]]+$/') ]] || ( is_real_device $disk ); then
+				export SLICE_PREFIX=""
+				return 0
+			elif ( is_mpath_device $disk || is_loop_device \
+			    $disk ); then
+				export SLICE_PREFIX="p"
+				return 0
+			else
+				log_fail "$disk not supported for partitioning."
+			fi
+			(( i = i + 1))
+		done
+	fi
+}
+
+#
+# Set the directory path of the listed devices in $DISK_ARRAY_NUM
+# Currently all disks have to be of the same type, so only
+# checks first disk to determine device directory
+# default = /dev (linux)
+# real disk = /dev (linux)
+# multipath device = /dev/mapper (linux)
+#
+function set_device_dir
+{
+	typeset disk
+	typeset -i i=0
+
+	if is_linux; then
+		while (( i < $DISK_ARRAY_NUM )); do
+			disk="$(echo $DISKS | nawk '{print $(i + 1)}')"
+			if is_mpath_device $disk; then
+				export DEV_DSKDIR=$DEV_MPATHDIR
+				return 0
+			else
+				export DEV_DSKDIR=$DEV_RDSKDIR
+				return 0
+			fi
+			(( i = i + 1))
+		done
+	else
+		export DEV_DSKDIR=$DEV_RDSKDIR
+	fi
+}
+
+#
+# Get the directory path of given device
+#
+function get_device_dir #device
+{
+	typeset device=$1
+
+	if ! $(is_physical_device $device) ; then
+		if [[ $device != "/" ]]; then
+			device=${device%/*}
+		fi
+		if [[ -b "$DEV_DSKDIR/$device" ]]; then
+			device="$DEV_DSKDIR"
+		fi
+		echo $device
+	else
+		echo "$DEV_DSKDIR"
+	fi
+}
+
+#
+# Get persistent name for given disk
+#
+function get_persistent_disk_name #device
+{
+	typeset device=$1
+	typeset dev_id
+
+	if is_linux; then
+		if is_real_device $device; then
+			dev_id="$(udevadm info -q all -n $DEV_DSKDIR/$device \
+			    | egrep disk/by-id | nawk '{print $2; exit}' \
+			    | nawk -F / '{print $3}')"
+			echo $dev_id
+		elif is_mpath_device $device; then
+			dev_id="$(udevadm info -q all -n $DEV_DSKDIR/$device \
+			    | egrep disk/by-id/dm-uuid \
+			    | nawk '{print $2; exit}' \
+			    | nawk -F / '{print $3}')"
+			echo $dev_id
+		else
+			echo $device
+		fi
+	else
+		echo $device
+	fi
+}
+
+#
+# Online or offline a disk on the system
+#
+# First checks state of disk. Test will fail if disk is not properly onlined
+# or offlined. Online is a full rescan of SCSI disks by echoing to every
+# host entry.
+#
+function on_off_disk # disk state{online,offline} host
+{
+	typeset disk=$1
+	typeset state=$2
+	typeset host=$3
+
+	[[ -z $disk ]] || [[ -z $state ]] &&  \
+	    log_fail "Arguments invalid or missing"
+
+	if is_linux; then
+		if [[ $state == "offline" ]] && ( is_mpath_device $disk ); then
+			dm_name="$(readlink $DEV_DSKDIR/$disk \
+			    | nawk -F / '{print $2}')"
+			slave="$(ls /sys/block/${dm_name}/slaves \
+			    | nawk '{print $1}')"
+			while [[ -n $slave ]]; do
+				#check if disk is online
+				lsscsi | egrep $slave > /dev/null
+				if (($? == 0)); then
+					slave_dir="/sys/block/${dm_name}"
+					slave_dir+="/slaves/${slave}/device"
+					ss="${slave_dir}/state"
+					sd="${slave_dir}/delete"
+					log_must eval "echo 'offline' > ${ss}"
+					log_must eval "echo '1' > ${sd}"
+					lsscsi | egrep $slave > /dev/null
+						if (($? == 0)); then
+							log_fail "Offlining" \
+							    "$disk failed"
+						fi
+				fi
+				slave="$(ls /sys/block/$dm_name/slaves \
+				    2>/dev/null | nawk '{print $1}')"
+			done
+		elif [[ $state == "offline" ]] && ( is_real_device $disk ); then
+			#check if disk is online
+			lsscsi | egrep $disk > /dev/null
+			if (($? == 0)); then
+				dev_state="/sys/block/$disk/device/state"
+				dev_delete="/sys/block/$disk/device/delete"
+				log_must eval "echo 'offline' > ${dev_state}"
+				log_must eval "echo '1' > ${dev_delete}"
+				lsscsi | egrep $disk > /dev/null
+					if (($? == 0)); then
+						log_fail "Offlining $disk" \
+						    "failed"
+					fi
+			else
+				log_note "$disk is already offline"
+			fi
+		elif [[ $state == "online" ]]; then
+			#force a full rescan
+			scan_scsi_hosts $host
+			block_device_wait
+			if is_mpath_device $disk; then
+				dm_name="$(readlink $DEV_DSKDIR/$disk \
+				    | nawk -F / '{print $2}')"
+				slave="$(ls /sys/block/$dm_name/slaves \
+				    | nawk '{print $1}')"
+				lsscsi | egrep $slave > /dev/null
+				if (($? != 0)); then
+					log_fail "Onlining $disk failed"
+				fi
+			elif is_real_device $disk; then
+				typeset -i retries=0
+				while ! lsscsi | egrep -q $disk; do
+					if (( $retries > 2 )); then
+						log_fail "Onlining $disk failed"
+						break
+					fi
+					(( ++retries ))
+					sleep 1
+				done
+			else
+				log_fail "$disk is not a real dev"
+			fi
+		else
+			log_fail "$disk failed to $state"
+		fi
+	fi
+}
+
+#
+# Simulate disk removal
+#
+function remove_disk #disk
+{
+	typeset disk=$1
+	on_off_disk $disk "offline"
+	block_device_wait
+}
+
+#
+# Simulate disk insertion for the given SCSI host
+#
+function insert_disk #disk scsi_host
+{
+	typeset disk=$1
+	typeset scsi_host=$2
+	on_off_disk $disk "online" $scsi_host
+	block_device_wait
+}
+
+#
+# Load scsi_debug module with specified parameters
+# $blksz can be either one of: < 512b | 512e | 4Kn >
+#
+function load_scsi_debug # dev_size_mb add_host num_tgts max_luns blksz
+{
+	typeset devsize=$1
+	typeset hosts=$2
+	typeset tgts=$3
+	typeset luns=$4
+	typeset blksz=$5
+
+	[[ -z $devsize ]] || [[ -z $hosts ]] || [[ -z $tgts ]] || \
+	    [[ -z $luns ]] || [[ -z $blksz ]] && \
+	    log_fail "Arguments invalid or missing"
+
+	case "$5" in
+		'512b')
+			typeset sector=512
+			typeset blkexp=0
+		;;
+		'512e')
+			typeset sector=512
+			typeset blkexp=3
+		;;
+		'4Kn')
+			typeset sector=4096
+			typeset blkexp=0
+		;;
+		*) log_fail "Unsupported blksz value: $5" ;;
+	esac
+
+	if is_linux; then
+		modprobe -n scsi_debug
+		if (($? != 0)); then
+			log_unsupported "Platform does not have scsi_debug"
+			    "module"
+		fi
+		lsmod | egrep scsi_debug > /dev/null
+		if (($? == 0)); then
+			log_fail "scsi_debug module already installed"
+		else
+			log_must modprobe scsi_debug dev_size_mb=$devsize \
+			    add_host=$hosts num_tgts=$tgts max_luns=$luns \
+			    sector_size=$sector physblk_exp=$blkexp
+			block_device_wait
+			lsscsi | egrep scsi_debug > /dev/null
+			if (($? == 1)); then
+				log_fail "scsi_debug module install failed"
+			fi
+		fi
+	fi
+}
+
+#
+# Unload scsi_debug module, if needed.
+#
+function unload_scsi_debug
+{
+	if lsmod | grep scsi_debug >/dev/null; then
+		log_must modprobe -r scsi_debug
+	fi
+}
+
+#
+# Get scsi_debug device name.
+# Returns basename of scsi_debug device (for example "sdb").
+#
+function get_debug_device
+{
+	lsscsi | nawk '/scsi_debug/ {print $6; exit}' | cut -d / -f3
+}

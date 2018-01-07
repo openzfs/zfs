@@ -84,13 +84,24 @@ Conflicts:      zfs-fuse
 BuildRequires:  zlib-devel
 BuildRequires:  libuuid-devel
 BuildRequires:  libblkid-devel
+BuildRequires:  libudev-devel
+BuildRequires:  libattr-devel
+BuildRequires:  openssl-devel
+Requires:       openssl
+%if 0%{?_systemd}
+BuildRequires: systemd
 %endif
+%endif
+
 %if 0%{?_systemd}
 Requires(post): systemd
 Requires(preun): systemd
 Requires(postun): systemd
-BuildRequires: systemd
 %endif
+
+# The zpool iostat/status -c scripts call some utilities like lsblk and iostat
+Requires:  util-linux
+Requires:  sysstat
 
 %description
 This package contains the ZFS command line utilities.
@@ -172,6 +183,12 @@ Requires:       lsscsi
 Requires:       mdadm
 Requires:       bc
 Requires:       ksh
+Requires:       fio
+Requires:       acl
+Requires:       sudo
+Requires:       sysstat
+Requires:       rng-tools
+AutoReqProv:    no
 
 %description test
 This package contains test infrastructure and support scripts for
@@ -208,6 +225,7 @@ image which is ZFS aware.
 %endif
 %if 0%{?_systemd}
     %define systemd --enable-systemd --with-systemdunitdir=%{_unitdir} --with-systemdpresetdir=%{_presetdir} --disable-sysvinit
+    %define systemd_svcs zfs-import-cache.service zfs-import-scan.service zfs-mount.service zfs-share.service zfs-zed.service zfs.target zfs-import.target
 %else
     %define systemd --enable-sysvinit --disable-systemd
 %endif
@@ -232,7 +250,7 @@ find %{?buildroot}%{_libdir} -name '*.la' -exec rm -f {} \;
 
 %post
 %if 0%{?_systemd}
-%systemd_post zfs.target
+%systemd_post %{systemd_svcs}
 %else
 if [ -x /sbin/chkconfig ]; then
     /sbin/chkconfig --add zfs-import
@@ -245,9 +263,9 @@ exit 0
 
 %preun
 %if 0%{?_systemd}
-%systemd_preun zfs.target
+%systemd_preun %{systemd_svcs}
 %else
-if [ $1 -eq 0 ] && [ -x /sbin/chkconfig ]; then
+if [ "$1" = "0" ] && [ -x /sbin/chkconfig ]; then
     /sbin/chkconfig --del zfs-import
     /sbin/chkconfig --del zfs-mount
     /sbin/chkconfig --del zfs-share
@@ -258,7 +276,7 @@ exit 0
 
 %postun
 %if 0%{?_systemd}
-%systemd_postun zfs.target
+%systemd_postun %{systemd_svcs}
 %endif
 
 %files
@@ -280,6 +298,7 @@ exit 0
 %config(noreplace) %{_initconfdir}/zfs
 %endif
 %config(noreplace) %{_sysconfdir}/%{name}
+%attr(440, root, root) %config(noreplace) %{_sysconfdir}/sudoers.d/*
 
 %files -n libzpool2
 %{_libdir}/libzpool.so.*
@@ -319,14 +338,6 @@ exit 0
 %endif
 
 %changelog
-* Fri Sep 11 2015 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.5-1
-- Released 0.6.5-1, detailed release notes are available at:
-- https://github.com/zfsonlinux/zfs/releases/tag/zfs-0.6.5
-* Wed Apr  8 2015 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.4-1
-- Released 0.6.4-1
-* Thu Jun 12 2014 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.3-1
-- Released 0.6.3-1
-* Wed Aug 21 2013 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.2-1
-- Released 0.6.2-1
-* Fri Mar 22 2013 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.1-1
-- First official stable release.
+* Wed Jul 26 2017 Brian Behlendorf <behlendorf1@llnl.gov> - 0.7.0-1
+- Released 0.7.0-1, detailed release notes are available at:
+- https://github.com/zfsonlinux/zfs/releases/tag/zfs-0.7.0

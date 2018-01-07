@@ -24,6 +24,11 @@
 # Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zfs_rename/zfs_rename.kshlib
 
@@ -45,7 +50,7 @@ function my_cleanup
 	poolexists $TESTPOOL1 && \
 		destroy_pool $TESTPOOL1
 	[[ -e $TESTDIR/$TESTFILE1 ]] && \
-		log_must $RM -f $TESTDIR/$TESTFILE1
+		log_must rm -f $TESTDIR/$TESTFILE1
 	cleanup
 }
 
@@ -63,8 +68,7 @@ log_assert "'zfs rename' should fail while datasets are within different pool."
 
 additional_setup
 
-typeset FILESIZE=64m
-log_must $MKFILE $FILESIZE $TESTDIR/$TESTFILE1
+log_must mkfile $MINVDEVSIZE $TESTDIR/$TESTFILE1
 create_pool $TESTPOOL1 $TESTDIR/$TESTFILE1
 
 for src in ${src_dataset[@]} ; do
@@ -75,8 +79,8 @@ for src in ${src_dataset[@]} ; do
 	else
 		dest=${TESTPOOL1}/$dest
 	fi
-	log_mustnot $ZFS rename $src $dest
-	log_mustnot $ZFS rename -p $src $dest
+	log_mustnot zfs rename $src $dest
+	log_mustnot zfs rename -p $src $dest
 
 	#
 	# Verify original dataset name still in use

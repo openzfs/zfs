@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/cache/cache.cfg
@@ -44,11 +44,20 @@
 
 verify_runnable "global"
 
+# See issue: https://github.com/zfsonlinux/zfs/issues/6145
+if is_linux; then
+	log_unsupported "Test case occasionally fails"
+fi
+
 function cleanup_testenv
 {
 	cleanup
 	if [[ -n $lofidev ]]; then
-		log_must $LOFIADM -d $lofidev
+		if is_linux; then
+			losetup -d $lofidev
+		else
+			lofiadm -d $lofidev
+		fi
 	fi
 }
 
@@ -57,34 +66,40 @@ log_onexit cleanup_testenv
 
 TESTVOL=testvol1$$
 dsk1=${DISKS%% *}
-log_must $ZPOOL create $TESTPOOL ${DISKS#$dsk1}
-
-if is_linux; then
-	SLICE="p1"
-else
-	SLICE="s0"
-fi
+log_must zpool create $TESTPOOL ${DISKS#$dsk1}
 
 # Add nomal ${DEV_RDSKDIR} device
-log_mustnot $ZPOOL add $TESTPOOL cache ${DEV_RDSKDIR}/${dsk1}${SLICE}
-#log_must verify_cache_device $TESTPOOL $dsk1 'ONLINE'
+log_must zpool add $TESTPOOL cache \
+    ${DEV_RDSKDIR}/${dsk1}${SLICE_PREFIX}${SLICE0}
+log_must verify_cache_device $TESTPOOL $dsk1 'ONLINE'
 
-# Add nomal file
-log_mustnot $ZPOOL add $TESTPOOL cache $VDEV2
+# Add normal file
+log_mustnot zpool add $TESTPOOL cache $VDEV2
 
-# Add /dev/rlofi device
-lofidev=${VDEV2%% *}
-log_must $LOFIADM -a $lofidev
-lofidev=$($LOFIADM $lofidev)
-log_mustnot $ZPOOL add $TESTPOOL cache "/dev/rlofi/${lofidev#/dev/lofi/}"
-if [[ -n $lofidev ]]; then
-	log_must $LOFIADM -d $lofidev
+# Add /dev/rlofi device (allowed under Linux)
+if is_linux; then
+	lofidev=$(losetup -f)
+	lofidev=${lofidev##*/}
+	log_must losetup $lofidev ${VDEV2%% *}
+	log_must zpool add $TESTPOOL cache $lofidev
+	log_must zpool remove $TESTPOOL $lofidev
+	log_must losetup -d $lofidev
+	lofidev=""
+else
+	lofidev=${VDEV2%% *}
+	log_must lofiadm -a $lofidev
+	lofidev=$(lofiadm $lofidev)
+	log_mustnot zpool add $TESTPOOL cache "/dev/rlofi/${lofidev#/dev/lofi/}"
+	log_must lofiadm -d $lofidev
 	lofidev=""
 fi
 
-# Add ${ZVOL_RDEVDIR} device
-log_must $ZPOOL create $TESTPOOL2 $VDEV2
-log_must $ZFS create -V $SIZE $TESTPOOL2/$TESTVOL
-log_mustnot $ZPOOL add $TESTPOOL cache ${ZVOL_RDEVDIR}/$TESTPOOL2/$TESTVOL
+# Add /dev/zvol/rdsk device (allowed under Linux)
+if ! is_linux; then
+	log_must zpool create $TESTPOOL2 $VDEV2
+	log_must zfs create -V $SIZE $TESTPOOL2/$TESTVOL
+	log_mustnot zpool add $TESTPOOL cache \
+	    ${ZVOL_RDEVDIR}/$TESTPOOL2/$TESTVOL
+fi
 
 log_pass "Cache device can only be block devices."

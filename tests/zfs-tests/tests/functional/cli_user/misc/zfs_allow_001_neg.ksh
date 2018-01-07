@@ -26,11 +26,11 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
-. $STF_SUITE/tests/functional/cli_user/misc/misc.cfg
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_user/misc/misc.cfg
 
 #
 # DESCRIPTION:
@@ -45,20 +45,20 @@
 #
 
 # check to see if we have zfs allow
-$ZFS 2>&1 | $GREP "allow" > /dev/null
+zfs 2>&1 | grep "allow" > /dev/null
 if (($? != 0)) then
 	log_unsupported "ZFS allow not supported on this machine."
 fi
 
 log_assert "zfs allow returns an error when run as a user"
 
-log_must $ZFS allow $TESTPOOL/$TESTFS
-log_mustnot $ZFS allow $($LOGNAME) create $TESTPOOL/$TESTFS
+log_must zfs allow $TESTPOOL/$TESTFS
+log_mustnot zfs allow $(logname) create $TESTPOOL/$TESTFS
 
 # now verify that the above command actually did nothing by
 # checking for any allow output. ( if no allows are granted,
 # nothing should be output )
-OUTPUT=$($ZFS allow $TESTPOOL/$TESTFS | $GREP "Local+Descendent" )
+OUTPUT=$(zfs allow $TESTPOOL/$TESTFS | grep "Local+Descendent" )
 if [ -n "$OUTPUT" ]
 then
 	log_fail "zfs allow permissions were granted on $TESTPOOL/$TESTFS"

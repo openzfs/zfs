@@ -26,10 +26,14 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
+
+if is_32bit; then
+	log_unsupported "Test case fails on 32-bit systems"
+fi
 
 #
 # DESCRIPTION:
@@ -48,6 +52,6 @@ verify_runnable "both"
 log_assert "Write a file to the allowable ZFS fs size."
 
 log_note "Invoke 'largest_file' with $TESTDIR/bigfile"
-log_must $LARGEST_FILE $TESTDIR/bigfile
+log_must largest_file $TESTDIR/bigfile
 
 log_pass "Successfully created a file to the maximum allowable size."

@@ -27,6 +27,12 @@
 #ifndef _LIBSPL_SYS_TYPES_H
 #define	_LIBSPL_SYS_TYPES_H
 
+#if defined(HAVE_MAKEDEV_IN_SYSMACROS)
+#include <sys/sysmacros.h>
+#elif defined(HAVE_MAKEDEV_IN_MKDEV)
+#include <sys/mkdev.h>
+#endif
+
 #include <sys/isa_defs.h>
 #include <sys/feature_tests.h>
 #include_next <sys/types.h>
@@ -64,6 +70,7 @@ typedef int		major_t;
 typedef int		minor_t;
 
 typedef ushort_t o_mode_t; /* old file attribute type */
+typedef short		index_t;
 
 /*
  * Definitions remaining from previous partial support for 64-bit file

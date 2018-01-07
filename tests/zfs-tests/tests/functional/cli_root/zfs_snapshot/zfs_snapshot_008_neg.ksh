@@ -21,7 +21,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/cli_root/zfs_snapshot/zfs_snapshot.cfg
@@ -32,7 +32,7 @@
 #	are not in the same pool.
 #
 # STRATEGY:
-#	1. Create 2 separate zpools, zpool name lenghts must be the same.
+#	1. Create 2 separate zpools, zpool name lengths must be the same.
 #	2. Attempt to simultaneously create a snapshot of each pool.
 #	3. Veriy the snapshot creation failed.
 #
@@ -43,7 +43,7 @@ function cleanup
 {
 	for pool in $SNAPPOOL1 $SNAPPOOL2 ; do
 		if poolexists $pool ; then
-			log_must $ZPOOL destroy -f $pool
+			log_must zpool destroy -f $pool
 		fi
 	done
 
@@ -57,12 +57,12 @@ function cleanup
 log_assert "'zfs snapshot pool1@snap1 pool2@snap2' should fail since snapshots are in different pools."
 log_onexit cleanup
 
-log_must $MKFILE 64m $SNAPDEV1
-log_must $MKFILE 64m $SNAPDEV2
+log_must mkfile $MINVDEVSIZE $SNAPDEV1
+log_must mkfile $MINVDEVSIZE $SNAPDEV2
 
-log_must $ZPOOL create $SNAPPOOL1 $SNAPDEV1
-log_must $ZPOOL create $SNAPPOOL2 $SNAPDEV2
+log_must zpool create $SNAPPOOL1 $SNAPDEV1
+log_must zpool create $SNAPPOOL2 $SNAPDEV2
 
-log_mustnot $ZFS snapshot $SNAPPOOL1@snap1 $SNAPPOOL2@snap2
+log_mustnot zfs snapshot $SNAPPOOL1@snap1 $SNAPPOOL2@snap2
 
 log_pass "'zfs snapshot pool1@snap1 pool2@snap2' should fail since snapshots are in different pools."

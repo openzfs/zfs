@@ -1,0 +1,136 @@
+#!/bin/bash
+
+get_devtype() {
+  local typ
+  typ=$(udevadm info --query=property --name="$1" | grep "^ID_FS_TYPE=" | sed 's|^ID_FS_TYPE=||')
+  if [ "$typ" = "" ] ; then
+     typ=$(blkid -c /dev/null "$1" -o value -s TYPE)
+  fi
+  echo "$typ"
+}
+
+get_pool_devices() {
+  # also present in 99zfssystemd
+  local poolconfigtemp
+  local poolconfigoutput
+  local pooldev
+  local prefix
+  local resolved
+  poolconfigtemp=`mktemp`
+  @sbindir@/zpool list -v -H -P "$1" > "$poolconfigtemp" 2>&1
+  if [ "$?" != "0" ] ; then
+    poolconfigoutput=$(cat "$poolconfigtemp")
+    dinfo "zfsexpandknowledge: pool $1 cannot be listed: $poolconfigoutput"
+  else
+    cat "$poolconfigtemp" |  awk -F '\t' '/\t\/dev/ { print $2 }' | \
+    while read pooldev ; do
+        if [ -n "$pooldev" -a -e "$pooldev" ] ; then
+          if [ -h "$pooldev" ] ; then
+              resolved=`readlink -f "$pooldev"`
+          else
+              resolved="$pooldev"
+          fi
+          dinfo "zfsexpandknowledge: pool $1 has device $pooldev (which resolves to $resolved)"
+          echo "$resolved"
+        fi
+    done
+  fi
+  rm -f "$poolconfigtemp"
+}
+
+find_zfs_block_devices() {
+    local dev
+    local blockdev
+    local mp
+    local fstype
+    local pool
+    local key
+    local n
+    local poolconfigoutput
+    numfields=`head -1 /proc/self/mountinfo | awk '{print NF}'`
+    if [ "$numfields" == "10" ] ; then
+        fields="n n n n mp n n fstype dev n"
+    else
+        fields="n n n n mp n n n fstype dev n"
+    fi
+    while read $fields ; do
+       if [ "$fstype" != "zfs" ]; then continue ; fi
+       if [ "$mp" == "$1" ]; then
+           pool=$(echo "$dev" | cut -d / -f 1)
+           get_pool_devices "$pool"
+       fi
+    done < /proc/self/mountinfo
+}
+
+array_contains () {
+  local e
+  for e in "${@:2}"; do [[ "$e" == "$1" ]] && return 0; done
+  return 1
+}
+
+check() {
+    local mp
+    local dev
+    local blockdevs
+    local fstype
+    local majmin
+    local _slavedev
+    local _slavedevname
+    local _slavedevtype
+    local _slavemajmin
+    local _dev
+
+if [[ $hostonly ]]; then
+
+    for mp in \
+        "/" \
+        "/etc" \
+        "/bin" \
+        "/sbin" \
+        "/lib" \
+        "/lib64" \
+        "/usr" \
+        "/usr/bin" \
+        "/usr/sbin" \
+        "/usr/lib" \
+        "/usr/lib64" \
+        "/boot";
+    do
+        mp=$(readlink -f "$mp")
+        mountpoint "$mp" >/dev/null 2>&1 || continue
+        blockdevs=$(find_zfs_block_devices "$mp")
+        if [ -z "$blockdevs" ] ; then continue ; fi
+        dinfo "zfsexpandknowledge: block devices backing ZFS dataset $mp: $blockdevs"
+        for dev in $blockdevs
+        do
+            array_contains "$dev" "${host_devs[@]}" || host_devs+=("$dev")
+            fstype=$(get_devtype "$dev")
+            host_fs_types["$dev"]="$fstype"
+            majmin=$(get_maj_min "$dev")
+            if [[ -d /sys/dev/block/$majmin/slaves ]] ; then
+                for _slavedev in /sys/dev/block/$majmin/slaves/*; do
+                    [[ -f $_slavedev/dev ]] || continue
+                    _slavedev=/dev/$(basename "$_slavedev")
+                    _slavedevname=$(udevadm info --query=property --name="$_slavedev" | grep "^DEVNAME=" | sed 's|^DEVNAME=||')
+                    _slavedevtype=$(get_devtype "$_slavedevname")
+                    _slavemajmin=$(get_maj_min "$_slavedevname")
+                    dinfo "zfsexpandknowledge: slave block device backing ZFS dataset $mp: $_slavedevname"
+                    array_contains "$_slavedevname" "${host_devs[@]}" || host_devs+=("$_slavedevname")
+                    host_fs_types["$_slavedevname"]="$_slavedevtype"
+                done
+            fi
+        done
+    done
+    for a in "${host_devs[@]}"
+        do
+        dinfo "zfsexpandknowledge: host device $a"
+    done
+    for a in "${!host_fs_types[@]}"
+        do
+        dinfo "zfsexpandknowledge: device $a of type ${host_fs_types[$a]}"
+    done
+
+fi
+
+return 1
+}

@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/delegate/delegate_common.kshlib
@@ -65,34 +65,34 @@ eval set -A dataset $DATASETS
 typeset perms="snapshot,reservation,compression,checksum,send,userprop"
 
 log_note "Create a user called 'everyone'."
-if ! $ID everyone > /dev/null 2>&1; then
+if ! id everyone > /dev/null 2>&1; then
 	user_added="TRUE"
-	log_must $USERADD everyone
+	log_must add_user $STAFF_GROUP everyone
 fi
 for dtst in $DATASETS ; do
-	log_must $ZFS allow everyone $perms $dtst
+	log_must zfs allow everyone $perms $dtst
 	log_must verify_perm $dtst $perms $EVERYONE "everyone"
 done
 log_must restore_root_datasets
 if [[ $user_added == "TRUE" ]]; then
-	log_must $USERDEL everyone
+	log_must del_user everyone
 fi
 
 log_note "Created a group called 'everyone'."
-if ! $CAT /etc/group | $AWK -F: '{print $1}' | \
-	$GREP -w 'everyone' > /dev/null 2>&1
+if ! cat /etc/group | awk -F: '{print $1}' | \
+	grep -w 'everyone' > /dev/null 2>&1
 then
 	group_added="TRUE"
-	log_must $GROUPADD everyone
+	log_must groupadd everyone
 fi
 
 for dtst in $DATASETS ; do
-	log_must $ZFS allow everyone $perms $dtst
+	log_must zfs allow everyone $perms $dtst
 	log_must verify_perm $dtst $perms $EVERYONE
 done
 log_must restore_root_datasets
 if [[ $group_added == "TRUE" ]]; then
-	log_must $GROUPDEL everyone
+	log_must groupdel everyone
 fi
 
 log_pass "everyone is always interpreted as keyword passed."

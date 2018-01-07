@@ -147,6 +147,12 @@ ztest -f / -V -T 120
 
 .SH "ENVIRONMENT VARIABLES"
 .TP
+.B "ZFS_HOSTID=id"
+Use \fBid\fR instead of the SPL hostid to identify this host.  Intended for use
+with ztest, but this environment variable will affect any utility which uses
+libzpool, including \fBzpool(8)\fR.  Since the kernel is unaware of this setting
+results with utilities other than ztest are undefined.
+.TP
 .B "ZFS_STACK_SIZE=stacksize"
 Limit the default stack size to \fBstacksize\fR bytes for the purpose of
 detecting and debugging kernel stack overflows.  This value defaults to
@@ -160,6 +166,7 @@ required for a NULL procedure in user space.
 
 By default the stack size is limited to 256K.
 .SH "SEE ALSO"
+.BR "spl-module-parameters (5)" ","
 .BR "zpool (1)" ","
 .BR "zfs (1)" ","
 .BR "zdb (1)" ","

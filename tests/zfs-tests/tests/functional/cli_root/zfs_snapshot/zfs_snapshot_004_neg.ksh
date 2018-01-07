@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -41,7 +45,7 @@ verify_runnable "both"
 function cleanup
 {
 	if datasetexists $initfs ; then
-		log_must $ZFS destroy -rf $initfs
+		log_must zfs destroy -rf $initfs
 	fi
 }
 
@@ -52,12 +56,12 @@ initfs=$TESTPOOL/$TESTFS/$TESTFS
 basefs=$initfs
 typeset -i ret=0 len snaplen
 while ((ret == 0)); do
-	$ZFS create $basefs
-	$ZFS snapshot $basefs@snap1
+	zfs create $basefs
+	zfs snapshot $basefs@snap1
 	ret=$?
 
 	if ((ret != 0)); then
-		len=$($ECHO $basefs| $WC -c)
+		len=$(echo $basefs| wc -c)
 		log_note "The deeply-nested filesystem len: $len"
 
 		#
@@ -67,10 +71,10 @@ while ((ret == 0)); do
 		#
 		if ((len >= 255)); then
 			if datasetexists $basefs; then
-				log_must $ZFS destroy -r $basefs
+				log_must zfs destroy -r $basefs
 			fi
 			basefs=${basefs%/*}
-			len=$($ECHO $basefs| $WC -c)
+			len=$(echo $basefs| wc -c)
 		fi
 		break
 	fi
@@ -81,7 +85,7 @@ done
 # Make snapshot name is longer than the max length
 ((snaplen = 256 - len + 10))
 snap=$(gen_dataset_name $snaplen "s")
-log_mustnot $ZFS snapshot -r $TESTPOOL@$snap
+log_mustnot zfs snapshot -r $TESTPOOL@$snap
 
 log_must datasetnonexists $TESTPOOL@$snap
 while [[ $basefs != $TESTPOOL ]]; do

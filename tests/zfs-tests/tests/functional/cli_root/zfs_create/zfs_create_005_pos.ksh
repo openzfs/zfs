@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zfs_create/zfs_create_common.kshlib
 . $STF_SUITE/tests/functional/cli_root/zfs_create/properties.kshlib
@@ -45,7 +49,7 @@ verify_runnable "both"
 function cleanup
 {
 	datasetexists $TESTPOOL/$TESTFS1 && \
-		log_must $ZFS destroy -f $TESTPOOL/$TESTFS1
+		log_must zfs destroy -f $TESTPOOL/$TESTFS1
 }
 
 log_onexit cleanup
@@ -64,7 +68,7 @@ while (( $i < ${#RW_FS_PROP[*]} )); do
 	(( i = i + 1 ))
 done
 
-log_must $ZFS create $opts $TESTPOOL/$TESTFS1
+log_must zfs create $opts $TESTPOOL/$TESTFS1
 datasetexists $TESTPOOL/$TESTFS1 || \
 	log_fail "zfs create $TESTPOOL/$TESTFS1 fail."
 

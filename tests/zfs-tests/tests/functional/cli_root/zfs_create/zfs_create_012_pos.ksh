@@ -24,6 +24,11 @@
 # Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zfs_upgrade/zfs_upgrade.kshlib
 
@@ -36,15 +41,15 @@
 # 2. Verify only the leaf filesystem to be version=1, others use the current version
 #
 
-ZFS_VERSION=$($ZFS upgrade | $HEAD -1 | $AWK '{print $NF}' \
-	| $SED -e 's/\.//g')
+ZFS_VERSION=$(zfs upgrade | head -1 | awk '{print $NF}' \
+	| sed -e 's/\.//g')
 
 verify_runnable "both"
 
 function cleanup
 {
 	if datasetexists $TESTPOOL/$TESTFS1 ; then
-		log_must $ZFS destroy -rf $TESTPOOL/$TESTFS1
+		log_must zfs destroy -rf $TESTPOOL/$TESTFS1
 	fi
 }
 
@@ -55,7 +60,7 @@ typeset newdataset1="$TESTPOOL/$TESTFS1/$TESTFS/$TESTFS1"
 
 log_assert "'zfs create -p -o version=1' only cause the leaf filesystem to be version=1."
 
-log_must $ZFS create -p -o version=1 $newdataset1
+log_must zfs create -p -o version=1 $newdataset1
 log_must datasetexists $newdataset1
 
 log_must check_fs_version $TESTPOOL/$TESTFS1/$TESTFS/$TESTFS1 1

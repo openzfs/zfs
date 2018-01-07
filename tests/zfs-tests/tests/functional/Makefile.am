@@ -5,6 +5,8 @@ SUBDIRS = \
 	cache \
 	cachefile \
 	casenorm \
+	chattr \
+	checksum \
 	clean_mirror \
 	cli_root \
 	cli_user \
@@ -12,18 +14,23 @@ SUBDIRS = \
 	ctime \
 	delegate \
 	devices \
+	events \
 	exec \
+	fault \
 	features \
 	grow_pool \
 	grow_replicas \
 	history \
+	hkdf \
 	inheritance \
 	inuse \
 	large_files \
 	largest_pool \
+	libzfs \
 	link_count \
 	migration \
 	mmap \
+	mmp \
 	mount \
 	mv_files \
 	nestedfs \
@@ -34,6 +41,7 @@ SUBDIRS = \
 	poolversion \
 	privilege \
 	quota \
+	raidz \
 	redundancy \
 	refquota \
 	refreserv \
@@ -48,8 +56,11 @@ SUBDIRS = \
 	snapused \
 	sparse \
 	threadsappend \
+	tmpfile \
 	truncate \
+	upgrade \
 	userquota \
+	vdev_zaps \
 	write_dirs \
 	xattr \
 	zvol

@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zfs_mount/zfs_mount.kshlib
 
@@ -53,8 +57,8 @@ function cleanup
 		cleanup_filesystem $TESTPOOL $TESTFS1
 
 	[[ -d $TESTDIR ]] && \
-		log_must $RM -rf $TESTDIR
-	log_must $ZFS set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
+		log_must rm -rf $TESTDIR
+	log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 	log_must force_unmount $TESTPOOL/$TESTFS
 
 	return 0
@@ -62,7 +66,7 @@ function cleanup
 
 typeset -i ret=0
 
-log_assert "Verify that '$ZFS $mountcmd <filesystem>' " \
+log_assert "Verify that 'zfs $mountcmd <filesystem>' " \
 	"which mountpoint be the identical or the top of an existing one " \
 	"will fail with return code 1."
 
@@ -72,7 +76,7 @@ unmounted $TESTPOOL/$TESTFS || \
 	log_must force_unmount $TESTPOOL/$TESTFS
 
 [[ -d $TESTDIR ]] && \
-	log_must $RM -rf $TESTDIR
+	log_must rm -rf $TESTDIR
 
 typeset -i MAXDEPTH=3
 typeset -i depth=0
@@ -83,25 +87,25 @@ while (( depth < MAXDEPTH )); do
 	(( depth = depth + 1))
 done
 
-log_must $ZFS set mountpoint=$mtpt $TESTPOOL/$TESTFS
-log_must $ZFS $mountcmd $TESTPOOL/$TESTFS
+log_must zfs set mountpoint=$mtpt $TESTPOOL/$TESTFS
+log_must zfs $mountcmd $TESTPOOL/$TESTFS
 
 mounted $TESTPOOL/$TESTFS || \
 	log_unresolved "Filesystem $TESTPOOL/$TESTFS is unmounted"
 
-log_must $ZFS create $TESTPOOL/$TESTFS1
+log_must zfs create $TESTPOOL/$TESTFS1
 
 unmounted $TESTPOOL/$TESTFS1 || \
 	log_must force_unmount $TESTPOOL/$TESTFS1
 
 while [[ -n $mtpt ]] ; do
 	(( depth == MAXDEPTH )) && \
-		log_note "Verify that '$ZFS $mountcmd <filesystem>' " \
+		log_note "Verify that 'zfs $mountcmd <filesystem>' " \
 		"which mountpoint be the identical of an existing one " \
 		"will fail with return code 1."
 
-	log_must $ZFS set mountpoint=$mtpt $TESTPOOL/$TESTFS1
-	log_mustnot $ZFS $mountcmd $TESTPOOL/$TESTFS1
+	log_must zfs set mountpoint=$mtpt $TESTPOOL/$TESTFS1
+	log_mustnot zfs $mountcmd $TESTPOOL/$TESTFS1
 
 	unmounted $TESTPOOL/$TESTFS1 || \
 		log_fail "Filesystem $TESTPOOL/$TESTFS1 is mounted."
@@ -109,12 +113,12 @@ while [[ -n $mtpt ]] ; do
 	mtpt=${mtpt%/*}
 
 	(( depth == MAXDEPTH )) && \
-		log_note "Verify that '$ZFS $mountcmd <filesystem>' " \
+		log_note "Verify that 'zfs $mountcmd <filesystem>' " \
 		"which mountpoint be the top of an existing one " \
 		"will fail with return code 1."
 	(( depth = depth - 1 ))
 done
 
-log_pass "'$ZFS $mountcmd <filesystem>' " \
+log_pass "'zfs $mountcmd <filesystem>' " \
 	"which mountpoint be the identical or the top of an existing one " \
 	"will fail with return code 1."

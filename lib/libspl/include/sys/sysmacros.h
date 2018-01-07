@@ -39,10 +39,15 @@
 #ifndef ABS
 #define	ABS(a)		((a) < 0 ? -(a) : (a))
 #endif
+#ifndef ARRAY_SIZE
+#define	ARRAY_SIZE(a) (sizeof (a) / sizeof (a[0]))
+#endif
+#ifndef	DIV_ROUND_UP
+#define	DIV_ROUND_UP(n, d)	(((n) + (d) - 1) / (d))
+#endif
 
 #define	makedevice(maj, min)	makedev(maj, min)
 #define	_sysconf(a)		sysconf(a)
-#define	__NORETURN		__attribute__((noreturn))
 
 /*
  * Compatibility macros/typedefs needed for Solaris -> Linux port

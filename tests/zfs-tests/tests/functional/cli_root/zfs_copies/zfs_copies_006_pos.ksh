@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/tests/functional/cli_root/zfs_copies/zfs_copies.kshlib
 
 #
@@ -44,15 +48,15 @@ verify_runnable "global"
 function cleanup
 {
 	if ismounted $mntp $NEWFS_DEFAULT_FS ; then
-		log_must $UMOUNT $mntp
+		log_must umount $mntp
 	fi
 
 	if datasetexists $vol; then
-		log_must $ZFS destroy $vol
+		log_must zfs destroy $vol
 	fi
 
 	if [[ -d $mntp ]]; then
-                $RM -rf $mntp
+                rm -rf $mntp
         fi
 }
 
@@ -63,7 +67,7 @@ mntp=$FS_MNTPOINT
 vol=$TESTPOOL/$TESTVOL1
 
 if [[ ! -d $mntp ]]; then
-	$MKDIR -p $mntp
+	mkdir -p $mntp
 fi
 
 for val in 1 2 3; do

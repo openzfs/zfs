@@ -32,3 +32,11 @@
 . $STF_SUITE/include/libtest.shlib
 
 verify_runnable "global"
+
+#
+# This functionality is supported under Linux, but these test cases
+# are disabled by default since they manipulate the systems root pool.
+#
+if is_linux; then
+        log_unsupported "Supported but disabled by default"
+fi

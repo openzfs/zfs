@@ -154,7 +154,8 @@ struct dk_map2  default_vtoc_map[NDKMAP] = {
 #if defined(_SUNOS_VTOC_16)
 
 #if defined(i386) || defined(__amd64) || defined(__arm) || \
-    defined(__powerpc) || defined(__sparc) || defined(__s390__)
+    defined(__powerpc) || defined(__sparc) || defined(__s390__) || \
+    defined(__mips__)
 	{	V_BOOT,		V_UNMNT	},		/* i - 8 */
 	{	V_ALTSCTR,	0	},		/* j - 9 */
 
@@ -171,11 +172,7 @@ struct dk_map2  default_vtoc_map[NDKMAP] = {
 #endif			/* defined(_SUNOS_VTOC_16) */
 };
 
-#ifdef DEBUG
-int efi_debug = 1;
-#else
 int efi_debug = 0;
-#endif
 
 static int efi_read(int, struct dk_gpt *);
 
@@ -1109,7 +1106,7 @@ check_input(struct dk_gpt *vtoc)
 int
 efi_use_whole_disk(int fd)
 {
-	struct dk_gpt		*efi_label;
+	struct dk_gpt		*efi_label = NULL;
 	int			rval;
 	int			i;
 	uint_t			resv_index = 0, data_index = 0;
@@ -1118,6 +1115,8 @@ efi_use_whole_disk(int fd)
 
 	rval = efi_alloc_and_read(fd, &efi_label);
 	if (rval < 0) {
+		if (efi_label != NULL)
+			efi_free(efi_label);
 		return (rval);
 	}
 

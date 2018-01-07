@@ -1,1 +1,0 @@
-scrub.finish-notify.sh

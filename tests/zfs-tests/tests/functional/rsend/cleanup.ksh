@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013, 2014 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/rsend/rsend.kshlib
@@ -36,10 +36,12 @@ verify_runnable "both"
 if is_global_zone ; then
 	destroy_pool $POOL
 	destroy_pool $POOL2
+	poolexists $POOL3 && destroy_pool $POOL3
 else
 	cleanup_pool $POOL
 	cleanup_pool $POOL2
+	poolexists $POOL3 && cleanup_pool $POOL3
 fi
-log_must $RM -rf $BACKDIR $TESTDIR
+log_must rm -rf $BACKDIR $TESTDIR
 
 log_pass

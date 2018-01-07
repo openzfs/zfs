@@ -22,4 +22,21 @@ dist_pkgdata_SCRIPTS = \
 	rsend_020_pos.ksh \
 	rsend_021_pos.ksh \
 	rsend_022_pos.ksh \
-	rsend_024_pos.ksh
+	rsend_024_pos.ksh \
+	send_encrypted_heirarchy.ksh \
+	send-cD.ksh \
+	send-c_embedded_blocks.ksh \
+	send-c_incremental.ksh \
+	send-c_lz4_disabled.ksh \
+	send-c_mixed_compression.ksh \
+	send-c_props.ksh \
+	send-c_recv_dedup.ksh \
+	send-c_recv_lz4_disabled.ksh \
+	send-c_resume.ksh \
+	send-c_stream_size_estimate.ksh \
+	send-c_verify_contents.ksh \
+	send-c_verify_ratio.ksh \
+	send-c_volume.ksh \
+	send-c_zstreamdump.ksh \
+	send-cpL_varied_recsize.ksh \
+	send_freeobjects.ksh

@@ -34,10 +34,6 @@
 
 verify_runnable "global"
 
-if ! $(is_physical_device $DISKS) ; then
-	log_unsupported "This directory cannot be run on raw files."
-fi
-
 default_zvol_setup $DISK $VOLSIZE
 
 log_pass

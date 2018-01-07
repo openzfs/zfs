@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/cache/cache.cfg
@@ -51,19 +51,19 @@ log_onexit cleanup
 
 for type in "" "mirror" "raidz" "raidz2"
 do
-	log_must $ZPOOL create $TESTPOOL $type $VDEV \
+	log_must zpool create $TESTPOOL $type $VDEV \
 		cache $LDEV $LDEV2
 
 	ldev=$(random_get $LDEV $LDEV2)
-	log_must $ZPOOL offline $TESTPOOL $ldev
+	log_must zpool offline $TESTPOOL $ldev
 	log_must display_status $TESTPOOL
 	log_must verify_cache_device $TESTPOOL $ldev 'OFFLINE' ''
 
-	log_must $ZPOOL online $TESTPOOL $ldev
+	log_must zpool online $TESTPOOL $ldev
 	log_must display_status $TESTPOOL
 	log_must verify_cache_device $TESTPOOL $ldev 'ONLINE' ''
 
-	log_must $ZPOOL destroy -f $TESTPOOL
+	log_must zpool destroy -f $TESTPOOL
 done
 
 log_pass "Offline and online a cache device succeed."

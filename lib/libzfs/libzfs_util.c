@@ -23,6 +23,8 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2013, Joyent, Inc. All rights reserved.
  * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
+ * Copyright 2016 Igor Kozhukhov <ikozhukhov@gmail.com>
+ * Copyright (c) 2017 Datto Inc.
  */
 
 /*
@@ -43,7 +45,7 @@
 #include <sys/mnttab.h>
 #include <sys/mntent.h>
 #include <sys/types.h>
-#include <wait.h>
+#include <sys/wait.h>
 
 #include <libzfs.h>
 #include <libzfs_core.h>
@@ -53,6 +55,7 @@
 #include "libzfs_impl.h"
 #include "zfs_prop.h"
 #include "zfeature_common.h"
+#include <zfs_fletcher.h>
 
 int
 libzfs_errno(libzfs_handle_t *hdl)
@@ -69,9 +72,9 @@ libzfs_error_init(int error)
 		    "loaded.\nTry running '/sbin/modprobe zfs' as root "
 		    "to load them.\n"));
 	case ENOENT:
-		return (dgettext(TEXT_DOMAIN, "The /dev/zfs device is "
-		    "missing and must be created.\nTry running 'udevadm "
-		    "trigger' as root to create it.\n"));
+		return (dgettext(TEXT_DOMAIN, "/dev/zfs and /proc/self/mounts "
+		    "are required.\nTry running 'udevadm trigger' and 'mount "
+		    "-t proc proc /proc' as root.\n"));
 	case ENOEXEC:
 		return (dgettext(TEXT_DOMAIN, "The ZFS modules cannot be "
 		    "auto-loaded.\nTry running '/sbin/modprobe zfs' as "
@@ -246,6 +249,9 @@ libzfs_error_description(libzfs_handle_t *hdl)
 	case EZFS_POSTSPLIT_ONLINE:
 		return (dgettext(TEXT_DOMAIN, "disk was split from this pool "
 		    "into a new one"));
+	case EZFS_SCRUB_PAUSED:
+		return (dgettext(TEXT_DOMAIN, "scrub is paused; "
+		    "use 'zpool scrub' to resume"));
 	case EZFS_SCRUBBING:
 		return (dgettext(TEXT_DOMAIN, "currently scrubbing; "
 		    "use 'zpool scrub -s' to cancel current scrub"));
@@ -257,6 +263,11 @@ libzfs_error_description(libzfs_handle_t *hdl)
 		return (dgettext(TEXT_DOMAIN, "invalid diff data"));
 	case EZFS_POOLREADONLY:
 		return (dgettext(TEXT_DOMAIN, "pool is read-only"));
+	case EZFS_ACTIVE_POOL:
+		return (dgettext(TEXT_DOMAIN, "pool is imported on a "
+		    "different host"));
+	case EZFS_CRYPTOFAILED:
+		return (dgettext(TEXT_DOMAIN, "encryption failure"));
 	case EZFS_UNKNOWN:
 		return (dgettext(TEXT_DOMAIN, "unknown error"));
 	default:
@@ -392,7 +403,7 @@ zfs_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 	case ENOSPC:
 	case EDQUOT:
 		zfs_verror(hdl, EZFS_NOSPC, fmt, ap);
-		return (-1);
+		break;
 
 	case EEXIST:
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
@@ -418,6 +429,9 @@ zfs_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 		    "pool I/O is currently suspended"));
 		zfs_verror(hdl, EZFS_POOLUNAVAIL, fmt, ap);
+		break;
+	case EREMOTEIO:
+		zfs_verror(hdl, EZFS_ACTIVE_POOL, fmt, ap);
 		break;
 	default:
 		zfs_error_aux(hdl, strerror(error));
@@ -506,6 +520,9 @@ zpool_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 		    "block size out of range or does not match"));
 		zfs_verror(hdl, EZFS_BADPROP, fmt, ap);
+		break;
+	case EREMOTEIO:
+		zfs_verror(hdl, EZFS_ACTIVE_POOL, fmt, ap);
 		break;
 
 	default:
@@ -598,27 +615,57 @@ zfs_strdup(libzfs_handle_t *hdl, const char *str)
  * Convert a number to an appropriately human-readable output.
  */
 void
-zfs_nicenum(uint64_t num, char *buf, size_t buflen)
+zfs_nicenum_format(uint64_t num, char *buf, size_t buflen,
+    enum zfs_nicenum_format format)
 {
 	uint64_t n = num;
 	int index = 0;
-	char u;
+	const char *u;
+	const char *units[3][7] = {
+	    [ZFS_NICENUM_1024] = {"", "K", "M", "G", "T", "P", "E"},
+	    [ZFS_NICENUM_BYTES] = {"B", "K", "M", "G", "T", "P", "E"},
+	    [ZFS_NICENUM_TIME] = {"ns", "us", "ms", "s", "?", "?", "?"}
+	};
 
-	while (n >= 1024 && index < 6) {
-		n /= 1024;
+	const int units_len[] = {[ZFS_NICENUM_1024] = 6,
+	    [ZFS_NICENUM_BYTES] = 6,
+	    [ZFS_NICENUM_TIME] = 4};
+
+	const int k_unit[] = {	[ZFS_NICENUM_1024] = 1024,
+	    [ZFS_NICENUM_BYTES] = 1024,
+	    [ZFS_NICENUM_TIME] = 1000};
+
+	double val;
+
+	if (format == ZFS_NICENUM_RAW) {
+		snprintf(buf, buflen, "%llu", (u_longlong_t)num);
+		return;
+	} else if (format == ZFS_NICENUM_RAWTIME && num > 0) {
+		snprintf(buf, buflen, "%llu", (u_longlong_t)num);
+		return;
+	} else if (format == ZFS_NICENUM_RAWTIME && num == 0) {
+		snprintf(buf, buflen, "%s", "-");
+		return;
+	}
+
+	while (n >= k_unit[format] && index < units_len[format]) {
+		n /= k_unit[format];
 		index++;
 	}
 
-	u = " KMGTPE"[index];
+	u = units[format][index];
 
-	if (index == 0) {
-		(void) snprintf(buf, buflen, "%llu", (u_longlong_t) n);
-	} else if ((num & ((1ULL << 10 * index) - 1)) == 0) {
+	/* Don't print zero latencies since they're invalid */
+	if ((format == ZFS_NICENUM_TIME) && (num == 0)) {
+		(void) snprintf(buf, buflen, "-");
+	} else if ((index == 0) || ((num %
+	    (uint64_t)powl(k_unit[format], index)) == 0)) {
 		/*
 		 * If this is an even multiple of the base, always display
 		 * without any decimal precision.
 		 */
-		(void) snprintf(buf, buflen, "%llu%c", (u_longlong_t) n, u);
+		(void) snprintf(buf, buflen, "%llu%s", (u_longlong_t)n, u);
+
 	} else {
 		/*
 		 * We want to choose a precision that reflects the best choice
@@ -631,11 +678,66 @@ zfs_nicenum(uint64_t num, char *buf, size_t buflen)
 		 */
 		int i;
 		for (i = 2; i >= 0; i--) {
-			if (snprintf(buf, buflen, "%.*f%c", i,
-			    (double)num / (1ULL << 10 * index), u) <= 5)
-				break;
+			val = (double)num /
+			    (uint64_t)powl(k_unit[format], index);
+
+			/*
+			 * Don't print floating point values for time.  Note,
+			 * we use floor() instead of round() here, since
+			 * round can result in undesirable results.  For
+			 * example, if "num" is in the range of
+			 * 999500-999999, it will print out "1000us".  This
+			 * doesn't happen if we use floor().
+			 */
+			if (format == ZFS_NICENUM_TIME) {
+				if (snprintf(buf, buflen, "%d%s",
+				    (unsigned int) floor(val), u) <= 5)
+					break;
+
+			} else {
+				if (snprintf(buf, buflen, "%.*f%s", i,
+				    val, u) <= 5)
+					break;
+			}
 		}
 	}
+}
+
+/*
+ * Convert a number to an appropriately human-readable output.
+ */
+void
+zfs_nicenum(uint64_t num, char *buf, size_t buflen)
+{
+	zfs_nicenum_format(num, buf, buflen, ZFS_NICENUM_1024);
+}
+
+/*
+ * Convert a time to an appropriately human-readable output.
+ * @num:	Time in nanoseconds
+ */
+void
+zfs_nicetime(uint64_t num, char *buf, size_t buflen)
+{
+	zfs_nicenum_format(num, buf, buflen, ZFS_NICENUM_TIME);
+}
+
+/*
+ * Print out a raw number with correct column spacing
+ */
+void
+zfs_niceraw(uint64_t num, char *buf, size_t buflen)
+{
+	zfs_nicenum_format(num, buf, buflen, ZFS_NICENUM_RAW);
+}
+
+/*
+ * Convert a number of bytes to an appropriately human-readable output.
+ */
+void
+zfs_nicebytes(uint64_t num, char *buf, size_t buflen)
+{
+	zfs_nicenum_format(num, buf, buflen, ZFS_NICENUM_BYTES);
 }
 
 void
@@ -656,41 +758,183 @@ libzfs_module_loaded(const char *module)
 	return (access(path, F_OK) == 0);
 }
 
-int
-libzfs_run_process(const char *path, char *argv[], int flags)
+
+/*
+ * Read lines from an open file descriptor and store them in an array of
+ * strings until EOF.  lines[] will be allocated and populated with all the
+ * lines read.  All newlines are replaced with NULL terminators for
+ * convenience.  lines[] must be freed after use with libzfs_free_str_array().
+ *
+ * Returns the number of lines read.
+ */
+static int
+libzfs_read_stdout_from_fd(int fd, char **lines[])
+{
+
+	FILE *fp;
+	int lines_cnt = 0;
+	size_t len = 0;
+	char *line = NULL;
+	char **tmp_lines = NULL, **tmp;
+	char *nl = NULL;
+	int rc;
+
+	fp = fdopen(fd, "r");
+	if (fp == NULL)
+		return (0);
+	while (1) {
+		rc = getline(&line, &len, fp);
+		if (rc == -1)
+			break;
+
+		tmp = realloc(tmp_lines, sizeof (*tmp_lines) * (lines_cnt + 1));
+		if (tmp == NULL) {
+			/* Return the lines we were able to process */
+			break;
+		}
+		tmp_lines = tmp;
+
+		/* Terminate newlines */
+		if ((nl = strchr(line, '\n')) != NULL)
+			*nl = '\0';
+		tmp_lines[lines_cnt] = line;
+		lines_cnt++;
+		line = NULL;
+	}
+	fclose(fp);
+	*lines = tmp_lines;
+	return (lines_cnt);
+}
+
+static int
+libzfs_run_process_impl(const char *path, char *argv[], char *env[], int flags,
+    char **lines[], int *lines_cnt)
 {
 	pid_t pid;
 	int error, devnull_fd;
+	int link[2];
+
+	/*
+	 * Setup a pipe between our child and parent process if we're
+	 * reading stdout.
+	 */
+	if ((lines != NULL) && pipe(link) == -1)
+		return (-ESTRPIPE);
 
 	pid = vfork();
 	if (pid == 0) {
+		/* Child process */
 		devnull_fd = open("/dev/null", O_WRONLY);
 
 		if (devnull_fd < 0)
 			_exit(-1);
 
-		if (!(flags & STDOUT_VERBOSE))
+		if (!(flags & STDOUT_VERBOSE) && (lines == NULL))
 			(void) dup2(devnull_fd, STDOUT_FILENO);
+		else if (lines != NULL) {
+			/* Save the output to lines[] */
+			dup2(link[1], STDOUT_FILENO);
+			close(link[0]);
+			close(link[1]);
+		}
 
 		if (!(flags & STDERR_VERBOSE))
 			(void) dup2(devnull_fd, STDERR_FILENO);
 
 		close(devnull_fd);
 
-		(void) execvp(path, argv);
+		if (flags & NO_DEFAULT_PATH) {
+			if (env == NULL)
+				execv(path, argv);
+			else
+				execve(path, argv, env);
+		} else {
+			if (env == NULL)
+				execvp(path, argv);
+			else
+				execvpe(path, argv, env);
+		}
+
 		_exit(-1);
 	} else if (pid > 0) {
+		/* Parent process */
 		int status;
 
 		while ((error = waitpid(pid, &status, 0)) == -1 &&
-			errno == EINTR);
+		    errno == EINTR) { }
 		if (error < 0 || !WIFEXITED(status))
 			return (-1);
 
+		if (lines != NULL) {
+			close(link[1]);
+			*lines_cnt = libzfs_read_stdout_from_fd(link[0], lines);
+		}
 		return (WEXITSTATUS(status));
 	}
 
 	return (-1);
+}
+
+int
+libzfs_run_process(const char *path, char *argv[], int flags)
+{
+	return (libzfs_run_process_impl(path, argv, NULL, flags, NULL, NULL));
+}
+
+/*
+ * Run a command and store its stdout lines in an array of strings (lines[]).
+ * lines[] is allocated and populated for you, and the number of lines is set in
+ * lines_cnt.  lines[] must be freed after use with libzfs_free_str_array().
+ * All newlines (\n) in lines[] are terminated for convenience.
+ */
+int
+libzfs_run_process_get_stdout(const char *path, char *argv[], char *env[],
+    char **lines[], int *lines_cnt)
+{
+	return (libzfs_run_process_impl(path, argv, env, 0, lines, lines_cnt));
+}
+
+/*
+ * Same as libzfs_run_process_get_stdout(), but run without $PATH set.  This
+ * means that *path needs to be the full path to the executable.
+ */
+int
+libzfs_run_process_get_stdout_nopath(const char *path, char *argv[],
+    char *env[], char **lines[], int *lines_cnt)
+{
+	return (libzfs_run_process_impl(path, argv, env, NO_DEFAULT_PATH,
+	    lines, lines_cnt));
+}
+
+/*
+ * Free an array of strings.  Free both the strings contained in the array and
+ * the array itself.
+ */
+void
+libzfs_free_str_array(char **strs, int count)
+{
+	while (--count >= 0)
+		free(strs[count]);
+
+	free(strs);
+}
+
+/*
+ * Returns 1 if environment variable is set to "YES", "yes", "ON", "on", or
+ * a non-zero number.
+ *
+ * Returns 0 otherwise.
+ */
+int
+libzfs_envvar_is_set(char *envvar)
+{
+	char *env = getenv(envvar);
+	if (env && (strtoul(env, NULL, 0) > 0 ||
+	    (!strncasecmp(env, "YES", 3) && strnlen(env, 4) == 3) ||
+	    (!strncasecmp(env, "ON", 2) && strnlen(env, 3) == 2)))
+		return (1);
+
+	return (0);
 }
 
 /*
@@ -794,12 +1038,13 @@ libzfs_init(void)
 		return (NULL);
 	}
 
-	hdl->libzfs_sharetab = fopen("/etc/dfs/sharetab", "r");
+	hdl->libzfs_sharetab = fopen(ZFS_SHARETAB, "r");
 
 	if (libzfs_core_init() != 0) {
 		(void) close(hdl->libzfs_fd);
 		(void) fclose(hdl->libzfs_mnttab);
-		(void) fclose(hdl->libzfs_sharetab);
+		if (hdl->libzfs_sharetab)
+			(void) fclose(hdl->libzfs_sharetab);
 		free(hdl);
 		return (NULL);
 	}
@@ -808,6 +1053,7 @@ libzfs_init(void)
 	zpool_prop_init();
 	zpool_feature_init();
 	libzfs_mnttab_init(hdl);
+	fletcher_4_init();
 
 	return (hdl);
 }
@@ -826,10 +1072,10 @@ libzfs_fini(libzfs_handle_t *hdl)
 		(void) fclose(hdl->libzfs_sharetab);
 	zfs_uninit_libshare(hdl);
 	zpool_free_handles(hdl);
-	libzfs_fru_clear(hdl, B_TRUE);
 	namespace_clear(hdl);
 	libzfs_mnttab_fini(hdl);
 	libzfs_core_fini();
+	fletcher_4_fini();
 	free(hdl);
 }
 
@@ -855,7 +1101,7 @@ zfs_get_pool_handle(const zfs_handle_t *zhp)
  * Given a name, determine whether or not it's a valid path
  * (starts with '/' or "./").  If so, walk the mnttab trying
  * to match the device number.  If not, treat the path as an
- * fs/vol/snap name.
+ * fs/vol/snap/bkmark name.
  */
 zfs_handle_t *
 zfs_path_to_zhandle(libzfs_handle_t *hdl, char *path, zfs_type_t argtype)
@@ -1039,8 +1285,8 @@ zfs_strcmp_pathname(char *name, char *cmp, int wholedisk)
 	dup = strdup(cmp);
 	dir = strtok(dup, "/");
 	while (dir) {
-		strcat(cmp_name, "/");
-		strcat(cmp_name, dir);
+		strlcat(cmp_name, "/", sizeof (cmp_name));
+		strlcat(cmp_name, dir, sizeof (cmp_name));
 		dir = strtok(NULL, "/");
 	}
 	free(dup);
@@ -1062,6 +1308,45 @@ zfs_strcmp_pathname(char *name, char *cmp, int wholedisk)
 		return (ENOENT);
 
 	return (0);
+}
+
+/*
+ * Given a full path to a device determine if that device appears in the
+ * import search path.  If it does return the first match and store the
+ * index in the passed 'order' variable, otherwise return an error.
+ */
+int
+zfs_path_order(char *name, int *order)
+{
+	int i = 0, error = ENOENT;
+	char *dir, *env, *envdup;
+
+	env = getenv("ZPOOL_IMPORT_PATH");
+	if (env) {
+		envdup = strdup(env);
+		dir = strtok(envdup, ":");
+		while (dir) {
+			if (strncmp(name, dir, strlen(dir)) == 0) {
+				*order = i;
+				error = 0;
+				break;
+			}
+			dir = strtok(NULL, ":");
+			i++;
+		}
+		free(envdup);
+	} else {
+		for (i = 0; i < DEFAULT_IMPORT_PATH_SIZE; i++) {
+			if (strncmp(name, zpool_default_import_path[i],
+			    strlen(zpool_default_import_path[i])) == 0) {
+				*order = i;
+				error = 0;
+				break;
+			}
+		}
+	}
+
+	return (error);
 }
 
 /*
@@ -1354,6 +1639,10 @@ zprop_print_one_property(const char *name, zprop_get_cbdata_t *cbp,
 			case ZPROP_SRC_RECEIVED:
 				str = "received";
 				break;
+
+			default:
+				str = NULL;
+				assert(!"unhandled zprop_source_t");
 			}
 			break;
 
@@ -1365,7 +1654,8 @@ zprop_print_one_property(const char *name, zprop_get_cbdata_t *cbp,
 			continue;
 		}
 
-		if (cbp->cb_columns[i + 1] == GET_COL_NONE)
+		if (i == (ZFS_GET_NCOLS - 1) ||
+		    cbp->cb_columns[i + 1] == GET_COL_NONE)
 			(void) printf("%s", str);
 		else if (cbp->cb_scripted)
 			(void) printf("%s\t", str);
@@ -1513,6 +1803,7 @@ zprop_parse_value(libzfs_handle_t *hdl, nvpair_t *elem, int prop,
 	const char *propname;
 	char *value;
 	boolean_t isnone = B_FALSE;
+	int err = 0;
 
 	if (type == ZFS_TYPE_POOL) {
 		proptype = zpool_prop_get_type(prop);
@@ -1535,7 +1826,12 @@ zprop_parse_value(libzfs_handle_t *hdl, nvpair_t *elem, int prop,
 			    "'%s' must be a string"), nvpair_name(elem));
 			goto error;
 		}
-		(void) nvpair_value_string(elem, svalp);
+		err = nvpair_value_string(elem, svalp);
+		if (err != 0) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "'%s' is invalid"), nvpair_name(elem));
+			goto error;
+		}
 		if (strlen(*svalp) >= ZFS_MAXPROPLEN) {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "'%s' is too long"), nvpair_name(elem));

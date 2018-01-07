@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -47,9 +47,9 @@ verify_runnable "both"
 
 function cleanup
 {
-	log_must $ZFS destroy -rf $TESTPOOL/$TESTFS
-	log_must $ZFS create $TESTPOOL/$TESTFS
-	log_must $ZFS set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
+	log_must zfs destroy -rf $TESTPOOL/$TESTFS
+	log_must zfs create $TESTPOOL/$TESTFS
+	log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 }
 
 log_assert "Verify a snapshot will only be allowed if there is enough " \
@@ -57,18 +57,18 @@ log_assert "Verify a snapshot will only be allowed if there is enough " \
 log_onexit cleanup
 
 fs=$TESTPOOL/$TESTFS
-log_must $ZFS set quota=25M $fs
-log_must $ZFS set refreservation=10M $fs
+log_must zfs set quota=25M $fs
+log_must zfs set refreservation=10M $fs
 
 mntpnt=$(get_prop mountpoint $fs)
-log_must $MKFILE 7M $mntpnt/$TESTFILE
-log_must $ZFS snapshot $fs@snap
+log_must mkfile 7M $mntpnt/$TESTFILE
+log_must zfs snapshot $fs@snap
 
-log_must $MKFILE 7M $mntpnt/$TESTFILE.2
-log_must $ZFS snapshot $fs@snap2
+log_must mkfile 7M $mntpnt/$TESTFILE.2
+log_must zfs snapshot $fs@snap2
 
-log_must $MKFILE 7M $mntpnt/$TESTFILE.3
-log_mustnot $ZFS snapshot $fs@snap3
+log_must mkfile 7M $mntpnt/$TESTFILE.3
+log_mustnot zfs snapshot $fs@snap3
 if datasetexists $fs@snap3 ; then
 	log_fail "ERROR: $fs@snap3 should not exists."
 fi

@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -54,7 +54,7 @@ fi
 for opts in "-r" "-r -p"; do
 	typeset -i i=0
 	while ((i < ${#datasets[@]})); do
-		log_mustnot $ZFS rename $opts ${datasets[$i]} \
+		log_mustnot zfs rename $opts ${datasets[$i]} \
 			${datasets[$i]}-new
 
 		# Check datasets, make sure none of them was renamed.

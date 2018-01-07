@@ -40,7 +40,7 @@
  *     zrlock_t *, ...,
  *     uint32_t, ...);
  */
-
+/* BEGIN CSTYLED */
 DECLARE_EVENT_CLASS(zfs_zrlock_class,
 	TP_PROTO(zrlock_t *zrl, uint32_t n),
 	TP_ARGS(zrl, n),
@@ -69,6 +69,7 @@ DECLARE_EVENT_CLASS(zfs_zrlock_class,
 	    __entry->refcount, __entry->n)
 #endif
 );
+/* END_CSTYLED */
 
 #define	DEFINE_ZRLOCK_EVENT(name) \
 DEFINE_EVENT(zfs_zrlock_class, name, \

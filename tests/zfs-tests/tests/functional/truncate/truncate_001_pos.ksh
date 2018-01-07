@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/tests/functional/truncate/truncate.cfg
 . $STF_SUITE/include/libtest.shlib
 
@@ -42,9 +46,14 @@
 
 verify_runnable "global"
 
+# See issue: https://github.com/zfsonlinux/zfs/issues/5727
+if is_32bit; then
+	log_unsupported "Test case slow on 32-bit systems"
+fi
+
 function cleanup
 {
-	[[ -e $TESTDIR ]] && log_must $RM -rf $TESTDIR/*
+	[[ -e $TESTDIR ]] && log_must rm -rf $TESTDIR/*
 }
 
 log_assert "Ensure file with random blocks is truncated properly"
@@ -66,8 +75,8 @@ log_onexit cleanup
 
 [[ -n "$options" ]] && options_display=$options
 
-log_note "Invoking $FILE_TRUNC with: $options_display"
-log_must $FILE_TRUNC $options $TESTDIR/$TESTFILE
+log_note "Invoking file_trunc with: $options_display"
+log_must file_trunc $options $TESTDIR/$TESTFILE
 
 typeset dir=$(get_device_dir $DISKS)
 verify_filesys "$TESTPOOL" "$TESTPOOL/$TESTFS" "$dir"

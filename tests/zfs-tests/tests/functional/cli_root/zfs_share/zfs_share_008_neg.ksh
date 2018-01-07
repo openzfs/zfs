@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -49,7 +53,7 @@ log_assert "Verify that sharing a dataset other than filesystem fails."
 typeset -i i=0
 while (( i < ${#datasets[*]} ))
 do
-	log_mustnot $ZFS set sharenfs=on ${datasets[i]}
+	log_mustnot zfs set sharenfs=on ${datasets[i]}
 
 	option=`get_prop sharenfs ${datasets[i]}`
 	if [[ $option == ${datasets[i]} ]]; then
@@ -59,7 +63,7 @@ do
 	not_shared ${datasets[i]} || \
 	    log_fail "An invalid setting '$option' was propagated."
 
-	log_mustnot $ZFS share ${datasets[i]}
+	log_mustnot zfs share ${datasets[i]}
 
 	not_shared ${datasets[i]} || \
 	    log_fail "An invalid dataset '${datasets[i]}' was shared."

@@ -10,7 +10,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 #
@@ -30,14 +30,69 @@ function within_percent
 	typeset percent=$3
 
 	# Set $a or $b to $2 such that a >= b
-	[[ '1' = $($ECHO "if ($2 > $a) 1" | $BC) ]] && a=$2 || b=$2
+	[[ '1' = $(echo "if ($2 > $a) 1" | bc) ]] && a=$2 || b=$2
 
 	# Prevent division by 0
 	[[ $a =~ [1-9] ]] || return 1
 
-	typeset p=$($ECHO "scale=2; $b * 100 / $a" | $BC)
+	typeset p=$(echo "scale=2; $b * 100 / $a" | bc)
 	log_note "Comparing $a and $b given $percent% (calculated: $p%)"
-	[[ '1' = $($ECHO "scale=2; if ($p >= $percent) 1" | $BC) ]] && return 0
+	[[ '1' = $(echo "scale=2; if ($p >= $percent) 1" | bc) ]] && return 0
 
 	return 1
+}
+
+#
+# Return 0 if the human readable string of the form <value>[suffix] can
+# be converted to bytes.  Allow suffixes are shown in the table below.
+#
+function to_bytes
+{
+	typeset size=$1
+	typeset value=$(echo "$size" | grep -o '[0-9]\+')
+
+	case $size in
+		*PB|*pb|*P|*p)	factor='1024^5'	;;
+		*TB|*tb|*T|*t)	factor='1024^4'	;;
+		*GB|*gb|*G|*g)	factor='1024^3'	;;
+		*MB|*mb|*M|*m)	factor='1024^2'	;;
+		*KB|*kb|*K|*k)	factor='1024^1'	;;
+		*B|*b)		factor='1024^0'	;;
+		*[!0-9.]*)	return 1 ;;
+		*)		factor='1024^0'	;;
+	esac
+
+	echo "$value * ($factor)" | bc
+
+	return 0
+}
+
+#
+# Verify $a is equal to $b, otherwise raise an error specifying
+# the $type of values being compared
+#
+function verify_eq # <a> <b> <type>
+{
+	typeset a=$1
+	typeset b=$2
+	typeset type=$3
+
+	if [[ $a -ne $b ]]; then
+		log_fail "Compared $type should be equal: $a != $b"
+	fi
+}
+
+#
+# Verify $a is not equal to $b, otherwise raise an error specifying
+# the $type of values being compared
+#
+function verify_ne # <a> <b> <type>
+{
+	typeset a=$1
+	typeset b=$2
+	typeset type=$3
+
+	if [[ $a -eq $b ]]; then
+		log_fail "Compared $type should be not equal: $a == $b"
+	fi
 }

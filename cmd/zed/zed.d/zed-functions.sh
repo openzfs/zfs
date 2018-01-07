@@ -1,3 +1,5 @@
+#!/bin/sh
+# shellcheck disable=SC2039
 # zed-functions.sh
 #
 # ZED helper functions for use in ZEDLETs
@@ -126,6 +128,7 @@ zed_lock()
     #
     eval "exec ${fd}> '${lockfile}'"
     err="$(flock --exclusive "${fd}" 2>&1)"
+    # shellcheck disable=SC2181
     if [ $? -ne 0 ]; then
         zed_log_err "failed to lock \"${lockfile}\": ${err}"
     fi
@@ -162,8 +165,8 @@ zed_unlock()
     fi
 
     # Release the lock and close the file descriptor.
-    #
     err="$(flock --unlock "${fd}" 2>&1)"
+    # shellcheck disable=SC2181
     if [ $? -ne 0 ]; then
         zed_log_err "failed to unlock \"${lockfile}\": ${err}"
     fi
@@ -412,4 +415,26 @@ zed_rate_limit()
 
     zed_unlock "${lockfile}" "${lockfile_fd}"
     return "${rv}"
+}
+
+
+# zed_guid_to_pool (guid)
+#
+# Convert a pool GUID into its pool name (like "tank")
+# Arguments
+#   guid: pool GUID (decimal or hex)
+#
+# Return
+#   Pool name
+#
+zed_guid_to_pool()
+{
+	if [ -z "$1" ] ; then
+		return
+	fi
+
+	guid=$(printf "%llu" "$1")
+	if [ ! -z "$guid" ] ; then
+		$ZPOOL get -H -ovalue,name guid | awk '$1=='"$guid"' {print $2}'
+	fi
 }

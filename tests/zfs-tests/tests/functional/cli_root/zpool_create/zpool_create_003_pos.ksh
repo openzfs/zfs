@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -46,12 +46,12 @@ verify_runnable "global"
 
 function cleanup
 {
-	[[ -e $tmpfile ]] && log_must $RM -f $tmpfile
+	[[ -e $tmpfile ]] && log_must rm -f $tmpfile
 }
 
 tmpfile="/var/tmp/zpool_create_003.tmp$$"
 
-log_assert "'zpool create -n <pool> <vspec> ...' can display the configureation" \
+log_assert "'zpool create -n <pool> <vspec> ...' can display the configuration" \
         "without actually creating the pool."
 
 log_onexit cleanup
@@ -62,19 +62,24 @@ else
         disk=$DISK0
 fi
 
+DISK=${DISKS%% *}
+if is_mpath_device $DISK; then
+	partition_disk $SIZE $disk 1
+fi
+
 #
 # Make sure disk is clean before we use it
 #
 create_pool $TESTPOOL ${disk}${SLICE_PREFIX}${SLICE0} > $tmpfile
 destroy_pool $TESTPOOL
 
-$ZPOOL create -n  $TESTPOOL ${disk}${SLICE_PREFIX}${SLICE0} > $tmpfile
+zpool create -n  $TESTPOOL ${disk}${SLICE_PREFIX}${SLICE0} > $tmpfile
 
 poolexists $TESTPOOL && \
         log_fail "'zpool create -n <pool> <vspec> ...' fail."
 
 str="would create '$TESTPOOL' with the following layout:"
-$CAT $tmpfile | $GREP "$str" >/dev/null 2>&1
+cat $tmpfile | grep "$str" >/dev/null 2>&1
 (( $? != 0 )) && \
         log_fail "'zpool create -n <pool> <vspec>...' is executed as unexpected."
 

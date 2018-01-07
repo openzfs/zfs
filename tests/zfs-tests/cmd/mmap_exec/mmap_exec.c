@@ -38,7 +38,7 @@
 int
 main(int argc, char *argv[])
 {
-	int fd;
+	int error, fd;
 	struct stat statbuf;
 
 	if (argc != 2) {
@@ -51,18 +51,21 @@ main(int argc, char *argv[])
 	errno = 0;
 
 	if ((fd = open(argv[1], O_RDONLY)) < 0) {
+		error = errno;
 		perror("open");
-		return (errno);
+		return (error);
 	}
 	if (fstat(fd, &statbuf) < 0) {
+		error = errno;
 		perror("fstat");
-		return (errno);
+		return (error);
 	}
 
 	if (mmap(0, statbuf.st_size,
 	    PROT_EXEC, MAP_SHARED, fd, 0) == MAP_FAILED) {
+		error = errno;
 		perror("mmap");
-		return (errno);
+		return (error);
 	}
 
 	return (0);

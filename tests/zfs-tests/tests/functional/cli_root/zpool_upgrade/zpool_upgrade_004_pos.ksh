@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 # Copyright 2015 Nexenta Systems, Inc.  All rights reserved.
 #
 
@@ -42,6 +42,11 @@
 #
 
 verify_runnable "global"
+
+# https://github.com/zfsonlinux/zfs/issues/6141
+if is_linux; then
+	log_unsupported "Test case occasionally fails"
+fi
 
 function cleanup
 {
@@ -65,7 +70,7 @@ done
 
 # upgrade them all at once
 export __ZFS_POOL_RESTRICT="$TEST_POOLS"
-log_must $ZPOOL upgrade -a
+log_must zpool upgrade -a
 unset __ZFS_POOL_RESTRICT
 
 # verify their contents then destroy them
@@ -73,10 +78,10 @@ for config in $CONFIGS ; do
 	typeset -n pool_name=ZPOOL_VERSION_${config}_NAME
 
 	check_pool $pool_name post > /dev/null
-	log_must $DIFF /$TESTPOOL/pool-checksums.$pool_name.pre \
-	    /$TESTPOOL/pool-checksums.$pool_name.post
-	$RM /$TESTPOOL/pool-checksums.$pool_name.pre \
-	    /$TESTPOOL/pool-checksums.$pool_name.post
+	log_must diff $TEST_BASE_DIR/pool-checksums.$pool_name.pre \
+	    $TEST_BASE_DIR/pool-checksums.$pool_name.post
+	rm $TEST_BASE_DIR/pool-checksums.$pool_name.pre \
+	    $TEST_BASE_DIR/pool-checksums.$pool_name.post
 	destroy_upgraded_pool $config
 done
 

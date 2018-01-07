@@ -255,7 +255,7 @@ main(int argc, char *argv[])
 
 	zed_log_msg(LOG_NOTICE,
 	    "ZFS Event Daemon %s-%s (PID %d)",
-	    ZFS_META_VERSION, ZFS_META_RELEASE, (int) getpid());
+	    ZFS_META_VERSION, ZFS_META_RELEASE, (int)getpid());
 
 	if (zed_conf_open_state(zcp) < 0)
 		exit(EXIT_FAILURE);

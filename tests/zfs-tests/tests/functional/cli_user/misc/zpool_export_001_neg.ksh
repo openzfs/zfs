@@ -26,11 +26,11 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
-. $STF_SUITE/tests/functional/cli_user/misc/misc.cfg
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_user/misc/misc.cfg
 
 #
 # DESCRIPTION:
@@ -44,7 +44,7 @@
 
 function check_for_export
 {
-	RESULT=$($ZPOOL list | $GREP $TESTPOOL.virt )
+	RESULT=$(zpool list | grep $TESTPOOL.virt )
 	if [ -z "$RESULT" ]
 	then
 		log_fail "A pool was exported!"
@@ -56,10 +56,10 @@ verify_runnable "global"
 
 log_assert "zpool export returns an error when run as a user"
 
-log_mustnot $ZPOOL export $TESTPOOL.virt
+log_mustnot zpool export $TESTPOOL.virt
 check_for_export
 
-log_mustnot $ZPOOL export -f $TESTPOOL.virt
+log_mustnot zpool export -f $TESTPOOL.virt
 check_for_export
 
 log_pass "zpool export returns an error when run as a user"

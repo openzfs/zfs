@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -69,10 +69,10 @@ function cleanup
 {
 	cd $DEVICE_DIR || log_fail "Unable change directory to $DEVICE_DIR"
 	[[ -e $DEVICE_DIR/$DEVICE_ARCHIVE ]] && \
-		log_must $TAR xf $DEVICE_DIR/$DEVICE_ARCHIVE
+		log_must tar xf $DEVICE_DIR/$DEVICE_ARCHIVE
 
 	poolexists $TESTPOOL1 || \
-		log_must $ZPOOL import -d $DEVICE_DIR $TESTPOOL1
+		log_must zpool import -d $DEVICE_DIR $TESTPOOL1
 
 	cleanup_filesystem $TESTPOOL1 $TESTFS
 
@@ -88,19 +88,19 @@ function cleanup_all
 	while (( i < $MAX_NUM )); do
 		typeset dev_file=${DEVICE_DIR}/${DEVICE_FILE}$i
 		if [[ ! -e ${dev_file} ]]; then
-			log_must $MKFILE $FILE_SIZE ${dev_file}
+			log_must mkfile $FILE_SIZE ${dev_file}
 		fi
 		((i += 1))
 	done
 
-	log_must $RM -f $DEVICE_DIR/$DEVICE_ARCHIVE
+	log_must rm -f $DEVICE_DIR/$DEVICE_ARCHIVE
 	cd $CWD || log_fail "Unable change directory to $CWD"
 
 	[[ -d $ALTER_ROOT ]] && \
-		log_must $RM -rf $ALTER_ROOT
+		log_must rm -rf $ALTER_ROOT
 
 	[[ -d $BACKUP_DEVICE_DIR ]] && \
-		log_must $RM -rf $BACKUP_DEVICE_DIR
+		log_must rm -rf $BACKUP_DEVICE_DIR
 }
 
 log_onexit cleanup_all
@@ -110,7 +110,7 @@ log_assert "Verify that import could handle moving device."
 CWD=$PWD
 
 [[ ! -d $BACKUP_DEVICE_DIR ]] &&
-	log_must $MKDIR -p $BACKUP_DEVICE_DIR
+	log_must mkdir -p $BACKUP_DEVICE_DIR
 
 cd $DEVICE_DIR || log_fail "Unable change directory to $DEVICE_DIR"
 
@@ -123,7 +123,7 @@ typeset action
 while (( i < ${#vdevs[*]} )); do
 
 	(( i != 0 )) && \
-		log_must $TAR xf $DEVICE_DIR/$DEVICE_ARCHIVE
+		log_must tar xf $DEVICE_DIR/$DEVICE_ARCHIVE
 
 	setup_filesystem "$DEVICE_FILES" \
 		$TESTPOOL1 $TESTFS $TESTDIR1 \
@@ -132,9 +132,9 @@ while (( i < ${#vdevs[*]} )); do
 	guid=$(get_config $TESTPOOL1 pool_guid)
 	backup=""
 
-	log_must $CP $MYTESTFILE $TESTDIR1/$TESTFILE0
+	log_must cp $MYTESTFILE $TESTDIR1/$TESTFILE0
 
-	log_must $ZFS umount $TESTDIR1
+	log_must zfs umount $TESTDIR1
 
 	j=0
 	while (( j <  ${#options[*]} )); do
@@ -145,24 +145,24 @@ while (( i < ${#vdevs[*]} )); do
 		# Restore all device files.
 		#
 		[[ -n $backup ]] && \
-			log_must $TAR xf $DEVICE_DIR/$DEVICE_ARCHIVE
+			log_must tar xf $DEVICE_DIR/$DEVICE_ARCHIVE
 
-		log_must $RM -f $BACKUP_DEVICE_DIR/*
+		log_must rm -f $BACKUP_DEVICE_DIR/*
 
 		for device in $DEVICE_FILES ; do
 
 			poolexists $TESTPOOL1 && \
-				log_must $ZPOOL export $TESTPOOL1
+				log_must zpool export $TESTPOOL1
 
 			#
 			# Backup all device files while filesystem prepared.
 			#
 			if [[ -z $backup ]] ; then
-				log_must $TAR cf $DEVICE_DIR/$DEVICE_ARCHIVE ${DEVICE_FILE}*
+				log_must tar cf $DEVICE_DIR/$DEVICE_ARCHIVE ${DEVICE_FILE}*
 				backup="true"
 			fi
 
-			log_must $MV $device $BACKUP_DEVICE_DIR
+			log_must mv $device $BACKUP_DEVICE_DIR
 
 			(( count = count + 1 ))
 
@@ -181,7 +181,7 @@ while (( i < ${#vdevs[*]} )); do
 				target=$guid
 				log_note "Import by guid."
 			fi
-			$action $ZPOOL import \
+			$action zpool import \
 				-d $DEVICE_DIR ${options[j]} $target
 
 		done

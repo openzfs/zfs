@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -51,11 +51,11 @@ log_assert "Ensure that pool names can use the ASCII subset of UTF-8"
 function cleanup
 {
 	if [[ -n $name ]] && poolexists $name ; then
-		log_must $ZPOOL destroy $name
+		log_must zpool destroy $name
 	fi
 
 	if [[ -d $TESTDIR ]]; then
-		log_must $RM -rf $TESTDIR
+		log_must rm -rf $TESTDIR
 	fi
 
 }
@@ -64,7 +64,7 @@ log_onexit cleanup
 
 DISK=${DISKS%% *}
 if [[ ! -e $TESTDIR ]]; then
-	log_must $MKDIR $TESTDIR
+	log_must mkdir $TESTDIR
 fi
 
 log_note "Ensure letters of the alphabet are allowable"
@@ -76,12 +76,12 @@ for name in A B C D E F G H I J K L M \
     a b c d e f g h i j k l m \
     n o p q r s t u v w x y z
 do
-	log_must $ZPOOL create -m $TESTDIR $name $DISK
+	log_must zpool create -m $TESTDIR $name $DISK
 	if ! poolexists $name; then
 		log_fail "Could not create a pool called '$name'"
 	fi
 
-	log_must $ZPOOL destroy $name
+	log_must zpool destroy $name
 done
 
 log_note "Ensure a variety of unusual names passes"
@@ -95,7 +95,7 @@ for name in "a.............................." "a_" "a-" "a:" \
     "spar3-p00l" "hiddenmirrorpool" "hiddenraidzpool" \
     "hiddensparepool"
 do
-	log_must $ZPOOL create -m $TESTDIR $name $DISK
+	log_must zpool create -m $TESTDIR $name $DISK
 	if ! poolexists $name; then
 		log_fail "Could not create a pool called '$name'"
 	fi
@@ -104,12 +104,13 @@ do
 	# Since the naming convention applies to datasets too,
 	# create datasets with the same names as above.
 	#
-	log_must $ZFS create $name/$name
-	log_must $ZFS snapshot $name/$name@$name
-	log_must $ZFS clone $name/$name@$name $name/clone_$name
-	log_must $ZFS create -V 150m $name/$name/$name
+	log_must zfs create $name/$name
+	log_must zfs snapshot $name/$name@$name
+	log_must zfs clone $name/$name@$name $name/clone_$name
+	log_must zfs create -V 150m $name/$name/$name
+	block_device_wait
 
-	log_must $ZPOOL destroy $name
+	log_must zpool destroy $name
 done
 
 log_pass "Valid pool names were accepted correctly."

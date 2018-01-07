@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zfs_set/zfs_set_common.kshlib
 
@@ -53,7 +57,7 @@ do
 	while (( i < ${#dataset[@]} )); do
 		j=0
 		while (( j < ${#values[@]} )); do
-			log_mustnot $ZFS set $propname=${values[j]} ${dataset[i]}
+			log_mustnot zfs set $propname=${values[j]} ${dataset[i]}
 			(( j += 1 ))
 		done
 		(( i += 1 ))

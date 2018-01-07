@@ -29,8 +29,8 @@
 # Copyright (c) 2013 by Delphix. All rights reserved.
 #
 
-. $STF_SUITE/tests/functional/cli_user/misc/misc.cfg
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_user/misc/misc.cfg
 
 #
 # DESCRIPTION:
@@ -45,32 +45,28 @@
 
 function check_pool_status
 {
-	RESULT=$($GREP "pool:" /tmp/pool-status.$$)
+	RESULT=$(grep "pool:" /tmp/pool-status.$$)
 	if [ -z "$RESULT" ]
 	then
 		log_fail "No pool: string found in zpool status output!"
 	fi
-	$RM /tmp/pool-status.$$
+	rm /tmp/pool-status.$$
 }
 
 verify_runnable "global"
 
 log_assert "zpool status works when run as a user"
 
-log_must eval "$ZPOOL status > /tmp/pool-status.$$"
+log_must eval "zpool status > /tmp/pool-status.$$"
 check_pool_status
 
-log_must eval "$ZPOOL status -v > /tmp/pool-status.$$"
+log_must eval "zpool status -v > /tmp/pool-status.$$"
 check_pool_status
 
-log_must eval "$ZPOOL status $TESTPOOL> /tmp/pool-status.$$"
+log_must eval "zpool status $TESTPOOL> /tmp/pool-status.$$"
 check_pool_status
 
-log_must eval "$ZPOOL status -v $TESTPOOL > /tmp/pool-status.$$"
-check_pool_status
-
-# $TESTPOOL.virt has an offline device, so -x will show it
-log_must eval "$ZPOOL status -x $TESTPOOL.virt > /tmp/pool-status.$$"
+log_must eval "zpool status -v $TESTPOOL > /tmp/pool-status.$$"
 check_pool_status
 
 log_pass "zpool status works when run as a user"

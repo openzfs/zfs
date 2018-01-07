@@ -12,7 +12,6 @@ libspl_HEADERS = \
 	$(top_srcdir)/lib/libspl/include/limits.h \
 	$(top_srcdir)/lib/libspl/include/locale.h \
 	$(top_srcdir)/lib/libspl/include/note.h \
-	$(top_srcdir)/lib/libspl/include/priv.h \
 	$(top_srcdir)/lib/libspl/include/statcommon.h \
 	$(top_srcdir)/lib/libspl/include/stdio.h \
 	$(top_srcdir)/lib/libspl/include/stdlib.h \

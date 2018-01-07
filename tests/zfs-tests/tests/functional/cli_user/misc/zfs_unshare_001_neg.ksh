@@ -26,11 +26,11 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
-. $STF_SUITE/tests/functional/cli_user/misc/misc.cfg
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_user/misc/misc.cfg
 
 #
 # DESCRIPTION:
@@ -45,6 +45,10 @@
 
 verify_runnable "global"
 
+if is_linux; then
+	log_unsupported "Requires additional dependencies"
+fi
+
 log_assert "zfs unshare returns an error when run as a user"
 
 #  verify that the filesystem was shared initially
@@ -53,7 +57,7 @@ then
 	log_fail "$TESTPOOL/$TESTFS/shared was not shared initially at all!"
 fi
 
-log_mustnot $ZFS unshare $TESTPOOL/$TESTFS/shared
+log_mustnot zfs unshare $TESTPOOL/$TESTFS/shared
 
 # now verify that the above command didn't do anything
 if not_shared $TESTDIR/shared

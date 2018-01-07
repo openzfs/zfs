@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -76,7 +76,7 @@ function cleanup
 	recreate_files
 
 	[[ -d $ALTER_ROOT ]] && \
-		log_must $RM -rf $ALTER_ROOT
+		log_must rm -rf $ALTER_ROOT
 }
 
 function recreate_files
@@ -86,10 +86,10 @@ function recreate_files
 		destroy_pool $TESTPOOL1
 	fi
 
-	log_must $RM -rf $DEVICE_DIR/*
+	log_must rm -rf $DEVICE_DIR/*
 	typeset i=0
 	while (( i < $MAX_NUM )); do
-		log_must $MKFILE $FILE_SIZE ${DEVICE_DIR}/${DEVICE_FILE}$i
+		log_must mkfile $FILE_SIZE ${DEVICE_DIR}/${DEVICE_FILE}$i
 		((i += 1))
 	done
 }
@@ -101,7 +101,7 @@ log_assert "Verify that import could handle damaged or missing device."
 CWD=$PWD
 cd $DEVICE_DIR || log_fail "Unable change directory to $DEVICE_DIR"
 
-checksum1=$($SUM $MYTESTFILE | $AWK '{print $1}')
+checksum1=$(sum $MYTESTFILE | awk '{print $1}')
 
 typeset -i i=0
 typeset -i j=0
@@ -117,9 +117,9 @@ while (( i < ${#vdevs[*]} )); do
 	backup=""
 
 	guid=$(get_config $TESTPOOL1 pool_guid)
-	log_must $CP $MYTESTFILE $TESTDIR1/$TESTFILE0
+	log_must cp $MYTESTFILE $TESTDIR1/$TESTFILE0
 
-	log_must $ZFS umount $TESTDIR1
+	log_must zfs umount $TESTDIR1
 
 	j=0
 	while (( j <  ${#options[*]} )); do
@@ -131,19 +131,19 @@ while (( i < ${#vdevs[*]} )); do
 		# Restore all device files.
 		#
 		[[ -n $backup ]] && \
-			log_must $TAR xf $DEVICE_DIR/$DEVICE_ARCHIVE
+			log_must tar xf $DEVICE_DIR/$DEVICE_ARCHIVE
 
 		for device in $DEVICE_FILES ; do
-			log_must $RM -f $device
+			log_must rm -f $device
 
 			poolexists $TESTPOOL1 && \
-				log_must $ZPOOL export $TESTPOOL1
+				log_must zpool export $TESTPOOL1
 
 			#
 			# Backup all device files while filesystem prepared.
 			#
 			if [[ -z $backup ]]; then
-				log_must $TAR cf $DEVICE_DIR/$DEVICE_ARCHIVE \
+				log_must tar cf $DEVICE_DIR/$DEVICE_ARCHIVE \
 					${DEVICE_FILE}*
 				backup="true"
 			fi
@@ -166,14 +166,14 @@ while (( i < ${#vdevs[*]} )); do
 				target=$guid
 				log_note "Import by guid."
 			fi
-			$action $ZPOOL import \
+			$action zpool import \
 				-d $DEVICE_DIR ${options[j]} $target
 
 			[[ $action == "log_mustnot" ]] && continue
 
 			log_must poolexists $TESTPOOL1
 
-			health=$($ZPOOL list -H -o health $TESTPOOL1)
+			health=$(zpool list -H -o health $TESTPOOL1)
 
 			[[ $health == "DEGRADED" ]] || \
 				log_fail "$TESTPOOL1: Incorrect health($health)"
@@ -186,7 +186,7 @@ while (( i < ${#vdevs[*]} )); do
 			[[ ! -e $basedir/$TESTFILE0 ]] && \
 				log_fail "$basedir/$TESTFILE0 missing after import."
 
-			checksum2=$($SUM $basedir/$TESTFILE0 | $AWK '{print $1}')
+			checksum2=$(sum $basedir/$TESTFILE0 | awk '{print $1}')
 			[[ "$checksum1" != "$checksum2" ]] && \
 				log_fail "Checksums differ ($checksum1 != $checksum2)"
 

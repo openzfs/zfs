@@ -20,6 +20,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <time.h>
 #include <unistd.h>
 #include "zed_file.h"
 #include "zed_log.h"
@@ -53,7 +54,7 @@ _zed_exec_create_env(zed_strings_t *zsp)
 	if (!buf)
 		return (NULL);
 
-	pp = (char **) buf;
+	pp = (char **)buf;
 	p = buf + (num_ptrs * sizeof (char *));
 	i = 0;
 	for (q = zed_strings_first(zsp); q; q = zed_strings_next(zsp)) {
@@ -65,12 +66,12 @@ _zed_exec_create_env(zed_strings_t *zsp)
 	}
 	pp[i] = NULL;
 	assert(buf + buflen == p);
-	return ((char **) buf);
+	return ((char **)buf);
 }
 
 /*
  * Fork a child process to handle event [eid].  The program [prog]
- * in directory [dir] is executed with the envionment [env].
+ * in directory [dir] is executed with the environment [env].
  *
  * The file descriptor [zfd] is the zevent_fd used to track the
  * current cursor location within the zevent nvlist.
@@ -106,27 +107,48 @@ _zed_exec_fork_child(uint64_t eid, const char *dir, const char *prog,
 		return;
 	} else if (pid == 0) {
 		(void) umask(022);
-		fd = open("/dev/null", O_RDWR);
-		(void) dup2(fd, STDIN_FILENO);
-		(void) dup2(fd, STDOUT_FILENO);
-		(void) dup2(fd, STDERR_FILENO);
+		if ((fd = open("/dev/null", O_RDWR)) != -1) {
+			(void) dup2(fd, STDIN_FILENO);
+			(void) dup2(fd, STDOUT_FILENO);
+			(void) dup2(fd, STDERR_FILENO);
+		}
 		(void) dup2(zfd, ZEVENT_FILENO);
 		zed_file_close_from(ZEVENT_FILENO + 1);
 		execle(path, prog, NULL, env);
 		_exit(127);
-	} else {
-		zed_log_msg(LOG_INFO, "Invoking \"%s\" eid=%llu pid=%d",
-		    prog, eid, pid);
-		/* FIXME: Timeout rogue child processes with sigalarm? */
-restart:
-		wpid = waitpid(pid, &status, 0);
-		if (wpid == (pid_t) -1) {
+	}
+
+	/* parent process */
+
+	zed_log_msg(LOG_INFO, "Invoking \"%s\" eid=%llu pid=%d",
+	    prog, eid, pid);
+
+	/* FIXME: Timeout rogue child processes with sigalarm? */
+
+	/*
+	 * Wait for child process using WNOHANG to limit
+	 * the time spent waiting to 10 seconds (10,000ms).
+	 */
+	for (n = 0; n < 1000; n++) {
+		wpid = waitpid(pid, &status, WNOHANG);
+		if (wpid == (pid_t)-1) {
 			if (errno == EINTR)
-				goto restart;
+				continue;
 			zed_log_msg(LOG_WARNING,
 			    "Failed to wait for \"%s\" eid=%llu pid=%d",
 			    prog, eid, pid);
-		} else if (WIFEXITED(status)) {
+			break;
+		} else if (wpid == 0) {
+			struct timespec t;
+
+			/* child still running */
+			t.tv_sec = 0;
+			t.tv_nsec = 10000000;	/* 10ms */
+			(void) nanosleep(&t, NULL);
+			continue;
+		}
+
+		if (WIFEXITED(status)) {
 			zed_log_msg(LOG_INFO,
 			    "Finished \"%s\" eid=%llu pid=%d exit=%d",
 			    prog, eid, pid, WEXITSTATUS(status));
@@ -140,6 +162,16 @@ restart:
 			    "Finished \"%s\" eid=%llu pid=%d status=0x%X",
 			    prog, eid, (unsigned int) status);
 		}
+		break;
+	}
+
+	/*
+	 * kill child process after 10 seconds
+	 */
+	if (wpid == 0) {
+		zed_log_msg(LOG_WARNING, "Killing hung \"%s\" pid=%d",
+		    prog, pid);
+		(void) kill(pid, SIGKILL);
 	}
 }
 

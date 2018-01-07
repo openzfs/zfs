@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -46,7 +46,7 @@
 function cleanup
 {
 	if datasetexists $snapfs; then
-		log_must $ZFS destroy $snapfs
+		log_must zfs destroy $snapfs
 	fi
 
 	log_must cleanup_quota
@@ -56,26 +56,26 @@ log_onexit cleanup
 
 log_assert "Check the zfs userspace used and quota"
 
-log_must $ZFS set userquota@$QUSER1=100m $QFS
+log_must zfs set userquota@$QUSER1=100m $QFS
 
 mkmount_writable $QFS
 
-log_must user_run $QUSER1 $MKFILE 50m $QFILE
-$SYNC
+log_must user_run $QUSER1 mkfile 50m $QFILE
+sync
 
 typeset snapfs=$QFS@snap
 
-log_must $ZFS snapshot $snapfs
+log_must zfs snapshot $snapfs
 
-log_must eval "$ZFS userspace $QFS >/dev/null 2>&1"
-log_must eval "$ZFS userspace $snapfs >/dev/null 2>&1"
+log_must eval "zfs userspace $QFS >/dev/null 2>&1"
+log_must eval "zfs userspace $snapfs >/dev/null 2>&1"
 
 for fs in "$QFS" "$snapfs"; do
 	log_note "check the quota size in zfs userspace $fs"
-	log_must eval "$ZFS userspace $fs | $GREP $QUSER1 | $GREP 100M"
+	log_must eval "zfs userspace $fs | grep $QUSER1 | grep 100M"
 
 	log_note "check the user used size in zfs userspace $fs"
-	log_must eval "$ZFS userspace $fs | $GREP $QUSER1 | $GREP 50.0M"
+	log_must eval "zfs userspace $fs | grep $QUSER1 | grep 50\\.\*M"
 done
 
 log_pass "Check the zfs userspace used and quota"

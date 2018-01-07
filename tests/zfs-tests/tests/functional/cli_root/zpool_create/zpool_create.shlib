@@ -25,7 +25,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -53,37 +53,37 @@ function create_pool_test
 }
 
 #
-# Create a ufs|ext2 file system and make a file within the file
+# Create a ufs|ext file system and make a file within the file
 # system for storage pool vdev
 # $1, file size
 # $2, file name
-# $3, disk name to create ufs|ext2 file system
+# $3, disk name to create ufs|ext file system
 #
 function create_blockfile
 {
 	typeset size=$1
 	typeset file=$2
 	typeset disk=$3
-	typeset dir=`$DIRNAME $file`
+	typeset dir=`dirname $file`
 
 	if [[ -d $dir ]]; then
 		ismounted $dir $NEWFS_DEFAULT_FS
 		(( $? == 0 )) && \
-			log_must $UMOUNT -f $dir
+			log_must umount -f $dir
 	else
-		log_must $MKDIR -p $dir
+		log_must mkdir -p $dir
 	fi
 
-	$ECHO "y" | $NEWFS ${DEV_RDSKDIR}/$disk >/dev/null 2>&1
+	echo "y" | newfs ${DEV_RDSKDIR}/$disk >/dev/null 2>&1
 	(( $? != 0 )) &&
 		log_fail "Create file system fail."
 
-        log_must $MOUNT ${DEV_DSKDIR}/$disk $dir
-        log_must $MKFILE $size $file
+        log_must mount ${DEV_DSKDIR}/$disk $dir
+        log_must truncate -s $size $file
 }
 
 #
-# Umount the ext2|ufs filesystem and remove the mountpoint
+# Umount the ufs|ext filesystem and remove the mountpoint
 # $1, the mount point
 #
 function clean_blockfile
@@ -94,24 +94,24 @@ function clean_blockfile
 		if [[ -d $dir ]]; then
 			if is_linux; then
 				if ismounted $dir ext2; then
-					typeset dev=$($DF -lht ext2 | \
-						$GREP "$dir" | \
-						$AWK '{print $1}')
-					log_must $UMOUNT -f $dir
+					typeset dev=$(df -lht ext2 | \
+						grep "$dir" | \
+						awk '{print $1}')
+					log_must umount -f $dir
 					create_pool ${TESTPOOL}.tmp $dev
 					destroy_pool ${TESTPOOL}.tmp
 				fi
 			else
 				if ismounted $dir ufs; then
-					typeset dev=$($DF -lhF ufs | \
-						$GREP "$dir" | \
-						$AWK '{print $1}')
-					log_must $UMOUNT -f $dir
+					typeset dev=$(df -lhF ufs | \
+						grep "$dir" | \
+						awk '{print $1}')
+					log_must umount -f $dir
 					create_pool ${TESTPOOL}.tmp $dev
 					destroy_pool ${TESTPOOL}.tmp
 				fi
 			fi
-			log_must $RM -rf $dir
+			log_must rm -rf $dir
 		fi
 	done
 }
@@ -121,22 +121,28 @@ function clean_blockfile
 #
 function find_vfstab_dev
 {
-	typeset vfstab="/etc/vfstab"
-	typeset tmpfile="/tmp/vfstab.tmp"
 	typeset vfstabdev
 	typeset vfstabdevs=""
 	typeset line
 
-	$CAT $vfstab | $GREP "^${DEV_DSKDIR}" >$tmpfile
+	if is_linux; then
+		vfstab="/etc/fstab"
+		tmpfile="/tmp/fstab.tmp"
+	else
+		vfstab="/etc/vfstab"
+		tmpfile="/tmp/vfstab.tmp"
+	fi
+
+	cat $vfstab | grep "^${DEV_DSKDIR}" >$tmpfile
 	while read -r line
 	do
-		vfstabdev=`$ECHO "$line" | $AWK '{print $1}'`
+		vfstabdev=`echo "$line" | awk '{print $1}'`
 		vfstabdev=${vfstabdev%%:}
 		vfstabdevs="$vfstabdev $vfstabdevs"
 	done <$tmpfile
 
-	$RM -f $tmpfile
-	$ECHO $vfstabdevs
+	rm -f $tmpfile
+	echo $vfstabdevs
 }
 
 #
@@ -144,11 +150,14 @@ function find_vfstab_dev
 #
 function save_dump_dev
 {
-
 	typeset dumpdev
-	typeset fnd="Dump device"
 
-	dumpdev=`$DUMPADM | $GREP "$fnd" | $CUT -f2 -d : | \
-		$AWK '{print $1}'`
-	$ECHO $dumpdev
+	if is_linux; then
+		dumpdev=""
+	else
+		typeset fnd="Dump device"
+		dumpdev=`dumpadm | grep "$fnd" | cut -f2 -d : | \
+			awk '{print $1}'`
+	fi
+	echo $dumpdev
 }

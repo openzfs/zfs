@@ -24,7 +24,11 @@
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
 #
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zfs_upgrade/zfs_upgrade.kshlib
 
@@ -43,7 +47,7 @@ verify_runnable "both"
 function cleanup
 {
 	if [[ -f $output ]]; then
-		log_must $RM -f $output
+		log_must rm -f $output
 	fi
 }
 
@@ -54,10 +58,10 @@ typeset output=/tmp/zfs-versions.$$
 typeset expect_str1="Initial ZFS filesystem version"
 typeset expect_str2="Enhanced directory entries"
 
-log_must eval '$ZFS upgrade -v > /dev/null 2>&1'
+log_must eval 'zfs upgrade -v > /dev/null 2>&1'
 
-$ZFS upgrade -v | $NAWK '$1 ~ "^[0-9]+$" {print $0}'> $output
-log_must eval '$GREP "${expect_str1}" $output > /dev/null 2>&1'
-log_must eval '$GREP "${expect_str2}" $output > /dev/null 2>&1'
+zfs upgrade -v | nawk '$1 ~ "^[0-9]+$" {print $0}'> $output
+log_must eval 'grep "${expect_str1}" $output > /dev/null 2>&1'
+log_must eval 'grep "${expect_str2}" $output > /dev/null 2>&1'
 
 log_pass "Executing 'zfs upgrade -v' command succeeds."

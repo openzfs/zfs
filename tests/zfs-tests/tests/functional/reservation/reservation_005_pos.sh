@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -59,7 +59,7 @@ log_assert "Verify space released when reservation on a dataset is set "\
 function cleanup
 {
 	for obj in $OBJ_LIST; do
-		datasetexists $obj && log_must $ZFS destroy -f $obj
+		datasetexists $obj && log_must zfs destroy -f $obj
 	done
 }
 
@@ -77,9 +77,9 @@ else
 	sparse_vol_set_size=$(floor_volsize $sparse_vol_set_size)
 
 
-	log_must $ZFS create -V $vol_set_size $TESTPOOL/$TESTVOL
-	log_must $ZFS set reservation=none $TESTPOOL/$TESTVOL
-	log_must $ZFS create -s -V $sparse_vol_set_size $TESTPOOL/$TESTVOL2
+	log_must zfs create -V $vol_set_size $TESTPOOL/$TESTVOL
+	log_must zfs set reservation=none $TESTPOOL/$TESTVOL
+	log_must zfs create -s -V $sparse_vol_set_size $TESTPOOL/$TESTVOL2
 fi
 
 space_avail=`get_prop available $TESTPOOL`
@@ -98,7 +98,7 @@ for obj in $TESTPOOL/$TESTFS $OBJ_LIST ; do
 	[[ $obj == $TESTPOOL/$TESTVOL ]] && \
 	    ((resv_size_set = vol_set_size - RESV_DELTA))
 
-	log_must $ZFS set reservation=$resv_size_set $obj
+	log_must zfs set reservation=$resv_size_set $obj
 
 	resv_size_get=`get_prop reservation $obj`
 	if [[ $resv_size_set != $resv_size_get ]]; then
@@ -106,7 +106,7 @@ for obj in $TESTPOOL/$TESTFS $OBJ_LIST ; do
 			"($resv_size_set != $resv_size_get)"
 	fi
 
-	log_must $ZFS set reservation=none $obj
+	log_must zfs set reservation=none $obj
 
 	new_space_avail=`get_prop available $TESTPOOL`
 	new_space_used=`get_prop used $TESTPOOL`

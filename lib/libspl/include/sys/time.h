@@ -51,12 +51,29 @@
 #endif
 
 #ifndef MSEC2NSEC
-#define	MSEC2NSEC(m)    ((hrtime_t)(m) * (NANOSEC / MILLISEC))
+#define	MSEC2NSEC(m)	((hrtime_t)(m) * (NANOSEC / MILLISEC))
 #endif
 
 #ifndef NSEC2MSEC
-#define	NSEC2MSEC(n)    ((n) / (NANOSEC / MILLISEC))
+#define	NSEC2MSEC(n)	((n) / (NANOSEC / MILLISEC))
 #endif
+
+#ifndef USEC2NSEC
+#define	USEC2NSEC(m)	((hrtime_t)(m) * (NANOSEC / MICROSEC))
+#endif
+
+#ifndef NSEC2USEC
+#define	NSEC2USEC(n)	((n) / (NANOSEC / MICROSEC))
+#endif
+
+#ifndef NSEC2SEC
+#define	NSEC2SEC(n)	((n) / (NANOSEC / SEC))
+#endif
+
+#ifndef SEC2NSEC
+#define	SEC2NSEC(m)	((hrtime_t)(m) * (NANOSEC / SEC))
+#endif
+
 
 typedef	long long		hrtime_t;
 typedef	struct	timespec	timestruc_t;

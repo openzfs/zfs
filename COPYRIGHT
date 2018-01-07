@@ -10,10 +10,6 @@ and attributed properly.  These exceptions include, but are not limited
 to, the vdev_disk.c and zvol.c implementation which are licensed under
 the CDDL.
 
-The zpios test code is originally derived from the Lustre pios test code
-which is licensed under the GPLv2.  As such the heavily modified zpios
-kernel test code also remains licensed under the GPLv2.
-
 The latest stable and development versions of this port can be downloaded
 from the official ZFS on Linux site located at:
 
@@ -27,7 +23,17 @@ approved for release under LLNL-CODE-403049.
 
 Unless otherwise noted, all files in this distribution are released
 under the Common Development and Distribution License (CDDL).
-Exceptions are noted within the associated source files.  See the file
-OPENSOLARIS.LICENSE for more information.
+Exceptions are noted within the associated source files.  A few notable
+exceptions and their respective licenses include:
+
+Skein Checksum Implementation: module/icp/algs/skein/THIRDPARTYLICENSE
+AES Implementation: module/icp/asm-x86_64/aes/THIRDPARTYLICENSE.gladman
+AES Implementation: module/icp/asm-x86_64/aes/THIRDPARTYLICENSE.openssl
+PBKDF2 Implementation: lib/libzfs/THIRDPARTYLICENSE.openssl
+
+This product includes software developed by the OpenSSL Project for use
+in the OpenSSL Toolkit (http://www.openssl.org/)
+
+See the file OPENSOLARIS.LICENSE for more information.
 
 Refer to the git commit log for authoritative copyright attribution.

@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -46,51 +46,51 @@ verify_runnable "global"
 
 log_assert "'zpool history' can cope with simultaneous commands."
 
-typeset -i orig_count=$($ZPOOL history $spool | $WC -l | $AWK '{print $1}')
+typeset -i orig_count=$(zpool history $spool | wc -l | awk '{print $1}')
 
 typeset -i i=0
 while ((i < 10)); do
-	$ZFS set compression=off $TESTPOOL/$TESTFS &
-	$ZFS set atime=off $TESTPOOL/$TESTFS &
-	$ZFS create $TESTPOOL/$TESTFS1 &
-	$ZFS create $TESTPOOL/$TESTFS2 &
-	$ZFS create $TESTPOOL/$TESTFS3 &
+	zfs set compression=off $TESTPOOL/$TESTFS &
+	zfs set atime=off $TESTPOOL/$TESTFS &
+	zfs create $TESTPOOL/$TESTFS1 &
+	zfs create $TESTPOOL/$TESTFS2 &
+	zfs create $TESTPOOL/$TESTFS3 &
 
 	wait
 
-	$ZFS snapshot $TESTPOOL/$TESTFS1@snap &
-	$ZFS snapshot $TESTPOOL/$TESTFS2@snap &
-	$ZFS snapshot $TESTPOOL/$TESTFS3@snap &
+	zfs snapshot $TESTPOOL/$TESTFS1@snap &
+	zfs snapshot $TESTPOOL/$TESTFS2@snap &
+	zfs snapshot $TESTPOOL/$TESTFS3@snap &
 
 	wait
 
-	$ZFS clone $TESTPOOL/$TESTFS1@snap $TESTPOOL/clone1 &
-	$ZFS clone $TESTPOOL/$TESTFS2@snap $TESTPOOL/clone2 &
-	$ZFS clone $TESTPOOL/$TESTFS3@snap $TESTPOOL/clone3 &
+	zfs clone $TESTPOOL/$TESTFS1@snap $TESTPOOL/clone1 &
+	zfs clone $TESTPOOL/$TESTFS2@snap $TESTPOOL/clone2 &
+	zfs clone $TESTPOOL/$TESTFS3@snap $TESTPOOL/clone3 &
 
 	wait
 
-	$ZFS promote $TESTPOOL/clone1 &
-	$ZFS promote $TESTPOOL/clone2 &
-	$ZFS promote $TESTPOOL/clone3 &
+	zfs promote $TESTPOOL/clone1 &
+	zfs promote $TESTPOOL/clone2 &
+	zfs promote $TESTPOOL/clone3 &
 
 	wait
 
-	$ZFS destroy $TESTPOOL/$TESTFS1 &
-	$ZFS destroy $TESTPOOL/$TESTFS2 &
-	$ZFS destroy $TESTPOOL/$TESTFS3 &
+	zfs destroy $TESTPOOL/$TESTFS1 &
+	zfs destroy $TESTPOOL/$TESTFS2 &
+	zfs destroy $TESTPOOL/$TESTFS3 &
 
 	wait
 
-	$ZFS destroy -Rf $TESTPOOL/clone1 &
-	$ZFS destroy -Rf $TESTPOOL/clone2 &
-	$ZFS destroy -Rf $TESTPOOL/clone3 &
+	zfs destroy -Rf $TESTPOOL/clone1 &
+	zfs destroy -Rf $TESTPOOL/clone2 &
+	zfs destroy -Rf $TESTPOOL/clone3 &
 
 	wait
 	((i += 1))
 done
 
-typeset -i entry_count=$($ZPOOL history $spool | $WC -l | $AWK '{print $1}')
+typeset -i entry_count=$(zpool history $spool | wc -l | awk '{print $1}')
 
 if ((entry_count - orig_count != 200)); then
 	log_fail "The entries count error: entry_count=$entry_count " \

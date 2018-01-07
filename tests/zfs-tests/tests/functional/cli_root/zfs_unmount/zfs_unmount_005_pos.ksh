@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zfs_unmount/zfs_unmount.kshlib
 
@@ -68,7 +72,7 @@ function do_unmount_multiple #options #expect
 		j=0
 		while (( j < ${#dev[*]} )); do
 			mounted ${dev[j]} || \
-				log_must $ZFS $mountcmd ${dev[0]}
+				log_must zfs $mountcmd ${dev[0]}
 
 			cd $TESTDIR || \
 				log_unresolved "Unable change dir to $TESTDIR"
@@ -85,7 +89,7 @@ function do_unmount_multiple #options #expect
 	done
 }
 
-log_assert "Verify that '$ZFS $unmountcmd <filesystem|mountpoint>' " \
+log_assert "Verify that 'zfs $unmountcmd <filesystem|mountpoint>' " \
 	"with a filesystem which mountpoint is currently in use " \
 	"will fail with return code 1, and forcefully will succeeds as root."
 
@@ -97,13 +101,17 @@ typeset -i i=0
 
 while (( i <  ${#options[*]} )); do
 	if [[ ${options[i]} == "-f" ]]; then
-		do_unmount_multiple "${options[i]}"
+		if is_linux; then
+			do_unmount_multiple "${options[i]}" 1
+		else
+			do_unmount_multiple "${options[i]}"
+		fi
 	else
 		do_unmount_multiple "${options[i]}" 1
 	fi
         ((i = i + 1))
 done
 
-log_pass "'$ZFS $unmountcmd <filesystem|mountpoint>' " \
+log_pass "'zfs $unmountcmd <filesystem|mountpoint>' " \
 	"with a filesystem which mountpoint is currently in use " \
 	"will fail with return code 1, and forcefully will succeeds as root."

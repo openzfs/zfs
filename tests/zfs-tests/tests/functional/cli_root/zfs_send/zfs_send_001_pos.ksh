@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/cli_root/cli_common.kshlib
@@ -51,21 +51,21 @@ function cleanup
 {
 	for snap in $init_snap $inc_snap $rst_snap $rst_inc_snap; do
                 snapexists $snap && \
-                        log_must $ZFS destroy -f $snap
+                        log_must zfs destroy -f $snap
         done
 
 	datasetexists $rst_root && \
-		log_must $ZFS destroy -Rf $rst_root
+		log_must zfs destroy -Rf $rst_root
 
 	for file in $full_bkup $inc_bkup \
 			$init_data $inc_data
 	do
 		[[ -e $file ]] && \
-			log_must $RM -f $file
+			log_must rm -f $file
 	done
 
 	[[ -d $TESTDIR1 ]] && \
-		log_must $RM -rf $TESTDIR1
+		log_must rm -rf $TESTDIR1
 
 }
 
@@ -90,37 +90,37 @@ rst_inc_data=$TESTDIR1/$TESTFS/$TESTFILE2
 log_note "Verify 'zfs send' can create full send stream."
 
 #Pre-paration
-log_must $ZFS create $rst_root
+log_must zfs create $rst_root
 [[ ! -d $TESTDIR1 ]] && \
-	log_must $MKDIR -p $TESTDIR1
-log_must $ZFS set mountpoint=$TESTDIR1 $rst_root
+	log_must mkdir -p $TESTDIR1
+log_must zfs set mountpoint=$TESTDIR1 $rst_root
 
-$FILE_WRITE -o create -f $init_data -b $BLOCK_SIZE -c $WRITE_COUNT
+file_write -o create -f $init_data -b $BLOCK_SIZE -c $WRITE_COUNT
 
-log_must $ZFS snapshot $init_snap
-$ZFS send $init_snap > $full_bkup
+log_must zfs snapshot $init_snap
+zfs send $init_snap > $full_bkup
 (( $? != 0 )) && \
-	log_fail "'$ZFS send' fails to create full send"
+	log_fail "'zfs send' fails to create full send"
 
 log_note "Verify the send stream is valid to receive."
 
-log_must $ZFS receive $rst_snap <$full_bkup
+log_must zfs receive $rst_snap <$full_bkup
 receive_check $rst_snap ${rst_snap%%@*}
 compare_cksum $init_data $rst_data
 
 log_note "Verify 'zfs send -i' can create incremental send stream."
 
-$FILE_WRITE -o create -f $inc_data -b $BLOCK_SIZE -c $WRITE_COUNT -d 0
+file_write -o create -f $inc_data -b $BLOCK_SIZE -c $WRITE_COUNT -d 0
 
-log_must $ZFS snapshot $inc_snap
-$ZFS send -i $init_snap $inc_snap > $inc_bkup
+log_must zfs snapshot $inc_snap
+zfs send -i $init_snap $inc_snap > $inc_bkup
 (( $? != 0 )) && \
-	log_fail "'$ZFS send -i' fails to create incremental send"
+	log_fail "'zfs send -i' fails to create incremental send"
 
 log_note "Verify the incremental send stream is valid to receive."
 
-log_must $ZFS rollback $rst_snap
-log_must $ZFS receive $rst_inc_snap <$inc_bkup
+log_must zfs rollback $rst_snap
+log_must zfs receive $rst_inc_snap <$inc_bkup
 receive_check $rst_inc_snap
 compare_cksum $inc_data $rst_inc_data
 

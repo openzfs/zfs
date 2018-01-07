@@ -32,6 +32,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <string.h>
 #include <linux/falloc.h>
 
 /*
@@ -54,7 +55,7 @@ int
 main(int argc, char *argv[])
 {
 	char *filename = NULL;
-	char *buf;
+	char *buf = NULL;
 	size_t filesize = 0;
 	off_t start_off = 0;
 	off_t off_len = 0;
@@ -83,23 +84,42 @@ main(int argc, char *argv[])
 	else
 		usage(argv[0]);
 
-	buf = (char *)malloc(filesize);
-
 	if ((fd = open(filename, O_RDWR | O_CREAT | O_TRUNC, mode)) < 0) {
 		perror("open");
 		return (1);
 	}
-	if (write(fd, buf, filesize) < filesize) {
+
+	buf = (char *)calloc(1, filesize);
+	if (buf == NULL) {
 		perror("write");
+		close(fd);
 		return (1);
 	}
+	memset(buf, 'c', filesize);
 
-	if (fallocate(fd, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE,
-	    start_off, off_len) < 0) {
-		perror("fallocate");
+	if (write(fd, buf, filesize) < filesize) {
+		free(buf);
+		perror("write");
+		close(fd);
 		return (1);
 	}
 
 	free(buf);
+
+#if defined(FALLOC_FL_PUNCH_HOLE) && defined(FALLOC_FL_KEEP_SIZE)
+	if (fallocate(fd, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE,
+	    start_off, off_len) < 0) {
+		perror("fallocate");
+		close(fd);
+		return (1);
+	}
+#else /* !(defined(FALLOC_FL_PUNCH_HOLE) && defined(FALLOC_FL_KEEP_SIZE)) */
+	{
+		perror("FALLOC_FL_PUNCH_HOLE unsupported");
+		close(fd);
+		return (1);
+	}
+#endif /* defined(FALLOC_FL_PUNCH_HOLE) && defined(FALLOC_FL_KEEP_SIZE) */
+	close(fd);
 	return (0);
 }

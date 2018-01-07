@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/tests/functional/cli_root/zfs_get/zfs_get_common.kshlib
 . $STF_SUITE/tests/functional/cli_root/zfs_get/zfs_get_list_d.kshlib
 
@@ -34,7 +38,7 @@
 # correct property value.
 #
 # STRATEGY:
-# 1. Create pool, filesystem, volume and snapshot.
+# 1. Create pool, filesystem, volume, snapshot, and bookmark.
 # 2. Setting valid parameter, 'zfs get' should succeed.
 # 3. Compare the output property name with the original input property.
 #
@@ -65,6 +69,9 @@ typeset all_props=("${zfs_props[@]}" "${userquota_props[@]}")
 typeset dataset=($TESTPOOL/$TESTCTR $TESTPOOL/$TESTFS $TESTPOOL/$TESTVOL \
 	$TESTPOOL/$TESTFS@$TESTSNAP $TESTPOOL/$TESTVOL@$TESTSNAP)
 
+typeset bookmark_props=(creation)
+typeset bookmark=($TESTPOOL/$TESTFS#$TESTBKMARK $TESTPOOL/$TESTVOL#$TESTBKMARK)
+
 #
 # According to dataset and option, checking if 'zfs get' return correct
 # property information.
@@ -86,7 +93,7 @@ function check_return_value
 
 		while read line; do
 			typeset item
-			item=$($ECHO $line | $AWK '{print $2}' 2>&1)
+			item=$(echo $line | awk '{print $2}' 2>&1)
 
 			if [[ $item == $p ]]; then
 				((found += 1))
@@ -100,7 +107,7 @@ function check_return_value
 		fi
 	done
 
-	log_note "SUCCESS: '$ZFS get $opt $prop $dst'."
+	log_note "SUCCESS: 'zfs get $opt $prop $dst'."
 }
 
 log_assert "Setting the valid options and properties 'zfs get' should return " \
@@ -111,17 +118,37 @@ log_onexit cleanup
 create_snapshot $TESTPOOL/$TESTFS $TESTSNAP
 create_snapshot $TESTPOOL/$TESTVOL $TESTSNAP
 
+# Create filesystem and volume's bookmark
+create_bookmark $TESTPOOL/$TESTFS $TESTSNAP $TESTBKMARK
+create_bookmark $TESTPOOL/$TESTVOL $TESTSNAP $TESTBKMARK
+
 typeset -i i=0
 while ((i < ${#dataset[@]})); do
 	for opt in "${options[@]}"; do
 		for prop in ${all_props[@]}; do
-			eval "$ZFS get $opt $prop ${dataset[i]} > \
+			eval "zfs get $opt $prop ${dataset[i]} > \
 			    $TESTDIR/$TESTFILE0"
 			ret=$?
 			if [[ $ret != 0 ]]; then
-				log_fail "$ZFS get returned: $ret"
+				log_fail "zfs get returned: $ret"
 			fi
 			check_return_value ${dataset[i]} "$prop" "$opt"
+		done
+	done
+	((i += 1))
+done
+
+i=0
+while ((i < ${#bookmark[@]})); do
+	for opt in "${options[@]}"; do
+		for prop in ${bookmark_props[@]}; do
+			eval "zfs get $opt $prop ${bookmark[i]} > \
+			    $TESTDIR/$TESTFILE0"
+			ret=$?
+			if [[ $ret != 0 ]]; then
+				log_fail "zfs get returned: $ret"
+			fi
+			check_return_value ${bookmark[i]} "$prop" "$opt"
 		done
 	done
 	((i += 1))

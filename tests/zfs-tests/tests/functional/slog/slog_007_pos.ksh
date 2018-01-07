@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/slog/slog.kshlib
@@ -59,7 +59,7 @@ do
 			# Create pool which devices resider in different
 			# directory
 			#
-			log_must $ZPOOL create $TESTPOOL $type $VDEV \
+			log_must zpool create $TESTPOOL $type $VDEV \
 				$spare $SDEV log $logtype $LDEV $LDEV2
 			ldev=$(random_get $LDEV $LDEV2)
 			log_must verify_slog_device \
@@ -68,8 +68,8 @@ do
 			#
 			# Nomal export/import operating
 			#
-			log_must $ZPOOL export $TESTPOOL
-			log_must $ZPOOL import -d $VDIR -d $VDIR2 $TESTPOOL
+			log_must zpool export $TESTPOOL
+			log_must zpool import -d $VDIR -d $VDIR2 $TESTPOOL
 			log_must display_status $TESTPOOL
 			ldev=$(random_get $LDEV $LDEV2)
 			log_must verify_slog_device \
@@ -78,14 +78,14 @@ do
 			#
 			# Destroy the pool and import again
 			#
-			log_must $ZPOOL destroy $TESTPOOL
-			log_must $ZPOOL import -Df -d $VDIR -d $VDIR2 $TESTPOOL
+			log_must zpool destroy $TESTPOOL
+			log_must zpool import -Df -d $VDIR -d $VDIR2 $TESTPOOL
 			log_must display_status $TESTPOOL
 			ldev=$(random_get $LDEV $LDEV2)
 			log_must verify_slog_device \
 				$TESTPOOL $ldev 'ONLINE' $logtype
 
-			log_must $ZPOOL destroy -f $TESTPOOL
+			log_must zpool destroy -f $TESTPOOL
 		done
 	done
 done

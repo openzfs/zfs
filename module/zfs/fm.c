@@ -84,6 +84,9 @@ static int zevent_len_cur = 0;
 static int zevent_waiters = 0;
 static int zevent_flags = 0;
 
+/* Num events rate limited since the last time zfs_zevent_next() was called */
+static uint64_t ratelimit_dropped = 0;
+
 /*
  * The EID (Event IDentifier) is used to uniquely tag a zevent when it is
  * posted.  The posted EIDs are monotonically increasing but not persistent.
@@ -97,7 +100,6 @@ static list_t zevent_list;
 static kcondvar_t zevent_cv;
 #endif /* _KERNEL */
 
-extern void fastreboot_disable_highpil(void);
 
 /*
  * Common fault management kstats to record event generation failures
@@ -154,7 +156,7 @@ fm_printf(int depth, int c, int cols, const char *format, ...)
 }
 
 /*
- * Recursively print a nvlist in the specified column width and return the
+ * Recursively print an nvlist in the specified column width and return the
  * column we end up in.  This function is called recursively by fm_nvprint(),
  * below.  We generically format the entire nvpair using hexadecimal
  * integers and strings, and elide any integer arrays.  Arrays are basically
@@ -427,11 +429,9 @@ zfs_zevent_alloc(void)
 	zevent_t *ev;
 
 	ev = kmem_zalloc(sizeof (zevent_t), KM_SLEEP);
-	if (ev == NULL)
-		return (NULL);
 
 	list_create(&ev->ev_ze_list, sizeof (zfs_zevent_t),
-		    offsetof(zfs_zevent_t, ze_node));
+	    offsetof(zfs_zevent_t, ze_node));
 	list_link_init(&ev->ev_node);
 
 	return (ev);
@@ -578,7 +578,7 @@ zfs_zevent_minor_to_state(minor_t minor, zfs_zevent_t **ze)
 {
 	*ze = zfsdev_get_state(minor, ZST_ZEVENT);
 	if (*ze == NULL)
-		return (EBADF);
+		return (SET_ERROR(EBADF));
 
 	return (0);
 }
@@ -591,7 +591,7 @@ zfs_zevent_fd_hold(int fd, minor_t *minorp, zfs_zevent_t **ze)
 
 	fp = getf(fd);
 	if (fp == NULL)
-		return (EBADF);
+		return (SET_ERROR(EBADF));
 
 	error = zfsdev_getminor(fp->f_file, minorp);
 	if (error == 0)
@@ -655,8 +655,14 @@ zfs_zevent_next(zfs_zevent_t *ze, nvlist_t **event, uint64_t *event_size,
 
 	ze->ze_zevent = ev;
 	list_insert_head(&ev->ev_ze_list, ze);
-	nvlist_dup(ev->ev_nvl, event, KM_SLEEP);
+	(void) nvlist_dup(ev->ev_nvl, event, KM_SLEEP);
 	*dropped = ze->ze_dropped;
+
+#ifdef _KERNEL
+	/* Include events dropped due to rate limiting */
+	*dropped += ratelimit_dropped;
+	ratelimit_dropped = 0;
+#endif
 	ze->ze_dropped = 0;
 out:
 	mutex_exit(&zevent_lock);
@@ -788,11 +794,11 @@ i_fm_free(nv_alloc_t *nva, void *buf, size_t size)
 }
 
 const nv_alloc_ops_t fm_mem_alloc_ops = {
-	NULL,
-	NULL,
-	i_fm_alloc,
-	i_fm_free,
-	NULL
+	.nv_ao_init = NULL,
+	.nv_ao_fini = NULL,
+	.nv_ao_alloc = i_fm_alloc,
+	.nv_ao_free = i_fm_free,
+	.nv_ao_reset = NULL
 };
 
 /*
@@ -1588,6 +1594,19 @@ fm_ena_time_get(uint64_t ena)
 
 	return (time);
 }
+
+#ifdef _KERNEL
+/*
+ * Helper function to increment ereport dropped count.  Used by the event
+ * rate limiting code to give feedback to the user about how many events were
+ * rate limited by including them in the 'dropped' count.
+ */
+void
+fm_erpt_dropped_increment(void)
+{
+	atomic_inc_64(&ratelimit_dropped);
+}
+#endif
 
 #ifdef _KERNEL
 void

@@ -25,7 +25,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -36,20 +36,25 @@
 #
 # Where disk_device: is the name of the disk to be used
 #       volume_size: is the size of the volume, e.g. 2G
+#       block_size:  is the block size of the volume
 #
-function default_zvol_setup # disk_device volume_size
+function default_zvol_setup # disk_device volume_size block_size
 {
-        typeset disk=$1
-        typeset size=$2
+	typeset disk=$1
+	typeset size=$2
+	typeset blocksize=$3
 	typeset savedumpdev
 	typeset -i output
+	typeset create_args
 
-        create_pool $TESTPOOL "$disk"
+	create_pool $TESTPOOL "$disk"
 
-        log_must $ZFS create -V $size $TESTPOOL/$TESTVOL
+	if [ -n "$blocksize" ]; then
+		create_args="-b $blocksize"
+	fi
+
+	log_must zfs create $create_args -V $size $TESTPOOL/$TESTVOL
 	block_device_wait
-
-	set_dumpsize $TESTPOOL/$TESTVOL
 }
 
 #
@@ -59,7 +64,7 @@ function default_zvol_setup # disk_device volume_size
 function default_zvol_cleanup
 {
         if datasetexists $TESTPOOL/$TESTVOL ; then
-		log_must $ZFS destroy $TESTPOOL/$TESTVOL
+		log_must zfs destroy $TESTPOOL/$TESTVOL
 	fi
 
         destroy_pool $TESTPOOL
@@ -67,7 +72,7 @@ function default_zvol_cleanup
 
 function get_dumpdevice
 {
-	typeset ret=$($DUMPADM | $GREP "Dump device:" | $AWK '{print $3}')
+	typeset ret=$(dumpadm | grep "Dump device:" | awk '{print $3}')
 	echo $ret
 }
 
@@ -80,16 +85,16 @@ function set_dumpsize
 		return 1
 	fi
 
-	log_must $ZFS set volsize=64m $volume
+	log_must zfs set volsize=64m $volume
 
 	if ! is_linux; then
-		output=$($DUMPADM -d ${ZVOL_DEVDIR}/$volume 2>&1 | \
-				$TAIL -1 | $AWK '{print $3}')
+		output=$(dumpadm -d /dev/zvol/dsk/$volume 2>&1 | \
+				tail -1 | awk '{print $3}')
 
 		if [[ -n $output ]]; then
 			(( output = output / 1024 / 1024 ))
 			(( output = output + output / 5 ))
-			log_must $ZFS set volsize=${output}m $volume
+			log_must zfs set volsize=${output}m $volume
 		fi
 	fi
 
@@ -107,13 +112,13 @@ function safe_dumpadm
 	if [[ $device == "${ZVOL_DEVDIR}/"* ]] ; then
 		typeset volume=${device#${ZVOL_DEVDIR}/}
 		set_dumpsize $volume
-		log_must $DUMPADM -d $device
+		log_must dumpadm -d $device
 	else
-		log_must $SWAPADD
+		log_must swapadd
 		if ! is_swap_inuse $device ; then
-			log_must $SWAP -a $device
+			log_must swap -a $device
 		fi
-		log_must $DUMPADM -d swap
+		log_must dumpadm -d swap
 	fi
 }
 
@@ -126,19 +131,6 @@ function is_zvol_dumpified
 		return 1
 	fi
 
-	$ZDB -dddd $volume 2 | $GREP "dumpsize" > /dev/null 2>&1
-	return $?
-}
-
-function is_swap_inuse
-{
-	typeset device=$1
-
-	if [[ -z $device ]] ; then
-		log_note "No device specified."
-		return 1
-	fi
-
-	$SWAP -l | $GREP -w $device > /dev/null 2>&1
+	zdb -dddd $volume 2 | grep "dumpsize" > /dev/null 2>&1
 	return $?
 }

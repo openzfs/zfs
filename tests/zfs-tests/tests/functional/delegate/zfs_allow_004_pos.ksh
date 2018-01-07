@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/delegate/delegate_common.kshlib
@@ -58,9 +58,9 @@ eval set -A dataset $DATASETS
 typeset perms="snapshot,reservation,compression,checksum,userprop"
 
 # Verify option '-d' only affect sub-datasets
-log_must $ZFS create $childfs
+log_must zfs create $childfs
 for dtst in $DATASETS ; do
-	log_must $ZFS allow -d $STAFF1 $perms $dtst
+	log_must zfs allow -d $STAFF1 $perms $dtst
 	log_must verify_noperm $dtst $perms $STAFF1
 	if [[ $dtst == $ROOT_TESTFS ]]; then
 		log_must verify_perm $childfs $perms $STAFF1
@@ -70,9 +70,9 @@ done
 log_must restore_root_datasets
 
 # Verify option '-d + -g' affect group in sub-datasets.
-log_must $ZFS create $childfs
+log_must zfs create $childfs
 for dtst in $DATASETS ; do
-	log_must $ZFS allow -d -g $STAFF_GROUP $perms $dtst
+	log_must zfs allow -d -g $STAFF_GROUP $perms $dtst
 	log_must verify_noperm $dtst $perms $STAFF2
 	if [[ $dtst == $ROOT_TESTFS ]]; then
 		log_must verify_perm $childfs $perms $STAFF2
@@ -82,9 +82,9 @@ done
 log_must restore_root_datasets
 
 # Verify option '-d + -e' affect everyone in sub-datasets.
-log_must $ZFS create $childfs
+log_must zfs create $childfs
 for dtst in $DATASETS ; do
-	log_must $ZFS allow -d -e $perms $dtst
+	log_must zfs allow -d -e $perms $dtst
 	log_must verify_noperm $dtst $perms $OTHER1 $OTHER2
 	if [[ $dtst == $ROOT_TESTFS ]]; then
 		log_must verify_perm $childfs $perms $OTHER1 $OTHER2

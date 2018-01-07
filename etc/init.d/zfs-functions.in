@@ -368,7 +368,7 @@ read_mtab()
 			# Set the variable.
 			eval export MTAB_$mntpnt=\"$fs\"
 		fi
-	done < /proc/mounts
+	done < /proc/self/mounts
 }
 
 in_mtab()

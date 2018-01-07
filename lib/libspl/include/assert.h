@@ -31,12 +31,27 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 
 static inline int
 libspl_assert(const char *buf, const char *file, const char *func, int line)
 {
 	fprintf(stderr, "%s\n", buf);
 	fprintf(stderr, "ASSERT at %s:%d:%s()", file, line, func);
+	abort();
+}
+
+/* printf version of libspl_assert */
+static inline void
+libspl_assertf(const char *file, const char *func, int line, char *format, ...)
+{
+	va_list args;
+
+	va_start(args, format);
+	vfprintf(stderr, format, args);
+	fprintf(stderr, "\n");
+	fprintf(stderr, "ASSERT at %s:%d:%s()", file, line, func);
+	va_end(args);
 	abort();
 }
 
@@ -55,15 +70,13 @@ libspl_assert(const char *buf, const char *file, const char *func, int line)
 do {									\
 	const TYPE __left = (TYPE)(LEFT);				\
 	const TYPE __right = (TYPE)(RIGHT);				\
-	if (!(__left OP __right)) {					\
-		char *__buf = alloca(256);				\
-		(void) snprintf(__buf, 256,				\
+	if (!(__left OP __right))					\
+		libspl_assertf(__FILE__, __FUNCTION__, __LINE__,	\
 		    "%s %s %s (0x%llx %s 0x%llx)", #LEFT, #OP, #RIGHT,	\
 		    (u_longlong_t)__left, #OP, (u_longlong_t)__right);	\
-		libspl_assert(__buf, __FILE__, __FUNCTION__, __LINE__);	\
-	}								\
 } while (0)
 
+#define	VERIFY3B(x, y, z)	VERIFY3_IMPL(x, y, z, boolean_t)
 #define	VERIFY3S(x, y, z)	VERIFY3_IMPL(x, y, z, int64_t)
 #define	VERIFY3U(x, y, z)	VERIFY3_IMPL(x, y, z, uint64_t)
 #define	VERIFY3P(x, y, z)	VERIFY3_IMPL(x, y, z, uintptr_t)
@@ -73,7 +86,16 @@ do {									\
 #undef assert
 #endif
 
+/* Compile time assert */
+#define	CTASSERT_GLOBAL(x)		_CTASSERT(x, __LINE__)
+#define	CTASSERT(x)			{ _CTASSERT(x, __LINE__); }
+#define	_CTASSERT(x, y)			__CTASSERT(x, y)
+#define	__CTASSERT(x, y)						\
+	typedef char __attribute__((unused))				\
+	__compile_time_assertion__ ## y[(x) ? 1 : -1]
+
 #ifdef NDEBUG
+#define	ASSERT3B(x, y, z)	((void)0)
 #define	ASSERT3S(x, y, z)	((void)0)
 #define	ASSERT3U(x, y, z)	((void)0)
 #define	ASSERT3P(x, y, z)	((void)0)
@@ -84,6 +106,7 @@ do {									\
 #define	IMPLY(A, B)		((void)0)
 #define	EQUIV(A, B)		((void)0)
 #else
+#define	ASSERT3B(x, y, z)	VERIFY3B(x, y, z)
 #define	ASSERT3S(x, y, z)	VERIFY3S(x, y, z)
 #define	ASSERT3U(x, y, z)	VERIFY3U(x, y, z)
 #define	ASSERT3P(x, y, z)	VERIFY3P(x, y, z)

@@ -11,7 +11,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -31,19 +31,32 @@
 #
 ################################################################################
 
+function test_snap_run
+{
+    typeset dstype=$1
+
+    snap=$(eval echo \$${dstype}SNAP)
+    log_must zfs hold zfstest $snap
+    log_mustnot zfs destroy $snap
+    log_must datasetexists $snap
+    log_must zfs release zfstest $snap
+    log_must zfs destroy $snap
+    log_mustnot datasetexists $snap
+}
+
 log_assert "zfs destroy of held snapshots fails"
 log_onexit cleanup_testenv
 
 setup_testenv snap
 
 for dstype in FS VOL; do
-    snap=$(eval echo \$${dstype}SNAP)
-    log_must $ZFS hold zfstest $snap
-    log_mustnot $ZFS destroy $snap
-    log_must datasetexists $snap
-    log_must $ZFS release zfstest $snap
-    log_must $ZFS destroy $snap
-    log_mustnot datasetexists $snap
+    if [[ $dstype == VOL ]]; then
+		if is_global_zone; then
+			test_snap_run $dstype
+		fi
+	else
+		test_snap_run $dstype
+	fi
 done
 
 log_pass "zfs destroy of held snapshots fails"

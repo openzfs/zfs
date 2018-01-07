@@ -24,6 +24,7 @@
  * Use is subject to license terms.
  */
 
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -32,7 +33,6 @@
 #include <attr/xattr.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <sys/errno.h>
 #include <sys/param.h>
 
 #define	TYPE_D 'D'
@@ -172,7 +172,7 @@ crtfile(char *pname)
 		exit(errno);
 	}
 
-	if (fsetxattr(fd, "xattr", pbuf, 1024, 0) < 0) {
+	if (fsetxattr(fd, "user.xattr", pbuf, 1024, 0) < 0) {
 		(void) fprintf(stderr, "fsetxattr(fd, \"xattr\", pbuf, "
 		    "1024, 0) failed.\n[%d]: %s.\n", errno, strerror(errno));
 		exit(errno);

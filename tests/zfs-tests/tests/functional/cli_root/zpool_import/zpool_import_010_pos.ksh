@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -54,10 +54,10 @@ function cleanup
 		destroy_pool $dt
 	done
 
-	log_must $RM -rf $DEVICE_DIR/*
+	log_must rm -rf $DEVICE_DIR/*
 	typeset i=0
 	while (( i < $MAX_NUM )); do
-		log_must $MKFILE $FILE_SIZE ${DEVICE_DIR}/${DEVICE_FILE}$i
+		log_must mkfile $FILE_SIZE ${DEVICE_DIR}/${DEVICE_FILE}$i
 		((i += 1))
 	done
 }
@@ -68,22 +68,22 @@ log_onexit cleanup
 
 poolA=poolA.$$; poolB=poolB.$$; poolC=poolC.$$; poolD=poolD.$$; poolE=poolE.$$
 
-log_must $ZPOOL create $poolA mirror $VDEV0 $VDEV1 $VDEV2 $VDEV3 $VDEV4
-log_must $ZPOOL destroy $poolA
+log_must zpool create $poolA mirror $VDEV0 $VDEV1 $VDEV2 $VDEV3 $VDEV4
+log_must zpool destroy $poolA
 
-log_must $ZPOOL create $poolB $VDEV1
-log_must $ZPOOL destroy $poolB
+log_must zpool create $poolB $VDEV1
+log_must zpool destroy $poolB
 
-log_must $ZPOOL create $poolC raidz2 $VDEV2 $VDEV3 $VDEV4
-log_must $ZPOOL destroy $poolC
+log_must zpool create $poolC raidz2 $VDEV2 $VDEV3 $VDEV4
+log_must zpool destroy $poolC
 
-log_must $ZPOOL create $poolD raidz $VDEV3 $VDEV4
-log_must $ZPOOL destroy $poolD
+log_must zpool create $poolD raidz $VDEV3 $VDEV4
+log_must zpool destroy $poolD
 
-log_must $ZPOOL create $poolE $VDEV4
-log_must $ZPOOL destroy $poolE
+log_must zpool create $poolE $VDEV4
+log_must zpool destroy $poolE
 
-log_must $ZPOOL import -d $DEVICE_DIR -D -f -a
+log_must zpool import -d $DEVICE_DIR -D -f -a
 
 for dt in $poolA $poolB $poolC $poolD $poolE; do
 	log_must datasetexists $dt

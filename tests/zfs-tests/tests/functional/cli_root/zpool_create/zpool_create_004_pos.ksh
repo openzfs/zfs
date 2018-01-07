@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/cli_root/zpool_create/zpool_create.shlib
@@ -50,19 +50,19 @@ function cleanup
 	poolexists $TESTPOOL1 && destroy_pool $TESTPOOL1
 	poolexists $TESTPOOL && destroy_pool $TESTPOOL
 
-	[[ -d $TESTDIR ]] && log_must $RM -rf $TESTDIR
+	[[ -d $TESTDIR ]] && log_must rm -rf $TESTDIR
 	partition_disk $SIZE $disk 6
 }
 
-log_assert "Storage pools with $VDEVS_NUM file based vdevs can be created."
+log_assert "Storage pools with 16 file based vdevs can be created."
 log_onexit cleanup
 
 disk=${DISKS%% *}
 create_pool $TESTPOOL $disk
-log_must $ZFS create -o mountpoint=$TESTDIR $TESTPOOL/$TESTFS
+log_must zfs create -o mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 
-vdevs_list=$($ECHO $TESTDIR/file.{01..32})
-log_must $MKFILE 64m $vdevs_list
+vdevs_list=$(echo $TESTDIR/file.{01..16})
+log_must truncate -s $MINVDEVSIZE $vdevs_list
 
 create_pool "$TESTPOOL1" $vdevs_list
 log_must vdevs_in_pool "$TESTPOOL1" "$vdevs_list"
@@ -73,8 +73,8 @@ else
 	log_fail "Creating pool with large numbers of file-vdevs failed."
 fi
 
-log_must $MKFILE 32m $TESTDIR/broken_file
-vdevs_list="$vdevs_list ${TESTDIR}/broken_file"
-log_mustnot $ZPOOL create -f $TESTPOOL1 $vdevs_list
+log_must mkfile 32m $TESTDIR/broken_file
+vdevs_list="$vdevs_list $TESTDIR/broken_file"
+log_mustnot zpool create -f $TESTPOOL1 $vdevs_list
 
 log_pass "Storage pools with many file based vdevs can be created."

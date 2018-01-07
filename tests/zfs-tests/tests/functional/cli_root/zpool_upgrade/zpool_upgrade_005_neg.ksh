@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 # Copyright 2015 Nexenta Systems, Inc.  All rights reserved.
 #
 
@@ -47,7 +47,7 @@ log_assert "Variations of upgrade -v print usage message," \
     "return with non-zero status"
 
 for arg in "/tmp" "-?" "-va" "-v fakepool" "-a fakepool" ; do
-        log_mustnot $ZPOOL upgrade $arg
+        log_mustnot zpool upgrade $arg
 done
 
 log_pass "Variations of upgrade -v print usage message," \

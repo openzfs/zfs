@@ -27,6 +27,4 @@
 
 . $STF_SUITE/tests/functional/cli_root/zfs_destroy/zfs_destroy_common.kshlib
 
-cleanup_testenv
-
 default_cleanup

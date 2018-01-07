@@ -29,4 +29,7 @@
 
 verify_runnable "global"
 
+zed_stop
+zed_cleanup
+
 default_cleanup

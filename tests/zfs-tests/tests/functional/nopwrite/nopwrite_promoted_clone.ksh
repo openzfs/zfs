@@ -12,7 +12,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -36,22 +36,22 @@ log_onexit cleanup
 
 function cleanup
 {
-	datasetexists $origin && log_must $ZFS destroy -R $TESTPOOL/clone
-	log_must $ZFS create -o mountpoint=$TESTDIR $origin
+	datasetexists $origin && log_must zfs destroy -R $TESTPOOL/clone
+	log_must zfs create -o mountpoint=$TESTDIR $origin
 }
 
 log_assert "nopwrite works on a dataset that becomes a clone via promotion."
 
-log_must $ZFS set compress=on $origin
-log_must $ZFS set checksum=sha256 $origin
-$DD if=/dev/urandom of=$TESTDIR/file bs=1024k count=$MEGS conv=notrunc \
+log_must zfs set compress=on $origin
+log_must zfs set checksum=sha256 $origin
+dd if=/dev/urandom of=$TESTDIR/file bs=1024k count=$MEGS conv=notrunc \
     >/dev/null 2>&1 || log_fail "dd into $TESTDIR/file failed."
-$ZFS snapshot $origin@a || log_fail "zfs snap failed"
-log_must $ZFS clone $origin@a $TESTPOOL/clone
-log_must $ZFS set compress=off $TESTPOOL/clone
-log_must $ZFS set checksum=off $TESTPOOL/clone
-log_must $ZFS promote $TESTPOOL/clone
-$DD if=/$TESTPOOL/clone/file of=/$TESTDIR/file bs=1024k count=$MEGS \
+zfs snapshot $origin@a || log_fail "zfs snap failed"
+log_must zfs clone $origin@a $TESTPOOL/clone
+log_must zfs set compress=off $TESTPOOL/clone
+log_must zfs set checksum=off $TESTPOOL/clone
+log_must zfs promote $TESTPOOL/clone
+dd if=/$TESTPOOL/clone/file of=/$TESTDIR/file bs=1024k count=$MEGS \
     conv=notrunc >/dev/null 2>&1 || log_fail "dd failed."
 log_must verify_nopwrite $TESTPOOL/clone $TESTPOOL/clone@a $origin
 

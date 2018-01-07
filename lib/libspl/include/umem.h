@@ -131,7 +131,8 @@ umem_free(void *ptr, size_t size)
 }
 
 static inline void
-umem_nofail_callback(umem_nofail_callback_t *cb) {}
+umem_nofail_callback(umem_nofail_callback_t *cb)
+{}
 
 static inline umem_cache_t *
 umem_cache_create(

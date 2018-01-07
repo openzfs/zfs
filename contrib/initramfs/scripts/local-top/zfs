@@ -44,7 +44,7 @@ activate_vg()
 {
         # Sanity checks
         if [ ! -x /sbin/lvm ]; then
-                message "lvm is not available"
+                [ "$quiet" != "y" ] && message "lvm is not available"
                 return 1
         fi
 

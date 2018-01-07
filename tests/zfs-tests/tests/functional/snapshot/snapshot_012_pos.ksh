@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -54,16 +54,16 @@ verify_runnable "both"
 function cleanup
 {
 	if datasetexists $clone1; then
-		log_must $ZFS promote $ctrfs
-		log_must $ZFS destroy $clone1
+		log_must zfs promote $ctrfs
+		log_must zfs destroy $clone1
 	fi
 
 	snapexists $snapctr && \
-		log_must $ZFS destroy -r $snapctr
+		log_must zfs destroy -r $snapctr
 
 	if snapexists $clone@$TESTSNAP1; then
-		log_must $ZFS promote $ctrfs
-		log_must $ZFS destroy -rR $ctrfs@$TESTSNAP1
+		log_must zfs promote $ctrfs
+		log_must zfs destroy -rR $ctrfs@$TESTSNAP1
 	fi
 }
 
@@ -82,17 +82,17 @@ snapctrclone1=$clone1@$TESTSNAP
 snapctrfs=$SNAPCTR
 
 #preparation for testing
-log_must $ZFS snapshot $ctrfs@$TESTSNAP1
-log_must $ZFS clone $ctrfs@$TESTSNAP1 $clone
-log_must $ZFS promote $clone
+log_must zfs snapshot $ctrfs@$TESTSNAP1
+log_must zfs clone $ctrfs@$TESTSNAP1 $clone
+log_must zfs promote $clone
 
-log_must $ZFS snapshot -r $snapctr
+log_must zfs snapshot -r $snapctr
 
 ! snapexists $snapctrclone && \
 	log_fail "'snapshot -r' fails to create $snapctrclone for $ctr/$TESTCLONE."
 
-log_must $ZFS clone $snapctrfs $clone1
-log_must $ZFS promote $clone1
+log_must zfs clone $snapctrfs $clone1
+log_must zfs promote $clone1
 
 #verify the origin value is correct.
 orig_value=$(get_prop origin $ctrfs)

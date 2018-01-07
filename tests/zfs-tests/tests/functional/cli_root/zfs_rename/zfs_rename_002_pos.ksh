@@ -24,6 +24,11 @@
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zfs_rename/zfs_rename.kshlib
 
@@ -71,7 +76,7 @@ while ((i < ${#dataset[*]} )); do
 	if [[ ${dataset[i]} == *@* ]]; then
 		data=$(snapshot_mountpoint ${dataset[i]})/$TESTFILE0
 	elif [[ ${dataset[i]} == "$TESTPOOL/$TESTVOL" ]] && is_global_zone; then
-		log_must eval "$DD if=$VOL_R_PATH of=$VOLDATA bs=$BS count=$CNT >/dev/null 2>&1"
+		log_must eval "dd if=$VOL_R_PATH of=$VOLDATA bs=$BS count=$CNT >/dev/null 2>&1"
 		data=$VOLDATA
 	else
 		data=$(get_prop mountpoint ${dataset[i]})/$TESTFILE0

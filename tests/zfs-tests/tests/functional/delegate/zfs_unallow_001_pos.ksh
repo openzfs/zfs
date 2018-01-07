@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/delegate/delegate_common.kshlib
@@ -49,10 +49,10 @@ log_onexit restore_root_datasets
 log_must setup_unallow_testenv
 
 for dtst in $DATASETS ; do
-	log_must $ZFS unallow -l $STAFF1 $dtst
+	log_must zfs unallow -l $STAFF1 $dtst
 	log_must verify_noperm $dtst $LOCAL_SET $STAFF1
 
-	log_must $ZFS unallow -l $OTHER1 $dtst
+	log_must zfs unallow -l $OTHER1 $dtst
 	log_must verify_noperm $dtst $LOCAL_DESC_SET $OTHER1
 
 	log_must verify_perm $dtst $LOCAL_DESC_SET $OTHER2

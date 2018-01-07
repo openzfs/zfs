@@ -1,5 +1,5 @@
 '\" te
-.\" Copyright (c) 2013 by Delphix. All rights reserved.
+.\" Copyright (c) 2012, 2015 by Delphix. All rights reserved.
 .\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
 .\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
 .\" The contents of this file are subject to the terms of the Common Development
@@ -279,6 +279,34 @@ an existing space map is upgraded to the new format. Once the feature is
 .sp
 .ne 2
 .na
+\fB\fBmulti_vdev_crash_dump\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID    com.joyent:multi_vdev_crash_dump
+READ\-ONLY COMPATIBLE   no
+DEPENDENCIES    none
+.TE
+
+This feature allows a dump device to be configured with a pool comprised
+of multiple vdevs.  Those vdevs may be arranged in any mirrored or raidz
+configuration.
+
+When the \fBmulti_vdev_crash_dump\fR feature is set to \fBenabled\fR,
+the administrator can use the \fBdumpadm\fR(1M) command to configure a
+dump device on a pool comprised of multiple vdevs.
+
+Under Linux this feature is registered for compatibility but not used.
+New pools created under Linux will have the feature \fBenabled\fR but
+will never transition to \fB\fBactive\fR.  This functionality is not
+required in order to support crash dumps under Linux.  Existing pools
+where this feature is \fB\fBactive\fR can be imported.
+.RE
+
+.sp
+.ne 2
+.na
 \fB\fBextensible_dataset\fR\fR
 .ad
 .RS 4n
@@ -430,6 +458,186 @@ set larger than 128KB.
 This feature becomes \fBactive\fR once a \fBrecordsize\fR property has been
 set larger than 128KB, and will return to being \fBenabled\fR once all
 filesystems that have ever had their recordsize larger than 128KB are destroyed.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBlarge_dnode\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	org.zfsonlinux:large_dnode
+READ\-ONLY COMPATIBLE	no
+DEPENDENCIES	extensible_dataset
+.TE
+
+The \fBlarge_dnode\fR feature allows the size of dnodes in a dataset to be
+set larger than 512B.
+
+This feature becomes \fBactive\fR once a dataset contains an object with
+a dnode larger than 512B, which occurs as a result of setting the
+\fBdnodesize\fR dataset property to a value other than \fBlegacy\fR. The
+feature will return to being \fBenabled\fR once all filesystems that
+have ever contained a dnode larger than 512B are destroyed. Large dnodes
+allow more data to be stored in the bonus buffer, thus potentially
+improving performance by avoiding the use of spill blocks.
+.RE
+
+\fB\fBsha512\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	org.illumos:sha512
+READ\-ONLY COMPATIBLE	no
+DEPENDENCIES	extensible_dataset
+.TE
+
+This feature enables the use of the SHA-512/256 truncated hash algorithm
+(FIPS 180-4) for checksum and dedup. The native 64-bit arithmetic of
+SHA-512 provides an approximate 50% performance boost over SHA-256 on
+64-bit hardware and is thus a good minimum-change replacement candidate
+for systems where hash performance is important, but these systems
+cannot for whatever reason utilize the faster \fBskein\fR and
+\fBedonr\fR algorithms.
+
+When the \fBsha512\fR feature is set to \fBenabled\fR, the administrator
+can turn on the \fBsha512\fR checksum on any dataset using the
+\fBzfs set checksum=sha512\fR(1M) command.  This feature becomes
+\fBactive\fR once a \fBchecksum\fR property has been set to \fBsha512\fR,
+and will return to being \fBenabled\fR once all filesystems that have
+ever had their checksum set to \fBsha512\fR are destroyed.
+
+Booting off of pools utilizing SHA-512/256 is supported (provided that
+the updated GRUB stage2 module is installed).
+
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBskein\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	org.illumos:skein
+READ\-ONLY COMPATIBLE	no
+DEPENDENCIES	extensible_dataset
+.TE
+
+This feature enables the use of the Skein hash algorithm for checksum
+and dedup. Skein is a high-performance secure hash algorithm that was a
+finalist in the NIST SHA-3 competition. It provides a very high security
+margin and high performance on 64-bit hardware (80% faster than
+SHA-256). This implementation also utilizes the new salted checksumming
+functionality in ZFS, which means that the checksum is pre-seeded with a
+secret 256-bit random key (stored on the pool) before being fed the data
+block to be checksummed. Thus the produced checksums are unique to a
+given pool, preventing hash collision attacks on systems with dedup.
+
+When the \fBskein\fR feature is set to \fBenabled\fR, the administrator
+can turn on the \fBskein\fR checksum on any dataset using the
+\fBzfs set checksum=skein\fR(1M) command.  This feature becomes
+\fBactive\fR once a \fBchecksum\fR property has been set to \fBskein\fR,
+and will return to being \fBenabled\fR once all filesystems that have
+ever had their checksum set to \fBskein\fR are destroyed.
+
+Booting off of pools using \fBskein\fR is \fBNOT\fR supported
+-- any attempt to enable \fBskein\fR on a root pool will fail with an
+error.
+
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBedonr\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	org.illumos:edonr
+READ\-ONLY COMPATIBLE	no
+DEPENDENCIES	extensible_dataset
+.TE
+
+This feature enables the use of the Edon-R hash algorithm for checksum,
+including for nopwrite (if compression is also enabled, an overwrite of
+a block whose checksum matches the data being written will be ignored).
+In an abundance of caution, Edon-R can not be used with dedup
+(without verification).
+
+Edon-R is a very high-performance hash algorithm that was part
+of the NIST SHA-3 competition. It provides extremely high hash
+performance (over 350% faster than SHA-256), but was not selected
+because of its unsuitability as a general purpose secure hash algorithm.
+This implementation utilizes the new salted checksumming functionality
+in ZFS, which means that the checksum is pre-seeded with a secret
+256-bit random key (stored on the pool) before being fed the data block
+to be checksummed. Thus the produced checksums are unique to a given
+pool.
+
+When the \fBedonr\fR feature is set to \fBenabled\fR, the administrator
+can turn on the \fBedonr\fR checksum on any dataset using the
+\fBzfs set checksum=edonr\fR(1M) command.  This feature becomes
+\fBactive\fR once a \fBchecksum\fR property has been set to \fBedonr\fR,
+and will return to being \fBenabled\fR once all filesystems that have
+ever had their checksum set to \fBedonr\fR are destroyed.
+
+Booting off of pools using \fBedonr\fR is \fBNOT\fR supported
+-- any attempt to enable \fBedonr\fR on a root pool will fail with an
+error.
+
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBuserobj_accounting\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	org.zfsonlinux:userobj_accounting
+READ\-ONLY COMPATIBLE	yes
+DEPENDENCIES	extensible_dataset
+.TE
+
+This feature allows administrators to account the object usage information
+by user and group.
+
+This feature becomes \fBactive\fR as soon as it is enabled and will never
+return to being \fBenabled\fR. Each filesystem will be upgraded automatically
+when remounted, or when new files are created under that filesystem.
+The upgrade can also be started manually on filesystems by running
+`zfs set version=current <pool/fs>`. The upgrade process runs in the background
+and may take a while to complete for filesystems containing a large number of
+files.
+
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBencryption\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.datto:encryption
+READ\-ONLY COMPATIBLE	no
+DEPENDENCIES	extensible_dataset
+.TE
+
+This feature enables the creation and management of natively encrypted datasets.
+
+This feature becomes \fBactive\fR when an encrypted dataset is created and will
+be returned to the \fBenabled\fR state when all datasets that use this feature
+are destroyed.
+
 .RE
 
 .SH "SEE ALSO"

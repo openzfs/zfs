@@ -43,6 +43,13 @@ struct dnode;				/* so we can reference dnode */
 typedef struct zstream {
 	uint64_t	zs_blkid;	/* expect next access at this blkid */
 	uint64_t	zs_pf_blkid;	/* next block to prefetch */
+
+	/*
+	 * We will next prefetch the L1 indirect block of this level-0
+	 * block id.
+	 */
+	uint64_t	zs_ipf_blkid;
+
 	kmutex_t	zs_lock;	/* protects stream */
 	hrtime_t	zs_atime;	/* time last prefetch issued */
 	list_node_t	zs_node;	/* link for zf_stream */
@@ -59,7 +66,7 @@ void		zfetch_fini(void);
 
 void		dmu_zfetch_init(zfetch_t *, struct dnode *);
 void		dmu_zfetch_fini(zfetch_t *);
-void		dmu_zfetch(zfetch_t *, uint64_t, uint64_t);
+void		dmu_zfetch(zfetch_t *, uint64_t, uint64_t, boolean_t);
 
 
 #ifdef	__cplusplus

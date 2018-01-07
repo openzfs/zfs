@@ -26,7 +26,8 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
+# Copyright 2016 Nexenta Systems, Inc.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -44,17 +45,24 @@
 
 verify_runnable "global"
 
+if ! $(is_physical_device $DISKS) ; then
+	log_unsupported "This directory cannot be run on raw files."
+fi
+
+volsize=$(zfs get -H -o value volsize $TESTPOOL/$TESTVOL)
+
 function cleanup
 {
-	$SWAP -l | $GREP $voldev > /dev/null 2>&1
+	swap -l | grep $voldev > /dev/null 2>&1
 	if (( $? == 0 )) ; then
-		log_must $SWAP -d $voldev
+		log_must swap -d $voldev
 	fi
 
 	typeset dumpdev=$(get_dumpdevice)
 	if [[ $dumpdev != $savedumpdev ]] ; then
 		safe_dumpadm $savedumpdev
 	fi
+	zfs set volsize=$volsize $TESTPOOL/$TESTVOL
 }
 
 log_assert "Verify a device cannot be dump and swap at the same time."
@@ -64,12 +72,12 @@ voldev=${ZVOL_DEVDIR}/$TESTPOOL/$TESTVOL
 savedumpdev=$(get_dumpdevice)
 
 # If device in swap list, it cannot be dump device
-log_must $SWAP -a $voldev
-log_mustnot $DUMPADM -d $voldev
-log_must $SWAP -d $voldev
+log_must swap -a $voldev
+log_mustnot dumpadm -d $voldev
+log_must swap -d $voldev
 
 # If device has dedicated as dump device, it cannot add into swap list
 safe_dumpadm $voldev
-log_mustnot $SWAP -a $voldev
+log_mustnot swap -a $voldev
 
 log_pass "A device cannot be dump and swap at the same time."

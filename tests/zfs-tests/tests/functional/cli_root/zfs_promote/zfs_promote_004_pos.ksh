@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/cli_root/zfs_promote/zfs_promote.cfg
@@ -47,17 +47,17 @@ verify_runnable "both"
 function cleanup
 {
 	if snapexists ${c1snap[1]}; then
-		log_must $ZFS promote $clone
+		log_must zfs promote $clone
 	fi
 
 	typeset ds
 	typeset data
 	for ds in ${snap[*]}; do
 		snapexists $ds && \
-			log_must $ZFS destroy -rR $ds
+			log_must zfs destroy -rR $ds
 	done
 	for data in ${file[*]}; do
-		[[ -e $data ]] && $RM -f $data
+		[[ -e $data ]] && rm -f $data
 	done
 }
 
@@ -91,30 +91,30 @@ set -A c1snapfile "${c1snapdir}/$TESTSNAP3/$CLONEFILE" \
 # setup for promote testing
 typeset -i i=0
 while (( i < 4 )); do
-	log_must $MKFILE $FILESIZE ${file[i]}
-	(( i>0 )) && log_must $RM -f ${file[((i-1))]}
-	log_must $ZFS snapshot ${snap[i]}
+	log_must mkfile $FILESIZE ${file[i]}
+	(( i>0 )) && log_must rm -f ${file[((i-1))]}
+	log_must zfs snapshot ${snap[i]}
 
 	(( i = i + 1 ))
 done
-log_must $ZFS clone ${snap[2]} $clone
+log_must zfs clone ${snap[2]} $clone
 
-log_must $RM -f /$clone/$TESTFILE2
+log_must rm -f /$clone/$TESTFILE2
 i=0
 while (( i < 3 )); do
-	log_must $MKFILE $FILESIZE ${cfile[i]}
-	(( i>0 )) && log_must $RM -f ${cfile[(( i-1 ))]}
-	log_must $ZFS snapshot ${csnap[i]}
+	log_must mkfile $FILESIZE ${cfile[i]}
+	(( i>0 )) && log_must rm -f ${cfile[(( i-1 ))]}
+	log_must zfs snapshot ${csnap[i]}
 
 	(( i = i + 1 ))
 done
 
-log_must $ZFS clone ${csnap[1]} $clone1
-log_must $MKFILE $FILESIZE /$clone1/$CLONEFILE2
-log_must $RM -f /$clone1/$CLONEFILE1
-log_must $ZFS snapshot ${c1snap[2]}
+log_must zfs clone ${csnap[1]} $clone1
+log_must mkfile $FILESIZE /$clone1/$CLONEFILE2
+log_must rm -f /$clone1/$CLONEFILE1
+log_must zfs snapshot ${c1snap[2]}
 
-log_must $ZFS promote $clone1
+log_must zfs promote $clone1
 
 # verify the 'promote' operation
 for ds in ${snap[*]} ${csnap[2]} ${c1snap[*]}; do

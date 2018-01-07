@@ -10,6 +10,29 @@ case "${root}" in
 	*) return ;;
 esac
 
+GENERATOR_FILE=/run/systemd/generator/sysroot.mount
+GENERATOR_EXTENSION=/run/systemd/generator/sysroot.mount.d/zfs-enhancement.conf
+
+if [ -e "$GENERATOR_FILE" -a -e "$GENERATOR_EXTENSION" ] ; then
+	# If the ZFS sysroot.mount flag exists, the initial RAM disk configured
+	# it to mount ZFS on root.  In that case, we bail early.  This flag
+	# file gets created by the zfs-generator program upon successful run.
+	info "ZFS: There is a sysroot.mount and zfs-generator has extended it."
+	info "ZFS: Delegating root mount to sysroot.mount."
+	# Let us tell the initrd to run on shutdown.
+	# We have a shutdown hook to run
+	# because we imported the pool.
+	# We now prevent Dracut from running this thing again.
+	for zfsmounthook in "$hookdir"/mount/*zfs* ; do
+		if [ -f "$zfsmounthook" ] ; then
+			rm -f "$zfsmounthook"
+		fi
+	done
+	return
+fi
+info "ZFS: No sysroot.mount exists or zfs-generator did not extend it."
+info "ZFS: Mounting root with the traditional mount-zfs.sh instead."
+
 # Delay until all required block devices are present.
 udevadm settle
 
@@ -20,7 +43,7 @@ if [ "${root}" = "zfs:AUTO" ] ; then
 		ZFS_DATASET="$(find_bootfs)"
 		if [ $? -ne 0 ] ; then
 			warn "ZFS: No bootfs attribute found in importable pools."
-			export_all || export_all "-f"
+			export_all -F
 
 			rootok=0
 			return 1
@@ -33,6 +56,9 @@ ZFS_DATASET="${ZFS_DATASET:-${root#zfs:}}"
 ZFS_POOL="${ZFS_DATASET%%/*}"
 
 if import_pool "${ZFS_POOL}" ; then
+	# Let us tell the initrd to run on shutdown.
+	# We have a shutdown hook to run
+	# because we imported the pool.
 	info "ZFS: Mounting dataset ${ZFS_DATASET}..."
 	if mount_dataset "${ZFS_DATASET}" ; then
 		ROOTFS_MOUNTED=yes
@@ -41,4 +67,3 @@ if import_pool "${ZFS_POOL}" ; then
 fi
 
 rootok=0
-need_shutdown

@@ -27,6 +27,10 @@
 # Copyright 2015 Nexenta Systems, Inc.
 #
 
+#
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -45,19 +49,19 @@ verify_runnable "global"
 function cleanup {
 	if datasetexists $TESTPOOL/vol
 	then
-		log_must $ZFS destroy $TESTPOOL/vol
+		log_must zfs destroy $TESTPOOL/vol
 	fi
 	if poolexists $TESTPOOL
 	then
-		log_must $ZPOOL destroy $TESTPOOL
+		log_must zpool destroy $TESTPOOL
 	fi
 	if [[ -f $VDEV ]]; then
-		log_must $RM -f $VDEV
+		log_must rm -f $VDEV
 	fi
 }
 
 
-$ZPOOL set 2>&1 | $GREP bootfs > /dev/null
+zpool set 2>&1 | grep bootfs > /dev/null
 if [ $? -ne 0 ]
 then
 	log_unsupported "bootfs pool property not supported on this release."
@@ -68,11 +72,11 @@ log_onexit cleanup
 
 typeset VDEV=$TESTDIR/bootfs_002_neg_a.$$.dat
 
-log_must $MKFILE 400m $VDEV
+log_must mkfile 400m $VDEV
 create_pool "$TESTPOOL" "$VDEV"
-log_must $ZFS create -V 10m $TESTPOOL/vol
+log_must zfs create -V 10m $TESTPOOL/vol
 block_device_wait
 
-log_mustnot $ZPOOL set bootfs=$TESTPOOL/vol $TESTPOOL
+log_mustnot zpool set bootfs=$TESTPOOL/vol $TESTPOOL
 
 log_pass "Invalid datasets are rejected as boot property values"

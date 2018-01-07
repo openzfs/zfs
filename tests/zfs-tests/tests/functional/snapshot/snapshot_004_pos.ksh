@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -50,10 +50,10 @@ function cleanup
 {
 	snapexists $SNAPFS
 	[[ $? -eq 0 ]] && \
-		log_must $ZFS destroy $SNAPFS
+		log_must zfs destroy $SNAPFS
 
 	[[ -e $TESTDIR ]] && \
-		log_must $RM -rf $TESTDIR/* > /dev/null 2>&1
+		log_must rm -rf $TESTDIR/* > /dev/null 2>&1
 }
 
 log_assert "Verify that a snapshot of an empty file system remains empty."
@@ -61,12 +61,12 @@ log_assert "Verify that a snapshot of an empty file system remains empty."
 log_onexit cleanup
 
 [[ -n $TESTDIR ]] && \
-    log_must $RM -rf $TESTDIR/* > /dev/null 2>&1
+    log_must rm -rf $TESTDIR/* > /dev/null 2>&1
 
-log_must $ZFS snapshot $SNAPFS
-FILE_COUNT=`$LS -Al $SNAPDIR | $GREP -v "total 0" | wc -l`
+log_must zfs snapshot $SNAPFS
+FILE_COUNT=`ls -Al $SNAPDIR | grep -v "total 0" | wc -l`
 if [[ $FILE_COUNT -ne 0 ]]; then
-	$LS $SNAPDIR
+	ls $SNAPDIR
 	log_fail "BEFORE: $SNAPDIR contains $FILE_COUNT files(s)."
 fi
 
@@ -75,15 +75,15 @@ typeset -i COUNT=10
 log_note "Populate the $TESTDIR directory"
 typeset -i i=1
 while [[ $i -lt $COUNT ]]; do
-	log_must $FILE_WRITE -o create -f $TESTDIR/file$i \
+	log_must file_write -o create -f $TESTDIR/file$i \
 	   -b $BLOCKSZ -c $NUM_WRITES -d $i
 
 	(( i = i + 1 ))
 done
 
-FILE_COUNT=`$LS -Al $SNAPDIR | $GREP -v "total 0" | wc -l`
+FILE_COUNT=`ls -Al $SNAPDIR | grep -v "total 0" | wc -l`
 if [[ $FILE_COUNT -ne 0 ]]; then
-        $LS $SNAPDIR
+        ls $SNAPDIR
         log_fail "AFTER: $SNAPDIR contains $FILE_COUNT files(s)."
 fi
 

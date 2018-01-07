@@ -26,7 +26,8 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
+# Copyright 2016 Nexenta Systems, Inc.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -43,15 +44,22 @@
 
 verify_runnable "global"
 
+if is_32bit; then
+	log_unsupported "Test case runs slowly on 32 bit"
+fi
+
+volsize=$(zfs get -H -o value volsize $TESTPOOL/$TESTVOL)
+
 function cleanup
 {
 	snapexists $TESTPOOL/$TESTVOL@snap && \
-		$ZFS destroy $TESTPOOL/$TESTVOL@snap
+		zfs destroy $TESTPOOL/$TESTVOL@snap
 
-	ismounted $TESTDIR ufs
-	(( $? == 0 )) && log_must $UMOUNT $TESTDIR
+	ismounted $TESTDIR $NEWFS_DEFAULT_FS
+	(( $? == 0 )) && log_must umount $TESTDIR
 
-	[[ -e $TESTDIR ]] && $RM -rf $TESTDIR
+	[[ -e $TESTDIR ]] && rm -rf $TESTDIR
+	zfs set volsize=$volsize $TESTPOOL/$TESTVOL
 }
 
 log_assert "Verify that ZFS volume snapshot could be fscked"
@@ -61,31 +69,57 @@ TESTVOL='testvol'
 BLOCKSZ=$(( 1024 * 1024 ))
 NUM_WRITES=40
 
-$ECHO "y" | $NEWFS -v ${ZVOL_RDEVDIR}/$TESTPOOL/$TESTVOL >/dev/null 2>&1
+log_must zfs set volsize=128m $TESTPOOL/$TESTVOL
+
+echo "y" | newfs -v ${ZVOL_RDEVDIR}/$TESTPOOL/$TESTVOL >/dev/null 2>&1
 (( $? != 0 )) && log_fail "Unable to newfs(1M) $TESTPOOL/$TESTVOL"
 
-log_must $MKDIR $TESTDIR
-log_must $MOUNT ${ZVOL_DEVDIR}/$TESTPOOL/$TESTVOL $TESTDIR
+log_must mkdir $TESTDIR
+log_must mount ${ZVOL_DEVDIR}/$TESTPOOL/$TESTVOL $TESTDIR
 
 typeset -i fn=0
 typeset -i retval=0
 
 while (( 1 )); do
-        $FILE_WRITE -o create -f $TESTDIR/testfile$$.$fn \
-            -b $BLOCKSZ -c $NUM_WRITES
-        retval=$?
-        if (( $retval != 0 )); then
-                break
-        fi
-
-        (( fn = fn + 1 ))
+	file_write -o create -f $TESTDIR/testfile$$.$fn \
+	    -b $BLOCKSZ -c $NUM_WRITES
+	retval=$?
+	if (( $retval != 0 )); then
+		break
+	fi
+	(( fn = fn + 1 ))
 done
 
-log_must $LOCKFS -f $TESTDIR
-log_must $ZFS snapshot $TESTPOOL/$TESTVOL@snap
+if is_linux; then
+	log_must sync
+else
+	log_must lockfs -f $TESTDIR
+fi
 
-$FSCK -n ${ZVOL_RDEVDIR}/$TESTPOOL/$TESTVOL@snap >/dev/null 2>&1
+log_must zfs set snapdev=visible $TESTPOOL/$TESTVOL
+log_must zfs snapshot $TESTPOOL/$TESTVOL@snap
+block_device_wait
+
+fsck -n ${ZVOL_RDEVDIR}/$TESTPOOL/$TESTVOL@snap >/dev/null 2>&1
 retval=$?
-(( $retval == 39 )) || log_fail "$FSCK exited with wrong value $retval "
+
+if [ $retval -ne 0 ] ; then
+	if is_linux ; then
+		# Linux's fsck returns a different code for this test depending
+		# on the version:
+		#
+		# e2fsprogs-1.43.3 (Fedora 25 and older): returns 4
+		# e2fsprogs-1.43.4 (Fedora 26): returns 8
+		#
+		# https://github.com/zfsonlinux/zfs/issues/6297
+		if [ $retval -ne 4 -a $retval -ne 8 ] ; then
+			log_fail "fsck exited with wrong value $retval"
+		fi
+	else
+		if [ $retval -ne 39 ] ; then
+			log_fail "fsck exited with wrong value $retval"
+		fi
+	fi
+fi
 
 log_pass "Verify that ZFS volume snapshot could be fscked"

@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 # Copyright 2015 Nexenta Systems, Inc.  All rights reserved.
 #
 
@@ -57,8 +57,8 @@ typeset -i config=2
 typeset -n pool_name=ZPOOL_VERSION_${config}_NAME
 
 create_old_pool $config
-log_mustnot $ZPOOL upgrade -V 999 $pool_name
-log_mustnot $ZPOOL upgrade -V 999
+log_mustnot zpool upgrade -V 999 $pool_name
+log_mustnot zpool upgrade -V 999
 check_poolversion $pool_name $config
 destroy_upgraded_pool $config
 

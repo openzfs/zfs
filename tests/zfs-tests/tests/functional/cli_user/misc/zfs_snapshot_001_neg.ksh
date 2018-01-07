@@ -26,11 +26,11 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
-. $STF_SUITE/tests/functional/cli_user/misc/misc.cfg
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_user/misc/misc.cfg
 
 #
 # DESCRIPTION:
@@ -45,7 +45,7 @@
 
 log_assert "zfs snapshot returns an error when run as a user"
 
-log_mustnot $ZFS snapshot $TESTPOOL/$TESTFS@usersnap1
+log_mustnot zfs snapshot $TESTPOOL/$TESTFS@usersnap1
 
 # Now verify that the above command didn't actually do anything
 if datasetexists $TESTPOOL/$TESTFS@usersnap1

@@ -1,0 +1,32 @@
+#!/bin/sh
+#
+# Show device mapper slave devices.  This is useful for looking up the
+# /dev/sd* devices associated with a dm or multipath device.  For example:
+#
+# $ ls /sys/block/dm-113/slaves/
+# sddt  sdjw
+#
+
+if [ "$1" = "-h" ] ; then
+	echo "Show device mapper slave devices."
+	exit
+fi
+
+dev="$VDEV_PATH"
+
+# If the VDEV path is a symlink, resolve it to a real device
+if [ -L "$dev" ] ; then
+	dev=$(readlink "$dev")
+fi
+
+dev=$(basename "$dev")
+val=""
+if [ -d "/sys/class/block/$dev/slaves" ] ; then
+	# ls -C: output in columns, no newlines
+	val=$(ls -C "/sys/class/block/$dev/slaves")
+
+	# ls -C will print two spaces between files; change to one space.
+	val=$(echo "$val" | sed -r 's/[[:blank:]]+/ /g')
+fi
+
+echo "slaves=$val"

@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/delegate/delegate_common.kshlib
@@ -51,27 +51,27 @@ perms1="snapshot,reservation"
 perms2="send,compression,checksum,userprop"
 childfs=$ROOT_TESTFS/childfs
 
-log_must $ZFS create $childfs
+log_must zfs create $childfs
 
 for dtst in $DATASETS ; do
 	# Delegate local permission to $STAFF1
-	log_must $ZFS allow -l $STAFF1 $perms1 $dtst
-	log_must $ZFS allow -l $STAFF1 allow $dtst
+	log_must zfs allow -l $STAFF1 $perms1 $dtst
+	log_must zfs allow -l $STAFF1 allow $dtst
 
 	if [[ $dtst == $ROOT_TESTFS ]]; then
-		log_must $ZFS allow -l $STAFF1 $perms2 $childfs
+		log_must zfs allow -l $STAFF1 $perms2 $childfs
 		# $perms1 is local permission in $ROOT_TESTFS
-		log_mustnot user_run $STAFF1 $ZFS allow $OTHER1 $perms1 $childfs
+		log_mustnot user_run $STAFF1 zfs allow $OTHER1 $perms1 $childfs
 		log_must verify_noperm $childfs $perms1 $OTHER1
 	fi
 
 	# Verify 'allow' give non-privilege user delegated permission.
-	log_must user_run $STAFF1 $ZFS allow -l $OTHER1 $perms1 $dtst
+	log_must user_run $STAFF1 zfs allow -l $OTHER1 $perms1 $dtst
 	log_must verify_perm $dtst $perms1 $OTHER1
 
 	# $perms2 was not allow to $STAFF1, so he have no permission to
 	# delegate permission to other else.
-	log_mustnot user_run $STAFF1 $ZFS allow $OTHER1 $perms2 $dtst
+	log_mustnot user_run $STAFF1 zfs allow $OTHER1 $perms2 $dtst
 	log_must verify_noperm $dtst $perms2 $OTHER1
 done
 

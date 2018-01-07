@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -40,8 +44,8 @@ verify_runnable "both"
 
 function cleanup
 {
-	datasetexists $snap1 && log_must $ZFS destroy $snap1
-	datasetexists $snap2 && log_must $ZFS destroy $snap2
+	datasetexists $snap1 && log_must zfs destroy $snap1
+	datasetexists $snap2 && log_must zfs destroy $snap2
 }
 
 log_assert "'zfs send -i' can deal with abbreviated snapshot name."
@@ -52,12 +56,12 @@ snap1=$TESTPOOL/$TESTFS@snap1; snap2=$TESTPOOL/$TESTFS@snap2
 set -A args "$snap1 $snap2" \
 	"${snap1##*@} $snap2" "@${snap1##*@} $snap2"
 
-log_must $ZFS snapshot $snap1
-log_must $ZFS snapshot $snap2
+log_must zfs snapshot $snap1
+log_must zfs snapshot $snap2
 
 typeset -i i=0
 while (( i < ${#args[*]} )); do
-	log_must eval "$ZFS send -i ${args[i]} > /dev/null"
+	log_must eval "zfs send -i ${args[i]} > /dev/null"
 
 	(( i += 1 ))
 done

@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -68,13 +68,13 @@ function cleanup
 	while (( i < ${#pools[*]} )); do
 
 		poolexists ${pools[i]} && \
-			log_must $ZPOOL export ${pools[i]}
+			log_must zpool export ${pools[i]}
 
 		datasetexists "${pools[i]}/$TESTFS" || \
-			log_must $ZPOOL import ${devs[i]} ${pools[i]}
+			log_must zpool import ${devs[i]} ${pools[i]}
 
 		ismounted "${pools[i]}/$TESTFS" || \
-			log_must $ZFS mount ${pools[i]}/$TESTFS
+			log_must zfs mount ${pools[i]}/$TESTFS
 
 		((i = i + 1))
 	done
@@ -91,11 +91,11 @@ log_assert "Badly-formed 'zpool import' with inapplicable scenarios " \
 
 setup_filesystem "$DEVICE_FILES" $TESTPOOL1 $TESTFS $TESTDIR1
 
-log_must $ZPOOL export $TESTPOOL
+log_must zpool export $TESTPOOL
 
 typeset -i i=0
 while (( i < ${#args[*]} )); do
-	log_mustnot $ZPOOL import ${args[i]}
+	log_mustnot zpool import ${args[i]}
 	((i = i + 1))
 done
 

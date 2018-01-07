@@ -17,8 +17,7 @@ USER_C = \
 	uu_misc.c \
 	uu_open.c \
 	uu_pname.c \
-	uu_string.c \
-	uu_strtoint.c
+	uu_string.c
 
 KERNEL_C =
 
@@ -28,8 +27,7 @@ nodist_libuutil_la_SOURCES = \
 
 libuutil_la_LIBADD = \
 	$(top_builddir)/lib/libavl/libavl.la \
-	$(top_builddir)/lib/libspl/libspl.la \
-	$(top_builddir)/lib/libefi/libefi.la
+	$(top_builddir)/lib/libspl/libspl.la
 
 libuutil_la_LDFLAGS = -pthread -version-info 1:1:0
 

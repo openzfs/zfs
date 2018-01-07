@@ -1,7 +1,8 @@
 #!/bin/sh
 
 ### prepare
-#TEST_PREPARE_WATCHDOG="no"
+#TEST_PREPARE_WATCHDOG="yes"
+#TEST_PREPARE_SHARES="yes"
 
 ### SPLAT
 #TEST_SPLAT_SKIP="yes"
@@ -12,14 +13,7 @@
 #TEST_ZTEST_TIMEOUT=1800
 #TEST_ZTEST_DIR="/var/tmp/"
 #TEST_ZTEST_OPTIONS="-V"
-
-### ziltest
-#TEST_ZILTEST_SKIP="yes"
-#TEST_ZILTEST_OPTIONS=""
-
-### zconfig
-#TEST_ZCONFIG_SKIP="yes"
-TEST_ZCONFIG_OPTIONS="-c -s10"
+#TEST_ZTEST_CORE_DIR="/mnt/zloop"
 
 ### zimport
 #TEST_ZIMPORT_SKIP="yes"
@@ -39,20 +33,13 @@ TEST_ZCONFIG_OPTIONS="-c -s10"
 
 ### zfs-tests.sh
 #TEST_ZFSTESTS_SKIP="yes"
+#TEST_ZFSTESTS_DIR="/mnt/"
 #TEST_ZFSTESTS_DISKS="vdb vdc vdd"
 #TEST_ZFSTESTS_DISKSIZE="8G"
+#TEST_ZFSTESTS_ITERS="1"
+#TEST_ZFSTESTS_OPTIONS="-vx"
 #TEST_ZFSTESTS_RUNFILE="linux.run"
-
-### filebench
-#TEST_FILEBENCH_SKIP="yes"
-#TEST_FILEBENCH_URL="http://build.zfsonlinux.org/"
-#TEST_FILEBENCH_VER="filebench-1.4.9.1.tar.gz"
-#TEST_FILEBENCH_RUNTIME=10
-#TEST_FILEBENCH_POOL="tank"
-#TEST_FILEBENCH_FS="filebench"
-#TEST_FILEBENCH_VDEV="/var/tmp/vdev"
-#TEST_FILEBENCH_DIR="/$TEST_FILEBENCH_POOL/$TEST_FILEBENCH_FS"
-#TEST_FILEBENCH_OPTIONS=""
+#TEST_ZFSTESTS_TAGS="functional"
 
 ### zfsstress
 #TEST_ZFSSTRESS_SKIP="yes"
@@ -61,6 +48,7 @@ TEST_ZCONFIG_OPTIONS="-c -s10"
 #TEST_ZFSSTRESS_RUNTIME=300
 #TEST_ZFSSTRESS_POOL="tank"
 #TEST_ZFSSTRESS_FS="fish"
+#TEST_ZFSSTRESS_FSOPT="-o overlay=on"
 #TEST_ZFSSTRESS_VDEV="/var/tmp/vdev"
 #TEST_ZFSSTRESS_DIR="/$TEST_ZFSSTRESS_POOL/$TEST_ZFSSTRESS_FS"
 #TEST_ZFSSTRESS_OPTIONS=""
@@ -75,10 +63,14 @@ TEST_ZCONFIG_OPTIONS="-c -s10"
 #
 case "$BB_NAME" in
 Amazon*)
+    # ZFS enabled xfstests fails to build
+    TEST_XFSTESTS_SKIP="yes"
     ;;
-CentOS*)
-    # Sporadic VERIFY(!zilog_is_dirty(zilog)) failed
-    TEST_ZILTEST_SKIP="yes"
+CentOS-7*)
+    # ZFS enabled xfstests fails to build
+    TEST_XFSTESTS_SKIP="yes"
+    ;;
+CentOS-6*)
     ;;
 Debian*)
     ;;
@@ -88,8 +80,36 @@ RHEL*)
     ;;
 SUSE*)
     ;;
+Ubuntu-16.04*)
+    # ZFS enabled xfstests fails to build
+    TEST_XFSTESTS_SKIP="yes"
+    ;;
 Ubuntu*)
     ;;
 *)
     ;;
 esac
+
+###
+#
+# Run ztest longer on the "coverage" builders to gain more code coverage
+# data out of ztest, libzpool, etc.
+#
+case "$BB_NAME" in
+*coverage*)
+    TEST_ZTEST_TIMEOUT=3600
+    ;;
+*)
+    TEST_ZTEST_TIMEOUT=900
+    ;;
+esac
+
+###
+#
+# Disable the following test suites on 32-bit systems.
+#
+if [ $(getconf LONG_BIT) = "32" ]; then
+    TEST_ZTEST_SKIP="yes"
+    TEST_XFSTESTS_SKIP="yes"
+    TEST_ZFSSTRESS_SKIP="yes"
+fi

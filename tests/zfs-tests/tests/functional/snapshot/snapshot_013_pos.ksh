@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -49,13 +49,13 @@ verify_runnable "both"
 function cleanup
 {
 	datasetexists $ctrfs && \
-		$ZFS destroy -r $ctrfs
+		zfs destroy -r $ctrfs
 
 	snapexists $snappool && \
-		log_must $ZFS destroy -r $snappool
+		log_must zfs destroy -r $snappool
 
 	[[ -e $TESTDIR ]] && \
-		log_must $RM -rf $TESTDIR/* > /dev/null 2>&1
+		log_must rm -rf $TESTDIR/* > /dev/null 2>&1
 }
 
 log_assert "Verify snapshots from 'snapshot -r' can be used for zfs send/recv"
@@ -71,28 +71,28 @@ fsdir=/$ctrfs
 snapdir=$fsdir/.zfs/snapshot/$TESTSNAP
 
 [[ -n $TESTDIR ]] && \
-    log_must $RM -rf $TESTDIR/* > /dev/null 2>&1
+    log_must rm -rf $TESTDIR/* > /dev/null 2>&1
 
 typeset -i COUNT=10
 
 log_note "Populate the $TESTDIR directory (prior to snapshot)"
 typeset -i i=0
 while (( i < COUNT )); do
-	log_must $FILE_WRITE -o create -f $TESTDIR/file$i \
+	log_must file_write -o create -f $TESTDIR/file$i \
 	   -b $BLOCKSZ -c $NUM_WRITES -d $i
 
 	(( i = i + 1 ))
 done
 
-log_must $ZFS snapshot -r $snappool
+log_must zfs snapshot -r $snappool
 
-$ZFS send $snapfs | $ZFS receive $ctrfs >/dev/null 2>&1
+zfs send $snapfs | zfs receive $ctrfs >/dev/null 2>&1
 if ! datasetexists $ctrfs || ! snapexists $snapctrfs; then
 	log_fail "zfs send/receive fails with snapshot $snapfs."
 fi
 
 for dir in $fsdir $snapdir; do
-	FILE_COUNT=`$LS -Al $dir | $GREP -v "total" | wc -l`
+	FILE_COUNT=`ls -Al $dir | grep -v "total" | wc -l`
 	(( FILE_COUNT != COUNT )) && log_fail "Got $FILE_COUNT expected $COUNT"
 done
 

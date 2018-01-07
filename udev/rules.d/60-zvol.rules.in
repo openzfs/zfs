@@ -1,6 +1,6 @@
 # Persistent links for zvol
 #
 # persistent disk links: /dev/zvol/dataset_name
-# also creates compatibilty symlink of /dev/dataset_name
+# also creates compatibility symlink of /dev/dataset_name
 
 KERNEL=="zd*" SUBSYSTEM=="block" ACTION=="add|change" PROGRAM="@udevdir@/zvol_id $tempnode" SYMLINK+="zvol/%c %c"

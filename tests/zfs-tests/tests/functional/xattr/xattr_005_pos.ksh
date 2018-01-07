@@ -24,7 +24,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -44,22 +44,22 @@
 
 function cleanup {
 
-	log_must $ZFS destroy $TESTPOOL/$TESTFS/clone
-	log_must $ZFS destroy $TESTPOOL/$TESTFS@snapshot1
-	log_must $RM $TESTDIR/myfile.$$
+	log_must zfs destroy $TESTPOOL/$TESTFS/clone
+	log_must zfs destroy $TESTPOOL/$TESTFS@snapshot1
+	log_must rm $TESTDIR/myfile.$$
 }
 
 log_assert "read/write/create/delete xattr on a clone filesystem"
 log_onexit cleanup
 
 # create a file, and an xattr on it
-log_must $TOUCH $TESTDIR/myfile.$$
+log_must touch $TESTDIR/myfile.$$
 create_xattr $TESTDIR/myfile.$$ passwd /etc/passwd
 
 # snapshot & clone the filesystem
-log_must $ZFS snapshot $TESTPOOL/$TESTFS@snapshot1
-log_must $ZFS clone $TESTPOOL/$TESTFS@snapshot1 $TESTPOOL/$TESTFS/clone
-log_must $ZFS set mountpoint=$TESTDIR/clone $TESTPOOL/$TESTFS/clone
+log_must zfs snapshot $TESTPOOL/$TESTFS@snapshot1
+log_must zfs clone $TESTPOOL/$TESTFS@snapshot1 $TESTPOOL/$TESTFS/clone
+log_must zfs set mountpoint=$TESTDIR/clone $TESTPOOL/$TESTFS/clone
 
 # check for the xattrs on the clone
 verify_xattr $TESTDIR/clone/myfile.$$ passwd /etc/passwd

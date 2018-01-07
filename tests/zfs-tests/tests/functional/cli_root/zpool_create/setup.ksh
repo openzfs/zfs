@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -40,17 +40,17 @@ fi
 
 if [[ -n $DISK ]]; then
 	#
-        # Use 'zpool create' to clean up the infomation in
+        # Use 'zpool create' to clean up the information in
         # in the given disk to avoid slice overlapping.
         #
 	cleanup_devices $DISK
 
-        partition_disk $SIZE $DISK 7
+        partition_disk $((($MINVDEVSIZE / (1024 * 1024)) * 2))m $DISK 7
 else
-	for disk in `$ECHO $DISKSARRAY`; do
+	for disk in `echo $DISKSARRAY`; do
 		cleanup_devices $disk
 
-		partition_disk $SIZE $disk 7
+		partition_disk $((($MINVDEVSIZE / (1024 * 1024)) * 2))m $disk 7
 	done
 fi
 

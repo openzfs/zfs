@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -64,23 +64,23 @@ function cleanup
 	typeset -i i=0
 	while (( i < ${#pools[*]} )); do
 		if poolexists "${pools[i]}-new" ; then
-			log_must $ZPOOL export "${pools[i]}-new"
+			log_must zpool export "${pools[i]}-new"
 
 			[[ -d /${pools[i]}-new ]] && \
-				log_must $RM -rf /${pools[i]}-new
+				log_must rm -rf /${pools[i]}-new
 
-			log_must $ZPOOL import ${devs[i]} \
+			log_must zpool import ${devs[i]} \
 				"${pools[i]}-new" ${pools[i]}
 		fi
 
 		datasetexists "${pools[i]}" || \
-			log_must $ZPOOL import ${devs[i]} ${pools[i]}
+			log_must zpool import ${devs[i]} ${pools[i]}
 
 		ismounted "${pools[i]}/$TESTFS" || \
-			log_must $ZFS mount ${pools[i]}/$TESTFS
+			log_must zfs mount ${pools[i]}/$TESTFS
 
 		[[ -e ${mtpts[i]}/$TESTFILE0 ]] && \
-			log_must $RM -rf ${mtpts[i]}/$TESTFILE0
+			log_must rm -rf ${mtpts[i]}/$TESTFILE0
 
 		((i = i + 1))
 
@@ -91,7 +91,9 @@ function cleanup
 	destroy_pool $TESTPOOL1
 
 	[[ -d $ALTER_ROOT ]] && \
-		log_must $RM -rf $ALTER_ROOT
+		log_must rm -rf $ALTER_ROOT
+	[[ -e $VDEV_FILE ]] && \
+		log_must rm $VDEV_FILE
 }
 
 log_onexit cleanup
@@ -99,7 +101,7 @@ log_onexit cleanup
 log_assert "Verify that an imported pool can be renamed."
 
 setup_filesystem "$DEVICE_FILES" $TESTPOOL1 $TESTFS $TESTDIR1
-checksum1=$($SUM $MYTESTFILE | $AWK '{print $1}')
+checksum1=$(sum $MYTESTFILE | awk '{print $1}')
 
 typeset -i i=0
 typeset -i j=0
@@ -107,16 +109,16 @@ typeset basedir
 
 while (( i < ${#pools[*]} )); do
 	guid=$(get_config ${pools[i]} pool_guid)
-	log_must $CP $MYTESTFILE ${mtpts[i]}/$TESTFILE0
+	log_must cp $MYTESTFILE ${mtpts[i]}/$TESTFILE0
 
-	log_must $ZFS umount ${mtpts[i]}
+	log_must zfs umount ${mtpts[i]}
 
 	j=0
 	while (( j <  ${#options[*]} )); do
-		log_must $ZPOOL export ${pools[i]}
+		log_must zpool export ${pools[i]}
 
 		[[ -d /${pools[i]} ]] && \
-			log_must $RM -rf /${pools[i]}
+			log_must rm -rf /${pools[i]}
 
 		typeset target=${pools[i]}
 		if (( RANDOM % 2 == 0 )) ; then
@@ -124,7 +126,7 @@ while (( i < ${#pools[*]} )); do
 			log_note "Import by guid."
 		fi
 
-		log_must $ZPOOL import ${devs[i]} ${options[j]} \
+		log_must zpool import ${devs[i]} ${options[j]} \
 			$target ${pools[i]}-new
 
 		log_must poolexists "${pools[i]}-new"
@@ -138,25 +140,35 @@ while (( i < ${#pools[*]} )); do
 		[[ ! -e $basedir/$TESTFILE0 ]] && \
 			log_fail "$basedir/$TESTFILE0 missing after import."
 
-		checksum2=$($SUM $basedir/$TESTFILE0 | $AWK '{print $1}')
+		checksum2=$(sum $basedir/$TESTFILE0 | awk '{print $1}')
 		[[ "$checksum1" != "$checksum2" ]] && \
 			log_fail "Checksums differ ($checksum1 != $checksum2)"
 
-		log_must $ZPOOL export "${pools[i]}-new"
+		log_must zpool export "${pools[i]}-new"
 
 		[[ -d /${pools[i]}-new ]] && \
-			log_must $RM -rf /${pools[i]}-new
+			log_must rm -rf /${pools[i]}-new
 
 		target=${pools[i]}-new
 		if (( RANDOM % 2 == 0 )) ; then
 			target=$guid
 		fi
-		log_must $ZPOOL import ${devs[i]} $target ${pools[i]}
+		log_must zpool import ${devs[i]} $target ${pools[i]}
 
 		((j = j + 1))
 	done
 
 	((i = i + 1))
 done
+
+VDEV_FILE=$(mktemp $TEST_BASE_DIR/tmp.XXXXXX)
+
+log_must mkfile -n 128M $VDEV_FILE
+log_must zpool create overflow $VDEV_FILE
+log_must zfs create overflow/testfs
+ID=$(zpool get -Ho value guid overflow)
+log_must zpool export overflow
+log_mustnot zpool import -d $TEST_BASE_DIR $(echo id) \
+    $(printf "%*s\n" 250 "" | tr ' ' 'c')
 
 log_pass "Successfully imported and renamed a ZPOOL"

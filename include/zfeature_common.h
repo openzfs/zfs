@@ -22,6 +22,7 @@
 /*
  * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
+ * Copyright (c) 2013, Joyent, Inc. All rights reserved.
  */
 
 #ifndef _ZFEATURE_COMMON_H
@@ -42,6 +43,7 @@ typedef enum spa_feature {
 	SPA_FEATURE_ASYNC_DESTROY,
 	SPA_FEATURE_EMPTY_BPOBJ,
 	SPA_FEATURE_LZ4_COMPRESS,
+	SPA_FEATURE_MULTI_VDEV_CRASH_DUMP,
 	SPA_FEATURE_SPACEMAP_HISTOGRAM,
 	SPA_FEATURE_ENABLED_TXG,
 	SPA_FEATURE_HOLE_BIRTH,
@@ -50,6 +52,12 @@ typedef enum spa_feature {
 	SPA_FEATURE_BOOKMARKS,
 	SPA_FEATURE_FS_SS_LIMIT,
 	SPA_FEATURE_LARGE_BLOCKS,
+	SPA_FEATURE_LARGE_DNODE,
+	SPA_FEATURE_SHA512,
+	SPA_FEATURE_SKEIN,
+	SPA_FEATURE_EDONR,
+	SPA_FEATURE_USEROBJ_ACCOUNTING,
+	SPA_FEATURE_ENCRYPTION,
 	SPA_FEATURES
 } spa_feature_t;
 

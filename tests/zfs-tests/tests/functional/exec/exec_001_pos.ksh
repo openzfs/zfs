@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -38,9 +38,9 @@
 #
 # STRATEGY:
 # 1. Create pool and file system.
-# 2. Copy '/usr/bin/ls' to the ZFS file system.
+# 2. Copy '$STF_PATH/ls' to the ZFS file system.
 # 3. Setting exec=on on this file system.
-# 4. Make sure '/usr/bin/ls' can work in this ZFS file system.
+# 4. Make sure '$STF_PATH/ls' can work in this ZFS file system.
 # 5. Make sure mmap which is using the PROT_EXEC calls succeed.
 #
 
@@ -48,16 +48,16 @@ verify_runnable "both"
 
 function cleanup
 {
-	log_must $RM $TESTDIR/myls
+	log_must rm $TESTDIR/myls
 }
 
 log_assert "Setting exec=on on a filesystem, processes can be executed from " \
 	"this file system."
 log_onexit cleanup
 
-log_must $CP $LS $TESTDIR/myls
-log_must $ZFS set exec=on $TESTPOOL/$TESTFS
+log_must cp $STF_PATH/ls $TESTDIR/myls
+log_must zfs set exec=on $TESTPOOL/$TESTFS
 log_must $TESTDIR/myls
-log_must $MMAP_EXEC $TESTDIR/myls
+log_must mmap_exec $TESTDIR/myls
 
 log_pass "Setting exec=on on filesystem testing passed."

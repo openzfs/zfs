@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -76,7 +76,7 @@ function verify
 
 	log_must poolexists $pool
 
-	myhealth=$($ZPOOL list -H -o health $pool)
+	myhealth=$(zpool list -H -o health $pool)
 
 	[[ $myhealth == $health ]] || \
 		log_fail "$pool: Incorrect health ($myhealth), " \
@@ -92,7 +92,7 @@ function verify
 	[[ ! -e $mtpt/$file ]] && \
 		log_fail "$mtpt/$file missing after import."
 
-	checksum2=$($SUM $mymtpt/$file | $AWK '{print $1}')
+	checksum2=$(sum $mymtpt/$file | awk '{print $1}')
 	[[ "$checksum1" != "$checksum2" ]] && \
 		log_fail "Checksums differ ($checksum1 != $checksum2)"
 
@@ -112,7 +112,7 @@ function cleanup
 	done
 
 	[[ -e $DEVICE_DIR/$DEVICE_ARCHIVE ]] && \
-		log_must $TAR xf $DEVICE_DIR/$DEVICE_ARCHIVE
+		log_must tar xf $DEVICE_DIR/$DEVICE_ARCHIVE
 }
 
 function cleanup_all
@@ -124,13 +124,13 @@ function cleanup_all
 	while (( i < $MAX_NUM )); do
 		typeset file=${DEVICE_DIR}/${DEVICE_FILE}$i
 		if  [[ -e $file ]]; then
-			log_must $RM $file
+			log_must rm $file
 		fi
-		log_must $MKFILE $FILE_SIZE $file
+		log_must mkfile $FILE_SIZE $file
 		((i += 1))
 	done
 
-	log_must $RM -f $DEVICE_DIR/$DEVICE_ARCHIVE
+	log_must rm -f $DEVICE_DIR/$DEVICE_ARCHIVE
 	cd $CWD || log_fail "Unable change directory to $CWD"
 
 }
@@ -142,9 +142,9 @@ log_assert "Verify that import could handle device overlapped."
 CWD=$PWD
 
 cd $DEVICE_DIR || log_fail "Unable change directory to $DEVICE_DIR"
-log_must $TAR cf $DEVICE_DIR/$DEVICE_ARCHIVE ${DEVICE_FILE}*
+log_must tar cf $DEVICE_DIR/$DEVICE_ARCHIVE ${DEVICE_FILE}*
 
-checksum1=$($SUM $MYTESTFILE | $AWK '{print $1}')
+checksum1=$(sum $MYTESTFILE | awk '{print $1}')
 
 typeset -i i=0
 typeset -i j=0
@@ -164,7 +164,7 @@ while (( i < ${#vdevs[*]} )); do
 	while (( j < ${#vdevs[*]} )); do
 
 		(( j != 0 )) && \
-			log_must $TAR xf $DEVICE_DIR/$DEVICE_ARCHIVE
+			log_must tar xf $DEVICE_DIR/$DEVICE_ARCHIVE
 
 		typeset -i overlap=1
 		typeset -i begin
@@ -182,17 +182,17 @@ while (( i < ${#vdevs[*]} )); do
 
 			setup_filesystem "$vdev1" $TESTPOOL1 $TESTFS $TESTDIR1 \
 				"" ${vdevs[i]}
-			log_must $CP $MYTESTFILE $TESTDIR1/$TESTFILE0
-			log_must $ZFS umount $TESTDIR1
+			log_must cp $MYTESTFILE $TESTDIR1/$TESTFILE0
+			log_must zfs umount $TESTDIR1
 			poolexists $TESTPOOL1 && \
-				log_must $ZPOOL export $TESTPOOL1
+				log_must zpool export $TESTPOOL1
 
 			setup_filesystem "$vdev2" $TESTPOOL2 $TESTFS $TESTDIR2 \
 				"" ${vdevs[j]}
-			log_must $CP $MYTESTFILE $TESTDIR2/$TESTFILE0
-			log_must $ZFS umount $TESTDIR2
+			log_must cp $MYTESTFILE $TESTDIR2/$TESTFILE0
+			log_must zfs umount $TESTDIR2
 			poolexists $TESTPOOL2 && \
-				log_must $ZPOOL export $TESTPOOL2
+				log_must zpool export $TESTPOOL2
 
 			action=log_must
 			case "${vdevs[i]}" in
@@ -206,8 +206,8 @@ while (( i < ${#vdevs[*]} )); do
 					;;
 			esac
 
-			$action $ZPOOL import -d $DEVICE_DIR $TESTPOOL1
-			log_must $ZPOOL import -d $DEVICE_DIR $TESTPOOL2
+			$action zpool import -d $DEVICE_DIR $TESTPOOL1
+			log_must zpool import -d $DEVICE_DIR $TESTPOOL2
 
 			if [[ $action == log_must ]]; then
 				verify "$TESTPOOL1" "$TESTFS" "$TESTDIR1" \

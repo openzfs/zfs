@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -62,8 +62,8 @@ function cleanup
 	# check to see if there is any new fs created during the test
 	# if so destroy it.
 	#
-	for dset in $($ZFS list -H | \
-		$AWK '{print $1}' | $GREP / ); do
+	for dset in $(zfs list -H | \
+		awk '{print $1}' | grep / ); do
 		found=false
 		i=0
 		while (( $i < ${#existed_fs[*]} )); do
@@ -78,7 +78,7 @@ function cleanup
 		# new fs created during the test, cleanup it
 		#
 		if [[ $found == "false" ]]; then
-			log_must $ZFS destroy -f $dset
+			log_must zfs destroy -f $dset
 		fi
 	done
 }
@@ -106,12 +106,12 @@ set -A args "$VOLSIZE" "$TESTVOL1" \
 set -A options "" "-s"
 
 datasetexists $TESTPOOL/$TESTVOL || \
-		log_must $ZFS create -V $VOLSIZE $TESTPOOL/$TESTVOL
+		log_must zfs create -V $VOLSIZE $TESTPOOL/$TESTVOL
 
-set -A existed_fs $($ZFS list -H | $AWK '{print $1}' | $GREP / )
+set -A existed_fs $(zfs list -H | awk '{print $1}' | grep / )
 
-log_mustnot $ZFS create -V $VOLSIZE $TESTPOOL/$TESTVOL
-log_mustnot $ZFS create -s -V $VOLSIZE $TESTPOOL/$TESTVOL
+log_mustnot zfs create -V $VOLSIZE $TESTPOOL/$TESTVOL
+log_mustnot zfs create -s -V $VOLSIZE $TESTPOOL/$TESTVOL
 
 typeset -i i=0
 typeset -i j=0
@@ -119,26 +119,26 @@ while (( i < ${#options[*]} )); do
 
 	j=0
 	while (( j < ${#args[*]} )); do
-		log_mustnot $ZFS create ${options[$i]} -V ${args[$j]}
-		log_mustnot $ZFS create -p ${options[$i]} -V ${args[$j]}
+		log_mustnot zfs create ${options[$i]} -V ${args[$j]}
+		log_mustnot zfs create -p ${options[$i]} -V ${args[$j]}
 
 		((j = j + 1))
 	done
 
 	j=0
 	while (( $j < ${#RW_VOL_PROP[*]} )); do
-		log_mustnot $ZFS create ${options[$i]} -o ${RW_VOL_PROP[j]} \
+		log_mustnot zfs create ${options[$i]} -o ${RW_VOL_PROP[j]} \
 		    -o ${RW_VOL_PROP[j]} -V $VOLSIZE $TESTPOOL/$TESTVOL1
-		log_mustnot $ZFS create -p ${options[$i]} -o ${RW_VOL_PROP[j]} \
+		log_mustnot zfs create -p ${options[$i]} -o ${RW_VOL_PROP[j]} \
 		    -o ${RW_VOL_PROP[j]} -V $VOLSIZE $TESTPOOL/$TESTVOL1
 		((j = j + 1))
 	done
 
 	j=0
 	while (( $j < ${#FS_ONLY_PROP[*]} )); do
-		log_mustnot $ZFS create ${options[$i]} -o ${FS_ONLY_PROP[j]} \
+		log_mustnot zfs create ${options[$i]} -o ${FS_ONLY_PROP[j]} \
 		    -V $VOLSIZE $TESTPOOL/$TESTVOL1
-		log_mustnot $ZFS create -p ${options[$i]} -o ${FS_ONLY_PROP[j]} \
+		log_mustnot zfs create -p ${options[$i]} -o ${FS_ONLY_PROP[j]} \
 		    -V $VOLSIZE $TESTPOOL/$TESTVOL1
 		((j = j + 1))
 	done

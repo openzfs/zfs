@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/cli_root/zfs_promote/zfs_promote.cfg
@@ -48,14 +48,14 @@ verify_runnable "both"
 function cleanup
 {
 	if snapexists $csnap; then
-		log_must $ZFS promote $fs
+		log_must zfs promote $fs
 	fi
 	snapexists $snap && \
-		log_must $ZFS destroy -rR $snap
+		log_must zfs destroy -rR $snap
 
 	typeset data
 	for data in $file0 $file1; do
-		[[ -e $data ]] && $RM -f $data
+		[[ -e $data ]] && rm -f $data
 	done
 }
 
@@ -89,7 +89,7 @@ function testing_verify
 		log_fail "There exists data file losing after zfs promote."
 	fi
 
-	log_mustnot $ZFS destroy -r $c_ds
+	log_mustnot zfs destroy -r $c_ds
 }
 
 log_assert "'zfs promote' can promote a clone filesystem."
@@ -106,19 +106,19 @@ csnap=$clone@$TESTSNAP
 csnapfile=/$clone/.zfs/snapshot/$TESTSNAP/$TESTFILE0
 
 # setup for promte testing
-log_must $MKFILE $FILESIZE $file0
-log_must $ZFS snapshot $snap
-log_must $MKFILE $FILESIZE $file1
-log_must $RM -f $file0
-log_must $ZFS clone $snap $clone
-log_must $MKFILE $FILESIZE $cfile
+log_must mkfile $FILESIZE $file0
+log_must zfs snapshot $snap
+log_must mkfile $FILESIZE $file1
+log_must rm -f $file0
+log_must zfs clone $snap $clone
+log_must mkfile $FILESIZE $cfile
 
-log_must $ZFS promote $clone
+log_must zfs promote $clone
 # verify the 'promote' operation
 testing_verify $fs $file1 $snapfile $clone $cfile $csnapfile
 
 log_note "Verify 'zfs promote' can change back the dependency relationship."
-log_must $ZFS promote $fs
+log_must zfs promote $fs
 #verify the result
 testing_verify $clone $cfile $csnapfile $fs $file1 $snapfile
 

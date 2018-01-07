@@ -19,8 +19,11 @@
 *.mod.c
 *~
 *.swp
+*.gcno
+*.gcda
 .deps
 .libs
+.dirstamp
 .DS_Store
 modules.order
 Makefile
@@ -29,6 +32,7 @@ Makefile.in
 #
 # Top level generated files specific to this top level dir
 #
+/bin
 /configure
 /config.log
 /config.status
@@ -37,8 +41,6 @@ Makefile.in
 /zfs_config.h.in
 /zfs.release
 /stamp-h1
-/.script-config
-/zfs-script-config.sh
 /aclocal.m4
 /autom4te.cache
 
@@ -48,7 +50,10 @@ Makefile.in
 !.gitignore
 tags
 TAGS
+current
 cscope.*
 *.rpm
 *.deb
 *.tar.gz
+*.patch
+*.orig

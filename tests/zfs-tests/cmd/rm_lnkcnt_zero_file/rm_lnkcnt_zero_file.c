@@ -103,10 +103,15 @@ writer(void *a)
 	int ret;
 
 	while (TRUE) {
-		(void) close (*fd);
+		if (*fd != -1)
+			(void) close (*fd);
+
 		*fd = open(filebase, O_APPEND | O_RDWR | O_CREAT, 0644);
-		if (*fd < 0)
-			perror("refreshing file");
+		if (*fd == -1) {
+			perror("fail to open test file, refreshing it");
+			continue;
+		}
+
 		ret = write(*fd, "test\n", 5);
 		if (ret != 5)
 			perror("writing file");

@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -45,7 +49,7 @@ typeset props_str="type used available avail creation referenced refer \
 		compressratio ratio mounted origin quota reservation \
 		reserv volsize volblocksize volblock"
 
-$ZFS upgrade -v > /dev/null 2>&1
+zfs upgrade -v > /dev/null 2>&1
 if [[ $? -eq 0 ]]; then
 	props_str="$props_str version"
 fi
@@ -62,7 +66,7 @@ for obj in $TESTPOOL/$TESTFS $TESTPOOL/$TESTVOL; do
 	while [[ $i -lt ${#prop[*]} ]]; do
 		orig_val=$(get_prop ${prop[i]} $obj)
 
-		log_mustnot $ZFS inherit ${prop[i]} $obj
+		log_mustnot zfs inherit ${prop[i]} $obj
 
 		new_val=$(get_prop ${prop[i]} $obj)
 

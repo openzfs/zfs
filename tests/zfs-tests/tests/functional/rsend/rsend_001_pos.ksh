@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/rsend/rsend.kshlib
@@ -50,8 +50,8 @@ log_onexit cleanup_pool $POOL2
 #
 # Verify the entire pool and sub-ds can be backup and restored.
 #
-log_must eval "$ZFS send -R $POOL@final > $BACKDIR/pool-final-R"
-log_must eval "$ZFS receive -d -F $POOL2 < $BACKDIR/pool-final-R"
+log_must eval "zfs send -R $POOL@final > $BACKDIR/pool-final-R"
+log_must eval "zfs receive -d -F $POOL2 < $BACKDIR/pool-final-R"
 
 dstds=$(get_dst_ds $POOL $POOL2)
 log_must cmp_ds_subs $POOL $dstds
@@ -63,8 +63,8 @@ log_must cleanup_pool $POOL2
 #
 # Verify all the filesystem and sub-fs can be backup and restored.
 #
-log_must eval "$ZFS send -R $POOL/$FS@final > $BACKDIR/fs-final-R"
-log_must eval "$ZFS receive -d $POOL2 < $BACKDIR/fs-final-R"
+log_must eval "zfs send -R $POOL/$FS@final > $BACKDIR/fs-final-R"
+log_must eval "zfs receive -d $POOL2 < $BACKDIR/fs-final-R"
 
 dstds=$(get_dst_ds $POOL/$FS $POOL2)
 log_must cmp_ds_subs $POOL/$FS $dstds

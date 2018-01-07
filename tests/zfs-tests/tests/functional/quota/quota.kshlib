@@ -25,7 +25,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/quota/quota.cfg
@@ -48,21 +48,21 @@ function fill_quota
 	typeset FILESYSTEM="$1"
 	typeset MNTPT="$2"
 
-	log_must $ZFS set quota=$QUOTA_VALUE $FILESYSTEM
+	log_must zfs set quota=$QUOTA_VALUE $FILESYSTEM
 
 	typeset -i write_size=0
 	(( write_size = 2 * QUOTA_VALUE ))
 
 	typeset -i zret=0
-	$FILE_WRITE -o create -f $MNTPT/$TESTFILE1 -b $BLOCK_SIZE \
+	file_write -o create -f $MNTPT/$TESTFILE1 -b $BLOCK_SIZE \
 		 -c $write_size -d 0
 	zret=$?
         [[ $zret -ne $EDQUOT ]] && \
             log_fail "Returned error code: $zret. Expected: $EDQUOT."
 
-	typeset -i file_size=`$LS -ls $MNTPT/$TESTFILE1 | $AWK '{ print $1 }'`
+	typeset -i file_size=`ls -lsk $MNTPT/$TESTFILE1 | awk '{ print $1 }'`
 	typeset -i limit=0
-	(( file_size = file_size * 512 ))
+	(( file_size = file_size * 1024 ))
 	(( limit = QUOTA_VALUE + TOLERANCE ))
 	(( file_size > limit )) && \
 	    log_fail "File was created larger than the quota value, aborting!!!"
@@ -86,7 +86,7 @@ function exceed_quota
 	# Writing a file without API to access return code
 	#
 	log_note "Creating a file in a FS that has already exceeded its quota"
-	$FILE_WRITE -o create -f $MNTPT/$TESTFILE2 \
+	file_write -o create -f $MNTPT/$TESTFILE2 \
 		-b $BLOCK_SIZE -c $write_size -d 0
 	zret=$?
 	[[ $zret -ne $EDQUOT ]] && \

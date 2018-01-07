@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -61,8 +61,8 @@ function cleanup
 	# check to see if there is any new fs created during the test
 	# if so destroy it.
 	#
-	for dset in $($ZFS list -H | \
-		$AWK '{print $1}' | $GREP / ); do
+	for dset in $(zfs list -H | \
+		awk '{print $1}' | grep / ); do
 		found=false
 		i=0
 		while (( $i < ${#existed_fs[*]} )); do
@@ -77,7 +77,7 @@ function cleanup
 		# new fs created during the test, cleanup it
 		#
 		if [[ $found == "false" ]]; then
-			log_must $ZFS destroy -f $dset
+			log_must zfs destroy -f $dset
 		fi
 	done
 }
@@ -94,33 +94,33 @@ set -A args  "$TESTPOOL/" "$TESTPOOL//blah" "$TESTPOOL/@blah" \
 log_assert "Verify 'zfs create <filesystem>' fails with bad <filesystem> argument."
 
 datasetexists $TESTPOOL/$TESTFS || \
-	log_must $ZFS create $TESTPOOL/$TESTFS
+	log_must zfs create $TESTPOOL/$TESTFS
 
-set -A existed_fs $($ZFS list -H | $AWK '{print $1}' | $GREP / )
+set -A existed_fs $(zfs list -H | awk '{print $1}' | grep / )
 
-log_mustnot $ZFS create $TESTPOOL
-log_mustnot $ZFS create $TESTPOOL/$TESTFS
+log_mustnot zfs create $TESTPOOL
+log_mustnot zfs create $TESTPOOL/$TESTFS
 
 typeset -i i=0
 while (( $i < ${#args[*]} )); do
-	log_mustnot $ZFS create ${args[$i]}
-	log_mustnot $ZFS create -p ${args[$i]}
+	log_mustnot zfs create ${args[$i]}
+	log_mustnot zfs create -p ${args[$i]}
 	((i = i + 1))
 done
 
 i=0
 while (( $i < ${#RW_FS_PROP[*]} )); do
-	log_mustnot $ZFS create -o ${RW_FS_PROP[i]} -o ${RW_FS_PROP[i]} \
+	log_mustnot zfs create -o ${RW_FS_PROP[i]} -o ${RW_FS_PROP[i]} \
 		$TESTPOOL/$TESTFS1
-	log_mustnot $ZFS create -p -o ${RW_FS_PROP[i]} -o ${RW_FS_PROP[i]} \
+	log_mustnot zfs create -p -o ${RW_FS_PROP[i]} -o ${RW_FS_PROP[i]} \
 		$TESTPOOL/$TESTFS1
 	((i = i + 1))
 done
 
 i=0
 while (( $i < ${#VOL_ONLY_PROP[*]} )); do
-	log_mustnot $ZFS create -o ${VOL_ONLY_PROP[i]} $TESTPOOL/$TESTFS1
-	log_mustnot $ZFS create -p -o ${VOL_ONLY_PROP[i]} $TESTPOOL/$TESTFS1
+	log_mustnot zfs create -o ${VOL_ONLY_PROP[i]} $TESTPOOL/$TESTFS1
+	log_mustnot zfs create -p -o ${VOL_ONLY_PROP[i]} $TESTPOOL/$TESTFS1
 	((i = i + 1))
 done
 

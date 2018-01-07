@@ -26,11 +26,11 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
-. $STF_SUITE/tests/functional/cli_user/misc/misc.cfg
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_user/misc/misc.cfg
 
 #
 # DESCRIPTION:
@@ -47,6 +47,6 @@ verify_runnable "global"
 
 log_assert "zpool clear returns an error when run as a user"
 
-log_mustnot $ZPOOL clear $TESTPOOL
+log_mustnot zpool clear $TESTPOOL
 
 log_pass "zpool clear returns an error when run as a user"

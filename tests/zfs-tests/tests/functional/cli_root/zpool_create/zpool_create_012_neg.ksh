@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -46,17 +50,21 @@ function cleanup
 	if poolexists $TESTPOOL; then
 		destroy_pool $TESTPOOL
 	fi
-
 }
-typeset swap_disks=`$SWAP -l | $GREP "c[0-9].*d[0-9].*s[0-9]" | \
-            $AWK '{print $1}'`
+
+if is_linux; then
+	typeset swap_disks=`swapon -s | grep "/dev" | awk '{print $1}'`
+else
+	typeset swap_disks=`swap -l | grep "c[0-9].*d[0-9].*s[0-9]" | \
+	    awk '{print $1}'`
+fi
 
 log_assert "'zpool create' should fail with disk slice in swap."
 log_onexit cleanup
 
 for sdisk in $swap_disks; do
 	for opt in "-n" "" "-f"; do
-		log_mustnot $ZPOOL create $opt $TESTPOOL $sdisk
+		log_mustnot zpool create $opt $TESTPOOL $sdisk
 	done
 done
 

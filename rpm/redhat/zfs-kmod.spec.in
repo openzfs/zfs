@@ -1,5 +1,4 @@
 %bcond_with     debug
-%bcond_with     debug_dmu_tx
 
 Name:           @PACKAGE@-kmod
 Version:        @VERSION@
@@ -20,6 +19,11 @@ BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 Requires:       spl-kmod\n\
 Requires:       @PACKAGE@ = %{version}\n\
 Conflicts:      @PACKAGE@-dkms\n\n" > %{_sourcedir}/kmod-preamble)
+
+# LDFLAGS are not sanitized by arch/*/Makefile for these architectures.
+%ifarch ppc ppc64 ppc64le aarch64
+%global __global_ldflags %{nil}
+%endif
 
 %description
 This package contains the ZFS kernel modules.
@@ -54,12 +58,6 @@ fi
 %define debug --disable-debug
 %endif
 
-%if %{with debug_dmu_tx}
-%define debug_dmu_tx --enable-debug-dmu-tx
-%else
-%define debug_dmu_tx --disable-debug-dmu-tx
-%endif
-
 %setup -n %{kmod_name}-%{version}
 %build
 %configure \
@@ -68,8 +66,7 @@ fi
         --with-linux-obj=%{kobj} \
         --with-spl="%{splsrc}" \
         --with-spl-obj="%{splobj}" \
-        %{debug} \
-        %{debug_dmu_tx}
+        %{debug}
 make %{?_smp_mflags}
 
 %install

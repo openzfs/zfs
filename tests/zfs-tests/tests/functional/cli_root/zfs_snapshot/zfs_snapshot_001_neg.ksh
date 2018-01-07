@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -76,7 +76,7 @@ function setup_all
 
 	for snap in $SNAPFS $SNAPFS1; do
 		if ! snapexists $snap; then
-			log_must $ZFS snapshot $snap
+			log_must zfs snapshot $snap
 		fi
 	done
 
@@ -89,13 +89,13 @@ function cleanup_all
 
 	while (( i < ${#args[*]} )); do
 		for snap in ${args[i]}; do
-			snapexists $snap && log_must $ZFS destroy -f $snap
+			snapexists $snap && log_must zfs destroy -f $snap
 		done
 		(( i = i + 1 ))
 	done
 
 	for mtpt in $SNAPDIR $SNAPDIR1; do
-		[[ -d $mtpt ]] && log_must $RM -rf $mtpt
+		[[ -d $mtpt ]] && log_must rm -rf $mtpt
 	done
 
 	return 0
@@ -109,7 +109,7 @@ setup_all
 
 typeset -i i=0
 while (( i < ${#args[*]} )); do
-	log_mustnot $ZFS snapshot ${args[i]}
+	log_mustnot zfs snapshot ${args[i]}
 	((i = i + 1))
 done
 

@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -46,28 +50,28 @@ function cleanup
 {
 	typeset -i i=0
 	while (( i < ${#mntp_fs[*]} )); do
-		log_must $ZFS set sharenfs=off ${mntp_fs[((i+1))]}
+		log_must zfs set sharenfs=off ${mntp_fs[((i+1))]}
 
 		((i = i + 2))
 	done
 
 	if mounted $TESTPOOL/$TESTCLONE; then
-		log_must $ZFS unmount $TESTDIR2
+		log_must zfs unmount $TESTDIR2
 	fi
 
 	[[ -d $TESTDIR2 ]] && \
-		log_must $RM -rf $TESTDIR2
+		log_must rm -rf $TESTDIR2
 
 	if datasetexists "$TESTPOOL/$TESTCLONE"; then
-		log_must $ZFS destroy -f $TESTPOOL/$TESTCLONE
+		log_must zfs destroy -f $TESTPOOL/$TESTCLONE
 	fi
 
 	if snapexists "$TESTPOOL/$TESTFS2@snapshot"; then
-		log_must $ZFS destroy -f $TESTPOOL/$TESTFS2@snapshot
+		log_must zfs destroy -f $TESTPOOL/$TESTFS2@snapshot
 	fi
 
 	if datasetexists "$TESTPOOL/$TESTFS2"; then
-		log_must $ZFS destroy -f $TESTPOOL/$TESTFS2
+		log_must zfs destroy -f $TESTPOOL/$TESTFS2
 	fi
 }
 
@@ -88,29 +92,29 @@ function test_unshare # <mntp> <filesystem>
 
 	if [[ $prop_value == "off" ]]; then
 		not_shared $mntp ||
-			log_must $UNSHARE -F nfs $mntp
-		log_must $ZFS set sharenfs=on $filesystem
+			log_must eval "unshare_nfs $mntp"
+		log_must zfs set sharenfs=on $filesystem
 		is_shared $mntp || \
-			log_fail "'$ZFS set sharenfs=on' fails to make" \
+			log_fail "'zfs set sharenfs=on' fails to make" \
 				"file system $filesystem shared."
 	fi
 
-	is_shared $mntp || log_must $ZFS share $filesystem
+	is_shared $mntp || log_must zfs share $filesystem
 
         #
 	# Verify 'zfs unshare <filesystem>' works as well.
 	#
-	log_must $ZFS unshare $filesystem
+	log_must zfs unshare $filesystem
 	not_shared $mntp || log_fail "'zfs unshare <filesystem>' fails"
 
-	log_must $ZFS share $filesystem
+	log_must zfs share $filesystem
 
-	log_must $ZFS unshare $mntp
+	log_must zfs unshare $mntp
 	not_shared $mntp || log_fail "'zfs unshare <mountpoint>' fails"
 
         log_note "Unsharing an unshared file system fails."
-        log_mustnot $ZFS unshare $filesystem
-	log_mustnot $ZFS unshare $mntp
+        log_mustnot zfs unshare $filesystem
+	log_mustnot zfs unshare $mntp
 }
 
 set -A mntp_fs \
@@ -121,10 +125,10 @@ set -A mntp_fs \
 log_assert "Verify that 'zfs unshare [-a] <filesystem|mountpoint>' succeeds as root."
 log_onexit cleanup
 
-log_must $ZFS create $TESTPOOL/$TESTFS2
-log_must $ZFS snapshot $TESTPOOL/$TESTFS2@snapshot
-log_must $ZFS clone $TESTPOOL/$TESTFS2@snapshot $TESTPOOL/$TESTCLONE
-log_must $ZFS set mountpoint=$TESTDIR2 $TESTPOOL/$TESTCLONE
+log_must zfs create $TESTPOOL/$TESTFS2
+log_must zfs snapshot $TESTPOOL/$TESTFS2@snapshot
+log_must zfs clone $TESTPOOL/$TESTFS2@snapshot $TESTPOOL/$TESTCLONE
+log_must zfs set mountpoint=$TESTDIR2 $TESTPOOL/$TESTCLONE
 
 #
 # Invoke 'test_unshare' routine to test 'zfs unshare <filesystem|mountpoint>'.
@@ -136,7 +140,7 @@ while (( i < ${#mntp_fs[*]} )); do
 	((i = i + 2))
 done
 
-log_note "Verify '$ZFS unshare -a' succeds as root."
+log_note "Verify 'zfs unshare -a' succeds as root."
 
 i=0
 typeset sharenfs_val
@@ -144,11 +148,11 @@ while (( i < ${#mntp_fs[*]} )); do
 	sharenfs_val=$(get_prop "sharenfs" ${mntp_fs[((i+1))]})
 	if [[ $sharenfs_val == "on" ]]; then
 		not_shared ${mntp_fs[i]} && \
-			log_must $ZFS share ${mntp_fs[((i+1))]}
+			log_must zfs share ${mntp_fs[((i+1))]}
 	else
-		log_must $ZFS set sharenfs=on ${mntp_fs[((i+1))]}
+		log_must zfs set sharenfs=on ${mntp_fs[((i+1))]}
 		is_shared ${mntp_fs[i]} || \
-			log_fail "'$ZFS set sharenfs=on' fails to share filesystem."
+			log_fail "'zfs set sharenfs=on' fails to share filesystem."
 	fi
 
         ((i = i + 2))
@@ -157,7 +161,7 @@ done
 #
 # test 'zfs unshare -a '
 #
-log_must $ZFS unshare -a
+log_must zfs unshare -a
 
 #
 # verify all shared filesystems become unshared
@@ -165,9 +169,9 @@ log_must $ZFS unshare -a
 i=0
 while (( i < ${#mntp_fs[*]} )); do
         not_shared ${mntp_fs[i]} || \
-                log_fail "'$ZFS unshare -a' fails to unshare all shared zfs filesystems."
+                log_fail "'zfs unshare -a' fails to unshare all shared zfs filesystems."
 
         ((i = i + 2))
 done
 
-log_pass "'$ZFS unshare [-a] <filesystem|mountpoint>' succeeds as root."
+log_pass "'zfs unshare [-a] <filesystem|mountpoint>' succeeds as root."

@@ -1,1 +1,3 @@
-SUBDIRS = async_destroy
+SUBDIRS = \
+	async_destroy \
+	large_dnode

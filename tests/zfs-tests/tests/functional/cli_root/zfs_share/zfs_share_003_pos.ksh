@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -51,7 +55,7 @@ function cleanup
 {
 	typeset -i i=0
 	while (( i < ${#fs[*]} )); do
-		log_must $ZFS inherit -r sharenfs ${fs[((i + 1))]}
+		log_must zfs inherit -r sharenfs ${fs[((i + 1))]}
 		log_must unshare_fs ${fs[i]}
 
 		((i = i + 2))
@@ -75,22 +79,22 @@ function test_legacy_share # mntp filesystem
 	    log_fail "File system $filesystem is already shared."
 
 	if is_global_zone ; then
-		log_must $ZFS set sharenfs=off $filesystem
+		log_must zfs set sharenfs=off $filesystem
 		not_shared $mntp || \
 		    log_fail "File system $filesystem is still shared (set sharenfs)."
 	fi
 
-	$ZFS share $filesystem
+	zfs share $filesystem
 	ret=$?
 	(( ret == 1)) || \
-	    log_fail "'$ZFS share $filesystem' " \
+	    log_fail "'zfs share $filesystem' " \
 		"unexpected return code of $ret."
 
 	not_shared $mntp || \
 	    log_fail "file system $filesystem is shared (zfs share)."
 }
 
-log_assert "Verify that '$ZFS share' with a file system " \
+log_assert "Verify that 'zfs share' with a file system " \
         "whose sharenfs property is 'off'  " \
         "will fail with return code 1."
 log_onexit cleanup
@@ -102,5 +106,5 @@ while (( i < ${#fs[*]} )); do
 	((i = i + 2))
 done
 
-log_pass "Verify that '$ZFS share' with a file system " \
+log_pass "Verify that 'zfs share' with a file system " \
         "whose sharenfs property is 'off' fails."

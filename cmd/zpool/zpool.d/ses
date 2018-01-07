@@ -1,0 +1,52 @@
+#!/bin/sh
+#
+# Print SCSI Enclosure Services (SES) info. The output is dependent on the name
+# of the script/symlink used to call it.
+#
+helpstr="
+enc:		Show disk enclosure w:x:y:z value.
+slot:		Show disk slot number as reported by the enclosure.
+encdev:		Show /dev/sg* device associated with the enclosure disk slot.
+fault_led:	Show value of the disk enclosure slot fault LED.
+locate_led:	Show value of the disk enclosure slot locate LED.
+ses:		Show disk's enc, enc device, slot, and fault/locate LED values."
+
+script=$(basename "$0")
+if [ "$1" = "-h" ] ; then
+	echo "$helpstr" | grep "$script:" | tr -s '\t' | cut -f 2-
+	exit
+fi
+
+if [ "$script" = "ses" ] ; then
+	scripts='enc encdev slot fault_led locate_led'
+else
+	scripts="$script"
+fi
+
+for i in $scripts ; do
+	if [ -z "$VDEV_ENC_SYSFS_PATH" ] ; then
+		echo "$i="
+		continue
+	fi
+
+	val=""
+	case $i in
+	enc)
+		val=$(ls "$VDEV_ENC_SYSFS_PATH/../../" 2>/dev/null)
+		;;
+	slot)
+		val=$(cat "$VDEV_ENC_SYSFS_PATH/slot" 2>/dev/null)
+		;;
+	encdev)
+		val=$(ls "$VDEV_ENC_SYSFS_PATH/../device/scsi_generic" 2>/dev/null)
+		;;
+	fault_led)
+		val=$(cat "$VDEV_ENC_SYSFS_PATH/fault" 2>/dev/null)
+		;;
+	locate_led)
+		val=$(cat "$VDEV_ENC_SYSFS_PATH/locate" 2>/dev/null)
+		;;
+	esac
+	echo "$i=$val"
+done
+

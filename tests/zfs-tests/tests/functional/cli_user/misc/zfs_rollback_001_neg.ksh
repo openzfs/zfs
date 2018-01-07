@@ -26,11 +26,11 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
-. $STF_SUITE/tests/functional/cli_user/misc/misc.cfg
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_user/misc/misc.cfg
 
 #
 # DESCRIPTION:
@@ -46,7 +46,7 @@
 
 log_assert "zfs rollback returns an error when run as a user"
 
-log_mustnot $ZFS rollback $TESTPOOL/$TESTFS@snap
+log_mustnot zfs rollback $TESTPOOL/$TESTFS@snap
 
 # now verify the above command didn't actually do anything
 

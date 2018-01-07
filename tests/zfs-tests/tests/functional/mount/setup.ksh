@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -38,9 +38,9 @@ for i in 1 2 3; do
 	dir=$TESTDIR.$i
 	fs=$TESTPOOL/$TESTFS.$i
 
-	log_must $ZFS create $fs
-	log_must $MKDIR -p $dir
-	log_must $ZFS set mountpoint=$dir $fs
+	log_must zfs create $fs
+	log_must mkdir -p $dir
+	log_must zfs set mountpoint=$dir $fs
 
 	log_must mounted $fs
 done

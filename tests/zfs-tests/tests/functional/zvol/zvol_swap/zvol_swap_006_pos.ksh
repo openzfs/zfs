@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -45,12 +45,16 @@
 
 verify_runnable "global"
 
+if is_linux; then
+	log_unsupported "swaplow + swaplen unsupported Linux options"
+fi
+
 function cleanup
 {
 	typeset -i i=0
 
 	while ((count > 0)); do
-		log_must $SWAP -d $swapname ${swap_opt[$i]}
+		log_must swap -d $swapname ${swap_opt[$i]}
 
 		((i += 2))
 		((count -= 1))
@@ -67,7 +71,7 @@ typeset -x NOINUSE_CHECK=1
 
 typeset vol=$TESTPOOL/$TESTVOL
 typeset -i pageblocks volblocks
-((pageblocks = $($PAGESIZE) / 512))
+((pageblocks = $(getconf PAGESIZE) / 512))
 ((volblocks = $(get_prop volsize $vol) / 512))
 
 log_note "Verify volume can be add as several segments."
@@ -75,23 +79,23 @@ log_note "Verify volume can be add as several segments."
 #
 #		swaplow			swaplen
 set -A swap_opt	$((pageblocks))	    \
-		$((pageblocks * ((RANDOM % 50) + 1) + (RANDOM % pageblocks) )) \
+		$((RANDOM % (50 * pageblocks) + 2 * pageblocks)) \
 		$((volblocks / 3))  \
-		$((pageblocks * ((RANDOM % 50) + 1) + (RANDOM % pageblocks) )) \
+		$((RANDOM % (50 * pageblocks) + 2 * pageblocks)) \
 		$((volblocks / 2))  \
-		$((pageblocks * ((RANDOM % 50) + 1) + (RANDOM % pageblocks) )) \
+		$((RANDOM % (50 * pageblocks) + 2 * pageblocks)) \
 		$(((volblocks*2) / 3))  \
-		$((pageblocks * ((RANDOM % 50) + 1) + (RANDOM % pageblocks) ))
+		$((RANDOM % (50 * pageblocks) + 2 * pageblocks))
 
 swapname=${ZVOL_DEVDIR}/$vol
 typeset -i i=0 count=0
 
 if is_swap_inuse $swapname ; then
-	log_must $SWAP -d $swapname
+	log_must swap -d $swapname
 fi
 
 while ((i < ${#swap_opt[@]})); do
-	log_must $SWAP -a $swapname ${swap_opt[$i]} ${swap_opt[((i+1))]}
+	log_must swap -a $swapname ${swap_opt[$i]} ${swap_opt[((i+1))]}
 
 	((i += 2))
 	((count += 1))
@@ -100,7 +104,7 @@ done
 log_note "Verify overlapping swap volume are not allowed"
 i=0
 while ((i < ${#swap_opt[@]})); do
-	log_mustnot $SWAP -a $swapname ${swap_opt[$i]}
+	log_mustnot swap -a $swapname ${swap_opt[$i]}
 
 	((i += 2))
 done

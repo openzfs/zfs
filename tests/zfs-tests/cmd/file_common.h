@@ -37,6 +37,14 @@
 extern "C" {
 #endif
 
+#ifndef _FILE_OFFSET_BITS
+#define	_FILE_OFFSET_BITS 64
+#endif
+
+#ifndef _LARGEFILE64_SOURCE
+#define	_LARGEFILE64_SOURCE
+#endif
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <errno.h>

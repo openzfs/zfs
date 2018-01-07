@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/rsend/rsend.kshlib
@@ -45,9 +45,6 @@ verify_runnable "both"
 
 function cleanup
 {
-	export __ZFS_POOL_RESTRICT="$POOL $POOL2"
-	log_must $ZFS unmount -a
-	unset __ZFS_POOL_RESTRICT
 	log_must cleanup_pool $POOL
 	log_must cleanup_pool $POOL2
 
@@ -62,7 +59,7 @@ log_onexit cleanup
 #
 for prop in $(fs_inherit_prop); do
 	value=$(get_prop $prop $POOL/$FS)
-	log_must $ZFS set $prop=$value $POOL/$FS
+	log_must zfs set $prop=$value $POOL/$FS
 done
 
 #
@@ -70,17 +67,17 @@ done
 #
 for ds in "$POOL/$FS/fs1" "$POOL/$FS/fs1/fs2" "$POOL/$FS/fs1/fclone" ; do
 	for prop in $(fs_inherit_prop) ; do
-		$ZFS inherit $prop $ds
+		zfs inherit $prop $ds
 		if (($? !=0 )); then
-			log_fail "$ZFS inherit $prop $ds"
+			log_fail "zfs inherit $prop $ds"
 		fi
 	done
 done
 if is_global_zone ; then
 	for prop in $(vol_inherit_prop) ; do
-		$ZFS inherit $prop $POOL/$FS/vol
+		zfs inherit $prop $POOL/$FS/vol
 		if (($? !=0 )); then
-			log_fail "$ZFS inherit $prop $POOL/$FS/vol"
+			log_fail "zfs inherit $prop $POOL/$FS/vol"
 		fi
 	done
 fi
@@ -89,9 +86,9 @@ fi
 # Verify datasets can be backup and restore correctly
 # Unmount $POOL/$FS to avoid two fs mount in the same mountpoint
 #
-log_must eval "$ZFS send -R $POOL@final > $BACKDIR/pool-R"
-log_must $ZFS unmount -f $POOL/$FS
-log_must eval "$ZFS receive -d -F $POOL2 < $BACKDIR/pool-R"
+log_must eval "zfs send -R $POOL@final > $BACKDIR/pool-R"
+log_must zfs unmount -f $POOL/$FS
+log_must eval "zfs receive -d -F $POOL2 < $BACKDIR/pool-R"
 
 dstds=$(get_dst_ds $POOL $POOL2)
 #
@@ -116,9 +113,7 @@ fi
 log_must cmp_ds_subs $POOL $dstds
 typeset -i i=0
 while ((i < ${#pair[@]})); do
-	log_must cmp_ds_cont ${pair[$i]} ${pair[((i+1))]}
 	log_must cmp_ds_prop ${pair[$i]} ${pair[((i+1))]}
-
 	((i += 2))
 done
 

@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -46,6 +46,10 @@
 
 verify_runnable "global"
 
+if is_linux; then
+	log_unsupported "Test case isn't useful under Linux."
+fi
+
 function cleanup
 {
 	if poolexists $TESTPOOL; then
@@ -54,18 +58,18 @@ function cleanup
 
 	#recover swap devices
 	FSTAB=/tmp/fstab_$$
-	$RM -f $FSTAB
+	rm -f $FSTAB
 	for sdisk in $swap_disks; do
-		$ECHO "$sdisk	-	-	swap	-	no	-" >> $FSTAB
+		echo "$sdisk	-	-	swap	-	no	-" >> $FSTAB
 	done
 	if [ -e $FSTAB ]
 	then
-		log_must $SWAPADD $FSTAB
+		log_must swapadd $FSTAB
 	fi
-	$RM -f $FSTAB
+	rm -f $FSTAB
 	if [ $dump_device != "none" ]
 	then
-		log_must $DUMPADM -u -d $dump_device
+		log_must dumpadm -u -d $dump_device
 	fi
 }
 
@@ -75,22 +79,22 @@ else
 	disk=$DISK0
 fi
 typeset pool_dev=${disk}${SLICE_PREFIX}${SLICE0}
-typeset swap_disks=$($SWAP -l | $GREP -v "swapfile" | $AWK '{print $1}')
-typeset dump_device=$($DUMPADM | $GREP "Dump device" | $AWK '{print $3}')
+typeset swap_disks=$(swap -l | grep -v "swapfile" | awk '{print $1}')
+typeset dump_device=$(dumpadm | grep "Dump device" | awk '{print $3}')
 
 log_assert "'zpool create' should success with no device in swap."
 log_onexit cleanup
 
 for sdisk in $swap_disks; do
 	log_note "Executing: swap -d $sdisk"
-	$SWAP -d $sdisk >/dev/null 2>&1;
+	swap -d $sdisk >/dev/null 2>&1;
 	if [[ $? != 0 ]]; then
 		log_untested "Unable to delete swap device $sdisk because of" \
 				"insufficient RAM"
 	fi
 done
 
-log_must $ZPOOL create $TESTPOOL $pool_dev
-log_must $ZPOOL destroy $TESTPOOL
+log_must zpool create $TESTPOOL $pool_dev
+log_must zpool destroy $TESTPOOL
 
 log_pass "'zpool create' passed as expected with applicable scenario."

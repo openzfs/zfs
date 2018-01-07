@@ -15,6 +15,10 @@
 # Copyright 2015 Nexenta Systems, Inc.  All rights reserved.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/tests/functional/casenorm/casenorm.kshlib
 
 # DESCRIPTION:
@@ -39,7 +43,7 @@ log_assert "Can create FS with all supported normalization forms"
 for form in none formC formD formKC formKD; do
 	create_testfs "-o normalization=$form"
 	if [[ $form != "none" ]] ; then
-		utf8only=$($ZFS get -H -o value utf8only $TESTPOOL/$TESTFS)
+		utf8only=$(zfs get -H -o value utf8only $TESTPOOL/$TESTFS)
 		if [[ $utf8only != "on" ]]; then
 			log_fail "Turning on normalization didn't set " \
 			    "utf8only to on"
@@ -49,7 +53,7 @@ for form in none formC formD formKC formKD; do
 done
 
 for form in formC formD formKC formKD; do
-	log_mustnot $ZFS create -o utf8only=off -o normalization=$form \
+	log_mustnot zfs create -o utf8only=off -o normalization=$form \
 	    $TESTPOOL/$TESTFS
 	destroy_testfs
 done

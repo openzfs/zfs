@@ -40,6 +40,7 @@
 #include <sys/int_limits.h>
 #include <sys/nvpair.h>
 #include "zfs_comutil.h"
+#include <sys/zfs_ratelimit.h>
 
 /*
  * Are there allocatable vdevs?

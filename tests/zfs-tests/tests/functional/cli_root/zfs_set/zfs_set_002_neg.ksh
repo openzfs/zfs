@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2011 by Delphix. All rights reserved.
+# Copyright (c) 2011, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/cli_root/zfs_set/zfs_set_common.kshlib
@@ -54,7 +54,7 @@ for ds in $TESTPOOL $TESTPOOL/$TESTFS $TESTPOOL/$TESTVOL \
 	$TESTPOOL/$TESTFS@$TESTSNAP; do
 	for badarg in "" "-" "-?"; do
 		for prop in ${editable_props[@]}; do
-			log_mustnot eval "$ZFS set $badarg $prop= $ds >/dev/null 2>&1"
+			log_mustnot eval "zfs set $badarg $prop= $ds >/dev/null 2>&1"
 		done
 	done
 done

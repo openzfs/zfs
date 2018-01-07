@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -42,7 +42,7 @@
 # 1) Apply quota to the ZFS file system dataset
 # 2) Exceed the quota
 # 3) Attempt to write another file
-# 4) Verify the attempt fails with error code 49 (EDQUOTA)
+# 4) Verify the attempt fails with error code EDQUOTA (linux 122, others 49)
 #
 #
 
@@ -58,10 +58,10 @@ log_assert "Verify that a file write cannot exceed the file system quota" \
 function cleanup
 {
         [[ -e $TESTDIR1/$TESTFILE1 ]] && \
-            log_must $RM $TESTDIR1/$TESTFILE1
+            log_must rm $TESTDIR1/$TESTFILE1
 
 	[[ -e $TESTDIR1/$TESTFILE2 ]] && \
-            log_must $RM $TESTDIR1/$TESTFILE2
+            log_must rm $TESTDIR1/$TESTFILE2
 }
 
 log_onexit cleanup

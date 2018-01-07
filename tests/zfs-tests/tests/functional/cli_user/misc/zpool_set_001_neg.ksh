@@ -26,11 +26,11 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
-. $STF_SUITE/tests/functional/cli_user/misc/misc.cfg
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_user/misc/misc.cfg
 
 #
 # DESCRIPTION:
@@ -59,7 +59,7 @@ do
 	log_mustnot $POOL set $PROP=$NEW $TESTPOOL
 
 	# Now verify that the above command did nothing
-	ACTUAL=$( $ZPOOL get $PROP $TESTPOOL | $GREP $PROP | $AWK '{print $1}' )
+	ACTUAL=$( zpool get $PROP $TESTPOOL | grep $PROP | awk '{print $1}' )
 	if [ "$ACTUAL" != "$EXPECTED" ]
 	then
 		log_fail "Property $PROP was set to $ACTUAL, expected $EXPECTED"

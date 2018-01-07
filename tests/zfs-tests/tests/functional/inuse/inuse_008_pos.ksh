@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -45,9 +45,13 @@
 
 verify_runnable "global"
 
+if ! is_physical_device $FS_DISK0; then
+	log_unsupported "This directory cannot be run on raw files."
+fi
+
 function cleanup
 {
-	poolexists $TESTPOOL1 || $ZPOOL import $TESTPOOL1 >/dev/null 2>&1
+	poolexists $TESTPOOL1 || zpool import $TESTPOOL1 >/dev/null 2>&1
 
 	poolexists $TESTPOOL1 && destroy_pool $TESTPOOL1
 
@@ -62,7 +66,7 @@ function verify_assertion #slices
 	typeset targets=$1
 
 	for t in $targets; do
-		$ECHO "y" | $NEWFS -v $t > /dev/null 2>&1
+		echo "y" | newfs -v $t > /dev/null 2>&1
 		(( $? !=0 )) && \
 			log_fail "newfs over exported pool " \
 				"failes unexpected."
@@ -78,20 +82,19 @@ log_onexit cleanup
 set -A vdevs "" "mirror" "raidz" "raidz1" "raidz2"
 
 typeset -i i=0
+typeset cyl=""
+
+for num in 0 1 2 3 ; do
+	eval typeset disk=\${FS_DISK$num}
+	zero_partitions $disk
+done
 
 for num in 0 1 2 3 ; do
 	eval typeset slice=\${FS_SIDE$num}
 	disk=${slice%${SLICE_PREFIX}*}
 	slice=${slice##*${SLICE_PREFIX}}
-	if [[ $WRAPPER == *"smi"* && \
-		$disk == ${saved_disk} ]]; then
-		cyl=$(get_endslice $disk ${saved_slice})
-		log_must set_partition $slice "$cyl" $FS_SIZE $disk
-	else
-		log_must set_partition $slice "" $FS_SIZE $disk
-	fi
-	saved_disk=$disk
-	saved_slice=$slice
+	log_must set_partition $slice "$cyl" $FS_SIZE $disk
+	cyl=$(get_endslice $disk $slice)
 done
 
 while (( i < ${#vdevs[*]} )); do
@@ -101,7 +104,7 @@ while (( i < ${#vdevs[*]} )); do
 	fi
 
 	create_pool $TESTPOOL1 ${vdevs[i]} $vslices spare $sslices
-	log_must $ZPOOL export $TESTPOOL1
+	log_must zpool export $TESTPOOL1
 	verify_assertion "$rawtargets"
 	cleanup_devices $vslices $sslices
 

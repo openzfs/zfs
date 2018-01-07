@@ -25,7 +25,7 @@
 # Use is subject to license terms.
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/history/history_common.kshlib
@@ -46,12 +46,12 @@ verify_runnable "global"
 function cleanup
 {
 
-	[[ -f $tmpfile ]] && $RM -f $tmpfile
-	[[ -f $tmpfile2 ]] && $RM -f $tmpfile2
+	[[ -f $tmpfile ]] && rm -f $tmpfile
+	[[ -f $tmpfile2 ]] && rm -f $tmpfile2
 	for dataset in $fs $newfs $fsclone $vol $newvol $volclone; do
-		datasetexists $dataset && $ZFS destroy -Rf $dataset
+		datasetexists $dataset && zfs destroy -Rf $dataset
 	done
-	$RM -rf /history.$$
+	rm -rf /history.$$
 }
 
 log_assert "Verify zfs sub-commands which modify state are logged."
@@ -116,54 +116,54 @@ props=(
 )
 fi
 
-run_and_verify "$ZFS create $fs"
+run_and_verify "zfs create $fs"
 # Set all the property for filesystem
 typeset -i i=0
 while ((i < ${#props[@]})) ; do
-	run_and_verify "$ZFS set ${props[$i]}=${props[((i+1))]} $fs"
+	run_and_verify "zfs set ${props[$i]}=${props[((i+1))]} $fs"
 
 	# quota, reservation, canmount can not be inherited.
 	#
 	if [[ ${props[$i]} != "quota" && ${props[$i]} != "reservation" && \
 	    ${props[$i]} != "canmount" ]];
 	then
-		run_and_verify "$ZFS inherit ${props[$i]} $fs"
+		run_and_verify "zfs inherit ${props[$i]} $fs"
 	fi
 
 	((i += 2))
 done
 
-run_and_verify "$ZFS create -V 64M $vol"
-run_and_verify "$ZFS set volsize=32M $vol"
-run_and_verify "$ZFS snapshot $fssnap"
-run_and_verify "$ZFS hold tag $fssnap"
-run_and_verify "$ZFS release tag $fssnap"
-run_and_verify "$ZFS snapshot $volsnap"
-run_and_verify "$ZFS snapshot $fssnap2"
-run_and_verify "$ZFS snapshot $volsnap2"
+run_and_verify "zfs create -V 64M $vol"
+run_and_verify "zfs set volsize=32M $vol"
+run_and_verify "zfs snapshot $fssnap"
+run_and_verify "zfs hold tag $fssnap"
+run_and_verify "zfs release tag $fssnap"
+run_and_verify "zfs snapshot $volsnap"
+run_and_verify "zfs snapshot $fssnap2"
+run_and_verify "zfs snapshot $volsnap2"
 
 # Send isn't logged...
-log_must $ZFS send -i $fssnap $fssnap2 > $tmpfile
-log_must $ZFS send -i $volsnap $volsnap2 > $tmpfile2
+log_must zfs send -i $fssnap $fssnap2 > $tmpfile
+log_must zfs send -i $volsnap $volsnap2 > $tmpfile2
 # Verify that's true
-$ZPOOL history $TESTPOOL | $GREP 'zfs send' >/dev/null 2>&1 && \
+zpool history $TESTPOOL | grep 'zfs send' >/dev/null 2>&1 && \
     log_fail "'zfs send' found in history of \"$TESTPOOL\""
 
-run_and_verify "$ZFS destroy $fssnap2"
-run_and_verify "$ZFS destroy $volsnap2"
-run_and_verify "$ZFS receive $fs < $tmpfile"
-run_and_verify "$ZFS receive $vol < $tmpfile2"
-run_and_verify "$ZFS rollback -r $fssnap"
-run_and_verify "$ZFS rollback -r $volsnap"
-run_and_verify "$ZFS clone $fssnap $fsclone"
-run_and_verify "$ZFS clone $volsnap $volclone"
-run_and_verify "$ZFS rename $fs $newfs"
-run_and_verify "$ZFS rename $vol $newvol"
-run_and_verify "$ZFS promote $fsclone"
-run_and_verify "$ZFS promote $volclone"
-run_and_verify "$ZFS destroy $newfs"
-run_and_verify "$ZFS destroy $newvol"
-run_and_verify "$ZFS destroy -rf $fsclone"
-run_and_verify "$ZFS destroy -rf $volclone"
+run_and_verify "zfs destroy $fssnap2"
+run_and_verify "zfs destroy $volsnap2"
+run_and_verify "zfs receive $fs < $tmpfile"
+run_and_verify "zfs receive $vol < $tmpfile2"
+run_and_verify "zfs rollback -r $fssnap"
+run_and_verify "zfs rollback -r $volsnap"
+run_and_verify "zfs clone $fssnap $fsclone"
+run_and_verify "zfs clone $volsnap $volclone"
+run_and_verify "zfs rename $fs $newfs"
+run_and_verify "zfs rename $vol $newvol"
+run_and_verify "zfs promote $fsclone"
+run_and_verify "zfs promote $volclone"
+run_and_verify "zfs destroy $newfs"
+run_and_verify "zfs destroy $newvol"
+run_and_verify "zfs destroy -rf $fsclone"
+run_and_verify "zfs destroy -rf $volclone"
 
 log_pass "zfs sub-commands which modify state are logged passed."

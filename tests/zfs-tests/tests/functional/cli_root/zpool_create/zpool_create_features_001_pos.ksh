@@ -21,10 +21,11 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_root/zpool_create/zpool_create.shlib
 
 ################################################################################
 #
@@ -43,13 +44,13 @@ verify_runnable "global"
 
 function cleanup
 {
-	datasetexists $TESTPOOL && log_must $ZPOOL destroy $TESTPOOL
+	datasetexists $TESTPOOL && log_must zpool destroy $TESTPOOL
 }
 
 function check_features
 {
-	for state in $($ZPOOL get all $TESTPOOL | \
-	    $AWK '$2 ~ /feature@/ { print $3 }'); do
+	for state in $(zpool get all $TESTPOOL | \
+	    awk '$2 ~ /feature@/ { print $3 }'); do
 		if [[ "$state" != "enabled" && "$state" != "active" ]]; then
 			log_fail "some features are not enabled on new pool"
 	        fi
@@ -60,11 +61,11 @@ log_onexit cleanup
 
 log_assert "'zpool create' creates pools with all features enabled"
 
-log_must $ZPOOL create -f $TESTPOOL $DISKS
+log_must zpool create -f $TESTPOOL $DISKS
 check_features
-log_must $ZPOOL destroy -f $TESTPOOL
+log_must zpool destroy -f $TESTPOOL
 
-log_must $ZPOOL create -f -o feature@async_destroy=enabled $TESTPOOL $DISKS
+log_must zpool create -f -o feature@async_destroy=enabled $TESTPOOL $DISKS
 check_features
 
 log_pass "'zpool create' creates pools with all features enabled"

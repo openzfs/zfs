@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/cli_root/cli_common.kshlib
@@ -50,12 +50,12 @@ function cleanup
 
 	for snap in $init_snap $inc_snap $init_topsnap $inc_topsnap ; do
 		snapexists $snap && \
-			log_must $ZFS destroy -Rf $snap
+			log_must zfs destroy -Rf $snap
 	done
 
 	for bkup in $full_bkup $inc_bkup $full_topbkup $inc_topbkup; do
 		[[ -e $bkup ]] && \
-			log_must $RM -f $bkup
+			log_must rm -f $bkup
 	done
 }
 
@@ -72,23 +72,23 @@ inc_topsnap=$TESTPOOL@incsnap
 full_topbkup=/var/tmp/full_topbkup.$$
 inc_topbkup=/var/tmp/inc_topbkup.$$
 
-log_must $ZFS snapshot $init_topsnap
-log_must eval "$ZFS send $init_topsnap > $full_topbkup"
-log_must $TOUCH /$TESTPOOL/foo
+log_must zfs snapshot $init_topsnap
+log_must eval "zfs send $init_topsnap > $full_topbkup"
+log_must touch /$TESTPOOL/foo
 
-log_must $ZFS snapshot $inc_topsnap
-log_must eval "$ZFS send -i $init_topsnap $inc_topsnap > $inc_topbkup"
-log_must $TOUCH /$TESTPOOL/bar
+log_must zfs snapshot $inc_topsnap
+log_must eval "zfs send -i $init_topsnap $inc_topsnap > $inc_topbkup"
+log_must touch /$TESTPOOL/bar
 
-log_must $ZFS snapshot $init_snap
-log_must eval "$ZFS send $init_snap > $full_bkup"
-log_must $TOUCH /$TESTDIR/foo
+log_must zfs snapshot $init_snap
+log_must eval "zfs send $init_snap > $full_bkup"
+log_must touch /$TESTDIR/foo
 
-log_must $ZFS snapshot $inc_snap
-log_must eval "$ZFS send -i $init_snap $inc_snap > $inc_bkup"
-log_must $TOUCH /$TESTDIR/bar
+log_must zfs snapshot $inc_snap
+log_must eval "zfs send -i $init_snap $inc_snap > $inc_bkup"
+log_must touch /$TESTDIR/bar
 
-$SYNC
+sync
 
 set -A badargs \
     "" "nonexistent-snap" "blah@blah" "-d" "-d nonexistent-dataset" \
@@ -106,7 +106,7 @@ typeset -i i=0
 while (( i < ${#badargs[*]} ))
 do
 	for bkup in $full_bkup $inc_bkup $full_topbkup $inc_topbkup ; do
-		log_mustnot eval "$ZFS receive ${badargs[i]} < $bkup"
+		log_mustnot eval "zfs receive ${badargs[i]} < $bkup"
 	done
 
 	(( i = i + 1 ))

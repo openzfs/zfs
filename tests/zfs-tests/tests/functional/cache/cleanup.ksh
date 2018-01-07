@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/cache/cache.cfg
@@ -35,12 +35,12 @@
 verify_runnable "global"
 
 if datasetexists $TESTPOOL ; then
-	log_must $ZPOOL destroy -f $TESTPOOL
+	log_must zpool destroy -f $TESTPOOL
 fi
 if datasetexists $TESTPOOL2 ; then
-	log_must $ZPOOL destroy -f $TESTPOOL2
+	log_must zpool destroy -f $TESTPOOL2
 fi
 
-log_must $RM -rf $VDIR $VDIR2
+log_must rm -rf $VDIR $VDIR2
 
 log_pass

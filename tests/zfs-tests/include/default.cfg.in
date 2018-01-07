@@ -26,15 +26,18 @@
 
 #
 # Copyright (c) 2016 by Delphix. All rights reserved.
+# Copyright (c) 2017 Lawrence Livermore National Security, LLC.
 #
 
 . $STF_SUITE/include/commands.cfg
 . $STF_SUITE/include/libtest.shlib
 
-# Optionally override the installed ZFS commands to run in-tree
-if [[ -f "$STF_SUITE/include/zfs_commands.cfg" ]]; then
-	. $STF_SUITE/include/zfs_commands.cfg
-fi
+# ZFS Directories
+export prefix=@prefix@
+export exec_prefix=@exec_prefix@
+export ZEDLET_ETC_DIR=${ZEDLET_ETC_DIR:-@sysconfdir@/zfs/zed.d}
+export ZEDLET_LIBEXEC_DIR=${ZEDLET_LIBEXEC_DIR:-@libexecdir@/zfs/zed.d}
+export ZPOOL_SCRIPT_DIR=${ZPOOL_SCRIPT_DIR:-@sysconfdir@/zfs/zpool.d}
 
 # Define run length constants
 export RT_LONG="3"
@@ -44,41 +47,6 @@ export RT_SHORT="1"
 # Define macro for zone test
 export ZONE_POOL="zonepool"
 export ZONE_CTR="zonectr"
-
-# Common paths
-bindir=@bindir@
-sbindir=@sbindir@
-helperdir=@datarootdir@/@PACKAGE@/zfs-tests/bin
-
-# ZFS Commands
-ZDB=${ZDB:-${sbindir}/zdb}
-ZFS=${ZFS:-${sbindir}/zfs}
-ZHACK=${ZHACK:-${sbindir}/zhack}
-ZINJECT=${ZINJECT:-${sbindir}/zinject}
-ZPOOL=${ZPOOL:-${sbindir}/zpool}
-ZTEST=${ZTEST:-${sbindir}/ztest}
-ZPIOS=${ZPIOS:-${sbindir}/zpios}
-
-# Test Suite Specific Commands
-export CHG_USR_EXEC=${CHG_USR_EXEC:-${helperdir}/chg_usr_exec}
-export DEVNAME2DEVID=${DEVNAME2DEVID:-${helperdir}/devname2devid}
-export DIR_RD_UPDATE=${DIR_RD_UPDATE:-${helperdir}/dir_rd_update}
-export FILE_CHECK=${FILE_CHECK:-${helperdir}/file_check}
-export FILE_TRUNC=${FILE_TRUNC:-${helperdir}/file_trunc}
-export FILE_WRITE=${FILE_WRITE:-${helperdir}/file_write}
-export LARGEST_FILE=${LARGEST_FILE:-${helperdir}/largest_file}
-export MKBUSY=${MKBUSY:-${helperdir}/mkbusy}
-export MKFILE=${MKFILE:-${helperdir}/mkfile}
-export MKFILES=${MKFILES:-${helperdir}/mkfiles}
-export MKTREE=${MKTREE:-${helperdir}/mktree}
-export MMAP_EXEC=${MMAP_EXEC:-${helperdir}/mmap_exec}
-export MMAPWRITE=${MMAPWRITE:-${helperdir}/mmapwrite}
-export RANDFREE_FILE=${RANDFREE_FILE:-${helperdir}/randfree_file}
-export READMMAP=${READMMAP:-${helperdir}/readmmap}
-export RENAME_DIR=${RENAME_DIR:-${helperdir}/rename_dir}
-export RM_LNKCNT_ZERO_FILE=${RM_LNKCNT_ZERO_FILE:-${helperdir}/rm_lnkcnt_zero_file}
-export THREADSAPPEND=${THREADSAPPEND:-${helperdir}/threadsappend}
-export XATTRTEST=${XATTRTEST:-${helpdir}/xattrtest}
 
 # ensure we're running in the C locale, since
 # localised messages may result in test failures
@@ -93,7 +61,9 @@ export NO_POOLS="no pools available"
 # pattern to ignore from 'zfs list'.
 export NO_DATASETS="no datasets available"
 
-export TEST_BASE_DIR="/var/tmp"
+# Default directory used for test files
+# NOTE: remove trailing "/", some functions rely on this to do pattern matching
+export TEST_BASE_DIR="$(dirname ${FILEDIR:-/var/tmp}/.)"
 
 # Default to compression ON
 export COMPRESSION_PROP=on
@@ -102,43 +72,58 @@ export COMPRESSION_PROP=on
 export CHECKSUM_PROP=on
 
 # some common variables used by test scripts :
+export FIO_SCRIPTS=$STF_SUITE/tests/perf/fio
+export PERF_SCRIPTS=$STF_SUITE/tests/perf/scripts
 
 # some test pool names
-export TESTPOOL=testpool.$$
-export TESTPOOL1=testpool1.$$
-export TESTPOOL2=testpool2.$$
-export TESTPOOL3=testpool3.$$
+export TESTPOOL=testpool
+export TESTPOOL1=testpool1
+export TESTPOOL2=testpool2
+export TESTPOOL3=testpool3
+export PERFPOOL=perfpool
 
 # some test file system names
-export TESTFS=testfs.$$
-export TESTFS1=testfs1.$$
-export TESTFS2=testfs2.$$
-export TESTFS3=testfs3.$$
+export TESTFS=testfs
+export TESTFS1=testfs1
+export TESTFS2=testfs2
+export TESTFS3=testfs3
 
 # some test directory names
-export TESTDIR=${TEST_BASE_DIR%%/}/testdir$$
-export TESTDIR0=${TEST_BASE_DIR%%/}/testdir0$$
-export TESTDIR1=${TEST_BASE_DIR%%/}/testdir1$$
-export TESTDIR2=${TEST_BASE_DIR%%/}/testdir2$$
+export TESTDIR=${TEST_BASE_DIR%%/}/testdir
+export TESTDIR0=${TEST_BASE_DIR%%/}/testdir0
+export TESTDIR1=${TEST_BASE_DIR%%/}/testdir1
+export TESTDIR2=${TEST_BASE_DIR%%/}/testdir2
+
+# some test sub file system names
+export TESTSUBFS=subfs
+export TESTSUBFS1=subfs1
+export TESTSUBFS2=subfs2
+
+# some temp files
+export TEMPFILE=${TEST_BASE_DIR%%/}/tempfile$$
+export TEMPFILE0=${TEST_BASE_DIR%%/}/tempfile0$$
+export TEMPFILE1=${TEST_BASE_DIR%%/}/tempfile1$$
+export TEMPFILE2=${TEST_BASE_DIR%%/}/tempfile2$$
 
 export ZFSROOT=
 
-export TESTSNAP=testsnap$$
-export TESTSNAP1=testsnap1$$
-export TESTSNAP2=testsnap2$$
-export TESTCLONE=testclone$$
-export TESTCLONE1=testclone1$$
-export TESTCLONE2=testclone2$$
-export TESTCLCT=testclct$$
-export TESTCTR=testctr$$
-export TESTCTR1=testctr1$$
-export TESTCTR2=testctr2$$
-export TESTVOL=testvol$$
-export TESTVOL1=testvol1$$
-export TESTVOL2=testvol2$$
-export TESTFILE0=testfile0.$$
-export TESTFILE1=testfile1.$$
-export TESTFILE2=testfile2.$$
+export TESTSNAP=testsnap
+export TESTSNAP1=testsnap1
+export TESTSNAP2=testsnap2
+export TESTCLONE=testclone
+export TESTCLONE1=testclone1
+export TESTCLONE2=testclone2
+export TESTCLCT=testclct
+export TESTCTR=testctr
+export TESTCTR1=testctr1
+export TESTCTR2=testctr2
+export TESTVOL=testvol
+export TESTVOL1=testvol1
+export TESTVOL2=testvol2
+export TESTFILE0=testfile0
+export TESTFILE1=testfile1
+export TESTFILE2=testfile2
+export TESTBKMARK=testbkmark
 
 export LONGPNAME="poolname50charslong_012345678901234567890123456789"
 export LONGFSNAME="fsysname50charslong_012345678901234567890123456789"
@@ -151,9 +136,19 @@ export BIGVOLSIZE=1eb
 # Default to limit disks to be checked
 export MAX_FINDDISKSNUM=6
 
+# Default minimum size for file based vdevs in the test suite
+export MINVDEVSIZE=$((256 * 1024 * 1024))
+
+# Minimum vdev size possible as defined in the OS
+export SPA_MINDEVSIZE=$((64 * 1024 * 1024))
+
 # For iscsi target support
 export ISCSITGTFILE=/tmp/iscsitgt_file
 export ISCSITGT_FMRI=svc:/system/iscsitgt:default
+if ! is_linux; then
+export AUTO_SNAP=$(svcs -a | grep auto-snapshot | grep online | awk \
+    '{print $3}')
+fi
 
 #
 # finally, if we're running in a local zone
@@ -169,6 +164,8 @@ for i in $ZFS_ALL_VERSIONS; do
 	eval 'export ZFS_VERSION_$i="v${i}-fs"'
 done
 
+export MAX_PARTITIONS=8
+
 if is_linux; then
 	unpack_opts="--sparse -xf"
 	pack_opts="--sparse -cf"
@@ -178,8 +175,15 @@ if is_linux; then
 
 	ZVOL_DEVDIR="/dev/zvol"
 	ZVOL_RDEVDIR="/dev/zvol"
-	DEV_DSKDIR="/dev"
 	DEV_RDSKDIR="/dev"
+	DEV_MPATHDIR="/dev/mapper"
+
+	ZEDLET_DIR="/var/tmp/zed"
+	ZED_LOG="$ZEDLET_DIR/zed.log"
+	ZED_DEBUG_LOG="$ZEDLET_DIR/zed.debug.log"
+	VDEVID_CONF="$ZEDLET_DIR/vdev_id.conf"
+	VDEVID_CONF_ETC="/etc/zfs/vdev_id.conf"
+
 
 	NEWFS_DEFAULT_FS="ext2"
 else
@@ -197,4 +201,5 @@ else
 	NEWFS_DEFAULT_FS="ufs"
 fi
 export unpack_opts pack_opts verbose unpack_preserve pack_preserve \
-       ZVOL_DEVDIR ZVOL_RDEVDIR NEWFS_DEFAULT_FS DEV_DSKDIR DEV_RDSKDIR
+       ZVOL_DEVDIR ZVOL_RDEVDIR NEWFS_DEFAULT_FS DEV_RDSKDIR DEV_MPATHDIR \
+       ZEDLET_DIR ZED_LOG ZED_DEBUG_LOG VDEVID_CONF VDEVID_CONF_ETC

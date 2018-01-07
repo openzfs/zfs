@@ -17,4 +17,7 @@ dist_pkgdata_SCRIPTS = \
 	zfs_create_010_neg.ksh \
 	zfs_create_011_pos.ksh \
 	zfs_create_012_pos.ksh \
-	zfs_create_013_pos.ksh
+	zfs_create_013_pos.ksh \
+	zfs_create_014_pos.ksh \
+	zfs_create_encrypted.ksh \
+	zfs_create_crypt_combos.ksh

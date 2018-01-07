@@ -21,10 +21,11 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_root/zpool_create/zpool_create.shlib
 
 ################################################################################
 #
@@ -38,7 +39,7 @@
 verify_runnable "global"
 
 properties="\
-feature@async_destroy=disabled \
+feature@async_destroy=disable \
 feature@async_destroy=active \
 feature@xxx_fake_xxx=enabled \
 unsupported@some_feature=inactive \
@@ -47,14 +48,14 @@ unsupported@some_feature=readonly \
 
 function cleanup
 {
-	datasetexists $TESTPOOL && log_must $ZPOOL destroy $TESTPOOL
+	datasetexists $TESTPOOL && log_must zpool destroy $TESTPOOL
 }
 
 log_assert "'zpool create' with invalid feature names/states fails"
 log_onexit cleanup
 
 for prop in $properties; do
-	log_mustnot $ZPOOL create -f -o "$prop" $TESTPOOL $DISKS
+	log_mustnot zpool create -f -o "$prop" $TESTPOOL $DISKS
 	log_mustnot datasetexists $TESTPOOL
 done
 

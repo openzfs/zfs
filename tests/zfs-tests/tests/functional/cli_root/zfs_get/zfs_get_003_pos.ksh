@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -42,18 +46,18 @@ verify_runnable "both"
 
 function cleanup
 {
-	log_must $ZFS mount -o remount,atime $TESTPOOL/$TESTFS
+	log_must zfs mount -o remount,atime $TESTPOOL/$TESTFS
 }
 
 log_assert "'zfs get' should get consistent report with different option."
 log_onexit cleanup
 
-log_must $ZFS set atime=on $TESTPOOL/$TESTFS
-log_must $ZFS mount -o remount,noatime $TESTPOOL/$TESTFS
+log_must zfs set atime=on $TESTPOOL/$TESTFS
+log_must zfs mount -o remount,noatime $TESTPOOL/$TESTFS
 
-value1=$($ZFS get -H atime $TESTPOOL/$TESTFS | $AWK '{print $3}')
-value2=$($ZFS get -H all $TESTPOOL/$TESTFS | $AWK '{print $2 " " $3}' | \
-	$GREP ^atime | $AWK '{print $2}')
+value1=$(zfs get -H atime $TESTPOOL/$TESTFS | awk '{print $3}')
+value2=$(zfs get -H all $TESTPOOL/$TESTFS | awk '{print $2 " " $3}' | \
+	grep ^atime | awk '{print $2}')
 if [[ $value1 != $value2 ]]; then
 	log_fail "value1($value1) != value2($value2)"
 fi

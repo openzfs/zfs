@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -49,30 +49,30 @@ verify_runnable "both"
 function cleanup
 {
 	[[ -e $TESTDIR1 ]] && \
-		log_must $RM -rf $TESTDIR1/* > /dev/null 2>&1
+		log_must rm -rf $TESTDIR1/* > /dev/null 2>&1
 
 	snapexists $SNAPCTR && \
-		log_must $ZFS destroy $SNAPCTR
+		log_must zfs destroy $SNAPCTR
 
 	datasetexists $TESTPOOL/$TESTCTR/$TESTFS1 && \
-		log_must $ZFS set quota=none $TESTPOOL/$TESTCTR/$TESTFS1
+		log_must zfs set quota=none $TESTPOOL/$TESTCTR/$TESTFS1
 
 }
 
 log_assert "Verify creating/destroying snapshots do things clean"
 log_onexit cleanup
 
-log_must $ZFS set quota=$FSQUOTA $TESTPOOL/$TESTCTR/$TESTFS1
-log_must $MKFILE $FILESIZE $TESTDIR1/$TESTFILE
+log_must zfs set quota=$FSQUOTA $TESTPOOL/$TESTCTR/$TESTFS1
+log_must mkfile $FILESIZE $TESTDIR1/$TESTFILE
 
-log_must $ZFS snapshot $SNAPCTR
-log_must $ZFS destroy $SNAPCTR
+log_must zfs snapshot $SNAPCTR
+log_must zfs destroy $SNAPCTR
 
 log_note "Make the quota of filesystem is reached"
-log_mustnot $MKFILE $FILESIZE1 $TESTDIR1/$TESTFILE1
+log_mustnot mkfile $FILESIZE1 $TESTDIR1/$TESTFILE1
 
 log_note "Verify removing the first file should succeed after the snapshot is \
 	removed"
-log_must $RM $TESTDIR1/$TESTFILE
+log_must rm $TESTDIR1/$TESTFILE
 
 log_pass "Verify creating/destroying snapshots do things clean"

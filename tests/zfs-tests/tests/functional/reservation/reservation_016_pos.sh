@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -56,10 +56,10 @@ log_assert "Destroying a regular volume with reservation allows more data to" \
 function cleanup
 {
 	datasetexists $TESTPOOL/$TESTVOL && \
-	    log_must $ZFS destroy $TESTPOOL/$TESTVOL
+	    log_must zfs destroy $TESTPOOL/$TESTVOL
 
-	[[ -e $TESTDIR/$TESTFILE1 ]] && log_must $RM -rf $TESTDIR/$TESTFILE1
-	[[ -e $TESTDIR/$TESTFILE2 ]] && log_must $RM -rf $TESTDIR/$TESTFILE2
+	[[ -e $TESTDIR/$TESTFILE1 ]] && log_must rm -rf $TESTDIR/$TESTFILE1
+	[[ -e $TESTDIR/$TESTFILE2 ]] && log_must rm -rf $TESTDIR/$TESTFILE2
 }
 log_onexit cleanup
 
@@ -75,7 +75,7 @@ vol_set_size=$(floor_volsize $vol_set_size)
 
 # Creating a regular volume implicitly sets its reservation
 # property to the same value.
-log_must $ZFS create -V $vol_set_size $TESTPOOL/$TESTVOL
+log_must zfs create -V $vol_set_size $TESTPOOL/$TESTVOL
 
 space_avail_still=$(get_prop available $TESTPOOL)
 fill_size=$((space_avail_still + $RESV_TOLERANCE))
@@ -83,16 +83,16 @@ write_count=$((fill_size / BLOCK_SIZE))
 
 # Now fill up the filesystem (which doesn't have a reservation set
 # and thus will use up whatever free space is left in the pool).
-$FILE_WRITE -o create -f $TESTDIR/$TESTFILE1 -b $BLOCK_SIZE -c $write_count -d 0
+file_write -o create -f $TESTDIR/$TESTFILE1 -b $BLOCK_SIZE -c $write_count -d 0
 ret=$?
 if (($ret != $ENOSPC)); then
 	log_fail "Did not get ENOSPC as expected (got $ret)."
 fi
 
-log_must $ZFS destroy -f $TESTPOOL/$TESTVOL
+log_must zfs destroy -f $TESTPOOL/$TESTVOL
 
-log_must $FILE_WRITE -o create -f $TESTDIR/$TESTFILE2 -b $PAGESIZE \
-    -c 1000 -d 0
+log_must file_write -o create -f $TESTDIR/$TESTFILE2 \
+    -b $(getconf PAGESIZE) -c 1000 -d 0
 
 log_pass "Destroying volume with reservation allows more data to be written " \
     "to top level filesystem"

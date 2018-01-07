@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -61,22 +61,22 @@ verify_runnable "global"
 log_assert "Importing a pool with \"cachefile\" set doesn't update zpool.cache"
 log_onexit cleanup
 
-log_must $ZPOOL create -o cachefile=none $TESTPOOL $DISKS
+log_must zpool create -o cachefile=none $TESTPOOL $DISKS
 typeset DEVICEDIR=$(get_device_dir $DISKS)
 log_mustnot pool_in_cache $TESTPOOL
 
-log_must $ZPOOL export $TESTPOOL
-log_must $ZPOOL import -d $DEVICEDIR $TESTPOOL
+log_must zpool export $TESTPOOL
+log_must zpool import -d $DEVICEDIR $TESTPOOL
 log_must pool_in_cache $TESTPOOL
 
-log_must $ZPOOL export $TESTPOOL
-log_must $ZPOOL import -o cachefile=none -d $DEVICEDIR $TESTPOOL
+log_must zpool export $TESTPOOL
+log_must zpool import -o cachefile=none -d $DEVICEDIR $TESTPOOL
 log_mustnot pool_in_cache $TESTPOOL
 
-log_must $ZPOOL export $TESTPOOL
-log_must $ZPOOL import -o cachefile=$CPATH -d $DEVICEDIR $TESTPOOL
+log_must zpool export $TESTPOOL
+log_must zpool import -o cachefile=$CPATH -d $DEVICEDIR $TESTPOOL
 log_must pool_in_cache $TESTPOOL
 
-log_must $ZPOOL destroy $TESTPOOL
+log_must zpool destroy $TESTPOOL
 
 log_pass "Importing a pool with \"cachefile\" set doesn't update zpool.cache"

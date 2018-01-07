@@ -105,6 +105,13 @@ extern "C" {
  * as is needed for any linked list implementation.
  */
 
+/*
+ * AVL comparator helpers
+ */
+#define	AVL_ISIGN(a)	(((a) > 0) - ((a) < 0))
+#define	AVL_CMP(a, b)	(((a) > (b)) - ((a) < (b)))
+#define	AVL_PCMP(a, b)	\
+	(((uintptr_t)(a) > (uintptr_t)(b)) - ((uintptr_t)(a) < (uintptr_t)(b)))
 
 /*
  * Type used for the root of the AVL tree.
@@ -251,17 +258,6 @@ extern void avl_add(avl_tree_t *tree, void *node);
  * node   - the node to remove
  */
 extern void avl_remove(avl_tree_t *tree, void *node);
-
-/*
- * Reinsert a node only if its order has changed relative to its nearest
- * neighbors. To optimize performance avl_update_lt() checks only the previous
- * node and avl_update_gt() checks only the next node. Use avl_update_lt() and
- * avl_update_gt() only if you know the direction in which the order of the
- * node may change.
- */
-extern boolean_t avl_update(avl_tree_t *, void *);
-extern boolean_t avl_update_lt(avl_tree_t *, void *);
-extern boolean_t avl_update_gt(avl_tree_t *, void *);
 
 /*
  * Swaps the contents of the two trees.

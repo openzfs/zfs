@@ -3,6 +3,7 @@ dist_pkgdata_SCRIPTS = \
 	xattr_common.kshlib \
 	setup.ksh \
 	cleanup.ksh \
+	xattr.cfg \
 	xattr_001_pos.ksh \
 	xattr_002_neg.ksh \
 	xattr_003_neg.ksh \

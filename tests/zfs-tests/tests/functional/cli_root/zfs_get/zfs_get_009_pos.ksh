@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/tests/functional/cli_root/zfs_get/zfs_get_common.kshlib
 . $STF_SUITE/tests/functional/cli_root/zfs_get/zfs_get_list_d.kshlib
 
@@ -36,10 +40,15 @@
 #	1. Create a multiple depth filesystem.
 #	2. 'zfs get -d <n>' to get the output.
 #	3. 'zfs get -r|egrep' to get the expected output.
-#	4. Compare the two outputs, they shoud be same.
+#	4. Compare the two outputs, they should be same.
 #
 
 verify_runnable "both"
+
+# See issue: https://github.com/zfsonlinux/zfs/issues/5479
+if is_kmemleak; then
+	log_unsupported "Test case runs slowly when kmemleak is enabled"
+fi
 
 log_assert "'zfs get -d <n>' should get expected output."
 log_onexit depth_fs_cleanup
@@ -51,7 +60,7 @@ set -A all_props type used available creation volsize referenced \
 	usedbychildren usedbydataset usedbyrefreservation usedbysnapshots \
 	userquota@root groupquota@root userused@root groupused@root
 
-$ZFS upgrade -v > /dev/null 2>&1
+zfs upgrade -v > /dev/null 2>&1
 if [[ $? -eq 0 ]]; then
 	set -A all_props ${all_props[*]} version
 fi
@@ -72,9 +81,9 @@ for dp in ${depth_array[@]}; do
 		(( j+=1 ))
 	done
 	for prop in $(gen_option_str "${all_props[*]}" "" "," $prop_numb); do
-		log_must eval "$ZFS get -H -d $dp -o name $prop $DEPTH_FS > $DEPTH_OUTPUT"
-		log_must eval "$ZFS get -rH -o name $prop $DEPTH_FS | $EGREP -e '$eg_opt' > $EXPECT_OUTPUT"
-		log_must $DIFF $DEPTH_OUTPUT $EXPECT_OUTPUT
+		log_must eval "zfs get -H -d $dp -o name $prop $DEPTH_FS > $DEPTH_OUTPUT"
+		log_must eval "zfs get -rH -o name $prop $DEPTH_FS | egrep -e '$eg_opt' > $EXPECT_OUTPUT"
+		log_must diff $DEPTH_OUTPUT $EXPECT_OUTPUT
 	done
 	(( old_val=dp ))
 done

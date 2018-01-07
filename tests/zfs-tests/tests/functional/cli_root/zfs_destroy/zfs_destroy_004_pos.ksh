@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -50,19 +50,19 @@ function cleanup
 	cd $olddir
 
 	datasetexists $clone && \
-		log_must $ZFS destroy -f $clone
+		log_must zfs destroy -f $clone
 
 	snapexists $snap && \
-		log_must $ZFS destroy -f $snap
+		log_must zfs destroy -f $snap
 
 	for fs in $fs1 $fs2; do
 		datasetexists $fs && \
-			log_must $ZFS destroy -f $fs
+			log_must zfs destroy -f $fs
 	done
 
 	for dir in $TESTDIR1 $TESTDIR2; do
 		[[ -d $dir ]] && \
-			log_must $RM -rf $dir
+			log_must rm -rf $dir
 	done
 }
 
@@ -77,7 +77,7 @@ olddir=$PWD
 
 for dir in $TESTDIR1 $TESTDIR2; do
 	[[ ! -d $dir ]] && \
-		log_must $MKDIR -p $dir
+		log_must mkdir -p $dir
 done
 
 fs1=$TESTPOOL/$TESTFS1
@@ -92,27 +92,33 @@ mntp2=$TESTDIR2
 # make the mountpoint busy
 #
 for fs in $fs1 $fs2; do
-	log_must $ZFS create $fs
+	log_must zfs create $fs
 done
 
-log_must $ZFS snapshot $snap
-log_must $ZFS clone $snap $clone
+log_must zfs snapshot $snap
+log_must zfs clone $snap $clone
 
-log_must $ZFS set mountpoint=$mntp1 $fs1
-log_must $ZFS set mountpoint=$mntp2 $clone
+log_must zfs set mountpoint=$mntp1 $fs1
+log_must zfs set mountpoint=$mntp2 $clone
 
 for arg in "$fs1 $mntp1" "$clone $mntp2"; do
-	fs=`$ECHO $arg | $AWK '{print $1}'`
-	mntp=`$ECHO $arg | $AWK '{print $2}'`
+	fs=`echo $arg | awk '{print $1}'`
+	mntp=`echo $arg | awk '{print $2}'`
 
 	log_note "Verify that 'zfs destroy' fails to" \
 			"destroy filesystem when it is busy."
 	cd $mntp
-	log_mustnot $ZFS destroy $fs
+	log_mustnot zfs destroy $fs
 
-	log_must $ZFS destroy -f $fs
-	datasetexists $fs && \
-		log_fail "'zfs destroy -f' fails to destroy busy filesystem."
+	if is_linux; then
+		log_mustnot zfs destroy -f $fs
+		datasetnonexists $fs && \
+		    log_fail "'zfs destroy -f' destroyed busy filesystem."
+	else
+		log_must zfs destroy -f $fs
+		datasetexists $fs && \
+		    log_fail "'zfs destroy -f' fail to destroy busy filesystem."
+	fi
 
 	cd $olddir
 done

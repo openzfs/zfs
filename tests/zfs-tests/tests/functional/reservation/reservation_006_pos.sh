@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -56,8 +56,8 @@ verify_runnable "both"
 
 function cleanup
 {
-	[[ -e $TESTDIR/$TESTFILE1 ]] && log_must $RM -rf $TESTDIR/$TESTFILE1
-	log_must $ZFS set reservation=none $TESTPOOL/$TESTFS
+	[[ -e $TESTDIR/$TESTFILE1 ]] && log_must rm -rf $TESTDIR/$TESTFILE1
+	log_must zfs set reservation=none $TESTPOOL/$TESTFS
 }
 
 log_onexit cleanup
@@ -66,7 +66,7 @@ log_assert "Verify can create files both inside and outside reserved areas"
 
 space_used=`get_prop used $TESTPOOL`
 
-log_must $ZFS set reservation=$RESV_SIZE $TESTPOOL/$TESTFS
+log_must zfs set reservation=$RESV_SIZE $TESTPOOL/$TESTFS
 
 #
 # Calculate how many writes of BLOCK_SIZE it would take to fill
@@ -75,7 +75,7 @@ log_must $ZFS set reservation=$RESV_SIZE $TESTPOOL/$TESTFS
 fill_size=`expr $RESV_SIZE + 20971520`
 write_count=`expr $fill_size / $BLOCK_SIZE`
 
-log_must $FILE_WRITE -o create -f $TESTDIR/$TESTFILE1 -b $BLOCK_SIZE \
+log_must file_write -o create -f $TESTDIR/$TESTFILE1 -b $BLOCK_SIZE \
     -c $write_count -d 0
 
 log_pass "Able to create files inside and outside reserved area"

@@ -12,7 +12,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -32,7 +32,7 @@
 # 3. Run umountall -n and verify the file systems it reports are in the list.
 #
 
-log_must $ZFS mount -a
+log_must zfs mount -a
 for fs in 1 2 3 ; do
 	log_must mounted $TESTPOOL/$TESTFS.$fs
 done
@@ -43,17 +43,34 @@ done
 zfs_list="/ /lib /sbin /tmp /usr /var /var/adm /var/run"
 
 # Append our ZFS filesystems to the list, not worrying about duplicates.
-for fs in $($MOUNT -p | $AWK '{if ($4 == "zfs") print $3}'); do
+if is_linux; then
+	typeset mounts=$(mount | awk '{if ($5 == "zfs") print $3}')
+else
+	typeset mounts=$(mount -p | awk '{if ($4 == "zfs") print $3}')
+fi
+
+for fs in $mounts; do
 	zfs_list="$zfs_list $fs"
 done
 
+if is_linux; then
+	mounts=$(umount --fake -av -t zfs 2>&1 | \
+	    grep "successfully umounted" | awk '{print $1}')
+	# Fallback to /proc/mounts for umount(8) (util-linux-ng 2.17.2)
+	if [[ -z $mounts ]]; then
+		mounts=$(awk '/zfs/ { print $2 }' /proc/mounts)
+	fi
+else
+	mounts=$(umountall -n -F zfs 2>&1 | awk '{print $2}')
+fi
+
 fs=''
-for fs in $($UMOUNTALL -n -F zfs 2>&1 | $AWK '{print $2}'); do
+for fs in $mounts; do
 	for i in $zfs_list; do
 		[[ $fs = $i ]] && continue 2
 	done
 	log_fail "umountall -n -F zfs tried to unmount $fs"
 done
-[[ -n $fs ]] || log_fail "umountall -n -F zfs produced no output"
+[[ -n $mounts ]] || log_fail "umountall -n -F zfs produced no output"
 
 log_pass "All ZFS file systems would have been unmounted"

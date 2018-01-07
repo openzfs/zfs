@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -47,8 +47,8 @@ verify_runnable "both"
 
 function cleanup
 {
-	datasetexists $fs_child && log_must $ZFS destroy $fs_child
-	log_must $ZFS set reservation=$reserv_val $fs
+	datasetexists $fs_child && log_must zfs destroy $fs_child
+	log_must zfs set reservation=$reserv_val $fs
 }
 
 log_onexit cleanup
@@ -60,11 +60,11 @@ fs_child=$TESTPOOL/$TESTFS/$TESTFS
 
 space_avail=$(get_prop available $fs)
 reserv_val=$(get_prop reservation $fs)
-typeset -l reservsize=$space_avail
+typeset reservsize=$space_avail
 ((reservsize = reservsize / 2))
-log_must $ZFS set reservation=$reservsize $fs
+log_must zfs set reservation=$reservsize $fs
 
-log_must $ZFS create $fs_child
+log_must zfs create $fs_child
 rsv_space=$(get_prop reservation $fs_child)
 [[ $rsv_space == $reservsize ]] && \
     log_fail "The reservation of child dataset inherits its value from parent."

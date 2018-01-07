@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -47,9 +47,9 @@ verify_runnable "both"
 
 function cleanup
 {
-	log_must $ZFS destroy -rf $TESTPOOL/$TESTFS
-	log_must $ZFS create $TESTPOOL/$TESTFS
-	log_must $ZFS set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
+	log_must zfs destroy -rf $TESTPOOL/$TESTFS
+	log_must zfs create $TESTPOOL/$TESTFS
+	log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 }
 
 log_assert "Quotas are enforced using the minimum of the two properties"
@@ -57,11 +57,11 @@ log_onexit cleanup
 
 TESTFILE='testfile'
 fs=$TESTPOOL/$TESTFS
-log_must $ZFS set quota=15M $fs
-log_must $ZFS set refquota=25M $fs
+log_must zfs set quota=15M $fs
+log_must zfs set refquota=25M $fs
 
 mntpnt=$(get_prop mountpoint $fs)
-log_mustnot $MKFILE 20M $mntpnt/$TESTFILE
+log_mustnot mkfile 20M $mntpnt/$TESTFILE
 typeset -i used quota
 used=$(get_prop used $fs)
 quota=$(get_prop quota $fs)
@@ -74,11 +74,11 @@ fi
 #
 # Switch the value of them and try again
 #
-log_must $RM $mntpnt/$TESTFILE
-log_must $ZFS set quota=25M $fs
-log_must $ZFS set refquota=15M $fs
+log_must rm $mntpnt/$TESTFILE
+log_must zfs set quota=25M $fs
+log_must zfs set refquota=15M $fs
 
-log_mustnot $MKFILE 20M $mntpnt/$TESTFILE
+log_mustnot mkfile 20M $mntpnt/$TESTFILE
 used=$(get_prop used $fs)
 refquota=$(get_prop refquota $fs)
 ((used = used / (1024 * 1024)))

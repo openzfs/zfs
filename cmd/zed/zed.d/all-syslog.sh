@@ -6,5 +6,7 @@
 . "${ZED_ZEDLET_DIR}/zed-functions.sh"
 
 zed_log_msg "eid=${ZEVENT_EID}" "class=${ZEVENT_SUBCLASS}" \
-    "${ZEVENT_POOL:+"pool=${ZEVENT_POOL}"}"
+    "${ZEVENT_POOL_GUID:+"pool_guid=${ZEVENT_POOL_GUID}"}" \
+    "${ZEVENT_VDEV_PATH:+"vdev_path=${ZEVENT_VDEV_PATH}"}" \
+    "${ZEVENT_VDEV_STATE_STR:+"vdev_state=${ZEVENT_VDEV_STATE_STR}"}"
 exit 0

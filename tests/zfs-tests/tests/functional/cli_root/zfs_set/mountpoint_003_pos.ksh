@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -43,10 +47,10 @@ verify_runnable "both"
 
 function cleanup
 {
-	ismounted $tmpmnt && log_must $UMOUNT $tmpmnt
-	[[ -d $tmpmnt ]] && log_must $RM -rf $tmpmnt
-	[[ -n $oldmpt ]] && log_must $ZFS set mountpoint=$oldmpt $testfs
-	! ismounted $oldmpt && log_must $ZFS mount $testfs
+	ismounted $tmpmnt && log_must umount $tmpmnt
+	[[ -d $tmpmnt ]] && log_must rm -rf $tmpmnt
+	[[ -n $oldmpt ]] && log_must zfs set mountpoint=$oldmpt $testfs
+	! ismounted $oldmpt && log_must zfs mount $testfs
 }
 
 log_assert "With legacy mount, FSType-specific option works well."
@@ -61,13 +65,17 @@ log_onexit cleanup
 #
 if is_linux; then
 	set -A args \
-	"dev"		"/dev/"		"nodev"		"/nodev/"	\
-	"exec"		"/exec/"	"noexec"	"/noexec/"	\
-	"mand"		"/mand/"	"nomand"	"/nomand/"	\
-	"ro"		"read only"	"rw"		"read/write"	\
-	"suid"		"/suid/"	"nosuid"	"/nosuid/"	\
-	"xattr"		"/xattr/"	"noxattr"	"/noxattr/"	\
-	"atime"		"/atime/"	"noatime"	"/noatime/"
+	"nodev"		"dev"	\
+	"noexec"	"exec"	\
+	"ro"		"rw"	\
+	"nosuid"	"suid"	\
+	"xattr"		"noxattr"	\
+	"atime"		"noatime"
+
+	# Only older kernels support non-blocking mandatory locks
+	if [[ $(linux_version) -lt $(linux_version "4.4") ]]; then
+		args+=("mand" "nomand")
+	fi
 else
 	set -A args \
 	"devices"	"/devices/"	"nodevices"	"/nodevices/"	\
@@ -80,36 +88,50 @@ else
 fi
 
 tmpmnt=/tmpmnt.$$
-[[ -d $tmpmnt ]] && $RM -rf $tmpmnt
+[[ -d $tmpmnt ]] && rm -rf $tmpmnt
 testfs=$TESTPOOL/$TESTFS
-log_must $MKDIR $tmpmnt
+log_must mkdir $tmpmnt
 oldmpt=$(get_prop mountpoint $testfs)
-log_must $ZFS set mountpoint=legacy $testfs
+log_must zfs set mountpoint=legacy $testfs
 
 typeset i=0
 while ((i < ${#args[@]})); do
 	if is_linux; then
-		log_must $MOUNT -t zfs -o ${args[$i]} $testfs $tmpmnt
-	else
-		log_must $MOUNT -F zfs -o ${args[$i]} $testfs $tmpmnt
-	fi
-	msg=$($MOUNT | $GREP "^$tmpmnt ")
+		log_must mount -t zfs -o ${args[$i]} $testfs $tmpmnt
+		
+		msg=$(mount | grep "$tmpmnt ")
+		
+		echo $msg | grep "${args[((i))]}" > /dev/null 2>&1
+		if (($? != 0)) ; then
+			echo $msg | grep "${args[((i-1))]}" > /dev/null 2>&1
+			if (($? == 0)) ; then
+				log_fail "Expected option: ${args[((i))]} \n" \
+					 "Real option: $msg"
+			fi
+		fi
 
-	if ! is_linux; then
+		log_must umount $tmpmnt
+		((i += 1))
+	else
+		log_must mount -F zfs -o ${args[$i]} $testfs $tmpmnt
+
+		msg=$(mount | grep "^$tmpmnt ")
+
 		# In LZ, a user with all zone privileges can never "devices"
 		if ! is_global_zone && [[ ${args[$i]} == devices ]] ; then
 			args[((i+1))]="/nodevices/"
 		fi
-	fi
 
-	$ECHO $msg | $GREP "${args[((i+1))]}" > /dev/null 2>&1
-	if (($? != 0)) ; then
-		log_fail "Expected option: ${args[((i+1))]} \n" \
-			 "Real option: $msg"
-	fi
+		echo $msg | grep "${args[((i+1))]}" > /dev/null 2>&1
+		if (($? != 0)) ; then
+			log_fail "Expected option: ${args[((i+1))]} \n" \
+				 "Real option: $msg"
+		fi
 
-	log_must $UMOUNT $tmpmnt
-	((i += 2))
+
+		log_must umount $tmpmnt
+		((i += 2))
+	fi
 done
 
 log_pass "With legacy mount, FSType-specific option works well passed."

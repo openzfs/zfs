@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016, 2017 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zfs_set/zfs_set_common.kshlib
 
@@ -48,7 +52,7 @@ function set_and_check #<dataset><set_prop_name><set_value><check_prop_name>
 	typeset chkprop=$4
 	typeset getval
 
-	log_must $ZFS set $setprop=$setval $ds
+	log_must zfs set $setprop=$setval $ds
 	if [[ $setval == "gzip-6" ]]; then
 		setval="gzip"
 	fi
@@ -89,7 +93,7 @@ typeset -i i=0
 
 for ds in $pool $fs $vol; do
 	for propname in ${ro_prop[*]}; do
-		$ZFS get -pH -o value $propname $ds >/dev/null 2>&1
+		zfs get -pH -o value $propname $ds >/dev/null 2>&1
 		(( $? != 0 )) && \
 			log_fail "Get the property $proname of $ds failed."
 	done
@@ -107,7 +111,7 @@ for ds in $pool $fs $vol; do
 			done
 			;;
 		reservation|reserv )
-			(( reservsize = $avail_space % $RANDOM ))
+			(( reservsize = $avail_space % (( $RANDOM + 1 )) ))
 			for val in "0" "$reservsize" "none"; do
 				set_and_check $ds ${rw_prop[i]} $val ${chk_prop[i]}
 			done
@@ -118,7 +122,7 @@ for ds in $pool $fs $vol; do
 	done
 	if [[ $ds == $vol ]]; then
 		for propname in "volblocksize" "volblock" ; do
-			$ZFS get -pH -o value $propname $ds >/dev/null 2>&1
+			zfs get -pH -o value $propname $ds >/dev/null 2>&1
 			(( $? != 0 )) && \
 				log_fail "Get the property $propname of $ds failed."
 		done

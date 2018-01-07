@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -47,9 +47,9 @@ verify_runnable "global"
 function cleanup
 {
 	poolexists $migratedpoolname &&  \
-		log_must $ZPOOL destroy -f $migratedpoolname
+		log_must zpool destroy -f $migratedpoolname
 
-	[[ -d $import_dir ]] && $RM -rf $import_dir
+	[[ -d $import_dir ]] && rm -rf $import_dir
 }
 
 log_assert "Verify command history moves with migrated pool."
@@ -62,28 +62,28 @@ migratedpoolname=$MIGRATEDPOOLNAME
 typeset -i RET=1
 typeset -i linenum=0
 
-[[ ! -d $import_dir ]] && log_must $MKDIR $import_dir
+[[ ! -d $import_dir ]] && log_must mkdir $import_dir
 
 # We test the migrations on both uniform platform and cross platform
 for arch in "i386" "sparc"; do
-	log_must $CP $tst_dir/${arch}.orig_history.txt $import_dir
+	log_must cp $tst_dir/${arch}.orig_history.txt $import_dir
 	orig_cmds_f=$import_dir/${arch}.orig_history.txt
 	# remove blank line
 	orig_cmds_f1=$import_dir/${arch}.orig_history_1.txt
-	$CAT $orig_cmds_f | $GREP -v "^$" > $orig_cmds_f1
+	cat $orig_cmds_f | grep -v "^$" > $orig_cmds_f1
 
-	log_must $CP $tst_dir/${arch}.migratedpool.DAT.Z $import_dir
-	log_must $UNCOMPRESS $import_dir/${arch}.migratedpool.DAT.Z
+	log_must cp $tst_dir/${arch}.migratedpool.DAT.Z $import_dir
+	log_must uncompress $import_dir/${arch}.migratedpool.DAT.Z
 
 	# destroy the pool with same name, so that import operation succeeds.
 	poolexists $migratedpoolname && \
-	    log_must $ZPOOL destroy -f $migratedpoolname
+	    log_must zpool destroy -f $migratedpoolname
 
-	log_must $ZPOOL import -d $import_dir $migratedpoolname
-	TZ=$TIMEZONE $ZPOOL history $migratedpoolname | $GREP -v "^$" \
+	log_must zpool import -d $import_dir $migratedpoolname
+	TZ=$TIMEZONE zpool history $migratedpoolname | grep -v "^$" \
 	    >$migrated_cmds_f
 	RET=$?
-	(( $RET != 0 )) && log_fail "$ZPOOL histroy $migratedpoolname fails."
+	(( $RET != 0 )) && log_fail "zpool histroy $migratedpoolname fails."
 
 	# The migrated history file should differ with original history file on
 	# two commands -- 'export' and 'import', which are included in migrated
@@ -92,21 +92,21 @@ for arch in "i386" "sparc"; do
 	# then compare this filtered file with the original history file. They
 	# should be identical at this time.
 	for subcmd in "export" "import"; do
-		$GREP "$subcmd" $migrated_cmds_f >/dev/null 2>&1
+		grep "$subcmd" $migrated_cmds_f >/dev/null 2>&1
 		RET=$?
 		(( $RET != 0 )) && log_fail "zpool $subcmd is not logged for" \
 		    "the imported pool $migratedpoolname."
 	done
 
 	tmpfile=$import_dir/cmds_tmp.$$
-	linenum=`$CAT $migrated_cmds_f | $WC -l`
+	linenum=`cat $migrated_cmds_f | wc -l`
 	(( linenum = linenum - 2 ))
-	$HEAD -n $linenum $migrated_cmds_f > $tmpfile
-	log_must $DIFF $tmpfile $orig_cmds_f1
+	head -n $linenum $migrated_cmds_f > $tmpfile
+	log_must diff $tmpfile $orig_cmds_f1
 
 	# cleanup for next loop testing
-	log_must $ZPOOL destroy -f $migratedpoolname
-	log_must $RM -f `$LS $import_dir`
+	log_must zpool destroy -f $migratedpoolname
+	log_must rm -f `ls $import_dir`
 done
 
 log_pass "Verify command history moves with migrated pool."

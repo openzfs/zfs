@@ -24,6 +24,11 @@
 # Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -43,11 +48,11 @@ function cleanup
 	unset ZFS_ABORT
 
 	if [[ -d $corepath ]]; then
-		$RM -rf $corepath
+		rm -rf $corepath
 	fi
 
 	if poolexists $pool; then
-		log_must $ZPOOL destroy -f $pool
+		log_must zpool destroy -f $pool
 	fi
 }
 
@@ -57,16 +62,16 @@ log_onexit cleanup
 #preparation work for testing
 corepath=$TESTDIR/core
 if [[ -d $corepath ]]; then
-	$RM -rf $corepath
+	rm -rf $corepath
 fi
-$MKDIR $corepath
+mkdir $corepath
 
 pool=pool.$$
 vdev1=$TESTDIR/file1
 vdev2=$TESTDIR/file2
 vdev3=$TESTDIR/file3
 for vdev in $vdev1 $vdev2 $vdev3; do
-	$MKFILE 64m $vdev
+	mkfile $MINVDEVSIZE $vdev
 done
 
 set -A cmds "create $pool mirror $vdev1 $vdev2" "list $pool" "iostat $pool" \
@@ -85,19 +90,19 @@ if is_linux; then
 	echo "$corepath/core.zpool" >/proc/sys/kernel/core_pattern
 	echo 0 >/proc/sys/kernel/core_uses_pid
 else
-	$COREADM -p ${corepath}/core.%f
+	coreadm -p ${corepath}/core.%f
 fi
 
 export ZFS_ABORT=yes
 
 for subcmd in "${cmds[@]}" "${badparams[@]}"; do
 	corefile=${corepath}/core.zpool
-	$ZPOOL $subcmd >/dev/null 2>&1
+	zpool $subcmd >/dev/null 2>&1
 	ls -l $corepath >>/tmp/CORE
 	if [[ ! -e $corefile ]]; then
-		log_fail "$ZPOOL $subcmd cannot generate core file  with ZFS_ABORT set."
+		log_fail "zpool $subcmd cannot generate core file  with ZFS_ABORT set."
 	fi
-	$RM -f $corefile
+	rm -f $corefile
 done
 
 log_pass "With ZFS_ABORT set, zpool command can abort and generate core file as expected."

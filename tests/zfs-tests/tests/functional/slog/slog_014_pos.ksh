@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/slog/slog.kshlib
@@ -49,36 +49,38 @@ for type in "mirror" "raidz" "raidz2"
 do
 	for spare in "" "spare"
 	do
-		log_must $ZPOOL create $TESTPOOL $type $VDEV $spare $SDEV \
+		log_must zpool create $TESTPOOL $type $VDEV $spare $SDEV \
 			log $LDEV
 
 		# Corrupt a pool device to make the pool DEGRADED
-		$DD if=/dev/urandom of=/$TESTPOOL/filler bs=1024k count=50
+		dd if=/dev/urandom of=/$TESTPOOL/filler bs=1024k count=50
 		# The oseek value below is to skip past the vdev label.
 		if is_linux; then
-			log_must $DD if=/dev/urandom of=$VDIR/a bs=1024k \
+			log_must dd if=/dev/urandom of=$VDIR/a bs=1024k \
 			   seek=4 conv=notrunc count=50
 		else
-			log_must $DD if=/dev/urandom of=$VDIR/a bs=1024k \
+			log_must dd if=/dev/urandom of=$VDIR/a bs=1024k \
 			   oseek=4 conv=notrunc count=50
 		fi
-		log_must $ZPOOL scrub $TESTPOOL
+		log_must zpool scrub $TESTPOOL
 		log_must display_status $TESTPOOL
-		log_must $ZPOOL status $TESTPOOL 2>&1 >/dev/null
+		log_must zpool status $TESTPOOL 2>&1 >/dev/null
+		log_must zpool offline $TESTPOOL $VDIR/a
 
-		$ZPOOL status -v $TESTPOOL | \
-			$GREP "state: DEGRADED" 2>&1 >/dev/null
+		zpool status -v $TESTPOOL | \
+			grep "state: DEGRADED" 2>&1 >/dev/null
 		if (( $? != 0 )); then
 			log_fail "pool $TESTPOOL status should be DEGRADED"
 		fi
 
-		$ZPOOL status -v $TESTPOOL | $GREP logs | \
-			$GREP "DEGRADED" 2>&1 >/dev/null
+		zpool status -v $TESTPOOL | grep logs | \
+			grep "DEGRADED" 2>&1 >/dev/null
 		if (( $? == 0 )); then
 			log_fail "log device should display correct status"
 		fi
 
-		log_must $ZPOOL destroy -f $TESTPOOL
+		log_must zpool online $TESTPOOL $VDIR/a
+		log_must zpool destroy -f $TESTPOOL
 	done
 done
 

@@ -48,10 +48,7 @@ main(int argc, char **argv)
 	if (argc == 4 && sscanf(argv[3], "%u", &first_file) != 1)
 		usage("Invalid first file", -3);
 
-	if (numfiles < first_file)
-		usage("First file larger than last file", -3);
-
-	for (i = first_file; i <= numfiles; i++) {
+	for (i = first_file; i < first_file + numfiles; i++) {
 		int fd;
 		(void) snprintf(buf, MAXPATHLEN, "%s%u", argv[1], i);
 		if ((fd = open(buf, O_CREAT | O_EXCL, O_RDWR)) == -1) {

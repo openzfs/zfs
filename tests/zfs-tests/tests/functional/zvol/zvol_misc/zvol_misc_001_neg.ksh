@@ -26,7 +26,8 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
+# Copyright 2016 Nexenta Systems, Inc.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -44,6 +45,12 @@
 
 verify_runnable "global"
 
+if ! $(is_physical_device $DISKS) ; then
+	log_unsupported "This directory cannot be run on raw files."
+fi
+
+volsize=$(zfs get -H -o value volsize $TESTPOOL/$TESTVOL)
+
 function cleanup
 {
 	typeset dumpdev=$(get_dumpdevice)
@@ -51,6 +58,7 @@ function cleanup
 	if [[ $dumpdev != $savedumpdev ]] ; then
 		safe_dumpadm $savedumpdev
 	fi
+	zfs set volsize=$volsize $TESTPOOL/$TESTVOL
 }
 
 log_assert "Verify that a ZFS volume can act as dump device."

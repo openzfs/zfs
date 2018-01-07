@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -45,7 +49,7 @@ function cleanup
 
 	val=$(get_prop sharenfs $fs)
 	if [[ $val == on ]]; then
-		log_must $ZFS set sharenfs=off $fs
+		log_must zfs set sharenfs=off $fs
 	fi
 }
 
@@ -56,14 +60,14 @@ fs=$TESTPOOL/$TESTFS
 sharenfs_val=$(get_prop sharenfs $fs)
 mpt=$(get_prop mountpoint $fs)
 if [[ $sharenfs_val == off ]]; then
-	log_must $ZFS set sharenfs=on $fs
+	log_must zfs set sharenfs=on $fs
 fi
 
-$SHARE | $GREP $mpt >/dev/null 2>&1
+showshares_nfs | grep $mpt >/dev/null 2>&1
 if (( $? != 0 )); then
-	log_must $ZFS share $fs
+	log_must zfs share $fs
 fi
 
-log_mustnot $ZFS share $fs
+log_mustnot zfs share $fs
 
 log_pass "zfs share fails with shared filesystem as expected."

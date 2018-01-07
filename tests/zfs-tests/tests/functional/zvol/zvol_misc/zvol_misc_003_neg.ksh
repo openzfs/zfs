@@ -26,7 +26,8 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
+# Copyright 2016 Nexenta Systems, Inc.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -45,6 +46,12 @@
 
 verify_runnable "global"
 
+if ! $(is_physical_device $DISKS) ; then
+	log_unsupported "This directory cannot be run on raw files."
+fi
+
+volsize=$(zfs get -H -o value volsize $TESTPOOL/$TESTVOL)
+
 function cleanup
 {
 	typeset dumpdev=$(get_dumpdevice)
@@ -55,6 +62,7 @@ function cleanup
 	if poolexists $TESTPOOL1 ; then
 		destroy_pool $TESTPOOL1
 	fi
+	zfs set volsize=$volsize $TESTPOOL/$TESTVOL
 }
 
 log_assert "Verify zpool creation and newfs on dump zvol is denied."
@@ -65,11 +73,12 @@ savedumpdev=$(get_dumpdevice)
 
 safe_dumpadm $voldev
 
-$ECHO "y" | $NEWFS -v $voldev > /dev/null 2>&1
+unset NOINUSE_CHECK
+echo "y" | newfs -v $voldev > /dev/null 2>&1
 if (( $? == 0 )) ; then
 	log_fail "newfs on dump zvol succeeded unexpectedly"
 fi
 
-log_mustnot $ZPOOL create $TESTPOOL1 $voldev
+log_mustnot zpool create $TESTPOOL1 $voldev
 
 log_pass "Verify zpool creation and newfs on dump zvol is denied."

@@ -24,7 +24,13 @@
 # Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_root/zpool_export/zpool_export.cfg
 
 #
 # DESCRIPTION:
@@ -45,19 +51,19 @@ function cleanup
 	typeset dir=$(get_device_dir $DISKS)
 
 	datasetexists "$TESTPOOL/$TESTFS" || \
-		log_must $ZPOOL import -d $dir $TESTPOOL
+		log_must zpool import -d $dir $TESTPOOL
 
 	ismounted "$TESTPOOL/$TESTFS"
 	(( $? != 0 )) && \
-	    log_must $ZFS mount $TESTPOOL/$TESTFS
+	    log_must zfs mount $TESTPOOL/$TESTFS
 }
 
 log_onexit cleanup
 
 log_assert "Verify a pool can be exported."
 
-log_must $ZFS umount $TESTDIR
-log_must $ZPOOL export $TESTPOOL
+log_must zfs umount $TESTDIR
+log_must zpool export $TESTPOOL
 
 poolexists $TESTPOOL && \
         log_fail "$TESTPOOL unexpectedly found in 'zpool list' output."

@@ -12,7 +12,7 @@
 #
 
 #
-# Copyright (c) 2014 by Delphix. All rights reserved.
+# Copyright (c) 2014, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -28,24 +28,32 @@
 # 2. Mess up the contents of the stream state file on disk
 # 3. Try ZFS receive, which should fail with a checksum mismatch error
 # 4. ZFS send to the stream state file again using the receive_resume_token
-# 5. ZFS receieve and verify the receive completes successfully
+# 5. ZFS receive and verify the receive completes successfully
 # 6. Repeat steps on an incremental ZFS send
+# 7. Repeat the entire procedure for a dataset at the pool root
 #
 
 verify_runnable "both"
 
+# See issue: https://github.com/zfsonlinux/zfs/issues/6086
+if is_32bit; then
+	log_unsupported "Test case occasionally fails"
+fi
+
 log_assert "Verify resumability of a full and incremental ZFS send/receive " \
     "in the presence of a corrupted stream"
-log_onexit cleanup_pool $POOL2
+log_onexit resume_cleanup $sendfs $streamfs
 
 sendfs=$POOL/sendfs
-recvfs=$POOL2/recvfs
-streamfs=$POOL/stream
+recvfs=$POOL3/recvfs
+streamfs=$POOL2/stream
 
-test_fs_setup $POOL $POOL2
-resume_test "$ZFS send -v $sendfs@a" $streamfs $recvfs
-resume_test "$ZFS send -v -i @a $sendfs@b" $streamfs $recvfs
-file_check $sendfs $recvfs
+for sendfs in $POOL2/sendfs $POOL3; do
+	test_fs_setup $sendfs $recvfs $streamfs
+	resume_test "zfs send -v $sendfs@a" $streamfs $recvfs
+	resume_test "zfs send -v -i @a $sendfs@b" $streamfs $recvfs
+	file_check $sendfs $recvfs
+done
 
 log_pass "Verify resumability of a full and incremental ZFS send/receive " \
     "in the presence of a corrupted stream"

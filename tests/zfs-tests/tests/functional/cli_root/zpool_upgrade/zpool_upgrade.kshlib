@@ -25,7 +25,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2017 by Delphix. All rights reserved.
 # Copyright 2015 Nexenta Systems, Inc.  All rights reserved.
 #
 
@@ -48,15 +48,15 @@ function create_old_pool
 
 	log_note "Creating $pool_name from $pool_files"
 	for pool_file in $pool_files; do
-		log_must $BZCAT \
+		log_must bzcat \
 		    $STF_SUITE/tests/functional/cli_root/zpool_upgrade/$pool_file.bz2 \
-		    >/$TESTPOOL/$pool_file
+		    >$TEST_BASE_DIR/$pool_file
 	done
-	log_must $ZPOOL import -d /$TESTPOOL $pool_name
+	log_must zpool import -d $TEST_BASE_DIR $pool_name
 
 	# Put some random contents into the pool
 	for i in {1..1024} ; do
-		$DD if=/dev/urandom of=/$pool_name/random.$i \
+		dd if=/dev/urandom of=/$pool_name/random.$i \
 		    count=1 bs=1024 > /dev/null 2>&1
 	done
 }
@@ -77,12 +77,12 @@ function check_upgrade
 
 	log_note "Checking if we can upgrade from ZFS version $vers"
 	pre_upgrade_checksum=$(check_pool $pool_name pre)
-	log_must $ZPOOL upgrade $pool_name
+	log_must zpool upgrade $pool_name
 	post_upgrade_checksum=$(check_pool $pool_name post)
 
 	log_note "Checking that there are no differences between checksum output"
-	log_must $DIFF $pre_upgrade_checksum $post_upgrade_checksum
-	$RM $pre_upgrade_checksum $post_upgrade_checksum
+	log_must diff $pre_upgrade_checksum $post_upgrade_checksum
+	rm $pre_upgrade_checksum $post_upgrade_checksum
 }
 
 # A function to destroy an upgraded pool, plus the files it was based on.
@@ -94,10 +94,10 @@ function destroy_upgraded_pool
 	typeset -n pool_name=ZPOOL_VERSION_${vers}_NAME
 
 	if poolexists $pool_name; then
-		log_must $ZPOOL destroy $pool_name
+		log_must zpool destroy $pool_name
 	fi
 	for file in $pool_files; do
-		$RM -f /$TESTPOOL/$file
+		rm -f $TEST_BASE_DIR/$file
 	done
 }
 
@@ -111,9 +111,9 @@ function check_pool
 {
 	typeset pool=$1
 	typeset flag=$2
-	$FIND /$pool -type f -exec $CKSUM {} + > \
-		/$TESTPOOL/pool-checksums.$pool.$flag
-	echo /$TESTPOOL/pool-checksums.$pool.$flag
+	find /$pool -type f -exec cksum {} + > \
+		$TEST_BASE_DIR/pool-checksums.$pool.$flag
+	echo $TEST_BASE_DIR/pool-checksums.$pool.$flag
 }
 
 # This function simply checks that a pool has a particular version number
@@ -127,14 +127,14 @@ function check_poolversion
 	typeset actual
 
 	# check version using zdb
-	actual=$($ZDB -C $pool | $SED -n 's/^.*version: \(.*\)$/\1/p')
+	actual=$(zdb -C $pool | sed -n 's/^.*version: \(.*\)$/\1/p')
 	if [[ $actual != $vers ]] ; then
 		log_fail "$pool: zdb reported version $actual, expected $vers"
 	fi
 
 	# check version using zpool upgrade
-	actual=$($ZPOOL upgrade | $GREP $pool$ | \
-	    $AWK '{print $1}' | $SED -e 's/ //g')
+	actual=$(zpool upgrade | grep $pool$ | \
+	    awk '{print $1}' | sed -e 's/ //g')
 	if [[ $actual != $vers ]] ; then
 		log_fail "$pool: zpool reported version $actual, expected $vers"
 	fi

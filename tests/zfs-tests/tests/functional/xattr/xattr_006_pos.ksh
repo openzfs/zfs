@@ -24,7 +24,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -42,8 +42,8 @@
 
 function cleanup {
 
-	log_must $ZFS destroy $TESTPOOL/$TESTFS@snap
-	log_must $RM $TESTDIR/myfile.$$
+	log_must zfs destroy $TESTPOOL/$TESTFS@snap
+	log_must rm $TESTDIR/myfile.$$
 
 }
 
@@ -51,11 +51,11 @@ log_assert "read xattr on a snapshot"
 log_onexit cleanup
 
 # create a file, and an xattr on it
-log_must $TOUCH $TESTDIR/myfile.$$
+log_must touch $TESTDIR/myfile.$$
 create_xattr $TESTDIR/myfile.$$ passwd /etc/passwd
 
 # snapshot the filesystem
-log_must $ZFS snapshot $TESTPOOL/$TESTFS@snap
+log_must zfs snapshot $TESTPOOL/$TESTFS@snap
 
 # check for the xattr on the snapshot
 verify_xattr $TESTDIR/.zfs/snapshot/snap/myfile.$$ passwd /etc/passwd

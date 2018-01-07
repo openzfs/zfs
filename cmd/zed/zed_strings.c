@@ -206,7 +206,7 @@ zed_strings_first(zed_strings_t *zsp)
 	if (!zsp->iteratorp)
 		return (NULL);
 
-	return (((zed_strings_node_t *) zsp->iteratorp)->val);
+	return (((zed_strings_node_t *)zsp->iteratorp)->val);
 
 }
 

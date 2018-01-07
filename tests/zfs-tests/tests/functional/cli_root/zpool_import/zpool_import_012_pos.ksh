@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -63,20 +63,20 @@ function cleanup
 
 	while ((i < ${#pools[*]})); do
 		if poolexists ${pools[i]}; then
-			log_must $ZPOOL export ${pools[i]}
+			log_must zpool export ${pools[i]}
 			log_note "Try to import ${devs[i]} ${pools[i]}"
-			$ZPOOL import ${devs[i]} ${pools[i]}
+			zpool import ${devs[i]} ${pools[i]}
 		else
 			log_note "Try to import $option ${devs[i]} ${pools[i]}"
-			$ZPOOL import $option ${devs[i]} ${pools[i]}
+			zpool import $option ${devs[i]} ${pools[i]}
 		fi
 
 		if poolexists ${pools[i]}; then
 			is_shared ${pools[i]} && \
-			    log_must $ZFS set sharenfs=off ${pools[i]}
+			    log_must zfs set sharenfs=off ${pools[i]}
 
 			ismounted "${pools[i]}/$TESTFS" || \
-			    log_must $ZFS mount ${pools[i]}/$TESTFS
+			    log_must zfs mount ${pools[i]}/$TESTFS
 		fi
 
 		((i = i + 1))
@@ -85,13 +85,13 @@ function cleanup
 	destroy_pool $TESTPOOL1
 
 	if datasetexists $TESTPOOL/$TESTFS; then
-		log_must $ZFS destroy -Rf $TESTPOOL/$TESTFS
+		log_must zfs destroy -Rf $TESTPOOL/$TESTFS
 	fi
-	log_must $ZFS create $TESTPOOL/$TESTFS
-	log_must $ZFS set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
+	log_must zfs create $TESTPOOL/$TESTFS
+	log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 
 	[[ -d $ALTER_ROOT ]] && \
-		log_must $RM -rf $ALTER_ROOT
+		log_must rm -rf $ALTER_ROOT
 }
 
 log_onexit cleanup
@@ -100,17 +100,17 @@ log_assert "Verify all mount & share status of sub-filesystems within a pool \
 	can be restored after import [-Df]."
 
 setup_filesystem "$DEVICE_FILES" $TESTPOOL1 $TESTFS $TESTDIR1
-# create a heirarchy of filesystem
+# create a hierarchy of filesystem
 for pool in ${pools[@]} ; do
-	log_must $ZFS create $pool/$TESTFS/$TESTCTR
-	log_must $ZFS create $pool/$TESTFS/$TESTCTR/$TESTCTR1
-	log_must $ZFS set canmount=off $pool/$TESTFS/$TESTCTR
-	log_must $ZFS set canmount=off $pool/$TESTFS/$TESTCTR/$TESTCTR1
-	log_must $ZFS create $pool/$TESTFS/$TESTCTR/$TESTFS1
-	log_must $ZFS create $pool/$TESTFS/$TESTCTR/$TESTCTR1/$TESTFS1
-	log_must $ZFS create $pool/$TESTFS/$TESTFS1
-	log_must $ZFS snapshot $pool/$TESTFS/$TESTFS1@snap
-	log_must $ZFS clone $pool/$TESTFS/$TESTFS1@snap $pool/$TESTCLONE1
+	log_must zfs create $pool/$TESTFS/$TESTCTR
+	log_must zfs create $pool/$TESTFS/$TESTCTR/$TESTCTR1
+	log_must zfs set canmount=off $pool/$TESTFS/$TESTCTR
+	log_must zfs set canmount=off $pool/$TESTFS/$TESTCTR/$TESTCTR1
+	log_must zfs create $pool/$TESTFS/$TESTCTR/$TESTFS1
+	log_must zfs create $pool/$TESTFS/$TESTCTR/$TESTCTR1/$TESTFS1
+	log_must zfs create $pool/$TESTFS/$TESTFS1
+	log_must zfs snapshot $pool/$TESTFS/$TESTFS1@snap
+	log_must zfs clone $pool/$TESTFS/$TESTFS1@snap $pool/$TESTCLONE1
 done
 
 typeset mount_fs="$TESTFS $TESTFS/$TESTFS1 $TESTCLONE1 \
@@ -137,7 +137,7 @@ for option in "" "-Df"; do
 				typeset nfs_flag="sharenfs=off"
 				if ((nfs_share_bit == 1)); then
 					log_note "Set sharenfs=on $pool"
-					log_must $ZFS set sharenfs=on $pool
+					log_must zfs set sharenfs=on $pool
 					log_must is_shared $pool
 					f_share="true"
 					nfs_flag="sharenfs=on"
@@ -147,9 +147,9 @@ for option in "" "-Df"; do
 				while ((guid_bit <= 1)); do
 					typeset guid_flag="pool name"
 					if [[ -z $option ]]; then
-						log_must $ZPOOL export $pool
+						log_must zpool export $pool
 					else
-						log_must $ZPOOL destroy $pool
+						log_must zpool destroy $pool
 					fi
 
 					typeset target=$pool
@@ -165,14 +165,14 @@ for option in "" "-Df"; do
 					fi
 					log_note "Import with $nfs_flag and " \
 					    "$guid_flag"
-					$ZPOOL import $option ${devs[i]} \
+					zpool import $option ${devs[i]} \
 					    ${options[j]} $target
 					#import by GUID if import by pool name fails
 					if [[ $? != 0 ]]; then
 						log_note "Possible pool name" \
 						    "duplicates. Try GUID import"
 						target=$guid
-						log_must $ZPOOL import $option \
+						log_must zpool import $option \
 						    ${devs[i]} ${options[j]} \
 						    $target
 					fi
@@ -192,7 +192,7 @@ for option in "" "-Df"; do
 				done
 				# reset nfsshare=off
 				if [[ -n $f_share ]]; then
-					log_must $ZFS set sharenfs=off $pool
+					log_must zfs set sharenfs=off $pool
 					log_mustnot is_shared $pool
 				fi
 				((nfs_share_bit = nfs_share_bit + 1))

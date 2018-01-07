@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -36,18 +36,22 @@ verify_runnable "global"
 
 for pool in "$TESTPOOL" "$TESTPOOL1"; do
 	datasetexists $pool/$TESTFS && \
-		log_must $ZFS destroy -Rf $pool/$TESTFS
+		log_must zfs destroy -Rf $pool/$TESTFS
 	destroy_pool "$pool"
 done
 
 ismounted $DEVICE_DIR $NEWFS_DEFAULT_FS
-(( $? == 0 )) && log_must $UMOUNT -f $DEVICE_DIR
+(( $? == 0 )) && log_must umount -f $DEVICE_DIR
 
 for dir in "$TESTDIR" "$TESTDIR1" "$DEVICE_DIR" ; do
 	[[ -d $dir ]] && \
-		log_must $RM -rf $dir
+		log_must rm -rf $dir
 done
 
+DISK=${DISKS%% *}
+if is_mpath_device $DISK; then
+	delete_partitions
+fi
 # recreate and destroy a zpool over the disks to restore the partitions to
 # normal
 case $DISK_COUNT in

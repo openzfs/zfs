@@ -25,7 +25,7 @@
 # Use is subject to license terms.
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -58,10 +58,10 @@ function create_dataset { #name type disks
 	if [[ $type == "POOL" ]]; then
 		create_pool "$dataset" "$disks"
 	elif [[ $type == "CTR" ]]; then
-		log_must $ZFS create $dataset
-		log_must $ZFS set canmount=off $dataset
+		log_must zfs create $dataset
+		log_must zfs set canmount=off $dataset
 	elif [[ $type == "FS" ]]; then
-		log_must $ZFS create $dataset
+		log_must zfs create $dataset
 	else
 		log_fail "Unrecognised type $type"
 	fi
@@ -143,7 +143,7 @@ function update_recordsize { #dataset init_code
 		def_val[idx]=$record_val
 		def_recordsize=1
 	elif [[ $init_code == "local" ]]; then
-		log_must $ZFS set recordsize=$record_val $dataset
+		log_must zfs set recordsize=$record_val $dataset
 		local_val[idx]=$record_val
 	fi
 }
@@ -152,10 +152,10 @@ function update_recordsize { #dataset init_code
 # The mountpoint property is slightly different from other properties and
 # so is handled here. For all other properties if they are set to a specific
 # value at a higher level in the data hierarchy (i.e. checksum=on) then that
-# value propogates down the hierarchy unchanged, with the source field being
+# value propagates down the hierarchy unchanged, with the source field being
 # set to 'inherited from <higher dataset>'.
 #
-# The mountpoint property is different in that while the value propogates
+# The mountpoint property is different in that while the value propagates
 # down the hierarchy, the value at each level is determined by a combination
 # of the top-level value and the current level in the hierarchy.
 #
@@ -322,7 +322,7 @@ function scan_state { #state-file
 				# set up correctly as specified in the
 				# configX.cfg file (which includes 'set'ting
 				# properties at a higher level and checking
-				# that they propogate down to the lower levels.
+				# that they propagate down to the lower levels.
 				#
 				# Note in a few places here, we use
 				# check_failure, rather than log_must - this
@@ -331,14 +331,14 @@ function scan_state { #state-file
 				if [[ $op == "-" ]]; then
 					log_note "No operation specified"
 				else
-					export __ZFS_POOL_RESTRICT="$TESTPOOL"
-					log_must $ZFS unmount -a
+					export __ZFS_POOL_RESTRICT="TESTPOOL"
+					log_must zfs unmount -a
 					unset __ZFS_POOL_RESTRICT
 
 					for p in ${prop[i]} ${prop[((i+1))]}; do
-						$ZFS $op $p $target
+						zfs $op $p $target
 						ret=$?
-						check_failure $ret "$ZFS $op $p \
+						check_failure $ret "zfs $op $p \
 						    $target"
 					done
 				fi
@@ -371,52 +371,48 @@ function scan_state { #state-file
 }
 
 #
+# Note that we keep this list relatively short so that this test doesn't
+# time out (after taking more than 10 minutes).
+#
+set -A prop "checksum" "" \
+	"compression" "" \
+	"atime" "" \
+	"sharenfs" "" \
+	"recordsize" "recsize" \
+	"snapdir" "" \
+	"readonly" ""
+
+#
 # Note except for the mountpoint default value (which is handled in
 # the routine itself), each property specified in the 'prop' array
 # above must have a corresponding entry in the two arrays below.
 #
-if is_linux; then
-	set -A prop "checksum" "" \
-		"compression" "compress" \
-		"atime" "" \
-		"devices" "" \
-		"exec" "" \
-		"setuid" "" \
-		"recordsize" "recsize" \
-		"snapdir" "" \
-		"acltype"
 
-	set -A def_val "on" "off" "on" "on" "on" \
-		"on" "" \
-		"hidden" "off"
+set -A def_val "on" "off" "on" \
+	"off" "" \
+	"hidden" \
+	"off"
 
-	set -A local_val "off" "on" "off" "off" "off" \
-		"off" "" \
-		"visible" "off"
+set -A local_val "off" "on" "off" \
+	"on" "" \
+	"visible" \
+	"off"
+
+#
+# Add system specific values
+#
+
+if ! is_linux; then
+	prop+=("aclmode" "" \
+		"mountpoint" "")
+	def_val+=("discard" \
+		"")
+	local_val+=("groupmask" \
+		"$TESTDIR")
 else
-	set -A prop "checksum" "" \
-		"compression" "compress" \
-		"atime" "" \
-		"devices" "" \
-		"exec" "" \
-		"setuid" "" \
-		"sharenfs", "" \
-		"recordsize" "recsize" \
-		"mountpoint" "" \
-		"snapdir" "" \
-		"aclmode", "" \
-		"aclinherit" "" \
-		"readonly" "rdonly"
-
-	set -A def_val "on" "off" "on" "on" "on" \
-		"on" "off" "" \
-		"" "hidden" "discard" "secure" \
-		"off"
-
-	set -A local_val "off" "on" "off" "off" "off" \
-		"off" "on" "" \
-		"$TESTDIR" "visible" "groupmask" "discard" \
-		"off"
+	prop+=("acltype" "")
+	def_val+=("off")
+	local_val+=("off")
 fi
 
 

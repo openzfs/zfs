@@ -11,7 +11,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 # DESCRIPTION
@@ -30,20 +30,20 @@
 function cleanup
 {
 	datasetexists $TESTPOOL/$TESTFS1 && \
-	    log_must $ZFS destroy -R $TESTPOOL/$TESTFS1
+	    log_must zfs destroy -R $TESTPOOL/$TESTFS1
 	datasetexists $TESTPOOL/$TESTVOL && \
-	    log_must $ZFS destroy -Rf $TESTPOOL/$TESTVOL
+	    log_must zfs destroy -Rf $TESTPOOL/$TESTVOL
 }
 
 function setup_snapshots
 {
 	for i in $snaps; do
 		datasetexists $TESTPOOL/$TESTFS1@snap$i && \
-		    log_must $ZFS destroy $TESTPOOL/$TESTFS1@snap$i
+		    log_must zfs destroy $TESTPOOL/$TESTFS1@snap$i
 		datasetexists $TESTPOOL/$TESTVOL@snap$i && \
-		    log_must $ZFS destroy $TESTPOOL/$TESTVOL@snap$i
-		log_must $ZFS snapshot $TESTPOOL/$TESTFS1@snap$i
-		log_must $ZFS snapshot $TESTPOOL/$TESTVOL@snap$i
+		    log_must zfs destroy $TESTPOOL/$TESTVOL@snap$i
+		log_must zfs snapshot $TESTPOOL/$TESTFS1@snap$i
+		log_must zfs snapshot $TESTPOOL/$TESTVOL@snap$i
 	done
 }
 
@@ -78,30 +78,30 @@ valid_args="@snap1%snap5 @%"
 log_assert "zfs destroy deletes ranges of snapshots"
 log_onexit cleanup
 
-log_must $ZFS create $TESTPOOL/$TESTFS1
-log_must $ZFS create -V $VOLSIZE $TESTPOOL/$TESTVOL
+log_must zfs create $TESTPOOL/$TESTFS1
+log_must zfs create -V $VOLSIZE $TESTPOOL/$TESTVOL
 snaps="1 2 3 4 5"
 log_note "Verify the valid arguments"
 range="1 2 3 4 5"
 for args in $valid_args; do
 	setup_snapshots
-	log_must $ZFS destroy $TESTPOOL/$TESTFS1$args
-	log_must $ZFS destroy $TESTPOOL/$TESTVOL$args
+	log_must zfs destroy $TESTPOOL/$TESTFS1$args
+	log_must zfs destroy $TESTPOOL/$TESTVOL$args
 	verify_snapshots
 done
 
-log_note "Verify invalid arguements"
+log_note "Verify invalid arguments"
 setup_snapshots
 for args in $invalid_args; do
-	log_mustnot $ZFS destroy $TESTPOOL/$TESTFS1$args
-	log_mustnot $ZFS destroy $TESTPOOL/$TESTVOL$args
+	log_mustnot zfs destroy $TESTPOOL/$TESTFS1$args
+	log_mustnot zfs destroy $TESTPOOL/$TESTVOL$args
 	log_must verify_snapshots 1
 done
 
-log_note "Destroy the begining range"
+log_note "Destroy the beginning range"
 
-log_must $ZFS destroy $TESTPOOL/$TESTFS1@%snap3
-log_must $ZFS destroy $TESTPOOL/$TESTVOL@%snap3
+log_must zfs destroy $TESTPOOL/$TESTFS1@%snap3
+log_must zfs destroy $TESTPOOL/$TESTVOL@%snap3
 range="1 2 3"
 verify_snapshots
 range="4 5"
@@ -109,19 +109,19 @@ verify_snapshots 1
 
 setup_snapshots
 log_note "Destroy the mid range"
-log_must $ZFS destroy $TESTPOOL/$TESTFS1@snap2%snap4
-log_must $ZFS destroy $TESTPOOL/$TESTVOL@snap2%snap4
+log_must zfs destroy $TESTPOOL/$TESTFS1@snap2%snap4
+log_must zfs destroy $TESTPOOL/$TESTVOL@snap2%snap4
 range="2 3 4"
 verify_snapshots
-log_must $ZFS destroy $TESTPOOL/$TESTFS1@snap1%snap5
-log_must $ZFS destroy $TESTPOOL/$TESTVOL@snap1%snap5
+log_must zfs destroy $TESTPOOL/$TESTFS1@snap1%snap5
+log_must zfs destroy $TESTPOOL/$TESTVOL@snap1%snap5
 range="1 5"
 verify_snapshots
 
 setup_snapshots
 log_note "Destroy the end range"
-log_must $ZFS destroy $TESTPOOL/$TESTFS1@snap3%
-log_must $ZFS destroy $TESTPOOL/$TESTVOL@snap3%
+log_must zfs destroy $TESTPOOL/$TESTFS1@snap3%
+log_must zfs destroy $TESTPOOL/$TESTVOL@snap3%
 range="1 2"
 verify_snapshots 1
 range="3 4 5"
@@ -129,8 +129,8 @@ verify_snapshots
 
 setup_snapshots
 log_note "Destroy a simple list"
-log_must $ZFS destroy $TESTPOOL/$TESTFS1@snap2,snap4
-log_must $ZFS destroy $TESTPOOL/$TESTVOL@snap2,snap4
+log_must zfs destroy $TESTPOOL/$TESTFS1@snap2,snap4
+log_must zfs destroy $TESTPOOL/$TESTVOL@snap2,snap4
 range="2 4"
 verify_snapshots
 range="1 3 5"
@@ -138,8 +138,8 @@ verify_snapshots 1
 
 setup_snapshots
 log_note "Destroy a list and range together"
-log_must $ZFS destroy $TESTPOOL/$TESTFS1@snap1%snap3,snap5
-log_must $ZFS destroy $TESTPOOL/$TESTVOL@snap1%snap3,snap5
+log_must zfs destroy $TESTPOOL/$TESTFS1@snap1%snap3,snap5
+log_must zfs destroy $TESTPOOL/$TESTVOL@snap1%snap3,snap5
 range="1 2 3 5"
 verify_snapshots
 range=4
@@ -148,8 +148,8 @@ verify_snapshots 1
 snaps="1 2 3 5 6 7 8 9 10"
 setup_snapshots
 log_note "Destroy a list of ranges"
-log_must $ZFS destroy $TESTPOOL/$TESTFS1@snap1%snap3,snap5
-log_must $ZFS destroy $TESTPOOL/$TESTVOL@snap1%snap3,snap5
+log_must zfs destroy $TESTPOOL/$TESTFS1@snap1%snap3,snap5
+log_must zfs destroy $TESTPOOL/$TESTVOL@snap1%snap3,snap5
 range="1 2 3 5"
 verify_snapshots
 range=4
@@ -160,27 +160,27 @@ setup_snapshots
 log_note "Snapshot destory with hold"
 range="1 2 3 4 5"
 for i in 1 2 3 4 5; do
-	log_must $ZFS hold keep $TESTPOOL/$TESTFS1@snap$i
-	log_must $ZFS hold keep $TESTPOOL/$TESTVOL@snap$i
+	log_must zfs hold keep $TESTPOOL/$TESTFS1@snap$i
+	log_must zfs hold keep $TESTPOOL/$TESTVOL@snap$i
 done
-log_mustnot $ZFS destroy $TESTPOOL/$TESTFS1@snap1%snap5
-log_mustnot $ZFS destroy $TESTPOOL/$TESTVOL@snap1%snap5
+log_mustnot zfs destroy $TESTPOOL/$TESTFS1@snap1%snap5
+log_mustnot zfs destroy $TESTPOOL/$TESTVOL@snap1%snap5
 verify_snapshots 1
 for i in 1 2 3 4 5; do
-	log_must $ZFS release keep $TESTPOOL/$TESTFS1@snap$i
-	log_must $ZFS release keep $TESTPOOL/$TESTVOL@snap$i
+	log_must zfs release keep $TESTPOOL/$TESTFS1@snap$i
+	log_must zfs release keep $TESTPOOL/$TESTVOL@snap$i
 done
-log_must $ZFS destroy $TESTPOOL/$TESTFS1@snap1%snap5
-log_must $ZFS destroy $TESTPOOL/$TESTVOL@snap1%snap5
+log_must zfs destroy $TESTPOOL/$TESTFS1@snap1%snap5
+log_must zfs destroy $TESTPOOL/$TESTVOL@snap1%snap5
 verify_snapshots
 
 log_note "Range destroy for snapshots having clones"
 setup_snapshots
 for i in 1 2 3 4 5; do
-	log_must $ZFS clone $TESTPOOL/$TESTFS1@snap$i $TESTPOOL/$TESTFS1/clone$i
+	log_must zfs clone $TESTPOOL/$TESTFS1@snap$i $TESTPOOL/$TESTFS1/clone$i
 done
-log_must $ZFS destroy -R $TESTPOOL/$TESTFS1@snap1%snap5
-log_must $ZFS destroy $TESTPOOL/$TESTVOL@snap1%snap5
+log_must zfs destroy -R $TESTPOOL/$TESTFS1@snap1%snap5
+log_must zfs destroy $TESTPOOL/$TESTVOL@snap1%snap5
 verify_snapshots
 
 log_pass "'zfs destroy' successfully destroys ranges of snapshots"

@@ -25,6 +25,10 @@
 # Use is subject to license terms.
 #
 
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -42,7 +46,7 @@ verify_runnable "both"
 function cleanup
 {
 	if datasetexists $initfs ; then
-		log_must $ZFS destroy -rf $initfs
+		log_must zfs destroy -rf $initfs
 	fi
 }
 
@@ -53,12 +57,12 @@ initfs=$TESTPOOL/$TESTFS/$TESTFS
 basefs=$initfs
 typeset -i ret=0 len snaplen
 while ((ret == 0)); do
-	$ZFS create $basefs
-	$ZFS snapshot $basefs@snap1
+	zfs create $basefs
+	zfs snapshot $basefs@snap1
 	ret=$?
 
 	if ((ret != 0)); then
-		len=$($ECHO $basefs | $WC -c)
+		len=$(echo $basefs | wc -c)
 		log_note "The deeply-nested filesystem len: $len"
 
 		#
@@ -68,10 +72,10 @@ while ((ret == 0)); do
 		#
 		if ((len >= 255)); then
 			if datasetexists $basefs; then
-				log_must $ZFS destroy -r $basefs
+				log_must zfs destroy -r $basefs
 			fi
 			basefs=${basefs%/*}
-			len=$($ECHO $basefs| $WC -c)
+			len=$(echo $basefs| wc -c)
 		fi
 		break
 	fi
@@ -82,11 +86,11 @@ done
 # Make snapshot name length match the longest one
 ((snaplen = 256 - len - 1)) # 1: @
 snap=$(gen_dataset_name $snaplen "s")
-log_must $ZFS snapshot $basefs@$snap
+log_must zfs snapshot $basefs@$snap
 
-log_mustnot $ZFS rename $basefs ${basefs}a
-log_mustnot $ZFS rename $basefs ${basefs}-new
-log_mustnot $ZFS rename $initfs ${initfs}-new
-log_mustnot $ZFS rename $TESTPOOL/$TESTFS $TESTPOOL/$TESTFS-new
+log_mustnot zfs rename $basefs ${basefs}a
+log_mustnot zfs rename $basefs ${basefs}-new
+log_mustnot zfs rename $initfs ${initfs}-new
+log_mustnot zfs rename $TESTPOOL/$TESTFS $TESTPOOL/$TESTFS-new
 
 log_pass "Verify long name filesystem with snapshot should not break ZFS."

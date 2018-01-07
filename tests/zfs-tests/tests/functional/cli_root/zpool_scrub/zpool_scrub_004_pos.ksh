@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -42,24 +42,34 @@
 #	3. Verify scrub failed until the resilver completed
 #
 # NOTES:
-#	A 1 second delay is added to 10% of zio's in order to ensure that
-#	the resilver does not complete before the scrub can be issue.  This
-#	can occur when testing with small pools or very fast hardware.
+#	Artificially limit the scrub speed by setting the zfs_scan_vdev_limit
+#	low in order to ensure that the scrub does not complete early.
+#
+
+function cleanup
+{
+	log_must set_tunable64 zfs_scan_vdev_limit $ZFS_SCAN_VDEV_LIMIT_DEFAULT
+}
 
 verify_runnable "global"
 
+# See issue: https://github.com/zfsonlinux/zfs/issues/5444
+if is_32bit; then
+	log_unsupported "Test case fails on 32-bit systems"
+fi
+
+log_onexit cleanup
+
 log_assert "Resilver prevent scrub from starting until the resilver completes"
 
-log_must $ZINJECT -d $DISK1 -f10 -D1 $TESTPOOL
-log_must $ZPOOL detach $TESTPOOL $DISK2
-log_must $ZPOOL attach $TESTPOOL $DISK1 $DISK2
+log_must set_tunable64 zfs_scan_vdev_limit $ZFS_SCAN_VDEV_LIMIT_SLOW
+log_must zpool detach $TESTPOOL $DISK2
+log_must zpool attach $TESTPOOL $DISK1 $DISK2
 log_must is_pool_resilvering $TESTPOOL
-log_mustnot $ZPOOL scrub $TESTPOOL
+log_mustnot zpool scrub $TESTPOOL
 
-# Allow the resilver to finish, or it will interfere with the next test.
 while ! is_pool_resilvered $TESTPOOL; do
-	$SLEEP 1
+	sleep 1
 done
 
-log_must $ZINJECT -c all
 log_pass "Resilver prevent scrub from starting until the resilver completes"

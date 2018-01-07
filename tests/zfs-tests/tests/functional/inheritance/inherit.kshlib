@@ -25,7 +25,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 #
@@ -38,7 +38,7 @@ function get_prop_src # property dataset
         typeset prop=$1
         typeset dataset=$2
 
-	prop_val=`$ZFS get -H -o source $prop $dataset`
+	prop_val=`zfs get -H -o source $prop $dataset`
 
         if [[ $? -ne 0 ]]; then
                 log_fail "Unable to determine the source of $prop " \
@@ -104,7 +104,7 @@ function set_n_verify_prop #property value dataset
 	typeset prop_val=$2
 	typeset dataset=$3
 
-	$ZFS set $prop=$prop_val $dataset
+	zfs set $prop=$prop_val $dataset
 	check_val=`get_prop $prop $dataset`
 
 	if [[ $check_val != $prop_val ]]; then

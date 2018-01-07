@@ -24,6 +24,11 @@
 # Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
+
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zpool_add/zpool_add.kshlib
 
@@ -59,7 +64,7 @@ log_must poolexists "$TESTPOOL"
 
 typeset -i i=0
 while (( $i < ${#args[*]} )); do
-	log_mustnot $ZPOOL add ${args[i]}
+	log_mustnot zpool add ${args[i]}
 	((i = i + 1))
 done
 

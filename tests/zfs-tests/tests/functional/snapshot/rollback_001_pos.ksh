@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -53,10 +53,10 @@ function cleanup
 {
 	snapexists $SNAPFS
 	[[ $? -eq 0 ]] && \
-		log_must $ZFS destroy $SNAPFS
+		log_must zfs destroy $SNAPFS
 
 	[[ -e $TESTDIR ]] && \
-		log_must $RM -rf $TESTDIR/* > /dev/null 2>&1
+		log_must rm -rf $TESTDIR/* > /dev/null 2>&1
 }
 
 log_assert "Verify that a rollback to a previous snapshot succeeds."
@@ -64,31 +64,31 @@ log_assert "Verify that a rollback to a previous snapshot succeeds."
 log_onexit cleanup
 
 [[ -n $TESTDIR ]] && \
-    log_must $RM -rf $TESTDIR/* > /dev/null 2>&1
+    log_must rm -rf $TESTDIR/* > /dev/null 2>&1
 
 typeset -i COUNT=10
 
 log_note "Populate the $TESTDIR directory (prior to snapshot)"
 typeset -i i=1
 while [[ $i -le $COUNT ]]; do
-	log_must $FILE_WRITE -o create -f $TESTDIR/before_file$i \
+	log_must file_write -o create -f $TESTDIR/before_file$i \
 	   -b $BLOCKSZ -c $NUM_WRITES -d $i
 
 	(( i = i + 1 ))
 done
 
-log_must $ZFS snapshot $SNAPFS
+log_must zfs snapshot $SNAPFS
 
-FILE_COUNT=`$LS -Al $SNAPDIR | $GREP -v "total" | wc -l`
+FILE_COUNT=`ls -Al $SNAPDIR | grep -v "total" | wc -l`
 if [[ $FILE_COUNT -ne $COUNT ]]; then
-        $LS -Al $SNAPDIR
+        ls -Al $SNAPDIR
         log_fail "AFTER: $SNAPFS contains $FILE_COUNT files(s)."
 fi
 
 log_note "Populate the $TESTDIR directory (post snapshot)"
 typeset -i i=1
 while [[ $i -le $COUNT ]]; do
-        log_must $FILE_WRITE -o create -f $TESTDIR/after_file$i \
+        log_must file_write -o create -f $TESTDIR/after_file$i \
            -b $BLOCKSZ -c $NUM_WRITES -d $i
 
         (( i = i + 1 ))
@@ -97,18 +97,18 @@ done
 #
 # Now rollback to latest snapshot
 #
-log_must $ZFS rollback $SNAPFS
+log_must zfs rollback $SNAPFS
 
-FILE_COUNT=`$LS -Al $TESTDIR/after* 2> /dev/null | $GREP -v "total" | wc -l`
+FILE_COUNT=`ls -Al $TESTDIR/after* 2> /dev/null | grep -v "total" | wc -l`
 if [[ $FILE_COUNT -ne 0 ]]; then
-        $LS -Al $TESTDIR
+        ls -Al $TESTDIR
         log_fail "$TESTDIR contains $FILE_COUNT after* files(s)."
 fi
 
-FILE_COUNT=`$LS -Al $TESTDIR/before* 2> /dev/null \
-    | $GREP -v "total" | wc -l`
+FILE_COUNT=`ls -Al $TESTDIR/before* 2> /dev/null \
+    | grep -v "total" | wc -l`
 if [[ $FILE_COUNT -ne $COUNT ]]; then
-	$LS -Al $TESTDIR
+	ls -Al $TESTDIR
 	log_fail "$TESTDIR contains $FILE_COUNT before* files(s)."
 fi
 

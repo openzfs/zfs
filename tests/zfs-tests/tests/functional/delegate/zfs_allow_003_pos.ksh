@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/delegate/delegate_common.kshlib
@@ -53,10 +53,10 @@ childfs=$ROOT_TESTFS/childfs
 eval set -A dataset $DATASETS
 typeset perms="snapshot,reservation,compression,checksum,userprop"
 
-log_must $ZFS create $childfs
+log_must zfs create $childfs
 
 for dtst in $DATASETS ; do
-	log_must $ZFS allow -l $STAFF1 $perms $dtst
+	log_must zfs allow -l $STAFF1 $perms $dtst
 	log_must verify_perm $dtst $perms $STAFF1
 	if [[ $dtst == $ROOT_TESTFS ]] ; then
 		log_must verify_noperm $childfs $perms \
@@ -66,9 +66,9 @@ done
 
 log_must restore_root_datasets
 
-log_must $ZFS create $childfs
+log_must zfs create $childfs
 for dtst in $DATASETS ; do
-	log_must $ZFS allow -l -g $STAFF_GROUP $perms $dtst
+	log_must zfs allow -l -g $STAFF_GROUP $perms $dtst
 	log_must verify_perm $dtst $perms $STAFF1 $STAFF2
 	if [[ $dtst == $ROOT_TESTFS ]] ; then
 		log_must verify_noperm $childfs $perms \
@@ -78,9 +78,9 @@ done
 
 log_must restore_root_datasets
 
-log_must $ZFS create $childfs
+log_must zfs create $childfs
 for dtst in $DATASETS ; do
-	log_must $ZFS allow -l -e $perms $dtst
+	log_must zfs allow -l -e $perms $dtst
 	log_must verify_perm $dtst $perms $STAFF1 $STAFF2 $OTHER1 $OTHER2
 	if [[ $dtst == $ROOT_TESTFS ]] ; then
 		log_must verify_noperm $childfs $perms \

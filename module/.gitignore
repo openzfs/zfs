@@ -2,8 +2,12 @@
 *.ko.unsigned
 *.ko.out
 *.ko.out.sig
+*.dwo
 .*.cmd
+.*.d
 
 /.tmp_versions
 /Module.markers
 /Module.symvers
+
+!Makefile.in
