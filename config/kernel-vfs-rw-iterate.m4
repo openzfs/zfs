@@ -32,15 +32,23 @@ dnl #
 dnl # Linux 4.1 API
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_NEW_SYNC_READ],
-	[AC_MSG_CHECKING([whether new_sync_read() is available])
+	[AC_MSG_CHECKING([whether new_sync_read/write() are available])
 	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/fs.h>
 	],[
-		new_sync_read(NULL, NULL, 0, NULL);
+		        ssize_t ret __attribute__ ((unused));
+			struct file *filp = NULL;
+			char __user *rbuf = NULL;
+			const char __user *wbuf = NULL;
+			size_t len = 0;
+			loff_t ppos;
+
+			ret = new_sync_read(filp, rbuf, len, &ppos);
+			ret = new_sync_write(filp, wbuf, len, &ppos);
 	],[
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_NEW_SYNC_READ, 1,
-			[new_sync_read() is available])
+			[new_sync_read()/new_sync_write() are available])
 	],[
 		AC_MSG_RESULT(no)
 	])
