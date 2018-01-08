@@ -94,7 +94,7 @@ Default value: \fB2\fR.
 Scales \fBl2arc_headroom\fR by this percentage when L2ARC contents are being
 successfully compressed before writing. A value of 100 disables this feature.
 .sp
-Default value: \fB200\fR.
+Default value: \fB200\fR%.
 .RE
 
 .sp
@@ -436,7 +436,7 @@ Percentage that can be consumed by dnodes of ARC meta buffers.
 See also \fBzfs_arc_dnode_limit\fR which serves a similar purpose but has a
 higher priority if set to nonzero value.
 .sp
-Default value: \fB10\fR.
+Default value: \fB10\fR%.
 .RE
 
 .sp
@@ -449,7 +449,7 @@ Percentage of ARC dnodes to try to scan in response to demand for non-metadata
 when the number of bytes consumed by dnodes exceeds \fBzfs_arc_dnode_limit\fR.
 
 .sp
-Default value: \fB10% of the number of dnodes in the ARC\fR.
+Default value: \fB10\fR% of the number of dnodes in the ARC.
 .RE
 
 .sp
@@ -503,7 +503,7 @@ Default value: \fB0\fR.
 Throttle I/O when free system memory drops below this percentage of total
 system memory.  Setting this value to 0 will disable the throttle.
 .sp
-Default value: \fB10\fR.
+Default value: \fB10\fR%.
 .RE
 
 .sp
@@ -566,7 +566,7 @@ See also \fBzfs_arc_meta_limit\fR which serves a similar purpose but has a
 higher priority if set to nonzero value.
 
 .sp
-Default value: \fB75\fR.
+Default value: \fB75\fR%.
 .RE
 
 .sp
@@ -748,7 +748,7 @@ zfs_arc_min if necessary. This value is specified as percent of pagecache
 size (as measured by NR_FILE_PAGES) where that percent may exceed 100. This
 only operates during memory pressure/reclaim.
 .sp
-Default value: \fB0\fR (disabled).
+Default value: \fB0\fR% (disabled).
 .RE
 
 .sp
@@ -787,7 +787,7 @@ stable storage.  The timeout is scaled based on a percentage of the last lwb
 latency to avoid significantly impacting the latency of each individual
 transaction record (itx).
 .sp
-Default value: \fB5\fR.
+Default value: \fB5\fR%.
 .RE
 
 .sp
@@ -894,7 +894,7 @@ expressed as a percentage of \fBzfs_dirty_data_max\fR.
 This value should be >= zfs_vdev_async_write_active_max_dirty_percent.
 See the section "ZFS TRANSACTION DELAY".
 .sp
-Default value: \fB60\fR.
+Default value: \fB60\fR%.
 .RE
 
 .sp
@@ -943,7 +943,7 @@ writes are halted until space frees up. This parameter takes precedence
 over \fBzfs_dirty_data_max_percent\fR.
 See the section "ZFS TRANSACTION DELAY".
 .sp
-Default value: 10 percent of all memory, capped at \fBzfs_dirty_data_max_max\fR.
+Default value: \fB10\fR% of physical RAM, capped at \fBzfs_dirty_data_max_max\fR.
 .RE
 
 .sp
@@ -958,7 +958,7 @@ This limit is only enforced at module load time, and will be ignored if
 precedence over \fBzfs_dirty_data_max_max_percent\fR. See the section
 "ZFS TRANSACTION DELAY".
 .sp
-Default value: 25% of physical RAM.
+Default value: \fB25\fR% of physical RAM.
 .RE
 
 .sp
@@ -973,7 +973,7 @@ time, and will be ignored if \fBzfs_dirty_data_max\fR is later changed.
 The parameter \fBzfs_dirty_data_max_max\fR takes precedence over this
 one. See the section "ZFS TRANSACTION DELAY".
 .sp
-Default value: \fB25\fR.
+Default value: \fB25\fR%.
 .RE
 
 .sp
@@ -987,7 +987,7 @@ memory.  Once this limit is exceeded, new writes are halted until space frees
 up.  The parameter \fBzfs_dirty_data_max\fR takes precedence over this
 one.  See the section "ZFS TRANSACTION DELAY".
 .sp
-Default value: 10%, subject to \fBzfs_dirty_data_max_max\fR.
+Default value: \fB10\fR%, subject to \fBzfs_dirty_data_max_max\fR.
 .RE
 
 .sp
@@ -1080,7 +1080,7 @@ When the pool has more than
 the dirty data is between min and max, the active I/O limit is linearly
 interpolated. See the section "ZFS I/O SCHEDULER".
 .sp
-Default value: \fB60\fR.
+Default value: \fB60\fR%.
 .RE
 
 .sp
@@ -1095,7 +1095,7 @@ When the pool has less than
 the dirty data is between min and max, the active I/O limit is linearly
 interpolated. See the section "ZFS I/O SCHEDULER".
 .sp
-Default value: \fB30\fR.
+Default value: \fB30\fR%.
 .RE
 
 .sp
@@ -1227,7 +1227,7 @@ will tend to be slower than empty devices.
 
 See also \fBzio_dva_throttle_enabled\fR.
 .sp
-Default value: \fB1000\fR.
+Default value: \fB1000\fR%.
 .RE
 
 .sp
@@ -1882,7 +1882,7 @@ Default value: \fB2\fR.
 This controls the number of threads used by the dp_sync_taskq.  The default
 value of 75% will create a maximum of one thread per cpu.
 .sp
-Default value: \fB75\fR.
+Default value: \fB75\fR%.
 .RE
 
 .sp
@@ -2161,7 +2161,7 @@ Default value: \fB1024\fR.
 This controls the number of threads used by the dp_zil_clean_taskq.  The default
 value of 100% will create a maximum of one thread per cpu.
 .sp
-Default value: \fB100\fR.
+Default value: \fB100\fR%.
 .RE
 
 .sp
