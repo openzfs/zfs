@@ -981,7 +981,18 @@ zfs_link_destroy(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag,
 boolean_t
 zfs_dirempty(znode_t *dzp)
 {
-	return (dzp->z_size == 2 && dzp->z_dirlocks == 0);
+	zfsvfs_t *zfsvfs = ZTOZSB(dzp);
+	uint64_t count;
+	int error;
+
+	/*
+	 * we want to check ZAP's internal counter as some backends
+	 * (Lustre) do not maintain z_size properly
+	 */
+	error = zap_count(zfsvfs->z_os, dzp->z_id, &count);
+	if (error)
+		return (FALSE);
+	return (count == 0 && dzp->z_dirlocks == 0);
 }
 
 int
