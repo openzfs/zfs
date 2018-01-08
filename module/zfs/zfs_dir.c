@@ -977,11 +977,25 @@ zfs_link_destroy(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag,
  * Indicate whether the directory is empty.  Works with or without z_lock
  * held, but can only be consider a hint in the latter case.  Returns true
  * if only "." and ".." remain and there's no work in progress.
+ *
+ * The internal ZAP size, rather than zp->z_size, needs to be checked since
+ * some consumers (Lustre) do not strictly maintain an accurate SA_ZPL_SIZE.
  */
 boolean_t
 zfs_dirempty(znode_t *dzp)
 {
-	return (dzp->z_size == 2 && dzp->z_dirlocks == 0);
+	zfsvfs_t *zfsvfs = ZTOZSB(dzp);
+	uint64_t count;
+	int error;
+
+	if (dzp->z_dirlocks != NULL)
+		return (B_FALSE);
+
+	error = zap_count(zfsvfs->z_os, dzp->z_id, &count);
+	if (error != 0 || count != 0)
+		return (B_FALSE);
+
+	return (B_TRUE);
 }
 
 int
