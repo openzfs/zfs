@@ -3,9 +3,12 @@ obj = @abs_builddir@
 
 MODULE := zfs
 
-EXTRA_CFLAGS = $(ZFS_MODULE_CFLAGS) @KERNELCPPFLAGS@
-
 obj-$(CONFIG_ZFS) := $(MODULE).o
+
+ccflags-y := $(ZFS_MODULE_CFLAGS) $(ZFS_MODULE_CPPFLAGS)
+
+# Suppress unused but set variable warnings often due to ASSERTs
+ccflags-y += $(NO_UNUSED_BUT_SET_VARIABLE)
 
 $(MODULE)-objs += abd.o
 $(MODULE)-objs += arc.o

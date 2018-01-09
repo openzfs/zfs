@@ -7,27 +7,37 @@ AC_DEFUN([ZFS_AC_LICENSE], [
 ])
 
 AC_DEFUN([ZFS_AC_DEBUG_ENABLE], [
-	KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG -Werror"
-	HOSTCFLAGS="${HOSTCFLAGS} -DDEBUG -Werror"
-	DEBUG_CFLAGS="-DDEBUG -Werror"
-	DEBUG_STACKFLAGS="-fstack-check"
+	DEBUG_CFLAGS="-Werror -fstack-check"
+	DEBUG_CPPFLAGS="-DDEBUG -UNDEBUG"
+	DEBUG_LDFLAGS=""
 	DEBUG_ZFS="_with_debug"
 	AC_DEFINE(ZFS_DEBUG, 1, [zfs debugging enabled])
+
+	KERNEL_DEBUG_CFLAGS="-Werror"
+	KERNEL_DEBUG_CPPFLAGS="-DDEBUG -UNDEBUG"
 ])
 
 AC_DEFUN([ZFS_AC_DEBUG_DISABLE], [
-	KERNELCPPFLAGS="${KERNELCPPFLAGS} -DNDEBUG "
-	HOSTCFLAGS="${HOSTCFLAGS} -DNDEBUG "
-	DEBUG_CFLAGS="-DNDEBUG"
-	DEBUG_STACKFLAGS=""
+	DEBUG_CFLAGS=""
+	DEBUG_CPPFLAGS="-UDEBUG -DNDEBUG"
+	DEBUG_LDFLAGS=""
 	DEBUG_ZFS="_without_debug"
+
+	KERNEL_DEBUG_CFLAGS=""
+	KERNEL_DEBUG_CPPFLAGS="-UDEBUG -DNDEBUG"
 ])
 
+dnl #
+dnl # When debugging is enabled:
+dnl # - Enable all ASSERTs (-DDEBUG)
+dnl # - Promote all compiler warnings to errors (-Werror)
+dnl # - Enable stack checking (-fstack-check)
+dnl #
 AC_DEFUN([ZFS_AC_DEBUG], [
 	AC_MSG_CHECKING([whether assertion support will be enabled])
 	AC_ARG_ENABLE([debug],
 		[AS_HELP_STRING([--enable-debug],
-		[Enable assertion support @<:@default=no@:>@])],
+		[Enable compiler and code assertions @<:@default=no@:>@])],
 		[],
 		[enable_debug=no])
 
@@ -38,18 +48,28 @@ AC_DEFUN([ZFS_AC_DEBUG], [
 		[ZFS_AC_DEBUG_DISABLE],
 		[AC_MSG_ERROR([Unknown option $enable_debug])])
 
-	AC_SUBST(DEBUG_STACKFLAGS)
+	AC_SUBST(DEBUG_CFLAGS)
+	AC_SUBST(DEBUG_CPPFLAGS)
+	AC_SUBST(DEBUG_LDFLAGS)
 	AC_SUBST(DEBUG_ZFS)
+
+	AC_SUBST(KERNEL_DEBUG_CFLAGS)
+	AC_SUBST(KERNEL_DEBUG_CPPFLAGS)
+
 	AC_MSG_RESULT([$enable_debug])
 ])
 
-AC_DEFUN([ZFS_AC_DEBUGINFO_KERNEL], [
-	KERNELMAKE_PARAMS="$KERNELMAKE_PARAMS CONFIG_DEBUG_INFO=y"
-	KERNELCPPFLAGS="${KERNELCPPFLAGS} -fno-inline"
+AC_DEFUN([ZFS_AC_DEBUGINFO_ENABLE], [
+	DEBUG_CFLAGS="$DEBUG_CFLAGS -g -fno-inline"
+
+	KERNEL_DEBUG_CFLAGS="$KERNEL_DEBUG_CFLAGS -fno-inline"
+	KERNEL_MAKE="$KERNEL_MAKE CONFIG_DEBUG_INFO=y"
+
+	DEBUGINFO_ZFS="_with_debuginfo"
 ])
 
-AC_DEFUN([ZFS_AC_DEBUGINFO_USER], [
-	DEBUG_CFLAGS="${DEBUG_CFLAGS} -g -fno-inline"
+AC_DEFUN([ZFS_AC_DEBUGINFO_DISABLE], [
+	DEBUGINFO_ZFS="_without_debuginfo"
 ])
 
 AC_DEFUN([ZFS_AC_DEBUGINFO], [
@@ -62,23 +82,26 @@ AC_DEFUN([ZFS_AC_DEBUGINFO], [
 
 	AS_CASE(["x$enable_debuginfo"],
 		["xyes"],
-		[ZFS_AC_DEBUGINFO_KERNEL
-		ZFS_AC_DEBUGINFO_USER],
-		["xkernel"],
-		[ZFS_AC_DEBUGINFO_KERNEL],
-		["xuser"],
-		[ZFS_AC_DEBUGINFO_USER],
+		[ZFS_AC_DEBUGINFO_ENABLE],
 		["xno"],
-		[],
-		[AC_MSG_ERROR([Unknown option $enable_debug])])
+		[ZFS_AC_DEBUGINFO_DISABLE],
+		[AC_MSG_ERROR([Unknown option $enable_debuginfo])])
 
 	AC_SUBST(DEBUG_CFLAGS)
+	AC_SUBST(DEBUGINFO_ZFS)
+
+	AC_SUBST(KERNEL_DEBUG_CFLAGS)
+	AC_SUBST(KERNEL_MAKE)
+
 	AC_MSG_RESULT([$enable_debuginfo])
 ])
 
 AC_DEFUN([ZFS_AC_CONFIG_ALWAYS], [
-	ZFS_AC_CONFIG_ALWAYS_NO_UNUSED_BUT_SET_VARIABLE
-	ZFS_AC_CONFIG_ALWAYS_NO_BOOL_COMPARE
+	ZFS_AC_CONFIG_ALWAYS_CC_NO_UNUSED_BUT_SET_VARIABLE
+	ZFS_AC_CONFIG_ALWAYS_CC_NO_BOOL_COMPARE
+	ZFS_AC_CONFIG_ALWAYS_CC_FRAME_LARGER_THAN
+	ZFS_AC_CONFIG_ALWAYS_CC_NO_FORMAT_TRUNCATION
+	ZFS_AC_CONFIG_ALWAYS_CC_ASAN
 	ZFS_AC_CONFIG_ALWAYS_TOOLCHAIN_SIMD
 	ZFS_AC_CONFIG_ALWAYS_ARCH
 ])
@@ -160,9 +183,23 @@ AC_DEFUN([ZFS_AC_RPM], [
 	])
 
 	RPM_DEFINE_COMMON='--define "$(DEBUG_ZFS) 1"'
-	RPM_DEFINE_UTIL='--define "_dracutdir $(dracutdir)" --define "_udevdir $(udevdir)" --define "_udevruledir $(udevruledir)" --define "_initconfdir $(DEFAULT_INITCONF_DIR)" $(DEFINE_INITRAMFS) $(DEFINE_SYSTEMD)'
-	RPM_DEFINE_KMOD='--define "kernels $(LINUX_VERSION)" --define "require_spldir $(SPL)" --define "require_splobj $(SPL_OBJ)" --define "ksrc $(LINUX)" --define "kobj $(LINUX_OBJ)"'
-	RPM_DEFINE_DKMS=
+	RPM_DEFINE_COMMON+=' --define "$(DEBUGINFO_ZFS) 1"'
+	RPM_DEFINE_COMMON+=' --define "$(ASAN_ZFS) 1"'
+
+	RPM_DEFINE_UTIL='--define "_dracutdir $(dracutdir)"'
+	RPM_DEFINE_UTIL+=' --define "_udevdir $(udevdir)"'
+	RPM_DEFINE_UTIL+=' --define "_udevruledir $(udevruledir)"'
+	RPM_DEFINE_UTIL+=' --define "_initconfdir $(DEFAULT_INITCONF_DIR)"'
+	RPM_DEFINE_UTIL+=' $(DEFINE_INITRAMFS)'
+	RPM_DEFINE_UTIL+=' $(DEFINE_SYSTEMD)'
+
+	RPM_DEFINE_KMOD='--define "kernels $(LINUX_VERSION)"'
+	RPM_DEFINE_KMOD+=' --define "require_spldir $(SPL)"'
+	RPM_DEFINE_KMOD+=' --define "require_splobj $(SPL_OBJ)"'
+	RPM_DEFINE_KMOD+=' --define "ksrc $(LINUX)"'
+	RPM_DEFINE_KMOD+=' --define "kobj $(LINUX_OBJ)"'
+
+	RPM_DEFINE_DKMS=''
 
 	SRPM_DEFINE_COMMON='--define "build_src_rpm 1"'
 	SRPM_DEFINE_UTIL=

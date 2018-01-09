@@ -37,6 +37,7 @@
 #define buildforkernels akmod
 
 %bcond_with     debug
+%bcond_with     debuginfo
 
 
 Name:           %{module}-kmod
@@ -116,6 +117,12 @@ bash %{SOURCE10}  --target %{_target_cpu} %{?repo:--repo %{?repo}} --kmodname %{
     %define debug --disable-debug
 %endif
 
+%if %{with debuginfo}
+    %define debuginfo --enable-debuginfo
+%else
+    %define debuginfo --disable-debuginfo
+%endif
+
 #
 # Allow the overriding of spl locations
 #
@@ -156,7 +163,8 @@ for kernel_version in %{?kernel_versions}; do
         --with-linux-obj=%{kobj} \
         --with-spl="%{spldir}" \
         --with-spl-obj="%{splobj}" \
-        %{debug}
+        %{debug} \
+        %{debuginfo}
     make %{?_smp_mflags}
     cd ..
 done

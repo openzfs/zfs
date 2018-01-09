@@ -1,8 +1,12 @@
 include $(top_srcdir)/config/Rules.am
 
-# -Wnoformat-truncation to get rid of compiler warning for unchecked
-#  truncating snprintfs on gcc 7.1.1.
-AM_CFLAGS += $(DEBUG_STACKFLAGS) $(FRAME_LARGER_THAN) $(NO_FORMAT_TRUNCATION)
+# Get rid of compiler warning for unchecked truncating snprintfs on gcc 7.1.1
+AM_CFLAGS += $(NO_FORMAT_TRUNCATION)
+
+# Includes kernel code, generate warnings for large stack frames
+AM_CFLAGS += $(FRAME_LARGER_THAN)
+
+# Unconditionally enable ASSERTs
 AM_CPPFLAGS += -DDEBUG -UNDEBUG
 
 DEFAULT_INCLUDES += \

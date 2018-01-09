@@ -1,7 +1,5 @@
 include $(top_srcdir)/config/Rules.am
 
-AM_CFLAGS += $(DEBUG_STACKFLAGS) $(FRAME_LARGER_THAN)
-
 DEFAULT_INCLUDES += \
 	-I$(top_srcdir)/include \
 	-I$(top_srcdir)/lib/libspl/include
@@ -19,11 +17,7 @@ USER_C = \
 	uu_pname.c \
 	uu_string.c
 
-KERNEL_C =
-
-nodist_libuutil_la_SOURCES = \
-	$(USER_C) \
-	$(KERNEL_C)
+nodist_libuutil_la_SOURCES = $(USER_C)
 
 libuutil_la_LIBADD = \
 	$(top_builddir)/lib/libavl/libavl.la \
