@@ -102,30 +102,30 @@ typedef struct raidz_impl_ops {
 } raidz_impl_ops_t;
 
 typedef struct raidz_col {
-	size_t rc_devidx;		/* child device index for I/O */
-	size_t rc_offset;		/* device offset */
-	size_t rc_size;			/* I/O size */
+	uint64_t rc_devidx;		/* child device index for I/O */
+	uint64_t rc_offset;		/* device offset */
+	uint64_t rc_size;		/* I/O size */
 	abd_t *rc_abd;			/* I/O data */
 	void *rc_gdata;			/* used to store the "good" version */
 	int rc_error;			/* I/O error for this device */
-	unsigned int rc_tried;		/* Did we attempt this I/O column? */
-	unsigned int rc_skipped;	/* Did we skip this I/O column? */
+	uint8_t rc_tried;		/* Did we attempt this I/O column? */
+	uint8_t rc_skipped;		/* Did we skip this I/O column? */
 } raidz_col_t;
 
 typedef struct raidz_map {
-	size_t rm_cols;			/* Regular column count */
-	size_t rm_scols;		/* Count including skipped columns */
-	size_t rm_bigcols;		/* Number of oversized columns */
-	size_t rm_asize;		/* Actual total I/O size */
-	size_t rm_missingdata;		/* Count of missing data devices */
-	size_t rm_missingparity;	/* Count of missing parity devices */
-	size_t rm_firstdatacol;		/* First data column/parity count */
-	size_t rm_nskip;		/* Skipped sectors for padding */
-	size_t rm_skipstart;		/* Column index of padding start */
+	uint64_t rm_cols;		/* Regular column count */
+	uint64_t rm_scols;		/* Count including skipped columns */
+	uint64_t rm_bigcols;		/* Number of oversized columns */
+	uint64_t rm_asize;		/* Actual total I/O size */
+	uint64_t rm_missingdata;	/* Count of missing data devices */
+	uint64_t rm_missingparity;	/* Count of missing parity devices */
+	uint64_t rm_firstdatacol;	/* First data column/parity count */
+	uint64_t rm_nskip;		/* Skipped sectors for padding */
+	uint64_t rm_skipstart;		/* Column index of padding start */
 	abd_t *rm_abd_copy;		/* rm_asize-buffer of copied data */
-	size_t rm_reports;		/* # of referencing checksum reports */
-	unsigned int rm_freed;		/* map no longer has referencing ZIO */
-	unsigned int rm_ecksuminjected;	/* checksum error was injected */
+	uintptr_t rm_reports;		/* # of referencing checksum reports */
+	uint8_t	rm_freed;		/* map no longer has referencing ZIO */
+	uint8_t	rm_ecksuminjected;	/* checksum error was injected */
 	raidz_impl_ops_t *rm_ops;	/* RAIDZ math operations */
 	raidz_col_t rm_col[1];		/* Flexible array of I/O columns */
 } raidz_map_t;
