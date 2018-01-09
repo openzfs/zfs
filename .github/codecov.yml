@@ -18,4 +18,5 @@ coverage:
 
 comment:
   layout: "reach, diff, flags, footer"
-  behavior: "new"		# delete old, post new
+  behavior: once		# update if exists; post new; skip if deleted
+  require_changes: yes		# only post when coverage changes
