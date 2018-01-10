@@ -1,6 +1,7 @@
 include $(top_srcdir)/config/Rules.am
 
-AM_CPPFLAGS += -DDEBUG
+# Unconditionally enable debugging for zdb
+AM_CPPFLAGS += -DDEBUG -UNDEBUG
 
 DEFAULT_INCLUDES += \
 	-I$(top_srcdir)/include \

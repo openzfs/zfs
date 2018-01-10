@@ -23,14 +23,11 @@ ifeq ($(TARGET_ASM_DIR), asm-generic)
 ASM_SOURCES :=
 endif
 
-EXTRA_CFLAGS = $(ZFS_MODULE_CFLAGS) @KERNELCPPFLAGS@
-EXTRA_AFLAGS = $(ZFS_MODULE_CFLAGS) @KERNELCPPFLAGS@
-
 obj-$(CONFIG_ZFS) := $(MODULE).o
 
-ccflags-y += -I$(src)/include
-asflags-y += -I$(src)/include
-asflags-y += $(ZFS_MODULE_CFLAGS)
+asflags-y := -I$(src)/include
+ccflags-y := -I$(src)/include
+ccflags-y += $(ZFS_MODULE_CFLAGS) $(ZFS_MODULE_CPPFLAGS)
 
 $(MODULE)-objs += illumos-crypto.o
 $(MODULE)-objs += api/kcf_cipher.o

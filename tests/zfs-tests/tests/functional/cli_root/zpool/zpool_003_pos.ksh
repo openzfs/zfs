@@ -61,9 +61,10 @@ log_mustnot zpool freeze fakepool
 [[ -f core ]] && log_must rm -f core
 
 if is_linux; then
-        ulimit -c unlimited
-        echo "core" >/proc/sys/kernel/core_pattern
-        echo 0 >/proc/sys/kernel/core_uses_pid
+	ulimit -c unlimited
+	echo "core" >/proc/sys/kernel/core_pattern
+	echo 0 >/proc/sys/kernel/core_uses_pid
+	export ASAN_OPTIONS="abort_on_error=1:disable_coredump=0"
 fi
 
 ZFS_ABORT=1; export ZFS_ABORT

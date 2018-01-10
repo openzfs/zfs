@@ -89,6 +89,7 @@ if is_linux; then
 	ulimit -c unlimited
 	echo "$corepath/core.zpool" >/proc/sys/kernel/core_pattern
 	echo 0 >/proc/sys/kernel/core_uses_pid
+	export ASAN_OPTIONS="abort_on_error=1:disable_coredump=0"
 else
 	coreadm -p ${corepath}/core.%f
 fi
