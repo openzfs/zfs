@@ -316,14 +316,14 @@ get_usage(zpool_help_t idx)
 		return (gettext("\thistory [-il] [<pool>] ...\n"));
 	case HELP_IMPORT:
 		return (gettext("\timport [-d dir] [-D]\n"
-		    "\timport [-d dir | -c cachefile] [-F [-n]] [-l] "
-		    "<pool | id>\n"
+		    "\timport [-d dir | -c cachefile | -P device] [-F [-n]] "
+		    "[-l] <pool | id>\n"
 		    "\timport [-o mntopts] [-o property=value] ... \n"
-		    "\t    [-d dir | -c cachefile] [-D] [-l] [-f] [-m] [-N] "
-		    "[-R root] [-F [-n]] -a\n"
+		    "\t    [-d dir | -c cachefile | -P device] [-D] [-l] "
+		    "[-f] [-m] [-N] [-R root] [-F [-n]] -a\n"
 		    "\timport [-o mntopts] [-o property=value] ... \n"
-		    "\t    [-d dir | -c cachefile] [-D] [-l] [-f] [-m] [-N] "
-		    "[-R root] [-F [-n]]\n"
+		    "\t    [-d dir | -c cachefile | -P device] [-D] [-l] "
+		    "[-f] [-m] [-N] [-R root] [-F [-n]]\n"
 		    "\t    <pool | id> [newpool]\n"));
 	case HELP_IOSTAT:
 		return (gettext("\tiostat [[[-c [script1,script2,...]"
@@ -2370,15 +2370,37 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 	return (ret);
 }
 
+/* Helper function for adding searchdirs entry in import -d | -P */
+static void
+searchdir_add(char ***searchdirs, int *nsearch, char *dir)
+{
+	char **olddirs = *searchdirs;
+	int n = *nsearch;
+
+	if (olddirs == NULL) {
+		*searchdirs = safe_malloc(sizeof (char *));
+	} else {
+		*searchdirs = safe_malloc((n+1) * sizeof (char *));
+		bcopy(olddirs, *searchdirs, n * sizeof (char *));
+		free(olddirs);
+	}
+	(*searchdirs)[n++] = dir;
+	*nsearch = n;
+}
+
 /*
  * zpool import [-d dir] [-D]
  *       import [-o mntopts] [-o prop=value] ... [-R root] [-D] [-l]
- *              [-d dir | -c cachefile] [-f] -a
+ *              [-d dir | -c cachefile | -P <dev>...] [-f] -a
  *       import [-o mntopts] [-o prop=value] ... [-R root] [-D] [-l]
- *              [-d dir | -c cachefile] [-f] [-n] [-F] <pool | id> [newpool]
+ *              [-d dir | -c cachefile | -P <dev>...] [-f] [-n] [-F]
+ *              <pool | id> [newpool]
  *
  *	 -c	Read pool information from a cachefile instead of searching
  *		devices.
+ *
+ *	 -P	Import by specifying device path instead of searching. Specify
+ *		multiple devices by using multiple -P
  *
  *       -d	Scan in a specific directory, other than /dev/.  More than
  *		one directory can be specified using multiple '-d' options.
@@ -2446,13 +2468,14 @@ zpool_do_import(int argc, char **argv)
 	boolean_t do_rewind = B_FALSE;
 	boolean_t xtreme_rewind = B_FALSE;
 	boolean_t do_scan = B_FALSE;
+	boolean_t do_path = B_FALSE;
 	uint64_t pool_state, txg = -1ULL;
 	char *cachefile = NULL;
 	importargs_t idata = { 0 };
 	char *endptr;
 
 	/* check options */
-	while ((c = getopt(argc, argv, ":aCc:d:DEfFlmnNo:R:stT:VX")) != -1) {
+	while ((c = getopt(argc, argv, ":aCc:P:d:DEfFlmnNo:R:stT:VX")) != -1) {
 		switch (c) {
 		case 'a':
 			do_all = B_TRUE;
@@ -2460,18 +2483,24 @@ zpool_do_import(int argc, char **argv)
 		case 'c':
 			cachefile = optarg;
 			break;
-		case 'd':
-			if (searchdirs == NULL) {
-				searchdirs = safe_malloc(sizeof (char *));
-			} else {
-				char **tmp = safe_malloc((nsearch + 1) *
-				    sizeof (char *));
-				bcopy(searchdirs, tmp, nsearch *
-				    sizeof (char *));
-				free(searchdirs);
-				searchdirs = tmp;
+		case 'P':
+			if (searchdirs != NULL && do_path == B_FALSE) {
+				(void) fprintf(stderr,
+				    gettext("cannot mix -d and -P\n"));
+				err = 1;
+				goto error;
 			}
-			searchdirs[nsearch++] = optarg;
+			do_path = B_TRUE;
+			searchdir_add(&searchdirs, &nsearch, optarg);
+			break;
+		case 'd':
+			if (do_path) {
+				(void) fprintf(stderr,
+				    gettext("cannot mix -d and -P\n"));
+				err = 1;
+				goto error;
+			}
+			searchdir_add(&searchdirs, &nsearch, optarg);
 			break;
 		case 'D':
 			do_destroyed = B_TRUE;
@@ -2677,6 +2706,7 @@ zpool_do_import(int argc, char **argv)
 	idata.guid = searchguid;
 	idata.cachefile = cachefile;
 	idata.scan = do_scan;
+	idata.fullpaths = do_path;
 
 	pools = zpool_search_import(g_zfs, &idata);
 
