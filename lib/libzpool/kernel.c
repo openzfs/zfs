@@ -907,13 +907,15 @@ lowbit64(uint64_t i)
 	return (__builtin_ffsll(i));
 }
 
+char *random_path = "/dev/random";
+char *urandom_path = "/dev/urandom";
 static int random_fd = -1, urandom_fd = -1;
 
 void
 random_init(void)
 {
-	VERIFY((random_fd = open("/dev/random", O_RDONLY)) != -1);
-	VERIFY((urandom_fd = open("/dev/urandom", O_RDONLY)) != -1);
+	VERIFY((random_fd = open(random_path, O_RDONLY)) != -1);
+	VERIFY((urandom_fd = open(urandom_path, O_RDONLY)) != -1);
 }
 
 void
