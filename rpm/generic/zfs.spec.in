@@ -189,7 +189,6 @@ Requires:       fio
 Requires:       acl
 Requires:       sudo
 Requires:       sysstat
-Requires:       rng-tools
 AutoReqProv:    no
 
 %description test

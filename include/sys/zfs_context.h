@@ -630,6 +630,8 @@ extern void delay(clock_t ticks);
 #define	NN_NUMBUF_SZ	(6)
 
 extern uint64_t physmem;
+extern char *random_path;
+extern char *urandom_path;
 
 extern int highbit64(uint64_t i);
 extern int lowbit64(uint64_t i);

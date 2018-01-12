@@ -148,15 +148,6 @@ function store_core
 	fi
 }
 
-rngdpid=""
-function on_exit
-{
-	if [ -n "$rngdpid" ]; then
-		kill -9 "$rngdpid"
-	fi
-}
-trap on_exit EXIT
-
 # parse arguments
 # expected format: zloop [-t timeout] [-c coredir] [-- extra ztest args]
 coredir=$DEFAULTCOREDIR
@@ -204,9 +195,6 @@ fi
 or_die rm -f ztest.history
 or_die rm -f ztest.ddt
 or_die rm -f ztest.cores
-
-# start rngd in the background so we don't run out of entropy
-or_die read -r rngdpid < <(rngd -f -r /dev/urandom & echo $!)
 
 ztrc=0		# ztest return value
 foundcrashes=0	# number of crashes found so far

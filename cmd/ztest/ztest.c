@@ -7064,7 +7064,12 @@ main(int argc, char **argv)
 		exit(EXIT_FAILURE);
 	}
 
-	ztest_fd_rand = open("/dev/urandom", O_RDONLY);
+	/*
+	 * Force random_get_bytes() to use /dev/urandom in order to prevent
+	 * ztest from needlessly depleting the system entropy pool.
+	 */
+	random_path = "/dev/urandom";
+	ztest_fd_rand = open(random_path, O_RDONLY);
 	ASSERT3S(ztest_fd_rand, >=, 0);
 
 	if (!fd_data_str) {
