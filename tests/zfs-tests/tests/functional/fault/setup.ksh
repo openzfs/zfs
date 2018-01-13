@@ -28,7 +28,7 @@
 
 verify_runnable "global"
 
-zed_setup
+zed_setup resilver_finish-start-scrub.sh
 zed_start
 
 log_pass

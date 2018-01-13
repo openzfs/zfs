@@ -86,6 +86,9 @@
 #
 ZED_USE_ENCLOSURE_LEDS=1
 
+##
+# Run a scrub after every resilver
+#ZED_SCRUB_AFTER_RESILVER=1
 
 ##
 # The syslog priority (e.g., specified as a "facility.level" pair).
