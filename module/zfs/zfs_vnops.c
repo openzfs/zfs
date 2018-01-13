@@ -539,8 +539,8 @@ zfs_read(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 #endif /* HAVE_UIO_ZEROCOPY */
 
 	while (n > 0) {
-		if (!zsb->z_issnap && zfs_throttle_enable())
-			zfs_do_throttle(zsb->z_throttle, ZFS_THROTTLE_READ);
+		if (!zfsvfs->z_issnap && zfs_throttle_enable())
+			zfs_do_throttle(zfsvfs->z_throttle, ZFS_THROTTLE_READ);
 		nbytes = MIN(n, zfs_read_chunk_size -
 		    P2PHASE(uio->uio_loffset, zfs_read_chunk_size));
 
@@ -729,7 +729,7 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 	 */
 	while (n > 0) {
 		if (zfs_throttle_enable())
-			zfs_do_throttle(zsb->z_throttle, ZFS_THROTTLE_WRITE);
+			zfs_do_throttle(zfsvfs->z_throttle, ZFS_THROTTLE_WRITE);
 		abuf = NULL;
 		woff = uio->uio_loffset;
 		if (zfs_owner_overquota(zfsvfs, zp, B_FALSE) ||
@@ -4236,7 +4236,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	}
 
 	if (zfs_throttle_enable())
-		zfs_do_throttle(zsb->z_throttle, ZFS_THROTTLE_WRITE);
+		zfs_do_throttle(zfsvfs->z_throttle, ZFS_THROTTLE_WRITE);
 
 	/*
 	 * Counterpart for redirty_page_for_writepage() above.  This page
@@ -4469,8 +4469,8 @@ zfs_fillpage(struct inode *ip, struct page *pl[], int nr_pages)
 	for (total = io_off + io_len; io_off < total; io_off += PAGESIZE) {
 		caddr_t va;
 
-		if (!zsb->z_issnap && zfs_throttle_enable())
-			zfs_do_throttle(zsb->z_throttle, ZFS_THROTTLE_READ);
+		if (!zfsvfs->z_issnap && zfs_throttle_enable())
+			zfs_do_throttle(zfsvfs->z_throttle, ZFS_THROTTLE_READ);
 
 		cur_pp = pl[page_idx++];
 		va = kmap(cur_pp);

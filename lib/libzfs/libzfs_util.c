@@ -1800,6 +1800,7 @@ zprop_parse_value(libzfs_handle_t *hdl, nvpair_t *elem, int prop,
 {
 	data_type_t datatype = nvpair_type(elem);
 	zprop_type_t proptype;
+	zfs_handle_t *zhp;
 	const char *propname;
 	char *value;
 	boolean_t isnone = B_FALSE;
@@ -1853,11 +1854,17 @@ zprop_parse_value(libzfs_handle_t *hdl, nvpair_t *elem, int prop,
 					break;
 				}
 				if (strcmp(value, "shared") == 0) {
-					char fsparent[ZFS_MAXNAMELEN];
-					if (zfs_parent_name(
-					    fsname, fsparent,
-					    ZFS_MAXNAMELEN) == -1)
-						goto error;
+					char parent[ZFS_MAX_DATASET_NAME_LEN];
+					char path[ZFS_MAX_DATASET_NAME_LEN];
+					(void) strcpy(path, fsname);
+					zhp = zfs_path_to_zhandle(
+					    hdl, path, type);
+					if (zhp != (NULL)) {
+						if (zfs_parent_name(
+						    zhp, parent,
+						    sizeof (parent)) == -1)
+							goto error;
+					}
 					*ivalp = ZFS_THROTTLE_SHARED;
 					break;
 				}

@@ -752,7 +752,6 @@ extern int zfs_show_diffs(zfs_handle_t *, int, const char *, const char *,
 /*
  * Miscellaneous functions.
  */
-extern int zfs_parent_name(const char *path, char *buf, size_t buflen);
 extern const char *zfs_type_to_name(zfs_type_t);
 extern void zfs_refresh_properties(zfs_handle_t *);
 extern int zfs_name_valid(const char *, zfs_type_t);

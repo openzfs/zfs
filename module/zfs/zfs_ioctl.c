@@ -1582,7 +1582,7 @@ static void
 zfs_throttle_update_children_read(zfs_throttle_t *zt)
 {
 	zfs_throttle_t *zt_next;
-	struct list_head *pos;
+	struct list_head *pos = NULL;
 	char parent[MAXNAMELEN];
 	int rate;
 
@@ -1590,8 +1590,8 @@ zfs_throttle_update_children_read(zfs_throttle_t *zt)
 		zt_next = list_entry(pos, zfs_throttle_t, list);
 		rate = atomic_read(&(zt_next->z_prop_read));
 		if (zfs_get_parent(zt_next->fsname, parent, MAXNAMELEN) == 0 &&
-			strcmp(parent, zt->fsname) == 0 &&
-			rate == ZFS_THROTTLE_SHARED) {
+		    strcmp(parent, zt->fsname) == 0 &&
+		    rate == ZFS_THROTTLE_SHARED) {
 			zt_next->z_real_read = zt->z_real_read;
 			zt_next->z_sem_real_read = zt->z_sem_real_read;
 			zfs_throttle_update_children_read(zt_next);
@@ -1603,7 +1603,7 @@ static void
 zfs_throttle_update_children_write(zfs_throttle_t *zt)
 {
 	zfs_throttle_t *zt_next;
-	struct list_head *pos;
+	struct list_head *pos = NULL;
 	char parent[MAXNAMELEN];
 	int rate;
 
@@ -1611,8 +1611,8 @@ zfs_throttle_update_children_write(zfs_throttle_t *zt)
 		zt_next = list_entry(pos, zfs_throttle_t, list);
 		rate = atomic_read(&(zt_next->z_prop_write));
 		if (zfs_get_parent(zt_next->fsname, parent, MAXNAMELEN) == 0 &&
-			strcmp(parent, zt->fsname) == 0 &&
-			rate == ZFS_THROTTLE_SHARED) {
+		    strcmp(parent, zt->fsname) == 0 &&
+		    rate == ZFS_THROTTLE_SHARED) {
 			zt_next->z_real_write = zt->z_real_write;
 			zt_next->z_sem_real_write = zt->z_sem_real_write;
 			zfs_throttle_update_children_write(zt_next);
@@ -1629,7 +1629,7 @@ zfs_throttle_update_read(zfs_throttle_t *zt, uint64_t newval)
 	zt->z_sem_real_read = &(zt->z_sem_read);
 
 	if (atomic_read(&(zt->z_real_read)) != ZFS_THROTTLE_NONE &&
-		newval == ZFS_THROTTLE_NONE) {
+	    newval == ZFS_THROTTLE_NONE) {
 		down(zt->z_sem_real_read);
 	}
 
@@ -1652,7 +1652,7 @@ zfs_throttle_update_write(zfs_throttle_t *zt, uint64_t newval)
 	zt->z_sem_real_write = &(zt->z_sem_write);
 
 	if (atomic_read(&(zt->z_real_write)) != ZFS_THROTTLE_NONE &&
-		newval == ZFS_THROTTLE_NONE) {
+	    newval == ZFS_THROTTLE_NONE) {
 		down(zt->z_sem_real_write);
 	}
 
@@ -1680,7 +1680,7 @@ zfs_throttle_update_hier_read(zfs_throttle_t *zt, uint64_t newval)
 
 	atomic_set(&(zt->z_prop_read), newval);
 	atomic_set(&(zt->z_real_read),
-		atomic_read(&(zt_parent->z_real_read)));
+	    atomic_read(&(zt_parent->z_real_read)));
 	zt->z_sem_real_read = zt_parent->z_sem_real_read;
 	zfs_throttle_update_children_read(zt);
 }
@@ -1699,7 +1699,7 @@ zfs_throttle_update_hier_write(zfs_throttle_t *zt, uint64_t newval)
 
 	atomic_set(&(zt->z_prop_write), newval);
 	atomic_set(&(zt->z_real_write),
-		atomic_read(&(zt_parent->z_real_write)));
+	    atomic_read(&(zt_parent->z_real_write)));
 	zt->z_sem_real_write = zt_parent->z_sem_real_write;
 	zfs_throttle_update_children_write(zt);
 }
@@ -1747,7 +1747,7 @@ out:
 static int
 zfs_throttle_destroy_zt(const char *fsname, void *arg)
 {
-	struct list_head *pos, *tmp;
+	struct list_head *pos = NULL, *tmp = NULL;
 	zfs_throttle_t *zt_next;
 
 	list_for_each_safe(pos, tmp, &zfs_throttle_list.list) {
@@ -1765,7 +1765,7 @@ zfs_throttle_destroy_zt(const char *fsname, void *arg)
 static void
 zfs_throttle_rename(const char *oldname, const char *newname)
 {
-	struct list_head *pos;
+	struct list_head *pos = NULL;
 	zfs_throttle_t *zt_next;
 	char prefix[MAXNAMELEN];
 
@@ -6861,7 +6861,7 @@ zfs_throttle_enable(void)
 int
 zfs_throttle_find_zt(const char *fsname, zfs_throttle_t **zt)
 {
-	struct list_head *pos;
+	struct list_head *pos = NULL;
 	zfs_throttle_t *zt_next;
 
 	list_for_each(pos, &zfs_throttle_list.list) {
@@ -7287,7 +7287,7 @@ _fini(void)
 module_init(_init);
 module_exit(_fini);
 
-module_param(zfs_io_throttle, uint, 0644);
+module_param(zfs_io_throttle, int, 0644);
 MODULE_PARM_DESC(zfs_io_throttle, "ZFS io throttling management");
 
 MODULE_DESCRIPTION("ZFS");

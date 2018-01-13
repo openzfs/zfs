@@ -20,8 +20,8 @@ zfs_do_throttle(zfs_throttle_t *zt, zfs_throttle_op_t op)
 			if (rate == ZFS_THROTTLE_NONE)
 				break;
 			usleep_range(
-				SEC_NANO/rate,
-				SEC_NANO/rate);
+			    SEC_NANO/rate,
+			    SEC_NANO/rate);
 			up(sem);
 			break;
 
@@ -34,8 +34,8 @@ zfs_do_throttle(zfs_throttle_t *zt, zfs_throttle_op_t op)
 			if (rate == ZFS_THROTTLE_NONE)
 				break;
 			usleep_range(
-				SEC_NANO/rate,
-				SEC_NANO/rate);
+			    SEC_NANO/rate,
+			    SEC_NANO/rate);
 			up(sem);
 			break;
 

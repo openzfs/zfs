@@ -1650,14 +1650,14 @@ zfs_domount(struct super_block *sb, zfs_mnt_t *zm, int silent)
 		dmu_objset_set_user(zfsvfs->z_os, zfsvfs);
 		mutex_exit(&zfsvfs->z_os->os_user_ptr_lock);
 	} else {
-		error = zfs_sb_setup(zsb, B_TRUE);
-		if (zfs_throttle_find_zt(osname, &(zsb->z_throttle))) {
+		if ((error = zfsvfs_setup(zfsvfs, B_TRUE)))
+			goto out;
+
+		if (zfs_throttle_find_zt(osname, &(zfsvfs->z_throttle))) {
 			error = zfs_throttle_create_zt(osname, NULL);
 			if (error)
 				goto out;
 		}
-		if ((error = zfsvfs_setup(zfsvfs, B_TRUE)))
-			goto out;
 	}
 
 	/* Allocate a root inode for the filesystem. */

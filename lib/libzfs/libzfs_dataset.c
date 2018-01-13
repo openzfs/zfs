@@ -3232,8 +3232,8 @@ is_descendant(const char *ds1, const char *ds2)
  * Will return -1 if there is no parent (path is just the name of the
  * pool).
  */
-int
-zfs_parent_name(const char *path, char *buf, size_t buflen)
+static int
+parent_name(const char *path, char *buf, size_t buflen)
 {
 	char *slashp;
 
@@ -3275,7 +3275,7 @@ check_parents(libzfs_handle_t *hdl, const char *path, uint64_t *zoned,
 	    dgettext(TEXT_DOMAIN, "cannot create '%s'"), path);
 
 	/* get parent, and check to see if this is just a pool */
-	if (zfs_parent_name(path, parent, sizeof (parent)) != 0) {
+	if (parent_name(path, parent, sizeof (parent)) != 0) {
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 		    "missing dataset name"));
 		return (zfs_error(hdl, EZFS_INVALIDNAME, errbuf));
@@ -3299,8 +3299,7 @@ check_parents(libzfs_handle_t *hdl, const char *path, uint64_t *zoned,
 			/*
 			 * Go deeper to find an ancestor, give up on top level.
 			 */
-			if (zfs_parent_name(parent, parent,
-			    sizeof (parent)) != 0) {
+			if (parent_name(parent, parent, sizeof (parent)) != 0) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "no such pool '%s'"), zc.zc_name);
 				return (zfs_error(hdl, EZFS_NOENT, errbuf));
@@ -3588,9 +3587,6 @@ zfs_create(libzfs_handle_t *hdl, const char *path, zfs_type_t type,
 
 	/* check for failure */
 	if (ret != 0) {
-		char parent[ZFS_MAXNAMELEN];
-		(void) zfs_parent_name(path, parent, sizeof (parent));
-    
 		switch (errno) {
 		case ENOENT:
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
@@ -3796,7 +3792,7 @@ zfs_clone(zfs_handle_t *zhp, const char *target, nvlist_t *props)
 	if (check_parents(hdl, target, &zoned, B_FALSE, NULL) != 0)
 		return (-1);
 
-	(void) zfs_parent_name(target, parent, sizeof (parent));
+	(void) parent_name(target, parent, sizeof (parent));
 
 	/* do the clone */
 
