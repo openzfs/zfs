@@ -115,14 +115,13 @@ uint_t zfs_multihost_import_intervals = MMP_DEFAULT_IMPORT_INTERVALS;
  * configuration may take action such as suspending the pool or taking a
  * device offline.
  *
- * When zfs_multihost_fail_intervals > 0 then sequential mmp write failures will
- * cause the pool to be suspended.  This occurs when
+ * When zfs_multihost_fail_intervals > 0 then sequential mmp write failures
+ * will cause the pool to be suspended.  This occurs when
  * zfs_multihost_fail_intervals * zfs_multihost_interval milliseconds have
  * passed since the last successful mmp write.  This guarantees the activity
- * test will see mmp writes if the
- * pool is imported.
+ * test will see mmp writes if the pool is imported.
  */
-uint_t zfs_multihost_fail_intervals = MMP_DEFAULT_FAIL_INTERVALS;
+uint_t zfs_multihost_fail_intervals = MMP_DEFAULT_IMPORT_INTERVALS / 2;
 
 static void mmp_thread(void *arg);
 
@@ -391,6 +390,30 @@ mmp_thread(void *arg)
 			next_time = start + mmp_interval / vdev_leaves;
 		else
 			next_time = start + MSEC2NSEC(MMP_DEFAULT_INTERVAL);
+
+		/*
+		 * Don't allow fail_intervals larger than import_intervals,
+		 * as this could allow an active pool to be imported on a peer.
+		 *
+		 * We don't actually know what the import_interval is on the
+		 * peer node, but the best assumption is that it is configured
+		 * in the same way as the local node.
+		 */
+		if (mmp_fail_intervals >= zfs_multihost_import_intervals) {
+			static boolean_t warned = B_FALSE;
+
+			if (!warned) {
+				cmn_err(CE_WARN,
+				    "zfs_multihost_fail_intervals %u >= "
+				    "zfs_multihost_import_interval %u, "
+				    "using smaller value",
+				    zfs_multihost_fail_intervals,
+				    zfs_multihost_import_interval);
+				warned = B_TRUE;
+			}
+
+			mmp_fail_intervals = zfs_multihost_import_intervals - 1;
+		}
 
 		/*
 		 * When MMP goes off => on, or spa goes suspended =>
