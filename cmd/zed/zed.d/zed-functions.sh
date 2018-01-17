@@ -397,7 +397,7 @@ zed_rate_limit()
 
     zed_lock "${lockfile}" "${lockfile_fd}"
     time_now="$(date +%s)"
-    time_prev="$(egrep "^[0-9]+;${tag}\$" "${statefile}" 2>/dev/null \
+    time_prev="$(grep -E "^[0-9]+;${tag}\$" "${statefile}" 2>/dev/null \
         | tail -1 | cut -d\; -f1)"
 
     if [ -n "${time_prev}" ] \
@@ -406,7 +406,7 @@ zed_rate_limit()
     else
         umask_bak="$(umask)"
         umask 077
-        egrep -v "^[0-9]+;${tag}\$" "${statefile}" 2>/dev/null \
+        grep -E -v "^[0-9]+;${tag}\$" "${statefile}" 2>/dev/null \
             > "${statefile}.$$"
         echo "${time_now};${tag}" >> "${statefile}.$$"
         mv -f "${statefile}.$$" "${statefile}"

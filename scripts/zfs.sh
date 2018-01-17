@@ -79,7 +79,7 @@ check_modules() {
 	    $KMOD_ZUNICODE $KMOD_ZCOMMON $KMOD_ICP $KMOD_ZFS; do
 		NAME=$(basename "$KMOD" .ko)
 
-		if lsmod | egrep -q "^${NAME}"; then
+		if lsmod | grep -E -q "^${NAME}"; then
 			LOADED_MODULES="$LOADED_MODULES\t$NAME\n"
 		fi
 
@@ -114,6 +114,7 @@ load_module() {
 	fi
 
 	$LDMOD "$KMOD" >/dev/null 2>&1
+	# shellcheck disable=SC2181
 	if [ $? -ne 0 ]; then
 		echo "Failed to load $KMOD"
 		return 1
@@ -165,7 +166,7 @@ unload_modules() {
 	for KMOD in $KMOD_ZFS $KMOD_ICP $KMOD_ZCOMMON $KMOD_ZUNICODE \
 	    $KMOD_ZNVPAIR  $KMOD_ZAVL $KMOD_SPLAT $KMOD_SPL; do
 		NAME=$(basename "$KMOD" .ko)
-		USE_COUNT=$(lsmod | egrep "^${NAME} " | awk '{print $3}')
+		USE_COUNT=$(lsmod | grep -E "^${NAME} " | awk '{print $3}')
 
 		if [ "$USE_COUNT" = "0" ] ; then
 			unload_module "$KMOD" || return 1
