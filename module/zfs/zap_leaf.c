@@ -53,7 +53,7 @@ static uint16_t *zap_leaf_rehash_entry(zap_leaf_t *l, uint16_t entry);
 	((h) >> \
 	(64 - ZAP_LEAF_HASH_SHIFT(l) - zap_leaf_phys(l)->l_hdr.lh_prefix_len)))
 
-#define	LEAF_HASH_ENTPTR(l, h) (&zap_leaf_phys(l)->l_hash[LEAF_HASH(l, h)])
+#define	LEAF_HASH_ENTPTR(l, h)	(&zap_leaf_phys(l)->l_hash[LEAF_HASH(l, h)])
 
 extern inline zap_leaf_phys_t *zap_leaf_phys(zap_leaf_t *l);
 
