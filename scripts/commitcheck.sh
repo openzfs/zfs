@@ -19,7 +19,7 @@ function test_url()
 function check_tagged_line()
 {
     regex='^\s*'"$1"':\s[[:print:]]+\s<[[:graph:]]+>$'
-    foundline=$(git log -n 1 "$REF" | egrep -m 1 "$regex")
+    foundline=$(git log -n 1 "$REF" | grep -E -m 1 "$regex")
     if [ -z "$foundline" ]; then
         echo "error: missing \"$1\""
         return 1
@@ -51,7 +51,7 @@ function new_change_commit()
     error=0
 
     # subject is not longer than 50 characters
-    long_subject=$(git log -n 1 --pretty=%s "$REF" | egrep -m 1 '.{51}')
+    long_subject=$(git log -n 1 --pretty=%s "$REF" | grep -E -m 1 '.{51}')
     if [ -n "$long_subject" ]; then
         echo "error: commit subject over 50 characters"
         error=1
@@ -63,7 +63,7 @@ function new_change_commit()
     fi
 
     # ensure that no lines in the body of the commit are over 72 characters
-    body=$(git log -n 1 --pretty=%b "$REF" | egrep -m 1 '.{73}')
+    body=$(git log -n 1 --pretty=%b "$REF" | grep -E -m 1 '.{73}')
     if [ -n "$body" ]; then
         echo "error: commit message body contains line over 72 characters"
         error=1
@@ -75,7 +75,7 @@ function new_change_commit()
 function is_openzfs_port()
 {
     # subject starts with OpenZFS means it's an openzfs port
-    subject=$(git log -n 1 --pretty=%s "$REF" | egrep -m 1 '^OpenZFS')
+    subject=$(git log -n 1 --pretty=%s "$REF" | grep -E -m 1 '^OpenZFS')
     if [ -n "$subject" ]; then
         return 0
     fi
@@ -86,7 +86,7 @@ function is_openzfs_port()
 function openzfs_port_commit()
 {
     # subject starts with OpenZFS dddd
-    subject=$(git log -n 1 --pretty=%s "$REF" | egrep -m 1 '^OpenZFS [[:digit:]]+ - ')
+    subject=$(git log -n 1 --pretty=%s "$REF" | grep -E -m 1 '^OpenZFS [[:digit:]]+ - ')
     if [ -z "$subject" ]; then
         echo "OpenZFS patch ports must have a summary that starts with \"OpenZFS dddd - \""
         error=1
