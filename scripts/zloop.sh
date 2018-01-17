@@ -70,12 +70,12 @@ function or_die
 
 # core file helpers
 origcorepattern="$(cat /proc/sys/kernel/core_pattern)"
-coreglob="$(egrep -o '^([^|%[:space:]]*)' /proc/sys/kernel/core_pattern)*"
+coreglob="$(grep -E -o '^([^|%[:space:]]*)' /proc/sys/kernel/core_pattern)*"
 
 if [[ $coreglob = "*" ]]; then
         echo "Setting core file pattern..."
         echo "core" > /proc/sys/kernel/core_pattern
-        coreglob="$(egrep -o '^([^|%[:space:]]*)' \
+        coreglob="$(grep -E -o '^([^|%[:space:]]*)' \
             /proc/sys/kernel/core_pattern)*"
 fi
 
@@ -243,7 +243,7 @@ while [[ $timeout -eq 0 ]] || [[ $curtime -le $((starttime + timeout)) ]]; do
 	echo "$desc" >>ztest.out
 	$cmd >>ztest.out 2>&1
 	ztrc=$?
-	egrep '===|WARNING' ztest.out >>ztest.history
+	grep -E '===|WARNING' ztest.out >>ztest.history
 	$ZDB -U "$workdir/zpool.cache" -DD ztest >>ztest.ddt 2>&1
 
 	store_core
