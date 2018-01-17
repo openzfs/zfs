@@ -26,6 +26,7 @@
 #include <sys/mmp.h>
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
+#include <sys/time.h>
 #include <sys/vdev.h>
 #include <sys/vdev_impl.h>
 #include <sys/zfs_context.h>
@@ -428,6 +429,10 @@ mmp_thread(spa_t *spa)
 		 */
 		if (!suspended && mmp_fail_intervals && multihost &&
 		    (start - mmp->mmp_last_write) > max_fail_ns) {
+			cmn_err(CE_WARN, "MMP writes to pool '%s' have not "
+			    "succeeded in over %llus; suspending pool",
+			    spa_name(spa),
+			    NSEC2SEC(start - mmp->mmp_last_write));
 			zio_suspend(spa, NULL);
 		}
 
