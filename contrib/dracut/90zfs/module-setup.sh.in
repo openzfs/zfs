@@ -63,6 +63,7 @@ install() {
 	if [ -n "$systemdutildir" ] ; then
 		inst_script "${moddir}/zfs-generator.sh" "$systemdutildir"/system-generators/dracut-zfs-generator
 	fi
+	inst_hook pre-mount 90 "${moddir}/zfs-load-key.sh"
 	inst_hook mount 98 "${moddir}/mount-zfs.sh"
 	inst_hook cleanup 99 "${moddir}/zfs-needshutdown.sh"
 	inst_hook shutdown 20 "${moddir}/export-zfs.sh"

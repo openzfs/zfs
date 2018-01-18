@@ -5,6 +5,7 @@ pkgdracut_SCRIPTS = \
 	mount-zfs.sh \
 	parse-zfs.sh \
 	zfs-generator.sh \
+	zfs-load-key.sh \
 	zfs-needshutdown.sh \
 	zfs-lib.sh
 
@@ -14,6 +15,7 @@ EXTRA_DIST = \
 	$(top_srcdir)/contrib/dracut/90zfs/mount-zfs.sh.in \
 	$(top_srcdir)/contrib/dracut/90zfs/parse-zfs.sh.in \
 	$(top_srcdir)/contrib/dracut/90zfs/zfs-generator.sh.in \
+	$(top_srcdir)/contrib/dracut/90zfs/zfs-load-key.sh.in \
 	$(top_srcdir)/contrib/dracut/90zfs/zfs-needshutdown.sh.in \
 	$(top_srcdir)/contrib/dracut/90zfs/zfs-lib.sh.in
 

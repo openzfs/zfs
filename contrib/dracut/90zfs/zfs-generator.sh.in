@@ -23,13 +23,6 @@ type getarg >/dev/null 2>&1 || {
 # If root is not ZFS= or zfs: or rootfstype is not zfs
 # then we are not supposed to handle it.
 [ "${root##zfs:}" = "${root}" -a "${root##ZFS=}" = "${root}" -a "$rootfstype" != "zfs" ] && exit 0
-# If root is set to zfs:AUTO, then we are also not
-# supposed to handle it, and it should be handled
-# by the traditional Dracut mount hook.
-# See https://github.com/zfsonlinux/zfs/pull/4558#discussion_r61118952
-if [ "${root}" = "zfs:AUTO" ] ; then
-  exit 0
-fi
 
 rootfstype=zfs
 if echo "${rootflags}" | grep -Eq '^zfsutil$|^zfsutil,|,zfsutil$|,zfsutil,' ; then
@@ -39,9 +32,6 @@ elif test -n "${rootflags}" ; then
 else
     rootflags=zfsutil
 fi
-
-root="${root##zfs:}"
-root="${root##ZFS=}"
 
 echo "zfs-generator: writing extension for sysroot.mount to $GENERATOR_DIR"/sysroot.mount.d/zfs-enhancement.conf >> /dev/kmsg
 
@@ -54,7 +44,14 @@ echo "zfs-generator: writing extension for sysroot.mount to $GENERATOR_DIR"/sysr
     echo "After=zfs-import-scan.service"
     echo "After=zfs-import-cache.service"
     echo "[Mount]"
-    echo "What=${root}"
+    if [ "${root}" = "zfs:AUTO" ] ; then
+      echo "PassEnvironment=BOOTFS"
+      echo 'What=${BOOTFS}'
+    else
+      root="${root##zfs:}"
+      root="${root##ZFS=}"
+      echo "What=${root}"
+    fi
     echo "Type=${rootfstype}"
     echo "Options=${rootflags}"
 } > "$GENERATOR_DIR"/sysroot.mount.d/zfs-enhancement.conf
