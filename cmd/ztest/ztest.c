@@ -200,7 +200,8 @@ extern uint64_t metaslab_df_alloc_threshold;
 extern unsigned long zfs_deadman_synctime_ms;
 extern int metaslab_preload_limit;
 extern boolean_t zfs_compressed_arc_enabled;
-extern int  zfs_abd_scatter_enabled;
+extern int zfs_abd_scatter_enabled;
+extern int dmu_object_alloc_chunk_shift;
 
 static ztest_shared_opts_t *ztest_shared_opts;
 static ztest_shared_opts_t ztest_opts;
@@ -314,6 +315,7 @@ static ztest_shared_callstate_t *ztest_shared_callstate;
 ztest_func_t ztest_dmu_read_write;
 ztest_func_t ztest_dmu_write_parallel;
 ztest_func_t ztest_dmu_object_alloc_free;
+ztest_func_t ztest_dmu_object_next_chunk;
 ztest_func_t ztest_dmu_commit_callbacks;
 ztest_func_t ztest_zap;
 ztest_func_t ztest_zap_parallel;
@@ -361,6 +363,7 @@ ztest_info_t ztest_info[] = {
 	ZTI_INIT(ztest_dmu_read_write, 1, &zopt_always),
 	ZTI_INIT(ztest_dmu_write_parallel, 10, &zopt_always),
 	ZTI_INIT(ztest_dmu_object_alloc_free, 1, &zopt_always),
+	ZTI_INIT(ztest_dmu_object_next_chunk, 1, &zopt_sometimes),
 	ZTI_INIT(ztest_dmu_commit_callbacks, 1, &zopt_always),
 	ZTI_INIT(ztest_zap, 30, &zopt_always),
 	ZTI_INIT(ztest_zap_parallel, 100, &zopt_always),
@@ -4053,6 +4056,26 @@ ztest_dmu_object_alloc_free(ztest_ds_t *zd, uint64_t id)
 		    ztest_random(ZTEST_RANGE_LOCKS) << SPA_MAXBLOCKSHIFT);
 
 	umem_free(od, size);
+}
+
+/*
+ * Rewind the global allocator to verify object allocation backfilling.
+ */
+void
+ztest_dmu_object_next_chunk(ztest_ds_t *zd, uint64_t id)
+{
+	objset_t *os = zd->zd_os;
+	int dnodes_per_chunk = 1 << dmu_object_alloc_chunk_shift;
+	uint64_t object;
+
+	/*
+	 * Rewind the global allocator randomly back to a lower object number
+	 * to force backfilling and reclamation of recently freed dnodes.
+	 */
+	mutex_enter(&os->os_obj_lock);
+	object = ztest_random(os->os_obj_next_chunk);
+	os->os_obj_next_chunk = P2ALIGN(object, dnodes_per_chunk);
+	mutex_exit(&os->os_obj_lock);
 }
 
 #undef OD_ARRAY_SIZE
