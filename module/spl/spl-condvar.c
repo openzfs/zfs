@@ -137,18 +137,47 @@ __cv_wait(kcondvar_t *cvp, kmutex_t *mp)
 EXPORT_SYMBOL(__cv_wait);
 
 void
+__cv_wait_io(kcondvar_t *cvp, kmutex_t *mp)
+{
+	cv_wait_common(cvp, mp, TASK_UNINTERRUPTIBLE, 1);
+}
+EXPORT_SYMBOL(__cv_wait_io);
+
+void
 __cv_wait_sig(kcondvar_t *cvp, kmutex_t *mp)
 {
 	cv_wait_common(cvp, mp, TASK_INTERRUPTIBLE, 0);
 }
 EXPORT_SYMBOL(__cv_wait_sig);
 
-void
-__cv_wait_io(kcondvar_t *cvp, kmutex_t *mp)
+#if defined(HAVE_IO_SCHEDULE_TIMEOUT)
+#define	spl_io_schedule_timeout(t)	io_schedule_timeout(t)
+#else
+static void
+__cv_wakeup(unsigned long data)
 {
-	cv_wait_common(cvp, mp, TASK_UNINTERRUPTIBLE, 1);
+	wake_up_process((struct task_struct *)data);
 }
-EXPORT_SYMBOL(__cv_wait_io);
+
+static long
+spl_io_schedule_timeout(long time_left)
+{
+	long expire_time = jiffies + time_left;
+	struct timer_list timer;
+
+	init_timer(&timer);
+	setup_timer(&timer, __cv_wakeup, (unsigned long)current);
+	timer.expires = expire_time;
+	add_timer(&timer);
+
+	io_schedule();
+
+	del_timer_sync(&timer);
+	time_left = expire_time - jiffies;
+
+	return (time_left < 0 ? 0 : time_left);
+}
+#endif
 
 /*
  * 'expire_time' argument is an absolute wall clock time in jiffies.
@@ -156,7 +185,7 @@ EXPORT_SYMBOL(__cv_wait_io);
  */
 static clock_t
 __cv_timedwait_common(kcondvar_t *cvp, kmutex_t *mp, clock_t expire_time,
-    int state)
+    int state, int io)
 {
 	DEFINE_WAIT(wait);
 	kmutex_t *m;
@@ -188,7 +217,10 @@ __cv_timedwait_common(kcondvar_t *cvp, kmutex_t *mp, clock_t expire_time,
 	 * race where 'cvp->cv_waiters > 0' but the list is empty.
 	 */
 	mutex_exit(mp);
-	time_left = schedule_timeout(time_left);
+	if (io)
+		time_left = spl_io_schedule_timeout(time_left);
+	else
+		time_left = schedule_timeout(time_left);
 
 	/* No more waiters a different mutex could be used */
 	if (atomic_dec_and_test(&cvp->cv_waiters)) {
@@ -214,14 +246,24 @@ __cv_timedwait_common(kcondvar_t *cvp, kmutex_t *mp, clock_t expire_time,
 clock_t
 __cv_timedwait(kcondvar_t *cvp, kmutex_t *mp, clock_t exp_time)
 {
-	return (__cv_timedwait_common(cvp, mp, exp_time, TASK_UNINTERRUPTIBLE));
+	return (__cv_timedwait_common(cvp, mp, exp_time,
+	    TASK_UNINTERRUPTIBLE, 0));
 }
 EXPORT_SYMBOL(__cv_timedwait);
 
 clock_t
+__cv_timedwait_io(kcondvar_t *cvp, kmutex_t *mp, clock_t exp_time)
+{
+	return (__cv_timedwait_common(cvp, mp, exp_time,
+	    TASK_UNINTERRUPTIBLE, 1));
+}
+EXPORT_SYMBOL(__cv_timedwait_io);
+
+clock_t
 __cv_timedwait_sig(kcondvar_t *cvp, kmutex_t *mp, clock_t exp_time)
 {
-	return (__cv_timedwait_common(cvp, mp, exp_time, TASK_INTERRUPTIBLE));
+	return (__cv_timedwait_common(cvp, mp, exp_time,
+	    TASK_INTERRUPTIBLE, 0));
 }
 EXPORT_SYMBOL(__cv_timedwait_sig);
 

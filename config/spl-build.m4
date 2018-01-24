@@ -52,6 +52,7 @@ AC_DEFUN([SPL_AC_CONFIG_KERNEL], [
 	SPL_AC_KMEM_CACHE_CREATE_USERCOPY
 	SPL_AC_WAIT_QUEUE_ENTRY_T
 	SPL_AC_WAIT_QUEUE_HEAD_ENTRY
+	SPL_AC_IO_SCHEDULE_TIMEOUT
 	SPL_AC_KERNEL_WRITE
 	SPL_AC_KERNEL_READ
 	SPL_AC_KERNEL_TIMER_FUNCTION_TIMER_LIST
@@ -1593,6 +1594,26 @@ AC_DEFUN([SPL_AC_WAIT_QUEUE_HEAD_ENTRY], [
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_WAIT_QUEUE_HEAD_ENTRY, 1,
 		    [wq_head->head and wq_entry->entry exist])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
+dnl # 3.19 API change
+dnl # The io_schedule_timeout() function is present in all 2.6.32 kernels
+dnl # but it was not exported until Linux 3.19.  The RHEL 7.x kernels which
+dnl # are based on a 3.10 kernel do export this symbol.
+dnl #
+AC_DEFUN([SPL_AC_IO_SCHEDULE_TIMEOUT], [
+	AC_MSG_CHECKING([whether io_schedule_timeout() is available])
+	SPL_LINUX_TRY_COMPILE_SYMBOL([
+		#include <linux/sched.h>
+	], [
+		(void) io_schedule_timeout(1);
+	], [io_schedule_timeout], [], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_IO_SCHEDULE_TIMEOUT, 1, [yes])
 	],[
 		AC_MSG_RESULT(no)
 	])
