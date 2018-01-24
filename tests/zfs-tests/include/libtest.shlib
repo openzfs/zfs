@@ -1504,7 +1504,11 @@ function setup_nfs_server
 function is_global_zone
 {
 	if is_linux; then
-		return 0
+		typeset uid_map=$(cat /proc/self/uid_map 2>/dev/null)
+		if [[ $uid_map == *( )0+( )0+( )4294967295 ]]; then
+			return 0
+		fi
+		return 1
 	else
 		typeset cur_zone=$(zonename 2>/dev/null)
 		if [[ $cur_zone != "global" ]]; then
