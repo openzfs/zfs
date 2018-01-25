@@ -451,8 +451,8 @@ zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
 
 typedef struct zfs_ecksum_info {
 	/* histograms of set and cleared bits by bit number in a 64-bit word */
-	uint16_t zei_histogram_set[sizeof (uint64_t) * NBBY];
-	uint16_t zei_histogram_cleared[sizeof (uint64_t) * NBBY];
+	uint32_t zei_histogram_set[sizeof (uint64_t) * NBBY];
+	uint32_t zei_histogram_cleared[sizeof (uint64_t) * NBBY];
 
 	/* inline arrays of bits set and cleared. */
 	uint64_t zei_bits_set[ZFM_MAX_INLINE];
@@ -477,7 +477,7 @@ typedef struct zfs_ecksum_info {
 } zfs_ecksum_info_t;
 
 static void
-update_histogram(uint64_t value_arg, uint16_t *hist, uint32_t *count)
+update_histogram(uint64_t value_arg, uint32_t *hist, uint32_t *count)
 {
 	size_t i;
 	size_t bits = 0;
@@ -486,8 +486,7 @@ update_histogram(uint64_t value_arg, uint16_t *hist, uint32_t *count)
 	/* We store the bits in big-endian (largest-first) order */
 	for (i = 0; i < 64; i++) {
 		if (value & (1ull << i)) {
-			if (hist[63 - i] < UINT16_MAX)
-				hist[63 - i]++;
+			hist[63 - i]++;
 			++bits;
 		}
 	}
@@ -644,6 +643,7 @@ annotate_ecksum(nvlist_t *ereport, zio_bad_cksum_t *info,
 	if (badabd == NULL || goodabd == NULL)
 		return (eip);
 
+	ASSERT3U(nui64s, <=, UINT32_MAX);
 	ASSERT3U(size, ==, nui64s * sizeof (uint64_t));
 	ASSERT3U(size, <=, SPA_MAXBLOCKSIZE);
 	ASSERT3U(size, <=, UINT32_MAX);
@@ -754,10 +754,10 @@ annotate_ecksum(nvlist_t *ereport, zio_bad_cksum_t *info,
 	} else {
 		fm_payload_set(ereport,
 		    FM_EREPORT_PAYLOAD_ZFS_BAD_SET_HISTOGRAM,
-		    DATA_TYPE_UINT16_ARRAY,
+		    DATA_TYPE_UINT32_ARRAY,
 		    NBBY * sizeof (uint64_t), eip->zei_histogram_set,
 		    FM_EREPORT_PAYLOAD_ZFS_BAD_CLEARED_HISTOGRAM,
-		    DATA_TYPE_UINT16_ARRAY,
+		    DATA_TYPE_UINT32_ARRAY,
 		    NBBY * sizeof (uint64_t), eip->zei_histogram_cleared,
 		    NULL);
 	}
