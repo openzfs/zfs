@@ -486,8 +486,7 @@ update_histogram(uint64_t value_arg, uint16_t *hist, uint32_t *count)
 	/* We store the bits in big-endian (largest-first) order */
 	for (i = 0; i < 64; i++) {
 		if (value & (1ull << i)) {
-			if (hist[63 - i] < UINT16_MAX)
-				hist[63 - i]++;
+			hist[63 - i]++;
 			++bits;
 		}
 	}
@@ -644,6 +643,7 @@ annotate_ecksum(nvlist_t *ereport, zio_bad_cksum_t *info,
 	if (badabd == NULL || goodabd == NULL)
 		return (eip);
 
+	ASSERT3U(nui64s, <=, UINT16_MAX);
 	ASSERT3U(size, ==, nui64s * sizeof (uint64_t));
 	ASSERT3U(size, <=, SPA_MAXBLOCKSIZE);
 	ASSERT3U(size, <=, UINT32_MAX);
