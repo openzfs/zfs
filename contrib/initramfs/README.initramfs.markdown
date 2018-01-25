@@ -2,7 +2,7 @@ DESCRIPTION
   These scripts is intended to be used with initramfs-tools, which is a similar
   software product to "dracut" (which is more used in RedHat based distributions,
   and is mainly used by Debian GNU/Linux and derivates to create a initramfs so
-  that the system can be booted of a ZFS filesystem. If you have no need or
+  that the system can be booted off a ZFS filesystem. If you have no need or
   interest for this, then it can safely be ignored.
 
   These script were written with the primary intention of being portable and
