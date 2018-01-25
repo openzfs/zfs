@@ -228,6 +228,7 @@ struct spa {
 	uint64_t	spa_pool_props_object;	/* object for properties */
 	uint64_t	spa_bootfs;		/* default boot filesystem */
 	uint64_t	spa_failmode;		/* failure mode for the pool */
+	uint64_t	spa_deadman_failmode;	/* failure mode for deadman */
 	uint64_t	spa_delegation;		/* delegation on/off */
 	list_t		spa_config_list;	/* previous cache file(s) */
 	/* per-CPU array of root of async I/O: */
@@ -270,7 +271,8 @@ struct spa {
 	taskqid_t	spa_deadman_tqid;	/* Task id */
 	uint64_t	spa_deadman_calls;	/* number of deadman calls */
 	hrtime_t	spa_sync_starttime;	/* starting time of spa_sync */
-	uint64_t	spa_deadman_synctime;	/* deadman expiration timer */
+	uint64_t	spa_deadman_synctime;	/* deadman sync expiration */
+	uint64_t	spa_deadman_ziotime;	/* deadman zio expiration */
 	uint64_t	spa_all_vdev_zaps;	/* ZAP of per-vd ZAP obj #s */
 	spa_avz_action_t	spa_avz_action;	/* destroy/rebuild AVZ? */
 	uint64_t	spa_errata;		/* errata issues detected */

@@ -955,12 +955,15 @@ extern void spa_evicting_os_deregister(spa_t *, objset_t *os);
 extern void spa_evicting_os_wait(spa_t *spa);
 extern int spa_max_replication(spa_t *spa);
 extern int spa_prev_software_version(spa_t *spa);
-extern uint8_t spa_get_failmode(spa_t *spa);
+extern uint64_t spa_get_failmode(spa_t *spa);
+extern uint64_t spa_get_deadman_failmode(spa_t *spa);
+extern void spa_set_deadman_failmode(spa_t *spa, const char *failmode);
 extern boolean_t spa_suspended(spa_t *spa);
 extern uint64_t spa_bootfs(spa_t *spa);
 extern uint64_t spa_delegation(spa_t *spa);
 extern objset_t *spa_meta_objset(spa_t *spa);
 extern uint64_t spa_deadman_synctime(spa_t *spa);
+extern uint64_t spa_deadman_ziotime(spa_t *spa);
 
 /* Miscellaneous support routines */
 extern void spa_activate_mos_feature(spa_t *spa, const char *feature,
@@ -1074,6 +1077,10 @@ extern boolean_t spa_debug_enabled(spa_t *spa);
 }
 
 extern int spa_mode_global;			/* mode, e.g. FREAD | FWRITE */
+extern int zfs_deadman_enabled;
+extern unsigned long zfs_deadman_synctime_ms;
+extern unsigned long zfs_deadman_ziotime_ms;
+extern unsigned long zfs_deadman_checktime_ms;
 
 #ifdef	__cplusplus
 }

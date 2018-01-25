@@ -197,6 +197,7 @@ static const ztest_shared_opts_t ztest_opts_defaults = {
 
 extern uint64_t metaslab_gang_bang;
 extern uint64_t metaslab_df_alloc_threshold;
+extern unsigned long zfs_deadman_synctime_ms;
 extern int metaslab_preload_limit;
 extern boolean_t zfs_compressed_arc_enabled;
 extern int  zfs_abd_scatter_enabled;
@@ -447,6 +448,7 @@ static kmutex_t ztest_vdev_lock;
 static rwlock_t ztest_name_lock;
 
 static boolean_t ztest_dump_core = B_TRUE;
+static boolean_t ztest_dump_debug_buffer = B_FALSE;
 static boolean_t ztest_exiting;
 
 /* Global commit callback list */
@@ -495,6 +497,16 @@ _umem_logging_init(void)
 	return ("fail,contents"); /* $UMEM_LOGGING setting */
 }
 
+static void
+dump_debug_buffer(void)
+{
+	if (!ztest_dump_debug_buffer)
+		return;
+
+	(void) printf("\n");
+	zfs_dbgmsg_print("ztest");
+}
+
 #define	BACKTRACE_SZ	100
 
 static void sig_handler(int signo)
@@ -507,6 +519,7 @@ static void sig_handler(int signo)
 	nptrs = backtrace(buffer, BACKTRACE_SZ);
 	backtrace_symbols_fd(buffer, nptrs, STDERR_FILENO);
 #endif
+	dump_debug_buffer();
 
 	/*
 	 * Restore default action and re-raise signal so SIGSEGV and
@@ -544,6 +557,9 @@ fatal(int do_perror, char *message, ...)
 	}
 	(void) fprintf(stderr, "%s\n", buf);
 	fatal_msg = buf;			/* to ease debugging */
+
+	dump_debug_buffer();
+
 	if (ztest_dump_core)
 		abort();
 	exit(3);
@@ -641,6 +657,7 @@ usage(boolean_t requested)
 	    "\t[-B alt_ztest (default: <none>)] alternate ztest path\n"
 	    "\t[-o variable=value] ... set global variable to an unsigned\n"
 	    "\t    32-bit integer value\n"
+	    "\t[-G dump zfs_dbgmsg buffer before exiting due to an error\n"
 	    "\t[-h] (print help)\n"
 	    "",
 	    zo->zo_pool,
@@ -676,7 +693,7 @@ process_options(int argc, char **argv)
 	bcopy(&ztest_opts_defaults, zo, sizeof (*zo));
 
 	while ((opt = getopt(argc, argv,
-	    "v:s:a:m:r:R:d:t:g:i:k:p:f:MVET:P:hF:B:o:")) != EOF) {
+	    "v:s:a:m:r:R:d:t:g:i:k:p:f:MVET:P:hF:B:o:G")) != EOF) {
 		value = 0;
 		switch (opt) {
 		case 'v':
@@ -770,6 +787,9 @@ process_options(int argc, char **argv)
 		case 'o':
 			if (set_global_var(optarg) != 0)
 				usage(B_FALSE);
+			break;
+		case 'G':
+			ztest_dump_debug_buffer = B_TRUE;
 			break;
 		case 'h':
 			usage(B_TRUE);
@@ -6224,15 +6244,48 @@ ztest_resume_thread(void *arg)
 	thread_exit();
 }
 
-#define	GRACE	300
-
-#if 0
 static void
-ztest_deadman_alarm(int sig)
+ztest_deadman_thread(void *arg)
 {
-	fatal(0, "failed to complete within %d seconds of deadline", GRACE);
+	ztest_shared_t *zs = arg;
+	spa_t *spa = ztest_spa;
+	hrtime_t delta, overdue, total = 0;
+
+	for (;;) {
+		delta = zs->zs_thread_stop - zs->zs_thread_start +
+		    MSEC2NSEC(zfs_deadman_synctime_ms);
+
+		(void) poll(NULL, 0, (int)NSEC2MSEC(delta));
+
+		/*
+		 * If the pool is suspended then fail immediately. Otherwise,
+		 * check to see if the pool is making any progress. If
+		 * vdev_deadman() discovers that there hasn't been any recent
+		 * I/Os then it will end up aborting the tests.
+		 */
+		if (spa_suspended(spa) || spa->spa_root_vdev == NULL) {
+			fatal(0, "aborting test after %llu seconds because "
+			    "pool has transitioned to a suspended state.",
+			    zfs_deadman_synctime_ms / 1000);
+		}
+		vdev_deadman(spa->spa_root_vdev, FTAG);
+
+		/*
+		 * If the process doesn't complete within a grace period of
+		 * zfs_deadman_synctime_ms over the expected finish time,
+		 * then it may be hung and is terminated.
+		 */
+		overdue = zs->zs_proc_stop + MSEC2NSEC(zfs_deadman_synctime_ms);
+		total += zfs_deadman_synctime_ms / 1000;
+		if (gethrtime() > overdue) {
+			fatal(0, "aborting test after %llu seconds because "
+			    "the process is overdue for termination.", total);
+		}
+
+		(void) printf("ztest has been running for %lld seconds\n",
+		    total);
+	}
 }
-#endif
 
 static void
 ztest_execute(int test, ztest_info_t *zi, uint64_t id)
@@ -6491,13 +6544,13 @@ ztest_run(ztest_shared_t *zs)
 	resume_thread = thread_create(NULL, 0, ztest_resume_thread,
 	    spa, 0, NULL, TS_RUN | TS_JOINABLE, defclsyspri);
 
-#if 0
 	/*
-	 * Set a deadman alarm to abort() if we hang.
+	 * Create a deadman thread and set to panic if we hang.
 	 */
-	signal(SIGALRM, ztest_deadman_alarm);
-	alarm((zs->zs_thread_stop - zs->zs_thread_start) / NANOSEC + GRACE);
-#endif
+	(void) thread_create(NULL, 0, ztest_deadman_thread,
+	    zs, 0, NULL, TS_RUN | TS_JOINABLE, defclsyspri);
+
+	spa->spa_deadman_failmode = ZIO_FAILURE_MODE_PANIC;
 
 	/*
 	 * Verify that we can safely inquire about about any object,
@@ -7047,6 +7100,7 @@ main(int argc, char **argv)
 	(void) setvbuf(stdout, NULL, _IOLBF, 0);
 
 	dprintf_setup(&argc, argv);
+	zfs_deadman_synctime_ms = 300000;
 
 	action.sa_handler = sig_handler;
 	sigemptyset(&action.sa_mask);

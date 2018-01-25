@@ -556,6 +556,7 @@ extern void zio_execute(zio_t *zio);
 extern void zio_interrupt(zio_t *zio);
 extern void zio_delay_init(zio_t *zio);
 extern void zio_delay_interrupt(zio_t *zio);
+extern void zio_deadman(zio_t *zio, char *tag);
 
 extern zio_t *zio_walk_parents(zio_t *cio, zio_link_t **);
 extern zio_t *zio_walk_children(zio_t *pio, zio_link_t **);
