@@ -371,6 +371,42 @@ log_must eval "check_prop_source $dest type filesystem -"
 log_must eval "check_prop_source $dest atime off local"
 log_must eval "check_prop_source $destsub type volume -"
 log_must eval "check_prop_source $destsub atime - -"
+# Cleanup
+log_must zfs destroy -r -f $orig
+log_must zfs destroy -r -f $dest
+
+#
+# 3.8 Verify 'zfs recv -x|-o' works correctly when used in conjunction with -d
+#     and -e options.
+#
+log_must zfs create -p $orig/1/2/3/4
+log_must eval "zfs set copies=2 $orig"
+log_must eval "zfs set atime=on $orig"
+log_must eval "zfs set '$userprop:orig'='oldval' $orig"
+log_must zfs snapshot -r $orig@snap1
+log_must eval "zfs send -R $orig/1/2@snap1 > $streamfile_repl"
+# Verify 'zfs recv -e'
+log_must zfs create $dest
+log_must eval "zfs receive -e -o copies=3 -x atime "\
+	"-o '$userprop:orig'='newval' $dest < $streamfile_repl"
+log_must datasetexists $dest/2/3/4
+log_must eval "check_prop_source $dest/2 copies 3 local"
+log_must eval "check_prop_inherit $dest/2/3/4 copies $dest/2"
+log_must eval "check_prop_source $dest/2/3/4 atime on default"
+log_must eval "check_prop_source $dest/2 '$userprop:orig' 'newval' local"
+log_must eval "check_prop_inherit $dest/2/3/4 '$userprop:orig' $dest/2"
+log_must zfs destroy -r -f $dest
+# Verify 'zfs recv -d'
+log_must zfs create $dest
+typeset fs="$(echo $orig | awk -F'/' '{print $NF}')"
+log_must eval "zfs receive -d -o copies=3 -x atime "\
+	"-o '$userprop:orig'='newval' $dest < $streamfile_repl"
+log_must datasetexists $dest/$fs/1/2/3/4
+log_must eval "check_prop_source $dest/$fs/1/2 copies 3 local"
+log_must eval "check_prop_inherit $dest/$fs/1/2/3/4 copies $dest/$fs/1/2"
+log_must eval "check_prop_source $dest/$fs/1/2/3/4 atime on default"
+log_must eval "check_prop_source $dest/$fs/1/2 '$userprop:orig' 'newval' local"
+log_must eval "check_prop_inherit $dest/$fs/1/2/3/4 '$userprop:orig' $dest/$fs/1/2"
 # We don't need to cleanup here
 
 log_pass "ZFS receive property override and exclude options passed."
