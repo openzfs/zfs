@@ -147,7 +147,7 @@ unsigned long zfs_scan_vdev_limit = 4 << 20;
 
 int zfs_scan_issue_strategy = 0;
 int zfs_scan_legacy = B_FALSE; /* don't queue & sort zios, go direct */
-uint64_t zfs_scan_max_ext_gap = 2 << 20; /* in bytes */
+unsigned long zfs_scan_max_ext_gap = 2 << 20; /* in bytes */
 
 /*
  * fill_weight is non-tunable at runtime, so we copy it at module init from
@@ -3885,6 +3885,11 @@ MODULE_PARM_DESC(zfs_scan_legacy, "Scrub using legacy non-sequential method");
 module_param(zfs_scan_checkpoint_intval, int, 0644);
 MODULE_PARM_DESC(zfs_scan_checkpoint_intval,
 	"Scan progress on-disk checkpointing interval");
+
+/* CSTYLED */
+module_param(zfs_scan_max_ext_gap, ulong, 0644);
+MODULE_PARM_DESC(zfs_scan_max_ext_gap,
+	"Max gap in bytes between sequential scrub / resilver I/Os");
 
 module_param(zfs_scan_mem_lim_soft_fact, int, 0644);
 MODULE_PARM_DESC(zfs_scan_mem_lim_soft_fact,
