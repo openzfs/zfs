@@ -46,14 +46,14 @@ static int
 dbuf_stats_hash_table_headers(char *buf, size_t size)
 {
 	(void) snprintf(buf, size,
-	    "%-88s | %-124s | %s\n"
-	    "%-16s %-8s %-8s %-8s %-8s %-8s %-8s %-5s %-5s %5s | "
-	    "%-5s %-5s %-8s %-6s %-8s %-12s "
-	    "%-6s %-6s %-6s %-6s %-6s %-8s %-8s %-8s %-5s | "
-	    "%-6s %-6s %-8s %-8s %-6s %-6s %-5s %-8s %-8s\n",
+	    "%-96s | %-119s | %s\n"
+	    "%-16s %-8s %-8s %-8s %-8s %-10s %-8s %-5s %-5s %-7s %3s | "
+	    "%-5s %-5s %-9s %-6s %-8s %-12s "
+	    "%-6s %-6s %-6s %-6s %-6s %-8s %-8s %-8s %-6s | "
+	    "%-6s %-6s %-8s %-8s %-6s %-6s %-6s %-8s %-8s\n",
 	    "dbuf", "arcbuf", "dnode", "pool", "objset", "object", "level",
-	    "blkid", "offset", "dbsize", "meta", "state", "dbholds", "list",
-	    "atype", "flags", "count", "asize", "access",
+	    "blkid", "offset", "dbsize", "meta", "state", "dbholds", "dbc",
+	    "list", "atype", "flags", "count", "asize", "access",
 	    "mru", "gmru", "mfu", "gmfu", "l2", "l2_dattr", "l2_asize",
 	    "l2_comp", "aholds", "dtype", "btype", "data_bs", "meta_bs",
 	    "bsize", "lvls", "dholds", "blocks", "dsize");
@@ -75,10 +75,10 @@ __dbuf_stats_hash_table_data(char *buf, size_t size, dmu_buf_impl_t *db)
 	__dmu_object_info_from_dnode(dn, &doi);
 
 	nwritten = snprintf(buf, size,
-	    "%-16s %-8llu %-8lld %-8lld %-8lld %-8llu %-8llu %-5d %-5d %-5lu | "
-	    "%-5d %-5d 0x%-6x %-6lu %-8llu %-12llu "
-	    "%-6lu %-6lu %-6lu %-6lu %-6lu %-8llu %-8llu %-8d %-5lu | "
-	    "%-6d %-6d %-8lu %-8lu %-6llu %-6lu %-5lu %-8llu %-8llu\n",
+	    "%-16s %-8llu %-8lld %-8lld %-8lld %-10llu %-8llu %-5d %-5d "
+	    "%-7lu %-3d | %-5d %-5d 0x%-7x %-6lu %-8llu %-12llu "
+	    "%-6lu %-6lu %-6lu %-6lu %-6lu %-8llu %-8llu %-8d %-6lu | "
+	    "%-6d %-6d %-8lu %-8lu %-6llu %-6lu %-6lu %-8llu %-8llu\n",
 	    /* dmu_buf_impl_t */
 	    spa_name(dn->dn_objset->os_spa),
 	    (u_longlong_t)dmu_objset_id(db->db_objset),
@@ -90,6 +90,7 @@ __dbuf_stats_hash_table_data(char *buf, size_t size, dmu_buf_impl_t *db)
 	    !!dbuf_is_metadata(db),
 	    db->db_state,
 	    (ulong_t)refcount_count(&db->db_holds),
+	    multilist_link_active(&db->db_cache_link),
 	    /* arc_buf_info_t */
 	    abi.abi_state_type,
 	    abi.abi_state_contents,
