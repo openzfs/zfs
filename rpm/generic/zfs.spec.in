@@ -1,5 +1,13 @@
 %global _sbindir    /sbin
-%global _libdir     /%{_lib}
+
+# Set the default libdir directory based on distribution.
+%if %{undefined _libdir}
+%if 0%{?fedora} >= 17 || 0%{?rhel} >= 7 || 0%{?centos} >= 7
+%global _libdir    %{_lib}
+%else
+%global _libdir    /lib
+%endif
+%endif
 
 # Set the default udev directory based on distribution.
 %if %{undefined _udevdir}
