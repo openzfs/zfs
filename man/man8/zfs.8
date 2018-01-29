@@ -2459,7 +2459,7 @@ The given bookmark is destroyed.
 .Nm
 .Cm snapshot
 .Op Fl r
-.Oo Fl o Ar property Ns = Ns value Oc Ns ...
+.Oo Fl o Ar property Ns = Ns Ar value Oc Ns ...
 .Ar filesystem Ns @ Ns Ar snapname Ns | Ns Ar volume Ns @ Ns Ar snapname Ns ...
 .Xc
 Creates snapshots with the given names.
@@ -2467,6 +2467,9 @@ All previous modifications by successful system calls to the file system are
 part of the snapshots.
 Snapshots are taken atomically, so that all snapshots correspond to the same
 moment in time.
+.Nm zfs Cm snap
+can be used as an alias for
+.Nm zfs Cm snapshot.
 See the
 .Sx Snapshots
 section for details.
