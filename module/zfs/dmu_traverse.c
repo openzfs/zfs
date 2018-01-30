@@ -599,19 +599,27 @@ traverse_impl(spa_t *spa, dsl_dataset_t *ds, uint64_t objset, blkptr_t *rootbp,
 
 	/* See comment on ZIL traversal in dsl_scan_visitds. */
 	if (ds != NULL && !ds->ds_is_snapshot && !BP_IS_HOLE(rootbp)) {
+		enum zio_flag zio_flags = ZIO_FLAG_CANFAIL;
 		uint32_t flags = ARC_FLAG_WAIT;
 		objset_phys_t *osp;
 		arc_buf_t *buf;
 
-		err = arc_read(NULL, td->td_spa, rootbp,
-		    arc_getbuf_func, &buf,
-		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL, &flags, czb);
-		if (err != 0)
-			return (err);
-
-		osp = buf->b_data;
-		traverse_zil(td, &osp->os_zil_header);
-		arc_buf_destroy(buf, &buf);
+		err = arc_read(NULL, td->td_spa, rootbp, arc_getbuf_func,
+		    &buf, ZIO_PRIORITY_ASYNC_READ, zio_flags, &flags, czb);
+		if (err != 0) {
+			/*
+			 * If both TRAVERSE_HARD and TRAVERSE_PRE are set,
+			 * continue to visitbp so that td_func can be called
+			 * in pre stage, and err will reset to zero.
+			 */
+			if (!(td->td_flags & TRAVERSE_HARD) ||
+			    !(td->td_flags & TRAVERSE_PRE))
+				return (err);
+		} else {
+			osp = buf->b_data;
+			traverse_zil(td, &osp->os_zil_header);
+			arc_buf_destroy(buf, &buf);
+		}
 	}
 
 	if (!(flags & TRAVERSE_PREFETCH_DATA) ||
