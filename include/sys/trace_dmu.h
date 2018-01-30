@@ -50,7 +50,7 @@ DECLARE_EVENT_CLASS(zfs_delay_mintime_class,
 	    __field(uint64_t,			tx_lastsnap_txg)
 	    __field(uint64_t,			tx_lasttried_txg)
 	    __field(boolean_t,			tx_anyobj)
-	    __field(boolean_t,			tx_waited)
+	    __field(boolean_t,			tx_dirty_delayed)
 	    __field(hrtime_t,			tx_start)
 	    __field(boolean_t,			tx_wait_dirty)
 	    __field(int,			tx_err)
@@ -62,7 +62,7 @@ DECLARE_EVENT_CLASS(zfs_delay_mintime_class,
 	    __entry->tx_lastsnap_txg		= tx->tx_lastsnap_txg;
 	    __entry->tx_lasttried_txg		= tx->tx_lasttried_txg;
 	    __entry->tx_anyobj			= tx->tx_anyobj;
-	    __entry->tx_waited			= tx->tx_waited;
+	    __entry->tx_dirty_delayed		= tx->tx_dirty_delayed;
 	    __entry->tx_start			= tx->tx_start;
 	    __entry->tx_wait_dirty		= tx->tx_wait_dirty;
 	    __entry->tx_err			= tx->tx_err;
@@ -70,11 +70,12 @@ DECLARE_EVENT_CLASS(zfs_delay_mintime_class,
 	    __entry->min_tx_time		= min_tx_time;
 	),
 	TP_printk("tx { txg %llu lastsnap_txg %llu tx_lasttried_txg %llu "
-	    "anyobj %d waited %d start %llu wait_dirty %d err %i "
+	    "anyobj %d dirty_delayed %d start %llu wait_dirty %d err %i "
 	    "} dirty %llu min_tx_time %llu",
 	    __entry->tx_txg, __entry->tx_lastsnap_txg,
-	    __entry->tx_lasttried_txg, __entry->tx_anyobj, __entry->tx_waited,
-	    __entry->tx_start, __entry->tx_wait_dirty, __entry->tx_err,
+	    __entry->tx_lasttried_txg, __entry->tx_anyobj,
+	    __entry->tx_dirty_delayed, __entry->tx_start,
+	    __entry->tx_wait_dirty, __entry->tx_err,
 	    __entry->dirty, __entry->min_tx_time)
 );
 /* END CSTYLED */
