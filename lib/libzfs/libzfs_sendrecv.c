@@ -3603,7 +3603,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	nvlist_t *oxprops = NULL; /* override (-o) and exclude (-x) props */
 	nvlist_t *origprops = NULL; /* original props (if destination exists) */
 	zfs_type_t type;
-	boolean_t toplevel;
+	boolean_t toplevel = B_FALSE;
 	boolean_t zoned = B_FALSE;
 
 	begin_time = time(NULL);
@@ -4013,7 +4013,8 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		goto out;
 	}
 
-	toplevel = chopprefix[0] != '/';
+	if (top_zfs && *top_zfs == NULL)
+		toplevel = B_TRUE;
 	if (drrb->drr_type == DMU_OST_ZVOL) {
 		type = ZFS_TYPE_VOLUME;
 	} else if (drrb->drr_type == DMU_OST_ZFS) {
