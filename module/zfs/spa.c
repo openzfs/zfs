@@ -170,6 +170,12 @@ uint_t		zio_taskq_basedc = 80;		/* base duty cycle */
 boolean_t	spa_create_process = B_TRUE;	/* no process ==> no sysdc */
 
 /*
+ * Report any spa_load_verify errors found, but do not fail spa_load.
+ * This is used by zdb to analyze non-idle pools.
+ */
+boolean_t	spa_load_verify_dryrun = B_FALSE;
+
+/*
  * This (illegal) pool name is used when temporarily importing a spa_t in order
  * to get the vdev stats associated with the imported devices.
  */
@@ -2140,8 +2146,15 @@ spa_load_verify(spa_t *spa)
 	spa->spa_load_meta_errors = sle.sle_meta_count;
 	spa->spa_load_data_errors = sle.sle_data_count;
 
-	if (!error && sle.sle_meta_count <= policy.zrp_maxmeta &&
-	    sle.sle_data_count <= policy.zrp_maxdata) {
+	if (sle.sle_meta_count != 0 || sle.sle_data_count != 0) {
+		spa_load_note(spa, "spa_load_verify found %llu metadata errors "
+		    "and %llu data errors", (u_longlong_t)sle.sle_meta_count,
+		    (u_longlong_t)sle.sle_data_count);
+	}
+
+	if (spa_load_verify_dryrun ||
+	    (!error && sle.sle_meta_count <= policy.zrp_maxmeta &&
+	    sle.sle_data_count <= policy.zrp_maxdata)) {
 		int64_t loss = 0;
 
 		verify_ok = B_TRUE;
@@ -2158,6 +2171,9 @@ spa_load_verify(spa_t *spa)
 	} else {
 		spa->spa_load_max_txg = spa->spa_uberblock.ub_txg;
 	}
+
+	if (spa_load_verify_dryrun)
+		return (0);
 
 	if (error) {
 		if (error != ENXIO && error != EIO)
