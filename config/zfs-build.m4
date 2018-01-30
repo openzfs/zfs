@@ -192,6 +192,19 @@ AC_DEFUN([ZFS_AC_RPM], [
 	RPM_DEFINE_UTIL+=' $(DEFINE_INITRAMFS)'
 	RPM_DEFINE_UTIL+=' $(DEFINE_SYSTEMD)'
 
+	dnl # Override default lib directory on Debian/Ubuntu systems.  The provided
+	dnl # /usr/lib/rpm/platform/<arch>/macros files do not specify the correct
+	dnl # path for multiarch systems as described by the packaging guidelines.
+	dnl #
+	dnl # https://wiki.ubuntu.com/MultiarchSpec
+	dnl # https://wiki.debian.org/Multiarch/Implementation
+	dnl #
+	AS_IF([test "$DEFAULT_PACKAGE" = "deb"], [
+		MULTIARCH_LIBDIR="lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH)"
+		RPM_DEFINE_UTIL+=' --define "_lib $(MULTIARCH_LIBDIR)"'
+		AC_SUBST(MULTIARCH_LIBDIR)
+	])
+
 	RPM_DEFINE_KMOD='--define "kernels $(LINUX_VERSION)"'
 	RPM_DEFINE_KMOD+=' --define "require_spldir $(SPL)"'
 	RPM_DEFINE_KMOD+=' --define "require_splobj $(SPL_OBJ)"'
