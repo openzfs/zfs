@@ -150,7 +150,7 @@ ENTRY_NP(gcm_mul_pclmulqdq)
 	// Byte swap 16-byte input
 	//
 	lea	.Lbyte_swap16_mask(%rip), %rax
-	movaps	(%rax), %xmm10
+	movups	(%rax), %xmm10
 	pshufb	%xmm10, %xmm0
 	pshufb	%xmm10, %xmm1
 
