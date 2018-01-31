@@ -215,8 +215,8 @@ static ztest_shared_ds_t *ztest_shared_ds;
 #define	ZTEST_GET_SHARED_DS(d) (&ztest_shared_ds[d])
 
 #define	BT_MAGIC	0x123456789abcdefULL
-#define	MAXFAULTS() \
-	(MAX(zs->zs_mirrors, 1) * (ztest_opts.zo_raidz_parity + 1) - 1)
+#define	MAXFAULTS(zs) \
+	(MAX((zs)->zs_mirrors, 1) * (ztest_opts.zo_raidz_parity + 1) - 1)
 
 enum ztest_io_type {
 	ZTEST_IO_WRITE_TAG,
@@ -5452,7 +5452,7 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 	pathrand = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
 
 	mutex_enter(&ztest_vdev_lock);
-	maxfaults = MAXFAULTS();
+	maxfaults = MAXFAULTS(zs);
 	leaves = MAX(zs->zs_mirrors, 1) * ztest_opts.zo_raidz;
 	mirror_save = zs->zs_mirrors;
 	mutex_exit(&ztest_vdev_lock);
@@ -6552,16 +6552,6 @@ ztest_run(ztest_shared_t *zs)
 	spa->spa_dedup_ditto = 2 * ZIO_DEDUPDITTO_MIN;
 
 	/*
-	 * We don't expect the pool to suspend unless maxfaults == 0,
-	 * in which case ztest_fault_inject() temporarily takes away
-	 * the only valid replica.
-	 */
-	if (MAXFAULTS() == 0)
-		spa->spa_failmode = ZIO_FAILURE_MODE_WAIT;
-	else
-		spa->spa_failmode = ZIO_FAILURE_MODE_PANIC;
-
-	/*
 	 * Create a thread to periodically resume suspended I/O.
 	 */
 	resume_thread = thread_create(NULL, 0, ztest_resume_thread,
@@ -6808,10 +6798,12 @@ make_random_props(void)
 {
 	nvlist_t *props;
 
-	VERIFY(nvlist_alloc(&props, NV_UNIQUE_NAME, 0) == 0);
+	VERIFY0(nvlist_alloc(&props, NV_UNIQUE_NAME, 0));
 	if (ztest_random(2) == 0)
 		return (props);
-	VERIFY(nvlist_add_uint64(props, "autoreplace", 1) == 0);
+
+	VERIFY0(nvlist_add_uint64(props,
+	    zpool_prop_to_name(ZPOOL_PROP_AUTOREPLACE), 1));
 
 	return (props);
 }
@@ -6892,6 +6884,16 @@ ztest_init(ztest_shared_t *zs)
 	nvroot = make_vdev_root(NULL, NULL, NULL, ztest_opts.zo_vdev_size, 0,
 	    0, ztest_opts.zo_raidz, zs->zs_mirrors, 1);
 	props = make_random_props();
+
+	/*
+	 * We don't expect the pool to suspend unless maxfaults == 0,
+	 * in which case ztest_fault_inject() temporarily takes away
+	 * the only valid replica.
+	 */
+	VERIFY0(nvlist_add_uint64(props,
+	    zpool_prop_to_name(ZPOOL_PROP_FAILUREMODE),
+	    MAXFAULTS(zs) ? ZIO_FAILURE_MODE_PANIC : ZIO_FAILURE_MODE_WAIT));
+
 	for (i = 0; i < SPA_FEATURES; i++) {
 		char *buf;
 		VERIFY3S(-1, !=, asprintf(&buf, "feature@%s",
@@ -6899,8 +6901,8 @@ ztest_init(ztest_shared_t *zs)
 		VERIFY3U(0, ==, nvlist_add_uint64(props, buf, 0));
 		free(buf);
 	}
-	VERIFY3U(0, ==,
-	    spa_create(ztest_opts.zo_pool, nvroot, props, NULL, NULL));
+
+	VERIFY0(spa_create(ztest_opts.zo_pool, nvroot, props, NULL, NULL));
 	nvlist_free(nvroot);
 	nvlist_free(props);
 
