@@ -2177,7 +2177,7 @@ dsl_crypto_recv_key_sync(void *arg, dmu_tx_t *tx)
 	arc_release(os->os_phys_buf, &os->os_phys_buf);
 	bcopy(portable_mac, os->os_phys->os_portable_mac, ZIO_OBJSET_MAC_LEN);
 	bzero(os->os_phys->os_local_mac, ZIO_OBJSET_MAC_LEN);
-	os->os_next_write_raw = B_TRUE;
+	os->os_next_write_raw[tx->tx_txg & TXG_MASK] = B_TRUE;
 
 	/* set metadnode compression and checksum */
 	mdn->dn_compress = compress;

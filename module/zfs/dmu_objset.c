@@ -1508,9 +1508,9 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 	 * the os_phys_buf raw. Neither of these actions will effect the MAC
 	 * at this point.
 	 */
-	if (arc_is_unauthenticated(os->os_phys_buf) || os->os_next_write_raw) {
+	if (os->os_next_write_raw[tx->tx_txg & TXG_MASK]) {
 		ASSERT(os->os_encrypted);
-		os->os_next_write_raw = B_FALSE;
+		os->os_next_write_raw[tx->tx_txg & TXG_MASK] = B_FALSE;
 		arc_convert_to_raw(os->os_phys_buf,
 		    os->os_dsl_dataset->ds_object, ZFS_HOST_BYTEORDER,
 		    DMU_OT_OBJSET, NULL, NULL, NULL);
