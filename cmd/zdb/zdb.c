@@ -3388,7 +3388,7 @@ dump_block_stats(spa_t *spa)
 	int flags = TRAVERSE_PRE | TRAVERSE_PREFETCH_METADATA |
 	    TRAVERSE_NO_DECRYPT | TRAVERSE_HARD;
 	boolean_t leaks = B_FALSE;
-	int e, c;
+	int e, c, err;
 	bp_embedded_type_t i;
 
 	bzero(&zcb, sizeof (zcb));
@@ -3430,7 +3430,7 @@ dump_block_stats(spa_t *spa)
 
 	zcb.zcb_totalasize = metaslab_class_get_alloc(spa_normal_class(spa));
 	zcb.zcb_start = zcb.zcb_lastprint = gethrtime();
-	zcb.zcb_haderrors |= traverse_pool(spa, 0, flags, zdb_blkptr_cb, &zcb);
+	err = traverse_pool(spa, 0, flags, zdb_blkptr_cb, &zcb);
 
 	/*
 	 * If we've traversed the data blocks then we need to wait for those
@@ -3445,6 +3445,12 @@ dump_block_stats(spa_t *spa)
 			    ZIO_FLAG_GODFATHER);
 		}
 	}
+
+	/*
+	 * Done after zio_wait() since zcb_haderrors is modified in
+	 * zdb_blkptr_done()
+	 */
+	zcb.zcb_haderrors |= err;
 
 	if (zcb.zcb_haderrors) {
 		(void) printf("\nError counts:\n\n");
