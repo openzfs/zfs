@@ -796,7 +796,7 @@ zil_claim(dsl_pool_t *dp, dsl_dataset_t *ds, void *txarg)
 			zio_free_zil(zilog->zl_spa, first_txg, &zh->zh_log);
 		BP_ZERO(&zh->zh_log);
 		if (os->os_encrypted)
-			os->os_next_write_raw = B_TRUE;
+			os->os_next_write_raw[tx->tx_txg & TXG_MASK] = B_TRUE;
 		dsl_dataset_dirty(dmu_objset_ds(os), tx);
 		dmu_objset_disown(os, B_FALSE, FTAG);
 		return (0);
@@ -820,7 +820,7 @@ zil_claim(dsl_pool_t *dp, dsl_dataset_t *ds, void *txarg)
 			zh->zh_flags |= ZIL_REPLAY_NEEDED;
 		zh->zh_flags |= ZIL_CLAIM_LR_SEQ_VALID;
 		if (os->os_encrypted)
-			os->os_next_write_raw = B_TRUE;
+			os->os_next_write_raw[tx->tx_txg & TXG_MASK] = B_TRUE;
 		dsl_dataset_dirty(dmu_objset_ds(os), tx);
 	}
 
