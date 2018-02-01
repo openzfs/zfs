@@ -2218,6 +2218,7 @@ dmu_buf_will_change_crypt_params(dmu_buf_t *db_fake, dmu_tx_t *tx)
 	ASSERT3P(dr, !=, NULL);
 	ASSERT3U(dr->dr_txg, ==, tx->tx_txg);
 	dr->dt.dl.dr_raw = B_TRUE;
+	db->db_objset->os_next_write_raw[tx->tx_txg & TXG_MASK] = B_TRUE;
 }
 
 #pragma weak dmu_buf_fill_done = dbuf_fill_done

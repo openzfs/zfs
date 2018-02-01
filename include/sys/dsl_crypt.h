@@ -39,7 +39,7 @@
 #define	DSL_CRYPTO_KEY_HMAC_KEY		"DSL_CRYPTO_HMAC_KEY_1"
 #define	DSL_CRYPTO_KEY_ROOT_DDOBJ	"DSL_CRYPTO_ROOT_DDOBJ"
 #define	DSL_CRYPTO_KEY_REFCOUNT		"DSL_CRYPTO_REFCOUNT"
-
+#define	DSL_CRYPTO_KEY_VERSION		"DSL_CRYPTO_VERSION"
 
 /*
  * In-memory representation of a wrapping key. One of these structs will exist
@@ -169,6 +169,7 @@ int dsl_crypto_params_create_nvlist(dcp_cmd_t cmd, nvlist_t *props,
 void dsl_crypto_params_free(dsl_crypto_params_t *dcp, boolean_t unload);
 void dsl_dataset_crypt_stats(struct dsl_dataset *ds, nvlist_t *nv);
 int dsl_crypto_can_set_keylocation(const char *dsname, const char *keylocation);
+boolean_t dsl_dir_incompatible_encryption_version(dsl_dir_t *dd);
 
 void spa_keystore_init(spa_keystore_t *sk);
 void spa_keystore_fini(spa_keystore_t *sk);

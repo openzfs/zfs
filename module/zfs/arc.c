@@ -1229,6 +1229,7 @@ hdr_full_cons(void *vbuf, void *unused, int kmflag)
 	arc_buf_hdr_t *hdr = vbuf;
 
 	bzero(hdr, HDR_FULL_SIZE);
+	hdr->b_l1hdr.b_byteswap = DMU_BSWAP_NUMFUNCS;
 	cv_init(&hdr->b_l1hdr.b_cv, NULL, CV_DEFAULT, NULL);
 	refcount_create(&hdr->b_l1hdr.b_refcnt);
 	mutex_init(&hdr->b_l1hdr.b_freeze_lock, NULL, MUTEX_DEFAULT, NULL);
@@ -3245,9 +3246,6 @@ arc_hdr_alloc_abd(arc_buf_hdr_t *hdr, boolean_t alloc_rdata)
 	ASSERT(HDR_HAS_L1HDR(hdr));
 	ASSERT(!HDR_SHARED_DATA(hdr) || alloc_rdata);
 	IMPLY(alloc_rdata, HDR_PROTECTED(hdr));
-
-	if (hdr->b_l1hdr.b_pabd == NULL && !HDR_HAS_RABD(hdr))
-		hdr->b_l1hdr.b_byteswap = DMU_BSWAP_NUMFUNCS;
 
 	if (alloc_rdata) {
 		size = HDR_GET_PSIZE(hdr);
@@ -6750,6 +6748,17 @@ arc_write_ready(zio_t *zio)
 		/* ZIL blocks are written through zio_rewrite */
 		ASSERT3U(BP_GET_TYPE(bp), !=, DMU_OT_INTENT_LOG);
 		ASSERT(HDR_PROTECTED(hdr));
+
+		if (BP_SHOULD_BYTESWAP(bp)) {
+			if (BP_GET_LEVEL(bp) > 0) {
+				hdr->b_l1hdr.b_byteswap = DMU_BSWAP_UINT64;
+			} else {
+				hdr->b_l1hdr.b_byteswap =
+				    DMU_OT_BYTESWAP(BP_GET_TYPE(bp));
+			}
+		} else {
+			hdr->b_l1hdr.b_byteswap = DMU_BSWAP_NUMFUNCS;
+		}
 
 		hdr->b_crypt_hdr.b_ot = BP_GET_TYPE(bp);
 		hdr->b_crypt_hdr.b_dsobj = zio->io_bookmark.zb_objset;

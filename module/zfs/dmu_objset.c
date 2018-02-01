@@ -663,6 +663,9 @@ dmu_objset_own_impl(dsl_dataset_t *ds, dmu_objset_type_t type,
 		return (SET_ERROR(EINVAL));
 	} else if (!readonly && dsl_dataset_is_snapshot(ds)) {
 		return (SET_ERROR(EROFS));
+	} else if (!readonly && decrypt &&
+	    dsl_dir_incompatible_encryption_version(ds->ds_dir)) {
+		return (SET_ERROR(EROFS));
 	}
 
 	/* if we are decrypting, we can now check MACs in os->os_phys_buf */
@@ -1505,9 +1508,9 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 	 * the os_phys_buf raw. Neither of these actions will effect the MAC
 	 * at this point.
 	 */
-	if (arc_is_unauthenticated(os->os_phys_buf) || os->os_next_write_raw) {
+	if (os->os_next_write_raw[tx->tx_txg & TXG_MASK]) {
 		ASSERT(os->os_encrypted);
-		os->os_next_write_raw = B_FALSE;
+		os->os_next_write_raw[tx->tx_txg & TXG_MASK] = B_FALSE;
 		arc_convert_to_raw(os->os_phys_buf,
 		    os->os_dsl_dataset->ds_object, ZFS_HOST_BYTEORDER,
 		    DMU_OT_OBJSET, NULL, NULL, NULL);
@@ -2633,6 +2636,13 @@ dmu_objset_find(char *name, int func(const char *, void *), void *arg,
 	error = dmu_objset_find_impl(spa, name, func, arg, flags);
 	spa_close(spa, FTAG);
 	return (error);
+}
+
+boolean_t
+dmu_objset_incompatible_encryption_version(objset_t *os)
+{
+	return (dsl_dir_incompatible_encryption_version(
+	    os->os_dsl_dataset->ds_dir));
 }
 
 void

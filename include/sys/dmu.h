@@ -438,6 +438,13 @@ int dmu_object_set_blocksize(objset_t *os, uint64_t object, uint64_t size,
     int ibs, dmu_tx_t *tx);
 
 /*
+ * Manually set the maxblkid on a dnode. This will adjust nlevels accordingly
+ * to accommodate the change.
+ */
+int dmu_object_set_maxblkid(objset_t *os, uint64_t object, uint64_t maxblkid,
+    dmu_tx_t *tx);
+
+/*
  * Set the checksum property on a dnode.  The new checksum algorithm will
  * apply to all newly written blocks; existing blocks will not be affected.
  */

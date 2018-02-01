@@ -570,6 +570,7 @@ dump_dnode(dmu_sendarg_t *dsp, const blkptr_t *bp, uint64_t object,
 			drro->drr_flags |= DRR_RAW_BYTESWAP;
 
 		/* needed for reconstructing dnp on recv side */
+		drro->drr_maxblkid = dnp->dn_maxblkid;
 		drro->drr_indblkshift = dnp->dn_indblkshift;
 		drro->drr_nlevels = dnp->dn_nlevels;
 		drro->drr_nblkptr = dnp->dn_nblkptr;
@@ -2294,6 +2295,7 @@ byteswap_record(dmu_replay_record_t *drr)
 		DO32(drr_object.drr_bonuslen);
 		DO32(drr_object.drr_raw_bonuslen);
 		DO64(drr_object.drr_toguid);
+		DO64(drr_object.drr_maxblkid);
 		break;
 	case DRR_FREEOBJECTS:
 		DO64(drr_freeobjects.drr_firstobj);
@@ -2453,10 +2455,8 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 	}
 
 	err = dmu_object_info(rwa->os, drro->drr_object, &doi);
-
-	if (err != 0 && err != ENOENT)
+	if (err != 0 && err != ENOENT && err != EEXIST)
 		return (SET_ERROR(EINVAL));
-	object = err == 0 ? drro->drr_object : DMU_NEW_OBJECT;
 
 	if (drro->drr_object > rwa->max_object)
 		rwa->max_object = drro->drr_object;
@@ -2474,20 +2474,99 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 		int nblkptr = deduce_nblkptr(drro->drr_bonustype,
 		    drro->drr_bonuslen);
 
+		object = drro->drr_object;
+
 		/* nblkptr will be bounded by the bonus size and type */
 		if (rwa->raw && nblkptr != drro->drr_nblkptr)
 			return (SET_ERROR(EINVAL));
 
-		if (drro->drr_blksz != doi.doi_data_block_size ||
+		if (rwa->raw &&
+		    (drro->drr_blksz != doi.doi_data_block_size ||
 		    nblkptr < doi.doi_nblkptr ||
-		    (rwa->raw &&
-		    (indblksz != doi.doi_metadata_block_size ||
-		    drro->drr_nlevels < doi.doi_indirection))) {
+		    indblksz != doi.doi_metadata_block_size ||
+		    drro->drr_nlevels < doi.doi_indirection ||
+		    drro->drr_dn_slots != doi.doi_dnodesize >> DNODE_SHIFT)) {
+			err = dmu_free_long_range_raw(rwa->os,
+			    drro->drr_object, 0, DMU_OBJECT_END);
+			if (err != 0)
+				return (SET_ERROR(EINVAL));
+		} else if (drro->drr_blksz != doi.doi_data_block_size ||
+		    nblkptr < doi.doi_nblkptr ||
+		    drro->drr_dn_slots != doi.doi_dnodesize >> DNODE_SHIFT) {
 			err = dmu_free_long_range(rwa->os, drro->drr_object,
 			    0, DMU_OBJECT_END);
 			if (err != 0)
 				return (SET_ERROR(EINVAL));
 		}
+
+		/*
+		 * The dmu does not currently support decreasing nlevels
+		 * on an object. For non-raw sends, this does not matter
+		 * and the new object can just use the previous one's nlevels.
+		 * For raw sends, however, the structure of the received dnode
+		 * (including nlevels) must match that of the send side.
+		 * Therefore, instead of using dmu_object_reclaim(), we must
+		 * free the object completely and call dmu_object_claim_dnsize()
+		 * instead.
+		 */
+		if ((rwa->raw && drro->drr_nlevels < doi.doi_indirection) ||
+		    drro->drr_dn_slots != doi.doi_dnodesize >> DNODE_SHIFT) {
+			if (rwa->raw) {
+				err = dmu_free_long_object_raw(rwa->os,
+				    drro->drr_object);
+			} else {
+				err = dmu_free_long_object(rwa->os,
+				    drro->drr_object);
+			}
+			if (err != 0)
+				return (SET_ERROR(EINVAL));
+
+			txg_wait_synced(dmu_objset_pool(rwa->os), 0);
+			object = DMU_NEW_OBJECT;
+		}
+	} else if (err == EEXIST) {
+		/*
+		 * The object requested is currently an interior slot of a
+		 * multi-slot dnode. This will be resolved when the next txg
+		 * is synced out, since the send stream will have told us
+		 * to free this slot when we freed the associated dnode
+		 * earlier in the stream.
+		 */
+		txg_wait_synced(dmu_objset_pool(rwa->os), 0);
+		object = drro->drr_object;
+	} else {
+		/* object is free and we are about to allocate a new one */
+		object = DMU_NEW_OBJECT;
+	}
+
+	/*
+	 * If this is a multi-slot dnode there is a chance that this
+	 * object will expand into a slot that is already used by
+	 * another object from the previous snapshot. We must free
+	 * these objects before we attempt to allocate the new dnode.
+	 */
+	if (drro->drr_dn_slots > 1) {
+		for (uint64_t slot = drro->drr_object + 1;
+		    slot < drro->drr_object + drro->drr_dn_slots;
+		    slot++) {
+			dmu_object_info_t slot_doi;
+
+			err = dmu_object_info(rwa->os, slot, &slot_doi);
+			if (err == ENOENT || err == EEXIST)
+				continue;
+			else if (err != 0)
+				return (err);
+
+			if (rwa->raw)
+				err = dmu_free_long_object_raw(rwa->os, slot);
+			else
+				err = dmu_free_long_object(rwa->os, slot);
+
+			if (err != 0)
+				return (err);
+		}
+
+		txg_wait_synced(dmu_objset_pool(rwa->os), 0);
 	}
 
 	tx = dmu_tx_create(rwa->os);
@@ -2538,6 +2617,8 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 		    drro->drr_blksz, drro->drr_indblkshift, tx));
 		VERIFY0(dmu_object_set_nlevels(rwa->os, drro->drr_object,
 		    drro->drr_nlevels, tx));
+		VERIFY0(dmu_object_set_maxblkid(rwa->os, drro->drr_object,
+		    drro->drr_maxblkid, tx));
 	}
 
 	if (data != NULL) {
@@ -2839,9 +2920,13 @@ receive_spill(struct receive_writer_arg *rwa, struct drr_spill *drrs,
 		dmu_tx_abort(tx);
 		return (err);
 	}
-	dmu_buf_will_dirty(db_spill, tx);
-	if (rwa->raw)
+
+	if (rwa->raw) {
 		VERIFY0(dmu_object_dirty_raw(rwa->os, drrs->drr_object, tx));
+		dmu_buf_will_change_crypt_params(db_spill, tx);
+	} else {
+		dmu_buf_will_dirty(db_spill, tx);
+	}
 
 	if (db_spill->db_size < drrs->drr_length)
 		VERIFY(0 == dbuf_spill_set_blksz(db_spill,
@@ -3186,7 +3271,7 @@ receive_read_record(struct receive_arg *ra)
 		 * See receive_read_prefetch for an explanation why we're
 		 * storing this object in the ignore_obj_list.
 		 */
-		if (err == ENOENT ||
+		if (err == ENOENT || err == EEXIST ||
 		    (err == 0 && doi.doi_data_block_size != drro->drr_blksz)) {
 			objlist_insert(&ra->ignore_objlist, drro->drr_object);
 			err = 0;
@@ -3772,7 +3857,12 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp,
 		int next_err = 0;
 
 		while (next_err == 0) {
-			free_err = dmu_free_long_object(rwa->os, obj);
+			if (drc->drc_raw) {
+				free_err = dmu_free_long_object_raw(rwa->os,
+				    obj);
+			} else {
+				free_err = dmu_free_long_object(rwa->os, obj);
+			}
 			if (free_err != 0 && free_err != ENOENT)
 				break;
 
