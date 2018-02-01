@@ -74,10 +74,14 @@ zle_decompress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
 	while (src < s_end && dst < d_end) {
 		int len = 1 + *src++;
 		if (len <= n) {
+			if (src + len > s_end || dst + len > d_end)
+				return (-1);
 			while (len-- != 0)
 				*dst++ = *src++;
 		} else {
 			len -= n;
+			if (dst + len > d_end)
+				return (-1);
 			while (len-- != 0)
 				*dst++ = 0;
 		}
