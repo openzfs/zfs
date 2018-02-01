@@ -449,8 +449,10 @@ typedef struct arc_stats {
 	 */
 	kstat_named_t arcstat_mutex_miss;
 	/*
-	 * Number of buffers skipped when updating the access state due to the
-	 * header having already been released after acquiring the hash lock.
+	 * Number of buffers skipped when updating the access state.  This
+	 * may happen due to a hash collision when attempting acquire the
+	 * hash_lock, or after acquiring hash lock the header may have
+	 * already been released.
 	 */
 	kstat_named_t arcstat_access_skip;
 	/*
@@ -5638,7 +5640,11 @@ arc_buf_access(arc_buf_t *buf)
 	}
 
 	kmutex_t *hash_lock = HDR_LOCK(hdr);
-	mutex_enter(hash_lock);
+	if (!mutex_tryenter(hash_lock)) {
+		mutex_exit(&buf->b_evict_lock);
+		ARCSTAT_BUMP(arcstat_access_skip);
+		return;
+	}
 
 	if (hdr->b_l1hdr.b_state == arc_anon || HDR_EMPTY(hdr)) {
 		mutex_exit(hash_lock);
