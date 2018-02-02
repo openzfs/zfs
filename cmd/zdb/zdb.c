@@ -4235,8 +4235,10 @@ zdb_embedded_block(char *thing)
 {
 	blkptr_t bp;
 	unsigned long long *words = (void *)&bp;
-	char buf[SPA_MAXBLOCKSIZE];
+	char *buf;
 	int err;
+
+	buf = umem_alloc(SPA_MAXBLOCKSIZE, UMEM_NOFAIL);
 
 	bzero(&bp, sizeof (bp));
 	err = sscanf(thing, "%llx:%llx:%llx:%llx:%llx:%llx:%llx:%llx:"
@@ -4256,6 +4258,7 @@ zdb_embedded_block(char *thing)
 		exit(1);
 	}
 	zdb_dump_block_raw(buf, BPE_GET_LSIZE(&bp), 0);
+	umem_free(buf, SPA_MAXBLOCKSIZE);
 }
 
 int
