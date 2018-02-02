@@ -249,13 +249,46 @@ zpl_fill_super(struct super_block *sb, void *data, int silent)
 }
 
 #ifdef HAVE_MOUNT_NODEV
+static int
+zfs_test_super(struct super_block *s, void *data)
+{
+	zfsvfs_t *zfsvfs = s->s_fs_info;
+	objset_t *os = data;
+
+	return os == zfsvfs->z_os;
+}
+
 static struct dentry *
 zpl_mount(struct file_system_type *fs_type, int flags,
     const char *osname, void *data)
 {
 	zfs_mnt_t zm = { .mnt_osname = osname, .mnt_data = data };
+	struct super_block *s;
+	objset_t *os;
+	int err;
 
-	return (mount_nodev(fs_type, flags, &zm, zpl_fill_super));
+	err = dmu_objset_hold(osname, FTAG, &os);
+	if (err)
+		return -err;
+
+	s = zpl_sget(fs_type, zfs_test_super, set_anon_super, flags, os);
+	dmu_objset_rele(os, FTAG);
+
+	if (IS_ERR(s))
+		return ERR_CAST(s);
+
+	if (!s->s_root) {
+		err = zpl_fill_super(s, &zm, flags & SB_SILENT ? 1 : 0);
+		if (err)
+			deactivate_locked_super(s);
+		else
+			s->s_flags |= SB_ACTIVE;
+	}
+
+	if (err)
+		return ERR_PTR(err);
+
+	return dget(s->s_root);
 }
 #else
 static int
