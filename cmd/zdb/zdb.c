@@ -4273,7 +4273,7 @@ main(int argc, char **argv)
 	int error = 0;
 	char **searchdirs = NULL;
 	int nsearch = 0;
-	char *target;
+	char *target, *target_pool;
 	nvlist_t *policy = NULL;
 	uint64_t max_txg = UINT64_MAX;
 	int flags = ZFS_IMPORT_MISSING_LOG;
@@ -4476,6 +4476,20 @@ main(int argc, char **argv)
 	error = 0;
 	target = argv[0];
 
+	if (strpbrk(target, "/@") != NULL) {
+		size_t targetlen;
+
+		target_pool = strdup(target);
+		*strpbrk(target_pool, "/@") = '\0';
+
+		target_is_spa = B_FALSE;
+		targetlen = strlen(target);
+		if (targetlen && target[targetlen - 1] == '/')
+			target[targetlen - 1] = '\0';
+	} else {
+		target_pool = target;
+	}
+
 	if (dump_opt['e']) {
 		importargs_t args = { 0 };
 		nvlist_t *cfg = NULL;
@@ -4484,8 +4498,10 @@ main(int argc, char **argv)
 		args.path = searchdirs;
 		args.can_be_active = B_TRUE;
 
-		error = zpool_tryimport(g_zfs, target, &cfg, &args);
+		error = zpool_tryimport(g_zfs, target_pool, &cfg, &args);
+
 		if (error == 0) {
+
 			if (nvlist_add_nvlist(cfg,
 			    ZPOOL_REWIND_POLICY, policy) != 0) {
 				fatal("can't open '%s': %s",
@@ -4500,19 +4516,13 @@ main(int argc, char **argv)
 				(void) printf("\nConfiguration for import:\n");
 				dump_nvlist(cfg, 8);
 			}
-			error = spa_import(target, cfg, NULL,
+			error = spa_import(target_pool, cfg, NULL,
 			    flags | ZFS_IMPORT_SKIP_MMP);
 		}
 	}
 
-	if (strpbrk(target, "/@") != NULL) {
-		size_t targetlen;
-
-		target_is_spa = B_FALSE;
-		targetlen = strlen(target);
-		if (targetlen && target[targetlen - 1] == '/')
-			target[targetlen - 1] = '\0';
-	}
+	if (target_pool != target)
+		free(target_pool);
 
 	if (error == 0) {
 		if (target_is_spa || dump_opt['R']) {
