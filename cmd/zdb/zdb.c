@@ -3895,13 +3895,6 @@ name:
 	return (NULL);
 }
 
-/* ARGSUSED */
-static int
-random_get_pseudo_bytes_cb(void *buf, size_t len, void *unused)
-{
-	return (random_get_pseudo_bytes(buf, len));
-}
-
 /*
  * Read a block from a pool and print it out.  The syntax of the
  * block descriptor is:
@@ -4064,16 +4057,7 @@ zdb_read_block(char *thing, spa_t *spa)
 		 * every decompress function at every inflated blocksize.
 		 */
 		enum zio_compress c;
-		void *pbuf2 = umem_alloc(SPA_MAXBLOCKSIZE, UMEM_NOFAIL);
 		void *lbuf2 = umem_alloc(SPA_MAXBLOCKSIZE, UMEM_NOFAIL);
-
-		abd_copy_to_buf(pbuf2, pabd, psize);
-
-		VERIFY0(abd_iterate_func(pabd, psize, SPA_MAXBLOCKSIZE - psize,
-		    random_get_pseudo_bytes_cb, NULL));
-
-		VERIFY0(random_get_pseudo_bytes((uint8_t *)pbuf2 + psize,
-		    SPA_MAXBLOCKSIZE - psize));
 
 		/*
 		 * XXX - On the one hand, with SPA_MAXBLOCKSIZE at 16MB,
@@ -4084,13 +4068,29 @@ zdb_read_block(char *thing, spa_t *spa)
 		for (lsize = psize + SPA_MINBLOCKSIZE;
 		    lsize <= SPA_MAXBLOCKSIZE; lsize += SPA_MINBLOCKSIZE) {
 			for (c = 0; c < ZIO_COMPRESS_FUNCTIONS; c++) {
+				/*
+				 * ZLE can easily decompress non zle stream.
+				 * So have an option to disable it.
+				 */
+				if (c == ZIO_COMPRESS_ZLE &&
+				    getenv("ZDB_NO_ZLE"))
+					continue;
+
 				(void) fprintf(stderr,
 				    "Trying %05llx -> %05llx (%s)\n",
 				    (u_longlong_t)psize, (u_longlong_t)lsize,
 				    zio_compress_table[c].ci_name);
+
+				/*
+				 * We randomize lbuf2, and decompress to both
+				 * lbuf and lbuf2. This way, we will know if
+				 * decompression fill exactly to lsize.
+				 */
+				VERIFY0(random_get_pseudo_bytes(lbuf2, lsize));
+
 				if (zio_decompress_data(c, pabd,
 				    lbuf, psize, lsize) == 0 &&
-				    zio_decompress_data_buf(c, pbuf2,
+				    zio_decompress_data(c, pabd,
 				    lbuf2, psize, lsize) == 0 &&
 				    bcmp(lbuf, lbuf2, lsize) == 0)
 					break;
@@ -4098,11 +4098,9 @@ zdb_read_block(char *thing, spa_t *spa)
 			if (c != ZIO_COMPRESS_FUNCTIONS)
 				break;
 		}
-
-		umem_free(pbuf2, SPA_MAXBLOCKSIZE);
 		umem_free(lbuf2, SPA_MAXBLOCKSIZE);
 
-		if (lsize <= psize) {
+		if (lsize > SPA_MAXBLOCKSIZE) {
 			(void) printf("Decompress of %s failed\n", thing);
 			goto out;
 		}
