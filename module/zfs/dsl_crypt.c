@@ -655,55 +655,56 @@ spa_keystore_dsl_key_hold_dd(spa_t *spa, dsl_dir_t *dd, void *tag,
 {
 	int ret;
 	avl_index_t where;
-	dsl_crypto_key_t *dck = NULL;
+	dsl_crypto_key_t *dck_io = NULL, *dck_ks = NULL;
 	dsl_wrapping_key_t *wkey = NULL;
 	uint64_t dckobj = dd->dd_crypto_obj;
 
-	rw_enter(&spa->spa_keystore.sk_dk_lock, RW_WRITER);
-
-	/* lookup the key in the tree of currently loaded keys */
-	ret = spa_keystore_dsl_key_hold_impl(spa, dckobj, tag, &dck);
-	if (!ret) {
-		rw_exit(&spa->spa_keystore.sk_dk_lock);
-		*dck_out = dck;
+	/* Lookup the key in the tree of currently loaded keys */
+	rw_enter(&spa->spa_keystore.sk_dk_lock, RW_READER);
+	ret = spa_keystore_dsl_key_hold_impl(spa, dckobj, tag, &dck_ks);
+	rw_exit(&spa->spa_keystore.sk_dk_lock);
+	if (ret == 0) {
+		*dck_out = dck_ks;
 		return (0);
 	}
 
-	/* lookup the wrapping key from the keystore */
+	/* Lookup the wrapping key from the keystore */
 	ret = spa_keystore_wkey_hold_dd(spa, dd, FTAG, &wkey);
 	if (ret != 0) {
-		ret = SET_ERROR(EACCES);
-		goto error_unlock;
+		*dck_out = NULL;
+		return (SET_ERROR(EACCES));
 	}
 
-	/* read the key from disk */
+	/* Read the key from disk */
 	ret = dsl_crypto_key_open(spa->spa_meta_objset, wkey, dckobj,
-	    tag, &dck);
-	if (ret != 0)
-		goto error_unlock;
+	    tag, &dck_io);
+	if (ret != 0) {
+		dsl_wrapping_key_rele(wkey, FTAG);
+		*dck_out = NULL;
+		return (ret);
+	}
 
 	/*
-	 * add the key to the keystore (this should always succeed
-	 * since we made sure it didn't exist before)
+	 * Add the key to the keystore.  It may already exist if it was
+	 * added while performing the read from disk.  In this case discard
+	 * it and return the key from the keystore.
 	 */
-	avl_find(&spa->spa_keystore.sk_dsl_keys, dck, &where);
-	avl_insert(&spa->spa_keystore.sk_dsl_keys, dck, where);
+	rw_enter(&spa->spa_keystore.sk_dk_lock, RW_WRITER);
+	ret = spa_keystore_dsl_key_hold_impl(spa, dckobj, tag, &dck_ks);
+	if (ret != 0) {
+		avl_find(&spa->spa_keystore.sk_dsl_keys, dck_io, &where);
+		avl_insert(&spa->spa_keystore.sk_dsl_keys, dck_io, where);
+		*dck_out = dck_io;
+	} else {
+		dsl_crypto_key_free(dck_io);
+		*dck_out = dck_ks;
+	}
 
-	/* release the wrapping key (the dsl key now has a reference to it) */
+	/* Release the wrapping key (the dsl key now has a reference to it) */
 	dsl_wrapping_key_rele(wkey, FTAG);
-
 	rw_exit(&spa->spa_keystore.sk_dk_lock);
 
-	*dck_out = dck;
 	return (0);
-
-error_unlock:
-	rw_exit(&spa->spa_keystore.sk_dk_lock);
-	if (wkey != NULL)
-		dsl_wrapping_key_rele(wkey, FTAG);
-
-	*dck_out = NULL;
-	return (ret);
 }
 
 void
@@ -934,20 +935,19 @@ spa_keystore_create_mapping_impl(spa_t *spa, uint64_t dsobj,
 {
 	int ret;
 	avl_index_t where;
-	dsl_key_mapping_t *km = NULL, *found_km;
+	dsl_key_mapping_t *km, *found_km;
 	boolean_t should_free = B_FALSE;
 
-	/* allocate the mapping */
-	km = kmem_alloc(sizeof (dsl_key_mapping_t), KM_SLEEP);
-	if (!km)
-		return (SET_ERROR(ENOMEM));
-
-	/* initialize the mapping */
+	/* Allocate and initialize the mapping */
+	km = kmem_zalloc(sizeof (dsl_key_mapping_t), KM_SLEEP);
 	refcount_create(&km->km_refcnt);
 
 	ret = spa_keystore_dsl_key_hold_dd(spa, dd, km, &km->km_key);
-	if (ret != 0)
-		goto error;
+	if (ret != 0) {
+		refcount_destroy(&km->km_refcnt);
+		kmem_free(km, sizeof (dsl_key_mapping_t));
+		return (ret);
+	}
 
 	km->km_dsobj = dsobj;
 
@@ -979,15 +979,6 @@ spa_keystore_create_mapping_impl(spa_t *spa, uint64_t dsobj,
 	}
 
 	return (0);
-
-error:
-	if (km->km_key)
-		spa_keystore_dsl_key_rele(spa, km->km_key, km);
-
-	refcount_destroy(&km->km_refcnt);
-	kmem_free(km, sizeof (dsl_key_mapping_t));
-
-	return (ret);
 }
 
 int
