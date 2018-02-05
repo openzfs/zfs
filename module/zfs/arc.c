@@ -3845,7 +3845,8 @@ arc_evict_hdr(arc_buf_hdr_t *hdr, kmutex_t *hash_lock)
 	/* prefetch buffers have a minimum lifespan */
 	if (HDR_IO_IN_PROGRESS(hdr) ||
 	    ((hdr->b_flags & (ARC_FLAG_PREFETCH | ARC_FLAG_INDIRECT)) &&
-	    ddi_get_lbolt() - hdr->b_l1hdr.b_arc_access < min_lifetime * hz)) {
+	    ddi_get_lbolt() - hdr->b_l1hdr.b_arc_access <
+	    MSEC_TO_TICK(min_lifetime))) {
 		ARCSTAT_BUMP(arcstat_evict_skip);
 		return (bytes_evicted);
 	}
@@ -7470,9 +7471,8 @@ arc_init(void)
 	cv_init(&arc_reclaim_thread_cv, NULL, CV_DEFAULT, NULL);
 	cv_init(&arc_reclaim_waiters_cv, NULL, CV_DEFAULT, NULL);
 
-	/* Convert seconds to clock ticks */
-	arc_min_prefetch_ms = 1;
-	arc_min_prescient_prefetch_ms = 6;
+	arc_min_prefetch_ms = 1000;
+	arc_min_prescient_prefetch_ms = 6000;
 
 #ifdef _KERNEL
 	/*
