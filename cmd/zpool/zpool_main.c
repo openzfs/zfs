@@ -5989,7 +5989,7 @@ print_scan_status(pool_scan_stat_t *ps)
 	uint64_t total_secs_left;
 	uint64_t elapsed, secs_left, mins_left, hours_left, days_left;
 	uint64_t pass_scanned, scanned, pass_issued, issued, total;
-	uint_t scan_rate, issue_rate;
+	uint64_t scan_rate, issue_rate;
 	double fraction_done;
 	char processed_buf[7], scanned_buf[7], issued_buf[7], total_buf[7];
 	char srate_buf[7], irate_buf[7];
