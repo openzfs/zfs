@@ -410,7 +410,6 @@ unsigned long zfs_arc_dnode_limit_percent = 10;
 unsigned long zfs_arc_sys_free = 0;
 int zfs_arc_min_prefetch_ms = 0;
 int zfs_arc_min_prescient_prefetch_ms = 0;
-int zfs_arc_p_aggressive_disable = 1;
 int zfs_arc_p_dampener_disable = 1;
 int zfs_arc_meta_prune = 10000;
 int zfs_arc_meta_strategy = ARC_STRATEGY_META_BALANCED;
@@ -9087,9 +9086,6 @@ MODULE_PARM_DESC(zfs_arc_meta_strategy, "Meta reclaim strategy");
 
 module_param(zfs_arc_grow_retry, int, 0644);
 MODULE_PARM_DESC(zfs_arc_grow_retry, "Seconds before growing arc size");
-
-module_param(zfs_arc_p_aggressive_disable, int, 0644);
-MODULE_PARM_DESC(zfs_arc_p_aggressive_disable, "disable aggressive arc_p grow");
 
 module_param(zfs_arc_p_dampener_disable, int, 0644);
 MODULE_PARM_DESC(zfs_arc_p_dampener_disable, "disable arc_p adapt dampener");
