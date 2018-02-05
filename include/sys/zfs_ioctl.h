@@ -509,6 +509,24 @@ typedef struct zfsdev_state {
 	void			*zs_zevent;	/* zevent data */
 } zfsdev_state_t;
 
+struct semaphore;				/* linux/semaphore.h */
+
+typedef struct zfs_throttle {
+	struct semaphore	z_sem_read;
+	struct semaphore	z_sem_write;
+	struct semaphore	*z_sem_real_read;
+	struct semaphore	*z_sem_real_write;
+	atomic_t		z_prop_read;
+	atomic_t		z_prop_write;
+	atomic_t		z_real_read;
+	atomic_t		z_real_write;
+	char			fsname[MAXNAMELEN];
+	struct list_head	list;
+} zfs_throttle_t;
+
+extern boolean_t zfs_throttle_enable(void);
+extern int zfs_throttle_find_zt(const char *fsname, zfs_throttle_t **zt);
+extern int zfs_throttle_create_zt(const char *fsname, void *arg);
 extern void *zfsdev_get_state(minor_t minor, enum zfsdev_state_type which);
 extern int zfsdev_getminor(struct file *filp, minor_t *minorp);
 extern minor_t zfsdev_minor_alloc(void);

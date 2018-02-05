@@ -515,7 +515,7 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 		}
 
 		if (zprop_parse_value(hdl, elem, prop, ZFS_TYPE_POOL, retprops,
-		    &strval, &intval, errbuf) != 0)
+		    &strval, &intval, errbuf, poolname) != 0)
 			goto error;
 
 		/*

@@ -526,6 +526,12 @@ zfs_prop_init(void)
 	zprop_register_number(ZFS_PROP_SNAPSHOT_LIMIT, "snapshot_limit",
 	    UINT64_MAX, PROP_DEFAULT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
 	    "<count> | none", "SSLIMIT");
+	zprop_register_number(ZFS_PROP_MAX_READ_OPS, "max_read_ops",
+	    UINT64_MAX, PROP_DEFAULT, ZFS_TYPE_FILESYSTEM,
+	    "<iops> | nolimit | shared | none", "THROTTLE_READ");
+	zprop_register_number(ZFS_PROP_MAX_WRITE_OPS, "max_write_ops",
+	    UINT64_MAX, PROP_DEFAULT, ZFS_TYPE_FILESYSTEM,
+	    "<iops> | nolimit | shared | none", "THROTTLE_WRITE");
 
 	/* inherit number properties */
 	zprop_register_number(ZFS_PROP_RECORDSIZE, "recordsize",

@@ -196,6 +196,8 @@
 #include <sys/zio_checksum.h>
 
 #include <linux/miscdevice.h>
+#include <linux/list.h>
+#include <linux/semaphore.h>
 #include <linux/slab.h>
 
 #include "zfs_namecheck.h"
@@ -218,6 +220,11 @@ extern void zfs_fini(void);
 uint_t zfs_fsyncer_key;
 extern uint_t rrw_tsd_key;
 static uint_t zfs_allow_log_key;
+
+zfs_throttle_t zfs_throttle_list;
+
+/* throttling management: 0 - disable, any other - enable */
+unsigned int zfs_io_throttle = 1;
 
 typedef int zfs_ioc_legacy_func_t(zfs_cmd_t *);
 typedef int zfs_ioc_func_t(const char *, nvlist_t *, nvlist_t *);
@@ -1571,6 +1578,214 @@ zfs_ioc_pool_destroy(zfs_cmd_t *zc)
 	return (error);
 }
 
+static void
+zfs_throttle_update_children_read(zfs_throttle_t *zt)
+{
+	zfs_throttle_t *zt_next;
+	struct list_head *pos = NULL;
+	char parent[MAXNAMELEN];
+	int rate;
+
+	list_for_each(pos, &zfs_throttle_list.list) {
+		zt_next = list_entry(pos, zfs_throttle_t, list);
+		rate = atomic_read(&(zt_next->z_prop_read));
+		if (zfs_get_parent(zt_next->fsname, parent, MAXNAMELEN) == 0 &&
+		    strcmp(parent, zt->fsname) == 0 &&
+		    rate == ZFS_THROTTLE_SHARED) {
+			zt_next->z_real_read = zt->z_real_read;
+			zt_next->z_sem_real_read = zt->z_sem_real_read;
+			zfs_throttle_update_children_read(zt_next);
+		}
+	}
+}
+
+static void
+zfs_throttle_update_children_write(zfs_throttle_t *zt)
+{
+	zfs_throttle_t *zt_next;
+	struct list_head *pos = NULL;
+	char parent[MAXNAMELEN];
+	int rate;
+
+	list_for_each(pos, &zfs_throttle_list.list) {
+		zt_next = list_entry(pos, zfs_throttle_t, list);
+		rate = atomic_read(&(zt_next->z_prop_write));
+		if (zfs_get_parent(zt_next->fsname, parent, MAXNAMELEN) == 0 &&
+		    strcmp(parent, zt->fsname) == 0 &&
+		    rate == ZFS_THROTTLE_SHARED) {
+			zt_next->z_real_write = zt->z_real_write;
+			zt_next->z_sem_real_write = zt->z_sem_real_write;
+			zfs_throttle_update_children_write(zt_next);
+		}
+	}
+}
+
+static void
+zfs_throttle_update_read(zfs_throttle_t *zt, uint64_t newval)
+{
+	uint64_t prev_read = atomic_read(&(zt->z_real_read));
+	uint64_t new_read = newval;
+
+	zt->z_sem_real_read = &(zt->z_sem_read);
+
+	if (atomic_read(&(zt->z_real_read)) != ZFS_THROTTLE_NONE &&
+	    newval == ZFS_THROTTLE_NONE) {
+		down(zt->z_sem_real_read);
+	}
+
+	atomic_set(&(zt->z_prop_read), newval);
+	atomic_set(&(zt->z_real_read), newval);
+
+	if (prev_read == ZFS_THROTTLE_NONE && new_read != ZFS_THROTTLE_NONE) {
+		up(zt->z_sem_real_read);
+	}
+
+	zfs_throttle_update_children_read(zt);
+}
+
+static void
+zfs_throttle_update_write(zfs_throttle_t *zt, uint64_t newval)
+{
+	uint64_t prev_write = atomic_read(&(zt->z_real_write));
+	uint64_t new_write = newval;
+
+	zt->z_sem_real_write = &(zt->z_sem_write);
+
+	if (atomic_read(&(zt->z_real_write)) != ZFS_THROTTLE_NONE &&
+	    newval == ZFS_THROTTLE_NONE) {
+		down(zt->z_sem_real_write);
+	}
+
+	atomic_set(&(zt->z_prop_write), newval);
+	atomic_set(&(zt->z_real_write), newval);
+
+	if (prev_write == ZFS_THROTTLE_NONE && new_write != ZFS_THROTTLE_NONE) {
+		up(zt->z_sem_real_write);
+	}
+
+	zfs_throttle_update_children_write(zt);
+}
+
+static void
+zfs_throttle_update_hier_read(zfs_throttle_t *zt, uint64_t newval)
+{
+	char osparent[MAXNAMELEN];
+	zfs_throttle_t *zt_parent = NULL;
+
+	if (zfs_get_parent(zt->fsname, osparent, MAXNAMELEN) != 0)
+		return;
+
+	if (zfs_throttle_find_zt(osparent, &zt_parent) != 0)
+		return;
+
+	atomic_set(&(zt->z_prop_read), newval);
+	atomic_set(&(zt->z_real_read),
+	    atomic_read(&(zt_parent->z_real_read)));
+	zt->z_sem_real_read = zt_parent->z_sem_real_read;
+	zfs_throttle_update_children_read(zt);
+}
+
+static void
+zfs_throttle_update_hier_write(zfs_throttle_t *zt, uint64_t newval)
+{
+	char osparent[MAXNAMELEN];
+	zfs_throttle_t *zt_parent = NULL;
+
+	if (zfs_get_parent(zt->fsname, osparent, MAXNAMELEN) != 0)
+		return;
+
+	if (zfs_throttle_find_zt(osparent, &zt_parent) != 0)
+		return;
+
+	atomic_set(&(zt->z_prop_write), newval);
+	atomic_set(&(zt->z_real_write),
+	    atomic_read(&(zt_parent->z_real_write)));
+	zt->z_sem_real_write = zt_parent->z_sem_real_write;
+	zfs_throttle_update_children_write(zt);
+}
+
+int
+zfs_throttle_create_zt(const char *fsname, void *arg)
+{
+	int error;
+	uint64_t rate;
+	zfs_throttle_t *zt = kmem_zalloc(sizeof (zfs_throttle_t), KM_SLEEP);
+
+	(void) strcpy(zt->fsname, fsname);
+	sema_init(&(zt->z_sem_read), 1);
+	sema_init(&(zt->z_sem_write), 1);
+	zt->z_sem_real_read = &(zt->z_sem_read);
+	zt->z_sem_real_write = &(zt->z_sem_write);
+
+	if ((error = dsl_prop_get_integer(fsname, "max_read_ops",
+	    &rate, NULL)))
+		goto out;
+
+	if (atomic_read(&(zt->z_prop_read)) == ZFS_THROTTLE_SHARED) {
+		zfs_throttle_update_hier_read(zt, rate);
+	} else {
+		zfs_throttle_update_read(zt, rate);
+	}
+
+	if ((error = dsl_prop_get_integer(fsname, "max_write_ops",
+	    &rate, NULL)))
+		goto out;
+
+	if (atomic_read(&(zt->z_prop_write)) == ZFS_THROTTLE_SHARED) {
+		zfs_throttle_update_hier_write(zt, rate);
+	} else {
+		zfs_throttle_update_write(zt, rate);
+	}
+
+	list_add(&(zt->list), &(zfs_throttle_list.list));
+	return (0);
+out:
+	kmem_free(zt, sizeof (zfs_throttle_t));
+	return (error);
+}
+
+static int
+zfs_throttle_destroy_zt(const char *fsname, void *arg)
+{
+	struct list_head *pos = NULL, *tmp = NULL;
+	zfs_throttle_t *zt_next;
+
+	list_for_each_safe(pos, tmp, &zfs_throttle_list.list) {
+		zt_next = list_entry(pos, zfs_throttle_t, list);
+		if (strcmp(zt_next->fsname, fsname) == 0) {
+			list_del(pos);
+			kmem_free(zt_next, sizeof (zfs_throttle_t));
+			return (0);
+		}
+	}
+
+	return (0);
+}
+
+static void
+zfs_throttle_rename(const char *oldname, const char *newname)
+{
+	struct list_head *pos = NULL;
+	zfs_throttle_t *zt_next;
+	char prefix[MAXNAMELEN];
+
+	strcpy(prefix, oldname);
+	strcat(prefix, "/");
+
+	list_for_each(pos, &zfs_throttle_list.list) {
+		zt_next = list_entry(pos, zfs_throttle_t, list);
+		if (strcmp(zt_next->fsname, oldname) == 0)
+			strcpy(zt_next->fsname, newname);
+		if (strncmp(zt_next->fsname, prefix, strlen(prefix)) == 0) {
+			char newchild[MAXNAMELEN];
+			strncpy(newchild, newname, strlen(newname));
+			sprintf(newchild+strlen(newname), "/%s",
+			    (zt_next->fsname)+strlen(prefix));
+			strcpy(zt_next->fsname, newchild);
+		}
+	}
+}
+
 static int
 zfs_ioc_pool_import(zfs_cmd_t *zc)
 {
@@ -1605,6 +1820,9 @@ zfs_ioc_pool_import(zfs_cmd_t *zc)
 	nvlist_free(config);
 	nvlist_free(props);
 
+	error = dmu_objset_find(zc->zc_name,
+	    zfs_throttle_create_zt, zc->zc_name,
+	    DS_FIND_CHILDREN);
 	return (error);
 }
 
@@ -1614,6 +1832,12 @@ zfs_ioc_pool_export(zfs_cmd_t *zc)
 	int error;
 	boolean_t force = (boolean_t)zc->zc_cookie;
 	boolean_t hardforce = (boolean_t)zc->zc_guid;
+
+	error = dmu_objset_find(zc->zc_name,
+	    zfs_throttle_destroy_zt, zc->zc_name,
+	    DS_FIND_CHILDREN);
+	if (error)
+		return (error);
 
 	zfs_log_history(zc);
 	error = spa_export(zc->zc_name, NULL, force, hardforce);
@@ -2509,6 +2733,34 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 		}
 		break;
 	}
+	case ZFS_PROP_MAX_READ_OPS:
+	{
+		zfs_throttle_t *zt = NULL;
+
+		if (zfs_throttle_find_zt(dsname, &zt) != 0)
+			break;
+
+		if (intval == ZFS_THROTTLE_SHARED) {
+			zfs_throttle_update_hier_read(zt, intval);
+			break;
+		}
+		zfs_throttle_update_read(zt, intval);
+		break;
+	}
+	case ZFS_PROP_MAX_WRITE_OPS:
+	{
+		zfs_throttle_t *zt = NULL;
+
+		if (zfs_throttle_find_zt(dsname, &zt) != 0)
+			break;
+
+		if (intval == ZFS_THROTTLE_SHARED) {
+			zfs_throttle_update_hier_write(zt, intval);
+			break;
+		}
+		zfs_throttle_update_write(zt, intval);
+		break;
+	}
 	default:
 		err = -1;
 	}
@@ -3329,6 +3581,12 @@ zfs_ioc_create(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 			}
 		}
 	}
+
+	if (type == DMU_OST_ZFS) {
+		error = zfs_throttle_create_zt(fsname, NULL);
+		if (error)
+			return (error);
+	}
 	return (error);
 }
 
@@ -3362,6 +3620,10 @@ zfs_ioc_clone(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 		return (SET_ERROR(EINVAL));
 
 	error = dmu_objset_clone(fsname, origin_name);
+
+	error = zfs_throttle_create_zt(fsname, NULL);
+	if (error != 0)
+		return (error);
 
 	/*
 	 * It would be nice to do this atomically.
@@ -3673,6 +3935,8 @@ zfs_ioc_destroy(zfs_cmd_t *zc)
 {
 	int err;
 
+	zfs_throttle_destroy_zt(zc->zc_name, NULL);
+
 	if (zc->zc_objset_type == DMU_OST_ZFS) {
 		err = zfs_unmount_snap(zc->zc_name);
 		if (err != 0)
@@ -3826,6 +4090,7 @@ zfs_ioc_rename(zfs_cmd_t *zc)
 
 		return (error);
 	} else {
+		zfs_throttle_rename(zc->zc_name, zc->zc_value);
 		return (dsl_dir_rename(zc->zc_name, zc->zc_value));
 	}
 }
@@ -6585,6 +6850,31 @@ zfsdev_minor_alloc(void)
 	return (0);
 }
 
+boolean_t
+zfs_throttle_enable(void)
+{
+	if (zfs_io_throttle)
+		return (B_TRUE);
+	return (B_FALSE);
+}
+
+int
+zfs_throttle_find_zt(const char *fsname, zfs_throttle_t **zt)
+{
+	struct list_head *pos = NULL;
+	zfs_throttle_t *zt_next;
+
+	list_for_each(pos, &zfs_throttle_list.list) {
+		zt_next = list_entry(pos, zfs_throttle_t, list);
+		if (strcmp(fsname, zt_next->fsname) == 0) {
+			*zt = zt_next;
+			return (0);
+		}
+	}
+
+	return (1);
+}
+
 static int
 zfsdev_state_init(struct file *filp)
 {
@@ -6954,6 +7244,8 @@ _init(void)
 	tsd_create(&rrw_tsd_key, rrw_tsd_destroy);
 	tsd_create(&zfs_allow_log_key, zfs_allow_log_destroy);
 
+	INIT_LIST_HEAD(&zfs_throttle_list.list);
+
 	printk(KERN_NOTICE "ZFS: Loaded module v%s-%s%s, "
 	    "ZFS pool version %s, ZFS filesystem version %s\n",
 	    ZFS_META_VERSION, ZFS_META_RELEASE, ZFS_DEBUG_STR,
@@ -6994,6 +7286,9 @@ _fini(void)
 #ifdef HAVE_SPL
 module_init(_init);
 module_exit(_fini);
+
+module_param(zfs_io_throttle, int, 0644);
+MODULE_PARM_DESC(zfs_io_throttle, "ZFS io throttling management");
 
 MODULE_DESCRIPTION("ZFS");
 MODULE_AUTHOR(ZFS_META_AUTHOR);

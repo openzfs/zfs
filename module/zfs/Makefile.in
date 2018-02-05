@@ -101,6 +101,7 @@ $(MODULE)-objs += zfs_ratelimit.o
 $(MODULE)-objs += zfs_replay.o
 $(MODULE)-objs += zfs_rlock.o
 $(MODULE)-objs += zfs_sa.o
+$(MODULE)-objs += zfs_throttle.o
 $(MODULE)-objs += zfs_vfsops.o
 $(MODULE)-objs += zfs_vnops.o
 $(MODULE)-objs += zfs_znode.o
