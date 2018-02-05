@@ -364,10 +364,6 @@ qat_compress(qat_compress_dir_t dir, char *src, int src_len,
 	Cpa32U dst_buffer_list_mem_size = sizeof (CpaBufferList) +
 	    (num_dst_buf * sizeof (CpaFlatBuffer));
 
-	if (!is_vmalloc_addr(src) || !is_vmalloc_addr(src + src_len - 1) ||
-	    !is_vmalloc_addr(dst) || !is_vmalloc_addr(dst + dst_len - 1))
-		return (-1);
-
 	if (PHYS_CONTIG_ALLOC(&in_pages,
 	    num_src_buf * sizeof (struct page *)) != CPA_STATUS_SUCCESS)
 		goto fail;
