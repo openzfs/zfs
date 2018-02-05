@@ -4594,20 +4594,27 @@ spa_export_common(char *pool, int new_state, nvlist_t **oldconfig,
 		zvol_remove_minors(spa, spa_name(spa), B_TRUE);
 		taskq_wait(spa->spa_zvol_taskq);
 	}
+
+	/*
+	 * The pool will be in core if it's openable, in which case we can
+	 * modify its state.  Objsets may be open only because they're dirty,
+	 * so we have to force it to sync before checking spa_refcnt.
+	 *
+	 * If the pool is syncing wait for it to complete. This could take long
+	 * or may never complete if the IO is suspended (spa_suspended = 1).
+	 * Hence, it is best done without holding the spa_namespace_lock to
+	 * avoid blocking other operations which need spa_namespace_lock.
+	 */
+	if (spa->spa_state != POOL_STATE_UNINITIALIZED && spa->spa_sync_on) {
+		txg_wait_synced(spa->spa_dsl_pool, 0);
+		spa_evicting_os_wait(spa);
+	}
+
 	mutex_enter(&spa_namespace_lock);
 	spa_close(spa, FTAG);
 
 	if (spa->spa_state == POOL_STATE_UNINITIALIZED)
 		goto export_spa;
-	/*
-	 * The pool will be in core if it's openable, in which case we can
-	 * modify its state.  Objsets may be open only because they're dirty,
-	 * so we have to force it to sync before checking spa_refcnt.
-	 */
-	if (spa->spa_sync_on) {
-		txg_wait_synced(spa->spa_dsl_pool, 0);
-		spa_evicting_os_wait(spa);
-	}
 
 	/*
 	 * A pool cannot be exported or destroyed if there are active
