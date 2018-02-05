@@ -41,7 +41,7 @@ dist-hook:
 	sed -i 's/Release:[[:print:]]*/Release:      $(RELEASE)/' \
 		$(distdir)/META
 
-checkstyle: cstyle shellcheck flake8 commitcheck mancheck
+checkstyle: cstyle shellcheck flake8 commitcheck mancheck testscheck
 
 commitcheck:
 	@if git rev-parse --git-dir > /dev/null 2>&1; then \
@@ -67,6 +67,14 @@ mancheck:
 			-o -name 'zgenhostid.8' | \
 			xargs mandoc -Tlint -Werror; \
 	fi
+
+testscheck:
+	@find ${top_srcdir}/tests/zfs-tests/tests -type f \
+		\( -name '*.ksh' -not -executable \) -o \
+		\( -name '*.kshlib' -executable \) -o \
+		\( -name '*.cfg' -executable \) | \
+		xargs -r stat -c '%A %n' | \
+		awk '{c++; print} END {if(c>0) exit 1}'
 
 lint: cppcheck paxcheck
 
