@@ -139,6 +139,12 @@ blk_queue_set_read_ahead(struct request_queue *q, unsigned long ra_pages)
 #endif
 }
 
+static inline unsigned long
+blk_queue_nr_requests(struct request_queue *q)
+{
+	return (q->nr_requests);
+}
+
 #ifndef HAVE_GET_DISK_RO
 static inline int
 get_disk_ro(struct gendisk *disk)
