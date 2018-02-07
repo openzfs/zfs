@@ -20,7 +20,7 @@
  *
  *  You should have received a copy of the GNU General Public License along
  *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
- *****************************************************************************
+ *
  *  Solaris Porting Layer (SPL) Kobj Implementation.
  */
 
@@ -33,7 +33,7 @@ kobj_open_file(const char *name)
 	vnode_t *vp;
 	int rc;
 
-	file = kmalloc(sizeof(_buf_t), kmem_flags_convert(KM_SLEEP));
+	file = kmalloc(sizeof (_buf_t), kmem_flags_convert(KM_SLEEP));
 	if (file == NULL)
 		return ((_buf_t *)-1UL);
 
@@ -52,7 +52,7 @@ void
 kobj_close_file(struct _buf *file)
 {
 	VOP_CLOSE(file->vp, 0, 0, 0, 0, 0);
-        kfree(file);
+	kfree(file);
 } /* kobj_close_file() */
 EXPORT_SYMBOL(kobj_close_file);
 
@@ -72,15 +72,15 @@ EXPORT_SYMBOL(kobj_read_file);
 int
 kobj_get_filesize(struct _buf *file, uint64_t *size)
 {
-        vattr_t vap;
+	vattr_t vap;
 	int rc;
 
 	rc = VOP_GETATTR(file->vp, &vap, 0, 0, NULL);
 	if (rc)
 		return (rc);
 
-        *size = vap.va_size;
+	*size = vap.va_size;
 
-        return (rc);
+	return (rc);
 } /* kobj_get_filesize() */
 EXPORT_SYMBOL(kobj_get_filesize);

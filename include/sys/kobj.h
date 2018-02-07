@@ -23,7 +23,7 @@
  */
 
 #ifndef _SPL_KOBJ_H
-#define _SPL_KOBJ_H
+#define	_SPL_KOBJ_H
 
 #include <sys/vnode.h>
 

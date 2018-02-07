@@ -23,7 +23,7 @@
  */
 
 #ifndef _SPL_VNODE_H
-#define _SPL_VNODE_H
+#define	_SPL_VNODE_H
 
 #include <linux/module.h>
 #include <linux/syscalls.h>
@@ -49,25 +49,25 @@
  * was properly split in to O_SYNC and O_DSYNC respectively.
  */
 #ifndef O_DSYNC
-#define O_DSYNC		O_SYNC
+#define	O_DSYNC		O_SYNC
 #endif
 
-#define FREAD		1
-#define FWRITE		2
-#define FCREAT		O_CREAT
-#define FTRUNC		O_TRUNC
-#define FOFFMAX		O_LARGEFILE
-#define FSYNC		O_SYNC
-#define FDSYNC		O_DSYNC
-#define FRSYNC		O_SYNC
-#define FEXCL		O_EXCL
-#define FDIRECT		O_DIRECT
-#define FAPPEND		O_APPEND
+#define	FREAD		1
+#define	FWRITE		2
+#define	FCREAT		O_CREAT
+#define	FTRUNC		O_TRUNC
+#define	FOFFMAX		O_LARGEFILE
+#define	FSYNC		O_SYNC
+#define	FDSYNC		O_DSYNC
+#define	FRSYNC		O_SYNC
+#define	FEXCL		O_EXCL
+#define	FDIRECT		O_DIRECT
+#define	FAPPEND		O_APPEND
 
-#define FNODSYNC	0x10000 /* fsync pseudo flag */
-#define FNOFOLLOW	0x20000 /* don't follow symlinks */
+#define	FNODSYNC	0x10000 /* fsync pseudo flag */
+#define	FNOFOLLOW	0x20000 /* don't follow symlinks */
 
-#define F_FREESP	11 	/* Free file space */
+#define	F_FREESP	11 	/* Free file space */
 
 
 /*
@@ -79,30 +79,30 @@
 #undef AT_UID
 #undef AT_GID
 
-#define AT_MODE		ATTR_MODE
-#define AT_UID		ATTR_UID
-#define AT_GID		ATTR_GID
-#define AT_SIZE		ATTR_SIZE
-#define AT_ATIME	ATTR_ATIME
-#define AT_MTIME	ATTR_MTIME
-#define AT_CTIME	ATTR_CTIME
+#define	AT_MODE		ATTR_MODE
+#define	AT_UID		ATTR_UID
+#define	AT_GID		ATTR_GID
+#define	AT_SIZE		ATTR_SIZE
+#define	AT_ATIME	ATTR_ATIME
+#define	AT_MTIME	ATTR_MTIME
+#define	AT_CTIME	ATTR_CTIME
 
-#define ATTR_XVATTR	(1 << 31)
-#define AT_XVATTR	ATTR_XVATTR
+#define	ATTR_XVATTR	(1 << 31)
+#define	AT_XVATTR	ATTR_XVATTR
 
-#define ATTR_IATTR_MASK	(ATTR_MODE | ATTR_UID | ATTR_GID | ATTR_SIZE | \
+#define	ATTR_IATTR_MASK	(ATTR_MODE | ATTR_UID | ATTR_GID | ATTR_SIZE | \
 			ATTR_ATIME | ATTR_MTIME | ATTR_CTIME | ATTR_FILE)
 
-#define CRCREAT		0x01
-#define RMFILE		0x02
+#define	CRCREAT		0x01
+#define	RMFILE		0x02
 
-#define B_INVAL		0x01
-#define B_TRUNC		0x02
+#define	B_INVAL		0x01
+#define	B_TRUNC		0x02
 
-#define LOOKUP_DIR		0x01
-#define LOOKUP_XATTR		0x02
-#define CREATE_XATTR_DIR	0x04
-#define ATTR_NOACLCHECK		0x20
+#define	LOOKUP_DIR		0x01
+#define	LOOKUP_XATTR		0x02
+#define	CREATE_XATTR_DIR	0x04
+#define	ATTR_NOACLCHECK		0x20
 
 typedef enum vtype {
 	VNON		= 0,
@@ -121,8 +121,8 @@ typedef enum vtype {
 
 typedef struct vattr {
 	enum vtype	va_type;	/* vnode type */
-	u_int		va_mask;	/* attribute bit-mask */
-	u_short		va_mode;	/* acc mode */
+	uint_t		va_mask;	/* attribute bit-mask */
+	ushort_t	va_mode;	/* acc mode */
 	uid_t		va_uid;		/* owner uid */
 	gid_t		va_gid;		/* owner gid */
 	long		va_fsid;	/* fs id */
@@ -168,12 +168,12 @@ void vn_free(vnode_t *vp);
 extern vtype_t vn_mode_to_vtype(mode_t);
 extern mode_t vn_vtype_to_mode(vtype_t);
 extern int vn_open(const char *path, uio_seg_t seg, int flags, int mode,
-		   vnode_t **vpp, int x1, void *x2);
+    vnode_t **vpp, int x1, void *x2);
 extern int vn_openat(const char *path, uio_seg_t seg, int flags, int mode,
-		     vnode_t **vpp, int x1, void *x2, vnode_t *vp, int fd);
+    vnode_t **vpp, int x1, void *x2, vnode_t *vp, int fd);
 extern int vn_rdwr(uio_rw_t uio, vnode_t *vp, void *addr, ssize_t len,
-		   offset_t off, uio_seg_t seg, int x1, rlim64_t x2,
-		   void *x3, ssize_t *residp);
+    offset_t off, uio_seg_t seg, int x1, rlim64_t x2,
+    void *x3, ssize_t *residp);
 extern int vn_close(vnode_t *vp, int flags, int x1, int x2, void *x3, void *x4);
 extern int vn_seek(vnode_t *vp, offset_t o, offset_t *op, void *ct);
 
@@ -189,16 +189,16 @@ extern int vn_set_pwd(const char *filename);
 int spl_vn_init(void);
 void spl_vn_fini(void);
 
-#define VOP_CLOSE				vn_close
-#define VOP_SEEK				vn_seek
-#define VOP_GETATTR				vn_getattr
-#define VOP_FSYNC				vn_fsync
-#define VOP_SPACE				vn_space
-#define VOP_PUTPAGE(vp, o, s, f, x1, x2)	((void)0)
-#define vn_is_readonly(vp)			0
-#define getf					vn_getf
-#define releasef				vn_releasef
-#define areleasef				vn_areleasef
+#define	VOP_CLOSE				vn_close
+#define	VOP_SEEK				vn_seek
+#define	VOP_GETATTR				vn_getattr
+#define	VOP_FSYNC				vn_fsync
+#define	VOP_SPACE				vn_space
+#define	VOP_PUTPAGE(vp, o, s, f, x1, x2)	((void)0)
+#define	vn_is_readonly(vp)			0
+#define	getf					vn_getf
+#define	releasef				vn_releasef
+#define	areleasef				vn_areleasef
 
 extern vnode_t *rootdir;
 

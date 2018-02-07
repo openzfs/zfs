@@ -23,6 +23,6 @@
  */
 
 #ifndef _SPL_PROC_H
-#define _SPL_PROC_H
+#define	_SPL_PROC_H
 
 #endif /* SPL_PROC_H */

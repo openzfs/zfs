@@ -23,7 +23,7 @@
  */
 
 #ifndef _SPL_SUNLDI_H
-#define _SPL_SUNLDI_H
+#define	_SPL_SUNLDI_H
 
 #include <sys/types.h>
 #include <linux/fs.h>
@@ -32,6 +32,6 @@
 #include <linux/bio.h>
 #include <linux/blkdev.h>
 
-#define SECTOR_SIZE 512
+#define	SECTOR_SIZE 512
 
 #endif /* SPL_SUNLDI_H */

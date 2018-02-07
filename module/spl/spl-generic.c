@@ -20,7 +20,7 @@
  *
  *  You should have received a copy of the GNU General Public License along
  *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
- *****************************************************************************
+ *
  *  Solaris Porting Layer (SPL) Generic Implementation.
  */
 
@@ -109,13 +109,14 @@ spl_rand_next(uint64_t *s) {
 
 static inline void
 spl_rand_jump(uint64_t *s) {
-	static const uint64_t JUMP[] = { 0x8a5cd789635d2dff, 0x121fd2155c472f96 };
+	static const uint64_t JUMP[] =
+	    { 0x8a5cd789635d2dff, 0x121fd2155c472f96 };
 
 	uint64_t s0 = 0;
 	uint64_t s1 = 0;
 	int i, b;
-	for(i = 0; i < sizeof JUMP / sizeof *JUMP; i++)
-		for(b = 0; b < 64; b++) {
+	for (i = 0; i < sizeof (JUMP) / sizeof (*JUMP); i++)
+		for (b = 0; b < 64; b++) {
 			if (JUMP[i] & 1ULL << b) {
 				s0 ^= s[0];
 				s1 ^= s[1];
@@ -187,16 +188,16 @@ nlz64(uint64_t x) {
 	register int n = 0;
 
 	if (x == 0)
-		return 64;
+		return (64);
 
-	if (x <= 0x00000000FFFFFFFFULL) {n = n + 32; x = x << 32;}
-	if (x <= 0x0000FFFFFFFFFFFFULL) {n = n + 16; x = x << 16;}
-	if (x <= 0x00FFFFFFFFFFFFFFULL) {n = n +  8; x = x <<  8;}
-	if (x <= 0x0FFFFFFFFFFFFFFFULL) {n = n +  4; x = x <<  4;}
-	if (x <= 0x3FFFFFFFFFFFFFFFULL) {n = n +  2; x = x <<  2;}
-	if (x <= 0x7FFFFFFFFFFFFFFFULL) {n = n +  1;}
+	if (x <= 0x00000000FFFFFFFFULL) { n = n + 32; x = x << 32; }
+	if (x <= 0x0000FFFFFFFFFFFFULL) { n = n + 16; x = x << 16; }
+	if (x <= 0x00FFFFFFFFFFFFFFULL) { n = n +  8; x = x <<  8; }
+	if (x <= 0x0FFFFFFFFFFFFFFFULL) { n = n +  4; x = x <<  4; }
+	if (x <= 0x3FFFFFFFFFFFFFFFULL) { n = n +  2; x = x <<  2; }
+	if (x <= 0x7FFFFFFFFFFFFFFFULL) { n = n +  1; }
 
-	return n;
+	return (n);
 }
 
 /*
@@ -207,7 +208,7 @@ static inline uint64_t
 __div_u64(uint64_t u, uint32_t v)
 {
 	(void) do_div(u, v);
-	return u;
+	return (u);
 }
 
 /*
@@ -227,7 +228,7 @@ __udivdi3(uint64_t u, uint64_t v)
 
 	if (v >> 32 == 0) {			// If v < 2**32:
 		if (u >> 32 < v) {		// If u/v cannot overflow,
-			return __div_u64(u, v);	// just do one division.
+			return (__div_u64(u, v)); // just do one division.
 		} else {			// If u/v would overflow:
 			u1 = u >> 32;		// Break u into two halves.
 			u0 = u & 0xFFFFFFFF;
@@ -235,7 +236,7 @@ __udivdi3(uint64_t u, uint64_t v)
 			k  = u1 - q1 * v;	// First remainder, < v.
 			u0 += (k << 32);
 			q0 = __div_u64(u0, v);	// Seconds quotient digit.
-			return (q1 << 32) + q0;
+			return ((q1 << 32) + q0);
 		}
 	} else {				// If v >= 2**32:
 		n = nlz64(v);			// 0 <= n <= 31.
@@ -249,7 +250,7 @@ __udivdi3(uint64_t u, uint64_t v)
 		if ((u - q0 * v) >= v)
 			q0 = q0 + 1;		// Now q0 is correct.
 
-		return q0;
+		return (q0);
 	}
 }
 EXPORT_SYMBOL(__udivdi3);
@@ -263,7 +264,7 @@ __divdi3(int64_t u, int64_t v)
 	int64_t q, t;
 	q = __udivdi3(abs64(u), abs64(v));
 	t = (u ^ v) >> 63;	// If u, v have different
-	return (q ^ t) - t;	// signs, negate q.
+	return ((q ^ t) - t);	// signs, negate q.
 }
 EXPORT_SYMBOL(__divdi3);
 
@@ -344,9 +345,11 @@ __aeabi_uldivmod(uint64_t u, uint64_t v)
 		register uint32_t r2 asm("r2") = (mod & 0xFFFFFFFF);
 		register uint32_t r3 asm("r3") = (mod >> 32);
 
+		/* BEGIN CSTYLED */
 		asm volatile(""
 		    : "+r"(r0), "+r"(r1), "+r"(r2),"+r"(r3)  /* output */
 		    : "r"(r0), "r"(r1), "r"(r2), "r"(r3));   /* input */
+		/* END CSTYLED */
 
 		return; /* r0; */
 	}
@@ -367,9 +370,11 @@ __aeabi_ldivmod(int64_t u, int64_t v)
 		register uint32_t r2 asm("r2") = (mod & 0xFFFFFFFF);
 		register uint32_t r3 asm("r3") = (mod >> 32);
 
+		/* BEGIN CSTYLED */
 		asm volatile(""
 		    : "+r"(r0), "+r"(r1), "+r"(r2),"+r"(r3)  /* output */
 		    : "r"(r0), "r"(r1), "r"(r2), "r"(r3));   /* input */
+		/* END CSTYLED */
 
 		return; /* r0; */
 	}
@@ -378,7 +383,8 @@ EXPORT_SYMBOL(__aeabi_ldivmod);
 #endif /* __arm || __arm__ */
 #endif /* BITS_PER_LONG */
 
-/* NOTE: The strtoxx behavior is solely based on my reading of the Solaris
+/*
+ * NOTE: The strtoxx behavior is solely based on my reading of the Solaris
  * ddi_strtol(9F) man page.  I have not verified the behavior of these
  * functions against their Solaris counterparts.  It is possible that I
  * may have misinterpreted the man page or the man page is incorrect.
@@ -388,28 +394,28 @@ int ddi_strtol(const char *, char **, int, long *);
 int ddi_strtoull(const char *, char **, int, unsigned long long *);
 int ddi_strtoll(const char *, char **, int, long long *);
 
-#define define_ddi_strtoux(type, valtype)				\
+#define	define_ddi_strtoux(type, valtype)				\
 int ddi_strtou##type(const char *str, char **endptr,			\
-		     int base, valtype *result)				\
+    int base, valtype *result)						\
 {									\
 	valtype last_value, value = 0;					\
 	char *ptr = (char *)str;					\
 	int flag = 1, digit;						\
 									\
 	if (strlen(ptr) == 0)						\
-		return EINVAL;						\
+		return (EINVAL);					\
 									\
 	/* Auto-detect base based on prefix */				\
 	if (!base) {							\
 		if (str[0] == '0') {					\
-			if (tolower(str[1])=='x' && isxdigit(str[2])) {	\
+			if (tolower(str[1]) == 'x' && isxdigit(str[2])) { \
 				base = 16; /* hex */			\
 				ptr += 2;				\
 			} else if (str[1] >= '0' && str[1] < 8) {	\
 				base = 8; /* octal */			\
 				ptr += 1;				\
 			} else {					\
-				return EINVAL;				\
+				return (EINVAL);			\
 			}						\
 		} else {						\
 			base = 10; /* decimal */			\
@@ -430,7 +436,7 @@ int ddi_strtou##type(const char *str, char **endptr,			\
 		last_value = value;					\
 		value = value * base + digit;				\
 		if (last_value > value) /* Overflow */			\
-			return ERANGE;					\
+			return (ERANGE);				\
 									\
 		flag = 1;						\
 		ptr++;							\
@@ -442,12 +448,12 @@ int ddi_strtou##type(const char *str, char **endptr,			\
 	if (endptr)							\
 		*endptr = (char *)(flag ? ptr : str);			\
 									\
-	return 0;							\
+	return (0);							\
 }									\
 
-#define define_ddi_strtox(type, valtype)				\
+#define	define_ddi_strtox(type, valtype)				\
 int ddi_strto##type(const char *str, char **endptr,			\
-		       int base, valtype *result)			\
+    int base, valtype *result)						\
 {									\
 	int rc;								\
 									\
@@ -463,7 +469,7 @@ int ddi_strto##type(const char *str, char **endptr,			\
 		rc = ddi_strtou##type(str, endptr, base, result);	\
 	}								\
 									\
-	return rc;							\
+	return (rc);							\
 }
 
 define_ddi_strtoux(l, unsigned long)
@@ -482,10 +488,10 @@ ddi_copyin(const void *from, void *to, size_t len, int flags)
 	/* Fake ioctl() issued by kernel, 'from' is a kernel address */
 	if (flags & FKIOCTL) {
 		memcpy(to, from, len);
-		return 0;
+		return (0);
 	}
 
-	return copyin(from, to, len);
+	return (copyin(from, to, len));
 }
 EXPORT_SYMBOL(ddi_copyin);
 
@@ -495,10 +501,10 @@ ddi_copyout(const void *from, void *to, size_t len, int flags)
 	/* Fake ioctl() issued by kernel, 'from' is a kernel address */
 	if (flags & FKIOCTL) {
 		memcpy(to, from, len);
-		return 0;
+		return (0);
 	}
 
-	return copyout(from, to, len);
+	return (copyout(from, to, len));
 }
 EXPORT_SYMBOL(ddi_copyout);
 
@@ -559,7 +565,7 @@ hostid_read(uint32_t *hostid)
 		return (error);
 	}
 
-	if (size < sizeof(HW_HOSTID_MASK)) {
+	if (size < sizeof (HW_HOSTID_MASK)) {
 		kobj_close_file(file);
 		return (EINVAL);
 	}
@@ -568,7 +574,7 @@ hostid_read(uint32_t *hostid)
 	 * Read directly into the variable like eglibc does.
 	 * Short reads are okay; native behavior is preserved.
 	 */
-	error = kobj_read_file(file, (char *)&value, sizeof(value), 0);
+	error = kobj_read_file(file, (char *)&value, sizeof (value), 0);
 	if (error < 0) {
 		kobj_close_file(file);
 		return (EIO);
@@ -578,7 +584,7 @@ hostid_read(uint32_t *hostid)
 	*hostid = (value & HW_HOSTID_MASK);
 	kobj_close_file(file);
 
-	return 0;
+	return (0);
 }
 
 /*
@@ -704,7 +710,7 @@ spl_init(void)
 		goto out10;
 
 	printk(KERN_NOTICE "SPL: Loaded module v%s-%s%s\n", SPL_META_VERSION,
-	       SPL_META_RELEASE, SPL_DEBUG_STR);
+	    SPL_META_RELEASE, SPL_DEBUG_STR);
 	return (rc);
 
 out10:
@@ -727,8 +733,8 @@ out2:
 	spl_kvmem_fini();
 out1:
 	printk(KERN_NOTICE "SPL: Failed to Load Solaris Porting Layer "
-	       "v%s-%s%s, rc = %d\n", SPL_META_VERSION, SPL_META_RELEASE,
-	       SPL_DEBUG_STR, rc);
+	    "v%s-%s%s, rc = %d\n", SPL_META_VERSION, SPL_META_RELEASE,
+	    SPL_DEBUG_STR, rc);
 
 	return (rc);
 }
@@ -737,7 +743,7 @@ static void __exit
 spl_fini(void)
 {
 	printk(KERN_NOTICE "SPL: Unloaded module v%s-%s%s\n",
-	       SPL_META_VERSION, SPL_META_RELEASE, SPL_DEBUG_STR);
+	    SPL_META_VERSION, SPL_META_RELEASE, SPL_DEBUG_STR);
 	spl_zlib_fini();
 	spl_kstat_fini();
 	spl_proc_fini();

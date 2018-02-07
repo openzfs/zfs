@@ -26,6 +26,7 @@
 #define	_SPL_MATH64_COMPAT_H
 
 #ifndef abs64
+/* CSTYLED */
 #define	abs64(x)	({ uint64_t t = (x) >> 63; ((x) ^ t) - t; })
 #endif
 

@@ -23,10 +23,10 @@
  */
 
 #ifndef _SPL_MODE_H
-#define _SPL_MODE_H
+#define	_SPL_MODE_H
 
-#define IFTOVT(mode)	vn_mode_to_vtype(mode)
-#define VTTOIF(vtype)	vn_vtype_to_mode(vtype)
-#define MAKEIMODE(T, M) (VTTOIF(T) | ((M) & ~S_IFMT))
+#define	IFTOVT(mode)	vn_mode_to_vtype(mode)
+#define	VTTOIF(vtype)	vn_vtype_to_mode(vtype)
+#define	MAKEIMODE(T, M) (VTTOIF(T) | ((M) & ~S_IFMT))
 
 #endif /* SPL_MODE_H */

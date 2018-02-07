@@ -20,17 +20,11 @@
  *
  *  You should have received a copy of the GNU General Public License along
  *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
- *****************************************************************************
+ *
  *  Solaris Porting Layer (SPL) Credential Implementation.
  */
 
 #include <sys/cred.h>
-
-#ifdef DEBUG_SUBSYSTEM
-#undef DEBUG_SUBSYSTEM
-#endif
-
-#define DEBUG_SUBSYSTEM S_CRED
 
 static int
 #ifdef HAVE_KUIDGID_T
@@ -43,7 +37,7 @@ cr_groups_search(const struct group_info *group_info, gid_t grp)
 	int cmp;
 
 	if (!group_info)
-		return 0;
+		return (0);
 
 	left = 0;
 	right = group_info->ngroups;
@@ -57,16 +51,16 @@ cr_groups_search(const struct group_info *group_info, gid_t grp)
 		else if (cmp < 0)
 			right = mid;
 		else
-			return 1;
+			return (1);
 	}
-	return 0;
+	return (0);
 }
 
 /* Hold a reference on the credential */
 void
 crhold(cred_t *cr)
 {
-	(void)get_cred((const cred_t *)cr);
+	(void) get_cred((const cred_t *)cr);
 }
 
 /* Free a reference on the credential */
@@ -96,7 +90,7 @@ crgetngroups(const cred_t *cr)
 		rc = NGROUPS_PER_BLOCK;
 	}
 #endif
-	return rc;
+	return (rc);
 }
 
 /*
@@ -119,7 +113,7 @@ crgetgroups(const cred_t *cr)
 	if (gi->nblocks > 0)
 		gids = KGIDP_TO_SGIDP(gi->blocks[0]);
 #endif
-	return gids;
+	return (gids);
 }
 
 /* Check if the passed gid is available in supplied credential. */
@@ -132,63 +126,63 @@ groupmember(gid_t gid, const cred_t *cr)
 	gi = cr->group_info;
 	rc = cr_groups_search(gi, SGID_TO_KGID(gid));
 
-	return rc;
+	return (rc);
 }
 
 /* Return the effective user id */
 uid_t
 crgetuid(const cred_t *cr)
 {
-	return KUID_TO_SUID(cr->euid);
+	return (KUID_TO_SUID(cr->euid));
 }
 
 /* Return the real user id */
 uid_t
 crgetruid(const cred_t *cr)
 {
-	return KUID_TO_SUID(cr->uid);
+	return (KUID_TO_SUID(cr->uid));
 }
 
 /* Return the saved user id */
 uid_t
 crgetsuid(const cred_t *cr)
 {
-	return KUID_TO_SUID(cr->suid);
+	return (KUID_TO_SUID(cr->suid));
 }
 
 /* Return the filesystem user id */
 uid_t
 crgetfsuid(const cred_t *cr)
 {
-	return KUID_TO_SUID(cr->fsuid);
+	return (KUID_TO_SUID(cr->fsuid));
 }
 
 /* Return the effective group id */
 gid_t
 crgetgid(const cred_t *cr)
 {
-	return KGID_TO_SGID(cr->egid);
+	return (KGID_TO_SGID(cr->egid));
 }
 
 /* Return the real group id */
 gid_t
 crgetrgid(const cred_t *cr)
 {
-	return KGID_TO_SGID(cr->gid);
+	return (KGID_TO_SGID(cr->gid));
 }
 
 /* Return the saved group id */
 gid_t
 crgetsgid(const cred_t *cr)
 {
-	return KGID_TO_SGID(cr->sgid);
+	return (KGID_TO_SGID(cr->sgid));
 }
 
 /* Return the filesystem group id */
 gid_t
 crgetfsgid(const cred_t *cr)
 {
-	return KGID_TO_SGID(cr->fsgid);
+	return (KGID_TO_SGID(cr->fsgid));
 }
 
 EXPORT_SYMBOL(crhold);

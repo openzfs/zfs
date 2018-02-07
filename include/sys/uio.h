@@ -24,7 +24,7 @@
  */
 
 #ifndef _SPL_UIO_H
-#define _SPL_UIO_H
+#define	_SPL_UIO_H
 
 #include <linux/uio.h>
 #include <linux/blkdev.h>
@@ -34,15 +34,15 @@
 typedef struct iovec iovec_t;
 
 typedef enum uio_rw {
-	UIO_READ =	0,
-	UIO_WRITE =	1,
+	UIO_READ =		0,
+	UIO_WRITE =		1,
 } uio_rw_t;
 
 typedef enum uio_seg {
-	UIO_USERSPACE =	0,
-	UIO_SYSSPACE =	1,
-	UIO_USERISPACE=	2,
-	UIO_BVEC =	3,
+	UIO_USERSPACE =		0,
+	UIO_SYSSPACE =		1,
+	UIO_USERISPACE =	2,
+	UIO_BVEC =		3,
 } uio_seg_t;
 
 typedef struct uio {
@@ -71,7 +71,7 @@ typedef enum xuio_type {
 } xuio_type_t;
 
 
-#define UIOA_IOV_MAX    16
+#define	UIOA_IOV_MAX    16
 
 typedef struct uioa_page_s {
 	int	uioa_pfncnt;
@@ -100,7 +100,7 @@ typedef struct xuio {
 	} xu_ext;
 } xuio_t;
 
-#define XUIO_XUZC_PRIV(xuio)	xuio->xu_ext.xu_zc.xu_zc_priv
-#define XUIO_XUZC_RW(xuio)	xuio->xu_ext.xu_zc.xu_zc_rw
+#define	XUIO_XUZC_PRIV(xuio)	xuio->xu_ext.xu_zc.xu_zc_priv
+#define	XUIO_XUZC_RW(xuio)	xuio->xu_ext.xu_zc.xu_zc_rw
 
 #endif /* SPL_UIO_H */

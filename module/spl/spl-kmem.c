@@ -383,7 +383,7 @@ spl_kmem_free_track(const void *ptr, size_t size)
 {
 	kmem_debug_t *dptr;
 
-	/* Ignore NULL pointer since we haven't tracked it at all*/
+	/* Ignore NULL pointer since we haven't tracked it at all */
 	if (ptr == NULL)
 		return;
 

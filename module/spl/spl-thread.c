@@ -20,7 +20,7 @@
  *
  *  You should have received a copy of the GNU General Public License along
  *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
- *****************************************************************************
+ *
  *  Solaris Porting Layer (SPL) Thread Implementation.
  */
 
@@ -33,8 +33,8 @@
  */
 typedef struct thread_priv_s {
 	unsigned long tp_magic;		/* Magic */
-        int tp_name_size;		/* Name size */
-        char *tp_name;			/* Name (without _thread suffix) */
+	int tp_name_size;		/* Name size */
+	char *tp_name;			/* Name (without _thread suffix) */
 	void (*tp_func)(void *);	/* Registered function */
 	void *tp_args;			/* Args to be passed to function */
 	size_t tp_len;			/* Len to be passed to function */
@@ -55,12 +55,12 @@ thread_generic_wrapper(void *arg)
 	set_current_state(tp->tp_state);
 	set_user_nice((kthread_t *)current, PRIO_TO_NICE(tp->tp_pri));
 	kmem_free(tp->tp_name, tp->tp_name_size);
-	kmem_free(tp, sizeof(thread_priv_t));
+	kmem_free(tp, sizeof (thread_priv_t));
 
 	if (func)
 		func(args);
 
-	return 0;
+	return (0);
 }
 
 void
@@ -72,9 +72,11 @@ __thread_exit(void)
 }
 EXPORT_SYMBOL(__thread_exit);
 
-/* thread_create() may block forever if it cannot create a thread or
+/*
+ * thread_create() may block forever if it cannot create a thread or
  * allocate memory.  This is preferable to returning a NULL which Solaris
- * style callers likely never check for... since it can't fail. */
+ * style callers likely never check for... since it can't fail.
+ */
 kthread_t *
 __thread_create(caddr_t stk, size_t  stksize, thread_func_t func,
 		const char *name, void *args, size_t len, proc_t *pp,
@@ -88,7 +90,7 @@ __thread_create(caddr_t stk, size_t  stksize, thread_func_t func,
 	/* Variable stack size unsupported */
 	ASSERT(stk == NULL);
 
-	tp = kmem_alloc(sizeof(thread_priv_t), KM_PUSHPAGE);
+	tp = kmem_alloc(sizeof (thread_priv_t), KM_PUSHPAGE);
 	if (tp == NULL)
 		return (NULL);
 
@@ -96,14 +98,15 @@ __thread_create(caddr_t stk, size_t  stksize, thread_func_t func,
 	tp->tp_name_size = strlen(name) + 1;
 
 	tp->tp_name = kmem_alloc(tp->tp_name_size, KM_PUSHPAGE);
-        if (tp->tp_name == NULL) {
-		kmem_free(tp, sizeof(thread_priv_t));
+	if (tp->tp_name == NULL) {
+		kmem_free(tp, sizeof (thread_priv_t));
 		return (NULL);
 	}
 
 	strncpy(tp->tp_name, name, tp->tp_name_size);
 
-	/* Strip trailing "_thread" from passed name which will be the func
+	/*
+	 * Strip trailing "_thread" from passed name which will be the func
 	 * name since the exposed API has no parameter for passing a name.
 	 */
 	p = strstr(tp->tp_name, "_thread");
@@ -117,7 +120,7 @@ __thread_create(caddr_t stk, size_t  stksize, thread_func_t func,
 	tp->tp_pri   = pri;
 
 	tsk = spl_kthread_create(thread_generic_wrapper, (void *)tp,
-			     "%s", tp->tp_name);
+	    "%s", tp->tp_name);
 	if (IS_ERR(tsk))
 		return (NULL);
 
@@ -139,7 +142,7 @@ spl_kthread_create(int (*func)(void *), void *data, const char namefmt[], ...)
 	char name[TASK_COMM_LEN];
 
 	va_start(args, namefmt);
-	vsnprintf(name, sizeof(name), namefmt, args);
+	vsnprintf(name, sizeof (name), namefmt, args);
 	va_end(args);
 	do {
 		tsk = kthread_create(func, data, "%s", name);

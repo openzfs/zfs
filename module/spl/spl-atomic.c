@@ -20,17 +20,11 @@
  *
  *  You should have received a copy of the GNU General Public License along
  *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
- *****************************************************************************
+ *
  *  Solaris Porting Layer (SPL) Atomic Implementation.
  */
 
 #include <sys/atomic.h>
-
-#ifdef DEBUG_SUBSYSTEM
-#undef DEBUG_SUBSYSTEM
-#endif
-
-#define DEBUG_SUBSYSTEM S_ATOMIC
 
 #ifdef ATOMIC_SPINLOCK
 /* Global atomic lock declarations */

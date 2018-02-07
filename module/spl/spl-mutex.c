@@ -20,17 +20,11 @@
  *
  *  You should have received a copy of the GNU General Public License along
  *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
- *****************************************************************************
+ *
  *  Solaris Porting Layer (SPL) Mutex Implementation.
  */
 
 #include <sys/mutex.h>
-
-#ifdef DEBUG_SUBSYSTEM
-#undef DEBUG_SUBSYSTEM
-#endif
-
-#define DEBUG_SUBSYSTEM S_MUTEX
 
 int spl_mutex_init(void) { return 0; }
 void spl_mutex_fini(void) { }

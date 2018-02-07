@@ -23,7 +23,7 @@
  */
 
 #ifndef _SPL_DISP_H
-#define _SPL_DISP_H
+#define	_SPL_DISP_H
 
 #include <linux/preempt.h>
 

@@ -23,6 +23,6 @@
  */
 
 #ifndef _SPL_EFI_PARTITION_H
-#define _SPL_EFI_PARTITION_H
+#define	_SPL_EFI_PARTITION_H
 
 #endif /* SPL_EFI_PARTITION_H */

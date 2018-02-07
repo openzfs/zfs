@@ -29,59 +29,59 @@
 #if defined(__x86_64) || defined(__x86_64__)
 
 #if !defined(__x86_64)
-#define __x86_64
+#define	__x86_64
 #endif
 
 #if !defined(__amd64)
-#define __amd64
+#define	__amd64
 #endif
 
 #if !defined(__x86)
-#define __x86
+#define	__x86
 #endif
 
 #if !defined(_LP64)
-#define _LP64
+#define	_LP64
 #endif
 
-#define _ALIGNMENT_REQUIRED            1
+#define	_ALIGNMENT_REQUIRED	1
 
 
 /* i386 arch specific defines */
 #elif defined(__i386) || defined(__i386__)
 
 #if !defined(__i386)
-#define __i386
+#define	__i386
 #endif
 
 #if !defined(__x86)
-#define __x86
+#define	__x86
 #endif
 
 #if !defined(_ILP32)
-#define _ILP32
+#define	_ILP32
 #endif
 
-#define _ALIGNMENT_REQUIRED            0
+#define	_ALIGNMENT_REQUIRED	0
 
 /* powerpc (ppc64) arch specific defines */
 #elif defined(__powerpc) || defined(__powerpc__) || defined(__powerpc64__)
 
 #if !defined(__powerpc)
-#define __powerpc
+#define	__powerpc
 #endif
 
 #if !defined(__powerpc__)
-#define __powerpc__
+#define	__powerpc__
 #endif
 
 #if defined(__powerpc64__)
 #if !defined(_LP64)
-#define _LP64
+#define	_LP64
 #endif
 #else
 #if !defined(_ILP32)
-#define _ILP32
+#define	_ILP32
 #endif
 #endif
 
@@ -89,65 +89,65 @@
  * Illumos doesn't define _ALIGNMENT_REQUIRED for PPC, so default to 1
  * out of paranoia.
  */
-#define _ALIGNMENT_REQUIRED            1
+#define	_ALIGNMENT_REQUIRED	1
 
 /* arm arch specific defines */
 #elif defined(__arm) || defined(__arm__) || defined(__aarch64__)
 
 #if !defined(__arm)
-#define __arm
+#define	__arm
 #endif
 
 #if !defined(__arm__)
-#define __arm__
+#define	__arm__
 #endif
 
 #if defined(__aarch64__)
 #if !defined(_LP64)
-#define _LP64
+#define	_LP64
 #endif
 #else
 #if !defined(_ILP32)
-#define _ILP32
+#define	_ILP32
 #endif
 #endif
 
 #if defined(__ARMEL__) || defined(__AARCH64EL__)
-#define _LITTLE_ENDIAN
+#define	_LITTLE_ENDIAN
 #else
-#define _BIG_ENDIAN
+#define	_BIG_ENDIAN
 #endif
 
 /*
  * Illumos doesn't define _ALIGNMENT_REQUIRED for ARM, so default to 1
  * out of paranoia.
  */
-#define _ALIGNMENT_REQUIRED            1
+#define	_ALIGNMENT_REQUIRED	1
 
 /* sparc arch specific defines */
 #elif defined(__sparc) || defined(__sparc__)
 
 #if !defined(__sparc)
-#define __sparc
+#define	__sparc
 #endif
 
 #if !defined(__sparc__)
-#define __sparc__
+#define	__sparc__
 #endif
 
 #if defined(__arch64__)
 #if !defined(_LP64)
-#define _LP64
+#define	_LP64
 #endif
 #else
 #if !defined(_ILP32)
-#define _ILP32
+#define	_ILP32
 #endif
 #endif
 
-#define _BIG_ENDIAN
-#define _SUNOS_VTOC_16
-#define _ALIGNMENT_REQUIRED            1
+#define	_BIG_ENDIAN
+#define	_SUNOS_VTOC_16
+#define	_ALIGNMENT_REQUIRED	1
 
 /* s390 arch specific defines */
 #elif defined(__s390__)
@@ -167,7 +167,7 @@
  * Illumos doesn't define _ALIGNMENT_REQUIRED for s390, so default to 1
  * out of paranoia.
  */
-#define _ALIGNMENT_REQUIRED            1
+#define	_ALIGNMENT_REQUIRED	1
 
 /* MIPS arch specific defines */
 #elif defined(__mips__)
@@ -190,7 +190,7 @@
  * Illumos doesn't define _ALIGNMENT_REQUIRED for MIPS, so default to 1
  * out of paranoia.
  */
-#define _ALIGNMENT_REQUIRED            1
+#define	_ALIGNMENT_REQUIRED	1
 
 #else
 /*
@@ -211,11 +211,11 @@
 #include <sys/byteorder.h>
 
 #if defined(__LITTLE_ENDIAN) && !defined(_LITTLE_ENDIAN)
-#define _LITTLE_ENDIAN __LITTLE_ENDIAN
+#define	_LITTLE_ENDIAN __LITTLE_ENDIAN
 #endif
 
 #if defined(__BIG_ENDIAN) && !defined(_BIG_ENDIAN)
-#define _BIG_ENDIAN __BIG_ENDIAN
+#define	_BIG_ENDIAN __BIG_ENDIAN
 #endif
 
 #if defined(_LITTLE_ENDIAN) && defined(_BIG_ENDIAN)

@@ -94,7 +94,7 @@ typedef struct taskq {
 	taskqid_t		tq_lowest_id;	/* lowest pend/work id */
 	struct list_head	tq_free_list;	/* free taskq_ent_t's */
 	struct list_head	tq_pend_list;	/* pending taskq_ent_t's */
-	struct list_head	tq_prio_list;	/* priority pending taskq_ent_t's */
+	struct list_head	tq_prio_list;	/* priority taskq_ent_t's */
 	struct list_head	tq_delay_list;	/* delayed taskq_ent_t's */
 	struct list_head	tq_taskqs;	/* all taskq_t's */
 	spl_wait_queue_head_t	tq_work_waitq;	/* new work waitq */

@@ -23,7 +23,7 @@
  */
 
 #ifndef _SPL_THREAD_H
-#define _SPL_THREAD_H
+#define	_SPL_THREAD_H
 
 #include <linux/module.h>
 #include <linux/mm.h>
@@ -36,28 +36,30 @@
 /*
  * Thread interfaces
  */
-#define TP_MAGIC			0x53535353
+#define	TP_MAGIC			0x53535353
 
-#define TS_SLEEP			TASK_INTERRUPTIBLE
-#define TS_RUN				TASK_RUNNING
-#define TS_ZOMB				EXIT_ZOMBIE
-#define TS_STOPPED			TASK_STOPPED
+#define	TS_SLEEP			TASK_INTERRUPTIBLE
+#define	TS_RUN				TASK_RUNNING
+#define	TS_ZOMB				EXIT_ZOMBIE
+#define	TS_STOPPED			TASK_STOPPED
 
 typedef void (*thread_func_t)(void *);
 
-#define thread_create(stk, stksize, func, arg, len, pp, state, pri)      \
-	__thread_create(stk, stksize, (thread_func_t)func,               \
-	                #func, arg, len, pp, state, pri)
-#define thread_exit()			__thread_exit()
-#define thread_join(t)			VERIFY(0)
-#define curthread			current
-#define getcomm()			current->comm
-#define getpid()			current->pid
+/* BEGIN CSTYLED */
+#define	thread_create(stk, stksize, func, arg, len, pp, state, pri)	\
+	__thread_create(stk, stksize, (thread_func_t)func,		\
+	#func, arg, len, pp, state, pri)
+/* END CSTYLED */
+
+#define	thread_exit()			__thread_exit()
+#define	thread_join(t)			VERIFY(0)
+#define	curthread			current
+#define	getcomm()			current->comm
+#define	getpid()			current->pid
 
 extern kthread_t *__thread_create(caddr_t stk, size_t  stksize,
-                                  thread_func_t func, const char *name,
-                                  void *args, size_t len, proc_t *pp,
-                                  int state, pri_t pri);
+    thread_func_t func, const char *name, void *args, size_t len, proc_t *pp,
+    int state, pri_t pri);
 extern void __thread_exit(void);
 extern struct task_struct *spl_kthread_create(int (*func)(void *),
 			void *data, const char namefmt[], ...);

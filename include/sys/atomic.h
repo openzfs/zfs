@@ -23,7 +23,7 @@
  */
 
 #ifndef _SPL_ATOMIC_H
-#define _SPL_ATOMIC_H
+#define	_SPL_ATOMIC_H
 
 #include <linux/module.h>
 #include <linux/spinlock.h>
@@ -91,7 +91,7 @@ atomic_inc_32_nv(volatile uint32_t *target)
 	nv = ++(*target);
 	spin_unlock(&atomic32_lock);
 
-	return nv;
+	return (nv);
 }
 
 static __inline__ uint32_t
@@ -103,7 +103,7 @@ atomic_dec_32_nv(volatile uint32_t *target)
 	nv = --(*target);
 	spin_unlock(&atomic32_lock);
 
-	return nv;
+	return (nv);
 }
 
 static __inline__ uint32_t
@@ -116,7 +116,7 @@ atomic_add_32_nv(volatile uint32_t *target, uint32_t delta)
 	nv = *target;
 	spin_unlock(&atomic32_lock);
 
-	return nv;
+	return (nv);
 }
 
 static __inline__ uint32_t
@@ -129,12 +129,11 @@ atomic_sub_32_nv(volatile uint32_t *target, uint32_t delta)
 	nv = *target;
 	spin_unlock(&atomic32_lock);
 
-	return nv;
+	return (nv);
 }
 
 static __inline__ uint32_t
-atomic_cas_32(volatile uint32_t *target,  uint32_t cmp,
-              uint32_t newval)
+atomic_cas_32(volatile uint32_t *target,  uint32_t cmp, uint32_t newval)
 {
 	uint32_t rc;
 
@@ -145,7 +144,7 @@ atomic_cas_32(volatile uint32_t *target,  uint32_t cmp,
 
 	spin_unlock(&atomic32_lock);
 
-	return rc;
+	return (rc);
 }
 
 static __inline__ uint32_t
@@ -158,7 +157,7 @@ atomic_swap_32(volatile uint32_t *target,  uint32_t newval)
 	*target = newval;
 	spin_unlock(&atomic32_lock);
 
-	return rc;
+	return (rc);
 }
 
 static __inline__ void
@@ -202,7 +201,7 @@ atomic_inc_64_nv(volatile uint64_t *target)
 	nv = ++(*target);
 	spin_unlock(&atomic64_lock);
 
-	return nv;
+	return (nv);
 }
 
 static __inline__ uint64_t
@@ -214,7 +213,7 @@ atomic_dec_64_nv(volatile uint64_t *target)
 	nv = --(*target);
 	spin_unlock(&atomic64_lock);
 
-	return nv;
+	return (nv);
 }
 
 static __inline__ uint64_t
@@ -227,7 +226,7 @@ atomic_add_64_nv(volatile uint64_t *target, uint64_t delta)
 	nv = *target;
 	spin_unlock(&atomic64_lock);
 
-	return nv;
+	return (nv);
 }
 
 static __inline__ uint64_t
@@ -240,12 +239,11 @@ atomic_sub_64_nv(volatile uint64_t *target, uint64_t delta)
 	nv = *target;
 	spin_unlock(&atomic64_lock);
 
-	return nv;
+	return (nv);
 }
 
 static __inline__ uint64_t
-atomic_cas_64(volatile uint64_t *target,  uint64_t cmp,
-              uint64_t newval)
+atomic_cas_64(volatile uint64_t *target,  uint64_t cmp, uint64_t newval)
 {
 	uint64_t rc;
 
@@ -255,7 +253,7 @@ atomic_cas_64(volatile uint64_t *target,  uint64_t cmp,
 		*target = newval;
 	spin_unlock(&atomic64_lock);
 
-	return rc;
+	return (rc);
 }
 
 static __inline__ uint64_t
@@ -268,31 +266,31 @@ atomic_swap_64(volatile uint64_t *target,  uint64_t newval)
 	*target = newval;
 	spin_unlock(&atomic64_lock);
 
-	return rc;
+	return (rc);
 }
 
 #else /* ATOMIC_SPINLOCK */
 
-#define atomic_inc_32(v)	atomic_inc((atomic_t *)(v))
-#define atomic_dec_32(v)	atomic_dec((atomic_t *)(v))
-#define atomic_add_32(v, i)	atomic_add((i), (atomic_t *)(v))
-#define atomic_sub_32(v, i)	atomic_sub((i), (atomic_t *)(v))
-#define atomic_inc_32_nv(v)	atomic_inc_return((atomic_t *)(v))
-#define atomic_dec_32_nv(v)	atomic_dec_return((atomic_t *)(v))
-#define atomic_add_32_nv(v, i)	atomic_add_return((i), (atomic_t *)(v))
-#define atomic_sub_32_nv(v, i)	atomic_sub_return((i), (atomic_t *)(v))
-#define atomic_cas_32(v, x, y)	atomic_cmpxchg((atomic_t *)(v), x, y)
-#define atomic_swap_32(v, x)	atomic_xchg((atomic_t *)(v), x)
-#define atomic_inc_64(v)	atomic64_inc((atomic64_t *)(v))
-#define atomic_dec_64(v)	atomic64_dec((atomic64_t *)(v))
-#define atomic_add_64(v, i)	atomic64_add((i), (atomic64_t *)(v))
-#define atomic_sub_64(v, i)	atomic64_sub((i), (atomic64_t *)(v))
-#define atomic_inc_64_nv(v)	atomic64_inc_return((atomic64_t *)(v))
-#define atomic_dec_64_nv(v)	atomic64_dec_return((atomic64_t *)(v))
-#define atomic_add_64_nv(v, i)	atomic64_add_return((i), (atomic64_t *)(v))
-#define atomic_sub_64_nv(v, i)	atomic64_sub_return((i), (atomic64_t *)(v))
-#define atomic_cas_64(v, x, y)	atomic64_cmpxchg((atomic64_t *)(v), x, y)
-#define atomic_swap_64(v, x)	atomic64_xchg((atomic64_t *)(v), x)
+#define	atomic_inc_32(v)	atomic_inc((atomic_t *)(v))
+#define	atomic_dec_32(v)	atomic_dec((atomic_t *)(v))
+#define	atomic_add_32(v, i)	atomic_add((i), (atomic_t *)(v))
+#define	atomic_sub_32(v, i)	atomic_sub((i), (atomic_t *)(v))
+#define	atomic_inc_32_nv(v)	atomic_inc_return((atomic_t *)(v))
+#define	atomic_dec_32_nv(v)	atomic_dec_return((atomic_t *)(v))
+#define	atomic_add_32_nv(v, i)	atomic_add_return((i), (atomic_t *)(v))
+#define	atomic_sub_32_nv(v, i)	atomic_sub_return((i), (atomic_t *)(v))
+#define	atomic_cas_32(v, x, y)	atomic_cmpxchg((atomic_t *)(v), x, y)
+#define	atomic_swap_32(v, x)	atomic_xchg((atomic_t *)(v), x)
+#define	atomic_inc_64(v)	atomic64_inc((atomic64_t *)(v))
+#define	atomic_dec_64(v)	atomic64_dec((atomic64_t *)(v))
+#define	atomic_add_64(v, i)	atomic64_add((i), (atomic64_t *)(v))
+#define	atomic_sub_64(v, i)	atomic64_sub((i), (atomic64_t *)(v))
+#define	atomic_inc_64_nv(v)	atomic64_inc_return((atomic64_t *)(v))
+#define	atomic_dec_64_nv(v)	atomic64_dec_return((atomic64_t *)(v))
+#define	atomic_add_64_nv(v, i)	atomic64_add_return((i), (atomic64_t *)(v))
+#define	atomic_sub_64_nv(v, i)	atomic64_sub_return((i), (atomic64_t *)(v))
+#define	atomic_cas_64(v, x, y)	atomic64_cmpxchg((atomic64_t *)(v), x, y)
+#define	atomic_swap_64(v, x)	atomic64_xchg((atomic64_t *)(v), x)
 
 #endif /* ATOMIC_SPINLOCK */
 
@@ -300,15 +298,15 @@ atomic_swap_64(volatile uint64_t *target,  uint64_t newval)
 static __inline__ void *
 atomic_cas_ptr(volatile void *target,  void *cmp, void *newval)
 {
-	return (void *)atomic_cas_64((volatile uint64_t *)target,
-	                             (uint64_t)cmp, (uint64_t)newval);
+	return ((void *)atomic_cas_64((volatile uint64_t *)target,
+	    (uint64_t)cmp, (uint64_t)newval));
 }
 #else /* _LP64 */
 static __inline__ void *
 atomic_cas_ptr(volatile void *target,  void *cmp, void *newval)
 {
-	return (void *)atomic_cas_32((volatile uint32_t *)target,
-	                             (uint32_t)cmp, (uint32_t)newval);
+	return ((void *)atomic_cas_32((volatile uint32_t *)target,
+	    (uint32_t)cmp, (uint32_t)newval));
 }
 #endif /* _LP64 */
 

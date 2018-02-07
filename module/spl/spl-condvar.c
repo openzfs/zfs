@@ -335,8 +335,8 @@ __cv_timedwait_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t expire_time,
  * Compatibility wrapper for the cv_timedwait_hires() Illumos interface.
  */
 static clock_t
-cv_timedwait_hires_common(kcondvar_t *cvp, kmutex_t *mp, hrtime_t tim, hrtime_t res,
-    int flag, int state)
+cv_timedwait_hires_common(kcondvar_t *cvp, kmutex_t *mp, hrtime_t tim,
+    hrtime_t res, int flag, int state)
 {
 	if (res > 1) {
 		/*
@@ -363,8 +363,8 @@ cv_timedwait_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t tim, hrtime_t res,
 EXPORT_SYMBOL(cv_timedwait_hires);
 
 clock_t
-cv_timedwait_sig_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t tim, hrtime_t res,
-    int flag)
+cv_timedwait_sig_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t tim,
+    hrtime_t res, int flag)
 {
 	return (cv_timedwait_hires_common(cvp, mp, tim, res, flag,
 	    TASK_INTERRUPTIBLE));

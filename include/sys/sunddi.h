@@ -23,7 +23,7 @@
  */
 
 #ifndef _SPL_SUNDDI_H
-#define _SPL_SUNDDI_H
+#define	_SPL_SUNDDI_H
 
 #include <sys/cred.h>
 #include <sys/uio.h>
@@ -44,9 +44,9 @@ typedef int ddi_devid_t;
 #define	DDI_SUCCESS				0
 #define	DDI_FAILURE				-1
 
-#define	ddi_prop_lookup_string(x1,x2,x3,x4,x5)	(*x5 = NULL)
-#define	ddi_prop_free(x)			(void)0
-#define	ddi_root_node()				(void)0
+#define	ddi_prop_lookup_string(x1, x2, x3, x4, x5)	(*x5 = NULL)
+#define	ddi_prop_free(x)				(void)0
+#define	ddi_root_node()					(void)0
 
 extern int ddi_strtoul(const char *, char **, int, unsigned long *);
 extern int ddi_strtol(const char *, char **, int, long *);

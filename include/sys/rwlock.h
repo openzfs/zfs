@@ -23,7 +23,7 @@
  */
 
 #ifndef _SPL_RWLOCK_H
-#define _SPL_RWLOCK_H
+#define	_SPL_RWLOCK_H
 
 #include <sys/types.h>
 #include <linux/rwsem.h>
@@ -55,7 +55,7 @@ typedef struct {
 #endif /* CONFIG_LOCKDEP */
 } krwlock_t;
 
-#define SEM(rwp)	(&(rwp)->rw_rwlock)
+#define	SEM(rwp)	(&(rwp)->rw_rwlock)
 
 static inline void
 spl_rw_set_owner(krwlock_t *rwp)
@@ -81,9 +81,9 @@ static inline kthread_t *
 rw_owner(krwlock_t *rwp)
 {
 #ifdef CONFIG_RWSEM_SPIN_ON_OWNER
-	return SEM(rwp)->owner;
+	return (SEM(rwp)->owner);
 #else
-	return rwp->rw_owner;
+	return (rwp->rw_owner);
 #endif
 }
 
@@ -106,9 +106,9 @@ spl_rw_lockdep_on_maybe(krwlock_t *rwp)			\
 		lockdep_on();				\
 }
 #else  /* CONFIG_LOCKDEP */
-#define spl_rw_set_type(rwp, type)
-#define spl_rw_lockdep_off_maybe(rwp)
-#define spl_rw_lockdep_on_maybe(rwp)
+#define	spl_rw_set_type(rwp, type)
+#define	spl_rw_lockdep_off_maybe(rwp)
+#define	spl_rw_lockdep_on_maybe(rwp)
 #endif /* CONFIG_LOCKDEP */
 
 static inline int
@@ -131,16 +131,17 @@ RW_WRITE_HELD(krwlock_t *rwp)
 static inline int
 RW_LOCK_HELD(krwlock_t *rwp)
 {
-	return spl_rwsem_is_locked(SEM(rwp));
+	return (spl_rwsem_is_locked(SEM(rwp)));
 }
 
 /*
- * The following functions must be a #define and not static inline.
+ * The following functions must be a #define	and not static inline.
  * This ensures that the native linux semaphore functions (down/up)
  * will be correctly located in the users code which is important
  * for the built in kernel lock analysis tools
  */
-#define rw_init(rwp, name, type, arg)					\
+/* BEGIN CSTYLED */
+#define	rw_init(rwp, name, type, arg)					\
 ({									\
 	static struct lock_class_key __key;				\
 	ASSERT(type == RW_DEFAULT || type == RW_NOLOCKDEP);		\
@@ -150,12 +151,12 @@ RW_LOCK_HELD(krwlock_t *rwp)
 	spl_rw_set_type(rwp, type);					\
 })
 
-#define rw_destroy(rwp)							\
+#define	rw_destroy(rwp)							\
 ({									\
 	VERIFY(!RW_LOCK_HELD(rwp));					\
 })
 
-#define rw_tryenter(rwp, rw)						\
+#define	rw_tryenter(rwp, rw)						\
 ({									\
 	int _rc_ = 0;							\
 									\
@@ -175,7 +176,7 @@ RW_LOCK_HELD(krwlock_t *rwp)
 	_rc_;								\
 })
 
-#define rw_enter(rwp, rw)						\
+#define	rw_enter(rwp, rw)						\
 ({									\
 	spl_rw_lockdep_off_maybe(rwp);					\
 	switch (rw) {							\
@@ -192,7 +193,7 @@ RW_LOCK_HELD(krwlock_t *rwp)
 	spl_rw_lockdep_on_maybe(rwp);					\
 })
 
-#define rw_exit(rwp)							\
+#define	rw_exit(rwp)							\
 ({									\
 	spl_rw_lockdep_off_maybe(rwp);					\
 	if (RW_WRITE_HELD(rwp)) {					\
@@ -205,7 +206,7 @@ RW_LOCK_HELD(krwlock_t *rwp)
 	spl_rw_lockdep_on_maybe(rwp);					\
 })
 
-#define rw_downgrade(rwp)						\
+#define	rw_downgrade(rwp)						\
 ({									\
 	spl_rw_lockdep_off_maybe(rwp);					\
 	spl_rw_clear_owner(rwp);					\
@@ -213,7 +214,7 @@ RW_LOCK_HELD(krwlock_t *rwp)
 	spl_rw_lockdep_on_maybe(rwp);					\
 })
 
-#define rw_tryupgrade(rwp)						\
+#define	rw_tryupgrade(rwp)						\
 ({									\
 	int _rc_ = 0;							\
 									\
@@ -227,6 +228,7 @@ RW_LOCK_HELD(krwlock_t *rwp)
 	}								\
 	_rc_;								\
 })
+/* END CSTYLED */
 
 int spl_rw_init(void);
 void spl_rw_fini(void);

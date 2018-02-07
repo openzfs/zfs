@@ -134,8 +134,8 @@ MODULE_PARM_DESC(spl_kmem_cache_slab_limit,
  * have been deemed costly by the kernel.
  */
 unsigned int spl_kmem_cache_kmem_limit =
-    ((1 << (PAGE_ALLOC_COSTLY_ORDER - 1)) * PAGE_SIZE) /
-    SPL_KMEM_CACHE_OBJ_PER_SLAB;
+	((1 << (PAGE_ALLOC_COSTLY_ORDER - 1)) * PAGE_SIZE) /
+	SPL_KMEM_CACHE_OBJ_PER_SLAB;
 module_param(spl_kmem_cache_kmem_limit, uint, 0644);
 MODULE_PARM_DESC(spl_kmem_cache_kmem_limit,
 	"Objects less than N bytes use the kmalloc");
@@ -1000,15 +1000,15 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 #endif
 
 #if defined(HAVE_KMEM_CACHE_CREATE_USERCOPY)
-        /*
-         * Newer grsec patchset uses kmem_cache_create_usercopy()
-         * instead of SLAB_USERCOPY flag
-         */
-        skc->skc_linux_cache = kmem_cache_create_usercopy(
-            skc->skc_name, size, align, slabflags, 0, size, NULL);
+	/*
+	 * Newer grsec patchset uses kmem_cache_create_usercopy()
+	 * instead of SLAB_USERCOPY flag
+	 */
+	skc->skc_linux_cache = kmem_cache_create_usercopy(
+	    skc->skc_name, size, align, slabflags, 0, size, NULL);
 #else
-        skc->skc_linux_cache = kmem_cache_create(
-            skc->skc_name, size, align, slabflags, NULL);
+	skc->skc_linux_cache = kmem_cache_create(
+	    skc->skc_name, size, align, slabflags, NULL);
 #endif
 		if (skc->skc_linux_cache == NULL) {
 			rc = ENOMEM;
@@ -1186,7 +1186,7 @@ spl_cache_grow_work(void *data)
 	spl_kmem_alloc_t *ska = (spl_kmem_alloc_t *)data;
 	spl_kmem_cache_t *skc = ska->ska_cache;
 
-	(void)__spl_cache_grow(skc, ska->ska_flags);
+	(void) __spl_cache_grow(skc, ska->ska_flags);
 
 	atomic_dec(&skc->skc_ref);
 	smp_mb__before_atomic();

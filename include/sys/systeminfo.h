@@ -23,14 +23,14 @@
  */
 
 #ifndef _SPL_SYSTEMINFO_H
-#define _SPL_SYSTEMINFO_H
+#define	_SPL_SYSTEMINFO_H
 
-#define HW_HOSTID_LEN		11		/* minimum buffer size needed */
+#define	HW_HOSTID_LEN		11		/* minimum buffer size needed */
 						/* to hold a decimal or hex */
 						/* hostid string */
 
 /* Supplemental definitions for Linux. */
-#define HW_HOSTID_PATH		"/etc/hostid"   /* binary configuration file */
-#define HW_HOSTID_MASK		0xFFFFFFFF 	/* significant hostid bits */
+#define	HW_HOSTID_PATH		"/etc/hostid"   /* binary configuration file */
+#define	HW_HOSTID_MASK		0xFFFFFFFF 	/* significant hostid bits */
 
 #endif /* SPL_SYSTEMINFO_H */

@@ -23,7 +23,7 @@
  */
 
 #ifndef _SPL_T_LOCK_H
-#define _SPL_T_LOCK_H
+#define	_SPL_T_LOCK_H
 
 #include <sys/param.h>
 #include <sys/mutex.h>

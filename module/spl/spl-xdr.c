@@ -17,7 +17,7 @@
  *
  *  You should have received a copy of the GNU General Public License along
  *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
- *****************************************************************************
+ *
  *  Solaris Porting Layer (SPL) XDR Implementation.
  */
 
@@ -163,12 +163,12 @@ xdrmem_control(XDR *xdrs, int req, void *info)
 	struct xdr_bytesrec *rec = (struct xdr_bytesrec *) info;
 
 	if (req != XDR_GET_BYTES_AVAIL)
-		return FALSE;
+		return (FALSE);
 
 	rec->xc_is_last_record = TRUE; /* always TRUE in xdrmem streams */
 	rec->xc_num_avail = xdrs->x_addr_end - xdrs->x_addr;
 
-	return TRUE;
+	return (TRUE);
 }
 
 static bool_t
@@ -178,13 +178,13 @@ xdrmem_enc_bytes(XDR *xdrs, caddr_t cp, const uint_t cnt)
 	uint_t pad;
 
 	if (size < cnt)
-		return FALSE; /* Integer overflow */
+		return (FALSE); /* Integer overflow */
 
 	if (xdrs->x_addr > xdrs->x_addr_end)
-		return FALSE;
+		return (FALSE);
 
 	if (xdrs->x_addr_end - xdrs->x_addr < size)
-		return FALSE;
+		return (FALSE);
 
 	memcpy(xdrs->x_addr, cp, cnt);
 
@@ -196,7 +196,7 @@ xdrmem_enc_bytes(XDR *xdrs, caddr_t cp, const uint_t cnt)
 		xdrs->x_addr += pad;
 	}
 
-	return TRUE;
+	return (TRUE);
 }
 
 static bool_t
@@ -207,13 +207,13 @@ xdrmem_dec_bytes(XDR *xdrs, caddr_t cp, const uint_t cnt)
 	uint_t pad;
 
 	if (size < cnt)
-		return FALSE; /* Integer overflow */
+		return (FALSE); /* Integer overflow */
 
 	if (xdrs->x_addr > xdrs->x_addr_end)
-		return FALSE;
+		return (FALSE);
 
 	if (xdrs->x_addr_end - xdrs->x_addr < size)
-		return FALSE;
+		return (FALSE);
 
 	memcpy(cp, xdrs->x_addr, cnt);
 	xdrs->x_addr += cnt;
@@ -222,38 +222,38 @@ xdrmem_dec_bytes(XDR *xdrs, caddr_t cp, const uint_t cnt)
 	if (pad > 0) {
 		/* An inverted memchr() would be useful here... */
 		if (memcmp(&zero, xdrs->x_addr, pad) != 0)
-			return FALSE;
+			return (FALSE);
 
 		xdrs->x_addr += pad;
 	}
 
-	return TRUE;
+	return (TRUE);
 }
 
 static bool_t
 xdrmem_enc_uint32(XDR *xdrs, uint32_t val)
 {
-	if (xdrs->x_addr + sizeof(uint32_t) > xdrs->x_addr_end)
-		return FALSE;
+	if (xdrs->x_addr + sizeof (uint32_t) > xdrs->x_addr_end)
+		return (FALSE);
 
 	*((uint32_t *) xdrs->x_addr) = cpu_to_be32(val);
 
-	xdrs->x_addr += sizeof(uint32_t);
+	xdrs->x_addr += sizeof (uint32_t);
 
-	return TRUE;
+	return (TRUE);
 }
 
 static bool_t
 xdrmem_dec_uint32(XDR *xdrs, uint32_t *val)
 {
-	if (xdrs->x_addr + sizeof(uint32_t) > xdrs->x_addr_end)
-		return FALSE;
+	if (xdrs->x_addr + sizeof (uint32_t) > xdrs->x_addr_end)
+		return (FALSE);
 
 	*val = be32_to_cpu(*((uint32_t *) xdrs->x_addr));
 
-	xdrs->x_addr += sizeof(uint32_t);
+	xdrs->x_addr += sizeof (uint32_t);
 
-	return TRUE;
+	return (TRUE);
 }
 
 static bool_t
@@ -261,10 +261,10 @@ xdrmem_enc_char(XDR *xdrs, char *cp)
 {
 	uint32_t val;
 
-	BUILD_BUG_ON(sizeof(char) != 1);
+	BUILD_BUG_ON(sizeof (char) != 1);
 	val = *((unsigned char *) cp);
 
-	return xdrmem_enc_uint32(xdrs, val);
+	return (xdrmem_enc_uint32(xdrs, val));
 }
 
 static bool_t
@@ -272,10 +272,10 @@ xdrmem_dec_char(XDR *xdrs, char *cp)
 {
 	uint32_t val;
 
-	BUILD_BUG_ON(sizeof(char) != 1);
+	BUILD_BUG_ON(sizeof (char) != 1);
 
 	if (!xdrmem_dec_uint32(xdrs, &val))
-		return FALSE;
+		return (FALSE);
 
 	/*
 	 * If any of the 3 other bytes are non-zero then val will be greater
@@ -283,19 +283,19 @@ xdrmem_dec_char(XDR *xdrs, char *cp)
 	 * not have a char encoded in it.
 	 */
 	if (val > 0xff)
-		return FALSE;
+		return (FALSE);
 
 	*((unsigned char *) cp) = val;
 
-	return TRUE;
+	return (TRUE);
 }
 
 static bool_t
 xdrmem_enc_ushort(XDR *xdrs, unsigned short *usp)
 {
-	BUILD_BUG_ON(sizeof(unsigned short) != 2);
+	BUILD_BUG_ON(sizeof (unsigned short) != 2);
 
-	return xdrmem_enc_uint32(xdrs, *usp);
+	return (xdrmem_enc_uint32(xdrs, *usp));
 }
 
 static bool_t
@@ -303,48 +303,48 @@ xdrmem_dec_ushort(XDR *xdrs, unsigned short *usp)
 {
 	uint32_t val;
 
-	BUILD_BUG_ON(sizeof(unsigned short) != 2);
+	BUILD_BUG_ON(sizeof (unsigned short) != 2);
 
 	if (!xdrmem_dec_uint32(xdrs, &val))
-		return FALSE;
+		return (FALSE);
 
 	/*
 	 * Short ints are not in the RFC, but we assume similar logic as in
 	 * xdrmem_dec_char().
 	 */
 	if (val > 0xffff)
-		return FALSE;
+		return (FALSE);
 
 	*usp = val;
 
-	return TRUE;
+	return (TRUE);
 }
 
 static bool_t
 xdrmem_enc_uint(XDR *xdrs, unsigned *up)
 {
-	BUILD_BUG_ON(sizeof(unsigned) != 4);
+	BUILD_BUG_ON(sizeof (unsigned) != 4);
 
-	return xdrmem_enc_uint32(xdrs, *up);
+	return (xdrmem_enc_uint32(xdrs, *up));
 }
 
 static bool_t
 xdrmem_dec_uint(XDR *xdrs, unsigned *up)
 {
-	BUILD_BUG_ON(sizeof(unsigned) != 4);
+	BUILD_BUG_ON(sizeof (unsigned) != 4);
 
-	return xdrmem_dec_uint32(xdrs, (uint32_t *) up);
+	return (xdrmem_dec_uint32(xdrs, (uint32_t *) up));
 }
 
 static bool_t
 xdrmem_enc_ulonglong(XDR *xdrs, u_longlong_t *ullp)
 {
-	BUILD_BUG_ON(sizeof(u_longlong_t) != 8);
+	BUILD_BUG_ON(sizeof (u_longlong_t) != 8);
 
 	if (!xdrmem_enc_uint32(xdrs, *ullp >> 32))
-		return FALSE;
+		return (FALSE);
 
-	return xdrmem_enc_uint32(xdrs, *ullp & 0xffffffff);
+	return (xdrmem_enc_uint32(xdrs, *ullp & 0xffffffff));
 }
 
 static bool_t
@@ -352,16 +352,16 @@ xdrmem_dec_ulonglong(XDR *xdrs, u_longlong_t *ullp)
 {
 	uint32_t low, high;
 
-	BUILD_BUG_ON(sizeof(u_longlong_t) != 8);
+	BUILD_BUG_ON(sizeof (u_longlong_t) != 8);
 
 	if (!xdrmem_dec_uint32(xdrs, &high))
-		return FALSE;
+		return (FALSE);
 	if (!xdrmem_dec_uint32(xdrs, &low))
-		return FALSE;
+		return (FALSE);
 
 	*ullp = ((u_longlong_t) high << 32) | low;
 
-	return TRUE;
+	return (TRUE);
 }
 
 static bool_t
@@ -372,18 +372,18 @@ xdr_enc_array(XDR *xdrs, caddr_t *arrp, uint_t *sizep, const uint_t maxsize,
 	caddr_t addr = *arrp;
 
 	if (*sizep > maxsize || *sizep > UINT_MAX / elsize)
-		return FALSE;
+		return (FALSE);
 
 	if (!xdrmem_enc_uint(xdrs, sizep))
-		return FALSE;
+		return (FALSE);
 
 	for (i = 0; i < *sizep; i++) {
 		if (!elproc(xdrs, addr))
-			return FALSE;
+			return (FALSE);
 		addr += elsize;
 	}
 
-	return TRUE;
+	return (TRUE);
 }
 
 static bool_t
@@ -395,23 +395,23 @@ xdr_dec_array(XDR *xdrs, caddr_t *arrp, uint_t *sizep, const uint_t maxsize,
 	caddr_t addr;
 
 	if (!xdrmem_dec_uint(xdrs, sizep))
-		return FALSE;
+		return (FALSE);
 
 	size = *sizep;
 
 	if (size > maxsize || size > UINT_MAX / elsize)
-		return FALSE;
+		return (FALSE);
 
 	/*
 	 * The Solaris man page says: "If *arrp is NULL when decoding,
 	 * xdr_array() allocates memory and *arrp points to it".
 	 */
 	if (*arrp == NULL) {
-		BUILD_BUG_ON(sizeof(uint_t) > sizeof(size_t));
+		BUILD_BUG_ON(sizeof (uint_t) > sizeof (size_t));
 
 		*arrp = kmem_alloc(size * elsize, KM_NOSLEEP);
 		if (*arrp == NULL)
-			return FALSE;
+			return (FALSE);
 
 		alloc = TRUE;
 	}
@@ -422,12 +422,12 @@ xdr_dec_array(XDR *xdrs, caddr_t *arrp, uint_t *sizep, const uint_t maxsize,
 		if (!elproc(xdrs, addr)) {
 			if (alloc)
 				kmem_free(*arrp, size * elsize);
-			return FALSE;
+			return (FALSE);
 		}
 		addr += elsize;
 	}
 
-	return TRUE;
+	return (TRUE);
 }
 
 static bool_t
@@ -437,14 +437,14 @@ xdr_enc_string(XDR *xdrs, char **sp, const uint_t maxsize)
 	uint_t len;
 
 	if (slen > maxsize)
-		return FALSE;
+		return (FALSE);
 
 	len = slen;
 
 	if (!xdrmem_enc_uint(xdrs, &len))
-		return FALSE;
+		return (FALSE);
 
-	return xdrmem_enc_bytes(xdrs, *sp, len);
+	return (xdrmem_enc_bytes(xdrs, *sp, len));
 }
 
 static bool_t
@@ -454,21 +454,21 @@ xdr_dec_string(XDR *xdrs, char **sp, const uint_t maxsize)
 	bool_t alloc = FALSE;
 
 	if (!xdrmem_dec_uint(xdrs, &size))
-		return FALSE;
+		return (FALSE);
 
 	if (size > maxsize || size > UINT_MAX - 1)
-		return FALSE;
+		return (FALSE);
 
 	/*
 	 * Solaris man page: "If *sp is NULL when decoding, xdr_string()
 	 * allocates memory and *sp points to it".
 	 */
 	if (*sp == NULL) {
-		BUILD_BUG_ON(sizeof(uint_t) > sizeof(size_t));
+		BUILD_BUG_ON(sizeof (uint_t) > sizeof (size_t));
 
 		*sp = kmem_alloc(size + 1, KM_NOSLEEP);
 		if (*sp == NULL)
-			return FALSE;
+			return (FALSE);
 
 		alloc = TRUE;
 	}
@@ -481,34 +481,33 @@ xdr_dec_string(XDR *xdrs, char **sp, const uint_t maxsize)
 
 	(*sp)[size] = '\0';
 
-	return TRUE;
+	return (TRUE);
 
 fail:
 	if (alloc)
 		kmem_free(*sp, size + 1);
 
-	return FALSE;
+	return (FALSE);
 }
 
 static struct xdr_ops xdrmem_encode_ops = {
-	.xdr_control      = xdrmem_control,
-	.xdr_char         = xdrmem_enc_char,
-	.xdr_u_short      = xdrmem_enc_ushort,
-	.xdr_u_int        = xdrmem_enc_uint,
-	.xdr_u_longlong_t = xdrmem_enc_ulonglong,
-	.xdr_opaque       = xdrmem_enc_bytes,
-	.xdr_string       = xdr_enc_string,
-	.xdr_array        = xdr_enc_array
+	.xdr_control		= xdrmem_control,
+	.xdr_char		= xdrmem_enc_char,
+	.xdr_u_short		= xdrmem_enc_ushort,
+	.xdr_u_int		= xdrmem_enc_uint,
+	.xdr_u_longlong_t	= xdrmem_enc_ulonglong,
+	.xdr_opaque		= xdrmem_enc_bytes,
+	.xdr_string		= xdr_enc_string,
+	.xdr_array		= xdr_enc_array
 };
 
 static struct xdr_ops xdrmem_decode_ops = {
-	.xdr_control      = xdrmem_control,
-	.xdr_char         = xdrmem_dec_char,
-	.xdr_u_short      = xdrmem_dec_ushort,
-	.xdr_u_int        = xdrmem_dec_uint,
-	.xdr_u_longlong_t = xdrmem_dec_ulonglong,
-	.xdr_opaque       = xdrmem_dec_bytes,
-	.xdr_string       = xdr_dec_string,
-	.xdr_array        = xdr_dec_array
+	.xdr_control		= xdrmem_control,
+	.xdr_char		= xdrmem_dec_char,
+	.xdr_u_short		= xdrmem_dec_ushort,
+	.xdr_u_int		= xdrmem_dec_uint,
+	.xdr_u_longlong_t	= xdrmem_dec_ulonglong,
+	.xdr_opaque		= xdrmem_dec_bytes,
+	.xdr_string		= xdr_dec_string,
+	.xdr_array		= xdr_dec_array
 };
-

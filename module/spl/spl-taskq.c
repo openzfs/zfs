@@ -87,7 +87,7 @@ taskq_find_by_name(const char *name)
 	list_for_each_prev(tql, &tq_list) {
 		tq = list_entry(tql, taskq_t, tq_taskqs);
 		if (strcmp(name, tq->tq_name) == 0)
-			return tq->tq_instance;
+			return (tq->tq_instance);
 	}
 	return (-1);
 }
@@ -573,7 +573,8 @@ taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t flags)
 	ASSERT(tq->tq_nactive <= tq->tq_nthreads);
 	if ((flags & TQ_NOQUEUE) && (tq->tq_nactive == tq->tq_nthreads)) {
 		/* Dynamic taskq may be able to spawn another thread */
-		if (!(tq->tq_flags & TASKQ_DYNAMIC) || taskq_thread_spawn(tq) == 0)
+		if (!(tq->tq_flags & TASKQ_DYNAMIC) ||
+		    taskq_thread_spawn(tq) == 0)
 			goto out;
 	}
 
@@ -686,7 +687,8 @@ taskq_dispatch_ent(taskq_t *tq, task_func_t func, void *arg, uint_t flags,
 
 	if ((flags & TQ_NOQUEUE) && (tq->tq_nactive == tq->tq_nthreads)) {
 		/* Dynamic taskq may be able to spawn another thread */
-		if (!(tq->tq_flags & TASKQ_DYNAMIC) || taskq_thread_spawn(tq) == 0)
+		if (!(tq->tq_flags & TASKQ_DYNAMIC) ||
+		    taskq_thread_spawn(tq) == 0)
 			goto out2;
 		flags |= TQ_FRONT;
 	}
@@ -786,7 +788,8 @@ taskq_thread_spawn_task(void *arg)
 
 	if (taskq_thread_create(tq) == NULL) {
 		/* restore spawning count if failed */
-		spin_lock_irqsave_nested(&tq->tq_lock, flags, tq->tq_lock_class);
+		spin_lock_irqsave_nested(&tq->tq_lock, flags,
+		    tq->tq_lock_class);
 		tq->tq_nspawn--;
 		spin_unlock_irqrestore(&tq->tq_lock, flags);
 	}
@@ -1146,7 +1149,8 @@ taskq_destroy(taskq_t *tq)
 	while (tq->tq_nspawn) {
 		spin_unlock_irqrestore(&tq->tq_lock, flags);
 		schedule_timeout_interruptible(1);
-		spin_lock_irqsave_nested(&tq->tq_lock, flags, tq->tq_lock_class);
+		spin_lock_irqsave_nested(&tq->tq_lock, flags,
+		    tq->tq_lock_class);
 	}
 
 	/*
@@ -1239,16 +1243,16 @@ param_set_taskq_kick(const char *val, struct kernel_param *kp)
 
 #ifdef module_param_cb
 static const struct kernel_param_ops param_ops_taskq_kick = {
-        .set = param_set_taskq_kick,
-        .get = param_get_uint,
+	.set = param_set_taskq_kick,
+	.get = param_get_uint,
 };
 module_param_cb(spl_taskq_kick, &param_ops_taskq_kick, &spl_taskq_kick, 0644);
 #else
 module_param_call(spl_taskq_kick, param_set_taskq_kick, param_get_uint,
-    &spl_taskq_kick, 0644);
+	&spl_taskq_kick, 0644);
 #endif
 MODULE_PARM_DESC(spl_taskq_kick,
-    "Write nonzero to kick stuck taskqs to spawn more threads");
+	"Write nonzero to kick stuck taskqs to spawn more threads");
 
 int
 spl_taskq_init(void)

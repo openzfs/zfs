@@ -23,7 +23,7 @@
  */
 
 #ifndef _SPL_ZFS_H
-#define _SPL_ZFS_H
+#define	_SPL_ZFS_H
 
 #include <linux/mount.h>
 #include <linux/fs.h>
@@ -40,7 +40,7 @@ typedef struct spl_fid {
 		long fid_pad;
 		struct {
 			ushort_t len;		/* length of data in bytes */
-			char     data[MAXFIDSZ];/* data (variable len) */
+			char data[MAXFIDSZ];	/* data (variable len) */
 		} _fid;
 	} un;
 } fid_t;

@@ -20,17 +20,11 @@
  *
  *  You should have received a copy of the GNU General Public License along
  *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
- *****************************************************************************
+ *
  *  Solaris Porting Layer (SPL) Reader/Writer Lock Implementation.
  */
 
 #include <sys/rwlock.h>
-
-#ifdef DEBUG_SUBSYSTEM
-#undef DEBUG_SUBSYSTEM
-#endif
-
-#define DEBUG_SUBSYSTEM S_RWLOCK
 
 #if defined(CONFIG_PREEMPT_RT_FULL)
 
@@ -94,7 +88,7 @@ __rwsem_tryupgrade(struct rw_semaphore *rwsem)
 static int
 __rwsem_tryupgrade(struct rw_semaphore *rwsem)
 {
-	typeof (rwsem->count) val;
+	typeof(rwsem->count) val;
 	val = cmpxchg(&rwsem->count, SPL_RWSEM_SINGLE_READER_VALUE,
 	    SPL_RWSEM_SINGLE_WRITER_VALUE);
 	return (val == SPL_RWSEM_SINGLE_READER_VALUE);

@@ -23,7 +23,7 @@
  */
 
 #ifndef _SPL_CRED_H
-#define _SPL_CRED_H
+#define	_SPL_CRED_H
 
 #include <linux/module.h>
 #include <sys/types.h>
@@ -68,7 +68,7 @@ extern gid_t crgetrgid(const cred_t *cr);
 extern gid_t crgetsgid(const cred_t *cr);
 extern gid_t crgetfsgid(const cred_t *cr);
 extern int crgetngroups(const cred_t *cr);
-extern gid_t * crgetgroups(const cred_t *cr);
+extern gid_t *crgetgroups(const cred_t *cr);
 extern int groupmember(gid_t gid, const cred_t *cr);
 
 #endif  /* _SPL_CRED_H */

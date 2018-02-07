@@ -21,7 +21,7 @@
  */
 
 #ifndef _SPL_USER_H
-#define _SPL_USER_H
+#define	_SPL_USER_H
 
 /*
  * We have uf_info_t for areleasef(). We implement areleasef() using a global
@@ -37,6 +37,6 @@
 struct uf_info;
 typedef struct uf_info uf_info_t;
 
-#define P_FINFO(x) ((uf_info_t *)x)
+#define	P_FINFO(x) ((uf_info_t *)x)
 
 #endif /* SPL_USER_H */

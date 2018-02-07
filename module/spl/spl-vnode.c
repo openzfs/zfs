@@ -20,7 +20,7 @@
  *
  *  You should have received a copy of the GNU General Public License along
  *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
- *****************************************************************************
+ *
  *  Solaris Porting Layer (SPL) Vnode Implementation.
  */
 
@@ -43,27 +43,27 @@ vtype_t
 vn_mode_to_vtype(mode_t mode)
 {
 	if (S_ISREG(mode))
-		return VREG;
+		return (VREG);
 
 	if (S_ISDIR(mode))
-		return VDIR;
+		return (VDIR);
 
 	if (S_ISCHR(mode))
-		return VCHR;
+		return (VCHR);
 
 	if (S_ISBLK(mode))
-		return VBLK;
+		return (VBLK);
 
 	if (S_ISFIFO(mode))
-		return VFIFO;
+		return (VFIFO);
 
 	if (S_ISLNK(mode))
-		return VLNK;
+		return (VLNK);
 
 	if (S_ISSOCK(mode))
-		return VSOCK;
+		return (VSOCK);
 
-	return VNON;
+	return (VNON);
 } /* vn_mode_to_vtype() */
 EXPORT_SYMBOL(vn_mode_to_vtype);
 
@@ -71,27 +71,27 @@ mode_t
 vn_vtype_to_mode(vtype_t vtype)
 {
 	if (vtype == VREG)
-		return S_IFREG;
+		return (S_IFREG);
 
 	if (vtype == VDIR)
-		return S_IFDIR;
+		return (S_IFDIR);
 
 	if (vtype == VCHR)
-		return S_IFCHR;
+		return (S_IFCHR);
 
 	if (vtype == VBLK)
-		return S_IFBLK;
+		return (S_IFBLK);
 
 	if (vtype == VFIFO)
-		return S_IFIFO;
+		return (S_IFIFO);
 
 	if (vtype == VLNK)
-		return S_IFLNK;
+		return (S_IFLNK);
 
 	if (vtype == VSOCK)
-		return S_IFSOCK;
+		return (S_IFSOCK);
 
-	return VNON;
+	return (VNON);
 } /* vn_vtype_to_mode() */
 EXPORT_SYMBOL(vn_vtype_to_mode);
 
@@ -135,7 +135,8 @@ vn_open(const char *path, uio_seg_t seg, int flags, int mode,
 	if (!(flags & FCREAT) && (flags & FWRITE))
 		flags |= FEXCL;
 
-	/* Note for filp_open() the two low bits must be remapped to mean:
+	/*
+	 * Note for filp_open() the two low bits must be remapped to mean:
 	 * 01 - read-only  -> 00 read-only
 	 * 10 - write-only -> 01 write-only
 	 * 11 - read-write -> 10 read-write
@@ -148,7 +149,7 @@ vn_open(const char *path, uio_seg_t seg, int flags, int mode,
 	fp = filp_open(path, flags, mode);
 
 	if (flags & FCREAT)
-		(void)xchg(&current->fs->umask, saved_umask);
+		(void) xchg(&current->fs->umask, saved_umask);
 
 	if (IS_ERR(fp))
 		return (-PTR_ERR(fp));
@@ -187,7 +188,7 @@ EXPORT_SYMBOL(vn_open);
 
 int
 vn_openat(const char *path, uio_seg_t seg, int flags, int mode,
-	  vnode_t **vpp, int x1, void *x2, vnode_t *vp, int fd)
+    vnode_t **vpp, int x1, void *x2, vnode_t *vp, int fd)
 {
 	char *realpath;
 	int len, rc;
@@ -199,7 +200,7 @@ vn_openat(const char *path, uio_seg_t seg, int flags, int mode,
 	if (!realpath)
 		return (ENOMEM);
 
-	(void)snprintf(realpath, len, "/%s", path);
+	(void) snprintf(realpath, len, "/%s", path);
 	rc = vn_open(realpath, seg, flags, mode, vpp, x1, x2);
 	kfree(realpath);
 
@@ -259,9 +260,11 @@ vn_close(vnode_t *vp, int flags, int x1, int x2, void *x3, void *x4)
 } /* vn_close() */
 EXPORT_SYMBOL(vn_close);
 
-/* vn_seek() does not actually seek it only performs bounds checking on the
+/*
+ * vn_seek() does not actually seek it only performs bounds checking on the
  * proposed seek.  We perform minimal checking and allow vn_rdwr() to catch
- * anything more serious. */
+ * anything more serious.
+ */
 int
 vn_seek(vnode_t *vp, offset_t ooff, offset_t *noffp, void *ct)
 {
@@ -293,26 +296,27 @@ vn_getattr(vnode_t *vp, vattr_t *vap, int flags, void *x3, void *x4)
 	if (rc)
 		return (-rc);
 
-	vap->va_type          = vn_mode_to_vtype(stat.mode);
-	vap->va_mode          = stat.mode;
-	vap->va_uid           = KUID_TO_SUID(stat.uid);
-	vap->va_gid           = KGID_TO_SGID(stat.gid);
-	vap->va_fsid          = 0;
-	vap->va_nodeid        = stat.ino;
-	vap->va_nlink         = stat.nlink;
-        vap->va_size          = stat.size;
-	vap->va_blksize       = stat.blksize;
-	vap->va_atime         = stat.atime;
-	vap->va_mtime         = stat.mtime;
-	vap->va_ctime         = stat.ctime;
-	vap->va_rdev          = stat.rdev;
-	vap->va_nblocks       = stat.blocks;
+	vap->va_type	= vn_mode_to_vtype(stat.mode);
+	vap->va_mode	= stat.mode;
+	vap->va_uid	= KUID_TO_SUID(stat.uid);
+	vap->va_gid	= KGID_TO_SGID(stat.gid);
+	vap->va_fsid	= 0;
+	vap->va_nodeid	= stat.ino;
+	vap->va_nlink	= stat.nlink;
+	vap->va_size	= stat.size;
+	vap->va_blksize	= stat.blksize;
+	vap->va_atime	= stat.atime;
+	vap->va_mtime	= stat.mtime;
+	vap->va_ctime	= stat.ctime;
+	vap->va_rdev	= stat.rdev;
+	vap->va_nblocks	= stat.blocks;
 
 	return (0);
 }
 EXPORT_SYMBOL(vn_getattr);
 
-int vn_fsync(vnode_t *vp, int flags, void *x3, void *x4)
+int
+vn_fsync(vnode_t *vp, int flags, void *x3, void *x4)
 {
 	int datasync = 0;
 	int error;
@@ -412,22 +416,22 @@ EXPORT_SYMBOL(vn_space);
 static file_t *
 file_find(int fd, struct task_struct *task)
 {
-        file_t *fp;
+	file_t *fp;
 
-        list_for_each_entry(fp, &vn_file_list,  f_list) {
+	list_for_each_entry(fp, &vn_file_list,  f_list) {
 		if (fd == fp->f_fd && fp->f_task == task) {
 			ASSERT(atomic_read(&fp->f_ref) != 0);
-                        return fp;
+			return (fp);
 		}
 	}
 
-        return NULL;
+	return (NULL);
 } /* file_find() */
 
 file_t *
 vn_getf(int fd)
 {
-        struct kstat stat;
+	struct kstat stat;
 	struct file *lfp;
 	file_t *fp;
 	vnode_t *vp;
@@ -482,13 +486,14 @@ vn_getf(int fd)
 		goto out_fget;
 
 #if defined(HAVE_4ARGS_VFS_GETATTR)
-	rc = vfs_getattr(&lfp->f_path, &stat, STATX_TYPE, AT_STATX_SYNC_AS_STAT);
+	rc = vfs_getattr(&lfp->f_path, &stat, STATX_TYPE,
+	    AT_STATX_SYNC_AS_STAT);
 #elif defined(HAVE_2ARGS_VFS_GETATTR)
 	rc = vfs_getattr(&lfp->f_path, &stat);
 #else
 	rc = vfs_getattr(lfp->f_path.mnt, lfp->f_dentry, &stat);
 #endif
-        if (rc)
+	if (rc)
 		goto out_vnode;
 
 	mutex_enter(&vp->v_lock);
@@ -515,7 +520,7 @@ out_mutex:
 	mutex_exit(&fp->f_lock);
 	kmem_cache_free(vn_file_cache, fp);
 out:
-        return (NULL);
+	return (NULL);
 } /* getf() */
 EXPORT_SYMBOL(getf);
 
@@ -556,12 +561,10 @@ vn_areleasef(int fd, uf_info_t *fip)
 			return;
 		}
 
-	        list_del(&fp->f_list);
+		list_del(&fp->f_list);
 		releasef_locked(fp);
 	}
 	spin_unlock(&vn_file_lock);
-
-	return;
 } /* releasef() */
 EXPORT_SYMBOL(areleasef);
 
@@ -596,34 +599,34 @@ vn_set_fs_pwd(struct fs_struct *fs, struct path *path)
 int
 vn_set_pwd(const char *filename)
 {
-        struct path path;
-        mm_segment_t saved_fs;
-        int rc;
+	struct path path;
+	mm_segment_t saved_fs;
+	int rc;
 
-        /*
-         * user_path_dir() and __user_walk() both expect 'filename' to be
-         * a user space address so we must briefly increase the data segment
-         * size to ensure strncpy_from_user() does not fail with -EFAULT.
-         */
-        saved_fs = get_fs();
-        set_fs(get_ds());
+	/*
+	 * user_path_dir() and __user_walk() both expect 'filename' to be
+	 * a user space address so we must briefly increase the data segment
+	 * size to ensure strncpy_from_user() does not fail with -EFAULT.
+	 */
+	saved_fs = get_fs();
+	set_fs(get_ds());
 
-        rc = user_path_dir(filename, &path);
-        if (rc)
+	rc = user_path_dir(filename, &path);
+	if (rc)
 		goto out;
 
-        rc = inode_permission(path.dentry->d_inode, MAY_EXEC | MAY_ACCESS);
-        if (rc)
+	rc = inode_permission(path.dentry->d_inode, MAY_EXEC | MAY_ACCESS);
+	if (rc)
 		goto dput_and_out;
 
-        vn_set_fs_pwd(current->fs, &path);
+	vn_set_fs_pwd(current->fs, &path);
 
 dput_and_out:
-        path_put(&path);
+	path_put(&path);
 out:
 	set_fs(saved_fs);
 
-        return (-rc);
+	return (-rc);
 } /* vn_set_pwd() */
 EXPORT_SYMBOL(vn_set_pwd);
 
@@ -651,10 +654,10 @@ vn_file_cache_constructor(void *buf, void *cdrarg, int kmflags)
 	file_t *fp = buf;
 
 	atomic_set(&fp->f_ref, 0);
-        mutex_init(&fp->f_lock, NULL, MUTEX_DEFAULT, NULL);
+	mutex_init(&fp->f_lock, NULL, MUTEX_DEFAULT, NULL);
 	INIT_LIST_HEAD(&fp->f_list);
 
-        return (0);
+	return (0);
 } /* file_cache_constructor() */
 
 static void
@@ -669,29 +672,26 @@ int
 spl_vn_init(void)
 {
 	vn_cache = kmem_cache_create("spl_vn_cache",
-				     sizeof(struct vnode), 64,
-	                             vn_cache_constructor,
-				     vn_cache_destructor,
-				     NULL, NULL, NULL, 0);
+	    sizeof (struct vnode), 64, vn_cache_constructor,
+	    vn_cache_destructor, NULL, NULL, NULL, 0);
 
 	vn_file_cache = kmem_cache_create("spl_vn_file_cache",
-					  sizeof(file_t), 64,
-				          vn_file_cache_constructor,
-				          vn_file_cache_destructor,
-				          NULL, NULL, NULL, 0);
+	    sizeof (file_t), 64, vn_file_cache_constructor,
+	    vn_file_cache_destructor, NULL, NULL, NULL, 0);
+
 	return (0);
 } /* vn_init() */
 
 void
 spl_vn_fini(void)
 {
-        file_t *fp, *next_fp;
+	file_t *fp, *next_fp;
 	int leaked = 0;
 
 	spin_lock(&vn_file_lock);
 
-        list_for_each_entry_safe(fp, next_fp, &vn_file_list,  f_list) {
-	        list_del(&fp->f_list);
+	list_for_each_entry_safe(fp, next_fp, &vn_file_list,  f_list) {
+		list_del(&fp->f_list);
 		releasef_locked(fp);
 		leaked++;
 	}
@@ -703,6 +703,4 @@ spl_vn_fini(void)
 
 	kmem_cache_destroy(vn_file_cache);
 	kmem_cache_destroy(vn_cache);
-
-	return;
 } /* vn_fini() */

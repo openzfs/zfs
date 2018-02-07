@@ -23,7 +23,7 @@
  */
 
 #ifndef _SPLAT_CTL_H
-#define _SPLAT_CTL_H
+#define	_SPLAT_CTL_H
 
 #include <linux/types.h>
 
@@ -32,11 +32,11 @@
  * ensure 32-bit/64-bit interoperability over ioctl()'s only types with
  * fixed sizes can be used.
  */
-#define SPLAT_NAME			"splatctl"
-#define SPLAT_DEV			"/dev/splatctl"
+#define	SPLAT_NAME			"splatctl"
+#define	SPLAT_DEV			"/dev/splatctl"
 
-#define SPLAT_NAME_SIZE			20
-#define SPLAT_DESC_SIZE			60
+#define	SPLAT_NAME_SIZE			20
+#define	SPLAT_DESC_SIZE			60
 
 typedef struct splat_user {
 	char name[SPLAT_NAME_SIZE];	/* Short name */
@@ -72,38 +72,38 @@ typedef struct splat_cmd {
 } splat_cmd_t;
 
 /* Valid ioctls */
-#define SPLAT_CFG			_IOWR('f', 101, splat_cfg_t)
-#define SPLAT_CMD			_IOWR('f', 102, splat_cmd_t)
+#define	SPLAT_CFG			_IOWR('f', 101, splat_cfg_t)
+#define	SPLAT_CMD			_IOWR('f', 102, splat_cmd_t)
 
 /* Valid configuration commands */
-#define SPLAT_CFG_BUFFER_CLEAR		0x001	/* Clear text buffer */
-#define SPLAT_CFG_BUFFER_SIZE		0x002	/* Resize text buffer */
-#define SPLAT_CFG_SUBSYSTEM_COUNT	0x101	/* Number of subsystem */
-#define SPLAT_CFG_SUBSYSTEM_LIST	0x102	/* List of N subsystems */
-#define SPLAT_CFG_TEST_COUNT		0x201	/* Number of tests */
-#define SPLAT_CFG_TEST_LIST		0x202	/* List of N tests */
+#define	SPLAT_CFG_BUFFER_CLEAR		0x001	/* Clear text buffer */
+#define	SPLAT_CFG_BUFFER_SIZE		0x002	/* Resize text buffer */
+#define	SPLAT_CFG_SUBSYSTEM_COUNT	0x101	/* Number of subsystem */
+#define	SPLAT_CFG_SUBSYSTEM_LIST	0x102	/* List of N subsystems */
+#define	SPLAT_CFG_TEST_COUNT		0x201	/* Number of tests */
+#define	SPLAT_CFG_TEST_LIST		0x202	/* List of N tests */
 
 /*
  * Valid subsystem and test commands are defined in each subsystem as
  * SPLAT_SUBSYSTEM_*.  We do need to be careful to avoid collisions, the
  * currently defined subsystems are as follows:
  */
-#define SPLAT_SUBSYSTEM_KMEM		0x0100
-#define SPLAT_SUBSYSTEM_TASKQ		0x0200
-#define SPLAT_SUBSYSTEM_KRNG		0x0300
-#define SPLAT_SUBSYSTEM_MUTEX		0x0400
-#define SPLAT_SUBSYSTEM_CONDVAR		0x0500
-#define SPLAT_SUBSYSTEM_THREAD		0x0600
-#define SPLAT_SUBSYSTEM_RWLOCK		0x0700
-#define SPLAT_SUBSYSTEM_TIME		0x0800
-#define SPLAT_SUBSYSTEM_VNODE		0x0900
-#define SPLAT_SUBSYSTEM_KOBJ		0x0a00
-#define SPLAT_SUBSYSTEM_ATOMIC		0x0b00
-#define SPLAT_SUBSYSTEM_LIST		0x0c00
-#define SPLAT_SUBSYSTEM_GENERIC		0x0d00
-#define SPLAT_SUBSYSTEM_CRED		0x0e00
-#define SPLAT_SUBSYSTEM_ZLIB		0x0f00
-#define SPLAT_SUBSYSTEM_LINUX		0x1000
-#define SPLAT_SUBSYSTEM_UNKNOWN		0xff00
+#define	SPLAT_SUBSYSTEM_KMEM		0x0100
+#define	SPLAT_SUBSYSTEM_TASKQ		0x0200
+#define	SPLAT_SUBSYSTEM_KRNG		0x0300
+#define	SPLAT_SUBSYSTEM_MUTEX		0x0400
+#define	SPLAT_SUBSYSTEM_CONDVAR		0x0500
+#define	SPLAT_SUBSYSTEM_THREAD		0x0600
+#define	SPLAT_SUBSYSTEM_RWLOCK		0x0700
+#define	SPLAT_SUBSYSTEM_TIME		0x0800
+#define	SPLAT_SUBSYSTEM_VNODE		0x0900
+#define	SPLAT_SUBSYSTEM_KOBJ		0x0a00
+#define	SPLAT_SUBSYSTEM_ATOMIC		0x0b00
+#define	SPLAT_SUBSYSTEM_LIST		0x0c00
+#define	SPLAT_SUBSYSTEM_GENERIC		0x0d00
+#define	SPLAT_SUBSYSTEM_CRED		0x0e00
+#define	SPLAT_SUBSYSTEM_ZLIB		0x0f00
+#define	SPLAT_SUBSYSTEM_LINUX		0x1000
+#define	SPLAT_SUBSYSTEM_UNKNOWN		0xff00
 
 #endif /* _SPLAT_CTL_H */

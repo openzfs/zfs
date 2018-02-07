@@ -23,7 +23,7 @@
  */
 
 #ifndef _SPL_VMSYSTM_H
-#define _SPL_VMSYSTM_H
+#define	_SPL_VMSYSTM_H
 
 #include <linux/mmzone.h>
 #include <linux/mm.h>
@@ -48,9 +48,9 @@ copyin(const void *from, void *to, size_t len)
 {
 	/* On error copyin routine returns -1 */
 	if (xcopyin(from, to, len))
-		return -1;
+		return (-1);
 
-	return 0;
+	return (0);
 }
 
 static __inline__ int
@@ -58,9 +58,9 @@ copyout(const void *from, void *to, size_t len)
 {
 	/* On error copyout routine returns -1 */
 	if (xcopyout(from, to, len))
-		return -1;
+		return (-1);
 
-	return 0;
+	return (0);
 }
 
 static __inline__ int
@@ -69,7 +69,7 @@ copyinstr(const void *from, void *to, size_t len, size_t *done)
 	size_t rc;
 
 	if (len == 0)
-		return -ENAMETOOLONG;
+		return (-ENAMETOOLONG);
 
 	/* XXX: Should return ENAMETOOLONG if 'strlen(from) > len' */
 
@@ -78,7 +78,7 @@ copyinstr(const void *from, void *to, size_t len, size_t *done)
 	if (done != NULL)
 		*done = rc;
 
-	return 0;
+	return (0);
 }
 
 #endif /* SPL_VMSYSTM_H */
