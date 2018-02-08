@@ -57,7 +57,7 @@ static int luaB_coresume (lua_State *L) {
   else {
     lua_pushboolean(L, 1);
     lua_insert(L, -(r + 1));
-    return r + 1;  /* return true + `resume' returns */
+    return r + 1;  /* return true + 'resume' returns */
   }
 }
 

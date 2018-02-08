@@ -17,6 +17,11 @@ dist_pkgdata_SCRIPTS = \
 	tst.large_prog.ksh \
 	tst.large_prog.out \
 	tst.large_prog.zcp \
+	tst.lib_base.lua \
+	tst.lib_coroutine.lua \
+	tst.lib_strings.lua \
+	tst.lib_table.lua \
+	tst.libraries.ksh \
 	tst.memory_limit.ksh \
 	tst.nested_neg.ksh \
 	tst.nested_neg.zcp \

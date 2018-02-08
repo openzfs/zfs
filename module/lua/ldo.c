@@ -24,7 +24,6 @@
 #include "lstring.h"
 #include "ltable.h"
 #include "ltm.h"
-#include "lundump.h"
 #include "lvm.h"
 #include "lzio.h"
 
@@ -684,14 +683,9 @@ static void f_parser (lua_State *L, void *ud) {
   Closure *cl;
   struct SParser *p = cast(struct SParser *, ud);
   int c = zgetc(p->z);  /* read first character */
-  if (c == LUA_SIGNATURE[0]) {
-    checkmode(L, p->mode, "binary");
-    cl = luaU_undump(L, p->z, &p->buff, p->name);
-  }
-  else {
-    checkmode(L, p->mode, "text");
-    cl = luaY_parser(L, p->z, &p->buff, &p->dyd, p->name, c);
-  }
+  lua_assert(c != LUA_SIGNATURE[0]);	/* binary not supported */
+  checkmode(L, p->mode, "text");
+  cl = luaY_parser(L, p->z, &p->buff, &p->dyd, p->name, c);
   lua_assert(cl->l.nupvalues == cl->l.p->sizeupvalues);
   for (i = 0; i < cl->l.nupvalues; i++) {  /* initialize upvalues */
     UpVal *up = luaF_newupval(L);
