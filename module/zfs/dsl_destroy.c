@@ -496,23 +496,29 @@ dsl_destroy_snapshots_nvl(nvlist_t *snaps, boolean_t defer,
 	if (nvlist_next_nvpair(snaps, NULL) == NULL)
 		return (0);
 
-	nvlist_t *arg = fnvlist_alloc();
-	nvlist_t *snaps_normalized = fnvlist_alloc();
 	/*
 	 * lzc_destroy_snaps() is documented to take an nvlist whose
-	 * values "don't matter".  We need to convert that nvlist to one
-	 * that we know can be converted to LUA.
+	 * values "don't matter".  We need to convert that nvlist to
+	 * one that we know can be converted to LUA. We also don't
+	 * care about any duplicate entries because the nvlist will
+	 * be converted to a LUA table which should take care of this.
 	 */
+	nvlist_t *snaps_normalized;
+	VERIFY0(nvlist_alloc(&snaps_normalized, 0, KM_SLEEP));
 	for (nvpair_t *pair = nvlist_next_nvpair(snaps, NULL);
 	    pair != NULL; pair = nvlist_next_nvpair(snaps, pair)) {
 		fnvlist_add_boolean_value(snaps_normalized,
 		    nvpair_name(pair), B_TRUE);
 	}
+
+	nvlist_t *arg;
+	VERIFY0(nvlist_alloc(&arg, 0, KM_SLEEP));
 	fnvlist_add_nvlist(arg, "snaps", snaps_normalized);
 	fnvlist_free(snaps_normalized);
 	fnvlist_add_boolean_value(arg, "defer", defer);
 
-	nvlist_t *wrapper = fnvlist_alloc();
+	nvlist_t *wrapper;
+	VERIFY0(nvlist_alloc(&wrapper, 0, KM_SLEEP));
 	fnvlist_add_nvlist(wrapper, ZCP_ARG_ARGLIST, arg);
 	fnvlist_free(arg);
 
@@ -546,7 +552,7 @@ dsl_destroy_snapshots_nvl(nvlist_t *snaps, boolean_t defer,
 	    program,
 	    0,
 	    zfs_lua_max_memlimit,
-	    fnvlist_lookup_nvpair(wrapper, ZCP_ARG_ARGLIST), result);
+	    nvlist_next_nvpair(wrapper, NULL), result);
 	if (error != 0) {
 		char *errorstr = NULL;
 		(void) nvlist_lookup_string(result, ZCP_RET_ERROR, &errorstr);
