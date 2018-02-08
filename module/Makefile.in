@@ -1,5 +1,6 @@
 subdir-m += avl
 subdir-m += icp
+subdir-m += lua
 subdir-m += nvpair
 subdir-m += unicode
 subdir-m += zcommon
@@ -21,7 +22,7 @@ ZFS_MODULE_CPPFLAGS += @KERNEL_DEBUG_CPPFLAGS@
 
 export ZFS_MODULE_CFLAGS ZFS_MODULE_CPPFLAGS
 
-SUBDIR_TARGETS = icp
+SUBDIR_TARGETS = icp lua
 
 modules:
 	@# Make the exported SPL symbols available to these modules.

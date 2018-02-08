@@ -134,6 +134,20 @@ void dsl_dir_name(dsl_dir_t *dd, char *buf);
 int dsl_dir_namelen(dsl_dir_t *dd);
 uint64_t dsl_dir_create_sync(dsl_pool_t *dp, dsl_dir_t *pds,
     const char *name, dmu_tx_t *tx);
+
+uint64_t dsl_dir_get_used(dsl_dir_t *dd);
+uint64_t dsl_dir_get_quota(dsl_dir_t *dd);
+uint64_t dsl_dir_get_reservation(dsl_dir_t *dd);
+uint64_t dsl_dir_get_compressratio(dsl_dir_t *dd);
+uint64_t dsl_dir_get_logicalused(dsl_dir_t *dd);
+uint64_t dsl_dir_get_usedsnap(dsl_dir_t *dd);
+uint64_t dsl_dir_get_usedds(dsl_dir_t *dd);
+uint64_t dsl_dir_get_usedrefreserv(dsl_dir_t *dd);
+uint64_t dsl_dir_get_usedchild(dsl_dir_t *dd);
+void dsl_dir_get_origin(dsl_dir_t *dd, char *buf);
+int dsl_dir_get_filesystem_count(dsl_dir_t *dd, uint64_t *count);
+int dsl_dir_get_snapshot_count(dsl_dir_t *dd, uint64_t *count);
+
 void dsl_dir_stats(dsl_dir_t *dd, nvlist_t *nv);
 uint64_t dsl_dir_space_available(dsl_dir_t *dd,
     dsl_dir_t *ancestor, int64_t delta, int ondiskonly);

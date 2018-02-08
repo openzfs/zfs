@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2016 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  * Copyright 2016, Joyent, Inc.
  */
@@ -490,7 +490,8 @@ zfs_prop_init(void)
 	zprop_register_number(ZFS_PROP_WRITTEN, "written", 0, PROP_READONLY,
 	    ZFS_TYPE_DATASET, "<size>", "WRITTEN");
 	zprop_register_number(ZFS_PROP_LOGICALUSED, "logicalused", 0,
-	    PROP_READONLY, ZFS_TYPE_DATASET, "<size>", "LUSED");
+	    PROP_READONLY, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME, "<size>",
+	    "LUSED");
 	zprop_register_number(ZFS_PROP_LOGICALREFERENCED, "logicalreferenced",
 	    0, PROP_READONLY, ZFS_TYPE_DATASET, "<size>", "LREFER");
 	zprop_register_number(ZFS_PROP_FILESYSTEM_COUNT, "filesystem_count",
@@ -710,6 +711,15 @@ zfs_prop_readonly(zfs_prop_t prop)
 }
 
 /*
+ * Returns TRUE if the property is visible (not hidden).
+ */
+boolean_t
+zfs_prop_visible(zfs_prop_t prop)
+{
+	return (zfs_prop_table[prop].pd_visible);
+}
+
+/*
  * Returns TRUE if the property is only allowed to be set once.
  */
 boolean_t
@@ -859,6 +869,7 @@ EXPORT_SYMBOL(zfs_prop_init);
 EXPORT_SYMBOL(zfs_prop_get_type);
 EXPORT_SYMBOL(zfs_prop_get_table);
 EXPORT_SYMBOL(zfs_prop_delegatable);
+EXPORT_SYMBOL(zfs_prop_visible);
 
 /* Dataset property functions shared between libzfs and kernel. */
 EXPORT_SYMBOL(zfs_prop_default_string);
@@ -875,5 +886,6 @@ EXPORT_SYMBOL(zfs_prop_userquota);
 EXPORT_SYMBOL(zfs_prop_index_to_string);
 EXPORT_SYMBOL(zfs_prop_string_to_index);
 EXPORT_SYMBOL(zfs_prop_valid_for_type);
+EXPORT_SYMBOL(zfs_prop_written);
 
 #endif
