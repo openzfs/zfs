@@ -23,6 +23,7 @@ dist_pkgdata_SCRIPTS = \
 	tst.list_clones.ksh \
 	tst.list_snapshots.ksh \
 	tst.list_system_props.ksh \
+	tst.list_user_props.ksh \
 	tst.parse_args_neg.ksh \
 	tst.promote_conflict.ksh \
 	tst.promote_conflict.zcp \
