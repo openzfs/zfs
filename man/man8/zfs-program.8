@@ -289,6 +289,18 @@ msg (string)
 .Bd -ragged -compact -offset "xxxx"
 Debug message to be printed.
 .Ed
+.It Em zfs.exists(dataset)
+Returns true if the given dataset exists, or false if it doesn't.
+A fatal error will be thrown if the dataset is not in the target pool.
+That is, in a channel program running on rpool,
+zfs.exists("rpool/nonexistent_fs") returns false, but
+zfs.exists("somepool/fs_that_may_exist") will error.
+.Pp
+dataset (string)
+.Bd -ragged -compact -offset "xxxx"
+Dataset to check for existence.
+Must be in the target pool.
+.Ed
 .It Em zfs.get_prop(dataset, property)
 Returns two values.
 First, a string, number or table containing the property value for the given
