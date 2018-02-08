@@ -11,7 +11,7 @@
 #
 
 #
-# Copyright (c) 2016 by Delphix. All rights reserved.
+# Copyright (c) 2016, 2017 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/channel_program/channel_common.kshlib
@@ -62,7 +62,7 @@ log_must zfs clone $snap2 $clone2
 
 log_must zfs unmount -f $clone1
 
-log_must_program $TESTPOOL - <<-EOF
+log_must_program_sync $TESTPOOL - <<-EOF
     assert(zfs.sync.promote("$clone2") == 0)
     assert(zfs.sync.promote("$clone2") == 0)
     assert(zfs.sync.destroy("$clone1") == 0)

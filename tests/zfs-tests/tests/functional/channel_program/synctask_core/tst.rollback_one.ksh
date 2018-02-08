@@ -37,7 +37,7 @@ log_must rm $file
 log_must snapexists $snap
 log_must zfs unmount $fs
 
-log_must_program $TESTPOOL - $fs <<-EOF
+log_must_program_sync $TESTPOOL - $fs <<-EOF
 	arg = ...
 	fs = arg["argv"][1]
 	err = zfs.sync.rollback(fs)

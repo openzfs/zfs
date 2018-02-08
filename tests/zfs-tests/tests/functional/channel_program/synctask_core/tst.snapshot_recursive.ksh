@@ -46,7 +46,7 @@ for fs in $filesystems; do
     log_must zfs create $fs
 done
 
-log_must_program $TESTPOOL \
+log_must_program_sync $TESTPOOL \
     $ZCP_ROOT/synctask_core/tst.snapshot_recursive.zcp $rootfs $snapname
 
 #

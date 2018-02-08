@@ -55,6 +55,10 @@ typedef struct zcp_synctask_info {
  *
  * If 'sync' is false, executes a dry run and returns the error code.
  *
+ * If we are not running in syncing context and we are not doing a dry run
+ * (meaning we are running a zfs.sync function in open-context) then we
+ * return a Lua error.
+ *
  * This function also handles common fatal error cases for channel program
  * library functions. If a fatal error occurs, err_dsname will be the dataset
  * name reported in error messages, if supplied.
@@ -69,6 +73,13 @@ zcp_sync_task(lua_State *state, dsl_checkfunc_t *checkfunc,
 	err = checkfunc(arg, ri->zri_tx);
 	if (!sync)
 		return (err);
+
+	if (!ri->zri_sync) {
+		return (luaL_error(state, "running functions from the zfs.sync "
+		    "submodule requires passing sync=TRUE to "
+		    "lzc_channel_program() (i.e. do not specify the \"-n\" "
+		    "command line argument)"));
+	}
 
 	if (err == 0) {
 		syncfunc(arg, ri->zri_tx);
@@ -234,6 +245,15 @@ zcp_synctask_snapshot(lua_State *state, boolean_t sync, nvlist_t *err_details)
 	zcp_run_info_t *ri = zcp_run_info(state);
 
 	/*
+	 * On old pools, the ZIL must not be active when a snapshot is created,
+	 * but we can't suspend the ZIL because we're already in syncing
+	 * context.
+	 */
+	if (spa_version(ri->zri_pool->dp_spa) < SPA_VERSION_FAST_SNAP) {
+		return (ENOTSUP);
+	}
+
+	/*
 	 * We only allow for a single snapshot rather than a list, so the
 	 * error list output is unnecessary.
 	 */
@@ -243,33 +263,23 @@ zcp_synctask_snapshot(lua_State *state, boolean_t sync, nvlist_t *err_details)
 	ddsa.ddsa_snaps = fnvlist_alloc();
 	fnvlist_add_boolean(ddsa.ddsa_snaps, dsname);
 
-	/*
-	 * On old pools, the ZIL must not be active when a snapshot is created,
-	 * but we can't suspend the ZIL because we're already in syncing
-	 * context.
-	 */
-	if (spa_version(ri->zri_pool->dp_spa) < SPA_VERSION_FAST_SNAP) {
-		return (ENOTSUP);
-	}
+	zcp_cleanup_handler_t *zch = zcp_register_cleanup(state,
+	    (zcp_cleanup_t *)&fnvlist_free, ddsa.ddsa_snaps);
 
 	err = zcp_sync_task(state, dsl_dataset_snapshot_check,
 	    dsl_dataset_snapshot_sync, &ddsa, sync, dsname);
 
+	zcp_deregister_cleanup(state, zch);
 	fnvlist_free(ddsa.ddsa_snaps);
 
 	return (err);
-}
-
-void
-zcp_synctask_wrapper_cleanup(void *arg)
-{
-	fnvlist_free(arg);
 }
 
 static int
 zcp_synctask_wrapper(lua_State *state)
 {
 	int err;
+	zcp_cleanup_handler_t *zch;
 	int num_ret = 1;
 	nvlist_t *err_details = fnvlist_alloc();
 
@@ -277,7 +287,8 @@ zcp_synctask_wrapper(lua_State *state)
 	 * Make sure err_details is properly freed, even if a fatal error is
 	 * thrown during the synctask.
 	 */
-	zcp_register_cleanup(state, &zcp_synctask_wrapper_cleanup, err_details);
+	zch = zcp_register_cleanup(state,
+	    (zcp_cleanup_t *)&fnvlist_free, err_details);
 
 	zcp_synctask_info_t *info = lua_touserdata(state, lua_upvalueindex(1));
 	boolean_t sync = lua_toboolean(state, lua_upvalueindex(2));
@@ -317,7 +328,7 @@ zcp_synctask_wrapper(lua_State *state)
 		num_ret++;
 	}
 
-	zcp_clear_cleanup(state);
+	zcp_deregister_cleanup(state, zch);
 	fnvlist_free(err_details);
 
 	return (num_ret);

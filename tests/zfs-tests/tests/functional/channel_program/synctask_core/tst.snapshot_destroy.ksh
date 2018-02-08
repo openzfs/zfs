@@ -33,7 +33,7 @@ log_onexit cleanup
 
 log_must zfs create $fs
 
-log_must_program $TESTPOOL \
+log_must_program_sync $TESTPOOL \
     $ZCP_ROOT/synctask_core/tst.snapshot_destroy.zcp $fs
 
 log_pass "Creating/destroying snapshots in one channel program works"

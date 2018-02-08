@@ -11,7 +11,7 @@
 #
 
 #
-# Copyright (c) 2016 by Delphix. All rights reserved.
+# Copyright (c) 2016, 2017 by Delphix. All rights reserved.
 #
 
 verify_runnable "global"
@@ -31,7 +31,7 @@ create_snapshot $TESTPOOL/$TESTFS $TESTSNAP
 
 log_must snapexists $snap
 
-log_must_program $TESTPOOL - $snap <<-EOF
+log_must_program_sync $TESTPOOL - $snap <<-EOF
 	arg = ...
 	snap = arg["argv"][1]
 	err = zfs.sync.destroy(snap)

@@ -3673,10 +3673,14 @@ zfs_ioc_channel_program(const char *poolname, nvlist_t *innvl,
 {
 	char *program;
 	uint64_t instrlimit, memlimit;
+	boolean_t sync_flag;
 	nvpair_t *nvarg = NULL;
 
 	if (0 != nvlist_lookup_string(innvl, ZCP_ARG_PROGRAM, &program)) {
 		return (EINVAL);
+	}
+	if (0 != nvlist_lookup_boolean_value(innvl, ZCP_ARG_SYNC, &sync_flag)) {
+		sync_flag = B_TRUE;
 	}
 	if (0 != nvlist_lookup_uint64(innvl, ZCP_ARG_INSTRLIMIT, &instrlimit)) {
 		instrlimit = ZCP_DEFAULT_INSTRLIMIT;
@@ -3693,7 +3697,7 @@ zfs_ioc_channel_program(const char *poolname, nvlist_t *innvl,
 	if (memlimit == 0 || memlimit > zfs_lua_max_memlimit)
 		return (EINVAL);
 
-	return (zcp_eval(poolname, program, instrlimit, memlimit,
+	return (zcp_eval(poolname, program, sync_flag, instrlimit, memlimit,
 	    nvarg, outnvl));
 }
 

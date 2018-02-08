@@ -47,7 +47,7 @@ output_lines=$(log_must zfs program $TESTPOOL \
 #
 # Make sure we fail if the return is over the memory limit
 #
-log_mustnot_program $TESTPOOL -m 10000 \
+log_mustnot_program -m 10000 $TESTPOOL \
     $ZCP_ROOT/lua_core/tst.return_large.zcp
 
 log_pass "Large return values work properly"

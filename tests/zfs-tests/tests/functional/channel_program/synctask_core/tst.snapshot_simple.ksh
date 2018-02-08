@@ -34,7 +34,7 @@ log_onexit cleanup
 
 log_must zfs create $fs
 
-log_must_program $TESTPOOL \
+log_must_program_sync $TESTPOOL \
     $ZCP_ROOT/synctask_core/tst.snapshot_simple.zcp $fs $snapname
 
 log_pass "Simple snapshotting works"

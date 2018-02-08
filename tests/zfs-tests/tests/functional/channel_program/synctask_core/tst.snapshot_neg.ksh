@@ -38,7 +38,8 @@ log_must zfs create $fs1
 log_must zfs create $fs2
 log_must zfs snapshot $fs1@snap1
 
-log_must_program $TESTPOOL $ZCP_ROOT/synctask_core/tst.snapshot_neg.zcp $fs1 $fs2
+log_must_program_sync $TESTPOOL \
+    $ZCP_ROOT/synctask_core/tst.snapshot_neg.zcp $fs1 $fs2
 
 log_pass "zfs.sync.snapshot returns correct errors on invalid input"
 

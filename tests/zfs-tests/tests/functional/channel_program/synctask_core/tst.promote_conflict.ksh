@@ -11,7 +11,7 @@
 #
 
 #
-# Copyright (c) 2016 by Delphix. All rights reserved.
+# Copyright (c) 2016, 2017 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/channel_program/channel_common.kshlib
@@ -49,7 +49,7 @@ log_must zfs snapshot $clone@$snap
 # code and description, which should be EEXIST (17) and the name of the
 # conflicting snapshot.
 #
-log_must_program $TESTPOOL \
+log_must_program_sync $TESTPOOL \
     $ZCP_ROOT/synctask_core/tst.promote_conflict.zcp $clone
 
 log_pass "Promoting a clone with a conflicting snapshot fails."
