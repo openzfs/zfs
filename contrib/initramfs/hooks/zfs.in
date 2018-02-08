@@ -22,7 +22,7 @@ COPY_EXEC_LIST="$COPY_EXEC_LIST /usr/bin/env"
 
 # Explicitly specify all kernel modules because automatic dependency resolution
 # is unreliable on many systems.
-BASE_MODULES="zlib_deflate spl zavl zcommon znvpair zunicode zfs icp"
+BASE_MODULES="zlib_deflate spl zavl zcommon znvpair zunicode zlua zfs icp"
 CRPT_MODULES="sun-ccm sun-gcm sun-ctr"
 MANUAL_ADD_MODULES_LIST="$BASE_MODULES"
 

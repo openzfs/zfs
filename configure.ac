@@ -131,6 +131,7 @@ AC_CONFIG_FILES([
 	module/unicode/Makefile
 	module/zcommon/Makefile
 	module/zfs/Makefile
+	module/lua/Makefile
 	module/icp/Makefile
 	include/Makefile
 	include/linux/Makefile
@@ -140,6 +141,7 @@ AC_CONFIG_FILES([
 	include/sys/fm/fs/Makefile
 	include/sys/crypto/Makefile
 	include/sys/sysevent/Makefile
+	include/sys/lua/Makefile
 	scripts/Makefile
 	tests/Makefile
 	tests/test-runner/Makefile
@@ -163,6 +165,7 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/cmd/mktree/Makefile
 	tests/zfs-tests/cmd/mmap_exec/Makefile
 	tests/zfs-tests/cmd/mmapwrite/Makefile
+	tests/zfs-tests/cmd/nvlist_to_lua/Makefile
 	tests/zfs-tests/cmd/randfree_file/Makefile
 	tests/zfs-tests/cmd/readmmap/Makefile
 	tests/zfs-tests/cmd/rename_dir/Makefile
@@ -182,6 +185,9 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/cachefile/Makefile
 	tests/zfs-tests/tests/functional/casenorm/Makefile
 	tests/zfs-tests/tests/functional/checksum/Makefile
+	tests/zfs-tests/tests/functional/channel_program/Makefile
+	tests/zfs-tests/tests/functional/channel_program/lua_core/Makefile
+	tests/zfs-tests/tests/functional/channel_program/synctask_core/Makefile
 	tests/zfs-tests/tests/functional/chattr/Makefile
 	tests/zfs-tests/tests/functional/clean_mirror/Makefile
 	tests/zfs-tests/tests/functional/cli_root/Makefile

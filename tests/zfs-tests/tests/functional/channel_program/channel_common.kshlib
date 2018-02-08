@@ -1,0 +1,100 @@
+#!/bin/ksh
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
+. $STF_SUITE/include/libtest.shlib
+
+ZCP_ROOT=$STF_SUITE/tests/functional/channel_program
+
+# <exitcode> <expected error string> <zfs program args>
+# e.g. log_program 0 $POOL foo.zcp arg1 arg2
+function log_program
+{
+	typeset expectexit=$1
+	shift
+	typeset expecterror=$1
+	shift
+	typeset cmdargs=$@ tmpout=$(mktemp) tmperr=$(mktemp) tmpin=$(mktemp)
+
+	# Expected output/error filename is the same as the .zcp name
+	typeset basename
+	if [[ $2 != "-" ]]; then
+		basename=${2%.*}
+	fi
+
+	log_note "running: zfs program $cmdargs:"
+
+	tee $tmpin | zfs program $cmdargs >$tmpout 2>$tmperr
+	typeset ret=$?
+
+	log_note "input:\n$(cat $tmpin)"
+	log_note "output:\n$(cat $tmpout)"
+	log_note "error:\n$(cat $tmperr)"
+	# verify correct return value
+	if [[ $ret -ne $expectexit ]]; then
+		log_fail "return mismatch: expected $expectexit, got $ret"
+	fi
+
+	#
+	# Check the output or reported error for successful or error returns,
+	# respectively.
+	if [[ -f "$basename.out" ]] && [[ $expectexit -eq 0 ]]; then
+
+		outdiff=$(diff "$basename.out" "$tmpout")
+		[[ $? -ne 0 ]] && log_fail "Output mismatch. Expected:\n" \
+		    "$(cat $basename.out)\nBut got:$(cat $tmpout)\n" \
+		    "Diff:\n$outdiff"
+
+	elif [[ -f "$basename.err" ]] && [[ $expectexit -ne 0 ]]; then
+
+		outdiff=$(diff "$basename.err" "$tmperr")
+		[[ $? -ne 0 ]] && log_fail "Error mismatch. Expected:\n" \
+		    "$(cat $basename.err)\nBut got:$(cat $tmpout)\n" \
+		    "Diff:\n$outdiff"
+
+	elif [[ -n $expecterror ]] && [[ $expectexit -ne 0 ]]; then
+
+		grep -q "$expecterror" $tmperr || \
+		    log_fail "Error mismatch. Expected to contain:\n" \
+		    "$expecterror\nBut got:$(cat $tmpout)\n"
+
+	elif [[ $expectexit -ne 0 ]]; then
+		#
+		# If there's no expected output, error reporting is allowed to
+		# vary, but ensure that we didn't fail silently.
+		#
+		[[ -z "$(cat $tmperr)" ]] && \
+		    log_fail "error with no stderr output"
+	fi
+
+	rm $tmpout $tmperr
+}
+
+function log_must_program
+{
+	log_program 0 "" "$@"
+}
+
+function log_mustnot_program
+{
+	log_program 1 "" "$@"
+}
+
+function log_mustnot_checkerror_program
+{
+	typeset expecterror=$1
+	shift
+	log_program 1 "$expecterror" "$@"
+}

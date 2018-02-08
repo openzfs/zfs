@@ -271,6 +271,12 @@
 .Op Fl FHt
 .Ar snapshot Ar snapshot Ns | Ns Ar filesystem
 .Nm
+.Cm program
+.Op Fl t Ar timeout
+.Op Fl m Ar memory_limit
+.Ar pool script
+.Op Ar arg1 No ...
+.Nm
 .Cm load-key
 .Op Fl nr
 .Op Fl L Ar keylocation
@@ -4032,6 +4038,47 @@ Give more parsable tab-separated output, without header lines and without
 arrows.
 .It Fl t
 Display the path's inode change time as the first column of output.
+.El
+.It Xo
+.Nm
+.Cm program
+.Op Fl t Ar timeout
+.Op Fl m Ar memory_limit
+.Ar pool script
+.Op Ar arg1 No ...
+.Xc
+Executes
+.Ar script
+as a ZFS channel program on
+.Ar pool .
+The ZFS channel
+program interface allows ZFS administrative operations to be run
+programmatically via a Lua script.
+The entire script is executed atomically, with no other administrative
+operations taking effect concurrently.
+A library of ZFS calls is made available to channel program scripts.
+Channel programs may only be run with root privileges.
+.sp
+For full documentation of the ZFS channel program interface, see the manual
+page for
+.Xr zfs-program 8 .
+.Bl -tag -width ""
+.It Fl t Ar timeout
+Execution time limit, in milliseconds.
+If a channel program executes for longer than the provided timeout, it will
+be stopped and an error will be returned.
+The default timeout is 1000 ms, and can be set to a maximum of 10000 ms.
+.It Fl m Ar memory-limit
+Memory limit, in bytes.
+If a channel program attempts to allocate more memory than the given limit,
+it will be stopped and an error returned.
+The default memory limit is 10 MB, and can be set to a maximum of 100 MB.
+.sp
+All remaining argument strings are passed directly to the channel program as
+arguments.
+See
+.Xr zfs-program 8
+for more information.
 .El
 .It Xo
 .Nm

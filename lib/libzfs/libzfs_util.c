@@ -1053,6 +1053,10 @@ libzfs_init(void)
 	libzfs_mnttab_init(hdl);
 	fletcher_4_init();
 
+	if (getenv("ZFS_PROP_DEBUG") != NULL) {
+		hdl->libzfs_prop_debug = B_TRUE;
+	}
+
 	return (hdl);
 }
 

@@ -285,12 +285,12 @@ function default_container_volume_setup
 # Create a snapshot on a filesystem or volume. Defaultly create a snapshot on
 # filesystem
 #
-# $1 Existing filesystem or volume name. Default, $TESTFS
+# $1 Existing filesystem or volume name. Default, $TESTPOOL/$TESTFS
 # $2 snapshot name. Default, $TESTSNAP
 #
 function create_snapshot
 {
-	typeset fs_vol=${1:-$TESTFS}
+	typeset fs_vol=${1:-$TESTPOOL/$TESTFS}
 	typeset snap=${2:-$TESTSNAP}
 
 	[[ -z $fs_vol ]] && log_fail "Filesystem or volume's name is undefined."
