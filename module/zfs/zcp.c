@@ -14,7 +14,7 @@
  */
 
 /*
- * Copyright (c) 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2016, 2017 by Delphix. All rights reserved.
  */
 
 /*
@@ -106,10 +106,15 @@
 #define	KM_NORMALPRI	0
 #endif
 
+#define	ZCP_NVLIST_MAX_DEPTH 20
+
 uint64_t zfs_lua_check_instrlimit_interval = 100;
 uint64_t zfs_lua_max_instrlimit = ZCP_MAX_INSTRLIMIT;
 uint64_t zfs_lua_max_memlimit = ZCP_MAX_MEMLIMIT;
 
+/*
+ * Forward declarations for mutually recursive functions
+ */
 static int zcp_nvpair_value_to_lua(lua_State *, nvpair_t *, char *, int);
 static int zcp_lua_to_nvlist_impl(lua_State *, int, nvlist_t *, const char *,
     int);
@@ -216,8 +221,6 @@ zcp_cleanup(lua_State *state)
 		zcp_clear_cleanup(state);
 	}
 }
-
-#define	ZCP_NVLIST_MAX_DEPTH 20
 
 /*
  * Convert the lua table at the given index on the Lua stack to an nvlist

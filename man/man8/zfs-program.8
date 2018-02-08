@@ -372,6 +372,18 @@ filesystem (string)
 .Bd -ragged -compact -offset "xxxx"
 Filesystem to rollback.
 .Ed
+.It Em zfs.sync.snapshot(dataset)
+Create a snapshot of a filesystem.
+Returns 0 if the snapshot was successfully created,
+and a nonzero error code otherwise.
+.Pp
+Note: Taking a snapshot will fail on any pool older than legacy version 27.
+To enable taking snapshots from ZCP scripts, the pool must be upgraded.
+.Pp
+dataset (string)
+.Bd -ragged -compact -offset "xxxx"
+Name of snapshot to create.
+.Ed
 .El
 .It Sy zfs.check submodule
 For each function in the zfs.sync submodule, there is a corresponding zfs.check
@@ -392,6 +404,7 @@ The available zfs.check functions are:
 .It Em zfs.check.destroy(dataset, [defer=true|false])
 .It Em zfs.check.promote(dataset)
 .It Em zfs.check.rollback(filesystem)
+.It Em zfs.check.snapshot(dataset)
 .El
 .It Sy zfs.list submodule
 The zfs.list submodule provides functions for iterating over datasets and

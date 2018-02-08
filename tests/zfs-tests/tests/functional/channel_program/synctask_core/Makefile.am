@@ -29,4 +29,12 @@ dist_pkgdata_SCRIPTS = \
 	tst.promote_multiple.ksh \
 	tst.promote_simple.ksh \
 	tst.rollback_mult.ksh \
-	tst.rollback_one.ksh
+	tst.rollback_one.ksh \
+	tst.snapshot_destroy.ksh \
+	tst.snapshot_destroy.zcp \
+	tst.snapshot_neg.ksh \
+	tst.snapshot_neg.zcp \
+	tst.snapshot_recursive.ksh \
+	tst.snapshot_recursive.zcp \
+	tst.snapshot_simple.ksh \
+	tst.snapshot_simple.zcp

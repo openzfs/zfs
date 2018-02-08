@@ -14,7 +14,7 @@
  */
 
 /*
- * Copyright (c) 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2016, 2017 by Delphix. All rights reserved.
  */
 
 #include <sys/zcp_global.h>
@@ -62,7 +62,12 @@ static const zcp_errno_global_t errno_globals[] = {
 	{"EPIPE", EPIPE},
 	{"EDOM", EDOM},
 	{"ERANGE", ERANGE},
+	{"EDEADLK", EDEADLK},
+	{"ENOLCK", ENOLCK},
+	{"ECANCELED", ECANCELED},
+	{"ENOTSUP", ENOTSUP},
 	{"EDQUOT", EDQUOT},
+	{"ENAMETOOLONG", ENAMETOOLONG},
 	{0, 0}
 };
 
