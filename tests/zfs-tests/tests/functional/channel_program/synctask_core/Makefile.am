@@ -27,4 +27,6 @@ dist_pkgdata_SCRIPTS = \
 	tst.promote_conflict.ksh \
 	tst.promote_conflict.zcp \
 	tst.promote_multiple.ksh \
-	tst.promote_simple.ksh
+	tst.promote_simple.ksh \
+	tst.rollback_mult.ksh \
+	tst.rollback_one.ksh
