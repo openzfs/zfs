@@ -1323,6 +1323,7 @@ zfs_aclset_common(znode_t *zp, zfs_acl_t *aclp, cred_t *cr, dmu_tx_t *tx)
 	sa_bulk_attr_t		bulk[5];
 	uint64_t		ctime[2];
 	int			count = 0;
+	zfs_acl_phys_t		acl_phys;
 
 	mode = zp->z_mode;
 
@@ -1369,7 +1370,6 @@ zfs_aclset_common(znode_t *zp, zfs_acl_t *aclp, cred_t *cr, dmu_tx_t *tx)
 	} else { /* Painful legacy way */
 		zfs_acl_node_t *aclnode;
 		uint64_t off = 0;
-		zfs_acl_phys_t acl_phys;
 		uint64_t aoid;
 
 		if ((error = sa_lookup(zp->z_sa_hdl, SA_ZPL_ZNODE_ACL(zfsvfs),
