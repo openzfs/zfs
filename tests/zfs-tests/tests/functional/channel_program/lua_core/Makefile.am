@@ -8,6 +8,8 @@ dist_pkgdata_SCRIPTS = \
 	tst.divide_by_zero.err \
 	tst.divide_by_zero.ksh \
 	tst.divide_by_zero.zcp \
+	tst.exists.ksh \
+	tst.exists.zcp \
 	tst.integer_illegal.ksh \
 	tst.integer_overflow.ksh \
 	tst.language_functions_neg.ksh \
