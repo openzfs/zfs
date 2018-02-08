@@ -68,7 +68,6 @@ DECLARE_EVENT_CLASS(zfs_ace_class,
 	    __field(uint32_t,		i_gid)
 	    __field(unsigned long,	i_ino)
 	    __field(unsigned int,	i_nlink)
-	    __field(u64,		i_version)
 	    __field(loff_t,		i_size)
 	    __field(unsigned int,	i_blkbits)
 	    __field(unsigned short,	i_bytes)
@@ -103,7 +102,6 @@ DECLARE_EVENT_CLASS(zfs_ace_class,
 	    __entry->i_gid		= KGID_TO_SGID(ZTOI(zn)->i_gid);
 	    __entry->i_ino		= zn->z_inode.i_ino;
 	    __entry->i_nlink		= zn->z_inode.i_nlink;
-	    __entry->i_version		= zn->z_inode.i_version;
 	    __entry->i_size		= zn->z_inode.i_size;
 	    __entry->i_blkbits		= zn->z_inode.i_blkbits;
 	    __entry->i_bytes		= zn->z_inode.i_bytes;
@@ -121,7 +119,7 @@ DECLARE_EVENT_CLASS(zfs_ace_class,
 	    "mapcnt %llu size %llu pflags %llu "
 	    "sync_cnt %u mode 0x%x is_sa %d "
 	    "is_mapped %d is_ctldir %d is_stale %d inode { "
-	    "uid %u gid %u ino %lu nlink %u version %llu size %lli "
+	    "uid %u gid %u ino %lu nlink %u size %lli "
 	    "blkbits %u bytes %u mode 0x%x generation %x } } "
 	    "ace { type %u flags %u access_mask %u } mask_matched %u",
 	    __entry->z_id, __entry->z_unlinked, __entry->z_atime_dirty,
@@ -131,7 +129,7 @@ DECLARE_EVENT_CLASS(zfs_ace_class,
 	    __entry->z_is_sa, __entry->z_is_mapped,
 	    __entry->z_is_ctldir, __entry->z_is_stale, __entry->i_uid,
 	    __entry->i_gid, __entry->i_ino, __entry->i_nlink,
-	    __entry->i_version, __entry->i_size, __entry->i_blkbits,
+	    __entry->i_size, __entry->i_blkbits,
 	    __entry->i_bytes, __entry->i_mode, __entry->i_generation,
 	    __entry->z_type, __entry->z_flags, __entry->z_access_mask,
 	    __entry->mask_matched)

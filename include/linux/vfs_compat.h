@@ -578,4 +578,18 @@ current_time(struct inode *ip)
 }
 #endif
 
+/*
+ * 4.16 API change
+ * Added iversion interface for managing inode version field.
+ */
+#ifdef HAVE_INODE_SET_IVERSION
+#include <linux/iversion.h>
+#else
+static inline void
+inode_set_iversion(struct inode *ip, u64 val)
+{
+	ip->i_version = val;
+}
+#endif
+
 #endif /* _ZFS_VFS_H */
