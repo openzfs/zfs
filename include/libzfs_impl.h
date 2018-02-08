@@ -62,6 +62,7 @@ struct libzfs_handle {
 	avl_tree_t libzfs_mnttab_cache;
 	int libzfs_pool_iter;
 	char libzfs_chassis_id[256];
+	boolean_t libzfs_prop_debug;
 };
 
 #define	ZFSSHARE_MISS	0x01	/* Didn't find entry in cache */

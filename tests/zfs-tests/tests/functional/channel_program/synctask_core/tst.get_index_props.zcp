@@ -1,0 +1,68 @@
+--
+-- This file and its contents are supplied under the terms of the
+-- Common Development and Distribution License ("CDDL"), version 1.0.
+-- You may only use this file in accordance with the terms of version
+-- 1.0 of the CDDL.
+--
+-- A full copy of the text of the CDDL should have accompanied this
+-- source.  A copy of the CDDL is also available via the Internet at
+-- http://www.illumos.org/license/CDDL.
+--
+
+--
+-- Copyright (c) 2016 by Delphix. All rights reserved.
+--
+
+arg = ...
+fs = arg["argv"][1]
+snap = arg["argv"][2]
+
+props = {}
+
+-- prop                        filesystem                snapshot
+props['redundant_metadata'] = {{'all',       'default'}, {nil,         nil}}
+props['sync']               = {{'standard',  'default'}, {nil,         nil}}
+props['checksum']           = {{'on',        'default'}, {nil,         nil}}
+props['dedup']              = {{'off',       'default'}, {nil,         nil}}
+props['compression']        = {{'off',       'default'}, {nil,         nil}}
+props['snapdir']            = {{'hidden',    'default'}, {nil,         nil}}
+props['acltype']            = {{'off',       'default'}, {'off', 'default'}}
+props['aclinherit']         = {{'restricted','default'}, {nil,         nil}}
+props['copies']             = {{'1',         'default'}, {nil,         nil}}
+props['primarycache']       = {{'all',       'default'}, {'all', 'default'}}
+props['secondarycache']     = {{'all',       'default'}, {'all', 'default'}}
+props['logbias']            = {{'latency',   'default'}, {nil,         nil}}
+props['atime']              = {{'on',        'default'}, {nil,         nil}}
+props['devices']            = {{'on',        'default'}, {'on',  'default'}}
+props['exec']               = {{'on',        'default'}, {'on',  'default'}}
+props['setuid']             = {{'on',        'default'}, {'on',  'default'}}
+props['readonly']           = {{'off',       'default'}, {nil,         nil}}
+props['zoned']              = {{'off',       'default'}, {nil,         nil}}
+props['vscan']              = {{'off',       'default'}, {nil,         nil}}
+props['nbmand']             = {{'off',       'default'}, {'off', 'default'}}
+props['version']            = {{'5',               nil}, {'5',         nil}}
+props['canmount']           = {{'on',        'default'}, {nil,         nil}}
+props['mounted']            = {{nil,               nil}, {nil,         nil}}
+props['defer_destroy']      = {{nil,               nil}, {'off',       nil}}
+props['normalization']      = {{'none',            nil}, {'none',      nil}}
+props['casesensitivity']    = {{'sensitive',       nil}, {'sensitive', nil}}
+props['utf8only']           = {{'off',             nil}, {'off',       nil}}
+props['dnodesize']          = {{'legacy',    'default'}, {nil,         nil}}
+props['relatime']           = {{'off',       'default'}, {nil,         nil}}
+props['overlay']            = {{'off',       'default'}, {nil,         nil}}
+
+fs_fails = {}
+snap_fails = {}
+for prop, expected in pairs(props) do
+	ans, src = zfs.get_prop(fs, prop)
+	if ((ans ~= expected[1][1]) or (src ~= expected[1][2])) then
+		fs_fails[prop] = {ans, src}
+	end
+
+	ans, src = zfs.get_prop(snap, prop)
+	if ((ans ~= expected[2][1]) or (src ~= expected[2][2])) then
+		snap_fails[prop] = {ans, src}
+	end
+end
+
+return {fs_fails, snap_fails}

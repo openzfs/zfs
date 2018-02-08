@@ -3,6 +3,7 @@ include $(top_srcdir)/config/Rules.am
 VPATH = \
 	$(top_srcdir)/module/zfs \
 	$(top_srcdir)/module/zcommon \
+	$(top_srcdir)/module/lua \
 	$(top_srcdir)/lib/libzpool
 
 # Suppress unused but set variable warnings often due to ASSERTs
@@ -121,6 +122,11 @@ KERNEL_C = \
 	zap.c \
 	zap_leaf.c \
 	zap_micro.c \
+	zcp.c \
+	zcp_get.c \
+	zcp_global.c \
+	zcp_iter.c \
+	zcp_synctask.c \
 	zfeature.c \
 	zfs_byteswap.c \
 	zfs_debug.c \
@@ -139,9 +145,36 @@ KERNEL_C = \
 	zle.c \
 	zrlock.c
 
+LUA_C = \
+	lapi.c \
+	lauxlib.c \
+	lbaselib.c \
+	lcode.c \
+	lcompat.c \
+	lcorolib.c \
+	lctype.c \
+	ldebug.c \
+	ldo.c \
+	lfunc.c \
+	lgc.c \
+	llex.c \
+	lmem.c \
+	lobject.c \
+	lopcodes.c \
+	lparser.c \
+	lstate.c \
+	lstring.c \
+	lstrlib.c \
+	ltable.c \
+	ltablib.c \
+	ltm.c \
+	lvm.c \
+	lzio.c
+
 nodist_libzpool_la_SOURCES = \
 	$(USER_C) \
-	$(KERNEL_C)
+	$(KERNEL_C) \
+	$(LUA_C)
 
 libzpool_la_LIBADD = \
 	$(top_builddir)/lib/libavl/libavl.la \

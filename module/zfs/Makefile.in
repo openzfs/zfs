@@ -1,11 +1,17 @@
 src = @abs_top_srcdir@/module/zfs
 obj = @abs_builddir@
+target_cpu = @target_cpu@
 
 MODULE := zfs
 
 obj-$(CONFIG_ZFS) := $(MODULE).o
 
 ccflags-y := $(ZFS_MODULE_CFLAGS) $(ZFS_MODULE_CPPFLAGS)
+
+# Suppress unused-value warnings in sparc64 architecture headers
+ifeq ($(target_cpu),sparc64)
+ccflags-y += -Wno-unused-value
+endif
 
 # Suppress unused but set variable warnings often due to ASSERTs
 ccflags-y += $(NO_UNUSED_BUT_SET_VARIABLE)
@@ -86,6 +92,11 @@ $(MODULE)-objs += vdev_root.o
 $(MODULE)-objs += zap.o
 $(MODULE)-objs += zap_leaf.o
 $(MODULE)-objs += zap_micro.o
+$(MODULE)-objs += zcp.o
+$(MODULE)-objs += zcp_get.o
+$(MODULE)-objs += zcp_global.o
+$(MODULE)-objs += zcp_iter.o
+$(MODULE)-objs += zcp_synctask.o
 $(MODULE)-objs += zfeature.o
 $(MODULE)-objs += zfs_acl.o
 $(MODULE)-objs += zfs_byteswap.o

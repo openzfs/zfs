@@ -91,4 +91,7 @@ DEST_MODULE_LOCATION[4]="/extra/zfs/zfs"
 BUILT_MODULE_NAME[5]="icp"
 BUILT_MODULE_LOCATION[5]="module/icp/"
 DEST_MODULE_LOCATION[5]="/extra/icp/icp"
+BUILT_MODULE_NAME[6]="zlua"
+BUILT_MODULE_LOCATION[6]="module/lua/"
+DEST_MODULE_LOCATION[6]="/extra/lua/zlua"
 EOF
