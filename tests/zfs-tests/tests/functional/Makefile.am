@@ -1,5 +1,6 @@
 SUBDIRS = \
 	acl \
+	arc \
 	atime \
 	bootfs \
 	cache \
@@ -12,6 +13,7 @@ SUBDIRS = \
 	cli_user \
 	compression \
 	ctime \
+	deadman \
 	delegate \
 	devices \
 	events \
@@ -21,6 +23,7 @@ SUBDIRS = \
 	grow_pool \
 	grow_replicas \
 	history \
+	hkdf \
 	inheritance \
 	inuse \
 	large_files \
@@ -29,6 +32,7 @@ SUBDIRS = \
 	link_count \
 	migration \
 	mmap \
+	mmp \
 	mount \
 	mv_files \
 	nestedfs \

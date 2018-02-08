@@ -199,6 +199,7 @@ changelist_postfix(prop_changelist_t *clp)
 		boolean_t sharenfs;
 		boolean_t sharesmb;
 		boolean_t mounted;
+		boolean_t needs_key;
 
 		/*
 		 * If we are in the global zone, but this dataset is exported
@@ -229,9 +230,12 @@ changelist_postfix(prop_changelist_t *clp)
 		    shareopts, sizeof (shareopts), NULL, NULL, 0,
 		    B_FALSE) == 0) && (strcmp(shareopts, "off") != 0));
 
+		needs_key = (zfs_prop_get_int(cn->cn_handle,
+		    ZFS_PROP_KEYSTATUS) == ZFS_KEYSTATUS_UNAVAILABLE);
+
 		mounted = zfs_is_mounted(cn->cn_handle, NULL);
 
-		if (!mounted && (cn->cn_mounted ||
+		if (!mounted && !needs_key && (cn->cn_mounted ||
 		    ((sharenfs || sharesmb || clp->cl_waslegacy) &&
 		    (zfs_prop_get_int(cn->cn_handle,
 		    ZFS_PROP_CANMOUNT) == ZFS_CANMOUNT_ON)))) {

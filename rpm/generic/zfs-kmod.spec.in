@@ -37,7 +37,7 @@
 #define buildforkernels akmod
 
 %bcond_with     debug
-%bcond_with     debug_dmu_tx
+%bcond_with     debuginfo
 
 
 Name:           %{module}-kmod
@@ -86,8 +86,8 @@ BuildRequires:             kmod-spl-devel = %{version}
 %global KmodsMetaRequires  spl-kmod
 %endif
 
-# LDFLAGS are not sanitized by arch/powerpc/Makefile (unlike other arches)
-%ifarch ppc ppc64 ppc64le
+# LDFLAGS are not sanitized by arch/*/Makefile for these architectures.
+%ifarch ppc ppc64 ppc64le aarch64
 %global __global_ldflags %{nil}
 %endif
 
@@ -117,10 +117,10 @@ bash %{SOURCE10}  --target %{_target_cpu} %{?repo:--repo %{?repo}} --kmodname %{
     %define debug --disable-debug
 %endif
 
-%if %{with debug_dmu_tx}
-    %define debug_dmu_tx --enable-debug-dmu-tx
+%if %{with debuginfo}
+    %define debuginfo --enable-debuginfo
 %else
-    %define debug_dmu_tx --disable-debug-dmu-tx
+    %define debuginfo --disable-debuginfo
 %endif
 
 #
@@ -164,7 +164,7 @@ for kernel_version in %{?kernel_versions}; do
         --with-spl="%{spldir}" \
         --with-spl-obj="%{splobj}" \
         %{debug} \
-        %{debug_dmu_tx}
+        %{debuginfo}
     make %{?_smp_mflags}
     cd ..
 done
@@ -191,14 +191,6 @@ chmod u+x ${RPM_BUILD_ROOT}%{kmodinstdir_prefix}/*/extra/*/*/*
 rm -rf $RPM_BUILD_ROOT
 
 %changelog
-* Fri Sep 11 2015 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.5-1
-- Released 0.6.5-1, detailed release notes are available at:
-- https://github.com/zfsonlinux/zfs/releases/tag/zfs-0.6.5
-* Wed Apr  8 2015 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.4-1
-- Released 0.6.4-1
-* Thu Jun 12 2014 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.3-1
-- Released 0.6.3-1
-* Wed Aug 21 2013 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.2-1
-- Released 0.6.2-1
-* Fri Mar 22 2013 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.1-1
-- First official stable release.
+* Wed Jul 26 2017 Brian Behlendorf <behlendorf1@llnl.gov> - 0.7.0-1
+- Released 0.7.0-1, detailed release notes are available at:
+- https://github.com/zfsonlinux/zfs/releases/tag/zfs-0.7.0

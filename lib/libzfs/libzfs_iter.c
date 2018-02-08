@@ -428,10 +428,10 @@ zfs_iter_children(zfs_handle_t *zhp, zfs_iter_f func, void *data)
 {
 	int ret;
 
-	if ((ret = zfs_iter_filesystems(zhp, func, data)) != 0)
+	if ((ret = zfs_iter_snapshots(zhp, B_FALSE, func, data)) != 0)
 		return (ret);
 
-	return (zfs_iter_snapshots(zhp, B_FALSE, func, data));
+	return (zfs_iter_filesystems(zhp, func, data));
 }
 
 

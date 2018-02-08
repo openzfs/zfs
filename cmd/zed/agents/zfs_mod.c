@@ -23,6 +23,7 @@
  * Copyright (c) 2012 by Delphix. All rights reserved.
  * Copyright 2014 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2016, 2017, Intel Corporation.
+ * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
  */
 
 /*
@@ -63,7 +64,6 @@
  * trigger the FMA fault that we skipped earlier.
  *
  * ZFS on Linux porting notes:
- *	In lieu of a thread pool, just spawn a thread on demmand.
  *	Linux udev provides a disk insert for both the disk and the partition
  *
  */
@@ -82,6 +82,7 @@
 #include <sys/sunddi.h>
 #include <sys/sysevent/eventdefs.h>
 #include <sys/sysevent/dev.h>
+#include <thread_pool.h>
 #include <pthread.h>
 #include <unistd.h>
 #include "zfs_agents.h"
@@ -96,12 +97,12 @@ typedef void (*zfs_process_func_t)(zpool_handle_t *, nvlist_t *, boolean_t);
 libzfs_handle_t *g_zfshdl;
 list_t g_pool_list;	/* list of unavailable pools at initialization */
 list_t g_device_list;	/* list of disks with asynchronous label request */
+tpool_t *g_tpool;
 boolean_t g_enumeration_done;
-pthread_t g_zfs_tid;
+pthread_t g_zfs_tid;	/* zfs_enum_pools() thread */
 
 typedef struct unavailpool {
 	zpool_handle_t	*uap_zhp;
-	pthread_t	uap_enable_tid;	/* dataset enable thread if activated */
 	list_node_t	uap_node;
 } unavailpool_t;
 
@@ -134,7 +135,6 @@ zfs_unavail_pool(zpool_handle_t *zhp, void *data)
 		unavailpool_t *uap;
 		uap = malloc(sizeof (unavailpool_t));
 		uap->uap_zhp = zhp;
-		uap->uap_enable_tid = 0;
 		list_insert_tail((list_t *)data, uap);
 	} else {
 		zpool_close(zhp);
@@ -511,19 +511,14 @@ zfs_iter_vdev(zpool_handle_t *zhp, nvlist_t *nvl, void *data)
 	(dp->dd_func)(zhp, nvl, dp->dd_islabeled);
 }
 
-static void *
+void
 zfs_enable_ds(void *arg)
 {
 	unavailpool_t *pool = (unavailpool_t *)arg;
 
-	assert(pool->uap_enable_tid = pthread_self());
-
 	(void) zpool_enable_datasets(pool->uap_zhp, NULL, 0);
 	zpool_close(pool->uap_zhp);
-	pool->uap_zhp = NULL;
-
-	/* Note: zfs_slm_fini() will cleanup this pool entry on exit */
-	return (NULL);
+	free(pool);
 }
 
 static int
@@ -558,15 +553,13 @@ zfs_iter_pool(zpool_handle_t *zhp, void *data)
 		for (pool = list_head(&g_pool_list); pool != NULL;
 		    pool = list_next(&g_pool_list, pool)) {
 
-			if (pool->uap_enable_tid != 0)
-				continue;	/* entry already processed */
 			if (strcmp(zpool_get_name(zhp),
 			    zpool_get_name(pool->uap_zhp)))
 				continue;
 			if (zfs_toplevel_state(zhp) >= VDEV_STATE_DEGRADED) {
-				/* send to a background thread; keep on list */
-				(void) pthread_create(&pool->uap_enable_tid,
-				    NULL, zfs_enable_ds, pool);
+				list_remove(&g_pool_list, pool);
+				(void) tpool_dispatch(g_tpool, zfs_enable_ds,
+				    pool);
 				break;
 			}
 		}
@@ -722,6 +715,8 @@ zfsdle_vdev_online(zpool_handle_t *zhp, void *data)
 		(void) strlcpy(fullpath, path, sizeof (fullpath));
 		if (wholedisk) {
 			char *spath = zfs_strip_partition(fullpath);
+			boolean_t scrub_restart = B_TRUE;
+
 			if (!spath) {
 				zed_log_msg(LOG_INFO, "%s: Can't alloc",
 				    __func__);
@@ -736,7 +731,7 @@ zfsdle_vdev_online(zpool_handle_t *zhp, void *data)
 			 * device so that the kernel can update the size
 			 * of the expanded device.
 			 */
-			(void) zpool_reopen(zhp);
+			(void) zpool_reopen_one(zhp, &scrub_restart);
 		}
 
 		if (zpool_get_prop_int(zhp, ZPOOL_PROP_AUTOEXPAND, NULL)) {
@@ -854,7 +849,7 @@ zfs_enum_pools(void *arg)
 int
 zfs_slm_init()
 {
-	if ((g_zfshdl = __libzfs_init()) == NULL)
+	if ((g_zfshdl = libzfs_init()) == NULL)
 		return (-1);
 
 	/*
@@ -866,7 +861,7 @@ zfs_slm_init()
 
 	if (pthread_create(&g_zfs_tid, NULL, zfs_enum_pools, NULL) != 0) {
 		list_destroy(&g_pool_list);
-		__libzfs_fini(g_zfshdl);
+		libzfs_fini(g_zfshdl);
 		return (-1);
 	}
 
@@ -884,19 +879,15 @@ zfs_slm_fini()
 
 	/* wait for zfs_enum_pools thread to complete */
 	(void) pthread_join(g_zfs_tid, NULL);
+	/* destroy the thread pool */
+	if (g_tpool != NULL) {
+		tpool_wait(g_tpool);
+		tpool_destroy(g_tpool);
+	}
 
 	while ((pool = (list_head(&g_pool_list))) != NULL) {
-		/*
-		 * each pool entry has two possibilities
-		 * 1. was made available (so wait for zfs_enable_ds thread)
-		 * 2. still unavailable (just close the pool)
-		 */
-		if (pool->uap_enable_tid)
-			(void) pthread_join(pool->uap_enable_tid, NULL);
-		else if (pool->uap_zhp != NULL)
-			zpool_close(pool->uap_zhp);
-
 		list_remove(&g_pool_list, pool);
+		zpool_close(pool->uap_zhp);
 		free(pool);
 	}
 	list_destroy(&g_pool_list);
@@ -907,7 +898,7 @@ zfs_slm_fini()
 	}
 	list_destroy(&g_device_list);
 
-	__libzfs_fini(g_zfshdl);
+	libzfs_fini(g_zfshdl);
 }
 
 void

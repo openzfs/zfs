@@ -39,13 +39,6 @@ extern int zfs_slm_init(void);
 extern void zfs_slm_fini(void);
 extern void zfs_slm_event(const char *, const char *, nvlist_t *);
 
-/*
- * In ZED context, all the FMA agents run in the same thread
- * and do not require a unique libzfs instance.
- */
-extern libzfs_handle_t *__libzfs_init(void);
-extern void __libzfs_fini(libzfs_handle_t *);
-
 #ifdef	__cplusplus
 }
 #endif

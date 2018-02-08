@@ -3,9 +3,12 @@ obj = @abs_builddir@
 
 MODULE := zfs
 
-EXTRA_CFLAGS = $(ZFS_MODULE_CFLAGS) @KERNELCPPFLAGS@
-
 obj-$(CONFIG_ZFS) := $(MODULE).o
+
+ccflags-y := $(ZFS_MODULE_CFLAGS) $(ZFS_MODULE_CPPFLAGS)
+
+# Suppress unused but set variable warnings often due to ASSERTs
+ccflags-y += $(NO_UNUSED_BUT_SET_VARIABLE)
 
 $(MODULE)-objs += abd.o
 $(MODULE)-objs += arc.o
@@ -33,6 +36,7 @@ $(MODULE)-objs += dsl_deadlist.o
 $(MODULE)-objs += dsl_deleg.o
 $(MODULE)-objs += dsl_bookmark.o
 $(MODULE)-objs += dsl_dir.o
+$(MODULE)-objs += dsl_crypt.o
 $(MODULE)-objs += dsl_pool.o
 $(MODULE)-objs += dsl_prop.o
 $(MODULE)-objs += dsl_scan.o
@@ -40,9 +44,11 @@ $(MODULE)-objs += dsl_synctask.o
 $(MODULE)-objs += edonr_zfs.o
 $(MODULE)-objs += fm.o
 $(MODULE)-objs += gzip.o
+$(MODULE)-objs += hkdf.o
 $(MODULE)-objs += lzjb.o
 $(MODULE)-objs += lz4.o
 $(MODULE)-objs += metaslab.o
+$(MODULE)-objs += mmp.o
 $(MODULE)-objs += multilist.o
 $(MODULE)-objs += pathname.o
 $(MODULE)-objs += policy.o
@@ -81,7 +87,6 @@ $(MODULE)-objs += zap.o
 $(MODULE)-objs += zap_leaf.o
 $(MODULE)-objs += zap_micro.o
 $(MODULE)-objs += zfeature.o
-$(MODULE)-objs += zfeature_common.o
 $(MODULE)-objs += zfs_acl.o
 $(MODULE)-objs += zfs_byteswap.o
 $(MODULE)-objs += zfs_ctldir.o
@@ -92,6 +97,7 @@ $(MODULE)-objs += zfs_fuid.o
 $(MODULE)-objs += zfs_ioctl.o
 $(MODULE)-objs += zfs_log.o
 $(MODULE)-objs += zfs_onexit.o
+$(MODULE)-objs += zfs_ratelimit.o
 $(MODULE)-objs += zfs_replay.o
 $(MODULE)-objs += zfs_rlock.o
 $(MODULE)-objs += zfs_sa.o
@@ -102,6 +108,7 @@ $(MODULE)-objs += zil.o
 $(MODULE)-objs += zio.o
 $(MODULE)-objs += zio_checksum.o
 $(MODULE)-objs += zio_compress.o
+$(MODULE)-objs += zio_crypt.o
 $(MODULE)-objs += zio_inject.o
 $(MODULE)-objs += zle.o
 $(MODULE)-objs += zpl_ctldir.o
@@ -115,6 +122,11 @@ $(MODULE)-objs += zvol.o
 $(MODULE)-objs += dsl_destroy.o
 $(MODULE)-objs += dsl_userhold.o
 $(MODULE)-objs += qat_compress.o
+
+# Suppress incorrect warnings from versions of objtool which are not
+# aware of x86 EVEX prefix instructions used for AVX512.
+OBJECT_FILES_NON_STANDARD_vdev_raidz_math_avx512bw.o := y
+OBJECT_FILES_NON_STANDARD_vdev_raidz_math_avx512f.o := y
 
 $(MODULE)-$(CONFIG_X86) += vdev_raidz_math_sse2.o
 $(MODULE)-$(CONFIG_X86) += vdev_raidz_math_ssse3.o

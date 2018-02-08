@@ -219,6 +219,7 @@ def print_values():
             sep
         ))
     sys.stdout.write("\n")
+    sys.stdout.flush()
 
 
 def print_header():
@@ -238,7 +239,7 @@ def get_terminal_lines():
         data = fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ, '1234')
         sz = struct.unpack('hh', data)
         return sz[0]
-    except:
+    except Exception:
         pass
 
 

@@ -108,8 +108,8 @@
  * now transition to the syncing state.
  */
 
-static void txg_sync_thread(dsl_pool_t *dp);
-static void txg_quiesce_thread(dsl_pool_t *dp);
+static void txg_sync_thread(void *arg);
+static void txg_quiesce_thread(void *arg);
 
 int zfs_txg_timeout = 5;	/* max seconds worth of delta per txg */
 
@@ -160,7 +160,7 @@ txg_fini(dsl_pool_t *dp)
 	tx_state_t *tx = &dp->dp_tx;
 	int c;
 
-	ASSERT(tx->tx_threads == 0);
+	ASSERT0(tx->tx_threads);
 
 	mutex_destroy(&tx->tx_sync_lock);
 
@@ -201,7 +201,7 @@ txg_sync_start(dsl_pool_t *dp)
 
 	dprintf("pool %p\n", dp);
 
-	ASSERT(tx->tx_threads == 0);
+	ASSERT0(tx->tx_threads);
 
 	tx->tx_threads = 2;
 
@@ -263,7 +263,7 @@ txg_sync_stop(dsl_pool_t *dp)
 	/*
 	 * Finish off any work in progress.
 	 */
-	ASSERT(tx->tx_threads == 2);
+	ASSERT3U(tx->tx_threads, ==, 2);
 
 	/*
 	 * We need to ensure that we've vacated the deferred space_maps.
@@ -275,7 +275,7 @@ txg_sync_stop(dsl_pool_t *dp)
 	 */
 	mutex_enter(&tx->tx_sync_lock);
 
-	ASSERT(tx->tx_threads == 2);
+	ASSERT3U(tx->tx_threads, ==, 2);
 
 	tx->tx_exiting = 1;
 
@@ -477,8 +477,9 @@ txg_wait_callbacks(dsl_pool_t *dp)
 }
 
 static void
-txg_sync_thread(dsl_pool_t *dp)
+txg_sync_thread(void *arg)
 {
+	dsl_pool_t *dp = arg;
 	spa_t *spa = dp->dp_spa;
 	tx_state_t *tx = &dp->dp_tx;
 	callb_cpr_t cpr;
@@ -561,8 +562,9 @@ txg_sync_thread(dsl_pool_t *dp)
 }
 
 static void
-txg_quiesce_thread(dsl_pool_t *dp)
+txg_quiesce_thread(void *arg)
 {
+	dsl_pool_t *dp = arg;
 	tx_state_t *tx = &dp->dp_tx;
 	callb_cpr_t cpr;
 
@@ -646,7 +648,7 @@ txg_wait_synced(dsl_pool_t *dp, uint64_t txg)
 	ASSERT(!dsl_pool_config_held(dp));
 
 	mutex_enter(&tx->tx_sync_lock);
-	ASSERT(tx->tx_threads == 2);
+	ASSERT3U(tx->tx_threads, ==, 2);
 	if (txg == 0)
 		txg = tx->tx_open_txg + TXG_DEFER_SIZE;
 	if (tx->tx_sync_txg_waiting < txg)
@@ -671,7 +673,7 @@ txg_wait_open(dsl_pool_t *dp, uint64_t txg)
 	ASSERT(!dsl_pool_config_held(dp));
 
 	mutex_enter(&tx->tx_sync_lock);
-	ASSERT(tx->tx_threads == 2);
+	ASSERT3U(tx->tx_threads, ==, 2);
 	if (txg == 0)
 		txg = tx->tx_open_txg + 1;
 	if (tx->tx_quiesce_txg_waiting < txg)
@@ -783,9 +785,7 @@ txg_list_empty(txg_list_t *tl, uint64_t txg)
 boolean_t
 txg_all_lists_empty(txg_list_t *tl)
 {
-	int i;
-
-	for (i = 0; i < TXG_SIZE; i++) {
+	for (int i = 0; i < TXG_SIZE; i++) {
 		if (!txg_list_empty(tl, i)) {
 			return (B_FALSE);
 		}

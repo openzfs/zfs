@@ -2,7 +2,8 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_SYSTEMD], [
 	AC_ARG_ENABLE(systemd,
 		AC_HELP_STRING([--enable-systemd],
 		[install systemd unit/preset files [[default: yes]]]),
-		[],enable_systemd=yes)
+		[enable_systemd=$enableval],
+		[enable_systemd=check])
 
 	AC_ARG_WITH(systemdunitdir,
 		AC_HELP_STRING([--with-systemdunitdir=DIR],
@@ -19,16 +20,27 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_SYSTEMD], [
 		[install systemd module load files into dir [[/usr/lib/modules-load.d]]]),
 		systemdmoduleloaddir=$withval,systemdmodulesloaddir=/usr/lib/modules-load.d)
 
+	AS_IF([test "x$enable_systemd" = xcheck], [
+		AS_IF([systemctl --version >/dev/null 2>&1],
+			[enable_systemd=yes],
+			[enable_systemd=no])
+	])
 
-	AS_IF([test "x$enable_systemd" = xyes],
-		[
+	AC_MSG_CHECKING(for systemd support)
+	AC_MSG_RESULT([$enable_systemd])
+
+	AS_IF([test "x$enable_systemd" = xyes], [
 		ZFS_INIT_SYSTEMD=systemd
 		ZFS_MODULE_LOAD=modules-load.d
+		DEFINE_SYSTEMD='--with systemd --define "_unitdir $(systemdunitdir)" --define "_presetdir $(systemdpresetdir)"'
 		modulesloaddir=$systemdmodulesloaddir
-		])
+	],[
+		DEFINE_SYSTEMD='--without systemd'
+	])
 
 	AC_SUBST(ZFS_INIT_SYSTEMD)
 	AC_SUBST(ZFS_MODULE_LOAD)
+	AC_SUBST(DEFINE_SYSTEMD)
 	AC_SUBST(systemdunitdir)
 	AC_SUBST(systemdpresetdir)
 	AC_SUBST(modulesloaddir)

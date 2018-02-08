@@ -66,3 +66,33 @@ function to_bytes
 
 	return 0
 }
+
+#
+# Verify $a is equal to $b, otherwise raise an error specifying
+# the $type of values being compared
+#
+function verify_eq # <a> <b> <type>
+{
+	typeset a=$1
+	typeset b=$2
+	typeset type=$3
+
+	if [[ $a -ne $b ]]; then
+		log_fail "Compared $type should be equal: $a != $b"
+	fi
+}
+
+#
+# Verify $a is not equal to $b, otherwise raise an error specifying
+# the $type of values being compared
+#
+function verify_ne # <a> <b> <type>
+{
+	typeset a=$1
+	typeset b=$2
+	typeset type=$3
+
+	if [[ $a -eq $b ]]; then
+		log_fail "Compared $type should be not equal: $a == $b"
+	fi
+}

@@ -4,6 +4,7 @@ dist_man_MANS = \
 	vdev_id.8 \
 	zdb.8 \
 	zfs.8 \
+	zgenhostid.8 \
 	zinject.8 \
 	zpool.8 \
 	zstreamdump.8

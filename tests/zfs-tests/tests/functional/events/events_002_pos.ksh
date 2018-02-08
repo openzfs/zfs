@@ -29,7 +29,7 @@
 # Verify ZED handles missed events from a pool when starting.
 #
 # STRATEGY:
-# 1. Create a pool and generate some events.
+# 1. Clear the events and create a pool to generate some events.
 # 2. Start the ZED and verify it handles missed events.
 # 3. Stop the ZED
 # 4. Generate additional events.
@@ -51,7 +51,6 @@ function cleanup
 	done
 
 	log_must rm -f $TMP_EVENTS_ZED $TMP_EVENTS_ZED
-	log_must rm -f $ZEDLET_DIR/zed.debug.log.old
 	log_must zed_stop
 }
 
@@ -61,26 +60,31 @@ log_onexit cleanup
 log_must truncate -s $MINVDEVSIZE $VDEV1 $VDEV2
 
 # 1. Create a pool and generate some events.
-log_must cp -f $ZEDLET_DIR/zed.debug.log $ZEDLET_DIR/zed.debug.log.old
+log_must truncate -s 0 $ZED_DEBUG_LOG
+log_must zpool events -c
 log_must zpool create $MPOOL mirror $VDEV1 $VDEV2
 
 # 2. Start the ZED and verify it handles missed events.
 log_must zed_start
-log_must sleep 1
-diff $ZEDLET_DIR/zed.debug.log.old $ZEDLET_DIR/zed.debug.log | \
-    grep "^> " | sed 's/^> //g' >$TMP_EVENTS_ZED
-log_must awk -v event="sysevent.fs.zfs.pool_create" \
+log_must file_wait $ZED_DEBUG_LOG
+log_must cp $ZED_DEBUG_LOG $TMP_EVENTS_ZED
+
+awk -v event="sysevent.fs.zfs.pool_create" \
     'BEGIN{FS="\n"; RS=""} $0 ~ event { print $0 }' \
     $TMP_EVENTS_ZED >$TMP_EVENT_ZED
 log_must grep -q "^ZEVENT_POOL=$MPOOL" $TMP_EVENT_ZED
 
 # 3. Stop the ZED
 zed_stop
+log_must truncate -s 0 $ZED_DEBUG_LOG
 
 # 4. Generate additional events.
-log_must cp -f $ZEDLET_DIR/zed.debug.log $ZEDLET_DIR/zed.debug.log.old
 log_must zpool offline $MPOOL $VDEV1
 log_must zpool online $MPOOL $VDEV1
+while ! is_pool_resilvered $MPOOL; do
+	sleep 1
+done
+
 log_must zpool scrub $MPOOL
 
 # Wait for the scrub to wrap, or is_healthy will be wrong.
@@ -90,9 +94,8 @@ done
 
 # 5. Start the ZED and verify it only handled the new missed events.
 log_must zed_start
-log_must sleep 3
-diff $ZEDLET_DIR/zed.debug.log.old $ZEDLET_DIR/zed.debug.log | \
-    grep "^> " | sed 's/^> //g' >$TMP_EVENTS_ZED
+log_must file_wait $ZED_DEBUG_LOG 15
+log_must cp $ZED_DEBUG_LOG $TMP_EVENTS_ZED
 
 log_mustnot grep -q "sysevent.fs.zfs.pool_create" $TMP_EVENTS_ZED
 log_must grep -q "sysevent.fs.zfs.vdev_online" $TMP_EVENTS_ZED

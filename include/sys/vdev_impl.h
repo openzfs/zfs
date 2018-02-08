@@ -127,7 +127,6 @@ struct vdev_queue {
 	hrtime_t	vq_io_delta_ts;
 	zio_t		vq_io_search; /* used as local for stack reduction */
 	kmutex_t	vq_lock;
-	uint64_t	vq_lastoffset;
 };
 
 /*
@@ -199,6 +198,13 @@ struct vdev {
 	uint64_t	vdev_max_async_write_queue_depth;
 
 	/*
+	 * Protects the vdev_scan_io_queue field itself as well as the
+	 * structure's contents (when present).
+	 */
+	kmutex_t			vdev_scan_io_queue_lock;
+	struct dsl_scan_io_queue	*vdev_scan_io_queue;
+
+	/*
 	 * Leaf vdev state.
 	 */
 	range_tree_t	*vdev_dtl[DTL_TYPES]; /* dirty time logs	*/
@@ -238,6 +244,7 @@ struct vdev {
 	zio_t		*vdev_probe_zio; /* root of current probe	*/
 	vdev_aux_t	vdev_label_aux;	/* on-disk aux state		*/
 	uint64_t	vdev_leaf_zap;
+	hrtime_t	vdev_mmp_pending; /* 0 if write finished	*/
 
 	/*
 	 * For DTrace to work in userland (libzpool) context, these fields must
@@ -267,6 +274,12 @@ struct vdev {
 #define	VDEV_SKIP_SIZE		VDEV_PAD_SIZE * 2
 #define	VDEV_PHYS_SIZE		(112 << 10)
 #define	VDEV_UBERBLOCK_RING	(128 << 10)
+
+/*
+ * MMP blocks occupy the last MMP_BLOCKS_PER_LABEL slots in the uberblock
+ * ring when MMP is enabled.
+ */
+#define	MMP_BLOCKS_PER_LABEL	1
 
 /* The largest uberblock we support is 8k. */
 #define	MAX_UBERBLOCK_SHIFT (13)

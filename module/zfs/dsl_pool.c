@@ -48,6 +48,7 @@
 #include <sys/zil_impl.h>
 #include <sys/dsl_userhold.h>
 #include <sys/trace_txg.h>
+#include <sys/mmp.h>
 
 /*
  * ZFS Write Throttle
@@ -134,6 +135,36 @@ unsigned long zfs_delay_scale = 1000 * 1000 * 1000 / 2000;
  */
 int zfs_sync_taskq_batch_pct = 75;
 
+/*
+ * These tunables determine the behavior of how zil_itxg_clean() is
+ * called via zil_clean() in the context of spa_sync(). When an itxg
+ * list needs to be cleaned, TQ_NOSLEEP will be used when dispatching.
+ * If the dispatch fails, the call to zil_itxg_clean() will occur
+ * synchronously in the context of spa_sync(), which can negatively
+ * impact the performance of spa_sync() (e.g. in the case of the itxg
+ * list having a large number of itxs that needs to be cleaned).
+ *
+ * Thus, these tunables can be used to manipulate the behavior of the
+ * taskq used by zil_clean(); they determine the number of taskq entries
+ * that are pre-populated when the taskq is first created (via the
+ * "zfs_zil_clean_taskq_minalloc" tunable) and the maximum number of
+ * taskq entries that are cached after an on-demand allocation (via the
+ * "zfs_zil_clean_taskq_maxalloc").
+ *
+ * The idea being, we want to try reasonably hard to ensure there will
+ * already be a taskq entry pre-allocated by the time that it is needed
+ * by zil_clean(). This way, we can avoid the possibility of an
+ * on-demand allocation of a new taskq entry from failing, which would
+ * result in zil_itxg_clean() being called synchronously from zil_clean()
+ * (which can adversely affect performance of spa_sync()).
+ *
+ * Additionally, the number of threads used by the taskq can be
+ * configured via the "zfs_zil_clean_taskq_nthr_pct" tunable.
+ */
+int zfs_zil_clean_taskq_nthr_pct = 100;
+int zfs_zil_clean_taskq_minalloc = 1024;
+int zfs_zil_clean_taskq_maxalloc = 1024 * 1024;
+
 int
 dsl_pool_open_special_dir(dsl_pool_t *dp, const char *name, dsl_dir_t **ddp)
 {
@@ -160,6 +191,7 @@ dsl_pool_open_impl(spa_t *spa, uint64_t txg)
 	dp->dp_meta_rootbp = *bp;
 	rrw_init(&dp->dp_config_rwlock, B_TRUE);
 	txg_init(dp, txg);
+	mmp_init(spa);
 
 	txg_list_create(&dp->dp_dirty_datasets, spa,
 	    offsetof(dsl_dataset_t, ds_dirty_link));
@@ -173,6 +205,12 @@ dsl_pool_open_impl(spa_t *spa, uint64_t txg)
 	dp->dp_sync_taskq = taskq_create("dp_sync_taskq",
 	    zfs_sync_taskq_batch_pct, minclsyspri, 1, INT_MAX,
 	    TASKQ_THREADS_CPU_PCT);
+
+	dp->dp_zil_clean_taskq = taskq_create("dp_zil_clean_taskq",
+	    zfs_zil_clean_taskq_nthr_pct, minclsyspri,
+	    zfs_zil_clean_taskq_minalloc,
+	    zfs_zil_clean_taskq_maxalloc,
+	    TASKQ_PREPOPULATE | TASKQ_THREADS_CPU_PCT);
 
 	mutex_init(&dp->dp_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&dp->dp_spaceavail_cv, NULL, CV_DEFAULT, NULL);
@@ -332,6 +370,7 @@ dsl_pool_close(dsl_pool_t *dp)
 	txg_list_destroy(&dp->dp_sync_tasks);
 	txg_list_destroy(&dp->dp_dirty_dirs);
 
+	taskq_destroy(dp->dp_zil_clean_taskq);
 	taskq_destroy(dp->dp_sync_taskq);
 
 	/*
@@ -342,6 +381,7 @@ dsl_pool_close(dsl_pool_t *dp)
 	 */
 	arc_flush(dp->dp_spa, FALSE);
 
+	mmp_fini(dp->dp_spa);
 	txg_fini(dp);
 	dsl_scan_fini(dp);
 	dmu_buf_user_evict_wait();
@@ -350,18 +390,20 @@ dsl_pool_close(dsl_pool_t *dp)
 	mutex_destroy(&dp->dp_lock);
 	cv_destroy(&dp->dp_spaceavail_cv);
 	taskq_destroy(dp->dp_iput_taskq);
-	if (dp->dp_blkstats)
+	if (dp->dp_blkstats) {
+		mutex_destroy(&dp->dp_blkstats->zab_lock);
 		vmem_free(dp->dp_blkstats, sizeof (zfs_all_blkstats_t));
+	}
 	kmem_free(dp, sizeof (dsl_pool_t));
 }
 
 dsl_pool_t *
-dsl_pool_create(spa_t *spa, nvlist_t *zplprops, uint64_t txg)
+dsl_pool_create(spa_t *spa, nvlist_t *zplprops, dsl_crypto_params_t *dcp,
+    uint64_t txg)
 {
 	int err;
 	dsl_pool_t *dp = dsl_pool_open_impl(spa, txg);
 	dmu_tx_t *tx = dmu_tx_create_assigned(dp, txg);
-	objset_t *os;
 	dsl_dataset_t *ds;
 	uint64_t obj;
 
@@ -370,6 +412,7 @@ dsl_pool_create(spa_t *spa, nvlist_t *zplprops, uint64_t txg)
 	/* create and open the MOS (meta-objset) */
 	dp->dp_meta_objset = dmu_objset_create_impl(spa,
 	    NULL, &dp->dp_meta_rootbp, DMU_OST_META, tx);
+	spa->spa_meta_objset = dp->dp_meta_objset;
 
 	/* create the pool directory */
 	err = zap_create_claim(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
@@ -407,17 +450,31 @@ dsl_pool_create(spa_t *spa, nvlist_t *zplprops, uint64_t txg)
 	if (spa_version(spa) >= SPA_VERSION_DSL_SCRUB)
 		dsl_pool_create_origin(dp, tx);
 
+	/*
+	 * Some features may be needed when creating the root dataset, so we
+	 * create the feature objects here.
+	 */
+	if (spa_version(spa) >= SPA_VERSION_FEATURES)
+		spa_feature_create_zap_objects(spa, tx);
+
+	if (dcp != NULL && dcp->cp_crypt != ZIO_CRYPT_OFF &&
+	    dcp->cp_crypt != ZIO_CRYPT_INHERIT)
+		spa_feature_enable(spa, SPA_FEATURE_ENCRYPTION, tx);
+
 	/* create the root dataset */
-	obj = dsl_dataset_create_sync_dd(dp->dp_root_dir, NULL, 0, tx);
+	obj = dsl_dataset_create_sync_dd(dp->dp_root_dir, NULL, dcp, 0, tx);
 
 	/* create the root objset */
 	VERIFY0(dsl_dataset_hold_obj(dp, obj, FTAG, &ds));
-	rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
-	VERIFY(NULL != (os = dmu_objset_create_impl(dp->dp_spa, ds,
-	    dsl_dataset_get_blkptr(ds), DMU_OST_ZFS, tx)));
-	rrw_exit(&ds->ds_bp_rwlock, FTAG);
 #ifdef _KERNEL
-	zfs_create_fs(os, kcred, zplprops, tx);
+	{
+		objset_t *os;
+		rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
+		os = dmu_objset_create_impl(dp->dp_spa, ds,
+		    dsl_dataset_get_blkptr(ds), DMU_OST_ZFS, tx);
+		rrw_exit(&ds->ds_bp_rwlock, FTAG);
+		zfs_create_fs(os, kcred, zplprops, tx);
+	}
 #endif
 	dsl_dataset_rele(ds, FTAG);
 
@@ -862,7 +919,7 @@ dsl_pool_create_origin(dsl_pool_t *dp, dmu_tx_t *tx)
 
 	/* create the origin dir, ds, & snap-ds */
 	dsobj = dsl_dataset_create_sync(dp->dp_root_dir, ORIGIN_DIR_NAME,
-	    NULL, 0, kcred, tx);
+	    NULL, 0, kcred, NULL, tx);
 	VERIFY0(dsl_dataset_hold_obj(dp, dsobj, FTAG, &ds));
 	dsl_dataset_snapshot_sync_impl(ds, ORIGIN_DIR_NAME, tx);
 	VERIFY0(dsl_dataset_hold_obj(dp, dsl_dataset_phys(ds)->ds_prev_snap_obj,
@@ -1139,5 +1196,18 @@ MODULE_PARM_DESC(zfs_delay_scale, "how quickly delay approaches infinity");
 module_param(zfs_sync_taskq_batch_pct, int, 0644);
 MODULE_PARM_DESC(zfs_sync_taskq_batch_pct,
 	"max percent of CPUs that are used to sync dirty data");
+
+module_param(zfs_zil_clean_taskq_nthr_pct, int, 0644);
+MODULE_PARM_DESC(zfs_zil_clean_taskq_nthr_pct,
+	"max percent of CPUs that are used per dp_sync_taskq");
+
+module_param(zfs_zil_clean_taskq_minalloc, int, 0644);
+MODULE_PARM_DESC(zfs_zil_clean_taskq_minalloc,
+	"number of taskq entries that are pre-populated");
+
+module_param(zfs_zil_clean_taskq_maxalloc, int, 0644);
+MODULE_PARM_DESC(zfs_zil_clean_taskq_maxalloc,
+	"max number of taskq entries that are cached");
+
 /* END CSTYLED */
 #endif

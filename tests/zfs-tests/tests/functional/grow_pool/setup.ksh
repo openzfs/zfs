@@ -40,12 +40,15 @@ fi
 
 if [[ -n $DISK ]]; then
 	log_note "No spare disks available. Using slices on $DISK"
+	log_must zero_partitions $DISK
 	for i in $SLICE0 $SLICE1 ; do
 		log_must set_partition $i "$cyl" $SIZE $DISK
 		cyl=$(get_endslice $DISK $i)
 	done
 	tmp=$DISK"s"$SLICE0
 else
+	log_must zero_partitions $DISK0
+	log_must zero_partitions $DISK1
 	log_must set_partition $SLICE "" $SIZE $DISK0
 	log_must set_partition $SLICE "" $SIZE $DISK1
 	tmp=$DISK0$SLICE_PREFIX$SLICE

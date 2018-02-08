@@ -48,10 +48,10 @@ verify_runnable "global"
 function cleanup
 {
 	if datasetexists bpool ; then
-		log_must zpool destroy -f bpool
+		log_must_busy zpool destroy -f bpool
 	fi
 	if datasetexists spool ; then
-		log_must zpool destroy -f spool
+		log_must_busy zpool destroy -f spool
 	fi
 }
 
@@ -80,7 +80,7 @@ log_must ismounted spool
 # Test out of space on top filesystem
 #
 log_must mv /bpool/fs/file /bpool
-log_must zfs destroy -rf bpool/fs
+log_must_busy zfs destroy -rf bpool/fs
 
 log_must zfs snapshot bpool@snap
 log_must eval "zfs send -R bpool@snap > $BACKDIR/bpool-R"

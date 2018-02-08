@@ -33,6 +33,7 @@
 #include <sys/dsl_synctask.h>
 #include <sys/refcount.h>
 #include <sys/zfs_context.h>
+#include <sys/dsl_crypt.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -47,6 +48,7 @@ struct dsl_dataset;
 
 #define	DD_FIELD_FILESYSTEM_COUNT	"com.joyent:filesystem_count"
 #define	DD_FIELD_SNAPSHOT_COUNT		"com.joyent:snapshot_count"
+#define	DD_FIELD_CRYPTO_KEY_OBJ		"com.datto:crypto_key_obj"
 
 typedef enum dd_used {
 	DD_USED_HEAD,
@@ -89,6 +91,7 @@ struct dsl_dir {
 
 	/* These are immutable; no lock needed: */
 	uint64_t dd_object;
+	uint64_t dd_crypto_obj;
 	dsl_pool_t *dd_pool;
 
 	/* Stable until user eviction; no lock needed: */

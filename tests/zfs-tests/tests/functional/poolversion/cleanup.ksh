@@ -36,7 +36,7 @@ verify_runnable "global"
 log_must zpool destroy $TESTPOOL
 log_must zpool destroy $TESTPOOL2
 
-log_must rm /tmp/zpool_version_1.dat
-log_must rm /tmp/zpool2_version_1.dat
+log_must rm $TEST_BASE_DIR/zpool_version_1.dat
+log_must rm $TEST_BASE_DIR/zpool2_version_1.dat
 
 default_cleanup

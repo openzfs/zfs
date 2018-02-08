@@ -69,6 +69,8 @@ zfs_deleg_perm_tab_t zfs_deleg_perm_tab[] = {
 	{ZFS_DELEG_PERM_GROUPOBJUSED},
 	{ZFS_DELEG_PERM_HOLD},
 	{ZFS_DELEG_PERM_RELEASE},
+	{ZFS_DELEG_PERM_LOAD_KEY},
+	{ZFS_DELEG_PERM_CHANGE_KEY},
 	{NULL}
 };
 
@@ -233,7 +235,7 @@ zfs_deleg_whokey(char *attr, zfs_deleg_who_type_t type,
 		    ZFS_DELEG_FIELD_SEP_CHR);
 		break;
 	default:
-		cmn_err(CE_PANIC, "bad zfs_deleg_who_type_t %d", type);
+		ASSERT(!"bad zfs_deleg_who_type_t");
 	}
 }
 

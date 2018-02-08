@@ -28,6 +28,7 @@
 . $STF_SUITE/include/libtest.shlib
 
 DISK=${DISKS%% *}
+
 if is_global_zone; then
 	default_volume_setup $DISK
 else

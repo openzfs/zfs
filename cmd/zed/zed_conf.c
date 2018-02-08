@@ -394,13 +394,13 @@ zed_conf_scan_dir(struct zed_conf *zcp)
 			    direntp->d_name);
 			continue;
 		}
-		if ((st.st_mode & S_IWGRP) & !zcp->do_force) {
+		if ((st.st_mode & S_IWGRP) && !zcp->do_force) {
 			zed_log_msg(LOG_NOTICE,
 			    "Ignoring \"%s\": writable by group",
 			    direntp->d_name);
 			continue;
 		}
-		if ((st.st_mode & S_IWOTH) & !zcp->do_force) {
+		if ((st.st_mode & S_IWOTH) && !zcp->do_force) {
 			zed_log_msg(LOG_NOTICE,
 			    "Ignoring \"%s\": writable by other",
 			    direntp->d_name);

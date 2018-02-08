@@ -4,7 +4,8 @@ VPATH = \
 	$(top_srcdir)/module/icp \
 	$(top_srcdir)/lib/libicp
 
-AM_CFLAGS += $(DEBUG_STACKFLAGS) $(FRAME_LARGER_THAN)
+# Includes kernel code, generate warnings for large stack frames
+AM_CFLAGS += $(FRAME_LARGER_THAN)
 
 DEFAULT_INCLUDES += \
 	-I$(top_srcdir)/include \
@@ -28,7 +29,7 @@ if TARGET_ASM_I386
 ASM_SOURCES_C =
 ASM_SOURCES_AS =
 endif
-	
+
 if TARGET_ASM_GENERIC
 ASM_SOURCES_C =
 ASM_SOURCES_AS =
@@ -81,5 +82,5 @@ nodist_libicp_la_SOURCES = \
 	$(USER_ASM) \
 	$(KERNEL_C) \
 	$(KERNEL_ASM)
-	
+
 libicp_la_LIBADD = -lrt

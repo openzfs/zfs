@@ -52,12 +52,12 @@ streamfs=$POOL/stream
 
 log_onexit resume_cleanup $sendfs $streamfs
 
-test_fs_setup $sendfs $recvfs
+test_fs_setup $sendfs $recvfs $streamfs
 log_must zfs bookmark $sendfs@a $sendfs#bm_a
-log_must zfs destroy $sendfs@a
+log_must_busy zfs destroy $sendfs@a
 log_must zfs receive -v $recvfs </$POOL/initial.zsend
 resume_test "zfs send -i \#bm_a $sendfs@b" $streamfs $recvfs
-log_must zfs destroy -r -f $sendfs
+log_must_busy zfs destroy -r -f $sendfs
 log_must zfs receive -v $sendfs </$POOL/initial.zsend
 log_must zfs receive -v $sendfs </$POOL/incremental.zsend
 file_check $sendfs $recvfs

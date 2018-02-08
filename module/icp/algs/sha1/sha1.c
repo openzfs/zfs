@@ -45,7 +45,16 @@
 
 static void Encode(uint8_t *, const uint32_t *, size_t);
 
-#if	defined(__amd64)
+#if	defined(__sparc)
+
+#define	SHA1_TRANSFORM(ctx, in) \
+	SHA1Transform((ctx)->state[0], (ctx)->state[1], (ctx)->state[2], \
+		(ctx)->state[3], (ctx)->state[4], (ctx), (in))
+
+static void SHA1Transform(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t,
+	SHA1_CTX *, const uint8_t *);
+
+#elif	defined(__amd64)
 
 #define	SHA1_TRANSFORM(ctx, in) sha1_block_data_order((ctx), (in), 1)
 #define	SHA1_TRANSFORM_BLOCKS(ctx, in, num) sha1_block_data_order((ctx), \
@@ -260,6 +269,158 @@ typedef uint32_t sha1word;
 #define	W(n) w_ ## n
 #endif	/* !defined(W_ARRAY) */
 
+#if	defined(__sparc)
+
+
+/*
+ * sparc register window optimization:
+ *
+ * `a', `b', `c', `d', and `e' are passed into SHA1Transform
+ * explicitly since it increases the number of registers available to
+ * the compiler.  under this scheme, these variables can be held in
+ * %i0 - %i4, which leaves more local and out registers available.
+ *
+ * purpose: sha1 transformation -- updates the digest based on `block'
+ *   input: uint32_t	: bytes  1 -  4 of the digest
+ *          uint32_t	: bytes  5 -  8 of the digest
+ *          uint32_t	: bytes  9 - 12 of the digest
+ *          uint32_t	: bytes 12 - 16 of the digest
+ *          uint32_t	: bytes 16 - 20 of the digest
+ *          SHA1_CTX *	: the context to update
+ *          uint8_t [64]: the block to use to update the digest
+ *  output: void
+ */
+
+
+void
+SHA1Transform(uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e,
+    SHA1_CTX *ctx, const uint8_t blk[64])
+{
+	/*
+	 * sparc optimization:
+	 *
+	 * while it is somewhat counter-intuitive, on sparc, it is
+	 * more efficient to place all the constants used in this
+	 * function in an array and load the values out of the array
+	 * than to manually load the constants.  this is because
+	 * setting a register to a 32-bit value takes two ops in most
+	 * cases: a `sethi' and an `or', but loading a 32-bit value
+	 * from memory only takes one `ld' (or `lduw' on v9).  while
+	 * this increases memory usage, the compiler can find enough
+	 * other things to do while waiting to keep the pipeline does
+	 * not stall.  additionally, it is likely that many of these
+	 * constants are cached so that later accesses do not even go
+	 * out to the bus.
+	 *
+	 * this array is declared `static' to keep the compiler from
+	 * having to bcopy() this array onto the stack frame of
+	 * SHA1Transform() each time it is called -- which is
+	 * unacceptably expensive.
+	 *
+	 * the `const' is to ensure that callers are good citizens and
+	 * do not try to munge the array.  since these routines are
+	 * going to be called from inside multithreaded kernelland,
+	 * this is a good safety check. -- `sha1_consts' will end up in
+	 * .rodata.
+	 *
+	 * unfortunately, loading from an array in this manner hurts
+	 * performance under Intel.  So, there is a macro,
+	 * SHA1_CONST(), used in SHA1Transform(), that either expands to
+	 * a reference to this array, or to the actual constant,
+	 * depending on what platform this code is compiled for.
+	 */
+
+
+	static const uint32_t sha1_consts[] = {
+		SHA1_CONST_0, SHA1_CONST_1, SHA1_CONST_2, SHA1_CONST_3
+	};
+
+
+	/*
+	 * general optimization:
+	 *
+	 * use individual integers instead of using an array.  this is a
+	 * win, although the amount it wins by seems to vary quite a bit.
+	 */
+
+
+	uint32_t	w_0, w_1, w_2,  w_3,  w_4,  w_5,  w_6,  w_7;
+	uint32_t	w_8, w_9, w_10, w_11, w_12, w_13, w_14, w_15;
+
+
+	/*
+	 * sparc optimization:
+	 *
+	 * if `block' is already aligned on a 4-byte boundary, use
+	 * LOAD_BIG_32() directly.  otherwise, bcopy() into a
+	 * buffer that *is* aligned on a 4-byte boundary and then do
+	 * the LOAD_BIG_32() on that buffer.  benchmarks have shown
+	 * that using the bcopy() is better than loading the bytes
+	 * individually and doing the endian-swap by hand.
+	 *
+	 * even though it's quite tempting to assign to do:
+	 *
+	 * blk = bcopy(ctx->buf_un.buf32, blk, sizeof (ctx->buf_un.buf32));
+	 *
+	 * and only have one set of LOAD_BIG_32()'s, the compiler
+	 * *does not* like that, so please resist the urge.
+	 */
+
+
+	if ((uintptr_t)blk & 0x3) {		/* not 4-byte aligned? */
+		bcopy(blk, ctx->buf_un.buf32,  sizeof (ctx->buf_un.buf32));
+		w_15 = LOAD_BIG_32(ctx->buf_un.buf32 + 15);
+		w_14 = LOAD_BIG_32(ctx->buf_un.buf32 + 14);
+		w_13 = LOAD_BIG_32(ctx->buf_un.buf32 + 13);
+		w_12 = LOAD_BIG_32(ctx->buf_un.buf32 + 12);
+		w_11 = LOAD_BIG_32(ctx->buf_un.buf32 + 11);
+		w_10 = LOAD_BIG_32(ctx->buf_un.buf32 + 10);
+		w_9  = LOAD_BIG_32(ctx->buf_un.buf32 +  9);
+		w_8  = LOAD_BIG_32(ctx->buf_un.buf32 +  8);
+		w_7  = LOAD_BIG_32(ctx->buf_un.buf32 +  7);
+		w_6  = LOAD_BIG_32(ctx->buf_un.buf32 +  6);
+		w_5  = LOAD_BIG_32(ctx->buf_un.buf32 +  5);
+		w_4  = LOAD_BIG_32(ctx->buf_un.buf32 +  4);
+		w_3  = LOAD_BIG_32(ctx->buf_un.buf32 +  3);
+		w_2  = LOAD_BIG_32(ctx->buf_un.buf32 +  2);
+		w_1  = LOAD_BIG_32(ctx->buf_un.buf32 +  1);
+		w_0  = LOAD_BIG_32(ctx->buf_un.buf32 +  0);
+	} else {
+		/* LINTED E_BAD_PTR_CAST_ALIGN */
+		w_15 = LOAD_BIG_32(blk + 60);
+		/* LINTED E_BAD_PTR_CAST_ALIGN */
+		w_14 = LOAD_BIG_32(blk + 56);
+		/* LINTED E_BAD_PTR_CAST_ALIGN */
+		w_13 = LOAD_BIG_32(blk + 52);
+		/* LINTED E_BAD_PTR_CAST_ALIGN */
+		w_12 = LOAD_BIG_32(blk + 48);
+		/* LINTED E_BAD_PTR_CAST_ALIGN */
+		w_11 = LOAD_BIG_32(blk + 44);
+		/* LINTED E_BAD_PTR_CAST_ALIGN */
+		w_10 = LOAD_BIG_32(blk + 40);
+		/* LINTED E_BAD_PTR_CAST_ALIGN */
+		w_9  = LOAD_BIG_32(blk + 36);
+		/* LINTED E_BAD_PTR_CAST_ALIGN */
+		w_8  = LOAD_BIG_32(blk + 32);
+		/* LINTED E_BAD_PTR_CAST_ALIGN */
+		w_7  = LOAD_BIG_32(blk + 28);
+		/* LINTED E_BAD_PTR_CAST_ALIGN */
+		w_6  = LOAD_BIG_32(blk + 24);
+		/* LINTED E_BAD_PTR_CAST_ALIGN */
+		w_5  = LOAD_BIG_32(blk + 20);
+		/* LINTED E_BAD_PTR_CAST_ALIGN */
+		w_4  = LOAD_BIG_32(blk + 16);
+		/* LINTED E_BAD_PTR_CAST_ALIGN */
+		w_3  = LOAD_BIG_32(blk + 12);
+		/* LINTED E_BAD_PTR_CAST_ALIGN */
+		w_2  = LOAD_BIG_32(blk +  8);
+		/* LINTED E_BAD_PTR_CAST_ALIGN */
+		w_1  = LOAD_BIG_32(blk +  4);
+		/* LINTED E_BAD_PTR_CAST_ALIGN */
+		w_0  = LOAD_BIG_32(blk +  0);
+	}
+#else	/* !defined(__sparc) */
+
 void /* CSTYLED */
 SHA1Transform(SHA1_CTX *ctx, const uint8_t blk[64])
 {
@@ -293,6 +454,8 @@ SHA1Transform(SHA1_CTX *ctx, const uint8_t blk[64])
 	W(13) = LOAD_BIG_32((void *)(blk + 52));
 	W(14) = LOAD_BIG_32((void *)(blk + 56));
 	W(15) = LOAD_BIG_32((void *)(blk + 60));
+
+#endif /* !defined(__sparc) */
 
 	/*
 	 * general optimization:
@@ -654,10 +817,22 @@ Encode(uint8_t *_RESTRICT_KYWD output, const uint32_t *_RESTRICT_KYWD input,
 {
 	size_t		i, j;
 
-	for (i = 0, j = 0; j < len; i++, j += 4) {
-		output[j]	= (input[i] >> 24) & 0xff;
-		output[j + 1]	= (input[i] >> 16) & 0xff;
-		output[j + 2]	= (input[i] >>  8) & 0xff;
-		output[j + 3]	= input[i] & 0xff;
+#if defined(__sparc)
+	if (IS_P2ALIGNED(output, sizeof (uint32_t))) {
+		for (i = 0, j = 0; j < len; i++, j += 4) {
+			/* LINTED E_BAD_PTR_CAST_ALIGN */
+			*((uint32_t *)(output + j)) = input[i];
+		}
+	} else {
+#endif /* little endian -- will work on big endian, but slowly */
+
+		for (i = 0, j = 0; j < len; i++, j += 4) {
+			output[j]	= (input[i] >> 24) & 0xff;
+			output[j + 1]	= (input[i] >> 16) & 0xff;
+			output[j + 2]	= (input[i] >>  8) & 0xff;
+			output[j + 3]	= input[i] & 0xff;
+		}
+#if defined(__sparc)
 	}
+#endif
 }

@@ -24,6 +24,7 @@
  * Copyright 2015 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright 2013 Saso Kiselkov. All rights reserved.
+ * Copyright (c) 2017 Datto Inc.
  */
 
 #include <sys/zfs_context.h>
@@ -291,23 +292,40 @@ int zfs_free_leak_on_eio = B_FALSE;
 /*
  * Expiration time in milliseconds. This value has two meanings. First it is
  * used to determine when the spa_deadman() logic should fire. By default the
- * spa_deadman() will fire if spa_sync() has not completed in 1000 seconds.
+ * spa_deadman() will fire if spa_sync() has not completed in 600 seconds.
  * Secondly, the value determines if an I/O is considered "hung". Any I/O that
  * has not completed in zfs_deadman_synctime_ms is considered "hung" resulting
- * in a system panic.
+ * in one of three behaviors controlled by zfs_deadman_failmode.
  */
-unsigned long zfs_deadman_synctime_ms = 1000000ULL;
+unsigned long zfs_deadman_synctime_ms = 600000ULL;
+
+/*
+ * This value controls the maximum amount of time zio_wait() will block for an
+ * outstanding IO.  By default this is 300 seconds at which point the "hung"
+ * behavior will be applied as described for zfs_deadman_synctime_ms.
+ */
+unsigned long zfs_deadman_ziotime_ms = 300000ULL;
 
 /*
  * Check time in milliseconds. This defines the frequency at which we check
  * for hung I/O.
  */
-unsigned long  zfs_deadman_checktime_ms = 5000ULL;
+unsigned long  zfs_deadman_checktime_ms = 60000ULL;
 
 /*
  * By default the deadman is enabled.
  */
 int zfs_deadman_enabled = 1;
+
+/*
+ * Controls the behavior of the deadman when it detects a "hung" I/O.
+ * Valid values are zfs_deadman_failmode=<wait|continue|panic>.
+ *
+ * wait     - Wait for the "hung" I/O (default)
+ * continue - Attempt to recover from a "hung" I/O
+ * panic    - Panic the system
+ */
+char *zfs_deadman_failmode = "wait";
 
 /*
  * The worst case is single-sector max-parity RAID-Z blocks, in which
@@ -359,9 +377,7 @@ uint64_t spa_min_slop = 128 * 1024 * 1024;
 static void
 spa_config_lock_init(spa_t *spa)
 {
-	int i;
-
-	for (i = 0; i < SCL_LOCKS; i++) {
+	for (int i = 0; i < SCL_LOCKS; i++) {
 		spa_config_lock_t *scl = &spa->spa_config_lock[i];
 		mutex_init(&scl->scl_lock, NULL, MUTEX_DEFAULT, NULL);
 		cv_init(&scl->scl_cv, NULL, CV_DEFAULT, NULL);
@@ -374,9 +390,7 @@ spa_config_lock_init(spa_t *spa)
 static void
 spa_config_lock_destroy(spa_t *spa)
 {
-	int i;
-
-	for (i = 0; i < SCL_LOCKS; i++) {
+	for (int i = 0; i < SCL_LOCKS; i++) {
 		spa_config_lock_t *scl = &spa->spa_config_lock[i];
 		mutex_destroy(&scl->scl_lock);
 		cv_destroy(&scl->scl_cv);
@@ -389,9 +403,7 @@ spa_config_lock_destroy(spa_t *spa)
 int
 spa_config_tryenter(spa_t *spa, int locks, void *tag, krw_t rw)
 {
-	int i;
-
-	for (i = 0; i < SCL_LOCKS; i++) {
+	for (int i = 0; i < SCL_LOCKS; i++) {
 		spa_config_lock_t *scl = &spa->spa_config_lock[i];
 		if (!(locks & (1 << i)))
 			continue;
@@ -423,11 +435,10 @@ void
 spa_config_enter(spa_t *spa, int locks, void *tag, krw_t rw)
 {
 	int wlocks_held = 0;
-	int i;
 
 	ASSERT3U(SCL_LOCKS, <, sizeof (wlocks_held) * NBBY);
 
-	for (i = 0; i < SCL_LOCKS; i++) {
+	for (int i = 0; i < SCL_LOCKS; i++) {
 		spa_config_lock_t *scl = &spa->spa_config_lock[i];
 		if (scl->scl_writer == curthread)
 			wlocks_held |= (1 << i);
@@ -456,9 +467,7 @@ spa_config_enter(spa_t *spa, int locks, void *tag, krw_t rw)
 void
 spa_config_exit(spa_t *spa, int locks, void *tag)
 {
-	int i;
-
-	for (i = SCL_LOCKS - 1; i >= 0; i--) {
+	for (int i = SCL_LOCKS - 1; i >= 0; i--) {
 		spa_config_lock_t *scl = &spa->spa_config_lock[i];
 		if (!(locks & (1 << i)))
 			continue;
@@ -477,9 +486,9 @@ spa_config_exit(spa_t *spa, int locks, void *tag)
 int
 spa_config_held(spa_t *spa, int locks, krw_t rw)
 {
-	int i, locks_held = 0;
+	int locks_held = 0;
 
-	for (i = 0; i < SCL_LOCKS; i++) {
+	for (int i = 0; i < SCL_LOCKS; i++) {
 		spa_config_lock_t *scl = &spa->spa_config_lock[i];
 		if (!(locks & (1 << i)))
 			continue;
@@ -544,7 +553,7 @@ spa_deadman(void *arg)
 	    (gethrtime() - spa->spa_sync_starttime) / NANOSEC,
 	    ++spa->spa_deadman_calls);
 	if (zfs_deadman_enabled)
-		vdev_deadman(spa->spa_root_vdev);
+		vdev_deadman(spa->spa_root_vdev, FTAG);
 
 	spa->spa_deadman_tqid = taskq_dispatch_delay(system_delay_taskq,
 	    spa_deadman, spa, TQ_SLEEP, ddi_get_lbolt() +
@@ -561,8 +570,6 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 {
 	spa_t *spa;
 	spa_config_dirent_t *dp;
-	int t;
-	int i;
 
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
 
@@ -588,7 +595,7 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	cv_init(&spa->spa_scrub_io_cv, NULL, CV_DEFAULT, NULL);
 	cv_init(&spa->spa_suspend_cv, NULL, CV_DEFAULT, NULL);
 
-	for (t = 0; t < TXG_SIZE; t++)
+	for (int t = 0; t < TXG_SIZE; t++)
 		bplist_create(&spa->spa_free_bplist[t]);
 
 	(void) strlcpy(spa->spa_name, name, sizeof (spa->spa_name));
@@ -600,6 +607,8 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	spa->spa_proc_state = SPA_PROC_NONE;
 
 	spa->spa_deadman_synctime = MSEC2NSEC(zfs_deadman_synctime_ms);
+	spa->spa_deadman_ziotime = MSEC2NSEC(zfs_deadman_ziotime_ms);
+	spa_set_deadman_failmode(spa, zfs_deadman_failmode);
 
 	refcount_create(&spa->spa_refcount);
 	spa_config_lock_init(spa);
@@ -659,7 +668,7 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	 * setting SPA_FEATURE_DISABLED for all entries in the feature
 	 * refcount cache.
 	 */
-	for (i = 0; i < SPA_FEATURES; i++) {
+	for (int i = 0; i < SPA_FEATURES; i++) {
 		spa->spa_feat_refcount_cache[i] = SPA_FEATURE_DISABLED;
 	}
 
@@ -675,7 +684,6 @@ void
 spa_remove(spa_t *spa)
 {
 	spa_config_dirent_t *dp;
-	int t;
 
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
 	ASSERT(spa->spa_state == POOL_STATE_UNINITIALIZED);
@@ -709,7 +717,7 @@ spa_remove(spa_t *spa)
 	spa_stats_destroy(spa);
 	spa_config_lock_destroy(spa);
 
-	for (t = 0; t < TXG_SIZE; t++)
+	for (int t = 0; t < TXG_SIZE; t++)
 		bplist_destroy(&spa->spa_free_bplist[t]);
 
 	zio_checksum_templates_free(spa);
@@ -1076,9 +1084,10 @@ spa_vdev_config_enter(spa_t *spa)
 void
 spa_vdev_config_exit(spa_t *spa, vdev_t *vd, uint64_t txg, int error, char *tag)
 {
+	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+
 	int config_changed = B_FALSE;
 
-	ASSERT(MUTEX_HELD(&spa_namespace_lock));
 	ASSERT(txg > spa_last_synced_txg(spa));
 
 	spa->spa_pending_vdev = NULL;
@@ -1383,6 +1392,9 @@ spa_get_random(uint64_t range)
 
 	ASSERT(range != 0);
 
+	if (range == 1)
+		return (0);
+
 	(void) random_get_pseudo_bytes((void *)&r, sizeof (uint64_t));
 
 	return (r % range);
@@ -1410,6 +1422,7 @@ snprintf_blkptr(char *buf, size_t buflen, const blkptr_t *bp)
 	char type[256];
 	char *checksum = NULL;
 	char *compress = NULL;
+	char *crypt_type = NULL;
 
 	if (bp != NULL) {
 		if (BP_GET_TYPE(bp) & DMU_OT_NEWTYPE) {
@@ -1423,6 +1436,15 @@ snprintf_blkptr(char *buf, size_t buflen, const blkptr_t *bp)
 			(void) strlcpy(type, dmu_ot[BP_GET_TYPE(bp)].ot_name,
 			    sizeof (type));
 		}
+		if (BP_IS_ENCRYPTED(bp)) {
+			crypt_type = "encrypted";
+		} else if (BP_IS_AUTHENTICATED(bp)) {
+			crypt_type = "authenticated";
+		} else if (BP_HAS_INDIRECT_MAC_CKSUM(bp)) {
+			crypt_type = "indirect-MAC";
+		} else {
+			crypt_type = "unencrypted";
+		}
 		if (!BP_IS_EMBEDDED(bp)) {
 			checksum =
 			    zio_checksum_table[BP_GET_CHECKSUM(bp)].ci_name;
@@ -1431,7 +1453,7 @@ snprintf_blkptr(char *buf, size_t buflen, const blkptr_t *bp)
 	}
 
 	SNPRINTF_BLKPTR(snprintf, ' ', buf, buflen, bp, type, checksum,
-	    compress);
+	    crypt_type, compress);
 }
 
 void
@@ -1464,7 +1486,7 @@ zfs_panic_recover(const char *fmt, ...)
  * lowercase hexadecimal numbers that don't overflow.
  */
 uint64_t
-strtonum(const char *str, char **nptr)
+zfs_strtonum(const char *str, char **nptr)
 {
 	uint64_t val = 0;
 	char c;
@@ -1678,7 +1700,7 @@ spa_update_dspace(spa_t *spa)
  * Return the failure mode that has been set to this pool. The default
  * behavior will be to block all I/Os when a complete failure occurs.
  */
-uint8_t
+uint64_t
 spa_get_failmode(spa_t *spa)
 {
 	return (spa->spa_failmode);
@@ -1768,6 +1790,31 @@ spa_deadman_synctime(spa_t *spa)
 }
 
 uint64_t
+spa_deadman_ziotime(spa_t *spa)
+{
+	return (spa->spa_deadman_ziotime);
+}
+
+uint64_t
+spa_get_deadman_failmode(spa_t *spa)
+{
+	return (spa->spa_deadman_failmode);
+}
+
+void
+spa_set_deadman_failmode(spa_t *spa, const char *failmode)
+{
+	if (strcmp(failmode, "wait") == 0)
+		spa->spa_deadman_failmode = ZIO_FAILURE_MODE_WAIT;
+	else if (strcmp(failmode, "continue") == 0)
+		spa->spa_deadman_failmode = ZIO_FAILURE_MODE_CONTINUE;
+	else if (strcmp(failmode, "panic") == 0)
+		spa->spa_deadman_failmode = ZIO_FAILURE_MODE_PANIC;
+	else
+		spa->spa_deadman_failmode = ZIO_FAILURE_MODE_WAIT;
+}
+
+uint64_t
 dva_get_dsize_sync(spa_t *spa, const dva_t *dva)
 {
 	uint64_t asize = DVA_GET_ASIZE(dva);
@@ -1789,9 +1836,8 @@ uint64_t
 bp_get_dsize_sync(spa_t *spa, const blkptr_t *bp)
 {
 	uint64_t dsize = 0;
-	int d;
 
-	for (d = 0; d < BP_GET_NDVAS(bp); d++)
+	for (int d = 0; d < BP_GET_NDVAS(bp); d++)
 		dsize += dva_get_dsize_sync(spa, &bp->blk_dva[d]);
 
 	return (dsize);
@@ -1801,11 +1847,10 @@ uint64_t
 bp_get_dsize(spa_t *spa, const blkptr_t *bp)
 {
 	uint64_t dsize = 0;
-	int d;
 
 	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
 
-	for (d = 0; d < BP_GET_NDVAS(bp); d++)
+	for (int d = 0; d < BP_GET_NDVAS(bp); d++)
 		dsize += dva_get_dsize_sync(spa, &bp->blk_dva[d]);
 
 	spa_config_exit(spa, SCL_VDEV, FTAG);
@@ -1883,6 +1928,7 @@ spa_init(int mode)
 	dmu_init();
 	zil_init();
 	vdev_cache_stat_init();
+	vdev_mirror_stat_init();
 	vdev_raidz_math_init();
 	vdev_file_init();
 	zfs_prop_init();
@@ -1890,6 +1936,7 @@ spa_init(int mode)
 	zpool_feature_init();
 	spa_config_load();
 	l2arc_start();
+	scan_init();
 	qat_init();
 }
 
@@ -1902,6 +1949,7 @@ spa_fini(void)
 
 	vdev_file_fini();
 	vdev_cache_stat_fini();
+	vdev_mirror_stat_fini();
 	vdev_raidz_math_fini();
 	zil_fini();
 	dmu_fini();
@@ -1912,6 +1960,7 @@ spa_fini(void)
 	unique_fini();
 	refcount_fini();
 	fm_fini();
+	scan_fini();
 	qat_fini();
 
 	avl_destroy(&spa_namespace_avl);
@@ -2007,7 +2056,13 @@ spa_scan_stat_init(spa_t *spa)
 {
 	/* data not stored on disk */
 	spa->spa_scan_pass_start = gethrestime_sec();
+	if (dsl_scan_is_paused_scrub(spa->spa_dsl_pool->dp_scan))
+		spa->spa_scan_pass_scrub_pause = spa->spa_scan_pass_start;
+	else
+		spa->spa_scan_pass_scrub_pause = 0;
+	spa->spa_scan_pass_scrub_spent_paused = 0;
 	spa->spa_scan_pass_exam = 0;
+	spa->spa_scan_pass_issued = 0;
 	vdev_scan_stat_init(spa->spa_root_vdev);
 }
 
@@ -2025,6 +2080,7 @@ spa_scan_get_stats(spa_t *spa, pool_scan_stat_t *ps)
 
 	/* data stored on disk */
 	ps->pss_func = scn->scn_phys.scn_func;
+	ps->pss_state = scn->scn_phys.scn_state;
 	ps->pss_start_time = scn->scn_phys.scn_start_time;
 	ps->pss_end_time = scn->scn_phys.scn_end_time;
 	ps->pss_to_examine = scn->scn_phys.scn_to_examine;
@@ -2032,11 +2088,15 @@ spa_scan_get_stats(spa_t *spa, pool_scan_stat_t *ps)
 	ps->pss_to_process = scn->scn_phys.scn_to_process;
 	ps->pss_processed = scn->scn_phys.scn_processed;
 	ps->pss_errors = scn->scn_phys.scn_errors;
-	ps->pss_state = scn->scn_phys.scn_state;
 
 	/* data not stored on disk */
-	ps->pss_pass_start = spa->spa_scan_pass_start;
 	ps->pss_pass_exam = spa->spa_scan_pass_exam;
+	ps->pss_pass_start = spa->spa_scan_pass_start;
+	ps->pss_pass_scrub_pause = spa->spa_scan_pass_scrub_pause;
+	ps->pss_pass_scrub_spent_paused = spa->spa_scan_pass_scrub_spent_paused;
+	ps->pss_pass_issued = spa->spa_scan_pass_issued;
+	ps->pss_issued =
+	    scn->scn_issued_before_pass + spa->spa_scan_pass_issued;
 
 	return (0);
 }
@@ -2065,7 +2125,58 @@ spa_maxdnodesize(spa_t *spa)
 		return (DNODE_MIN_SIZE);
 }
 
+boolean_t
+spa_multihost(spa_t *spa)
+{
+	return (spa->spa_multihost ? B_TRUE : B_FALSE);
+}
+
+unsigned long
+spa_get_hostid(void)
+{
+	unsigned long myhostid;
+
+#ifdef	_KERNEL
+	myhostid = zone_get_hostid(NULL);
+#else	/* _KERNEL */
+	/*
+	 * We're emulating the system's hostid in userland, so
+	 * we can't use zone_get_hostid().
+	 */
+	(void) ddi_strtoul(hw_serial, NULL, 10, &myhostid);
+#endif	/* _KERNEL */
+
+	return (myhostid);
+}
+
 #if defined(_KERNEL) && defined(HAVE_SPL)
+
+#include <linux/mod_compat.h>
+
+static int
+param_set_deadman_failmode(const char *val, zfs_kernel_param_t *kp)
+{
+	spa_t *spa = NULL;
+	char *p;
+
+	if (val == NULL)
+		return (SET_ERROR(-EINVAL));
+
+	if ((p = strchr(val, '\n')) != NULL)
+		*p = '\0';
+
+	if (strcmp(val, "wait") != 0 && strcmp(val, "continue") != 0 &&
+	    strcmp(val, "panic"))
+		return (SET_ERROR(-EINVAL));
+
+	mutex_enter(&spa_namespace_lock);
+	while ((spa = spa_next(spa)) != NULL)
+		spa_set_deadman_failmode(spa, val);
+	mutex_exit(&spa_namespace_lock);
+
+	return (param_set_charp(val, kp));
+}
+
 /* Namespace manipulation */
 EXPORT_SYMBOL(spa_lookup);
 EXPORT_SYMBOL(spa_add);
@@ -2156,7 +2267,12 @@ MODULE_PARM_DESC(zfs_free_leak_on_eio,
 	"Set to ignore IO errors during free and permanently leak the space");
 
 module_param(zfs_deadman_synctime_ms, ulong, 0644);
-MODULE_PARM_DESC(zfs_deadman_synctime_ms, "Expiration time in milliseconds");
+MODULE_PARM_DESC(zfs_deadman_synctime_ms,
+	"Pool sync expiration time in milliseconds");
+
+module_param(zfs_deadman_ziotime_ms, ulong, 0644);
+MODULE_PARM_DESC(zfs_deadman_ziotime_ms,
+	"IO expiration time in milliseconds");
 
 module_param(zfs_deadman_checktime_ms, ulong, 0644);
 MODULE_PARM_DESC(zfs_deadman_checktime_ms,
@@ -2164,6 +2280,10 @@ MODULE_PARM_DESC(zfs_deadman_checktime_ms,
 
 module_param(zfs_deadman_enabled, int, 0644);
 MODULE_PARM_DESC(zfs_deadman_enabled, "Enable deadman timer");
+
+module_param_call(zfs_deadman_failmode, param_set_deadman_failmode,
+    param_get_charp, &zfs_deadman_failmode, 0644);
+MODULE_PARM_DESC(zfs_deadman_failmode, "Failmode for deadman timer");
 
 module_param(spa_asize_inflation, int, 0644);
 MODULE_PARM_DESC(spa_asize_inflation,

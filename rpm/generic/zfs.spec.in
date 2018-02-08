@@ -34,12 +34,13 @@
 %endif
 
 %bcond_with    debug
+%bcond_with    debuginfo
+%bcond_with    asan
 %bcond_with    systemd
 
 # Generic enable switch for systemd
 %if %{with systemd}
 %define _systemd 1
-%define systemd_svcs zfs-import-cache.service zfs-import-scan.service zfs-mount.service zfs-share.service zfs-zed.service zfs.target
 %endif
 
 # RHEL >= 7 comes with systemd
@@ -87,12 +88,17 @@ BuildRequires:  libuuid-devel
 BuildRequires:  libblkid-devel
 BuildRequires:  libudev-devel
 BuildRequires:  libattr-devel
+BuildRequires:  openssl-devel
+Requires:       openssl
+%if 0%{?_systemd}
+BuildRequires: systemd
 %endif
+%endif
+
 %if 0%{?_systemd}
 Requires(post): systemd
 Requires(preun): systemd
 Requires(postun): systemd
-BuildRequires: systemd
 %endif
 
 # The zpool iostat/status -c scripts call some utilities like lsblk and iostat
@@ -179,10 +185,11 @@ Requires:       lsscsi
 Requires:       mdadm
 Requires:       bc
 Requires:       ksh
-Requires:	fio
-Requires:	acl
-Requires:	sudo
-Requires:	sysstat
+Requires:       fio
+Requires:       acl
+Requires:       sudo
+Requires:       sysstat
+AutoReqProv:    no
 
 %description test
 This package contains test infrastructure and support scripts for
@@ -217,8 +224,22 @@ image which is ZFS aware.
 %else
     %define debug --disable-debug
 %endif
+
+%if %{with debuginfo}
+    %define debuginfo --enable-debuginfo
+%else
+    %define debuginfo --disable-debuginfo
+%endif
+
+%if %{with asan}
+    %define asan --enable-asan
+%else
+    %define asan --disable-asan
+%endif
+
 %if 0%{?_systemd}
     %define systemd --enable-systemd --with-systemdunitdir=%{_unitdir} --with-systemdpresetdir=%{_presetdir} --disable-sysvinit
+    %define systemd_svcs zfs-import-cache.service zfs-import-scan.service zfs-mount.service zfs-share.service zfs-zed.service zfs.target zfs-import.target
 %else
     %define systemd --enable-sysvinit --disable-systemd
 %endif
@@ -233,6 +254,8 @@ image which is ZFS aware.
     --with-dracutdir=%{_dracutdir} \
     --disable-static \
     %{debug} \
+    %{debuginfo} \
+    %{asan} \
     %{systemd}
 make %{?_smp_mflags}
 
@@ -243,7 +266,14 @@ find %{?buildroot}%{_libdir} -name '*.la' -exec rm -f {} \;
 
 %post
 %if 0%{?_systemd}
+%if 0%{?systemd_post:1}
 %systemd_post %{systemd_svcs}
+%else
+if [ "$1" = "1" -o "$1" = "install" ] ; then
+    # Initial installation
+    systemctl preset %{systemd_svcs} >/dev/null || true
+fi
+%endif
 %else
 if [ -x /sbin/chkconfig ]; then
     /sbin/chkconfig --add zfs-import
@@ -256,9 +286,17 @@ exit 0
 
 %preun
 %if 0%{?_systemd}
+%if 0%{?systemd_preun:1}
 %systemd_preun %{systemd_svcs}
 %else
-if [ "$1" = "0" ] && [ -x /sbin/chkconfig ]; then
+if [ "$1" = "0" -o "$1" = "remove" ] ; then
+    # Package removal, not upgrade
+    systemctl --no-reload disable %{systemd_svcs} >/dev/null || true
+    systemctl stop %{systemd_svcs} >/dev/null || true
+fi
+%endif
+%else
+if [ "$1" = "0" -o "$1" = "remove" ] && [ -x /sbin/chkconfig ]; then
     /sbin/chkconfig --del zfs-import
     /sbin/chkconfig --del zfs-mount
     /sbin/chkconfig --del zfs-share
@@ -269,7 +307,11 @@ exit 0
 
 %postun
 %if 0%{?_systemd}
+%if 0%{?systemd_postun:1}
 %systemd_postun %{systemd_svcs}
+%else
+systemctl --system daemon-reload >/dev/null || true
+%endif
 %endif
 
 %files
@@ -331,14 +373,6 @@ exit 0
 %endif
 
 %changelog
-* Fri Sep 11 2015 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.5-1
-- Released 0.6.5-1, detailed release notes are available at:
-- https://github.com/zfsonlinux/zfs/releases/tag/zfs-0.6.5
-* Wed Apr  8 2015 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.4-1
-- Released 0.6.4-1
-* Thu Jun 12 2014 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.3-1
-- Released 0.6.3-1
-* Wed Aug 21 2013 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.2-1
-- Released 0.6.2-1
-* Fri Mar 22 2013 Brian Behlendorf <behlendorf1@llnl.gov> - 0.6.1-1
-- First official stable release.
+* Wed Jul 26 2017 Brian Behlendorf <behlendorf1@llnl.gov> - 0.7.0-1
+- Released 0.7.0-1, detailed release notes are available at:
+- https://github.com/zfsonlinux/zfs/releases/tag/zfs-0.7.0

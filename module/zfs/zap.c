@@ -513,7 +513,6 @@ zap_get_leaf_byblk(zap_t *zap, uint64_t blkid, dmu_tx_t *tx, krw_t lt,
 	zap_leaf_t *l;
 	int bs = FZAP_BLOCK_SHIFT(zap);
 	int err;
-	dnode_t *dn;
 
 	ASSERT(RW_LOCK_HELD(&zap->zap_rwlock));
 
@@ -525,9 +524,9 @@ zap_get_leaf_byblk(zap_t *zap, uint64_t blkid, dmu_tx_t *tx, krw_t lt,
 	 * already be freed, so this should be perfectly fine.
 	 */
 	if (blkid == 0)
-		return (ENOENT);
+		return (SET_ERROR(ENOENT));
 
-	dn = dmu_buf_dnode_enter(zap->zap_dbuf);
+	dnode_t *dn = dmu_buf_dnode_enter(zap->zap_dbuf);
 	err = dmu_buf_hold_by_dnode(dn,
 	    blkid << bs, NULL, &db, DMU_READ_NO_PREFETCH);
 	dmu_buf_dnode_exit(zap->zap_dbuf);
@@ -767,7 +766,7 @@ fzap_checksize(uint64_t integer_size, uint64_t num_integers)
 	}
 
 	if (integer_size * num_integers > ZAP_MAXVALUELEN)
-		return (E2BIG);
+		return (SET_ERROR(E2BIG));
 
 	return (0);
 }
@@ -1071,7 +1070,7 @@ zap_join_key(objset_t *os, uint64_t fromobj, uint64_t intoobj,
 		}
 		err = zap_add(os, intoobj, za.za_name,
 		    8, 1, &value, tx);
-		if (err)
+		if (err != 0)
 			break;
 	}
 	zap_cursor_fini(&zc);

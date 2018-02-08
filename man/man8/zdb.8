@@ -10,12 +10,12 @@
 .\"
 .\"
 .\" Copyright 2012, Richard Lowe.
-.\" Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+.\" Copyright (c) 2012, 2017 by Delphix. All rights reserved.
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Lawrence Livermore National Security, LLC.
 .\" Copyright (c) 2017 Intel Corporation.
 .\"
-.Dd April 11, 2017
+.Dd April 14, 2017
 .Dt ZDB 8 SMM
 .Os Linux
 .Sh NAME
@@ -41,6 +41,10 @@
 .Op Fl A
 .Op Fl U Ar cache
 .Nm
+.Fl E
+.Op Fl A
+.Ar word0 Ns \&: Ns Ar word1 Ns :...: Ns Ar word15
+.Nm
 .Fl l
 .Op Fl Aqu
 .Ar device
@@ -59,7 +63,7 @@
 .Op Fl A
 .Op Fl e Oo Fl V Oc Op Fl p Ar path ...
 .Op Fl U Ar cache
-.Ar poolname vdev Ns : Ns Ar offset Ns : Ns Ar size Ns Op : Ns Ar flags
+.Ar poolname vdev Ns \&: Ns Ar offset Ns \&: Ns Ar size Ns Op : Ns Ar flags
 .Nm
 .Fl S
 .Op Fl AP
@@ -155,6 +159,10 @@ Display the statistics independently for each deduplication table.
 Dump the contents of the deduplication tables describing duplicate blocks.
 .It Fl DDDDD
 Also dump the contents of the deduplication tables describing unique blocks.
+.It Fl E Ar word0 Ns \&: Ns Ar word1 Ns :...: Ns Ar word15
+Decode and display block from an embedded block pointer specified by the
+.Ar word
+arguments.
 .It Fl h
 Display pool history similar to
 .Nm zpool Cm history ,
@@ -217,7 +225,9 @@ must be relative to the root of
 This option can be combined with
 .Fl v
 for increasing verbosity.
-.It Fl R Ar poolname vdev Ns : Ns Ar offset Ns : Ns Ar size Ns Op : Ns Ar flags
+.It Xo
+.Fl R Ar poolname vdev Ns \&: Ns Ar offset Ns \&: Ns Ar size Ns Op : Ns Ar flags
+.Xc
 Read and display a block from the specified device.
 By default the block is displayed as a hex dump, but see the description of the
 .Sy r

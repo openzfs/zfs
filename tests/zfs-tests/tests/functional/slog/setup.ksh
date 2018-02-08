@@ -45,6 +45,6 @@ if [[ -d $VDEV2 ]]; then
 	log_must rm -rf $VDIR2
 fi
 log_must mkdir -p $VDIR $VDIR2
-log_must mkfile $MINVDEVSIZE $VDEV $SDEV $LDEV $VDEV2 $SDEV2 $LDEV2
+log_must truncate -s $MINVDEVSIZE $VDEV $SDEV $LDEV $VDEV2 $SDEV2 $LDEV2
 
 log_pass

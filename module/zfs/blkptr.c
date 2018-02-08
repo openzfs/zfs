@@ -50,7 +50,6 @@ encode_embedded_bp_compressed(blkptr_t *bp, void *data,
 	uint64_t *bp64 = (uint64_t *)bp;
 	uint64_t w = 0;
 	uint8_t *data8 = data;
-	int i;
 
 	ASSERT3U(compressed_size, <=, BPE_PAYLOAD_SIZE);
 	ASSERT(uncompressed_size == compressed_size ||
@@ -69,7 +68,7 @@ encode_embedded_bp_compressed(blkptr_t *bp, void *data,
 	 * Encode the byte array into the words of the block pointer.
 	 * First byte goes into low bits of first word (little endian).
 	 */
-	for (i = 0; i < compressed_size; i++) {
+	for (int i = 0; i < compressed_size; i++) {
 		BF64_SET(w, (i % sizeof (w)) * NBBY, NBBY, data8[i]);
 		if (i % sizeof (w) == sizeof (w) - 1) {
 			/* we've reached the end of a word */
@@ -97,7 +96,6 @@ decode_embedded_bp_compressed(const blkptr_t *bp, void *buf)
 	uint8_t *buf8 = buf;
 	uint64_t w = 0;
 	const uint64_t *bp64 = (const uint64_t *)bp;
-	int i;
 
 	ASSERT(BP_IS_EMBEDDED(bp));
 
@@ -107,7 +105,7 @@ decode_embedded_bp_compressed(const blkptr_t *bp, void *buf)
 	 * Decode the words of the block pointer into the byte array.
 	 * Low bits of first word are the first byte (little endian).
 	 */
-	for (i = 0; i < psize; i++) {
+	for (int i = 0; i < psize; i++) {
 		if (i % sizeof (w) == 0) {
 			/* beginning of a word */
 			ASSERT3P(bp64, <, bp + 1);
@@ -118,4 +116,37 @@ decode_embedded_bp_compressed(const blkptr_t *bp, void *buf)
 		}
 		buf8[i] = BF64_GET(w, (i % sizeof (w)) * NBBY, NBBY);
 	}
+}
+
+/*
+ * Fill in the buffer with the (decompressed) payload of the embedded
+ * blkptr_t.  Takes into account compression and byteorder (the payload is
+ * treated as a stream of bytes).
+ * Return 0 on success, or ENOSPC if it won't fit in the buffer.
+ */
+int
+decode_embedded_bp(const blkptr_t *bp, void *buf, int buflen)
+{
+	int lsize, psize;
+
+	ASSERT(BP_IS_EMBEDDED(bp));
+
+	lsize = BPE_GET_LSIZE(bp);
+	psize = BPE_GET_PSIZE(bp);
+
+	if (lsize > buflen)
+		return (SET_ERROR(ENOSPC));
+	ASSERT3U(lsize, ==, buflen);
+
+	if (BP_GET_COMPRESS(bp) != ZIO_COMPRESS_OFF) {
+		uint8_t dstbuf[BPE_PAYLOAD_SIZE];
+		decode_embedded_bp_compressed(bp, dstbuf);
+		VERIFY0(zio_decompress_data_buf(BP_GET_COMPRESS(bp),
+		    dstbuf, buf, psize, buflen));
+	} else {
+		ASSERT3U(lsize, ==, psize);
+		decode_embedded_bp_compressed(bp, buf);
+	}
+
+	return (0);
 }

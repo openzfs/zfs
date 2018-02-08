@@ -21,6 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2015 Nexenta Systems, Inc.  All rights reserved.
+ * Copyright 2017 Joyent, Inc.
  */
 
 #ifndef	_SYS_SYSEVENT_EVENTDEFS_H
@@ -100,6 +101,7 @@ extern "C" {
 #define	ESC_ZFS_POOL_CREATE		"pool_create"
 #define	ESC_ZFS_POOL_DESTROY		"pool_destroy"
 #define	ESC_ZFS_POOL_IMPORT		"pool_import"
+#define	ESC_ZFS_POOL_EXPORT		"pool_export"
 #define	ESC_ZFS_VDEV_ADD		"vdev_add"
 #define	ESC_ZFS_VDEV_ATTACH		"vdev_attach"
 #define	ESC_ZFS_VDEV_CLEAR		"vdev_clear"
@@ -108,10 +110,14 @@ extern "C" {
 #define	ESC_ZFS_CONFIG_SYNC		"config_sync"
 #define	ESC_ZFS_SCRUB_START		"scrub_start"
 #define	ESC_ZFS_SCRUB_FINISH		"scrub_finish"
+#define	ESC_ZFS_SCRUB_ABORT		"scrub_abort"
+#define	ESC_ZFS_SCRUB_RESUME		"scrub_resume"
+#define	ESC_ZFS_SCRUB_PAUSED		"scrub_paused"
 #define	ESC_ZFS_VDEV_SPARE		"vdev_spare"
 #define	ESC_ZFS_VDEV_AUTOEXPAND		"vdev_autoexpand"
 #define	ESC_ZFS_BOOTFS_VDEV_ATTACH	"bootfs_vdev_attach"
 #define	ESC_ZFS_POOL_REGUID		"pool_reguid"
+#define	ESC_ZFS_HISTORY_EVENT		"history_event"
 
 /*
  * datalink subclass definitions.

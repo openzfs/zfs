@@ -1,9 +1,10 @@
-<p align="center"><img src="http://zfsonlinux.org/images/zfs-linux.png"/></p>
-ZFS is an advanced file system and volume manager which was originally
-developed for Solaris and is now maintained by the Illumos community.
+![img](http://zfsonlinux.org/images/zfs-linux.png)
 
-ZFS on Linux, which is also known as ZoL, is currently feature complete.  It
-includes fully functional and stable SPA, DMU, ZVOL, and ZPL layers. And it's native!
+ZFS on Linux is an advanced file system and volume manager which was originally
+developed for Solaris and is now maintained by the OpenZFS community.
+
+[![codecov](https://codecov.io/gh/zfsonlinux/zfs/branch/master/graph/badge.svg)](https://codecov.io/gh/zfsonlinux/zfs)
+[![coverity](https://scan.coverity.com/projects/1973/badge.svg)](https://scan.coverity.com/projects/zfsonlinux-zfs)
 
 # Official Resources
   * [Site](http://zfsonlinux.org)

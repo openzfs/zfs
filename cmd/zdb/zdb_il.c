@@ -44,9 +44,11 @@
 #include <sys/zil_impl.h>
 #include <sys/abd.h>
 
+#include "zdb.h"
+
 extern uint8_t dump_opt[256];
 
-static char prefix[4] = "\t\t\t";
+static char tab_prefix[4] = "\t\t\t";
 
 static void
 print_log_bp(const blkptr_t *bp, const char *prefix)
@@ -59,8 +61,9 @@ print_log_bp(const blkptr_t *bp, const char *prefix)
 
 /* ARGSUSED */
 static void
-zil_prt_rec_create(zilog_t *zilog, int txtype, lr_create_t *lr)
+zil_prt_rec_create(zilog_t *zilog, int txtype, void *arg)
 {
+	lr_create_t *lr = arg;
 	time_t crtime = lr->lr_crtime[0];
 	char *name, *link;
 	lr_attr_t *lrattr;
@@ -75,49 +78,55 @@ zil_prt_rec_create(zilog_t *zilog, int txtype, lr_create_t *lr)
 
 	if (txtype == TX_SYMLINK) {
 		link = name + strlen(name) + 1;
-		(void) printf("%s%s -> %s\n", prefix, name, link);
+		(void) printf("%s%s -> %s\n", tab_prefix, name, link);
 	} else if (txtype != TX_MKXATTR) {
-		(void) printf("%s%s\n", prefix, name);
+		(void) printf("%s%s\n", tab_prefix, name);
 	}
 
-	(void) printf("%s%s", prefix, ctime(&crtime));
-	(void) printf("%sdoid %llu, foid %llu, slots %llu, mode %llo\n", prefix,
-	    (u_longlong_t)lr->lr_doid,
+	(void) printf("%s%s", tab_prefix, ctime(&crtime));
+	(void) printf("%sdoid %llu, foid %llu, slots %llu, mode %llo\n",
+	    tab_prefix, (u_longlong_t)lr->lr_doid,
 	    (u_longlong_t)LR_FOID_GET_OBJ(lr->lr_foid),
 	    (u_longlong_t)LR_FOID_GET_SLOTS(lr->lr_foid),
 	    (longlong_t)lr->lr_mode);
-	(void) printf("%suid %llu, gid %llu, gen %llu, rdev 0x%llx\n", prefix,
+	(void) printf("%suid %llu, gid %llu, gen %llu, rdev 0x%llx\n",
+	    tab_prefix,
 	    (u_longlong_t)lr->lr_uid, (u_longlong_t)lr->lr_gid,
 	    (u_longlong_t)lr->lr_gen, (u_longlong_t)lr->lr_rdev);
 }
 
 /* ARGSUSED */
 static void
-zil_prt_rec_remove(zilog_t *zilog, int txtype, lr_remove_t *lr)
+zil_prt_rec_remove(zilog_t *zilog, int txtype, void *arg)
 {
-	(void) printf("%sdoid %llu, name %s\n", prefix,
+	lr_remove_t *lr = arg;
+
+	(void) printf("%sdoid %llu, name %s\n", tab_prefix,
 	    (u_longlong_t)lr->lr_doid, (char *)(lr + 1));
 }
 
 /* ARGSUSED */
 static void
-zil_prt_rec_link(zilog_t *zilog, int txtype, lr_link_t *lr)
+zil_prt_rec_link(zilog_t *zilog, int txtype, void *arg)
 {
-	(void) printf("%sdoid %llu, link_obj %llu, name %s\n", prefix,
+	lr_link_t *lr = arg;
+
+	(void) printf("%sdoid %llu, link_obj %llu, name %s\n", tab_prefix,
 	    (u_longlong_t)lr->lr_doid, (u_longlong_t)lr->lr_link_obj,
 	    (char *)(lr + 1));
 }
 
 /* ARGSUSED */
 static void
-zil_prt_rec_rename(zilog_t *zilog, int txtype, lr_rename_t *lr)
+zil_prt_rec_rename(zilog_t *zilog, int txtype, void *arg)
 {
+	lr_rename_t *lr = arg;
 	char *snm = (char *)(lr + 1);
 	char *tnm = snm + strlen(snm) + 1;
 
-	(void) printf("%ssdoid %llu, tdoid %llu\n", prefix,
+	(void) printf("%ssdoid %llu, tdoid %llu\n", tab_prefix,
 	    (u_longlong_t)lr->lr_sdoid, (u_longlong_t)lr->lr_tdoid);
-	(void) printf("%ssrc %s tgt %s\n", prefix, snm, tnm);
+	(void) printf("%ssrc %s tgt %s\n", tab_prefix, snm, tnm);
 }
 
 /* ARGSUSED */
@@ -125,9 +134,8 @@ static int
 zil_prt_rec_write_cb(void *data, size_t len, void *unused)
 {
 	char *cdata = data;
-	int i;
 
-	for (i = 0; i < len; i++) {
+	for (size_t i = 0; i < len; i++) {
 		if (isprint(*cdata))
 			(void) printf("%c ", *cdata);
 		else
@@ -139,15 +147,16 @@ zil_prt_rec_write_cb(void *data, size_t len, void *unused)
 
 /* ARGSUSED */
 static void
-zil_prt_rec_write(zilog_t *zilog, int txtype, lr_write_t *lr)
+zil_prt_rec_write(zilog_t *zilog, int txtype, void *arg)
 {
+	lr_write_t *lr = arg;
 	abd_t *data;
 	blkptr_t *bp = &lr->lr_blkptr;
 	zbookmark_phys_t zb;
 	int verbose = MAX(dump_opt['d'], dump_opt['i']);
 	int error;
 
-	(void) printf("%sfoid %llu, offset %llx, length %llx\n", prefix,
+	(void) printf("%sfoid %llu, offset %llx, length %llx\n", tab_prefix,
 	    (u_longlong_t)lr->lr_foid, (u_longlong_t)lr->lr_offset,
 	    (u_longlong_t)lr->lr_length);
 
@@ -155,20 +164,21 @@ zil_prt_rec_write(zilog_t *zilog, int txtype, lr_write_t *lr)
 		return;
 
 	if (lr->lr_common.lrc_reclen == sizeof (lr_write_t)) {
-		(void) printf("%shas blkptr, %s\n", prefix,
+		(void) printf("%shas blkptr, %s\n", tab_prefix,
 		    !BP_IS_HOLE(bp) &&
 		    bp->blk_birth >= spa_first_txg(zilog->zl_spa) ?
 		    "will claim" : "won't claim");
-		print_log_bp(bp, prefix);
+		print_log_bp(bp, tab_prefix);
 
 		if (BP_IS_HOLE(bp)) {
 			(void) printf("\t\t\tLSIZE 0x%llx\n",
 			    (u_longlong_t)BP_GET_LSIZE(bp));
-			(void) printf("%s<hole>\n", prefix);
+			(void) printf("%s<hole>\n", tab_prefix);
 			return;
 		}
 		if (bp->blk_birth < zilog->zl_header->zh_claim_txg) {
-			(void) printf("%s<block already committed>\n", prefix);
+			(void) printf("%s<block already committed>\n",
+			    tab_prefix);
 			return;
 		}
 
@@ -188,7 +198,7 @@ zil_prt_rec_write(zilog_t *zilog, int txtype, lr_write_t *lr)
 		abd_copy_from_buf(data, lr + 1, lr->lr_length);
 	}
 
-	(void) printf("%s", prefix);
+	(void) printf("%s", tab_prefix);
 	(void) abd_iterate_func(data,
 	    0, MIN(lr->lr_length, (verbose < 6 ? 20 : SPA_MAXBLOCKSIZE)),
 	    zil_prt_rec_write_cb, NULL);
@@ -200,52 +210,55 @@ out:
 
 /* ARGSUSED */
 static void
-zil_prt_rec_truncate(zilog_t *zilog, int txtype, lr_truncate_t *lr)
+zil_prt_rec_truncate(zilog_t *zilog, int txtype, void *arg)
 {
-	(void) printf("%sfoid %llu, offset 0x%llx, length 0x%llx\n", prefix,
+	lr_truncate_t *lr = arg;
+
+	(void) printf("%sfoid %llu, offset 0x%llx, length 0x%llx\n", tab_prefix,
 	    (u_longlong_t)lr->lr_foid, (longlong_t)lr->lr_offset,
 	    (u_longlong_t)lr->lr_length);
 }
 
 /* ARGSUSED */
 static void
-zil_prt_rec_setattr(zilog_t *zilog, int txtype, lr_setattr_t *lr)
+zil_prt_rec_setattr(zilog_t *zilog, int txtype, void *arg)
 {
+	lr_setattr_t *lr = arg;
 	time_t atime = (time_t)lr->lr_atime[0];
 	time_t mtime = (time_t)lr->lr_mtime[0];
 
-	(void) printf("%sfoid %llu, mask 0x%llx\n", prefix,
+	(void) printf("%sfoid %llu, mask 0x%llx\n", tab_prefix,
 	    (u_longlong_t)lr->lr_foid, (u_longlong_t)lr->lr_mask);
 
 	if (lr->lr_mask & AT_MODE) {
-		(void) printf("%sAT_MODE  %llo\n", prefix,
+		(void) printf("%sAT_MODE  %llo\n", tab_prefix,
 		    (longlong_t)lr->lr_mode);
 	}
 
 	if (lr->lr_mask & AT_UID) {
-		(void) printf("%sAT_UID   %llu\n", prefix,
+		(void) printf("%sAT_UID   %llu\n", tab_prefix,
 		    (u_longlong_t)lr->lr_uid);
 	}
 
 	if (lr->lr_mask & AT_GID) {
-		(void) printf("%sAT_GID   %llu\n", prefix,
+		(void) printf("%sAT_GID   %llu\n", tab_prefix,
 		    (u_longlong_t)lr->lr_gid);
 	}
 
 	if (lr->lr_mask & AT_SIZE) {
-		(void) printf("%sAT_SIZE  %llu\n", prefix,
+		(void) printf("%sAT_SIZE  %llu\n", tab_prefix,
 		    (u_longlong_t)lr->lr_size);
 	}
 
 	if (lr->lr_mask & AT_ATIME) {
-		(void) printf("%sAT_ATIME %llu.%09llu %s", prefix,
+		(void) printf("%sAT_ATIME %llu.%09llu %s", tab_prefix,
 		    (u_longlong_t)lr->lr_atime[0],
 		    (u_longlong_t)lr->lr_atime[1],
 		    ctime(&atime));
 	}
 
 	if (lr->lr_mask & AT_MTIME) {
-		(void) printf("%sAT_MTIME %llu.%09llu %s", prefix,
+		(void) printf("%sAT_MTIME %llu.%09llu %s", tab_prefix,
 		    (u_longlong_t)lr->lr_mtime[0],
 		    (u_longlong_t)lr->lr_mtime[1],
 		    ctime(&mtime));
@@ -254,41 +267,43 @@ zil_prt_rec_setattr(zilog_t *zilog, int txtype, lr_setattr_t *lr)
 
 /* ARGSUSED */
 static void
-zil_prt_rec_acl(zilog_t *zilog, int txtype, lr_acl_t *lr)
+zil_prt_rec_acl(zilog_t *zilog, int txtype, void *arg)
 {
-	(void) printf("%sfoid %llu, aclcnt %llu\n", prefix,
+	lr_acl_t *lr = arg;
+
+	(void) printf("%sfoid %llu, aclcnt %llu\n", tab_prefix,
 	    (u_longlong_t)lr->lr_foid, (u_longlong_t)lr->lr_aclcnt);
 }
 
 typedef void (*zil_prt_rec_func_t)(zilog_t *, int, void *);
 typedef struct zil_rec_info {
 	zil_prt_rec_func_t	zri_print;
-	char			*zri_name;
+	const char		*zri_name;
 	uint64_t		zri_count;
 } zil_rec_info_t;
 
 static zil_rec_info_t zil_rec_info[TX_MAX_TYPE] = {
-	{ NULL,			"Total              " },
-	{ (zil_prt_rec_func_t)zil_prt_rec_create,	"TX_CREATE          " },
-	{ (zil_prt_rec_func_t)zil_prt_rec_create,	"TX_MKDIR           " },
-	{ (zil_prt_rec_func_t)zil_prt_rec_create,	"TX_MKXATTR         " },
-	{ (zil_prt_rec_func_t)zil_prt_rec_create,	"TX_SYMLINK         " },
-	{ (zil_prt_rec_func_t)zil_prt_rec_remove,	"TX_REMOVE          " },
-	{ (zil_prt_rec_func_t)zil_prt_rec_remove,	"TX_RMDIR           " },
-	{ (zil_prt_rec_func_t)zil_prt_rec_link,		"TX_LINK            " },
-	{ (zil_prt_rec_func_t)zil_prt_rec_rename,	"TX_RENAME          " },
-	{ (zil_prt_rec_func_t)zil_prt_rec_write,	"TX_WRITE           " },
-	{ (zil_prt_rec_func_t)zil_prt_rec_truncate,	"TX_TRUNCATE        " },
-	{ (zil_prt_rec_func_t)zil_prt_rec_setattr,	"TX_SETATTR         " },
-	{ (zil_prt_rec_func_t)zil_prt_rec_acl,		"TX_ACL_V0          " },
-	{ (zil_prt_rec_func_t)zil_prt_rec_acl,		"TX_ACL_ACL         " },
-	{ (zil_prt_rec_func_t)zil_prt_rec_create,	"TX_CREATE_ACL      " },
-	{ (zil_prt_rec_func_t)zil_prt_rec_create,	"TX_CREATE_ATTR     " },
-	{ (zil_prt_rec_func_t)zil_prt_rec_create,	"TX_CREATE_ACL_ATTR " },
-	{ (zil_prt_rec_func_t)zil_prt_rec_create,	"TX_MKDIR_ACL       " },
-	{ (zil_prt_rec_func_t)zil_prt_rec_create,	"TX_MKDIR_ATTR      " },
-	{ (zil_prt_rec_func_t)zil_prt_rec_create,	"TX_MKDIR_ACL_ATTR  " },
-	{ (zil_prt_rec_func_t)zil_prt_rec_write,	"TX_WRITE2          " },
+	{.zri_print = NULL,		    .zri_name = "Total              "},
+	{.zri_print = zil_prt_rec_create,   .zri_name = "TX_CREATE          "},
+	{.zri_print = zil_prt_rec_create,   .zri_name = "TX_MKDIR           "},
+	{.zri_print = zil_prt_rec_create,   .zri_name = "TX_MKXATTR         "},
+	{.zri_print = zil_prt_rec_create,   .zri_name = "TX_SYMLINK         "},
+	{.zri_print = zil_prt_rec_remove,   .zri_name = "TX_REMOVE          "},
+	{.zri_print = zil_prt_rec_remove,   .zri_name = "TX_RMDIR           "},
+	{.zri_print = zil_prt_rec_link,	    .zri_name = "TX_LINK            "},
+	{.zri_print = zil_prt_rec_rename,   .zri_name = "TX_RENAME          "},
+	{.zri_print = zil_prt_rec_write,    .zri_name = "TX_WRITE           "},
+	{.zri_print = zil_prt_rec_truncate, .zri_name = "TX_TRUNCATE        "},
+	{.zri_print = zil_prt_rec_setattr,  .zri_name = "TX_SETATTR         "},
+	{.zri_print = zil_prt_rec_acl,	    .zri_name = "TX_ACL_V0          "},
+	{.zri_print = zil_prt_rec_acl,	    .zri_name = "TX_ACL_ACL         "},
+	{.zri_print = zil_prt_rec_create,   .zri_name = "TX_CREATE_ACL      "},
+	{.zri_print = zil_prt_rec_create,   .zri_name = "TX_CREATE_ATTR     "},
+	{.zri_print = zil_prt_rec_create,   .zri_name = "TX_CREATE_ACL_ATTR "},
+	{.zri_print = zil_prt_rec_create,   .zri_name = "TX_MKDIR_ACL       "},
+	{.zri_print = zil_prt_rec_create,   .zri_name = "TX_MKDIR_ATTR      "},
+	{.zri_print = zil_prt_rec_create,   .zri_name = "TX_MKDIR_ACL_ATTR  "},
+	{.zri_print = zil_prt_rec_write,    .zri_name = "TX_WRITE2          "},
 };
 
 /* ARGSUSED */
@@ -311,8 +326,13 @@ print_log_record(zilog_t *zilog, lr_t *lr, void *arg, uint64_t claim_txg)
 	    (u_longlong_t)lr->lrc_txg,
 	    (u_longlong_t)lr->lrc_seq);
 
-	if (txtype && verbose >= 3)
-		zil_rec_info[txtype].zri_print(zilog, txtype, lr);
+	if (txtype && verbose >= 3) {
+		if (!zilog->zl_os->os_encrypted) {
+			zil_rec_info[txtype].zri_print(zilog, txtype, lr);
+		} else {
+			(void) printf("%s(encrypted)\n", tab_prefix);
+		}
+	}
 
 	zil_rec_info[txtype].zri_count++;
 	zil_rec_info[0].zri_count++;
@@ -326,7 +346,7 @@ print_log_block(zilog_t *zilog, blkptr_t *bp, void *arg, uint64_t claim_txg)
 {
 	char blkbuf[BP_SPRINTF_LEN + 10];
 	int verbose = MAX(dump_opt['d'], dump_opt['i']);
-	char *claim;
+	const char *claim;
 
 	if (verbose <= 3)
 		return (0);
@@ -355,7 +375,7 @@ print_log_block(zilog_t *zilog, blkptr_t *bp, void *arg, uint64_t claim_txg)
 static void
 print_log_stats(int verbose)
 {
-	int i, w, p10;
+	unsigned i, w, p10;
 
 	if (verbose > 3)
 		(void) printf("\n");
@@ -399,7 +419,7 @@ dump_intent_log(zilog_t *zilog)
 	if (verbose >= 2) {
 		(void) printf("\n");
 		(void) zil_parse(zilog, print_log_block, print_log_record, NULL,
-		    zh->zh_claim_txg);
+		    zh->zh_claim_txg, B_FALSE);
 		print_log_stats(verbose);
 	}
 }

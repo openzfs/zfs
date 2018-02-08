@@ -31,6 +31,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 
 static inline int
 libspl_assert(const char *buf, const char *file, const char *func, int line)
@@ -71,9 +72,11 @@ do {									\
 	const TYPE __right = (TYPE)(RIGHT);				\
 	if (!(__left OP __right))					\
 		libspl_assertf(__FILE__, __FUNCTION__, __LINE__,	\
-		    "%s %s %s (0x%llx %s 0x%llx)", #LEFT, #OP, #RIGHT);	\
+		    "%s %s %s (0x%llx %s 0x%llx)", #LEFT, #OP, #RIGHT,	\
+		    (u_longlong_t)__left, #OP, (u_longlong_t)__right);	\
 } while (0)
 
+#define	VERIFY3B(x, y, z)	VERIFY3_IMPL(x, y, z, boolean_t)
 #define	VERIFY3S(x, y, z)	VERIFY3_IMPL(x, y, z, int64_t)
 #define	VERIFY3U(x, y, z)	VERIFY3_IMPL(x, y, z, uint64_t)
 #define	VERIFY3P(x, y, z)	VERIFY3_IMPL(x, y, z, uintptr_t)
@@ -92,6 +95,7 @@ do {									\
 	__compile_time_assertion__ ## y[(x) ? 1 : -1]
 
 #ifdef NDEBUG
+#define	ASSERT3B(x, y, z)	((void)0)
 #define	ASSERT3S(x, y, z)	((void)0)
 #define	ASSERT3U(x, y, z)	((void)0)
 #define	ASSERT3P(x, y, z)	((void)0)
@@ -102,6 +106,7 @@ do {									\
 #define	IMPLY(A, B)		((void)0)
 #define	EQUIV(A, B)		((void)0)
 #else
+#define	ASSERT3B(x, y, z)	VERIFY3B(x, y, z)
 #define	ASSERT3S(x, y, z)	VERIFY3S(x, y, z)
 #define	ASSERT3U(x, y, z)	VERIFY3U(x, y, z)
 #define	ASSERT3P(x, y, z)	VERIFY3P(x, y, z)

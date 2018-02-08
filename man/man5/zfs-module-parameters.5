@@ -1,5 +1,6 @@
 '\" te
 .\" Copyright (c) 2013 by Turbo Fredriksson <turbo@bayour.com>. All rights reserved.
+.\" Copyright (c) 2017 Datto Inc.
 .\" The contents of this file are subject to the terms of the Common Development
 .\" and Distribution License (the "License").  You may not use this file except
 .\" in compliance with the License. You can obtain a copy of the license at
@@ -12,7 +13,7 @@
 .\" CDDL HEADER, with the fields enclosed by brackets "[]" replaced with your
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
-.TH ZFS-MODULE-PARAMETERS 5 "Nov 16, 2013"
+.TH ZFS-MODULE-PARAMETERS 5 "Oct 28, 2017"
 .SH NAME
 zfs\-module\-parameters \- ZFS module parameters
 .SH DESCRIPTION
@@ -93,18 +94,7 @@ Default value: \fB2\fR.
 Scales \fBl2arc_headroom\fR by this percentage when L2ARC contents are being
 successfully compressed before writing. A value of 100 disables this feature.
 .sp
-Default value: \fB200\fR.
-.RE
-
-.sp
-.ne 2
-.na
-\fBl2arc_nocompress\fR (int)
-.ad
-.RS 12n
-Skip compressing L2ARC buffers
-.sp
-Use \fB1\fR for yes and \fB0\fR for no (default).
+Default value: \fB200\fR%.
 .RE
 
 .sp
@@ -435,7 +425,7 @@ Percentage that can be consumed by dnodes of ARC meta buffers.
 See also \fBzfs_arc_dnode_limit\fR which serves a similar purpose but has a
 higher priority if set to nonzero value.
 .sp
-Default value: \fB10\fR.
+Default value: \fB10\fR%.
 .RE
 
 .sp
@@ -448,7 +438,7 @@ Percentage of ARC dnodes to try to scan in response to demand for non-metadata
 when the number of bytes consumed by dnodes exceeds \fBzfs_arc_dnode_limit\fR.
 
 .sp
-Default value: \fB10% of the number of dnodes in the ARC\fR.
+Default value: \fB10\fR% of the number of dnodes in the ARC.
 .RE
 
 .sp
@@ -486,10 +476,11 @@ Default value: \fB10\fR.
 \fBzfs_arc_grow_retry\fR (int)
 .ad
 .RS 12n
-After a memory pressure event the ARC will wait this many seconds before trying
-to resume growth
+If set to a non zero value, it will replace the arc_grow_retry value with this value.
+The arc_grow_retry value (default 5) is the number of seconds the ARC will wait before
+trying to resume growth after a memory pressure event.
 .sp
-Default value: \fB5\fR.
+Default value: \fB0\fR.
 .RE
 
 .sp
@@ -501,7 +492,7 @@ Default value: \fB5\fR.
 Throttle I/O when free system memory drops below this percentage of total
 system memory.  Setting this value to 0 will disable the throttle.
 .sp
-Default value: \fB10\fR.
+Default value: \fB10\fR%.
 .RE
 
 .sp
@@ -518,6 +509,20 @@ to 0 while running and reducing it below the current ARC size will not cause
 the ARC to shrink without memory pressure to induce shrinking.
 .sp
 Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_arc_meta_adjust_restarts\fR (ulong)
+.ad
+.RS 12n
+The number of restart passes to make while scanning the ARC attempting
+the free buffers in order to stay below the \fBzfs_arc_meta_limit\fR.
+This value should not need to be tuned but is available to facilitate
+performance analysis.
+.sp
+Default value: \fB4096\fR.
 .RE
 
 .sp
@@ -550,7 +555,7 @@ See also \fBzfs_arc_meta_limit\fR which serves a similar purpose but has a
 higher priority if set to nonzero value.
 
 .sp
-Default value: \fB75\fR.
+Default value: \fB75\fR%.
 .RE
 
 .sp
@@ -585,15 +590,15 @@ Default value: \fB10,000\fR.
 .sp
 .ne 2
 .na
-\fBzfs_arc_meta_adjust_restarts\fR (ulong)
+\fBzfs_arc_meta_strategy\fR (int)
 .ad
 .RS 12n
-The number of restart passes to make while scanning the ARC attempting
-the free buffers in order to stay below the \fBzfs_arc_meta_limit\fR.
-This value should not need to be tuned but is available to facilitate
-performance analysis.
+Define the strategy for ARC meta data buffer eviction (meta reclaim strategy).
+A value of 0 (META_ONLY) will evict only the ARC meta data buffers.
+A value of 1 (BALANCED) indicates that additional data buffers may be evicted if
+that is required to in order to evict the required number of meta data buffers.
 .sp
-Default value: \fB4096\fR.
+Default value: \fB1\fR.
 .RE
 
 .sp
@@ -602,19 +607,33 @@ Default value: \fB4096\fR.
 \fBzfs_arc_min\fR (ulong)
 .ad
 .RS 12n
-Min arc size
+Min arc size of ARC in bytes. If set to 0 then arc_c_min will default to
+consuming the larger of 32M or 1/32 of total system memory.
 .sp
-Default value: \fB100\fR.
+Default value: \fB0\fR.
 .RE
 
 .sp
 .ne 2
 .na
-\fBzfs_arc_min_prefetch_lifespan\fR (int)
+\fBzfs_arc_min_prefetch_ms\fR (int)
 .ad
 .RS 12n
-Minimum time prefetched blocks are locked in the ARC, specified in jiffies.
-A value of 0 will default to 1 second.
+Minimum time prefetched blocks are locked in the ARC, specified in ms.
+A value of \fB0\fR will default to 1000 ms.
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_arc_min_prescient_prefetch_ms\fR (int)
+.ad
+.RS 12n
+Minimum time "prescient prefetched" blocks are locked in the ARC, specified
+in ms. These blocks are meant to be prefetched fairly aggresively ahead of
+the code that may use them. A value of \fB0\fR will default to 6000 ms.
 .sp
 Default value: \fB0\fR.
 .RE
@@ -661,20 +680,12 @@ Default value: \fB8\fR.
 \fBzfs_arc_p_min_shift\fR (int)
 .ad
 .RS 12n
-arc_c shift to calc min/max arc_p
+If set to a non zero value, this will update arc_p_min_shift (default 4)
+with the new value.
+arc_p_min_shift is used to shift of arc_c for calculating both min and max
+max arc_p
 .sp
-Default value: \fB4\fR.
-.RE
-
-.sp
-.ne 2
-.na
-\fBzfs_arc_p_aggressive_disable\fR (int)
-.ad
-.RS 12n
-Disable aggressive arc_p growth
-.sp
-Use \fB1\fR for yes (default) and \fB0\fR to disable.
+Default value: \fB0\fR.
 .RE
 
 .sp
@@ -694,9 +705,10 @@ Use \fB1\fR for yes (default) and \fB0\fR to disable.
 \fBzfs_arc_shrink_shift\fR (int)
 .ad
 .RS 12n
-log2(fraction of arc to reclaim)
+If set to a non zero value, this will update arc_shrink_shift (default 7)
+with the new value.
 .sp
-Default value: \fB5\fR.
+Default value: \fB0\fR.
 .RE
 
 .sp
@@ -714,7 +726,7 @@ zfs_arc_min if necessary. This value is specified as percent of pagecache
 size (as measured by NR_FILE_PAGES) where that percent may exceed 100. This
 only operates during memory pressure/reclaim.
 .sp
-Default value: \fB0\fR (disabled).
+Default value: \fB0\fR% (disabled).
 .RE
 
 .sp
@@ -739,6 +751,21 @@ Default value: \fB0\fR.
 Disable pool import at module load by ignoring the cache file (typically \fB/etc/zfs/zpool.cache\fR).
 .sp
 Use \fB1\fR for yes (default) and \fB0\fR for no.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_commit_timeout_pct\fR (int)
+.ad
+.RS 12n
+This controls the amount of time that a ZIL block (lwb) will remain "open"
+when it isn't "full", and it has a thread waiting for it to be committed to
+stable storage.  The timeout is scaled based on a percentage of the last lwb
+latency to avoid significantly impacting the latency of each individual
+transaction record (itx).
+.sp
+Default value: \fB5\fR%.
 .RE
 
 .sp
@@ -785,14 +812,36 @@ Default value: \fB0\fR.
 .ad
 .RS 12n
 When a pool sync operation takes longer than \fBzfs_deadman_synctime_ms\fR
-milliseconds, a "slow spa_sync" message is logged to the debug log
-(see \fBzfs_dbgmsg_enable\fR).  If \fBzfs_deadman_enabled\fR is set,
-all pending IO operations are also checked and if any haven't completed
-within \fBzfs_deadman_synctime_ms\fR milliseconds, a "SLOW IO" message
-is logged to the debug log and a "delay" system event with the details of
-the hung IO is posted.
+milliseconds, or when an individual I/O takes longer than
+\fBzfs_deadman_ziotime_ms\fR milliseconds, then the operation is considered to
+be "hung".  If \fBzfs_deadman_enabled\fR is set then the deadman behavior is
+invoked as described by the \fBzfs_deadman_failmode\fR module option.
+By default the deadman is enabled and configured to \fBwait\fR which results
+in "hung" I/Os only being logged.  The deadman is automatically disabled
+when a pool gets suspended.
 .sp
-Use \fB1\fR (default) to enable the slow IO check and \fB0\fR to disable.
+Default value: \fB1\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_deadman_failmode\fR (charp)
+.ad
+.RS 12n
+Controls the failure behavior when the deadman detects a "hung" I/O.  Valid
+values are \fBwait\fR, \fBcontinue\fR, and \fBpanic\fR.
+.sp
+\fBwait\fR - Wait for a "hung" I/O to complete.  For each "hung" I/O a
+"deadman" event will be posted describing that I/O.
+.sp
+\fBcontinue\fR - Attempt to recover from a "hung" I/O by re-dispatching it
+to the I/O pipeline if possible.
+.sp
+\fBpanic\fR - Panic the system.  This can be used to facilitate an automatic
+fail-over to a properly configured fail-over partner.
+.sp
+Default value: \fBwait\fR.
 .RE
 
 .sp
@@ -801,11 +850,10 @@ Use \fB1\fR (default) to enable the slow IO check and \fB0\fR to disable.
 \fBzfs_deadman_checktime_ms\fR (int)
 .ad
 .RS 12n
-Once a pool sync operation has taken longer than
-\fBzfs_deadman_synctime_ms\fR milliseconds, continue to check for slow
-operations every \fBzfs_deadman_checktime_ms\fR milliseconds.
+Check time in milliseconds. This defines the frequency at which we check
+for hung I/O and potentially invoke the \fBzfs_deadman_failmode\fR behavior.
 .sp
-Default value: \fB5,000\fR.
+Default value: \fB60,000\fR.
 .RE
 
 .sp
@@ -815,12 +863,25 @@ Default value: \fB5,000\fR.
 .ad
 .RS 12n
 Interval in milliseconds after which the deadman is triggered and also
-the interval after which an IO operation is considered to be "hung"
-if \fBzfs_deadman_enabled\fR is set.
-
-See \fBzfs_deadman_enabled\fR.
+the interval after which a pool sync operation is considered to be "hung".
+Once this limit is exceeded the deadman will be invoked every
+\fBzfs_deadman_checktime_ms\fR milliseconds until the pool sync completes.
 .sp
-Default value: \fB1,000,000\fR.
+Default value: \fB600,000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_deadman_ziotime_ms\fR (ulong)
+.ad
+.RS 12n
+Interval in milliseconds after which the deadman is triggered and an
+individual IO operation is considered to be "hung".  As long as the I/O
+remains "hung" the deadman will be invoked every \fBzfs_deadman_checktime_ms\fR
+milliseconds until the I/O completes.
+.sp
+Default value: \fB300,000\fR.
 .RE
 
 .sp
@@ -845,7 +906,7 @@ expressed as a percentage of \fBzfs_dirty_data_max\fR.
 This value should be >= zfs_vdev_async_write_active_max_dirty_percent.
 See the section "ZFS TRANSACTION DELAY".
 .sp
-Default value: \fB60\fR.
+Default value: \fB60\fR%.
 .RE
 
 .sp
@@ -894,7 +955,7 @@ writes are halted until space frees up. This parameter takes precedence
 over \fBzfs_dirty_data_max_percent\fR.
 See the section "ZFS TRANSACTION DELAY".
 .sp
-Default value: 10 percent of all memory, capped at \fBzfs_dirty_data_max_max\fR.
+Default value: \fB10\fR% of physical RAM, capped at \fBzfs_dirty_data_max_max\fR.
 .RE
 
 .sp
@@ -909,7 +970,7 @@ This limit is only enforced at module load time, and will be ignored if
 precedence over \fBzfs_dirty_data_max_max_percent\fR. See the section
 "ZFS TRANSACTION DELAY".
 .sp
-Default value: 25% of physical RAM.
+Default value: \fB25\fR% of physical RAM.
 .RE
 
 .sp
@@ -924,7 +985,7 @@ time, and will be ignored if \fBzfs_dirty_data_max\fR is later changed.
 The parameter \fBzfs_dirty_data_max_max\fR takes precedence over this
 one. See the section "ZFS TRANSACTION DELAY".
 .sp
-Default value: \fB25\fR.
+Default value: \fB25\fR%.
 .RE
 
 .sp
@@ -938,7 +999,7 @@ memory.  Once this limit is exceeded, new writes are halted until space frees
 up.  The parameter \fBzfs_dirty_data_max\fR takes precedence over this
 one.  See the section "ZFS TRANSACTION DELAY".
 .sp
-Default value: 10%, subject to \fBzfs_dirty_data_max_max\fR.
+Default value: \fB10\fR%, subject to \fBzfs_dirty_data_max_max\fR.
 .RE
 
 .sp
@@ -1031,7 +1092,7 @@ When the pool has more than
 the dirty data is between min and max, the active I/O limit is linearly
 interpolated. See the section "ZFS I/O SCHEDULER".
 .sp
-Default value: \fB60\fR.
+Default value: \fB60\fR%.
 .RE
 
 .sp
@@ -1046,7 +1107,7 @@ When the pool has less than
 the dirty data is between min and max, the active I/O limit is linearly
 interpolated. See the section "ZFS I/O SCHEDULER".
 .sp
-Default value: \fB30\fR.
+Default value: \fB30\fR%.
 .RE
 
 .sp
@@ -1178,18 +1239,7 @@ will tend to be slower than empty devices.
 
 See also \fBzio_dva_throttle_enabled\fR.
 .sp
-Default value: \fB1000\fR.
-.RE
-
-.sp
-.ne 2
-.na
-\fBzfs_disable_dup_eviction\fR (int)
-.ad
-.RS 12n
-Disable duplicate buffer eviction
-.sp
-Use \fB1\fR for yes and \fB0\fR for no (default).
+Default value: \fB1000\fR%.
 .RE
 
 .sp
@@ -1258,6 +1308,12 @@ _
 _
 128	ZFS_DEBUG_HISTOGRAM_VERIFY
 	Enable extra spacemap histogram verifications.
+_
+256	ZFS_DEBUG_METASLAB_VERIFY
+	Verify space accounting on disk matches in-core range_trees.
+_
+512	ZFS_DEBUG_SET_ERROR
+	Enable SET_ERROR and dprintf entries in the debug log.
 .TE
 .sp
 * Requires debug build.
@@ -1400,7 +1456,7 @@ groups have reached the threshold, all groups are allowed to accept
 allocations.  The default value of 0 disables the feature and causes
 all metaslab groups to be eligible for allocations.
 
-This parameter allows to deal with pools having heavily imbalanced
+This parameter allows one to deal with pools having heavily imbalanced
 vdevs such as would be the case when a new vdev has been added.
 Setting the threshold to a non-zero percentage will stop allocations
 from being made to vdevs that aren't filled to the specified percentage
@@ -1408,6 +1464,79 @@ and allow lesser filled vdevs to acquire more allocations than they
 otherwise would under the old \fBzfs_mg_alloc_failures\fR facility.
 .sp
 Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_multihost_history\fR (int)
+.ad
+.RS 12n
+Historical statistics for the last N multihost updates will be available in
+\fB/proc/spl/kstat/zfs/<pool>/multihost\fR
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_multihost_interval\fR (ulong)
+.ad
+.RS 12n
+Used to control the frequency of multihost writes which are performed when the
+\fBmultihost\fR pool property is on.  This is one factor used to determine
+the length of the activity check during import.
+.sp
+The multihost write period is \fBzfs_multihost_interval / leaf-vdevs\fR milliseconds.
+This means that on average a multihost write will be issued for each leaf vdev every
+\fBzfs_multihost_interval\fR milliseconds.  In practice, the observed period can
+vary with the I/O load and this observed value is the delay which is stored in
+the uberblock.
+.sp
+On import the activity check waits a minimum amount of time determined by
+\fBzfs_multihost_interval * zfs_multihost_import_intervals\fR.  The activity
+check time may be further extended if the value of mmp delay found in the best
+uberblock indicates actual multihost updates happened at longer intervals than
+\fBzfs_multihost_interval\fR.  A minimum value of \fB100ms\fR is enforced.
+.sp
+Default value: \fB1000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_multihost_import_intervals\fR (uint)
+.ad
+.RS 12n
+Used to control the duration of the activity test on import.  Smaller values of
+\fBzfs_multihost_import_intervals\fR will reduce the import time but increase
+the risk of failing to detect an active pool.  The total activity check time is
+never allowed to drop below one second.  A value of 0 is ignored and treated as
+if it was set to 1
+.sp
+Default value: \fB10\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_multihost_fail_intervals\fR (uint)
+.ad
+.RS 12n
+Controls the behavior of the pool when multihost write failures are detected.
+.sp
+When \fBzfs_multihost_fail_intervals = 0\fR then multihost write failures are ignored.
+The failures will still be reported to the ZED which depending on its
+configuration may take action such as suspending the pool or offlining a device.
+.sp
+When \fBzfs_multihost_fail_intervals > 0\fR then sequential multihost write failures
+will cause the pool to be suspended.  This occurs when
+\fBzfs_multihost_fail_intervals * zfs_multihost_interval\fR milliseconds have
+passed since the last successful multihost write.  This guarantees the activity test
+will see multihost writes if the pool is imported.
+.sp
+Default value: \fB5\fR.
 .RE
 
 .sp
@@ -1529,8 +1658,8 @@ Default value: \fB1,048,576\fR.
 \fBzfs_read_history\fR (int)
 .ad
 .RS 12n
-Historic statistics for the last N reads will be available in
-\fR/proc/spl/kstat/zfs/POOLNAME/reads\fB
+Historical statistics for the last N reads will be available in
+\fB/proc/spl/kstat/zfs/<pool>/reads\fR
 .sp
 Default value: \fB0\fR (no data is kept).
 .RE
@@ -1561,19 +1690,6 @@ Use \fB1\fR for yes and \fB0\fR for no (default).
 .sp
 .ne 2
 .na
-\fBzfs_resilver_delay\fR (int)
-.ad
-.RS 12n
-Number of ticks to delay prior to issuing a resilver I/O operation when
-a non-resilver or non-scrub I/O operation has occurred within the past
-\fBzfs_scan_idle\fR ticks.
-.sp
-Default value: \fB2\fR.
-.RE
-
-.sp
-.ne 2
-.na
 \fBzfs_resilver_min_time_ms\fR (int)
 .ad
 .RS 12n
@@ -1586,21 +1702,7 @@ Default value: \fB3,000\fR.
 .sp
 .ne 2
 .na
-\fBzfs_scan_idle\fR (int)
-.ad
-.RS 12n
-Idle window in clock ticks.  During a scrub or a resilver, if
-a non-scrub or non-resilver I/O operation has occurred during this
-window, the next scrub or resilver operation is delayed by, respectively
-\fBzfs_scrub_delay\fR or \fBzfs_resilver_delay\fR ticks.
-.sp
-Default value: \fB50\fR.
-.RE
-
-.sp
-.ne 2
-.na
-\fBzfs_scan_min_time_ms\fR (int)
+\fBzfs_scrub_min_time_ms\fR (int)
 .ad
 .RS 12n
 Scrubs are processed by the sync thread. While scrubbing it will spend
@@ -1612,14 +1714,120 @@ Default value: \fB1,000\fR.
 .sp
 .ne 2
 .na
-\fBzfs_scrub_delay\fR (int)
+\fBzfs_scan_checkpoint_intval\fR (int)
 .ad
 .RS 12n
-Number of ticks to delay prior to issuing a scrub I/O operation when
-a non-scrub or non-resilver I/O operation has occurred within the past
-\fBzfs_scan_idle\fR ticks.
+To preserve progress across reboots the sequential scan algorithm periodically
+needs to stop metadata scanning and issue all the verifications I/Os to disk.
+The frequency of this flushing is determined by the
+\fBfBzfs_scan_checkpoint_intval\fR tunable.
 .sp
-Default value: \fB4\fR.
+Default value: \fB7200\fR seconds (every 2 hours).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_scan_fill_weight\fR (int)
+.ad
+.RS 12n
+This tunable affects how scrub and resilver I/O segments are ordered. A higher
+number indicates that we care more about how filled in a segment is, while a
+lower number indicates we care more about the size of the extent without
+considering the gaps within a segment. This value is only tunable upon module
+insertion. Changing the value afterwards will have no affect on scrub or
+resilver performance.
+.sp
+Default value: \fB3\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_scan_issue_strategy\fR (int)
+.ad
+.RS 12n
+Determines the order that data will be verified while scrubbing or resilvering.
+If set to \fB1\fR, data will be verified as sequentially as possible, given the
+amount of memory reserved for scrubbing (see \fBzfs_scan_mem_lim_fact\fR). This
+may improve scrub performance if the pool's data is very fragmented. If set to
+\fB2\fR, the largest mostly-contiguous chunk of found data will be verified
+first. By deferring scrubbing of small segments, we may later find adjacent data
+to coalesce and increase the segment size. If set to \fB0\fR, zfs will use
+strategy \fB1\fR during normal verification and strategy \fB2\fR while taking a
+checkpoint.
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_scan_legacy\fR (int)
+.ad
+.RS 12n
+A value of 0 indicates that scrubs and resilvers will gather metadata in
+memory before issuing sequential I/O. A value of 1 indicates that the legacy
+algorithm will be used where I/O is initiated as soon as it is discovered.
+Changing this value to 0 will not affect scrubs or resilvers that are already
+in progress.
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_scan_max_ext_gap\fR (int)
+.ad
+.RS 12n
+Indicates the largest gap in bytes between scrub / resilver I/Os that will still
+be considered sequential for sorting purposes. Changing this value will not
+affect scrubs or resilvers that are already in progress.
+.sp
+Default value: \fB2097152 (2 MB)\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_scan_mem_lim_fact\fR (int)
+.ad
+.RS 12n
+Maximum fraction of RAM used for I/O sorting by sequential scan algorithm.
+This tunable determines the hard limit for I/O sorting memory usage.
+When the hard limit is reached we stop scanning metadata and start issuing
+data verification I/O. This is done until we get below the soft limit.
+.sp
+Default value: \fB20\fR which is 5% of RAM (1/20).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_scan_mem_lim_soft_fact\fR (int)
+.ad
+.RS 12n
+The fraction of the hard limit used to determined the soft limit for I/O sorting
+by the sequential scan algorithm. When we cross this limit from bellow no action
+is taken. When we cross this limit from above it is because we are issuing
+verification I/O. In this case (unless the metadata scan is done) we stop
+issuing verification I/O and start scanning metadata again until we get to the
+hard limit.
+.sp
+Default value: \fB20\fR which is 5% of the hard limit (1/20).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_scan_vdev_limit\fR (int)
+.ad
+.RS 12n
+Maximum amount of data that can be concurrently issued at once for scrubs and
+resilvers per leaf device, given in bytes.
+.sp
+Default value: \fB41943040\fR.
 .RE
 
 .sp
@@ -1669,13 +1877,13 @@ Default value: \fB2\fR.
 .sp
 .ne 2
 .na
-\fBzfs_top_maxinflight\fR (int)
+\fBzfs_sync_taskq_batch_pct\fR (int)
 .ad
 .RS 12n
-Max concurrent I/Os per top-level vdev (mirrors or raidz arrays) allowed during
-scrub or resilver operations.
+This controls the number of threads used by the dp_sync_taskq.  The default
+value of 75% will create a maximum of one thread per cpu.
 .sp
-Default value: \fB32\fR.
+Default value: \fB75\fR%.
 .RE
 
 .sp
@@ -1684,8 +1892,8 @@ Default value: \fB32\fR.
 \fBzfs_txg_history\fR (int)
 .ad
 .RS 12n
-Historic statistics for the last N txgs will be available in
-\fR/proc/spl/kstat/zfs/POOLNAME/txgs\fB
+Historical statistics for the last N txgs will be available in
+\fB/proc/spl/kstat/zfs/<pool>/txgs\fR
 .sp
 Default value: \fB0\fR.
 .RE
@@ -1729,8 +1937,8 @@ Default value: \fB16\fR (effectively 65536).
 \fBzfs_vdev_cache_max\fR (int)
 .ad
 .RS 12n
-Inflate reads small than this value to meet the \fBzfs_vdev_cache_bshift\fR
-size.
+Inflate reads smaller than this value to meet the \fBzfs_vdev_cache_bshift\fR
+size (default 64k).
 .sp
 Default value: \fB16384\fR.
 .RE
@@ -1837,7 +2045,8 @@ Default value: \fB32,768\fR.
 \fBzfs_vdev_scheduler\fR (charp)
 .ad
 .RS 12n
-Set the Linux I/O scheduler on whole disk vdevs to this scheduler
+Set the Linux I/O scheduler on whole disk vdevs to this scheduler. Valid options
+are noop, cfq, bfq & deadline
 .sp
 Default value: \fBnoop\fR.
 .RE
@@ -1918,6 +2127,42 @@ increases with the number of CPUs in the system (minimum 64 events). Events
 in the queue can be viewed with the \fBzpool events\fR command.
 .sp
 Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_zil_clean_taskq_maxalloc\fR (int)
+.ad
+.RS 12n
+The maximum number of taskq entries that are allowed to be cached.  When this
+limit is exceeded transaction records (itxs) will be cleaned synchronously.
+.sp
+Default value: \fB1048576\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_zil_clean_taskq_minalloc\fR (int)
+.ad
+.RS 12n
+The number of taskq entries that are pre-populated when the taskq is first
+created and are immediately available for use.
+.sp
+Default value: \fB1024\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_zil_clean_taskq_nthr_pct\fR (int)
+.ad
+.RS 12n
+This controls the number of threads used by the dp_zil_clean_taskq.  The default
+value of 100% will create a maximum of one thread per cpu.
+.sp
+Default value: \fB100\fR%.
 .RE
 
 .sp
@@ -2074,6 +2319,18 @@ Default value: \fB0\fR.
 Max number of threads which can handle zvol I/O requests concurrently.
 .sp
 Default value: \fB32\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzvol_volmode\fR (uint)
+.ad
+.RS 12n
+Defines zvol block devices behaviour when \fBvolmode\fR is set to \fBdefault\fR.
+Valid values are \fB1\fR (full), \fB2\fR (dev) and \fB3\fR (none).
+.sp
+Default value: \fB1\fR.
 .RE
 
 .sp

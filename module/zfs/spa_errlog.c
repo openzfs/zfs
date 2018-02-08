@@ -73,13 +73,13 @@ bookmark_to_name(zbookmark_phys_t *zb, char *buf, size_t len)
 static void
 name_to_bookmark(char *buf, zbookmark_phys_t *zb)
 {
-	zb->zb_objset = strtonum(buf, &buf);
+	zb->zb_objset = zfs_strtonum(buf, &buf);
 	ASSERT(*buf == ':');
-	zb->zb_object = strtonum(buf + 1, &buf);
+	zb->zb_object = zfs_strtonum(buf + 1, &buf);
 	ASSERT(*buf == ':');
-	zb->zb_level = (int)strtonum(buf + 1, &buf);
+	zb->zb_level = (int)zfs_strtonum(buf + 1, &buf);
 	ASSERT(*buf == ':');
-	zb->zb_blkid = strtonum(buf + 1, &buf);
+	zb->zb_blkid = zfs_strtonum(buf + 1, &buf);
 	ASSERT(*buf == '\0');
 }
 #endif
@@ -90,9 +90,8 @@ name_to_bookmark(char *buf, zbookmark_phys_t *zb)
  * during spa_errlog_sync().
  */
 void
-spa_log_error(spa_t *spa, zio_t *zio)
+spa_log_error(spa_t *spa, const zbookmark_phys_t *zb)
 {
-	zbookmark_phys_t *zb = &zio->io_logical->io_bookmark;
 	spa_error_entry_t search;
 	spa_error_entry_t *new;
 	avl_tree_t *tree;

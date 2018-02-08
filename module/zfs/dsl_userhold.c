@@ -83,7 +83,6 @@ dsl_dataset_user_hold_check(void *arg, dmu_tx_t *tx)
 {
 	dsl_dataset_user_hold_arg_t *dduha = arg;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
-	nvpair_t *pair;
 
 	if (spa_version(dp->dp_spa) < SPA_VERSION_USERREFS)
 		return (SET_ERROR(ENOTSUP));
@@ -91,7 +90,7 @@ dsl_dataset_user_hold_check(void *arg, dmu_tx_t *tx)
 	if (!dmu_tx_is_syncing(tx))
 		return (0);
 
-	for (pair = nvlist_next_nvpair(dduha->dduha_holds, NULL);
+	for (nvpair_t *pair = nvlist_next_nvpair(dduha->dduha_holds, NULL);
 	    pair != NULL; pair = nvlist_next_nvpair(dduha->dduha_holds, pair)) {
 		dsl_dataset_t *ds;
 		int error = 0;
@@ -255,14 +254,13 @@ dsl_dataset_user_hold_sync(void *arg, dmu_tx_t *tx)
 	dsl_dataset_user_hold_arg_t *dduha = arg;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	nvlist_t *tmpholds;
-	nvpair_t *pair;
 	uint64_t now = gethrestime_sec();
 
 	if (dduha->dduha_minor != 0)
 		tmpholds = fnvlist_alloc();
 	else
 		tmpholds = NULL;
-	for (pair = nvlist_next_nvpair(dduha->dduha_chkholds, NULL);
+	for (nvpair_t *pair = nvlist_next_nvpair(dduha->dduha_chkholds, NULL);
 	    pair != NULL;
 	    pair = nvlist_next_nvpair(dduha->dduha_chkholds, pair)) {
 		dsl_dataset_t *ds;
@@ -342,7 +340,7 @@ static int
 dsl_dataset_hold_obj_string(dsl_pool_t *dp, const char *dsobj, void *tag,
     dsl_dataset_t **dsp)
 {
-	return (dsl_dataset_hold_obj(dp, strtonum(dsobj, NULL), tag, dsp));
+	return (dsl_dataset_hold_obj(dp, zfs_strtonum(dsobj, NULL), tag, dsp));
 }
 
 static int
@@ -351,7 +349,6 @@ dsl_dataset_user_release_check_one(dsl_dataset_user_release_arg_t *ddura,
 {
 	uint64_t zapobj;
 	nvlist_t *holds_found;
-	nvpair_t *pair;
 	objset_t *mos;
 	int numholds;
 
@@ -366,7 +363,7 @@ dsl_dataset_user_release_check_one(dsl_dataset_user_release_arg_t *ddura,
 	zapobj = dsl_dataset_phys(ds)->ds_userrefs_obj;
 	VERIFY0(nvlist_alloc(&holds_found, NV_UNIQUE_NAME, KM_SLEEP));
 
-	for (pair = nvlist_next_nvpair(holds, NULL); pair != NULL;
+	for (nvpair_t *pair = nvlist_next_nvpair(holds, NULL); pair != NULL;
 	    pair = nvlist_next_nvpair(holds, pair)) {
 		uint64_t tmp;
 		int error;
@@ -427,7 +424,6 @@ dsl_dataset_user_release_check(void *arg, dmu_tx_t *tx)
 	dsl_dataset_user_release_arg_t *ddura;
 	dsl_holdfunc_t *holdfunc;
 	dsl_pool_t *dp;
-	nvpair_t *pair;
 
 	if (!dmu_tx_is_syncing(tx))
 		return (0);
@@ -439,7 +435,7 @@ dsl_dataset_user_release_check(void *arg, dmu_tx_t *tx)
 	ddura = arg;
 	holdfunc = ddura->ddura_holdfunc;
 
-	for (pair = nvlist_next_nvpair(ddura->ddura_holds, NULL);
+	for (nvpair_t *pair = nvlist_next_nvpair(ddura->ddura_holds, NULL);
 	    pair != NULL; pair = nvlist_next_nvpair(ddura->ddura_holds, pair)) {
 		int error;
 		dsl_dataset_t *ds;
@@ -479,9 +475,8 @@ dsl_dataset_user_release_sync_one(dsl_dataset_t *ds, nvlist_t *holds,
 {
 	dsl_pool_t *dp = ds->ds_dir->dd_pool;
 	objset_t *mos = dp->dp_meta_objset;
-	nvpair_t *pair;
 
-	for (pair = nvlist_next_nvpair(holds, NULL); pair != NULL;
+	for (nvpair_t *pair = nvlist_next_nvpair(holds, NULL); pair != NULL;
 	    pair = nvlist_next_nvpair(holds, pair)) {
 		int error;
 		const char *holdname = nvpair_name(pair);
@@ -505,11 +500,10 @@ dsl_dataset_user_release_sync(void *arg, dmu_tx_t *tx)
 	dsl_dataset_user_release_arg_t *ddura = arg;
 	dsl_holdfunc_t *holdfunc = ddura->ddura_holdfunc;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
-	nvpair_t *pair;
 
 	ASSERT(RRW_WRITE_HELD(&dp->dp_config_rwlock));
 
-	for (pair = nvlist_next_nvpair(ddura->ddura_chkholds, NULL);
+	for (nvpair_t *pair = nvlist_next_nvpair(ddura->ddura_chkholds, NULL);
 	    pair != NULL; pair = nvlist_next_nvpair(ddura->ddura_chkholds,
 	    pair)) {
 		dsl_dataset_t *ds;

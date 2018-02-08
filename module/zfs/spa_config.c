@@ -23,6 +23,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
+ * Copyright 2017 Joyent, Inc.
  */
 
 #include <sys/spa.h>
@@ -147,6 +148,26 @@ out:
 }
 
 static int
+spa_config_remove(spa_config_dirent_t *dp)
+{
+#if defined(__linux__) && defined(_KERNEL)
+	int error, flags = FWRITE | FTRUNC;
+	uio_seg_t seg = UIO_SYSSPACE;
+	vnode_t *vp;
+
+	error = vn_open(dp->scd_path, seg, flags, 0644, &vp, 0, 0);
+	if (error == 0) {
+		(void) VOP_FSYNC(vp, FSYNC, kcred, NULL);
+		(void) VOP_CLOSE(vp, 0, 1, 0, kcred, NULL);
+	}
+
+	return (error);
+#else
+	return (vn_remove(dp->scd_path, UIO_SYSSPACE, RMFILE));
+#endif
+}
+
+static int
 spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 {
 	size_t buflen;
@@ -160,7 +181,10 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 	 * If the nvlist is empty (NULL), then remove the old cachefile.
 	 */
 	if (nvl == NULL) {
-		err = vn_remove(dp->scd_path, UIO_SYSSPACE, RMFILE);
+		err = spa_config_remove(dp);
+		if (err == ENOENT)
+			err = 0;
+
 		return (err);
 	}
 
@@ -173,9 +197,9 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 #if defined(__linux__) && defined(_KERNEL)
 	/*
 	 * Write the configuration to disk.  Due to the complexity involved
-	 * in performing a rename from within the kernel the file is truncated
-	 * and overwritten in place.  In the event of an error the file is
-	 * unlinked to make sure we always have a consistent view of the data.
+	 * in performing a rename and remove from within the kernel the file
+	 * is instead truncated and overwritten in place.  This way we always
+	 * have a consistent view of the data or a zero length file.
 	 */
 	err = vn_open(dp->scd_path, UIO_SYSSPACE, oflags, 0644, &vp, 0, 0);
 	if (err == 0) {
@@ -185,9 +209,8 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 			err = VOP_FSYNC(vp, FSYNC, kcred, NULL);
 
 		(void) VOP_CLOSE(vp, oflags, 1, 0, kcred, NULL);
-
 		if (err)
-			(void) vn_remove(dp->scd_path, UIO_SYSSPACE, RMFILE);
+			(void) spa_config_remove(dp);
 	}
 #else
 	/*
@@ -304,7 +327,7 @@ spa_config_sync(spa_t *target, boolean_t removing, boolean_t postsysevent)
 		 */
 		if (target->spa_ccw_fail_time == 0) {
 			zfs_ereport_post(FM_EREPORT_ZFS_CONFIG_CACHE_WRITE,
-			    target, NULL, NULL, 0, 0);
+			    target, NULL, NULL, NULL, 0, 0);
 		}
 		target->spa_ccw_fail_time = gethrtime();
 		spa_async_request(target, SPA_ASYNC_CONFIG_UPDATE);
@@ -330,7 +353,7 @@ spa_config_sync(spa_t *target, boolean_t removing, boolean_t postsysevent)
 	spa_config_generation++;
 
 	if (postsysevent)
-		spa_event_notify(target, NULL, ESC_ZFS_CONFIG_SYNC);
+		spa_event_notify(target, NULL, NULL, ESC_ZFS_CONFIG_SYNC);
 }
 
 /*
@@ -390,7 +413,6 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 	boolean_t locked = B_FALSE;
 	uint64_t split_guid;
 	char *pool_name;
-	int config_gen_flags = 0;
 
 	if (vd == NULL) {
 		vd = rvd;
@@ -435,19 +457,12 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 		fnvlist_add_string(config, ZPOOL_CONFIG_COMMENT,
 		    spa->spa_comment);
 
-#ifdef	_KERNEL
-	hostid = zone_get_hostid(NULL);
-#else	/* _KERNEL */
-	/*
-	 * We're emulating the system's hostid in userland, so we can't use
-	 * zone_get_hostid().
-	 */
-	(void) ddi_strtoul(hw_serial, NULL, 10, &hostid);
-#endif	/* _KERNEL */
+	hostid = spa_get_hostid();
 	if (hostid != 0)
 		fnvlist_add_uint64(config, ZPOOL_CONFIG_HOSTID, hostid);
 	fnvlist_add_string(config, ZPOOL_CONFIG_HOSTNAME, utsname()->nodename);
 
+	int config_gen_flags = 0;
 	if (vd != rvd) {
 		fnvlist_add_uint64(config, ZPOOL_CONFIG_TOP_GUID,
 		    vd->vdev_top->vdev_guid);

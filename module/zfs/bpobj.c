@@ -261,7 +261,7 @@ bpobj_iterate_impl(bpobj_t *bpo, bpobj_itor_t func, void *arg, dmu_tx_t *tx,
 	}
 	if (free) {
 		VERIFY3U(0, ==, dmu_free_range(bpo->bpo_os, bpo->bpo_object,
-		    (i + 1) * sizeof (blkptr_t), -1ULL, tx));
+		    (i + 1) * sizeof (blkptr_t), DMU_OBJECT_END, tx));
 	}
 	if (err || !bpo->bpo_havesubobj || bpo->bpo_phys->bpo_subobjs == 0)
 		goto out;
@@ -339,7 +339,7 @@ bpobj_iterate_impl(bpobj_t *bpo, bpobj_itor_t func, void *arg, dmu_tx_t *tx,
 	if (free) {
 		VERIFY3U(0, ==, dmu_free_range(bpo->bpo_os,
 		    bpo->bpo_phys->bpo_subobjs,
-		    (i + 1) * sizeof (uint64_t), -1ULL, tx));
+		    (i + 1) * sizeof (uint64_t), DMU_OBJECT_END, tx));
 	}
 
 out:
@@ -378,7 +378,6 @@ bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx)
 {
 	bpobj_t subbpo;
 	uint64_t used, comp, uncomp, subsubobjs;
-	ASSERTV(dmu_object_info_t doi);
 
 	ASSERT(bpo->bpo_havesubobj);
 	ASSERT(bpo->bpo_havecomp);
@@ -407,6 +406,7 @@ bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx)
 		    DMU_OT_NONE, 0, tx);
 	}
 
+	ASSERTV(dmu_object_info_t doi);
 	ASSERT0(dmu_object_info(bpo->bpo_os, bpo->bpo_phys->bpo_subobjs, &doi));
 	ASSERT3U(doi.doi_type, ==, DMU_OT_BPOBJ_SUBOBJ);
 

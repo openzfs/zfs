@@ -38,6 +38,7 @@
 #include <sys/bpobj.h>
 #include <sys/bptree.h>
 #include <sys/rrwlock.h>
+#include <sys/mmp.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -51,6 +52,7 @@ struct dsl_dataset;
 struct dsl_pool;
 struct dmu_tx;
 struct dsl_scan;
+struct dsl_crypto_params;
 
 extern unsigned long zfs_dirty_data_max;
 extern unsigned long zfs_dirty_data_max_max;
@@ -78,6 +80,7 @@ typedef struct zfs_blkstat {
 
 typedef struct zfs_all_blkstats {
 	zfs_blkstat_t	zab_type[DN_MAX_LEVELS + 1][DMU_OT_TOTAL + 1];
+	kmutex_t	zab_lock;
 } zfs_all_blkstats_t;
 
 
@@ -125,6 +128,7 @@ typedef struct dsl_pool {
 	txg_list_t dp_dirty_dirs;
 	txg_list_t dp_sync_tasks;
 	taskq_t *dp_sync_taskq;
+	taskq_t *dp_zil_clean_taskq;
 
 	/*
 	 * Protects administrative changes (properties, namespace)
@@ -141,7 +145,8 @@ typedef struct dsl_pool {
 int dsl_pool_init(spa_t *spa, uint64_t txg, dsl_pool_t **dpp);
 int dsl_pool_open(dsl_pool_t *dp);
 void dsl_pool_close(dsl_pool_t *dp);
-dsl_pool_t *dsl_pool_create(spa_t *spa, nvlist_t *zplprops, uint64_t txg);
+dsl_pool_t *dsl_pool_create(spa_t *spa, nvlist_t *zplprops,
+    struct dsl_crypto_params *dcp, uint64_t txg);
 void dsl_pool_sync(dsl_pool_t *dp, uint64_t txg);
 void dsl_pool_sync_done(dsl_pool_t *dp, uint64_t txg);
 int dsl_pool_sync_context(dsl_pool_t *dp);

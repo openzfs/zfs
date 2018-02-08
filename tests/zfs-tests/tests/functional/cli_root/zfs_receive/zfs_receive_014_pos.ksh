@@ -42,9 +42,9 @@ orig=$TESTPOOL/$TESTFS1
 dest=$TESTPOOL/$TESTFS2
 typeset userprop=$(valid_user_property 8)
 typeset userval=$(user_property_value 8)
-typeset streamfile_full=/var/tmp/streamfile_full.$$
-typeset streamfile_incr=/var/tmp/streamfile_incr.$$
-typeset streamfile_trun=/var/tmp/streamfile_trun.$$
+typeset streamfile_full=$TESTDIR/streamfile_full.$$
+typeset streamfile_incr=$TESTDIR/streamfile_incr.$$
+typeset streamfile_trun=$TESTDIR/streamfile_trun.$$
 
 function cleanup
 {

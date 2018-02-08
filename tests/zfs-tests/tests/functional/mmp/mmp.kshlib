@@ -1,0 +1,203 @@
+#
+# CDDL HEADER START
+#
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License (the "License").
+# You may not use this file except in compliance with the License.
+#
+# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+# or http://www.opensolaris.org/os/licensing.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+# If applicable, add the following below this CDDL HEADER, with the
+# fields enclosed by brackets "[]" replaced with your own identifying
+# information: Portions Copyright [yyyy] [name of copyright owner]
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright (c) 2017 by Lawrence Livermore National Security, LLC.
+# Use is subject to license terms.
+#
+
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/mmp/mmp.cfg
+
+
+function check_pool_import # pool opts token keyword
+{
+	typeset pool=${1:-$MMP_POOL}
+	typeset opts=$2
+	typeset token=$3
+	typeset keyword=$4
+
+	zpool import $opts 2>&1 | \
+	    nawk -v token="$token:" '($1==token) {print $0}' | \
+	    grep -i "$keyword" > /dev/null 2>&1
+
+	return $?
+}
+
+function is_pool_imported # pool opts
+{
+	typeset pool=${1:-$MMP_POOL}
+	typeset opts=$2
+
+	check_pool_import "$pool" "$opts" "status" \
+	    "The pool is currently imported"
+	return $?
+}
+
+function wait_pool_imported # pool opts
+{
+	typeset pool=${1:-$MMP_POOL}
+	typeset opts=$2
+
+	while is_pool_imported "$pool" "$opts"; do
+		log_must sleep 5
+	done
+
+	return 0
+}
+
+function try_pool_import # pool opts message
+{
+	typeset pool=${1:-$MMP_POOL}
+	typeset opts=$2
+	typeset msg=$3
+
+	zpool import $opts $pool 2>&1 | grep -i "$msg"
+
+	return $?
+}
+
+function mmp_set_hostid
+{
+	typeset hostid=$1
+
+	zgenhostid $1
+
+	if [ $(hostid) != "$hostid" ]; then
+		return 1
+	fi
+
+	return 0
+}
+
+function mmp_clear_hostid
+{
+	rm -f $HOSTID_FILE
+}
+
+function mmp_pool_create # pool dir
+{
+	typeset pool=${1:-$MMP_POOL}
+	typeset dir=${2:-$MMP_DIR}
+	typeset opts="-VVVVV -T120 -M -k0 -f $dir -E -p $pool"
+
+	log_must mkdir -p $dir
+	log_must rm -f $dir/*
+	log_must truncate -s $MINVDEVSIZE $dir/vdev1 $dir/vdev2
+
+	log_must mmp_clear_hostid
+	log_must mmp_set_hostid $HOSTID1
+	log_must zpool create -f -o cachefile=$MMP_CACHE $pool \
+	    mirror $dir/vdev1 $dir/vdev2
+	log_must zpool set multihost=on $pool
+	log_must mv $MMP_CACHE ${MMP_CACHE}.stale
+	log_must zpool export $pool
+	log_must mmp_clear_hostid
+	log_must mmp_set_hostid $HOSTID2
+
+	log_note "Starting ztest in the background as hostid $HOSTID1"
+	log_must eval "ZFS_HOSTID=$HOSTID1 ztest $opts >$MMP_ZTEST_LOG 2>&1 &"
+
+	while ! is_pool_imported "$pool" "-d $dir"; do
+		log_must pgrep ztest
+		log_must sleep 5
+	done
+}
+
+function mmp_pool_destroy # pool dir
+{
+	typeset pool=${1:-$MMP_POOL}
+	typeset dir=${2:-$MMP_DIR}
+
+	ZTESTPID=$(pgrep ztest)
+	if [ -n "$ZTESTPID" ]; then
+		log_must kill $ZTESTPID
+		wait $ZTESTPID
+	fi
+
+	if poolexists $pool; then
+		destroy_pool $pool
+        fi
+
+	log_must rm -f $dir/*
+	mmp_clear_hostid
+}
+
+function mmp_pool_set_hostid # pool hostid
+{
+	typeset pool=$1
+	typeset hostid=$2
+
+	log_must mmp_clear_hostid
+	log_must mmp_set_hostid $hostid
+	log_must zpool export $pool
+	log_must zpool import $pool
+
+	return 0
+}
+
+function import_no_activity_check # pool opts
+{
+	typeset pool=$1
+	typeset opts=$2
+
+	SECONDS=0
+	zpool import $opts $pool
+	typeset rc=$?
+
+	if [[ $SECONDS -gt $ZPOOL_IMPORT_DURATION ]]; then
+		log_fail "unexpected activity check (${SECONDS}s)"
+	fi
+
+	return $rc
+}
+
+function import_activity_check # pool opts
+{
+	typeset pool=$1
+	typeset opts=$2
+
+	SECONDS=0
+	zpool import $opts $pool
+	typeset rc=$?
+
+	if [[ $SECONDS -le $ZPOOL_IMPORT_DURATION ]]; then
+		log_fail "expected activity check (${SECONDS}s)"
+	fi
+
+	return $rc
+}
+
+function clear_mmp_history
+{
+	log_must set_tunable64 zfs_multihost_history $MMP_HISTORY_OFF
+	log_must set_tunable64 zfs_multihost_history $MMP_HISTORY
+}
+
+function count_uberblocks # pool duration
+{
+	typeset pool=$1
+	typeset -i duration=$2
+	typeset hist_path="/proc/spl/kstat/zfs/$pool/multihost"
+
+	log_must sleep $duration
+	echo $(cat "$hist_path" | sed '1,2d' | wc -l)
+}

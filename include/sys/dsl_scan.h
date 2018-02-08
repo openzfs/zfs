@@ -21,6 +21,7 @@
 /*
  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2017 Datto Inc.
  */
 
 #ifndef	_SYS_DSL_SCAN_H
@@ -70,6 +71,7 @@ typedef struct dsl_scan_phys {
 
 typedef enum dsl_scan_flags {
 	DSF_VISIT_DS_AGAIN = 1<<0,
+	DSF_SCRUB_PAUSED = 1<<1,
 } dsl_scan_flags_t;
 
 #define	DSL_SCAN_FLAGS_MASK (DSF_VISIT_DS_AGAIN)
@@ -84,8 +86,8 @@ typedef enum dsl_scan_flags {
  *
  * The following members of this structure direct the behavior of the scan:
  *
- * scn_pausing -	a scan that cannot be completed in a single txg or
- *			has exceeded its allotted time will need to pause.
+ * scn_suspending -	a scan that cannot be completed in a single txg or
+ *			has exceeded its allotted time will need to suspend.
  *			When this flag is set the scanner will stop traversing
  *			the pool and write out the current state to disk.
  *
@@ -106,29 +108,63 @@ typedef enum dsl_scan_flags {
  */
 typedef struct dsl_scan {
 	struct dsl_pool *scn_dp;
-
-	boolean_t scn_pausing;
 	uint64_t scn_restart_txg;
 	uint64_t scn_done_txg;
 	uint64_t scn_sync_start_time;
-	zio_t *scn_zio_root;
+	uint64_t scn_issued_before_pass;
 
 	/* for freeing blocks */
 	boolean_t scn_is_bptree;
 	boolean_t scn_async_destroying;
 	boolean_t scn_async_stalled;
 
-	/* for debugging / information */
-	uint64_t scn_visited_this_txg;
+	/* flags and stats for controlling scan state */
+	boolean_t scn_is_sorted;	/* doing sequential scan */
+	boolean_t scn_clearing;		/* scan is issuing sequential extents */
+	boolean_t scn_checkpointing;	/* scan is issuing all queued extents */
+	boolean_t scn_suspending;	/* scan is suspending until next txg */
+	uint64_t scn_last_checkpoint;	/* time of last checkpoint */
 
-	dsl_scan_phys_t scn_phys;
+	/* members for thread synchronization */
+	zio_t *scn_zio_root;		/* root zio for waiting on IO */
+	taskq_t *scn_taskq;		/* task queue for issuing extents */
+
+	/* for controlling scan prefetch, protected by spa_scrub_lock */
+	boolean_t scn_prefetch_stop;	/* prefetch should stop */
+	zbookmark_phys_t scn_prefetch_bookmark;	/* prefetch start bookmark */
+	avl_tree_t scn_prefetch_queue;	/* priority queue of prefetch IOs */
+	uint64_t scn_maxinflight_bytes; /* max bytes in flight for pool */
+
+	/* per txg statistics */
+	uint64_t scn_visited_this_txg;	/* total bps visited this txg */
+	uint64_t scn_holes_this_txg;
+	uint64_t scn_lt_min_this_txg;
+	uint64_t scn_gt_max_this_txg;
+	uint64_t scn_ddt_contained_this_txg;
+	uint64_t scn_objsets_visited_this_txg;
+	uint64_t scn_avg_seg_size_this_txg;
+	uint64_t scn_segs_this_txg;
+	uint64_t scn_avg_zio_size_this_txg;
+	uint64_t scn_zios_this_txg;
+
+	/* members needed for syncing scan status to disk */
+	dsl_scan_phys_t scn_phys;	/* on disk representation of scan */
+	dsl_scan_phys_t scn_phys_cached;
+	avl_tree_t scn_queue;		/* queue of datasets to scan */
+	uint64_t scn_bytes_pending;	/* outstanding data to issue */
 } dsl_scan_t;
 
+typedef struct dsl_scan_io_queue dsl_scan_io_queue_t;
+
+void scan_init(void);
+void scan_fini(void);
 int dsl_scan_init(struct dsl_pool *dp, uint64_t txg);
 void dsl_scan_fini(struct dsl_pool *dp);
 void dsl_scan_sync(struct dsl_pool *, dmu_tx_t *);
 int dsl_scan_cancel(struct dsl_pool *);
 int dsl_scan(struct dsl_pool *, pool_scan_func_t);
+boolean_t dsl_scan_scrubbing(const struct dsl_pool *dp);
+int dsl_scrub_set_pause_resume(const struct dsl_pool *dp, pool_scrub_cmd_t cmd);
 void dsl_resilver_restart(struct dsl_pool *, uint64_t txg);
 boolean_t dsl_scan_resilvering(struct dsl_pool *dp);
 boolean_t dsl_dataset_unstable(struct dsl_dataset *ds);
@@ -139,6 +175,10 @@ void dsl_scan_ds_snapshotted(struct dsl_dataset *ds, struct dmu_tx *tx);
 void dsl_scan_ds_clone_swapped(struct dsl_dataset *ds1, struct dsl_dataset *ds2,
     struct dmu_tx *tx);
 boolean_t dsl_scan_active(dsl_scan_t *scn);
+boolean_t dsl_scan_is_paused_scrub(const dsl_scan_t *scn);
+void dsl_scan_freed(spa_t *spa, const blkptr_t *bp);
+void dsl_scan_io_queue_destroy(dsl_scan_io_queue_t *queue);
+void dsl_scan_io_queue_vdev_xfer(vdev_t *svd, vdev_t *tvd);
 
 #ifdef	__cplusplus
 }

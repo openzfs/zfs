@@ -91,10 +91,8 @@ while (( 1 )); do
 done
 
 if is_linux; then
-	EXIT_STATUS=4
 	log_must sync
 else
-	EXIT_STATUS=39
 	log_must lockfs -f $TESTDIR
 fi
 
@@ -104,8 +102,24 @@ block_device_wait
 
 fsck -n ${ZVOL_RDEVDIR}/$TESTPOOL/$TESTVOL@snap >/dev/null 2>&1
 retval=$?
-if [[ $retval -ne 0 && $retval -ne $EXIT_STATUS ]]; then
-	log_fail "fsck exited with wrong value $retval "
+
+if [ $retval -ne 0 ] ; then
+	if is_linux ; then
+		# Linux's fsck returns a different code for this test depending
+		# on the version:
+		#
+		# e2fsprogs-1.43.3 (Fedora 25 and older): returns 4
+		# e2fsprogs-1.43.4 (Fedora 26): returns 8
+		#
+		# https://github.com/zfsonlinux/zfs/issues/6297
+		if [ $retval -ne 4 -a $retval -ne 8 ] ; then
+			log_fail "fsck exited with wrong value $retval"
+		fi
+	else
+		if [ $retval -ne 39 ] ; then
+			log_fail "fsck exited with wrong value $retval"
+		fi
+	fi
 fi
 
 log_pass "Verify that ZFS volume snapshot could be fscked"

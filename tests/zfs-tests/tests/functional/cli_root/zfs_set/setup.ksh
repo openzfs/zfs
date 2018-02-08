@@ -28,4 +28,5 @@
 . $STF_SUITE/include/libtest.shlib
 
 DISK=${DISKS%% *}
+
 default_container_volume_setup $DISK

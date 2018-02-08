@@ -36,7 +36,7 @@
 verify_runnable "both"
 
 # See issue: https://github.com/zfsonlinux/zfs/issues/6086
-if is_linux; then
+if is_32bit; then
 	log_unsupported "Test case occasionally fails"
 fi
 
@@ -48,8 +48,8 @@ sendfs=$POOL/sendfs
 recvfs=$POOL3/recvfs
 streamfs=$POOL2/stream
 
-for sendfs in $POOL2/sendfs $POOL2; do
-	test_fs_setup $sendfs $recvfs
+for sendfs in $POOL2/sendfs $POOL3; do
+	test_fs_setup $sendfs $recvfs $streamfs
 	resume_test "zfs send -v $sendfs@a" $streamfs $recvfs
 	resume_test "zfs send -v -i @a $sendfs@b" $streamfs $recvfs
 	file_check $sendfs $recvfs

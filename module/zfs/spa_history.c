@@ -22,6 +22,8 @@
 /*
  * Copyright (c) 2006, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2014 Integros [integros.com]
+ * Copyright 2017 Joyent, Inc.
  */
 
 #include <sys/spa.h>
@@ -87,17 +89,17 @@ spa_history_create_obj(spa_t *spa, dmu_tx_t *tx)
 	spa_history_phys_t *shpp;
 	objset_t *mos = spa->spa_meta_objset;
 
-	ASSERT(spa->spa_history == 0);
+	ASSERT0(spa->spa_history);
 	spa->spa_history = dmu_object_alloc(mos, DMU_OT_SPA_HISTORY,
 	    SPA_OLD_MAXBLOCKSIZE, DMU_OT_SPA_HISTORY_OFFSETS,
 	    sizeof (spa_history_phys_t), tx);
 
-	VERIFY(zap_add(mos, DMU_POOL_DIRECTORY_OBJECT,
+	VERIFY0(zap_add(mos, DMU_POOL_DIRECTORY_OBJECT,
 	    DMU_POOL_HISTORY, sizeof (uint64_t), 1,
-	    &spa->spa_history, tx) == 0);
+	    &spa->spa_history, tx));
 
-	VERIFY(0 == dmu_bonus_hold(mos, spa->spa_history, FTAG, &dbp));
-	ASSERT(dbp->db_size >= sizeof (spa_history_phys_t));
+	VERIFY0(dmu_bonus_hold(mos, spa->spa_history, FTAG, &dbp));
+	ASSERT3U(dbp->db_size, >=, sizeof (spa_history_phys_t));
 
 	shpp = dbp->db_data;
 	dmu_buf_will_dirty(dbp, tx);
@@ -192,6 +194,71 @@ spa_history_zone(void)
 }
 
 /*
+ * Post a history sysevent.
+ *
+ * The nvlist_t* passed into this function will be transformed into a new
+ * nvlist where:
+ *
+ * 1. Nested nvlists will be flattened to a single level
+ * 2. Keys will have their names normalized (to remove any problematic
+ * characters, such as whitespace)
+ *
+ * The nvlist_t passed into this function will duplicated and should be freed
+ * by caller.
+ *
+ */
+static void
+spa_history_log_notify(spa_t *spa, nvlist_t *nvl)
+{
+	nvlist_t *hist_nvl = fnvlist_alloc();
+	uint64_t uint64;
+	char *string;
+
+	if (nvlist_lookup_string(nvl, ZPOOL_HIST_CMD, &string) == 0)
+		fnvlist_add_string(hist_nvl, ZFS_EV_HIST_CMD, string);
+
+	if (nvlist_lookup_string(nvl, ZPOOL_HIST_INT_NAME, &string) == 0)
+		fnvlist_add_string(hist_nvl, ZFS_EV_HIST_INT_NAME, string);
+
+	if (nvlist_lookup_string(nvl, ZPOOL_HIST_ZONE, &string) == 0)
+		fnvlist_add_string(hist_nvl, ZFS_EV_HIST_ZONE, string);
+
+	if (nvlist_lookup_string(nvl, ZPOOL_HIST_HOST, &string) == 0)
+		fnvlist_add_string(hist_nvl, ZFS_EV_HIST_HOST, string);
+
+	if (nvlist_lookup_string(nvl, ZPOOL_HIST_DSNAME, &string) == 0)
+		fnvlist_add_string(hist_nvl, ZFS_EV_HIST_DSNAME, string);
+
+	if (nvlist_lookup_string(nvl, ZPOOL_HIST_INT_STR, &string) == 0)
+		fnvlist_add_string(hist_nvl, ZFS_EV_HIST_INT_STR, string);
+
+	if (nvlist_lookup_string(nvl, ZPOOL_HIST_IOCTL, &string) == 0)
+		fnvlist_add_string(hist_nvl, ZFS_EV_HIST_IOCTL, string);
+
+	if (nvlist_lookup_string(nvl, ZPOOL_HIST_INT_NAME, &string) == 0)
+		fnvlist_add_string(hist_nvl, ZFS_EV_HIST_INT_NAME, string);
+
+	if (nvlist_lookup_uint64(nvl, ZPOOL_HIST_DSID, &uint64) == 0)
+		fnvlist_add_uint64(hist_nvl, ZFS_EV_HIST_DSID, uint64);
+
+	if (nvlist_lookup_uint64(nvl, ZPOOL_HIST_TXG, &uint64) == 0)
+		fnvlist_add_uint64(hist_nvl, ZFS_EV_HIST_TXG, uint64);
+
+	if (nvlist_lookup_uint64(nvl, ZPOOL_HIST_TIME, &uint64) == 0)
+		fnvlist_add_uint64(hist_nvl, ZFS_EV_HIST_TIME, uint64);
+
+	if (nvlist_lookup_uint64(nvl, ZPOOL_HIST_WHO, &uint64) == 0)
+		fnvlist_add_uint64(hist_nvl, ZFS_EV_HIST_WHO, uint64);
+
+	if (nvlist_lookup_uint64(nvl, ZPOOL_HIST_INT_EVENT, &uint64) == 0)
+		fnvlist_add_uint64(hist_nvl, ZFS_EV_HIST_INT_EVENT, uint64);
+
+	spa_event_notify(spa, NULL, hist_nvl, ESC_ZFS_HISTORY_EVENT);
+
+	nvlist_free(hist_nvl);
+}
+
+/*
  * Write out a history event.
  */
 /*ARGSUSED*/
@@ -254,6 +321,22 @@ spa_history_log_sync(void *arg, dmu_tx_t *tx)
 			    fnvlist_lookup_string(nvl, ZPOOL_HIST_INT_NAME),
 			    fnvlist_lookup_string(nvl, ZPOOL_HIST_INT_STR));
 		}
+		/*
+		 * The history sysevent is posted only for internal history
+		 * messages to show what has happened, not how it happened. For
+		 * example, the following command:
+		 *
+		 * # zfs destroy -r tank/foo
+		 *
+		 * will result in one sysevent posted per dataset that is
+		 * destroyed as a result of the command - which could be more
+		 * than one event in total.  By contrast, if the sysevent was
+		 * posted as a result of the ZPOOL_HIST_CMD key being present
+		 * it would result in only one sysevent being posted with the
+		 * full command line arguments, requiring the consumer to know
+		 * how to parse and understand zfs(1M) command invocations.
+		 */
+		spa_history_log_notify(spa, nvl);
 	} else if (nvlist_exists(nvl, ZPOOL_HIST_IOCTL)) {
 		zfs_dbgmsg("ioctl %s",
 		    fnvlist_lookup_string(nvl, ZPOOL_HIST_IOCTL));
@@ -302,10 +385,15 @@ spa_history_log_nvl(spa_t *spa, nvlist_t *nvl)
 {
 	int err = 0;
 	dmu_tx_t *tx;
-	nvlist_t *nvarg;
+	nvlist_t *nvarg, *in_nvl = NULL;
 
 	if (spa_version(spa) < SPA_VERSION_ZPOOL_HISTORY || !spa_writeable(spa))
 		return (SET_ERROR(EINVAL));
+
+	err = nvlist_lookup_nvlist(nvl, ZPOOL_HIST_INPUT_NVL, &in_nvl);
+	if (err == 0) {
+		(void) nvlist_remove_all(in_nvl, ZPOOL_HIDDEN_ARGS);
+	}
 
 	tx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
 	err = dmu_tx_assign(tx, TXG_WAIT);
@@ -442,7 +530,7 @@ log_internal(nvlist_t *nvl, const char *operation, spa_t *spa,
 	 * initialized yet, so don't bother logging the internal events.
 	 * Likewise if the pool is not writeable.
 	 */
-	if (tx->tx_txg == TXG_INITIAL || !spa_writeable(spa)) {
+	if (spa_is_initializing(spa) || !spa_writeable(spa)) {
 		fnvlist_free(nvl);
 		return;
 	}
@@ -528,12 +616,12 @@ spa_history_log_internal_dd(dsl_dir_t *dd, const char *operation,
 }
 
 void
-spa_history_log_version(spa_t *spa, const char *operation)
+spa_history_log_version(spa_t *spa, const char *operation, dmu_tx_t *tx)
 {
 	utsname_t *u = utsname();
 
-	spa_history_log_internal(spa, operation, NULL,
-	    "pool version %llu; software version %llu/%d; uts %s %s %s %s",
+	spa_history_log_internal(spa, operation, tx,
+	    "pool version %llu; software version %llu/%llu; uts %s %s %s %s",
 	    (u_longlong_t)spa_version(spa), SPA_VERSION, ZPL_VERSION,
 	    u->nodename, u->release, u->version, u->machine);
 }

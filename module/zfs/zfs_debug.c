@@ -161,6 +161,13 @@ __zfs_dbgmsg(char *buf)
 	mutex_exit(&zfs_dbgmsgs_lock);
 }
 
+void
+__set_error(const char *file, const char *func, int line, int err)
+{
+	if (zfs_flags & ZFS_DEBUG_SET_ERROR)
+		__dprintf(file, func, line, "error %lu", err);
+}
+
 #ifdef _KERNEL
 void
 __dprintf(const char *file, const char *func, int line, const char *fmt, ...)
@@ -170,8 +177,10 @@ __dprintf(const char *file, const char *func, int line, const char *fmt, ...)
 	size_t size;
 	char *buf;
 	char *nl;
+	int i;
 
-	if (!zfs_dbgmsg_enable && !(zfs_flags & ZFS_DEBUG_DPRINTF))
+	if (!zfs_dbgmsg_enable &&
+	    !(zfs_flags & (ZFS_DEBUG_DPRINTF | ZFS_DEBUG_SET_ERROR)))
 		return;
 
 	size = 1024;
@@ -187,9 +196,13 @@ __dprintf(const char *file, const char *func, int line, const char *fmt, ...)
 		newfile = file;
 	}
 
-	va_start(adx, fmt);
-	(void) vsnprintf(buf, size, fmt, adx);
-	va_end(adx);
+	i = snprintf(buf, size, "%s:%d:%s(): ", newfile, line, func);
+
+	if (i < size) {
+		va_start(adx, fmt);
+		(void) vsnprintf(buf + i, size - i, fmt, adx);
+		va_end(adx);
+	}
 
 	/*
 	 * Get rid of trailing newline.
@@ -209,9 +222,8 @@ __dprintf(const char *file, const char *func, int line, const char *fmt, ...)
 	 * # Dump the ring buffer.
 	 * $ cat /sys/kernel/debug/tracing/trace
 	 */
-	if (zfs_flags & ZFS_DEBUG_DPRINTF)
-		DTRACE_PROBE4(zfs__dprintf,
-		    char *, newfile, char *, func, int, line, char *, buf);
+	if (zfs_flags & (ZFS_DEBUG_DPRINTF | ZFS_DEBUG_SET_ERROR))
+		DTRACE_PROBE1(zfs__dprintf, char *, buf);
 
 	/*
 	 * To get this data enable the zfs debug log as shown:

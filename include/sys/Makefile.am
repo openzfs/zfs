@@ -27,6 +27,7 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/dsl_deleg.h \
 	$(top_srcdir)/include/sys/dsl_destroy.h \
 	$(top_srcdir)/include/sys/dsl_dir.h \
+	$(top_srcdir)/include/sys/dsl_crypt.h \
 	$(top_srcdir)/include/sys/dsl_pool.h \
 	$(top_srcdir)/include/sys/dsl_prop.h \
 	$(top_srcdir)/include/sys/dsl_scan.h \
@@ -34,8 +35,11 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/dsl_userhold.h \
 	$(top_srcdir)/include/sys/edonr.h \
 	$(top_srcdir)/include/sys/efi_partition.h \
+	$(top_srcdir)/include/sys/frame.h \
+	$(top_srcdir)/include/sys/hkdf.h \
 	$(top_srcdir)/include/sys/metaslab.h \
 	$(top_srcdir)/include/sys/metaslab_impl.h \
+	$(top_srcdir)/include/sys/mmp.h \
 	$(top_srcdir)/include/sys/mntent.h \
 	$(top_srcdir)/include/sys/multilist.h \
 	$(top_srcdir)/include/sys/nvpair.h \
@@ -108,6 +112,7 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/zil_impl.h \
 	$(top_srcdir)/include/sys/zio_checksum.h \
 	$(top_srcdir)/include/sys/zio_compress.h \
+	$(top_srcdir)/include/sys/zio_crypt.h \
 	$(top_srcdir)/include/sys/zio.h \
 	$(top_srcdir)/include/sys/zio_impl.h \
 	$(top_srcdir)/include/sys/zio_priority.h \

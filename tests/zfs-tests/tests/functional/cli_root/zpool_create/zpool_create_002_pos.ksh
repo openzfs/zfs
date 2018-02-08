@@ -55,10 +55,10 @@ function cleanup
 
 	clean_blockfile "$TESTDIR0 $TESTDIR1"
 
-	for file in /var/tmp/$FILEDISK0 /var/tmp/$FILEDISK1 /var/tmp/$FILEDISK2
+	for file in $FILEDISK0 $FILEDISK1 $FILEDISK2
 	do
 		if [[ -e $file ]]; then
-			rm -rf $file
+			rm -f $TEST_BASE_DIR/$file
 		fi
 	done
 
@@ -80,9 +80,9 @@ log_must echo "y" | newfs \
 	${DEV_RDSKDIR}/${disk}${SLICE_PREFIX}${SLICE1} >/dev/null 2>&1
 create_blockfile $FILESIZE $TESTDIR0/$FILEDISK0 ${disk}${SLICE_PREFIX}${SLICE4}
 create_blockfile $FILESIZE1 $TESTDIR1/$FILEDISK1 ${disk}${SLICE_PREFIX}${SLICE5}
-log_must truncate -s $SIZE /var/tmp/$FILEDISK0
-log_must truncate -s $SIZE /var/tmp/$FILEDISK1
-log_must truncate -s $SIZE /var/tmp/$FILEDISK2
+log_must truncate -s $SIZE $TEST_BASE_DIR/$FILEDISK0
+log_must truncate -s $SIZE $TEST_BASE_DIR/$FILEDISK1
+log_must truncate -s $SIZE $TEST_BASE_DIR/$FILEDISK2
 
 unset NOINUSE_CHECK
 log_must zpool export $TESTPOOL
@@ -107,20 +107,20 @@ log_must poolexists $TESTPOOL3
 
 log_note "'zpool create' mirror without '-f' will fail " \
 	"while devices are of different types."
-log_mustnot zpool create "$TESTPOOL4" "mirror" /var/tmp/$FILEDISK0 \
+log_mustnot zpool create "$TESTPOOL4" "mirror" $TEST_BASE_DIR/$FILEDISK0 \
 	${disk}${SLICE_PREFIX}${SLICE3}
 create_pool "$TESTPOOL4" "mirror" \
-	/var/tmp/$FILEDISK0 ${disk}${SLICE_PREFIX}${SLICE3}
+	$TEST_BASE_DIR/$FILEDISK0 ${disk}${SLICE_PREFIX}${SLICE3}
 log_must poolexists $TESTPOOL4
 
 log_note "'zpool create' without '-f' will fail " \
 	"while device is part of potentially active pool."
-create_pool "$TESTPOOL5"  "mirror" /var/tmp/$FILEDISK1 \
-	/var/tmp/$FILEDISK2
-log_must zpool offline $TESTPOOL5 /var/tmp/$FILEDISK2
+create_pool "$TESTPOOL5"  "mirror" $TEST_BASE_DIR/$FILEDISK1 \
+	$TEST_BASE_DIR/$FILEDISK2
+log_must zpool offline $TESTPOOL5 $TEST_BASE_DIR/$FILEDISK2
 log_must zpool export $TESTPOOL5
-log_mustnot zpool create "$TESTPOOL6" /var/tmp/$FILEDISK2
-create_pool $TESTPOOL6 /var/tmp/$FILEDISK2
+log_mustnot zpool create "$TESTPOOL6" $TEST_BASE_DIR/$FILEDISK2
+create_pool $TESTPOOL6 $TEST_BASE_DIR/$FILEDISK2
 log_must poolexists $TESTPOOL6
 
 log_pass "'zpool create -f <pool> <vspec> ...' success."

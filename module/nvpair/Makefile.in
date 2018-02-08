@@ -3,9 +3,9 @@ obj = @abs_builddir@
 
 MODULE := znvpair
 
-EXTRA_CFLAGS = $(ZFS_MODULE_CFLAGS) @KERNELCPPFLAGS@
-
 obj-$(CONFIG_ZFS) := $(MODULE).o
+
+ccflags-y := $(ZFS_MODULE_CFLAGS) $(ZFS_MODULE_CPPFLAGS)
 
 $(MODULE)-objs += nvpair.o
 $(MODULE)-objs += fnvpair.o

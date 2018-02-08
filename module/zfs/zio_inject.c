@@ -271,9 +271,24 @@ zio_handle_label_injection(zio_t *zio, int error)
 	return (ret);
 }
 
+/*ARGSUSED*/
+static int
+zio_inject_bitflip_cb(void *data, size_t len, void *private)
+{
+	ASSERTV(zio_t *zio = private);
+	uint8_t *buffer = data;
+	uint_t byte = spa_get_random(len);
 
-int
-zio_handle_device_injection(vdev_t *vd, zio_t *zio, int error)
+	ASSERT(zio->io_type == ZIO_TYPE_READ);
+
+	/* flip a single random bit in an abd data buffer */
+	buffer[byte] ^= 1 << spa_get_random(8);
+
+	return (1);	/* stop after first flip */
+}
+
+static int
+zio_handle_device_injection_impl(vdev_t *vd, zio_t *zio, int err1, int err2)
 {
 	inject_handler_t *handler;
 	int ret = 0;
@@ -311,7 +326,8 @@ zio_handle_device_injection(vdev_t *vd, zio_t *zio, int error)
 			    handler->zi_record.zi_iotype != zio->io_type)
 				continue;
 
-			if (handler->zi_record.zi_error == error) {
+			if (handler->zi_record.zi_error == err1 ||
+			    handler->zi_record.zi_error == err2) {
 				/*
 				 * limit error injection if requested
 				 */
@@ -322,7 +338,7 @@ zio_handle_device_injection(vdev_t *vd, zio_t *zio, int error)
 				 * For a failed open, pretend like the device
 				 * has gone away.
 				 */
-				if (error == ENXIO)
+				if (err1 == ENXIO)
 					vd->vdev_stat.vs_aux =
 					    VDEV_AUX_OPEN_FAILED;
 
@@ -335,7 +351,21 @@ zio_handle_device_injection(vdev_t *vd, zio_t *zio, int error)
 				    zio != NULL)
 					zio->io_flags |= ZIO_FLAG_IO_RETRY;
 
-				ret = error;
+				/*
+				 * EILSEQ means flip a bit after a read
+				 */
+				if (handler->zi_record.zi_error == EILSEQ) {
+					if (zio == NULL)
+						break;
+
+					/* locate buffer data and flip a bit */
+					(void) abd_iterate_func(zio->io_abd, 0,
+					    zio->io_size, zio_inject_bitflip_cb,
+					    zio);
+					break;
+				}
+
+				ret = handler->zi_record.zi_error;
 				break;
 			}
 			if (handler->zi_record.zi_error == ENXIO) {
@@ -348,6 +378,18 @@ zio_handle_device_injection(vdev_t *vd, zio_t *zio, int error)
 	rw_exit(&inject_lock);
 
 	return (ret);
+}
+
+int
+zio_handle_device_injection(vdev_t *vd, zio_t *zio, int error)
+{
+	return (zio_handle_device_injection_impl(vd, zio, error, INT_MAX));
+}
+
+int
+zio_handle_device_injections(vdev_t *vd, zio_t *zio, int err1, int err2)
+{
+	return (zio_handle_device_injection_impl(vd, zio, err1, err2));
 }
 
 /*
@@ -430,10 +472,6 @@ zio_handle_io_delay(zio_t *zio)
 	vdev_t *vd = zio->io_vd;
 	inject_handler_t *min_handler = NULL;
 	hrtime_t min_target = 0;
-	inject_handler_t *handler;
-	hrtime_t idle;
-	hrtime_t busy;
-	hrtime_t target;
 
 	rw_enter(&inject_lock, RW_READER);
 
@@ -486,7 +524,7 @@ zio_handle_io_delay(zio_t *zio)
 	 */
 	mutex_enter(&inject_delay_mtx);
 
-	for (handler = list_head(&inject_handlers);
+	for (inject_handler_t *handler = list_head(&inject_handlers);
 	    handler != NULL; handler = list_next(&inject_handlers, handler)) {
 		if (handler->zi_record.zi_cmd != ZINJECT_DELAY_IO)
 			continue;
@@ -538,10 +576,10 @@ zio_handle_io_delay(zio_t *zio)
 		 * each lane will become idle, we use that value to
 		 * determine when this request should complete.
 		 */
-		idle = handler->zi_record.zi_timer + gethrtime();
-		busy = handler->zi_record.zi_timer +
+		hrtime_t idle = handler->zi_record.zi_timer + gethrtime();
+		hrtime_t busy = handler->zi_record.zi_timer +
 		    handler->zi_lanes[handler->zi_next_lane];
-		target = MAX(idle, busy);
+		hrtime_t target = MAX(idle, busy);
 
 		if (min_handler == NULL) {
 			min_handler = handler;

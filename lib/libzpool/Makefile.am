@@ -5,7 +5,11 @@ VPATH = \
 	$(top_srcdir)/module/zcommon \
 	$(top_srcdir)/lib/libzpool
 
-AM_CFLAGS += $(DEBUG_STACKFLAGS) $(FRAME_LARGER_THAN)
+# Suppress unused but set variable warnings often due to ASSERTs
+AM_CFLAGS += $(NO_UNUSED_BUT_SET_VARIABLE)
+
+# Includes kernel code generate warnings for large stack frames
+AM_CFLAGS += $(FRAME_LARGER_THAN)
 
 DEFAULT_INCLUDES += \
 	-I$(top_srcdir)/include \
@@ -19,13 +23,14 @@ USER_C = \
 	util.c
 
 KERNEL_C = \
+	zfeature_common.c \
 	zfs_comutil.c \
 	zfs_deleg.c \
 	zfs_fletcher.c \
+	zfs_fletcher_aarch64_neon.c \
+	zfs_fletcher_avx512.c \
 	zfs_fletcher_intel.c \
 	zfs_fletcher_sse.c \
-	zfs_fletcher_avx512.c \
-	zfs_fletcher_aarch64_neon.c \
 	zfs_fletcher_superscalar.c \
 	zfs_fletcher_superscalar4.c \
 	zfs_namecheck.c \
@@ -59,6 +64,7 @@ KERNEL_C = \
 	dsl_deadlist.c \
 	dsl_deleg.c \
 	dsl_dir.c \
+	dsl_crypt.c \
 	dsl_pool.c \
 	dsl_prop.c \
 	dsl_scan.c \
@@ -66,11 +72,13 @@ KERNEL_C = \
 	dsl_destroy.c \
 	dsl_userhold.c \
 	edonr_zfs.c \
+	hkdf.c \
 	fm.c \
 	gzip.c \
 	lzjb.c \
 	lz4.c \
 	metaslab.c \
+	mmp.c \
 	multilist.c \
 	pathname.c \
 	range_tree.c \
@@ -114,18 +122,19 @@ KERNEL_C = \
 	zap_leaf.c \
 	zap_micro.c \
 	zfeature.c \
-	zfeature_common.c \
 	zfs_byteswap.c \
 	zfs_debug.c \
 	zfs_fm.c \
 	zfs_fuid.c \
 	zfs_sa.c \
 	zfs_znode.c \
+	zfs_ratelimit.c \
 	zfs_rlock.c \
 	zil.c \
 	zio.c \
 	zio_checksum.c \
 	zio_compress.c \
+	zio_crypt.c \
 	zio_inject.c \
 	zle.c \
 	zrlock.c
@@ -135,12 +144,13 @@ nodist_libzpool_la_SOURCES = \
 	$(KERNEL_C)
 
 libzpool_la_LIBADD = \
-	$(top_builddir)/lib/libunicode/libunicode.la \
-	$(top_builddir)/lib/libuutil/libuutil.la \
+	$(top_builddir)/lib/libavl/libavl.la \
+	$(top_builddir)/lib/libicp/libicp.la \
 	$(top_builddir)/lib/libnvpair/libnvpair.la \
-	$(top_builddir)/lib/libicp/libicp.la
+	$(top_builddir)/lib/libspl/libspl.la \
+	$(top_builddir)/lib/libunicode/libunicode.la
 
 libzpool_la_LIBADD += $(ZLIB) -ldl
-libzpool_la_LDFLAGS = -version-info 2:0:0
+libzpool_la_LDFLAGS = -pthread -version-info 2:0:0
 
 EXTRA_DIST = $(USER_C)

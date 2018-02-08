@@ -44,6 +44,7 @@
 #include <string.h>
 #endif
 
+#include <sys/dsl_dir.h>
 #include <sys/param.h>
 #include <sys/nvpair.h>
 #include "zfs_namecheck.h"
@@ -135,12 +136,13 @@ permset_namecheck(const char *path, namecheck_err_t *why, char *what)
 int
 entity_namecheck(const char *path, namecheck_err_t *why, char *what)
 {
-	const char *start, *end, *loc;
+	const char *start, *end;
 	int found_delim;
 
 	/*
 	 * Make sure the name is not too long.
 	 */
+
 	if (strlen(path) >= ZFS_MAX_DATASET_NAME_LEN) {
 		if (why)
 			*why = NAME_ERR_TOOLONG;
@@ -177,7 +179,7 @@ entity_namecheck(const char *path, namecheck_err_t *why, char *what)
 		}
 
 		/* Validate the contents of this component */
-		for (loc = start; loc != end; loc++) {
+		for (const char *loc = start; loc != end; loc++) {
 			if (!valid_char(*loc) && *loc != '%') {
 				if (why) {
 					*why = NAME_ERR_INVALCHAR;
@@ -300,8 +302,14 @@ pool_namecheck(const char *pool, namecheck_err_t *why, char *what)
 
 	/*
 	 * Make sure the name is not too long.
+	 * If we're creating a pool with version >= SPA_VERSION_DSL_SCRUB (v11)
+	 * we need to account for additional space needed by the origin ds which
+	 * will also be snapshotted: "poolname"+"/"+"$ORIGIN"+"@"+"$ORIGIN".
+	 * Play it safe and enforce this limit even if the pool version is < 11
+	 * so it can be upgraded without issues.
 	 */
-	if (strlen(pool) >= ZFS_MAX_DATASET_NAME_LEN) {
+	if (strlen(pool) >= (ZFS_MAX_DATASET_NAME_LEN - 2 -
+	    strlen(ORIGIN_DIR_NAME) * 2)) {
 		if (why)
 			*why = NAME_ERR_TOOLONG;
 		return (-1);

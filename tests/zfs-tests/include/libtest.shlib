@@ -27,10 +27,12 @@
 # Copyright 2016 Nexenta Systems, Inc.
 # Copyright (c) 2017 Lawrence Livermore National Security, LLC.
 # Copyright (c) 2017 Datto Inc.
+# Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 #
 
 . ${STF_TOOLS}/include/logapi.shlib
 . ${STF_SUITE}/include/math.shlib
+. ${STF_SUITE}/include/blkdev.shlib
 
 #
 # Apply constrained path when available.  This is required since the
@@ -39,6 +41,29 @@
 if [ -n "$STF_PATH" ]; then
 	PATH="$STF_PATH"
 fi
+
+# Linux kernel version comparison function
+#
+# $1 Linux version ("4.10", "2.6.32") or blank for installed Linux version
+#
+# Used for comparison: if [ $(linux_version) -ge $(linux_version "2.6.32") ]
+#
+function linux_version
+{
+	typeset ver="$1"
+
+	[[ -z "$ver" ]] && ver=$(uname -r | grep -Eo "^[0-9]+\.[0-9]+\.[0-9]+")
+
+	typeset version=$(echo $ver | cut -d '.' -f 1)
+	typeset major=$(echo $ver | cut -d '.' -f 2)
+	typeset minor=$(echo $ver | cut -d '.' -f 3)
+
+	[[ -z "$version" ]] && version=0
+	[[ -z "$major" ]] && major=0
+	[[ -z "$minor" ]] && minor=0
+
+	echo $((version * 10000 + major * 100 + minor))
+}
 
 # Determine if this is a Linux test system
 #
@@ -117,7 +142,7 @@ function ismounted
 
 			[[ "$1" == "$dir" || "$1" == "$name" ]] && return 0
 		;;
-		ext2)
+		ext*)
 			out=$(df -t $fstype $1 2>/dev/null)
 			return $?
 		;;
@@ -328,6 +353,41 @@ function create_bookmark
 	log_must zfs bookmark $fs_vol@$snap $fs_vol#$bkmark
 }
 
+#
+# Create a temporary clone result of an interrupted resumable 'zfs receive'
+# $1 Destination filesystem name. Must not exist, will be created as the result
+#    of this function along with its %recv temporary clone
+# $2 Source filesystem name. Must not exist, will be created and destroyed
+#
+function create_recv_clone
+{
+	typeset recvfs="$1"
+	typeset sendfs="${2:-$TESTPOOL/create_recv_clone}"
+	typeset snap="$sendfs@snap1"
+	typeset incr="$sendfs@snap2"
+	typeset mountpoint="$TESTDIR/create_recv_clone"
+	typeset sendfile="$TESTDIR/create_recv_clone.zsnap"
+
+	[[ -z $recvfs ]] && log_fail "Recv filesystem's name is undefined."
+
+	datasetexists $recvfs && log_fail "Recv filesystem must not exist."
+	datasetexists $sendfs && log_fail "Send filesystem must not exist."
+
+	log_must zfs create -o mountpoint="$mountpoint" $sendfs
+	log_must zfs snapshot $snap
+	log_must eval "zfs send $snap | zfs recv -u $recvfs"
+	log_must mkfile 1m "$mountpoint/data"
+	log_must zfs snapshot $incr
+	log_must eval "zfs send -i $snap $incr | dd bs=10K count=1 > $sendfile"
+	log_mustnot eval "zfs recv -su $recvfs < $sendfile"
+	log_must zfs destroy -r $sendfs
+	log_must rm -f "$sendfile"
+
+	if [[ $(get_prop 'inconsistent' "$recvfs/%recv") -ne 1 ]]; then
+		log_fail "Error creating temporary $recvfs/%recv clone"
+	fi
+}
+
 function default_mirror_setup
 {
 	default_mirror_setup_noexit $1 $2 $3
@@ -423,7 +483,7 @@ function default_raidz_setup
 	fi
 
 	[[ -d /$TESTPOOL ]] && rm -rf /$TESTPOOL
-	log_must zpool create -f $TESTPOOL raidz $1 $2 $3
+	log_must zpool create -f $TESTPOOL raidz $disklist
 	log_must zfs create $TESTPOOL/$TESTFS
 	log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 
@@ -445,9 +505,19 @@ function default_cleanup
 	log_pass
 }
 
+#
+# Utility function used to list all available pool names.
+#
+# NOTE: $KEEP is a variable containing pool names, separated by a newline
+# character, that must be excluded from the returned list.
+#
+function get_all_pools
+{
+	zpool list -H -o name | grep -Fvx "$KEEP" | grep -v "$NO_POOLS"
+}
+
 function default_cleanup_noexit
 {
-	typeset exclude=""
 	typeset pool=""
 	#
 	# Destroying the pool will also destroy any
@@ -455,9 +525,7 @@ function default_cleanup_noexit
 	#
 	if is_global_zone; then
 		zfs unmount -a > /dev/null 2>&1
-		exclude=`eval echo \"'(${KEEP})'\"`
-		ALL_POOLS=$(zpool list -H -o name \
-		    | grep -v "$NO_POOLS" | egrep -v "$exclude")
+		ALL_POOLS=$(get_all_pools)
 		# Here, we loop through the pools we're allowed to
 		# destroy, only destroying them if it's safe to do
 		# so.
@@ -469,9 +537,7 @@ function default_cleanup_noexit
 				then
 					destroy_pool $pool
 				fi
-				ALL_POOLS=$(zpool list -H -o name \
-				    | grep -v "$NO_POOLS" \
-				    | egrep -v "$exclude")
+				ALL_POOLS=$(get_all_pools)
 			done
 		done
 
@@ -748,7 +814,7 @@ function zero_partitions #<whole_disk_name>
 	else
 		for i in 0 1 3 4 5 6 7
 		do
-			set_partition $i "" 0mb $diskname
+			log_must set_partition $i "" 0mb $diskname
 		done
 	fi
 
@@ -788,7 +854,11 @@ function set_partition #<slice_num> <slice_start> <size_plus_units>  <whole_disk
 		parted $DEV_DSKDIR/$disk -s -- print 1 >/dev/null
 		typeset ret_val=$?
 		if [[ $slicenum -eq 0 || $ret_val -ne 0 ]]; then
-			log_must parted $DEV_DSKDIR/$disk -s -- mklabel gpt
+			parted $DEV_DSKDIR/$disk -s -- mklabel gpt
+			if [[ $? -ne 0 ]]; then
+				log_note "Failed to create GPT partition table on $disk"
+				return 1
+			fi
 		fi
 
 		# When no start is given align on the first cylinder.
@@ -804,8 +874,12 @@ function set_partition #<slice_num> <slice_start> <size_plus_units>  <whole_disk
 			awk -F '[:k.]' '{print $4}')
 		((end = (size_mb * 1024 / cly_size_kb) + start))
 
-		log_must parted $DEV_DSKDIR/$disk -s -- \
+		parted $DEV_DSKDIR/$disk -s -- \
 		    mkpart part$slicenum ${start}cyl ${end}cyl
+		if [[ $? -ne 0 ]]; then
+			log_note "Failed to create partition $slicenum on $disk"
+			return 1
+		fi
 
 		blockdev --rereadpt $DEV_DSKDIR/$disk 2>/dev/null
 		block_device_wait
@@ -828,8 +902,10 @@ function set_partition #<slice_num> <slice_start> <size_plus_units>  <whole_disk
 
 	typeset ret_val=$?
 	rm -f $format_file
-	[[ $ret_val -ne 0 ]] && \
-	    log_fail "Unable to format $disk slice $slicenum to $size"
+	if [[ $ret_val -ne 0 ]]; then
+		log_note "Unable to format $disk slice $slicenum to $size"
+		return 1
+	fi
 	return 0
 }
 
@@ -959,7 +1035,7 @@ function partition_disk	#<slice_size> <whole_disk_name>	<total_slices>
 				continue
 			fi
 		fi
-		set_partition $i "$cyl" $slice_size $disk_name
+		log_must set_partition $i "$cyl" $slice_size $disk_name
 		cyl=$(get_endslice $disk_name $i)
 		((i = i+1))
 	done
@@ -1549,7 +1625,7 @@ function zfs_zones_setup #zone_name zone_root zone_ip
 	# If current system support slog, add slog device for pool
 	#
 	if verify_slog_support ; then
-		typeset sdevs="/var/tmp/sdev1 /var/tmp/sdev2"
+		typeset sdevs="$TEST_BASE_DIR/sdev1 $TEST_BASE_DIR/sdev2"
 		log_must mkfile $MINVDEVSIZE $sdevs
 		log_must zpool add $pool_name log mirror $sdevs
 	fi
@@ -1675,124 +1751,6 @@ function check_state # pool disk state{online,offline,degraded}
 	fi
 
 	return $?
-}
-
-#
-# Cause a scan of all scsi host adapters by default
-#
-# $1 optional host number
-#
-function scan_scsi_hosts
-{
-	typeset hostnum=${1}
-
-	if is_linux; then
-		if [[ -z $hostnum ]]; then
-			for host in /sys/class/scsi_host/host*; do
-				log_must eval "echo '- - -' > $host/scan"
-			done
-		else
-			log_must eval \
-			    "echo /sys/class/scsi_host/host$hostnum/scan" \
-			    > /dev/null
-			log_must eval \
-			    "echo '- - -' > /sys/class/scsi_host/host$hostnum/scan"
-		fi
-	fi
-}
-#
-# Wait for newly created block devices to have their minors created.
-#
-function block_device_wait
-{
-	if is_linux; then
-		udevadm trigger
-		udevadm settle
-	fi
-}
-
-#
-# Online or offline a disk on the system
-#
-# First checks state of disk. Test will fail if disk is not properly onlined
-# or offlined. Online is a full rescan of SCSI disks by echoing to every
-# host entry.
-#
-function on_off_disk # disk state{online,offline} host
-{
-	typeset disk=$1
-	typeset state=$2
-	typeset host=$3
-
-	[[ -z $disk ]] || [[ -z $state ]] &&  \
-	    log_fail "Arguments invalid or missing"
-
-	if is_linux; then
-		if [[ $state == "offline" ]] && ( is_mpath_device $disk ); then
-			dm_name="$(readlink $DEV_DSKDIR/$disk \
-			    | nawk -F / '{print $2}')"
-			slave="$(ls /sys/block/${dm_name}/slaves \
-			    | nawk '{print $1}')"
-			while [[ -n $slave ]]; do
-				#check if disk is online
-				lsscsi | egrep $slave > /dev/null
-				if (($? == 0)); then
-					slave_dir="/sys/block/${dm_name}"
-					slave_dir+="/slaves/${slave}/device"
-					ss="${slave_dir}/state"
-					sd="${slave_dir}/delete"
-					log_must eval "echo 'offline' > ${ss}"
-					log_must eval "echo '1' > ${sd}"
-					lsscsi | egrep $slave > /dev/null
-						if (($? == 0)); then
-							log_fail "Offlining" \
-							    "$disk failed"
-						fi
-				fi
-				slave="$(ls /sys/block/$dm_name/slaves \
-				    2>/dev/null | nawk '{print $1}')"
-			done
-		elif [[ $state == "offline" ]] && ( is_real_device $disk ); then
-			#check if disk is online
-			lsscsi | egrep $disk > /dev/null
-			if (($? == 0)); then
-				dev_state="/sys/block/$disk/device/state"
-				dev_delete="/sys/block/$disk/device/delete"
-				log_must eval "echo 'offline' > ${dev_state}"
-				log_must eval "echo '1' > ${dev_delete}"
-				lsscsi | egrep $disk > /dev/null
-					if (($? == 0)); then
-						log_fail "Offlining $disk" \
-						    "failed"
-					fi
-			else
-				log_note "$disk is already offline"
-			fi
-		elif [[ $state == "online" ]]; then
-			#force a full rescan
-			scan_scsi_hosts $host
-			block_device_wait
-			if is_mpath_device $disk; then
-				dm_name="$(readlink $DEV_DSKDIR/$disk \
-				    | nawk -F / '{print $2}')"
-				slave="$(ls /sys/block/$dm_name/slaves \
-				    | nawk '{print $1}')"
-				lsscsi | egrep $slave > /dev/null
-				if (($? != 0)); then
-					log_fail "Onlining $disk failed"
-				fi
-			elif is_real_device $disk; then
-				lsscsi | egrep $disk > /dev/null
-				if (($? != 0)); then
-					log_fail "Onlining $disk failed"
-				fi
-			else
-				log_fail "$disk is not a real dev"
-			fi
-		else
-			log_fail "$disk failed to $state"
-		fi
-	fi
 }
 
 #
@@ -1956,6 +1914,31 @@ function check_hotspare_state # pool disk state{inuse,avail}
 }
 
 #
+# Wait until a hotspare transitions to a given state or times out.
+#
+# Return 0 when  pool/disk matches expected state, 1 on timeout.
+#
+function wait_hotspare_state # pool disk state timeout
+{
+	typeset pool=$1
+	typeset disk=${2#$/DEV_DSKDIR/}
+	typeset state=$3
+	typeset timeout=${4:-60}
+	typeset -i i=0
+
+	while [[ $i -lt $timeout ]]; do
+		if check_hotspare_state $pool $disk $state; then
+			return 0
+		fi
+
+		i=$((i+1))
+		sleep 1
+	done
+
+	return 1
+}
+
+#
 # Verify a given slog disk is inuse or avail
 #
 # Return 0 is pool/disk matches expected state, 1 otherwise
@@ -1994,59 +1977,95 @@ function check_vdev_state # pool disk state{online,offline,unavail}
 }
 
 #
+# Wait until a vdev transitions to a given state or times out.
+#
+# Return 0 when  pool/disk matches expected state, 1 on timeout.
+#
+function wait_vdev_state # pool disk state timeout
+{
+	typeset pool=$1
+	typeset disk=${2#$/DEV_DSKDIR/}
+	typeset state=$3
+	typeset timeout=${4:-60}
+	typeset -i i=0
+
+	while [[ $i -lt $timeout ]]; do
+		if check_vdev_state $pool $disk $state; then
+			return 0
+		fi
+
+		i=$((i+1))
+		sleep 1
+	done
+
+	return 1
+}
+
+#
 # Check the output of 'zpool status -v <pool>',
 # and to see if the content of <token> contain the <keyword> specified.
 #
 # Return 0 is contain, 1 otherwise
 #
-function check_pool_status # pool token keyword
+function check_pool_status # pool token keyword <verbose>
 {
 	typeset pool=$1
 	typeset token=$2
 	typeset keyword=$3
+	typeset verbose=${4:-false}
 
-	zpool status -v "$pool" 2>/dev/null | nawk -v token="$token:" '
-		($1==token) {print $0}' \
-	| grep -i "$keyword" > /dev/null 2>&1
+	scan=$(zpool status -v "$pool" 2>/dev/null | nawk -v token="$token:" '
+		($1==token) {print $0}')
+	if [[ $verbose == true ]]; then
+		log_note $scan
+	fi
+	echo $scan | grep -i "$keyword" > /dev/null 2>&1
 
 	return $?
 }
 
 #
-# These 5 following functions are instance of check_pool_status()
+# These 6 following functions are instance of check_pool_status()
 #	is_pool_resilvering - to check if the pool is resilver in progress
 #	is_pool_resilvered - to check if the pool is resilver completed
 #	is_pool_scrubbing - to check if the pool is scrub in progress
 #	is_pool_scrubbed - to check if the pool is scrub completed
 #	is_pool_scrub_stopped - to check if the pool is scrub stopped
+#	is_pool_scrub_paused - to check if the pool has scrub paused
 #
-function is_pool_resilvering #pool
+function is_pool_resilvering #pool <verbose>
 {
-	check_pool_status "$1" "scan" "resilver in progress since "
+	check_pool_status "$1" "scan" "resilver in progress since " $2
 	return $?
 }
 
-function is_pool_resilvered #pool
+function is_pool_resilvered #pool <verbose>
 {
-	check_pool_status "$1" "scan" "resilvered "
+	check_pool_status "$1" "scan" "resilvered " $2
 	return $?
 }
 
-function is_pool_scrubbing #pool
+function is_pool_scrubbing #pool <verbose>
 {
-	check_pool_status "$1" "scan" "scrub in progress since "
+	check_pool_status "$1" "scan" "scrub in progress since " $2
 	return $?
 }
 
-function is_pool_scrubbed #pool
+function is_pool_scrubbed #pool <verbose>
 {
-	check_pool_status "$1" "scan" "scrub repaired"
+	check_pool_status "$1" "scan" "scrub repaired" $2
 	return $?
 }
 
-function is_pool_scrub_stopped #pool
+function is_pool_scrub_stopped #pool <verbose>
 {
-	check_pool_status "$1" "scan" "scrub canceled"
+	check_pool_status "$1" "scan" "scrub canceled" $2
+	return $?
+}
+
+function is_pool_scrub_paused #pool <verbose>
+{
+	check_pool_status "$1" "scan" "scrub paused since " $2
 	return $?
 }
 
@@ -2211,7 +2230,7 @@ function del_user #<logname> <basedir>
 	fi
 
 	if id $user > /dev/null 2>&1; then
-		log_must userdel $user
+		log_must_retry "currently used" 5 userdel $user
 	fi
 
 	[[ -d $basedir/$user ]] && rm -fr $basedir/$user
@@ -2536,7 +2555,7 @@ function random_get
 #
 function verify_slog_support
 {
-	typeset dir=/tmp/disk.$$
+	typeset dir=$TEST_BASE_DIR/disk.$$
 	typeset pool=foo.$$
 	typeset vdev=$dir/a
 	typeset sdev=$dir/b
@@ -2759,217 +2778,6 @@ function get_rootpool
 		echo $rootpool
 	else
 		log_fail "This is not a zfsroot system."
-	fi
-}
-
-#
-# Check if the given device is physical device
-#
-function is_physical_device #device
-{
-	typeset device=${1#$DEV_DSKDIR}
-	device=${device#$DEV_RDSKDIR}
-
-	if is_linux; then
-		[[ -b "$DEV_DSKDIR/$device" ]] && \
-		[[ -f /sys/module/loop/parameters/max_part ]]
-		return $?
-	else
-		echo $device | egrep "^c[0-F]+([td][0-F]+)+$" > /dev/null 2>&1
-		return $?
-	fi
-}
-
-#
-# Check if the given device is a real device (ie SCSI device)
-#
-function is_real_device #disk
-{
-	typeset disk=$1
-	[[ -z $disk ]] && log_fail "No argument for disk given."
-
-       if is_linux; then
-		lsblk $DEV_RDSKDIR/$disk -o TYPE 2>/dev/null | \
-		    egrep disk >/dev/null
-		return $?
-       fi
-}
-
-#
-# Check if the given device is a loop device
-#
-function is_loop_device #disk
-{
-	typeset disk=$1
-	[[ -z $disk ]] && log_fail "No argument for disk given."
-
-       if is_linux; then
-		lsblk $DEV_RDSKDIR/$disk -o TYPE 2>/dev/null | \
-		    egrep loop >/dev/null
-		return $?
-       fi
-}
-
-#
-# Check if the given device is a multipath device and if there is a sybolic
-# link to a device mapper and to a disk
-# Currently no support for dm devices alone without multipath
-#
-function is_mpath_device #disk
-{
-	typeset disk=$1
-	[[ -z $disk ]] && log_fail "No argument for disk given."
-
-	if is_linux; then
-		lsblk $DEV_MPATHDIR/$disk -o TYPE 2>/dev/null | \
-		   egrep mpath >/dev/null
-		if (($? == 0)); then
-			readlink $DEV_MPATHDIR/$disk > /dev/null 2>&1
-			return $?
-		else
-			return $?
-		fi
-	fi
-}
-
-# Set the slice prefix for disk partitioning depending
-# on whether the device is a real, multipath, or loop device.
-# Currently all disks have to be of the same type, so only
-# checks first disk to determine slice prefix.
-#
-function set_slice_prefix
-{
-	typeset disk
-	typeset -i i=0
-
-	if is_linux; then
-		while (( i < $DISK_ARRAY_NUM )); do
-			disk="$(echo $DISKS | nawk '{print $(i + 1)}')"
-			if ( is_mpath_device $disk ) && [[ -z $(echo $disk | awk 'substr($1,18,1)\
-			     ~ /^[[:digit:]]+$/') ]] || ( is_real_device $disk ); then
-				export SLICE_PREFIX=""
-				return 0
-			elif ( is_mpath_device $disk || is_loop_device \
-			    $disk ); then
-				export SLICE_PREFIX="p"
-				return 0
-			else
-				log_fail "$disk not supported for partitioning."
-			fi
-			(( i = i + 1))
-		done
-	fi
-}
-
-#
-# Set the directory path of the listed devices in $DISK_ARRAY_NUM
-# Currently all disks have to be of the same type, so only
-# checks first disk to determine device directory
-# default = /dev (linux)
-# real disk = /dev (linux)
-# multipath device = /dev/mapper (linux)
-#
-function set_device_dir
-{
-	typeset disk
-	typeset -i i=0
-
-	if is_linux; then
-		while (( i < $DISK_ARRAY_NUM )); do
-			disk="$(echo $DISKS | nawk '{print $(i + 1)}')"
-			if is_mpath_device $disk; then
-				export DEV_DSKDIR=$DEV_MPATHDIR
-				return 0
-			else
-				export DEV_DSKDIR=$DEV_RDSKDIR
-				return 0
-			fi
-			(( i = i + 1))
-		done
-	else
-		export DEV_DSKDIR=$DEV_RDSKDIR
-	fi
-}
-
-#
-# Get the directory path of given device
-#
-function get_device_dir #device
-{
-	typeset device=$1
-
-	if ! $(is_physical_device $device) ; then
-		if [[ $device != "/" ]]; then
-			device=${device%/*}
-		fi
-		if [[ -b "$DEV_DSKDIR/$device" ]]; then
-			device="$DEV_DSKDIR"
-		fi
-		echo $device
-	else
-		echo "$DEV_DSKDIR"
-	fi
-}
-
-#
-# Get persistent name for given disk
-#
-function get_persistent_disk_name #device
-{
-	typeset device=$1
-	typeset dev_id
-
-	if is_linux; then
-		if is_real_device $device; then
-			dev_id="$(udevadm info -q all -n $DEV_DSKDIR/$device \
-			    | egrep disk/by-id | nawk '{print $2; exit}' \
-			    | nawk -F / '{print $3}')"
-			echo $dev_id
-		elif is_mpath_device $device; then
-			dev_id="$(udevadm info -q all -n $DEV_DSKDIR/$device \
-			    | egrep disk/by-id/dm-uuid \
-			    | nawk '{print $2; exit}' \
-			    | nawk -F / '{print $3}')"
-			echo $dev_id
-		else
-			echo $device
-		fi
-	else
-		echo $device
-	fi
-}
-
-#
-# Load scsi_debug module with specified parameters
-#
-function load_scsi_debug # dev_size_mb add_host num_tgts max_luns
-{
-	typeset devsize=$1
-	typeset hosts=$2
-	typeset tgts=$3
-	typeset luns=$4
-
-	[[ -z $devsize ]] || [[ -z $hosts ]] || [[ -z $tgts ]] || \
-	    [[ -z $luns ]] && log_fail "Arguments invalid or missing"
-
-	if is_linux; then
-		modprobe -n scsi_debug
-		if (($? != 0)); then
-			log_unsupported "Platform does not have scsi_debug"
-			    "module"
-		fi
-		lsmod | egrep scsi_debug > /dev/null
-		if (($? == 0)); then
-			log_fail "scsi_debug module already installed"
-		else
-			log_must modprobe scsi_debug dev_size_mb=$devsize \
-			    add_host=$hosts num_tgts=$tgts max_luns=$luns
-			block_device_wait
-			lsscsi | egrep scsi_debug > /dev/null
-			if (($? == 1)); then
-				log_fail "scsi_debug module install failed"
-			fi
-		fi
 	fi
 }
 
@@ -3276,11 +3084,14 @@ function zed_setup
 
 	# Customize the zed.rc file to enable the full debug log.
 	log_must sed -i '/\#ZED_DEBUG_LOG=.*/d' $ZEDLET_DIR/zed.rc
-	echo "ZED_DEBUG_LOG=$ZEDLET_DIR/zed.debug.log" >>$ZEDLET_DIR/zed.rc
+	echo "ZED_DEBUG_LOG=$ZED_DEBUG_LOG" >>$ZEDLET_DIR/zed.rc
 
+	# Scripts must only be user writable.
+	saved_umask=$(umask)
+	log_must umask 0022
 	log_must cp ${ZEDLET_LIBEXEC_DIR}/all-syslog.sh $ZEDLET_DIR
 	log_must cp ${ZEDLET_LIBEXEC_DIR}/all-debug.sh $ZEDLET_DIR
-	log_must touch $ZEDLET_DIR/zed.debug.log
+	log_must umask $saved_umask
 }
 
 #
@@ -3296,10 +3107,9 @@ function zed_cleanup
 	log_must rm -f ${ZEDLET_DIR}/zed-functions.sh
 	log_must rm -f ${ZEDLET_DIR}/all-syslog.sh
 	log_must rm -f ${ZEDLET_DIR}/all-debug.sh
-	log_must rm -f ${ZEDLET_DIR}/zed.pid
-	log_must rm -f ${ZEDLET_DIR}/zedlog
-	log_must rm -f ${ZEDLET_DIR}/zed.debug.log
 	log_must rm -f ${ZEDLET_DIR}/state
+	log_must rm -f $ZED_LOG
+	log_must rm -f $ZED_DEBUG_LOG
 	log_must rm -f $VDEVID_CONF_ETC
 	log_must rm -f $VDEVID_CONF
 	rmdir $ZEDLET_DIR
@@ -3327,9 +3137,10 @@ function zed_start
 
 	log_note "Starting ZED"
 	# run ZED in the background and redirect foreground logging
-	# output to zedlog
+	# output to $ZED_LOG.
+	log_must truncate -s 0 $ZED_DEBUG_LOG
 	log_must eval "zed -vF -d $ZEDLET_DIR -p $ZEDLET_DIR/zed.pid" \
-	    "-s $ZEDLET_DIR/state 2>${ZEDLET_DIR}/zedlog &"
+	    "-s $ZEDLET_DIR/state 2>$ZED_LOG &"
 
 	return 0
 }
@@ -3346,10 +3157,24 @@ function zed_stop
 	log_note "Stopping ZED"
 	if [[ -f ${ZEDLET_DIR}/zed.pid ]]; then
 		zedpid=$(cat ${ZEDLET_DIR}/zed.pid)
-		log_must kill $zedpid
+		kill $zedpid
+		while ps -p $zedpid > /dev/null; do
+			sleep 1
+		done
+		rm -f ${ZEDLET_DIR}/zed.pid
 	fi
-
 	return 0
+}
+
+#
+# Drain all zevents
+#
+function zed_events_drain
+{
+	while [ $(zpool events -H | wc -l) -ne 0 ]; do
+		sleep 1
+		zpool events -c >/dev/null
+	done
 }
 
 #
@@ -3381,7 +3206,7 @@ function swap_setup
 	typeset swapdev=$1
 
 	if is_linux; then
-		log_must mkswap $swapdev > /dev/null 2>&1
+		log_must eval "mkswap $swapdev > /dev/null 2>&1"
 		log_must swapon $swapdev
 	else
 	        log_must swap -a $swapdev
@@ -3406,4 +3231,84 @@ function swap_cleanup
 	fi
 
 	return 0
+}
+
+#
+# Set a global system tunable (64-bit value)
+#
+# $1 tunable name
+# $2 tunable values
+#
+function set_tunable64
+{
+	set_tunable_impl "$1" "$2" Z
+}
+
+#
+# Set a global system tunable (32-bit value)
+#
+# $1 tunable name
+# $2 tunable values
+#
+function set_tunable32
+{
+	set_tunable_impl "$1" "$2" W
+}
+
+function set_tunable_impl
+{
+	typeset tunable="$1"
+	typeset value="$2"
+	typeset mdb_cmd="$3"
+	typeset module="${4:-zfs}"
+
+	[[ -z "$tunable" ]] && return 1
+	[[ -z "$value" ]] && return 1
+	[[ -z "$mdb_cmd" ]] && return 1
+
+	case "$(uname)" in
+	Linux)
+		typeset zfs_tunables="/sys/module/$module/parameters"
+		[[ -w "$zfs_tunables/$tunable" ]] || return 1
+		echo -n "$value" > "$zfs_tunables/$tunable"
+		return "$?"
+		;;
+	SunOS)
+		[[ "$module" -eq "zfs" ]] || return 1
+		echo "${tunable}/${mdb_cmd}0t${value}" | mdb -kw
+		return "$?"
+		;;
+	esac
+}
+
+#
+# Get a global system tunable
+#
+# $1 tunable name
+#
+function get_tunable
+{
+	get_tunable_impl "$1"
+}
+
+function get_tunable_impl
+{
+	typeset tunable="$1"
+	typeset module="${2:-zfs}"
+
+	[[ -z "$tunable" ]] && return 1
+
+	case "$(uname)" in
+	Linux)
+		typeset zfs_tunables="/sys/module/$module/parameters"
+		[[ -f "$zfs_tunables/$tunable" ]] || return 1
+		cat $zfs_tunables/$tunable
+		return "$?"
+		;;
+	SunOS)
+		[[ "$module" -eq "zfs" ]] || return 1
+		;;
+	esac
+
+	return 1
 }

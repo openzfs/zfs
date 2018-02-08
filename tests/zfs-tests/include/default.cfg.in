@@ -61,7 +61,9 @@ export NO_POOLS="no pools available"
 # pattern to ignore from 'zfs list'.
 export NO_DATASETS="no datasets available"
 
-export TEST_BASE_DIR="/var/tmp"
+# Default directory used for test files
+# NOTE: remove trailing "/", some functions rely on this to do pattern matching
+export TEST_BASE_DIR="$(dirname ${FILEDIR:-/var/tmp}/.)"
 
 # Default to compression ON
 export COMPRESSION_PROP=on
@@ -177,6 +179,8 @@ if is_linux; then
 	DEV_MPATHDIR="/dev/mapper"
 
 	ZEDLET_DIR="/var/tmp/zed"
+	ZED_LOG="$ZEDLET_DIR/zed.log"
+	ZED_DEBUG_LOG="$ZEDLET_DIR/zed.debug.log"
 	VDEVID_CONF="$ZEDLET_DIR/vdev_id.conf"
 	VDEVID_CONF_ETC="/etc/zfs/vdev_id.conf"
 
@@ -198,4 +202,4 @@ else
 fi
 export unpack_opts pack_opts verbose unpack_preserve pack_preserve \
        ZVOL_DEVDIR ZVOL_RDEVDIR NEWFS_DEFAULT_FS DEV_RDSKDIR DEV_MPATHDIR \
-       ZEDLET_DIR VDEVID_CONF VDEVID_CONF_ETC
+       ZEDLET_DIR ZED_LOG ZED_DEBUG_LOG VDEVID_CONF VDEVID_CONF_ETC

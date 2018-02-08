@@ -53,11 +53,11 @@ function create_pool_test
 }
 
 #
-# Create a ufs|ext2 file system and make a file within the file
+# Create a ufs|ext file system and make a file within the file
 # system for storage pool vdev
 # $1, file size
 # $2, file name
-# $3, disk name to create ufs|ext2 file system
+# $3, disk name to create ufs|ext file system
 #
 function create_blockfile
 {
@@ -83,7 +83,7 @@ function create_blockfile
 }
 
 #
-# Umount the ext2|ufs filesystem and remove the mountpoint
+# Umount the ufs|ext filesystem and remove the mountpoint
 # $1, the mount point
 #
 function clean_blockfile

@@ -27,6 +27,8 @@ started?](#what-should-i-know-before-i-get-started)
   * [Commit Message Formats](#commit-message-formats)
     * [New Changes](#new-changes)
     * [OpenZFS Patch Ports](#openzfs-patch-ports)
+    * [Coverity Defect Fixes](#coverity-defect-fixes)
+    * [Signed Off By](#signed-off-by)
 
 Helpful resources
 
@@ -167,18 +169,10 @@ first line in the commit message.
 please summarize important information such as why the proposed
 approach was chosen or a brief description of the bug you are resolving.
 Each line of the body must be 72 characters or less.
-* The last line must be a `Signed-off-by:` tag with the developer's
-name followed by their email. This is the developer's certification
-that they have the right to submit the patch for inclusion into
-the code base and indicates agreement to the [Developer's Certificate
-of Origin](https://www.kernel.org/doc/html/latest/process/submitting-patches.html#sign-your-work-the-developer-s-certificate-of-origin).
-Code without a proper signoff cannot be merged.
+* The last line must be a `Signed-off-by:` tag. See the
+[Signed Off By](#signed-off-by) section for more information.
 
-Git can append the `Signed-off-by` line to your commit messages. Simply
-provide the `-s` or `--signoff` option when performing a `git commit`.
-For more information about writing commit messages, visit [How to Write
-a Git Commit Message](https://chris.beams.io/posts/git-commit/).
-An example commit message is provided below.
+An example commit message for new changes is provided below.
 
 ```
 This line is a brief summary of your change
@@ -192,23 +186,23 @@ Signed-off-by: Contributor <contributor@email.com>
 ```
 
 #### OpenZFS Patch Ports
-If you are porting an OpenZFS patch, the commit message must meet
+If you are porting OpenZFS patches, the commit message must meet
 the following guidelines:
-* The first line must be the summary line from the OpenZFS commit.
-It must begin with `OpenZFS dddd - ` where `dddd` is the OpenZFS issue number.
-* Provides a `Authored by:` line to attribute the patch to the original author.
-* Provides the `Reviewed by:` and `Approved by:` lines from the original
+* The first line must be the summary line from the most important OpenZFS commit being ported.
+It must begin with `OpenZFS dddd, dddd - ` where `dddd` are OpenZFS issue numbers.
+* Provides a `Authored by:` line to attribute each patch for each original author.
+* Provides the `Reviewed by:` and `Approved by:` lines from each original
 OpenZFS commit.
 * Provides a `Ported-by:` line with the developer's name followed by
-their email.
-* Provides a `OpenZFS-issue:` line which is a link to the original illumos
+their email for each OpenZFS commit.
+* Provides a `OpenZFS-issue:` line with link for each original illumos
 issue.
-* Provides a `OpenZFS-commit:` line which links back to the original OpenZFS
-commit.
+* Provides a `OpenZFS-commit:` line with link for each original OpenZFS commit.
 * If necessary, provide some porting notes to describe any deviations from
-the original OpenZFS commit.
+the original OpenZFS commits.
 
-An example OpenZFS patch port commit message is provided below.
+An example OpenZFS patch port commit message for a single patch is provided
+below.
 ```
 OpenZFS 1234 - Summary from the original OpenZFS commit
 
@@ -223,3 +217,74 @@ Provide some porting notes here if necessary.
 OpenZFS-issue: https://www.illumos.org/issues/1234
 OpenZFS-commit: https://github.com/openzfs/openzfs/commit/abcd1234
 ```
+
+If necessary, multiple OpenZFS patches can be combined in a single port.
+This is useful when you are porting a new patch and its subsequent bug
+fixes. An example commit message is provided below.
+```
+OpenZFS 1234, 5678 - Summary of most important OpenZFS commit
+
+1234 Summary from original OpenZFS commit for 1234
+
+Authored by: Original Author <original@email.com>
+Reviewed by: Reviewer Two <reviewer2@email.com>
+Approved by: Approver One <approver1@email.com>
+Ported-by: ZFS Contributor <contributor@email.com>
+
+Provide some porting notes here for 1234 if necessary.
+
+OpenZFS-issue: https://www.illumos.org/issues/1234
+OpenZFS-commit: https://github.com/openzfs/openzfs/commit/abcd1234
+
+5678 Summary from original OpenZFS commit for 5678
+
+Authored by: Original Author2 <original2@email.com>
+Reviewed by: Reviewer One <reviewer1@email.com>
+Approved by: Approver Two <approver2@email.com>
+Ported-by: ZFS Contributor <contributor@email.com>
+
+Provide some porting notes here for 5678 if necessary.
+
+OpenZFS-issue: https://www.illumos.org/issues/5678
+OpenZFS-commit: https://github.com/openzfs/openzfs/commit/efgh5678
+```
+
+#### Coverity Defect Fixes
+If you are submitting a fix to a
+[Coverity defect](https://scan.coverity.com/projects/zfsonlinux-zfs),
+the commit message should meet the following guidelines:
+* Provides a subject line in the format of
+`Fix coverity defects: CID dddd, dddd...` where `dddd` represents
+each CID fixed by the commit.
+* Provides a body which lists each Coverity defect and how it was corrected.
+* The last line must be a `Signed-off-by:` tag. See the
+[Signed Off By](#signed-off-by) section for more information.
+
+An example Coverity defect fix commit message is provided below.
+```
+Fix coverity defects: CID 12345, 67890
+
+CID 12345: Logically dead code (DEADCODE)
+
+Removed the if(var != 0) block because the condition could never be
+satisfied.
+
+CID 67890: Resource Leak (RESOURCE_LEAK)
+
+Ensure free is called after allocating memory in function().
+
+Signed-off-by: Contributor <contributor@email.com>
+```
+
+#### Signed Off By
+A line tagged as `Signed-off-by:` must contain the developer's
+name followed by their email. This is the developer's certification
+that they have the right to submit the patch for inclusion into
+the code base and indicates agreement to the [Developer's Certificate
+of Origin](https://www.kernel.org/doc/html/latest/process/submitting-patches.html#sign-your-work-the-developer-s-certificate-of-origin).
+Code without a proper signoff cannot be merged.
+
+Git can append the `Signed-off-by` line to your commit messages. Simply
+provide the `-s` or `--signoff` option when performing a `git commit`.
+For more information about writing commit messages, visit [How to Write
+a Git Commit Message](https://chris.beams.io/posts/git-commit/).

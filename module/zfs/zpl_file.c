@@ -527,7 +527,7 @@ zpl_mmap(struct file *filp, struct vm_area_struct *vma)
 		return (error);
 
 	mutex_enter(&zp->z_lock);
-	zp->z_is_mapped = 1;
+	zp->z_is_mapped = B_TRUE;
 	mutex_exit(&zp->z_lock);
 
 	return (error);

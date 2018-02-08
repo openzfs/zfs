@@ -221,14 +221,104 @@ bio_set_flags_failfast(struct block_device *bdev, int *flags)
 #define	DISK_NAME_LEN	32
 #endif /* DISK_NAME_LEN */
 
+#ifdef HAVE_BIO_BI_STATUS
+static inline int
+bi_status_to_errno(blk_status_t status)
+{
+	switch (status)	{
+	case BLK_STS_OK:
+		return (0);
+	case BLK_STS_NOTSUPP:
+		return (EOPNOTSUPP);
+	case BLK_STS_TIMEOUT:
+		return (ETIMEDOUT);
+	case BLK_STS_NOSPC:
+		return (ENOSPC);
+	case BLK_STS_TRANSPORT:
+		return (ENOLINK);
+	case BLK_STS_TARGET:
+		return (EREMOTEIO);
+	case BLK_STS_NEXUS:
+		return (EBADE);
+	case BLK_STS_MEDIUM:
+		return (ENODATA);
+	case BLK_STS_PROTECTION:
+		return (EILSEQ);
+	case BLK_STS_RESOURCE:
+		return (ENOMEM);
+	case BLK_STS_AGAIN:
+		return (EAGAIN);
+	case BLK_STS_IOERR:
+		return (EIO);
+	default:
+		return (EIO);
+	}
+}
+
+static inline blk_status_t
+errno_to_bi_status(int error)
+{
+	switch (error) {
+	case 0:
+		return (BLK_STS_OK);
+	case EOPNOTSUPP:
+		return (BLK_STS_NOTSUPP);
+	case ETIMEDOUT:
+		return (BLK_STS_TIMEOUT);
+	case ENOSPC:
+		return (BLK_STS_NOSPC);
+	case ENOLINK:
+		return (BLK_STS_TRANSPORT);
+	case EREMOTEIO:
+		return (BLK_STS_TARGET);
+	case EBADE:
+		return (BLK_STS_NEXUS);
+	case ENODATA:
+		return (BLK_STS_MEDIUM);
+	case EILSEQ:
+		return (BLK_STS_PROTECTION);
+	case ENOMEM:
+		return (BLK_STS_RESOURCE);
+	case EAGAIN:
+		return (BLK_STS_AGAIN);
+	case EIO:
+		return (BLK_STS_IOERR);
+	default:
+		return (BLK_STS_IOERR);
+	}
+}
+#endif /* HAVE_BIO_BI_STATUS */
+
 /*
  * 4.3 API change
  * The bio_endio() prototype changed slightly.  These are helper
  * macro's to ensure the prototype and invocation are handled.
  */
 #ifdef HAVE_1ARG_BIO_END_IO_T
+#ifdef HAVE_BIO_BI_STATUS
+#define	BIO_END_IO_ERROR(bio)		bi_status_to_errno(bio->bi_status)
 #define	BIO_END_IO_PROTO(fn, x, z)	static void fn(struct bio *x)
-#define	BIO_END_IO(bio, error)		bio->bi_error = error; bio_endio(bio);
+#define	BIO_END_IO(bio, error)		bio_set_bi_status(bio, error)
+static inline void
+bio_set_bi_status(struct bio *bio, int error)
+{
+	ASSERT3S(error, <=, 0);
+	bio->bi_status = errno_to_bi_status(-error);
+	bio_endio(bio);
+}
+#else
+#define	BIO_END_IO_ERROR(bio)		(-(bio->bi_error))
+#define	BIO_END_IO_PROTO(fn, x, z)	static void fn(struct bio *x)
+#define	BIO_END_IO(bio, error)		bio_set_bi_error(bio, error)
+static inline void
+bio_set_bi_error(struct bio *bio, int error)
+{
+	ASSERT3S(error, <=, 0);
+	bio->bi_error = error;
+	bio_endio(bio);
+}
+#endif /* HAVE_BIO_BI_STATUS */
+
 #else
 #define	BIO_END_IO_PROTO(fn, x, z)	static void fn(struct bio *x, int z)
 #define	BIO_END_IO(bio, error)		bio_endio(bio, error);
@@ -508,16 +598,26 @@ blk_queue_discard_granularity(struct request_queue *q, unsigned int dg)
  */
 #define	VDEV_HOLDER			((void *)0x2401de7)
 
-#ifndef HAVE_GENERIC_IO_ACCT
 static inline void
-generic_start_io_acct(int rw, unsigned long sectors, struct hd_struct *part)
+blk_generic_start_io_acct(struct request_queue *q, int rw,
+    unsigned long sectors, struct hd_struct *part)
 {
+#if defined(HAVE_GENERIC_IO_ACCT_3ARG)
+	generic_start_io_acct(rw, sectors, part);
+#elif defined(HAVE_GENERIC_IO_ACCT_4ARG)
+	generic_start_io_acct(q, rw, sectors, part);
+#endif
 }
 
 static inline void
-generic_end_io_acct(int rw, struct hd_struct *part, unsigned long start_time)
+blk_generic_end_io_acct(struct request_queue *q, int rw,
+    struct hd_struct *part, unsigned long start_time)
 {
-}
+#if defined(HAVE_GENERIC_IO_ACCT_3ARG)
+	generic_end_io_acct(rw, part, start_time);
+#elif defined(HAVE_GENERIC_IO_ACCT_4ARG)
+	generic_end_io_acct(q, rw, part, start_time);
 #endif
+}
 
 #endif /* _ZFS_BLKDEV_H */

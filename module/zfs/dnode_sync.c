@@ -31,6 +31,7 @@
 #include <sys/dmu.h>
 #include <sys/dmu_tx.h>
 #include <sys/dmu_objset.h>
+#include <sys/dmu_send.h>
 #include <sys/dsl_dataset.h>
 #include <sys/spa.h>
 #include <sys/range_tree.h>
@@ -115,14 +116,10 @@ free_blocks(dnode_t *dn, blkptr_t *bp, int num, dmu_tx_t *tx)
 {
 	dsl_dataset_t *ds = dn->dn_objset->os_dsl_dataset;
 	uint64_t bytesfreed = 0;
-	int i;
 
 	dprintf("ds=%p obj=%llx num=%d\n", ds, dn->dn_object, num);
 
-	for (i = 0; i < num; i++, bp++) {
-		uint64_t lsize, lvl;
-		dmu_object_type_t type;
-
+	for (int i = 0; i < num; i++, bp++) {
 		if (BP_IS_HOLE(bp))
 			continue;
 
@@ -137,9 +134,9 @@ free_blocks(dnode_t *dn, blkptr_t *bp, int num, dmu_tx_t *tx)
 		 * records transmitted during a zfs send.
 		 */
 
-		lsize = BP_GET_LSIZE(bp);
-		type = BP_GET_TYPE(bp);
-		lvl = BP_GET_LEVEL(bp);
+		uint64_t lsize = BP_GET_LSIZE(bp);
+		dmu_object_type_t type = BP_GET_TYPE(bp);
+		uint64_t lvl = BP_GET_LEVEL(bp);
 
 		bzero(bp, sizeof (blkptr_t));
 
@@ -242,7 +239,6 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
 	dmu_buf_impl_t *subdb;
 	uint64_t start, end, dbstart, dbend;
 	unsigned int epbs, shift, i;
-	uint64_t id;
 
 	/*
 	 * There is a small possibility that this block will not be cached:
@@ -279,7 +275,7 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
 		FREE_VERIFY(db, start, end, tx);
 		free_blocks(dn, bp, end-start+1, tx);
 	} else {
-		for (id = start; id <= end; id++, bp++) {
+		for (uint64_t id = start; id <= end; id++, bp++) {
 			if (BP_IS_HOLE(bp))
 				continue;
 			rw_enter(&dn->dn_struct_rwlock, RW_READER);
@@ -355,11 +351,10 @@ dnode_sync_free_range_impl(dnode_t *dn, uint64_t blkid, uint64_t nblks,
 		int start = blkid >> shift;
 		int end = (blkid + nblks - 1) >> shift;
 		dmu_buf_impl_t *db;
-		int i;
 
 		ASSERT(start < dn->dn_phys->dn_nblkptr);
 		bp += start;
-		for (i = start; i <= end; i++, bp++) {
+		for (int i = start; i <= end; i++, bp++) {
 			if (BP_IS_HOLE(bp))
 				continue;
 			rw_enter(&dn->dn_struct_rwlock, RW_READER);
@@ -524,6 +519,7 @@ dnode_sync_free(dnode_t *dn, dmu_tx_t *tx)
 	dn->dn_next_nlevels[txgoff] = 0;
 	dn->dn_next_indblkshift[txgoff] = 0;
 	dn->dn_next_blksz[txgoff] = 0;
+	dn->dn_next_maxblkid[txgoff] = 0;
 
 	/* ASSERT(blkptrs are zero); */
 	ASSERT(dn->dn_phys->dn_type != DMU_OT_NONE);
@@ -533,6 +529,7 @@ dnode_sync_free(dnode_t *dn, dmu_tx_t *tx)
 	if (dn->dn_allocated_txg != dn->dn_free_txg)
 		dmu_buf_will_dirty(&dn->dn_dbuf->db, tx);
 	bzero(dn->dn_phys, sizeof (dnode_phys_t) * dn->dn_num_slots);
+	dnode_free_interior_slots(dn);
 
 	mutex_enter(&dn->dn_mtx);
 	dn->dn_type = DMU_OT_NONE;
@@ -540,6 +537,7 @@ dnode_sync_free(dnode_t *dn, dmu_tx_t *tx)
 	dn->dn_allocated_txg = 0;
 	dn->dn_free_txg = 0;
 	dn->dn_have_spill = B_FALSE;
+	dn->dn_num_slots = 1;
 	mutex_exit(&dn->dn_mtx);
 
 	ASSERT(dn->dn_object != DMU_META_DNODE_OBJECT);
@@ -557,12 +555,12 @@ dnode_sync_free(dnode_t *dn, dmu_tx_t *tx)
 void
 dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 {
+	objset_t *os = dn->dn_objset;
 	dnode_phys_t *dnp = dn->dn_phys;
 	int txgoff = tx->tx_txg & TXG_MASK;
 	list_t *list = &dn->dn_dirty_records[txgoff];
-	boolean_t kill_spill = B_FALSE;
-	boolean_t freeing_dnode;
 	ASSERTV(static const dnode_phys_t zerodn = { 0 });
+	boolean_t kill_spill = B_FALSE;
 
 	ASSERT(dmu_tx_is_syncing(tx));
 	ASSERT(dnp->dn_type != DMU_OT_NONE || dn->dn_allocated_txg);
@@ -572,8 +570,13 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 
 	ASSERT(dn->dn_dbuf == NULL || arc_released(dn->dn_dbuf->db_buf));
 
-	if (dmu_objset_userused_enabled(dn->dn_objset) &&
-	    !DMU_OBJECT_IS_SPECIAL(dn->dn_object)) {
+	/*
+	 * Do user accounting if it is enabled and this is not
+	 * an encrypted receive.
+	 */
+	if (dmu_objset_userused_enabled(os) &&
+	    !DMU_OBJECT_IS_SPECIAL(dn->dn_object) &&
+	    (!os->os_encrypted || !dmu_objset_is_receiving(os))) {
 		mutex_enter(&dn->dn_mtx);
 		dn->dn_oldused = DN_USED_BYTES(dn->dn_phys);
 		dn->dn_oldflags = dn->dn_phys->dn_flags;
@@ -584,7 +587,7 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 		mutex_exit(&dn->dn_mtx);
 		dmu_objset_userquota_get_ids(dn, B_FALSE, tx);
 	} else {
-		/* Once we account for it, we should always account for it. */
+		/* Once we account for it, we should always account for it */
 		ASSERT(!(dn->dn_phys->dn_flags &
 		    DNODE_FLAG_USERUSED_ACCOUNTED));
 		ASSERT(!(dn->dn_phys->dn_flags &
@@ -650,7 +653,8 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 		dn->dn_next_bonustype[txgoff] = 0;
 	}
 
-	freeing_dnode = dn->dn_free_txg > 0 && dn->dn_free_txg <= tx->tx_txg;
+	boolean_t freeing_dnode = dn->dn_free_txg > 0 &&
+	    dn->dn_free_txg <= tx->tx_txg;
 
 	/*
 	 * Remove the spill block if we have been explicitly asked to
@@ -715,6 +719,17 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 	if (dn->dn_next_nlevels[txgoff]) {
 		dnode_increase_indirection(dn, tx);
 		dn->dn_next_nlevels[txgoff] = 0;
+	}
+
+	/*
+	 * This must be done after dnode_sync_free_range()
+	 * and dnode_increase_indirection().
+	 */
+	if (dn->dn_next_maxblkid[txgoff]) {
+		mutex_enter(&dn->dn_mtx);
+		dnp->dn_maxblkid = dn->dn_next_maxblkid[txgoff];
+		dn->dn_next_maxblkid[txgoff] = 0;
+		mutex_exit(&dn->dn_mtx);
 	}
 
 	if (dn->dn_next_nblkptr[txgoff]) {

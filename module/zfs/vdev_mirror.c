@@ -35,6 +35,65 @@
 #include <sys/fs/zfs.h>
 
 /*
+ * Vdev mirror kstats
+ */
+static kstat_t *mirror_ksp = NULL;
+
+typedef struct mirror_stats {
+	kstat_named_t vdev_mirror_stat_rotating_linear;
+	kstat_named_t vdev_mirror_stat_rotating_offset;
+	kstat_named_t vdev_mirror_stat_rotating_seek;
+	kstat_named_t vdev_mirror_stat_non_rotating_linear;
+	kstat_named_t vdev_mirror_stat_non_rotating_seek;
+
+	kstat_named_t vdev_mirror_stat_preferred_found;
+	kstat_named_t vdev_mirror_stat_preferred_not_found;
+} mirror_stats_t;
+
+static mirror_stats_t mirror_stats = {
+	/* New I/O follows directly the last I/O */
+	{ "rotating_linear",			KSTAT_DATA_UINT64 },
+	/* New I/O is within zfs_vdev_mirror_rotating_seek_offset of the last */
+	{ "rotating_offset",			KSTAT_DATA_UINT64 },
+	/* New I/O requires random seek */
+	{ "rotating_seek",			KSTAT_DATA_UINT64 },
+	/* New I/O follows directly the last I/O  (nonrot) */
+	{ "non_rotating_linear",		KSTAT_DATA_UINT64 },
+	/* New I/O requires random seek (nonrot) */
+	{ "non_rotating_seek",			KSTAT_DATA_UINT64 },
+	/* Preferred child vdev found */
+	{ "preferred_found",			KSTAT_DATA_UINT64 },
+	/* Preferred child vdev not found or equal load  */
+	{ "preferred_not_found",		KSTAT_DATA_UINT64 },
+
+};
+
+#define	MIRROR_STAT(stat)		(mirror_stats.stat.value.ui64)
+#define	MIRROR_INCR(stat, val) 		atomic_add_64(&MIRROR_STAT(stat), val)
+#define	MIRROR_BUMP(stat)		MIRROR_INCR(stat, 1)
+
+void
+vdev_mirror_stat_init(void)
+{
+	mirror_ksp = kstat_create("zfs", 0, "vdev_mirror_stats",
+	    "misc", KSTAT_TYPE_NAMED,
+	    sizeof (mirror_stats) / sizeof (kstat_named_t), KSTAT_FLAG_VIRTUAL);
+	if (mirror_ksp != NULL) {
+		mirror_ksp->ks_data = &mirror_stats;
+		kstat_install(mirror_ksp);
+	}
+}
+
+void
+vdev_mirror_stat_fini(void)
+{
+	if (mirror_ksp != NULL) {
+		kstat_delete(mirror_ksp);
+		mirror_ksp = NULL;
+	}
+}
+
+/*
  * Virtual device vector for mirroring.
  */
 
@@ -109,14 +168,15 @@ vdev_mirror_map_free(zio_t *zio)
 }
 
 static const zio_vsd_ops_t vdev_mirror_vsd_ops = {
-	vdev_mirror_map_free,
-	zio_vsd_default_cksum_report
+	.vsd_free = vdev_mirror_map_free,
+	.vsd_cksum_report = zio_vsd_default_cksum_report
 };
 
 static int
 vdev_mirror_load(mirror_map_t *mm, vdev_t *vd, uint64_t zio_offset)
 {
-	uint64_t lastoffset;
+	uint64_t last_offset;
+	int64_t offset_diff;
 	int load;
 
 	/* All DVAs have equal weight at the root. */
@@ -129,14 +189,20 @@ vdev_mirror_load(mirror_map_t *mm, vdev_t *vd, uint64_t zio_offset)
 	 * worse overall when resilvering with compared to without.
 	 */
 
+	/* Fix zio_offset for leaf vdevs */
+	if (vd->vdev_ops->vdev_op_leaf)
+		zio_offset += VDEV_LABEL_START_SIZE;
+
 	/* Standard load based on pending queue length. */
 	load = vdev_queue_length(vd);
-	lastoffset = vdev_queue_lastoffset(vd);
+	last_offset = vdev_queue_last_offset(vd);
 
 	if (vd->vdev_nonrot) {
 		/* Non-rotating media. */
-		if (lastoffset == zio_offset)
+		if (last_offset == zio_offset) {
+			MIRROR_BUMP(vdev_mirror_stat_non_rotating_linear);
 			return (load + zfs_vdev_mirror_non_rotating_inc);
+		}
 
 		/*
 		 * Apply a seek penalty even for non-rotating devices as
@@ -144,23 +210,29 @@ vdev_mirror_load(mirror_map_t *mm, vdev_t *vd, uint64_t zio_offset)
 		 * the device, thus avoiding unnecessary per-command overhead
 		 * and boosting performance.
 		 */
+		MIRROR_BUMP(vdev_mirror_stat_non_rotating_seek);
 		return (load + zfs_vdev_mirror_non_rotating_seek_inc);
 	}
 
 	/* Rotating media I/O's which directly follow the last I/O. */
-	if (lastoffset == zio_offset)
+	if (last_offset == zio_offset) {
+		MIRROR_BUMP(vdev_mirror_stat_rotating_linear);
 		return (load + zfs_vdev_mirror_rotating_inc);
+	}
 
 	/*
 	 * Apply half the seek increment to I/O's within seek offset
-	 * of the last I/O queued to this vdev as they should incur less
+	 * of the last I/O issued to this vdev as they should incur less
 	 * of a seek increment.
 	 */
-	if (ABS(lastoffset - zio_offset) <
-	    zfs_vdev_mirror_rotating_seek_offset)
+	offset_diff = (int64_t)(last_offset - zio_offset);
+	if (ABS(offset_diff) < zfs_vdev_mirror_rotating_seek_offset) {
+		MIRROR_BUMP(vdev_mirror_stat_rotating_offset);
 		return (load + (zfs_vdev_mirror_rotating_seek_inc / 2));
+	}
 
 	/* Apply the full seek increment to all other I/O's. */
+	MIRROR_BUMP(vdev_mirror_stat_rotating_seek);
 	return (load + zfs_vdev_mirror_rotating_seek_inc);
 }
 
@@ -210,7 +282,6 @@ vdev_mirror_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 {
 	int numerrors = 0;
 	int lasterror = 0;
-	int c;
 
 	if (vd->vdev_children == 0) {
 		vd->vdev_stat.vs_aux = VDEV_AUX_BAD_LABEL;
@@ -219,7 +290,7 @@ vdev_mirror_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 
 	vdev_open_children(vd);
 
-	for (c = 0; c < vd->vdev_children; c++) {
+	for (int c = 0; c < vd->vdev_children; c++) {
 		vdev_t *cvd = vd->vdev_child[c];
 
 		if (cvd->vdev_open_error) {
@@ -244,9 +315,7 @@ vdev_mirror_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 static void
 vdev_mirror_close(vdev_t *vd)
 {
-	int c;
-
-	for (c = 0; c < vd->vdev_children; c++)
+	for (int c = 0; c < vd->vdev_children; c++)
 		vdev_close(vd->vdev_child[c]);
 }
 
@@ -383,16 +452,13 @@ vdev_mirror_child_select(zio_t *zio)
 	}
 
 	if (mm->mm_preferred_cnt == 1) {
-		vdev_queue_register_lastoffset(
-		    mm->mm_child[mm->mm_preferred[0]].mc_vd, zio);
+		MIRROR_BUMP(vdev_mirror_stat_preferred_found);
 		return (mm->mm_preferred[0]);
 	}
 
 	if (mm->mm_preferred_cnt > 1) {
-		int c = vdev_mirror_preferred_child_randomize(zio);
-
-		vdev_queue_register_lastoffset(mm->mm_child[c].mc_vd, zio);
-		return (c);
+		MIRROR_BUMP(vdev_mirror_stat_preferred_not_found);
+		return (vdev_mirror_preferred_child_randomize(zio));
 	}
 
 	/*
@@ -400,11 +466,8 @@ vdev_mirror_child_select(zio_t *zio)
 	 * Look for any child we haven't already tried before giving up.
 	 */
 	for (c = 0; c < mm->mm_children; c++) {
-		if (!mm->mm_child[c].mc_tried) {
-			vdev_queue_register_lastoffset(mm->mm_child[c].mc_vd,
-			    zio);
+		if (!mm->mm_child[c].mc_tried)
 			return (c);
-		}
 	}
 
 	/*
@@ -472,9 +535,9 @@ vdev_mirror_io_start(zio_t *zio)
 static int
 vdev_mirror_worst_error(mirror_map_t *mm)
 {
-	int c, error[2] = { 0, 0 };
+	int error[2] = { 0, 0 };
 
-	for (c = 0; c < mm->mm_children; c++) {
+	for (int c = 0; c < mm->mm_children; c++) {
 		mirror_child_t *mc = &mm->mm_child[c];
 		int s = mc->mc_speculative;
 		error[s] = zio_worst_error(error[s], mc->mc_error);

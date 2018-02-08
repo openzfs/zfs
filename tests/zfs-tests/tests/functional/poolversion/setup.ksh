@@ -34,12 +34,12 @@
 verify_runnable "global"
 
 # create a version 1 pool
-log_must mkfile $MINVDEVSIZE /tmp/zpool_version_1.dat
-log_must zpool create -o version=1 $TESTPOOL /tmp/zpool_version_1.dat
+log_must mkfile $MINVDEVSIZE $TEST_BASE_DIR/zpool_version_1.dat
+log_must zpool create -o version=1 $TESTPOOL $TEST_BASE_DIR/zpool_version_1.dat
 
 
 # create another version 1 pool
-log_must mkfile $MINVDEVSIZE /tmp/zpool2_version_1.dat
-log_must zpool create -o version=1 $TESTPOOL2 /tmp/zpool2_version_1.dat
+log_must mkfile $MINVDEVSIZE $TEST_BASE_DIR/zpool2_version_1.dat
+log_must zpool create -o version=1 $TESTPOOL2 $TEST_BASE_DIR/zpool2_version_1.dat
 
 log_pass

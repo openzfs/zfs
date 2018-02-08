@@ -1,7 +1,8 @@
 #!/bin/sh
 
 ### prepare
-#TEST_PREPARE_WATCHDOG="no"
+#TEST_PREPARE_WATCHDOG="yes"
+#TEST_PREPARE_SHARES="yes"
 
 ### SPLAT
 #TEST_SPLAT_SKIP="yes"
@@ -12,6 +13,7 @@
 #TEST_ZTEST_TIMEOUT=1800
 #TEST_ZTEST_DIR="/var/tmp/"
 #TEST_ZTEST_OPTIONS="-V"
+#TEST_ZTEST_CORE_DIR="/mnt/zloop"
 
 ### zimport
 #TEST_ZIMPORT_SKIP="yes"
@@ -31,9 +33,13 @@
 
 ### zfs-tests.sh
 #TEST_ZFSTESTS_SKIP="yes"
+#TEST_ZFSTESTS_DIR="/mnt/"
 #TEST_ZFSTESTS_DISKS="vdb vdc vdd"
 #TEST_ZFSTESTS_DISKSIZE="8G"
+#TEST_ZFSTESTS_ITERS="1"
+#TEST_ZFSTESTS_OPTIONS="-vx"
 #TEST_ZFSTESTS_RUNFILE="linux.run"
+#TEST_ZFSTESTS_TAGS="functional"
 
 ### zfsstress
 #TEST_ZFSSTRESS_SKIP="yes"
@@ -42,6 +48,7 @@
 #TEST_ZFSSTRESS_RUNTIME=300
 #TEST_ZFSSTRESS_POOL="tank"
 #TEST_ZFSSTRESS_FS="fish"
+#TEST_ZFSSTRESS_FSOPT="-o overlay=on"
 #TEST_ZFSSTRESS_VDEV="/var/tmp/vdev"
 #TEST_ZFSSTRESS_DIR="/$TEST_ZFSSTRESS_POOL/$TEST_ZFSSTRESS_FS"
 #TEST_ZFSSTRESS_OPTIONS=""
@@ -80,6 +87,20 @@ Ubuntu-16.04*)
 Ubuntu*)
     ;;
 *)
+    ;;
+esac
+
+###
+#
+# Run ztest longer on the "coverage" builders to gain more code coverage
+# data out of ztest, libzpool, etc.
+#
+case "$BB_NAME" in
+*coverage*)
+    TEST_ZTEST_TIMEOUT=3600
+    ;;
+*)
+    TEST_ZTEST_TIMEOUT=900
     ;;
 esac
 

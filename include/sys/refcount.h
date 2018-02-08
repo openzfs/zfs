@@ -39,7 +39,7 @@ extern "C" {
  * particular object, use FTAG (which is a string) for the holder_tag.
  * Otherwise, use the object that holds the reference.
  */
-#define	FTAG ((char *)__func__)
+#define	FTAG ((char *)(uintptr_t)__func__)
 
 /*
  * Starting with 4.11, torvalds/linux@f405df5, the linux kernel defines a

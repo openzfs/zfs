@@ -1,6 +1,7 @@
 include $(top_srcdir)/config/Rules.am
 
-AM_CPPFLAGS += -DDEBUG
+# Unconditionally enable debugging for zdb
+AM_CPPFLAGS += -DDEBUG -UNDEBUG
 
 DEFAULT_INCLUDES += \
 	-I$(top_srcdir)/include \
@@ -10,11 +11,10 @@ sbin_PROGRAMS = zdb
 
 zdb_SOURCES = \
 	zdb.c \
-	zdb_il.c
+	zdb_il.c \
+	zdb.h
 
 zdb_LDADD = \
 	$(top_builddir)/lib/libnvpair/libnvpair.la \
-	$(top_builddir)/lib/libuutil/libuutil.la \
-	$(top_builddir)/lib/libzpool/libzpool.la \
 	$(top_builddir)/lib/libzfs/libzfs.la \
-	$(top_builddir)/lib/libzfs_core/libzfs_core.la
+	$(top_builddir)/lib/libzpool/libzpool.la

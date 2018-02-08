@@ -19,14 +19,6 @@ s:usr/src/test/zfs-tests/runfiles:tests/runfiles:g
 s:usr/src/test/zfs-tests/tests/functional:tests/zfs-tests/tests/functional:g
 s:usr/src/test/zfs-tests/tests/perf:tests/zfs-tests/tests/perf:g
 s:usr/src/test/test-runner/cmd/run.py:tests/test-runner/cmd/test-runner.py:g
-
-#
-# The usr/src/common/zfs/ files go in a couple different dirs.
-# usr/src/common/zfs/zfeature_common.c goes in module/zfs
-#
-s:usr/src/common/zfs/zfeature_common.c:module/zfs/zfeature_common.c:g
-
-# ...but most of the rest of the C files go in module/zcommon
 s/usr\/src\/common\/zfs\/\(.*\)\.c/module\/zcommon\/\1.c/g
 
 # crypto framework

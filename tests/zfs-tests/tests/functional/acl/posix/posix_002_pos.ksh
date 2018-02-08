@@ -47,16 +47,16 @@ log_assert "Verify acltype=posixacl works on directory"
 # Test access to DIRECTORY
 log_note "Testing access to DIRECTORY"
 log_must mkdir $TESTDIR/dir.0
-log_must setfacl -m g:zfsgrp:wx $TESTDIR/dir.0
-getfacl $TESTDIR/dir.0 2> /dev/null | egrep -q "^group:zfsgrp:-wx$"
+log_must setfacl -m g:$ZFS_ACL_STAFF_GROUP:wx $TESTDIR/dir.0
+getfacl $TESTDIR/dir.0 2> /dev/null | egrep -q "^group:$ZFS_ACL_STAFF_GROUP:-wx$"
 if [ "$?" -eq "0" ]; then
 	# Should be able to create file in directory
-	log_must su staff1 -c "touch $TESTDIR/dir.0/file.0"
+	log_must user_run $ZFS_ACL_STAFF1 "touch $TESTDIR/dir.0/file.0"
 
 	# Should NOT be able to list files in directory
-	log_mustnot su staff1 -c "ls -l $TESTDIR/dir.0"
+	log_mustnot user_run $ZFS_ACL_STAFF1 "ls -l $TESTDIR/dir.0"
 
 	log_pass "POSIX ACL mode works on directories"
 else
-	log_fail "Group 'zfsgrp' does not have 'rwx' as specified"
+	log_fail "Group '$ZFS_ACL_STAFF_GROUP' does not have 'rwx' as specified"
 fi

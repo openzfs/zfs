@@ -541,11 +541,10 @@ zap_lockdir_impl(dmu_buf_t *db, void *tag, dmu_tx_t *tx,
 	    zap->zap_m.zap_num_entries == zap->zap_m.zap_num_chunks) {
 		uint64_t newsz = db->db_size + SPA_MINBLOCKSIZE;
 		if (newsz > MZAP_MAX_BLKSZ) {
-			int err;
 			dprintf("upgrading obj %llu: num_entries=%u\n",
 			    obj, zap->zap_m.zap_num_entries);
 			*zapp = zap;
-			err = mzap_upgrade(zapp, tag, tx, 0);
+			int err = mzap_upgrade(zapp, tag, tx, 0);
 			if (err != 0)
 				rw_exit(&zap->zap_rwlock);
 			return (err);
@@ -675,7 +674,7 @@ mzap_create_impl(objset_t *os, uint64_t obj, int normflags, zap_flags_t flags,
 	dmu_buf_t *db;
 	mzap_phys_t *zp;
 
-	VERIFY(0 == dmu_buf_hold(os, obj, 0, FTAG, &db, DMU_READ_NO_PREFETCH));
+	VERIFY0(dmu_buf_hold(os, obj, 0, FTAG, &db, DMU_READ_NO_PREFETCH));
 
 #ifdef ZFS_DEBUG
 	{

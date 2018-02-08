@@ -308,7 +308,7 @@ zfsctl_snapshot_rename(char *old_snapname, char *new_snapname)
 
 	se = zfsctl_snapshot_find_by_name(old_snapname);
 	if (se == NULL)
-		return (ENOENT);
+		return (SET_ERROR(ENOENT));
 
 	zfsctl_snapshot_remove(se);
 	strfree(se->se_name);
@@ -751,7 +751,7 @@ zfsctl_snapshot_path_objset(zfsvfs_t *zfsvfs, uint64_t objsetid,
 	int error = 0;
 
 	if (zfsvfs->z_vfs->vfs_mntpoint == NULL)
-		return (ENOENT);
+		return (SET_ERROR(ENOENT));
 
 	cookie = spl_fstrans_mark();
 	snapname = kmem_alloc(ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
@@ -856,7 +856,7 @@ zfsctl_snapdir_rename(struct inode *sdip, char *snm,
 	int error;
 
 	if (!zfs_admin_snapshot)
-		return (EACCES);
+		return (SET_ERROR(EACCES));
 
 	ZFS_ENTER(zfsvfs);
 
@@ -933,7 +933,7 @@ zfsctl_snapdir_remove(struct inode *dip, char *name, cred_t *cr, int flags)
 	int error;
 
 	if (!zfs_admin_snapshot)
-		return (EACCES);
+		return (SET_ERROR(EACCES));
 
 	ZFS_ENTER(zfsvfs);
 
@@ -982,7 +982,7 @@ zfsctl_snapdir_mkdir(struct inode *dip, char *dirname, vattr_t *vap,
 	int error;
 
 	if (!zfs_admin_snapshot)
-		return (EACCES);
+		return (SET_ERROR(EACCES));
 
 	dsname = kmem_alloc(ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
 
@@ -1029,7 +1029,7 @@ zfsctl_snapshot_unmount(char *snapname, int flags)
 	rw_enter(&zfs_snapshot_lock, RW_READER);
 	if ((se = zfsctl_snapshot_find_by_name(snapname)) == NULL) {
 		rw_exit(&zfs_snapshot_lock);
-		return (ENOENT);
+		return (SET_ERROR(ENOENT));
 	}
 	rw_exit(&zfs_snapshot_lock);
 
@@ -1070,7 +1070,7 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 	struct path spath;
 
 	if (ip == NULL)
-		return (EISDIR);
+		return (SET_ERROR(EISDIR));
 
 	zfsvfs = ITOZSB(ip);
 	ZFS_ENTER(zfsvfs);

@@ -21,6 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2016 by Delphix. All rights reserved.
+ * Copyright 2017 Jason King
  */
 
 #include <assert.h>
@@ -38,31 +39,104 @@
  * Routines needed by more than one client of libzpool.
  */
 
+/* The largest suffix that can fit, aka an exabyte (2^60 / 10^18) */
+#define	INDEX_MAX	(6)
+
+/* Verify INDEX_MAX fits */
+CTASSERT_GLOBAL(INDEX_MAX * 10 < sizeof (uint64_t) * 8);
+
 void
-nicenum(uint64_t num, char *buf)
+nicenum_scale(uint64_t n, size_t units, char *buf, size_t buflen,
+    uint32_t flags)
 {
-	uint64_t n = num;
+	uint64_t divamt = 1024;
+	uint64_t divisor = 1;
 	int index = 0;
+	int rc = 0;
 	char u;
 
-	while (n >= 1024) {
-		n = (n + (1024 / 2)) / 1024; /* Round up or down */
+	if (units == 0)
+		units = 1;
+
+	if (n > 0) {
+		n *= units;
+		if (n < units)
+			goto overflow;
+	}
+
+	if (flags & NN_DIVISOR_1000)
+		divamt = 1000;
+
+	/*
+	 * This tries to find the suffix S(n) such that
+	 * S(n) <= n < S(n+1), where S(n) = 2^(n*10) | 10^(3*n)
+	 * (i.e. 1024/1000, 1,048,576/1,000,000, etc).  Stop once S(n)
+	 * is the largest prefix supported (i.e. don't bother computing
+	 * and checking S(n+1).  Since INDEX_MAX should be the largest
+	 * suffix that fits (currently an exabyte), S(INDEX_MAX + 1) is
+	 * never checked as it would overflow.
+	 */
+	while (index < INDEX_MAX) {
+		uint64_t newdiv = divisor * divamt;
+
+		/* CTASSERT() guarantee these never trip */
+		VERIFY3U(newdiv, >=, divamt);
+		VERIFY3U(newdiv, >=, divisor);
+
+		if (n < newdiv)
+			break;
+
+		divisor = newdiv;
 		index++;
 	}
 
 	u = " KMGTPE"[index];
 
 	if (index == 0) {
-		(void) sprintf(buf, "%llu", (u_longlong_t)n);
-	} else if (n < 10 && (num & (num - 1)) != 0) {
-		(void) sprintf(buf, "%.2f%c",
-		    (double)num / (1ULL << 10 * index), u);
-	} else if (n < 100 && (num & (num - 1)) != 0) {
-		(void) sprintf(buf, "%.1f%c",
-		    (double)num / (1ULL << 10 * index), u);
+		rc = snprintf(buf, buflen, "%llu", (u_longlong_t)n);
+	} else if (n % divisor == 0) {
+		/*
+		 * If this is an even multiple of the base, always display
+		 * without any decimal precision.
+		 */
+		rc = snprintf(buf, buflen, "%llu%c",
+		    (u_longlong_t)(n / divisor), u);
 	} else {
-		(void) sprintf(buf, "%llu%c", (u_longlong_t)n, u);
+		/*
+		 * We want to choose a precision that reflects the best choice
+		 * for fitting in 5 characters.  This can get rather tricky
+		 * when we have numbers that are very close to an order of
+		 * magnitude.  For example, when displaying 10239 (which is
+		 * really 9.999K), we want only a single place of precision
+		 * for 10.0K.  We could develop some complex heuristics for
+		 * this, but it's much easier just to try each combination
+		 * in turn.
+		 */
+		int i;
+		for (i = 2; i >= 0; i--) {
+			if ((rc = snprintf(buf, buflen, "%.*f%c", i,
+			    (double)n / divisor, u)) <= 5)
+				break;
+		}
 	}
+
+	if (rc + 1 > buflen || rc < 0)
+		goto overflow;
+
+	return;
+
+overflow:
+	/* prefer a more verbose message if possible */
+	if (buflen > 10)
+		(void) strlcpy(buf, "<overflow>", buflen);
+	else
+		(void) strlcpy(buf, "??", buflen);
+}
+
+void
+nicenum(uint64_t num, char *buf, size_t buflen)
+{
+	nicenum_scale(num, 1, buf, buflen, 0);
 }
 
 static void
@@ -99,15 +173,17 @@ show_vdev_stats(const char *desc, const char *ctype, nvlist_t *nv, int indent)
 
 		sec = MAX(1, vs->vs_timestamp / NANOSEC);
 
-		nicenum(vs->vs_alloc, used);
-		nicenum(vs->vs_space - vs->vs_alloc, avail);
-		nicenum(vs->vs_ops[ZIO_TYPE_READ] / sec, rops);
-		nicenum(vs->vs_ops[ZIO_TYPE_WRITE] / sec, wops);
-		nicenum(vs->vs_bytes[ZIO_TYPE_READ] / sec, rbytes);
-		nicenum(vs->vs_bytes[ZIO_TYPE_WRITE] / sec, wbytes);
-		nicenum(vs->vs_read_errors, rerr);
-		nicenum(vs->vs_write_errors, werr);
-		nicenum(vs->vs_checksum_errors, cerr);
+		nicenum(vs->vs_alloc, used, sizeof (used));
+		nicenum(vs->vs_space - vs->vs_alloc, avail, sizeof (avail));
+		nicenum(vs->vs_ops[ZIO_TYPE_READ] / sec, rops, sizeof (rops));
+		nicenum(vs->vs_ops[ZIO_TYPE_WRITE] / sec, wops, sizeof (wops));
+		nicenum(vs->vs_bytes[ZIO_TYPE_READ] / sec, rbytes,
+		    sizeof (rbytes));
+		nicenum(vs->vs_bytes[ZIO_TYPE_WRITE] / sec, wbytes,
+		    sizeof (wbytes));
+		nicenum(vs->vs_read_errors, rerr, sizeof (rerr));
+		nicenum(vs->vs_write_errors, werr, sizeof (werr));
+		nicenum(vs->vs_checksum_errors, cerr, sizeof (cerr));
 
 		(void) printf("%*s%s%*s%*s%*s %5s %5s %5s %5s %5s %5s %5s\n",
 		    indent, "",

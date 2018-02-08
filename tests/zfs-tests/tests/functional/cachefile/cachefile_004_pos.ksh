@@ -98,13 +98,13 @@ log_must zpool set cachefile=$CPATH2 $TESTPOOL1
 log_must pool_in_cache $TESTPOOL1 $CPATH2
 log_must zpool set cachefile=$CPATH2 $TESTPOOL2
 log_must pool_in_cache $TESTPOOL2 $CPATH2
-if [[ -f $CPATH1 ]]; then
+if [[ -s $CPATH1 ]]; then
 	log_fail "Verify set when cachefile is set on pool."
 fi
 
 log_must zpool export $TESTPOOL1
 log_must zpool export $TESTPOOL2
-if [[ -f $CPATH2 ]]; then
+if [[ -s $CPATH2 ]]; then
 	log_fail "Verify export when cachefile is set on pool."
 fi
 
@@ -117,7 +117,7 @@ log_must pool_in_cache $TESTPOOL2 $CPATH2
 
 log_must zpool destroy $TESTPOOL1
 log_must zpool destroy $TESTPOOL2
-if [[ -f $CPATH2 ]]; then
+if [[ -s $CPATH2 ]]; then
 	log_fail "Verify destroy when cachefile is set on pool."
 fi
 

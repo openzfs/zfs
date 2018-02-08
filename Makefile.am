@@ -23,23 +23,25 @@ EXTRA_DIST  = autogen.sh copy-builtin
 EXTRA_DIST += config/config.awk config/rpm.am config/deb.am config/tgz.am
 EXTRA_DIST += META DISCLAIMER COPYRIGHT README.markdown OPENSOLARIS.LICENSE
 
+@CODE_COVERAGE_RULES@
+
 distclean-local::
 	-$(RM) -R autom4te*.cache
 	-find . \( -name SCCS -o -name BitKeeper -o -name .svn -o -name CVS \
 		-o -name .pc -o -name .hg -o -name .git \) -prune -o \
 		\( -name '*.orig' -o -name '*.rej' -o -name '*~' \
 		-o -name '*.bak' -o -name '#*#' -o -name '.*.orig' \
-		-o -name '.*.rej' -o -name '.script-config' -o -size 0 \
-		-o -name '*%' -o -name '.*.cmd' -o -name 'core' \
-		-o -name 'Makefile' -o -name 'Module.symvers' \
-		-o -name '*.order' -o -name '*.markers' \) \
+		-o -name '.*.rej' -o -size 0 -o -name '*%' -o -name '.*.cmd' \
+		-o -name 'core' -o -name 'Makefile' -o -name 'Module.symvers' \
+		-o -name '*.order' -o -name '*.markers' -o -name '*.gcda' \
+		-o -name '*.gcno' \) \
 		-type f -print | xargs $(RM)
 
 dist-hook:
 	sed -i 's/Release:[[:print:]]*/Release:      $(RELEASE)/' \
 		$(distdir)/META
 
-checkstyle: cstyle shellcheck flake8 commitcheck
+checkstyle: cstyle shellcheck flake8 commitcheck mancheck testscheck
 
 commitcheck:
 	@if git rev-parse --git-dir > /dev/null 2>&1; then \
@@ -52,21 +54,36 @@ cstyle:
 
 shellcheck:
 	@if type shellcheck > /dev/null 2>&1; then \
-		shellcheck --exclude=SC1090 --format=gcc scripts/paxcheck.sh \
-			scripts/zloop.sh \
-			scripts/zfs-tests.sh \
-			scripts/zfs.sh \
-			scripts/commitcheck.sh \
+		shellcheck --exclude=SC1090 --format=gcc \
+			$$(find scripts/*.sh -type f) \
 			$$(find cmd/zed/zed.d/*.sh -type f) \
 			$$(find cmd/zpool/zpool.d/* -executable); \
 	fi
+
+mancheck:
+	@if type mandoc > /dev/null 2>&1; then \
+		find ${top_srcdir}/man/man8 -type f -name 'zfs.8' \
+			-o -name 'zpool.8' -o -name 'zdb.8' \
+			-o -name 'zgenhostid.8' | \
+			xargs mandoc -Tlint -Werror; \
+	fi
+
+testscheck:
+	@find ${top_srcdir}/tests/zfs-tests/tests -type f \
+		\( -name '*.ksh' -not -executable \) -o \
+		\( -name '*.kshlib' -executable \) -o \
+		\( -name '*.cfg' -executable \) | \
+		xargs -r stat -c '%A %n' | \
+		awk '{c++; print} END {if(c>0) exit 1}'
 
 lint: cppcheck paxcheck
 
 cppcheck:
 	@if type cppcheck > /dev/null 2>&1; then \
-		cppcheck --inline-suppr --quiet --force --error-exitcode=2 \
-		${top_srcdir}; \
+		cppcheck --quiet --force --error-exitcode=2 --inline-suppr \
+			--suppressions-list=.github/suppressions.txt \
+			-UHAVE_SSE2 -UHAVE_AVX512F -UHAVE_UIO_ZEROCOPY \
+			-UHAVE_DNLC ${top_srcdir}; \
 	fi
 
 paxcheck:
@@ -90,5 +107,6 @@ etags:
 tags: ctags etags
 
 pkg: @DEFAULT_PACKAGE@
+pkg-dkms: @DEFAULT_PACKAGE@-dkms
 pkg-kmod: @DEFAULT_PACKAGE@-kmod
 pkg-utils: @DEFAULT_PACKAGE@-utils

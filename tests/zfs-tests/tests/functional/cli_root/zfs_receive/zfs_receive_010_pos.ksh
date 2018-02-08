@@ -77,7 +77,7 @@ function create_pair
 function cleanup
 {
 	zfs destroy -Rf $TESTPOOL/$TESTFS/base
-	rm /tmp/zr010p*
+	rm $TESTDIR/zr010p*
 }
 
 log_assert "zfs receive of full send as clone should work"
@@ -145,15 +145,15 @@ done
 log_must zfs snapshot $fs@s1
 log_must zfs snapshot $fs2@s1
 
-log_must zfs send $fs@s1 > /tmp/zr010p
-log_must zfs send $fs2@s1 > /tmp/zr010p2
+log_must zfs send $fs@s1 > $TESTDIR/zr010p
+log_must zfs send $fs2@s1 > $TESTDIR/zr010p2
 
 
 #
 # Test that, when we receive a full send as a clone of itself,
 # nop-write saves us all the space used by data blocks.
 #
-cat /tmp/zr010p | log_must zfs receive -o origin=$fs@s1 $rfs
+cat $TESTDIR/zr010p | log_must zfs receive -o origin=$fs@s1 $rfs
 size=$(get_prop used $rfs)
 size2=$(get_prop used $fs)
 if [[ $size -ge $(($size2 / 10)) ]] then
@@ -163,13 +163,13 @@ fi
 log_must zfs destroy -fr $rfs
 
 # Correctness testing: receive each full send as a clone of the other fiesystem.
-cat /tmp/zr010p | log_must zfs receive -o origin=$fs2@s1 $rfs
+cat $TESTDIR/zr010p | log_must zfs receive -o origin=$fs2@s1 $rfs
 mntpnt_old=$(get_prop mountpoint $fs)
 mntpnt_new=$(get_prop mountpoint $rfs)
 log_must diff -r $mntpnt_old $mntpnt_new
 log_must zfs destroy -r $rfs
 
-cat /tmp/zr010p2 | log_must zfs receive -o origin=$fs@s1 $rfs
+cat $TESTDIR/zr010p2 | log_must zfs receive -o origin=$fs@s1 $rfs
 mntpnt_old=$(get_prop mountpoint $fs2)
 mntpnt_new=$(get_prop mountpoint $rfs)
 log_must diff -r $mntpnt_old $mntpnt_new

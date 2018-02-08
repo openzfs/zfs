@@ -48,8 +48,8 @@ function cleanup
 
 log_assert "Verify that 'zfs send' drills appropriate holes"
 log_onexit cleanup
-streamfile=$(mktemp /var/tmp/file.XXXXXX)
-vdev=$(mktemp /var/tmp/file.XXXXXX)
+streamfile=$(mktemp $TESTDIR/file.XXXXXX)
+vdev=$(mktemp $TEST_BASE_DIR/file.XXXXXX)
 
 
 test_pool ()
@@ -58,15 +58,17 @@ test_pool ()
 	log_must zfs create -o recordsize=512 $POOL/fs
 	mntpnt=$(get_prop mountpoint "$POOL/fs")
 	log_must dd if=/dev/urandom of=${mntpnt}/file bs=512 count=1 2>/dev/null
-	first_object=$(ls -i $mntpnt | awk '{print $1}')
+	object=$(ls -i $mntpnt | awk '{print $1}')
 	log_must zfs snapshot $POOL/fs@a
 	while true; do
-		log_must find $mntpnt/* -delete
+		log_must find $mntpnt/ -type f -delete
 		sync
 		log_must mkfiles "$mntpnt/" 4000
-		FILE=$(ls -i $mntpnt | awk \
-			'{if ($1 == '$first_object') {print $2}}')
-		if [[ -n "$FILE" ]]; then
+		sync
+		# check if we started reusing objects
+		object=$(ls -i $mntpnt | sort -n | awk -v object=$object \
+		    '{if ($1 <= object) {exit 1}} END {print $1}')
+		if [[ $? -ne 0 ]]; then
 			break
 		fi
 	done

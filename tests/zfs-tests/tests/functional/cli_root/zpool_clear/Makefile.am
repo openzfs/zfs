@@ -5,4 +5,5 @@ dist_pkgdata_SCRIPTS = \
 	cleanup.ksh \
 	zpool_clear_001_pos.ksh \
 	zpool_clear_002_neg.ksh \
-	zpool_clear_003_neg.ksh
+	zpool_clear_003_neg.ksh \
+	zpool_clear_readonly.ksh
