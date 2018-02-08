@@ -67,8 +67,9 @@ tests = ['tst.args_to_lua', 'tst.divide_by_zero', 'tst.exists',
     'tst.integer_illegal', 'tst.integer_overflow', 'tst.language_functions_neg',
     'tst.language_functions_pos', 'tst.large_prog', 'tst.memory_limit',
     'tst.nested_neg', 'tst.nested_pos', 'tst.nvlist_to_lua',
-    'tst.recursive_neg', 'tst.recursive_pos', 'tst.return_nvlist_neg',
-    'tst.return_nvlist_pos', 'tst.return_recursive_table', 'tst.timeout']
+    'tst.recursive_neg', 'tst.recursive_pos', 'tst.return_large',
+    'tst.return_nvlist_neg', 'tst.return_nvlist_pos',
+    'tst.return_recursive_table', 'tst.timeout']
 tags = ['functional', 'channel_program', 'lua_core']
 
 [tests/functional/channel_program/synctask_core]
@@ -78,7 +79,9 @@ tests = ['tst.destroy_fs', 'tst.destroy_snap', 'tst.get_count_and_limit',
     'tst.get_userquota', 'tst.get_written', 'tst.list_children',
     'tst.list_clones', 'tst.list_snapshots', 'tst.list_system_props',
     'tst.parse_args_neg', 'tst.promote_conflict', 'tst.promote_multiple',
-    'tst.promote_simple', 'tst.rollback_mult', 'tst.rollback_one']
+    'tst.promote_simple', 'tst.rollback_mult', 'tst.rollback_one',
+    'tst.snapshot_destroy', 'tst.snapshot_neg', 'tst.snapshot_recursive',
+    'tst.snapshot_simple']
 tags = ['functional', 'channel_program', 'synctask_core']
 
 [tests/functional/chattr]

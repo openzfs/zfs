@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  * Copyright (c) 2017 Datto Inc.
  * Copyright 2017 RackTop Systems.
@@ -146,7 +146,12 @@ lzc_ioctl(zfs_ioc_t ioc, const char *name,
 
 	if (resultp != NULL) {
 		*resultp = NULL;
-		zc.zc_nvlist_dst_size = MAX(size * 2, 128 * 1024);
+		if (ioc == ZFS_IOC_CHANNEL_PROGRAM) {
+			zc.zc_nvlist_dst_size = fnvlist_lookup_uint64(source,
+			    ZCP_ARG_MEMLIMIT);
+		} else {
+			zc.zc_nvlist_dst_size = MAX(size * 2, 128 * 1024);
+		}
 		zc.zc_nvlist_dst = (uint64_t)(uintptr_t)
 		    malloc(zc.zc_nvlist_dst_size);
 		if (zc.zc_nvlist_dst == (uint64_t)0) {
@@ -160,7 +165,7 @@ lzc_ioctl(zfs_ioc_t ioc, const char *name,
 		 * If ioctl exited with ENOMEM, we retry the ioctl after
 		 * increasing the size of the destination nvlist.
 		 *
-		 * Channel programs that exit with ENOMEM probably ran over the
+		 * Channel programs that exit with ENOMEM ran over the
 		 * lua memory sandbox; they should not be retried.
 		 */
 		if (errno == ENOMEM && resultp != NULL &&

@@ -39,10 +39,10 @@ typedef int (zcp_synctask_func_t)(lua_State *, boolean_t, nvlist_t *);
 typedef struct zcp_synctask_info {
 	const char *name;
 	zcp_synctask_func_t *func;
-	zfs_space_check_t space_check;
-	int blocks_modified;
 	const zcp_arg_t pargs[4];
 	const zcp_arg_t kwargs[2];
+	zfs_space_check_t space_check;
+	int blocks_modified;
 } zcp_synctask_info_t;
 
 /*
@@ -91,8 +91,6 @@ static int zcp_synctask_destroy(lua_State *, boolean_t, nvlist_t *);
 static zcp_synctask_info_t zcp_synctask_destroy_info = {
 	.name = "destroy",
 	.func = zcp_synctask_destroy,
-	.space_check = ZFS_SPACE_CHECK_NONE,
-	.blocks_modified = 0,
 	.pargs = {
 	    {.za_name = "filesystem | snapshot", .za_lua_type = LUA_TSTRING},
 	    {NULL, 0}
@@ -100,7 +98,9 @@ static zcp_synctask_info_t zcp_synctask_destroy_info = {
 	.kwargs = {
 	    {.za_name = "defer", .za_lua_type = LUA_TBOOLEAN},
 	    {NULL, 0}
-	}
+	},
+	.space_check = ZFS_SPACE_CHECK_NONE,
+	.blocks_modified = 0
 };
 
 /* ARGSUSED */
@@ -140,19 +140,19 @@ zcp_synctask_destroy(lua_State *state, boolean_t sync, nvlist_t *err_details)
 	return (err);
 }
 
-static int zcp_synctask_promote(lua_State *, boolean_t, nvlist_t *err_details);
+static int zcp_synctask_promote(lua_State *, boolean_t, nvlist_t *);
 static zcp_synctask_info_t zcp_synctask_promote_info = {
 	.name = "promote",
 	.func = zcp_synctask_promote,
-	.space_check = ZFS_SPACE_CHECK_RESERVED,
-	.blocks_modified = 3,
 	.pargs = {
 	    {.za_name = "clone", .za_lua_type = LUA_TSTRING},
 	    {NULL, 0}
 	},
 	.kwargs = {
 	    {NULL, 0}
-	}
+	},
+	.space_check = ZFS_SPACE_CHECK_RESERVED,
+	.blocks_modified = 3
 };
 
 static int
@@ -204,6 +204,58 @@ zcp_synctask_rollback(lua_State *state, boolean_t sync, nvlist_t *err_details)
 
 	err = zcp_sync_task(state, dsl_dataset_rollback_check,
 	    dsl_dataset_rollback_sync, &ddra, sync, dsname);
+
+	return (err);
+}
+
+static int zcp_synctask_snapshot(lua_State *, boolean_t, nvlist_t *);
+static zcp_synctask_info_t zcp_synctask_snapshot_info = {
+	.name = "snapshot",
+	.func = zcp_synctask_snapshot,
+	.pargs = {
+	    {.za_name = "filesystem@snapname | volume@snapname",
+	    .za_lua_type = LUA_TSTRING},
+	    {NULL, 0}
+	},
+	.kwargs = {
+	    {NULL, 0}
+	},
+	.space_check = ZFS_SPACE_CHECK_NORMAL,
+	.blocks_modified = 3
+};
+
+/* ARGSUSED */
+static int
+zcp_synctask_snapshot(lua_State *state, boolean_t sync, nvlist_t *err_details)
+{
+	int err;
+	dsl_dataset_snapshot_arg_t ddsa = { 0 };
+	const char *dsname = lua_tostring(state, 1);
+	zcp_run_info_t *ri = zcp_run_info(state);
+
+	/*
+	 * We only allow for a single snapshot rather than a list, so the
+	 * error list output is unnecessary.
+	 */
+	ddsa.ddsa_errors = NULL;
+	ddsa.ddsa_props = NULL;
+	ddsa.ddsa_cr = ri->zri_cred;
+	ddsa.ddsa_snaps = fnvlist_alloc();
+	fnvlist_add_boolean(ddsa.ddsa_snaps, dsname);
+
+	/*
+	 * On old pools, the ZIL must not be active when a snapshot is created,
+	 * but we can't suspend the ZIL because we're already in syncing
+	 * context.
+	 */
+	if (spa_version(ri->zri_pool->dp_spa) < SPA_VERSION_FAST_SNAP) {
+		return (ENOTSUP);
+	}
+
+	err = zcp_sync_task(state, dsl_dataset_snapshot_check,
+	    dsl_dataset_snapshot_sync, &ddsa, sync, dsname);
+
+	fnvlist_free(ddsa.ddsa_snaps);
 
 	return (err);
 }
@@ -279,6 +331,7 @@ zcp_load_synctask_lib(lua_State *state, boolean_t sync)
 		&zcp_synctask_destroy_info,
 		&zcp_synctask_promote_info,
 		&zcp_synctask_rollback_info,
+		&zcp_synctask_snapshot_info,
 		NULL
 	};
 

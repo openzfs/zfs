@@ -26,6 +26,8 @@ dist_pkgdata_SCRIPTS = \
 	tst.recursive_neg.ksh \
 	tst.recursive_pos.ksh \
 	tst.recursive.zcp \
+	tst.return_large.ksh \
+	tst.return_large.zcp \
 	tst.return_nvlist_neg.ksh \
 	tst.return_nvlist_pos.ksh \
 	tst.return_recursive_table.ksh \

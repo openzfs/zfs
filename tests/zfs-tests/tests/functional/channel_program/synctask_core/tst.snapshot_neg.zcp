@@ -1,0 +1,35 @@
+--
+-- This file and its contents are supplied under the terms of the
+-- Common Development and Distribution License ("CDDL"), version 1.0.
+-- You may only use this file in accordance with the terms of version
+-- 1.0 of the CDDL.
+--
+-- A full copy of the text of the CDDL should have accompanied this
+-- source.  A copy of the CDDL is also available via the Internet at
+-- http://www.illumos.org/license/CDDL.
+--
+
+--
+-- Copyright (c) 2016, 2017 by Delphix. All rights reserved.
+--
+
+args = ...
+argv = args["argv"]
+fs1 = argv[1]
+fs2 = argv[2]
+
+longstring = "a"
+for i=1,9 do
+    longstring = longstring .. longstring
+end
+
+-- invalid snapshot names
+assert(zfs.sync.snapshot("ceci_nest_pas_une_dataset") == EINVAL);
+assert(zfs.sync.snapshot(fs1) == EINVAL)
+assert(zfs.sync.snapshot(fs1 .. "@" .. longstring) == ENAMETOOLONG)
+
+assert(zfs.sync.snapshot(fs2 .. "@snap1") == 0)
+-- only one snapshot of a filesystem is allowed per TXG.
+assert(zfs.sync.snapshot(fs2 .. "@snap2") == EAGAIN)
+-- snapshot already exists
+assert(zfs.sync.snapshot(fs1 .. "@snap1") == EEXIST)

@@ -14,7 +14,7 @@
  */
 
 /*
- * Copyright (c) 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2016, 2017 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_ZCP_H
@@ -136,8 +136,6 @@ typedef struct zcp_lib_info {
 	const zcp_arg_t pargs[4];
 	const zcp_arg_t kwargs[2];
 } zcp_lib_info_t;
-
-int zcp_nvlist_to_lua(lua_State *, nvlist_t *, char *, int);
 
 #ifdef	__cplusplus
 }
