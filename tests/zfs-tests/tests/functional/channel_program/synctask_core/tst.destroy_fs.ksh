@@ -11,7 +11,7 @@
 #
 
 #
-# Copyright (c) 2016 by Delphix. All rights reserved.
+# Copyright (c) 2016, 2017 by Delphix. All rights reserved.
 #
 
 verify_runnable "global"
@@ -32,7 +32,7 @@ log_must zfs unmount $fs
 
 log_must datasetexists $fs
 
-log_must_program $TESTPOOL - $fs <<-EOF
+log_must_program_sync $TESTPOOL - $fs <<-EOF
 	arg = ...
 	fs = arg["argv"][1]
 	err = zfs.sync.destroy(fs)

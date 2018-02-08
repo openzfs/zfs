@@ -39,7 +39,7 @@ log_must snapexists $snap1
 log_must snapexists $snap2
 log_must zfs unmount $fs
 
-log_must_program $TESTPOOL - $fs $snap2 <<-EOF
+log_must_program_sync $TESTPOOL - $fs $snap2 <<-EOF
 	arg = ...
 	fs = arg["argv"][1]
 	snap = arg["argv"][2]

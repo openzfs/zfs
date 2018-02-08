@@ -17,7 +17,8 @@
 .Nm zfs program
 .Nd executes ZFS channel programs
 .Sh SYNOPSIS
-.Cm zfs program
+.Cm "zfs program"
+.Op Fl n
 .Op Fl t Ar instruction-limit
 .Op Fl m Ar memory-limit
 .Ar pool
@@ -45,6 +46,14 @@ will be run on
 and any attempts to access or modify other pools will cause an error.
 .Sh OPTIONS
 .Bl -tag -width "-t"
+.It Fl n
+Executes a read-only channel program, which runs faster.
+The program cannot change on-disk state by calling functions from the
+zfs.sync submodule.
+The program can be used to gather information such as properties and
+determining if changes would succeed (zfs.check.*).
+Without this flag, all pending changes must be synced to disk before a
+channel program can complete.
 .It Fl t Ar instruction-limit
 Execution time limit, in number of Lua instructions to execute.
 If a channel program executes more than the specified number of instructions,

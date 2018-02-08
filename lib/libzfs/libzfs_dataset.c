@@ -22,7 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2013, Joyent, Inc. All rights reserved.
- * Copyright (c) 2011, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2017 by Delphix. All rights reserved.
  * Copyright (c) 2012 DEY Storage Systems, Inc.  All rights reserved.
  * Copyright (c) 2012 Pawel Jakub Dawidek <pawel@dawidek.net>.
  * Copyright (c) 2013 Martin Matuska. All rights reserved.
@@ -2506,7 +2506,7 @@ zcp_check(zfs_handle_t *zhp, zfs_prop_t prop, uint64_t intval,
 	fnvlist_add_string(argnvl, "dataset", zhp->zfs_name);
 	fnvlist_add_string(argnvl, "property", zfs_prop_to_name(prop));
 
-	error = lzc_channel_program(poolname, program,
+	error = lzc_channel_program_nosync(poolname, program,
 	    10 * 1000 * 1000, 10 * 1024 * 1024, argnvl, &outnvl);
 
 	if (error == 0) {

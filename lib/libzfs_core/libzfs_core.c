@@ -1063,6 +1063,25 @@ lzc_destroy_bookmarks(nvlist_t *bmarks, nvlist_t **errlist)
 	return (error);
 }
 
+static int
+lzc_channel_program_impl(const char *pool, const char *program, boolean_t sync,
+    uint64_t instrlimit, uint64_t memlimit, nvlist_t *argnvl, nvlist_t **outnvl)
+{
+	int error;
+	nvlist_t *args;
+
+	args = fnvlist_alloc();
+	fnvlist_add_string(args, ZCP_ARG_PROGRAM, program);
+	fnvlist_add_nvlist(args, ZCP_ARG_ARGLIST, argnvl);
+	fnvlist_add_boolean_value(args, ZCP_ARG_SYNC, sync);
+	fnvlist_add_uint64(args, ZCP_ARG_INSTRLIMIT, instrlimit);
+	fnvlist_add_uint64(args, ZCP_ARG_MEMLIMIT, memlimit);
+	error = lzc_ioctl(ZFS_IOC_CHANNEL_PROGRAM, pool, args, outnvl);
+	fnvlist_free(args);
+
+	return (error);
+}
+
 /*
  * Executes a channel program.
  *
@@ -1100,18 +1119,28 @@ int
 lzc_channel_program(const char *pool, const char *program, uint64_t instrlimit,
     uint64_t memlimit, nvlist_t *argnvl, nvlist_t **outnvl)
 {
-	int error;
-	nvlist_t *args;
+	return (lzc_channel_program_impl(pool, program, B_TRUE, instrlimit,
+	    memlimit, argnvl, outnvl));
+}
 
-	args = fnvlist_alloc();
-	fnvlist_add_string(args, ZCP_ARG_PROGRAM, program);
-	fnvlist_add_nvlist(args, ZCP_ARG_ARGLIST, argnvl);
-	fnvlist_add_uint64(args, ZCP_ARG_INSTRLIMIT, instrlimit);
-	fnvlist_add_uint64(args, ZCP_ARG_MEMLIMIT, memlimit);
-	error = lzc_ioctl(ZFS_IOC_CHANNEL_PROGRAM, pool, args, outnvl);
-	fnvlist_free(args);
-
-	return (error);
+/*
+ * Executes a read-only channel program.
+ *
+ * A read-only channel program works programmatically the same way as a
+ * normal channel program executed with lzc_channel_program(). The only
+ * difference is it runs exclusively in open-context and therefore can
+ * return faster. The downside to that, is that the program cannot change
+ * on-disk state by calling functions from the zfs.sync submodule.
+ *
+ * The return values of this function (and their meaning) are exactly the
+ * same as the ones described in lzc_channel_program().
+ */
+int
+lzc_channel_program_nosync(const char *pool, const char *program,
+    uint64_t timeout, uint64_t memlimit, nvlist_t *argnvl, nvlist_t **outnvl)
+{
+	return (lzc_channel_program_impl(pool, program, B_FALSE, timeout,
+	    memlimit, argnvl, outnvl));
 }
 
 /*

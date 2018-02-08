@@ -11,7 +11,7 @@
 #
 
 #
-# Copyright (c) 2016 by Delphix. All rights reserved.
+# Copyright (c) 2016, 2017 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/channel_program/channel_common.kshlib
@@ -40,8 +40,10 @@ set -A progs "zfs.sync.destroy(\"foo\", \"bar\")" \
 typeset -i i=0
 while (( i < ${#progs[*]} )); do
 	log_note "running program: ${progs[i]}"
-	# output should contain the usage message, which starts with "destroy{"
-	echo ${progs[i]} | log_mustnot_checkerror_program "destroy{" $TESTPOOL -
+	# output should contain the usage message, which contains "destroy{"
+	log_mustnot_checkerror_program "destroy{" $TESTPOOL - <<-EOF
+		${progs[i]}
+	EOF
 	((i = i + 1))
 done
 

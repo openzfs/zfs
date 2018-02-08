@@ -21,7 +21,7 @@
 .\"
 .\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
-.\" Copyright (c) 2011, 2016 by Delphix. All rights reserved.
+.\" Copyright (c) 2011, 2017 by Delphix. All rights reserved.
 .\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
 .\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
 .\" Copyright (c) 2014 by Adam Stevko. All rights reserved.
@@ -272,6 +272,7 @@
 .Ar snapshot Ar snapshot Ns | Ns Ar filesystem
 .Nm
 .Cm program
+.Op Fl n
 .Op Fl t Ar timeout
 .Op Fl m Ar memory_limit
 .Ar pool script
@@ -4042,6 +4043,7 @@ Display the path's inode change time as the first column of output.
 .It Xo
 .Nm
 .Cm program
+.Op Fl n
 .Op Fl t Ar timeout
 .Op Fl m Ar memory_limit
 .Ar pool script
@@ -4063,6 +4065,14 @@ For full documentation of the ZFS channel program interface, see the manual
 page for
 .Xr zfs-program 8 .
 .Bl -tag -width ""
+.It Fl n
+Executes a read-only channel program, which runs faster.
+The program cannot change on-disk state by calling functions from
+the zfs.sync submodule.
+The program can be used to gather information such as properties and
+determining if changes would succeed (zfs.check.*).
+Without this flag, all pending changes must be synced to disk before
+a channel program can complete.
 .It Fl t Ar timeout
 Execution time limit, in milliseconds.
 If a channel program executes for longer than the provided timeout, it will
