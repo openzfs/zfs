@@ -614,21 +614,26 @@ zio_remove_child(zio_t *pio, zio_t *cio, zio_link_t *zl)
 }
 
 static boolean_t
-zio_wait_for_children(zio_t *zio, enum zio_child child, enum zio_wait_type wait)
+zio_wait_for_children(zio_t *zio, uint8_t childbits, enum zio_wait_type wait)
 {
-	uint64_t *countp = &zio->io_children[child][wait];
 	boolean_t waiting = B_FALSE;
 
 	mutex_enter(&zio->io_lock);
 	ASSERT(zio->io_stall == NULL);
-	if (*countp != 0) {
-		zio->io_stage >>= 1;
-		ASSERT3U(zio->io_stage, !=, ZIO_STAGE_OPEN);
-		zio->io_stall = countp;
-		waiting = B_TRUE;
+	for (int c = 0; c < ZIO_CHILD_TYPES; c++) {
+		if (!(ZIO_CHILD_BIT_IS_SET(childbits, c)))
+			continue;
+
+		uint64_t *countp = &zio->io_children[c][wait];
+		if (*countp != 0) {
+			zio->io_stage >>= 1;
+			ASSERT3U(zio->io_stage, !=, ZIO_STAGE_OPEN);
+			zio->io_stall = countp;
+			waiting = B_TRUE;
+			break;
+		}
 	}
 	mutex_exit(&zio->io_lock);
-
 	return (waiting);
 }
 
@@ -1425,9 +1430,10 @@ zio_write_compress(zio_t *zio)
 	 * If our children haven't all reached the ready stage,
 	 * wait for them and then repeat this pipeline stage.
 	 */
-	if (zio_wait_for_children(zio, ZIO_CHILD_GANG, ZIO_WAIT_READY) ||
-	    zio_wait_for_children(zio, ZIO_CHILD_LOGICAL, ZIO_WAIT_READY))
+	if (zio_wait_for_children(zio, ZIO_CHILD_LOGICAL_BIT |
+	    ZIO_CHILD_GANG_BIT, ZIO_WAIT_READY)) {
 		return (ZIO_PIPELINE_STOP);
+	}
 
 	if (!IO_IS_ALLOCATING(zio))
 		return (ZIO_PIPELINE_CONTINUE);
@@ -2442,8 +2448,9 @@ zio_gang_issue(zio_t *zio)
 {
 	blkptr_t *bp = zio->io_bp;
 
-	if (zio_wait_for_children(zio, ZIO_CHILD_GANG, ZIO_WAIT_DONE))
+	if (zio_wait_for_children(zio, ZIO_CHILD_GANG_BIT, ZIO_WAIT_DONE)) {
 		return (ZIO_PIPELINE_STOP);
+	}
 
 	ASSERT(BP_IS_GANG(bp) && zio->io_gang_leader == zio);
 	ASSERT(zio->io_child_type > ZIO_CHILD_GANG);
@@ -2784,8 +2791,9 @@ zio_ddt_read_done(zio_t *zio)
 {
 	blkptr_t *bp = zio->io_bp;
 
-	if (zio_wait_for_children(zio, ZIO_CHILD_DDT, ZIO_WAIT_DONE))
+	if (zio_wait_for_children(zio, ZIO_CHILD_DDT_BIT, ZIO_WAIT_DONE)) {
 		return (ZIO_PIPELINE_STOP);
+	}
 
 	ASSERT(BP_GET_DEDUP(bp));
 	ASSERT(BP_GET_PSIZE(bp) == zio->io_size);
@@ -3511,8 +3519,9 @@ zio_vdev_io_done(zio_t *zio)
 	vdev_ops_t *ops = vd ? vd->vdev_ops : &vdev_mirror_ops;
 	boolean_t unexpected_error = B_FALSE;
 
-	if (zio_wait_for_children(zio, ZIO_CHILD_VDEV, ZIO_WAIT_DONE))
+	if (zio_wait_for_children(zio, ZIO_CHILD_VDEV_BIT, ZIO_WAIT_DONE)) {
 		return (ZIO_PIPELINE_STOP);
+	}
 
 	ASSERT(zio->io_type == ZIO_TYPE_READ || zio->io_type == ZIO_TYPE_WRITE);
 
@@ -3610,8 +3619,9 @@ zio_vdev_io_assess(zio_t *zio)
 {
 	vdev_t *vd = zio->io_vd;
 
-	if (zio_wait_for_children(zio, ZIO_CHILD_VDEV, ZIO_WAIT_DONE))
+	if (zio_wait_for_children(zio, ZIO_CHILD_VDEV_BIT, ZIO_WAIT_DONE)) {
 		return (ZIO_PIPELINE_STOP);
+	}
 
 	if (vd == NULL && !(zio->io_flags & ZIO_FLAG_CONFIG_WRITER))
 		spa_config_exit(zio->io_spa, SCL_ZIO, zio);
@@ -3983,9 +3993,10 @@ zio_ready(zio_t *zio)
 	zio_t *pio, *pio_next;
 	zio_link_t *zl = NULL;
 
-	if (zio_wait_for_children(zio, ZIO_CHILD_GANG, ZIO_WAIT_READY) ||
-	    zio_wait_for_children(zio, ZIO_CHILD_DDT, ZIO_WAIT_READY))
+	if (zio_wait_for_children(zio, ZIO_CHILD_GANG_BIT | ZIO_CHILD_DDT_BIT,
+	    ZIO_WAIT_READY)) {
 		return (ZIO_PIPELINE_STOP);
+	}
 
 	if (zio->io_ready) {
 		ASSERT(IO_IS_ALLOCATING(zio));
@@ -4125,11 +4136,9 @@ zio_done(zio_t *zio)
 	 * If our children haven't all completed,
 	 * wait for them and then repeat this pipeline stage.
 	 */
-	if (zio_wait_for_children(zio, ZIO_CHILD_VDEV, ZIO_WAIT_DONE) ||
-	    zio_wait_for_children(zio, ZIO_CHILD_GANG, ZIO_WAIT_DONE) ||
-	    zio_wait_for_children(zio, ZIO_CHILD_DDT, ZIO_WAIT_DONE) ||
-	    zio_wait_for_children(zio, ZIO_CHILD_LOGICAL, ZIO_WAIT_DONE))
+	if (zio_wait_for_children(zio, ZIO_CHILD_ALL_BITS, ZIO_WAIT_DONE)) {
 		return (ZIO_PIPELINE_STOP);
+	}
 
 	/*
 	 * If the allocation throttle is enabled, then update the accounting.
