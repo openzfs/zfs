@@ -149,14 +149,12 @@ LUA_C = \
 	lapi.c \
 	lauxlib.c \
 	lbaselib.c \
-	lbitlib.c \
 	lcode.c \
 	lcompat.c \
 	lcorolib.c \
 	lctype.c \
 	ldebug.c \
 	ldo.c \
-	ldump.c \
 	lfunc.c \
 	lgc.c \
 	llex.c \
@@ -170,7 +168,6 @@ LUA_C = \
 	ltable.c \
 	ltablib.c \
 	ltm.c \
-	lundump.c \
 	lvm.c \
 	lzio.c
 
