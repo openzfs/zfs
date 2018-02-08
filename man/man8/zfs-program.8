@@ -8,7 +8,7 @@
 .\" http://www.illumos.org/license/CDDL.
 .\"
 .\"
-.\" Copyright (c) 2016 by Delphix. All Rights Reserved.
+.\" Copyright (c) 2016, 2017 by Delphix. All Rights Reserved.
 .\"
 .Dd January 21, 2016
 .Dt ZFS-PROGRAM 8
@@ -361,6 +361,17 @@ dataset (string)
 .Bd -ragged -compact -offset "xxxx"
 Clone to be promoted.
 .Ed
+.It Em zfs.sync.rollback(filesystem)
+Rollback to the previous snapshot for a dataset.
+Returns 0 on successful rollback, or a nonzero error code otherwise.
+Rollbacks can be performed on filesystems or zvols, but not on snapshots
+or mounted datasets.
+EBUSY is returned in the case where the filesystem is mounted.
+.Pp
+filesystem (string)
+.Bd -ragged -compact -offset "xxxx"
+Filesystem to rollback.
+.Ed
 .El
 .It Sy zfs.check submodule
 For each function in the zfs.sync submodule, there is a corresponding zfs.check
@@ -380,6 +391,7 @@ The available zfs.check functions are:
 .Bl -tag -width "xx"
 .It Em zfs.check.destroy(dataset, [defer=true|false])
 .It Em zfs.check.promote(dataset)
+.It Em zfs.check.rollback(filesystem)
 .El
 .It Sy zfs.list submodule
 The zfs.list submodule provides functions for iterating over datasets and

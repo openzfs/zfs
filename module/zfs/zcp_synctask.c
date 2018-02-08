@@ -14,7 +14,7 @@
  */
 
 /*
- * Copyright (c) 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2016, 2017 by Delphix. All rights reserved.
  */
 
 #include <sys/lua/lua.h>
@@ -177,6 +177,37 @@ zcp_synctask_promote(lua_State *state, boolean_t sync, nvlist_t *err_details)
 	return (err);
 }
 
+static int zcp_synctask_rollback(lua_State *, boolean_t, nvlist_t *err_details);
+static zcp_synctask_info_t zcp_synctask_rollback_info = {
+	.name = "rollback",
+	.func = zcp_synctask_rollback,
+	.space_check = ZFS_SPACE_CHECK_RESERVED,
+	.blocks_modified = 1,
+	.pargs = {
+	    {.za_name = "filesystem", .za_lua_type = LUA_TSTRING},
+	    {0, 0}
+	},
+	.kwargs = {
+	    {0, 0}
+	}
+};
+
+static int
+zcp_synctask_rollback(lua_State *state, boolean_t sync, nvlist_t *err_details)
+{
+	int err;
+	const char *dsname = lua_tostring(state, 1);
+	dsl_dataset_rollback_arg_t ddra = { 0 };
+
+	ddra.ddra_fsname = dsname;
+	ddra.ddra_result = err_details;
+
+	err = zcp_sync_task(state, dsl_dataset_rollback_check,
+	    dsl_dataset_rollback_sync, &ddra, sync, dsname);
+
+	return (err);
+}
+
 void
 zcp_synctask_wrapper_cleanup(void *arg)
 {
@@ -247,6 +278,7 @@ zcp_load_synctask_lib(lua_State *state, boolean_t sync)
 	zcp_synctask_info_t *zcp_synctask_funcs[] = {
 		&zcp_synctask_destroy_info,
 		&zcp_synctask_promote_info,
+		&zcp_synctask_rollback_info,
 		NULL
 	};
 
