@@ -272,6 +272,10 @@ lseek_execute(
  * This is several orders of magnitude larger than expected grace period.
  * At 60 seconds the kernel will also begin issuing RCU stall warnings.
  */
+#ifdef refcount_t
+#undef refcount_t
+#endif
+
 #include <linux/posix_acl.h>
 
 #if defined(HAVE_POSIX_ACL_RELEASE) && !defined(HAVE_POSIX_ACL_RELEASE_GPL_ONLY)
@@ -396,6 +400,8 @@ typedef mode_t zpl_equivmode_t;
 #else
 #define	zpl_posix_acl_valid(ip, acl)  posix_acl_valid(acl)
 #endif
+
+#define	refcount_t	zfs_refcount_t
 
 #endif /* CONFIG_FS_POSIX_ACL */
 
@@ -575,6 +581,20 @@ static inline struct timespec
 current_time(struct inode *ip)
 {
 	return (timespec_trunc(current_kernel_time(), ip->i_sb->s_time_gran));
+}
+#endif
+
+/*
+ * 4.16 API change
+ * Added iversion interface for managing inode version field.
+ */
+#ifdef HAVE_INODE_SET_IVERSION
+#include <linux/iversion.h>
+#else
+static inline void
+inode_set_iversion(struct inode *ip, u64 val)
+{
+	ip->i_version = val;
 }
 #endif
 
