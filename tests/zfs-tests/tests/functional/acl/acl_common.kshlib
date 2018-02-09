@@ -25,7 +25,7 @@
 #
 
 #
-# Copyright (c) 2016 by Delphix. All rights reserved.
+# Copyright (c) 2016, 2018 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/acl/acl.cfg
@@ -185,7 +185,7 @@ function plus_sign_check_l #<obj>
 		return 1
 	fi
 
-	ls -ld $obj | awk '{print $1}' | grep "+\>" > /dev/null
+	ls -ld $obj | awk '{print $1}' | grep "+$" > /dev/null
 
         return $?
 }
@@ -202,7 +202,7 @@ function plus_sign_check_v #<obj>
 		return 1
 	fi
 
-	ls -vd $obj | nawk '(NR == 1) {print $1}' | grep "+\>" > /dev/null
+	ls -vd $obj | awk '(NR == 1) {print $1}' | grep "+$" > /dev/null
 
         return $?
 }
