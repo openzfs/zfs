@@ -55,7 +55,7 @@ tags = ['functional', 'cachefile']
 # 'mixed_none_lookup', 'mixed_none_lookup_ci', 'mixed_none_delete',
 # 'mixed_formd_lookup', 'mixed_formd_lookup_ci', 'mixed_formd_delete']
 [tests/functional/casenorm]
-tests = ['case_all_values', 'norm_all_values']
+tests = ['case_all_values', 'norm_all_values', 'mixed_create_failure']
 tags = ['functional', 'casenorm']
 
 [tests/functional/chattr]
