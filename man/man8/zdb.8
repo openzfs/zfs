@@ -248,7 +248,9 @@ and, optionally,
 .It Sy b Ar offset
 Print block pointer
 .It Sy d
-Decompress the block
+Decompress the block. Set environment variable
+.Nm ZBD_NO_ZLE
+to skip zle when guessing.
 .It Sy e
 Byte swap the block
 .It Sy g
