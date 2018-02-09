@@ -166,7 +166,7 @@
 .Ar snapshot bookmark
 .Nm
 .Cm send
-.Op Fl DLPRcenpvw
+.Op Fl DLPRbcenpvw
 .Op Oo Fl I Ns | Ns Fl i Oc Ar snapshot
 .Ar snapshot
 .Nm
@@ -3114,7 +3114,7 @@ feature.
 .It Xo
 .Nm
 .Cm send
-.Op Fl DLPRcenpvw
+.Op Fl DLPRbcenpvw
 .Op Oo Fl I Ns | Ns Fl i Oc Ar snapshot
 .Ar snapshot
 .Xc
@@ -3210,6 +3210,14 @@ See
 for details on ZFS feature flags and the
 .Sy embedded_data
 feature.
+.It Fl b, -backup
+Sends only received property values whether or not they are overridden by local
+settings, but only if the dataset has ever been received. Use this option when
+you want
+.Nm zfs Cm receive
+to restore received properties backed up on the sent dataset and to avoid
+sending local settings that may have nothing to do with the source dataset,
+but only with how the data is backed up.
 .It Fl c, -compressed
 Generate a more compact stream by using compressed WRITE records for blocks
 which are compressed on disk and in memory
