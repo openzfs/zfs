@@ -4211,17 +4211,31 @@ zfs_rollback(zfs_handle_t *zhp, zfs_handle_t *snap, boolean_t force)
 	 * a new snapshot is created before this request is processed.
 	 */
 	err = lzc_rollback_to(zhp->zfs_name, snap->zfs_name);
-	if (err == EXDEV) {
-		zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
-		    "'%s' is not the latest snapshot"), snap->zfs_name);
-		(void) zfs_error_fmt(zhp->zfs_hdl, EZFS_BUSY,
+	if (err != 0) {
+		char errbuf[1024];
+
+		(void) snprintf(errbuf, sizeof (errbuf),
 		    dgettext(TEXT_DOMAIN, "cannot rollback '%s'"),
 		    zhp->zfs_name);
-		return (err);
-	} else if (err != 0) {
-		(void) zfs_standard_error_fmt(zhp->zfs_hdl, errno,
-		    dgettext(TEXT_DOMAIN, "cannot rollback '%s'"),
-		    zhp->zfs_name);
+		switch (err) {
+		case EEXIST:
+			zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
+			    "there is a snapshot or bookmark more recent "
+			    "than '%s'"), snap->zfs_name);
+			(void) zfs_error(zhp->zfs_hdl, EZFS_EXISTS, errbuf);
+			break;
+		case ESRCH:
+			zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
+			    "'%s' is not found among snapshots of '%s'"),
+			    snap->zfs_name, zhp->zfs_name);
+			(void) zfs_error(zhp->zfs_hdl, EZFS_NOENT, errbuf);
+			break;
+		case EINVAL:
+			(void) zfs_error(zhp->zfs_hdl, EZFS_BADTYPE, errbuf);
+			break;
+		default:
+			(void) zfs_standard_error(zhp->zfs_hdl, err, errbuf);
+		}
 		return (err);
 	}
 

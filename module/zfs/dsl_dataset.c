@@ -2541,7 +2541,7 @@ dsl_dataset_rollback_check(void *arg, dmu_tx_t *tx)
 	/* must have a most recent snapshot */
 	if (dsl_dataset_phys(ds)->ds_prev_snap_txg < TXG_INITIAL) {
 		dsl_dataset_rele(ds, FTAG);
-		return (SET_ERROR(EINVAL));
+		return (SET_ERROR(ESRCH));
 	}
 
 	/*
@@ -2561,11 +2561,46 @@ dsl_dataset_rollback_check(void *arg, dmu_tx_t *tx)
 	 * the latest snapshot is it.
 	 */
 	if (ddra->ddra_tosnap != NULL) {
-		char namebuf[ZFS_MAX_DATASET_NAME_LEN];
+		dsl_dataset_t *snapds;
 
-		dsl_dataset_name(ds->ds_prev, namebuf);
-		if (strcmp(namebuf, ddra->ddra_tosnap) != 0)
-			return (SET_ERROR(EXDEV));
+		/* Check if the target snapshot exists at all. */
+		error = dsl_dataset_hold(dp, ddra->ddra_tosnap, FTAG, &snapds);
+		if (error != 0) {
+			/*
+			 * ESRCH is used to signal that the target snapshot does
+			 * not exist, while ENOENT is used to report that
+			 * the rolled back dataset does not exist.
+			 * ESRCH is also used to cover other cases where the
+			 * target snapshot is not related to the dataset being
+			 * rolled back such as being in a different pool.
+			 */
+			if (error == ENOENT || error == EXDEV)
+				error = SET_ERROR(ESRCH);
+			dsl_dataset_rele(ds, FTAG);
+			return (error);
+		}
+		ASSERT(snapds->ds_is_snapshot);
+
+		/* Check if the snapshot is the latest snapshot indeed. */
+		if (snapds != ds->ds_prev) {
+			/*
+			 * Distinguish between the case where the only problem
+			 * is intervening snapshots (EEXIST) vs the snapshot
+			 * not being a valid target for rollback (ESRCH).
+			 */
+			if (snapds->ds_dir == ds->ds_dir ||
+			    (dsl_dir_is_clone(ds->ds_dir) &&
+			    dsl_dir_phys(ds->ds_dir)->dd_origin_obj ==
+			    snapds->ds_object)) {
+				error = SET_ERROR(EEXIST);
+			} else {
+				error = SET_ERROR(ESRCH);
+			}
+			dsl_dataset_rele(snapds, FTAG);
+			dsl_dataset_rele(ds, FTAG);
+			return (error);
+		}
+		dsl_dataset_rele(snapds, FTAG);
 	}
 
 	/* must not have any bookmarks after the most recent snapshot */
@@ -2574,8 +2609,10 @@ dsl_dataset_rollback_check(void *arg, dmu_tx_t *tx)
 	nvlist_t *bookmarks = fnvlist_alloc();
 	error = dsl_get_bookmarks_impl(ds, proprequest, bookmarks);
 	fnvlist_free(proprequest);
-	if (error != 0)
+	if (error != 0) {
+		dsl_dataset_rele(ds, FTAG);
 		return (error);
+	}
 	for (nvpair_t *pair = nvlist_next_nvpair(bookmarks, NULL);
 	    pair != NULL; pair = nvlist_next_nvpair(bookmarks, pair)) {
 		nvlist_t *valuenv =
