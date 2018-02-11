@@ -24,6 +24,15 @@
 # Prior to each fio run the dataset is recreated, and fio writes new files
 # into an otherwise empty pool.
 #
+# Thread/Concurrency settings:
+#    PERF_NTHREADS defines the number of files created in the test filesystem,
+#    as well as the number of threads that will simultaneously drive IO to
+#    those files.  The settings chosen are from measurements in the
+#    PerfAutoESX/ZFSPerfESX Environments, selected at concurrency levels that
+#    are at peak throughput but lowest latency.  Higher concurrency introduces
+#    queue time latency and would reduce the impact of code-induced performance
+#    regressions.
+#
 
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/perf/perf.shlib
@@ -53,13 +62,13 @@ export TOTAL_SIZE=$(($(get_prop avail $TESTFS) * 3 / 2))
 if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_WEEKLY}
 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'weekly'}
-	export PERF_NTHREADS=${PERF_NTHREADS:-'8 16 64'}
+	export PERF_NTHREADS=${PERF_NTHREADS:-'1 4 8 16 32 64 128'}
 	export PERF_SYNC_TYPES=${PERF_SYNC_TYPES:-'0 1'}
 	export PERF_IOSIZES=${PERF_IOSIZES:-'8k'}
 elif [[ -n $PERF_REGRESSION_NIGHTLY ]]; then
 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_NIGHTLY}
 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'nightly'}
-	export PERF_NTHREADS=${PERF_NTHREADS:-'64 128'}
+	export PERF_NTHREADS=${PERF_NTHREADS:-'32 128'}
 	export PERF_SYNC_TYPES=${PERF_SYNC_TYPES:-'1'}
 	export PERF_IOSIZES=${PERF_IOSIZES:-'8k'}
 fi
