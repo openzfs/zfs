@@ -188,6 +188,29 @@ function get_max_arc_size
 	echo $max_arc_size
 }
 
+function get_max_dbuf_cache_size
+{
+	typeset -l max_dbuf_cache_size
+	typeset -l param_file='/sys/module/zfs/parameters/dbuf_cache_max_bytes'
+
+	if is_linux; then
+		if [[ ! -e $param_file ]]; then
+			log_fail "get_max_dbuf_cache_size failed"
+		fi
+
+		max_dbuf_cache_size=$(cat $param_file)
+	else
+		max_dbuf_cache_size=$(dtrace -qn 'BEGIN {
+		    printf("%u\n", `dbuf_cache_max_bytes);
+		    exit(0);
+		}')
+
+		[[ $? -eq 0 ]] || log_fail "get_max_dbuf_cache_size failed"
+	fi
+
+	echo $max_dbuf_cache_size
+}
+
 # Create a file with some information about how this system is configured.
 function get_system_config
 {
