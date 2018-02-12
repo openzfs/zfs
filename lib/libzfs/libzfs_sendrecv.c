@@ -3254,6 +3254,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	zfs_type_t type;
 	boolean_t toplevel = B_FALSE;
 	boolean_t zoned = B_FALSE;
+	boolean_t hastoken = B_FALSE;
 
 	begin_time = time(NULL);
 	bzero(origin, MAXNAMELEN);
@@ -3535,6 +3536,11 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		/* we want to know if we're zoned when validating -o|-x props */
 		zoned = zfs_prop_get_int(zhp, ZFS_PROP_ZONED);
 
+		/* may need this info later, get it now we have zhp around */
+		if (zfs_prop_get(zhp, ZFS_PROP_RECEIVE_RESUME_TOKEN, NULL, 0,
+		    NULL, NULL, 0, B_TRUE) == 0)
+			hastoken = B_TRUE;
+
 		/* gather existing properties on destination */
 		origprops = fnvlist_alloc();
 		fnvlist_merge(origprops, zhp->zfs_props);
@@ -3741,9 +3747,19 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			break;
 		case EDQUOT:
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "destination %s space quota exceeded"), name);
+			    "destination %s space quota exceeded."), name);
 			(void) zfs_error(hdl, EZFS_NOSPC, errbuf);
 			break;
+		case EBUSY:
+			if (hastoken) {
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "destination %s contains "
+				    "partially-complete state from "
+				    "\"zfs receive -s\"."), name);
+				(void) zfs_error(hdl, EZFS_BUSY, errbuf);
+				break;
+			}
+			/* fallthru */
 		default:
 			(void) zfs_standard_error(hdl, ioctl_errno, errbuf);
 		}
