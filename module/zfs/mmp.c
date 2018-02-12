@@ -125,6 +125,7 @@ uint_t zfs_multihost_import_intervals = MMP_DEFAULT_IMPORT_INTERVALS;
 uint_t zfs_multihost_fail_intervals = MMP_DEFAULT_FAIL_INTERVALS;
 
 static void mmp_thread(spa_t *spa);
+char *mmp_tag = "mmp_write_uberblock";
 
 void
 mmp_init(spa_t *spa)
@@ -278,7 +279,7 @@ mmp_write_done(zio_t *zio)
 
 unlock:
 	mutex_exit(&mts->mmp_io_lock);
-	spa_config_exit(spa, SCL_STATE, FTAG);
+	spa_config_exit(spa, SCL_STATE, mmp_tag);
 
 	abd_free(zio->io_abd);
 }
@@ -314,7 +315,7 @@ mmp_write_uberblock(spa_t *spa)
 	int label;
 	uint64_t offset;
 
-	spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
+	spa_config_enter(spa, SCL_STATE, mmp_tag, RW_READER);
 	vd = mmp_random_leaf(spa->spa_root_vdev);
 	if (vd == NULL) {
 		spa_config_exit(spa, SCL_STATE, FTAG);
