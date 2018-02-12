@@ -117,6 +117,12 @@ for obj in $OBJ_LIST ; do
 	new_space_avail=`get_prop available $TESTPOOL`
 	new_space_used=`get_prop used $TESTPOOL`
 
+	#
+	# Recent changes to metaslab logic have caused these tests to expand
+	# outside of their previous tolerance. If this is discovered to be a
+	# bug, rather than a side effect of some interactions, the reservation
+	# should be halved again.
+	#
 	log_must within_limits $space_used $new_space_used $RESV_TOLERANCE
 	log_must within_limits $space_avail $new_space_avail $RESV_TOLERANCE
 done

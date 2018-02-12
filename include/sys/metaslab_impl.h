@@ -24,7 +24,7 @@
  */
 
 /*
- * Copyright (c) 2011, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_METASLAB_IMPL_H
@@ -52,6 +52,7 @@ typedef struct metaslab_alloc_trace {
 	uint64_t			mat_weight;
 	uint32_t			mat_dva_id;
 	uint64_t			mat_offset;
+	int					mat_allocator;
 } metaslab_alloc_trace_t;
 
 /*
@@ -72,9 +73,11 @@ typedef enum trace_alloc_type {
 
 #define	METASLAB_WEIGHT_PRIMARY		(1ULL << 63)
 #define	METASLAB_WEIGHT_SECONDARY	(1ULL << 62)
-#define	METASLAB_WEIGHT_TYPE		(1ULL << 61)
+#define	METASLAB_WEIGHT_CLAIM		(1ULL << 61)
+#define	METASLAB_WEIGHT_TYPE		(1ULL << 60)
 #define	METASLAB_ACTIVE_MASK		\
-	(METASLAB_WEIGHT_PRIMARY | METASLAB_WEIGHT_SECONDARY)
+	(METASLAB_WEIGHT_PRIMARY | METASLAB_WEIGHT_SECONDARY | \
+	METASLAB_WEIGHT_CLAIM)
 
 /*
  * The metaslab weight is used to encode the amount of free space in a
@@ -97,37 +100,39 @@ typedef enum trace_alloc_type {
  *
  *      64      56      48      40      32      24      16      8       0
  *      +-------+-------+-------+-------+-------+-------+-------+-------+
- *      |PS1|                   weighted-free space                     |
+ *      |PSC1|                  weighted-free space                     |
  *      +-------+-------+-------+-------+-------+-------+-------+-------+
  *
  *	PS - indicates primary and secondary activation
+ *	C - indicates activation for claimed block zio
  *	space - the fragmentation-weighted space
  *
  * Segment-based weight:
  *
  *      64      56      48      40      32      24      16      8       0
  *      +-------+-------+-------+-------+-------+-------+-------+-------+
- *      |PS0| idx|             count of segments in region              |
+ *      |PSC0| idx|            count of segments in region              |
  *      +-------+-------+-------+-------+-------+-------+-------+-------+
  *
  *	PS - indicates primary and secondary activation
+ *	C - indicates activation for claimed block zio
  *	idx - index for the highest bucket in the histogram
  *	count - number of segments in the specified bucket
  */
-#define	WEIGHT_GET_ACTIVE(weight)		BF64_GET((weight), 62, 2)
-#define	WEIGHT_SET_ACTIVE(weight, x)		BF64_SET((weight), 62, 2, x)
+#define	WEIGHT_GET_ACTIVE(weight)		BF64_GET((weight), 61, 3)
+#define	WEIGHT_SET_ACTIVE(weight, x)		BF64_SET((weight), 61, 3, x)
 
 #define	WEIGHT_IS_SPACEBASED(weight)		\
-	((weight) == 0 || BF64_GET((weight), 61, 1))
-#define	WEIGHT_SET_SPACEBASED(weight)		BF64_SET((weight), 61, 1, 1)
+	((weight) == 0 || BF64_GET((weight), 60, 1))
+#define	WEIGHT_SET_SPACEBASED(weight)		BF64_SET((weight), 60, 1, 1)
 
 /*
  * These macros are only applicable to segment-based weighting.
  */
-#define	WEIGHT_GET_INDEX(weight)		BF64_GET((weight), 55, 6)
-#define	WEIGHT_SET_INDEX(weight, x)		BF64_SET((weight), 55, 6, x)
-#define	WEIGHT_GET_COUNT(weight)		BF64_GET((weight), 0, 55)
-#define	WEIGHT_SET_COUNT(weight, x)		BF64_SET((weight), 0, 55, x)
+#define	WEIGHT_GET_INDEX(weight)		BF64_GET((weight), 54, 6)
+#define	WEIGHT_SET_INDEX(weight, x)		BF64_SET((weight), 54, 6, x)
+#define	WEIGHT_GET_COUNT(weight)		BF64_GET((weight), 0, 54)
+#define	WEIGHT_SET_COUNT(weight, x)		BF64_SET((weight), 0, 54, x)
 
 /*
  * A metaslab class encompasses a category of allocatable top-level vdevs.
@@ -178,8 +183,8 @@ struct metaslab_class {
 	 * allowed to reserve slots even if we've reached the maximum
 	 * number of allocations allowed.
 	 */
-	uint64_t		mc_alloc_max_slots;
-	refcount_t		mc_alloc_slots;
+	uint64_t		*mc_alloc_max_slots;
+	refcount_t		*mc_alloc_slots;
 
 	uint64_t		mc_alloc_groups; /* # of allocatable groups */
 
@@ -201,9 +206,12 @@ struct metaslab_class {
  */
 struct metaslab_group {
 	kmutex_t		mg_lock;
+	metaslab_t		**mg_primaries;
+	metaslab_t		**mg_secondaries;
 	avl_tree_t		mg_metaslab_tree;
 	uint64_t		mg_aliquot;
 	boolean_t		mg_allocatable;		/* can we allocate? */
+	uint64_t		mg_ms_ready;
 
 	/*
 	 * A metaslab group is considered to be initialized only after
@@ -223,15 +231,33 @@ struct metaslab_group {
 	metaslab_group_t	*mg_next;
 
 	/*
-	 * Each metaslab group can handle mg_max_alloc_queue_depth allocations
-	 * which are tracked by mg_alloc_queue_depth. It's possible for a
-	 * metaslab group to handle more allocations than its max. This
-	 * can occur when gang blocks are required or when other groups
-	 * are unable to handle their share of allocations.
+	 * In order for the allocation throttle to function properly, we cannot
+	 * have too many IOs going to each disk by default; the throttle
+	 * operates by allocating more work to disks that finish quickly, so
+	 * allocating larger chunks to each disk reduces its effectiveness.
+	 * However, if the number of IOs going to each allocator is too small,
+	 * we will not perform proper aggregation at the vdev_queue layer,
+	 * also resulting in decreased performance. Therefore, we will use a
+	 * ramp-up strategy.
+	 *
+	 * Each allocator in each metaslab group has a current queue depth
+	 * (mg_alloc_queue_depth[allocator]) and a current max queue depth
+	 * (mg_cur_max_alloc_queue_depth[allocator]), and each metaslab group
+	 * has an absolute max queue depth (mg_max_alloc_queue_depth).  We
+	 * add IOs to an allocator until the mg_alloc_queue_depth for that
+	 * allocator hits the cur_max. Every time an IO completes for a given
+	 * allocator on a given metaslab group, we increment its cur_max until
+	 * it reaches mg_max_alloc_queue_depth. The cur_max resets every txg to
+	 * help protect against disks that decrease in performance over time.
+	 *
+	 * It's possible for an allocator to handle more allocations than
+	 * its max. This can occur when gang blocks are required or when other
+	 * groups are unable to handle their share of allocations.
 	 */
 	uint64_t		mg_max_alloc_queue_depth;
-	refcount_t		mg_alloc_queue_depth;
-
+	uint64_t		*mg_cur_max_alloc_queue_depth;
+	refcount_t		*mg_alloc_queue_depth;
+	int			mg_allocators;
 	/*
 	 * A metalab group that can no longer allocate the minimum block
 	 * size will set mg_no_free_space. Once a metaslab group is out
@@ -356,6 +382,13 @@ struct metaslab {
 	uint64_t	ms_max_size;	/* maximum allocatable size	*/
 
 	/*
+	 * -1 if it's not active in an allocator, otherwise set to the allocator
+	 * this metaslab is active for.
+	 */
+	int		ms_allocator;
+	boolean_t	ms_primary; /* Only valid if ms_allocator is not -1 */
+
+	/*
 	 * The metaslab block allocators can optionally use a size-ordered
 	 * range tree and/or an array of LBAs. Not all allocators use
 	 * this functionality. The ms_allocatable_by_size should always
@@ -369,6 +402,8 @@ struct metaslab {
 	metaslab_group_t *ms_group;	/* metaslab group		*/
 	avl_node_t	ms_group_node;	/* node in metaslab group tree	*/
 	txg_node_t	ms_txg_node;	/* per-txg dirty metaslab links	*/
+
+	boolean_t	ms_new;
 };
 
 #ifdef	__cplusplus

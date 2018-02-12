@@ -7652,9 +7652,11 @@ spa_sync(spa_t *spa, uint64_t txg)
 	spa->spa_syncing_txg = txg;
 	spa->spa_sync_pass = 0;
 
-	mutex_enter(&spa->spa_alloc_lock);
-	VERIFY0(avl_numnodes(&spa->spa_alloc_tree));
-	mutex_exit(&spa->spa_alloc_lock);
+	for (int i = 0; i < spa->spa_alloc_count; i++) {
+		mutex_enter(&spa->spa_alloc_locks[i]);
+		VERIFY0(avl_numnodes(&spa->spa_alloc_trees[i]));
+		mutex_exit(&spa->spa_alloc_locks[i]);
+	}
 
 	/*
 	 * If there are any pending vdev state changes, convert them
@@ -7715,7 +7717,7 @@ spa_sync(spa_t *spa, uint64_t txg)
 	 * The max queue depth will not change in the middle of syncing
 	 * out this txg.
 	 */
-	uint64_t queue_depth_total = 0;
+	uint64_t slots_per_allocator = 0;
 	for (int c = 0; c < rvd->vdev_children; c++) {
 		vdev_t *tvd = rvd->vdev_child[c];
 		metaslab_group_t *mg = tvd->vdev_mg;
@@ -7729,17 +7731,22 @@ spa_sync(spa_t *spa, uint64_t txg)
 		 * allocations look at mg_max_alloc_queue_depth, and async
 		 * allocations all happen from spa_sync().
 		 */
-		ASSERT0(refcount_count(&mg->mg_alloc_queue_depth));
+		for (int i = 0; i < spa->spa_alloc_count; i++)
+			ASSERT0(refcount_count(&(mg->mg_alloc_queue_depth[i])));
 		mg->mg_max_alloc_queue_depth = max_queue_depth;
-		queue_depth_total += mg->mg_max_alloc_queue_depth;
+
+		for (int i = 0; i < spa->spa_alloc_count; i++) {
+			mg->mg_cur_max_alloc_queue_depth[i] =
+			    zfs_vdev_def_queue_depth;
+		}
+		slots_per_allocator += zfs_vdev_def_queue_depth;
 	}
 	metaslab_class_t *mc = spa_normal_class(spa);
-	ASSERT0(refcount_count(&mc->mc_alloc_slots));
-	mc->mc_alloc_max_slots = queue_depth_total;
+	for (int i = 0; i < spa->spa_alloc_count; i++) {
+		ASSERT0(refcount_count(&mc->mc_alloc_slots[i]));
+		mc->mc_alloc_max_slots[i] = slots_per_allocator;
+	}
 	mc->mc_alloc_throttle_enabled = zio_dva_throttle_enabled;
-
-	ASSERT3U(mc->mc_alloc_max_slots, <=,
-	    max_queue_depth * rvd->vdev_children);
 
 	for (int c = 0; c < rvd->vdev_children; c++) {
 		vdev_t *vd = rvd->vdev_child[c];
@@ -7920,9 +7927,11 @@ spa_sync(spa_t *spa, uint64_t txg)
 
 	dsl_pool_sync_done(dp, txg);
 
-	mutex_enter(&spa->spa_alloc_lock);
-	VERIFY0(avl_numnodes(&spa->spa_alloc_tree));
-	mutex_exit(&spa->spa_alloc_lock);
+	for (int i = 0; i < spa->spa_alloc_count; i++) {
+		mutex_enter(&spa->spa_alloc_locks[i]);
+		VERIFY0(avl_numnodes(&spa->spa_alloc_trees[i]));
+		mutex_exit(&spa->spa_alloc_locks[i]);
+	}
 
 	/*
 	 * Update usable space statistics.
