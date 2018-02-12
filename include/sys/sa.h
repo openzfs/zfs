@@ -159,6 +159,7 @@ void sa_handle_unlock(sa_handle_t *);
 
 #ifdef _KERNEL
 int sa_lookup_uio(sa_handle_t *, sa_attr_type_t, uio_t *);
+int sa_add_projid(sa_handle_t *, dmu_tx_t *, uint64_t);
 #endif
 
 #ifdef	__cplusplus

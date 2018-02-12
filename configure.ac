@@ -280,6 +280,7 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/pool_names/Makefile
 	tests/zfs-tests/tests/functional/poolversion/Makefile
 	tests/zfs-tests/tests/functional/privilege/Makefile
+	tests/zfs-tests/tests/functional/projectquota/Makefile
 	tests/zfs-tests/tests/functional/quota/Makefile
 	tests/zfs-tests/tests/functional/raidz/Makefile
 	tests/zfs-tests/tests/functional/redundancy/Makefile

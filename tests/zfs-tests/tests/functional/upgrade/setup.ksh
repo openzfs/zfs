@@ -33,12 +33,11 @@
 # Copyright (c) 2016 by Jinshan Xiong. No rights reserved.
 #
 
-. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/upgrade/upgrade_common.kshlib
 
 verify_runnable "global"
 
 # create a pool without any features
-log_must mkfile 128m /tmp/zpool_upgrade_test.dat
-log_must zpool create -d -m $TESTDIR $TESTPOOL /tmp/zpool_upgrade_test.dat
+log_must mkfile 128m $TMPDEV
 
 log_pass

@@ -105,7 +105,7 @@ fatal(spa_t *spa, void *tag, const char *fmt, ...)
 /* ARGSUSED */
 static int
 space_delta_cb(dmu_object_type_t bonustype, void *data,
-    uint64_t *userp, uint64_t *groupp)
+    uint64_t *userp, uint64_t *groupp, uint64_t *projectp)
 {
 	/*
 	 * Is it a valid type of object to track?

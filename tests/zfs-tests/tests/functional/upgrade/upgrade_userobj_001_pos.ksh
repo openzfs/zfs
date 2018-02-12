@@ -25,7 +25,7 @@
 # Copyright (c) 2017 Datto Inc.
 #
 
-. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/upgrade/upgrade_common.kshlib
 
 #
 # DESCRIPTION:
@@ -41,16 +41,12 @@
 # 4. Make sure manual upgrade work
 #
 
-function cleanup
-{
-	datasetexists $TESTPOOL/fs1 && log_must zfs destroy $TESTPOOL/fs1
-	datasetexists $TESTPOOL/fs2 && log_must zfs destroy $TESTPOOL/fs2
-}
-
 verify_runnable "global"
 
 log_assert "pool upgrade for userobj accounting should work"
-log_onexit cleanup
+log_onexit cleanup_upgrade
+
+log_must zpool create -d -m $TESTDIR $TESTPOOL $TMPDEV
 
 log_must mkfiles $TESTDIR/tf $((RANDOM % 1000 + 1))
 log_must zfs create $TESTPOOL/fs1

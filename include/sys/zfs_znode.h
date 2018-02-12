@@ -42,6 +42,7 @@
 #endif
 #include <sys/zfs_acl.h>
 #include <sys/zil.h>
+#include <sys/zfs_project.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -65,6 +66,18 @@ extern "C" {
 #define	ZFS_REPARSE		0x0000080000000000ull
 #define	ZFS_OFFLINE		0x0000100000000000ull
 #define	ZFS_SPARSE		0x0000200000000000ull
+
+/*
+ * PROJINHERIT attribute is used to indicate that the child object under the
+ * directory which has the PROJINHERIT attribute needs to inherit its parent
+ * project ID that is used by project quota.
+ */
+#define	ZFS_PROJINHERIT		0x0000400000000000ull
+
+/*
+ * PROJID attr is used internally to indicate that the object has project ID.
+ */
+#define	ZFS_PROJID		0x0000800000000000ull
 
 #define	ZFS_ATTR_SET(zp, attr, value, pflags, tx) \
 { \
@@ -110,6 +123,7 @@ extern "C" {
 #define	SA_ZPL_ZNODE_ACL(z)	z->z_attr_table[ZPL_ZNODE_ACL]
 #define	SA_ZPL_DXATTR(z)	z->z_attr_table[ZPL_DXATTR]
 #define	SA_ZPL_PAD(z)		z->z_attr_table[ZPL_PAD]
+#define	SA_ZPL_PROJID(z)	z->z_attr_table[ZPL_PROJID]
 
 /*
  * Is ID ephemeral?
@@ -128,7 +142,7 @@ extern "C" {
 
 /*
  * Special attributes for master node.
- * "userquota@" and "groupquota@" are also valid (from
+ * "userquota@", "groupquota@" and "projectquota@" are also valid (from
  * zfs_userquota_prop_prefixes[]).
  */
 #define	ZFS_FSID		"FSID"
@@ -196,6 +210,7 @@ typedef struct znode {
 	krwlock_t	z_xattr_lock;	/* xattr data lock */
 	nvlist_t	*z_xattr_cached; /* cached xattrs */
 	uint64_t	z_xattr_parent;	/* parent obj for this xattr */
+	uint64_t	z_projid;	/* project ID */
 	list_node_t	z_link_node;	/* all znodes in fs link */
 	sa_handle_t	*z_sa_hdl;	/* handle to sa data */
 	boolean_t	z_is_sa;	/* are we native sa? */
@@ -211,6 +226,13 @@ typedef struct znode_hold {
 	avl_node_t	zh_node;	/* avl tree linkage */
 	refcount_t	zh_refcount;	/* active consumer reference count */
 } znode_hold_t;
+
+static inline uint64_t
+zfs_inherit_projid(znode_t *dzp)
+{
+	return ((dzp->z_pflags & ZFS_PROJINHERIT) ? dzp->z_projid :
+	    ZFS_DEFAULT_PROJID);
+}
 
 /*
  * Range locking rules

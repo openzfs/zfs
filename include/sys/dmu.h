@@ -276,9 +276,10 @@ void zfs_znode_byteswap(void *buf, size_t size);
 
 #define	DMU_USERUSED_OBJECT	(-1ULL)
 #define	DMU_GROUPUSED_OBJECT	(-2ULL)
+#define	DMU_PROJECTUSED_OBJECT	(-3ULL)
 
 /*
- * Zap prefix for object accounting in DMU_{USER,GROUP}USED_OBJECT.
+ * Zap prefix for object accounting in DMU_{USER,GROUP,PROJECT}USED_OBJECT.
  */
 #define	DMU_OBJACCT_PREFIX	"obj-"
 #define	DMU_OBJACCT_PREFIX_LEN	4
@@ -971,7 +972,7 @@ extern int dmu_dir_list_next(objset_t *os, int namelen, char *name,
     uint64_t *idp, uint64_t *offp);
 
 typedef int objset_used_cb_t(dmu_object_type_t bonustype,
-    void *bonus, uint64_t *userp, uint64_t *groupp);
+    void *bonus, uint64_t *userp, uint64_t *groupp, uint64_t *projectp);
 extern void dmu_objset_register_type(dmu_objset_type_t ost,
     objset_used_cb_t *cb);
 extern void dmu_objset_set_user(objset_t *os, void *user_ptr);

@@ -166,8 +166,17 @@ zfs_log_xvattr(lr_attr_t *lrattr, xvattr_t *xvap)
 		    XAT0_AV_MODIFIED;
 	if (XVA_ISSET_REQ(xvap, XAT_CREATETIME))
 		ZFS_TIME_ENCODE(&xoap->xoa_createtime, crtime);
-	if (XVA_ISSET_REQ(xvap, XAT_AV_SCANSTAMP))
+	if (XVA_ISSET_REQ(xvap, XAT_AV_SCANSTAMP)) {
+		ASSERT(!XVA_ISSET_REQ(xvap, XAT_PROJID));
+
 		bcopy(xoap->xoa_av_scanstamp, scanstamp, AV_SCANSTAMP_SZ);
+	} else if (XVA_ISSET_REQ(xvap, XAT_PROJID)) {
+		/*
+		 * XAT_PROJID and XAT_AV_SCANSTAMP will never be valid
+		 * at the same time, so we can share the same space.
+		 */
+		bcopy(&xoap->xoa_projid, scanstamp, sizeof (uint64_t));
+	}
 	if (XVA_ISSET_REQ(xvap, XAT_REPARSE))
 		*attrs |= (xoap->xoa_reparse == 0) ? 0 :
 		    XAT0_REPARSE;
@@ -177,6 +186,9 @@ zfs_log_xvattr(lr_attr_t *lrattr, xvattr_t *xvap)
 	if (XVA_ISSET_REQ(xvap, XAT_SPARSE))
 		*attrs |= (xoap->xoa_sparse == 0) ? 0 :
 		    XAT0_SPARSE;
+	if (XVA_ISSET_REQ(xvap, XAT_PROJINHERIT))
+		*attrs |= (xoap->xoa_projinherit == 0) ? 0 :
+		    XAT0_PROJINHERIT;
 }
 
 static void *

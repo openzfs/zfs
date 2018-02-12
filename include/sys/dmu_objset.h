@@ -49,14 +49,18 @@ struct dsl_pool;
 struct dsl_dataset;
 struct dmu_tx;
 
-#define	OBJSET_PHYS_SIZE 2048
-#define	OBJSET_OLD_PHYS_SIZE 1024
+#define	OBJSET_PHYS_SIZE_V1	1024
+#define	OBJSET_PHYS_SIZE_V2	2048
+#define	OBJSET_PHYS_SIZE_V3	4096
 
 #define	OBJSET_BUF_HAS_USERUSED(buf) \
-	(arc_buf_size(buf) > OBJSET_OLD_PHYS_SIZE)
+	(arc_buf_size(buf) >= OBJSET_PHYS_SIZE_V2)
+#define	OBJSET_BUF_HAS_PROJECTUSED(buf) \
+	(arc_buf_size(buf) >= OBJSET_PHYS_SIZE_V3)
 
-#define	OBJSET_FLAG_USERACCOUNTING_COMPLETE	(1ULL<<0)
-#define	OBJSET_FLAG_USEROBJACCOUNTING_COMPLETE	(1ULL<<1)
+#define	OBJSET_FLAG_USERACCOUNTING_COMPLETE	(1ULL << 0)
+#define	OBJSET_FLAG_USEROBJACCOUNTING_COMPLETE	(1ULL << 1)
+#define	OBJSET_FLAG_PROJECTQUOTA_COMPLETE	(1ULL << 2)
 
 /* all flags are currently non-portable */
 #define	OBJSET_CRYPT_PORTABLE_FLAGS_MASK	(0)
@@ -68,11 +72,14 @@ typedef struct objset_phys {
 	uint64_t os_flags;
 	uint8_t os_portable_mac[ZIO_OBJSET_MAC_LEN];
 	uint8_t os_local_mac[ZIO_OBJSET_MAC_LEN];
-	char os_pad[OBJSET_PHYS_SIZE - sizeof (dnode_phys_t)*3 -
+	char os_pad0[OBJSET_PHYS_SIZE_V2 - sizeof (dnode_phys_t)*3 -
 	    sizeof (zil_header_t) - sizeof (uint64_t)*2 -
 	    2*ZIO_OBJSET_MAC_LEN];
 	dnode_phys_t os_userused_dnode;
 	dnode_phys_t os_groupused_dnode;
+	dnode_phys_t os_projectused_dnode;
+	char os_pad1[OBJSET_PHYS_SIZE_V3 - OBJSET_PHYS_SIZE_V2 -
+	    sizeof (dnode_phys_t)];
 } objset_phys_t;
 
 typedef int (*dmu_objset_upgrade_cb_t)(objset_t *);
@@ -94,6 +101,7 @@ struct objset {
 	dnode_handle_t os_meta_dnode;
 	dnode_handle_t os_userused_dnode;
 	dnode_handle_t os_groupused_dnode;
+	dnode_handle_t os_projectused_dnode;
 	zilog_t *os_zil;
 
 	list_node_t os_evicting_node;
@@ -143,7 +151,7 @@ struct objset {
 	list_t os_dnodes;
 	list_t os_downgraded_dbufs;
 
-	/* Protects changes to DMU_{USER,GROUP}USED_OBJECT */
+	/* Protects changes to DMU_{USER,GROUP,PROJECT}USED_OBJECT */
 	kmutex_t os_userused_lock;
 
 	/* stuff we store for the user */
@@ -165,6 +173,7 @@ struct objset {
 #define	DMU_META_DNODE(os)	((os)->os_meta_dnode.dnh_dnode)
 #define	DMU_USERUSED_DNODE(os)	((os)->os_userused_dnode.dnh_dnode)
 #define	DMU_GROUPUSED_DNODE(os)	((os)->os_groupused_dnode.dnh_dnode)
+#define	DMU_PROJECTUSED_DNODE(os) ((os)->os_projectused_dnode.dnh_dnode)
 
 #define	DMU_OS_IS_L2CACHEABLE(os)				\
 	((os)->os_secondary_cache == ZFS_CACHE_ALL ||		\
@@ -215,9 +224,12 @@ int dmu_objset_userspace_upgrade(objset_t *os);
 boolean_t dmu_objset_userspace_present(objset_t *os);
 boolean_t dmu_objset_userobjused_enabled(objset_t *os);
 boolean_t dmu_objset_userobjspace_upgradable(objset_t *os);
-void dmu_objset_userobjspace_upgrade(objset_t *os);
 boolean_t dmu_objset_userobjspace_present(objset_t *os);
 boolean_t dmu_objset_incompatible_encryption_version(objset_t *os);
+boolean_t dmu_objset_projectquota_enabled(objset_t *os);
+boolean_t dmu_objset_projectquota_present(objset_t *os);
+boolean_t dmu_objset_projectquota_upgradable(objset_t *os);
+void dmu_objset_id_quota_upgrade(objset_t *os);
 
 int dmu_fsname(const char *snapname, char *buf);
 
