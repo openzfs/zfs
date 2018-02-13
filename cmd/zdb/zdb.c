@@ -3406,7 +3406,7 @@ zdb_claim_removing(spa_t *spa, zdb_cb_t *zcb)
 	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 
 	spa_vdev_removal_t *svr = spa->spa_vdev_removal;
-	vdev_t *vd = svr->svr_vdev;
+	vdev_t *vd = vdev_lookup_top(spa, svr->svr_vdev_id);
 	vdev_indirect_mapping_t *vim = vd->vdev_indirect_mapping;
 
 	for (uint64_t msi = 0; msi < vd->vdev_ms_count; msi++) {
@@ -3422,13 +3422,17 @@ zdb_claim_removing(spa_t *spa, zdb_cb_t *zcb)
 			    svr->svr_allocd_segs, SM_ALLOC));
 
 			/*
-			 * Clear everything past what has been synced,
-			 * because we have not allocated mappings for it yet.
+			 * Clear everything past what has been synced unless
+			 * it's past the spacemap, because we have not allocated
+			 * mappings for it yet.
 			 */
-			range_tree_clear(svr->svr_allocd_segs,
-			    vdev_indirect_mapping_max_offset(vim),
-			    msp->ms_sm->sm_start + msp->ms_sm->sm_size -
-			    vdev_indirect_mapping_max_offset(vim));
+			uint64_t vim_max_offset =
+			    vdev_indirect_mapping_max_offset(vim);
+			uint64_t sm_end = msp->ms_sm->sm_start +
+			    msp->ms_sm->sm_size;
+			if (sm_end > vim_max_offset)
+				range_tree_clear(svr->svr_allocd_segs,
+				    vim_max_offset, sm_end - vim_max_offset);
 		}
 
 		zcb->zcb_removing_size +=

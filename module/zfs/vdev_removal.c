@@ -84,18 +84,12 @@ typedef struct vdev_copy_arg {
 	kmutex_t	vca_lock;
 } vdev_copy_arg_t;
 
-typedef struct vdev_copy_seg_arg {
-	vdev_copy_arg_t	*vcsa_copy_arg;
-	uint64_t	vcsa_txg;
-	dva_t		*vcsa_dest_dva;
-	blkptr_t	*vcsa_dest_bp;
-} vdev_copy_seg_arg_t;
-
 /*
- * The maximum amount of allowed data we're allowed to copy from a device
- * at a time when removing it.
+ * The maximum amount of memory we can use for outstanding i/o while
+ * doing a device removal.  This determines how much i/o we can have
+ * in flight concurrently.
  */
-int zfs_remove_max_copy_bytes = 8 * 1024 * 1024;
+int zfs_remove_max_copy_bytes = 64 * 1024 * 1024;
 
 /*
  * The largest contiguous segment that we will attempt to allocate when
@@ -165,7 +159,7 @@ spa_vdev_removal_create(vdev_t *vd)
 	mutex_init(&svr->svr_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&svr->svr_cv, NULL, CV_DEFAULT, NULL);
 	svr->svr_allocd_segs = range_tree_create(NULL, NULL);
-	svr->svr_vdev = vd;
+	svr->svr_vdev_id = vd->vdev_id;
 
 	for (int i = 0; i < TXG_SIZE; i++) {
 		svr->svr_frees[i] = range_tree_create(NULL, NULL);
@@ -207,9 +201,10 @@ spa_vdev_removal_destroy(spa_vdev_removal_t *svr)
 static void
 vdev_remove_initiate_sync(void *arg, dmu_tx_t *tx)
 {
-	vdev_t *vd = arg;
+	int vdev_id = (uintptr_t)arg;
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+	vdev_t *vd = vdev_lookup_top(spa, vdev_id);
 	vdev_indirect_config_t *vic = &vd->vdev_indirect_config;
-	spa_t *spa = vd->vdev_spa;
 	objset_t *mos = spa->spa_dsl_pool->dp_meta_objset;
 	spa_vdev_removal_t *svr = NULL;
 	ASSERTV(uint64_t txg = dmu_tx_get_txg(tx));
@@ -331,7 +326,7 @@ vdev_remove_initiate_sync(void *arg, dmu_tx_t *tx)
 	ASSERT3P(spa->spa_vdev_removal, ==, NULL);
 	spa->spa_vdev_removal = svr;
 	svr->svr_thread = thread_create(NULL, 0,
-	    spa_vdev_remove_thread, vd, 0, &p0, TS_RUN, minclsyspri);
+	    spa_vdev_remove_thread, spa, 0, &p0, TS_RUN, minclsyspri);
 }
 
 /*
@@ -372,21 +367,24 @@ spa_remove_init(spa_t *spa)
 		spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
 		vdev_t *vd = vdev_lookup_top(spa,
 		    spa->spa_removing_phys.sr_removing_vdev);
-		spa_config_exit(spa, SCL_STATE, FTAG);
 
-		if (vd == NULL)
+		if (vd == NULL) {
+			spa_config_exit(spa, SCL_STATE, FTAG);
 			return (EINVAL);
+		}
 
 		vdev_indirect_config_t *vic = &vd->vdev_indirect_config;
 
 		ASSERT(vdev_is_concrete(vd));
 		spa_vdev_removal_t *svr = spa_vdev_removal_create(vd);
-		ASSERT(svr->svr_vdev->vdev_removing);
+		ASSERT3U(svr->svr_vdev_id, ==, vd->vdev_id);
+		ASSERT(vd->vdev_removing);
 
 		vd->vdev_indirect_mapping = vdev_indirect_mapping_open(
 		    spa->spa_meta_objset, vic->vic_mapping_object);
 		vd->vdev_indirect_births = vdev_indirect_births_open(
 		    spa->spa_meta_objset, vic->vic_births_object);
+		spa_config_exit(spa, SCL_STATE, FTAG);
 
 		spa->spa_vdev_removal = svr;
 	}
@@ -439,15 +437,8 @@ spa_restart_removal(spa_t *spa)
 	if (!spa_writeable(spa))
 		return;
 
-	vdev_t *vd = svr->svr_vdev;
-	vdev_indirect_mapping_t *vim = vd->vdev_indirect_mapping;
-
-	ASSERT3P(vd, !=, NULL);
-	ASSERT(vd->vdev_removing);
-
-	zfs_dbgmsg("restarting removal of %llu at count=%llu",
-	    vd->vdev_id, vdev_indirect_mapping_num_entries(vim));
-	svr->svr_thread = thread_create(NULL, 0, spa_vdev_remove_thread, vd,
+	zfs_dbgmsg("restarting removal of %llu", svr->svr_vdev_id);
+	svr->svr_thread = thread_create(NULL, 0, spa_vdev_remove_thread, spa,
 	    0, &p0, TS_RUN, minclsyspri);
 }
 
@@ -468,7 +459,7 @@ free_from_removing_vdev(vdev_t *vd, uint64_t offset, uint64_t size,
 	ASSERT(vd->vdev_indirect_config.vic_mapping_object != 0);
 	ASSERT3U(vd->vdev_indirect_config.vic_mapping_object, ==,
 	    vdev_indirect_mapping_object(vim));
-	ASSERT3P(vd, ==, svr->svr_vdev);
+	ASSERT3U(vd->vdev_id, ==, svr->svr_vdev_id);
 	ASSERT3U(spa_syncing_txg(spa), ==, txg);
 
 	mutex_enter(&svr->svr_lock);
@@ -646,7 +637,7 @@ spa_finish_removal(spa_t *spa, dsl_scan_state_t state, dmu_tx_t *tx)
 
 	if (state == DSS_FINISHED) {
 		spa_removing_phys_t *srp = &spa->spa_removing_phys;
-		vdev_t *vd = svr->svr_vdev;
+		vdev_t *vd = vdev_lookup_top(spa, svr->svr_vdev_id);
 		vdev_indirect_config_t *vic = &vd->vdev_indirect_config;
 
 		if (srp->sr_prev_indirect_vdev != UINT64_MAX) {
@@ -690,7 +681,7 @@ vdev_mapping_sync(void *arg, dmu_tx_t *tx)
 {
 	spa_vdev_removal_t *svr = arg;
 	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
-	vdev_t *vd = svr->svr_vdev;
+	vdev_t *vd = vdev_lookup_top(spa, svr->svr_vdev_id);
 	ASSERTV(vdev_indirect_config_t *vic = &vd->vdev_indirect_config);
 	uint64_t txg = dmu_tx_get_txg(tx);
 	vdev_indirect_mapping_t *vim = vd->vdev_indirect_mapping;
@@ -718,64 +709,128 @@ vdev_mapping_sync(void *arg, dmu_tx_t *tx)
 	spa_sync_removing_state(spa, tx);
 }
 
+/*
+ * All reads and writes associated with a call to spa_vdev_copy_segment()
+ * are done.
+ */
+static void
+spa_vdev_copy_nullzio_done(zio_t *zio)
+{
+	spa_config_exit(zio->io_spa, SCL_STATE, zio->io_spa);
+}
+
+/*
+ * The write of the new location is done.
+ */
 static void
 spa_vdev_copy_segment_write_done(zio_t *zio)
 {
-	vdev_copy_seg_arg_t *vcsa = zio->io_private;
-	vdev_copy_arg_t *vca = vcsa->vcsa_copy_arg;
-	spa_config_exit(zio->io_spa, SCL_STATE, FTAG);
+	vdev_copy_arg_t *vca = zio->io_private;
+
 	abd_free(zio->io_abd);
 
 	mutex_enter(&vca->vca_lock);
 	vca->vca_outstanding_bytes -= zio->io_size;
 	cv_signal(&vca->vca_cv);
 	mutex_exit(&vca->vca_lock);
-
-	ASSERT0(zio->io_error);
-	kmem_free(vcsa->vcsa_dest_bp, sizeof (blkptr_t));
-	kmem_free(vcsa, sizeof (vdev_copy_seg_arg_t));
 }
 
+/*
+ * The read of the old location is done.  The parent zio is the write to
+ * the new location.  Allow it to start.
+ */
 static void
 spa_vdev_copy_segment_read_done(zio_t *zio)
 {
-	vdev_copy_seg_arg_t *vcsa = zio->io_private;
-	dva_t *dest_dva = vcsa->vcsa_dest_dva;
-	uint64_t txg = vcsa->vcsa_txg;
-	spa_t *spa = zio->io_spa;
-	ASSERTV(vdev_t *dest_vd = vdev_lookup_top(spa, DVA_GET_VDEV(dest_dva)));
-	blkptr_t *bp = NULL;
-	dva_t *dva = NULL;
-	uint64_t size = zio->io_size;
-
-	ASSERT3P(dest_vd, !=, NULL);
-	ASSERT0(zio->io_error);
-
-	vcsa->vcsa_dest_bp = kmem_alloc(sizeof (blkptr_t), KM_SLEEP);
-	bp = vcsa->vcsa_dest_bp;
-	dva = bp->blk_dva;
-
-	BP_ZERO(bp);
-
-	/* initialize with dest_dva */
-	bcopy(dest_dva, dva, sizeof (dva_t));
-	BP_SET_BIRTH(bp, TXG_INITIAL, TXG_INITIAL);
-
-	BP_SET_LSIZE(bp, size);
-	BP_SET_PSIZE(bp, size);
-	BP_SET_COMPRESS(bp, ZIO_COMPRESS_OFF);
-	BP_SET_CHECKSUM(bp, ZIO_CHECKSUM_OFF);
-	BP_SET_TYPE(bp, DMU_OT_NONE);
-	BP_SET_LEVEL(bp, 0);
-	BP_SET_DEDUP(bp, 0);
-	BP_SET_BYTEORDER(bp, ZFS_HOST_BYTEORDER);
-
-	zio_nowait(zio_rewrite(spa->spa_txg_zio[txg & TXG_MASK], spa,
-	    txg, bp, zio->io_abd, size,
-	    spa_vdev_copy_segment_write_done, vcsa,
-	    ZIO_PRIORITY_REMOVAL, 0, NULL));
+	zio_nowait(zio_unique_parent(zio));
 }
 
+/*
+ * If the old and new vdevs are mirrors, we will read both sides of the old
+ * mirror, and write each copy to the corresponding side of the new mirror.
+ * If the old and new vdevs have a different number of children, we will do
+ * this as best as possible.  Since we aren't verifying checksums, this
+ * ensures that as long as there's a good copy of the data, we'll have a
+ * good copy after the removal, even if there's silent damage to one side
+ * of the mirror. If we're removing a mirror that has some silent damage,
+ * we'll have exactly the same damage in the new location (assuming that
+ * the new location is also a mirror).
+ *
+ * We accomplish this by creating a tree of zio_t's, with as many writes as
+ * there are "children" of the new vdev (a non-redundant vdev counts as one
+ * child, a 2-way mirror has 2 children, etc). Each write has an associated
+ * read from a child of the old vdev. Typically there will be the same
+ * number of children of the old and new vdevs.  However, if there are more
+ * children of the new vdev, some child(ren) of the old vdev will be issued
+ * multiple reads.  If there are more children of the old vdev, some copies
+ * will be dropped.
+ *
+ * For example, the tree of zio_t's for a 2-way mirror is:
+ *
+ *                            null
+ *                           /    \
+ *    write(new vdev, child 0)      write(new vdev, child 1)
+ *      |                             |
+ *    read(old vdev, child 0)       read(old vdev, child 1)
+ *
+ * Child zio's complete before their parents complete.  However, zio's
+ * created with zio_vdev_child_io() may be issued before their children
+ * complete.  In this case we need to make sure that the children (reads)
+ * complete before the parents (writes) are *issued*.  We do this by not
+ * calling zio_nowait() on each write until its corresponding read has
+ * completed.
+ *
+ * The spa_config_lock must be held while zio's created by
+ * zio_vdev_child_io() are in progress, to ensure that the vdev tree does
+ * not change (e.g. due to a concurrent "zpool attach/detach"). The "null"
+ * zio is needed to release the spa_config_lock after all the reads and
+ * writes complete. (Note that we can't grab the config lock for each read,
+ * because it is not reentrant - we could deadlock with a thread waiting
+ * for a write lock.)
+ */
+static void
+spa_vdev_copy_one_child(vdev_copy_arg_t *vca, zio_t *nzio,
+    vdev_t *source_vd, uint64_t source_offset,
+    vdev_t *dest_child_vd, uint64_t dest_offset, int dest_id, uint64_t size)
+{
+	ASSERT3U(spa_config_held(nzio->io_spa, SCL_ALL, RW_READER), !=, 0);
+
+	mutex_enter(&vca->vca_lock);
+	vca->vca_outstanding_bytes += size;
+	mutex_exit(&vca->vca_lock);
+
+	abd_t *abd = abd_alloc_for_io(size, B_FALSE);
+
+	vdev_t *source_child_vd;
+	if (source_vd->vdev_ops == &vdev_mirror_ops && dest_id != -1) {
+		/*
+		 * Source and dest are both mirrors.  Copy from the same
+		 * child id as we are copying to (wrapping around if there
+		 * are more dest children than source children).
+		 */
+		source_child_vd =
+		    source_vd->vdev_child[dest_id % source_vd->vdev_children];
+	} else {
+		source_child_vd = source_vd;
+	}
+
+	zio_t *write_zio = zio_vdev_child_io(nzio, NULL,
+	    dest_child_vd, dest_offset, abd, size,
+	    ZIO_TYPE_WRITE, ZIO_PRIORITY_REMOVAL,
+	    ZIO_FLAG_CANFAIL,
+	    spa_vdev_copy_segment_write_done, vca);
+
+	zio_nowait(zio_vdev_child_io(write_zio, NULL,
+	    source_child_vd, source_offset, abd, size,
+	    ZIO_TYPE_READ, ZIO_PRIORITY_REMOVAL,
+	    ZIO_FLAG_CANFAIL,
+	    spa_vdev_copy_segment_read_done, vca));
+}
+
+/*
+ * Allocate a new location for this segment, and create the zio_t's to
+ * read from the old location and write to the new location.
+ */
 static int
 spa_vdev_copy_segment(vdev_t *vd, uint64_t start, uint64_t size, uint64_t txg,
     vdev_copy_arg_t *vca, zio_alloc_list_t *zal)
@@ -784,10 +839,7 @@ spa_vdev_copy_segment(vdev_t *vd, uint64_t start, uint64_t size, uint64_t txg,
 	spa_t *spa = vd->vdev_spa;
 	spa_vdev_removal_t *svr = spa->spa_vdev_removal;
 	vdev_indirect_mapping_entry_t *entry;
-	vdev_copy_seg_arg_t *private;
 	dva_t dst = {{ 0 }};
-	blkptr_t blk, *bp = &blk;
-	dva_t *dva = bp->blk_dva;
 
 	ASSERT3U(size, <=, SPA_MAXBLOCKSIZE);
 
@@ -804,51 +856,28 @@ spa_vdev_copy_segment(vdev_t *vd, uint64_t start, uint64_t size, uint64_t txg,
 	 */
 	ASSERT3U(DVA_GET_ASIZE(&dst), ==, size);
 
-	mutex_enter(&vca->vca_lock);
-	vca->vca_outstanding_bytes += size;
-	mutex_exit(&vca->vca_lock);
-
 	entry = kmem_zalloc(sizeof (vdev_indirect_mapping_entry_t), KM_SLEEP);
 	DVA_MAPPING_SET_SRC_OFFSET(&entry->vime_mapping, start);
 	entry->vime_mapping.vimep_dst = dst;
 
-	private = kmem_alloc(sizeof (vdev_copy_seg_arg_t), KM_SLEEP);
-	private->vcsa_dest_dva = &entry->vime_mapping.vimep_dst;
-	private->vcsa_txg = txg;
-	private->vcsa_copy_arg = vca;
-
 	/*
-	 * This lock is eventually released by the donefunc for the
-	 * zio_write_phys that finishes copying the data.
+	 * See comment before spa_vdev_copy_one_child().
 	 */
-	spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
-
-	/*
-	 * Do logical I/O, letting the redundancy vdevs (like mirror)
-	 * handle their own I/O instead of duplicating that code here.
-	 */
-	BP_ZERO(bp);
-
-	DVA_SET_VDEV(&dva[0], vd->vdev_id);
-	DVA_SET_OFFSET(&dva[0], start);
-	DVA_SET_GANG(&dva[0], 0);
-	DVA_SET_ASIZE(&dva[0], vdev_psize_to_asize(vd, size));
-
-	BP_SET_BIRTH(bp, TXG_INITIAL, TXG_INITIAL);
-
-	BP_SET_LSIZE(bp, size);
-	BP_SET_PSIZE(bp, size);
-	BP_SET_COMPRESS(bp, ZIO_COMPRESS_OFF);
-	BP_SET_CHECKSUM(bp, ZIO_CHECKSUM_OFF);
-	BP_SET_TYPE(bp, DMU_OT_NONE);
-	BP_SET_LEVEL(bp, 0);
-	BP_SET_DEDUP(bp, 0);
-	BP_SET_BYTEORDER(bp, ZFS_HOST_BYTEORDER);
-
-	zio_nowait(zio_read(spa->spa_txg_zio[txg & TXG_MASK], spa,
-	    bp, abd_alloc_for_io(size, B_FALSE), size,
-	    spa_vdev_copy_segment_read_done, private,
-	    ZIO_PRIORITY_REMOVAL, 0, NULL));
+	spa_config_enter(spa, SCL_STATE, spa, RW_READER);
+	zio_t *nzio = zio_null(spa->spa_txg_zio[txg & TXG_MASK], spa, NULL,
+	    spa_vdev_copy_nullzio_done, NULL, 0);
+	vdev_t *dest_vd = vdev_lookup_top(spa, DVA_GET_VDEV(&dst));
+	if (dest_vd->vdev_ops == &vdev_mirror_ops) {
+		for (int i = 0; i < dest_vd->vdev_children; i++) {
+			vdev_t *child = dest_vd->vdev_child[i];
+			spa_vdev_copy_one_child(vca, nzio, vd, start,
+			    child, DVA_GET_OFFSET(&dst), i, size);
+		}
+	} else {
+		spa_vdev_copy_one_child(vca, nzio, vd, start,
+		    dest_vd, DVA_GET_OFFSET(&dst), -1, size);
+	}
+	zio_nowait(nzio);
 
 	list_insert_tail(&svr->svr_new_segments[txg & TXG_MASK], entry);
 	ASSERT3U(start + size, <=, vd->vdev_ms_count << vd->vdev_ms_shift);
@@ -866,8 +895,8 @@ static void
 vdev_remove_complete_sync(void *arg, dmu_tx_t *tx)
 {
 	spa_vdev_removal_t *svr = arg;
-	vdev_t *vd = svr->svr_vdev;
-	spa_t *spa = vd->vdev_spa;
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+	vdev_t *vd = vdev_lookup_top(spa, svr->svr_vdev_id);
 
 	ASSERT3P(vd->vdev_ops, ==, &vdev_indirect_ops);
 
@@ -893,37 +922,6 @@ vdev_remove_complete_sync(void *arg, dmu_tx_t *tx)
 	/* vd->vdev_path is not available here */
 	spa_history_log_internal(spa, "vdev remove completed",  tx,
 	    "%s vdev %llu", spa_name(spa), vd->vdev_id);
-}
-
-static void
-vdev_indirect_state_transfer(vdev_t *ivd, vdev_t *vd)
-{
-	ivd->vdev_indirect_config = vd->vdev_indirect_config;
-
-	ASSERT3P(ivd->vdev_indirect_mapping, ==, NULL);
-	ASSERT(vd->vdev_indirect_mapping != NULL);
-	ivd->vdev_indirect_mapping = vd->vdev_indirect_mapping;
-	vd->vdev_indirect_mapping = NULL;
-
-	ASSERT3P(ivd->vdev_indirect_births, ==, NULL);
-	ASSERT(vd->vdev_indirect_births != NULL);
-	ivd->vdev_indirect_births = vd->vdev_indirect_births;
-	vd->vdev_indirect_births = NULL;
-
-	ASSERT0(range_tree_space(vd->vdev_obsolete_segments));
-	ASSERT0(range_tree_space(ivd->vdev_obsolete_segments));
-
-	if (vd->vdev_obsolete_sm != NULL) {
-		ASSERT3U(ivd->vdev_asize, ==, vd->vdev_asize);
-
-		/*
-		 * We cannot use space_map_{open,close} because we hold all
-		 * the config locks as writer.
-		 */
-		ASSERT3P(ivd->vdev_obsolete_sm, ==, NULL);
-		ivd->vdev_obsolete_sm = vd->vdev_obsolete_sm;
-		vd->vdev_obsolete_sm = NULL;
-	}
 }
 
 static void
@@ -961,17 +959,13 @@ vdev_remove_replace_with_indirect(vdev_t *vd, uint64_t txg)
 	vdev_remove_enlist_zaps(vd, svr->svr_zaplist);
 
 	ivd = vdev_add_parent(vd, &vdev_indirect_ops);
+	ivd->vdev_removing = 0;
 
 	vd->vdev_leaf_zap = 0;
 
 	vdev_remove_child(ivd, vd);
 	vdev_compact_children(ivd);
 
-	vdev_indirect_state_transfer(ivd, vd);
-
-	svr->svr_vdev = ivd;
-
-	ASSERT(!ivd->vdev_removing);
 	ASSERT(!list_link_active(&vd->vdev_state_dirty_node));
 
 	tx = dmu_tx_create_assigned(spa->spa_dsl_pool, txg);
@@ -994,9 +988,8 @@ vdev_remove_replace_with_indirect(vdev_t *vd, uint64_t txg)
  * context by the removal thread after we have copied all vdev's data.
  */
 static void
-vdev_remove_complete(vdev_t *vd)
+vdev_remove_complete(spa_t *spa)
 {
-	spa_t *spa = vd->vdev_spa;
 	uint64_t txg;
 
 	/*
@@ -1004,8 +997,12 @@ vdev_remove_complete(vdev_t *vd)
 	 * vdev_metaslab_fini()
 	 */
 	txg_wait_synced(spa->spa_dsl_pool, 0);
-
 	txg = spa_vdev_enter(spa);
+	vdev_t *vd = vdev_lookup_top(spa, spa->spa_vdev_removal->svr_vdev_id);
+
+	sysevent_t *ev = spa_event_create(spa, vd, NULL,
+	    ESC_ZFS_VDEV_REMOVE_DEV);
+
 	zfs_dbgmsg("finishing device removal for vdev %llu in txg %llu",
 	    vd->vdev_id, txg);
 
@@ -1025,6 +1022,10 @@ vdev_remove_complete(vdev_t *vd)
 	/*
 	 * We now release the locks, allowing spa_sync to run and finish the
 	 * removal via vdev_remove_complete_sync in syncing context.
+	 *
+	 * Note that we hold on to the vdev_t that has been replaced.  Since
+	 * it isn't part of the vdev tree any longer, it can't be concurrently
+	 * manipulated, even while we don't have the config lock.
 	 */
 	(void) spa_vdev_exit(spa, NULL, txg, 0);
 
@@ -1046,6 +1047,9 @@ vdev_remove_complete(vdev_t *vd)
 	 */
 	vdev_config_dirty(spa->spa_root_vdev);
 	(void) spa_vdev_exit(spa, vd, txg, 0);
+
+	if (ev != NULL)
+		spa_event_post(ev);
 }
 
 /*
@@ -1056,7 +1060,7 @@ vdev_remove_complete(vdev_t *vd)
  * this size again this txg.
  */
 static void
-spa_vdev_copy_impl(spa_vdev_removal_t *svr, vdev_copy_arg_t *vca,
+spa_vdev_copy_impl(vdev_t *vd, spa_vdev_removal_t *svr, vdev_copy_arg_t *vca,
     uint64_t *max_alloc, dmu_tx_t *tx)
 {
 	uint64_t txg = dmu_tx_get_txg(tx);
@@ -1095,7 +1099,7 @@ spa_vdev_copy_impl(spa_vdev_removal_t *svr, vdev_copy_arg_t *vca,
 	while (length > 0) {
 		uint64_t mylen = MIN(length, thismax);
 
-		int error = spa_vdev_copy_segment(svr->svr_vdev,
+		int error = spa_vdev_copy_segment(vd,
 		    offset, mylen, txg, vca, &zal);
 
 		if (error == ENOSPC) {
@@ -1153,12 +1157,14 @@ spa_vdev_copy_impl(spa_vdev_removal_t *svr, vdev_copy_arg_t *vca,
 static void
 spa_vdev_remove_thread(void *arg)
 {
-	vdev_t *vd = arg;
-	spa_t *spa = vd->vdev_spa;
+	spa_t *spa = arg;
 	spa_vdev_removal_t *svr = spa->spa_vdev_removal;
 	vdev_copy_arg_t vca;
 	uint64_t max_alloc = zfs_remove_max_segment;
 	uint64_t last_txg = 0;
+
+	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+	vdev_t *vd = vdev_lookup_top(spa, svr->svr_vdev_id);
 	vdev_indirect_mapping_t *vim = vd->vdev_indirect_mapping;
 	uint64_t start_offset = vdev_indirect_mapping_max_offset(vim);
 
@@ -1166,7 +1172,6 @@ spa_vdev_remove_thread(void *arg)
 	ASSERT(vdev_is_concrete(vd));
 	ASSERT(vd->vdev_removing);
 	ASSERT(vd->vdev_indirect_config.vic_mapping_object != 0);
-	ASSERT3P(svr->svr_vdev, ==, vd);
 	ASSERT(vim != NULL);
 
 	mutex_init(&vca.vca_lock, NULL, MUTEX_DEFAULT, NULL);
@@ -1247,6 +1252,17 @@ spa_vdev_remove_thread(void *arg)
 
 			mutex_exit(&svr->svr_lock);
 
+			/*
+			 * We need to periodically drop the config lock so that
+			 * writers can get in.  Additionally, we can't wait
+			 * for a txg to sync while holding a config lock
+			 * (since a waiting writer could cause a 3-way deadlock
+			 * with the sync thread, which also gets a config
+			 * lock for reader).  So we can't hold the config lock
+			 * while calling dmu_tx_assign().
+			 */
+			spa_config_exit(spa, SCL_CONFIG, FTAG);
+
 			mutex_enter(&vca.vca_lock);
 			while (vca.vca_outstanding_bytes >
 			    zfs_remove_max_copy_bytes) {
@@ -1260,11 +1276,19 @@ spa_vdev_remove_thread(void *arg)
 			VERIFY0(dmu_tx_assign(tx, TXG_WAIT));
 			uint64_t txg = dmu_tx_get_txg(tx);
 
+			/*
+			 * Reacquire the vdev_config lock.  The vdev_t
+			 * that we're removing may have changed, e.g. due
+			 * to a vdev_attach or vdev_detach.
+			 */
+			spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+			vd = vdev_lookup_top(spa, svr->svr_vdev_id);
+
 			if (txg != last_txg)
 				max_alloc = zfs_remove_max_segment;
 			last_txg = txg;
 
-			spa_vdev_copy_impl(svr, &vca, &max_alloc, tx);
+			spa_vdev_copy_impl(vd, svr, &vca, &max_alloc, tx);
 
 			dmu_tx_commit(tx);
 			mutex_enter(&svr->svr_lock);
@@ -1272,6 +1296,9 @@ spa_vdev_remove_thread(void *arg)
 	}
 
 	mutex_exit(&svr->svr_lock);
+
+	spa_config_exit(spa, SCL_CONFIG, FTAG);
+
 	/*
 	 * Wait for all copies to finish before cleaning up the vca.
 	 */
@@ -1289,7 +1316,7 @@ spa_vdev_remove_thread(void *arg)
 		mutex_exit(&svr->svr_lock);
 	} else {
 		ASSERT0(range_tree_space(svr->svr_allocd_segs));
-		vdev_remove_complete(vd);
+		vdev_remove_complete(spa);
 	}
 }
 
@@ -1330,7 +1357,7 @@ spa_vdev_remove_cancel_sync(void *arg, dmu_tx_t *tx)
 {
 	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
 	spa_vdev_removal_t *svr = spa->spa_vdev_removal;
-	vdev_t *vd = svr->svr_vdev;
+	vdev_t *vd = vdev_lookup_top(spa, svr->svr_vdev_id);
 	vdev_indirect_config_t *vic = &vd->vdev_indirect_config;
 	vdev_indirect_mapping_t *vim = vd->vdev_indirect_mapping;
 	objset_t *mos = spa->spa_meta_objset;
@@ -1403,8 +1430,11 @@ spa_vdev_remove_cancel_sync(void *arg, dmu_tx_t *tx)
 			 * because we have not allocated mappings for it yet.
 			 */
 			uint64_t syncd = vdev_indirect_mapping_max_offset(vim);
-			range_tree_clear(svr->svr_allocd_segs, syncd,
-			    msp->ms_sm->sm_start + msp->ms_sm->sm_size - syncd);
+			uint64_t sm_end = msp->ms_sm->sm_start +
+			    msp->ms_sm->sm_size;
+			if (sm_end > syncd)
+				range_tree_clear(svr->svr_allocd_segs,
+				    syncd, sm_end - syncd);
 
 			mutex_exit(&svr->svr_lock);
 		}
@@ -1465,7 +1495,7 @@ spa_vdev_remove_cancel(spa_t *spa)
 	if (spa->spa_vdev_removal == NULL)
 		return (ENOTACTIVE);
 
-	uint64_t vdid = spa->spa_vdev_removal->svr_vdev->vdev_id;
+	uint64_t vdid = spa->spa_vdev_removal->svr_vdev_id;
 
 	int error = dsl_sync_task(spa->spa_name, spa_vdev_remove_cancel_check,
 	    spa_vdev_remove_cancel_sync, NULL, 0, ZFS_SPACE_CHECK_NONE);
@@ -1774,7 +1804,7 @@ spa_vdev_remove_top(vdev_t *vd, uint64_t *txg)
 	dmu_tx_t *tx = dmu_tx_create_assigned(spa->spa_dsl_pool, *txg);
 	dsl_sync_task_nowait(spa->spa_dsl_pool,
 	    vdev_remove_initiate_sync,
-	    vd, 0, ZFS_SPACE_CHECK_NONE, tx);
+	    (void *)(uintptr_t)vd->vdev_id, 0, ZFS_SPACE_CHECK_NONE, tx);
 	dmu_tx_commit(tx);
 
 	return (0);

@@ -1708,9 +1708,12 @@ spa_update_dspace(spa_t *spa)
 		 * allocated twice (on the old device and the new
 		 * device).
 		 */
-		vdev_t *vd = spa->spa_vdev_removal->svr_vdev;
+		spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
+		vdev_t *vd =
+		    vdev_lookup_top(spa, spa->spa_vdev_removal->svr_vdev_id);
 		spa->spa_dspace -= spa_deflate(spa) ?
 		    vd->vdev_stat.vs_dspace : vd->vdev_stat.vs_space;
+		spa_config_exit(spa, SCL_VDEV, FTAG);
 	}
 }
 

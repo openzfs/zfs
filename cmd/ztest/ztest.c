@@ -445,6 +445,7 @@ static spa_t *ztest_spa = NULL;
 static ztest_ds_t *ztest_ds;
 
 static kmutex_t ztest_vdev_lock;
+static boolean_t ztest_device_removal_active = B_FALSE;
 
 /*
  * The ztest_name_lock protects the pool and dataset namespace used by
@@ -3203,7 +3204,7 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	 * value.  Don't bother trying to attach while we are in the middle
 	 * of removal.
 	 */
-	if (spa->spa_vdev_removal != NULL) {
+	if (ztest_device_removal_active) {
 		spa_config_exit(spa, SCL_ALL, FTAG);
 		mutex_exit(&ztest_vdev_lock);
 		return;
@@ -3375,16 +3376,49 @@ ztest_device_removal(ztest_ds_t *zd, uint64_t id)
 	spa_t *spa = ztest_spa;
 	vdev_t *vd;
 	uint64_t guid;
+	int error;
 
 	mutex_enter(&ztest_vdev_lock);
 
+	if (ztest_device_removal_active) {
+		mutex_exit(&ztest_vdev_lock);
+		return;
+	}
+
+	/*
+	 * Remove a random top-level vdev and wait for removal to finish.
+	 */
 	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
 	vd = vdev_lookup_top(spa, ztest_random_vdev_top(spa, B_FALSE));
 	guid = vd->vdev_guid;
 	spa_config_exit(spa, SCL_VDEV, FTAG);
 
-	(void) spa_vdev_remove(spa, guid, B_FALSE);
+	error = spa_vdev_remove(spa, guid, B_FALSE);
+	if (error == 0) {
+		ztest_device_removal_active = B_TRUE;
+		mutex_exit(&ztest_vdev_lock);
 
+		while (spa->spa_vdev_removal != NULL)
+			txg_wait_synced(spa_get_dsl(spa), 0);
+	} else {
+		mutex_exit(&ztest_vdev_lock);
+		return;
+	}
+
+	/*
+	 * The pool needs to be scrubbed after completing device removal.
+	 * Failure to do so may result in checksum errors due to the
+	 * strategy employed by ztest_fault_inject() when selecting which
+	 * offset are redundant and can be damaged.
+	 */
+	error = spa_scan(spa, POOL_SCAN_SCRUB);
+	if (error == 0) {
+		while (dsl_scan_scrubbing(spa_get_dsl(spa)))
+			txg_wait_synced(spa_get_dsl(spa), 0);
+	}
+
+	mutex_enter(&ztest_vdev_lock);
+	ztest_device_removal_active = B_FALSE;
 	mutex_exit(&ztest_vdev_lock);
 }
 
@@ -3524,7 +3558,7 @@ ztest_vdev_LUN_growth(ztest_ds_t *zd, uint64_t id)
 	 * that the metaslab_class space increased (because it decreases
 	 * when the device removal completes).
 	 */
-	if (spa->spa_vdev_removal != NULL) {
+	if (ztest_device_removal_active) {
 		spa_config_exit(spa, SCL_STATE, FTAG);
 		mutex_exit(&ztest_vdev_lock);
 		return;
@@ -5520,6 +5554,18 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 	pathrand = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
 
 	mutex_enter(&ztest_vdev_lock);
+
+	/*
+	 * Device removal is in progress, fault injection must be disabled
+	 * until it completes and the pool is scrubbed.  The fault injection
+	 * strategy for damaging blocks does not take in to account evacuated
+	 * blocks which may have already been damaged.
+	 */
+	if (ztest_device_removal_active) {
+		mutex_exit(&ztest_vdev_lock);
+		goto out;
+	}
+
 	maxfaults = MAXFAULTS(zs);
 	leaves = MAX(zs->zs_mirrors, 1) * ztest_opts.zo_raidz;
 	mirror_save = zs->zs_mirrors;
@@ -5874,6 +5920,12 @@ void
 ztest_scrub(ztest_ds_t *zd, uint64_t id)
 {
 	spa_t *spa = ztest_spa;
+
+	/*
+	 * Scrub in progress by device removal.
+	 */
+	if (ztest_device_removal_active)
+		return;
 
 	(void) spa_scan(spa, POOL_SCAN_SCRUB);
 	(void) poll(NULL, 0, 100); /* wait a moment, then force a restart */

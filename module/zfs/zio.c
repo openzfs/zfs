@@ -1212,17 +1212,6 @@ zio_vdev_child_io(zio_t *pio, blkptr_t *bp, vdev_t *vd, uint64_t offset,
 	ASSERT((flags & ZIO_FLAG_OPTIONAL) || (flags & ZIO_FLAG_IO_REPAIR) ||
 	    done != NULL);
 
-	/*
-	 * In the common case, where the parent zio was to a normal vdev,
-	 * the child zio must be to a child vdev of that vdev.  Otherwise,
-	 * the child zio must be to a top-level vdev.
-	 */
-	if (pio->io_vd != NULL && pio->io_vd->vdev_ops != &vdev_indirect_ops) {
-		ASSERT3P(vd->vdev_parent, ==, pio->io_vd);
-	} else {
-		ASSERT3P(vd, ==, vd->vdev_top);
-	}
-
 	if (type == ZIO_TYPE_READ && bp != NULL) {
 		/*
 		 * If we have the bp, then the child should perform the
@@ -1283,7 +1272,7 @@ zio_vdev_child_io(zio_t *pio, blkptr_t *bp, vdev_t *vd, uint64_t offset,
 
 zio_t *
 zio_vdev_delegated_io(vdev_t *vd, uint64_t offset, abd_t *data, uint64_t size,
-    int type, zio_priority_t priority, enum zio_flag flags,
+    zio_type_t type, zio_priority_t priority, enum zio_flag flags,
     zio_done_func_t *done, void *private)
 {
 	zio_t *zio;
@@ -3481,7 +3470,7 @@ zio_vdev_io_start(zio_t *zio)
 		 */
 		ASSERT(zio->io_flags &
 		    (ZIO_FLAG_PHYSICAL | ZIO_FLAG_SELF_HEAL |
-		    ZIO_FLAG_INDUCE_DAMAGE));
+		    ZIO_FLAG_RESILVER | ZIO_FLAG_INDUCE_DAMAGE));
 	}
 
 	align = 1ULL << vd->vdev_top->vdev_ashift;
@@ -3521,18 +3510,37 @@ zio_vdev_io_start(zio_t *zio)
 	 * If this is a repair I/O, and there's no self-healing involved --
 	 * that is, we're just resilvering what we expect to resilver --
 	 * then don't do the I/O unless zio's txg is actually in vd's DTL.
-	 * This prevents spurious resilvering with nested replication.
-	 * For example, given a mirror of mirrors, (A+B)+(C+D), if only
-	 * A is out of date, we'll read from C+D, then use the data to
-	 * resilver A+B -- but we don't actually want to resilver B, just A.
-	 * The top-level mirror has no way to know this, so instead we just
-	 * discard unnecessary repairs as we work our way down the vdev tree.
-	 * The same logic applies to any form of nested replication:
-	 * ditto + mirror, RAID-Z + replacing, etc.  This covers them all.
+	 * This prevents spurious resilvering.
+	 *
+	 * There are a few ways that we can end up creating these spurious
+	 * resilver i/os:
+	 *
+	 * 1. A resilver i/o will be issued if any DVA in the BP has a
+	 * dirty DTL.  The mirror code will issue resilver writes to
+	 * each DVA, including the one(s) that are not on vdevs with dirty
+	 * DTLs.
+	 *
+	 * 2. With nested replication, which happens when we have a
+	 * "replacing" or "spare" vdev that's a child of a mirror or raidz.
+	 * For example, given mirror(replacing(A+B), C), it's likely that
+	 * only A is out of date (it's the new device). In this case, we'll
+	 * read from C, then use the data to resilver A+B -- but we don't
+	 * actually want to resilver B, just A. The top-level mirror has no
+	 * way to know this, so instead we just discard unnecessary repairs
+	 * as we work our way down the vdev tree.
+	 *
+	 * 3. ZTEST also creates mirrors of mirrors, mirrors of raidz, etc.
+	 * The same logic applies to any form of nested replication: ditto
+	 * + mirror, RAID-Z + replacing, etc.
+	 *
+	 * However, indirect vdevs point off to other vdevs which may have
+	 * DTL's, so we never bypass them.  The child i/os on concrete vdevs
+	 * will be properly bypassed instead.
 	 */
 	if ((zio->io_flags & ZIO_FLAG_IO_REPAIR) &&
 	    !(zio->io_flags & ZIO_FLAG_SELF_HEAL) &&
 	    zio->io_txg != 0 &&	/* not a delegated i/o */
+	    vd->vdev_ops != &vdev_indirect_ops &&
 	    !vdev_dtl_contains(vd, DTL_PARTIAL, zio->io_txg, 1)) {
 		ASSERT(zio->io_type == ZIO_TYPE_WRITE);
 		zio_vdev_io_bypass(zio);

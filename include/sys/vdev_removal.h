@@ -30,7 +30,7 @@ extern "C" {
 #endif
 
 typedef struct spa_vdev_removal {
-	vdev_t		*svr_vdev;
+	uint64_t	svr_vdev_id;
 	uint64_t	svr_max_offset_to_sync[TXG_SIZE];
 	/* Thread performing a vdev removal. */
 	kthread_t	*svr_thread;

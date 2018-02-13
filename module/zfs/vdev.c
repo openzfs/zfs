@@ -857,6 +857,32 @@ vdev_top_transfer(vdev_t *svd, vdev_t *tvd)
 	svd->vdev_stat.vs_space = 0;
 	svd->vdev_stat.vs_dspace = 0;
 
+	/*
+	 * State which may be set on a top-level vdev that's in the
+	 * process of being removed.
+	 */
+	ASSERT0(tvd->vdev_indirect_config.vic_births_object);
+	ASSERT0(tvd->vdev_indirect_config.vic_mapping_object);
+	ASSERT3U(tvd->vdev_indirect_config.vic_prev_indirect_vdev, ==, -1ULL);
+	ASSERT3P(tvd->vdev_indirect_mapping, ==, NULL);
+	ASSERT3P(tvd->vdev_indirect_births, ==, NULL);
+	ASSERT3P(tvd->vdev_obsolete_sm, ==, NULL);
+	ASSERT0(tvd->vdev_removing);
+	tvd->vdev_removing = svd->vdev_removing;
+	tvd->vdev_indirect_config = svd->vdev_indirect_config;
+	tvd->vdev_indirect_mapping = svd->vdev_indirect_mapping;
+	tvd->vdev_indirect_births = svd->vdev_indirect_births;
+	range_tree_swap(&svd->vdev_obsolete_segments,
+	    &tvd->vdev_obsolete_segments);
+	tvd->vdev_obsolete_sm = svd->vdev_obsolete_sm;
+	svd->vdev_indirect_config.vic_mapping_object = 0;
+	svd->vdev_indirect_config.vic_births_object = 0;
+	svd->vdev_indirect_config.vic_prev_indirect_vdev = -1ULL;
+	svd->vdev_indirect_mapping = NULL;
+	svd->vdev_indirect_births = NULL;
+	svd->vdev_obsolete_sm = NULL;
+	svd->vdev_removing = 0;
+
 	for (t = 0; t < TXG_SIZE; t++) {
 		while ((msp = txg_list_remove(&svd->vdev_ms_list, t)) != NULL)
 			(void) txg_list_add(&tvd->vdev_ms_list, msp, t);
