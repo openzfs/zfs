@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2013 Martin Matuska. All rights reserved.
  * Copyright (c) 2014 Joyent, Inc. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
@@ -48,6 +48,7 @@
 #include <sys/policy.h>
 #include <sys/zfs_znode.h>
 #include <sys/zvol.h>
+#include <sys/zthr.h>
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"
 
@@ -155,6 +156,9 @@ dsl_dir_evict_async(void *dbu)
 
 	spa_async_close(dd->dd_pool->dp_spa, dd);
 
+	if (dsl_deadlist_is_open(&dd->dd_livelist))
+		dsl_dir_livelist_close(dd);
+
 	dsl_prop_fini(dd);
 	mutex_destroy(&dd->dd_lock);
 	kmem_free(dd, sizeof (dsl_dir_t));
@@ -255,6 +259,16 @@ dsl_dir_hold_obj(dsl_pool_t *dp, uint64_t ddobj,
 			dd->dd_origin_txg =
 			    origin_phys->ds_creation_txg;
 			dmu_buf_rele(origin_bonus, FTAG);
+			if (dsl_dir_is_zapified(dd)) {
+				uint64_t obj;
+				err = zap_lookup(dp->dp_meta_objset,
+				    dd->dd_object, DD_FIELD_LIVELIST,
+				    sizeof (uint64_t), 1, &obj);
+				if (err == 0)
+					dsl_dir_livelist_open(dd, obj);
+				else if (err != ENOENT)
+					goto errout;
+			}
 		}
 
 		dmu_buf_init_user(&dd->dd_dbu, NULL, dsl_dir_evict_async,
@@ -263,6 +277,8 @@ dsl_dir_hold_obj(dsl_pool_t *dp, uint64_t ddobj,
 		if (winner != NULL) {
 			if (dd->dd_parent)
 				dsl_dir_rele(dd->dd_parent, dd);
+			if (dsl_deadlist_is_open(&dd->dd_livelist))
+				dsl_dir_livelist_close(dd);
 			dsl_prop_fini(dd);
 			mutex_destroy(&dd->dd_lock);
 			kmem_free(dd, sizeof (dsl_dir_t));
@@ -291,6 +307,8 @@ dsl_dir_hold_obj(dsl_pool_t *dp, uint64_t ddobj,
 errout:
 	if (dd->dd_parent)
 		dsl_dir_rele(dd->dd_parent, dd);
+	if (dsl_deadlist_is_open(&dd->dd_livelist))
+		dsl_dir_livelist_close(dd);
 	dsl_prop_fini(dd);
 	mutex_destroy(&dd->dd_lock);
 	kmem_free(dd, sizeof (dsl_dir_t));
@@ -2176,6 +2194,90 @@ dsl_dir_is_zapified(dsl_dir_t *dd)
 
 	dmu_object_info_from_db(dd->dd_dbuf, &doi);
 	return (doi.doi_type == DMU_OTN_ZAP_METADATA);
+}
+
+void
+dsl_dir_livelist_open(dsl_dir_t *dd, uint64_t obj)
+{
+	objset_t *mos = dd->dd_pool->dp_meta_objset;
+	ASSERT(spa_feature_is_active(dd->dd_pool->dp_spa,
+	    SPA_FEATURE_LIVELIST));
+	dsl_deadlist_open(&dd->dd_livelist, mos, obj);
+	bplist_create(&dd->dd_pending_allocs);
+	bplist_create(&dd->dd_pending_frees);
+}
+
+void
+dsl_dir_livelist_close(dsl_dir_t *dd)
+{
+	dsl_deadlist_close(&dd->dd_livelist);
+	bplist_destroy(&dd->dd_pending_allocs);
+	bplist_destroy(&dd->dd_pending_frees);
+}
+
+void
+dsl_dir_remove_livelist(dsl_dir_t *dd, dmu_tx_t *tx, boolean_t total)
+{
+	uint64_t obj;
+	dsl_pool_t *dp = dmu_tx_pool(tx);
+	spa_t *spa = dp->dp_spa;
+	livelist_condense_entry_t to_condense = spa->spa_to_condense;
+
+	if (!dsl_deadlist_is_open(&dd->dd_livelist))
+		return;
+
+	/*
+	 * If the livelist being removed is set to be condensed, stop the
+	 * condense zthr and indicate the cancellation in the spa_to_condense
+	 * struct in case the condense no-wait synctask has already started
+	 */
+	zthr_t *ll_condense_thread = spa->spa_livelist_condense_zthr;
+	if (ll_condense_thread != NULL &&
+	    (to_condense.ds != NULL) && (to_condense.ds->ds_dir == dd)) {
+			/*
+			 * We use zthr_wait_cycle_done instead of zthr_cancel
+			 * because we don't want to destroy the zthr, just have
+			 * it skip its current task.
+			 */
+			spa->spa_to_condense.cancelled = B_TRUE;
+			zthr_wait_cycle_done(ll_condense_thread);
+			/*
+			 * If we've returned from zthr_wait_cycle_done without
+			 * clearing the to_condense data structure it's either
+			 * because the no-wait synctask has started (which is
+			 * indicated by 'syncing' field of to_condense) and we
+			 * can expect it to clear to_condense on its own.
+			 * Otherwise, we returned before the zthr ran. The
+			 * checkfunc will now fail as cancelled == B_TRUE so we
+			 * can safely NULL out ds, allowing a different dir's
+			 * livelist to be condensed.
+			 *
+			 * We can be sure that the to_condense struct will not
+			 * be repopulated at this stage because both this
+			 * function and dsl_livelist_try_condense execute in
+			 * syncing context.
+			 */
+			if ((spa->spa_to_condense.ds != NULL) &&
+			    !spa->spa_to_condense.syncing) {
+				dmu_buf_rele(spa->spa_to_condense.ds->ds_dbuf,
+				    spa);
+				spa->spa_to_condense.ds = NULL;
+			}
+	}
+
+	dsl_dir_livelist_close(dd);
+	int err = zap_lookup(dp->dp_meta_objset, dd->dd_object,
+	    DD_FIELD_LIVELIST, sizeof (uint64_t), 1, &obj);
+	if (err == 0) {
+		VERIFY0(zap_remove(dp->dp_meta_objset, dd->dd_object,
+		    DD_FIELD_LIVELIST, tx));
+		if (total) {
+			dsl_deadlist_free(dp->dp_meta_objset, obj, tx);
+			spa_feature_decr(spa, SPA_FEATURE_LIVELIST, tx);
+		}
+	} else {
+		ASSERT3U(err, !=, ENOENT);
+	}
 }
 
 #if defined(_KERNEL)

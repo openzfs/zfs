@@ -3103,8 +3103,18 @@ dsl_scan_update_stats(dsl_scan_t *scn)
 }
 
 static int
-dsl_scan_obsolete_block_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
+bpobj_dsl_scan_free_block_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed,
+    dmu_tx_t *tx)
 {
+	ASSERT(!bp_freed);
+	return (dsl_scan_free_block_cb(arg, bp, tx));
+}
+
+static int
+dsl_scan_obsolete_block_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed,
+    dmu_tx_t *tx)
+{
+	ASSERT(!bp_freed);
 	dsl_scan_t *scn = arg;
 	const dva_t *dva = &bp->blk_dva[0];
 
@@ -3123,6 +3133,7 @@ dsl_scan_active(dsl_scan_t *scn)
 {
 	spa_t *spa = scn->scn_dp->dp_spa;
 	uint64_t used = 0, comp, uncomp;
+	boolean_t clones_left;
 
 	if (spa->spa_load_state != SPA_LOAD_NONE)
 		return (B_FALSE);
@@ -3136,7 +3147,8 @@ dsl_scan_active(dsl_scan_t *scn)
 		(void) bpobj_space(&scn->scn_dp->dp_free_bpobj,
 		    &used, &comp, &uncomp);
 	}
-	return (used != 0);
+	clones_left = spa_livelist_delete_check(spa);
+	return ((used != 0) || (clones_left));
 }
 
 static boolean_t
@@ -3233,7 +3245,7 @@ dsl_process_async_destroys(dsl_pool_t *dp, dmu_tx_t *tx)
 		scn->scn_zio_root = zio_root(spa, NULL,
 		    NULL, ZIO_FLAG_MUSTSUCCEED);
 		err = bpobj_iterate(&dp->dp_free_bpobj,
-		    dsl_scan_free_block_cb, scn, tx);
+		    bpobj_dsl_scan_free_block_cb, scn, tx);
 		VERIFY0(zio_wait(scn->scn_zio_root));
 		scn->scn_zio_root = NULL;
 
@@ -3330,7 +3342,8 @@ dsl_process_async_destroys(dsl_pool_t *dp, dmu_tx_t *tx)
 		    -dsl_dir_phys(dp->dp_free_dir)->dd_uncompressed_bytes, tx);
 	}
 
-	if (dp->dp_free_dir != NULL && !scn->scn_async_destroying) {
+	if (dp->dp_free_dir != NULL && !scn->scn_async_destroying &&
+	    !spa_livelist_delete_check(spa)) {
 		/* finished; verify that space accounting went to zero */
 		ASSERT0(dsl_dir_phys(dp->dp_free_dir)->dd_used_bytes);
 		ASSERT0(dsl_dir_phys(dp->dp_free_dir)->dd_compressed_bytes);

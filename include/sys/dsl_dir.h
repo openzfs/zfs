@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2014, Joyent, Inc. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  */
@@ -29,18 +29,20 @@
 #define	_SYS_DSL_DIR_H
 
 #include <sys/dmu.h>
+#include <sys/dsl_deadlist.h>
 #include <sys/dsl_pool.h>
 #include <sys/dsl_synctask.h>
 #include <sys/refcount.h>
 #include <sys/zfs_context.h>
 #include <sys/dsl_crypt.h>
+#include <sys/bplist.h>
 
 #ifdef	__cplusplus
 extern "C" {
 #endif
 
 struct dsl_dataset;
-
+struct zthr;
 /*
  * DD_FIELD_* are strings that are used in the "extensified" dsl_dir zap object.
  * They should be of the format <reverse-dns>:<field>.
@@ -49,6 +51,7 @@ struct dsl_dataset;
 #define	DD_FIELD_FILESYSTEM_COUNT	"com.joyent:filesystem_count"
 #define	DD_FIELD_SNAPSHOT_COUNT		"com.joyent:snapshot_count"
 #define	DD_FIELD_CRYPTO_KEY_OBJ		"com.datto:crypto_key_obj"
+#define	DD_FIELD_LIVELIST		"com.delphix:livelist"
 
 typedef enum dd_used {
 	DD_USED_HEAD,
@@ -113,6 +116,10 @@ struct dsl_dir {
 	uint64_t dd_tempreserved[TXG_SIZE];
 	/* amount of space we expect to write; == amount of dirty data */
 	int64_t dd_space_towrite[TXG_SIZE];
+
+	dsl_deadlist_t dd_livelist;
+	bplist_t dd_pending_frees;
+	bplist_t dd_pending_allocs;
 
 	/* protected by dd_lock; keep at end of struct for better locality */
 	char dd_myname[ZFS_MAX_DATASET_NAME_LEN];
@@ -182,6 +189,9 @@ void dsl_dir_set_reservation_sync_impl(dsl_dir_t *dd, uint64_t value,
     dmu_tx_t *tx);
 void dsl_dir_zapify(dsl_dir_t *dd, dmu_tx_t *tx);
 boolean_t dsl_dir_is_zapified(dsl_dir_t *dd);
+void dsl_dir_livelist_open(dsl_dir_t *dd, uint64_t obj);
+void dsl_dir_livelist_close(dsl_dir_t *dd);
+void dsl_dir_remove_livelist(dsl_dir_t *dd, dmu_tx_t *tx, boolean_t total);
 
 /* internal reserved dir name */
 #define	MOS_DIR_NAME "$MOS"

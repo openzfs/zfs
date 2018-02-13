@@ -1912,6 +1912,98 @@ Default value: \fB16,045,690,984,833,335,022\fR (0xdeadbeefdeadbeee).
 .sp
 .ne 2
 .na
+\fBzfs_livelist_max_entries\fR (ulong)
+.ad
+.RS 12n
+The threshold size (in block pointers) at which we create a new sub-livelist.
+Larger sublists are more costly from a memory perspective but the fewer
+sublists there are, the lower the cost of insertion.
+.sp
+Default value: \fB500,000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_livelist_min_percent_shared\fR (int)
+.ad
+.RS 12n
+If the amount of shared space between a snapshot and its clone drops below
+this threshold, the clone turns off the livelist and reverts to the old deletion
+method. This is in place because once a clone has been overwritten enough
+livelists no long give us a benefit.
+.sp
+Default value: \fB75\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_livelist_condense_new_alloc\fR (int)
+.ad
+.RS 12n
+Incremented each time an extra ALLOC blkptr is added to a livelist entry while
+it is being condensed.
+This option is used by the test suite to track race conditions.
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_livelist_condense_sync_cancel\fR (int)
+.ad
+.RS 12n
+Incremented each time livelist condensing is canceled while in
+spa_livelist_condense_sync.
+This option is used by the test suite to track race conditions.
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_livelist_condense_sync_pause\fR (int)
+.ad
+.RS 12n
+When set, the livelist condense process pauses indefinitely before
+executing the synctask - spa_livelist_condense_sync.
+This option is used by the test suite to trigger race conditions.
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_livelist_condense_zthr_cancel\fR (int)
+.ad
+.RS 12n
+Incremented each time livelist condensing is canceled while in
+spa_livelist_condense_cb.
+This option is used by the test suite to track race conditions.
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_livelist_condense_zthr_pause\fR (int)
+.ad
+.RS 12n
+When set, the livelist condense process pauses indefinitely before
+executing the open context condensing work in spa_livelist_condense_cb.
+This option is used by the test suite to trigger race conditions.
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_lua_max_instrlimit\fR (ulong)
 .ad
 .RS 12n

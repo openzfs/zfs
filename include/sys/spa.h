@@ -63,6 +63,8 @@ typedef struct ddt ddt_t;
 typedef struct ddt_entry ddt_entry_t;
 typedef struct zbookmark_phys zbookmark_phys_t;
 
+struct bpobj;
+struct bplist;
 struct dsl_pool;
 struct dsl_dataset;
 struct dsl_crypto_params;
@@ -532,6 +534,9 @@ _NOTE(CONSTCOND) } while (0)
 #define	BP_GET_BYTEORDER(bp)		BF64_GET((bp)->blk_prop, 63, 1)
 #define	BP_SET_BYTEORDER(bp, x)		BF64_SET((bp)->blk_prop, 63, 1, x)
 
+#define	BP_GET_FREE(bp)			BF64_GET((bp)->blk_fill, 0, 1)
+#define	BP_SET_FREE(bp, x)		BF64_SET((bp)->blk_fill, 0, 1, x)
+
 #define	BP_PHYSICAL_BIRTH(bp)		\
 	(BP_IS_EMBEDDED(bp) ? 0 : \
 	(bp)->blk_phys_birth ? (bp)->blk_phys_birth : (bp)->blk_birth)
@@ -654,6 +659,7 @@ _NOTE(CONSTCOND) } while (0)
  * 'func' is either snprintf() or mdb_snprintf().
  * 'ws' (whitespace) can be ' ' for single-line format, '\n' for multi-line.
  */
+
 #define	SNPRINTF_BLKPTR(func, ws, buf, size, bp, type, checksum, compress) \
 {									\
 	static const char *copyname[] =					\
@@ -804,6 +810,8 @@ extern spa_t *spa_inject_addref(char *pool);
 extern void spa_inject_delref(spa_t *spa);
 extern void spa_scan_stat_init(spa_t *spa);
 extern int spa_scan_get_stats(spa_t *spa, pool_scan_stat_t *ps);
+extern int bpobj_enqueue_alloc_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx);
+extern int bpobj_enqueue_free_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx);
 
 #define	SPA_ASYNC_CONFIG_UPDATE			0x01
 #define	SPA_ASYNC_REMOVE			0x02
@@ -1131,6 +1139,7 @@ extern uint64_t spa_total_metaslabs(spa_t *spa);
 extern boolean_t spa_multihost(spa_t *spa);
 extern unsigned long spa_get_hostid(void);
 extern void spa_activate_allocation_classes(spa_t *, dmu_tx_t *);
+extern boolean_t spa_livelist_delete_check(spa_t *spa);
 
 extern int spa_mode(spa_t *spa);
 extern uint64_t zfs_strtonum(const char *str, char **nptr);

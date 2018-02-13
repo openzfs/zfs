@@ -550,6 +550,26 @@ improving performance by avoiding the use of spill blocks.
 .sp
 .ne 2
 .na
+\fB\fBlivelist\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.delphix:livelist
+READ\-ONLY COMPATIBLE	yes
+DEPENDENCIES	none
+.TE
+This feature allows clones to be deleted faster than the traditional method
+when a large number of random/sparse writes have been made to the clone.
+All blocks allocated and freed after a clone is created are tracked by the
+the clone's livelist which is referenced during the deletion of the clone.
+The feature is activated when a clone is created and remains active until all
+clones have been destroyed.
+.RE
+
+.sp
+.ne 2
+.na
 \fBlz4_compress\fR
 .ad
 .RS 4n
@@ -882,7 +902,6 @@ This feature becomes \fBactive\fR when the \fBzpool checkpoint\fR subcommand
 is used to checkpoint the pool.
 The feature will only return back to being \fBenabled\fR when the pool
 is rewound or the checkpoint has been discarded.
-.RE
 
 .SH "SEE ALSO"
 zpool(8)

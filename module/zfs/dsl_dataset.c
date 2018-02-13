@@ -122,12 +122,11 @@ parent_delta(dsl_dataset_t *ds, int64_t delta)
 void
 dsl_dataset_block_born(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx)
 {
-	int used, compressed, uncompressed;
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+	int used = bp_get_dsize_sync(spa, bp);
+	int compressed = BP_GET_PSIZE(bp);
+	int uncompressed = BP_GET_UCSIZE(bp);
 	int64_t delta;
-
-	used = bp_get_dsize_sync(tx->tx_pool->dp_spa, bp);
-	compressed = BP_GET_PSIZE(bp);
-	uncompressed = BP_GET_UCSIZE(bp);
 
 	dprintf_bp(bp, "ds=%p", ds);
 
@@ -162,6 +161,19 @@ dsl_dataset_block_born(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx)
 		ASSERT3S(spa_feature_table[f].fi_type, ==,
 		    ZFEATURE_TYPE_BOOLEAN);
 		ds->ds_feature_activation[f] = (void *)B_TRUE;
+	}
+
+	/*
+	 * Track block for livelist, but ignore embedded blocks because
+	 * they do not need to be freed.
+	 */
+	if (dsl_deadlist_is_open(&ds->ds_dir->dd_livelist) &&
+	    bp->blk_birth > ds->ds_dir->dd_origin_txg &&
+	    !(BP_IS_EMBEDDED(bp))) {
+		ASSERT(dsl_dir_is_clone(ds->ds_dir));
+		ASSERT(spa_feature_is_enabled(spa,
+		    SPA_FEATURE_LIVELIST));
+		bplist_append(&ds->ds_dir->dd_pending_allocs, bp);
 	}
 
 	mutex_exit(&ds->ds_lock);
@@ -207,8 +219,8 @@ dsl_dataset_block_remapped(dsl_dataset_t *ds, uint64_t vdev, uint64_t offset,
 		DVA_SET_VDEV(dva, vdev);
 		DVA_SET_OFFSET(dva, offset);
 		DVA_SET_ASIZE(dva, size);
-
-		dsl_deadlist_insert(&ds->ds_remap_deadlist, &fakebp, tx);
+		dsl_deadlist_insert(&ds->ds_remap_deadlist, &fakebp, B_FALSE,
+		    tx);
 	}
 }
 
@@ -239,6 +251,19 @@ dsl_dataset_block_kill(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx,
 	ASSERT(!ds->ds_is_snapshot);
 	dmu_buf_will_dirty(ds->ds_dbuf, tx);
 
+	/*
+	 * Track block for livelist, but ignore embedded blocks because
+	 * they do not need to be freed.
+	 */
+	if (dsl_deadlist_is_open(&ds->ds_dir->dd_livelist) &&
+	    bp->blk_birth > ds->ds_dir->dd_origin_txg &&
+	    !(BP_IS_EMBEDDED(bp))) {
+		ASSERT(dsl_dir_is_clone(ds->ds_dir));
+		ASSERT(spa_feature_is_enabled(spa,
+		    SPA_FEATURE_LIVELIST));
+		bplist_append(&ds->ds_dir->dd_pending_frees, bp);
+	}
+
 	if (bp->blk_birth > dsl_dataset_phys(ds)->ds_prev_snap_txg) {
 		int64_t delta;
 
@@ -267,7 +292,7 @@ dsl_dataset_block_kill(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx,
 			 */
 			bplist_append(&ds->ds_pending_deadlist, bp);
 		} else {
-			dsl_deadlist_insert(&ds->ds_deadlist, bp, tx);
+			dsl_deadlist_insert(&ds->ds_deadlist, bp, B_FALSE, tx);
 		}
 		ASSERT3U(ds->ds_prev->ds_object, ==,
 		    dsl_dataset_phys(ds)->ds_prev_snap_obj);
@@ -1241,6 +1266,14 @@ dsl_dataset_create_sync(dsl_dir_t *pdd, const char *lastname,
 
 	ASSERT(dmu_tx_is_syncing(tx));
 	ASSERT(lastname[0] != '@');
+	/*
+	 * Filesystems will eventually have their origin set to dp_origin_snap,
+	 * but that's taken care of in dsl_dataset_create_sync_dd. When
+	 * creating a filesystem, this function is called with origin equal to
+	 * NULL.
+	 */
+	if (origin != NULL)
+		ASSERT3P(origin, !=, dp->dp_origin_snap);
 
 	ddobj = dsl_dir_create_sync(dp, pdd, lastname, tx);
 	VERIFY0(dsl_dir_hold_obj(dp, ddobj, lastname, FTAG, &dd));
@@ -1249,6 +1282,20 @@ dsl_dataset_create_sync(dsl_dir_t *pdd, const char *lastname,
 	    flags & ~DS_CREATE_FLAG_NODIRTY, tx);
 
 	dsl_deleg_set_create_perms(dd, tx, cr);
+
+	/*
+	 * If we are creating a clone and the livelist feature is enabled,
+	 * add the entry DD_FIELD_LIVELIST to ZAP.
+	 */
+	if (origin != NULL &&
+	    spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_LIVELIST)) {
+		objset_t *mos = dd->dd_pool->dp_meta_objset;
+		dsl_dir_zapify(dd, tx);
+		uint64_t obj = dsl_deadlist_alloc(mos, tx);
+		VERIFY0(zap_add(mos, dd->dd_object, DD_FIELD_LIVELIST,
+		    sizeof (uint64_t), 1, &obj, tx));
+		spa_feature_incr(dp->dp_spa, SPA_FEATURE_LIVELIST, tx);
+	}
 
 	/*
 	 * Since we're creating a new node we know it's a leaf, so we can
@@ -2036,12 +2083,149 @@ dsl_dataset_sync(dsl_dataset_t *ds, zio_t *zio, dmu_tx_t *tx)
 	}
 }
 
-static int
-deadlist_enqueue_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
+/*
+ * Check if the percentage of blocks shared between the clone and the
+ * snapshot (as opposed to those that are clone only) is below a certain
+ * threshold
+ */
+boolean_t
+dsl_livelist_should_disable(dsl_dataset_t *ds)
 {
-	dsl_deadlist_t *dl = arg;
-	dsl_deadlist_insert(dl, bp, tx);
-	return (0);
+	uint64_t used, referenced;
+	int percent_shared;
+
+	used = dsl_dir_get_usedds(ds->ds_dir);
+	referenced = dsl_get_referenced(ds);
+	ASSERT3U(referenced, >=, 0);
+	ASSERT3U(used, >=, 0);
+	if (referenced == 0)
+		return (B_FALSE);
+	percent_shared = (100 * (referenced - used)) / referenced;
+	if (percent_shared <= zfs_livelist_min_percent_shared)
+		return (B_TRUE);
+	return (B_FALSE);
+}
+
+/*
+ *  Check if it is possible to combine two livelist entries into one.
+ *  This is the case if the combined number of 'live' blkptrs (ALLOCs that
+ *  don't have a matching FREE) is under the maximum sublist size.
+ *  We check this by subtracting twice the total number of frees from the total
+ *  number of blkptrs. FREEs are counted twice because each FREE blkptr
+ *  will cancel out an ALLOC blkptr when the livelist is processed.
+ */
+static boolean_t
+dsl_livelist_should_condense(dsl_deadlist_entry_t *first,
+    dsl_deadlist_entry_t *next)
+{
+	uint64_t total_free = first->dle_bpobj.bpo_phys->bpo_num_freed +
+	    next->dle_bpobj.bpo_phys->bpo_num_freed;
+	uint64_t total_entries = first->dle_bpobj.bpo_phys->bpo_num_blkptrs +
+	    next->dle_bpobj.bpo_phys->bpo_num_blkptrs;
+	if ((total_entries - (2 * total_free)) < zfs_livelist_max_entries)
+		return (B_TRUE);
+	return (B_FALSE);
+}
+
+typedef struct try_condense_arg {
+	spa_t *spa;
+	dsl_dataset_t *ds;
+} try_condense_arg_t;
+
+/*
+ * Iterate over the livelist entries, searching for a pair to condense.
+ * A nonzero return value means stop, 0 means keep looking.
+ */
+static int
+dsl_livelist_try_condense(void *arg, dsl_deadlist_entry_t *first)
+{
+	try_condense_arg_t *tca = arg;
+	spa_t *spa = tca->spa;
+	dsl_dataset_t *ds = tca->ds;
+	dsl_deadlist_t *ll = &ds->ds_dir->dd_livelist;
+	dsl_deadlist_entry_t *next;
+
+	/* The condense thread has not yet been created at import */
+	if (spa->spa_livelist_condense_zthr == NULL)
+		return (1);
+
+	/* A condense is already in progress */
+	if (spa->spa_to_condense.ds != NULL)
+		return (1);
+
+	next = AVL_NEXT(&ll->dl_tree, &first->dle_node);
+	/* The livelist has only one entry - don't condense it */
+	if (next == NULL)
+		return (1);
+
+	/* Next is the newest entry - don't condense it */
+	if (AVL_NEXT(&ll->dl_tree, &next->dle_node) == NULL)
+		return (1);
+
+	/* This pair is not ready to condense but keep looking */
+	if (!dsl_livelist_should_condense(first, next))
+		return (0);
+
+	/*
+	 * Add a ref to prevent the dataset from being evicted while
+	 * the condense zthr or synctask are running. Ref will be
+	 * released at the end of the condense synctask
+	 */
+	dmu_buf_add_ref(ds->ds_dbuf, spa);
+
+	spa->spa_to_condense.ds = ds;
+	spa->spa_to_condense.first = first;
+	spa->spa_to_condense.next = next;
+	spa->spa_to_condense.syncing = B_FALSE;
+	spa->spa_to_condense.cancelled = B_FALSE;
+
+	zthr_wakeup(spa->spa_livelist_condense_zthr);
+	return (1);
+}
+
+static void
+dsl_flush_pending_livelist(dsl_dataset_t *ds, dmu_tx_t *tx)
+{
+	dsl_dir_t *dd = ds->ds_dir;
+	spa_t *spa = ds->ds_dir->dd_pool->dp_spa;
+	dsl_deadlist_entry_t *last = dsl_deadlist_last(&dd->dd_livelist);
+
+	/* Check if we need to add a new sub-livelist */
+	if (last == NULL) {
+		/* The livelist is empty */
+		dsl_deadlist_add_key(&dd->dd_livelist,
+		    tx->tx_txg - 1, tx);
+	} else if (spa_sync_pass(spa) == 1) {
+		/*
+		 * Check if the newest entry is full. If it is, make a new one.
+		 * We only do this once per sync because we could overfill a
+		 * sublist in one sync pass and don't want to add another entry
+		 * for a txg that is already represented. This ensures that
+		 * blkptrs born in the same txg are stored in the same sublist.
+		 */
+		bpobj_t bpobj = last->dle_bpobj;
+		uint64_t all = bpobj.bpo_phys->bpo_num_blkptrs;
+		uint64_t free = bpobj.bpo_phys->bpo_num_freed;
+		uint64_t alloc = all - free;
+		if (alloc > zfs_livelist_max_entries) {
+			dsl_deadlist_add_key(&dd->dd_livelist,
+			    tx->tx_txg - 1, tx);
+		}
+	}
+
+	/* Insert each entry into the on-disk livelist */
+	bplist_iterate(&dd->dd_pending_allocs,
+	    dsl_deadlist_insert_alloc_cb, &dd->dd_livelist, tx);
+	bplist_iterate(&dd->dd_pending_frees,
+	    dsl_deadlist_insert_free_cb, &dd->dd_livelist, tx);
+
+	/* Attempt to condense every pair of adjacent entries */
+	try_condense_arg_t arg = {
+	    .spa = spa,
+	    .ds = ds
+	};
+	dsl_deadlist_iterate(&dd->dd_livelist, dsl_livelist_try_condense,
+	    &arg);
 }
 
 void
@@ -2050,7 +2234,14 @@ dsl_dataset_sync_done(dsl_dataset_t *ds, dmu_tx_t *tx)
 	objset_t *os = ds->ds_objset;
 
 	bplist_iterate(&ds->ds_pending_deadlist,
-	    deadlist_enqueue_cb, &ds->ds_deadlist, tx);
+	    dsl_deadlist_insert_alloc_cb, &ds->ds_deadlist, tx);
+
+	if (dsl_deadlist_is_open(&ds->ds_dir->dd_livelist)) {
+		dsl_flush_pending_livelist(ds, tx);
+		if (dsl_livelist_should_disable(ds)) {
+			dsl_dir_remove_livelist(ds->ds_dir, tx, B_TRUE);
+		}
+	}
 
 	dsl_bookmark_sync_done(ds, tx);
 
@@ -3335,6 +3526,8 @@ dsl_dataset_promote_sync(void *arg, dmu_tx_t *tx)
 	uint64_t oldnext_obj;
 	int64_t delta;
 
+	ASSERT(nvlist_empty(ddpa->err_ds));
+
 	VERIFY0(promote_hold(ddpa, dp, FTAG));
 	hds = ddpa->ddpa_clone;
 
@@ -3518,6 +3711,15 @@ dsl_dataset_promote_sync(void *arg, dmu_tx_t *tx)
 	    -ddpa->used - delta, -ddpa->comp, -ddpa->uncomp, tx);
 
 	dsl_dataset_phys(origin_ds)->ds_unique_bytes = ddpa->unique;
+
+	/*
+	 * Since livelists are specific to a clone's origin txg, they
+	 * are no longer accurate. Destroy the livelist from the clone being
+	 * promoted. If the origin dataset is a clone, destroy its livelist
+	 * as well.
+	 */
+	dsl_dir_remove_livelist(dd, tx, B_TRUE);
+	dsl_dir_remove_livelist(origin_ds->ds_dir, tx, B_TRUE);
 
 	/* log history record */
 	spa_history_log_internal_ds(hds, "promote", tx, "");
@@ -3989,6 +4191,14 @@ dsl_dataset_clone_swap_sync_impl(dsl_dataset_t *clone,
 	dsl_bookmark_next_changed(origin_head, origin_head->ds_prev, tx);
 
 	dsl_scan_ds_clone_swapped(origin_head, clone, tx);
+
+	/*
+	 * Destroy any livelists associated with the clone or the origin,
+	 * since after the swap the corresponding livelists are no longer
+	 * valid.
+	 */
+	dsl_dir_remove_livelist(clone->ds_dir, tx, B_TRUE);
+	dsl_dir_remove_livelist(origin_head->ds_dir, tx, B_TRUE);
 
 	spa_history_log_internal_ds(clone, "clone swap", tx,
 	    "parent=%s", origin_head->ds_dir->dd_myname);
