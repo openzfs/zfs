@@ -3234,7 +3234,7 @@ metaslab_free_impl(vdev_t *vd, uint64_t offset, uint64_t size,
 		return;
 
 	if (spa->spa_vdev_removal != NULL &&
-	    spa->spa_vdev_removal->svr_vdev == vd &&
+	    spa->spa_vdev_removal->svr_vdev_id == vd->vdev_id &&
 	    vdev_is_concrete(vd)) {
 		/*
 		 * Note: we check if the vdev is concrete because when

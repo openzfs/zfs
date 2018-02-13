@@ -486,12 +486,15 @@ vdev_mirror_io_start(zio_t *zio)
 	mm = vdev_mirror_map_init(zio);
 
 	if (zio->io_type == ZIO_TYPE_READ) {
-		if ((zio->io_flags & ZIO_FLAG_SCRUB) && !mm->mm_replacing) {
+		if (zio->io_bp != NULL &&
+		    (zio->io_flags & ZIO_FLAG_SCRUB) && !mm->mm_replacing) {
 			/*
-			 * For scrubbing reads we need to allocate a read
-			 * buffer for each child and issue reads to all
-			 * children.  If any child succeeds, it will copy its
-			 * data into zio->io_data in vdev_mirror_scrub_done.
+			 * For scrubbing reads (if we can verify the
+			 * checksum here, as indicated by io_bp being
+			 * non-NULL) we need to allocate a read buffer for
+			 * each child and issue reads to all children.  If
+			 * any child succeeds, it will copy its data into
+			 * zio->io_data in vdev_mirror_scrub_done.
 			 */
 			for (c = 0; c < mm->mm_children; c++) {
 				mc = &mm->mm_child[c];
@@ -640,7 +643,21 @@ vdev_mirror_io_done(zio_t *zio)
 			if (mc->mc_error == 0) {
 				if (mc->mc_tried)
 					continue;
+				/*
+				 * We didn't try this child.  We need to
+				 * repair it if:
+				 * 1. it's a scrub (in which case we have
+				 * tried everything that was healthy)
+				 *  - or -
+				 * 2. it's an indirect vdev (in which case
+				 * it could point to any other vdev, which
+				 * might have a bad DTL)
+				 *  - or -
+				 * 3. the DTL indicates that this data is
+				 * missing from this vdev
+				 */
 				if (!(zio->io_flags & ZIO_FLAG_SCRUB) &&
+				    mc->mc_vd->vdev_ops != &vdev_indirect_ops &&
 				    !vdev_dtl_contains(mc->mc_vd, DTL_PARTIAL,
 				    zio->io_txg, 1))
 					continue;
