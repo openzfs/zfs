@@ -1050,7 +1050,9 @@ zfs_valid_proplist(libzfs_handle_t *hdl, zfs_type_t type, nvlist_t *nvl,
 			if (uqtype != ZFS_PROP_USERQUOTA &&
 			    uqtype != ZFS_PROP_GROUPQUOTA &&
 			    uqtype != ZFS_PROP_USEROBJQUOTA &&
-			    uqtype != ZFS_PROP_GROUPOBJQUOTA) {
+			    uqtype != ZFS_PROP_GROUPOBJQUOTA &&
+			    uqtype != ZFS_PROP_PROJECTQUOTA &&
+			    uqtype != ZFS_PROP_PROJECTOBJQUOTA) {
 				zfs_error_aux(hdl,
 				    dgettext(TEXT_DOMAIN, "'%s' is readonly"),
 				    propname);
@@ -1075,7 +1077,7 @@ zfs_valid_proplist(libzfs_handle_t *hdl, zfs_type_t type, nvlist_t *nvl,
 				if (intval == 0) {
 					zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 					    "use 'none' to disable "
-					    "userquota/groupquota"));
+					    "{user|group|project}quota"));
 					goto error;
 				}
 			} else {
@@ -3007,6 +3009,8 @@ out:
  * Eg: userused@matt@domain -> ZFS_PROP_USERUSED, "S-1-123-456", 789
  * Eg: groupquota@staff -> ZFS_PROP_GROUPQUOTA, "", 1234
  * Eg: groupused@staff -> ZFS_PROP_GROUPUSED, "", 1234
+ * Eg: projectquota@123 -> ZFS_PROP_PROJECTQUOTA, "", 123
+ * Eg: projectused@789 -> ZFS_PROP_PROJECTUSED, "", 789
  */
 static int
 userquota_propname_decode(const char *propname, boolean_t zoned,
@@ -3016,12 +3020,13 @@ userquota_propname_decode(const char *propname, boolean_t zoned,
 	char *cp;
 	boolean_t isuser;
 	boolean_t isgroup;
+	boolean_t isproject;
 	struct passwd *pw;
 	struct group *gr;
 
 	domain[0] = '\0';
 
-	/* Figure out the property type ({user|group}{quota|space}) */
+	/* Figure out the property type ({user|group|project}{quota|space}) */
 	for (type = 0; type < ZFS_NUM_USERQUOTA_PROPS; type++) {
 		if (strncmp(propname, zfs_userquota_prop_prefixes[type],
 		    strlen(zfs_userquota_prop_prefixes[type])) == 0)
@@ -3037,6 +3042,9 @@ userquota_propname_decode(const char *propname, boolean_t zoned,
 	isgroup = (type == ZFS_PROP_GROUPQUOTA || type == ZFS_PROP_GROUPUSED ||
 	    type == ZFS_PROP_GROUPOBJQUOTA ||
 	    type == ZFS_PROP_GROUPOBJUSED);
+	isproject = (type == ZFS_PROP_PROJECTQUOTA ||
+	    type == ZFS_PROP_PROJECTUSED || type == ZFS_PROP_PROJECTOBJQUOTA ||
+	    type == ZFS_PROP_PROJECTOBJUSED);
 
 	cp = strchr(propname, '@') + 1;
 
@@ -3048,7 +3056,7 @@ userquota_propname_decode(const char *propname, boolean_t zoned,
 		if (zoned && getzoneid() == GLOBAL_ZONEID)
 			return (ENOENT);
 		*ridp = gr->gr_gid;
-	} else if (strchr(cp, '@')) {
+	} else if (!isproject && strchr(cp, '@')) {
 #ifdef HAVE_IDMAP
 		/*
 		 * It's a SID name (eg "user@domain") that needs to be
@@ -3089,13 +3097,13 @@ userquota_propname_decode(const char *propname, boolean_t zoned,
 		return (ENOSYS);
 #endif /* HAVE_IDMAP */
 	} else {
-		/* It's a user/group ID (eg "12345"). */
+		/* It's a user/group/project ID (eg "12345"). */
 		uid_t id;
 		char *end;
 		id = strtoul(cp, &end, 10);
 		if (*end != '\0')
 			return (EINVAL);
-		if (id > MAXUID) {
+		if (id > MAXUID && !isproject) {
 #ifdef HAVE_IDMAP
 			/* It's an ephemeral ID. */
 			idmap_rid_t rid;
@@ -3170,10 +3178,12 @@ zfs_prop_get_userquota(zfs_handle_t *zhp, const char *propname,
 		    (u_longlong_t)propvalue);
 	} else if (propvalue == 0 &&
 	    (type == ZFS_PROP_USERQUOTA || type == ZFS_PROP_GROUPQUOTA ||
-	    type == ZFS_PROP_USEROBJQUOTA || type == ZFS_PROP_GROUPOBJQUOTA)) {
+	    type == ZFS_PROP_USEROBJQUOTA || type == ZFS_PROP_GROUPOBJQUOTA ||
+	    type == ZFS_PROP_PROJECTQUOTA || ZFS_PROP_PROJECTOBJQUOTA)) {
 		(void) strlcpy(propbuf, "none", proplen);
 	} else if (type == ZFS_PROP_USERQUOTA || type == ZFS_PROP_GROUPQUOTA ||
-	    type == ZFS_PROP_USERUSED || type == ZFS_PROP_GROUPUSED) {
+	    type == ZFS_PROP_USERUSED || type == ZFS_PROP_GROUPUSED ||
+	    type == ZFS_PROP_PROJECTUSED || type == ZFS_PROP_PROJECTQUOTA) {
 		zfs_nicebytes(propvalue, propbuf, proplen);
 	} else {
 		zfs_nicenum(propvalue, propbuf, proplen);
@@ -4728,7 +4738,11 @@ zfs_userspace(zfs_handle_t *zhp, zfs_userquota_prop_t type,
 			    (type == ZFS_PROP_USEROBJUSED ||
 			    type == ZFS_PROP_GROUPOBJUSED ||
 			    type == ZFS_PROP_USEROBJQUOTA ||
-			    type == ZFS_PROP_GROUPOBJQUOTA)))
+			    type == ZFS_PROP_GROUPOBJQUOTA ||
+			    type == ZFS_PROP_PROJECTOBJUSED ||
+			    type == ZFS_PROP_PROJECTOBJQUOTA ||
+			    type == ZFS_PROP_PROJECTUSED ||
+			    type == ZFS_PROP_PROJECTQUOTA)))
 				break;
 
 			(void) snprintf(errbuf, sizeof (errbuf),

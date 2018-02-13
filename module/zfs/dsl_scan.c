@@ -1684,11 +1684,15 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 
 		if (OBJSET_BUF_HAS_USERUSED(buf)) {
 			/*
-			 * We also always visit user/group accounting
+			 * We also always visit user/group/project accounting
 			 * objects, and never skip them, even if we are
 			 * suspending. This is necessary so that the
 			 * space deltas from this txg get integrated.
 			 */
+			if (OBJSET_BUF_HAS_PROJECTUSED(buf))
+				dsl_scan_visitdnode(scn, ds, osp->os_type,
+				    &osp->os_projectused_dnode,
+				    DMU_PROJECTUSED_OBJECT, tx);
 			dsl_scan_visitdnode(scn, ds, osp->os_type,
 			    &osp->os_groupused_dnode,
 			    DMU_GROUPUSED_OBJECT, tx);

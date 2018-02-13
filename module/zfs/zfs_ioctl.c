@@ -260,10 +260,14 @@ static const char *userquota_perms[] = {
 	ZFS_DELEG_PERM_USEROBJQUOTA,
 	ZFS_DELEG_PERM_GROUPOBJUSED,
 	ZFS_DELEG_PERM_GROUPOBJQUOTA,
+	ZFS_DELEG_PERM_PROJECTUSED,
+	ZFS_DELEG_PERM_PROJECTQUOTA,
+	ZFS_DELEG_PERM_PROJECTOBJUSED,
+	ZFS_DELEG_PERM_PROJECTOBJQUOTA,
 };
 
 static int zfs_ioc_userspace_upgrade(zfs_cmd_t *zc);
-static int zfs_ioc_userobjspace_upgrade(zfs_cmd_t *zc);
+static int zfs_ioc_id_quota_upgrade(zfs_cmd_t *zc);
 static int zfs_check_settable(const char *name, nvpair_t *property,
     cred_t *cr);
 static int zfs_check_clearable(char *dataset, nvlist_t *props,
@@ -1200,10 +1204,14 @@ zfs_secpolicy_userspace_one(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 		    zc->zc_objset_type == ZFS_PROP_USEROBJQUOTA) {
 			if (zc->zc_guid == crgetuid(cr))
 				return (0);
-		} else {
+		} else if (zc->zc_objset_type == ZFS_PROP_GROUPUSED ||
+		    zc->zc_objset_type == ZFS_PROP_GROUPQUOTA ||
+		    zc->zc_objset_type == ZFS_PROP_GROUPOBJUSED ||
+		    zc->zc_objset_type == ZFS_PROP_GROUPOBJQUOTA) {
 			if (groupmember(zc->zc_guid, cr))
 				return (0);
 		}
+		/* else is for project quota/used */
 	}
 
 	return (zfs_secpolicy_write_perms(zc->zc_name,
@@ -2516,7 +2524,7 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 			zc = kmem_zalloc(sizeof (zfs_cmd_t), KM_SLEEP);
 			(void) strcpy(zc->zc_name, dsname);
 			(void) zfs_ioc_userspace_upgrade(zc);
-			(void) zfs_ioc_userobjspace_upgrade(zc);
+			(void) zfs_ioc_id_quota_upgrade(zc);
 			kmem_free(zc, sizeof (zfs_cmd_t));
 		}
 		break;
@@ -3897,6 +3905,10 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 			    zfs_userquota_prop_prefixes[ZFS_PROP_USEROBJQUOTA];
 			const char *giq_prefix =
 			    zfs_userquota_prop_prefixes[ZFS_PROP_GROUPOBJQUOTA];
+			const char *pq_prefix =
+			    zfs_userquota_prop_prefixes[ZFS_PROP_PROJECTQUOTA];
+			const char *piq_prefix = zfs_userquota_prop_prefixes[\
+			    ZFS_PROP_PROJECTOBJQUOTA];
 
 			if (strncmp(propname, uq_prefix,
 			    strlen(uq_prefix)) == 0) {
@@ -3910,8 +3922,14 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 			} else if (strncmp(propname, giq_prefix,
 			    strlen(giq_prefix)) == 0) {
 				perm = ZFS_DELEG_PERM_GROUPOBJQUOTA;
+			} else if (strncmp(propname, pq_prefix,
+			    strlen(pq_prefix)) == 0) {
+				perm = ZFS_DELEG_PERM_PROJECTQUOTA;
+			} else if (strncmp(propname, piq_prefix,
+			    strlen(piq_prefix)) == 0) {
+				perm = ZFS_DELEG_PERM_PROJECTOBJQUOTA;
 			} else {
-				/* USERUSED and GROUPUSED are read-only */
+				/* {USER|GROUP|PROJECT}USED are read-only */
 				return (SET_ERROR(EINVAL));
 			}
 
@@ -5180,7 +5198,7 @@ zfs_ioc_promote(zfs_cmd_t *zc)
 }
 
 /*
- * Retrieve a single {user|group}{used|quota}@... property.
+ * Retrieve a single {user|group|project}{used|quota}@... property.
  *
  * inputs:
  * zc_name	name of filesystem
@@ -5306,7 +5324,7 @@ zfs_ioc_userspace_upgrade(zfs_cmd_t *zc)
  * none
  */
 static int
-zfs_ioc_userobjspace_upgrade(zfs_cmd_t *zc)
+zfs_ioc_id_quota_upgrade(zfs_cmd_t *zc)
 {
 	objset_t *os;
 	int error;
@@ -5315,14 +5333,15 @@ zfs_ioc_userobjspace_upgrade(zfs_cmd_t *zc)
 	if (error != 0)
 		return (error);
 
-	if (dmu_objset_userobjspace_upgradable(os)) {
+	if (dmu_objset_userobjspace_upgradable(os) ||
+	    dmu_objset_projectquota_upgradable(os)) {
 		mutex_enter(&os->os_upgrade_lock);
 		if (os->os_upgrade_id == 0) {
 			/* clear potential error code and retry */
 			os->os_upgrade_status = 0;
 			mutex_exit(&os->os_upgrade_lock);
 
-			dmu_objset_userobjspace_upgrade(os);
+			dmu_objset_id_quota_upgrade(os);
 		} else {
 			mutex_exit(&os->os_upgrade_lock);
 		}

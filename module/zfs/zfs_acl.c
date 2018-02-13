@@ -1054,8 +1054,8 @@ zfs_mode_compute(uint64_t fmode, zfs_acl_t *aclp,
  * Read an external acl object.  If the intent is to modify, always
  * create a new acl and leave any cached acl in place.
  */
-static int
-zfs_acl_node_read(znode_t *zp, boolean_t have_lock, zfs_acl_t **aclpp,
+int
+zfs_acl_node_read(struct znode *zp, boolean_t have_lock, zfs_acl_t **aclpp,
     boolean_t will_modify)
 {
 	zfs_acl_t	*aclp;
@@ -1883,12 +1883,12 @@ zfs_acl_ids_free(zfs_acl_ids_t *acl_ids)
 }
 
 boolean_t
-zfs_acl_ids_overquota(zfsvfs_t *zfsvfs, zfs_acl_ids_t *acl_ids)
+zfs_acl_ids_overquota(zfsvfs_t *zv, zfs_acl_ids_t *acl_ids, uint64_t projid)
 {
-	return (zfs_fuid_overquota(zfsvfs, B_FALSE, acl_ids->z_fuid) ||
-	    zfs_fuid_overquota(zfsvfs, B_TRUE, acl_ids->z_fgid) ||
-	    zfs_fuid_overobjquota(zfsvfs, B_FALSE, acl_ids->z_fuid) ||
-	    zfs_fuid_overobjquota(zfsvfs, B_TRUE, acl_ids->z_fgid));
+	return (zfs_id_overquota(zv, DMU_USERUSED_OBJECT, acl_ids->z_fuid) ||
+	    zfs_id_overquota(zv, DMU_GROUPUSED_OBJECT, acl_ids->z_fgid) ||
+	    (projid != ZFS_DEFAULT_PROJID && projid != ZFS_INVALID_PROJID &&
+	    zfs_id_overquota(zv, DMU_PROJECTUSED_OBJECT, projid)));
 }
 
 /*

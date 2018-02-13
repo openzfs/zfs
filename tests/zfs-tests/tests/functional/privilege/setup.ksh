@@ -31,6 +31,10 @@
 
 . $STF_SUITE/include/libtest.shlib
 
+if is_linux; then
+	log_unsupported "Requires pfexec command"
+fi
+
 ZFS_USER=zfsrbac
 USES_NIS=false
 

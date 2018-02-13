@@ -27,6 +27,8 @@
 #include <sys/sa.h>
 #include <sys/zfs_acl.h>
 #include <sys/zfs_sa.h>
+#include <sys/dmu_objset.h>
+#include <sys/sa_impl.h>
 
 /*
  * ZPL attribute registration table.
@@ -63,6 +65,7 @@ sa_attr_reg_t zfs_attr_table[ZPL_END+1] = {
 	{"ZPL_SCANSTAMP", 32, SA_UINT8_ARRAY, 0},
 	{"ZPL_DACL_ACES", 0, SA_ACL, 0},
 	{"ZPL_DXATTR", 0, SA_UINT8_ARRAY, 0},
+	{"ZPL_PROJID", sizeof (uint64_t), SA_UINT64_ARRAY, 0},
 	{NULL, 0, 0, 0}
 };
 
@@ -317,7 +320,7 @@ zfs_sa_upgrade(sa_handle_t *hdl, dmu_tx_t *tx)
 	}
 
 	/* First do a bulk query of the attributes that aren't cached */
-	bulk = kmem_alloc(sizeof (sa_bulk_attr_t) * 20, KM_SLEEP);
+	bulk = kmem_alloc(sizeof (sa_bulk_attr_t) * ZPL_END, KM_SLEEP);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_ATIME(zfsvfs), NULL, &atime, 16);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MTIME(zfsvfs), NULL, &mtime, 16);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CTIME(zfsvfs), NULL, &ctime, 16);
@@ -332,9 +335,13 @@ zfs_sa_upgrade(sa_handle_t *hdl, dmu_tx_t *tx)
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_ZNODE_ACL(zfsvfs), NULL,
 	    &znode_acl, 88);
 
-	if (sa_bulk_lookup_locked(hdl, bulk, count) != 0) {
-		kmem_free(bulk, sizeof (sa_bulk_attr_t) * 20);
+	if (sa_bulk_lookup_locked(hdl, bulk, count) != 0)
 		goto done;
+
+	if (dmu_objset_projectquota_enabled(hdl->sa_os) &&
+	    !(zp->z_pflags & ZFS_PROJID)) {
+		zp->z_pflags |= ZFS_PROJID;
+		zp->z_projid = ZFS_DEFAULT_PROJID;
 	}
 
 	/*
@@ -342,7 +349,7 @@ zfs_sa_upgrade(sa_handle_t *hdl, dmu_tx_t *tx)
 	 * it is such a way to pick up an already existing layout number
 	 */
 	count = 0;
-	sa_attrs = kmem_zalloc(sizeof (sa_bulk_attr_t) * 20, KM_SLEEP);
+	sa_attrs = kmem_zalloc(sizeof (sa_bulk_attr_t) * ZPL_END, KM_SLEEP);
 	SA_ADD_BULK_ATTR(sa_attrs, count, SA_ZPL_MODE(zfsvfs), NULL, &mode, 8);
 	SA_ADD_BULK_ATTR(sa_attrs, count, SA_ZPL_SIZE(zfsvfs), NULL,
 	    &zp->z_size, 8);
@@ -365,6 +372,9 @@ zfs_sa_upgrade(sa_handle_t *hdl, dmu_tx_t *tx)
 	links = ZTOI(zp)->i_nlink;
 	SA_ADD_BULK_ATTR(sa_attrs, count, SA_ZPL_LINKS(zfsvfs), NULL,
 	    &links, 8);
+	if (dmu_objset_projectquota_enabled(hdl->sa_os))
+		SA_ADD_BULK_ATTR(sa_attrs, count, SA_ZPL_PROJID(zfsvfs), NULL,
+		    &zp->z_projid, 8);
 	if (S_ISBLK(ZTOI(zp)->i_mode) || S_ISCHR(ZTOI(zp)->i_mode))
 		SA_ADD_BULK_ATTR(sa_attrs, count, SA_ZPL_RDEV(zfsvfs), NULL,
 		    &rdev, 8);
@@ -400,9 +410,9 @@ zfs_sa_upgrade(sa_handle_t *hdl, dmu_tx_t *tx)
 		    znode_acl.z_acl_extern_obj, tx));
 
 	zp->z_is_sa = B_TRUE;
-	kmem_free(sa_attrs, sizeof (sa_bulk_attr_t) * 20);
-	kmem_free(bulk, sizeof (sa_bulk_attr_t) * 20);
+	kmem_free(sa_attrs, sizeof (sa_bulk_attr_t) * ZPL_END);
 done:
+	kmem_free(bulk, sizeof (sa_bulk_attr_t) * ZPL_END);
 	if (drop_lock)
 		mutex_exit(&zp->z_lock);
 }

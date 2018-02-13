@@ -616,6 +616,16 @@ tags = ['functional', 'poolversion']
 tests = ['privilege_001_pos', 'privilege_002_pos']
 tags = ['functional', 'privilege']
 
+[tests/functional/projectquota]
+tests = ['projectid_001_pos', 'projectid_002_pos', 'projectid_003_pos',
+    'projectquota_001_pos', 'projectquota_002_pos', 'projectquota_003_pos',
+    'projectquota_004_neg', 'projectquota_005_pos', 'projectquota_006_pos',
+    'projectquota_007_pos', 'projectquota_008_pos', 'projectquota_009_pos',
+    'projectspace_001_pos', 'projectspace_002_pos', 'projectspace_003_pos',
+    'projectspace_004_pos',
+    'projecttree_001_pos', 'projecttree_002_pos', 'projecttree_003_neg' ]
+tags = ['functional', 'projectquota']
+
 [tests/functional/quota]
 tests = ['quota_001_pos', 'quota_002_pos', 'quota_003_pos',
          'quota_004_pos', 'quota_005_pos', 'quota_006_neg']
@@ -728,7 +738,7 @@ tests = ['truncate_001_pos', 'truncate_002_pos', 'truncate_timestamps']
 tags = ['functional', 'truncate']
 
 [tests/functional/upgrade]
-tests = [ 'upgrade_userobj_001_pos' ]
+tests = ['upgrade_userobj_001_pos', 'upgrade_projectquota_001_pos']
 tags = ['functional', 'upgrade']
 
 [tests/functional/userquota]

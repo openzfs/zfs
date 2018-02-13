@@ -1188,7 +1188,7 @@ spa_activate(spa_t *spa, int mode)
 
 	/*
 	 * The taskq to upgrade datasets in this pool. Currently used by
-	 * feature SPA_FEATURE_USEROBJ_ACCOUNTING.
+	 * feature SPA_FEATURE_USEROBJ_ACCOUNTING/SPA_FEATURE_PROJECT_QUOTA.
 	 */
 	spa->spa_upgrade_taskq = taskq_create("z_upgrade", boot_ncpus,
 	    defclsyspri, 1, INT_MAX, TASKQ_DYNAMIC);

@@ -1880,6 +1880,13 @@ dump_znode(objset_t *os, uint64_t object, void *data, size_t size)
 	(void) printf("\tparent	%llu\n", (u_longlong_t)parent);
 	(void) printf("\tlinks	%llu\n", (u_longlong_t)links);
 	(void) printf("\tpflags	%llx\n", (u_longlong_t)pflags);
+	if (dmu_objset_projectquota_enabled(os) && (pflags & ZFS_PROJID)) {
+		uint64_t projid;
+
+		if (sa_lookup(hdl, sa_attr_table[ZPL_PROJID], &projid,
+		    sizeof (uint64_t)) == 0)
+			(void) printf("\tprojid	%llu\n", (u_longlong_t)projid);
+	}
 	if (sa_lookup(hdl, sa_attr_table[ZPL_XATTR], &xattr,
 	    sizeof (uint64_t)) == 0)
 		(void) printf("\txattr	%llu\n", (u_longlong_t)xattr);
@@ -1942,8 +1949,8 @@ static object_viewer_t *object_viewer[DMU_OT_NUMTYPES + 1] = {
 	dump_packed_nvlist,	/* FUID nvlist size		*/
 	dump_zap,		/* DSL dataset next clones	*/
 	dump_zap,		/* DSL scrub queue		*/
-	dump_zap,		/* ZFS user/group used		*/
-	dump_zap,		/* ZFS user/group quota		*/
+	dump_zap,		/* ZFS user/group/project used	*/
+	dump_zap,		/* ZFS user/group/project quota	*/
 	dump_zap,		/* snapshot refcount tags	*/
 	dump_ddt_zap,		/* DDT ZAP object		*/
 	dump_zap,		/* DDT statistics		*/
@@ -2217,6 +2224,11 @@ dump_dir(objset_t *os)
 		dump_object(os, DMU_GROUPUSED_OBJECT, verbosity, &print_header,
 		    NULL);
 	}
+
+	if (DMU_PROJECTUSED_DNODE(os) != NULL &&
+	    DMU_PROJECTUSED_DNODE(os)->dn_type != 0)
+		dump_object(os, DMU_PROJECTUSED_OBJECT, verbosity,
+		    &print_header, NULL);
 
 	object = 0;
 	while ((error = dmu_object_next(os, &object, B_FALSE, 0)) == 0) {

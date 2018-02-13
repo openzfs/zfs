@@ -43,6 +43,7 @@ SUBDIRS = \
 	pool_names \
 	poolversion \
 	privilege \
+	projectquota \
 	quota \
 	raidz \
 	redundancy \
