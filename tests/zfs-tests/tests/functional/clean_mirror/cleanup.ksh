@@ -38,10 +38,10 @@ df -F zfs -h | grep "$TESTFS " >/dev/null
 [[ $? == 0 ]] && log_must zfs umount -f $TESTDIR
 destroy_pool $TESTPOOL
 
-if is_mpath_device $MIRROR_PRIMARY; then
+if ( is_mpath_device $MIRROR_PRIMARY || is_loop_device $MIRROR_SECONDARY); then
 	parted $DEV_DSKDIR/$MIRROR_PRIMARY -s rm 1
 fi
-if is_mpath_device $MIRROR_SECONDARY; then
+if ( is_mpath_device $MIRROR_SECONDARY || is_loop_device $MIRROR_SECONDARY); then
 	parted $DEV_DSKDIR/$MIRROR_SECONDARY -s rm 1
 fi
 # recreate and destroy a zpool over the disks to restore the partitions to

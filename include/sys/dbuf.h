@@ -54,6 +54,7 @@ extern "C" {
 #define	DB_RF_NOPREFETCH	(1 << 3)
 #define	DB_RF_NEVERWAIT		(1 << 4)
 #define	DB_RF_CACHED		(1 << 5)
+#define	DB_RF_NO_DECRYPT	(1 << 6)
 
 /*
  * The simplified state transition diagram for dbufs looks like:
@@ -146,6 +147,7 @@ typedef struct dbuf_dirty_record {
 			override_states_t dr_override_state;
 			uint8_t dr_copies;
 			boolean_t dr_nopwrite;
+			boolean_t dr_raw;
 		} dl;
 	} dt;
 } dbuf_dirty_record_t;
@@ -347,6 +349,12 @@ boolean_t dbuf_is_metadata(dmu_buf_impl_t *db);
 	((_db)->db_objset->os_secondary_cache == ZFS_CACHE_ALL ||	\
 	(dbuf_is_metadata(_db) &&					\
 	((_db)->db_objset->os_secondary_cache == ZFS_CACHE_METADATA)))
+
+#define	DNODE_LEVEL_IS_L2CACHEABLE(_dn, _level)				\
+	((_dn)->dn_objset->os_secondary_cache == ZFS_CACHE_ALL ||	\
+	(((_level) > 0 ||						\
+	DMU_OT_IS_METADATA((_dn)->dn_handle->dnh_dnode->dn_type)) &&	\
+	((_dn)->dn_objset->os_secondary_cache == ZFS_CACHE_METADATA)))
 
 #ifdef ZFS_DEBUG
 

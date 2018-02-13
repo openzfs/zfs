@@ -578,7 +578,7 @@ zfs_zevent_minor_to_state(minor_t minor, zfs_zevent_t **ze)
 {
 	*ze = zfsdev_get_state(minor, ZST_ZEVENT);
 	if (*ze == NULL)
-		return (EBADF);
+		return (SET_ERROR(EBADF));
 
 	return (0);
 }
@@ -591,7 +591,7 @@ zfs_zevent_fd_hold(int fd, minor_t *minorp, zfs_zevent_t **ze)
 
 	fp = getf(fd);
 	if (fp == NULL)
-		return (EBADF);
+		return (SET_ERROR(EBADF));
 
 	error = zfsdev_getminor(fp->f_file, minorp);
 	if (error == 0)
@@ -794,11 +794,11 @@ i_fm_free(nv_alloc_t *nva, void *buf, size_t size)
 }
 
 const nv_alloc_ops_t fm_mem_alloc_ops = {
-	NULL,
-	NULL,
-	i_fm_alloc,
-	i_fm_free,
-	NULL
+	.nv_ao_init = NULL,
+	.nv_ao_fini = NULL,
+	.nv_ao_alloc = i_fm_alloc,
+	.nv_ao_free = i_fm_free,
+	.nv_ao_reset = NULL
 };
 
 /*

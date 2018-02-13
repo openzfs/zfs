@@ -33,6 +33,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <strings.h>
+#include <thread_pool.h>
 
 #include <libzfs.h>
 #include <sys/zfs_context.h>
@@ -668,34 +669,21 @@ all_pools_for_each_vdev_gather_cb(zpool_handle_t *zhp, void *cb_vcdl)
 static void
 all_pools_for_each_vdev_run_vcdl(vdev_cmd_data_list_t *vcdl)
 {
-	taskq_t *t;
-	int i;
-	/* 5 * boot_ncpus selfishly chosen since it works best on LLNL's HW */
-	int max_threads = 5 * boot_ncpus;
+	tpool_t *t;
 
-	/*
-	 * Under Linux we use a taskq to parallelize running a command
-	 * on each vdev.  It is therefore necessary to initialize this
-	 * functionality for the duration of the threads.
-	 */
-	thread_init();
-
-	t = taskq_create("z_pool_cmd", max_threads, defclsyspri, max_threads,
-	    INT_MAX, 0);
+	t = tpool_create(1, 5 * sysconf(_SC_NPROCESSORS_ONLN), 0, NULL);
 	if (t == NULL)
 		return;
 
 	/* Spawn off the command for each vdev */
-	for (i = 0; i < vcdl->count; i++) {
-		(void) taskq_dispatch(t, vdev_run_cmd_thread,
-		    (void *) &vcdl->data[i], TQ_SLEEP);
+	for (int i = 0; i < vcdl->count; i++) {
+		(void) tpool_dispatch(t, vdev_run_cmd_thread,
+		    (void *) &vcdl->data[i]);
 	}
 
 	/* Wait for threads to finish */
-	taskq_wait(t);
-	taskq_destroy(t);
-	thread_fini();
-
+	tpool_wait(t);
+	tpool_destroy(t);
 }
 
 /*

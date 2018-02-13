@@ -167,14 +167,12 @@ zfs_case_unserialize(fmd_hdl_t *hdl, fmd_case_t *cp)
 static void
 zfs_mark_vdev(uint64_t pool_guid, nvlist_t *vd, er_timeval_t *loaded)
 {
-	uint64_t vdev_guid;
+	uint64_t vdev_guid = 0;
 	uint_t c, children;
 	nvlist_t **child;
 	zfs_case_t *zcp;
-	int ret;
 
-	ret = nvlist_lookup_uint64(vd, ZPOOL_CONFIG_GUID, &vdev_guid);
-	assert(ret == 0);
+	(void) nvlist_lookup_uint64(vd, ZPOOL_CONFIG_GUID, &vdev_guid);
 
 	/*
 	 * Mark any cases associated with this (pool, vdev) pair.
@@ -253,7 +251,10 @@ zfs_mark_pool(zpool_handle_t *zhp, void *unused)
 	}
 
 	ret = nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE, &vd);
-	assert(ret == 0);
+	if (ret) {
+		zpool_close(zhp);
+		return (-1);
+	}
 
 	zfs_mark_vdev(pool_guid, vd, &loaded);
 
@@ -377,11 +378,6 @@ zfs_case_solve(fmd_hdl_t *hdl, zfs_case_t *zcp, const char *faultname,
 	nvlist_t *detector, *fault;
 	boolean_t serialize;
 	nvlist_t *fru = NULL;
-#ifdef HAVE_LIBTOPO
-	nvlist_t *fmri;
-	topo_hdl_t *thp;
-	int err;
-#endif
 	fmd_hdl_debug(hdl, "solving fault '%s'", faultname);
 
 	/*
@@ -400,64 +396,6 @@ zfs_case_solve(fmd_hdl_t *hdl, zfs_case_t *zcp, const char *faultname,
 		    zcp->zc_data.zc_vdev_guid);
 	}
 
-#ifdef HAVE_LIBTOPO
-	/*
-	 * We also want to make sure that the detector (pool or vdev) properly
-	 * reflects the diagnosed state, when the fault corresponds to internal
-	 * ZFS state (i.e. not checksum or I/O error-induced).  Otherwise, a
-	 * device which was unavailable early in boot (because the driver/file
-	 * wasn't available) and is now healthy will be mis-diagnosed.
-	 */
-	if (!fmd_nvl_fmri_present(hdl, detector) ||
-	    (checkunusable && !fmd_nvl_fmri_unusable(hdl, detector))) {
-		fmd_case_close(hdl, zcp->zc_case);
-		nvlist_free(detector);
-		return;
-	}
-
-
-	fru = NULL;
-	if (zcp->zc_fru != NULL &&
-	    (thp = fmd_hdl_topo_hold(hdl, TOPO_VERSION)) != NULL) {
-		/*
-		 * If the vdev had an associated FRU, then get the FRU nvlist
-		 * from the topo handle and use that in the suspect list.  We
-		 * explicitly lookup the FRU because the fmri reported from the
-		 * kernel may not have up to date details about the disk itself
-		 * (serial, part, etc).
-		 */
-		if (topo_fmri_str2nvl(thp, zcp->zc_fru, &fmri, &err) == 0) {
-			libzfs_handle_t *zhdl = fmd_hdl_getspecific(hdl);
-
-			/*
-			 * If the disk is part of the system chassis, but the
-			 * FRU indicates a different chassis ID than our
-			 * current system, then ignore the error.  This
-			 * indicates that the device was part of another
-			 * cluster head, and for obvious reasons cannot be
-			 * imported on this system.
-			 */
-			if (libzfs_fru_notself(zhdl, zcp->zc_fru)) {
-				fmd_case_close(hdl, zcp->zc_case);
-				nvlist_free(fmri);
-				fmd_hdl_topo_rele(hdl, thp);
-				nvlist_free(detector);
-				return;
-			}
-
-			/*
-			 * If the device is no longer present on the system, or
-			 * topo_fmri_fru() fails for other reasons, then fall
-			 * back to the fmri specified in the vdev.
-			 */
-			if (topo_fmri_fru(thp, fmri, &fru, &err) != 0)
-				fru = fmd_nvl_dup(hdl, fmri, FMD_SLEEP);
-			nvlist_free(fmri);
-		}
-
-		fmd_hdl_topo_rele(hdl, thp);
-	}
-#endif
 	fault = fmd_nvl_create_fault(hdl, faultname, 100, detector,
 	    fru, detector);
 	fmd_case_add_suspect(hdl, zcp->zc_case, fault);
@@ -982,27 +920,27 @@ _zfs_diagnosis_init(fmd_hdl_t *hdl)
 {
 	libzfs_handle_t *zhdl;
 
-	if ((zhdl = __libzfs_init()) == NULL)
+	if ((zhdl = libzfs_init()) == NULL)
 		return;
 
 	if ((zfs_case_pool = uu_list_pool_create("zfs_case_pool",
 	    sizeof (zfs_case_t), offsetof(zfs_case_t, zc_node),
 	    NULL, UU_LIST_POOL_DEBUG)) == NULL) {
-		__libzfs_fini(zhdl);
+		libzfs_fini(zhdl);
 		return;
 	}
 
 	if ((zfs_cases = uu_list_create(zfs_case_pool, NULL,
 	    UU_LIST_DEBUG)) == NULL) {
 		uu_list_pool_destroy(zfs_case_pool);
-		__libzfs_fini(zhdl);
+		libzfs_fini(zhdl);
 		return;
 	}
 
 	if (fmd_hdl_register(hdl, FMD_API_VERSION, &fmd_info) != 0) {
 		uu_list_destroy(zfs_cases);
 		uu_list_pool_destroy(zfs_case_pool);
-		__libzfs_fini(zhdl);
+		libzfs_fini(zhdl);
 		return;
 	}
 
@@ -1038,5 +976,5 @@ _zfs_diagnosis_fini(fmd_hdl_t *hdl)
 	uu_list_pool_destroy(zfs_case_pool);
 
 	zhdl = fmd_hdl_getspecific(hdl);
-	__libzfs_fini(zhdl);
+	libzfs_fini(zhdl);
 }

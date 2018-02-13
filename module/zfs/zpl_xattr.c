@@ -333,7 +333,7 @@ zpl_xattr_get_sa(struct inode *ip, const char *name, void *value, size_t size)
 	if (error)
 		return (error);
 
-	if (!size)
+	if (size == 0 || value == NULL)
 		return (nv_size);
 
 	if (size < nv_size)
@@ -495,6 +495,12 @@ zpl_xattr_set_dir(struct inode *ip, const char *name, const void *value,
 		error = wrote;
 
 out:
+
+	if (error == 0) {
+		ip->i_ctime = current_time(ip);
+		zfs_mark_inode_dirty(ip);
+	}
+
 	if (vap)
 		kmem_free(vap, sizeof (vattr_t));
 

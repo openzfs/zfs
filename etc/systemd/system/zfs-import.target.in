@@ -1,0 +1,6 @@
+[Unit]
+Description=ZFS pool import target
+Before=dracut-mount.service
+
+[Install]
+WantedBy=zfs.target

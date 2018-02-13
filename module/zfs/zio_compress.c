@@ -89,9 +89,7 @@ static int
 zio_compress_zeroed_cb(void *data, size_t len, void *private)
 {
 	uint64_t *end = (uint64_t *)((char *)data + len);
-	uint64_t *word;
-
-	for (word = data; word < end; word++)
+	for (uint64_t *word = (uint64_t *)data; word < end; word++)
 		if (*word != 0)
 			return (1);
 
@@ -103,7 +101,6 @@ zio_compress_data(enum zio_compress c, abd_t *src, void *dst, size_t s_len)
 {
 	size_t c_len, d_len;
 	zio_compress_info_t *ci = &zio_compress_table[c];
-	void *tmp;
 
 	ASSERT((uint_t)c < ZIO_COMPRESS_FUNCTIONS);
 	ASSERT((uint_t)c == ZIO_COMPRESS_EMPTY || ci->ci_compress != NULL);
@@ -122,7 +119,7 @@ zio_compress_data(enum zio_compress c, abd_t *src, void *dst, size_t s_len)
 	d_len = s_len - (s_len >> 3);
 
 	/* No compression algorithms can read from ABDs directly */
-	tmp = abd_borrow_buf_copy(src, s_len);
+	void *tmp = abd_borrow_buf_copy(src, s_len);
 	c_len = ci->ci_compress(tmp, dst, s_len, d_len, ci->ci_level);
 	abd_return_buf(src, tmp, s_len);
 

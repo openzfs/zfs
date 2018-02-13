@@ -20,10 +20,11 @@
  */
 
 /*
- * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  * Copyright (c) 2017 Datto Inc.
  * Copyright 2017 RackTop Systems.
+ * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
  */
 
 /*
@@ -145,7 +146,12 @@ lzc_ioctl(zfs_ioc_t ioc, const char *name,
 
 	if (resultp != NULL) {
 		*resultp = NULL;
-		zc.zc_nvlist_dst_size = MAX(size * 2, 128 * 1024);
+		if (ioc == ZFS_IOC_CHANNEL_PROGRAM) {
+			zc.zc_nvlist_dst_size = fnvlist_lookup_uint64(source,
+			    ZCP_ARG_MEMLIMIT);
+		} else {
+			zc.zc_nvlist_dst_size = MAX(size * 2, 128 * 1024);
+		}
 		zc.zc_nvlist_dst = (uint64_t)(uintptr_t)
 		    malloc(zc.zc_nvlist_dst_size);
 		if (zc.zc_nvlist_dst == (uint64_t)0) {
@@ -155,7 +161,15 @@ lzc_ioctl(zfs_ioc_t ioc, const char *name,
 	}
 
 	while (ioctl(g_fd, ioc, &zc) != 0) {
-		if (errno == ENOMEM && resultp != NULL) {
+		/*
+		 * If ioctl exited with ENOMEM, we retry the ioctl after
+		 * increasing the size of the destination nvlist.
+		 *
+		 * Channel programs that exit with ENOMEM ran over the
+		 * lua memory sandbox; they should not be retried.
+		 */
+		if (errno == ENOMEM && resultp != NULL &&
+		    ioc != ZFS_IOC_CHANNEL_PROGRAM) {
 			free((void *)(uintptr_t)zc.zc_nvlist_dst);
 			zc.zc_nvlist_dst_size *= 2;
 			zc.zc_nvlist_dst = (uint64_t)(uintptr_t)
@@ -175,34 +189,49 @@ lzc_ioctl(zfs_ioc_t ioc, const char *name,
 	}
 
 out:
-	fnvlist_pack_free(packed, size);
+	if (packed != NULL)
+		fnvlist_pack_free(packed, size);
 	free((void *)(uintptr_t)zc.zc_nvlist_dst);
 	return (error);
 }
 
 int
-lzc_create(const char *fsname, enum lzc_dataset_type type, nvlist_t *props)
+lzc_create(const char *fsname, enum lzc_dataset_type type, nvlist_t *props,
+    uint8_t *wkeydata, uint_t wkeylen)
 {
 	int error;
+	nvlist_t *hidden_args = NULL;
 	nvlist_t *args = fnvlist_alloc();
+
 	fnvlist_add_int32(args, "type", (dmu_objset_type_t)type);
 	if (props != NULL)
 		fnvlist_add_nvlist(args, "props", props);
+
+	if (wkeydata != NULL) {
+		hidden_args = fnvlist_alloc();
+		fnvlist_add_uint8_array(hidden_args, "wkeydata", wkeydata,
+		    wkeylen);
+		fnvlist_add_nvlist(args, ZPOOL_HIDDEN_ARGS, hidden_args);
+	}
+
 	error = lzc_ioctl(ZFS_IOC_CREATE, fsname, args, NULL);
+	nvlist_free(hidden_args);
 	nvlist_free(args);
 	return (error);
 }
 
 int
-lzc_clone(const char *fsname, const char *origin,
-    nvlist_t *props)
+lzc_clone(const char *fsname, const char *origin, nvlist_t *props)
 {
 	int error;
+	nvlist_t *hidden_args = NULL;
 	nvlist_t *args = fnvlist_alloc();
+
 	fnvlist_add_string(args, "origin", origin);
 	if (props != NULL)
 		fnvlist_add_nvlist(args, "props", props);
 	error = lzc_ioctl(ZFS_IOC_CLONE, fsname, args, NULL);
+	nvlist_free(hidden_args);
 	nvlist_free(args);
 	return (error);
 }
@@ -532,6 +561,8 @@ lzc_send_resume(const char *snapname, const char *from, int fd,
 		fnvlist_add_boolean(args, "embedok");
 	if (flags & LZC_SEND_FLAG_COMPRESS)
 		fnvlist_add_boolean(args, "compressok");
+	if (flags & LZC_SEND_FLAG_RAW)
+		fnvlist_add_boolean(args, "rawok");
 	if (resumeobj != 0 || resumeoff != 0) {
 		fnvlist_add_uint64(args, "resume_object", resumeobj);
 		fnvlist_add_uint64(args, "resume_offset", resumeoff);
@@ -573,6 +604,8 @@ lzc_send_space(const char *snapname, const char *from,
 		fnvlist_add_boolean(args, "embedok");
 	if (flags & LZC_SEND_FLAG_COMPRESS)
 		fnvlist_add_boolean(args, "compressok");
+	if (flags & LZC_SEND_FLAG_RAW)
+		fnvlist_add_boolean(args, "rawok");
 	err = lzc_ioctl(ZFS_IOC_SEND_SPACE, snapname, args, &result);
 	nvlist_free(args);
 	if (err == 0)
@@ -601,17 +634,17 @@ recv_read(int fd, void *buf, int ilen)
 }
 
 /*
- * Linux adds ZFS_IOC_RECV_NEW for resumable streams and preserves the legacy
- * ZFS_IOC_RECV user/kernel interface.  The new interface supports all stream
- * options but is currently only used for resumable streams.  This way updated
- * user space utilities will interoperate with older kernel modules.
+ * Linux adds ZFS_IOC_RECV_NEW for resumable and raw streams and preserves the
+ * legacy ZFS_IOC_RECV user/kernel interface.  The new interface supports all
+ * stream options but is currently only used for resumable streams.  This way
+ * updated user space utilities will interoperate with older kernel modules.
  *
  * Non-Linux OpenZFS platforms have opted to modify the legacy interface.
  */
 static int
 recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
-    const char *origin, boolean_t force, boolean_t resumable, int input_fd,
-    const dmu_replay_record_t *begin_record, int cleanup_fd,
+    const char *origin, boolean_t force, boolean_t resumable, boolean_t raw,
+    int input_fd, const dmu_replay_record_t *begin_record, int cleanup_fd,
     uint64_t *read_bytes, uint64_t *errflags, uint64_t *action_handle,
     nvlist_t **errors)
 {
@@ -651,7 +684,7 @@ recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
 		drr = *begin_record;
 	}
 
-	if (resumable) {
+	if (resumable || raw) {
 		nvlist_t *outnvl = NULL;
 		nvlist_t *innvl = fnvlist_alloc();
 
@@ -792,10 +825,10 @@ recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
  */
 int
 lzc_receive(const char *snapname, nvlist_t *props, const char *origin,
-    boolean_t force, int fd)
+    boolean_t force, boolean_t raw, int fd)
 {
-	return (recv_impl(snapname, props, NULL, origin, force, B_FALSE, fd,
-	    NULL, -1, NULL, NULL, NULL, NULL));
+	return (recv_impl(snapname, props, NULL, origin, force, B_FALSE, raw,
+	    fd, NULL, -1, NULL, NULL, NULL, NULL));
 }
 
 /*
@@ -806,10 +839,10 @@ lzc_receive(const char *snapname, nvlist_t *props, const char *origin,
  */
 int
 lzc_receive_resumable(const char *snapname, nvlist_t *props, const char *origin,
-    boolean_t force, int fd)
+    boolean_t force, boolean_t raw, int fd)
 {
-	return (recv_impl(snapname, props, NULL, origin, force, B_TRUE, fd,
-	    NULL, -1, NULL, NULL, NULL, NULL));
+	return (recv_impl(snapname, props, NULL, origin, force, B_TRUE, raw,
+	    fd, NULL, -1, NULL, NULL, NULL, NULL));
 }
 
 /*
@@ -825,13 +858,14 @@ lzc_receive_resumable(const char *snapname, nvlist_t *props, const char *origin,
  */
 int
 lzc_receive_with_header(const char *snapname, nvlist_t *props,
-    const char *origin, boolean_t force, boolean_t resumable, int fd,
-    const dmu_replay_record_t *begin_record)
+    const char *origin, boolean_t force, boolean_t resumable, boolean_t raw,
+    int fd, const dmu_replay_record_t *begin_record)
 {
 	if (begin_record == NULL)
 		return (EINVAL);
-	return (recv_impl(snapname, props, NULL, origin, force, resumable, fd,
-	    begin_record, -1, NULL, NULL, NULL, NULL));
+
+	return (recv_impl(snapname, props, NULL, origin, force, resumable, raw,
+	    fd, begin_record, -1, NULL, NULL, NULL, NULL));
 }
 
 /*
@@ -855,13 +889,13 @@ lzc_receive_with_header(const char *snapname, nvlist_t *props,
  * property.  Callers are responsible for freeing this nvlist.
  */
 int lzc_receive_one(const char *snapname, nvlist_t *props,
-    const char *origin, boolean_t force, boolean_t resumable, int input_fd,
-    const dmu_replay_record_t *begin_record, int cleanup_fd,
+    const char *origin, boolean_t force, boolean_t resumable, boolean_t raw,
+    int input_fd, const dmu_replay_record_t *begin_record, int cleanup_fd,
     uint64_t *read_bytes, uint64_t *errflags, uint64_t *action_handle,
     nvlist_t **errors)
 {
 	return (recv_impl(snapname, props, NULL, origin, force, resumable,
-	    input_fd, begin_record, cleanup_fd, read_bytes, errflags,
+	    raw, input_fd, begin_record, cleanup_fd, read_bytes, errflags,
 	    action_handle, errors));
 }
 
@@ -875,12 +909,13 @@ int lzc_receive_one(const char *snapname, nvlist_t *props,
  */
 int lzc_receive_with_cmdprops(const char *snapname, nvlist_t *props,
     nvlist_t *cmdprops, const char *origin, boolean_t force,
-    boolean_t resumable, int input_fd, const dmu_replay_record_t *begin_record,
-    int cleanup_fd, uint64_t *read_bytes, uint64_t *errflags,
-    uint64_t *action_handle, nvlist_t **errors)
+    boolean_t resumable, boolean_t raw, int input_fd,
+    const dmu_replay_record_t *begin_record, int cleanup_fd,
+    uint64_t *read_bytes, uint64_t *errflags, uint64_t *action_handle,
+    nvlist_t **errors)
 {
 	return (recv_impl(snapname, props, cmdprops, origin, force, resumable,
-	    input_fd, begin_record, cleanup_fd, read_bytes, errflags,
+	    raw, input_fd, begin_record, cleanup_fd, read_bytes, errflags,
 	    action_handle, errors));
 }
 
@@ -1025,5 +1060,162 @@ lzc_destroy_bookmarks(nvlist_t *bmarks, nvlist_t **errlist)
 
 	error = lzc_ioctl(ZFS_IOC_DESTROY_BOOKMARKS, pool, bmarks, errlist);
 
+	return (error);
+}
+
+static int
+lzc_channel_program_impl(const char *pool, const char *program, boolean_t sync,
+    uint64_t instrlimit, uint64_t memlimit, nvlist_t *argnvl, nvlist_t **outnvl)
+{
+	int error;
+	nvlist_t *args;
+
+	args = fnvlist_alloc();
+	fnvlist_add_string(args, ZCP_ARG_PROGRAM, program);
+	fnvlist_add_nvlist(args, ZCP_ARG_ARGLIST, argnvl);
+	fnvlist_add_boolean_value(args, ZCP_ARG_SYNC, sync);
+	fnvlist_add_uint64(args, ZCP_ARG_INSTRLIMIT, instrlimit);
+	fnvlist_add_uint64(args, ZCP_ARG_MEMLIMIT, memlimit);
+	error = lzc_ioctl(ZFS_IOC_CHANNEL_PROGRAM, pool, args, outnvl);
+	fnvlist_free(args);
+
+	return (error);
+}
+
+/*
+ * Executes a channel program.
+ *
+ * If this function returns 0 the channel program was successfully loaded and
+ * ran without failing. Note that individual commands the channel program ran
+ * may have failed and the channel program is responsible for reporting such
+ * errors through outnvl if they are important.
+ *
+ * This method may also return:
+ *
+ * EINVAL   The program contains syntax errors, or an invalid memory or time
+ *          limit was given. No part of the channel program was executed.
+ *          If caused by syntax errors, 'outnvl' contains information about the
+ *          errors.
+ *
+ * ECHRNG   The program was executed, but encountered a runtime error, such as
+ *          calling a function with incorrect arguments, invoking the error()
+ *          function directly, failing an assert() command, etc. Some portion
+ *          of the channel program may have executed and committed changes.
+ *          Information about the failure can be found in 'outnvl'.
+ *
+ * ENOMEM   The program fully executed, but the output buffer was not large
+ *          enough to store the returned value. No output is returned through
+ *          'outnvl'.
+ *
+ * ENOSPC   The program was terminated because it exceeded its memory usage
+ *          limit. Some portion of the channel program may have executed and
+ *          committed changes to disk. No output is returned through 'outnvl'.
+ *
+ * ETIME    The program was terminated because it exceeded its Lua instruction
+ *          limit. Some portion of the channel program may have executed and
+ *          committed changes to disk. No output is returned through 'outnvl'.
+ */
+int
+lzc_channel_program(const char *pool, const char *program, uint64_t instrlimit,
+    uint64_t memlimit, nvlist_t *argnvl, nvlist_t **outnvl)
+{
+	return (lzc_channel_program_impl(pool, program, B_TRUE, instrlimit,
+	    memlimit, argnvl, outnvl));
+}
+
+/*
+ * Executes a read-only channel program.
+ *
+ * A read-only channel program works programmatically the same way as a
+ * normal channel program executed with lzc_channel_program(). The only
+ * difference is it runs exclusively in open-context and therefore can
+ * return faster. The downside to that, is that the program cannot change
+ * on-disk state by calling functions from the zfs.sync submodule.
+ *
+ * The return values of this function (and their meaning) are exactly the
+ * same as the ones described in lzc_channel_program().
+ */
+int
+lzc_channel_program_nosync(const char *pool, const char *program,
+    uint64_t timeout, uint64_t memlimit, nvlist_t *argnvl, nvlist_t **outnvl)
+{
+	return (lzc_channel_program_impl(pool, program, B_FALSE, timeout,
+	    memlimit, argnvl, outnvl));
+}
+
+/*
+ * Performs key management functions
+ *
+ * crypto_cmd should be a value from zfs_ioc_crypto_cmd_t. If the command
+ * specifies to load or change a wrapping key, the key should be specified in
+ * the hidden_args nvlist so that it is not logged
+ */
+int
+lzc_load_key(const char *fsname, boolean_t noop, uint8_t *wkeydata,
+    uint_t wkeylen)
+{
+	int error;
+	nvlist_t *ioc_args;
+	nvlist_t *hidden_args;
+
+	if (wkeydata == NULL)
+		return (EINVAL);
+
+	ioc_args = fnvlist_alloc();
+	hidden_args = fnvlist_alloc();
+	fnvlist_add_uint8_array(hidden_args, "wkeydata", wkeydata, wkeylen);
+	fnvlist_add_nvlist(ioc_args, ZPOOL_HIDDEN_ARGS, hidden_args);
+	if (noop)
+		fnvlist_add_boolean(ioc_args, "noop");
+	error = lzc_ioctl(ZFS_IOC_LOAD_KEY, fsname, ioc_args, NULL);
+	nvlist_free(hidden_args);
+	nvlist_free(ioc_args);
+
+	return (error);
+}
+
+int
+lzc_unload_key(const char *fsname)
+{
+	return (lzc_ioctl(ZFS_IOC_UNLOAD_KEY, fsname, NULL, NULL));
+}
+
+int
+lzc_change_key(const char *fsname, uint64_t crypt_cmd, nvlist_t *props,
+    uint8_t *wkeydata, uint_t wkeylen)
+{
+	int error;
+	nvlist_t *ioc_args = fnvlist_alloc();
+	nvlist_t *hidden_args = NULL;
+
+	fnvlist_add_uint64(ioc_args, "crypt_cmd", crypt_cmd);
+
+	if (wkeydata != NULL) {
+		hidden_args = fnvlist_alloc();
+		fnvlist_add_uint8_array(hidden_args, "wkeydata", wkeydata,
+		    wkeylen);
+		fnvlist_add_nvlist(ioc_args, ZPOOL_HIDDEN_ARGS, hidden_args);
+	}
+
+	if (props != NULL)
+		fnvlist_add_nvlist(ioc_args, "props", props);
+
+	error = lzc_ioctl(ZFS_IOC_CHANGE_KEY, fsname, ioc_args, NULL);
+	nvlist_free(hidden_args);
+	nvlist_free(ioc_args);
+
+	return (error);
+}
+
+int
+lzc_reopen(const char *pool_name, boolean_t scrub_restart)
+{
+	nvlist_t *args = fnvlist_alloc();
+	int error;
+
+	fnvlist_add_boolean_value(args, "scrub_restart", scrub_restart);
+
+	error = lzc_ioctl(ZFS_IOC_POOL_REOPEN, pool_name, args, NULL);
+	nvlist_free(args);
 	return (error);
 }

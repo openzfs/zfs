@@ -149,12 +149,11 @@ dsl_bookmark_create_check(void *arg, dmu_tx_t *tx)
 	dsl_bookmark_create_arg_t *dbca = arg;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	int rv = 0;
-	nvpair_t *pair;
 
 	if (!spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_BOOKMARKS))
 		return (SET_ERROR(ENOTSUP));
 
-	for (pair = nvlist_next_nvpair(dbca->dbca_bmarks, NULL);
+	for (nvpair_t *pair = nvlist_next_nvpair(dbca->dbca_bmarks, NULL);
 	    pair != NULL; pair = nvlist_next_nvpair(dbca->dbca_bmarks, pair)) {
 		dsl_dataset_t *snapds;
 		int error;
@@ -183,11 +182,10 @@ dsl_bookmark_create_sync(void *arg, dmu_tx_t *tx)
 	dsl_bookmark_create_arg_t *dbca = arg;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	objset_t *mos = dp->dp_meta_objset;
-	nvpair_t *pair;
 
 	ASSERT(spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_BOOKMARKS));
 
-	for (pair = nvlist_next_nvpair(dbca->dbca_bmarks, NULL);
+	for (nvpair_t *pair = nvlist_next_nvpair(dbca->dbca_bmarks, NULL);
 	    pair != NULL; pair = nvlist_next_nvpair(dbca->dbca_bmarks, pair)) {
 		dsl_dataset_t *snapds, *bmark_fs;
 		zfs_bookmark_phys_t bmark_phys;
@@ -268,7 +266,6 @@ dsl_get_bookmarks_impl(dsl_dataset_t *ds, nvlist_t *props, nvlist_t *outnvl)
 	for (zap_cursor_init(&zc, dp->dp_meta_objset, bmark_zapobj);
 	    zap_cursor_retrieve(&zc, &attr) == 0;
 	    zap_cursor_advance(&zc)) {
-		nvlist_t *out_props;
 		char *bmark_name = attr.za_name;
 		zfs_bookmark_phys_t bmark_phys;
 
@@ -277,7 +274,7 @@ dsl_get_bookmarks_impl(dsl_dataset_t *ds, nvlist_t *props, nvlist_t *outnvl)
 		if (err != 0)
 			break;
 
-		out_props = fnvlist_alloc();
+		nvlist_t *out_props = fnvlist_alloc();
 		if (nvlist_exists(props,
 		    zfs_prop_to_name(ZFS_PROP_GUID))) {
 			dsl_prop_nvlist_add_uint64(out_props,
@@ -356,7 +353,6 @@ dsl_bookmark_destroy_check(void *arg, dmu_tx_t *tx)
 	dsl_bookmark_destroy_arg_t *dbda = arg;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	int rv = 0;
-	nvpair_t *pair;
 
 	ASSERT(nvlist_empty(dbda->dbda_success));
 	ASSERT(nvlist_empty(dbda->dbda_errors));
@@ -364,7 +360,7 @@ dsl_bookmark_destroy_check(void *arg, dmu_tx_t *tx)
 	if (!spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_BOOKMARKS))
 		return (0);
 
-	for (pair = nvlist_next_nvpair(dbda->dbda_bmarks, NULL);
+	for (nvpair_t *pair = nvlist_next_nvpair(dbda->dbda_bmarks, NULL);
 	    pair != NULL; pair = nvlist_next_nvpair(dbda->dbda_bmarks, pair)) {
 		const char *fullname = nvpair_name(pair);
 		dsl_dataset_t *ds;
@@ -408,9 +404,8 @@ dsl_bookmark_destroy_sync(void *arg, dmu_tx_t *tx)
 	dsl_bookmark_destroy_arg_t *dbda = arg;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	objset_t *mos = dp->dp_meta_objset;
-	nvpair_t *pair;
 
-	for (pair = nvlist_next_nvpair(dbda->dbda_success, NULL);
+	for (nvpair_t *pair = nvlist_next_nvpair(dbda->dbda_success, NULL);
 	    pair != NULL; pair = nvlist_next_nvpair(dbda->dbda_success, pair)) {
 		dsl_dataset_t *ds;
 		char *shortname;

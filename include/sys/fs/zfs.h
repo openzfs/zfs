@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2017 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2013, 2017 Joyent, Inc. All rights reserved.
  * Copyright (c) 2014 Integros [integros.com]
@@ -88,7 +88,8 @@ typedef enum dmu_objset_type {
  * the property table in module/zcommon/zfs_prop.c.
  */
 typedef enum {
-	ZFS_PROP_BAD = -1,
+	ZPROP_CONT = -2,
+	ZPROP_INVAL = -1,
 	ZFS_PROP_TYPE = 0,
 	ZFS_PROP_CREATION,
 	ZFS_PROP_USED,
@@ -171,6 +172,14 @@ typedef enum {
 	ZFS_PROP_OVERLAY,
 	ZFS_PROP_PREV_SNAP,
 	ZFS_PROP_RECEIVE_RESUME_TOKEN,
+	ZFS_PROP_ENCRYPTION,
+	ZFS_PROP_KEYLOCATION,
+	ZFS_PROP_KEYFORMAT,
+	ZFS_PROP_PBKDF2_SALT,
+	ZFS_PROP_PBKDF2_ITERS,
+	ZFS_PROP_ENCRYPTION_ROOT,
+	ZFS_PROP_KEY_GUID,
+	ZFS_PROP_KEYSTATUS,
 	ZFS_NUM_PROPS
 } zfs_prop_t;
 
@@ -195,6 +204,7 @@ extern const char *zfs_userquota_prop_prefixes[ZFS_NUM_USERQUOTA_PROPS];
  * the property table in module/zcommon/zpool_prop.c.
  */
 typedef enum {
+	ZPOOL_PROP_INVAL = -1,
 	ZPOOL_PROP_NAME,
 	ZPOOL_PROP_SIZE,
 	ZPOOL_PROP_CAPACITY,
@@ -229,9 +239,6 @@ typedef enum {
 
 /* Small enough to not hog a whole line of printout in zpool(1M). */
 #define	ZPROP_MAX_COMMENT	32
-
-#define	ZPROP_CONT		-2
-#define	ZPROP_INVAL		-1
 
 #define	ZPROP_VALUE		"value"
 #define	ZPROP_SOURCE		"source"
@@ -274,13 +281,21 @@ typedef int (*zprop_func)(int, void *);
 #define	ZPOOL_ROOTFS_PROPS	"root-props-nvl"
 
 /*
+ * Length of 'written@' and 'written#'
+ */
+#define	ZFS_WRITTEN_PROP_PREFIX_LEN	8
+
+/*
  * Dataset property functions shared between libzfs and kernel.
  */
 const char *zfs_prop_default_string(zfs_prop_t);
 uint64_t zfs_prop_default_numeric(zfs_prop_t);
 boolean_t zfs_prop_readonly(zfs_prop_t);
+boolean_t zfs_prop_visible(zfs_prop_t prop);
 boolean_t zfs_prop_inheritable(zfs_prop_t);
 boolean_t zfs_prop_setonce(zfs_prop_t);
+boolean_t zfs_prop_encryption_key_param(zfs_prop_t);
+boolean_t zfs_prop_valid_keylocation(const char *, boolean_t);
 const char *zfs_prop_to_name(zfs_prop_t);
 zfs_prop_t zfs_name_to_prop(const char *);
 boolean_t zfs_prop_user(const char *);
@@ -403,6 +418,30 @@ typedef enum {
 	ZFS_VOLMODE_DEV = 2,
 	ZFS_VOLMODE_NONE = 3
 } zfs_volmode_t;
+
+typedef enum zfs_keystatus {
+	ZFS_KEYSTATUS_NONE = 0,
+	ZFS_KEYSTATUS_UNAVAILABLE,
+	ZFS_KEYSTATUS_AVAILABLE,
+} zfs_keystatus_t;
+
+typedef enum zfs_keyformat {
+	ZFS_KEYFORMAT_NONE = 0,
+	ZFS_KEYFORMAT_RAW,
+	ZFS_KEYFORMAT_HEX,
+	ZFS_KEYFORMAT_PASSPHRASE,
+	ZFS_KEYFORMAT_FORMATS
+} zfs_keyformat_t;
+
+typedef enum zfs_key_location {
+	ZFS_KEYLOCATION_NONE = 0,
+	ZFS_KEYLOCATION_PROMPT,
+	ZFS_KEYLOCATION_URI,
+	ZFS_KEYLOCATION_LOCATIONS
+} zfs_keylocation_t;
+
+#define	DEFAULT_PBKDF2_ITERATIONS 350000
+#define	MIN_PBKDF2_ITERATIONS 100000
 
 /*
  * On-disk version number.
@@ -825,17 +864,19 @@ typedef struct pool_scan_stat {
 	uint64_t	pss_start_time;	/* scan start time */
 	uint64_t	pss_end_time;	/* scan end time */
 	uint64_t	pss_to_examine;	/* total bytes to scan */
-	uint64_t	pss_examined;	/* total examined bytes	*/
+	uint64_t	pss_examined;	/* total bytes located by scanner */
 	uint64_t	pss_to_process; /* total bytes to process */
 	uint64_t	pss_processed;	/* total processed bytes */
 	uint64_t	pss_errors;	/* scan errors	*/
 
 	/* values not stored on disk */
-	uint64_t	pss_pass_exam;	/* examined bytes per scan pass */
+	uint64_t	pss_pass_exam; /* examined bytes per scan pass */
 	uint64_t	pss_pass_start;	/* start time of a scan pass */
 	uint64_t	pss_pass_scrub_pause; /* pause time of a scurb pass */
 	/* cumulative time scrub spent paused, needed for rate calculation */
 	uint64_t	pss_pass_scrub_spent_paused;
+	uint64_t	pss_pass_issued; /* issued bytes per scan pass */
+	uint64_t	pss_issued;	/* total bytes checked by scanner */
 } pool_scan_stat_t;
 
 typedef enum dsl_scan_state {
@@ -856,6 +897,7 @@ typedef enum zpool_errata {
 	ZPOOL_ERRATA_NONE,
 	ZPOOL_ERRATA_ZOL_2094_SCRUB,
 	ZPOOL_ERRATA_ZOL_2094_ASYNC_DESTROY,
+	ZPOOL_ERRATA_ZOL_6845_ENCRYPTION,
 } zpool_errata_t;
 
 /*
@@ -1059,8 +1101,12 @@ typedef enum zfs_ioc {
 	ZFS_IOC_BOOKMARK,
 	ZFS_IOC_GET_BOOKMARKS,
 	ZFS_IOC_DESTROY_BOOKMARKS,
+	ZFS_IOC_CHANNEL_PROGRAM,
 	ZFS_IOC_RECV_NEW,
 	ZFS_IOC_POOL_SYNC,
+	ZFS_IOC_LOAD_KEY,
+	ZFS_IOC_UNLOAD_KEY,
+	ZFS_IOC_CHANGE_KEY,
 
 	/*
 	 * Linux - 3/64 numbers reserved.
@@ -1129,6 +1175,13 @@ typedef enum {
 #define	ZPOOL_HIST_OUTPUT_NVL	"out_nvl"
 #define	ZPOOL_HIST_DSNAME	"dsname"
 #define	ZPOOL_HIST_DSID		"dsid"
+#define	ZPOOL_HIST_ERRNO	"errno"
+
+/*
+ * Special nvlist name that will not have its args recorded in the pool's
+ * history log.
+ */
+#define	ZPOOL_HIDDEN_ARGS	"hidden_args"
 
 /*
  * Flags for ZFS_IOC_VDEV_SET_STATE
@@ -1149,6 +1202,26 @@ typedef enum {
 #define	ZFS_IMPORT_ONLY		0x8
 #define	ZFS_IMPORT_TEMP_NAME	0x10
 #define	ZFS_IMPORT_SKIP_MMP	0x20
+#define	ZFS_IMPORT_LOAD_KEYS	0x40
+
+/*
+ * Channel program argument/return nvlist keys and defaults.
+ */
+#define	ZCP_ARG_PROGRAM		"program"
+#define	ZCP_ARG_ARGLIST		"arg"
+#define	ZCP_ARG_SYNC		"sync"
+#define	ZCP_ARG_INSTRLIMIT	"instrlimit"
+#define	ZCP_ARG_MEMLIMIT	"memlimit"
+
+#define	ZCP_ARG_CLIARGV		"argv"
+
+#define	ZCP_RET_ERROR		"error"
+#define	ZCP_RET_RETURN		"return"
+
+#define	ZCP_DEFAULT_INSTRLIMIT	(10 * 1000 * 1000)
+#define	ZCP_MAX_INSTRLIMIT	(10 * ZCP_DEFAULT_INSTRLIMIT)
+#define	ZCP_DEFAULT_MEMLIMIT	(10 * 1024 * 1024)
+#define	ZCP_MAX_MEMLIMIT	(10 * ZCP_DEFAULT_MEMLIMIT)
 
 /*
  * Sysevent payload members.  ZFS will generate the following sysevents with the

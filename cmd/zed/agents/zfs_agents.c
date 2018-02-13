@@ -350,19 +350,3 @@ zfs_agent_fini(void)
 
 	g_zfs_hdl = NULL;
 }
-
-/*
- * In ZED context, all the FMA agents run in the same thread
- * and do not require a unique libzfs instance. Modules should
- * use these stubs.
- */
-libzfs_handle_t *
-__libzfs_init(void)
-{
-	return (g_zfs_hdl);
-}
-
-void
-__libzfs_fini(libzfs_handle_t *hdl)
-{
-}

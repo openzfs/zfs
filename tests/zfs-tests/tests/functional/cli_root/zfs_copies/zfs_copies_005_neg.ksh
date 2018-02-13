@@ -43,28 +43,27 @@
 
 verify_runnable "global"
 
-# See issue: https://github.com/zfsonlinux/zfs/issues/6145
-if is_linux; then
-	log_unsupported "Test case occasionally fails"
-fi
-
 function cleanup
 {
 	if poolexists $ZPOOL_VERSION_1_NAME; then
 		destroy_pool $ZPOOL_VERSION_1_NAME
 	fi
 
-	if [[ -f $TESTDIR/$ZPOOL_VERSION_1_FILES ]]; then
-		rm -f $TESTDIR/$ZPOOL_VERSION_1_FILES
+	if [[ -f $TEST_BASE_DIR/$ZPOOL_VERSION_1_FILES ]]; then
+		rm -f $TEST_BASE_DIR/$ZPOOL_VERSION_1_FILES
+	fi
+
+	if [[ -f $TEST_BASE_DIR/${ZPOOL_VERSION_1_FILES%.*} ]]; then
+		rm -f $TEST_BASE_DIR/${ZPOOL_VERSION_1_FILES%.*}
 	fi
 }
 
 log_assert "Verify that copies cannot be set with pool version 1"
 log_onexit cleanup
 
-cp $STF_SUITE/tests/functional/cli_root/zpool_upgrade/$ZPOOL_VERSION_1_FILES $TESTDIR
-bunzip2 $TESTDIR/$ZPOOL_VERSION_1_FILES
-log_must zpool import -d $TESTDIR $ZPOOL_VERSION_1_NAME
+log_must cp $STF_SUITE/tests/functional/cli_root/zpool_upgrade/$ZPOOL_VERSION_1_FILES $TEST_BASE_DIR
+log_must bunzip2 $TEST_BASE_DIR/$ZPOOL_VERSION_1_FILES
+log_must zpool import -d $TEST_BASE_DIR $ZPOOL_VERSION_1_NAME
 log_must zfs create $ZPOOL_VERSION_1_NAME/$TESTFS
 log_must zfs create -V 1m $ZPOOL_VERSION_1_NAME/$TESTVOL
 block_device_wait

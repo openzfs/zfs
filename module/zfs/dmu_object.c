@@ -61,6 +61,7 @@ dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot, int blocksize,
 	boolean_t restarted = B_FALSE;
 	uint64_t *cpuobj = NULL;
 	int dnodes_per_chunk = 1 << dmu_object_alloc_chunk_shift;
+	int error;
 
 	kpreempt_disable();
 	cpuobj = &os->os_obj_next_percpu[CPU_SEQID %
@@ -92,7 +93,10 @@ dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot, int blocksize,
 		 * If we finished a chunk of dnodes, get a new one from
 		 * the global allocator.
 		 */
-		if (P2PHASE(object, dnodes_per_chunk) == 0) {
+		if ((P2PHASE(object, dnodes_per_chunk) == 0) ||
+		    (P2PHASE(object + dn_slots - 1, dnodes_per_chunk) <
+		    dn_slots)) {
+			DNODE_STAT_BUMP(dnode_alloc_next_chunk);
 			mutex_enter(&os->os_obj_lock);
 			ASSERT0(P2PHASE(os->os_obj_next_chunk,
 			    dnodes_per_chunk));
@@ -129,7 +133,6 @@ dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot, int blocksize,
 				uint64_t offset;
 				uint64_t blkfill;
 				int minlvl;
-				int error;
 				if (os->os_rescan_dnodes) {
 					offset = 0;
 					os->os_rescan_dnodes = B_FALSE;
@@ -158,14 +161,21 @@ dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot, int blocksize,
 		}
 
 		/*
+		 * The value of (*cpuobj) before adding dn_slots is the object
+		 * ID assigned to us.  The value afterwards is the object ID
+		 * assigned to whoever wants to do an allocation next.
+		 */
+		object = atomic_add_64_nv(cpuobj, dn_slots) - dn_slots;
+
+		/*
 		 * XXX We should check for an i/o error here and return
 		 * up to our caller.  Actually we should pre-read it in
 		 * dmu_tx_assign(), but there is currently no mechanism
 		 * to do so.
 		 */
-		(void) dnode_hold_impl(os, object, DNODE_MUST_BE_FREE,
+		error = dnode_hold_impl(os, object, DNODE_MUST_BE_FREE,
 		    dn_slots, FTAG, &dn);
-		if (dn != NULL) {
+		if (error == 0) {
 			rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
 			/*
 			 * Another thread could have allocated it; check
@@ -177,21 +187,20 @@ dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot, int blocksize,
 				rw_exit(&dn->dn_struct_rwlock);
 				dmu_tx_add_new_object(tx, dn);
 				dnode_rele(dn, FTAG);
-
-				(void) atomic_swap_64(cpuobj,
-				    object + dn_slots);
 				return (object);
 			}
 			rw_exit(&dn->dn_struct_rwlock);
 			dnode_rele(dn, FTAG);
+			DNODE_STAT_BUMP(dnode_alloc_race);
 		}
 
+		/*
+		 * Skip to next known valid starting point on error.  This
+		 * is the start of the next block of dnodes.
+		 */
 		if (dmu_object_next(os, &object, B_TRUE, 0) != 0) {
-			/*
-			 * Skip to next known valid starting point for a
-			 * dnode.
-			 */
 			object = P2ROUNDUP(object + 1, DNODES_PER_BLOCK);
+			DNODE_STAT_BUMP(dnode_alloc_next_block);
 		}
 		(void) atomic_swap_64(cpuobj, object);
 	}
@@ -266,7 +275,6 @@ dmu_object_reclaim_dnsize(objset_t *os, uint64_t object, dmu_object_type_t ot,
 	return (err);
 }
 
-
 int
 dmu_object_free(objset_t *os, uint64_t object, dmu_tx_t *tx)
 {
@@ -304,24 +312,37 @@ dmu_object_next(objset_t *os, uint64_t *objectp, boolean_t hole, uint64_t txg)
 	if (*objectp == 0) {
 		start_obj = 1;
 	} else if (ds && ds->ds_feature_inuse[SPA_FEATURE_LARGE_DNODE]) {
+		uint64_t i = *objectp + 1;
+		uint64_t last_obj = *objectp | (DNODES_PER_BLOCK - 1);
+		dmu_object_info_t doi;
+
 		/*
-		 * For large_dnode datasets, scan from the beginning of the
-		 * dnode block to find the starting offset. This is needed
-		 * because objectp could be part of a large dnode so we can't
-		 * assume it's a hole even if dmu_object_info() returns ENOENT.
+		 * Scan through the remaining meta dnode block.  The contents
+		 * of each slot in the block are known so it can be quickly
+		 * checked.  If the block is exhausted without a match then
+		 * hand off to dnode_next_offset() for further scanning.
 		 */
-		int epb = DNODE_BLOCK_SIZE >> DNODE_SHIFT;
-		int skip;
-		uint64_t i;
-
-		for (i = *objectp & ~(epb - 1); i <= *objectp; i += skip) {
-			dmu_object_info_t doi;
-
+		while (i <= last_obj) {
 			error = dmu_object_info(os, i, &doi);
-			if (error)
-				skip = 1;
-			else
-				skip = doi.doi_dnodesize >> DNODE_SHIFT;
+			if (error == ENOENT) {
+				if (hole) {
+					*objectp = i;
+					return (0);
+				} else {
+					i++;
+				}
+			} else if (error == EEXIST) {
+				i++;
+			} else if (error == 0) {
+				if (hole) {
+					i += doi.doi_dnodesize >> DNODE_SHIFT;
+				} else {
+					*objectp = i;
+					return (0);
+				}
+			} else {
+				return (error);
+			}
 		}
 
 		start_obj = i;

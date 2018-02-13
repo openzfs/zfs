@@ -98,8 +98,8 @@ log_must zpool export $TESTPOOL
 log_must mmp_clear_hostid
 
 for opt in "" "-f"; do
-	MMP_IMPORTED_MSG="Set the system hostid"
-	log_must check_pool_import $TESTPOOL "" "action" $MMP_IMPORTED_MSG
+	MMP_IMPORTED_MSG="Set a unique system hostid"
+	log_must check_pool_import $TESTPOOL "" "action" "$MMP_IMPORTED_MSG"
 	log_mustnot import_no_activity_check $TESTPOOL $opt
 done
 

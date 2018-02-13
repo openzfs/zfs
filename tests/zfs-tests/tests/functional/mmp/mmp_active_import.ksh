@@ -41,7 +41,7 @@ verify_runnable "both"
 
 function cleanup
 {
-	mmp_pool_destroy $MMP_DIR $MMP_POOL
+	mmp_pool_destroy $MMP_POOL $MMP_DIR
 	log_must set_tunable64 zfs_multihost_interval $MMP_INTERVAL_DEFAULT
 	log_must mmp_clear_hostid
 }
@@ -60,10 +60,17 @@ log_must is_pool_imported $MMP_POOL "-d $MMP_DIR"
 
 # 3. Verify 'zpool import [-f] $MMP_POOL' cannot import the pool.
 MMP_IMPORTED_MSG="Cannot import '$MMP_POOL': pool is imported"
-log_must try_pool_import $MMP_POOL "-d $MMP_DIR" $MMP_IMPORTED_MSG
+
+log_must try_pool_import $MMP_POOL "-d $MMP_DIR" "$MMP_IMPORTED_MSG"
 for i in {1..10}; do
-	log_must pgrep ztest >/dev/null
-	log_must try_pool_import $MMP_POOL "-f -d $MMP_DIR" $MMP_IMPORTED_MSG
+	log_must try_pool_import $MMP_POOL "-f -d $MMP_DIR" "$MMP_IMPORTED_MSG"
+done
+
+log_must try_pool_import $MMP_POOL "-c ${MMP_CACHE}.stale" "$MMP_IMPORTED_MSG"
+
+for i in {1..10}; do
+	log_must try_pool_import $MMP_POOL "-f -c ${MMP_CACHE}.stale" \
+	    "$MMP_IMPORTED_MSG"
 done
 
 # 4. Kill ztest to make pool eligible for import.  Poll with 'zpool status'.
@@ -79,21 +86,21 @@ log_must wait_pool_imported $MMP_POOL "-d $MMP_DIR"
 #    - hostid=different - previously imported on a different system
 #
 log_must mmp_clear_hostid
-MMP_IMPORTED_MSG="Set the system hostid"
-log_must check_pool_import $MMP_POOL "-d $MMP_DIR" "action" $MMP_IMPORTED_MSG
+MMP_IMPORTED_MSG="Set a unique system hostid"
+log_must check_pool_import $MMP_POOL "-d $MMP_DIR" "action" "$MMP_IMPORTED_MSG"
 
 log_must mmp_set_hostid $HOSTID1
 MMP_IMPORTED_MSG="The pool can be imported"
-log_must check_pool_import $MMP_POOL "-d $MMP_DIR" "action" $MMP_IMPORTED_MSG
+log_must check_pool_import $MMP_POOL "-d $MMP_DIR" "action" "$MMP_IMPORTED_MSG"
 
 log_must mmp_clear_hostid
 log_must mmp_set_hostid $HOSTID2
 MMP_IMPORTED_MSG="The pool was last accessed by another system."
-log_must check_pool_import $MMP_POOL "-d $MMP_DIR" "status" $MMP_IMPORTED_MSG
+log_must check_pool_import $MMP_POOL "-d $MMP_DIR" "status" "$MMP_IMPORTED_MSG"
 
 # 6. Verify 'zpool import $MMP_POOL' fails with the expected message.
 MMP_IMPORTED_MSG="pool was previously in use from another system."
-log_must try_pool_import $MMP_POOL "-d $MMP_DIR" $MMP_IMPORTED_MSG
+log_must try_pool_import $MMP_POOL "-d $MMP_DIR" "$MMP_IMPORTED_MSG"
 
 # 7. Verify 'zpool import -f $MMP_POOL' can now import the pool.
 log_must import_activity_check $MMP_POOL "-f -d $MMP_DIR"

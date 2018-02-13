@@ -119,13 +119,13 @@ function cleanup_pool
 	log_must rm -rf $BACKDIR/*
 
 	if is_global_zone ; then
-		log_must zfs destroy -Rf $pool
+		log_must_busy zfs destroy -Rf $pool
 	else
 		typeset list=$(zfs list -H -r -t all -o name $pool)
 		for ds in $list ; do
 			if [[ $ds != $pool ]] ; then
 				if datasetexists $ds ; then
-					log_must zfs destroy -Rf $ds
+					log_must_busy zfs destroy -Rf $ds
 				fi
 			fi
 		done
@@ -296,23 +296,15 @@ function destroy_tree
 	typeset -i ret=0
 	typeset snap
 	for snap in "$@" ; do
-		zfs destroy $snap
-		ret=$?
+		log_must_busy zfs destroy $snap
 
 		typeset ds=${snap%%@*}
 		typeset type=$(get_prop "type" $ds)
 		if [[ $type == "filesystem" ]]; then
 			typeset mntpnt=$(get_prop mountpoint $ds)
-			((ret |= $?))
-
-			if ((ret != 0)); then
-				rm -r $mntpnt/$snap
-				((ret |= $?))
+			if [[ -n $mntpnt ]]; then
+				rm -rf $mntpnt/$snap
 			fi
-		fi
-
-		if ((ret != 0)); then
-			return $ret
 		fi
 	done
 
@@ -513,11 +505,13 @@ function test_fs_setup
 {
 	typeset sendfs=$1
 	typeset recvfs=$2
+	typeset streamfs=$3
 	typeset sendpool=${sendfs%%/*}
 	typeset recvpool=${recvfs%%/*}
 
-	datasetexists $sendfs && log_must zfs destroy -r $sendpool
-	datasetexists $recvfs && log_must zfs destroy -r $recvpool
+	datasetexists $sendfs && log_must_busy zfs destroy -r $sendpool
+	datasetexists $recvfs && log_must_busy zfs destroy -r $recvpool
+	datasetexists $streamfs && log_must_busy zfs destroy -r $streamfs
 
 	if $(datasetexists $sendfs || zfs create -o compress=lz4 $sendfs); then
 		mk_files 1000 256 0 $sendfs &
@@ -546,10 +540,7 @@ function test_fs_setup
 		    ">/$sendpool/incremental.zsend"
 	fi
 
-	if datasetexists $streamfs; then
-		log_must zfs destroy -r $streamfs
-	fi
-	log_must zfs create -o compress=lz4 $sendpool/stream
+	log_must zfs create -o compress=lz4 $streamfs
 }
 
 #
@@ -609,7 +600,7 @@ function parse_dump
 	    if ($1 == "OBJECT") print $1" "$4
 	    if ($1 == "FREEOBJECTS") print $1" "$4" "$7
 	    if ($1 == "FREE") print $1" "$7" "$10
-	    if ($1 == "WRITE") print $1" "$15" "$18" "$21" "$24" "$27}'
+	    if ($1 == "WRITE") print $1" "$15" "$21" "$24" "$27" "$30}'
 }
 
 #
@@ -663,9 +654,10 @@ function resume_cleanup
 {
 	typeset sendfs=$1
 	typeset streamfs=$2
+	typeset sendpool=${sendfs%%/*}
 
-	datasetexists $sendfs && log_must zfs destroy -r $sendfs
-	datasetexists $streamfs && log_must zfs destroy -r $streamfs
+	datasetexists $sendfs && log_must_busy zfs destroy -r $sendfs
+	datasetexists $streamfs && log_must_busy zfs destroy -r $streamfs
 	cleanup_pool $POOL2
-	rm -f /$POOL/initial.zsend /$POOL/incremental.zsend
+	rm -f /$sendpool/initial.zsend /$sendpool/incremental.zsend
 }

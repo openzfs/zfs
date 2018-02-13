@@ -57,27 +57,23 @@ fi
 
 function setup
 {
-	lsmod | egrep scsi_debug > /dev/null
-	if (($? == 1)); then
-		load_scsi_debug $SDSIZE $SDHOSTS $SDTGTS $SDLUNS
-	fi
+	load_scsi_debug $SDSIZE $SDHOSTS $SDTGTS $SDLUNS '512b'
+	SD=$(get_debug_device)
+	SDDEVICE_ID=$(get_persistent_disk_name $SD)
 	# Register vdev_id alias rule for scsi_debug device to create a
 	# persistent path
-	SD=$(lsscsi | nawk '/scsi_debug/ {print $6; exit}' \
-	    | nawk -F / '{print $3}')
-	SDDEVICE_ID=$(get_persistent_disk_name $SD)
 	log_must eval "echo "alias scsidebug /dev/disk/by-id/$SDDEVICE_ID" \
 	    >> $VDEVID_CONF"
 	block_device_wait
-
-	SDDEVICE=$(udevadm info -q all -n $DEV_DSKDIR/$SD | egrep ID_VDEV \
-	    | nawk '{print $2; exit}' | nawk -F = '{print $2; exit}')
+	SDDEVICE=$(udevadm info -q all -n $DEV_DSKDIR/$SD \
+	    | awk -F'=' '/ID_VDEV=/{print $2; exit}')
 	[[ -z $SDDEVICE ]] && log_fail "vdev rule was not registered properly"
 }
 
 function cleanup
 {
-	poolexists $TESTPOOL && destroy_pool $TESTPOOL
+	destroy_pool $TESTPOOL
+	unload_scsi_debug
 }
 
 log_assert "Testing automated auto-replace FMA test"
@@ -110,9 +106,9 @@ log_must mkfile $FSIZE /$TESTPOOL/data
 log_must zpool export -F $TESTPOOL
 
 # Offline disk
-on_off_disk $SD "offline"
+remove_disk $SD
 block_device_wait
-log_must modprobe -r scsi_debug
+unload_scsi_debug
 
 # Reimport pool with drive missing
 log_must zpool import $TESTPOOL
@@ -122,7 +118,7 @@ if (($? != 0)); then
 fi
 
 # Clear zpool events
-zpool events -c $TESTPOOL
+log_must zpool events -c
 
 # Create another scsi_debug device
 setup

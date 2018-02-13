@@ -1,5 +1,5 @@
 %bcond_with     debug
-%bcond_with     debug_dmu_tx
+%bcond_with     debuginfo
 
 Name:           @PACKAGE@-kmod
 Version:        @VERSION@
@@ -59,10 +59,10 @@ fi
 %define debug --disable-debug
 %endif
 
-%if %{with debug_dmu_tx}
-%define debug_dmu_tx --enable-debug-dmu-tx
+%if %{with debuginfo}
+%define debuginfo --enable-debuginfo
 %else
-%define debug_dmu_tx --disable-debug-dmu-tx
+%define debuginfo --disable-debuginfo
 %endif
 
 %setup -n %{kmod_name}-%{version}
@@ -74,7 +74,7 @@ fi
         --with-spl="%{splsrc}" \
         --with-spl-obj="%{splobj}" \
         %{debug} \
-        %{debug_dmu_tx}
+        %{debuginfo}
 make %{?_smp_mflags}
 
 %install

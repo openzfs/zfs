@@ -84,7 +84,7 @@ extern void vdev_metaslab_fini(vdev_t *vd);
 extern void vdev_metaslab_set_size(vdev_t *);
 extern void vdev_expand(vdev_t *vd, uint64_t txg);
 extern void vdev_split(vdev_t *vd);
-extern void vdev_deadman(vdev_t *vd);
+extern void vdev_deadman(vdev_t *vd, char *tag);
 
 extern void vdev_get_stats_ex(vdev_t *vd, vdev_stat_t *vs, vdev_stat_ex_t *vsx);
 extern void vdev_get_stats(vdev_t *vd, vdev_stat_t *vs);
@@ -123,10 +123,10 @@ extern void vdev_queue_init(vdev_t *vd);
 extern void vdev_queue_fini(vdev_t *vd);
 extern zio_t *vdev_queue_io(zio_t *zio);
 extern void vdev_queue_io_done(zio_t *zio);
+extern void vdev_queue_change_io_priority(zio_t *zio, zio_priority_t priority);
 
 extern int vdev_queue_length(vdev_t *vd);
-extern uint64_t vdev_queue_lastoffset(vdev_t *vd);
-extern void vdev_queue_register_lastoffset(vdev_t *vd, zio_t *zio);
+extern uint64_t vdev_queue_last_offset(vdev_t *vd);
 
 extern void vdev_config_dirty(vdev_t *vd);
 extern void vdev_config_clean(vdev_t *vd);

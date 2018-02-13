@@ -63,8 +63,10 @@ EOF
 	ZFS_MODULE_CFLAGS += -I$(srctree)/include/spl
 	ZFS_MODULE_CFLAGS += -include $(srctree)/spl_config.h
 	ZFS_MODULE_CFLAGS += -include $(srctree)/zfs_config.h
-	ZFS_MODULE_CLFAGS += -std=gnu99
-	export ZFS_MODULE_CFLAGS
+	ZFS_MODULE_CFLAGS += -std=gnu99 -Wno-declaration-after-statement
+	ZFS_MODULE_CPPFLAGS  = -DHAVE_SPL -D_KERNEL
+	ZFS_MODULE_CPPFLAGS += -UDEBUG -DNDEBUG
+	export ZFS_MODULE_CFLAGS ZFS_MODULE_CPPFLAGS
 
 	obj-$(CONFIG_ZFS) :=
 	EOF

@@ -28,4 +28,5 @@ dist_pkgdata_SCRIPTS = \
 	version_001_neg.ksh \
 	zfs_set_001_neg.ksh \
 	zfs_set_002_neg.ksh \
-	zfs_set_003_neg.ksh
+	zfs_set_003_neg.ksh \
+	zfs_set_keylocation.ksh

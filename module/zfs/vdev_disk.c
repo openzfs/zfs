@@ -27,13 +27,14 @@
  */
 
 #include <sys/zfs_context.h>
-#include <sys/spa.h>
+#include <sys/spa_impl.h>
 #include <sys/vdev_disk.h>
 #include <sys/vdev_impl.h>
 #include <sys/abd.h>
 #include <sys/fs/zfs.h>
 #include <sys/zio.h>
 #include <sys/sunldi.h>
+#include <linux/mod_compat.h>
 
 char *zfs_vdev_scheduler = VDEV_SCHEDULER;
 static void *zfs_vdev_holder = VDEV_HOLDER;
@@ -98,7 +99,7 @@ static void
 vdev_disk_error(zio_t *zio)
 {
 #ifdef ZFS_DEBUG
-	printk("ZFS: zio error=%d type=%d offset=%llu size=%llu "
+	printk(KERN_WARNING "ZFS: zio error=%d type=%d offset=%llu size=%llu "
 	    "flags=%x\n", zio->io_error, zio->io_type,
 	    (u_longlong_t)zio->io_offset, (u_longlong_t)zio->io_size,
 	    zio->io_flags);
@@ -113,14 +114,22 @@ vdev_disk_error(zio_t *zio)
  * physical device.  This yields the largest possible requests for
  * the device with the lowest total overhead.
  */
-static int
+static void
 vdev_elevator_switch(vdev_t *v, char *elevator)
 {
 	vdev_disk_t *vd = v->vdev_tsd;
-	struct block_device *bdev = vd->vd_bdev;
-	struct request_queue *q = bdev_get_queue(bdev);
-	char *device = bdev->bd_disk->disk_name;
+	struct request_queue *q;
+	char *device;
 	int error;
+
+	for (int c = 0; c < v->vdev_children; c++)
+		vdev_elevator_switch(v->vdev_child[c], elevator);
+
+	if (!v->vdev_ops->vdev_op_leaf || vd->vd_bdev == NULL)
+		return;
+
+	q = bdev_get_queue(vd->vd_bdev);
+	device = vd->vd_bdev->bd_disk->disk_name;
 
 	/*
 	 * Skip devices which are not whole disks (partitions).
@@ -131,15 +140,15 @@ vdev_elevator_switch(vdev_t *v, char *elevator)
 	 * "Skip devices without schedulers" check below will fail.
 	 */
 	if (!v->vdev_wholedisk && strncmp(device, "dm-", 3) != 0)
-		return (0);
+		return;
 
 	/* Skip devices without schedulers (loop, ram, dm, etc) */
 	if (!q->elevator || !blk_queue_stackable(q))
-		return (0);
+		return;
 
 	/* Leave existing scheduler when set to "none" */
 	if ((strncmp(elevator, "none", 4) == 0) && (strlen(elevator) == 4))
-		return (0);
+		return;
 
 #ifdef HAVE_ELEVATOR_CHANGE
 	error = elevator_change(q, elevator);
@@ -156,20 +165,17 @@ vdev_elevator_switch(vdev_t *v, char *elevator)
 	"     2>/dev/null; " \
 	"echo %s"
 
-	{
-		char *argv[] = { "/bin/sh", "-c", NULL, NULL };
-		char *envp[] = { NULL };
+	char *argv[] = { "/bin/sh", "-c", NULL, NULL };
+	char *envp[] = { NULL };
 
-		argv[2] = kmem_asprintf(SET_SCHEDULER_CMD, device, elevator);
-		error = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
-		strfree(argv[2]);
-	}
+	argv[2] = kmem_asprintf(SET_SCHEDULER_CMD, device, elevator);
+	error = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
+	strfree(argv[2]);
 #endif /* HAVE_ELEVATOR_CHANGE */
 	if (error)
-		printk("ZFS: Unable to set \"%s\" scheduler for %s (%s): %d\n",
-		    elevator, v->vdev_path, device, error);
-
-	return (error);
+		printk(KERN_NOTICE "ZFS: Unable to set \"%s\" scheduler"
+		    " for %s (%s): %d\n", elevator, v->vdev_path, device,
+		    error);
 }
 
 /*
@@ -498,6 +504,14 @@ vdev_submit_bio_impl(struct bio *bio)
 #endif
 }
 
+#ifndef HAVE_BIO_SET_DEV
+static inline void
+bio_set_dev(struct bio *bio, struct block_device *bdev)
+{
+	bio->bi_bdev = bdev;
+}
+#endif /* !HAVE_BIO_SET_DEV */
+
 static inline void
 vdev_submit_bio(struct bio *bio)
 {
@@ -533,7 +547,7 @@ __vdev_disk_physio(struct block_device *bdev, zio_t *zio,
 retry:
 	dr = vdev_disk_dio_alloc(bio_count);
 	if (dr == NULL)
-		return (ENOMEM);
+		return (SET_ERROR(ENOMEM));
 
 	if (zio && !(zio->io_flags & (ZIO_FLAG_IO_RETRY | ZIO_FLAG_TRYHARD)))
 		bio_set_flags_failfast(bdev, &flags);
@@ -574,13 +588,13 @@ retry:
 		    BIO_MAX_PAGES));
 		if (unlikely(dr->dr_bio[i] == NULL)) {
 			vdev_disk_dio_free(dr);
-			return (ENOMEM);
+			return (SET_ERROR(ENOMEM));
 		}
 
 		/* Matching put called by vdev_disk_physio_completion */
 		vdev_disk_dio_get(dr);
 
-		dr->dr_bio[i]->bi_bdev = bdev;
+		bio_set_dev(dr->dr_bio[i], bdev);
 		BIO_BI_SECTOR(dr->dr_bio[i]) = bio_offset >> 9;
 		dr->dr_bio[i]->bi_end_io = vdev_disk_physio_completion;
 		dr->dr_bio[i]->bi_private = dr;
@@ -645,16 +659,16 @@ vdev_disk_io_flush(struct block_device *bdev, zio_t *zio)
 
 	q = bdev_get_queue(bdev);
 	if (!q)
-		return (ENXIO);
+		return (SET_ERROR(ENXIO));
 
 	bio = bio_alloc(GFP_NOIO, 0);
 	/* bio_alloc() with __GFP_WAIT never returns NULL */
 	if (unlikely(bio == NULL))
-		return (ENOMEM);
+		return (SET_ERROR(ENOMEM));
 
 	bio->bi_end_io = vdev_disk_io_flush_completion;
 	bio->bi_private = zio;
-	bio->bi_bdev = bdev;
+	bio_set_dev(bio, bdev);
 	bio_set_flush(bio);
 	vdev_submit_bio(bio);
 	invalidate_bdev(bdev);
@@ -790,6 +804,35 @@ vdev_disk_rele(vdev_t *vd)
 	/* XXX: Implement me as a vnode rele for the device */
 }
 
+static int
+param_set_vdev_scheduler(const char *val, zfs_kernel_param_t *kp)
+{
+	spa_t *spa = NULL;
+	char *p;
+
+	if (val == NULL)
+		return (SET_ERROR(-EINVAL));
+
+	if ((p = strchr(val, '\n')) != NULL)
+		*p = '\0';
+
+	mutex_enter(&spa_namespace_lock);
+	while ((spa = spa_next(spa)) != NULL) {
+		if (spa_state(spa) != POOL_STATE_ACTIVE ||
+		    !spa_writeable(spa) || spa_suspended(spa))
+			continue;
+
+		spa_open_ref(spa, FTAG);
+		mutex_exit(&spa_namespace_lock);
+		vdev_elevator_switch(spa->spa_root_vdev, (char *)val);
+		mutex_enter(&spa_namespace_lock);
+		spa_close(spa, FTAG);
+	}
+	mutex_exit(&spa_namespace_lock);
+
+	return (param_set_charp(val, kp));
+}
+
 vdev_ops_t vdev_disk_ops = {
 	vdev_disk_open,
 	vdev_disk_close,
@@ -804,5 +847,6 @@ vdev_ops_t vdev_disk_ops = {
 	B_TRUE			/* leaf vdev */
 };
 
-module_param(zfs_vdev_scheduler, charp, 0644);
+module_param_call(zfs_vdev_scheduler, param_set_vdev_scheduler,
+    param_get_charp, &zfs_vdev_scheduler, 0644);
 MODULE_PARM_DESC(zfs_vdev_scheduler, "I/O scheduler");

@@ -129,6 +129,10 @@ Total test run time.
 .BI "\-z" " zil_failure_rate" " (default: fail every 2^5 allocs)
 .IP
 Injected failure rate.
+.HP
+.BI "\-G"
+.IP
+Dump zfs_dbgmsg buffer before exiting.
 .SH "EXAMPLES"
 .LP
 To override /tmp as your location for block files, you can use the -f
@@ -151,7 +155,7 @@ ztest -f / -V -T 120
 Use \fBid\fR instead of the SPL hostid to identify this host.  Intended for use
 with ztest, but this environment variable will affect any utility which uses
 libzpool, including \fBzpool(8)\fR.  Since the kernel is unaware of this setting
-results with utilites other than ztest are undefined.
+results with utilities other than ztest are undefined.
 .TP
 .B "ZFS_STACK_SIZE=stacksize"
 Limit the default stack size to \fBstacksize\fR bytes for the purpose of

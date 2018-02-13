@@ -763,7 +763,7 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 	}
 
 	zh = zfs_znode_hold_enter(zfsvfs, obj);
-	VERIFY(0 == sa_buf_hold(zfsvfs->z_os, obj, NULL, &db));
+	VERIFY0(sa_buf_hold(zfsvfs->z_os, obj, NULL, &db));
 
 	/*
 	 * If this is the root, fix up the half-initialized parent pointer
@@ -1255,13 +1255,25 @@ zfs_rezget(znode_t *zp)
 		return (SET_ERROR(EIO));
 	}
 
-	zp->z_unlinked = (ZTOI(zp)->i_nlink == 0);
 	set_nlink(ZTOI(zp), (uint32_t)links);
 	zfs_set_inode_flags(zp, ZTOI(zp));
 
 	zp->z_blksz = doi.doi_data_block_size;
 	zp->z_atime_dirty = 0;
 	zfs_inode_update(zp);
+
+	/*
+	 * If the file has zero links, then it has been unlinked on the send
+	 * side and it must be in the received unlinked set.
+	 * We call zfs_znode_dmu_fini() now to prevent any accesses to the
+	 * stale data and to prevent automatical removal of the file in
+	 * zfs_zinactive().  The file will be removed either when it is removed
+	 * on the send side and the next incremental stream is received or
+	 * when the unlinked set gets processed.
+	 */
+	zp->z_unlinked = (ZTOI(zp)->i_nlink == 0);
+	if (zp->z_unlinked)
+		zfs_znode_dmu_fini(zp);
 
 	zfs_znode_hold_exit(zfsvfs, zh);
 
@@ -1304,14 +1316,21 @@ zfs_zinactive(znode_t *zp)
 	mutex_enter(&zp->z_lock);
 
 	/*
-	 * If this was the last reference to a file with no links,
-	 * remove the file from the file system.
+	 * If this was the last reference to a file with no links, remove
+	 * the file from the file system unless the file system is mounted
+	 * read-only.  That can happen, for example, if the file system was
+	 * originally read-write, the file was opened, then unlinked and
+	 * the file system was made read-only before the file was finally
+	 * closed.  The file will remain in the unlinked set.
 	 */
 	if (zp->z_unlinked) {
-		mutex_exit(&zp->z_lock);
-		zfs_znode_hold_exit(zfsvfs, zh);
-		zfs_rmnode(zp);
-		return;
+		ASSERT(!zfsvfs->z_issnap);
+		if (!zfs_is_readonly(zfsvfs)) {
+			mutex_exit(&zp->z_lock);
+			zfs_znode_hold_exit(zfsvfs, zh);
+			zfs_rmnode(zp);
+			return;
+		}
 	}
 
 	mutex_exit(&zp->z_lock);
@@ -1637,7 +1656,8 @@ zfs_trunc(znode_t *zp, uint64_t end)
 		return (0);
 	}
 
-	error = dmu_free_long_range(zfsvfs->z_os, zp->z_id, end,  -1);
+	error = dmu_free_long_range(zfsvfs->z_os, zp->z_id, end,
+	    DMU_OBJECT_END);
 	if (error) {
 		zfs_range_unlock(rl);
 		return (error);
@@ -2013,7 +2033,7 @@ zfs_obj_to_pobj(objset_t *osp, sa_handle_t *hdl, sa_attr_type_t *sa_table,
 	 * Otherwise the parent must be a directory.
 	 */
 	if (!*is_xattrdir && !S_ISDIR(parent_mode))
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 
 	*pobjp = parent;
 

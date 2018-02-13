@@ -1,10 +1,12 @@
 SUBDIRS = \
 	acl \
+	arc \
 	atime \
 	bootfs \
 	cache \
 	cachefile \
 	casenorm \
+	channel_program \
 	chattr \
 	checksum \
 	clean_mirror \
@@ -12,6 +14,7 @@ SUBDIRS = \
 	cli_user \
 	compression \
 	ctime \
+	deadman \
 	delegate \
 	devices \
 	events \
@@ -21,6 +24,7 @@ SUBDIRS = \
 	grow_pool \
 	grow_replicas \
 	history \
+	hkdf \
 	inheritance \
 	inuse \
 	large_files \

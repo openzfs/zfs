@@ -308,6 +308,25 @@ zio_checksum_template_init(enum zio_checksum checksum, spa_t *spa)
 	mutex_exit(&spa->spa_cksum_tmpls_lock);
 }
 
+/* convenience function to update a checksum to accomodate an encryption MAC */
+static void
+zio_checksum_handle_crypt(zio_cksum_t *cksum, zio_cksum_t *saved, boolean_t xor)
+{
+	/*
+	 * Weak checksums do not have their entropy spread evenly
+	 * across the bits of the checksum. Therefore, when truncating
+	 * a weak checksum we XOR the first 2 words with the last 2 so
+	 * that we don't "lose" any entropy unnecessarily.
+	 */
+	if (xor) {
+		cksum->zc_word[0] ^= cksum->zc_word[2];
+		cksum->zc_word[1] ^= cksum->zc_word[3];
+	}
+
+	cksum->zc_word[2] = saved->zc_word[2];
+	cksum->zc_word[3] = saved->zc_word[3];
+}
+
 /*
  * Generate the checksum.
  */
@@ -319,8 +338,9 @@ zio_checksum_compute(zio_t *zio, enum zio_checksum checksum,
 	blkptr_t *bp = zio->io_bp;
 	uint64_t offset = zio->io_offset;
 	zio_checksum_info_t *ci = &zio_checksum_table[checksum];
-	zio_cksum_t cksum;
+	zio_cksum_t cksum, saved;
 	spa_t *spa = zio->io_spa;
+	boolean_t insecure = (ci->ci_flags & ZCHECKSUM_FLAG_DEDUP) == 0;
 
 	ASSERT((uint_t)checksum < ZIO_CHECKSUM_FUNCTIONS);
 	ASSERT(ci->ci_func[0] != NULL);
@@ -330,6 +350,8 @@ zio_checksum_compute(zio_t *zio, enum zio_checksum checksum,
 	if (ci->ci_flags & ZCHECKSUM_FLAG_EMBEDDED) {
 		zio_eck_t eck;
 		size_t eck_offset;
+
+		bzero(&saved, sizeof (zio_cksum_t));
 
 		if (checksum == ZIO_CHECKSUM_ZILOG2) {
 			zil_chain_t zilc;
@@ -347,31 +369,36 @@ zio_checksum_compute(zio_t *zio, enum zio_checksum checksum,
 
 		if (checksum == ZIO_CHECKSUM_GANG_HEADER) {
 			zio_checksum_gang_verifier(&eck.zec_cksum, bp);
-			abd_copy_from_buf_off(abd, &eck.zec_cksum,
-			    eck_offset + offsetof(zio_eck_t, zec_cksum),
-			    sizeof (zio_cksum_t));
 		} else if (checksum == ZIO_CHECKSUM_LABEL) {
 			zio_checksum_label_verifier(&eck.zec_cksum, offset);
-			abd_copy_from_buf_off(abd, &eck.zec_cksum,
-			    eck_offset + offsetof(zio_eck_t, zec_cksum),
-			    sizeof (zio_cksum_t));
 		} else {
-			bp->blk_cksum = eck.zec_cksum;
+			saved = eck.zec_cksum;
+			eck.zec_cksum = bp->blk_cksum;
 		}
 
 		abd_copy_from_buf_off(abd, &zec_magic,
 		    eck_offset + offsetof(zio_eck_t, zec_magic),
 		    sizeof (zec_magic));
+		abd_copy_from_buf_off(abd, &eck.zec_cksum,
+		    eck_offset + offsetof(zio_eck_t, zec_cksum),
+		    sizeof (zio_cksum_t));
 
 		ci->ci_func[0](abd, size, spa->spa_cksum_tmpls[checksum],
 		    &cksum);
+		if (bp != NULL && BP_USES_CRYPT(bp) &&
+		    BP_GET_TYPE(bp) != DMU_OT_OBJSET)
+			zio_checksum_handle_crypt(&cksum, &saved, insecure);
 
 		abd_copy_from_buf_off(abd, &cksum,
 		    eck_offset + offsetof(zio_eck_t, zec_cksum),
 		    sizeof (zio_cksum_t));
 	} else {
+		saved = bp->blk_cksum;
 		ci->ci_func[0](abd, size, spa->spa_cksum_tmpls[checksum],
-		    &bp->blk_cksum);
+		    &cksum);
+		if (BP_USES_CRYPT(bp) && BP_GET_TYPE(bp) != DMU_OT_OBJSET)
+			zio_checksum_handle_crypt(&cksum, &saved, insecure);
+		bp->blk_cksum = cksum;
 	}
 }
 
@@ -458,6 +485,26 @@ zio_checksum_error_impl(spa_t *spa, const blkptr_t *bp,
 		    spa->spa_cksum_tmpls[checksum], &actual_cksum);
 	}
 
+	/*
+	 * MAC checksums are a special case since half of this checksum will
+	 * actually be the encryption MAC. This will be verified by the
+	 * decryption process, so we just check the truncated checksum now.
+	 * Objset blocks use embedded MACs so we don't truncate the checksum
+	 * for them.
+	 */
+	if (bp != NULL && BP_USES_CRYPT(bp) &&
+	    BP_GET_TYPE(bp) != DMU_OT_OBJSET) {
+		if (!(ci->ci_flags & ZCHECKSUM_FLAG_DEDUP)) {
+			actual_cksum.zc_word[0] ^= actual_cksum.zc_word[2];
+			actual_cksum.zc_word[1] ^= actual_cksum.zc_word[3];
+		}
+
+		actual_cksum.zc_word[2] = 0;
+		actual_cksum.zc_word[3] = 0;
+		expected_cksum.zc_word[2] = 0;
+		expected_cksum.zc_word[3] = 0;
+	}
+
 	if (info != NULL) {
 		info->zbc_expected = expected_cksum;
 		info->zbc_actual = actual_cksum;
@@ -506,9 +553,8 @@ zio_checksum_error(zio_t *zio, zio_bad_cksum_t *info)
 void
 zio_checksum_templates_free(spa_t *spa)
 {
-	enum zio_checksum checksum;
-	for (checksum = 0; checksum < ZIO_CHECKSUM_FUNCTIONS;
-	    checksum++) {
+	for (enum zio_checksum checksum = 0;
+	    checksum < ZIO_CHECKSUM_FUNCTIONS; checksum++) {
 		if (spa->spa_cksum_tmpls[checksum] != NULL) {
 			zio_checksum_info_t *ci = &zio_checksum_table[checksum];
 

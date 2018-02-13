@@ -76,8 +76,8 @@ log_onexit cleanup
 # Generate random data
 #
 BS=512 ; CNT=2048
-SRC_FILE=/tmp/srcfile.$$
-DST_FILE=/tmp/dstfile.$$
+SRC_FILE=$TESTDIR/srcfile.$$
+DST_FILE=$TESTDIR/dstfile.$$
 log_must dd if=/dev/urandom of=$SRC_FILE bs=$BS count=$CNT
 
 fs=$TESTPOOL/$TESTFS/fs.$$

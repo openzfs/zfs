@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2000, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2015, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2015, 2017 by Delphix. All rights reserved.
  */
 
 #include <sys/stropts.h>
@@ -37,16 +37,15 @@
 #include <sys/varargs.h>
 #include <sys/ddi.h>
 #include <sys/sunddi.h>
+#include <sys/sysmacros.h>
 #else
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <stddef.h>
 #endif
 
-#ifndef	offsetof
-#define	offsetof(s, m)		((size_t)(&(((s *)0)->m)))
-#endif
 #define	skip_whitespace(p)	while ((*(p) == ' ') || (*(p) == '\t')) p++
 
 /*
@@ -916,6 +915,8 @@ nvlist_add_common(nvlist_t *nvl, const char *name,
 
 	/* calculate sizes of the nvpair elements and the nvpair itself */
 	name_sz = strlen(name) + 1;
+	if (name_sz >= 1ULL << (sizeof (nvp->nvp_name_sz) * NBBY - 1))
+		return (EINVAL);
 
 	nvp_sz = NVP_SIZE_CALC(name_sz, value_sz);
 
@@ -1242,6 +1243,7 @@ nvpair_type_is_array(nvpair_t *nvp)
 	data_type_t type = NVP_TYPE(nvp);
 
 	if ((type == DATA_TYPE_BYTE_ARRAY) ||
+	    (type == DATA_TYPE_INT8_ARRAY) ||
 	    (type == DATA_TYPE_UINT8_ARRAY) ||
 	    (type == DATA_TYPE_INT16_ARRAY) ||
 	    (type == DATA_TYPE_UINT16_ARRAY) ||
@@ -1639,6 +1641,8 @@ nvlist_lookup_nvpair_ei_sep(nvlist_t *nvl, const char *name, const char sep,
 	if ((nvl == NULL) || (name == NULL))
 		return (EINVAL);
 
+	sepp = NULL;
+	idx = 0;
 	/* step through components of name */
 	for (np = name; np && *np; np = sepp) {
 		/* ensure unique names */
@@ -2200,8 +2204,10 @@ nvs_embedded(nvstream_t *nvs, nvlist_t *embedded)
 
 		nvlist_init(embedded, embedded->nvl_nvflag, priv);
 
-		if (nvs->nvs_recursion >= nvpair_max_recursion)
+		if (nvs->nvs_recursion >= nvpair_max_recursion) {
+			nvlist_free(embedded);
 			return (EINVAL);
+		}
 		nvs->nvs_recursion++;
 		if ((err = nvs_operation(nvs, embedded, NULL)) != 0)
 			nvlist_free(embedded);
@@ -2801,11 +2807,11 @@ nvs_native_nvpair(nvstream_t *nvs, nvpair_t *nvp, size_t *size)
 }
 
 static const nvs_ops_t nvs_native_ops = {
-	nvs_native_nvlist,
-	nvs_native_nvpair,
-	nvs_native_nvp_op,
-	nvs_native_nvp_size,
-	nvs_native_nvl_fini
+	.nvs_nvlist = nvs_native_nvlist,
+	.nvs_nvpair = nvs_native_nvpair,
+	.nvs_nvp_op = nvs_native_nvp_op,
+	.nvs_nvp_size = nvs_native_nvp_size,
+	.nvs_nvl_fini = nvs_native_nvl_fini
 };
 
 static int
@@ -3288,11 +3294,11 @@ nvs_xdr_nvpair(nvstream_t *nvs, nvpair_t *nvp, size_t *size)
 }
 
 static const struct nvs_ops nvs_xdr_ops = {
-	nvs_xdr_nvlist,
-	nvs_xdr_nvpair,
-	nvs_xdr_nvp_op,
-	nvs_xdr_nvp_size,
-	nvs_xdr_nvl_fini
+	.nvs_nvlist = nvs_xdr_nvlist,
+	.nvs_nvpair = nvs_xdr_nvpair,
+	.nvs_nvp_op = nvs_xdr_nvp_op,
+	.nvs_nvp_size = nvs_xdr_nvp_size,
+	.nvs_nvl_fini = nvs_xdr_nvl_fini
 };
 
 static int

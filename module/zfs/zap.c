@@ -513,7 +513,6 @@ zap_get_leaf_byblk(zap_t *zap, uint64_t blkid, dmu_tx_t *tx, krw_t lt,
 	zap_leaf_t *l;
 	int bs = FZAP_BLOCK_SHIFT(zap);
 	int err;
-	dnode_t *dn;
 
 	ASSERT(RW_LOCK_HELD(&zap->zap_rwlock));
 
@@ -525,9 +524,9 @@ zap_get_leaf_byblk(zap_t *zap, uint64_t blkid, dmu_tx_t *tx, krw_t lt,
 	 * already be freed, so this should be perfectly fine.
 	 */
 	if (blkid == 0)
-		return (ENOENT);
+		return (SET_ERROR(ENOENT));
 
-	dn = dmu_buf_dnode_enter(zap->zap_dbuf);
+	dnode_t *dn = dmu_buf_dnode_enter(zap->zap_dbuf);
 	err = dmu_buf_hold_by_dnode(dn,
 	    blkid << bs, NULL, &db, DMU_READ_NO_PREFETCH);
 	dmu_buf_dnode_exit(zap->zap_dbuf);
@@ -767,7 +766,7 @@ fzap_checksize(uint64_t integer_size, uint64_t num_integers)
 	}
 
 	if (integer_size * num_integers > ZAP_MAXVALUELEN)
-		return (E2BIG);
+		return (SET_ERROR(E2BIG));
 
 	return (0);
 }
@@ -819,15 +818,19 @@ fzap_lookup(zap_name_t *zn,
 	return (err);
 }
 
+#define	MAX_EXPAND_RETRIES  2
+
 int
 fzap_add_cd(zap_name_t *zn,
     uint64_t integer_size, uint64_t num_integers,
     const void *val, uint32_t cd, void *tag, dmu_tx_t *tx)
 {
 	zap_leaf_t *l;
+	zap_leaf_t *prev_l = NULL;
 	int err;
 	zap_entry_handle_t zeh;
 	zap_t *zap = zn->zn_zap;
+	int expand_retries = 0;
 
 	ASSERT(RW_LOCK_HELD(&zap->zap_rwlock));
 	ASSERT(!zap->zap_ismicro);
@@ -851,10 +854,29 @@ retry:
 	if (err == 0) {
 		zap_increment_num_entries(zap, 1, tx);
 	} else if (err == EAGAIN) {
+		/*
+		 * If the last two expansions did not help, there is no point
+		 * trying to expand again
+		 */
+		if (expand_retries > MAX_EXPAND_RETRIES && prev_l == l) {
+			err = SET_ERROR(ENOSPC);
+			goto out;
+		}
+
 		err = zap_expand_leaf(zn, l, tag, tx, &l);
 		zap = zn->zn_zap;	/* zap_expand_leaf() may change zap */
-		if (err == 0)
+		if (err == 0) {
+			prev_l = l;
+			expand_retries++;
 			goto retry;
+		} else if (err == ENOSPC) {
+			/*
+			 * If we failed to expand the leaf, then bailout
+			 * as there is no point trying
+			 * zap_put_leaf_maybe_grow_ptrtbl().
+			 */
+			return (err);
+		}
 	}
 
 out:
@@ -1071,7 +1093,7 @@ zap_join_key(objset_t *os, uint64_t fromobj, uint64_t intoobj,
 		}
 		err = zap_add(os, intoobj, za.za_name,
 		    8, 1, &value, tx);
-		if (err)
+		if (err != 0)
 			break;
 	}
 	zap_cursor_fini(&zc);

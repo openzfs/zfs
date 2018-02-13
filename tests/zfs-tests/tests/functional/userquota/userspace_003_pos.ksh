@@ -30,6 +30,7 @@
 #
 
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/include/math.shlib
 . $STF_SUITE/tests/functional/userquota/userquota_common.kshlib
 
 #
@@ -58,9 +59,14 @@ function user_object_count
 {
 	typeset fs=$1
 	typeset user=$2
-	typeset cnt=$(zfs userspace -oname,objused $fs |
+	typeset -i userspacecnt=$(zfs userspace -oname,objused $fs |
 	    awk /$user/'{print $2}')
-	echo $cnt
+	typeset -i zfsgetcnt=$(zfs get -H -ovalue userobjused@$user $fs)
+
+	# 'zfs userspace' and 'zfs get userobjused@' should be equal
+	verify_eq "$userspacecnt" "$zfsgetcnt" "userobjused@$user"
+
+	echo $userspacecnt
 }
 
 log_onexit cleanup

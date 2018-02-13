@@ -304,10 +304,8 @@ void
 feature_sync(spa_t *spa, zfeature_info_t *feature, uint64_t refcount,
     dmu_tx_t *tx)
 {
-	uint64_t zapobj;
-
 	ASSERT(VALID_FEATURE_OR_NONE(feature->fi_feature));
-	zapobj = (feature->fi_flags & ZFEATURE_FLAG_READONLY_COMPAT) ?
+	uint64_t zapobj = (feature->fi_flags & ZFEATURE_FLAG_READONLY_COMPAT) ?
 	    spa->spa_feat_for_write_obj : spa->spa_feat_for_read_obj;
 	VERIFY0(zap_update(spa->spa_meta_objset, zapobj, feature->fi_guid,
 	    sizeof (uint64_t), 1, &refcount, tx));
@@ -343,7 +341,6 @@ feature_enable_sync(spa_t *spa, zfeature_info_t *feature, dmu_tx_t *tx)
 	    (feature->fi_flags & ZFEATURE_FLAG_ACTIVATE_ON_ENABLE) ? 1 : 0;
 	uint64_t zapobj = (feature->fi_flags & ZFEATURE_FLAG_READONLY_COMPAT) ?
 	    spa->spa_feat_for_write_obj : spa->spa_feat_for_read_obj;
-	int i;
 
 	ASSERT(0 != zapobj);
 	ASSERT(zfeature_is_valid_guid(feature->fi_guid));
@@ -355,7 +352,7 @@ feature_enable_sync(spa_t *spa, zfeature_info_t *feature, dmu_tx_t *tx)
 	if (zap_contains(spa->spa_meta_objset, zapobj, feature->fi_guid) == 0)
 		return;
 
-	for (i = 0; feature->fi_depends[i] != SPA_FEATURE_NONE; i++)
+	for (int i = 0; feature->fi_depends[i] != SPA_FEATURE_NONE; i++)
 		spa_feature_enable(spa, feature->fi_depends[i], tx);
 
 	VERIFY0(zap_update(spa->spa_meta_objset, spa->spa_feat_desc_obj,
@@ -424,8 +421,8 @@ spa_feature_create_zap_objects(spa_t *spa, dmu_tx_t *tx)
 	 * We create feature flags ZAP objects in two instances: during pool
 	 * creation and during pool upgrade.
 	 */
-	ASSERT(dsl_pool_sync_context(spa_get_dsl(spa)) || (!spa->spa_sync_on &&
-	    tx->tx_txg == TXG_INITIAL));
+	ASSERT((!spa->spa_sync_on && tx->tx_txg == TXG_INITIAL) ||
+	    dsl_pool_sync_context(spa_get_dsl(spa)));
 
 	spa->spa_feat_for_read_obj = zap_create_link(spa->spa_meta_objset,
 	    DMU_OTN_ZAP_METADATA, DMU_POOL_DIRECTORY_OBJECT,

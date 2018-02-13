@@ -14,6 +14,7 @@ SUBDIRS = \
 	mktree \
 	mmap_exec \
 	mmapwrite \
+	nvlist_to_lua \
 	randfree_file \
 	readmmap \
 	rename_dir \

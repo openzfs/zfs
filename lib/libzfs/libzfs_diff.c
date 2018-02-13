@@ -109,6 +109,11 @@ get_stats_for_obj(differ_info_t *di, const char *dsname, uint64_t obj,
 		    "The sys_config privilege or diff delegated permission "
 		    "is needed\nto discover path names"));
 		return (-1);
+	} else if (di->zerr == EACCES) {
+		(void) snprintf(di->errbuf, sizeof (di->errbuf),
+		    dgettext(TEXT_DOMAIN,
+		    "Key must be loaded to discover path names"));
+		return (-1);
 	} else {
 		(void) snprintf(di->errbuf, sizeof (di->errbuf),
 		    dgettext(TEXT_DOMAIN,

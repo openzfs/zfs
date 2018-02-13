@@ -2,7 +2,8 @@ include $(top_srcdir)/config/Rules.am
 
 VPATH = $(top_srcdir)/module/unicode
 
-AM_CFLAGS += $(DEBUG_STACKFLAGS) $(FRAME_LARGER_THAN)
+# Includes kernel code, generate warnings for large stack frames
+AM_CFLAGS += $(FRAME_LARGER_THAN)
 
 DEFAULT_INCLUDES += \
 	-I$(top_srcdir)/include \

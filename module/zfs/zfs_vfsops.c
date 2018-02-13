@@ -740,7 +740,7 @@ zfs_userspace_one(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
 		return (0);
 
 	if (type == ZFS_PROP_USEROBJUSED || type == ZFS_PROP_GROUPOBJUSED) {
-		strlcpy(buf, DMU_OBJACCT_PREFIX, DMU_OBJACCT_PREFIX_LEN);
+		strlcpy(buf, DMU_OBJACCT_PREFIX, DMU_OBJACCT_PREFIX_LEN + 1);
 		offset = DMU_OBJACCT_PREFIX_LEN;
 	}
 
@@ -834,8 +834,13 @@ zfs_fuid_overobjquota(zfsvfs_t *zfsvfs, boolean_t isgroup, uint64_t fuid)
 	int err;
 
 	if (!dmu_objset_userobjspace_present(zfsvfs->z_os)) {
-		if (dmu_objset_userobjspace_upgradable(zfsvfs->z_os))
+		if (dmu_objset_userobjspace_upgradable(zfsvfs->z_os)) {
+			dsl_pool_config_enter(
+			    dmu_objset_pool(zfsvfs->z_os), FTAG);
 			dmu_objset_userobjspace_upgrade(zfsvfs->z_os);
+			dsl_pool_config_exit(
+			    dmu_objset_pool(zfsvfs->z_os), FTAG);
+		}
 		return (B_FALSE);
 	}
 
@@ -1048,11 +1053,25 @@ zfsvfs_create(const char *osname, zfsvfs_t **zfvp)
 	 * We claim to always be readonly so we can open snapshots;
 	 * other ZPL code will prevent us from writing to snapshots.
 	 */
-	error = dmu_objset_own(osname, DMU_OST_ZFS, B_TRUE, zfsvfs, &os);
-	if (error) {
+
+	error = dmu_objset_own(osname, DMU_OST_ZFS, B_TRUE, B_TRUE,
+	    zfsvfs, &os);
+	if (error != 0) {
 		kmem_free(zfsvfs, sizeof (zfsvfs_t));
 		return (error);
 	}
+
+	error = zfsvfs_create_impl(zfvp, zfsvfs, os);
+	if (error != 0) {
+		dmu_objset_disown(os, B_TRUE, zfsvfs);
+	}
+	return (error);
+}
+
+int
+zfsvfs_create_impl(zfsvfs_t **zfvp, zfsvfs_t *zfsvfs, objset_t *os)
+{
+	int error;
 
 	zfsvfs->z_vfs = NULL;
 	zfsvfs->z_sb = NULL;
@@ -1080,7 +1099,6 @@ zfsvfs_create(const char *osname, zfsvfs_t **zfvp)
 
 	error = zfsvfs_init(zfsvfs, os);
 	if (error != 0) {
-		dmu_objset_disown(os, zfsvfs);
 		*zfvp = NULL;
 		kmem_free(zfsvfs, sizeof (zfsvfs_t));
 		return (error);
@@ -1094,6 +1112,15 @@ static int
 zfsvfs_setup(zfsvfs_t *zfsvfs, boolean_t mounting)
 {
 	int error;
+	boolean_t readonly = zfs_is_readonly(zfsvfs);
+
+	/*
+	 * Check for a bad on-disk format version now since we
+	 * lied about owning the dataset readonly before.
+	 */
+	if (!readonly &&
+	    dmu_objset_incompatible_encryption_version(zfsvfs->z_os))
+		return (SET_ERROR(EROFS));
 
 	error = zfs_register_callbacks(zfsvfs->z_vfs);
 	if (error)
@@ -1107,13 +1134,10 @@ zfsvfs_setup(zfsvfs_t *zfsvfs, boolean_t mounting)
 	 * operations out since we closed the ZIL.
 	 */
 	if (mounting) {
-		boolean_t readonly;
-
 		/*
 		 * During replay we remove the read only flag to
 		 * allow replays to succeed.
 		 */
-		readonly = zfs_is_readonly(zfsvfs);
 		if (readonly != 0)
 			readonly_changed_cb(zfsvfs, B_FALSE);
 		else
@@ -1669,7 +1693,7 @@ zfs_domount(struct super_block *sb, zfs_mnt_t *zm, int silent)
 	zfsvfs->z_arc_prune = arc_add_prune_callback(zpl_prune_sb, sb);
 out:
 	if (error) {
-		dmu_objset_disown(zfsvfs->z_os, zfsvfs);
+		dmu_objset_disown(zfsvfs->z_os, B_TRUE, zfsvfs);
 		zfsvfs_free(zfsvfs);
 		/*
 		 * make sure we don't have dangling sb->s_fs_info which
@@ -1729,7 +1753,8 @@ zfs_umount(struct super_block *sb)
 	zfsvfs_t *zfsvfs = sb->s_fs_info;
 	objset_t *os;
 
-	arc_remove_prune_callback(zfsvfs->z_arc_prune);
+	if (zfsvfs->z_arc_prune != NULL)
+		arc_remove_prune_callback(zfsvfs->z_arc_prune);
 	VERIFY(zfsvfs_teardown(zfsvfs, B_TRUE) == 0);
 	os = zfsvfs->z_os;
 	zpl_bdi_destroy(sb);
@@ -1749,7 +1774,7 @@ zfs_umount(struct super_block *sb)
 		/*
 		 * Finally release the objset
 		 */
-		dmu_objset_disown(os, zfsvfs);
+		dmu_objset_disown(os, B_TRUE, zfsvfs);
 	}
 
 	zfsvfs_free(zfsvfs);
@@ -1761,7 +1786,14 @@ zfs_remount(struct super_block *sb, int *flags, zfs_mnt_t *zm)
 {
 	zfsvfs_t *zfsvfs = sb->s_fs_info;
 	vfs_t *vfsp;
+	boolean_t issnap = dmu_objset_is_snapshot(zfsvfs->z_os);
 	int error;
+
+	if ((issnap || !spa_writeable(dmu_objset_spa(zfsvfs->z_os))) &&
+	    !(*flags & MS_RDONLY)) {
+		*flags |= MS_RDONLY;
+		return (EROFS);
+	}
 
 	error = zfsvfs_parse_options(zm->mnt_data, &vfsp);
 	if (error)
@@ -1772,7 +1804,8 @@ zfs_remount(struct super_block *sb, int *flags, zfs_mnt_t *zm)
 
 	vfsp->vfs_data = zfsvfs;
 	zfsvfs->z_vfs = vfsp;
-	(void) zfs_register_callbacks(vfsp);
+	if (!issnap)
+		(void) zfs_register_callbacks(vfsp);
 
 	return (error);
 }

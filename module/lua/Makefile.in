@@ -1,0 +1,42 @@
+src = @abs_top_srcdir@/module/lua
+obj = @abs_builddir@
+
+MODULE := zlua
+
+obj-$(CONFIG_ZFS) := $(MODULE).o
+
+asflags-y += $(ZFS_MODULE_CFLAGS)
+ccflags-y := $(ZFS_MODULE_CFLAGS) $(ZFS_MODULE_CPPFLAGS)
+ccflags-y += -DLUA_USE_LONGLONG
+
+# Suppress unused but set variable warnings often due to ASSERTs
+ccflags-y += $(NO_UNUSED_BUT_SET_VARIABLE)
+
+$(MODULE)-objs += lapi.o
+$(MODULE)-objs += lauxlib.o
+$(MODULE)-objs += lbaselib.o
+$(MODULE)-objs += lcode.o
+$(MODULE)-objs += lcompat.o
+$(MODULE)-objs += lcorolib.o
+$(MODULE)-objs += lctype.o
+$(MODULE)-objs += ldebug.o
+$(MODULE)-objs += ldo.o
+$(MODULE)-objs += lfunc.o
+$(MODULE)-objs += lgc.o
+$(MODULE)-objs += llex.o
+$(MODULE)-objs += lmem.o
+$(MODULE)-objs += lobject.o
+$(MODULE)-objs += lopcodes.o
+$(MODULE)-objs += lparser.o
+$(MODULE)-objs += lstate.o
+$(MODULE)-objs += lstring.o
+$(MODULE)-objs += lstrlib.o
+$(MODULE)-objs += ltable.o
+$(MODULE)-objs += ltablib.o
+$(MODULE)-objs += ltm.o
+$(MODULE)-objs += lvm.o
+$(MODULE)-objs += lzio.o
+$(MODULE)-objs += setjmp/setjmp.o
+
+all:
+	mkdir -p setjmp

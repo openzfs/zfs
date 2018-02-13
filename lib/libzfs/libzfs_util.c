@@ -264,6 +264,8 @@ libzfs_error_description(libzfs_handle_t *hdl)
 	case EZFS_ACTIVE_POOL:
 		return (dgettext(TEXT_DOMAIN, "pool is imported on a "
 		    "different host"));
+	case EZFS_CRYPTOFAILED:
+		return (dgettext(TEXT_DOMAIN, "encryption failure"));
 	case EZFS_UNKNOWN:
 		return (dgettext(TEXT_DOMAIN, "unknown error"));
 	default:
@@ -1051,6 +1053,10 @@ libzfs_init(void)
 	libzfs_mnttab_init(hdl);
 	fletcher_4_init();
 
+	if (getenv("ZFS_PROP_DEBUG") != NULL) {
+		hdl->libzfs_prop_debug = B_TRUE;
+	}
+
 	return (hdl);
 }
 
@@ -1068,7 +1074,6 @@ libzfs_fini(libzfs_handle_t *hdl)
 		(void) fclose(hdl->libzfs_sharetab);
 	zfs_uninit_libshare(hdl);
 	zpool_free_handles(hdl);
-	libzfs_fru_clear(hdl, B_TRUE);
 	namespace_clear(hdl);
 	libzfs_mnttab_fini(hdl);
 	libzfs_core_fini();

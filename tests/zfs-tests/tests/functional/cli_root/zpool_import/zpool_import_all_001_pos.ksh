@@ -48,11 +48,11 @@ verify_runnable "global"
 
 set -A options "" "-R $ALTER_ROOT"
 
+typeset -A testpools
 typeset -i number=0
-typeset -i id=1
 typeset -i i=0
 typeset checksum1
-typeset unwantedpool
+typeset poolname
 
 function setup_single_disk #disk #pool #fs #mtpt
 {
@@ -130,12 +130,12 @@ number=1
 #
 for disk in $DEVICE_FILES
 do
-
+	poolname="${TESTPOOL}-$number"
 	setup_single_disk "$disk" \
-		"${TESTPOOL}-$number" \
+		"$poolname" \
 		"$TESTFS" \
 		"$TESTDIR.$number"
-
+	testpools[$poolname]=$poolname
 	(( number = number + 1 ))
 done
 
@@ -143,11 +143,11 @@ while (( i < ${#options[*]} )); do
 
 	log_must zpool import -d $DEVICE_DIR ${options[i]} -a -f
 
-	# destroy unintentional imported pools
-	typeset exclude=`eval echo \"'(${KEEP})'\"`
-	for unwantedpool in $(zpool list -H -o name \
-	     | egrep -v "$exclude" | grep -v $TESTPOOL); do
-		log_must zpool export $unwantedpool
+	# export unintentionally imported pools
+	for poolname in $(get_all_pools); do
+		if [[ -z ${testpools[$poolname]} ]]; then
+			log_must_busy zpool export $poolname
+		fi
 	done
 
 	if [[ -n ${options[i]} ]]; then
@@ -156,12 +156,10 @@ while (( i < ${#options[*]} )); do
 		checksum_all
 	fi
 
-	id=1
-	while (( id < number )); do
-		if poolexists ${TESTPOOL}-$id ; then
-			log_must zpool export ${TESTPOOL}-$id
+	for poolname in ${testpools[@]}; do
+		if poolexists $poolname ; then
+			log_must_busy zpool export $poolname
 		fi
-		(( id = id + 1 ))
 	done
 
 	(( i = i + 1 ))

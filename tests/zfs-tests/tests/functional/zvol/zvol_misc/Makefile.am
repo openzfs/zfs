@@ -10,4 +10,5 @@ dist_pkgdata_SCRIPTS = \
 	zvol_misc_005_neg.ksh \
 	zvol_misc_006_pos.ksh \
 	zvol_misc_snapdev.ksh \
-	zvol_misc_volmode.ksh
+	zvol_misc_volmode.ksh \
+	zvol_misc_zil.ksh

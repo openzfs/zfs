@@ -871,7 +871,7 @@ dsl_props_set_check(void *arg, dmu_tx_t *tx)
 			    SPA_VERSION_STMF_PROP ?
 			    ZAP_OLDMAXVALUELEN : ZAP_MAXVALUELEN)) {
 				dsl_dataset_rele(ds, FTAG);
-				return (E2BIG);
+				return (SET_ERROR(E2BIG));
 			}
 		}
 	}
@@ -963,7 +963,7 @@ typedef enum dsl_prop_getflags {
 	DSL_PROP_GET_INHERITING = 0x1,	/* searching parent of target ds */
 	DSL_PROP_GET_SNAPSHOT = 0x2,	/* snapshot dataset */
 	DSL_PROP_GET_LOCAL = 0x4,	/* local properties */
-	DSL_PROP_GET_RECEIVED = 0x8	/* received properties */
+	DSL_PROP_GET_RECEIVED = 0x8,	/* received properties */
 } dsl_prop_getflags_t;
 
 static int
@@ -1130,6 +1130,7 @@ dsl_prop_get_all_ds(dsl_dataset_t *ds, nvlist_t **nvp,
 		if (err)
 			break;
 	}
+
 out:
 	if (err) {
 		nvlist_free(*nvp);

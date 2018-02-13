@@ -44,6 +44,7 @@
 #include <libzfs.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/systeminfo.h>
 #include "libzfs_impl.h"
 #include "zfeature_common.h"
 
@@ -213,7 +214,7 @@ check_status(nvlist_t *config, boolean_t isimport, zpool_errata_t *erratap)
 	 */
 	(void) nvlist_lookup_uint64_array(nvroot, ZPOOL_CONFIG_SCAN_STATS,
 	    (uint64_t **)&ps, &psc);
-	if (ps && ps->pss_func == POOL_SCAN_RESILVER &&
+	if (ps != NULL && ps->pss_func == POOL_SCAN_RESILVER &&
 	    ps->pss_state == DSS_SCANNING)
 		return (ZPOOL_STATUS_RESILVERING);
 
@@ -351,6 +352,15 @@ check_status(nvlist_t *config, boolean_t isimport, zpool_errata_t *erratap)
 		return (ZPOOL_STATUS_REMOVED_DEV);
 
 	/*
+	 * Informational errata available.
+	 */
+	(void) nvlist_lookup_uint64(config, ZPOOL_CONFIG_ERRATA, &errata);
+	if (errata) {
+		*erratap = errata;
+		return (ZPOOL_STATUS_ERRATA);
+	}
+
+	/*
 	 * Outdated, but usable, version
 	 */
 	if (SPA_VERSION_IS_SUPPORTED(version) && version != SPA_VERSION)
@@ -379,15 +389,6 @@ check_status(nvlist_t *config, boolean_t isimport, zpool_errata_t *erratap)
 			if (!nvlist_exists(feat, fi->fi_guid))
 				return (ZPOOL_STATUS_FEAT_DISABLED);
 		}
-	}
-
-	/*
-	 * Informational errata available.
-	 */
-	(void) nvlist_lookup_uint64(config, ZPOOL_CONFIG_ERRATA, &errata);
-	if (errata) {
-		*erratap = errata;
-		return (ZPOOL_STATUS_ERRATA);
 	}
 
 	return (ZPOOL_STATUS_OK);

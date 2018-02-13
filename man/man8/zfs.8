@@ -21,15 +21,15 @@
 .\"
 .\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
-.\" Copyright (c) 2011, 2016 by Delphix. All rights reserved.
+.\" Copyright (c) 2011, 2017 by Delphix. All rights reserved.
 .\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
 .\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
 .\" Copyright (c) 2014 by Adam Stevko. All rights reserved.
 .\" Copyright (c) 2014 Integros [integros.com]
-.\" Copyright 2016 Nexenta Systems, Inc.
 .\" Copyright 2016 Richard Laager. All rights reserved.
+.\" Copyright 2017 Nexenta Systems, Inc.
 .\"
-.Dd June 28, 2017
+.Dd January 10, 2018
 .Dt ZFS 8 SMM
 .Os Linux
 .Sh NAME
@@ -64,7 +64,7 @@
 .Nm
 .Cm snapshot
 .Op Fl r
-.Oo Fl o Ar property Ns = Ns value Oc Ns ...
+.Oo Fl o Ar property Ns = Ns Ar value Oc Ns ...
 .Ar filesystem Ns @ Ns Ar snapname Ns | Ns Ar volume Ns @ Ns Ar snapname Ns ...
 .Nm
 .Cm rollback
@@ -148,7 +148,7 @@
 .Cm mount
 .Nm
 .Cm mount
-.Op Fl Ov
+.Op Fl Olv
 .Op Fl o Ar options
 .Fl a | Ar filesystem
 .Nm
@@ -166,12 +166,12 @@
 .Ar snapshot bookmark
 .Nm
 .Cm send
-.Op Fl DLPRcenpv
+.Op Fl DLPRcenpvw
 .Op Oo Fl I Ns | Ns Fl i Oc Ar snapshot
 .Ar snapshot
 .Nm
 .Cm send
-.Op Fl Lce
+.Op Fl LPcenvw
 .Op Fl i Ar snapshot Ns | Ns Ar bookmark
 .Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot
 .Nm
@@ -270,6 +270,34 @@
 .Cm diff
 .Op Fl FHt
 .Ar snapshot Ar snapshot Ns | Ns Ar filesystem
+.Nm
+.Cm program
+.Op Fl n
+.Op Fl t Ar timeout
+.Op Fl m Ar memory_limit
+.Ar pool script
+.Op Ar arg1 No ...
+.Nm
+.Cm load-key
+.Op Fl nr
+.Op Fl L Ar keylocation
+.Fl a | Ar filesystem
+.Nm
+.Cm unload-key
+.Op Fl r
+.Fl a | Ar filesystem
+.Nm
+.Cm change-key
+.Op Fl l
+.Op Fl o Ar keylocation Ns = Ns Ar value
+.Op Fl o Ar keyformat Ns = Ns Ar value
+.Op Fl o Ar pbkdf2iters Ns = Ns Ar value
+.Ar filesystem
+.Nm
+.Cm change-key
+.Fl i
+.Op Fl l
+.Ar filesystem
 .Sh DESCRIPTION
 The
 .Nm
@@ -440,7 +468,16 @@ If needed, ZFS file systems can also be managed with traditional tools
 If a file system's mount point is set to
 .Sy legacy ,
 ZFS makes no attempt to manage the file system, and the administrator is
-responsible for mounting and unmounting the file system.
+responsible for mounting and unmounting the file system. Because pools must
+be imported before a legacy mount can succeed, administrators should ensure
+that legacy mounts are only attempted after the zpool import process
+finishes at boot time. For example, on machines using systemd, the mount
+option
+.Pp
+.Nm x-systemd.requires=zfs-import.target
+.Pp
+will ensure that the zfs-import completes before systemd attempts mounting
+the filesystem. See systemd.mount(5) for details.
 .Ss Deduplication
 Deduplication is the process for removing redundant data at the block level,
 reducing the total amount of data stored. If a file system has the
@@ -463,7 +500,7 @@ Before creating a pool with deduplication enabled, ensure that you have planned
 your hardware requirements appropriately and implemented appropriate recovery
 practices, such as regular backups. As an alternative to deduplication
 consider using
-.Sy compression=lz4 ,
+.Sy compression=on ,
 as a less resource-intensive alternative.
 .Ss Native Properties
 Properties are divided into two types, native properties and user-defined
@@ -572,12 +609,36 @@ if the snapshot has been marked for deferred destroy by using the
 command.
 Otherwise, the property is
 .Sy off .
+.It Sy encryptionroot
+For encrypted datasets, indicates where the dataset is currently inheriting its
+encryption key from. Loading or unloading a key for the
+.Sy encryptionroot
+will implicitly load / unload the key for any inheriting datasets (see
+.Nm zfs Cm load-key
+and
+.Nm zfs Cm unload-key
+for details).
+Clones will always share an
+encryption key with their origin. See the
+.Sx Encryption
+section for details.
 .It Sy filesystem_count
 The total number of filesystems and volumes that exist under this location in
 the dataset tree.
 This value is only available when a
 .Sy filesystem_limit
 has been set somewhere in the tree under which the dataset resides.
+.It Sy keystatus
+Indicates if an encryption key is currently loaded into ZFS. The possible
+values are
+.Sy none ,
+.Sy available ,
+and
+.Sy unavailable .
+See
+.Nm zfs Cm load-key
+and
+.Nm zfs Cm unload-key .
 .It Sy guid
 The 64 bit GUID of this dataset or bookmark which does not change over its
 entire lifetime. When a snapshot is sent to another pool, the received
@@ -1045,6 +1106,10 @@ Please see
 for more information on these algorithms.
 .Pp
 Changing this property affects only newly-written data.
+.Pp
+Salted checksum algorithms
+.Pq Cm edonr , skein
+are currently not supported for any filesystem on the boot pools.
 .It Xo
 .Sy compression Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Sy gzip Ns | Ns
 .Sy gzip- Ns Em N Ns | Ns Sy lz4 Ns | Ns Sy lzjb Ns | Ns Sy zle
@@ -1218,6 +1283,93 @@ that doesn't support the large_dnode feature.
 .Pp
 This property can also be referred to by its shortened column name,
 .Sy dnsize .
+.It Xo
+.Sy encryption Ns = Ns Sy off Ns | Ns Sy on Ns | Ns Sy aes-128-ccm Ns | Ns
+.Sy aes-192-ccm Ns | Ns Sy aes-256-ccm Ns | Ns Sy aes-128-gcm Ns | Ns
+.Sy aes-192-gcm Ns | Ns Sy aes-256-gcm
+.Xc
+Controls the encryption cipher suite (block cipher, key length, and mode) used
+for this dataset. Requires the
+.Sy encryption
+feature to be enabled on the pool.
+Requires a
+.Sy keyformat
+to be set at dataset creation time.
+.Pp
+Selecting
+.Sy encryption Ns = Ns Sy on
+when creating a dataset indicates that the default encryption suite will be
+selected, which is currently
+.Sy aes-256-ccm .
+In order to provide consistent data protection, encryption must be specified at
+dataset creation time and it cannot be changed afterwards.
+.Pp
+For more details and caveats about encryption see the
+.Sy Encryption
+section.
+.It Sy keyformat Ns = Ns Sy raw Ns | Ns Sy hex Ns | Ns Sy passphrase
+Controls what format the user's encryption key will be provided as. This
+property is only set when the dataset is encrypted.
+.Pp
+Raw keys and hex keys must be 32 bytes long (regardless of the chosen
+encryption suite) and must be randomly generated. A raw key can be generated
+with the following command:
+.Bd -literal
+# dd if=/dev/urandom of=/path/to/output/key bs=32 count=1
+.Ed
+.Pp
+Passphrases must be between 8 and 512 bytes long and will be processed through
+PBKDF2 before being used (see the
+.Sy pbkdf2iters
+property). Even though the
+encryption suite cannot be changed after dataset creation, the keyformat can be
+with
+.Nm zfs Cm change-key .
+.It Xo
+.Sy keylocation Ns = Ns Sy prompt Ns | Ns Sy file:// Ns Em </absolute/file/path>
+.Xc
+Controls where the user's encryption key will be loaded from by default for
+commands such as
+.Nm zfs Cm load-key
+and
+.Nm zfs Cm mount Cm -l . This property is
+only set for encrypted datasets which are encryption roots. If unspecified, the
+default is
+.Sy prompt.
+.Pp
+Even though the encryption suite cannot be changed after dataset creation, the
+keylocation can be with either
+.Nm zfs Cm set
+or
+.Nm zfs Cm change-key .
+If
+.Sy prompt
+is selected ZFS will ask for the key at the command prompt when it is required
+to access the encrypted data (see
+.Nm zfs Cm load-key
+for details). This setting will also allow the key to be passed in via STDIN,
+but users should be careful not to place keys which should be kept secret on
+the command line. If a file URI is selected, the key will be loaded from the
+specified absolute file path.
+.It Sy pbkdf2iters Ns = Ns Ar iterations
+Controls the number of PBKDF2 iterations that a
+.Sy passphrase
+encryption key should be run through when processing it into an encryption key.
+This property is only defined when encryption is enabled and a keyformat of
+.Sy passphrase
+is selected. The goal of PBKDF2 is to significantly increase the
+computational difficulty needed to brute force a user's passphrase. This is
+accomplished by forcing the attacker to run each passphrase through a
+computationally expensive hashing function many times before they arrive at the
+resulting key. A user who actually knows the passphrase will only have to pay
+this cost once. As CPUs become better at processing, this number should be
+raised to ensure that a brute force attack is still not possible. The current
+default is
+.Sy 350000
+and the minimum is
+.Sy 100000 .
+This property may be changed with
+.Nm zfs Cm change-key .
 .It Sy exec Ns = Ns Sy on Ns | Ns Sy off
 Controls whether processes can be executed from within this file system.
 The default value is
@@ -1954,7 +2106,7 @@ dataset.
 The
 .Sy nosuid
 option is an alias for
-.Sy nodevices Ns , Ns Sy nosetuid .
+.Sy nodevices Ns \&, Ns Sy nosetuid .
 These properties are reported as
 .Qq temporary
 by the
@@ -1983,7 +2135,7 @@ and underscore
 .Pq Qq Sy _ .
 The expected convention is that the property name is divided into two portions
 such as
-.Em module Ns : Ns Em property ,
+.Em module Ns \&: Ns Em property ,
 but this namespace is not enforced by ZFS.
 User property names can be at most 256 characters, and cannot begin with a dash
 .Pq Qq Sy - .
@@ -2020,6 +2172,81 @@ and
 .Xr swapon 8
 commands. Do not swap to a file on a ZFS file system. A ZFS swap file
 configuration is not supported.
+.Ss Encryption
+Enabling the
+.Sy encryption
+feature allows for the creation of encrypted filesystems and volumes.
+.Nm
+will encrypt all user data including file and zvol data, file attributes,
+ACLs, permission bits, directory listings, FUID mappings, and userused /
+groupused data.
+.Nm
+will not encrypt metadata related to the pool structure, including dataset
+names, dataset hierarchy, file size, file holes, and dedup tables. Key rotation
+is managed internally by the  kernel module and changing the user's key does not
+require re-encrypting the entire dataset. Datasets can be scrubbed, resilvered,
+renamed, and deleted without the encryption keys being loaded (see the
+.Nm zfs Cm load-key
+subcommand for more info on key loading).
+.Pp
+Creating an encrypted dataset requires specifying the
+.Sy encryption
+and
+.Sy keyformat
+properties at creation time, along with an optional
+.Sy keylocation
+and
+.Sy pbkdf2iters .
+After entering an encryption key, the
+created dataset will become an encryption root. Any descendant datasets will
+inherit their encryption key from the encryption root by default, meaning that
+loading, unloading, or changing the key for the encryption root will implicitly
+do the same for all inheriting datasets. If this inheritance is not desired,
+simply supply a
+.Sy keyformat
+when creating the child dataset or use
+.Nm zfs Cm change-key
+to break an existing relationship, creating a new encryption root on the child.
+Note that the child's
+.Sy keyformat
+may match that of the parent while still creating a new encryption root, and
+that changing the
+.Sy encryption
+property alone does not create a new encryption root; this would simply use a
+different cipher suite with the same key as its encryption root. The one
+exception is that clones will always use their origin's encryption key.
+As a result of this exception, some encryption-related properties (namely
+.Sy keystatus ,
+.Sy keyformat ,
+.Sy keylocation ,
+and
+.Sy pbkdf2iters )
+do not inherit like other ZFS properties and instead use the value determined
+by their encryption root. Encryption root inheritance can be tracked via the
+read-only
+.Sy encryptionroot
+property.
+.Pp
+Encryption changes the behavior of a few
+.Nm
+operations. Encryption is applied after compression so compression ratios are
+preserved. Normally checksums in ZFS are 256 bits long, but for encrypted data
+the checksum is 128 bits of the user-chosen checksum and 128 bits of MAC from
+the encryption suite, which provides additional protection against maliciously
+altered data. Deduplication is still possible with encryption enabled but for
+security, datasets will only dedup against themselves, their snapshots, and
+their clones.
+.Pp
+There are a few limitations on encrypted datasets. Encrypted data cannot be
+embedded via the
+.Sy embedded_data
+feature. Encrypted datasets may not have
+.Sy copies Ns = Ns Em 3
+since the implementation stores some encryption metadata where the third copy
+would normally be. Since compression is applied before encryption datasets may
+be vulnerable to a CRIME-like attack if applications accessing the data allow
+for it. Deduplication with encryption will leak information about which blocks
+are equivalent in a dataset and will incur an extra CPU cost per block written.
 .Sh SUBCOMMANDS
 All subcommands that modify state are logged persistently to the pool in their
 original form.
@@ -2239,7 +2466,7 @@ The given bookmark is destroyed.
 .Nm
 .Cm snapshot
 .Op Fl r
-.Oo Fl o Ar property Ns = Ns value Oc Ns ...
+.Oo Fl o Ar property Ns = Ns Ar value Oc Ns ...
 .Ar filesystem Ns @ Ns Ar snapname Ns | Ns Ar volume Ns @ Ns Ar snapname Ns ...
 .Xc
 Creates snapshots with the given names.
@@ -2247,6 +2474,9 @@ All previous modifications by successful system calls to the file system are
 part of the snapshots.
 Snapshots are taken atomically, so that all snapshots correspond to the same
 moment in time.
+.Nm zfs Cm snap
+can be used as an alias for
+.Nm zfs Cm snapshot.
 See the
 .Sx Snapshots
 section for details.
@@ -2403,7 +2633,7 @@ property is
 .Sy off
 .Pc .
 The following fields are displayed,
-.Sy name Ns , Ns Sy used Ns , Ns Sy available Ns , Ns Sy referenced Ns , Ns
+.Sy name Ns \&, Ns Sy used Ns \&, Ns Sy available Ns \&, Ns Sy referenced Ns \&, Ns
 .Sy mountpoint .
 .Bl -tag -width "-H"
 .It Fl H
@@ -2441,9 +2671,9 @@ The value
 .Sy space
 to display space usage properties on file systems and volumes.
 This is a shortcut for specifying
-.Fl o Sy name Ns , Ns Sy avail Ns , Ns Sy used Ns , Ns Sy usedsnap Ns , Ns
-.Sy usedds Ns , Ns Sy usedrefreserv Ns , Ns Sy usedchild Fl t
-.Sy filesystem Ns , Ns Sy volume
+.Fl o Sy name Ns \&, Ns Sy avail Ns \&, Ns Sy used Ns \&, Ns Sy usedsnap Ns \&, Ns
+.Sy usedds Ns \&, Ns Sy usedrefreserv Ns \&, Ns Sy usedchild Fl t
+.Sy filesystem Ns \&, Ns Sy volume
 syntax.
 .El
 .It Fl p
@@ -2565,7 +2795,7 @@ A depth of
 will display only the dataset and its direct children.
 .It Fl o Ar field
 A comma-separated list of columns to display.
-.Sy name Ns , Ns Sy property Ns , Ns Sy value Ns , Ns Sy source
+.Sy name Ns \&, Ns Sy property Ns \&, Ns Sy value Ns \&, Ns Sy source
 is the default value.
 .It Fl p
 Display numbers in parsable
@@ -2749,7 +2979,7 @@ Print only the specified types from the following set:
 .Sy posixgroup ,
 .Sy smbgroup .
 The default is
-.Fl t Sy posixuser Ns , Ns Sy smbuser .
+.Fl t Sy posixuser Ns \&, Ns Sy smbuser .
 The default can be changed to include group types.
 .El
 .It Xo
@@ -2767,7 +2997,7 @@ filesystem or snapshot.
 This subcommand is identical to
 .Nm zfs Cm userspace ,
 except that the default types to display are
-.Fl t Sy posixgroup Ns , Ns Sy smbgroup .
+.Fl t Sy posixgroup Ns \&, Ns Sy smbgroup .
 .It Xo
 .Nm
 .Cm mount
@@ -2776,7 +3006,7 @@ Displays all ZFS file systems currently mounted.
 .It Xo
 .Nm
 .Cm mount
-.Op Fl Ov
+.Op Fl Olv
 .Op Fl o Ar options
 .Fl a | Ar filesystem
 .Xc
@@ -2798,6 +3028,15 @@ duration of the mount.
 See the
 .Sx Temporary Mount Point Properties
 section for details.
+.It Fl l
+Load keys for encrypted filesystems as they are being mounted. This is
+equivalent to executing
+.Nm zfs Cm load-key
+on each encryption root before mounting it. Note that if a filesystem has a
+.Sy keylocation
+of
+.Sy prompt
+this will cause the terminal to interactively block after asking for the key.
 .It Fl v
 Report mount progress.
 .El
@@ -2875,7 +3114,7 @@ feature.
 .It Xo
 .Nm
 .Cm send
-.Op Fl DLPRcenpv
+.Op Fl DLPRcenpvw
 .Op Oo Fl I Ns | Ns Fl i Oc Ar snapshot
 .Ar snapshot
 .Xc
@@ -2907,7 +3146,7 @@ snapshot to the second snapshot.
 For example,
 .Fl I Em @a Em fs@d
 is similar to
-.Fl i Em @a Em fs@b Ns ; Fl i Em @b Em fs@c Ns ; Fl i Em @c Em fs@d .
+.Fl i Em @a Em fs@b Ns \&; Fl i Em @b Em fs@c Ns \&; Fl i Em @c Em fs@d .
 The incremental source may be specified as with the
 .Fl i
 option.
@@ -2962,7 +3201,10 @@ feature enabled.
 If the
 .Sy lz4_compress
 feature is active on the sending system, then the receiving system must have
-that feature enabled as well.
+that feature enabled as well. Datasets that are sent with this flag may not be
+received as an encrypted dataset, since encrypted datasets cannot use the
+.Sy embedded_data
+feature.
 See
 .Xr zpool-features 5
 for details on ZFS feature flags and the
@@ -2987,6 +3229,23 @@ option is not supplied in conjunction with
 .Fl c ,
 then the data will be decompressed before sending so it can be split into
 smaller block sizes.
+.It Fl w, -raw
+For encrypted datasets, send data exactly as it exists on disk. This allows
+backups to be taken even if encryption keys are not currently loaded. The
+backup may then be received on an untrusted machine since that machine will
+not have the encryption keys to read the protected data or alter it without
+being detected. Upon being received, the dataset will have the same encryption
+keys as it did on the send side, although the
+.Sy keylocation
+property will be defaulted to
+.Sy prompt
+if not otherwise provided. For unencrypted datasets, this flag will be
+equivalent to
+.Fl Lec .
+Note that if you do not use this flag for sending encrypted datasets, data will
+be sent unencrypted and may be re-encrypted with a different encryption key on
+the receiving system, which will disable the ability to do a raw send to that
+system for incrementals.
 .It Fl i Ar snapshot
 Generate an incremental stream from the first
 .Ar snapshot
@@ -3028,18 +3287,21 @@ Include the dataset's properties in the stream.
 This flag is implicit when
 .Fl R
 is specified.
-The receiving system must also support this feature.
+The receiving system must also support this feature. Sends of encrypted datasets
+must use
+.Fl w
+when using this flag.
 .It Fl v, -verbose
 Print verbose information about the stream package generated.
 This information includes a per-second report of how much data has been sent.
 .Pp
 The format of the stream is committed.
-You will be able to receive your streams on future versions of ZFS .
+You will be able to receive your streams on future versions of ZFS.
 .El
 .It Xo
 .Nm
 .Cm send
-.Op Fl Lce
+.Op Fl LPcenvw
 .Op Fl i Ar snapshot Ns | Ns Ar bookmark
 .Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot
 .Xc
@@ -3066,6 +3328,8 @@ See
 for details on ZFS feature flags and the
 .Sy large_blocks
 feature.
+.It Fl P, -parsable
+Print machine-parsable verbose information about the stream package generated.
 .It Fl c, -compressed
 Generate a more compact stream by using compressed WRITE records for blocks
 which are compressed on disk and in memory
@@ -3085,6 +3349,23 @@ option is not supplied in conjunction with
 .Fl c ,
 then the data will be decompressed before sending so it can be split into
 smaller block sizes.
+.It Fl w, -raw
+For encrypted datasets, send data exactly as it exists on disk. This allows
+backups to be taken even if encryption keys are not currently loaded. The
+backup may then be received on an untrusted machine since that machine will
+not have the encryption keys to read the protected data or alter it without
+being detected. Upon being received, the dataset will have the same encryption
+keys as it did on the send side, although the
+.Sy keylocation
+property will be defaulted to
+.Sy prompt
+if not otherwise provided. For unencrypted datasets, this flag will be
+equivalent to
+.Fl Lec .
+Note that if you do not use this flag for sending encrypted datasets, data will
+be sent unencrypted and may be re-encrypted with a different encryption key on
+the receiving system, which will disable the ability to do a raw send to that
+system for incrementals.
 .It Fl e, -embed
 Generate a more compact stream by using
 .Sy WRITE_EMBEDDED
@@ -3100,7 +3381,10 @@ feature enabled.
 If the
 .Sy lz4_compress
 feature is active on the sending system, then the receiving system must have
-that feature enabled as well.
+that feature enabled as well. Datasets that are sent with this flag may not be
+received as an encrypted dataset, since encrypted datasets cannot use the
+.Sy embedded_data
+feature.
 See
 .Xr zpool-features 5
 for details on ZFS feature flags and the
@@ -3121,6 +3405,23 @@ character and following
 If the incremental target is a clone, the incremental source can be the origin
 snapshot, or an earlier snapshot in the origin's filesystem, or the origin's
 origin, etc.
+.It Fl n, -dryrun
+Do a dry-run
+.Pq Qq No-op
+send.
+Do not generate any actual send data.
+This is useful in conjunction with the
+.Fl v
+or
+.Fl P
+flags to determine what data will be sent.
+In this case, the verbose output will be written to standard output
+.Po contrast with a non-dry-run, where the stream is written to standard output
+and the verbose output goes to standard error
+.Pc .
+.It Fl v, -verbose
+Print verbose information about the stream package generated.
+This information includes a per-second report of how much data has been sent.
 .El
 .It Xo
 .Nm
@@ -3185,9 +3486,9 @@ destroyed by using the
 command.
 .Pp
 If
-.Sy Fl o Em property=value
+.Fl o Em property Ns = Ns Ar value
 or
-.Sy Fl x Em property
+.Fl x Em property
 is specified, it applies to the effective value of the property throughout
 the entire subtree of replicated datasets. Effective property values will be
 set (
@@ -3200,11 +3501,20 @@ property to be inherited from the top‐most file system. Received properties
 are retained in spite of being overridden and may be restored with
 .Nm zfs Cm inherit Fl S .
 Specifying
-.Sy Fl o Em origin=snapshot
+.Fl o Sy origin Ns = Ns Em snapshot
 is a special case because, even if
 .Sy origin
 is a read-only property and cannot be set, it's allowed to receive the send
 stream as a clone of the given snapshot.
+.Pp
+Raw encrypted send streams (created with
+.Nm zfs Cm send Fl w
+) may only be received as is, and cannot be re-encrypted, decrypted, or
+recompressed by the receive process. Unencrypted streams can be received as
+encrypted datasets, either through inheritance or by specifying encryption
+parameters with the
+.Fl o
+options.
 .Pp
 The name of the snapshot
 .Pq and file system, if a full stream is received
@@ -3279,9 +3589,9 @@ Which snapshot was specified will not affect the success or failure of the
 receive, as long as the snapshot does exist.
 If the stream is an incremental send stream, all the normal verification will be
 performed.
-.It Fl o Em property=value
+.It Fl o Em property Ns = Ns Ar value
 Sets the specified property as if the command
-.Nm zfs Cm set Em property=value
+.Nm zfs Cm set Em property Ns = Ns Ar value
 was invoked immediately before the receive. When receiving a stream from
 .Nm zfs Cm send Fl R ,
 causes the property to be inherited by all descendant datasets, as through
@@ -3478,6 +3788,10 @@ diff             subcommand     Allows lookup of paths within a dataset
                                 given an object number, and the ability
                                 to create snapshots necessary to
                                 'zfs diff'.
+load-key         subcommand     Allows loading and unloading of encryption key
+                                (see 'zfs load-key' and 'zfs unload-key').
+change-key       subcommand     Allows changing an encryption key via
+                                'zfs change-key'.
 mount            subcommand     Allows mount/umount of ZFS datasets
 promote          subcommand     Must also have the 'mount' and 'promote'
                                 ability in the origin file system
@@ -3725,6 +4039,179 @@ Give more parsable tab-separated output, without header lines and without
 arrows.
 .It Fl t
 Display the path's inode change time as the first column of output.
+.El
+.It Xo
+.Nm
+.Cm program
+.Op Fl n
+.Op Fl t Ar timeout
+.Op Fl m Ar memory_limit
+.Ar pool script
+.Op Ar arg1 No ...
+.Xc
+Executes
+.Ar script
+as a ZFS channel program on
+.Ar pool .
+The ZFS channel
+program interface allows ZFS administrative operations to be run
+programmatically via a Lua script.
+The entire script is executed atomically, with no other administrative
+operations taking effect concurrently.
+A library of ZFS calls is made available to channel program scripts.
+Channel programs may only be run with root privileges.
+.sp
+For full documentation of the ZFS channel program interface, see the manual
+page for
+.Xr zfs-program 8 .
+.Bl -tag -width ""
+.It Fl n
+Executes a read-only channel program, which runs faster.
+The program cannot change on-disk state by calling functions from
+the zfs.sync submodule.
+The program can be used to gather information such as properties and
+determining if changes would succeed (zfs.check.*).
+Without this flag, all pending changes must be synced to disk before
+a channel program can complete.
+.It Fl t Ar timeout
+Execution time limit, in milliseconds.
+If a channel program executes for longer than the provided timeout, it will
+be stopped and an error will be returned.
+The default timeout is 1000 ms, and can be set to a maximum of 10000 ms.
+.It Fl m Ar memory-limit
+Memory limit, in bytes.
+If a channel program attempts to allocate more memory than the given limit,
+it will be stopped and an error returned.
+The default memory limit is 10 MB, and can be set to a maximum of 100 MB.
+.sp
+All remaining argument strings are passed directly to the channel program as
+arguments.
+See
+.Xr zfs-program 8
+for more information.
+.El
+.It Xo
+.Nm
+.Cm load-key
+.Op Fl nr
+.Op Fl L Ar keylocation
+.Fl a | Ar filesystem
+.Xc
+Load the key for
+.Ar filesystem ,
+allowing it and all children that inherit the
+.Sy keylocation
+property to be accessed. The key will be expected in the format specified by the
+.Sy keyformat
+and location specified by the
+.Sy keylocation
+property. Note that if the
+.Sy keylocation
+is set to
+.Sy prompt
+the terminal will interactively wait for the key to be entered. Loading a key
+will not automatically mount the dataset. If that functionality is desired,
+.Nm zfs Cm mount Sy -l
+will ask for the key and mount the dataset. Once the key is loaded the
+.Sy keystatus
+property will become
+.Sy available .
+.Bl -tag -width "-r"
+.It Fl r
+Recursively loads the keys for the specified filesystem and all descendent
+encryption roots.
+.It Fl a
+Loads the keys for all encryption roots in all imported pools.
+.It Fl n
+Do a dry-run
+.Pq Qq No-op
+load-key. This will cause zfs to simply check that the
+provided key is correct. This command may be run even if the key is already
+loaded.
+.It Fl L Ar keylocation
+Use
+.Ar keylocation
+instead of the
+.Sy keylocation
+property. This will not change the value of the property on the dataset. Note
+that if used with either
+.Fl r
+or
+.Fl a ,
+.Ar keylocation
+may only be given as
+.Sy prompt .
+.El
+.It Xo
+.Nm
+.Cm unload-key
+.Op Fl r
+.Fl a | Ar filesystem
+.Xc
+Unloads a key from ZFS, removing the ability to access the dataset and all of
+its children that inherit the
+.Sy keylocation
+property. This requires that the dataset is not currently open or mounted. Once
+the key is unloaded the
+.Sy keystatus
+property will become
+.Sy unavailable .
+.Bl -tag -width "-r"
+.It Fl r
+Recursively unloads the keys for the specified filesystem and all descendent
+encryption roots.
+.It Fl a
+Unloads the keys for all encryption roots in all imported pools.
+.El
+.It Xo
+.Nm
+.Cm change-key
+.Op Fl l
+.Op Fl o Ar keylocation Ns = Ns Ar value
+.Op Fl o Ar keyformat Ns = Ns Ar value
+.Op Fl o Ar pbkdf2iters Ns = Ns Ar value
+.Ar filesystem
+.Xc
+.It Xo
+.Nm
+.Cm change-key
+.Fl i
+.Op Fl l
+.Ar filesystem
+.Xc
+Allows a user to change the encryption key used to access a dataset. This
+command requires that the existing key for the dataset is already loaded into
+ZFS. This command may also be used to change the
+.Sy keylocation ,
+.Sy keyformat ,
+and
+.Sy pbkdf2iters
+properties as needed. If the dataset was not previously an encryption root it
+will become one. Alternatively, the
+.Fl i
+flag may be provided to cause an encryption root to inherit the parent's key
+instead.
+.Bl -tag -width "-r"
+.It Fl l
+Ensures the key is loaded before attempting to change the key. This is
+effectively equivalent to
+.Qq Nm zfs Cm load-key Ar filesystem ; Nm zfs Cm change-key Ar filesystem
+.It Fl o Ar property Ns = Ns Ar value
+Allows the user to set encryption key properties (
+.Sy keyformat ,
+.Sy keylocation ,
+and
+.Sy pbkdf2iters
+) while changing the key. This is the only way to alter
+.Sy keyformat
+and
+.Sy pbkdf2iters
+after the dataset has been created.
+.It Fl i
+Indicates that zfs should make
+.Ar filesystem
+inherit the key of its parent. Note that this command can only be run on an
+encryption root that has an encrypted parent.
 .El
 .El
 .Sh EXIT STATUS
@@ -4151,18 +4638,18 @@ command will be undone if the share is ever unshared (such as at a reboot etc).
 .Sh INTERFACE STABILITY
 .Sy Committed .
 .Sh SEE ALSO
+.Xr attr 1 ,
 .Xr gzip 1 ,
 .Xr ssh 1 ,
-.Xr mount 8 ,
-.Xr zpool 8 ,
-.Xr selinux 8 ,
 .Xr chmod 2 ,
+.Xr fsync 2 ,
 .Xr stat 2 ,
 .Xr write 2 ,
-.Xr fsync 2 ,
-.Xr attr 1 ,
 .Xr acl 5 ,
+.Xr attributes 5 ,
 .Xr exports 5 ,
 .Xr exportfs 8 ,
+.Xr mount 8 ,
 .Xr net 8 ,
-.Xr attributes 5
+.Xr selinux 8 ,
+.Xr zpool 8

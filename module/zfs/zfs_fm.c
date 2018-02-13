@@ -142,8 +142,8 @@ zfs_is_ratelimiting_event(const char *subclass, vdev_t *vd)
 
 static void
 zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
-    const char *subclass, spa_t *spa, vdev_t *vd, zio_t *zio,
-    uint64_t stateoroffset, uint64_t size)
+    const char *subclass, spa_t *spa, vdev_t *vd, zbookmark_phys_t *zb,
+    zio_t *zio, uint64_t stateoroffset, uint64_t size)
 {
 	nvlist_t *ereport, *detector;
 
@@ -413,24 +413,6 @@ zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
 				    FM_EREPORT_PAYLOAD_ZFS_ZIO_SIZE,
 				    DATA_TYPE_UINT64, zio->io_size, NULL);
 		}
-
-		/*
-		 * Payload for I/Os with corresponding logical information.
-		 */
-		if (zio->io_logical != NULL)
-			fm_payload_set(ereport,
-			    FM_EREPORT_PAYLOAD_ZFS_ZIO_OBJSET,
-			    DATA_TYPE_UINT64,
-			    zio->io_logical->io_bookmark.zb_objset,
-			    FM_EREPORT_PAYLOAD_ZFS_ZIO_OBJECT,
-			    DATA_TYPE_UINT64,
-			    zio->io_logical->io_bookmark.zb_object,
-			    FM_EREPORT_PAYLOAD_ZFS_ZIO_LEVEL,
-			    DATA_TYPE_INT64,
-			    zio->io_logical->io_bookmark.zb_level,
-			    FM_EREPORT_PAYLOAD_ZFS_ZIO_BLKID,
-			    DATA_TYPE_UINT64,
-			    zio->io_logical->io_bookmark.zb_blkid, NULL);
 	} else if (vd != NULL) {
 		/*
 		 * If we have a vdev but no zio, this is a device fault, and the
@@ -441,6 +423,20 @@ zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
 		    FM_EREPORT_PAYLOAD_ZFS_PREV_STATE,
 		    DATA_TYPE_UINT64, stateoroffset, NULL);
 	}
+
+	/*
+	 * Payload for I/Os with corresponding logical information.
+	 */
+	if (zb != NULL && (zio == NULL || zio->io_logical != NULL))
+		fm_payload_set(ereport,
+		    FM_EREPORT_PAYLOAD_ZFS_ZIO_OBJSET,
+		    DATA_TYPE_UINT64, zb->zb_objset,
+		    FM_EREPORT_PAYLOAD_ZFS_ZIO_OBJECT,
+		    DATA_TYPE_UINT64, zb->zb_object,
+		    FM_EREPORT_PAYLOAD_ZFS_ZIO_LEVEL,
+		    DATA_TYPE_INT64, zb->zb_level,
+		    FM_EREPORT_PAYLOAD_ZFS_ZIO_BLKID,
+		    DATA_TYPE_UINT64, zb->zb_blkid, NULL);
 
 	mutex_exit(&spa->spa_errlist_lock);
 
@@ -455,8 +451,8 @@ zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
 
 typedef struct zfs_ecksum_info {
 	/* histograms of set and cleared bits by bit number in a 64-bit word */
-	uint16_t zei_histogram_set[sizeof (uint64_t) * NBBY];
-	uint16_t zei_histogram_cleared[sizeof (uint64_t) * NBBY];
+	uint32_t zei_histogram_set[sizeof (uint64_t) * NBBY];
+	uint32_t zei_histogram_cleared[sizeof (uint64_t) * NBBY];
 
 	/* inline arrays of bits set and cleared. */
 	uint64_t zei_bits_set[ZFM_MAX_INLINE];
@@ -481,7 +477,7 @@ typedef struct zfs_ecksum_info {
 } zfs_ecksum_info_t;
 
 static void
-update_histogram(uint64_t value_arg, uint16_t *hist, uint32_t *count)
+update_histogram(uint64_t value_arg, uint32_t *hist, uint32_t *count)
 {
 	size_t i;
 	size_t bits = 0;
@@ -490,8 +486,7 @@ update_histogram(uint64_t value_arg, uint16_t *hist, uint32_t *count)
 	/* We store the bits in big-endian (largest-first) order */
 	for (i = 0; i < 64; i++) {
 		if (value & (1ull << i)) {
-			if (hist[63 - i] < UINT16_MAX)
-				hist[63 - i]++;
+			hist[63 - i]++;
 			++bits;
 		}
 	}
@@ -529,13 +524,12 @@ zei_shrink_ranges(zfs_ecksum_info_t *eip)
 		uint32_t end = r[idx].zr_end;
 
 		while (idx < max - 1) {
-			uint32_t nstart, nend, gap;
-
 			idx++;
-			nstart = r[idx].zr_start;
-			nend = r[idx].zr_end;
 
-			gap = nstart - end;
+			uint32_t nstart = r[idx].zr_start;
+			uint32_t nend = r[idx].zr_end;
+
+			uint32_t gap = nstart - end;
 			if (gap < new_allowed_gap) {
 				end = nend;
 				continue;
@@ -649,6 +643,7 @@ annotate_ecksum(nvlist_t *ereport, zio_bad_cksum_t *info,
 	if (badabd == NULL || goodabd == NULL)
 		return (eip);
 
+	ASSERT3U(nui64s, <=, UINT32_MAX);
 	ASSERT3U(size, ==, nui64s * sizeof (uint64_t));
 	ASSERT3U(size, <=, SPA_MAXBLOCKSIZE);
 	ASSERT3U(size, <=, UINT32_MAX);
@@ -759,10 +754,10 @@ annotate_ecksum(nvlist_t *ereport, zio_bad_cksum_t *info,
 	} else {
 		fm_payload_set(ereport,
 		    FM_EREPORT_PAYLOAD_ZFS_BAD_SET_HISTOGRAM,
-		    DATA_TYPE_UINT16_ARRAY,
+		    DATA_TYPE_UINT32_ARRAY,
 		    NBBY * sizeof (uint64_t), eip->zei_histogram_set,
 		    FM_EREPORT_PAYLOAD_ZFS_BAD_CLEARED_HISTOGRAM,
-		    DATA_TYPE_UINT16_ARRAY,
+		    DATA_TYPE_UINT32_ARRAY,
 		    NBBY * sizeof (uint64_t), eip->zei_histogram_cleared,
 		    NULL);
 	}
@@ -771,8 +766,8 @@ annotate_ecksum(nvlist_t *ereport, zio_bad_cksum_t *info,
 #endif
 
 void
-zfs_ereport_post(const char *subclass, spa_t *spa, vdev_t *vd, zio_t *zio,
-    uint64_t stateoroffset, uint64_t size)
+zfs_ereport_post(const char *subclass, spa_t *spa, vdev_t *vd,
+    zbookmark_phys_t *zb, zio_t *zio, uint64_t stateoroffset, uint64_t size)
 {
 #ifdef _KERNEL
 	nvlist_t *ereport = NULL;
@@ -781,8 +776,8 @@ zfs_ereport_post(const char *subclass, spa_t *spa, vdev_t *vd, zio_t *zio,
 	if (zfs_is_ratelimiting_event(subclass, vd))
 		return;
 
-	zfs_ereport_start(&ereport, &detector,
-	    subclass, spa, vd, zio, stateoroffset, size);
+	zfs_ereport_start(&ereport, &detector, subclass, spa, vd,
+	    zb, zio, stateoroffset, size);
 
 	if (ereport == NULL)
 		return;
@@ -793,7 +788,7 @@ zfs_ereport_post(const char *subclass, spa_t *spa, vdev_t *vd, zio_t *zio,
 }
 
 void
-zfs_ereport_start_checksum(spa_t *spa, vdev_t *vd,
+zfs_ereport_start_checksum(spa_t *spa, vdev_t *vd, zbookmark_phys_t *zb,
     struct zio *zio, uint64_t offset, uint64_t length, void *arg,
     zio_bad_cksum_t *info)
 {
@@ -823,7 +818,7 @@ zfs_ereport_start_checksum(spa_t *spa, vdev_t *vd,
 
 #ifdef _KERNEL
 	zfs_ereport_start(&report->zcr_ereport, &report->zcr_detector,
-	    FM_EREPORT_ZFS_CHECKSUM, spa, vd, zio, offset, length);
+	    FM_EREPORT_ZFS_CHECKSUM, spa, vd, zb, zio, offset, length);
 
 	if (report->zcr_ereport == NULL) {
 		zfs_ereport_free_checksum(report);
@@ -879,7 +874,7 @@ zfs_ereport_free_checksum(zio_cksum_report_t *rpt)
 
 
 void
-zfs_ereport_post_checksum(spa_t *spa, vdev_t *vd,
+zfs_ereport_post_checksum(spa_t *spa, vdev_t *vd, zbookmark_phys_t *zb,
     struct zio *zio, uint64_t offset, uint64_t length,
     const abd_t *good_data, const abd_t *bad_data, zio_bad_cksum_t *zbc)
 {
@@ -888,8 +883,8 @@ zfs_ereport_post_checksum(spa_t *spa, vdev_t *vd,
 	nvlist_t *detector = NULL;
 	zfs_ecksum_info_t *info;
 
-	zfs_ereport_start(&ereport, &detector,
-	    FM_EREPORT_ZFS_CHECKSUM, spa, vd, zio, offset, length);
+	zfs_ereport_start(&ereport, &detector, FM_EREPORT_ZFS_CHECKSUM,
+	    spa, vd, zb, zio, offset, length);
 
 	if (ereport == NULL)
 		return;

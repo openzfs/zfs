@@ -42,6 +42,7 @@
 #include <sys/refcount.h>
 #include <sys/bplist.h>
 #include <sys/bpobj.h>
+#include <sys/dsl_crypt.h>
 #include <sys/zfeature.h>
 #include <zfeature_common.h>
 
@@ -184,9 +185,9 @@ struct spa {
 	uberblock_t	spa_ubsync;		/* last synced uberblock */
 	uberblock_t	spa_uberblock;		/* current uberblock */
 	boolean_t	spa_extreme_rewind;	/* rewind past deferred frees */
-	uint64_t	spa_last_io;		/* lbolt of last non-scan I/O */
 	kmutex_t	spa_scrub_lock;		/* resilver/scrub lock */
-	uint64_t	spa_scrub_inflight;	/* in-flight scrub I/Os */
+	uint64_t	spa_scrub_inflight;	/* in-flight scrub bytes */
+	uint64_t	spa_load_verify_ios;	/* in-flight verification IOs */
 	kcondvar_t	spa_scrub_io_cv;	/* scrub I/O completion */
 	uint8_t		spa_scrub_active;	/* active or suspended? */
 	uint8_t		spa_scrub_type;		/* type of scrub we're doing */
@@ -197,6 +198,7 @@ struct spa {
 	uint64_t	spa_scan_pass_scrub_pause; /* scrub pause time */
 	uint64_t	spa_scan_pass_scrub_spent_paused; /* total paused */
 	uint64_t	spa_scan_pass_exam;	/* examined bytes per pass */
+	uint64_t	spa_scan_pass_issued;	/* issued bytes per pass */
 	kmutex_t	spa_async_lock;		/* protect async state */
 	kthread_t	*spa_async_thread;	/* thread doing async task */
 	int		spa_async_suspended;	/* async tasks suspended */
@@ -226,6 +228,7 @@ struct spa {
 	uint64_t	spa_pool_props_object;	/* object for properties */
 	uint64_t	spa_bootfs;		/* default boot filesystem */
 	uint64_t	spa_failmode;		/* failure mode for the pool */
+	uint64_t	spa_deadman_failmode;	/* failure mode for deadman */
 	uint64_t	spa_delegation;		/* delegation on/off */
 	list_t		spa_config_list;	/* previous cache file(s) */
 	/* per-CPU array of root of async I/O: */
@@ -268,11 +271,13 @@ struct spa {
 	taskqid_t	spa_deadman_tqid;	/* Task id */
 	uint64_t	spa_deadman_calls;	/* number of deadman calls */
 	hrtime_t	spa_sync_starttime;	/* starting time of spa_sync */
-	uint64_t	spa_deadman_synctime;	/* deadman expiration timer */
+	uint64_t	spa_deadman_synctime;	/* deadman sync expiration */
+	uint64_t	spa_deadman_ziotime;	/* deadman zio expiration */
 	uint64_t	spa_all_vdev_zaps;	/* ZAP of per-vd ZAP obj #s */
 	spa_avz_action_t	spa_avz_action;	/* destroy/rebuild AVZ? */
 	uint64_t	spa_errata;		/* errata issues detected */
 	spa_stats_t	spa_stats;		/* assorted spa statistics */
+	spa_keystore_t	spa_keystore;		/* loaded crypto keys */
 	hrtime_t	spa_ccw_fail_time;	/* Conf cache write fail time */
 	taskq_t		*spa_zvol_taskq;	/* Taskq for minor management */
 	uint64_t	spa_multihost;		/* multihost aware (mmp) */

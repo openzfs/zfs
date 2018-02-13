@@ -44,47 +44,45 @@ verify_runnable "global"
 
 function cleanup
 {
-	poolexists $TESTPOOL && destroy_pool $TESTPOOL
+	destroy_pool $TESTPOOL
 	log_must rm -f $disk
 }
 
 #
-# Commit the specified number of TXGs to the provided pool
-# We use 'zpool sync' here because we can't force it via sync(1) like on illumos
-# $1 pool name
-# $2 number of txg syncs
+# Fill the uberblock ring in every <device> label: we do this by committing
+# TXGs to the provided <pool> until every slot contains a valid uberblock.
+# NOTE: We use 'zpool sync' here because we can't force it via sync(1) like on
+# illumos
 #
-function txg_sync
+function write_device_uberblocks # <device> <pool>
 {
-	typeset pool=$1
-	typeset -i count=$2
-	typeset -i i=0;
+	typeset device=$1
+	typeset pool=$2
 
-	while [ $i -lt $count ]
+	while [ "$(zdb -quuul $device | grep -c 'invalid')" -ne 0 ]
 	do
-		log_must sync_pool $pool true
-		((i = i + 1))
+		sync_pool $pool true
 	done
 }
 
 #
-# Verify device $1 labels contains $2 valid uberblocks in every label
-# $1 device
-# $2 uberblocks count
+# Verify every label on <device> contains <count> (valid) uberblocks
 #
-function verify_device_uberblocks
+function verify_device_uberblocks # <device> <count>
 {
 	typeset device=$1
 	typeset ubcount=$2
 
 	zdb -quuul $device | egrep '^(\s+)?Uberblock' |
-	    egrep -v 'invalid$' | awk \
-	    -v ubcount=$ubcount '{ uberblocks[$0]++; }
-	    END { for (i in uberblocks) {
-		count++;
-		if (uberblocks[i] != 4) { exit 1; }
-	    }
-	    if (count != ubcount) { exit 1; } }'
+	    awk -v ubcount=$ubcount 'BEGIN { count=0 } { uberblocks[$0]++; }
+	    END {
+	        for (i in uberblocks) {
+	            if (i ~ /invalid/) { continue; }
+	            if (uberblocks[i] != 4) { exit 1; }
+	            count++;
+	        }
+	        if (count != ubcount) { exit 1; }
+	    }'
 
 	return $?
 }
@@ -110,8 +108,7 @@ do
 		log_fail "Pool was created without setting ashift value to "\
 		    "$ashift (current = $pprop)"
 	fi
-	# force 128 txg sync to fill the uberblock ring
-	txg_sync $TESTPOOL 128
+	write_device_uberblocks $disk $TESTPOOL
 	verify_device_uberblocks $disk ${ubcount[$i]}
 	if [[ $? -ne 0 ]]
 	then

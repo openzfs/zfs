@@ -41,9 +41,9 @@ function get_prefetched_demand_reads
 	echo $demand_reads
 }
 
-function get_sync_wait_for_async
+function get_async_upgrade_sync
 {
-	typeset -l sync_wait=`awk '$1 == "sync_wait_for_async" \
+	typeset -l sync_wait=`awk '$1 == "async_upgrade_sync" \
 	    { print $3 }' $zfs_kstats/arcstats`
 
 	echo $sync_wait
@@ -59,7 +59,7 @@ poolname=$1
 interval=$2
 prefetch_ios=$(get_prefetch_ios)
 prefetched_demand_reads=$(get_prefetched_demand_reads)
-sync_wait_for_async=$(get_sync_wait_for_async)
+async_upgrade_sync=$(get_async_upgrade_sync)
 
 while true
 do
@@ -73,10 +73,10 @@ do
 	    $(( $new_prefetched_demand_reads - $prefetched_demand_reads ))
 	prefetched_demand_reads=$new_prefetched_demand_reads
 
-	new_sync_wait_for_async=$(get_sync_wait_for_async)
-	printf "%-24s\t%u\n" "sync_wait_for_async" \
-	    $(( $new_sync_wait_for_async - $sync_wait_for_async ))
-	sync_wait_for_async=$new_sync_wait_for_async
+	new_async_upgrade_sync=$(get_async_upgrade_sync)
+	printf "%-24s\t%u\n" "async_upgrade_sync" \
+	    $(( $new_async_upgrade_sync - $async_upgrade_sync ))
+	async_upgrade_sync=$new_async_upgrade_sync
 
 	sleep $interval
 done

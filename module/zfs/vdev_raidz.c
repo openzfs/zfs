@@ -318,8 +318,8 @@ vdev_raidz_cksum_report(zio_t *zio, zio_cksum_report_t *zcr, void *arg)
 }
 
 static const zio_vsd_ops_t vdev_raidz_vsd_ops = {
-	vdev_raidz_map_free_vsd,
-	vdev_raidz_cksum_report
+	.vsd_free = vdev_raidz_map_free_vsd,
+	.vsd_cksum_report = vdev_raidz_cksum_report
 };
 
 /*
@@ -695,9 +695,8 @@ vdev_raidz_reconst_p_func(void *dbuf, void *sbuf, size_t size, void *private)
 	uint64_t *dst = dbuf;
 	uint64_t *src = sbuf;
 	int cnt = size / sizeof (src[0]);
-	int i;
 
-	for (i = 0; i < cnt; i++) {
+	for (int i = 0; i < cnt; i++) {
 		dst[i] ^= src[i];
 	}
 
@@ -713,9 +712,8 @@ vdev_raidz_reconst_q_pre_func(void *dbuf, void *sbuf, size_t size,
 	uint64_t *src = sbuf;
 	uint64_t mask;
 	int cnt = size / sizeof (dst[0]);
-	int i;
 
-	for (i = 0; i < cnt; i++, dst++, src++) {
+	for (int i = 0; i < cnt; i++, dst++, src++) {
 		VDEV_RAIDZ_64MUL_2(*dst, mask);
 		*dst ^= *src;
 	}
@@ -730,9 +728,8 @@ vdev_raidz_reconst_q_pre_tail_func(void *buf, size_t size, void *private)
 	uint64_t *dst = buf;
 	uint64_t mask;
 	int cnt = size / sizeof (dst[0]);
-	int i;
 
-	for (i = 0; i < cnt; i++, dst++) {
+	for (int i = 0; i < cnt; i++, dst++) {
 		/* same operation as vdev_raidz_reconst_q_pre_func() on dst */
 		VDEV_RAIDZ_64MUL_2(*dst, mask);
 	}
@@ -751,9 +748,8 @@ vdev_raidz_reconst_q_post_func(void *buf, size_t size, void *private)
 	struct reconst_q_struct *rq = private;
 	uint64_t *dst = buf;
 	int cnt = size / sizeof (dst[0]);
-	int i;
 
-	for (i = 0; i < cnt; i++, dst++, rq->q++) {
+	for (int i = 0; i < cnt; i++, dst++, rq->q++) {
 		int j;
 		uint8_t *b;
 
@@ -781,9 +777,8 @@ vdev_raidz_reconst_pq_func(void *xbuf, void *ybuf, size_t size, void *private)
 	struct reconst_pq_struct *rpq = private;
 	uint8_t *xd = xbuf;
 	uint8_t *yd = ybuf;
-	int i;
 
-	for (i = 0; i < size;
+	for (int i = 0; i < size;
 	    i++, rpq->p++, rpq->q++, rpq->pxy++, rpq->qxy++, xd++, yd++) {
 		*xd = vdev_raidz_exp2(*rpq->p ^ *rpq->pxy, rpq->aexp) ^
 		    vdev_raidz_exp2(*rpq->q ^ *rpq->qxy, rpq->bexp);
@@ -798,9 +793,8 @@ vdev_raidz_reconst_pq_tail_func(void *xbuf, size_t size, void *private)
 {
 	struct reconst_pq_struct *rpq = private;
 	uint8_t *xd = xbuf;
-	int i;
 
-	for (i = 0; i < size;
+	for (int i = 0; i < size;
 	    i++, rpq->p++, rpq->q++, rpq->pxy++, rpq->qxy++, xd++) {
 		/* same operation as vdev_raidz_reconst_pq_func() on xd */
 		*xd = vdev_raidz_exp2(*rpq->p ^ *rpq->pxy, rpq->aexp) ^
@@ -852,7 +846,6 @@ vdev_raidz_reconstruct_q(raidz_map_t *rm, int *tgts, int ntgts)
 	int x = tgts[0];
 	int c, exp;
 	abd_t *dst, *src;
-	struct reconst_q_struct rq;
 
 	ASSERT(ntgts == 1);
 
@@ -884,9 +877,8 @@ vdev_raidz_reconstruct_q(raidz_map_t *rm, int *tgts, int ntgts)
 	src = rm->rm_col[VDEV_RAIDZ_Q].rc_abd;
 	dst = rm->rm_col[x].rc_abd;
 	exp = 255 - (rm->rm_cols - 1 - x);
-	rq.q = abd_to_buf(src);
-	rq.exp = exp;
 
+	struct reconst_q_struct rq = { abd_to_buf(src), exp };
 	(void) abd_iterate_func(dst, 0, rm->rm_col[x].rc_size,
 	    vdev_raidz_reconst_q_post_func, &rq);
 
@@ -902,7 +894,6 @@ vdev_raidz_reconstruct_pq(raidz_map_t *rm, int *tgts, int ntgts)
 	int x = tgts[0];
 	int y = tgts[1];
 	abd_t *xd, *yd;
-	struct reconst_pq_struct rpq;
 
 	ASSERT(ntgts == 2);
 	ASSERT(x < y);
@@ -965,12 +956,7 @@ vdev_raidz_reconstruct_pq(raidz_map_t *rm, int *tgts, int ntgts)
 	bexp = vdev_raidz_log2[vdev_raidz_exp2(b, tmp)];
 
 	ASSERT3U(xsize, >=, ysize);
-	rpq.p = p;
-	rpq.q = q;
-	rpq.pxy = pxy;
-	rpq.qxy = qxy;
-	rpq.aexp = aexp;
-	rpq.bexp = bexp;
+	struct reconst_pq_struct rpq = { p, q, pxy, qxy, aexp, bexp };
 
 	(void) abd_iterate_func2(xd, yd, 0, 0, ysize,
 	    vdev_raidz_reconst_pq_func, &rpq);
@@ -1766,9 +1752,9 @@ raidz_checksum_error(zio_t *zio, raidz_col_t *rc, abd_t *bad_data)
 		zbc.zbc_has_cksum = 0;
 		zbc.zbc_injected = rm->rm_ecksuminjected;
 
-		zfs_ereport_post_checksum(zio->io_spa, vd, zio,
-		    rc->rc_offset, rc->rc_size, rc->rc_abd, bad_data,
-		    &zbc);
+		zfs_ereport_post_checksum(zio->io_spa, vd,
+		    &zio->io_bookmark, zio, rc->rc_offset, rc->rc_size,
+		    rc->rc_abd, bad_data, &zbc);
 	}
 }
 
@@ -1781,11 +1767,10 @@ raidz_checksum_verify(zio_t *zio)
 {
 	zio_bad_cksum_t zbc;
 	raidz_map_t *rm = zio->io_vsd;
-	int ret;
 
 	bzero(&zbc, sizeof (zio_bad_cksum_t));
 
-	ret = zio_checksum_error(zio, &zbc);
+	int ret = zio_checksum_error(zio, &zbc);
 	if (ret != 0 && zbc.zbc_injected != 0)
 		rm->rm_ecksuminjected = 1;
 
@@ -1841,9 +1826,9 @@ raidz_parity_verify(zio_t *zio, raidz_map_t *rm)
 static int
 vdev_raidz_worst_error(raidz_map_t *rm)
 {
-	int c, error = 0;
+	int error = 0;
 
-	for (c = 0; c < rm->rm_cols; c++)
+	for (int c = 0; c < rm->rm_cols; c++)
 		error = zio_worst_error(error, rm->rm_col[c].rc_error);
 
 	return (error);
@@ -2256,7 +2241,8 @@ vdev_raidz_io_done(zio_t *zio)
 					zfs_ereport_start_checksum(
 					    zio->io_spa,
 					    vd->vdev_child[rc->rc_devidx],
-					    zio, rc->rc_offset, rc->rc_size,
+					    &zio->io_bookmark, zio,
+					    rc->rc_offset, rc->rc_size,
 					    (void *)(uintptr_t)c, &zbc);
 				}
 			}

@@ -55,8 +55,8 @@ verify_runnable "both"
 
 function cleanup
 {
-	datasetexists $TESTPOOL/128k && log_must zfs destroy $TESTPOOL/128k
-	datasetexists $TESTPOOL/1m && log_must zfs destroy $TESTPOOL/1m
+	datasetexists $TESTPOOL/128k && log_must_busy zfs destroy $TESTPOOL/128k
+	datasetexists $TESTPOOL/1m && log_must_busy zfs destroy $TESTPOOL/1m
 	cleanup_pool $POOL2
 	destroy_pool $POOL3
 }
@@ -153,7 +153,7 @@ function check
 
 	check_recsize $recv_ds $expected_file_bs $expected_recsize
 	$do_size_test && verify_stream_size $stream $recv_ds
-	log_must zfs destroy -r $recv_ds
+	log_must_busy zfs destroy -r $recv_ds
 }
 
 log_assert "Verify compressed send works with datasets of varying recsize."

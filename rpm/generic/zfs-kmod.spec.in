@@ -37,7 +37,7 @@
 #define buildforkernels akmod
 
 %bcond_with     debug
-%bcond_with     debug_dmu_tx
+%bcond_with     debuginfo
 
 
 Name:           %{module}-kmod
@@ -117,10 +117,10 @@ bash %{SOURCE10}  --target %{_target_cpu} %{?repo:--repo %{?repo}} --kmodname %{
     %define debug --disable-debug
 %endif
 
-%if %{with debug_dmu_tx}
-    %define debug_dmu_tx --enable-debug-dmu-tx
+%if %{with debuginfo}
+    %define debuginfo --enable-debuginfo
 %else
-    %define debug_dmu_tx --disable-debug-dmu-tx
+    %define debuginfo --disable-debuginfo
 %endif
 
 #
@@ -164,7 +164,7 @@ for kernel_version in %{?kernel_versions}; do
         --with-spl="%{spldir}" \
         --with-spl-obj="%{splobj}" \
         %{debug} \
-        %{debug_dmu_tx}
+        %{debuginfo}
     make %{?_smp_mflags}
     cd ..
 done
