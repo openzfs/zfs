@@ -2617,7 +2617,7 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 	 */
 	if (type != SPA_IMPORT_ASSEMBLE) {
 		spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
-		error = vdev_validate(rvd, mosconfig);
+		error = vdev_validate(rvd, mosconfig, B_TRUE);
 		spa_config_exit(spa, SCL_ALL, FTAG);
 
 		if (error != 0)
@@ -3440,9 +3440,10 @@ spa_open_common(const char *pool, spa_t **spapp, void *tag, nvlist_t *nvpolicy,
 			/*
 			 * If vdev_validate() returns failure (indicated by
 			 * EBADF), it indicates that one of the vdevs indicates
-			 * that the pool has been exported or destroyed.  If
-			 * this is the case, the config cache is out of sync and
-			 * we should remove the pool from the namespace.
+			 * that the pool may be exported, destroyed or the
+			 * cache may be inaccurate.  If this is the case, the
+			 * config cache is out of sync and we should remove the
+			 * pool from the namespace.
 			 */
 			spa_unload(spa);
 			spa_deactivate(spa);

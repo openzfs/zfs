@@ -1469,13 +1469,16 @@ vdev_open(vdev_t *vd)
  * to all of the vdev labels, but not the cached config. The strict check
  * will be performed when the pool is opened again using the mos config.
  *
+ * If 'validate_config' is true verify the spa->spa_config seems reasonable.
+ * This should be set when importing from cache files which might be stale.
+ *
  * This function will only return failure if one of the vdevs indicates that it
  * has since been destroyed or exported.  This is only possible if
  * /etc/zfs/zpool.cache was readonly at the time.  Otherwise, the vdev state
  * will be updated but the function will return 0.
  */
 int
-vdev_validate(vdev_t *vd, boolean_t strict)
+vdev_validate(vdev_t *vd, boolean_t strict, boolean_t validate_config)
 {
 	spa_t *spa = vd->vdev_spa;
 	nvlist_t *label;
@@ -1483,7 +1486,8 @@ vdev_validate(vdev_t *vd, boolean_t strict)
 	uint64_t state;
 
 	for (int c = 0; c < vd->vdev_children; c++)
-		if (vdev_validate(vd->vdev_child[c], strict) != 0)
+		if (vdev_validate(vd->vdev_child[c], strict, validate_config)
+		    != 0)
 			return (SET_ERROR(EBADF));
 
 	/*
@@ -1492,6 +1496,8 @@ vdev_validate(vdev_t *vd, boolean_t strict)
 	 * overwrite the previous state.
 	 */
 	if (vd->vdev_ops->vdev_op_leaf && vdev_readable(vd)) {
+		uint64_t num_children_config = 0;
+		uint64_t num_children_label = 0;
 		uint64_t aux_guid = 0;
 		nvlist_t *nvl;
 		uint64_t txg = spa_last_synced_txg(spa) != 0 ?
@@ -1502,6 +1508,38 @@ vdev_validate(vdev_t *vd, boolean_t strict)
 			    VDEV_AUX_BAD_LABEL);
 			return (0);
 		}
+
+		/*
+		 * Determine if the cached configuration is out of date
+		 * due to device addition. A zpool.cache with too few
+		 * vdev_children may cause block pointer errors later in
+		 * the import process.
+		 */
+		if (nvlist_lookup_uint64(label, ZPOOL_CONFIG_VDEV_CHILDREN,
+		    &num_children_label) != 0) {
+			vdev_set_state(vd, B_FALSE, VDEV_STATE_CANT_OPEN,
+			    VDEV_AUX_CORRUPT_DATA);
+			nvlist_free(label);
+			return (0);
+		}
+		if (num_children_label > 0 && validate_config == B_TRUE &&
+		    nvlist_lookup_uint64(spa->spa_config,
+		    ZPOOL_CONFIG_VDEV_CHILDREN, &num_children_config) == 0 &&
+		    num_children_config < num_children_label) {
+#ifdef HAVE_SPL
+			if (spa->spa_name[0] != '$')
+				printk(KERN_WARNING "ZFS: pool '%s' cached "
+				    "config is out of date, cannot import "
+				    "(label=%d vdevs, config=%d vdevs)",
+				    spa->spa_name, (int)num_children_label,
+				    (int)num_children_config);
+#endif
+			vdev_set_state(vd, B_FALSE, VDEV_STATE_CANT_OPEN,
+			    VDEV_AUX_CORRUPT_DATA);
+			nvlist_free(label);
+			return (SET_ERROR(EINVAL));
+		}
+
 
 		/*
 		 * Determine if this vdev has been split off into another
@@ -1677,7 +1715,7 @@ vdev_reopen(vdev_t *vd)
 		    !l2arc_vdev_present(vd))
 			l2arc_add_vdev(spa, vd);
 	} else {
-		(void) vdev_validate(vd, B_TRUE);
+		(void) vdev_validate(vd, B_TRUE, B_FALSE);
 	}
 
 	/*
