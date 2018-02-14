@@ -21,6 +21,7 @@ Distribution Name       |
 Distribution Version    | 
 Linux Kernel                 | 
 Architecture                 | 
+CPU Installed                | 
 ZFS Version                  | 
 SPL Version                  | 
 <!-- 
