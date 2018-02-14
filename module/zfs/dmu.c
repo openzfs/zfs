@@ -847,8 +847,11 @@ dmu_free_long_range_impl(objset_t *os, dnode_t *dn, uint64_t offset,
 
 			while (dr != NULL && dr->dr_txg > tx->tx_txg)
 				dr = dr->dr_next;
-			if (dr != NULL && dr->dr_txg == tx->tx_txg)
+			if (dr != NULL && dr->dr_txg == tx->tx_txg) {
 				dr->dt.dl.dr_raw = B_TRUE;
+				dn->dn_objset->os_next_write_raw
+				    [tx->tx_txg & TXG_MASK] = B_TRUE;
+			}
 		}
 
 		dmu_tx_commit(tx);
