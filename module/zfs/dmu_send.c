@@ -2546,6 +2546,8 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 	 * these objects before we attempt to allocate the new dnode.
 	 */
 	if (drro->drr_dn_slots > 1) {
+		boolean_t need_sync = B_FALSE;
+
 		for (uint64_t slot = drro->drr_object + 1;
 		    slot < drro->drr_object + drro->drr_dn_slots;
 		    slot++) {
@@ -2564,9 +2566,12 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 
 			if (err != 0)
 				return (err);
+
+			need_sync = B_TRUE;
 		}
 
-		txg_wait_synced(dmu_objset_pool(rwa->os), 0);
+		if (need_sync)
+			txg_wait_synced(dmu_objset_pool(rwa->os), 0);
 	}
 
 	tx = dmu_tx_create(rwa->os);
