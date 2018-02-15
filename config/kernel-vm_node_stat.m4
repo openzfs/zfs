@@ -7,7 +7,7 @@ AC_DEFUN([ZFS_AC_KERNEL_VM_NODE_STAT], [
 	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/mm.h>
 		#include <linux/vmstat.h>
-        ],[
+	],[
 			int a __attribute__ ((unused)) = NR_VM_NODE_STAT_ITEMS;
 			long x __attribute__ ((unused)) =
 				atomic_long_read(&vm_node_stat[0]);

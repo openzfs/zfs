@@ -5,6 +5,7 @@ AC_DEFUN([ZFS_AC_KERNEL_D_REVALIDATE_NAMEIDATA], [
 	AC_MSG_CHECKING([whether dops->d_revalidate() takes struct nameidata])
 	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/dcache.h>
+		#include <linux/sched.h>
 
 		int revalidate (struct dentry *dentry,
 		    struct nameidata *nidata) { return 0; }
