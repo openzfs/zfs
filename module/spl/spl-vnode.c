@@ -28,7 +28,11 @@
 #include <sys/vnode.h>
 #include <sys/kmem_cache.h>
 #include <linux/falloc.h>
-#include <linux/file_compat.h>
+#include <linux/fs.h>
+#include <linux/uaccess.h>
+#ifdef HAVE_FDTABLE_HEADER
+#include <linux/fdtable.h>
+#endif
 
 vnode_t *rootdir = (vnode_t *)0xabcd1234;
 EXPORT_SYMBOL(rootdir);
@@ -38,6 +42,76 @@ static spl_kmem_cache_t *vn_file_cache;
 
 static DEFINE_SPINLOCK(vn_file_lock);
 static LIST_HEAD(vn_file_list);
+
+static int
+spl_filp_fallocate(struct file *fp, int mode, loff_t offset, loff_t len)
+{
+	int error = -EOPNOTSUPP;
+
+#ifdef HAVE_FILE_FALLOCATE
+	if (fp->f_op->fallocate)
+		error = fp->f_op->fallocate(fp, mode, offset, len);
+#else
+#ifdef HAVE_INODE_FALLOCATE
+	if (fp->f_dentry && fp->f_dentry->d_inode &&
+	    fp->f_dentry->d_inode->i_op->fallocate)
+		error = fp->f_dentry->d_inode->i_op->fallocate(
+		    fp->f_dentry->d_inode, mode, offset, len);
+#endif /* HAVE_INODE_FALLOCATE */
+#endif /* HAVE_FILE_FALLOCATE */
+
+	return (error);
+}
+
+static int
+spl_filp_fsync(struct file *fp, int sync)
+{
+#ifdef HAVE_2ARGS_VFS_FSYNC
+	return (vfs_fsync(fp, sync));
+#else
+	return (vfs_fsync(fp, (fp)->f_dentry, sync));
+#endif /* HAVE_2ARGS_VFS_FSYNC */
+}
+
+static ssize_t
+spl_kernel_write(struct file *file, const void *buf, size_t count, loff_t *pos)
+{
+#if defined(HAVE_KERNEL_WRITE_PPOS)
+	return (kernel_write(file, buf, count, pos));
+#else
+	mm_segment_t saved_fs;
+	ssize_t ret;
+
+	saved_fs = get_fs();
+	set_fs(get_ds());
+
+	ret = vfs_write(file, (__force const char __user *)buf, count, pos);
+
+	set_fs(saved_fs);
+
+	return (ret);
+#endif
+}
+
+static ssize_t
+spl_kernel_read(struct file *file, void *buf, size_t count, loff_t *pos)
+{
+#if defined(HAVE_KERNEL_READ_PPOS)
+	return (kernel_read(file, buf, count, pos));
+#else
+	mm_segment_t saved_fs;
+	ssize_t ret;
+
+	saved_fs = get_fs();
+	set_fs(get_ds());
+
+	ret = vfs_read(file, (void __user *)buf, count, pos);
+
+	set_fs(saved_fs);
+
+	return (ret);
+#endif
+}
 
 vtype_t
 vn_mode_to_vtype(mode_t mode)

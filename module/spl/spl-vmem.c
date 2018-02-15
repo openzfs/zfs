@@ -25,7 +25,7 @@
 #include <sys/debug.h>
 #include <sys/vmem.h>
 #include <sys/kmem_cache.h>
-#include <linux/mm_compat.h>
+#include <sys/shrinker.h>
 #include <linux/module.h>
 
 vmem_t *heap_arena = NULL;

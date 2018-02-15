@@ -30,10 +30,10 @@
 #include <sys/kmem_cache.h>
 #include <sys/vmem.h>
 #include <sys/taskq.h>
+#include <sys/proc.h>
 #include <linux/ctype.h>
 #include <linux/kmod.h>
 #include <linux/seq_file.h>
-#include <linux/proc_compat.h>
 #include <linux/uaccess.h>
 #include <linux/version.h>
 

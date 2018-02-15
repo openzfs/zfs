@@ -24,13 +24,13 @@
 
 #include <sys/kmem.h>
 #include <sys/kmem_cache.h>
+#include <sys/shrinker.h>
 #include <sys/taskq.h>
 #include <sys/timer.h>
 #include <sys/vmem.h>
+#include <sys/wait.h>
 #include <linux/slab.h>
 #include <linux/swap.h>
-#include <linux/mm_compat.h>
-#include <linux/wait_compat.h>
 #include <linux/prefetch.h>
 
 /*

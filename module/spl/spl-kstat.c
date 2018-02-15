@@ -28,6 +28,7 @@
 #include <sys/kstat.h>
 #include <sys/vmem.h>
 #include <sys/cmn_err.h>
+#include <sys/sysmacros.h>
 
 #ifndef HAVE_PDE_DATA
 #define	PDE_DATA(x) (PDE(x)->data)

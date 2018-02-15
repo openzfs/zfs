@@ -25,7 +25,7 @@
 #include <sys/kmem.h>
 #include <sys/debug.h>
 #include <sys/types.h>
-#include <rpc/types.h>
+#include <sys/sysmacros.h>
 #include <rpc/xdr.h>
 
 /*
@@ -130,6 +130,8 @@
 
 static struct xdr_ops xdrmem_encode_ops;
 static struct xdr_ops xdrmem_decode_ops;
+
+typedef int bool_t;
 
 void
 xdrmem_create(XDR *xdrs, const caddr_t addr, const uint_t size,

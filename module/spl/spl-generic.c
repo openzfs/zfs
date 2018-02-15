@@ -43,9 +43,8 @@
 #include <linux/ctype.h>
 #include <sys/disp.h>
 #include <sys/random.h>
+#include <sys/strings.h>
 #include <linux/kmod.h>
-#include <linux/math64_compat.h>
-#include <linux/proc_compat.h>
 
 char spl_version[32] = "SPL v" SPL_META_VERSION "-" SPL_META_RELEASE;
 EXPORT_SYMBOL(spl_version);
@@ -259,6 +258,12 @@ __udivdi3(uint64_t u, uint64_t v)
 	}
 }
 EXPORT_SYMBOL(__udivdi3);
+
+/* BEGIN CSTYLED */
+#ifndef abs64
+#define	abs64(x)	({ uint64_t t = (x) >> 63; ((x) ^ t) - t; })
+#endif
+/* END CSTYLED */
 
 /*
  * Implementation of 64-bit signed division for 32-bit machines.

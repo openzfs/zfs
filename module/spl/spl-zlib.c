@@ -57,7 +57,6 @@
 #include <sys/kmem.h>
 #include <sys/kmem_cache.h>
 #include <sys/zmod.h>
-#include <linux/zlib_compat.h>
 
 static spl_kmem_cache_t *zlib_workspace_cache;
 
