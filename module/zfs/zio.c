@@ -1532,9 +1532,21 @@ zio_write_compress(zio_t *zio)
 		*bp = zio->io_bp_orig;
 		zio->io_pipeline = zio->io_orig_pipeline;
 
+	} else if ((zio->io_flags & ZIO_FLAG_RAW_ENCRYPT) != 0 &&
+	    zp->zp_type == DMU_OT_DNODE) {
+		/*
+		 * The DMU actually relies on the zio layer's compression
+		 * to free metadnode blocks that have had all contained
+		 * dnodes freed. As a result, even when doing a raw
+		 * receive, we must check whether the block can be compressed
+		 * to a hole.
+		 */
+		psize = zio_compress_data(ZIO_COMPRESS_EMPTY,
+		    zio->io_abd, NULL, lsize);
+		if (psize == 0)
+			compress = ZIO_COMPRESS_OFF;
 	} else {
 		ASSERT3U(psize, !=, 0);
-
 	}
 
 	/*

@@ -3465,7 +3465,8 @@ dbuf_check_crypt(dbuf_dirty_record_t *dr)
 		 * Writing raw encrypted data requires the db's arc buffer
 		 * to be converted to raw by the caller.
 		 */
-		ASSERT(arc_is_encrypted(db->db_buf));
+		ASSERT(arc_is_encrypted(db->db_buf) ||
+		    db->db.db_object == DMU_META_DNODE_OBJECT);
 	}
 }
 
