@@ -27,7 +27,6 @@
 #include <sys/kmem.h>
 #include <sys/vmem.h>
 #include <linux/mm.h>
-#include <linux/ratelimit.h>
 
 /*
  * As a general rule kmem_alloc() allocations should be small, preferably
@@ -135,12 +134,6 @@ strfree(char *str)
 EXPORT_SYMBOL(strfree);
 
 /*
- * Limit the number of large allocation stack traces dumped to not more than
- * 5 every 60 seconds to prevent denial-of-service attacks from debug code.
- */
-DEFINE_RATELIMIT_STATE(kmem_alloc_ratelimit_state, 60 * HZ, 5);
-
-/*
  * General purpose unified implementation of kmem_alloc(). It is an
  * amalgamation of Linux and Illumos allocator design. It should never be
  * exported to ensure that code using kmem_alloc()/kmem_zalloc() remains
@@ -160,7 +153,7 @@ spl_kmem_alloc_impl(size_t size, int flags, int node)
 	 * through the vmem_alloc()/vmem_zalloc() interfaces.
 	 */
 	if ((spl_kmem_alloc_warn > 0) && (size > spl_kmem_alloc_warn) &&
-	    !(flags & KM_VMEM) && __ratelimit(&kmem_alloc_ratelimit_state)) {
+	    !(flags & KM_VMEM)) {
 		printk(KERN_WARNING
 		    "Large kmem_alloc(%lu, 0x%x), please file an issue at:\n"
 		    "https://github.com/zfsonlinux/zfs/issues/new\n",
@@ -205,14 +198,6 @@ spl_kmem_alloc_impl(size_t size, int flags, int node)
 		if ((flags & KM_VMEM) && (use_vmem == 0))  {
 			use_vmem = 1;
 			continue;
-		}
-
-		if (unlikely(__ratelimit(&kmem_alloc_ratelimit_state))) {
-			printk(KERN_WARNING
-			    "Possible memory allocation deadlock: "
-			    "size=%lu lflags=0x%x",
-			    (unsigned long)size, lflags);
-			dump_stack();
 		}
 
 		/*
@@ -535,8 +520,11 @@ spl_kmem_fini_tracking(struct list_head *list, spinlock_t *lock)
 int
 spl_kmem_init(void)
 {
+
 #ifdef DEBUG_KMEM
 	kmem_alloc_used_set(0);
+
+
 
 #ifdef DEBUG_KMEM_TRACKING
 	spl_kmem_init_tracking(&kmem_list, &kmem_lock, KMEM_TABLE_SIZE);

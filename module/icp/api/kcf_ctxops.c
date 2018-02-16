@@ -145,7 +145,7 @@ crypto_destroy_ctx_template(crypto_ctx_template_t tmpl)
 	kmem_free(ctx_tmpl, sizeof (kcf_ctx_template_t));
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 EXPORT_SYMBOL(crypto_create_ctx_template);
 EXPORT_SYMBOL(crypto_destroy_ctx_template);
 #endif

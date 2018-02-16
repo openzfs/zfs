@@ -131,8 +131,6 @@
 static struct xdr_ops xdrmem_encode_ops;
 static struct xdr_ops xdrmem_decode_ops;
 
-typedef int bool_t;
-
 void
 xdrmem_create(XDR *xdrs, const caddr_t addr, const uint_t size,
     const enum xdr_op op)

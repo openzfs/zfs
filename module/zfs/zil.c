@@ -32,7 +32,6 @@
 #include <sys/zap.h>
 #include <sys/arc.h>
 #include <sys/stat.h>
-#include <sys/resource.h>
 #include <sys/zil.h>
 #include <sys/zil_impl.h>
 #include <sys/dsl_dataset.h>
@@ -3406,7 +3405,7 @@ zil_reset(const char *osname, void *arg)
 	return (0);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 EXPORT_SYMBOL(zil_alloc);
 EXPORT_SYMBOL(zil_free);
 EXPORT_SYMBOL(zil_open);

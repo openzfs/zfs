@@ -26,7 +26,6 @@
 
 #include <sys/types.h>
 #include <sys/param.h>
-#include <sys/systm.h>
 #include <sys/sysmacros.h>
 #include <sys/cmn_err.h>
 #include <sys/kmem.h>
@@ -45,7 +44,6 @@
 #include <sys/dmu.h>
 #include <sys/spa.h>
 #include <sys/zfs_fuid.h>
-#include <sys/ddi.h>
 #include <sys/dsl_dataset.h>
 
 /*
@@ -720,7 +718,7 @@ zfs_log_acl(zilog_t *zilog, dmu_tx_t *tx, znode_t *zp,
 	zil_itx_assign(zilog, itx, tx);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 module_param(zfs_immediate_write_sz, long, 0644);
 MODULE_PARM_DESC(zfs_immediate_write_sz, "Largest data block to write to zil");
 #endif

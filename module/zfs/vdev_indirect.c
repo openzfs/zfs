@@ -1687,7 +1687,7 @@ vdev_ops_t vdev_indirect_ops = {
 	B_FALSE			/* leaf vdev */
 };
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 EXPORT_SYMBOL(rs_alloc);
 EXPORT_SYMBOL(spa_condense_fini);
 EXPORT_SYMBOL(spa_start_indirect_condensing_thread);

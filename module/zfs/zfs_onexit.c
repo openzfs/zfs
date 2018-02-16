@@ -26,13 +26,9 @@
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/errno.h>
-#include <sys/open.h>
 #include <sys/kmem.h>
-#include <sys/conf.h>
-#include <sys/ddi.h>
 #include <sys/sunddi.h>
 #include <sys/zfs_ioctl.h>
-#include <sys/mkdev.h>
 #include <sys/zfs_onexit.h>
 #include <sys/zvol.h>
 

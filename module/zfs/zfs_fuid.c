@@ -29,7 +29,6 @@
 #include <sys/refcount.h>
 #include <sys/nvpair.h>
 #ifdef _KERNEL
-#include <sys/kidmap.h>
 #include <sys/sid.h>
 #include <sys/zfs_vfsops.h>
 #include <sys/zfs_znode.h>

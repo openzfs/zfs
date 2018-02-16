@@ -25,15 +25,10 @@
 #define	_SKEIN_IMPL_H_
 
 #include <sys/skein.h>
+#include <sys/strings.h>
+#include <sys/note.h>
 #include "skein_impl.h"
 #include "skein_port.h"
-
-/* determine where we can get bcopy/bzero declarations */
-#ifdef	_KERNEL
-#include <sys/systm.h>
-#else
-#include <strings.h>
-#endif
 
 /*
  * "Internal" Skein definitions

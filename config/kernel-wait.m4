@@ -8,9 +8,9 @@ dnl # of just two functions: one which uses io_schedule() and one which just
 dnl # uses schedule().  This API change was made to consolidate all of those
 dnl # redundant wait functions.
 dnl #
-AC_DEFUN([SPL_AC_WAIT_ON_BIT], [
+AC_DEFUN([ZFS_AC_KERNEL_WAIT_ON_BIT], [
 	AC_MSG_CHECKING([whether wait_on_bit() takes an action])
-	SPL_LINUX_TRY_COMPILE([
+	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/wait.h>
 	],[
 		int (*action)(void *) = NULL;
@@ -26,9 +26,9 @@ dnl #
 dnl # 4.13 API change
 dnl # Renamed struct wait_queue -> struct wait_queue_entry.
 dnl #
-AC_DEFUN([SPL_AC_WAIT_QUEUE_ENTRY_T], [
+AC_DEFUN([ZFS_AC_KERNEL_WAIT_QUEUE_ENTRY_T], [
 	AC_MSG_CHECKING([whether wait_queue_entry_t exists])
-	SPL_LINUX_TRY_COMPILE([
+	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/wait.h>
 	],[
 		wait_queue_entry_t *entry __attribute__ ((unused));
@@ -46,9 +46,9 @@ dnl # 4.13 API change
 dnl # Renamed wait_queue_head::task_list -> wait_queue_head::head
 dnl # Renamed wait_queue_entry::task_list -> wait_queue_entry::entry
 dnl #
-AC_DEFUN([SPL_AC_WAIT_QUEUE_HEAD_ENTRY], [
+AC_DEFUN([ZFS_AC_KERNEL_WAIT_QUEUE_HEAD_ENTRY], [
 	AC_MSG_CHECKING([whether wq_head->head and wq_entry->entry exist])
-	SPL_LINUX_TRY_COMPILE([
+	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/wait.h>
 
 		#ifdef HAVE_WAIT_QUEUE_ENTRY_T

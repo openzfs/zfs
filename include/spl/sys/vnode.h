@@ -86,7 +86,7 @@
 #define	AT_MTIME	ATTR_MTIME
 #define	AT_CTIME	ATTR_CTIME
 
-#define	ATTR_XVATTR	(1 << 31)
+#define	ATTR_XVATTR	(1U << 31)
 #define	AT_XVATTR	ATTR_XVATTR
 
 #define	ATTR_IATTR_MASK	(ATTR_MODE | ATTR_UID | ATTR_GID | ATTR_SIZE | \
@@ -120,7 +120,7 @@ typedef enum vtype {
 
 typedef struct vattr {
 	enum vtype	va_type;	/* vnode type */
-	uint_t		va_mask;	/* attribute bit-mask */
+	uint32_t	va_mask;	/* attribute bit-mask */
 	ushort_t	va_mode;	/* acc mode */
 	uid_t		va_uid;		/* owner uid */
 	gid_t		va_gid;		/* owner gid */

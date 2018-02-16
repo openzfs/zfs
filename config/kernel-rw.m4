@@ -3,11 +3,11 @@ dnl # 4.14 API change
 dnl # kernel_write() which was introduced in 3.9 was updated to take
 dnl # the offset as a pointer which is needed by vn_rdwr().
 dnl #
-AC_DEFUN([SPL_AC_KERNEL_WRITE], [
+AC_DEFUN([ZFS_AC_KERNEL_WRITE], [
 	AC_MSG_CHECKING([whether kernel_write() takes loff_t pointer])
 	tmp_flags="$EXTRA_KCFLAGS"
 	EXTRA_KCFLAGS="-Werror"
-	SPL_LINUX_TRY_COMPILE([
+	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/fs.h>
 	],[
 		struct file *file = NULL;
@@ -32,11 +32,11 @@ dnl # 4.14 API change
 dnl # kernel_read() which has existed for forever was updated to take
 dnl # the offset as a pointer which is needed by vn_rdwr().
 dnl #
-AC_DEFUN([SPL_AC_KERNEL_READ], [
+AC_DEFUN([ZFS_AC_KERNEL_READ], [
 	AC_MSG_CHECKING([whether kernel_read() takes loff_t pointer])
 	tmp_flags="$EXTRA_KCFLAGS"
 	EXTRA_KCFLAGS="-Werror"
-	SPL_LINUX_TRY_COMPILE([
+	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/fs.h>
 	],[
 		struct file *file = NULL;

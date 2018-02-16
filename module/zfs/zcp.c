@@ -100,7 +100,6 @@
 #include <sys/zcp_iter.h>
 #include <sys/zcp_prop.h>
 #include <sys/zcp_global.h>
-#include <util/sscanf.h>
 
 #ifndef KM_NORMALPRI
 #define	KM_NORMALPRI	0

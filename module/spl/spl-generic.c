@@ -46,12 +46,13 @@
 #include <sys/strings.h>
 #include <linux/kmod.h>
 
-char spl_version[32] = "SPL v" SPL_META_VERSION "-" SPL_META_RELEASE;
+char spl_version[32] = "SPL v" ZFS_META_VERSION "-" ZFS_META_RELEASE;
 EXPORT_SYMBOL(spl_version);
 
 /* BEGIN CSTYLED */
 unsigned long spl_hostid = 0;
 EXPORT_SYMBOL(spl_hostid);
+/* BEGIN CSTYLED */
 module_param(spl_hostid, ulong, 0644);
 MODULE_PARM_DESC(spl_hostid, "The system hostid.");
 /* END CSTYLED */
@@ -719,8 +720,6 @@ spl_init(void)
 	if ((rc = spl_zlib_init()))
 		goto out10;
 
-	printk(KERN_NOTICE "SPL: Loaded module v%s-%s%s\n", SPL_META_VERSION,
-	    SPL_META_RELEASE, SPL_DEBUG_STR);
 	return (rc);
 
 out10:
@@ -742,18 +741,12 @@ out3:
 out2:
 	spl_kvmem_fini();
 out1:
-	printk(KERN_NOTICE "SPL: Failed to Load Solaris Porting Layer "
-	    "v%s-%s%s, rc = %d\n", SPL_META_VERSION, SPL_META_RELEASE,
-	    SPL_DEBUG_STR, rc);
-
 	return (rc);
 }
 
 static void __exit
 spl_fini(void)
 {
-	printk(KERN_NOTICE "SPL: Unloaded module v%s-%s%s\n",
-	    SPL_META_VERSION, SPL_META_RELEASE, SPL_DEBUG_STR);
 	spl_zlib_fini();
 	spl_kstat_fini();
 	spl_proc_fini();
@@ -770,6 +763,6 @@ module_init(spl_init);
 module_exit(spl_fini);
 
 MODULE_DESCRIPTION("Solaris Porting Layer");
-MODULE_AUTHOR(SPL_META_AUTHOR);
-MODULE_LICENSE(SPL_META_LICENSE);
-MODULE_VERSION(SPL_META_VERSION "-" SPL_META_RELEASE);
+MODULE_AUTHOR(ZFS_META_AUTHOR);
+MODULE_LICENSE("GPL");
+MODULE_VERSION(ZFS_META_VERSION "-" ZFS_META_RELEASE);

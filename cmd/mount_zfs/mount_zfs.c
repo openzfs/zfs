@@ -34,6 +34,7 @@
 #include <locale.h>
 #include <getopt.h>
 #include <fcntl.h>
+#include <errno.h>
 
 #define	ZS_COMMENT	0x00000000	/* comment */
 #define	ZS_ZFSUTIL	0x00000001	/* caller is zfs(8) */

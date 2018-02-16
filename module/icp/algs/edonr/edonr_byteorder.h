@@ -34,7 +34,7 @@
 #ifndef _CRYPTO_EDONR_BYTEORDER_H
 #define	_CRYPTO_EDONR_BYTEORDER_H
 
-
+#include <sys/sysmacros.h>
 #include <sys/param.h>
 
 #if defined(__BYTE_ORDER)

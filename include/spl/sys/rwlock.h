@@ -27,6 +27,7 @@
 
 #include <sys/types.h>
 #include <linux/rwsem.h>
+#include <linux/sched.h>
 
 /* Linux kernel compatibility */
 #if defined(CONFIG_PREEMPT_RT_FULL)

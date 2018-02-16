@@ -40,7 +40,7 @@ EXPORT_SYMBOL(rootdir);
 static spl_kmem_cache_t *vn_cache;
 static spl_kmem_cache_t *vn_file_cache;
 
-static DEFINE_SPINLOCK(vn_file_lock);
+static spinlock_t vn_file_lock;
 static LIST_HEAD(vn_file_list);
 
 static int
@@ -744,6 +744,8 @@ vn_file_cache_destructor(void *buf, void *cdrarg)
 int
 spl_vn_init(void)
 {
+	vn_file_lock = __SPIN_LOCK_UNLOCKED(vn_file_lock);
+
 	vn_cache = kmem_cache_create("spl_vn_cache",
 	    sizeof (struct vnode), 64, vn_cache_constructor,
 	    vn_cache_destructor, NULL, NULL, NULL, 0);

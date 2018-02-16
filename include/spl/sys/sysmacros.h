@@ -79,7 +79,6 @@
 #define	max_ncpus			num_possible_cpus()
 #define	boot_ncpus			num_online_cpus()
 #define	CPU_SEQID			smp_processor_id()
-#define	_NOTE(x)
 #define	is_system_labeled()		0
 
 #ifndef RLIM64_INFINITY

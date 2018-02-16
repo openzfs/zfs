@@ -1236,7 +1236,7 @@ ddt_walk(spa_t *spa, ddt_bookmark_t *ddb, ddt_entry_t *dde)
 	return (SET_ERROR(ENOENT));
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 module_param(zfs_dedup_prefetch, int, 0644);
 MODULE_PARM_DESC(zfs_dedup_prefetch, "Enable prefetching dedup-ed blks");
 #endif

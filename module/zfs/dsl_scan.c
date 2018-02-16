@@ -3909,7 +3909,7 @@ dsl_scan_freed(spa_t *spa, const blkptr_t *bp)
 		dsl_scan_freed_dva(spa, bp, i);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 /* CSTYLED */
 module_param(zfs_scan_vdev_limit, ulong, 0644);
 MODULE_PARM_DESC(zfs_scan_vdev_limit,

@@ -41,8 +41,9 @@
 #include "zfs_deleg.h"
 
 #if defined(_KERNEL)
-#include <sys/systm.h>
-#include <util/qsort.h>
+#include <linux/sort.h>
+#define	qsort(base, num, size, cmp) \
+    sort(base, num, size, cmp, NULL)
 #else
 #include <stdlib.h>
 #include <string.h>
@@ -435,7 +436,7 @@ zprop_width(int prop, boolean_t *fixed, zfs_type_t type)
 
 #endif
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 /* Common routines to initialize property tables */
 EXPORT_SYMBOL(zprop_register_impl);
 EXPORT_SYMBOL(zprop_register_string);

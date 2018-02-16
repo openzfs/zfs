@@ -2,11 +2,11 @@ dnl #
 dnl # 3.9 API change
 dnl # set_fs_pwd takes const struct path *
 dnl #
-AC_DEFUN([SPL_AC_SET_FS_PWD_WITH_CONST],
+AC_DEFUN([ZFS_AC_KERNEL_SET_FS_PWD_WITH_CONST],
 	tmp_flags="$EXTRA_KCFLAGS"
 	EXTRA_KCFLAGS="-Werror"
 	[AC_MSG_CHECKING([whether set_fs_pwd() requires const struct path *])
-	SPL_LINUX_TRY_COMPILE([
+	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/spinlock.h>
 		#include <linux/fs_struct.h>
 		#include <linux/path.h>
@@ -20,7 +20,7 @@ AC_DEFUN([SPL_AC_SET_FS_PWD_WITH_CONST],
 		AC_DEFINE(HAVE_SET_FS_PWD_WITH_CONST, 1,
 			[set_fs_pwd() needs const path *])
 	],[
-		SPL_LINUX_TRY_COMPILE([
+		ZFS_LINUX_TRY_COMPILE([
 			#include <linux/spinlock.h>
 			#include <linux/fs_struct.h>
 			#include <linux/path.h>

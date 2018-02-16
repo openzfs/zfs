@@ -38,7 +38,6 @@
 #ifdef	_KERNEL
 #include <sys/param.h>
 #include <sys/sysmacros.h>
-#include <sys/systm.h>
 #include <sys/debug.h>
 #include <sys/kmem.h>
 #include <sys/sunddi.h>
@@ -854,7 +853,7 @@ uconv_u8tou32(const uchar_t *u8s, size_t *utf8len,
 	return (0);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 EXPORT_SYMBOL(uconv_u16tou32);
 EXPORT_SYMBOL(uconv_u16tou8);
 EXPORT_SYMBOL(uconv_u32tou16);

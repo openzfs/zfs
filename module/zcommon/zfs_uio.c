@@ -49,6 +49,8 @@
 
 #include <sys/types.h>
 #include <sys/uio_impl.h>
+#include <sys/sysmacros.h>
+#include <sys/strings.h>
 #include <linux/kmap_compat.h>
 
 /*

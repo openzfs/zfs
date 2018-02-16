@@ -19,35 +19,36 @@
  *
  * CDDL HEADER END
  */
-/*
- * Copyright (c) 1994 by Sun Microsystems, Inc.
- */
 
-/*
- * note.h:      interface for annotating source with info for tools
- *
- * NOTE is the default interface, but if the identifier NOTE is in use for
- * some other purpose, you may prepare a similar header file using your own
- * identifier, mapping that identifier to _NOTE.  Also, exported header
- * files should *not* use NOTE, since the name may already be in use in
- * a program's namespace.  Rather, exported header files should include
- * sys/note.h directly and use _NOTE.  For consistency, all kernel source
- * should use _NOTE.
- */
+#ifndef	__SYS_STDTYPES_H
+#define	__SYS_STDTYPES_H
 
-#ifndef _NOTE_H
-#define	_NOTE_H
+typedef enum {
+	B_FALSE = 0,
+	B_TRUE = 1
+} boolean_t;
 
-#include <sys/note.h>
+typedef unsigned char		uchar_t;
+typedef unsigned short		ushort_t;
+typedef unsigned int		uint_t;
+typedef unsigned long		ulong_t;
+typedef unsigned long long	u_longlong_t;
+typedef long long		longlong_t;
 
-#ifdef  __cplusplus
-extern "C" {
-#endif
+typedef longlong_t		offset_t;
+typedef u_longlong_t		u_offset_t;
+typedef u_longlong_t		len_t;
+typedef longlong_t		diskaddr_t;
 
-#define	NOTE	_NOTE
+typedef ulong_t			pgcnt_t;	/* number of pages */
+typedef long			spgcnt_t;	/* signed number of pages */
 
-#ifdef  __cplusplus
-}
-#endif
+typedef short			pri_t;
+typedef ushort_t		o_mode_t;	/* old file attribute type */
 
-#endif  /* _NOTE_H */
+typedef int			major_t;
+typedef int			minor_t;
+
+typedef short			index_t;
+
+#endif	/* __SYS_STDTYPES_H */

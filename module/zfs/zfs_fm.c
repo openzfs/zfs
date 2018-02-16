@@ -1041,7 +1041,7 @@ zfs_post_state_change(spa_t *spa, vdev_t *vd, uint64_t laststate)
 #endif
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 EXPORT_SYMBOL(zfs_ereport_post);
 EXPORT_SYMBOL(zfs_ereport_post_checksum);
 EXPORT_SYMBOL(zfs_post_remove);

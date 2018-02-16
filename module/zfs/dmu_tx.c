@@ -37,7 +37,6 @@
 #include <sys/sa.h>
 #include <sys/sa_impl.h>
 #include <sys/zfs_context.h>
-#include <sys/varargs.h>
 #include <sys/trace_dmu.h>
 
 typedef void (*dmu_tx_hold_func_t)(dmu_tx_t *tx, struct dnode *dn,
@@ -1372,7 +1371,7 @@ dmu_tx_fini(void)
 	}
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 EXPORT_SYMBOL(dmu_tx_create);
 EXPORT_SYMBOL(dmu_tx_hold_write);
 EXPORT_SYMBOL(dmu_tx_hold_write_by_dnode);

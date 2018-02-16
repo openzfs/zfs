@@ -2,9 +2,9 @@ dnl #
 dnl # 2.6.35 API change,
 dnl # Unused 'struct dentry *' removed from vfs_fsync() prototype.
 dnl #
-AC_DEFUN([SPL_AC_2ARGS_VFS_FSYNC], [
+AC_DEFUN([ZFS_AC_KERNEL_2ARGS_VFS_FSYNC], [
 	AC_MSG_CHECKING([whether vfs_fsync() wants 2 args])
-	SPL_LINUX_TRY_COMPILE([
+	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/fs.h>
 	],[
 		vfs_fsync(NULL, 0);
