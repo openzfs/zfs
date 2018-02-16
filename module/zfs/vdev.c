@@ -1544,14 +1544,6 @@ vdev_open(vdev_t *vd)
 		return (error);
 	}
 
-	if (vd->vdev_top == vd && vd->vdev_ashift != 0 &&
-	    !vd->vdev_isl2cache && !vd->vdev_islog) {
-		if (vd->vdev_ashift > spa->spa_max_ashift)
-			spa->spa_max_ashift = vd->vdev_ashift;
-		if (vd->vdev_ashift < spa->spa_min_ashift)
-			spa->spa_min_ashift = vd->vdev_ashift;
-	}
-
 	/*
 	 * Track the min and max ashift values for normal data devices.
 	 */
