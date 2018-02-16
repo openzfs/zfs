@@ -288,9 +288,13 @@ zpl_posix_acl_release(struct posix_acl *acl)
 {
 	if ((acl == NULL) || (acl == ACL_NOT_CACHED))
 		return;
-
+#ifdef HAVE_ACL_REFCOUNT
+	if (refcount_dec_and_test(&acl->a_refcount))
+		zpl_posix_acl_release_impl(acl);
+#else
 	if (atomic_dec_and_test(&acl->a_refcount))
 		zpl_posix_acl_release_impl(acl);
+#endif
 }
 #endif /* HAVE_POSIX_ACL_RELEASE */
 
