@@ -1522,6 +1522,10 @@ recv_begin_check_existing_impl(dmu_recv_begin_arg_t *drba, dsl_dataset_t *ds,
 	uint64_t val;
 	int error;
 	dsl_pool_t *dp = ds->ds_dir->dd_pool;
+	struct drr_begin *drrb = drba->drba_cookie->drc_drrb;
+	uint64_t featureflags = DMU_GET_FEATUREFLAGS(drrb->drr_versioninfo);
+	boolean_t encrypted = ds->ds_dir->dd_crypto_obj != 0;
+	boolean_t raw = (featureflags & DMU_BACKUP_FEATURE_RAW) != 0;
 
 	/* temporary clone name must not exist */
 	error = zap_lookup(dp->dp_meta_objset,
@@ -1554,6 +1558,10 @@ recv_begin_check_existing_impl(dmu_recv_begin_arg_t *drba, dsl_dataset_t *ds,
 	if (fromguid != 0) {
 		dsl_dataset_t *snap;
 		uint64_t obj = dsl_dataset_phys(ds)->ds_prev_snap_obj;
+
+		/* Can't perform a raw receive on top of a non-raw receive */
+		if (!encrypted && raw)
+			return (SET_ERROR(EINVAL));
 
 		/* Find snapshot in this dir that matches fromguid. */
 		while (obj != 0) {
@@ -1599,7 +1607,7 @@ recv_begin_check_existing_impl(dmu_recv_begin_arg_t *drba, dsl_dataset_t *ds,
 		 * dsl dir to point to the old encryption key and
 		 * the new one at the same time during the receive.
 		 */
-		if (ds->ds_dir->dd_crypto_obj != 0)
+		if ((!encrypted && raw) || encrypted)
 			return (SET_ERROR(EINVAL));
 
 		drba->drba_snapobj = 0;
