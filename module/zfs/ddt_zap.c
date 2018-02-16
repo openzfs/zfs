@@ -29,7 +29,6 @@
 #include <sys/ddt.h>
 #include <sys/zap.h>
 #include <sys/dmu_tx.h>
-#include <util/sscanf.h>
 
 int ddt_zap_leaf_blockshift = 12;
 int ddt_zap_indirect_blockshift = 12;

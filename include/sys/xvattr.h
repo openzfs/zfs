@@ -40,6 +40,7 @@
 #define	_SYS_XVATTR_H
 
 #include <sys/vnode.h>
+#include <sys/strings.h>
 
 #define	AV_SCANSTAMP_SZ	32		/* length of anti-virus scanstamp */
 

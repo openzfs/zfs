@@ -292,11 +292,9 @@
 #include <sys/zil.h>
 #include <sys/fm/fs/zfs.h>
 #ifdef _KERNEL
+#include <sys/shrinker.h>
 #include <sys/vmsystm.h>
-#include <vm/anon.h>
-#include <sys/fs/swapnode.h>
 #include <sys/zpl.h>
-#include <linux/mm_compat.h>
 #include <linux/page_compat.h>
 #endif
 #include <sys/callb.h>
@@ -1199,7 +1197,7 @@ buf_fini(void)
 {
 	int i;
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 	/*
 	 * Large allocations which do not require contiguous pages
 	 * should be using vmem_free() in the linux kernel\
@@ -1360,7 +1358,7 @@ buf_init(void)
 		hsize <<= 1;
 retry:
 	buf_hash_table.ht_mask = hsize - 1;
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 	/*
 	 * Large allocations which do not require contiguous pages
 	 * should be using vmem_alloc() in the linux kernel
@@ -9050,7 +9048,7 @@ l2arc_stop(void)
 	mutex_exit(&l2arc_feed_thr_lock);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 EXPORT_SYMBOL(arc_buf_size);
 EXPORT_SYMBOL(arc_write);
 EXPORT_SYMBOL(arc_read);

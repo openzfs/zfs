@@ -27,6 +27,7 @@
 #include <sys/condvar.h>
 #include <sys/time.h>
 #include <linux/hrtimer.h>
+#include <linux/compiler_compat.h>
 
 void
 __cv_init(kcondvar_t *cvp, char *name, kcv_type_t type, void *arg)
@@ -89,7 +90,7 @@ cv_wait_common(kcondvar_t *cvp, kmutex_t *mp, int state, int io)
 	ASSERT(mutex_owned(mp));
 	atomic_inc(&cvp->cv_refs);
 
-	m = ACCESS_ONCE(cvp->cv_mutex);
+	m = READ_ONCE(cvp->cv_mutex);
 	if (!m)
 		m = xchg(&cvp->cv_mutex, mp);
 	/* Ensure the same mutex is used by all callers */
@@ -202,7 +203,7 @@ __cv_timedwait_common(kcondvar_t *cvp, kmutex_t *mp, clock_t expire_time,
 		return (-1);
 
 	atomic_inc(&cvp->cv_refs);
-	m = ACCESS_ONCE(cvp->cv_mutex);
+	m = READ_ONCE(cvp->cv_mutex);
 	if (!m)
 		m = xchg(&cvp->cv_mutex, mp);
 	/* Ensure the same mutex is used by all callers */
@@ -290,7 +291,7 @@ __cv_timedwait_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t expire_time,
 		return (-1);
 
 	atomic_inc(&cvp->cv_refs);
-	m = ACCESS_ONCE(cvp->cv_mutex);
+	m = READ_ONCE(cvp->cv_mutex);
 	if (!m)
 		m = xchg(&cvp->cv_mutex, mp);
 	/* Ensure the same mutex is used by all callers */

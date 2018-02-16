@@ -57,7 +57,6 @@
 #include <sys/nvpair.h>
 #include <sys/cmn_err.h>
 #include <sys/sysmacros.h>
-#include <sys/compress.h>
 #include <sys/sunddi.h>
 #include <sys/systeminfo.h>
 #include <sys/fm/util.h>
@@ -67,10 +66,6 @@
 #ifdef _KERNEL
 #include <sys/atomic.h>
 #include <sys/condvar.h>
-#include <sys/cpuvar.h>
-#include <sys/systm.h>
-#include <sys/dumphdr.h>
-#include <sys/cpuvar.h>
 #include <sys/console.h>
 #include <sys/kobj.h>
 #include <sys/time.h>

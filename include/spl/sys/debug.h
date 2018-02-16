@@ -92,7 +92,6 @@ void spl_dumpstack(void);
  */
 #ifdef NDEBUG
 
-#define	SPL_DEBUG_STR		""
 #define	ASSERT(x)		((void)0)
 #define	ASSERTV(x)
 #define	ASSERT3B(x,y,z)		((void)0)
@@ -108,7 +107,6 @@ void spl_dumpstack(void);
  */
 #else
 
-#define	SPL_DEBUG_STR		" (DEBUG mode)"
 #define	ASSERT(cond)		VERIFY(cond)
 #define	ASSERTV(x)		x
 #define	ASSERT3B(x,y,z)		VERIFY3B(x, y, z)

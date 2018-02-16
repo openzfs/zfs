@@ -28,9 +28,7 @@
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/time.h>
-#include <sys/systm.h>
 #include <sys/sysmacros.h>
-#include <sys/resource.h>
 #include <sys/vfs.h>
 #include <sys/vnode.h>
 #include <sys/file.h>
@@ -41,7 +39,6 @@
 #include <sys/cmn_err.h>
 #include <sys/errno.h>
 #include <sys/stat.h>
-#include <sys/unistd.h>
 #include <sys/sunddi.h>
 #include <sys/random.h>
 #include <sys/policy.h>
@@ -49,7 +46,6 @@
 #include <sys/zfs_acl.h>
 #include <sys/zfs_vnops.h>
 #include <sys/fs/zfs.h>
-#include "fs/fs_subr.h"
 #include <sys/zap.h>
 #include <sys/dmu.h>
 #include <sys/atomic.h>
@@ -57,8 +53,6 @@
 #include <sys/zfs_fuid.h>
 #include <sys/sa.h>
 #include <sys/zfs_sa.h>
-#include <sys/dnlc.h>
-#include <sys/extdirent.h>
 
 /*
  * zfs_match_find() is used by zfs_dirent_lock() to peform zap lookups

@@ -189,7 +189,7 @@ zrl_owner(zrlock_t *zrl)
 }
 #endif
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 
 EXPORT_SYMBOL(zrl_add_impl);
 EXPORT_SYMBOL(zrl_remove);

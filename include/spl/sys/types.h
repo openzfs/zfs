@@ -28,11 +28,11 @@
 #include <linux/types.h>
 
 #ifndef ULLONG_MAX
-#define	ULLONG_MAX			(~0ULL)
+#define	ULLONG_MAX		(~0ULL)
 #endif
 
 #ifndef LLONG_MAX
-#define	LLONG_MAX			((long long)(~0ULL>>1))
+#define	LLONG_MAX		((long long)(~0ULL>>1))
 #endif
 
 typedef enum {

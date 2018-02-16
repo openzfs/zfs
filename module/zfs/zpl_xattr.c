@@ -1498,7 +1498,7 @@ zpl_posix_acl_free(void *arg)
 			 * a is not last node, make sure next pointer is set
 			 * by the adder and advance the head.
 			 */
-			while (ACCESS_ONCE(a->next) == NULL)
+			while (READ_ONCE(a->next) == NULL)
 				cpu_relax();
 			acl_rel_head = a->next;
 			a->next = freelist;

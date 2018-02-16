@@ -411,7 +411,7 @@ dmu_object_free_zapified(objset_t *mos, uint64_t object, dmu_tx_t *tx)
 	VERIFY0(dmu_object_free(mos, object, tx));
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 EXPORT_SYMBOL(dmu_object_alloc);
 EXPORT_SYMBOL(dmu_object_alloc_dnsize);
 EXPORT_SYMBOL(dmu_object_claim);

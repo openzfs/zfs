@@ -1,9 +1,9 @@
 dnl #
 dnl # PaX Linux 2.6.38 - 3.x API
 dnl #
-AC_DEFUN([SPL_AC_PAX_KERNEL_FILE_FALLOCATE], [
+AC_DEFUN([ZFS_AC_PAX_KERNEL_FILE_FALLOCATE], [
 	AC_MSG_CHECKING([whether fops->fallocate() exists])
-	SPL_LINUX_TRY_COMPILE([
+	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/fs.h>
 	],[
 		long (*fallocate) (struct file *, int, loff_t, loff_t) = NULL;

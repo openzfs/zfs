@@ -32,9 +32,7 @@
 
 #include "zfs_prop.h"
 
-#if defined(_KERNEL)
-#include <sys/systm.h>
-#else
+#if !defined(_KERNEL)
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
@@ -244,7 +242,7 @@ zpool_prop_align_right(zpool_prop_t prop)
 }
 #endif
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 /* zpool property functions */
 EXPORT_SYMBOL(zpool_prop_init);
 EXPORT_SYMBOL(zpool_prop_get_type);

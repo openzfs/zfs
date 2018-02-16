@@ -5,9 +5,9 @@ dnl # private allocation flags which are applied when allocating a new slab
 dnl # in kmem_getpages().  Unfortunately there is no public API for setting
 dnl # non-default flags.
 dnl #
-AC_DEFUN([SPL_AC_KMEM_CACHE_ALLOCFLAGS], [
+AC_DEFUN([ZFS_AC_KERNEL_KMEM_CACHE_ALLOCFLAGS], [
 	AC_MSG_CHECKING([whether struct kmem_cache has allocflags])
-	SPL_LINUX_TRY_COMPILE([
+	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/slab.h>
 	],[
 		struct kmem_cache cachep __attribute__ ((unused));
@@ -20,7 +20,7 @@ AC_DEFUN([SPL_AC_KMEM_CACHE_ALLOCFLAGS], [
 		AC_MSG_RESULT(no)
 
 		AC_MSG_CHECKING([whether struct kmem_cache has gfpflags])
-		SPL_LINUX_TRY_COMPILE([
+		ZFS_LINUX_TRY_COMPILE([
 			#include <linux/slab.h>
 		],[
 			struct kmem_cache cachep __attribute__ ((unused));
@@ -40,11 +40,11 @@ dnl # grsecurity API change,
 dnl # kmem_cache_create() with SLAB_USERCOPY flag replaced by
 dnl # kmem_cache_create_usercopy().
 dnl #
-AC_DEFUN([SPL_AC_KMEM_CACHE_CREATE_USERCOPY], [
+AC_DEFUN([ZFS_AC_KERNEL_KMEM_CACHE_CREATE_USERCOPY], [
 	AC_MSG_CHECKING([whether kmem_cache_create_usercopy() exists])
 	tmp_flags="$EXTRA_KCFLAGS"
 	EXTRA_KCFLAGS="-Werror"
-	SPL_LINUX_TRY_COMPILE([
+	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/slab.h>
 		static void ctor(void *foo)
 		{

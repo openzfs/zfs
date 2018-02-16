@@ -25,6 +25,7 @@
  */
 
 #include <sys/rwlock.h>
+#include <linux/module.h>
 
 #if defined(CONFIG_PREEMPT_RT_FULL)
 

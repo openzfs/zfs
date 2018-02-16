@@ -1466,7 +1466,7 @@ abd_raidz_rec_iterate(abd_t **cabds, abd_t **tabds,
 	local_irq_restore(flags);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 /*
  * bio_nr_pages for ABD.
  * @off is the offset in @abd

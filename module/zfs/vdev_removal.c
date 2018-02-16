@@ -2102,7 +2102,7 @@ spa_removal_get_stats(spa_t *spa, pool_removal_stat_t *prs)
 	return (0);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 module_param(zfs_remove_max_segment, int, 0644);
 MODULE_PARM_DESC(zfs_remove_max_segment,
 	"Largest contiguous segment to allocate when removing device");

@@ -26,7 +26,6 @@
 
 #include <sys/sysmacros.h>
 #include <sys/cmn_err.h>
-#include <linux/ratelimit.h>
 
 /*
  * It is often useful to actually have the panic crash the node so you
@@ -40,19 +39,11 @@ module_param(spl_panic_halt, uint, 0644);
 MODULE_PARM_DESC(spl_panic_halt, "Cause kernel panic on assertion failures");
 /* END CSTYLED */
 
-/*
- * Limit the number of stack traces dumped to not more than 5 every
- * 60 seconds to prevent denial-of-service attacks from debug code.
- */
-DEFINE_RATELIMIT_STATE(dumpstack_ratelimit_state, 60 * HZ, 5);
-
 void
 spl_dumpstack(void)
 {
-	if (__ratelimit(&dumpstack_ratelimit_state)) {
-		printk("Showing stack for process %d\n", current->pid);
-		dump_stack();
-	}
+	printk("Showing stack for process %d\n", current->pid);
+	dump_stack();
 }
 EXPORT_SYMBOL(spl_dumpstack);
 

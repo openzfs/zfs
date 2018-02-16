@@ -27,7 +27,6 @@
 #include <sys/crypto/common.h>
 #include <sys/crypto/spi.h>
 #include <sys/sysmacros.h>
-#include <sys/systm.h>
 #define	SKEIN_MODULE_IMPL
 #include <sys/skein.h>
 

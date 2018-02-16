@@ -29,11 +29,6 @@
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/errno.h>
-#include <sys/va_list.h>
-
-#if defined(_KERNEL) && !defined(_BOOT)
-#include <sys/kmem.h>
-#endif
 
 #ifdef	__cplusplus
 extern "C" {
@@ -142,7 +137,7 @@ struct nv_alloc_ops {
 extern const nv_alloc_ops_t *nv_fixed_ops;
 extern nv_alloc_t *nv_alloc_nosleep;
 
-#if defined(_KERNEL) && !defined(_BOOT)
+#if defined(_KERNEL)
 extern nv_alloc_t *nv_alloc_sleep;
 extern nv_alloc_t *nv_alloc_pushpage;
 #endif

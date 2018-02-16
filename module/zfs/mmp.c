@@ -597,7 +597,7 @@ mmp_signal_all_threads(void)
 	mutex_exit(&spa_namespace_lock);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 #include <linux/mod_compat.h>
 
 static int

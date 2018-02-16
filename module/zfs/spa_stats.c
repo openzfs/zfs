@@ -1017,7 +1017,7 @@ spa_stats_destroy(spa_t *spa)
 	spa_mmp_history_destroy(spa);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 /* CSTYLED */
 module_param(zfs_read_history, int, 0644);
 MODULE_PARM_DESC(zfs_read_history,

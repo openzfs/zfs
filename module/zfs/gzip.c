@@ -28,22 +28,19 @@
 
 #include <sys/debug.h>
 #include <sys/types.h>
+#include <sys/strings.h>
 #include "qat.h"
 
 #ifdef _KERNEL
 
-#include <sys/systm.h>
 #include <sys/zmod.h>
-
 typedef size_t zlen_t;
 #define	compress_func	z_compress_level
 #define	uncompress_func	z_uncompress
 
 #else /* _KERNEL */
 
-#include <strings.h>
 #include <zlib.h>
-
 typedef uLongf zlen_t;
 #define	compress_func	compress2
 #define	uncompress_func	uncompress

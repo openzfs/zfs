@@ -27,9 +27,7 @@
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/time.h>
-#include <sys/systm.h>
 #include <sys/sysmacros.h>
-#include <sys/resource.h>
 #include <sys/vfs.h>
 #include <sys/vnode.h>
 #include <sys/sid.h>
@@ -38,7 +36,6 @@
 #include <sys/kmem.h>
 #include <sys/cmn_err.h>
 #include <sys/errno.h>
-#include <sys/unistd.h>
 #include <sys/sdt.h>
 #include <sys/fs/zfs.h>
 #include <sys/mode.h>
@@ -54,7 +51,6 @@
 #include <sys/sa.h>
 #include <sys/trace_acl.h>
 #include <sys/zpl.h>
-#include "fs/fs_subr.h"
 
 #define	ALLOW	ACE_ACCESS_ALLOWED_ACE_TYPE
 #define	DENY	ACE_ACCESS_DENIED_ACE_TYPE
@@ -97,6 +93,8 @@
     ZFS_ACL_OBJ_ACE)
 
 #define	ALL_MODE_EXECS (S_IXUSR | S_IXGRP | S_IXOTH)
+
+#define	IDMAP_WK_CREATOR_OWNER_UID	2147483648U
 
 static uint16_t
 zfs_ace_v0_get_type(void *acep)

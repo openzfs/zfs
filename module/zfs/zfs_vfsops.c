@@ -27,17 +27,13 @@
 
 #include <sys/types.h>
 #include <sys/param.h>
-#include <sys/systm.h>
 #include <sys/sysmacros.h>
 #include <sys/kmem.h>
 #include <sys/pathname.h>
 #include <sys/vnode.h>
 #include <sys/vfs.h>
-#include <sys/vfs_opreg.h>
 #include <sys/mntent.h>
-#include <sys/mount.h>
 #include <sys/cmn_err.h>
-#include "fs/fs_subr.h"
 #include <sys/zfs_znode.h>
 #include <sys/zfs_vnops.h>
 #include <sys/zfs_dir.h>
@@ -51,18 +47,12 @@
 #include <sys/zap.h>
 #include <sys/sa.h>
 #include <sys/sa_impl.h>
-#include <sys/varargs.h>
 #include <sys/policy.h>
 #include <sys/atomic.h>
-#include <sys/mkdev.h>
-#include <sys/modctl.h>
-#include <sys/refstr.h>
 #include <sys/zfs_ioctl.h>
 #include <sys/zfs_ctldir.h>
 #include <sys/zfs_fuid.h>
-#include <sys/bootconf.h>
 #include <sys/sunddi.h>
-#include <sys/dnlc.h>
 #include <sys/dmu_objset.h>
 #include <sys/spa_boot.h>
 #include <sys/zpl.h>
@@ -2341,7 +2331,7 @@ zfs_fini(void)
 	zfsctl_fini();
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 EXPORT_SYMBOL(zfs_suspend_fs);
 EXPORT_SYMBOL(zfs_resume_fs);
 EXPORT_SYMBOL(zfs_userspace_one);

@@ -1,95 +1,304 @@
-Brian Behlendorf is the principal developer of the ZFS on Linux port.
-He works full time as a computer scientist at Lawrence Livermore
-National Laboratory on the ZFS and Lustre filesystems.  However,
-this port would not have been possible without the help of many
-others who have contributed their time, effort, and insight.
+MAINTAINERS:
 
-  Brian Behlendorf <behlendorf1@llnl.gov>
+    Brian Behlendorf <behlendorf1@llnl.gov>
+    Tony Hutter <hutter2@llnl.gov>
 
-First and foremost the hard working ZFS developers at Sun/Oracle.
-They are responsible for the bulk of the code in this project and
-without their efforts there never would have been a ZFS filesystem.
+PAST MAINTAINERS:
 
-  The ZFS Development Team at Sun/Oracle
+    Ned Bass <bass6@llnl.gov>
 
-Next all the developers at KQ Infotech who implemented a prototype
-ZFS Posix Layer (ZPL).  Their implementation provided an excellent
-reference for adding the ZPL functionality.
+CONTRIBUTORS:
 
-  Anand Mitra <mitra@kqinfotech.com>
-  Anurag Agarwal <anurag@kqinfotech.com>
-  Neependra Khare <neependra@kqinfotech.com>
-  Prasad Joshi <prasad@kqinfotech.com>
-  Rohan Puri <rohan@kqinfotech.com>
-  Sandip Divekar <sandipd@kqinfotech.com>
-  Shoaib <shoaib@kqinfotech.com>
-  Shrirang <shrirang@kqinfotech.com>
-
-Additionally the following individuals have all made contributions
-to the project and deserve to be acknowledged.
-
-  Albert Lee <trisk@nexenta.com>
-  Alejandro R. Sedeño <asedeno@mit.edu>
-  Alex Zhuravlev <bzzz@whamcloud.com>
-  Alexander Eremin <a.eremin@nexenta.com>
-  Alexander Stetsenko <ams@nexenta.com>
-  Alexey Shvetsov <alexxy@gentoo.org>
-  Andreas Dilger <adilger@whamcloud.com>
-  Andrew Reid <ColdCanuck@nailedtotheperch.com>
-  Andrew Stormont <andrew.stormont@nexenta.com>
-  Andrew Tselischev <andrewtselischev@gmail.com>
-  Andriy Gapon <avg@FreeBSD.org>
-  Aniruddha Shankar <k@191a.net>
-  Bill Pijewski <wdp@joyent.com>
-  Chris Dunlap <cdunlap@llnl.gov>
-  Chris Dunlop <chris@onthe.net.au>
-  Chris Siden <chris.siden@delphix.com>
-  Chris Wedgwood <cw@f00f.org>
-  Christian Kohlschütter <christian@kohlschutter.com>
-  Christopher Siden <chris.siden@delphix.com>
-  Craig Sanders <github@taz.net.au>
-  Cyril Plisko <cyril.plisko@mountall.com>
-  Dan McDonald <danmcd@nexenta.com>
-  Daniel Verite <daniel@verite.pro>
-  Darik Horn <dajhorn@vanadac.com>
-  Eric Schrock <Eric.Schrock@delphix.com>
-  Etienne Dechamps <etienne.dechamps@ovh.net>
-  Fajar A. Nugraha <github@fajar.net>
-  Frederik Wessels <wessels147@gmail.com>
-  Garrett D'Amore <garrett@nexenta.com>
-  George Wilson <george.wilson@delphix.com>
-  Gordon Ross <gwr@nexenta.com>
-  Gregor Kopka <mailfrom-github.com@kopka.net>
-  Gunnar Beutner <gunnar@beutner.name>
-  James H <james@kagisoft.co.uk>
-  Javen Wu <wu.javen@gmail.com>
-  Jeremy Gill <jgill@parallax-innovations.com>
-  Jorgen Lundman <lundman@lundman.net>
-  KORN Andras <korn@elan.rulez.org>
-  Kyle Fuller <inbox@kylefuller.co.uk>
-  Manuel Amador (Rudd-O) <rudd-o@rudd-o.com>
-  Martin Matuska <mm@FreeBSD.org>
-  Massimo Maggi <massimo@mmmm.it>
-  Matthew Ahrens <mahrens@delphix.com>
-  Michael Martin <mgmartin.mgm@gmail.com>
-  Mike Harsch <mike@harschsystems.com>
-  Ned Bass <bass6@llnl.gov>
-  Oleg Stepura <oleg@stepura.com>
-  P.SCH <p88@yahoo.com>
-  Pawel Jakub Dawidek <pawel@dawidek.net>
-  Prakash Surya <surya1@llnl.gov>
-  Prasad Joshi <pjoshi@stec-inc.com>
-  Ricardo M. Correia <Ricardo.M.Correia@Sun.COM>
-  Richard Laager <rlaager@wiktel.com>
-  Richard Lowe <richlowe@richlowe.net>
-  Richard Yao <ryao@cs.stonybrook.edu>
-  Rohan Puri <rohan.puri15@gmail.com>
-  Shampavman <sham.pavman@nexenta.com>
-  Simon Klinkert <klinkert@webgods.de>
-  Suman Chakravartula <suman@gogrid.com>
-  Tim Haley <Tim.Haley@Sun.COM>
-  Turbo Fredriksson <turbo@bayour.com>
-  Xin Li <delphij@FreeBSD.org>
-  Yuxuan Shui <yshuiv7@gmail.com>
-  Zachary Bedell <zac@thebedells.org>
-  nordaux <nordaux@gmail.com>
+    Aaron Fineman <abyxcos@gmail.com>
+    Adam Leventhal <ahl@delphix.com>
+    Adam Stevko <adam.stevko@gmail.com>
+    Ahmed G <ahmedg@delphix.com>
+    Akash Ayare <aayare@delphix.com>
+    Alan Somers <asomers@gmail.com>
+    Alar Aun <spamtoaun@gmail.com>
+    Albert Lee <trisk@nexenta.com>
+    Alec Salazar <alec.j.salazar@gmail.com>
+    Alejandro R. Sedeño <asedeno@mit.edu>
+    Alek Pinchuk <alek@nexenta.com>
+    Alex Braunegg <alex.braunegg@gmail.com>
+    Alex McWhirter <alexmcwhirter@triadic.us>
+    Alex Reece <alex@delphix.com>
+    Alex Wilson <alex.wilson@joyent.com>
+    Alex Zhuravlev <alexey.zhuravlev@intel.com>
+    Alexander Eremin <a.eremin@nexenta.com>
+    Alexander Motin <mav@freebsd.org>
+    Alexander Pyhalov <apyhalov@gmail.com>
+    Alexander Stetsenko <ams@nexenta.com>
+    Alexey Shvetsov <alexxy@gentoo.org>
+    Alexey Smirnoff <fling@member.fsf.org>
+    Allan Jude <allanjude@freebsd.org>
+    AndCycle <andcycle@andcycle.idv.tw>
+    Andreas Buschmann <andreas.buschmann@tech.net.de>
+    Andreas Dilger <adilger@intel.com>
+    Andrew Barnes <barnes333@gmail.com>
+    Andrew Hamilton <ahamilto@tjhsst.edu>
+    Andrew Reid <ColdCanuck@nailedtotheperch.com>
+    Andrew Stormont <andrew.stormont@nexenta.com>
+    Andrew Tselischev <andrewtselischev@gmail.com>
+    Andrey Vesnovaty <andrey.vesnovaty@gmail.com>
+    Andriy Gapon <avg@freebsd.org>
+    Andy Bakun <github@thwartedefforts.org>
+    Aniruddha Shankar <k@191a.net>
+    Antonio Russo <antonio.e.russo@gmail.com>
+    Arkadiusz Bubała <arkadiusz.bubala@open-e.com>
+    Arne Jansen <arne@die-jansens.de>
+    Aron Xu <happyaron.xu@gmail.com>
+    Bart Coddens <bart.coddens@gmail.com>
+    Basil Crow <basil.crow@delphix.com>
+    Huang Liu <liu.huang@zte.com.cn>
+    Ben Allen <bsallen@alcf.anl.gov>
+    Ben Rubson <ben.rubson@gmail.com>
+    Benjamin Albrecht <git@albrecht.io>
+    Bill McGonigle <bill-github.com-public1@bfccomputing.com>
+    Bill Pijewski <wdp@joyent.com>
+    Boris Protopopov <boris.protopopov@nexenta.com>
+    Brad Lewis <brad.lewis@delphix.com>
+    Brian Behlendorf <behlendorf1@llnl.gov>
+    Brian J. Murrell <brian@sun.com>
+    Caleb James DeLisle <calebdelisle@lavabit.com>
+    Cao Xuewen <cao.xuewen@zte.com.cn>
+    Carlo Landmeter <clandmeter@gmail.com>
+    Carlos Alberto Lopez Perez <clopez@igalia.com>
+    Chaoyu Zhang <zhang.chaoyu@zte.com.cn>
+    Chen Can <chen.can2@zte.com.cn>
+    Chen Haiquan <oc@yunify.com>
+    Chip Parker <aparker@enthought.com>
+    Chris Burroughs <chris.burroughs@gmail.com>
+    Chris Dunlap <cdunlap@llnl.gov>
+    Chris Dunlop <chris@onthe.net.au>
+    Chris Siden <chris.siden@delphix.com>
+    Chris Wedgwood <cw@f00f.org>
+    Chris Williamson <chris.williamson@delphix.com>
+    Chris Zubrzycki <github@mid-earth.net>
+    Christ Schlacta <aarcane@aarcane.info>
+    Christer Ekholm <che@chrekh.se>
+    Christian Kohlschütter <christian@kohlschutter.com>
+    Christian Neukirchen <chneukirchen@gmail.com>
+    Christian Schwarz <me@cschwarz.com>
+    Christopher Voltz <cjunk@voltz.ws>
+    Chunwei Chen <david.chen@nutanix.com>
+    Clemens Fruhwirth <clemens@endorphin.org>
+    Colin Ian King <colin.king@canonical.com>
+    Craig Loomis <cloomis@astro.princeton.edu>
+    Craig Sanders <github@taz.net.au>
+    Cyril Plisko <cyril.plisko@infinidat.com>
+    DHE <git@dehacked.net>
+    Damian Wojsław <damian@wojslaw.pl>
+    Dan Kimmel <dan.kimmel@delphix.com>
+    Dan McDonald <danmcd@nexenta.com>
+    Dan Swartzendruber <dswartz@druber.com>
+    Dan Vatca <dan.vatca@gmail.com>
+    Daniel Hoffman <dj.hoffman@delphix.com>
+    Daniel Verite <daniel@verite.pro>
+    Daniil Lunev <d.lunev.mail@gmail.com>
+    Darik Horn <dajhorn@vanadac.com>
+    Dave Eddy <dave@daveeddy.com>
+    David Lamparter <equinox@diac24.net>
+    David Qian <david.qian@intel.com>
+    David Quigley <david.quigley@intel.com>
+    Debabrata Banerjee <dbanerje@akamai.com>
+    Denys Rtveliashvili <denys@rtveliashvili.name>
+    Derek Dai <daiderek@gmail.com>
+    Dimitri John Ledkov <xnox@ubuntu.com>
+    Dmitry Khasanov <pik4ez@gmail.com>
+    Dominik Hassler <hadfl@omniosce.org>
+    Dominik Honnef <dominikh@fork-bomb.org>
+    Don Brady <don.brady@delphix.com>
+    Dr. András Korn <korn-github.com@elan.rulez.org>
+    Eli Rosenthal <eli.rosenthal@delphix.com>
+    Eric Desrochers <eric.desrochers@canonical.com>
+    Eric Dillmann <eric@jave.fr>
+    Eric Schrock <Eric.Schrock@delphix.com>
+    Etienne Dechamps <etienne@edechamps.fr>
+    Evan Susarret <evansus@gmail.com>
+    Fabian Grünbichler <f.gruenbichler@proxmox.com>
+    Fajar A. Nugraha <github@fajar.net>
+    Fan Yong <fan.yong@intel.com>
+    Feng Sun <loyou85@gmail.com>
+    Frederik Wessels <wessels147@gmail.com>
+    Frédéric Vanniere <f.vanniere@planet-work.com>
+    Garrett D'Amore <garrett@nexenta.com>
+    Garrison Jensen <garrison.jensen@gmail.com>
+    Gary Mills <gary_mills@fastmail.fm>
+    Gaurav Kumar  <gauravk.18@gmail.com>
+    GeLiXin <ge.lixin@zte.com.cn>
+    George Amanakis <g_amanakis@yahoo.com>
+    George Melikov <mail@gmelikov.ru>
+    George Wilson <gwilson@delphix.com>
+    Georgy Yakovlev <ya@sysdump.net>
+    Giuseppe Di Natale <guss80@gmail.com>
+    Gordan Bobic <gordan@redsleeve.org>
+    Gordon Ross <gwr@nexenta.com>
+    Gregor Kopka <gregor@kopka.net>
+    Grischa Zengel <github.zfsonlinux@zengel.info>
+    Gunnar Beutner <gunnar@beutner.name>
+    Gvozden Neskovic <neskovic@gmail.com>
+    Hajo Möller <dasjoe@gmail.com>
+    Hans Rosenfeld <hans.rosenfeld@nexenta.com>
+    Håkan Johansson <f96hajo@chalmers.se>
+    Igor Kozhukhov <ikozhukhov@gmail.com>
+    Igor Lvovsky <ilvovsky@gmail.com>
+    Isaac Huang <he.huang@intel.com>
+    JK Dingwall <james@dingwall.me.uk>
+    Jacek Fefliński <feflik@gmail.com>
+    James Cowgill <james.cowgill@mips.com>
+    James Lee <jlee@thestaticvoid.com>
+    James Pan <jiaming.pan@yahoo.com>
+    Jan Engelhardt <jengelh@inai.de>
+    Jan Kryl <jan.kryl@nexenta.com>
+    Jan Sanislo <oystr@cs.washington.edu>
+    Jason King <jason.brian.king@gmail.com>
+    Jason Zaman <jasonzaman@gmail.com>
+    Javen Wu <wu.javen@gmail.com>
+    Jeremy Gill <jgill@parallax-innovations.com>
+    Jeremy Jones <jeremy@delphix.com>
+    Jerry Jelinek <jerry.jelinek@joyent.com>
+    Jinshan Xiong <jinshan.xiong@intel.com>
+    Joe Stein <joe.stein@delphix.com>
+    John Albietz <inthecloud247@gmail.com>
+    John Eismeier <john.eismeier@gmail.com>
+    John L. Hammond <john.hammond@intel.com>
+    John Layman <jlayman@sagecloud.com>
+    John Paul Adrian Glaubitz <glaubitz@physik.fu-berlin.de>
+    John Wren Kennedy <john.kennedy@delphix.com>
+    Johnny Stenback <github@jstenback.com>
+    Jorgen Lundman <lundman@lundman.net>
+    Josef 'Jeff' Sipek <josef.sipek@nexenta.com>
+    Joshua M. Clulow <josh@sysmgr.org>
+    Justin Bedő <cu@cua0.org>
+    Justin Lecher <jlec@gentoo.org>
+    Justin T. Gibbs <gibbs@FreeBSD.org>
+    Jörg Thalheim <joerg@higgsboson.tk>
+    KORN Andras <korn@elan.rulez.org>
+    Kamil Domański <kamil@domanski.co>
+    Karsten Kretschmer <kkretschmer@gmail.com>
+    Kash Pande <kash@tripleback.net>
+    Keith M Wesolowski <wesolows@foobazco.org>
+    Kevin Tanguy <kevin.tanguy@ovh.net>
+    KireinaHoro <i@jsteward.moe>
+    Kohsuke Kawaguchi <kk@kohsuke.org>
+    Kyle Blatter <kyleblatter@llnl.gov>
+    Kyle Fuller <inbox@kylefuller.co.uk>
+    Loli <ezomori.nozomu@gmail.com>
+    Lars Johannsen <laj@it.dk>
+    Li Dongyang <dongyang.li@anu.edu.au>
+    Li Wei <W.Li@Sun.COM>
+    Lukas Wunner <lukas@wunner.de>
+    Madhav Suresh <madhav.suresh@delphix.com>
+    Manoj Joseph <manoj.joseph@delphix.com>
+    Manuel Amador (Rudd-O) <rudd-o@rudd-o.com>
+    Marcel Huber <marcelhuberfoo@gmail.com>
+    Marcel Telka <marcel.telka@nexenta.com>
+    Marcel Wysocki <maci.stgn@gmail.com>
+    Mark Shellenbaum <Mark.Shellenbaum@Oracle.COM>
+    Mark Wright <markwright@internode.on.net>
+    Martin Matuska <mm@FreeBSD.org>
+    Massimo Maggi <me@massimo-maggi.eu>
+    Matt Johnston <matt@fugro-fsi.com.au>
+    Matt Kemp <matt@mattikus.com>
+    Matthew Ahrens <matt@delphix.com>
+    Matthew Thode <mthode@mthode.org>
+    Matus Kral <matuskral@me.com>
+    Max Grossman <max.grossman@delphix.com>
+    Maximilian Mehnert <maximilian.mehnert@gmx.de>
+    Michael Gebetsroither <michael@mgeb.org>
+    Michael Kjorling <michael@kjorling.se>
+    Michael Martin <mgmartin.mgm@gmail.com>
+    Mike Gerdts <mike.gerdts@joyent.com>
+    Mike Harsch <mike@harschsystems.com>
+    Mike Leddy <mike.leddy@gmail.com>
+    Mike Swanson <mikeonthecomputer@gmail.com>
+    Milan Jurik <milan.jurik@xylab.cz>
+    Morgan Jones <mjones@rice.edu>
+    Moritz Maxeiner <moritz@ucworks.org>
+    Nathaniel Clark <Nathaniel.Clark@misrule.us>
+    Nathaniel Wesley Filardo <nwf@cs.jhu.edu>
+    Nav Ravindranath <nav@delphix.com>
+    Neal Gompa (ニール・ゴンパ) <ngompa13@gmail.com>
+    Ned Bass <bass6@llnl.gov>
+    Neependra Khare <neependra@kqinfotech.com>
+    Neil Stockbridge <neil@dist.ro>
+    Nick Garvey <garvey.nick@gmail.com>
+    Nikolay Borisov <n.borisov.lkml@gmail.com>
+    Olaf Faaland <faaland1@llnl.gov>
+    Oleg Drokin <green@linuxhacker.ru>
+    Oleg Stepura <oleg@stepura.com>
+    Patrik Greco <sikevux@sikevux.se>
+    Paul B. Henson <henson@acm.org>
+    Paul Dagnelie <pcd@delphix.com>
+    Paul Zuchowski <pzuchowski@datto.com>
+    Pavel Boldin <boldin.pavel@gmail.com>
+    Pavel Zakharov <pavel.zakharov@delphix.com>
+    Pawel Jakub Dawidek <pjd@FreeBSD.org>
+    Pedro Giffuni <pfg@freebsd.org>
+    Peng <peng.hse@xtaotech.com>
+    Peter Ashford <ashford@accs.com>
+    Prakash Surya <prakash.surya@delphix.com>
+    Prasad Joshi <prasadjoshi124@gmail.com>
+    Ralf Ertzinger <ralf@skytale.net>
+    Randall Mason <ClashTheBunny@gmail.com>
+    Remy Blank <remy.blank@pobox.com>
+    Ricardo M. Correia <ricardo.correia@oracle.com>
+    Rich Ercolani <rincebrain@gmail.com>
+    Richard Elling <Richard.Elling@RichardElling.com>
+    Richard Laager <rlaager@wiktel.com>
+    Richard Lowe <richlowe@richlowe.net>
+    Richard Sharpe <rsharpe@samba.org>
+    Richard Yao <ryao@gentoo.org>
+    Rohan Puri <rohan.puri15@gmail.com>
+    Romain Dolbeau <romain.dolbeau@atos.net>
+    Roman Strashkin <roman.strashkin@nexenta.com>
+    Ruben Kerkhof <ruben@rubenkerkhof.com>
+    Saso Kiselkov <saso.kiselkov@nexenta.com>
+    Scot W. Stevenson <scot.stevenson@gmail.com>
+    Sean Eric Fagan <sef@ixsystems.com>
+    Sen Haerens <sen@senhaerens.be>
+    Serapheim Dimitropoulos <serapheim@delphix.com>
+    Seth Forshee <seth.forshee@canonical.com>
+    Shampavman <sham.pavman@nexenta.com>
+    Shen Yan <shenyanxxxy@qq.com>
+    Simon Guest <simon.guest@tesujimath.org>
+    Simon Klinkert <simon.klinkert@gmail.com>
+    Sowrabha Gopal <sowrabha.gopal@delphix.com>
+    Stanislav Seletskiy <s.seletskiy@gmail.com>
+    Steffen Müthing <steffen.muething@iwr.uni-heidelberg.de>
+    Stephen Blinick <stephen.blinick@delphix.com>
+    Steve Dougherty <sdougherty@barracuda.com>
+    Steven Burgess <sburgess@dattobackup.com>
+    Steven Hartland <smh@freebsd.org>
+    Steven Johnson <sjohnson@sakuraindustries.com>
+    Stian Ellingsen <stian@plaimi.net>
+    Suman Chakravartula <schakrava@gmail.com>
+    Sydney Vanda <sydney.m.vanda@intel.com>
+    Sören Tempel <soeren+git@soeren-tempel.net>
+    Thijs Cramer <thijs.cramer@gmail.com>
+    Tim Chase <tim@chase2k.com>
+    Tim Connors <tconnors@rather.puzzling.org>
+    Tim Crawford <tcrawford@datto.com>
+    Tim Haley <Tim.Haley@Sun.COM>
+    Tobin Harding <me@tobin.cc>
+    Tom Caputi <tcaputi@datto.com>
+    Tom Matthews <tom@axiom-partners.com>
+    Tom Prince <tom.prince@ualberta.net>
+    Tomohiro Kusumi <kusumi.tomohiro@gmail.com>
+    Tony Hutter <hutter2@llnl.gov>
+    Toomas Soome <tsoome@me.com>
+    Trey Dockendorf <treydock@gmail.com>
+    Turbo Fredriksson <turbo@bayour.com>
+    Tyler J. Stachecki <stachecki.tyler@gmail.com>
+    Vitaut Bajaryn <vitaut.bayaryn@gmail.com>
+    Weigang Li <weigang.li@intel.com>
+    Will Andrews <will@freebsd.org>
+    Will Rouesnel <w.rouesnel@gmail.com>
+    Wolfgang Bumiller <w.bumiller@proxmox.com>
+    Xin Li <delphij@FreeBSD.org>
+    Ying Zhu <casualfisher@gmail.com>
+    YunQiang Su <syq@debian.org>
+    Yuri Pankov <yuri.pankov@gmail.com>
+    Yuxuan Shui <yshuiv7@gmail.com>
+    Zachary Bedell <zac@thebedells.org>

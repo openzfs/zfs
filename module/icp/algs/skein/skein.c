@@ -7,8 +7,8 @@
 
 #define	SKEIN_PORT_CODE		/* instantiate any code in skein_port.h */
 
+#include <sys/sysmacros.h>
 #include <sys/types.h>
-#include <sys/note.h>
 #include <sys/skein.h>		/* get the Skein API definitions   */
 #include "skein_impl.h"		/* get internal definitions */
 

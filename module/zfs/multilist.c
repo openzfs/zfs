@@ -403,7 +403,7 @@ multilist_link_active(multilist_node_t *link)
 	return (list_link_active(link));
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 
 /* BEGIN CSTYLED */
 

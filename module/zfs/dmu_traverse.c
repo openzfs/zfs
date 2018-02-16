@@ -769,7 +769,7 @@ traverse_pool(spa_t *spa, uint64_t txg_start, int flags,
 	return (err);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 EXPORT_SYMBOL(traverse_dataset);
 EXPORT_SYMBOL(traverse_pool);
 

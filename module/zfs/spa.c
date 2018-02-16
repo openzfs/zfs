@@ -85,11 +85,7 @@
 #ifdef	_KERNEL
 #include <sys/fm/protocol.h>
 #include <sys/fm/util.h>
-#include <sys/bootprops.h>
 #include <sys/callb.h>
-#include <sys/cpupart.h>
-#include <sys/pool.h>
-#include <sys/sysdc.h>
 #include <sys/zone.h>
 #endif	/* _KERNEL */
 
@@ -162,7 +158,6 @@ static int spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport,
 static void spa_vdev_resilver_done(spa_t *spa);
 
 uint_t		zio_taskq_batch_pct = 75;	/* 1 thread per cpu in pset */
-id_t		zio_taskq_psrset_bind = PS_NONE;
 boolean_t	zio_taskq_sysdc = B_TRUE;	/* use SDC scheduling class */
 uint_t		zio_taskq_basedc = 80;		/* base duty cycle */
 
@@ -1088,6 +1083,7 @@ spa_create_zio_taskqs(spa_t *spa)
 static void
 spa_thread(void *arg)
 {
+	psetid_t zio_taskq_psrset_bind = PS_NONE;
 	callb_cpr_t cprinfo;
 
 	spa_t *spa = arg;
@@ -7795,7 +7791,7 @@ spa_event_notify(spa_t *spa, vdev_t *vd, nvlist_t *hist_nvl, const char *name)
 	spa_event_post(spa_event_create(spa, vd, hist_nvl, name));
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 /* state manipulation functions */
 EXPORT_SYMBOL(spa_open);
 EXPORT_SYMBOL(spa_open_rewind);
@@ -7852,7 +7848,7 @@ EXPORT_SYMBOL(spa_prop_clear_bootfs);
 EXPORT_SYMBOL(spa_event_notify);
 #endif
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 module_param(spa_load_verify_maxinflight, int, 0644);
 MODULE_PARM_DESC(spa_load_verify_maxinflight,
 	"Max concurrent traversal I/Os while verifying pool during import -X");

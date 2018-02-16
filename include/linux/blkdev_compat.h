@@ -32,6 +32,7 @@
 #include <linux/blkdev.h>
 #include <linux/elevator.h>
 #include <linux/backing-dev.h>
+#include <linux/hdreg.h>
 
 #ifndef HAVE_FMODE_T
 typedef unsigned __bitwise__ fmode_t;

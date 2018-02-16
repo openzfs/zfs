@@ -28,16 +28,15 @@
 #include <sys/zfs_context.h>
 
 #if defined(_KERNEL)
-#include <sys/systm.h>
 #include <sys/sunddi.h>
 #include <sys/ctype.h>
 #else
 #include <stdio.h>
 #include <unistd.h>
-#include <strings.h>
 #include <libnvpair.h>
 #include <ctype.h>
 #endif
+#include <sys/strings.h>
 #include <sys/dsl_deleg.h>
 #include "zfs_prop.h"
 #include "zfs_deleg.h"
@@ -244,7 +243,7 @@ zfs_deleg_whokey(char *attr, zfs_deleg_who_type_t type,
 	}
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 EXPORT_SYMBOL(zfs_deleg_verify_nvlist);
 EXPORT_SYMBOL(zfs_deleg_whokey);
 EXPORT_SYMBOL(zfs_deleg_canonicalize_perm);

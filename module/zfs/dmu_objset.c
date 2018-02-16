@@ -2950,7 +2950,7 @@ dmu_objset_willuse_space(objset_t *os, int64_t space, dmu_tx_t *tx)
 	}
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 EXPORT_SYMBOL(dmu_objset_zil);
 EXPORT_SYMBOL(dmu_objset_pool);
 EXPORT_SYMBOL(dmu_objset_ds);

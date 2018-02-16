@@ -20,11 +20,28 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2000 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
-#ifndef _LIBSPL_SYS_COMPRESS_H
-#define	_LIBSPL_SYS_COMPRESS_H
+/*	Copyright (c) 1983, 1984, 1985, 1986, 1987, 1988, 1989 AT&T	*/
+/*	  All Rights Reserved	*/
 
-#endif /* _LIBSPL_SYS_COMPRESS_H */
+/*
+ * University Copyright- Copyright (c) 1982, 1986, 1988
+ * The Regents of the University of California
+ * All Rights Reserved
+ *
+ * University Acknowledgment- Portions of this document are derived from
+ * software developed by the University of California, Berkeley, and its
+ * contributors.
+ */
+
+#ifndef _SYS_ERRNO_H
+#define	_SYS_ERRNO_H
+
+#include <linux/errno.h>
+
+#define	ENOTSUP		EOPNOTSUPP
+
+#endif	/* _SYS_ERRNO_H */

@@ -2505,7 +2505,7 @@ dmu_fini(void)
 	abd_fini();
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 EXPORT_SYMBOL(dmu_bonus_hold);
 EXPORT_SYMBOL(dmu_buf_hold_array_by_bonus);
 EXPORT_SYMBOL(dmu_buf_rele_array);

@@ -482,7 +482,7 @@ crypto_digest_single(crypto_context_t context, crypto_data_t *data,
 	return (error);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 EXPORT_SYMBOL(crypto_digest_prov);
 EXPORT_SYMBOL(crypto_digest);
 EXPORT_SYMBOL(crypto_digest_init_prov);

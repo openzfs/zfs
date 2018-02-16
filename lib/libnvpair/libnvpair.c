@@ -28,8 +28,8 @@
 #include <libintl.h>
 #include <sys/types.h>
 #include <sys/inttypes.h>
+#include <sys/note.h>
 #include <stdarg.h>
-#include <note.h>
 #include "libnvpair.h"
 
 /*

@@ -38,9 +38,7 @@
  * Each function returns 0 on success, -1 on error.
  */
 
-#if defined(_KERNEL)
-#include <sys/systm.h>
-#else
+#if !defined(_KERNEL)
 #include <string.h>
 #endif
 
@@ -349,7 +347,7 @@ pool_namecheck(const char *pool, namecheck_err_t *why, char *what)
 	return (0);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 EXPORT_SYMBOL(pool_namecheck);
 EXPORT_SYMBOL(dataset_namecheck);
 EXPORT_SYMBOL(zfs_component_namecheck);
