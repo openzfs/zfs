@@ -201,7 +201,7 @@ const char *luaO_pushvfstring (lua_State *L, const char *fmt, va_list argp) {
       }
       case 'p': {
         char buff[4*sizeof(void *) + 8]; /* should be enough space for a `%p' */
-        int l = lcompat_sprintf(buff, "%p", va_arg(argp, void *));
+        int l = lcompat_sprintf(buff, sizeof(buff), "%p", va_arg(argp, void *));
         pushstr(L, buff, l);
         break;
       }

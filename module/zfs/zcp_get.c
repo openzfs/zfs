@@ -303,7 +303,7 @@ get_special_prop(lua_State *state, dsl_dataset_t *ds, const char *dsname,
 {
 	int error = 0;
 	objset_t *os;
-	uint64_t numval;
+	uint64_t numval = 0;
 	char *strval = kmem_alloc(ZAP_MAXVALUELEN, KM_SLEEP);
 	char setpoint[ZFS_MAX_DATASET_NAME_LEN] =
 	    "Internal error - setpoint not determined";

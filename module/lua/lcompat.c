@@ -6,13 +6,13 @@
 
 
 ssize_t
-lcompat_sprintf(char *buf, const char *fmt, ...)
+lcompat_sprintf(char *buf, size_t size, const char *fmt, ...)
 {
 	ssize_t res;
 	va_list args;
 
 	va_start(args, fmt);
-	res = vsnprintf(buf, INT_MAX, fmt, args);
+	res = vsnprintf(buf, size, fmt, args);
 	va_end(args);
 
 	return (res);

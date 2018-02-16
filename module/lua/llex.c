@@ -235,7 +235,7 @@ static void read_numeral (LexState *ls, SemInfo *seminfo) {
     expo = "Pp";
   for (;;) {
     if (check_next(ls, expo))  /* exponent part? */
-      check_next(ls, "+-");  /* optional exponent sign */
+      (void) check_next(ls, "+-");  /* optional exponent sign */
     if (lisxdigit(ls->current) || ls->current == '.')
       save_and_next(ls);
     else  break;
