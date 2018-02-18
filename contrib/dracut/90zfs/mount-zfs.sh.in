@@ -61,10 +61,11 @@ if import_pool "${ZFS_POOL}" ; then
 		# if the root dataset has encryption enabled
 		if $(zfs list -H -o encryption "${ZFS_DATASET}" | grep -q -v off); then
 			# figure out where the root dataset has its key, the keylocation should not be none
+			ZFS_CRYPTPARENT="$ZFS_DATASET"
 			while true; do
-				if [[ $(zfs list -H -o keylocation "${ZFS_DATASET}") == 'none' ]]; then
-					ZFS_DATASET=$(echo -n "${ZFS_DATASET}" | awk 'BEGIN{FS=OFS="/"}{NF--; print}')
-					if [[ "${ZFS_DATASET}" == '' ]]; then
+				if [[ $(zfs list -H -o keylocation "${ZFS_CRYPTPARENT}") == 'none' ]]; then
+					ZFS_CRYPTPARENT=$(echo -n "${ZFS_CRYPTPARENT}" | awk 'BEGIN{FS=OFS="/"}{NF--; print}')
+					if [[ "${ZFS_CRYPTPARENT}" == '' ]]; then
 						rootok=0
 						break
 					fi
@@ -77,7 +78,7 @@ if import_pool "${ZFS_POOL}" ; then
 			# decrypt them
 			TRY_COUNT=5
 			while [ $TRY_COUNT != 0 ]; do
-				zfs load-key "${ZFS_DATASET}"
+				zfs load-key "${ZFS_CRYPTPARENT}"
 				[ $? == 0 ] && break
 				((TRY_COUNT-=1))
 			done
