@@ -741,6 +741,11 @@ tags = ['functional', 'truncate']
 tests = ['upgrade_userobj_001_pos', 'upgrade_projectquota_001_pos']
 tags = ['functional', 'upgrade']
 
+# user_namespace_001 - https://github.com/zfsonlinux/zfs/issues/6800
+[tests/functional/user_namespace]
+tests = ['user_namespace_001', 'user_namespace_002', 'user_namespace_003']
+tags = ['functional', 'user_namespace']
+
 [tests/functional/userquota]
 tests = [
     'userquota_001_pos', 'userquota_002_pos', 'userquota_003_pos',

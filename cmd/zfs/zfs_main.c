@@ -2529,6 +2529,7 @@ userspace_cb(void *arg, const char *domain, uid_t rid, uint64_t space)
 	us_cbdata_t *cb = (us_cbdata_t *)arg;
 	zfs_userquota_prop_t prop = cb->cb_prop;
 	char *name = NULL;
+	char namebuf[32];
 	char *propname;
 	char sizebuf[32];
 	us_node_t *node;
@@ -2602,6 +2603,12 @@ userspace_cb(void *arg, const char *domain, uid_t rid, uint64_t space)
 
 				if ((g = getgrgid(rid)) != NULL)
 					name = g->gr_name;
+				else {
+					(void) snprintf(namebuf,
+					    sizeof (namebuf), "%ld",
+					    (long)rid);
+					name = namebuf;
+				}
 			}
 		} else if (zfs_prop_is_user(prop)) {
 			type = USTYPE_PSX_USR;
@@ -2610,6 +2617,12 @@ userspace_cb(void *arg, const char *domain, uid_t rid, uint64_t space)
 
 				if ((p = getpwuid(rid)) != NULL)
 					name = p->pw_name;
+				else {
+					(void) snprintf(namebuf,
+					    sizeof (namebuf), "%ld",
+					    (long)rid);
+					name = namebuf;
+				}
 			}
 		} else {
 			type = USTYPE_PROJ;
@@ -4846,6 +4859,10 @@ parse_fs_perm(fs_perm_t *fsperm, nvlist_t *nvl)
 						(void) strlcpy(
 						    node->who_perm.who_ug_name,
 						    nice_name, 256);
+					else
+						(void) snprintf(
+						    node->who_perm.who_ug_name,
+						    256, "%ld", (long)rid);
 				}
 
 				uu_avl_insert(avl, node, idx);
@@ -5377,7 +5394,7 @@ construct_fsacl_list(boolean_t un, struct allow_opts *opts, nvlist_t **nvlp)
 
 				if (p != NULL)
 					rid = p->pw_uid;
-				else {
+				else if (*endch != '\0') {
 					(void) snprintf(errbuf, 256, gettext(
 					    "invalid user %s"), curr);
 					allow_usage(un, B_TRUE, errbuf);
@@ -5391,7 +5408,7 @@ construct_fsacl_list(boolean_t un, struct allow_opts *opts, nvlist_t **nvlp)
 
 				if (g != NULL)
 					rid = g->gr_gid;
-				else {
+				else if (*endch != '\0') {
 					(void) snprintf(errbuf, 256, gettext(
 					    "invalid group %s"),  curr);
 					allow_usage(un, B_TRUE, errbuf);
