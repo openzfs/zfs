@@ -34,6 +34,11 @@ fi
 
 smartctl_path=$(which smartctl)
 
+luks_path=$(cryptsetup status ${VDEV_UPATH} |grep device:|cut -f5 -d' ')
+if ! [ "$luks_path" = "" ]; then
+	VDEV_UPATH=$luks_path
+fi
+
 if [ -b "$VDEV_UPATH" ] && [ -x "$smartctl_path" ]; then
 	raw_out=$(eval "sudo $smartctl_path -a $VDEV_UPATH")
 
