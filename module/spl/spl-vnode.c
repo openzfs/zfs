@@ -658,7 +658,7 @@ vn_file_cache_constructor(void *buf, void *cdrarg, int kmflags)
 	INIT_LIST_HEAD(&fp->f_list);
 
 	return (0);
-} /* file_cache_constructor() */
+} /* vn_file_cache_constructor() */
 
 static void
 vn_file_cache_destructor(void *buf, void *cdrarg)
@@ -680,7 +680,7 @@ spl_vn_init(void)
 	    vn_file_cache_destructor, NULL, NULL, NULL, 0);
 
 	return (0);
-} /* vn_init() */
+} /* spl_vn_init() */
 
 void
 spl_vn_fini(void)
@@ -703,4 +703,4 @@ spl_vn_fini(void)
 
 	kmem_cache_destroy(vn_file_cache);
 	kmem_cache_destroy(vn_cache);
-} /* vn_fini() */
+} /* spl_vn_fini() */
