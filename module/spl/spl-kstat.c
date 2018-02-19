@@ -327,7 +327,7 @@ restart:
 	return (-rc);
 }
 
-int
+static int
 kstat_default_update(kstat_t *ksp, int rw)
 {
 	ASSERT(ksp != NULL);
