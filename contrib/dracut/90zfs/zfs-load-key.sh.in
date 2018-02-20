@@ -35,7 +35,7 @@ fi
 if [[ $(zpool list -H -o feature@encryption $(echo "${root}" | awk -F\/ '{print $1}')) == 'active' ]]; then
     # if the root dataset has encryption enabled
     ENCRYPTIONROOT=$(zfs get -H -o value encryptionroot ${ZFS_DATASET})
-    if [[ $(echo -n "${ENCRYPTIONROOT}" | grep -v '^-$' | grep -v off ]]; then
+    if [[ $(echo "${ENCRYPTIONROOT}" | grep -v -E '^$|^-$') ]]; then
         # decrypt them
         TRY_COUNT=5
         while [ $TRY_COUNT != 0 ]; do
