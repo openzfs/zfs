@@ -1527,7 +1527,7 @@ static void retstat (LexState *ls) {
     }
   }
   luaK_ret(fs, first, nret);
-  testnext(ls, ';');  /* skip optional semicolon */
+  (void) testnext(ls, ';');  /* skip optional semicolon */
 }
 
 

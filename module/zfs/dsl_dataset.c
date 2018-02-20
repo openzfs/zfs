@@ -2750,11 +2750,7 @@ dsl_dataset_promote_check(void *arg, dmu_tx_t *tx)
 		return (err);
 
 	hds = ddpa->ddpa_clone;
-	snap = list_head(&ddpa->shared_snaps);
-	origin_ds = snap->ds;
 	max_snap_len = MAXNAMELEN - strlen(ddpa->ddpa_clonename) - 1;
-
-	snap = list_head(&ddpa->origin_snaps);
 
 	if (dsl_dataset_phys(hds)->ds_flags & DS_FLAG_NOPROMOTE) {
 		promote_rele(ddpa, FTAG);
@@ -2789,6 +2785,7 @@ dsl_dataset_promote_check(void *arg, dmu_tx_t *tx)
 
 	/* compute origin's new unique space */
 	snap = list_tail(&ddpa->clone_snaps);
+	ASSERT(snap != NULL);
 	ASSERT3U(dsl_dataset_phys(snap->ds)->ds_prev_snap_obj, ==,
 	    origin_ds->ds_object);
 	dsl_deadlist_space_range(&snap->ds->ds_deadlist,

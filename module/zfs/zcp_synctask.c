@@ -297,7 +297,8 @@ zcp_synctask_wrapper(lua_State *state)
 	dsl_pool_t *dp = ri->zri_pool;
 
 	/* MOS space is triple-dittoed, so we multiply by 3. */
-	uint64_t funcspace = (info->blocks_modified << DST_AVG_BLKSHIFT) * 3;
+	uint64_t funcspace =
+	    ((uint64_t)info->blocks_modified << DST_AVG_BLKSHIFT) * 3;
 
 	zcp_parse_args(state, info->name, info->pargs, info->kwargs);
 
