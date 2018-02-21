@@ -288,9 +288,9 @@ get_usage(zfs_help_t idx)
 	case HELP_ROLLBACK:
 		return (gettext("\trollback [-rRf] <snapshot>\n"));
 	case HELP_SEND:
-		return (gettext("\tsend [-DnPpRvLecr] [-[i|I] snapshot] "
+		return (gettext("\tsend [-DnPpRvLecwb] [-[i|I] snapshot] "
 		    "<snapshot>\n"
-		    "\tsend [-Lecr] [-i snapshot|bookmark] "
+		    "\tsend [-nvPLecw] [-i snapshot|bookmark] "
 		    "<filesystem|volume|snapshot>\n"
 		    "\tsend [-nvPe] -t <receive_resume_token>\n"));
 	case HELP_SET:
@@ -3944,11 +3944,12 @@ zfs_do_send(int argc, char **argv)
 		{"resume",	required_argument,	NULL, 't'},
 		{"compressed",	no_argument,		NULL, 'c'},
 		{"raw",		no_argument,		NULL, 'w'},
+		{"backup",	no_argument,		NULL, 'b'},
 		{0, 0, 0, 0}
 	};
 
 	/* check options */
-	while ((c = getopt_long(argc, argv, ":i:I:RDpvnPLet:cw", long_options,
+	while ((c = getopt_long(argc, argv, ":i:I:RDpvnPLet:cwb", long_options,
 	    NULL)) != -1) {
 		switch (c) {
 		case 'i':
@@ -3967,6 +3968,9 @@ zfs_do_send(int argc, char **argv)
 			break;
 		case 'p':
 			flags.props = B_TRUE;
+			break;
+		case 'b':
+			flags.backup = B_TRUE;
 			break;
 		case 'P':
 			flags.parsable = B_TRUE;
@@ -4048,7 +4052,7 @@ zfs_do_send(int argc, char **argv)
 
 	if (resume_token != NULL) {
 		if (fromname != NULL || flags.replicate || flags.props ||
-		    flags.dedup) {
+		    flags.backup || flags.dedup) {
 			(void) fprintf(stderr,
 			    gettext("invalid flags combined with -t\n"));
 			usage(B_FALSE);
@@ -4090,7 +4094,8 @@ zfs_do_send(int argc, char **argv)
 		char frombuf[ZFS_MAX_DATASET_NAME_LEN];
 
 		if (flags.replicate || flags.doall || flags.props ||
-		    flags.dedup || (strchr(argv[0], '@') == NULL &&
+		    flags.backup || flags.dedup ||
+		    (strchr(argv[0], '@') == NULL &&
 		    (flags.dryrun || flags.verbose || flags.progress))) {
 			(void) fprintf(stderr, gettext("Error: "
 			    "Unsupported flag with filesystem or bookmark.\n"));
