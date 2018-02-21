@@ -93,9 +93,8 @@ function destroy_upgraded_pool
 	typeset -n pool_files=ZPOOL_VERSION_${vers}_FILES
 	typeset -n pool_name=ZPOOL_VERSION_${vers}_NAME
 
-	if poolexists $pool_name; then
-		log_must zpool destroy $pool_name
-	fi
+	destroy_pool $pool_name
+
 	for file in $pool_files; do
 		rm -f $TEST_BASE_DIR/$file
 	done
