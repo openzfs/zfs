@@ -45,19 +45,20 @@ checkstyle: cstyle shellcheck flake8 commitcheck mancheck testscheck
 
 commitcheck:
 	@if git rev-parse --git-dir > /dev/null 2>&1; then \
-		scripts/commitcheck.sh; \
+		${top_srcdir}/scripts/commitcheck.sh; \
 	fi
 
 cstyle:
 	@find ${top_srcdir} -name '*.[hc]' ! -name 'zfs_config.*' \
-		! -name '*.mod.c' -type f -exec scripts/cstyle.pl -cpP {} \+
+		! -name '*.mod.c' -type f \
+		-exec ${top_srcdir}/scripts/cstyle.pl -cpP {} \+
 
 shellcheck:
 	@if type shellcheck > /dev/null 2>&1; then \
 		shellcheck --exclude=SC1090 --format=gcc \
-			$$(find scripts/*.sh -type f) \
-			$$(find cmd/zed/zed.d/*.sh -type f) \
-			$$(find cmd/zpool/zpool.d/* -executable); \
+			$$(find ${top_srcdir}/scripts/*.sh -type f) \
+			$$(find ${top_srcdir}/cmd/zed/zed.d/*.sh -type f) \
+			$$(find ${top_srcdir}/cmd/zpool/zpool.d/* -executable); \
 	fi
 
 mancheck:
@@ -88,7 +89,7 @@ cppcheck:
 
 paxcheck:
 	@if type scanelf > /dev/null 2>&1; then \
-		scripts/paxcheck.sh ${top_srcdir}; \
+		${top_srcdir}/scripts/paxcheck.sh ${top_srcdir}; \
 	fi
 
 flake8:
