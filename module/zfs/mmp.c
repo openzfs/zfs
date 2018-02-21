@@ -323,7 +323,13 @@ mmp_write_uberblock(spa_t *spa)
 	int label;
 	uint64_t offset;
 
+	hrtime_t lock_acquire_time = gethrtime();
 	spa_config_enter(spa, SCL_STATE, mmp_tag, RW_READER);
+	lock_acquire_time = gethrtime() - lock_acquire_time;
+	if (lock_acquire_time > (MSEC2NSEC(MMP_MIN_INTERVAL) / 10))
+		zfs_dbgmsg("SCL_STATE acquisition took %llu ns\n",
+		    (u_longlong_t)lock_acquire_time);
+
 	vd = mmp_random_leaf(spa->spa_root_vdev);
 	if (vd == NULL) {
 		spa_config_exit(spa, SCL_STATE, FTAG);
