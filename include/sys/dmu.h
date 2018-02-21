@@ -1033,8 +1033,6 @@ int dmu_diff(const char *tosnap_name, const char *fromsnap_name,
 #define	ZFS_CRC64_POLY	0xC96C5795D7870F42ULL	/* ECMA-182, reflected form */
 extern uint64_t zfs_crc64_table[256];
 
-extern int zfs_mdcomp_disable;
-
 #ifdef	__cplusplus
 }
 #endif
