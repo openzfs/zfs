@@ -60,6 +60,7 @@ dist_zpoolexec_SCRIPTS = \
 	zpool.d/pend_sec \
 	zpool.d/off_ucor \
 	zpool.d/ata_err \
+	zpool.d/nvme_err \
 	zpool.d/pwr_cyc \
 	zpool.d/upath \
 	zpool.d/vendor
@@ -98,6 +99,7 @@ zpoolconfdefaults = \
 	pend_sec \
 	off_ucor \
 	ata_err \
+	nvme_err \
 	pwr_cyc \
 	upath \
 	vendor
