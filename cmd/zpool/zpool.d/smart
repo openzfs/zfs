@@ -23,6 +23,7 @@ off_ucor:	Show SMART offline uncorrectable errors (ATA).
 ata_err:	Show SMART ATA errors (ATA).
 pwr_cyc:	Show SMART power cycle count (ATA).
 serial:		Show disk serial number.
+nvme_err:	Show SMART NVMe errors (NVMe).
 "
 
 script=$(basename "$0")
@@ -37,7 +38,7 @@ smartctl_path=$(which smartctl)
 if [ -b "$VDEV_UPATH" ] && [ -x "$smartctl_path" ]; then
 	raw_out=$(eval "sudo $smartctl_path -a $VDEV_UPATH")
 
-	# Are we a SAS or ATA drive?  Look for the right line in smartctl:
+	# What kind of drive are we?  Look for the right line in smartctl:
 	#
 	# SAS:
 	#	Transport protocol:   SAS
@@ -45,7 +46,10 @@ if [ -b "$VDEV_UPATH" ] && [ -x "$smartctl_path" ]; then
 	# SATA:
 	#	ATA Version is:   8
 	#
-	type=$(echo "$raw_out" | grep -m 1 -Eo '^ATA|SAS$')
+	# NVMe:
+	#       SMART/Health Information (NVMe Log 0xnn, NSID 0xnn)
+	#
+	type=$(echo "$raw_out" | grep -m 1 -Eo '^ATA|NVMe|SAS$')
 	out=$(echo "$raw_out" | awk '
 # SAS specific
 /read:/{print "rrd="$4"\nr_cor="$5"\nr_proc="$7"\nr_ucor="$8}
@@ -71,9 +75,20 @@ if [ -b "$VDEV_UPATH" ] && [ -x "$smartctl_path" ]; then
 
 # SATA common
 /Temperature_Celsius/{print "temp="$10}
+/Airflow_Temperature_Cel/{print "temp="$10}
 /SMART overall-health self-assessment test result:/{print "health="$6}
 /Power_On_Hours/{print "hours_on="$10}
 /Serial Number:/{print "serial="$3}
+
+# NVMe common
+/Temperature:/{print "temp="$2}
+/SMART overall-health self-assessment test result:/{print "health="$6}
+/Power On Hours:/{gsub("[^0-9]","",$4); print "hours_on="$4}
+/Serial Number:/{print "serial="$3}
+/Power Cycles:/{print "pwr_cyc="$3}
+
+# NVMe specific
+/Media and Data Integrity Errors:/{print "nvme_err="$6}
 
 END {ORS="\n"; print ""}
 ');
@@ -94,6 +109,8 @@ smart)
 		scripts="temp|health|r_ucor|w_ucor"
 	elif [ "$type" = "ATA" ] ; then
 		scripts="temp|health|ata_err|realloc|rep_ucor|cmd_to|pend_sec|off_ucor"
+	elif [ "$type" = "NVMe" ] ; then
+		scripts="temp|health|nvme_err"
 	fi
 	;;
 smartx)
@@ -101,6 +118,8 @@ smartx)
 	if [ "$type" = "SAS" ] ; then
 		scripts="hours_on|defect|nonmed|r_proc|w_proc"
 	elif [ "$type" = "ATA" ] ; then
+		scripts="hours_on|pwr_cyc"
+	elif [ "$type" = "NVMe" ] ; then
 		scripts="hours_on|pwr_cyc"
 	fi
 	;;
