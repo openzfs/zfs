@@ -726,9 +726,15 @@ dmu_objset_own(const char *name, dmu_objset_type_t type,
 		return (err);
 	}
 
-	/* user accounting requires the dataset to be decrypted */
+	/*
+	 * User accounting requires the dataset to be decrypted and rw.
+	 * We also don't begin user accounting during claiming to help
+	 * speed up pool import times and to keep this txg reserved
+	 * completely for recovery work.
+	 */
 	if ((dmu_objset_userobjspace_upgradable(*osp) ||
 	    dmu_objset_projectquota_upgradable(*osp)) &&
+	    !readonly && !dp->dp_spa->spa_claiming &&
 	    (ds->ds_dir->dd_crypto_obj == 0 || decrypt))
 		dmu_objset_id_quota_upgrade(*osp);
 
@@ -1897,8 +1903,17 @@ dmu_objset_do_userquota_updates(objset_t *os, dmu_tx_t *tx)
 	if (!dmu_objset_userused_enabled(os))
 		return;
 
-	/* if this is a raw receive just return and handle accounting later */
+	/*
+	 * If this is a raw receive just return and handle accounting
+	 * later when we have the keys loaded. We also don't do user
+	 * accounting during claiming since the datasets are not owned
+	 * for the duration of claiming and this txg should only be
+	 * used for recovery.
+	 */
 	if (os->os_encrypted && dmu_objset_is_receiving(os))
+		return;
+
+	if (tx->tx_txg <= os->os_spa->spa_claim_max_txg)
 		return;
 
 	/* Allocate the user/group/project used objects if necessary. */

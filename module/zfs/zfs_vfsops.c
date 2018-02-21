@@ -1136,21 +1136,16 @@ zfsvfs_init(zfsvfs_t *zfsvfs, objset_t *os)
 }
 
 int
-zfsvfs_create(const char *osname, zfsvfs_t **zfvp)
+zfsvfs_create(const char *osname, boolean_t readonly, zfsvfs_t **zfvp)
 {
 	objset_t *os;
 	zfsvfs_t *zfsvfs;
 	int error;
+	boolean_t ro = (readonly || (strchr(osname, '@') != NULL));
 
 	zfsvfs = kmem_zalloc(sizeof (zfsvfs_t), KM_SLEEP);
 
-	/*
-	 * We claim to always be readonly so we can open snapshots;
-	 * other ZPL code will prevent us from writing to snapshots.
-	 */
-
-	error = dmu_objset_own(osname, DMU_OST_ZFS, B_TRUE, B_TRUE,
-	    zfsvfs, &os);
+	error = dmu_objset_own(osname, DMU_OST_ZFS, ro, B_TRUE, zfsvfs, &os);
 	if (error != 0) {
 		kmem_free(zfsvfs, sizeof (zfsvfs_t));
 		return (error);
@@ -1208,14 +1203,6 @@ zfsvfs_setup(zfsvfs_t *zfsvfs, boolean_t mounting)
 {
 	int error;
 	boolean_t readonly = zfs_is_readonly(zfsvfs);
-
-	/*
-	 * Check for a bad on-disk format version now since we
-	 * lied about owning the dataset readonly before.
-	 */
-	if (!readonly &&
-	    dmu_objset_incompatible_encryption_version(zfsvfs->z_os))
-		return (SET_ERROR(EROFS));
 
 	error = zfs_register_callbacks(zfsvfs->z_vfs);
 	if (error)
@@ -1786,24 +1773,30 @@ zfs_domount(struct super_block *sb, zfs_mnt_t *zm, int silent)
 	struct inode *root_inode;
 	uint64_t recordsize;
 	int error = 0;
-	zfsvfs_t *zfsvfs;
+	zfsvfs_t *zfsvfs = NULL;
+	vfs_t *vfs = NULL;
 
 	ASSERT(zm);
 	ASSERT(osname);
 
-	error = zfsvfs_create(osname, &zfsvfs);
+	error = zfsvfs_parse_options(zm->mnt_data, &vfs);
 	if (error)
 		return (error);
 
-	error = zfsvfs_parse_options(zm->mnt_data, &zfsvfs->z_vfs);
-	if (error)
+	error = zfsvfs_create(osname, vfs->vfs_readonly, &zfsvfs);
+	if (error) {
+		zfsvfs_vfs_free(vfs);
 		goto out;
+	}
 
 	if ((error = dsl_prop_get_integer(osname, "recordsize",
-	    &recordsize, NULL)))
+	    &recordsize, NULL))) {
+		zfsvfs_vfs_free(vfs);
 		goto out;
+	}
 
-	zfsvfs->z_vfs->vfs_data = zfsvfs;
+	vfs->vfs_data = zfsvfs;
+	zfsvfs->z_vfs = vfs;
 	zfsvfs->z_sb = sb;
 	sb->s_fs_info = zfsvfs;
 	sb->s_magic = ZFS_SUPER_MAGIC;
@@ -1875,8 +1868,10 @@ zfs_domount(struct super_block *sb, zfs_mnt_t *zm, int silent)
 	zfsvfs->z_arc_prune = arc_add_prune_callback(zpl_prune_sb, sb);
 out:
 	if (error) {
-		dmu_objset_disown(zfsvfs->z_os, B_TRUE, zfsvfs);
-		zfsvfs_free(zfsvfs);
+		if (zfsvfs != NULL) {
+			dmu_objset_disown(zfsvfs->z_os, B_TRUE, zfsvfs);
+			zfsvfs_free(zfsvfs);
+		}
 		/*
 		 * make sure we don't have dangling sb->s_fs_info which
 		 * zfs_preumount will use.
