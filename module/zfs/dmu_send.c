@@ -3787,11 +3787,20 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp,
 		if (err != 0)
 			goto out;
 
-		err = dsl_crypto_recv_key(spa_name(ra->os->os_spa),
+		/*
+		 * If this is a new dataset we set the key immediately.
+		 * Otherwise we don't want to change the key until we
+		 * are sure the rest of the receive succeeded so we stash
+		 * the keynvl away until then.
+		 */
+		err = dsl_crypto_recv_raw(spa_name(ra->os->os_spa),
 		    drc->drc_ds->ds_object, drc->drc_drrb->drr_type,
-		    keynvl);
+		    keynvl, drc->drc_newfs);
 		if (err != 0)
 			goto out;
+
+		if (!drc->drc_newfs)
+			drc->drc_keynvl = fnvlist_dup(keynvl);
 	}
 
 	if (featureflags & DMU_BACKUP_FEATURE_RESUMING) {
@@ -3908,6 +3917,7 @@ out:
 		 * the inconsistent state.
 		 */
 		dmu_recv_cleanup_ds(drc);
+		nvlist_free(drc->drc_keynvl);
 	}
 
 	*voffp = ra->voff;
@@ -3965,6 +3975,15 @@ dmu_recv_end_check(void *arg, dmu_tx_t *tx)
 				return (error);
 			}
 		}
+		if (drc->drc_keynvl != NULL) {
+			error = dsl_crypto_recv_raw_key_check(drc->drc_ds,
+			    drc->drc_keynvl, tx);
+			if (error != 0) {
+				dsl_dataset_rele(origin_head, FTAG);
+				return (error);
+			}
+		}
+
 		error = dsl_dataset_clone_swap_check_impl(drc->drc_ds,
 		    origin_head, drc->drc_force, drc->drc_owner, tx);
 		if (error != 0) {
@@ -4021,8 +4040,14 @@ dmu_recv_end_sync(void *arg, dmu_tx_t *tx)
 				dsl_dataset_rele(snap, FTAG);
 			}
 		}
-		VERIFY3P(drc->drc_ds->ds_prev, ==,
-		    origin_head->ds_prev);
+		if (drc->drc_keynvl != NULL) {
+			dsl_crypto_recv_raw_key_sync(drc->drc_ds,
+			    drc->drc_keynvl, tx);
+			nvlist_free(drc->drc_keynvl);
+			drc->drc_keynvl = NULL;
+		}
+
+		VERIFY3P(drc->drc_ds->ds_prev, ==, origin_head->ds_prev);
 
 		dsl_dataset_clone_swap_sync_impl(drc->drc_ds,
 		    origin_head, tx);
@@ -4174,6 +4199,7 @@ dmu_recv_end(dmu_recv_cookie_t *drc, void *owner)
 
 	if (error != 0) {
 		dmu_recv_cleanup_ds(drc);
+		nvlist_free(drc->drc_keynvl);
 	} else if (drc->drc_guid_to_ds_map != NULL) {
 		(void) add_ds_to_guidmap(drc->drc_tofs, drc->drc_guid_to_ds_map,
 		    drc->drc_newsnapobj, drc->drc_raw);
