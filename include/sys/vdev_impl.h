@@ -238,6 +238,7 @@ struct vdev {
 	vdev_aux_t	vdev_label_aux;	/* on-disk aux state		*/
 	uint64_t	vdev_leaf_zap;
 	hrtime_t	vdev_mmp_pending; /* 0 if write finished	*/
+	uint64_t	vdev_mmp_kstat_id;	/* to find kstat entry */
 
 	/*
 	 * For DTrace to work in userland (libzpool) context, these fields must

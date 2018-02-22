@@ -135,6 +135,7 @@ mmp_init(spa_t *spa)
 	mutex_init(&mmp->mmp_thread_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&mmp->mmp_thread_cv, NULL, CV_DEFAULT, NULL);
 	mutex_init(&mmp->mmp_io_lock, NULL, MUTEX_DEFAULT, NULL);
+	mmp->mmp_kstat_id = 1;
 }
 
 void
@@ -244,7 +245,8 @@ mmp_write_done(zio_t *zio)
 	mmp_thread_t *mts = zio->io_private;
 
 	mutex_enter(&mts->mmp_io_lock);
-	vd->vdev_mmp_pending = 0;
+	uint64_t mmp_kstat_id = vd->vdev_mmp_kstat_id;
+	hrtime_t mmp_write_duration = gethrtime() - vd->vdev_mmp_pending;
 
 	if (zio->io_error)
 		goto unlock;
@@ -278,8 +280,14 @@ mmp_write_done(zio_t *zio)
 	mts->mmp_last_write = gethrtime();
 
 unlock:
+	vd->vdev_mmp_pending = 0;
+	vd->vdev_mmp_kstat_id = 0;
+
 	mutex_exit(&mts->mmp_io_lock);
 	spa_config_exit(spa, SCL_STATE, mmp_tag);
+
+	spa_mmp_history_set(spa, mmp_kstat_id, zio->io_error,
+	    mmp_write_duration);
 
 	abd_free(zio->io_abd);
 }
@@ -333,6 +341,7 @@ mmp_write_uberblock(spa_t *spa)
 	ub->ub_mmp_magic = MMP_MAGIC;
 	ub->ub_mmp_delay = mmp->mmp_delay;
 	vd->vdev_mmp_pending = gethrtime();
+	vd->vdev_mmp_kstat_id = mmp->mmp_kstat_id++;
 
 	zio_t *zio  = zio_null(mmp->mmp_zio_root, spa, NULL, NULL, NULL, flags);
 	abd_t *ub_abd = abd_alloc_for_io(VDEV_UBERBLOCK_SIZE(vd), B_TRUE);
@@ -350,7 +359,7 @@ mmp_write_uberblock(spa_t *spa)
 	    flags | ZIO_FLAG_DONT_PROPAGATE);
 
 	spa_mmp_history_add(ub->ub_txg, ub->ub_timestamp, ub->ub_mmp_delay, vd,
-	    label);
+	    label, vd->vdev_mmp_kstat_id);
 
 	zio_nowait(zio);
 }
