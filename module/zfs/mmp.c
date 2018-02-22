@@ -437,7 +437,7 @@ mmp_thread(spa_t *spa)
 			zio_suspend(spa, NULL);
 		}
 
-		if (multihost)
+		if (multihost && !suspended)
 			mmp_write_uberblock(spa);
 
 		CALLB_CPR_SAFE_BEGIN(&cpr);
