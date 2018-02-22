@@ -946,10 +946,10 @@ zpool_name_valid(libzfs_handle_t *hdl, boolean_t isopen, const char *pool)
 	 * create (or import), and only in userland.
 	 */
 	if (ret == 0 && !isopen &&
-	    (strncmp(pool, "mirror", 6) == 0 ||
-	    strncmp(pool, "raidz", 5) == 0 ||
-	    strncmp(pool, "spare", 5) == 0 ||
-	    strcmp(pool, "log") == 0)) {
+	    (strncmp(pool, "mirror", 7) == 0 ||
+	    strncmp(pool, "raidz", 6) == 0 ||
+	    strncmp(pool, "spare", 6) == 0 ||
+	    strncmp(pool, "log", 4) == 0)) {
 		if (hdl != NULL)
 			zfs_error_aux(hdl,
 			    dgettext(TEXT_DOMAIN, "name is reserved"));
