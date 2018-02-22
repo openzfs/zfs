@@ -13,7 +13,7 @@ esac
 GENERATOR_FILE=/run/systemd/generator/sysroot.mount
 GENERATOR_EXTENSION=/run/systemd/generator/sysroot.mount.d/zfs-enhancement.conf
 
-if [ -e "$GENERATOR_FILE" -a -e "$GENERATOR_EXTENSION" ] ; then
+if [ -e "$GENERATOR_FILE" ] && [ -e "$GENERATOR_EXTENSION" ] ; then
 	# If the ZFS sysroot.mount flag exists, the initial RAM disk configured
 	# it to mount ZFS on root.  In that case, we bail early.  This flag
 	# file gets created by the zfs-generator program upon successful run.
@@ -57,7 +57,7 @@ ZFS_POOL="${ZFS_DATASET%%/*}"
 
 if import_pool "${ZFS_POOL}" ; then
 	# Load keys if we can or if we need to
-	if [ $(zpool list -H -o feature@encryption $(echo "${ZFS_POOL}" | awk -F\/ '{print $1}')) == 'active' ]; then
+	if [ $(zpool list -H -o feature@encryption $(echo "${ZFS_POOL}" | awk -F\/ '{print $1}')) = 'active' ]; then
 		# if the root dataset has encryption enabled
 		ENCRYPTIONROOT=$(zfs get -H -o value encryptionroot ${ZFS_DATASET})
 		if ! [ "${ENCRYPTIONROOT}" = "-" ]; then
@@ -79,4 +79,3 @@ if import_pool "${ZFS_POOL}" ; then
 fi
 
 rootok=0
-
