@@ -297,6 +297,7 @@
 #include <sys/fs/swapnode.h>
 #include <sys/zpl.h>
 #include <linux/mm_compat.h>
+#include <linux/page_compat.h>
 #endif
 #include <sys/callb.h>
 #include <sys/kstat.h>
@@ -4699,17 +4700,11 @@ arc_free_memory(void)
 	si_meminfo(&si);
 	return (ptob(si.freeram - si.freehigh));
 #else
-#ifdef ZFS_GLOBAL_NODE_PAGE_STATE
 	return (ptob(nr_free_pages() +
-	    global_node_page_state(NR_INACTIVE_FILE) +
-	    global_node_page_state(NR_INACTIVE_ANON) +
-	    global_node_page_state(NR_SLAB_RECLAIMABLE)));
-#else
-	return (ptob(nr_free_pages() +
-	    global_page_state(NR_INACTIVE_FILE) +
-	    global_page_state(NR_INACTIVE_ANON) +
-	    global_page_state(NR_SLAB_RECLAIMABLE)));
-#endif /* ZFS_GLOBAL_NODE_PAGE_STATE */
+	    nr_inactive_file_pages() +
+	    nr_inactive_anon_pages() +
+	    nr_slab_reclaimable_pages()));
+
 #endif /* CONFIG_HIGHMEM */
 #else
 	return (spa_get_random(arc_all_memory() * 20 / 100));
@@ -5121,13 +5116,7 @@ arc_evictable_memory(void)
 	 * Scale reported evictable memory in proportion to page cache, cap
 	 * at specified min/max.
 	 */
-#ifdef ZFS_GLOBAL_NODE_PAGE_STATE
-	uint64_t min = (ptob(global_node_page_state(NR_FILE_PAGES)) / 100) *
-	    zfs_arc_pc_percent;
-#else
-	uint64_t min = (ptob(global_page_state(NR_FILE_PAGES)) / 100) *
-	    zfs_arc_pc_percent;
-#endif
+	uint64_t min = (ptob(nr_file_pages()) / 100) * zfs_arc_pc_percent;
 	min = MAX(arc_c_min, MIN(arc_c_max, min));
 
 	if (arc_dirty >= min)

@@ -12,6 +12,7 @@ EXTRA_DIST = \
 	commitcheck.sh \
 	dkms.mkconf \
 	dkms.postbuild \
+	enum-extract.pl \
 	kmodtool \
 	paxcheck.sh \
 	zfs2zol-patch.sed \
