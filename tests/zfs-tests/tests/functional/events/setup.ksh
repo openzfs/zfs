@@ -28,6 +28,6 @@
 
 DISK=${DISKS%% *}
 
-zed_setup
+zed_setup all-debug.sh all-syslog.sh
 
 default_setup $DISK

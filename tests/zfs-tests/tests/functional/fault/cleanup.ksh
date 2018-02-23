@@ -31,6 +31,6 @@ verify_runnable "global"
 cleanup_devices $DISKS
 
 zed_stop
-zed_cleanup
+zed_cleanup resilver_finish-start-scrub.sh
 
 log_pass
