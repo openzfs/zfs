@@ -28,7 +28,7 @@
 
 verify_runnable "global"
 
-zed_setup
+zed_setup resilver_finish-start-scrub.sh
 zed_start
 
 # Create a scsi_debug device to be used with auto-online (if using loop devices)
