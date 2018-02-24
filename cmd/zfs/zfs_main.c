@@ -7112,6 +7112,12 @@ zfs_do_bookmark(int argc, char **argv)
 		goto usage;
 	}
 
+	if (strchr(argv[0], '@') == NULL) {
+		(void) fprintf(stderr,
+		    gettext("invalid snapshot name '%s': "
+		    "must contain a '@'\n"), argv[0]);
+		goto usage;
+	}
 	if (strchr(argv[1], '#') == NULL) {
 		(void) fprintf(stderr,
 		    gettext("invalid bookmark name '%s': "
