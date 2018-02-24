@@ -85,8 +85,8 @@ proc_copyin_string(char *kbuffer, int kbuffer_size, const char *ubuffer,
 }
 
 static int
-proc_copyout_string(char *ubuffer, int ubuffer_size,
-		    const char *kbuffer, char *append)
+proc_copyout_string(char *ubuffer, int ubuffer_size, const char *kbuffer,
+    char *append)
 {
 	/*
 	 * NB if 'append' != NULL, it's a single character to append to the
@@ -239,9 +239,11 @@ taskq_seq_show_headers(struct seq_file *f)
 #define	LHEAD_ACTIVE	4
 #define	LHEAD_SIZE	5
 
+/* BEGIN CSTYLED */
 static unsigned int spl_max_show_tasks = 512;
 module_param(spl_max_show_tasks, uint, 0644);
 MODULE_PARM_DESC(spl_max_show_tasks, "Max number of tasks shown in taskq proc");
+/* END CSTYLED */
 
 static int
 taskq_seq_show_impl(struct seq_file *f, void *p, boolean_t allflag)
@@ -719,15 +721,15 @@ spl_proc_init(void)
 		goto out;
 	}
 
-	proc_spl_taskq_all = proc_create_data("taskq-all", 0444,
-		proc_spl, &proc_taskq_all_operations, NULL);
+	proc_spl_taskq_all = proc_create_data("taskq-all", 0444, proc_spl,
+	    &proc_taskq_all_operations, NULL);
 	if (proc_spl_taskq_all == NULL) {
 		rc = -EUNATCH;
 		goto out;
 	}
 
-	proc_spl_taskq = proc_create_data("taskq", 0444,
-		proc_spl, &proc_taskq_operations, NULL);
+	proc_spl_taskq = proc_create_data("taskq", 0444, proc_spl,
+	    &proc_taskq_operations, NULL);
 	if (proc_spl_taskq == NULL) {
 		rc = -EUNATCH;
 		goto out;
@@ -739,8 +741,8 @@ spl_proc_init(void)
 		goto out;
 	}
 
-	proc_spl_kmem_slab = proc_create_data("slab", 0444,
-		proc_spl_kmem, &proc_slab_operations, NULL);
+	proc_spl_kmem_slab = proc_create_data("slab", 0444, proc_spl_kmem,
+	    &proc_slab_operations, NULL);
 	if (proc_spl_kmem_slab == NULL) {
 		rc = -EUNATCH;
 		goto out;

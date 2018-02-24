@@ -79,8 +79,7 @@ EXPORT_SYMBOL(__thread_exit);
  */
 kthread_t *
 __thread_create(caddr_t stk, size_t  stksize, thread_func_t func,
-		const char *name, void *args, size_t len, proc_t *pp,
-		int state, pri_t pri)
+    const char *name, void *args, size_t len, proc_t *pp, int state, pri_t pri)
 {
 	thread_priv_t *tp;
 	struct task_struct *tsk;

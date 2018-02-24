@@ -50,10 +50,12 @@
 char spl_version[32] = "SPL v" SPL_META_VERSION "-" SPL_META_RELEASE;
 EXPORT_SYMBOL(spl_version);
 
+/* BEGIN CSTYLED */
 unsigned long spl_hostid = 0;
 EXPORT_SYMBOL(spl_hostid);
 module_param(spl_hostid, ulong, 0644);
 MODULE_PARM_DESC(spl_hostid, "The system hostid.");
+/* END CSTYLED */
 
 proc_t p0;
 EXPORT_SYMBOL(p0);
@@ -98,7 +100,8 @@ static DEFINE_PER_CPU(uint64_t[2], spl_pseudo_entropy);
  */
 
 static inline uint64_t
-spl_rand_next(uint64_t *s) {
+spl_rand_next(uint64_t *s)
+{
 	uint64_t s1 = s[0];
 	const uint64_t s0 = s[1];
 	s[0] = s0;
@@ -108,7 +111,8 @@ spl_rand_next(uint64_t *s) {
 }
 
 static inline void
-spl_rand_jump(uint64_t *s) {
+spl_rand_jump(uint64_t *s)
+{
 	static const uint64_t JUMP[] =
 	    { 0x8a5cd789635d2dff, 0x121fd2155c472f96 };
 
@@ -184,7 +188,8 @@ EXPORT_SYMBOL(random_get_pseudo_bytes);
  * Calculate number of leading of zeros for a 64-bit value.
  */
 static int
-nlz64(uint64_t x) {
+nlz64(uint64_t x)
+{
 	register int n = 0;
 
 	if (x == 0)

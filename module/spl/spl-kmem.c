@@ -44,6 +44,7 @@
  * allocations are quickly caught.  These warnings may be disabled by setting
  * the threshold to zero.
  */
+/* BEGIN CSTYLED */
 unsigned int spl_kmem_alloc_warn = MIN(16 * PAGE_SIZE, 64 * 1024);
 module_param(spl_kmem_alloc_warn, uint, 0644);
 MODULE_PARM_DESC(spl_kmem_alloc_warn,
@@ -64,6 +65,7 @@ module_param(spl_kmem_alloc_max, uint, 0644);
 MODULE_PARM_DESC(spl_kmem_alloc_max,
 	"Maximum size in bytes for a kmem_alloc()");
 EXPORT_SYMBOL(spl_kmem_alloc_max);
+/* END CSTYLED */
 
 int
 kmem_debugging(void)
@@ -520,10 +522,11 @@ spl_kmem_fini_tracking(struct list_head *list, spinlock_t *lock)
 		printk(KERN_WARNING "%-16s %-5s %-16s %s:%s\n", "address",
 		    "size", "data", "func", "line");
 
-	list_for_each_entry(kd, list, kd_list)
+	list_for_each_entry(kd, list, kd_list) {
 		printk(KERN_WARNING "%p %-5d %-16s %s:%d\n", kd->kd_addr,
 		    (int)kd->kd_size, spl_sprintf_addr(kd, str, 17, 8),
 		    kd->kd_func, kd->kd_line);
+	}
 
 	spin_unlock_irqrestore(lock, flags);
 }

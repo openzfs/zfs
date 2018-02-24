@@ -66,6 +66,7 @@
  * because it has been shown to improve responsiveness on low memory systems.
  * This policy may be changed by setting KMC_EXPIRE_AGE or KMC_EXPIRE_MEM.
  */
+/* BEGIN CSTYLED */
 unsigned int spl_kmem_cache_expire = KMC_EXPIRE_MEM;
 EXPORT_SYMBOL(spl_kmem_cache_expire);
 module_param(spl_kmem_cache_expire, uint, 0644);
@@ -148,6 +149,7 @@ unsigned int spl_kmem_cache_kmem_threads = 4;
 module_param(spl_kmem_cache_kmem_threads, uint, 0444);
 MODULE_PARM_DESC(spl_kmem_cache_kmem_threads,
 	"Number of spl_kmem_cache threads");
+/* END CSTYLED */
 
 /*
  * Slab allocation interfaces
@@ -356,8 +358,9 @@ out:
 	if (rc) {
 		if (skc->skc_flags & KMC_OFFSLAB)
 			list_for_each_entry_safe(sko,
-			    n, &sks->sks_free_list, sko_list)
+			    n, &sks->sks_free_list, sko_list) {
 				kv_free(skc, sko->sko_addr, offslab_size);
+			}
 
 		kv_free(skc, base, skc->skc_slab_size);
 		sks = NULL;

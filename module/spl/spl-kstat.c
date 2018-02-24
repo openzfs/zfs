@@ -305,7 +305,7 @@ restart:
 			} else {
 				ASSERT(ksp->ks_ndata == 1);
 				rc = kstat_seq_show_raw(f, ksp->ks_data,
-							ksp->ks_data_size);
+				    ksp->ks_data_size);
 			}
 			break;
 		case KSTAT_TYPE_NAMED:
@@ -434,9 +434,10 @@ kstat_find_module(char *name)
 {
 	kstat_module_t *module;
 
-	list_for_each_entry(module, &kstat_module_list, ksm_module_list)
+	list_for_each_entry(module, &kstat_module_list, ksm_module_list) {
 		if (strncmp(name, module->ksm_name, KSTAT_STRLEN) == 0)
 			return (module);
+	}
 
 	return (NULL);
 }
@@ -517,9 +518,9 @@ static struct file_operations proc_kstat_operations = {
 
 void
 __kstat_set_raw_ops(kstat_t *ksp,
-		    int (*headers)(char *buf, size_t size),
-		    int (*data)(char *buf, size_t size, void *data),
-		    void *(*addr)(kstat_t *ksp, loff_t index))
+    int (*headers)(char *buf, size_t size),
+    int (*data)(char *buf, size_t size, void *data),
+    void *(*addr)(kstat_t *ksp, loff_t index))
 {
 	ksp->ks_raw_ops.headers = headers;
 	ksp->ks_raw_ops.data    = data;
@@ -628,11 +629,12 @@ kstat_detect_collision(kstat_t *ksp)
 
 	cp[0] = '\0';
 	if ((module = kstat_find_module(parent)) != NULL) {
-		list_for_each_entry(tmp, &module->ksm_kstat_list, ks_list)
+		list_for_each_entry(tmp, &module->ksm_kstat_list, ks_list) {
 			if (strncmp(tmp->ks_name, cp+1, KSTAT_STRLEN) == 0) {
 				strfree(parent);
 				return (EEXIST);
 			}
+		}
 	}
 
 	strfree(parent);
@@ -665,9 +667,10 @@ __kstat_install(kstat_t *ksp)
 	 * Only one entry by this name per-module, on failure the module
 	 * shouldn't be deleted because we know it has at least one entry.
 	 */
-	list_for_each_entry(tmp, &module->ksm_kstat_list, ks_list)
+	list_for_each_entry(tmp, &module->ksm_kstat_list, ks_list) {
 		if (strncmp(tmp->ks_name, ksp->ks_name, KSTAT_STRLEN) == 0)
 			goto out;
+	}
 
 	list_add_tail(&ksp->ks_list, &module->ksm_kstat_list);
 

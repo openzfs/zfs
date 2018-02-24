@@ -160,7 +160,7 @@ EXPORT_SYMBOL(xdrmem_create);
 static bool_t
 xdrmem_control(XDR *xdrs, int req, void *info)
 {
-	struct xdr_bytesrec *rec = (struct xdr_bytesrec *) info;
+	struct xdr_bytesrec *rec = (struct xdr_bytesrec *)info;
 
 	if (req != XDR_GET_BYTES_AVAIL)
 		return (FALSE);
@@ -236,7 +236,7 @@ xdrmem_enc_uint32(XDR *xdrs, uint32_t val)
 	if (xdrs->x_addr + sizeof (uint32_t) > xdrs->x_addr_end)
 		return (FALSE);
 
-	*((uint32_t *) xdrs->x_addr) = cpu_to_be32(val);
+	*((uint32_t *)xdrs->x_addr) = cpu_to_be32(val);
 
 	xdrs->x_addr += sizeof (uint32_t);
 
@@ -249,7 +249,7 @@ xdrmem_dec_uint32(XDR *xdrs, uint32_t *val)
 	if (xdrs->x_addr + sizeof (uint32_t) > xdrs->x_addr_end)
 		return (FALSE);
 
-	*val = be32_to_cpu(*((uint32_t *) xdrs->x_addr));
+	*val = be32_to_cpu(*((uint32_t *)xdrs->x_addr));
 
 	xdrs->x_addr += sizeof (uint32_t);
 
@@ -333,7 +333,7 @@ xdrmem_dec_uint(XDR *xdrs, unsigned *up)
 {
 	BUILD_BUG_ON(sizeof (unsigned) != 4);
 
-	return (xdrmem_dec_uint32(xdrs, (uint32_t *) up));
+	return (xdrmem_dec_uint32(xdrs, (uint32_t *)up));
 }
 
 static bool_t
@@ -359,7 +359,7 @@ xdrmem_dec_ulonglong(XDR *xdrs, u_longlong_t *ullp)
 	if (!xdrmem_dec_uint32(xdrs, &low))
 		return (FALSE);
 
-	*ullp = ((u_longlong_t) high << 32) | low;
+	*ullp = ((u_longlong_t)high << 32) | low;
 
 	return (TRUE);
 }
