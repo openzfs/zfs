@@ -1420,7 +1420,13 @@ function setup_nfs_server
 	fi
 
 	if is_linux; then
-		log_note "NFS server must started prior to running test framework."
+		#
+		# Re-synchronize /var/lib/nfs/etab with /etc/exports and
+		# /etc/exports.d./* to provide a clean test environment.
+		#
+		log_must share -r
+
+		log_note "NFS server must be started prior to running ZTS."
 		return
 	fi
 
