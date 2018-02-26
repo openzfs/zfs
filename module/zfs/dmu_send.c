@@ -2167,6 +2167,14 @@ struct receive_writer_arg {
 	uint64_t last_offset;
 	uint64_t max_object; /* highest object ID referenced in stream */
 	uint64_t bytes_read; /* bytes read when current record created */
+
+	/* Encryption parameters for the last received DRR_OBJECT_RANGE */
+	uint64_t or_firstobj;
+	uint64_t or_numslots;
+	uint8_t or_salt[ZIO_DATA_SALT_LEN];
+	uint8_t or_iv[ZIO_DATA_IV_LEN];
+	uint8_t or_mac[ZIO_DATA_MAC_LEN];
+	boolean_t or_byteorder;
 };
 
 struct objlist {
@@ -2448,7 +2456,13 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 	}
 
 	if (rwa->raw) {
-		if (drro->drr_raw_bonuslen < drro->drr_bonuslen ||
+		/*
+		 * We should have received a DRR_OBJECT_RANGE record
+		 * containing this block and stored it in rwa.
+		 */
+		if (drro->drr_object < rwa->or_firstobj ||
+		    drro->drr_object >= rwa->or_firstobj + rwa->or_numslots ||
+		    drro->drr_raw_bonuslen < drro->drr_bonuslen ||
 		    drro->drr_indblkshift > SPA_MAXBLOCKSHIFT ||
 		    drro->drr_nlevels > DN_MAX_LEVELS ||
 		    drro->drr_nblkptr > DN_MAX_NBLKPTR ||
@@ -2611,8 +2625,27 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 		return (SET_ERROR(EINVAL));
 	}
 
-	if (rwa->raw)
-		VERIFY0(dmu_object_dirty_raw(rwa->os, drro->drr_object, tx));
+	if (rwa->raw) {
+		/*
+		 * Convert the buffer associated with this range of dnodes
+		 * to a raw buffer. This ensures that it will be written out
+		 * as a raw buffer when we fill in the dnode object. Since we
+		 * are committing this tx now, it is possible for the dnode
+		 * block to end up on-disk with the incorrect MAC. Despite
+		 * this, the dataset is marked as inconsistent so no other
+		 * code paths (apart from scrubs) will attempt to read this
+		 * data. Scrubs will not be effected by this either since
+		 * scrubs only read raw data and do not attempt to check
+		 * the MAC.
+		 */
+		err = dmu_convert_mdn_block_to_raw(rwa->os, rwa->or_firstobj,
+		    rwa->or_byteorder, rwa->or_salt, rwa->or_iv, rwa->or_mac,
+		    tx);
+		if (err != 0) {
+			dmu_tx_commit(tx);
+			return (SET_ERROR(EINVAL));
+		}
+	}
 
 	dmu_object_set_checksum(rwa->os, drro->drr_object,
 	    drro->drr_checksumtype, tx);
@@ -2984,12 +3017,6 @@ static int
 receive_object_range(struct receive_writer_arg *rwa,
     struct drr_object_range *drror)
 {
-	int ret;
-	dmu_tx_t *tx;
-	dnode_t *mdn = NULL;
-	dmu_buf_t *db = NULL;
-	uint64_t offset;
-
 	/*
 	 * By default, we assume this block is in our native format
 	 * (ZFS_HOST_BYTEORDER). We then take into account whether
@@ -3019,38 +3046,18 @@ receive_object_range(struct receive_writer_arg *rwa,
 	if (drror->drr_firstobj > rwa->max_object)
 		rwa->max_object = drror->drr_firstobj;
 
-	offset = drror->drr_firstobj * sizeof (dnode_phys_t);
-	mdn = DMU_META_DNODE(rwa->os);
-
-	tx = dmu_tx_create(rwa->os);
-	ret = dmu_tx_assign(tx, TXG_WAIT);
-	if (ret != 0) {
-		dmu_tx_abort(tx);
-		return (ret);
-	}
-
-	ret = dmu_buf_hold_by_dnode(mdn, offset, FTAG, &db,
-	    DMU_READ_PREFETCH | DMU_READ_NO_DECRYPT);
-	if (ret != 0) {
-		dmu_tx_commit(tx);
-		return (ret);
-	}
-
 	/*
-	 * Convert the buffer associated with this range of dnodes to a
-	 * raw buffer. This ensures that it will be written out as a raw
-	 * buffer when we fill in the dnode objects in future records.
-	 * Since we are commiting this tx now, it is technically possible
-	 * for the dnode block to end up on-disk with the incorrect MAC.
-	 * Despite this, the dataset is marked as inconsistent so no other
-	 * code paths (apart from scrubs) will attempt to read this data.
-	 * Scrubs will not be effected by this either since scrubs only
-	 * read raw data and do not attempt to check the MAC.
+	 * The DRR_OBJECT_RANGE handling must be deferred to receive_object()
+	 * so that the encryption parameters are set with each object that is
+	 * written into that block.
 	 */
-	dmu_convert_to_raw(db, byteorder, drror->drr_salt, drror->drr_iv,
-	    drror->drr_mac, tx);
-	dmu_buf_rele(db, FTAG);
-	dmu_tx_commit(tx);
+	rwa->or_firstobj = drror->drr_firstobj;
+	rwa->or_numslots = drror->drr_numslots;
+	bcopy(drror->drr_salt, rwa->or_salt, ZIO_DATA_SALT_LEN);
+	bcopy(drror->drr_iv, rwa->or_iv, ZIO_DATA_IV_LEN);
+	bcopy(drror->drr_mac, rwa->or_mac, ZIO_DATA_MAC_LEN);
+	rwa->or_byteorder = byteorder;
+
 	return (0);
 }
 
