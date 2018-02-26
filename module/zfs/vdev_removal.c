@@ -99,6 +99,24 @@ int zfs_remove_max_copy_bytes = 64 * 1024 * 1024;
  */
 int zfs_remove_max_segment = SPA_MAXBLOCKSIZE;
 
+/*
+ * Allow a remap segment to span free chunks of at most this size. The main
+ * impact of a larger span is that we will read and write larger, more
+ * contiguous chunks, with more "unnecessary" data -- trading off bandwidth
+ * for iops.  The value here was chosen to align with
+ * zfs_vdev_read_gap_limit, which is a similar concept when doing regular
+ * reads (but there's no reason it has to be the same).
+ *
+ * Additionally, a higher span will have the following relatively minor
+ * effects:
+ *  - the mapping will be smaller, since one entry can cover more allocated
+ *    segments
+ *  - more of the fragmentation in the removing device will be preserved
+ *  - we'll do larger allocations, which may fail and fall back on smaller
+ *    allocations
+ */
+int vdev_removal_max_span = 32 * 1024;
+
 #define	VDEV_REMOVAL_ZAP_OBJS	"lzap"
 
 static void spa_vdev_remove_thread(void *arg);
@@ -710,13 +728,52 @@ vdev_mapping_sync(void *arg, dmu_tx_t *tx)
 	spa_sync_removing_state(spa, tx);
 }
 
+typedef struct vdev_copy_segment_arg {
+	spa_t *vcsa_spa;
+	dva_t *vcsa_dest_dva;
+	uint64_t vcsa_txg;
+	range_tree_t *vcsa_obsolete_segs;
+} vdev_copy_segment_arg_t;
+
+static void
+unalloc_seg(void *arg, uint64_t start, uint64_t size)
+{
+	vdev_copy_segment_arg_t *vcsa = arg;
+	spa_t *spa = vcsa->vcsa_spa;
+	blkptr_t bp = { { { {0} } } };
+
+	BP_SET_BIRTH(&bp, TXG_INITIAL, TXG_INITIAL);
+	BP_SET_LSIZE(&bp, size);
+	BP_SET_PSIZE(&bp, size);
+	BP_SET_COMPRESS(&bp, ZIO_COMPRESS_OFF);
+	BP_SET_CHECKSUM(&bp, ZIO_CHECKSUM_OFF);
+	BP_SET_TYPE(&bp, DMU_OT_NONE);
+	BP_SET_LEVEL(&bp, 0);
+	BP_SET_DEDUP(&bp, 0);
+	BP_SET_BYTEORDER(&bp, ZFS_HOST_BYTEORDER);
+
+	DVA_SET_VDEV(&bp.blk_dva[0], DVA_GET_VDEV(vcsa->vcsa_dest_dva));
+	DVA_SET_OFFSET(&bp.blk_dva[0],
+	    DVA_GET_OFFSET(vcsa->vcsa_dest_dva) + start);
+	DVA_SET_ASIZE(&bp.blk_dva[0], size);
+
+	zio_free(spa, vcsa->vcsa_txg, &bp);
+}
+
 /*
  * All reads and writes associated with a call to spa_vdev_copy_segment()
  * are done.
  */
 static void
-spa_vdev_copy_nullzio_done(zio_t *zio)
+spa_vdev_copy_segment_done(zio_t *zio)
 {
+	vdev_copy_segment_arg_t *vcsa = zio->io_private;
+
+	range_tree_vacate(vcsa->vcsa_obsolete_segs,
+	    unalloc_seg, vcsa);
+	range_tree_destroy(vcsa->vcsa_obsolete_segs);
+	kmem_free(vcsa, sizeof (*vcsa));
+
 	spa_config_exit(zio->io_spa, SCL_STATE, zio->io_spa);
 }
 
@@ -833,7 +890,8 @@ spa_vdev_copy_one_child(vdev_copy_arg_t *vca, zio_t *nzio,
  * read from the old location and write to the new location.
  */
 static int
-spa_vdev_copy_segment(vdev_t *vd, uint64_t start, uint64_t size, uint64_t txg,
+spa_vdev_copy_segment(vdev_t *vd, range_tree_t *segs,
+    uint64_t maxalloc, uint64_t txg,
     vdev_copy_arg_t *vca, zio_alloc_list_t *zal)
 {
 	metaslab_group_t *mg = vd->vdev_mg;
@@ -841,13 +899,69 @@ spa_vdev_copy_segment(vdev_t *vd, uint64_t start, uint64_t size, uint64_t txg,
 	spa_vdev_removal_t *svr = spa->spa_vdev_removal;
 	vdev_indirect_mapping_entry_t *entry;
 	dva_t dst = {{ 0 }};
+	uint64_t start = range_tree_min(segs);
 
-	ASSERT3U(size, <=, SPA_MAXBLOCKSIZE);
+	ASSERT3U(maxalloc, <=, SPA_MAXBLOCKSIZE);
+
+	uint64_t size = range_tree_span(segs);
+	if (range_tree_span(segs) > maxalloc) {
+		/*
+		 * We can't allocate all the segments.  Prefer to end
+		 * the allocation at the end of a segment, thus avoiding
+		 * additional split blocks.
+		 */
+		range_seg_t search;
+		avl_index_t where;
+		search.rs_start = start + maxalloc;
+		search.rs_end = search.rs_start;
+		range_seg_t *rs = avl_find(&segs->rt_root, &search, &where);
+		if (rs == NULL) {
+			rs = avl_nearest(&segs->rt_root, where, AVL_BEFORE);
+		} else {
+			rs = AVL_PREV(&segs->rt_root, rs);
+		}
+		if (rs != NULL) {
+			size = rs->rs_end - start;
+		} else {
+			/*
+			 * There are no segments that end before maxalloc.
+			 * I.e. the first segment is larger than maxalloc,
+			 * so we must split it.
+			 */
+			size = maxalloc;
+		}
+	}
+	ASSERT3U(size, <=, maxalloc);
 
 	int error = metaslab_alloc_dva(spa, mg->mg_class, size,
 	    &dst, 0, NULL, txg, 0, zal);
 	if (error != 0)
 		return (error);
+
+	/*
+	 * Determine the ranges that are not actually needed.  Offsets are
+	 * relative to the start of the range to be copied (i.e. relative to the
+	 * local variable "start").
+	 */
+	range_tree_t *obsolete_segs = range_tree_create(NULL, NULL);
+
+	range_seg_t *rs = avl_first(&segs->rt_root);
+	ASSERT3U(rs->rs_start, ==, start);
+	uint64_t prev_seg_end = rs->rs_end;
+	while ((rs = AVL_NEXT(&segs->rt_root, rs)) != NULL) {
+		if (rs->rs_start >= start + size) {
+			break;
+		} else {
+			range_tree_add(obsolete_segs,
+			    prev_seg_end - start,
+			    rs->rs_start - prev_seg_end);
+		}
+		prev_seg_end = rs->rs_end;
+	}
+	/* We don't end in the middle of an obsolete range */
+	ASSERT3U(start + size, <=, prev_seg_end);
+
+	range_tree_clear(segs, start, size);
 
 	/*
 	 * We can't have any padding of the allocated size, otherwise we will
@@ -860,13 +974,22 @@ spa_vdev_copy_segment(vdev_t *vd, uint64_t start, uint64_t size, uint64_t txg,
 	entry = kmem_zalloc(sizeof (vdev_indirect_mapping_entry_t), KM_SLEEP);
 	DVA_MAPPING_SET_SRC_OFFSET(&entry->vime_mapping, start);
 	entry->vime_mapping.vimep_dst = dst;
+	if (spa_feature_is_enabled(spa, SPA_FEATURE_OBSOLETE_COUNTS)) {
+		entry->vime_obsolete_count = range_tree_space(obsolete_segs);
+	}
+
+	vdev_copy_segment_arg_t *vcsa = kmem_zalloc(sizeof (*vcsa), KM_SLEEP);
+	vcsa->vcsa_dest_dva = &entry->vime_mapping.vimep_dst;
+	vcsa->vcsa_obsolete_segs = obsolete_segs;
+	vcsa->vcsa_spa = spa;
+	vcsa->vcsa_txg = txg;
 
 	/*
 	 * See comment before spa_vdev_copy_one_child().
 	 */
 	spa_config_enter(spa, SCL_STATE, spa, RW_READER);
 	zio_t *nzio = zio_null(spa->spa_txg_zio[txg & TXG_MASK], spa, NULL,
-	    spa_vdev_copy_nullzio_done, NULL, 0);
+	    spa_vdev_copy_segment_done, vcsa, 0);
 	vdev_t *dest_vd = vdev_lookup_top(spa, DVA_GET_VDEV(&dst));
 	if (dest_vd->vdev_ops == &vdev_mirror_ops) {
 		for (int i = 0; i < dest_vd->vdev_children; i++) {
@@ -1069,39 +1192,79 @@ spa_vdev_copy_impl(vdev_t *vd, spa_vdev_removal_t *svr, vdev_copy_arg_t *vca,
 
 	mutex_enter(&svr->svr_lock);
 
-	range_seg_t *rs = avl_first(&svr->svr_allocd_segs->rt_root);
-	if (rs == NULL) {
+	/*
+	 * Determine how big of a chunk to copy.  We can allocate up
+	 * to max_alloc bytes, and we can span up to vdev_removal_max_span
+	 * bytes of unallocated space at a time.  "segs" will track the
+	 * allocated segments that we are copying.  We may also be copying
+	 * free segments (of up to vdev_removal_max_span bytes).
+	 */
+	range_tree_t *segs = range_tree_create(NULL, NULL);
+	for (;;) {
+		range_seg_t *rs = range_tree_first(svr->svr_allocd_segs);
+
+		if (rs == NULL)
+			break;
+
+		uint64_t seg_length;
+
+		if (range_tree_is_empty(segs)) {
+			/* need to truncate the first seg based on max_alloc */
+			seg_length =
+			    MIN(rs->rs_end - rs->rs_start, *max_alloc);
+		} else {
+			if (rs->rs_start - range_tree_max(segs) >
+			    vdev_removal_max_span) {
+				/*
+				 * Including this segment would cause us to
+				 * copy a larger unneeded chunk than is allowed.
+				 */
+				break;
+			} else if (rs->rs_end - range_tree_min(segs) >
+			    *max_alloc) {
+				/*
+				 * This additional segment would extend past
+				 * max_alloc. Rather than splitting this
+				 * segment, leave it for the next mapping.
+				 */
+				break;
+			} else {
+				seg_length = rs->rs_end - rs->rs_start;
+			}
+		}
+
+		range_tree_add(segs, rs->rs_start, seg_length);
+		range_tree_remove(svr->svr_allocd_segs,
+		    rs->rs_start, seg_length);
+	}
+
+	if (range_tree_is_empty(segs)) {
 		mutex_exit(&svr->svr_lock);
+		range_tree_destroy(segs);
 		return;
 	}
-	uint64_t offset = rs->rs_start;
-	uint64_t length = MIN(rs->rs_end - rs->rs_start, *max_alloc);
-
-	range_tree_remove(svr->svr_allocd_segs, offset, length);
 
 	if (svr->svr_max_offset_to_sync[txg & TXG_MASK] == 0) {
 		dsl_sync_task_nowait(dmu_tx_pool(tx), vdev_mapping_sync,
 		    svr, 0, ZFS_SPACE_CHECK_NONE, tx);
 	}
 
-	svr->svr_max_offset_to_sync[txg & TXG_MASK] = offset + length;
+	svr->svr_max_offset_to_sync[txg & TXG_MASK] = range_tree_max(segs);
 
 	/*
 	 * Note: this is the amount of *allocated* space
 	 * that we are taking care of each txg.
 	 */
-	svr->svr_bytes_done[txg & TXG_MASK] += length;
+	svr->svr_bytes_done[txg & TXG_MASK] += range_tree_space(segs);
 
 	mutex_exit(&svr->svr_lock);
 
 	zio_alloc_list_t zal;
 	metaslab_trace_init(&zal);
-	uint64_t thismax = *max_alloc;
-	while (length > 0) {
-		uint64_t mylen = MIN(length, thismax);
-
+	uint64_t thismax = SPA_MAXBLOCKSIZE;
+	while (!range_tree_is_empty(segs)) {
 		int error = spa_vdev_copy_segment(vd,
-		    offset, mylen, txg, vca, &zal);
+		    segs, thismax, txg, vca, &zal);
 
 		if (error == ENOSPC) {
 			/*
@@ -1115,18 +1278,17 @@ spa_vdev_copy_impl(vdev_t *vd, spa_vdev_removal_t *svr, vdev_copy_arg_t *vca,
 			 */
 			ASSERT3U(spa->spa_max_ashift, >=, SPA_MINBLOCKSHIFT);
 			ASSERT3U(spa->spa_max_ashift, ==, spa->spa_min_ashift);
-			thismax = P2ROUNDUP(mylen / 2,
+			uint64_t attempted =
+			    MIN(range_tree_span(segs), thismax);
+			thismax = P2ROUNDUP(attempted / 2,
 			    1 << spa->spa_max_ashift);
-			ASSERT3U(thismax, <, mylen);
 			/*
 			 * The minimum-size allocation can not fail.
 			 */
-			ASSERT3U(mylen, >, 1 << spa->spa_max_ashift);
-			*max_alloc = mylen - (1 << spa->spa_max_ashift);
+			ASSERT3U(attempted, >, 1 << spa->spa_max_ashift);
+			*max_alloc = attempted - (1 << spa->spa_max_ashift);
 		} else {
 			ASSERT0(error);
-			length -= mylen;
-			offset += mylen;
 
 			/*
 			 * We've performed an allocation, so reset the
@@ -1137,6 +1299,7 @@ spa_vdev_copy_impl(vdev_t *vd, spa_vdev_removal_t *svr, vdev_copy_arg_t *vca,
 		}
 	}
 	metaslab_trace_fini(&zal);
+	range_tree_destroy(segs);
 }
 
 /*
@@ -1943,6 +2106,10 @@ spa_removal_get_stats(spa_t *spa, pool_removal_stat_t *prs)
 module_param(zfs_remove_max_segment, int, 0644);
 MODULE_PARM_DESC(zfs_remove_max_segment,
 	"Largest contiguous segment to allocate when removing device");
+
+module_param(vdev_removal_max_span, int, 0644);
+MODULE_PARM_DESC(vdev_removal_max_span,
+	"Largest span of free chunks a remap segment can span");
 
 EXPORT_SYMBOL(free_from_removing_vdev);
 EXPORT_SYMBOL(spa_removal_get_stats);

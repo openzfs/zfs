@@ -86,6 +86,9 @@ extern void spa_vdev_remove_suspend(spa_t *);
 extern int spa_vdev_remove_cancel(spa_t *);
 extern void spa_vdev_removal_destroy(spa_vdev_removal_t *svr);
 
+extern int vdev_removal_max_span;
+extern int zfs_remove_max_segment;
+
 #ifdef	__cplusplus
 }
 #endif
