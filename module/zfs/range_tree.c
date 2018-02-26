@@ -491,7 +491,6 @@ range_tree_resize_segment(range_tree_t *rt, range_seg_t *rs,
 static range_seg_t *
 range_tree_find_impl(range_tree_t *rt, uint64_t start, uint64_t size)
 {
-	avl_index_t where;
 	range_seg_t rsearch;
 	uint64_t end = start + size;
 
@@ -499,7 +498,7 @@ range_tree_find_impl(range_tree_t *rt, uint64_t start, uint64_t size)
 
 	rsearch.rs_start = start;
 	rsearch.rs_end = end;
-	return (avl_find(&rt->rt_root, &rsearch, &where));
+	return (avl_find(&rt->rt_root, &rsearch, NULL));
 }
 
 range_seg_t *
@@ -599,6 +598,13 @@ range_tree_space(range_tree_t *rt)
 	return (rt->rt_space);
 }
 
+boolean_t
+range_tree_is_empty(range_tree_t *rt)
+{
+	ASSERT(rt != NULL);
+	return (range_tree_space(rt) == 0);
+}
+
 /* Generic range tree functions for maintaining segments in an AVL tree. */
 void
 rt_avl_create(range_tree_t *rt, void *arg)
@@ -642,4 +648,24 @@ rt_avl_vacate(range_tree_t *rt, void *arg)
 	 * will be freed by the range tree, so we don't want to free them here.
 	 */
 	rt_avl_create(rt, arg);
+}
+
+uint64_t
+range_tree_min(range_tree_t *rt)
+{
+	range_seg_t *rs = avl_first(&rt->rt_root);
+	return (rs != NULL ? rs->rs_start : 0);
+}
+
+uint64_t
+range_tree_max(range_tree_t *rt)
+{
+	range_seg_t *rs = avl_last(&rt->rt_root);
+	return (rs != NULL ? rs->rs_end : 0);
+}
+
+uint64_t
+range_tree_span(range_tree_t *rt)
+{
+	return (range_tree_max(rt) - range_tree_min(rt));
 }

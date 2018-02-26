@@ -171,7 +171,7 @@
  * object.
  */
 
-boolean_t zfs_condense_indirect_vdevs_enable = B_TRUE;
+int zfs_condense_indirect_vdevs_enable = B_TRUE;
 
 /*
  * Condense if at least this percent of the bytes in the mapping is
@@ -188,7 +188,7 @@ int zfs_indirect_condense_obsolete_pct = 25;
  * consumed by the obsolete space map; the default of 1GB is small enough
  * that we typically don't mind "wasting" it.
  */
-uint64_t zfs_condense_max_obsolete_bytes = 1024 * 1024 * 1024;
+unsigned long zfs_condense_max_obsolete_bytes = 1024 * 1024 * 1024;
 
 /*
  * Don't bother condensing if the mapping uses less than this amount of
@@ -1700,10 +1700,19 @@ EXPORT_SYMBOL(vdev_indirect_sync_obsolete);
 EXPORT_SYMBOL(vdev_obsolete_counts_are_precise);
 EXPORT_SYMBOL(vdev_obsolete_sm_object);
 
+module_param(zfs_condense_indirect_vdevs_enable, int, 0644);
+MODULE_PARM_DESC(zfs_condense_indirect_vdevs_enable,
+	"Whether to attempt condensing indirect vdev mappings");
+
 /* CSTYLED */
 module_param(zfs_condense_min_mapping_bytes, ulong, 0644);
 MODULE_PARM_DESC(zfs_condense_min_mapping_bytes,
 	"Minimum size of vdev mapping to condense");
+
+/* CSTYLED */
+module_param(zfs_condense_max_obsolete_bytes, ulong, 0644);
+MODULE_PARM_DESC(zfs_condense_max_obsolete_bytes,
+	"Minimum size obsolete spacemap to attempt condensing");
 
 module_param(zfs_condense_indirect_commit_entry_delay_ms, int, 0644);
 MODULE_PARM_DESC(zfs_condense_indirect_commit_entry_delay_ms,
