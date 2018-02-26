@@ -60,7 +60,7 @@ prepare $DNAME "cp $BNAME $TESTDIR/cp$$.cp"
 (( $? != 0 )) && log_fail "Unable to create src archive"
 
 migrate $TESTDIR $SUMA $SUMB "cp $TESTDIR/cp$$.cp $BNAME"
-(( $? != 0 )) && log_fail "Uable to successfully migrate test file from" \
+(( $? != 0 )) && log_fail "Unable to successfully migrate test file from" \
     "ZFS fs to ZFS fs"
 
-log_pass "Successully migrated test file from ZFS fs to ZFS fs".
+log_pass "Successfully migrated test file from ZFS fs to ZFS fs".
