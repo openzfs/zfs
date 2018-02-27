@@ -93,11 +93,10 @@ function mmp_clear_hostid
 	rm -f $HOSTID_FILE
 }
 
-function mmp_pool_create # pool dir
+function mmp_pool_create_simple # pool dir
 {
 	typeset pool=${1:-$MMP_POOL}
 	typeset dir=${2:-$MMP_DIR}
-	typeset opts="-VVVVV -T120 -M -k0 -f $dir -E -p $pool"
 
 	log_must mkdir -p $dir
 	log_must rm -f $dir/*
@@ -108,6 +107,16 @@ function mmp_pool_create # pool dir
 	log_must zpool create -f -o cachefile=$MMP_CACHE $pool \
 	    mirror $dir/vdev1 $dir/vdev2
 	log_must zpool set multihost=on $pool
+}
+
+function mmp_pool_create # pool dir
+{
+	typeset pool=${1:-$MMP_POOL}
+	typeset dir=${2:-$MMP_DIR}
+	typeset opts="-VVVVV -T120 -M -k0 -f $dir -E -p $pool"
+
+	mmp_pool_create_simple $pool $dir
+
 	log_must mv $MMP_CACHE ${MMP_CACHE}.stale
 	log_must zpool export $pool
 	log_must mmp_clear_hostid
@@ -192,12 +201,22 @@ function clear_mmp_history
 	log_must set_tunable64 zfs_multihost_history $MMP_HISTORY
 }
 
-function count_uberblocks # pool duration
+function count_skipped_mmp_writes # pool duration
 {
 	typeset pool=$1
 	typeset -i duration=$2
 	typeset hist_path="/proc/spl/kstat/zfs/$pool/multihost"
 
 	sleep $duration
-	echo $(cat "$hist_path" | sed '1,2d' | wc -l)
+	awk 'BEGIN {count=0}; $NF == "-" {count++}; END {print count};' "$hist_path"
+}
+
+function count_mmp_writes # pool duration
+{
+	typeset pool=$1
+	typeset -i duration=$2
+	typeset hist_path="/proc/spl/kstat/zfs/$pool/multihost"
+
+	sleep $duration
+	awk 'BEGIN {count=0}; $NF != "-" {count++}; END {print count};' "$hist_path"
 }
