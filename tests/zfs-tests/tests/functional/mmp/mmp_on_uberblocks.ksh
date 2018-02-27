@@ -58,7 +58,7 @@ log_must mmp_set_hostid $HOSTID1
 default_setup_noexit "$DISKS"
 log_must zpool set multihost=on $TESTPOOL
 clear_mmp_history
-UBER_CHANGES=$(count_uberblocks $TESTPOOL 10)
+UBER_CHANGES=$(count_mmp_writes $TESTPOOL 10)
 
 log_note "Uberblock changed $UBER_CHANGES times"
 
