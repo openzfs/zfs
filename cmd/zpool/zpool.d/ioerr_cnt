@@ -1,0 +1,11 @@
+#!/bin/sh
+if [ "$1" = "-h" ] ; then
+	echo "Show block IO error count (/sys/block/<dev>/device/ioerr_cnt in decimal)"
+	exit
+fi
+dev=$(basename "$VDEV_UPATH")
+if [ -e /sys/block/"$dev"/device/ioerr_cnt ] ; then
+	# Get value and convert it from hex
+	ioerr=$(printf %d "$(cat /sys/block/"$dev"/device/ioerr_cnt)")
+	echo ioerr_cnt="$ioerr"
+fi
