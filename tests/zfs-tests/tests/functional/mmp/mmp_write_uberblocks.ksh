@@ -49,7 +49,7 @@ default_mirror_setup_noexit $DISKS
 log_must zpool set multihost=on $TESTPOOL
 log_must zinject -d ${DISK[0]} -e io -T write -f 50 $TESTPOOL -L uber
 clear_mmp_history
-uber_count=$(count_uberblocks $TESTPOOL 3)
+uber_count=$(count_mmp_writes $TESTPOOL 3)
 
 if [ $uber_count -eq 0 ]; then
 	log_fail "mmp writes did not occur when uberblock IO errors injected"
