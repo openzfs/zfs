@@ -1542,29 +1542,39 @@ dmu_return_arcbuf(arc_buf_t *buf)
 	arc_buf_destroy(buf, FTAG);
 }
 
-void
-dmu_convert_to_raw(dmu_buf_t *handle, boolean_t byteorder, const uint8_t *salt,
-    const uint8_t *iv, const uint8_t *mac, dmu_tx_t *tx)
+int
+dmu_convert_mdn_block_to_raw(objset_t *os, uint64_t firstobj,
+    boolean_t byteorder, const uint8_t *salt, const uint8_t *iv,
+    const uint8_t *mac, dmu_tx_t *tx)
 {
-	dmu_object_type_t type;
-	dmu_buf_impl_t *db = (dmu_buf_impl_t *)handle;
-	uint64_t dsobj = dmu_objset_id(db->db_objset);
+	int ret;
+	dmu_buf_t *handle = NULL;
+	dmu_buf_impl_t *db = NULL;
+	uint64_t offset = firstobj * DNODE_MIN_SIZE;
+	uint64_t dsobj = dmu_objset_id(os);
 
-	ASSERT3P(db->db_buf, !=, NULL);
-	ASSERT3U(dsobj, !=, 0);
+	ret = dmu_buf_hold_by_dnode(DMU_META_DNODE(os), offset, FTAG, &handle,
+	    DMU_READ_PREFETCH | DMU_READ_NO_DECRYPT);
+	if (ret != 0)
+		return (ret);
 
 	dmu_buf_will_change_crypt_params(handle, tx);
 
-	DB_DNODE_ENTER(db);
-	type = DB_DNODE(db)->dn_type;
-	DB_DNODE_EXIT(db);
+	db = (dmu_buf_impl_t *)handle;
+	ASSERT3P(db->db_buf, !=, NULL);
+	ASSERT3U(dsobj, !=, 0);
 
 	/*
 	 * This technically violates the assumption the dmu code makes
 	 * that dnode blocks are only released in syncing context.
 	 */
 	(void) arc_release(db->db_buf, db);
-	arc_convert_to_raw(db->db_buf, dsobj, byteorder, type, salt, iv, mac);
+	arc_convert_to_raw(db->db_buf, dsobj, byteorder, DMU_OT_DNODE,
+	    salt, iv, mac);
+
+	dmu_buf_rele(handle, FTAG);
+
+	return (0);
 }
 
 void

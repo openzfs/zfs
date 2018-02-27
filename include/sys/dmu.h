@@ -821,8 +821,9 @@ void dmu_assign_arcbuf_by_dnode(dnode_t *dn, uint64_t offset,
 void dmu_assign_arcbuf_by_dbuf(dmu_buf_t *handle, uint64_t offset,
     struct arc_buf *buf, dmu_tx_t *tx);
 #define	dmu_assign_arcbuf	dmu_assign_arcbuf_by_dbuf
-void dmu_convert_to_raw(dmu_buf_t *handle, boolean_t byteorder,
-    const uint8_t *salt, const uint8_t *iv, const uint8_t *mac, dmu_tx_t *tx);
+int dmu_convert_mdn_block_to_raw(objset_t *os, uint64_t firstobj,
+    boolean_t byteorder, const uint8_t *salt, const uint8_t *iv,
+    const uint8_t *mac, dmu_tx_t *tx);
 void dmu_copy_from_buf(objset_t *os, uint64_t object, uint64_t offset,
     dmu_buf_t *handle, dmu_tx_t *tx);
 #ifdef HAVE_UIO_ZEROCOPY
