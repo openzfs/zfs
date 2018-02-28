@@ -478,7 +478,7 @@ destroy_fs()
 		echo "Message: $ZFS_STDERR"
 		echo "Error: $ZFS_ERROR"
 		echo ""
-		echo "Failed to destroy '$fs'. Please make sure that '$fs' is not availible."
+		echo "Failed to destroy '$fs'. Please make sure that '$fs' is not available."
 		echo "Hint: Try:  zfs destroy -Rfn $fs"
 		echo "If this dryrun looks good, then remove the 'n' from '-Rfn' and try again."
 		/bin/sh
