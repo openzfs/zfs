@@ -756,6 +756,19 @@ Use \fB1\fR for yes (default) and \fB0\fR for no.
 .sp
 .ne 2
 .na
+\fBzfs_checksums_per_second\fR (int)
+.ad
+.RS 12n
+Rate limit checksum events to this many per second.  Note that this should
+not be set below the zed thresholds (currently 10 checksums over 10 sec)
+or else zed may not trigger any action.
+.sp
+Default value: 20
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_commit_timeout_pct\fR (int)
 .ad
 .RS 12n
@@ -927,6 +940,17 @@ See the section "ZFS TRANSACTION DELAY".
 Note: \fBzfs_delay_scale\fR * \fBzfs_dirty_data_max\fR must be < 2^64.
 .sp
 Default value: \fB500,000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_delays_per_second\fR (int)
+.ad
+.RS 12n
+Rate limit IO delay events to this many per second.
+.sp
+Default value: 20
 .RE
 
 .sp

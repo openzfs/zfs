@@ -57,6 +57,16 @@
 int metaslabs_per_vdev = 200;
 
 /*
+ * Rate limit delay events to this many IO delays per second.
+ */
+unsigned int zfs_delays_per_second = 20;
+
+/*
+ * Rate limit checksum events after this many checksum errors per second.
+ */
+unsigned int zfs_checksums_per_second = 20;
+
+/*
  * Virtual device management.
  */
 
@@ -351,8 +361,8 @@ vdev_alloc_common(spa_t *spa, uint_t id, uint64_t guid, vdev_ops_t *ops)
 	 * and checksum events so that we don't overwhelm ZED with thousands
 	 * of events when a disk is acting up.
 	 */
-	zfs_ratelimit_init(&vd->vdev_delay_rl, DELAYS_PER_SECOND, 1);
-	zfs_ratelimit_init(&vd->vdev_checksum_rl, CHECKSUMS_PER_SECOND, 1);
+	zfs_ratelimit_init(&vd->vdev_delay_rl, &zfs_delays_per_second, 1);
+	zfs_ratelimit_init(&vd->vdev_checksum_rl, &zfs_checksums_per_second, 1);
 
 	list_link_init(&vd->vdev_config_dirty_node);
 	list_link_init(&vd->vdev_state_dirty_node);
@@ -3752,5 +3762,14 @@ module_param(metaslabs_per_vdev, int, 0644);
 MODULE_PARM_DESC(metaslabs_per_vdev,
 	"Divide added vdev into approximately (but no more than) this number "
 	"of metaslabs");
+
+module_param(zfs_delays_per_second, uint, 0644);
+MODULE_PARM_DESC(zfs_delays_per_second, "Rate limit delay events to this many "
+	"IO delays per second");
+
+module_param(zfs_checksums_per_second, uint, 0644);
+	MODULE_PARM_DESC(zfs_checksums_per_second, "Rate limit checksum events "
+	"to this many checksum errors per second (do not set below zed"
+	"threshold).");
 /* END CSTYLED */
 #endif
