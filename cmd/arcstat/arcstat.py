@@ -280,7 +280,7 @@ def init():
                 "outfile",
                 "help",
                 "verbose",
-                "seperator",
+                "separator",
                 "columns"
             ]
         )
@@ -299,7 +299,7 @@ def init():
             hflag = True
         if opt in ('-v', '--verbose'):
             vflag = True
-        if opt in ('-s', '--seperator'):
+        if opt in ('-s', '--separator'):
             sep = arg
             i += 1
         if opt in ('-f', '--columns'):
