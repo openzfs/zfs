@@ -108,16 +108,6 @@ function init_setup
 
 }
 
-function wait_pid
-{
-	for pid in $1
-	do
-		ps -e | grep $pid >/dev/null 2>&1
-		(( $? == 0 )) && wait $pid
-        done
-}
-
-
 #
 # Generate given number files in a
 # directory of zfs file system
@@ -141,18 +131,17 @@ function generate_files
                 cp /etc/passwd $1/file_$count \
                          > /dev/null 2>&1 &
 
-                PIDS="$PIDS $!"
+                (( proc_num = proc_num + 1 ))
 
-                proc_num=`echo $PIDS | wc -w`
                 if (( proc_num >= GANGPIDS )); then
-                        wait_pid "$PIDS"
+                        wait
                         proc_num=0
-                        PIDS=""
                 fi
 
                (( count = count + 1 ))
         done
 
+        wait
 }
 
 #
