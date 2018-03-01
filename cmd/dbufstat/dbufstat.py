@@ -31,10 +31,11 @@
 import sys
 import getopt
 import errno
+import re
 
 bhdr = ["pool", "objset", "object", "level", "blkid", "offset", "dbsize"]
 bxhdr = ["pool", "objset", "object", "level", "blkid", "offset", "dbsize",
-         "meta", "state", "dbholds", "list", "atype", "flags",
+         "meta", "state", "dbholds", "dbc", "list", "atype", "flags",
          "count", "asize", "access", "mru", "gmru", "mfu", "gmfu", "l2",
          "l2_dattr", "l2_asize", "l2_comp", "aholds", "dtype", "btype",
          "data_bs", "meta_bs", "bsize", "lvls", "dholds", "blocks", "dsize"]
@@ -45,7 +46,7 @@ dxhdr = ["pool", "objset", "object", "dtype", "btype", "data_bs", "meta_bs",
          "bsize", "lvls", "dholds", "blocks", "dsize", "cached", "direct",
          "indirect", "bonus", "spill"]
 dincompat = ["level", "blkid", "offset", "dbsize", "meta", "state", "dbholds",
-             "list", "atype", "flags", "count", "asize", "access",
+             "dbc", "list", "atype", "flags", "count", "asize", "access",
              "mru", "gmru", "mfu", "gmfu", "l2", "l2_dattr", "l2_asize",
              "l2_comp", "aholds"]
 
@@ -53,7 +54,7 @@ thdr = ["pool", "objset", "dtype", "cached"]
 txhdr = ["pool", "objset", "dtype", "cached", "direct", "indirect",
          "bonus", "spill"]
 tincompat = ["object", "level", "blkid", "offset", "dbsize", "meta", "state",
-             "dbholds", "list", "atype", "flags", "count", "asize",
+             "dbc", "dbholds", "list", "atype", "flags", "count", "asize",
              "access", "mru", "gmru", "mfu", "gmfu", "l2", "l2_dattr",
              "l2_asize", "l2_comp", "aholds", "btype", "data_bs", "meta_bs",
              "bsize", "lvls", "dholds", "blocks", "dsize"]
@@ -70,9 +71,10 @@ cols = {
     "meta":       [4,    -1, "is this buffer metadata?"],
     "state":      [5,    -1, "state of buffer (read, cached, etc)"],
     "dbholds":    [7,  1000, "number of holds on buffer"],
+    "dbc":        [3,    -1, "in dbuf cache"],
     "list":       [4,    -1, "which ARC list contains this buffer"],
     "atype":      [7,    -1, "ARC header type (data or metadata)"],
-    "flags":      [8,    -1, "ARC read flags"],
+    "flags":      [9,    -1, "ARC read flags"],
     "count":      [5,    -1, "ARC data count"],
     "asize":      [7,  1024, "size of this ARC buffer"],
     "access":     [10,   -1, "time this ARC buffer was last accessed"],
@@ -104,8 +106,8 @@ cols = {
 hdr = None
 xhdr = None
 sep = "  "  # Default separator is 2 spaces
-cmd = ("Usage: dbufstat.py [-bdhrtvx] [-i file] [-f fields] [-o file] "
-       "[-s string]\n")
+cmd = ("Usage: dbufstat.py [-bdhnrtvx] [-i file] [-f fields] [-o file] "
+       "[-s string] [-F filter]\n")
 raw = 0
 
 
@@ -151,6 +153,7 @@ def usage():
     sys.stderr.write("\t -b : Print table of information for each dbuf\n")
     sys.stderr.write("\t -d : Print table of information for each dnode\n")
     sys.stderr.write("\t -h : Print this help message\n")
+    sys.stderr.write("\t -n : Exclude header from output\n")
     sys.stderr.write("\t -r : Print raw values\n")
     sys.stderr.write("\t -t : Print table of information for each dnode type"
                      "\n")
@@ -162,11 +165,13 @@ def usage():
     sys.stderr.write("\t -o : Redirect output to the specified file\n")
     sys.stderr.write("\t -s : Override default field separator with custom "
                      "character or string\n")
+    sys.stderr.write("\t -F : Filter output by value or regex\n")
     sys.stderr.write("\nExamples:\n")
     sys.stderr.write("\tdbufstat.py -d -o /tmp/d.log\n")
     sys.stderr.write("\tdbufstat.py -t -s \",\" -o /tmp/t.log\n")
     sys.stderr.write("\tdbufstat.py -v\n")
     sys.stderr.write("\tdbufstat.py -d -f pool,object,objset,dsize,cached\n")
+    sys.stderr.write("\tdbufstat.py -bx -F dbc=1,objset=54,pool=testpool\n")
     sys.stderr.write("\n")
 
     sys.exit(1)
@@ -409,12 +414,32 @@ def update_dict(d, k, line, labels):
     return d
 
 
-def print_dict(d):
-    print_header()
+def skip_line(vals, filters):
+    '''
+    Determines if a line should be skipped during printing
+    based on a set of filters
+    '''
+    if len(filters) == 0:
+        return False
+
+    for key in vals:
+        if key in filters:
+            val = prettynum(cols[key][0], cols[key][1], vals[key]).strip()
+            # we want a full match here
+            if re.match("(?:" + filters[key] + r")\Z", val) is None:
+                return True
+
+    return False
+
+
+def print_dict(d, filters, noheader):
+    if not noheader:
+        print_header()
     for pool in list(d.keys()):
         for objset in list(d[pool].keys()):
             for v in list(d[pool][objset].values()):
-                print_values(v)
+                if not skip_line(v, filters):
+                    print_values(v)
 
 
 def dnodes_build_dict(filehandle):
@@ -455,7 +480,7 @@ def types_build_dict(filehandle):
     return types
 
 
-def buffers_print_all(filehandle):
+def buffers_print_all(filehandle, filters, noheader):
     labels = dict()
 
     # First 3 lines are header information, skip the first two
@@ -466,11 +491,14 @@ def buffers_print_all(filehandle):
     for i, v in enumerate(next(filehandle).split()):
         labels[v] = i
 
-    print_header()
+    if not noheader:
+        print_header()
 
     # The rest of the file is buffer information
     for line in filehandle:
-        print_values(parse_line(line.split(), labels))
+        vals = parse_line(line.split(), labels)
+        if not skip_line(vals, filters):
+            print_values(vals)
 
 
 def main():
@@ -487,11 +515,13 @@ def main():
     tflag = False
     vflag = False
     xflag = False
+    nflag = False
+    filters = dict()
 
     try:
         opts, args = getopt.getopt(
             sys.argv[1:],
-            "bdf:hi:o:rs:tvx",
+            "bdf:hi:o:rs:tvxF:n",
             [
                 "buffers",
                 "dnodes",
@@ -499,10 +529,11 @@ def main():
                 "help",
                 "infile",
                 "outfile",
-                "seperator",
+                "separator",
                 "types",
                 "verbose",
-                "extended"
+                "extended",
+                "filter"
             ]
         )
     except getopt.error:
@@ -524,7 +555,7 @@ def main():
             ofile = arg
         if opt in ('-r', '--raw'):
             raw += 1
-        if opt in ('-s', '--seperator'):
+        if opt in ('-s', '--separator'):
             sep = arg
         if opt in ('-t', '--types'):
             tflag = True
@@ -532,6 +563,35 @@ def main():
             vflag = True
         if opt in ('-x', '--extended'):
             xflag = True
+        if opt in ('-n', '--noheader'):
+            nflag = True
+        if opt in ('-F', '--filter'):
+            fils = [x.strip() for x in arg.split(",")]
+
+            for fil in fils:
+                f = [x.strip() for x in fil.split("=")]
+
+                if len(f) != 2:
+                    sys.stderr.write("Invalid filter '%s'.\n" % fil)
+                    sys.exit(1)
+
+                if f[0] not in cols:
+                    sys.stderr.write("Invalid field '%s' in filter.\n" % f[0])
+                    sys.exit(1)
+
+                if f[0] in filters:
+                    sys.stderr.write("Field '%s' specified multiple times in "
+                                     "filter.\n" % f[0])
+                    sys.exit(1)
+
+                try:
+                    re.compile("(?:" + f[1] + r")\Z")
+                except re.error:
+                    sys.stderr.write("Invalid regex for field '%s' in "
+                                     "filter.\n" % f[0])
+                    sys.exit(1)
+
+                filters[f[0]] = f[1]
 
     if hflag or (xflag and desired_cols):
         usage()
@@ -594,13 +654,13 @@ def main():
             sys.exit(1)
 
     if bflag:
-        buffers_print_all(sys.stdin)
+        buffers_print_all(sys.stdin, filters, nflag)
 
     if dflag:
-        print_dict(dnodes_build_dict(sys.stdin))
+        print_dict(dnodes_build_dict(sys.stdin), filters, nflag)
 
     if tflag:
-        print_dict(types_build_dict(sys.stdin))
+        print_dict(types_build_dict(sys.stdin), filters, nflag)
 
 
 if __name__ == '__main__':

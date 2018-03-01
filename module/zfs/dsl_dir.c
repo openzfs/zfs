@@ -37,6 +37,7 @@
 #include <sys/dsl_deleg.h>
 #include <sys/dmu_impl.h>
 #include <sys/spa.h>
+#include <sys/spa_impl.h>
 #include <sys/metaslab.h>
 #include <sys/zap.h>
 #include <sys/zio.h>
@@ -187,6 +188,12 @@ dsl_dir_hold_obj(dsl_pool_t *dp, uint64_t ddobj,
 			VERIFY0(zap_lookup(dp->dp_meta_objset,
 			    ddobj, DD_FIELD_CRYPTO_KEY_OBJ,
 			    sizeof (uint64_t), 1, &dd->dd_crypto_obj));
+
+			/* check for on-disk format errata */
+			if (dsl_dir_incompatible_encryption_version(dd)) {
+				dp->dp_spa->spa_errata =
+				    ZPOOL_ERRATA_ZOL_6845_ENCRYPTION;
+			}
 		}
 
 		mutex_init(&dd->dd_lock, NULL, MUTEX_DEFAULT, NULL);
@@ -940,62 +947,139 @@ dsl_dir_is_clone(dsl_dir_t *dd)
 	    dd->dd_pool->dp_origin_snap->ds_object));
 }
 
+
+uint64_t
+dsl_dir_get_used(dsl_dir_t *dd)
+{
+	return (dsl_dir_phys(dd)->dd_used_bytes);
+}
+
+uint64_t
+dsl_dir_get_quota(dsl_dir_t *dd)
+{
+	return (dsl_dir_phys(dd)->dd_quota);
+}
+
+uint64_t
+dsl_dir_get_reservation(dsl_dir_t *dd)
+{
+	return (dsl_dir_phys(dd)->dd_reserved);
+}
+
+uint64_t
+dsl_dir_get_compressratio(dsl_dir_t *dd)
+{
+	/* a fixed point number, 100x the ratio */
+	return (dsl_dir_phys(dd)->dd_compressed_bytes == 0 ? 100 :
+	    (dsl_dir_phys(dd)->dd_uncompressed_bytes * 100 /
+	    dsl_dir_phys(dd)->dd_compressed_bytes));
+}
+
+uint64_t
+dsl_dir_get_logicalused(dsl_dir_t *dd)
+{
+	return (dsl_dir_phys(dd)->dd_uncompressed_bytes);
+}
+
+uint64_t
+dsl_dir_get_usedsnap(dsl_dir_t *dd)
+{
+	return (dsl_dir_phys(dd)->dd_used_breakdown[DD_USED_SNAP]);
+}
+
+uint64_t
+dsl_dir_get_usedds(dsl_dir_t *dd)
+{
+	return (dsl_dir_phys(dd)->dd_used_breakdown[DD_USED_HEAD]);
+}
+
+uint64_t
+dsl_dir_get_usedrefreserv(dsl_dir_t *dd)
+{
+	return (dsl_dir_phys(dd)->dd_used_breakdown[DD_USED_REFRSRV]);
+}
+
+uint64_t
+dsl_dir_get_usedchild(dsl_dir_t *dd)
+{
+	return (dsl_dir_phys(dd)->dd_used_breakdown[DD_USED_CHILD] +
+	    dsl_dir_phys(dd)->dd_used_breakdown[DD_USED_CHILD_RSRV]);
+}
+
+void
+dsl_dir_get_origin(dsl_dir_t *dd, char *buf)
+{
+	dsl_dataset_t *ds;
+	VERIFY0(dsl_dataset_hold_obj(dd->dd_pool,
+	    dsl_dir_phys(dd)->dd_origin_obj, FTAG, &ds));
+
+	dsl_dataset_name(ds, buf);
+
+	dsl_dataset_rele(ds, FTAG);
+}
+
+int
+dsl_dir_get_filesystem_count(dsl_dir_t *dd, uint64_t *count)
+{
+	if (dsl_dir_is_zapified(dd)) {
+		objset_t *os = dd->dd_pool->dp_meta_objset;
+		return (zap_lookup(os, dd->dd_object, DD_FIELD_FILESYSTEM_COUNT,
+		    sizeof (*count), 1, count));
+	} else {
+		return (ENOENT);
+	}
+}
+
+int
+dsl_dir_get_snapshot_count(dsl_dir_t *dd, uint64_t *count)
+{
+	if (dsl_dir_is_zapified(dd)) {
+		objset_t *os = dd->dd_pool->dp_meta_objset;
+		return (zap_lookup(os, dd->dd_object, DD_FIELD_SNAPSHOT_COUNT,
+		    sizeof (*count), 1, count));
+	} else {
+		return (ENOENT);
+	}
+}
+
 void
 dsl_dir_stats(dsl_dir_t *dd, nvlist_t *nv)
 {
-	uint64_t intval;
-
 	mutex_enter(&dd->dd_lock);
-	dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_USED,
-	    dsl_dir_phys(dd)->dd_used_bytes);
 	dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_QUOTA,
-	    dsl_dir_phys(dd)->dd_quota);
+	    dsl_dir_get_quota(dd));
 	dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_RESERVATION,
-	    dsl_dir_phys(dd)->dd_reserved);
-	dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_COMPRESSRATIO,
-	    dsl_dir_phys(dd)->dd_compressed_bytes == 0 ? 100 :
-	    (dsl_dir_phys(dd)->dd_uncompressed_bytes * 100 /
-	    dsl_dir_phys(dd)->dd_compressed_bytes));
+	    dsl_dir_get_reservation(dd));
 	dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_LOGICALUSED,
-	    dsl_dir_phys(dd)->dd_uncompressed_bytes);
+	    dsl_dir_get_logicalused(dd));
 	if (dsl_dir_phys(dd)->dd_flags & DD_FLAG_USED_BREAKDOWN) {
 		dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_USEDSNAP,
-		    dsl_dir_phys(dd)->dd_used_breakdown[DD_USED_SNAP]);
+		    dsl_dir_get_usedsnap(dd));
 		dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_USEDDS,
-		    dsl_dir_phys(dd)->dd_used_breakdown[DD_USED_HEAD]);
+		    dsl_dir_get_usedds(dd));
 		dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_USEDREFRESERV,
-		    dsl_dir_phys(dd)->dd_used_breakdown[DD_USED_REFRSRV]);
+		    dsl_dir_get_usedrefreserv(dd));
 		dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_USEDCHILD,
-		    dsl_dir_phys(dd)->dd_used_breakdown[DD_USED_CHILD] +
-		    dsl_dir_phys(dd)->dd_used_breakdown[DD_USED_CHILD_RSRV]);
+		    dsl_dir_get_usedchild(dd));
 	}
 	mutex_exit(&dd->dd_lock);
 
-	if (dsl_dir_is_zapified(dd)) {
-		objset_t *os = dd->dd_pool->dp_meta_objset;
-
-		if (zap_lookup(os, dd->dd_object, DD_FIELD_FILESYSTEM_COUNT,
-		    sizeof (intval), 1, &intval) == 0) {
-			dsl_prop_nvlist_add_uint64(nv,
-			    ZFS_PROP_FILESYSTEM_COUNT, intval);
-		}
-		if (zap_lookup(os, dd->dd_object, DD_FIELD_SNAPSHOT_COUNT,
-		    sizeof (intval), 1, &intval) == 0) {
-			dsl_prop_nvlist_add_uint64(nv,
-			    ZFS_PROP_SNAPSHOT_COUNT, intval);
-		}
+	uint64_t count;
+	if (dsl_dir_get_filesystem_count(dd, &count) == 0) {
+		dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_FILESYSTEM_COUNT,
+		    count);
+	}
+	if (dsl_dir_get_snapshot_count(dd, &count) == 0) {
+		dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_SNAPSHOT_COUNT,
+		    count);
 	}
 
 	if (dsl_dir_is_clone(dd)) {
-		dsl_dataset_t *ds;
 		char buf[ZFS_MAX_DATASET_NAME_LEN];
-
-		VERIFY0(dsl_dataset_hold_obj(dd->dd_pool,
-		    dsl_dir_phys(dd)->dd_origin_obj, FTAG, &ds));
-		dsl_dataset_name(ds, buf);
-		dsl_dataset_rele(ds, FTAG);
+		dsl_dir_get_origin(dd, buf);
 		dsl_prop_nvlist_add_string(nv, ZFS_PROP_ORIGIN, buf);
 	}
+
 }
 
 void

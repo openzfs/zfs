@@ -78,6 +78,8 @@
 #include <sys/cred.h>
 #include <sys/attr.h>
 #include <sys/zpl.h>
+#include <sys/zil.h>
+#include <sys/sa_impl.h>
 
 /*
  * Programming rules.
@@ -129,7 +131,7 @@
  *
  *	If dmu_tx_assign() returns ERESTART and zfsvfs->z_assign is TXG_NOWAIT,
  *	then drop all locks, call dmu_tx_wait(), and try again.  On subsequent
- *	calls to dmu_tx_assign(), pass TXG_WAITED rather than TXG_NOWAIT,
+ *	calls to dmu_tx_assign(), pass TXG_NOTHROTTLE in addition to TXG_NOWAIT,
  *	to indicate that this operation has already called dmu_tx_wait().
  *	This will ensure that we don't retry forever, waiting a short bit
  *	each time.
@@ -154,7 +156,7 @@
  *	rw_enter(...);			// grab any other locks you need
  *	tx = dmu_tx_create(...);	// get DMU tx
  *	dmu_tx_hold_*();		// hold each object you might modify
- *	error = dmu_tx_assign(tx, waited ? TXG_WAITED : TXG_NOWAIT);
+ *	error = dmu_tx_assign(tx, (waited ? TXG_NOTHROTTLE : 0) | TXG_NOWAIT);
  *	if (error) {
  *		rw_exit(...);		// drop locks
  *		zfs_dirent_unlock(dl);	// unlock directory entry
@@ -727,8 +729,13 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 	while (n > 0) {
 		abuf = NULL;
 		woff = uio->uio_loffset;
-		if (zfs_owner_overquota(zfsvfs, zp, B_FALSE) ||
-		    zfs_owner_overquota(zfsvfs, zp, B_TRUE)) {
+		if (zfs_id_overblockquota(zfsvfs, DMU_USERUSED_OBJECT,
+		    KUID_TO_SUID(ip->i_uid)) ||
+		    zfs_id_overblockquota(zfsvfs, DMU_GROUPUSED_OBJECT,
+		    KGID_TO_SGID(ip->i_gid)) ||
+		    (zp->z_projid != ZFS_DEFAULT_PROJID &&
+		    zfs_id_overblockquota(zfsvfs, DMU_PROJECTUSED_OBJECT,
+		    zp->z_projid))) {
 			if (abuf != NULL)
 				dmu_return_arcbuf(abuf);
 			error = SET_ERROR(EDQUOT);
@@ -983,7 +990,7 @@ zfs_get_done(zgd_t *zgd, int error)
 	zfs_iput_async(ZTOI(zp));
 
 	if (error == 0 && zgd->zgd_bp)
-		zil_add_block(zgd->zgd_zilog, zgd->zgd_bp);
+		zil_lwb_add_block(zgd->zgd_lwb, zgd->zgd_bp);
 
 	kmem_free(zgd, sizeof (zgd_t));
 }
@@ -996,7 +1003,7 @@ static int zil_fault_io = 0;
  * Get data to generate a TX_WRITE intent log record.
  */
 int
-zfs_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
+zfs_get_data(void *arg, lr_write_t *lr, char *buf, struct lwb *lwb, zio_t *zio)
 {
 	zfsvfs_t *zfsvfs = arg;
 	objset_t *os = zfsvfs->z_os;
@@ -1008,8 +1015,9 @@ zfs_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
 	zgd_t *zgd;
 	int error = 0;
 
-	ASSERT(zio != NULL);
-	ASSERT(size != 0);
+	ASSERT3P(lwb, !=, NULL);
+	ASSERT3P(zio, !=, NULL);
+	ASSERT3U(size, !=, 0);
 
 	/*
 	 * Nothing to do if the file has been removed
@@ -1026,7 +1034,7 @@ zfs_get_data(void *arg, lr_write_t *lr, char *buf, zio_t *zio)
 	}
 
 	zgd = (zgd_t *)kmem_zalloc(sizeof (zgd_t), KM_SLEEP);
-	zgd->zgd_zilog = zfsvfs->z_log;
+	zgd->zgd_lwb = lwb;
 	zgd->zgd_private = zp;
 
 	/*
@@ -1378,6 +1386,7 @@ top:
 
 	if (zp == NULL) {
 		uint64_t txtype;
+		uint64_t projid = ZFS_DEFAULT_PROJID;
 
 		/*
 		 * Create a new file object and update the directory
@@ -1406,7 +1415,9 @@ top:
 			goto out;
 		have_acl = B_TRUE;
 
-		if (zfs_acl_ids_overquota(zfsvfs, &acl_ids)) {
+		if (S_ISREG(vap->va_mode) || S_ISDIR(vap->va_mode))
+			projid = zfs_inherit_projid(dzp);
+		if (zfs_acl_ids_overquota(zfsvfs, &acl_ids, projid)) {
 			zfs_acl_ids_free(&acl_ids);
 			error = SET_ERROR(EDQUOT);
 			goto out;
@@ -1427,7 +1438,9 @@ top:
 			dmu_tx_hold_write(tx, DMU_NEW_OBJECT,
 			    0, acl_ids.z_aclp->z_acl_bytes);
 		}
-		error = dmu_tx_assign(tx, waited ? TXG_WAITED : TXG_NOWAIT);
+
+		error = dmu_tx_assign(tx,
+		    (waited ? TXG_NOTHROTTLE : 0) | TXG_NOWAIT);
 		if (error) {
 			zfs_dirent_unlock(dl);
 			if (error == ERESTART) {
@@ -1443,10 +1456,22 @@ top:
 		}
 		zfs_mknode(dzp, vap, tx, cr, 0, &zp, &acl_ids);
 
+		error = zfs_link_create(dl, zp, tx, ZNEW);
+		if (error != 0) {
+			/*
+			 * Since, we failed to add the directory entry for it,
+			 * delete the newly created dnode.
+			 */
+			zfs_znode_delete(zp, tx);
+			remove_inode_hash(ZTOI(zp));
+			zfs_acl_ids_free(&acl_ids);
+			dmu_tx_commit(tx);
+			goto out;
+		}
+
 		if (fuid_dirtied)
 			zfs_fuid_sync(zfsvfs, tx);
 
-		(void) zfs_link_create(dl, zp, tx, ZNEW);
 		txtype = zfs_log_create_txtype(Z_FILE, vsecp, vap);
 		if (flag & FIGNORECASE)
 			txtype |= TX_CI;
@@ -1536,6 +1561,7 @@ zfs_tmpfile(struct inode *dip, vattr_t *vap, int excl,
 	uid_t		uid;
 	gid_t		gid;
 	zfs_acl_ids_t   acl_ids;
+	uint64_t	projid = ZFS_DEFAULT_PROJID;
 	boolean_t	fuid_dirtied;
 	boolean_t	have_acl = B_FALSE;
 	boolean_t	waited = B_FALSE;
@@ -1582,7 +1608,9 @@ top:
 		goto out;
 	have_acl = B_TRUE;
 
-	if (zfs_acl_ids_overquota(zfsvfs, &acl_ids)) {
+	if (S_ISREG(vap->va_mode) || S_ISDIR(vap->va_mode))
+		projid = zfs_inherit_projid(dzp);
+	if (zfs_acl_ids_overquota(zfsvfs, &acl_ids, projid)) {
 		zfs_acl_ids_free(&acl_ids);
 		error = SET_ERROR(EDQUOT);
 		goto out;
@@ -1602,7 +1630,7 @@ top:
 		dmu_tx_hold_write(tx, DMU_NEW_OBJECT,
 		    0, acl_ids.z_aclp->z_acl_bytes);
 	}
-	error = dmu_tx_assign(tx, waited ? TXG_WAITED : TXG_NOWAIT);
+	error = dmu_tx_assign(tx, (waited ? TXG_NOTHROTTLE : 0) | TXG_NOWAIT);
 	if (error) {
 		if (error == ERESTART) {
 			waited = B_TRUE;
@@ -1775,7 +1803,7 @@ top:
 	 */
 	dmu_tx_mark_netfree(tx);
 
-	error = dmu_tx_assign(tx, waited ? TXG_WAITED : TXG_NOWAIT);
+	error = dmu_tx_assign(tx, (waited ? TXG_NOTHROTTLE : 0) | TXG_NOWAIT);
 	if (error) {
 		zfs_dirent_unlock(dl);
 		if (error == ERESTART) {
@@ -1993,7 +2021,7 @@ top:
 		return (error);
 	}
 
-	if (zfs_acl_ids_overquota(zfsvfs, &acl_ids)) {
+	if (zfs_acl_ids_overquota(zfsvfs, &acl_ids, zfs_inherit_projid(dzp))) {
 		zfs_acl_ids_free(&acl_ids);
 		zfs_dirent_unlock(dl);
 		ZFS_EXIT(zfsvfs);
@@ -2017,7 +2045,7 @@ top:
 	dmu_tx_hold_sa_create(tx, acl_ids.z_aclp->z_acl_bytes +
 	    ZFS_SA_BASE_ATTR_SIZE);
 
-	error = dmu_tx_assign(tx, waited ? TXG_WAITED : TXG_NOWAIT);
+	error = dmu_tx_assign(tx, (waited ? TXG_NOTHROTTLE : 0) | TXG_NOWAIT);
 	if (error) {
 		zfs_dirent_unlock(dl);
 		if (error == ERESTART) {
@@ -2037,13 +2065,18 @@ top:
 	 */
 	zfs_mknode(dzp, vap, tx, cr, 0, &zp, &acl_ids);
 
-	if (fuid_dirtied)
-		zfs_fuid_sync(zfsvfs, tx);
-
 	/*
 	 * Now put new name in parent dir.
 	 */
-	(void) zfs_link_create(dl, zp, tx, ZNEW);
+	error = zfs_link_create(dl, zp, tx, ZNEW);
+	if (error != 0) {
+		zfs_znode_delete(zp, tx);
+		remove_inode_hash(ZTOI(zp));
+		goto out;
+	}
+
+	if (fuid_dirtied)
+		zfs_fuid_sync(zfsvfs, tx);
 
 	*ipp = ZTOI(zp);
 
@@ -2053,6 +2086,7 @@ top:
 	zfs_log_create(zilog, tx, txtype, dzp, zp, dirname, vsecp,
 	    acl_ids.z_fuidp, vap);
 
+out:
 	zfs_acl_ids_free(&acl_ids);
 
 	dmu_tx_commit(tx);
@@ -2062,10 +2096,14 @@ top:
 	if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		zil_commit(zilog, 0);
 
-	zfs_inode_update(dzp);
-	zfs_inode_update(zp);
+	if (error != 0) {
+		iput(ZTOI(zp));
+	} else {
+		zfs_inode_update(dzp);
+		zfs_inode_update(zp);
+	}
 	ZFS_EXIT(zfsvfs);
-	return (0);
+	return (error);
 }
 
 /*
@@ -2156,7 +2194,7 @@ top:
 	zfs_sa_upgrade_txholds(tx, zp);
 	zfs_sa_upgrade_txholds(tx, dzp);
 	dmu_tx_mark_netfree(tx);
-	error = dmu_tx_assign(tx, waited ? TXG_WAITED : TXG_NOWAIT);
+	error = dmu_tx_assign(tx, (waited ? TXG_NOTHROTTLE : 0) | TXG_NOWAIT);
 	if (error) {
 		rw_exit(&zp->z_parent_lock);
 		rw_exit(&zp->z_name_lock);
@@ -2565,6 +2603,17 @@ zfs_getattr(struct inode *ip, vattr_t *vap, int flags, cred_t *cr)
 			    ((zp->z_pflags & ZFS_SPARSE) != 0);
 			XVA_SET_RTN(xvap, XAT_SPARSE);
 		}
+
+		if (XVA_ISSET_REQ(xvap, XAT_PROJINHERIT)) {
+			xoap->xoa_projinherit =
+			    ((zp->z_pflags & ZFS_PROJINHERIT) != 0);
+			XVA_SET_RTN(xvap, XAT_PROJINHERIT);
+		}
+
+		if (XVA_ISSET_REQ(xvap, XAT_PROJID)) {
+			xoap->xoa_projid = zp->z_projid;
+			XVA_SET_RTN(xvap, XAT_PROJID);
+		}
 	}
 
 	ZFS_TIME_DECODE(&vap->va_atime, atime);
@@ -2643,6 +2692,125 @@ zfs_getattr_fast(struct inode *ip, struct kstat *sp)
 }
 
 /*
+ * For the operation of changing file's user/group/project, we need to
+ * handle not only the main object that is assigned to the file directly,
+ * but also the ones that are used by the file via hidden xattr directory.
+ *
+ * Because the xattr directory may contains many EA entries, as to it may
+ * be impossible to change all of them via the transaction of changing the
+ * main object's user/group/project attributes. Then we have to change them
+ * via other multiple independent transactions one by one. It may be not good
+ * solution, but we have no better idea yet.
+ */
+static int
+zfs_setattr_dir(znode_t *dzp)
+{
+	struct inode	*dxip = ZTOI(dzp);
+	struct inode	*xip = NULL;
+	zfsvfs_t	*zfsvfs = ITOZSB(dxip);
+	objset_t	*os = zfsvfs->z_os;
+	zap_cursor_t	zc;
+	zap_attribute_t	zap;
+	zfs_dirlock_t	*dl;
+	znode_t		*zp;
+	dmu_tx_t	*tx = NULL;
+	uint64_t	uid, gid;
+	sa_bulk_attr_t	bulk[4];
+	int		count = 0;
+	int		err;
+
+	zap_cursor_init(&zc, os, dzp->z_id);
+	while ((err = zap_cursor_retrieve(&zc, &zap)) == 0) {
+		if (zap.za_integer_length != 8 || zap.za_num_integers != 1) {
+			err = ENXIO;
+			break;
+		}
+
+		err = zfs_dirent_lock(&dl, dzp, (char *)zap.za_name, &zp,
+		    ZEXISTS, NULL, NULL);
+		if (err == ENOENT)
+			goto next;
+		if (err)
+			break;
+
+		xip = ZTOI(zp);
+		if (KUID_TO_SUID(xip->i_uid) == KUID_TO_SUID(dxip->i_uid) &&
+		    KGID_TO_SGID(xip->i_gid) == KGID_TO_SGID(dxip->i_gid) &&
+		    zp->z_projid == dzp->z_projid)
+			goto next;
+
+		tx = dmu_tx_create(os);
+		if (!(zp->z_pflags & ZFS_PROJID))
+			dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_TRUE);
+		else
+			dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
+
+		err = dmu_tx_assign(tx, TXG_WAIT);
+		if (err)
+			break;
+
+		mutex_enter(&dzp->z_lock);
+
+		if (KUID_TO_SUID(xip->i_uid) != KUID_TO_SUID(dxip->i_uid)) {
+			xip->i_uid = dxip->i_uid;
+			uid = zfs_uid_read(dxip);
+			SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_UID(zfsvfs), NULL,
+			    &uid, sizeof (uid));
+		}
+
+		if (KGID_TO_SGID(xip->i_gid) != KGID_TO_SGID(dxip->i_gid)) {
+			xip->i_gid = dxip->i_gid;
+			gid = zfs_gid_read(dxip);
+			SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_GID(zfsvfs), NULL,
+			    &gid, sizeof (gid));
+		}
+
+		if (zp->z_projid != dzp->z_projid) {
+			if (!(zp->z_pflags & ZFS_PROJID)) {
+				zp->z_pflags |= ZFS_PROJID;
+				SA_ADD_BULK_ATTR(bulk, count,
+				    SA_ZPL_FLAGS(zfsvfs), NULL, &zp->z_pflags,
+				    sizeof (zp->z_pflags));
+			}
+
+			zp->z_projid = dzp->z_projid;
+			SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_PROJID(zfsvfs),
+			    NULL, &zp->z_projid, sizeof (zp->z_projid));
+		}
+
+		mutex_exit(&dzp->z_lock);
+
+		if (likely(count > 0)) {
+			err = sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
+			dmu_tx_commit(tx);
+		} else {
+			dmu_tx_abort(tx);
+		}
+		tx = NULL;
+		if (err != 0 && err != ENOENT)
+			break;
+
+next:
+		if (xip) {
+			iput(xip);
+			xip = NULL;
+			zfs_dirent_unlock(dl);
+		}
+		zap_cursor_advance(&zc);
+	}
+
+	if (tx)
+		dmu_tx_abort(tx);
+	if (xip) {
+		iput(xip);
+		zfs_dirent_unlock(dl);
+	}
+	zap_cursor_fini(&zc);
+
+	return (err == ENOENT ? 0 : err);
+}
+
+/*
  * Set the file attributes to the values contained in the
  * vattr structure.
  *
@@ -2665,6 +2833,7 @@ zfs_setattr(struct inode *ip, vattr_t *vap, int flags, cred_t *cr)
 {
 	znode_t		*zp = ITOZ(ip);
 	zfsvfs_t	*zfsvfs = ITOZSB(ip);
+	objset_t	*os = zfsvfs->z_os;
 	zilog_t		*zilog;
 	dmu_tx_t	*tx;
 	vattr_t		oldva;
@@ -2676,23 +2845,58 @@ zfs_setattr(struct inode *ip, vattr_t *vap, int flags, cred_t *cr)
 	uint64_t	new_kuid = 0, new_kgid = 0, new_uid, new_gid;
 	uint64_t	xattr_obj;
 	uint64_t	mtime[2], ctime[2], atime[2];
+	uint64_t	projid = ZFS_INVALID_PROJID;
 	znode_t		*attrzp;
 	int		need_policy = FALSE;
-	int		err, err2;
+	int		err, err2 = 0;
 	zfs_fuid_info_t *fuidp = NULL;
 	xvattr_t *xvap = (xvattr_t *)vap;	/* vap may be an xvattr_t * */
 	xoptattr_t	*xoap;
 	zfs_acl_t	*aclp;
 	boolean_t skipaclchk = (flags & ATTR_NOACLCHECK) ? B_TRUE : B_FALSE;
 	boolean_t	fuid_dirtied = B_FALSE;
+	boolean_t	handle_eadir = B_FALSE;
 	sa_bulk_attr_t	*bulk, *xattr_bulk;
-	int		count = 0, xattr_count = 0;
+	int		count = 0, xattr_count = 0, bulks = 8;
 
 	if (mask == 0)
 		return (0);
 
 	ZFS_ENTER(zfsvfs);
 	ZFS_VERIFY_ZP(zp);
+
+	/*
+	 * If this is a xvattr_t, then get a pointer to the structure of
+	 * optional attributes.  If this is NULL, then we have a vattr_t.
+	 */
+	xoap = xva_getxoptattr(xvap);
+	if (xoap != NULL && (mask & ATTR_XVATTR)) {
+		if (XVA_ISSET_REQ(xvap, XAT_PROJID)) {
+			if (!dmu_objset_projectquota_enabled(os) ||
+			    (!S_ISREG(ip->i_mode) && !S_ISDIR(ip->i_mode))) {
+				ZFS_EXIT(zfsvfs);
+				return (SET_ERROR(ENOTSUP));
+			}
+
+			projid = xoap->xoa_projid;
+			if (unlikely(projid == ZFS_INVALID_PROJID)) {
+				ZFS_EXIT(zfsvfs);
+				return (SET_ERROR(EINVAL));
+			}
+
+			if (projid == zp->z_projid && zp->z_pflags & ZFS_PROJID)
+				projid = ZFS_INVALID_PROJID;
+			else
+				need_policy = TRUE;
+		}
+
+		if (XVA_ISSET_REQ(xvap, XAT_PROJINHERIT) &&
+		    (!dmu_objset_projectquota_enabled(os) ||
+		    (!S_ISREG(ip->i_mode) && !S_ISDIR(ip->i_mode)))) {
+				ZFS_EXIT(zfsvfs);
+				return (SET_ERROR(ENOTSUP));
+		}
+	}
 
 	zilog = zfsvfs->z_log;
 
@@ -2719,17 +2923,11 @@ zfs_setattr(struct inode *ip, vattr_t *vap, int flags, cred_t *cr)
 		return (SET_ERROR(EINVAL));
 	}
 
-	/*
-	 * If this is an xvattr_t, then get a pointer to the structure of
-	 * optional attributes.  If this is NULL, then we have a vattr_t.
-	 */
-	xoap = xva_getxoptattr(xvap);
-
 	tmpxvattr = kmem_alloc(sizeof (xvattr_t), KM_SLEEP);
 	xva_init(tmpxvattr);
 
-	bulk = kmem_alloc(sizeof (sa_bulk_attr_t) * 7, KM_SLEEP);
-	xattr_bulk = kmem_alloc(sizeof (sa_bulk_attr_t) * 7, KM_SLEEP);
+	bulk = kmem_alloc(sizeof (sa_bulk_attr_t) * bulks, KM_SLEEP);
+	xattr_bulk = kmem_alloc(sizeof (sa_bulk_attr_t) * bulks, KM_SLEEP);
 
 	/*
 	 * Immutable files can only alter immutable bit and atime
@@ -2875,6 +3073,16 @@ top:
 			}
 		}
 
+		if (XVA_ISSET_REQ(xvap, XAT_PROJINHERIT)) {
+			if (xoap->xoa_projinherit !=
+			    ((zp->z_pflags & ZFS_PROJINHERIT) != 0)) {
+				need_policy = TRUE;
+			} else {
+				XVA_CLR_REQ(xvap, XAT_PROJINHERIT);
+				XVA_SET_REQ(tmpxvattr, XAT_PROJINHERIT);
+			}
+		}
+
 		if (XVA_ISSET_REQ(xvap, XAT_NOUNLINK)) {
 			if (xoap->xoa_nounlink !=
 			    ((zp->z_pflags & ZFS_NOUNLINK) != 0)) {
@@ -2983,7 +3191,8 @@ top:
 	 */
 	mask = vap->va_mask;
 
-	if ((mask & (ATTR_UID | ATTR_GID))) {
+	if ((mask & (ATTR_UID | ATTR_GID)) || projid != ZFS_INVALID_PROJID) {
+		handle_eadir = B_TRUE;
 		err = sa_lookup(zp->z_sa_hdl, SA_ZPL_XATTR(zfsvfs),
 		    &xattr_obj, sizeof (xattr_obj));
 
@@ -2996,7 +3205,8 @@ top:
 			new_kuid = zfs_fuid_create(zfsvfs,
 			    (uint64_t)vap->va_uid, cr, ZFS_OWNER, &fuidp);
 			if (new_kuid != KUID_TO_SUID(ZTOI(zp)->i_uid) &&
-			    zfs_fuid_overquota(zfsvfs, B_FALSE, new_kuid)) {
+			    zfs_id_overquota(zfsvfs, DMU_USERUSED_OBJECT,
+			    new_kuid)) {
 				if (attrzp)
 					iput(ZTOI(attrzp));
 				err = SET_ERROR(EDQUOT);
@@ -3008,15 +3218,24 @@ top:
 			new_kgid = zfs_fuid_create(zfsvfs,
 			    (uint64_t)vap->va_gid, cr, ZFS_GROUP, &fuidp);
 			if (new_kgid != KGID_TO_SGID(ZTOI(zp)->i_gid) &&
-			    zfs_fuid_overquota(zfsvfs, B_TRUE, new_kgid)) {
+			    zfs_id_overquota(zfsvfs, DMU_GROUPUSED_OBJECT,
+			    new_kgid)) {
 				if (attrzp)
 					iput(ZTOI(attrzp));
 				err = SET_ERROR(EDQUOT);
 				goto out2;
 			}
 		}
+
+		if (projid != ZFS_INVALID_PROJID &&
+		    zfs_id_overquota(zfsvfs, DMU_PROJECTUSED_OBJECT, projid)) {
+			if (attrzp)
+				iput(ZTOI(attrzp));
+			err = EDQUOT;
+			goto out2;
+		}
 	}
-	tx = dmu_tx_create(zfsvfs->z_os);
+	tx = dmu_tx_create(os);
 
 	if (mask & ATTR_MODE) {
 		uint64_t pmode = zp->z_mode;
@@ -3049,8 +3268,10 @@ top:
 		mutex_exit(&zp->z_lock);
 		dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_TRUE);
 	} else {
-		if ((mask & ATTR_XVATTR) &&
-		    XVA_ISSET_REQ(xvap, XAT_AV_SCANSTAMP))
+		if (((mask & ATTR_XVATTR) &&
+		    XVA_ISSET_REQ(xvap, XAT_AV_SCANSTAMP)) ||
+		    (projid != ZFS_INVALID_PROJID &&
+		    !(zp->z_pflags & ZFS_PROJID)))
 			dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_TRUE);
 		else
 			dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
@@ -3079,6 +3300,26 @@ top:
 	 * updated as a side-effect of calling this function.
 	 */
 
+	if (projid != ZFS_INVALID_PROJID && !(zp->z_pflags & ZFS_PROJID)) {
+		/*
+		 * For the existed object that is upgraded from old system,
+		 * its on-disk layout has no slot for the project ID attribute.
+		 * But quota accounting logic needs to access related slots by
+		 * offset directly. So we need to adjust old objects' layout
+		 * to make the project ID to some unified and fixed offset.
+		 */
+		if (attrzp)
+			err = sa_add_projid(attrzp->z_sa_hdl, tx, projid);
+		if (err == 0)
+			err = sa_add_projid(zp->z_sa_hdl, tx, projid);
+
+		if (unlikely(err == EEXIST))
+			err = 0;
+		else if (err != 0)
+			goto out;
+		else
+			projid = ZFS_INVALID_PROJID;
+	}
 
 	if (mask & (ATTR_UID|ATTR_GID|ATTR_MODE))
 		mutex_enter(&zp->z_acl_lock);
@@ -3094,6 +3335,12 @@ top:
 		SA_ADD_BULK_ATTR(xattr_bulk, xattr_count,
 		    SA_ZPL_FLAGS(zfsvfs), NULL, &attrzp->z_pflags,
 		    sizeof (attrzp->z_pflags));
+		if (projid != ZFS_INVALID_PROJID) {
+			attrzp->z_projid = projid;
+			SA_ADD_BULK_ATTR(xattr_bulk, xattr_count,
+			    SA_ZPL_PROJID(zfsvfs), NULL, &attrzp->z_projid,
+			    sizeof (attrzp->z_projid));
+		}
 	}
 
 	if (mask & (ATTR_UID|ATTR_GID)) {
@@ -3173,6 +3420,13 @@ top:
 		    ctime, sizeof (ctime));
 	}
 
+	if (projid != ZFS_INVALID_PROJID) {
+		zp->z_projid = projid;
+		SA_ADD_BULK_ATTR(bulk, count,
+		    SA_ZPL_PROJID(zfsvfs), NULL, &zp->z_projid,
+		    sizeof (zp->z_projid));
+	}
+
 	if (attrzp && mask) {
 		SA_ADD_BULK_ATTR(xattr_bulk, xattr_count,
 		    SA_ZPL_CTIME(zfsvfs), NULL, &ctime,
@@ -3209,6 +3463,9 @@ top:
 		if (XVA_ISSET_REQ(tmpxvattr, XAT_AV_QUARANTINED)) {
 			XVA_SET_REQ(xvap, XAT_AV_QUARANTINED);
 		}
+		if (XVA_ISSET_REQ(tmpxvattr, XAT_PROJINHERIT)) {
+			XVA_SET_REQ(xvap, XAT_PROJINHERIT);
+		}
 
 		if (XVA_ISSET_REQ(xvap, XAT_AV_SCANSTAMP))
 			ASSERT(S_ISREG(ip->i_mode));
@@ -3232,7 +3489,7 @@ top:
 		mutex_exit(&attrzp->z_lock);
 	}
 out:
-	if (err == 0 && attrzp) {
+	if (err == 0 && xattr_count > 0) {
 		err2 = sa_bulk_update(attrzp->z_sa_hdl, xattr_bulk,
 		    xattr_count, tx);
 		ASSERT(err2 == 0);
@@ -3253,20 +3510,24 @@ out:
 		if (err == ERESTART)
 			goto top;
 	} else {
-		err2 = sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
+		if (count > 0)
+			err2 = sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
 		dmu_tx_commit(tx);
-		if (attrzp)
+		if (attrzp) {
+			if (err2 == 0 && handle_eadir)
+				err2 = zfs_setattr_dir(attrzp);
 			iput(ZTOI(attrzp));
+		}
 		zfs_inode_update(zp);
 	}
 
 out2:
-	if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
+	if (os->os_sync == ZFS_SYNC_ALWAYS)
 		zil_commit(zilog, 0);
 
 out3:
-	kmem_free(xattr_bulk, sizeof (sa_bulk_attr_t) * 7);
-	kmem_free(bulk, sizeof (sa_bulk_attr_t) * 7);
+	kmem_free(xattr_bulk, sizeof (sa_bulk_attr_t) * bulks);
+	kmem_free(bulk, sizeof (sa_bulk_attr_t) * bulks);
 	kmem_free(tmpxvattr, sizeof (xvattr_t));
 	ZFS_EXIT(zfsvfs);
 	return (err);
@@ -3560,6 +3821,19 @@ top:
 	}
 
 	/*
+	 * If we are using project inheritance, means if the directory has
+	 * ZFS_PROJINHERIT set, then its descendant directories will inherit
+	 * not only the project ID, but also the ZFS_PROJINHERIT flag. Under
+	 * such case, we only allow renames into our tree when the project
+	 * IDs are the same.
+	 */
+	if (tdzp->z_pflags & ZFS_PROJINHERIT &&
+	    tdzp->z_projid != szp->z_projid) {
+		error = SET_ERROR(EXDEV);
+		goto out;
+	}
+
+	/*
 	 * Must have write access at the source to remove the old entry
 	 * and write access at the target to create the new entry.
 	 * Note that if target and source are the same, this can be
@@ -3623,7 +3897,7 @@ top:
 
 	zfs_sa_upgrade_txholds(tx, szp);
 	dmu_tx_hold_zap(tx, zfsvfs->z_unlinkedobj, FALSE, NULL);
-	error = dmu_tx_assign(tx, waited ? TXG_WAITED : TXG_NOWAIT);
+	error = dmu_tx_assign(tx, (waited ? TXG_NOTHROTTLE : 0) | TXG_NOWAIT);
 	if (error) {
 		if (zl != NULL)
 			zfs_rename_unlock(&zl);
@@ -3657,6 +3931,8 @@ top:
 		error = zfs_link_create(tdl, szp, tx, ZRENAMING);
 		if (error == 0) {
 			szp->z_pflags |= ZFS_AV_MODIFIED;
+			if (tdzp->z_pflags & ZFS_PROJINHERIT)
+				szp->z_pflags |= ZFS_PROJINHERIT;
 
 			error = sa_update(szp->z_sa_hdl, SA_ZPL_FLAGS(zfsvfs),
 			    (void *)&szp->z_pflags, sizeof (uint64_t), tx);
@@ -3683,6 +3959,13 @@ top:
 				VERIFY3U(zfs_link_destroy(tdl, szp, tx,
 				    ZRENAMING, NULL), ==, 0);
 			}
+		} else {
+			/*
+			 * If we had removed the existing target, subsequent
+			 * call to zfs_link_create() to add back the same entry
+			 * but, the new dnode (szp) should not fail.
+			 */
+			ASSERT(tzp == NULL);
 		}
 	}
 
@@ -3796,7 +4079,7 @@ top:
 		return (error);
 	}
 
-	if (zfs_acl_ids_overquota(zfsvfs, &acl_ids)) {
+	if (zfs_acl_ids_overquota(zfsvfs, &acl_ids, ZFS_DEFAULT_PROJID)) {
 		zfs_acl_ids_free(&acl_ids);
 		zfs_dirent_unlock(dl);
 		ZFS_EXIT(zfsvfs);
@@ -3815,7 +4098,7 @@ top:
 	}
 	if (fuid_dirtied)
 		zfs_fuid_txhold(zfsvfs, tx);
-	error = dmu_tx_assign(tx, waited ? TXG_WAITED : TXG_NOWAIT);
+	error = dmu_tx_assign(tx, (waited ? TXG_NOTHROTTLE : 0) | TXG_NOWAIT);
 	if (error) {
 		zfs_dirent_unlock(dl);
 		if (error == ERESTART) {
@@ -3853,14 +4136,18 @@ top:
 	/*
 	 * Insert the new object into the directory.
 	 */
-	(void) zfs_link_create(dl, zp, tx, ZNEW);
+	error = zfs_link_create(dl, zp, tx, ZNEW);
+	if (error != 0) {
+		zfs_znode_delete(zp, tx);
+		remove_inode_hash(ZTOI(zp));
+	} else {
+		if (flags & FIGNORECASE)
+			txtype |= TX_CI;
+		zfs_log_symlink(zilog, tx, txtype, dzp, zp, name, link);
 
-	if (flags & FIGNORECASE)
-		txtype |= TX_CI;
-	zfs_log_symlink(zilog, tx, txtype, dzp, zp, name, link);
-
-	zfs_inode_update(dzp);
-	zfs_inode_update(zp);
+		zfs_inode_update(dzp);
+		zfs_inode_update(zp);
+	}
 
 	zfs_acl_ids_free(&acl_ids);
 
@@ -3868,10 +4155,14 @@ top:
 
 	zfs_dirent_unlock(dl);
 
-	*ipp = ZTOI(zp);
+	if (error == 0) {
+		*ipp = ZTOI(zp);
 
-	if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
-		zil_commit(zilog, 0);
+		if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
+			zil_commit(zilog, 0);
+	} else {
+		iput(ZTOI(zp));
+	}
 
 	ZFS_EXIT(zfsvfs);
 	return (error);
@@ -3972,6 +4263,18 @@ zfs_link(struct inode *tdip, struct inode *sip, char *name, cred_t *cr,
 	ZFS_VERIFY_ZP(szp);
 
 	/*
+	 * If we are using project inheritance, means if the directory has
+	 * ZFS_PROJINHERIT set, then its descendant directories will inherit
+	 * not only the project ID, but also the ZFS_PROJINHERIT flag. Under
+	 * such case, we only allow hard link creation in our tree when the
+	 * project IDs are the same.
+	 */
+	if (dzp->z_pflags & ZFS_PROJINHERIT && dzp->z_projid != szp->z_projid) {
+		ZFS_EXIT(zfsvfs);
+		return (SET_ERROR(EXDEV));
+	}
+
+	/*
 	 * We check i_sb because snapshots and the ctldir must have different
 	 * super blocks.
 	 */
@@ -4041,7 +4344,7 @@ top:
 
 	zfs_sa_upgrade_txholds(tx, szp);
 	zfs_sa_upgrade_txholds(tx, dzp);
-	error = dmu_tx_assign(tx, waited ? TXG_WAITED : TXG_NOWAIT);
+	error = dmu_tx_assign(tx, (waited ? TXG_NOTHROTTLE : 0) | TXG_NOWAIT);
 	if (error) {
 		zfs_dirent_unlock(dl);
 		if (error == ERESTART) {
@@ -4165,8 +4468,13 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	 * is to register a page_mkwrite() handler to count the page
 	 * against its quota when it is about to be dirtied.
 	 */
-	if (zfs_owner_overquota(zfsvfs, zp, B_FALSE) ||
-	    zfs_owner_overquota(zfsvfs, zp, B_TRUE)) {
+	if (zfs_id_overblockquota(zfsvfs, DMU_USERUSED_OBJECT,
+	    KUID_TO_SUID(ip->i_uid)) ||
+	    zfs_id_overblockquota(zfsvfs, DMU_GROUPUSED_OBJECT,
+	    KGID_TO_SGID(ip->i_gid)) ||
+	    (zp->z_projid != ZFS_DEFAULT_PROJID &&
+	    zfs_id_overblockquota(zfsvfs, DMU_PROJECTUSED_OBJECT,
+	    zp->z_projid))) {
 		err = EDQUOT;
 	}
 #endif

@@ -94,18 +94,7 @@ Default value: \fB2\fR.
 Scales \fBl2arc_headroom\fR by this percentage when L2ARC contents are being
 successfully compressed before writing. A value of 100 disables this feature.
 .sp
-Default value: \fB200\fR.
-.RE
-
-.sp
-.ne 2
-.na
-\fBl2arc_nocompress\fR (int)
-.ad
-.RS 12n
-Skip compressing L2ARC buffers
-.sp
-Use \fB1\fR for yes and \fB0\fR for no (default).
+Default value: \fB200\fR%.
 .RE
 
 .sp
@@ -436,7 +425,7 @@ Percentage that can be consumed by dnodes of ARC meta buffers.
 See also \fBzfs_arc_dnode_limit\fR which serves a similar purpose but has a
 higher priority if set to nonzero value.
 .sp
-Default value: \fB10\fR.
+Default value: \fB10\fR%.
 .RE
 
 .sp
@@ -449,7 +438,7 @@ Percentage of ARC dnodes to try to scan in response to demand for non-metadata
 when the number of bytes consumed by dnodes exceeds \fBzfs_arc_dnode_limit\fR.
 
 .sp
-Default value: \fB10% of the number of dnodes in the ARC\fR.
+Default value: \fB10\fR% of the number of dnodes in the ARC.
 .RE
 
 .sp
@@ -503,7 +492,7 @@ Default value: \fB0\fR.
 Throttle I/O when free system memory drops below this percentage of total
 system memory.  Setting this value to 0 will disable the throttle.
 .sp
-Default value: \fB10\fR.
+Default value: \fB10\fR%.
 .RE
 
 .sp
@@ -566,7 +555,7 @@ See also \fBzfs_arc_meta_limit\fR which serves a similar purpose but has a
 higher priority if set to nonzero value.
 
 .sp
-Default value: \fB75\fR.
+Default value: \fB75\fR%.
 .RE
 
 .sp
@@ -631,7 +620,7 @@ Default value: \fB0\fR.
 .ad
 .RS 12n
 Minimum time prefetched blocks are locked in the ARC, specified in ms.
-A value of \fB0\fR will default to 1 second.
+A value of \fB0\fR will default to 1000 ms.
 .sp
 Default value: \fB0\fR.
 .RE
@@ -644,7 +633,7 @@ Default value: \fB0\fR.
 .RS 12n
 Minimum time "prescient prefetched" blocks are locked in the ARC, specified
 in ms. These blocks are meant to be prefetched fairly aggresively ahead of
-the code that may use them. A value of \fB0\fR will default to 6 seconds.
+the code that may use them. A value of \fB0\fR will default to 6000 ms.
 .sp
 Default value: \fB0\fR.
 .RE
@@ -702,17 +691,6 @@ Default value: \fB0\fR.
 .sp
 .ne 2
 .na
-\fBzfs_arc_p_aggressive_disable\fR (int)
-.ad
-.RS 12n
-Disable aggressive arc_p growth
-.sp
-Use \fB1\fR for yes (default) and \fB0\fR to disable.
-.RE
-
-.sp
-.ne 2
-.na
 \fBzfs_arc_p_dampener_disable\fR (int)
 .ad
 .RS 12n
@@ -748,7 +726,7 @@ zfs_arc_min if necessary. This value is specified as percent of pagecache
 size (as measured by NR_FILE_PAGES) where that percent may exceed 100. This
 only operates during memory pressure/reclaim.
 .sp
-Default value: \fB0\fR (disabled).
+Default value: \fB0\fR% (disabled).
 .RE
 
 .sp
@@ -773,6 +751,21 @@ Default value: \fB0\fR.
 Disable pool import at module load by ignoring the cache file (typically \fB/etc/zfs/zpool.cache\fR).
 .sp
 Use \fB1\fR for yes (default) and \fB0\fR for no.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_commit_timeout_pct\fR (int)
+.ad
+.RS 12n
+This controls the amount of time that a ZIL block (lwb) will remain "open"
+when it isn't "full", and it has a thread waiting for it to be committed to
+stable storage.  The timeout is scaled based on a percentage of the last lwb
+latency to avoid significantly impacting the latency of each individual
+transaction record (itx).
+.sp
+Default value: \fB5\fR%.
 .RE
 
 .sp
@@ -819,14 +812,36 @@ Default value: \fB0\fR.
 .ad
 .RS 12n
 When a pool sync operation takes longer than \fBzfs_deadman_synctime_ms\fR
-milliseconds, a "slow spa_sync" message is logged to the debug log
-(see \fBzfs_dbgmsg_enable\fR).  If \fBzfs_deadman_enabled\fR is set,
-all pending IO operations are also checked and if any haven't completed
-within \fBzfs_deadman_synctime_ms\fR milliseconds, a "SLOW IO" message
-is logged to the debug log and a "delay" system event with the details of
-the hung IO is posted.
+milliseconds, or when an individual I/O takes longer than
+\fBzfs_deadman_ziotime_ms\fR milliseconds, then the operation is considered to
+be "hung".  If \fBzfs_deadman_enabled\fR is set then the deadman behavior is
+invoked as described by the \fBzfs_deadman_failmode\fR module option.
+By default the deadman is enabled and configured to \fBwait\fR which results
+in "hung" I/Os only being logged.  The deadman is automatically disabled
+when a pool gets suspended.
 .sp
-Use \fB1\fR (default) to enable the slow IO check and \fB0\fR to disable.
+Default value: \fB1\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_deadman_failmode\fR (charp)
+.ad
+.RS 12n
+Controls the failure behavior when the deadman detects a "hung" I/O.  Valid
+values are \fBwait\fR, \fBcontinue\fR, and \fBpanic\fR.
+.sp
+\fBwait\fR - Wait for a "hung" I/O to complete.  For each "hung" I/O a
+"deadman" event will be posted describing that I/O.
+.sp
+\fBcontinue\fR - Attempt to recover from a "hung" I/O by re-dispatching it
+to the I/O pipeline if possible.
+.sp
+\fBpanic\fR - Panic the system.  This can be used to facilitate an automatic
+fail-over to a properly configured fail-over partner.
+.sp
+Default value: \fBwait\fR.
 .RE
 
 .sp
@@ -835,11 +850,10 @@ Use \fB1\fR (default) to enable the slow IO check and \fB0\fR to disable.
 \fBzfs_deadman_checktime_ms\fR (int)
 .ad
 .RS 12n
-Once a pool sync operation has taken longer than
-\fBzfs_deadman_synctime_ms\fR milliseconds, continue to check for slow
-operations every \fBzfs_deadman_checktime_ms\fR milliseconds.
+Check time in milliseconds. This defines the frequency at which we check
+for hung I/O and potentially invoke the \fBzfs_deadman_failmode\fR behavior.
 .sp
-Default value: \fB5,000\fR.
+Default value: \fB60,000\fR.
 .RE
 
 .sp
@@ -849,12 +863,25 @@ Default value: \fB5,000\fR.
 .ad
 .RS 12n
 Interval in milliseconds after which the deadman is triggered and also
-the interval after which an IO operation is considered to be "hung"
-if \fBzfs_deadman_enabled\fR is set.
-
-See \fBzfs_deadman_enabled\fR.
+the interval after which a pool sync operation is considered to be "hung".
+Once this limit is exceeded the deadman will be invoked every
+\fBzfs_deadman_checktime_ms\fR milliseconds until the pool sync completes.
 .sp
-Default value: \fB1,000,000\fR.
+Default value: \fB600,000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_deadman_ziotime_ms\fR (ulong)
+.ad
+.RS 12n
+Interval in milliseconds after which the deadman is triggered and an
+individual IO operation is considered to be "hung".  As long as the I/O
+remains "hung" the deadman will be invoked every \fBzfs_deadman_checktime_ms\fR
+milliseconds until the I/O completes.
+.sp
+Default value: \fB300,000\fR.
 .RE
 
 .sp
@@ -879,7 +906,7 @@ expressed as a percentage of \fBzfs_dirty_data_max\fR.
 This value should be >= zfs_vdev_async_write_active_max_dirty_percent.
 See the section "ZFS TRANSACTION DELAY".
 .sp
-Default value: \fB60\fR.
+Default value: \fB60\fR%.
 .RE
 
 .sp
@@ -928,7 +955,7 @@ writes are halted until space frees up. This parameter takes precedence
 over \fBzfs_dirty_data_max_percent\fR.
 See the section "ZFS TRANSACTION DELAY".
 .sp
-Default value: 10 percent of all memory, capped at \fBzfs_dirty_data_max_max\fR.
+Default value: \fB10\fR% of physical RAM, capped at \fBzfs_dirty_data_max_max\fR.
 .RE
 
 .sp
@@ -943,7 +970,7 @@ This limit is only enforced at module load time, and will be ignored if
 precedence over \fBzfs_dirty_data_max_max_percent\fR. See the section
 "ZFS TRANSACTION DELAY".
 .sp
-Default value: 25% of physical RAM.
+Default value: \fB25\fR% of physical RAM.
 .RE
 
 .sp
@@ -958,7 +985,7 @@ time, and will be ignored if \fBzfs_dirty_data_max\fR is later changed.
 The parameter \fBzfs_dirty_data_max_max\fR takes precedence over this
 one. See the section "ZFS TRANSACTION DELAY".
 .sp
-Default value: \fB25\fR.
+Default value: \fB25\fR%.
 .RE
 
 .sp
@@ -972,7 +999,7 @@ memory.  Once this limit is exceeded, new writes are halted until space frees
 up.  The parameter \fBzfs_dirty_data_max\fR takes precedence over this
 one.  See the section "ZFS TRANSACTION DELAY".
 .sp
-Default value: 10%, subject to \fBzfs_dirty_data_max_max\fR.
+Default value: \fB10\fR%, subject to \fBzfs_dirty_data_max_max\fR.
 .RE
 
 .sp
@@ -1065,7 +1092,7 @@ When the pool has more than
 the dirty data is between min and max, the active I/O limit is linearly
 interpolated. See the section "ZFS I/O SCHEDULER".
 .sp
-Default value: \fB60\fR.
+Default value: \fB60\fR%.
 .RE
 
 .sp
@@ -1080,7 +1107,7 @@ When the pool has less than
 the dirty data is between min and max, the active I/O limit is linearly
 interpolated. See the section "ZFS I/O SCHEDULER".
 .sp
-Default value: \fB30\fR.
+Default value: \fB30\fR%.
 .RE
 
 .sp
@@ -1212,18 +1239,7 @@ will tend to be slower than empty devices.
 
 See also \fBzio_dva_throttle_enabled\fR.
 .sp
-Default value: \fB1000\fR.
-.RE
-
-.sp
-.ne 2
-.na
-\fBzfs_disable_dup_eviction\fR (int)
-.ad
-.RS 12n
-Disable duplicate buffer eviction
-.sp
-Use \fB1\fR for yes and \fB0\fR for no (default).
+Default value: \fB1000\fR%.
 .RE
 
 .sp
@@ -1382,17 +1398,6 @@ this tunable, and pools with larger blocks can always be imported and used,
 regardless of this setting.
 .sp
 Default value: \fB1,048,576\fR.
-.RE
-
-.sp
-.ne 2
-.na
-\fBzfs_mdcomp_disable\fR (int)
-.ad
-.RS 12n
-Disable meta data compression
-.sp
-Use \fB1\fR for yes and \fB0\fR for no (default).
 .RE
 
 .sp
@@ -1867,7 +1872,7 @@ Default value: \fB2\fR.
 This controls the number of threads used by the dp_sync_taskq.  The default
 value of 75% will create a maximum of one thread per cpu.
 .sp
-Default value: \fB75\fR.
+Default value: \fB75\fR%.
 .RE
 
 .sp
@@ -2120,7 +2125,7 @@ Default value: \fB0\fR.
 .ad
 .RS 12n
 The maximum number of taskq entries that are allowed to be cached.  When this
-limit is exceeded itx's will be cleaned synchronously.
+limit is exceeded transaction records (itxs) will be cleaned synchronously.
 .sp
 Default value: \fB1048576\fR.
 .RE
@@ -2146,7 +2151,7 @@ Default value: \fB1024\fR.
 This controls the number of threads used by the dp_zil_clean_taskq.  The default
 value of 100% will create a maximum of one thread per cpu.
 .sp
-Default value: \fB100\fR.
+Default value: \fB100\fR%.
 .RE
 
 .sp

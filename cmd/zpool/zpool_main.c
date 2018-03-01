@@ -22,7 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
- * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2016 by Delphix. All rights reserved.
  * Copyright (c) 2012 by Frederik Wessels. All rights reserved.
  * Copyright (c) 2012 by Cyril Plisko. All rights reserved.
  * Copyright (c) 2013 by Prasad Joshi (sTec). All rights reserved.
@@ -334,7 +334,8 @@ get_usage(zpool_help_t idx)
 		return (gettext("\tlabelclear [-f] <vdev>\n"));
 	case HELP_LIST:
 		return (gettext("\tlist [-gHLpPv] [-o property[,...]] "
-		    "[-T d|u] [pool] ... [interval [count]]\n"));
+		    "[-T d|u] [pool] ... \n"
+		    "\t    [interval [count]]\n"));
 	case HELP_OFFLINE:
 		return (gettext("\toffline [-f] [-t] <pool> <device> ...\n"));
 	case HELP_ONLINE:
@@ -350,7 +351,8 @@ get_usage(zpool_help_t idx)
 		return (gettext("\tscrub [-s | -p] <pool> ...\n"));
 	case HELP_STATUS:
 		return (gettext("\tstatus [-c [script1,script2,...]] [-gLPvxD]"
-		    "[-T d|u] [pool] ... [interval [count]]\n"));
+		    "[-T d|u] [pool] ... \n"
+		    "\t    [interval [count]]\n"));
 	case HELP_UPGRADE:
 		return (gettext("\tupgrade\n"
 		    "\tupgrade -v\n"
@@ -511,7 +513,7 @@ static int
 add_prop_list(const char *propname, char *propval, nvlist_t **props,
     boolean_t poolprop)
 {
-	zpool_prop_t prop = ZPROP_INVAL;
+	zpool_prop_t prop = ZPOOL_PROP_INVAL;
 	zfs_prop_t fprop;
 	nvlist_t *proplist;
 	const char *normnm;
@@ -529,7 +531,7 @@ add_prop_list(const char *propname, char *propval, nvlist_t **props,
 	if (poolprop) {
 		const char *vname = zpool_prop_to_name(ZPOOL_PROP_VERSION);
 
-		if ((prop = zpool_name_to_prop(propname)) == ZPROP_INVAL &&
+		if ((prop = zpool_name_to_prop(propname)) == ZPOOL_PROP_INVAL &&
 		    !zpool_prop_feature(propname)) {
 			(void) fprintf(stderr, gettext("property '%s' is "
 			    "not a valid pool property\n"), propname);
@@ -540,7 +542,7 @@ add_prop_list(const char *propname, char *propval, nvlist_t **props,
 		 * feature@ properties and version should not be specified
 		 * at the same time.
 		 */
-		if ((prop == ZPROP_INVAL && zpool_prop_feature(propname) &&
+		if ((prop == ZPOOL_PROP_INVAL && zpool_prop_feature(propname) &&
 		    nvlist_exists(proplist, vname)) ||
 		    (prop == ZPOOL_PROP_VERSION &&
 		    prop_list_contains_feature(proplist))) {
@@ -2121,6 +2123,15 @@ show_import(nvlist_t *config)
 				    "updating.\n"));
 				break;
 
+			case ZPOOL_ERRATA_ZOL_6845_ENCRYPTION:
+				(void) printf(gettext(" action: Existing "
+				    "encrypted datasets contain an on-disk "
+				    "incompatibility, which\n\tneeds to be "
+				    "corrected. Backup these datasets to new "
+				    "encrypted datasets\n\tand destroy the "
+				    "old ones.\n"));
+				break;
+
 			default:
 				/*
 				 * All errata must contain an action message.
@@ -2271,11 +2282,9 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 	int ret = 0;
 	zpool_handle_t *zhp;
 	char *name;
-	uint64_t state;
 	uint64_t version;
 
 	name = fnvlist_lookup_string(config, ZPOOL_CONFIG_POOL_NAME);
-	state = fnvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_STATE);
 	version = fnvlist_lookup_uint64(config, ZPOOL_CONFIG_VERSION);
 
 	if (!SPA_VERSION_IS_SUPPORTED(version)) {
@@ -3648,7 +3657,7 @@ print_vdev_stats(zpool_handle_t *zhp, const char *name, nvlist_t *oldnv,
     nvlist_t *newnv, iostat_cbdata_t *cb, int depth)
 {
 	nvlist_t **oldchild, **newchild;
-	uint_t c, children;
+	uint_t c, children, oldchildren;
 	vdev_stat_t *oldvs, *newvs, *calcvs;
 	vdev_stat_t zerovs = { 0 };
 	char *vname;
@@ -3760,9 +3769,13 @@ children:
 	    &newchild, &children) != 0)
 		return (ret);
 
-	if (oldnv && nvlist_lookup_nvlist_array(oldnv, ZPOOL_CONFIG_CHILDREN,
-	    &oldchild, &c) != 0)
-		return (ret);
+	if (oldnv) {
+		if (nvlist_lookup_nvlist_array(oldnv, ZPOOL_CONFIG_CHILDREN,
+		    &oldchild, &oldchildren) != 0)
+			return (ret);
+
+		children = MIN(oldchildren, children);
+	}
 
 	for (c = 0; c < children; c++) {
 		uint64_t ishole = B_FALSE, islog = B_FALSE;
@@ -3818,9 +3831,13 @@ children:
 	    &newchild, &children) != 0)
 		return (ret);
 
-	if (oldnv && nvlist_lookup_nvlist_array(oldnv, ZPOOL_CONFIG_L2CACHE,
-	    &oldchild, &c) != 0)
-		return (ret);
+	if (oldnv) {
+		if (nvlist_lookup_nvlist_array(oldnv, ZPOOL_CONFIG_L2CACHE,
+		    &oldchild, &oldchildren) != 0)
+			return (ret);
+
+		children = MIN(oldchildren, children);
+	}
 
 	if (children > 0) {
 		if ((!(cb->cb_flags & IOS_ANYHISTO_M)) && !cb->cb_scripted &&
@@ -5972,7 +5989,7 @@ print_scan_status(pool_scan_stat_t *ps, char *dsname)
 	uint64_t total_secs_left;
 	uint64_t elapsed, secs_left, mins_left, hours_left, days_left;
 	uint64_t pass_scanned, scanned, pass_issued, issued, total;
-	uint_t scan_rate, issue_rate;
+	uint64_t scan_rate, issue_rate;
 	double fraction_done;
 	char processed_buf[7], scanned_buf[7], issued_buf[7], total_buf[7];
 	char srate_buf[7], irate_buf[7];
@@ -6501,6 +6518,17 @@ status_callback(zpool_handle_t *zhp, void *data)
 		case ZPOOL_ERRATA_ZOL_2094_SCRUB:
 			(void) printf(gettext("action: To correct the issue "
 			    "run 'zpool scrub'.\n"));
+			break;
+
+		case ZPOOL_ERRATA_ZOL_6845_ENCRYPTION:
+			(void) printf(gettext("\tExisting encrypted datasets "
+			    "contain an on-disk incompatibility\n\twhich "
+			    "needs to be corrected.\n"));
+			(void) printf(gettext("action: To correct the issue "
+			    "backup existing encrypted datasets to new\n\t"
+			    "encrypted datasets and destroy the old ones. "
+			    "'zfs mount -o ro' can\n\tbe used to temporarily "
+			    "mount existing encrypted datasets readonly.\n"));
 			break;
 
 		default:
@@ -7328,6 +7356,11 @@ get_history_one(zpool_handle_t *zhp, void *data)
 				(void) printf("    output:\n");
 				dump_nvlist(fnvlist_lookup_nvlist(rec,
 				    ZPOOL_HIST_OUTPUT_NVL), 8);
+			}
+			if (nvlist_exists(rec, ZPOOL_HIST_ERRNO)) {
+				(void) printf("    errno: %lld\n",
+				    (longlong_t)fnvlist_lookup_int64(rec,
+				    ZPOOL_HIST_ERRNO));
 			}
 		} else {
 			if (!cb->internal)

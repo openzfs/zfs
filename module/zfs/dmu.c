@@ -113,8 +113,8 @@ const dmu_object_type_info_t dmu_ot[DMU_OT_NUMTYPES] = {
 	{ DMU_BSWAP_UINT64,	TRUE,	FALSE,	"FUID table size"	},
 	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"DSL dataset next clones"},
 	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"scan work queue"	},
-	{ DMU_BSWAP_ZAP,	TRUE,	TRUE,	"ZFS user/group used"	},
-	{ DMU_BSWAP_ZAP,	TRUE,	TRUE,	"ZFS user/group quota"	},
+	{ DMU_BSWAP_ZAP,	TRUE,	TRUE,	"ZFS user/group/project used" },
+	{ DMU_BSWAP_ZAP,	TRUE,	TRUE,	"ZFS user/group/project quota"},
 	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"snapshot refcount tags"},
 	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"DDT ZAP algorithm"	},
 	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"DDT statistics"	},
@@ -847,8 +847,11 @@ dmu_free_long_range_impl(objset_t *os, dnode_t *dn, uint64_t offset,
 
 			while (dr != NULL && dr->dr_txg > tx->tx_txg)
 				dr = dr->dr_next;
-			if (dr != NULL && dr->dr_txg == tx->tx_txg)
+			if (dr != NULL && dr->dr_txg == tx->tx_txg) {
 				dr->dt.dl.dr_raw = B_TRUE;
+				dn->dn_objset->os_next_write_raw
+				    [tx->tx_txg & TXG_MASK] = B_TRUE;
+			}
 		}
 
 		dmu_tx_commit(tx);
@@ -1539,29 +1542,39 @@ dmu_return_arcbuf(arc_buf_t *buf)
 	arc_buf_destroy(buf, FTAG);
 }
 
-void
-dmu_convert_to_raw(dmu_buf_t *handle, boolean_t byteorder, const uint8_t *salt,
-    const uint8_t *iv, const uint8_t *mac, dmu_tx_t *tx)
+int
+dmu_convert_mdn_block_to_raw(objset_t *os, uint64_t firstobj,
+    boolean_t byteorder, const uint8_t *salt, const uint8_t *iv,
+    const uint8_t *mac, dmu_tx_t *tx)
 {
-	dmu_object_type_t type;
-	dmu_buf_impl_t *db = (dmu_buf_impl_t *)handle;
-	uint64_t dsobj = dmu_objset_id(db->db_objset);
+	int ret;
+	dmu_buf_t *handle = NULL;
+	dmu_buf_impl_t *db = NULL;
+	uint64_t offset = firstobj * DNODE_MIN_SIZE;
+	uint64_t dsobj = dmu_objset_id(os);
 
-	ASSERT3P(db->db_buf, !=, NULL);
-	ASSERT3U(dsobj, !=, 0);
+	ret = dmu_buf_hold_by_dnode(DMU_META_DNODE(os), offset, FTAG, &handle,
+	    DMU_READ_PREFETCH | DMU_READ_NO_DECRYPT);
+	if (ret != 0)
+		return (ret);
 
 	dmu_buf_will_change_crypt_params(handle, tx);
 
-	DB_DNODE_ENTER(db);
-	type = DB_DNODE(db)->dn_type;
-	DB_DNODE_EXIT(db);
+	db = (dmu_buf_impl_t *)handle;
+	ASSERT3P(db->db_buf, !=, NULL);
+	ASSERT3U(dsobj, !=, 0);
 
 	/*
 	 * This technically violates the assumption the dmu code makes
 	 * that dnode blocks are only released in syncing context.
 	 */
 	(void) arc_release(db->db_buf, db);
-	arc_convert_to_raw(db->db_buf, dsobj, byteorder, type, salt, iv, mac);
+	arc_convert_to_raw(db->db_buf, dsobj, byteorder, DMU_OT_DNODE,
+	    salt, iv, mac);
+
+	dmu_buf_rele(handle, FTAG);
+
+	return (0);
 }
 
 void
@@ -1782,6 +1795,13 @@ dmu_sync_late_arrival(zio_t *pio, objset_t *os, dmu_sync_cb_t *done, zgd_t *zgd,
 		/* Make zl_get_data do txg_waited_synced() */
 		return (SET_ERROR(EIO));
 	}
+
+	/*
+	 * In order to prevent the zgd's lwb from being free'd prior to
+	 * dmu_sync_late_arrival_done() being called, we have to ensure
+	 * the lwb's "max txg" takes this tx's txg into account.
+	 */
+	zil_lwb_add_txg(zgd->zgd_lwb, dmu_tx_get_txg(tx));
 
 	dsa = kmem_alloc(sizeof (dmu_sync_arg_t), KM_SLEEP);
 	dsa->dsa_dr = NULL;
@@ -2022,6 +2042,23 @@ dmu_object_set_blocksize(objset_t *os, uint64_t object, uint64_t size, int ibs,
 	return (err);
 }
 
+int
+dmu_object_set_maxblkid(objset_t *os, uint64_t object, uint64_t maxblkid,
+    dmu_tx_t *tx)
+{
+	dnode_t *dn;
+	int err;
+
+	err = dnode_hold(os, object, FTAG, &dn);
+	if (err)
+		return (err);
+	rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
+	dnode_new_blkid(dn, maxblkid, tx, B_FALSE);
+	rw_exit(&dn->dn_struct_rwlock);
+	dnode_rele(dn, FTAG);
+	return (0);
+}
+
 void
 dmu_object_set_checksum(objset_t *os, uint64_t object, uint8_t checksum,
     dmu_tx_t *tx)
@@ -2080,8 +2117,6 @@ dmu_object_dirty_raw(objset_t *os, uint64_t object, dmu_tx_t *tx)
 	return (err);
 }
 
-int zfs_mdcomp_disable = 0;
-
 /*
  * When the "redundant_metadata" property is set to "most", only indirect
  * blocks of this level and higher will have an additional ditto block.
@@ -2111,16 +2146,12 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 	 *	 3. all other level 0 blocks
 	 */
 	if (ismd) {
-		if (zfs_mdcomp_disable) {
-			compress = ZIO_COMPRESS_EMPTY;
-		} else {
-			/*
-			 * XXX -- we should design a compression algorithm
-			 * that specializes in arrays of bps.
-			 */
-			compress = zio_compress_select(os->os_spa,
-			    ZIO_COMPRESS_ON, ZIO_COMPRESS_ON);
-		}
+		/*
+		 * XXX -- we should design a compression algorithm
+		 * that specializes in arrays of bps.
+		 */
+		compress = zio_compress_select(os->os_spa,
+		    ZIO_COMPRESS_ON, ZIO_COMPRESS_ON);
 
 		/*
 		 * Metadata always gets checksummed.  If the data
@@ -2207,8 +2238,10 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 			dedup = B_FALSE;
 		}
 
-		if (type == DMU_OT_DNODE || type == DMU_OT_OBJSET)
+		if (level <= 0 &&
+		    (type == DMU_OT_DNODE || type == DMU_OT_OBJSET)) {
 			compress = ZIO_COMPRESS_EMPTY;
+		}
 	}
 
 	zp->zp_compress = compress;
@@ -2481,6 +2514,7 @@ EXPORT_SYMBOL(dmu_object_size_from_db);
 EXPORT_SYMBOL(dmu_object_dnsize_from_db);
 EXPORT_SYMBOL(dmu_object_set_nlevels);
 EXPORT_SYMBOL(dmu_object_set_blocksize);
+EXPORT_SYMBOL(dmu_object_set_maxblkid);
 EXPORT_SYMBOL(dmu_object_set_checksum);
 EXPORT_SYMBOL(dmu_object_set_compress);
 EXPORT_SYMBOL(dmu_write_policy);
@@ -2493,9 +2527,6 @@ EXPORT_SYMBOL(dmu_buf_hold);
 EXPORT_SYMBOL(dmu_ot);
 
 /* BEGIN CSTYLED */
-module_param(zfs_mdcomp_disable, int, 0644);
-MODULE_PARM_DESC(zfs_mdcomp_disable, "Disable meta data compression");
-
 module_param(zfs_nopwrite_enabled, int, 0644);
 MODULE_PARM_DESC(zfs_nopwrite_enabled, "Enable NOP writes");
 

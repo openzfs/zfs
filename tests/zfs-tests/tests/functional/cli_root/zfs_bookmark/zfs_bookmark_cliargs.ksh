@@ -35,6 +35,8 @@
 # 2. Verify we can create a bookmark specifying snapshot and bookmark full paths
 # 3. Verify we can create a bookmark specifying the snapshot name
 # 4. Verify we can create a bookmark specifying the bookmark name
+# 5. Verify at least a full dataset path is required and both snapshot and
+#    bookmark name must be valid
 #
 
 verify_runnable "both"
@@ -49,7 +51,7 @@ function cleanup
 	fi
 }
 
-log_assert "'zfs bookmark' works as expected when passed valid arguments."
+log_assert "'zfs bookmark' should work only when passed valid arguments."
 log_onexit cleanup
 
 DATASET="$TESTPOOL/$TESTFS"
@@ -74,4 +76,25 @@ log_must zfs bookmark "$DATASET@$TESTSNAP" "#$TESTBM"
 log_must eval "bkmarkexists $DATASET#$TESTBM"
 log_must zfs destroy "$DATASET#$TESTBM"
 
-log_pass "'zfs bookmark' works as expected when passed valid arguments."
+# Verify at least a full dataset path is required and both snapshot and
+# bookmark name must be valid
+log_mustnot zfs bookmark "@$TESTSNAP" "#$TESTBM"
+log_mustnot zfs bookmark "$TESTSNAP" "#$TESTBM"
+log_mustnot zfs bookmark "@$TESTSNAP" "$TESTBM"
+log_mustnot zfs bookmark "$TESTSNAP" "$TESTBM"
+log_mustnot zfs bookmark "$TESTSNAP" "$DATASET#$TESTBM"
+log_mustnot zfs bookmark "$DATASET" "$TESTBM"
+log_mustnot zfs bookmark "$DATASET@" "$TESTBM"
+log_mustnot zfs bookmark "$DATASET" "#$TESTBM"
+log_mustnot zfs bookmark "$DATASET@" "#$TESTBM"
+log_mustnot zfs bookmark "$DATASET@$TESTSNAP" "$TESTBM"
+log_mustnot zfs bookmark "@" "#$TESTBM"
+log_mustnot zfs bookmark "@" "#"
+log_mustnot zfs bookmark "@$TESTSNAP" "#"
+log_mustnot zfs bookmark "@$TESTSNAP" "$DATASET#"
+log_mustnot zfs bookmark "@$TESTSNAP" "$DATASET"
+log_mustnot zfs bookmark "$TESTSNAP" "$DATASET#"
+log_mustnot zfs bookmark "$TESTSNAP" "$DATASET"
+log_mustnot eval "bkmarkexists $DATASET#$TESTBM"
+
+log_pass "'zfs bookmark' works as expected only when passed valid arguments."

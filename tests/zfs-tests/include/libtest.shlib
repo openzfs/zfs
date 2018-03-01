@@ -285,12 +285,12 @@ function default_container_volume_setup
 # Create a snapshot on a filesystem or volume. Defaultly create a snapshot on
 # filesystem
 #
-# $1 Existing filesystem or volume name. Default, $TESTFS
+# $1 Existing filesystem or volume name. Default, $TESTPOOL/$TESTFS
 # $2 snapshot name. Default, $TESTSNAP
 #
 function create_snapshot
 {
-	typeset fs_vol=${1:-$TESTFS}
+	typeset fs_vol=${1:-$TESTPOOL/$TESTFS}
 	typeset snap=${2:-$TESTSNAP}
 
 	[[ -z $fs_vol ]] && log_fail "Filesystem or volume's name is undefined."
@@ -1420,7 +1420,13 @@ function setup_nfs_server
 	fi
 
 	if is_linux; then
-		log_note "NFS server must started prior to running test framework."
+		#
+		# Re-synchronize /var/lib/nfs/etab with /etc/exports and
+		# /etc/exports.d./* to provide a clean test environment.
+		#
+		log_must share -r
+
+		log_note "NFS server must be started prior to running ZTS."
 		return
 	fi
 
@@ -3074,8 +3080,31 @@ function wait_replacing #pool
 }
 
 #
+# Wait for a pool to be scrubbed
+#
+# $1 pool name
+# $2 number of seconds to wait (optional)
+#
+# Returns true when pool has been scrubbed, or false if there's a timeout or if
+# no scrub was done.
+#
+function wait_scrubbed
+{
+	typeset pool=${1:-$TESTPOOL}
+	typeset iter=${2:-10}
+	for i in {1..$iter} ; do
+		if is_pool_scrubbed $pool ; then
+			return 0
+		fi
+		sleep 1
+	done
+	return 1
+}
+
+#
 # Setup custom environment for the ZED.
 #
+# $@ Optional list of zedlets to run under zed.
 function zed_setup
 {
 	if ! is_linux; then
@@ -3093,6 +3122,7 @@ function zed_setup
 	if [[ -e $VDEVID_CONF_ETC ]]; then
 		log_fail "Must not have $VDEVID_CONF_ETC file present on system"
 	fi
+	EXTRA_ZEDLETS=$@
 
 	# Create a symlink for /etc/zfs/vdev_id.conf file.
 	log_must ln -s $VDEVID_CONF $VDEVID_CONF_ETC
@@ -3102,32 +3132,44 @@ function zed_setup
 	log_must cp ${ZEDLET_ETC_DIR}/zed.rc $ZEDLET_DIR
 	log_must cp ${ZEDLET_ETC_DIR}/zed-functions.sh $ZEDLET_DIR
 
+	# Scripts must only be user writable.
+	if [[ -n "$EXTRA_ZEDLETS" ]] ; then
+		saved_umask=$(umask)
+		log_must umask 0022
+		for i in $EXTRA_ZEDLETS ; do
+			log_must cp ${ZEDLET_LIBEXEC_DIR}/$i $ZEDLET_DIR
+		done
+		log_must umask $saved_umask
+	fi
+
 	# Customize the zed.rc file to enable the full debug log.
 	log_must sed -i '/\#ZED_DEBUG_LOG=.*/d' $ZEDLET_DIR/zed.rc
 	echo "ZED_DEBUG_LOG=$ZED_DEBUG_LOG" >>$ZEDLET_DIR/zed.rc
 
-	# Scripts must only be user writable.
-	saved_umask=$(umask)
-	log_must umask 0022
-	log_must cp ${ZEDLET_LIBEXEC_DIR}/all-syslog.sh $ZEDLET_DIR
-	log_must cp ${ZEDLET_LIBEXEC_DIR}/all-debug.sh $ZEDLET_DIR
-	log_must umask $saved_umask
 }
 
 #
 # Cleanup custom ZED environment.
 #
+# $@ Optional list of zedlets to remove from our test zed.d directory.
 function zed_cleanup
 {
 	if ! is_linux; then
 		return
 	fi
+	EXTRA_ZEDLETS=$@
 
 	log_must rm -f ${ZEDLET_DIR}/zed.rc
 	log_must rm -f ${ZEDLET_DIR}/zed-functions.sh
 	log_must rm -f ${ZEDLET_DIR}/all-syslog.sh
 	log_must rm -f ${ZEDLET_DIR}/all-debug.sh
 	log_must rm -f ${ZEDLET_DIR}/state
+
+	if [[ -n "$EXTRA_ZEDLETS" ]] ; then
+		for i in $EXTRA_ZEDLETS ; do
+			log_must rm -f ${ZEDLET_DIR}/$i
+		done
+	fi
 	log_must rm -f $ZED_LOG
 	log_must rm -f $ZED_DEBUG_LOG
 	log_must rm -f $VDEVID_CONF_ETC
@@ -3159,7 +3201,7 @@ function zed_start
 	# run ZED in the background and redirect foreground logging
 	# output to $ZED_LOG.
 	log_must truncate -s 0 $ZED_DEBUG_LOG
-	log_must eval "zed -vF -d $ZEDLET_DIR -p $ZEDLET_DIR/zed.pid" \
+	log_must eval "zed -vF -d $ZEDLET_DIR -p $ZEDLET_DIR/zed.pid -P $PATH" \
 	    "-s $ZEDLET_DIR/state 2>$ZED_LOG &"
 
 	return 0
@@ -3178,11 +3220,23 @@ function zed_stop
 	if [[ -f ${ZEDLET_DIR}/zed.pid ]]; then
 		zedpid=$(cat ${ZEDLET_DIR}/zed.pid)
 		kill $zedpid
-		wait $zedpid
+		while ps -p $zedpid > /dev/null; do
+			sleep 1
+		done
 		rm -f ${ZEDLET_DIR}/zed.pid
 	fi
-
 	return 0
+}
+
+#
+# Drain all zevents
+#
+function zed_events_drain
+{
+	while [ $(zpool events -H | wc -l) -ne 0 ]; do
+		sleep 1
+		zpool events -c >/dev/null
+	done
 }
 
 #

@@ -27,6 +27,10 @@ tags = ['functional']
 tests = ['posix_003_pos']
 tags = ['functional', 'acl', 'posix']
 
+[tests/functional/arc]
+tests = ['dbufstats_001_pos', 'dbufstats_002_pos']
+tags = ['functional', 'arc']
+
 [tests/functional/atime]
 tests = ['atime_001_pos', 'atime_002_neg', 'atime_003_pos']
 tags = ['functional', 'atime']
@@ -55,8 +59,30 @@ tags = ['functional', 'cachefile']
 # 'mixed_none_lookup', 'mixed_none_lookup_ci', 'mixed_none_delete',
 # 'mixed_formd_lookup', 'mixed_formd_lookup_ci', 'mixed_formd_delete']
 [tests/functional/casenorm]
-tests = ['case_all_values', 'norm_all_values']
+tests = ['case_all_values', 'norm_all_values', 'mixed_create_failure']
 tags = ['functional', 'casenorm']
+
+[tests/functional/channel_program/lua_core]
+tests = ['tst.args_to_lua', 'tst.divide_by_zero', 'tst.exists',
+    'tst.integer_illegal', 'tst.integer_overflow', 'tst.language_functions_neg',
+    'tst.language_functions_pos', 'tst.large_prog', 'tst.libraries',
+    'tst.memory_limit', 'tst.nested_neg', 'tst.nested_pos', 'tst.nvlist_to_lua',
+    'tst.recursive_neg', 'tst.recursive_pos', 'tst.return_large',
+    'tst.return_nvlist_neg', 'tst.return_nvlist_pos',
+    'tst.return_recursive_table', 'tst.timeout']
+tags = ['functional', 'channel_program', 'lua_core']
+
+[tests/functional/channel_program/synctask_core]
+tests = ['tst.destroy_fs', 'tst.destroy_snap', 'tst.get_count_and_limit',
+    'tst.get_index_props', 'tst.get_mountpoint', 'tst.get_neg',
+    'tst.get_number_props', 'tst.get_string_props', 'tst.get_type',
+    'tst.get_userquota', 'tst.get_written', 'tst.list_children',
+    'tst.list_clones', 'tst.list_snapshots', 'tst.list_system_props',
+    'tst.list_user_props', 'tst.parse_args_neg','tst.promote_conflict',
+    'tst.promote_multiple', 'tst.promote_simple', 'tst.rollback_mult',
+    'tst.rollback_one', 'tst.snapshot_destroy', 'tst.snapshot_neg',
+    'tst.snapshot_recursive', 'tst.snapshot_simple']
+tags = ['functional', 'channel_program', 'synctask_core']
 
 [tests/functional/chattr]
 tests = ['chattr_001_pos', 'chattr_002_neg']
@@ -73,7 +99,7 @@ tags = ['functional', 'clean_mirror']
 
 [tests/functional/cli_root/zdb]
 tests = ['zdb_001_neg', 'zdb_002_pos', 'zdb_003_pos', 'zdb_004_pos',
-    'zdb_005_pos']
+    'zdb_005_pos', 'zdb_006_pos']
 pre =
 post =
 tags = ['functional', 'cli_root', 'zdb']
@@ -197,7 +223,7 @@ tags = ['functional', 'cli_root', 'zfs_rollback']
 tests = ['zfs_send_001_pos', 'zfs_send_002_pos', 'zfs_send_003_pos',
     'zfs_send_004_neg', 'zfs_send_005_pos', 'zfs_send_006_pos',
     'zfs_send_007_pos', 'zfs_send_encrypted', 'zfs_send_raw',
-    'zfs_send_sparse']
+    'zfs_send_sparse', 'zfs_send-b']
 tags = ['functional', 'cli_root', 'zfs_send']
 
 [tests/functional/cli_root/zfs_set]
@@ -257,7 +283,7 @@ tests = ['zpool_add_001_pos', 'zpool_add_002_pos', 'zpool_add_003_pos',
     'zpool_add_004_pos', 'zpool_add_005_pos', 'zpool_add_006_pos',
     'zpool_add_007_neg', 'zpool_add_008_neg', 'zpool_add_009_neg',
     'zpool_add_010_pos',
-    'add-o_ashift', 'add_prop_ashift']
+    'add-o_ashift', 'add_prop_ashift', 'add_nested_replacing_spare']
 tags = ['functional', 'cli_root', 'zpool_add']
 
 [tests/functional/cli_root/zpool_attach]
@@ -328,11 +354,13 @@ tests = ['zpool_import_001_pos', 'zpool_import_002_pos',
     'zpool_import_006_pos', 'zpool_import_007_pos', 'zpool_import_008_pos',
     'zpool_import_009_neg', 'zpool_import_010_pos', 'zpool_import_011_neg',
     'zpool_import_012_pos', 'zpool_import_013_neg', 'zpool_import_014_pos',
+    'zpool_import_015_pos',
     'zpool_import_features_001_pos', 'zpool_import_features_002_neg',
     'zpool_import_features_003_pos','zpool_import_missing_001_pos',
     'zpool_import_missing_002_pos',
     'zpool_import_rename_001_pos', 'zpool_import_all_001_pos',
-    'zpool_import_encrypted', 'zpool_import_encrypted_load']
+    'zpool_import_encrypted', 'zpool_import_encrypted_load',
+    'zpool_import_errata3']
 tags = ['functional', 'cli_root', 'zpool_import']
 
 [tests/functional/cli_root/zpool_labelclear]
@@ -408,7 +436,8 @@ tests = ['zdb_001_neg', 'zfs_001_neg', 'zfs_allow_001_neg',
     'zpool_offline_001_neg', 'zpool_online_001_neg', 'zpool_remove_001_neg',
     'zpool_replace_001_neg', 'zpool_scrub_001_neg', 'zpool_set_001_neg',
     'zpool_status_001_neg', 'zpool_upgrade_001_neg', 'arcstat_001_pos',
-    'arc_summary_001_pos', 'dbufstat_001_pos']
+    'arc_summary_001_pos', 'arc_summary_002_neg', 
+    'arc_summary3_001_pos', 'dbufstat_001_pos']
 user =
 tags = ['functional', 'cli_user', 'misc']
 
@@ -440,6 +469,12 @@ tags = ['functional', 'compression']
 tests = ['ctime_001_pos' ]
 tags = ['functional', 'ctime']
 
+[tests/functional/deadman]
+tests = ['deadman_sync', 'deadman_zio']
+pre =
+post =
+tags = ['functional', 'deadman']
+
 [tests/functional/delegate]
 tests = ['zfs_allow_001_pos', 'zfs_allow_002_pos',
     'zfs_allow_004_pos', 'zfs_allow_005_pos', 'zfs_allow_006_pos',
@@ -464,7 +499,8 @@ tags = ['functional', 'exec']
 
 [tests/functional/fault]
 tests = ['auto_online_001_pos', 'auto_replace_001_pos', 'auto_spare_001_pos',
-    'auto_spare_002_pos.ksh']
+    'auto_spare_002_pos', 'auto_spare_ashift', 'auto_spare_multiple',
+    'scrub_after_resilver']
 tags = ['functional', 'fault']
 
 [tests/functional/features/async_destroy]
@@ -582,6 +618,16 @@ tags = ['functional', 'poolversion']
 tests = ['privilege_001_pos', 'privilege_002_pos']
 tags = ['functional', 'privilege']
 
+[tests/functional/projectquota]
+tests = ['projectid_001_pos', 'projectid_002_pos', 'projectid_003_pos',
+    'projectquota_001_pos', 'projectquota_002_pos', 'projectquota_003_pos',
+    'projectquota_004_neg', 'projectquota_005_pos', 'projectquota_006_pos',
+    'projectquota_007_pos', 'projectquota_008_pos', 'projectquota_009_pos',
+    'projectspace_001_pos', 'projectspace_002_pos', 'projectspace_003_pos',
+    'projectspace_004_pos',
+    'projecttree_001_pos', 'projecttree_002_pos', 'projecttree_003_neg' ]
+tags = ['functional', 'projectquota']
+
 [tests/functional/quota]
 tests = ['quota_001_pos', 'quota_002_pos', 'quota_003_pos',
          'quota_004_pos', 'quota_005_pos', 'quota_006_neg']
@@ -644,7 +690,8 @@ tests = ['rsend_001_pos', 'rsend_002_pos', 'rsend_003_pos', 'rsend_004_pos',
     'send-c_lz4_disabled', 'send-c_recv_lz4_disabled',
     'send-c_mixed_compression', 'send-c_stream_size_estimate', 'send-cD',
     'send-c_embedded_blocks', 'send-c_resume', 'send-cpL_varied_recsize',
-    'send-c_recv_dedup', 'send_encrypted_heirarchy', 'send_freeobjects']
+    'send-c_recv_dedup', 'send_encrypted_files', 'send_encrypted_heirarchy',
+    'send_freeobjects', 'send_realloc_dnode_size']
 tags = ['functional', 'rsend']
 
 [tests/functional/scrub_mirror]
@@ -656,7 +703,8 @@ tags = ['functional', 'scrub_mirror']
 tests = ['slog_001_pos', 'slog_002_pos', 'slog_003_pos', 'slog_004_pos',
     'slog_005_pos', 'slog_006_pos', 'slog_007_pos', 'slog_008_neg',
     'slog_009_neg', 'slog_010_neg', 'slog_011_neg', 'slog_012_neg',
-    'slog_013_pos', 'slog_014_pos', 'slog_replay_fs', 'slog_replay_volume']
+    'slog_013_pos', 'slog_014_pos', 'slog_015_neg', 'slog_replay_fs',
+    'slog_replay_volume']
 tags = ['functional', 'slog']
 
 [tests/functional/snapshot]
@@ -692,7 +740,7 @@ tests = ['truncate_001_pos', 'truncate_002_pos', 'truncate_timestamps']
 tags = ['functional', 'truncate']
 
 [tests/functional/upgrade]
-tests = [ 'upgrade_userobj_001_pos' ]
+tests = ['upgrade_userobj_001_pos', 'upgrade_projectquota_001_pos']
 tags = ['functional', 'upgrade']
 
 [tests/functional/userquota]

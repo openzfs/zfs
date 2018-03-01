@@ -353,7 +353,7 @@ spa_prop_get(spa_t *spa, nvlist_t **nvp)
 		zprop_source_t src = ZPROP_SRC_DEFAULT;
 		zpool_prop_t prop;
 
-		if ((prop = zpool_name_to_prop(za.za_name)) == ZPROP_INVAL)
+		if ((prop = zpool_name_to_prop(za.za_name)) == ZPOOL_PROP_INVAL)
 			continue;
 
 		switch (za.za_integer_length) {
@@ -440,8 +440,8 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 		const char *propname = nvpair_name(elem);
 		zpool_prop_t prop = zpool_name_to_prop(propname);
 
-		switch ((int)prop) {
-		case ZPROP_INVAL:
+		switch (prop) {
+		case ZPOOL_PROP_INVAL:
 			if (!zpool_prop_feature(propname)) {
 				error = SET_ERROR(EINVAL);
 				break;
@@ -698,7 +698,7 @@ spa_prop_set(spa_t *spa, nvlist_t *nvp)
 		    prop == ZPOOL_PROP_READONLY)
 			continue;
 
-		if (prop == ZPOOL_PROP_VERSION || prop == ZPROP_INVAL) {
+		if (prop == ZPOOL_PROP_VERSION || prop == ZPOOL_PROP_INVAL) {
 			uint64_t ver;
 
 			if (prop == ZPOOL_PROP_VERSION) {
@@ -1188,7 +1188,7 @@ spa_activate(spa_t *spa, int mode)
 
 	/*
 	 * The taskq to upgrade datasets in this pool. Currently used by
-	 * feature SPA_FEATURE_USEROBJ_ACCOUNTING.
+	 * feature SPA_FEATURE_USEROBJ_ACCOUNTING/SPA_FEATURE_PROJECT_QUOTA.
 	 */
 	spa->spa_upgrade_taskq = taskq_create("z_upgrade", boot_ncpus,
 	    defclsyspri, 1, INT_MAX, TASKQ_DYNAMIC);
@@ -1563,7 +1563,7 @@ spa_load_spares(spa_t *spa)
 static void
 spa_load_l2cache(spa_t *spa)
 {
-	nvlist_t **l2cache;
+	nvlist_t **l2cache = NULL;
 	uint_t nl2cache;
 	int i, j, oldnvdevs;
 	uint64_t guid;
@@ -1647,7 +1647,9 @@ spa_load_l2cache(spa_t *spa)
 	VERIFY(nvlist_remove(sav->sav_config, ZPOOL_CONFIG_L2CACHE,
 	    DATA_TYPE_NVLIST_ARRAY) == 0);
 
-	l2cache = kmem_alloc(sav->sav_count * sizeof (void *), KM_SLEEP);
+	if (sav->sav_count > 0)
+		l2cache = kmem_alloc(sav->sav_count * sizeof (void *),
+		    KM_SLEEP);
 	for (i = 0; i < sav->sav_count; i++)
 		l2cache[i] = vdev_config_generate(spa,
 		    sav->sav_vdevs[i], B_TRUE, VDEV_CONFIG_L2CACHE);
@@ -2330,7 +2332,8 @@ vdev_count_verify_zaps(vdev_t *vd)
  * Determine whether the activity check is required.
  */
 static boolean_t
-spa_activity_check_required(spa_t *spa, uberblock_t *ub, nvlist_t *config)
+spa_activity_check_required(spa_t *spa, uberblock_t *ub, nvlist_t *label,
+    nvlist_t *config)
 {
 	uint64_t state = 0;
 	uint64_t hostid = 0;
@@ -2347,7 +2350,6 @@ spa_activity_check_required(spa_t *spa, uberblock_t *ub, nvlist_t *config)
 	}
 
 	(void) nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_STATE, &state);
-	(void) nvlist_lookup_uint64(config, ZPOOL_CONFIG_HOSTID, &hostid);
 
 	/*
 	 * Disable the MMP activity check - This is used by zdb which
@@ -2373,8 +2375,12 @@ spa_activity_check_required(spa_t *spa, uberblock_t *ub, nvlist_t *config)
 
 	/*
 	 * Allow the activity check to be skipped when importing the pool
-	 * on the same host which last imported it.
+	 * on the same host which last imported it.  Since the hostid from
+	 * configuration may be stale use the one read from the label.
 	 */
+	if (nvlist_exists(label, ZPOOL_CONFIG_HOSTID))
+		hostid = fnvlist_lookup_uint64(label, ZPOOL_CONFIG_HOSTID);
+
 	if (hostid == spa_get_hostid())
 		return (B_FALSE);
 
@@ -2639,7 +2645,7 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 	 * pool is truly inactive and can be safely imported.  Prevent
 	 * hosts which don't have a hostid set from importing the pool.
 	 */
-	activity_check = spa_activity_check_required(spa, ub, config);
+	activity_check = spa_activity_check_required(spa, ub, label, config);
 	if (activity_check) {
 		if (ub->ub_mmp_magic == MMP_MAGIC && ub->ub_mmp_delay &&
 		    spa_get_hostid() == 0) {
@@ -6536,9 +6542,8 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 		zprop_type_t proptype;
 		spa_feature_t fid;
 
-		prop = zpool_name_to_prop(nvpair_name(elem));
-		switch ((int)prop) {
-		case ZPROP_INVAL:
+		switch (prop = zpool_name_to_prop(nvpair_name(elem))) {
+		case ZPOOL_PROP_INVAL:
 			/*
 			 * We checked this earlier in spa_prop_validate().
 			 */

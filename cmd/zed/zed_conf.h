@@ -37,6 +37,7 @@ struct zed_conf {
 	int		state_fd;		/* fd to state file */
 	libzfs_handle_t	*zfs_hdl;		/* handle to libzfs */
 	int		zevent_fd;		/* fd for access to zevents */
+	char		*path;		/* custom $PATH for zedlets to use */
 };
 
 struct zed_conf *zed_conf_create(void);

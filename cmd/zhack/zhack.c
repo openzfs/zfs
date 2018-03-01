@@ -105,7 +105,7 @@ fatal(spa_t *spa, void *tag, const char *fmt, ...)
 /* ARGSUSED */
 static int
 space_delta_cb(dmu_object_type_t bonustype, void *data,
-    uint64_t *userp, uint64_t *groupp)
+    uint64_t *userp, uint64_t *groupp, uint64_t *projectp)
 {
 	/*
 	 * Is it a valid type of object to track?
@@ -268,7 +268,7 @@ zhack_feature_enable_sync(void *arg, dmu_tx_t *tx)
 static void
 zhack_do_feature_enable(int argc, char **argv)
 {
-	char c;
+	int c;
 	char *desc, *target;
 	spa_t *spa;
 	objset_t *mos;
@@ -363,7 +363,7 @@ feature_decr_sync(void *arg, dmu_tx_t *tx)
 static void
 zhack_do_feature_ref(int argc, char **argv)
 {
-	char c;
+	int c;
 	char *target;
 	boolean_t decr = B_FALSE;
 	spa_t *spa;
@@ -483,7 +483,7 @@ main(int argc, char **argv)
 	char *path[MAX_NUM_PATHS];
 	const char *subcommand;
 	int rv = 0;
-	char c;
+	int c;
 
 	g_importargs.path = path;
 

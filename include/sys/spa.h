@@ -888,8 +888,10 @@ extern txg_stat_t *spa_txg_history_init_io(spa_t *, uint64_t,
     struct dsl_pool *);
 extern void spa_txg_history_fini_io(spa_t *, txg_stat_t *);
 extern void spa_tx_assign_add_nsecs(spa_t *spa, uint64_t nsecs);
+extern int spa_mmp_history_set(spa_t *spa, uint64_t mmp_kstat_id, int io_error,
+    hrtime_t duration);
 extern void spa_mmp_history_add(uint64_t txg, uint64_t timestamp,
-    uint64_t mmp_delay, vdev_t *vd, int label);
+    uint64_t mmp_delay, vdev_t *vd, int label, uint64_t mmp_kstat_id);
 
 /* Pool configuration locks */
 extern int spa_config_tryenter(spa_t *spa, int locks, void *tag, krw_t rw);
@@ -956,12 +958,15 @@ extern void spa_evicting_os_deregister(spa_t *, objset_t *os);
 extern void spa_evicting_os_wait(spa_t *spa);
 extern int spa_max_replication(spa_t *spa);
 extern int spa_prev_software_version(spa_t *spa);
-extern uint8_t spa_get_failmode(spa_t *spa);
+extern uint64_t spa_get_failmode(spa_t *spa);
+extern uint64_t spa_get_deadman_failmode(spa_t *spa);
+extern void spa_set_deadman_failmode(spa_t *spa, const char *failmode);
 extern boolean_t spa_suspended(spa_t *spa);
 extern uint64_t spa_bootfs(spa_t *spa);
 extern uint64_t spa_delegation(spa_t *spa);
 extern objset_t *spa_meta_objset(spa_t *spa);
 extern uint64_t spa_deadman_synctime(spa_t *spa);
+extern uint64_t spa_deadman_ziotime(spa_t *spa);
 
 /* Miscellaneous support routines */
 extern void spa_activate_mos_feature(spa_t *spa, const char *feature,
@@ -1075,6 +1080,10 @@ extern boolean_t spa_debug_enabled(spa_t *spa);
 }
 
 extern int spa_mode_global;			/* mode, e.g. FREAD | FWRITE */
+extern int zfs_deadman_enabled;
+extern unsigned long zfs_deadman_synctime_ms;
+extern unsigned long zfs_deadman_ziotime_ms;
+extern unsigned long zfs_deadman_checktime_ms;
 
 #ifdef	__cplusplus
 }

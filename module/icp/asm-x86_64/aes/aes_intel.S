@@ -207,7 +207,7 @@ _key_expansion_256a_local:
 	shufps	$0b10001100, %xmm0, %xmm4
 	pxor	%xmm4, %xmm0
 	pxor	%xmm1, %xmm0
-	movaps	%xmm0, (%rcx)
+	movups	%xmm0, (%rcx)
 	add	$0x10, %rcx
 	ret
 	nop
@@ -224,18 +224,18 @@ _key_expansion_192a_local:
 	pxor	%xmm4, %xmm0
 	pxor	%xmm1, %xmm0
 
-	movaps	%xmm2, %xmm5
-	movaps	%xmm2, %xmm6
+	movups	%xmm2, %xmm5
+	movups	%xmm2, %xmm6
 	pslldq	$4, %xmm5
 	pshufd	$0b11111111, %xmm0, %xmm3
 	pxor	%xmm3, %xmm2
 	pxor	%xmm5, %xmm2
 
-	movaps	%xmm0, %xmm1
+	movups	%xmm0, %xmm1
 	shufps	$0b01000100, %xmm0, %xmm6
-	movaps	%xmm6, (%rcx)
+	movups	%xmm6, (%rcx)
 	shufps	$0b01001110, %xmm2, %xmm1
-	movaps	%xmm1, 0x10(%rcx)
+	movups	%xmm1, 0x10(%rcx)
 	add	$0x20, %rcx
 	ret
 SET_SIZE(_key_expansion_192a)
@@ -250,13 +250,13 @@ _key_expansion_192b_local:
 	pxor	%xmm4, %xmm0
 	pxor	%xmm1, %xmm0
 
-	movaps	%xmm2, %xmm5
+	movups	%xmm2, %xmm5
 	pslldq	$4, %xmm5
 	pshufd	$0b11111111, %xmm0, %xmm3
 	pxor	%xmm3, %xmm2
 	pxor	%xmm5, %xmm2
 
-	movaps	%xmm0, (%rcx)
+	movups	%xmm0, (%rcx)
 	add	$0x10, %rcx
 	ret
 SET_SIZE(_key_expansion_192b)
@@ -270,7 +270,7 @@ _key_expansion_256b_local:
 	shufps	$0b10001100, %xmm2, %xmm4
 	pxor	%xmm4, %xmm2
 	pxor	%xmm1, %xmm2
-	movaps	%xmm2, (%rcx)
+	movups	%xmm2, (%rcx)
 	add	$0x10, %rcx
 	ret
 SET_SIZE(_key_expansion_256b)
@@ -327,7 +327,7 @@ rijndael_key_setup_enc_intel_local:
 	jz	.Lenc_key_invalid_param
 
 	movups	(%USERCIPHERKEY), %xmm0	// user key (first 16 bytes)
-	movaps	%xmm0, (%AESKEY)
+	movups	%xmm0, (%AESKEY)
 	lea	0x10(%AESKEY), %rcx	// key addr
 	pxor	%xmm4, %xmm4		// xmm4 is assumed 0 in _key_expansion_x
 
@@ -341,7 +341,7 @@ rijndael_key_setup_enc_intel_local:
 #endif	/* OPENSSL_INTERFACE */
 
 	movups	0x10(%USERCIPHERKEY), %xmm2	// other user key (2nd 16 bytes)
-	movaps	%xmm2, (%rcx)
+	movups	%xmm2, (%rcx)
 	add	$0x10, %rcx
 
 	aeskeygenassist $0x1, %xmm2, %xmm1	// expand the key
@@ -525,10 +525,10 @@ FRAME_BEGIN
 
 .align 4
 .Ldec_key_reorder_loop:
-	movaps	(%AESKEY), %xmm0
-	movaps	(%ROUNDS64), %xmm1
-	movaps	%xmm0, (%ROUNDS64)
-	movaps	%xmm1, (%AESKEY)
+	movups	(%AESKEY), %xmm0
+	movups	(%ROUNDS64), %xmm1
+	movups	%xmm0, (%ROUNDS64)
+	movups	%xmm1, (%AESKEY)
 	lea	0x10(%AESKEY), %AESKEY
 	lea	-0x10(%ROUNDS64), %ROUNDS64
 	cmp	%AESKEY, %ROUNDS64
@@ -536,11 +536,11 @@ FRAME_BEGIN
 
 .align 4
 .Ldec_key_inv_loop:
-	movaps	(%rcx), %xmm0
+	movups	(%rcx), %xmm0
 	// Convert an encryption round key to a form usable for decryption
 	// with the "AES Inverse Mix Columns" instruction
 	aesimc	%xmm0, %xmm1
-	movaps	%xmm1, (%rcx)
+	movups	%xmm1, (%rcx)
 	lea	0x10(%rcx), %rcx
 	cmp	%ENDAESKEY, %rcx
 	jnz	.Ldec_key_inv_loop
@@ -602,7 +602,7 @@ FRAME_BEGIN
 ENTRY_NP(aes_encrypt_intel)
 
 	movups	(%INP), %STATE			// input
-	movaps	(%KEYP), %KEY			// key
+	movups	(%KEYP), %KEY			// key
 #ifdef	OPENSSL_INTERFACE
 	mov	240(%KEYP), %NROUNDS32		// round count
 #else	/* OpenSolaris Interface */
@@ -618,41 +618,41 @@ ENTRY_NP(aes_encrypt_intel)
 
 	// AES 256
 	lea	0x20(%KEYP), %KEYP
-	movaps	-0x60(%KEYP), %KEY
+	movups	-0x60(%KEYP), %KEY
 	aesenc	%KEY, %STATE
-	movaps	-0x50(%KEYP), %KEY
+	movups	-0x50(%KEYP), %KEY
 	aesenc	%KEY, %STATE
 
 .align 4
 .Lenc192:
 	// AES 192 and 256
-	movaps	-0x40(%KEYP), %KEY
+	movups	-0x40(%KEYP), %KEY
 	aesenc	%KEY, %STATE
-	movaps	-0x30(%KEYP), %KEY
+	movups	-0x30(%KEYP), %KEY
 	aesenc	%KEY, %STATE
 
 .align 4
 .Lenc128:
 	// AES 128, 192, and 256
-	movaps	-0x20(%KEYP), %KEY
+	movups	-0x20(%KEYP), %KEY
 	aesenc	%KEY, %STATE
-	movaps	-0x10(%KEYP), %KEY
+	movups	-0x10(%KEYP), %KEY
 	aesenc	%KEY, %STATE
-	movaps	(%KEYP), %KEY
+	movups	(%KEYP), %KEY
 	aesenc	%KEY, %STATE
-	movaps	0x10(%KEYP), %KEY
+	movups	0x10(%KEYP), %KEY
 	aesenc	%KEY, %STATE
-	movaps	0x20(%KEYP), %KEY
+	movups	0x20(%KEYP), %KEY
 	aesenc	%KEY, %STATE
-	movaps	0x30(%KEYP), %KEY
+	movups	0x30(%KEYP), %KEY
 	aesenc	%KEY, %STATE
-	movaps	0x40(%KEYP), %KEY
+	movups	0x40(%KEYP), %KEY
 	aesenc	%KEY, %STATE
-	movaps	0x50(%KEYP), %KEY
+	movups	0x50(%KEYP), %KEY
 	aesenc	%KEY, %STATE
-	movaps	0x60(%KEYP), %KEY
+	movups	0x60(%KEYP), %KEY
 	aesenc	%KEY, %STATE
-	movaps	0x70(%KEYP), %KEY
+	movups	0x70(%KEYP), %KEY
 	aesenclast	 %KEY, %STATE		// last round
 	movups	%STATE, (%OUTP)			// output
 
@@ -685,7 +685,7 @@ ENTRY_NP(aes_encrypt_intel)
 ENTRY_NP(aes_decrypt_intel)
 
 	movups	(%INP), %STATE			// input
-	movaps	(%KEYP), %KEY			// key
+	movups	(%KEYP), %KEY			// key
 #ifdef	OPENSSL_INTERFACE
 	mov	240(%KEYP), %NROUNDS32		// round count
 #else	/* OpenSolaris Interface */
@@ -701,41 +701,41 @@ ENTRY_NP(aes_decrypt_intel)
 
 	// AES 256
 	lea	0x20(%KEYP), %KEYP
-	movaps	-0x60(%KEYP), %KEY
+	movups	-0x60(%KEYP), %KEY
 	aesdec	%KEY, %STATE
-	movaps	-0x50(%KEYP), %KEY
+	movups	-0x50(%KEYP), %KEY
 	aesdec	%KEY, %STATE
 
 .align 4
 .Ldec192:
 	// AES 192 and 256
-	movaps	-0x40(%KEYP), %KEY
+	movups	-0x40(%KEYP), %KEY
 	aesdec	%KEY, %STATE
-	movaps	-0x30(%KEYP), %KEY
+	movups	-0x30(%KEYP), %KEY
 	aesdec	%KEY, %STATE
 
 .align 4
 .Ldec128:
 	// AES 128, 192, and 256
-	movaps	-0x20(%KEYP), %KEY
+	movups	-0x20(%KEYP), %KEY
 	aesdec	%KEY, %STATE
-	movaps	-0x10(%KEYP), %KEY
+	movups	-0x10(%KEYP), %KEY
 	aesdec	%KEY, %STATE
-	movaps	(%KEYP), %KEY
+	movups	(%KEYP), %KEY
 	aesdec	%KEY, %STATE
-	movaps	0x10(%KEYP), %KEY
+	movups	0x10(%KEYP), %KEY
 	aesdec	%KEY, %STATE
-	movaps	0x20(%KEYP), %KEY
+	movups	0x20(%KEYP), %KEY
 	aesdec	%KEY, %STATE
-	movaps	0x30(%KEYP), %KEY
+	movups	0x30(%KEYP), %KEY
 	aesdec	%KEY, %STATE
-	movaps	0x40(%KEYP), %KEY
+	movups	0x40(%KEYP), %KEY
 	aesdec	%KEY, %STATE
-	movaps	0x50(%KEYP), %KEY
+	movups	0x50(%KEYP), %KEY
 	aesdec	%KEY, %STATE
-	movaps	0x60(%KEYP), %KEY
+	movups	0x60(%KEYP), %KEY
 	aesdec	%KEY, %STATE
-	movaps	0x70(%KEYP), %KEY
+	movups	0x70(%KEYP), %KEY
 	aesdeclast	%KEY, %STATE		// last round
 	movups	%STATE, (%OUTP)			// output
 

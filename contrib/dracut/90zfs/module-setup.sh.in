@@ -5,7 +5,7 @@ check() {
 	[ "${1}" = "-d" ] && return 0
 
 	# Verify the zfs tool chain
-	for tool in "@sbindir@/zpool" "@sbindir@/zfs" "@sbindir@/mount.zfs" ; do
+	for tool in "@sbindir@/zpool" "@sbindir@/zfs" "@mounthelperdir@/mount.zfs" ; do
 		test -x "$tool" || return 1
 	done
 	# Verify grep exists
@@ -25,6 +25,7 @@ installkernel() {
 	instmods znvpair
 	instmods zavl
 	instmods zunicode
+	instmods zlua
 	instmods icp
 	instmods spl
 	instmods zlib_deflate
@@ -54,7 +55,7 @@ install() {
 		# Fallback: Guess the path and include all matches
 		dracut_install /usr/lib/gcc/*/*/libgcc_s.so*
 	fi
-	dracut_install @sbindir@/mount.zfs
+	dracut_install @mounthelperdir@/mount.zfs
 	dracut_install @udevdir@/vdev_id
 	dracut_install awk
 	dracut_install head
@@ -63,6 +64,7 @@ install() {
 	if [ -n "$systemdutildir" ] ; then
 		inst_script "${moddir}/zfs-generator.sh" "$systemdutildir"/system-generators/dracut-zfs-generator
 	fi
+	inst_hook pre-mount 90 "${moddir}/zfs-load-key.sh"
 	inst_hook mount 98 "${moddir}/mount-zfs.sh"
 	inst_hook cleanup 99 "${moddir}/zfs-needshutdown.sh"
 	inst_hook shutdown 20 "${moddir}/export-zfs.sh"

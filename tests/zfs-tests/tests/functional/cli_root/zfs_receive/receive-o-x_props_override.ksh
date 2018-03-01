@@ -45,105 +45,6 @@ function cleanup
 	log_must zfs destroy -r -f $dest
 }
 
-#
-# Verify property $2 is set from source $4 on dataset $1 and has value $3.
-#
-# $1 checked dataset
-# $2 user property
-# $3 property value
-# $4 source
-#
-function check_prop_source
-{
-	typeset dataset="$1"
-	typeset prop="$2"
-	typeset value="$3"
-	typeset source="$4"
-	typeset chk_value=$(get_prop "$prop" "$dataset")
-	typeset chk_source=$(get_source "$prop" "$dataset")
-
-	if [[ "$chk_value" != "$value" || "$chk_source" != "$4" ]]
-	then
-		return 1
-	else
-		return 0
-	fi
-}
-
-#
-# Verify target dataset $1 inherit property $2 from dataset $3.
-#
-# $1 checked dataset
-# $2 property
-# $3 inherited dataset
-#
-function check_prop_inherit
-{
-	typeset checked_dtst="$1"
-	typeset prop="$2"
-	typeset inherited_dtst="$3"
-	typeset inherited_value=$(get_prop "$prop" "$inherited_dtst")
-	typeset value=$(get_prop "$prop" "$checked_dtst")
-	typeset source=$(get_source "$prop" "$checked_dtst")
-
-	if [[ "$value" != "$inherited_value" || \
-	    "$source" != "inherited from $inherited_dtst" ]]
-	then
-		return 1
-	else
-		return 0
-	fi
-}
-
-#
-# Verify property $2 received value on dataset $1 has value $3
-#
-# $1 checked dataset
-# $2 property name
-# $3 checked value
-#
-function check_prop_received
-{
-	typeset dataset="$1"
-	typeset prop="$2"
-	typeset value="$3"
-
-	received=$(zfs get -H -o received "$prop" "$dataset")
-	if (($? != 0)); then
-		log_fail "Unable to get $prop received value for dataset " \
-		    "$dataset"
-	fi
-	if [[ "$received" == "$value" ]]
-	then
-		return 0
-	else
-		return 1
-	fi
-}
-
-#
-# Verify user property $2 is not set on dataset $1
-#
-# $1 checked dataset
-# $2 property name
-#
-function check_prop_missing
-{
-	typeset dataset="$1"
-	typeset prop="$2"
-
-	value=$(zfs get -H -o value "$prop" "$dataset")
-	if (($? != 0)); then
-		log_fail "Unable to get $prop value for dataset $dataset"
-	fi
-	if [[ "-" == "$value" ]]
-	then
-		return 0
-	else
-		return 1
-	fi
-}
-
 log_assert "ZFS receive property override and exclude options work as expected."
 log_onexit cleanup
 
@@ -371,6 +272,42 @@ log_must eval "check_prop_source $dest type filesystem -"
 log_must eval "check_prop_source $dest atime off local"
 log_must eval "check_prop_source $destsub type volume -"
 log_must eval "check_prop_source $destsub atime - -"
+# Cleanup
+log_must zfs destroy -r -f $orig
+log_must zfs destroy -r -f $dest
+
+#
+# 3.8 Verify 'zfs recv -x|-o' works correctly when used in conjunction with -d
+#     and -e options.
+#
+log_must zfs create -p $orig/1/2/3/4
+log_must eval "zfs set copies=2 $orig"
+log_must eval "zfs set atime=on $orig"
+log_must eval "zfs set '$userprop:orig'='oldval' $orig"
+log_must zfs snapshot -r $orig@snap1
+log_must eval "zfs send -R $orig/1/2@snap1 > $streamfile_repl"
+# Verify 'zfs recv -e'
+log_must zfs create $dest
+log_must eval "zfs receive -e -o copies=3 -x atime "\
+	"-o '$userprop:orig'='newval' $dest < $streamfile_repl"
+log_must datasetexists $dest/2/3/4
+log_must eval "check_prop_source $dest/2 copies 3 local"
+log_must eval "check_prop_inherit $dest/2/3/4 copies $dest/2"
+log_must eval "check_prop_source $dest/2/3/4 atime on default"
+log_must eval "check_prop_source $dest/2 '$userprop:orig' 'newval' local"
+log_must eval "check_prop_inherit $dest/2/3/4 '$userprop:orig' $dest/2"
+log_must zfs destroy -r -f $dest
+# Verify 'zfs recv -d'
+log_must zfs create $dest
+typeset fs="$(echo $orig | awk -F'/' '{print $NF}')"
+log_must eval "zfs receive -d -o copies=3 -x atime "\
+	"-o '$userprop:orig'='newval' $dest < $streamfile_repl"
+log_must datasetexists $dest/$fs/1/2/3/4
+log_must eval "check_prop_source $dest/$fs/1/2 copies 3 local"
+log_must eval "check_prop_inherit $dest/$fs/1/2/3/4 copies $dest/$fs/1/2"
+log_must eval "check_prop_source $dest/$fs/1/2/3/4 atime on default"
+log_must eval "check_prop_source $dest/$fs/1/2 '$userprop:orig' 'newval' local"
+log_must eval "check_prop_inherit $dest/$fs/1/2/3/4 '$userprop:orig' $dest/$fs/1/2"
 # We don't need to cleanup here
 
 log_pass "ZFS receive property override and exclude options passed."

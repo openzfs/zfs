@@ -124,6 +124,7 @@ static boolean_t scan_ds_queue_contains(dsl_scan_t *scn, uint64_t dsobj,
 static void scan_ds_queue_insert(dsl_scan_t *scn, uint64_t dsobj, uint64_t txg);
 static void scan_ds_queue_remove(dsl_scan_t *scn, uint64_t dsobj);
 static void scan_ds_queue_sync(dsl_scan_t *scn, dmu_tx_t *tx);
+static uint64_t dsl_scan_count_leaves(vdev_t *vd);
 
 extern int zfs_vdev_async_write_active_min_dirty_percent;
 
@@ -147,7 +148,7 @@ unsigned long zfs_scan_vdev_limit = 4 << 20;
 
 int zfs_scan_issue_strategy = 0;
 int zfs_scan_legacy = B_FALSE; /* don't queue & sort zios, go direct */
-uint64_t zfs_scan_max_ext_gap = 2 << 20; /* in bytes */
+unsigned long zfs_scan_max_ext_gap = 2 << 20; /* in bytes */
 
 /*
  * fill_weight is non-tunable at runtime, so we copy it at module init from
@@ -377,6 +378,14 @@ dsl_scan_init(dsl_pool_t *dp, uint64_t txg)
 	ASSERT(!scn->scn_async_destroying);
 	scn->scn_async_destroying = spa_feature_is_active(dp->dp_spa,
 	    SPA_FEATURE_ASYNC_DESTROY);
+
+	/*
+	 * Calculate the max number of in-flight bytes for pool-wide
+	 * scanning operations (minimum 1MB). Limits for the issuing
+	 * phase are done per top-level vdev and are handled separately.
+	 */
+	scn->scn_maxinflight_bytes = MAX(zfs_scan_vdev_limit *
+	    dsl_scan_count_leaves(spa->spa_root_vdev), 1ULL << 20);
 
 	bcopy(&scn->scn_phys, &scn->scn_phys_cached, sizeof (scn->scn_phys));
 	avl_create(&scn->scn_queue, scan_ds_queue_compare, sizeof (scan_ds_t),
@@ -838,8 +847,10 @@ dsl_scan(dsl_pool_t *dp, pool_scan_func_t func, char *dsname,
 		/* got scrub start cmd, resume paused scrub */
 		int err = dsl_scrub_set_pause_resume(scn->scn_dp,
 		    POOL_SCRUB_NORMAL);
-		if (err == 0)
+		if (err == 0) {
+			spa_event_notify(spa, NULL, NULL, ESC_ZFS_SCRUB_RESUME);
 			return (ECANCELED);
+		}
 
 		return (SET_ERROR(err));
 	}
@@ -970,6 +981,7 @@ dsl_scan_cancel_sync(void *arg, dmu_tx_t *tx)
 
 	dsl_scan_done(scn, B_FALSE, tx);
 	dsl_scan_sync_state(scn, tx, SYNC_MANDATORY);
+	spa_event_notify(scn->scn_dp->dp_spa, NULL, NULL, ESC_ZFS_SCRUB_ABORT);
 }
 
 int
@@ -1014,6 +1026,7 @@ dsl_scrub_pause_resume_sync(void *arg, dmu_tx_t *tx)
 		spa->spa_scan_pass_scrub_pause = gethrestime_sec();
 		scn->scn_phys.scn_flags |= DSF_SCRUB_PAUSED;
 		dsl_scan_sync_state(scn, tx, SYNC_CACHED);
+		spa_event_notify(spa, NULL, NULL, ESC_ZFS_SCRUB_PAUSED);
 	} else {
 		ASSERT3U(*cmd, ==, POOL_SCRUB_NORMAL);
 		if (dsl_scan_is_paused_scrub(scn)) {
@@ -1658,7 +1671,7 @@ dsl_scan_prefetch_thread(void *arg)
 		/* issue the prefetch asynchronously */
 		(void) arc_read(scn->scn_zio_root, scn->scn_dp->dp_spa,
 		    &spic->spic_bp, dsl_scan_prefetch_cb, spic->spic_spc,
-		    ZIO_PRIORITY_ASYNC_READ, zio_flags, &flags, &spic->spic_zb);
+		    ZIO_PRIORITY_SCRUB, zio_flags, &flags, &spic->spic_zb);
 
 		kmem_free(spic, sizeof (scan_prefetch_issue_ctx_t));
 	}
@@ -1740,7 +1753,7 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 		arc_buf_t *buf;
 
 		err = arc_read(NULL, dp->dp_spa, bp, arc_getbuf_func, &buf,
-		    ZIO_PRIORITY_ASYNC_READ, zio_flags, &flags, zb);
+		    ZIO_PRIORITY_SCRUB, zio_flags, &flags, zb);
 		if (err) {
 			scn->scn_phys.scn_errors++;
 			return (err);
@@ -1768,7 +1781,7 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 		}
 
 		err = arc_read(NULL, dp->dp_spa, bp, arc_getbuf_func, &buf,
-		    ZIO_PRIORITY_ASYNC_READ, zio_flags, &flags, zb);
+		    ZIO_PRIORITY_SCRUB, zio_flags, &flags, zb);
 		if (err) {
 			scn->scn_phys.scn_errors++;
 			return (err);
@@ -1787,7 +1800,7 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 		arc_buf_t *buf;
 
 		err = arc_read(NULL, dp->dp_spa, bp, arc_getbuf_func, &buf,
-		    ZIO_PRIORITY_ASYNC_READ, zio_flags, &flags, zb);
+		    ZIO_PRIORITY_SCRUB, zio_flags, &flags, zb);
 		if (err) {
 			scn->scn_phys.scn_errors++;
 			return (err);
@@ -1800,11 +1813,15 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 
 		if (OBJSET_BUF_HAS_USERUSED(buf)) {
 			/*
-			 * We also always visit user/group accounting
+			 * We also always visit user/group/project accounting
 			 * objects, and never skip them, even if we are
 			 * suspending. This is necessary so that the
 			 * space deltas from this txg get integrated.
 			 */
+			if (OBJSET_BUF_HAS_PROJECTUSED(buf))
+				dsl_scan_visitdnode(scn, ds, osp->os_type,
+				    &osp->os_projectused_dnode,
+				    DMU_PROJECTUSED_OBJECT, tx);
 			dsl_scan_visitdnode(scn, ds, osp->os_type,
 			    &osp->os_groupused_dnode,
 			    DMU_GROUPUSED_OBJECT, tx);
@@ -2386,7 +2403,7 @@ dsl_scan_ddt_entry(dsl_scan_t *scn, enum zio_checksum checksum,
 	zbookmark_phys_t zb = { 0 };
 	int p;
 
-	if (scn->scn_phys.scn_state != DSS_SCANNING)
+	if (!dsl_scan_is_running(scn))
 		return;
 
 	for (p = 0; p < DDT_PHYS_TYPES; p++, ddp++) {
@@ -3305,7 +3322,7 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 		uint64_t nr_leaves = dsl_scan_count_leaves(spa->spa_root_vdev);
 
 		/*
-		 * Calculate the max number of in-flight bytes for pool-wide
+		 * Recalculate the max number of in-flight bytes for pool-wide
 		 * scanning operations (minimum 1MB). Limits for the issuing
 		 * phase are done per top-level vdev and are handled separately.
 		 */
@@ -3663,6 +3680,8 @@ scan_exec_io(dsl_pool_t *dp, const blkptr_t *bp, int zio_flags,
 	size_t size = BP_GET_PSIZE(bp);
 	abd_t *data = abd_alloc_for_io(size, B_FALSE);
 
+	ASSERT3U(scn->scn_maxinflight_bytes, >, 0);
+
 	if (queue == NULL) {
 		mutex_enter(&spa->spa_scrub_lock);
 		while (spa->spa_scrub_inflight >= scn->scn_maxinflight_bytes)
@@ -3984,6 +4003,11 @@ MODULE_PARM_DESC(zfs_scan_legacy, "Scrub using legacy non-sequential method");
 module_param(zfs_scan_checkpoint_intval, int, 0644);
 MODULE_PARM_DESC(zfs_scan_checkpoint_intval,
 	"Scan progress on-disk checkpointing interval");
+
+/* CSTYLED */
+module_param(zfs_scan_max_ext_gap, ulong, 0644);
+MODULE_PARM_DESC(zfs_scan_max_ext_gap,
+	"Max gap in bytes between sequential scrub / resilver I/Os");
 
 module_param(zfs_scan_mem_lim_soft_fact, int, 0644);
 MODULE_PARM_DESC(zfs_scan_mem_lim_soft_fact,

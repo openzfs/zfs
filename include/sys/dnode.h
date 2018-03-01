@@ -147,7 +147,7 @@ enum dnode_dirtycontext {
 /* Does dnode have a SA spill blkptr in bonus? */
 #define	DNODE_FLAG_SPILL_BLKPTR			(1 << 2)
 
-/* User/Group dnode accounting */
+/* User/Group/Project dnode accounting */
 #define	DNODE_FLAG_USEROBJUSED_ACCOUNTED	(1 << 3)
 
 #define	DNODE_CRYPT_PORTABLE_FLAGS_MASK		(DNODE_FLAG_SPILL_BLKPTR)
@@ -221,6 +221,13 @@ typedef struct dnode_phys {
 	uint64_t dn_maxblkid;		/* largest allocated block ID */
 	uint64_t dn_used;		/* bytes (or sectors) of disk space */
 
+	/*
+	 * Both dn_pad2 and dn_pad3 are protected by the block's MAC. This
+	 * allows us to protect any fields that might be added here in the
+	 * future. In either case, developers will want to check
+	 * zio_crypt_init_uios_dnode() to ensure the new field is being
+	 * protected properly.
+	 */
 	uint64_t dn_pad3[4];
 
 	/*
@@ -301,6 +308,7 @@ struct dnode {
 	uint8_t dn_rm_spillblk[TXG_SIZE];	/* for removing spill blk */
 	uint16_t dn_next_bonuslen[TXG_SIZE];
 	uint32_t dn_next_blksz[TXG_SIZE];	/* next block size in bytes */
+	uint64_t dn_next_maxblkid[TXG_SIZE];	/* next maxblkid in bytes */
 
 	/* protected by dn_dbufs_mtx; declared here to fill 32-bit hole */
 	uint32_t dn_dbufs_count;	/* count of dn_dbufs */
@@ -348,8 +356,8 @@ struct dnode {
 	/* used in syncing context */
 	uint64_t dn_oldused;	/* old phys used bytes */
 	uint64_t dn_oldflags;	/* old phys dn_flags */
-	uint64_t dn_olduid, dn_oldgid;
-	uint64_t dn_newuid, dn_newgid;
+	uint64_t dn_olduid, dn_oldgid, dn_oldprojid;
+	uint64_t dn_newuid, dn_newgid, dn_newprojid;
 	int dn_id_flags;
 
 	/* holds prefetch structure */
@@ -416,6 +424,7 @@ int dnode_next_offset(dnode_t *dn, int flags, uint64_t *off,
     int minlvl, uint64_t blkfill, uint64_t txg);
 void dnode_evict_dbufs(dnode_t *dn);
 void dnode_evict_bonus(dnode_t *dn);
+void dnode_free_interior_slots(dnode_t *dn);
 
 #define	DNODE_IS_CACHEABLE(_dn)						\
 	((_dn)->dn_objset->os_primary_cache == ZFS_CACHE_ALL ||		\
@@ -509,6 +518,11 @@ typedef struct dnode_stats {
 	 * which had already been unlinked in an earlier txg.
 	 */
 	kstat_named_t dnode_hold_free_txg;
+	/*
+	 * Number of times dnode_free_interior_slots() needed to retry
+	 * acquiring a slot zrl lock due to contention.
+	 */
+	kstat_named_t dnode_free_interior_lock_retry;
 	/*
 	 * Number of new dnodes allocated by dnode_allocate().
 	 */

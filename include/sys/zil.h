@@ -40,6 +40,7 @@ extern "C" {
 
 struct dsl_pool;
 struct dsl_dataset;
+struct lwb;
 
 /*
  * Intent log format:
@@ -140,6 +141,7 @@ typedef enum zil_create {
 /*
  * Intent log transaction types and record structures
  */
+#define	TX_COMMIT		0	/* Commit marker (no on-disk state) */
 #define	TX_CREATE		1	/* Create file */
 #define	TX_MKDIR		2	/* Make directory */
 #define	TX_MKXATTR		3	/* Make XATTR directory */
@@ -395,6 +397,7 @@ typedef struct itx {
 	uint8_t		itx_sync;	/* synchronous transaction */
 	zil_callback_t	itx_callback;   /* Called when the itx is persistent */
 	void		*itx_callback_data; /* User data for the callback */
+	size_t		itx_size;	/* allocated itx structure size */
 	uint64_t	itx_oid;	/* object id */
 	lr_t		itx_lr;		/* common part of log record */
 	/* followed by type-specific part of lr_xx_t and its immediate data */
@@ -464,7 +467,8 @@ typedef int zil_parse_blk_func_t(zilog_t *zilog, blkptr_t *bp, void *arg,
 typedef int zil_parse_lr_func_t(zilog_t *zilog, lr_t *lr, void *arg,
     uint64_t txg);
 typedef int zil_replay_func_t(void *arg1, void *arg2, boolean_t byteswap);
-typedef int zil_get_data_t(void *arg, lr_write_t *lr, char *dbuf, zio_t *zio);
+typedef int zil_get_data_t(void *arg, lr_write_t *lr, char *dbuf,
+    struct lwb *lwb, zio_t *zio);
 
 extern int zil_parse(zilog_t *zilog, zil_parse_blk_func_t *parse_blk_func,
     zil_parse_lr_func_t *parse_lr_func, void *arg, uint64_t txg,
@@ -490,6 +494,7 @@ extern void	zil_itx_destroy(itx_t *itx);
 extern void	zil_itx_assign(zilog_t *zilog, itx_t *itx, dmu_tx_t *tx);
 
 extern void	zil_commit(zilog_t *zilog, uint64_t oid);
+extern void	zil_commit_impl(zilog_t *zilog, uint64_t oid);
 
 extern int	zil_vdev_offline(const char *osname, void *txarg);
 extern int	zil_claim(struct dsl_pool *dp,
@@ -502,7 +507,8 @@ extern void	zil_clean(zilog_t *zilog, uint64_t synced_txg);
 extern int	zil_suspend(const char *osname, void **cookiep);
 extern void	zil_resume(void *cookie);
 
-extern void	zil_add_block(zilog_t *zilog, const blkptr_t *bp);
+extern void	zil_lwb_add_block(struct lwb *lwb, const blkptr_t *bp);
+extern void	zil_lwb_add_txg(struct lwb *lwb, uint64_t txg);
 extern int	zil_bp_tree_add(zilog_t *zilog, const blkptr_t *bp);
 
 extern void	zil_set_sync(zilog_t *zilog, uint64_t syncval);

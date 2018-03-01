@@ -93,6 +93,7 @@
 #include <string.h>
 #include <strings.h>
 #include <pthread.h>
+#include <setjmp.h>
 #include <synch.h>
 #include <assert.h>
 #include <alloca.h>
@@ -152,8 +153,8 @@ extern void dprintf_setup(int *argc, char **argv);
 
 extern void cmn_err(int, const char *, ...);
 extern void vcmn_err(int, const char *, va_list);
-extern void panic(const char *, ...);
-extern void vpanic(const char *, va_list);
+extern void panic(const char *, ...)  __NORETURN;
+extern void vpanic(const char *, va_list)  __NORETURN;
 
 #define	fm_panic	panic
 
@@ -317,6 +318,7 @@ extern clock_t cv_timedwait_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t tim,
 extern void cv_signal(kcondvar_t *cv);
 extern void cv_broadcast(kcondvar_t *cv);
 
+#define	cv_timedwait_io(cv, mp, at)		cv_timedwait(cv, mp, at)
 #define	cv_timedwait_sig(cv, mp, at)		cv_timedwait(cv, mp, at)
 #define	cv_wait_sig(cv, mp)			cv_wait(cv, mp)
 #define	cv_wait_io(cv, mp)			cv_wait(cv, mp)
@@ -364,6 +366,7 @@ extern void kstat_set_raw_ops(kstat_t *ksp,
 #define	KM_SLEEP		UMEM_NOFAIL
 #define	KM_PUSHPAGE		KM_SLEEP
 #define	KM_NOSLEEP		UMEM_DEFAULT
+#define	KM_NORMALPRI		0	/* not needed with UMEM_DEFAULT */
 #define	KMC_NODEBUG		UMC_NODEBUG
 #define	KMC_KMEM		0x0
 #define	KMC_VMEM		0x0
@@ -630,6 +633,8 @@ extern void delay(clock_t ticks);
 #define	NN_NUMBUF_SZ	(6)
 
 extern uint64_t physmem;
+extern char *random_path;
+extern char *urandom_path;
 
 extern int highbit64(uint64_t i);
 extern int lowbit64(uint64_t i);

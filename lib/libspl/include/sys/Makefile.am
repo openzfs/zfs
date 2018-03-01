@@ -16,7 +16,6 @@ libspl_HEADERS = \
 	$(top_srcdir)/lib/libspl/include/sys/errno.h \
 	$(top_srcdir)/lib/libspl/include/sys/feature_tests.h \
 	$(top_srcdir)/lib/libspl/include/sys/file.h \
-	$(top_srcdir)/lib/libspl/include/sys/frame.h \
 	$(top_srcdir)/lib/libspl/include/sys/int_limits.h \
 	$(top_srcdir)/lib/libspl/include/sys/int_types.h \
 	$(top_srcdir)/lib/libspl/include/sys/inttypes.h \

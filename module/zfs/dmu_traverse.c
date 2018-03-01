@@ -386,7 +386,11 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 		if (osp->os_meta_dnode.dn_maxblkid == 0)
 			td->td_realloc_possible = B_FALSE;
 
-		if (arc_buf_size(buf) >= sizeof (objset_phys_t)) {
+		if (OBJSET_BUF_HAS_USERUSED(buf)) {
+			if (OBJSET_BUF_HAS_PROJECTUSED(buf))
+				prefetch_dnode_metadata(td,
+				    &osp->os_projectused_dnode,
+				    zb->zb_objset, DMU_PROJECTUSED_OBJECT);
 			prefetch_dnode_metadata(td, &osp->os_groupused_dnode,
 			    zb->zb_objset, DMU_GROUPUSED_OBJECT);
 			prefetch_dnode_metadata(td, &osp->os_userused_dnode,
@@ -395,13 +399,19 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 
 		err = traverse_dnode(td, &osp->os_meta_dnode, zb->zb_objset,
 		    DMU_META_DNODE_OBJECT);
-		if (err == 0 && arc_buf_size(buf) >= sizeof (objset_phys_t)) {
-			err = traverse_dnode(td, &osp->os_groupused_dnode,
-			    zb->zb_objset, DMU_GROUPUSED_OBJECT);
-		}
-		if (err == 0 && arc_buf_size(buf) >= sizeof (objset_phys_t)) {
-			err = traverse_dnode(td, &osp->os_userused_dnode,
-			    zb->zb_objset, DMU_USERUSED_OBJECT);
+		if (err == 0 && OBJSET_BUF_HAS_USERUSED(buf)) {
+			if (OBJSET_BUF_HAS_PROJECTUSED(buf))
+				err = traverse_dnode(td,
+				    &osp->os_projectused_dnode, zb->zb_objset,
+				    DMU_PROJECTUSED_OBJECT);
+			if (err == 0)
+				err = traverse_dnode(td,
+				    &osp->os_groupused_dnode, zb->zb_objset,
+				    DMU_GROUPUSED_OBJECT);
+			if (err == 0)
+				err = traverse_dnode(td,
+				    &osp->os_userused_dnode, zb->zb_objset,
+				    DMU_USERUSED_OBJECT);
 		}
 	}
 
@@ -634,12 +644,20 @@ traverse_impl(spa_t *spa, dsl_dataset_t *ds, uint64_t objset, blkptr_t *rootbp,
 
 		err = arc_read(NULL, td->td_spa, rootbp, arc_getbuf_func,
 		    &buf, ZIO_PRIORITY_ASYNC_READ, zio_flags, &flags, czb);
-		if (err != 0)
-			return (err);
-
-		osp = buf->b_data;
-		traverse_zil(td, &osp->os_zil_header);
-		arc_buf_destroy(buf, &buf);
+		if (err != 0) {
+			/*
+			 * If both TRAVERSE_HARD and TRAVERSE_PRE are set,
+			 * continue to visitbp so that td_func can be called
+			 * in pre stage, and err will reset to zero.
+			 */
+			if (!(td->td_flags & TRAVERSE_HARD) ||
+			    !(td->td_flags & TRAVERSE_PRE))
+				return (err);
+		} else {
+			osp = buf->b_data;
+			traverse_zil(td, &osp->os_zil_header);
+			arc_buf_destroy(buf, &buf);
+		}
 	}
 
 	if (!(flags & TRAVERSE_PREFETCH_DATA) ||

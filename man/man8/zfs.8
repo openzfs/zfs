@@ -21,7 +21,7 @@
 .\"
 .\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
-.\" Copyright (c) 2011, 2016 by Delphix. All rights reserved.
+.\" Copyright (c) 2011, 2017 by Delphix. All rights reserved.
 .\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
 .\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
 .\" Copyright (c) 2014 by Adam Stevko. All rights reserved.
@@ -29,7 +29,7 @@
 .\" Copyright 2016 Richard Laager. All rights reserved.
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\"
-.Dd June 28, 2017
+.Dd January 10, 2018
 .Dt ZFS 8 SMM
 .Os Linux
 .Sh NAME
@@ -145,6 +145,34 @@
 .Oo Fl t Ar type Ns Oo , Ns Ar type Oc Ns ... Oc
 .Ar filesystem Ns | Ns Ar snapshot
 .Nm
+.Cm projectspace
+.Op Fl Hp
+.Oo Fl o Ar field Ns Oo , Ns Ar field Oc Ns ... Oc
+.Oo Fl s Ar field Oc Ns ...
+.Oo Fl S Ar field Oc Ns ...
+.Ar filesystem Ns | Ns Ar snapshot
+.Nm
+.Cm project
+.Oo Fl d Ns | Ns Fl r Ns Oc
+.Ar file Ns | Ns Ar directory Ns ...
+.Nm
+.Cm project
+.Fl C
+.Oo Fl kr Ns Oc
+.Ar file Ns | Ns Ar directory Ns ...
+.Nm
+.Cm project
+.Fl c
+.Oo Fl 0 Ns Oc
+.Oo Fl d Ns | Ns Fl r Ns Oc
+.Op Fl p Ar id
+.Ar file Ns | Ns Ar directory Ns ...
+.Nm
+.Cm project
+.Op Fl p Ar id
+.Oo Fl rs Ns Oc
+.Ar file Ns | Ns Ar directory Ns ...
+.Nm
 .Cm mount
 .Nm
 .Cm mount
@@ -166,7 +194,7 @@
 .Ar snapshot bookmark
 .Nm
 .Cm send
-.Op Fl DLPRcenpvw
+.Op Fl DLPRbcenpvw
 .Op Oo Fl I Ns | Ns Fl i Oc Ar snapshot
 .Ar snapshot
 .Nm
@@ -270,6 +298,13 @@
 .Cm diff
 .Op Fl FHt
 .Ar snapshot Ar snapshot Ns | Ns Ar filesystem
+.Nm
+.Cm program
+.Op Fl n
+.Op Fl t Ar timeout
+.Op Fl m Ar memory_limit
+.Ar pool script
+.Op Ar arg1 No ...
 .Nm
 .Cm load-key
 .Op Fl nr
@@ -902,6 +937,56 @@ The root user, or a user who has been granted the
 privilege with
 .Nm zfs Cm allow ,
 can access all groups' usage.
+.It Sy projectused Ns @ Ns Em project
+The amount of space consumed by the specified project in this dataset. Project
+is identified via the project identifier (ID) that is object-based numeral
+attribute. An object can inherit the project ID from its parent object (if the
+parent has the flag of inherit project ID that can be set and changed via
+.Nm chattr Fl /+P
+or
+.Nm zfs project Fl s )
+when being created. The privileged user can set and change object's project
+ID via
+.Nm chattr Fl p
+or
+.Nm zfs project Fl s
+anytime. Space is charged to the project of each file, as displayed by
+.Nm lsattr Fl p
+or
+.Nm zfs project .
+See the
+.Sy userused Ns @ Ns Em user
+property for more information.
+.Pp
+The root user, or a user who has been granted the
+.Sy projectused
+privilege with
+.Nm zfs allow ,
+can access all projects' usage.
+.It Sy projectobjused Ns @ Ns Em project
+The
+.Sy projectobjused
+is similar to
+.Sy projectused
+but instead it counts the number of objects consumed by project. When the
+property
+.Sy xattr=on
+is set on a fileset, ZFS will create additional objects per-file to store
+extended attributes. These additional objects are reflected in the
+.Sy projectobjused
+value and are counted against the project's
+.Sy projectobjquota .
+When a filesystem is configured to use
+.Sy xattr=sa
+no additional internal objects are required. See the
+.Sy userobjused Ns @ Ns Em user
+property for more information.
+.Pp
+The root user, or a user who has been granted the
+.Sy projectobjused
+privilege with
+.Nm zfs allow ,
+can access all projects' objects usage.
 .It Sy volblocksize
 For volumes, specifies the block size of the volume.
 The
@@ -1103,6 +1188,10 @@ Please see
 for more information on these algorithms.
 .Pp
 Changing this property affects only newly-written data.
+.Pp
+Salted checksum algorithms
+.Pq Cm edonr , skein
+are currently not supported for any filesystem on the boot pools.
 .It Xo
 .Sy compression Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Sy gzip Ns | Ns
 .Sy gzip- Ns Em N Ns | Ns Sy lz4 Ns | Ns Sy lzjb Ns | Ns Sy zle
@@ -1557,6 +1646,27 @@ The
 is similar to
 .Sy groupquota
 but it limits number of objects a group can consume. Please refer to
+.Sy userobjused
+for more information about how objects are counted.
+.It Sy projectquota@ Ns Em project Ns = Ns Em size Ns | Ns Sy none
+Limits the amount of space consumed by the specified project. Project
+space consumption is identified by the
+.Sy projectused@ Ns Em project
+property. Please refer to
+.Sy projectused
+for more information about how project is identified and set/changed.
+.Pp
+The root user, or a user who has been granted the
+.Sy projectquota
+privilege with
+.Nm zfs allow ,
+can access all projects' quota.
+.It Sy projectobjquota@ Ns Em project Ns = Ns Em size Ns | Ns Sy none
+The
+.Sy projectobjquota
+is similar to
+.Sy projectquota
+but it limits number of objects a project can consume. Please refer to
 .Sy userobjused
 for more information about how objects are counted.
 .It Sy readonly Ns = Ns Sy on Ns | Ns Sy off
@@ -2459,7 +2569,7 @@ The given bookmark is destroyed.
 .Nm
 .Cm snapshot
 .Op Fl r
-.Oo Fl o Ar property Ns = Ns value Oc Ns ...
+.Oo Fl o Ar property Ns = Ns Ar value Oc Ns ...
 .Ar filesystem Ns @ Ns Ar snapname Ns | Ns Ar volume Ns @ Ns Ar snapname Ns ...
 .Xc
 Creates snapshots with the given names.
@@ -2467,6 +2577,9 @@ All previous modifications by successful system calls to the file system are
 part of the snapshots.
 Snapshots are taken atomically, so that all snapshots correspond to the same
 moment in time.
+.Nm zfs Cm snap
+can be used as an alias for
+.Nm zfs Cm snapshot.
 See the
 .Sx Snapshots
 section for details.
@@ -2990,6 +3103,114 @@ except that the default types to display are
 .Fl t Sy posixgroup Ns \&, Ns Sy smbgroup .
 .It Xo
 .Nm
+.Cm projectspace
+.Op Fl Hp
+.Oo Fl o Ar field Ns Oo , Ns Ar field Oc Ns ... Oc
+.Oo Fl s Ar field Oc Ns ...
+.Oo Fl S Ar field Oc Ns ...
+.Ar filesystem Ns | Ns Ar snapshot
+.Xc
+Displays space consumed by, and quotas on, each project in the specified
+filesystem or snapshot. This subcommand is identical to
+.Nm zfs Cm userspace ,
+except that the project identifier is numeral, not name. So need neither
+the option
+.Sy -i
+for SID to POSIX ID nor
+.Sy -n
+for numeric ID, nor
+.Sy -t
+for types.
+.It Xo
+.Nm
+.Cm project
+.Oo Fl d Ns | Ns Fl r Ns Oc
+.Ar file Ns | Ns Ar directory Ns ...
+.Xc
+List project identifier (ID) and inherit flag of file(s) or directories.
+.Bl -tag -width "-d"
+.It Fl d
+Show the directory project ID and inherit flag, not its childrens. It will
+overwrite the former specified
+.Fl r
+option.
+.It Fl r
+Show on subdirectories recursively. It will overwrite the former specified
+.Fl d
+option.
+.El
+.It Xo
+.Nm
+.Cm project
+.Fl C
+.Oo Fl kr Ns Oc
+.Ar file Ns | Ns Ar directory Ns ...
+.Xc
+Clear project inherit flag and/or ID on the file(s) or directories.
+.Bl -tag -width "-k"
+.It Fl k
+Keep the project ID unchanged. If not specified, the project ID will be reset
+as zero.
+.It Fl r
+Clear on subdirectories recursively.
+.El
+.It Xo
+.Nm
+.Cm project
+.Fl c
+.Oo Fl 0 Ns Oc
+.Oo Fl d Ns | Ns Fl r Ns Oc
+.Op Fl p Ar id
+.Ar file Ns | Ns Ar directory Ns ...
+.Xc
+Check project ID and inherit flag on the file(s) or directories, report the
+entries without project inherit flag or with different project IDs from the
+specified (via
+.Fl p
+option) value or the target directory's project ID.
+.Bl -tag -width "-0"
+.It Fl 0
+Print file name with a trailing NUL instead of newline (by default), like
+"find -print0".
+.It Fl d
+Check the directory project ID and inherit flag, not its childrens. It will
+overwrite the former specified
+.Fl r
+option.
+.It Fl p
+Specify the referenced ID for comparing with the target file(s) or directories'
+project IDs. If not specified, the target (top) directory's project ID will be
+used as the referenced one.
+.It Fl r
+Check on subdirectories recursively. It will overwrite the former specified
+.Fl d
+option.
+.El
+.It Xo
+.Nm
+.Cm project
+.Op Fl p Ar id
+.Oo Fl rs Ns Oc
+.Ar file Ns | Ns Ar directory Ns ...
+.Xc
+.Bl -tag -width "-p"
+Set project ID and/or inherit flag on the file(s) or directories.
+.It Fl p
+Set the file(s)' or directories' project ID with the given value.
+.It Fl r
+Set on subdirectories recursively.
+.It Fl s
+Set project inherit flag on the given file(s) or directories. It is usually used
+for setup tree quota on the directory target with
+.Fl r
+option specified together. When setup tree quota, by default the directory's
+project ID will be set to all its descendants unless you specify the project
+ID via
+.Fl p
+option explicitly.
+.El
+.It Xo
+.Nm
 .Cm mount
 .Xc
 Displays all ZFS file systems currently mounted.
@@ -3104,7 +3325,7 @@ feature.
 .It Xo
 .Nm
 .Cm send
-.Op Fl DLPRcenpvw
+.Op Fl DLPRbcenpvw
 .Op Oo Fl I Ns | Ns Fl i Oc Ar snapshot
 .Ar snapshot
 .Xc
@@ -3200,6 +3421,14 @@ See
 for details on ZFS feature flags and the
 .Sy embedded_data
 feature.
+.It Fl b, -backup
+Sends only received property values whether or not they are overridden by local
+settings, but only if the dataset has ever been received. Use this option when
+you want
+.Nm zfs Cm receive
+to restore received properties backed up on the sent dataset and to avoid
+sending local settings that may have nothing to do with the source dataset,
+but only with how the data is backed up.
 .It Fl c, -compressed
 Generate a more compact stream by using compressed WRITE records for blocks
 which are compressed on disk and in memory
@@ -3802,6 +4031,11 @@ userprop         other          Allows changing any user property
 userquota        other          Allows accessing any userquota@...
                                 property
 userused         other          Allows reading any userused@... property
+projectobjquota  other          Allows accessing any projectobjquota@...
+                                property
+projectquota     other          Allows accessing any projectquota@... property
+projectobjused   other          Allows reading any projectobjused@... property
+projectused      other          Allows reading any projectused@... property
 
 aclinherit       property
 acltype          property
@@ -4029,6 +4263,56 @@ Give more parsable tab-separated output, without header lines and without
 arrows.
 .It Fl t
 Display the path's inode change time as the first column of output.
+.El
+.It Xo
+.Nm
+.Cm program
+.Op Fl n
+.Op Fl t Ar timeout
+.Op Fl m Ar memory_limit
+.Ar pool script
+.Op Ar arg1 No ...
+.Xc
+Executes
+.Ar script
+as a ZFS channel program on
+.Ar pool .
+The ZFS channel
+program interface allows ZFS administrative operations to be run
+programmatically via a Lua script.
+The entire script is executed atomically, with no other administrative
+operations taking effect concurrently.
+A library of ZFS calls is made available to channel program scripts.
+Channel programs may only be run with root privileges.
+.sp
+For full documentation of the ZFS channel program interface, see the manual
+page for
+.Xr zfs-program 8 .
+.Bl -tag -width ""
+.It Fl n
+Executes a read-only channel program, which runs faster.
+The program cannot change on-disk state by calling functions from
+the zfs.sync submodule.
+The program can be used to gather information such as properties and
+determining if changes would succeed (zfs.check.*).
+Without this flag, all pending changes must be synced to disk before
+a channel program can complete.
+.It Fl t Ar timeout
+Execution time limit, in milliseconds.
+If a channel program executes for longer than the provided timeout, it will
+be stopped and an error will be returned.
+The default timeout is 1000 ms, and can be set to a maximum of 10000 ms.
+.It Fl m Ar memory-limit
+Memory limit, in bytes.
+If a channel program attempts to allocate more memory than the given limit,
+it will be stopped and an error returned.
+The default memory limit is 10 MB, and can be set to a maximum of 100 MB.
+.sp
+All remaining argument strings are passed directly to the channel program as
+arguments.
+See
+.Xr zfs-program 8
+for more information.
 .El
 .It Xo
 .Nm

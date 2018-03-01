@@ -1,11 +1,20 @@
 src = @abs_top_srcdir@/module/zfs
 obj = @abs_builddir@
+target_cpu = @target_cpu@
 
 MODULE := zfs
 
-EXTRA_CFLAGS = $(ZFS_MODULE_CFLAGS) @KERNELCPPFLAGS@
-
 obj-$(CONFIG_ZFS) := $(MODULE).o
+
+ccflags-y := $(ZFS_MODULE_CFLAGS) $(ZFS_MODULE_CPPFLAGS)
+
+# Suppress unused-value warnings in sparc64 architecture headers
+ifeq ($(target_cpu),sparc64)
+ccflags-y += -Wno-unused-value
+endif
+
+# Suppress unused but set variable warnings often due to ASSERTs
+ccflags-y += $(NO_UNUSED_BUT_SET_VARIABLE)
 
 $(MODULE)-objs += abd.o
 $(MODULE)-objs += arc.o
@@ -83,6 +92,11 @@ $(MODULE)-objs += vdev_root.o
 $(MODULE)-objs += zap.o
 $(MODULE)-objs += zap_leaf.o
 $(MODULE)-objs += zap_micro.o
+$(MODULE)-objs += zcp.o
+$(MODULE)-objs += zcp_get.o
+$(MODULE)-objs += zcp_global.o
+$(MODULE)-objs += zcp_iter.o
+$(MODULE)-objs += zcp_synctask.o
 $(MODULE)-objs += zfeature.o
 $(MODULE)-objs += zfs_acl.o
 $(MODULE)-objs += zfs_byteswap.o
@@ -119,6 +133,11 @@ $(MODULE)-objs += zvol.o
 $(MODULE)-objs += dsl_destroy.o
 $(MODULE)-objs += dsl_userhold.o
 $(MODULE)-objs += qat_compress.o
+
+# Suppress incorrect warnings from versions of objtool which are not
+# aware of x86 EVEX prefix instructions used for AVX512.
+OBJECT_FILES_NON_STANDARD_vdev_raidz_math_avx512bw.o := y
+OBJECT_FILES_NON_STANDARD_vdev_raidz_math_avx512f.o := y
 
 $(MODULE)-$(CONFIG_X86) += vdev_raidz_math_sse2.o
 $(MODULE)-$(CONFIG_X86) += vdev_raidz_math_ssse3.o

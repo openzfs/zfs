@@ -566,6 +566,7 @@ for TAG in $POOL_TAGS; do
 
 		$ZPOOL_CMD import -N -d "$POOL_DIR_COPY" \
 		   "$POOL_NAME" &>/dev/null
+		# shellcheck disable=SC2181
 		if [ $? -ne 0 ]; then
 			fail_nonewline
 			ERROR=1

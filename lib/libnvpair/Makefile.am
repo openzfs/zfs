@@ -4,7 +4,11 @@ VPATH = \
 	$(top_srcdir)/module/nvpair \
 	$(top_srcdir)/lib/libnvpair
 
-AM_CFLAGS += $(DEBUG_STACKFLAGS) $(FRAME_LARGER_THAN) $(LIBTIRPC_CFLAGS)
+# Required CFLAGS for libtirpc
+AM_CFLAGS += $(LIBTIRPC_CFLAGS)
+
+# Includes kernel code, generate warnings for large stack frames
+AM_CFLAGS += $(FRAME_LARGER_THAN)
 
 DEFAULT_INCLUDES += \
 	-I$(top_srcdir)/include \

@@ -352,6 +352,15 @@ check_status(nvlist_t *config, boolean_t isimport, zpool_errata_t *erratap)
 		return (ZPOOL_STATUS_REMOVED_DEV);
 
 	/*
+	 * Informational errata available.
+	 */
+	(void) nvlist_lookup_uint64(config, ZPOOL_CONFIG_ERRATA, &errata);
+	if (errata) {
+		*erratap = errata;
+		return (ZPOOL_STATUS_ERRATA);
+	}
+
+	/*
 	 * Outdated, but usable, version
 	 */
 	if (SPA_VERSION_IS_SUPPORTED(version) && version != SPA_VERSION)
@@ -380,15 +389,6 @@ check_status(nvlist_t *config, boolean_t isimport, zpool_errata_t *erratap)
 			if (!nvlist_exists(feat, fi->fi_guid))
 				return (ZPOOL_STATUS_FEAT_DISABLED);
 		}
-	}
-
-	/*
-	 * Informational errata available.
-	 */
-	(void) nvlist_lookup_uint64(config, ZPOOL_CONFIG_ERRATA, &errata);
-	if (errata) {
-		*erratap = errata;
-		return (ZPOOL_STATUS_ERRATA);
 	}
 
 	return (ZPOOL_STATUS_OK);

@@ -1,10 +1,12 @@
 SUBDIRS = \
 	acl \
+	arc \
 	atime \
 	bootfs \
 	cache \
 	cachefile \
 	casenorm \
+	channel_program \
 	chattr \
 	checksum \
 	clean_mirror \
@@ -12,6 +14,7 @@ SUBDIRS = \
 	cli_user \
 	compression \
 	ctime \
+	deadman \
 	delegate \
 	devices \
 	events \
@@ -40,6 +43,7 @@ SUBDIRS = \
 	pool_names \
 	poolversion \
 	privilege \
+	projectquota \
 	quota \
 	raidz \
 	redundancy \

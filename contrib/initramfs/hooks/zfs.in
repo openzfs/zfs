@@ -8,10 +8,8 @@ PREREQ="zdev"
 
 # These prerequisites are provided by the zfsutils package. The zdb utility is
 # not strictly required, but it can be useful at the initramfs recovery prompt.
-# The mount helper mount.zfs must be installed in /sbin because this path is
-# hardcoded in the mount(8) for security reasons.
-COPY_EXEC_LIST="@sbindir@/zdb @sbindir@/zpool @sbindir@/zfs /sbin/mount.zfs"
-COPY_EXEC_LIST="$COPY_EXEC_LIST @udevdir@/vdev_id"
+COPY_EXEC_LIST="@sbindir@/zdb @sbindir@/zpool @sbindir@/zfs"
+COPY_EXEC_LIST="$COPY_EXEC_LIST @mounthelperdir@/mount.zfs @udevdir@/vdev_id"
 COPY_FILE_LIST="/etc/hostid @sysconfdir@/zfs/zpool.cache"
 COPY_FILE_LIST="$COPY_FILE_LIST @sysconfdir@/default/zfs"
 COPY_FILE_LIST="$COPY_FILE_LIST @sysconfdir@/zfs/zfs-functions"
@@ -20,10 +18,11 @@ COPY_FILE_LIST="$COPY_FILE_LIST @udevruledir@/69-vdev.rules"
 
 # These prerequisites are provided by the base system.
 COPY_EXEC_LIST="$COPY_EXEC_LIST /usr/bin/dirname /bin/hostname /sbin/blkid"
+COPY_EXEC_LIST="$COPY_EXEC_LIST /usr/bin/env"
 
 # Explicitly specify all kernel modules because automatic dependency resolution
 # is unreliable on many systems.
-BASE_MODULES="zlib_deflate spl zavl zcommon znvpair zunicode zfs icp"
+BASE_MODULES="zlib_deflate spl zavl zcommon znvpair zunicode zlua zfs icp"
 CRPT_MODULES="sun-ccm sun-gcm sun-ctr"
 MANUAL_ADD_MODULES_LIST="$BASE_MODULES"
 

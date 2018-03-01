@@ -34,6 +34,8 @@
 %endif
 
 %bcond_with    debug
+%bcond_with    debuginfo
+%bcond_with    asan
 %bcond_with    systemd
 
 # Generic enable switch for systemd
@@ -88,12 +90,15 @@ BuildRequires:  libudev-devel
 BuildRequires:  libattr-devel
 BuildRequires:  openssl-devel
 Requires:       openssl
+%if 0%{?_systemd}
+BuildRequires: systemd
 %endif
+%endif
+
 %if 0%{?_systemd}
 Requires(post): systemd
 Requires(preun): systemd
 Requires(postun): systemd
-BuildRequires: systemd
 %endif
 
 # The zpool iostat/status -c scripts call some utilities like lsblk and iostat
@@ -184,7 +189,6 @@ Requires:       fio
 Requires:       acl
 Requires:       sudo
 Requires:       sysstat
-Requires:       rng-tools
 AutoReqProv:    no
 
 %description test
@@ -220,9 +224,22 @@ image which is ZFS aware.
 %else
     %define debug --disable-debug
 %endif
+
+%if %{with debuginfo}
+    %define debuginfo --enable-debuginfo
+%else
+    %define debuginfo --disable-debuginfo
+%endif
+
+%if %{with asan}
+    %define asan --enable-asan
+%else
+    %define asan --disable-asan
+%endif
+
 %if 0%{?_systemd}
     %define systemd --enable-systemd --with-systemdunitdir=%{_unitdir} --with-systemdpresetdir=%{_presetdir} --disable-sysvinit
-    %define systemd_svcs zfs-import-cache.service zfs-import-scan.service zfs-mount.service zfs-share.service zfs-zed.service zfs.target
+    %define systemd_svcs zfs-import-cache.service zfs-import-scan.service zfs-mount.service zfs-share.service zfs-zed.service zfs.target zfs-import.target
 %else
     %define systemd --enable-sysvinit --disable-systemd
 %endif
@@ -237,6 +254,8 @@ image which is ZFS aware.
     --with-dracutdir=%{_dracutdir} \
     --disable-static \
     %{debug} \
+    %{debuginfo} \
+    %{asan} \
     %{systemd}
 make %{?_smp_mflags}
 
@@ -247,7 +266,14 @@ find %{?buildroot}%{_libdir} -name '*.la' -exec rm -f {} \;
 
 %post
 %if 0%{?_systemd}
+%if 0%{?systemd_post:1}
 %systemd_post %{systemd_svcs}
+%else
+if [ "$1" = "1" -o "$1" = "install" ] ; then
+    # Initial installation
+    systemctl preset %{systemd_svcs} >/dev/null || true
+fi
+%endif
 %else
 if [ -x /sbin/chkconfig ]; then
     /sbin/chkconfig --add zfs-import
@@ -260,9 +286,17 @@ exit 0
 
 %preun
 %if 0%{?_systemd}
+%if 0%{?systemd_preun:1}
 %systemd_preun %{systemd_svcs}
 %else
-if [ "$1" = "0" ] && [ -x /sbin/chkconfig ]; then
+if [ "$1" = "0" -o "$1" = "remove" ] ; then
+    # Package removal, not upgrade
+    systemctl --no-reload disable %{systemd_svcs} >/dev/null || true
+    systemctl stop %{systemd_svcs} >/dev/null || true
+fi
+%endif
+%else
+if [ "$1" = "0" -o "$1" = "remove" ] && [ -x /sbin/chkconfig ]; then
     /sbin/chkconfig --del zfs-import
     /sbin/chkconfig --del zfs-mount
     /sbin/chkconfig --del zfs-share
@@ -273,7 +307,11 @@ exit 0
 
 %postun
 %if 0%{?_systemd}
+%if 0%{?systemd_postun:1}
 %systemd_postun %{systemd_svcs}
+%else
+systemctl --system daemon-reload >/dev/null || true
+%endif
 %endif
 
 %files

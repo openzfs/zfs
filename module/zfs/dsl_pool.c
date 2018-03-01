@@ -580,7 +580,7 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 
 	/*
 	 * After the data blocks have been written (ensured by the zio_wait()
-	 * above), update the user/group space accounting.  This happens
+	 * above), update the user/group/project space accounting.  This happens
 	 * in tasks dispatched to dp_sync_taskq, so wait for them before
 	 * continuing.
 	 */

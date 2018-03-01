@@ -208,7 +208,7 @@ struct zfsvfs;
 int zfs_acl_ids_create(struct znode *, int, vattr_t *,
     cred_t *, vsecattr_t *, zfs_acl_ids_t *);
 void zfs_acl_ids_free(zfs_acl_ids_t *);
-boolean_t zfs_acl_ids_overquota(struct zfsvfs *, zfs_acl_ids_t *);
+boolean_t zfs_acl_ids_overquota(struct zfsvfs *, zfs_acl_ids_t *, uint64_t);
 int zfs_getacl(struct znode *, vsecattr_t *, boolean_t, cred_t *);
 int zfs_setacl(struct znode *, vsecattr_t *, boolean_t, cred_t *);
 void zfs_acl_rele(void *);
@@ -237,6 +237,7 @@ void zfs_acl_xform(struct znode *, zfs_acl_t *, cred_t *);
 void zfs_acl_data_locator(void **, uint32_t *, uint32_t, boolean_t, void *);
 uint64_t zfs_mode_compute(uint64_t, zfs_acl_t *,
     uint64_t *, uint64_t, uint64_t);
+int zfs_acl_node_read(struct znode *, boolean_t, zfs_acl_t **, boolean_t);
 int zfs_acl_chown_setattr(struct znode *);
 
 #endif

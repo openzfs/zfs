@@ -187,6 +187,12 @@
 	(MIN(zfs_key_max_salt_uses, ZFS_KEY_MAX_SALT_USES_DEFAULT))
 unsigned long zfs_key_max_salt_uses = ZFS_KEY_MAX_SALT_USES_DEFAULT;
 
+typedef struct blkptr_auth_buf {
+	uint64_t bab_prop;			/* blk_prop - portable mask */
+	uint8_t bab_mac[ZIO_DATA_MAC_LEN];	/* MAC from blk_cksum */
+	uint64_t bab_pad;			/* reserved for future use */
+} blkptr_auth_buf_t;
+
 zio_crypt_info_t zio_crypt_table[ZIO_CRYPT_FUNCTIONS] = {
 	{"",			ZC_TYPE_NONE,	0,	"inherit"},
 	{"",			ZC_TYPE_NONE,	0,	"on"},
@@ -275,6 +281,7 @@ zio_crypt_key_init(uint64_t crypt, zio_crypt_key_t *key)
 		key->zk_hmac_tmpl = NULL;
 
 	key->zk_crypt = crypt;
+	key->zk_version = ZIO_CRYPT_KEY_CURRENT_VERSION;
 	key->zk_salt_count = 0;
 	rw_init(&key->zk_salt_lock, NULL, RW_DEFAULT, NULL);
 
@@ -472,10 +479,10 @@ zio_crypt_key_wrap(crypto_key_t *cwkey, zio_crypt_key_t *key, uint8_t *iv,
 {
 	int ret;
 	uio_t puio, cuio;
+	uint64_t aad[3];
 	iovec_t plain_iovecs[2], cipher_iovecs[3];
 	uint64_t crypt = key->zk_crypt;
-	uint64_t le_guid = LE_64(key->zk_guid);
-	uint_t enc_len, keydata_len;
+	uint_t enc_len, keydata_len, aad_len;
 
 	ASSERT3U(crypt, <, ZIO_CRYPT_FUNCTIONS);
 	ASSERT3U(cwkey->ck_format, ==, CRYPTO_KEY_RAW);
@@ -500,6 +507,22 @@ zio_crypt_key_wrap(crypto_key_t *cwkey, zio_crypt_key_t *key, uint8_t *iv,
 	cipher_iovecs[2].iov_base = mac;
 	cipher_iovecs[2].iov_len = WRAPPING_MAC_LEN;
 
+	/*
+	 * Although we don't support writing to the old format, we do
+	 * support rewrapping the key so that the user can move and
+	 * quarantine datasets on the old format.
+	 */
+	if (key->zk_version == 0) {
+		aad_len = sizeof (uint64_t);
+		aad[0] = LE_64(key->zk_guid);
+	} else {
+		ASSERT3U(key->zk_version, ==, ZIO_CRYPT_KEY_CURRENT_VERSION);
+		aad_len = sizeof (uint64_t) * 3;
+		aad[0] = LE_64(key->zk_guid);
+		aad[1] = LE_64(crypt);
+		aad[2] = LE_64(key->zk_version);
+	}
+
 	enc_len = zio_crypt_table[crypt].ci_keylen + SHA512_HMAC_KEYLEN;
 	puio.uio_iov = plain_iovecs;
 	puio.uio_iovcnt = 2;
@@ -510,7 +533,7 @@ zio_crypt_key_wrap(crypto_key_t *cwkey, zio_crypt_key_t *key, uint8_t *iv,
 
 	/* encrypt the keys and store the resulting ciphertext and mac */
 	ret = zio_do_crypt_uio(B_TRUE, crypt, cwkey, NULL, iv, enc_len,
-	    &puio, &cuio, (uint8_t *)&le_guid, sizeof (uint64_t));
+	    &puio, &cuio, (uint8_t *)aad, aad_len);
 	if (ret != 0)
 		goto error;
 
@@ -521,16 +544,16 @@ error:
 }
 
 int
-zio_crypt_key_unwrap(crypto_key_t *cwkey, uint64_t crypt, uint64_t guid,
-    uint8_t *keydata, uint8_t *hmac_keydata, uint8_t *iv, uint8_t *mac,
-    zio_crypt_key_t *key)
+zio_crypt_key_unwrap(crypto_key_t *cwkey, uint64_t crypt, uint64_t version,
+    uint64_t guid, uint8_t *keydata, uint8_t *hmac_keydata, uint8_t *iv,
+    uint8_t *mac, zio_crypt_key_t *key)
 {
 	int ret;
 	crypto_mechanism_t mech;
 	uio_t puio, cuio;
+	uint64_t aad[3];
 	iovec_t plain_iovecs[2], cipher_iovecs[3];
-	uint_t enc_len, keydata_len;
-	uint64_t le_guid = LE_64(guid);
+	uint_t enc_len, keydata_len, aad_len;
 
 	ASSERT3U(crypt, <, ZIO_CRYPT_FUNCTIONS);
 	ASSERT3U(cwkey->ck_format, ==, CRYPTO_KEY_RAW);
@@ -550,6 +573,17 @@ zio_crypt_key_unwrap(crypto_key_t *cwkey, uint64_t crypt, uint64_t guid,
 	cipher_iovecs[2].iov_base = mac;
 	cipher_iovecs[2].iov_len = WRAPPING_MAC_LEN;
 
+	if (version == 0) {
+		aad_len = sizeof (uint64_t);
+		aad[0] = LE_64(guid);
+	} else {
+		ASSERT3U(version, ==, ZIO_CRYPT_KEY_CURRENT_VERSION);
+		aad_len = sizeof (uint64_t) * 3;
+		aad[0] = LE_64(guid);
+		aad[1] = LE_64(crypt);
+		aad[2] = LE_64(version);
+	}
+
 	enc_len = keydata_len + SHA512_HMAC_KEYLEN;
 	puio.uio_iov = plain_iovecs;
 	puio.uio_segflg = UIO_SYSSPACE;
@@ -560,7 +594,7 @@ zio_crypt_key_unwrap(crypto_key_t *cwkey, uint64_t crypt, uint64_t guid,
 
 	/* decrypt the keys and store the result in the output buffers */
 	ret = zio_do_crypt_uio(B_FALSE, crypt, cwkey, NULL, iv, enc_len,
-	    &puio, &cuio, (uint8_t *)&le_guid, sizeof (uint64_t));
+	    &puio, &cuio, (uint8_t *)aad, aad_len);
 	if (ret != 0)
 		goto error;
 
@@ -602,6 +636,7 @@ zio_crypt_key_unwrap(crypto_key_t *cwkey, uint64_t crypt, uint64_t guid,
 		key->zk_hmac_tmpl = NULL;
 
 	key->zk_crypt = crypt;
+	key->zk_version = version;
 	key->zk_guid = guid;
 	key->zk_salt_count = 0;
 	rw_init(&key->zk_salt_lock, NULL, RW_DEFAULT, NULL);
@@ -700,19 +735,32 @@ zio_crypt_generate_iv_salt_dedup(zio_crypt_key_t *key, uint8_t *data,
  * byte strings, which normally means that these strings would not need to deal
  * with byteswapping at all. However, both blkptr_t and zil_header_t may be
  * byteswapped by lower layers and so we must "undo" that byteswap here upon
- * decoding.
+ * decoding and encoding in a non-native byteorder. These functions require
+ * that the byteorder bit is correct before being called.
  */
 void
 zio_crypt_encode_params_bp(blkptr_t *bp, uint8_t *salt, uint8_t *iv)
 {
+	uint64_t val64;
 	uint32_t val32;
 
 	ASSERT(BP_IS_ENCRYPTED(bp));
 
-	bcopy(salt, &bp->blk_dva[2].dva_word[0], sizeof (uint64_t));
-	bcopy(iv, &bp->blk_dva[2].dva_word[1], sizeof (uint64_t));
-	bcopy(iv + sizeof (uint64_t), &val32, sizeof (uint32_t));
-	BP_SET_IV2(bp, val32);
+	if (!BP_SHOULD_BYTESWAP(bp)) {
+		bcopy(salt, &bp->blk_dva[2].dva_word[0], sizeof (uint64_t));
+		bcopy(iv, &bp->blk_dva[2].dva_word[1], sizeof (uint64_t));
+		bcopy(iv + sizeof (uint64_t), &val32, sizeof (uint32_t));
+		BP_SET_IV2(bp, val32);
+	} else {
+		bcopy(salt, &val64, sizeof (uint64_t));
+		bp->blk_dva[2].dva_word[0] = BSWAP_64(val64);
+
+		bcopy(iv, &val64, sizeof (uint64_t));
+		bp->blk_dva[2].dva_word[1] = BSWAP_64(val64);
+
+		bcopy(iv + sizeof (uint64_t), &val32, sizeof (uint32_t));
+		BP_SET_IV2(bp, BSWAP_32(val32));
+	}
 }
 
 void
@@ -751,12 +799,22 @@ zio_crypt_decode_params_bp(const blkptr_t *bp, uint8_t *salt, uint8_t *iv)
 void
 zio_crypt_encode_mac_bp(blkptr_t *bp, uint8_t *mac)
 {
+	uint64_t val64;
+
 	ASSERT(BP_USES_CRYPT(bp));
 	ASSERT3U(BP_GET_TYPE(bp), !=, DMU_OT_OBJSET);
 
-	bcopy(mac, &bp->blk_cksum.zc_word[2], sizeof (uint64_t));
-	bcopy(mac + sizeof (uint64_t), &bp->blk_cksum.zc_word[3],
-	    sizeof (uint64_t));
+	if (!BP_SHOULD_BYTESWAP(bp)) {
+		bcopy(mac, &bp->blk_cksum.zc_word[2], sizeof (uint64_t));
+		bcopy(mac + sizeof (uint64_t), &bp->blk_cksum.zc_word[3],
+		    sizeof (uint64_t));
+	} else {
+		bcopy(mac, &val64, sizeof (uint64_t));
+		bp->blk_cksum.zc_word[2] = BSWAP_64(val64);
+
+		bcopy(mac + sizeof (uint64_t), &val64, sizeof (uint64_t));
+		bp->blk_cksum.zc_word[3] = BSWAP_64(val64);
+	}
 }
 
 void
@@ -841,55 +899,107 @@ zio_crypt_copy_dnode_bonus(abd_t *src_abd, uint8_t *dst, uint_t datalen)
 	abd_return_buf(src_abd, src, datalen);
 }
 
+/*
+ * This function decides what fields from blk_prop are included in
+ * the on-disk various MAC algorithms.
+ */
 static void
-zio_crypt_bp_zero_nonportable_blkprop(blkptr_t *bp)
+zio_crypt_bp_zero_nonportable_blkprop(blkptr_t *bp, uint64_t version)
 {
-	BP_SET_DEDUP(bp, 0);
-	BP_SET_CHECKSUM(bp, 0);
+	/*
+	 * Version 0 did not properly zero out all non-portable fields
+	 * as it should have done. We maintain this code so that we can
+	 * do read-only imports of pools on this version.
+	 */
+	if (version == 0) {
+		BP_SET_DEDUP(bp, 0);
+		BP_SET_CHECKSUM(bp, 0);
+		BP_SET_PSIZE(bp, SPA_MINBLOCKSIZE);
+		return;
+	}
+
+	ASSERT3U(version, ==, ZIO_CRYPT_KEY_CURRENT_VERSION);
 
 	/*
-	 * psize cannot be set to zero or it will trigger asserts, but the
-	 * value doesn't really matter as long as it is constant.
+	 * The hole_birth feature might set these fields even if this bp
+	 * is a hole. We zero them out here to guarantee that raw sends
+	 * will function with or without the feature.
 	 */
-	BP_SET_PSIZE(bp, SPA_MINBLOCKSIZE);
+	if (BP_IS_HOLE(bp)) {
+		bp->blk_prop = 0ULL;
+		return;
+	}
+
+	/*
+	 * At L0 we want to verify these fields to ensure that data blocks
+	 * can not be reinterpretted. For instance, we do not want an attacker
+	 * to trick us into returning raw lz4 compressed data to the user
+	 * by modifying the compression bits. At higher levels, we cannot
+	 * enforce this policy since raw sends do not convey any information
+	 * about indirect blocks, so these values might be different on the
+	 * receive side. Fortunately, this does not open any new attack
+	 * vectors, since any alterations that can be made to a higher level
+	 * bp must still verify the correct order of the layer below it.
+	 */
+	if (BP_GET_LEVEL(bp) != 0) {
+		BP_SET_BYTEORDER(bp, 0);
+		BP_SET_COMPRESS(bp, 0);
+
+		/*
+		 * psize cannot be set to zero or it will trigger
+		 * asserts, but the value doesn't really matter as
+		 * long as it is constant.
+		 */
+		BP_SET_PSIZE(bp, SPA_MINBLOCKSIZE);
+	}
+
+	BP_SET_DEDUP(bp, 0);
+	BP_SET_CHECKSUM(bp, 0);
 }
 
-static int
-zio_crypt_bp_do_hmac_updates(crypto_context_t ctx, boolean_t should_bswap,
-    blkptr_t *bp)
+static void
+zio_crypt_bp_auth_init(uint64_t version, boolean_t should_bswap, blkptr_t *bp,
+    blkptr_auth_buf_t *bab, uint_t *bab_len)
 {
-	int ret;
-	crypto_data_t cd;
-	uint64_t le_blkprop;
 	blkptr_t tmpbp = *bp;
-	uint8_t mac[ZIO_DATA_MAC_LEN];
-
-	cd.cd_format = CRYPTO_DATA_RAW;
-	cd.cd_offset = 0;
 
 	if (should_bswap)
 		byteswap_uint64_array(&tmpbp, sizeof (blkptr_t));
 
 	ASSERT(BP_USES_CRYPT(&tmpbp) || BP_IS_HOLE(&tmpbp));
 	ASSERT0(BP_IS_EMBEDDED(&tmpbp));
-	zio_crypt_bp_zero_nonportable_blkprop(&tmpbp);
 
-	le_blkprop = (ZFS_HOST_BYTEORDER) ?
-	    tmpbp.blk_prop : BSWAP_64(tmpbp.blk_prop);
+	zio_crypt_decode_mac_bp(&tmpbp, bab->bab_mac);
 
-	cd.cd_length = sizeof (uint64_t);
-	cd.cd_raw.iov_base = (char *)&le_blkprop;
-	cd.cd_raw.iov_len = cd.cd_length;
+	/*
+	 * We always MAC blk_prop in LE to ensure portability. This
+	 * must be done after decoding the mac, since the endianness
+	 * will get zero'd out here.
+	 */
+	zio_crypt_bp_zero_nonportable_blkprop(&tmpbp, version);
+	bab->bab_prop = LE_64(tmpbp.blk_prop);
+	bab->bab_pad = 0ULL;
 
-	ret = crypto_mac_update(ctx, &cd, NULL);
-	if (ret != CRYPTO_SUCCESS) {
-		ret = SET_ERROR(EIO);
-		goto error;
-	}
+	/* version 0 did not include the padding */
+	*bab_len = sizeof (blkptr_auth_buf_t);
+	if (version == 0)
+		*bab_len -= sizeof (uint64_t);
+}
 
-	zio_crypt_decode_mac_bp(&tmpbp, mac);
-	cd.cd_length = ZIO_DATA_MAC_LEN;
-	cd.cd_raw.iov_base = (char *)mac;
+static int
+zio_crypt_bp_do_hmac_updates(crypto_context_t ctx, uint64_t version,
+    boolean_t should_bswap, blkptr_t *bp)
+{
+	int ret;
+	uint_t bab_len;
+	blkptr_auth_buf_t bab;
+	crypto_data_t cd;
+
+	zio_crypt_bp_auth_init(version, should_bswap, bp, &bab, &bab_len);
+	cd.cd_format = CRYPTO_DATA_RAW;
+	cd.cd_offset = 0;
+	cd.cd_length = bab_len;
+	cd.cd_raw.iov_base = (char *)&bab;
 	cd.cd_raw.iov_len = cd.cd_length;
 
 	ret = crypto_mac_update(ctx, &cd, NULL);
@@ -905,60 +1015,32 @@ error:
 }
 
 static void
-zio_crypt_bp_do_indrect_checksum_updates(SHA2_CTX *ctx, boolean_t should_bswap,
-    blkptr_t *bp)
+zio_crypt_bp_do_indrect_checksum_updates(SHA2_CTX *ctx, uint64_t version,
+    boolean_t should_bswap, blkptr_t *bp)
 {
-	blkptr_t tmpbp = *bp;
-	uint8_t mac[ZIO_DATA_MAC_LEN];
+	uint_t bab_len;
+	blkptr_auth_buf_t bab;
 
-	if (should_bswap)
-		byteswap_uint64_array(&tmpbp, sizeof (blkptr_t));
-
-	ASSERT(BP_USES_CRYPT(&tmpbp) || BP_IS_HOLE(&tmpbp));
-	ASSERT0(BP_IS_EMBEDDED(&tmpbp));
-	zio_crypt_bp_zero_nonportable_blkprop(&tmpbp);
-	zio_crypt_decode_mac_bp(&tmpbp, mac);
-
-	if (should_bswap)
-		byteswap_uint64_array(&tmpbp, sizeof (blkptr_t));
-
-	SHA2Update(ctx, &tmpbp.blk_prop, sizeof (uint64_t));
-	SHA2Update(ctx, mac, ZIO_DATA_MAC_LEN);
+	zio_crypt_bp_auth_init(version, should_bswap, bp, &bab, &bab_len);
+	SHA2Update(ctx, &bab, bab_len);
 }
 
 static void
-zio_crypt_bp_do_aad_updates(uint8_t **aadp, uint_t *aad_len,
+zio_crypt_bp_do_aad_updates(uint8_t **aadp, uint_t *aad_len, uint64_t version,
     boolean_t should_bswap, blkptr_t *bp)
 {
-	uint_t crypt_len;
-	blkptr_t tmpbp = *bp;
-	uint8_t mac[ZIO_DATA_MAC_LEN];
+	uint_t bab_len;
+	blkptr_auth_buf_t bab;
 
-	if (should_bswap)
-		byteswap_uint64_array(&tmpbp, sizeof (blkptr_t));
-
-	ASSERT(BP_USES_CRYPT(&tmpbp) || BP_IS_HOLE(&tmpbp));
-	ASSERT0(BP_IS_EMBEDDED(&tmpbp));
-	zio_crypt_bp_zero_nonportable_blkprop(&tmpbp);
-	zio_crypt_decode_mac_bp(&tmpbp, mac);
-
-	if (should_bswap)
-		byteswap_uint64_array(&tmpbp, sizeof (blkptr_t));
-
-	crypt_len = sizeof (uint64_t);
-	bcopy(&tmpbp.blk_prop, *aadp, crypt_len);
-	*aadp += crypt_len;
-	*aad_len += crypt_len;
-
-	crypt_len = ZIO_DATA_MAC_LEN;
-	bcopy(mac, *aadp, crypt_len);
-	*aadp += crypt_len;
-	*aad_len += crypt_len;
+	zio_crypt_bp_auth_init(version, should_bswap, bp, &bab, &bab_len);
+	bcopy(&bab, *aadp, bab_len);
+	*aadp += bab_len;
+	*aad_len += bab_len;
 }
 
 static int
-zio_crypt_do_dnode_hmac_updates(crypto_context_t ctx, boolean_t should_bswap,
-    dnode_phys_t *dnp)
+zio_crypt_do_dnode_hmac_updates(crypto_context_t ctx, uint64_t version,
+    boolean_t should_bswap, dnode_phys_t *dnp)
 {
 	int ret, i;
 	dnode_phys_t *adnp;
@@ -992,14 +1074,14 @@ zio_crypt_do_dnode_hmac_updates(crypto_context_t ctx, boolean_t should_bswap,
 	}
 
 	for (i = 0; i < dnp->dn_nblkptr; i++) {
-		ret = zio_crypt_bp_do_hmac_updates(ctx,
+		ret = zio_crypt_bp_do_hmac_updates(ctx, version,
 		    should_bswap, &dnp->dn_blkptr[i]);
 		if (ret != 0)
 			goto error;
 	}
 
 	if (dnp->dn_flags & DNODE_FLAG_SPILL_BLKPTR) {
-		ret = zio_crypt_bp_do_hmac_updates(ctx,
+		ret = zio_crypt_bp_do_hmac_updates(ctx, version,
 		    should_bswap, DN_SPILL_BLKPTR(dnp));
 		if (ret != 0)
 			goto error;
@@ -1013,9 +1095,9 @@ error:
 
 /*
  * objset_phys_t blocks introduce a number of exceptions to the normal
- * authentication process. objset_phys_t's contain 2 seperate HMACS for
+ * authentication process. objset_phys_t's contain 2 separate HMACS for
  * protecting the integrity of their data. The portable_mac protects the
- * the metadnode. This MAC can be sent with a raw send and protects against
+ * metadnode. This MAC can be sent with a raw send and protects against
  * reordering of data within the metadnode. The local_mac protects the user
  * accounting objects which are not sent from one system to another.
  *
@@ -1095,8 +1177,8 @@ zio_crypt_do_objset_hmacs(zio_crypt_key_t *key, void *data, uint_t datalen,
 	}
 
 	/* add in fields from the metadnode */
-	ret = zio_crypt_do_dnode_hmac_updates(ctx, should_bswap,
-	    &osp->os_meta_dnode);
+	ret = zio_crypt_do_dnode_hmac_updates(ctx, key->zk_version,
+	    should_bswap, &osp->os_meta_dnode);
 	if (ret)
 		goto error;
 
@@ -1114,11 +1196,17 @@ zio_crypt_do_objset_hmacs(zio_crypt_key_t *key, void *data, uint_t datalen,
 	bcopy(raw_portable_mac, portable_mac, ZIO_OBJSET_MAC_LEN);
 
 	/*
-	 * The local MAC protects the user and group accounting. If these
-	 * objects are not present, the local MAC is zeroed out.
+	 * The local MAC protects the user, group and project accounting.
+	 * If these objects are not present, the local MAC is zeroed out.
 	 */
-	if (osp->os_userused_dnode.dn_type == DMU_OT_NONE &&
-	    osp->os_groupused_dnode.dn_type == DMU_OT_NONE) {
+	if ((datalen >= OBJSET_PHYS_SIZE_V3 &&
+	    osp->os_userused_dnode.dn_type == DMU_OT_NONE &&
+	    osp->os_groupused_dnode.dn_type == DMU_OT_NONE &&
+	    osp->os_projectused_dnode.dn_type == DMU_OT_NONE) ||
+	    (datalen >= OBJSET_PHYS_SIZE_V2 &&
+	    osp->os_userused_dnode.dn_type == DMU_OT_NONE &&
+	    osp->os_groupused_dnode.dn_type == DMU_OT_NONE) ||
+	    (datalen <= OBJSET_PHYS_SIZE_V1)) {
 		bzero(local_mac, ZIO_OBJSET_MAC_LEN);
 		return (0);
 	}
@@ -1149,15 +1237,27 @@ zio_crypt_do_objset_hmacs(zio_crypt_key_t *key, void *data, uint_t datalen,
 	}
 
 	/* add in fields from the user accounting dnodes */
-	ret = zio_crypt_do_dnode_hmac_updates(ctx, should_bswap,
-	    &osp->os_userused_dnode);
-	if (ret)
-		goto error;
+	if (osp->os_userused_dnode.dn_type != DMU_OT_NONE) {
+		ret = zio_crypt_do_dnode_hmac_updates(ctx, key->zk_version,
+		    should_bswap, &osp->os_userused_dnode);
+		if (ret)
+			goto error;
+	}
 
-	ret = zio_crypt_do_dnode_hmac_updates(ctx, should_bswap,
-	    &osp->os_groupused_dnode);
-	if (ret)
-		goto error;
+	if (osp->os_groupused_dnode.dn_type != DMU_OT_NONE) {
+		ret = zio_crypt_do_dnode_hmac_updates(ctx, key->zk_version,
+		    should_bswap, &osp->os_groupused_dnode);
+		if (ret)
+			goto error;
+	}
+
+	if (osp->os_projectused_dnode.dn_type != DMU_OT_NONE &&
+	    datalen >= OBJSET_PHYS_SIZE_V3) {
+		ret = zio_crypt_do_dnode_hmac_updates(ctx, key->zk_version,
+		    should_bswap, &osp->os_projectused_dnode);
+		if (ret)
+			goto error;
+	}
 
 	/* store the final digest in a temporary buffer and copy what we need */
 	cd.cd_length = SHA512_DIGEST_LENGTH;
@@ -1194,9 +1294,9 @@ zio_crypt_destroy_uio(uio_t *uio)
  * checksum, and psize bits. For an explanation of the purpose of this, see
  * the comment block on object set authentication.
  */
-int
-zio_crypt_do_indirect_mac_checksum(boolean_t generate, void *buf,
-    uint_t datalen, boolean_t byteswap, uint8_t *cksum)
+static int
+zio_crypt_do_indirect_mac_checksum_impl(boolean_t generate, void *buf,
+    uint_t datalen, uint64_t version, boolean_t byteswap, uint8_t *cksum)
 {
 	blkptr_t *bp;
 	int i, epb = datalen >> SPA_BLKPTRSHIFT;
@@ -1206,7 +1306,8 @@ zio_crypt_do_indirect_mac_checksum(boolean_t generate, void *buf,
 	/* checksum all of the MACs from the layer below */
 	SHA2Init(SHA512, &ctx);
 	for (i = 0, bp = buf; i < epb; i++, bp++) {
-		zio_crypt_bp_do_indrect_checksum_updates(&ctx, byteswap, bp);
+		zio_crypt_bp_do_indrect_checksum_updates(&ctx, version,
+		    byteswap, bp);
 	}
 	SHA2Final(digestbuf, &ctx);
 
@@ -1222,10 +1323,34 @@ zio_crypt_do_indirect_mac_checksum(boolean_t generate, void *buf,
 }
 
 int
+zio_crypt_do_indirect_mac_checksum(boolean_t generate, void *buf,
+    uint_t datalen, boolean_t byteswap, uint8_t *cksum)
+{
+	int ret;
+
+	/*
+	 * Unfortunately, callers of this function will not always have
+	 * easy access to the on-disk format version. This info is
+	 * normally found in the DSL Crypto Key, but the checksum-of-MACs
+	 * is expected to be verifiable even when the key isn't loaded.
+	 * Here, instead of doing a ZAP lookup for the version for each
+	 * zio, we simply try both existing formats.
+	 */
+	ret = zio_crypt_do_indirect_mac_checksum_impl(generate, buf,
+	    datalen, ZIO_CRYPT_KEY_CURRENT_VERSION, byteswap, cksum);
+	if (ret == ECKSUM) {
+		ASSERT(!generate);
+		ret = zio_crypt_do_indirect_mac_checksum_impl(generate,
+		    buf, datalen, 0, byteswap, cksum);
+	}
+
+	return (ret);
+}
+
+int
 zio_crypt_do_indirect_mac_checksum_abd(boolean_t generate, abd_t *abd,
     uint_t datalen, boolean_t byteswap, uint8_t *cksum)
 {
-
 	int ret;
 	void *buf;
 
@@ -1439,10 +1564,10 @@ error:
  * Special case handling routine for encrypting / decrypting dnode blocks.
  */
 static int
-zio_crypt_init_uios_dnode(boolean_t encrypt, uint8_t *plainbuf,
-    uint8_t *cipherbuf, uint_t datalen, boolean_t byteswap, uio_t *puio,
-    uio_t *cuio, uint_t *enc_len, uint8_t **authbuf, uint_t *auth_len,
-    boolean_t *no_crypt)
+zio_crypt_init_uios_dnode(boolean_t encrypt, uint64_t version,
+    uint8_t *plainbuf, uint8_t *cipherbuf, uint_t datalen, boolean_t byteswap,
+    uio_t *puio, uio_t *cuio, uint_t *enc_len, uint8_t **authbuf,
+    uint_t *auth_len, boolean_t *no_crypt)
 {
 	int ret;
 	uint_t nr_src, nr_dst, crypt_len;
@@ -1544,12 +1669,12 @@ zio_crypt_init_uios_dnode(boolean_t encrypt, uint8_t *plainbuf,
 
 		for (j = 0; j < dnp->dn_nblkptr; j++) {
 			zio_crypt_bp_do_aad_updates(&aadp, &aad_len,
-			    byteswap, &dnp->dn_blkptr[j]);
+			    version, byteswap, &dnp->dn_blkptr[j]);
 		}
 
 		if (dnp->dn_flags & DNODE_FLAG_SPILL_BLKPTR) {
 			zio_crypt_bp_do_aad_updates(&aadp, &aad_len,
-			    byteswap, DN_SPILL_BLKPTR(dnp));
+			    version, byteswap, DN_SPILL_BLKPTR(dnp));
 		}
 
 		/*
@@ -1682,9 +1807,9 @@ error:
  * data (AAD) for the encryption modes.
  */
 static int
-zio_crypt_init_uios(boolean_t encrypt, dmu_object_type_t ot, uint8_t *plainbuf,
-    uint8_t *cipherbuf, uint_t datalen, boolean_t byteswap, uint8_t *mac,
-    uio_t *puio, uio_t *cuio, uint_t *enc_len, uint8_t **authbuf,
+zio_crypt_init_uios(boolean_t encrypt, uint64_t version, dmu_object_type_t ot,
+    uint8_t *plainbuf, uint8_t *cipherbuf, uint_t datalen, boolean_t byteswap,
+    uint8_t *mac, uio_t *puio, uio_t *cuio, uint_t *enc_len, uint8_t **authbuf,
     uint_t *auth_len, boolean_t *no_crypt)
 {
 	int ret;
@@ -1700,9 +1825,9 @@ zio_crypt_init_uios(boolean_t encrypt, dmu_object_type_t ot, uint8_t *plainbuf,
 		    no_crypt);
 		break;
 	case DMU_OT_DNODE:
-		ret = zio_crypt_init_uios_dnode(encrypt, plainbuf, cipherbuf,
-		    datalen, byteswap, puio, cuio, enc_len, authbuf, auth_len,
-		    no_crypt);
+		ret = zio_crypt_init_uios_dnode(encrypt, version, plainbuf,
+		    cipherbuf, datalen, byteswap, puio, cuio, enc_len, authbuf,
+		    auth_len, no_crypt);
 		break;
 	default:
 		ret = zio_crypt_init_uios_normal(encrypt, plainbuf, cipherbuf,
@@ -1754,9 +1879,9 @@ zio_do_crypt_data(boolean_t encrypt, zio_crypt_key_t *key, uint8_t *salt,
 	bzero(&cuio, sizeof (uio_t));
 
 	/* create uios for encryption */
-	ret = zio_crypt_init_uios(encrypt, ot, plainbuf, cipherbuf, datalen,
-	    byteswap, mac, &puio, &cuio, &enc_len, &authbuf, &auth_len,
-	    no_crypt);
+	ret = zio_crypt_init_uios(encrypt, key->zk_version, ot, plainbuf,
+	    cipherbuf, datalen, byteswap, mac, &puio, &cuio, &enc_len,
+	    &authbuf, &auth_len, no_crypt);
 	if (ret != 0)
 		return (ret);
 

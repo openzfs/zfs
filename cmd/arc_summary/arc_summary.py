@@ -47,12 +47,25 @@ import getopt
 import os
 import sys
 import time
+import errno
 
 from subprocess import Popen, PIPE
 from decimal import Decimal as D
 
 show_tunable_descriptions = False
 alternate_tunable_layout = False
+
+
+def handle_Exception(ex_cls, ex, tb):
+    if ex is IOError:
+        if ex.errno == errno.EPIPE:
+            sys.exit()
+
+    if ex is KeyboardInterrupt:
+        sys.exit()
+
+
+sys.excepthook = handle_Exception
 
 
 def get_Kstat():
@@ -977,9 +990,15 @@ def main():
     global show_tunable_descriptions
     global alternate_tunable_layout
 
-    opts, args = getopt.getopt(
-        sys.argv[1:], "adp:h", ["alternate", "description", "page=", "help"]
-    )
+    try:
+        opts, args = getopt.getopt(
+            sys.argv[1:],
+            "adp:h", ["alternate", "description", "page=", "help"]
+        )
+    except getopt.error as e:
+        sys.stderr.write("Error: %s\n" % e.msg)
+        usage()
+        sys.exit(1)
 
     args = {}
     for opt, arg in opts:
@@ -991,7 +1010,7 @@ def main():
             args['p'] = arg
         if opt in ('-h', '--help'):
             usage()
-            sys.exit()
+            sys.exit(0)
 
     Kstat = get_Kstat()
 
@@ -1006,7 +1025,7 @@ def main():
         except IndexError:
             sys.stderr.write('the argument to -p must be between 1 and ' +
                              str(len(unSub)) + '\n')
-            sys.exit()
+            sys.exit(1)
     else:
         pages = unSub
 

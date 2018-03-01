@@ -245,11 +245,14 @@ typedef enum dmu_object_type {
 	DMU_OTN_ZAP_ENC_METADATA = DMU_OT(DMU_BSWAP_ZAP, B_TRUE, B_TRUE),
 } dmu_object_type_t;
 
-typedef enum txg_how {
-	TXG_WAIT = 1,
-	TXG_NOWAIT,
-	TXG_WAITED,
-} txg_how_t;
+/*
+ * These flags are intended to be used to specify the "txg_how"
+ * parameter when calling the dmu_tx_assign() function. See the comment
+ * above dmu_tx_assign() for more details on the meaning of these flags.
+ */
+#define	TXG_NOWAIT	(0ULL)
+#define	TXG_WAIT	(1ULL<<0)
+#define	TXG_NOTHROTTLE	(1ULL<<1)
 
 void byteswap_uint64_array(void *buf, size_t size);
 void byteswap_uint32_array(void *buf, size_t size);
@@ -273,9 +276,10 @@ void zfs_znode_byteswap(void *buf, size_t size);
 
 #define	DMU_USERUSED_OBJECT	(-1ULL)
 #define	DMU_GROUPUSED_OBJECT	(-2ULL)
+#define	DMU_PROJECTUSED_OBJECT	(-3ULL)
 
 /*
- * Zap prefix for object accounting in DMU_{USER,GROUP}USED_OBJECT.
+ * Zap prefix for object accounting in DMU_{USER,GROUP,PROJECT}USED_OBJECT.
  */
 #define	DMU_OBJACCT_PREFIX	"obj-"
 #define	DMU_OBJACCT_PREFIX_LEN	4
@@ -433,6 +437,13 @@ int dmu_object_set_nlevels(objset_t *os, uint64_t object, int nlevels,
  */
 int dmu_object_set_blocksize(objset_t *os, uint64_t object, uint64_t size,
     int ibs, dmu_tx_t *tx);
+
+/*
+ * Manually set the maxblkid on a dnode. This will adjust nlevels accordingly
+ * to accommodate the change.
+ */
+int dmu_object_set_maxblkid(objset_t *os, uint64_t object, uint64_t maxblkid,
+    dmu_tx_t *tx);
 
 /*
  * Set the checksum property on a dnode.  The new checksum algorithm will
@@ -729,7 +740,7 @@ void dmu_tx_hold_spill(dmu_tx_t *tx, uint64_t object);
 void dmu_tx_hold_sa(dmu_tx_t *tx, struct sa_handle *hdl, boolean_t may_grow);
 void dmu_tx_hold_sa_create(dmu_tx_t *tx, int total_size);
 void dmu_tx_abort(dmu_tx_t *tx);
-int dmu_tx_assign(dmu_tx_t *tx, enum txg_how txg_how);
+int dmu_tx_assign(dmu_tx_t *tx, uint64_t txg_how);
 void dmu_tx_wait(dmu_tx_t *tx);
 void dmu_tx_commit(dmu_tx_t *tx);
 void dmu_tx_mark_netfree(dmu_tx_t *tx);
@@ -748,11 +759,16 @@ void dmu_tx_mark_netfree(dmu_tx_t *tx);
  * to stable storage and will also be called if the dmu_tx is aborted.
  * If there is any error which prevents the transaction from being committed to
  * disk, the callback will be called with a value of error != 0.
+ *
+ * When multiple callbacks are registered to the transaction, the callbacks
+ * will be called in reverse order to let Lustre, the only user of commit
+ * callback currently, take the fast path of its commit callback handling.
  */
 typedef void dmu_tx_callback_func_t(void *dcb_data, int error);
 
 void dmu_tx_callback_register(dmu_tx_t *tx, dmu_tx_callback_func_t *dcb_func,
     void *dcb_data);
+void dmu_tx_do_callbacks(list_t *cb_list, int error);
 
 /*
  * Free up the data blocks for a defined range of a file.  If size is
@@ -805,8 +821,9 @@ void dmu_assign_arcbuf_by_dnode(dnode_t *dn, uint64_t offset,
 void dmu_assign_arcbuf_by_dbuf(dmu_buf_t *handle, uint64_t offset,
     struct arc_buf *buf, dmu_tx_t *tx);
 #define	dmu_assign_arcbuf	dmu_assign_arcbuf_by_dbuf
-void dmu_convert_to_raw(dmu_buf_t *handle, boolean_t byteorder,
-    const uint8_t *salt, const uint8_t *iv, const uint8_t *mac, dmu_tx_t *tx);
+int dmu_convert_mdn_block_to_raw(objset_t *os, uint64_t firstobj,
+    boolean_t byteorder, const uint8_t *salt, const uint8_t *iv,
+    const uint8_t *mac, dmu_tx_t *tx);
 void dmu_copy_from_buf(objset_t *os, uint64_t object, uint64_t offset,
     dmu_buf_t *handle, dmu_tx_t *tx);
 #ifdef HAVE_UIO_ZEROCOPY
@@ -956,7 +973,7 @@ extern int dmu_dir_list_next(objset_t *os, int namelen, char *name,
     uint64_t *idp, uint64_t *offp);
 
 typedef int objset_used_cb_t(dmu_object_type_t bonustype,
-    void *bonus, uint64_t *userp, uint64_t *groupp);
+    void *bonus, uint64_t *userp, uint64_t *groupp, uint64_t *projectp);
 extern void dmu_objset_register_type(dmu_objset_type_t ost,
     objset_used_cb_t *cb);
 extern void dmu_objset_set_user(objset_t *os, void *user_ptr);
@@ -982,7 +999,7 @@ uint64_t dmu_tx_get_txg(dmu_tx_t *tx);
  * {zfs,zvol,ztest}_get_done() args
  */
 typedef struct zgd {
-	struct zilog	*zgd_zilog;
+	struct lwb	*zgd_lwb;
 	struct blkptr	*zgd_bp;
 	dmu_buf_t	*zgd_db;
 	struct rl	*zgd_rl;
@@ -1016,8 +1033,6 @@ int dmu_diff(const char *tosnap_name, const char *fromsnap_name,
 /* CRC64 table */
 #define	ZFS_CRC64_POLY	0xC96C5795D7870F42ULL	/* ECMA-182, reflected form */
 extern uint64_t zfs_crc64_table[256];
-
-extern int zfs_mdcomp_disable;
 
 #ifdef	__cplusplus
 }

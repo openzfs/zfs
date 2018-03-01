@@ -1,0 +1,73 @@
+--
+-- This file and its contents are supplied under the terms of the
+-- Common Development and Distribution License ("CDDL"), version 1.0.
+-- You may only use this file in accordance with the terms of version
+-- 1.0 of the CDDL.
+--
+-- A full copy of the text of the CDDL should have accompanied this
+-- source.  A copy of the CDDL is also available via the Internet at
+-- http://www.illumos.org/license/CDDL.
+--
+
+--
+-- Copyright (c) 2016 by Delphix. All rights reserved.
+--
+
+arg = ...
+fs = arg["argv"][1]
+snap = arg["argv"][2]
+clone = arg["argv"][3]
+
+props = {}
+
+-- prop                  filesystem           snapshot             clone
+props['origin']       = {{nil,          nil}, {nil,          nil}, {snap,         nil}}
+props['clones']       = {{nil,          nil}, {{clone},      nil}, {nil,          nil}}
+props['mountpoint']   = {{'/' .. fs, 'default'}, {nil,       nil}, {'/' .. clone,  'default'}}
+props['sharenfs']     = {{'off',  'default'}, {nil,          nil}, {'off',  'default'}}
+props['type']         = {{'filesystem', nil}, {'snapshot',   nil}, {'filesystem', nil}}
+props['sharesmb']     = {{'off',  'default'}, {nil,          nil}, {'off',  'default'}}
+props['mlslabel']     = {{'none', 'default'}, {'none', 'default'}, {'none', 'default'}}
+props['receive_resume_token'] = {{nil,  nil}, {nil,          nil}, {nil,          nil}}
+-- hidden props
+props['name']         = {{fs,           nil}, {snap,         nil}, {clone,        nil}}
+props['iscsioptions'] = {{nil,          nil}, {nil,          nil}, {nil,          nil}}
+props['prevsnap']     = {{snap,         nil}, {nil,          nil}, {snap,         nil}}
+
+
+fs_fails = {}
+snap_fails = {}
+clone_fails = {}
+
+
+function list_match(t1, t2)
+	if t1 == t2 then return true end
+	return (t1[1] == t2[1])
+end
+
+function match(n, prop, ans, src, expected)
+	if ((prop == 'clones') or (prop == 'redact_snaps')) then
+		return (list_match(ans, expected[n][1]) and (src == expected[n][2]))
+	else
+		return ((ans == expected[n][1]) and (src == expected[n][2]))
+	end
+end
+
+for prop, expected in pairs(props) do
+	ans, src = zfs.get_prop(fs, prop)
+	if not (match(1, prop, ans, src, expected)) then
+		fs_fails[prop] = {ans, src}
+	end
+
+	ans, src = zfs.get_prop(snap, prop)
+	if not (match(2, prop, ans, src, expected)) then
+		snap_fails[prop] = {ans, src}
+	end
+
+	ans, src = zfs.get_prop(clone, prop)
+	if not (match(3, prop, ans, src, expected)) then
+		clone_fails[prop] = {ans, src}
+	end
+end
+
+return {fs_fails, snap_fails, clone_fails}

@@ -41,7 +41,7 @@ AC_DEFUN([ZFS_AC_KERNEL_FOLLOW_LINK], [
 			AC_DEFINE(HAVE_FOLLOW_LINK_NAMEIDATA, 1,
 			          [iops->follow_link() nameidata])
 		],[
-                        AC_MSG_ERROR(no; please file a bug report)
+			AC_MSG_ERROR(no; please file a bug report)
 		])
 	])
 ])

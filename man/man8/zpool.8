@@ -27,7 +27,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd August 23, 2017
+.Dd January 10, 2018
 .Dt ZPOOL 8 SMM
 .Os Linux
 .Sh NAME
@@ -87,13 +87,13 @@
 .Nm
 .Cm import
 .Op Fl D
-.Op Fl d Ar dir
+.Op Fl d Ar dir Ns | Ns device
 .Nm
 .Cm import
 .Fl a
 .Op Fl DflmN
 .Op Fl F Oo Fl n Oc Oo Fl T Oc Oo Fl X Oc
-.Op Fl c Ar cachefile Ns | Ns Fl d Ar dir
+.Op Fl c Ar cachefile Ns | Ns Fl d Ar dir Ns | Ns device
 .Op Fl o Ar mntopts
 .Oo Fl o Ar property Ns = Ns Ar value Oc Ns ...
 .Op Fl R Ar root
@@ -101,7 +101,7 @@
 .Cm import
 .Op Fl Dflm
 .Op Fl F Oo Fl n Oc Oo Fl T Oc Oo Fl X Oc
-.Op Fl c Ar cachefile Ns | Ns Fl d Ar dir
+.Op Fl c Ar cachefile Ns | Ns Fl d Ar dir Ns | Ns device
 .Op Fl o Ar mntopts
 .Oo Fl o Ar property Ns = Ns Ar value Oc Ns ...
 .Op Fl R Ar root
@@ -472,10 +472,8 @@ change the behavior of the pool.
 .Pp
 The following are read-only properties:
 .Bl -tag -width Ds
-.It Sy available
-Amount of storage available within the pool.
-This property can also be referred to by its shortened column name,
-.Sy avail .
+.It Cm allocated
+Amount of storage used within the pool.
 .It Sy capacity
 Percentage of pool space used.
 This property can also be referred to by its shortened column name,
@@ -516,8 +514,6 @@ Information about unsupported features that are enabled on the pool.
 See
 .Xr zpool-features 5
 for details.
-.It Sy used
-Amount of storage space used within the pool.
 .El
 .Pp
 The space usage properties report actual physical space available to the
@@ -733,7 +729,7 @@ man page.  In order to enable this property each host must set a unique hostid.
 See
 .Xr genhostid 1
 .Xr zgenhostid 8
-.Xr spl-module-paramters 5
+.Xr spl-module-parameters 5
 for additional details.  The default value is
 .Sy off .
 .It Sy version Ns = Ns Ar version
@@ -1141,7 +1137,7 @@ performed.
 .Nm
 .Cm import
 .Op Fl D
-.Op Fl d Ar dir
+.Op Fl d Ar dir Ns | Ns device
 .Xc
 Lists pools available to import.
 If the
@@ -1172,8 +1168,10 @@ pool property.
 This
 .Ar cachefile
 is used instead of searching for devices.
-.It Fl d Ar dir
-Searches for devices or files in
+.It Fl d Ar dir Ns | Ns Ar device
+Uses
+.Ar device
+or searches for devices or files in
 .Ar dir .
 The
 .Fl d
@@ -1187,7 +1185,7 @@ Lists destroyed pools only.
 .Fl a
 .Op Fl DflmN
 .Op Fl F Oo Fl n Oc Oo Fl T Oc Oo Fl X Oc
-.Op Fl c Ar cachefile Ns | Ns Fl d Ar dir
+.Op Fl c Ar cachefile Ns | Ns Fl d Ar dir Ns | Ns device
 .Op Fl o Ar mntopts
 .Oo Fl o Ar property Ns = Ns Ar value Oc Ns ...
 .Op Fl R Ar root
@@ -1213,8 +1211,10 @@ pool property.
 This
 .Ar cachefile
 is used instead of searching for devices.
-.It Fl d Ar dir
-Searches for devices or files in
+.It Fl d Ar dir Ns | Ns Ar device
+Uses
+.Ar device
+or searches for devices or files in
 .Ar dir .
 The
 .Fl d
@@ -1308,7 +1308,7 @@ health of your pool and should only be used as a last resort.
 .Cm import
 .Op Fl Dflm
 .Op Fl F Oo Fl n Oc Oo Fl t Oc Oo Fl T Oc Oo Fl X Oc
-.Op Fl c Ar cachefile Ns | Ns Fl d Ar dir
+.Op Fl c Ar cachefile Ns | Ns Fl d Ar dir Ns | Ns device
 .Op Fl o Ar mntopts
 .Oo Fl o Ar property Ns = Ns Ar value Oc Ns ...
 .Op Fl R Ar root
@@ -1342,8 +1342,10 @@ pool property.
 This
 .Ar cachefile
 is used instead of searching for devices.
-.It Fl d Ar dir
-Searches for devices or files in
+.It Fl d Ar dir Ns | Ns Ar device
+Uses
+.Ar device
+or searches for devices or files in
 .Ar dir .
 The
 .Fl d
@@ -1429,7 +1431,7 @@ about pool recovery mode, see the
 .Fl X
 option, above. WARNING: This option can be extremely hazardous to the
 health of your pool and should only be used as a last resort.
-.It Fl s
+.It Fl t
 Used with
 .Sy newpool .
 Specifies that
@@ -1661,8 +1663,8 @@ See the
 .Sx Properties
 section for a list of valid properties.
 The default list is
-.Sy name, size, alloc, free, fragmentation, expandsize, capacity,
-.Sy dedupratio, health, altroot .
+.Cm name , size , allocated , free , expandsize , fragmentation , capacity ,
+.Cm dedupratio , health , altroot .
 .It Fl L
 Display real paths for vdevs resolving all symbolic links. This can
 be used to look up the current block device name regardless of the
@@ -2120,10 +2122,10 @@ is faulted due to a missing device.
 The results from this command are similar to the following:
 .Bd -literal
 # zpool list
-NAME    SIZE  ALLOC   FREE   FRAG  EXPANDSZ    CAP  DEDUP  HEALTH  ALTROOT
-rpool  19.9G  8.43G  11.4G    33%         -    42%  1.00x  ONLINE  -
-tank   61.5G  20.0G  41.5G    48%         -    32%  1.00x  ONLINE  -
-zion       -      -      -      -         -      -      -  FAULTED -
+NAME    SIZE  ALLOC   FREE  EXPANDSZ   FRAG    CAP  DEDUP  HEALTH  ALTROOT
+rpool  19.9G  8.43G  11.4G         -    33%    42%  1.00x  ONLINE  -
+tank   61.5G  20.0G  41.5G         -    48%    32%  1.00x  ONLINE  -
+zion       -      -      -         -      -      -      -  FAULTED -
 .Ed
 .It Sy Example 7 No Destroying a ZFS Storage Pool
 The following command destroys the pool
@@ -2248,12 +2250,12 @@ In this example, the pool will not be able to utilize this extra capacity until
 all the devices under the raidz vdev have been expanded.
 .Bd -literal
 # zpool list -v data
-NAME         SIZE  ALLOC   FREE   FRAG  EXPANDSZ    CAP  DEDUP  HEALTH  ALTROOT
-data        23.9G  14.6G  9.30G    48%         -    61%  1.00x  ONLINE  -
-  raidz1    23.9G  14.6G  9.30G    48%         -
-    sda         -      -      -      -         -
-    sdb         -      -      -      -       10G
-    sdc         -      -      -      -         -
+NAME         SIZE  ALLOC   FREE  EXPANDSZ   FRAG    CAP  DEDUP  HEALTH  ALTROOT
+data        23.9G  14.6G  9.30G         -    48%    61%  1.00x  ONLINE  -
+  raidz1    23.9G  14.6G  9.30G         -    48%
+    sda         -      -      -         -      -
+    sdb         -      -      -       10G      -
+    sdc         -      -      -         -      -
 .Ed
 .It Sy Example 16 No Adding output columns
 Additional columns can be added to the

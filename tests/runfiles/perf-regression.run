@@ -25,8 +25,8 @@ outputdir = /var/tmp/test_results
 tags = ['perf']
 
 [tests/perf/regression]
-tests = ['sequential_writes', 'sequential_reads', 'sequential_reads_cached',
-    'sequential_reads_cached_clone', 'random_reads', 'random_writes',
-    'random_readwrite']
+tests = ['sequential_writes', 'sequential_reads', 'sequential_reads_arc_cached',
+    'sequential_reads_arc_cached_clone', 'sequential_reads_dbuf_cached',
+    'random_reads', 'random_writes', 'random_readwrite']
 post =
 tags = ['perf', 'regression']

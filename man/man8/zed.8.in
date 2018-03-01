@@ -27,6 +27,7 @@ ZED \- ZFS Event Daemon
 [\fB\-L\fR]
 [\fB\-M\fR]
 [\fB\-p\fR \fIpidfile\fR]
+[\fB\-P\fR \fIpath\fR]
 [\fB\-s\fR \fIstatefile\fR]
 [\fB\-v\fR]
 [\fB\-V\fR]
@@ -78,9 +79,16 @@ Read the enabled ZEDLETs from the specified directory.
 .BI \-p\  pidfile
 Write the daemon's process ID to the specified file.
 .TP
+.BI \-P\  path
+Custom $PATH for zedlets to use.  Normally zedlets run in a locked-down
+environment, with hardcoded paths to the ZFS commands ($ZFS, $ZPOOL, $ZED, ...),
+and a hardcoded $PATH.  This is done for security reasons.  However, the
+ZFS test suite uses a custom PATH for its ZFS commands, and passes it to zed
+with -P.  In short, -P is only to be used by the ZFS test suite; never use
+it in production!
+.TP
 .BI \-s\  statefile
 Write the daemon's state to the specified file.
-
 .SH ZEVENTS
 .PP
 A zevent is comprised of a list of nvpairs (name/value pairs).  Each zevent

@@ -174,18 +174,18 @@ zfs_ace_v0_data(void *acep, void **datap)
 }
 
 static acl_ops_t zfs_acl_v0_ops = {
-	zfs_ace_v0_get_mask,
-	zfs_ace_v0_set_mask,
-	zfs_ace_v0_get_flags,
-	zfs_ace_v0_set_flags,
-	zfs_ace_v0_get_type,
-	zfs_ace_v0_set_type,
-	zfs_ace_v0_get_who,
-	zfs_ace_v0_set_who,
-	zfs_ace_v0_size,
-	zfs_ace_v0_abstract_size,
-	zfs_ace_v0_mask_off,
-	zfs_ace_v0_data
+	.ace_mask_get = zfs_ace_v0_get_mask,
+	.ace_mask_set = zfs_ace_v0_set_mask,
+	.ace_flags_get = zfs_ace_v0_get_flags,
+	.ace_flags_set = zfs_ace_v0_set_flags,
+	.ace_type_get = zfs_ace_v0_get_type,
+	.ace_type_set = zfs_ace_v0_set_type,
+	.ace_who_get = zfs_ace_v0_get_who,
+	.ace_who_set = zfs_ace_v0_set_who,
+	.ace_size = zfs_ace_v0_size,
+	.ace_abstract_size = zfs_ace_v0_abstract_size,
+	.ace_mask_off = zfs_ace_v0_mask_off,
+	.ace_data = zfs_ace_v0_data
 };
 
 static uint16_t
@@ -310,18 +310,18 @@ zfs_ace_fuid_data(void *acep, void **datap)
 }
 
 static acl_ops_t zfs_acl_fuid_ops = {
-	zfs_ace_fuid_get_mask,
-	zfs_ace_fuid_set_mask,
-	zfs_ace_fuid_get_flags,
-	zfs_ace_fuid_set_flags,
-	zfs_ace_fuid_get_type,
-	zfs_ace_fuid_set_type,
-	zfs_ace_fuid_get_who,
-	zfs_ace_fuid_set_who,
-	zfs_ace_fuid_size,
-	zfs_ace_fuid_abstract_size,
-	zfs_ace_fuid_mask_off,
-	zfs_ace_fuid_data
+	.ace_mask_get = zfs_ace_fuid_get_mask,
+	.ace_mask_set = zfs_ace_fuid_set_mask,
+	.ace_flags_get = zfs_ace_fuid_get_flags,
+	.ace_flags_set = zfs_ace_fuid_set_flags,
+	.ace_type_get = zfs_ace_fuid_get_type,
+	.ace_type_set = zfs_ace_fuid_set_type,
+	.ace_who_get = zfs_ace_fuid_get_who,
+	.ace_who_set = zfs_ace_fuid_set_who,
+	.ace_size = zfs_ace_fuid_size,
+	.ace_abstract_size = zfs_ace_fuid_abstract_size,
+	.ace_mask_off = zfs_ace_fuid_mask_off,
+	.ace_data = zfs_ace_fuid_data
 };
 
 /*
@@ -1054,8 +1054,8 @@ zfs_mode_compute(uint64_t fmode, zfs_acl_t *aclp,
  * Read an external acl object.  If the intent is to modify, always
  * create a new acl and leave any cached acl in place.
  */
-static int
-zfs_acl_node_read(znode_t *zp, boolean_t have_lock, zfs_acl_t **aclpp,
+int
+zfs_acl_node_read(struct znode *zp, boolean_t have_lock, zfs_acl_t **aclpp,
     boolean_t will_modify)
 {
 	zfs_acl_t	*aclp;
@@ -1323,6 +1323,7 @@ zfs_aclset_common(znode_t *zp, zfs_acl_t *aclp, cred_t *cr, dmu_tx_t *tx)
 	sa_bulk_attr_t		bulk[5];
 	uint64_t		ctime[2];
 	int			count = 0;
+	zfs_acl_phys_t		acl_phys;
 
 	mode = zp->z_mode;
 
@@ -1369,7 +1370,6 @@ zfs_aclset_common(znode_t *zp, zfs_acl_t *aclp, cred_t *cr, dmu_tx_t *tx)
 	} else { /* Painful legacy way */
 		zfs_acl_node_t *aclnode;
 		uint64_t off = 0;
-		zfs_acl_phys_t acl_phys;
 		uint64_t aoid;
 
 		if ((error = sa_lookup(zp->z_sa_hdl, SA_ZPL_ZNODE_ACL(zfsvfs),
@@ -1883,12 +1883,12 @@ zfs_acl_ids_free(zfs_acl_ids_t *acl_ids)
 }
 
 boolean_t
-zfs_acl_ids_overquota(zfsvfs_t *zfsvfs, zfs_acl_ids_t *acl_ids)
+zfs_acl_ids_overquota(zfsvfs_t *zv, zfs_acl_ids_t *acl_ids, uint64_t projid)
 {
-	return (zfs_fuid_overquota(zfsvfs, B_FALSE, acl_ids->z_fuid) ||
-	    zfs_fuid_overquota(zfsvfs, B_TRUE, acl_ids->z_fgid) ||
-	    zfs_fuid_overobjquota(zfsvfs, B_FALSE, acl_ids->z_fuid) ||
-	    zfs_fuid_overobjquota(zfsvfs, B_TRUE, acl_ids->z_fgid));
+	return (zfs_id_overquota(zv, DMU_USERUSED_OBJECT, acl_ids->z_fuid) ||
+	    zfs_id_overquota(zv, DMU_GROUPUSED_OBJECT, acl_ids->z_fgid) ||
+	    (projid != ZFS_DEFAULT_PROJID && projid != ZFS_INVALID_PROJID &&
+	    zfs_id_overquota(zv, DMU_PROJECTUSED_OBJECT, projid)));
 }
 
 /*

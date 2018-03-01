@@ -5,6 +5,9 @@ VPATH = \
 	$(top_srcdir)/module/zcommon \
 	$(top_srcdir)/lib/libzfs
 
+# Suppress unused but set variable warnings often due to ASSERTs
+AM_CFLAGS += $(NO_UNUSED_BUT_SET_VARIABLE)
+
 libzfs_pcdir = $(datarootdir)/pkgconfig
 libzfs_pc_DATA = libzfs.pc libzfs_core.pc
 

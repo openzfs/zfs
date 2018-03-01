@@ -31,6 +31,12 @@ PRE_BUILD="configure
   --with-spl-obj=\${dkms_tree}/spl/\${PACKAGE_VERSION}/\${kernelver}/\${arch}
   --with-spl-timeout=300
   \$(
+    [[ -n \"\${ICP_ROOT}\" ]] && \\
+    {
+      echo --with-qat=\"\${ICP_ROOT}\"
+    }
+  )
+  \$(
     [[ -r \${PACKAGE_CONFIG} ]] \\
     && source \${PACKAGE_CONFIG} \\
     && shopt -q -s extglob \\
@@ -85,4 +91,7 @@ DEST_MODULE_LOCATION[4]="/extra/zfs/zfs"
 BUILT_MODULE_NAME[5]="icp"
 BUILT_MODULE_LOCATION[5]="module/icp/"
 DEST_MODULE_LOCATION[5]="/extra/icp/icp"
+BUILT_MODULE_NAME[6]="zlua"
+BUILT_MODULE_LOCATION[6]="module/lua/"
+DEST_MODULE_LOCATION[6]="/extra/lua/zlua"
 EOF

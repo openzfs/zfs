@@ -167,14 +167,12 @@ zfs_case_unserialize(fmd_hdl_t *hdl, fmd_case_t *cp)
 static void
 zfs_mark_vdev(uint64_t pool_guid, nvlist_t *vd, er_timeval_t *loaded)
 {
-	uint64_t vdev_guid;
+	uint64_t vdev_guid = 0;
 	uint_t c, children;
 	nvlist_t **child;
 	zfs_case_t *zcp;
-	int ret;
 
-	ret = nvlist_lookup_uint64(vd, ZPOOL_CONFIG_GUID, &vdev_guid);
-	assert(ret == 0);
+	(void) nvlist_lookup_uint64(vd, ZPOOL_CONFIG_GUID, &vdev_guid);
 
 	/*
 	 * Mark any cases associated with this (pool, vdev) pair.
@@ -253,7 +251,10 @@ zfs_mark_pool(zpool_handle_t *zhp, void *unused)
 	}
 
 	ret = nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE, &vd);
-	assert(ret == 0);
+	if (ret) {
+		zpool_close(zhp);
+		return (-1);
+	}
 
 	zfs_mark_vdev(pool_guid, vd, &loaded);
 
@@ -919,27 +920,27 @@ _zfs_diagnosis_init(fmd_hdl_t *hdl)
 {
 	libzfs_handle_t *zhdl;
 
-	if ((zhdl = __libzfs_init()) == NULL)
+	if ((zhdl = libzfs_init()) == NULL)
 		return;
 
 	if ((zfs_case_pool = uu_list_pool_create("zfs_case_pool",
 	    sizeof (zfs_case_t), offsetof(zfs_case_t, zc_node),
 	    NULL, UU_LIST_POOL_DEBUG)) == NULL) {
-		__libzfs_fini(zhdl);
+		libzfs_fini(zhdl);
 		return;
 	}
 
 	if ((zfs_cases = uu_list_create(zfs_case_pool, NULL,
 	    UU_LIST_DEBUG)) == NULL) {
 		uu_list_pool_destroy(zfs_case_pool);
-		__libzfs_fini(zhdl);
+		libzfs_fini(zhdl);
 		return;
 	}
 
 	if (fmd_hdl_register(hdl, FMD_API_VERSION, &fmd_info) != 0) {
 		uu_list_destroy(zfs_cases);
 		uu_list_pool_destroy(zfs_case_pool);
-		__libzfs_fini(zhdl);
+		libzfs_fini(zhdl);
 		return;
 	}
 
@@ -975,5 +976,5 @@ _zfs_diagnosis_fini(fmd_hdl_t *hdl)
 	uu_list_pool_destroy(zfs_case_pool);
 
 	zhdl = fmd_hdl_getspecific(hdl);
-	__libzfs_fini(zhdl);
+	libzfs_fini(zhdl);
 }

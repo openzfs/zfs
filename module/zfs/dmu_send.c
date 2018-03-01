@@ -570,6 +570,7 @@ dump_dnode(dmu_sendarg_t *dsp, const blkptr_t *bp, uint64_t object,
 			drro->drr_flags |= DRR_RAW_BYTESWAP;
 
 		/* needed for reconstructing dnp on recv side */
+		drro->drr_maxblkid = dnp->dn_maxblkid;
 		drro->drr_indblkshift = dnp->dn_indblkshift;
 		drro->drr_nlevels = dnp->dn_nlevels;
 		drro->drr_nblkptr = dnp->dn_nblkptr;
@@ -1521,6 +1522,10 @@ recv_begin_check_existing_impl(dmu_recv_begin_arg_t *drba, dsl_dataset_t *ds,
 	uint64_t val;
 	int error;
 	dsl_pool_t *dp = ds->ds_dir->dd_pool;
+	struct drr_begin *drrb = drba->drba_cookie->drc_drrb;
+	uint64_t featureflags = DMU_GET_FEATUREFLAGS(drrb->drr_versioninfo);
+	boolean_t encrypted = ds->ds_dir->dd_crypto_obj != 0;
+	boolean_t raw = (featureflags & DMU_BACKUP_FEATURE_RAW) != 0;
 
 	/* temporary clone name must not exist */
 	error = zap_lookup(dp->dp_meta_objset,
@@ -1553,6 +1558,10 @@ recv_begin_check_existing_impl(dmu_recv_begin_arg_t *drba, dsl_dataset_t *ds,
 	if (fromguid != 0) {
 		dsl_dataset_t *snap;
 		uint64_t obj = dsl_dataset_phys(ds)->ds_prev_snap_obj;
+
+		/* Can't perform a raw receive on top of a non-raw receive */
+		if (!encrypted && raw)
+			return (SET_ERROR(EINVAL));
 
 		/* Find snapshot in this dir that matches fromguid. */
 		while (obj != 0) {
@@ -1598,7 +1607,7 @@ recv_begin_check_existing_impl(dmu_recv_begin_arg_t *drba, dsl_dataset_t *ds,
 		 * dsl dir to point to the old encryption key and
 		 * the new one at the same time during the receive.
 		 */
-		if (ds->ds_dir->dd_crypto_obj != 0)
+		if ((!encrypted && raw) || encrypted)
 			return (SET_ERROR(EINVAL));
 
 		drba->drba_snapobj = 0;
@@ -2158,6 +2167,14 @@ struct receive_writer_arg {
 	uint64_t last_offset;
 	uint64_t max_object; /* highest object ID referenced in stream */
 	uint64_t bytes_read; /* bytes read when current record created */
+
+	/* Encryption parameters for the last received DRR_OBJECT_RANGE */
+	uint64_t or_firstobj;
+	uint64_t or_numslots;
+	uint8_t or_salt[ZIO_DATA_SALT_LEN];
+	uint8_t or_iv[ZIO_DATA_IV_LEN];
+	uint8_t or_mac[ZIO_DATA_MAC_LEN];
+	boolean_t or_byteorder;
 };
 
 struct objlist {
@@ -2294,6 +2311,7 @@ byteswap_record(dmu_replay_record_t *drr)
 		DO32(drr_object.drr_bonuslen);
 		DO32(drr_object.drr_raw_bonuslen);
 		DO64(drr_object.drr_toguid);
+		DO64(drr_object.drr_maxblkid);
 		break;
 	case DRR_FREEOBJECTS:
 		DO64(drr_freeobjects.drr_firstobj);
@@ -2438,7 +2456,13 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 	}
 
 	if (rwa->raw) {
-		if (drro->drr_raw_bonuslen < drro->drr_bonuslen ||
+		/*
+		 * We should have received a DRR_OBJECT_RANGE record
+		 * containing this block and stored it in rwa.
+		 */
+		if (drro->drr_object < rwa->or_firstobj ||
+		    drro->drr_object >= rwa->or_firstobj + rwa->or_numslots ||
+		    drro->drr_raw_bonuslen < drro->drr_bonuslen ||
 		    drro->drr_indblkshift > SPA_MAXBLOCKSHIFT ||
 		    drro->drr_nlevels > DN_MAX_LEVELS ||
 		    drro->drr_nblkptr > DN_MAX_NBLKPTR ||
@@ -2453,10 +2477,8 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 	}
 
 	err = dmu_object_info(rwa->os, drro->drr_object, &doi);
-
-	if (err != 0 && err != ENOENT)
+	if (err != 0 && err != ENOENT && err != EEXIST)
 		return (SET_ERROR(EINVAL));
-	object = err == 0 ? drro->drr_object : DMU_NEW_OBJECT;
 
 	if (drro->drr_object > rwa->max_object)
 		rwa->max_object = drro->drr_object;
@@ -2474,20 +2496,104 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 		int nblkptr = deduce_nblkptr(drro->drr_bonustype,
 		    drro->drr_bonuslen);
 
+		object = drro->drr_object;
+
 		/* nblkptr will be bounded by the bonus size and type */
 		if (rwa->raw && nblkptr != drro->drr_nblkptr)
 			return (SET_ERROR(EINVAL));
 
-		if (drro->drr_blksz != doi.doi_data_block_size ||
+		if (rwa->raw &&
+		    (drro->drr_blksz != doi.doi_data_block_size ||
 		    nblkptr < doi.doi_nblkptr ||
-		    (rwa->raw &&
-		    (indblksz != doi.doi_metadata_block_size ||
-		    drro->drr_nlevels < doi.doi_indirection))) {
+		    indblksz != doi.doi_metadata_block_size ||
+		    drro->drr_nlevels < doi.doi_indirection ||
+		    drro->drr_dn_slots != doi.doi_dnodesize >> DNODE_SHIFT)) {
+			err = dmu_free_long_range_raw(rwa->os,
+			    drro->drr_object, 0, DMU_OBJECT_END);
+			if (err != 0)
+				return (SET_ERROR(EINVAL));
+		} else if (drro->drr_blksz != doi.doi_data_block_size ||
+		    nblkptr < doi.doi_nblkptr ||
+		    drro->drr_dn_slots != doi.doi_dnodesize >> DNODE_SHIFT) {
 			err = dmu_free_long_range(rwa->os, drro->drr_object,
 			    0, DMU_OBJECT_END);
 			if (err != 0)
 				return (SET_ERROR(EINVAL));
 		}
+
+		/*
+		 * The dmu does not currently support decreasing nlevels
+		 * on an object. For non-raw sends, this does not matter
+		 * and the new object can just use the previous one's nlevels.
+		 * For raw sends, however, the structure of the received dnode
+		 * (including nlevels) must match that of the send side.
+		 * Therefore, instead of using dmu_object_reclaim(), we must
+		 * free the object completely and call dmu_object_claim_dnsize()
+		 * instead.
+		 */
+		if ((rwa->raw && drro->drr_nlevels < doi.doi_indirection) ||
+		    drro->drr_dn_slots != doi.doi_dnodesize >> DNODE_SHIFT) {
+			if (rwa->raw) {
+				err = dmu_free_long_object_raw(rwa->os,
+				    drro->drr_object);
+			} else {
+				err = dmu_free_long_object(rwa->os,
+				    drro->drr_object);
+			}
+			if (err != 0)
+				return (SET_ERROR(EINVAL));
+
+			txg_wait_synced(dmu_objset_pool(rwa->os), 0);
+			object = DMU_NEW_OBJECT;
+		}
+	} else if (err == EEXIST) {
+		/*
+		 * The object requested is currently an interior slot of a
+		 * multi-slot dnode. This will be resolved when the next txg
+		 * is synced out, since the send stream will have told us
+		 * to free this slot when we freed the associated dnode
+		 * earlier in the stream.
+		 */
+		txg_wait_synced(dmu_objset_pool(rwa->os), 0);
+		object = drro->drr_object;
+	} else {
+		/* object is free and we are about to allocate a new one */
+		object = DMU_NEW_OBJECT;
+	}
+
+	/*
+	 * If this is a multi-slot dnode there is a chance that this
+	 * object will expand into a slot that is already used by
+	 * another object from the previous snapshot. We must free
+	 * these objects before we attempt to allocate the new dnode.
+	 */
+	if (drro->drr_dn_slots > 1) {
+		boolean_t need_sync = B_FALSE;
+
+		for (uint64_t slot = drro->drr_object + 1;
+		    slot < drro->drr_object + drro->drr_dn_slots;
+		    slot++) {
+			dmu_object_info_t slot_doi;
+
+			err = dmu_object_info(rwa->os, slot, &slot_doi);
+			if (err == ENOENT || err == EEXIST)
+				continue;
+			else if (err != 0)
+				return (err);
+
+			if (rwa->raw)
+				err = dmu_free_long_object_raw(rwa->os, slot);
+			else
+				err = dmu_free_long_object(rwa->os, slot);
+
+			if (err != 0)
+				return (err);
+
+			need_sync = B_TRUE;
+		}
+
+		if (need_sync)
+			txg_wait_synced(dmu_objset_pool(rwa->os), 0);
 	}
 
 	tx = dmu_tx_create(rwa->os);
@@ -2519,8 +2625,27 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 		return (SET_ERROR(EINVAL));
 	}
 
-	if (rwa->raw)
-		VERIFY0(dmu_object_dirty_raw(rwa->os, drro->drr_object, tx));
+	if (rwa->raw) {
+		/*
+		 * Convert the buffer associated with this range of dnodes
+		 * to a raw buffer. This ensures that it will be written out
+		 * as a raw buffer when we fill in the dnode object. Since we
+		 * are committing this tx now, it is possible for the dnode
+		 * block to end up on-disk with the incorrect MAC. Despite
+		 * this, the dataset is marked as inconsistent so no other
+		 * code paths (apart from scrubs) will attempt to read this
+		 * data. Scrubs will not be effected by this either since
+		 * scrubs only read raw data and do not attempt to check
+		 * the MAC.
+		 */
+		err = dmu_convert_mdn_block_to_raw(rwa->os, rwa->or_firstobj,
+		    rwa->or_byteorder, rwa->or_salt, rwa->or_iv, rwa->or_mac,
+		    tx);
+		if (err != 0) {
+			dmu_tx_commit(tx);
+			return (SET_ERROR(EINVAL));
+		}
+	}
 
 	dmu_object_set_checksum(rwa->os, drro->drr_object,
 	    drro->drr_checksumtype, tx);
@@ -2538,6 +2663,8 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 		    drro->drr_blksz, drro->drr_indblkshift, tx));
 		VERIFY0(dmu_object_set_nlevels(rwa->os, drro->drr_object,
 		    drro->drr_nlevels, tx));
+		VERIFY0(dmu_object_set_maxblkid(rwa->os, drro->drr_object,
+		    drro->drr_maxblkid, tx));
 	}
 
 	if (data != NULL) {
@@ -2839,9 +2966,13 @@ receive_spill(struct receive_writer_arg *rwa, struct drr_spill *drrs,
 		dmu_tx_abort(tx);
 		return (err);
 	}
-	dmu_buf_will_dirty(db_spill, tx);
-	if (rwa->raw)
+
+	if (rwa->raw) {
 		VERIFY0(dmu_object_dirty_raw(rwa->os, drrs->drr_object, tx));
+		dmu_buf_will_change_crypt_params(db_spill, tx);
+	} else {
+		dmu_buf_will_dirty(db_spill, tx);
+	}
 
 	if (db_spill->db_size < drrs->drr_length)
 		VERIFY(0 == dbuf_spill_set_blksz(db_spill,
@@ -2886,12 +3017,6 @@ static int
 receive_object_range(struct receive_writer_arg *rwa,
     struct drr_object_range *drror)
 {
-	int ret;
-	dmu_tx_t *tx;
-	dnode_t *mdn = NULL;
-	dmu_buf_t *db = NULL;
-	uint64_t offset;
-
 	/*
 	 * By default, we assume this block is in our native format
 	 * (ZFS_HOST_BYTEORDER). We then take into account whether
@@ -2921,38 +3046,18 @@ receive_object_range(struct receive_writer_arg *rwa,
 	if (drror->drr_firstobj > rwa->max_object)
 		rwa->max_object = drror->drr_firstobj;
 
-	offset = drror->drr_firstobj * sizeof (dnode_phys_t);
-	mdn = DMU_META_DNODE(rwa->os);
-
-	tx = dmu_tx_create(rwa->os);
-	ret = dmu_tx_assign(tx, TXG_WAIT);
-	if (ret != 0) {
-		dmu_tx_abort(tx);
-		return (ret);
-	}
-
-	ret = dmu_buf_hold_by_dnode(mdn, offset, FTAG, &db,
-	    DMU_READ_PREFETCH | DMU_READ_NO_DECRYPT);
-	if (ret != 0) {
-		dmu_tx_commit(tx);
-		return (ret);
-	}
-
 	/*
-	 * Convert the buffer associated with this range of dnodes to a
-	 * raw buffer. This ensures that it will be written out as a raw
-	 * buffer when we fill in the dnode objects in future records.
-	 * Since we are commiting this tx now, it is technically possible
-	 * for the dnode block to end up on-disk with the incorrect MAC.
-	 * Despite this, the dataset is marked as inconsistent so no other
-	 * code paths (apart from scrubs) will attempt to read this data.
-	 * Scrubs will not be effected by this either since scrubs only
-	 * read raw data and do not attempt to check the MAC.
+	 * The DRR_OBJECT_RANGE handling must be deferred to receive_object()
+	 * so that the encryption parameters are set with each object that is
+	 * written into that block.
 	 */
-	dmu_convert_to_raw(db, byteorder, drror->drr_salt, drror->drr_iv,
-	    drror->drr_mac, tx);
-	dmu_buf_rele(db, FTAG);
-	dmu_tx_commit(tx);
+	rwa->or_firstobj = drror->drr_firstobj;
+	rwa->or_numslots = drror->drr_numslots;
+	bcopy(drror->drr_salt, rwa->or_salt, ZIO_DATA_SALT_LEN);
+	bcopy(drror->drr_iv, rwa->or_iv, ZIO_DATA_IV_LEN);
+	bcopy(drror->drr_mac, rwa->or_mac, ZIO_DATA_MAC_LEN);
+	rwa->or_byteorder = byteorder;
+
 	return (0);
 }
 
@@ -3186,7 +3291,7 @@ receive_read_record(struct receive_arg *ra)
 		 * See receive_read_prefetch for an explanation why we're
 		 * storing this object in the ignore_obj_list.
 		 */
-		if (err == ENOENT ||
+		if (err == ENOENT || err == EEXIST ||
 		    (err == 0 && doi.doi_data_block_size != drro->drr_blksz)) {
 			objlist_insert(&ra->ignore_objlist, drro->drr_object);
 			err = 0;
@@ -3689,11 +3794,20 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp,
 		if (err != 0)
 			goto out;
 
-		err = dsl_crypto_recv_key(spa_name(ra->os->os_spa),
+		/*
+		 * If this is a new dataset we set the key immediately.
+		 * Otherwise we don't want to change the key until we
+		 * are sure the rest of the receive succeeded so we stash
+		 * the keynvl away until then.
+		 */
+		err = dsl_crypto_recv_raw(spa_name(ra->os->os_spa),
 		    drc->drc_ds->ds_object, drc->drc_drrb->drr_type,
-		    keynvl);
+		    keynvl, drc->drc_newfs);
 		if (err != 0)
 			goto out;
+
+		if (!drc->drc_newfs)
+			drc->drc_keynvl = fnvlist_dup(keynvl);
 	}
 
 	if (featureflags & DMU_BACKUP_FEATURE_RESUMING) {
@@ -3772,7 +3886,12 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp,
 		int next_err = 0;
 
 		while (next_err == 0) {
-			free_err = dmu_free_long_object(rwa->os, obj);
+			if (drc->drc_raw) {
+				free_err = dmu_free_long_object_raw(rwa->os,
+				    obj);
+			} else {
+				free_err = dmu_free_long_object(rwa->os, obj);
+			}
 			if (free_err != 0 && free_err != ENOENT)
 				break;
 
@@ -3805,6 +3924,7 @@ out:
 		 * the inconsistent state.
 		 */
 		dmu_recv_cleanup_ds(drc);
+		nvlist_free(drc->drc_keynvl);
 	}
 
 	*voffp = ra->voff;
@@ -3862,6 +3982,15 @@ dmu_recv_end_check(void *arg, dmu_tx_t *tx)
 				return (error);
 			}
 		}
+		if (drc->drc_keynvl != NULL) {
+			error = dsl_crypto_recv_raw_key_check(drc->drc_ds,
+			    drc->drc_keynvl, tx);
+			if (error != 0) {
+				dsl_dataset_rele(origin_head, FTAG);
+				return (error);
+			}
+		}
+
 		error = dsl_dataset_clone_swap_check_impl(drc->drc_ds,
 		    origin_head, drc->drc_force, drc->drc_owner, tx);
 		if (error != 0) {
@@ -3918,8 +4047,14 @@ dmu_recv_end_sync(void *arg, dmu_tx_t *tx)
 				dsl_dataset_rele(snap, FTAG);
 			}
 		}
-		VERIFY3P(drc->drc_ds->ds_prev, ==,
-		    origin_head->ds_prev);
+		if (drc->drc_keynvl != NULL) {
+			dsl_crypto_recv_raw_key_sync(drc->drc_ds,
+			    drc->drc_keynvl, tx);
+			nvlist_free(drc->drc_keynvl);
+			drc->drc_keynvl = NULL;
+		}
+
+		VERIFY3P(drc->drc_ds->ds_prev, ==, origin_head->ds_prev);
 
 		dsl_dataset_clone_swap_sync_impl(drc->drc_ds,
 		    origin_head, tx);
@@ -4071,6 +4206,7 @@ dmu_recv_end(dmu_recv_cookie_t *drc, void *owner)
 
 	if (error != 0) {
 		dmu_recv_cleanup_ds(drc);
+		nvlist_free(drc->drc_keynvl);
 	} else if (drc->drc_guid_to_ds_map != NULL) {
 		(void) add_ds_to_guidmap(drc->drc_tofs, drc->drc_guid_to_ds_map,
 		    drc->drc_newsnapobj, drc->drc_raw);

@@ -14,10 +14,6 @@ USER_C = \
 	smb.c \
 	smb.h
 
-KERNEL_C =
-
-nodist_libshare_la_SOURCES = \
-	$(USER_C)
-	$(KERNEL_C)
+nodist_libshare_la_SOURCES = $(USER_C)
 
 EXTRA_DIST = $(USER_C)

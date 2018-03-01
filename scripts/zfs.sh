@@ -26,6 +26,7 @@ KMOD_ZAVL=${KMOD_ZAVL:-zavl}
 KMOD_ZNVPAIR=${KMOD_ZNVPAIR:-znvpair}
 KMOD_ZUNICODE=${KMOD_ZUNICODE:-zunicode}
 KMOD_ZCOMMON=${KMOD_ZCOMMON:-zcommon}
+KMOD_ZLUA=${KMOD_ZLUA:-zlua}
 KMOD_ICP=${KMOD_ICP:-icp}
 KMOD_ZFS=${KMOD_ZFS:-zfs}
 
@@ -76,10 +77,10 @@ check_modules() {
 	MISSING_MODULES=""
 
 	for KMOD in $KMOD_SPL $KMOD_SPLAT $KMOD_ZAVL $KMOD_ZNVPAIR \
-	    $KMOD_ZUNICODE $KMOD_ZCOMMON $KMOD_ICP $KMOD_ZFS; do
+	    $KMOD_ZUNICODE $KMOD_ZCOMMON $KMOD_ZLUA $KMOD_ICP $KMOD_ZFS; do
 		NAME=$(basename "$KMOD" .ko)
 
-		if lsmod | egrep -q "^${NAME}"; then
+		if lsmod | grep -E -q "^${NAME}"; then
 			LOADED_MODULES="$LOADED_MODULES\t$NAME\n"
 		fi
 
@@ -114,6 +115,7 @@ load_module() {
 	fi
 
 	$LDMOD "$KMOD" >/dev/null 2>&1
+	# shellcheck disable=SC2181
 	if [ $? -ne 0 ]; then
 		echo "Failed to load $KMOD"
 		return 1
@@ -134,7 +136,7 @@ load_modules() {
 	fi
 
 	for KMOD in $KMOD_SPL $KMOD_SPLAT $KMOD_ZAVL $KMOD_ZNVPAIR \
-	    $KMOD_ZUNICODE $KMOD_ZCOMMON $KMOD_ICP $KMOD_ZFS; do
+	    $KMOD_ZUNICODE $KMOD_ZCOMMON $KMOD_ZLUA $KMOD_ICP $KMOD_ZFS; do
 		load_module "$KMOD" || return 1
 	done
 
@@ -162,10 +164,10 @@ unload_module() {
 }
 
 unload_modules() {
-	for KMOD in $KMOD_ZFS $KMOD_ICP $KMOD_ZCOMMON $KMOD_ZUNICODE \
+	for KMOD in $KMOD_ZFS $KMOD_ICP $KMOD_ZLUA $KMOD_ZCOMMON $KMOD_ZUNICODE \
 	    $KMOD_ZNVPAIR  $KMOD_ZAVL $KMOD_SPLAT $KMOD_SPL; do
 		NAME=$(basename "$KMOD" .ko)
-		USE_COUNT=$(lsmod | egrep "^${NAME} " | awk '{print $3}')
+		USE_COUNT=$(lsmod | grep -E "^${NAME} " | awk '{print $3}')
 
 		if [ "$USE_COUNT" = "0" ] ; then
 			unload_module "$KMOD" || return 1

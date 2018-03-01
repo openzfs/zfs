@@ -853,7 +853,7 @@ dmu_tx_delay(dmu_tx_t *tx, uint64_t dirty)
  * decreasing performance.
  */
 static int
-dmu_tx_try_assign(dmu_tx_t *tx, txg_how_t txg_how)
+dmu_tx_try_assign(dmu_tx_t *tx, uint64_t txg_how)
 {
 	spa_t *spa = tx->tx_pool->dp_spa;
 
@@ -877,13 +877,13 @@ dmu_tx_try_assign(dmu_tx_t *tx, txg_how_t txg_how)
 		 * of the failuremode setting.
 		 */
 		if (spa_get_failmode(spa) == ZIO_FAILURE_MODE_CONTINUE &&
-		    txg_how != TXG_WAIT)
+		    !(txg_how & TXG_WAIT))
 			return (SET_ERROR(EIO));
 
 		return (SET_ERROR(ERESTART));
 	}
 
-	if (!tx->tx_waited &&
+	if (!tx->tx_dirty_delayed &&
 	    dsl_pool_need_dirty_delay(tx->tx_pool)) {
 		tx->tx_wait_dirty = B_TRUE;
 		DMU_TX_STAT_BUMP(dmu_tx_dirty_delay);
@@ -975,41 +975,44 @@ dmu_tx_unassign(dmu_tx_t *tx)
 }
 
 /*
- * Assign tx to a transaction group.  txg_how can be one of:
+ * Assign tx to a transaction group; txg_how is a bitmask:
  *
- * (1)	TXG_WAIT.  If the current open txg is full, waits until there's
- *	a new one.  This should be used when you're not holding locks.
- *	It will only fail if we're truly out of space (or over quota).
+ * If TXG_WAIT is set and the currently open txg is full, this function
+ * will wait until there's a new txg. This should be used when no locks
+ * are being held. With this bit set, this function will only fail if
+ * we're truly out of space (or over quota).
  *
- * (2)	TXG_NOWAIT.  If we can't assign into the current open txg without
- *	blocking, returns immediately with ERESTART.  This should be used
- *	whenever you're holding locks.  On an ERESTART error, the caller
- *	should drop locks, do a dmu_tx_wait(tx), and try again.
+ * If TXG_WAIT is *not* set and we can't assign into the currently open
+ * txg without blocking, this function will return immediately with
+ * ERESTART. This should be used whenever locks are being held.  On an
+ * ERESTART error, the caller should drop all locks, call dmu_tx_wait(),
+ * and try again.
  *
- * (3)	TXG_WAITED.  Like TXG_NOWAIT, but indicates that dmu_tx_wait()
- *	has already been called on behalf of this operation (though
- *	most likely on a different tx).
+ * If TXG_NOTHROTTLE is set, this indicates that this tx should not be
+ * delayed due on the ZFS Write Throttle (see comments in dsl_pool.c for
+ * details on the throttle). This is used by the VFS operations, after
+ * they have already called dmu_tx_wait() (though most likely on a
+ * different tx).
  */
 int
-dmu_tx_assign(dmu_tx_t *tx, txg_how_t txg_how)
+dmu_tx_assign(dmu_tx_t *tx, uint64_t txg_how)
 {
 	int err;
 
 	ASSERT(tx->tx_txg == 0);
-	ASSERT(txg_how == TXG_WAIT || txg_how == TXG_NOWAIT ||
-	    txg_how == TXG_WAITED);
+	ASSERT0(txg_how & ~(TXG_WAIT | TXG_NOTHROTTLE));
 	ASSERT(!dsl_pool_sync_context(tx->tx_pool));
 
-	if (txg_how == TXG_WAITED)
-		tx->tx_waited = B_TRUE;
-
 	/* If we might wait, we must not hold the config lock. */
-	ASSERT(txg_how != TXG_WAIT || !dsl_pool_config_held(tx->tx_pool));
+	IMPLY((txg_how & TXG_WAIT), !dsl_pool_config_held(tx->tx_pool));
+
+	if ((txg_how & TXG_NOTHROTTLE))
+		tx->tx_dirty_delayed = B_TRUE;
 
 	while ((err = dmu_tx_try_assign(tx, txg_how)) != 0) {
 		dmu_tx_unassign(tx);
 
-		if (err != ERESTART || txg_how != TXG_WAIT)
+		if (err != ERESTART || !(txg_how & TXG_WAIT))
 			return (err);
 
 		dmu_tx_wait(tx);
@@ -1053,12 +1056,12 @@ dmu_tx_wait(dmu_tx_t *tx)
 		tx->tx_wait_dirty = B_FALSE;
 
 		/*
-		 * Note: setting tx_waited only has effect if the caller
-		 * used TX_WAIT.  Otherwise they are going to destroy
-		 * this tx and try again.  The common case, zfs_write(),
-		 * uses TX_WAIT.
+		 * Note: setting tx_dirty_delayed only has effect if the
+		 * caller used TX_WAIT.  Otherwise they are going to
+		 * destroy this tx and try again.  The common case,
+		 * zfs_write(), uses TX_WAIT.
 		 */
-		tx->tx_waited = B_TRUE;
+		tx->tx_dirty_delayed = B_TRUE;
 	} else if (spa_suspended(spa) || tx->tx_lasttried_txg == 0) {
 		/*
 		 * If the pool is suspended we need to wait until it
@@ -1197,7 +1200,7 @@ dmu_tx_do_callbacks(list_t *cb_list, int error)
 {
 	dmu_tx_callback_t *dcb;
 
-	while ((dcb = list_head(cb_list)) != NULL) {
+	while ((dcb = list_tail(cb_list)) != NULL) {
 		list_remove(cb_list, dcb);
 		dcb->dcb_func(dcb->dcb_data, error);
 		kmem_free(dcb, sizeof (dmu_tx_callback_t));

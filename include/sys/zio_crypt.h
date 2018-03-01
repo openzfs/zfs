@@ -36,6 +36,8 @@ struct zbookmark_phys;
 #define	MASTER_KEY_MAX_LEN	32
 #define	SHA512_HMAC_KEYLEN	64
 
+#define	ZIO_CRYPT_KEY_CURRENT_VERSION	1ULL
+
 typedef enum zio_crypt_type {
 	ZC_TYPE_NONE = 0,
 	ZC_TYPE_CCM,
@@ -63,6 +65,9 @@ extern zio_crypt_info_t zio_crypt_table[ZIO_CRYPT_FUNCTIONS];
 typedef struct zio_crypt_key {
 	/* encryption algorithm */
 	uint64_t zk_crypt;
+
+	/* on-disk format version */
+	uint64_t zk_version;
 
 	/* GUID for uniquely identifying this key. Not encrypted on disk. */
 	uint64_t zk_guid;
@@ -104,9 +109,9 @@ int zio_crypt_key_get_salt(zio_crypt_key_t *key, uint8_t *salt_out);
 
 int zio_crypt_key_wrap(crypto_key_t *cwkey, zio_crypt_key_t *key, uint8_t *iv,
     uint8_t *mac, uint8_t *keydata_out, uint8_t *hmac_keydata_out);
-int zio_crypt_key_unwrap(crypto_key_t *cwkey, uint64_t crypt, uint64_t guid,
-    uint8_t *keydata, uint8_t *hmac_keydata, uint8_t *iv, uint8_t *mac,
-    zio_crypt_key_t *key);
+int zio_crypt_key_unwrap(crypto_key_t *cwkey, uint64_t crypt, uint64_t version,
+    uint64_t guid, uint8_t *keydata, uint8_t *hmac_keydata, uint8_t *iv,
+    uint8_t *mac, zio_crypt_key_t *key);
 int zio_crypt_generate_iv(uint8_t *ivbuf);
 int zio_crypt_generate_iv_salt_dedup(zio_crypt_key_t *key, uint8_t *data,
     uint_t datalen, uint8_t *ivbuf, uint8_t *salt);

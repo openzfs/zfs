@@ -1,0 +1,101 @@
+#
+# CDDL HEADER START
+#
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License (the "License").
+# You may not use this file except in compliance with the License.
+#
+# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+# or http://www.opensolaris.org/os/licensing.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+# If applicable, add the following below this CDDL HEADER, with the
+# fields enclosed by brackets "[]" replaced with your own identifying
+# information: Portions Copyright [yyyy] [name of copyright owner]
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
+# Use is subject to license terms.
+#
+
+#
+# Copyright (c) 2017 by Fan Yong. All rights reserved.
+#
+
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/projectquota/projectquota.cfg
+
+#
+# reset the projectquota and delete temporary files
+#
+function cleanup_projectquota
+{
+	if datasetexists $QFS; then
+		typeset mntp=$(get_prop mountpoint $QFS)
+
+		log_must zfs set projectquota@$PRJID1=none $QFS
+		log_must zfs set projectobjquota@$PRJID1=none $QFS
+		log_must zfs set projectquota@$PRJID2=none $QFS
+		log_must zfs set projectobjquota@$PRJID2=none $QFS
+		log_must chmod 0755 $mntp
+	fi
+
+	[[ -f $PRJFILE ]] && log_must rm -f $PRJFILE
+	[[ -d $PRJDIR ]] && log_must rm -rf $PRJDIR
+	[[ -d $PRJDIR1 ]] && log_must rm -rf $PRJDIR1
+	[[ -d $PRJDIR2 ]] && log_must rm -rf $PRJDIR2
+	[[ -d $PRJDIR3 ]] && log_must rm -rf $PRJDIR3
+	sync
+
+	return 0
+}
+
+function mkmount_writable
+{
+	typeset fs=$1
+	typeset mntp=$(get_prop mountpoint $fs)
+	log_must chmod 0777 $mntp
+}
+
+function check_quota
+{
+	typeset fs=$2
+	typeset prop=$1
+	typeset expected=$3
+	typeset value=$(get_prop $prop $fs)
+
+	if (($value != $expected)); then
+		return 1
+	fi
+}
+
+function get_value
+{
+	typeset prop_val
+	typeset prop=$1
+	typeset dataset=$2
+
+	prop_val=$(zfs get -H -p -o value $prop $dataset 2>/dev/null)
+	if [[ $? -ne 0 ]]; then
+		log_note "Unable to get $prop property for dataset $dataset"
+		return 1
+	fi
+
+	echo $prop_val
+}
+
+function project_obj_count
+{
+	typeset fs=$1
+	typeset prj=$2
+	typeset cnt=$(zfs projectspace -oname,objused $fs |
+	    awk /$prj/'{print $2}')
+	[[ "$cnt" == "-" ]] && cnt=0 || true
+	echo $cnt
+}

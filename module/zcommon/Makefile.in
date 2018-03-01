@@ -1,11 +1,17 @@
 src = @abs_top_srcdir@/module/zcommon
 obj = @abs_builddir@
+target_cpu = @target_cpu@
 
 MODULE := zcommon
 
-EXTRA_CFLAGS = $(ZFS_MODULE_CFLAGS) @KERNELCPPFLAGS@
-
 obj-$(CONFIG_ZFS) := $(MODULE).o
+
+ccflags-y := $(ZFS_MODULE_CFLAGS) $(ZFS_MODULE_CPPFLAGS)
+
+# Suppress unused-value warnings in sparc64 architecture headers
+ifeq ($(target_cpu),sparc64)
+ccflags-y += -Wno-unused-value
+endif
 
 $(MODULE)-objs += zfeature_common.o
 $(MODULE)-objs += zfs_comutil.o

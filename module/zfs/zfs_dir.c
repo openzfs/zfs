@@ -742,7 +742,11 @@ zfs_dirent(znode_t *zp, uint64_t mode)
 }
 
 /*
- * Link zp into dl.  Can only fail if zp has been unlinked.
+ * Link zp into dl.  Can fail in the following cases :
+ * - if zp has been unlinked.
+ * - if the number of entries with the same hash (aka. colliding entries)
+ *    exceed the capacity of a leaf-block of fatzap and splitting of the
+ *    leaf-block does not help.
  */
 int
 zfs_link_create(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag)
@@ -776,6 +780,24 @@ zfs_link_create(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag)
 			    NULL, &links, sizeof (links));
 		}
 	}
+
+	value = zfs_dirent(zp, zp->z_mode);
+	error = zap_add(ZTOZSB(zp)->z_os, dzp->z_id, dl->dl_name, 8, 1,
+	    &value, tx);
+
+	/*
+	 * zap_add could fail to add the entry if it exceeds the capacity of the
+	 * leaf-block and zap_leaf_split() failed to help.
+	 * The caller of this routine is responsible for failing the transaction
+	 * which will rollback the SA updates done above.
+	 */
+	if (error != 0) {
+		if (!(flag & ZRENAMING) && !(flag & ZNEW))
+			drop_nlink(ZTOI(zp));
+		mutex_exit(&zp->z_lock);
+		return (error);
+	}
+
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_PARENT(zfsvfs), NULL,
 	    &dzp->z_id, sizeof (dzp->z_id));
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_FLAGS(zfsvfs), NULL,
@@ -812,11 +834,6 @@ zfs_link_create(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag)
 	error = sa_bulk_update(dzp->z_sa_hdl, bulk, count, tx);
 	ASSERT(error == 0);
 	mutex_exit(&dzp->z_lock);
-
-	value = zfs_dirent(zp, zp->z_mode);
-	error = zap_add(ZTOZSB(zp)->z_os, dzp->z_id, dl->dl_name,
-	    8, 1, &value, tx);
-	ASSERT(error == 0);
 
 	return (0);
 }
@@ -977,11 +994,25 @@ zfs_link_destroy(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag,
  * Indicate whether the directory is empty.  Works with or without z_lock
  * held, but can only be consider a hint in the latter case.  Returns true
  * if only "." and ".." remain and there's no work in progress.
+ *
+ * The internal ZAP size, rather than zp->z_size, needs to be checked since
+ * some consumers (Lustre) do not strictly maintain an accurate SA_ZPL_SIZE.
  */
 boolean_t
 zfs_dirempty(znode_t *dzp)
 {
-	return (dzp->z_size == 2 && dzp->z_dirlocks == 0);
+	zfsvfs_t *zfsvfs = ZTOZSB(dzp);
+	uint64_t count;
+	int error;
+
+	if (dzp->z_dirlocks != NULL)
+		return (B_FALSE);
+
+	error = zap_count(zfsvfs->z_os, dzp->z_id, &count);
+	if (error != 0 || count != 0)
+		return (B_FALSE);
+
+	return (B_TRUE);
 }
 
 int
@@ -1005,7 +1036,7 @@ zfs_make_xattrdir(znode_t *zp, vattr_t *vap, struct inode **xipp, cred_t *cr)
 	if ((error = zfs_acl_ids_create(zp, IS_XATTR, vap, cr, NULL,
 	    &acl_ids)) != 0)
 		return (error);
-	if (zfs_acl_ids_overquota(zfsvfs, &acl_ids)) {
+	if (zfs_acl_ids_overquota(zfsvfs, &acl_ids, zp->z_projid)) {
 		zfs_acl_ids_free(&acl_ids);
 		return (SET_ERROR(EDQUOT));
 	}
@@ -1126,7 +1157,7 @@ top:
  *
  *	you own the directory,
  *	you own the entry,
- *	the entry is a plain file and you have write access,
+ *	you have write access to the entry,
  *	or you are privileged (checked in secpolicy...).
  *
  * The function returns 0 if remove access is granted.
@@ -1151,8 +1182,7 @@ zfs_sticky_remove_access(znode_t *zdp, znode_t *zp, cred_t *cr)
 	    cr, ZFS_OWNER);
 
 	if ((uid = crgetuid(cr)) == downer || uid == fowner ||
-	    (S_ISDIR(ZTOI(zp)->i_mode) &&
-	    zfs_zaccess(zp, ACE_WRITE_DATA, 0, B_FALSE, cr) == 0))
+	    zfs_zaccess(zp, ACE_WRITE_DATA, 0, B_FALSE, cr) == 0)
 		return (0);
 	else
 		return (secpolicy_vnode_remove(cr));
