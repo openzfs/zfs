@@ -1738,12 +1738,14 @@ zfs_ioc_pool_scan(zfs_cmd_t *zc)
 	if (zc->zc_flags >= POOL_SCRUB_FLAGS_END)
 		return (SET_ERROR(EINVAL));
 
-	if (zc->zc_flags == POOL_SCRUB_PAUSE)
+	if (zc->zc_flags == POOL_SCRUB_PAUSE) {
 		error = spa_scrub_pause_resume(spa, POOL_SCRUB_PAUSE);
-	else if (zc->zc_cookie == POOL_SCAN_NONE)
+	} else if (zc->zc_cookie == POOL_SCAN_NONE) {
 		error = spa_scan_stop(spa);
-	else
-		error = spa_scan(spa, zc->zc_cookie);
+	} else {
+		error = spa_scan(spa, zc->zc_cookie, zc->zc_name,
+		    zc->zc_guid);
+	}
 
 	spa_close(spa, FTAG);
 
@@ -6404,8 +6406,6 @@ zfs_ioctl_init(void)
 
 	zfs_ioctl_register_pool(ZFS_IOC_POOL_CREATE, zfs_ioc_pool_create,
 	    zfs_secpolicy_config, B_TRUE, POOL_CHECK_NONE);
-	zfs_ioctl_register_pool_modify(ZFS_IOC_POOL_SCAN,
-	    zfs_ioc_pool_scan);
 	zfs_ioctl_register_pool_modify(ZFS_IOC_POOL_UPGRADE,
 	    zfs_ioc_pool_upgrade);
 	zfs_ioctl_register_pool_modify(ZFS_IOC_VDEV_ADD,
@@ -6516,6 +6516,8 @@ zfs_ioctl_init(void)
 	    zfs_ioc_inherit_prop, zfs_secpolicy_inherit_prop);
 	zfs_ioctl_register_dataset_modify(ZFS_IOC_SET_FSACL, zfs_ioc_set_fsacl,
 	    zfs_secpolicy_set_fsacl);
+	zfs_ioctl_register_dataset_modify(ZFS_IOC_POOL_SCAN,
+	    zfs_ioc_pool_scan, zfs_secpolicy_config);
 
 	zfs_ioctl_register_dataset_nolog(ZFS_IOC_SHARE, zfs_ioc_share,
 	    zfs_secpolicy_share, POOL_CHECK_NONE);

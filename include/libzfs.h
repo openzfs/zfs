@@ -264,7 +264,8 @@ typedef struct splitflags {
 /*
  * Functions to manipulate pool and vdev state
  */
-extern int zpool_scan(zpool_handle_t *, pool_scan_func_t, pool_scrub_cmd_t);
+extern int zpool_scan(zpool_handle_t *zhp, zfs_handle_t *zfshp,
+    pool_scan_func_t func, pool_scrub_cmd_t cmd, pool_scan_flags_t flags);
 extern int zpool_clear(zpool_handle_t *, const char *, nvlist_t *);
 extern int zpool_reguid(zpool_handle_t *);
 extern int zpool_reopen_one(zpool_handle_t *, void *);

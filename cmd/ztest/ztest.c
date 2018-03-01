@@ -5804,9 +5804,9 @@ ztest_scrub(ztest_ds_t *zd, uint64_t id)
 {
 	spa_t *spa = ztest_spa;
 
-	(void) spa_scan(spa, POOL_SCAN_SCRUB);
+	(void) spa_scan(spa, POOL_SCAN_SCRUB, NULL, 0);
 	(void) poll(NULL, 0, 100); /* wait a moment, then force a restart */
-	(void) spa_scan(spa, POOL_SCAN_SCRUB);
+	(void) spa_scan(spa, POOL_SCAN_SCRUB, NULL, 0);
 }
 
 /*
@@ -6172,7 +6172,7 @@ ztest_spa_import_export(char *oldname, char *newname)
 	 * Kick off a scrub to tickle scrub/export races.
 	 */
 	if (ztest_random(2) == 0)
-		(void) spa_scan(spa, POOL_SCAN_SCRUB);
+		(void) spa_scan(spa, POOL_SCAN_SCRUB, NULL, 0);
 
 	pool_guid = spa_guid(spa);
 	spa_close(spa, FTAG);

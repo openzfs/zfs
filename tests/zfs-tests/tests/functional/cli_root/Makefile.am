@@ -22,6 +22,7 @@ SUBDIRS = \
 	zfs_rename \
 	zfs_reservation \
 	zfs_rollback \
+	zfs_scrub \
 	zfs_send \
 	zfs_set \
 	zfs_share \

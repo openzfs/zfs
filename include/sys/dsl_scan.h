@@ -70,8 +70,9 @@ typedef struct dsl_scan_phys {
 #define	SCAN_PHYS_NUMINTS (sizeof (dsl_scan_phys_t) / sizeof (uint64_t))
 
 typedef enum dsl_scan_flags {
-	DSF_VISIT_DS_AGAIN = 1<<0,
-	DSF_SCRUB_PAUSED = 1<<1,
+	DSF_VISIT_DS_AGAIN =	1ULL << 0,
+	DSF_SCRUB_PAUSED =	1ULL << 1,
+	DSF_SCRUB_DATASET =	1ULL << 2,
 } dsl_scan_flags_t;
 
 #define	DSL_SCAN_FLAGS_MASK (DSF_VISIT_DS_AGAIN)
@@ -162,7 +163,8 @@ int dsl_scan_init(struct dsl_pool *dp, uint64_t txg);
 void dsl_scan_fini(struct dsl_pool *dp);
 void dsl_scan_sync(struct dsl_pool *, dmu_tx_t *);
 int dsl_scan_cancel(struct dsl_pool *);
-int dsl_scan(struct dsl_pool *, pool_scan_func_t);
+int dsl_scan(struct dsl_pool *, pool_scan_func_t, char *dsname,
+    pool_scan_flags_t flags);
 boolean_t dsl_scan_scrubbing(const struct dsl_pool *dp);
 int dsl_scrub_set_pause_resume(const struct dsl_pool *dp, pool_scrub_cmd_t cmd);
 void dsl_resilver_restart(struct dsl_pool *, uint64_t txg);

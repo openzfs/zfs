@@ -2008,6 +2008,25 @@ function wait_vdev_state # pool disk state timeout
 }
 
 #
+# Compare the expected amount to scrub to the scrub total
+# from zpool status.
+#
+function is_dataset_scrubbing #pool #amount <verbose>
+{
+	typeset pool=$1
+	typeset verbose=${3:-false}
+
+	scan=$(zpool status "$pool" 2>/dev/null | grep "scanned" \
+		| awk '{print $9}')
+	if [[ $verbose == true ]]; then
+		log_note "expecting dataset scrub total $2 got $scan"
+	fi
+
+	echo $scan |grep "$2" > /dev/null 2>&1
+	return $?
+}
+
+#
 # Check the output of 'zpool status -v <pool>',
 # and to see if the content of <token> contain the <keyword> specified.
 #
@@ -2039,6 +2058,7 @@ function check_pool_status # pool token keyword <verbose>
 #	is_pool_scrub_stopped - to check if the pool is scrub stopped
 #	is_pool_scrub_paused - to check if the pool has scrub paused
 #
+
 function is_pool_resilvering #pool <verbose>
 {
 	check_pool_status "$1" "scan" "resilver in progress since " $2

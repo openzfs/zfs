@@ -2094,6 +2094,7 @@ spa_scan_get_stats(spa_t *spa, pool_scan_stat_t *ps)
 	ps->pss_pass_start = spa->spa_scan_pass_start;
 	ps->pss_pass_scrub_pause = spa->spa_scan_pass_scrub_pause;
 	ps->pss_pass_scrub_spent_paused = spa->spa_scan_pass_scrub_spent_paused;
+	ps->pss_dataset_scrub = !!(scn->scn_phys.scn_flags & DSF_SCRUB_DATASET);
 	ps->pss_pass_issued = spa->spa_scan_pass_issued;
 	ps->pss_issued =
 	    scn->scn_issued_before_pass + spa->spa_scan_pass_issued;
