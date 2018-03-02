@@ -1167,8 +1167,7 @@ cont:
 				lrw->lr_offset += dnow;
 				lrw->lr_length -= dnow;
 				ZIL_STAT_BUMP(zil_itx_needcopy_count);
-				ZIL_STAT_INCR(zil_itx_needcopy_bytes,
-				    lrw->lr_length);
+				ZIL_STAT_INCR(zil_itx_needcopy_bytes, dnow);
 			} else {
 				ASSERT(itx->itx_wr_state == WR_INDIRECT);
 				dbuf = NULL;
