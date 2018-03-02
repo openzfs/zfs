@@ -423,3 +423,19 @@ function get_debug_device
 {
 	lsscsi | nawk '/scsi_debug/ {print $6; exit}' | cut -d / -f3
 }
+
+#
+# Get actual devices used by the pool (i.e. linux sdb1 not sdb).
+#
+function get_pool_devices #testpool #devdir
+{
+	typeset testpool=$1
+	typeset devdir=$2
+	typeset out=""
+
+	if is_linux; then
+		out=$(zpool status -P $testpool |grep ${devdir} | awk '{print $1}')
+		out=$(echo $out | sed -e "s|${devdir}/||g" | tr '\n' ' ')
+	fi
+	echo $out
+}
