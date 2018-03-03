@@ -29,7 +29,7 @@ FSLIST="@sysconfdir@/zfs/zfs-list.cache"
 [ -d "${FSLIST}" ] || exit 0
 
 do_fail() {
-  printf 'zfs-mount-generator.sh: %s\n' "$*" > /dev/kmsg
+  printf 'zfs-mount-generator: %s\n' "$*" > /dev/kmsg
   exit 1
 }
 
@@ -103,13 +103,13 @@ process_line() {
     elif [ "${p_relatime}" = off ] ; then
       opts="${opts},atime,strictatime"
     else
-      printf 'zfs-mount-generator.sh: (%s) invalid relatime\n' \
+      printf 'zfs-mount-generator: (%s) invalid relatime\n' \
         "${dataset}" >/dev/kmsg
     fi
   elif [ "${p_atime}" = off ] ; then
     opts="${opts},noatime"
   else
-    printf 'zfs-mount-generator.sh: (%s) invalid atime\n' \
+    printf 'zfs-mount-generator: (%s) invalid atime\n' \
       "${dataset}" >/dev/kmsg
   fi
 
@@ -119,7 +119,7 @@ process_line() {
   elif [ "${p_devices}" = off ] ; then
     opts="${opts},nodev"
   else
-    printf 'zfs-mount-generator.sh: (%s) invalid devices\n' \
+    printf 'zfs-mount-generator: (%s) invalid devices\n' \
       "${dataset}" >/dev/kmsg
   fi
 
@@ -129,7 +129,7 @@ process_line() {
   elif [ "${p_exec}" = off ] ; then
     opts="${opts},noexec"
   else
-    printf 'zfs-mount-generator.sh: (%s) invalid exec\n' \
+    printf 'zfs-mount-generator: (%s) invalid exec\n' \
       "${dataset}" >/dev/kmsg
   fi
 
@@ -139,7 +139,7 @@ process_line() {
   elif [ "${p_readonly}" = off ] ; then
     opts="${opts},rw"
   else
-    printf 'zfs-mount-generator.sh: (%s) invalid readonly\n' \
+    printf 'zfs-mount-generator: (%s) invalid readonly\n' \
       "${dataset}" >/dev/kmsg
   fi
 
@@ -149,7 +149,7 @@ process_line() {
   elif [ "${p_setuid}" = off ] ; then
     opts="${opts},nosuid"
   else
-    printf 'zfs-mount-generator.sh: (%s) invalid setuid\n' \
+    printf 'zfs-mount-generator: (%s) invalid setuid\n' \
       "${dataset}" >/dev/kmsg
   fi
 
@@ -159,13 +159,13 @@ process_line() {
   elif [ "${p_nbmand}" = off ] ; then
     opts="${opts},nomand"
   else
-    printf 'zfs-mount-generator.sh: (%s) invalid nbmand\n' \
+    printf 'zfs-mount-generator: (%s) invalid nbmand\n' \
       "${dataset}" >/dev/kmsg
   fi
 
   # If the mountpoint has already been created, give it precedence.
   if [ -e "${dest_norm}/${mountfile}" ] ; then
-    printf 'zfs-mount-generator.sh: %s already exists\n' "${mountfile}" \
+    printf 'zfs-mount-generator: %s already exists\n' "${mountfile}" \
       >/dev/kmsg
     return
   fi
