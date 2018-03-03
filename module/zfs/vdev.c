@@ -772,7 +772,6 @@ vdev_free(vdev_t *vd)
 	mutex_destroy(&vd->vdev_dtl_lock);
 	mutex_destroy(&vd->vdev_stat_lock);
 	mutex_destroy(&vd->vdev_probe_lock);
-	mutex_destroy(&vd->vdev_scan_io_queue_lock);
 	ASSERT0(vd->vdev_trim_zios);
 	mutex_destroy(&vd->vdev_trim_zios_lock);
 	cv_destroy(&vd->vdev_trim_zios_cv);

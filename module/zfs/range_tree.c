@@ -309,7 +309,7 @@ range_tree_find_impl(range_tree_t *rt, uint64_t start, uint64_t size)
 	return (avl_find(&rt->rt_root, &rsearch, &where));
 }
 
-static range_seg_t *
+range_seg_t *
 range_tree_find(range_tree_t *rt, uint64_t start, uint64_t size)
 {
 	range_seg_t *rs = range_tree_find_impl(rt, start, size);

@@ -43,7 +43,6 @@
 #include <sys/time.h>
 #include <sys/trace_zio.h>
 #include <sys/abd.h>
-#include <sys/dsl_crypt.h>
 #include <sys/dkioc_free_util.h>
 #include <sys/metaslab_impl.h>
 
