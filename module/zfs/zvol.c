@@ -1589,7 +1589,7 @@ zvol_probe(dev_t dev, int *part, void *arg)
 	struct kobject *kobj;
 
 	zv = zvol_find_by_dev(dev);
-	kobj = zv ? get_disk(zv->zv_disk) : NULL;
+	kobj = zv ? get_disk_and_module(zv->zv_disk) : NULL;
 	ASSERT(zv == NULL || MUTEX_HELD(&zv->zv_state_lock));
 	if (zv)
 		mutex_exit(&zv->zv_state_lock);
