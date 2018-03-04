@@ -43,6 +43,29 @@ function within_percent
 }
 
 #
+# Return 0 if value is within +/-tolerance of target.
+# Return 1 if value exceeds our tolerance.
+# For use like this:
+#
+# Do $action if value is within the tolerance from target passed in:
+#	within_tolerance VAL TAR TOL && $action
+# Do $action if value surpasses the tolerance from target passed in:
+#	within_tolerance VAL TAR TOL || $action
+#
+function within_tolerance #value #target #tolerance
+{
+	typeset val=$1
+	typeset target=$2
+	typeset tol=$3
+
+	typeset diff=$((abs(val - target)))
+	log_note "Checking if $val is within +/-$tol of $target (diff: $diff)"
+	((diff <= tol)) && return 0
+
+	return 1
+}
+
+#
 # Return 0 if the human readable string of the form <value>[suffix] can
 # be converted to bytes.  Allow suffixes are shown in the table below.
 #
