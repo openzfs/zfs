@@ -443,7 +443,6 @@ def main():
         if i == 0:
             print_header()
 
-        snap_stats()
         calculate()
         print_values()
 
@@ -454,6 +453,7 @@ def main():
 
         i = 0 if i >= hdr_intr else i + 1
         time.sleep(sint)
+        snap_stats()
 
     if out:
         out.close()
