@@ -262,8 +262,6 @@ struct vdev {
 	 * We rate limit ZIO delay and ZIO checksum events, since they
 	 * can flood ZED with tons of events when a drive is acting up.
 	 */
-#define	DELAYS_PER_SECOND 5
-#define	CHECKSUMS_PER_SECOND 5
 	zfs_ratelimit_t vdev_delay_rl;
 	zfs_ratelimit_t vdev_checksum_rl;
 };
