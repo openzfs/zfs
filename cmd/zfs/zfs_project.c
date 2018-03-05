@@ -43,7 +43,7 @@
 
 typedef struct zfs_project_item {
 	list_node_t	zpi_list;
-	char		zpi_name[PATH_MAX];
+	char		zpi_name[0];
 } zfs_project_item_t;
 
 static void
@@ -51,7 +51,7 @@ zfs_project_item_alloc(list_t *head, const char *name)
 {
 	zfs_project_item_t *zpi;
 
-	zpi = safe_malloc(sizeof (zfs_project_item_t));
+	zpi = safe_malloc(sizeof (zfs_project_item_t) + strlen(name) + 1);
 	strcpy(zpi->zpi_name, name);
 	list_insert_tail(head, zpi);
 }

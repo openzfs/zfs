@@ -2891,10 +2891,12 @@ zfs_setattr(struct inode *ip, vattr_t *vap, int flags, cred_t *cr)
 		}
 
 		if (XVA_ISSET_REQ(xvap, XAT_PROJINHERIT) &&
+		    (xoap->xoa_projinherit !=
+		    ((zp->z_pflags & ZFS_PROJINHERIT) != 0)) &&
 		    (!dmu_objset_projectquota_enabled(os) ||
 		    (!S_ISREG(ip->i_mode) && !S_ISDIR(ip->i_mode)))) {
-				ZFS_EXIT(zfsvfs);
-				return (SET_ERROR(ENOTSUP));
+			ZFS_EXIT(zfsvfs);
+			return (SET_ERROR(ENOTSUP));
 		}
 	}
 

@@ -2077,7 +2077,7 @@ dmu_objset_userquota_get_ids(dnode_t *dn, boolean_t before, dmu_tx_t *tx)
 		if (flags & DN_ID_OLD_EXIST) {
 			dn->dn_newuid = dn->dn_olduid;
 			dn->dn_newgid = dn->dn_oldgid;
-			dn->dn_newgid = dn->dn_oldprojid;
+			dn->dn_newprojid = dn->dn_oldprojid;
 		} else {
 			dn->dn_newuid = 0;
 			dn->dn_newgid = 0;
