@@ -186,10 +186,10 @@ static boolean_t dbuf_evict_thread_exit;
  */
 static multilist_t *dbuf_cache;
 static refcount_t dbuf_cache_size;
-unsigned long  dbuf_cache_max_bytes = 100 * 1024 * 1024;
+unsigned long dbuf_cache_max_bytes = 0;
 
-/* Cap the size of the dbuf cache to log2 fraction of arc size. */
-int dbuf_cache_max_shift = 5;
+/* Set the default size of the dbuf cache to log2 fraction of arc size. */
+int dbuf_cache_shift = 5;
 
 /*
  * The dbuf cache uses a three-stage eviction policy:
@@ -561,7 +561,7 @@ static inline unsigned long
 dbuf_cache_target_bytes(void)
 {
 	return MIN(dbuf_cache_max_bytes,
-	    arc_target_bytes() >> dbuf_cache_max_shift);
+	    arc_target_bytes() >> dbuf_cache_shift);
 }
 
 static inline uint64_t
@@ -787,11 +787,15 @@ retry:
 	dbuf_stats_init(h);
 
 	/*
-	 * Setup the parameters for the dbuf cache. We cap the size of the
-	 * dbuf cache to 1/32nd (default) of the size of the ARC.
+	 * Setup the parameters for the dbuf cache. We set the size of the
+	 * dbuf cache to 1/32nd (default) of the target size of the ARC. If
+	 * the value has been specified as a module option and it's not
+	 * greater than the target size of the ARC, then we honor that value.
 	 */
-	dbuf_cache_max_bytes = MIN(dbuf_cache_max_bytes,
-	    arc_target_bytes() >> dbuf_cache_max_shift);
+	if (dbuf_cache_max_bytes == 0 ||
+	    dbuf_cache_max_bytes >= arc_target_bytes()) {
+		dbuf_cache_max_bytes = arc_target_bytes() >> dbuf_cache_shift;
+	}
 
 	/*
 	 * All entries are queued via taskq_dispatch_ent(), so min/maxalloc
@@ -4216,8 +4220,8 @@ MODULE_PARM_DESC(dbuf_cache_lowater_pct,
 	"Percentage below dbuf_cache_max_bytes when the evict thread stops "
 	"evicting dbufs.");
 
-module_param(dbuf_cache_max_shift, int, 0644);
-MODULE_PARM_DESC(dbuf_cache_max_shift,
-	"Cap the size of the dbuf cache to a log2 fraction of arc size.");
+module_param(dbuf_cache_shift, int, 0644);
+MODULE_PARM_DESC(dbuf_cache_shift,
+	"Set the size of the dbuf cache to a log2 fraction of arc size.");
 /* END CSTYLED */
 #endif
