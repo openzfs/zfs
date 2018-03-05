@@ -1,3 +1,2 @@
-# Always load kernel modules at boot.  The default behavior is to load the
-# kernel modules in the zfs-import-*.service or when blkid(8) detects a pool.
-#zfs
+# Always load kernel modules at boot.
+zfs
