@@ -25,13 +25,19 @@
 typedef struct {
 	hrtime_t start;
 	unsigned int count;
-	unsigned int burst;		/* Number to allow per interval */
-	unsigned int interval;		/* Interval length in seconds */
+
+	/*
+	 * Pointer to number of events per interval.  We do this to
+	 * allow the burst to be a (changeable) module parameter.
+	 */
+	unsigned int *burst;
+
+	unsigned int interval;	/* Interval length in seconds */
 	kmutex_t lock;
 } zfs_ratelimit_t;
 
 int zfs_ratelimit(zfs_ratelimit_t *rl);
-void zfs_ratelimit_init(zfs_ratelimit_t *rl, unsigned int burst,
+void zfs_ratelimit_init(zfs_ratelimit_t *rl, unsigned int *burst,
     unsigned int interval);
 void zfs_ratelimit_fini(zfs_ratelimit_t *rl);
 
