@@ -53,15 +53,11 @@ function cleanup_user_group
 #
 function restore_root_datasets
 {
-	if datasetexists $ROOT_TESTFS ; then
-		log_must zfs destroy -Rf $ROOT_TESTFS
-	fi
+	destroy_dataset "$ROOT_TESTFS" "-Rf"
 	log_must zfs create $ROOT_TESTFS
 
 	if is_global_zone ; then
-		if datasetexists $ROOT_TESTVOL ; then
-			log_must zfs destroy -Rf $ROOT_TESTVOL
-		fi
+		destroy_dataset "$ROOT_TESTVOL" "-Rf"
 		log_must zfs create -V $VOLSIZE $ROOT_TESTVOL
 		block_device_wait
 	fi

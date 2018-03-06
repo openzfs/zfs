@@ -380,7 +380,7 @@ function create_recv_clone
 	log_must zfs snapshot $incr
 	log_must eval "zfs send -i $snap $incr | dd bs=10K count=1 > $sendfile"
 	log_mustnot eval "zfs recv -su $recvfs < $sendfile"
-	log_must zfs destroy -r $sendfs
+	destroy_dataset "$sendfs" "-r"
 	log_must rm -f "$sendfile"
 
 	if [[ $(get_prop 'inconsistent' "$recvfs/%recv") -ne 1 ]]; then
@@ -546,8 +546,7 @@ function default_cleanup_noexit
 		typeset fs=""
 		for fs in $(zfs list -H -o name \
 		    | grep "^$ZONE_POOL/$ZONE_CTR[01234]/"); do
-			datasetexists $fs && \
-				log_must zfs destroy -Rf $fs
+			destroy_dataset "$fs" "-Rf"
 		done
 
 		# Need cleanup here to avoid garbage dir left.
@@ -608,11 +607,8 @@ function default_container_cleanup
 	[[ $? -eq 0 ]] && \
 	    log_must zfs unmount $TESTPOOL/$TESTCTR/$TESTFS1
 
-	datasetexists $TESTPOOL/$TESTCTR/$TESTFS1 && \
-	    log_must zfs destroy -R $TESTPOOL/$TESTCTR/$TESTFS1
-
-	datasetexists $TESTPOOL/$TESTCTR && \
-	    log_must zfs destroy -Rf $TESTPOOL/$TESTCTR
+	destroy_dataset "$TESTPOOL/$TESTCTR/$TESTFS1" "-R"
+	destroy_dataset "$TESTPOOL/$TESTCTR" "-Rf"
 
 	[[ -e $TESTDIR1 ]] && \
 	    log_must rm -rf $TESTDIR1 > /dev/null 2>&1
@@ -646,7 +642,7 @@ function destroy_snapshot
 			log_fail "get_prop mountpoint $snap failed."
 	fi
 
-	log_must zfs destroy $snap
+	destroy_dataset "$snap"
 	[[ $mtpt != "" && -d $mtpt ]] && \
 		log_must rm -rf $mtpt
 }
@@ -672,7 +668,7 @@ function destroy_clone
 			log_fail "get_prop mountpoint $clone failed."
 	fi
 
-	log_must zfs destroy $clone
+	destroy_dataset "$clone"
 	[[ $mtpt != "" && -d $mtpt ]] && \
 		log_must rm -rf $mtpt
 }
@@ -691,7 +687,7 @@ function destroy_bookmark
 		log_fail "'$bkmarkp' does not existed."
 	fi
 
-	log_must zfs destroy $bkmark
+	destroy_dataset "$bkmark"
 }
 
 # Return 0 if a snapshot exists; $? otherwise
@@ -1595,6 +1591,40 @@ function destroy_pool #pool
 	return 0
 }
 
+# Return 0 if destroy successfully or the dataset exists; $? otherwise
+# Note: In local zones, this function should return 0 silently.
+#
+# $1 - dataset name
+# $2 - custom arguments for zfs destroy
+# Destroy dataset with the given parameters.
+
+function destroy_dataset #dataset #args
+{
+	typeset dataset=$1
+	typeset mtpt
+	typeset args=${2:-""}
+
+	if [[ -z $dataset ]]; then
+		log_note "No dataset name given."
+		return 1
+	fi
+
+	if is_global_zone ; then
+		if datasetexists "$dataset" ; then
+			mtpt=$(get_prop mountpoint "$dataset")
+			log_must_busy zfs destroy $args $dataset
+
+			[[ -d $mtpt ]] && \
+				log_must rm -rf $mtpt
+		else
+			log_note "Dataset does not exist. ($dataset)"
+			return 1
+		fi
+	fi
+
+	return 0
+}
+
 #
 # Firstly, create a pool with 5 datasets. Then, create a single zone and
 # export the 5 datasets to it. In addition, we also add a ZFS filesystem
@@ -2463,9 +2493,7 @@ function verify_opt_p_ops
 	esac
 
 	# make sure the upper level filesystem does not exist
-	if datasetexists ${newdataset%/*} ; then
-		log_must zfs destroy -rRf ${newdataset%/*}
-	fi
+	destroy_dataset "${newdataset%/*}" "-rRf"
 
 	# without -p option, operation will fail
 	log_mustnot zfs $ops $dataset $newdataset
