@@ -490,7 +490,7 @@ tests = ['devices_001_pos', 'devices_002_neg', 'devices_003_pos']
 tags = ['functional', 'devices']
 
 [tests/functional/events]
-tests = ['events_001_pos', 'events_002_pos']
+tests = ['events_001_pos', 'events_002_pos', 'zed_rc_filter']
 tags = ['functional', 'events']
 
 [tests/functional/exec]
