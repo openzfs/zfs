@@ -438,3 +438,23 @@ zed_guid_to_pool()
 		$ZPOOL get -H -ovalue,name guid | awk '$1=='"$guid"' {print $2}'
 	fi
 }
+
+# zed_exit_if_ignoring_this_event
+#
+# Exit the script if we should ignore this event, as determined by
+# $ZED_SYSLOG_SUBCLASS_INCLUDE and $ZED_SYSLOG_SUBCLASS_EXCLUDE in zed.rc.
+# This function assumes you've imported the normal zed variables.
+zed_exit_if_ignoring_this_event()
+{
+	if [ -n "${ZED_SYSLOG_SUBCLASS_INCLUDE}" ]; then
+	    eval "case ${ZEVENT_SUBCLASS} in
+	    ${ZED_SYSLOG_SUBCLASS_INCLUDE});;
+	    *) exit 0;;
+	    esac"
+	elif [ -n "${ZED_SYSLOG_SUBCLASS_EXCLUDE}" ]; then
+	    eval "case ${ZEVENT_SUBCLASS} in
+	    ${ZED_SYSLOG_SUBCLASS_EXCLUDE}) exit 0;;
+	    *);;
+	    esac"
+	fi
+}

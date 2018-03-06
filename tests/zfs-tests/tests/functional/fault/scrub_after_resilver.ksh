@@ -32,16 +32,15 @@
 log_assert "Testing the scrub after resilver zedlet"
 
 # Backup our zed.rc
-zedrc_backup="$(mktemp)"
-log_must cp $ZEDLET_DIR/zed.rc $zedrc_backup
+zedrc_backup=$(zed_rc_backup)
 
-# Enable ZED_SCRUB_AFTER_RESILVER
-eval "sed -i 's/\#ZED_SCRUB_AFTER_RESILVER/ZED_SCRUB_AFTER_RESILVER/g' $ZEDLET_DIR/zed.rc"
+# Enable ZED_SCRUB_AFTER_RESILVER in zed.rc
+zed_rc_set ZED_SCRUB_AFTER_RESILVER 1
 
 function cleanup
 {
 	# Restore our zed.rc
-	log_must mv $zedrc_backup $ZEDLET_DIR/zed.rc
+	log_must zed_rc_restore $zedrc_backup
 	default_cleanup_noexit
 }
 
