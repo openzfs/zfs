@@ -55,7 +55,7 @@ log_must zpool set multihost=on $TESTPOOL
 
 clear_mmp_history
 log_must set_tunable64 zfs_multihost_interval $MMP_INTERVAL_DEFAULT
-uber_count=$(count_uberblocks $TESTPOOL 1)
+uber_count=$(count_mmp_writes $TESTPOOL 1)
 
 if [ $uber_count -eq 0 ]; then
 	log_fail "mmp writes did not start when zfs_multihost_interval reduced"
