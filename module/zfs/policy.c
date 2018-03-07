@@ -42,17 +42,45 @@
  * all other cases this function must fail and return the passed err.
  */
 static int
-priv_policy(const cred_t *cr, int capability, boolean_t all, int err)
+priv_policy_ns(const cred_t *cr, int capability, boolean_t all, int err,
+    struct user_namespace *ns)
 {
 	ASSERT3S(all, ==, B_FALSE);
 
 	if (cr != CRED() && (cr != kcred))
 		return (err);
 
+#if defined(CONFIG_USER_NS) && defined(HAVE_NS_CAPABLE)
+	if (!(ns ? ns_capable(ns, capability) : capable(capability)))
+#else
 	if (!capable(capability))
+#endif
 		return (err);
 
 	return (0);
+}
+
+static int
+priv_policy(const cred_t *cr, int capability, boolean_t all, int err)
+{
+	return (priv_policy_ns(cr, capability, all, err, NULL));
+}
+
+static int
+priv_policy_user(const cred_t *cr, int capability, boolean_t all, int err)
+{
+	/*
+	 * All priv_policy_user checks are preceeded by kuid/kgid_has_mapping()
+	 * checks. If we cannot do them, we shouldn't be using ns_capable()
+	 * since we don't know whether the affected files are valid in our
+	 * namespace. Note that kuid_has_mapping() came after cred->user_ns, so
+	 * we shouldn't need to re-check for HAVE_CRED_USER_NS
+	 */
+#if defined(CONFIG_USER_NS) && defined(HAVE_KUID_HAS_MAPPING)
+	return (priv_policy_ns(cr, capability, all, err, cr->user_ns));
+#else
+	return (priv_policy_ns(cr, capability, all, err, NULL));
+#endif
 }
 
 /*
@@ -102,10 +130,15 @@ secpolicy_vnode_any_access(const cred_t *cr, struct inode *ip, uid_t owner)
 	if (zpl_inode_owner_or_capable(ip))
 		return (0);
 
-	if (priv_policy(cr, CAP_DAC_OVERRIDE, B_FALSE, EPERM) == 0)
+#if defined(CONFIG_USER_NS) && defined(HAVE_KUID_HAS_MAPPING)
+	if (!kuid_has_mapping(cr->user_ns, SUID_TO_KUID(owner)))
+		return (EPERM);
+#endif
+
+	if (priv_policy_user(cr, CAP_DAC_OVERRIDE, B_FALSE, EPERM) == 0)
 		return (0);
 
-	if (priv_policy(cr, CAP_DAC_READ_SEARCH, B_FALSE, EPERM) == 0)
+	if (priv_policy_user(cr, CAP_DAC_READ_SEARCH, B_FALSE, EPERM) == 0)
 		return (0);
 
 	return (EPERM);
@@ -120,7 +153,12 @@ secpolicy_vnode_chown(const cred_t *cr, uid_t owner)
 	if (crgetfsuid(cr) == owner)
 		return (0);
 
-	return (priv_policy(cr, CAP_FOWNER, B_FALSE, EPERM));
+#if defined(CONFIG_USER_NS) && defined(HAVE_KUID_HAS_MAPPING)
+	if (!kuid_has_mapping(cr->user_ns, SUID_TO_KUID(owner)))
+		return (EPERM);
+#endif
+
+	return (priv_policy_user(cr, CAP_FOWNER, B_FALSE, EPERM));
 }
 
 /*
@@ -152,7 +190,12 @@ secpolicy_vnode_setdac(const cred_t *cr, uid_t owner)
 	if (crgetfsuid(cr) == owner)
 		return (0);
 
-	return (priv_policy(cr, CAP_FOWNER, B_FALSE, EPERM));
+#if defined(CONFIG_USER_NS) && defined(HAVE_KUID_HAS_MAPPING)
+	if (!kuid_has_mapping(cr->user_ns, SUID_TO_KUID(owner)))
+		return (EPERM);
+#endif
+
+	return (priv_policy_user(cr, CAP_FOWNER, B_FALSE, EPERM));
 }
 
 /*
@@ -175,8 +218,12 @@ secpolicy_vnode_setid_retain(const cred_t *cr, boolean_t issuidroot)
 int
 secpolicy_vnode_setids_setgids(const cred_t *cr, gid_t gid)
 {
+#if defined(CONFIG_USER_NS) && defined(HAVE_KUID_HAS_MAPPING)
+	if (!kgid_has_mapping(cr->user_ns, SGID_TO_KGID(gid)))
+		return (EPERM);
+#endif
 	if (crgetfsgid(cr) != gid && !groupmember(gid, cr))
-		return (priv_policy(cr, CAP_FSETID, B_FALSE, EPERM));
+		return (priv_policy_user(cr, CAP_FSETID, B_FALSE, EPERM));
 
 	return (0);
 }
@@ -222,7 +269,12 @@ secpolicy_vnode_setid_modify(const cred_t *cr, uid_t owner)
 	if (crgetfsuid(cr) == owner)
 		return (0);
 
-	return (priv_policy(cr, CAP_FSETID, B_FALSE, EPERM));
+#if defined(CONFIG_USER_NS) && defined(HAVE_KUID_HAS_MAPPING)
+	if (!kuid_has_mapping(cr->user_ns, SUID_TO_KUID(owner)))
+		return (EPERM);
+#endif
+
+	return (priv_policy_user(cr, CAP_FSETID, B_FALSE, EPERM));
 }
 
 /*

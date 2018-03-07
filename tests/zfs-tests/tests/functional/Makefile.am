@@ -63,6 +63,7 @@ SUBDIRS = \
 	tmpfile \
 	truncate \
 	upgrade \
+	user_namespace \
 	userquota \
 	vdev_zaps \
 	write_dirs \
