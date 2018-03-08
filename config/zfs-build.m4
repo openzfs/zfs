@@ -210,6 +210,7 @@ AC_DEFUN([ZFS_AC_RPM], [
 	RPM_DEFINE_KMOD+=' --define "require_splobj $(SPL_OBJ)"'
 	RPM_DEFINE_KMOD+=' --define "ksrc $(LINUX)"'
 	RPM_DEFINE_KMOD+=' --define "kobj $(LINUX_OBJ)"'
+	RPM_DEFINE_KMOD+=' --define "_wrong_version_format_terminate_build 0"'
 
 	RPM_DEFINE_DKMS=''
 
