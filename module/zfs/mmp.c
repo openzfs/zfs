@@ -474,16 +474,22 @@ mmp_thread(void *arg)
 		}
 
 		/*
-		 * When MMP goes off => on, or spa goes suspended =>
-		 * !suspended, we know no writes occurred recently.  We
-		 * update mmp_last_write to give us some time to try.
+		 * MMP off => on, or suspended => !suspended:
+		 * No writes occurred recently.  Update mmp_last_write to give
+		 * us some time to try.
 		 */
 		if ((!last_spa_multihost && multihost) ||
 		    (last_spa_suspended && !suspended)) {
 			mutex_enter(&mmp->mmp_io_lock);
 			mmp->mmp_last_write = gethrtime();
 			mutex_exit(&mmp->mmp_io_lock);
-		} else if (last_spa_multihost && !multihost) {
+		}
+
+		/*
+		 * MMP on => off:
+		 * mmp_delay == 0 tells importing node to skip activity check.
+		 */
+		if (last_spa_multihost && !multihost) {
 			mutex_enter(&mmp->mmp_io_lock);
 			mmp->mmp_delay = 0;
 			mutex_exit(&mmp->mmp_io_lock);
