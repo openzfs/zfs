@@ -275,10 +275,16 @@ check_status(nvlist_t *config, boolean_t isimport, zpool_errata_t *erratap)
 		return (ZPOOL_STATUS_BAD_GUID_SUM);
 
 	/*
-	 * Check whether the pool has suspended due to failed I/O.
+	 * Check whether the pool has suspended.
 	 */
 	if (nvlist_lookup_uint64(config, ZPOOL_CONFIG_SUSPENDED,
 	    &suspended) == 0) {
+		uint64_t reason;
+
+		if (nvlist_lookup_uint64(config, ZPOOL_CONFIG_SUSPENDED_REASON,
+		    &reason) == 0 && reason == ZIO_SUSPEND_MMP)
+			return (ZPOOL_STATUS_IO_FAILURE_MMP);
+
 		if (suspended == ZIO_FAILURE_MODE_CONTINUE)
 			return (ZPOOL_STATUS_IO_FAILURE_CONTINUE);
 		return (ZPOOL_STATUS_IO_FAILURE_WAIT);
