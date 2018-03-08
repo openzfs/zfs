@@ -85,6 +85,7 @@ make install \
 
 # find-debuginfo.sh only considers executables
 %{__chmod} u+x  %{buildroot}/lib/modules/%{kverrel}/extra/*/*/*
+modprobe %{module}
 
 %clean
 rm -rf $RPM_BUILD_ROOT

@@ -58,7 +58,9 @@ fi
 for POSTINST in /usr/lib/dkms/common.postinst; do
     if [ -f $POSTINST ]; then
         $POSTINST %{module} %{version}
-        exit $?
+        DKMS_RET=$?
+        modprobe %{module}
+        exit ${DKMS_RET}
     fi
     echo "WARNING: $POSTINST does not exist."
 done
