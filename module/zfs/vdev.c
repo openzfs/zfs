@@ -209,7 +209,13 @@ vdev_count_leaves_impl(vdev_t *vd)
 int
 vdev_count_leaves(spa_t *spa)
 {
-	return (vdev_count_leaves_impl(spa->spa_root_vdev));
+	int rc;
+
+	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
+	rc = vdev_count_leaves_impl(spa->spa_root_vdev);
+	spa_config_exit(spa, SCL_VDEV, FTAG);
+
+	return (rc);
 }
 
 void
