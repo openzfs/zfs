@@ -233,7 +233,7 @@ extern zpool_handle_t *zpool_open_canfail(libzfs_handle_t *, const char *);
 extern void zpool_close(zpool_handle_t *);
 extern const char *zpool_get_name(zpool_handle_t *);
 extern int zpool_get_state(zpool_handle_t *);
-extern char *zpool_state_to_name(vdev_state_t, vdev_aux_t);
+extern const char *zpool_state_to_name(vdev_state_t, vdev_aux_t);
 extern const char *zpool_pool_state_to_name(pool_state_t);
 extern void zpool_free_handles(libzfs_handle_t *);
 
