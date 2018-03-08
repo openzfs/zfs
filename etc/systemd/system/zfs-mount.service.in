@@ -6,11 +6,16 @@ After=systemd-udev-settle.service
 After=zfs-import.target
 After=systemd-remount-fs.service
 Before=local-fs.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
+StandardInput=tty
+ExecStartPre=@bindir@/bash -c "if [ $(zpool list -H -o feature@encryption) == 'active' ]; then zfs load-key -a; fi
 ExecStart=@sbindir@/zfs mount -a
+Restart=on-failure
 
 [Install]
 WantedBy=zfs.target
