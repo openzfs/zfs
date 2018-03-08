@@ -113,7 +113,7 @@ zpool_props_refresh(zpool_handle_t *zhp)
 	return (0);
 }
 
-static char *
+static const char *
 zpool_get_prop_string(zpool_handle_t *zhp, zpool_prop_t prop,
     zprop_source_t *src)
 {
