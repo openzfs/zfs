@@ -767,7 +767,11 @@ function zero_partitions #<whole_disk_name>
 	typeset i
 
 	if is_linux; then
-		log_must parted $DEV_DSKDIR/$diskname -s -- mklabel gpt
+		DSK=$DEV_DSKDIR/$diskname
+		DSK=$(echo $DSK | sed -e "s|//|/|g")
+		log_must parted $DSK -s -- mklabel gpt
+		blockdev --rereadpt $DSK 2>/dev/null
+		block_device_wait
 	else
 		for i in 0 1 3 4 5 6 7
 		do
@@ -795,10 +799,11 @@ function set_partition #<slice_num> <slice_start> <size_plus_units>  <whole_disk
 	typeset start=$2
 	typeset size=$3
 	typeset disk=$4
-	[[ -z $slicenum || -z $size || -z $disk ]] && \
-	    log_fail "The slice, size or disk name is unspecified."
 
 	if is_linux; then
+		if [[ -z $size || -z $disk ]]; then
+			log_fail "The size or disk name is unspecified."
+		fi
 		typeset size_mb=${size%%[mMgG]}
 
 		size_mb=${size_mb%%[mMgG][bB]}
@@ -841,6 +846,10 @@ function set_partition #<slice_num> <slice_start> <size_plus_units>  <whole_disk
 		blockdev --rereadpt $DEV_DSKDIR/$disk 2>/dev/null
 		block_device_wait
 	else
+		if [[ -z $slicenum || -z $size || -z $disk ]]; then
+			log_fail "The slice, size or disk name is unspecified."
+		fi
+
 		typeset format_file=/var/tmp/format_in.$$
 
 		echo "partition" >$format_file
@@ -3633,4 +3642,20 @@ function get_tunable_impl
 	esac
 
 	return 1
+}
+
+#
+# Get actual devices used by the pool (i.e. linux sdb1 not sdb).
+#
+function get_pool_devices #testpool #devdir
+{
+	typeset testpool=$1
+	typeset devdir=$2
+	typeset out=""
+
+	if is_linux; then
+		out=$(zpool status -P $testpool |grep ${devdir} | awk '{print $1}')
+		out=$(echo $out | sed -e "s|${devdir}/||g" | tr '\n' ' ')
+	fi
+	echo $out
 }
