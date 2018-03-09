@@ -27,7 +27,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd January 10, 2018
+.Dd February 23, 2018
 .Dt ZPOOL 8 SMM
 .Os Linux
 .Sh NAME
@@ -888,7 +888,12 @@ The pool names
 .Sy spare
 and
 .Sy log
-are reserved, as are names beginning with the pattern
+are reserved, as are names beginning with
+.Sy mirror ,
+.Sy raidz ,
+.Sy spare
+.\" names begin with "log" are ok for some reason.
+and the pattern
 .Sy c[0-9] .
 The
 .Ar vdev
