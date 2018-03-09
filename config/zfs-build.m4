@@ -162,6 +162,8 @@ AC_DEFUN([ZFS_AC_RPM], [
 	RPM_DEFINE_COMMON='--define "$(DEBUG_ZFS) 1"'
 	RPM_DEFINE_UTIL='--define "_dracutdir $(dracutdir)" --define "_udevdir $(udevdir)" --define "_udevruledir $(udevruledir)" --define "_initconfdir $(DEFAULT_INITCONF_DIR)" $(DEFINE_INITRAMFS) $(DEFINE_SYSTEMD)'
 	RPM_DEFINE_KMOD='--define "kernels $(LINUX_VERSION)" --define "require_spldir $(SPL)" --define "require_splobj $(SPL_OBJ)" --define "ksrc $(LINUX)" --define "kobj $(LINUX_OBJ)"'
+	RPM_DEFINE_KMOD+=' --define "_wrong_version_format_terminate_build 0"'
+
 	RPM_DEFINE_DKMS=
 
 	dnl # Override default lib directory on Debian/Ubuntu systems.  The provided
