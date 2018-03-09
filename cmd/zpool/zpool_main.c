@@ -1654,7 +1654,7 @@ print_status_config(zpool_handle_t *zhp, status_cbdata_t *cb, const char *name,
 	char *vname;
 	uint64_t notpresent;
 	spare_cbdata_t spare_cb;
-	char *state;
+	const char *state;
 	char *path = NULL;
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
