@@ -231,6 +231,7 @@ AC_DEFUN([SPL_AC_RPM], [
 	RPM_DEFINE_COMMON='--define "$(DEBUG_SPL) 1" --define "$(DEBUG_KMEM) 1" --define "$(DEBUG_KMEM_TRACKING) 1"'
 	RPM_DEFINE_UTIL=
 	RPM_DEFINE_KMOD='--define "kernels $(LINUX_VERSION)"'
+	RPM_DEFINE_KMOD+=' --define "_wrong_version_format_terminate_build 0"'
 	RPM_DEFINE_DKMS=
 
 	SRPM_DEFINE_COMMON='--define "build_src_rpm 1"'
