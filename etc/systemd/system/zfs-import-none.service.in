@@ -1,0 +1,17 @@
+[Unit]
+Description=Load ZFS modules instead of importing
+Documentation=man:zpool(8)
+DefaultDependencies=no
+Requires=systemd-udev-settle.service
+After=systemd-udev-settle.service
+After=cryptsetup.target
+Before=zfs-import.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStartPre=-/sbin/modprobe zfs
+ExecStart=/bin/true
+
+[Install]
+WantedBy=zfs-import.target
