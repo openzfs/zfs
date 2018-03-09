@@ -122,6 +122,22 @@ typedef struct qat_stats {
 	 * so the functionality of ZFS is not impacted.
 	 */
 	kstat_named_t crypt_fails;
+
+	/*
+	 * Number of jobs submitted to qat checksum engine.
+	 */
+	kstat_named_t cksum_requests;
+	/*
+	 * Total bytes sent to qat checksum engine.
+	 */
+	kstat_named_t cksum_total_in_bytes;
+	/*
+	 * Number of fails in the qat checksum engine.
+	 * Note: when qat fail happens, it doesn't mean a critical hardware
+	 * issue. The checksum job will be transfered to the software
+	 * implementation, so the functionality of ZFS is not impacted.
+	 */
+	kstat_named_t cksum_fails;
 } qat_stats_t;
 
 #define	QAT_STAT_INCR(stat, val) \
@@ -130,7 +146,6 @@ typedef struct qat_stats {
 	QAT_STAT_INCR(stat, 1)
 
 extern qat_stats_t qat_stats;
-extern int zfs_qat_disable;
 
 /* inlined for performance */
 static inline struct page *
@@ -158,19 +173,24 @@ extern void qat_fini(void);
 
 extern boolean_t qat_dc_use_accel(size_t s_len);
 extern boolean_t qat_crypt_use_accel(size_t s_len);
+extern boolean_t qat_checksum_use_accel(size_t s_len);
 extern int qat_compress(qat_compress_dir_t dir, char *src, int src_len,
     char *dst, int dst_len, size_t *c_len);
 extern int qat_crypt(qat_encrypt_dir_t dir, uint8_t *src_buf, uint8_t *dst_buf,
     uint8_t *aad_buf, uint32_t aad_len, uint8_t *iv_buf, uint8_t *digest_buf,
     crypto_key_t *key, uint64_t crypt, uint32_t enc_len);
+extern int qat_checksum(uint64_t cksum, uint8_t *buf, uint64_t size,
+    zio_cksum_t *zcp);
 #else
 #define	CPA_STATUS_SUCCESS					0
 #define	qat_init()
 #define	qat_fini()
 #define	qat_dc_use_accel(s_len)					0
 #define	qat_crypt_use_accel(s_len)				0
+#define	qat_checksum_use_accel(s_len)				0
 #define	qat_compress(dir, s, sl, d, dl, cl)			0
 #define	qat_crypt(dir, s, d, a, al, i, db, k, c, el)		0
+#define	qat_checksum(c, buf, s, z)				0
 #endif
 
 #endif /* _SYS_QAT_H */

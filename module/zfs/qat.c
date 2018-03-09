@@ -38,10 +38,12 @@ qat_stats_t qat_stats = {
 	{ "decrypt_total_in_bytes",		KSTAT_DATA_UINT64 },
 	{ "decrypt_total_out_bytes",		KSTAT_DATA_UINT64 },
 	{ "crypt_fails",			KSTAT_DATA_UINT64 },
+	{ "cksum_requests",			KSTAT_DATA_UINT64 },
+	{ "cksum_total_in_bytes",		KSTAT_DATA_UINT64 },
+	{ "cksum_fails",			KSTAT_DATA_UINT64 },
 };
 
 static kstat_t *qat_ksp = NULL;
-int zfs_qat_disable = 0;
 
 CpaStatus
 qat_mem_alloc_contig(void **pp_mem_addr, Cpa32U size_bytes)
