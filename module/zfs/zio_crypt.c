@@ -26,6 +26,7 @@
 #include <sys/zil.h>
 #include <sys/sha2.h>
 #include <sys/hkdf.h>
+#include "qat.h"
 
 /*
  * This file is responsible for handling all of the details of generating
@@ -1875,16 +1876,6 @@ zio_do_crypt_data(boolean_t encrypt, zio_crypt_key_t *key, uint8_t *salt,
 	crypto_ctx_template_t tmpl;
 	uint8_t *authbuf = NULL;
 
-	bzero(&puio, sizeof (uio_t));
-	bzero(&cuio, sizeof (uio_t));
-
-	/* create uios for encryption */
-	ret = zio_crypt_init_uios(encrypt, key->zk_version, ot, plainbuf,
-	    cipherbuf, datalen, byteswap, mac, &puio, &cuio, &enc_len,
-	    &authbuf, &auth_len, no_crypt);
-	if (ret != 0)
-		return (ret);
-
 	/*
 	 * If the needed key is the current one, just use it. Otherwise we
 	 * need to generate a temporary one from the given salt + master key.
@@ -1914,7 +1905,48 @@ zio_do_crypt_data(boolean_t encrypt, zio_crypt_key_t *key, uint8_t *salt,
 		tmpl = NULL;
 	}
 
-	/* perform the encryption / decryption */
+	/*
+	 * Attempt to use QAT acceleration if we can. We currently don't
+	 * do this for metadnode and ZIL blocks, since they have a much
+	 * more involved buffer layout and the qat_crypt() function only
+	 * works in-place.
+	 */
+	if (qat_crypt_use_accel(datalen) &&
+	    ot != DMU_OT_INTENT_LOG && ot != DMU_OT_DNODE) {
+		uint8_t *srcbuf, *dstbuf;
+
+		if (encrypt) {
+			srcbuf = plainbuf;
+			dstbuf = cipherbuf;
+		} else {
+			srcbuf = cipherbuf;
+			dstbuf = plainbuf;
+		}
+
+		ret = qat_crypt((encrypt) ? QAT_ENCRYPT : QAT_DECRYPT, srcbuf,
+		    dstbuf, NULL, 0, iv, mac, ckey, key->zk_crypt, datalen);
+		if (ret == CPA_STATUS_SUCCESS) {
+			if (locked) {
+				rw_exit(&key->zk_salt_lock);
+				locked = B_FALSE;
+			}
+
+			return (0);
+		}
+		/* If the hardware implementation fails fall back to software */
+	}
+
+	bzero(&puio, sizeof (uio_t));
+	bzero(&cuio, sizeof (uio_t));
+
+	/* create uios for encryption */
+	ret = zio_crypt_init_uios(encrypt, key->zk_version, ot, plainbuf,
+	    cipherbuf, datalen, byteswap, mac, &puio, &cuio, &enc_len,
+	    &authbuf, &auth_len, no_crypt);
+	if (ret != 0)
+		goto error;
+
+	/* perform the encryption / decryption in software */
 	ret = zio_do_crypt_uio(encrypt, key->zk_crypt, ckey, tmpl, iv, enc_len,
 	    &puio, &cuio, authbuf, auth_len);
 	if (ret != 0)
