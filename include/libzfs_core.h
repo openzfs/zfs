@@ -62,6 +62,8 @@ int lzc_destroy_bookmarks(nvlist_t *, nvlist_t **);
 int lzc_load_key(const char *, boolean_t, uint8_t *, uint_t);
 int lzc_unload_key(const char *);
 int lzc_change_key(const char *, uint64_t, nvlist_t *, uint8_t *, uint_t);
+int lzc_initialize(const char *, pool_initialize_func_t, nvlist_t *,
+    nvlist_t **);
 
 int lzc_snaprange_space(const char *, const char *, uint64_t *);
 

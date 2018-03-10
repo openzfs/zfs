@@ -107,6 +107,7 @@
 #include <sys/zfs_rlock.h>
 #include <sys/vdev_impl.h>
 #include <sys/vdev_file.h>
+#include <sys/vdev_initialize.h>
 #include <sys/spa_impl.h>
 #include <sys/metaslab_impl.h>
 #include <sys/dsl_prop.h>
@@ -359,6 +360,8 @@ ztest_func_t ztest_spa_upgrade;
 ztest_func_t ztest_device_removal;
 ztest_func_t ztest_remap_blocks;
 ztest_func_t ztest_spa_checkpoint_create_discard;
+ztest_func_t ztest_initialize;
+ztest_func_t ztest_initialize;
 ztest_func_t ztest_fletcher;
 ztest_func_t ztest_fletcher_incr;
 ztest_func_t ztest_verify_dnode_bt;
@@ -413,6 +416,7 @@ ztest_info_t ztest_info[] = {
 	ZTI_INIT(ztest_device_removal, 1, &zopt_sometimes),
 	ZTI_INIT(ztest_remap_blocks, 1, &zopt_sometimes),
 	ZTI_INIT(ztest_spa_checkpoint_create_discard, 1, &zopt_rarely),
+	ZTI_INIT(ztest_initialize, 1, &zopt_sometimes),
 	ZTI_INIT(ztest_fletcher, 1, &zopt_rarely),
 	ZTI_INIT(ztest_fletcher_incr, 1, &zopt_rarely),
 	ZTI_INIT(ztest_verify_dnode_bt, 1, &zopt_sometimes),
@@ -6456,6 +6460,97 @@ ztest_get_zdb_bin(char *bin, int len)
 			return;
 	}
 	strcpy(bin, "zdb");
+}
+
+static vdev_t *
+ztest_random_concrete_vdev_leaf(vdev_t *vd)
+{
+	if (vd == NULL)
+		return (NULL);
+
+	if (vd->vdev_children == 0)
+		return (vd);
+
+	vdev_t *eligible[vd->vdev_children];
+	int eligible_idx = 0, i;
+	for (i = 0; i < vd->vdev_children; i++) {
+		vdev_t *cvd = vd->vdev_child[i];
+		if (cvd->vdev_top->vdev_removing)
+			continue;
+		if (cvd->vdev_children > 0 ||
+		    (vdev_is_concrete(cvd) && !cvd->vdev_detached)) {
+			eligible[eligible_idx++] = cvd;
+		}
+	}
+	VERIFY(eligible_idx > 0);
+
+	uint64_t child_no = ztest_random(eligible_idx);
+	return (ztest_random_concrete_vdev_leaf(eligible[child_no]));
+}
+
+/* ARGSUSED */
+void
+ztest_initialize(ztest_ds_t *zd, uint64_t id)
+{
+	spa_t *spa = ztest_spa;
+	int error = 0;
+
+	mutex_enter(&ztest_vdev_lock);
+
+	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
+
+	/* Random leaf vdev */
+	vdev_t *rand_vd = ztest_random_concrete_vdev_leaf(spa->spa_root_vdev);
+	if (rand_vd == NULL) {
+		spa_config_exit(spa, SCL_VDEV, FTAG);
+		mutex_exit(&ztest_vdev_lock);
+		return;
+	}
+
+	/*
+	 * The random vdev we've selected may change as soon as we
+	 * drop the spa_config_lock. We create local copies of things
+	 * we're interested in.
+	 */
+	uint64_t guid = rand_vd->vdev_guid;
+	char *path = strdup(rand_vd->vdev_path);
+	boolean_t active = rand_vd->vdev_initialize_thread != NULL;
+
+	zfs_dbgmsg("vd %p, guid %llu", rand_vd, guid);
+	spa_config_exit(spa, SCL_VDEV, FTAG);
+
+	uint64_t cmd = ztest_random(POOL_INITIALIZE_FUNCS);
+	error = spa_vdev_initialize(spa, guid, cmd);
+	switch (cmd) {
+	case POOL_INITIALIZE_CANCEL:
+		if (ztest_opts.zo_verbose >= 4) {
+			(void) printf("Cancel initialize %s", path);
+			if (!active)
+				(void) printf(" failed (no initialize active)");
+			(void) printf("\n");
+		}
+		break;
+	case POOL_INITIALIZE_DO:
+		if (ztest_opts.zo_verbose >= 4) {
+			(void) printf("Start initialize %s", path);
+			if (active && error == 0)
+				(void) printf(" failed (already active)");
+			else if (error != 0)
+				(void) printf(" failed (error %d)", error);
+			(void) printf("\n");
+		}
+		break;
+	case POOL_INITIALIZE_SUSPEND:
+		if (ztest_opts.zo_verbose >= 4) {
+			(void) printf("Suspend initialize %s", path);
+			if (!active)
+				(void) printf(" failed (no initialize active)");
+			(void) printf("\n");
+		}
+		break;
+	}
+	free(path);
+	mutex_exit(&ztest_vdev_lock);
 }
 
 /*
