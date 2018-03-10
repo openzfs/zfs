@@ -37,7 +37,7 @@
 #
 # STRATEGY:
 #	1. Setting refquota < quota
-#	2. Create file in filesytem, take snapshot and remove the file
+#	2. Create file in filesystem, take snapshot and remove the file
 #	3. Verify snapshot will not consume refquota
 #
 
