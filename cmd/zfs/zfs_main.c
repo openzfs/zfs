@@ -1060,6 +1060,7 @@ typedef struct destroy_cbdata {
 	int64_t		cb_snapused;
 	char		*cb_snapspec;
 	char		*cb_bookmark;
+	uint64_t	cb_snap_count;
 } destroy_cbdata_t;
 
 /*
@@ -1123,10 +1124,21 @@ out:
 }
 
 static int
+destroy_batched(destroy_cbdata_t *cb)
+{
+	int error = zfs_destroy_snaps_nvl(g_zfs,
+	    cb->cb_batchedsnaps, B_FALSE);
+	fnvlist_free(cb->cb_batchedsnaps);
+	cb->cb_batchedsnaps = fnvlist_alloc();
+	return (error);
+}
+
+static int
 destroy_callback(zfs_handle_t *zhp, void *data)
 {
 	destroy_cbdata_t *cb = data;
 	const char *name = zfs_get_name(zhp);
+	int error;
 
 	if (cb->cb_verbose) {
 		if (cb->cb_parsable) {
@@ -1161,13 +1173,12 @@ destroy_callback(zfs_handle_t *zhp, void *data)
 	 * because we must delete a clone before its origin.
 	 */
 	if (zfs_get_type(zhp) == ZFS_TYPE_SNAPSHOT) {
+		cb->cb_snap_count++;
 		fnvlist_add_boolean(cb->cb_batchedsnaps, name);
+		if (cb->cb_snap_count % 10 == 0 && cb->cb_defer_destroy)
+			error = destroy_batched(cb);
 	} else {
-		int error = zfs_destroy_snaps_nvl(g_zfs,
-		    cb->cb_batchedsnaps, B_FALSE);
-		fnvlist_free(cb->cb_batchedsnaps);
-		cb->cb_batchedsnaps = fnvlist_alloc();
-
+		error = destroy_batched(cb);
 		if (error != 0 ||
 		    zfs_unmount(zhp, NULL, cb->cb_force ? MS_FORCE : 0) != 0 ||
 		    zfs_destroy(zhp, cb->cb_defer_destroy) != 0) {
@@ -1524,7 +1535,6 @@ zfs_do_destroy(int argc, char **argv)
 			rv = 1;
 			goto out;
 		}
-
 		cb.cb_batchedsnaps = fnvlist_alloc();
 		if (zfs_iter_dependents(zhp, B_FALSE, destroy_callback,
 		    &cb) != 0) {
