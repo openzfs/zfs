@@ -462,9 +462,9 @@ mmp_thread(spa_t *spa)
 			mmp_write_uberblock(spa);
 
 		CALLB_CPR_SAFE_BEGIN(&cpr);
-		(void) cv_timedwait_sig(&mmp->mmp_thread_cv,
-		    &mmp->mmp_thread_lock, ddi_get_lbolt() +
-		    ((next_time - gethrtime()) / (NANOSEC / hz)));
+		(void) cv_timedwait_sig_hires(&mmp->mmp_thread_cv,
+		    &mmp->mmp_thread_lock, next_time, USEC2NSEC(1),
+		    CALLOUT_FLAG_ABSOLUTE);
 		CALLB_CPR_SAFE_END(&cpr, &mmp->mmp_thread_lock);
 	}
 
