@@ -1715,6 +1715,20 @@ Default value: \fB3,000\fR.
 .sp
 .ne 2
 .na
+\fBzfs_scan_ignore_errors\fR (int)
+.ad
+.RS 12n
+If set to a nonzero value, remove the DTL (dirty time list) upon
+completion of a pool scan (scrub) even if there were unrepairable
+errors.  It is intended to be used during pool repair or recovery to
+stop resilvering when the pool is next imported.
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_scrub_min_time_ms\fR (int)
 .ad
 .RS 12n

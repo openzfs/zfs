@@ -67,6 +67,12 @@ unsigned int zfs_delays_per_second = 20;
 unsigned int zfs_checksums_per_second = 20;
 
 /*
+ * Ignore errors during scrub/resilver.  Allows to work around resilver
+ * upon import when there are pool errors.
+ */
+int zfs_scan_ignore_errors = 0;
+
+/*
  * Virtual device management.
  */
 
@@ -1964,6 +1970,12 @@ vdev_dtl_reassess(vdev_t *vd, uint64_t txg, uint64_t scrub_txg, int scrub_done)
 		mutex_enter(&vd->vdev_dtl_lock);
 
 		/*
+		 * If requested, pretend the scan completed cleanly.
+		 */
+		if (zfs_scan_ignore_errors && scn)
+			scn->scn_phys.scn_errors = 0;
+
+		/*
 		 * If we've completed a scan cleanly then determine
 		 * if this vdev should remove any DTLs. We only want to
 		 * excise regions on vdevs that were available during
@@ -3777,5 +3789,9 @@ module_param(zfs_checksums_per_second, uint, 0644);
 	MODULE_PARM_DESC(zfs_checksums_per_second, "Rate limit checksum events "
 	"to this many checksum errors per second (do not set below zed"
 	"threshold).");
+
+module_param(zfs_scan_ignore_errors, int, 0644);
+MODULE_PARM_DESC(zfs_scan_ignore_errors,
+	"Ignore errors during resilver/scrub");
 /* END CSTYLED */
 #endif
