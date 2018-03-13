@@ -965,13 +965,14 @@ libzfs_load_module(const char *module)
 				load = 0;
 		}
 
-		if (load && libzfs_run_process("/sbin/modprobe", argv, 0))
-			return (ENOEXEC);
-	}
+		if (load) {
+			if (libzfs_run_process("/sbin/modprobe", argv, 0))
+				return (ENOEXEC);
 
-	/* Module loading is synchronous it must be available */
-	if (!libzfs_module_loaded(module))
-		return (ENXIO);
+			if (!libzfs_module_loaded(module))
+				return (ENXIO);
+		}
+	}
 
 	/*
 	 * Device creation by udev is asynchronous and waiting may be
