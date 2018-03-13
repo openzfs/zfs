@@ -6634,10 +6634,13 @@ static const struct file_operations zfsdev_fops = {
 };
 
 static struct miscdevice zfs_misc = {
-	.minor		= MISC_DYNAMIC_MINOR,
+	.minor		= ZFS_MINOR,
 	.name		= ZFS_DRIVER,
 	.fops		= &zfsdev_fops,
 };
+
+MODULE_ALIAS_MISCDEV(ZFS_MINOR);
+MODULE_ALIAS("devname:zfs");
 
 static int
 zfs_attach(void)
@@ -6649,12 +6652,24 @@ zfs_attach(void)
 	zfsdev_state_list->zs_minor = -1;
 
 	error = misc_register(&zfs_misc);
-	if (error != 0) {
-		printk(KERN_INFO "ZFS: misc_register() failed %d\n", error);
-		return (error);
+	if (error == -EBUSY) {
+		/*
+		 * Fallback to dynamic minor allocation in the event of a
+		 * collision with a reserved minor in linux/miscdevice.h.
+		 * In this case the kernel modules must be manually loaded.
+		 */
+		printk(KERN_INFO "ZFS: misc_register() with static minor %d "
+		    "failed %d, retrying with MISC_DYNAMIC_MINOR\n",
+		    ZFS_MINOR, error);
+
+		zfs_misc.minor = MISC_DYNAMIC_MINOR;
+		error = misc_register(&zfs_misc);
 	}
 
-	return (0);
+	if (error)
+		printk(KERN_INFO "ZFS: misc_register() failed %d\n", error);
+
+	return (error);
 }
 
 static void
