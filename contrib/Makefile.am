@@ -1,2 +1,2 @@
-SUBDIRS = bash_completion.d dracut initramfs
-DIST_SUBDIRS = bash_completion.d dracut initramfs
+SUBDIRS = bash_completion.d dracut initramfs fstab-generator
+DIST_SUBDIRS = bash_completion.d dracut initramfs fstab-generator
