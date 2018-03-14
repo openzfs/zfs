@@ -803,7 +803,7 @@ vdev_queue_io_done(zio_t *zio)
 	mutex_exit(&vq->vq_lock);
 }
 
-void
+int
 vdev_queue_change_io_priority(zio_t *zio, zio_priority_t priority)
 {
 	vdev_queue_t *vq = &zio->io_vd->vdev_queue;
@@ -824,7 +824,17 @@ vdev_queue_change_io_priority(zio_t *zio, zio_priority_t priority)
 			priority = ZIO_PRIORITY_ASYNC_WRITE;
 	}
 
-	mutex_enter(&vq->vq_lock);
+	if (zio->io_priority == priority)
+		return (0);
+
+	/*
+	 * In order to avoid a potential deadlock mutex_tryenter() must
+	 * be used to acquire the vdev queue lock since we are holding the
+	 * zio io_lock.  Callers are expected to retry as appropriate when
+	 * ERESTART is returned.
+	 */
+	if (mutex_tryenter(&vq->vq_lock) == 0)
+		return (SET_ERROR(ERESTART));
 
 	/*
 	 * If the zio is in none of the queues we can simply change
@@ -843,6 +853,8 @@ vdev_queue_change_io_priority(zio_t *zio, zio_priority_t priority)
 	}
 
 	mutex_exit(&vq->vq_lock);
+
+	return (0);
 }
 
 /*
