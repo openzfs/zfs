@@ -2977,6 +2977,15 @@ receive_spill(struct receive_writer_arg *rwa, struct drr_spill *drrs,
 	if (db_spill->db_size < drrs->drr_length)
 		VERIFY(0 == dbuf_spill_set_blksz(db_spill,
 		    drrs->drr_length, tx));
+
+	if (rwa->byteswap && !arc_is_encrypted(abuf) &&
+	    arc_get_compression(abuf) == ZIO_COMPRESS_OFF) {
+		dmu_object_byteswap_t byteswap =
+		    DMU_OT_BYTESWAP(drrs->drr_type);
+		dmu_ot_byteswap[byteswap].ob_func(abuf->b_data,
+		    DRR_SPILL_PAYLOAD_SIZE(drrs));
+	}
+
 	dbuf_assign_arcbuf((dmu_buf_impl_t *)db_spill, abuf, tx);
 
 	dmu_buf_rele(db, FTAG);
