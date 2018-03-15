@@ -3571,23 +3571,17 @@ zio_vdev_io_done(zio_t *zio)
 	return (ZIO_PIPELINE_CONTINUE);
 }
 
-/*
- * This function is used to change the priority of an existing zio that is
- * currently in-flight. This is used by the arc to upgrade priority in the
- * event that a demand read is made for a block that is currently queued
- * as a scrub or async read IO. Otherwise, the high priority read request
- * would end up having to wait for the lower priority IO.
- */
-void
-zio_change_priority(zio_t *pio, zio_priority_t priority)
+static int
+zio_change_priority_impl(zio_t *pio, zio_priority_t priority)
 {
 	zio_t *cio, *cio_next;
 	zio_link_t *zl = NULL;
+	int error = 0, error2;
 
 	ASSERT3U(priority, <, ZIO_PRIORITY_NUM_QUEUEABLE);
 
 	if (pio->io_vd != NULL && pio->io_vd->vdev_ops->vdev_op_leaf) {
-		vdev_queue_change_io_priority(pio, priority);
+		return (vdev_queue_change_io_priority(pio, priority));
 	} else {
 		pio->io_priority = priority;
 	}
@@ -3595,9 +3589,31 @@ zio_change_priority(zio_t *pio, zio_priority_t priority)
 	mutex_enter(&pio->io_lock);
 	for (cio = zio_walk_children(pio, &zl); cio != NULL; cio = cio_next) {
 		cio_next = zio_walk_children(pio, &zl);
-		zio_change_priority(cio, priority);
+		if ((error2 = zio_change_priority_impl(cio, priority)) != 0)
+			error = error2;
 	}
 	mutex_exit(&pio->io_lock);
+
+	return (error);
+}
+
+/*
+ * This function is used to change the priority of an existing zio that is
+ * currently in-flight. This is used by the arc to upgrade priority in the
+ * event that a demand read is made for a block that is currently queued
+ * as a scrub or async read IO. Otherwise, the high priority read request
+ * would end up having to wait for the lower priority IO.
+ */
+int
+zio_change_priority(zio_t *pio, zio_priority_t priority)
+{
+	int error;
+
+	do {
+		error = zio_change_priority_impl(pio, priority);
+	} while (error == ERESTART);
+
+	return (error);
 }
 
 /*

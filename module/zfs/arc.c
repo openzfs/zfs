@@ -5958,7 +5958,7 @@ top:
 				 * an in-flight async read. Request that the
 				 * zio have its priority upgraded.
 				 */
-				zio_change_priority(head_zio, priority);
+				(void) zio_change_priority(head_zio, priority);
 				DTRACE_PROBE1(arc__async__upgrade__sync,
 				    arc_buf_hdr_t *, hdr);
 				ARCSTAT_BUMP(arcstat_async_upgrade_sync);
