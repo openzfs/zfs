@@ -47,11 +47,12 @@ static CpaBufferList **buffer_array[QAT_DC_MAX_INSTANCES];
 static Cpa16U num_inst = 0;
 static Cpa32U inst_num = 0;
 static boolean_t qat_dc_init_done = B_FALSE;
+int zfs_qat_compress_disable = 0;
 
 boolean_t
 qat_dc_use_accel(size_t s_len)
 {
-	return (!zfs_qat_disable &&
+	return (!zfs_qat_compress_disable &&
 	    qat_dc_init_done &&
 	    s_len >= QAT_MIN_BUF_SIZE &&
 	    s_len <= QAT_MAX_BUF_SIZE);
@@ -470,5 +471,8 @@ fail:
 
 	return (ret);
 }
+
+module_param(zfs_qat_compress_disable, int, 0644);
+MODULE_PARM_DESC(zfs_qat_compress_disable, "Disable QAT compression");
 
 #endif
