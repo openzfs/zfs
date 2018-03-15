@@ -520,7 +520,7 @@ mmp_thread(void *arg)
 			    "succeeded in over %llus; suspending pool",
 			    spa_name(spa),
 			    NSEC2SEC(start - mmp->mmp_last_write));
-			zio_suspend(spa, NULL);
+			zio_suspend(spa, NULL, ZIO_SUSPEND_MMP);
 		}
 
 		if (multihost && !suspended)
