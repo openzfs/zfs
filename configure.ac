@@ -205,6 +205,7 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/cli_root/zfs_load-key/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zfs/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zfs_mount/Makefile
+	tests/zfs-tests/tests/functional/cli_root/zfs_program/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zfs_promote/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zfs_property/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zfs_receive/Makefile

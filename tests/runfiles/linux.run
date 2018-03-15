@@ -177,6 +177,10 @@ tests = ['zfs_mount_001_pos', 'zfs_mount_002_pos', 'zfs_mount_003_pos',
     'zfs_mount_encrypted', 'zfs_mount_remount']
 tags = ['functional', 'cli_root', 'zfs_mount']
 
+[tests/functional/cli_root/zfs_program]
+tests = ['zfs_program_json']
+tags = ['functional', 'cli_root', 'zfs_program']
+
 [tests/functional/cli_root/zfs_promote]
 tests = ['zfs_promote_001_pos', 'zfs_promote_002_pos', 'zfs_promote_003_pos',
     'zfs_promote_004_pos', 'zfs_promote_005_pos', 'zfs_promote_006_neg',
