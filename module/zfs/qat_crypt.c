@@ -266,13 +266,11 @@ qat_init_cy_buffer_lists(CpaInstanceHandle inst_handle, uint32_t nr_bufs,
 	if (status != CPA_STATUS_SUCCESS)
 		return (status);
 
-	src->numBuffers = nr_bufs;
 	status = QAT_PHYS_CONTIG_ALLOC(&src->pPrivateMetaData, meta_size);
 	if (status != CPA_STATUS_SUCCESS)
 		goto error;
 
 	if (src != dst) {
-		dst->numBuffers = nr_bufs;
 		status = QAT_PHYS_CONTIG_ALLOC(&dst->pPrivateMetaData,
 		    meta_size);
 		if (status != CPA_STATUS_SUCCESS)
@@ -297,10 +295,9 @@ qat_crypt(qat_encrypt_dir_t dir, uint8_t *src_buf, uint8_t *dst_buf,
 	CpaStatus status = CPA_STATUS_SUCCESS;
 	Cpa16U i;
 	CpaInstanceHandle cy_inst_handle;
-	Cpa16U nr_bufs = (enc_len + PAGE_CACHE_SIZE - 1) / PAGE_CACHE_SIZE;
+	Cpa16U nr_bufs = (enc_len >> PAGE_SHIFT) + 2;
 	Cpa32U bytes_left = 0;
-	Cpa8S *in = NULL;
-	Cpa8S *out = NULL;
+	Cpa8S *data = NULL;
 	CpaCySymSessionCtx *cy_session_ctx = NULL;
 	cy_callback_t cb;
 	CpaCySymOpData op_data = { 0 };
@@ -312,7 +309,8 @@ qat_crypt(qat_encrypt_dir_t dir, uint8_t *src_buf, uint8_t *dst_buf,
 	CpaFlatBuffer *flat_dst_buf = NULL;
 	struct page *in_pages[MAX_PAGE_NUM];
 	struct page *out_pages[MAX_PAGE_NUM];
-	Cpa32S page_num = 0;
+	Cpa32U in_page_num = 0;
+	Cpa32U out_page_num = 0;
 	Cpa32U in_page_off = 0;
 	Cpa32U out_page_off = 0;
 
@@ -336,6 +334,11 @@ qat_crypt(qat_encrypt_dir_t dir, uint8_t *src_buf, uint8_t *dst_buf,
 		return (status);
 	}
 
+	/*
+	 * We increment nr_bufs by 2 to allow us to handle non
+	 * page-aligned buffer addresses and buffers whose sizes
+	 * are not divisible by PAGE_SIZE.
+	 */
 	status = qat_init_cy_buffer_lists(cy_inst_handle, nr_bufs,
 	    &src_buffer_list, &dst_buffer_list);
 	if (status != CPA_STATUS_SUCCESS)
@@ -351,30 +354,39 @@ qat_crypt(qat_encrypt_dir_t dir, uint8_t *src_buf, uint8_t *dst_buf,
 		goto fail;
 
 	bytes_left = enc_len;
-	in = src_buf;
-	out = dst_buf;
+	data = src_buf;
 	flat_src_buf = flat_src_buf_array;
-	flat_dst_buf = flat_dst_buf_array;
 	while (bytes_left > 0) {
-		in_page_off = ((long)in & ~PAGE_MASK);
-		out_page_off = ((long)out & ~PAGE_MASK);
-		in_pages[page_num] = qat_mem_to_page(in);
-		out_pages[page_num] = qat_mem_to_page(out);
-		flat_src_buf->pData = kmap(in_pages[page_num]) + in_page_off;
-		flat_dst_buf->pData = kmap(out_pages[page_num]) + out_page_off;
+		in_page_off = ((long)data & ~PAGE_MASK);
+		in_pages[in_page_num] = qat_mem_to_page(data);
+		flat_src_buf->pData = kmap(in_pages[in_page_num]) + in_page_off;
 		flat_src_buf->dataLenInBytes =
-		    min((long)PAGE_CACHE_SIZE - in_page_off, (long)bytes_left);
-		flat_dst_buf->dataLenInBytes =
-		    min((long)PAGE_CACHE_SIZE - out_page_off, (long)bytes_left);
-		in += flat_src_buf->dataLenInBytes;
-		out += flat_dst_buf->dataLenInBytes;
+		    min((long)PAGE_SIZE - in_page_off, (long)bytes_left);
+		data += flat_src_buf->dataLenInBytes;
 		bytes_left -= flat_src_buf->dataLenInBytes;
 		flat_src_buf++;
-		flat_dst_buf++;
-		page_num++;
+		in_page_num++;
 	}
 	src_buffer_list.pBuffers = flat_src_buf_array;
+	src_buffer_list.numBuffers = in_page_num;
+
+	bytes_left = enc_len;
+	data = dst_buf;
+	flat_dst_buf = flat_dst_buf_array;
+	while (bytes_left > 0) {
+		out_page_off = ((long)data & ~PAGE_MASK);
+		out_pages[out_page_num] = qat_mem_to_page(data);
+		flat_dst_buf->pData = kmap(out_pages[out_page_num]) +
+		    out_page_off;
+		flat_dst_buf->dataLenInBytes =
+		    min((long)PAGE_SIZE - out_page_off, (long)bytes_left);
+		data += flat_dst_buf->dataLenInBytes;
+		bytes_left -= flat_dst_buf->dataLenInBytes;
+		flat_dst_buf++;
+		out_page_num++;
+	}
 	dst_buffer_list.pBuffers = flat_dst_buf_array;
+	dst_buffer_list.numBuffers = out_page_num;
 
 	op_data.sessionCtx = cy_session_ctx;
 	op_data.packetType = CPA_CY_SYM_PACKET_TYPE_FULL;
@@ -418,10 +430,10 @@ fail:
 	if (status != CPA_STATUS_SUCCESS)
 		QAT_STAT_BUMP(crypt_fails);
 
-	for (i = 0; i < page_num; i++) {
+	for (i = 0; i < in_page_num; i++)
 		kunmap(in_pages[i]);
+	for (i = 0; i < out_page_num; i++)
 		kunmap(out_pages[i]);
-	}
 
 	cpaCySymRemoveSession(cy_inst_handle, cy_session_ctx);
 	QAT_PHYS_CONTIG_FREE(src_buffer_list.pPrivateMetaData);
@@ -439,7 +451,7 @@ qat_checksum(uint64_t cksum, uint8_t *buf, uint64_t size, zio_cksum_t *zcp)
 	CpaStatus status;
 	Cpa16U i;
 	CpaInstanceHandle cy_inst_handle;
-	Cpa16U nr_bufs = (size + PAGE_CACHE_SIZE - 1) / PAGE_CACHE_SIZE;
+	Cpa16U nr_bufs = (size >> PAGE_SHIFT) + 2;
 	Cpa32U bytes_left = 0;
 	Cpa8S *data = NULL;
 	CpaCySymSessionCtx *cy_session_ctx = NULL;
@@ -450,7 +462,7 @@ qat_checksum(uint64_t cksum, uint8_t *buf, uint64_t size, zio_cksum_t *zcp)
 	CpaFlatBuffer *flat_src_buf_array = NULL;
 	CpaFlatBuffer *flat_src_buf = NULL;
 	struct page *in_pages[MAX_PAGE_NUM];
-	Cpa32S page_num = 0;
+	Cpa32U page_num = 0;
 	Cpa32U page_off = 0;
 
 	QAT_STAT_BUMP(cksum_requests);
@@ -469,6 +481,11 @@ qat_checksum(uint64_t cksum, uint8_t *buf, uint64_t size, zio_cksum_t *zcp)
 		return (status);
 	}
 
+	/*
+	 * We increment nr_bufs by 2 to allow us to handle non
+	 * page-aligned buffer addresses and buffers whose sizes
+	 * are not divisible by PAGE_SIZE.
+	 */
 	status = qat_init_cy_buffer_lists(cy_inst_handle, nr_bufs,
 	    &src_buffer_list, &src_buffer_list);
 	if (status != CPA_STATUS_SUCCESS)
@@ -487,13 +504,14 @@ qat_checksum(uint64_t cksum, uint8_t *buf, uint64_t size, zio_cksum_t *zcp)
 		in_pages[page_num] = qat_mem_to_page(data);
 		flat_src_buf->pData = kmap(in_pages[page_num]) + page_off;
 		flat_src_buf->dataLenInBytes =
-		    min((long)PAGE_CACHE_SIZE - page_off, (long)bytes_left);
+		    min((long)PAGE_SIZE - page_off, (long)bytes_left);
 		data += flat_src_buf->dataLenInBytes;
 		bytes_left -= flat_src_buf->dataLenInBytes;
 		flat_src_buf++;
 		page_num++;
 	}
 	src_buffer_list.pBuffers = flat_src_buf_array;
+	src_buffer_list.numBuffers = page_num;
 
 	op_data.sessionCtx = cy_session_ctx;
 	op_data.packetType = CPA_CY_SYM_PACKET_TYPE_FULL;

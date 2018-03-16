@@ -241,18 +241,24 @@ qat_compress(qat_compress_dir_t dir, char *src, int src_len,
 	CpaStatus status = CPA_STATUS_SUCCESS;
 	Cpa32U hdr_sz = 0;
 	Cpa32U compressed_sz;
-	Cpa32U num_src_buf = (src_len >> PAGE_SHIFT) + 1;
-	Cpa32U num_dst_buf = (dst_len >> PAGE_SHIFT) + 1;
+	Cpa32U num_src_buf = (src_len >> PAGE_SHIFT) + 2;
+	Cpa32U num_dst_buf = (dst_len >> PAGE_SHIFT) + 2;
 	Cpa32U bytes_left;
 	char *data;
 	struct page *in_page, *out_page;
 	struct page **in_pages = NULL;
 	struct page **out_pages = NULL;
+	Cpa32U page_off = 0;
 	struct completion complete;
 	size_t ret = -1;
-	Cpa16U page_num = 0;
+	Cpa32U page_num = 0;
 	Cpa16U i;
 
+	/*
+	 * We increment num_src_buf and num_dst_buf by 2 to allow
+	 * us to handle non page-aligned buffer addresses and buffers
+	 * whose sizes are not divisible by PAGE_SIZE.
+	 */
 	Cpa32U src_buffer_list_mem_size = sizeof (CpaBufferList) +
 	    (num_src_buf * sizeof (CpaFlatBuffer));
 	Cpa32U dst_buffer_list_mem_size = sizeof (CpaBufferList) +
@@ -306,11 +312,12 @@ qat_compress(qat_compress_dir_t dir, char *src, int src_len,
 	data = src;
 	page_num = 0;
 	while (bytes_left > 0) {
+		page_off = ((long)data & ~PAGE_MASK);
 		in_page = qat_mem_to_page(data);
 		in_pages[page_num] = in_page;
-		flat_buf_src->pData = kmap(in_page);
+		flat_buf_src->pData = kmap(in_page) + page_off;
 		flat_buf_src->dataLenInBytes =
-		    min((long)bytes_left, (long)PAGE_SIZE);
+		    min((long)PAGE_SIZE - page_off, (long)bytes_left);
 
 		bytes_left -= flat_buf_src->dataLenInBytes;
 		data += flat_buf_src->dataLenInBytes;
@@ -325,11 +332,12 @@ qat_compress(qat_compress_dir_t dir, char *src, int src_len,
 	data = dst;
 	page_num = 0;
 	while (bytes_left > 0) {
+		page_off = ((long)data & ~PAGE_MASK);
 		out_page = qat_mem_to_page(data);
-		flat_buf_dst->pData = kmap(out_page);
+		flat_buf_dst->pData = kmap(out_page) + page_off;
 		out_pages[page_num] = out_page;
 		flat_buf_dst->dataLenInBytes =
-		    min((long)bytes_left, (long)PAGE_SIZE);
+		    min((long)PAGE_SIZE - page_off, (long)bytes_left);
 
 		bytes_left -= flat_buf_dst->dataLenInBytes;
 		data += flat_buf_dst->dataLenInBytes;
