@@ -110,6 +110,7 @@ if [ "$VERBOSE" = "yes" ]; then
 	echo "udevruledir:      $INSTALL_UDEV_RULE_DIR"
 	echo "mounthelperdir:   $INSTALL_MOUNT_HELPER_DIR"
 	echo "sysconfdir:       $INSTALL_SYSCONF_DIR"
+	echo "pythonsitedir:    $INSTALL_PYTHON_DIR"
 	echo "dryrun:           $DRYRUN"
 	echo
 fi
@@ -165,6 +166,16 @@ if [ "${INSTALL}" = "yes" ]; then
 	    "$INSTALL_UDEV_RULE_DIR/90-zfs.rules"
 	install "$CMD_DIR/zpool/zpool.d" \
 	    "$INSTALL_SYSCONF_DIR/zfs/zpool.d"
+	install "$CONTRIB_DIR/pyzfs/libzfs_core" \
+	    "$INSTALL_PYTHON_DIR/libzfs_core"
+	# Ideally we would install these in the configured ${libdir}, which is
+	# by default "/usr/local/lib and unfortunately not included in the
+	# dynamic linker search path.
+	install "$(find "$LIB_DIR/libzfs_core" -type f -name 'libzfs_core.so*')" \
+	    "/lib/libzfs_core.so"
+	install "$(find "$LIB_DIR/libnvpair" -type f -name 'libnvpair.so*')" \
+	    "/lib/libnvpair.so"
+	ldconfig
 else
 	remove "$INSTALL_MOUNT_HELPER_DIR/mount.zfs"
 	remove "$INSTALL_MOUNT_HELPER_DIR/fsck.zfs"
@@ -174,6 +185,10 @@ else
 	remove "$INSTALL_UDEV_RULE_DIR/69-vdev.rules"
 	remove "$INSTALL_UDEV_RULE_DIR/90-zfs.rules"
 	remove "$INSTALL_SYSCONF_DIR/zfs/zpool.d"
+	remove "$INSTALL_PYTHON_DIR/libzfs_core"
+	remove "/lib/libzfs_core.so"
+	remove "/lib/libnvpair.so"
+	ldconfig
 fi
 
 exit 0

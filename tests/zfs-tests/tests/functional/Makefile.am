@@ -30,6 +30,7 @@ SUBDIRS = \
 	large_files \
 	largest_pool \
 	libzfs \
+	pyzfs \
 	link_count \
 	migration \
 	mmap \

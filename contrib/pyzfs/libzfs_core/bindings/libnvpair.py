@@ -1,4 +1,18 @@
-# Copyright 2015 ClusterHQ. See LICENSE file for details.
+#
+# Copyright 2015 ClusterHQ
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 
 """
 Python bindings for ``libnvpair``.
@@ -64,7 +78,8 @@ CDEF = """
     int nvlist_add_uint64(nvlist_t *, const char *, uint64_t);
     int nvlist_add_string(nvlist_t *, const char *, const char *);
     int nvlist_add_nvlist(nvlist_t *, const char *, nvlist_t *);
-    int nvlist_add_boolean_array(nvlist_t *, const char *, boolean_t *, uint_t);
+    int nvlist_add_boolean_array(nvlist_t *, const char *, boolean_t *,
+        uint_t);
     int nvlist_add_byte_array(nvlist_t *, const char *, uchar_t *, uint_t);
     int nvlist_add_int8_array(nvlist_t *, const char *, int8_t *, uint_t);
     int nvlist_add_uint8_array(nvlist_t *, const char *, uint8_t *, uint_t);
@@ -74,7 +89,8 @@ CDEF = """
     int nvlist_add_uint32_array(nvlist_t *, const char *, uint32_t *, uint_t);
     int nvlist_add_int64_array(nvlist_t *, const char *, int64_t *, uint_t);
     int nvlist_add_uint64_array(nvlist_t *, const char *, uint64_t *, uint_t);
-    int nvlist_add_string_array(nvlist_t *, const char *, char *const *, uint_t);
+    int nvlist_add_string_array(nvlist_t *, const char *, char *const *,
+        uint_t);
     int nvlist_add_nvlist_array(nvlist_t *, const char *, nvlist_t **, uint_t);
 
     nvpair_t *nvlist_next_nvpair(nvlist_t *, nvpair_t *);

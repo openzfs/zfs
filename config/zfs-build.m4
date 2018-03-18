@@ -103,6 +103,7 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS], [
 	ZFS_AC_CONFIG_ALWAYS_CC_ASAN
 	ZFS_AC_CONFIG_ALWAYS_TOOLCHAIN_SIMD
 	ZFS_AC_CONFIG_ALWAYS_ARCH
+	ZFS_AC_CONFIG_ALWAYS_PYZFS
 ])
 
 AC_DEFUN([ZFS_AC_CONFIG], [
@@ -204,6 +205,7 @@ AC_DEFUN([ZFS_AC_RPM], [
 	])
 	RPM_DEFINE_UTIL+=' $(DEFINE_INITRAMFS)'
 	RPM_DEFINE_UTIL+=' $(DEFINE_SYSTEMD)'
+	RPM_DEFINE_UTIL+=' $(DEFINE_PYZFS)'
 
 	dnl # Override default lib directory on Debian/Ubuntu systems.  The provided
 	dnl # /usr/lib/rpm/platform/<arch>/macros files do not specify the correct
