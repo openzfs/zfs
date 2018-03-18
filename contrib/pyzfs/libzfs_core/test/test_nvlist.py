@@ -1,4 +1,18 @@
-# Copyright 2015 ClusterHQ. See LICENSE file for details.
+#
+# Copyright 2015 ClusterHQ
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 
 """
 Tests for _nvlist module.
@@ -27,16 +41,21 @@ class TestNVList(unittest.TestCase):
         return res
 
     def _assertIntDictsEqual(self, dict1, dict2):
-        self.assertEqual(len(dict1), len(dict1), "resulting dictionary is of different size")
+        self.assertEqual(
+            len(dict1), len(dict1),
+            "resulting dictionary is of different size")
         for key in dict1.keys():
             self.assertEqual(int(dict1[key]), int(dict2[key]))
 
     def _assertIntArrayDictsEqual(self, dict1, dict2):
-        self.assertEqual(len(dict1), len(dict1), "resulting dictionary is of different size")
+        self.assertEqual(
+            len(dict1), len(dict1),
+            "resulting dictionary is of different size")
         for key in dict1.keys():
             val1 = dict1[key]
             val2 = dict2[key]
-            self.assertEqual(len(val1), len(val2), "array values of different sizes")
+            self.assertEqual(
+                len(val1), len(val2), "array values of different sizes")
             for x, y in zip(val1, val2):
                 self.assertEqual(int(x), int(y))
 
@@ -455,7 +474,8 @@ class TestNVList(unittest.TestCase):
             self._dict_to_nvlist_to_dict(props)
 
     def test_explict_int64_array(self):
-        props = {"key": [int64_t(0), int64_t(1), int64_t(2 ** 63 - 1), int64_t(-(2 ** 63))]}
+        props = {"key": [
+            int64_t(0), int64_t(1), int64_t(2 ** 63 - 1), int64_t(-(2 ** 63))]}
         res = self._dict_to_nvlist_to_dict(props)
         self._assertIntArrayDictsEqual(props, res)
 
@@ -470,7 +490,8 @@ class TestNVList(unittest.TestCase):
             self._dict_to_nvlist_to_dict(props)
 
     def test_explict_int32_array(self):
-        props = {"key": [int32_t(0), int32_t(1), int32_t(2 ** 31 - 1), int32_t(-(2 ** 31))]}
+        props = {"key": [
+            int32_t(0), int32_t(1), int32_t(2 ** 31 - 1), int32_t(-(2 ** 31))]}
         res = self._dict_to_nvlist_to_dict(props)
         self._assertIntArrayDictsEqual(props, res)
 
@@ -485,7 +506,8 @@ class TestNVList(unittest.TestCase):
             self._dict_to_nvlist_to_dict(props)
 
     def test_explict_int16_array(self):
-        props = {"key": [int16_t(0), int16_t(1), int16_t(2 ** 15 - 1), int16_t(-(2 ** 15))]}
+        props = {"key": [
+            int16_t(0), int16_t(1), int16_t(2 ** 15 - 1), int16_t(-(2 ** 15))]}
         res = self._dict_to_nvlist_to_dict(props)
         self._assertIntArrayDictsEqual(props, res)
 
@@ -500,7 +522,8 @@ class TestNVList(unittest.TestCase):
             self._dict_to_nvlist_to_dict(props)
 
     def test_explict_int8_array(self):
-        props = {"key": [int8_t(0), int8_t(1), int8_t(2 ** 7 - 1), int8_t(-(2 ** 7))]}
+        props = {"key": [
+            int8_t(0), int8_t(1), int8_t(2 ** 7 - 1), int8_t(-(2 ** 7))]}
         res = self._dict_to_nvlist_to_dict(props)
         self._assertIntArrayDictsEqual(props, res)
 

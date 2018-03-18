@@ -1,4 +1,18 @@
-# Copyright 2015 ClusterHQ. See LICENSE file for details.
+#
+# Copyright 2015 ClusterHQ
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 
 """
 Utility functions for casting to a specific C type.
@@ -25,16 +39,16 @@ def _ffi_cast(type_name):
     return _func
 
 
-uint8_t =       _ffi_cast('uint8_t')
-int8_t =        _ffi_cast('int8_t')
-uint16_t =      _ffi_cast('uint16_t')
-int16_t =       _ffi_cast('int16_t')
-uint32_t =      _ffi_cast('uint32_t')
-int32_t =       _ffi_cast('int32_t')
-uint64_t =      _ffi_cast('uint64_t')
-int64_t =       _ffi_cast('int64_t')
-boolean_t =     _ffi_cast('boolean_t')
-uchar_t =       _ffi_cast('uchar_t')
+uint8_t = _ffi_cast('uint8_t')
+int8_t = _ffi_cast('int8_t')
+uint16_t = _ffi_cast('uint16_t')
+int16_t = _ffi_cast('int16_t')
+uint32_t = _ffi_cast('uint32_t')
+int32_t = _ffi_cast('int32_t')
+uint64_t = _ffi_cast('uint64_t')
+int64_t = _ffi_cast('int64_t')
+boolean_t = _ffi_cast('boolean_t')
+uchar_t = _ffi_cast('uchar_t')
 
 
 # First element of the value tuple is a suffix for a single value function

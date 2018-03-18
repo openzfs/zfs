@@ -31,11 +31,14 @@ export ZEDLET_ETC_DIR=$$CMD_DIR/zed/zed.d
 export ZEDLET_LIBEXEC_DIR=$$CMD_DIR/zed/zed.d
 export ZPOOL_SCRIPT_DIR=$$CMD_DIR/zpool/zpool.d
 export ZPOOL_SCRIPTS_PATH=$$CMD_DIR/zpool/zpool.d
+export CONTRIB_DIR=@abs_top_builddir@/contrib
+export LIB_DIR=@abs_top_builddir@/lib
 
 export INSTALL_UDEV_DIR=@udevdir@
 export INSTALL_UDEV_RULE_DIR=@udevruledir@
 export INSTALL_MOUNT_HELPER_DIR=@mounthelperdir@
 export INSTALL_SYSCONF_DIR=@sysconfdir@
+export INSTALL_PYTHON_DIR=@pythonsitedir@
 
 export KMOD_SPL=@SPL_OBJ@/module/spl/spl.ko
 export KMOD_SPLAT=@SPL_OBJ@/module/splat/splat.ko

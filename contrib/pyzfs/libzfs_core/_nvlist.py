@@ -1,4 +1,18 @@
-# Copyright 2015 ClusterHQ. See LICENSE file for details.
+#
+# Copyright 2015 ClusterHQ
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 
 """
 nvlist_in and nvlist_out provide support for converting between
@@ -19,14 +33,17 @@ will follow the same format.
 
 Format:
 - keys are always byte strings
-- a value can be None in which case it represents boolean truth by its mere presence
+- a value can be None in which case it represents boolean truth by its mere
+    presence
 - a value can be a bool
 - a value can be a byte string
 - a value can be an integer
 - a value can be a CFFI CData object representing one of the following C types:
-    int8_t, uint8_t, int16_t, uint16_t, int32_t, uint32_t, int64_t, uint64_t, boolean_t, uchar_t
+    int8_t, uint8_t, int16_t, uint16_t, int32_t, uint32_t, int64_t, uint64_t,
+    boolean_t, uchar_t
 - a value can be a dictionary that recursively adheres to this format
-- a value can be a list of bools, byte strings, integers or CData objects of types specified above
+- a value can be a list of bools, byte strings, integers or CData objects of
+    types specified above
 - a value can be a list of dictionaries that adhere to this format
 - all elements of a list value must be of the same type
 """
@@ -70,7 +87,8 @@ def nvlist_out(props):
     and also populates the 'props' dictionary with data from the nvlist_t
     upon leaving the 'with' block.
 
-    :param dict props: the dictionary to be populated with data from the nvlist.
+    :param dict props: the dictionary to be populated with data from the
+        nvlist.
     :return: an FFI CData object representing the pointer to nvlist_t pointer.
     :rtype: CData
     """
@@ -87,38 +105,57 @@ def nvlist_out(props):
             nvlistp[0] = _ffi.NULL
 
 
+def packed_nvlist_out(packed_nvlist, packed_size):
+    """
+    This function converts a packed C nvlist_t to a python dictionary and
+    provides automatic memory management for the former.
+
+    :param bytes packed_nvlist: packed nvlist_t.
+    :param int packed_size: nvlist_t packed size.
+    :return: an `dict` of values representing the data containted by nvlist_t.
+    :rtype: dict
+    """
+    props = {}
+    with nvlist_out(props) as nvp:
+        ret = _lib.nvlist_unpack(packed_nvlist, packed_size, nvp, 0)
+    if ret != 0:
+        raise MemoryError('nvlist_unpack failed')
+    return props
+
+
 _TypeInfo = namedtuple('_TypeInfo', ['suffix', 'ctype', 'is_array', 'convert'])
 
 
 def _type_info(typeid):
     return {
         _lib.DATA_TYPE_BOOLEAN:         _TypeInfo(None, None, None, None),
-        _lib.DATA_TYPE_BOOLEAN_VALUE:   _TypeInfo("boolean_value", "boolean_t *", False, bool),
-        _lib.DATA_TYPE_BYTE:            _TypeInfo("byte", "uchar_t *", False, int),
-        _lib.DATA_TYPE_INT8:            _TypeInfo("int8", "int8_t *", False, int),
-        _lib.DATA_TYPE_UINT8:           _TypeInfo("uint8", "uint8_t *", False, int),
-        _lib.DATA_TYPE_INT16:           _TypeInfo("int16", "int16_t *", False, int),
-        _lib.DATA_TYPE_UINT16:          _TypeInfo("uint16", "uint16_t *", False, int),
-        _lib.DATA_TYPE_INT32:           _TypeInfo("int32", "int32_t *", False, int),
-        _lib.DATA_TYPE_UINT32:          _TypeInfo("uint32", "uint32_t *", False, int),
-        _lib.DATA_TYPE_INT64:           _TypeInfo("int64", "int64_t *", False, int),
-        _lib.DATA_TYPE_UINT64:          _TypeInfo("uint64", "uint64_t *", False, int),
-        _lib.DATA_TYPE_STRING:          _TypeInfo("string", "char **", False, _ffi.string),
-        _lib.DATA_TYPE_NVLIST:          _TypeInfo("nvlist", "nvlist_t **", False, lambda x: _nvlist_to_dict(x, {})),
-        _lib.DATA_TYPE_BOOLEAN_ARRAY:   _TypeInfo("boolean_array", "boolean_t **", True, bool),
+        _lib.DATA_TYPE_BOOLEAN_VALUE:   _TypeInfo("boolean_value", "boolean_t *", False, bool),  # noqa: E501
+        _lib.DATA_TYPE_BYTE:            _TypeInfo("byte", "uchar_t *", False, int),  # noqa: E501
+        _lib.DATA_TYPE_INT8:            _TypeInfo("int8", "int8_t *", False, int),  # noqa: E501
+        _lib.DATA_TYPE_UINT8:           _TypeInfo("uint8", "uint8_t *", False, int),  # noqa: E501
+        _lib.DATA_TYPE_INT16:           _TypeInfo("int16", "int16_t *", False, int),  # noqa: E501
+        _lib.DATA_TYPE_UINT16:          _TypeInfo("uint16", "uint16_t *", False, int),  # noqa: E501
+        _lib.DATA_TYPE_INT32:           _TypeInfo("int32", "int32_t *", False, int),  # noqa: E501
+        _lib.DATA_TYPE_UINT32:          _TypeInfo("uint32", "uint32_t *", False, int),  # noqa: E501
+        _lib.DATA_TYPE_INT64:           _TypeInfo("int64", "int64_t *", False, int),  # noqa: E501
+        _lib.DATA_TYPE_UINT64:          _TypeInfo("uint64", "uint64_t *", False, int),  # noqa: E501
+        _lib.DATA_TYPE_STRING:          _TypeInfo("string", "char **", False, _ffi.string),  # noqa: E501
+        _lib.DATA_TYPE_NVLIST:          _TypeInfo("nvlist", "nvlist_t **", False, lambda x: _nvlist_to_dict(x, {})),  # noqa: E501
+        _lib.DATA_TYPE_BOOLEAN_ARRAY:   _TypeInfo("boolean_array", "boolean_t **", True, bool),  # noqa: E501
         # XXX use bytearray ?
-        _lib.DATA_TYPE_BYTE_ARRAY:      _TypeInfo("byte_array", "uchar_t **", True, int),
-        _lib.DATA_TYPE_INT8_ARRAY:      _TypeInfo("int8_array", "int8_t **", True, int),
-        _lib.DATA_TYPE_UINT8_ARRAY:     _TypeInfo("uint8_array", "uint8_t **", True, int),
-        _lib.DATA_TYPE_INT16_ARRAY:     _TypeInfo("int16_array", "int16_t **", True, int),
-        _lib.DATA_TYPE_UINT16_ARRAY:    _TypeInfo("uint16_array", "uint16_t **", True, int),
-        _lib.DATA_TYPE_INT32_ARRAY:     _TypeInfo("int32_array", "int32_t **", True, int),
-        _lib.DATA_TYPE_UINT32_ARRAY:    _TypeInfo("uint32_array", "uint32_t **", True, int),
-        _lib.DATA_TYPE_INT64_ARRAY:     _TypeInfo("int64_array", "int64_t **", True, int),
-        _lib.DATA_TYPE_UINT64_ARRAY:    _TypeInfo("uint64_array", "uint64_t **", True, int),
-        _lib.DATA_TYPE_STRING_ARRAY:    _TypeInfo("string_array", "char ***", True, _ffi.string),
-        _lib.DATA_TYPE_NVLIST_ARRAY:    _TypeInfo("nvlist_array", "nvlist_t ***", True, lambda x: _nvlist_to_dict(x, {})),
+        _lib.DATA_TYPE_BYTE_ARRAY:      _TypeInfo("byte_array", "uchar_t **", True, int),  # noqa: E501
+        _lib.DATA_TYPE_INT8_ARRAY:      _TypeInfo("int8_array", "int8_t **", True, int),  # noqa: E501
+        _lib.DATA_TYPE_UINT8_ARRAY:     _TypeInfo("uint8_array", "uint8_t **", True, int),  # noqa: E501
+        _lib.DATA_TYPE_INT16_ARRAY:     _TypeInfo("int16_array", "int16_t **", True, int),  # noqa: E501
+        _lib.DATA_TYPE_UINT16_ARRAY:    _TypeInfo("uint16_array", "uint16_t **", True, int),  # noqa: E501
+        _lib.DATA_TYPE_INT32_ARRAY:     _TypeInfo("int32_array", "int32_t **", True, int),  # noqa: E501
+        _lib.DATA_TYPE_UINT32_ARRAY:    _TypeInfo("uint32_array", "uint32_t **", True, int),  # noqa: E501
+        _lib.DATA_TYPE_INT64_ARRAY:     _TypeInfo("int64_array", "int64_t **", True, int),  # noqa: E501
+        _lib.DATA_TYPE_UINT64_ARRAY:    _TypeInfo("uint64_array", "uint64_t **", True, int),  # noqa: E501
+        _lib.DATA_TYPE_STRING_ARRAY:    _TypeInfo("string_array", "char ***", True, _ffi.string),  # noqa: E501
+        _lib.DATA_TYPE_NVLIST_ARRAY:    _TypeInfo("nvlist_array", "nvlist_t ***", True, lambda x: _nvlist_to_dict(x, {})),  # noqa: E501
     }[typeid]
+
 
 # only integer properties need to be here
 _prop_name_to_type_str = {
@@ -180,7 +217,8 @@ def _nvlist_add_array(nvlist, key, array):
         suffix = _prop_name_to_type_str.get(key, "uint64")
         cfunc = getattr(_lib, "nvlist_add_%s_array" % (suffix,))
         ret = cfunc(nvlist, key, array, len(array))
-    elif isinstance(specimen, _ffi.CData) and _ffi.typeof(specimen) in _type_to_suffix:
+    elif isinstance(
+            specimen, _ffi.CData) and _ffi.typeof(specimen) in _type_to_suffix:
         suffix = _type_to_suffix[_ffi.typeof(specimen)][True]
         cfunc = getattr(_lib, "nvlist_add_%s_array" % (suffix,))
         ret = cfunc(nvlist, key, array, len(array))
@@ -196,10 +234,7 @@ def _nvlist_to_dict(nvlist, props):
         name = _ffi.string(_lib.nvpair_name(pair))
         typeid = int(_lib.nvpair_type(pair))
         typeinfo = _type_info(typeid)
-        # XXX nvpair_type_is_array() is broken for  DATA_TYPE_INT8_ARRAY at the moment
-        # see https://www.illumos.org/issues/5778
-        # is_array = bool(_lib.nvpair_type_is_array(pair))
-        is_array = typeinfo.is_array
+        is_array = bool(_lib.nvpair_type_is_array(pair))
         cfunc = getattr(_lib, "nvpair_value_%s" % (typeinfo.suffix,), None)
         val = None
         ret = 0

@@ -1,4 +1,18 @@
-# Copyright 2015 ClusterHQ. See LICENSE file for details.
+#
+# Copyright 2015 ClusterHQ
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 
 """
 Tests for `libzfs_core` operations.
@@ -21,8 +35,11 @@ import subprocess
 import tempfile
 import time
 import uuid
+import itertools
+import zlib
 from .. import _libzfs_core as lzc
 from .. import exceptions as lzc_exc
+from .._nvlist import packed_nvlist_out
 
 
 def _print(*args):
@@ -186,6 +203,23 @@ def streams(fs, first, second):
             yield (filename, (full, None))
 
 
+@contextlib.contextmanager
+def encrypted_filesystem():
+    fs = ZFSTest.pool.getFilesystem("encrypted")
+    name = fs.getName()
+    filename = None
+    key = os.urandom(lzc.WRAPPING_KEY_LEN)
+    with tempfile.NamedTemporaryFile() as f:
+        filename = "file://" + f.name
+        props = {
+            "encryption": lzc.zio_encrypt.ZIO_CRYPT_AES_256_CCM,
+            "keylocation": filename,
+            "keyformat": lzc.zfs_keyformat.ZFS_KEYFORMAT_RAW,
+        }
+        lzc.lzc_create(name, 'zfs', props=props, key=key)
+    yield (name, key)
+
+
 def runtimeSkipIf(check_method, message):
     def _decorator(f):
         def _f(_self, *args, **kwargs):
@@ -199,32 +233,41 @@ def runtimeSkipIf(check_method, message):
 
 
 def skipIfFeatureAvailable(feature, message):
-    return runtimeSkipIf(lambda _self: _self.__class__.pool.isPoolFeatureAvailable(feature), message)
+    return runtimeSkipIf(
+        lambda _self: _self.__class__.pool.isPoolFeatureAvailable(feature),
+        message)
 
 
 def skipUnlessFeatureEnabled(feature, message):
-    return runtimeSkipIf(lambda _self: not _self.__class__.pool.isPoolFeatureEnabled(feature), message)
+    return runtimeSkipIf(
+        lambda _self: not _self.__class__.pool.isPoolFeatureEnabled(feature),
+        message)
 
 
 def skipUnlessBookmarksSupported(f):
-    return skipUnlessFeatureEnabled('bookmarks', 'bookmarks are not enabled')(f)
+    return skipUnlessFeatureEnabled(
+        'bookmarks', 'bookmarks are not enabled')(f)
 
 
 def snap_always_unmounted_before_destruction():
     # Apparently ZoL automatically unmounts the snapshot
     # only if it is mounted at its default .zfs/snapshot
     # mountpoint.
-    return (platform.system() != 'Linux', 'snapshot is not auto-unmounted')
+    return (
+        platform.system() != 'Linux', 'snapshot is not auto-unmounted')
 
 
 def illumos_bug_6379():
     # zfs_ioc_hold() panics on a bad cleanup fd
-    return (platform.system() == 'SunOS', 'see https://www.illumos.org/issues/6379')
+    return (
+        platform.system() == 'SunOS',
+        'see https://www.illumos.org/issues/6379')
 
 
 def needs_support(function):
-    return unittest.skipUnless(lzc.is_supported(function),
-                               '{} not available'.format(function.__name__))
+    return unittest.skipUnless(
+        lzc.is_supported(function),
+        '{} not available'.format(function.__name__))
 
 
 class ZFSTest(unittest.TestCase):
@@ -312,7 +355,8 @@ class ZFSTest(unittest.TestCase):
         with self.assertRaises(lzc_exc.DatasetTypeInvalid):
             lzc.lzc_create(name, ds_type='wrong')
 
-    @unittest.skip("https://www.illumos.org/issues/6101")
+    # XXX: we should have a way to raise lzc_exc.WrongParent from lzc_create()
+    @unittest.expectedFailure
     def test_create_fs_below_zvol(self):
         name = ZFSTest.pool.makeName("fs1/fs/zvol")
         props = {"volsize": 1024 * 1024}
@@ -386,6 +430,24 @@ class ZFSTest(unittest.TestCase):
         with self.assertRaises(lzc_exc.NameInvalid):
             lzc.lzc_create(name)
         self.assertNotExists(name)
+
+    def test_create_encrypted_fs(self):
+        fs = ZFSTest.pool.getFilesystem("encrypted")
+        name = fs.getName()
+        filename = None
+        with tempfile.NamedTemporaryFile() as f:
+            filename = "file://" + f.name
+            props = {
+                "encryption": lzc.zio_encrypt.ZIO_CRYPT_AES_256_CCM,
+                "keylocation": filename,
+                "keyformat": lzc.zfs_keyformat.ZFS_KEYFORMAT_RAW,
+            }
+            key = os.urandom(lzc.WRAPPING_KEY_LEN)
+            lzc.lzc_create(name, 'zfs', props=props, key=key)
+        self.assertEquals(fs.getProperty("encryption"), "aes-256-ccm")
+        self.assertEquals(fs.getProperty("encryptionroot"), name)
+        self.assertEquals(fs.getProperty("keylocation"), filename)
+        self.assertEquals(fs.getProperty("keyformat"), "raw")
 
     def test_snapshot(self):
         snapname = ZFSTest.pool.makeName("@snap")
@@ -469,8 +531,6 @@ class ZFSTest(unittest.TestCase):
         self.assertNotExists(snapname1)
         self.assertNotExists(snapname2)
 
-    # FIXME: should not be failing
-    @unittest.expectedFailure
     def test_multiple_snapshots_nonexistent_fs(self):
         snapname1 = ZFSTest.pool.makeName("nonexistent@snap1")
         snapname2 = ZFSTest.pool.makeName("nonexistent@snap2")
@@ -482,12 +542,10 @@ class ZFSTest(unittest.TestCase):
         # XXX two errors should be reported but alas
         self.assertEquals(len(ctx.exception.errors), 1)
         for e in ctx.exception.errors:
-            self.assertIsInstance(e, lzc_exc.FilesystemNotFound)
+            self.assertIsInstance(e, lzc_exc.DuplicateSnapshots)
         self.assertNotExists(snapname1)
         self.assertNotExists(snapname2)
 
-    # FIXME: should not be failing
-    @unittest.expectedFailure
     def test_multiple_snapshots_multiple_nonexistent_fs(self):
         snapname1 = ZFSTest.pool.makeName("nonexistent1@snap")
         snapname2 = ZFSTest.pool.makeName("nonexistent2@snap")
@@ -496,8 +554,7 @@ class ZFSTest(unittest.TestCase):
         with self.assertRaises(lzc_exc.SnapshotFailure) as ctx:
             lzc.lzc_snapshot(snaps)
 
-        # XXX two errors should be reported but alas
-        self.assertEquals(len(ctx.exception.errors), 1)
+        self.assertEquals(len(ctx.exception.errors), 2)
         for e in ctx.exception.errors:
             self.assertIsInstance(e, lzc_exc.FilesystemNotFound)
         self.assertNotExists(snapname1)
@@ -591,7 +648,8 @@ class ZFSTest(unittest.TestCase):
         # but it doesn't have to.
         self.assertGreater(len(ctx.exception.errors), 0)
         for e in ctx.exception.errors:
-            self.assertIsInstance(e, (lzc_exc.SnapshotExists, lzc_exc.FilesystemNotFound))
+            self.assertIsInstance(
+                e, (lzc_exc.SnapshotExists, lzc_exc.FilesystemNotFound))
         self.assertNotExists(snapname2)
         self.assertNotExists(snapname3)
 
@@ -894,8 +952,6 @@ class ZFSTest(unittest.TestCase):
         ret = lzc.lzc_rollback(name)
         self.assertEqual(ret, snapname2)
 
-    # FIXME: should not be failing
-    @unittest.expectedFailure
     def test_rollback_no_snaps(self):
         name = ZFSTest.pool.makeName("fs1")
 
@@ -1562,12 +1618,14 @@ class ZFSTest(unittest.TestCase):
             self.assertAlmostEqual(st.st_size, estimate, delta=estimate / 20)
 
     def test_send_flags(self):
+        flags = ['embedded_data', 'large_blocks', 'compress', 'raw']
         snap = ZFSTest.pool.makeName("fs1@snap")
         lzc.lzc_snapshot([snap])
-        with dev_null() as fd:
-            lzc.lzc_send(snap, None, fd, ['large_blocks'])
-            lzc.lzc_send(snap, None, fd, ['embedded_data'])
-            lzc.lzc_send(snap, None, fd, ['embedded_data', 'large_blocks'])
+
+        for c in range(len(flags)):
+            for flag in itertools.permutations(flags, c + 1):
+                with dev_null() as fd:
+                    lzc.lzc_send(snap, None, fd, list(flag))
 
     def test_send_unknown_flags(self):
         snap = ZFSTest.pool.makeName("fs1@snap")
@@ -1778,7 +1836,8 @@ class ZFSTest(unittest.TestCase):
         snap = ZFSTest.pool.makeName("fs1@snap")
         lzc.lzc_snapshot([snap])
 
-        with tempfile.NamedTemporaryFile(suffix='.ztream', delete=False) as output:
+        with tempfile.NamedTemporaryFile(
+                suffix='.ztream', delete=False) as output:
             # tempfile always opens a temporary file in read-write mode
             # regardless of the specified mode, so we have to open it again.
             os.chmod(output.name, stat.S_IRUSR)
@@ -1803,7 +1862,8 @@ class ZFSTest(unittest.TestCase):
         name = os.path.basename(name)
         with zfs_mount(src) as mnt1, zfs_mount(dst) as mnt2:
             self.assertTrue(
-                filecmp.cmp(os.path.join(mnt1, name), os.path.join(mnt2, name), False))
+                filecmp.cmp(
+                    os.path.join(mnt1, name), os.path.join(mnt2, name), False))
 
     def test_recv_incremental(self):
         src1 = ZFSTest.pool.makeName("fs1@snap1")
@@ -1827,7 +1887,26 @@ class ZFSTest(unittest.TestCase):
         name = os.path.basename(name)
         with zfs_mount(src2) as mnt1, zfs_mount(dst2) as mnt2:
             self.assertTrue(
-                filecmp.cmp(os.path.join(mnt1, name), os.path.join(mnt2, name), False))
+                filecmp.cmp(
+                    os.path.join(mnt1, name), os.path.join(mnt2, name), False))
+
+    # This test case fails unless unless a patch from
+    # https://clusterhq.atlassian.net/browse/ZFS-20
+    # is applied to libzfs_core, otherwise it succeeds.
+    @unittest.skip("fails with unpatched libzfs_core")
+    def test_recv_without_explicit_snap_name(self):
+        srcfs = ZFSTest.pool.makeName("fs1")
+        src1 = srcfs + "@snap1"
+        src2 = srcfs + "@snap2"
+        dstfs = ZFSTest.pool.makeName("fs2/received-100")
+        dst1 = dstfs + '@snap1'
+        dst2 = dstfs + '@snap2'
+
+        with streams(srcfs, src1, src2) as (_, (full, incr)):
+            lzc.lzc_receive(dstfs, full.fileno())
+            lzc.lzc_receive(dstfs, incr.fileno())
+        self.assertExists(dst1)
+        self.assertExists(dst2)
 
     def test_recv_clone(self):
         orig_src = ZFSTest.pool.makeName("fs2@send-origin")
@@ -1860,7 +1939,8 @@ class ZFSTest(unittest.TestCase):
         with tempfile.TemporaryFile(suffix='.ztream') as stream:
             lzc.lzc_send(src, None, stream.fileno())
             stream.seek(0)
-            with self.assertRaises((lzc_exc.DestinationModified, lzc_exc.DatasetExists)):
+            with self.assertRaises((
+                    lzc_exc.DestinationModified, lzc_exc.DatasetExists)):
                 lzc.lzc_receive(dst, stream.fileno())
 
     def test_recv_full_into_root_empty_pool(self):
@@ -1871,7 +1951,8 @@ class ZFSTest(unittest.TestCase):
             dst = empty_pool.makeName('@snap')
 
             with streams(srcfs, "snap", None) as (_, (stream, _)):
-                with self.assertRaises((lzc_exc.DestinationModified, lzc_exc.DatasetExists)):
+                with self.assertRaises((
+                        lzc_exc.DestinationModified, lzc_exc.DatasetExists)):
                     lzc.lzc_receive(dst, stream.fileno())
         finally:
             if empty_pool is not None:
@@ -1897,7 +1978,8 @@ class ZFSTest(unittest.TestCase):
             with tempfile.TemporaryFile(suffix='.ztream') as stream:
                 lzc.lzc_send(src, None, stream.fileno())
                 stream.seek(0)
-                with self.assertRaises((lzc_exc.DestinationModified, lzc_exc.DatasetExists)):
+                with self.assertRaises((
+                        lzc_exc.DestinationModified, lzc_exc.DatasetExists)):
                     lzc.lzc_receive(dst, stream.fileno())
 
     def test_recv_full_already_existing_with_snapshots(self):
@@ -1912,7 +1994,8 @@ class ZFSTest(unittest.TestCase):
         with tempfile.TemporaryFile(suffix='.ztream') as stream:
             lzc.lzc_send(src, None, stream.fileno())
             stream.seek(0)
-            with self.assertRaises((lzc_exc.StreamMismatch, lzc_exc.DatasetExists)):
+            with self.assertRaises((
+                    lzc_exc.StreamMismatch, lzc_exc.DatasetExists)):
                 lzc.lzc_receive(dst, stream.fileno())
 
     def test_recv_full_already_existing_snapshot(self):
@@ -1942,8 +2025,6 @@ class ZFSTest(unittest.TestCase):
             with self.assertRaises(lzc_exc.DatasetNotFound):
                 lzc.lzc_receive(dst, stream.fileno())
 
-    # FIXME: should not be failing
-    @unittest.expectedFailure
     def test_recv_full_but_specify_origin(self):
         srcfs = ZFSTest.pool.makeName("fs1")
         src = srcfs + "@snap"
@@ -1954,14 +2035,17 @@ class ZFSTest(unittest.TestCase):
 
         lzc.lzc_snapshot([origin1])
         with streams(srcfs, src, None) as (_, (stream, _)):
-            with self.assertRaises(lzc_exc.StreamMismatch):
-                lzc.lzc_receive(dst, stream.fileno(), origin=origin1)
+            lzc.lzc_receive(dst, stream.fileno(), origin=origin1)
+            origin = ZFSTest.pool.getFilesystem("fs2/received-30").getProperty(
+                'origin')
+            self.assertEquals(origin, origin1)
             stream.seek(0)
-            with self.assertRaises(lzc_exc.DatasetNotFound):
+            # because origin snap does not exist can't receive as a clone of it
+            with self.assertRaises((
+                    lzc_exc.DatasetNotFound,
+                    lzc_exc.BadStream)):
                 lzc.lzc_receive(dst, stream.fileno(), origin=origin2)
 
-    # FIXME: should not be failing
-    @unittest.expectedFailure
     def test_recv_full_existing_empty_fs_and_origin(self):
         srcfs = ZFSTest.pool.makeName("fs1")
         src = srcfs + "@snap"
@@ -1972,12 +2056,18 @@ class ZFSTest(unittest.TestCase):
         lzc.lzc_create(dstfs)
         with streams(srcfs, src, None) as (_, (stream, _)):
             # because the destination fs already exists and has no snaps
-            with self.assertRaises((lzc_exc.DestinationModified, lzc_exc.DatasetExists)):
+            with self.assertRaises((
+                    lzc_exc.DestinationModified,
+                    lzc_exc.DatasetExists,
+                    lzc_exc.BadStream)):
                 lzc.lzc_receive(dst, stream.fileno(), origin=origin)
             lzc.lzc_snapshot([origin])
             stream.seek(0)
             # because the destination fs already exists and has the snap
-            with self.assertRaises((lzc_exc.StreamMismatch, lzc_exc.DatasetExists)):
+            with self.assertRaises((
+                    lzc_exc.StreamMismatch,
+                    lzc_exc.DatasetExists,
+                    lzc_exc.BadStream)):
                 lzc.lzc_receive(dst, stream.fileno(), origin=origin)
 
     def test_recv_incremental_mounted_fs(self):
@@ -2035,8 +2125,6 @@ class ZFSTest(unittest.TestCase):
             lzc.lzc_snapshot([dst_snap])
             lzc.lzc_receive(dst2, incr.fileno())
 
-    # FIXME: should not be failing
-    @unittest.expectedFailure
     def test_recv_incremental_non_clone_but_set_origin(self):
         srcfs = ZFSTest.pool.makeName("fs1")
         src1 = srcfs + "@snap1"
@@ -2049,10 +2137,10 @@ class ZFSTest(unittest.TestCase):
         with streams(srcfs, src1, src2) as (_, (full, incr)):
             lzc.lzc_receive(dst1, full.fileno())
             lzc.lzc_snapshot([dst_snap])
-            lzc.lzc_receive(dst2, incr.fileno(), origin=dst1)
+            # becase cannot receive incremental and set origin on a non-clone
+            with self.assertRaises(lzc_exc.BadStream):
+                lzc.lzc_receive(dst2, incr.fileno(), origin=dst1)
 
-    # FIXME: should not be failing
-    @unittest.expectedFailure
     def test_recv_incremental_non_clone_but_set_random_origin(self):
         srcfs = ZFSTest.pool.makeName("fs1")
         src1 = srcfs + "@snap1"
@@ -2065,8 +2153,13 @@ class ZFSTest(unittest.TestCase):
         with streams(srcfs, src1, src2) as (_, (full, incr)):
             lzc.lzc_receive(dst1, full.fileno())
             lzc.lzc_snapshot([dst_snap])
-            lzc.lzc_receive(dst2, incr.fileno(),
-                            origin=ZFSTest.pool.makeName("fs2/fs@snap"))
+            # because origin snap does not exist can't receive as a clone of it
+            with self.assertRaises((
+                    lzc_exc.DatasetNotFound,
+                    lzc_exc.BadStream)):
+                lzc.lzc_receive(
+                    dst2, incr.fileno(),
+                    origin=ZFSTest.pool.makeName("fs2/fs@snap"))
 
     def test_recv_incremental_more_recent_snap(self):
         srcfs = ZFSTest.pool.makeName("fs1")
@@ -2174,7 +2267,8 @@ class ZFSTest(unittest.TestCase):
             stream.seek(0)
             with self.assertRaises(lzc_exc.NameInvalid):
                 lzc.lzc_receive(
-                    clone_dst, stream.fileno(), origin=ZFSTest.pool.makeName("fs1/fs"))
+                    clone_dst, stream.fileno(),
+                    origin=ZFSTest.pool.makeName("fs1/fs"))
 
     def test_recv_clone_wrong_origin(self):
         orig_src = ZFSTest.pool.makeName("fs2@send-origin-4")
@@ -2430,27 +2524,6 @@ class ZFSTest(unittest.TestCase):
         self.assertNotExists(dst2)
         self.assertExists(dst3)
 
-    def test_recv_with_header_full(self):
-        src = ZFSTest.pool.makeName("fs1@snap")
-        dst = ZFSTest.pool.makeName("fs2/received")
-
-        with temp_file_in_fs(ZFSTest.pool.makeName("fs1")) as name:
-            lzc.lzc_snapshot([src])
-
-        with tempfile.TemporaryFile(suffix='.ztream') as stream:
-            lzc.lzc_send(src, None, stream.fileno())
-            stream.seek(0)
-
-            (header, c_header) = lzc.receive_header(stream.fileno())
-            self.assertEqual(src, header['drr_toname'])
-            snap = header['drr_toname'].split('@', 1)[1]
-            lzc.lzc_receive_with_header(dst + '@' + snap, stream.fileno(), c_header)
-
-        name = os.path.basename(name)
-        with zfs_mount(src) as mnt1, zfs_mount(dst) as mnt2:
-            self.assertTrue(
-                filecmp.cmp(os.path.join(mnt1, name), os.path.join(mnt2, name), False))
-
     def test_recv_incremental_into_cloned_fs(self):
         srcfs = ZFSTest.pool.makeName("fs1")
         src1 = srcfs + "@snap1"
@@ -2471,6 +2544,29 @@ class ZFSTest(unittest.TestCase):
                 lzc.lzc_receive(dst2, incr.fileno(), force=True)
         self.assertExists(dst1)
         self.assertNotExists(dst2)
+
+    def test_recv_with_header_full(self):
+        src = ZFSTest.pool.makeName("fs1@snap")
+        dst = ZFSTest.pool.makeName("fs2/received")
+
+        with temp_file_in_fs(ZFSTest.pool.makeName("fs1")) as name:
+            lzc.lzc_snapshot([src])
+
+        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+            lzc.lzc_send(src, None, stream.fileno())
+            stream.seek(0)
+
+            (header, c_header) = lzc.receive_header(stream.fileno())
+            self.assertEqual(src, header['drr_toname'])
+            snap = header['drr_toname'].split('@', 1)[1]
+            lzc.lzc_receive_with_header(
+                dst + '@' + snap, stream.fileno(), c_header)
+
+        name = os.path.basename(name)
+        with zfs_mount(src) as mnt1, zfs_mount(dst) as mnt2:
+            self.assertTrue(
+                filecmp.cmp(
+                    os.path.join(mnt1, name), os.path.join(mnt2, name), False))
 
     def test_send_full_across_clone_branch_point(self):
         origfs = ZFSTest.pool.makeName("fs2")
@@ -2500,6 +2596,97 @@ class ZFSTest(unittest.TestCase):
         with tempfile.TemporaryFile(suffix='.ztream') as stream:
             lzc.lzc_send(tosnap, fromsnap, stream.fileno())
 
+    def test_send_resume_token_full(self):
+        src = ZFSTest.pool.makeName("fs1@snap")
+        dstfs = ZFSTest.pool.getFilesystem("fs2/received")
+        dst = dstfs.getSnap()
+
+        with zfs_mount(ZFSTest.pool.makeName("fs1")) as mntdir:
+            for i in range(1, 10):
+                with tempfile.NamedTemporaryFile(dir=mntdir) as f:
+                    f.write('x' * 1024 * i)
+                    f.flush()
+        lzc.lzc_snapshot([src])
+
+        with tempfile.NamedTemporaryFile(suffix='.ztream') as stream:
+            lzc.lzc_send(src, None, stream.fileno())
+            stream.seek(0)
+            stream.truncate(1024 * 3)
+            with self.assertRaises(lzc_exc.BadStream):
+                lzc.lzc_receive_resumable(dst, stream.fileno())
+            # Resume token code from zfs_send_resume_token_to_nvlist()
+            # XXX: if used more than twice move this code into an external func
+            # format: <version>-<cksum>-<packed-size>-<compressed-payload>
+            token = dstfs.getProperty("receive_resume_token")
+            self.assertNotEqual(token, '-')
+            tokens = token.split('-')
+            self.assertEqual(len(tokens), 4)
+            version = tokens[0]
+            packed_size = int(tokens[2], 16)
+            compressed_nvs = tokens[3]
+            # Validate resume token
+            self.assertEqual(version, '1')  # ZFS_SEND_RESUME_TOKEN_VERSION
+            payload = zlib.decompress(str(bytearray.fromhex(compressed_nvs)))
+            self.assertEqual(len(payload), packed_size)
+            # Unpack
+            resume_values = packed_nvlist_out(payload, packed_size)
+            resumeobj = resume_values.get('object')
+            resumeoff = resume_values.get('offset')
+            with tempfile.NamedTemporaryFile(suffix='.ztream') as rstream:
+                lzc.lzc_send_resume(
+                    src, None, rstream.fileno(), None, resumeobj, resumeoff)
+                rstream.seek(0)
+                lzc.lzc_receive_resumable(dst, rstream.fileno())
+
+    def test_send_resume_token_incremental(self):
+        snap1 = ZFSTest.pool.makeName("fs1@snap1")
+        snap2 = ZFSTest.pool.makeName("fs1@snap2")
+        dstfs = ZFSTest.pool.getFilesystem("fs2/received")
+        dst1 = dstfs.getSnap()
+        dst2 = dstfs.getSnap()
+
+        lzc.lzc_snapshot([snap1])
+        with tempfile.NamedTemporaryFile(suffix='.ztream') as stream:
+            lzc.lzc_send(snap1, None, stream.fileno())
+            stream.seek(0)
+            lzc.lzc_receive(dst1, stream.fileno())
+
+        with zfs_mount(ZFSTest.pool.makeName("fs1")) as mntdir:
+            for i in range(1, 10):
+                with tempfile.NamedTemporaryFile(dir=mntdir) as f:
+                    f.write('x' * 1024 * i)
+                    f.flush()
+        lzc.lzc_snapshot([snap2])
+
+        with tempfile.NamedTemporaryFile(suffix='.ztream') as stream:
+            lzc.lzc_send(snap2, snap1, stream.fileno())
+            stream.seek(0)
+            stream.truncate(1024 * 3)
+            with self.assertRaises(lzc_exc.BadStream):
+                lzc.lzc_receive_resumable(dst2, stream.fileno())
+            # Resume token code from zfs_send_resume_token_to_nvlist()
+            # format: <version>-<cksum>-<packed-size>-<compressed-payload>
+            token = dstfs.getProperty("receive_resume_token")
+            self.assertNotEqual(token, '-')
+            tokens = token.split('-')
+            self.assertEqual(len(tokens), 4)
+            version = tokens[0]
+            packed_size = int(tokens[2], 16)
+            compressed_nvs = tokens[3]
+            # Validate resume token
+            self.assertEqual(version, '1')  # ZFS_SEND_RESUME_TOKEN_VERSION
+            payload = zlib.decompress(str(bytearray.fromhex(compressed_nvs)))
+            self.assertEqual(len(payload), packed_size)
+            # Unpack
+            resume_values = packed_nvlist_out(payload, packed_size)
+            resumeobj = resume_values.get('object')
+            resumeoff = resume_values.get('offset')
+            with tempfile.NamedTemporaryFile(suffix='.ztream') as rstream:
+                lzc.lzc_send_resume(
+                    snap2, snap1, rstream.fileno(), None, resumeobj, resumeoff)
+                rstream.seek(0)
+                lzc.lzc_receive_resumable(dst2, rstream.fileno())
+
     def test_recv_full_across_clone_branch_point(self):
         origfs = ZFSTest.pool.makeName("fs2")
 
@@ -2518,7 +2705,126 @@ class ZFSTest(unittest.TestCase):
             stream.seek(0)
             lzc.lzc_receive(recvsnap, stream.fileno())
 
-    def test_recv_incr_across_clone_branch_point__no_origin(self):
+    def test_recv_one(self):
+        fromsnap = ZFSTest.pool.makeName("fs1@snap1")
+        tosnap = ZFSTest.pool.makeName("recv@snap1")
+
+        lzc.lzc_snapshot([fromsnap])
+        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+            lzc.lzc_send(fromsnap, None, stream.fileno())
+            stream.seek(0)
+            (header, c_header) = lzc.receive_header(stream.fileno())
+            lzc.lzc_receive_one(tosnap, stream.fileno(), c_header)
+
+    def test_recv_one_size(self):
+        fromsnap = ZFSTest.pool.makeName("fs1@snap1")
+        tosnap = ZFSTest.pool.makeName("recv@snap1")
+
+        lzc.lzc_snapshot([fromsnap])
+        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+            lzc.lzc_send(fromsnap, None, stream.fileno())
+            size = os.fstat(stream.fileno()).st_size
+            stream.seek(0)
+            (header, c_header) = lzc.receive_header(stream.fileno())
+            (read, _) = lzc.lzc_receive_one(tosnap, stream.fileno(), c_header)
+            self.assertAlmostEqual(read, size, delta=read * 0.05)
+
+    def test_recv_one_props(self):
+        fromsnap = ZFSTest.pool.makeName("fs1@snap1")
+        fs = ZFSTest.pool.getFilesystem("recv")
+        tosnap = fs.getName() + "@snap1"
+        props = {
+            "compression": 0x01,
+            "ns:prop": "val"
+        }
+
+        lzc.lzc_snapshot([fromsnap])
+        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+            lzc.lzc_send(fromsnap, None, stream.fileno())
+            stream.seek(0)
+            (header, c_header) = lzc.receive_header(stream.fileno())
+            lzc.lzc_receive_one(tosnap, stream.fileno(), c_header, props=props)
+            self.assertExists(tosnap)
+            self.assertEquals(fs.getProperty("compression", "received"), "on")
+            self.assertEquals(fs.getProperty("ns:prop", "received"), "val")
+
+    def test_recv_one_invalid_prop(self):
+        fromsnap = ZFSTest.pool.makeName("fs1@snap1")
+        fs = ZFSTest.pool.getFilesystem("recv")
+        tosnap = fs.getName() + "@snap1"
+        props = {
+            "exec": 0xff,
+            "atime": 0x00
+        }
+
+        lzc.lzc_snapshot([fromsnap])
+        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+            lzc.lzc_send(fromsnap, None, stream.fileno())
+            stream.seek(0)
+            (header, c_header) = lzc.receive_header(stream.fileno())
+            with self.assertRaises(lzc_exc.ReceivePropertyFailure) as ctx:
+                lzc.lzc_receive_one(
+                    tosnap, stream.fileno(), c_header, props=props)
+            self.assertExists(tosnap)
+            self.assertEquals(fs.getProperty("atime", "received"), "off")
+            for e in ctx.exception.errors:
+                self.assertIsInstance(e, lzc_exc.PropertyInvalid)
+                self.assertEquals(e.name, "exec")
+
+    def test_recv_with_cmdprops(self):
+        fromsnap = ZFSTest.pool.makeName("fs1@snap1")
+        fs = ZFSTest.pool.getFilesystem("recv")
+        tosnap = fs.getName() + "@snap1"
+        props = {}
+        cmdprops = {
+            "compression": 0x01,
+            "ns:prop": "val"
+        }
+
+        lzc.lzc_snapshot([fromsnap])
+        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+            lzc.lzc_send(fromsnap, None, stream.fileno())
+            stream.seek(0)
+            (header, c_header) = lzc.receive_header(stream.fileno())
+            lzc.lzc_receive_with_cmdprops(
+                tosnap, stream.fileno(), c_header, props=props,
+                cmdprops=cmdprops)
+            self.assertExists(tosnap)
+            self.assertEquals(fs.getProperty("compression"), "on")
+            self.assertEquals(fs.getProperty("ns:prop"), "val")
+
+    def test_recv_with_cmdprops_and_recvprops(self):
+        fromsnap = ZFSTest.pool.makeName("fs1@snap1")
+        fs = ZFSTest.pool.getFilesystem("recv")
+        tosnap = fs.getName() + "@snap1"
+        props = {
+            "atime": 0x01,
+            "exec": 0x00,
+            "ns:prop": "abc"
+        }
+        cmdprops = {
+            "compression": 0x01,
+            "ns:prop": "def",
+            "exec": None,
+        }
+
+        lzc.lzc_snapshot([fromsnap])
+        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+            lzc.lzc_send(fromsnap, None, stream.fileno())
+            stream.seek(0)
+            (header, c_header) = lzc.receive_header(stream.fileno())
+            lzc.lzc_receive_with_cmdprops(
+                tosnap, stream.fileno(), c_header, props=props,
+                cmdprops=cmdprops)
+            self.assertExists(tosnap)
+            self.assertEquals(fs.getProperty("atime", True), "on")
+            self.assertEquals(fs.getProperty("exec", True), "off")
+            self.assertEquals(fs.getProperty("ns:prop", True), "abc")
+            self.assertEquals(fs.getProperty("compression"), "on")
+            self.assertEquals(fs.getProperty("ns:prop"), "def")
+            self.assertEquals(fs.getProperty("exec"), "on")
+
+    def test_recv_incr_across_clone_branch_point_no_origin(self):
         origfs = ZFSTest.pool.makeName("fs2")
 
         (_, (fromsnap, origsnap, _)) = make_snapshots(
@@ -2566,7 +2872,7 @@ class ZFSTest(unittest.TestCase):
             with self.assertRaises(lzc_exc.BadStream):
                 lzc.lzc_receive(recvsnap2, stream.fileno(), origin=recvsnap1)
 
-    def test_recv_incr_across_clone_branch_point__new_fs(self):
+    def test_recv_incr_across_clone_branch_point_new_fs(self):
         origfs = ZFSTest.pool.makeName("fs2")
 
         (_, (fromsnap, origsnap, _)) = make_snapshots(
@@ -2743,8 +3049,6 @@ class ZFSTest(unittest.TestCase):
         self.assertEqual(len(missing), 2)
         self.assertEqual(sorted(missing), sorted([snap1, snap2]))
 
-    # FIXME: should not be failing
-    @unittest.expectedFailure
     def test_hold_missing_fs(self):
         # XXX skip pre-created filesystems
         ZFSTest.pool.getRoot().getFilesystem()
@@ -2754,13 +3058,9 @@ class ZFSTest(unittest.TestCase):
         ZFSTest.pool.getRoot().getFilesystem()
         snap = ZFSTest.pool.getRoot().getFilesystem().getSnap()
 
-        with self.assertRaises(lzc_exc.HoldFailure) as ctx:
-            lzc.lzc_hold({snap: 'tag'})
-        for e in ctx.exception.errors:
-            self.assertIsInstance(e, lzc_exc.FilesystemNotFound)
+        snaps = lzc.lzc_hold({snap: 'tag'})
+        self.assertEquals([snap], snaps)
 
-    # FIXME: should not be failing
-    @unittest.expectedFailure
     def test_hold_missing_fs_auto_cleanup(self):
         # XXX skip pre-created filesystems
         ZFSTest.pool.getRoot().getFilesystem()
@@ -2771,10 +3071,8 @@ class ZFSTest(unittest.TestCase):
         snap = ZFSTest.pool.getRoot().getFilesystem().getSnap()
 
         with cleanup_fd() as fd:
-            with self.assertRaises(lzc_exc.HoldFailure) as ctx:
-                lzc.lzc_hold({snap: 'tag'}, fd)
-        for e in ctx.exception.errors:
-            self.assertIsInstance(e, lzc_exc.FilesystemNotFound)
+            snaps = lzc.lzc_hold({snap: 'tag'}, fd)
+            self.assertEquals([snap], snaps)
 
     def test_hold_duplicate(self):
         snap = ZFSTest.pool.getRoot().getSnap()
@@ -3077,6 +3375,206 @@ class ZFSTest(unittest.TestCase):
         for e in ctx.exception.errors:
             self.assertIsInstance(e, lzc_exc.NameInvalid)
             self.assertEquals(e.name, snap)
+
+    def test_sync_missing_pool(self):
+        pool = "nonexistent"
+        with self.assertRaises(lzc_exc.PoolNotFound):
+            lzc.lzc_sync(pool)
+
+    def test_sync_pool_forced(self):
+        pool = ZFSTest.pool.getRoot().getName()
+        lzc.lzc_sync(pool, True)
+
+    def test_reopen_missing_pool(self):
+        pool = "nonexistent"
+        with self.assertRaises(lzc_exc.PoolNotFound):
+            lzc.lzc_reopen(pool)
+
+    def test_reopen_pool_no_restart(self):
+        pool = ZFSTest.pool.getRoot().getName()
+        lzc.lzc_reopen(pool, False)
+
+    def test_channel_program_missing_pool(self):
+        pool = "nonexistent"
+        with self.assertRaises(lzc_exc.PoolNotFound):
+            lzc.lzc_channel_program(pool, "return {}")
+
+    def test_channel_program_timeout(self):
+        pool = ZFSTest.pool.getRoot().getName()
+        zcp = """
+for i = 1,10000 do
+    zfs.sync.snapshot('""" + pool + """@zcp' .. i)
+end
+"""
+        with self.assertRaises(lzc_exc.ZCPTimeout):
+            lzc.lzc_channel_program(pool, zcp, instrlimit=1)
+
+    def test_channel_program_memory_limit(self):
+        pool = ZFSTest.pool.getRoot().getName()
+        zcp = """
+for i = 1,10000 do
+    zfs.sync.snapshot('""" + pool + """@zcp' .. i)
+end
+"""
+        with self.assertRaises(lzc_exc.ZCPSpaceError):
+            lzc.lzc_channel_program(pool, zcp, memlimit=1)
+
+    def test_channel_program_invalid_limits(self):
+        pool = ZFSTest.pool.getRoot().getName()
+        zcp = """
+return {}
+"""
+        with self.assertRaises(lzc_exc.ZCPLimitInvalid):
+            lzc.lzc_channel_program(pool, zcp, instrlimit=0)
+        with self.assertRaises(lzc_exc.ZCPLimitInvalid):
+            lzc.lzc_channel_program(pool, zcp, memlimit=0)
+
+    def test_channel_program_syntax_error(self):
+        pool = ZFSTest.pool.getRoot().getName()
+        zcp = """
+inv+val:id
+"""
+        with self.assertRaises(lzc_exc.ZCPSyntaxError) as ctx:
+            lzc.lzc_channel_program(pool, zcp)
+        self.assertTrue("syntax error" in ctx.exception.details)
+
+    def test_channel_program_sync_snapshot(self):
+        pool = ZFSTest.pool.getRoot().getName()
+        snapname = ZFSTest.pool.makeName("@zcp")
+        zcp = """
+zfs.sync.snapshot('""" + snapname + """')
+"""
+        lzc.lzc_channel_program(pool, zcp)
+        self.assertExists(snapname)
+
+    def test_channel_program_runtime_error(self):
+        pool = ZFSTest.pool.getRoot().getName()
+
+        # failing an assertion raises a runtime error
+        with self.assertRaises(lzc_exc.ZCPRuntimeError) as ctx:
+            lzc.lzc_channel_program(pool, "assert(1 == 2)")
+        self.assertTrue(
+            "assertion failed" in ctx.exception.details)
+        # invoking the error() function raises a runtime error
+        with self.assertRaises(lzc_exc.ZCPRuntimeError) as ctx:
+            lzc.lzc_channel_program(pool, "error()")
+
+    def test_channel_program_nosync_runtime_error(self):
+        pool = ZFSTest.pool.getRoot().getName()
+        zcp = """
+zfs.sync.snapshot('""" + pool + """@zcp')
+"""
+        # lzc_channel_program_nosync() allows only "read-only" operations
+        with self.assertRaises(lzc_exc.ZCPRuntimeError) as ctx:
+            lzc.lzc_channel_program_nosync(pool, zcp)
+        self.assertTrue(
+            "running functions from the zfs.sync" in ctx.exception.details)
+
+    def test_change_key_new(self):
+        with encrypted_filesystem() as (fs, _):
+            lzc.lzc_change_key(
+                fs, 'new_key',
+                props={"keyformat": lzc.zfs_keyformat.ZFS_KEYFORMAT_RAW},
+                key=os.urandom(lzc.WRAPPING_KEY_LEN))
+
+    def test_change_key_missing_fs(self):
+        name = "nonexistent"
+
+        with self.assertRaises(lzc_exc.FilesystemNotFound):
+            lzc.lzc_change_key(
+                name, 'new_key',
+                props={"keyformat": lzc.zfs_keyformat.ZFS_KEYFORMAT_RAW},
+                key=os.urandom(lzc.WRAPPING_KEY_LEN))
+
+    def test_change_key_not_loaded(self):
+        with encrypted_filesystem() as (fs, _):
+            lzc.lzc_unload_key(fs)
+            with self.assertRaises(lzc_exc.EncryptionKeyNotLoaded):
+                lzc.lzc_change_key(
+                    fs, 'new_key',
+                    props={"keyformat": lzc.zfs_keyformat.ZFS_KEYFORMAT_RAW},
+                    key=os.urandom(lzc.WRAPPING_KEY_LEN))
+
+    def test_change_key_invalid_property(self):
+        with encrypted_filesystem() as (fs, _):
+            with self.assertRaises(lzc_exc.PropertyInvalid):
+                lzc.lzc_change_key(fs, 'new_key', props={"invalid": "prop"})
+
+    def test_change_key_invalid_crypt_command(self):
+        with encrypted_filesystem() as (fs, _):
+            with self.assertRaises(lzc_exc.UnknownCryptCommand):
+                lzc.lzc_change_key(fs, 'duplicate_key')
+
+    def test_load_key(self):
+        with encrypted_filesystem() as (fs, key):
+            lzc.lzc_unload_key(fs)
+            lzc.lzc_load_key(fs, False, key)
+
+    def test_load_key_invalid(self):
+        with encrypted_filesystem() as (fs, key):
+            lzc.lzc_unload_key(fs)
+            with self.assertRaises(lzc_exc.EncryptionKeyInvalid):
+                lzc.lzc_load_key(fs, False, os.urandom(lzc.WRAPPING_KEY_LEN))
+
+    def test_load_key_already_loaded(self):
+        with encrypted_filesystem() as (fs, key):
+            lzc.lzc_unload_key(fs)
+            lzc.lzc_load_key(fs, False, key)
+            with self.assertRaises(lzc_exc.EncryptionKeyAlreadyLoaded):
+                lzc.lzc_load_key(fs, False, key)
+
+    def test_load_key_missing_fs(self):
+        name = "nonexistent"
+
+        with self.assertRaises(lzc_exc.FilesystemNotFound):
+            lzc.lzc_load_key(name, False, key=os.urandom(lzc.WRAPPING_KEY_LEN))
+
+    def test_unload_key(self):
+        with encrypted_filesystem() as (fs, _):
+            lzc.lzc_unload_key(fs)
+
+    def test_unload_key_missing_fs(self):
+        name = "nonexistent"
+
+        with self.assertRaises(lzc_exc.FilesystemNotFound):
+            lzc.lzc_unload_key(name)
+
+    def test_unload_key_busy(self):
+        with encrypted_filesystem() as (fs, _):
+            with zfs_mount(fs):
+                with self.assertRaises(lzc_exc.DatasetBusy):
+                    lzc.lzc_unload_key(fs)
+
+    def test_unload_key_not_loaded(self):
+        with encrypted_filesystem() as (fs, _):
+            lzc.lzc_unload_key(fs)
+            with self.assertRaises(lzc_exc.EncryptionKeyNotLoaded):
+                lzc.lzc_unload_key(fs)
+
+    def test_remap_missing_fs(self):
+        name = "nonexistent"
+
+        with self.assertRaises(lzc_exc.DatasetNotFound):
+            lzc.lzc_remap(name)
+
+    def test_remap_invalid_fs(self):
+        ds = ZFSTest.pool.makeName("fs1")
+        snap = ds + "@snap1"
+
+        lzc.lzc_snapshot([snap])
+        with self.assertRaises(lzc_exc.NameInvalid):
+            lzc.lzc_remap(snap)
+
+    def test_remap_too_long_fs_name(self):
+        name = ZFSTest.pool.makeTooLongName()
+
+        with self.assertRaises(lzc_exc.NameTooLong):
+            lzc.lzc_remap(name)
+
+    def test_remap(self):
+        name = ZFSTest.pool.makeName("fs1")
+
+        lzc.lzc_remap(name)
 
     @needs_support(lzc.lzc_list_children)
     def test_list_children(self):
@@ -3489,8 +3987,9 @@ class _TempPool(object):
             cachefile = self._pool_file_path + _TempPool._cachefile_suffix
         else:
             cachefile = 'none'
-        self._zpool_create = ['zpool', 'create', '-o', 'cachefile=' + cachefile, '-O', 'mountpoint=legacy',
-                              self._pool_name, self._pool_file_path]
+        self._zpool_create = [
+            'zpool', 'create', '-o', 'cachefile=' + cachefile,
+            '-O', 'mountpoint=legacy', self._pool_name, self._pool_file_path]
         try:
             os.ftruncate(fd, size)
             os.close(fd)
@@ -3504,16 +4003,22 @@ class _TempPool(object):
             self._bmarks_supported = self.isPoolFeatureEnabled('bookmarks')
 
             if readonly:
-                # To make a pool read-only it must exported and re-imported with readonly option.
-                # The most deterministic way to re-import the pool is by using a cache file.
-                # But the cache file has to be stashed away before the pool is exported,
-                # because otherwise the pool is removed from the cache.
+                # To make a pool read-only it must exported and re-imported
+                # with readonly option.
+                # The most deterministic way to re-import the pool is by using
+                # a cache file.
+                # But the cache file has to be stashed away before the pool is
+                # exported, because otherwise the pool is removed from the
+                # cache.
                 shutil.copyfile(cachefile, cachefile + '.tmp')
                 subprocess.check_output(
-                    ['zpool', 'export', '-f', self._pool_name], stderr=subprocess.STDOUT)
+                    ['zpool', 'export', '-f', self._pool_name],
+                    stderr=subprocess.STDOUT)
                 os.rename(cachefile + '.tmp', cachefile)
-                subprocess.check_output(['zpool', 'import', '-f', '-N', '-c', cachefile, '-o', 'readonly=on', self._pool_name],
-                                        stderr=subprocess.STDOUT)
+                subprocess.check_output(
+                    ['zpool', 'import', '-f', '-N', '-c', cachefile,
+                        '-o', 'readonly=on', self._pool_name],
+                    stderr=subprocess.STDOUT)
                 os.remove(cachefile)
 
         except subprocess.CalledProcessError as e:
@@ -3550,14 +4055,25 @@ class _TempPool(object):
             self.getRoot().reset()
             return
 
-        try:
-            subprocess.check_output(
-                ['zpool', 'destroy', '-f', self._pool_name], stderr=subprocess.STDOUT)
-            subprocess.check_output(
-                self._zpool_create, stderr=subprocess.STDOUT)
-        except subprocess.CalledProcessError as e:
-            print 'command failed: ', e.output
-            raise
+        # On the Buildbot builders this may fail with "pool is busy"
+        # Retry 5 times before raising an error
+        retry = 0
+        while True:
+            try:
+                subprocess.check_output(
+                    ['zpool', 'destroy', '-f', self._pool_name],
+                    stderr=subprocess.STDOUT)
+                subprocess.check_output(
+                    self._zpool_create, stderr=subprocess.STDOUT)
+                break
+            except subprocess.CalledProcessError as e:
+                if 'pool is busy' in e.output and retry < 5:
+                    retry += 1
+                    time.sleep(1)
+                    continue
+                else:
+                    print 'command failed: ', e.output
+                    raise
         for fs in self._filesystems:
             lzc.lzc_create(self.makeName(fs))
         self.getRoot().reset()
@@ -3565,7 +4081,8 @@ class _TempPool(object):
     def cleanUp(self):
         try:
             subprocess.check_output(
-                ['zpool', 'destroy', '-f', self._pool_name], stderr=subprocess.STDOUT)
+                ['zpool', 'destroy', '-f', self._pool_name],
+                stderr=subprocess.STDOUT)
         except Exception:
             pass
         try:
@@ -3610,6 +4127,9 @@ class _TempPool(object):
     def getRoot(self):
         return self._root
 
+    def getFilesystem(self, fsname):
+        return _Filesystem(self._pool_name + '/' + fsname)
+
     def isPoolFeatureAvailable(self, feature):
         output = subprocess.check_output(
             ['zpool', 'get', '-H', 'feature@' + feature, self._pool_name])
@@ -3644,6 +4164,15 @@ class _Filesystem(object):
         fs = _Filesystem(fsname)
         self._children.append(fs)
         return fs
+
+    def getProperty(self, propname, received=False):
+        if received:
+            output = subprocess.check_output(
+                ['zfs', 'get', '-pH', '-o', 'received', propname, self._name])
+        else:
+            output = subprocess.check_output(
+                ['zfs', 'get', '-pH', '-o', 'value', propname, self._name])
+        return output.strip()
 
     def _makeSnapName(self, i):
         return self._name + '@snap' + bytes(i)
