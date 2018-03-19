@@ -3440,6 +3440,7 @@ receive_read_record(struct receive_arg *ra)
 static void
 dprintf_drr(struct receive_record_arg *rrd, int err)
 {
+#ifdef ZFS_DEBUG
 	switch (rrd->header.drr_type) {
 	case DRR_OBJECT:
 	{
@@ -3520,6 +3521,7 @@ dprintf_drr(struct receive_record_arg *rrd, int err)
 	default:
 		return;
 	}
+#endif
 }
 
 /*
