@@ -16,6 +16,7 @@ SUBDIRS = \
 	zfs_inherit \
 	zfs_load-key \
 	zfs_mount \
+	zfs_program \
 	zfs_promote \
 	zfs_property \
 	zfs_receive \
