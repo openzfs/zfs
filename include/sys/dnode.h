@@ -150,6 +150,12 @@ enum dnode_dirtycontext {
 /* User/Group/Project dnode accounting */
 #define	DNODE_FLAG_USEROBJUSED_ACCOUNTED	(1 << 3)
 
+/*
+ * This mask defines the set of flags which are "portable", meaning
+ * that they can be preserved when doing a raw encrypted zfs send.
+ * Flags included in this mask will be protected by AAD when the block
+ * of dnodes is encrypted.
+ */
 #define	DNODE_CRYPT_PORTABLE_FLAGS_MASK		(DNODE_FLAG_SPILL_BLKPTR)
 
 /*

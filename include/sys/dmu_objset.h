@@ -62,7 +62,13 @@ struct dmu_tx;
 #define	OBJSET_FLAG_USEROBJACCOUNTING_COMPLETE	(1ULL << 1)
 #define	OBJSET_FLAG_PROJECTQUOTA_COMPLETE	(1ULL << 2)
 
-/* all flags are currently non-portable */
+/*
+ * This mask defines the set of flags which are "portable", meaning
+ * that they can be preserved when doing a raw encrypted zfs send.
+ * Flags included in this mask will be protected by os_portable_mac
+ * when the block of dnodes is encrypted. No portable flags currently
+ * exist.
+ */
 #define	OBJSET_CRYPT_PORTABLE_FLAGS_MASK	(0)
 
 typedef struct objset_phys {
