@@ -28,10 +28,10 @@
 #include "qat.h"
 
 /*
- * Max instances in QAT device, each instance is a channel to submit
- * jobs to QAT hardware, this is only for pre-allocating instance,
- * and session arrays, the actual number of instances are defined in
- * the QAT driver's configure file.
+ * Max instances in a QAT device, each instance is a channel to submit
+ * jobs to QAT hardware, this is only for pre-allocating instance and
+ * session arrays; the actual number of instances are defined in the
+ * QAT driver's configuration file.
  */
 #define	QAT_DC_MAX_INSTANCES	48
 
@@ -386,7 +386,7 @@ qat_compress(qat_compress_dir_t dir, char *src, int src_len,
 		/* move to the last page */
 		flat_buf_dst += (compressed_sz + hdr_sz) >> PAGE_SHIFT;
 
-		/* no space for gzip foot in the last page */
+		/* no space for gzip footer in the last page */
 		if (((compressed_sz + hdr_sz) % PAGE_SIZE)
 		    + ZLIB_FOOT_SZ > PAGE_SIZE)
 			goto fail;

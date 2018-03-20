@@ -38,9 +38,9 @@
 #include "qat.h"
 
 /*
- * Max instances in QAT device, each instance is a channel to submit
- * jobs to QAT hardware, this is only for pre-allocating instance,
- * and session arrays, the actual number of instances are defined in
+ * Max instances in a QAT device, each instance is a channel to submit
+ * jobs to QAT hardware, this is only for pre-allocating instances
+ * and session arrays; the actual number of instances are defined in
  * the QAT driver's configure file.
  */
 #define	QAT_CRYPT_MAX_INSTANCES		48
