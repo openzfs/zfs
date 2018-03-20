@@ -135,6 +135,7 @@ mmp_init(spa_t *spa)
 	mutex_init(&mmp->mmp_thread_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&mmp->mmp_thread_cv, NULL, CV_DEFAULT, NULL);
 	mutex_init(&mmp->mmp_io_lock, NULL, MUTEX_DEFAULT, NULL);
+	mmp->mmp_kstat_id = 1;
 }
 
 void
@@ -199,28 +200,33 @@ mmp_thread_stop(spa_t *spa)
 	mmp->mmp_thread_exiting = 0;
 }
 
-/*
- * Choose a leaf vdev to write an MMP block to.  It must not have an
- * outstanding mmp write (if so then there is a problem, and a new write will
- * also block).  If there is no usable leaf in this subtree return NULL,
- * otherwise return a pointer to the leaf.
- *
- * When walking the subtree, a random child is chosen as the starting point so
- * that when the tree is healthy, the leaf chosen will be random with even
- * distribution.  If there are unhealthy vdevs in the tree, the distribution
- * will be really poor only if a large proportion of the vdevs are unhealthy,
- * in which case there are other more pressing problems.
- */
+typedef enum mmp_vdev_state_flag {
+	MMP_FAIL_NOT_WRITABLE	= (1 << 0),
+	MMP_FAIL_WRITE_PENDING	= (1 << 1),
+} mmp_vdev_state_flag_t;
+
 static vdev_t *
-mmp_random_leaf(vdev_t *vd)
+mmp_random_leaf_impl(vdev_t *vd, int *fail_mask)
 {
 	int child_idx;
 
-	if (!vdev_writeable(vd))
+	if (!vdev_writeable(vd)) {
+		*fail_mask |= MMP_FAIL_NOT_WRITABLE;
 		return (NULL);
+	}
 
-	if (vd->vdev_ops->vdev_op_leaf)
-		return (vd->vdev_mmp_pending == 0 ? vd : NULL);
+	if (vd->vdev_ops->vdev_op_leaf) {
+		vdev_t *ret;
+
+		if (vd->vdev_mmp_pending != 0) {
+			*fail_mask |= MMP_FAIL_WRITE_PENDING;
+			ret = NULL;
+		} else {
+			ret = vd;
+		}
+
+		return (ret);
+	}
 
 	child_idx = spa_get_random(vd->vdev_children);
 	for (int offset = vd->vdev_children; offset > 0; offset--) {
@@ -228,12 +234,50 @@ mmp_random_leaf(vdev_t *vd)
 		vdev_t *child = vd->vdev_child[(child_idx + offset) %
 		    vd->vdev_children];
 
-		leaf = mmp_random_leaf(child);
+		leaf = mmp_random_leaf_impl(child, fail_mask);
 		if (leaf)
 			return (leaf);
 	}
 
 	return (NULL);
+}
+
+/*
+ * Find a leaf vdev to write an MMP block to.  It must not have an outstanding
+ * mmp write (if so a new write will also likely block).  If there is no usable
+ * leaf in the tree rooted at in_vd, a nonzero error value is returned, and
+ * *out_vd is unchanged.
+ *
+ * The error value returned is a bit field.
+ *
+ * MMP_FAIL_WRITE_PENDING
+ * If set, one or more leaf vdevs are writeable, but have an MMP write which has
+ * not yet completed.
+ *
+ * MMP_FAIL_NOT_WRITABLE
+ * If set, one or more vdevs are not writeable.  The children of those vdevs
+ * were not examined.
+ *
+ * Assuming in_vd points to a tree, a random subtree will be chosen to start.
+ * That subtree, and successive ones, will be walked until a usable leaf has
+ * been found, or all subtrees have been examined (except that the children of
+ * un-writeable vdevs are not examined).
+ *
+ * If the leaf vdevs in the tree are healthy, the distribution of returned leaf
+ * vdevs will be even.  If there are unhealthy leaves, the following leaves
+ * (child_index % index_children) will be chosen more often.
+ */
+
+static int
+mmp_random_leaf(vdev_t *in_vd, vdev_t **out_vd)
+{
+	int error_mask = 0;
+	vdev_t *vd = mmp_random_leaf_impl(in_vd, &error_mask);
+
+	if (error_mask == 0)
+		*out_vd = vd;
+
+	return (error_mask);
 }
 
 static void
@@ -244,7 +288,8 @@ mmp_write_done(zio_t *zio)
 	mmp_thread_t *mts = zio->io_private;
 
 	mutex_enter(&mts->mmp_io_lock);
-	vd->vdev_mmp_pending = 0;
+	uint64_t mmp_kstat_id = vd->vdev_mmp_kstat_id;
+	hrtime_t mmp_write_duration = gethrtime() - vd->vdev_mmp_pending;
 
 	if (zio->io_error)
 		goto unlock;
@@ -278,8 +323,14 @@ mmp_write_done(zio_t *zio)
 	mts->mmp_last_write = gethrtime();
 
 unlock:
+	vd->vdev_mmp_pending = 0;
+	vd->vdev_mmp_kstat_id = 0;
+
 	mutex_exit(&mts->mmp_io_lock);
 	spa_config_exit(spa, SCL_STATE, mmp_tag);
+
+	spa_mmp_history_set(spa, mmp_kstat_id, zio->io_error,
+	    mmp_write_duration);
 
 	abd_free(zio->io_abd);
 }
@@ -311,18 +362,44 @@ mmp_write_uberblock(spa_t *spa)
 	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL;
 	mmp_thread_t *mmp = &spa->spa_mmp;
 	uberblock_t *ub;
-	vdev_t *vd;
-	int label;
+	vdev_t *vd = NULL;
+	int label, error;
 	uint64_t offset;
 
+	hrtime_t lock_acquire_time = gethrtime();
 	spa_config_enter(spa, SCL_STATE, mmp_tag, RW_READER);
-	vd = mmp_random_leaf(spa->spa_root_vdev);
-	if (vd == NULL) {
+	lock_acquire_time = gethrtime() - lock_acquire_time;
+	if (lock_acquire_time > (MSEC2NSEC(MMP_MIN_INTERVAL) / 10))
+		zfs_dbgmsg("SCL_STATE acquisition took %llu ns\n",
+		    (u_longlong_t)lock_acquire_time);
+
+	error = mmp_random_leaf(spa->spa_root_vdev, &vd);
+
+	mutex_enter(&mmp->mmp_io_lock);
+
+	/*
+	 * spa_mmp_history has two types of entries:
+	 * Issued MMP write: records time issued, error status, etc.
+	 * Skipped MMP write: an MMP write could not be issued because no
+	 * suitable leaf vdev was available.  See comment above struct
+	 * spa_mmp_history for details.
+	 */
+
+	if (error) {
+		if (mmp->mmp_skip_error == error) {
+			spa_mmp_history_set_skip(spa, mmp->mmp_kstat_id - 1);
+		} else {
+			mmp->mmp_skip_error = error;
+			spa_mmp_history_add(spa, mmp->mmp_ub.ub_txg,
+			    gethrestime_sec(), mmp->mmp_delay, NULL, 0,
+			    mmp->mmp_kstat_id++, error);
+		}
+		mutex_exit(&mmp->mmp_io_lock);
 		spa_config_exit(spa, SCL_STATE, FTAG);
 		return;
 	}
 
-	mutex_enter(&mmp->mmp_io_lock);
+	mmp->mmp_skip_error = 0;
 
 	if (mmp->mmp_zio_root == NULL)
 		mmp->mmp_zio_root = zio_root(spa, NULL, NULL,
@@ -333,12 +410,14 @@ mmp_write_uberblock(spa_t *spa)
 	ub->ub_mmp_magic = MMP_MAGIC;
 	ub->ub_mmp_delay = mmp->mmp_delay;
 	vd->vdev_mmp_pending = gethrtime();
+	vd->vdev_mmp_kstat_id = mmp->mmp_kstat_id;
 
 	zio_t *zio  = zio_null(mmp->mmp_zio_root, spa, NULL, NULL, NULL, flags);
 	abd_t *ub_abd = abd_alloc_for_io(VDEV_UBERBLOCK_SIZE(vd), B_TRUE);
 	abd_zero(ub_abd, VDEV_UBERBLOCK_SIZE(vd));
 	abd_copy_from_buf(ub_abd, ub, sizeof (uberblock_t));
 
+	mmp->mmp_kstat_id++;
 	mutex_exit(&mmp->mmp_io_lock);
 
 	offset = VDEV_UBERBLOCK_OFFSET(vd, VDEV_UBERBLOCK_COUNT(vd) -
@@ -349,8 +428,8 @@ mmp_write_uberblock(spa_t *spa)
 	    VDEV_UBERBLOCK_SIZE(vd), mmp_write_done, mmp,
 	    flags | ZIO_FLAG_DONT_PROPAGATE);
 
-	spa_mmp_history_add(ub->ub_txg, ub->ub_timestamp, ub->ub_mmp_delay, vd,
-	    label);
+	(void) spa_mmp_history_add(spa, ub->ub_txg, ub->ub_timestamp,
+	    ub->ub_mmp_delay, vd, label, vd->vdev_mmp_kstat_id, 0);
 
 	zio_nowait(zio);
 }
@@ -395,16 +474,22 @@ mmp_thread(void *arg)
 		}
 
 		/*
-		 * When MMP goes off => on, or spa goes suspended =>
-		 * !suspended, we know no writes occurred recently.  We
-		 * update mmp_last_write to give us some time to try.
+		 * MMP off => on, or suspended => !suspended:
+		 * No writes occurred recently.  Update mmp_last_write to give
+		 * us some time to try.
 		 */
 		if ((!last_spa_multihost && multihost) ||
 		    (last_spa_suspended && !suspended)) {
 			mutex_enter(&mmp->mmp_io_lock);
 			mmp->mmp_last_write = gethrtime();
 			mutex_exit(&mmp->mmp_io_lock);
-		} else if (last_spa_multihost && !multihost) {
+		}
+
+		/*
+		 * MMP on => off:
+		 * mmp_delay == 0 tells importing node to skip activity check.
+		 */
+		if (last_spa_multihost && !multihost) {
 			mutex_enter(&mmp->mmp_io_lock);
 			mmp->mmp_delay = 0;
 			mutex_exit(&mmp->mmp_io_lock);
@@ -435,16 +520,16 @@ mmp_thread(void *arg)
 			    "succeeded in over %llus; suspending pool",
 			    spa_name(spa),
 			    NSEC2SEC(start - mmp->mmp_last_write));
-			zio_suspend(spa, NULL);
+			zio_suspend(spa, NULL, ZIO_SUSPEND_MMP);
 		}
 
-		if (multihost)
+		if (multihost && !suspended)
 			mmp_write_uberblock(spa);
 
 		CALLB_CPR_SAFE_BEGIN(&cpr);
-		(void) cv_timedwait_sig(&mmp->mmp_thread_cv,
-		    &mmp->mmp_thread_lock, ddi_get_lbolt() +
-		    ((next_time - gethrtime()) / (NANOSEC / hz)));
+		(void) cv_timedwait_sig_hires(&mmp->mmp_thread_cv,
+		    &mmp->mmp_thread_lock, next_time, USEC2NSEC(1),
+		    CALLOUT_FLAG_ABSOLUTE);
 		CALLB_CPR_SAFE_END(&cpr, &mmp->mmp_thread_lock);
 	}
 

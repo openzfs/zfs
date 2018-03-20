@@ -28,6 +28,57 @@ Description of the different parameters to the ZFS module.
 .sp
 .ne 2
 .na
+\fBdbuf_cache_max_bytes\fR (ulong)
+.ad
+.RS 12n
+Maximum size in bytes of the dbuf cache.  When \fB0\fR this value will default
+to \fB1/2^dbuf_cache_shift\fR (1/32) of the target ARC size, otherwise the
+provided value in bytes will be used.  The behavior of the dbuf cache and its
+associated settings can be observed via the \fB/proc/spl/kstat/zfs/dbufstats\fR
+kstat.
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBdbuf_cache_hiwater_pct\fR (uint)
+.ad
+.RS 12n
+The percentage over \fBdbuf_cache_max_bytes\fR when dbufs must be evicted
+directly.
+.sp
+Default value: \fB10\fR%.
+.RE
+
+.sp
+.ne 2
+.na
+\fBdbuf_cache_lowater_pct\fR (uint)
+.ad
+.RS 12n
+The percentage below \fBdbuf_cache_max_bytes\fR when the evict thread stops
+evicting dbufs.
+.sp
+Default value: \fB10\fR%.
+.RE
+
+.sp
+.ne 2
+.na
+\fBdbuf_cache_shift\fR (int)
+.ad
+.RS 12n
+Set the size of the dbuf cache, \fBdbuf_cache_max_bytes\fR, to a log2 fraction
+of the target arc size.
+.sp
+Default value: \fB5\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBignore_hole_birth\fR (int)
 .ad
 .RS 12n
@@ -756,6 +807,19 @@ Use \fB1\fR for yes (default) and \fB0\fR for no.
 .sp
 .ne 2
 .na
+\fBzfs_checksums_per_second\fR (int)
+.ad
+.RS 12n
+Rate limit checksum events to this many per second.  Note that this should
+not be set below the zed thresholds (currently 10 checksums over 10 sec)
+or else zed may not trigger any action.
+.sp
+Default value: 20
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_commit_timeout_pct\fR (int)
 .ad
 .RS 12n
@@ -927,6 +991,17 @@ See the section "ZFS TRANSACTION DELAY".
 Note: \fBzfs_delay_scale\fR * \fBzfs_dirty_data_max\fR must be < 2^64.
 .sp
 Default value: \fB500,000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_delays_per_second\fR (int)
+.ad
+.RS 12n
+Rate limit IO delay events to this many per second.
+.sp
+Default value: 20
 .RE
 
 .sp
@@ -1403,17 +1478,6 @@ Default value: \fB1,048,576\fR.
 .sp
 .ne 2
 .na
-\fBzfs_mdcomp_disable\fR (int)
-.ad
-.RS 12n
-Disable meta data compression
-.sp
-Use \fB1\fR for yes and \fB0\fR for no (default).
-.RE
-
-.sp
-.ne 2
-.na
 \fBzfs_metaslab_fragmentation_threshold\fR (int)
 .ad
 .RS 12n
@@ -1697,6 +1761,20 @@ Resilvers are processed by the sync thread. While resilvering it will spend
 at least this much time working on a resilver between txg flushes.
 .sp
 Default value: \fB3,000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_scan_ignore_errors\fR (int)
+.ad
+.RS 12n
+If set to a nonzero value, remove the DTL (dirty time list) upon
+completion of a pool scan (scrub) even if there were unrepairable
+errors.  It is intended to be used during pool repair or recovery to
+stop resilvering when the pool is next imported.
+.sp
+Default value: \fB0\fR.
 .RE
 
 .sp
@@ -2339,9 +2417,9 @@ Default value: \fB1\fR.
 \fBzfs_qat_disable\fR (int)
 .ad
 .RS 12n
-This tunable disables qat hardware acceleration for gzip compression.
-It is available only if qat acceleration is compiled in and qat driver
-is present.
+This tunable disables qat hardware acceleration for gzip compression and.
+AES-GCM encryption. It is available only if qat acceleration is compiled in
+and the qat driver is present.
 .sp
 Use \fB1\fR for yes and \fB0\fR for no (default).
 .RE

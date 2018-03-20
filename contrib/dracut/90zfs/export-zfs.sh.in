@@ -3,9 +3,9 @@
 . /lib/dracut-zfs-lib.sh
 
 _do_zpool_export() {
-	local ret=0
-	local errs=""
-	local final="${1}"
+	ret=0
+	errs=""
+	final="${1}"
 
 	info "ZFS: Exporting ZFS storage pools..."
 	errs=$(export_all -F 2>&1)

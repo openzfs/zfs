@@ -235,7 +235,7 @@ static void read_numeral (LexState *ls, SemInfo *seminfo) {
     expo = "Pp";
   for (;;) {
     if (check_next(ls, expo))  /* exponent part? */
-      check_next(ls, "+-");  /* optional exponent sign */
+      (void) check_next(ls, "+-");  /* optional exponent sign */
     if (lisxdigit(ls->current) || ls->current == '.')
       save_and_next(ls);
     else  break;
@@ -474,6 +474,7 @@ static int llex (LexState *ls, SemInfo *seminfo) {
         else if (!lisdigit(ls->current)) return '.';
         /* else go through */
       }
+      /* FALLTHROUGH */
       case '0': case '1': case '2': case '3': case '4':
       case '5': case '6': case '7': case '8': case '9': {
         read_numeral(ls, seminfo);

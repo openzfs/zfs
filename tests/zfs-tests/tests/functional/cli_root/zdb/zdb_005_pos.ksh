@@ -45,6 +45,10 @@ verify_disk_count "$DISKS" 2
 set -A DISK $DISKS
 
 default_mirror_setup_noexit $DISKS
+DEVS=$(get_pool_devices ${TESTPOOL} ${DEV_RDSKDIR})
+log_note "$DEVS"
+[[ -n $DEVS ]] && set -A DISK $DEVS
+
 log_must dd if=/dev/zero of=$DEV_RDSKDIR/${DISK[1]} bs=1K count=256 conv=notrunc
 log_must truncate -s 0 $TEMPFILE
 

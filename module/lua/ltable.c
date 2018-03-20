@@ -405,8 +405,10 @@ static Node *getfreepos (Table *t) {
 TValue *luaH_newkey (lua_State *L, Table *t, const TValue *key) {
   Node *mp;
   if (ttisnil(key)) luaG_runerror(L, "table index is nil");
+#if defined LUA_HAS_FLOAT_NUMBERS
   else if (ttisnumber(key) && luai_numisnan(L, nvalue(key)))
     luaG_runerror(L, "table index is NaN");
+#endif
   mp = mainposition(t, key);
   if (!ttisnil(gval(mp)) || isdummy(mp)) {  /* main position is taken? */
     Node *othern;
@@ -490,6 +492,7 @@ const TValue *luaH_get (Table *t, const TValue *key) {
         return luaH_getint(t, k);  /* use specialized version */
       /* else go through */
     }
+    /* FALLTHROUGH */
     default: {
       Node *n = mainposition(t, key);
       do {  /* check whether `key' is somewhere in the chain */

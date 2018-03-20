@@ -33,12 +33,10 @@
 # Copyright (c) 2016 by Jinshan Xiong. No rights reserved.
 #
 
-. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/upgrade/upgrade_common.kshlib
 
 verify_runnable "global"
 
-log_must zpool destroy $TESTPOOL
-
-log_must rm /tmp/zpool_upgrade_test.dat
+log_must rm -f $TMPDEV
 
 default_cleanup

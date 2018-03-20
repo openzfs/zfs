@@ -5,4 +5,5 @@ dist_pkgdata_SCRIPTS = \
 	events.cfg \
 	events_common.kshlib \
 	events_001_pos.ksh \
-	events_002_pos.ksh
+	events_002_pos.ksh \
+	zed_rc_filter.ksh

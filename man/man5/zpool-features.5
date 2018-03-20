@@ -640,5 +640,39 @@ are destroyed.
 
 .RE
 
+.sp
+.ne 2
+.na
+\fB\fBproject_quota\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	org.zfsonlinux:project_quota
+READ\-ONLY COMPATIBLE	yes
+DEPENDENCIES	extensible_dataset
+.TE
+
+This feature allows administrators to account the spaces and objects usage
+information against the project identifier (ID).
+
+The project ID is new object-based attribute. When upgrading an existing
+filesystem, object without project ID attribute will be assigned a zero
+project ID. After this feature is enabled, newly created object will inherit
+its parent directory's project ID if the parent inherit flag is set (via
+\fBchattr +/-P\fR or \fBzfs project [-s|-C]\fR). Otherwise, the new object's
+project ID will be set as zero. An object's project ID can be changed at
+anytime by the owner (or privileged user) via \fBchattr -p $prjid\fR or
+\fBzfs project -p $prjid\fR.
+
+This feature will become \fBactive\fR as soon as it is enabled and will never
+return to being \fBdisabled\fR. Each filesystem will be upgraded automatically
+when remounted or when new file is created under that filesystem. The upgrade
+can also be triggered on filesystems via `zfs set version=current <pool/fs>`.
+The upgrade process runs in the background and may take a while to complete
+for the filesystems containing a large number of files.
+
+.RE
+
 .SH "SEE ALSO"
 \fBzpool\fR(8)

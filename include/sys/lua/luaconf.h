@@ -12,7 +12,7 @@
 #include <sys/zfs_context.h>
 
 
-extern ssize_t lcompat_sprintf(char *, const char *, ...);
+extern ssize_t lcompat_sprintf(char *, size_t size, const char *, ...);
 extern int64_t lcompat_strtoll(const char *, char **);
 extern int64_t lcompat_pow(int64_t, int64_t);
 
@@ -402,9 +402,10 @@ extern int64_t lcompat_pow(int64_t, int64_t);
 #define	PRId64	"lld"
 #endif
 
-#define LUA_NUMBER_FMT		"%" PRId64
-#define lua_number2str(s,n)	lcompat_sprintf((s), LUA_NUMBER_FMT, (n))
 #define LUAI_MAXNUMBER2STR	32 /* 16 digits, sign, point, and \0 */
+#define LUA_NUMBER_FMT		"%" PRId64
+#define lua_number2str(s,n)	\
+	lcompat_sprintf((s), LUAI_MAXNUMBER2STR, LUA_NUMBER_FMT, (n))
 
 
 /*

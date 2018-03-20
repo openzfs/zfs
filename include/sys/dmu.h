@@ -276,9 +276,10 @@ void zfs_znode_byteswap(void *buf, size_t size);
 
 #define	DMU_USERUSED_OBJECT	(-1ULL)
 #define	DMU_GROUPUSED_OBJECT	(-2ULL)
+#define	DMU_PROJECTUSED_OBJECT	(-3ULL)
 
 /*
- * Zap prefix for object accounting in DMU_{USER,GROUP}USED_OBJECT.
+ * Zap prefix for object accounting in DMU_{USER,GROUP,PROJECT}USED_OBJECT.
  */
 #define	DMU_OBJACCT_PREFIX	"obj-"
 #define	DMU_OBJACCT_PREFIX_LEN	4
@@ -820,8 +821,9 @@ void dmu_assign_arcbuf_by_dnode(dnode_t *dn, uint64_t offset,
 void dmu_assign_arcbuf_by_dbuf(dmu_buf_t *handle, uint64_t offset,
     struct arc_buf *buf, dmu_tx_t *tx);
 #define	dmu_assign_arcbuf	dmu_assign_arcbuf_by_dbuf
-void dmu_convert_to_raw(dmu_buf_t *handle, boolean_t byteorder,
-    const uint8_t *salt, const uint8_t *iv, const uint8_t *mac, dmu_tx_t *tx);
+int dmu_convert_mdn_block_to_raw(objset_t *os, uint64_t firstobj,
+    boolean_t byteorder, const uint8_t *salt, const uint8_t *iv,
+    const uint8_t *mac, dmu_tx_t *tx);
 void dmu_copy_from_buf(objset_t *os, uint64_t object, uint64_t offset,
     dmu_buf_t *handle, dmu_tx_t *tx);
 #ifdef HAVE_UIO_ZEROCOPY
@@ -971,7 +973,7 @@ extern int dmu_dir_list_next(objset_t *os, int namelen, char *name,
     uint64_t *idp, uint64_t *offp);
 
 typedef int objset_used_cb_t(dmu_object_type_t bonustype,
-    void *bonus, uint64_t *userp, uint64_t *groupp);
+    void *bonus, uint64_t *userp, uint64_t *groupp, uint64_t *projectp);
 extern void dmu_objset_register_type(dmu_objset_type_t ost,
     objset_used_cb_t *cb);
 extern void dmu_objset_set_user(objset_t *os, void *user_ptr);
@@ -1040,8 +1042,6 @@ int dmu_diff(const char *tosnap_name, const char *fromsnap_name,
 /* CRC64 table */
 #define	ZFS_CRC64_POLY	0xC96C5795D7870F42ULL	/* ECMA-182, reflected form */
 extern uint64_t zfs_crc64_table[256];
-
-extern int zfs_mdcomp_disable;
 
 #ifdef	__cplusplus
 }

@@ -189,8 +189,12 @@ int spa_keystore_lookup_key(spa_t *spa, uint64_t dsobj, void *tag,
     dsl_crypto_key_t **dck_out);
 
 int dsl_crypto_populate_key_nvlist(struct dsl_dataset *ds, nvlist_t **nvl_out);
-int dsl_crypto_recv_key(const char *poolname, uint64_t dsobj,
-    dmu_objset_type_t ostype, nvlist_t *nvl);
+int dsl_crypto_recv_raw_key_check(struct dsl_dataset *ds,
+    nvlist_t *nvl, dmu_tx_t *tx);
+void dsl_crypto_recv_raw_key_sync(struct dsl_dataset *ds,
+    nvlist_t *nvl, dmu_tx_t *tx);
+int dsl_crypto_recv_raw(const char *poolname, uint64_t dsobj,
+    dmu_objset_type_t ostype, nvlist_t *nvl, boolean_t do_key);
 
 int spa_keystore_change_key(const char *dsname, dsl_crypto_params_t *dcp);
 int dsl_dir_rename_crypt_check(dsl_dir_t *dd, dsl_dir_t *newparent);

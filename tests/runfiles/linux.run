@@ -177,6 +177,10 @@ tests = ['zfs_mount_001_pos', 'zfs_mount_002_pos', 'zfs_mount_003_pos',
     'zfs_mount_encrypted', 'zfs_mount_remount']
 tags = ['functional', 'cli_root', 'zfs_mount']
 
+[tests/functional/cli_root/zfs_program]
+tests = ['zfs_program_json']
+tags = ['functional', 'cli_root', 'zfs_program']
+
 [tests/functional/cli_root/zfs_promote]
 tests = ['zfs_promote_001_pos', 'zfs_promote_002_pos', 'zfs_promote_003_pos',
     'zfs_promote_004_pos', 'zfs_promote_005_pos', 'zfs_promote_006_neg',
@@ -223,7 +227,7 @@ tags = ['functional', 'cli_root', 'zfs_rollback']
 tests = ['zfs_send_001_pos', 'zfs_send_002_pos', 'zfs_send_003_pos',
     'zfs_send_004_neg', 'zfs_send_005_pos', 'zfs_send_006_pos',
     'zfs_send_007_pos', 'zfs_send_encrypted', 'zfs_send_raw',
-    'zfs_send_sparse']
+    'zfs_send_sparse', 'zfs_send-b']
 tags = ['functional', 'cli_root', 'zfs_send']
 
 [tests/functional/cli_root/zfs_set]
@@ -436,7 +440,8 @@ tests = ['zdb_001_neg', 'zfs_001_neg', 'zfs_allow_001_neg',
     'zpool_offline_001_neg', 'zpool_online_001_neg', 'zpool_remove_001_neg',
     'zpool_replace_001_neg', 'zpool_scrub_001_neg', 'zpool_set_001_neg',
     'zpool_status_001_neg', 'zpool_upgrade_001_neg', 'arcstat_001_pos',
-    'arc_summary_001_pos', 'arc_summary_002_neg', 'dbufstat_001_pos']
+    'arc_summary_001_pos', 'arc_summary_002_neg', 
+    'arc_summary3_001_pos', 'dbufstat_001_pos']
 user =
 tags = ['functional', 'cli_user', 'misc']
 
@@ -489,7 +494,7 @@ tests = ['devices_001_pos', 'devices_002_neg', 'devices_003_pos']
 tags = ['functional', 'devices']
 
 [tests/functional/events]
-tests = ['events_001_pos', 'events_002_pos']
+tests = ['events_001_pos', 'events_002_pos', 'zed_rc_filter']
 tags = ['functional', 'events']
 
 [tests/functional/exec]
@@ -498,7 +503,8 @@ tags = ['functional', 'exec']
 
 [tests/functional/fault]
 tests = ['auto_online_001_pos', 'auto_replace_001_pos', 'auto_spare_001_pos',
-    'auto_spare_002_pos', 'auto_spare_ashift', 'auto_spare_multiple']
+    'auto_spare_002_pos', 'auto_spare_ashift', 'auto_spare_multiple',
+    'scrub_after_resilver']
 tags = ['functional', 'fault']
 
 [tests/functional/features/async_destroy]
@@ -572,7 +578,7 @@ tags = ['functional', 'mmap']
 [tests/functional/mmp]
 tests = ['mmp_on_thread', 'mmp_on_uberblocks', 'mmp_on_off', 'mmp_interval',
     'mmp_active_import', 'mmp_inactive_import', 'mmp_exported_import',
-    'mmp_write_uberblocks', 'mmp_reset_interval']
+    'mmp_write_uberblocks', 'mmp_reset_interval', 'multihost_history']
 tags = ['functional', 'mmp']
 
 [tests/functional/mount]
@@ -615,6 +621,16 @@ tags = ['functional', 'poolversion']
 [tests/functional/privilege]
 tests = ['privilege_001_pos', 'privilege_002_pos']
 tags = ['functional', 'privilege']
+
+[tests/functional/projectquota]
+tests = ['projectid_001_pos', 'projectid_002_pos', 'projectid_003_pos',
+    'projectquota_001_pos', 'projectquota_002_pos', 'projectquota_003_pos',
+    'projectquota_004_neg', 'projectquota_005_pos', 'projectquota_006_pos',
+    'projectquota_007_pos', 'projectquota_008_pos', 'projectquota_009_pos',
+    'projectspace_001_pos', 'projectspace_002_pos', 'projectspace_003_pos',
+    'projectspace_004_pos',
+    'projecttree_001_pos', 'projecttree_002_pos', 'projecttree_003_neg' ]
+tags = ['functional', 'projectquota']
 
 [tests/functional/quota]
 tests = ['quota_001_pos', 'quota_002_pos', 'quota_003_pos',
@@ -728,8 +744,12 @@ tests = ['truncate_001_pos', 'truncate_002_pos', 'truncate_timestamps']
 tags = ['functional', 'truncate']
 
 [tests/functional/upgrade]
-tests = [ 'upgrade_userobj_001_pos' ]
+tests = ['upgrade_userobj_001_pos', 'upgrade_projectquota_001_pos']
 tags = ['functional', 'upgrade']
+
+[tests/functional/user_namespace]
+tests = ['user_namespace_001']
+tags = ['functional', 'user_namespace']
 
 [tests/functional/userquota]
 tests = [

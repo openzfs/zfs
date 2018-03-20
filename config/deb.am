@@ -2,16 +2,16 @@ deb-local:
 	@(if test "${HAVE_DPKGBUILD}" = "no"; then \
 		echo -e "\n" \
 	"*** Required util ${DPKGBUILD} missing.  Please install the\n" \
-        "*** package for your distribution which provides ${DPKGBUILD},\n" \
+	"*** package for your distribution which provides ${DPKGBUILD},\n" \
 	"*** re-run configure, and try again.\n"; \
-                exit 1; \
+		exit 1; \
 	fi; \
 	if test "${HAVE_ALIEN}" = "no"; then \
 		echo -e "\n" \
 	"*** Required util ${ALIEN} missing.  Please install the\n" \
-        "*** package for your distribution which provides ${ALIEN},\n" \
+	"*** package for your distribution which provides ${ALIEN},\n" \
 	"*** re-run configure, and try again.\n"; \
-                exit 1; \
+		exit 1; \
 	fi)
 
 deb-kmod: deb-local rpm-kmod

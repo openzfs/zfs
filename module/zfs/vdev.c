@@ -57,6 +57,22 @@
 int metaslabs_per_vdev = 200;
 
 /*
+ * Rate limit delay events to this many IO delays per second.
+ */
+unsigned int zfs_delays_per_second = 20;
+
+/*
+ * Rate limit checksum events after this many checksum errors per second.
+ */
+unsigned int zfs_checksums_per_second = 20;
+
+/*
+ * Ignore errors during scrub/resilver.  Allows to work around resilver
+ * upon import when there are pool errors.
+ */
+int zfs_scan_ignore_errors = 0;
+
+/*
  * Virtual device management.
  */
 
@@ -199,7 +215,13 @@ vdev_count_leaves_impl(vdev_t *vd)
 int
 vdev_count_leaves(spa_t *spa)
 {
-	return (vdev_count_leaves_impl(spa->spa_root_vdev));
+	int rc;
+
+	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
+	rc = vdev_count_leaves_impl(spa->spa_root_vdev);
+	spa_config_exit(spa, SCL_VDEV, FTAG);
+
+	return (rc);
 }
 
 void
@@ -351,8 +373,8 @@ vdev_alloc_common(spa_t *spa, uint_t id, uint64_t guid, vdev_ops_t *ops)
 	 * and checksum events so that we don't overwhelm ZED with thousands
 	 * of events when a disk is acting up.
 	 */
-	zfs_ratelimit_init(&vd->vdev_delay_rl, DELAYS_PER_SECOND, 1);
-	zfs_ratelimit_init(&vd->vdev_checksum_rl, CHECKSUMS_PER_SECOND, 1);
+	zfs_ratelimit_init(&vd->vdev_delay_rl, &zfs_delays_per_second, 1);
+	zfs_ratelimit_init(&vd->vdev_checksum_rl, &zfs_checksums_per_second, 1);
 
 	list_link_init(&vd->vdev_config_dirty_node);
 	list_link_init(&vd->vdev_state_dirty_node);
@@ -1946,6 +1968,12 @@ vdev_dtl_reassess(vdev_t *vd, uint64_t txg, uint64_t scrub_txg, int scrub_done)
 		dsl_scan_t *scn = spa->spa_dsl_pool->dp_scan;
 
 		mutex_enter(&vd->vdev_dtl_lock);
+
+		/*
+		 * If requested, pretend the scan completed cleanly.
+		 */
+		if (zfs_scan_ignore_errors && scn)
+			scn->scn_phys.scn_errors = 0;
 
 		/*
 		 * If we've completed a scan cleanly then determine
@@ -3752,5 +3780,18 @@ module_param(metaslabs_per_vdev, int, 0644);
 MODULE_PARM_DESC(metaslabs_per_vdev,
 	"Divide added vdev into approximately (but no more than) this number "
 	"of metaslabs");
+
+module_param(zfs_delays_per_second, uint, 0644);
+MODULE_PARM_DESC(zfs_delays_per_second, "Rate limit delay events to this many "
+	"IO delays per second");
+
+module_param(zfs_checksums_per_second, uint, 0644);
+	MODULE_PARM_DESC(zfs_checksums_per_second, "Rate limit checksum events "
+	"to this many checksum errors per second (do not set below zed"
+	"threshold).");
+
+module_param(zfs_scan_ignore_errors, int, 0644);
+MODULE_PARM_DESC(zfs_scan_ignore_errors,
+	"Ignore errors during resilver/scrub");
 /* END CSTYLED */
 #endif

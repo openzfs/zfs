@@ -1290,10 +1290,11 @@ zvol_resume(zvol_state_t *zv)
 }
 
 static int
-zvol_first_open(zvol_state_t *zv)
+zvol_first_open(zvol_state_t *zv, boolean_t readonly)
 {
 	objset_t *os;
 	int error, locked = 0;
+	boolean_t ro;
 
 	ASSERT(RW_READ_HELD(&zv->zv_suspend_lock));
 	ASSERT(MUTEX_HELD(&zv->zv_state_lock));
@@ -1322,8 +1323,8 @@ zvol_first_open(zvol_state_t *zv)
 			return (-SET_ERROR(ERESTARTSYS));
 	}
 
-	/* lie and say we're read-only */
-	error = dmu_objset_own(zv->zv_name, DMU_OST_ZVOL, 1, 1, zv, &os);
+	ro = (readonly || (strchr(zv->zv_name, '@') != NULL));
+	error = dmu_objset_own(zv->zv_name, DMU_OST_ZVOL, ro, B_TRUE, zv, &os);
 	if (error)
 		goto out_mutex;
 
@@ -1402,17 +1403,12 @@ zvol_open(struct block_device *bdev, fmode_t flag)
 	ASSERT(zv->zv_open_count != 0 || RW_READ_HELD(&zv->zv_suspend_lock));
 
 	if (zv->zv_open_count == 0) {
-		error = zvol_first_open(zv);
+		error = zvol_first_open(zv, !(flag & FMODE_WRITE));
 		if (error)
 			goto out_mutex;
 	}
 
-	/*
-	 * Check for a bad on-disk format version now since we
-	 * lied about owning the dataset readonly before.
-	 */
-	if ((flag & FMODE_WRITE) && ((zv->zv_flags & ZVOL_RDONLY) ||
-	    dmu_objset_incompatible_encryption_version(zv->zv_objset))) {
+	if ((flag & FMODE_WRITE) && (zv->zv_flags & ZVOL_RDONLY)) {
 		error = -EROFS;
 		goto out_open_count;
 	}
@@ -1594,7 +1590,7 @@ zvol_probe(dev_t dev, int *part, void *arg)
 	struct kobject *kobj;
 
 	zv = zvol_find_by_dev(dev);
-	kobj = zv ? get_disk(zv->zv_disk) : NULL;
+	kobj = zv ? get_disk_and_module(zv->zv_disk) : NULL;
 	ASSERT(zv == NULL || MUTEX_HELD(&zv->zv_state_lock));
 	if (zv)
 		mutex_exit(&zv->zv_state_lock);

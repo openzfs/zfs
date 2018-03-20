@@ -28,7 +28,7 @@
 
 #include <sys/debug.h>
 #include <sys/types.h>
-#include "qat_compress.h"
+#include "qat.h"
 
 #ifdef _KERNEL
 
@@ -58,7 +58,7 @@ gzip_compress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
 	ASSERT(d_len <= s_len);
 
 	/* check if hardware accelerator can be used */
-	if (qat_use_accel(s_len)) {
+	if (qat_dc_use_accel(s_len)) {
 		if (qat_compress(QAT_COMPRESS, s_start,
 		    s_len, d_start, d_len, &dstlen) == CPA_STATUS_SUCCESS)
 			return ((size_t)dstlen);
@@ -85,7 +85,7 @@ gzip_decompress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
 	ASSERT(d_len >= s_len);
 
 	/* check if hardware accelerator can be used */
-	if (qat_use_accel(d_len)) {
+	if (qat_dc_use_accel(d_len)) {
 		if (qat_compress(QAT_DECOMPRESS, s_start, s_len,
 		    d_start, d_len, &dstlen) == CPA_STATUS_SUCCESS)
 			return (0);

@@ -43,6 +43,7 @@ SUBDIRS = \
 	pool_names \
 	poolversion \
 	privilege \
+	projectquota \
 	quota \
 	raidz \
 	redundancy \
@@ -62,6 +63,7 @@ SUBDIRS = \
 	tmpfile \
 	truncate \
 	upgrade \
+	user_namespace \
 	userquota \
 	vdev_zaps \
 	write_dirs \

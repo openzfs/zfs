@@ -30,6 +30,7 @@
 #include <sys/zio.h>
 #include <sys/sha2.h>
 #include <sys/abd.h>
+#include "qat.h"
 
 static int
 sha_incremental(void *buf, size_t size, void *arg)
@@ -44,13 +45,25 @@ void
 abd_checksum_SHA256(abd_t *abd, uint64_t size,
     const void *ctx_template, zio_cksum_t *zcp)
 {
+	int ret;
 	SHA2_CTX ctx;
 	zio_cksum_t tmp;
+
+	if (qat_checksum_use_accel(size)) {
+		uint8_t *buf = abd_borrow_buf_copy(abd, size);
+		ret = qat_checksum(ZIO_CHECKSUM_SHA256, buf, size, &tmp);
+		abd_return_buf(abd, buf, size);
+		if (ret == CPA_STATUS_SUCCESS)
+			goto bswap;
+
+		/* If the hardware implementation fails fall back to software */
+	}
 
 	SHA2Init(SHA256, &ctx);
 	(void) abd_iterate_func(abd, 0, size, sha_incremental, &ctx);
 	SHA2Final(&tmp, &ctx);
 
+bswap:
 	/*
 	 * A prior implementation of this function had a
 	 * private SHA256 implementation always wrote things out in

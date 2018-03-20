@@ -1,5 +1,6 @@
 pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/mmp
 dist_pkgdata_SCRIPTS = \
+	multihost_history.ksh \
 	mmp_on_thread.ksh \
 	mmp_on_uberblocks.ksh \
 	mmp_on_off.ksh \

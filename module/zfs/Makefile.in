@@ -132,7 +132,9 @@ $(MODULE)-objs += zrlock.o
 $(MODULE)-objs += zvol.o
 $(MODULE)-objs += dsl_destroy.o
 $(MODULE)-objs += dsl_userhold.o
+$(MODULE)-objs += qat.o
 $(MODULE)-objs += qat_compress.o
+$(MODULE)-objs += qat_crypt.o
 
 # Suppress incorrect warnings from versions of objtool which are not
 # aware of x86 EVEX prefix instructions used for AVX512.

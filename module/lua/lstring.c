@@ -97,14 +97,16 @@ void luaS_resize (lua_State *L, int newsize) {
 static TString *createstrobj (lua_State *L, const char *str, size_t l,
                               int tag, unsigned int h, GCObject **list) {
   TString *ts;
+  char *sbuf;
   size_t totalsize;  /* total size of TString object */
   totalsize = sizeof(TString) + ((l + 1) * sizeof(char));
   ts = &luaC_newobj(L, tag, totalsize, list, 0)->ts;
   ts->tsv.len = l;
   ts->tsv.hash = h;
   ts->tsv.extra = 0;
-  memcpy(ts+1, str, l*sizeof(char));
-  ((char *)(ts+1))[l] = '\0';  /* ending 0 */
+  sbuf = (char *)(TString *)(ts + 1);
+  memcpy(sbuf, str, l*sizeof(char));
+  sbuf[l] = '\0';  /* ending 0 */
   return ts;
 }
 

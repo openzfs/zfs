@@ -10,6 +10,8 @@
 
 : "${ZED_DEBUG_LOG:="${TMPDIR:="/tmp"}/zed.debug.log"}"
 
+zed_exit_if_ignoring_this_event
+
 lockfile="$(basename -- "${ZED_DEBUG_LOG}").lock"
 
 umask 077

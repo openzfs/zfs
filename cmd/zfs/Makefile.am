@@ -10,7 +10,9 @@ zfs_SOURCES = \
 	zfs_iter.c \
 	zfs_iter.h \
 	zfs_main.c \
-	zfs_util.h
+	zfs_util.h \
+	zfs_project.c \
+	zfs_projectutil.h
 
 zfs_LDADD = \
 	$(top_builddir)/lib/libnvpair/libnvpair.la \

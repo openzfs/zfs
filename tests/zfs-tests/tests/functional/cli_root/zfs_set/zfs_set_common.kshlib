@@ -267,3 +267,110 @@ function get_source
 
 	echo "$source"
 }
+
+#
+# Verify property $2 is set from source $4 on dataset $1 and has value $3.
+#
+# $1 checked dataset
+# $2 user property
+# $3 property value
+# $4 source
+#
+# Returns: 0 if both expected source and value match, 1 otherwise
+#
+function check_prop_source
+{
+        typeset dataset="$1"
+        typeset prop="$2"
+        typeset value="$3"
+        typeset source="$4"
+        typeset chk_value=$(get_prop "$prop" "$dataset")
+        typeset chk_source=$(get_source "$prop" "$dataset")
+
+        if [[ "$chk_value" != "$value" || "$chk_source" != "$4" ]]
+        then
+                return 1
+        else
+                return 0
+        fi
+}
+
+#
+# Verify target dataset $1 inherit property $2 from dataset $3.
+#
+# $1 checked dataset
+# $2 property
+# $3 inherited dataset
+#
+# Returns: 0 if property has expected value and is inherited, 1 otherwise
+#
+function check_prop_inherit
+{
+        typeset checked_dtst="$1"
+        typeset prop="$2"
+        typeset inherited_dtst="$3"
+        typeset inherited_value=$(get_prop "$prop" "$inherited_dtst")
+        typeset value=$(get_prop "$prop" "$checked_dtst")
+        typeset source=$(get_source "$prop" "$checked_dtst")
+
+        if [[ "$value" != "$inherited_value" || \
+            "$source" != "inherited from $inherited_dtst" ]]
+        then
+                return 1
+        else
+                return 0
+        fi
+}
+
+#
+# Verify property $2 received value on dataset $1 has value $3
+#
+# $1 checked dataset
+# $2 property name
+# $3 checked value
+#
+# Returns: 0 if property has expected value and is received, 1 otherwise
+#
+function check_prop_received
+{
+        typeset dataset="$1"
+        typeset prop="$2"
+        typeset value="$3"
+
+        received=$(zfs get -H -o received "$prop" "$dataset")
+        if (($? != 0)); then
+                log_fail "Unable to get $prop received value for dataset " \
+                    "$dataset"
+        fi
+        if [[ "$received" == "$value" ]]
+        then
+                return 0
+        else
+                return 1
+        fi
+}
+
+#
+# Verify user property $2 is not set on dataset $1
+#
+# $1 checked dataset
+# $2 property name
+#
+# Returns: 0 if property is missing (not set), 1 otherwise
+#
+function check_prop_missing
+{
+        typeset dataset="$1"
+        typeset prop="$2"
+
+        value=$(zfs get -H -o value "$prop" "$dataset")
+        if (($? != 0)); then
+                log_fail "Unable to get $prop value for dataset $dataset"
+        fi
+        if [[ "-" == "$value" ]]
+        then
+                return 0
+        else
+                return 1
+        fi
+}

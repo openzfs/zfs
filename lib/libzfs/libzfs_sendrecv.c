@@ -621,6 +621,7 @@ typedef struct send_data {
 	const char *fromsnap;
 	const char *tosnap;
 	boolean_t raw;
+	boolean_t backup;
 	boolean_t recursive;
 	boolean_t verbose;
 	boolean_t seenfrom;
@@ -651,7 +652,8 @@ typedef struct send_data {
 	 */
 } send_data_t;
 
-static void send_iterate_prop(zfs_handle_t *zhp, nvlist_t *nv);
+static void
+send_iterate_prop(zfs_handle_t *zhp, boolean_t received_only, nvlist_t *nv);
 
 static int
 send_iterate_snap(zfs_handle_t *zhp, void *arg)
@@ -706,7 +708,7 @@ send_iterate_snap(zfs_handle_t *zhp, void *arg)
 	}
 
 	VERIFY(0 == nvlist_alloc(&nv, NV_UNIQUE_NAME, 0));
-	send_iterate_prop(zhp, nv);
+	send_iterate_prop(zhp, sd->backup, nv);
 	VERIFY(0 == nvlist_add_nvlist(sd->snapprops, snapname, nv));
 	nvlist_free(nv);
 
@@ -715,11 +717,17 @@ send_iterate_snap(zfs_handle_t *zhp, void *arg)
 }
 
 static void
-send_iterate_prop(zfs_handle_t *zhp, nvlist_t *nv)
+send_iterate_prop(zfs_handle_t *zhp, boolean_t received_only, nvlist_t *nv)
 {
+	nvlist_t *props = NULL;
 	nvpair_t *elem = NULL;
 
-	while ((elem = nvlist_next_nvpair(zhp->zfs_props, elem)) != NULL) {
+	if (received_only)
+		props = zfs_get_recvd_props(zhp);
+	else
+		props = zhp->zfs_props;
+
+	while ((elem = nvlist_next_nvpair(props, elem)) != NULL) {
 		char *propname = nvpair_name(elem);
 		zfs_prop_t prop = zfs_name_to_prop(propname);
 		nvlist_t *propnv;
@@ -885,7 +893,7 @@ send_iterate_fs(zfs_handle_t *zhp, void *arg)
 
 	/* iterate over props */
 	VERIFY(0 == nvlist_alloc(&nv, NV_UNIQUE_NAME, 0));
-	send_iterate_prop(zhp, nv);
+	send_iterate_prop(zhp, sd->backup, nv);
 
 	if (zfs_prop_get_int(zhp, ZFS_PROP_ENCRYPTION) != ZIO_CRYPT_OFF) {
 		boolean_t encroot;
@@ -951,7 +959,7 @@ out:
 static int
 gather_nvlist(libzfs_handle_t *hdl, const char *fsname, const char *fromsnap,
     const char *tosnap, boolean_t recursive, boolean_t raw, boolean_t verbose,
-    nvlist_t **nvlp, avl_tree_t **avlp)
+    boolean_t backup, nvlist_t **nvlp, avl_tree_t **avlp)
 {
 	zfs_handle_t *zhp;
 	send_data_t sd = { 0 };
@@ -968,6 +976,7 @@ gather_nvlist(libzfs_handle_t *hdl, const char *fsname, const char *fromsnap,
 	sd.recursive = recursive;
 	sd.raw = raw;
 	sd.verbose = verbose;
+	sd.backup = backup;
 
 	if ((error = send_iterate_fs(zhp, &sd)) != 0) {
 		nvlist_free(sd.fss);
@@ -1881,7 +1890,7 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 		}
 	}
 
-	if (flags->replicate || flags->doall || flags->props) {
+	if (flags->replicate || flags->doall || flags->props || flags->backup) {
 		dmu_replay_record_t drr = { 0 };
 		char *packbuf = NULL;
 		size_t buflen = 0;
@@ -1889,7 +1898,7 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 
 		ZIO_SET_CHECKSUM(&zc, 0, 0, 0, 0);
 
-		if (flags->replicate || flags->props) {
+		if (flags->replicate || flags->props || flags->backup) {
 			nvlist_t *hdrnv;
 
 			VERIFY(0 == nvlist_alloc(&hdrnv, NV_UNIQUE_NAME, 0));
@@ -1908,7 +1917,7 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 
 			err = gather_nvlist(zhp->zfs_hdl, zhp->zfs_name,
 			    fromsnap, tosnap, flags->replicate, flags->raw,
-			    flags->verbose, &fss, &fsavl);
+			    flags->verbose, flags->backup, &fss, &fsavl);
 			if (err)
 				goto err_out;
 			VERIFY(0 == nvlist_add_nvlist(hdrnv, "fss", fss));
@@ -2078,7 +2087,7 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 	}
 
 	if (!flags->dryrun && (flags->replicate || flags->doall ||
-	    flags->props)) {
+	    flags->props || flags->backup)) {
 		/*
 		 * write final end record.  NB: want to do this even if
 		 * there was some error, because it might not be totally
@@ -2816,7 +2825,7 @@ again:
 	VERIFY(0 == nvlist_alloc(&deleted, NV_UNIQUE_NAME, 0));
 
 	if ((error = gather_nvlist(hdl, tofs, fromsnap, NULL,
-	    recursive, B_TRUE, B_FALSE, &local_nv, &local_avl)) != 0)
+	    recursive, B_TRUE, B_FALSE, B_FALSE, &local_nv, &local_avl)) != 0)
 		return (error);
 
 	/*
@@ -3832,6 +3841,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	if (zfs_dataset_exists(hdl, name, ZFS_TYPE_DATASET)) {
 		zfs_cmd_t zc = {"\0"};
 		zfs_handle_t *zhp;
+		boolean_t encrypted;
 
 		(void) strcpy(zc.zc_name, name);
 
@@ -3879,24 +3889,36 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		}
 
 		/*
-		 * zfs recv -F cant be used to blow away an existing
-		 * encrypted filesystem. This is because it would require
-		 * the dsl dir to point to the the new key (or lack of a
-		 * key) and the old key at the same time. The -F flag may
-		 * still be used for deleting intermediate snapshots that
-		 * would otherwise prevent the receive from working.
+		 * Raw sends can not be performed as an incremental on top
+		 * of existing unencryppted datasets. zfs recv -F cant be
+		 * used to blow away an existing encrypted filesystem. This
+		 * is because it would require the dsl dir to point to the
+		 * new key (or lack of a key) and the old key at the same
+		 * time. The -F flag may still be used for deleting
+		 * intermediate snapshots that would otherwise prevent the
+		 * receive from working.
 		 */
-		if (stream_wantsnewfs && flags->force &&
-		    zfs_prop_get_int(zhp, ZFS_PROP_ENCRYPTION) !=
-		    ZIO_CRYPT_OFF) {
+		encrypted = zfs_prop_get_int(zhp, ZFS_PROP_ENCRYPTION) !=
+		    ZIO_CRYPT_OFF;
+		if (!stream_wantsnewfs && !encrypted && raw) {
 			zfs_close(zhp);
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "zfs receive -F cannot be used to "
-			    "destroy an encrypted filesystem"));
+			    "cannot perform raw receive on top of "
+			    "existing unencrypted dataset"));
 			err = zfs_error(hdl, EZFS_BADRESTORE, errbuf);
 			goto out;
 		}
 
+		if (stream_wantsnewfs && flags->force &&
+		    ((raw && !encrypted) || encrypted)) {
+			zfs_close(zhp);
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "zfs receive -F cannot be used to destroy an "
+			    "encrypted filesystem or overwrite an "
+			    "unencrypted one with an encrypted one"));
+			err = zfs_error(hdl, EZFS_BADRESTORE, errbuf);
+			goto out;
+		}
 
 		if (!flags->dryrun && zhp->zfs_type == ZFS_TYPE_FILESYSTEM &&
 		    stream_wantsnewfs) {
@@ -4108,7 +4130,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		 */
 		*cp = '\0';
 		if (gather_nvlist(hdl, destsnap, NULL, NULL, B_FALSE, B_TRUE,
-		    B_FALSE, &local_nv, &local_avl) == 0) {
+		    B_FALSE, B_FALSE, &local_nv, &local_avl) == 0) {
 			*cp = '@';
 			fs = fsavl_find(local_avl, drrb->drr_toguid, NULL);
 			fsavl_destroy(local_avl);

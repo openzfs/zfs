@@ -130,7 +130,7 @@ catch_signal(int sig)
 	caught_interrupt = sig;
 }
 
-static char *
+static const char *
 get_format_prompt_string(zfs_keyformat_t format)
 {
 	switch (format) {

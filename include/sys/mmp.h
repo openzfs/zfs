@@ -42,6 +42,8 @@ typedef struct mmp_thread {
 	uint64_t	mmp_delay;	/* decaying avg ns between MMP writes */
 	uberblock_t	mmp_ub;		/* last ub written by sync */
 	zio_t		*mmp_zio_root;	/* root of mmp write zios */
+	uint64_t	mmp_kstat_id;	/* unique id for next MMP write kstat */
+	int		mmp_skip_error; /* reason for last skipped write */
 } mmp_thread_t;
 
 

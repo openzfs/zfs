@@ -31,7 +31,7 @@
 #include <sys/zfs_vfsops.h>
 #include <sys/zfs_vnops.h>
 #include <sys/zfs_znode.h>
-#include <sys/zpl.h>
+#include <sys/zfs_project.h>
 
 
 static int
@@ -720,17 +720,14 @@ zpl_fallocate(struct file *filp, int mode, loff_t offset, loff_t len)
 }
 #endif /* HAVE_FILE_FALLOCATE */
 
-/*
- * Map zfs file z_pflags (xvattr_t) to linux file attributes. Only file
- * attributes common to both Linux and Solaris are mapped.
- */
-static int
-zpl_ioctl_getflags(struct file *filp, void __user *arg)
+#define	ZFS_FL_USER_VISIBLE	(FS_FL_USER_VISIBLE | ZFS_PROJINHERIT_FL)
+#define	ZFS_FL_USER_MODIFIABLE	(FS_FL_USER_MODIFIABLE | ZFS_PROJINHERIT_FL)
+
+static uint32_t
+__zpl_ioctl_getflags(struct inode *ip)
 {
-	struct inode *ip = file_inode(filp);
-	unsigned int ioctl_flags = 0;
 	uint64_t zfs_flags = ITOZ(ip)->z_pflags;
-	int error;
+	uint32_t ioctl_flags = 0;
 
 	if (zfs_flags & ZFS_IMMUTABLE)
 		ioctl_flags |= FS_IMMUTABLE_FL;
@@ -741,11 +738,26 @@ zpl_ioctl_getflags(struct file *filp, void __user *arg)
 	if (zfs_flags & ZFS_NODUMP)
 		ioctl_flags |= FS_NODUMP_FL;
 
-	ioctl_flags &= FS_FL_USER_VISIBLE;
+	if (zfs_flags & ZFS_PROJINHERIT)
+		ioctl_flags |= ZFS_PROJINHERIT_FL;
 
-	error = copy_to_user(arg, &ioctl_flags, sizeof (ioctl_flags));
+	return (ioctl_flags & ZFS_FL_USER_VISIBLE);
+}
 
-	return (error);
+/*
+ * Map zfs file z_pflags (xvattr_t) to linux file attributes. Only file
+ * attributes common to both Linux and Solaris are mapped.
+ */
+static int
+zpl_ioctl_getflags(struct file *filp, void __user *arg)
+{
+	uint32_t flags;
+	int err;
+
+	flags = __zpl_ioctl_getflags(file_inode(filp));
+	err = copy_to_user(arg, &flags, sizeof (flags));
+
+	return (err);
 }
 
 /*
@@ -760,24 +772,16 @@ zpl_ioctl_getflags(struct file *filp, void __user *arg)
 #define	fchange(f0, f1, b0, b1) (!((f0) & (b0)) != !((f1) & (b1)))
 
 static int
-zpl_ioctl_setflags(struct file *filp, void __user *arg)
+__zpl_ioctl_setflags(struct inode *ip, uint32_t ioctl_flags, xvattr_t *xva)
 {
-	struct inode	*ip = file_inode(filp);
-	uint64_t	zfs_flags = ITOZ(ip)->z_pflags;
-	unsigned int	ioctl_flags;
-	cred_t		*cr = CRED();
-	xvattr_t	xva;
-	xoptattr_t	*xoap;
-	int		error;
-	fstrans_cookie_t cookie;
+	uint64_t zfs_flags = ITOZ(ip)->z_pflags;
+	xoptattr_t *xoap;
 
-	if (copy_from_user(&ioctl_flags, arg, sizeof (ioctl_flags)))
-		return (-EFAULT);
-
-	if ((ioctl_flags & ~(FS_IMMUTABLE_FL | FS_APPEND_FL | FS_NODUMP_FL)))
+	if (ioctl_flags & ~(FS_IMMUTABLE_FL | FS_APPEND_FL | FS_NODUMP_FL |
+	    ZFS_PROJINHERIT_FL))
 		return (-EOPNOTSUPP);
 
-	if ((ioctl_flags & ~(FS_FL_USER_MODIFIABLE)))
+	if (ioctl_flags & ~ZFS_FL_USER_MODIFIABLE)
 		return (-EACCES);
 
 	if ((fchange(ioctl_flags, zfs_flags, FS_IMMUTABLE_FL, ZFS_IMMUTABLE) ||
@@ -788,28 +792,100 @@ zpl_ioctl_setflags(struct file *filp, void __user *arg)
 	if (!zpl_inode_owner_or_capable(ip))
 		return (-EACCES);
 
-	xva_init(&xva);
-	xoap = xva_getxoptattr(&xva);
+	xva_init(xva);
+	xoap = xva_getxoptattr(xva);
 
-	XVA_SET_REQ(&xva, XAT_IMMUTABLE);
+	XVA_SET_REQ(xva, XAT_IMMUTABLE);
 	if (ioctl_flags & FS_IMMUTABLE_FL)
 		xoap->xoa_immutable = B_TRUE;
 
-	XVA_SET_REQ(&xva, XAT_APPENDONLY);
+	XVA_SET_REQ(xva, XAT_APPENDONLY);
 	if (ioctl_flags & FS_APPEND_FL)
 		xoap->xoa_appendonly = B_TRUE;
 
-	XVA_SET_REQ(&xva, XAT_NODUMP);
+	XVA_SET_REQ(xva, XAT_NODUMP);
 	if (ioctl_flags & FS_NODUMP_FL)
 		xoap->xoa_nodump = B_TRUE;
 
+	XVA_SET_REQ(xva, XAT_PROJINHERIT);
+	if (ioctl_flags & ZFS_PROJINHERIT_FL)
+		xoap->xoa_projinherit = B_TRUE;
+
+	return (0);
+}
+
+static int
+zpl_ioctl_setflags(struct file *filp, void __user *arg)
+{
+	struct inode *ip = file_inode(filp);
+	uint32_t flags;
+	cred_t *cr = CRED();
+	xvattr_t xva;
+	int err;
+	fstrans_cookie_t cookie;
+
+	if (copy_from_user(&flags, arg, sizeof (flags)))
+		return (-EFAULT);
+
+	err = __zpl_ioctl_setflags(ip, flags, &xva);
+	if (err)
+		return (err);
+
 	crhold(cr);
 	cookie = spl_fstrans_mark();
-	error = -zfs_setattr(ip, (vattr_t *)&xva, 0, cr);
+	err = -zfs_setattr(ip, (vattr_t *)&xva, 0, cr);
 	spl_fstrans_unmark(cookie);
 	crfree(cr);
 
-	return (error);
+	return (err);
+}
+
+static int
+zpl_ioctl_getxattr(struct file *filp, void __user *arg)
+{
+	zfsxattr_t fsx = { 0 };
+	struct inode *ip = file_inode(filp);
+	int err;
+
+	fsx.fsx_xflags = __zpl_ioctl_getflags(ip);
+	fsx.fsx_projid = ITOZ(ip)->z_projid;
+	err = copy_to_user(arg, &fsx, sizeof (fsx));
+
+	return (err);
+}
+
+static int
+zpl_ioctl_setxattr(struct file *filp, void __user *arg)
+{
+	struct inode *ip = file_inode(filp);
+	zfsxattr_t fsx;
+	cred_t *cr = CRED();
+	xvattr_t xva;
+	xoptattr_t *xoap;
+	int err;
+	fstrans_cookie_t cookie;
+
+	if (copy_from_user(&fsx, arg, sizeof (fsx)))
+		return (-EFAULT);
+
+	if (!zpl_is_valid_projid(fsx.fsx_projid))
+		return (-EINVAL);
+
+	err = __zpl_ioctl_setflags(ip, fsx.fsx_xflags, &xva);
+	if (err)
+		return (err);
+
+	xoap = xva_getxoptattr(&xva);
+	XVA_SET_REQ(&xva, XAT_PROJID);
+	xoap->xoa_projid = fsx.fsx_projid;
+
+	crhold(cr);
+	cookie = spl_fstrans_mark();
+	err = -zfs_setattr(ip, (vattr_t *)&xva, 0, cr);
+	spl_fstrans_unmark(cookie);
+	crfree(cr);
+
+	return (err);
 }
 
 static long
@@ -852,6 +928,10 @@ zpl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		return (zpl_ioctl_getflags(filp, (void *)arg));
 	case FS_IOC_SETFLAGS:
 		return (zpl_ioctl_setflags(filp, (void *)arg));
+	case ZFS_IOC_FSGETXATTR:
+		return (zpl_ioctl_getxattr(filp, (void *)arg));
+	case ZFS_IOC_FSSETXATTR:
+		return (zpl_ioctl_setxattr(filp, (void *)arg));
 	case ZFS_IOC_COUNT_FILLED:
 		return (zpl_ioctl_count_filled(filp, (void *)arg));
 	default:

@@ -18,31 +18,32 @@
  *
  * CDDL HEADER END
  */
+/*
+ * Copyright (c) 2017, Intel Corporation. All rights reserved.
+ */
 
-#ifndef	_SYS_QAT_COMPRESS_H
-#define	_SYS_QAT_COMPRESS_H
+#ifndef	_ZFS_PROJECTUTIL_H
+#define	_ZFS_PROJECTUTIL_H
 
-#if defined(_KERNEL) && defined(HAVE_QAT)
-#include <sys/zio.h>
-#include "cpa.h"
-#include "dc/cpa_dc.h"
+typedef enum {
+	ZFS_PROJECT_OP_DEFAULT	= 0,
+	ZFS_PROJECT_OP_LIST	= 1,
+	ZFS_PROJECT_OP_CHECK	= 2,
+	ZFS_PROJECT_OP_CLEAR	= 3,
+	ZFS_PROJECT_OP_SET	= 4,
+} zfs_project_ops_t;
 
-typedef enum qat_compress_dir {
-	QAT_COMPRESS = 0,
-	QAT_DECOMPRESS = 1,
-} qat_compress_dir_t;
+typedef struct zfs_project_control {
+	uint64_t		zpc_expected_projid;
+	zfs_project_ops_t	zpc_op;
+	boolean_t		zpc_dironly;
+	boolean_t		zpc_ignore_noent;
+	boolean_t		zpc_keep_projid;
+	boolean_t		zpc_newline;
+	boolean_t		zpc_recursive;
+	boolean_t		zpc_set_flag;
+} zfs_project_control_t;
 
-extern int qat_init(void);
-extern void qat_fini(void);
-extern boolean_t qat_use_accel(size_t s_len);
-extern int qat_compress(qat_compress_dir_t dir, char *src, int src_len,
-    char *dst, int dst_len, size_t *c_len);
-#else
-#define	CPA_STATUS_SUCCESS	0
-#define	qat_init()
-#define	qat_fini()
-#define	qat_use_accel(s_len)	0
-#define	qat_compress(dir, s, sl, d, dl, cl)	0
-#endif
+int zfs_project_handle(const char *name, zfs_project_control_t *zpc);
 
-#endif /* _SYS_QAT_COMPRESS_H */
+#endif	/* _ZFS_PROJECTUTIL_H */

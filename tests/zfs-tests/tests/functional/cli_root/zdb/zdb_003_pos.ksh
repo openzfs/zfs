@@ -43,6 +43,11 @@ config_count=(1 2)
 set -A DISK $DISKS
 
 default_mirror_setup_noexit $DISKS
+
+DEVS=$(get_pool_devices ${TESTPOOL} ${DEV_RDSKDIR})
+log_note "$DEVS"
+[[ -n $DEVS ]] && set -A DISK $DEVS
+
 log_must dd if=/dev/${DISK[0]} of=/dev/${DISK[1]} bs=1K count=256 conv=notrunc
 
 for x in 0 1 ; do

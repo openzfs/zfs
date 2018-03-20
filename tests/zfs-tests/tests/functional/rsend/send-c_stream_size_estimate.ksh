@@ -60,6 +60,7 @@ for compress in $compress_types; do
 	datasetexists $send_vol && log_must_busy zfs destroy -r $send_vol
 	log_must zfs create -o compress=$compress $send_ds
 	log_must zfs create -V 1g -o compress=$compress $send_vol
+	block_device_wait
 
 	typeset dir=$(get_prop mountpoint $send_ds)
 	log_must cp $file $dir

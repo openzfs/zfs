@@ -380,7 +380,7 @@ function create_recv_clone
 	log_must zfs snapshot $incr
 	log_must eval "zfs send -i $snap $incr | dd bs=10K count=1 > $sendfile"
 	log_mustnot eval "zfs recv -su $recvfs < $sendfile"
-	log_must zfs destroy -r $sendfs
+	destroy_dataset "$sendfs" "-r"
 	log_must rm -f "$sendfile"
 
 	if [[ $(get_prop 'inconsistent' "$recvfs/%recv") -ne 1 ]]; then
@@ -546,8 +546,7 @@ function default_cleanup_noexit
 		typeset fs=""
 		for fs in $(zfs list -H -o name \
 		    | grep "^$ZONE_POOL/$ZONE_CTR[01234]/"); do
-			datasetexists $fs && \
-				log_must zfs destroy -Rf $fs
+			destroy_dataset "$fs" "-Rf"
 		done
 
 		# Need cleanup here to avoid garbage dir left.
@@ -608,11 +607,8 @@ function default_container_cleanup
 	[[ $? -eq 0 ]] && \
 	    log_must zfs unmount $TESTPOOL/$TESTCTR/$TESTFS1
 
-	datasetexists $TESTPOOL/$TESTCTR/$TESTFS1 && \
-	    log_must zfs destroy -R $TESTPOOL/$TESTCTR/$TESTFS1
-
-	datasetexists $TESTPOOL/$TESTCTR && \
-	    log_must zfs destroy -Rf $TESTPOOL/$TESTCTR
+	destroy_dataset "$TESTPOOL/$TESTCTR/$TESTFS1" "-R"
+	destroy_dataset "$TESTPOOL/$TESTCTR" "-Rf"
 
 	[[ -e $TESTDIR1 ]] && \
 	    log_must rm -rf $TESTDIR1 > /dev/null 2>&1
@@ -646,7 +642,7 @@ function destroy_snapshot
 			log_fail "get_prop mountpoint $snap failed."
 	fi
 
-	log_must zfs destroy $snap
+	destroy_dataset "$snap"
 	[[ $mtpt != "" && -d $mtpt ]] && \
 		log_must rm -rf $mtpt
 }
@@ -672,7 +668,7 @@ function destroy_clone
 			log_fail "get_prop mountpoint $clone failed."
 	fi
 
-	log_must zfs destroy $clone
+	destroy_dataset "$clone"
 	[[ $mtpt != "" && -d $mtpt ]] && \
 		log_must rm -rf $mtpt
 }
@@ -691,7 +687,7 @@ function destroy_bookmark
 		log_fail "'$bkmarkp' does not existed."
 	fi
 
-	log_must zfs destroy $bkmark
+	destroy_dataset "$bkmark"
 }
 
 # Return 0 if a snapshot exists; $? otherwise
@@ -810,7 +806,11 @@ function zero_partitions #<whole_disk_name>
 	typeset i
 
 	if is_linux; then
-		log_must parted $DEV_DSKDIR/$diskname -s -- mklabel gpt
+		DSK=$DEV_DSKDIR/$diskname
+		DSK=$(echo $DSK | sed -e "s|//|/|g")
+		log_must parted $DSK -s -- mklabel gpt
+		blockdev --rereadpt $DSK 2>/dev/null
+		block_device_wait
 	else
 		for i in 0 1 3 4 5 6 7
 		do
@@ -838,10 +838,11 @@ function set_partition #<slice_num> <slice_start> <size_plus_units>  <whole_disk
 	typeset start=$2
 	typeset size=$3
 	typeset disk=$4
-	[[ -z $slicenum || -z $size || -z $disk ]] && \
-	    log_fail "The slice, size or disk name is unspecified."
 
 	if is_linux; then
+		if [[ -z $size || -z $disk ]]; then
+			log_fail "The size or disk name is unspecified."
+		fi
 		typeset size_mb=${size%%[mMgG]}
 
 		size_mb=${size_mb%%[mMgG][bB]}
@@ -884,6 +885,10 @@ function set_partition #<slice_num> <slice_start> <size_plus_units>  <whole_disk
 		blockdev --rereadpt $DEV_DSKDIR/$disk 2>/dev/null
 		block_device_wait
 	else
+		if [[ -z $slicenum || -z $size || -z $disk ]]; then
+			log_fail "The slice, size or disk name is unspecified."
+		fi
+
 		typeset format_file=/var/tmp/format_in.$$
 
 		echo "partition" >$format_file
@@ -1420,7 +1425,13 @@ function setup_nfs_server
 	fi
 
 	if is_linux; then
-		log_note "NFS server must started prior to running test framework."
+		#
+		# Re-synchronize /var/lib/nfs/etab with /etc/exports and
+		# /etc/exports.d./* to provide a clean test environment.
+		#
+		log_must share -r
+
+		log_note "NFS server must be started prior to running ZTS."
 		return
 	fi
 
@@ -1582,6 +1593,40 @@ function destroy_pool #pool
 				log_must rm -rf $mtpt
 		else
 			log_note "Pool does not exist. ($pool)"
+			return 1
+		fi
+	fi
+
+	return 0
+}
+
+# Return 0 if destroy successfully or the dataset exists; $? otherwise
+# Note: In local zones, this function should return 0 silently.
+#
+# $1 - dataset name
+# $2 - custom arguments for zfs destroy
+# Destroy dataset with the given parameters.
+
+function destroy_dataset #dataset #args
+{
+	typeset dataset=$1
+	typeset mtpt
+	typeset args=${2:-""}
+
+	if [[ -z $dataset ]]; then
+		log_note "No dataset name given."
+		return 1
+	fi
+
+	if is_global_zone ; then
+		if datasetexists "$dataset" ; then
+			mtpt=$(get_prop mountpoint "$dataset")
+			log_must_busy zfs destroy $args $dataset
+
+			[[ -d $mtpt ]] && \
+				log_must rm -rf $mtpt
+		else
+			log_note "Dataset does not exist. ($dataset)"
 			return 1
 		fi
 	fi
@@ -2457,9 +2502,7 @@ function verify_opt_p_ops
 	esac
 
 	# make sure the upper level filesystem does not exist
-	if datasetexists ${newdataset%/*} ; then
-		log_must zfs destroy -rRf ${newdataset%/*}
-	fi
+	destroy_dataset "${newdataset%/*}" "-rRf"
 
 	# without -p option, operation will fail
 	log_mustnot zfs $ops $dataset $newdataset
@@ -3054,8 +3097,46 @@ function wait_replacing #pool
 }
 
 #
+# Wait for a pool to be scrubbed
+#
+# $1 pool name
+# $2 number of seconds to wait (optional)
+#
+# Returns true when pool has been scrubbed, or false if there's a timeout or if
+# no scrub was done.
+#
+function wait_scrubbed
+{
+	typeset pool=${1:-$TESTPOOL}
+	typeset iter=${2:-10}
+	for i in {1..$iter} ; do
+		if is_pool_scrubbed $pool ; then
+			return 0
+		fi
+		sleep 1
+	done
+	return 1
+}
+
+# Backup the zed.rc in our test directory so that we can edit it for our test.
+#
+# Returns: Backup file name.  You will need to pass this to zed_rc_restore().
+function zed_rc_backup
+{
+	zedrc_backup="$(mktemp)"
+	cp $ZEDLET_DIR/zed.rc $zedrc_backup
+	echo $zedrc_backup
+}
+
+function zed_rc_restore
+{
+	mv $1 $ZEDLET_DIR/zed.rc
+}
+
+#
 # Setup custom environment for the ZED.
 #
+# $@ Optional list of zedlets to run under zed.
 function zed_setup
 {
 	if ! is_linux; then
@@ -3073,6 +3154,7 @@ function zed_setup
 	if [[ -e $VDEVID_CONF_ETC ]]; then
 		log_fail "Must not have $VDEVID_CONF_ETC file present on system"
 	fi
+	EXTRA_ZEDLETS=$@
 
 	# Create a symlink for /etc/zfs/vdev_id.conf file.
 	log_must ln -s $VDEVID_CONF $VDEVID_CONF_ETC
@@ -3082,32 +3164,44 @@ function zed_setup
 	log_must cp ${ZEDLET_ETC_DIR}/zed.rc $ZEDLET_DIR
 	log_must cp ${ZEDLET_ETC_DIR}/zed-functions.sh $ZEDLET_DIR
 
+	# Scripts must only be user writable.
+	if [[ -n "$EXTRA_ZEDLETS" ]] ; then
+		saved_umask=$(umask)
+		log_must umask 0022
+		for i in $EXTRA_ZEDLETS ; do
+			log_must cp ${ZEDLET_LIBEXEC_DIR}/$i $ZEDLET_DIR
+		done
+		log_must umask $saved_umask
+	fi
+
 	# Customize the zed.rc file to enable the full debug log.
 	log_must sed -i '/\#ZED_DEBUG_LOG=.*/d' $ZEDLET_DIR/zed.rc
 	echo "ZED_DEBUG_LOG=$ZED_DEBUG_LOG" >>$ZEDLET_DIR/zed.rc
 
-	# Scripts must only be user writable.
-	saved_umask=$(umask)
-	log_must umask 0022
-	log_must cp ${ZEDLET_LIBEXEC_DIR}/all-syslog.sh $ZEDLET_DIR
-	log_must cp ${ZEDLET_LIBEXEC_DIR}/all-debug.sh $ZEDLET_DIR
-	log_must umask $saved_umask
 }
 
 #
 # Cleanup custom ZED environment.
 #
+# $@ Optional list of zedlets to remove from our test zed.d directory.
 function zed_cleanup
 {
 	if ! is_linux; then
 		return
 	fi
+	EXTRA_ZEDLETS=$@
 
 	log_must rm -f ${ZEDLET_DIR}/zed.rc
 	log_must rm -f ${ZEDLET_DIR}/zed-functions.sh
 	log_must rm -f ${ZEDLET_DIR}/all-syslog.sh
 	log_must rm -f ${ZEDLET_DIR}/all-debug.sh
 	log_must rm -f ${ZEDLET_DIR}/state
+
+	if [[ -n "$EXTRA_ZEDLETS" ]] ; then
+		for i in $EXTRA_ZEDLETS ; do
+			log_must rm -f ${ZEDLET_DIR}/$i
+		done
+	fi
 	log_must rm -f $ZED_LOG
 	log_must rm -f $ZED_DEBUG_LOG
 	log_must rm -f $VDEVID_CONF_ETC
@@ -3139,7 +3233,7 @@ function zed_start
 	# run ZED in the background and redirect foreground logging
 	# output to $ZED_LOG.
 	log_must truncate -s 0 $ZED_DEBUG_LOG
-	log_must eval "zed -vF -d $ZEDLET_DIR -p $ZEDLET_DIR/zed.pid" \
+	log_must eval "zed -vF -d $ZEDLET_DIR -p $ZEDLET_DIR/zed.pid -P $PATH" \
 	    "-s $ZEDLET_DIR/state 2>$ZED_LOG &"
 
 	return 0
@@ -3176,6 +3270,23 @@ function zed_events_drain
 		zpool events -c >/dev/null
 	done
 }
+
+# Set a variable in zed.rc to something, un-commenting it in the process.
+#
+# $1 variable
+# $2 value
+function zed_rc_set
+{
+	var="$1"
+	val="$2"
+	# Remove the line
+	cmd="'/$var/d'"
+	eval sed -i $cmd $ZEDLET_DIR/zed.rc
+
+	# Add it at the end
+	echo "$var=$val" >> $ZEDLET_DIR/zed.rc
+}
+
 
 #
 # Check is provided device is being active used as a swap device.

@@ -86,6 +86,9 @@
 #
 ZED_USE_ENCLOSURE_LEDS=1
 
+##
+# Run a scrub after every resilver
+#ZED_SCRUB_AFTER_RESILVER=1
 
 ##
 # The syslog priority (e.g., specified as a "facility.level" pair).
@@ -96,4 +99,15 @@ ZED_USE_ENCLOSURE_LEDS=1
 # The syslog tag for marking zed events.
 #
 #ZED_SYSLOG_TAG="zed"
+
+##
+# Which set of event subclasses to log
+# By default, events from all subclasses are logged.
+# If ZED_SYSLOG_SUBCLASS_INCLUDE is set, only subclasses
+# matching the pattern are logged. Use the pipe symbol (|)
+# or shell wildcards (*, ?) to match multiple subclasses.
+# Otherwise, if ZED_SYSLOG_SUBCLASS_EXCLUDE is set, the
+# matching subclasses are excluded from logging.
+#ZED_SYSLOG_SUBCLASS_INCLUDE="checksum|scrub_*|vdev.*"
+#ZED_SYSLOG_SUBCLASS_EXCLUDE="statechange|config_*|history_event"
 

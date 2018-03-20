@@ -184,6 +184,7 @@ AC_DEFUN([ZFS_AC_KERNEL_INODE_OPERATIONS_PERMISSION_WITH_NAMEIDATA], [
 	AC_MSG_CHECKING([whether iops->permission() wants nameidata])
 	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/fs.h>
+		#include <linux/sched.h>
 
 		int permission_fn(struct inode *inode, int mask,
 		    struct nameidata *nd) { return 0; }

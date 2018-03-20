@@ -27,6 +27,7 @@
  * Copyright (c) 2013 Steven Hartland.  All rights reserved.
  * Copyright 2016 Igor Kozhukhov <ikozhukhov@gmail.com>.
  * Copyright 2016 Nexenta Systems, Inc.
+ * Copyright (c) 2018 Datto Inc.
  */
 
 #include <assert.h>
@@ -59,6 +60,7 @@
 #include <sys/systeminfo.h>
 #include <sys/types.h>
 #include <time.h>
+#include <sys/zfs_project.h>
 
 #include <libzfs.h>
 #include <libzfs_core.h>
@@ -74,6 +76,7 @@
 #include "zfs_util.h"
 #include "zfs_comutil.h"
 #include "libzfs_impl.h"
+#include "zfs_projectutil.h"
 
 libzfs_handle_t *g_zfs;
 
@@ -111,6 +114,7 @@ static int zfs_do_channel_program(int argc, char **argv);
 static int zfs_do_load_key(int argc, char **argv);
 static int zfs_do_unload_key(int argc, char **argv);
 static int zfs_do_change_key(int argc, char **argv);
+static int zfs_do_project(int argc, char **argv);
 
 /*
  * Enable a reasonable set of defaults for libumem debugging on DEBUG builds.
@@ -153,6 +157,8 @@ typedef enum {
 	HELP_UNALLOW,
 	HELP_USERSPACE,
 	HELP_GROUPSPACE,
+	HELP_PROJECTSPACE,
+	HELP_PROJECT,
 	HELP_HOLD,
 	HELP_HOLDS,
 	HELP_RELEASE,
@@ -197,8 +203,12 @@ static zfs_command_t command_table[] = {
 	{ "get",	zfs_do_get,		HELP_GET		},
 	{ "inherit",	zfs_do_inherit,		HELP_INHERIT		},
 	{ "upgrade",	zfs_do_upgrade,		HELP_UPGRADE		},
+	{ NULL },
 	{ "userspace",	zfs_do_userspace,	HELP_USERSPACE		},
 	{ "groupspace",	zfs_do_userspace,	HELP_GROUPSPACE		},
+	{ "projectspace", zfs_do_userspace,	HELP_PROJECTSPACE	},
+	{ NULL },
+	{ "project",	zfs_do_project,		HELP_PROJECT		},
 	{ NULL },
 	{ "mount",	zfs_do_mount,		HELP_MOUNT		},
 	{ "unmount",	zfs_do_unmount,		HELP_UNMOUNT		},
@@ -279,9 +289,9 @@ get_usage(zfs_help_t idx)
 	case HELP_ROLLBACK:
 		return (gettext("\trollback [-rRf] <snapshot>\n"));
 	case HELP_SEND:
-		return (gettext("\tsend [-DnPpRvLecr] [-[i|I] snapshot] "
+		return (gettext("\tsend [-DnPpRvLecwb] [-[i|I] snapshot] "
 		    "<snapshot>\n"
-		    "\tsend [-Lecr] [-i snapshot|bookmark] "
+		    "\tsend [-nvPLecw] [-i snapshot|bookmark] "
 		    "<filesystem|volume|snapshot>\n"
 		    "\tsend [-nvPe] -t <receive_resume_token>\n"));
 	case HELP_SET:
@@ -328,6 +338,15 @@ get_usage(zfs_help_t idx)
 		    "[-s field] ...\n"
 		    "\t    [-S field] ... [-t type[,...]] "
 		    "<filesystem|snapshot>\n"));
+	case HELP_PROJECTSPACE:
+		return (gettext("\tprojectspace [-Hp] [-o field[,...]] "
+		    "[-s field] ... \n"
+		    "\t    [-S field] ... <filesystem|snapshot>\n"));
+	case HELP_PROJECT:
+		return (gettext("\tproject [-d|-r] <directory|file ...>\n"
+		    "\tproject -c [-0] [-d|-r] [-p id] <directory|file ...>\n"
+		    "\tproject -C [-k] [-r] <directory ...>\n"
+		    "\tproject [-p id] [-r] [-s] <directory ...>\n"));
 	case HELP_HOLD:
 		return (gettext("\thold [-r] <tag> <snapshot> ...\n"));
 	case HELP_HOLDS:
@@ -340,7 +359,7 @@ get_usage(zfs_help_t idx)
 	case HELP_BOOKMARK:
 		return (gettext("\tbookmark <snapshot> <bookmark>\n"));
 	case HELP_CHANNEL_PROGRAM:
-		return (gettext("\tprogram [-n] [-t <instruction limit>] "
+		return (gettext("\tprogram [-jn] [-t <instruction limit>] "
 		    "[-m <memory limit (b)>] <pool> <program file> "
 		    "[lua args...]\n"));
 	case HELP_LOAD_KEY:
@@ -489,9 +508,25 @@ usage(boolean_t requested)
 		(void) fprintf(fp, " NO       NO   <size>\n");
 		(void) fprintf(fp, "\t%-15s ", "groupused@...");
 		(void) fprintf(fp, " NO       NO   <size>\n");
+		(void) fprintf(fp, "\t%-15s ", "projectused@...");
+		(void) fprintf(fp, " NO       NO   <size>\n");
+		(void) fprintf(fp, "\t%-15s ", "userobjused@...");
+		(void) fprintf(fp, " NO       NO   <size>\n");
+		(void) fprintf(fp, "\t%-15s ", "groupobjused@...");
+		(void) fprintf(fp, " NO       NO   <size>\n");
+		(void) fprintf(fp, "\t%-15s ", "projectobjused@...");
+		(void) fprintf(fp, " NO       NO   <size>\n");
 		(void) fprintf(fp, "\t%-15s ", "userquota@...");
 		(void) fprintf(fp, "YES       NO   <size> | none\n");
 		(void) fprintf(fp, "\t%-15s ", "groupquota@...");
+		(void) fprintf(fp, "YES       NO   <size> | none\n");
+		(void) fprintf(fp, "\t%-15s ", "projectquota@...");
+		(void) fprintf(fp, "YES       NO   <size> | none\n");
+		(void) fprintf(fp, "\t%-15s ", "userobjquota@...");
+		(void) fprintf(fp, "YES       NO   <size> | none\n");
+		(void) fprintf(fp, "\t%-15s ", "groupobjquota@...");
+		(void) fprintf(fp, "YES       NO   <size> | none\n");
+		(void) fprintf(fp, "\t%-15s ", "projectobjquota@...");
 		(void) fprintf(fp, "YES       NO   <size> | none\n");
 		(void) fprintf(fp, "\t%-15s ", "written@<snap>");
 		(void) fprintf(fp, " NO       NO   <size>\n");
@@ -500,9 +535,9 @@ usage(boolean_t requested)
 		    "with standard units such as K, M, G, etc.\n"));
 		(void) fprintf(fp, gettext("\nUser-defined properties can "
 		    "be specified by using a name containing a colon (:).\n"));
-		(void) fprintf(fp, gettext("\nThe {user|group}{used|quota}@ "
-		    "properties must be appended with\n"
-		    "a user or group specifier of one of these forms:\n"
+		(void) fprintf(fp, gettext("\nThe {user|group|project}"
+		    "[obj]{used|quota}@ properties must be appended with\n"
+		    "a user|group|project specifier of one of these forms:\n"
 		    "    POSIX name      (eg: \"matt\")\n"
 		    "    POSIX id        (eg: \"126829\")\n"
 		    "    SMB name@domain (eg: \"matt@sun\")\n"
@@ -1026,6 +1061,7 @@ typedef struct destroy_cbdata {
 	int64_t		cb_snapused;
 	char		*cb_snapspec;
 	char		*cb_bookmark;
+	uint64_t	cb_snap_count;
 } destroy_cbdata_t;
 
 /*
@@ -1089,10 +1125,21 @@ out:
 }
 
 static int
+destroy_batched(destroy_cbdata_t *cb)
+{
+	int error = zfs_destroy_snaps_nvl(g_zfs,
+	    cb->cb_batchedsnaps, B_FALSE);
+	fnvlist_free(cb->cb_batchedsnaps);
+	cb->cb_batchedsnaps = fnvlist_alloc();
+	return (error);
+}
+
+static int
 destroy_callback(zfs_handle_t *zhp, void *data)
 {
 	destroy_cbdata_t *cb = data;
 	const char *name = zfs_get_name(zhp);
+	int error;
 
 	if (cb->cb_verbose) {
 		if (cb->cb_parsable) {
@@ -1127,13 +1174,12 @@ destroy_callback(zfs_handle_t *zhp, void *data)
 	 * because we must delete a clone before its origin.
 	 */
 	if (zfs_get_type(zhp) == ZFS_TYPE_SNAPSHOT) {
+		cb->cb_snap_count++;
 		fnvlist_add_boolean(cb->cb_batchedsnaps, name);
+		if (cb->cb_snap_count % 10 == 0 && cb->cb_defer_destroy)
+			error = destroy_batched(cb);
 	} else {
-		int error = zfs_destroy_snaps_nvl(g_zfs,
-		    cb->cb_batchedsnaps, B_FALSE);
-		fnvlist_free(cb->cb_batchedsnaps);
-		cb->cb_batchedsnaps = fnvlist_alloc();
-
+		error = destroy_batched(cb);
 		if (error != 0 ||
 		    zfs_unmount(zhp, NULL, cb->cb_force ? MS_FORCE : 0) != 0 ||
 		    zfs_destroy(zhp, cb->cb_defer_destroy) != 0) {
@@ -1490,7 +1536,6 @@ zfs_do_destroy(int argc, char **argv)
 			rv = 1;
 			goto out;
 		}
-
 		cb.cb_batchedsnaps = fnvlist_alloc();
 		if (zfs_iter_dependents(zhp, B_FALSE, destroy_callback,
 		    &cb) != 0) {
@@ -2270,6 +2315,8 @@ zfs_do_upgrade(int argc, char **argv)
  *               [-S field [-S field]...] [-t type[,...]] filesystem | snapshot
  * zfs groupspace [-Hinp] [-o field[,...]] [-s field [-s field]...]
  *                [-S field [-S field]...] [-t type[,...]] filesystem | snapshot
+ * zfs projectspace [-Hp] [-o field[,...]] [-s field [-s field]...]
+ *                [-S field [-S field]...] filesystem | snapshot
  *
  *	-H      Scripted mode; elide headers and separate columns by tabs.
  *	-i	Translate SID to POSIX ID.
@@ -2303,8 +2350,10 @@ static char *us_field_names[] = { "type", "name", "used", "quota",
 #define	USTYPE_PSX_USR	(1 << 1)
 #define	USTYPE_SMB_GRP	(1 << 2)
 #define	USTYPE_SMB_USR	(1 << 3)
+#define	USTYPE_PROJ	(1 << 4)
 #define	USTYPE_ALL	\
-	(USTYPE_PSX_GRP | USTYPE_PSX_USR | USTYPE_SMB_GRP | USTYPE_SMB_USR)
+	(USTYPE_PSX_GRP | USTYPE_PSX_USR | USTYPE_SMB_GRP | USTYPE_SMB_USR | \
+	    USTYPE_PROJ)
 
 static int us_type_bits[] = {
 	USTYPE_PSX_GRP,
@@ -2459,6 +2508,13 @@ zfs_prop_is_group(unsigned p)
 	    p == ZFS_PROP_GROUPOBJUSED || p == ZFS_PROP_GROUPOBJQUOTA);
 }
 
+static boolean_t
+zfs_prop_is_project(unsigned p)
+{
+	return (p == ZFS_PROP_PROJECTUSED || p == ZFS_PROP_PROJECTQUOTA ||
+	    p == ZFS_PROP_PROJECTOBJUSED || p == ZFS_PROP_PROJECTOBJQUOTA);
+}
+
 static inline const char *
 us_type2str(unsigned field_type)
 {
@@ -2471,6 +2527,8 @@ us_type2str(unsigned field_type)
 		return ("SMB User");
 	case USTYPE_SMB_GRP:
 		return ("SMB Group");
+	case USTYPE_PROJ:
+		return ("Project");
 	default:
 		return ("Undefined");
 	}
@@ -2556,7 +2614,7 @@ userspace_cb(void *arg, const char *domain, uid_t rid, uint64_t space)
 				if ((g = getgrgid(rid)) != NULL)
 					name = g->gr_name;
 			}
-		} else {
+		} else if (zfs_prop_is_user(prop)) {
 			type = USTYPE_PSX_USR;
 			if (!cb->cb_numname) {
 				struct passwd *p;
@@ -2564,6 +2622,8 @@ userspace_cb(void *arg, const char *domain, uid_t rid, uint64_t space)
 				if ((p = getpwuid(rid)) != NULL)
 					name = p->pw_name;
 			}
+		} else {
+			type = USTYPE_PROJ;
 		}
 	}
 
@@ -2615,7 +2675,9 @@ userspace_cb(void *arg, const char *domain, uid_t rid, uint64_t space)
 	/* Calculate/update width of USED/QUOTA fields */
 	if (cb->cb_nicenum) {
 		if (prop == ZFS_PROP_USERUSED || prop == ZFS_PROP_GROUPUSED ||
-		    prop == ZFS_PROP_USERQUOTA || prop == ZFS_PROP_GROUPQUOTA) {
+		    prop == ZFS_PROP_USERQUOTA || prop == ZFS_PROP_GROUPQUOTA ||
+		    prop == ZFS_PROP_PROJECTUSED ||
+		    prop == ZFS_PROP_PROJECTQUOTA) {
 			zfs_nicebytes(space, sizebuf, sizeof (sizebuf));
 		} else {
 			zfs_nicenum(space, sizebuf, sizeof (sizebuf));
@@ -2625,21 +2687,24 @@ userspace_cb(void *arg, const char *domain, uid_t rid, uint64_t space)
 		    (u_longlong_t)space);
 	}
 	sizelen = strlen(sizebuf);
-	if (prop == ZFS_PROP_USERUSED || prop == ZFS_PROP_GROUPUSED) {
+	if (prop == ZFS_PROP_USERUSED || prop == ZFS_PROP_GROUPUSED ||
+	    prop == ZFS_PROP_PROJECTUSED) {
 		propname = "used";
 		if (!nvlist_exists(props, "quota"))
 			(void) nvlist_add_uint64(props, "quota", 0);
-	} else if (prop == ZFS_PROP_USERQUOTA || prop == ZFS_PROP_GROUPQUOTA) {
+	} else if (prop == ZFS_PROP_USERQUOTA || prop == ZFS_PROP_GROUPQUOTA ||
+	    prop == ZFS_PROP_PROJECTQUOTA) {
 		propname = "quota";
 		if (!nvlist_exists(props, "used"))
 			(void) nvlist_add_uint64(props, "used", 0);
 	} else if (prop == ZFS_PROP_USEROBJUSED ||
-	    prop == ZFS_PROP_GROUPOBJUSED) {
+	    prop == ZFS_PROP_GROUPOBJUSED || prop == ZFS_PROP_PROJECTOBJUSED) {
 		propname = "objused";
 		if (!nvlist_exists(props, "objquota"))
 			(void) nvlist_add_uint64(props, "objquota", 0);
 	} else if (prop == ZFS_PROP_USEROBJQUOTA ||
-	    prop == ZFS_PROP_GROUPOBJQUOTA) {
+	    prop == ZFS_PROP_GROUPOBJQUOTA ||
+	    prop == ZFS_PROP_PROJECTOBJQUOTA) {
 		propname = "objquota";
 		if (!nvlist_exists(props, "objused"))
 			(void) nvlist_add_uint64(props, "objused", 0);
@@ -2838,13 +2903,22 @@ zfs_do_userspace(int argc, char **argv)
 	if (argc < 2)
 		usage(B_FALSE);
 
-	if (strcmp(argv[0], "groupspace") == 0)
+	if (strcmp(argv[0], "groupspace") == 0) {
 		/* Toggle default group types */
 		types = USTYPE_PSX_GRP | USTYPE_SMB_GRP;
+	} else if (strcmp(argv[0], "projectspace") == 0) {
+		types = USTYPE_PROJ;
+		prtnum = B_TRUE;
+	}
 
 	while ((c = getopt(argc, argv, "nHpo:s:S:t:i")) != -1) {
 		switch (c) {
 		case 'n':
+			if (types == USTYPE_PROJ) {
+				(void) fprintf(stderr,
+				    gettext("invalid option 'n'\n"));
+				usage(B_FALSE);
+			}
 			prtnum = B_TRUE;
 			break;
 		case 'H':
@@ -2866,9 +2940,19 @@ zfs_do_userspace(int argc, char **argv)
 			}
 			break;
 		case 't':
+			if (types == USTYPE_PROJ) {
+				(void) fprintf(stderr,
+				    gettext("invalid option 't'\n"));
+				usage(B_FALSE);
+			}
 			tfield = optarg;
 			break;
 		case 'i':
+			if (types == USTYPE_PROJ) {
+				(void) fprintf(stderr,
+				    gettext("invalid option 'i'\n"));
+				usage(B_FALSE);
+			}
 			sid2posix = B_TRUE;
 			break;
 		case ':':
@@ -2965,7 +3049,8 @@ zfs_do_userspace(int argc, char **argv)
 		if ((zfs_prop_is_user(p) &&
 		    !(types & (USTYPE_PSX_USR | USTYPE_SMB_USR))) ||
 		    (zfs_prop_is_group(p) &&
-		    !(types & (USTYPE_PSX_GRP | USTYPE_SMB_GRP))))
+		    !(types & (USTYPE_PSX_GRP | USTYPE_SMB_GRP))) ||
+		    (zfs_prop_is_project(p) && types != USTYPE_PROJ))
 			continue;
 
 		cb.cb_prop = p;
@@ -3870,11 +3955,12 @@ zfs_do_send(int argc, char **argv)
 		{"resume",	required_argument,	NULL, 't'},
 		{"compressed",	no_argument,		NULL, 'c'},
 		{"raw",		no_argument,		NULL, 'w'},
+		{"backup",	no_argument,		NULL, 'b'},
 		{0, 0, 0, 0}
 	};
 
 	/* check options */
-	while ((c = getopt_long(argc, argv, ":i:I:RDpvnPLet:cw", long_options,
+	while ((c = getopt_long(argc, argv, ":i:I:RDpvnPLet:cwb", long_options,
 	    NULL)) != -1) {
 		switch (c) {
 		case 'i':
@@ -3893,6 +3979,9 @@ zfs_do_send(int argc, char **argv)
 			break;
 		case 'p':
 			flags.props = B_TRUE;
+			break;
+		case 'b':
+			flags.backup = B_TRUE;
 			break;
 		case 'P':
 			flags.parsable = B_TRUE;
@@ -3974,7 +4063,7 @@ zfs_do_send(int argc, char **argv)
 
 	if (resume_token != NULL) {
 		if (fromname != NULL || flags.replicate || flags.props ||
-		    flags.dedup) {
+		    flags.backup || flags.dedup) {
 			(void) fprintf(stderr,
 			    gettext("invalid flags combined with -t\n"));
 			usage(B_FALSE);
@@ -4016,7 +4105,8 @@ zfs_do_send(int argc, char **argv)
 		char frombuf[ZFS_MAX_DATASET_NAME_LEN];
 
 		if (flags.replicate || flags.doall || flags.props ||
-		    flags.dedup || (strchr(argv[0], '@') == NULL &&
+		    flags.backup || flags.dedup ||
+		    (strchr(argv[0], '@') == NULL &&
 		    (flags.dryrun || flags.verbose || flags.progress))) {
 			(void) fprintf(stderr, gettext("Error: "
 			    "Unsupported flag with filesystem or bookmark.\n"));
@@ -4276,6 +4366,11 @@ zfs_do_receive(int argc, char **argv)
 #define	ZFS_DELEG_PERM_LOAD_KEY		"load-key"
 #define	ZFS_DELEG_PERM_CHANGE_KEY	"change-key"
 
+#define	ZFS_DELEG_PERM_PROJECTUSED	"projectused"
+#define	ZFS_DELEG_PERM_PROJECTQUOTA	"projectquota"
+#define	ZFS_DELEG_PERM_PROJECTOBJUSED	"projectobjused"
+#define	ZFS_DELEG_PERM_PROJECTOBJQUOTA	"projectobjquota"
+
 #define	ZFS_NUM_DELEG_NOTES ZFS_DELEG_NOTE_NONE
 
 static zfs_deleg_perm_tab_t zfs_deleg_perm_tbl[] = {
@@ -4307,6 +4402,10 @@ static zfs_deleg_perm_tab_t zfs_deleg_perm_tbl[] = {
 	{ ZFS_DELEG_PERM_USEROBJUSED, ZFS_DELEG_NOTE_USEROBJUSED },
 	{ ZFS_DELEG_PERM_GROUPOBJQUOTA, ZFS_DELEG_NOTE_GROUPOBJQUOTA },
 	{ ZFS_DELEG_PERM_GROUPOBJUSED, ZFS_DELEG_NOTE_GROUPOBJUSED },
+	{ ZFS_DELEG_PERM_PROJECTUSED, ZFS_DELEG_NOTE_PROJECTUSED },
+	{ ZFS_DELEG_PERM_PROJECTQUOTA, ZFS_DELEG_NOTE_PROJECTQUOTA },
+	{ ZFS_DELEG_PERM_PROJECTOBJUSED, ZFS_DELEG_NOTE_PROJECTOBJUSED },
+	{ ZFS_DELEG_PERM_PROJECTOBJQUOTA, ZFS_DELEG_NOTE_PROJECTOBJQUOTA },
 	{ NULL, ZFS_DELEG_NOTE_NONE }
 };
 
@@ -4388,6 +4487,10 @@ deleg_perm_type(zfs_deleg_note_t note)
 	case ZFS_DELEG_NOTE_USEROBJUSED:
 	case ZFS_DELEG_NOTE_GROUPOBJQUOTA:
 	case ZFS_DELEG_NOTE_GROUPOBJUSED:
+	case ZFS_DELEG_NOTE_PROJECTUSED:
+	case ZFS_DELEG_NOTE_PROJECTQUOTA:
+	case ZFS_DELEG_NOTE_PROJECTOBJUSED:
+	case ZFS_DELEG_NOTE_PROJECTOBJQUOTA:
 		/* other */
 		return (gettext("other"));
 	default:
@@ -4911,6 +5014,20 @@ deleg_perm_comment(zfs_deleg_note_t note)
 		break;
 	case ZFS_DELEG_NOTE_USEROBJUSED:
 		str = gettext("Allows reading any userobjused@... property");
+		break;
+	case ZFS_DELEG_NOTE_PROJECTQUOTA:
+		str = gettext("Allows accessing any projectquota@... property");
+		break;
+	case ZFS_DELEG_NOTE_PROJECTOBJQUOTA:
+		str = gettext("Allows accessing any \n\t\t\t\t"
+		    "projectobjquota@... property");
+		break;
+	case ZFS_DELEG_NOTE_PROJECTUSED:
+		str = gettext("Allows reading any projectused@... property");
+		break;
+	case ZFS_DELEG_NOTE_PROJECTOBJUSED:
+		str = gettext("Allows accessing any \n\t\t\t\t"
+		    "projectobjused@... property");
 		break;
 		/* other */
 	default:
@@ -7006,6 +7123,12 @@ zfs_do_bookmark(int argc, char **argv)
 		goto usage;
 	}
 
+	if (strchr(argv[0], '@') == NULL) {
+		(void) fprintf(stderr,
+		    gettext("invalid snapshot name '%s': "
+		    "must contain a '@'\n"), argv[0]);
+		goto usage;
+	}
 	if (strchr(argv[1], '#') == NULL) {
 		(void) fprintf(stderr,
 		    gettext("invalid bookmark name '%s': "
@@ -7098,11 +7221,11 @@ zfs_do_channel_program(int argc, char **argv)
 	nvlist_t *outnvl;
 	uint64_t instrlimit = ZCP_DEFAULT_INSTRLIMIT;
 	uint64_t memlimit = ZCP_DEFAULT_MEMLIMIT;
-	boolean_t sync_flag = B_TRUE;
+	boolean_t sync_flag = B_TRUE, json_output = B_FALSE;
 	zpool_handle_t *zhp;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "nt:m:")) != -1) {
+	while ((c = getopt(argc, argv, "nt:m:j")) != -1) {
 		switch (c) {
 		case 't':
 		case 'm': {
@@ -7144,6 +7267,10 @@ zfs_do_channel_program(int argc, char **argv)
 			sync_flag = B_FALSE;
 			break;
 		}
+		case 'j': {
+			json_output = B_TRUE;
+			break;
+		}
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
 			    optopt);
@@ -7174,6 +7301,8 @@ zfs_do_channel_program(int argc, char **argv)
 	if ((zhp = zpool_open(g_zfs, poolname)) == NULL) {
 		(void) fprintf(stderr, gettext("cannot open pool '%s'"),
 		    poolname);
+		if (fd != 0)
+			(void) close(fd);
 		return (1);
 	}
 	zpool_close(zhp);
@@ -7267,14 +7396,18 @@ zfs_do_channel_program(int argc, char **argv)
 		    gettext("Channel program execution failed:\n%s\n"),
 		    errstring);
 		if (ret == ETIME && instructions != 0)
-			(void) fprintf(stderr, "%llu Lua instructions\n",
+			(void) fprintf(stderr,
+			    gettext("%llu Lua instructions\n"),
 			    (u_longlong_t)instructions);
 	} else {
-		(void) printf("Channel program fully executed ");
-		if (nvlist_empty(outnvl)) {
-			(void) printf("with no return value.\n");
+		if (json_output) {
+			(void) nvlist_print_json(stdout, outnvl);
+		} else if (nvlist_empty(outnvl)) {
+			(void) fprintf(stdout, gettext("Channel program fully "
+			    "executed and did not produce output.\n"));
 		} else {
-			(void) printf("with return value:\n");
+			(void) fprintf(stdout, gettext("Channel program fully "
+			    "executed and produced output:\n"));
 			dump_nvlist(outnvl, 4);
 		}
 	}
@@ -7511,6 +7644,211 @@ zfs_do_change_key(int argc, char **argv)
 	nvlist_free(props);
 	zfs_close(zhp);
 	return (0);
+}
+
+/*
+ * 1) zfs project [-d|-r] <file|directory ...>
+ *    List project ID and inherit flag of file(s) or directories.
+ *    -d: List the directory itself, not its children.
+ *    -r: List subdirectories recursively.
+ *
+ * 2) zfs project -C [-k] [-r] <file|directory ...>
+ *    Clear project inherit flag and/or ID on the file(s) or directories.
+ *    -k: Keep the project ID unchanged. If not specified, the project ID
+ *	  will be reset as zero.
+ *    -r: Clear on subdirectories recursively.
+ *
+ * 3) zfs project -c [-0] [-d|-r] [-p id] <file|directory ...>
+ *    Check project ID and inherit flag on the file(s) or directories,
+ *    report the outliers.
+ *    -0: Print file name followed by a NUL instead of newline.
+ *    -d: Check the directory itself, not its children.
+ *    -p: Specify the referenced ID for comparing with the target file(s)
+ *	  or directories' project IDs. If not specified, the target (top)
+ *	  directory's project ID will be used as the referenced one.
+ *    -r: Check subdirectories recursively.
+ *
+ * 4) zfs project [-p id] [-r] [-s] <file|directory ...>
+ *    Set project ID and/or inherit flag on the file(s) or directories.
+ *    -p: Set the project ID as the given id.
+ *    -r: Set on subdirectorie recursively. If not specify "-p" option,
+ *	  it will use top-level directory's project ID as the given id,
+ *	  then set both project ID and inherit flag on all descendants
+ *	  of the top-level directory.
+ *    -s: Set project inherit flag.
+ */
+static int
+zfs_do_project(int argc, char **argv)
+{
+	zfs_project_control_t zpc = {
+		.zpc_expected_projid = ZFS_INVALID_PROJID,
+		.zpc_op = ZFS_PROJECT_OP_DEFAULT,
+		.zpc_dironly = B_FALSE,
+		.zpc_keep_projid = B_FALSE,
+		.zpc_newline = B_TRUE,
+		.zpc_recursive = B_FALSE,
+		.zpc_set_flag = B_FALSE,
+	};
+	int ret = 0, c;
+
+	if (argc < 2)
+		usage(B_FALSE);
+
+	while ((c = getopt(argc, argv, "0Ccdkp:rs")) != -1) {
+		switch (c) {
+		case '0':
+			zpc.zpc_newline = B_FALSE;
+			break;
+		case 'C':
+			if (zpc.zpc_op != ZFS_PROJECT_OP_DEFAULT) {
+				(void) fprintf(stderr, gettext("cannot "
+				    "specify '-C' '-c' '-s' together\n"));
+				usage(B_FALSE);
+			}
+
+			zpc.zpc_op = ZFS_PROJECT_OP_CLEAR;
+			break;
+		case 'c':
+			if (zpc.zpc_op != ZFS_PROJECT_OP_DEFAULT) {
+				(void) fprintf(stderr, gettext("cannot "
+				    "specify '-C' '-c' '-s' together\n"));
+				usage(B_FALSE);
+			}
+
+			zpc.zpc_op = ZFS_PROJECT_OP_CHECK;
+			break;
+		case 'd':
+			zpc.zpc_dironly = B_TRUE;
+			/* overwrite "-r" option */
+			zpc.zpc_recursive = B_FALSE;
+			break;
+		case 'k':
+			zpc.zpc_keep_projid = B_TRUE;
+			break;
+		case 'p': {
+			char *endptr;
+
+			errno = 0;
+			zpc.zpc_expected_projid = strtoull(optarg, &endptr, 0);
+			if (errno != 0 || *endptr != '\0') {
+				(void) fprintf(stderr,
+				    gettext("project ID must be less than "
+				    "%u\n"), UINT32_MAX);
+				usage(B_FALSE);
+			}
+			if (zpc.zpc_expected_projid >= UINT32_MAX) {
+				(void) fprintf(stderr,
+				    gettext("invalid project ID\n"));
+				usage(B_FALSE);
+			}
+			break;
+		}
+		case 'r':
+			zpc.zpc_recursive = B_TRUE;
+			/* overwrite "-d" option */
+			zpc.zpc_dironly = B_FALSE;
+			break;
+		case 's':
+			if (zpc.zpc_op != ZFS_PROJECT_OP_DEFAULT) {
+				(void) fprintf(stderr, gettext("cannot "
+				    "specify '-C' '-c' '-s' together\n"));
+				usage(B_FALSE);
+			}
+
+			zpc.zpc_set_flag = B_TRUE;
+			zpc.zpc_op = ZFS_PROJECT_OP_SET;
+			break;
+		default:
+			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
+			    optopt);
+			usage(B_FALSE);
+		}
+	}
+
+	if (zpc.zpc_op == ZFS_PROJECT_OP_DEFAULT) {
+		if (zpc.zpc_expected_projid != ZFS_INVALID_PROJID)
+			zpc.zpc_op = ZFS_PROJECT_OP_SET;
+		else
+			zpc.zpc_op = ZFS_PROJECT_OP_LIST;
+	}
+
+	switch (zpc.zpc_op) {
+	case ZFS_PROJECT_OP_LIST:
+		if (zpc.zpc_keep_projid) {
+			(void) fprintf(stderr,
+			    gettext("'-k' is only valid together with '-C'\n"));
+			usage(B_FALSE);
+		}
+		if (!zpc.zpc_newline) {
+			(void) fprintf(stderr,
+			    gettext("'-0' is only valid together with '-c'\n"));
+			usage(B_FALSE);
+		}
+		break;
+	case ZFS_PROJECT_OP_CHECK:
+		if (zpc.zpc_keep_projid) {
+			(void) fprintf(stderr,
+			    gettext("'-k' is only valid together with '-C'\n"));
+			usage(B_FALSE);
+		}
+		break;
+	case ZFS_PROJECT_OP_CLEAR:
+		if (zpc.zpc_dironly) {
+			(void) fprintf(stderr,
+			    gettext("'-d' is useless together with '-C'\n"));
+			usage(B_FALSE);
+		}
+		if (!zpc.zpc_newline) {
+			(void) fprintf(stderr,
+			    gettext("'-0' is only valid together with '-c'\n"));
+			usage(B_FALSE);
+		}
+		if (zpc.zpc_expected_projid != ZFS_INVALID_PROJID) {
+			(void) fprintf(stderr,
+			    gettext("'-p' is useless together with '-C'\n"));
+			usage(B_FALSE);
+		}
+		break;
+	case ZFS_PROJECT_OP_SET:
+		if (zpc.zpc_dironly) {
+			(void) fprintf(stderr,
+			    gettext("'-d' is useless for set project ID and/or "
+			    "inherit flag\n"));
+			usage(B_FALSE);
+		}
+		if (zpc.zpc_keep_projid) {
+			(void) fprintf(stderr,
+			    gettext("'-k' is only valid together with '-C'\n"));
+			usage(B_FALSE);
+		}
+		if (!zpc.zpc_newline) {
+			(void) fprintf(stderr,
+			    gettext("'-0' is only valid together with '-c'\n"));
+			usage(B_FALSE);
+		}
+		break;
+	default:
+		ASSERT(0);
+		break;
+	}
+
+	argv += optind;
+	argc -= optind;
+	if (argc == 0) {
+		(void) fprintf(stderr,
+		    gettext("missing file or directory target(s)\n"));
+		usage(B_FALSE);
+	}
+
+	for (int i = 0; i < argc; i++) {
+		int err;
+
+		err = zfs_project_handle(argv[i], &zpc);
+		if (err && !ret)
+			ret = err;
+	}
+
+	return (ret);
 }
 
 int

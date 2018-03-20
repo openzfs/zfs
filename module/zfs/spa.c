@@ -1188,7 +1188,7 @@ spa_activate(spa_t *spa, int mode)
 
 	/*
 	 * The taskq to upgrade datasets in this pool. Currently used by
-	 * feature SPA_FEATURE_USEROBJ_ACCOUNTING.
+	 * feature SPA_FEATURE_USEROBJ_ACCOUNTING/SPA_FEATURE_PROJECT_QUOTA.
 	 */
 	spa->spa_upgrade_taskq = taskq_create("z_upgrade", boot_ncpus,
 	    defclsyspri, 1, INT_MAX, TASKQ_DYNAMIC);
@@ -3766,10 +3766,14 @@ spa_get_stats(const char *name, nvlist_t **config,
 			    ZPOOL_CONFIG_ERRCOUNT,
 			    spa_get_errlog_size(spa)) == 0);
 
-			if (spa_suspended(spa))
+			if (spa_suspended(spa)) {
 				VERIFY(nvlist_add_uint64(*config,
 				    ZPOOL_CONFIG_SUSPENDED,
 				    spa->spa_failmode) == 0);
+				VERIFY(nvlist_add_uint64(*config,
+				    ZPOOL_CONFIG_SUSPENDED_REASON,
+				    spa->spa_suspended) == 0);
+			}
 
 			spa_add_spares(spa, *config);
 			spa_add_l2cache(spa, *config);
@@ -6984,7 +6988,7 @@ spa_sync(spa_t *spa, uint64_t txg)
 
 		if (error == 0)
 			break;
-		zio_suspend(spa, NULL);
+		zio_suspend(spa, NULL, ZIO_SUSPEND_IOERR);
 		zio_resume_wait(spa);
 	}
 	dmu_tx_commit(tx);

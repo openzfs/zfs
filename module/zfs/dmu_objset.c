@@ -58,6 +58,7 @@
 #include <sys/policy.h>
 #include <sys/spa_impl.h>
 #include <sys/dmu_send.h>
+#include <sys/zfs_project.h>
 
 /*
  * Needed to close a window in dnode_move() that allows the objset to be freed
@@ -336,14 +337,17 @@ dmu_objset_byteswap(void *buf, size_t size)
 {
 	objset_phys_t *osp = buf;
 
-	ASSERT(size == OBJSET_OLD_PHYS_SIZE || size == sizeof (objset_phys_t));
+	ASSERT(size == OBJSET_PHYS_SIZE_V1 || size == OBJSET_PHYS_SIZE_V2 ||
+	    size == sizeof (objset_phys_t));
 	dnode_byteswap(&osp->os_meta_dnode);
 	byteswap_uint64_array(&osp->os_zil_header, sizeof (zil_header_t));
 	osp->os_type = BSWAP_64(osp->os_type);
 	osp->os_flags = BSWAP_64(osp->os_flags);
-	if (size == sizeof (objset_phys_t)) {
+	if (size >= OBJSET_PHYS_SIZE_V2) {
 		dnode_byteswap(&osp->os_userused_dnode);
 		dnode_byteswap(&osp->os_groupused_dnode);
+		if (size >= sizeof (objset_phys_t))
+			dnode_byteswap(&osp->os_projectused_dnode);
 	}
 }
 
@@ -395,6 +399,7 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 	if (!BP_IS_HOLE(os->os_rootbp)) {
 		arc_flags_t aflags = ARC_FLAG_WAIT;
 		zbookmark_phys_t zb;
+		int size;
 		enum zio_flag zio_flags = ZIO_FLAG_CANFAIL;
 		SET_BOOKMARK(&zb, ds ? ds->ds_object : DMU_META_OBJSET,
 		    ZB_ROOT_OBJECT, ZB_ROOT_LEVEL, ZB_ROOT_BLKID);
@@ -420,12 +425,19 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 			return (err);
 		}
 
+		if (spa_version(spa) < SPA_VERSION_USERSPACE)
+			size = OBJSET_PHYS_SIZE_V1;
+		else if (!spa_feature_is_enabled(spa,
+		    SPA_FEATURE_PROJECT_QUOTA))
+			size = OBJSET_PHYS_SIZE_V2;
+		else
+			size = sizeof (objset_phys_t);
+
 		/* Increase the blocksize if we are permitted. */
-		if (spa_version(spa) >= SPA_VERSION_USERSPACE &&
-		    arc_buf_size(os->os_phys_buf) < sizeof (objset_phys_t)) {
+		if (arc_buf_size(os->os_phys_buf) < size) {
 			arc_buf_t *buf = arc_alloc_buf(spa, &os->os_phys_buf,
-			    ARC_BUFC_METADATA, sizeof (objset_phys_t));
-			bzero(buf->b_data, sizeof (objset_phys_t));
+			    ARC_BUFC_METADATA, size);
+			bzero(buf->b_data, size);
 			bcopy(os->os_phys_buf->b_data, buf->b_data,
 			    arc_buf_size(os->os_phys_buf));
 			arc_buf_destroy(os->os_phys_buf, &os->os_phys_buf);
@@ -436,7 +448,7 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 		os->os_flags = os->os_phys->os_flags;
 	} else {
 		int size = spa_version(spa) >= SPA_VERSION_USERSPACE ?
-		    sizeof (objset_phys_t) : OBJSET_OLD_PHYS_SIZE;
+		    sizeof (objset_phys_t) : OBJSET_PHYS_SIZE_V1;
 		os->os_phys_buf = arc_alloc_buf(spa, &os->os_phys_buf,
 		    ARC_BUFC_METADATA, size);
 		os->os_phys = os->os_phys_buf->b_data;
@@ -568,11 +580,15 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 
 	dnode_special_open(os, &os->os_phys->os_meta_dnode,
 	    DMU_META_DNODE_OBJECT, &os->os_meta_dnode);
-	if (arc_buf_size(os->os_phys_buf) >= sizeof (objset_phys_t)) {
+	if (OBJSET_BUF_HAS_USERUSED(os->os_phys_buf)) {
 		dnode_special_open(os, &os->os_phys->os_userused_dnode,
 		    DMU_USERUSED_OBJECT, &os->os_userused_dnode);
 		dnode_special_open(os, &os->os_phys->os_groupused_dnode,
 		    DMU_GROUPUSED_OBJECT, &os->os_groupused_dnode);
+		if (OBJSET_BUF_HAS_PROJECTUSED(os->os_phys_buf))
+			dnode_special_open(os,
+			    &os->os_phys->os_projectused_dnode,
+			    DMU_PROJECTUSED_OBJECT, &os->os_projectused_dnode);
 	}
 
 	mutex_init(&os->os_upgrade_lock, NULL, MUTEX_DEFAULT, NULL);
@@ -710,10 +726,17 @@ dmu_objset_own(const char *name, dmu_objset_type_t type,
 		return (err);
 	}
 
-	/* user accounting requires the dataset to be decrypted */
-	if (dmu_objset_userobjspace_upgradable(*osp) &&
+	/*
+	 * User accounting requires the dataset to be decrypted and rw.
+	 * We also don't begin user accounting during claiming to help
+	 * speed up pool import times and to keep this txg reserved
+	 * completely for recovery work.
+	 */
+	if ((dmu_objset_userobjspace_upgradable(*osp) ||
+	    dmu_objset_projectquota_upgradable(*osp)) &&
+	    !readonly && !dp->dp_spa->spa_claiming &&
 	    (ds->ds_dir->dd_crypto_obj == 0 || decrypt))
-		dmu_objset_userobjspace_upgrade(*osp);
+		dmu_objset_id_quota_upgrade(*osp);
 
 	dsl_pool_rele(dp, FTAG);
 	return (0);
@@ -835,6 +858,8 @@ dmu_objset_evict_dbufs(objset_t *os)
 	kmem_free(dn_marker, sizeof (dnode_t));
 
 	if (DMU_USERUSED_DNODE(os) != NULL) {
+		if (DMU_PROJECTUSED_DNODE(os) != NULL)
+			dnode_evict_dbufs(DMU_PROJECTUSED_DNODE(os));
 		dnode_evict_dbufs(DMU_GROUPUSED_DNODE(os));
 		dnode_evict_dbufs(DMU_USERUSED_DNODE(os));
 	}
@@ -889,6 +914,8 @@ dmu_objset_evict_done(objset_t *os)
 
 	dnode_special_close(&os->os_meta_dnode);
 	if (DMU_USERUSED_DNODE(os)) {
+		if (DMU_PROJECTUSED_DNODE(os))
+			dnode_special_close(&os->os_projectused_dnode);
 		dnode_special_close(&os->os_userused_dnode);
 		dnode_special_close(&os->os_groupused_dnode);
 	}
@@ -1003,6 +1030,12 @@ dmu_objset_create_impl_dnstats(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 			    SPA_FEATURE_USEROBJ_ACCOUNTING] = B_TRUE;
 			os->os_phys->os_flags |=
 			    OBJSET_FLAG_USEROBJACCOUNTING_COMPLETE;
+		}
+		if (dmu_objset_projectquota_enabled(os)) {
+			ds->ds_feature_activation_needed[
+			    SPA_FEATURE_PROJECT_QUOTA] = B_TRUE;
+			os->os_phys->os_flags |=
+			    OBJSET_FLAG_PROJECTQUOTA_COMPLETE;
 		}
 		os->os_flags = os->os_phys->os_flags;
 	}
@@ -1408,7 +1441,7 @@ dmu_objset_write_ready(zio_t *zio, arc_buf_t *abuf, void *arg)
 	 * Update rootbp fill count: it should be the number of objects
 	 * allocated in the object set (not counting the "special"
 	 * objects that are stored in the objset_phys_t -- the meta
-	 * dnode and user/group accounting objects).
+	 * dnode and user/group/project accounting objects).
 	 */
 	for (int i = 0; i < dnp->dn_nblkptr; i++)
 		fill += BP_GET_FILL(&dnp->dn_blkptr[i]);
@@ -1537,6 +1570,12 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 		dnode_sync(DMU_GROUPUSED_DNODE(os), tx);
 	}
 
+	if (DMU_PROJECTUSED_DNODE(os) &&
+	    DMU_PROJECTUSED_DNODE(os)->dn_type != DMU_OT_NONE) {
+		DMU_PROJECTUSED_DNODE(os)->dn_zio = zio;
+		dnode_sync(DMU_PROJECTUSED_DNODE(os), tx);
+	}
+
 	txgoff = tx->tx_txg & TXG_MASK;
 
 	if (dmu_objset_userused_enabled(os) &&
@@ -1620,6 +1659,14 @@ dmu_objset_userobjused_enabled(objset_t *os)
 	    spa_feature_is_enabled(os->os_spa, SPA_FEATURE_USEROBJ_ACCOUNTING));
 }
 
+boolean_t
+dmu_objset_projectquota_enabled(objset_t *os)
+{
+	return (used_cbs[os->os_phys->os_type] != NULL &&
+	    DMU_PROJECTUSED_DNODE(os) != NULL &&
+	    spa_feature_is_enabled(os->os_spa, SPA_FEATURE_PROJECT_QUOTA));
+}
+
 typedef struct userquota_node {
 	/* must be in the first filed, see userquota_update_cache() */
 	char		uqn_id[20 + DMU_OBJACCT_PREFIX_LEN];
@@ -1630,6 +1677,7 @@ typedef struct userquota_node {
 typedef struct userquota_cache {
 	avl_tree_t uqc_user_deltas;
 	avl_tree_t uqc_group_deltas;
+	avl_tree_t uqc_project_deltas;
 } userquota_cache_t;
 
 static int
@@ -1682,6 +1730,19 @@ do_userquota_cacheflush(objset_t *os, userquota_cache_t *cache, dmu_tx_t *tx)
 		kmem_free(uqn, sizeof (*uqn));
 	}
 	avl_destroy(&cache->uqc_group_deltas);
+
+	if (dmu_objset_projectquota_enabled(os)) {
+		cookie = NULL;
+		while ((uqn = avl_destroy_nodes(&cache->uqc_project_deltas,
+		    &cookie)) != NULL) {
+			mutex_enter(&os->os_userused_lock);
+			VERIFY0(zap_increment(os, DMU_PROJECTUSED_OBJECT,
+			    uqn->uqn_id, uqn->uqn_delta, tx));
+			mutex_exit(&os->os_userused_lock);
+			kmem_free(uqn, sizeof (*uqn));
+		}
+		avl_destroy(&cache->uqc_project_deltas);
+	}
 }
 
 static void
@@ -1706,10 +1767,11 @@ userquota_update_cache(avl_tree_t *avl, const char *id, int64_t delta)
 }
 
 static void
-do_userquota_update(userquota_cache_t *cache, uint64_t used, uint64_t flags,
-    uint64_t user, uint64_t group, boolean_t subtract)
+do_userquota_update(objset_t *os, userquota_cache_t *cache, uint64_t used,
+    uint64_t flags, uint64_t user, uint64_t group, uint64_t project,
+    boolean_t subtract)
 {
-	if ((flags & DNODE_FLAG_USERUSED_ACCOUNTED)) {
+	if (flags & DNODE_FLAG_USERUSED_ACCOUNTED) {
 		int64_t delta = DNODE_MIN_SIZE + used;
 		char name[20];
 
@@ -1721,12 +1783,18 @@ do_userquota_update(userquota_cache_t *cache, uint64_t used, uint64_t flags,
 
 		(void) sprintf(name, "%llx", (longlong_t)group);
 		userquota_update_cache(&cache->uqc_group_deltas, name, delta);
+
+		if (dmu_objset_projectquota_enabled(os)) {
+			(void) sprintf(name, "%llx", (longlong_t)project);
+			userquota_update_cache(&cache->uqc_project_deltas,
+			    name, delta);
+		}
 	}
 }
 
 static void
-do_userobjquota_update(userquota_cache_t *cache, uint64_t flags,
-    uint64_t user, uint64_t group, boolean_t subtract)
+do_userobjquota_update(objset_t *os, userquota_cache_t *cache, uint64_t flags,
+    uint64_t user, uint64_t group, uint64_t project, boolean_t subtract)
 {
 	if (flags & DNODE_FLAG_USEROBJUSED_ACCOUNTED) {
 		char name[20 + DMU_OBJACCT_PREFIX_LEN];
@@ -1739,6 +1807,13 @@ do_userobjquota_update(userquota_cache_t *cache, uint64_t flags,
 		(void) snprintf(name, sizeof (name), DMU_OBJACCT_PREFIX "%llx",
 		    (longlong_t)group);
 		userquota_update_cache(&cache->uqc_group_deltas, name, delta);
+
+		if (dmu_objset_projectquota_enabled(os)) {
+			(void) snprintf(name, sizeof (name),
+			    DMU_OBJACCT_PREFIX "%llx", (longlong_t)project);
+			userquota_update_cache(&cache->uqc_project_deltas,
+			    name, delta);
+		}
 	}
 }
 
@@ -1766,6 +1841,10 @@ userquota_updates_task(void *arg)
 	    sizeof (userquota_node_t), offsetof(userquota_node_t, uqn_node));
 	avl_create(&cache.uqc_group_deltas, userquota_compare,
 	    sizeof (userquota_node_t), offsetof(userquota_node_t, uqn_node));
+	if (dmu_objset_projectquota_enabled(os))
+		avl_create(&cache.uqc_project_deltas, userquota_compare,
+		    sizeof (userquota_node_t), offsetof(userquota_node_t,
+		    uqn_node));
 
 	while ((dn = multilist_sublist_head(list)) != NULL) {
 		int flags;
@@ -1777,18 +1856,21 @@ userquota_updates_task(void *arg)
 		flags = dn->dn_id_flags;
 		ASSERT(flags);
 		if (flags & DN_ID_OLD_EXIST)  {
-			do_userquota_update(&cache,
-			    dn->dn_oldused, dn->dn_oldflags,
-			    dn->dn_olduid, dn->dn_oldgid, B_TRUE);
-			do_userobjquota_update(&cache, dn->dn_oldflags,
-			    dn->dn_olduid, dn->dn_oldgid, B_TRUE);
+			do_userquota_update(os, &cache, dn->dn_oldused,
+			    dn->dn_oldflags, dn->dn_olduid, dn->dn_oldgid,
+			    dn->dn_oldprojid, B_TRUE);
+			do_userobjquota_update(os, &cache, dn->dn_oldflags,
+			    dn->dn_olduid, dn->dn_oldgid,
+			    dn->dn_oldprojid, B_TRUE);
 		}
 		if (flags & DN_ID_NEW_EXIST) {
-			do_userquota_update(&cache,
+			do_userquota_update(os, &cache,
 			    DN_USED_BYTES(dn->dn_phys), dn->dn_phys->dn_flags,
-			    dn->dn_newuid, dn->dn_newgid, B_FALSE);
-			do_userobjquota_update(&cache, dn->dn_phys->dn_flags,
-			    dn->dn_newuid, dn->dn_newgid, B_FALSE);
+			    dn->dn_newuid, dn->dn_newgid,
+			    dn->dn_newprojid, B_FALSE);
+			do_userobjquota_update(os, &cache,
+			    dn->dn_phys->dn_flags, dn->dn_newuid, dn->dn_newgid,
+			    dn->dn_newprojid, B_FALSE);
 		}
 
 		mutex_enter(&dn->dn_mtx);
@@ -1797,6 +1879,7 @@ userquota_updates_task(void *arg)
 		if (dn->dn_id_flags & DN_ID_NEW_EXIST) {
 			dn->dn_olduid = dn->dn_newuid;
 			dn->dn_oldgid = dn->dn_newgid;
+			dn->dn_oldprojid = dn->dn_newprojid;
 			dn->dn_id_flags |= DN_ID_OLD_EXIST;
 			if (dn->dn_bonuslen == 0)
 				dn->dn_id_flags |= DN_ID_CHKED_SPILL;
@@ -1820,17 +1903,32 @@ dmu_objset_do_userquota_updates(objset_t *os, dmu_tx_t *tx)
 	if (!dmu_objset_userused_enabled(os))
 		return;
 
-	/* if this is a raw receive just return and handle accounting later */
+	/*
+	 * If this is a raw receive just return and handle accounting
+	 * later when we have the keys loaded. We also don't do user
+	 * accounting during claiming since the datasets are not owned
+	 * for the duration of claiming and this txg should only be
+	 * used for recovery.
+	 */
 	if (os->os_encrypted && dmu_objset_is_receiving(os))
 		return;
 
-	/* Allocate the user/groupused objects if necessary. */
+	if (tx->tx_txg <= os->os_spa->spa_claim_max_txg)
+		return;
+
+	/* Allocate the user/group/project used objects if necessary. */
 	if (DMU_USERUSED_DNODE(os)->dn_type == DMU_OT_NONE) {
 		VERIFY0(zap_create_claim(os,
 		    DMU_USERUSED_OBJECT,
 		    DMU_OT_USERGROUP_USED, DMU_OT_NONE, 0, tx));
 		VERIFY0(zap_create_claim(os,
 		    DMU_GROUPUSED_OBJECT,
+		    DMU_OT_USERGROUP_USED, DMU_OT_NONE, 0, tx));
+	}
+
+	if (dmu_objset_projectquota_enabled(os) &&
+	    DMU_PROJECTUSED_DNODE(os)->dn_type == DMU_OT_NONE) {
+		VERIFY0(zap_create_claim(os, DMU_PROJECTUSED_OBJECT,
 		    DMU_OT_USERGROUP_USED, DMU_OT_NONE, 0, tx));
 	}
 
@@ -1896,6 +1994,7 @@ dmu_objset_userquota_get_ids(dnode_t *dn, boolean_t before, dmu_tx_t *tx)
 	dmu_buf_impl_t *db = NULL;
 	uint64_t *user = NULL;
 	uint64_t *group = NULL;
+	uint64_t *project = NULL;
 	int flags = dn->dn_id_flags;
 	int error;
 	boolean_t have_spill = B_FALSE;
@@ -1953,9 +2052,11 @@ dmu_objset_userquota_get_ids(dnode_t *dn, boolean_t before, dmu_tx_t *tx)
 		ASSERT(data);
 		user = &dn->dn_olduid;
 		group = &dn->dn_oldgid;
+		project = &dn->dn_oldprojid;
 	} else if (data) {
 		user = &dn->dn_newuid;
 		group = &dn->dn_newgid;
+		project = &dn->dn_newprojid;
 	}
 
 	/*
@@ -1963,7 +2064,7 @@ dmu_objset_userquota_get_ids(dnode_t *dn, boolean_t before, dmu_tx_t *tx)
 	 * type has changed and that type isn't an object type to track
 	 */
 	error = used_cbs[os->os_phys->os_type](dn->dn_bonustype, data,
-	    user, group);
+	    user, group, project);
 
 	/*
 	 * Preserve existing uid/gid when the callback can't determine
@@ -1976,9 +2077,11 @@ dmu_objset_userquota_get_ids(dnode_t *dn, boolean_t before, dmu_tx_t *tx)
 		if (flags & DN_ID_OLD_EXIST) {
 			dn->dn_newuid = dn->dn_olduid;
 			dn->dn_newgid = dn->dn_oldgid;
+			dn->dn_newprojid = dn->dn_oldprojid;
 		} else {
 			dn->dn_newuid = 0;
 			dn->dn_newgid = 0;
+			dn->dn_newprojid = ZFS_DEFAULT_PROJID;
 		}
 		error = 0;
 	}
@@ -2014,6 +2117,13 @@ dmu_objset_userobjspace_present(objset_t *os)
 {
 	return (os->os_phys->os_flags &
 	    OBJSET_FLAG_USEROBJACCOUNTING_COMPLETE);
+}
+
+boolean_t
+dmu_objset_projectquota_present(objset_t *os)
+{
+	return (os->os_phys->os_flags &
+	    OBJSET_FLAG_PROJECTQUOTA_COMPLETE);
 }
 
 static int
@@ -2085,33 +2195,43 @@ dmu_objset_userspace_upgrade(objset_t *os)
 }
 
 static int
-dmu_objset_userobjspace_upgrade_cb(objset_t *os)
+dmu_objset_id_quota_upgrade_cb(objset_t *os)
 {
 	int err = 0;
 
-	if (dmu_objset_userobjspace_present(os))
+	if (dmu_objset_userobjspace_present(os) &&
+	    dmu_objset_projectquota_present(os))
 		return (0);
 	if (dmu_objset_is_snapshot(os))
 		return (SET_ERROR(EINVAL));
 	if (!dmu_objset_userobjused_enabled(os))
 		return (SET_ERROR(ENOTSUP));
+	if (!dmu_objset_projectquota_enabled(os) &&
+	    dmu_objset_userobjspace_present(os))
+		return (SET_ERROR(ENOTSUP));
 
 	dmu_objset_ds(os)->ds_feature_activation_needed[
 	    SPA_FEATURE_USEROBJ_ACCOUNTING] = B_TRUE;
+	if (dmu_objset_projectquota_enabled(os))
+		dmu_objset_ds(os)->ds_feature_activation_needed[
+		    SPA_FEATURE_PROJECT_QUOTA] = B_TRUE;
 
 	err = dmu_objset_space_upgrade(os);
 	if (err)
 		return (err);
 
 	os->os_flags |= OBJSET_FLAG_USEROBJACCOUNTING_COMPLETE;
+	if (dmu_objset_projectquota_enabled(os))
+		os->os_flags |= OBJSET_FLAG_PROJECTQUOTA_COMPLETE;
+
 	txg_wait_synced(dmu_objset_pool(os), 0);
 	return (0);
 }
 
 void
-dmu_objset_userobjspace_upgrade(objset_t *os)
+dmu_objset_id_quota_upgrade(objset_t *os)
 {
-	dmu_objset_upgrade(os, dmu_objset_userobjspace_upgrade_cb);
+	dmu_objset_upgrade(os, dmu_objset_id_quota_upgrade_cb);
 }
 
 boolean_t
@@ -2121,6 +2241,15 @@ dmu_objset_userobjspace_upgradable(objset_t *os)
 	    !dmu_objset_is_snapshot(os) &&
 	    dmu_objset_userobjused_enabled(os) &&
 	    !dmu_objset_userobjspace_present(os));
+}
+
+boolean_t
+dmu_objset_projectquota_upgradable(objset_t *os)
+{
+	return (dmu_objset_type(os) == DMU_OST_ZFS &&
+	    !dmu_objset_is_snapshot(os) &&
+	    dmu_objset_projectquota_enabled(os) &&
+	    !dmu_objset_projectquota_present(os));
 }
 
 void
@@ -2731,7 +2860,10 @@ EXPORT_SYMBOL(dmu_objset_userused_enabled);
 EXPORT_SYMBOL(dmu_objset_userspace_upgrade);
 EXPORT_SYMBOL(dmu_objset_userspace_present);
 EXPORT_SYMBOL(dmu_objset_userobjused_enabled);
-EXPORT_SYMBOL(dmu_objset_userobjspace_upgrade);
 EXPORT_SYMBOL(dmu_objset_userobjspace_upgradable);
 EXPORT_SYMBOL(dmu_objset_userobjspace_present);
+EXPORT_SYMBOL(dmu_objset_projectquota_enabled);
+EXPORT_SYMBOL(dmu_objset_projectquota_present);
+EXPORT_SYMBOL(dmu_objset_projectquota_upgradable);
+EXPORT_SYMBOL(dmu_objset_id_quota_upgrade);
 #endif

@@ -60,7 +60,7 @@ prepare $DNAME "tar cf $TESTDIR/tar$$.tar $BNAME"
 (( $? != 0 )) && log_fail "Unable to create src archive"
 
 migrate $NONZFS_TESTDIR $SUMA $SUMB "tar xf $TESTDIR/tar$$.tar"
-(( $? != 0 )) && log_fail "Uable to successfully migrate test file from" \
+(( $? != 0 )) && log_fail "Unable to successfully migrate test file from" \
     "ZFS fs to UFS fs"
 
-log_pass "Successully migrated test file from ZFS fs to UFS fs".
+log_pass "Successfully migrated test file from ZFS fs to UFS fs".

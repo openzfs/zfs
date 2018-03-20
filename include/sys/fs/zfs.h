@@ -192,6 +192,10 @@ typedef enum {
 	ZFS_PROP_USEROBJQUOTA,
 	ZFS_PROP_GROUPOBJUSED,
 	ZFS_PROP_GROUPOBJQUOTA,
+	ZFS_PROP_PROJECTUSED,
+	ZFS_PROP_PROJECTQUOTA,
+	ZFS_PROP_PROJECTOBJUSED,
+	ZFS_PROP_PROJECTOBJQUOTA,
 	ZFS_NUM_USERQUOTA_PROPS
 } zfs_userquota_prop_t;
 
@@ -677,6 +681,7 @@ typedef struct zpool_rewind_policy {
 #define	ZPOOL_CONFIG_RESILVER_TXG	"resilver_txg"
 #define	ZPOOL_CONFIG_COMMENT		"comment"
 #define	ZPOOL_CONFIG_SUSPENDED		"suspended"	/* not stored on disk */
+#define	ZPOOL_CONFIG_SUSPENDED_REASON	"suspended_reason"	/* not stored */
 #define	ZPOOL_CONFIG_TIMESTAMP		"timestamp"	/* not stored on disk */
 #define	ZPOOL_CONFIG_BOOTFS		"bootfs"	/* not stored on disk */
 #define	ZPOOL_CONFIG_MISSING_DEVICES	"missing_vdevs"	/* not stored on disk */
