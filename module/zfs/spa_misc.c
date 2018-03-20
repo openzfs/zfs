@@ -335,8 +335,12 @@ char *zfs_deadman_failmode = "wait";
  * the block may be dittoed with up to 3 DVAs by ddt_sync().  All together,
  * the worst case is:
  *     (VDEV_RAIDZ_MAXPARITY + 1) * SPA_DVAS_PER_BP * 2 == 24
+ *
+ * DelphixOS does not use RAID-Z or dedup.  The worst case is 3 copies in
+ * the DVAs, and one extra copy for good luck (e.g. ganging, which is not
+ * accounted for in the above "worst case" analysis).
  */
-int spa_asize_inflation = 24;
+int spa_asize_inflation = SPA_DVAS_PER_BP + 1;
 
 /*
  * Normally, we don't allow the last 3.2% (1/(2^spa_slop_shift)) of space in
