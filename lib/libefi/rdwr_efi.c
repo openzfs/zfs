@@ -300,6 +300,20 @@ efi_get_info(int fd, struct dk_cinfo *dki_info)
 		rval = sscanf(dev_path, "/dev/loop%[0-9]p%hu",
 		    dki_info->dki_dname + 4,
 		    &dki_info->dki_partition);
+	} else if ((strncmp(dev_path, "/dev/nvme", 9) == 0)) {
+		strcpy(dki_info->dki_cname, "nvme");
+		dki_info->dki_ctype = DKC_SCSI_CCS;
+		strcpy(dki_info->dki_dname, "nvme");
+		(void) sscanf(dev_path, "/dev/nvme%[0-9]",
+		    dki_info->dki_dname + 4);
+		size_t controller_length = strlen(
+		    dki_info->dki_dname);
+		strcpy(dki_info->dki_dname + controller_length,
+		    "n");
+		rval = sscanf(dev_path,
+		    "/dev/nvme%*[0-9]n%[0-9]p%hu",
+		    dki_info->dki_dname + controller_length + 1,
+		    &dki_info->dki_partition);
 	} else {
 		strcpy(dki_info->dki_dname, "unknown");
 		strcpy(dki_info->dki_cname, "unknown");
