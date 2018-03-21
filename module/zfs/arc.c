@@ -7138,6 +7138,7 @@ arc_tempreserve_space(uint64_t reserve, uint64_t txg)
 
 	if (reserve + arc_tempreserve + anon_size > arc_c / 2 &&
 	    anon_size > arc_c / 4) {
+#ifdef ZFS_DEBUG
 		uint64_t meta_esize =
 		    refcount_count(&arc_anon->arcs_esize[ARC_BUFC_METADATA]);
 		uint64_t data_esize =
@@ -7146,6 +7147,7 @@ arc_tempreserve_space(uint64_t reserve, uint64_t txg)
 		    "anon_data=%lluK tempreserve=%lluK arc_c=%lluK\n",
 		    arc_tempreserve >> 10, meta_esize >> 10,
 		    data_esize >> 10, reserve >> 10, arc_c >> 10);
+#endif
 		DMU_TX_STAT_BUMP(dmu_tx_dirty_throttle);
 		return (SET_ERROR(ERESTART));
 	}

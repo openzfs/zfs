@@ -41,6 +41,7 @@ extern "C" {
 extern int zfs_flags;
 extern int zfs_recover;
 extern int zfs_free_leak_on_eio;
+extern int zfs_dbgmsg_enable;
 
 #define	ZFS_DEBUG_DPRINTF		(1 << 0)
 #define	ZFS_DEBUG_DBUF_VERIFY		(1 << 1)
@@ -55,10 +56,22 @@ extern int zfs_free_leak_on_eio;
 
 extern void __dprintf(const char *file, const char *func,
     int line, const char *fmt, ...);
-#define	dprintf(...) \
-	__dprintf(__FILE__, __func__, __LINE__, __VA_ARGS__)
 #define	zfs_dbgmsg(...) \
-	__dprintf(__FILE__, __func__, __LINE__, __VA_ARGS__)
+	if (zfs_dbgmsg_enable) \
+		__dprintf(__FILE__, __func__, __LINE__, __VA_ARGS__)
+
+#ifdef ZFS_DEBUG
+/*
+ * To enable this:
+ *
+ * $ echo 1 >/sys/module/zfs/parameters/zfs_flags
+ */
+#define	dprintf(...) \
+	if (zfs_flags & ZFS_DEBUG_DPRINTF) \
+		__dprintf(__FILE__, __func__, __LINE__, __VA_ARGS__)
+#else
+#define	dprintf(...) ((void)0)
+#endif /* ZFS_DEBUG */
 
 extern void zfs_panic_recover(const char *fmt, ...);
 
