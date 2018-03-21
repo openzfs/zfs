@@ -46,96 +46,97 @@ typedef enum qat_encrypt_dir {
 #define	QAT_TIMEOUT_MS		500
 
 /*
- * The minimal and maximal buffer size, which are not restricted
+ * The minimal and maximal buffer size which are not restricted
  * in the QAT hardware, but with the input buffer size between 4KB
- * and 128KB, the hardware can provide the optimal performance.
+ * and 128KB the hardware can provide the optimal performance.
  */
 #define	QAT_MIN_BUF_SIZE	(4*1024)
 #define	QAT_MAX_BUF_SIZE	(128*1024)
 
 /*
- * Used for qat kstat.
+ * Used for QAT kstat.
  */
 typedef struct qat_stats {
 	/*
-	 * Number of jobs submitted to qat compression engine.
+	 * Number of jobs submitted to QAT compression engine.
 	 */
 	kstat_named_t comp_requests;
 	/*
-	 * Total bytes sent to qat compression engine.
+	 * Total bytes sent to QAT compression engine.
 	 */
 	kstat_named_t comp_total_in_bytes;
 	/*
-	 * Total bytes output from qat compression engine.
+	 * Total bytes output from QAT compression engine.
 	 */
 	kstat_named_t comp_total_out_bytes;
 	/*
-	 * Number of jobs submitted to qat de-compression engine.
+	 * Number of jobs submitted to QAT de-compression engine.
 	 */
 	kstat_named_t decomp_requests;
 	/*
-	 * Total bytes sent to qat de-compression engine.
+	 * Total bytes sent to QAT de-compression engine.
 	 */
 	kstat_named_t decomp_total_in_bytes;
 	/*
-	 * Total bytes output from qat de-compression engine.
+	 * Total bytes output from QAT de-compression engine.
 	 */
 	kstat_named_t decomp_total_out_bytes;
 	/*
-	 * Number of fails in the qat compression / decompression engine.
-	 * Note: when qat fail happens, it doesn't mean a critical hardware
-	 * issue. Sometimes it is because the output buffer is not big enough.
-	 * The compression job will be transfered to gzip software
-	 * implementation, so the functionality of ZFS is not impacted.
+	 * Number of fails in the QAT compression / decompression engine.
+	 * Note: when a QAT error happens, it doesn't necessarily indicate a
+	 * critical hardware issue. Sometimes it is because the output buffer
+	 * is not big enough. The compression job will be transfered to the
+	 * gzip software implementation so the functionality of ZFS is not
+	 * impacted.
 	 */
 	kstat_named_t dc_fails;
 
 	/*
-	 * Number of jobs submitted to qat encryption engine.
+	 * Number of jobs submitted to QAT encryption engine.
 	 */
 	kstat_named_t encrypt_requests;
 	/*
-	 * Total bytes sent to qat encryption engine.
+	 * Total bytes sent to QAT encryption engine.
 	 */
 	kstat_named_t encrypt_total_in_bytes;
 	/*
-	 * Total bytes output from qat encryption engine.
+	 * Total bytes output from QAT encryption engine.
 	 */
 	kstat_named_t encrypt_total_out_bytes;
 	/*
-	 * Number of jobs submitted to qat decryption engine.
+	 * Number of jobs submitted to QAT decryption engine.
 	 */
 	kstat_named_t decrypt_requests;
 	/*
-	 * Total bytes sent to qat decryption engine.
+	 * Total bytes sent to QAT decryption engine.
 	 */
 	kstat_named_t decrypt_total_in_bytes;
 	/*
-	 * Total bytes output from qat decryption engine.
+	 * Total bytes output from QAT decryption engine.
 	 */
 	kstat_named_t decrypt_total_out_bytes;
 	/*
-	 * Number of fails in the qat encryption / decryption engine.
-	 * Note: when qat fail happens, it doesn't mean a critical hardware
-	 * issue. Sometimes it is because the output buffer is not big enough.
-	 * The encryption job will be transfered to the software implementation,
-	 * so the functionality of ZFS is not impacted.
+	 * Number of fails in the QAT encryption / decryption engine.
+	 * Note: when a QAT error happens, it doesn't necessarily indicate a
+	 * critical hardware issue. The encryption job will be transfered
+	 * to the software implementation so the functionality of ZFS is
+	 * not impacted.
 	 */
 	kstat_named_t crypt_fails;
 
 	/*
-	 * Number of jobs submitted to qat checksum engine.
+	 * Number of jobs submitted to QAT checksum engine.
 	 */
 	kstat_named_t cksum_requests;
 	/*
-	 * Total bytes sent to qat checksum engine.
+	 * Total bytes sent to QAT checksum engine.
 	 */
 	kstat_named_t cksum_total_in_bytes;
 	/*
-	 * Number of fails in the qat checksum engine.
-	 * Note: when qat fail happens, it doesn't mean a critical hardware
-	 * issue. The checksum job will be transfered to the software
-	 * implementation, so the functionality of ZFS is not impacted.
+	 * Number of fails in the QAT checksum engine.
+	 * Note: when a QAT error happens, it doesn't necessarily indicate a
+	 * critical hardware issue. The checksum job will be transfered to the
+	 * software implementation so the functionality of ZFS is not impacted.
 	 */
 	kstat_named_t cksum_fails;
 } qat_stats_t;

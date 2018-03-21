@@ -81,7 +81,7 @@
  * A secret binary key, generated from an HKDF function used to encrypt and
  * decrypt data.
  *
- * Message Authenication Code (MAC)
+ * Message Authentication Code (MAC)
  * The MAC is an output of authenticated encryption modes such as AES-GCM and
  * AES-CCM. Its purpose is to ensure that an attacker cannot modify encrypted
  * data on disk and return garbage to the application. Effectively, it is a
@@ -121,7 +121,7 @@
  * OBJECT SET AUTHENTICATION:
  * Up to this point, everything we have encrypted and authenticated has been
  * at level 0 (or -2 for the ZIL). If we did not do any further work the
- * on-disk format would be susceptible to attacks that deleted or rearrannged
+ * on-disk format would be susceptible to attacks that deleted or rearranged
  * the order of level 0 blocks. Ideally, the cleanest solution would be to
  * maintain a tree of authentication MACs going up the bp tree. However, this
  * presents a problem for raw sends. Send files do not send information about
@@ -131,11 +131,11 @@
  * for the indirect levels of the bp tree, we use a regular SHA512 of the MACs
  * from the level below. We also include some portable fields from blk_prop such
  * as the lsize and compression algorithm to prevent the data from being
- * misinterpretted.
+ * misinterpreted.
  *
- * At the objset level, we maintain 2 seperate 256 bit MACs in the
+ * At the objset level, we maintain 2 separate 256 bit MACs in the
  * objset_phys_t. The first one is "portable" and is the logical root of the
- * MAC tree maintianed in the metadnode's bps. The second, is "local" and is
+ * MAC tree maintained in the metadnode's bps. The second, is "local" and is
  * used as the root MAC for the user accounting objects, which are also not
  * transferred via "zfs send". The portable MAC is sent in the DRR_BEGIN payload
  * of the send file. The useraccounting code ensures that the useraccounting
@@ -148,13 +148,13 @@
  * need to use the same IV and encryption key, so that they will have the same
  * ciphertext. Normally, one should never reuse an IV with the same encryption
  * key or else AES-GCM and AES-CCM can both actually leak the plaintext of both
- * blocks. In this case, however, since we are using the same plaindata as
+ * blocks. In this case, however, since we are using the same plaintext as
  * well all that we end up with is a duplicate of the original ciphertext we
  * already had. As a result, an attacker with read access to the raw disk will
  * be able to tell which blocks are the same but this information is given away
  * by dedup anyway. In order to get the same IVs and encryption keys for
- * equivalent blocks of data we use an HMAC of the plaindata. We use an HMAC
- * here so that a reproducible checksum of the plaindata is never available to
+ * equivalent blocks of data we use an HMAC of the plaintext. We use an HMAC
+ * here so that a reproducible checksum of the plaintext is never available to
  * the attacker. The HMAC key is kept alongside the master key, encrypted on
  * disk. The first 64 bits of the HMAC are used in place of the random salt, and
  * the next 96 bits are used as the IV. As a result of this mechanism, dedup
