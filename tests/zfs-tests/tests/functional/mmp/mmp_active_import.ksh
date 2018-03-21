@@ -103,6 +103,9 @@ MMP_IMPORTED_MSG="pool was previously in use from another system."
 log_must try_pool_import $MMP_POOL "-d $MMP_DIR" "$MMP_IMPORTED_MSG"
 
 # 7. Verify 'zpool import -f $MMP_POOL' can now import the pool.
+# Default interval results in minimum activity test 10s which
+# makes detection of the activity test reliable.
+log_must set_tunable64 zfs_multihost_interval $MMP_INTERVAL_DEFAULT
 log_must import_activity_check $MMP_POOL "-f -d $MMP_DIR"
 
 # 8 Verify pool may be exported/imported without -f argument.
