@@ -185,10 +185,23 @@ AC_DEFUN([ZFS_AC_RPM], [
 	RPM_DEFINE_COMMON+=' --define "$(DEBUGINFO_ZFS) 1"'
 	RPM_DEFINE_COMMON+=' --define "$(ASAN_ZFS) 1"'
 
-	RPM_DEFINE_UTIL='--define "_dracutdir $(dracutdir)"'
-	RPM_DEFINE_UTIL+=' --define "_udevdir $(udevdir)"'
-	RPM_DEFINE_UTIL+=' --define "_udevruledir $(udevruledir)"'
-	RPM_DEFINE_UTIL+=' --define "_initconfdir $(DEFAULT_INITCONF_DIR)"'
+
+	RPM_DEFINE_UTIL=' --define "_initconfdir $(DEFAULT_INITCONF_DIR)"'
+
+	dnl # Make the next three RPM_DEFINE_UTIL additions conditional, since
+	dnl # their values may not be set when running:
+	dnl #
+	dnl #	./configure --with-config=srpm
+	dnl #
+	AS_IF([test -n "$dracutdir" ], [
+		RPM_DEFINE_UTIL='--define "_dracutdir $(dracutdir)"'
+	])
+	AS_IF([test -n "$udevdir" ], [
+		RPM_DEFINE_UTIL+=' --define "_udevdir $(udevdir)"'
+	])
+	AS_IF([test -n "$udevruledir" ], [
+		RPM_DEFINE_UTIL+=' --define "_udevdir $(udevruledir)"'
+	])
 	RPM_DEFINE_UTIL+=' $(DEFINE_INITRAMFS)'
 	RPM_DEFINE_UTIL+=' $(DEFINE_SYSTEMD)'
 
