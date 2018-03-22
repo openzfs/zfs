@@ -6346,7 +6346,9 @@ top:
 	}
 
 out:
-	spa_read_history_add(spa, zb, *arc_flags);
+	/* embedded bps don't actually go to disk */
+	if (!BP_IS_EMBEDDED(bp))
+		spa_read_history_add(spa, zb, *arc_flags);
 	return (rc);
 }
 
