@@ -172,6 +172,9 @@ extern void qat_crypt_fini(void);
 extern int qat_init(void);
 extern void qat_fini(void);
 
+/* fake CpaStatus used to indicate data was not compressible */
+#define	CPA_STATUS_INCOMPRESSIBLE				(-127)
+
 extern boolean_t qat_dc_use_accel(size_t s_len);
 extern boolean_t qat_crypt_use_accel(size_t s_len);
 extern boolean_t qat_checksum_use_accel(size_t s_len);
@@ -184,6 +187,7 @@ extern int qat_checksum(uint64_t cksum, uint8_t *buf, uint64_t size,
     zio_cksum_t *zcp);
 #else
 #define	CPA_STATUS_SUCCESS					0
+#define	CPA_STATUS_INCOMPRESSIBLE				(-127)
 #define	qat_init()
 #define	qat_fini()
 #define	qat_dc_use_accel(s_len)					0
