@@ -189,6 +189,7 @@ Requires:       fio
 Requires:       acl
 Requires:       sudo
 Requires:       sysstat
+Requires:	libaio
 AutoReqProv:    no
 
 %description test
