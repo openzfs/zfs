@@ -37,7 +37,7 @@
 #include <fcntl.h>
 #include <time.h>
 #include <unistd.h>
-#include <attr/xattr.h>
+#include <sys/xattr.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
