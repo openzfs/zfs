@@ -183,6 +183,7 @@ Requires:       acl
 Requires:       sudo
 Requires:       sysstat
 Requires:       rng-tools
+Requires:	libaio
 AutoReqProv:    no
 
 %description test

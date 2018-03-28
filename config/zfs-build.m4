@@ -118,11 +118,11 @@ AC_DEFUN([ZFS_AC_CONFIG], [
 	AM_CONDITIONAL([CONFIG_KERNEL],
 	    [test "$ZFS_CONFIG" = kernel -o "$ZFS_CONFIG" = all] &&
 	    [test "x$enable_linux_builtin" != xyes ])
-	AM_CONDITIONAL([WANT_DEVNAME2DEVID],
-	    [test "x$user_libudev" = xyes ])
 	AM_CONDITIONAL([CONFIG_QAT],
 	    [test "$ZFS_CONFIG" = kernel -o "$ZFS_CONFIG" = all] &&
 	    [test "x$qatsrc" != x ])
+	AM_CONDITIONAL([WANT_DEVNAME2DEVID], [test "x$user_libudev" = xyes ])
+	AM_CONDITIONAL([WANT_MMAP_LIBAIO], [test "x$user_libaio" = xyes ])
 ])
 
 dnl #

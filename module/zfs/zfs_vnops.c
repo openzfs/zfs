@@ -398,6 +398,7 @@ mappedread(struct inode *ip, int nbytes, uio_t *uio)
 		pp = find_lock_page(mp, start >> PAGE_SHIFT);
 		if (pp) {
 			ASSERT(PageUptodate(pp));
+			unlock_page(pp);
 
 			pb = kmap(pp);
 			error = uiomove(pb + off, bytes, UIO_READ, uio);
@@ -407,7 +408,6 @@ mappedread(struct inode *ip, int nbytes, uio_t *uio)
 				flush_dcache_page(pp);
 
 			mark_page_accessed(pp);
-			unlock_page(pp);
 			put_page(pp);
 		} else {
 			error = dmu_read_uio_dbuf(sa_get_db(zp->z_sa_hdl),
