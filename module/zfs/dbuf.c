@@ -2660,15 +2660,20 @@ dbuf_issue_final_prefetch(dbuf_prefetch_arg_t *dpa, blkptr_t *bp)
 	if (BP_IS_HOLE(bp) || BP_IS_EMBEDDED(bp))
 		return;
 
+	int zio_flags = ZIO_FLAG_CANFAIL | ZIO_FLAG_SPECULATIVE;
 	arc_flags_t aflags =
 	    dpa->dpa_aflags | ARC_FLAG_NOWAIT | ARC_FLAG_PREFETCH;
+
+	/* dnodes are always read as raw and then converted later */
+	if (BP_GET_TYPE(bp) == DMU_OT_DNODE && BP_IS_PROTECTED(bp) &&
+	    dpa->dpa_curlevel == 0)
+		zio_flags |= ZIO_FLAG_RAW;
 
 	ASSERT3U(dpa->dpa_curlevel, ==, BP_GET_LEVEL(bp));
 	ASSERT3U(dpa->dpa_curlevel, ==, dpa->dpa_zb.zb_level);
 	ASSERT(dpa->dpa_zio != NULL);
 	(void) arc_read(dpa->dpa_zio, dpa->dpa_spa, bp, NULL, NULL,
-	    dpa->dpa_prio, ZIO_FLAG_CANFAIL | ZIO_FLAG_SPECULATIVE,
-	    &aflags, &dpa->dpa_zb);
+	    dpa->dpa_prio, zio_flags, &aflags, &dpa->dpa_zb);
 }
 
 /*
