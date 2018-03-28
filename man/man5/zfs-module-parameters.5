@@ -2250,6 +2250,49 @@ Default value: \fB75\fR%.
 .sp
 .ne 2
 .na
+\fBzfs_trim\fR (int)
+.ad
+.RS 12n
+Controls whether the underlying vdevs of the pool are notified when
+space is freed using the device-type-specific command set (TRIM here
+being a general placeholder term rather than referring to just the SATA
+TRIM command). This is frequently used on backing storage devices which
+support thin provisioning or pre-erasure of blocks on flash media.
+.sp
+Default value: \fB1\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_trim_min_ext_sz\fR (int)
+.ad
+.RS 12n
+Minimum size region in bytes over which a device-specific TRIM command
+will be sent to the underlying vdevs when \fBzfs_trim\fR is set.
+.sp
+Default value: \fB131072\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_trim_sync\fR (int)
+.ad
+.RS 12n
+Controls whether the underlying vdevs should issue TRIM commands synchronously
+or asynchronously.  When set for synchronous operation, extents to TRIM are
+processed sequentially with each extent waiting for the last to complete.
+In asynchronous mode TRIM commands for all provided extents are submitted
+concurrently to the underlying vdev.  The optimal strategy depends on how
+the physical device handles TRIM commands.
+.sp
+Default value: \fB1\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_txg_history\fR (int)
 .ad
 .RS 12n
@@ -2268,6 +2311,18 @@ Default value: \fB0\fR.
 Flush dirty data to disk at least every N seconds (maximum txg duration)
 .sp
 Default value: \fB5\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_txgs_per_trim\fR (int)
+.ad
+.RS 12n
+Number of transaction groups over which device-specific TRIM commands
+are batched when \fBzfs_trim\fR is set.
+.sp
+Default value: \fB32\fR.
 .RE
 
 .sp
