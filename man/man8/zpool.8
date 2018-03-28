@@ -174,6 +174,11 @@
 .Op Fl s | Fl p
 .Ar pool Ns ...
 .Nm
+.Cm trim
+.Op Fl p
+.Op Fl r Ar rate | Fl s
+.Ar pool Ns ...
+.Nm
 .Cm set
 .Ar property Ns = Ns Ar value
 .Ar pool
@@ -801,6 +806,41 @@ Any write requests that have yet to be committed to disk would be blocked.
 .It Sy panic
 Prints out a message to the console and generates a system crash dump.
 .El
+.It Sy autotrim Ns = Ns Sy on Ns | Ns Sy off
+When set to
+.Sy on Ns , while deleting data, ZFS will inform the underlying vdevs of any
+blocks that have been marked as freed. This allows thinly provisioned vdevs to
+reclaim unused blocks. This feature is supported on file vdevs via hole
+punching if it is supported by their underlying file system and on block
+device vdevs if their underlying driver supports BLKDISCARD. The default
+setting for this property is
+.Sy off .
+.Pp
+Please note that automatic trimming of data blocks can put significant stress
+on the underlying storage devices if they do not handle these commands in a
+background, low-priority manner. In that case, it may be possible to achieve
+most of the benefits of trimming free space on the pool by running an
+on-demand (manual) trim every once in a while during a maintenance window
+using the
+.Nm zpool Cm trim
+command.
+.Pp
+Automatic trim does not reclaim blocks after a delete immediately. Instead,
+it waits approximately 2-4 minutes to allow for more efficient aggregation of
+smaller portions of free space into fewer larger regions, as well as to allow
+for longer pool corruption recovery via
+.Nm zpool Cm import Fl F .
+.It Sy forcetrim Ns = Ns Sy on Ns | Ns Sy off
+Controls whether device support is taken into consideration when issuing
+TRIM commands to the underlying vdevs of the pool. Normally, both automatic
+trim and on-demand (manual) trim only issue TRIM commands if a vdev indicates
+support for it. Setting the
+.Sy forcetrim
+property to
+.Sy on
+will force ZFS to issue TRIMs even if it thinks a device does not support it.
+The default is
+.Sy off .
 .It Sy feature@ Ns Ar feature_name Ns = Ns Sy enabled
 The value of this property is the current state of
 .Ar feature_name .
@@ -1744,15 +1784,20 @@ the path. This can be used in conjunction with the
 .Fl L
 flag.
 .It Fl r
-Print request size histograms for the leaf ZIOs. This includes
-histograms of individual ZIOs (
+Print request size histograms for the leaf vdev's IO. This includes
+histograms of individual IOs (
 .Ar ind )
-and aggregate ZIOs (
+and aggregate IOs (
 .Ar agg ).
-These stats can be useful for seeing how well the ZFS IO aggregator is
-working. Do not confuse these request size stats with the block layer
-requests; it's possible ZIOs can be broken up before being sent to the
-block device.
+TRIM IOs will not be aggregated and are split in to automatic (
+.Ar auto )
+and manual (
+.Ar man ).
+TRIM requests which exceed 16M in size are counted as 16M requests. These
+stats can be useful for seeing how well the ZFS IO aggregator is working. Do
+not confuse these request size stats with the block layer requests; it's
+possible these IOs will be broken up or merged before being sent to the block
+device.
 .It Fl v
 Verbose statistics Reports usage statistics for individual vdevs within the
 pool, in addition to the pool-wide statistics.
@@ -1790,6 +1835,8 @@ Average amount of time IO spent in asynchronous priority queues.
 Does not include disk time.
 .Ar scrub :
 Average queuing time in scrub queue. Does not include disk time.
+.Ar trim :
+Average queuing time in trim queue. Does not include disk time.
 .It Fl q
 Include active queue statistics. Each priority queue has both
 pending (
@@ -1807,6 +1854,8 @@ queues.
 Current number of entries in asynchronous priority queues.
 .Ar scrubq_read :
 Current number of entries in scrub queue.
+.Ar auto/man_trimq :
+Current number of entries in automatic or manual trim queues.
 .Pp
 All queue statistics are instantaneous measurements of the number of
 entries in the queues. If you specify an interval, the measurements
@@ -2110,6 +2159,70 @@ again.
 Starts a resilver. If an existing resilver is already running it will be
 restarted from the beginning. Any drives that were scheduled for a deferred
 resilver will be added to the new one.
+.Cm trim
+.Op Fl p
+.Op Fl r Ar rate | Fl s
+.Ar pool Ns ...
+.Xc
+Initiates an immediate on-demand TRIM operation on all of the free space of a
+pool without delaying 2-4 minutes as it done for automatic trim. This informs
+the underlying storage devices of all of the blocks that the pool no longer
+considers allocated, thus allowing thinly provisioned storage devices to
+reclaim them.
+.Pp
+Also note that an on-demand TRIM operation can be initiated irrespective of
+the
+.Sy autotrim
+zpool property setting. It does, however, respect the
+.Sy forcetrim
+zpool property.
+.Pp
+An on-demand TRIM operation does not conflict with an ongoing scrub, but it
+can put significant I/O stress on the underlying vdevs. A resilver, however,
+automatically stops an on-demand TRIM operation. You can manually reinitiate
+the TRIM operation after the resilver has started, by simply reissuing the
+.Nm zpool Cm trim
+command.
+.Pp
+Adding a vdev during TRIM is supported, although the progression display in
+.Nm zpool Cm status
+might not be entirely accurate in that case (TRIM will complete before
+reaching 100%). Removing or detaching a vdev will prematurely terminate an
+on-demand TRIM operation.
+.Pp
+See the documentation for the
+.Sy autotrim
+property above for a description of the vdevs on which
+.Nm zpool Cm trim
+is supported.
+.Bl -tag -width Ds
+.It Fl p
+Causes a "partial" trim to be initiated in which space which has never been
+allocated by ZFS is not trimmed.  This option is useful for certain storage
+backends such as large thinly-provisioned SANS on which large trim operations
+are slow.
+.El
+.Bl -tag -width Ds
+.It Fl r Ar rate
+Controls the speed at which the TRIM operation progresses.  Without this
+option, TRIM is executed as quickly as possible. The rate, expressed in bytes
+per second, is applied on a per-vdev basis; every top-level vdev in the pool
+tries to match this speed.  The requested rate is achieved by inserting delays
+between each TRIMmed region.
+.Pp
+When an on-demand TRIM operation is already in progress, this option changes
+its rate. To change a rate-limited TRIM to an unlimited one, simply execute
+the
+.Nm zpool Cm trim
+command without a
+.Fl r
+option.
+.El
+.Bl -tag -width Ds
+.It Fl s
+Stop trimming. If an on-demand TRIM operation is not ongoing at the moment,
+this does nothing and the command returns success.
+.El
 .It Xo
 .Nm
 .Cm set
