@@ -14,6 +14,7 @@ SUBDIRS = \
 	mkfiles \
 	mktree \
 	mmap_exec \
+	mmap_libaio \
 	mmapwrite \
 	randfree_file \
 	readmmap \
