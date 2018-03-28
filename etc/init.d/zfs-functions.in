@@ -393,7 +393,8 @@ read_fstab()
 	i=0
 	while read -r fs mntpnt fstype opts; do
 		echo "$fs" | egrep -qE '^#|^$' && continue
-		echo "$mntpnt" | egrep -qE '^none' && continue
+		echo "$mntpnt" | egrep -qE '^none|^swap' && continue
+		echo "$fstype" | egrep -qE '^swap' && continue
 
 		if echo "$fs $mntpnt $fstype $opts" | grep -qE "$match"; then
 			eval export FSTAB_dev_$i="$fs"
