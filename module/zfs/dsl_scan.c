@@ -1176,14 +1176,15 @@ dsl_scan_check_suspend(dsl_scan_t *scn, const zbookmark_phys_t *zb)
 			    (longlong_t)zb->zb_blkid);
 			scn->scn_phys.scn_bookmark = *zb;
 		} else {
+#ifdef ZFS_DEBUG
 			dsl_scan_phys_t *scnp = &scn->scn_phys;
-
 			dprintf("suspending at at DDT bookmark "
 			    "%llx/%llx/%llx/%llx\n",
 			    (longlong_t)scnp->scn_ddt_bookmark.ddb_class,
 			    (longlong_t)scnp->scn_ddt_bookmark.ddb_type,
 			    (longlong_t)scnp->scn_ddt_bookmark.ddb_checksum,
 			    (longlong_t)scnp->scn_ddt_bookmark.ddb_cursor);
+#endif
 		}
 		scn->scn_suspending = B_TRUE;
 		return (B_TRUE);
