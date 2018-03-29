@@ -1742,18 +1742,18 @@ Use \fB1\fR for yes and \fB0\fR for no (default).
 .sp
 .ne 2
 .na
-\fBzfs_reconstruct_indirect_segments_max\fR (int)
+\fBzfs_reconstruct_indirect_combinations_max\fR (int)
 .ad
-.RS 12n
-When a split block which is part of a indirect vdev contains more than this
-many segments, consider it too computationally expensive to check all possible
-combinations.  Instead, operate under the assumption that only a few segment
-copies are damaged and the majority of segment copies are good, in which case
-it is reasonable to randomly select sample combinations.  This allows all the
-segment copies to participate fairly in the reconstruction and prevents the
-repeated use of one bad copy.
+.RS 12na
+If an indirect split block contains more than this many possible unique
+combinations when being reconstructed, consider it too computationally
+expensive to check them all. Instead, try at most
+\fBzfs_reconstruct_indirect_combinations_max\fR randomly-selected
+combinations each time the block is accessed.  This allows all segment
+copies to participate fairly in the reconstruction when all combinations
+cannot be checked and prevents repeated use of one bad copy.
 .sp
-Default value: \fB10\fR.
+Default value: \fB100\fR.
 .RE
 
 .sp
