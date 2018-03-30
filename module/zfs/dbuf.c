@@ -1194,8 +1194,10 @@ dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 		    DMU_OT_IS_ENCRYPTED(dn->dn_bonustype) &&
 		    (flags & DB_RF_NO_DECRYPT) == 0 &&
 		    arc_is_encrypted(dn_buf)) {
+			SET_BOOKMARK(&zb, dmu_objset_id(db->db_objset),
+			    DMU_META_DNODE_OBJECT, 0, dn->dn_dbuf->db_blkid);
 			err = arc_untransform(dn_buf, dn->dn_objset->os_spa,
-			    dmu_objset_id(dn->dn_objset), B_TRUE);
+			    &zb, B_TRUE);
 			if (err != 0) {
 				DB_DNODE_EXIT(db);
 				mutex_exit(&db->db_mtx);
@@ -1264,8 +1266,7 @@ dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 	if (DBUF_IS_L2CACHEABLE(db))
 		aflags |= ARC_FLAG_L2CACHE;
 
-	SET_BOOKMARK(&zb, db->db_objset->os_dsl_dataset ?
-	    db->db_objset->os_dsl_dataset->ds_object : DMU_META_OBJSET,
+	SET_BOOKMARK(&zb, dmu_objset_id(db->db_objset),
 	    db->db.db_object, db->db_level, db->db_blkid);
 
 	/*
@@ -1409,9 +1410,12 @@ dbuf_read(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 		if (db->db_buf != NULL && (flags & DB_RF_NO_DECRYPT) == 0 &&
 		    (arc_is_encrypted(db->db_buf) ||
 		    arc_get_compression(db->db_buf) != ZIO_COMPRESS_OFF)) {
+			zbookmark_phys_t zb;
+
+			SET_BOOKMARK(&zb, dmu_objset_id(db->db_objset),
+			    db->db.db_object, db->db_level, db->db_blkid);
 			dbuf_fix_old_data(db, spa_syncing_txg(spa));
-			err = arc_untransform(db->db_buf, spa,
-			    dmu_objset_id(db->db_objset), B_FALSE);
+			err = arc_untransform(db->db_buf, spa, &zb, B_FALSE);
 			dbuf_set_data(db, db->db_buf);
 		}
 		mutex_exit(&db->db_mtx);
@@ -3453,6 +3457,8 @@ dbuf_check_crypt(dbuf_dirty_record_t *dr)
 	ASSERT(MUTEX_HELD(&db->db_mtx));
 
 	if (!dr->dt.dl.dr_raw && arc_is_encrypted(db->db_buf)) {
+		zbookmark_phys_t zb;
+
 		/*
 		 * Unfortunately, there is currently no mechanism for
 		 * syncing context to handle decryption errors. An error
@@ -3460,8 +3466,10 @@ dbuf_check_crypt(dbuf_dirty_record_t *dr)
 		 * changed a dnode block and updated the associated
 		 * checksums going up the block tree.
 		 */
+		SET_BOOKMARK(&zb, dmu_objset_id(db->db_objset),
+		    db->db.db_object, db->db_level, db->db_blkid);
 		err = arc_untransform(db->db_buf, db->db_objset->os_spa,
-		    dmu_objset_id(db->db_objset), B_TRUE);
+		    &zb, B_TRUE);
 		if (err)
 			panic("Invalid dnode block MAC");
 	} else if (dr->dt.dl.dr_raw) {

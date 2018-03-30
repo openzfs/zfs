@@ -237,7 +237,7 @@ boolean_t arc_is_unauthenticated(arc_buf_t *buf);
 enum zio_compress arc_get_compression(arc_buf_t *buf);
 void arc_get_raw_params(arc_buf_t *buf, boolean_t *byteorder, uint8_t *salt,
     uint8_t *iv, uint8_t *mac);
-int arc_untransform(arc_buf_t *buf, spa_t *spa, uint64_t dsobj,
+int arc_untransform(arc_buf_t *buf, spa_t *spa, const zbookmark_phys_t *zb,
     boolean_t in_place);
 void arc_convert_to_raw(arc_buf_t *buf, uint64_t dsobj, boolean_t byteorder,
     dmu_object_type_t ot, const uint8_t *salt, const uint8_t *iv,

@@ -686,8 +686,12 @@ dmu_objset_own_impl(dsl_dataset_t *ds, dmu_objset_type_t type,
 
 	/* if we are decrypting, we can now check MACs in os->os_phys_buf */
 	if (decrypt && arc_is_unauthenticated((*osp)->os_phys_buf)) {
+		zbookmark_phys_t zb;
+
+		SET_BOOKMARK(&zb, ds->ds_object, ZB_ROOT_OBJECT,
+		    ZB_ROOT_LEVEL, ZB_ROOT_BLKID);
 		err = arc_untransform((*osp)->os_phys_buf, (*osp)->os_spa,
-		    ds->ds_object, B_FALSE);
+		    &zb, B_FALSE);
 		if (err != 0)
 			return (err);
 

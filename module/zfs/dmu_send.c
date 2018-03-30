@@ -983,8 +983,12 @@ dmu_send_impl(void *tag, dsl_pool_t *dp, dsl_dataset_t *to_ds,
 	 */
 	if (!rawok && os->os_encrypted &&
 	    arc_is_unauthenticated(os->os_phys_buf)) {
+		zbookmark_phys_t zb;
+
+		SET_BOOKMARK(&zb, to_ds->ds_object, ZB_ROOT_OBJECT,
+		    ZB_ROOT_LEVEL, ZB_ROOT_BLKID);
 		err = arc_untransform(os->os_phys_buf, os->os_spa,
-		    to_ds->ds_object, B_FALSE);
+		    &zb, B_FALSE);
 		if (err != 0) {
 			dsl_pool_rele(dp, tag);
 			return (err);

@@ -506,7 +506,7 @@ error:
 	 * the io_error. If this was not a speculative zio, create an ereport.
 	 */
 	if (ret == ECKSUM) {
-		ret = SET_ERROR(EIO);
+		zio->io_error = SET_ERROR(EIO);
 		if ((zio->io_flags & ZIO_FLAG_SPECULATIVE) == 0) {
 			zfs_ereport_post(FM_EREPORT_ZFS_AUTHENTICATION,
 			    spa, NULL, &zio->io_bookmark, zio, 0, 0);

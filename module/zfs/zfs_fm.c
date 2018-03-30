@@ -142,7 +142,7 @@ zfs_is_ratelimiting_event(const char *subclass, vdev_t *vd)
 
 static void
 zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
-    const char *subclass, spa_t *spa, vdev_t *vd, zbookmark_phys_t *zb,
+    const char *subclass, spa_t *spa, vdev_t *vd, const zbookmark_phys_t *zb,
     zio_t *zio, uint64_t stateoroffset, uint64_t size)
 {
 	nvlist_t *ereport, *detector;
@@ -767,7 +767,8 @@ annotate_ecksum(nvlist_t *ereport, zio_bad_cksum_t *info,
 
 void
 zfs_ereport_post(const char *subclass, spa_t *spa, vdev_t *vd,
-    zbookmark_phys_t *zb, zio_t *zio, uint64_t stateoroffset, uint64_t size)
+    const zbookmark_phys_t *zb, zio_t *zio, uint64_t stateoroffset,
+    uint64_t size)
 {
 #ifdef _KERNEL
 	nvlist_t *ereport = NULL;
@@ -788,7 +789,7 @@ zfs_ereport_post(const char *subclass, spa_t *spa, vdev_t *vd,
 }
 
 void
-zfs_ereport_start_checksum(spa_t *spa, vdev_t *vd, zbookmark_phys_t *zb,
+zfs_ereport_start_checksum(spa_t *spa, vdev_t *vd, const zbookmark_phys_t *zb,
     struct zio *zio, uint64_t offset, uint64_t length, void *arg,
     zio_bad_cksum_t *info)
 {
@@ -874,7 +875,7 @@ zfs_ereport_free_checksum(zio_cksum_report_t *rpt)
 
 
 void
-zfs_ereport_post_checksum(spa_t *spa, vdev_t *vd, zbookmark_phys_t *zb,
+zfs_ereport_post_checksum(spa_t *spa, vdev_t *vd, const zbookmark_phys_t *zb,
     struct zio *zio, uint64_t offset, uint64_t length,
     const abd_t *good_data, const abd_t *bad_data, zio_bad_cksum_t *zbc)
 {
