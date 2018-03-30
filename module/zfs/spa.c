@@ -1183,6 +1183,14 @@ spa_activate(spa_t *spa, int mode)
 	    1, INT_MAX, 0);
 
 	/*
+	 * Taskq dedicated to prefetcher threads: this is used to prevent the
+	 * pool traverse code from monopolizing the global (and limited)
+	 * system_taskq by inappropriately scheduling long running tasks on it.
+	 */
+	spa->spa_prefetch_taskq = taskq_create("z_prefetch", boot_ncpus,
+	    defclsyspri, 1, INT_MAX, TASKQ_DYNAMIC);
+
+	/*
 	 * The taskq to upgrade datasets in this pool. Currently used by
 	 * feature SPA_FEATURE_USEROBJ_ACCOUNTING.
 	 */
@@ -1209,6 +1217,11 @@ spa_deactivate(spa_t *spa)
 	if (spa->spa_zvol_taskq) {
 		taskq_destroy(spa->spa_zvol_taskq);
 		spa->spa_zvol_taskq = NULL;
+	}
+
+	if (spa->spa_prefetch_taskq) {
+		taskq_destroy(spa->spa_prefetch_taskq);
+		spa->spa_prefetch_taskq = NULL;
 	}
 
 	if (spa->spa_upgrade_taskq) {
