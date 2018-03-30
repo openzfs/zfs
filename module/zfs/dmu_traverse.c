@@ -31,6 +31,7 @@
 #include <sys/dsl_pool.h>
 #include <sys/dnode.h>
 #include <sys/spa.h>
+#include <sys/spa_impl.h>
 #include <sys/zio.h>
 #include <sys/dmu_impl.h>
 #include <sys/sa.h>
@@ -623,7 +624,7 @@ traverse_impl(spa_t *spa, dsl_dataset_t *ds, uint64_t objset, blkptr_t *rootbp,
 	}
 
 	if (!(flags & TRAVERSE_PREFETCH_DATA) ||
-	    taskq_dispatch(system_taskq, traverse_prefetch_thread,
+	    taskq_dispatch(spa->spa_prefetch_taskq, traverse_prefetch_thread,
 	    td, TQ_NOQUEUE) == TASKQID_INVALID)
 		pd->pd_exited = B_TRUE;
 
