@@ -8476,11 +8476,11 @@ l2arc_apply_transforms(spa_t *spa, arc_buf_hdr_t *hdr, uint64_t asize,
 	 * shared buffer or to reallocate the buffer to match asize.
 	 */
 	if (HDR_HAS_RABD(hdr) && asize != psize) {
-		ASSERT3U(size, ==, psize);
+		ASSERT3U(asize, >=, psize);
 		to_write = abd_alloc_for_io(asize, ismd);
-		abd_copy(to_write, hdr->b_crypt_hdr.b_rabd, size);
-		if (size != asize)
-			abd_zero_off(to_write, size, asize - size);
+		abd_copy(to_write, hdr->b_crypt_hdr.b_rabd, psize);
+		if (psize != asize)
+			abd_zero_off(to_write, psize, asize - psize);
 		goto out;
 	}
 
