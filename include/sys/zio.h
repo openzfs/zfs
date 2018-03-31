@@ -649,8 +649,8 @@ extern hrtime_t zio_handle_io_delay(zio_t *zio);
  * Checksum ereport functions
  */
 extern void zfs_ereport_start_checksum(spa_t *spa, vdev_t *vd,
-    zbookmark_phys_t *zb, struct zio *zio, uint64_t offset, uint64_t length,
-    void *arg, struct zio_bad_cksum *info);
+    const zbookmark_phys_t *zb, struct zio *zio, uint64_t offset,
+    uint64_t length, void *arg, struct zio_bad_cksum *info);
 extern void zfs_ereport_finish_checksum(zio_cksum_report_t *report,
     const abd_t *good_data, const abd_t *bad_data, boolean_t drop_if_identical);
 
@@ -658,8 +658,9 @@ extern void zfs_ereport_free_checksum(zio_cksum_report_t *report);
 
 /* If we have the good data in hand, this function can be used */
 extern void zfs_ereport_post_checksum(spa_t *spa, vdev_t *vd,
-    zbookmark_phys_t *zb, struct zio *zio, uint64_t offset, uint64_t length,
-    const abd_t *good_data, const abd_t *bad_data, struct zio_bad_cksum *info);
+    const zbookmark_phys_t *zb, struct zio *zio, uint64_t offset,
+    uint64_t length, const abd_t *good_data, const abd_t *bad_data,
+    struct zio_bad_cksum *info);
 
 /* Called from spa_sync(), but primarily an injection handler */
 extern void spa_handle_ignored_writes(spa_t *spa);

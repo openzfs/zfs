@@ -2260,14 +2260,27 @@ byteswap:
  * callers.
  */
 int
-arc_untransform(arc_buf_t *buf, spa_t *spa, uint64_t dsobj, boolean_t in_place)
+arc_untransform(arc_buf_t *buf, spa_t *spa, const zbookmark_phys_t *zb,
+    boolean_t in_place)
 {
+	int ret;
 	arc_fill_flags_t flags = 0;
 
 	if (in_place)
 		flags |= ARC_FILL_IN_PLACE;
 
-	return (arc_buf_fill(buf, spa, dsobj, flags));
+	ret = arc_buf_fill(buf, spa, zb->zb_objset, flags);
+	if (ret == ECKSUM) {
+		/*
+		 * Convert authentication and decryption errors to EIO
+		 * (and generate an ereport) before leaving the ARC.
+		 */
+		ret = SET_ERROR(EIO);
+		zfs_ereport_post(FM_EREPORT_ZFS_AUTHENTICATION,
+		    spa, NULL, zb, NULL, 0, 0);
+	}
+
+	return (ret);
 }
 
 /*
@@ -5810,7 +5823,8 @@ arc_read_done(zio_t *zio)
 		 * Assert non-speculative zios didn't fail because an
 		 * encryption key wasn't loaded
 		 */
-		ASSERT((zio->io_flags & ZIO_FLAG_SPECULATIVE) || error == 0);
+		ASSERT((zio->io_flags & ZIO_FLAG_SPECULATIVE) ||
+		    error != ENOENT);
 
 		/*
 		 * If we failed to decrypt, report an error now (as the zio
@@ -6033,12 +6047,24 @@ top:
 			rc = arc_buf_alloc_impl(hdr, spa, zb->zb_objset,
 			    private, encrypted_read, compressed_read,
 			    noauth_read, B_TRUE, &buf);
+			if (rc == ECKSUM) {
+				/*
+				 * Convert authentication and decryption errors
+				 * to EIO (and generate an ereport) before
+				 * leaving the ARC.
+				 */
+				rc = SET_ERROR(EIO);
+				zfs_ereport_post(FM_EREPORT_ZFS_AUTHENTICATION,
+				    spa, NULL, zb, NULL, 0, 0);
+			}
 			if (rc != 0) {
 				arc_buf_destroy(buf, private);
 				buf = NULL;
 			}
 
-			ASSERT((zio_flags & ZIO_FLAG_SPECULATIVE) || rc == 0);
+			/* assert any errors weren't due to unloaded keys */
+			ASSERT((zio_flags & ZIO_FLAG_SPECULATIVE) ||
+			    rc != ENOENT);
 		} else if (*arc_flags & ARC_FLAG_PREFETCH &&
 		    refcount_count(&hdr->b_l1hdr.b_refcnt) == 0) {
 			arc_hdr_set_flags(hdr, ARC_FLAG_PREFETCH);
