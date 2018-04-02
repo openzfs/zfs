@@ -800,6 +800,18 @@ zio_create(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 		zio_add_child(pio, zio);
 	}
 
+	if (zio->io_vd && zio->io_vd->vdev_ops->vdev_op_leaf &&
+	    zio->io_priority == ZIO_PRIORITY_SYNC_WRITE) {
+		int label = vdev_label_number(zio->io_vd->vdev_psize,
+		    zio->io_offset);
+		uint64_t ring_start = vdev_label_offset(zio->io_vd->vdev_psize,
+		    label, 0) + offsetof(vdev_label_t, vl_uberblock);
+
+		if (zio->io_offset >= ring_start && zio->io_offset +
+		    zio->io_size < ring_start + VDEV_UBERBLOCK_RING)
+			zio->io_is_uberblock = B_TRUE;
+	}
+
 	taskq_init_ent(&zio->io_tqent);
 
 	return (zio);

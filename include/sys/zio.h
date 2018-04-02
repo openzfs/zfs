@@ -511,6 +511,8 @@ struct zio {
 
 	/* Taskq dispatching state */
 	taskq_ent_t	io_tqent;
+
+	boolean_t	io_is_uberblock;
 };
 
 extern int zio_bookmark_compare(const void *, const void *);

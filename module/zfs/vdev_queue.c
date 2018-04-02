@@ -225,9 +225,17 @@ vdev_queue_timestamp_compare(const void *x1, const void *x2)
 {
 	const zio_t *z1 = (const zio_t *)x1;
 	const zio_t *z2 = (const zio_t *)x2;
+	int cmp;
 
-	int cmp = AVL_CMP(z1->io_timestamp, z2->io_timestamp);
+	/*
+	 * is_uberblock < !is_uberblock
+	 * so that uberblock writes come before non-uberblock writes
+	 */
+	cmp = AVL_CMP(!z1->io_is_uberblock, !z2->io_is_uberblock);
+	if (likely(cmp))
+		return (cmp);
 
+	cmp = AVL_CMP(z1->io_timestamp, z2->io_timestamp);
 	if (likely(cmp))
 		return (cmp);
 
@@ -773,6 +781,10 @@ vdev_queue_io(zio_t *zio)
 	vdev_queue_io_add(vq, zio);
 	nio = vdev_queue_io_to_issue(vq);
 	mutex_exit(&vq->vq_lock);
+
+	if (zio->io_is_uberblock && (!nio || !nio->io_is_uberblock)) {
+		zfs_dbgmsg("queueing uberblock write instead of issuing");
+	}
 
 	if (nio == NULL)
 		return (NULL);
