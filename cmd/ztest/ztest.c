@@ -267,9 +267,9 @@ typedef struct bufwad {
  * still need to map from object ID to rangelock_t.
  */
 typedef enum {
-	RL_READER,
-	RL_WRITER,
-	RL_APPEND
+	ZTRL_READER,
+	ZTRL_WRITER,
+	ZTRL_APPEND
 } rl_type_t;
 
 typedef struct rll {
@@ -1380,7 +1380,7 @@ ztest_rll_lock(rll_t *rll, rl_type_t type)
 {
 	mutex_enter(&rll->rll_lock);
 
-	if (type == RL_READER) {
+	if (type == ZTRL_READER) {
 		while (rll->rll_writer != NULL)
 			(void) cv_wait(&rll->rll_cv, &rll->rll_lock);
 		rll->rll_readers++;
@@ -1861,7 +1861,7 @@ ztest_replay_remove(void *arg1, void *arg2, boolean_t byteswap)
 	    zap_lookup(os, lr->lr_doid, name, sizeof (object), 1, &object));
 	ASSERT(object != 0);
 
-	ztest_object_lock(zd, object, RL_WRITER);
+	ztest_object_lock(zd, object, ZTRL_WRITER);
 
 	VERIFY3U(0, ==, dmu_object_info(os, object, &doi));
 
@@ -1931,8 +1931,8 @@ ztest_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 	if (bt->bt_magic != BT_MAGIC)
 		bt = NULL;
 
-	ztest_object_lock(zd, lr->lr_foid, RL_READER);
-	rl = ztest_range_lock(zd, lr->lr_foid, offset, length, RL_WRITER);
+	ztest_object_lock(zd, lr->lr_foid, ZTRL_READER);
+	rl = ztest_range_lock(zd, lr->lr_foid, offset, length, ZTRL_WRITER);
 
 	VERIFY3U(0, ==, dmu_bonus_hold(os, lr->lr_foid, FTAG, &db));
 
@@ -2034,9 +2034,9 @@ ztest_replay_truncate(void *arg1, void *arg2, boolean_t byteswap)
 	if (byteswap)
 		byteswap_uint64_array(lr, sizeof (*lr));
 
-	ztest_object_lock(zd, lr->lr_foid, RL_READER);
+	ztest_object_lock(zd, lr->lr_foid, ZTRL_READER);
 	rl = ztest_range_lock(zd, lr->lr_foid, lr->lr_offset, lr->lr_length,
-	    RL_WRITER);
+	    ZTRL_WRITER);
 
 	tx = dmu_tx_create(os);
 
@@ -2076,7 +2076,7 @@ ztest_replay_setattr(void *arg1, void *arg2, boolean_t byteswap)
 	if (byteswap)
 		byteswap_uint64_array(lr, sizeof (*lr));
 
-	ztest_object_lock(zd, lr->lr_foid, RL_WRITER);
+	ztest_object_lock(zd, lr->lr_foid, ZTRL_WRITER);
 
 	VERIFY3U(0, ==, dmu_bonus_hold(os, lr->lr_foid, FTAG, &db));
 
@@ -2200,7 +2200,7 @@ ztest_get_data(void *arg, lr_write_t *lr, char *buf, struct lwb *lwb,
 	ASSERT3P(zio, !=, NULL);
 	ASSERT3U(size, !=, 0);
 
-	ztest_object_lock(zd, object, RL_READER);
+	ztest_object_lock(zd, object, ZTRL_READER);
 	error = dmu_bonus_hold(os, object, FTAG, &db);
 	if (error) {
 		ztest_object_unlock(zd, object);
@@ -2225,7 +2225,7 @@ ztest_get_data(void *arg, lr_write_t *lr, char *buf, struct lwb *lwb,
 
 	if (buf != NULL) {	/* immediate write */
 		zgd->zgd_lr = (struct locked_range *)ztest_range_lock(zd,
-		    object, offset, size, RL_READER);
+		    object, offset, size, ZTRL_READER);
 
 		error = dmu_read(os, object, offset, size, buf,
 		    DMU_READ_NO_PREFETCH);
@@ -2240,7 +2240,7 @@ ztest_get_data(void *arg, lr_write_t *lr, char *buf, struct lwb *lwb,
 		}
 
 		zgd->zgd_lr = (struct locked_range *)ztest_range_lock(zd,
-		    object, offset, size, RL_READER);
+		    object, offset, size, ZTRL_READER);
 
 		error = dmu_buf_hold(os, object, offset, zgd, &db,
 		    DMU_READ_NO_PREFETCH);
@@ -2317,7 +2317,7 @@ ztest_lookup(ztest_ds_t *zd, ztest_od_t *od, int count)
 			ASSERT(od->od_object != 0);
 			ASSERT(missing == 0);	/* there should be no gaps */
 
-			ztest_object_lock(zd, od->od_object, RL_READER);
+			ztest_object_lock(zd, od->od_object, ZTRL_READER);
 			VERIFY3U(0, ==, dmu_bonus_hold(zd->zd_os,
 			    od->od_object, FTAG, &db));
 			dmu_object_info_from_db(db, &doi);
@@ -2490,8 +2490,8 @@ ztest_prealloc(ztest_ds_t *zd, uint64_t object, uint64_t offset, uint64_t size)
 
 	txg_wait_synced(dmu_objset_pool(os), 0);
 
-	ztest_object_lock(zd, object, RL_READER);
-	rl = ztest_range_lock(zd, object, offset, size, RL_WRITER);
+	ztest_object_lock(zd, object, ZTRL_READER);
+	rl = ztest_range_lock(zd, object, offset, size, ZTRL_WRITER);
 
 	tx = dmu_tx_create(os);
 

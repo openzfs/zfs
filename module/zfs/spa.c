@@ -59,6 +59,7 @@
 #include <sys/vdev_initialize.h>
 #include <sys/vdev_trim.h>
 #include <sys/vdev_disk.h>
+#include <sys/vdev_raidz.h>
 #include <sys/metaslab.h>
 #include <sys/metaslab_impl.h>
 #include <sys/mmp.h>
@@ -1486,6 +1487,12 @@ spa_unload(spa_t *spa)
 		spa->spa_async_zio_root = NULL;
 	}
 
+	/* XXX move to spa_destroy_aux_threads() once it's upstream */
+	if (spa->spa_raidz_expand_zthr != NULL) {
+		zthr_destroy(spa->spa_raidz_expand_zthr);
+		spa->spa_raidz_expand_zthr = NULL;
+	}
+
 	if (spa->spa_vdev_removal != NULL) {
 		spa_vdev_removal_destroy(spa->spa_vdev_removal);
 		spa->spa_vdev_removal = NULL;
@@ -1566,6 +1573,8 @@ spa_unload(spa_t *spa)
 		spa_strfree(spa->spa_comment);
 		spa->spa_comment = NULL;
 	}
+
+	spa->spa_raidz_expand = NULL;
 
 	spa_config_exit(spa, SCL_ALL, spa);
 }
@@ -2279,6 +2288,7 @@ spa_spawn_aux_threads(spa_t *spa)
 
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
 
+	spa_start_raidz_expansion_thread(spa);
 	spa_start_indirect_condensing_thread(spa);
 
 	ASSERT3P(spa->spa_checkpoint_discard_zthr, ==, NULL);
@@ -6022,8 +6032,9 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 	vdev_t *oldvd, *newvd, *newrootvd, *pvd, *tvd;
 	vdev_ops_t *pvops;
 	char *oldvdpath, *newvdpath;
-	int newvd_isspare;
+	int newvd_isspare = B_FALSE;
 	int error;
+	boolean_t raidz = B_FALSE;
 
 	ASSERT(spa_writeable(spa));
 
@@ -6044,10 +6055,16 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 	if (oldvd == NULL)
 		return (spa_vdev_exit(spa, NULL, txg, ENODEV));
 
-	if (!oldvd->vdev_ops->vdev_op_leaf)
+	if (oldvd->vdev_ops == &vdev_raidz_ops) {
+		raidz = B_TRUE;
+	} else if (!oldvd->vdev_ops->vdev_op_leaf) {
 		return (spa_vdev_exit(spa, NULL, txg, ENOTSUP));
+	}
 
-	pvd = oldvd->vdev_parent;
+	if (raidz)
+		pvd = oldvd;
+	else
+		pvd = oldvd->vdev_parent;
 
 	if ((error = spa_config_parse(spa, &newrootvd, nvroot, NULL, 0,
 	    VDEV_ALLOC_ATTACH)) != 0)
@@ -6076,6 +6093,7 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 		 * vdev.
 		 */
 		if (pvd->vdev_ops != &vdev_mirror_ops &&
+		    pvd->vdev_ops != &vdev_raidz_ops &&
 		    pvd->vdev_ops != &vdev_root_ops)
 			return (spa_vdev_exit(spa, newrootvd, txg, ENOTSUP));
 
@@ -6115,7 +6133,8 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 	/*
 	 * Make sure the new device is big enough.
 	 */
-	if (newvd->vdev_asize < vdev_get_min_asize(oldvd))
+	vdev_t *min_vdev = raidz ? oldvd->vdev_child[0] : oldvd;
+	if (newvd->vdev_asize < vdev_get_min_asize(min_vdev))
 		return (spa_vdev_exit(spa, newrootvd, txg, EOVERFLOW));
 
 	/*
@@ -6125,35 +6144,48 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 	if (newvd->vdev_ashift > oldvd->vdev_top->vdev_ashift)
 		return (spa_vdev_exit(spa, newrootvd, txg, EDOM));
 
+	if (raidz) {
+		oldvdpath = kmem_asprintf("raidz%u-%u",
+		    oldvd->vdev_nparity, oldvd->vdev_id);
+	} else {
+		oldvdpath = spa_strdup(oldvd->vdev_path);
+	}
+	newvdpath = spa_strdup(newvd->vdev_path);
+
 	/*
 	 * If this is an in-place replacement, update oldvd's path and devid
 	 * to make it distinguishable from newvd, and unopenable from now on.
 	 */
-	if (strcmp(oldvd->vdev_path, newvd->vdev_path) == 0) {
+	if (strcmp(oldvdpath, newvdpath) == 0) {
 		spa_strfree(oldvd->vdev_path);
-		oldvd->vdev_path = kmem_alloc(strlen(newvd->vdev_path) + 5,
+		oldvd->vdev_path = kmem_alloc(strlen(newvdpath) + 5,
 		    KM_SLEEP);
-		(void) sprintf(oldvd->vdev_path, "%s/%s",
-		    newvd->vdev_path, "old");
+		(void) sprintf(oldvd->vdev_path, "%s/old",
+		    newvdpath);
 		if (oldvd->vdev_devid != NULL) {
 			spa_strfree(oldvd->vdev_devid);
 			oldvd->vdev_devid = NULL;
 		}
+		spa_strfree(oldvdpath);
+		oldvdpath = spa_strdup(oldvd->vdev_path);
 	}
 
 	/* mark the device being resilvered */
-	newvd->vdev_resilver_txg = txg;
+	if (!raidz)
+		newvd->vdev_resilver_txg = txg;
 
 	/*
 	 * If the parent is not a mirror, or if we're replacing, insert the new
 	 * mirror/replacing/spare vdev above oldvd.
 	 */
-	if (pvd->vdev_ops != pvops)
+	if (!raidz && pvd->vdev_ops != pvops)
 		pvd = vdev_add_parent(oldvd, pvops);
 
 	ASSERT(pvd->vdev_top->vdev_parent == rvd);
+#if 0
 	ASSERT(pvd->vdev_ops == pvops);
 	ASSERT(oldvd->vdev_parent == pvd);
+#endif
 
 	/*
 	 * Extract the new device from its root and add it to pvd.
@@ -6181,34 +6213,39 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 	 */
 	dtl_max_txg = txg + TXG_CONCURRENT_STATES;
 
-	vdev_dtl_dirty(newvd, DTL_MISSING, TXG_INITIAL,
-	    dtl_max_txg - TXG_INITIAL);
+	if (raidz) {
+		dmu_tx_t *tx = dmu_tx_create_assigned(spa->spa_dsl_pool, txg);
+		dsl_sync_task_nowait(spa->spa_dsl_pool, vdev_raidz_attach_sync,
+		    newvd, 0, ZFS_SPACE_CHECK_EXTRA_RESERVED, tx);
+		dmu_tx_commit(tx);
+	} else {
+		vdev_dtl_dirty(newvd, DTL_MISSING, TXG_INITIAL,
+		    dtl_max_txg - TXG_INITIAL);
 
-	if (newvd->vdev_isspare) {
-		spa_spare_activate(newvd);
-		spa_event_notify(spa, newvd, NULL, ESC_ZFS_VDEV_SPARE);
+		if (newvd->vdev_isspare) {
+			spa_spare_activate(newvd);
+			spa_event_notify(spa, newvd, NULL, ESC_ZFS_VDEV_SPARE);
+		}
+
+		newvd_isspare = newvd->vdev_isspare;
+
+		/*
+		 * Mark newvd's DTL dirty in this txg.
+		 */
+		vdev_dirty(tvd, VDD_DTL, newvd, txg);
+
+		/*
+		 * Schedule the resilver to restart in the future. We do this to
+		 * ensure that dmu_sync-ed blocks have been stitched into the
+		 * respective datasets. We do not do this if resilvers have been
+		 * deferred.
+		 */
+		if (dsl_scan_resilvering(spa_get_dsl(spa)) &&
+		    spa_feature_is_enabled(spa, SPA_FEATURE_RESILVER_DEFER))
+			vdev_set_deferred_resilver(spa, newvd);
+		else
+			dsl_resilver_restart(spa->spa_dsl_pool, dtl_max_txg);
 	}
-
-	oldvdpath = spa_strdup(oldvd->vdev_path);
-	newvdpath = spa_strdup(newvd->vdev_path);
-	newvd_isspare = newvd->vdev_isspare;
-
-	/*
-	 * Mark newvd's DTL dirty in this txg.
-	 */
-	vdev_dirty(tvd, VDD_DTL, newvd, txg);
-
-	/*
-	 * Schedule the resilver to restart in the future. We do this to
-	 * ensure that dmu_sync-ed blocks have been stitched into the
-	 * respective datasets. We do not do this if resilvers have been
-	 * deferred.
-	 */
-	if (dsl_scan_resilvering(spa_get_dsl(spa)) &&
-	    spa_feature_is_enabled(spa, SPA_FEATURE_RESILVER_DEFER))
-		vdev_set_deferred_resilver(spa, newvd);
-	else
-		dsl_resilver_restart(spa->spa_dsl_pool, dtl_max_txg);
 
 	if (spa->spa_bootfs)
 		spa_event_notify(spa, newvd, NULL, ESC_ZFS_BOOTFS_VDEV_ATTACH);
@@ -6219,6 +6256,20 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 	 * Commit the config
 	 */
 	(void) spa_vdev_exit(spa, newrootvd, dtl_max_txg, 0);
+
+	/*
+	 * XXX since we only initiated the expand, this should be done
+	 * when it finishes, instead
+	 * XXX this seems to work before the expansion completes,
+	 * but shit will probably break if we try to write to the new
+	 * space.  Need to modify vdev_online() / size-calculating code
+	 * to ignore new device if expansion not yet completed.
+	 */
+#if 0
+	if (raidz) {
+		error = vdev_online(spa, guid, ZFS_ONLINE_EXPAND, NULL);
+	}
+#endif
 
 	spa_history_log_internal(spa, "vdev attach", NULL,
 	    "%s vdev=%s %s vdev=%s",
@@ -7494,6 +7545,10 @@ spa_async_suspend(spa_t *spa)
 	if (condense_thread != NULL)
 		zthr_cancel(condense_thread);
 
+	zthr_t *raidz_expand_thread = spa->spa_raidz_expand_zthr;
+	if (raidz_expand_thread != NULL)
+		zthr_cancel(raidz_expand_thread);
+
 	zthr_t *discard_thread = spa->spa_checkpoint_discard_zthr;
 	if (discard_thread != NULL)
 		zthr_cancel(discard_thread);
@@ -7511,6 +7566,10 @@ spa_async_resume(spa_t *spa)
 	zthr_t *condense_thread = spa->spa_condense_zthr;
 	if (condense_thread != NULL)
 		zthr_resume(condense_thread);
+
+	zthr_t *raidz_expand_thread = spa->spa_raidz_expand_zthr;
+	if (raidz_expand_thread != NULL)
+		zthr_resume(raidz_expand_thread);
 
 	zthr_t *discard_thread = spa->spa_checkpoint_discard_zthr;
 	if (discard_thread != NULL)
@@ -8219,6 +8278,28 @@ spa_sync_iterate_to_convergence(spa_t *spa, dmu_tx_t *tx)
 		while ((vd = txg_list_remove(&spa->spa_vdev_txg_list, txg))
 		    != NULL)
 			vdev_sync(vd, txg);
+
+		if (pass == 1) {
+			/*
+			 * dsl_pool_sync() -> dp_sync_tasks may have dirtied
+			 * the config.  If that happens, we don't want this
+			 * txg to be able to be a no-op, so be sure to sync
+			 * the config to the MOS before checking for no-op
+			 * txg below.
+			 *
+			 * Note that when the config is dirty, it will
+			 * be written to the MOS (i.e. the MOS will be
+			 * dirtied) every time we call spa_sync_config_object()
+			 * in this txg.  Therefore we can't call this after
+			 * dsl_pool_sync() every pass, because it would
+			 * prevent us from converging, since we'd dirty
+			 * the MOS every pass.
+			 *
+			 * Sync tasks can only be processed in pass 1, so
+			 * there's no need to do this in later passes.
+			 */
+			spa_sync_config_object(spa, tx);
+		}
 
 		/*
 		 * Note: We need to check if the MOS is dirty because we could

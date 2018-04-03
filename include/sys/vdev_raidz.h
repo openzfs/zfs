@@ -26,6 +26,7 @@
 #define	_SYS_VDEV_RAIDZ_H
 
 #include <sys/types.h>
+#include <sys/zfs_rlock.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -57,6 +58,52 @@ int vdev_raidz_math_reconstruct(struct raidz_map *, const int *, const int *,
     const int);
 int vdev_raidz_impl_set(const char *);
 
+typedef struct vdev_raidz_expand {
+	uint64_t vre_vdev_id;
+
+	kmutex_t vre_lock;
+	kcondvar_t vre_cv;
+
+	/*
+	 * How much i/o is outstanding (issued and not completed).
+	 */
+	uint64_t vre_outstanding_bytes;
+
+	/*
+	 * Next offset to issue i/o for.
+	 */
+	uint64_t vre_offset;
+
+	/*
+	 * Next offset to issue i/o for which has been synced to disk.
+	 */
+	uint64_t vre_offset_phys;
+
+	uint64_t vre_offset_pertxg[TXG_SIZE];
+
+	dsl_scan_state_t vre_state;
+	time_t vre_start_time;
+	time_t vre_end_time;
+
+	rangelock_t vre_rangelock;
+} vdev_raidz_expand_t;
+
+typedef struct vdev_raidz {
+	int vd_logical_width;
+	int vd_physical_width;
+	int vd_nparity;
+	/*
+	 * If this vdev is being expanded, spa_raidz_expand is set to this
+	 */
+	vdev_raidz_expand_t vn_vre;
+} vdev_raidz_t;
+
+extern void vdev_raidz_attach_sync(void *, dmu_tx_t *);
+extern void vdev_raidz_config_generate(vdev_t *, nvlist_t *);
+extern void *vdev_raidz_get_tsd(spa_t *, nvlist_t *);
+extern void spa_start_raidz_expansion_thread(spa_t *);
+extern int spa_raidz_expand_get_stats(spa_t *, pool_raidz_expand_stat_t *);
+extern int vdev_raidz_load(vdev_t *);
 #ifdef	__cplusplus
 }
 #endif

@@ -36,6 +36,7 @@
 #include <sys/spa_checkpoint.h>
 #include <sys/vdev.h>
 #include <sys/vdev_removal.h>
+#include <sys/vdev_raidz.h>
 #include <sys/metaslab.h>
 #include <sys/dmu.h>
 #include <sys/dsl_pool.h>
@@ -302,6 +303,9 @@ struct spa {
 	spa_condensing_indirect_phys_t	spa_condensing_indirect_phys;
 	spa_condensing_indirect_t	*spa_condensing_indirect;
 	zthr_t		*spa_condense_zthr;	/* zthr doing condense. */
+
+	vdev_raidz_expand_t	*spa_raidz_expand;
+	zthr_t		*spa_raidz_expand_zthr;
 
 	uint64_t	spa_checkpoint_txg;	/* the txg of the checkpoint */
 	spa_checkpoint_info_t spa_checkpoint_info; /* checkpoint accounting */

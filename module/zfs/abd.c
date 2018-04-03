@@ -1124,6 +1124,9 @@ abd_iterate_func(abd_t *abd, size_t off, size_t size,
 	int ret = 0;
 	struct abd_iter aiter;
 
+	if (size == 0)
+		return (ret);
+
 	abd_verify(abd);
 	ASSERT3U(off + size, <=, abd->abd_size);
 
@@ -1251,6 +1254,9 @@ abd_iterate_func2(abd_t *dabd, abd_t *sabd, size_t doff, size_t soff,
 {
 	int ret = 0;
 	struct abd_iter daiter, saiter;
+
+	if (size == 0)
+		return (ret);
 
 	abd_verify(dabd);
 	abd_verify(sabd);

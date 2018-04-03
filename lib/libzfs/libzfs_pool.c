@@ -3133,6 +3133,28 @@ zpool_vdev_attach(zpool_handle_t *zhp,
 	verify(nvlist_lookup_uint64(tgt, ZPOOL_CONFIG_GUID, &zc.zc_guid) == 0);
 	zc.zc_cookie = replacing;
 
+	char *typestr;
+	if (nvlist_lookup_string(tgt, ZPOOL_CONFIG_TYPE, &typestr) == 0 &&
+	    strcmp(typestr, "raidz") == 0) {
+		printf(
+		    " *****************************************************\n"
+		    " * Thank you for testing this alpha-quality release  *\n"
+		    " * of RAID-Z expansion.  This feature should only    *\n"
+		    " * be used on test pools.  The pool will eventually  *\n"
+		    " * need to be DESTROYED, because the on-disk format  *\n"
+		    " * will not be compatible with the final release.    *\n"
+		    " * Additionally, there are currently bugs in RAID-Z  *\n"
+		    " * expansion which can occasionally cause data loss. *\n"
+		    " * Please report bugs to mahrens@delphix.com.        *\n"
+		    " *****************************************************\n");
+		for (int i = 5; i > 0; i--) {
+			printf("\nYou have %u seconds to abort by "
+			    "pressing ^C (control-C)\n", i);
+			sleep(1);
+		}
+
+	}
+
 	if (nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
 	    &child, &children) != 0 || children != 1) {
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
