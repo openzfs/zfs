@@ -352,6 +352,7 @@ spa_remove_init(spa_t *spa)
 		spa->spa_removing_phys.sr_state = DSS_NONE;
 		spa->spa_removing_phys.sr_removing_vdev = -1;
 		spa->spa_removing_phys.sr_prev_indirect_vdev = -1;
+		spa->spa_indirect_vdevs_loaded = B_TRUE;
 		return (0);
 	} else if (error != 0) {
 		return (error);
