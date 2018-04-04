@@ -3758,7 +3758,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	 * Determine the name of the origin snapshot.
 	 */
 	if (originsnap) {
-		(void) strncpy(origin, originsnap, sizeof (origin));
+		(void) strlcpy(origin, originsnap, sizeof (origin));
 		if (flags->verbose)
 			(void) printf("using provided clone origin %s\n",
 			    origin);

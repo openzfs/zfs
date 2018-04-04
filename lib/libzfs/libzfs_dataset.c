@@ -1032,10 +1032,11 @@ zfs_valid_proplist(libzfs_handle_t *hdl, zfs_type_t type, nvlist_t *nvl,
 
 		if (prop == ZPROP_INVAL && zfs_prop_userquota(propname)) {
 			zfs_userquota_prop_t uqtype;
-			char newpropname[128];
+			char *newpropname = NULL;
 			char domain[128];
 			uint64_t rid;
 			uint64_t valary[3];
+			int rc;
 
 			if (userquota_propname_decode(propname, zoned,
 			    &uqtype, domain, sizeof (domain), &rid) != 0) {
@@ -1092,17 +1093,24 @@ zfs_valid_proplist(libzfs_handle_t *hdl, zfs_type_t type, nvlist_t *nvl,
 			 * userquota@<hex-rid>-domain, to make it easy
 			 * for the kernel to decode.
 			 */
-			(void) snprintf(newpropname, sizeof (newpropname),
-			    "%s%llx-%s", zfs_userquota_prop_prefixes[uqtype],
+			rc = asprintf(&newpropname, "%s%llx-%s",
+			    zfs_userquota_prop_prefixes[uqtype],
 			    (longlong_t)rid, domain);
+			if (rc == -1 || newpropname == NULL) {
+				(void) no_memory(hdl);
+				goto error;
+			}
+
 			valary[0] = uqtype;
 			valary[1] = rid;
 			valary[2] = intval;
 			if (nvlist_add_uint64_array(ret, newpropname,
 			    valary, 3) != 0) {
+				free(newpropname);
 				(void) no_memory(hdl);
 				goto error;
 			}
+			free(newpropname);
 			continue;
 		} else if (prop == ZPROP_INVAL && zfs_prop_written(propname)) {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
