@@ -1732,11 +1732,11 @@ zfs_ioc_pool_scan(zfs_cmd_t *zc)
 	spa_t *spa;
 	int error;
 
-	if ((error = spa_open(zc->zc_name, &spa, FTAG)) != 0)
-		return (error);
-
 	if (zc->zc_flags >= POOL_SCRUB_FLAGS_END)
 		return (SET_ERROR(EINVAL));
+
+	if ((error = spa_open(zc->zc_name, &spa, FTAG)) != 0)
+		return (error);
 
 	if (zc->zc_flags == POOL_SCRUB_PAUSE)
 		error = spa_scrub_pause_resume(spa, POOL_SCRUB_PAUSE);
