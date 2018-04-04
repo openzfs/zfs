@@ -163,17 +163,32 @@ function mmp_pool_set_hostid # pool hostid
 	return 0
 }
 
+# Return the number of seconds the activity check portion of the import process
+# will take.  Does not include the time to find devices and assemble the
+# preliminary pool configuration passed into the kernel.
+function seconds_mmp_waits_for_activity
+{
+	typeset import_intervals=$(get_tunable zfs_multihost_import_intervals)
+	typeset interval=$(get_tunable zfs_multihost_interval)
+	typeset seconds=$((interval*import_intervals/1000))
+
+	echo $seconds
+}
+
 function import_no_activity_check # pool opts
 {
 	typeset pool=$1
 	typeset opts=$2
 
+	typeset max_duration=$(seconds_mmp_waits_for_activity)
+
 	SECONDS=0
 	zpool import $opts $pool
 	typeset rc=$?
 
-	if [[ $SECONDS -gt $ZPOOL_IMPORT_DURATION ]]; then
-		log_fail "unexpected activity check (${SECONDS}s)"
+	if [[ $SECONDS -gt $max_duration ]]; then
+		log_fail "unexpected activity check (${SECONDS}s gt \
+$max_duration)"
 	fi
 
 	return $rc
@@ -184,12 +199,15 @@ function import_activity_check # pool opts
 	typeset pool=$1
 	typeset opts=$2
 
+	typeset min_duration=$(seconds_mmp_waits_for_activity)
+
 	SECONDS=0
 	zpool import $opts $pool
 	typeset rc=$?
 
-	if [[ $SECONDS -le $ZPOOL_IMPORT_DURATION ]]; then
-		log_fail "expected activity check (${SECONDS}s)"
+	if [[ $SECONDS -le $min_duration ]]; then
+		log_fail "expected activity check (${SECONDS}s le \
+$min_duration)"
 	fi
 
 	return $rc

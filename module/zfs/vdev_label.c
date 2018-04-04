@@ -1501,7 +1501,6 @@ retry:
 	if ((error = vdev_uberblock_sync_list(svd, svdcount, ub, flags)) != 0)
 		goto retry;
 
-
 	if (spa_multihost(spa))
 		mmp_update_uberblock(spa, ub);
 
