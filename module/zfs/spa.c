@@ -2462,6 +2462,10 @@ spa_activity_check(spa_t *spa, uberblock_t *ub, nvlist_t *config)
 	import_delay = MAX(import_delay, import_intervals *
 	    MSEC2NSEC(MAX(zfs_multihost_interval, MMP_MIN_INTERVAL)));
 
+	zfs_dbgmsg("import_delay=%llu ub_mmp_delay=%llu import_intervals=%u "
+	    "leaves=%u", import_delay, ub->ub_mmp_delay, import_intervals,
+	    vdev_count_leaves(spa));
+
 	/* Add a small random factor in case of simultaneous imports (0-25%) */
 	import_expire = gethrtime() + import_delay +
 	    (import_delay * spa_get_random(250) / 1000);
