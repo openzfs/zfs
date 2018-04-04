@@ -289,10 +289,11 @@ zpios_setup_run(run_args_t **run_args, zpios_cmd_t *kcmd, struct file *file)
 	ra = vmem_zalloc(size, KM_SLEEP);
 
 	*run_args = ra;
-	strncpy(ra->pool, kcmd->cmd_pool, ZPIOS_NAME_SIZE - 1);
-	strncpy(ra->pre, kcmd->cmd_pre, ZPIOS_PATH_SIZE - 1);
-	strncpy(ra->post, kcmd->cmd_post, ZPIOS_PATH_SIZE - 1);
-	strncpy(ra->log, kcmd->cmd_log, ZPIOS_PATH_SIZE - 1);
+	snprintf(ra->pool, sizeof (ra->pool), "%s", kcmd->cmd_pool);
+	snprintf(ra->pre, sizeof (ra->pre), "%s", kcmd->cmd_pre);
+	snprintf(ra->post, sizeof (ra->post), "%s", kcmd->cmd_post);
+	snprintf(ra->log, sizeof (ra->log), "%s", kcmd->cmd_log);
+
 	ra->id			= kcmd->cmd_id;
 	ra->chunk_size		= kcmd->cmd_chunk_size;
 	ra->thread_count	= kcmd->cmd_thread_count;

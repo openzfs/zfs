@@ -525,10 +525,11 @@ run_one(cmd_args_t *args, uint32_t id, uint32_t T, uint32_t N,
 
 	memset(cmd, 0, cmd_size);
 	cmd->cmd_magic = ZPIOS_CMD_MAGIC;
-	strncpy(cmd->cmd_pool, args->pool, ZPIOS_NAME_SIZE - 1);
-	strncpy(cmd->cmd_pre, args->pre, ZPIOS_PATH_SIZE - 1);
-	strncpy(cmd->cmd_post, args->post, ZPIOS_PATH_SIZE - 1);
-	strncpy(cmd->cmd_log, args->log, ZPIOS_PATH_SIZE - 1);
+	snprintf(cmd->cmd_pool, sizeof (cmd->cmd_pool), "%s", args->pool);
+	snprintf(cmd->cmd_pre, sizeof (cmd->cmd_pre), "%s", args->pre);
+	snprintf(cmd->cmd_post, sizeof (cmd->cmd_post), "%s", args->post);
+	snprintf(cmd->cmd_log, sizeof (cmd->cmd_log), "%s", args->log);
+
 	cmd->cmd_id = id;
 	cmd->cmd_chunk_size = C;
 	cmd->cmd_thread_count = T;

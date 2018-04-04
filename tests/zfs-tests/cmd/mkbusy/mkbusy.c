@@ -98,8 +98,9 @@ main(int argc, char *argv[])
 
 	if ((ret = stat(argv[0], &sbuf)) != 0) {
 		char	*arg, *dname, *fname;
-		int	arglen, dlen, flen;
+		int	arglen;
 		char	*slash;
+		int	rc;
 
 		/*
 		 * The argument supplied doesn't exist. Copy the path, and
@@ -126,23 +127,18 @@ main(int argc, char *argv[])
 		free(arg);
 		if (dname == NULL || fname == NULL)
 			fail("strdup", 1);
-		dlen = strlen(dname);
-		flen = strlen(fname);
 
 		/* The directory portion of the path must exist */
 		if ((ret = stat(dname, &sbuf)) != 0 || !(sbuf.st_mode &
 		    S_IFDIR))
 			usage(prog);
 
-		if ((fpath = (char *)malloc(dlen + 1 + flen + 1)) == NULL)
-			fail("malloc", 1);
-		(void) memset(fpath, '\0', dlen + 1 + flen + 1);
-
-		(void) strncpy(fpath, dname, dlen);
-		fpath[dlen] = '/';
-		(void) strncat(fpath, fname, flen);
+		rc = asprintf(&fpath, "%s/%s", dname, fname);
 		free(dname);
 		free(fname);
+		if (rc == -1 || fpath == NULL)
+			fail("asprintf", 1);
+
 	} else if ((sbuf.st_mode & S_IFMT) == S_IFREG ||
 	    (sbuf.st_mode & S_IFMT) == S_IFLNK ||
 	    (sbuf.st_mode & S_IFMT) == S_IFCHR ||

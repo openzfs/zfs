@@ -55,11 +55,12 @@ main(int argc, char **argv)
 {
 	int fd, error = 0;
 	char zvol_name[ZFS_MAX_DATASET_NAME_LEN];
-	char zvol_name_part[ZFS_MAX_DATASET_NAME_LEN];
+	char *zvol_name_part = NULL;
 	char *dev_name;
 	struct stat64 statbuf;
 	int dev_minor, dev_part;
 	int i;
+	int rc;
 
 	if (argc < 2) {
 		printf("Usage: %s /dev/zvol_device_node\n", argv[0]);
@@ -88,11 +89,13 @@ main(int argc, char **argv)
 		return (errno);
 	}
 	if (dev_part > 0)
-		snprintf(zvol_name_part, ZFS_MAX_DATASET_NAME_LEN,
-		    "%s-part%d", zvol_name, dev_part);
+		rc = asprintf(&zvol_name_part, "%s-part%d", zvol_name,
+		    dev_part);
 	else
-		snprintf(zvol_name_part, ZFS_MAX_DATASET_NAME_LEN,
-		    "%s", zvol_name);
+		rc = asprintf(&zvol_name_part, "%s", zvol_name);
+
+	if (rc == -1 || zvol_name_part == NULL)
+		goto error;
 
 	for (i = 0; i < strlen(zvol_name_part); i++) {
 		if (isblank(zvol_name_part[i]))
@@ -100,6 +103,8 @@ main(int argc, char **argv)
 	}
 
 	printf("%s\n", zvol_name_part);
+	free(zvol_name_part);
+error:
 	close(fd);
 	return (error);
 }
