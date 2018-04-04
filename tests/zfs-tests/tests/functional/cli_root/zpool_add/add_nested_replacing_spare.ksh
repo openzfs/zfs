@@ -79,7 +79,7 @@ do
 
 	# 2.1 Fault a device, verify the spare is kicked in
 	log_must zinject -d $FAULT_DEV -e nxio -T all -f 100 $TESTPOOL
-	log_must zpool scrub $TESTPOOL
+	log_must zpool reopen $TESTPOOL
 	log_must wait_vdev_state $TESTPOOL $FAULT_DEV "UNAVAIL" 60
 	log_must wait_vdev_state $TESTPOOL $SPARE_DEV1 "ONLINE" 60
 	log_must wait_hotspare_state $TESTPOOL $SPARE_DEV1 "INUSE"
