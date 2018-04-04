@@ -115,14 +115,13 @@ uint_t zfs_multihost_import_intervals = MMP_DEFAULT_IMPORT_INTERVALS;
  * configuration may take action such as suspending the pool or taking a
  * device offline.
  *
- * When zfs_multihost_fail_intervals > 0 then sequential mmp write failures will
- * cause the pool to be suspended.  This occurs when
+ * When zfs_multihost_fail_intervals > 0 then sequential mmp write failures
+ * will cause the pool to be suspended.  This occurs when
  * zfs_multihost_fail_intervals * zfs_multihost_interval milliseconds have
  * passed since the last successful mmp write.  This guarantees the activity
- * test will see mmp writes if the
- * pool is imported.
+ * test will see mmp writes if the pool is imported.
  */
-uint_t zfs_multihost_fail_intervals = MMP_DEFAULT_FAIL_INTERVALS;
+uint_t zfs_multihost_fail_intervals = MMP_DEFAULT_IMPORT_INTERVALS / 2;
 
 char *mmp_tag = "mmp_write_uberblock";
 static void mmp_thread(void *arg);
@@ -295,7 +294,7 @@ mmp_write_done(zio_t *zio)
 		goto unlock;
 
 	/*
-	 * Mmp writes are queued on a fixed schedule, but under many
+	 * MMP writes are queued on a fixed schedule, but under many
 	 * circumstances, such as a busy device or faulty hardware,
 	 * the writes will complete at variable, much longer,
 	 * intervals.  In these cases, another node checking for
@@ -315,8 +314,7 @@ mmp_write_done(zio_t *zio)
 		if (delay > mts->mmp_delay)
 			mts->mmp_delay = delay;
 		else
-			mts->mmp_delay = (delay + mts->mmp_delay * 127) /
-			    128;
+			mts->mmp_delay = (delay + mts->mmp_delay * 127) / 128;
 	} else {
 		mts->mmp_delay = 0;
 	}
@@ -461,16 +459,40 @@ mmp_thread(void *arg)
 		uint64_t mmp_fail_intervals = zfs_multihost_fail_intervals;
 		uint64_t mmp_interval = MSEC2NSEC(
 		    MAX(zfs_multihost_interval, MMP_MIN_INTERVAL));
+		uint64_t fail_interval;
+		int vdev_leaves = MAX(vdev_count_leaves(spa), 1);
 		boolean_t suspended = spa_suspended(spa);
 		boolean_t multihost = spa_multihost(spa);
 		hrtime_t start, next_time;
 
 		start = gethrtime();
-		if (multihost) {
-			next_time = start + mmp_interval /
-			    MAX(vdev_count_leaves(spa), 1);
-		} else {
+		if (multihost)
+			next_time = start + mmp_interval / vdev_leaves;
+		else
 			next_time = start + MSEC2NSEC(MMP_DEFAULT_INTERVAL);
+
+		/*
+		 * Don't allow fail_intervals larger than import_intervals,
+		 * as this could allow an active pool to be imported on a peer.
+		 *
+		 * We don't actually know what the import_interval is on the
+		 * peer node, but the best assumption is that it is configured
+		 * in the same way as the local node.
+		 */
+		if (mmp_fail_intervals >= zfs_multihost_import_intervals) {
+			static boolean_t warned = B_FALSE;
+
+			if (!warned) {
+				cmn_err(CE_WARN,
+				    "zfs_multihost_fail_intervals %u >= "
+				    "zfs_multihost_import_interval %u, "
+				    "using smaller value",
+				    zfs_multihost_fail_intervals,
+				    zfs_multihost_import_interval);
+				warned = B_TRUE;
+			}
+
+			mmp_fail_intervals = zfs_multihost_import_intervals - 1;
 		}
 
 		/*
@@ -503,16 +525,16 @@ mmp_thread(void *arg)
 		 * immediately suspended before writes can occur at the new
 		 * higher frequency.
 		 */
-		if ((mmp_interval * mmp_fail_intervals) < max_fail_ns) {
-			max_fail_ns = ((31 * max_fail_ns) + (mmp_interval *
-			    mmp_fail_intervals)) / 32;
-		} else {
-			max_fail_ns = mmp_interval * mmp_fail_intervals;
-		}
+		fail_interval = MAX(mmp_interval,
+		    mmp->mmp_delay * vdev_leaves) * mmp_fail_intervals;
+		if (fail_interval < max_fail_ns)
+			max_fail_ns = ((31 * max_fail_ns) + fail_interval) / 32;
+		else
+			max_fail_ns = fail_interval;
 
 		/*
 		 * Suspend the pool if no MMP write has succeeded in over
-		 * mmp_interval * mmp_fail_intervals nanoseconds.
+		 * mmp_delay * vdev_leaves * mmp_fail_intervals nanoseconds.
 		 */
 		if (!suspended && mmp_fail_intervals && multihost &&
 		    (start - mmp->mmp_last_write) > max_fail_ns) {
