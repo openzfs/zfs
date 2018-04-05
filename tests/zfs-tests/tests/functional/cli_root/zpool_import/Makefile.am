@@ -1,6 +1,5 @@
 pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/cli_root/zpool_import
 dist_pkgdata_SCRIPTS = \
-	zpool_import.cfg \
 	setup.ksh \
 	cleanup.ksh \
 	zpool_import_001_pos.ksh \
@@ -34,5 +33,7 @@ BLOCKFILES = \
 	unclean_export.dat.bz2 \
 	cryptv0.dat.bz2
 
-dist_pkgdata_DATA = $(BLOCKFILES)
+dist_pkgdata_DATA = $(BLOCKFILES) \
+	zpool_import.cfg
+
 EXTRA_DIST = $(BLOCKFILES)

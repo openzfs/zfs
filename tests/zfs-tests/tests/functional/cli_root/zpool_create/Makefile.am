@@ -1,7 +1,5 @@
 pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/cli_root/zpool_create
 dist_pkgdata_SCRIPTS = \
-	zpool_create.cfg \
-	zpool_create.shlib \
 	setup.ksh \
 	cleanup.ksh \
 	zpool_create_001_pos.ksh \
@@ -35,3 +33,7 @@ dist_pkgdata_SCRIPTS = \
 	zpool_create_features_004_neg.ksh \
 	zpool_create_features_005_pos.ksh \
 	create-o_ashift.ksh
+
+dist_pkgdata_DATA = \
+	zpool_create.cfg \
+	zpool_create.shlib

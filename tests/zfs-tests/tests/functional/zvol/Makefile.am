@@ -1,5 +1,5 @@
 pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/zvol
-dist_pkgdata_SCRIPTS = \
+dist_pkgdata_DATA = \
 	zvol.cfg \
 	zvol_common.shlib
 
