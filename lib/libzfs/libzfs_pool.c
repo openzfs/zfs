@@ -2454,12 +2454,15 @@ zpool_relabel_disk(libzfs_handle_t *hdl, const char *path, const char *msg)
 	 *
 	 * Also, we don't call efi_rescan() - that would just return EBUSY.
 	 * The module will do it for us in vdev_disk_open().
+	 *
+	 * On success flush the buffers to disk and invalidate the page cache
+	 * to ensure a consistent view of the relabled device.
 	 */
 	error = efi_use_whole_disk(fd);
-
-	/* Flush the buffers to disk and invalidate the page cache. */
-	(void) fsync(fd);
-	(void) ioctl(fd, BLKFLSBUF);
+	if (error == 0) {
+		(void) fsync(fd);
+		(void) ioctl(fd, BLKFLSBUF);
+	}
 
 	(void) close(fd);
 	if (error && error != VT_ENOSPC) {
