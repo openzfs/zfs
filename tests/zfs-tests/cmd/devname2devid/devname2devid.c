@@ -83,7 +83,8 @@ udev_device_get_devid(struct udev_device *dev, char *bufptr, size_t buflen)
 		name = udev_list_entry_get_name(entry);
 		if (strncmp(name, devbyid, strlen(devbyid)) == 0) {
 			name += strlen(DEV_BYID_PATH);
-			(void) stpncpy(bufptr, name, buflen);
+			(void) stpncpy(bufptr, name, buflen - 1);
+			bufptr[buflen - 1] = '\0';
 			return (0);
 		}
 		entry = udev_list_entry_get_next(entry);

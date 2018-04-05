@@ -1732,11 +1732,11 @@ zfs_ioc_pool_scan(zfs_cmd_t *zc)
 	spa_t *spa;
 	int error;
 
-	if ((error = spa_open(zc->zc_name, &spa, FTAG)) != 0)
-		return (error);
-
 	if (zc->zc_flags >= POOL_SCRUB_FLAGS_END)
 		return (SET_ERROR(EINVAL));
+
+	if ((error = spa_open(zc->zc_name, &spa, FTAG)) != 0)
+		return (error);
 
 	if (zc->zc_flags == POOL_SCRUB_PAUSE)
 		error = spa_scrub_pause_resume(spa, POOL_SCRUB_PAUSE);
@@ -5290,14 +5290,14 @@ zfs_ioc_userspace_upgrade(zfs_cmd_t *zc)
 			 * objset needs to be closed & reopened (to grow the
 			 * objset_phys_t).  Suspend/resume the fs will do that.
 			 */
-			dsl_dataset_t *ds;
+			dsl_dataset_t *ds, *newds;
 
 			ds = dmu_objset_ds(zfsvfs->z_os);
 			error = zfs_suspend_fs(zfsvfs);
 			if (error == 0) {
-				dmu_objset_refresh_ownership(zfsvfs->z_os,
+				dmu_objset_refresh_ownership(ds, &newds,
 				    B_TRUE, zfsvfs);
-				error = zfs_resume_fs(zfsvfs, ds);
+				error = zfs_resume_fs(zfsvfs, newds);
 			}
 		}
 		if (error == 0)

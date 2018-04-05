@@ -280,6 +280,59 @@ mmp_random_leaf(vdev_t *in_vd, vdev_t **out_vd)
 	return (error_mask);
 }
 
+/*
+ * MMP writes are issued on a fixed schedule, but may complete at variable,
+ * much longer, intervals.  The mmp_delay captures long periods between
+ * successful writes for any reason, including disk latency, scheduling delays,
+ * etc.
+ *
+ * The mmp_delay is usually calculated as a decaying average, but if the latest
+ * delay is higher we do not average it, so that we do not hide sudden spikes
+ * which the importing host must wait for.
+ *
+ * If writes are occurring frequently, such as due to a high rate of txg syncs,
+ * the mmp_delay could become very small.  Since those short delays depend on
+ * activity we cannot count on, we never allow mmp_delay to get lower than rate
+ * expected if only mmp_thread writes occur.
+ *
+ * If an mmp write was skipped or fails, and we have already waited longer than
+ * mmp_delay, we need to update it so the next write reflects the longer delay.
+ *
+ * Do not set mmp_delay if the multihost property is not on, so as not to
+ * trigger an activity check on import.
+ */
+static void
+mmp_delay_update(spa_t *spa, boolean_t write_completed)
+{
+	mmp_thread_t *mts = &spa->spa_mmp;
+	hrtime_t delay = gethrtime() - mts->mmp_last_write;
+
+	ASSERT(MUTEX_HELD(&mts->mmp_io_lock));
+
+	if (spa_multihost(spa) == B_FALSE) {
+		mts->mmp_delay = 0;
+		return;
+	}
+
+	if (delay > mts->mmp_delay)
+		mts->mmp_delay = delay;
+
+	if (write_completed == B_FALSE)
+		return;
+
+	mts->mmp_last_write = gethrtime();
+
+	/*
+	 * strictly less than, in case delay was changed above.
+	 */
+	if (delay < mts->mmp_delay) {
+		hrtime_t min_delay = MSEC2NSEC(zfs_multihost_interval) /
+		    vdev_count_leaves(spa);
+		mts->mmp_delay = MAX(((delay + mts->mmp_delay * 127) / 128),
+		    min_delay);
+	}
+}
+
 static void
 mmp_write_done(zio_t *zio)
 {
@@ -291,38 +344,8 @@ mmp_write_done(zio_t *zio)
 	uint64_t mmp_kstat_id = vd->vdev_mmp_kstat_id;
 	hrtime_t mmp_write_duration = gethrtime() - vd->vdev_mmp_pending;
 
-	if (zio->io_error)
-		goto unlock;
+	mmp_delay_update(spa, (zio->io_error == 0));
 
-	/*
-	 * Mmp writes are queued on a fixed schedule, but under many
-	 * circumstances, such as a busy device or faulty hardware,
-	 * the writes will complete at variable, much longer,
-	 * intervals.  In these cases, another node checking for
-	 * activity must wait longer to account for these delays.
-	 *
-	 * The mmp_delay is calculated as a decaying average of the interval
-	 * between completed mmp writes.  This is used to predict how long
-	 * the import must wait to detect activity in the pool, before
-	 * concluding it is not in use.
-	 *
-	 * Do not set mmp_delay if the multihost property is not on,
-	 * so as not to trigger an activity check on import.
-	 */
-	if (spa_multihost(spa)) {
-		hrtime_t delay = gethrtime() - mts->mmp_last_write;
-
-		if (delay > mts->mmp_delay)
-			mts->mmp_delay = delay;
-		else
-			mts->mmp_delay = (delay + mts->mmp_delay * 127) /
-			    128;
-	} else {
-		mts->mmp_delay = 0;
-	}
-	mts->mmp_last_write = gethrtime();
-
-unlock:
 	vd->vdev_mmp_pending = 0;
 	vd->vdev_mmp_kstat_id = 0;
 
@@ -348,6 +371,7 @@ mmp_update_uberblock(spa_t *spa, uberblock_t *ub)
 	mutex_enter(&mmp->mmp_io_lock);
 	mmp->mmp_ub = *ub;
 	mmp->mmp_ub.ub_timestamp = gethrestime_sec();
+	mmp_delay_update(spa, B_TRUE);
 	mutex_exit(&mmp->mmp_io_lock);
 }
 
@@ -386,6 +410,7 @@ mmp_write_uberblock(spa_t *spa)
 	 */
 
 	if (error) {
+		mmp_delay_update(spa, B_FALSE);
 		if (mmp->mmp_skip_error == error) {
 			spa_mmp_history_set_skip(spa, mmp->mmp_kstat_id - 1);
 		} else {
@@ -463,15 +488,14 @@ mmp_thread(void *arg)
 		    MAX(zfs_multihost_interval, MMP_MIN_INTERVAL));
 		boolean_t suspended = spa_suspended(spa);
 		boolean_t multihost = spa_multihost(spa);
-		hrtime_t start, next_time;
+		hrtime_t next_time;
 
-		start = gethrtime();
-		if (multihost) {
-			next_time = start + mmp_interval /
+		if (multihost)
+			next_time = gethrtime() + mmp_interval /
 			    MAX(vdev_count_leaves(spa), 1);
-		} else {
-			next_time = start + MSEC2NSEC(MMP_DEFAULT_INTERVAL);
-		}
+		else
+			next_time = gethrtime() +
+			    MSEC2NSEC(MMP_DEFAULT_INTERVAL);
 
 		/*
 		 * MMP off => on, or suspended => !suspended:
@@ -515,11 +539,11 @@ mmp_thread(void *arg)
 		 * mmp_interval * mmp_fail_intervals nanoseconds.
 		 */
 		if (!suspended && mmp_fail_intervals && multihost &&
-		    (start - mmp->mmp_last_write) > max_fail_ns) {
+		    (gethrtime() - mmp->mmp_last_write) > max_fail_ns) {
 			cmn_err(CE_WARN, "MMP writes to pool '%s' have not "
 			    "succeeded in over %llus; suspending pool",
 			    spa_name(spa),
-			    NSEC2SEC(start - mmp->mmp_last_write));
+			    NSEC2SEC(gethrtime() - mmp->mmp_last_write));
 			zio_suspend(spa, NULL, ZIO_SUSPEND_MMP);
 		}
 

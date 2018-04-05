@@ -14,6 +14,7 @@ SUBDIRS = \
 	mkfiles \
 	mktree \
 	mmap_exec \
+	mmap_libaio \
 	mmapwrite \
 	nvlist_to_lua \
 	randfree_file \

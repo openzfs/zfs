@@ -95,7 +95,7 @@
  * needs to be notified whenever a block is freed. This is needed to allow
  * the scanning code to remove these I/Os from the issuing queue. Additionally,
  * we do not attempt to queue gang blocks to be issued sequentially since this
- * is very hard to do and would have an extremely limitted performance benefit.
+ * is very hard to do and would have an extremely limited performance benefit.
  * Instead, we simply issue gang I/Os as soon as we find them using the legacy
  * algorithm.
  *
@@ -304,9 +304,9 @@ scan_init(void)
 	 * This is used in ext_size_compare() to weight segments
 	 * based on how sparse they are. This cannot be changed
 	 * mid-scan and the tree comparison functions don't currently
-	 * have a mechansim for passing additional context to the
+	 * have a mechanism for passing additional context to the
 	 * compare functions. Thus we store this value globally and
-	 * we only allow it to be set at module intiailization time
+	 * we only allow it to be set at module initialization time
 	 */
 	fill_weight = zfs_scan_fill_weight;
 
@@ -1176,14 +1176,15 @@ dsl_scan_check_suspend(dsl_scan_t *scn, const zbookmark_phys_t *zb)
 			    (longlong_t)zb->zb_blkid);
 			scn->scn_phys.scn_bookmark = *zb;
 		} else {
+#ifdef ZFS_DEBUG
 			dsl_scan_phys_t *scnp = &scn->scn_phys;
-
 			dprintf("suspending at at DDT bookmark "
 			    "%llx/%llx/%llx/%llx\n",
 			    (longlong_t)scnp->scn_ddt_bookmark.ddb_class,
 			    (longlong_t)scnp->scn_ddt_bookmark.ddb_type,
 			    (longlong_t)scnp->scn_ddt_bookmark.ddb_checksum,
 			    (longlong_t)scnp->scn_ddt_bookmark.ddb_cursor);
+#endif
 		}
 		scn->scn_suspending = B_TRUE;
 		return (B_TRUE);
@@ -1438,7 +1439,7 @@ dsl_scan_prefetch_cb(zio_t *zio, const zbookmark_phys_t *zb, const blkptr_t *bp,
 	dsl_scan_t *scn = spc->spc_scn;
 	spa_t *spa = scn->scn_dp->dp_spa;
 
-	/* broadcast that the IO has completed for rate limitting purposes */
+	/* broadcast that the IO has completed for rate limiting purposes */
 	mutex_enter(&spa->spa_scrub_lock);
 	ASSERT3U(spa->spa_scrub_inflight, >=, BP_GET_PSIZE(bp));
 	spa->spa_scrub_inflight -= BP_GET_PSIZE(bp);
@@ -1446,7 +1447,7 @@ dsl_scan_prefetch_cb(zio_t *zio, const zbookmark_phys_t *zb, const blkptr_t *bp,
 	mutex_exit(&spa->spa_scrub_lock);
 
 	/* if there was an error or we are done prefetching, just cleanup */
-	if (buf == NULL || scn->scn_suspending)
+	if (buf == NULL || scn->scn_prefetch_stop)
 		goto out;
 
 	if (BP_GET_LEVEL(bp) > 0) {
@@ -2205,7 +2206,7 @@ dsl_scan_visitds(dsl_scan_t *scn, uint64_t dsobj, dmu_tx_t *tx)
 	}
 
 	/*
-	 * Add descendent datasets to work queue.
+	 * Add descendant datasets to work queue.
 	 */
 	if (dsl_dataset_phys(ds)->ds_next_snap_obj != 0) {
 		scan_ds_queue_insert(scn,
@@ -2552,11 +2553,11 @@ scan_io_queue_check_suspend(dsl_scan_t *scn)
 }
 
 /*
- * Given a list of scan_io_t's in io_list, this issues the io's out to
+ * Given a list of scan_io_t's in io_list, this issues the I/Os out to
  * disk. This consumes the io_list and frees the scan_io_t's. This is
  * called when emptying queues, either when we're up against the memory
  * limit or when we have finished scanning. Returns B_TRUE if we stopped
- * processing the list before we finished. Any zios that were not issued
+ * processing the list before we finished. Any sios that were not issued
  * will remain in the io_list.
  */
 static boolean_t
@@ -2652,7 +2653,7 @@ scan_io_queue_gather(dsl_scan_io_queue_t *queue, range_seg_t *rs, list_t *list)
 
 /*
  * This is called from the queue emptying thread and selects the next
- * extent from which we are to issue io's. The behavior of this function
+ * extent from which we are to issue I/Os. The behavior of this function
  * depends on the state of the scan, the current memory consumption and
  * whether or not we are performing a scan shutdown.
  * 1) We select extents in an elevator algorithm (LBA-order) if the scan
@@ -2787,7 +2788,7 @@ scan_io_queues_run_one(void *arg)
  * Performs an emptying run on all scan queues in the pool. This just
  * punches out one thread per top-level vdev, each of which processes
  * only that vdev's scan queue. We can parallelize the I/O here because
- * we know that each queue's io's only affect its own top-level vdev.
+ * we know that each queue's I/Os only affect its own top-level vdev.
  *
  * This function waits for the queue runs to complete, and must be
  * called from dsl_scan_sync (or in general, syncing context).
@@ -2830,7 +2831,7 @@ scan_io_queues_run(dsl_scan_t *scn)
 	}
 
 	/*
-	 * Wait for the queues to finish issuing thir IOs for this run
+	 * Wait for the queues to finish issuing their IOs for this run
 	 * before we return. There may still be IOs in flight at this
 	 * point.
 	 */
@@ -2974,7 +2975,7 @@ dsl_scan_need_resilver(spa_t *spa, const dva_t *dva, size_t psize,
  * This is the primary entry point for scans that is called from syncing
  * context. Scans must happen entirely during syncing context so that we
  * cna guarantee that blocks we are currently scanning will not change out
- * from under us. While a scan is active, this funciton controls how quickly
+ * from under us. While a scan is active, this function controls how quickly
  * transaction groups proceed, instead of the normal handling provided by
  * txg_sync_thread().
  */
@@ -3182,7 +3183,7 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 		/*
 		 * If we are over our checkpoint interval, set scn_clearing
 		 * so that we can begin checkpointing immediately. The
-		 * checkpoint allows us to save a consisent bookmark
+		 * checkpoint allows us to save a consistent bookmark
 		 * representing how much data we have scrubbed so far.
 		 * Otherwise, use the memory limit to determine if we should
 		 * scan for metadata or start issue scrub IOs. We accumulate

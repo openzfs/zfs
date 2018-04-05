@@ -33,20 +33,18 @@ int zfs_dbgmsg_maxsize = 4<<20; /* 4MB */
 kstat_t *zfs_dbgmsg_kstat;
 
 /*
- * By default only enable the internal ZFS debug messages when running
- * in userspace (ztest).  The kernel log must be manually enabled.
+ * Internal ZFS debug messages are enabled by default.
  *
- * # Enable the kernel debug message log.
- * echo 1 > /sys/module/zfs/parameters/zfs_dbgmsg_enable
+ * # Print debug messages
+ * cat /proc/spl/kstat/zfs/dbgmsg
+ *
+ * # Disable the kernel debug message log.
+ * echo 0 > /sys/module/zfs/parameters/zfs_dbgmsg_enable
  *
  * # Clear the kernel debug message log.
  * echo 0 >/proc/spl/kstat/zfs/dbgmsg
  */
-#if defined(_KERNEL) && !defined(ZFS_DEBUG)
-int zfs_dbgmsg_enable = 0;
-#else
 int zfs_dbgmsg_enable = 1;
-#endif
 
 static int
 zfs_dbgmsg_headers(char *buf, size_t size)
@@ -164,6 +162,11 @@ __zfs_dbgmsg(char *buf)
 void
 __set_error(const char *file, const char *func, int line, int err)
 {
+	/*
+	 * To enable this:
+	 *
+	 * $ echo 512 >/sys/module/zfs/parameters/zfs_flags
+	 */
 	if (zfs_flags & ZFS_DEBUG_SET_ERROR)
 		__dprintf(file, func, line, "error %lu", err);
 }
@@ -178,10 +181,6 @@ __dprintf(const char *file, const char *func, int line, const char *fmt, ...)
 	char *buf;
 	char *nl;
 	int i;
-
-	if (!zfs_dbgmsg_enable &&
-	    !(zfs_flags & (ZFS_DEBUG_DPRINTF | ZFS_DEBUG_SET_ERROR)))
-		return;
 
 	size = 1024;
 	buf = kmem_alloc(size, KM_SLEEP);
@@ -215,28 +214,23 @@ __dprintf(const char *file, const char *func, int line, const char *fmt, ...)
 	 * To get this data enable the zfs__dprintf trace point as shown:
 	 *
 	 * # Enable zfs__dprintf tracepoint, clear the tracepoint ring buffer
-	 * $ echo 1 > /sys/module/zfs/parameters/zfs_flags
 	 * $ echo 1 > /sys/kernel/debug/tracing/events/zfs/enable
 	 * $ echo 0 > /sys/kernel/debug/tracing/trace
 	 *
 	 * # Dump the ring buffer.
 	 * $ cat /sys/kernel/debug/tracing/trace
 	 */
-	if (zfs_flags & (ZFS_DEBUG_DPRINTF | ZFS_DEBUG_SET_ERROR))
-		DTRACE_PROBE1(zfs__dprintf, char *, buf);
+	DTRACE_PROBE1(zfs__dprintf, char *, buf);
 
 	/*
-	 * To get this data enable the zfs debug log as shown:
+	 * To get this data:
 	 *
-	 * # Set zfs_dbgmsg enable, clear the log buffer
-	 * $ echo 1 > /sys/module/zfs/parameters/zfs_dbgmsg_enable
-	 * $ echo 0 > /proc/spl/kstat/zfs/dbgmsg
-	 *
-	 * # Dump the log buffer.
 	 * $ cat /proc/spl/kstat/zfs/dbgmsg
+	 *
+	 * To clear the buffer:
+	 * $ echo 0 > /proc/spl/kstat/zfs/dbgmsg
 	 */
-	if (zfs_dbgmsg_enable)
-		__zfs_dbgmsg(buf);
+	__zfs_dbgmsg(buf);
 
 	kmem_free(buf, size);
 }

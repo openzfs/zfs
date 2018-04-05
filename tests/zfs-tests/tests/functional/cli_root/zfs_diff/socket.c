@@ -30,13 +30,16 @@ main(int argc, char *argv[])
 	struct sockaddr_un sock;
 	int fd;
 	char *path;
-
+	size_t size;
 	if (argc != 2) {
 		fprintf(stderr, "usage: %s /path/to/socket\n", argv[0]);
 		exit(1);
 	}
 	path = argv[1];
-	strncpy(sock.sun_path, (char *)path, sizeof (sock.sun_path));
+	size =  sizeof (sock.sun_path);
+	strncpy(sock.sun_path, (char *)path, size - 1);
+	sock.sun_path[size - 1] = '\0';
+
 	sock.sun_family = AF_UNIX;
 	if ((fd = socket(AF_UNIX, SOCK_DGRAM, 0)) == -1) {
 		perror("socket");

@@ -21,7 +21,7 @@
 /*
  * Copyright 2015 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  * Copyright 2015 RackTop Systems.
  * Copyright (c) 2016, Intel Corporation.
  */
@@ -144,7 +144,18 @@ zfs_device_get_devid(struct udev_device *dev, char *bufptr, size_t buflen)
 			(void) snprintf(bufptr, buflen, "dm-uuid-%s", dm_uuid);
 			return (0);
 		}
-		return (ENODATA);
+
+		/*
+		 * NVME 'by-id' symlinks are similar to bus case
+		 */
+		struct udev_device *parent;
+
+		parent = udev_device_get_parent_with_subsystem_devtype(dev,
+		    "nvme", NULL);
+		if (parent != NULL)
+			bus = "nvme";	/* continue with bus symlink search */
+		else
+			return (ENODATA);
 	}
 
 	/*

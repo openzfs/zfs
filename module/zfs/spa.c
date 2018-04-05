@@ -1187,6 +1187,14 @@ spa_activate(spa_t *spa, int mode)
 	    1, INT_MAX, 0);
 
 	/*
+	 * Taskq dedicated to prefetcher threads: this is used to prevent the
+	 * pool traverse code from monopolizing the global (and limited)
+	 * system_taskq by inappropriately scheduling long running tasks on it.
+	 */
+	spa->spa_prefetch_taskq = taskq_create("z_prefetch", boot_ncpus,
+	    defclsyspri, 1, INT_MAX, TASKQ_DYNAMIC);
+
+	/*
 	 * The taskq to upgrade datasets in this pool. Currently used by
 	 * feature SPA_FEATURE_USEROBJ_ACCOUNTING/SPA_FEATURE_PROJECT_QUOTA.
 	 */
@@ -1211,6 +1219,11 @@ spa_deactivate(spa_t *spa)
 	if (spa->spa_zvol_taskq) {
 		taskq_destroy(spa->spa_zvol_taskq);
 		spa->spa_zvol_taskq = NULL;
+	}
+
+	if (spa->spa_prefetch_taskq) {
+		taskq_destroy(spa->spa_prefetch_taskq);
+		spa->spa_prefetch_taskq = NULL;
 	}
 
 	if (spa->spa_upgrade_taskq) {
@@ -2448,6 +2461,10 @@ spa_activity_check(spa_t *spa, uberblock_t *ub, nvlist_t *config)
 	/* Apply a floor using the local default values. */
 	import_delay = MAX(import_delay, import_intervals *
 	    MSEC2NSEC(MAX(zfs_multihost_interval, MMP_MIN_INTERVAL)));
+
+	zfs_dbgmsg("import_delay=%llu ub_mmp_delay=%llu import_intervals=%u "
+	    "leaves=%u", import_delay, ub->ub_mmp_delay, import_intervals,
+	    vdev_count_leaves(spa));
 
 	/* Add a small random factor in case of simultaneous imports (0-25%) */
 	import_expire = gethrtime() + import_delay +

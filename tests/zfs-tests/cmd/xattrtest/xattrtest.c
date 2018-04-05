@@ -37,7 +37,7 @@
 #include <fcntl.h>
 #include <time.h>
 #include <unistd.h>
-#include <attr/xattr.h>
+#include <sys/xattr.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
@@ -367,8 +367,10 @@ create_files(void)
 	char *file = NULL;
 	struct timeval start, stop;
 	double seconds;
+	size_t fsize;
 
-	file = malloc(PATH_MAX);
+	fsize = PATH_MAX;
+	file = malloc(fsize);
 	if (file == NULL) {
 		rc = ENOMEM;
 		ERROR("Error %d: malloc(%d) bytes for file name\n", rc,
@@ -379,7 +381,11 @@ create_files(void)
 	(void) gettimeofday(&start, NULL);
 
 	for (i = 1; i <= files; i++) {
-		(void) sprintf(file, "%s/file-%d", path, i);
+		if (snprintf(file, fsize, "%s/file-%d", path, i) >= fsize) {
+			rc = EINVAL;
+			ERROR("Error %d: path too long\n", rc);
+			goto out;
+		}
 
 		if (nth && ((i % nth) == 0))
 			fprintf(stdout, "create: %s\n", file);
@@ -452,6 +458,7 @@ setxattrs(void)
 	char *file = NULL;
 	struct timeval start, stop;
 	double seconds;
+	size_t fsize;
 
 	value = malloc(XATTR_SIZE_MAX);
 	if (value == NULL) {
@@ -461,7 +468,8 @@ setxattrs(void)
 		goto out;
 	}
 
-	file = malloc(PATH_MAX);
+	fsize = PATH_MAX;
+	file = malloc(fsize);
 	if (file == NULL) {
 		rc = ENOMEM;
 		ERROR("Error %d: malloc(%d) bytes for file name\n", rc,
@@ -472,7 +480,11 @@ setxattrs(void)
 	(void) gettimeofday(&start, NULL);
 
 	for (i = 1; i <= files; i++) {
-		(void) sprintf(file, "%s/file-%d", path, i);
+		if (snprintf(file, fsize, "%s/file-%d", path, i) >= fsize) {
+			rc = EINVAL;
+			ERROR("Error %d: path too long\n", rc);
+			goto out;
+		}
 
 		if (nth && ((i % nth) == 0))
 			fprintf(stdout, "setxattr: %s\n", file);
@@ -523,6 +535,7 @@ getxattrs(void)
 	char *file = NULL;
 	struct timeval start, stop;
 	double seconds;
+	size_t fsize;
 
 	verify_value = malloc(XATTR_SIZE_MAX);
 	if (verify_value == NULL) {
@@ -543,7 +556,9 @@ getxattrs(void)
 	verify_string = value_is_random ? "<random>" : verify_value;
 	value_string = value_is_random ? "<random>" : value;
 
-	file = malloc(PATH_MAX);
+	fsize = PATH_MAX;
+	file = malloc(fsize);
+
 	if (file == NULL) {
 		rc = ENOMEM;
 		ERROR("Error %d: malloc(%d) bytes for file name\n", rc,
@@ -554,7 +569,11 @@ getxattrs(void)
 	(void) gettimeofday(&start, NULL);
 
 	for (i = 1; i <= files; i++) {
-		(void) sprintf(file, "%s/file-%d", path, i);
+		if (snprintf(file, fsize, "%s/file-%d", path, i) >= fsize) {
+			rc = EINVAL;
+			ERROR("Error %d: path too long\n", rc);
+			goto out;
+		}
 
 		if (nth && ((i % nth) == 0))
 			fprintf(stdout, "getxattr: %s\n", file);
@@ -615,8 +634,10 @@ unlink_files(void)
 	char *file = NULL;
 	struct timeval start, stop;
 	double seconds;
+	size_t fsize;
 
-	file = malloc(PATH_MAX);
+	fsize = PATH_MAX;
+	file = malloc(fsize);
 	if (file == NULL) {
 		rc = ENOMEM;
 		ERROR("Error %d: malloc(%d) bytes for file name\n",
@@ -627,7 +648,11 @@ unlink_files(void)
 	(void) gettimeofday(&start, NULL);
 
 	for (i = 1; i <= files; i++) {
-		(void) sprintf(file, "%s/file-%d", path, i);
+		if (snprintf(file, fsize, "%s/file-%d", path, i) >= fsize) {
+			rc = EINVAL;
+			ERROR("Error %d: path too long\n", rc);
+			goto out;
+		}
 
 		if (nth && ((i % nth) == 0))
 			fprintf(stdout, "unlink: %s\n", file);

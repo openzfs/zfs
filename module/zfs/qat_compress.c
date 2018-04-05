@@ -25,13 +25,14 @@
 #include <linux/pagemap.h>
 #include <linux/completion.h>
 #include <sys/zfs_context.h>
+#include <sys/zio.h>
 #include "qat.h"
 
 /*
- * Max instances in QAT device, each instance is a channel to submit
- * jobs to QAT hardware, this is only for pre-allocating instance,
- * and session arrays, the actual number of instances are defined in
- * the QAT driver's configure file.
+ * Max instances in a QAT device, each instance is a channel to submit
+ * jobs to QAT hardware, this is only for pre-allocating instance and
+ * session arrays; the actual number of instances are defined in the
+ * QAT driver's configuration file.
  */
 #define	QAT_DC_MAX_INSTANCES	48
 
@@ -224,9 +225,16 @@ qat_dc_fini(void)
 	qat_dc_clean();
 }
 
-int
-qat_compress(qat_compress_dir_t dir, char *src, int src_len,
-    char *dst, int dst_len, size_t *c_len)
+/*
+ * The "add" parameter is an additional buffer which is passed
+ * to QAT as a scratch buffer alongside the destination buffer
+ * in case the "compressed" data ends up being larger than the
+ * original source data. This is necessary to prevent QAT from
+ * generating buffer overflow warnings for incompressible data.
+ */
+static int
+qat_compress_impl(qat_compress_dir_t dir, char *src, int src_len,
+    char *dst, int dst_len, char *add, int add_len, size_t *c_len)
 {
 	CpaInstanceHandle dc_inst_handle;
 	CpaDcSessionHandle session_handle;
@@ -243,14 +251,16 @@ qat_compress(qat_compress_dir_t dir, char *src, int src_len,
 	Cpa32U compressed_sz;
 	Cpa32U num_src_buf = (src_len >> PAGE_SHIFT) + 2;
 	Cpa32U num_dst_buf = (dst_len >> PAGE_SHIFT) + 2;
+	Cpa32U num_add_buf = (add_len >> PAGE_SHIFT) + 2;
 	Cpa32U bytes_left;
+	Cpa32U dst_pages = 0;
 	char *data;
-	struct page *in_page, *out_page;
+	struct page *page;
 	struct page **in_pages = NULL;
 	struct page **out_pages = NULL;
+	struct page **add_pages = NULL;
 	Cpa32U page_off = 0;
 	struct completion complete;
-	size_t ret = -1;
 	Cpa32U page_num = 0;
 	Cpa16U i;
 
@@ -262,7 +272,7 @@ qat_compress(qat_compress_dir_t dir, char *src, int src_len,
 	Cpa32U src_buffer_list_mem_size = sizeof (CpaBufferList) +
 	    (num_src_buf * sizeof (CpaFlatBuffer));
 	Cpa32U dst_buffer_list_mem_size = sizeof (CpaBufferList) +
-	    (num_dst_buf * sizeof (CpaFlatBuffer));
+	    ((num_dst_buf + num_add_buf) * sizeof (CpaFlatBuffer));
 
 	if (QAT_PHYS_CONTIG_ALLOC(&in_pages,
 	    num_src_buf * sizeof (struct page *)) != CPA_STATUS_SUCCESS)
@@ -270,6 +280,10 @@ qat_compress(qat_compress_dir_t dir, char *src, int src_len,
 
 	if (QAT_PHYS_CONTIG_ALLOC(&out_pages,
 	    num_dst_buf * sizeof (struct page *)) != CPA_STATUS_SUCCESS)
+		goto fail;
+
+	if (QAT_PHYS_CONTIG_ALLOC(&add_pages,
+	    num_add_buf * sizeof (struct page *)) != CPA_STATUS_SUCCESS)
 		goto fail;
 
 	i = atomic_inc_32_nv(&inst_num) % num_inst;
@@ -282,7 +296,7 @@ qat_compress(qat_compress_dir_t dir, char *src, int src_len,
 	    CPA_STATUS_SUCCESS)
 		goto fail;
 
-	cpaDcBufferListGetMetaSize(dc_inst_handle, num_dst_buf,
+	cpaDcBufferListGetMetaSize(dc_inst_handle, num_dst_buf + num_add_buf,
 	    &buffer_meta_size);
 	if (QAT_PHYS_CONTIG_ALLOC(&buffer_meta_dst, buffer_meta_size) !=
 	    CPA_STATUS_SUCCESS)
@@ -313,9 +327,9 @@ qat_compress(qat_compress_dir_t dir, char *src, int src_len,
 	page_num = 0;
 	while (bytes_left > 0) {
 		page_off = ((long)data & ~PAGE_MASK);
-		in_page = qat_mem_to_page(data);
-		in_pages[page_num] = in_page;
-		flat_buf_src->pData = kmap(in_page) + page_off;
+		page = qat_mem_to_page(data);
+		in_pages[page_num] = page;
+		flat_buf_src->pData = kmap(page) + page_off;
 		flat_buf_src->dataLenInBytes =
 		    min((long)PAGE_SIZE - page_off, (long)bytes_left);
 
@@ -333,9 +347,29 @@ qat_compress(qat_compress_dir_t dir, char *src, int src_len,
 	page_num = 0;
 	while (bytes_left > 0) {
 		page_off = ((long)data & ~PAGE_MASK);
-		out_page = qat_mem_to_page(data);
-		flat_buf_dst->pData = kmap(out_page) + page_off;
-		out_pages[page_num] = out_page;
+		page = qat_mem_to_page(data);
+		flat_buf_dst->pData = kmap(page) + page_off;
+		out_pages[page_num] = page;
+		flat_buf_dst->dataLenInBytes =
+		    min((long)PAGE_SIZE - page_off, (long)bytes_left);
+
+		bytes_left -= flat_buf_dst->dataLenInBytes;
+		data += flat_buf_dst->dataLenInBytes;
+		flat_buf_dst++;
+		buf_list_dst->numBuffers++;
+		page_num++;
+		dst_pages++;
+	}
+
+	/* map additional scratch pages into the destination buffer list */
+	bytes_left = add_len;
+	data = add;
+	page_num = 0;
+	while (bytes_left > 0) {
+		page_off = ((long)data & ~PAGE_MASK);
+		page = qat_mem_to_page(data);
+		flat_buf_dst->pData = kmap(page) + page_off;
+		add_pages[page_num] = page;
 		flat_buf_dst->dataLenInBytes =
 		    min((long)PAGE_SIZE - page_off, (long)bytes_left);
 
@@ -379,6 +413,7 @@ qat_compress(qat_compress_dir_t dir, char *src, int src_len,
 
 		compressed_sz = dc_results.produced;
 		if (compressed_sz + hdr_sz + ZLIB_FOOT_SZ > dst_len) {
+			status = CPA_STATUS_INCOMPRESSIBLE;
 			goto fail;
 		}
 
@@ -386,10 +421,12 @@ qat_compress(qat_compress_dir_t dir, char *src, int src_len,
 		/* move to the last page */
 		flat_buf_dst += (compressed_sz + hdr_sz) >> PAGE_SHIFT;
 
-		/* no space for gzip foot in the last page */
+		/* no space for gzip footer in the last page */
 		if (((compressed_sz + hdr_sz) % PAGE_SIZE)
-		    + ZLIB_FOOT_SZ > PAGE_SIZE)
+		    + ZLIB_FOOT_SZ > PAGE_SIZE) {
+			status = CPA_STATUS_INCOMPRESSIBLE;
 			goto fail;
+		}
 
 		/* jump to the end of the buffer and append footer */
 		flat_buf_dst->pData =
@@ -400,16 +437,11 @@ qat_compress(qat_compress_dir_t dir, char *src, int src_len,
 		dc_results.produced = 0;
 		status = cpaDcGenerateFooter(session_handle,
 		    flat_buf_dst, &dc_results);
-		if (status != CPA_STATUS_SUCCESS) {
+		if (status != CPA_STATUS_SUCCESS)
 			goto fail;
-		}
 
 		*c_len = compressed_sz + dc_results.produced + hdr_sz;
-
 		QAT_STAT_INCR(comp_total_out_bytes, *c_len);
-
-		ret = 0;
-
 	} else {
 		ASSERT3U(dir, ==, QAT_DECOMPRESS);
 		QAT_STAT_BUMP(decomp_requests);
@@ -417,12 +449,8 @@ qat_compress(qat_compress_dir_t dir, char *src, int src_len,
 
 		buf_list_src->pBuffers->pData += ZLIB_HEAD_SZ;
 		buf_list_src->pBuffers->dataLenInBytes -= ZLIB_HEAD_SZ;
-		status = cpaDcDecompressData(dc_inst_handle,
-		    session_handle,
-		    buf_list_src,
-		    buf_list_dst,
-		    &dc_results,
-		    CPA_DC_FLUSH_FINAL,
+		status = cpaDcDecompressData(dc_inst_handle, session_handle,
+		    buf_list_src, buf_list_dst, &dc_results, CPA_DC_FLUSH_FINAL,
 		    &complete);
 
 		if (CPA_STATUS_SUCCESS != status) {
@@ -443,16 +471,12 @@ qat_compress(qat_compress_dir_t dir, char *src, int src_len,
 		}
 
 		*c_len = dc_results.produced;
-
 		QAT_STAT_INCR(decomp_total_out_bytes, *c_len);
-
-		ret = 0;
 	}
 
 fail:
-	if (status != CPA_STATUS_SUCCESS) {
+	if (status != CPA_STATUS_SUCCESS && status != CPA_STATUS_INCOMPRESSIBLE)
 		QAT_STAT_BUMP(dc_fails);
-	}
 
 	if (in_pages) {
 		for (page_num = 0;
@@ -464,18 +488,50 @@ fail:
 	}
 
 	if (out_pages) {
-		for (page_num = 0;
-		    page_num < buf_list_dst->numBuffers;
-		    page_num++) {
+		for (page_num = 0; page_num < dst_pages; page_num++) {
 			kunmap(out_pages[page_num]);
 		}
 		QAT_PHYS_CONTIG_FREE(out_pages);
+	}
+
+	if (add_pages) {
+		for (page_num = 0;
+		    page_num < buf_list_dst->numBuffers - dst_pages;
+		    page_num++) {
+			kunmap(add_pages[page_num]);
+		}
+		QAT_PHYS_CONTIG_FREE(add_pages);
 	}
 
 	QAT_PHYS_CONTIG_FREE(buffer_meta_src);
 	QAT_PHYS_CONTIG_FREE(buffer_meta_dst);
 	QAT_PHYS_CONTIG_FREE(buf_list_src);
 	QAT_PHYS_CONTIG_FREE(buf_list_dst);
+
+	return (status);
+}
+
+/*
+ * Entry point for QAT accelerated compression / decompression.
+ */
+int
+qat_compress(qat_compress_dir_t dir, char *src, int src_len,
+    char *dst, int dst_len, size_t *c_len)
+{
+	int ret;
+	size_t add_len = 0;
+	void *add = NULL;
+
+	if (dir == QAT_COMPRESS) {
+		add_len = dst_len;
+		add = zio_data_buf_alloc(add_len);
+	}
+
+	ret = qat_compress_impl(dir, src, src_len, dst,
+	    dst_len, add, add_len, c_len);
+
+	if (dir == QAT_COMPRESS)
+		zio_data_buf_free(add, add_len);
 
 	return (ret);
 }

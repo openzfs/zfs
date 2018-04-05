@@ -686,8 +686,12 @@ dmu_objset_own_impl(dsl_dataset_t *ds, dmu_objset_type_t type,
 
 	/* if we are decrypting, we can now check MACs in os->os_phys_buf */
 	if (decrypt && arc_is_unauthenticated((*osp)->os_phys_buf)) {
+		zbookmark_phys_t zb;
+
+		SET_BOOKMARK(&zb, ds->ds_object, ZB_ROOT_OBJECT,
+		    ZB_ROOT_LEVEL, ZB_ROOT_BLKID);
 		err = arc_untransform((*osp)->os_phys_buf, (*osp)->os_spa,
-		    ds->ds_object, B_FALSE);
+		    &zb, B_FALSE);
 		if (err != 0)
 			return (err);
 
@@ -791,24 +795,22 @@ dmu_objset_rele(objset_t *os, void *tag)
  * same name so that it can be partially torn down and reconstructed.
  */
 void
-dmu_objset_refresh_ownership(objset_t *os, boolean_t decrypt, void *tag)
+dmu_objset_refresh_ownership(dsl_dataset_t *ds, dsl_dataset_t **newds,
+    boolean_t decrypt, void *tag)
 {
 	dsl_pool_t *dp;
-	dsl_dataset_t *ds, *newds;
 	char name[ZFS_MAX_DATASET_NAME_LEN];
 
-	ds = os->os_dsl_dataset;
 	VERIFY3P(ds, !=, NULL);
 	VERIFY3P(ds->ds_owner, ==, tag);
 	VERIFY(dsl_dataset_long_held(ds));
 
 	dsl_dataset_name(ds, name);
-	dp = dmu_objset_pool(os);
+	dp = ds->ds_dir->dd_pool;
 	dsl_pool_config_enter(dp, FTAG);
-	dmu_objset_disown(os, decrypt, tag);
+	dsl_dataset_disown(ds, decrypt, tag);
 	VERIFY0(dsl_dataset_own(dp, name,
-	    (decrypt) ? DS_HOLD_FLAG_DECRYPT : 0, tag, &newds));
-	VERIFY3P(newds, ==, os->os_dsl_dataset);
+	    (decrypt) ? DS_HOLD_FLAG_DECRYPT : 0, tag, newds));
 	dsl_pool_config_exit(dp, FTAG);
 }
 
