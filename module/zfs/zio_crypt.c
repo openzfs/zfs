@@ -188,6 +188,12 @@
 	(MIN(zfs_key_max_salt_uses, ZFS_KEY_MAX_SALT_USES_DEFAULT))
 unsigned long zfs_key_max_salt_uses = ZFS_KEY_MAX_SALT_USES_DEFAULT;
 
+/*
+ * Set to a nonzero value to cause zio_do_crypt_uio() to fail 1/this many
+ * calls, to test decryption error handling code paths.
+ */
+unsigned long zio_decrypt_fail_fraction = 0;
+
 typedef struct blkptr_auth_buf {
 	uint64_t bab_prop;			/* blk_prop - portable mask */
 	uint8_t bab_mac[ZIO_DATA_MAC_LEN];	/* MAC from blk_cksum */
@@ -459,8 +465,13 @@ zio_do_crypt_uio(boolean_t encrypt, uint64_t crypt, crypto_key_t *key,
 			goto error;
 		}
 	} else {
-		ret = crypto_decrypt(&mech, &cipherdata, key, tmpl, &plaindata,
-		    NULL);
+		if (zio_decrypt_fail_fraction != 0 &&
+		    spa_get_random(zio_decrypt_fail_fraction) == 0) {
+			ret = CRYPTO_INVALID_MAC;
+		} else {
+			ret = crypto_decrypt(&mech, &cipherdata,
+			    key, tmpl, &plaindata, NULL);
+		}
 		if (ret != CRYPTO_SUCCESS) {
 			ASSERT3U(ret, ==, CRYPTO_INVALID_MAC);
 			ret = SET_ERROR(ECKSUM);
@@ -2031,5 +2042,9 @@ error:
 module_param(zfs_key_max_salt_uses, ulong, 0644);
 MODULE_PARM_DESC(zfs_key_max_salt_uses, "Max number of times a salt value "
 	"can be used for generating encryption keys before it is rotated");
+module_param(zio_decrypt_fail_fraction, ulong, 0644);
+MODULE_PARM_DESC(zio_decrypt_fail_fraction, "If nonzero, causes decryption "
+	"to fail 1/this many calls, to test decryption error handling "
+	"code paths");
 /* END CSTYLED */
 #endif
