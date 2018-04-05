@@ -631,14 +631,25 @@ _NOTE(CONSTCOND) } while (0)
  * 'func' is either snprintf() or mdb_snprintf().
  * 'ws' (whitespace) can be ' ' for single-line format, '\n' for multi-line.
  */
-#define	SNPRINTF_BLKPTR(func, ws, buf, size, bp, type, checksum, crypt_type, \
-	compress) \
+#define	SNPRINTF_BLKPTR(func, ws, buf, size, bp, type, checksum, compress) \
 {									\
 	static const char *copyname[] =					\
 	    { "zero", "single", "double", "triple" };			\
 	int len = 0;							\
 	int copies = 0;							\
-									\
+	const char *crypt_type;						\
+	if (bp != NULL) {						\
+		if (BP_IS_ENCRYPTED(bp)) {				\
+			crypt_type = "encrypted";			\
+			/* LINTED E_SUSPICIOUS_COMPARISON */		\
+		} else if (BP_IS_AUTHENTICATED(bp)) {			\
+			crypt_type = "authenticated";			\
+		} else if (BP_HAS_INDIRECT_MAC_CKSUM(bp)) {		\
+			crypt_type = "indirect-MAC";			\
+		} else {						\
+			crypt_type = "unencrypted";			\
+		}							\
+	}								\
 	if (bp == NULL) {						\
 		len += func(buf + len, size - len, "<NULL>");		\
 	} else if (BP_IS_HOLE(bp)) {					\

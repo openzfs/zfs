@@ -119,13 +119,22 @@ typedef enum dmu_object_byteswap {
 	((ot) & DMU_OT_BYTESWAP_MASK) < DMU_BSWAP_NUMFUNCS : \
 	(ot) < DMU_OT_NUMTYPES)
 
+/*
+ * MDB doesn't have dmu_ot; it defines these macros itself.
+ */
+#ifndef ZFS_MDB
+#define	DMU_OT_IS_METADATA_IMPL(ot) (dmu_ot[ot].ot_metadata)
+#define	DMU_OT_IS_ENCRYPTED_IMPL(ot) (dmu_ot[ot].ot_encrypt)
+#define	DMU_OT_BYTESWAP_IMPL(ot) (dmu_ot[ot].ot_byteswap)
+#endif
+
 #define	DMU_OT_IS_METADATA(ot) (((ot) & DMU_OT_NEWTYPE) ? \
 	((ot) & DMU_OT_METADATA) : \
-	dmu_ot[(int)(ot)].ot_metadata)
+	DMU_OT_IS_METADATA_IMPL(ot))
 
 #define	DMU_OT_IS_ENCRYPTED(ot) (((ot) & DMU_OT_NEWTYPE) ? \
 	((ot) & DMU_OT_ENCRYPTED) : \
-	dmu_ot[(int)(ot)].ot_encrypt)
+	DMU_OT_IS_ENCRYPTED_IMPL(ot))
 
 /*
  * These object types use bp_fill != 1 for their L0 bp's. Therefore they can't
@@ -137,7 +146,7 @@ typedef enum dmu_object_byteswap {
 
 #define	DMU_OT_BYTESWAP(ot) (((ot) & DMU_OT_NEWTYPE) ? \
 	((ot) & DMU_OT_BYTESWAP_MASK) : \
-	dmu_ot[(int)(ot)].ot_byteswap)
+	DMU_OT_BYTESWAP_IMPL(ot))
 
 typedef enum dmu_object_type {
 	DMU_OT_NONE,
