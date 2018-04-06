@@ -6229,6 +6229,22 @@ share_mount_one(zfs_handle_t *zhp, int op, int flags, char *protocol,
 	}
 
 	/*
+	 * If this filesystem is encrypted and does not have
+	 * a loaded key, we can not mount it.
+	 */
+	if ((flags & MS_CRYPT) == 0 &&
+	    zfs_prop_get_int(zhp, ZFS_PROP_ENCRYPTION) != ZIO_CRYPT_OFF &&
+	    zfs_prop_get_int(zhp, ZFS_PROP_KEYSTATUS) ==
+	    ZFS_KEYSTATUS_UNAVAILABLE) {
+		if (!explicit)
+			return (0);
+
+		(void) fprintf(stderr, gettext("cannot %s '%s': "
+		    "encryption key not loaded\n"), cmdname, zfs_get_name(zhp));
+		return (1);
+	}
+
+	/*
 	 * If this filesystem is inconsistent and has a receive resume
 	 * token, we can not mount it.
 	 */
