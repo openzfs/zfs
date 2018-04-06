@@ -492,6 +492,15 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 				goto error;
 			}
 
+			if (!flags.create &&
+			    strcmp(strval, ZFS_FEATURE_DISABLED) == 0) {
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "property '%s' can only be set to "
+				    "'disabled' at creation time"), propname);
+				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
+				goto error;
+			}
+
 			if (nvlist_add_uint64(retprops, propname, 0) != 0) {
 				(void) no_memory(hdl);
 				goto error;
