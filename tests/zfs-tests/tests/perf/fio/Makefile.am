@@ -1,5 +1,5 @@
 pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/perf/fio
-dist_pkgdata_SCRIPTS = \
+dist_pkgdata_DATA = \
 	mkfiles.fio \
 	random_reads.fio \
 	random_readwrite.fio \

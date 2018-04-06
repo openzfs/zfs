@@ -1,2 +1,2 @@
 pkgdatadir = $(datadir)/@PACKAGE@/runfiles
-dist_pkgdata_SCRIPTS = *.run
+dist_pkgdata_DATA = *.run

@@ -1,6 +1,5 @@
 pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/cli_root/zfs_share
 dist_pkgdata_SCRIPTS = \
-	zfs_share.cfg \
 	setup.ksh \
 	cleanup.ksh \
 	zfs_share_001_pos.ksh \
@@ -14,3 +13,6 @@ dist_pkgdata_SCRIPTS = \
 	zfs_share_009_neg.ksh \
 	zfs_share_010_neg.ksh \
 	zfs_share_011_pos.ksh
+
+dist_pkgdata_DATA = \
+	zfs_share.cfg

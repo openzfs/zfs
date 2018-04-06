@@ -1,6 +1,5 @@
 pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/cli_root/zfs_send
 dist_pkgdata_SCRIPTS = \
-	zfs_send.cfg \
 	setup.ksh \
 	cleanup.ksh \
 	zfs_send_001_pos.ksh \
@@ -14,3 +13,6 @@ dist_pkgdata_SCRIPTS = \
 	zfs_send_raw.ksh \
 	zfs_send_sparse.ksh \
 	zfs_send-b.ksh
+
+dist_pkgdata_DATA = \
+	zfs_send.cfg

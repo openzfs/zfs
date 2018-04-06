@@ -1,7 +1,5 @@
 pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/migration
 dist_pkgdata_SCRIPTS = \
-	migration.cfg \
-	migration.kshlib \
 	setup.ksh \
 	cleanup.ksh \
 	migration_001_pos.ksh \
@@ -16,3 +14,7 @@ dist_pkgdata_SCRIPTS = \
 	migration_010_pos.ksh \
 	migration_011_pos.ksh \
 	migration_012_pos.ksh
+
+dist_pkgdata_DATA = \
+	migration.cfg \
+	migration.kshlib

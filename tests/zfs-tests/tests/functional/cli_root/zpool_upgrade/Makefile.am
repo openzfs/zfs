@@ -1,7 +1,5 @@
 pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/cli_root/zpool_upgrade
 dist_pkgdata_SCRIPTS = \
-	zpool_upgrade.cfg \
-	zpool_upgrade.kshlib \
 	setup.ksh \
 	cleanup.ksh \
 	zpool_upgrade_001_pos.ksh \
@@ -68,5 +66,8 @@ BLOCKFILES = \
 	zfs-pool-v999.dat.bz2 \
 	zfs-pool-vBROKEN.dat.bz2
 
-dist_pkgdata_DATA = $(BLOCKFILES)
+dist_pkgdata_DATA = $(BLOCKFILES) \
+	zpool_upgrade.cfg \
+	zpool_upgrade.kshlib
+
 EXTRA_DIST = $(BLOCKFILES)

@@ -1,7 +1,5 @@
 pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/cache
 dist_pkgdata_SCRIPTS = \
-	cache.cfg \
-	cache.kshlib \
 	cleanup.ksh \
 	setup.ksh \
 	cache_001_pos.ksh \
@@ -15,3 +13,7 @@ dist_pkgdata_SCRIPTS = \
 	cache_009_pos.ksh \
 	cache_010_neg.ksh \
 	cache_011_pos.ksh
+
+dist_pkgdata_DATA = \
+	cache.cfg \
+	cache.kshlib

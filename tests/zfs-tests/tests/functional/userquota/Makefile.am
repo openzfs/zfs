@@ -1,7 +1,5 @@
 pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/userquota
 dist_pkgdata_SCRIPTS = \
-	userquota.cfg \
-	userquota_common.kshlib \
 	setup.ksh \
 	cleanup.ksh \
 	groupspace_001_pos.ksh \
@@ -23,3 +21,7 @@ dist_pkgdata_SCRIPTS = \
 	userspace_001_pos.ksh \
 	userspace_002_pos.ksh \
 	userspace_003_pos.ksh
+
+dist_pkgdata_DATA = \
+	userquota.cfg \
+	userquota_common.kshlib
