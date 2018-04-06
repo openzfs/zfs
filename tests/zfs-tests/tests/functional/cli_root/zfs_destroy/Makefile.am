@@ -1,7 +1,5 @@
 pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/cli_root/zfs_destroy
 dist_pkgdata_SCRIPTS = \
-	zfs_destroy_common.kshlib \
-	zfs_destroy.cfg \
 	setup.ksh \
 	cleanup.ksh \
 	zfs_destroy_001_pos.ksh \
@@ -20,3 +18,7 @@ dist_pkgdata_SCRIPTS = \
 	zfs_destroy_014_pos.ksh \
 	zfs_destroy_015_pos.ksh \
 	zfs_destroy_016_pos.ksh
+
+dist_pkgdata_DATA = \
+	zfs_destroy_common.kshlib \
+	zfs_destroy.cfg

@@ -1,7 +1,5 @@
 pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/delegate
 dist_pkgdata_SCRIPTS = \
-	delegate.cfg \
-	delegate_common.kshlib \
 	cleanup.ksh \
 	setup.ksh \
 	zfs_allow_001_pos.ksh \
@@ -24,3 +22,7 @@ dist_pkgdata_SCRIPTS = \
 	zfs_unallow_006_pos.ksh \
 	zfs_unallow_007_neg.ksh \
 	zfs_unallow_008_neg.ksh
+
+dist_pkgdata_DATA = \
+	delegate.cfg \
+	delegate_common.kshlib

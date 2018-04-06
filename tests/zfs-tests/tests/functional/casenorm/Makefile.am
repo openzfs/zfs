@@ -3,8 +3,6 @@ dist_pkgdata_SCRIPTS = \
 	setup.ksh \
 	cleanup.ksh \
 	case_all_values.ksh \
-	casenorm.cfg \
-	casenorm.kshlib \
 	insensitive_formd_delete.ksh \
 	insensitive_formd_lookup.ksh \
 	insensitive_none_delete.ksh \
@@ -20,3 +18,7 @@ dist_pkgdata_SCRIPTS = \
 	sensitive_formd_lookup.ksh \
 	sensitive_none_delete.ksh \
 	sensitive_none_lookup.ksh
+
+dist_pkgdata_DATA = \
+	casenorm.cfg \
+	casenorm.kshlib

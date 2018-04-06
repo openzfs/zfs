@@ -1,7 +1,5 @@
 pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/rsend
 dist_pkgdata_SCRIPTS = \
-	rsend.cfg \
-	rsend.kshlib \
 	setup.ksh \
 	cleanup.ksh \
 	rsend_001_pos.ksh \
@@ -39,3 +37,7 @@ dist_pkgdata_SCRIPTS = \
 	send-c_zstreamdump.ksh \
 	send-cpL_varied_recsize.ksh \
 	send_freeobjects.ksh
+
+dist_pkgdata_DATA = \
+	rsend.cfg \
+	rsend.kshlib

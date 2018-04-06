@@ -1,7 +1,5 @@
 pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/quota
 dist_pkgdata_SCRIPTS = \
-	quota.cfg \
-	quota.kshlib \
 	setup.ksh \
 	cleanup.ksh \
 	quota_001_pos.ksh \
@@ -10,3 +8,7 @@ dist_pkgdata_SCRIPTS = \
 	quota_004_pos.ksh \
 	quota_005_pos.ksh \
 	quota_006_neg.ksh
+
+dist_pkgdata_DATA = \
+	quota.cfg \
+	quota.kshlib

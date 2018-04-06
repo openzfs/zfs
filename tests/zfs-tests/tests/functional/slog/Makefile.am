@@ -1,7 +1,5 @@
 pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/slog
 dist_pkgdata_SCRIPTS = \
-	slog.cfg \
-	slog.kshlib \
 	setup.ksh \
 	cleanup.ksh \
 	slog_001_pos.ksh \
@@ -20,3 +18,7 @@ dist_pkgdata_SCRIPTS = \
 	slog_014_pos.ksh \
 	slog_replay_fs.ksh \
 	slog_replay_volume.ksh
+
+dist_pkgdata_DATA = \
+	slog.cfg \
+	slog.kshlib
