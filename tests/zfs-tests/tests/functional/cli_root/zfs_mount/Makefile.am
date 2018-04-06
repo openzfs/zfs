@@ -1,7 +1,5 @@
 pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/cli_root/zfs_mount
 dist_pkgdata_SCRIPTS = \
-	zfs_mount.cfg \
-	zfs_mount.kshlib \
 	setup.ksh \
 	cleanup.ksh \
 	zfs_mount_001_pos.ksh \
@@ -18,3 +16,7 @@ dist_pkgdata_SCRIPTS = \
 	zfs_mount_012_neg.ksh \
 	zfs_mount_all_001_pos.ksh \
 	zfs_mount_remount.ksh
+
+dist_pkgdata_DATA = \
+	zfs_mount.cfg \
+	zfs_mount.kshlib

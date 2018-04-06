@@ -8,5 +8,7 @@ dist_pkgdata_SCRIPTS = \
 	vdev_zaps_004_pos.ksh \
 	vdev_zaps_005_pos.ksh \
 	vdev_zaps_006_pos.ksh \
-	vdev_zaps_007_pos.ksh \
+	vdev_zaps_007_pos.ksh
+
+dist_pkgdata_DATA = \
 	vdev_zaps.kshlib

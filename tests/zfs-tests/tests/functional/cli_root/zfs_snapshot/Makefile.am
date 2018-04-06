@@ -1,6 +1,5 @@
 pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/cli_root/zfs_snapshot
 dist_pkgdata_SCRIPTS = \
-	zfs_snapshot.cfg \
 	setup.ksh \
 	cleanup.ksh \
 	zfs_snapshot_001_neg.ksh \
@@ -12,3 +11,6 @@ dist_pkgdata_SCRIPTS = \
 	zfs_snapshot_007_neg.ksh \
 	zfs_snapshot_008_neg.ksh \
 	zfs_snapshot_009_pos.ksh
+
+dist_pkgdata_DATA = \
+	zfs_snapshot.cfg
