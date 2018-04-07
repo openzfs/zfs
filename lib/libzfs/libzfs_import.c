@@ -1673,7 +1673,7 @@ zpool_clear_label(int fd)
 		return (0);
 	size = P2ALIGN_TYPED(statbuf.st_size, sizeof (vdev_label_t), uint64_t);
 
-	if ((label = calloc(sizeof (vdev_label_t), 1)) == NULL)
+	if ((label = calloc(1, sizeof (vdev_label_t))) == NULL)
 		return (-1);
 
 	for (l = 0; l < VDEV_LABELS; l++) {

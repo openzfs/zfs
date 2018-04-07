@@ -61,7 +61,7 @@ register_fstype(const char *name, const sa_share_ops_t *ops)
 {
 	sa_fstype_t *fstype;
 
-	fstype = calloc(sizeof (sa_fstype_t), 1);
+	fstype = calloc(1, sizeof (sa_fstype_t));
 
 	if (fstype == NULL)
 		return (NULL);
@@ -83,7 +83,7 @@ sa_init(int init_service)
 {
 	sa_handle_impl_t impl_handle;
 
-	impl_handle = calloc(sizeof (struct sa_handle_impl), 1);
+	impl_handle = calloc(1, sizeof (struct sa_handle_impl));
 
 	if (impl_handle == NULL)
 		return (NULL);
@@ -713,7 +713,7 @@ alloc_share(const char *sharepath)
 {
 	sa_share_impl_t impl_share;
 
-	impl_share = calloc(sizeof (struct sa_share_impl), 1);
+	impl_share = calloc(1, sizeof (struct sa_share_impl));
 
 	if (impl_share == NULL)
 		return (NULL);
@@ -725,7 +725,7 @@ alloc_share(const char *sharepath)
 		return (NULL);
 	}
 
-	impl_share->fsinfo = calloc(sizeof (sa_share_fsinfo_t), fstypes_count);
+	impl_share->fsinfo = calloc(fstypes_count, sizeof (sa_share_fsinfo_t));
 
 	if (impl_share->fsinfo == NULL) {
 		free(impl_share->sharepath);
