@@ -1,6 +1,5 @@
 pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/zvol/zvol_misc
 dist_pkgdata_SCRIPTS = \
-	zvol_misc_common.kshlib \
 	cleanup.ksh \
 	setup.ksh \
 	zvol_misc_001_neg.ksh \
@@ -12,3 +11,7 @@ dist_pkgdata_SCRIPTS = \
 	zvol_misc_snapdev.ksh \
 	zvol_misc_volmode.ksh \
 	zvol_misc_zil.ksh
+
+dist_pkgdata_DATA = \
+	zvol_misc_common.kshlib
+
