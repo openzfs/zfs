@@ -1922,6 +1922,31 @@ Use \fB1\fR for yes and \fB0\fR for no (default).
 .sp
 .ne 2
 .na
+\fBzfs_send_queue_length\fR (int)
+.ad
+.RS 12n
+The maximum number of bytes allowed in the \fBzfs send\fR queue. This value
+must be at least twice the maximum block size in use.
+.sp
+Default value: \fB16,777,216\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_recv_queue_length\fR (int)
+.ad
+.RS 12n
+.sp
+The maximum number of bytes allowed in the \fBzfs receive\fR queue. This value
+must be at least twice the maximum block size in use.
+.sp
+Default value: \fB16,777,216\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_sync_pass_deferred_free\fR (int)
 .ad
 .RS 12n
