@@ -600,7 +600,7 @@ tests = ['umount_001', 'umountall_001']
 tags = ['functional', 'mount']
 
 [tests/functional/mv_files]
-tests = ['mv_files_001_pos', 'mv_files_002_pos']
+tests = ['mv_files_001_pos', 'mv_files_002_pos', 'random_creation']
 tags = ['functional', 'mv_files']
 
 [tests/functional/nestedfs]
