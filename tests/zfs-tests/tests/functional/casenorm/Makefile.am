@@ -9,7 +9,6 @@ dist_pkgdata_SCRIPTS = \
 	insensitive_formd_lookup.ksh \
 	insensitive_none_delete.ksh \
 	insensitive_none_lookup.ksh \
-	mixed_create_failure.ksh \
 	mixed_formd_delete.ksh \
 	mixed_formd_lookup_ci.ksh \
 	mixed_formd_lookup.ksh \
