@@ -1,0 +1,238 @@
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+
+#
+# Copyright (c) 2016, 2017 by Delphix. All rights reserved.
+#
+
+. $STF_SUITE/include/libtest.shlib
+
+ZCP_ROOT=$STF_SUITE/tests/functional/channel_program
+
+#
+# Note: In case of failure (log_fail) in this function
+# we delete the file passed as <input file> so the
+# test suite doesn't leak temp files on failures. So it
+# is expected that <input file> is a temp file and not
+# an installed file.
+#
+# <exitcode> <expected error string> <input file> <zfs program args>
+# e.g. log_program 0 "" tmp.7a12V $POOL foo.zcp arg1 arg2
+function log_program
+{
+	typeset expectexit=$1
+	shift
+	typeset expecterror=$1
+	shift
+	typeset tmpin=$1
+	shift
+	typeset cmdargs=$@ tmpout=$(mktemp) tmperr=$(mktemp)
+
+	# Expected output/error filename is the same as the .zcp name
+	typeset basename
+	if [[ $2 != "-" ]]; then
+		basename=${2%.*}
+	fi
+
+	log_note "running: zfs program $cmdargs:"
+
+	zfs program $cmdargs >$tmpout 2>$tmperr
+	typeset ret=$?
+
+	log_note "input:\n$(cat $tmpin)"
+	log_note "output:\n$(cat $tmpout)"
+	log_note "error:\n$(cat $tmperr)"
+
+	#
+	# Verify correct return value
+	#
+	if [[ $ret -ne $expectexit ]]; then
+		rm $tmpout $tmperr $tmpin
+		log_fail "return mismatch: expected $expectexit, got $ret"
+	fi
+
+	#
+	# Check the output or reported error for successful or error returns,
+	# respectively.
+	#
+	if [[ -f "$basename.out" ]] && [[ $expectexit -eq 0 ]]; then
+
+		outdiff=$(diff "$basename.out" "$tmpout")
+		if [[ $? -ne 0 ]]; then
+			output=$(cat $tmpout)
+			rm $tmpout $tmperr $tmpin
+			log_fail "Output mismatch. Expected:\n" \
+				"$(cat $basename.out)\nBut got:\n$output\n" \
+				"Diff:\n$outdiff"
+		fi
+
+	elif [[ -f "$basename.err" ]] && [[ $expectexit -ne 0 ]]; then
+
+		outdiff=$(diff "$basename.err" "$tmperr")
+		if [[ $? -ne 0 ]]; then
+			outputerror=$(cat $tmperr)
+			rm $tmpout $tmperr $tmpin
+			log_fail "Error mismatch. Expected:\n" \
+				"$(cat $basename.err)\nBut got:\n$outputerror\n" \
+				"Diff:\n$outdiff"
+		fi
+
+	elif [[ -n $expecterror ]] && [[ $expectexit -ne 0 ]]; then
+
+		grep -q "$expecterror" $tmperr
+		if [[ $? -ne 0 ]]; then
+			outputerror=$(cat $tmperr)
+			rm $tmpout $tmperr $tmpin
+			log_fail "Error mismatch. Expected to contain:\n" \
+				"$expecterror\nBut got:\n$outputerror\n"
+		fi
+
+	elif [[ $expectexit -ne 0 ]]; then
+		#
+		# If there's no expected output, error reporting is allowed to
+		# vary, but ensure that we didn't fail silently.
+		#
+		if [[ -z "$(cat $tmperr)" ]]; then
+			rm $tmpout $tmperr $tmpin
+			log_fail "error with no stderr output"
+		fi
+	fi
+
+	#
+	# Clean up all temp files except $tmpin which is
+	# reused for the second invocation of log_program.
+	#
+	rm $tmpout $tmperr
+}
+
+#
+# Even though the command's arguments are passed correctly
+# to the log_must_program family of wrappers the majority
+# of the time, zcp scripts passed as HERE documents can
+# make things trickier (see comment within the function
+# below) in the ordering of the commands arguments and how
+# they are passed. Thus, with this function we reconstruct
+# them to ensure that they are passed properly.
+#
+function log_program_construct_args
+{
+	typeset tmpin=$1
+	shift
+
+	args=""
+	i=0
+	while getopts "nt:m:" opt; do
+		case $opt in
+			t) args="$args -t $OPTARG"; i=$(($i + 2)) ;;
+			m) args="$args -m $OPTARG"; i=$(($i + 2)) ;;
+			n) args="$args -n"; i=$(($i + 1)) ;;
+		esac
+	done
+	shift $i
+
+	pool=$1
+	shift
+
+	#
+	# Catch HERE document if it exists and save it within our
+	# temp file. The reason we do this is that since the
+	# log_must_program wrapper calls zfs-program twice (once
+	# for open context and once for syncing) the HERE doc
+	# is consumed in the first invocation and the second one
+	# does not have a program to run.
+	#
+	test -s /dev/stdin && cat > $tmpin
+
+	#
+	# If $tmpin has contents it means that we consumed a HERE
+	# doc and $1 currently holds "-" (a dash). If there is no
+	# HERE doc and $tmpin is empty, then we copy the contents
+	# of the original channel program to $tmpin.
+	#
+	[[ -s $tmpin ]] || cp $1 $tmpin
+	shift
+
+	lua_args=$@
+
+	echo "$args $pool $tmpin $lua_args"
+}
+
+#
+# Program should complete successfully
+# when run in either context.
+#
+function log_must_program
+{
+	typeset tmpin=$(mktemp)
+
+	program_args=$(log_program_construct_args $tmpin $@)
+
+	log_program 0 "" $tmpin "-n $program_args"
+	log_program 0 "" $tmpin "$program_args"
+
+	rm $tmpin
+}
+#
+# Program should error as expected in
+# the same way in both contexts.
+#
+function log_mustnot_checkerror_program
+{
+	typeset expecterror=$1
+	shift
+	typeset tmpin=$(mktemp)
+
+	program_args=$(log_program_construct_args $tmpin $@)
+
+	log_program 1 "$expecterror" $tmpin "-n $program_args"
+	log_program 1 "$expecterror" $tmpin "$program_args"
+
+	rm $tmpin
+}
+
+#
+# Program should fail when run in either
+# context.
+#
+function log_mustnot_program
+{
+	log_mustnot_checkerror_program "" $@
+}
+
+
+#
+# Program should error as expected in
+# open context but complete successfully
+# in syncing context.
+#
+function log_mustnot_checkerror_program_open
+{
+	typeset expecterror=$1
+	shift
+	typeset tmpin=$(mktemp)
+
+	program_args=$(log_program_construct_args $tmpin $@)
+
+	log_program 1 "$expecterror" $tmpin "-n $program_args"
+	log_program 0 "" $tmpin "$program_args"
+
+	rm $tmpin
+}
+
+#
+# Program should complete successfully
+# when run in syncing context but fail
+# when attempted to run in open context.
+#
+function log_must_program_sync
+{
+	log_mustnot_checkerror_program_open "requires passing sync=TRUE" $@
+}

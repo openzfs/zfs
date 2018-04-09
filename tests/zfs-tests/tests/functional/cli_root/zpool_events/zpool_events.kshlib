@@ -1,0 +1,39 @@
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+
+#
+# Copyright 2017, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
+#
+
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_root/zpool_events/zpool_events.cfg
+
+#
+# Wait to allow the kernel module to process ZFS events until we reach $eventnum
+# or a timeout of $timeout seconds expire, whichever comes first
+#
+function zpool_events_settle # <eventnum> [timeout]
+{
+	typeset eventnum="${1:-$EVENTS_NUM}"
+	typeset timeout="${2:-3}"
+	typeset -i count
+	typeset -i i=0
+
+	while [[ $i -lt $timeout ]]; do
+		count=$(zpool events -H | wc -l)
+		if [[ $count -ge $eventnum ]]; then
+			break
+		fi
+		i=$((i+1))
+		sleep 1
+	done
+	log_note "waited $i seconds"
+}
