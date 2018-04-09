@@ -1,0 +1,101 @@
+#
+# CDDL HEADER START
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright (c) 2017 Datto, Inc. All rights reserved.
+#
+
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_root/zfs_load-key/zfs_load-key.cfg
+
+# Return 0 is a dataset key is available, 1 otherwise
+#
+# $1 - dataset
+#
+function key_available
+{
+	typeset ds=$1
+
+	datasetexists $ds || return 1
+
+	typeset val=$(get_prop keystatus $ds)
+	if [[ "$val" == "none" ]]; then
+		log_note "Dataset $ds is not encrypted"
+	elif [[ "$val" == "available" ]]; then
+		return 0
+	fi
+
+	return 1
+}
+
+function key_unavailable
+{
+	key_available $1 && return 1
+	return 0
+}
+
+function verify_keyformat
+{
+	typeset ds=$1
+	typeset format=$2
+	typeset fmt=$(get_prop keyformat $ds)
+
+	if [[ "$fmt" != "$format" ]]; then
+		log_fail "Expected keyformat $format, got $fmt"
+	fi
+
+	return 0
+}
+
+function verify_keylocation
+{
+	typeset ds=$1
+	typeset location=$2
+	typeset keyloc=$(get_prop keylocation $ds)
+
+	if [[ "$keyloc" != "$location" ]]; then
+		log_fail "Expected keylocation $location, got $keyloc"
+	fi
+
+	return 0
+}
+
+function verify_encryption_root
+{
+	typeset ds=$1
+	typeset val=$2
+	typeset eroot=$(get_prop encryptionroot $ds)
+
+	if [[ "$eroot" != "$val" ]]; then
+		log_note "Expected encryption root '$val', got '$eroot'"
+		return 1
+	fi
+
+	return 0
+}
+
+function verify_origin
+{
+	typeset ds=$1
+	typeset val=$2
+	typeset orig=$(get_prop origin $ds)
+
+	if [[ "$orig" != "$val" ]]; then
+		log_note "Expected origin '$val', got '$orig'"
+		return 1
+	fi
+
+	return 0
+}
