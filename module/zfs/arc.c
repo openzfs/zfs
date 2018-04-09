@@ -7282,7 +7282,7 @@ arc_tuning_update(void)
 
 	/* Valid range: 64M - <all physical memory> */
 	if ((zfs_arc_max) && (zfs_arc_max != arc_c_max) &&
-	    (zfs_arc_max > 64 << 20) && (zfs_arc_max < allmem) &&
+	    (zfs_arc_max >= 64 << 20) && (zfs_arc_max < allmem) &&
 	    (zfs_arc_max > arc_c_min)) {
 		arc_c_max = zfs_arc_max;
 		arc_c = arc_c_max;
