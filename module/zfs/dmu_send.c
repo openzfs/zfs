@@ -61,8 +61,8 @@
 
 /* Set this tunable to TRUE to replace corrupt data with 0x2f5baddb10c */
 int zfs_send_corrupt_data = B_FALSE;
-int zfs_send_queue_length = 16 * 1024 * 1024;
-int zfs_recv_queue_length = 16 * 1024 * 1024;
+int zfs_send_queue_length = SPA_MAXBLOCKSIZE;
+int zfs_recv_queue_length = SPA_MAXBLOCKSIZE;
 /* Set this tunable to FALSE to disable setting of DRR_FLAG_FREERECORDS */
 int zfs_send_set_freerecords_bit = B_TRUE;
 
@@ -944,7 +944,8 @@ dmu_send_impl(void *tag, dsl_pool_t *dp, dsl_dataset_t *to_ds,
 		goto out;
 	}
 
-	err = bqueue_init(&to_arg.q, zfs_send_queue_length,
+	err = bqueue_init(&to_arg.q,
+	    MAX(zfs_send_queue_length, 2 * zfs_max_recordsize),
 	    offsetof(struct send_block_record, ln));
 	to_arg.error_code = 0;
 	to_arg.cancel = B_FALSE;
@@ -3173,7 +3174,8 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp,
 			goto out;
 	}
 
-	(void) bqueue_init(&rwa->q, zfs_recv_queue_length,
+	(void) bqueue_init(&rwa->q,
+	    MAX(zfs_recv_queue_length, 2 * zfs_max_recordsize),
 	    offsetof(struct receive_record_arg, node));
 	cv_init(&rwa->cv, NULL, CV_DEFAULT, NULL);
 	mutex_init(&rwa->mutex, NULL, MUTEX_DEFAULT, NULL);
@@ -3550,4 +3552,10 @@ dmu_objset_is_receiving(objset_t *os)
 #if defined(_KERNEL)
 module_param(zfs_send_corrupt_data, int, 0644);
 MODULE_PARM_DESC(zfs_send_corrupt_data, "Allow sending corrupt data");
+
+module_param(zfs_send_queue_length, int, 0644);
+MODULE_PARM_DESC(zfs_send_queue_length, "Maximum send queue length");
+
+module_param(zfs_recv_queue_length, int, 0644);
+MODULE_PARM_DESC(zfs_recv_queue_length, "Maximum receive queue length");
 #endif
