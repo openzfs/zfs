@@ -1418,16 +1418,16 @@ badlabel:
 				if (crypt == ZIO_CRYPT_OFF &&
 				    strcmp(strval, "none") != 0) {
 					zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-					    "keylocation must not be 'none' "
-					    "for encrypted datasets"));
+					    "keylocation must be 'none' "
+					    "for unencrypted datasets"));
 					(void) zfs_error(hdl, EZFS_BADPROP,
 					    errbuf);
 					goto error;
 				} else if (crypt != ZIO_CRYPT_OFF &&
 				    strcmp(strval, "none") == 0) {
 					zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-					    "keylocation must be 'none' "
-					    "for unencrypted datasets"));
+					    "keylocation must not be 'none' "
+					    "for encrypted datasets"));
 					(void) zfs_error(hdl, EZFS_BADPROP,
 					    errbuf);
 					goto error;
