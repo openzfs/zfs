@@ -37,6 +37,22 @@
 typedef unsigned __bitwise__ fmode_t;
 #endif /* HAVE_FMODE_T */
 
+#ifndef HAVE_BLK_QUEUE_FLAG_SET
+static inline void
+blk_queue_flag_set(unsigned int flag, struct request_queue *q)
+{
+	queue_flag_set_unlocked(flag, q);
+}
+#endif
+
+#ifndef HAVE_BLK_QUEUE_FLAG_CLEAR
+static inline void
+blk_queue_flag_clear(unsigned int flag, struct request_queue *q)
+{
+	queue_flag_clear_unlocked(flag, q);
+}
+#endif
+
 /*
  * 4.7 - 4.x API,
  * The blk_queue_write_cache() interface has replaced blk_queue_flush()
