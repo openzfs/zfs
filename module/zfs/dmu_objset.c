@@ -1416,10 +1416,23 @@ dmu_objset_sync_dnodes(multilist_sublist_t *list, dmu_tx_t *tx)
 		ASSERT3U(dn->dn_nlevels, <=, DN_MAX_LEVELS);
 		multilist_sublist_remove(list, dn);
 
+		/*
+		 * If we are not doing useraccounting (os_synced_dnodes == NULL)
+		 * we are done with this dnode for this txg. Unset dn_dirty_txg
+		 * if later txgs aren't dirtying it so that future holders do
+		 * not get a stale value. Otherwise, we will do this in
+		 * userquota_updates_task() when processing has completely
+		 * finished for this txg.
+		 */
 		multilist_t *newlist = dn->dn_objset->os_synced_dnodes;
 		if (newlist != NULL) {
 			(void) dnode_add_ref(dn, newlist);
 			multilist_insert(newlist, dn);
+		} else {
+			mutex_enter(&dn->dn_mtx);
+			if (dn->dn_dirty_txg == tx->tx_txg)
+				dn->dn_dirty_txg = 0;
+			mutex_exit(&dn->dn_mtx);
 		}
 
 		dnode_sync(dn, tx);
@@ -1889,6 +1902,8 @@ userquota_updates_task(void *arg)
 				dn->dn_id_flags |= DN_ID_CHKED_BONUS;
 		}
 		dn->dn_id_flags &= ~(DN_ID_NEW_EXIST);
+		if (dn->dn_dirty_txg == spa_syncing_txg(os->os_spa))
+			dn->dn_dirty_txg = 0;
 		mutex_exit(&dn->dn_mtx);
 
 		multilist_sublist_remove(list, dn);
