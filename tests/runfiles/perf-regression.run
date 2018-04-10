@@ -10,7 +10,7 @@
 #
 
 #
-# Copyright (c) 2015 by Delphix. All rights reserved.
+# Copyright (c) 2015, 2016 by Delphix. All rights reserved.
 #
 
 [DEFAULT]
@@ -27,6 +27,6 @@ tags = ['perf']
 [tests/perf/regression]
 tests = ['sequential_writes', 'sequential_reads', 'sequential_reads_arc_cached',
     'sequential_reads_arc_cached_clone', 'sequential_reads_dbuf_cached',
-    'random_reads', 'random_writes', 'random_readwrite']
+    'random_reads', 'random_writes', 'random_readwrite', 'random_writes_zil']
 post =
 tags = ['perf', 'regression']
