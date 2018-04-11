@@ -330,8 +330,11 @@ def init():
 
     update_hdr_intr()
 
-    # check if L2ARC exists
+    # we want to capture the stats here, so that we can use them to check
+    # if an L2ARC device exists; but more importantly, so that we print
+    # the stats since boot as the first line of output from main().
     snap_stats()
+
     l2_size = cur.get("l2_size")
     if l2_size:
         l2exist = True
@@ -443,7 +446,6 @@ def main():
         if i == 0:
             print_header()
 
-        snap_stats()
         calculate()
         print_values()
 
@@ -454,6 +456,7 @@ def main():
 
         i = 0 if i >= hdr_intr else i + 1
         time.sleep(sint)
+        snap_stats()
 
     if out:
         out.close()
