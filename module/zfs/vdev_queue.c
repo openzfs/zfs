@@ -774,7 +774,7 @@ again:
 	vdev_queue_pending_add(vq, zio);
 
 	/* trim I/Os have no single meaningful offset */
-	if (zio->io_priority != ZIO_PRIORITY_AUTO_TRIM ||
+	if (zio->io_priority != ZIO_PRIORITY_AUTO_TRIM &&
 	    zio->io_priority != ZIO_PRIORITY_MAN_TRIM)
 		vq->vq_last_offset = zio->io_offset + zio->io_size;
 
