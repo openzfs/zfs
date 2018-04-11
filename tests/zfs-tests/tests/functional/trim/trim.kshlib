@@ -216,7 +216,7 @@ function do_trim # pool options
 	typeset stop_time=$(( $(date +%s) + 30 ))
 
 	log_must zpool trim $options $pool
-
+	sleep 1
 	while true; do
 		typeset status=$(zpool status $pool | awk '/trim:/ {print $2}')
 		if [ -z "$status" ]; then
