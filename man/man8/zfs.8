@@ -1330,6 +1330,36 @@ and
 .Sy nodev
 mount options.
 .It Xo
+.Sy dedup Ns = Ns Sy off Ns | Ns Sy on Ns | Ns Sy verify Ns | Ns
+.Sy sha256[,verify] Ns | Ns Sy sha512[,verify] Ns | Ns Sy skein[,verify] Ns | Ns
+.Sy edonr,verify
+.Xc
+Configures deduplication for a dataset. The default value is
+.Sy off .
+The default deduplication checksum is
+.Sy sha256
+(this may change in the future). When
+.Sy dedup
+is enabled, the checksum defined here overrides the
+.Sy checksum
+property. Setting the value to
+.Sy verify
+has the same effect as the setting
+.Sy sha256,verify.
+.Pp
+If set to
+.Sy verify ,
+ZFS will do a byte-to-byte comparsion in case of two blocks having the same
+signature to make sure the block contents are identical. Specifying
+.Sy verify
+is mandatory for the
+.Sy edonr
+algorithm.
+.Pp
+Unless necessary, deduplication should NOT be enabled on a system. See
+.Sx Deduplication
+above.
+.It Xo
 .Sy dnodesize Ns = Ns Sy legacy Ns | Ns Sy auto Ns | Ns Sy 1k Ns | Ns
 .Sy 2k Ns | Ns Sy 4k Ns | Ns Sy 8k Ns | Ns Sy 16k
 .Xc
