@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013, Joyent, Inc. All rights reserved.
+ * Copyright (c) 2018, Joyent, Inc. All rights reserved.
  * Copyright (c) 2011, 2017 by Delphix. All rights reserved.
  * Copyright (c) 2012 DEY Storage Systems, Inc.  All rights reserved.
  * Copyright (c) 2012 Pawel Jakub Dawidek <pawel@dawidek.net>.
@@ -1589,6 +1589,61 @@ zfs_add_synthetic_resv(zfs_handle_t *zhp, nvlist_t *nvl)
 	return (1);
 }
 
+/*
+ * Helper for 'zfs {set|clone} refreservation=auto'.  Must be called after
+ * zfs_valid_proplist(), as it is what sets the UINT64_MAX sentinal value.
+ * Return codes must match zfs_add_synthetic_resv().
+ */
+static int
+zfs_fix_auto_resv(zfs_handle_t *zhp, nvlist_t *nvl)
+{
+	uint64_t volsize;
+	uint64_t resvsize;
+	zfs_prop_t prop;
+	nvlist_t *props;
+
+	if (!ZFS_IS_VOLUME(zhp)) {
+		return (0);
+	}
+
+	if (zfs_which_resv_prop(zhp, &prop) != 0) {
+		return (-1);
+	}
+
+	if (prop != ZFS_PROP_REFRESERVATION) {
+		return (0);
+	}
+
+	if (nvlist_lookup_uint64(nvl, zfs_prop_to_name(prop), &resvsize) != 0) {
+		/* No value being set, so it can't be "auto" */
+		return (0);
+	}
+	if (resvsize != UINT64_MAX) {
+		/* Being set to a value other than "auto" */
+		return (0);
+	}
+
+	props = fnvlist_alloc();
+
+	fnvlist_add_uint64(props, zfs_prop_to_name(ZFS_PROP_VOLBLOCKSIZE),
+	    zfs_prop_get_int(zhp, ZFS_PROP_VOLBLOCKSIZE));
+
+	if (nvlist_lookup_uint64(nvl, zfs_prop_to_name(ZFS_PROP_VOLSIZE),
+	    &volsize) != 0) {
+		volsize = zfs_prop_get_int(zhp, ZFS_PROP_VOLSIZE);
+	}
+
+	resvsize = zvol_volsize_to_reservation(volsize, props);
+	fnvlist_free(props);
+
+	(void) nvlist_remove_all(nvl, zfs_prop_to_name(prop));
+	if (nvlist_add_uint64(nvl, zfs_prop_to_name(prop), resvsize) != 0) {
+		(void) no_memory(zhp->zfs_hdl);
+		return (-1);
+	}
+	return (1);
+}
+
 void
 zfs_setprop_error(libzfs_handle_t *hdl, zfs_prop_t prop, int err,
     char *errbuf)
@@ -1787,6 +1842,12 @@ zfs_prop_set_list(zfs_handle_t *zhp, nvlist_t *props)
 			goto error;
 		}
 	}
+
+	if (added_resv != 1 &&
+	    (added_resv = zfs_fix_auto_resv(zhp, nvl)) == -1) {
+		goto error;
+	}
+
 	/*
 	 * Check how many properties we're setting and allocate an array to
 	 * store changelist pointers for postfix().
@@ -3879,6 +3940,7 @@ zfs_clone(zfs_handle_t *zhp, const char *target, nvlist_t *props)
 
 	if (props) {
 		zfs_type_t type;
+
 		if (ZFS_IS_VOLUME(zhp)) {
 			type = ZFS_TYPE_VOLUME;
 		} else {
@@ -3887,6 +3949,10 @@ zfs_clone(zfs_handle_t *zhp, const char *target, nvlist_t *props)
 		if ((props = zfs_valid_proplist(hdl, type, props, zoned,
 		    zhp, zhp->zpool_hdl, B_TRUE, errbuf)) == NULL)
 			return (-1);
+		if (zfs_fix_auto_resv(zhp, props) == -1) {
+			nvlist_free(props);
+			return (-1);
+		}
 	}
 
 	if (zfs_crypto_clone_check(hdl, zhp, parent, props) != 0) {
