@@ -28,6 +28,7 @@
 .\" Copyright (c) 2014 Integros [integros.com]
 .\" Copyright 2016 Richard Laager. All rights reserved.
 .\" Copyright 2017 Nexenta Systems, Inc.
+.\" Copyright 2018 Joyent, Inc.
 .\"
 .Dd January 10, 2018
 .Dt ZFS 8 SMM
@@ -1790,7 +1791,7 @@ Limits the amount of space a dataset can consume.
 This property enforces a hard limit on the amount of space used.
 This hard limit does not include space used by descendents, including file
 systems and snapshots.
-.It Sy refreservation Ns = Ns Em size Ns | Ns Sy none
+.It Sy refreservation Ns = Ns Em size Ns | Ns Sy none Ns | Ns Sy auto
 The minimum amount of space guaranteed to a dataset, not including its
 descendents.
 When the amount of space used is below this value, the dataset is treated as if
@@ -1807,6 +1808,22 @@ is set, a snapshot is only allowed if there is enough free pool space outside of
 this reservation to accommodate the current number of
 .Qq referenced
 bytes in the dataset.
+.Pp
+If
+.Sy refreservation
+is set to
+.Sy auto ,
+a volume is thick provisioned
+.Po or
+.Qq not sparse
+.Pc .
+.Sy refreservation Ns = Ns Sy auto
+is only supported on volumes.
+See
+.Sy volsize
+in the
+.Sx Native Properties
+section for more information about sparse volumes.
 .Pp
 This property can also be referred to by its shortened column name,
 .Sy refreserv .
@@ -2022,22 +2039,39 @@ Extreme care should be used when adjusting the volume size.
 Though not recommended, a
 .Qq sparse volume
 .Po also known as
-.Qq thin provisioning
+.Qq thin provisioned
 .Pc
 can be created by specifying the
 .Fl s
 option to the
 .Nm zfs Cm create Fl V
-command, or by changing the reservation after the volume has been created.
+command, or by changing the value of the
+.Sy refreservation
+property
+.Po or
+.Sy reservation
+property on pool version 8 or earlier
+.Pc
+after the volume has been created.
 A
 .Qq sparse volume
-is a volume where the reservation is less then the volume size.
+is a volume where the value of
+.Sy refreservation
+is less than the size of the volume plus the space required to store its
+metadata.
 Consequently, writes to a sparse volume can fail with
 .Er ENOSPC
 when the pool is low on space.
 For a sparse volume, changes to
 .Sy volsize
-are not reflected in the reservation.
+are not reflected in the
+.Sy refreservation.
+A volume that is not sparse is said to be
+.Qq thick provisioned .
+A sparse volume can become thick provisioned by setting
+.Sy refreservation
+to
+.Sy auto .
 .It Sy volmode Ns = Ns Cm default | full | geom | dev | none
 This property specifies how volumes should be exposed to the OS.
 Setting it to
