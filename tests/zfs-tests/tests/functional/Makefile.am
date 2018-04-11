@@ -13,6 +13,7 @@ SUBDIRS = \
 	cli_root \
 	cli_user \
 	compression \
+	cp_files \
 	ctime \
 	deadman \
 	delegate \
