@@ -183,6 +183,30 @@ zpl_bdi_destroy(struct super_block *sb)
 #endif
 
 /*
+ * 4.14 adds SB_* flag definitions, define them to MS_* equivalents
+ * if not set.
+ */
+#ifndef	SB_RDONLY
+#define	SB_RDONLY	MS_RDONLY
+#endif
+
+#ifndef	SB_SILENT
+#define	SB_SILENT	MS_SILENT
+#endif
+
+#ifndef	SB_ACTIVE
+#define	SB_ACTIVE	MS_ACTIVE
+#endif
+
+#ifndef	SB_POSIXACL
+#define	SB_POSIXACL	MS_POSIXACL
+#endif
+
+#ifndef	SB_MANDLOCK
+#define	SB_MANDLOCK	MS_MANDLOCK
+#endif
+
+/*
  * 2.6.38 API change,
  * LOOKUP_RCU flag introduced to distinguish rcu-walk from ref-walk cases.
  */
