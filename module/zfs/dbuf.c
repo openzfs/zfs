@@ -3460,10 +3460,10 @@ dbuf_check_blkptr(dnode_t *dn, dmu_buf_impl_t *db)
  * encryption.  Normally, we make sure the block is decrypted before writing
  * it.  If we have crypt params, then we are writing a raw (encrypted) block,
  * from a raw receive.  In this case, set the ARC buf's crypt params so
- * that the BP will be filled with the correct byteorder, salt, iv, mac.
+ * that the BP will be filled with the correct byteorder, salt, iv, and mac.
  */
 static void
-dbuf_sync_dnode_leaf_crypt(dbuf_dirty_record_t *dr)
+dbuf_prepare_encrypted_dnode_leaf(dbuf_dirty_record_t *dr)
 {
 	int err;
 	dmu_buf_impl_t *db = dr->dr_dbuf;
@@ -3673,7 +3673,7 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 	 * or decrypted, depending on what we are writing to it this txg.
 	 */
 	if (os->os_encrypted && dn->dn_object == DMU_META_DNODE_OBJECT)
-		dbuf_sync_dnode_leaf_crypt(dr);
+		dbuf_prepare_encrypted_dnode_leaf(dr);
 
 	if (db->db_state != DB_NOFILL &&
 	    dn->dn_object != DMU_META_DNODE_OBJECT &&
