@@ -194,7 +194,7 @@ main(int argc, char **argv)
 				if (buf)
 					free(buf);
 				bufsz = (size_t)st.st_blksize;
-				buf = calloc(bufsz, 1);
+				buf = calloc(1, bufsz);
 				if (buf == NULL) {
 					(void) fprintf(stderr, gettext(
 					    "Could not allocate buffer of"

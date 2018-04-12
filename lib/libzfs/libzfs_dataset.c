@@ -466,7 +466,7 @@ make_dataset_handle(libzfs_handle_t *hdl, const char *path)
 {
 	zfs_cmd_t zc = {"\0"};
 
-	zfs_handle_t *zhp = calloc(sizeof (zfs_handle_t), 1);
+	zfs_handle_t *zhp = calloc(1, sizeof (zfs_handle_t));
 
 	if (zhp == NULL)
 		return (NULL);
@@ -493,7 +493,7 @@ make_dataset_handle(libzfs_handle_t *hdl, const char *path)
 zfs_handle_t *
 make_dataset_handle_zc(libzfs_handle_t *hdl, zfs_cmd_t *zc)
 {
-	zfs_handle_t *zhp = calloc(sizeof (zfs_handle_t), 1);
+	zfs_handle_t *zhp = calloc(1, sizeof (zfs_handle_t));
 
 	if (zhp == NULL)
 		return (NULL);
@@ -510,7 +510,7 @@ make_dataset_handle_zc(libzfs_handle_t *hdl, zfs_cmd_t *zc)
 zfs_handle_t *
 make_dataset_simple_handle_zc(zfs_handle_t *pzhp, zfs_cmd_t *zc)
 {
-	zfs_handle_t *zhp = calloc(sizeof (zfs_handle_t), 1);
+	zfs_handle_t *zhp = calloc(1, sizeof (zfs_handle_t));
 
 	if (zhp == NULL)
 		return (NULL);
@@ -527,7 +527,7 @@ make_dataset_simple_handle_zc(zfs_handle_t *pzhp, zfs_cmd_t *zc)
 zfs_handle_t *
 zfs_handle_dup(zfs_handle_t *zhp_orig)
 {
-	zfs_handle_t *zhp = calloc(sizeof (zfs_handle_t), 1);
+	zfs_handle_t *zhp = calloc(1, sizeof (zfs_handle_t));
 
 	if (zhp == NULL)
 		return (NULL);
@@ -607,7 +607,7 @@ zfs_handle_t *
 make_bookmark_handle(zfs_handle_t *parent, const char *path,
     nvlist_t *bmark_props)
 {
-	zfs_handle_t *zhp = calloc(sizeof (zfs_handle_t), 1);
+	zfs_handle_t *zhp = calloc(1, sizeof (zfs_handle_t));
 
 	if (zhp == NULL)
 		return (NULL);
