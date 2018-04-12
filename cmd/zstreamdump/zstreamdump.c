@@ -614,6 +614,9 @@ main(int argc, char *argv[])
 				    BSWAP_64(drrs->drr_compressed_size);
 				drrs->drr_type = BSWAP_32(drrs->drr_type);
 			}
+
+			payload_size = DRR_SPILL_PAYLOAD_SIZE(drrs);
+
 			if (verbose) {
 				sprintf_bytes(salt, drrs->drr_salt,
 				    ZIO_DATA_SALT_LEN);
@@ -626,19 +629,21 @@ main(int argc, char *argv[])
 				    "length = %llu flags = %u "
 				    "compression type = %u "
 				    "compressed_size = %llu "
+				    "payload_size = %llu "
 				    "salt = %s iv = %s mac = %s\n",
 				    (u_longlong_t)drrs->drr_object,
 				    (u_longlong_t)drrs->drr_length,
 				    drrs->drr_flags,
 				    drrs->drr_compressiontype,
 				    (u_longlong_t)drrs->drr_compressed_size,
+				    (u_longlong_t)payload_size,
 				    salt,
 				    iv,
 				    mac);
 			}
-			(void) ssread(buf, drrs->drr_length, &zc);
+			(void) ssread(buf, payload_size, &zc);
 			if (dump) {
-				print_block(buf, drrs->drr_length);
+				print_block(buf, payload_size);
 			}
 			break;
 		case DRR_WRITE_EMBEDDED:

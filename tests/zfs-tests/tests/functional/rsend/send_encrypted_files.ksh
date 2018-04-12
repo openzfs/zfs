@@ -15,7 +15,7 @@
 #
 
 #
-# Copyright (c) 2017 by Datto Inc. All rights reserved.
+# Copyright (c) 2018 by Datto Inc. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/rsend/rsend.kshlib
@@ -33,8 +33,9 @@
 # 6. Add a file truncated to 4M to the filesystem
 # 7. Add a sparse file with metadata compression disabled to the filesystem
 # 8. Add and remove 1000 empty files to the filesystem
-# 9. Snapshot the filesystem
-# 10. Send and receive the filesystem, ensuring that it can be mounted
+# 9. Add a file with a large xattr value
+# 10. Snapshot the filesystem
+# 11. Send and receive the filesystem, ensuring that it can be mounted
 #
 
 verify_runnable "both"
@@ -78,6 +79,11 @@ for i in {1..1000}; do
 	log_must rm /$TESTPOOL/$TESTFS2/dir/file-$i
 done
 sync
+
+# ZoL issue #7432
+log_must zfs set compression=on xattr=sa $TESTPOOL/$TESTFS2
+log_must touch /$TESTPOOL/$TESTFS2/attrs
+log_must eval "python -c 'print \"a\" * 4096' | attr -s bigval /$TESTPOOL/$TESTFS2/attrs"
 
 log_must zfs snapshot $TESTPOOL/$TESTFS2@now
 log_must eval "zfs send -wR $TESTPOOL/$TESTFS2@now > $sendfile"
