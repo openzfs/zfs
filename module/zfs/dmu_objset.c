@@ -1552,11 +1552,12 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 	dmu_write_policy(os, NULL, 0, 0, &zp);
 
 	/*
-	 * If we are either claiming the ZIL or doing a raw receive write out
-	 * the os_phys_buf raw. Neither of these actions will effect the MAC
-	 * at this point.
+	 * If we are either claiming the ZIL or doing a raw receive, write
+	 * out the os_phys_buf raw. Neither of these actions will effect the
+	 * MAC at this point.
 	 */
-	if (os->os_next_write_raw[tx->tx_txg & TXG_MASK]) {
+	if (os->os_raw_receive ||
+	    os->os_next_write_raw[tx->tx_txg & TXG_MASK]) {
 		ASSERT(os->os_encrypted);
 		os->os_next_write_raw[tx->tx_txg & TXG_MASK] = B_FALSE;
 		arc_convert_to_raw(os->os_phys_buf,

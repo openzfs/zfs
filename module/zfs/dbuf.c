@@ -1537,7 +1537,7 @@ dbuf_unoverride(dbuf_dirty_record_t *dr)
 
 	dr->dt.dl.dr_override_state = DR_NOT_OVERRIDDEN;
 	dr->dt.dl.dr_nopwrite = B_FALSE;
-	dr->dt.dl.dr_raw = B_FALSE;
+	dr->dt.dl.dr_has_raw_params = B_FALSE;
 
 	/*
 	 * Release the already-written buffer, so we leave it in
@@ -2210,11 +2210,13 @@ dmu_buf_will_fill(dmu_buf_t *db_fake, dmu_tx_t *tx)
 
 /*
  * This function is effectively the same as dmu_buf_will_dirty(), but
- * indicates the caller expects raw encrypted data in the db. It will
- * also set the raw flag on the created dirty record.
+ * indicates the caller expects raw encrypted data in the db, and provides
+ * the crypt params (byteorder, salt, iv, mac) which should be stored in the
+ * blkptr_t when this dbuf is written.
  */
 void
-dmu_buf_will_change_crypt_params(dmu_buf_t *db_fake, dmu_tx_t *tx)
+dmu_buf_set_crypt_params(dmu_buf_t *db_fake, boolean_t byteorder,
+    const uint8_t *salt, const uint8_t *iv, const uint8_t *mac, dmu_tx_t *tx)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
 	dbuf_dirty_record_t *dr;
@@ -2228,8 +2230,12 @@ dmu_buf_will_change_crypt_params(dmu_buf_t *db_fake, dmu_tx_t *tx)
 
 	ASSERT3P(dr, !=, NULL);
 	ASSERT3U(dr->dr_txg, ==, tx->tx_txg);
-	dr->dt.dl.dr_raw = B_TRUE;
-	db->db_objset->os_next_write_raw[tx->tx_txg & TXG_MASK] = B_TRUE;
+
+	dr->dt.dl.dr_has_raw_params = B_TRUE;
+	dr->dt.dl.dr_byteorder = byteorder;
+	bcopy(salt, dr->dt.dl.dr_salt, ZIO_DATA_SALT_LEN);
+	bcopy(iv, dr->dt.dl.dr_iv, ZIO_DATA_IV_LEN);
+	bcopy(mac, dr->dt.dl.dr_mac, ZIO_DATA_MAC_LEN);
 }
 
 #pragma weak dmu_buf_fill_done = dbuf_fill_done
@@ -2340,7 +2346,6 @@ dbuf_assign_arcbuf(dmu_buf_impl_t *db, arc_buf_t *buf, dmu_tx_t *tx)
 		ASSERT(db->db_buf != NULL);
 		if (dr != NULL && dr->dr_txg == tx->tx_txg) {
 			ASSERT(dr->dt.dl.dr_data == db->db_buf);
-			IMPLY(arc_is_encrypted(buf), dr->dt.dl.dr_raw);
 
 			if (!arc_released(db->db_buf)) {
 				ASSERT(dr->dt.dl.dr_override_state ==
@@ -3451,20 +3456,23 @@ dbuf_check_blkptr(dnode_t *dn, dmu_buf_impl_t *db)
 }
 
 /*
- * Ensure the dbuf's data is untransformed if the associated dirty
- * record requires it. This is used by dbuf_sync_leaf() to ensure
- * that a dnode block is decrypted before we write new data to it.
- * For raw writes we assert that the buffer is already encrypted.
+ * When syncing out a blocks of dnodes, adjust the block to deal with
+ * encryption.  Normally, we make sure the block is decrypted before writing
+ * it.  If we have crypt params, then we are writing a raw (encrypted) block,
+ * from a raw receive.  In this case, set the ARC buf's crypt params so
+ * that the BP will be filled with the correct byteorder, salt, iv, mac.
  */
 static void
-dbuf_check_crypt(dbuf_dirty_record_t *dr)
+dbuf_sync_dnode_leaf_crypt(dbuf_dirty_record_t *dr)
 {
 	int err;
 	dmu_buf_impl_t *db = dr->dr_dbuf;
 
 	ASSERT(MUTEX_HELD(&db->db_mtx));
+	ASSERT3U(db->db.db_object, ==, DMU_META_DNODE_OBJECT);
+	ASSERT3U(db->db_level, ==, 0);
 
-	if (!dr->dt.dl.dr_raw && arc_is_encrypted(db->db_buf)) {
+	if (!db->db_objset->os_raw_receive && arc_is_encrypted(db->db_buf)) {
 		zbookmark_phys_t zb;
 
 		/*
@@ -3480,12 +3488,12 @@ dbuf_check_crypt(dbuf_dirty_record_t *dr)
 		    &zb, B_TRUE);
 		if (err)
 			panic("Invalid dnode block MAC");
-	} else if (dr->dt.dl.dr_raw) {
-		/*
-		 * Writing raw encrypted data requires the db's arc buffer
-		 * to be converted to raw by the caller.
-		 */
-		ASSERT(arc_is_encrypted(db->db_buf));
+	} else if (dr->dt.dl.dr_has_raw_params) {
+		(void) arc_release(dr->dt.dl.dr_data, db);
+		arc_convert_to_raw(dr->dt.dl.dr_data,
+		    dmu_objset_id(db->db_objset),
+		    dr->dt.dl.dr_byteorder, DMU_OT_DNODE,
+		    dr->dt.dl.dr_salt, dr->dt.dl.dr_iv, dr->dt.dl.dr_mac);
 	}
 }
 
@@ -3665,7 +3673,7 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 	 * or decrypted, depending on what we are writing to it this txg.
 	 */
 	if (os->os_encrypted && dn->dn_object == DMU_META_DNODE_OBJECT)
-		dbuf_check_crypt(dr);
+		dbuf_sync_dnode_leaf_crypt(dr);
 
 	if (db->db_state != DB_NOFILL &&
 	    dn->dn_object != DMU_META_DNODE_OBJECT &&
@@ -4197,7 +4205,7 @@ EXPORT_SYMBOL(dbuf_free_range);
 EXPORT_SYMBOL(dbuf_new_size);
 EXPORT_SYMBOL(dbuf_release_bp);
 EXPORT_SYMBOL(dbuf_dirty);
-EXPORT_SYMBOL(dmu_buf_will_change_crypt_params);
+EXPORT_SYMBOL(dmu_buf_set_crypt_params);
 EXPORT_SYMBOL(dmu_buf_will_dirty);
 EXPORT_SYMBOL(dmu_buf_will_not_fill);
 EXPORT_SYMBOL(dmu_buf_will_fill);
