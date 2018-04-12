@@ -3019,7 +3019,7 @@ zpool_vdev_split(zpool_handle_t *zhp, char *newname, nvlist_t **newroot,
 	nvlist_t **varray = NULL, *zc_props = NULL;
 	uint_t c, children, newchildren, lastlog = 0, vcount, found = 0;
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
-	uint64_t vers;
+	uint64_t vers, readonly = B_FALSE;
 	boolean_t freelist = B_FALSE, memory_err = B_TRUE;
 	int retval = 0;
 
@@ -3044,6 +3044,14 @@ zpool_vdev_split(zpool_handle_t *zhp, char *newname, nvlist_t **newroot,
 		if ((zc_props = zpool_valid_proplist(hdl, zhp->zpool_name,
 		    props, vers, flags, msg)) == NULL)
 			return (-1);
+		(void) nvlist_lookup_uint64(zc_props,
+		    zpool_prop_to_name(ZPOOL_PROP_READONLY), &readonly);
+		if (readonly) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "property %s can only be set at import time"),
+			    zpool_prop_to_name(ZPOOL_PROP_READONLY));
+			return (-1);
+		}
 	}
 
 	if (nvlist_lookup_nvlist_array(tree, ZPOOL_CONFIG_CHILDREN, &child,
