@@ -2212,7 +2212,8 @@ dmu_buf_will_fill(dmu_buf_t *db_fake, dmu_tx_t *tx)
  * This function is effectively the same as dmu_buf_will_dirty(), but
  * indicates the caller expects raw encrypted data in the db, and provides
  * the crypt params (byteorder, salt, iv, mac) which should be stored in the
- * blkptr_t when this dbuf is written.
+ * blkptr_t when this dbuf is written.  This is only used for blocks of
+ * dnodes, during raw receive.
  */
 void
 dmu_buf_set_crypt_params(dmu_buf_t *db_fake, boolean_t byteorder,
@@ -2220,6 +2221,13 @@ dmu_buf_set_crypt_params(dmu_buf_t *db_fake, boolean_t byteorder,
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
 	dbuf_dirty_record_t *dr;
+
+	/*
+	 * dr_has_raw_params is only processed for blocks of dnodes
+	 * (see dbuf_sync_dnode_leaf_crypt()).
+	 */
+	ASSERT3U(db->db.db_object, ==, DMU_META_DNODE_OBJECT);
+	ASSERT3U(db->db_level, ==, 0);
 
 	dmu_buf_will_dirty_impl(db_fake,
 	    DB_RF_MUST_SUCCEED | DB_RF_NOPREFETCH | DB_RF_NO_DECRYPT, tx);
