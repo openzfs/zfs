@@ -41,7 +41,7 @@ typedef unsigned __bitwise__ fmode_t;
 static inline void
 blk_queue_flag_set(unsigned int flag, struct request_queue *q)
 {
-	queue_flag_set_unlocked(flag, q);
+	queue_flag_set(flag, q);
 }
 #endif
 
@@ -49,7 +49,7 @@ blk_queue_flag_set(unsigned int flag, struct request_queue *q)
 static inline void
 blk_queue_flag_clear(unsigned int flag, struct request_queue *q)
 {
-	queue_flag_clear_unlocked(flag, q);
+	queue_flag_clear(flag, q);
 }
 #endif
 
@@ -72,16 +72,14 @@ static inline void
 blk_queue_set_write_cache(struct request_queue *q, bool wc, bool fua)
 {
 #if defined(HAVE_BLK_QUEUE_WRITE_CACHE_GPL_ONLY)
-	spin_lock_irq(q->queue_lock);
 	if (wc)
-		queue_flag_set(QUEUE_FLAG_WC, q);
+		blk_queue_flag_set(QUEUE_FLAG_WC, q);
 	else
-		queue_flag_clear(QUEUE_FLAG_WC, q);
+		blk_queue_flag_clear(QUEUE_FLAG_WC, q);
 	if (fua)
-		queue_flag_set(QUEUE_FLAG_FUA, q);
+		blk_queue_flag_set(QUEUE_FLAG_FUA, q);
 	else
-		queue_flag_clear(QUEUE_FLAG_FUA, q);
-	spin_unlock_irq(q->queue_lock);
+		blk_queue_flag_clear(QUEUE_FLAG_FUA, q);
 #elif defined(HAVE_BLK_QUEUE_WRITE_CACHE)
 	blk_queue_write_cache(q, wc, fua);
 #elif defined(HAVE_BLK_QUEUE_FLUSH_GPL_ONLY)
