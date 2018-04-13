@@ -248,14 +248,61 @@ zpl_fill_super(struct super_block *sb, void *data, int silent)
 	return (error);
 }
 
-#ifdef HAVE_MOUNT_NODEV
+static int
+zpl_test_super(struct super_block *s, void *data)
+{
+	zfsvfs_t *zfsvfs = s->s_fs_info;
+	objset_t *os = data;
+
+	if (zfsvfs == NULL)
+		return (0);
+
+	return (os == zfsvfs->z_os);
+}
+
+static struct super_block *
+zpl_mount_impl(struct file_system_type *fs_type, int flags, zfs_mnt_t *zm)
+{
+	struct super_block *s;
+	objset_t *os;
+	int err;
+
+	err = dmu_objset_hold(zm->mnt_osname, FTAG, &os);
+	if (err)
+		return (ERR_PTR(-err));
+
+	s = zpl_sget(fs_type, zpl_test_super, set_anon_super, flags, os);
+	dmu_objset_rele(os, FTAG);
+	if (IS_ERR(s))
+		return (ERR_CAST(s));
+
+	if (s->s_root == NULL) {
+		err = zpl_fill_super(s, zm, flags & SB_SILENT ? 1 : 0);
+		if (err) {
+			deactivate_locked_super(s);
+			return (ERR_PTR(err));
+		}
+		s->s_flags |= SB_ACTIVE;
+	} else if ((flags ^ s->s_flags) & SB_RDONLY) {
+		deactivate_locked_super(s);
+		return (ERR_PTR(-EBUSY));
+	}
+
+	return (s);
+}
+
+#ifdef HAVE_FST_MOUNT
 static struct dentry *
 zpl_mount(struct file_system_type *fs_type, int flags,
     const char *osname, void *data)
 {
 	zfs_mnt_t zm = { .mnt_osname = osname, .mnt_data = data };
 
-	return (mount_nodev(fs_type, flags, &zm, zpl_fill_super));
+	struct super_block *sb = zpl_mount_impl(fs_type, flags, &zm);
+	if (IS_ERR(sb))
+		return (ERR_CAST(sb));
+
+	return (dget(sb->s_root));
 }
 #else
 static int
@@ -264,9 +311,15 @@ zpl_get_sb(struct file_system_type *fs_type, int flags,
 {
 	zfs_mnt_t zm = { .mnt_osname = osname, .mnt_data = data };
 
-	return (get_sb_nodev(fs_type, flags, &zm, zpl_fill_super, mnt));
+	struct super_block *sb = zpl_mount_impl(fs_type, flags, &zm);
+	if (IS_ERR(sb))
+		return (PTR_ERR(sb));
+
+	(void) simple_set_mnt(mnt, sb);
+
+	return (0);
 }
-#endif /* HAVE_MOUNT_NODEV */
+#endif /* HAVE_FST_MOUNT */
 
 static void
 zpl_kill_sb(struct super_block *sb)
@@ -333,10 +386,10 @@ const struct super_operations zpl_super_operations = {
 struct file_system_type zpl_fs_type = {
 	.owner			= THIS_MODULE,
 	.name			= ZFS_DRIVER,
-#ifdef HAVE_MOUNT_NODEV
+#ifdef HAVE_FST_MOUNT
 	.mount			= zpl_mount,
 #else
 	.get_sb			= zpl_get_sb,
-#endif /* HAVE_MOUNT_NODEV */
+#endif /* HAVE_FST_MOUNT */
 	.kill_sb		= zpl_kill_sb,
 };
