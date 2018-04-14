@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2015 by Delphix. All rights reserved.
  */
 
 #ifndef	_SYS_DSL_DEADLIST_H
@@ -79,6 +80,7 @@ void dsl_deadlist_space_range(dsl_deadlist_t *dl,
 void dsl_deadlist_merge(dsl_deadlist_t *dl, uint64_t obj, dmu_tx_t *tx);
 void dsl_deadlist_move_bpobj(dsl_deadlist_t *dl, bpobj_t *bpo, uint64_t mintxg,
     dmu_tx_t *tx);
+boolean_t dsl_deadlist_is_open(dsl_deadlist_t *dl);
 
 #ifdef	__cplusplus
 }

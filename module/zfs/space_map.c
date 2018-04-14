@@ -46,42 +46,27 @@
 int space_map_blksz = (1 << 12);
 
 /*
- * Load the space map disk into the specified range tree. Segments of maptype
- * are added to the range tree, other segment types are removed.
- *
- * Note: space_map_load() will drop sm_lock across dmu_read() calls.
- * The caller must be OK with this.
+ * Iterate through the space map, invoking the callback on each (non-debug)
+ * space map entry.
  */
 int
-space_map_load(space_map_t *sm, range_tree_t *rt, maptype_t maptype)
+space_map_iterate(space_map_t *sm, sm_cb_t callback, void *arg)
 {
 	uint64_t *entry, *entry_map, *entry_map_end;
-	uint64_t bufsize, size, offset, end, space;
+	uint64_t bufsize, size, offset, end;
 	int error = 0;
 
-	ASSERT(MUTEX_HELD(sm->sm_lock));
-
 	end = space_map_length(sm);
-	space = space_map_allocated(sm);
-
-	VERIFY0(range_tree_space(rt));
-
-	if (maptype == SM_FREE) {
-		range_tree_add(rt, sm->sm_start, sm->sm_size);
-		space = sm->sm_size - space;
-	}
 
 	bufsize = MAX(sm->sm_blksz, SPA_MINBLOCKSIZE);
 	entry_map = vmem_alloc(bufsize, KM_SLEEP);
 
-	mutex_exit(sm->sm_lock);
 	if (end > bufsize) {
 		dmu_prefetch(sm->sm_os, space_map_object(sm), 0, bufsize,
 		    end - bufsize, ZIO_PRIORITY_SYNC_READ);
 	}
-	mutex_enter(sm->sm_lock);
 
-	for (offset = 0; offset < end; offset += bufsize) {
+	for (offset = 0; offset < end && error == 0; offset += bufsize) {
 		size = MIN(end - offset, bufsize);
 		VERIFY(P2PHASE(size, sizeof (uint64_t)) == 0);
 		VERIFY(size != 0);
@@ -90,19 +75,18 @@ space_map_load(space_map_t *sm, range_tree_t *rt, maptype_t maptype)
 		dprintf("object=%llu  offset=%llx  size=%llx\n",
 		    space_map_object(sm), offset, size);
 
-		mutex_exit(sm->sm_lock);
 		error = dmu_read(sm->sm_os, space_map_object(sm), offset, size,
 		    entry_map, DMU_READ_PREFETCH);
-		mutex_enter(sm->sm_lock);
 		if (error != 0)
 			break;
 
 		entry_map_end = entry_map + (size / sizeof (uint64_t));
-		for (entry = entry_map; entry < entry_map_end; entry++) {
+		for (entry = entry_map; entry < entry_map_end && error == 0;
+		    entry++) {
 			uint64_t e = *entry;
 			uint64_t offset, size;
 
-			if (SM_DEBUG_DECODE(e))		/* Skip debug entries */
+			if (SM_DEBUG_DECODE(e))	/* Skip debug entries */
 				continue;
 
 			offset = (SM_OFFSET_DECODE(e) << sm->sm_shift) +
@@ -113,23 +97,67 @@ space_map_load(space_map_t *sm, range_tree_t *rt, maptype_t maptype)
 			VERIFY0(P2PHASE(size, 1ULL << sm->sm_shift));
 			VERIFY3U(offset, >=, sm->sm_start);
 			VERIFY3U(offset + size, <=, sm->sm_start + sm->sm_size);
-			if (SM_TYPE_DECODE(e) == maptype) {
-				VERIFY3U(range_tree_space(rt) + size, <=,
-				    sm->sm_size);
-				range_tree_add(rt, offset, size);
-			} else {
-				range_tree_remove(rt, offset, size);
-			}
+			error = callback(SM_TYPE_DECODE(e), offset, size, arg);
 		}
 	}
 
-	if (error == 0)
-		VERIFY3U(range_tree_space(rt), ==, space);
-	else
-		range_tree_vacate(rt, NULL, NULL);
-
 	vmem_free(entry_map, bufsize);
 	return (error);
+}
+
+typedef struct space_map_load_arg {
+	space_map_t	*smla_sm;
+	range_tree_t	*smla_rt;
+	maptype_t	smla_type;
+} space_map_load_arg_t;
+
+static int
+space_map_load_callback(maptype_t type, uint64_t offset, uint64_t size,
+    void *arg)
+{
+	space_map_load_arg_t *smla = arg;
+	if (type == smla->smla_type) {
+		VERIFY3U(range_tree_space(smla->smla_rt) + size, <=,
+		    smla->smla_sm->sm_size);
+		range_tree_add(smla->smla_rt, offset, size);
+	} else {
+		range_tree_remove(smla->smla_rt, offset, size);
+	}
+
+	return (0);
+}
+
+/*
+ * Load the space map disk into the specified range tree. Segments of maptype
+ * are added to the range tree, other segment types are removed.
+ */
+int
+space_map_load(space_map_t *sm, range_tree_t *rt, maptype_t maptype)
+{
+	uint64_t space;
+	int err;
+	space_map_load_arg_t smla;
+
+	VERIFY0(range_tree_space(rt));
+	space = space_map_allocated(sm);
+
+	if (maptype == SM_FREE) {
+		range_tree_add(rt, sm->sm_start, sm->sm_size);
+		space = sm->sm_size - space;
+	}
+
+	smla.smla_rt = rt;
+	smla.smla_sm = sm;
+	smla.smla_type = maptype;
+	err = space_map_iterate(sm, space_map_load_callback, &smla);
+
+	if (err == 0) {
+		VERIFY3U(range_tree_space(rt), ==, space);
+	} else {
+		range_tree_vacate(rt, NULL, NULL);
+	}
+
+	return (err);
 }
 
 void
@@ -160,7 +188,6 @@ space_map_histogram_add(space_map_t *sm, range_tree_t *rt, dmu_tx_t *tx)
 {
 	int idx = 0;
 
-	ASSERT(MUTEX_HELD(rt->rt_lock));
 	ASSERT(dmu_tx_is_syncing(tx));
 	VERIFY3U(space_map_object(sm), !=, 0);
 
@@ -229,9 +256,6 @@ space_map_entries(space_map_t *sm, range_tree_t *rt)
 	return (entries);
 }
 
-/*
- * Note: space_map_write() will drop sm_lock across dmu_write() calls.
- */
 void
 space_map_write(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
     dmu_tx_t *tx)
@@ -244,7 +268,6 @@ space_map_write(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
 	uint64_t *entry, *entry_map, *entry_map_end;
 	uint64_t expected_entries, actual_entries = 1;
 
-	ASSERT(MUTEX_HELD(rt->rt_lock));
 	ASSERT(dsl_pool_sync_context(dmu_objset_pool(os)));
 	VERIFY3U(space_map_object(sm), !=, 0);
 	dmu_buf_will_dirty(sm->sm_dbuf, tx);
@@ -294,11 +317,9 @@ space_map_write(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
 			run_len = MIN(size, SM_RUN_MAX);
 
 			if (entry == entry_map_end) {
-				mutex_exit(rt->rt_lock);
 				dmu_write(os, space_map_object(sm),
 				    sm->sm_phys->smp_objsize, sm->sm_blksz,
 				    entry_map, tx);
-				mutex_enter(rt->rt_lock);
 				sm->sm_phys->smp_objsize += sm->sm_blksz;
 				entry = entry_map;
 			}
@@ -315,10 +336,8 @@ space_map_write(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
 
 	if (entry != entry_map) {
 		size = (entry - entry_map) * sizeof (uint64_t);
-		mutex_exit(rt->rt_lock);
 		dmu_write(os, space_map_object(sm), sm->sm_phys->smp_objsize,
 		    size, entry_map, tx);
-		mutex_enter(rt->rt_lock);
 		sm->sm_phys->smp_objsize += size;
 	}
 	ASSERT3U(expected_entries, ==, actual_entries);
@@ -351,7 +370,7 @@ space_map_open_impl(space_map_t *sm)
 
 int
 space_map_open(space_map_t **smp, objset_t *os, uint64_t object,
-    uint64_t start, uint64_t size, uint8_t shift, kmutex_t *lp)
+    uint64_t start, uint64_t size, uint8_t shift)
 {
 	space_map_t *sm;
 	int error;
@@ -365,7 +384,6 @@ space_map_open(space_map_t **smp, objset_t *os, uint64_t object,
 	sm->sm_start = start;
 	sm->sm_size = size;
 	sm->sm_shift = shift;
-	sm->sm_lock = lp;
 	sm->sm_os = os;
 	sm->sm_object = object;
 	sm->sm_length = 0;
@@ -459,8 +477,6 @@ space_map_update(space_map_t *sm)
 	if (sm == NULL)
 		return;
 
-	ASSERT(MUTEX_HELD(sm->sm_lock));
-
 	sm->sm_alloc = sm->sm_phys->smp_alloc;
 	sm->sm_length = sm->sm_phys->smp_objsize;
 }
@@ -488,27 +504,29 @@ space_map_alloc(objset_t *os, dmu_tx_t *tx)
 }
 
 void
-space_map_free(space_map_t *sm, dmu_tx_t *tx)
+space_map_free_obj(objset_t *os, uint64_t smobj, dmu_tx_t *tx)
 {
-	spa_t *spa;
-
-	if (sm == NULL)
-		return;
-
-	spa = dmu_objset_spa(sm->sm_os);
+	spa_t *spa = dmu_objset_spa(os);
 	if (spa_feature_is_enabled(spa, SPA_FEATURE_SPACEMAP_HISTOGRAM)) {
 		dmu_object_info_t doi;
 
-		dmu_object_info_from_db(sm->sm_dbuf, &doi);
+		VERIFY0(dmu_object_info(os, smobj, &doi));
 		if (doi.doi_bonus_size != SPACE_MAP_SIZE_V0) {
-			VERIFY(spa_feature_is_active(spa,
-			    SPA_FEATURE_SPACEMAP_HISTOGRAM));
 			spa_feature_decr(spa,
 			    SPA_FEATURE_SPACEMAP_HISTOGRAM, tx);
 		}
 	}
 
-	VERIFY3U(dmu_object_free(sm->sm_os, space_map_object(sm), tx), ==, 0);
+	VERIFY0(dmu_object_free(os, smobj, tx));
+}
+
+void
+space_map_free(space_map_t *sm, dmu_tx_t *tx)
+{
+	if (sm == NULL)
+		return;
+
+	space_map_free_obj(sm->sm_os, space_map_object(sm), tx);
 	sm->sm_object = 0;
 }
 

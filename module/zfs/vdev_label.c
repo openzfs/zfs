@@ -143,6 +143,7 @@
 #include <sys/vdev_impl.h>
 #include <sys/uberblock_impl.h>
 #include <sys/metaslab.h>
+#include <sys/metaslab_impl.h>
 #include <sys/zio.h>
 #include <sys/dsl_scan.h>
 #include <sys/abd.h>
@@ -359,6 +360,8 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
     vdev_config_flag_t flags)
 {
 	nvlist_t *nv = NULL;
+	vdev_indirect_config_t *vic = &vd->vdev_indirect_config;
+
 	nv = fnvlist_alloc();
 
 	fnvlist_add_string(nv, ZPOOL_CONFIG_TYPE, vd->vdev_ops->vdev_op_type);
@@ -425,14 +428,30 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 		fnvlist_add_uint64(nv, ZPOOL_CONFIG_ASIZE,
 		    vd->vdev_asize);
 		fnvlist_add_uint64(nv, ZPOOL_CONFIG_IS_LOG, vd->vdev_islog);
-		if (vd->vdev_removing)
+		if (vd->vdev_removing) {
 			fnvlist_add_uint64(nv, ZPOOL_CONFIG_REMOVING,
 			    vd->vdev_removing);
+		}
 	}
 
 	if (vd->vdev_dtl_sm != NULL) {
 		fnvlist_add_uint64(nv, ZPOOL_CONFIG_DTL,
 		    space_map_object(vd->vdev_dtl_sm));
+	}
+
+	if (vic->vic_mapping_object != 0) {
+		fnvlist_add_uint64(nv, ZPOOL_CONFIG_INDIRECT_OBJECT,
+		    vic->vic_mapping_object);
+	}
+
+	if (vic->vic_births_object != 0) {
+		fnvlist_add_uint64(nv, ZPOOL_CONFIG_INDIRECT_BIRTHS,
+		    vic->vic_births_object);
+	}
+
+	if (vic->vic_prev_indirect_vdev != UINT64_MAX) {
+		fnvlist_add_uint64(nv, ZPOOL_CONFIG_PREV_INDIRECT_VDEV,
+		    vic->vic_prev_indirect_vdev);
 	}
 
 	if (vd->vdev_crtxg)
@@ -453,15 +472,69 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 	}
 
 	if (getstats) {
-		pool_scan_stat_t ps;
-
 		vdev_config_generate_stats(vd, nv);
 
 		/* provide either current or previous scan information */
+		pool_scan_stat_t ps;
 		if (spa_scan_get_stats(spa, &ps) == 0) {
 			fnvlist_add_uint64_array(nv,
 			    ZPOOL_CONFIG_SCAN_STATS, (uint64_t *)&ps,
 			    sizeof (pool_scan_stat_t) / sizeof (uint64_t));
+		}
+
+		pool_removal_stat_t prs;
+		if (spa_removal_get_stats(spa, &prs) == 0) {
+			fnvlist_add_uint64_array(nv,
+			    ZPOOL_CONFIG_REMOVAL_STATS, (uint64_t *)&prs,
+			    sizeof (prs) / sizeof (uint64_t));
+		}
+
+		/*
+		 * Note: this can be called from open context
+		 * (spa_get_stats()), so we need the rwlock to prevent
+		 * the mapping from being changed by condensing.
+		 */
+		rw_enter(&vd->vdev_indirect_rwlock, RW_READER);
+		if (vd->vdev_indirect_mapping != NULL) {
+			ASSERT(vd->vdev_indirect_births != NULL);
+			vdev_indirect_mapping_t *vim =
+			    vd->vdev_indirect_mapping;
+			fnvlist_add_uint64(nv, ZPOOL_CONFIG_INDIRECT_SIZE,
+			    vdev_indirect_mapping_size(vim));
+		}
+		rw_exit(&vd->vdev_indirect_rwlock);
+		if (vd->vdev_mg != NULL &&
+		    vd->vdev_mg->mg_fragmentation != ZFS_FRAG_INVALID) {
+			/*
+			 * Compute approximately how much memory would be used
+			 * for the indirect mapping if this device were to
+			 * be removed.
+			 *
+			 * Note: If the frag metric is invalid, then not
+			 * enough metaslabs have been converted to have
+			 * histograms.
+			 */
+			uint64_t seg_count = 0;
+
+			/*
+			 * There are the same number of allocated segments
+			 * as free segments, so we will have at least one
+			 * entry per free segment.
+			 */
+			for (int i = 0; i < RANGE_TREE_HISTOGRAM_SIZE; i++) {
+				seg_count += vd->vdev_mg->mg_histogram[i];
+			}
+
+			/*
+			 * The maximum length of a mapping is SPA_MAXBLOCKSIZE,
+			 * so we need at least one entry per SPA_MAXBLOCKSIZE
+			 * of allocated data.
+			 */
+			seg_count += vd->vdev_stat.vs_alloc / SPA_MAXBLOCKSIZE;
+
+			fnvlist_add_uint64(nv, ZPOOL_CONFIG_INDIRECT_SIZE,
+			    seg_count *
+			    sizeof (vdev_indirect_mapping_entry_phys_t));
 		}
 	}
 
@@ -567,8 +640,9 @@ vdev_top_config_generate(spa_t *spa, nvlist_t *config)
 	for (c = 0, idx = 0; c < rvd->vdev_children; c++) {
 		vdev_t *tvd = rvd->vdev_child[c];
 
-		if (tvd->vdev_ishole)
+		if (tvd->vdev_ishole) {
 			array[idx++] = c;
+		}
 	}
 
 	if (idx) {
@@ -1263,8 +1337,11 @@ vdev_uberblock_sync_list(vdev_t **svd, int svdcount, uberblock_t *ub, int flags)
 	 */
 	zio = zio_root(spa, NULL, NULL, flags);
 
-	for (int v = 0; v < svdcount; v++)
-		zio_flush(zio, svd[v]);
+	for (int v = 0; v < svdcount; v++) {
+		if (vdev_writeable(svd[v])) {
+			zio_flush(zio, svd[v]);
+		}
+	}
 
 	(void) zio_wait(zio);
 

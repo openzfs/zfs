@@ -111,6 +111,7 @@ static int zfs_do_release(int argc, char **argv);
 static int zfs_do_diff(int argc, char **argv);
 static int zfs_do_bookmark(int argc, char **argv);
 static int zfs_do_channel_program(int argc, char **argv);
+static int zfs_do_remap(int argc, char **argv);
 static int zfs_do_load_key(int argc, char **argv);
 static int zfs_do_unload_key(int argc, char **argv);
 static int zfs_do_change_key(int argc, char **argv);
@@ -163,6 +164,7 @@ typedef enum {
 	HELP_HOLDS,
 	HELP_RELEASE,
 	HELP_DIFF,
+	HELP_REMAP,
 	HELP_BOOKMARK,
 	HELP_CHANNEL_PROGRAM,
 	HELP_LOAD_KEY,
@@ -226,6 +228,7 @@ static zfs_command_t command_table[] = {
 	{ "holds",	zfs_do_holds,		HELP_HOLDS		},
 	{ "release",	zfs_do_release,		HELP_RELEASE		},
 	{ "diff",	zfs_do_diff,		HELP_DIFF		},
+	{ "remap",	zfs_do_remap,		HELP_REMAP		},
 	{ "load-key",	zfs_do_load_key,	HELP_LOAD_KEY		},
 	{ "unload-key",	zfs_do_unload_key,	HELP_UNLOAD_KEY		},
 	{ "change-key",	zfs_do_change_key,	HELP_CHANGE_KEY		},
@@ -356,6 +359,8 @@ get_usage(zfs_help_t idx)
 	case HELP_DIFF:
 		return (gettext("\tdiff [-FHt] <snapshot> "
 		    "[snapshot|filesystem]\n"));
+	case HELP_REMAP:
+		return (gettext("\tremap <filesystem | volume>\n"));
 	case HELP_BOOKMARK:
 		return (gettext("\tbookmark <snapshot> <bookmark>\n"));
 	case HELP_CHANNEL_PROGRAM:
@@ -4363,6 +4368,7 @@ zfs_do_receive(int argc, char **argv)
 #define	ZFS_DELEG_PERM_RELEASE		"release"
 #define	ZFS_DELEG_PERM_DIFF		"diff"
 #define	ZFS_DELEG_PERM_BOOKMARK		"bookmark"
+#define	ZFS_DELEG_PERM_REMAP		"remap"
 #define	ZFS_DELEG_PERM_LOAD_KEY		"load-key"
 #define	ZFS_DELEG_PERM_CHANGE_KEY	"change-key"
 
@@ -4390,6 +4396,7 @@ static zfs_deleg_perm_tab_t zfs_deleg_perm_tbl[] = {
 	{ ZFS_DELEG_PERM_SHARE, ZFS_DELEG_NOTE_SHARE },
 	{ ZFS_DELEG_PERM_SNAPSHOT, ZFS_DELEG_NOTE_SNAPSHOT },
 	{ ZFS_DELEG_PERM_BOOKMARK, ZFS_DELEG_NOTE_BOOKMARK },
+	{ ZFS_DELEG_PERM_REMAP, ZFS_DELEG_NOTE_REMAP },
 	{ ZFS_DELEG_PERM_LOAD_KEY, ZFS_DELEG_NOTE_LOAD_KEY },
 	{ ZFS_DELEG_PERM_CHANGE_KEY, ZFS_DELEG_NOTE_CHANGE_KEY },
 
@@ -7059,7 +7066,7 @@ zfs_do_diff(int argc, char **argv)
 
 	if (argc < 1) {
 		(void) fprintf(stderr,
-		gettext("must provide at least one snapshot name\n"));
+		    gettext("must provide at least one snapshot name\n"));
 		usage(B_FALSE);
 	}
 
@@ -7099,6 +7106,22 @@ zfs_do_diff(int argc, char **argv)
 	zfs_close(zhp);
 
 	return (err != 0);
+}
+
+static int
+zfs_do_remap(int argc, char **argv)
+{
+	const char *fsname;
+	int err = 0;
+	if (argc != 2) {
+		(void) fprintf(stderr, gettext("wrong number of arguments\n"));
+		usage(B_FALSE);
+	}
+
+	fsname = argv[1];
+	err = zfs_remap_indirects(g_zfs, fsname);
+
+	return (err);
 }
 
 /*

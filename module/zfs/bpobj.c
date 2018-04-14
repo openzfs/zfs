@@ -175,6 +175,12 @@ bpobj_open(bpobj_t *bpo, objset_t *os, uint64_t object)
 	return (0);
 }
 
+boolean_t
+bpobj_is_open(const bpobj_t *bpo)
+{
+	return (bpo->bpo_object != 0);
+}
+
 void
 bpobj_close(bpobj_t *bpo)
 {
@@ -193,11 +199,11 @@ bpobj_close(bpobj_t *bpo)
 	mutex_destroy(&bpo->bpo_lock);
 }
 
-static boolean_t
-bpobj_hasentries(bpobj_t *bpo)
+boolean_t
+bpobj_is_empty(bpobj_t *bpo)
 {
-	return (bpo->bpo_phys->bpo_num_blkptrs != 0 ||
-	    (bpo->bpo_havesubobj && bpo->bpo_phys->bpo_num_subobjs != 0));
+	return (bpo->bpo_phys->bpo_num_blkptrs == 0 &&
+	    (!bpo->bpo_havesubobj || bpo->bpo_phys->bpo_num_subobjs == 0));
 }
 
 static int
@@ -210,10 +216,8 @@ bpobj_iterate_impl(bpobj_t *bpo, bpobj_itor_t func, void *arg, dmu_tx_t *tx,
 	int err = 0;
 	dmu_buf_t *dbuf = NULL;
 
+	ASSERT(bpobj_is_open(bpo));
 	mutex_enter(&bpo->bpo_lock);
-
-	if (!bpobj_hasentries(bpo))
-		goto out;
 
 	if (free)
 		dmu_buf_will_dirty(bpo->bpo_dbuf, tx);
@@ -344,7 +348,7 @@ bpobj_iterate_impl(bpobj_t *bpo, bpobj_itor_t func, void *arg, dmu_tx_t *tx,
 
 out:
 	/* If there are no entries, there should be no bytes. */
-	if (!bpobj_hasentries(bpo)) {
+	if (bpobj_is_empty(bpo)) {
 		ASSERT0(bpo->bpo_phys->bpo_bytes);
 		ASSERT0(bpo->bpo_phys->bpo_comp);
 		ASSERT0(bpo->bpo_phys->bpo_uncomp);
@@ -379,6 +383,8 @@ bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx)
 	bpobj_t subbpo;
 	uint64_t used, comp, uncomp, subsubobjs;
 
+	ASSERT(bpobj_is_open(bpo));
+	ASSERT(subobj != 0);
 	ASSERT(bpo->bpo_havesubobj);
 	ASSERT(bpo->bpo_havecomp);
 	ASSERT(bpo->bpo_object != dmu_objset_pool(bpo->bpo_os)->dp_empty_bpobj);
@@ -391,7 +397,7 @@ bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx)
 	VERIFY3U(0, ==, bpobj_open(&subbpo, bpo->bpo_os, subobj));
 	VERIFY3U(0, ==, bpobj_space(&subbpo, &used, &comp, &uncomp));
 
-	if (!bpobj_hasentries(&subbpo)) {
+	if (bpobj_is_empty(&subbpo)) {
 		/* No point in having an empty subobj. */
 		bpobj_close(&subbpo);
 		bpobj_free(bpo->bpo_os, subobj, tx);
@@ -465,6 +471,7 @@ bpobj_enqueue(bpobj_t *bpo, const blkptr_t *bp, dmu_tx_t *tx)
 	int blkoff;
 	blkptr_t *bparray;
 
+	ASSERT(bpobj_is_open(bpo));
 	ASSERT(!BP_IS_HOLE(bp));
 	ASSERT(bpo->bpo_object != dmu_objset_pool(bpo->bpo_os)->dp_empty_bpobj);
 
@@ -550,6 +557,7 @@ space_range_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
 int
 bpobj_space(bpobj_t *bpo, uint64_t *usedp, uint64_t *compp, uint64_t *uncompp)
 {
+	ASSERT(bpobj_is_open(bpo));
 	mutex_enter(&bpo->bpo_lock);
 
 	*usedp = bpo->bpo_phys->bpo_bytes;
@@ -575,6 +583,8 @@ bpobj_space_range(bpobj_t *bpo, uint64_t mintxg, uint64_t maxtxg,
 {
 	struct space_range_arg sra = { 0 };
 	int err;
+
+	ASSERT(bpobj_is_open(bpo));
 
 	/*
 	 * As an optimization, if they want the whole txg range, just
