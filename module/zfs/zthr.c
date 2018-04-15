@@ -189,7 +189,7 @@ zthr_procedure(void *arg)
 			mutex_enter(&t->zthr_lock);
 		} else {
 			/* go to sleep */
-			cv_wait(&t->zthr_cv, &t->zthr_lock);
+			cv_wait_sig(&t->zthr_cv, &t->zthr_lock);
 		}
 	}
 	mutex_exit(&t->zthr_lock);
