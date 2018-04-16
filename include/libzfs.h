@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2017 by Delphix. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  * Copyright (c) 2016, Intel Corporation.
@@ -151,6 +151,7 @@ typedef enum zfs_error {
 	EZFS_SCRUB_PAUSED,	/* scrub currently paused */
 	EZFS_ACTIVE_POOL,	/* pool is imported on a different system */
 	EZFS_CRYPTOFAILED,	/* failed to setup encryption */
+	EZFS_NO_PENDING,	/* cannot cancel, no operation is pending */
 	EZFS_UNKNOWN
 } zfs_error_t;
 
@@ -278,6 +279,8 @@ extern int zpool_vdev_attach(zpool_handle_t *, const char *,
     const char *, nvlist_t *, int);
 extern int zpool_vdev_detach(zpool_handle_t *, const char *);
 extern int zpool_vdev_remove(zpool_handle_t *, const char *);
+extern int zpool_vdev_remove_cancel(zpool_handle_t *);
+extern int zpool_vdev_indirect_size(zpool_handle_t *, const char *, uint64_t *);
 extern int zpool_vdev_split(zpool_handle_t *, char *, nvlist_t **, nvlist_t *,
     splitflags_t);
 
@@ -893,6 +896,8 @@ extern boolean_t udev_is_mpath(struct udev_device *dev);
 extern int zfs_device_get_devid(struct udev_device *, char *, size_t);
 extern int zfs_device_get_physical(struct udev_device *, char *, size_t);
 #endif
+
+extern int zfs_remap_indirects(libzfs_handle_t *hdl, const char *);
 
 extern int zfs_get_hole_count(const char *, uint64_t *, uint64_t *);
 

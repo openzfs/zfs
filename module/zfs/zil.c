@@ -3396,7 +3396,7 @@ zil_replaying(zilog_t *zilog, dmu_tx_t *tx)
 
 /* ARGSUSED */
 int
-zil_vdev_offline(const char *osname, void *arg)
+zil_reset(const char *osname, void *arg)
 {
 	int error;
 
@@ -3419,7 +3419,6 @@ EXPORT_SYMBOL(zil_itx_create);
 EXPORT_SYMBOL(zil_itx_destroy);
 EXPORT_SYMBOL(zil_itx_assign);
 EXPORT_SYMBOL(zil_commit);
-EXPORT_SYMBOL(zil_vdev_offline);
 EXPORT_SYMBOL(zil_claim);
 EXPORT_SYMBOL(zil_check_log_chain);
 EXPORT_SYMBOL(zil_sync);

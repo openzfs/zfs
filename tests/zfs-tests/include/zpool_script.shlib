@@ -1,4 +1,3 @@
-#!/bin/ksh -p
 #
 # Common functions used by the zpool_status and zpool_iostat tests for running
 # scripts with the -c option.

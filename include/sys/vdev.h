@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_VDEV_H
@@ -55,7 +55,7 @@ extern int vdev_create(vdev_t *, uint64_t txg, boolean_t isreplace);
 extern void vdev_reopen(vdev_t *);
 extern int vdev_validate_aux(vdev_t *vd);
 extern zio_t *vdev_probe(vdev_t *vd, zio_t *pio);
-
+extern boolean_t vdev_is_concrete(vdev_t *vd);
 extern boolean_t vdev_is_bootable(vdev_t *vd);
 extern vdev_t *vdev_lookup_top(spa_t *spa, uint64_t vdev);
 extern vdev_t *vdev_lookup_by_guid(vdev_t *vd, uint64_t guid);
@@ -75,6 +75,11 @@ extern void vdev_destroy_unlink_zap(vdev_t *vd, uint64_t zapobj,
     dmu_tx_t *tx);
 extern uint64_t vdev_create_link_zap(vdev_t *vd, dmu_tx_t *tx);
 extern void vdev_construct_zaps(vdev_t *vd, dmu_tx_t *tx);
+extern void vdev_destroy_spacemaps(vdev_t *vd, dmu_tx_t *tx);
+extern void vdev_indirect_mark_obsolete(vdev_t *vd, uint64_t offset,
+    uint64_t size, uint64_t txg);
+extern void spa_vdev_indirect_mark_obsolete(spa_t *spa, uint64_t vdev,
+    uint64_t offset, uint64_t size, dmu_tx_t *tx);
 
 extern void vdev_hold(vdev_t *);
 extern void vdev_rele(vdev_t *);

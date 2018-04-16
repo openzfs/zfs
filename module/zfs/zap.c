@@ -818,19 +818,15 @@ fzap_lookup(zap_name_t *zn,
 	return (err);
 }
 
-#define	MAX_EXPAND_RETRIES  2
-
 int
 fzap_add_cd(zap_name_t *zn,
     uint64_t integer_size, uint64_t num_integers,
     const void *val, uint32_t cd, void *tag, dmu_tx_t *tx)
 {
 	zap_leaf_t *l;
-	zap_leaf_t *prev_l = NULL;
 	int err;
 	zap_entry_handle_t zeh;
 	zap_t *zap = zn->zn_zap;
-	int expand_retries = 0;
 
 	ASSERT(RW_LOCK_HELD(&zap->zap_rwlock));
 	ASSERT(!zap->zap_ismicro);
@@ -854,29 +850,10 @@ retry:
 	if (err == 0) {
 		zap_increment_num_entries(zap, 1, tx);
 	} else if (err == EAGAIN) {
-		/*
-		 * If the last two expansions did not help, there is no point
-		 * trying to expand again
-		 */
-		if (expand_retries > MAX_EXPAND_RETRIES && prev_l == l) {
-			err = SET_ERROR(ENOSPC);
-			goto out;
-		}
-
 		err = zap_expand_leaf(zn, l, tag, tx, &l);
 		zap = zn->zn_zap;	/* zap_expand_leaf() may change zap */
-		if (err == 0) {
-			prev_l = l;
-			expand_retries++;
+		if (err == 0)
 			goto retry;
-		} else if (err == ENOSPC) {
-			/*
-			 * If we failed to expand the leaf, then bailout
-			 * as there is no point trying
-			 * zap_put_leaf_maybe_grow_ptrtbl().
-			 */
-			return (err);
-		}
 	}
 
 out:

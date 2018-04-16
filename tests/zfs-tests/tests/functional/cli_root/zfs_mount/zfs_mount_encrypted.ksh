@@ -29,9 +29,12 @@
 # 1. Create an encrypted dataset
 # 2. Unmount and unload the dataset's key
 # 3. Verify the key is unloaded
-# 4. Attempt to load the key while mounting the dataset
-# 5. Verify the key is loaded
-# 6. Verify the dataset is mounted
+# 4. Attempt to mount all datasets in the pool
+# 5. Verify that no error code is produced
+# 6. Verify that the encrypted dataset is not mounted
+# 7. Attempt to load the key while mounting the dataset
+# 8. Verify the key is loaded
+# 9. Verify the dataset is mounted
 #
 
 verify_runnable "both"
@@ -52,6 +55,10 @@ log_must eval "echo $PASSPHRASE | zfs create -o encryption=on" \
 log_must zfs unmount $TESTPOOL/$TESTFS1
 log_must zfs unload-key $TESTPOOL/$TESTFS1
 log_must key_unavailable $TESTPOOL/$TESTFS1
+
+log_must zfs mount -a
+unmounted $TESTPOOL/$TESTFS1 || \
+	log_fail "Filesystem $TESTPOOL/$TESTFS1 is mounted"
 
 log_must eval "echo $PASSPHRASE | zfs mount -l $TESTPOOL/$TESTFS1"
 log_must key_available $TESTPOOL/$TESTFS1

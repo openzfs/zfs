@@ -180,6 +180,7 @@ typedef enum {
 	ZFS_PROP_ENCRYPTION_ROOT,
 	ZFS_PROP_KEY_GUID,
 	ZFS_PROP_KEYSTATUS,
+	ZFS_PROP_REMAPTXG,		/* not exposed to the user */
 	ZFS_NUM_PROPS
 } zfs_prop_t;
 
@@ -587,7 +588,9 @@ typedef struct zpool_rewind_policy {
 
 /*
  * The following are configuration names used in the nvlist describing a pool's
- * configuration.
+ * configuration.  New on-disk names should be prefixed with "<reverse-DNS>:"
+ * (e.g. "org.open-zfs:") to avoid conflicting names being developed
+ * independently.
  */
 #define	ZPOOL_CONFIG_VERSION		"version"
 #define	ZPOOL_CONFIG_POOL_NAME		"name"
@@ -601,6 +604,9 @@ typedef struct zpool_rewind_policy {
 #define	ZPOOL_CONFIG_CHILDREN		"children"
 #define	ZPOOL_CONFIG_ID			"id"
 #define	ZPOOL_CONFIG_GUID		"guid"
+#define	ZPOOL_CONFIG_INDIRECT_OBJECT	"com.delphix:indirect_object"
+#define	ZPOOL_CONFIG_INDIRECT_BIRTHS	"com.delphix:indirect_births"
+#define	ZPOOL_CONFIG_PREV_INDIRECT_VDEV	"com.delphix:prev_indirect_vdev"
 #define	ZPOOL_CONFIG_PATH		"path"
 #define	ZPOOL_CONFIG_DEVID		"devid"
 #define	ZPOOL_CONFIG_METASLAB_ARRAY	"metaslab_array"
@@ -609,7 +615,9 @@ typedef struct zpool_rewind_policy {
 #define	ZPOOL_CONFIG_ASIZE		"asize"
 #define	ZPOOL_CONFIG_DTL		"DTL"
 #define	ZPOOL_CONFIG_SCAN_STATS		"scan_stats"	/* not stored on disk */
+#define	ZPOOL_CONFIG_REMOVAL_STATS	"removal_stats"	/* not stored on disk */
 #define	ZPOOL_CONFIG_VDEV_STATS		"vdev_stats"	/* not stored on disk */
+#define	ZPOOL_CONFIG_INDIRECT_SIZE	"indirect_size"	/* not stored on disk */
 
 /* container nvlist of extended stats */
 #define	ZPOOL_CONFIG_VDEV_STATS_EX	"vdev_stats_ex"
@@ -736,6 +744,13 @@ typedef struct zpool_rewind_policy {
 #define	VDEV_TYPE_SPARE			"spare"
 #define	VDEV_TYPE_LOG			"log"
 #define	VDEV_TYPE_L2CACHE		"l2cache"
+#define	VDEV_TYPE_INDIRECT		"indirect"
+
+/* VDEV_TOP_ZAP_* are used in top-level vdev ZAP objects. */
+#define	VDEV_TOP_ZAP_INDIRECT_OBSOLETE_SM \
+	"com.delphix:indirect_obsolete_sm"
+#define	VDEV_TOP_ZAP_OBSOLETE_COUNTS_ARE_PRECISE \
+	"com.delphix:obsolete_counts_are_precise"
 
 /*
  * This is needed in userland to report the minimum necessary device size.
@@ -883,6 +898,20 @@ typedef struct pool_scan_stat {
 	uint64_t	pss_pass_issued; /* issued bytes per scan pass */
 	uint64_t	pss_issued;	/* total bytes checked by scanner */
 } pool_scan_stat_t;
+
+typedef struct pool_removal_stat {
+	uint64_t prs_state; /* dsl_scan_state_t */
+	uint64_t prs_removing_vdev;
+	uint64_t prs_start_time;
+	uint64_t prs_end_time;
+	uint64_t prs_to_copy; /* bytes that need to be copied */
+	uint64_t prs_copied; /* bytes copied so far */
+	/*
+	 * bytes of memory used for indirect mappings.
+	 * This includes all removed vdevs.
+	 */
+	uint64_t prs_mapping_memory;
+} pool_removal_stat_t;
 
 typedef enum dsl_scan_state {
 	DSS_NONE,
@@ -1112,6 +1141,7 @@ typedef enum zfs_ioc {
 	ZFS_IOC_LOAD_KEY,
 	ZFS_IOC_UNLOAD_KEY,
 	ZFS_IOC_CHANGE_KEY,
+	ZFS_IOC_REMAP,
 
 	/*
 	 * Linux - 3/64 numbers reserved.

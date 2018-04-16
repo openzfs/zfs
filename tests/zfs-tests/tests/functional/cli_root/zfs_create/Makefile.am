@@ -1,8 +1,5 @@
 pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/cli_root/zfs_create
 dist_pkgdata_SCRIPTS = \
-	properties.kshlib \
-	zfs_create_common.kshlib \
-	zfs_create.cfg \
 	setup.ksh \
 	cleanup.ksh \
 	zfs_create_001_pos.ksh \
@@ -21,3 +18,8 @@ dist_pkgdata_SCRIPTS = \
 	zfs_create_014_pos.ksh \
 	zfs_create_encrypted.ksh \
 	zfs_create_crypt_combos.ksh
+
+dist_pkgdata_DATA = \
+	properties.kshlib \
+	zfs_create_common.kshlib \
+	zfs_create.cfg

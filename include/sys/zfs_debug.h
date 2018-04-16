@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_ZFS_DEBUG_H
@@ -53,6 +53,7 @@ extern int zfs_dbgmsg_enable;
 #define	ZFS_DEBUG_HISTOGRAM_VERIFY	(1 << 7)
 #define	ZFS_DEBUG_METASLAB_VERIFY	(1 << 8)
 #define	ZFS_DEBUG_SET_ERROR		(1 << 9)
+#define	ZFS_DEBUG_INDIRECT_REMAP	(1 << 10)
 
 extern void __dprintf(const char *file, const char *func,
     int line, const char *fmt, ...);

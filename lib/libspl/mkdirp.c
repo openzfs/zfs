@@ -166,7 +166,7 @@ simplify(const char *str)
 
 	mbPathlen = strlen(mbPath);
 
-	if ((wcPath = calloc(sizeof (wchar_t), mbPathlen+1)) == NULL) {
+	if ((wcPath = calloc(mbPathlen+1, sizeof (wchar_t))) == NULL) {
 		free(mbPath);
 		return (NULL);
 	}

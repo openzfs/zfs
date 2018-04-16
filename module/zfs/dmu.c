@@ -73,6 +73,13 @@ unsigned long zfs_per_txg_dirty_frees_percent = 30;
  */
 int zfs_dmu_offset_next_sync = 0;
 
+/*
+ * This can be used for testing, to ensure that certain actions happen
+ * while in the middle of a remap (which might otherwise complete too
+ * quickly).
+ */
+int zfs_object_remap_one_indirect_delay_ticks = 0;
+
 const dmu_object_type_info_t dmu_ot[DMU_OT_NUMTYPES] = {
 	{ DMU_BSWAP_UINT8,	TRUE,	FALSE,	"unallocated"		},
 	{ DMU_BSWAP_ZAP,	TRUE,	FALSE,	"object directory"	},
@@ -1112,6 +1119,123 @@ dmu_write_by_dnode(dnode_t *dn, uint64_t offset, uint64_t size,
 	    FALSE, FTAG, &numbufs, &dbp, DMU_READ_PREFETCH));
 	dmu_write_impl(dbp, numbufs, offset, size, buf, tx);
 	dmu_buf_rele_array(dbp, numbufs, FTAG);
+}
+
+static int
+dmu_object_remap_one_indirect(objset_t *os, dnode_t *dn,
+    uint64_t last_removal_txg, uint64_t offset)
+{
+	uint64_t l1blkid = dbuf_whichblock(dn, 1, offset);
+	int err = 0;
+
+	rw_enter(&dn->dn_struct_rwlock, RW_READER);
+	dmu_buf_impl_t *dbuf = dbuf_hold_level(dn, 1, l1blkid, FTAG);
+	ASSERT3P(dbuf, !=, NULL);
+
+	/*
+	 * If the block hasn't been written yet, this default will ensure
+	 * we don't try to remap it.
+	 */
+	uint64_t birth = UINT64_MAX;
+	ASSERT3U(last_removal_txg, !=, UINT64_MAX);
+	if (dbuf->db_blkptr != NULL)
+		birth = dbuf->db_blkptr->blk_birth;
+	rw_exit(&dn->dn_struct_rwlock);
+
+	/*
+	 * If this L1 was already written after the last removal, then we've
+	 * already tried to remap it.
+	 */
+	if (birth <= last_removal_txg &&
+	    dbuf_read(dbuf, NULL, DB_RF_MUST_SUCCEED) == 0 &&
+	    dbuf_can_remap(dbuf)) {
+		dmu_tx_t *tx = dmu_tx_create(os);
+		dmu_tx_hold_remap_l1indirect(tx, dn->dn_object);
+		err = dmu_tx_assign(tx, TXG_WAIT);
+		if (err == 0) {
+			(void) dbuf_dirty(dbuf, tx);
+			dmu_tx_commit(tx);
+		} else {
+			dmu_tx_abort(tx);
+		}
+	}
+
+	dbuf_rele(dbuf, FTAG);
+
+	delay(zfs_object_remap_one_indirect_delay_ticks);
+
+	return (err);
+}
+
+/*
+ * Remap all blockpointers in the object, if possible, so that they reference
+ * only concrete vdevs.
+ *
+ * To do this, iterate over the L0 blockpointers and remap any that reference
+ * an indirect vdev. Note that we only examine L0 blockpointers; since we
+ * cannot guarantee that we can remap all blockpointer anyways (due to split
+ * blocks), we do not want to make the code unnecessarily complicated to
+ * catch the unlikely case that there is an L1 block on an indirect vdev that
+ * contains no indirect blockpointers.
+ */
+int
+dmu_object_remap_indirects(objset_t *os, uint64_t object,
+    uint64_t last_removal_txg)
+{
+	uint64_t offset, l1span;
+	int err;
+	dnode_t *dn;
+
+	err = dnode_hold(os, object, FTAG, &dn);
+	if (err != 0) {
+		return (err);
+	}
+
+	if (dn->dn_nlevels <= 1) {
+		if (issig(JUSTLOOKING) && issig(FORREAL)) {
+			err = SET_ERROR(EINTR);
+		}
+
+		/*
+		 * If the dnode has no indirect blocks, we cannot dirty them.
+		 * We still want to remap the blkptr(s) in the dnode if
+		 * appropriate, so mark it as dirty.
+		 */
+		if (err == 0 && dnode_needs_remap(dn)) {
+			dmu_tx_t *tx = dmu_tx_create(os);
+			dmu_tx_hold_bonus(tx, dn->dn_object);
+			if ((err = dmu_tx_assign(tx, TXG_WAIT)) == 0) {
+				dnode_setdirty(dn, tx);
+				dmu_tx_commit(tx);
+			} else {
+				dmu_tx_abort(tx);
+			}
+		}
+
+		dnode_rele(dn, FTAG);
+		return (err);
+	}
+
+	offset = 0;
+	l1span = 1ULL << (dn->dn_indblkshift - SPA_BLKPTRSHIFT +
+	    dn->dn_datablkshift);
+	/*
+	 * Find the next L1 indirect that is not a hole.
+	 */
+	while (dnode_next_offset(dn, 0, &offset, 2, 1, 0) == 0) {
+		if (issig(JUSTLOOKING) && issig(FORREAL)) {
+			err = SET_ERROR(EINTR);
+			break;
+		}
+		if ((err = dmu_object_remap_one_indirect(os, dn,
+		    last_removal_txg, offset)) != 0) {
+			break;
+		}
+		offset += l1span;
+	}
+
+	dnode_rele(dn, FTAG);
+	return (err);
 }
 
 void
@@ -2284,7 +2408,7 @@ dmu_offset_next(objset_t *os, uint64_t object, boolean_t hole, uint64_t *off)
 	 * Check if dnode is dirty
 	 */
 	for (i = 0; i < TXG_SIZE; i++) {
-		if (list_link_active(&dn->dn_dirty_link[i])) {
+		if (multilist_link_active(&dn->dn_dirty_link[i])) {
 			clean = B_FALSE;
 			break;
 		}

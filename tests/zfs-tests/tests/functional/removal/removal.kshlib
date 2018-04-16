@@ -1,0 +1,158 @@
+#
+# CDDL HEADER START
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright (c) 2014, 2016 by Delphix. All rights reserved.
+#
+
+export REMOVEDISK=${DISKS%% *}
+export NOTREMOVEDISK=${DISKS##* }
+
+#
+# Waits for the pool to finish a removal. If an optional callback is given,
+# execute it every 0.5s.
+#
+# Example usage:
+#
+#    wait_for_removal $TESTPOOL dd if=/dev/urandom of=/$TESTPOOL/file count=1
+#
+function wait_for_removal # pool [callback args]
+{
+	typeset pool=$1
+	typeset callback=$2
+
+	[[ -n $callback ]] && shift 2
+
+	while is_pool_removing $pool; do
+		[[ -z $callback ]] || log_must $callback "$@"
+		sleep 0.5
+	done
+
+	#
+	# The pool state changes before the TXG finishes syncing; wait for
+	# the removal to be completed on disk.
+	#
+	sync_pool
+
+	log_must is_pool_removed $pool
+	return 0
+}
+
+function indirect_vdev_mapping_size # pool
+{
+	typeset pool=$1
+	zdb -P $pool | grep 'indirect vdev' | \
+	    sed -E 's/.*\(([0-9]+) in memory\).*/\1/g'
+}
+
+function random_write # file write_size
+{
+	typeset file=$1
+	typeset block_size=$2
+	typeset file_size=$(stat -c%s $file 2>/dev/null)
+	typeset nblocks=$((file_size / block_size))
+
+	[[ -w $file ]] || return 1
+
+	dd if=/dev/urandom of=$file conv=notrunc \
+	    bs=$block_size count=1 seek=$((RANDOM % nblocks)) >/dev/null 2>&1
+}
+
+_test_removal_with_operation_count=0
+function _test_removal_with_operation_cb # real_callback
+{
+	typeset real_callback=$1
+
+	$real_callback $_test_removal_with_operation_count || \
+	    log_fail $real_callback "failed after" \
+		$_test_removal_with_operation_count "iterations"
+
+	(( _test_removal_with_operation_count++ ))
+
+	log_note "Callback called $((_test_removal_with_operation_count)) times"
+
+	return 0
+}
+
+function start_random_writer # file
+{
+	typeset file=$1
+	(
+		log_note "Starting writer for $file"
+		# This will fail when we destroy the pool.
+		while random_write $file $((2**12)); do
+			:
+		done
+		log_note "Stopping writer for $file"
+	) &
+}
+
+#
+# The callback should be a function that takes as input the number of
+# iterations and the given arguments.
+#
+function test_removal_with_operation # callback [count]
+{
+	typeset operation=$1
+	typeset count=$2
+
+	[[ -n $count ]] || count=0
+
+	#
+	# To ensure that the removal takes a while, we fragment the pool
+	# by writing random blocks and continue to do during the removal.
+	#
+	log_must mkfile 1g $TESTDIR/$TESTFILE0
+	for i in $(seq $((2**10))); do
+		random_write $TESTDIR/$TESTFILE0 $((2**12)) || \
+		    log_fail "Could not write to $TESTDIR/$TESTFILE0."
+	done
+	start_random_writer $TESTDIR/$TESTFILE0 1g
+	killpid=$!
+
+	log_must zpool remove $TESTPOOL $REMOVEDISK
+	log_must wait_for_removal $TESTPOOL \
+	    _test_removal_with_operation_cb $operation
+	log_mustnot vdevs_in_pool $TESTPOOL $REMOVEDISK
+	log_must zdb -cd $TESTPOOL
+
+	kill $killpid
+	wait
+
+	#
+	# We would love to assert that the callback happened *during* the
+	# removal, but we don't have the ability to be confident of that
+	# (via limiting bandwidth, etc.) yet. Instead, we try again.
+	#
+	if (( $_test_removal_with_operation_count <= 1 )); then
+		(( count <= 5 )) || log_fail "Attempted test too many times."
+
+		log_note "Callback only called" \
+		    $_test_removal_with_operation_count \
+		    "times, trying again."
+		default_setup_noexit "$DISKS"
+		test_removal_with_operation $operation $((count + 1))
+	fi
+}
+
+#
+# Kill the background job use by the test_removal_with_operation function.
+#
+function test_removal_with_operation_kill
+{
+	kill $killpid
+	wait $killpid
+	return 0
+}

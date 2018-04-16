@@ -1,7 +1,5 @@
 pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/reservation
 dist_pkgdata_SCRIPTS = \
-	reservation.cfg \
-	reservation.shlib \
 	setup.ksh \
 	cleanup.ksh \
 	reservation_001_pos.sh \
@@ -21,4 +19,12 @@ dist_pkgdata_SCRIPTS = \
 	reservation_015_pos.sh \
 	reservation_016_pos.sh \
 	reservation_017_pos.sh \
-	reservation_018_pos.sh
+	reservation_018_pos.sh \
+	reservation_019_pos.sh \
+	reservation_020_pos.sh \
+	reservation_021_neg.sh \
+	reservation_022_pos.sh
+
+dist_pkgdata_DATA = \
+	reservation.cfg \
+	reservation.shlib
