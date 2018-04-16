@@ -2228,6 +2228,7 @@ dmu_buf_set_crypt_params(dmu_buf_t *db_fake, boolean_t byteorder,
 	 */
 	ASSERT3U(db->db.db_object, ==, DMU_META_DNODE_OBJECT);
 	ASSERT3U(db->db_level, ==, 0);
+	ASSERT(db->db_objset->os_raw_receive);
 
 	dmu_buf_will_dirty_impl(db_fake,
 	    DB_RF_MUST_SUCCEED | DB_RF_NOPREFETCH | DB_RF_NO_DECRYPT, tx);
