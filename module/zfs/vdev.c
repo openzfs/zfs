@@ -156,7 +156,7 @@ vdev_dbgmsg_print_tree(vdev_t *vd, int indent)
 	}
 
 	zfs_dbgmsg("%*svdev %u: %s%s, guid: %llu, path: %s, %s", indent,
-	    "", vd->vdev_id, vd->vdev_ops->vdev_op_type,
+	    "", (int)vd->vdev_id, vd->vdev_ops->vdev_op_type,
 	    vd->vdev_islog ? " (log)" : "",
 	    (u_longlong_t)vd->vdev_guid,
 	    vd->vdev_path ? vd->vdev_path : "N/A", state);
