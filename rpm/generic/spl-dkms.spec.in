@@ -7,6 +7,16 @@
 %define module  @PACKAGE@
 %define mkconf  scripts/dkms.mkconf
 
+# Python permits the !/usr/bin/python shebang for scripts that are cross
+# compatible between python2 and python3, but Fedora 28 does not.  Fedora
+# wants us to choose python3 for cross-compatible scripts.  Since we want
+# to support python2 and python3 users, exclude our scripts from Fedora 28's
+# RPM build check, so that we don't get a bunch of build warnings.
+#
+# Details: https://github.com/zfsonlinux/zfs/issues/7360
+#
+%global __brp_mangle_shebangs_exclude_from      splslab.py
+
 Name:           %{module}-dkms
 
 Version:        @VERSION@
