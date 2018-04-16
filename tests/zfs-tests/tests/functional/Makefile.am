@@ -49,6 +49,7 @@ SUBDIRS = \
 	redundancy \
 	refquota \
 	refreserv \
+	removal \
 	rename_dirs \
 	replacement \
 	reservation \

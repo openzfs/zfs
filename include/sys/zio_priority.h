@@ -28,6 +28,7 @@ typedef enum zio_priority {
 	ZIO_PRIORITY_ASYNC_READ,	/* prefetch */
 	ZIO_PRIORITY_ASYNC_WRITE,	/* spa_sync() */
 	ZIO_PRIORITY_SCRUB,		/* asynchronous scrub/resilver reads */
+	ZIO_PRIORITY_REMOVAL,		/* reads/writes for vdev removal */
 	ZIO_PRIORITY_NUM_QUEUEABLE,
 	ZIO_PRIORITY_NOW,		/* non-queued i/os (e.g. free) */
 } zio_priority_t;

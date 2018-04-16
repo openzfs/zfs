@@ -1,5 +1,5 @@
 pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/include
-dist_pkgdata_SCRIPTS = \
+dist_pkgdata_DATA = \
 	blkdev.shlib \
 	commands.cfg \
 	default.cfg \

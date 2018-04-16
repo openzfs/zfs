@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013, Joyent, Inc. All rights reserved.
+ * Copyright (c) 2018, Joyent, Inc. All rights reserved.
  * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
  * Copyright 2016 Igor Kozhukhov <ikozhukhov@gmail.com>
  * Copyright (c) 2017 Datto Inc.
@@ -261,6 +261,9 @@ libzfs_error_description(libzfs_handle_t *hdl)
 		return (dgettext(TEXT_DOMAIN, "invalid diff data"));
 	case EZFS_POOLREADONLY:
 		return (dgettext(TEXT_DOMAIN, "pool is read-only"));
+	case EZFS_NO_PENDING:
+		return (dgettext(TEXT_DOMAIN, "operation is not "
+		    "in progress"));
 	case EZFS_ACTIVE_POOL:
 		return (dgettext(TEXT_DOMAIN, "pool is imported on a "
 		    "different host"));
@@ -480,6 +483,11 @@ zpool_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 	case EBUSY:
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "pool is busy"));
 		zfs_verror(hdl, EZFS_BUSY, fmt, ap);
+		break;
+
+	/* There is no pending operation to cancel */
+	case ENOTACTIVE:
+		zfs_verror(hdl, EZFS_NO_PENDING, fmt, ap);
 		break;
 
 	case ENXIO:
@@ -1806,6 +1814,7 @@ zprop_parse_value(libzfs_handle_t *hdl, nvpair_t *elem, int prop,
 	const char *propname;
 	char *value;
 	boolean_t isnone = B_FALSE;
+	boolean_t isauto = B_FALSE;
 	int err = 0;
 
 	if (type == ZFS_TYPE_POOL) {
@@ -1847,8 +1856,9 @@ zprop_parse_value(libzfs_handle_t *hdl, nvpair_t *elem, int prop,
 			(void) nvpair_value_string(elem, &value);
 			if (strcmp(value, "none") == 0) {
 				isnone = B_TRUE;
-			} else if (zfs_nicestrtonum(hdl, value, ivalp)
-			    != 0) {
+			} else if (strcmp(value, "auto") == 0) {
+				isauto = B_TRUE;
+			} else if (zfs_nicestrtonum(hdl, value, ivalp) != 0) {
 				goto error;
 			}
 		} else if (datatype == DATA_TYPE_UINT64) {
@@ -1878,6 +1888,31 @@ zprop_parse_value(libzfs_handle_t *hdl, nvpair_t *elem, int prop,
 		    prop == ZFS_PROP_SNAPSHOT_LIMIT)) {
 			*ivalp = UINT64_MAX;
 		}
+
+		/*
+		 * Special handling for setting 'refreservation' to 'auto'.  Use
+		 * UINT64_MAX to tell the caller to use zfs_fix_auto_resv().
+		 * 'auto' is only allowed on volumes.
+		 */
+		if (isauto) {
+			switch (prop) {
+			case ZFS_PROP_REFRESERVATION:
+				if ((type & ZFS_TYPE_VOLUME) == 0) {
+					zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+					    "'%s=auto' only allowed on "
+					    "volumes"), nvpair_name(elem));
+					goto error;
+				}
+				*ivalp = UINT64_MAX;
+				break;
+			default:
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "'auto' is invalid value for '%s'"),
+				    nvpair_name(elem));
+				goto error;
+			}
+		}
+
 		break;
 
 	case PROP_TYPE_INDEX:

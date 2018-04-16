@@ -227,7 +227,10 @@ typedef struct zio_cksum_salt {
  * E		blkptr_t contains embedded data (see below)
  * lvl		level of indirection
  * type		DMU object type
- * phys birth	txg of block allocation; zero if same as logical birth txg
+ * phys birth	txg when dva[0] was written; zero if same as logical birth txg
+ *              note that typically all the dva's would be written in this
+ *              txg, but they could be different if they were moved by
+ *              device removal.
  * log. birth	transaction group in which the block was logically born
  * fill count	number of non-zero blocks under this bp
  * checksum[4]	256-bit checksum of the data this bp describes
@@ -631,14 +634,25 @@ _NOTE(CONSTCOND) } while (0)
  * 'func' is either snprintf() or mdb_snprintf().
  * 'ws' (whitespace) can be ' ' for single-line format, '\n' for multi-line.
  */
-#define	SNPRINTF_BLKPTR(func, ws, buf, size, bp, type, checksum, crypt_type, \
-	compress) \
+#define	SNPRINTF_BLKPTR(func, ws, buf, size, bp, type, checksum, compress) \
 {									\
 	static const char *copyname[] =					\
 	    { "zero", "single", "double", "triple" };			\
 	int len = 0;							\
 	int copies = 0;							\
-									\
+	const char *crypt_type;						\
+	if (bp != NULL) {						\
+		if (BP_IS_ENCRYPTED(bp)) {				\
+			crypt_type = "encrypted";			\
+			/* LINTED E_SUSPICIOUS_COMPARISON */		\
+		} else if (BP_IS_AUTHENTICATED(bp)) {			\
+			crypt_type = "authenticated";			\
+		} else if (BP_HAS_INDIRECT_MAC_CKSUM(bp)) {		\
+			crypt_type = "indirect-MAC";			\
+		} else {						\
+			crypt_type = "unencrypted";			\
+		}							\
+	}								\
 	if (bp == NULL) {						\
 		len += func(buf + len, size - len, "<NULL>");		\
 	} else if (BP_IS_HOLE(bp)) {					\
@@ -806,7 +820,7 @@ extern kmutex_t spa_namespace_lock;
 #define	SPA_CONFIG_UPDATE_POOL	0
 #define	SPA_CONFIG_UPDATE_VDEVS	1
 
-extern void spa_config_sync(spa_t *, boolean_t, boolean_t);
+extern void spa_write_cachefile(spa_t *, boolean_t, boolean_t);
 extern void spa_config_load(void);
 extern nvlist_t *spa_all_configs(uint64_t *);
 extern void spa_config_set(spa_t *spa, nvlist_t *config);
@@ -921,7 +935,7 @@ typedef enum spa_log_state {
 
 extern spa_log_state_t spa_get_log_state(spa_t *spa);
 extern void spa_set_log_state(spa_t *spa, spa_log_state_t state);
-extern int spa_offline_log(spa_t *spa);
+extern int spa_reset_logs(spa_t *spa);
 
 /* Log claim callback */
 extern void spa_claim_notify(zio_t *zio);
@@ -931,6 +945,7 @@ extern void spa_deadman(void *);
 extern boolean_t spa_shutting_down(spa_t *spa);
 extern struct dsl_pool *spa_get_dsl(spa_t *spa);
 extern boolean_t spa_is_initializing(spa_t *spa);
+extern boolean_t spa_indirect_vdevs_loaded(spa_t *spa);
 extern blkptr_t *spa_get_rootblkptr(spa_t *spa);
 extern void spa_set_rootblkptr(spa_t *spa, const blkptr_t *bp);
 extern void spa_altroot(spa_t *, char *, size_t);
@@ -998,6 +1013,11 @@ extern boolean_t spa_has_pending_synctask(spa_t *spa);
 extern int spa_maxblocksize(spa_t *spa);
 extern int spa_maxdnodesize(spa_t *spa);
 extern void zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp);
+typedef void (*spa_remap_cb_t)(uint64_t vdev, uint64_t offset, uint64_t size,
+    void *arg);
+extern boolean_t spa_remap_blkptr(spa_t *spa, blkptr_t *bp,
+    spa_remap_cb_t callback, void *arg);
+extern uint64_t spa_get_last_removal_txg(spa_t *spa);
 extern boolean_t spa_multihost(spa_t *spa);
 extern unsigned long spa_get_hostid(void);
 

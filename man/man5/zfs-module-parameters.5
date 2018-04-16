@@ -1123,7 +1123,7 @@ Default value: \fB1\fR.
 .sp
 .ne 2
 .na
-\fBzfs_free_max_blocks\fR (ulong)
+\fBzfs_async_block_max_blocks\fR (ulong)
 .ad
 .RS 12n
 Maximum number of blocks freed in a single txg.
@@ -1742,6 +1742,23 @@ Use \fB1\fR for yes and \fB0\fR for no (default).
 .sp
 .ne 2
 .na
+\fBzfs_reconstruct_indirect_combinations_max\fR (int)
+.ad
+.RS 12na
+If an indirect split block contains more than this many possible unique
+combinations when being reconstructed, consider it too computationally
+expensive to check them all. Instead, try at most
+\fBzfs_reconstruct_indirect_combinations_max\fR randomly-selected
+combinations each time the block is accessed.  This allows all segment
+copies to participate fairly in the reconstruction when all combinations
+cannot be checked and prevents repeated use of one bad copy.
+.sp
+Default value: \fB100\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_recover\fR (int)
 .ad
 .RS 12n
@@ -1917,6 +1934,31 @@ Default value: \fB41943040\fR.
 Allow sending of corrupt data (ignore read/checksum errors when sending data)
 .sp
 Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_send_queue_length\fR (int)
+.ad
+.RS 12n
+The maximum number of bytes allowed in the \fBzfs send\fR queue. This value
+must be at least twice the maximum block size in use.
+.sp
+Default value: \fB16,777,216\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_recv_queue_length\fR (int)
+.ad
+.RS 12n
+.sp
+The maximum number of bytes allowed in the \fBzfs receive\fR queue. This value
+must be at least twice the maximum block size in use.
+.sp
+Default value: \fB16,777,216\fR.
 .RE
 
 .sp

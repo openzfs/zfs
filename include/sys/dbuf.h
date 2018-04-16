@@ -318,6 +318,8 @@ void dbuf_unoverride(dbuf_dirty_record_t *dr);
 void dbuf_sync_list(list_t *list, int level, dmu_tx_t *tx);
 void dbuf_release_bp(dmu_buf_impl_t *db);
 
+boolean_t dbuf_can_remap(const dmu_buf_impl_t *buf);
+
 void dbuf_free_range(struct dnode *dn, uint64_t start, uint64_t end,
     struct dmu_tx *);
 

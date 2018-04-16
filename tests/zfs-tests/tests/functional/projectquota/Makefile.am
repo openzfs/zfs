@@ -1,7 +1,5 @@
 pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/projectquota
 dist_pkgdata_SCRIPTS = \
-	projectquota.cfg \
-	projectquota_common.kshlib \
 	setup.ksh \
 	cleanup.ksh \
 	projectid_001_pos.ksh \
@@ -23,3 +21,7 @@ dist_pkgdata_SCRIPTS = \
 	projecttree_001_pos.ksh \
 	projecttree_002_pos.ksh \
 	projecttree_003_neg.ksh
+
+dist_pkgdata_DATA = \
+	projectquota.cfg \
+	projectquota_common.kshlib

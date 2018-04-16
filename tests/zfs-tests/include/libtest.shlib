@@ -1,4 +1,3 @@
-#!/bin/ksh -p
 #
 # CDDL HEADER START
 #
@@ -2077,6 +2076,8 @@ function check_pool_status # pool token keyword <verbose>
 #	is_pool_scrubbed - to check if the pool is scrub completed
 #	is_pool_scrub_stopped - to check if the pool is scrub stopped
 #	is_pool_scrub_paused - to check if the pool has scrub paused
+#	is_pool_removing - to check if the pool is removing a vdev
+#	is_pool_removed - to check if the pool is remove completed
 #
 function is_pool_resilvering #pool <verbose>
 {
@@ -2111,6 +2112,18 @@ function is_pool_scrub_stopped #pool <verbose>
 function is_pool_scrub_paused #pool <verbose>
 {
 	check_pool_status "$1" "scan" "scrub paused since " $2
+	return $?
+}
+
+function is_pool_removing #pool
+{
+	check_pool_status "$1" "remove" "in progress since "
+	return $?
+}
+
+function is_pool_removed #pool
+{
+	check_pool_status "$1" "remove" "completed on"
 	return $?
 }
 
@@ -3422,4 +3435,47 @@ function get_tunable_impl
 	esac
 
 	return 1
+}
+
+#
+# Prints the current time in seconds since UNIX Epoch.
+#
+function current_epoch
+{
+	printf '%(%s)T'
+}
+
+#
+# Get decimal value of global uint32_t variable using mdb.
+#
+function mdb_get_uint32
+{
+	typeset variable=$1
+	typeset value
+
+	value=$(mdb -k -e "$variable/X | ::eval .=U")
+	if [[ $? -ne 0 ]]; then
+		log_fail "Failed to get value of '$variable' from mdb."
+		return 1
+	fi
+
+	echo $value
+	return 0
+}
+
+#
+# Set global uint32_t variable to a decimal value using mdb.
+#
+function mdb_set_uint32
+{
+	typeset variable=$1
+	typeset value=$2
+
+	mdb -kw -e "$variable/W 0t$value" > /dev/null
+	if [[ $? -ne 0 ]]; then
+		echo "Failed to set '$variable' to '$value' in mdb."
+		return 1
+	fi
+
+	return 0
 }

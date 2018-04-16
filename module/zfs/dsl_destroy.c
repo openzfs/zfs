@@ -209,6 +209,10 @@ dsl_dataset_remove_clones_key(dsl_dataset_t *ds, uint64_t mintxg, dmu_tx_t *tx)
 		if (clone->ds_dir->dd_origin_txg > mintxg) {
 			dsl_deadlist_remove_key(&clone->ds_deadlist,
 			    mintxg, tx);
+			if (dsl_dataset_remap_deadlist_exists(clone)) {
+				dsl_deadlist_remove_key(
+				    &clone->ds_remap_deadlist, mintxg, tx);
+			}
 			dsl_dataset_remove_clones_key(clone, mintxg, tx);
 		}
 		dsl_dataset_rele(clone, FTAG);
@@ -217,6 +221,39 @@ dsl_dataset_remove_clones_key(dsl_dataset_t *ds, uint64_t mintxg, dmu_tx_t *tx)
 
 	kmem_free(za, sizeof (zap_attribute_t));
 	kmem_free(zc, sizeof (zap_cursor_t));
+}
+
+static void
+dsl_destroy_snapshot_handle_remaps(dsl_dataset_t *ds, dsl_dataset_t *ds_next,
+    dmu_tx_t *tx)
+{
+	dsl_pool_t *dp = ds->ds_dir->dd_pool;
+
+	/* Move blocks to be obsoleted to pool's obsolete list. */
+	if (dsl_dataset_remap_deadlist_exists(ds_next)) {
+		if (!bpobj_is_open(&dp->dp_obsolete_bpobj))
+			dsl_pool_create_obsolete_bpobj(dp, tx);
+
+		dsl_deadlist_move_bpobj(&ds_next->ds_remap_deadlist,
+		    &dp->dp_obsolete_bpobj,
+		    dsl_dataset_phys(ds)->ds_prev_snap_txg, tx);
+	}
+
+	/* Merge our deadlist into next's and free it. */
+	if (dsl_dataset_remap_deadlist_exists(ds)) {
+		uint64_t remap_deadlist_object =
+		    dsl_dataset_get_remap_deadlist_object(ds);
+		ASSERT(remap_deadlist_object != 0);
+
+		mutex_enter(&ds_next->ds_remap_deadlist_lock);
+		if (!dsl_dataset_remap_deadlist_exists(ds_next))
+			dsl_dataset_create_remap_deadlist(ds_next, tx);
+		mutex_exit(&ds_next->ds_remap_deadlist_lock);
+
+		dsl_deadlist_merge(&ds_next->ds_remap_deadlist,
+		    remap_deadlist_object, tx);
+		dsl_dataset_destroy_remap_deadlist(ds, tx);
+	}
 }
 
 void
@@ -333,10 +370,13 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 		dsl_deadlist_merge(&ds_next->ds_deadlist,
 		    dsl_dataset_phys(ds)->ds_deadlist_obj, tx);
 	}
+
 	dsl_deadlist_close(&ds->ds_deadlist);
 	dsl_deadlist_free(mos, dsl_dataset_phys(ds)->ds_deadlist_obj, tx);
 	dmu_buf_will_dirty(ds->ds_dbuf, tx);
 	dsl_dataset_phys(ds)->ds_deadlist_obj = 0;
+
+	dsl_destroy_snapshot_handle_remaps(ds, ds_next, tx);
 
 	/* Collapse range in clone heads */
 	dsl_dataset_remove_clones_key(ds,
@@ -371,6 +411,10 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 		    dsl_dir_phys(ds->ds_dir)->dd_head_dataset_obj, FTAG, &hds));
 		dsl_deadlist_remove_key(&hds->ds_deadlist,
 		    dsl_dataset_phys(ds)->ds_creation_txg, tx);
+		if (dsl_dataset_remap_deadlist_exists(hds)) {
+			dsl_deadlist_remove_key(&hds->ds_remap_deadlist,
+			    dsl_dataset_phys(ds)->ds_creation_txg, tx);
+		}
 		dsl_dataset_rele(hds, FTAG);
 
 	} else {
@@ -826,13 +870,17 @@ dsl_destroy_head_sync_impl(dsl_dataset_t *ds, dmu_tx_t *tx)
 
 	/*
 	 * Destroy the deadlist.  Unless it's a clone, the
-	 * deadlist should be empty.  (If it's a clone, it's
-	 * safe to ignore the deadlist contents.)
+	 * deadlist should be empty since the dataset has no snapshots.
+	 * (If it's a clone, it's safe to ignore the deadlist contents
+	 * since they are still referenced by the origin snapshot.)
 	 */
 	dsl_deadlist_close(&ds->ds_deadlist);
 	dsl_deadlist_free(mos, dsl_dataset_phys(ds)->ds_deadlist_obj, tx);
 	dmu_buf_will_dirty(ds->ds_dbuf, tx);
 	dsl_dataset_phys(ds)->ds_deadlist_obj = 0;
+
+	if (dsl_dataset_remap_deadlist_exists(ds))
+		dsl_dataset_destroy_remap_deadlist(ds, tx);
 
 	objset_t *os;
 	VERIFY0(dmu_objset_from_ds(ds, &os));

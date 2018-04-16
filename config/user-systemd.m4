@@ -20,6 +20,11 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_SYSTEMD], [
 		[install systemd module load files into dir [[/usr/lib/modules-load.d]]]),
 		systemdmoduleloaddir=$withval,systemdmodulesloaddir=/usr/lib/modules-load.d)
 
+	AC_ARG_WITH(systemdgeneratordir,
+		AC_HELP_STRING([--with-systemdgeneratordir=DIR],
+		[install systemd generators in dir [[/usr/lib/systemd/system-generators]]]),
+		systemdgeneratordir=$withval,systemdgeneratordir=/usr/lib/systemd/system-generators)
+
 	AS_IF([test "x$enable_systemd" = xcheck], [
 		AS_IF([systemctl --version >/dev/null 2>&1],
 			[enable_systemd=yes],
@@ -32,7 +37,7 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_SYSTEMD], [
 	AS_IF([test "x$enable_systemd" = xyes], [
 		ZFS_INIT_SYSTEMD=systemd
 		ZFS_MODULE_LOAD=modules-load.d
-		DEFINE_SYSTEMD='--with systemd --define "_unitdir $(systemdunitdir)" --define "_presetdir $(systemdpresetdir)"'
+		DEFINE_SYSTEMD='--with systemd --define "_unitdir $(systemdunitdir)" --define "_presetdir $(systemdpresetdir)" --define "_generatordir $(systemdgeneratordir)"'
 		modulesloaddir=$systemdmodulesloaddir
 	],[
 		DEFINE_SYSTEMD='--without systemd'
@@ -43,5 +48,6 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_SYSTEMD], [
 	AC_SUBST(DEFINE_SYSTEMD)
 	AC_SUBST(systemdunitdir)
 	AC_SUBST(systemdpresetdir)
+	AC_SUBST(systemdgeneratordir)
 	AC_SUBST(modulesloaddir)
 ])

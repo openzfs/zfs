@@ -67,6 +67,7 @@ AC_CONFIG_FILES([
 	etc/zfs/Makefile
 	etc/systemd/Makefile
 	etc/systemd/system/Makefile
+	etc/systemd/system-generators/Makefile
 	etc/sudoers.d/Makefile
 	etc/modules-load.d/Makefile
 	man/Makefile
@@ -242,6 +243,7 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/cli_root/zpool_replace/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zpool_scrub/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zpool_set/Makefile
+	tests/zfs-tests/tests/functional/cli_root/zpool_split/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zpool_status/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zpool_sync/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zpool_upgrade/Makefile
@@ -289,6 +291,7 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/redundancy/Makefile
 	tests/zfs-tests/tests/functional/refquota/Makefile
 	tests/zfs-tests/tests/functional/refreserv/Makefile
+	tests/zfs-tests/tests/functional/removal/Makefile
 	tests/zfs-tests/tests/functional/rename_dirs/Makefile
 	tests/zfs-tests/tests/functional/replacement/Makefile
 	tests/zfs-tests/tests/functional/reservation/Makefile

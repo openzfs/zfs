@@ -59,7 +59,7 @@ tags = ['functional', 'cachefile']
 # 'mixed_none_lookup', 'mixed_none_lookup_ci', 'mixed_none_delete',
 # 'mixed_formd_lookup', 'mixed_formd_lookup_ci', 'mixed_formd_delete']
 [tests/functional/casenorm]
-tests = ['case_all_values', 'norm_all_values', 'mixed_create_failure']
+tests = ['case_all_values', 'norm_all_values']
 tags = ['functional', 'casenorm']
 
 [tests/functional/channel_program/lua_core]
@@ -174,7 +174,7 @@ tests = ['zfs_mount_001_pos', 'zfs_mount_002_pos', 'zfs_mount_003_pos',
     'zfs_mount_004_pos', 'zfs_mount_005_pos', 'zfs_mount_007_pos',
     'zfs_mount_008_pos', 'zfs_mount_009_neg', 'zfs_mount_010_neg',
     'zfs_mount_011_neg', 'zfs_mount_012_neg', 'zfs_mount_all_001_pos',
-    'zfs_mount_encrypted', 'zfs_mount_remount']
+    'zfs_mount_encrypted', 'zfs_mount_remount', 'zfs_multi_mount']
 tags = ['functional', 'cli_root', 'zfs_mount']
 
 [tests/functional/cli_root/zfs_program]
@@ -403,8 +403,14 @@ tests = ['zpool_scrub_001_neg', 'zpool_scrub_002_pos', 'zpool_scrub_003_pos',
 tags = ['functional', 'cli_root', 'zpool_scrub']
 
 [tests/functional/cli_root/zpool_set]
-tests = ['zpool_set_001_pos', 'zpool_set_002_neg', 'zpool_set_003_neg']
+tests = ['zpool_set_001_pos', 'zpool_set_002_neg', 'zpool_set_003_neg',
+    'zpool_set_ashift', 'zpool_set_features']
 tags = ['functional', 'cli_root', 'zpool_set']
+
+[tests/functional/cli_root/zpool_split]
+tests = ['zpool_split_cliargs', 'zpool_split_devices',
+    'zpool_split_encryption', 'zpool_split_props', 'zpool_split_vdevs']
+tags = ['functional', 'cli_root', 'zpool_split']
 
 [tests/functional/cli_root/zpool_status]
 tests = ['zpool_status_001_pos', 'zpool_status_002_pos','zpool_status_003_pos',
@@ -657,6 +663,20 @@ tests = ['refreserv_001_pos', 'refreserv_002_pos', 'refreserv_003_pos',
     'refreserv_005_pos']
 tags = ['functional', 'refreserv']
 
+[tests/functional/removal]
+pre =
+tests = ['removal_sanity', 'removal_all_vdev', 'removal_check_space',
+    'removal_condense_export',
+    'removal_multiple_indirection', 'removal_remap',
+    'removal_remap_deadlists',
+    'removal_with_add', 'removal_with_create_fs', 'removal_with_dedup',
+    'removal_with_export', 'removal_with_ganging', 'removal_with_remap',
+    'removal_with_remove', 'removal_with_scrub', 'removal_with_send',
+    'removal_with_send_recv', 'removal_with_snapshot', 'removal_with_write',
+    'removal_with_zdb', 'removal_resume_export',
+    'remove_mirror', 'remove_mirror_sanity', 'remove_raidz']
+tags = ['functional', 'removal']
+
 [tests/functional/rename_dirs]
 tests = ['rename_dirs_001_pos']
 tags = ['functional', 'rename_dirs']
@@ -674,7 +694,8 @@ tests = ['reservation_001_pos', 'reservation_002_pos', 'reservation_003_pos',
     'reservation_007_pos', 'reservation_008_pos', 'reservation_009_pos',
     'reservation_010_pos', 'reservation_011_pos', 'reservation_012_pos',
     'reservation_013_pos', 'reservation_014_pos', 'reservation_015_pos',
-    'reservation_016_pos', 'reservation_017_pos']
+    'reservation_016_pos', 'reservation_017_pos', 'reservation_019_pos',
+    'reservation_020_pos', 'reservation_021_neg', 'reservation_022_pos']
 tags = ['functional', 'reservation']
 
 [tests/functional/rootpool]

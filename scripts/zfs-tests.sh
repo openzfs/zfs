@@ -505,7 +505,11 @@ if [ -z "${DISKS}" ]; then
 		[ -f "$TEST_FILE" ] && fail "Failed file exists: ${TEST_FILE}"
 		truncate -s "${FILESIZE}" "${TEST_FILE}" ||
 		    fail "Failed creating: ${TEST_FILE} ($?)"
-		DISKS="$DISKS$TEST_FILE "
+		if [[ "$DISKS" ]]; then
+			DISKS="$DISKS $TEST_FILE"
+		else
+			DISKS="$TEST_FILE"
+		fi
 	done
 
 	#
@@ -522,7 +526,11 @@ if [ -z "${DISKS}" ]; then
 			    fail "Failed: ${TEST_FILE} -> ${TEST_LOOPBACK}"
 			LOOPBACKS="${LOOPBACKS}${TEST_LOOPBACK} "
 			BASELOOPBACKS=$(basename "$TEST_LOOPBACK")
-			DISKS="$DISKS$BASELOOPBACKS "
+			if [[ "$DISKS" ]]; then
+				DISKS="$DISKS $BASELOOPBACKS"
+			else
+				DISKS="$BASELOOPBACKS"
+			fi
 		done
 	fi
 fi

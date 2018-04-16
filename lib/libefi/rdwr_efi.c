@@ -218,7 +218,7 @@ efi_get_info(int fd, struct dk_cinfo *dki_info)
 
 	memset(dki_info, 0, sizeof (*dki_info));
 
-	path = calloc(PATH_MAX, 1);
+	path = calloc(1, PATH_MAX);
 	if (path == NULL)
 		goto error;
 
@@ -403,7 +403,7 @@ efi_alloc_and_init(int fd, uint32_t nparts, struct dk_gpt **vtoc)
 	length = sizeof (struct dk_gpt) +
 	    sizeof (struct dk_part) * (nparts - 1);
 
-	if ((*vtoc = calloc(length, 1)) == NULL)
+	if ((*vtoc = calloc(1, length)) == NULL)
 		return (-1);
 
 	vptr = *vtoc;
@@ -440,7 +440,7 @@ efi_alloc_and_read(int fd, struct dk_gpt **vtoc)
 	nparts = EFI_MIN_ARRAY_SIZE / sizeof (efi_gpe_t);
 	length = (int) sizeof (struct dk_gpt) +
 	    (int) sizeof (struct dk_part) * (nparts - 1);
-	if ((*vtoc = calloc(length, 1)) == NULL)
+	if ((*vtoc = calloc(1, length)) == NULL)
 		return (VT_ERROR);
 
 	(*vtoc)->efi_nparts = nparts;

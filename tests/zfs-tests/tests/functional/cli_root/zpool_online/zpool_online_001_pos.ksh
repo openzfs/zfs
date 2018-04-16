@@ -71,10 +71,13 @@ if [[ -z $DISKLIST ]]; then
 fi
 
 typeset -i i=0
+typeset -i j=0
 
 for disk in $DISKLIST; do
 	i=0
 	while [[ $i -lt ${#args[*]} ]]; do
+
+		log_must sync_pool $TESTPOOL
 		log_must zpool offline $TESTPOOL $disk
 		check_state $TESTPOOL $disk "offline"
 		if [[ $? != 0 ]]; then
@@ -86,6 +89,14 @@ for disk in $DISKLIST; do
 		if [[ $? != 0 ]]; then
 			log_fail "$disk of $TESTPOOL did not match online state"
 		fi
+
+		while [[ $j -lt 20 ]]; do
+			is_pool_resilvered $TESTPOOL && break
+			sleep 0.5
+			(( j = j + 1 ))
+		done
+		is_pool_resilvered $TESTPOOL || \
+		    log_file "Pool didn't resilver after online"
 
 		(( i = i + 1 ))
 	done

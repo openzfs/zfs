@@ -49,14 +49,15 @@ function cleanup
 		log_must zfs destroy -r $TESTPOOL/$TESTFS2
 
 	[[ -f $ibackup ]] && log_must rm -f $ibackup
+	[[ -f $ibackup_trunc ]] && log_must rm -f $ibackup_trunc
 }
 
 log_onexit cleanup
 
 log_assert "ZFS should receive streams from raw incremental sends"
 
-typeset ibackup="/var/tmp/ibackup.$$"
-typeset ibackup_trunc="/var/tmp/ibackup_trunc.$$"
+typeset ibackup="$TEST_BASE_DIR/ibackup.$$"
+typeset ibackup_trunc="$TEST_BASE_DIR/ibackup_trunc.$$"
 typeset passphrase="password"
 typeset passphrase2="password2"
 typeset snap1="$TESTPOOL/$TESTFS1@snap1"
