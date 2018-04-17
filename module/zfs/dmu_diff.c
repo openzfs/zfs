@@ -131,11 +131,14 @@ diff_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 		arc_buf_t *abuf;
 		arc_flags_t aflags = ARC_FLAG_WAIT;
 		int blksz = BP_GET_LSIZE(bp);
+		int zio_flags = ZIO_FLAG_CANFAIL;
 		int i;
 
+		if (BP_IS_PROTECTED(bp))
+			zio_flags |= ZIO_FLAG_RAW;
+
 		if (arc_read(NULL, spa, bp, arc_getbuf_func, &abuf,
-		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL,
-		    &aflags, zb) != 0)
+		    ZIO_PRIORITY_ASYNC_READ, zio_flags, &aflags, zb) != 0)
 			return (SET_ERROR(EIO));
 
 		blk = abuf->b_data;
@@ -206,8 +209,17 @@ dmu_diff(const char *tosnap_name, const char *fromsnap_name,
 	da.da_ddr.ddr_first = da.da_ddr.ddr_last = 0;
 	da.da_err = 0;
 
+	/*
+	 * Since zfs diff only looks at dnodes which are stored in plaintext
+	 * (other than bonus buffers), we don't technically need to decrypt
+	 * the dataset to perform this operation. However, the command line
+	 * utility will still fail if the keys are not loaded because the
+	 * dataset isn't mounted and because it will fail when it attempts to
+	 * call the ZFS_IOC_OBJ_TO_STATS ioctl.
+	 */
 	error = traverse_dataset(tosnap, fromtxg,
-	    TRAVERSE_PRE | TRAVERSE_PREFETCH_METADATA, diff_cb, &da);
+	    TRAVERSE_PRE | TRAVERSE_PREFETCH_METADATA | TRAVERSE_NO_DECRYPT,
+	    diff_cb, &da);
 
 	if (error != 0) {
 		da.da_err = error;

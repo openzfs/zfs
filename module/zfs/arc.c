@@ -2132,8 +2132,10 @@ arc_buf_fill(arc_buf_t *buf, spa_t *spa, uint64_t dsobj, arc_fill_flags_t flags)
 	if (HDR_PROTECTED(hdr)) {
 		error = arc_fill_hdr_crypt(hdr, hash_lock, spa,
 		    dsobj, !!(flags & ARC_FILL_NOAUTH));
-		if (error != 0)
+		if (error != 0) {
+			arc_hdr_set_flags(hdr, ARC_FLAG_IO_ERROR);
 			return (error);
+		}
 	}
 
 	/*
@@ -2234,6 +2236,7 @@ arc_buf_fill(arc_buf_t *buf, spa_t *spa, uint64_t dsobj, arc_fill_flags_t flags)
 				    "hdr %p, compress %d, psize %d, lsize %d",
 				    hdr, arc_hdr_get_compress(hdr),
 				    HDR_GET_PSIZE(hdr), HDR_GET_LSIZE(hdr));
+				arc_hdr_set_flags(hdr, ARC_FLAG_IO_ERROR);
 				return (SET_ERROR(EIO));
 			}
 		}
@@ -5815,7 +5818,9 @@ arc_read_done(zio_t *zio)
 		    acb->acb_compressed, acb->acb_noauth, B_TRUE,
 		    &acb->acb_buf);
 		if (error != 0) {
-			arc_buf_destroy(acb->acb_buf, acb->acb_private);
+			(void) remove_reference(hdr, hash_lock,
+			    acb->acb_private);
+			arc_buf_destroy_impl(acb->acb_buf);
 			acb->acb_buf = NULL;
 		}
 
@@ -6058,7 +6063,9 @@ top:
 				    spa, NULL, zb, NULL, 0, 0);
 			}
 			if (rc != 0) {
-				arc_buf_destroy(buf, private);
+				(void) remove_reference(hdr, hash_lock,
+				    private);
+				arc_buf_destroy_impl(buf);
 				buf = NULL;
 			}
 
