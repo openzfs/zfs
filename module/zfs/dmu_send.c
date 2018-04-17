@@ -2606,9 +2606,10 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 	    drro->drr_bonustype != doi.doi_bonus_type ||
 	    drro->drr_bonuslen != doi.doi_bonus_size) {
 		/* currently allocated, but with different properties */
-		err = dmu_object_reclaim(rwa->os, drro->drr_object,
+		err = dmu_object_reclaim_dnsize(rwa->os, drro->drr_object,
 		    drro->drr_type, drro->drr_blksz,
-		    drro->drr_bonustype, drro->drr_bonuslen, tx);
+		    drro->drr_bonustype, drro->drr_bonuslen,
+		    drro->drr_dn_slots << DNODE_SHIFT, tx);
 	}
 	if (err != 0) {
 		dmu_tx_commit(tx);
