@@ -147,7 +147,16 @@ typedef struct dbuf_dirty_record {
 			override_states_t dr_override_state;
 			uint8_t dr_copies;
 			boolean_t dr_nopwrite;
-			boolean_t dr_raw;
+			boolean_t dr_has_raw_params;
+
+			/*
+			 * If dr_has_raw_params is set, the following crypt
+			 * params will be set on the BP that's written.
+			 */
+			boolean_t dr_byteorder;
+			uint8_t	dr_salt[ZIO_DATA_SALT_LEN];
+			uint8_t	dr_iv[ZIO_DATA_IV_LEN];
+			uint8_t	dr_mac[ZIO_DATA_MAC_LEN];
 		} dl;
 	} dt;
 } dbuf_dirty_record_t;
