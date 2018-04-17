@@ -1,4 +1,4 @@
-# Contributing to ZFS on Linux
+# Contributing to ZFS on Linux 
 <p align="center"><img src="http://zfsonlinux.org/images/zfs-linux.png"/></p>
 
 *First of all, thank you for taking the time to contribute!*
