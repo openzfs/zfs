@@ -422,6 +422,7 @@ dump_spill(dmu_sendarg_t *dsp, const blkptr_t *bp, uint64_t object, void *data)
 {
 	struct drr_spill *drrs = &(dsp->dsa_drr->drr_u.drr_spill);
 	uint64_t blksz = BP_GET_LSIZE(bp);
+	uint64_t payload_size = blksz;
 
 	if (dsp->dsa_pending_op != PENDING_NONE) {
 		if (dump_record(dsp, NULL, 0) != 0)
@@ -446,9 +447,10 @@ dump_spill(dmu_sendarg_t *dsp, const blkptr_t *bp, uint64_t object, void *data)
 		drrs->drr_compressed_size = BP_GET_PSIZE(bp);
 		zio_crypt_decode_params_bp(bp, drrs->drr_salt, drrs->drr_iv);
 		zio_crypt_decode_mac_bp(bp, drrs->drr_mac);
+		payload_size = drrs->drr_compressed_size;
 	}
 
-	if (dump_record(dsp, data, blksz) != 0)
+	if (dump_record(dsp, data, payload_size) != 0)
 		return (SET_ERROR(EINTR));
 	return (0);
 }
@@ -3395,7 +3397,7 @@ receive_read_record(struct receive_arg *ra)
 			    ra->byteswap;
 
 			abuf = arc_loan_raw_buf(dmu_objset_spa(ra->os),
-			    drrs->drr_object, byteorder, drrs->drr_salt,
+			    dmu_objset_id(ra->os), byteorder, drrs->drr_salt,
 			    drrs->drr_iv, drrs->drr_mac, drrs->drr_type,
 			    drrs->drr_compressed_size, drrs->drr_length,
 			    drrs->drr_compressiontype);
