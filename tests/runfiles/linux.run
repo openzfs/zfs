@@ -203,6 +203,10 @@ tests = ['zfs_receive_001_pos', 'zfs_receive_002_pos', 'zfs_receive_003_pos',
     'zfs_receive_raw_incremental']
 tags = ['functional', 'cli_root', 'zfs_receive']
 
+[tests/functional/cli_root/zfs_remap]
+tests = ['zfs_remap_cliargs', 'zfs_remap_obsolete_counts']
+tags = ['functional', 'cli_root', 'zfs_remap']
+
 # zfs_rename_006_pos - https://github.com/zfsonlinux/zfs/issues/5647
 # zfs_rename_009_neg - https://github.com/zfsonlinux/zfs/issues/5648
 [tests/functional/cli_root/zfs_rename]
