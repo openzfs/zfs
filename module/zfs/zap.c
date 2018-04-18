@@ -853,8 +853,16 @@ retry:
 	} else if (err == EAGAIN) {
 		err = zap_expand_leaf(zn, l, tag, tx, &l);
 		zap = zn->zn_zap;	/* zap_expand_leaf() may change zap */
-		if (err == 0)
+		if (err == 0) {
 			goto retry;
+		} else if (err == ENOSPC) {
+			/*
+			 * If we failed to expand the leaf, then bailout
+			 * as there is no point trying
+			 * zap_put_leaf_maybe_grow_ptrtbl().
+			 */
+			return (err);
+		}
 	}
 
 out:
