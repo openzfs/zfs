@@ -24,6 +24,9 @@ SUBDIRS = \
 	fault \
 	features \
 	grow \
+	grow_pool \
+	grow_replicas \
+	fiemap \
 	history \
 	hkdf \
 	inheritance \

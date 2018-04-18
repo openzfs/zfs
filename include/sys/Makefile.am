@@ -42,6 +42,7 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/dsl_userhold.h \
 	$(top_srcdir)/include/sys/edonr.h \
 	$(top_srcdir)/include/sys/efi_partition.h \
+	$(top_srcdir)/include/sys/fiemap.h \
 	$(top_srcdir)/include/sys/frame.h \
 	$(top_srcdir)/include/sys/hkdf.h \
 	$(top_srcdir)/include/sys/metaslab.h \

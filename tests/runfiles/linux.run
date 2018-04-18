@@ -78,6 +78,7 @@ tags = ['functional', 'events']
 tests = ['auto_spare_ashift', 'scrub_after_resilver', 'zpool_status_-s']
 tags = ['functional', 'fault']
 
+<<<<<<< HEAD
 [tests/functional/features/large_dnode:Linux]
 tests = ['large_dnode_002_pos', 'large_dnode_006_pos', 'large_dnode_008_pos']
 tags = ['functional', 'features', 'large_dnode']
@@ -85,6 +86,11 @@ tags = ['functional', 'features', 'large_dnode']
 [tests/functional/io:Linux]
 tests = ['libaio']
 tags = ['functional', 'io']
+
+[tests/functional/fiemap]
+tests = ['fiemap_sync', 'fiemap_flags', 'fiemap_delalloc', 'fiemap_free',
+    'fiemap_copies', 'fiemap_nomerge', 'fiemap_holes_sanity']
+tags = ['functional', 'fiemap']
 
 [tests/functional/mmap:Linux]
 tests = ['mmap_libaio_001_pos']

@@ -1,0 +1,95 @@
+#
+# CDDL HEADER START
+#
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License (the "License").
+# You may not use this file except in compliance with the License.
+#
+# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+# or http://www.opensolaris.org/os/licensing.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+# If applicable, add the following below this CDDL HEADER, with the
+# fields enclosed by brackets "[]" replaced with your own identifying
+# information: Portions Copyright [yyyy] [name of copyright owner]
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright (c) 2018 by Lawrence Livermore National Security, LLC.
+# Use is subject to license terms.
+#
+
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/fiemap/fiemap.cfg
+
+function fiemap_cleanup
+{
+	fiemap_remove
+}
+
+function fiemap_write # blocksize count seek file
+{
+	typeset bs=$1
+	typeset count=${2:-1}
+	typeset seek=${3:-0}
+	typeset fname=${4:-$FIEMAP_FILE}
+
+	log_must dd if=/dev/urandom of=$fname \
+	    bs=$bs count=$count seek=$seek conv=notrunc
+}
+
+# Half fill the blocks to produce a compressible file.
+function fiemap_write_compressible # blocksize count seek file
+{
+	typeset bs=$1
+	typeset count=${2:-1}
+	typeset seek=${3:-0}
+	typeset fname=${4:-$FIEMAP_FILE}
+
+	for (( j = 1; j < $((count * 2)); j += 2 )); do
+		fiemap_write $((bs / 2)) 1 $((seek * 2 + j)) $fname
+	done
+}
+
+function fiemap_hole # blocksize count seek
+{
+	typeset bs=$1
+	typeset count=${2:-1}
+	typeset seek=${3:-0}
+	typeset fname=${4:-$FIEMAP_FILE}
+
+	log_must dd if=/dev/zero of=$fname \
+	    bs=$bs count=$count seek=$seek conv=notrunc
+}
+
+function fiemap_free # blocksize count seek
+{
+	typeset bs=$1
+	typeset count=${2:-1}
+	typeset seek=${3:-0}
+	typeset fname=${4:-$FIEMAP_FILE}
+
+	log_must fallocate -p -n -l $((bs * count)) -o $((bs * seek)) $fname
+}
+
+function fiemap_remove # file
+{
+	typeset fname=${1:-$FIEMAP_FILE}
+
+	rm -f $fname
+}
+
+function fiemap_verify # options
+{
+	if ! fiemap $@ $FIEMAP_FILE 2>/dev/null 2>&1; then
+		zdb -vvvvv -O $TESTPOOL/$TESTFS $(basename $FIEMAP_FILE)
+		log_must fiemap -v $@ $FIEMAP_FILE
+	else
+		log_must fiemap -v $@ $FIEMAP_FILE
+	fi
+}

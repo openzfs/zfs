@@ -30,6 +30,7 @@
 #include <sys/uio.h>
 #include <sys/cred.h>
 #include <sys/fcntl.h>
+#include <sys/fiemap.h>
 #include <sys/pathname.h>
 #include <sys/zpl.h>
 
@@ -81,6 +82,12 @@ extern int zfs_dirty_inode(struct inode *ip, int flags);
 extern int zfs_map(struct inode *ip, offset_t off, caddr_t *addrp,
     size_t len, unsigned long vm_flags);
 extern void zfs_iput_async(struct inode *ip);
+int zfs_fiemap_assemble(struct inode *ip, zfs_fiemap_t *fm);
+int zfs_fiemap_fill(zfs_fiemap_t *fm, struct fiemap_extent_info *fei,
+    uint64_t start, uint64_t len);
+zfs_fiemap_t *zfs_fiemap_create(uint64_t start, uint64_t len,
+    uint64_t flags, uint64_t extents_max);
+void zfs_fiemap_destroy(zfs_fiemap_t *fm);
 
 #ifdef	__cplusplus
 }

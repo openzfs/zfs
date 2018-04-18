@@ -190,15 +190,18 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/cmd/chg_usr_exec/Makefile
 	tests/zfs-tests/cmd/devname2devid/Makefile
 	tests/zfs-tests/cmd/dir_rd_update/Makefile
+	tests/zfs-tests/cmd/fiemap/Makefile
 	tests/zfs-tests/cmd/file_check/Makefile
 	tests/zfs-tests/cmd/file_trunc/Makefile
 	tests/zfs-tests/cmd/file_write/Makefile
 	tests/zfs-tests/cmd/get_diff/Makefile
+	tests/zfs-tests/cmd/getholes/Makefile
 	tests/zfs-tests/cmd/largest_file/Makefile
 	tests/zfs-tests/cmd/libzfs_input_check/Makefile
 	tests/zfs-tests/cmd/mkbusy/Makefile
 	tests/zfs-tests/cmd/mkfile/Makefile
 	tests/zfs-tests/cmd/mkfiles/Makefile
+	tests/zfs-tests/cmd/mkholes/Makefile
 	tests/zfs-tests/cmd/mktree/Makefile
 	tests/zfs-tests/cmd/mmap_exec/Makefile
 	tests/zfs-tests/cmd/mmap_libaio/Makefile
@@ -311,7 +314,14 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/features/Makefile
 	tests/zfs-tests/tests/functional/features/async_destroy/Makefile
 	tests/zfs-tests/tests/functional/features/large_dnode/Makefile
+<<<<<<< HEAD
 	tests/zfs-tests/tests/functional/grow/Makefile
+=======
+	tests/zfs-tests/tests/functional/features/Makefile
+	tests/zfs-tests/tests/functional/fiemap/Makefile
+	tests/zfs-tests/tests/functional/grow_pool/Makefile
+	tests/zfs-tests/tests/functional/grow_replicas/Makefile
+>>>>>>> Add FIEMAP support
 	tests/zfs-tests/tests/functional/history/Makefile
 	tests/zfs-tests/tests/functional/hkdf/Makefile
 	tests/zfs-tests/tests/functional/inheritance/Makefile
