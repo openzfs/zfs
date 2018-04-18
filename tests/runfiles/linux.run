@@ -538,9 +538,14 @@ tags = ['functional', 'features', 'async_destroy']
 
 [tests/functional/features/large_dnode]
 tests = ['large_dnode_001_pos', 'large_dnode_002_pos', 'large_dnode_003_pos',
-         'large_dnode_004_neg', 'large_dnode_005_pos', 'large_dnode_006_pos',
-         'large_dnode_007_neg', 'large_dnode_008_pos', 'large_dnode_009_pos']
+    'large_dnode_004_neg', 'large_dnode_005_pos', 'large_dnode_006_pos',
+    'large_dnode_007_neg', 'large_dnode_008_pos', 'large_dnode_009_pos']
 tags = ['functional', 'features', 'large_dnode']
+
+[tests/functional/fiemap]
+tests = ['fiemap_sync', 'fiemap_flags', 'fiemap_delalloc', 'fiemap_free',
+    'fiemap_copies', 'fiemap_nomerge', 'fiemap_holes_sanity']
+tags = ['functional', 'fiemap']
 
 [tests/functional/grow_pool]
 tests = ['grow_pool_001_pos']

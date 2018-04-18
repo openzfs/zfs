@@ -22,6 +22,7 @@ SUBDIRS = \
 	exec \
 	fault \
 	features \
+	fiemap \
 	grow_pool \
 	grow_replicas \
 	history \
