@@ -2826,7 +2826,7 @@ metaslab_trace_fini(zio_alloc_list_t *zal)
 }
 #else
 
-#define	metaslab_trace_add(zal, mg, msp, psize, id, off)
+#define	metaslab_trace_add(zal, mg, msp, psize, id, off, alloc)
 
 void
 metaslab_alloc_trace_init(void)
