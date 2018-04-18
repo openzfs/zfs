@@ -46,9 +46,14 @@ struct zap_stats;
  * block size (1<<l->l_bs) - hash entry size (2) * number of hash
  * entries - header space (2*chunksize)
  */
-#define	ZAP_LEAF_NUMCHUNKS(l) \
-	(((1<<(l)->l_bs) - 2*ZAP_LEAF_HASH_NUMENTRIES(l)) / \
+#define	ZAP_LEAF_NUMCHUNKS_BS(bs) \
+	(((1<<(bs)) - 2*ZAP_LEAF_HASH_NUMENTRIES_BS(bs)) / \
 	ZAP_LEAF_CHUNKSIZE - 2)
+
+#define	ZAP_LEAF_NUMCHUNKS(l) (ZAP_LEAF_NUMCHUNKS_BS(((l)->l_bs)))
+
+#define	ZAP_LEAF_NUMCHUNKS_DEF \
+	(ZAP_LEAF_NUMCHUNKS_BS(fzap_default_block_shift))
 
 /*
  * The amount of space within the chunk available for the array is:
@@ -74,8 +79,10 @@ struct zap_stats;
  * which is less than block size / CHUNKSIZE (24) / minimum number of
  * chunks per entry (3).
  */
-#define	ZAP_LEAF_HASH_SHIFT(l) ((l)->l_bs - 5)
-#define	ZAP_LEAF_HASH_NUMENTRIES(l) (1 << ZAP_LEAF_HASH_SHIFT(l))
+#define	ZAP_LEAF_HASH_SHIFT_BS(bs) ((bs) - 5)
+#define	ZAP_LEAF_HASH_NUMENTRIES_BS(bs) (1 << ZAP_LEAF_HASH_SHIFT_BS(bs))
+#define	ZAP_LEAF_HASH_SHIFT(l) (ZAP_LEAF_HASH_SHIFT_BS(((l)->l_bs)))
+#define	ZAP_LEAF_HASH_NUMENTRIES(l) (ZAP_LEAF_HASH_NUMENTRIES_BS(((l)->l_bs)))
 
 /*
  * The chunks start immediately after the hash table.  The end of the
