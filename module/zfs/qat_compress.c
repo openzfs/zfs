@@ -71,9 +71,8 @@ qat_dc_clean(void)
 {
 	Cpa16U buff_num = 0;
 	Cpa16U num_inter_buff_lists = 0;
-	Cpa16U i = 0;
 
-	for (i = 0; i < num_inst; i++) {
+	for (Cpa16U i = 0; i < num_inst; i++) {
 		cpaDcStopInstance(dc_inst_handles[i]);
 		QAT_PHYS_CONTIG_FREE(session_handles[i]);
 		/* free intermediate buffers  */
@@ -111,7 +110,6 @@ qat_dc_init(void)
 	Cpa16U buff_num = 0;
 	Cpa32U buff_meta_size = 0;
 	CpaDcSessionSetupData sd = {0};
-	Cpa16U i;
 
 	status = cpaDcGetNumInstances(&num_inst);
 	if (status != CPA_STATUS_SUCCESS)
@@ -128,7 +126,7 @@ qat_dc_init(void)
 	if (status != CPA_STATUS_SUCCESS)
 		return (-1);
 
-	for (i = 0; i < num_inst; i++) {
+	for (Cpa16U i = 0; i < num_inst; i++) {
 		cpaDcSetAddressTranslation(dc_inst_handles[i],
 		    (void*)virt_to_phys);
 
@@ -286,7 +284,7 @@ qat_compress_impl(qat_compress_dir_t dir, char *src, int src_len,
 	    num_add_buf * sizeof (struct page *)) != CPA_STATUS_SUCCESS)
 		goto fail;
 
-	i = atomic_inc_32_nv(&inst_num) % num_inst;
+	i = (Cpa32U)atomic_inc_32_nv(&inst_num) % num_inst;
 	dc_inst_handle = dc_inst_handles[i];
 	session_handle = session_handles[i];
 
