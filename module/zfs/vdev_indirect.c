@@ -293,8 +293,8 @@ vdev_indirect_map_free(zio_t *zio)
 }
 
 static const zio_vsd_ops_t vdev_indirect_vsd_ops = {
-	vdev_indirect_map_free,
-	zio_vsd_default_cksum_report
+	.vsd_free = vdev_indirect_map_free,
+	.vsd_cksum_report = zio_vsd_default_cksum_report
 };
 
 /*
