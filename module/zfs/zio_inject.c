@@ -123,7 +123,7 @@ freq_triggered(uint32_t frequency)
  * Returns true if the given record matches the I/O in progress.
  */
 static boolean_t
-zio_match_handler(zbookmark_phys_t *zb, uint64_t type,
+zio_match_handler(const zbookmark_phys_t *zb, uint64_t type,
     zinject_record_t *record, int error)
 {
 	/*
@@ -176,6 +176,36 @@ zio_handle_panic_injection(spa_t *spa, char *tag, uint64_t type)
 	}
 
 	rw_exit(&inject_lock);
+}
+
+/*
+ * Inject a decryption failure. Decryption failures can occur in
+ * both the ARC and the ZIO layers.
+ */
+int
+zio_handle_decrypt_injection(spa_t *spa, const zbookmark_phys_t *zb,
+    uint64_t type, int error)
+{
+	int ret = 0;
+	inject_handler_t *handler;
+
+	rw_enter(&inject_lock, RW_READER);
+
+	for (handler = list_head(&inject_handlers); handler != NULL;
+	    handler = list_next(&inject_handlers, handler)) {
+
+		if (spa != handler->zi_spa ||
+		    handler->zi_record.zi_cmd != ZINJECT_DECRYPT_FAULT)
+			continue;
+
+		if (zio_match_handler(zb, type, &handler->zi_record, error)) {
+			ret = error;
+			break;
+		}
+	}
+
+	rw_exit(&inject_lock);
+	return (ret);
 }
 
 /*

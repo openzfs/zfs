@@ -216,8 +216,9 @@ int spa_do_crypt_mac_abd(boolean_t generate, spa_t *spa, uint64_t dsobj,
     abd_t *abd, uint_t datalen, uint8_t *mac);
 int spa_do_crypt_objset_mac_abd(boolean_t generate, spa_t *spa, uint64_t dsobj,
     abd_t *abd, uint_t datalen, boolean_t byteswap);
-int spa_do_crypt_abd(boolean_t encrypt, spa_t *spa, uint64_t dsobj,
-    const blkptr_t *bp, uint64_t txgid, uint_t datalen, abd_t *pabd,
-    abd_t *cabd, uint8_t *iv, uint8_t *mac, uint8_t *salt, boolean_t *no_crypt);
+int spa_do_crypt_abd(boolean_t encrypt, spa_t *spa, const zbookmark_phys_t *zb,
+    dmu_object_type_t ot, boolean_t dedup, boolean_t bswap, uint8_t *salt,
+    uint8_t *iv, uint8_t *mac, uint_t datalen, abd_t *pabd, abd_t *cabd,
+    boolean_t *no_crypt);
 
 #endif

@@ -108,13 +108,14 @@ A vdev specified by path or GUID.
 .BI "\-e" " device_error"
 Specify
 .BR "checksum" " for an ECKSUM error,"
+.BR "decrypt" " for a data decryption error,"
 .BR "corrupt" " to flip a bit in the data after a read,"
 .BR "dtl" " for an ECHILD error,"
 .BR "io" " for an EIO error where reopening the device will succeed, or"
 .BR "nxio" " for an ENXIO error where reopening the device will fail."
 For EIO and ENXIO, the "failed" reads or writes still occur.  The probe simply
 sets the error value reported by the I/O pipeline so it appears the read or
-write failed.
+write failed.  Decryption errors only currently work with file data.
 .TP
 .BI "\-f" " frequency"
 Only inject errors a fraction of the time. Expressed as a real number

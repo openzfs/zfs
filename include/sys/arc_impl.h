@@ -96,7 +96,7 @@ struct arc_callback {
 	boolean_t		acb_encrypted;
 	boolean_t		acb_compressed;
 	boolean_t		acb_noauth;
-	uint64_t		acb_dsobj;
+	zbookmark_phys_t	acb_zb;
 	zio_t			*acb_zio_dummy;
 	zio_t			*acb_zio_head;
 	arc_callback_t		*acb_next;

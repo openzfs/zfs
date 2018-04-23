@@ -391,6 +391,7 @@ typedef enum zinject_type {
 	ZINJECT_IGNORED_WRITES,
 	ZINJECT_PANIC,
 	ZINJECT_DELAY_IO,
+	ZINJECT_DECRYPT_FAULT,
 } zinject_type_t;
 
 typedef struct zfs_share {

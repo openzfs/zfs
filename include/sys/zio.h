@@ -640,6 +640,8 @@ extern int zio_inject_list_next(int *id, char *name, size_t buflen,
     struct zinject_record *record);
 extern int zio_clear_fault(int id);
 extern void zio_handle_panic_injection(spa_t *spa, char *tag, uint64_t type);
+extern int zio_handle_decrypt_injection(spa_t *spa, const zbookmark_phys_t *zb,
+    uint64_t type, int error);
 extern int zio_handle_fault_injection(zio_t *zio, int error);
 extern int zio_handle_device_injection(vdev_t *vd, zio_t *zio, int error);
 extern int zio_handle_device_injections(vdev_t *vd, zio_t *zio, int err1,
