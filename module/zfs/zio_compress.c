@@ -115,11 +115,28 @@ zio_compress_data(enum zio_compress c, abd_t *src, void *dst, size_t s_len)
 	if (c == ZIO_COMPRESS_EMPTY)
 		return (s_len);
 
+	/* No compression algorithms can read from ABDs directly */
+	void *tmp = abd_borrow_buf_copy(src, s_len);
+
+	/* for gzip 6+, use lz4 as a heuristic for compressibility */
+	if (ci->ci_compress == gzip_compress && ci->ci_level >= 6) {
+	    /* lz4 must find some compression */
+            if (s_len) {
+                d_len = s_len - 1;
+            } else {
+                d_len = s_len;
+            }
+            
+	    c_len = lz4_compress_zfs(tmp, dst, s_len, d_len, 0);
+	    if (c_len > d_len) {
+		abd_return_buf(src, tmp, s_len);
+		return (s_len); 
+	    }
+	}
+
 	/* Compress at least 12.5% */
 	d_len = s_len - (s_len >> 3);
 
-	/* No compression algorithms can read from ABDs directly */
-	void *tmp = abd_borrow_buf_copy(src, s_len);
 	c_len = ci->ci_compress(tmp, dst, s_len, d_len, ci->ci_level);
 	abd_return_buf(src, tmp, s_len);
 
