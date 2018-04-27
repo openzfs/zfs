@@ -2364,9 +2364,8 @@ dmu_object_wait_synced(objset_t *os, uint64_t object)
 	int error, i;
 
 	error = dnode_hold(os, object, FTAG, &dn);
-	if (error) {
+	if (error)
 		return (error);
-	}
 
 	for (i = 0; i < TXG_SIZE; i++) {
 		if (list_link_active(&dn->dn_dirty_link[i])) {
@@ -2374,9 +2373,8 @@ dmu_object_wait_synced(objset_t *os, uint64_t object)
 		}
 	}
 	dnode_rele(dn, FTAG);
-	if (i != TXG_SIZE) {
+	if (i != TXG_SIZE)
 		txg_wait_synced(dmu_objset_pool(os), 0);
-	}
 
 	return (0);
 }

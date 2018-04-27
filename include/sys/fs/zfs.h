@@ -1166,10 +1166,11 @@ typedef enum zfs_ioc {
  */
 #define	BLKZNAME		_IOR(0x12, 125, char[ZFS_MAX_DATASET_NAME_LEN])
 
+#define	ZFS_IOCTL_MAGIC 'Z'
 /*
  * zpl ioctl to get number of filled blocks
  */
-#define	ZFS_IOC_COUNT_FILLED	_IOR('f', 100, uint64_t)
+#define	ZFS_IOC_COUNT_FILLED	_IOR(ZFS_IOCTL_MAGIC, 100, uint64_t)
 
 /*
  * Internal SPA load state.  Used by FMA diagnosis engine.

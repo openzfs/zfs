@@ -2181,15 +2181,15 @@ zprop_iter(zprop_func func, void *cb, boolean_t show_all, boolean_t ordered,
 
 /*
  * zfs_get_hole_count retrieves the number of holes (blocks which are
- * zero-filled) in the specified file using the ZFS_IOC_COUNT_FILLED ioctl. It
- * also optionally fetches the block size when bs is non-NULL. With hole count
- * and block size the full space consumed by the holes of a file can be
+ * zero-filled) in the specified file using the ZFS_IOC_COUNT_FILLED ioctl.
+ * It also optionally fetches the block size when bs is non-NULL. With hole
+ * count and block size the full space consumed by the holes of a file can be
  * calculated.
  *
- * On success, zero is returned, the count argument is set to the
- * number of holes, and the bs argument is set to the block size (if it is
- * not NULL). On error, a non-zero errno is returned and the values in count
- * and bs are undefined.
+ * On success, zero is returned, the count argument is set to the number of
+ * unallocated blocks (holes), and the bs argument is set to the block size
+ * (if it is not NULL). On error, a non-zero errno is returned and the values
+ * in count and bs are undefined.
  */
 int
 zfs_get_hole_count(const char *path, uint64_t *count, uint64_t *bs)
@@ -2212,6 +2212,11 @@ zfs_get_hole_count(const char *path, uint64_t *count, uint64_t *bs)
 		err = errno;
 		(void) close(fd);
 		return (err);
+	}
+
+	if (ss.st_blksize == 0) {
+		(void) close(fd);
+		return (EINVAL);
 	}
 
 	*count = (ss.st_size + ss.st_blksize - 1) / ss.st_blksize - fill;

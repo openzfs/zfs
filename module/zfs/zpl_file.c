@@ -893,32 +893,15 @@ static long
 zpl_ioctl_count_filled(struct file *filep, void __user *arg)
 {
 	struct inode *ip = file_inode(filep);
-	znode_t *zp = ITOZ(ip);
-	zfsvfs_t *zfsvfs = ITOZSB(ip);
 	uint64_t ndata;
 	int error;
-	dmu_object_info_t doi;
 
-	ZFS_ENTER(zfsvfs);
-	ZFS_VERIFY_ZP(zp);
-
-	error = -dmu_object_wait_synced(zfsvfs->z_os, zp->z_id);
-	if (error != 0) {
-		ZFS_EXIT(zfsvfs);
-		return (error);
+	error = -zfs_count_filled(ip, &ndata);
+	if (error == 0) {
+		error = copy_to_user(arg, &ndata, sizeof (ndata));
 	}
 
-	error = -dmu_object_info(zfsvfs->z_os, zp->z_id, &doi);
-	if (error != 0) {
-		ZFS_EXIT(zfsvfs);
-		return (error);
-	}
-
-	ndata = doi.doi_fill_count;
-	error = copy_to_user(arg, &ndata, sizeof (ndata));
-	ZFS_EXIT(zfsvfs);
 	return (error);
-
 }
 
 static long

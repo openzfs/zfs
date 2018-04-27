@@ -5078,6 +5078,35 @@ zfs_setsecattr(struct inode *ip, vsecattr_t *vsecp, int flag, cred_t *cr)
 	return (error);
 }
 
+int
+zfs_count_filled(struct inode *ip, uint64_t *fill_count)
+{
+	znode_t		*zp = ITOZ(ip);
+	zfsvfs_t	*zfsvfs = ITOZSB(ip);
+	int error;
+
+	ZFS_ENTER(zfsvfs);
+	ZFS_VERIFY_ZP(zp);
+
+	error = dmu_object_wait_synced(zfsvfs->z_os, zp->z_id);
+	if (error != 0) {
+		ZFS_EXIT(zfsvfs);
+		return (error);
+	}
+
+	dmu_object_info_t doi;
+	error = dmu_object_info(zfsvfs->z_os, zp->z_id, &doi);
+	if (error != 0) {
+		ZFS_EXIT(zfsvfs);
+		return (error);
+	}
+
+	*fill_count = doi.doi_fill_count;
+	ZFS_EXIT(zfsvfs);
+	return (0);
+
+}
+
 #ifdef HAVE_UIO_ZEROCOPY
 /*
  * Tunable, both must be a power of 2.
