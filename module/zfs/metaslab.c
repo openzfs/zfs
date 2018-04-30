@@ -2072,12 +2072,11 @@ metaslab_should_condense(metaslab_t *msp)
 static void
 metaslab_condense(metaslab_t *msp, uint64_t txg, dmu_tx_t *tx)
 {
-	spa_t *spa = msp->ms_group->mg_vd->vdev_spa;
 	range_tree_t *condense_tree;
 	space_map_t *sm = msp->ms_sm;
 
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
-	ASSERT3U(spa_sync_pass(spa), ==, 1);
+	ASSERT3U(spa_sync_pass(msp->ms_group->mg_vd->vdev_spa), ==, 1);
 	ASSERT(msp->ms_loaded);
 
 
