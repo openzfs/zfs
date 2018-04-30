@@ -1284,7 +1284,13 @@ sa_build_index(sa_handle_t *hdl, sa_buf_type_t buftype)
 	/* only check if not old znode */
 	if (IS_SA_BONUSTYPE(bonustype) && sa_hdr_phys->sa_magic != SA_MAGIC &&
 	    sa_hdr_phys->sa_magic != 0) {
-		VERIFY(BSWAP_32(sa_hdr_phys->sa_magic) == SA_MAGIC);
+		if (BSWAP_32(sa_hdr_phys->sa_magic) != SA_MAGIC) {
+			mutex_exit(&sa->sa_lock);
+			zfs_dbgmsg("Buffer Header: %x != SA_MAGIC:%x "
+			    "object=%#llx\n", sa_hdr_phys->sa_magic, SA_MAGIC,
+			    db->db.db_object);
+			return (SET_ERROR(EIO));
+		}
 		sa_byteswap(hdl, buftype);
 	}
 
