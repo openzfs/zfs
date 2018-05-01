@@ -73,7 +73,11 @@ extern uint64_t vdev_draid_max_rebuildable_asize(vdev_t *, uint64_t);
 #define	VDEV_DRAID_MAX_CHILDREN	255
 #define	VDEV_DRAID_U8_MAX	((uint8_t)-1)
 
-#define	VDEV_DRAID_SPARE_PATH_FMT "$"VDEV_TYPE_DRAID"%lu-%lu-s%lu"
+/*
+ * Double '%' characters in the front because it's used as format string in
+ * scanf()/printf() family of functions
+ */
+#define	VDEV_DRAID_SPARE_PATH_FMT "%%"VDEV_TYPE_DRAID"%lu-%lu-s%lu"
 
 #ifdef _KERNEL
 #define	U64FMT "%llu"

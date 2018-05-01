@@ -1108,6 +1108,15 @@ vdev_draid_need_resilver(vdev_t *vd, uint64_t offset, size_t psize)
 	return (vdev_draid_group_degraded(vd, NULL, offset, psize, mirror));
 }
 
+static void
+vdev_draid_skip_io_done(zio_t *zio)
+{
+	/*
+	 * HH: handle skip IO error
+	 * raidz_col_t *rc = zio->io_private;
+	 */
+}
+
 /*
  * Start an IO operation on a dRAID VDev
  *
@@ -1174,7 +1183,7 @@ vdev_draid_io_start(zio_t *zio)
 			zio_nowait(zio_vdev_child_io(zio, NULL, cvd,
 			    rc->rc_offset + rc->rc_size, cfg->dcf_zero_abd,
 			    1ULL << ashift, zio->io_type, zio->io_priority,
-			    0, NULL, NULL)); /* HH: handle skip write error */
+			    0, vdev_draid_skip_io_done, rc));
 		}
 
 		zio_execute(zio);
@@ -1258,7 +1267,7 @@ vdev_draid_io_start(zio_t *zio)
 			zio_nowait(zio_vdev_child_io(zio, NULL, cvd,
 			    rc->rc_offset + rc->rc_size, abd,
 			    1ULL << ashift, ZIO_TYPE_READ,
-			    zio->io_priority, 0, NULL, NULL));
+			    zio->io_priority, 0, vdev_draid_skip_io_done, rc));
 		}
 	}
 

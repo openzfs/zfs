@@ -6198,7 +6198,7 @@ print_scan_status(pool_scan_stat_t *ps)
 		(void) printf(gettext("\t%s repaired, %.2f%% done"),
 		    processed_buf, 100 * fraction_done);
 	} else if (ps->pss_func == POOL_SCAN_REBUILD) {
-		(void) printf(gettext("\t%s rebuilt, %.2f%% done\n"),
+		(void) printf(gettext("\t%s rebuilt, %.2f%% done"),
 		    processed_buf, 100 * fraction_done);
 	}
 

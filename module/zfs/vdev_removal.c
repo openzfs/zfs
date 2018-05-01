@@ -1864,8 +1864,8 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 
 				char *nvstr = fnvlist_lookup_string(nv,
 				    ZPOOL_CONFIG_PATH);
-				spa_history_log_internal(spa, "vdev remove", NULL,
-				    "%s vdev (%s) %s", spa_name(spa),
+				spa_history_log_internal(spa, "vdev remove",
+				    NULL, "%s vdev (%s) %s", spa_name(spa),
 				    VDEV_TYPE_SPARE, nvstr);
 				spa_vdev_remove_aux(spa->spa_spares.sav_config,
 				    ZPOOL_CONFIG_SPARES, spares, nspares, nv);

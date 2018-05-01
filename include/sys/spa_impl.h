@@ -34,6 +34,7 @@
 #include <sys/spa.h>
 #include <sys/vdev.h>
 #include <sys/vdev_removal.h>
+#include <sys/vdev_scan.h>
 #include <sys/metaslab.h>
 #include <sys/dmu.h>
 #include <sys/dsl_pool.h>
@@ -183,8 +184,6 @@ typedef enum spa_all_vdev_zap_action {
 	AVZ_ACTION_REBUILD,	/* Populate the new AVZ, see spa_avz_rebuild */
 	AVZ_ACTION_INITIALIZE
 } spa_avz_action_t;
-
-typedef struct spa_vdev_scan spa_vdev_scan_t;
 
 struct spa {
 	/*

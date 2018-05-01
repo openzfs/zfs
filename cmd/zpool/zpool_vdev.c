@@ -592,7 +592,7 @@ is_spare(nvlist_t *config, const char *path)
  *	/dev/xxx	Complete disk path
  *	/xxx		Full path to file
  *	xxx		Shorthand for <zfs_vdev_paths>/xxx
- *	$draidxxx	dRAID spare, see VDEV_DRAID_SPARE_PATH_FMT
+ *	%draidxxx	dRAID spare, see VDEV_DRAID_SPARE_PATH_FMT
  */
 static nvlist_t *
 make_leaf_vdev(nvlist_t *props, const char *arg, uint64_t is_log)
