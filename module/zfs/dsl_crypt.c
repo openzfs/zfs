@@ -866,7 +866,7 @@ spa_keystore_unload_wkey_impl(spa_t *spa, uint64_t ddobj)
 	found_wkey = avl_find(&spa->spa_keystore.sk_wkeys,
 	    &search_wkey, NULL);
 	if (!found_wkey) {
-		ret = SET_ERROR(ENOENT);
+		ret = SET_ERROR(EACCES);
 		goto error_unlock;
 	} else if (refcount_count(&found_wkey->wk_refcnt) != 0) {
 		ret = SET_ERROR(EBUSY);
@@ -1225,7 +1225,7 @@ spa_keystore_change_key_check(void *arg, dmu_tx_t *tx)
 	if (ret != 0)
 		goto error;
 
-	/* Handle inheritence */
+	/* Handle inheritance */
 	if (dcp->cp_cmd == DCP_CMD_INHERIT ||
 	    dcp->cp_cmd == DCP_CMD_FORCE_INHERIT) {
 		/* no other encryption params should be given */
@@ -1757,7 +1757,7 @@ dmu_objset_create_crypt_check(dsl_dir_t *parentdd, dsl_crypto_params_t *dcp)
 		return (SET_ERROR(EOPNOTSUPP));
 	}
 
-	/* handle inheritence */
+	/* handle inheritance */
 	if (dcp->cp_wkey == NULL) {
 		ASSERT3P(parentdd, !=, NULL);
 

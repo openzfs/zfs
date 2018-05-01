@@ -646,6 +646,12 @@ tests = ['projectid_001_pos', 'projectid_002_pos', 'projectid_003_pos',
     'projecttree_001_pos', 'projecttree_002_pos', 'projecttree_003_neg' ]
 tags = ['functional', 'projectquota']
 
+[tests/functional/pyzfs]
+tests = ['pyzfs_unittest']
+pre =
+post =
+tags = ['functional', 'pyzfs']
+
 [tests/functional/quota]
 tests = ['quota_001_pos', 'quota_002_pos', 'quota_003_pos',
          'quota_004_pos', 'quota_005_pos', 'quota_006_neg']
