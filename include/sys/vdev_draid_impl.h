@@ -28,14 +28,14 @@
 #include <sys/types.h>
 #include <sys/abd.h>
 #include <sys/nvpair.h>
+#include <sys/zio.h>
+#include <sys/vdev_impl.h>
+#include <sys/vdev_raidz_impl.h>
 
 #ifdef  __cplusplus
 extern "C" {
 #endif
 
-typedef struct zio zio_t;
-typedef struct vdev vdev_t;
-typedef struct raidz_map raidz_map_t;
 
 struct vdev_draid_configuration {
 	uint64_t dcf_data;
@@ -88,7 +88,8 @@ extern uint64_t vdev_draid_max_rebuildable_asize(vdev_t *, uint64_t);
 #endif
 #define	draid_console(fmt, ...) printk(KERN_EMERG fmt, ##__VA_ARGS__)
 #else /* _KERNEL */
-#define	U64FMT "%lu"
+#include <inttypes.h>
+#define	U64FMT "%"PRIu64
 #define	draid_print(fmt, ...) printf(fmt, ##__VA_ARGS__)
 #define	draid_console(fmt, ...) fprintf(stderr, fmt, ##__VA_ARGS__)
 #endif
