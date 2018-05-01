@@ -95,6 +95,8 @@ extern "C" {
  */
 #define	ESC_ZFS_RESILVER_START		"resilver_start"
 #define	ESC_ZFS_RESILVER_FINISH		"resilver_finish"
+#define	ESC_ZFS_REBUILD_START		"rebuild_start"
+#define	ESC_ZFS_REBUILD_FINISH		"rebuild_finish"
 #define	ESC_ZFS_VDEV_REMOVE		"vdev_remove"
 #define	ESC_ZFS_VDEV_REMOVE_AUX		"vdev_remove_aux"
 #define	ESC_ZFS_VDEV_REMOVE_DEV		"vdev_remove_dev"

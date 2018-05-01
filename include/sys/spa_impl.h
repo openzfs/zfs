@@ -184,6 +184,8 @@ typedef enum spa_all_vdev_zap_action {
 	AVZ_ACTION_INITIALIZE
 } spa_avz_action_t;
 
+typedef struct spa_vdev_scan spa_vdev_scan_t;
+
 struct spa {
 	/*
 	 * Fields protected by spa_namespace_lock.
@@ -270,6 +272,9 @@ struct spa {
 	spa_condensing_indirect_phys_t	spa_condensing_indirect_phys;
 	spa_condensing_indirect_t	*spa_condensing_indirect;
 	zthr_t		*spa_condense_zthr;	/* zthr doing condense. */
+
+
+	spa_vdev_scan_t *spa_vdev_scan;
 
 	char		*spa_root;		/* alternate root directory */
 	uint64_t	spa_ena;		/* spa-wide ereport ENA */

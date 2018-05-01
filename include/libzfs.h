@@ -420,7 +420,6 @@ extern int zpool_tryimport(libzfs_handle_t *hdl, char *target,
     nvlist_t **configp, importargs_t *args);
 
 /* legacy pool search routines */
-extern nvlist_t *zpool_find_import(libzfs_handle_t *, int, char **);
 extern nvlist_t *zpool_find_import_cached(libzfs_handle_t *, const char *,
     char *, uint64_t);
 
@@ -880,6 +879,11 @@ int zfs_smb_acl_rename(libzfs_handle_t *, char *, char *, char *, char *);
  */
 extern int zpool_enable_datasets(zpool_handle_t *, const char *, int);
 extern int zpool_disable_datasets(zpool_handle_t *, boolean_t);
+
+/*
+ * dRAID import support
+ */
+nvlist_t *draidcfg_read_file(const char *);
 
 /*
  * Support for Linux libudev derived persistent device strings

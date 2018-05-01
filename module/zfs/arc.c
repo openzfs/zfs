@@ -7483,6 +7483,12 @@ arc_target_bytes(void)
 	return (arc_c);
 }
 
+uint64_t
+arc_max_bytes(void)
+{
+	return (arc_c_max);
+}
+
 void
 arc_init(void)
 {
