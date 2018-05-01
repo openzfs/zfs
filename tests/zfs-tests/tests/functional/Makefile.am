@@ -25,6 +25,7 @@ SUBDIRS = \
 	grow_pool \
 	grow_replicas \
 	history \
+	holes \
 	hkdf \
 	inheritance \
 	inuse \

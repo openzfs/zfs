@@ -2351,11 +2351,9 @@ __dmu_object_info_from_dnode(dnode_t *dn, dmu_object_info_t *doi)
 }
 
 /*
- * Give the ZFS object, if it contains any dirty nodes
- * this function flushes all dirty blocks to disk. This
- * ensures the DMU object info is updated. A more efficient
- * future version might just find the TXG with the maximum
- * ID and wait for that to be synced.
+ * If the given object is dirty, flush all dirty blocks to disk. This ensures
+ * the DMU object info is updated. A more efficient future version might just
+ * find the TXG with the maximum ID and wait for that to be synced.
  */
 int
 dmu_object_wait_synced(objset_t *os, uint64_t object)

@@ -8,10 +8,12 @@ SUBDIRS = \
 	file_check \
 	file_trunc \
 	file_write \
+	getholes \
 	largest_file \
 	mkbusy \
 	mkfile \
 	mkfiles \
+	mkholes \
 	mktree \
 	mmap_exec \
 	mmap_libaio \

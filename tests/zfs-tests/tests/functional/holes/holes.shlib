@@ -1,0 +1,39 @@
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+
+#
+# Copyright (c) 2014, 2016 by Delphix. All rights reserved.
+#
+
+# testfile The file to examine.
+# hole_blks The expected number of holes.
+# data_blks The expected number of data blocks.
+function verify_holes_and_data_blocks
+{
+	typeset testfile=$1
+	typeset -i hole_blks=$2
+	typeset -i data_blks=$3
+	typeset -i failures=0
+
+	found_hole_blks=$(getholes -h $testfile)
+	found_data_blks=$(getholes -d $testfile)
+	if [[ $found_hole_blks -ne $hole_blks ]] then;
+		log_note "Found $found_hole_blks, not $hole_blks hole blocks."
+		((failures++))
+	fi
+
+	if [[ $found_data_blks -ne $data_blks ]] then;
+		log_note "Found $found_data_blks, not $data_blks data blocks."
+		((failures++))
+	fi
+
+	[[ $failures -eq 0 ]] || log_fail "Wrong number of data/hole blocks."
+}

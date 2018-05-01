@@ -161,10 +161,12 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/cmd/file_check/Makefile
 	tests/zfs-tests/cmd/file_trunc/Makefile
 	tests/zfs-tests/cmd/file_write/Makefile
+	tests/zfs-tests/cmd/getholes/Makefile
 	tests/zfs-tests/cmd/largest_file/Makefile
 	tests/zfs-tests/cmd/mkbusy/Makefile
 	tests/zfs-tests/cmd/mkfile/Makefile
 	tests/zfs-tests/cmd/mkfiles/Makefile
+	tests/zfs-tests/cmd/mkholes/Makefile
 	tests/zfs-tests/cmd/mktree/Makefile
 	tests/zfs-tests/cmd/mmap_exec/Makefile
 	tests/zfs-tests/cmd/mmap_libaio/Makefile
@@ -269,6 +271,7 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/grow_pool/Makefile
 	tests/zfs-tests/tests/functional/grow_replicas/Makefile
 	tests/zfs-tests/tests/functional/history/Makefile
+	tests/zfs-tests/tests/functional/holes/Makefile
 	tests/zfs-tests/tests/functional/hkdf/Makefile
 	tests/zfs-tests/tests/functional/inheritance/Makefile
 	tests/zfs-tests/tests/functional/inuse/Makefile
