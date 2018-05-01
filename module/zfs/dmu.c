@@ -2469,7 +2469,8 @@ __dmu_object_info_from_dnode(dnode_t *dn, dmu_object_info_t *doi)
  * ID and wait for that to be synced.
  */
 int
-dmu_object_wait_synced(objset_t *os, uint64_t object) {
+dmu_object_wait_synced(objset_t *os, uint64_t object)
+{
 	dnode_t *dn;
 	int error, i;
 

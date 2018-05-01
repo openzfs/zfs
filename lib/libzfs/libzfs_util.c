@@ -2192,7 +2192,8 @@ zprop_iter(zprop_func func, void *cb, boolean_t show_all, boolean_t ordered,
  * and bs are undefined.
  */
 int
-zfs_get_hole_count(const char *path, uint64_t *count, uint64_t *bs) {
+zfs_get_hole_count(const char *path, uint64_t *count, uint64_t *bs)
+{
 	int fd, err;
 	struct stat64 ss;
 	uint64_t fill;
