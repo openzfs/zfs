@@ -116,9 +116,9 @@
  * specified.
  *
  * The '-e' option takes a string describing the errno to simulate.  This must
- * be either 'io' or 'checksum'.  In most cases this will result in the same
- * behavior, but RAID-Z will produce a different set of ereports for this
- * situation.
+ * be one of 'io', 'checksum', or 'decrypt'.  In most cases this will result
+ * in the same behavior, but RAID-Z will produce a different set of ereports
+ * for this situation.
  *
  * The '-a', '-u', and '-m' flags toggle internal flush behavior.  If '-a' is
  * specified, then the ARC cache is flushed appropriately.  If '-u' is
@@ -299,8 +299,8 @@ usage(void)
 	    "\t\tinterpreted depending on the '-t' option.\n"
 	    "\n"
 	    "\t\t-q\tQuiet mode.  Only print out the handler number added.\n"
-	    "\t\t-e\tInject a specific error.  Must be either 'io' or\n"
-	    "\t\t\t'checksum'.  Default is 'io'.\n"
+	    "\t\t-e\tInject a specific error.  Must be one of 'io',\n"
+	    "\t\t\t'checksum', or decrypt.  Default is 'io'.\n"
 	    "\t\t-l\tInject error at a particular block level. Default is "
 	    "0.\n"
 	    "\t\t-m\tAutomatically remount underlying filesystem.\n"
@@ -774,6 +774,8 @@ main(int argc, char **argv)
 				error = EIO;
 			} else if (strcasecmp(optarg, "checksum") == 0) {
 				error = ECKSUM;
+			} else if (strcasecmp(optarg, "decrypt") == 0) {
+				error = EACCES;
 			} else if (strcasecmp(optarg, "nxio") == 0) {
 				error = ENXIO;
 			} else if (strcasecmp(optarg, "dtl") == 0) {
@@ -1130,7 +1132,25 @@ main(int argc, char **argv)
 			return (1);
 		}
 
-		record.zi_cmd = ZINJECT_DATA_FAULT;
+		if (error == EACCES) {
+			if (type != TYPE_DATA) {
+				(void) fprintf(stderr, "decryption errors "
+				    "may only be injected for 'data' types\n");
+				libzfs_fini(g_zfs);
+				return (1);
+			}
+
+			record.zi_cmd = ZINJECT_DECRYPT_FAULT;
+			/*
+			 * Internally, ZFS actually uses ECKSUM for decryption
+			 * errors since EACCES is used to indicate the key was
+			 * not found.
+			 */
+			error = ECKSUM;
+		} else {
+			record.zi_cmd = ZINJECT_DATA_FAULT;
+		}
+
 		if (translate_record(type, argv[0], range, level, &record, pool,
 		    dataset) != 0) {
 			libzfs_fini(g_zfs);
