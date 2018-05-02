@@ -1,4 +1,3 @@
-BUILD_DEPENDS[0]="spl"
 AUTOINSTALL="yes"
 PACKAGE_NAME="zfs"
 PACKAGE_VERSION="#MODULE_VERSION#"
@@ -22,8 +21,6 @@ PRE_BUILD="configure
     esac
   )
   --with-linux-obj=${kernel_source_dir}
-  --with-spl=${source_tree}/spl-${PACKAGE_VERSION}
-  --with-spl-obj=${dkms_tree}/spl/${PACKAGE_VERSION}/${kernelver}/${arch}
   $(
     [[ -r /etc/default/zfs ]] \
     && source /etc/default/zfs \
@@ -40,7 +37,6 @@ PRE_BUILD="configure
       fi
     }
   )
-  --with-spl-timeout=600
 "
 POST_BUILD="cp
   ${dkms_tree}/${PACKAGE_NAME}/${PACKAGE_VERSION}/build/zfs_config.h
@@ -70,6 +66,7 @@ STRIP[3]="${STRIP[0]}"
 STRIP[4]="${STRIP[0]}"
 STRIP[5]="${STRIP[0]}"
 STRIP[6]="${STRIP[0]}"
+STRIP[7]="${STRIP[0]}"
 BUILT_MODULE_NAME[0]="zavl"
 BUILT_MODULE_LOCATION[0]="module/avl/"
 DEST_MODULE_LOCATION[0]="/extra/zfs/zavl"
@@ -79,15 +76,18 @@ DEST_MODULE_LOCATION[1]="/extra/zfs/zcommon"
 BUILT_MODULE_NAME[2]="znvpair"
 BUILT_MODULE_LOCATION[2]="module/nvpair/"
 DEST_MODULE_LOCATION[2]="/extra/zfs/znvpair"
-BUILT_MODULE_NAME[3]="zpios"
-BUILT_MODULE_LOCATION[3]="module/zpios/"
-DEST_MODULE_LOCATION[3]="/extra/zfs/zpios"
-BUILT_MODULE_NAME[4]="zunicode"
-BUILT_MODULE_LOCATION[4]="module/unicode/"
-DEST_MODULE_LOCATION[4]="/extra/zfs/zunicode"
-BUILT_MODULE_NAME[5]="zfs"
-BUILT_MODULE_LOCATION[5]="module/zfs/"
-DEST_MODULE_LOCATION[5]="/extra/zfs/zfs"
-BUILT_MODULE_NAME[6]="icp"
-BUILT_MODULE_LOCATION[6]="module/icp/"
-DEST_MODULE_LOCATION[6]="/extra/zfs/icp"
+BUILT_MODULE_NAME[3]="zunicode"
+BUILT_MODULE_LOCATION[3]="module/unicode/"
+DEST_MODULE_LOCATION[3]="/extra/zfs/zunicode"
+BUILT_MODULE_NAME[4]="zfs"
+BUILT_MODULE_LOCATION[4]="module/zfs/"
+DEST_MODULE_LOCATION[4]="/extra/zfs/zfs"
+BUILT_MODULE_NAME[5]="icp"
+BUILT_MODULE_LOCATION[5]="module/icp/"
+DEST_MODULE_LOCATION[5]="/extra/zfs/icp"
+BUILT_MODULE_NAME[6]="zlua"
+BUILT_MODULE_LOCATION[6]="module/lua/"
+DEST_MODULE_LOCATION[6]="/extra/lua/zlua"
+BUILT_MODULE_NAME[7]="spl"
+BUILT_MODULE_LOCATION[7]="module/spl/"
+DEST_MODULE_LOCATION[7]="/extra/spl/spl"

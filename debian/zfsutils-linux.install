@@ -1,5 +1,4 @@
 ../tree/zfsutils-linux/* /
-lib/systemd/system/zfs-load-module.service
 lib/systemd/system/zfs-mount.service
 lib/systemd/system/zfs-share.service
 lib/systemd/system/zfs-import-scan.service
@@ -7,12 +6,13 @@ lib/systemd/system/zfs-import-cache.service
 lib/systemd/system/zfs.target
 lib/systemd/system/zfs-import.target
 lib/systemd/system-preset/
+usr/lib/systemd/system-generators/zfs-mount-generator
 usr/lib/modules-load.d/ lib/
 lib/udev/
 etc/default/zfs
 etc/zfs/zfs-functions
 etc/zfs/zpool.d/
-usr/lib/zfs-linux/zpool.d/
+usr/lib/*/zfs/zpool.d/
 sbin/fsck.zfs
 sbin/mount.zfs
 sbin/ztest
@@ -20,9 +20,9 @@ sbin/zstreamdump
 sbin/zinject
 sbin/zhack
 sbin/zdb
-sbin/zpios
 sbin/zpool
 sbin/zfs
+usr/bin/arc_summary3.py
 usr/bin/zgenhostid
 usr/sbin/arc_summary
 usr/sbin/arcstat
@@ -37,4 +37,6 @@ usr/share/man/man8/zdb.8
 usr/share/man/man8/vdev_id.8
 usr/share/man/man8/mount.zfs.8
 usr/share/man/man8/fsck.zfs.8
+usr/share/man/man8/zfs-program.8
 usr/share/man/man8/zgenhostid.8
+usr/share/man/man8/zfs-mount-generator.8

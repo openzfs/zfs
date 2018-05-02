@@ -112,11 +112,6 @@ Files: cmd/zinject/zinject.h
 Copyright: 2000, 2002, 2004-2007, 2009, 2010, Oracle and/or its affiliates.
 License: CDDL-1.0
 
-Files: cmd/zpios/*
-Copyright: 2008-2010, Lawrence Livermore National Security, LLC
-  2004, Cluster File Systems, Inc
-License: GPL-2+
-
 Files: cmd/zpool/*
 Copyright: 2005-2010, Sun Microsystems, Inc.
 License: CDDL-1.0
@@ -550,12 +545,6 @@ Copyright: 2011-2014, Delphix.
   2007, 2009, 2010, Sun Microsystems, Inc.
 License: CDDL-1.0
 
-Files: include/zpios-ctl.h
-  include/zpios-internal.h
-Copyright: 2008-2010, Lawrence Livermore National Security, LLC
-  2004, Cluster File Systems, Inc
-License: GPL-2+
-
 Files: lib/*
 Copyright: 2000, 2002, 2004, 2005, 2007, 2009, 2010, Oracle and/or its affiliates.
 License: CDDL-1.0
@@ -799,7 +788,6 @@ Copyright: 2014, Delphix.
 License: CDDL-1.0
 
 Files: man/man1/zhack.1
-       man/man1/zpios.1
        man/man8/mount.zfs.8
        man/man8/zinject.8
 Copyright: 2013, Darik Horn <dajhorn@vanadac.com>
@@ -1181,11 +1169,6 @@ Files: module/zfs/zpl_file.c
 Copyright: 2015, Chunwei Chen.
   2011, Lawrence Livermore National Security, LLC
 License: CDDL-1.0
-
-Files: module/zpios/*
-Copyright: 2008-2010, Lawrence Livermore National Security, LLC
-  2004, Cluster File Systems, Inc
-License: GPL-2+
 
 Files: scripts/*
 Copyright: 2003-2012, Ville Skyttä <ville.skytta@iki.fi>
