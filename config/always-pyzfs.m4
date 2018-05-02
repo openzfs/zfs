@@ -47,7 +47,7 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_PYZFS], [
 		[enable_pyzfs=check])
 
 	AM_PATH_PYTHON([2.7], [], [
-		AS_IF([test ! "x$enable_pyzfs" = xyes], [
+		AS_IF([test "x$enable_pyzfs" = xyes], [
 			AC_MSG_ERROR("python >= 2.7 is not installed")
 		], [test ! "x$enable_pyzfs" = xno], [
 			enable_pyzfs=no
