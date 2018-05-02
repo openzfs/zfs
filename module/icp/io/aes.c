@@ -35,6 +35,7 @@
 #include <sys/modctl.h>
 #define	_AES_IMPL
 #include <aes/aes_impl.h>
+#include <modes/gcm_impl.h>
 
 #define	CRYPTO_PROVIDER_NAME "aes"
 
@@ -204,6 +205,10 @@ int
 aes_mod_init(void)
 {
 	int ret;
+
+	/* find fastest implementations and set any requested implementations */
+	aes_impl_init();
+	gcm_impl_init();
 
 	if ((ret = mod_install(&modlinkage)) != 0)
 		return (ret);

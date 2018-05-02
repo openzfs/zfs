@@ -81,7 +81,7 @@
  */
 
 
-#if defined(lint) || defined(__lint)
+#if defined(lint) || defined(__lint)	/* lint */
 
 #include <sys/types.h>
 
@@ -90,7 +90,7 @@ void
 gcm_mul_pclmulqdq(uint64_t *x_in, uint64_t *y, uint64_t *res) {
 }
 
-#else	/* lint */
+#elif defined(HAVE_PCLMULQDQ)	/* guard by instruction set */
 
 #define _ASM
 #include <sys/asm_linkage.h>

@@ -178,11 +178,10 @@ rijndael_key_setup_dec_intel(uint32_t rk[], const uint32_t cipherKey[],
 }
 
 
-#else	/* lint */
+#elif defined(HAVE_AES)	/* guard by instruction set */
 
 #define _ASM
 #include <sys/asm_linkage.h>
-
 
 /*
  * _key_expansion_128(), * _key_expansion_192a(), _key_expansion_192b(),
