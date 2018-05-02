@@ -1,0 +1,55 @@
+#!/bin/sh 
+#
+# Copyright (C) 2016 Canonical
+#   
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+#
+echo -n "kernel smoke test, create and destroy pool, raidz1: "
+TMP=/tmp
+VDEV0=${TMP}/pool0-$$.img
+VDEV1=${TMP}/pool1-$$.img
+VDEV2=${TMP}/pool2-$$.img
+VDEV3=${TMP}/pool3-$$.img
+VDEV_SZ=128
+POOL=pool-smoke-$$
+
+dd if=/dev/zero of=${VDEV0} bs=1M count=${VDEV_SZ} > /dev/null 2>&1
+dd if=/dev/zero of=${VDEV1} bs=1M count=${VDEV_SZ} > /dev/null 2>&1
+dd if=/dev/zero of=${VDEV2} bs=1M count=${VDEV_SZ} > /dev/null 2>&1
+dd if=/dev/zero of=${VDEV3} bs=1M count=${VDEV_SZ} > /dev/null 2>&1
+
+zpool create ${POOL} raidz ${VDEV0} ${VDEV1} ${VDEV2} ${VDEV3}
+ret=$?
+if [ $ret -ne 0 ]; then
+	echo "FAILED: zpool create failed, exit code=$ret"
+	rm ${VDEV0} ${VDEV1} ${VDEV2} ${VDEV3}
+	exit 1
+fi
+
+zpool destroy ${POOL}
+ret=$?
+if [ $ret -ne 0 ]; then
+	echo "FAILED: zpool destroy failed, exit code=$ret"
+	#
+	# destroy failed, try to clean up, but this
+	# wil probably fail
+	#
+	rm ${VDEV0} ${VDEV1} ${VDEV2} ${VDEV3}
+	exit 1
+fi
+
+rm ${VDEV0} ${VDEV1} ${VDEV2} ${VDEV3}
+echo "PASSED"
+exit 0

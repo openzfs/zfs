@@ -1,0 +1,187 @@
+Source: zfs-linux
+Section: contrib/kernel
+Priority: optional
+Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
+XSBC-Original-Maintainer: Debian ZFS on Linux maintainers <pkg-zfsonlinux-devel@lists.alioth.debian.org>
+Uploaders: Aron Xu <aron@debian.org>,
+           Petter Reinholdtsen <pere@debian.org>,
+           Carlos Alberto Lopez Perez <clopez@igalia.com>
+Build-Depends: dh-autoreconf,
+               autotools-dev,
+               debhelper (>= 10.2),
+               dkms (>> 2.1.1.2-5),
+               libselinux1-dev,
+               libtool,
+               lsb-release,
+               po-debconf,
+               uuid-dev,
+               zlib1g-dev,
+               python3,
+               dh-python,
+               libblkid-dev,
+               libattr1-dev
+Standards-Version: 4.1.2
+Homepage: http://www.zfsonlinux.org/
+Vcs-Git: git://anonscm.debian.org/pkg-zfsonlinux/zfs.git
+Vcs-Browser: http://anonscm.debian.org/gitweb/?p=pkg-zfsonlinux/zfs.git
+
+Package: libnvpair1linux
+Section: contrib/libs
+Architecture: linux-any
+Depends: ${misc:Depends}, ${shlibs:Depends}
+Description: Solaris name-value library for Linux
+ This library provides routines for packing and unpacking nv pairs for
+ transporting data across process boundaries, transporting between
+ kernel and userland, and possibly saving onto disk files.
+
+Package: libuutil1linux
+Section: contrib/libs
+Architecture: linux-any
+Depends: ${misc:Depends}, ${shlibs:Depends}
+Description: Solaris userland utility library for Linux
+ This library provides a variety of glue functions for ZFS on Linux:
+  * libspl: The Solaris Porting Layer userland library, which provides APIs
+    that make it possible to run Solaris user code in a Linux environment
+    with relatively minimal modification.
+  * libavl: The Adelson-Velskii Landis balanced binary tree manipulation
+    library.
+  * libefi: The Extensible Firmware Interface library for GUID disk
+    partitioning.
+  * libshare: NFS, SMB, and iSCSI service integration for ZFS.
+
+Package: libzfslinux-dev
+Section: contrib/libdevel
+Architecture: linux-any
+Depends: libzfs2linux (= ${binary:Version}), libzpool2linux (= ${binary:Version}),
+ libnvpair1linux (= ${binary:Version}), libuutil1linux (= ${binary:Version}),
+ ${misc:Depends}
+Provides: libnvpair-dev, libuutil-dev
+Description: OpenZFS filesystem development files for Linux
+ Header files and static libraries for compiling software against
+ libraries of OpenZFS filesystem.
+ .
+ This package includes the development files of libnvpair1, libuutil1,
+ libzpool2 and libzfs2.
+
+Package: libzfs2linux
+Section: contrib/libs
+Architecture: linux-any
+Depends: ${misc:Depends}, ${shlibs:Depends}
+Description: OpenZFS filesystem library for Linux
+ The Z file system is a pooled filesystem designed for maximum data
+ integrity, supporting data snapshots, multiple copies, and data
+ checksums.
+ .
+ The OpenZFS library provides support for managing OpenZFS filesystems.
+
+Package: libzpool2linux
+Section: contrib/libs
+Architecture: linux-any
+Depends: ${misc:Depends}, ${shlibs:Depends}
+Description: OpenZFS pool library for Linux
+ The Z file system is a pooled filesystem designed for maximum data
+ integrity, supporting data snapshots, multiple copies, and data
+ checksums.
+ .
+ This zpool library provides support for managing zpools.
+
+Package: zfs-dkms
+Architecture: all
+Pre-Depends: spl-dkms (>= ${source:Upstream-Version}), spl-dkms (<<${source:Upstream-Version}.)
+Depends: dkms (>> 2.1.1.2-5), lsb-release, ${misc:Depends}
+Recommends: zfsutils-linux (>= ${binary:Version}), zfs-zed
+Provides: zfs-modules
+Description: OpenZFS filesystem kernel modules for Linux
+ The Z file system is a pooled filesystem designed for maximum data
+ integrity, supporting data snapshots, multiple copies, and data
+ checksums.
+ .
+ This DKMS package includes the SPA, DMU, ZVOL, and ZPL components of
+ OpenZFS.
+
+Package: zfs-initramfs
+Architecture: all
+Depends: initramfs-tools,
+ busybox-initramfs | busybox-static | busybox,
+ zfs-modules | zfs-dkms, zfsutils-linux (>= ${binary:Version}),
+ ${misc:Depends}
+Description: OpenZFS root filesystem capabilities for Linux - initramfs
+ The Z file system is a pooled filesystem designed for maximum data
+ integrity, supporting data snapshots, multiple copies, and data
+ checksums.
+ .
+ This package adds OpenZFS to the system initramfs with a hook
+ for the initramfs-tools infrastructure.
+
+Package: zfs-dracut
+Architecture: all
+Depends: dracut, zfs-modules | zfs-dkms, zfsutils-linux (>= ${binary:Version}), ${misc:Depends}
+Description: OpenZFS root filesystem capabilities for Linux - dracut
+ The Z file system is a pooled filesystem designed for maximum data
+ integrity, supporting data snapshots, multiple copies, and data
+ checksums.
+ .
+ This package adds OpenZFS to the system initramfs with a hook
+ for the dracut infrastructure.
+
+Package: zfsutils-linux
+Section: contrib/admin
+Architecture: linux-any
+Depends: ${misc:Depends}, ${shlibs:Depends}, ${python3:Depends}, python3
+Recommends: lsb-base, zfs-zed
+Breaks: zfs-dkms (>> ${binary:Version}), zfs-dkms (<< ${binary:Version})
+Suggests: nfs-kernel-server, samba-common-bin (>= 3.0.23), zfs-initramfs | zfs-dracut, zfs-modules | zfs-dkms
+Conflicts: zfs, zfs-fuse, zutils
+Provides: zfsutils
+Description: command-line tools to manage OpenZFS filesystems
+ The Z file system is a pooled filesystem designed for maximum data
+ integrity, supporting data snapshots, multiple copies, and data
+ checksums.
+ .
+ This package provides the zfs and zpool commands to create and administer
+ OpenZFS filesystems.
+
+Package: zfs-zed
+Section: contrib/admin
+Architecture: linux-any
+Depends: ${misc:Depends}, ${shlibs:Depends}, zfsutils-linux (>= ${binary:Version})
+Suggests: zfs-modules | zfs-dkms
+Description: OpenZFS Event Daemon
+ The Z file system is a pooled filesystem designed for maximum data
+ integrity, supporting data snapshots, multiple copies, and data
+ checksums.
+ .
+ This package provides the OpenZFS Event Daemon (zed).
+
+Package: zfs-test
+Section: contrib/admin
+Architecture: linux-any
+Depends: ${misc:Depends}, ${shlibs:Depends}, zfs-modules | zfs-dkms, zfsutils-linux (>=${binary:Version}), parted, lsscsi, mdadm, bc, ksh, fio, acl, sudo, sysstat, python
+Breaks: zfsutils-linux (<= 0.6.5.11-1)
+Replaces: zfsutils-linux (<= 0.6.5.11-1)
+Description: OpenZFS test infrastructure an support scripts
+ The Z file system is a pooled filesystem designed for maximum data
+ integrity, supporting data snapshots, multiple copies, and data
+ checksums.
+ .
+ This package provides the OpenZFS test infrastructure for destructively
+ testing and validating a system using OpenZFS. It is entirely optional
+ and should only be installed and used in test environments.
+
+Package: zfs-dbg
+Section: contrib/debug
+Priority: extra
+Architecture: linux-any
+Depends: libnvpair1linux (= ${binary:Version}),
+         libuutil1linux (= ${binary:Version}),
+         libzfs2linux (= ${binary:Version}),
+         libzpool2linux (= ${binary:Version}),
+         zfsutils-linux (= ${binary:Version}), zfs-zed (= ${binary:Version}),
+         ${misc:Depends}
+Description: Debugging symbols for OpenZFS userland libraries and tools
+ The Z file system is a pooled filesystem designed for maximum data
+ integrity, supporting data snapshots, multiple copies, and data
+ checksums.
+ .
+ This package contains the debugging symbols for libzpool2linux, libzfs2linux,
+ libnvpair1linux, libuutil1linux, zfs-zed and zfsutils-linux.

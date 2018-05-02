@@ -1,0 +1,74 @@
+
+Package: libnvpair1-udeb
+Package-Type: udeb
+Section: contrib/debian-installer
+Architecture: linux-any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Solaris name-value library for Linux (debian-installer)
+ This library provides routines for packing and unpacking nv pairs for
+ transporting data across process boundaries, transporting between
+ kernel and userland, and possibly saving onto disk files.
+ .
+ This is a minimal package for use in debian-installer.
+
+Package: libuutil1-udeb
+Package-Type: udeb
+Section: contrib/debian-installer
+Architecture: linux-any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Solaris userland utility library for Linux (debian-installer)
+ This library provides a variety of glue functions for ZFS on Linux:
+  * libspl: The Solaris Porting Layer userland library, which provides APIs
+    that make it possible to run Solaris user code in a Linux environment
+    with relatively minimal modification.
+  * libavl: The Adelson-Velskii Landis balanced binary tree manipulation
+    library.
+  * libefi: The Extensible Firmware Interface library for GUID disk
+    partitioning.
+  * libshare: NFS, SMB, and iSCSI service integration for ZFS.
+ .
+ This is a minimal package for use in debian-installer.
+
+Package: libzfs2-udeb
+Package-Type: udeb
+Section: contrib/debian-installer
+Architecture: linux-any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: OpenZFS library (debian-installer)
+ The Z file system is a pooled filesystem designed for maximum data integrity,
+ supporting data snapshots, multiple copies, and data checksums.
+ .
+ The OpenZFS library provides support for managing OpenZFS filesystems.
+ .
+ This is a minimal package for use in debian-installer.
+
+Package: libzpool2-udeb
+Package-Type: udeb
+Section: contrib/debian-installer
+Architecture: linux-any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: OpenZFS pool library for Linux (debian-installer)
+ The Z file system is a pooled filesystem designed for maximum data
+ integrity, supporting data snapshots, multiple copies, and data
+ checksums.
+ .
+ This zpool library provides support for managing zpools.
+ .
+ This is a minimal package for use in debian-installer.
+
+Package: zfsutils-udeb
+Package-Type: udeb
+Section: contrib/debian-installer
+Architecture: linux-any
+Depends: ${shlibs:Depends}, ${misc:Depends},
+ libuutil1-udeb (= ${binary:Version}), libnvpair1-udeb (= ${binary:Version}),
+ libzfs2-udeb (= ${binary:Version}), libzpool2-udeb (= ${binary:Version}),
+ zfs-modules,
+Description: command-line tools to manage OpenZFS filesystems (debian-installer)
+ The Z file system is a pooled filesystem designed for maximum data
+ integrity, supporting data snapshots, multiple copies, and data checksums.
+ .
+ This package provides the zfs and zpool commands to create and administer
+ OpenZFS filesystems.
+ .
+ This is a minimal package for use in debian-installer.

@@ -1,0 +1,1165 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+
+Files: *
+Copyright: 2000, 2002, 2004-2007, 2009, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: COPYRIGHT
+Copyright: attribution
+License: UNKNOWN
+ Please fill license UNKNOWN from header of COPYRIGHT
+
+Files: cmd/*
+Copyright: 2013, 2014, Delphix.
+  2012, Cyril Plisko.
+  2009, Sun Microsystems, Inc.
+License: CDDL
+
+Files: cmd/arc_summary/*
+Copyright: 2010, Martin Matuska <mm@FreeBSD.org>
+  2010, 2011, Jason J. Hellenthal <jhell@DataIX.net>
+  2008, Ben Rockwood <benr@cuddletech.com>
+License: BSD-2-clause
+
+Files: cmd/arcstat/*
+Copyright: no-info-found
+License: CDDL-1.0 or only
+
+Files: cmd/dbufstat/*
+Copyright: 2013, Lawrence Livermore National Security, LLC
+License: CDDL-1.0 or only
+
+Files: cmd/mount_zfs/*
+Copyright: 2011, Lawrence Livermore National Security, LLC
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: cmd/vdev_id/*
+Copyright: 2011, 2013, Nexenta Systems, Inc.
+  2007, 2009, Sun Microsystems, Inc.
+License: CDDL
+
+Files: cmd/zdb/zdb.c
+Copyright: 2015, Intel Corporation
+  2011, 2014, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: cmd/zed/*
+Copyright: attribution / 2013-2014, Lawrence Livermore National Security, LLC
+License: UNKNOWN
+ Please fill license UNKNOWN from header of cmd/zed/*
+
+Files: cmd/zfs/*
+Copyright: 2013, Nexenta Systems, Inc.
+  2013, Delphix.
+  2012, Pawel Jakub Dawidek <pawel@dawidek.net>
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: cmd/zfs/zfs_iter.h
+Copyright: 2011, 2013, Nexenta Systems, Inc.
+  2007, 2009, Sun Microsystems, Inc.
+License: CDDL
+
+Files: cmd/zfs/zfs_main.c
+Copyright: 2013, Steven Hartland.
+  2013, Nexenta Systems, Inc.
+  2012, Joyent, Inc.
+  2011, 2014, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: cmd/zfs/zfs_util.h
+Copyright: 2000, 2002, 2004, 2005, 2007, 2009, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: cmd/zhack/*
+Copyright: 2013, Steven Hartland.
+  2011, 2012, 2014, Delphix.
+License: CDDL
+
+Files: cmd/zinject/*
+Copyright: 2011-2016, Delphix.
+  2000, 2005-2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: cmd/zinject/zinject.h
+Copyright: 2000, 2002, 2004, 2005, 2007, 2009, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: cmd/zpios/*
+Copyright: 2008-2010, Lawrence Livermore National Security, LLC
+  2004, Cluster File Systems, Inc
+License: GPL-2+
+
+Files: cmd/zpool/*
+Copyright: 2005-2010, Sun Microsystems, Inc.
+License: CDDL
+
+Files: cmd/zpool/zpool_main.c
+Copyright: 2013, Prasad Joshi (sTec).
+  2012, Frederik Wessels.
+  2012, Cyril Plisko.
+  2011, Nexenta Systems, Inc.
+  2011, 2014, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: cmd/zpool/zpool_util.h
+Copyright: 2000, 2002, 2004, 2005, 2007, 2009, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: cmd/zpool/zpool_vdev.c
+Copyright: 2011-2016, Delphix.
+  2000, 2005-2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: cmd/zstreamdump/*
+Copyright: 2013, Delphix.
+  2012, Martin Matuska <martin@matuska.org>
+  2010, Sun Microsystems, Inc.
+License: CDDL
+
+Files: cmd/ztest/*
+Copyright: 2013, Steven Hartland.
+  2011, Nexenta Systems, Inc.
+  2011, 2015, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: cmd/zvol_id/*
+Copyright: 2011, Fajar A. Nugraha.
+License: CDDL
+
+Files: config/*
+Copyright: 1996-2012, Free Software Foundation, Inc.
+License: GPL-2+
+
+Files: config/install-sh
+Copyright: and license / 1994, X Consortium
+License: Expat
+
+Files: configure
+Copyright: 1992-1996, 1998-2010, Free Software
+License: UNKNOWN
+ Please fill license UNKNOWN from header of configure
+
+Files: contrib/*
+Copyright: 2010, 2013, Aneurin Price <aneurin.price@gmail.com>
+License: Expat
+
+Files: debian/*
+Copyright: 2010, 2013, Aneurin Price <aneurin.price@gmail.com>
+License: Expat
+
+Files: debian/rules
+Copyright: OPENSOLARIS.LICENSE README.markdown
+License: UNKNOWN
+ Please fill license UNKNOWN from header of debian/rules
+
+Files: debian/tree/zfsutils-linux/usr/share/bash-completion/*
+Copyright: 2010, 2013, Aneurin Price <aneurin.price@gmail.com>
+License: Expat
+
+Files: include/*
+Copyright: 2000, 2002, 2004, 2005, 2007, 2009, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: include/libuutil_common.h
+  include/zfs_fletcher.h
+  include/zfs_prop.h
+Copyright: 2005-2010, Sun Microsystems, Inc.
+License: CDDL
+
+Files: include/libuutil_impl.h
+Copyright: 1990-2010, Sun Microsystems, Inc.
+License: CDDL-1.0 or only
+
+Files: include/libzfs.h
+Copyright: 2013, Steven Hartland.
+  2013, Nexenta Systems, Inc.
+  2013, Delphix.
+  2012, Joyent, Inc.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: include/libzfs_core.h
+Copyright: 2011-2014, Delphix.
+License: CDDL
+
+Files: include/libzfs_impl.h
+  include/zfs_comutil.h
+Copyright: 2011-2016, Delphix.
+  2000, 2005-2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: include/linux/*
+Copyright: 2008-2011, Lawrence Livermore National Security, LLC
+License: CDDL
+
+Files: include/linux/kmap_compat.h
+Copyright: 2015, Chunwei Chen.
+License: CDDL
+
+Files: include/linux/utsname_compat.h
+Copyright: no-info-found
+License: CDDL
+
+Files: include/linux/vfs_compat.h
+Copyright: 2015, Jörg Thalheim
+  2011, Lawrence Livermore National Security, LLC
+License: CDDL
+
+Files: include/sys/arc.h
+Copyright: 2013, Saso Kiselkov.
+  2011, 2012, 2014, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: include/sys/arc_impl.h
+Copyright: 2013, Saso Kiselkov.
+  2013, Nexenta Systems, Inc.
+  2013, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: include/sys/avl.h
+  include/sys/dmu_tx.h
+  include/sys/metaslab_impl.h
+  include/sys/range_tree.h
+  include/sys/rrwlock.h
+  include/sys/space_map.h
+  include/sys/space_reftree.h
+  include/sys/txg.h
+  include/sys/txg_impl.h
+  include/sys/uberblock.h
+  include/sys/zio_impl.h
+Copyright: 2011-2014, Delphix.
+  2007, 2009, 2010, Sun Microsystems, Inc.
+License: CDDL
+
+Files: include/sys/avl_impl.h
+  include/sys/nvpair_impl.h
+  include/sys/sdt.h
+  include/sys/uuid.h
+  include/sys/vdev_file.h
+Copyright: 1990-2010, Sun Microsystems, Inc.
+License: CDDL-1.0 or only
+
+Files: include/sys/blkptr.h
+  include/sys/dsl_bookmark.h
+  include/sys/multilist.h
+Copyright: 2013, 2014, Delphix.
+License: UNKNOWN
+ Please fill license UNKNOWN from header of include/sys/blkptr.h include/sys/dsl_bookmark.h include/sys/multilist.h
+
+Files: include/sys/bpobj.h
+  include/sys/dmu_traverse.h
+  include/sys/dsl_deleg.h
+  include/sys/dsl_pool.h
+  include/sys/dsl_prop.h
+  include/sys/dsl_scan.h
+  include/sys/dsl_synctask.h
+  include/sys/metaslab.h
+  include/sys/nvpair.h
+  include/sys/vdev.h
+  include/sys/vdev_impl.h
+  include/sys/zap.h
+  include/sys/zfs_debug.h
+  include/sys/zfs_ioctl.h
+  include/sys/zfs_znode.h
+Copyright: 2011-2016, Delphix.
+  2000, 2005-2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: include/sys/bptree.h
+  include/sys/zfeature.h
+Copyright: 2011-2014, Delphix.
+License: CDDL
+
+Files: include/sys/dbuf.h
+Copyright: 2014, Spectra Logic Corporation
+  2013, Saso Kiselkov.
+  2012, 2015, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: include/sys/dmu.h
+Copyright: 2014, Spectra Logic Corporation
+  2014, HybridCluster.
+  2012, Joyent, Inc.
+  2011, Nexenta Systems, Inc.
+  2011, 2014, Delphix.
+  2010, Robert Milkowski
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: include/sys/dmu_impl.h
+Copyright: 2013, Delphix.
+  2012, Joyent, Inc.
+  2010, Sun Microsystems, Inc.
+License: CDDL
+
+Files: include/sys/dmu_objset.h
+Copyright: 2014, Spectra Logic Corporation
+  2013, Saso Kiselkov.
+  2012, 2014, Delphix.
+  2010, Robert Milkowski
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: include/sys/dmu_send.h
+Copyright: 2013, Joyent, Inc.
+  2012, 2014, Delphix.
+  2011, Nexenta Systems, Inc.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: include/sys/dmu_zfetch.h
+  include/sys/spa_boot.h
+  include/sys/u8_textprep.h
+  include/sys/unique.h
+  include/sys/zfs_dir.h
+  include/sys/zfs_fuid.h
+  include/sys/zfs_rlock.h
+  include/sys/zfs_sa.h
+  include/sys/zio_compress.h
+Copyright: 2005-2010, Sun Microsystems, Inc.
+License: CDDL
+
+Files: include/sys/dnode.h
+  include/sys/sa_impl.h
+Copyright: 2014, Spectra Logic Corporation
+  2011-2015, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: include/sys/dsl_dataset.h
+Copyright: 2014, Spectra Logic Corporation
+  2013, Steven Hartland.
+  2013, Joyent, Inc.
+  2013, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: include/sys/dsl_destroy.h
+Copyright: 2013, Delphix.
+  2012, Joyent, Inc.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: include/sys/dsl_dir.h
+Copyright: 2014, Spectra Logic Corporation
+  2014, Joyent, Inc.
+  2013, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: include/sys/dsl_userhold.h
+Copyright: 2013, Steven Hartland.
+  2012, Joyent, Inc.
+  2012, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: include/sys/fm/fs/*
+Copyright: 2005-2010, Sun Microsystems, Inc.
+License: CDDL
+
+Files: include/sys/fs/*
+Copyright: 2013, Joyent, Inc.
+  2011, Nexenta Systems, Inc.
+  2011, 2014, Delphix.
+  2010, Robert Milkowski
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: include/sys/mntent.h
+Copyright: 2008, 2009, Sun Microsystems, Inc.
+  1984, 1986-1989, AT&T
+License: CDDL
+
+Files: include/sys/spa.h
+Copyright: 2014, Spectra Logic Corporation
+  2011, Nexenta Systems, Inc.
+  2011, 2014, 2015, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: include/sys/spa_impl.h
+Copyright: 2016, Actifio, Inc.
+  2014, Spectra Logic Corporation
+  2011, Nexenta Systems, Inc.
+  2011, 2015, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: include/sys/trace.h
+  include/sys/trace_acl.h
+  include/sys/trace_arc.h
+  include/sys/trace_dbgmsg.h
+  include/sys/trace_dbuf.h
+  include/sys/trace_dmu.h
+  include/sys/trace_dnode.h
+  include/sys/trace_multilist.h
+  include/sys/trace_txg.h
+  include/sys/trace_zil.h
+  include/sys/trace_zrlock.h
+  include/sys/zfs_delay.h
+Copyright: no-info-found
+License: CDDL
+
+Files: include/sys/u8_textprep_data.h
+Copyright: 2007, Sun Microsystems, Inc.
+  1991-2006, Unicode, Inc. Distributed under
+License: CDDL
+
+Files: include/sys/uio_impl.h
+Copyright: 2007, 2009, 2010, Sun Microsystems, Inc.
+  1983-1989, AT&T
+  1982, 1986, 1988, The Regents of the University of California
+License: CDDL
+
+Files: include/sys/vdev_disk.h
+  include/sys/zpl.h
+Copyright: 2008-2011, Lawrence Livermore National Security, LLC
+License: CDDL
+
+Files: include/sys/xvattr.h
+Copyright: 1988, 2010, Oracle and/or its affiliates.
+  1983-1989, AT&T
+  1982, 1986, 1988, The Regents of the University of California
+License: CDDL
+
+Files: include/sys/zap_impl.h
+  include/sys/zap_leaf.h
+Copyright: 2014, Spectra Logic Corporation
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: include/sys/zfs_context.h
+Copyright: 2012, Joyent, Inc.
+  2012, 2014, Delphix.
+  2011, Nexenta Systems, Inc.
+  2009, Sun Microsystems, Inc.
+License: CDDL
+
+Files: include/sys/zfs_ctldir.h
+Copyright: 2011, Lawrence Livermore National Security, LLC
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: include/sys/zil.h
+  include/sys/zil_impl.h
+Copyright: 2011-2014, Delphix.
+  2010, Robert Milkowski
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: include/sys/zio.h
+Copyright: 2013, Saso Kiselkov.
+  2012, 2014, Delphix.
+  2011, Nexenta Systems, Inc.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: include/sys/zvol.h
+Copyright: 2016, Actifio, Inc.
+  2005, 2006, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: include/zfeature_common.h
+Copyright: 2013, Saso Kiselkov.
+  2013, Delphix.
+License: CDDL
+
+Files: include/zfs_deleg.h
+Copyright: 2012-2015, Delphix.
+  2010, 2011, Nexenta Systems, Inc.
+  2005, 2007, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: include/zfs_namecheck.h
+Copyright: 2011-2014, Delphix.
+  2007, 2009, 2010, Sun Microsystems, Inc.
+License: CDDL
+
+Files: include/zpios-ctl.h
+  include/zpios-internal.h
+Copyright: 2008-2010, Lawrence Livermore National Security, LLC
+  2004, Cluster File Systems, Inc
+License: GPL-2+
+
+Files: lib/*
+Copyright: 2000, 2002, 2004, 2005, 2007, 2009, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: lib/libnvpair/*
+Copyright: 2011-2016, Delphix.
+  2000, 2005-2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: lib/libnvpair/nvpair_alloc_system.c
+Copyright: 1990-2010, Sun Microsystems, Inc.
+License: CDDL-1.0 or only
+
+Files: lib/libshare/*
+Copyright: 2011, Gunnar Beutner
+  2002, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: lib/libshare/nfs.c
+Copyright: 2012, Cyril Plisko.
+  2011, Gunnar Beutner
+  2002, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: lib/libshare/smb.c
+Copyright: 2011, 2012, Turbo Fredriksson <turbo@bayour.com>, based on nfs.c
+  2002, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: lib/libshare/smb.h
+Copyright: 2011, Turbo Fredriksson <turbo@bayour.com>
+License: CDDL
+
+Files: lib/libspl/*
+Copyright: 2005-2010, Sun Microsystems, Inc.
+License: CDDL
+
+Files: lib/libspl/asm-generic/*
+Copyright: 1990-2010, Sun Microsystems, Inc.
+License: CDDL-1.0 or only
+
+Files: lib/libspl/getexecname.c
+Copyright: 1990-2010, Sun Microsystems, Inc.
+License: CDDL-1.0 or only
+
+Files: lib/libspl/getmntany.c
+Copyright: 2006, Ricardo Correia.
+  2005, Sun Microsystems, Inc.
+  1988, AT&T
+License: CDDL-1.0 or only
+
+Files: lib/libspl/include/*
+Copyright: 1990-2010, Sun Microsystems, Inc.
+License: CDDL-1.0 or only
+
+Files: lib/libspl/include/atomic.h
+  lib/libspl/include/libshare.h
+  lib/libspl/include/statcommon.h
+  lib/libspl/include/zone.h
+Copyright: 2005-2010, Sun Microsystems, Inc.
+License: CDDL
+
+Files: lib/libspl/include/attr.h
+  lib/libspl/include/stropts.h
+Copyright: no-info-found
+License: CDDL
+
+Files: lib/libspl/include/note.h
+Copyright: 1994, 2008, Sun Microsystems, Inc
+License: CDDL-1.0 or only
+
+Files: lib/libspl/include/rpc/*
+Copyright: 2005-2010, Sun Microsystems, Inc.
+License: CDDL
+
+Files: lib/libspl/include/rpc/xdr.h
+Copyright: 2005, Sun Microsystems, Inc.
+  1983-1989, AT&T
+License: CDDL-1.0 or only
+
+Files: lib/libspl/include/synch.h
+Copyright: 2014, Zettabyte Software, LLC.
+  2008, Sun Microsystems, Inc.
+License: CDDL-1.0 or only
+
+Files: lib/libspl/include/sys/acl.h
+  lib/libspl/include/sys/acl_impl.h
+  lib/libspl/include/sys/dkio.h
+  lib/libspl/include/sys/isa_defs.h
+  lib/libspl/include/sys/kmem.h
+  lib/libspl/include/sys/kstat.h
+  lib/libspl/include/sys/list.h
+  lib/libspl/include/sys/stack.h
+  lib/libspl/include/sys/stropts.h
+  lib/libspl/include/sys/types32.h
+  lib/libspl/include/sys/tzfile.h
+Copyright: 2005-2010, Sun Microsystems, Inc.
+License: CDDL
+
+Files: lib/libspl/include/sys/byteorder.h
+Copyright: 2007, 2009, 2010, Sun Microsystems, Inc.
+  1983-1989, AT&T
+  1982, 1986, 1988, The Regents of the University of California
+License: CDDL
+
+Files: lib/libspl/include/sys/dktp/*
+Copyright: 2008, 2009, Sun Microsystems, Inc.
+  1984, 1986-1989, AT&T
+License: CDDL
+
+Files: lib/libspl/include/sys/mnttab.h
+Copyright: 2006, Ricardo Correia
+  2004, Sun Microsystems, Inc.
+  1984, 1986-1989, AT&T
+License: CDDL-1.0 or only
+
+Files: lib/libspl/include/sys/note.h
+  lib/libspl/include/sys/sunddi.h
+Copyright: 1994, 2008, Sun Microsystems, Inc
+License: CDDL-1.0 or only
+
+Files: lib/libspl/include/sys/policy.h
+Copyright: no-info-found
+License: CDDL-1.0 or only
+
+Files: lib/libspl/include/sys/stat.h
+Copyright: 2010, Oracle and/or its affiliates.
+License: CDDL-1.0 or only
+
+Files: lib/libspl/include/sys/sysevent/*
+Copyright: 2011, 2013, Nexenta Systems, Inc.
+  2007, 2009, Sun Microsystems, Inc.
+License: CDDL
+
+Files: lib/libspl/include/sys/uio.h
+Copyright: 2005, Sun Microsystems, Inc.
+  1984, 1986-1989, AT&T
+  1982, 1986, 1988, The Regents of the University of California
+License: CDDL-1.0 or only
+
+Files: lib/libspl/include/sys/vtoc.h
+Copyright: 2008, 2009, Sun Microsystems, Inc.
+  1984, 1986-1989, AT&T
+License: CDDL
+
+Files: lib/libspl/mkdirp.c
+Copyright: 2008, 2009, Sun Microsystems, Inc.
+  1984, 1986-1989, AT&T
+License: CDDL
+
+Files: lib/libspl/strnlen.c
+Copyright: 2008, Sun Microsystems, Inc
+License: CDDL
+
+Files: lib/libspl/xdr.c
+Copyright: 2005, Sun Microsystems, Inc.
+  1983-1989, AT&T
+License: CDDL-1.0 or only
+
+Files: lib/libspl/zone.c
+Copyright: 2006, Ricardo Correia.
+License: CDDL
+
+Files: lib/libuutil/*
+Copyright: 1990-2010, Sun Microsystems, Inc.
+License: CDDL-1.0 or only
+
+Files: lib/libuutil/uu_alloc.c
+  lib/libuutil/uu_misc.c
+  lib/libuutil/uu_string.c
+Copyright: 2000, 2002, 2004, 2005, 2007, 2009, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: lib/libuutil/uu_avl.c
+  lib/libuutil/uu_list.c
+Copyright: 2005-2010, Sun Microsystems, Inc.
+License: CDDL
+
+Files: lib/libzfs/*
+Copyright: 2011, 2014, Nexenta Systems, Inc.
+  2011-2015, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: lib/libzfs/libzfs_changelist.c
+Copyright: 2010, Sun Microsystems, Inc.
+  2007, Ramprakash Jelari
+License: CDDL
+
+Files: lib/libzfs/libzfs_config.c
+Copyright: 2011-2014, Delphix.
+  2007, 2009, 2010, Sun Microsystems, Inc.
+License: CDDL
+
+Files: lib/libzfs/libzfs_dataset.c
+Copyright: 2013, Steven Hartland.
+  2013, Nexenta Systems, Inc.
+  2013, Martin Matuska.
+  2013, Joyent, Inc.
+  2013, Delphix.
+  2012, Pawel Jakub Dawidek <pawel@dawidek.net>
+  2012, DEY Storage Systems, Inc.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: lib/libzfs/libzfs_diff.c
+Copyright: 2015, Nexenta Systems, Inc.
+  2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: lib/libzfs/libzfs_fru.c
+  lib/libzfs/libzfs_graph.c
+Copyright: 2005-2010, Sun Microsystems, Inc.
+License: CDDL
+
+Files: lib/libzfs/libzfs_mount.c
+Copyright: 2000, 2002, 2004, 2005, 2007, 2009, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: lib/libzfs/libzfs_sendrecv.c
+Copyright: 2013, Steven Hartland.
+  2012, Pawel Jakub Dawidek <pawel@dawidek.net>
+  2012, Joyent, Inc.
+  2011, 2014, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: lib/libzfs/libzfs_status.c
+Copyright: 2013, Steven Hartland.
+  2012, 2014, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: lib/libzfs/libzfs_util.c
+Copyright: 2013, Joyent, Inc.
+  2012, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: lib/libzfs_core/*
+Copyright: 2013, Steven Hartland.
+  2011, 2012, 2014, Delphix.
+License: CDDL
+
+Files: lib/libzpool/kernel.c
+Copyright: 2016, Actifio, Inc.
+  2005, 2006, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: lib/libzpool/taskq.c
+Copyright: 2014, Delphix.
+  2012, Garrett DAmore <garrett@damore.org>.
+  2011, Nexenta Systems, Inc.
+  2010, Sun Microsystems, Inc.
+License: CDDL
+
+Files: module/*
+Copyright: 2011-2014, Delphix.
+  2007, 2009, 2010, Sun Microsystems, Inc.
+License: CDDL
+
+Files: module/nvpair/*
+Copyright: 2000, 2002, 2004-2007, 2009, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: module/nvpair/fnvpair.c
+Copyright: 2011-2014, Delphix.
+License: CDDL
+
+Files: module/nvpair/nvpair.c
+Copyright: 2000, 2002, 2004, 2005, 2007, 2009, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: module/nvpair/nvpair_alloc_fixed.c
+Copyright: 2005-2010, Sun Microsystems, Inc.
+License: CDDL
+
+Files: module/nvpair/nvpair_alloc_spl.c
+Copyright: 1990-2010, Sun Microsystems, Inc.
+License: CDDL-1.0 or only
+
+Files: module/unicode/*
+Copyright: 2005-2010, Sun Microsystems, Inc.
+License: CDDL
+
+Files: module/zcommon/zfs_comutil.c
+Copyright: 2011-2016, Delphix.
+  2000, 2005-2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: module/zcommon/zfs_deleg.c
+  module/zcommon/zpool_prop.c
+Copyright: 2012-2015, Delphix.
+  2010, 2011, Nexenta Systems, Inc.
+  2005, 2007, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: module/zcommon/zfs_fletcher.c
+Copyright: 2005-2010, Sun Microsystems, Inc.
+License: CDDL
+
+Files: module/zcommon/zfs_prop.c
+Copyright: 2013, Saso Kiselkov.
+  2011, 2014, Delphix.
+  2010, Robert Milkowski
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: module/zcommon/zfs_uio.c
+Copyright: 2007, 2009, 2010, Sun Microsystems, Inc.
+  1983-1989, AT&T
+  1982, 1986, 1988, The Regents of the University of California
+License: CDDL
+
+Files: module/zfs/*
+Copyright: 2011-2016, Delphix.
+  2000, 2005-2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: module/zfs/arc.c
+Copyright: 2014, Saso Kiselkov.
+  2014, Nexenta Systems, Inc.
+  2012, Joyent, Inc.
+  2011, 2015, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: module/zfs/blkptr.c
+  module/zfs/dsl_bookmark.c
+  module/zfs/multilist.c
+Copyright: 2013, 2014, Delphix.
+License: UNKNOWN
+ Please fill license UNKNOWN from header of module/zfs/blkptr.c module/zfs/dsl_bookmark.c module/zfs/multilist.c
+
+Files: module/zfs/bptree.c
+  module/zfs/zfeature.c
+Copyright: 2011-2014, Delphix.
+License: CDDL
+
+Files: module/zfs/dbuf.c
+Copyright: 2014, Spectra Logic Corporation
+  2013, Saso Kiselkov.
+  2012, 2015, Delphix.
+  2011, Nexenta Systems, Inc.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: module/zfs/dbuf_stats.c
+  module/zfs/spa_stats.c
+  module/zfs/trace.c
+Copyright: no-info-found
+License: CDDL
+
+Files: module/zfs/ddt_zap.c
+  module/zfs/fm.c
+  module/zfs/lzjb.c
+  module/zfs/zfs_fuid.c
+  module/zfs/zfs_log.c
+  module/zfs/zfs_sa.c
+Copyright: 2000, 2002, 2004, 2005, 2007, 2009, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: module/zfs/dmu.c
+Copyright: 2015, Chunwei Chen.
+  2014, Nexenta Systems, Inc.
+  2013, Saso Kiselkov.
+  2011, 2014, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: module/zfs/dmu_object.c
+Copyright: 2014, HybridCluster.
+  2013, 2015, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: module/zfs/dmu_objset.c
+Copyright: 2016, Actifio, Inc.
+  2015, STRATO AG, Inc.
+  2015, Nexenta Systems, Inc.
+  2014, Spectra Logic Corporation
+  2013, Saso Kiselkov.
+  2013, Joyent, Inc.
+  2012, 2014, Delphix.
+  2010, Robert Milkowski
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: module/zfs/dmu_send.c
+Copyright: 2016, Actifio, Inc.
+  2014, Joyent, Inc.
+  2011, Nexenta Systems, Inc.
+  2011, 2014, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: module/zfs/dmu_tx.c
+  module/zfs/spa_config.c
+Copyright: 2012-2015, Delphix.
+  2010, 2011, Nexenta Systems, Inc.
+  2005, 2007, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: module/zfs/dmu_zfetch.c
+  module/zfs/range_tree.c
+  module/zfs/rrwlock.c
+  module/zfs/space_map.c
+  module/zfs/space_reftree.c
+  module/zfs/vdev_cache.c
+  module/zfs/vdev_mirror.c
+  module/zfs/vdev_missing.c
+  module/zfs/vdev_queue.c
+  module/zfs/vdev_root.c
+  module/zfs/zfs_fm.c
+  module/zfs/zfs_rlock.c
+Copyright: 2011-2014, Delphix.
+  2007, 2009, 2010, Sun Microsystems, Inc.
+License: CDDL
+
+Files: module/zfs/dnode.c
+  module/zfs/dnode_sync.c
+  module/zfs/dsl_deadlist.c
+  module/zfs/sa.c
+  module/zfs/zap.c
+  module/zfs/zap_micro.c
+Copyright: 2014, Spectra Logic Corporation
+  2011-2015, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: module/zfs/dsl_dataset.c
+Copyright: 2016, Actifio, Inc.
+  2014, Spectra Logic Corporation
+  2014, RackTop Systems
+  2014, Joyent, Inc.
+  2013, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: module/zfs/dsl_destroy.c
+Copyright: 2016, Actifio, Inc.
+  2013, Steven Hartland.
+  2013, Joyent, Inc.
+  2012, 2014, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: module/zfs/dsl_dir.c
+Copyright: 2016, Actifio, Inc.
+  2014, Spectra Logic Corporation
+  2014, Joyent, Inc.
+  2013, Martin Matuska.
+  2012, 2014, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: module/zfs/dsl_pool.c
+Copyright: 2014, Spectra Logic Corporation
+  2013, Steven Hartland.
+  2011, 2014, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: module/zfs/dsl_prop.c
+Copyright: 2013, Martin Matuska.
+  2012, 2014, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: module/zfs/dsl_userhold.c
+Copyright: 2013, Steven Hartland.
+  2012, 2014, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: module/zfs/gzip.c
+  module/zfs/sha256.c
+  module/zfs/spa_boot.c
+  module/zfs/unique.c
+  module/zfs/zfs_byteswap.c
+  module/zfs/zle.c
+Copyright: 2005-2010, Sun Microsystems, Inc.
+License: CDDL
+
+Files: module/zfs/lz4.c
+Copyright: 2011-2013, Yann Collet
+License: BSD-2-clause
+
+Files: module/zfs/metaslab.c
+Copyright: 2013, Saso Kiselkov.
+  2011, 2012, 2014, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: module/zfs/spa.c
+Copyright: 2016, Actifio, Inc.
+  2014, Spectra Logic Corporation
+  2013, Delphix.
+  2013, 2014, Nexenta Systems, Inc.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: module/zfs/spa_misc.c
+Copyright: 2014, Spectra Logic Corporation
+  2011, Nexenta Systems, Inc.
+  2011, 2014, 2015, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: module/zfs/txg.c
+Copyright: 2012, 2014, Delphix.
+  2011, Martin Matuska
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: module/zfs/vdev.c
+  module/zfs/zio.c
+Copyright: 2011, 2014, Nexenta Systems, Inc.
+  2011-2015, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: module/zfs/vdev_disk.c
+Copyright: 2012, 2014, Delphix.
+  2008-2010, Lawrence Livermore National Security, LLC
+License: CDDL
+
+Files: module/zfs/zfeature_common.c
+Copyright: 2014, Nexenta Systems, Inc.
+  2013, Saso Kiselkov.
+  2013, Delphix.
+License: CDDL
+
+Files: module/zfs/zfs.mod.c
+Copyright: 2011-2015, Delphix.
+  2000, 2005-2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: module/zfs/zfs_ctldir.c
+Copyright: 2013, Delphix.
+  2011, Lawrence Livermore National Security, LLC
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: module/zfs/zfs_ioctl.c
+Copyright: 2016, Actifio, Inc.
+  2013, Steven Hartland.
+  2013, Saso Kiselkov.
+  2012, Pawel Jakub Dawidek <pawel@dawidek.net>
+  2012, 2014, Joyent, Inc.
+  2011, Martin Matuska
+  2011, 2014, Nexenta Systems, Inc.
+  2011, 2014, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: module/zfs/zfs_replay.c
+Copyright: 2013, Delphix.
+  2012, Cyril Plisko.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: module/zfs/zfs_vfsops.c
+  module/zfs/zil.c
+Copyright: 2011-2014, Delphix.
+  2010, Robert Milkowski
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: module/zfs/zfs_vnops.c
+Copyright: 2015, Chunwei Chen.
+  2013, Delphix.
+  2010, Robert Milkowski
+  2007, Jeremy Teo
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: module/zfs/zfs_znode.c
+Copyright: 2013, Delphix.
+  2007, Jeremy Teo
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL
+
+Files: module/zfs/zio_compress.c
+Copyright: 2013, Saso Kiselkov.
+  2013, Delphix.
+  2009, Sun Microsystems, Inc.
+License: CDDL
+
+Files: module/zfs/zpl_ctldir.c
+  module/zfs/zpl_super.c
+  module/zfs/zpl_xattr.c
+  module/zfs/zvol.c
+Copyright: 2008-2011, Lawrence Livermore National Security, LLC
+License: CDDL
+
+Files: module/zfs/zpl_export.c
+Copyright: 2012, Cyril Plisko.
+  2011, Gunnar Beutner
+License: CDDL
+
+Files: module/zfs/zpl_file.c
+  module/zfs/zpl_inode.c
+Copyright: 2015, Chunwei Chen.
+  2011, Lawrence Livermore National Security, LLC
+License: CDDL
+
+Files: module/zpios/*
+Copyright: 2008-2010, Lawrence Livermore National Security, LLC
+  2004, Cluster File Systems, Inc
+License: GPL-2+
+
+Files: scripts/*
+Copyright: 2003-2012, Ville Skyttä <ville.skytta@iki.fi>
+License: Expat
+
+Files: scripts/cstyle.pl
+Copyright: 2005-2010, Sun Microsystems, Inc.
+License: CDDL
+
+Files: scripts/ziltest.sh
+Copyright: 1990-2010, Sun Microsystems, Inc.
+License: CDDL-1.0 or only
+
+License: BSD-2-clause
+ Please fill license BSD-2-clause from header of cmd/arc_summary/*
+
+License: CDDL
+ Please fill license CDDL from header of *
+
+License: CDDL-1.0
+ Please fill license CDDL-1.0 or only from header of cmd/arcstat/*
+
+License: Expat
+ The MIT License
+ .
+ Permission is hereby granted, free of charge, to any person
+ obtaining a copy of this software and associated
+ documentation files (the "Software"), to deal in the Software
+ without restriction, including without limitation the rights to
+ use, copy, modify, merge, publish, distribute, sublicense,
+ and/or sell copies of the Software, and to permit persons to
+ whom the Software is furnished to do so, subject to the
+ following conditions:
+ .
+ The above copyright notice and this permission notice shall
+ be included in all copies or substantial portions of the
+ Software.
+ .
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT
+ WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+ INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ MERCHANTABILITY, FITNESS FOR A PARTICULAR
+ PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+ SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ CONNECTION WITH THE SOFTWARE OR THE USE OR
+ OTHER DEALINGS IN THE SOFTWARE.
+
+License: GPL-2+
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; version 2 dated June, 1991, or (at
+ your option) any later version.
+ .
+ On Debian systems, the complete text of version 2 of the GNU General
+ Public License can be found in '/usr/share/common-licenses/GPL-2'.
+
+License: only
+ Please fill license CDDL-1.0 or only from header of cmd/arcstat/*

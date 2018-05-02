@@ -1,0 +1,95 @@
+# English translations for zfs-linux package.
+# Copyright (C) 2013 THE zfs-linux'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the zfs-linux package.
+# Aron <aron@debian.org>, 2013.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: zfs-linux\n"
+"Report-Msgid-Bugs-To: zfs-linux@packages.debian.org\n"
+"POT-Creation-Date: 2015-11-01 14:11+0800\n"
+"PO-Revision-Date: 2015-11-01 14:25+0800\n"
+"Last-Translator: Aron <aron@debian.org>\n"
+"Language-Team: Chinese (Simplified) <debian-l10n-chinese@lists.debian.org>\n"
+"Language: zh_CN\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:1001
+msgid "Abort building ZFS on a 32-bit kernel?"
+msgstr "中断在32位内核上编译？"
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:1001
+msgid "You are attempting to build ZFS against a 32-bit running kernel."
+msgstr "您正试图在32位内核上编译ZFS支持。"
+
+#. Type: boolean
+#. Description
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:1001 ../zfs-dkms.templates:2001
+msgid ""
+"Although possible, building in a 32-bit environment is unsupported and "
+"likely to cause instability leading to possible data corruption. You are "
+"strongly advised to use a 64-bit kernel; if you do decide to proceed with "
+"using ZFS on this kernel then keep in mind that it is at your own risk."
+msgstr ""
+"尽管在32位系统上可能编译成功，这样做是不受支持的，并可能造成导致数据损坏的不"
+"稳定情况。我们强烈建议您使用64位内核，如果您决定继续，请牢记您将自己承担风"
+"险。"
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:2001
+msgid "Abort building ZFS on an unknown kernel?"
+msgstr "中断在未知内核上编译？"
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:2001
+msgid ""
+"You are attempting to build ZFS against a running kernel that could not be "
+"identified as 32-bit or 64-bit. If you are not completely sure that the "
+"running kernel is a 64-bit one, you should probably stop the build."
+msgstr ""
+"无法确定您即将编译ZFS支持的内核是32位或64位。如果您不能确定当前运行的内核是64"
+"位的，那么建议您停止编译。"
+
+#. Type: note
+#. Description
+#: ../zfs-dkms.templates:3001
+msgid "Licenses of ZFS and Linux are incompatible"
+msgstr "ZFS和Linux的许可证不相容"
+
+#. Type: note
+#. Description
+#: ../zfs-dkms.templates:3001
+msgid ""
+"ZFS is licensed under the Common Development and Distribution License "
+"(CDDL), and the Linux kernel is licensed under the GNU General Public "
+"License Version 2 (GPL-2). While both are free open source licenses they are "
+"restrictive licenses. The combination of them causes problems because it "
+"prevents using pieces of code exclusively available under one license with "
+"pieces of code exclusively available under the other in the same binary."
+msgstr ""
+"ZFS的许可证是CDDL，Linux内核的许可证是GPL-2。两者皆为自由/开源软件许可证，"
+"然而它们的限制性也都较强，将两部分各自独立许可的代码合并使用将导致问题。"
+
+#. Type: note
+#. Description
+#: ../zfs-dkms.templates:3001
+msgid ""
+"You are going to build ZFS using DKMS in such a way that they are not going to "
+"be built into one monolithic binary. Please be aware that distributing both of "
+"the binaries in the same media (disk images, virtual appliances, etc) may "
+"lead to infringing."
+msgstr ""
+"您将以DKMS方式编译ZFS，以使其不与Linux内核被编译成为一个单独的二进制文件。"
+"在单一介质(如磁盘镜像、虚拟机模板等)上同时发ZFS和Linux内核的二进制文件将造"
+"成侵权。"

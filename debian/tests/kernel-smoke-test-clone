@@ -1,0 +1,96 @@
+#!/bin/sh
+#
+# Copyright (C) 2016 Canonical
+#   
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+#
+echo -n "kernel smoke test, ZFS clone: "
+TMP=/tmp
+VDEV0=${TMP}/pool0-$$.img
+VDEV1=${TMP}/pool1-$$.img
+POOL=pool-smoke-$$
+DATA=/${POOL}/test/data
+DATA_CLONE=/${POOL}/test-clone/data
+
+dd if=/dev/zero of=${VDEV0} bs=1M count=128 > /dev/null 2>&1
+dd if=/dev/zero of=${VDEV1} bs=1M count=128 > /dev/null 2>&1
+
+zpool create ${POOL} ${VDEV0} ${VDEV1}
+ret=$?
+if [ $ret -ne 0 ]; then
+	echo "FAILED: zpool create failed, exit code=$ret"
+	rm ${VDEV0} ${VDEV1}
+	exit 1
+fi
+
+zfs create ${POOL}/test
+ret=$?
+if [ $ret -ne 0 ]; then
+	echo "FAILED: zfs create failed, exit code=$ret"
+	zpool destroy ${POOL}
+	rm ${VDEV0} ${VDEV1}
+	exit 1
+fi
+
+#
+# Populate with files..
+#
+cp -rp /etc /${POOL}/test
+dd if=/dev/urandom of=${DATA} bs=1M count=64 > /dev/null 2>&1
+sum1=$(md5sum ${DATA} | awk '{print $1}')
+
+#
+# Make a snapshot
+#
+zfs snapshot -r ${POOL}/test@snap
+ret=$?
+if [ $ret -ne 0 ]; then
+	echo "FAILED: zfs snapshot failed, exit code=$ret"
+	zpool destroy ${POOL}
+	rm ${VDEV0} ${VDEV1}
+	exit 1
+fi
+
+#
+# Clone 
+#
+zfs clone ${POOL}/test@snap ${POOL}/test-clone
+
+#
+# Checksums must agree
+#
+sum2=$(md5sum ${DATA_CLONE} | awk '{print $1}')
+if [ x"$sum1" != x"$sum2" ]; then
+	echo "FAILED: cloned data different from original"
+	zpool destroy ${POOL}
+	rm ${VDEV0} ${VDEV1}
+	exit 1
+fi
+
+zpool destroy ${POOL}
+ret=$?
+if [ $ret -ne 0 ]; then
+	echo "FAILED: zpool destroy failed, exit code=$ret"
+	#
+	# destroy failed, try to clean up, but this
+	# wil probably fail
+	#
+	rm ${VDEV0} ${VDEV1}
+	exit 1
+fi
+
+rm ${VDEV0} ${VDEV1}
+echo "PASSED"
+exit 0

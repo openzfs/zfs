@@ -1,0 +1,51 @@
+Source: zfs-linux
+Section: contrib/kernel
+Priority: extra
+Maintainer: Debian ZFS on Linux maintainers <pkg-zfsonlinux-devel@lists.alioth.debian.org>
+Build-Depends: autotools-dev,
+ autoconf,
+ autogen,
+ automake,
+ debhelper (>= 9),
+ dkms (>> 2.1.1.2-5),
+ libtool,
+ linux-headers-_KVERS_,
+ spl-dkms
+Standards-Version: 4.1.1
+Homepage: http://www.zfsonlinux.org/
+Vcs-Git: git://anonscm.debian.org/pkg-zfsonlinux/zfs.git
+Vcs-Browser: http://anonscm.debian.org/gitweb/?p=pkg-zfsonlinux/zfs.git
+
+Package: zfs-modules-_KVERS_
+Architecture: _ARCH_
+Provides: zfs-modules
+Depends: linux-image-_KVERS_, spl-modules | spl-dkms
+Recommends: zfsutils
+Description: OpenZFS filesystem kernel modules for Linux (kernel _KVERS_)
+ An advanced integrated volume manager and filesystem that is designed for
+ performance and data integrity. Snapshots, clones, checksums, deduplication,
+ compression, and RAID redundancy are built-in features.
+ .
+ This package contains the compiled kernel module for _KVERS_
+ .
+ Includes the SPA, DMU, ZVOL, and ZPL components of OpenZFS.
+ .
+ If you have compiled your own kernel, you will most likely need to build
+ your own zfs-modules. The zfs-source package has been
+ provided for use with the Debian kernel-package utility to produce a 
+ version of zfs-module for your kernel.
+
+Package: zfs-modules-_KVERS_-di
+Package-Type: udeb
+Section: contrib/debian-installer
+Architecture: _ARCH_
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Provides: zfs-modules, zfs-modules-_KVERS_-udeb
+Description: OpenZFS filesystem kernel modules for Linux (debian-installar version for kernel _KVERS_)
+ An advanced integrated volume manager and filesystem that is designed for
+ performance and data integrity. Snapshots, clones, checksums, deduplication,
+ compression, and RAID redundancy are built-in features.
+ .
+ This package contains the compiled kernel module for _KVERS_
+ .
+ This is a minimal package for use in debian-installer.

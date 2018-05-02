@@ -1,0 +1,51 @@
+#!/bin/sh 
+#
+# Copyright (C) 2016 Canonical
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+#
+#
+# We run all the tests in this specific order from this
+# main script so that we don't have to go through the
+# pain of checking and rebuilding installing and removing
+# the modules for each test.  A good smoke test will
+# exercise all the base functionality with the same
+# instance of the ZFS spl and zfs drivers to see what
+# the cumulative testing of each scenario does to the
+# environment.
+#
+TESTS="kernel-smoke-test-pool-2x2-mirror kernel-smoke-test-pool-4x1-mirror kernel-smoke-test-pool-nested-raidz3 kernel-smoke-test-pool-raidz1 kernel-smoke-test-pool-raidz2 kernel-smoke-test-pool-raidz3 kernel-smoke-test-pool-striped kernel-smoke-test-zil kernel-smoke-test-filesystem kernel-smoke-test-snapshot kernel-smoke-test-clone kernel-smoke-test-send-receive kernel-smoke-test-scrub"
+rc=0
+#
+#  We only test on 64 bit arches for the moment
+#  as these are the ones that ZFS supports.
+#
+if [ `getconf LONG_BIT` = "32" ]
+then
+	echo "Testing on 32 bit architectures not possible."
+	exit 0
+fi
+
+# Load zfs kernel module before tests
+/sbin/modprobe zfs
+
+for t in ${TESTS}
+do
+	./debian/tests/$t
+	if [ $? -ne 0 ]; then
+		rc=1
+	fi
+done
+exit $rc

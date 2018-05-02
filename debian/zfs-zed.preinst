@@ -1,0 +1,22 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+  install|upgrade)
+    SRC=/etc/zfs/zed.d/zed-functions.sh
+    #
+    #  If an existing zed-functions is a symlink then this
+    #  needs removing as the script in newer ZFS releases
+    #  is no longer symlink'd and we want to upgrade to
+    #  the newer script.  Silently purge this.
+    #
+    if [ -L $SRC ]; then
+        rm $SRC
+    fi
+    ;;
+esac
+
+#DEBHELPER#
+
+exit 0
+

@@ -1,0 +1,1601 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: Native ZFS for Linux
+Upstream-Contact: Brian Behlendorf <behlendorf1@llnl.gov>
+Source: https://github.com/zfsonlinux/zfs/
+Disclaimer:
+ This work was produced at the Lawrence Livermore National Laboratory
+ (LLNL) under Contract No. DE-AC52-07NA27344 (Contract 44) between
+ the U.S. Department of Energy (DOE) and Lawrence Livermore National
+ Security, LLC (LLNS) for the operation of LLNL.
+ .
+ This work was prepared as an account of work sponsored by an agency of
+ the United States Government.  Neither the United States Government nor
+ Lawrence Livermore National Security, LLC nor any of their employees,
+ makes any warranty, express or implied, or assumes any liability or
+ responsibility for the accuracy, completeness, or usefulness of any
+ information, apparatus, product, or process disclosed, or represents
+ that its use would not infringe privately-owned rights.
+ .
+ Reference herein to any specific commercial products, process, or
+ services by trade name, trademark, manufacturer or otherwise does
+ not necessarily constitute or imply its endorsement, recommendation,
+ or favoring by the United States Government or Lawrence Livermore
+ National Security, LLC.  The views and opinions of authors expressed
+ herein do not necessarily state or reflect those of the Untied States
+ Government or Lawrence Livermore National Security, LLC, and shall
+ not be used for advertising or product endorsement purposes.
+License: CDDL-1.0
+
+Files: *
+Copyright: 2000, 2002, 2004-2007, 2009, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: cmd/*
+Copyright: 2011, 2013, Nexenta Systems, Inc.
+  2007, 2009, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: cmd/arc_summary/*
+Copyright:
+  2010, 2011, Jason J. Hellenthal <jhell@DataIX.net>
+  2010, Martin Matuska <mm@FreeBSD.org>
+  2008, Ben Rockwood <benr@cuddletech.com>
+License: BSD-2-clause
+
+Files: cmd/arcstat/*
+Source: http://github.com/mharsch/arcstat
+Copyright:
+ 2007, Oracle and/or its affiliates.
+ 2010-2015, Mike Harsch
+License: CDDL-1.0
+
+Files: cmd/dbufstat/*
+Copyright: 2013, Lawrence Livermore National Security, LLC
+License: CDDL-1.0
+
+Files: cmd/mount_zfs/*
+Copyright: 2011, Lawrence Livermore National Security, LLC
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: cmd/vdev_id/*
+Copyright: 2011, 2013, Nexenta Systems, Inc.
+  2007, 2009, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: cmd/zdb/*
+Copyright: 2015, Intel Corporation
+  2011, 2014, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: cmd/zdb/zdb_il.c
+Copyright: 2013, 2014, Delphix.
+  2012, Cyril Plisko.
+  2009, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: cmd/zed/*
+Copyright: 2013-2014, Lawrence Livermore National Security, LLC
+License: CDDL-1.0
+
+Files: cmd/zfs/zfs_iter.c
+Copyright: 2013, Nexenta Systems, Inc.
+  2013, Delphix.
+  2012, Pawel Jakub Dawidek <pawel@dawidek.net>
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: cmd/zfs/zfs_main.c
+Copyright: 2013, Steven Hartland.
+  2013, Nexenta Systems, Inc.
+  2012, Joyent, Inc.
+  2011, 2014, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: cmd/zfs/zfs_util.h
+Copyright: 2000, 2002, 2004-2007, 2009, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: cmd/zhack/*
+Copyright: 2013, Steven Hartland.
+  2011, 2012, 2014, Delphix.
+License: CDDL-1.0
+
+Files: cmd/zinject/*
+Copyright: 2011-2015, Delphix.
+  2000, 2005-2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: cmd/zinject/zinject.h
+Copyright: 2000, 2002, 2004-2007, 2009, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: cmd/zpios/*
+Copyright: 2008-2010, Lawrence Livermore National Security, LLC
+  2004, Cluster File Systems, Inc
+License: GPL-2+
+
+Files: cmd/zpool/*
+Copyright: 2005-2010, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: cmd/zpool/zpool_main.c
+Copyright: 2013, Prasad Joshi (sTec).
+  2012, Frederik Wessels.
+  2012, Cyril Plisko.
+  2011, Nexenta Systems, Inc.
+  2011, 2014, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: cmd/zpool/zpool_util.h
+Copyright: 2000, 2002, 2004-2007, 2009, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: cmd/zpool/zpool_vdev.c
+Copyright: 2011-2015, Delphix.
+  2000, 2005-2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: cmd/zstreamdump/*
+Copyright: 2013, Delphix.
+  2012, Martin Matuska <martin@matuska.org>
+  2010, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: cmd/ztest/*
+Copyright: 2013, Steven Hartland.
+  2011, Nexenta Systems, Inc.
+  2011, 2015, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: cmd/zvol_id/*
+Copyright: 2011, Fajar A. Nugraha.
+License: CDDL-1.0
+
+Files: config/*
+Copyright: 1996-2012, Free Software Foundation, Inc.
+License: GPL-2+ with autoconf exception
+
+Files: config/ltoptions.m4
+       config/lt~obsolete.m4
+       config/ltversion.m4
+       config/libtool.m4
+       config/ltsugar.m4
+Copyright: 1996-2012, Free Software Foundation, Inc.
+License: PERMISSIVE
+ This file is free software; the Free Software Foundation gives
+ unlimited permission to copy and/or distribute it, with or without
+ modifications, as long as this notice is preserved.
+
+Files: config/install-sh
+Copyright: 1994, X Consortium
+License: Expat
+
+Files: configure
+Copyright: 1992-1996, 1998-2010, Free Software
+License: PERMISSIVE2
+ This configure script is free software; the Free Software Foundation
+ gives unlimited permission to copy, distribute and modify it.
+
+Files: contrib/*
+Copyright: 2010, 2013, Aneurin Price <aneurin.price@gmail.com>
+License: Expat
+
+Files: debian/*
+Copyright:
+ 2013-2016, Aron Xu <aron@debian.org>
+ 2016, Petter Reinholdtsen <pere@hungry.com>
+ 2013, Carlos Alberto Lopez Perez <clopez@igalia.com>
+ 2013, Turbo Fredriksson <turbo@bayour.com>
+ 2012-2013, Richard Laager <rlaager@wiktel.com>
+ 2011-2013, Darik Horn <dajhorn@vanadac.com>
+License: GPL-2+
+
+Files: debian/po/*
+Copyright:
+ 2013, The Debian po file translators.
+License: CDDL-1.0
+
+Files: debian/tree/zfsutils-linux/usr/share/bash-completion/completions/zfs
+Copyright: 2010, Aneurin Price <aneurin.price@gmail.com>
+License: Expat
+
+Files: etc/init.d/zfs-*.in
+Copyright:
+  2016, Carlo Landmeter <clandmeter@gmail.com>
+  2015, James Lee <jlee@thestaticvoid.com>
+  2015, Richard Yao <ryao@gentoo.org>
+  2015, SenH <sen@senhaerens.be>
+  2015, Turbo Fredriksson <turbo@bayour.com>
+  2015, yuina822 <ayuichi@club.kyutech.ac.jp>
+  2011, Darik Horn.
+License: BSD-2-clause
+
+Files: include/*
+Copyright: 2000, 2002, 2004, 2005, 2007, 2009, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: include/libuutil_common.h
+  include/zfs_fletcher.h
+  include/zfs_prop.h
+Copyright: 2005-2010, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: include/libuutil_impl.h
+Copyright: 1990-2010, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: include/libzfs.h
+Copyright: 2013, Steven Hartland.
+  2013, Nexenta Systems, Inc.
+  2013, Delphix.
+  2012, Joyent, Inc.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: include/libzfs_core.h
+Copyright: 2011-2014, Delphix.
+License: CDDL-1.0
+
+Files: include/libzfs_impl.h
+  include/zfs_comutil.h
+Copyright: 2011-2015, Delphix.
+  2000, 2005-2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: include/linux/*
+Copyright: 2008-2011, Lawrence Livermore National Security, LLC
+License: CDDL-1.0
+
+Files: include/linux/kmap_compat.h
+Copyright: 2015, Chunwei Chen.
+License: CDDL-1.0
+
+Files: include/linux/vfs_compat.h
+Copyright: 2015, Jörg Thalheim
+  2011, Lawrence Livermore National Security, LLC
+License: CDDL-1.0
+
+Files: include/sys/arc.h
+Copyright: 2013, Saso Kiselkov.
+  2011, 2012, 2014, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: include/sys/arc_impl.h
+Copyright: 2013, Saso Kiselkov.
+  2013, Nexenta Systems, Inc.
+  2013, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: include/sys/avl.h
+  include/sys/dmu_tx.h
+  include/sys/metaslab_impl.h
+  include/sys/range_tree.h
+  include/sys/rrwlock.h
+  include/sys/space_map.h
+  include/sys/space_reftree.h
+  include/sys/txg.h
+  include/sys/txg_impl.h
+  include/sys/uberblock.h
+  include/sys/zio_impl.h
+Copyright: 2011-2014, Delphix.
+  2007, 2009, 2010, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: include/sys/avl_impl.h
+  include/sys/nvpair_impl.h
+  include/sys/sdt.h
+  include/sys/uuid.h
+  include/sys/vdev_file.h
+Copyright: 1990-2010, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: include/sys/blkptr.h
+  include/sys/dsl_bookmark.h
+  include/sys/multilist.h
+Copyright: 2013-2014, Delphix.
+License: CDDL-1.0
+
+Files: include/sys/bpobj.h
+  include/sys/dmu_traverse.h
+  include/sys/dsl_deleg.h
+  include/sys/dsl_pool.h
+  include/sys/dsl_prop.h
+  include/sys/dsl_scan.h
+  include/sys/dsl_synctask.h
+  include/sys/metaslab.h
+  include/sys/nvpair.h
+  include/sys/vdev.h
+  include/sys/vdev_impl.h
+  include/sys/zap.h
+  include/sys/zfs_debug.h
+  include/sys/zfs_ioctl.h
+  include/sys/zfs_znode.h
+Copyright: 2011-2015, Delphix.
+  2000, 2005-2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: include/sys/bptree.h
+  include/sys/zfeature.h
+Copyright: 2011-2014, Delphix.
+License: CDDL-1.0
+
+Files: include/sys/dbuf.h
+Copyright: 2014, Spectra Logic Corporation
+  2013, Saso Kiselkov.
+  2012, 2015, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: include/sys/dmu.h
+Copyright: 2014, Spectra Logic Corporation
+  2014, HybridCluster.
+  2012, Joyent, Inc.
+  2011, Nexenta Systems, Inc.
+  2011, 2014, Delphix.
+  2010, Robert Milkowski
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: include/sys/dmu_impl.h
+Copyright: 2013, Delphix.
+  2012, Joyent, Inc.
+  2010, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: include/sys/dmu_objset.h
+Copyright: 2014, Spectra Logic Corporation
+  2013, Saso Kiselkov.
+  2012, 2014, Delphix.
+  2010, Robert Milkowski
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: include/sys/dmu_send.h
+Copyright: 2013, Joyent, Inc.
+  2012, 2014, Delphix.
+  2011, Nexenta Systems, Inc.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: include/sys/dmu_zfetch.h
+  include/sys/spa_boot.h
+  include/sys/u8_textprep.h
+  include/sys/unique.h
+  include/sys/zfs_dir.h
+  include/sys/zfs_fuid.h
+  include/sys/zfs_rlock.h
+  include/sys/zfs_sa.h
+  include/sys/zio_compress.h
+Copyright: 2005-2010, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: include/sys/dnode.h
+  include/sys/sa_impl.h
+Copyright: 2014, Spectra Logic Corporation
+  2011-2015, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: include/sys/dsl_dataset.h
+Copyright: 2014, Spectra Logic Corporation
+  2013, Steven Hartland.
+  2013, Joyent, Inc.
+  2013, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: include/sys/dsl_destroy.h
+Copyright: 2013, Delphix.
+  2012, Joyent, Inc.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: include/sys/dsl_dir.h
+Copyright: 2014, Spectra Logic Corporation
+  2014, Joyent, Inc.
+  2013, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: include/sys/dsl_userhold.h
+Copyright: 2013, Steven Hartland.
+  2012, 2013, Joyent, Inc.
+  2012, 2014, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: include/sys/fm/fs/*
+Copyright: 2005-2010, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: include/sys/fs/*
+Copyright: 2013, Joyent, Inc.
+  2011, Nexenta Systems, Inc.
+  2011, 2014, Delphix.
+  2010, Robert Milkowski
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: include/sys/mntent.h
+Copyright: 2008, 2009, Sun Microsystems, Inc.
+  1984, 1986-1989, AT&T
+License: CDDL-1.0
+
+Files: include/sys/spa.h
+Copyright: 2014, Spectra Logic Corporation
+  2011, Nexenta Systems, Inc.
+  2011, 2014, 2015, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: include/sys/spa_impl.h
+Copyright: 2016, Actifio, Inc.
+  2014, Spectra Logic Corporation
+  2011, Nexenta Systems, Inc.
+  2011, 2015, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: include/sys/u8_textprep_data.h
+Copyright: 2007, Sun Microsystems, Inc.
+  1991-2006, Unicode, Inc. Distributed under
+License: Expat~Unicode
+ Permission is hereby granted, free of charge, to any person obtaining
+ a copy of the Unicode data files and any associated documentation (the
+ "Data Files") or Unicode software and any associated documentation (the
+ "Software") to deal in the Data Files or Software without restriction,
+ including without limitation the rights to use, copy, modify, merge,
+ publish, distribute, and/or sell copies of the Data Files or Software, and
+ to permit persons to whom the Data Files or Software are furnished to do so,
+ provided that (a) the above copyright notice(s) and this permission notice
+ appear with all copies of the Data Files or Software, (b) both the above
+ copyright notice(s) and this permission notice appear in associated
+ documentation, and (c) there is clear notice in each modified Data File or
+ in the Software as well as in the documentation associated with the Data
+ File(s) or Software that the data or software has been modified.
+ .
+ THE DATA FILES AND SOFTWARE ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
+ KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT OF
+ THIRD PARTY RIGHTS. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR HOLDERS
+ INCLUDED IN THIS NOTICE BE LIABLE FOR ANY CLAIM, OR ANY SPECIAL INDIRECT OR
+ CONSEQUENTIAL DAMAGES, OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE,
+ DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE
+ OF THE DATA FILES OR SOFTWARE.
+ .
+ Except as contained in this notice, the name of a copyright holder shall not
+ be used in advertising or otherwise to promote the sale, use or other
+ dealings in these Data Files or Software without prior written authorization
+ of the copyright holder.
+ .
+ Unicode and the Unicode logo are trademarks of Unicode, Inc., and may be
+ registered in some jurisdictions. All other trademarks and registered
+ trademarks mentioned herein are the property of their respective owners.
+
+Files: include/sys/uio_impl.h
+Copyright: 2007, 2009, 2010, Sun Microsystems, Inc.
+  1983-1989, AT&T
+  1982, 1986, 1988, The Regents of the University of California
+License: CDDL-1.0
+
+Files: include/sys/vdev_disk.h
+  include/sys/zpl.h
+Copyright: 2008-2011, Lawrence Livermore National Security, LLC
+License: CDDL-1.0
+
+Files: include/sys/xvattr.h
+Copyright: 1988, 2010, Oracle and/or its affiliates.
+  1983-1989, AT&T
+  1982, 1986, 1988, The Regents of the University of California
+License: CDDL-1.0
+
+Files: include/sys/zap_impl.h
+  include/sys/zap_leaf.h
+Copyright: 2014, Spectra Logic Corporation
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: include/sys/zfs_context.h
+Copyright: 2012, Joyent, Inc.
+  2012, 2014, Delphix.
+  2011, Nexenta Systems, Inc.
+  2009, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: include/sys/zfs_ctldir.h
+Copyright: 2011, Lawrence Livermore National Security, LLC
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: include/sys/zil.h
+  include/sys/zil_impl.h
+Copyright: 2011-2014, Delphix.
+  2010, Robert Milkowski
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: include/sys/zio.h
+Copyright: 2013, Saso Kiselkov.
+  2012, 2014, Delphix.
+  2011, Nexenta Systems, Inc.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: include/sys/zvol.h
+Copyright: 2016, Actifio, Inc.
+  2005, 2006, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: include/zfeature_common.h
+Copyright: 2013, Saso Kiselkov.
+  2013, Delphix.
+License: CDDL-1.0
+
+Files: include/zfs_deleg.h
+Copyright: 2012-2015, Delphix.
+  2010, 2011, Nexenta Systems, Inc.
+  2005, 2007, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: include/zfs_namecheck.h
+Copyright: 2011-2014, Delphix.
+  2007, 2009, 2010, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: include/zpios-ctl.h
+  include/zpios-internal.h
+Copyright: 2008-2010, Lawrence Livermore National Security, LLC
+  2004, Cluster File Systems, Inc
+License: GPL-2+
+
+Files: lib/*
+Copyright: 2000, 2002, 2004, 2005, 2007, 2009, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: lib/libnvpair/*
+Copyright: 2011-2015, Delphix.
+  2000, 2005-2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: lib/libnvpair/nvpair_alloc_system.c
+Copyright: 1990-2010, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: lib/libshare/*
+Copyright: 2011, Gunnar Beutner
+  2002, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: lib/libshare/nfs.c
+Copyright: 2012, Cyril Plisko.
+  2011, Gunnar Beutner
+  2002, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: lib/libshare/smb.c
+Copyright: 2011, 2012, Turbo Fredriksson <turbo@bayour.com>, based on nfs.c
+  2002, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: lib/libshare/smb.h
+Copyright: 2011, Turbo Fredriksson <turbo@bayour.com>
+License: CDDL-1.0
+
+Files: lib/libspl/*
+Copyright: 2005-2010, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: lib/libspl/asm-generic/*
+Copyright: 1990-2010, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: lib/libspl/getexecname.c
+Copyright: 1990-2010, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: lib/libspl/getmntany.c
+Copyright: 2006, Ricardo Correia.
+  2005, Sun Microsystems, Inc.
+  1988, AT&T
+License: CDDL-1.0
+
+Files: lib/libspl/include/*
+Copyright: 1990-2010, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: lib/libspl/include/atomic.h
+  lib/libspl/include/libshare.h
+  lib/libspl/include/statcommon.h
+  lib/libspl/include/zone.h
+Copyright: 2005-2010, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: lib/libspl/include/note.h
+Copyright: 1994, 2008, Sun Microsystems, Inc
+License: CDDL-1.0
+
+Files: lib/libspl/include/rpc/*
+Copyright: 2005-2010, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: lib/libspl/include/rpc/xdr.h
+Copyright: 2005, Sun Microsystems, Inc.
+  1983-1989, AT&T
+License: CDDL-1.0
+
+Files: lib/libspl/include/synch.h
+Copyright: 2014, Zettabyte Software, LLC.
+  2008, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: lib/libspl/include/sys/acl.h
+  lib/libspl/include/sys/acl_impl.h
+  lib/libspl/include/sys/dkio.h
+  lib/libspl/include/sys/isa_defs.h
+  lib/libspl/include/sys/kmem.h
+  lib/libspl/include/sys/kstat.h
+  lib/libspl/include/sys/list.h
+  lib/libspl/include/sys/stack.h
+  lib/libspl/include/sys/stropts.h
+  lib/libspl/include/sys/types32.h
+  lib/libspl/include/sys/tzfile.h
+Copyright: 2005-2010, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: lib/libspl/include/sys/byteorder.h
+Copyright: 2007, 2009, 2010, Sun Microsystems, Inc.
+  1983-1989, AT&T
+  1982, 1986, 1988, The Regents of the University of California
+License: CDDL-1.0
+
+Files: lib/libspl/include/sys/dktp/*
+Copyright: 2008, 2009, Sun Microsystems, Inc.
+  1984, 1986-1989, AT&T
+License: CDDL-1.0
+
+Files: lib/libspl/include/sys/mnttab.h
+Copyright: 2006, Ricardo Correia
+  2004, Sun Microsystems, Inc.
+  1984, 1986-1989, AT&T
+License: CDDL-1.0
+
+Files: lib/libspl/include/sys/note.h
+  lib/libspl/include/sys/sunddi.h
+Copyright: 1994, 2008, Sun Microsystems, Inc
+License: CDDL-1.0
+
+Files: lib/libspl/include/sys/stat.h
+Copyright: 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: lib/libspl/include/sys/sysevent/*
+Copyright: 2011, 2013, Nexenta Systems, Inc.
+  2007, 2009, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: lib/libspl/include/sys/uio.h
+Copyright: 2005, Sun Microsystems, Inc.
+  1984, 1986-1989, AT&T
+  1982, 1986, 1988, The Regents of the University of California
+License: CDDL-1.0
+
+Files: lib/libspl/include/sys/vtoc.h
+Copyright: 2008, 2009, Sun Microsystems, Inc.
+  1984, 1986-1989, AT&T
+License: CDDL-1.0
+
+Files: lib/libspl/mkdirp.c
+Copyright: 2008, 2009, Sun Microsystems, Inc.
+  1984, 1986-1989, AT&T
+License: CDDL-1.0
+
+Files: lib/libspl/strnlen.c
+Copyright: 2008, Sun Microsystems, Inc
+License: CDDL-1.0
+
+Files: lib/libspl/xdr.c
+Copyright: 2005, Sun Microsystems, Inc.
+  1983-1989, AT&T
+License: CDDL-1.0
+
+Files: lib/libspl/zone.c
+Copyright: 2006, Ricardo Correia.
+License: CDDL-1.0
+
+Files: lib/libuutil/*
+Copyright: 1990-2010, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: lib/libuutil/uu_alloc.c
+  lib/libuutil/uu_misc.c
+  lib/libuutil/uu_string.c
+Copyright: 2000, 2002, 2004-2007, 2009, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: lib/libuutil/uu_avl.c
+  lib/libuutil/uu_list.c
+Copyright: 2005-2010, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: lib/libzfs/*
+Copyright: 2011, 2014, Nexenta Systems, Inc.
+  2011-2015, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: lib/libzfs/libzfs_changelist.c
+Copyright: 2010, Sun Microsystems, Inc.
+  2007, Ramprakash Jelari
+License: CDDL-1.0
+
+Files: lib/libzfs/libzfs_config.c
+Copyright: 2011-2014, Delphix.
+  2007, 2009, 2010, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: lib/libzfs/libzfs_dataset.c
+Copyright: 2013, Steven Hartland.
+  2013, Nexenta Systems, Inc.
+  2013, Martin Matuska.
+  2013, Joyent, Inc.
+  2013, Delphix.
+  2012, Pawel Jakub Dawidek <pawel@dawidek.net>
+  2012, DEY Storage Systems, Inc.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: lib/libzfs/libzfs_diff.c
+Copyright: 2015, Nexenta Systems, Inc.
+  2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: lib/libzfs/libzfs_fru.c
+  lib/libzfs/libzfs_graph.c
+Copyright: 2005-2010, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: lib/libzfs/libzfs_mount.c
+Copyright: 2000, 2002, 2004-2007, 2009, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: lib/libzfs/libzfs_sendrecv.c
+Copyright: 2013, Steven Hartland.
+  2012, Pawel Jakub Dawidek <pawel@dawidek.net>
+  2012, Joyent, Inc.
+  2011, 2014, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: lib/libzfs/libzfs_status.c
+Copyright: 2013, Steven Hartland.
+  2012, 2014, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: lib/libzfs/libzfs_util.c
+Copyright: 2013, Joyent, Inc.
+  2012, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: lib/libzfs_core/*
+Copyright: 2013, Steven Hartland.
+  2011, 2012, 2014, Delphix.
+License: CDDL-1.0
+
+Files: lib/libzpool/taskq.c
+Copyright: 2014, Delphix.
+  2012, Garrett DAmore <garrett@damore.org>.
+  2011, Nexenta Systems, Inc.
+  2010, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: man/man1/zhack.1
+       man/man1/zpios.1
+       man/man8/mount.zfs.8
+       man/man8/zinject.8
+Copyright: 2013, Darik Horn <dajhorn@vanadac.com>
+License: CDDL-1.0
+
+Files: man/man1/ztest.1
+Copyright: 2009, Oracle and/or its affiliates.
+  2009, Michael Gebetsroither <michael.geb@gmx.at>
+License: CDDL-1.0
+
+Files: man/man5/zfs-events.5
+       man/man5/zfs-module-parameters.5
+Copyright: 2013, Turbo Fredriksson <turbo@bayour.com>
+License: CDDL-1.0
+
+Files: man/man5/zpool-features.5
+Copyright:
+  2013, Delphix
+  2013, Saso Kiselkov
+  2014, Joyent, Inc.
+License: CDDL-1.0
+
+Files: man/man8/zdb.8
+Copyright: 2012, Richard Lowe.
+  2012, Delphix
+License: CDDL-1.0
+
+Files: man/man8/zed.8.in
+Copyright: 2013-2014, Lawrence Livermore National Security, LLC.
+License: CDDL-1.0
+
+Files: man/man8/zpool.8
+Copyright: 2007, Sun Microsystems, Inc.
+  2011, Nexenta Systems, Inc.
+  2012, Cyril Plisko
+  2013, Delphix
+License: CDDL-1.0
+
+Files: man/man8/zstreamdump.8
+Copyright: 2009, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: module/*
+Copyright: 2011-2014, Delphix.
+  2007, 2009, 2010, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: module/nvpair/*
+Copyright: 2000, 2002, 2004-2007, 2009, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: module/nvpair/fnvpair.c
+Copyright: 2011-2014, Delphix.
+License: CDDL-1.0
+
+Files: module/nvpair/nvpair_alloc_fixed.c
+Copyright: 2005-2010, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: module/nvpair/nvpair_alloc_spl.c
+Copyright: 1990-2010, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: module/unicode/*
+Copyright: 2005-2010, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: module/zcommon/zfs_comutil.c
+Copyright: 2011-2015, Delphix.
+  2000, 2005-2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: module/zcommon/zfs_deleg.c
+  module/zcommon/zpool_prop.c
+Copyright: 2012-2015, Delphix.
+  2010, 2011, Nexenta Systems, Inc.
+  2005, 2007, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: module/zcommon/zfs_fletcher.c
+Copyright: 2005-2010, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: module/zcommon/zfs_prop.c
+Copyright: 2013, Saso Kiselkov.
+  2011, 2014, Delphix.
+  2010, Robert Milkowski
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: module/zcommon/zfs_uio.c
+Copyright: 2007, 2009, 2010, Sun Microsystems, Inc.
+  1983-1989, AT&T
+  1982, 1986, 1988, The Regents of the University of California
+License: CDDL-1.0
+
+Files: module/zfs/*
+Copyright: 2011-2015, Delphix.
+  2000, 2005-2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: module/zfs/arc.c
+Copyright: 2014, Saso Kiselkov.
+  2014, Nexenta Systems, Inc.
+  2012, Joyent, Inc.
+  2011, 2015, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: module/zfs/blkptr.c
+  module/zfs/dsl_bookmark.c
+  module/zfs/multilist.c
+Copyright: 2013-2014, Delphix.
+License: CDDL-1.0
+
+Files: module/zfs/bptree.c
+  module/zfs/zfeature.c
+Copyright: 2011-2014, Delphix.
+License: CDDL-1.0
+
+Files: module/zfs/dbuf.c
+Copyright: 2014, Spectra Logic Corporation
+  2013, Saso Kiselkov.
+  2012, 2015, Delphix.
+  2011, Nexenta Systems, Inc.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: module/zfs/ddt_zap.c
+  module/zfs/fm.c
+  module/zfs/lzjb.c
+  module/zfs/zfs_fuid.c
+  module/zfs/zfs_log.c
+  module/zfs/zfs_sa.c
+Copyright: 2000, 2002, 2004-2007, 2009, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: module/zfs/dmu.c
+Copyright: 2015, Chunwei Chen.
+  2014, Nexenta Systems, Inc.
+  2013, Saso Kiselkov.
+  2011, 2014, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: module/zfs/dmu_object.c
+Copyright: 2014, HybridCluster.
+  2013, 2014, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: module/zfs/dmu_objset.c
+Copyright: 2016, Actifio, Inc.
+  2015, STRATO AG, Inc.
+  2015, Nexenta Systems, Inc.
+  2014, Spectra Logic Corporation
+  2013, Saso Kiselkov.
+  2013, Joyent, Inc.
+  2012, 2014, Delphix.
+  2010, Robert Milkowski
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: module/zfs/dmu_send.c
+Copyright: 2016, Actifio, Inc.
+  2014, Joyent, Inc.
+  2011, Nexenta Systems, Inc.
+  2011, 2014, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: module/zfs/dmu_tx.c
+  module/zfs/spa_config.c
+Copyright: 2012-2015, Delphix.
+  2010, 2011, Nexenta Systems, Inc.
+  2005, 2007, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: module/zfs/dmu_zfetch.c
+  module/zfs/range_tree.c
+  module/zfs/rrwlock.c
+  module/zfs/space_map.c
+  module/zfs/space_reftree.c
+  module/zfs/vdev_cache.c
+  module/zfs/vdev_mirror.c
+  module/zfs/vdev_missing.c
+  module/zfs/vdev_queue.c
+  module/zfs/vdev_root.c
+  module/zfs/zfs_fm.c
+  module/zfs/zfs_rlock.c
+Copyright: 2011-2014, Delphix.
+  2007, 2009, 2010, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: module/zfs/dnode.c
+  module/zfs/dnode_sync.c
+  module/zfs/dsl_deadlist.c
+  module/zfs/sa.c
+  module/zfs/zap.c
+  module/zfs/zap_micro.c
+Copyright: 2014, Spectra Logic Corporation
+  2011-2015, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: module/zfs/dsl_dataset.c
+Copyright: 2016, Actifio, Inc.
+  2014, Spectra Logic Corporation
+  2014, RackTop Systems
+  2014, Joyent, Inc.
+  2013, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: module/zfs/dsl_destroy.c
+Copyright: 2016, Actifio, Inc.
+  2013, Steven Hartland.
+  2012, 2013, Joyent, Inc.
+  2012, 2014, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: module/zfs/dsl_dir.c
+Copyright: 2016, Actifio, Inc.
+  2014, Spectra Logic Corporation
+  2014, Joyent, Inc.
+  2013, Martin Matuska.
+  2012, 2014, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: module/zfs/dsl_pool.c
+Copyright: 2014, Spectra Logic Corporation
+  2013, Steven Hartland.
+  2011, 2014, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: module/zfs/dsl_prop.c
+Copyright: 2013, Martin Matuska.
+  2012, 2014, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: module/zfs/dsl_userhold.c
+Copyright: 2013, Steven Hartland.
+  2012, 2014, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: module/zfs/gzip.c
+  module/zfs/sha256.c
+  module/zfs/spa_boot.c
+  module/zfs/unique.c
+  module/zfs/zfs_byteswap.c
+  module/zfs/zle.c
+Copyright: 2005-2010, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: module/zfs/lz4.c
+Copyright: 2011-2013, Yann Collet
+License: BSD-2-clause
+
+Files: module/zfs/metaslab.c
+Copyright: 2013, Saso Kiselkov.
+  2011, 2012, 2014, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: module/zfs/spa.c
+Copyright: 2016, Actifio, Inc.
+  2014, Spectra Logic Corporation
+  2013, Delphix.
+  2013, 2014, Nexenta Systems, Inc.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: module/zfs/spa_misc.c
+Copyright: 2014, Spectra Logic Corporation
+  2011, Nexenta Systems, Inc.
+  2011, 2014, 2015, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: module/zfs/txg.c
+Copyright: 2012, 2014, Delphix.
+  2011, Martin Matuska
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: module/zfs/vdev.c
+  module/zfs/zio.c
+Copyright: 2011, 2014, Nexenta Systems, Inc.
+  2011-2015, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: module/zfs/vdev_disk.c
+Copyright: 2012, 2014, Delphix.
+  2008-2010, Lawrence Livermore National Security, LLC
+License: CDDL-1.0
+
+Files: module/zfs/zfeature_common.c
+Copyright: 2014, Nexenta Systems, Inc.
+  2013, Saso Kiselkov.
+  2013, Delphix.
+License: CDDL-1.0
+
+Files: module/zfs/zfs.mod.c
+Copyright: 2011-2015, Delphix.
+  2000, 2005-2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: module/zfs/zfs_ctldir.c
+Copyright: 2013, Delphix.
+  2011, Lawrence Livermore National Security, LLC
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: module/zfs/zfs_ioctl.c
+Copyright: 2016, Actifio, Inc.
+  2013, Steven Hartland.
+  2013, Saso Kiselkov.
+  2012, Pawel Jakub Dawidek <pawel@dawidek.net>
+  2012, 2014, Joyent, Inc.
+  2011, Martin Matuska
+  2011, 2014, Nexenta Systems, Inc.
+  2011, 2014, Delphix.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: module/zfs/zfs_replay.c
+Copyright: 2013, Delphix.
+  2012, Cyril Plisko.
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: module/zfs/zfs_vfsops.c
+  module/zfs/zil.c
+Copyright: 2011-2014, Delphix.
+  2010, Robert Milkowski
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: module/zfs/zfs_vnops.c
+Copyright: 2015, Chunwei Chen.
+  2013, Delphix.
+  2010, Robert Milkowski
+  2007, Jeremy Teo
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: module/zfs/zfs_znode.c
+Copyright: 2013, Delphix.
+  2007, Jeremy Teo
+  2005, 2010, Oracle and/or its affiliates.
+License: CDDL-1.0
+
+Files: module/zfs/zio_compress.c
+Copyright: 2013, Saso Kiselkov.
+  2013, Delphix.
+  2009, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: module/zfs/zpl_ctldir.c
+  module/zfs/zpl_super.c
+  module/zfs/zpl_xattr.c
+  module/zfs/zvol.c
+Copyright: 2008-2011, Lawrence Livermore National Security, LLC
+License: CDDL-1.0
+
+Files: module/zfs/zpl_export.c
+Copyright: 2012, Cyril Plisko.
+  2011, Gunnar Beutner
+License: CDDL-1.0
+
+Files: module/zfs/zpl_file.c
+  module/zfs/zpl_inode.c
+Copyright: 2015, Chunwei Chen.
+  2011, Lawrence Livermore National Security, LLC
+License: CDDL-1.0
+
+Files: module/zpios/*
+Copyright: 2008-2010, Lawrence Livermore National Security, LLC
+  2004, Cluster File Systems, Inc
+License: GPL-2+
+
+Files: scripts/*
+Copyright: 2003-2012, Ville Skyttä <ville.skytta@iki.fi>
+License: Expat
+
+Files: scripts/cstyle.pl
+Copyright: 2005-2010, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+Files: scripts/ziltest.sh
+Copyright: 1990-2010, Sun Microsystems, Inc.
+License: CDDL-1.0
+
+License: Expat
+ Permission is hereby granted, free of charge, to any person obtaining
+ a copy of this software and associated documentation files (the
+ "Software"), to deal in the Software without restriction, including
+ without limitation the rights to use, copy, modify, merge, publish,
+ distribute, sublicense, and/or sell copies of the Software, and to
+ permit persons to whom the Software is furnished to do so, subject to
+ the following conditions:
+ .
+ The above copyright notice and this permission notice shall be included
+ in all copies or substantial portions of the Software.
+ .
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ NONINFRINGEMENT.
+ IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+License: GPL-2+
+ This program is free software; you can redistribute it and/or modify it under
+ the terms of the GNU General Public License as published by the Free Software
+ Foundation; either version 2 of the License, or (at your option) any later
+ version.
+ .
+ This program is distributed in the hope that it will be useful, but WITHOUT
+ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+ .
+ You should have received a copy of the GNU General Public License along with
+ this package; if not, write to the Free Software Foundation, Inc., 51 Franklin
+ St, Fifth Floor, Boston, MA  02110-1301 USA
+ .
+ On Debian systems, the full text of the GNU General Public License version 2
+ can be found in the file /usr/share/common-licenses/GPL-2.
+
+License: GPL-2+ with autoconf exception
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+ .
+ As a special exception to the GNU General Public License,
+ if you distribute this file as part of a program or library that
+ is built using this program, you may include this file under the
+ same distribution terms that you use for the rest of that program.
+ .
+ This program is distributed in the hope that it will be useful, but
+ WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ General Public License for more details.
+ .
+ You should have received a copy of the GNU General Public License
+ along with GNU Libtool; see the file COPYING.  If not, a copy
+ can be downloaded from http://www.gnu.org/licenses/gpl.html,
+ or obtained by writing to the Free Software Foundation, Inc.,
+ 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+ .
+ On Debian systems, the full text of the GNU General Public License version 2
+ can be found in the file /usr/share/common-licenses/GPL-2.
+
+License: CDDL-1.0
+ COMMON DEVELOPMENT AND DISTRIBUTION LICENSE (CDDL)
+ .
+ Version 1.0
+ .
+ 1. Definitions.
+ .
+ 1.1. “Contributor” means each individual or entity that creates or contributes
+ to the creation of Modifications.
+ .
+ 1.2. “Contributor Version” means the combination of the Original Software,
+ prior Modifications used by a Contributor (if any), and the Modifications made
+ by that particular Contributor.
+ .
+ 1.3. “Covered Software” means (a) the Original Software, or (b) Modifications,
+ or (c) the combination of files containing Original Software with files
+ containing Modifications, in each case including portions thereof.
+ .
+ 1.4. “Executable” means the Covered Software in any form other than Source
+ Code.
+ .
+ 1.5. “Initial Developer” means the individual or entity that first makes
+ Original Software available under this License.
+ .
+ 1.6. “Larger Work” means a work which combines Covered Software or portions
+ thereof with code not governed by the terms of this License.
+ .
+ 1.7. “License” means this document.
+ .
+ 1.8. “Licensable” means having the right to grant, to the maximum extent
+ possible, whether at the time of the initial grant or subsequently acquired,
+ any and all of the rights conveyed herein.
+ .
+ 1.9. “Modifications” means the Source Code and Executable form of any of the
+ following:
+ .
+ A. Any file that results from an addition to, deletion from or modification of
+ the contents of a file containing Original Software or previous Modifications;
+ .
+ B. Any new file that contains any part of the Original Software or previous
+ Modification; or
+ .
+ C. Any new file that is contributed or otherwise made available under the terms
+ of this License.
+ .
+ 1.10. “Original Software” means the Source Code and Executable form of computer
+ software code that is originally released under this License.
+ .
+ 1.11. “Patent Claims” means any patent claim(s), now owned or hereafter
+ acquired, including without limitation, method, process, and apparatus claims,
+ in any patent Licensable by grantor.
+ .
+ 1.12. “Source Code” means (a) the common form of computer software code in
+ which modifications are made and (b) associated documentation included in or
+ with such code.
+ .
+ 1.13. “You” (or “Your”) means an individual or a legal entity exercising rights
+ under, and complying with all of the terms of, this License. For legal
+ entities, “You” includes any entity which controls, is controlled by, or is
+ under common control with You. For purposes of this definition, “control” means
+ (a) the power, direct or indirect, to cause the direction or management of such
+ entity, whether by contract or otherwise, or (b) ownership of more than fifty
+ percent (50%) of the outstanding shares or beneficial ownership of such entity.
+ .
+ 2. License Grants.
+ .
+ 2.1. The Initial Developer Grant.
+ .
+ Conditioned upon Your compliance with Section 3.1 below and subject to third
+ party intellectual property claims, the Initial Developer hereby grants You a
+ world-wide, royalty-free, non-exclusive license:
+ .
+ (a) under intellectual property rights (other than patent or trademark)
+ Licensable by Initial Developer, to use, reproduce, modify, display, perform,
+ sublicense and distribute the Original Software (or portions thereof), with or
+ without Modifications, and/or as part of a Larger Work; and
+ .
+ (b) under Patent Claims infringed by the making, using or selling of Original
+ Software, to make, have made, use, practice, sell, and offer for sale, and/or
+ otherwise dispose of the Original Software (or portions thereof).
+ .
+ (c) The licenses granted in Sections 2.1(a) and (b) are effective on the date
+ Initial Developer first distributes or otherwise makes the Original Software
+ available to a third party under the terms of this License.
+ .
+ (d) Notwithstanding Section 2.1(b) above, no patent license is granted: (1) for
+ code that You delete from the Original Software, or (2) for infringements
+ caused by: (i) the modification of the Original Software, or (ii) the
+ combination of the Original Software with other software or devices.
+ .
+ 2.2. Contributor Grant.
+ .
+ Conditioned upon Your compliance with Section 3.1 below and subject to third
+ party intellectual property claims, each Contributor hereby grants You a
+ world-wide, royalty-free, non-exclusive license:
+ .
+ (a) under intellectual property rights (other than patent or trademark)
+ Licensable by Contributor to use, reproduce, modify, display, perform,
+ sublicense and distribute the Modifications created by such Contributor (or
+ portions thereof), either on an unmodified basis, with other Modifications, as
+ Covered Software and/or as part of a Larger Work; and
+ .
+ (b) under Patent Claims infringed by the making, using, or selling of
+ Modifications made by that Contributor either alone and/or in combination with
+ its Contributor Version (or portions of such combination), to make, use, sell,
+ offer for sale, have made, and/or otherwise dispose of: (1) Modifications made
+ by that Contributor (or portions thereof); and (2) the combination of
+ Modifications made by that Contributor with its Contributor Version (or
+ portions of such combination).
+ .
+ (c) The licenses granted in Sections 2.2(a) and 2.2(b) are effective on the
+ date Contributor first distributes or otherwise makes the Modifications
+ available to a third party.
+ .
+ (d) Notwithstanding Section 2.2(b) above, no patent license is granted: (1) for
+ any code that Contributor has deleted from the Contributor Version; (2) for
+ infringements caused by: (i) third party modifications of Contributor Version,
+ or (ii) the combination of Modifications made by that Contributor with other
+ software (except as part of the Contributor Version) or other devices; or (3)
+ under Patent Claims infringed by Covered Software in the absence of
+ Modifications made by that Contributor.
+ .
+ 3. Distribution Obligations.
+ .
+ 3.1. Availability of Source Code.
+ .
+ Any Covered Software that You distribute or otherwise make available in
+ Executable form must also be made available in Source Code form and that Source
+ Code form must be distributed only under the terms of this License. You must
+ include a copy of this License with every copy of the Source Code form of the
+ Covered Software You distribute or otherwise make available. You must inform
+ recipients of any such Covered Software in Executable form as to how they can
+ obtain such Covered Software in Source Code form in a reasonable manner on or
+ through a medium customarily used for software exchange.
+ .
+ 3.2. Modifications.
+ .
+ The Modifications that You create or to which You contribute are governed by
+ the terms of this License. You represent that You believe Your Modifications
+ are Your original creation(s) and/or You have sufficient rights to grant the
+ rights conveyed by this License.
+ .
+ 3.3. Required Notices.
+ .
+ You must include a notice in each of Your Modifications that identifies You as
+ the Contributor of the Modification. You may not remove or alter any copyright,
+ patent or trademark notices contained within the Covered Software, or any
+ notices of licensing or any descriptive text giving attribution to any
+ Contributor or the Initial Developer.
+ .
+ 3.4. Application of Additional Terms.
+ .
+ You may not offer or impose any terms on any Covered Software in Source Code
+ form that alters or restricts the applicable version of this License or the
+ recipients’ rights hereunder. You may choose to offer, and to charge a fee for,
+ warranty, support, indemnity or liability obligations to one or more recipients
+ of Covered Software. However, you may do so only on Your own behalf, and not on
+ behalf of the Initial Developer or any Contributor. You must make it absolutely
+ clear that any such warranty, support, indemnity or liability obligation is
+ offered by You alone, and You hereby agree to indemnify the Initial Developer
+ and every Contributor for any liability incurred by the Initial Developer or
+ such Contributor as a result of warranty, support, indemnity or liability terms
+ You offer.
+ .
+ 3.5. Distribution of Executable Versions.
+ .
+ You may distribute the Executable form of the Covered Software under the terms
+ of this License or under the terms of a license of Your choice, which may
+ contain terms different from this License, provided that You are in compliance
+ with the terms of this License and that the license for the Executable form
+ does not attempt to limit or alter the recipient’s rights in the Source Code
+ form from the rights set forth in this License. If You distribute the Covered
+ Software in Executable form under a different license, You must make it
+ absolutely clear that any terms which differ from this License are offered by
+ You alone, not by the Initial Developer or Contributor. You hereby agree to
+ indemnify the Initial Developer and every Contributor for any liability
+ incurred by the Initial Developer or such Contributor as a result of any such
+ terms You offer.
+ .
+ 3.6. Larger Works.
+ .
+ You may create a Larger Work by combining Covered Software with other code not
+ governed by the terms of this License and distribute the Larger Work as a
+ single product. In such a case, You must make sure the requirements of this
+ License are fulfilled for the Covered Software.
+ .
+ 4. Versions of the License.
+ .
+ 4.1. New Versions.
+ .
+ Sun Microsystems, Inc. is the initial license steward and may publish revised
+ and/or new versions of this License from time to time. Each version will be
+ given a distinguishing version number. Except as provided in Section 4.3, no
+ one other than the license steward has the right to modify this License.
+ .
+ 4.2. Effect of New Versions.
+ .
+ You may always continue to use, distribute or otherwise make the Covered
+ Software available under the terms of the version of the License under which
+ You originally received the Covered Software. If the Initial Developer includes
+ a notice in the Original Software prohibiting it from being distributed or
+ otherwise made available under any subsequent version of the License, You must
+ distribute and make the Covered Software available under the terms of the
+ version of the License under which You originally received the Covered
+ Software. Otherwise, You may also choose to use, distribute or otherwise make
+ the Covered Software available under the terms of any subsequent version of the
+ License published by the license steward.
+ .
+ 4.3. Modified Versions.
+ .
+ When You are an Initial Developer and You want to create a new license for Your
+ Original Software, You may create and use a modified version of this License if
+ You: (a) rename the license and remove any references to the name of the
+ license steward (except to note that the license differs from this License);
+ and (b) otherwise make it clear that the license contains terms which differ
+ from this License.
+ .
+ 5. DISCLAIMER OF WARRANTY.
+ .
+ COVERED SOFTWARE IS PROVIDED UNDER THIS LICENSE ON AN “AS IS” BASIS, WITHOUT
+ WARRANTY OF ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING, WITHOUT
+ LIMITATION, WARRANTIES THAT THE COVERED SOFTWARE IS FREE OF DEFECTS,
+ MERCHANTABLE, FIT FOR A PARTICULAR PURPOSE OR NON-INFRINGING. THE ENTIRE RISK
+ AS TO THE QUALITY AND PERFORMANCE OF THE COVERED SOFTWARE IS WITH YOU. SHOULD
+ ANY COVERED SOFTWARE PROVE DEFECTIVE IN ANY RESPECT, YOU (NOT THE INITIAL
+ DEVELOPER OR ANY OTHER CONTRIBUTOR) ASSUME THE COST OF ANY NECESSARY SERVICING,
+ REPAIR OR CORRECTION. THIS DISCLAIMER OF WARRANTY CONSTITUTES AN ESSENTIAL PART
+ OF THIS LICENSE. NO USE OF ANY COVERED SOFTWARE IS AUTHORIZED HEREUNDER EXCEPT
+ UNDER THIS DISCLAIMER.
+ .
+ 6. TERMINATION.
+ .
+ 6.1. This License and the rights granted hereunder will terminate automatically
+ if You fail to comply with terms herein and fail to cure such breach within 30
+ days of becoming aware of the breach. Provisions which, by their nature, must
+ remain in effect beyond the termination of this License shall survive.
+ .
+ 6.2. If You assert a patent infringement claim (excluding declaratory judgment
+ actions) against Initial Developer or a Contributor (the Initial Developer or
+ Contributor against whom You assert such claim is referred to as “Participant”)
+ alleging that the Participant Software (meaning the Contributor Version where
+ the Participant is a Contributor or the Original Software where the Participant
+ is the Initial Developer) directly or indirectly infringes any patent, then any
+ and all rights granted directly or indirectly to You by such Participant, the
+ Initial Developer (if the Initial Developer is not the Participant) and all
+ Contributors under Sections 2.1 and/or 2.2 of this License shall, upon 60 days
+ notice from Participant terminate prospectively and automatically at the
+ expiration of such 60 day notice period, unless if within such 60 day period
+ You withdraw Your claim with respect to the Participant Software against such
+ Participant either unilaterally or pursuant to a written agreement with
+ Participant.
+ .
+ 6.3. In the event of termination under Sections 6.1 or 6.2 above, all end user
+ licenses that have been validly granted by You or any distributor hereunder
+ prior to termination (excluding licenses granted to You by any distributor)
+ shall survive termination.
+ .
+ 7. LIMITATION OF LIABILITY.
+ .
+ UNDER NO CIRCUMSTANCES AND UNDER NO LEGAL THEORY, WHETHER TORT (INCLUDING
+ NEGLIGENCE), CONTRACT, OR OTHERWISE, SHALL YOU, THE INITIAL DEVELOPER, ANY
+ OTHER CONTRIBUTOR, OR ANY DISTRIBUTOR OF COVERED SOFTWARE, OR ANY SUPPLIER OF
+ ANY OF SUCH PARTIES, BE LIABLE TO ANY PERSON FOR ANY INDIRECT, SPECIAL,
+ INCIDENTAL, OR CONSEQUENTIAL DAMAGES OF ANY CHARACTER INCLUDING, WITHOUT
+ LIMITATION, DAMAGES FOR LOST PROFITS, LOSS OF GOODWILL, WORK STOPPAGE, COMPUTER
+ FAILURE OR MALFUNCTION, OR ANY AND ALL OTHER COMMERCIAL DAMAGES OR LOSSES, EVEN
+ IF SUCH PARTY SHALL HAVE BEEN INFORMED OF THE POSSIBILITY OF SUCH DAMAGES. THIS
+ LIMITATION OF LIABILITY SHALL NOT APPLY TO LIABILITY FOR DEATH OR PERSONAL
+ INJURY RESULTING FROM SUCH PARTY’S NEGLIGENCE TO THE EXTENT APPLICABLE LAW
+ PROHIBITS SUCH LIMITATION. SOME JURISDICTIONS DO NOT ALLOW THE EXCLUSION OR
+ LIMITATION OF INCIDENTAL OR CONSEQUENTIAL DAMAGES, SO THIS EXCLUSION AND
+ LIMITATION MAY NOT APPLY TO YOU.
+ .
+ 8. U.S. GOVERNMENT END USERS.
+ .
+ The Covered Software is a “commercial item,” as that term is defined in 48
+ C.F.R. 2.101 (Oct. 1995), consisting of “commercial computer software” (as that
+ term is defined at 48 C.F.R. § 252.227-7014(a)(1)) and “commercial computer
+ software documentation” as such terms are used in 48 C.F.R. 12.212 (Sept.
+ 1995). Consistent with 48 C.F.R. 12.212 and 48 C.F.R. 227.7202-1 through
+ 227.7202-4 (June 1995), all U.S. Government End Users acquire Covered Software
+ with only those rights set forth herein. This U.S. Government Rights clause is
+ in lieu of, and supersedes, any other FAR, DFAR, or other clause or provision
+ that addresses Government rights in computer software under this License.
+ .
+ 9. MISCELLANEOUS.
+ .
+ This License represents the complete agreement concerning subject matter
+ hereof. If any provision of this License is held to be unenforceable, such
+ provision shall be reformed only to the extent necessary to make it
+ enforceable. This License shall be governed by the law of the jurisdiction
+ specified in a notice contained within the Original Software (except to the
+ extent applicable law, if any, provides otherwise), excluding such
+ jurisdiction’s conflict-of-law provisions. Any litigation relating to this
+ License shall be subject to the jurisdiction of the courts located in the
+ jurisdiction and venue specified in a notice contained within the Original
+ Software, with the losing party responsible for costs, including, without
+ limitation, court costs and reasonable attorneys’ fees and expenses. The
+ application of the United Nations Convention on Contracts for the International
+ Sale of Goods is expressly excluded. Any law or regulation which provides that
+ the language of a contract shall be construed against the drafter shall not
+ apply to this License. You agree that You alone are responsible for compliance
+ with the United States export administration regulations (and the export
+ control laws and regulation of any other countries) when You use, distribute or
+ otherwise make available any Covered Software.
+ .
+ 10. RESPONSIBILITY FOR CLAIMS.
+ .
+ As between Initial Developer and the Contributors, each party is responsible
+ for claims and damages arising, directly or indirectly, out of its utilization
+ of rights under this License and You agree to work with Initial Developer and
+ Contributors to distribute such responsibility on an equitable basis. Nothing
+ herein is intended or shall be deemed to constitute any admission of liability.
+
+License: BSD-2-clause
+ All rights reserved.
+ .
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions are met:
+ .
+ 1. Redistributions of source code must retain the above copyright notice, this
+ list of conditions and the following disclaimer.
+ .
+ 2. Redistributions in binary form must reproduce the above copyright notice,
+ this list of conditions and the following disclaimer in the documentation
+ and/or other materials provided with the distribution.
+ .
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
