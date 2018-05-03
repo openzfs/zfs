@@ -10,7 +10,6 @@ AC_DEFUN([ZFS_AC_DEBUG_ENABLE], [
 	KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDEBUG -Werror"
 	HOSTCFLAGS="${HOSTCFLAGS} -DDEBUG -Werror"
 	DEBUG_CFLAGS="-DDEBUG -Werror"
-	DEBUG_STACKFLAGS="-fstack-check"
 	DEBUG_ZFS="_with_debug"
 	AC_DEFINE(ZFS_DEBUG, 1, [zfs debugging enabled])
 ])
