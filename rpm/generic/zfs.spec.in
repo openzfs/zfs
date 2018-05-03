@@ -96,6 +96,9 @@ BuildRequires:  libuuid-devel
 BuildRequires:  libblkid-devel
 BuildRequires:  libudev-devel
 BuildRequires:  libattr-devel
+%if 0%{?fedora} >= 28
+BuildRequires:  libtirpc-devel
+%endif
 %endif
 
 %if 0%{?_systemd}
