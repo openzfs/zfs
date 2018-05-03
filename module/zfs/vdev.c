@@ -754,6 +754,8 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 				    ZPOOL_CONFIG_AUX_STATE, &aux) == 0 &&
 				    strcmp(aux, "external") == 0)
 					vd->vdev_label_aux = VDEV_AUX_EXTERNAL;
+				else
+					vd->vdev_faulted = 0ULL;
 			}
 		}
 	}
