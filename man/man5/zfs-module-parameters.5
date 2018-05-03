@@ -223,6 +223,18 @@ Use \fB1\fR for yes (default) and \fB0\fR for no.
 .sp
 .ne 2
 .na
+\fBmetaslab_force_ganging\fR (ulong)
+.ad
+.RS 12n
+Make some blocks above a certain size be gang blocks.  This option is used
+by the test suite to facilitate testing.
+.sp
+Default value: \fB16,777,217\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_metaslab_segment_weight_enabled\fR (int)
 .ad
 .RS 12n
@@ -1374,9 +1386,6 @@ _
 _
 16	ZFS_DEBUG_MODIFY
 	Check for illegally modified ARC buffers.
-_
-32	ZFS_DEBUG_SPA
-	Enable spa_dbgmsg entries in the debug log.
 _
 64	ZFS_DEBUG_ZIO_FREE
 	Enable verification of block frees.

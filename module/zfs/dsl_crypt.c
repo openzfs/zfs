@@ -866,7 +866,7 @@ spa_keystore_unload_wkey_impl(spa_t *spa, uint64_t ddobj)
 	found_wkey = avl_find(&spa->spa_keystore.sk_wkeys,
 	    &search_wkey, NULL);
 	if (!found_wkey) {
-		ret = SET_ERROR(ENOENT);
+		ret = SET_ERROR(EACCES);
 		goto error_unlock;
 	} else if (refcount_count(&found_wkey->wk_refcnt) != 0) {
 		ret = SET_ERROR(EBUSY);
@@ -1225,7 +1225,7 @@ spa_keystore_change_key_check(void *arg, dmu_tx_t *tx)
 	if (ret != 0)
 		goto error;
 
-	/* Handle inheritence */
+	/* Handle inheritance */
 	if (dcp->cp_cmd == DCP_CMD_INHERIT ||
 	    dcp->cp_cmd == DCP_CMD_FORCE_INHERIT) {
 		/* no other encryption params should be given */
@@ -1757,7 +1757,7 @@ dmu_objset_create_crypt_check(dsl_dir_t *parentdd, dsl_crypto_params_t *dcp)
 		return (SET_ERROR(EOPNOTSUPP));
 	}
 
-	/* handle inheritence */
+	/* handle inheritance */
 	if (dcp->cp_wkey == NULL) {
 		ASSERT3P(parentdd, !=, NULL);
 
@@ -2661,23 +2661,23 @@ error:
  * these fields to populate pabd (the plaintext).
  */
 int
-spa_do_crypt_abd(boolean_t encrypt, spa_t *spa, uint64_t dsobj,
-    const blkptr_t *bp, uint64_t txgid, uint_t datalen, abd_t *pabd,
-    abd_t *cabd, uint8_t *iv, uint8_t *mac, uint8_t *salt, boolean_t *no_crypt)
+spa_do_crypt_abd(boolean_t encrypt, spa_t *spa, const zbookmark_phys_t *zb,
+    dmu_object_type_t ot, boolean_t dedup, boolean_t bswap, uint8_t *salt,
+    uint8_t *iv, uint8_t *mac, uint_t datalen, abd_t *pabd, abd_t *cabd,
+    boolean_t *no_crypt)
 {
 	int ret;
-	dmu_object_type_t ot = BP_GET_TYPE(bp);
 	dsl_crypto_key_t *dck = NULL;
 	uint8_t *plainbuf = NULL, *cipherbuf = NULL;
 
 	ASSERT(spa_feature_is_active(spa, SPA_FEATURE_ENCRYPTION));
-	ASSERT(!BP_IS_EMBEDDED(bp));
-	ASSERT(BP_IS_ENCRYPTED(bp));
 
 	/* look up the key from the spa's keystore */
-	ret = spa_keystore_lookup_key(spa, dsobj, FTAG, &dck);
-	if (ret != 0)
+	ret = spa_keystore_lookup_key(spa, zb->zb_objset, FTAG, &dck);
+	if (ret != 0) {
+		ret = SET_ERROR(EACCES);
 		return (ret);
+	}
 
 	if (encrypt) {
 		plainbuf = abd_borrow_buf_copy(pabd, datalen);
@@ -2696,7 +2696,7 @@ spa_do_crypt_abd(boolean_t encrypt, spa_t *spa, uint64_t dsobj,
 	 * at allocation time in zio_alloc_zil(). On decryption, we simply use
 	 * the provided values.
 	 */
-	if (encrypt && ot != DMU_OT_INTENT_LOG && !BP_GET_DEDUP(bp)) {
+	if (encrypt && ot != DMU_OT_INTENT_LOG && !dedup) {
 		ret = zio_crypt_key_get_salt(&dck->dck_key, salt);
 		if (ret != 0)
 			goto error;
@@ -2704,7 +2704,7 @@ spa_do_crypt_abd(boolean_t encrypt, spa_t *spa, uint64_t dsobj,
 		ret = zio_crypt_generate_iv(iv);
 		if (ret != 0)
 			goto error;
-	} else if (encrypt && BP_GET_DEDUP(bp)) {
+	} else if (encrypt && dedup) {
 		ret = zio_crypt_generate_iv_salt_dedup(&dck->dck_key,
 		    plainbuf, datalen, iv, salt);
 		if (ret != 0)
@@ -2712,8 +2712,17 @@ spa_do_crypt_abd(boolean_t encrypt, spa_t *spa, uint64_t dsobj,
 	}
 
 	/* call lower level function to perform encryption / decryption */
-	ret = zio_do_crypt_data(encrypt, &dck->dck_key, salt, ot, iv, mac,
-	    datalen, BP_SHOULD_BYTESWAP(bp), plainbuf, cipherbuf, no_crypt);
+	ret = zio_do_crypt_data(encrypt, &dck->dck_key, ot, bswap, salt, iv,
+	    mac, datalen, plainbuf, cipherbuf, no_crypt);
+
+	/*
+	 * Handle injected decryption faults. Unfortunately, we cannot inject
+	 * faults for dnode blocks because we might trigger the panic in
+	 * dbuf_prepare_encrypted_dnode_leaf(), which exists because syncing
+	 * context is not prepared to handle malicious decryption failures.
+	 */
+	if (zio_injection_enabled && !encrypt && ot != DMU_OT_DNODE && ret == 0)
+		ret = zio_handle_decrypt_injection(spa, zb, ot, ECKSUM);
 	if (ret != 0)
 		goto error;
 

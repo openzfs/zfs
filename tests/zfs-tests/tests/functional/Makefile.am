@@ -13,6 +13,7 @@ SUBDIRS = \
 	cli_root \
 	cli_user \
 	compression \
+	cp_files \
 	ctime \
 	deadman \
 	delegate \
@@ -30,6 +31,7 @@ SUBDIRS = \
 	large_files \
 	largest_pool \
 	libzfs \
+	pyzfs \
 	link_count \
 	migration \
 	mmap \

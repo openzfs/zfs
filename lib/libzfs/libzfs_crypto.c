@@ -1185,7 +1185,7 @@ zfs_crypto_unload_key(zfs_handle_t *zhp)
 	if (keystatus == ZFS_KEYSTATUS_UNAVAILABLE) {
 		zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
 		    "Key already unloaded for '%s'."), zfs_get_name(zhp));
-		ret = ENOENT;
+		ret = EACCES;
 		goto error;
 	}
 
@@ -1198,7 +1198,7 @@ zfs_crypto_unload_key(zfs_handle_t *zhp)
 			zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
 			    "Permission denied."));
 			break;
-		case ENOENT:
+		case EACCES:
 			zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
 			    "Key already unloaded for '%s'."),
 			    zfs_get_name(zhp));

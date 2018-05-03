@@ -1094,13 +1094,6 @@ _NOTE(CONSTCOND) } while (0)
 #define	dprintf_bp(bp, fmt, ...)
 #endif
 
-extern boolean_t spa_debug_enabled(spa_t *spa);
-#define	spa_dbgmsg(spa, ...)			\
-{						\
-	if (spa_debug_enabled(spa))		\
-		zfs_dbgmsg(__VA_ARGS__);	\
-}
-
 extern int spa_mode_global;			/* mode, e.g. FREAD | FWRITE */
 extern int zfs_deadman_enabled;
 extern unsigned long zfs_deadman_synctime_ms;

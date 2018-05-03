@@ -23,11 +23,11 @@
 .\" Copyright (c) 2012, 2017 by Delphix. All rights reserved.
 .\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
 .\" Copyright (c) 2017 Datto Inc.
-.\" Copyright (c) 2017 George Melikov. All Rights Reserved.
+.\" Copyright (c) 2018 George Melikov. All Rights Reserved.
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd March 9, 2018
+.Dd April 27, 2018
 .Dt ZPOOL 8 SMM
 .Os Linux
 .Sh NAME
@@ -1581,7 +1581,24 @@ block device.
 Verbose statistics Reports usage statistics for individual vdevs within the
 pool, in addition to the pool-wide statistics.
 .It Fl y
+Omit statistics since boot.
+Normally the first line of output reports the statistics since boot.
+This option suppresses that first line of output.
 .It Fl w
+Display latency histograms:
+.Pp
+.Ar total_wait :
+Total IO time (queuing + disk IO time).
+.Ar disk_wait :
+Disk IO time (time reading/writing the disk).
+.Ar syncq_wait :
+Amount of time IO spent in synchronous priority queues.  Does not include
+disk time.
+.Ar asyncq_wait :
+Amount of time IO spent in asynchronous priority queues.  Does not include
+disk time.
+.Ar scrub :
+Amount of time IO spent in scrub queue. Does not include disk time.
 .It Fl l
 Include average latency statistics:
 .Pp

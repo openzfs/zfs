@@ -59,7 +59,7 @@ tags = ['functional', 'cachefile']
 # 'mixed_none_lookup', 'mixed_none_lookup_ci', 'mixed_none_delete',
 # 'mixed_formd_lookup', 'mixed_formd_lookup_ci', 'mixed_formd_delete']
 [tests/functional/casenorm]
-tests = ['case_all_values', 'norm_all_values']
+tests = ['case_all_values', 'norm_all_values', 'mixed_create_failure']
 tags = ['functional', 'casenorm']
 
 [tests/functional/channel_program/lua_core]
@@ -150,7 +150,7 @@ tags = ['functional', 'cli_root', 'zfs_destroy']
 
 [tests/functional/cli_root/zfs_diff]
 tests = ['zfs_diff_changes', 'zfs_diff_cliargs', 'zfs_diff_timestamp',
-    'zfs_diff_types']
+    'zfs_diff_types', 'zfs_diff_encrypted']
 tags = ['functional', 'cli_root', 'zfs_diff']
 
 [tests/functional/cli_root/zfs_get]
@@ -202,6 +202,10 @@ tests = ['zfs_receive_001_pos', 'zfs_receive_002_pos', 'zfs_receive_003_pos',
     'zfs_receive_to_encrypted', 'zfs_receive_raw',
     'zfs_receive_raw_incremental']
 tags = ['functional', 'cli_root', 'zfs_receive']
+
+[tests/functional/cli_root/zfs_remap]
+tests = ['zfs_remap_cliargs', 'zfs_remap_obsolete_counts']
+tags = ['functional', 'cli_root', 'zfs_remap']
 
 # zfs_rename_006_pos - https://github.com/zfsonlinux/zfs/issues/5647
 # zfs_rename_009_neg - https://github.com/zfsonlinux/zfs/issues/5648
@@ -475,6 +479,10 @@ tests = ['compress_001_pos', 'compress_002_pos', 'compress_003_pos',
     'compress_004_pos']
 tags = ['functional', 'compression']
 
+[tests/functional/cp_files]
+tests = ['cp_files_001_pos']
+tags = ['functional', 'cp_files']
+
 [tests/functional/ctime]
 tests = ['ctime_001_pos' ]
 tags = ['functional', 'ctime']
@@ -510,7 +518,7 @@ tags = ['functional', 'exec']
 [tests/functional/fault]
 tests = ['auto_online_001_pos', 'auto_replace_001_pos', 'auto_spare_001_pos',
     'auto_spare_002_pos', 'auto_spare_ashift', 'auto_spare_multiple',
-    'scrub_after_resilver']
+    'scrub_after_resilver', 'decrypt_fault']
 tags = ['functional', 'fault']
 
 [tests/functional/features/async_destroy]
@@ -592,7 +600,7 @@ tests = ['umount_001', 'umountall_001']
 tags = ['functional', 'mount']
 
 [tests/functional/mv_files]
-tests = ['mv_files_001_pos', 'mv_files_002_pos']
+tests = ['mv_files_001_pos', 'mv_files_002_pos', 'random_creation']
 tags = ['functional', 'mv_files']
 
 [tests/functional/nestedfs]
@@ -637,6 +645,12 @@ tests = ['projectid_001_pos', 'projectid_002_pos', 'projectid_003_pos',
     'projectspace_004_pos',
     'projecttree_001_pos', 'projecttree_002_pos', 'projecttree_003_neg' ]
 tags = ['functional', 'projectquota']
+
+[tests/functional/pyzfs]
+tests = ['pyzfs_unittest']
+pre =
+post =
+tags = ['functional', 'pyzfs']
 
 [tests/functional/quota]
 tests = ['quota_001_pos', 'quota_002_pos', 'quota_003_pos',

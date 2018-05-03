@@ -99,6 +99,9 @@ BuildRequires:  libblkid-devel
 BuildRequires:  libudev-devel
 BuildRequires:  libattr-devel
 BuildRequires:  openssl-devel
+%if 0%{?fedora} >= 28
+BuildRequires:  libtirpc-devel
+%endif
 Requires:       openssl
 %if 0%{?_systemd}
 BuildRequires: systemd
@@ -215,6 +218,26 @@ Requires:       dracut
 %description dracut
 This package contains a dracut module used to construct an initramfs
 image which is ZFS aware.
+
+%if 0%{?_pyzfs}
+%package -n pyzfs
+Summary:        Python wrapper for libzfs_core
+Group:          Development/Languages/Python
+License:        Apache-2.0
+BuildArch:      noarch
+Requires:       libzfs2 = %{version}
+Requires:       libnvpair1 = %{version}
+Requires:       libffi
+Requires:       python >= 2.7
+Requires:       python-cffi
+%if 0%{?rhel}%{?fedora}%{?suse_version}
+BuildRequires:  python-devel
+BuildRequires:  libffi-devel
+%endif
+
+%description -n pyzfs
+This package provides a python wrapper for the libzfs_core C library.
+%endif
 
 %if 0%{?_initramfs}
 %package initramfs
@@ -382,6 +405,15 @@ systemctl --system daemon-reload >/dev/null || true
 %files dracut
 %doc contrib/dracut/README.dracut.markdown
 %{_dracutdir}/modules.d/*
+
+%if 0%{?_pyzfs}
+%files -n pyzfs
+%doc contrib/pyzfs/README
+%doc contrib/pyzfs/LICENSE
+%defattr(-,root,root,-)
+%{python_sitelib}/libzfs_core/*
+%{python_sitelib}/pyzfs*
+%endif
 
 %if 0%{?_initramfs}
 %files initramfs

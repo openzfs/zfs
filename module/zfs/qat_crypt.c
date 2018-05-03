@@ -47,7 +47,7 @@
 
 #define	MAX_PAGE_NUM			1024
 
-static Cpa16U inst_num = 0;
+static Cpa32U inst_num = 0;
 static Cpa16U num_inst = 0;
 static CpaInstanceHandle cy_inst_handles[QAT_CRYPT_MAX_INSTANCES];
 static boolean_t qat_crypt_init_done = B_FALSE;
@@ -93,7 +93,7 @@ qat_checksum_use_accel(size_t s_len)
 void
 qat_crypt_clean(void)
 {
-	for (Cpa32U i = 0; i < num_inst; i++)
+	for (Cpa16U i = 0; i < num_inst; i++)
 		cpaCyStopInstance(cy_inst_handles[i]);
 
 	num_inst = 0;
@@ -103,7 +103,6 @@ qat_crypt_clean(void)
 int
 qat_crypt_init(void)
 {
-	Cpa32U i;
 	CpaStatus status = CPA_STATUS_FAIL;
 
 	status = cpaCyGetNumInstances(&num_inst);
@@ -121,7 +120,7 @@ qat_crypt_init(void)
 	if (status != CPA_STATUS_SUCCESS)
 		return (-1);
 
-	for (i = 0; i < num_inst; i++) {
+	for (Cpa16U i = 0; i < num_inst; i++) {
 		status = cpaCySetAddressTranslation(cy_inst_handles[i],
 		    (void *)virt_to_phys);
 		if (status != CPA_STATUS_SUCCESS)
@@ -322,7 +321,7 @@ qat_crypt(qat_encrypt_dir_t dir, uint8_t *src_buf, uint8_t *dst_buf,
 		QAT_STAT_INCR(decrypt_total_in_bytes, enc_len);
 	}
 
-	i = atomic_inc_32_nv(&inst_num) % num_inst;
+	i = (Cpa32U)atomic_inc_32_nv(&inst_num) % num_inst;
 	cy_inst_handle = cy_inst_handles[i];
 
 	status = qat_init_crypt_session_ctx(dir, cy_inst_handle,
@@ -468,7 +467,7 @@ qat_checksum(uint64_t cksum, uint8_t *buf, uint64_t size, zio_cksum_t *zcp)
 	QAT_STAT_BUMP(cksum_requests);
 	QAT_STAT_INCR(cksum_total_in_bytes, size);
 
-	i = atomic_inc_32_nv(&inst_num) % num_inst;
+	i = (Cpa32U)atomic_inc_32_nv(&inst_num) % num_inst;
 	cy_inst_handle = cy_inst_handles[i];
 
 	status = qat_init_checksum_session_ctx(cy_inst_handle,

@@ -472,7 +472,6 @@ void dmu_object_set_checksum(objset_t *os, uint64_t object, uint8_t checksum,
 void dmu_object_set_compress(objset_t *os, uint64_t object, uint8_t compress,
     dmu_tx_t *tx);
 
-int dmu_object_dirty_raw(objset_t *os, uint64_t object, dmu_tx_t *tx);
 
 int dmu_object_remap_indirects(objset_t *os, uint64_t object, uint64_t txg);
 
@@ -715,7 +714,8 @@ struct blkptr *dmu_buf_get_blkptr(dmu_buf_t *db);
  * (ie. you've called dmu_tx_hold_object(tx, db->db_object)).
  */
 void dmu_buf_will_dirty(dmu_buf_t *db, dmu_tx_t *tx);
-void dmu_buf_will_change_crypt_params(dmu_buf_t *db, dmu_tx_t *tx);
+void dmu_buf_set_crypt_params(dmu_buf_t *db_fake, boolean_t byteorder,
+    const uint8_t *salt, const uint8_t *iv, const uint8_t *mac, dmu_tx_t *tx);
 
 /*
  * You must create a transaction, then hold the objects which you will
@@ -794,10 +794,7 @@ int dmu_free_range(objset_t *os, uint64_t object, uint64_t offset,
     uint64_t size, dmu_tx_t *tx);
 int dmu_free_long_range(objset_t *os, uint64_t object, uint64_t offset,
     uint64_t size);
-int dmu_free_long_range_raw(objset_t *os, uint64_t object, uint64_t offset,
-    uint64_t size);
 int dmu_free_long_object(objset_t *os, uint64_t object);
-int dmu_free_long_object_raw(objset_t *os, uint64_t object);
 
 /*
  * Convenience functions.
@@ -837,9 +834,6 @@ void dmu_assign_arcbuf_by_dnode(dnode_t *dn, uint64_t offset,
 void dmu_assign_arcbuf_by_dbuf(dmu_buf_t *handle, uint64_t offset,
     struct arc_buf *buf, dmu_tx_t *tx);
 #define	dmu_assign_arcbuf	dmu_assign_arcbuf_by_dbuf
-int dmu_convert_mdn_block_to_raw(objset_t *os, uint64_t firstobj,
-    boolean_t byteorder, const uint8_t *salt, const uint8_t *iv,
-    const uint8_t *mac, dmu_tx_t *tx);
 void dmu_copy_from_buf(objset_t *os, uint64_t object, uint64_t offset,
     dmu_buf_t *handle, dmu_tx_t *tx);
 #ifdef HAVE_UIO_ZEROCOPY

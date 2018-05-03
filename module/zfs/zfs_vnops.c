@@ -1450,6 +1450,7 @@ top:
 			dmu_tx_hold_write(tx, DMU_NEW_OBJECT,
 			    0, acl_ids.z_aclp->z_acl_bytes);
 		}
+
 		error = dmu_tx_assign(tx,
 		    (waited ? TXG_NOTHROTTLE : 0) | TXG_NOWAIT);
 		if (error) {
@@ -1467,10 +1468,22 @@ top:
 		}
 		zfs_mknode(dzp, vap, tx, cr, 0, &zp, &acl_ids);
 
+		error = zfs_link_create(dl, zp, tx, ZNEW);
+		if (error != 0) {
+			/*
+			 * Since, we failed to add the directory entry for it,
+			 * delete the newly created dnode.
+			 */
+			zfs_znode_delete(zp, tx);
+			remove_inode_hash(ZTOI(zp));
+			zfs_acl_ids_free(&acl_ids);
+			dmu_tx_commit(tx);
+			goto out;
+		}
+
 		if (fuid_dirtied)
 			zfs_fuid_sync(zfsvfs, tx);
 
-		(void) zfs_link_create(dl, zp, tx, ZNEW);
 		txtype = zfs_log_create_txtype(Z_FILE, vsecp, vap);
 		if (flag & FIGNORECASE)
 			txtype |= TX_CI;
@@ -2064,13 +2077,18 @@ top:
 	 */
 	zfs_mknode(dzp, vap, tx, cr, 0, &zp, &acl_ids);
 
-	if (fuid_dirtied)
-		zfs_fuid_sync(zfsvfs, tx);
-
 	/*
 	 * Now put new name in parent dir.
 	 */
-	(void) zfs_link_create(dl, zp, tx, ZNEW);
+	error = zfs_link_create(dl, zp, tx, ZNEW);
+	if (error != 0) {
+		zfs_znode_delete(zp, tx);
+		remove_inode_hash(ZTOI(zp));
+		goto out;
+	}
+
+	if (fuid_dirtied)
+		zfs_fuid_sync(zfsvfs, tx);
 
 	*ipp = ZTOI(zp);
 
@@ -2080,6 +2098,7 @@ top:
 	zfs_log_create(zilog, tx, txtype, dzp, zp, dirname, vsecp,
 	    acl_ids.z_fuidp, vap);
 
+out:
 	zfs_acl_ids_free(&acl_ids);
 
 	dmu_tx_commit(tx);
@@ -2089,10 +2108,14 @@ top:
 	if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		zil_commit(zilog, 0);
 
-	zfs_inode_update(dzp);
-	zfs_inode_update(zp);
+	if (error != 0) {
+		iput(ZTOI(zp));
+	} else {
+		zfs_inode_update(dzp);
+		zfs_inode_update(zp);
+	}
 	ZFS_EXIT(zfsvfs);
-	return (0);
+	return (error);
 }
 
 /*
@@ -2250,7 +2273,7 @@ out:
  */
 /* ARGSUSED */
 int
-zfs_readdir(struct inode *ip, struct dir_context *ctx, cred_t *cr)
+zfs_readdir(struct inode *ip, zpl_dir_context_t *ctx, cred_t *cr)
 {
 	znode_t		*zp = ITOZ(ip);
 	zfsvfs_t	*zfsvfs = ITOZSB(ip);
@@ -2355,7 +2378,7 @@ zfs_readdir(struct inode *ip, struct dir_context *ctx, cred_t *cr)
 			type = ZFS_DIRENT_TYPE(zap.za_first_integer);
 		}
 
-		done = !dir_emit(ctx, zap.za_name, strlen(zap.za_name),
+		done = !zpl_dir_emit(ctx, zap.za_name, strlen(zap.za_name),
 		    objnum, type);
 		if (done)
 			break;
@@ -3950,6 +3973,13 @@ top:
 				VERIFY3U(zfs_link_destroy(tdl, szp, tx,
 				    ZRENAMING, NULL), ==, 0);
 			}
+		} else {
+			/*
+			 * If we had removed the existing target, subsequent
+			 * call to zfs_link_create() to add back the same entry
+			 * but, the new dnode (szp) should not fail.
+			 */
+			ASSERT(tzp == NULL);
 		}
 	}
 
@@ -4120,14 +4150,18 @@ top:
 	/*
 	 * Insert the new object into the directory.
 	 */
-	(void) zfs_link_create(dl, zp, tx, ZNEW);
+	error = zfs_link_create(dl, zp, tx, ZNEW);
+	if (error != 0) {
+		zfs_znode_delete(zp, tx);
+		remove_inode_hash(ZTOI(zp));
+	} else {
+		if (flags & FIGNORECASE)
+			txtype |= TX_CI;
+		zfs_log_symlink(zilog, tx, txtype, dzp, zp, name, link);
 
-	if (flags & FIGNORECASE)
-		txtype |= TX_CI;
-	zfs_log_symlink(zilog, tx, txtype, dzp, zp, name, link);
-
-	zfs_inode_update(dzp);
-	zfs_inode_update(zp);
+		zfs_inode_update(dzp);
+		zfs_inode_update(zp);
+	}
 
 	zfs_acl_ids_free(&acl_ids);
 
@@ -4135,10 +4169,14 @@ top:
 
 	zfs_dirent_unlock(dl);
 
-	*ipp = ZTOI(zp);
+	if (error == 0) {
+		*ipp = ZTOI(zp);
 
-	if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
-		zil_commit(zilog, 0);
+		if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
+			zil_commit(zilog, 0);
+	} else {
+		iput(ZTOI(zp));
+	}
 
 	ZFS_EXIT(zfsvfs);
 	return (error);

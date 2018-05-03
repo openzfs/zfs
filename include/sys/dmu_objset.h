@@ -139,6 +139,7 @@ struct objset {
 	uint64_t os_flags;
 	uint64_t os_freed_dnodes;
 	boolean_t os_rescan_dnodes;
+	boolean_t os_raw_receive;
 
 	/* os_phys_buf should be written raw next txg */
 	boolean_t os_next_write_raw[TXG_SIZE];
