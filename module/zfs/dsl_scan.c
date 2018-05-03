@@ -2166,7 +2166,8 @@ dsl_scan_visitds(dsl_scan_t *scn, uint64_t dsobj, dmu_tx_t *tx)
 	 * block-sharing rules don't apply to it.
 	 */
 	if (!dsl_dataset_is_snapshot(ds) &&
-	    ds->ds_dir != dp->dp_origin_snap->ds_dir) {
+	    (dp->dp_origin_snap == NULL ||
+	    ds->ds_dir != dp->dp_origin_snap->ds_dir)) {
 		objset_t *os;
 		if (dmu_objset_from_ds(ds, &os) != 0) {
 			goto out;
