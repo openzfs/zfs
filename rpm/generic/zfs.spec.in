@@ -99,6 +99,9 @@ BuildRequires:  libblkid-devel
 BuildRequires:  libudev-devel
 BuildRequires:  libattr-devel
 BuildRequires:  openssl-devel
+%if 0%{?fedora} >= 28
+BuildRequires:  libtirpc-devel
+%endif
 Requires:       openssl
 %if 0%{?_systemd}
 BuildRequires: systemd
