@@ -384,7 +384,8 @@ mmp_update_uberblock(spa_t *spa, uberblock_t *ub)
 static void
 mmp_write_uberblock(spa_t *spa)
 {
-	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL;
+	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL |
+	    ZIO_FLAG_DONT_QUEUE | ZIO_FLAG_DONT_CACHE;
 	mmp_thread_t *mmp = &spa->spa_mmp;
 	uberblock_t *ub;
 	vdev_t *vd = NULL;
