@@ -40,9 +40,6 @@ for pool in "$TESTPOOL" "$TESTPOOL1"; do
 	destroy_pool "$pool"
 done
 
-ismounted $DEVICE_DIR $NEWFS_DEFAULT_FS
-(( $? == 0 )) && log_must umount -f $DEVICE_DIR
-
 for dir in "$TESTDIR" "$TESTDIR1" "$DEVICE_DIR" ; do
 	[[ -d $dir ]] && \
 		log_must rm -rf $dir
