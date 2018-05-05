@@ -67,10 +67,6 @@ function cleanup
                 log_must rm -rf $TESTDIR1/* > /dev/null 2>&1
         fi
 
-	if [[ -e /tmp/zfs_snapshot2.$$ ]]; then
-		log_must rm -rf /tmp/zfs_snapshot2.$$ > /dev/null 2>&1
-	fi
-
 }
 
 log_assert "Verify that an archive of a dataset is identical to " \
