@@ -258,28 +258,28 @@ returned to the \fBenabled\fR state when all bookmarks with these fields are des
 .sp
 .ne 2
 .na
-\fB\fBcompress_auto\fR\fR
+\fB\fBcompress_adaptive\fR\fR
 .ad
 .RS 4n
 .TS
 l l .
-GUID	org.zfsonlinux:compress_auto
+GUID	org.zfsonlinux:compress_adaptive
 READ\-ONLY COMPATIBLE	yes
 DEPENDENCIES	lz4_compress,extensible_dataset
 .TE
 
-\fBcompress_auto\fR chooses the compression algorithm out lz4 and gzip[1-9] 
-to perform the optimal write throughput.
+\fBcompress_adaptive\fR chooses the compression algorithm out of lz4 and gzip[1-9] 
+to perform with optimal write throughput.
 
-When the \fBcompress_auto\fR feature is set to \fBenabled\fR, the
-administrator can turn on \fBcompress_auto\fR on any dataset on the
+When the \fBcompress_adaptive\fR feature is set to \fBenabled\fR, the
+administrator can turn on \fBcompress_adaptive\fR on any dataset on the
 pool using the \fBzfs\fR(8) command. Please note that doing so will
-immediately activate the \fB\fR feature on the underlying
+immediately activate the \fBcompress_adaptive\fR feature on the underlying
 pool.
 
 This feature becomes \fBactive\fR as soon as it is used on one dataset and will 
 return to being \fBenabled\fR once all filesystems that have ever had their compression set to
-+\fBcompress_auto\fR are destroyed.
++\fBcompress_adaptive\fR are destroyed.
 .RE
 
 .sp
@@ -641,12 +641,16 @@ giving approximately 10% better compression ratio.
 
 When the \fBlz4_compress\fR feature is set to \fBenabled\fR, the
 administrator can turn on \fBlz4\fR compression on any dataset on the
-pool using the zfs(8) command. Please note that doing so will
+pool using the \fBzfs\fR(8) command. Please note that doing so will
 immediately activate the \fBlz4_compress\fR feature on the underlying
-pool using the zfs(8) command. Also, all newly written metadata
+pool using the \fBzfs\fR(1M) command. Also, all newly written metadata
 will be compressed with \fBlz4\fR algorithm. Since this feature is not
 read-only compatible, this operation will render the pool unimportable
-on systems without support for the \fBlz4_compress\fR feature.
+on systems without support for the \fBlz4_compress\fR feature. Booting
+off of \fBlz4\fR-compressed root pools is supported.
+
+This feature becomes \fBactive\fR as soon as it is enabled and will
+never return to being \fBenabled\fR.
 
 Booting off of \fBlz4\fR-compressed root pools is supported.
 

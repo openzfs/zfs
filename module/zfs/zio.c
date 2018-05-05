@@ -49,6 +49,7 @@
 #include <sys/dsl_crypt.h>
 #include <sys/cityhash.h>
 #include <sys/compress_auto.h>
+#include <sys/compress_adaptive.h>
 
 /*
  * ==========================================================================
@@ -1608,8 +1609,8 @@ zio_write_compress(zio_t *zio)
 	if (compress != ZIO_COMPRESS_OFF &&
 	    !(zio->io_flags & ZIO_FLAG_RAW_COMPRESS)) {
 		void *cbuf = zio_buf_alloc(lsize);
-		if (compress == ZIO_COMPRESS_AUTO) {
-			psize = compress_auto(zio, zio->io_abd,
+		if (compress == ZIO_COMPRESS_ADAPTIVE) {
+			psize = compress_adaptive(zio, zio->io_abd,
 			    cbuf, lsize, &compress);
 		} else {
 			psize = zio_compress_data(compress, zio->io_abd,

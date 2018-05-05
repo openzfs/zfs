@@ -2464,8 +2464,8 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 			err = -1;
 		break;
 	case ZFS_PROP_COMPRESSION:
-		if (intval == ZIO_COMPRESS_AUTO) {
-			err = dsl_dataset_activate_compress_auto(dsname);
+		if (intval == ZIO_COMPRESS_ADAPTIVE) {
+			err = dsl_dataset_activate_compress_adaptive(dsname);
 
 			if (err == 0)
 				err = -1;
@@ -4372,14 +4372,14 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 				spa_close(spa, FTAG);
 			}
 
-			if (intval == ZIO_COMPRESS_AUTO) {
+			if (intval == ZIO_COMPRESS_ADAPTIVE) {
 				spa_t *spa;
 
 				if ((err = spa_open(dsname, &spa, FTAG)) != 0)
 					return (err);
 
 				if (!spa_feature_is_enabled(spa,
-				    SPA_FEATURE_COMPRESS_AUTO)) {
+				    SPA_FEATURE_COMPRESS_ADAPTIVE)) {
 					spa_close(spa, FTAG);
 					return (SET_ERROR(ENOTSUP));
 				}

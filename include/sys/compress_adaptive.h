@@ -19,15 +19,15 @@
  * CDDL HEADER END
  */
 
-#ifndef _SYS_AUTO_COMPRESS_H
-#define	_SYS_AUTO_COMPRESS_H
+#ifndef _SYS_ADAPTIVE_COMPRESS_H
+#define	_SYS_ADAPTIVE_COMPRESS_H
 
-#define	COMPRESS_AUTO_LEVELS 3
+#define	COMPRESS_ADAPTIVE_LEVELS 10
 
 #include <sys/spa.h>
 #include <sys/zio.h>
 
-size_t compress_auto(zio_t *zio, abd_t *src, void *dst,
+size_t compress_adaptive(zio_t *zio, abd_t *src, void *dst,
 	size_t s_len, enum zio_compress *c);
 
 void compress_calc_avg_without_zero(uint64_t act, uint64_t *res, int n);
@@ -35,4 +35,4 @@ void compress_calc_avg_without_zero(uint64_t act, uint64_t *res, int n);
 uint64_t compress_calc_Bps(uint64_t byte, hrtime_t delay);
 
 
-#endif /* _SYS_AUTO_COMPRESS_H */
+#endif /* _SYS_ADAPTIVE_COMPRESS_H */

@@ -55,7 +55,7 @@
 #include <sys/vdev_trim.h>
 #include <sys/zvol.h>
 #include <sys/zfs_ratelimit.h>
-#include <sys/compress_auto.h>
+#include <sys/compress_adaptive.h>
 
 /* default target for number of metaslabs per top-level vdev */
 int zfs_vdev_default_ms_count = 200;
@@ -4079,10 +4079,10 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
 				int n = 1000; // average over 1000 zios
 
 				uint64_t bps = compress_calc_Bps(
-					psize, zio->io_delay);
+				    psize, zio->io_delay);
 
 				compress_calc_avg_without_zero(
-					bps,&vsx->vsx_diskBps[type], n);
+				    bps, &vsx->vsx_diskBps[type], n);
 
 				vsx->vsx_queue_histo[zio->io_priority]
 				    [L_HISTO(zio->io_delta - zio->io_delay)]++;
