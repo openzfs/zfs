@@ -17,5 +17,9 @@
 
 . $STF_SUITE/include/libtest.shlib
 
+if ! getholes /etc/hosts; then
+	log_unsupported "The kernel does not support SEEK_DATA / SEEK_HOLE"
+fi
+
 DISK=${DISKS%% *}
 default_setup $DISK
