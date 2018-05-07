@@ -75,7 +75,7 @@ log_must zfs snapshot "$TESTSNAP2"
 # 3. Verify 'zfs diff -t' correctly display timestamps
 typeset -i count=0
 log_must eval "zfs diff -t $TESTSNAP1 $TESTSNAP2 > $FILEDIFF"
-awk '{print substr($1,0,index($1,".")-1)" "$NF}' < "$FILEDIFF" | while read line
+awk '{print substr($1,1,index($1,".")-1)" "$NF}' < "$FILEDIFF" | while read line
 do
 	read ctime file <<< "$line"
 
