@@ -8,6 +8,7 @@ primitives.
 
 To build packages for your distribution:
 
+    $ sh autogen.sh
     $ ./configure
     $ make pkg
 
@@ -19,6 +20,7 @@ the GNU autotools for your distribution.
 To copy the kernel code inside your kernel source tree for builtin
 compilation:
 
+    $ sh autogen.sh
     $ ./configure --enable-linux-builtin --with-linux=/usr/src/linux-...
     $ ./copy-builtin /usr/src/linux-...
 
