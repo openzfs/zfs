@@ -30,6 +30,8 @@
 #define	PRINT_DATA 0x2
 #define	PRINT_VERBOSE 0x4
 
+#ifdef SEEK_HOLE
+
 static void
 usage(char *msg, int exit_value)
 {
@@ -207,3 +209,13 @@ main(int argc, char *argv[])
 	list_destroy(&seg_list);
 	return (0);
 }
+
+#else
+int
+main(int argc, char *argv[])
+{
+	fprintf(stderr,
+	    "error: SEEK_DATA / SEEK_HOLE not supported by this kernel\n");
+	return (1);
+}
+#endif
