@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2016 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_VDEV_H
@@ -47,9 +47,13 @@ typedef enum vdev_dtl_type {
 
 extern int zfs_nocacheflush;
 
+extern void vdev_dbgmsg(vdev_t *vd, const char *fmt, ...);
+extern void vdev_dbgmsg_print_tree(vdev_t *, int);
 extern int vdev_open(vdev_t *);
 extern void vdev_open_children(vdev_t *);
-extern int vdev_validate(vdev_t *, boolean_t);
+extern int vdev_validate(vdev_t *);
+extern int vdev_copy_path_strict(vdev_t *, vdev_t *);
+extern void vdev_copy_path_relaxed(vdev_t *, vdev_t *);
 extern void vdev_close(vdev_t *);
 extern int vdev_create(vdev_t *, uint64_t txg, boolean_t isreplace);
 extern void vdev_reopen(vdev_t *);
@@ -99,6 +103,7 @@ extern void vdev_scan_stat_init(vdev_t *vd);
 extern void vdev_propagate_state(vdev_t *vd);
 extern void vdev_set_state(vdev_t *vd, boolean_t isopen, vdev_state_t state,
     vdev_aux_t aux);
+extern boolean_t vdev_children_are_offline(vdev_t *vd);
 
 extern void vdev_space_update(vdev_t *vd,
     int64_t alloc_delta, int64_t defer_delta, int64_t space_delta);
@@ -144,7 +149,8 @@ typedef enum vdev_config_flag {
 	VDEV_CONFIG_SPARE = 1 << 0,
 	VDEV_CONFIG_L2CACHE = 1 << 1,
 	VDEV_CONFIG_REMOVING = 1 << 2,
-	VDEV_CONFIG_MOS = 1 << 3
+	VDEV_CONFIG_MOS = 1 << 3,
+	VDEV_CONFIG_MISSING = 1 << 4
 } vdev_config_flag_t;
 
 extern void vdev_top_config_generate(spa_t *spa, nvlist_t *config);

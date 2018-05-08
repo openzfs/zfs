@@ -68,27 +68,8 @@ fi
 log_must zfs create $TESTPOOL/$TESTFS
 log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 
-DISK2="$(echo $DISKS | nawk '{print $2}')"
-if is_mpath_device $DISK2; then
-	echo "y" | newfs -v $DEV_DSKDIR/$DISK2 >/dev/null 2>&1
-	(( $? != 0 )) &&
-		log_untested "Unable to setup a $NEWFS_DEFAULT_FS file system"
-
-	[[ ! -d $DEVICE_DIR ]] && \
-		log_must mkdir -p $DEVICE_DIR
-
-	log_must mount $DEV_DSKDIR/$DISK2 $DEVICE_DIR
-else
-	log_must set_partition 0 "" $FS_SIZE $ZFS_DISK2
-	echo "y" | newfs -v $DEV_DSKDIR/$ZFSSIDE_DISK2 >/dev/null 2>&1
-	(( $? != 0 )) &&
-		log_untested "Unable to setup a $NEWFS_DEFAULT_FS file system"
-
-	[[ ! -d $DEVICE_DIR ]] && \
-		log_must mkdir -p $DEVICE_DIR
-
-	log_must mount $DEV_DSKDIR/$ZFSSIDE_DISK2 $DEVICE_DIR
-fi
+[[ ! -d $DEVICE_DIR ]] && \
+	log_must mkdir -p $DEVICE_DIR
 
 i=0
 while (( i < $MAX_NUM )); do

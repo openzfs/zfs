@@ -23,7 +23,7 @@
  * Produced at Lawrence Livermore National Laboratory (cf, DISCLAIMER).
  * Rewritten for Linux by Brian Behlendorf <behlendorf1@llnl.gov>.
  * LLNL-CODE-403049.
- * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -254,6 +254,8 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 	/* Must have a pathname and it must be absolute. */
 	if (v->vdev_path == NULL || v->vdev_path[0] != '/') {
 		v->vdev_stat.vs_aux = VDEV_AUX_BAD_LABEL;
+		vdev_dbgmsg(v, "vdev_disk_open: invalid "
+		    "vdev_path '%s'", v->vdev_path);
 		return (SET_ERROR(EINVAL));
 	}
 

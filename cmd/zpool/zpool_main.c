@@ -1820,6 +1820,10 @@ print_status_config(zpool_handle_t *zhp, status_cbdata_t *cb, const char *name,
 			(void) printf(gettext("currently in use"));
 			break;
 
+		case VDEV_AUX_CHILDREN_OFFLINE:
+			(void) printf(gettext("all children offline"));
+			break;
+
 		default:
 			(void) printf(gettext("corrupted data"));
 			break;
@@ -1917,6 +1921,10 @@ print_import_config(status_cbdata_t *cb, const char *name, nvlist_t *nv,
 
 		case VDEV_AUX_ACTIVE:
 			(void) printf(gettext("currently in use"));
+			break;
+
+		case VDEV_AUX_CHILDREN_OFFLINE:
+			(void) printf(gettext("all children offline"));
 			break;
 
 		default:
@@ -2752,6 +2760,7 @@ zpool_do_import(int argc, char **argv)
 	idata.guid = searchguid;
 	idata.cachefile = cachefile;
 	idata.scan = do_scan;
+	idata.policy = policy;
 
 	pools = zpool_search_import(g_zfs, &idata);
 

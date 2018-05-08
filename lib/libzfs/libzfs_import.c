@@ -897,7 +897,8 @@ vdev_is_hole(uint64_t *hole_array, uint_t holes, uint_t id)
  * return to the user.
  */
 static nvlist_t *
-get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok)
+get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
+    nvlist_t *policy)
 {
 	pool_entry_t *pe;
 	vdev_entry_t *ve;
@@ -1228,6 +1229,12 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok)
 			nvlist_free(config);
 			config = NULL;
 			continue;
+		}
+
+		if (policy != NULL) {
+			if (nvlist_add_nvlist(config, ZPOOL_REWIND_POLICY,
+			    policy) != 0)
+				goto nomem;
 		}
 
 		if ((nvl = refresh_config(hdl, config)) == NULL) {
@@ -2080,7 +2087,7 @@ zpool_find_import_impl(libzfs_handle_t *hdl, importargs_t *iarg)
 	free(cache);
 	pthread_mutex_destroy(&lock);
 
-	ret = get_configs(hdl, &pools, iarg->can_be_active);
+	ret = get_configs(hdl, &pools, iarg->can_be_active, iarg->policy);
 
 	for (pe = pools.pools; pe != NULL; pe = penext) {
 		penext = pe->pe_next;
@@ -2208,6 +2215,14 @@ zpool_find_import_cached(libzfs_handle_t *hdl, const char *cachefile,
 
 		if (active)
 			continue;
+
+		if (nvlist_add_string(src, ZPOOL_CONFIG_CACHEFILE,
+		    cachefile) != 0) {
+			(void) no_memory(hdl);
+			nvlist_free(raw);
+			nvlist_free(pools);
+			return (NULL);
+		}
 
 		if ((dst = refresh_config(hdl, src)) == NULL) {
 			nvlist_free(raw);

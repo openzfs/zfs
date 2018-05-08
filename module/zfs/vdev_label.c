@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
  */
 
 /*
@@ -412,7 +412,7 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 		fnvlist_add_uint64(nv, ZPOOL_CONFIG_WHOLE_DISK,
 		    vd->vdev_wholedisk);
 
-	if (vd->vdev_not_present)
+	if (vd->vdev_not_present && !(flags & VDEV_CONFIG_MISSING))
 		fnvlist_add_uint64(nv, ZPOOL_CONFIG_NOT_PRESENT, 1);
 
 	if (vd->vdev_isspare)
@@ -1204,8 +1204,20 @@ vdev_uberblock_load(vdev_t *rvd, uberblock_t *ub, nvlist_t **config)
 	 * Search all labels on this vdev to find the configuration that
 	 * matches the txg for our uberblock.
 	 */
-	if (cb.ubl_vd != NULL)
+	if (cb.ubl_vd != NULL) {
+		vdev_dbgmsg(cb.ubl_vd, "best uberblock found for spa %s. "
+		    "txg %llu", spa->spa_name, (u_longlong_t)ub->ub_txg);
+
 		*config = vdev_label_read_config(cb.ubl_vd, ub->ub_txg);
+		if (*config == NULL && spa->spa_extreme_rewind) {
+			vdev_dbgmsg(cb.ubl_vd, "failed to read label config. "
+			    "Trying again without txg restrictions.");
+			*config = vdev_label_read_config(cb.ubl_vd, UINT64_MAX);
+		}
+		if (*config == NULL) {
+			vdev_dbgmsg(cb.ubl_vd, "failed to read label config");
+		}
+	}
 	spa_config_exit(spa, SCL_ALL, FTAG);
 }
 
