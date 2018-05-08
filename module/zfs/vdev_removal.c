@@ -1847,20 +1847,32 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 		 * in this pool.
 		 */
 		if (vd == NULL || unspare) {
-			if (vd == NULL)
-				vd = spa_lookup_by_guid(spa, guid, B_TRUE);
-			ev = spa_event_create(spa, vd, NULL,
-			    ESC_ZFS_VDEV_REMOVE_AUX);
+			char *type;
+			boolean_t draid_spare = B_FALSE;
 
-			char *nvstr = fnvlist_lookup_string(nv,
-			    ZPOOL_CONFIG_PATH);
-			spa_history_log_internal(spa, "vdev remove", NULL,
-			    "%s vdev (%s) %s", spa_name(spa),
-			    VDEV_TYPE_SPARE, nvstr);
-			spa_vdev_remove_aux(spa->spa_spares.sav_config,
-			    ZPOOL_CONFIG_SPARES, spares, nspares, nv);
-			spa_load_spares(spa);
-			spa->spa_spares.sav_sync = B_TRUE;
+			if (nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &type)
+			    == 0 && strcmp(type, VDEV_TYPE_DRAID_SPARE) == 0)
+				draid_spare = B_TRUE;
+
+			if (vd == NULL && draid_spare) {
+				error = SET_ERROR(ENOTSUP);
+			} else {
+				if (vd == NULL)
+					vd = spa_lookup_by_guid(spa, guid,
+					    B_TRUE);
+				ev = spa_event_create(spa, vd, NULL,
+				    ESC_ZFS_VDEV_REMOVE_AUX);
+
+				char *nvstr = fnvlist_lookup_string(nv,
+				    ZPOOL_CONFIG_PATH);
+				spa_history_log_internal(spa, "vdev remove",
+				    NULL, "%s vdev (%s) %s", spa_name(spa),
+				    VDEV_TYPE_SPARE, nvstr);
+				spa_vdev_remove_aux(spa->spa_spares.sav_config,
+				    ZPOOL_CONFIG_SPARES, spares, nspares, nv);
+				spa_load_spares(spa);
+				spa->spa_spares.sav_sync = B_TRUE;
+			}
 		} else {
 			error = SET_ERROR(EBUSY);
 		}

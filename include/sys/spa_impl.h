@@ -34,6 +34,7 @@
 #include <sys/spa.h>
 #include <sys/vdev.h>
 #include <sys/vdev_removal.h>
+#include <sys/vdev_scan.h>
 #include <sys/metaslab.h>
 #include <sys/dmu.h>
 #include <sys/dsl_pool.h>
@@ -270,6 +271,9 @@ struct spa {
 	spa_condensing_indirect_phys_t	spa_condensing_indirect_phys;
 	spa_condensing_indirect_t	*spa_condensing_indirect;
 	zthr_t		*spa_condense_zthr;	/* zthr doing condense. */
+
+
+	spa_vdev_scan_t *spa_vdev_scan;
 
 	char		*spa_root;		/* alternate root directory */
 	uint64_t	spa_ena;		/* spa-wide ereport ENA */

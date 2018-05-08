@@ -56,6 +56,7 @@
 #include <sys/fm/util.h>
 #include <sys/fm/protocol.h>
 #include <sys/zfs_ioctl.h>
+#include <sys/vdev_draid_impl.h>
 #include <sys/mount.h>
 #include <sys/sysmacros.h>
 
@@ -6080,7 +6081,8 @@ print_scan_status(pool_scan_stat_t *ps)
 	zfs_nicebytes(ps->pss_processed, processed_buf, sizeof (processed_buf));
 
 	assert(ps->pss_func == POOL_SCAN_SCRUB ||
-	    ps->pss_func == POOL_SCAN_RESILVER);
+	    ps->pss_func == POOL_SCAN_RESILVER ||
+	    ps->pss_func == POOL_SCAN_REBUILD);
 
 	/* Scan is finished or canceled. */
 	if (ps->pss_state == DSS_FINISHED) {
@@ -6104,6 +6106,13 @@ print_scan_status(pool_scan_stat_t *ps)
 			    (u_longlong_t)days_left, (u_longlong_t)hours_left,
 			    (u_longlong_t)mins_left, (u_longlong_t)secs_left,
 			    (u_longlong_t)ps->pss_errors, ctime(&end));
+		} else if (ps->pss_func == POOL_SCAN_REBUILD) {
+			(void) printf(gettext("rebuilt %s "
+			    "in %llu days %02llu:%02llu:%02llu "
+			    "with %llu errors on %s"), processed_buf,
+			    (u_longlong_t)days_left, (u_longlong_t)hours_left,
+			    (u_longlong_t)mins_left, (u_longlong_t)secs_left,
+			    (u_longlong_t)ps->pss_errors, ctime(&end));
 		}
 		return;
 	} else if (ps->pss_state == DSS_CANCELED) {
@@ -6112,6 +6121,9 @@ print_scan_status(pool_scan_stat_t *ps)
 			    ctime(&end));
 		} else if (ps->pss_func == POOL_SCAN_RESILVER) {
 			(void) printf(gettext("resilver canceled on %s"),
+			    ctime(&end));
+		} else if (ps->pss_func == POOL_SCAN_REBUILD) {
+			(void) printf(gettext("rebuild canceled on %s"),
 			    ctime(&end));
 		}
 		return;
@@ -6132,6 +6144,9 @@ print_scan_status(pool_scan_stat_t *ps)
 		}
 	} else if (ps->pss_func == POOL_SCAN_RESILVER) {
 		(void) printf(gettext("resilver in progress since %s"),
+		    ctime(&start));
+	} else if (ps->pss_func == POOL_SCAN_REBUILD) {
+		(void) printf(gettext("rebuild in progress since %s"),
 		    ctime(&start));
 	}
 
@@ -6181,6 +6196,9 @@ print_scan_status(pool_scan_stat_t *ps)
 		    processed_buf, 100 * fraction_done);
 	} else if (ps->pss_func == POOL_SCAN_SCRUB) {
 		(void) printf(gettext("\t%s repaired, %.2f%% done"),
+		    processed_buf, 100 * fraction_done);
+	} else if (ps->pss_func == POOL_SCAN_REBUILD) {
+		(void) printf(gettext("\t%s rebuilt, %.2f%% done"),
 		    processed_buf, 100 * fraction_done);
 	}
 

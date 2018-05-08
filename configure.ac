@@ -116,6 +116,7 @@ AC_CONFIG_FILES([
 	cmd/arc_summary/Makefile
 	cmd/zed/Makefile
 	cmd/raidz_test/Makefile
+	cmd/draidcfg/Makefile
 	cmd/zgenhostid/Makefile
 	contrib/Makefile
 	contrib/bash_completion.d/Makefile
