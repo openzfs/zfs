@@ -15,6 +15,7 @@
 #
 
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/mmp/mmp.kshlib
 
 #
 # DESCRIPTION:
@@ -33,6 +34,7 @@ function cleanup
 	destroy_pool $TESTPOOL
 	destroy_pool $TESTPOOL2
 	rm -f $DEVICE1 $DEVICE2
+	log_must mmp_clear_hostid
 }
 
 function setup_mirror
@@ -44,6 +46,10 @@ function setup_mirror
 
 log_assert "'zpool split' can set new property values on the new pool"
 log_onexit cleanup
+
+if [ -e $HOSTID_FILE ]; then
+	log_unsupported "System has existing $HOSTID_FILE file"
+fi
 
 typeset good_props=('comment=text' 'ashift=12' 'multihost=on'
     'listsnapshots=on' 'autoexpand=on' 'autoreplace=on' 'dedupditto=1234'
@@ -57,7 +63,7 @@ DEVICE1="$TEST_BASE_DIR/device-1"
 DEVICE2="$TEST_BASE_DIR/device-2"
 
 # Needed to set multihost=on
-zgenhostid
+log_must mmp_set_hostid $HOSTID1
 
 # Verify we can set a combination of valid property values on the new pool
 for prop in "${good_props[@]}"
@@ -68,7 +74,10 @@ do
 	log_must zpool split -o $prop $TESTPOOL $TESTPOOL2
 	log_must zpool import -N -d $TEST_BASE_DIR $TESTPOOL2
 	log_must test "$(get_pool_prop $propname $TESTPOOL2)" == "$propval"
-	cleanup
+
+	destroy_pool $TESTPOOL
+	destroy_pool $TESTPOOL2
+	rm -f $DEVICE1 $DEVICE2
 done
 
 # Verify we cannot set invalid property values
