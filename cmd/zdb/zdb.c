@@ -424,23 +424,35 @@ static void
 dump_uint64(objset_t *os, uint64_t object, void *data, size_t size)
 {
 	uint64_t *arr;
-
+	uint64_t oursize;
 	if (dump_opt['d'] < 6)
 		return;
+
 	if (data == NULL) {
 		dmu_object_info_t doi;
 
 		VERIFY0(dmu_object_info(os, object, &doi));
 		size = doi.doi_max_offset;
-		arr = kmem_alloc(size, KM_SLEEP);
+		/*
+		 * We cap the size at 1 mebibyte here to prevent
+		 * allocation failures and nigh-infinite printing if the
+		 * object is extremely large.
+		 */
+		oursize = MIN(size, 1 << 20);
+		arr = kmem_alloc(oursize, KM_SLEEP);
 
-		int err = dmu_read(os, object, 0, size, arr, 0);
+		int err = dmu_read(os, object, 0, oursize, arr, 0);
 		if (err != 0) {
 			(void) printf("got error %u from dmu_read\n", err);
-			kmem_free(arr, size);
+			kmem_free(arr, oursize);
 			return;
 		}
 	} else {
+		/*
+		 * Even though the allocation is already done in this code path,
+		 * we still cap the size to prevent excessive printing.
+		 */
+		oursize = MIN(size, 1 << 20);
 		arr = data;
 	}
 
@@ -450,16 +462,18 @@ dump_uint64(objset_t *os, uint64_t object, void *data, size_t size)
 	}
 
 	(void) printf("\t\t[%0llx", (u_longlong_t)arr[0]);
-	for (size_t i = 1; i * sizeof (uint64_t) < size; i++) {
+	for (size_t i = 1; i * sizeof (uint64_t) < oursize; i++) {
 		if (i % 4 != 0)
 			(void) printf(", %0llx", (u_longlong_t)arr[i]);
 		else
 			(void) printf(",\n\t\t%0llx", (u_longlong_t)arr[i]);
 	}
+	if (oursize != size)
+		(void) printf(", ... ");
 	(void) printf("]\n");
 
 	if (data == NULL)
-		kmem_free(arr, size);
+		kmem_free(arr, oursize);
 }
 
 /*ARGSUSED*/
