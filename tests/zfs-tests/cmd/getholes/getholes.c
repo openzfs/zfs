@@ -29,6 +29,7 @@
 #define	PRINT_HOLE 0x1
 #define	PRINT_DATA 0x2
 #define	PRINT_VERBOSE 0x4
+#define	NO_VERIFY 0x8
 
 #ifdef SEEK_HOLE
 
@@ -74,7 +75,8 @@ print_list(list_t *seg_list, char *fname, int options)
 	uint64_t	hole_blks_seen = 0, data_blks_seen = 0;
 	seg_t		*seg;
 
-	if (zfs_get_hole_count(fname, &lz_holes, &bs) != 0) {
+	if (!(options & NO_VERIFY) &&
+	    zfs_get_hole_count(fname, &lz_holes, &bs) != 0) {
 		perror("zfs_get_hole_count");
 		exit(1);
 	}
@@ -95,7 +97,7 @@ print_list(list_t *seg_list, char *fname, int options)
 	}
 
 	/* Verify libzfs sees the same number of hole blocks found manually. */
-	if (lz_holes != hole_blks_seen) {
+	if (!(options & NO_VERIFY) && lz_holes != hole_blks_seen) {
 		(void) fprintf(stderr, "Counted %llu holes, but libzfs found "
 		    "%llu\n",
 		    (long long)hole_blks_seen,
@@ -129,7 +131,7 @@ main(int argc, char *argv[])
 
 	list_create(&seg_list, sizeof (seg_t), offsetof(seg_t, seg_node));
 
-	while ((c = getopt(argc, argv, "dhv")) != -1) {
+	while ((c = getopt(argc, argv, "dhvn")) != -1) {
 		switch (c) {
 		case 'd':
 			options |= PRINT_DATA;
@@ -139,6 +141,9 @@ main(int argc, char *argv[])
 			break;
 		case 'v':
 			options |= PRINT_VERBOSE;
+			break;
+		case 'n':
+			options |= NO_VERIFY;
 			break;
 		}
 	}
