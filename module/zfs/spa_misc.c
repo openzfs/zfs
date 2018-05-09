@@ -2274,12 +2274,56 @@ param_set_deadman_failmode(const char *val, zfs_kernel_param_t *kp)
 	    strcmp(val, "panic"))
 		return (SET_ERROR(-EINVAL));
 
-	mutex_enter(&spa_namespace_lock);
-	while ((spa = spa_next(spa)) != NULL)
-		spa_set_deadman_failmode(spa, val);
-	mutex_exit(&spa_namespace_lock);
+	if (spa_mode_global != 0) {
+		mutex_enter(&spa_namespace_lock);
+		while ((spa = spa_next(spa)) != NULL)
+			spa_set_deadman_failmode(spa, val);
+		mutex_exit(&spa_namespace_lock);
+	}
 
 	return (param_set_charp(val, kp));
+}
+
+static int
+param_set_deadman_ziotime(const char *val, zfs_kernel_param_t *kp)
+{
+	spa_t *spa = NULL;
+	int error;
+
+	error = param_set_ulong(val, kp);
+	if (error < 0)
+		return (SET_ERROR(error));
+
+	if (spa_mode_global != 0) {
+		mutex_enter(&spa_namespace_lock);
+		while ((spa = spa_next(spa)) != NULL)
+			spa->spa_deadman_ziotime =
+			    MSEC2NSEC(zfs_deadman_ziotime_ms);
+		mutex_exit(&spa_namespace_lock);
+	}
+
+	return (0);
+}
+
+static int
+param_set_deadman_synctime(const char *val, zfs_kernel_param_t *kp)
+{
+	spa_t *spa = NULL;
+	int error;
+
+	error = param_set_ulong(val, kp);
+	if (error < 0)
+		return (SET_ERROR(error));
+
+	if (spa_mode_global != 0) {
+		mutex_enter(&spa_namespace_lock);
+		while ((spa = spa_next(spa)) != NULL)
+			spa->spa_deadman_synctime =
+			    MSEC2NSEC(zfs_deadman_synctime_ms);
+		mutex_exit(&spa_namespace_lock);
+	}
+
+	return (0);
 }
 
 /* Namespace manipulation */
@@ -2374,11 +2418,13 @@ module_param(zfs_free_leak_on_eio, int, 0644);
 MODULE_PARM_DESC(zfs_free_leak_on_eio,
 	"Set to ignore IO errors during free and permanently leak the space");
 
-module_param(zfs_deadman_synctime_ms, ulong, 0644);
+module_param_call(zfs_deadman_synctime_ms, param_set_deadman_synctime,
+    param_get_ulong, &zfs_deadman_synctime_ms, 0644);
 MODULE_PARM_DESC(zfs_deadman_synctime_ms,
 	"Pool sync expiration time in milliseconds");
 
-module_param(zfs_deadman_ziotime_ms, ulong, 0644);
+module_param_call(zfs_deadman_ziotime_ms, param_set_deadman_ziotime,
+    param_get_ulong, &zfs_deadman_ziotime_ms, 0644);
 MODULE_PARM_DESC(zfs_deadman_ziotime_ms,
 	"IO expiration time in milliseconds");
 
