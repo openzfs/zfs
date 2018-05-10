@@ -36,7 +36,7 @@
 static void
 usage(char *msg, int exit_value)
 {
-	(void) fprintf(stderr, "getholes [-dhv] filename\n");
+	(void) fprintf(stderr, "getholes [-dhnv] filename\n");
 	(void) fprintf(stderr, "%s\n", msg);
 	exit(exit_value);
 }
@@ -75,10 +75,18 @@ print_list(list_t *seg_list, char *fname, int options)
 	uint64_t	hole_blks_seen = 0, data_blks_seen = 0;
 	seg_t		*seg;
 
-	if (!(options & NO_VERIFY) &&
-	    zfs_get_hole_count(fname, &lz_holes, &bs) != 0) {
-		perror("zfs_get_hole_count");
-		exit(1);
+	if (options & NO_VERIFY) {
+		struct stat ss;
+		if (stat(fname, &ss) != 0) {
+			perror("stat");
+			exit(1);
+		}
+		bs = ss.st_blksize;
+	} else {
+		if (zfs_get_hole_count(fname, &lz_holes, &bs) != 0) {
+			perror("zfs_get_hole_count");
+			exit(1);
+		}
 	}
 
 	while ((seg = list_remove_head(seg_list)) != NULL) {
@@ -220,7 +228,7 @@ int
 main(int argc, char *argv[])
 {
 	fprintf(stderr,
-	    "error: SEEK_DATA / SEEK_HOLE not supported by this kernel\n");
+	    "error: SEEK_DATA / SEEK_HOLE not supported\n");
 	return (1);
 }
 #endif
