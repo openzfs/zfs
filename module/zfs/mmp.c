@@ -607,7 +607,8 @@ param_set_multihost_interval(const char *val, zfs_kernel_param_t *kp)
 	if (ret < 0)
 		return (ret);
 
-	mmp_signal_all_threads();
+	if (spa_mode_global != 0)
+		mmp_signal_all_threads();
 
 	return (ret);
 }
