@@ -49,38 +49,123 @@ req_dir="${dest_norm}/local-fs.target.wants/"
 mkdir -p "${req_dir}"
 
 # All needed information about each ZFS is available from
-# zfs list -H -t filesystem -oname,mountpoint,canmount
+# zfs list -H -t filesystem -o <properties>
 # cached in $FSLIST, and each line is processed by the following function:
+# See the list below for the properties and their order
 
 process_line() {
 
+  # -o name
+  dataset="${1}"
+  p_mountpoint="${2}"
+  p_canmount="${3}"
+  p_atime="${4}"
+  p_relatime="${5}"
+  p_devices="${6}"
+  p_exec="${7}"
+  p_readonly="${8}"
+  p_setuid="${9}"
+  p_nbmand="${10}"
+
   # Check for canmount=off .
-  if [ "${3}" = "off" ] ; then
+  if [ "${p_canmount}" = "off" ] ; then
     return
-  elif [ "${3}" = "noauto" ] ; then
+  elif [ "${p_canmount}" = "noauto" ] ; then
     # Don't let a noauto marked mountpoint block an "auto" market mountpoint
     return
-  elif [ "${3}" = "on" ] ; then
+  elif [ "${p_canmount}" = "on" ] ; then
     : # This is OK
   else
     do_fail "invalid canmount"
   fi
 
   # Check for legacy and blank mountpoints.
-  if [ "${2}" = "legacy" ] ; then
+  if [ "${p_mountpoint}" = "legacy" ] ; then
     return
-  elif [ "${2}" = "none" ] ; then
+  elif [ "${p_mountpoint}" = "none" ] ; then
     return
-  elif [ "${2%"${2#?}"}" != "/" ] ; then
+  elif [ "${p_mountpoint%"${p_mountpoint#?}"}" != "/" ] ; then
     do_fail "invalid mountpoint $*"
   fi
 
   # Escape the mountpoint per systemd policy.
-  mountfile="$(systemd-escape "${2#?}").mount"
+  mountfile="$(systemd-escape "${p_mountpoint#?}").mount"
+
+  # Parse options
+  # see lib/libzfs/libzfs_mount.c:zfs_add_options
+  opts=""
+
+  # atime
+  if [ "${p_atime}" = on ] ; then
+    # relatime
+    if [ "${p_relatime}" = on ] ; then
+      opts="${opts},atime,relatime"
+    elif [ "${p_relatime}" = off ] ; then
+      opts="${opts},atime,strictatime"
+    else
+      printf 'zfs-mount-generator.sh: (%s) invalid relatime\n' \
+        "${dataset}" >/dev/kmsg
+    fi
+  elif [ "${p_atime}" = off ] ; then
+    opts="${opts},noatime"
+  else
+    printf 'zfs-mount-generator.sh: (%s) invalid atime\n' \
+      "${dataset}" >/dev/kmsg
+  fi
+
+  # devices
+  if [ "${p_devices}" = on ] ; then
+    opts="${opts},dev"
+  elif [ "${p_devices}" = off ] ; then
+    opts="${opts},nodev"
+  else
+    printf 'zfs-mount-generator.sh: (%s) invalid devices\n' \
+      "${dataset}" >/dev/kmsg
+  fi
+
+  # exec
+  if [ "${p_exec}" = on ] ; then
+    opts="${opts},exec"
+  elif [ "${p_exec}" = off ] ; then
+    opts="${opts},noexec"
+  else
+    printf 'zfs-mount-generator.sh: (%s) invalid exec\n' \
+      "${dataset}" >/dev/kmsg
+  fi
+
+  # readonly
+  if [ "${p_readonly}" = on ] ; then
+    opts="${opts},ro"
+  elif [ "${p_readonly}" = off ] ; then
+    opts="${opts},rw"
+  else
+    printf 'zfs-mount-generator.sh: (%s) invalid readonly\n' \
+      "${dataset}" >/dev/kmsg
+  fi
+
+  # setuid
+  if [ "${p_setuid}" = on ] ; then
+    opts="${opts},suid"
+  elif [ "${p_setuid}" = off ] ; then
+    opts="${opts},nosuid"
+  else
+    printf 'zfs-mount-generator.sh: (%s) invalid setuid\n' \
+      "${dataset}" >/dev/kmsg
+  fi
+
+  # nbmand
+  if [ "${p_nbmand}" = on ]  ; then
+    opts="${opts},mand"
+  elif [ "${p_nbmand}" = off ] ; then
+    opts="${opts},nomand"
+  else
+    printf 'zfs-mount-generator.sh: (%s) invalid nbmand\n' \
+      "${dataset}" >/dev/kmsg
+  fi
 
   # If the mountpoint has already been created, give it precedence.
   if [ -e "${dest_norm}/${mountfile}" ] ; then
-    printf 'zfs-mount-generator.sh: %s.mount already exists\n' "${2}" \
+    printf 'zfs-mount-generator.sh: %s already exists\n' "${mountfile}" \
       >/dev/kmsg
     return
   fi
@@ -97,14 +182,14 @@ After=zfs-import.target
 Wants=zfs-import.target
 
 [Mount]
-Where=${2}
-What=${1}
+Where=${p_mountpoint}
+What=${dataset}
 Type=zfs
-Options=zfsutil,auto
+Options=defaults${opts},zfsutil
 EOF
 
-  # Finally, create the appropriate dependencies based on the ZFS properties.
-  [ "$3" = "on" ] & ln -s "../${mountfile}" "${req_dir}"
+  # Finally, create the appropriate dependency
+  ln -s "../${mountfile}" "${req_dir}"
 }
 
 # Feed each line into process_line

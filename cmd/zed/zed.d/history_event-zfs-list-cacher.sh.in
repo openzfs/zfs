@@ -44,9 +44,10 @@ case "${ZEVENT_HISTORY_INTERNAL_NAME}" in
       ;;
 
     set|inherit)
-        # Only act if the mountpoint or canmount setting is altered.
-        case "${ZEVENT_HISTORY_INTERNAL_STR}" in
-            canmount=*|mountpoint=*) ;;
+        # Only act if one of the tracked properties is altered.
+        case "${ZEVENT_HISTORY_INTERNAL_STR%%=*}" in
+            canmount|mountpoint|atime|relatime|devices|exec| \
+                readonly|setuid|nbmand) ;;
             *) exit 0 ;;
         esac
       ;;
@@ -60,8 +61,10 @@ esac
 zed_lock zfs-list
 trap abort_alter EXIT
 
-"${ZFS}" list -H -tfilesystem -oname,mountpoint,canmount -r "${ZEVENT_POOL}" \
-    >"${FSLIST_TMP}"
+PROPS="name,mountpoint,canmount,atime,relatime,devices,exec,readonly"
+PROPS="${PROPS},setuid,nbmand"
+
+"${ZFS}" list -H -t filesystem -o $PROPS -r "${ZEVENT_POOL}" > "${FSLIST_TMP}"
 
 # Sort the output so that it is stable
 sort "${FSLIST_TMP}" -o "${FSLIST_TMP}"
