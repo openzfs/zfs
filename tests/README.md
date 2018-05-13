@@ -82,6 +82,10 @@ The following zfs-tests.sh options are supported:
                 the testing.  When running in this mode certain tests will
                 be skipped which depend on real block devices.
 
+    -c          Only create and populate constrained path
+
+    -I NUM      Number of iterations
+
     -d DIR      Create sparse files for vdevs in the DIR directory.  By
                 default these files are created under /var/tmp/.
 
@@ -89,45 +93,60 @@ The following zfs-tests.sh options are supported:
 
     -r RUNFILE  Run tests in RUNFILE (default: linux.run)
 
+    -t PATH     Run single test at PATH relative to test suite
+
+    -T TAGS     Comma separated list of tags (default: 'functional')
+
+    -u USER     Run single test as USER (default: root)
+
 
 The ZFS Test Suite allows the user to specify a subset of the tests via a
-runfile. The format of the runfile is explained in test-runner(1), and
+runfile or list of tags.
+
+The format of the runfile is explained in test-runner(1), and
 the files that zfs-tests.sh uses are available for reference under
 /usr/share/zfs/runfiles. To specify a custom runfile, use the -r option:
 
     $ /usr/share/zfs/zfs-tests.sh -r my_tests.run
+
+Otherwise user can set needed tags to run only specific tests.
 
 3) Test results
 
 While the ZFS Test Suite is running, one informational line is printed at the
 end of each test, and a results summary is printed at the end of the run. The
 results summary includes the location of the complete logs, which is logged in
-the form /var/tmp/test_results/[ISO 8601 date].  A normal test run launched
+the form `/var/tmp/test_results/[ISO 8601 date]`.  A normal test run launched
 with the `zfs-tests.sh` wrapper script will look something like this:
 
-$ /usr/share/zfs/zfs-tests.sh -v -d /mnt
+    $ /usr/share/zfs/zfs-tests.sh -v -d /tmp/test
 
---- Configuration ---
-Runfile:         /usr/share/zfs/runfiles/linux.run
-STF_TOOLS:       /usr/share/zfs/test-runner
-STF_SUITE:       /usr/share/zfs/zfs-tests
-FILEDIR:         /mnt
-FILES:           /mnt/file-vdev0 /mnt/file-vdev1 /mnt/file-vdev2
-LOOPBACKS:       /dev/loop0 /dev/loop1 /dev/loop2 
-DISKS:           loop0 loop1 loop2 
-NUM_DISKS:       3
-FILESIZE:        4G
-Keep pool(s):    rpool
+    --- Configuration ---
+    Runfile:         /usr/share/zfs/runfiles/linux.run
+    STF_TOOLS:       /usr/share/zfs/test-runner
+    STF_SUITE:       /usr/share/zfs/zfs-tests
+    STF_PATH:        /var/tmp/constrained_path.G0Sf
+    FILEDIR:         /tmp/test
+    FILES:           /tmp/test/file-vdev0 /tmp/test/file-vdev1 /tmp/test/file-vdev2
+    LOOPBACKS:       /dev/loop0 /dev/loop1 /dev/loop2 
+    DISKS:           loop0 loop1 loop2
+    NUM_DISKS:       3
+    FILESIZE:        4G
+    ITERATIONS:      1
+    TAGS:            functional
+    Keep pool(s):    rpool
 
-/usr/share/zfs/test-runner/bin/test-runner.py  -c \
-  /usr/share/zfs/runfiles/linux.run -i /usr/share/zfs/zfs-tests
-Test: .../tests/functional/acl/posix/setup (run as root) [00:00] [PASS]
-...470 additional tests...
-Test: .../tests/functional/zvol/zvol_cli/cleanup (run as root) [00:00] [PASS]
 
-Results Summary
-PASS	 472
+    /usr/share/zfs/test-runner/bin/test-runner.py  -c /usr/share/zfs/runfiles/linux.run \
+        -T functional -i /usr/share/zfs/zfs-tests -I 1
+    Test: /usr/share/zfs/zfs-tests/tests/functional/arc/setup (run as root) [00:00] [PASS]
+    ...more than 1100 additional tests...
+    Test: /usr/share/zfs/zfs-tests/tests/functional/zvol/zvol_swap/cleanup (run as root) [00:00] [PASS]
 
-Running Time:	00:45:09
-Percent passed:	100.0%
-Log directory:	/var/tmp/test_results/20160316T181651
+    Results Summary
+    SKIP	  52
+    PASS	 1129
+    
+    Running Time:	02:35:33
+    Percent passed:	95.6%
+    Log directory:	/var/tmp/test_results/20180515T054509
