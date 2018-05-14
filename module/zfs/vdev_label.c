@@ -673,6 +673,7 @@ vdev_label_read_config(vdev_t *vd, uint64_t txg)
 	abd_t *vp_abd;
 	zio_t *zio;
 	uint64_t best_txg = 0;
+	uint64_t label_txg = 0;
 	int error = 0;
 	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL |
 	    ZIO_FLAG_SPECULATIVE;
@@ -698,8 +699,6 @@ retry:
 		if (zio_wait(zio) == 0 &&
 		    nvlist_unpack(vp->vp_nvlist, sizeof (vp->vp_nvlist),
 		    &label, 0) == 0) {
-			uint64_t label_txg = 0;
-
 			/*
 			 * Auxiliary vdevs won't have txg values in their
 			 * labels and newly added vdevs may not have been
@@ -728,6 +727,15 @@ retry:
 	if (config == NULL && !(flags & ZIO_FLAG_TRYHARD)) {
 		flags |= ZIO_FLAG_TRYHARD;
 		goto retry;
+	}
+
+	/*
+	 * We found a valid label but it didn't pass txg restrictions.
+	 */
+	if (config == NULL && label_txg != 0) {
+		vdev_dbgmsg(vd, "label discarded as txg is too large "
+		    "(%llu > %llu)", (u_longlong_t)label_txg,
+		    (u_longlong_t)txg);
 	}
 
 	abd_free(vp_abd);

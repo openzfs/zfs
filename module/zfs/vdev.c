@@ -1701,7 +1701,8 @@ vdev_validate(vdev_t *vd)
 	if ((label = vdev_label_read_config(vd, txg)) == NULL) {
 		vdev_set_state(vd, B_TRUE, VDEV_STATE_CANT_OPEN,
 		    VDEV_AUX_BAD_LABEL);
-		vdev_dbgmsg(vd, "vdev_validate: failed reading config");
+		vdev_dbgmsg(vd, "vdev_validate: failed reading config for "
+		    "txg %llu", (u_longlong_t)txg);
 		return (0);
 	}
 
