@@ -22,4 +22,10 @@ if ! getholes -n /etc/hosts; then
 fi
 
 DISK=${DISKS%% *}
-default_setup $DISK
+default_setup_noexit $DISK
+
+if ! mkholes -h 0:1024 $TESTDIR/setup_test; then
+	log_unsupported "The kernel does not support FALLOC_FL_PUNCH_HOLE"
+fi
+log_must rm $TESTDIR/setup_test
+log_pass
