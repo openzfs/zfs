@@ -23,6 +23,9 @@
 #
 function cleanup
 {
+	# clear any remaining zinjections
+	log_must zinject -c all > /dev/null
+
 	destroy_pool $TESTPOOL1
 
 	log_must rm -f $CPATH $CPATHBKP $CPATHBKP2 $MD5FILE $MD5FILE2
