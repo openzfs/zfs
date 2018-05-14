@@ -1692,8 +1692,11 @@ vdev_validate(vdev_t *vd)
 	/*
 	 * If we are performing an extreme rewind, we allow for a label that
 	 * was modified at a point after the current txg.
+	 * If config lock is not held do not check for the txg. spa_sync could
+	 * be updating the vdev's label before updating spa_last_synced_txg.
 	 */
-	if (spa->spa_extreme_rewind || spa_last_synced_txg(spa) == 0)
+	if (spa->spa_extreme_rewind || spa_last_synced_txg(spa) == 0 ||
+	    spa_config_held(spa, SCL_CONFIG, RW_WRITER) != SCL_CONFIG)
 		txg = UINT64_MAX;
 	else
 		txg = spa_last_synced_txg(spa);
