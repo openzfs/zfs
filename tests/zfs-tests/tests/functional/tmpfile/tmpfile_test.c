@@ -36,13 +36,14 @@ main(int argc, char *argv[])
 
 	fd = open(argv[1], O_TMPFILE | O_WRONLY, 0666);
 	if (fd < 0) {
-		/*
-		 * Only fail on EISDIR. If we get EOPNOTSUPP, that means
-		 * kernel support O_TMPFILE, but the path at argv[1] doesn't.
-		 */
 		if (errno == EISDIR) {
-			fprintf(stderr, "kernel doesn't support O_TMPFILE\n");
+			fprintf(stderr,
+			    "The kernel doesn't support O_TMPFILE\n");
 			return (1);
+		} else if (errno == EOPNOTSUPP) {
+			fprintf(stderr,
+			    "The filesystem doesn't support O_TMPFILE\n");
+			return (2);
 		}
 		perror("open");
 	} else {
