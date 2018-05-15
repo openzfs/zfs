@@ -14,15 +14,15 @@ Please fill in as much of the template as possible.
 -->
 
 ### System information
-<!--  add version after "|" character -->
-Type                                | Version/Name
-  ---                                  |     --- 
-Distribution Name       | 
-Distribution Version    | 
-Linux Kernel                 | 
-Architecture                 | 
-ZFS Version                  | 
-SPL Version                  | 
+<!--  add version after "|" character -->
+Type | Version/Name
+ --- | --- 
+Distribution Name	| 
+Distribution Version	| 
+Linux Kernel	| 
+Architecture	| 
+ZFS Version	| 
+SPL Version	| 
 <!-- 
 Commands to find ZFS/SPL versions:
 modinfo zfs | grep -iw version
