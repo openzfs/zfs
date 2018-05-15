@@ -96,6 +96,7 @@ extern int reference_tracking_enable;
 extern int zfs_recover;
 extern uint64_t zfs_arc_max, zfs_arc_meta_limit;
 extern int zfs_vdev_async_read_max_active;
+extern boolean_t spa_load_verify_dryrun;
 
 static const char cmdname[] = "zdb";
 uint8_t dump_opt[256];
@@ -106,6 +107,7 @@ uint64_t *zopt_object = NULL;
 static unsigned zopt_objects = 0;
 libzfs_handle_t *g_zfs;
 uint64_t max_inflight = 1000;
+static int leaked_objects = 0;
 
 static void snprintf_blkptr_compact(char *, size_t, const blkptr_t *);
 
@@ -1983,9 +1985,12 @@ dump_znode(objset_t *os, uint64_t object, void *data, size_t size)
 
 	if (dump_opt['d'] > 4) {
 		error = zfs_obj_to_path(os, object, path, sizeof (path));
-		if (error != 0) {
+		if (error == ESTALE) {
+			(void) snprintf(path, sizeof (path), "on delete queue");
+		} else if (error != 0) {
+			leaked_objects++;
 			(void) snprintf(path, sizeof (path),
-			    "\?\?\?<object#%llu>", (u_longlong_t)object);
+			    "path not found, possibly leaked");
 		}
 		(void) printf("\tpath	%s\n", path);
 	}
@@ -2376,14 +2381,19 @@ dump_dir(objset_t *os)
 	    (double)(max_slot_used - total_slots_used)*100 /
 	    (double)max_slot_used);
 
+	ASSERT3U(object_count, ==, usedobjs);
+
 	(void) printf("\n");
 
 	if (error != ESRCH) {
 		(void) fprintf(stderr, "dmu_object_next() = %d\n", error);
 		abort();
 	}
-
-	ASSERT3U(object_count, ==, usedobjs);
+	if (leaked_objects != 0) {
+		(void) printf("%d potentially leaked objects detected\n",
+		    leaked_objects);
+		leaked_objects = 0;
+	}
 }
 
 static void
@@ -5000,6 +5010,12 @@ main(int argc, char **argv)
 	 */
 	reference_tracking_enable = B_FALSE;
 
+	/*
+	 * Do not fail spa_load when spa_load_verify fails. This is needed
+	 * to load non-idle pools.
+	 */
+	spa_load_verify_dryrun = B_TRUE;
+
 	kernel_init(FREAD);
 	if ((g_zfs = libzfs_init()) == NULL) {
 		(void) fprintf(stderr, "%s", libzfs_error_init(errno));
@@ -5209,5 +5225,5 @@ main(int argc, char **argv)
 	libzfs_fini(g_zfs);
 	kernel_fini();
 
-	return (0);
+	return (error);
 }

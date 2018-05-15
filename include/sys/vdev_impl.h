@@ -437,7 +437,6 @@ extern void vdev_remove_parent(vdev_t *cvd);
 /*
  * vdev sync load and sync
  */
-extern void vdev_load_log_state(vdev_t *nvd, vdev_t *ovd);
 extern boolean_t vdev_log_state_valid(vdev_t *vd);
 extern int vdev_load(vdev_t *vd);
 extern int vdev_dtl_load(vdev_t *vd);

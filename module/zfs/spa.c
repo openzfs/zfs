@@ -157,9 +157,8 @@ const zio_taskq_info_t zio_taskqs[ZIO_TYPES][ZIO_TASKQ_TYPES] = {
 static void spa_sync_version(void *arg, dmu_tx_t *tx);
 static void spa_sync_props(void *arg, dmu_tx_t *tx);
 static boolean_t spa_has_active_shared_spare(spa_t *spa);
-static inline int spa_load_impl(spa_t *spa, uint64_t, nvlist_t *config,
-    spa_load_state_t state, spa_import_type_t type, boolean_t trust_config,
-    char **ereport);
+static int spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport,
+    boolean_t reloading);
 static void spa_vdev_resilver_done(spa_t *spa);
 
 uint_t		zio_taskq_batch_pct = 75;	/* 1 thread per cpu in pset */
@@ -170,10 +169,64 @@ uint_t		zio_taskq_basedc = 80;		/* base duty cycle */
 boolean_t	spa_create_process = B_TRUE;	/* no process ==> no sysdc */
 
 /*
+ * Report any spa_load_verify errors found, but do not fail spa_load.
+ * This is used by zdb to analyze non-idle pools.
+ */
+boolean_t	spa_load_verify_dryrun = B_FALSE;
+
+/*
  * This (illegal) pool name is used when temporarily importing a spa_t in order
  * to get the vdev stats associated with the imported devices.
  */
 #define	TRYIMPORT_NAME	"$import"
+
+/*
+ * For debugging purposes: print out vdev tree during pool import.
+ */
+int		spa_load_print_vdev_tree = B_FALSE;
+
+/*
+ * A non-zero value for zfs_max_missing_tvds means that we allow importing
+ * pools with missing top-level vdevs. This is strictly intended for advanced
+ * pool recovery cases since missing data is almost inevitable. Pools with
+ * missing devices can only be imported read-only for safety reasons, and their
+ * fail-mode will be automatically set to "continue".
+ *
+ * With 1 missing vdev we should be able to import the pool and mount all
+ * datasets. User data that was not modified after the missing device has been
+ * added should be recoverable. This means that snapshots created prior to the
+ * addition of that device should be completely intact.
+ *
+ * With 2 missing vdevs, some datasets may fail to mount since there are
+ * dataset statistics that are stored as regular metadata. Some data might be
+ * recoverable if those vdevs were added recently.
+ *
+ * With 3 or more missing vdevs, the pool is severely damaged and MOS entries
+ * may be missing entirely. Chances of data recovery are very low. Note that
+ * there are also risks of performing an inadvertent rewind as we might be
+ * missing all the vdevs with the latest uberblocks.
+ */
+unsigned long	zfs_max_missing_tvds = 0;
+
+/*
+ * The parameters below are similar to zfs_max_missing_tvds but are only
+ * intended for a preliminary open of the pool with an untrusted config which
+ * might be incomplete or out-dated.
+ *
+ * We are more tolerant for pools opened from a cachefile since we could have
+ * an out-dated cachefile where a device removal was not registered.
+ * We could have set the limit arbitrarily high but in the case where devices
+ * are really missing we would want to return the proper error codes; we chose
+ * SPA_DVAS_PER_BP - 1 so that some copies of the MOS would still be available
+ * and we get a chance to retrieve the trusted config.
+ */
+uint64_t	zfs_max_missing_tvds_cachefile = SPA_DVAS_PER_BP - 1;
+/*
+ * In the case where config was assembled by scanning device paths (/dev/dsks
+ * by default) we are less tolerant since all the existing devices should have
+ * been detected and we want spa_load to return the right error codes.
+ */
+uint64_t	zfs_max_missing_tvds_scan = 0;
 
 /*
  * ==========================================================================
@@ -1356,6 +1409,8 @@ spa_unload(spa_t *spa)
 
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
 
+	spa_load_note(spa, "UNLOADING");
+
 	/*
 	 * Stop async tasks.
 	 */
@@ -1749,13 +1804,34 @@ load_nvlist(spa_t *spa, uint64_t obj, nvlist_t **value)
 }
 
 /*
+ * Concrete top-level vdevs that are not missing and are not logs. At every
+ * spa_sync we write new uberblocks to at least SPA_SYNC_MIN_VDEVS core tvds.
+ */
+static uint64_t
+spa_healthy_core_tvds(spa_t *spa)
+{
+	vdev_t *rvd = spa->spa_root_vdev;
+	uint64_t tvds = 0;
+
+	for (uint64_t i = 0; i < rvd->vdev_children; i++) {
+		vdev_t *vd = rvd->vdev_child[i];
+		if (vd->vdev_islog)
+			continue;
+		if (vdev_is_concrete(vd) && !vdev_is_dead(vd))
+			tvds++;
+	}
+
+	return (tvds);
+}
+
+/*
  * Checks to see if the given vdev could not be opened, in which case we post a
  * sysevent to notify the autoreplace code that the device has been removed.
  */
 static void
 spa_check_removed(vdev_t *vd)
 {
-	for (int c = 0; c < vd->vdev_children; c++)
+	for (uint64_t c = 0; c < vd->vdev_children; c++)
 		spa_check_removed(vd->vdev_child[c]);
 
 	if (vd->vdev_ops->vdev_op_leaf && vdev_is_dead(vd) &&
@@ -1765,38 +1841,14 @@ spa_check_removed(vdev_t *vd)
 	}
 }
 
-static void
-spa_config_valid_zaps(vdev_t *vd, vdev_t *mvd)
+static int
+spa_check_for_missing_logs(spa_t *spa)
 {
-	ASSERT3U(vd->vdev_children, ==, mvd->vdev_children);
-
-	vd->vdev_top_zap = mvd->vdev_top_zap;
-	vd->vdev_leaf_zap = mvd->vdev_leaf_zap;
-
-	for (uint64_t i = 0; i < vd->vdev_children; i++) {
-		spa_config_valid_zaps(vd->vdev_child[i], mvd->vdev_child[i]);
-	}
-}
-
-/*
- * Validate the current config against the MOS config
- */
-static boolean_t
-spa_config_valid(spa_t *spa, nvlist_t *config)
-{
-	vdev_t *mrvd, *rvd = spa->spa_root_vdev;
-	nvlist_t *nv;
-
-	VERIFY(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE, &nv) == 0);
-
-	spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
-	VERIFY(spa_config_parse(spa, &mrvd, nv, NULL, 0, VDEV_ALLOC_LOAD) == 0);
-
-	ASSERT3U(rvd->vdev_children, ==, mrvd->vdev_children);
+	vdev_t *rvd = spa->spa_root_vdev;
 
 	/*
 	 * If we're doing a normal import, then build up any additional
-	 * diagnostic information about missing devices in this config.
+	 * diagnostic information about missing log devices.
 	 * We'll pass this up to the user for further processing.
 	 */
 	if (!(spa->spa_import_flags & ZFS_IMPORT_MISSING_LOG)) {
@@ -1807,109 +1859,54 @@ spa_config_valid(spa_t *spa, nvlist_t *config)
 		    KM_SLEEP);
 		VERIFY(nvlist_alloc(&nv, NV_UNIQUE_NAME, KM_SLEEP) == 0);
 
-		for (int c = 0; c < rvd->vdev_children; c++) {
+		for (uint64_t c = 0; c < rvd->vdev_children; c++) {
 			vdev_t *tvd = rvd->vdev_child[c];
-			vdev_t *mtvd  = mrvd->vdev_child[c];
 
-			if (tvd->vdev_ops == &vdev_missing_ops &&
-			    mtvd->vdev_ops != &vdev_missing_ops &&
-			    mtvd->vdev_islog)
-				child[idx++] = vdev_config_generate(spa, mtvd,
-				    B_FALSE, 0);
+			/*
+			 * We consider a device as missing only if it failed
+			 * to open (i.e. offline or faulted is not considered
+			 * as missing).
+			 */
+			if (tvd->vdev_islog &&
+			    tvd->vdev_state == VDEV_STATE_CANT_OPEN) {
+				child[idx++] = vdev_config_generate(spa, tvd,
+				    B_FALSE, VDEV_CONFIG_MISSING);
+			}
 		}
 
-		if (idx) {
-			VERIFY(nvlist_add_nvlist_array(nv,
-			    ZPOOL_CONFIG_CHILDREN, child, idx) == 0);
-			VERIFY(nvlist_add_nvlist(spa->spa_load_info,
-			    ZPOOL_CONFIG_MISSING_DEVICES, nv) == 0);
+		if (idx > 0) {
+			fnvlist_add_nvlist_array(nv,
+			    ZPOOL_CONFIG_CHILDREN, child, idx);
+			fnvlist_add_nvlist(spa->spa_load_info,
+			    ZPOOL_CONFIG_MISSING_DEVICES, nv);
 
-			for (int i = 0; i < idx; i++)
+			for (uint64_t i = 0; i < idx; i++)
 				nvlist_free(child[i]);
 		}
 		nvlist_free(nv);
 		kmem_free(child, rvd->vdev_children * sizeof (char **));
-	}
 
-	/*
-	 * Compare the root vdev tree with the information we have
-	 * from the MOS config (mrvd). Check each top-level vdev
-	 * with the corresponding MOS config top-level (mtvd).
-	 */
-	for (int c = 0; c < rvd->vdev_children; c++) {
-		vdev_t *tvd = rvd->vdev_child[c];
-		vdev_t *mtvd  = mrvd->vdev_child[c];
-
-		/*
-		 * Resolve any "missing" vdevs in the current configuration.
-		 * Also trust the MOS config about any "indirect" vdevs.
-		 * If we find that the MOS config has more accurate information
-		 * about the top-level vdev then use that vdev instead.
-		 */
-		if ((tvd->vdev_ops == &vdev_missing_ops &&
-		    mtvd->vdev_ops != &vdev_missing_ops) ||
-		    (mtvd->vdev_ops == &vdev_indirect_ops &&
-		    tvd->vdev_ops != &vdev_indirect_ops)) {
-
-			/*
-			 * Device specific actions.
-			 */
-			if (mtvd->vdev_islog) {
-				if (!(spa->spa_import_flags &
-				    ZFS_IMPORT_MISSING_LOG)) {
-					continue;
-				}
-
-				spa_set_log_state(spa, SPA_LOG_CLEAR);
-			} else if (mtvd->vdev_ops != &vdev_indirect_ops) {
-				continue;
-			}
-
-			/*
-			 * Swap the missing vdev with the data we were
-			 * able to obtain from the MOS config.
-			 */
-			vdev_remove_child(rvd, tvd);
-			vdev_remove_child(mrvd, mtvd);
-
-			vdev_add_child(rvd, mtvd);
-			vdev_add_child(mrvd, tvd);
-
-			vdev_reopen(rvd);
-		} else {
-			if (mtvd->vdev_islog) {
-				/*
-				 * Load the slog device's state from the MOS
-				 * config since it's possible that the label
-				 * does not contain the most up-to-date
-				 * information.
-				 */
-				vdev_load_log_state(tvd, mtvd);
-				vdev_reopen(tvd);
-			}
-
-			/*
-			 * Per-vdev ZAP info is stored exclusively in the MOS.
-			 */
-			spa_config_valid_zaps(tvd, mtvd);
+		if (idx > 0) {
+			spa_load_failed(spa, "some log devices are missing");
+			vdev_dbgmsg_print_tree(rvd, 2);
+			return (SET_ERROR(ENXIO));
 		}
+	} else {
+		for (uint64_t c = 0; c < rvd->vdev_children; c++) {
+			vdev_t *tvd = rvd->vdev_child[c];
 
-		/*
-		 * Never trust this info from userland; always use what's
-		 * in the MOS.  This prevents it from getting out of sync
-		 * with the rest of the info in the MOS.
-		 */
-		tvd->vdev_removing = mtvd->vdev_removing;
-		tvd->vdev_indirect_config = mtvd->vdev_indirect_config;
+			if (tvd->vdev_islog &&
+			    tvd->vdev_state == VDEV_STATE_CANT_OPEN) {
+				spa_set_log_state(spa, SPA_LOG_CLEAR);
+				spa_load_note(spa, "some log devices are "
+				    "missing, ZIL is dropped.");
+				vdev_dbgmsg_print_tree(rvd, 2);
+				break;
+			}
+		}
 	}
 
-	vdev_free(mrvd);
-	spa_config_exit(spa, SCL_ALL, FTAG);
-
-	/*
-	 * Ensure we were able to validate the config.
-	 */
-	return (rvd->vdev_guid_sum == spa->spa_uberblock.ub_guid_sum);
+	return (0);
 }
 
 /*
@@ -2121,6 +2118,13 @@ spa_load_verify(spa_t *spa)
 	    ZIO_FLAG_CANFAIL | ZIO_FLAG_SPECULATIVE);
 
 	if (spa_load_verify_metadata) {
+		if (spa->spa_extreme_rewind) {
+			spa_load_note(spa, "performing a complete scan of the "
+			    "pool since extreme rewind is on. This may take "
+			    "a very long time.\n  (spa_load_verify_data=%u, "
+			    "spa_load_verify_metadata=%u)",
+			    spa_load_verify_data, spa_load_verify_metadata);
+		}
 		error = traverse_pool(spa, spa->spa_verify_min_txg,
 		    TRAVERSE_PRE | TRAVERSE_PREFETCH_METADATA |
 		    TRAVERSE_NO_DECRYPT, spa_load_verify_cb, rio);
@@ -2131,8 +2135,15 @@ spa_load_verify(spa_t *spa)
 	spa->spa_load_meta_errors = sle.sle_meta_count;
 	spa->spa_load_data_errors = sle.sle_data_count;
 
-	if (!error && sle.sle_meta_count <= policy.zrp_maxmeta &&
-	    sle.sle_data_count <= policy.zrp_maxdata) {
+	if (sle.sle_meta_count != 0 || sle.sle_data_count != 0) {
+		spa_load_note(spa, "spa_load_verify found %llu metadata errors "
+		    "and %llu data errors", (u_longlong_t)sle.sle_meta_count,
+		    (u_longlong_t)sle.sle_data_count);
+	}
+
+	if (spa_load_verify_dryrun ||
+	    (!error && sle.sle_meta_count <= policy.zrp_maxmeta &&
+	    sle.sle_data_count <= policy.zrp_maxdata)) {
 		int64_t loss = 0;
 
 		verify_ok = B_TRUE;
@@ -2149,6 +2160,9 @@ spa_load_verify(spa_t *spa)
 	} else {
 		spa->spa_load_max_txg = spa->spa_uberblock.ub_txg;
 	}
+
+	if (spa_load_verify_dryrun)
+		return (0);
 
 	if (error) {
 		if (error != ENXIO && error != EIO)
@@ -2173,10 +2187,17 @@ spa_prop_find(spa_t *spa, zpool_prop_t prop, uint64_t *val)
  * Find a value in the pool directory object.
  */
 static int
-spa_dir_prop(spa_t *spa, const char *name, uint64_t *val)
+spa_dir_prop(spa_t *spa, const char *name, uint64_t *val, boolean_t log_enoent)
 {
-	return (zap_lookup(spa->spa_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
-	    name, sizeof (uint64_t), 1, val));
+	int error = zap_lookup(spa->spa_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
+	    name, sizeof (uint64_t), 1, val);
+
+	if (error != 0 && (error != ENOENT || log_enoent)) {
+		spa_load_failed(spa, "couldn't get '%s' value in MOS directory "
+		    "[error=%d]", name, error);
+	}
+
+	return (error);
 }
 
 static int
@@ -2279,53 +2300,15 @@ spa_try_repair(spa_t *spa, nvlist_t *config)
 }
 
 static int
-spa_load(spa_t *spa, spa_load_state_t state, spa_import_type_t type,
-    boolean_t trust_config)
+spa_load(spa_t *spa, spa_load_state_t state, spa_import_type_t type)
 {
-	nvlist_t *config = spa->spa_config;
 	char *ereport = FM_EREPORT_ZFS_POOL;
-	char *comment;
 	int error;
-	uint64_t pool_guid;
-	nvlist_t *nvl;
 
-	if (nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_GUID, &pool_guid))
-		return (SET_ERROR(EINVAL));
+	spa->spa_load_state = state;
 
-	ASSERT(spa->spa_comment == NULL);
-	if (nvlist_lookup_string(config, ZPOOL_CONFIG_COMMENT, &comment) == 0)
-		spa->spa_comment = spa_strdup(comment);
-
-	/*
-	 * Versioning wasn't explicitly added to the label until later, so if
-	 * it's not present treat it as the initial version.
-	 */
-	if (nvlist_lookup_uint64(config, ZPOOL_CONFIG_VERSION,
-	    &spa->spa_ubsync.ub_version) != 0)
-		spa->spa_ubsync.ub_version = SPA_VERSION_INITIAL;
-
-	(void) nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_TXG,
-	    &spa->spa_config_txg);
-
-	if ((state == SPA_LOAD_IMPORT || state == SPA_LOAD_TRYIMPORT) &&
-	    spa_guid_exists(pool_guid, 0)) {
-		error = SET_ERROR(EEXIST);
-	} else {
-		spa->spa_config_guid = pool_guid;
-
-		if (nvlist_lookup_nvlist(config, ZPOOL_CONFIG_SPLIT,
-		    &nvl) == 0) {
-			VERIFY(nvlist_dup(nvl, &spa->spa_config_splitting,
-			    KM_SLEEP) == 0);
-		}
-
-		nvlist_free(spa->spa_load_info);
-		spa->spa_load_info = fnvlist_alloc();
-
-		gethrestime(&spa->spa_loaded_ts);
-		error = spa_load_impl(spa, pool_guid, config, state, type,
-		    trust_config, &ereport);
-	}
+	gethrestime(&spa->spa_loaded_ts);
+	error = spa_load_impl(spa, type, &ereport, B_FALSE);
 
 	/*
 	 * Don't count references from objsets that are already closed
@@ -2579,23 +2562,86 @@ out:
 }
 
 static int
-spa_ld_parse_config(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
-    spa_load_state_t state, spa_import_type_t type)
+spa_verify_host(spa_t *spa, nvlist_t *mos_config)
+{
+	uint64_t hostid;
+	char *hostname;
+	uint64_t myhostid = 0;
+
+	if (!spa_is_root(spa) && nvlist_lookup_uint64(mos_config,
+	    ZPOOL_CONFIG_HOSTID, &hostid) == 0) {
+		hostname = fnvlist_lookup_string(mos_config,
+		    ZPOOL_CONFIG_HOSTNAME);
+
+		myhostid = zone_get_hostid(NULL);
+
+		if (hostid != 0 && myhostid != 0 && hostid != myhostid) {
+			cmn_err(CE_WARN, "pool '%s' could not be "
+			    "loaded as it was last accessed by "
+			    "another system (host: %s hostid: 0x%llx). "
+			    "See: http://illumos.org/msg/ZFS-8000-EY",
+			    spa_name(spa), hostname, (u_longlong_t)hostid);
+			spa_load_failed(spa, "hostid verification failed: pool "
+			    "last accessed by host: %s (hostid: 0x%llx)",
+			    hostname, (u_longlong_t)hostid);
+			return (SET_ERROR(EBADF));
+		}
+	}
+
+	return (0);
+}
+
+static int
+spa_ld_parse_config(spa_t *spa, spa_import_type_t type)
 {
 	int error = 0;
-	nvlist_t *nvtree = NULL;
+	nvlist_t *nvtree, *nvl, *config = spa->spa_config;
 	int parse;
 	vdev_t *rvd;
+	uint64_t pool_guid;
+	char *comment;
 
-	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+	/*
+	 * Versioning wasn't explicitly added to the label until later, so if
+	 * it's not present treat it as the initial version.
+	 */
+	if (nvlist_lookup_uint64(config, ZPOOL_CONFIG_VERSION,
+	    &spa->spa_ubsync.ub_version) != 0)
+		spa->spa_ubsync.ub_version = SPA_VERSION_INITIAL;
 
-	spa->spa_load_state = state;
-
-	if (nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE, &nvtree))
+	if (nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_GUID, &pool_guid)) {
+		spa_load_failed(spa, "invalid config provided: '%s' missing",
+		    ZPOOL_CONFIG_POOL_GUID);
 		return (SET_ERROR(EINVAL));
+	}
 
-	parse = (type == SPA_IMPORT_EXISTING ?
-	    VDEV_ALLOC_LOAD : VDEV_ALLOC_SPLIT);
+	if ((spa->spa_load_state == SPA_LOAD_IMPORT || spa->spa_load_state ==
+	    SPA_LOAD_TRYIMPORT) && spa_guid_exists(pool_guid, 0)) {
+		spa_load_failed(spa, "a pool with guid %llu is already open",
+		    (u_longlong_t)pool_guid);
+		return (SET_ERROR(EEXIST));
+	}
+
+	spa->spa_config_guid = pool_guid;
+
+	nvlist_free(spa->spa_load_info);
+	spa->spa_load_info = fnvlist_alloc();
+
+	ASSERT(spa->spa_comment == NULL);
+	if (nvlist_lookup_string(config, ZPOOL_CONFIG_COMMENT, &comment) == 0)
+		spa->spa_comment = spa_strdup(comment);
+
+	(void) nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_TXG,
+	    &spa->spa_config_txg);
+
+	if (nvlist_lookup_nvlist(config, ZPOOL_CONFIG_SPLIT, &nvl) == 0)
+		spa->spa_config_splitting = fnvlist_dup(nvl);
+
+	if (nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE, &nvtree)) {
+		spa_load_failed(spa, "invalid config provided: '%s' missing",
+		    ZPOOL_CONFIG_VDEV_TREE);
+		return (SET_ERROR(EINVAL));
+	}
 
 	/*
 	 * Create "The Godfather" zio to hold all async IOs
@@ -2614,11 +2660,16 @@ spa_ld_parse_config(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 	 * configuration requires knowing the version number.
 	 */
 	spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
+	parse = (type == SPA_IMPORT_EXISTING ?
+	    VDEV_ALLOC_LOAD : VDEV_ALLOC_SPLIT);
 	error = spa_config_parse(spa, &rvd, nvtree, NULL, 0, parse);
 	spa_config_exit(spa, SCL_ALL, FTAG);
 
-	if (error != 0)
+	if (error != 0) {
+		spa_load_failed(spa, "unable to parse config [error=%d]",
+		    error);
 		return (error);
+	}
 
 	ASSERT(spa->spa_root_vdev == rvd);
 	ASSERT3U(spa->spa_min_ashift, >=, SPA_MINBLOCKSHIFT);
@@ -2631,61 +2682,105 @@ spa_ld_parse_config(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 	return (0);
 }
 
+/*
+ * Recursively open all vdevs in the vdev tree. This function is called twice:
+ * first with the untrusted config, then with the trusted config.
+ */
 static int
 spa_ld_open_vdevs(spa_t *spa)
 {
 	int error = 0;
 
+	/*
+	 * spa_missing_tvds_allowed defines how many top-level vdevs can be
+	 * missing/unopenable for the root vdev to be still considered openable.
+	 */
+	if (spa->spa_trust_config) {
+		spa->spa_missing_tvds_allowed = zfs_max_missing_tvds;
+	} else if (spa->spa_config_source == SPA_CONFIG_SRC_CACHEFILE) {
+		spa->spa_missing_tvds_allowed = zfs_max_missing_tvds_cachefile;
+	} else if (spa->spa_config_source == SPA_CONFIG_SRC_SCAN) {
+		spa->spa_missing_tvds_allowed = zfs_max_missing_tvds_scan;
+	} else {
+		spa->spa_missing_tvds_allowed = 0;
+	}
+
+	spa->spa_missing_tvds_allowed =
+	    MAX(zfs_max_missing_tvds, spa->spa_missing_tvds_allowed);
+
 	spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
 	error = vdev_open(spa->spa_root_vdev);
 	spa_config_exit(spa, SCL_ALL, FTAG);
 
+	if (spa->spa_missing_tvds != 0) {
+		spa_load_note(spa, "vdev tree has %lld missing top-level "
+		    "vdevs.", (u_longlong_t)spa->spa_missing_tvds);
+		if (spa->spa_trust_config && (spa->spa_mode & FWRITE)) {
+			/*
+			 * Although theoretically we could allow users to open
+			 * incomplete pools in RW mode, we'd need to add a lot
+			 * of extra logic (e.g. adjust pool space to account
+			 * for missing vdevs).
+			 * This limitation also prevents users from accidentally
+			 * opening the pool in RW mode during data recovery and
+			 * damaging it further.
+			 */
+			spa_load_note(spa, "pools with missing top-level "
+			    "vdevs can only be opened in read-only mode.");
+			error = SET_ERROR(ENXIO);
+		} else {
+			spa_load_note(spa, "current settings allow for maximum "
+			    "%lld missing top-level vdevs at this stage.",
+			    (u_longlong_t)spa->spa_missing_tvds_allowed);
+		}
+	}
+	if (error != 0) {
+		spa_load_failed(spa, "unable to open vdev tree [error=%d]",
+		    error);
+	}
+	if (spa->spa_missing_tvds != 0 || error != 0)
+		vdev_dbgmsg_print_tree(spa->spa_root_vdev, 2);
+
 	return (error);
 }
 
+/*
+ * We need to validate the vdev labels against the configuration that
+ * we have in hand. This function is called twice: first with an untrusted
+ * config, then with a trusted config. The validation is more strict when the
+ * config is trusted.
+ */
 static int
-spa_ld_validate_vdevs(spa_t *spa, spa_import_type_t type,
-    boolean_t trust_config)
+spa_ld_validate_vdevs(spa_t *spa)
 {
 	int error = 0;
 	vdev_t *rvd = spa->spa_root_vdev;
 
-	/*
-	 * We need to validate the vdev labels against the configuration that
-	 * we have in hand, which is dependent on the setting of trust_config.
-	 * If trust_config is true then we're validating the vdev labels based
-	 * on that config.  Otherwise, we're validating against the cached
-	 * config (zpool.cache) that was read when we loaded the zfs module, and
-	 * then later we will recursively call spa_load() and validate against
-	 * the vdev config.
-	 *
-	 * If we're assembling a new pool that's been split off from an
-	 * existing pool, the labels haven't yet been updated so we skip
-	 * validation for now.
-	 */
-	if (type != SPA_IMPORT_ASSEMBLE) {
-		spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
-		error = vdev_validate(rvd, trust_config);
-		spa_config_exit(spa, SCL_ALL, FTAG);
+	spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
+	error = vdev_validate(rvd);
+	spa_config_exit(spa, SCL_ALL, FTAG);
 
-		if (error != 0)
-			return (error);
+	if (error != 0) {
+		spa_load_failed(spa, "vdev_validate failed [error=%d]", error);
+		return (error);
+	}
 
-		if (rvd->vdev_state <= VDEV_STATE_CANT_OPEN)
-			return (SET_ERROR(ENXIO));
+	if (rvd->vdev_state <= VDEV_STATE_CANT_OPEN) {
+		spa_load_failed(spa, "cannot open vdev tree after invalidating "
+		    "some vdevs");
+		vdev_dbgmsg_print_tree(rvd, 2);
+		return (SET_ERROR(ENXIO));
 	}
 
 	return (0);
 }
 
 static int
-spa_ld_select_uberblock(spa_t *spa, nvlist_t *config, spa_import_type_t type,
-    boolean_t trust_config)
+spa_ld_select_uberblock(spa_t *spa, spa_import_type_t type)
 {
 	vdev_t *rvd = spa->spa_root_vdev;
 	nvlist_t *label;
 	uberblock_t *ub = &spa->spa_uberblock;
-	uint64_t children;
 	boolean_t activity_check = B_FALSE;
 
 	/*
@@ -2698,15 +2793,21 @@ spa_ld_select_uberblock(spa_t *spa, nvlist_t *config, spa_import_type_t type,
 	 */
 	if (ub->ub_txg == 0) {
 		nvlist_free(label);
+		spa_load_failed(spa, "no valid uberblock found");
 		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, ENXIO));
 	}
+
+	spa_load_note(spa, "using uberblock with txg=%llu",
+	    (u_longlong_t)ub->ub_txg);
+
 
 	/*
 	 * For pools which have the multihost property on determine if the
 	 * pool is truly inactive and can be safely imported.  Prevent
 	 * hosts which don't have a hostid set from importing the pool.
 	 */
-	activity_check = spa_activity_check_required(spa, ub, label, config);
+	activity_check = spa_activity_check_required(spa, ub, label,
+	    spa->spa_config);
 	if (activity_check) {
 		if (ub->ub_mmp_magic == MMP_MAGIC && ub->ub_mmp_delay &&
 		    spa_get_hostid() == 0) {
@@ -2716,7 +2817,7 @@ spa_ld_select_uberblock(spa_t *spa, nvlist_t *config, spa_import_type_t type,
 			return (spa_vdev_err(rvd, VDEV_AUX_ACTIVE, EREMOTEIO));
 		}
 
-		int error = spa_activity_check(spa, ub, config);
+		int error = spa_activity_check(spa, ub, spa->spa_config);
 		if (error) {
 			nvlist_free(label);
 			return (error);
@@ -2733,6 +2834,8 @@ spa_ld_select_uberblock(spa_t *spa, nvlist_t *config, spa_import_type_t type,
 	 */
 	if (!SPA_VERSION_IS_SUPPORTED(ub->ub_version)) {
 		nvlist_free(label);
+		spa_load_failed(spa, "version %llu is not supported",
+		    (u_longlong_t)ub->ub_version);
 		return (spa_vdev_err(rvd, VDEV_AUX_VERSION_NEWER, ENOTSUP));
 	}
 
@@ -2743,9 +2846,17 @@ spa_ld_select_uberblock(spa_t *spa, nvlist_t *config, spa_import_type_t type,
 		 * If we weren't able to find what's necessary for reading the
 		 * MOS in the label, return failure.
 		 */
-		if (label == NULL || nvlist_lookup_nvlist(label,
-		    ZPOOL_CONFIG_FEATURES_FOR_READ, &features) != 0) {
+		if (label == NULL) {
+			spa_load_failed(spa, "label config unavailable");
+			return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA,
+			    ENXIO));
+		}
+
+		if (nvlist_lookup_nvlist(label, ZPOOL_CONFIG_FEATURES_FOR_READ,
+		    &features) != 0) {
 			nvlist_free(label);
+			spa_load_failed(spa, "invalid label: '%s' missing",
+			    ZPOOL_CONFIG_FEATURES_FOR_READ);
 			return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA,
 			    ENXIO));
 		}
@@ -2784,6 +2895,7 @@ spa_ld_select_uberblock(spa_t *spa, nvlist_t *config, spa_import_type_t type,
 			VERIFY(nvlist_add_nvlist(spa->spa_load_info,
 			    ZPOOL_CONFIG_UNSUP_FEAT, unsup_feat) == 0);
 			nvlist_free(unsup_feat);
+			spa_load_failed(spa, "some features are unsupported");
 			return (spa_vdev_err(rvd, VDEV_AUX_UNSUP_FEAT,
 			    ENOTSUP));
 		}
@@ -2791,21 +2903,9 @@ spa_ld_select_uberblock(spa_t *spa, nvlist_t *config, spa_import_type_t type,
 		nvlist_free(unsup_feat);
 	}
 
-	/*
-	 * If the vdev guid sum doesn't match the uberblock, we have an
-	 * incomplete configuration.  We first check to see if the pool
-	 * is aware of the complete config (i.e ZPOOL_CONFIG_VDEV_CHILDREN).
-	 * If it is, defer the vdev_guid_sum check till later so we
-	 * can handle missing vdevs.
-	 */
-	if (nvlist_lookup_uint64(config, ZPOOL_CONFIG_VDEV_CHILDREN,
-	    &children) != 0 && trust_config && type != SPA_IMPORT_ASSEMBLE &&
-	    rvd->vdev_guid_sum != ub->ub_guid_sum)
-		return (spa_vdev_err(rvd, VDEV_AUX_BAD_GUID_SUM, ENXIO));
-
 	if (type != SPA_IMPORT_ASSEMBLE && spa->spa_config_splitting) {
 		spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
-		spa_try_repair(spa, config);
+		spa_try_repair(spa, spa->spa_config);
 		spa_config_exit(spa, SCL_ALL, FTAG);
 		nvlist_free(spa->spa_config_splitting);
 		spa->spa_config_splitting = NULL;
@@ -2833,47 +2933,176 @@ spa_ld_open_rootbp(spa_t *spa)
 	vdev_t *rvd = spa->spa_root_vdev;
 
 	error = dsl_pool_init(spa, spa->spa_first_txg, &spa->spa_dsl_pool);
-	if (error)
+	if (error != 0) {
+		spa_load_failed(spa, "unable to open rootbp in dsl_pool_init "
+		    "[error=%d]", error);
 		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
+	}
 	spa->spa_meta_objset = spa->spa_dsl_pool->dp_meta_objset;
 
 	return (0);
 }
 
 static int
-spa_ld_validate_config(spa_t *spa, spa_import_type_t type)
+spa_ld_load_trusted_config(spa_t *spa, spa_import_type_t type,
+    boolean_t reloading)
 {
-	vdev_t *rvd = spa->spa_root_vdev;
+	vdev_t *mrvd, *rvd = spa->spa_root_vdev;
+	nvlist_t *nv, *mos_config, *policy;
+	int error = 0, copy_error;
+	uint64_t healthy_tvds, healthy_tvds_mos;
+	uint64_t mos_config_txg;
 
-	if (spa_dir_prop(spa, DMU_POOL_CONFIG, &spa->spa_config_object) != 0)
+	if (spa_dir_prop(spa, DMU_POOL_CONFIG, &spa->spa_config_object, B_TRUE)
+	    != 0)
 		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
 
 	/*
-	 * Validate the config, using the MOS config to fill in any
-	 * information which might be missing.  If we fail to validate
-	 * the config then declare the pool unfit for use. If we're
-	 * assembling a pool from a split, the log is not transferred
-	 * over.
+	 * If we're assembling a pool from a split, the config provided is
+	 * already trusted so there is nothing to do.
 	 */
-	if (type != SPA_IMPORT_ASSEMBLE) {
-		nvlist_t *mos_config;
-		if (load_nvlist(spa, spa->spa_config_object, &mos_config) != 0)
-			return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
+	if (type == SPA_IMPORT_ASSEMBLE)
+		return (0);
 
-		if (!spa_config_valid(spa, mos_config)) {
+	healthy_tvds = spa_healthy_core_tvds(spa);
+
+	if (load_nvlist(spa, spa->spa_config_object, &mos_config)
+	    != 0) {
+		spa_load_failed(spa, "unable to retrieve MOS config");
+		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
+	}
+
+	/*
+	 * If we are doing an open, pool owner wasn't verified yet, thus do
+	 * the verification here.
+	 */
+	if (spa->spa_load_state == SPA_LOAD_OPEN) {
+		error = spa_verify_host(spa, mos_config);
+		if (error != 0) {
 			nvlist_free(mos_config);
-			return (spa_vdev_err(rvd, VDEV_AUX_BAD_GUID_SUM,
-			    ENXIO));
+			return (error);
 		}
-		nvlist_free(mos_config);
+	}
 
+	nv = fnvlist_lookup_nvlist(mos_config, ZPOOL_CONFIG_VDEV_TREE);
+
+	spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
+
+	/*
+	 * Build a new vdev tree from the trusted config
+	 */
+	VERIFY(spa_config_parse(spa, &mrvd, nv, NULL, 0, VDEV_ALLOC_LOAD) == 0);
+
+	/*
+	 * Vdev paths in the MOS may be obsolete. If the untrusted config was
+	 * obtained by scanning /dev/dsk, then it will have the right vdev
+	 * paths. We update the trusted MOS config with this information.
+	 * We first try to copy the paths with vdev_copy_path_strict, which
+	 * succeeds only when both configs have exactly the same vdev tree.
+	 * If that fails, we fall back to a more flexible method that has a
+	 * best effort policy.
+	 */
+	copy_error = vdev_copy_path_strict(rvd, mrvd);
+	if (copy_error != 0 || spa_load_print_vdev_tree) {
+		spa_load_note(spa, "provided vdev tree:");
+		vdev_dbgmsg_print_tree(rvd, 2);
+		spa_load_note(spa, "MOS vdev tree:");
+		vdev_dbgmsg_print_tree(mrvd, 2);
+	}
+	if (copy_error != 0) {
+		spa_load_note(spa, "vdev_copy_path_strict failed, falling "
+		    "back to vdev_copy_path_relaxed");
+		vdev_copy_path_relaxed(rvd, mrvd);
+	}
+
+	vdev_close(rvd);
+	vdev_free(rvd);
+	spa->spa_root_vdev = mrvd;
+	rvd = mrvd;
+	spa_config_exit(spa, SCL_ALL, FTAG);
+
+	/*
+	 * We will use spa_config if we decide to reload the spa or if spa_load
+	 * fails and we rewind. We must thus regenerate the config using the
+	 * MOS information with the updated paths. Rewind policy is an import
+	 * setting and is not in the MOS. We copy it over to our new, trusted
+	 * config.
+	 */
+	mos_config_txg = fnvlist_lookup_uint64(mos_config,
+	    ZPOOL_CONFIG_POOL_TXG);
+	nvlist_free(mos_config);
+	mos_config = spa_config_generate(spa, NULL, mos_config_txg, B_FALSE);
+	if (nvlist_lookup_nvlist(spa->spa_config, ZPOOL_REWIND_POLICY,
+	    &policy) == 0)
+		fnvlist_add_nvlist(mos_config, ZPOOL_REWIND_POLICY, policy);
+	spa_config_set(spa, mos_config);
+	spa->spa_config_source = SPA_CONFIG_SRC_MOS;
+
+	/*
+	 * Now that we got the config from the MOS, we should be more strict
+	 * in checking blkptrs and can make assumptions about the consistency
+	 * of the vdev tree. spa_trust_config must be set to true before opening
+	 * vdevs in order for them to be writeable.
+	 */
+	spa->spa_trust_config = B_TRUE;
+
+	/*
+	 * Open and validate the new vdev tree
+	 */
+	error = spa_ld_open_vdevs(spa);
+	if (error != 0)
+		return (error);
+
+	error = spa_ld_validate_vdevs(spa);
+	if (error != 0)
+		return (error);
+
+	if (copy_error != 0 || spa_load_print_vdev_tree) {
+		spa_load_note(spa, "final vdev tree:");
+		vdev_dbgmsg_print_tree(rvd, 2);
+	}
+
+	if (spa->spa_load_state != SPA_LOAD_TRYIMPORT &&
+	    !spa->spa_extreme_rewind && zfs_max_missing_tvds == 0) {
 		/*
-		 * Now that we've validated the config, check the state of the
-		 * root vdev.  If it can't be opened, it indicates one or
-		 * more toplevel vdevs are faulted.
+		 * Sanity check to make sure that we are indeed loading the
+		 * latest uberblock. If we missed SPA_SYNC_MIN_VDEVS tvds
+		 * in the config provided and they happened to be the only ones
+		 * to have the latest uberblock, we could involuntarily perform
+		 * an extreme rewind.
 		 */
-		if (rvd->vdev_state <= VDEV_STATE_CANT_OPEN)
-			return (SET_ERROR(ENXIO));
+		healthy_tvds_mos = spa_healthy_core_tvds(spa);
+		if (healthy_tvds_mos - healthy_tvds >=
+		    SPA_SYNC_MIN_VDEVS) {
+			spa_load_note(spa, "config provided misses too many "
+			    "top-level vdevs compared to MOS (%lld vs %lld). ",
+			    (u_longlong_t)healthy_tvds,
+			    (u_longlong_t)healthy_tvds_mos);
+			spa_load_note(spa, "vdev tree:");
+			vdev_dbgmsg_print_tree(rvd, 2);
+			if (reloading) {
+				spa_load_failed(spa, "config was already "
+				    "provided from MOS. Aborting.");
+				return (spa_vdev_err(rvd,
+				    VDEV_AUX_CORRUPT_DATA, EIO));
+			}
+			spa_load_note(spa, "spa must be reloaded using MOS "
+			    "config");
+			return (SET_ERROR(EAGAIN));
+		}
+	}
+
+	error = spa_check_for_missing_logs(spa);
+	if (error != 0)
+		return (spa_vdev_err(rvd, VDEV_AUX_BAD_GUID_SUM, ENXIO));
+
+	if (rvd->vdev_guid_sum != spa->spa_uberblock.ub_guid_sum) {
+		spa_load_failed(spa, "uberblock guid sum doesn't match MOS "
+		    "guid sum (%llu != %llu)",
+		    (u_longlong_t)spa->spa_uberblock.ub_guid_sum,
+		    (u_longlong_t)rvd->vdev_guid_sum);
+		return (spa_vdev_err(rvd, VDEV_AUX_BAD_GUID_SUM,
+		    ENXIO));
 	}
 
 	return (0);
@@ -2889,14 +3118,20 @@ spa_ld_open_indirect_vdev_metadata(spa_t *spa)
 	 * Everything that we read before spa_remove_init() must be stored
 	 * on concreted vdevs.  Therefore we do this as early as possible.
 	 */
-	if (spa_remove_init(spa) != 0)
+	error = spa_remove_init(spa);
+	if (error != 0) {
+		spa_load_failed(spa, "spa_remove_init failed [error=%d]",
+		    error);
 		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
+	}
 
 	/*
 	 * Retrieve information needed to condense indirect vdev mappings.
 	 */
 	error = spa_condense_init(spa);
 	if (error != 0) {
+		spa_load_failed(spa, "spa_condense_init failed [error=%d]",
+		    error);
 		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, error));
 	}
 
@@ -2904,8 +3139,7 @@ spa_ld_open_indirect_vdev_metadata(spa_t *spa)
 }
 
 static int
-spa_ld_check_features(spa_t *spa, spa_load_state_t state,
-    boolean_t *missing_feat_writep)
+spa_ld_check_features(spa_t *spa, boolean_t *missing_feat_writep)
 {
 	int error = 0;
 	vdev_t *rvd = spa->spa_root_vdev;
@@ -2915,17 +3149,17 @@ spa_ld_check_features(spa_t *spa, spa_load_state_t state,
 		nvlist_t *unsup_feat, *enabled_feat;
 
 		if (spa_dir_prop(spa, DMU_POOL_FEATURES_FOR_READ,
-		    &spa->spa_feat_for_read_obj) != 0) {
+		    &spa->spa_feat_for_read_obj, B_TRUE) != 0) {
 			return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
 		}
 
 		if (spa_dir_prop(spa, DMU_POOL_FEATURES_FOR_WRITE,
-		    &spa->spa_feat_for_write_obj) != 0) {
+		    &spa->spa_feat_for_write_obj, B_TRUE) != 0) {
 			return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
 		}
 
 		if (spa_dir_prop(spa, DMU_POOL_FEATURE_DESCRIPTIONS,
-		    &spa->spa_feat_desc_obj) != 0) {
+		    &spa->spa_feat_desc_obj, B_TRUE) != 0) {
 			return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
 		}
 
@@ -2936,7 +3170,8 @@ spa_ld_check_features(spa_t *spa, spa_load_state_t state,
 		    unsup_feat, enabled_feat))
 			missing_feat_read = B_TRUE;
 
-		if (spa_writeable(spa) || state == SPA_LOAD_TRYIMPORT) {
+		if (spa_writeable(spa) ||
+		    spa->spa_load_state == SPA_LOAD_TRYIMPORT) {
 			if (!spa_features_check(spa, B_TRUE,
 			    unsup_feat, enabled_feat)) {
 				*missing_feat_writep = B_TRUE;
@@ -2980,6 +3215,7 @@ spa_ld_check_features(spa_t *spa, spa_load_state_t state,
 		 */
 		if (missing_feat_read || (*missing_feat_writep &&
 		    spa_writeable(spa))) {
+			spa_load_failed(spa, "pool uses unsupported features");
 			return (spa_vdev_err(rvd, VDEV_AUX_UNSUP_FEAT,
 			    ENOTSUP));
 		}
@@ -2999,6 +3235,9 @@ spa_ld_check_features(spa_t *spa, spa_load_state_t state,
 				spa->spa_feat_refcount_cache[i] =
 				    SPA_FEATURE_DISABLED;
 			} else {
+				spa_load_failed(spa, "error getting refcount "
+				    "for feature %s [error=%d]",
+				    spa_feature_table[i].fi_guid, error);
 				return (spa_vdev_err(rvd,
 				    VDEV_AUX_CORRUPT_DATA, EIO));
 			}
@@ -3007,7 +3246,7 @@ spa_ld_check_features(spa_t *spa, spa_load_state_t state,
 
 	if (spa_feature_is_active(spa, SPA_FEATURE_ENABLED_TXG)) {
 		if (spa_dir_prop(spa, DMU_POOL_FEATURE_ENABLED_TXG,
-		    &spa->spa_feat_enabled_txg_obj) != 0)
+		    &spa->spa_feat_enabled_txg_obj, B_TRUE) != 0)
 			return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
 	}
 
@@ -3023,47 +3262,10 @@ spa_ld_load_special_directories(spa_t *spa)
 	spa->spa_is_initializing = B_TRUE;
 	error = dsl_pool_open(spa->spa_dsl_pool);
 	spa->spa_is_initializing = B_FALSE;
-	if (error != 0)
+	if (error != 0) {
+		spa_load_failed(spa, "dsl_pool_open failed [error=%d]", error);
 		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
-
-	return (0);
-}
-
-static int
-spa_ld_prepare_for_reload(spa_t *spa, int orig_mode)
-{
-	vdev_t *rvd = spa->spa_root_vdev;
-
-	uint64_t hostid;
-	nvlist_t *policy = NULL;
-	nvlist_t *mos_config;
-
-	if (load_nvlist(spa, spa->spa_config_object, &mos_config) != 0)
-		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
-
-	if (!spa_is_root(spa) && nvlist_lookup_uint64(mos_config,
-	    ZPOOL_CONFIG_HOSTID, &hostid) == 0) {
-		char *hostname;
-		unsigned long myhostid = 0;
-
-		VERIFY(nvlist_lookup_string(mos_config,
-		    ZPOOL_CONFIG_HOSTNAME, &hostname) == 0);
-
-		myhostid = spa_get_hostid();
-		if (hostid && myhostid && hostid != myhostid) {
-			nvlist_free(mos_config);
-			return (SET_ERROR(EBADF));
-		}
 	}
-	if (nvlist_lookup_nvlist(spa->spa_config,
-	    ZPOOL_REWIND_POLICY, &policy) == 0)
-		VERIFY(nvlist_add_nvlist(mos_config,
-		    ZPOOL_REWIND_POLICY, policy) == 0);
-
-	spa_config_set(spa, mos_config);
-	spa_unload(spa);
-	spa_deactivate(spa);
-	spa_activate(spa, orig_mode);
 
 	return (0);
 }
@@ -3085,26 +3287,31 @@ spa_ld_get_props(spa_t *spa)
 		(void) random_get_pseudo_bytes(spa->spa_cksum_salt.zcs_bytes,
 		    sizeof (spa->spa_cksum_salt.zcs_bytes));
 	} else if (error != 0) {
+		spa_load_failed(spa, "unable to retrieve checksum salt from "
+		    "MOS [error=%d]", error);
 		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
 	}
 
-	if (spa_dir_prop(spa, DMU_POOL_SYNC_BPOBJ, &obj) != 0)
+	if (spa_dir_prop(spa, DMU_POOL_SYNC_BPOBJ, &obj, B_TRUE) != 0)
 		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
 	error = bpobj_open(&spa->spa_deferred_bpobj, spa->spa_meta_objset, obj);
-	if (error != 0)
+	if (error != 0) {
+		spa_load_failed(spa, "error opening deferred-frees bpobj "
+		    "[error=%d]", error);
 		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
+	}
 
 	/*
 	 * Load the bit that tells us to use the new accounting function
 	 * (raid-z deflation).  If we have an older pool, this will not
 	 * be present.
 	 */
-	error = spa_dir_prop(spa, DMU_POOL_DEFLATE, &spa->spa_deflate);
+	error = spa_dir_prop(spa, DMU_POOL_DEFLATE, &spa->spa_deflate, B_FALSE);
 	if (error != 0 && error != ENOENT)
 		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
 
 	error = spa_dir_prop(spa, DMU_POOL_CREATION_VERSION,
-	    &spa->spa_creation_version);
+	    &spa->spa_creation_version, B_FALSE);
 	if (error != 0 && error != ENOENT)
 		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
 
@@ -3112,12 +3319,13 @@ spa_ld_get_props(spa_t *spa)
 	 * Load the persistent error log.  If we have an older pool, this will
 	 * not be present.
 	 */
-	error = spa_dir_prop(spa, DMU_POOL_ERRLOG_LAST, &spa->spa_errlog_last);
+	error = spa_dir_prop(spa, DMU_POOL_ERRLOG_LAST, &spa->spa_errlog_last,
+	    B_FALSE);
 	if (error != 0 && error != ENOENT)
 		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
 
 	error = spa_dir_prop(spa, DMU_POOL_ERRLOG_SCRUB,
-	    &spa->spa_errlog_scrub);
+	    &spa->spa_errlog_scrub, B_FALSE);
 	if (error != 0 && error != ENOENT)
 		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
 
@@ -3125,7 +3333,7 @@ spa_ld_get_props(spa_t *spa)
 	 * Load the history object.  If we have an older pool, this
 	 * will not be present.
 	 */
-	error = spa_dir_prop(spa, DMU_POOL_HISTORY, &spa->spa_history);
+	error = spa_dir_prop(spa, DMU_POOL_HISTORY, &spa->spa_history, B_FALSE);
 	if (error != 0 && error != ENOENT)
 		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
 
@@ -3138,11 +3346,13 @@ spa_ld_get_props(spa_t *spa)
 
 	/* The sentinel is only available in the MOS config. */
 	nvlist_t *mos_config;
-	if (load_nvlist(spa, spa->spa_config_object, &mos_config) != 0)
+	if (load_nvlist(spa, spa->spa_config_object, &mos_config) != 0) {
+		spa_load_failed(spa, "unable to retrieve MOS config");
 		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
+	}
 
 	error = spa_dir_prop(spa, DMU_POOL_VDEV_ZAP_MAP,
-	    &spa->spa_all_vdev_zaps);
+	    &spa->spa_all_vdev_zaps, B_FALSE);
 
 	if (error == ENOENT) {
 		VERIFY(!nvlist_exists(mos_config,
@@ -3168,7 +3378,8 @@ spa_ld_get_props(spa_t *spa)
 
 	spa->spa_delegation = zpool_prop_default_numeric(ZPOOL_PROP_DELEGATION);
 
-	error = spa_dir_prop(spa, DMU_POOL_PROPS, &spa->spa_pool_props_object);
+	error = spa_dir_prop(spa, DMU_POOL_PROPS, &spa->spa_pool_props_object,
+	    B_FALSE);
 	if (error && error != ENOENT)
 		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
 
@@ -3180,10 +3391,24 @@ spa_ld_get_props(spa_t *spa)
 		spa_prop_find(spa, ZPOOL_PROP_DELEGATION, &spa->spa_delegation);
 		spa_prop_find(spa, ZPOOL_PROP_FAILUREMODE, &spa->spa_failmode);
 		spa_prop_find(spa, ZPOOL_PROP_AUTOEXPAND, &spa->spa_autoexpand);
+		spa_prop_find(spa, ZPOOL_PROP_MULTIHOST, &spa->spa_multihost);
 		spa_prop_find(spa, ZPOOL_PROP_DEDUPDITTO,
 		    &spa->spa_dedup_ditto);
 
 		spa->spa_autoreplace = (autoreplace != 0);
+	}
+
+	/*
+	 * If we are importing a pool with missing top-level vdevs,
+	 * we enforce that the pool doesn't panic or get suspended on
+	 * error since the likelihood of missing data is extremely high.
+	 */
+	if (spa->spa_missing_tvds > 0 &&
+	    spa->spa_failmode != ZIO_FAILURE_MODE_CONTINUE &&
+	    spa->spa_load_state != SPA_LOAD_TRYIMPORT) {
+		spa_load_note(spa, "forcing failmode to 'continue' "
+		    "as some top level vdevs are missing");
+		spa->spa_failmode = ZIO_FAILURE_MODE_CONTINUE;
 	}
 
 	return (0);
@@ -3204,14 +3429,17 @@ spa_ld_open_aux_vdevs(spa_t *spa, spa_import_type_t type)
 	/*
 	 * Load any hot spares for this pool.
 	 */
-	error = spa_dir_prop(spa, DMU_POOL_SPARES, &spa->spa_spares.sav_object);
+	error = spa_dir_prop(spa, DMU_POOL_SPARES, &spa->spa_spares.sav_object,
+	    B_FALSE);
 	if (error != 0 && error != ENOENT)
 		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
 	if (error == 0 && type != SPA_IMPORT_ASSEMBLE) {
 		ASSERT(spa_version(spa) >= SPA_VERSION_SPARES);
 		if (load_nvlist(spa, spa->spa_spares.sav_object,
-		    &spa->spa_spares.sav_config) != 0)
+		    &spa->spa_spares.sav_config) != 0) {
+			spa_load_failed(spa, "error loading spares nvlist");
 			return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
+		}
 
 		spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
 		spa_load_spares(spa);
@@ -3224,14 +3452,16 @@ spa_ld_open_aux_vdevs(spa_t *spa, spa_import_type_t type)
 	 * Load any level 2 ARC devices for this pool.
 	 */
 	error = spa_dir_prop(spa, DMU_POOL_L2CACHE,
-	    &spa->spa_l2cache.sav_object);
+	    &spa->spa_l2cache.sav_object, B_FALSE);
 	if (error != 0 && error != ENOENT)
 		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
 	if (error == 0 && type != SPA_IMPORT_ASSEMBLE) {
 		ASSERT(spa_version(spa) >= SPA_VERSION_L2CACHE);
 		if (load_nvlist(spa, spa->spa_l2cache.sav_object,
-		    &spa->spa_l2cache.sav_config) != 0)
+		    &spa->spa_l2cache.sav_config) != 0) {
+			spa_load_failed(spa, "error loading l2cache nvlist");
 			return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
+		}
 
 		spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
 		spa_load_l2cache(spa);
@@ -3244,7 +3474,7 @@ spa_ld_open_aux_vdevs(spa_t *spa, spa_import_type_t type)
 }
 
 static int
-spa_ld_load_vdev_metadata(spa_t *spa, spa_load_state_t state)
+spa_ld_load_vdev_metadata(spa_t *spa)
 {
 	int error = 0;
 	vdev_t *rvd = spa->spa_root_vdev;
@@ -3268,14 +3498,14 @@ spa_ld_load_vdev_metadata(spa_t *spa, spa_load_state_t state)
 	 * unopenable vdevs so that the normal autoreplace handler can take
 	 * over.
 	 */
-	if (spa->spa_autoreplace && state != SPA_LOAD_TRYIMPORT) {
+	if (spa->spa_autoreplace && spa->spa_load_state != SPA_LOAD_TRYIMPORT) {
 		spa_check_removed(spa->spa_root_vdev);
 		/*
 		 * For the import case, this is done in spa_import(), because
 		 * at this point we're using the spare definitions from
 		 * the MOS config, not necessarily from the userland config.
 		 */
-		if (state != SPA_LOAD_IMPORT) {
+		if (spa->spa_load_state != SPA_LOAD_IMPORT) {
 			spa_aux_check_removed(&spa->spa_spares);
 			spa_aux_check_removed(&spa->spa_l2cache);
 		}
@@ -3286,6 +3516,7 @@ spa_ld_load_vdev_metadata(spa_t *spa, spa_load_state_t state)
 	 */
 	error = vdev_load(rvd);
 	if (error != 0) {
+		spa_load_failed(spa, "vdev_load failed [error=%d]", error);
 		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, error));
 	}
 
@@ -3306,8 +3537,10 @@ spa_ld_load_dedup_tables(spa_t *spa)
 	vdev_t *rvd = spa->spa_root_vdev;
 
 	error = ddt_load(spa);
-	if (error != 0)
+	if (error != 0) {
+		spa_load_failed(spa, "ddt_load failed [error=%d]", error);
 		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
+	}
 
 	return (0);
 }
@@ -3317,17 +3550,26 @@ spa_ld_verify_logs(spa_t *spa, spa_import_type_t type, char **ereport)
 {
 	vdev_t *rvd = spa->spa_root_vdev;
 
-	if (type != SPA_IMPORT_ASSEMBLE && spa_writeable(spa) &&
-	    spa_check_logs(spa)) {
-		*ereport = FM_EREPORT_ZFS_LOG_REPLAY;
-		return (spa_vdev_err(rvd, VDEV_AUX_BAD_LOG, ENXIO));
+	if (type != SPA_IMPORT_ASSEMBLE && spa_writeable(spa)) {
+		boolean_t missing = spa_check_logs(spa);
+		if (missing) {
+			if (spa->spa_missing_tvds != 0) {
+				spa_load_note(spa, "spa_check_logs failed "
+				    "so dropping the logs");
+			} else {
+				*ereport = FM_EREPORT_ZFS_LOG_REPLAY;
+				spa_load_failed(spa, "spa_check_logs failed");
+				return (spa_vdev_err(rvd, VDEV_AUX_BAD_LOG,
+				    ENXIO));
+			}
+		}
 	}
 
 	return (0);
 }
 
 static int
-spa_ld_verify_pool_data(spa_t *spa, spa_load_state_t state)
+spa_ld_verify_pool_data(spa_t *spa)
 {
 	int error = 0;
 	vdev_t *rvd = spa->spa_root_vdev;
@@ -3336,9 +3578,11 @@ spa_ld_verify_pool_data(spa_t *spa, spa_load_state_t state)
 	 * We've successfully opened the pool, verify that we're ready
 	 * to start pushing transactions.
 	 */
-	if (state != SPA_LOAD_TRYIMPORT) {
+	if (spa->spa_load_state != SPA_LOAD_TRYIMPORT) {
 		error = spa_load_verify(spa);
 		if (error != 0) {
+			spa_load_failed(spa, "spa_load_verify failed "
+			    "[error=%d]", error);
 			return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA,
 			    error));
 		}
@@ -3373,8 +3617,8 @@ spa_ld_claim_log_blocks(spa_t *spa)
 }
 
 static void
-spa_ld_check_for_config_update(spa_t *spa, spa_load_state_t state,
-    int64_t config_cache_txg)
+spa_ld_check_for_config_update(spa_t *spa, uint64_t config_cache_txg,
+    boolean_t reloading)
 {
 	vdev_t *rvd = spa->spa_root_vdev;
 	int need_update = B_FALSE;
@@ -3386,9 +3630,9 @@ spa_ld_check_for_config_update(spa_t *spa, spa_load_state_t state,
 	 * If this is a verbatim import, trust the current
 	 * in-core spa_config and update the disk labels.
 	 */
-	if (config_cache_txg != spa->spa_config_txg ||
-	    state == SPA_LOAD_IMPORT ||
-	    state == SPA_LOAD_RECOVER ||
+	if (reloading || config_cache_txg != spa->spa_config_txg ||
+	    spa->spa_load_state == SPA_LOAD_IMPORT ||
+	    spa->spa_load_state == SPA_LOAD_RECOVER ||
 	    (spa->spa_import_flags & ZFS_IMPORT_VERBATIM))
 		need_update = B_TRUE;
 
@@ -3404,6 +3648,24 @@ spa_ld_check_for_config_update(spa_t *spa, spa_load_state_t state,
 		spa_async_request(spa, SPA_ASYNC_CONFIG_UPDATE);
 }
 
+static void
+spa_ld_prepare_for_reload(spa_t *spa)
+{
+	int mode = spa->spa_mode;
+	int async_suspended = spa->spa_async_suspended;
+
+	spa_unload(spa);
+	spa_deactivate(spa);
+	spa_activate(spa, mode);
+
+	/*
+	 * We save the value of spa_async_suspended as it gets reset to 0 by
+	 * spa_unload(). We want to restore it back to the original value before
+	 * returning as we might be calling spa_async_resume() later.
+	 */
+	spa->spa_async_suspended = async_suspended;
+}
+
 /*
  * Load an existing storage pool, using the config provided. This config
  * describes which vdevs are part of the pool and is later validated against
@@ -3411,27 +3673,35 @@ spa_ld_check_for_config_update(spa_t *spa, spa_load_state_t state,
  * config stored in the MOS.
  */
 static int
-spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
-    spa_load_state_t state, spa_import_type_t type, boolean_t trust_config,
-    char **ereport)
+spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport,
+    boolean_t reloading)
 {
 	int error = 0;
-	uint64_t config_cache_txg = spa->spa_config_txg;
-	int orig_mode = spa->spa_mode;
 	boolean_t missing_feat_write = B_FALSE;
 
+	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+	ASSERT(spa->spa_config_source != SPA_CONFIG_SRC_NONE);
+
 	/*
-	 * If this is an untrusted config, first access the pool in read-only
-	 * mode. We will then retrieve a trusted copy of the config from the MOS
-	 * and use it to reopen the pool in read-write mode.
+	 * Never trust the config that is provided unless we are assembling
+	 * a pool following a split.
+	 * This means don't trust blkptrs and the vdev tree in general. This
+	 * also effectively puts the spa in read-only mode since
+	 * spa_writeable() checks for spa_trust_config to be true.
+	 * We will later load a trusted config from the MOS.
 	 */
-	if (!trust_config)
-		spa->spa_mode = FREAD;
+	if (type != SPA_IMPORT_ASSEMBLE)
+		spa->spa_trust_config = B_FALSE;
+
+	if (reloading)
+		spa_load_note(spa, "RELOADING");
+	else
+		spa_load_note(spa, "LOADING");
 
 	/*
 	 * Parse the config provided to create a vdev tree.
 	 */
-	error = spa_ld_parse_config(spa, pool_guid, config, state, type);
+	error = spa_ld_parse_config(spa, type);
 	if (error != 0)
 		return (error);
 
@@ -3449,10 +3719,15 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 	/*
 	 * Read the label of each vdev and make sure that the GUIDs stored
 	 * there match the GUIDs in the config provided.
+	 * If we're assembling a new pool that's been split off from an
+	 * existing pool, the labels haven't yet been updated so we skip
+	 * validation for now.
 	 */
-	error = spa_ld_validate_vdevs(spa, type, trust_config);
-	if (error != 0)
-		return (error);
+	if (type != SPA_IMPORT_ASSEMBLE) {
+		error = spa_ld_validate_vdevs(spa);
+		if (error != 0)
+			return (error);
+	}
 
 	/*
 	 * Read vdev labels to find the best uberblock (i.e. latest, unless
@@ -3461,7 +3736,7 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 	 * label with the best uberblock and verify that our version of zfs
 	 * supports them all.
 	 */
-	error = spa_ld_select_uberblock(spa, config, type, trust_config);
+	error = spa_ld_select_uberblock(spa, type);
 	if (error != 0)
 		return (error);
 
@@ -3475,13 +3750,21 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 		return (error);
 
 	/*
-	 * Retrieve the config stored in the MOS and use it to validate the
-	 * config provided. Also extract some information from the MOS config
-	 * to update our vdev tree.
+	 * Retrieve the trusted config stored in the MOS and use it to create
+	 * a new, exact version of the vdev tree, then reopen all vdevs.
 	 */
-	error = spa_ld_validate_config(spa, type);
-	if (error != 0)
+	error = spa_ld_load_trusted_config(spa, type, reloading);
+	if (error == EAGAIN) {
+		VERIFY(!reloading);
+		/*
+		 * Redo the loading process with the trusted config if it is
+		 * too different from the untrusted config.
+		 */
+		spa_ld_prepare_for_reload(spa);
+		return (spa_load_impl(spa, type, ereport, B_TRUE));
+	} else if (error != 0) {
 		return (error);
+	}
 
 	/*
 	 * Retrieve the mapping of indirect vdevs. Those vdevs were removed
@@ -3499,7 +3782,7 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 	 * Retrieve the full list of active features from the MOS and check if
 	 * they are all supported.
 	 */
-	error = spa_ld_check_features(spa, state, &missing_feat_write);
+	error = spa_ld_check_features(spa, &missing_feat_write);
 	if (error != 0)
 		return (error);
 
@@ -3510,17 +3793,6 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 	error = spa_ld_load_special_directories(spa);
 	if (error != 0)
 		return (error);
-
-	/*
-	 * If the config provided is not trusted, discard it and use the config
-	 * from the MOS to reload the pool.
-	 */
-	if (!trust_config) {
-		error = spa_ld_prepare_for_reload(spa, orig_mode);
-		if (error != 0)
-			return (error);
-		return (spa_load(spa, state, SPA_IMPORT_EXISTING, B_TRUE));
-	}
 
 	/*
 	 * Retrieve pool properties from the MOS.
@@ -3541,7 +3813,7 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 	 * Load the metadata for all vdevs. Also check if unopenable devices
 	 * should be autoreplaced.
 	 */
-	error = spa_ld_load_vdev_metadata(spa, state);
+	error = spa_ld_load_vdev_metadata(spa);
 	if (error != 0)
 		return (error);
 
@@ -3558,7 +3830,7 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 		return (error);
 
 	if (missing_feat_write) {
-		ASSERT(state == SPA_LOAD_TRYIMPORT);
+		ASSERT(spa->spa_load_state == SPA_LOAD_TRYIMPORT);
 
 		/*
 		 * At this point, we know that we can open the pool in
@@ -3574,7 +3846,7 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 	 * state. When performing an extreme rewind, we verify the whole pool,
 	 * which can take a very long time.
 	 */
-	error = spa_ld_verify_pool_data(spa, state);
+	error = spa_ld_verify_pool_data(spa);
 	if (error != 0)
 		return (error);
 
@@ -3590,9 +3862,11 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 	 * pool. If we are importing the pool in read-write mode, a few
 	 * additional steps must be performed to finish the import.
 	 */
-	if (spa_writeable(spa) && (state == SPA_LOAD_RECOVER ||
+	if (spa_writeable(spa) && (spa->spa_load_state == SPA_LOAD_RECOVER ||
 	    spa->spa_load_max_txg == UINT64_MAX)) {
-		ASSERT(state != SPA_LOAD_TRYIMPORT);
+		uint64_t config_cache_txg = spa->spa_config_txg;
+
+		ASSERT(spa->spa_load_state != SPA_LOAD_TRYIMPORT);
 
 		/*
 		 * Traverse the ZIL and claim all blocks.
@@ -3620,7 +3894,8 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 		 * next sync, we would update the config stored in vdev labels
 		 * and the cachefile (by default /etc/zfs/zpool.cache).
 		 */
-		spa_ld_check_for_config_update(spa, state, config_cache_txg);
+		spa_ld_check_for_config_update(spa, config_cache_txg,
+		    reloading);
 
 		/*
 		 * Check all DTLs to see if anything needs resilvering.
@@ -3651,11 +3926,13 @@ spa_load_impl(spa_t *spa, uint64_t pool_guid, nvlist_t *config,
 		spa_spawn_aux_threads(spa);
 	}
 
+	spa_load_note(spa, "LOADED");
+
 	return (0);
 }
 
 static int
-spa_load_retry(spa_t *spa, spa_load_state_t state, int trust_config)
+spa_load_retry(spa_t *spa, spa_load_state_t state)
 {
 	int mode = spa->spa_mode;
 
@@ -3667,7 +3944,10 @@ spa_load_retry(spa_t *spa, spa_load_state_t state, int trust_config)
 	spa_activate(spa, mode);
 	spa_async_suspend(spa);
 
-	return (spa_load(spa, state, SPA_IMPORT_EXISTING, trust_config));
+	spa_load_note(spa, "spa_load_retry: rewind, max txg: %llu",
+	    (u_longlong_t)spa->spa_load_max_txg);
+
+	return (spa_load(spa, state, SPA_IMPORT_EXISTING));
 }
 
 /*
@@ -3678,8 +3958,8 @@ spa_load_retry(spa_t *spa, spa_load_state_t state, int trust_config)
  * spa_load().
  */
 static int
-spa_load_best(spa_t *spa, spa_load_state_t state, int trust_config,
-    uint64_t max_request, int rewind_flags)
+spa_load_best(spa_t *spa, spa_load_state_t state, uint64_t max_request,
+    int rewind_flags)
 {
 	nvlist_t *loadinfo = NULL;
 	nvlist_t *config = NULL;
@@ -3696,8 +3976,7 @@ spa_load_best(spa_t *spa, spa_load_state_t state, int trust_config,
 			spa->spa_extreme_rewind = B_TRUE;
 	}
 
-	load_error = rewind_error = spa_load(spa, state, SPA_IMPORT_EXISTING,
-	    trust_config);
+	load_error = rewind_error = spa_load(spa, state, SPA_IMPORT_EXISTING);
 	if (load_error == 0)
 		return (0);
 
@@ -3738,7 +4017,7 @@ spa_load_best(spa_t *spa, spa_load_state_t state, int trust_config,
 	    spa->spa_uberblock.ub_txg <= spa->spa_load_max_txg) {
 		if (spa->spa_load_max_txg < safe_rewind_txg)
 			spa->spa_extreme_rewind = B_TRUE;
-		rewind_error = spa_load_retry(spa, state, trust_config);
+		rewind_error = spa_load_retry(spa, state);
 	}
 
 	spa->spa_extreme_rewind = B_FALSE;
@@ -3820,8 +4099,10 @@ spa_open_common(const char *pool, spa_t **spapp, void *tag, nvlist_t *nvpolicy,
 
 		if (state != SPA_LOAD_RECOVER)
 			spa->spa_last_ubsync_txg = spa->spa_load_txg = 0;
+		spa->spa_config_source = SPA_CONFIG_SRC_CACHEFILE;
 
-		error = spa_load_best(spa, state, B_FALSE, policy.zrp_txg,
+		zfs_dbgmsg("spa_open_common: opening %s", pool);
+		error = spa_load_best(spa, state, policy.zrp_txg,
 		    policy.zrp_request);
 
 		if (error == EBADF) {
@@ -4722,7 +5003,7 @@ spa_import(char *pool, nvlist_t *config, nvlist_t *props, uint64_t flags)
 
 		spa_write_cachefile(spa, B_FALSE, B_TRUE);
 		spa_event_notify(spa, NULL, NULL, ESC_ZFS_POOL_IMPORT);
-
+		zfs_dbgmsg("spa_import: verbatim import of %s", pool);
 		mutex_exit(&spa_namespace_lock);
 		return (0);
 	}
@@ -4738,16 +5019,16 @@ spa_import(char *pool, nvlist_t *config, nvlist_t *props, uint64_t flags)
 	if (policy.zrp_request & ZPOOL_DO_REWIND)
 		state = SPA_LOAD_RECOVER;
 
-	/*
-	 * Pass off the heavy lifting to spa_load().  Pass TRUE for trust_config
-	 * because the user-supplied config is actually the one to trust when
-	 * doing an import.
-	 */
-	if (state != SPA_LOAD_RECOVER)
-		spa->spa_last_ubsync_txg = spa->spa_load_txg = 0;
+	spa->spa_config_source = SPA_CONFIG_SRC_TRYIMPORT;
 
-	error = spa_load_best(spa, state, B_TRUE, policy.zrp_txg,
-	    policy.zrp_request);
+	if (state != SPA_LOAD_RECOVER) {
+		spa->spa_last_ubsync_txg = spa->spa_load_txg = 0;
+		zfs_dbgmsg("spa_import: importing %s", pool);
+	} else {
+		zfs_dbgmsg("spa_import: importing %s, max_txg=%lld "
+		    "(RECOVERY MODE)", pool, (longlong_t)policy.zrp_txg);
+	}
+	error = spa_load_best(spa, state, policy.zrp_txg, policy.zrp_request);
 
 	/*
 	 * Propagate anything learned while loading the pool and pass it
@@ -4861,10 +5142,11 @@ nvlist_t *
 spa_tryimport(nvlist_t *tryconfig)
 {
 	nvlist_t *config = NULL;
-	char *poolname;
+	char *poolname, *cachefile;
 	spa_t *spa;
 	uint64_t state;
 	int error;
+	zpool_rewind_policy_t policy;
 
 	if (nvlist_lookup_string(tryconfig, ZPOOL_CONFIG_POOL_NAME, &poolname))
 		return (NULL);
@@ -4880,11 +5162,29 @@ spa_tryimport(nvlist_t *tryconfig)
 	spa_activate(spa, FREAD);
 
 	/*
-	 * Pass off the heavy lifting to spa_load().
-	 * Pass TRUE for trust_config because the user-supplied config
-	 * is actually the one to trust when doing an import.
+	 * Rewind pool if a max txg was provided. Note that even though we
+	 * retrieve the complete rewind policy, only the rewind txg is relevant
+	 * for tryimport.
 	 */
-	error = spa_load(spa, SPA_LOAD_TRYIMPORT, SPA_IMPORT_EXISTING, B_TRUE);
+	zpool_get_rewind_policy(spa->spa_config, &policy);
+	if (policy.zrp_txg != UINT64_MAX) {
+		spa->spa_load_max_txg = policy.zrp_txg;
+		spa->spa_extreme_rewind = B_TRUE;
+		zfs_dbgmsg("spa_tryimport: importing %s, max_txg=%lld",
+		    poolname, (longlong_t)policy.zrp_txg);
+	} else {
+		zfs_dbgmsg("spa_tryimport: importing %s", poolname);
+	}
+
+	if (nvlist_lookup_string(tryconfig, ZPOOL_CONFIG_CACHEFILE, &cachefile)
+	    == 0) {
+		zfs_dbgmsg("spa_tryimport: using cachefile '%s'", cachefile);
+		spa->spa_config_source = SPA_CONFIG_SRC_CACHEFILE;
+	} else {
+		spa->spa_config_source = SPA_CONFIG_SRC_SCAN;
+	}
+
+	error = spa_load(spa, SPA_LOAD_TRYIMPORT, SPA_IMPORT_EXISTING);
 
 	/*
 	 * If 'tryconfig' was at least parsable, return the current config.
@@ -5904,8 +6204,10 @@ spa_vdev_split_mirror(spa_t *spa, char *newname, nvlist_t *config,
 	spa_activate(newspa, spa_mode_global);
 	spa_async_suspend(newspa);
 
+	newspa->spa_config_source = SPA_CONFIG_SRC_SPLIT;
+
 	/* create the new pool from the disks of the original pool */
-	error = spa_load(newspa, SPA_LOAD_IMPORT, SPA_IMPORT_ASSEMBLE, B_TRUE);
+	error = spa_load(newspa, SPA_LOAD_IMPORT, SPA_IMPORT_ASSEMBLE);
 	if (error)
 		goto out;
 
@@ -7208,7 +7510,7 @@ spa_sync(spa_t *spa, uint64_t txg)
 		spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
 
 		if (list_is_empty(&spa->spa_config_dirty_list)) {
-			vdev_t *svd[SPA_DVAS_PER_BP];
+			vdev_t *svd[SPA_SYNC_MIN_VDEVS];
 			int svdcount = 0;
 			int children = rvd->vdev_children;
 			int c0 = spa_get_random(children);
@@ -7219,7 +7521,7 @@ spa_sync(spa_t *spa, uint64_t txg)
 				    !vdev_is_concrete(vd))
 					continue;
 				svd[svdcount++] = vd;
-				if (svdcount == SPA_DVAS_PER_BP)
+				if (svdcount == SPA_SYNC_MIN_VDEVS)
 					break;
 			}
 			error = vdev_config_sync(svd, svdcount, txg);
@@ -7563,9 +7865,20 @@ module_param(spa_load_verify_data, int, 0644);
 MODULE_PARM_DESC(spa_load_verify_data,
 	"Set to traverse data on pool import");
 
+module_param(spa_load_print_vdev_tree, int, 0644);
+MODULE_PARM_DESC(spa_load_print_vdev_tree,
+	"Print vdev tree to zfs_dbgmsg during pool import");
+
 /* CSTYLED */
 module_param(zio_taskq_batch_pct, uint, 0444);
 MODULE_PARM_DESC(zio_taskq_batch_pct,
 	"Percentage of CPUs to run an IO worker thread");
+
+/* BEGIN CSTYLED */
+module_param(zfs_max_missing_tvds, ulong, 0644);
+MODULE_PARM_DESC(zfs_max_missing_tvds,
+	"Allow importing pool with up to this number of missing top-level vdevs"
+	" (in read-only mode)");
+/* END CSTYLED */
 
 #endif

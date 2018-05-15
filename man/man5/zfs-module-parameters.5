@@ -354,6 +354,18 @@ Default value: \fB24\fR.
 .sp
 .ne 2
 .na
+\fBspa_load_print_vdev_tree\fR (int)
+.ad
+.RS 12n
+Whether to print the vdev tree in the debugging message buffer during pool import.
+Use 0 to disable and 1 to enable.
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBspa_load_verify_data\fR (int)
 .ad
 .RS 12n
@@ -699,6 +711,18 @@ in ms. These blocks are meant to be prefetched fairly aggresively ahead of
 the code that may use them. A value of \fB0\fR will default to 6000 ms.
 .sp
 Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_max_missing_tvds\fR (int)
+.ad
+.RS 12n
+Number of missing top-level vdevs which will be allowed during
+pool import (only in read-only mode).
+.sp
+Default value: \fB0\fR
 .RE
 
 .sp
@@ -1141,6 +1165,17 @@ Default value: \fB1\fR.
 Maximum number of blocks freed in a single txg.
 .sp
 Default value: \fB100,000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_override_estimate_recordsize\fR (ulong)
+.ad
+.RS 12n
+Record size calculation override for zfs send estimates.
+.sp
+Default value: \fB0\fR.
 .RE
 
 .sp

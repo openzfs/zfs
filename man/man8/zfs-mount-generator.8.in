@@ -1,11 +1,11 @@
 .TH "ZFS\-MOUNT\-GENERATOR" "8" "ZFS" "zfs-mount-generator" "\""
 .SH "NAME"
-zfs\-mount\-generator \- generates systemd mount units for zfs
+zfs\-mount\-generator \- generates systemd mount units for ZFS
 .SH SYNOPSIS
 .B /lib/systemd/system-generators/zfs\-mount\-generator
 .sp
 .SH DESCRIPTION
-The zfs\-mount\-generator implements the \fBGenerators Specification\fP
+zfs\-mount\-generator implements the \fBGenerators Specification\fP
 of
 .BR systemd (1),
 and is called during early boot to generate
@@ -26,7 +26,7 @@ information on ZFS mountpoints must be stored separately. The output
 of the command
 .PP
 .RS 4
-zfs list -H -oname,mountpoint,canmount
+zfs list -H -o name,mountpoint,canmount,atime,relatime,devices,exec,readonly,setuid,nbmand
 .RE
 .PP
 for datasets that should be mounted by systemd, should be kept
@@ -44,6 +44,33 @@ state by the ZEDLET
 history_event-zfs-list-cacher.sh .
 .RE
 .PP
+.sp
+.SH EXAMPLE
+To begin, enable tracking for the pool:
+.PP
+.RS 4
+touch
+.RI @sysconfdir@/zfs/zfs-list.cache/ POOLNAME
+.RE
+.PP
+Then, enable the tracking ZEDLET:
+.PP
+.RS 4
+ln -s "@libexecdir@/zfs/zed.d/history_event-zfs-list-cacher.sh" "@sysconfdir@/zfs/zed.d/"
+
+systemctl enable zed.service
+
+systemctl restart zed.service
+.RE
+.PP
+Force the running of the ZEDLET by setting canmount=on for at least one dataset in the pool:
+.PP
+.RS 4
+zfs set canmount=on
+.I DATASET
+.RE
+.PP
+This forces an update to the stale cache file.
 .sp
 .SH SEE ALSO
 .BR zfs (5)

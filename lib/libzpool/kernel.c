@@ -297,6 +297,16 @@ rw_tryenter(krwlock_t *rwlp, krw_t rw)
 	return (0);
 }
 
+/* ARGSUSED */
+uint32_t
+zone_get_hostid(void *zonep)
+{
+	/*
+	 * We're emulating the system's hostid in userland.
+	 */
+	return (strtoul(hw_serial, NULL, 10));
+}
+
 int
 rw_tryupgrade(krwlock_t *rwlp)
 {

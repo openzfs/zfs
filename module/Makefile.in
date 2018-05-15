@@ -54,6 +54,8 @@ clean:
 	if [ -f @LINUX_SYMBOLS@ ]; then $(RM) @LINUX_SYMBOLS@; fi
 	if [ -f Module.markers ]; then $(RM) Module.markers; fi
 
+	find . -name '*.ur-safe' -type f -print | xargs $(RM)
+
 modules_install:
 	@# Install the kernel modules
 	$(MAKE) -C @LINUX_OBJ@ SUBDIRS=`pwd` $@ \
