@@ -31,9 +31,12 @@
 
 . $STF_SUITE/include/libtest.shlib
 
-if ! $STF_SUITE/tests/functional/tmpfile/tmpfile_test /tmp; then
-	log_unsupported "The kernel doesn't support O_TMPFILE."
+DISK=${DISKS%% *}
+default_setup_noexit $DISK
+
+if ! $STF_SUITE/tests/functional/tmpfile/tmpfile_test $TESTDIR; then
+	default_cleanup_noexit
+	log_unsupported "The kernel/filesystem doesn't support O_TMPFILE"
 fi
 
-DISK=${DISKS%% *}
-default_setup $DISK
+log_pass
