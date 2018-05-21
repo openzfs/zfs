@@ -37,6 +37,9 @@ distclean-local::
 		-o -name '*.gcno' \) \
 		-type f -print | xargs $(RM)
 
+all-local:
+	-${top_srcdir}/scripts/zfs-tests.sh -c
+
 dist-hook:
 	sed -i 's/Release:[[:print:]]*/Release:      $(RELEASE)/' \
 		$(distdir)/META
