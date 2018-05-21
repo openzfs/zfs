@@ -219,6 +219,12 @@ boolean_t metaslab_trace_enabled = B_TRUE;
 uint64_t metaslab_trace_max_entries = 5000;
 #endif
 
+/*
+ * Maximum number of metaslabs per group that can be disabled
+ * simultaneously.
+ */
+int max_disabled_ms = 3;
+
 static uint64_t metaslab_weight(metaslab_t *);
 static void metaslab_set_fragmentation(metaslab_t *);
 static void metaslab_free_impl(vdev_t *, uint64_t, uint64_t, boolean_t);
@@ -652,8 +658,8 @@ metaslab_group_create(metaslab_class_t *mc, vdev_t *vd, int allocators)
 
 	mg = kmem_zalloc(sizeof (metaslab_group_t), KM_SLEEP);
 	mutex_init(&mg->mg_lock, NULL, MUTEX_DEFAULT, NULL);
-	mutex_init(&mg->mg_ms_initialize_lock, NULL, MUTEX_DEFAULT, NULL);
-	cv_init(&mg->mg_ms_initialize_cv, NULL, CV_DEFAULT, NULL);
+	mutex_init(&mg->mg_ms_disabled_lock, NULL, MUTEX_DEFAULT, NULL);
+	cv_init(&mg->mg_ms_disabled_cv, NULL, CV_DEFAULT, NULL);
 	mg->mg_primaries = kmem_zalloc(allocators * sizeof (metaslab_t *),
 	    KM_SLEEP);
 	mg->mg_secondaries = kmem_zalloc(allocators * sizeof (metaslab_t *),
@@ -700,8 +706,8 @@ metaslab_group_destroy(metaslab_group_t *mg)
 	kmem_free(mg->mg_secondaries, mg->mg_allocators *
 	    sizeof (metaslab_t *));
 	mutex_destroy(&mg->mg_lock);
-	mutex_destroy(&mg->mg_ms_initialize_lock);
-	cv_destroy(&mg->mg_ms_initialize_cv);
+	mutex_destroy(&mg->mg_ms_disabled_lock);
+	cv_destroy(&mg->mg_ms_disabled_cv);
 
 	for (int i = 0; i < mg->mg_allocators; i++) {
 		zfs_refcount_destroy(&mg->mg_alloc_queue_depth[i]);
@@ -3047,7 +3053,7 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 	 * from it in 'metaslab_unload_delay' txgs, then unload it.
 	 */
 	if (msp->ms_loaded &&
-	    msp->ms_initializing == 0 &&
+	    msp->ms_disabled == 0 &&
 	    msp->ms_selected_txg + metaslab_unload_delay < txg) {
 
 		for (int t = 1; t < TXG_CONCURRENT_STATES; t++) {
@@ -3330,7 +3336,7 @@ metaslab_block_alloc(metaslab_t *msp, uint64_t size, uint64_t txg)
 	metaslab_class_t *mc = msp->ms_group->mg_class;
 
 	VERIFY(!msp->ms_condensing);
-	VERIFY0(msp->ms_initializing);
+	VERIFY0(msp->ms_disabled);
 
 	start = mc->mc_ops->msop_alloc(msp, size);
 	if (start != -1ULL) {
@@ -3391,10 +3397,10 @@ find_valid_metaslab(metaslab_group_t *mg, uint64_t activation_weight,
 		}
 
 		/*
-		 * If the selected metaslab is condensing or being
-		 * initialized, skip it.
+		 * If the selected metaslab is condensing or disabled,
+		 * skip it.
 		 */
-		if (msp->ms_condensing || msp->ms_initializing > 0)
+		if (msp->ms_condensing || msp->ms_disabled > 0)
 			continue;
 
 		*was_active = msp->ms_allocator != -1;
@@ -3566,7 +3572,7 @@ metaslab_group_alloc_normal(metaslab_group_t *mg, zio_alloc_list_t *zal,
 			    ~METASLAB_ACTIVE_MASK);
 			mutex_exit(&msp->ms_lock);
 			continue;
-		} else if (msp->ms_initializing > 0) {
+		} else if (msp->ms_disabled > 0) {
 			metaslab_trace_add(zal, mg, msp, asize, d,
 			    TRACE_INITIALIZING, allocator);
 			metaslab_passivate(msp, msp->ms_weight &
@@ -4635,6 +4641,80 @@ metaslab_check_free(spa_t *spa, const blkptr_t *bp)
 		metaslab_check_free_impl(vd, offset, size);
 	}
 	spa_config_exit(spa, SCL_VDEV, FTAG);
+}
+
+static void
+metaslab_group_disable_wait(metaslab_group_t *mg)
+{
+	ASSERT(MUTEX_HELD(&mg->mg_ms_disabled_lock));
+	while (mg->mg_disabled_updating) {
+		cv_wait(&mg->mg_ms_disabled_cv, &mg->mg_ms_disabled_lock);
+	}
+}
+
+static void
+metaslab_group_disabled_increment(metaslab_group_t *mg)
+{
+	ASSERT(MUTEX_HELD(&mg->mg_ms_disabled_lock));
+	ASSERT(mg->mg_disabled_updating);
+
+	while (mg->mg_ms_disabled >= max_disabled_ms) {
+		cv_wait(&mg->mg_ms_disabled_cv, &mg->mg_ms_disabled_lock);
+	}
+	mg->mg_ms_disabled++;
+	ASSERT3U(mg->mg_ms_disabled, <=, max_disabled_ms);
+}
+
+/*
+ * Mark the metaslab as disabled to prevent any allocations on this metaslab.
+ * We must also track how many metaslabs are currently disabled within a
+ * metaslab group and limit them to prevent allocation failures from
+ * occurring because all metaslabs are disabled.
+ */
+void
+metaslab_disable(metaslab_t *msp)
+{
+	ASSERT(!MUTEX_HELD(&msp->ms_lock));
+	metaslab_group_t *mg = msp->ms_group;
+
+	mutex_enter(&mg->mg_ms_disabled_lock);
+
+	/*
+	 * To keep an accurate count of how many threads have disabled
+	 * a specific metaslab group, we only allow one thread to mark
+	 * the metaslab group at a time. This ensures that the value of
+	 * ms_disabled will be accurate when we decide to mark a metaslab
+	 * group as disabled. To do this we force all other threads
+	 * to wait till the metaslab's mg_disabled_updating flag is no
+	 * longer set.
+	 */
+	metaslab_group_disable_wait(mg);
+	mg->mg_disabled_updating = B_TRUE;
+	if (msp->ms_disabled == 0) {
+		metaslab_group_disabled_increment(mg);
+	}
+	mutex_enter(&msp->ms_lock);
+	msp->ms_disabled++;
+	mutex_exit(&msp->ms_lock);
+
+	mg->mg_disabled_updating = B_FALSE;
+	cv_broadcast(&mg->mg_ms_disabled_cv);
+	mutex_exit(&mg->mg_ms_disabled_lock);
+}
+
+void
+metaslab_enable(metaslab_t *msp)
+{
+	ASSERT(!MUTEX_HELD(&msp->ms_lock));
+	metaslab_group_t *mg = msp->ms_group;
+	mutex_enter(&mg->mg_ms_disabled_lock);
+	mutex_enter(&msp->ms_lock);
+	if (--msp->ms_disabled == 0) {
+		mg->mg_ms_disabled--;
+		cv_broadcast(&mg->mg_ms_disabled_cv);
+	}
+	mutex_exit(&msp->ms_lock);
+	mutex_exit(&mg->mg_ms_disabled_lock);
 }
 
 #if defined(_KERNEL)

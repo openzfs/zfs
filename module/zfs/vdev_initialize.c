@@ -34,12 +34,6 @@
 #include <sys/dmu_tx.h>
 
 /*
- * Maximum number of metaslabs per group that can be initialized
- * simultaneously.
- */
-int max_initialize_ms = 3;
-
-/*
  * Value that is written to disk during initialization.
  */
 #ifdef _ILP32
@@ -363,81 +357,6 @@ vdev_initialize_ranges(vdev_t *vd, abd_t *data)
 }
 
 static void
-vdev_initialize_mg_wait(metaslab_group_t *mg)
-{
-	ASSERT(MUTEX_HELD(&mg->mg_ms_initialize_lock));
-	while (mg->mg_initialize_updating) {
-		cv_wait(&mg->mg_ms_initialize_cv, &mg->mg_ms_initialize_lock);
-	}
-}
-
-static void
-vdev_initialize_mg_mark(metaslab_group_t *mg)
-{
-	ASSERT(MUTEX_HELD(&mg->mg_ms_initialize_lock));
-	ASSERT(mg->mg_initialize_updating);
-
-	while (mg->mg_ms_initializing >= max_initialize_ms) {
-		cv_wait(&mg->mg_ms_initialize_cv, &mg->mg_ms_initialize_lock);
-	}
-	mg->mg_ms_initializing++;
-	ASSERT3U(mg->mg_ms_initializing, <=, max_initialize_ms);
-}
-
-/*
- * Mark the metaslab as being initialized to prevent any allocations
- * on this metaslab. We must also track how many metaslabs are currently
- * being initialized within a metaslab group and limit them to prevent
- * allocation failures from occurring because all metaslabs are being
- * initialized.
- */
-static void
-vdev_initialize_ms_mark(metaslab_t *msp)
-{
-	ASSERT(!MUTEX_HELD(&msp->ms_lock));
-	metaslab_group_t *mg = msp->ms_group;
-
-	mutex_enter(&mg->mg_ms_initialize_lock);
-
-	/*
-	 * To keep an accurate count of how many threads are initializing
-	 * a specific metaslab group, we only allow one thread to mark
-	 * the metaslab group at a time. This ensures that the value of
-	 * ms_initializing will be accurate when we decide to mark a metaslab
-	 * group as being initialized. To do this we force all other threads
-	 * to wait till the metaslab's mg_initialize_updating flag is no
-	 * longer set.
-	 */
-	vdev_initialize_mg_wait(mg);
-	mg->mg_initialize_updating = B_TRUE;
-	if (msp->ms_initializing == 0) {
-		vdev_initialize_mg_mark(mg);
-	}
-	mutex_enter(&msp->ms_lock);
-	msp->ms_initializing++;
-	mutex_exit(&msp->ms_lock);
-
-	mg->mg_initialize_updating = B_FALSE;
-	cv_broadcast(&mg->mg_ms_initialize_cv);
-	mutex_exit(&mg->mg_ms_initialize_lock);
-}
-
-static void
-vdev_initialize_ms_unmark(metaslab_t *msp)
-{
-	ASSERT(!MUTEX_HELD(&msp->ms_lock));
-	metaslab_group_t *mg = msp->ms_group;
-	mutex_enter(&mg->mg_ms_initialize_lock);
-	mutex_enter(&msp->ms_lock);
-	if (--msp->ms_initializing == 0) {
-		mg->mg_ms_initializing--;
-		cv_broadcast(&mg->mg_ms_initialize_cv);
-	}
-	mutex_exit(&msp->ms_lock);
-	mutex_exit(&mg->mg_ms_initialize_lock);
-}
-
-static void
 vdev_initialize_calculate_progress(vdev_t *vd)
 {
 	ASSERT(spa_config_held(vd->vdev_spa, SCL_CONFIG, RW_READER) ||
@@ -618,7 +537,7 @@ vdev_initialize_thread(void *arg)
 			ms_count = vd->vdev_top->vdev_ms_count;
 		}
 
-		vdev_initialize_ms_mark(msp);
+		metaslab_disable(msp);
 		mutex_enter(&msp->ms_lock);
 		VERIFY0(metaslab_load(msp));
 
@@ -628,7 +547,7 @@ vdev_initialize_thread(void *arg)
 
 		spa_config_exit(spa, SCL_CONFIG, FTAG);
 		error = vdev_initialize_ranges(vd, deadbeef);
-		vdev_initialize_ms_unmark(msp);
+		metaslab_enable(msp);
 		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 
 		range_tree_vacate(vd->vdev_initialize_tree, NULL, NULL);

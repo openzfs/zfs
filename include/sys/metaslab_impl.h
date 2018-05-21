@@ -272,10 +272,10 @@ struct metaslab_group {
 	uint64_t		mg_fragmentation;
 	uint64_t		mg_histogram[RANGE_TREE_HISTOGRAM_SIZE];
 
-	int			mg_ms_initializing;
-	boolean_t		mg_initialize_updating;
-	kmutex_t		mg_ms_initialize_lock;
-	kcondvar_t		mg_ms_initialize_cv;
+	int			mg_ms_disabled;
+	boolean_t		mg_disabled_updating;
+	kmutex_t		mg_ms_disabled_lock;
+	kcondvar_t		mg_ms_disabled_cv;
 };
 
 /*
@@ -393,7 +393,7 @@ struct metaslab {
 	boolean_t	ms_condense_wanted;
 	uint64_t	ms_condense_checked_txg;
 
-	uint64_t	ms_initializing; /* leaves initializing this ms */
+	uint64_t	ms_disabled; /* allocations disabled? */
 
 	/*
 	 * We must always hold the ms_lock when modifying ms_loaded
