@@ -85,9 +85,12 @@ log_must fio $FIO_SCRIPTS/mkfiles.fio
 lun_list=$(pool_to_lun_list $PERFPOOL)
 log_note "Collecting backend IO stats with lun list $lun_list"
 if is_linux; then
+	typeset perf_record_cmd="perf record -F 99 -a -g -q \
+	    -o /dev/stdout -- sleep ${PERF_RUNTIME}"
+
 	export collect_scripts=("zpool iostat -lpvyL $PERFPOOL 1" "zpool.iostat"
 	    "vmstat 1" "vmstat" "mpstat -P ALL 1" "mpstat" "iostat -dxyz 1"
-	    "iostat")
+	    "iostat" "$perf_record_cmd" "perf")
 else
 	export collect_scripts=("$PERF_SCRIPTS/io.d $PERFPOOL $lun_list 1" "io"
 	    "vmstat 1" "vmstat" "mpstat 1" "mpstat" "iostat -xcnz 1" "iostat")
