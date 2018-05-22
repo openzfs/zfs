@@ -38,11 +38,6 @@
 
 verify_runnable "both"
 
-# See issue: https://github.com/zfsonlinux/zfs/issues/5654
-if is_32bit; then
-	log_unsupported "Test case fails on 32-bit systems"
-fi
-
 log_assert "Verify resumability of an incremental ZFS send/receive with ZFS " \
     "bookmarks"
 

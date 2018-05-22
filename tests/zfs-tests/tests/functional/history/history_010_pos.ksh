@@ -59,6 +59,18 @@ root_testfs=$TESTPOOL/$TESTFS1
 add_group $HIST_GROUP
 add_user $HIST_GROUP $HIST_USER
 
+#
+# Verify the test user can execute the zfs utilities.  This may not
+# be possible due to default permissions on the user home directory.
+# This can be resolved granting group read access.
+#
+# chmod 0750 $HOME
+#
+user_run $HIST_USER zfs list
+if [ $? -ne 0 ]; then
+        log_unsupported "Test user $HIST_USER cannot execute zfs utilities"
+fi
+
 run_and_verify "zfs create $root_testfs" "-l"
 run_and_verify "zfs allow $HIST_GROUP snapshot,mount $root_testfs" "-l"
 run_and_verify "zfs allow $HIST_USER destroy,mount $root_testfs" "-l"

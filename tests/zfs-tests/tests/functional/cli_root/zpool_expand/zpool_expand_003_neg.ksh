@@ -50,7 +50,7 @@ verify_runnable "global"
 
 # See issue: https://github.com/zfsonlinux/zfs/issues/5771
 if is_linux; then
-	log_unsupported "Requires additional ZED support"
+	log_unsupported "Requires autoexpand property support"
 fi
 
 function cleanup
