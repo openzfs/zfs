@@ -33,15 +33,15 @@
  *	1. Uniquely identify this device as part of a ZFS pool and confirm its
  *	   identity within the pool.
  *
- * 	2. Verify that all the devices given in a configuration are present
+ *	2. Verify that all the devices given in a configuration are present
  *         within the pool.
  *
- * 	3. Determine the uberblock for the pool.
+ *	3. Determine the uberblock for the pool.
  *
- * 	4. In case of an import operation, determine the configuration of the
+ *	4. In case of an import operation, determine the configuration of the
  *         toplevel vdev of which it is a part.
  *
- * 	5. If an import operation cannot find all the devices in the pool,
+ *	5. If an import operation cannot find all the devices in the pool,
  *         provide enough information to the administrator to determine which
  *         devices are missing.
  *
@@ -77,9 +77,9 @@
  * In order to identify which labels are valid, the labels are written in the
  * following manner:
  *
- * 	1. For each vdev, update 'L1' to the new label
- * 	2. Update the uberblock
- * 	3. For each vdev, update 'L2' to the new label
+ *	1. For each vdev, update 'L1' to the new label
+ *	2. Update the uberblock
+ *	3. For each vdev, update 'L2' to the new label
  *
  * Given arbitrary failure, we can determine the correct label to use based on
  * the transaction group.  If we fail after updating L1 but before updating the
@@ -117,19 +117,19 @@
  *
  * The nvlist describing the pool and vdev contains the following elements:
  *
- * 	version		ZFS on-disk version
- * 	name		Pool name
- * 	state		Pool state
- * 	txg		Transaction group in which this label was written
- * 	pool_guid	Unique identifier for this pool
- * 	vdev_tree	An nvlist describing vdev tree.
+ *	version		ZFS on-disk version
+ *	name		Pool name
+ *	state		Pool state
+ *	txg		Transaction group in which this label was written
+ *	pool_guid	Unique identifier for this pool
+ *	vdev_tree	An nvlist describing vdev tree.
  *	features_for_read
  *			An nvlist of the features necessary for reading the MOS.
  *
  * Each leaf device label also contains the following:
  *
- * 	top_guid	Unique ID for top-level vdev in which this is contained
- * 	guid		Unique ID for the leaf vdev
+ *	top_guid	Unique ID for top-level vdev in which this is contained
+ *	guid		Unique ID for the leaf vdev
  *
  * The 'vs' configuration follows the format described in 'spa_config.c'.
  */
@@ -515,22 +515,33 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 			 * histograms.
 			 */
 			uint64_t seg_count = 0;
+			uint64_t to_alloc = vd->vdev_stat.vs_alloc;
 
 			/*
 			 * There are the same number of allocated segments
 			 * as free segments, so we will have at least one
-			 * entry per free segment.
+			 * entry per free segment.  However, small free
+			 * segments (smaller than vdev_removal_max_span)
+			 * will be combined with adjacent allocated segments
+			 * as a single mapping.
 			 */
 			for (int i = 0; i < RANGE_TREE_HISTOGRAM_SIZE; i++) {
-				seg_count += vd->vdev_mg->mg_histogram[i];
+				if (1ULL << (i + 1) < vdev_removal_max_span) {
+					to_alloc +=
+					    vd->vdev_mg->mg_histogram[i] <<
+					    (i + 1);
+				} else {
+					seg_count +=
+					    vd->vdev_mg->mg_histogram[i];
+				}
 			}
 
 			/*
-			 * The maximum length of a mapping is SPA_MAXBLOCKSIZE,
-			 * so we need at least one entry per SPA_MAXBLOCKSIZE
-			 * of allocated data.
+			 * The maximum length of a mapping is
+			 * zfs_remove_max_segment, so we need at least one entry
+			 * per zfs_remove_max_segment of allocated data.
 			 */
-			seg_count += vd->vdev_stat.vs_alloc / SPA_MAXBLOCKSIZE;
+			seg_count += to_alloc / zfs_remove_max_segment;
 
 			fnvlist_add_uint64(nv, ZPOOL_CONFIG_INDIRECT_SIZE,
 			    seg_count *

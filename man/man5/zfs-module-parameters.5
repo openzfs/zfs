@@ -428,6 +428,24 @@ Default value: \fB5\fR.
 .sp
 .ne 2
 .na
+\fBvdev_removal_max_span\fR (int)
+.ad
+.RS 12n
+During top-level vdev removal, chunks of data are copied from the vdev
+which may include free space in order to trade bandwidth for IOPS.
+This parameter determines the maximum span of free space (in bytes)
+which will be included as "unnecessary" data in a chunk of copied data.
+
+The default value here was chosen to align with
+\fBzfs_vdev_read_gap_limit\fR, which is a similar concept when doing
+regular reads (but there's no reason it has to be the same).
+.sp
+Default value: \fB32,768\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfetch_array_rd_sz\fR (ulong)
 .ad
 .RS 12n
@@ -866,6 +884,47 @@ latency to avoid significantly impacting the latency of each individual
 transaction record (itx).
 .sp
 Default value: \fB5\fR%.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_condense_indirect_vdevs_enable\fR (int)
+.ad
+.RS 12n
+Enable condensing indirect vdev mappings.  When set to a non-zero value,
+attempt to condense indirect vdev mappings if the mapping uses more than
+\fBzfs_condense_min_mapping_bytes\fR bytes of memory and if the obsolete
+space map object uses more than \fBzfs_condense_max_obsolete_bytes\fR
+bytes on-disk.  The condensing process is an attempt to save memory by
+removing obsolete mappings.
+.sp
+Default value: \fB1\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_condense_max_obsolete_bytes\fR (ulong)
+.ad
+.RS 12n
+Only attempt to condense indirect vdev mappings if the on-disk size
+of the obsolete space map object is greater than this number of bytes
+(see \fBfBzfs_condense_indirect_vdevs_enable\fR).
+.sp
+Default value: \fB1,073,741,824\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_condense_min_mapping_bytes\fR (ulong)
+.ad
+.RS 12n
+Minimum size vdev mapping to attempt to condense (see
+\fBzfs_condense_indirect_vdevs_enable\fR).
+.sp
+Default value: \fB131,072\fR.
 .RE
 
 .sp
