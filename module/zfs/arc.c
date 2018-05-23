@@ -7845,8 +7845,13 @@ arc_fini(void)
 	cv_destroy(&arc_reclaim_thread_cv);
 	cv_destroy(&arc_reclaim_waiters_cv);
 
-	arc_state_fini();
+	/*
+	 * buf_fini() must proceed arc_state_fini() because buf_fin() may
+	 * trigger the release of kmem magazines, which can callback to
+	 * arc_space_return() which accesses aggsums freed in act_state_fini().
+	 */
 	buf_fini();
+	arc_state_fini();
 
 	ASSERT0(arc_loaned_bytes);
 }
