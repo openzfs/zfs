@@ -404,12 +404,12 @@ zpool_status_t
 zpool_get_status(zpool_handle_t *zhp, char **msgid, zpool_errata_t *errata)
 {
 	zpool_status_t ret = check_status(zhp->zpool_config, B_FALSE, errata);
-
-	if (ret >= NMSGID)
-		*msgid = NULL;
-	else
-		*msgid = zfs_msgid_table[ret];
-
+	if (msgid != NULL) {
+		if (ret >= NMSGID)
+			*msgid = NULL;
+		else
+			*msgid = zfs_msgid_table[ret];
+	}
 	return (ret);
 }
 

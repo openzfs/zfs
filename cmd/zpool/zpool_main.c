@@ -6481,7 +6481,8 @@ status_callback(zpool_handle_t *zhp, void *data)
 	nvroot = fnvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE);
 	verify(nvlist_lookup_uint64_array(nvroot, ZPOOL_CONFIG_VDEV_STATS,
 	    (uint64_t **)&vs, &c) == 0);
-	health = zpool_state_to_name(vs->vs_state, vs->vs_aux);
+
+	health = zpool_get_state_str(zhp);
 
 	(void) printf(gettext("  pool: %s\n"), zpool_get_name(zhp));
 	(void) printf(gettext(" state: %s\n"), health);

@@ -22,6 +22,8 @@
 #include <sys/zfs_context.h>
 #include <sys/spa_impl.h>
 #include <sys/vdev_impl.h>
+#include <sys/spa.h>
+#include <zfs_comutil.h>
 
 /*
  * Keeps stats on last N reads per spa_t, disabled by default.
@@ -997,6 +999,64 @@ spa_mmp_history_add(spa_t *spa, uint64_t txg, uint64_t timestamp,
 	return ((void *)smh);
 }
 
+static void *
+spa_state_addr(kstat_t *ksp, loff_t n)
+{
+	return (ksp->ks_private);	/* return the spa_t */
+}
+
+static int
+spa_state_data(char *buf, size_t size, void *data)
+{
+	spa_t *spa = (spa_t *)data;
+	(void) snprintf(buf, size, "%s\n", spa_state_to_name(spa));
+	return (0);
+}
+
+/*
+ * Return the state of the pool in /proc/spl/kstat/zfs/<pool>/state.
+ *
+ * This is a lock-less read of the pool's state (unlike using 'zpool', which
+ * can potentially block for seconds).  Because it doesn't block, it can useful
+ * as a pool heartbeat value.
+ */
+static void
+spa_state_init(spa_t *spa)
+{
+	spa_stats_history_t *ssh = &spa->spa_stats.state;
+	char *name;
+	kstat_t *ksp;
+
+	mutex_init(&ssh->lock, NULL, MUTEX_DEFAULT, NULL);
+
+	name = kmem_asprintf("zfs/%s", spa_name(spa));
+	ksp = kstat_create(name, 0, "state", "misc",
+	    KSTAT_TYPE_RAW, 0, KSTAT_FLAG_VIRTUAL);
+
+	ssh->kstat = ksp;
+	if (ksp) {
+		ksp->ks_lock = &ssh->lock;
+		ksp->ks_data = NULL;
+		ksp->ks_private = spa;
+		ksp->ks_flags |= KSTAT_FLAG_NO_HEADERS;
+		kstat_set_raw_ops(ksp, NULL, spa_state_data, spa_state_addr);
+		kstat_install(ksp);
+	}
+
+	strfree(name);
+}
+
+static void
+spa_health_destroy(spa_t *spa)
+{
+	spa_stats_history_t *ssh = &spa->spa_stats.state;
+	kstat_t *ksp = ssh->kstat;
+	if (ksp)
+		kstat_delete(ksp);
+
+	mutex_destroy(&ssh->lock);
+}
+
 void
 spa_stats_init(spa_t *spa)
 {
@@ -1005,11 +1065,13 @@ spa_stats_init(spa_t *spa)
 	spa_tx_assign_init(spa);
 	spa_io_history_init(spa);
 	spa_mmp_history_init(spa);
+	spa_state_init(spa);
 }
 
 void
 spa_stats_destroy(spa_t *spa)
 {
+	spa_health_destroy(spa);
 	spa_tx_assign_destroy(spa);
 	spa_txg_history_destroy(spa);
 	spa_read_history_destroy(spa);

@@ -389,7 +389,8 @@ kstat_seq_start(struct seq_file *f, loff_t *pos)
 
 	ksp->ks_snaptime = gethrtime();
 
-	if (!n && kstat_seq_show_headers(f))
+	if (!(ksp->ks_flags & KSTAT_FLAG_NO_HEADERS) && !n &&
+	    kstat_seq_show_headers(f))
 		return (NULL);
 
 	if (n >= ksp->ks_ndata)
@@ -539,7 +540,6 @@ __kstat_create(const char *ks_module, int ks_instance, const char *ks_name,
 	ASSERT(ks_module);
 	ASSERT(ks_instance == 0);
 	ASSERT(ks_name);
-	ASSERT(!(ks_flags & KSTAT_FLAG_UNSUPPORTED));
 
 	if ((ks_type == KSTAT_TYPE_INTR) || (ks_type == KSTAT_TYPE_IO))
 		ASSERT(ks_ndata == 1);
