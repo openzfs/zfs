@@ -112,14 +112,22 @@ unsigned long zfs_livelist_max_entries = 500000;
  */
 int zfs_livelist_min_percent_shared = 75;
 
-
 static int
 dsl_deadlist_compare(const void *arg1, const void *arg2)
 {
-	const dsl_deadlist_entry_t *dle1 = (const dsl_deadlist_entry_t *)arg1;
-	const dsl_deadlist_entry_t *dle2 = (const dsl_deadlist_entry_t *)arg2;
+	const dsl_deadlist_entry_t *dle1 = arg1;
+	const dsl_deadlist_entry_t *dle2 = arg2;
 
 	return (AVL_CMP(dle1->dle_mintxg, dle2->dle_mintxg));
+}
+
+static int
+dsl_deadlist_cache_compare(const void *arg1, const void *arg2)
+{
+	const dsl_deadlist_cache_entry_t *dlce1 = arg1;
+	const dsl_deadlist_cache_entry_t *dlce2 = arg2;
+
+	return (AVL_CMP(dlce1->dlce_mintxg, dlce2->dlce_mintxg));
 }
 
 static void
@@ -131,6 +139,23 @@ dsl_deadlist_load_tree(dsl_deadlist_t *dl)
 	ASSERT(MUTEX_HELD(&dl->dl_lock));
 
 	ASSERT(!dl->dl_oldfmt);
+	if (dl->dl_havecache) {
+		/*
+		 * After loading the tree, the caller may modify the tree,
+		 * e.g. to add or remove nodes, or to make a node no longer
+		 * refer to the empty_bpobj.  These changes would make the
+		 * dl_cache incorrect.  Therefore we discard the cache here,
+		 * so that it can't become incorrect.
+		 */
+		dsl_deadlist_cache_entry_t *dlce;
+		void *cookie = NULL;
+		while ((dlce = avl_destroy_nodes(&dl->dl_cache, &cookie))
+		    != NULL) {
+			kmem_free(dlce, sizeof (*dlce));
+		}
+		avl_destroy(&dl->dl_cache);
+		dl->dl_havecache = B_FALSE;
+	}
 	if (dl->dl_havetree)
 		return;
 
@@ -142,12 +167,112 @@ dsl_deadlist_load_tree(dsl_deadlist_t *dl)
 	    zap_cursor_advance(&zc)) {
 		dsl_deadlist_entry_t *dle = kmem_alloc(sizeof (*dle), KM_SLEEP);
 		dle->dle_mintxg = zfs_strtonum(za.za_name, NULL);
-		VERIFY0(bpobj_open(&dle->dle_bpobj, dl->dl_os,
-		    za.za_first_integer));
+
+		/*
+		 * Prefetch all the bpobj's so that we do that i/o
+		 * in parallel.  Then open them all in a second pass.
+		 */
+		dle->dle_bpobj.bpo_object = za.za_first_integer;
+		dmu_prefetch(dl->dl_os, dle->dle_bpobj.bpo_object,
+		    0, 0, 0, ZIO_PRIORITY_SYNC_READ);
+
 		avl_add(&dl->dl_tree, dle);
 	}
 	zap_cursor_fini(&zc);
+
+	for (dsl_deadlist_entry_t *dle = avl_first(&dl->dl_tree);
+	    dle != NULL; dle = AVL_NEXT(&dl->dl_tree, dle)) {
+		VERIFY0(bpobj_open(&dle->dle_bpobj, dl->dl_os,
+		    dle->dle_bpobj.bpo_object));
+	}
 	dl->dl_havetree = B_TRUE;
+}
+
+/*
+ * Load only the non-empty bpobj's into the dl_cache.  The cache is an analog
+ * of the dl_tree, but contains only non-empty_bpobj nodes from the ZAP. It
+ * is used only for gathering space statistics.  The dl_cache has two
+ * advantages over the dl_tree:
+ *
+ * 1. Loading the dl_cache is ~5x faster than loading the dl_tree (if it's
+ * mostly empty_bpobj's), due to less CPU overhead to open the empty_bpobj
+ * many times and to inquire about its (zero) space stats many times.
+ *
+ * 2. The dl_cache uses less memory than the dl_tree.  We only need to load
+ * the dl_tree of snapshots when deleting a snapshot, after which we free the
+ * dl_tree with dsl_deadlist_discard_tree
+ */
+static void
+dsl_deadlist_load_cache(dsl_deadlist_t *dl)
+{
+	zap_cursor_t zc;
+	zap_attribute_t za;
+
+	ASSERT(MUTEX_HELD(&dl->dl_lock));
+
+	ASSERT(!dl->dl_oldfmt);
+	if (dl->dl_havecache)
+		return;
+
+	uint64_t empty_bpobj = dmu_objset_pool(dl->dl_os)->dp_empty_bpobj;
+
+	avl_create(&dl->dl_cache, dsl_deadlist_cache_compare,
+	    sizeof (dsl_deadlist_cache_entry_t),
+	    offsetof(dsl_deadlist_cache_entry_t, dlce_node));
+	for (zap_cursor_init(&zc, dl->dl_os, dl->dl_object);
+	    zap_cursor_retrieve(&zc, &za) == 0;
+	    zap_cursor_advance(&zc)) {
+		if (za.za_first_integer == empty_bpobj)
+			continue;
+		dsl_deadlist_cache_entry_t *dlce =
+		    kmem_zalloc(sizeof (*dlce), KM_SLEEP);
+		dlce->dlce_mintxg = zfs_strtonum(za.za_name, NULL);
+
+		/*
+		 * Prefetch all the bpobj's so that we do that i/o
+		 * in parallel.  Then open them all in a second pass.
+		 */
+		dlce->dlce_bpobj = za.za_first_integer;
+		dmu_prefetch(dl->dl_os, dlce->dlce_bpobj,
+		    0, 0, 0, ZIO_PRIORITY_SYNC_READ);
+		avl_add(&dl->dl_cache, dlce);
+	}
+	zap_cursor_fini(&zc);
+
+	for (dsl_deadlist_cache_entry_t *dlce = avl_first(&dl->dl_cache);
+	    dlce != NULL; dlce = AVL_NEXT(&dl->dl_cache, dlce)) {
+		bpobj_t bpo;
+		VERIFY0(bpobj_open(&bpo, dl->dl_os, dlce->dlce_bpobj));
+
+		VERIFY0(bpobj_space(&bpo,
+		    &dlce->dlce_bytes, &dlce->dlce_comp, &dlce->dlce_uncomp));
+		bpobj_close(&bpo);
+	}
+	dl->dl_havecache = B_TRUE;
+}
+
+/*
+ * Discard the tree to save memory.
+ */
+void
+dsl_deadlist_discard_tree(dsl_deadlist_t *dl)
+{
+	mutex_enter(&dl->dl_lock);
+
+	if (!dl->dl_havetree) {
+		mutex_exit(&dl->dl_lock);
+		return;
+	}
+	dsl_deadlist_entry_t *dle;
+	void *cookie = NULL;
+	while ((dle = avl_destroy_nodes(&dl->dl_tree, &cookie)) != NULL) {
+		bpobj_close(&dle->dle_bpobj);
+		kmem_free(dle, sizeof (*dle));
+	}
+	avl_destroy(&dl->dl_tree);
+
+	dl->dl_havetree = B_FALSE;
+	mutex_exit(&dl->dl_lock);
 }
 
 void
@@ -190,6 +315,7 @@ dsl_deadlist_open(dsl_deadlist_t *dl, objset_t *os, uint64_t object)
 	dl->dl_oldfmt = B_FALSE;
 	dl->dl_phys = dl->dl_dbuf->db_data;
 	dl->dl_havetree = B_FALSE;
+	dl->dl_havecache = B_FALSE;
 }
 
 boolean_t
@@ -201,9 +327,6 @@ dsl_deadlist_is_open(dsl_deadlist_t *dl)
 void
 dsl_deadlist_close(dsl_deadlist_t *dl)
 {
-	void *cookie = NULL;
-	dsl_deadlist_entry_t *dle;
-
 	ASSERT(dsl_deadlist_is_open(dl));
 	mutex_destroy(&dl->dl_lock);
 
@@ -216,12 +339,23 @@ dsl_deadlist_close(dsl_deadlist_t *dl)
 	}
 
 	if (dl->dl_havetree) {
+		dsl_deadlist_entry_t *dle;
+		void *cookie = NULL;
 		while ((dle = avl_destroy_nodes(&dl->dl_tree, &cookie))
 		    != NULL) {
 			bpobj_close(&dle->dle_bpobj);
 			kmem_free(dle, sizeof (*dle));
 		}
 		avl_destroy(&dl->dl_tree);
+	}
+	if (dl->dl_havecache) {
+		dsl_deadlist_cache_entry_t *dlce;
+		void *cookie = NULL;
+		while ((dlce = avl_destroy_nodes(&dl->dl_cache, &cookie))
+		    != NULL) {
+			kmem_free(dlce, sizeof (*dlce));
+		}
+		avl_destroy(&dl->dl_cache);
 	}
 	dmu_buf_rele(dl->dl_dbuf, dl);
 	dl->dl_dbuf = NULL;
@@ -440,6 +574,7 @@ dsl_deadlist_remove_entry(dsl_deadlist_t *dl, uint64_t mintxg, dmu_tx_t *tx)
 	avl_remove(&dl->dl_tree, dle);
 	VERIFY0(zap_remove_int(os, dl->dl_object, mintxg, tx));
 	VERIFY0(bpobj_space(&dle->dle_bpobj, &used, &comp, &uncomp));
+	dmu_buf_will_dirty(dl->dl_dbuf, tx);
 	dl->dl_phys->dl_used -= used;
 	dl->dl_phys->dl_comp -= comp;
 	dl->dl_phys->dl_uncomp -= uncomp;
@@ -468,6 +603,7 @@ dsl_deadlist_clear_entry(dsl_deadlist_entry_t *dle, dsl_deadlist_t *dl,
 	mutex_enter(&dl->dl_lock);
 	VERIFY0(zap_remove_int(os, dl->dl_object, dle->dle_mintxg, tx));
 	VERIFY0(bpobj_space(&dle->dle_bpobj, &used, &comp, &uncomp));
+	dmu_buf_will_dirty(dl->dl_dbuf, tx);
 	dl->dl_phys->dl_used -= used;
 	dl->dl_phys->dl_comp -= comp;
 	dl->dl_phys->dl_uncomp -= uncomp;
@@ -603,8 +739,8 @@ void
 dsl_deadlist_space_range(dsl_deadlist_t *dl, uint64_t mintxg, uint64_t maxtxg,
     uint64_t *usedp, uint64_t *compp, uint64_t *uncompp)
 {
-	dsl_deadlist_entry_t *dle;
-	dsl_deadlist_entry_t dle_tofind;
+	dsl_deadlist_cache_entry_t *dlce;
+	dsl_deadlist_cache_entry_t dlce_tofind;
 	avl_index_t where;
 
 	if (dl->dl_oldfmt) {
@@ -616,34 +752,25 @@ dsl_deadlist_space_range(dsl_deadlist_t *dl, uint64_t mintxg, uint64_t maxtxg,
 	*usedp = *compp = *uncompp = 0;
 
 	mutex_enter(&dl->dl_lock);
-	dsl_deadlist_load_tree(dl);
-	dle_tofind.dle_mintxg = mintxg;
-	dle = avl_find(&dl->dl_tree, &dle_tofind, &where);
+	dsl_deadlist_load_cache(dl);
+	dlce_tofind.dlce_mintxg = mintxg;
+	dlce = avl_find(&dl->dl_cache, &dlce_tofind, &where);
+
 	/*
-	 * If we don't find this mintxg, there shouldn't be anything
-	 * after it either.
+	 * If this mintxg doesn't exist, it may be an empty_bpobj which
+	 * is omitted from the sparse tree.  Start at the next non-empty
+	 * entry.
 	 */
-	ASSERT(dle != NULL ||
-	    avl_nearest(&dl->dl_tree, where, AVL_AFTER) == NULL);
+	if (dlce == NULL)
+		dlce = avl_nearest(&dl->dl_cache, where, AVL_AFTER);
 
-	for (; dle && dle->dle_mintxg < maxtxg;
-	    dle = AVL_NEXT(&dl->dl_tree, dle)) {
-		uint64_t used, comp, uncomp;
-
-		VERIFY0(bpobj_space(&dle->dle_bpobj,
-		    &used, &comp, &uncomp));
-
-		*usedp += used;
-		*compp += comp;
-		*uncompp += uncomp;
+	for (; dlce && dlce->dlce_mintxg < maxtxg;
+	    dlce = AVL_NEXT(&dl->dl_tree, dlce)) {
+		*usedp += dlce->dlce_bytes;
+		*compp += dlce->dlce_comp;
+		*uncompp += dlce->dlce_uncomp;
 	}
 
-	/*
-	 * This assertion ensures that the maxtxg is a key in the deadlist
-	 * (unless it's UINT64_MAX).
-	 */
-	ASSERT(maxtxg == UINT64_MAX ||
-	    (dle != NULL && dle->dle_mintxg == maxtxg));
 	mutex_exit(&dl->dl_lock);
 }
 
