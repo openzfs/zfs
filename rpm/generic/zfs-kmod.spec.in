@@ -79,13 +79,6 @@ BuildRequires:  %{_bindir}/kmodtool
 %endif
 %endif
 
-%if 0%{?rhel}%{?fedora}%{?suse_version}
-BuildRequires:             kmod-spl-devel = %{version}
-%global KmodsRequires      kmod-spl
-%global KmodsDevelRequires kmod-spl-devel
-%global KmodsMetaRequires  spl-kmod
-%endif
-
 # LDFLAGS are not sanitized by arch/*/Makefile for these architectures.
 %ifarch ppc ppc64 ppc64le aarch64
 %global __global_ldflags %{nil}
@@ -98,7 +91,7 @@ BuildRequires:             kmod-spl-devel = %{version}
 # Kmodtool does its magic here.  A patched version of kmodtool is shipped
 # with the source rpm until kmod development packages are supported upstream.
 # https://bugzilla.rpmfusion.org/show_bug.cgi?id=2714
-%{expand:%(bash %{SOURCE10} --target %{_target_cpu} %{?repo:--repo %{?repo}} --kmodname %{name} %{?buildforkernels:--%{buildforkernels}} --devel %{?prefix:--prefix "%{?prefix}"} %{?kernels:--for-kernels "%{?kernels}"} %{?kernelbuildroot:--buildroot "%{?kernelbuildroot}"} 2>/dev/null) }
+%{expand:%(bash %{SOURCE10} --target %{_target_cpu} %{?repo:--repo %{?repo}} --kmodname %{name} %{?buildforkernels:--%{buildforkernels}} --devel %{?prefix:--prefix "%{?prefix}"} %{?kernels:--for-kernels "%{?kernels}"} %{?kernelbuildroot:--buildroot "%{?kernelbuildroot}"} --obsolete-name spl --obsolete-version 0.8 2>/dev/null) }
 
 
 %description
@@ -109,7 +102,7 @@ This package contains the ZFS kernel modules.
 %{?kmodtool_check}
 
 # Print kmodtool output for debugging purposes:
-bash %{SOURCE10}  --target %{_target_cpu} %{?repo:--repo %{?repo}} --kmodname %{name} %{?buildforkernels:--%{buildforkernels}} --devel %{?prefix:--prefix "%{?prefix}"} %{?kernels:--for-kernels "%{?kernels}"} %{?kernelbuildroot:--buildroot "%{?kernelbuildroot}"} 2>/dev/null
+bash %{SOURCE10}  --target %{_target_cpu} %{?repo:--repo %{?repo}} --kmodname %{name} %{?buildforkernels:--%{buildforkernels}} --devel %{?prefix:--prefix "%{?prefix}"} %{?kernels:--for-kernels "%{?kernels}"} %{?kernelbuildroot:--buildroot "%{?kernelbuildroot}"} --obsolete-name spl --obsolete-version 0.8 2>/dev/null
 
 %if %{with debug}
     %define debug --enable-debug
@@ -122,28 +115,6 @@ bash %{SOURCE10}  --target %{_target_cpu} %{?repo:--repo %{?repo}} --kmodname %{
 %else
     %define debuginfo --disable-debuginfo
 %endif
-
-#
-# Allow the overriding of spl locations
-#
-%if %{defined require_splver}
-%define splver %{require_splver}
-%else
-%define splver %{version}
-%endif
-
-%if %{defined require_spldir}
-%define spldir %{require_spldir}
-%else
-%define spldir %{_usrsrc}/spl-%{splver}
-%endif
-
-%if %{defined require_splobj}
-%define splobj %{require_splobj}
-%else
-%define splobj %{spldir}/${kernel_version%%___*}
-%endif
-
 
 # Leverage VPATH from configure to avoid making multiple copies.
 %define _configure ../%{module}-%{version}/configure
@@ -161,8 +132,6 @@ for kernel_version in %{?kernel_versions}; do
         --with-config=kernel \
         --with-linux=%{ksrc} \
         --with-linux-obj=%{kobj} \
-        --with-spl="%{spldir}" \
-        --with-spl-obj="%{splobj}" \
         %{debug} \
         %{debuginfo}
     make %{?_smp_mflags}

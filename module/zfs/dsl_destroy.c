@@ -1095,7 +1095,7 @@ dsl_destroy_inconsistent(const char *dsname, void *arg)
 }
 
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 EXPORT_SYMBOL(dsl_destroy_head);
 EXPORT_SYMBOL(dsl_destroy_head_sync_impl);
 EXPORT_SYMBOL(dsl_dataset_user_hold_check_one);

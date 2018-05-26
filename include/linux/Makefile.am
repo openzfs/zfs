@@ -10,7 +10,8 @@ KERNEL_H = \
 	$(top_srcdir)/include/linux/simd_x86.h \
 	$(top_srcdir)/include/linux/simd_aarch64.h \
 	$(top_srcdir)/include/linux/mod_compat.h \
-	$(top_srcdir)/include/linux/page_compat.h
+	$(top_srcdir)/include/linux/page_compat.h \
+	$(top_srcdir)/include/linux/compiler_compat.h
 
 USER_H =
 

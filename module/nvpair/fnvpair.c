@@ -508,7 +508,7 @@ fnvpair_value_nvlist(nvpair_t *nvp)
 	return (rv);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 
 EXPORT_SYMBOL(fnvlist_alloc);
 EXPORT_SYMBOL(fnvlist_free);

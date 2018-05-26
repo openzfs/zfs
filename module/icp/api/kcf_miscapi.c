@@ -122,6 +122,6 @@ kcf_walk_ntfylist(uint32_t event, void *event_arg)
 	mutex_exit(&ntfy_list_lock);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 EXPORT_SYMBOL(crypto_mech2id);
 #endif

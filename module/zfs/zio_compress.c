@@ -32,7 +32,6 @@
  */
 
 #include <sys/zfs_context.h>
-#include <sys/compress.h>
 #include <sys/spa.h>
 #include <sys/zfeature.h>
 #include <sys/zio.h>

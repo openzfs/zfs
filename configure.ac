@@ -57,6 +57,8 @@ ZFS_AC_PACKAGE
 ZFS_AC_CONFIG
 ZFS_AC_DEBUG
 ZFS_AC_DEBUGINFO
+ZFS_AC_DEBUG_KMEM
+ZFS_AC_DEBUG_KMEM_TRACKING
 
 AC_CONFIG_FILES([
 	Makefile
@@ -135,8 +137,12 @@ AC_CONFIG_FILES([
 	module/zfs/Makefile
 	module/lua/Makefile
 	module/icp/Makefile
+	module/spl/Makefile
 	include/Makefile
 	include/linux/Makefile
+	include/spl/Makefile
+	include/spl/rpc/Makefile
+	include/spl/sys/Makefile
 	include/sys/Makefile
 	include/sys/fs/Makefile
 	include/sys/fm/Makefile

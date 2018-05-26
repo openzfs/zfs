@@ -151,7 +151,7 @@ LUAMOD_API int luaopen_coroutine (lua_State *L) {
   return 1;
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 
 EXPORT_SYMBOL(luaopen_coroutine);
 

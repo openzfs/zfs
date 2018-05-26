@@ -32,7 +32,7 @@ make clean || true
 rm -rf "$KERNEL_DIR/include/zfs" "$KERNEL_DIR/fs/zfs"
 cp --recursive include "$KERNEL_DIR/include/zfs"
 cp --recursive module "$KERNEL_DIR/fs/zfs"
-cp zfs_config.h "$KERNEL_DIR/"
+cp zfs_config.h "$KERNEL_DIR/include/zfs/"
 
 for MODULE in "${MODULES[@]}"
 do
@@ -43,7 +43,6 @@ done
 cat > "$KERNEL_DIR/fs/zfs/Kconfig" <<"EOF"
 config ZFS
 	tristate "ZFS filesystem support"
-	depends on SPL
 	depends on EFI_PARTITION
 	select ZLIB_INFLATE
 	select ZLIB_DEFLATE
@@ -60,11 +59,10 @@ EOF
 {
 	cat <<-"EOF"
 	ZFS_MODULE_CFLAGS  = -I$(srctree)/include/zfs
-	ZFS_MODULE_CFLAGS += -I$(srctree)/include/spl
-	ZFS_MODULE_CFLAGS += -include $(srctree)/spl_config.h
-	ZFS_MODULE_CFLAGS += -include $(srctree)/zfs_config.h
+	ZFS_MODULE_CFLAGS += -I$(srctree)/include/zfs/spl
+	ZFS_MODULE_CFLAGS += -include $(srctree)/include/zfs/zfs_config.h
 	ZFS_MODULE_CFLAGS += -std=gnu99 -Wno-declaration-after-statement
-	ZFS_MODULE_CPPFLAGS  = -DHAVE_SPL -D_KERNEL
+	ZFS_MODULE_CPPFLAGS  = -D_KERNEL
 	ZFS_MODULE_CPPFLAGS += -UDEBUG -DNDEBUG
 	export ZFS_MODULE_CFLAGS ZFS_MODULE_CPPFLAGS
 

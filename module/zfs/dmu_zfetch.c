@@ -357,7 +357,7 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data)
 	ZFETCHSTAT_BUMP(zfetchstat_hits);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 /* BEGIN CSTYLED */
 module_param(zfs_prefetch_disable, int, 0644);
 MODULE_PARM_DESC(zfs_prefetch_disable, "Disable all ZFS prefetching");

@@ -24,18 +24,9 @@
  * Use is subject to license terms.
  */
 
-
-
-#include <sys/stropts.h>
 #include <sys/isa_defs.h>
 #include <sys/nvpair.h>
 #include <sys/sysmacros.h>
-#if defined(_KERNEL) && !defined(_BOOT)
-#include <sys/varargs.h>
-#else
-#include <stdarg.h>
-#include <strings.h>
-#endif
 
 /*
  * This allocator is very simple.
@@ -119,6 +110,6 @@ const nv_alloc_ops_t nv_fixed_ops_def = {
 
 const nv_alloc_ops_t *nv_fixed_ops = &nv_fixed_ops_def;
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 EXPORT_SYMBOL(nv_fixed_ops);
 #endif

@@ -27,7 +27,6 @@
 #define	_SYS_FS_ZFS_FUID_H
 
 #ifdef _KERNEL
-#include <sys/kidmap.h>
 #include <sys/sid.h>
 #include <sys/dmu.h>
 #include <sys/zfs_vfsops.h>

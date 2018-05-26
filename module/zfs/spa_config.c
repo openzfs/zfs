@@ -600,7 +600,7 @@ spa_config_update(spa_t *spa, int what)
 		spa_config_update(spa, SPA_CONFIG_UPDATE_VDEVS);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 EXPORT_SYMBOL(spa_config_load);
 EXPORT_SYMBOL(spa_all_configs);
 EXPORT_SYMBOL(spa_config_set);

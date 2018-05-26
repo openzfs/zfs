@@ -29,24 +29,17 @@
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/time.h>
-#include <sys/systm.h>
 #include <sys/sysmacros.h>
-#include <sys/resource.h>
 #include <sys/mntent.h>
-#include <sys/mkdev.h>
 #include <sys/u8_textprep.h>
 #include <sys/dsl_dataset.h>
 #include <sys/vfs.h>
-#include <sys/vfs_opreg.h>
 #include <sys/vnode.h>
 #include <sys/file.h>
 #include <sys/kmem.h>
 #include <sys/errno.h>
-#include <sys/unistd.h>
 #include <sys/mode.h>
 #include <sys/atomic.h>
-#include <vm/pvn.h>
-#include "fs/fs_subr.h"
 #include <sys/zfs_dir.h>
 #include <sys/zfs_acl.h>
 #include <sys/zfs_ioctl.h>
@@ -56,7 +49,6 @@
 #include <sys/zfs_ctldir.h>
 #include <sys/dnode.h>
 #include <sys/fs/zfs.h>
-#include <sys/kidmap.h>
 #include <sys/zpl.h>
 #endif /* _KERNEL */
 
@@ -2243,7 +2235,7 @@ zfs_obj_to_stats(objset_t *osp, uint64_t obj, zfs_stat_t *sb,
 	return (error);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 EXPORT_SYMBOL(zfs_create_fs);
 EXPORT_SYMBOL(zfs_obj_to_path);
 

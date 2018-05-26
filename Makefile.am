@@ -11,10 +11,10 @@ endif
 if CONFIG_KERNEL
 SUBDIRS += module
 
-extradir = @prefix@/src/zfs-$(VERSION)
+extradir = $(prefix)/src/zfs-$(VERSION)
 extra_HEADERS = zfs.release.in zfs_config.h.in
 
-kerneldir = @prefix@/src/zfs-$(VERSION)/$(LINUX_VERSION)
+kerneldir = $(prefix)/src/zfs-$(VERSION)/$(LINUX_VERSION)
 nodist_kernel_HEADERS = zfs.release zfs_config.h module/$(LINUX_SYMBOLS)
 endif
 
@@ -43,6 +43,22 @@ all-local:
 dist-hook:
 	sed -i 's/Release:[[:print:]]*/Release:      $(RELEASE)/' \
 		$(distdir)/META
+
+# For compatibility, create a matching spl-x.y.z directly which contains
+# symlinks to the updated header and object file locations.  These
+# compatibility links will be removed in the next major release.
+if CONFIG_KERNEL
+install-data-hook:
+	mkdir $(DESTDIR)$(prefix)/src/spl-$(VERSION) && \
+	cd $(DESTDIR)$(prefix)/src/spl-$(VERSION) && \
+	ln -s ../zfs-$(VERSION)/include/spl include && \
+	ln -s ../zfs-$(VERSION)/$(LINUX_VERSION) $(LINUX_VERSION) && \
+	ln -s ../zfs-$(VERSION)/zfs_config.h.in spl_config.h.in && \
+	ln -s ../zfs-$(VERSION)/zfs.release.in spl.release.in && \
+	cd $(DESTDIR)$(prefix)/src/zfs-$(VERSION)/$(LINUX_VERSION) && \
+	ln -s zfs_config.h spl_config.h && \
+	ln -s zfs.release spl.release
+endif
 
 checkstyle: cstyle shellcheck flake8 commitcheck mancheck testscheck
 

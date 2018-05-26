@@ -42,9 +42,7 @@
 # --------------------- ZFS on Linux Source Versions --------------
 #                 zfs-0.6.2       master          0.6.2-175_g36eb554
 # -----------------------------------------------------------------
-# Clone SPL       Local		Local		Skip
 # Clone ZFS       Local		Local		Skip
-# Build SPL       Pass		Pass		Skip
 # Build ZFS       Pass		Pass		Skip
 # -----------------------------------------------------------------
 # zevo-1.1.1      Pass		Pass		Pass
@@ -190,7 +188,6 @@ trap 'rm -Rf "$SRC_DIR"' INT TERM EXIT
 populate "$SRC_DIR" 10 100
 
 SRC_DIR="$TEST_DIR/src"
-SRC_DIR_SPL="$SRC_DIR/spl"
 SRC_DIR_ZFS="$SRC_DIR/zfs"
 
 if [ "$COLOR" = "no" ]; then
@@ -224,19 +221,12 @@ fail() {
 #
 # Set several helper variables which are derived from a source tag.
 #
-# SPL_TAG - The tag zfs-x.y.z is translated to spl-x.y.z.
-# SPL_DIR - The spl directory name.
-# SPL_URL - The spl github URL to fetch the tarball.
 # ZFS_TAG - The passed zfs-x.y.z tag
 # ZFS_DIR - The zfs directory name
 # ZFS_URL - The zfs github URL to fetch the tarball
 #
 src_set_vars() {
 	local TAG=$1
-
-	SPL_TAG="${TAG//zfs/spl}"
-	SPL_DIR="$SRC_DIR_SPL/$SPL_TAG"
-	SPL_URL="$REPO/spl/tarball/$SPL_TAG"
 
 	ZFS_TAG="$TAG"
 	ZFS_DIR="$SRC_DIR_ZFS/$ZFS_TAG"
@@ -397,43 +387,6 @@ echo -e "\n-----------------------------------------------------------------"
 # Attempt to generate the tarball from your local git repository, if that
 # fails then attempt to download the tarball from Github.
 #
-printf "%-16s" "Clone SPL"
-for TAG in $SRC_TAGS; do
-	src_set_vars "$TAG"
-
-	if [ -d "$SPL_DIR" ]; then
-		skip_nonewline
-	elif  [ "$SPL_TAG" = "installed" ]; then
-		skip_nonewline
-	else
-		cd "$SRC_DIR" || fail "Failed 'cd $SRC_DIR'"
-
-		if [ ! -d "$SRC_DIR_SPL" ]; then
-			mkdir -p "$SRC_DIR_SPL"
-		fi
-
-		git archive --format=tar --prefix="$SPL_TAG/ $SPL_TAG" \
-		    -o "$SRC_DIR_SPL/$SPL_TAG.tar" &>/dev/null || \
-		    rm "$SRC_DIR_SPL/$SPL_TAG.tar"
-		if [ -s "$SRC_DIR_SPL/$SPL_TAG.tar" ]; then
-			tar -xf "$SRC_DIR_SPL/$SPL_TAG.tar" -C "$SRC_DIR_SPL"
-			rm "$SRC_DIR_SPL/$SPL_TAG.tar"
-			echo -n -e "${COLOR_GREEN}Local${COLOR_RESET}\t\t"
-		else
-			mkdir -p "$SPL_DIR" || fail "Failed to create $SPL_DIR"
-			curl -sL "$SPL_URL" | tar -xz -C "$SPL_DIR" \
-			    --strip-components=1 || \
-			    fail "Failed to download $SPL_URL"
-			echo -n -e "${COLOR_GREEN}Remote${COLOR_RESET}\t\t"
-		fi
-	fi
-done
-printf "\n"
-
-#
-# Attempt to generate the tarball from your local git repository, if that
-# fails then attempt to download the tarball from Github.
-#
 printf "%-16s" "Clone ZFS"
 for TAG in $SRC_TAGS; do
 	src_set_vars "$TAG"
@@ -468,31 +421,6 @@ done
 printf "\n"
 
 # Build the listed tags
-printf "%-16s" "Build SPL"
-for TAG in $SRC_TAGS; do
-	src_set_vars "$TAG"
-
-	if [ -f "$SPL_DIR/module/spl/spl.ko" ]; then
-		skip_nonewline
-	elif  [ "$SPL_TAG" = "installed" ]; then
-		skip_nonewline
-	else
-		cd "$SPL_DIR" || fail "Failed 'cd $SPL_DIR'"
-		make distclean &>/dev/null
-		./autogen.sh >>"$CONFIG_LOG" 2>&1 || \
-		    fail "Failed SPL 'autogen.sh'"
-		# shellcheck disable=SC2086
-		./configure $CONFIG_OPTIONS >>"$CONFIG_LOG" 2>&1 || \
-		    fail "Failed SPL 'configure $CONFIG_OPTIONS'"
-		# shellcheck disable=SC2086
-		make $MAKE_OPTIONS >>"$MAKE_LOG" 2>&1 || \
-		    fail "Failed SPL 'make $MAKE_OPTIONS'"
-		pass_nonewline
-	fi
-done
-printf "\n"
-
-# Build the listed tags
 printf "%-16s" "Build ZFS"
 for TAG in $SRC_TAGS; do
 	src_set_vars "$TAG"
@@ -507,8 +435,7 @@ for TAG in $SRC_TAGS; do
 		./autogen.sh >>"$CONFIG_LOG" 2>&1 || \
 		    fail "Failed ZFS 'autogen.sh'"
 		# shellcheck disable=SC2086
-		./configure --with-spl="$SPL_DIR" $CONFIG_OPTIONS \
-		    >>"$CONFIG_LOG" 2>&1 || \
+		./configure $CONFIG_OPTIONS >>"$CONFIG_LOG" 2>&1 || \
 		    fail "Failed ZFS 'configure $CONFIG_OPTIONS'"
 		# shellcheck disable=SC2086
 		make $MAKE_OPTIONS >>"$MAKE_LOG" 2>&1 || \

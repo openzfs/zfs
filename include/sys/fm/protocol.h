@@ -31,7 +31,6 @@ extern "C" {
 #endif
 
 #ifdef _KERNEL
-#include <sys/varargs.h>
 #include <sys/nvpair.h>
 #else
 #include <libnvpair.h>

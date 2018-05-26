@@ -3,12 +3,39 @@ dnl # Default ZFS kernel configuration
 dnl #
 AC_DEFUN([ZFS_AC_CONFIG_KERNEL], [
 	ZFS_AC_KERNEL
-	ZFS_AC_SPL
 	ZFS_AC_QAT
 	ZFS_AC_TEST_MODULE
 	ZFS_AC_KERNEL_MISC_MINOR
 	ZFS_AC_KERNEL_OBJTOOL
 	ZFS_AC_KERNEL_CONFIG
+	ZFS_AC_KERNEL_CTL_NAME
+	ZFS_AC_KERNEL_PDE_DATA
+	ZFS_AC_KERNEL_SET_FS_PWD_WITH_CONST
+	ZFS_AC_KERNEL_2ARGS_VFS_FSYNC
+	ZFS_AC_KERNEL_FS_STRUCT_SPINLOCK
+	ZFS_AC_KERNEL_KUIDGID_T
+	ZFS_AC_KERNEL_FALLOCATE
+	ZFS_AC_KERNEL_2ARGS_ZLIB_DEFLATE_WORKSPACESIZE
+	ZFS_AC_KERNEL_RWSEM_SPINLOCK_IS_RAW
+	ZFS_AC_KERNEL_RWSEM_ACTIVITY
+	ZFS_AC_KERNEL_RWSEM_ATOMIC_LONG_COUNT
+	ZFS_AC_KERNEL_SCHED_RT_HEADER
+	ZFS_AC_KERNEL_SCHED_SIGNAL_HEADER
+	ZFS_AC_KERNEL_IO_SCHEDULE_TIMEOUT
+	ZFS_AC_KERNEL_4ARGS_VFS_GETATTR
+	ZFS_AC_KERNEL_3ARGS_VFS_GETATTR
+	ZFS_AC_KERNEL_2ARGS_VFS_GETATTR
+	ZFS_AC_KERNEL_USLEEP_RANGE
+	ZFS_AC_KERNEL_KMEM_CACHE_ALLOCFLAGS
+	ZFS_AC_KERNEL_KMEM_CACHE_CREATE_USERCOPY
+	ZFS_AC_KERNEL_WAIT_ON_BIT
+	ZFS_AC_KERNEL_WAIT_QUEUE_ENTRY_T
+	ZFS_AC_KERNEL_WAIT_QUEUE_HEAD_ENTRY
+	ZFS_AC_KERNEL_INODE_LOCK
+	ZFS_AC_KERNEL_GROUP_INFO_GID
+	ZFS_AC_KERNEL_WRITE
+	ZFS_AC_KERNEL_READ
+	ZFS_AC_KERNEL_TIMER_FUNCTION_TIMER_LIST
 	ZFS_AC_KERNEL_DECLARE_EVENT_CLASS
 	ZFS_AC_KERNEL_CURRENT_BIO_TAIL
 	ZFS_AC_KERNEL_SUPER_USER_NS
@@ -106,6 +133,8 @@ AC_DEFUN([ZFS_AC_CONFIG_KERNEL], [
 	ZFS_AC_KERNEL_FST_MOUNT
 	ZFS_AC_KERNEL_SHRINK
 	ZFS_AC_KERNEL_SHRINK_CONTROL_HAS_NID
+	ZFS_AC_KERNEL_SHRINK_CONTROL_STRUCT
+	ZFS_AC_KERNEL_SHRINKER_CALLBACK
 	ZFS_AC_KERNEL_S_INSTANCES_LIST_HEAD
 	ZFS_AC_KERNEL_S_D_OP
 	ZFS_AC_KERNEL_BDI
@@ -275,204 +304,6 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 	ZFS_AC_MODULE_SYMVERS
 ])
 
-
-dnl #
-dnl # Detect the SPL module to be built against
-dnl #
-AC_DEFUN([ZFS_AC_SPL], [
-	AC_ARG_WITH([spl],
-		AS_HELP_STRING([--with-spl=PATH],
-		[Path to spl source]),
-		AS_IF([test "$withval" = "yes"],
-			AC_MSG_ERROR([--with-spl=PATH requires a PATH]),
-			[splsrc="$withval"]))
-
-	AC_ARG_WITH([spl-obj],
-		AS_HELP_STRING([--with-spl-obj=PATH],
-		[Path to spl build objects]),
-		[splbuild="$withval"])
-
-	AC_ARG_WITH([spl-timeout],
-		AS_HELP_STRING([--with-spl-timeout=SECS],
-		[Wait SECS for SPL header and symver file @<:@default=0@:>@]),
-		[timeout="$withval"], [timeout=0])
-
-	dnl #
-	dnl # The existence of spl.release.in is used to identify a valid
-	dnl # source directory.  In order of preference:
-	dnl #
-	splsrc0="/var/lib/dkms/spl/${VERSION}/build"
-	splsrc1="/usr/local/src/spl-${VERSION}/${LINUX_VERSION}"
-	splsrc2="/usr/local/src/spl-${VERSION}"
-	splsrc3="/usr/src/spl-${VERSION}/${LINUX_VERSION}"
-	splsrc4="/usr/src/spl-${VERSION}"
-	splsrc5="../spl/"
-	splsrc6="$LINUX"
-
-	AC_MSG_CHECKING([spl source directory])
-	AS_IF([test -z "${splsrc}"], [
-		[all_spl_sources="
-		${splsrc0}
-		${splsrc1}
-		${splsrc2}
-		${splsrc3}
-		${splsrc4}
-		${splsrc5}
-		${splsrc6}"],
-		AS_IF([ test -e "${splsrc0}/spl.release.in"], [
-			splsrc=${splsrc0}
-		], [ test -e "${splsrc1}/spl.release.in"], [
-			splsrc=${splsrc1}
-		], [ test -e "${splsrc2}/spl.release.in"], [
-			splsrc=${splsrc2}
-		], [ test -e "${splsrc3}/spl.release.in"], [
-			splsrc=$(readlink -f "${splsrc3}")
-		], [ test -e "${splsrc4}/spl.release.in" ], [
-			splsrc=${splsrc4}
-		], [ test -e "${splsrc5}/spl.release.in"], [
-			splsrc=$(readlink -f "${splsrc5}")
-		], [ test -e "${splsrc6}/spl.release.in" ], [
-			splsrc=${splsrc6}
-		], [
-			splsrc="[Not found]"
-		])
-	], [
-		[all_spl_sources="$withval"],
-		AS_IF([test "$splsrc" = "NONE"], [
-			splbuild=NONE
-			splsrcver=NONE
-		])
-	])
-
-	AC_MSG_RESULT([$splsrc])
-	AS_IF([ test ! -e "$splsrc/spl.release.in"], [
-		AC_MSG_ERROR([
-	*** Please make sure the kmod spl devel package for your distribution
-	*** is installed then try again.  If that fails you can specify the
-	*** location of the spl source with the '--with-spl=PATH' option.
-	*** The spl version must match the version of ZFS you are building,
-	*** ${VERSION}.  Failed to find spl.release.in in the following:
-	$all_spl_sources])
-	])
-
-	dnl #
-	dnl # The existence of the spl_config.h is used to identify a valid
-	dnl # spl object directory.  In many cases the object and source
-	dnl # directory are the same, however the objects may also reside
-	dnl # is a subdirectory named after the kernel version.
-	dnl #
-	dnl # This file is supposed to be available after DKMS finishes
-	dnl # building the SPL kernel module for the target kernel.  The
-	dnl # '--with-spl-timeout' option can be passed to pause here,
-	dnl # waiting for the file to appear from a concurrently building
-	dnl # SPL package.
-	dnl #
-	AC_MSG_CHECKING([spl build directory])
-
-	all_spl_config_locs="${splsrc}/${LINUX_VERSION}
-	${splsrc}"
-
-	while true; do
-		AS_IF([test -z "$splbuild"], [
-			AS_IF([ test -e "${splsrc}/${LINUX_VERSION}/spl_config.h" ], [
-				splbuild="${splsrc}/${LINUX_VERSION}"
-			], [ test -e "${splsrc}/spl_config.h" ], [
-				splbuild="${splsrc}"
-			], [ find -L "${splsrc}" -name spl_config.h 2> /dev/null | grep -wq spl_config.h ], [
-				splbuild=$(find -L "${splsrc}" -name spl_config.h | sed 's,/spl_config.h,,')
-			], [
-				splbuild="[Not found]"
-			])
-		])
-		AS_IF([test -e "$splbuild/spl_config.h" -o $timeout -le 0], [
-			break;
-		], [
-			sleep 1
-			timeout=$((timeout-1))
-		])
-	done
-
-	AC_MSG_RESULT([$splbuild])
-	AS_IF([ ! test -e "$splbuild/spl_config.h"], [
-		AC_MSG_ERROR([
-	*** Please make sure the kmod spl devel <kernel> package for your
-	*** distribution is installed then try again.  If that fails you
-	*** can specify the location of the spl objects with the
-	*** '--with-spl-obj=PATH' option.  Failed to find spl_config.h in
-	*** any of the following:
-	$all_spl_config_locs])
-	])
-
-	AC_MSG_CHECKING([spl source version])
-	AS_IF([test -r $splbuild/spl_config.h &&
-		fgrep -q SPL_META_VERSION $splbuild/spl_config.h], [
-
-		splsrcver=`(echo "#include <spl_config.h>";
-		            echo "splsrcver=SPL_META_VERSION-SPL_META_RELEASE") |
-		            cpp -I $splbuild |
-		            grep "^splsrcver=" | tr -d \" | cut -d= -f2`
-	])
-
-	AS_IF([test -z "$splsrcver"], [
-		AC_MSG_RESULT([Not found])
-		AC_MSG_ERROR([
-	*** Cannot determine the version of the spl source.
-	*** Please prepare the spl source before running this script])
-	])
-
-	AC_MSG_RESULT([$splsrcver])
-
-	SPL=${splsrc}
-	SPL_OBJ=${splbuild}
-	SPL_VERSION=${splsrcver}
-
-	AC_SUBST(SPL)
-	AC_SUBST(SPL_OBJ)
-	AC_SUBST(SPL_VERSION)
-
-	dnl #
-	dnl # Detect the name used for the SPL Module.symvers file.  If one
-	dnl # does not exist this is likely because the SPL has been configured
-	dnl # but not built.  The '--with-spl-timeout' option can be passed
-	dnl # to pause here, waiting for the file to appear from a concurrently
-	dnl # building SPL package.  If the file does not appear in time, a good
-	dnl # guess is made as to what this file will be named based on what it
-	dnl # is named in the kernel build products.  This file will first be
-	dnl # used at link time so if the guess is wrong the build will fail
-	dnl # then.  This unfortunately means the ZFS package does not contain a
-	dnl # reliable mechanism to detect symbols exported by the SPL at
-	dnl # configure time.
-	dnl #
-	AC_MSG_CHECKING([spl file name for module symbols])
-	SPL_SYMBOLS=NONE
-
-	while true; do
-		AS_IF([test -r $SPL_OBJ/Module.symvers], [
-			SPL_SYMBOLS=Module.symvers
-		], [test -r $SPL_OBJ/Modules.symvers], [
-			SPL_SYMBOLS=Modules.symvers
-		], [test -r $SPL_OBJ/module/Module.symvers], [
-			SPL_SYMBOLS=Module.symvers
-		], [test -r $SPL_OBJ/module/Modules.symvers], [
-			SPL_SYMBOLS=Modules.symvers
-		])
-
-		AS_IF([test $SPL_SYMBOLS != NONE -o $timeout -le 0], [
-			break;
-		], [
-			sleep 1
-			timeout=$((timeout-1))
-		])
-	done
-
-	AS_IF([test "$SPL_SYMBOLS" = NONE], [
-		SPL_SYMBOLS=$LINUX_SYMBOLS
-	])
-
-	AC_MSG_RESULT([$SPL_SYMBOLS])
-	AC_SUBST(SPL_SYMBOLS)
-])
-
 dnl #
 dnl # Detect the QAT module to be built against
 dnl # QAT provides hardware acceleration for data compression:
@@ -603,6 +434,9 @@ AC_DEFUN([ZFS_AC_KERNEL_CONFIG], [
 
 	ZFS_AC_KERNEL_CONFIG_THREAD_SIZE
 	ZFS_AC_KERNEL_CONFIG_DEBUG_LOCK_ALLOC
+	ZFS_AC_KERNEL_CONFIG_TRIM_UNUSED_KSYMS
+	ZFS_AC_KERNEL_CONFIG_ZLIB_INFLATE
+	ZFS_AC_KERNEL_CONFIG_ZLIB_DEFLATE
 ])
 
 dnl #
@@ -670,6 +504,27 @@ AC_DEFUN([ZFS_AC_KERNEL_CONFIG_DEBUG_LOCK_ALLOC], [
 		])
 		EXTRA_KCFLAGS="$tmp_flags"
 	], [])
+])
+
+dnl #
+dnl # Check CONFIG_TRIM_UNUSED_KSYMS
+dnl #
+dnl # Verify the kernel has CONFIG_TRIM_UNUSED_KSYMS disabled.
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_CONFIG_TRIM_UNUSED_KSYMS], [
+	AC_MSG_CHECKING([whether CONFIG_TRIM_UNUSED_KSYM is disabled])
+	ZFS_LINUX_TRY_COMPILE([
+		#if defined(CONFIG_TRIM_UNUSED_KSYMS)
+		#error CONFIG_TRIM_UNUSED_KSYMS not defined
+		#endif
+	],[ ],[
+		AC_MSG_RESULT([yes])
+	],[
+		AC_MSG_RESULT([no])
+		AC_MSG_ERROR([
+	*** This kernel has unused symbols trimming enabled, please disable.
+	*** Rebuild the kernel with CONFIG_TRIM_UNUSED_KSYMS=n set.])
+	])
 ])
 
 dnl #

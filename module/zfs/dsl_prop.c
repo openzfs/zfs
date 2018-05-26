@@ -1251,7 +1251,7 @@ dsl_prop_nvlist_add_string(nvlist_t *nv, zfs_prop_t prop, const char *value)
 	nvlist_free(propval);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 EXPORT_SYMBOL(dsl_prop_register);
 EXPORT_SYMBOL(dsl_prop_unregister);
 EXPORT_SYMBOL(dsl_prop_unregister_all);

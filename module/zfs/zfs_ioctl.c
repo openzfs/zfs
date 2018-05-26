@@ -144,12 +144,8 @@
 #include <sys/param.h>
 #include <sys/errno.h>
 #include <sys/uio.h>
-#include <sys/buf.h>
-#include <sys/modctl.h>
-#include <sys/open.h>
 #include <sys/file.h>
 #include <sys/kmem.h>
-#include <sys/conf.h>
 #include <sys/cmn_err.h>
 #include <sys/stat.h>
 #include <sys/zfs_ioctl.h>
@@ -160,7 +156,6 @@
 #include <sys/spa_impl.h>
 #include <sys/vdev.h>
 #include <sys/vdev_impl.h>
-#include <sys/priv_impl.h>
 #include <sys/dmu.h>
 #include <sys/dsl_dir.h>
 #include <sys/dsl_dataset.h>
@@ -169,14 +164,11 @@
 #include <sys/dmu_objset.h>
 #include <sys/dmu_impl.h>
 #include <sys/dmu_tx.h>
-#include <sys/ddi.h>
 #include <sys/sunddi.h>
-#include <sys/sunldi.h>
 #include <sys/policy.h>
 #include <sys/zone.h>
 #include <sys/nvpair.h>
 #include <sys/pathname.h>
-#include <sys/mount.h>
 #include <sys/sdt.h>
 #include <sys/fs/zfs.h>
 #include <sys/zfs_ctldir.h>
@@ -184,7 +176,6 @@
 #include <sys/zfs_onexit.h>
 #include <sys/zvol.h>
 #include <sys/dsl_scan.h>
-#include <sharefs/share.h>
 #include <sys/fm/util.h>
 #include <sys/dsl_crypt.h>
 
@@ -7115,7 +7106,7 @@ _fini(void)
 	    ZFS_META_VERSION, ZFS_META_RELEASE, ZFS_DEBUG_STR);
 }
 
-#ifdef HAVE_SPL
+#if defined(_KERNEL)
 module_init(_init);
 module_exit(_fini);
 
@@ -7123,4 +7114,4 @@ MODULE_DESCRIPTION("ZFS");
 MODULE_AUTHOR(ZFS_META_AUTHOR);
 MODULE_LICENSE(ZFS_META_LICENSE);
 MODULE_VERSION(ZFS_META_VERSION "-" ZFS_META_RELEASE);
-#endif /* HAVE_SPL */
+#endif

@@ -85,6 +85,7 @@
 #include <thread_pool.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <errno.h>
 #include "zfs_agents.h"
 #include "../zed_log.h"
 

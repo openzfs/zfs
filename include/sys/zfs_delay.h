@@ -22,7 +22,7 @@
 #ifndef	_SYS_FS_ZFS_DELAY_H
 #define	_SYS_FS_ZFS_DELAY_H
 
-#include <linux/delay_compat.h>
+#include <sys/timer.h>
 
 /*
  * Generic wrapper to sleep until a given time.

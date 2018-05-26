@@ -27,6 +27,7 @@
 #ifdef CONFIG_COMPAT
 #include <linux/compat.h>
 #endif
+#include <sys/file.h>
 #include <sys/dmu_objset.h>
 #include <sys/zfs_vfsops.h>
 #include <sys/zfs_vnops.h>
