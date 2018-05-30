@@ -1599,6 +1599,31 @@ function destroy_pool #pool
 	return 0
 }
 
+# Return 0 if created successfully; $? otherwise
+#
+# $1 - dataset name
+# $2-n - dataset options
+
+function create_dataset #dataset dataset_options
+{
+	typeset dataset=$1
+
+	shift
+
+	if [[ -z $dataset ]]; then
+		log_note "Missing dataset name."
+		return 1
+	fi
+
+	if datasetexists $dataset ; then
+		destroy_dataset $dataset
+	fi
+
+	log_must zfs create $@ $dataset
+
+	return 0
+}
+
 # Return 0 if destroy successfully or the dataset exists; $? otherwise
 # Note: In local zones, this function should return 0 silently.
 #

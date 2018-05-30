@@ -37,6 +37,96 @@ function get_sync_str
 	echo $sync_str
 }
 
+function get_suffix
+{
+	typeset threads=$1
+	typeset sync=$2
+	typeset iosize=$3
+
+	typeset sync_str=$(get_sync_str $sync)
+	typeset filesystems=$(get_nfilesystems)
+
+	typeset suffix="$sync_str.$iosize-ios"
+	suffix="$suffix.$threads-threads.$filesystems-filesystems"
+	echo $suffix
+}
+
+function do_fio_run_impl
+{
+	typeset script=$1
+	typeset do_recreate=$2
+	typeset clear_cache=$3
+
+	typeset threads=$4
+	typeset threads_per_fs=$5
+	typeset sync=$6
+	typeset iosize=$7
+
+	typeset sync_str=$(get_sync_str $sync)
+	log_note "Running with $threads $sync_str threads, $iosize ios"
+
+	if [[ -n $threads_per_fs && $threads_per_fs -ne 0 ]]; then
+		log_must test $do_recreate
+		verify_threads_per_fs $threads $threads_per_fs
+	fi
+
+	if $do_recreate; then
+		recreate_perf_pool
+
+		#
+		# A value of zero for "threads_per_fs" is "special", and
+		# means a single filesystem should be used, regardless
+		# of the number of threads.
+		#
+		if [[ -n $threads_per_fs && $threads_per_fs -ne 0 ]]; then
+			populate_perf_filesystems $((threads / threads_per_fs))
+		else
+			populate_perf_filesystems 1
+		fi
+	fi
+
+	if $clear_cache; then
+		# Clear the ARC
+		zpool export $PERFPOOL
+		zpool import $PERFPOOL
+	fi
+
+	if [[ -n $ZINJECT_DELAYS ]]; then
+		apply_zinject_delays
+	else
+		log_note "No per-device commands to execute."
+	fi
+
+	#
+	# Allow this to be overridden by the individual test case. This
+	# can be used to run the FIO job against something other than
+	# the default filesystem (e.g. against a clone).
+	#
+	export DIRECTORY=$(get_directory)
+	log_note "DIRECTORY: " $DIRECTORY
+
+	export RUNTIME=$PERF_RUNTIME
+	export FILESIZE=$((TOTAL_SIZE / threads))
+	export NUMJOBS=$threads
+	export SYNC_TYPE=$sync
+	export BLOCKSIZE=$iosize
+	sync
+
+	# This will be part of the output filename.
+	typeset suffix=$(get_suffix $threads $sync $iosize)
+
+	# Start the data collection
+	do_collect_scripts $suffix
+
+	# Define output file
+	typeset logbase="$(get_perf_output_dir)/$(basename \
+	    $SUDO_COMMAND)"
+	typeset outfile="$logbase.fio.$suffix"
+
+	# Start the load
+	log_must fio --output $outfile $FIO_SCRIPTS/$script
+}
+
 #
 # This function will run fio in a loop, according to the .fio file passed
 # in and a number of environment variables. The following variables can be
@@ -56,47 +146,21 @@ function do_fio_run
 	typeset script=$1
 	typeset do_recreate=$2
 	typeset clear_cache=$3
-	typeset threads sync iosize
+	typeset threads threads_per_fs sync iosize
 
 	for threads in $PERF_NTHREADS; do
-		for sync in $PERF_SYNC_TYPES; do
-			for iosize in $PERF_IOSIZES; do
-				typeset sync_str=$(get_sync_str $sync)
-				log_note "Running with $threads" \
-				    "$sync_str threads, $iosize ios"
-
-				if $do_recreate; then
-					recreate_perfpool
-					log_must zfs create $PERF_FS_OPTS \
-					    $TESTFS
-				fi
-
-				if $clear_cache; then
-					# Clear the ARC
-					zpool export $PERFPOOL
-					zpool import $PERFPOOL
-				fi
-
-				export RUNTIME=$PERF_RUNTIME
-				export FILESIZE=$((TOTAL_SIZE / threads))
-				export NUMJOBS=$threads
-				export SYNC_TYPE=$sync
-				export BLOCKSIZE=$iosize
-				sync
-
-				# Start the data collection
-				do_collect_scripts $threads $sync $iosize
-
-				# This will be part of the output filename.
-				typeset suffix="$sync_str.$iosize-ios.$threads-threads"
-
-				# Define output file
-				typeset logbase="$(get_perf_output_dir)/$(basename \
-				    $SUDO_COMMAND)"
-				typeset outfile="$logbase.fio.$suffix"
-
-				# Start the load
-				log_must fio --output $outfile $FIO_SCRIPTS/$script
+		for threads_per_fs in $PERF_NTHREADS_PER_FS; do
+			for sync in $PERF_SYNC_TYPES; do
+				for iosize in $PERF_IOSIZES; do
+					do_fio_run_impl \
+					    $script \
+					    $do_recreate \
+					    $clear_cache \
+					    $threads \
+					    $threads_per_fs \
+					    $sync \
+					    $iosize
+				done
 			done
 		done
 	done
@@ -109,16 +173,10 @@ function do_fio_run
 #
 function do_collect_scripts
 {
-	typeset threads=$1
-	typeset sync=$2
-	typeset iosize=$3
+	typeset suffix=$1
 
 	[[ -n $collect_scripts ]] || log_fail "No data collection scripts."
 	[[ -n $PERF_RUNTIME ]] || log_fail "No runtime specified."
-
-	# This will be part of the output filename.
-	typeset sync_str=$(get_sync_str $sync)
-	typeset suffix="$sync_str.$iosize-ios.$threads-threads"
 
 	# Add in user supplied scripts and logfiles, if any.
 	typeset oIFS=$IFS
@@ -152,23 +210,122 @@ function get_perf_output_dir
 	echo $dir
 }
 
+function apply_zinject_delays
+{
+	typeset idx=0
+	while [[ $idx -lt "${#ZINJECT_DELAYS[@]}" ]]; do
+		[[ -n ${ZINJECT_DELAYS[$idx]} ]] || \
+		    log_must "No zinject delay found at index: $idx"
+
+		for disk in $DISKS; do
+			log_must zinject \
+			    -d $disk -D ${ZINJECT_DELAYS[$idx]} $PERFPOOL
+		done
+
+		((idx += 1))
+	done
+}
+
+function clear_zinject_delays
+{
+	log_must zinject -c all
+}
+
 #
-# Destroy and create the pool used for performance tests. The
-# PERFPOOL_CREATE_CMD variable allows users to test with a custom pool
-# configuration by specifying the pool creation command in their environment.
-# If PERFPOOL_CREATE_CMD is empty, a pool using all available disks is created.
+# Destroy and create the pool used for performance tests.
 #
-function recreate_perfpool
+function recreate_perf_pool
 {
 	[[ -n $PERFPOOL ]] || log_fail "The \$PERFPOOL variable isn't set."
 
-	poolexists $PERFPOOL && destroy_pool $PERFPOOL
+	#
+	# In case there's been some "leaked" zinject delays, or if the
+	# performance test injected some delays itself, we clear all
+	# delays before attempting to destroy the pool. Each delay
+	# places a hold on the pool, so the destroy will fail if there
+	# are any outstanding delays.
+	#
+	clear_zinject_delays
 
-	if [[ -n $PERFPOOL_CREATE_CMD ]]; then
-		log_must $PERFPOOL_CREATE_CMD
-	else
-		log_must eval "zpool create -f $PERFPOOL $DISKS"
-	fi
+	#
+	# This function handles the case where the pool already exists,
+	# and will destroy the previous pool and recreate a new pool.
+	#
+	create_pool $PERFPOOL $DISKS
+}
+
+function verify_threads_per_fs
+{
+	typeset threads=$1
+	typeset threads_per_fs=$2
+
+	log_must test -n $threads
+	log_must test -n $threads_per_fs
+
+	#
+	# A value of "0" is treated as a "special value", and it is
+	# interpreted to mean all threads will run using a single
+	# filesystem.
+	#
+	[[ $threads_per_fs -eq 0 ]] && return
+
+	#
+	# The number of threads per filesystem must be a value greater
+	# than or equal to zero; since we just verified the value isn't
+	# 0 above, then it must be greater than zero here.
+	#
+	log_must test $threads_per_fs -ge 0
+
+	#
+	# This restriction can be lifted later if needed, but for now,
+	# we restrict the number of threads per filesystem to a value
+	# that evenly divides the thread count. This way, the threads
+	# will be evenly distributed over all the filesystems.
+	#
+	log_must test $((threads % threads_per_fs)) -eq 0
+}
+
+function populate_perf_filesystems
+{
+	typeset nfilesystems=${1:-1}
+
+	export TESTFS=""
+	for i in $(seq 1 $nfilesystems); do
+		typeset dataset="$PERFPOOL/fs$i"
+		create_dataset $dataset $PERF_FS_OPTS
+		if [[ -z "$TESTFS" ]]; then
+			TESTFS="$dataset"
+		else
+			TESTFS="$TESTFS $dataset"
+		fi
+	done
+}
+
+function get_nfilesystems
+{
+	typeset filesystems=( $TESTFS )
+	echo ${#filesystems[@]}
+}
+
+function get_directory
+{
+	typeset filesystems=( $TESTFS )
+	typeset directory=
+
+	typeset idx=0
+	while [[ $idx -lt "${#filesystems[@]}" ]]; do
+		mountpoint=$(get_prop mountpoint "${filesystems[$idx]}")
+
+		if [[ -n $directory ]]; then
+			directory=$directory:$mountpoint
+		else
+			directory=$mountpoint
+		fi
+
+		((idx += 1))
+	done
+
+	echo $directory
 }
 
 function get_max_arc_size
