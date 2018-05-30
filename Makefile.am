@@ -49,6 +49,7 @@ dist-hook:
 # compatibility links will be removed in the next major release.
 if CONFIG_KERNEL
 install-data-hook:
+	rm -rf $(DESTDIR)$(prefix)/src/spl-$(VERSION) && \
 	mkdir $(DESTDIR)$(prefix)/src/spl-$(VERSION) && \
 	cd $(DESTDIR)$(prefix)/src/spl-$(VERSION) && \
 	ln -s ../zfs-$(VERSION)/include/spl include && \
@@ -56,8 +57,8 @@ install-data-hook:
 	ln -s ../zfs-$(VERSION)/zfs_config.h.in spl_config.h.in && \
 	ln -s ../zfs-$(VERSION)/zfs.release.in spl.release.in && \
 	cd $(DESTDIR)$(prefix)/src/zfs-$(VERSION)/$(LINUX_VERSION) && \
-	ln -s zfs_config.h spl_config.h && \
-	ln -s zfs.release spl.release
+	ln -fs zfs_config.h spl_config.h && \
+	ln -fs zfs.release spl.release
 endif
 
 checkstyle: cstyle shellcheck flake8 commitcheck mancheck testscheck
