@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2017 by Delphix. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright 2017 Nexenta Systems, Inc.
  */
@@ -501,6 +501,10 @@ handle_winner:
 	return (winner);
 }
 
+/*
+ * This routine "consumes" the caller's hold on the dbuf, which must
+ * have the specified tag.
+ */
 static int
 zap_lockdir_impl(dmu_buf_t *db, void *tag, dmu_tx_t *tx,
     krw_t lti, boolean_t fatreader, boolean_t adding, zap_t **zapp)
@@ -586,6 +590,14 @@ zap_lockdir_by_dnode(dnode_t *dn, dmu_tx_t *tx,
 	if (err != 0) {
 		return (err);
 	}
+#ifdef ZFS_DEBUG
+	{
+		dmu_object_info_t doi;
+		dmu_object_info_from_db(db, &doi);
+		ASSERT3U(DMU_OT_BYTESWAP(doi.doi_type), ==, DMU_BSWAP_ZAP);
+	}
+#endif
+
 	err = zap_lockdir_impl(db, tag, tx, lti, fatreader, adding, zapp);
 	if (err != 0) {
 		dmu_buf_rele(db, tag);
@@ -602,6 +614,13 @@ zap_lockdir(objset_t *os, uint64_t obj, dmu_tx_t *tx,
 	int err = dmu_buf_hold(os, obj, 0, tag, &db, DMU_READ_NO_PREFETCH);
 	if (err != 0)
 		return (err);
+#ifdef ZFS_DEBUG
+	{
+		dmu_object_info_t doi;
+		dmu_object_info_from_db(db, &doi);
+		ASSERT3U(DMU_OT_BYTESWAP(doi.doi_type), ==, DMU_BSWAP_ZAP);
+	}
+#endif
 	err = zap_lockdir_impl(db, tag, tx, lti, fatreader, adding, zapp);
 	if (err != 0)
 		dmu_buf_rele(db, tag);
@@ -687,28 +706,21 @@ mzap_create_impl(objset_t *os, uint64_t obj, int normflags, zap_flags_t flags,
 
 	VERIFY0(dmu_buf_hold(os, obj, 0, FTAG, &db, DMU_READ_NO_PREFETCH));
 
-#ifdef ZFS_DEBUG
-	{
-		dmu_object_info_t doi;
-		dmu_object_info_from_db(db, &doi);
-		ASSERT3U(DMU_OT_BYTESWAP(doi.doi_type), ==, DMU_BSWAP_ZAP);
-	}
-#endif
-
 	dmu_buf_will_dirty(db, tx);
 	mzap_phys_t *zp = db->db_data;
 	zp->mz_block_type = ZBT_MICRO;
 	zp->mz_salt = ((uintptr_t)db ^ (uintptr_t)tx ^ (obj << 1)) | 1ULL;
 	zp->mz_normflags = normflags;
-	dmu_buf_rele(db, FTAG);
 
 	if (flags != 0) {
 		zap_t *zap;
 		/* Only fat zap supports flags; upgrade immediately. */
-		VERIFY(0 == zap_lockdir(os, obj, tx, RW_WRITER,
-		    B_FALSE, B_FALSE, FTAG, &zap));
+		VERIFY0(zap_lockdir_impl(db, FTAG, tx, RW_WRITER,
+		    B_FALSE, B_FALSE, &zap));
 		VERIFY0(mzap_upgrade(&zap, FTAG, tx, flags));
 		zap_unlockdir(zap, FTAG);
+	} else {
+		dmu_buf_rele(db, FTAG);
 	}
 }
 
@@ -742,6 +754,7 @@ zap_create_claim_norm_dnsize(objset_t *os, uint64_t obj, int normflags,
     dmu_object_type_t ot, dmu_object_type_t bonustype, int bonuslen,
     int dnodesize, dmu_tx_t *tx)
 {
+	ASSERT3U(DMU_OT_BYTESWAP(ot), ==, DMU_BSWAP_ZAP);
 	int err = dmu_object_claim_dnsize(os, obj, ot, 0, bonustype, bonuslen,
 	    dnodesize, tx);
 	if (err != 0)
@@ -777,6 +790,7 @@ uint64_t
 zap_create_norm_dnsize(objset_t *os, int normflags, dmu_object_type_t ot,
     dmu_object_type_t bonustype, int bonuslen, int dnodesize, dmu_tx_t *tx)
 {
+	ASSERT3U(DMU_OT_BYTESWAP(ot), ==, DMU_BSWAP_ZAP);
 	uint64_t obj = dmu_object_alloc_dnsize(os, ot, 0, bonustype, bonuslen,
 	    dnodesize, tx);
 
@@ -798,6 +812,7 @@ zap_create_flags_dnsize(objset_t *os, int normflags, zap_flags_t flags,
     dmu_object_type_t ot, int leaf_blockshift, int indirect_blockshift,
     dmu_object_type_t bonustype, int bonuslen, int dnodesize, dmu_tx_t *tx)
 {
+	ASSERT3U(DMU_OT_BYTESWAP(ot), ==, DMU_BSWAP_ZAP);
 	uint64_t obj = dmu_object_alloc_dnsize(os, ot, 0, bonustype, bonuslen,
 	    dnodesize, tx);
 
