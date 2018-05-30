@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2017 by Delphix. All rights reserved.
  * Copyright 2014 HybridCluster. All rights reserved.
  */
 
@@ -381,12 +381,19 @@ dmu_object_zapify(objset_t *mos, uint64_t object, dmu_object_type_t old_type,
 	}
 	ASSERT3U(dn->dn_type, ==, old_type);
 	ASSERT0(dn->dn_maxblkid);
+
+	/*
+	 * We must initialize the ZAP data before changing the type,
+	 * so that concurrent calls to *_is_zapified() can determine if
+	 * the object has been completely zapified by checking the type.
+	 */
+	mzap_create_impl(mos, object, 0, 0, tx);
+
 	dn->dn_next_type[tx->tx_txg & TXG_MASK] = dn->dn_type =
 	    DMU_OTN_ZAP_METADATA;
 	dnode_setdirty(dn, tx);
 	dnode_rele(dn, FTAG);
 
-	mzap_create_impl(mos, object, 0, 0, tx);
 
 	spa_feature_incr(dmu_objset_spa(mos),
 	    SPA_FEATURE_EXTENSIBLE_DATASET, tx);
