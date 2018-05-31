@@ -154,8 +154,6 @@ static void __dbuf_hold_impl_init(struct dbuf_hold_impl_data *dh,
 	void *tag, dmu_buf_impl_t **dbp, int depth);
 static int __dbuf_hold_impl(struct dbuf_hold_impl_data *dh);
 
-uint_t zfs_dbuf_evict_key;
-
 static boolean_t dbuf_undirty(dmu_buf_impl_t *db, dmu_tx_t *tx);
 static void dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx);
 
@@ -604,14 +602,6 @@ dbuf_evict_one(void)
 
 	ASSERT(!MUTEX_HELD(&dbuf_evict_lock));
 
-	/*
-	 * Set the thread's tsd to indicate that it's processing evictions.
-	 * Once a thread stops evicting from the dbuf cache it will
-	 * reset its tsd to NULL.
-	 */
-	ASSERT3P(tsd_get(zfs_dbuf_evict_key), ==, NULL);
-	(void) tsd_set(zfs_dbuf_evict_key, (void *)B_TRUE);
-
 	dmu_buf_impl_t *db = multilist_sublist_tail(mls);
 	while (db != NULL && mutex_tryenter(&db->db_mtx) == 0) {
 		db = multilist_sublist_prev(mls, db);
@@ -636,7 +626,6 @@ dbuf_evict_one(void)
 	} else {
 		multilist_sublist_unlock(mls);
 	}
-	(void) tsd_set(zfs_dbuf_evict_key, NULL);
 }
 
 /*
@@ -690,29 +679,6 @@ dbuf_evict_thread(void *unused)
 static void
 dbuf_evict_notify(void)
 {
-
-	/*
-	 * We use thread specific data to track when a thread has
-	 * started processing evictions. This allows us to avoid deeply
-	 * nested stacks that would have a call flow similar to this:
-	 *
-	 * dbuf_rele()-->dbuf_rele_and_unlock()-->dbuf_evict_notify()
-	 *	^						|
-	 *	|						|
-	 *	+-----dbuf_destroy()<--dbuf_evict_one()<--------+
-	 *
-	 * The dbuf_eviction_thread will always have its tsd set until
-	 * that thread exits. All other threads will only set their tsd
-	 * if they are participating in the eviction process. This only
-	 * happens if the eviction thread is unable to process evictions
-	 * fast enough. To keep the dbuf cache size in check, other threads
-	 * can evict from the dbuf cache directly. Those threads will set
-	 * their tsd values so that we ensure that they only evict one dbuf
-	 * from the dbuf cache.
-	 */
-	if (tsd_get(zfs_dbuf_evict_key) != NULL)
-		return;
-
 	/*
 	 * We check if we should evict without holding the dbuf_evict_lock,
 	 * because it's OK to occasionally make the wrong decision here,
@@ -809,7 +775,6 @@ retry:
 	    dbuf_cache_multilist_index_func);
 	refcount_create(&dbuf_cache_size);
 
-	tsd_create(&zfs_dbuf_evict_key, NULL);
 	dbuf_evict_thread_exit = B_FALSE;
 	mutex_init(&dbuf_evict_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&dbuf_evict_cv, NULL, CV_DEFAULT, NULL);
@@ -866,7 +831,6 @@ dbuf_fini(void)
 		cv_wait(&dbuf_evict_cv, &dbuf_evict_lock);
 	}
 	mutex_exit(&dbuf_evict_lock);
-	tsd_destroy(&zfs_dbuf_evict_key);
 
 	mutex_destroy(&dbuf_evict_lock);
 	cv_destroy(&dbuf_evict_cv);
@@ -1160,7 +1124,7 @@ dbuf_read_done(zio_t *zio, const zbookmark_phys_t *zb, const blkptr_t *bp,
 		db->db_state = DB_UNCACHED;
 	}
 	cv_broadcast(&db->db_changed);
-	dbuf_rele_and_unlock(db, NULL);
+	dbuf_rele_and_unlock(db, NULL, B_FALSE);
 }
 
 static int
@@ -2449,7 +2413,8 @@ dbuf_destroy(dmu_buf_impl_t *db)
 		 * value in dnode_move(), since DB_DNODE_EXIT doesn't actually
 		 * release any lock.
 		 */
-		dnode_rele(dn, db);
+		mutex_enter(&dn->dn_mtx);
+		dnode_rele_and_unlock(dn, db, B_TRUE);
 		db->db_dnode_handle = NULL;
 
 		dbuf_hash_remove(db);
@@ -2475,8 +2440,10 @@ dbuf_destroy(dmu_buf_impl_t *db)
 	 * If this dbuf is referenced from an indirect dbuf,
 	 * decrement the ref count on the indirect dbuf.
 	 */
-	if (parent && parent != dndb)
-		dbuf_rele(parent, db);
+	if (parent && parent != dndb) {
+		mutex_enter(&parent->db_mtx);
+		dbuf_rele_and_unlock(parent, db, B_TRUE);
+	}
 }
 
 /*
@@ -3203,7 +3170,7 @@ void
 dbuf_rele(dmu_buf_impl_t *db, void *tag)
 {
 	mutex_enter(&db->db_mtx);
-	dbuf_rele_and_unlock(db, tag);
+	dbuf_rele_and_unlock(db, tag, B_FALSE);
 }
 
 void
@@ -3214,10 +3181,19 @@ dmu_buf_rele(dmu_buf_t *db, void *tag)
 
 /*
  * dbuf_rele() for an already-locked dbuf.  This is necessary to allow
- * db_dirtycnt and db_holds to be updated atomically.
+ * db_dirtycnt and db_holds to be updated atomically.  The 'evicting'
+ * argument should be set if we are already in the dbuf-evicting code
+ * path, in which case we don't want to recursively evict.  This allows us to
+ * avoid deeply nested stacks that would have a call flow similar to this:
+ *
+ * dbuf_rele()-->dbuf_rele_and_unlock()-->dbuf_evict_notify()
+ *	^						|
+ *	|						|
+ *	+-----dbuf_destroy()<--dbuf_evict_one()<--------+
+ *
  */
 void
-dbuf_rele_and_unlock(dmu_buf_impl_t *db, void *tag)
+dbuf_rele_and_unlock(dmu_buf_impl_t *db, void *tag, boolean_t evicting)
 {
 	int64_t holds;
 
@@ -3318,7 +3294,8 @@ dbuf_rele_and_unlock(dmu_buf_impl_t *db, void *tag)
 				    refcount_count(&dbuf_cache_size));
 				mutex_exit(&db->db_mtx);
 
-				dbuf_evict_notify();
+				if (!evicting)
+					dbuf_evict_notify();
 			}
 
 			if (do_arc_evict)
@@ -3655,7 +3632,7 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 		kmem_free(dr, sizeof (dbuf_dirty_record_t));
 		ASSERT(db->db_dirtycnt > 0);
 		db->db_dirtycnt -= 1;
-		dbuf_rele_and_unlock(db, (void *)(uintptr_t)txg);
+		dbuf_rele_and_unlock(db, (void *)(uintptr_t)txg, B_FALSE);
 		return;
 	}
 
@@ -4028,7 +4005,7 @@ dbuf_write_done(zio_t *zio, arc_buf_t *buf, void *vdb)
 	ASSERT(db->db_dirtycnt > 0);
 	db->db_dirtycnt -= 1;
 	db->db_data_pending = NULL;
-	dbuf_rele_and_unlock(db, (void *)(uintptr_t)tx->tx_txg);
+	dbuf_rele_and_unlock(db, (void *)(uintptr_t)tx->tx_txg, B_FALSE);
 }
 
 static void
