@@ -23,10 +23,22 @@
  * Produced at Lawrence Livermore National Laboratory (cf, DISCLAIMER).
  * Written by Brian Behlendorf <behlendorf1@llnl.gov>.
  * LLNL-CODE-403049.
+ * Copyright (c) 2018 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_VDEV_DISK_H
 #define	_SYS_VDEV_DISK_H
+
+/*
+ * Don't start the slice at the default block of 34; many storage
+ * devices will use a stripe width of 128k, other vendors prefer a 1m
+ * alignment.  It is best to play it safe and ensure a 1m alignment
+ * given 512B blocks.  When the block size is larger by a power of 2
+ * we will still be 1m aligned.  Some devices are sensitive to the
+ * partition ending alignment as well.
+ */
+#define	NEW_START_BLOCK		2048
+#define	PARTITION_END_ALIGNMENT	2048
 
 #ifdef _KERNEL
 #include <sys/vdev.h>
