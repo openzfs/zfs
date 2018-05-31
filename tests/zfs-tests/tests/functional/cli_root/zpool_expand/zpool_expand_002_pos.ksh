@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2018 by Delphix. All rights reserved.
 # Copyright (c) 2017 Lawrence Livermore National Security, LLC.
 #
 
@@ -43,8 +43,9 @@
 # 1) Create 3 files
 # 2) Create a pool backed by the files
 # 3) Expand the files' size with truncate
-# 4) Use zpool online -e to online the vdevs
-# 5) Check that the pool size was expanded
+# 4) Use zpool reopen to check the expandsize
+# 5) Use zpool online -e to online the vdevs
+# 6) Check that the pool size was expanded
 #
 
 verify_runnable "global"
@@ -64,8 +65,8 @@ log_onexit cleanup
 
 log_assert "zpool can expand after zpool online -e zvol vdevs on LUN expansion"
 
-
 for type in " " mirror raidz raidz2; do
+	# Initialize the file devices and the pool
 	for i in 1 2 3; do
 		log_must truncate -s $org_size ${TEMPFILE}.$i
 	done
@@ -80,13 +81,35 @@ for type in " " mirror raidz raidz2; do
 		    "$autoexp"
 	fi
 	typeset prev_size=$(get_pool_prop size $TESTPOOL1)
-	typeset zfs_prev_size=$(zfs get -p avail $TESTPOOL1 | tail -1 | \
-	    awk '{print $3}')
+	typeset zfs_prev_size=$(get_prop avail $TESTPOOL1)
 
+	# Increase the size of the file devices
 	for i in 1 2 3; do
 		log_must truncate -s $exp_size ${TEMPFILE}.$i
 	done
 
+	# Reopen the pool and check that the `expandsize` property is set
+	log_must zpool reopen $TESTPOOL1
+	typeset zpool_expandsize=$(get_pool_prop expandsize $TESTPOOL1)
+
+	if [[ $type == "mirror" ]]; then
+		typeset expected_zpool_expandsize=$(($exp_size-$org_size))
+	else
+		typeset expected_zpool_expandsize=$((3*($exp_size-$org_size)))
+	fi
+
+	if [[ "$zpool_expandsize" = "-" ]]; then
+		log_fail "pool $TESTPOOL1 did not detect any " \
+		    "expandsize after reopen"
+	fi
+
+	if [[ $zpool_expandsize -ne $expected_zpool_expandsize ]]; then
+		log_fail "pool $TESTPOOL1 did not detect correct " \
+		    "expandsize after reopen: found $zpool_expandsize," \
+		    "expected $expected_zpool_expandsize"
+	fi
+
+	# Online the devices to add the new space to the pool
 	for i in 1 2 3; do
 		log_must zpool online -e $TESTPOOL1 ${TEMPFILE}.$i
 	done
@@ -96,8 +119,7 @@ for type in " " mirror raidz raidz2; do
 	sync
 
 	typeset expand_size=$(get_pool_prop size $TESTPOOL1)
-	typeset zfs_expand_size=$(zfs get -p avail $TESTPOOL1 | tail -1 | \
-	    awk '{print $3}')
+	typeset zfs_expand_size=$(get_prop avail $TESTPOOL1)
 	log_note "$TESTPOOL1 $type has previous size: $prev_size and " \
 	    "expanded size: $expand_size"
 
@@ -112,8 +134,8 @@ for type in " " mirror raidz raidz2; do
 			    grep "(+${expansion_size}" | wc -l)
 
 			if [[ $size_addition -ne $i ]]; then
-				log_fail "pool $TESTPOOL1 is not autoexpand " \
-				    "after LUN expansion"
+				log_fail "pool $TESTPOOL1 did not expand " \
+				    "after LUN expansion and zpool online -e"
 			fi
 		elif [[ $type == "mirror" ]]; then
 			typeset expansion_size=$(($exp_size-$org_size))
@@ -123,8 +145,8 @@ for type in " " mirror raidz raidz2; do
 			    grep "(+${expansion_size})" >/dev/null 2>&1
 
 			if [[ $? -ne 0 ]]; then
-				log_fail "pool $TESTPOOL1 is not autoexpand " \
-				    "after LUN expansion"
+				log_fail "pool $TESTPOOL1 did not expand " \
+				    "after LUN expansion and zpool online -e"
 			fi
 		else
 			typeset expansion_size=$((3*($exp_size-$org_size)))
@@ -134,13 +156,13 @@ for type in " " mirror raidz raidz2; do
 			    grep "(+${expansion_size})" >/dev/null 2>&1
 
 			if [[ $? -ne 0 ]] ; then
-				log_fail "pool $TESTPOOL1 is not autoexpand " \
-				    "after LUN expansion"
+				log_fail "pool $TESTPOOL1 did not expand " \
+				    "after LUN expansion and zpool online -e"
 			fi
 		fi
 	else
-		log_fail "pool $TESTPOOL1 is not autoexpanded after LUN " \
-		    "expansion"
+		log_fail "pool $TESTPOOL1 did not expand after LUN expansion " \
+		    "and zpool online -e"
 	fi
 	log_must zpool destroy $TESTPOOL1
 done

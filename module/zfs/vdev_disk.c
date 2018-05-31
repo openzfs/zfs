@@ -23,7 +23,7 @@
  * Produced at Lawrence Livermore National Laboratory (cf, DISCLAIMER).
  * Rewritten for Linux by Brian Behlendorf <behlendorf1@llnl.gov>.
  * LLNL-CODE-403049.
- * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -35,9 +35,13 @@
 #include <sys/zio.h>
 #include <sys/sunldi.h>
 #include <linux/mod_compat.h>
+#include <linux/msdos_fs.h>
 
 char *zfs_vdev_scheduler = VDEV_SCHEDULER;
 static void *zfs_vdev_holder = VDEV_HOLDER;
+
+/* size of the "reserved" partition, in blocks */
+#define	EFI_MIN_RESV_SIZE	(16 * 1024)
 
 /*
  * Virtual device vector for disks.
@@ -82,17 +86,39 @@ vdev_bdev_mode(int smode)
 }
 #endif /* HAVE_OPEN_BDEV_EXCLUSIVE */
 
+/* The capacity (in bytes) of a bdev that is available to be used by a vdev */
 static uint64_t
-bdev_capacity(struct block_device *bdev)
+bdev_capacity(struct block_device *bdev, boolean_t wholedisk)
 {
 	struct hd_struct *part = bdev->bd_part;
+	uint64_t sectors = get_capacity(bdev->bd_disk);
+	/* If there are no paritions, return the entire device capacity */
+	if (part == NULL)
+		return (sectors << SECTOR_BITS);
 
-	/* The partition capacity referenced by the block device */
-	if (part)
-		return (part->nr_sects << 9);
+	/*
+	 * If there are partitions, decide if we are using a `wholedisk`
+	 * layout (composed of part1 and part9) or just a single partition.
+	 */
+	if (wholedisk) {
+		/* Verify the expected device layout */
+		ASSERT3P(bdev, !=, bdev->bd_contains);
+		/*
+		 * Sectors used by the EFI partition (part9) as well as
+		 * partion alignment.
+		 */
+		uint64_t used = EFI_MIN_RESV_SIZE + NEW_START_BLOCK +
+		    PARTITION_END_ALIGNMENT;
 
-	/* Otherwise assume the full device capacity */
-	return (get_capacity(bdev->bd_disk) << 9);
+		/* Space available to the vdev, i.e. the size of part1 */
+		if (sectors <= used)
+			return (0);
+		uint64_t available = sectors - used;
+		return (available << SECTOR_BITS);
+	} else {
+		/* The partition capacity referenced by the block device */
+		return (part->nr_sects << SECTOR_BITS);
+	}
 }
 
 static void
@@ -328,9 +354,7 @@ skip_open:
 	v->vdev_nonrot = blk_queue_nonrot(bdev_get_queue(vd->vd_bdev));
 
 	/* Physical volume size in bytes */
-	*psize = bdev_capacity(vd->vd_bdev);
-
-	/* TODO: report possible expansion size */
+	*psize = bdev_capacity(vd->vd_bdev, v->vdev_wholedisk);
 	*max_psize = *psize;
 
 	/* Based on the minimum sector size set the block size */

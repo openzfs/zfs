@@ -22,6 +22,7 @@
 /*
  * Copyright (c) 2002, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2012 Nexenta Systems, Inc.  All rights reserved.
+ * Copyright (c) 2018 by Delphix. All rights reserved.
  */
 
 #include <stdio.h>
@@ -1153,13 +1154,30 @@ efi_use_whole_disk(int fd)
 
 	/*
 	 * Find the last physically non-zero partition.
-	 * This is the reserved partition.
+	 * This should be the reserved partition.
 	 */
 	for (i = 0; i < efi_label->efi_nparts; i ++) {
 		if (resv_start < efi_label->efi_parts[i].p_start) {
 			resv_start = efi_label->efi_parts[i].p_start;
 			resv_index = i;
 		}
+	}
+
+	/*
+	 * Verify that we've found the reserved partition by checking
+	 * that it looks the way it did when we created it in zpool_label_disk.
+	 * If we've found the incorrect partition, then we know that this
+	 * device was reformatted and no longer is soley used by ZFS.
+	 */
+	if ((efi_label->efi_parts[resv_index].p_size != EFI_MIN_RESV_SIZE) ||
+	    (efi_label->efi_parts[resv_index].p_tag != V_RESERVED) ||
+	    (resv_index != 8)) {
+		if (efi_debug) {
+			(void) fprintf(stderr,
+			    "efi_use_whole_disk: wholedisk not available\n");
+		}
+		efi_free(efi_label);
+		return (VT_ENOSPC);
 	}
 
 	/*
