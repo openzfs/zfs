@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  */
 
@@ -339,7 +339,7 @@ int dnode_hold_impl(struct objset *dd, uint64_t object, int flag, int dn_slots,
     void *ref, dnode_t **dnp);
 boolean_t dnode_add_ref(dnode_t *dn, void *ref);
 void dnode_rele(dnode_t *dn, void *ref);
-void dnode_rele_and_unlock(dnode_t *dn, void *tag);
+void dnode_rele_and_unlock(dnode_t *dn, void *tag, boolean_t evicting);
 void dnode_setdirty(dnode_t *dn, dmu_tx_t *tx);
 void dnode_sync(dnode_t *dn, dmu_tx_t *tx);
 void dnode_allocate(dnode_t *dn, dmu_object_type_t ot, int blocksize, int ibs,
