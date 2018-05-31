@@ -24,25 +24,20 @@
  * Copyright (c) 2015, 2017 by Delphix. All rights reserved.
  */
 
-#include <sys/stropts.h>
 #include <sys/debug.h>
 #include <sys/isa_defs.h>
-#include <sys/int_limits.h>
 #include <sys/nvpair.h>
 #include <sys/nvpair_impl.h>
-#include <rpc/types.h>
+#include <sys/types.h>
+#include <sys/strings.h>
 #include <rpc/xdr.h>
 
-#if defined(_KERNEL) && !defined(_BOOT)
-#include <sys/varargs.h>
-#include <sys/ddi.h>
+#if defined(_KERNEL)
 #include <sys/sunddi.h>
 #include <sys/sysmacros.h>
 #else
 #include <stdarg.h>
 #include <stdlib.h>
-#include <string.h>
-#include <strings.h>
 #include <stddef.h>
 #endif
 
@@ -270,7 +265,7 @@ nvlist_nvflag(nvlist_t *nvl)
 static nv_alloc_t *
 nvlist_nv_alloc(int kmflag)
 {
-#if defined(_KERNEL) && !defined(_BOOT)
+#if defined(_KERNEL)
 	switch (kmflag) {
 	case KM_SLEEP:
 		return (nv_alloc_sleep);
@@ -281,7 +276,7 @@ nvlist_nv_alloc(int kmflag)
 	}
 #else
 	return (nv_alloc_nosleep);
-#endif /* _KERNEL && !_BOOT */
+#endif /* _KERNEL */
 }
 
 /*
@@ -1680,7 +1675,7 @@ nvlist_lookup_nvpair_ei_sep(nvlist_t *nvl, const char *name, const char sep,
 			sepp = idxp;
 
 			/* determine the index value */
-#if defined(_KERNEL) && !defined(_BOOT)
+#if defined(_KERNEL)
 			if (ddi_strtol(idxp, &idxep, 0, &idx))
 				goto fail;
 #else
@@ -3320,7 +3315,7 @@ nvs_xdr(nvstream_t *nvs, nvlist_t *nvl, char *buf, size_t *buflen)
 	return (err);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 static int __init
 nvpair_init(void)
 {

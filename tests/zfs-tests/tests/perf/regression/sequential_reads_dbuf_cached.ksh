@@ -35,18 +35,16 @@
 function cleanup
 {
 	# kill fio and iostat
-	pkill ${fio##*/}
-	pkill ${iostat##*/}
-	log_must_busy zfs destroy $TESTFS
-	log_must_busy zpool destroy $PERFPOOL
+	pkill fio
+	pkill iostat
+	recreate_perf_pool
 }
 
 trap "log_fail \"Measure IO stats during sequential read load\"" SIGTERM
 log_onexit cleanup
 
-export TESTFS=$PERFPOOL/testfs
-recreate_perfpool
-log_must zfs create $PERF_FS_OPTS $TESTFS
+recreate_perf_pool
+populate_perf_filesystems
 
 # Ensure the working set can be cached in the dbuf cache.
 export TOTAL_SIZE=$(($(get_max_dbuf_cache_size) * 3 / 4))
@@ -56,12 +54,14 @@ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_WEEKLY}
 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'weekly'}
 	export PERF_NTHREADS=${PERF_NTHREADS:-'8 16 32 64'}
+	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
 	export PERF_SYNC_TYPES=${PERF_SYNC_TYPES:-'1'}
 	export PERF_IOSIZES=${PERF_IOSIZES:-'8k 64k 128k'}
 elif [[ -n $PERF_REGRESSION_NIGHTLY ]]; then
 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_NIGHTLY}
 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'nightly'}
 	export PERF_NTHREADS=${PERF_NTHREADS:-'64'}
+	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
 	export PERF_SYNC_TYPES=${PERF_SYNC_TYPES:-'1'}
 	export PERF_IOSIZES=${PERF_IOSIZES:-'64k'}
 fi
@@ -71,21 +71,34 @@ fi
 # of the available files.
 export NUMJOBS=$(get_max $PERF_NTHREADS)
 export FILE_SIZE=$((TOTAL_SIZE / NUMJOBS))
+export DIRECTORY=$(get_directory)
 log_must fio $FIO_SCRIPTS/mkfiles.fio
 
 # Set up the scripts and output files that will log performance data.
 lun_list=$(pool_to_lun_list $PERFPOOL)
 log_note "Collecting backend IO stats with lun list $lun_list"
 if is_linux; then
-	export collect_scripts=("zpool iostat -lpvyL $PERFPOOL 1" "zpool.iostat"
-	    "$PERF_SCRIPTS/prefetch_io.sh $PERFPOOL 1" "prefetch" "vmstat 1"
-	    "vmstat" "mpstat  -P ALL 1" "mpstat" "iostat -dxyz 1" "iostat")
+	typeset perf_record_cmd="perf record -F 99 -a -g -q \
+	    -o /dev/stdout -- sleep ${PERF_RUNTIME}"
+
+	export collect_scripts=(
+	    "zpool iostat -lpvyL $PERFPOOL 1" "zpool.iostat"
+	    "$PERF_SCRIPTS/prefetch_io.sh $PERFPOOL 1" "prefetch"
+	    "vmstat 1" "vmstat"
+	    "mpstat  -P ALL 1" "mpstat"
+	    "iostat -dxyz 1" "iostat"
+	    "$perf_record_cmd" "perf"
+	)
 else
-	export collect_scripts=("kstat zfs:0 1" "kstat" "vmstat -T d 1" "vmstat"
-	    "mpstat -T d 1" "mpstat" "iostat -T d -xcnz 1" "iostat"
+	export collect_scripts=(
+	    "kstat zfs:0 1" "kstat"
+	    "vmstat -T d 1" "vmstat"
+	    "mpstat -T d 1" "mpstat"
+	    "iostat -T d -xcnz 1" "iostat"
 	    "dtrace -Cs $PERF_SCRIPTS/io.d $PERFPOOL $lun_list 1" "io"
 	    "dtrace -Cs $PERF_SCRIPTS/prefetch_io.d $PERFPOOL 1" "prefetch"
-	    "dtrace -s $PERF_SCRIPTS/profile.d" "profile")
+	    "dtrace -s $PERF_SCRIPTS/profile.d" "profile"
+	)
 fi
 
 log_note "Sequential cached reads with $PERF_RUNTYPE settings"

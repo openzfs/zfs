@@ -4712,7 +4712,7 @@ zbookmark_subtree_completed(const dnode_phys_t *dnp,
 	    last_block) <= 0);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 EXPORT_SYMBOL(zio_type_name);
 EXPORT_SYMBOL(zio_buf_alloc);
 EXPORT_SYMBOL(zio_data_buf_alloc);

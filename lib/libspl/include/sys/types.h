@@ -38,39 +38,14 @@
 #include_next <sys/types.h>
 #include <sys/types32.h>
 #include <sys/va_list.h>
+#include <sys/stdtypes.h>
 
 #ifndef HAVE_INTTYPES
 #include <inttypes.h>
-
-typedef enum boolean { B_FALSE, B_TRUE } boolean_t;
-
-typedef unsigned char	uchar_t;
-typedef unsigned short	ushort_t;
-typedef unsigned int	uint_t;
-typedef unsigned long	ulong_t;
-
-typedef long long	longlong_t;
-typedef unsigned long long u_longlong_t;
 #endif /* HAVE_INTTYPES */
-
-typedef longlong_t	offset_t;
-typedef u_longlong_t	u_offset_t;
-typedef u_longlong_t	len_t;
-typedef longlong_t	diskaddr_t;
-
-typedef ulong_t		pgcnt_t;	/* number of pages */
-typedef long		spgcnt_t;	/* signed number of pages */
-
-typedef short		pri_t;
 
 typedef int		zoneid_t;
 typedef int		projid_t;
-
-typedef int		major_t;
-typedef int		minor_t;
-
-typedef ushort_t o_mode_t; /* old file attribute type */
-typedef short		index_t;
 
 /*
  * Definitions remaining from previous partial support for 64-bit file

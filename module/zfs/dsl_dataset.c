@@ -4237,7 +4237,7 @@ dsl_dataset_create_remap_deadlist(dsl_dataset_t *ds, dmu_tx_t *tx)
 	spa_feature_incr(spa, SPA_FEATURE_OBSOLETE_COUNTS, tx);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 #if defined(_LP64)
 module_param(zfs_max_recordsize, int, 0644);
 MODULE_PARM_DESC(zfs_max_recordsize, "Max allowed record size");

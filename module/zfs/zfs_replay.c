@@ -26,7 +26,6 @@
 
 #include <sys/types.h>
 #include <sys/param.h>
-#include <sys/systm.h>
 #include <sys/sysmacros.h>
 #include <sys/cmn_err.h>
 #include <sys/kmem.h>

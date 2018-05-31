@@ -25,11 +25,23 @@ PACKAGE_CONFIG="${pkgcfg}"
 PRE_BUILD="configure
   --prefix=/usr
   --with-config=kernel
-  --with-linux=\${kernel_source_dir}
+  --with-linux=\$(
+    case \`lsb_release -is\` in
+      (Debian|Devuan)
+        if [[ -e \${kernel_source_dir/%build/source} ]]
+        then
+          echo \${kernel_source_dir/%build/source}
+        else
+          # A kpkg exception for Proxmox 2.0
+          echo \${kernel_source_dir}
+        fi
+      ;;
+      (*)
+        echo \${kernel_source_dir}
+      ;;
+    esac
+  )
   --with-linux-obj=\${kernel_source_dir}
-  --with-spl=\${source_tree}/spl-\${PACKAGE_VERSION}
-  --with-spl-obj=\${dkms_tree}/spl/\${PACKAGE_VERSION}/\${kernelver}/\${arch}
-  --with-spl-timeout=300
   \$(
     [[ -n \"\${ICP_ROOT}\" ]] && \\
     {
@@ -56,7 +68,6 @@ POST_BUILD="scripts/dkms.postbuild
   -k \${kernelver}
   -t \${dkms_tree}
 "
-BUILD_DEPENDS[0]="spl"
 AUTOINSTALL="yes"
 REMAKE_INITRD="no"
 MAKE[0]="make"
@@ -73,6 +84,7 @@ STRIP[3]="\${STRIP[0]}"
 STRIP[4]="\${STRIP[0]}"
 STRIP[5]="\${STRIP[0]}"
 STRIP[6]="\${STRIP[0]}"
+STRIP[7]="\${STRIP[0]}"
 BUILT_MODULE_NAME[0]="zavl"
 BUILT_MODULE_LOCATION[0]="module/avl/"
 DEST_MODULE_LOCATION[0]="/extra/avl/avl"
@@ -94,4 +106,7 @@ DEST_MODULE_LOCATION[5]="/extra/icp/icp"
 BUILT_MODULE_NAME[6]="zlua"
 BUILT_MODULE_LOCATION[6]="module/lua/"
 DEST_MODULE_LOCATION[6]="/extra/lua/zlua"
+BUILT_MODULE_NAME[7]="spl"
+BUILT_MODULE_LOCATION[7]="module/spl/"
+DEST_MODULE_LOCATION[7]="/extra/spl/spl"
 EOF

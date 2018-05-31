@@ -183,11 +183,7 @@ static char *
 spa_history_zone(void)
 {
 #ifdef _KERNEL
-#ifdef HAVE_SPL
 	return ("linux");
-#else
-	return (curproc->p_zone->zone_name);
-#endif
 #else
 	return (NULL);
 #endif
@@ -626,7 +622,7 @@ spa_history_log_version(spa_t *spa, const char *operation, dmu_tx_t *tx)
 	    u->nodename, u->release, u->version, u->machine);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 EXPORT_SYMBOL(spa_history_create_obj);
 EXPORT_SYMBOL(spa_history_get);
 EXPORT_SYMBOL(spa_history_log);

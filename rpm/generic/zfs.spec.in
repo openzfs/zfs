@@ -80,13 +80,13 @@ License:        @ZFS_META_LICENSE@
 URL:            http://zfsonlinux.org/
 Source0:        %{name}-%{version}.tar.gz
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
-Requires:       spl = %{version}
 Requires:       libzpool2 = %{version}
 Requires:       libnvpair1 = %{version}
 Requires:       libuutil1 = %{version}
 Requires:       libzfs2 = %{version}
 Requires:       %{name}-kmod = %{version}
 Provides:       %{name}-kmod-common = %{version}
+Obsoletes:      spl
 
 # zfs-fuse provides the same commands and man pages that ZoL does. Renaming
 # those on either side would conflict with all available documentation.
@@ -396,8 +396,7 @@ systemctl --system daemon-reload >/dev/null || true
 %{_datadir}/pkgconfig/libzfs_core.pc
 %{_libdir}/*.so
 %{_includedir}/*
-%doc AUTHORS COPYRIGHT DISCLAIMER
-%doc OPENSOLARIS.LICENSE README.markdown
+%doc AUTHORS COPYRIGHT LICENSE NOTICE README.md
 
 %files test
 %{_datadir}/%{name}

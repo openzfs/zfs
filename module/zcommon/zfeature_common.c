@@ -26,9 +26,7 @@
  * Copyright (c) 2014, Nexenta Systems, Inc. All rights reserved.
  */
 
-#ifdef _KERNEL
-#include <sys/systm.h>
-#else
+#ifndef _KERNEL
 #include <errno.h>
 #include <string.h>
 #endif
@@ -351,7 +349,7 @@ zpool_feature_init(void)
 	}
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 EXPORT_SYMBOL(zfeature_lookup_name);
 EXPORT_SYMBOL(zfeature_is_supported);
 EXPORT_SYMBOL(zfeature_is_valid_guid);

@@ -1629,7 +1629,7 @@ zap_get_stats(objset_t *os, uint64_t zapobj, zap_stats_t *zs)
 	return (0);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 EXPORT_SYMBOL(zap_create);
 EXPORT_SYMBOL(zap_create_dnsize);
 EXPORT_SYMBOL(zap_create_norm);

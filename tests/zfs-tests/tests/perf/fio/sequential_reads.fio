@@ -10,7 +10,7 @@
 #
 
 #
-# Copyright (c) 2015 by Delphix. All rights reserved.
+# Copyright (c) 2015, 2016 by Delphix. All rights reserved.
 #
 
 [global]
@@ -21,7 +21,7 @@ overwrite=0
 thread=1
 rw=read
 time_based=1
-directory=/${TESTFS}
+directory=${DIRECTORY}
 runtime=${RUNTIME}
 bs=${BLOCKSIZE}
 ioengine=psync

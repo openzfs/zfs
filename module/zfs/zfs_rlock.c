@@ -96,6 +96,7 @@
  */
 
 #include <sys/zfs_rlock.h>
+#include <sys/sysmacros.h>
 
 /*
  * Check if a write lock can be grabbed, or wait and recheck until available.

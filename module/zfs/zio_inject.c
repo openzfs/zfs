@@ -855,7 +855,7 @@ zio_inject_fini(void)
 	rw_destroy(&inject_lock);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 EXPORT_SYMBOL(zio_injection_enabled);
 EXPORT_SYMBOL(zio_inject_fault);
 EXPORT_SYMBOL(zio_inject_list_next);

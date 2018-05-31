@@ -38,9 +38,9 @@
 
 
 #include <sys/types.h>
-#include <sys/systm.h>
 #include <sys/pathname.h>
 #include <sys/kmem.h>
+#include <sys/sysmacros.h>
 
 /*
  * Pathname utilities.

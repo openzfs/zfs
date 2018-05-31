@@ -596,7 +596,7 @@ vdev_indirect_mapping_free_obsolete_counts(vdev_indirect_mapping_t *vim,
 	vmem_free(counts, vim->vim_phys->vimp_num_entries * sizeof (uint32_t));
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 EXPORT_SYMBOL(vdev_indirect_mapping_add_entries);
 EXPORT_SYMBOL(vdev_indirect_mapping_alloc);
 EXPORT_SYMBOL(vdev_indirect_mapping_bytes_mapped);

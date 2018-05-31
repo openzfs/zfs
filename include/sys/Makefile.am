@@ -42,6 +42,7 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/mmp.h \
 	$(top_srcdir)/include/sys/mntent.h \
 	$(top_srcdir)/include/sys/multilist.h \
+	$(top_srcdir)/include/sys/note.h \
 	$(top_srcdir)/include/sys/nvpair.h \
 	$(top_srcdir)/include/sys/nvpair_impl.h \
 	$(top_srcdir)/include/sys/pathname.h \

@@ -2026,7 +2026,7 @@ error:
 	return (ret);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 /* BEGIN CSTYLED */
 module_param(zfs_key_max_salt_uses, ulong, 0644);
 MODULE_PARM_DESC(zfs_key_max_salt_uses, "Max number of times a salt value "

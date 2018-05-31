@@ -28,7 +28,6 @@
 #include <sys/zfs_context.h>
 #include <sys/types.h>
 #include <sys/param.h>
-#include <sys/systm.h>
 #include <sys/sysmacros.h>
 #include <sys/dmu.h>
 #include <sys/dmu_impl.h>

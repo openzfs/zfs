@@ -39,9 +39,7 @@
 #include "zfs_deleg.h"
 #include "zfs_fletcher.h"
 
-#if defined(_KERNEL)
-#include <sys/systm.h>
-#else
+#if !defined(_KERNEL)
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
@@ -847,7 +845,7 @@ zfs_prop_align_right(zfs_prop_t prop)
 
 #endif
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 static int __init
 zcommon_init(void)
 {

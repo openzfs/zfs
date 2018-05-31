@@ -762,7 +762,7 @@ dbuf_init(void)
 
 retry:
 	h->hash_table_mask = hsize - 1;
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 	/*
 	 * Large allocations which do not require contiguous pages
 	 * should be using vmem_alloc() in the linux kernel
@@ -847,7 +847,7 @@ dbuf_fini(void)
 
 	for (i = 0; i < DBUF_MUTEXES; i++)
 		mutex_destroy(&h->hash_mutexes[i]);
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 	/*
 	 * Large allocations which do not require contiguous pages
 	 * should be using vmem_free() in the linux kernel
@@ -4341,7 +4341,7 @@ dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx)
 	}
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 EXPORT_SYMBOL(dbuf_find);
 EXPORT_SYMBOL(dbuf_is_metadata);
 EXPORT_SYMBOL(dbuf_destroy);

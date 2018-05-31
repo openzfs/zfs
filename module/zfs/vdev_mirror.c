@@ -774,7 +774,7 @@ vdev_ops_t vdev_spare_ops = {
 	B_FALSE			/* not a leaf vdev */
 };
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 /* BEGIN CSTYLED */
 module_param(zfs_vdev_mirror_rotating_inc, int, 0644);
 MODULE_PARM_DESC(zfs_vdev_mirror_rotating_inc,

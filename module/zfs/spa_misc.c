@@ -2258,7 +2258,7 @@ spa_set_missing_tvds(spa_t *spa, uint64_t missing)
 	spa->spa_missing_tvds = missing;
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 
 #include <linux/mod_compat.h>
 

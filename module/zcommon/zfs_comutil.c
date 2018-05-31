@@ -29,15 +29,12 @@
  * then a separate file should to be created.
  */
 
-#if defined(_KERNEL)
-#include <sys/systm.h>
-#else
+#if !defined(_KERNEL)
 #include <string.h>
 #endif
 
 #include <sys/types.h>
 #include <sys/fs/zfs.h>
-#include <sys/int_limits.h>
 #include <sys/nvpair.h>
 #include "zfs_comutil.h"
 #include <sys/zfs_ratelimit.h>
@@ -207,7 +204,7 @@ const char *zfs_history_event_names[ZFS_NUM_LEGACY_HISTORY_EVENTS] = {
 	"pool split",
 };
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 EXPORT_SYMBOL(zfs_allocatable_devs);
 EXPORT_SYMBOL(zpool_get_rewind_policy);
 EXPORT_SYMBOL(zfs_zpl_version_map);

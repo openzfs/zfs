@@ -26,8 +26,10 @@
  */
 
 #include <stdio.h>
+#include <string.h>
 #include <strings.h>
 #include <fcntl.h>
+#include <errno.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <libzfs.h>

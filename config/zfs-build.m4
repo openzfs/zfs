@@ -95,6 +95,63 @@ AC_DEFUN([ZFS_AC_DEBUGINFO], [
 	AC_MSG_RESULT([$enable_debuginfo])
 ])
 
+dnl #
+dnl # Disabled by default, provides basic memory tracking.  Track the total
+dnl # number of bytes allocated with kmem_alloc() and freed with kmem_free().
+dnl # Then at module unload time if any bytes were leaked it will be reported
+dnl # on the console.
+dnl #
+AC_DEFUN([ZFS_AC_DEBUG_KMEM], [
+	AC_MSG_CHECKING([whether basic kmem accounting is enabled])
+	AC_ARG_ENABLE([debug-kmem],
+		[AS_HELP_STRING([--enable-debug-kmem],
+		[Enable basic kmem accounting @<:@default=no@:>@])],
+		[],
+		[enable_debug_kmem=no])
+
+	AS_IF([test "x$enable_debug_kmem" = xyes], [
+		KERNEL_DEBUG_CPPFLAGS+=" -DDEBUG_KMEM"
+		DEBUG_KMEM_ZFS="_with_debug_kmem"
+	], [
+		DEBUG_KMEM_ZFS="_without_debug_kmem"
+	])
+
+	AC_SUBST(KERNEL_DEBUG_CPPFLAGS)
+	AC_SUBST(DEBUG_KMEM_ZFS)
+
+	AC_MSG_RESULT([$enable_debug_kmem])
+])
+
+dnl #
+dnl # Disabled by default, provides detailed memory tracking.  This feature
+dnl # also requires --enable-debug-kmem to be set.  When enabled not only will
+dnl # total bytes be tracked but also the location of every kmem_alloc() and
+dnl # kmem_free().  When the module is unloaded a list of all leaked addresses
+dnl # and where they were allocated will be dumped to the console.  Enabling
+dnl # this feature has a significant impact on performance but it makes finding
+dnl # memory leaks straight forward.
+dnl #
+AC_DEFUN([ZFS_AC_DEBUG_KMEM_TRACKING], [
+	AC_MSG_CHECKING([whether detailed kmem tracking is enabled])
+	AC_ARG_ENABLE([debug-kmem-tracking],
+		[AS_HELP_STRING([--enable-debug-kmem-tracking],
+		[Enable detailed kmem tracking  @<:@default=no@:>@])],
+		[],
+		[enable_debug_kmem_tracking=no])
+
+	AS_IF([test "x$enable_debug_kmem_tracking" = xyes], [
+		KERNEL_DEBUG_CPPFLAGS+=" -DDEBUG_KMEM_TRACKING"
+		DEBUG_KMEM_TRACKING_ZFS="_with_debug_kmem_tracking"
+	], [
+		DEBUG_KMEM_TRACKING_ZFS="_without_debug_kmem_tracking"
+	])
+
+	AC_SUBST(KERNEL_DEBUG_CPPFLAGS)
+	AC_SUBST(DEBUG_KMEM_TRACKING_ZFS)
+
+	AC_MSG_RESULT([$enable_debug_kmem_tracking])
+])
+
 AC_DEFUN([ZFS_AC_CONFIG_ALWAYS], [
 	ZFS_AC_CONFIG_ALWAYS_CC_NO_UNUSED_BUT_SET_VARIABLE
 	ZFS_AC_CONFIG_ALWAYS_CC_NO_BOOL_COMPARE
@@ -183,9 +240,10 @@ AC_DEFUN([ZFS_AC_RPM], [
 	])
 
 	RPM_DEFINE_COMMON='--define "$(DEBUG_ZFS) 1"'
+	RPM_DEFINE_COMMON+=' --define "$(DEBUG_KMEM_ZFS) 1"'
+	RPM_DEFINE_COMMON+=' --define "$(DEBUG_KMEM_TRACKING_ZFS) 1"'
 	RPM_DEFINE_COMMON+=' --define "$(DEBUGINFO_ZFS) 1"'
 	RPM_DEFINE_COMMON+=' --define "$(ASAN_ZFS) 1"'
-
 
 	RPM_DEFINE_UTIL=' --define "_initconfdir $(DEFAULT_INITCONF_DIR)"'
 
@@ -221,8 +279,6 @@ AC_DEFUN([ZFS_AC_RPM], [
 	])
 
 	RPM_DEFINE_KMOD='--define "kernels $(LINUX_VERSION)"'
-	RPM_DEFINE_KMOD+=' --define "require_spldir $(SPL)"'
-	RPM_DEFINE_KMOD+=' --define "require_splobj $(SPL_OBJ)"'
 	RPM_DEFINE_KMOD+=' --define "ksrc $(LINUX)"'
 	RPM_DEFINE_KMOD+=' --define "kobj $(LINUX_OBJ)"'
 	RPM_DEFINE_KMOD+=' --define "_wrong_version_format_terminate_build 0"'

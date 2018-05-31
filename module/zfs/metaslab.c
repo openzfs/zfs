@@ -3850,7 +3850,7 @@ metaslab_check_free(spa_t *spa, const blkptr_t *bp)
 	spa_config_exit(spa, SCL_VDEV, FTAG);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 /* CSTYLED */
 module_param(metaslab_aliquot, ulong, 0644);
 MODULE_PARM_DESC(metaslab_aliquot,
@@ -3904,4 +3904,4 @@ MODULE_PARM_DESC(zfs_metaslab_switch_threshold,
 module_param(metaslab_force_ganging, ulong, 0644);
 MODULE_PARM_DESC(metaslab_force_ganging,
 	"blocks larger than this size are forced to be gang blocks");
-#endif /* _KERNEL && HAVE_SPL */
+#endif

@@ -2165,7 +2165,7 @@ dsl_dir_is_zapified(dsl_dir_t *dd)
 	return (doi.doi_type == DMU_OTN_ZAP_METADATA);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 EXPORT_SYMBOL(dsl_dir_set_quota);
 EXPORT_SYMBOL(dsl_dir_set_reservation);
 #endif
