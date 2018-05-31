@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  */
@@ -294,7 +294,7 @@ boolean_t dbuf_try_add_ref(dmu_buf_t *db, objset_t *os, uint64_t obj,
 uint64_t dbuf_refcount(dmu_buf_impl_t *db);
 
 void dbuf_rele(dmu_buf_impl_t *db, void *tag);
-void dbuf_rele_and_unlock(dmu_buf_impl_t *db, void *tag);
+void dbuf_rele_and_unlock(dmu_buf_impl_t *db, void *tag, boolean_t evicting);
 
 dmu_buf_impl_t *dbuf_find(struct objset *os, uint64_t object, uint8_t level,
     uint64_t blkid);
