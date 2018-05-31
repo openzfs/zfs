@@ -26,3 +26,6 @@ We have a separate document with [contribution guidelines](./.github/CONTRIBUTIN
 
 ZFS on Linux is released under a CDDL license.  
 For more details see the NOTICE, LICENSE and COPYRIGHT files; `UCRL-CODE-235197`
+
+# Supported Kernels
+  * The `META` file contains the officially recognized supported kernel versions.
