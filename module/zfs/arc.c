@@ -8152,17 +8152,18 @@ static void
 l2arc_read_done(zio_t *zio)
 {
 	int tfm_error = 0;
-	l2arc_read_callback_t *cb;
+	l2arc_read_callback_t *cb = zio->io_private;
 	arc_buf_hdr_t *hdr;
 	kmutex_t *hash_lock;
-	boolean_t valid_cksum, using_rdata;
+	boolean_t valid_cksum;
+	boolean_t using_rdata = (BP_IS_ENCRYPTED(&cb->l2rcb_bp) &&
+	    (cb->l2rcb_flags & ZIO_FLAG_RAW_ENCRYPT));
 
 	ASSERT3P(zio->io_vd, !=, NULL);
 	ASSERT(zio->io_flags & ZIO_FLAG_DONT_PROPAGATE);
 
 	spa_config_exit(zio->io_spa, SCL_L2ARC, zio->io_vd);
 
-	cb = zio->io_private;
 	ASSERT3P(cb, !=, NULL);
 	hdr = cb->l2rcb_hdr;
 	ASSERT3P(hdr, !=, NULL);
@@ -8178,8 +8179,13 @@ l2arc_read_done(zio_t *zio)
 	if (cb->l2rcb_abd != NULL) {
 		ASSERT3U(arc_hdr_size(hdr), <, zio->io_size);
 		if (zio->io_error == 0) {
-			abd_copy(hdr->b_l1hdr.b_pabd, cb->l2rcb_abd,
-			    arc_hdr_size(hdr));
+			if (using_rdata) {
+				abd_copy(hdr->b_crypt_hdr.b_rabd,
+				    cb->l2rcb_abd, arc_hdr_size(hdr));
+			} else {
+				abd_copy(hdr->b_l1hdr.b_pabd,
+				    cb->l2rcb_abd, arc_hdr_size(hdr));
+			}
 		}
 
 		/*
@@ -8196,8 +8202,7 @@ l2arc_read_done(zio_t *zio)
 		abd_free(cb->l2rcb_abd);
 		zio->io_size = zio->io_orig_size = arc_hdr_size(hdr);
 
-		if (BP_IS_ENCRYPTED(&cb->l2rcb_bp) &&
-		    (cb->l2rcb_flags & ZIO_FLAG_RAW_ENCRYPT)) {
+		if (using_rdata) {
 			ASSERT(HDR_HAS_RABD(hdr));
 			zio->io_abd = zio->io_orig_abd =
 			    hdr->b_crypt_hdr.b_rabd;
@@ -8218,8 +8223,6 @@ l2arc_read_done(zio_t *zio)
 	zio->io_bp = &zio->io_bp_copy;	/* XXX fix in L2ARC 2.0	*/
 
 	valid_cksum = arc_cksum_is_equal(hdr, zio);
-	using_rdata = (HDR_HAS_RABD(hdr) &&
-	    zio->io_abd == hdr->b_crypt_hdr.b_rabd);
 
 	/*
 	 * b_rabd will always match the data as it exists on disk if it is
