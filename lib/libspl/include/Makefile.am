@@ -15,7 +15,6 @@ libspl_HEADERS = \
 	$(top_srcdir)/lib/libspl/include/stdlib.h \
 	$(top_srcdir)/lib/libspl/include/string.h \
 	$(top_srcdir)/lib/libspl/include/stropts.h \
-	$(top_srcdir)/lib/libspl/include/synch.h \
 	$(top_srcdir)/lib/libspl/include/thread.h \
 	$(top_srcdir)/lib/libspl/include/tzfile.h \
 	$(top_srcdir)/lib/libspl/include/ucred.h \
