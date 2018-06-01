@@ -698,7 +698,7 @@ sa_build_layouts(sa_handle_t *hdl, sa_bulk_attr_t *attr_desc, int attr_count,
 		boolean_t dummy;
 
 		if (hdl->sa_spill == NULL) {
-			VERIFY(dmu_spill_hold_by_bonus(hdl->sa_bonus, NULL,
+			VERIFY(dmu_spill_hold_by_bonus(hdl->sa_bonus, 0, NULL,
 			    &hdl->sa_spill) == 0);
 		}
 		dmu_buf_will_dirty(hdl->sa_spill, tx);
