@@ -56,7 +56,7 @@ touch
 Then, enable the tracking ZEDLET:
 .PP
 .RS 4
-ln -s "@libexecdir@/zfs/zed.d/history_event-zfs-list-cacher.sh" "@sysconfdir@/zfs/zed.d/"
+ln -s "@zfsexecdir@/zed.d/history_event-zfs-list-cacher.sh" "@sysconfdir@/zfs/zed.d"
 
 systemctl enable zed.service
 

@@ -201,7 +201,7 @@ The default directory for enabled ZEDLETs.
 .I @sysconfdir@/zfs/zed.d/zed.rc
 The default rc file for common variables used by ZEDLETs.
 .TP
-.I @libexecdir@/zfs/zed.d
+.I @zfsexecdir@/zed.d
 The default directory for installed ZEDLETs.
 .TP
 .I @runstatedir@/zed.pid
