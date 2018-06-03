@@ -31,8 +31,6 @@
 
 . $STF_SUITE/include/libtest.shlib
 
-[[ -f $OLD_HISTORY ]] && rm -f $OLD_HISTORY
-[[ -f $TMP_HISTORY ]] && rm -f $TMP_HISTORY
-[[ -f $NEW_HISTORY ]] && rm -f $NEW_HISTORY
+rm -f $TEST_BASE_DIR/{old,tmp,new}_history.*
 
 default_cleanup
