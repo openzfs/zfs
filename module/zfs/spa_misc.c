@@ -1979,6 +1979,7 @@ spa_init(int mode)
 	zil_init();
 	vdev_cache_stat_init();
 	vdev_mirror_stat_init();
+	vdev_raidz_stat_init();
 	vdev_raidz_math_init();
 	vdev_file_init();
 	zfs_prop_init();
@@ -2000,6 +2001,7 @@ spa_fini(void)
 	vdev_file_fini();
 	vdev_cache_stat_fini();
 	vdev_mirror_stat_fini();
+	vdev_raidz_stat_fini();
 	vdev_raidz_math_fini();
 	zil_fini();
 	dmu_fini();

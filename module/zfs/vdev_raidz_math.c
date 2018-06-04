@@ -485,6 +485,7 @@ vdev_raidz_math_init(void)
 		/* New raidz_map is needed for each generate_p/q/r */
 		bench_rm = vdev_raidz_map_alloc(bench_zio, SPA_MINBLOCKSHIFT,
 		    BENCH_D_COLS + bench_parity, bench_parity);
+		vdev_raidz_map_alloc_parity(bench_rm);
 
 		benchmark_raidz_impl(bench_rm, fn, benchmark_gen_impl);
 
@@ -494,6 +495,7 @@ vdev_raidz_math_init(void)
 	/* Benchmark data reconstruction methods */
 	bench_rm = vdev_raidz_map_alloc(bench_zio, SPA_MINBLOCKSHIFT,
 	    BENCH_COLS, PARITY_PQR);
+	vdev_raidz_map_alloc_parity(bench_rm);
 
 	for (fn = 0; fn < RAIDZ_REC_NUM; fn++)
 		benchmark_raidz_impl(bench_rm, fn, benchmark_rec_impl);

@@ -90,7 +90,9 @@ typedef boolean_t	(*will_work_f)(void);
 typedef void		(*init_impl_f)(void);
 typedef void		(*fini_impl_f)(void);
 
-#define	RAIDZ_IMPL_NAME_MAX	(16)
+#define	RAIDZ_IMPL_NAME_MAX		(16)
+#define	RAIDZ_MAP_PARITY_FLAG		(1U << 0)
+#define	RAIDZ_MAP_READMIRROR_FLAG	(1U << 1)
 
 typedef struct raidz_impl_ops {
 	init_impl_f init;
@@ -110,6 +112,7 @@ typedef struct raidz_col {
 	int rc_error;			/* I/O error for this device */
 	uint8_t rc_tried;		/* Did we attempt this I/O column? */
 	uint8_t rc_skipped;		/* Did we skip this I/O column? */
+	boolean_t rc_mirror;		/* Did we performed raidz mirror */
 } raidz_col_t;
 
 typedef struct raidz_map {
@@ -126,6 +129,7 @@ typedef struct raidz_map {
 	uintptr_t rm_reports;		/* # of referencing checksum reports */
 	uint8_t	rm_freed;		/* map no longer has referencing ZIO */
 	uint8_t	rm_ecksuminjected;	/* checksum error was injected */
+	unsigned int rm_mirrorflags;	/* mirror read of short ZIOs */
 	raidz_impl_ops_t *rm_ops;	/* RAIDZ math operations */
 	raidz_col_t rm_col[1];		/* Flexible array of I/O columns */
 } raidz_map_t;

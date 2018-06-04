@@ -37,6 +37,71 @@
 #include <sys/vdev_raidz_impl.h>
 
 /*
+ * Vdev raidz kstats
+ */
+static kstat_t *raidz_ksp = NULL;
+
+typedef struct raidz_stats {
+	kstat_named_t raidz_stat_rotating_linear;
+	kstat_named_t raidz_stat_rotating_offset;
+	kstat_named_t raidz_stat_rotating_seek;
+	kstat_named_t raidz_stat_non_rotating_linear;
+	kstat_named_t raidz_stat_non_rotating_seek;
+
+	kstat_named_t raidz_stat_mirror_child[PARITY_PQR + 1];
+} raidz_stats_t;
+
+static raidz_stats_t raidz_stats = {
+	/* New I/O follows directly the last I/O */
+	{ "rotating_linear",			KSTAT_DATA_UINT64 },
+	/* New I/O is within zfs_vdev_raidz_rotating_seek_offset of the last */
+	{ "rotating_offset",			KSTAT_DATA_UINT64 },
+	/* New I/O requires random seek */
+	{ "rotating_seek",			KSTAT_DATA_UINT64 },
+	/* New I/O follows directly the last I/O  (nonrot) */
+	{ "non_rotating_linear",		KSTAT_DATA_UINT64 },
+	/* New I/O requires random seek (nonrot) */
+	{ "non_rotating_seek",			KSTAT_DATA_UINT64 },
+	/* Preferred child vdev histogram */
+	{ { "mirror_child",			KSTAT_DATA_UINT64 } },
+
+};
+
+#define	RAIDZ_STAT(stat)	(raidz_stats.raidz_stat_ ## stat.value.ui64)
+#define	RAIDZ_STAT_INCR(stat, val) 	atomic_add_64(&RAIDZ_STAT(stat), val)
+#define	RAIDZ_STAT_BUMP(stat)		RAIDZ_STAT_INCR(stat, 1)
+
+void
+vdev_raidz_stat_init(void)
+{
+	int i;
+
+	raidz_ksp = kstat_create("zfs", 0, "vdev_raidz_stats",
+	    "misc", KSTAT_TYPE_NAMED,
+	    sizeof (raidz_stats) / sizeof (kstat_named_t), KSTAT_FLAG_VIRTUAL);
+	if (raidz_ksp != NULL) {
+		raidz_ksp->ks_data = &raidz_stats;
+		kstat_install(raidz_ksp);
+
+		for (i = 0; i < PARITY_PQR + 1; i++) {
+			snprintf(raidz_stats.raidz_stat_mirror_child[i].name,
+			    KSTAT_STRLEN, "mirror_parity_%d", i);
+			raidz_stats.raidz_stat_mirror_child[i].data_type =
+			    KSTAT_DATA_UINT64;
+		}
+	}
+}
+
+void
+vdev_raidz_stat_fini(void)
+{
+	if (raidz_ksp != NULL) {
+		kstat_delete(raidz_ksp);
+		raidz_ksp = NULL;
+	}
+}
+
+/*
  * Virtual device vector for RAID-Z.
  *
  * This vdev supports single, double, and triple parity. For single parity,
@@ -136,7 +201,9 @@ vdev_raidz_map_free(raidz_map_t *rm)
 	int c;
 
 	for (c = 0; c < rm->rm_firstdatacol; c++) {
-		abd_free(rm->rm_col[c].rc_abd);
+
+		if (rm->rm_col[c].rc_abd != NULL && !rm->rm_col[c].rc_mirror)
+			abd_free(rm->rm_col[c].rc_abd);
 
 		if (rm->rm_col[c].rc_gdata != NULL)
 			abd_free(rm->rm_col[c].rc_gdata);
@@ -392,6 +459,7 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t ashift, uint64_t dcols,
 	rm->rm_reports = 0;
 	rm->rm_freed = 0;
 	rm->rm_ecksuminjected = 0;
+	rm->rm_mirrorflags = 0;
 
 	asize = 0;
 
@@ -426,9 +494,10 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t ashift, uint64_t dcols,
 	ASSERT3U(rm->rm_asize - asize, ==, rm->rm_nskip << ashift);
 	ASSERT3U(rm->rm_nskip, <=, nparity);
 
-	for (c = 0; c < rm->rm_firstdatacol; c++)
-		rm->rm_col[c].rc_abd =
-		    abd_alloc_linear(rm->rm_col[c].rc_size, B_FALSE);
+	for (c = 0; c < rm->rm_firstdatacol; c++) {
+		rm->rm_col[c].rc_abd = NULL;
+		rm->rm_col[c].rc_mirror = B_FALSE;
+	}
 
 	rm->rm_col[c].rc_abd = abd_get_offset_size(zio->io_abd, 0,
 	    rm->rm_col[c].rc_size);
@@ -482,6 +551,36 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t ashift, uint64_t dcols,
 	rm->rm_ops = vdev_raidz_math_get_ops();
 
 	return (rm);
+}
+
+/*
+ * Allocate parity buffers
+ */
+void
+vdev_raidz_map_alloc_parity(raidz_map_t *rm)
+{
+	int c;
+
+	if (rm->rm_mirrorflags & RAIDZ_MAP_PARITY_FLAG)
+		return;
+
+	for (c = 0; c < rm->rm_firstdatacol; c++) {
+		raidz_col_t *col = &rm->rm_col[c];
+
+		if (col->rc_mirror) {
+			ASSERT3P(col->rc_abd, ==,
+			    rm->rm_col[rm->rm_firstdatacol].rc_abd);
+
+			col->rc_abd = NULL;
+			col->rc_mirror = B_FALSE;
+		}
+
+		ASSERT(col->rc_abd == NULL && !col->rc_mirror);
+
+		col->rc_abd = abd_alloc_linear(col->rc_size, B_FALSE);
+	}
+
+	rm->rm_mirrorflags |= RAIDZ_MAP_PARITY_FLAG;
 }
 
 struct pqr_struct {
@@ -1627,6 +1726,111 @@ vdev_raidz_child_done(zio_t *zio)
 	rc->rc_skipped = 0;
 }
 
+
+/* Rotating media load calculation configuration. */
+static int zfs_vdev_raidz_rotating_inc = 1;
+static int zfs_vdev_raidz_rotating_seek_inc = 5;
+static int zfs_vdev_raidz_rotating_seek_offset = 1UL << 20; /* 1MiB */
+
+/* Non-rotating media load calculation configuration. */
+static int zfs_vdev_raidz_non_rotating_inc = 0;
+static int zfs_vdev_raidz_non_rotating_seek_inc = 1;
+
+/*
+ * Try to estimate load of a raidz child. Heuristic and tunables are taken
+ * from vdev_raidz.
+ */
+static int
+vdev_raidz_child_load(vdev_t *vd, uint64_t offset)
+{
+	int64_t offset_diff;
+	const int load = vdev_queue_length(vd);
+	const uint64_t last_offset = vdev_queue_last_offset(vd);
+
+	/* Fix offset of leaf vdevs */
+	if (vd->vdev_ops->vdev_op_leaf)
+		offset += VDEV_LABEL_START_SIZE;
+
+	if (vd->vdev_nonrot) {
+		/* Non-rotating media. */
+		if (last_offset == offset) {
+			RAIDZ_STAT_BUMP(non_rotating_linear);
+			return (load + zfs_vdev_raidz_non_rotating_inc);
+		}
+
+		/*
+		 * Apply a seek penalty even for non-rotating devices as
+		 * sequential I/O's can be aggregated into fewer operations on
+		 * the device, thus avoiding unnecessary per-command overhead
+		 * and boosting performance.
+		 */
+		RAIDZ_STAT_BUMP(non_rotating_seek);
+		return (load + zfs_vdev_raidz_non_rotating_seek_inc);
+	}
+
+	/* Rotating media I/O's which directly follow the last I/O. */
+	if (last_offset == offset) {
+		RAIDZ_STAT_BUMP(rotating_linear);
+		return (load + zfs_vdev_raidz_rotating_inc);
+	}
+
+	/*
+	 * Apply half the seek increment to I/O's within seek offset
+	 * of the last I/O queued to this vdev as they should incur less
+	 * of a seek increment.
+	 */
+	offset_diff = (int64_t)(last_offset - offset);
+	if (ABS(offset_diff) < zfs_vdev_raidz_rotating_seek_offset) {
+		RAIDZ_STAT_BUMP(rotating_offset);
+		return (load + (zfs_vdev_raidz_rotating_seek_inc / 2));
+	}
+
+	/* Apply the full seek increment to all other I/O's. */
+	RAIDZ_STAT_BUMP(rotating_seek);
+	return (load + zfs_vdev_raidz_rotating_seek_inc);
+}
+
+/*
+ * Check all possible hybrid children and determine best match based on load.
+ * On any sign of trouble, return -1, indicating the default read logic should
+ * be used.
+ */
+static int
+vdev_raidz_mirror_child_select(raidz_map_t *rm, zio_t *zio)
+{
+	vdev_t *vd = zio->io_vd;
+	raidz_col_t *rc;
+	vdev_t *cvd;
+	int c, best_col, lowest_load, load;
+
+	/* Don't search for raidz-mirror */
+	if (zio->io_flags & (ZIO_FLAG_SCRUB | ZIO_FLAG_RESILVER))
+		return (-1);
+
+	lowest_load = INT_MAX;
+	best_col = rm->rm_firstdatacol;
+
+	ASSERT3U(rm->rm_firstdatacol, ==, rm->rm_cols - 1);
+
+	for (c = rm->rm_firstdatacol; c >= 0; c--) {
+		rc = &rm->rm_col[c];
+		cvd = vd->vdev_child[rc->rc_devidx];
+
+		if (cvd == NULL || !vdev_readable(cvd) ||
+		    vdev_dtl_contains(cvd, DTL_MISSING, zio->io_txg, 1))
+			return (-1);
+
+		load = vdev_raidz_child_load(cvd, rc->rc_offset);
+		if (load >= lowest_load)
+			continue;
+
+		lowest_load = load;
+		best_col = c;
+	}
+
+	return (best_col);
+}
+
 /*
  * Start an IO operation on a RAIDZ VDev
  *
@@ -1644,6 +1848,9 @@ vdev_raidz_child_done(zio_t *zio)
  *      vdevs have had errors, then create zio read operations to the parity
  *      columns' VDevs as well.
  */
+static uint64_t raidz_read_mirror_cnt = 0;
+static uint64_t raidz_write_mirror_cnt = 0;
+
 static void
 vdev_raidz_io_start(zio_t *zio)
 {
@@ -1654,13 +1861,33 @@ vdev_raidz_io_start(zio_t *zio)
 	raidz_col_t *rc;
 	int c, i;
 
+	if (((raidz_write_mirror_cnt + raidz_read_mirror_cnt) % 1000) == 0) {
+		cmn_err(CE_WARN, "raidz_mirror_rd: %lu, raidz_mirror_wr: %lu",
+		    raidz_read_mirror_cnt, raidz_write_mirror_cnt);
+	}
+
 	rm = vdev_raidz_map_alloc(zio, tvd->vdev_ashift, vd->vdev_children,
 	    vd->vdev_nparity);
 
 	ASSERT3U(rm->rm_asize, ==, vdev_psize_to_asize(vd, zio->io_size));
 
 	if (zio->io_type == ZIO_TYPE_WRITE) {
-		vdev_raidz_generate_parity(rm);
+		if (rm->rm_cols == vd->vdev_nparity + 1) {
+			/* RAID-Z Mirror write: reuse first data column */
+			raidz_col_t *arc = &rm->rm_col[rm->rm_firstdatacol];
+
+			for (c = 0; c < rm->rm_firstdatacol; c++) {
+				rc = &rm->rm_col[c];
+
+				rc->rc_abd = arc->rc_abd;
+				rc->rc_mirror = B_TRUE;
+			}
+			raidz_write_mirror_cnt++;
+		} else {
+			/* Multi column write: calculate parity */
+			vdev_raidz_map_alloc_parity(rm);
+			vdev_raidz_generate_parity(rm);
+		}
 
 		for (c = 0; c < rm->rm_cols; c++) {
 			rc = &rm->rm_col[c];
@@ -1695,12 +1922,48 @@ vdev_raidz_io_start(zio_t *zio)
 	ASSERT(zio->io_type == ZIO_TYPE_READ);
 
 	/*
+	 * RAID-Z Mirrored read:
+	 *
+	 * Find the best child to read from in case the zio is only a single
+	 * block long, in which case: data == P == Q == R (the block is mirrored
+	 * in parity blocks). We can choose from (nparity + 1) child vdevs,
+	 * which improves IOPS for small reads, such as metadata, etc.
+	 */
+	if (rm->rm_cols == vd->vdev_nparity + 1) {
+		raidz_col_t *arc = &rm->rm_col[rm->rm_firstdatacol];
+
+		c = vdev_raidz_mirror_child_select(rm, zio);
+		if (c >= 0)
+			RAIDZ_STAT_BUMP(mirror_child[c]);
+
+		if (c < 0 || c == rm->rm_firstdatacol)
+			goto read_fallback;
+
+		rc = &rm->rm_col[c];
+		rc->rc_abd = arc->rc_abd;
+		rc->rc_mirror = B_TRUE;
+		rm->rm_mirrorflags |= RAIDZ_MAP_READMIRROR_FLAG;
+
+		cvd = vd->vdev_child[rc->rc_devidx];
+
+		zio_nowait(zio_vdev_child_io(zio, NULL, cvd, rc->rc_offset,
+		    rc->rc_abd, rc->rc_size, zio->io_type, zio->io_priority,
+		    0, vdev_raidz_child_done, rc));
+
+		zio_execute(zio);
+		raidz_read_mirror_cnt++;
+		return;
+	}
+
+read_fallback:
+	/*
 	 * Iterate over the columns in reverse order so that we hit the parity
 	 * last -- any errors along the way will force us to read the parity.
 	 */
 	for (c = rm->rm_cols - 1; c >= 0; c--) {
 		rc = &rm->rm_col[c];
 		cvd = vd->vdev_child[rc->rc_devidx];
+
 		if (!vdev_readable(cvd)) {
 			if (c >= rm->rm_firstdatacol)
 				rm->rm_missingdata++;
@@ -1722,6 +1985,10 @@ vdev_raidz_io_start(zio_t *zio)
 		}
 		if (c >= rm->rm_firstdatacol || rm->rm_missingdata > 0 ||
 		    (zio->io_flags & (ZIO_FLAG_SCRUB | ZIO_FLAG_RESILVER))) {
+
+			if (c < rm->rm_firstdatacol)
+				vdev_raidz_map_alloc_parity(rm);
+
 			zio_nowait(zio_vdev_child_io(zio, NULL, cvd,
 			    rc->rc_offset, rc->rc_abd, rc->rc_size,
 			    zio->io_type, zio->io_priority, 0,
@@ -2028,7 +2295,7 @@ vdev_raidz_io_done(zio_t *zio)
 
 	ASSERT(zio->io_bp != NULL);  /* XXX need to add code to enforce this */
 
-	ASSERT(rm->rm_missingparity <= rm->rm_firstdatacol);
+	ASSERT(rm->rm_missingparity <= raidz_parity(rm));
 	ASSERT(rm->rm_missingdata <= rm->rm_cols - rm->rm_firstdatacol);
 
 	for (c = 0; c < rm->rm_cols; c++) {
@@ -2063,13 +2330,30 @@ vdev_raidz_io_done(zio_t *zio)
 		 * if we intend to reallocate.
 		 */
 		/* XXPOLICY */
-		if (total_errors > rm->rm_firstdatacol)
+		if (total_errors > raidz_parity(rm))
 			zio->io_error = vdev_raidz_worst_error(rm);
 
 		return;
 	}
 
 	ASSERT(zio->io_type == ZIO_TYPE_READ);
+
+	/* Make sure parity is allocated in case of errors */
+	if (total_errors > 0)
+		vdev_raidz_map_alloc_parity(rm);
+
+	/* RAID-Z Mirror read */
+	if (rm->rm_mirrorflags & RAIDZ_MAP_READMIRROR_FLAG) {
+		if (parity_errors > 0) {
+			ASSERT3U(total_errors, ==, 1);
+			rm->rm_mirrorflags &= ~RAIDZ_MAP_READMIRROR_FLAG;
+			goto unexpected;
+		}
+
+		ASSERT0(total_errors);
+		goto done;
+	}
+
 	/*
 	 * There are three potential phases for a read:
 	 *	1. produce valid data from the columns read
@@ -2087,7 +2371,7 @@ vdev_raidz_io_done(zio_t *zio)
 	 * has a valid checksum. Naturally, this case applies in the absence of
 	 * any errors.
 	 */
-	if (total_errors <= rm->rm_firstdatacol - parity_untried) {
+	if (total_errors <= raidz_parity(rm) - parity_untried) {
 		if (data_errors == 0) {
 			if (raidz_checksum_verify(zio) == 0) {
 				/*
@@ -2099,12 +2383,12 @@ vdev_raidz_io_done(zio_t *zio)
 				 * later.
 				 */
 				if (parity_errors + parity_untried <
-				    rm->rm_firstdatacol ||
+				    raidz_parity(rm) ||
 				    (zio->io_flags & ZIO_FLAG_RESILVER)) {
 					n = raidz_parity_verify(zio, rm);
 					unexpected_errors += n;
 					ASSERT(parity_errors + n <=
-					    rm->rm_firstdatacol);
+					    raidz_parity(rm));
 				}
 				goto done;
 			}
@@ -2169,6 +2453,7 @@ vdev_raidz_io_done(zio_t *zio)
 	 * we've already been through once before, all children will be marked
 	 * as tried so we'll proceed to combinatorial reconstruction.
 	 */
+unexpected:
 	unexpected_errors = 1;
 	rm->rm_missingdata = 0;
 	rm->rm_missingparity = 0;
@@ -2178,6 +2463,7 @@ vdev_raidz_io_done(zio_t *zio)
 			continue;
 
 		zio_vdev_io_redone(zio);
+
 		do {
 			rc = &rm->rm_col[c];
 			if (rc->rc_tried)
@@ -2202,10 +2488,10 @@ vdev_raidz_io_done(zio_t *zio)
 	 * reconstruction over all possible combinations. If that fails,
 	 * we're cooked.
 	 */
-	if (total_errors > rm->rm_firstdatacol) {
+	if (total_errors > raidz_parity(rm)) {
 		zio->io_error = vdev_raidz_worst_error(rm);
 
-	} else if (total_errors < rm->rm_firstdatacol &&
+	} else if (total_errors < raidz_parity(rm) &&
 	    (code = vdev_raidz_combrec(zio, total_errors, data_errors)) != 0) {
 		/*
 		 * If we didn't use all the available parity for the
@@ -2337,3 +2623,29 @@ vdev_ops_t vdev_raidz_ops = {
 	VDEV_TYPE_RAIDZ,	/* name of this vdev type */
 	B_FALSE			/* not a leaf vdev */
 };
+
+
+#if defined(_KERNEL) && defined(HAVE_SPL)
+/* BEGIN CSTYLED */
+module_param(zfs_vdev_raidz_rotating_inc, int, 0644);
+MODULE_PARM_DESC(zfs_vdev_raidz_rotating_inc,
+	"Rotating media load increment for non-seeking I/O's");
+
+module_param(zfs_vdev_raidz_rotating_seek_inc, int, 0644);
+MODULE_PARM_DESC(zfs_vdev_raidz_rotating_seek_inc,
+	"Rotating media load increment for seeking I/O's");
+
+module_param(zfs_vdev_raidz_rotating_seek_offset, int, 0644);
+MODULE_PARM_DESC(zfs_vdev_raidz_rotating_seek_offset,
+	"Offset in bytes from the last I/O which "
+	"triggers a reduced rotating media seek increment");
+
+module_param(zfs_vdev_raidz_non_rotating_inc, int, 0644);
+MODULE_PARM_DESC(zfs_vdev_raidz_non_rotating_inc,
+	"Non-rotating media load increment for non-seeking I/O's");
+
+module_param(zfs_vdev_raidz_non_rotating_seek_inc, int, 0644);
+MODULE_PARM_DESC(zfs_vdev_raidz_non_rotating_seek_inc,
+	"Non-rotating media load increment for seeking I/O's");
+/* END CSTYLED */
+#endif
