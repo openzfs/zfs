@@ -1232,7 +1232,7 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 		}
 
 		if (policy != NULL) {
-			if (nvlist_add_nvlist(config, ZPOOL_REWIND_POLICY,
+			if (nvlist_add_nvlist(config, ZPOOL_LOAD_POLICY,
 			    policy) != 0)
 				goto nomem;
 		}

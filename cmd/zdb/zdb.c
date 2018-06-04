@@ -5074,8 +5074,8 @@ main(int argc, char **argv)
 		    (dump_opt['X'] ? ZPOOL_EXTREME_REWIND : 0);
 
 	if (nvlist_alloc(&policy, NV_UNIQUE_NAME_TYPE, 0) != 0 ||
-	    nvlist_add_uint64(policy, ZPOOL_REWIND_REQUEST_TXG, max_txg) != 0 ||
-	    nvlist_add_uint32(policy, ZPOOL_REWIND_REQUEST, rewind) != 0)
+	    nvlist_add_uint64(policy, ZPOOL_LOAD_REQUEST_TXG, max_txg) != 0 ||
+	    nvlist_add_uint32(policy, ZPOOL_LOAD_REWIND_POLICY, rewind) != 0)
 		fatal("internal error: %s", strerror(ENOMEM));
 
 	error = 0;
@@ -5108,7 +5108,7 @@ main(int argc, char **argv)
 		if (error == 0) {
 
 			if (nvlist_add_nvlist(cfg,
-			    ZPOOL_REWIND_POLICY, policy) != 0) {
+			    ZPOOL_LOAD_POLICY, policy) != 0) {
 				fatal("can't open '%s': %s",
 				    target, strerror(ENOMEM));
 			}
