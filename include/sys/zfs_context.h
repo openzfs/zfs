@@ -86,7 +86,6 @@
 #include <strings.h>
 #include <pthread.h>
 #include <setjmp.h>
-#include <synch.h>
 #include <assert.h>
 #include <alloca.h>
 #include <umem.h>
