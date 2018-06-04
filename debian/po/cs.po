@@ -1,0 +1,92 @@
+# Czech translation of PO debconf template for package zfs-linux.
+# Copyright (C) 2013 Michal Simunek
+# This file is distributed under the same license as the zfs-linux package.
+# Michal Simunek <michal.simunek@gmail.com>, 2013.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: zfs-linux 0.6.1-1\n"
+"Report-Msgid-Bugs-To: zfs-linux@packages.debian.org\n"
+"POT-Creation-Date: 2015-11-01 14:11+0800\n"
+"PO-Revision-Date: 2013-07-21 09:57+0200\n"
+"Last-Translator: Michal Simunek <michal.simunek@gmail.com>\n"
+"Language-Team: Czech <debian-l10n-czech@lists.debian.org>\n"
+"Language: cs\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:1001
+msgid "Abort building ZFS on a 32-bit kernel?"
+msgstr "Přerušit sestavování ZFS na 32 bitovém kernelu?"
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:1001
+msgid "You are attempting to build ZFS against a 32-bit running kernel."
+msgstr "Pokoušíte se sestavit ZFS oproti běžícímu 32 bitovému kernelu."
+
+#. Type: boolean
+#. Description
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:1001 ../zfs-dkms.templates:2001
+msgid ""
+"Although possible, building in a 32-bit environment is unsupported and "
+"likely to cause instability leading to possible data corruption. You are "
+"strongly advised to use a 64-bit kernel; if you do decide to proceed with "
+"using ZFS on this kernel then keep in mind that it is at your own risk."
+msgstr ""
+"Přestože je to možné, sestavování ve 32 bitovém prostředí není podporováno a "
+"může způsobit nestabilitu vedoucí k možnému poškození dat. Důrazně vám "
+"doporučujeme používat 64 bitový kernel; rozhodnete-li se pokračovat s "
+"používáním ZFS na tomto kernelu, pak mějte na paměti, že je to na vaše "
+"vlastní nebezpečí."
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:2001
+msgid "Abort building ZFS on an unknown kernel?"
+msgstr "Přerušit sestavování ZFS na neznámém kernelu?"
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:2001
+msgid ""
+"You are attempting to build ZFS against a running kernel that could not be "
+"identified as 32-bit or 64-bit. If you are not completely sure that the "
+"running kernel is a 64-bit one, you should probably stop the build."
+msgstr ""
+"Pokoušíte se sestavit ZFS oproti běžícímu kernelu, u kterého se nepodařilo "
+"rozpoznat, zda-li je 32 bitový nebo 64 bitový. Pokud si nejste zcela jisti, "
+"že je běžící kernel 64 bitový, měli byste nejspíš sestavování ukončit."
+
+#. Type: note
+#. Description
+#: ../zfs-dkms.templates:3001
+msgid "Licenses of ZFS and Linux are incompatible"
+msgstr ""
+
+#. Type: note
+#. Description
+#: ../zfs-dkms.templates:3001
+msgid ""
+"ZFS is licensed under the Common Development and Distribution License "
+"(CDDL), and the Linux kernel is licensed under the GNU General Public "
+"License Version 2 (GPL-2). While both are free open source licenses they are "
+"restrictive licenses. The combination of them causes problems because it "
+"prevents using pieces of code exclusively available under one license with "
+"pieces of code exclusively available under the other in the same binary."
+msgstr ""
+
+#. Type: note
+#. Description
+#: ../zfs-dkms.templates:3001
+msgid ""
+"You are going to build ZFS using DKMS in such a way that they are not going to "
+"be built into one monolithic binary. Please be aware that distributing both of "
+"the binaries in the same media (disk images, virtual appliances, etc) may "
+"lead to infringing."
+msgstr ""

@@ -1,0 +1,93 @@
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the zfs-linux package.
+#
+# Yuri Kozlov <yuray@komyakino.ru>, 2013.
+msgid ""
+msgstr ""
+"Project-Id-Version: zfs-linux 0.6.1-1\n"
+"Report-Msgid-Bugs-To: zfs-linux@packages.debian.org\n"
+"POT-Creation-Date: 2015-11-01 14:11+0800\n"
+"PO-Revision-Date: 2013-07-06 21:39+0400\n"
+"Last-Translator: Yuri Kozlov <yuray@komyakino.ru>\n"
+"Language-Team: Russian <man-pages-ru-talks@lists.sourceforge.net>\n"
+"Language: ru\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n"
+"%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+"X-Generator: Lokalize 1.4\n"
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:1001
+msgid "Abort building ZFS on a 32-bit kernel?"
+msgstr "Прервать сборку ZFS для 32-битного ядра?"
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:1001
+msgid "You are attempting to build ZFS against a 32-bit running kernel."
+msgstr "Вы пытаетесь собрать ZFS для выполняющегося 32-битного ядра."
+
+#. Type: boolean
+#. Description
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:1001 ../zfs-dkms.templates:2001
+msgid ""
+"Although possible, building in a 32-bit environment is unsupported and "
+"likely to cause instability leading to possible data corruption. You are "
+"strongly advised to use a 64-bit kernel; if you do decide to proceed with "
+"using ZFS on this kernel then keep in mind that it is at your own risk."
+msgstr ""
+"Хотя это и возможно, сборка в 32-битном окружении не поддерживается и, "
+"вероятно, нестабильная работа приведёт к повреждению данных. Настоятельно "
+"рекомендуем использовать 64-битное ядро; если вы решите продолжить "
+"использовать ZFS с этим ядром, то вас предупредили."
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:2001
+msgid "Abort building ZFS on an unknown kernel?"
+msgstr "Прервать сборку ZFS для неизвестного ядра?"
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:2001
+msgid ""
+"You are attempting to build ZFS against a running kernel that could not be "
+"identified as 32-bit or 64-bit. If you are not completely sure that the "
+"running kernel is a 64-bit one, you should probably stop the build."
+msgstr ""
+"Вы пытаетесь собрать ZFS для выполняющегося ядра с неизвестной разрядностью. "
+"Если вы абсолютно не уверены, что работающее ядро 64-битное, лучше прервать "
+"сборку."
+
+#. Type: note
+#. Description
+#: ../zfs-dkms.templates:3001
+msgid "Licenses of ZFS and Linux are incompatible"
+msgstr ""
+
+#. Type: note
+#. Description
+#: ../zfs-dkms.templates:3001
+msgid ""
+"ZFS is licensed under the Common Development and Distribution License "
+"(CDDL), and the Linux kernel is licensed under the GNU General Public "
+"License Version 2 (GPL-2). While both are free open source licenses they are "
+"restrictive licenses. The combination of them causes problems because it "
+"prevents using pieces of code exclusively available under one license with "
+"pieces of code exclusively available under the other in the same binary."
+msgstr ""
+
+#. Type: note
+#. Description
+#: ../zfs-dkms.templates:3001
+msgid ""
+"You are going to build ZFS using DKMS in such a way that they are not going to "
+"be built into one monolithic binary. Please be aware that distributing both of "
+"the binaries in the same media (disk images, virtual appliances, etc) may "
+"lead to infringing."
+msgstr ""

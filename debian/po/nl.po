@@ -1,0 +1,109 @@
+# Dutch translation of zfs-linux debconf templates.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the zfs-linux package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# Frans Spiesschaert <Frans.Spiesschaert@yucom.be>, 2016.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: zfs-linux\n"
+"Report-Msgid-Bugs-To: zfs-linux@packages.debian.org\n"
+"POT-Creation-Date: 2015-11-01 14:11+0800\n"
+"PO-Revision-Date: 2016-05-30 17:08+0200\n"
+"Last-Translator: Frans Spiesschaert <Frans.Spiesschaert@yucom.be>\n"
+"Language-Team: Debian Dutch l10n Team <debian-l10n-dutch@lists.debian.org>\n"
+"Language: nl\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Generator: Gtranslator 2.91.6\n"
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:1001
+msgid "Abort building ZFS on a 32-bit kernel?"
+msgstr "Het bouwen van ZFS met een 36-bits kernel afbreken?"
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:1001
+msgid "You are attempting to build ZFS against a 32-bit running kernel."
+msgstr "U probeert ZFS te bouwen terwijl er een 32-bits kernel actief is."
+
+#. Type: boolean
+#. Description
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:1001 ../zfs-dkms.templates:2001
+msgid ""
+"Although possible, building in a 32-bit environment is unsupported and "
+"likely to cause instability leading to possible data corruption. You are "
+"strongly advised to use a 64-bit kernel; if you do decide to proceed with "
+"using ZFS on this kernel then keep in mind that it is at your own risk."
+msgstr ""
+"Hoewel dit niet onmogelijk is, wordt zoiets in een 32-bits omgeving niet "
+"ondersteund en is het waarschijnlijk dat dit instabiliteit veroorzaakt met "
+"mogelijk gegevensverlies tot gevolg. U wordt stellig aangeraden een 64-bits "
+"kernel te gebruiken. Indien u toch beslist om voort te gaan met het "
+"gebruiken van ZFS in combinatie met deze kernel, besef dan goed dat u dit op "
+"eigen risico doet."
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:2001
+msgid "Abort building ZFS on an unknown kernel?"
+msgstr "Het bouwen van ZFS met een onbekende kernel afbreken?"
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:2001
+msgid ""
+"You are attempting to build ZFS against a running kernel that could not be "
+"identified as 32-bit or 64-bit. If you are not completely sure that the "
+"running kernel is a 64-bit one, you should probably stop the build."
+msgstr ""
+"U probeert ZFS te bouwen terwijl er een kernel actief is waarvan niet "
+"uitgemaakt kan worden of gaat om een 32-bits of een 64-bits exemplaar. "
+"Indien u niet volledig zeker bent dat de actieve kernel een 64-bits "
+"exemplaar is, doet u er best aan te stoppen."
+
+#. Type: note
+#. Description
+#: ../zfs-dkms.templates:3001
+msgid "Licenses of ZFS and Linux are incompatible"
+msgstr "De licenties van ZFS en Linux zijn niet compatibel"
+
+#. Type: note
+#. Description
+#: ../zfs-dkms.templates:3001
+msgid ""
+"ZFS is licensed under the Common Development and Distribution License "
+"(CDDL), and the Linux kernel is licensed under the GNU General Public "
+"License Version 2 (GPL-2). While both are free open source licenses they are "
+"restrictive licenses. The combination of them causes problems because it "
+"prevents using pieces of code exclusively available under one license with "
+"pieces of code exclusively available under the other in the same binary."
+msgstr ""
+"ZFS gebruikt als licentie de Common Development and Distribution License "
+"(CDDL) en de Linux kernel gebruikt de GNU General Public License Version 2 "
+"(GPL-2) als licentie. Hoewel beide vrije open source-licenties zijn, zijn ze "
+"allebei restrictief. De combinatie van beide geeft problemen, omdat belet "
+"wordt dat codefragmenten die exclusief onder de ene licentie beschikbaar "
+"zijn, binnen eenzelfde binair bestand gecombineerd worden met codefragmenten "
+"die beschikbaar zijn onder de andere licentie."
+
+#. Type: note
+#. Description
+#: ../zfs-dkms.templates:3001
+msgid ""
+"You are going to build ZFS using DKMS in such a way that they are not going to "
+"be built into one monolithic binary. Please be aware that distributing both of "
+"the binaries in the same media (disk images, virtual appliances, etc) may "
+"lead to infringing."
+msgstr ""
+"U gaat ZFS bouwen met behulp van DKMS en op die manier zullen ze niet als "
+"één monolithisch binair bestand gebouwd worden. U dient er zich bewust van "
+"te zijn dat het verdelen van de beide binaire bestanden binnenin hetzelfde "
+"medium (een schijf-image, een virtuele machine, enz.) aanleiding kan geven "
+"tot een inbreuk."

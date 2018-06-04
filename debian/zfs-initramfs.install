@@ -1,0 +1,2 @@
+usr/share/initramfs-tools/*
+debian/zfs usr/share/initramfs-tools/conf.d/

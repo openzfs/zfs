@@ -1,0 +1,3 @@
+Tests: kernel-smoke-test
+Restrictions: needs-root
+Depends: zfsutils-linux, zfs-zed, zfs-initramfs, zfs-dkms

@@ -1,0 +1,21 @@
+zfs-linux for Debian
+
+1. Feature flags are enabled by default.
+
+This means that ZoL will now create pools in a way that is
+incompatible with Solaris. If you need Solaris compatibility,
+then create pools like this:
+
+  # zpool create -o version=28 tank ...
+
+ZoL remains compatible with all other ZFS implementations derived
+from Illumos.
+
+2. Use zfs-initramfs with caution.
+
+Debian Installer's root installation support is being worked on,
+and zfs-initramfs is included here but still needs to be tested
+in detail. Since faulty operation on filesystem can lead to major
+loss of data, please use zfs-initramfs with caution.
+
+ -- Aron Xu <aron@debian.org>  Sat, 3 Aug 2013 03:23:11 +0800

@@ -1,0 +1,102 @@
+# Danish translation zfs-linux.
+# Copyright (C) 2016 zfs-linux og nedenstående oversættere.
+# This file is distributed under the same license as the zfs-linux package.
+# Joe Hansen <joedalton2@yahoo.dk>, 2013, 2016.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: zfs-linux\n"
+"Report-Msgid-Bugs-To: zfs-linux@packages.debian.org\n"
+"POT-Creation-Date: 2015-11-01 14:11+0800\n"
+"PO-Revision-Date: 2016-07-09 06:57+0100\n"
+"Last-Translator: Joe Hansen <joedalton2@yahoo.dk>\n"
+"Language-Team: Danish <debian-l10n-danish@lists.debian.org>\n"
+"Language: da\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:1001
+msgid "Abort building ZFS on a 32-bit kernel?"
+msgstr "Afbryd bygning af ZFS på en 32-bit kerne?"
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:1001
+msgid "You are attempting to build ZFS against a 32-bit running kernel."
+msgstr "Du forsøger at bygge ZFS mod en 32-bit kørende kerne."
+
+#. Type: boolean
+#. Description
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:1001 ../zfs-dkms.templates:2001
+msgid ""
+"Although possible, building in a 32-bit environment is unsupported and "
+"likely to cause instability leading to possible data corruption. You are "
+"strongly advised to use a 64-bit kernel; if you do decide to proceed with "
+"using ZFS on this kernel then keep in mind that it is at your own risk."
+msgstr ""
+"Selvom det er muligt, så er bygning af et 32-bit miljø ikke understøttet og "
+"vil sandsynligvis medføre ustabilitet, der kan føre til dataødelæggelse. Du "
+"rådes på det kraftigste til at bruge en 64-bit kerne; hvis du vælger at "
+"fortsætte med at bruge ZFS på denne kerne så husk, at det er på egen risiko."
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:2001
+msgid "Abort building ZFS on an unknown kernel?"
+msgstr "Afbryd bygning af ZFS på en ukendt kerne?"
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:2001
+msgid ""
+"You are attempting to build ZFS against a running kernel that could not be "
+"identified as 32-bit or 64-bit. If you are not completely sure that the "
+"running kernel is a 64-bit one, you should probably stop the build."
+msgstr ""
+"Du forsøger at bygge ZFS mod en kørende kerne, som ikke kan identificeres "
+"som enten 32-bit eller 64-bit. Hvis du ikke er fuldstændig sikker på, at den "
+"kørende kerne er en 64-bit, så bør du stoppe bygningen."
+
+#. Type: note
+#. Description
+#: ../zfs-dkms.templates:3001
+msgid "Licenses of ZFS and Linux are incompatible"
+msgstr "Licenserne for ZFS og Linux er ikke kompatible"
+
+#. Type: note
+#. Description
+#: ../zfs-dkms.templates:3001
+msgid ""
+"ZFS is licensed under the Common Development and Distribution License "
+"(CDDL), and the Linux kernel is licensed under the GNU General Public "
+"License Version 2 (GPL-2). While both are free open source licenses they are "
+"restrictive licenses. The combination of them causes problems because it "
+"prevents using pieces of code exclusively available under one license with "
+"pieces of code exclusively available under the other in the same binary."
+msgstr ""
+"ZFS er udgivet under licensen Common Development and Distribution License "
+"(CDDL), og Linuxkernen er udgivet under GNU General Public License Version "
+"2 (GPL-2). Selv om begge er frie åben licenser er de restriktive "
+"licenser. Kombinationen af dem medfører problemer da de forhindrer brug "
+"af kodestumper eksklusivt tilgængelig under en licens med stykker af kode "
+"eksklusivt tilgængelig under den anden i den samme binære."
+
+#. Type: note
+#. Description
+#: ../zfs-dkms.templates:3001
+msgid ""
+"You are going to build ZFS using DKMS in such a way that they are not going to "
+"be built into one monolithic binary. Please be aware that distributing both of "
+"the binaries in the same media (disk images, virtual appliances, etc) may "
+"lead to infringing."
+msgstr ""
+"Du er ved at bygge ZFS via DKMS, hvorved de ikke bliver bygget ind til en "
+"monolitisk binær. Vær opmærksom på at distribution af begge de binære filer "
+"på det samme medie (diskaftryk, virtuelle enheder etc.) kan føre til "
+"en overtrædelse af licenserne."
+

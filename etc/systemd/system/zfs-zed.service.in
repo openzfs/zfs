@@ -3,7 +3,7 @@ Description=ZFS Event Daemon (zed)
 Documentation=man:zed(8)
 
 [Service]
-ExecStart=@sbindir@/zed -F
+ExecStart=/usr/sbin/zed -F
 Restart=on-abort
 
 [Install]

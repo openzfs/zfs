@@ -1,0 +1,105 @@
+# Italian translation of zfs-linux debconf messages
+# Copyright (C) 2016, zfs-linux package copyright holder
+# This file is distributed under the same license as the zfs-linux package.
+# Beatrice Torracca <beatricet@libero.it>, 2013, 2016.
+msgid ""
+msgstr ""
+"Project-Id-Version: zfs-linux\n"
+"Report-Msgid-Bugs-To: zfs-linux@packages.debian.org\n"
+"POT-Creation-Date: 2015-11-01 14:11+0800\n"
+"PO-Revision-Date: 2016-10-01 14:42+0200\n"
+"Last-Translator: Beatrice Torracca <beatricet@libero.it>\n"
+"Language-Team: Italian <debian-l10n-italian@lists.debian.org>\n"
+"Language: it\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Generator: Virtaal 0.7.1\n"
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:1001
+msgid "Abort building ZFS on a 32-bit kernel?"
+msgstr "Annullare la compilazione di ZFS su un kernel a 32 bit?"
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:1001
+msgid "You are attempting to build ZFS against a 32-bit running kernel."
+msgstr "Si sta cercando di compilare ZFS con in esecuzione un kernel a 32 bit."
+
+#. Type: boolean
+#. Description
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:1001 ../zfs-dkms.templates:2001
+msgid ""
+"Although possible, building in a 32-bit environment is unsupported and "
+"likely to cause instability leading to possible data corruption. You are "
+"strongly advised to use a 64-bit kernel; if you do decide to proceed with "
+"using ZFS on this kernel then keep in mind that it is at your own risk."
+msgstr ""
+"Sebbene ciò sia possibile, la compilazione in un ambiente a 32 bit è senza "
+"supporto e probabilmente causerà problemi di instabilità che possono portare "
+"alla corruzione di dati. È caldamente raccomandato l'uso di un kernel a 64 "
+"bit; se si decide comunque di usare ZFS con questo kernel lo si fa a proprio "
+"rischio e pericolo."
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:2001
+msgid "Abort building ZFS on an unknown kernel?"
+msgstr "Annullare la compilazione di ZFS su un kernel sconosciuto?"
+
+#. Type: boolean
+#. Description
+#: ../zfs-dkms.templates:2001
+msgid ""
+"You are attempting to build ZFS against a running kernel that could not be "
+"identified as 32-bit or 64-bit. If you are not completely sure that the "
+"running kernel is a 64-bit one, you should probably stop the build."
+msgstr ""
+"Si sta cercando di compilare ZFS con in esecuzione un kernel che non è stato "
+"possibile identificare come a 32 bit o 64 bit. Se non si è del tutto sicuri "
+"che il kernel in esecuzione sia a 64 bit, probabilmente è meglio "
+"interrompere la compilazione."
+
+#. Type: note
+#. Description
+#: ../zfs-dkms.templates:3001
+msgid "Licenses of ZFS and Linux are incompatible"
+msgstr "Le licenze di ZFS e di Linux non sono compatibili"
+
+#. Type: note
+#. Description
+#: ../zfs-dkms.templates:3001
+msgid ""
+"ZFS is licensed under the Common Development and Distribution License "
+"(CDDL), and the Linux kernel is licensed under the GNU General Public "
+"License Version 2 (GPL-2). While both are free open source licenses they are "
+"restrictive licenses. The combination of them causes problems because it "
+"prevents using pieces of code exclusively available under one license with "
+"pieces of code exclusively available under the other in the same binary."
+msgstr ""
+"ZFS è rilasciato sotto la licenza CDDL (Common Development and Distribution "
+"License) e il kernel Linux sotto la licenza GNU GPL-2 (General Public "
+"License Version 2). Sebbene siano entrambe licenze libere e open source, "
+"sono licenze restrittive. La loro combinazione crea problemi perché "
+"impedisce nello stesso binario l'utilizzo di parti di codice disponibili "
+"esclusivamente con una licenza con le parti di codice disponibili "
+"esclusivamente con l'altra."
+
+#. Type: note
+#. Description
+#: ../zfs-dkms.templates:3001
+msgid ""
+"You are going to build ZFS using DKMS in such a way that they are not going to "
+"be built into one monolithic binary. Please be aware that distributing both of "
+"the binaries in the same media (disk images, virtual appliances, etc) may "
+"lead to infringing."
+msgstr ""
+"Si sta per compilare ZFS usando DKMS e in questo modo non verranno compilati "
+"in un singolo binario monolitico. Notare che la distribuzione di entrambi i "
+"binari nello stesso supporto (immagini di dischi, apparecchiature virtuali, "
+"ecc.) potrebbe portare a una violazione."
