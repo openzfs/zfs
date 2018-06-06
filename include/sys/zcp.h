@@ -14,7 +14,7 @@
  */
 
 /*
- * Copyright (c) 2016, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2016, 2018 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_ZCP_H
@@ -33,8 +33,8 @@ extern "C" {
 
 #define	ZCP_RUN_INFO_KEY "runinfo"
 
-extern uint64_t zfs_lua_max_instrlimit;
-extern uint64_t zfs_lua_max_memlimit;
+extern unsigned long zfs_lua_max_instrlimit;
+extern unsigned long zfs_lua_max_memlimit;
 
 int zcp_argerror(lua_State *, int, const char *, ...);
 

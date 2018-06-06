@@ -1,6 +1,7 @@
 '\" te
 .\" Copyright (c) 2013 by Turbo Fredriksson <turbo@bayour.com>. All rights reserved.
 .\" Copyright (c) 2017 Datto Inc.
+.\" Copyright (c) 2018 by Delphix. All rights reserved.
 .\" The contents of this file are subject to the terms of the Common Development
 .\" and Distribution License (the "License").  You may not use this file except
 .\" in compliance with the License. You can obtain a copy of the license at
@@ -1558,6 +1559,30 @@ Largest data block to write to zil. Larger blocks will be treated as if the
 dataset being written to had the property setting \fBlogbias=throughput\fR.
 .sp
 Default value: \fB32,768\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_lua_max_instrlimit\fR (ulong)
+.ad
+.RS 12n
+The maximum execution time limit that can be set for a ZFS channel program,
+specified as a number of Lua instructions.
+.sp
+Default value: \fB100,000,000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_lua_max_memlimit\fR (ulong)
+.ad
+.RS 12n
+The maximum memory limit that can be set for a ZFS channel program, specified
+in bytes.
+.sp
+Default value: \fB104,857,600\fR.
 .RE
 
 .sp
