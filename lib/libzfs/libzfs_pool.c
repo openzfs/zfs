@@ -243,6 +243,38 @@ zpool_pool_state_to_name(pool_state_t state)
 }
 
 /*
+ * Given a pool handle, return the pool health string ("ONLINE", "DEGRADED",
+ * "SUSPENDED", etc).
+ */
+const char *
+zpool_get_state_str(zpool_handle_t *zhp)
+{
+	zpool_errata_t errata;
+	zpool_status_t status;
+	nvlist_t *nvroot;
+	vdev_stat_t *vs;
+	uint_t vsc;
+	const char *str;
+
+	status = zpool_get_status(zhp, NULL, &errata);
+
+	if (zpool_get_state(zhp) == POOL_STATE_UNAVAIL) {
+		str = gettext("FAULTED");
+	} else if (status == ZPOOL_STATUS_IO_FAILURE_WAIT ||
+	    status == ZPOOL_STATUS_IO_FAILURE_MMP) {
+		str = gettext("SUSPENDED");
+	} else {
+		verify(nvlist_lookup_nvlist(zpool_get_config(zhp, NULL),
+		    ZPOOL_CONFIG_VDEV_TREE, &nvroot) == 0);
+		verify(nvlist_lookup_uint64_array(nvroot,
+		    ZPOOL_CONFIG_VDEV_STATS, (uint64_t **)&vs, &vsc)
+		    == 0);
+		str = zpool_state_to_name(vs->vs_state, vs->vs_aux);
+	}
+	return (str);
+}
+
+/*
  * Get a zpool property value for 'prop' and return the value in
  * a pre-allocated buffer.
  */
@@ -253,9 +285,6 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf,
 	uint64_t intval;
 	const char *strval;
 	zprop_source_t src = ZPROP_SRC_NONE;
-	nvlist_t *nvroot;
-	vdev_stat_t *vs;
-	uint_t vsc;
 
 	if (zpool_get_state(zhp) == POOL_STATE_UNAVAIL) {
 		switch (prop) {
@@ -264,7 +293,7 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf,
 			break;
 
 		case ZPOOL_PROP_HEALTH:
-			(void) strlcpy(buf, "FAULTED", len);
+			(void) strlcpy(buf, zpool_get_state_str(zhp), len);
 			break;
 
 		case ZPOOL_PROP_GUID:
@@ -365,14 +394,7 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf,
 			break;
 
 		case ZPOOL_PROP_HEALTH:
-			verify(nvlist_lookup_nvlist(zpool_get_config(zhp, NULL),
-			    ZPOOL_CONFIG_VDEV_TREE, &nvroot) == 0);
-			verify(nvlist_lookup_uint64_array(nvroot,
-			    ZPOOL_CONFIG_VDEV_STATS, (uint64_t **)&vs, &vsc)
-			    == 0);
-
-			(void) strlcpy(buf, zpool_state_to_name(intval,
-			    vs->vs_aux), len);
+			(void) strlcpy(buf, zpool_get_state_str(zhp), len);
 			break;
 		case ZPOOL_PROP_VERSION:
 			if (intval >= SPA_VERSION_FEATURES) {

@@ -421,7 +421,16 @@ function unload_scsi_debug
 #
 function get_debug_device
 {
-	lsscsi | nawk '/scsi_debug/ {print $6; exit}' | cut -d / -f3
+	for i in {1..10} ; do
+		val=$(lsscsi | nawk '/scsi_debug/ {print $6; exit}' | cut -d / -f3)
+
+		# lsscsi can take time to settle
+		if [ "$val" != "-" ] ; then
+			break
+		fi
+		sleep 1
+	done
+	echo "$val"
 }
 
 #
