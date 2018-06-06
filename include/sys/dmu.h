@@ -514,7 +514,8 @@ int dmu_rm_spill(objset_t *, uint64_t, dmu_tx_t *);
  * Special spill buffer support used by "SA" framework
  */
 
-int dmu_spill_hold_by_bonus(dmu_buf_t *bonus, void *tag, dmu_buf_t **dbp);
+int dmu_spill_hold_by_bonus(dmu_buf_t *bonus, uint32_t flags, void *tag,
+    dmu_buf_t **dbp);
 int dmu_spill_hold_by_dnode(dnode_t *dn, uint32_t flags,
     void *tag, dmu_buf_t **dbp);
 int dmu_spill_hold_existing(dmu_buf_t *bonus, void *tag, dmu_buf_t **dbp);

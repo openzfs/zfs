@@ -2144,7 +2144,11 @@ arc_buf_fill(arc_buf_t *buf, spa_t *spa, const zbookmark_phys_t *zb,
 		error = arc_fill_hdr_crypt(hdr, hash_lock, spa,
 		    zb, !!(flags & ARC_FILL_NOAUTH));
 		if (error != 0) {
+			if (hash_lock != NULL)
+				mutex_enter(hash_lock);
 			arc_hdr_set_flags(hdr, ARC_FLAG_IO_ERROR);
+			if (hash_lock != NULL)
+				mutex_exit(hash_lock);
 			return (error);
 		}
 	}
@@ -2247,7 +2251,11 @@ arc_buf_fill(arc_buf_t *buf, spa_t *spa, const zbookmark_phys_t *zb,
 				    "hdr %p, compress %d, psize %d, lsize %d",
 				    hdr, arc_hdr_get_compress(hdr),
 				    HDR_GET_PSIZE(hdr), HDR_GET_LSIZE(hdr));
+				if (hash_lock != NULL)
+					mutex_enter(hash_lock);
 				arc_hdr_set_flags(hdr, ARC_FLAG_IO_ERROR);
+				if (hash_lock != NULL)
+					mutex_exit(hash_lock);
 				return (SET_ERROR(EIO));
 			}
 		}
