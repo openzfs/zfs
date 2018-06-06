@@ -26,6 +26,7 @@
 # Copyright 2016 Nexenta Systems, Inc.
 # Copyright (c) 2017 Lawrence Livermore National Security, LLC.
 # Copyright (c) 2017 Datto Inc.
+# Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 #
 
 . ${STF_TOOLS}/include/logapi.shlib
@@ -3717,4 +3718,41 @@ function get_pool_devices #testpool #devdir
 		out=$(echo $out | sed -e "s|${devdir}/||g" | tr '\n' ' ')
 	fi
 	echo $out
+}
+
+#
+# Get scsi_debug device name.
+# Returns basename of scsi_debug device (for example "sdb").
+#
+function get_debug_device
+{
+	for i in {1..10} ; do
+		val=$(lsscsi | nawk '/scsi_debug/ {print $6; exit}' | cut -d / -f3)
+
+		# lsscsi can take time to settle
+		if [ "$val" != "-" ] ; then
+			break
+		fi
+		sleep 1
+	done
+	echo "$val"
+}
+
+#
+# Returns SCSI host number for the given disk
+#
+function get_scsi_host #disk
+{
+	typeset disk=$1
+	ls /sys/block/${disk}/device/scsi_device | cut -d : -f 1
+}
+
+#
+# Simulate disk removal
+#
+function remove_disk #disk
+{
+	typeset disk=$1
+	on_off_disk $disk "offline"
+	block_device_wait
 }

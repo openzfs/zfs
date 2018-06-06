@@ -296,6 +296,8 @@ int zfs_dev_is_whole_disk(char *dev_name);
 char *zfs_get_underlying_path(char *dev_name);
 char *zfs_get_enclosure_sysfs_path(char *dev_name);
 
+const char *zpool_get_state_str(zpool_handle_t *);
+
 /*
  * Functions to manage pool properties
  */

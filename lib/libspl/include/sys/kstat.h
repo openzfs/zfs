@@ -304,6 +304,8 @@ typedef struct kstat32 {
 #define	KSTAT_FLAG_PERSISTENT		0x08
 #define	KSTAT_FLAG_DORMANT		0x10
 #define	KSTAT_FLAG_INVALID		0x20
+#define	KSTAT_FLAG_LONGSTRINGS		0x40
+#define	KSTAT_FLAG_NO_HEADERS		0x80
 
 /*
  * Dynamic update support
