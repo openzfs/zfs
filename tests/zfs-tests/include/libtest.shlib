@@ -589,6 +589,8 @@ function default_cleanup_noexit
 	if is_mpath_device $disk1; then
 		delete_partitions
 	fi
+
+	rm -f $TEST_BASE_DIR/{err,out}
 }
 
 
@@ -2976,7 +2978,7 @@ function user_run
 	shift
 
 	log_note "user:$user $@"
-	eval su - \$user -c \"$@\" > /tmp/out 2>/tmp/err
+	eval su - \$user -c \"$@\" > $TEST_BASE_DIR/out 2>$TEST_BASE_DIR/err
 	return $?
 }
 
