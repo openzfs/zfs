@@ -183,8 +183,11 @@ aggsum_borrow(aggsum_t *as, int64_t delta, struct aggsum_bucket *asb)
 void
 aggsum_add(aggsum_t *as, int64_t delta)
 {
-	struct aggsum_bucket *asb =
-	    &as->as_buckets[CPU_SEQID % as->as_numbuckets];
+	struct aggsum_bucket *asb;
+
+	kpreempt_disable();
+	asb = &as->as_buckets[CPU_SEQID % as->as_numbuckets];
+	kpreempt_enable();
 
 	for (;;) {
 		mutex_enter(&asb->asc_lock);
