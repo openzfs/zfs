@@ -278,8 +278,9 @@ efi_get_info(int fd, struct dk_cinfo *dki_info)
 	} else if ((strncmp(dev_path, "/dev/zd", 7) == 0)) {
 		strcpy(dki_info->dki_cname, "zd");
 		dki_info->dki_ctype = DKC_MD;
-		rval = sscanf(dev_path, "/dev/%[a-zA-Z]%hu",
-		    dki_info->dki_dname,
+		strcpy(dki_info->dki_dname, "zd");
+		rval = sscanf(dev_path, "/dev/zd%[0-9]p%hu",
+		    dki_info->dki_dname + 2,
 		    &dki_info->dki_partition);
 	} else if ((strncmp(dev_path, "/dev/dm-", 8) == 0)) {
 		strcpy(dki_info->dki_cname, "pseudo");
