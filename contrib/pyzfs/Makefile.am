@@ -32,6 +32,7 @@ install-exec-local:
 	--verbose
 
 clean:	clean-local
+	rm -rf build/ pyzfs.egg-info/
 
 clean-local:
 
