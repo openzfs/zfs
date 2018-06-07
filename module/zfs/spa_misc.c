@@ -2258,6 +2258,45 @@ spa_set_missing_tvds(spa_t *spa, uint64_t missing)
 	spa->spa_missing_tvds = missing;
 }
 
+/*
+ * Return the pool state string ("ONLINE", "DEGRADED", "SUSPENDED", etc).
+ */
+const char *
+spa_state_to_name(spa_t *spa)
+{
+	vdev_state_t state = spa->spa_root_vdev->vdev_state;
+	vdev_aux_t aux = spa->spa_root_vdev->vdev_stat.vs_aux;
+
+	if (spa_suspended(spa) &&
+	    (spa_get_failmode(spa) != ZIO_FAILURE_MODE_CONTINUE))
+		return ("SUSPENDED");
+
+	switch (state) {
+	case VDEV_STATE_CLOSED:
+	case VDEV_STATE_OFFLINE:
+		return ("OFFLINE");
+	case VDEV_STATE_REMOVED:
+		return ("REMOVED");
+	case VDEV_STATE_CANT_OPEN:
+		if (aux == VDEV_AUX_CORRUPT_DATA || aux == VDEV_AUX_BAD_LOG)
+			return ("FAULTED");
+		else if (aux == VDEV_AUX_SPLIT_POOL)
+			return ("SPLIT");
+		else
+			return ("UNAVAIL");
+	case VDEV_STATE_FAULTED:
+		return ("FAULTED");
+	case VDEV_STATE_DEGRADED:
+		return ("DEGRADED");
+	case VDEV_STATE_HEALTHY:
+		return ("ONLINE");
+	default:
+		break;
+	}
+
+	return ("UNKNOWN");
+}
+
 #if defined(_KERNEL)
 
 #include <linux/mod_compat.h>
@@ -2410,6 +2449,7 @@ EXPORT_SYMBOL(spa_namespace_lock);
 EXPORT_SYMBOL(spa_trust_config);
 EXPORT_SYMBOL(spa_missing_tvds_allowed);
 EXPORT_SYMBOL(spa_set_missing_tvds);
+EXPORT_SYMBOL(spa_state_to_name);
 
 /* BEGIN CSTYLED */
 module_param(zfs_flags, uint, 0644);

@@ -2936,6 +2936,7 @@ receive_spill(struct receive_writer_arg *rwa, struct drr_spill *drrs,
 	dmu_tx_t *tx;
 	dmu_buf_t *db, *db_spill;
 	int err;
+	uint32_t flags = 0;
 
 	if (drrs->drr_length < SPA_MINBLOCKSIZE ||
 	    drrs->drr_length > spa_maxblocksize(dmu_objset_spa(rwa->os)))
@@ -2946,6 +2947,8 @@ receive_spill(struct receive_writer_arg *rwa, struct drr_spill *drrs,
 		    drrs->drr_compressiontype >= ZIO_COMPRESS_FUNCTIONS ||
 		    drrs->drr_compressed_size == 0)
 			return (SET_ERROR(EINVAL));
+
+		flags |= DMU_READ_NO_DECRYPT;
 	}
 
 	if (dmu_object_info(rwa->os, drrs->drr_object, NULL) != 0)
@@ -2955,7 +2958,8 @@ receive_spill(struct receive_writer_arg *rwa, struct drr_spill *drrs,
 		rwa->max_object = drrs->drr_object;
 
 	VERIFY0(dmu_bonus_hold(rwa->os, drrs->drr_object, FTAG, &db));
-	if ((err = dmu_spill_hold_by_bonus(db, FTAG, &db_spill)) != 0) {
+	if ((err = dmu_spill_hold_by_bonus(db, DMU_READ_NO_DECRYPT, FTAG,
+	    &db_spill)) != 0) {
 		dmu_buf_rele(db, FTAG);
 		return (err);
 	}
@@ -2971,7 +2975,6 @@ receive_spill(struct receive_writer_arg *rwa, struct drr_spill *drrs,
 		dmu_tx_abort(tx);
 		return (err);
 	}
-	dmu_buf_will_dirty(db_spill, tx);
 
 	if (db_spill->db_size < drrs->drr_length)
 		VERIFY(0 == dbuf_spill_set_blksz(db_spill,

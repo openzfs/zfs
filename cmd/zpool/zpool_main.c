@@ -2667,8 +2667,9 @@ zpool_do_import(int argc, char **argv)
 
 	/* In the future, we can capture further policy and include it here */
 	if (nvlist_alloc(&policy, NV_UNIQUE_NAME, 0) != 0 ||
-	    nvlist_add_uint64(policy, ZPOOL_REWIND_REQUEST_TXG, txg) != 0 ||
-	    nvlist_add_uint32(policy, ZPOOL_REWIND_REQUEST, rewind_policy) != 0)
+	    nvlist_add_uint64(policy, ZPOOL_LOAD_REQUEST_TXG, txg) != 0 ||
+	    nvlist_add_uint32(policy, ZPOOL_LOAD_REWIND_POLICY,
+	    rewind_policy) != 0)
 		goto error;
 
 	/* check argument count */
@@ -2819,7 +2820,7 @@ zpool_do_import(int argc, char **argv)
 		if (do_destroyed && pool_state != POOL_STATE_DESTROYED)
 			continue;
 
-		verify(nvlist_add_nvlist(config, ZPOOL_REWIND_POLICY,
+		verify(nvlist_add_nvlist(config, ZPOOL_LOAD_POLICY,
 		    policy) == 0);
 
 		if (argc == 0) {
@@ -5878,8 +5879,10 @@ zpool_do_clear(int argc, char **argv)
 
 	/* In future, further rewind policy choices can be passed along here */
 	if (nvlist_alloc(&policy, NV_UNIQUE_NAME, 0) != 0 ||
-	    nvlist_add_uint32(policy, ZPOOL_REWIND_REQUEST, rewind_policy) != 0)
+	    nvlist_add_uint32(policy, ZPOOL_LOAD_REWIND_POLICY,
+	    rewind_policy) != 0) {
 		return (1);
+	}
 
 	pool = argv[0];
 	device = argc == 2 ? argv[1] : NULL;
@@ -6481,7 +6484,8 @@ status_callback(zpool_handle_t *zhp, void *data)
 	nvroot = fnvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE);
 	verify(nvlist_lookup_uint64_array(nvroot, ZPOOL_CONFIG_VDEV_STATS,
 	    (uint64_t **)&vs, &c) == 0);
-	health = zpool_state_to_name(vs->vs_state, vs->vs_aux);
+
+	health = zpool_get_state_str(zhp);
 
 	(void) printf(gettext("  pool: %s\n"), zpool_get_name(zhp));
 	(void) printf(gettext(" state: %s\n"), health);

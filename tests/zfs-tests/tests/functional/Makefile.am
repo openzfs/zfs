@@ -28,6 +28,7 @@ SUBDIRS = \
 	hkdf \
 	inheritance \
 	inuse \
+	kstat \
 	large_files \
 	largest_pool \
 	libzfs \

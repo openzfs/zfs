@@ -301,6 +301,8 @@ int zfs_dev_is_whole_disk(char *dev_name);
 char *zfs_get_underlying_path(char *dev_name);
 char *zfs_get_enclosure_sysfs_path(char *dev_name);
 
+const char *zpool_get_state_str(zpool_handle_t *);
+
 /*
  * Functions to manage pool properties
  */
@@ -413,7 +415,7 @@ typedef struct importargs {
 	int unique : 1;		/* does 'poolname' already exist?	*/
 	int exists : 1;		/* set on return if pool already exists	*/
 	int scan : 1;		/* prefer scanning to libblkid cache    */
-	nvlist_t *policy;	/* rewind policy (rewind txg, etc.)	*/
+	nvlist_t *policy;	/* load policy (max txg, rewind, etc.)	*/
 } importargs_t;
 
 extern nvlist_t *zpool_search_import(libzfs_handle_t *, importargs_t *);

@@ -19,18 +19,16 @@
 #
 # CDDL HEADER END
 #
-
 #
-# Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
-# Use is subject to license terms.
-#
-
-#
-# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2018 by Lawrence Livermore National Security, LLC.
 #
 
 . $STF_SUITE/include/libtest.shlib
 
-rm -f $TEST_BASE_DIR/{old,tmp,new}_history.*
+if ! is_linux ; then
+	log_unsupported "/proc/spl/kstat/<pool>/health only supported on Linux"
+fi
 
-default_cleanup
+default_mirror_setup $DISKS
+
+log_pass

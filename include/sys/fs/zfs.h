@@ -570,7 +570,7 @@ typedef enum zfs_key_location {
 #define	ZPL_VERSION_USERSPACE		ZPL_VERSION_4
 #define	ZPL_VERSION_SA			ZPL_VERSION_5
 
-/* Rewind request information */
+/* Rewind policy information */
 #define	ZPOOL_NO_REWIND		1  /* No policy - default behavior */
 #define	ZPOOL_NEVER_REWIND	2  /* Do not search for best txg or rewind */
 #define	ZPOOL_TRY_REWIND	4  /* Search for best txg, but do not rewind */
@@ -579,12 +579,12 @@ typedef enum zfs_key_location {
 #define	ZPOOL_REWIND_MASK	28 /* All the possible rewind bits */
 #define	ZPOOL_REWIND_POLICIES	31 /* All the possible policy bits */
 
-typedef struct zpool_rewind_policy {
-	uint32_t	zrp_request;	/* rewind behavior requested */
-	uint64_t	zrp_maxmeta;	/* max acceptable meta-data errors */
-	uint64_t	zrp_maxdata;	/* max acceptable data errors */
-	uint64_t	zrp_txg;	/* specific txg to load */
-} zpool_rewind_policy_t;
+typedef struct zpool_load_policy {
+	uint32_t	zlp_rewind;	/* rewind policy requested */
+	uint64_t	zlp_maxmeta;	/* max acceptable meta-data errors */
+	uint64_t	zlp_maxdata;	/* max acceptable data errors */
+	uint64_t	zlp_txg;	/* specific txg to load */
+} zpool_load_policy_t;
 
 /*
  * The following are configuration names used in the nvlist describing a pool's
@@ -722,12 +722,12 @@ typedef struct zpool_rewind_policy {
 #define	ZPOOL_CONFIG_FRU		"fru"
 #define	ZPOOL_CONFIG_AUX_STATE		"aux_state"
 
-/* Rewind policy parameters */
-#define	ZPOOL_REWIND_POLICY		"rewind-policy"
-#define	ZPOOL_REWIND_REQUEST		"rewind-request"
-#define	ZPOOL_REWIND_REQUEST_TXG	"rewind-request-txg"
-#define	ZPOOL_REWIND_META_THRESH	"rewind-meta-thresh"
-#define	ZPOOL_REWIND_DATA_THRESH	"rewind-data-thresh"
+/* Pool load policy parameters */
+#define	ZPOOL_LOAD_POLICY		"load-policy"
+#define	ZPOOL_LOAD_REWIND_POLICY	"load-rewind-policy"
+#define	ZPOOL_LOAD_REQUEST_TXG		"load-request-txg"
+#define	ZPOOL_LOAD_META_THRESH		"load-meta-thresh"
+#define	ZPOOL_LOAD_DATA_THRESH		"load-data-thresh"
 
 /* Rewind data discovered */
 #define	ZPOOL_CONFIG_LOAD_TIME		"rewind_txg_ts"

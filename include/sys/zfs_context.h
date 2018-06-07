@@ -86,7 +86,6 @@
 #include <strings.h>
 #include <pthread.h>
 #include <setjmp.h>
-#include <synch.h>
 #include <assert.h>
 #include <alloca.h>
 #include <umem.h>
@@ -750,6 +749,8 @@ typedef int fstrans_cookie_t;
 extern fstrans_cookie_t spl_fstrans_mark(void);
 extern void spl_fstrans_unmark(fstrans_cookie_t);
 extern int __spl_pf_fstrans_check(void);
+
+#define	____cacheline_aligned
 
 #endif /* _KERNEL */
 #endif	/* _SYS_ZFS_CONTEXT_H */

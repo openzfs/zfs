@@ -27,6 +27,7 @@
 
 #
 # Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2018 Datto Inc.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -106,24 +107,11 @@ log_note "mkbusy $mntpt/$TESTFILE0 (pidlist: $pidlist)"
 [[ -z $pidlist ]] && log_fail "Failure from mkbusy"
 negative_test "-R -rR" $CTR
 
-#
-# Checking the outcome of the test above is tricky, because the order in
-# which datasets are destroyed is not deterministic. Both $FS and $VOL are
-# busy, and the remaining datasets will be different depending on whether we
-# tried (and failed) to delete $FS or $VOL first.
-
-# The following datasets will exist independent of the order
+# The following busy datasets will still exist
 check_dataset datasetexists $CTR $FS $VOL
 
-if datasetexists $VOLSNAP && datasetnonexists $FSSNAP; then
-	# The recursive destroy failed on $FS
-	check_dataset datasetnonexists $FSSNAP $FSCLONE
-	check_dataset datasetexists $VOLSNAP $VOLCLONE
-elif datasetexists $FSSNAP && datasetnonexists $VOLSNAP; then
-	# The recursive destroy failed on $VOL
-	check_dataset datasetnonexists $VOLSNAP $VOLCLONE
-	check_dataset datasetexists $FSSNAP $FSCLONE
-else
+# The following datasets will not exist because of best-effort recursive destroy
+if datasetexists $VOLSNAP || datasetexists $FSSNAP; then
 	log_must zfs list -rtall
 	log_fail "Unexpected datasets remaining"
 fi
@@ -157,15 +145,9 @@ if is_global_zone; then
 	check_dataset datasetexists $CTR $VOL
 	check_dataset datasetnonexists $VOLSNAP $VOLCLONE
 
-	# Here again, the non-determinism of destroy order is a factor. $FS,
-	# $FSSNAP and $FSCLONE will still exist here iff we attempted to destroy
-	# $VOL (and failed) first. So check that either all of the datasets are
-	# present, or they're all gone.
-	if datasetexists $FS; then
-		check_dataset datasetexists $FS $FSSNAP $FSCLONE
-	else
-		check_dataset datasetnonexists $FS $FSSNAP $FSCLONE
-	fi
+	# Due to recusive destroy being a best-effort operation,
+	# all of the non-busy datasets bellow should be gone now.
+	check_dataset datasetnonexists $FS $FSSNAP $FSCLONE
 fi
 
 #

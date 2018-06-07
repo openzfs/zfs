@@ -1189,6 +1189,15 @@ destroy_callback(zfs_handle_t *zhp, void *data)
 		    zfs_unmount(zhp, NULL, cb->cb_force ? MS_FORCE : 0) != 0 ||
 		    zfs_destroy(zhp, cb->cb_defer_destroy) != 0) {
 			zfs_close(zhp);
+			/*
+			 * When performing a recursive destroy we ignore errors
+			 * so that the recursive destroy could continue
+			 * destroying past problem datasets
+			 */
+			if (cb->cb_recurse) {
+				cb->cb_error = B_TRUE;
+				return (0);
+			}
 			return (-1);
 		}
 	}
@@ -1558,7 +1567,7 @@ zfs_do_destroy(int argc, char **argv)
 			err = zfs_destroy_snaps_nvl(g_zfs,
 			    cb.cb_batchedsnaps, cb.cb_defer_destroy);
 		}
-		if (err != 0)
+		if (err != 0 || cb.cb_error == B_TRUE)
 			rv = 1;
 	}
 
