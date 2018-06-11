@@ -42,7 +42,8 @@ endif
 	  --with-udevdir=/lib/udev \
 	  --with-systemdunitdir=/lib/systemd/system \
 	  --with-systemdpresetdir=/lib/systemd/system-preset \
-	  --with-config=user
+	  --with-config=user \
+	  --enable-debuginfo
 
 override_dh_auto_test:
 	# The dh_auto_test rule is disabled because
@@ -158,7 +159,8 @@ override_dh_configure_modules_udeb_stamp:
 		--without-selinux \
 		--with-config=kernel \
 		--with-linux=$(KSRC) \
-		--with-linux-obj=$(KOBJ)
+		--with-linux-obj=$(KOBJ) \
+		--enable-debuginfo
 	touch override_dh_configure_modules_udeb_stamp
 
 override_dh_configure_modules: override_dh_configure_modules_stamp
@@ -166,7 +168,8 @@ override_dh_configure_modules_stamp:
 	./configure \
 		--with-config=kernel \
 		--with-linux=$(KSRC) \
-		--with-linux-obj=$(KOBJ)
+		--with-linux-obj=$(KOBJ) \
+		--enable-debuginfo
 	touch override_dh_configure_modules_stamp
 
 override_dh_binary-modules-udeb: override_dh_prep-deb-files override_dh_configure_modules_udeb
