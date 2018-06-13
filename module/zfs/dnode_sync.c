@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  */
 
@@ -424,6 +424,19 @@ dnode_evict_dbufs(dnode_t *dn)
 			avl_insert_here(&dn->dn_dbufs, db_marker, db,
 			    AVL_BEFORE);
 
+			/*
+			 * We need to use the "marker" dbuf rather than
+			 * simply getting the next dbuf, because
+			 * dbuf_destroy() may actually remove multiple dbufs.
+			 * It can call itself recursively on the parent dbuf,
+			 * which may also be removed from dn_dbufs.  The code
+			 * flow would look like:
+			 *
+			 * dbuf_destroy():
+			 *   dnode_rele_and_unlock(parent_dbuf, evicting=TRUE):
+			 *	if (!cacheable || pending_evict)
+			 *	  dbuf_destroy()
+			 */
 			dbuf_destroy(db);
 
 			db_next = AVL_NEXT(&dn->dn_dbufs, db_marker);
@@ -484,7 +497,7 @@ dnode_undirty_dbufs(list_t *list)
 			list_destroy(&dr->dt.di.dr_children);
 		}
 		kmem_free(dr, sizeof (dbuf_dirty_record_t));
-		dbuf_rele_and_unlock(db, (void *)(uintptr_t)txg);
+		dbuf_rele_and_unlock(db, (void *)(uintptr_t)txg, B_FALSE);
 	}
 }
 
