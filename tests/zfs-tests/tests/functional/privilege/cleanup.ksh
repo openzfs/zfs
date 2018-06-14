@@ -31,9 +31,15 @@
 
 . $STF_SUITE/include/libtest.shlib
 
+if is_linux; then
+	log_unsupported "Privilege tests require pfexec command"
+fi
+
 verify_runnable "global"
 
 ZFS_USER=$(cat /tmp/zfs-privs-test-user.txt)
+[[ -z $ZFS_USER ]] && log_fail "no ZFS_USER found"
+
 USES_NIS=$(cat /tmp/zfs-privs-test-nis.txt)
 
 if [ "${USES_NIS}" == "true" ]

@@ -22,6 +22,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2017 by Delphix. All rights reserved.
  * Copyright (c) 2014 Integros [integros.com]
+ * Copyright (c) 2018 Datto Inc.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -3159,7 +3160,7 @@ zil_suspend(const char *osname, void **cookiep)
 		mutex_exit(&zilog->zl_lock);
 		dsl_dataset_long_rele(dmu_objset_ds(os), suspend_tag);
 		dsl_dataset_rele(dmu_objset_ds(os), suspend_tag);
-		return (SET_ERROR(EBUSY));
+		return (SET_ERROR(EACCES));
 	}
 
 	zilog->zl_suspending = B_TRUE;
@@ -3400,6 +3401,9 @@ zil_reset(const char *osname, void *arg)
 	int error;
 
 	error = zil_suspend(osname, NULL);
+	/* EACCES means crypto key not loaded */
+	if ((error == EACCES) || (error == EBUSY))
+		return (SET_ERROR(error));
 	if (error != 0)
 		return (SET_ERROR(EEXIST));
 	return (0);

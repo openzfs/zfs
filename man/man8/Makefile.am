@@ -19,7 +19,7 @@ EXTRA_DIST = \
 	zfs-mount-generator.8.in
 
 $(nodist_man_MANS): %: %.in
-	-$(SED) -e 's,@libexecdir\@,$(libexecdir),g' \
+	-$(SED) -e 's,@zfsexecdir\@,$(zfsexecdir),g' \
 		-e 's,@runstatedir\@,$(runstatedir),g' \
 		-e 's,@sysconfdir\@,$(sysconfdir),g' \
 		$< >'$@'

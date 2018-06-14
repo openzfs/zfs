@@ -1444,9 +1444,9 @@ Controls where the user's encryption key will be loaded from by default for
 commands such as
 .Nm zfs Cm load-key
 and
-.Nm zfs Cm mount Cm -l . This property is
-only set for encrypted datasets which are encryption roots. If unspecified, the
-default is
+.Nm zfs Cm mount Cm -l .
+This property is only set for encrypted datasets which are encryption roots. If
+unspecified, the default is
 .Sy prompt.
 .Pp
 Even though the encryption suite cannot be changed after dataset creation, the
@@ -2799,9 +2799,8 @@ property is
 .Po the default is
 .Sy off
 .Pc .
-The following fields are displayed,
-.Sy name Ns \&, Ns Sy used Ns \&, Ns Sy available Ns \&, Ns Sy referenced Ns \&, Ns
-.Sy mountpoint .
+The following fields are displayed:
+.Sy name Ns \&, Sy used Ns \&, Sy available Ns \&, Sy referenced Ns \&, Sy mountpoint Ns .
 .Bl -tag -width "-H"
 .It Fl H
 Used for scripting mode.
