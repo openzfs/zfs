@@ -367,7 +367,12 @@ dnode_sync_free_range_impl(dnode_t *dn, uint64_t blkid, uint64_t nblks,
 		}
 	}
 
-	if (trunc) {
+	/*
+	 * Do not truncate the maxblkid if we are performing a raw
+	 * receive. The raw receive sets the mablkid manually and
+	 * must not be overriden.
+	 */
+	if (trunc && !dn->dn_objset->os_raw_receive) {
 		ASSERTV(uint64_t off);
 		dn->dn_phys->dn_maxblkid = blkid == 0 ? 0 : blkid - 1;
 
