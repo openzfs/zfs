@@ -2948,8 +2948,15 @@ ztest_vdev_add_remove(ztest_ds_t *zd, uint64_t id)
 		error = spa_vdev_remove(spa, guid, B_FALSE);
 		pthread_rwlock_unlock(&ztest_name_lock);
 
-		if (error && error != EEXIST)
+		switch (error) {
+		case 0:
+		case EEXIST:	/* Generic zil_reset() error */
+		case EBUSY:	/* Replay required */
+		case EACCES:	/* Crypto key not loaded */
+			break;
+		default:
 			fatal(0, "spa_vdev_remove() = %d", error);
+		}
 	} else {
 		spa_config_exit(spa, SCL_VDEV, FTAG);
 

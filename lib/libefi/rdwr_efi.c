@@ -42,9 +42,7 @@
 #include <sys/dktp/fdisk.h>
 #include <sys/efi_partition.h>
 #include <sys/byteorder.h>
-#if defined(__linux__)
 #include <linux/fs.h>
-#endif
 
 static struct uuid_to_ptag {
 	struct uuid	uuid;
@@ -213,7 +211,6 @@ read_disk_info(int fd, diskaddr_t *capacity, uint_t *lbsize)
 static int
 efi_get_info(int fd, struct dk_cinfo *dki_info)
 {
-#if defined(__linux__)
 	char *path;
 	char *dev_path;
 	int rval = 0;
@@ -332,10 +329,7 @@ efi_get_info(int fd, struct dk_cinfo *dki_info)
 	}
 
 	free(dev_path);
-#else
-	if (ioctl(fd, DKIOCINFO, (caddr_t)dki_info) == -1)
-		goto error;
-#endif
+
 	return (0);
 error:
 	if (efi_debug)
@@ -375,7 +369,6 @@ efi_alloc_and_init(int fd, uint32_t nparts, struct dk_gpt **vtoc)
 	if (read_disk_info(fd, &capacity, &lbsize) != 0)
 		return (-1);
 
-#if defined(__linux__)
 	if (efi_get_info(fd, &dki_info) != 0)
 		return (-1);
 
@@ -386,7 +379,6 @@ efi_alloc_and_init(int fd, uint32_t nparts, struct dk_gpt **vtoc)
 	    (dki_info.dki_ctype == DKC_VBD) ||
 	    (dki_info.dki_ctype == DKC_UNKNOWN))
 		return (-1);
-#endif
 
 	nblocks = NBLOCKS(nparts, lbsize);
 	if ((nblocks * lbsize) < EFI_MIN_ARRAY_SIZE + lbsize) {
@@ -482,7 +474,6 @@ efi_ioctl(int fd, int cmd, dk_efi_t *dk_ioc)
 {
 	void *data = dk_ioc->dki_data;
 	int error;
-#if defined(__linux__)
 	diskaddr_t capacity;
 	uint_t lbsize;
 
@@ -586,18 +577,13 @@ efi_ioctl(int fd, int cmd, dk_efi_t *dk_ioc)
 		errno = EIO;
 		return (-1);
 	}
-#else
-	dk_ioc->dki_data_64 = (uint64_t)(uintptr_t)data;
-	error = ioctl(fd, cmd, (void *)dk_ioc);
-	dk_ioc->dki_data = data;
-#endif
+
 	return (error);
 }
 
 int
 efi_rescan(int fd)
 {
-#if defined(__linux__)
 	int retry = 10;
 	int error;
 
@@ -610,7 +596,6 @@ efi_rescan(int fd)
 		}
 		usleep(50000);
 	}
-#endif
 
 	return (0);
 }
