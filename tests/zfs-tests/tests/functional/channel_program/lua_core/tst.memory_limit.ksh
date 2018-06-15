@@ -61,12 +61,12 @@ log_mustnot_checkerror_program "Memory limit exhausted" -m 1 $TESTPOOL - <<-EOF
 	return s
 EOF
 
-log_mustnot_checkerror_program "Invalid memory limit" \
-    -m 1000000000000 $TESTPOOL - <<-EOF
+log_mustnot_checkerror_program "Invalid instruction or memory limit" \
+    -m 200000000 $TESTPOOL - <<-EOF
 	return 1;
 EOF
 
-log_mustnot_checkerror_program "Invalid memory limit" \
+log_mustnot_checkerror_program "Return value too large" \
     -m 9223372036854775808 $TESTPOOL - <<-EOF
 	return 1;
 EOF

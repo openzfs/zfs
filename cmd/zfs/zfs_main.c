@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
  * Copyright 2012 Milan Jurik. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  * Copyright (c) 2013 Steven Hartland.  All rights reserved.
@@ -7308,24 +7308,10 @@ zfs_do_channel_program(int argc, char **argv)
 			}
 
 			if (c == 't') {
-				if (arg > ZCP_MAX_INSTRLIMIT || arg == 0) {
-					(void) fprintf(stderr, gettext(
-					    "Invalid instruction limit: "
-					    "%s\n"), optarg);
-					return (1);
-				} else {
-					instrlimit = arg;
-				}
+				instrlimit = arg;
 			} else {
 				ASSERT3U(c, ==, 'm');
-				if (arg > ZCP_MAX_MEMLIMIT || arg == 0) {
-					(void) fprintf(stderr, gettext(
-					    "Invalid memory limit: "
-					    "%s\n"), optarg);
-					return (1);
-				} else {
-					memlimit = arg;
-				}
+				memlimit = arg;
 			}
 			break;
 		}
