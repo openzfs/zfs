@@ -3306,6 +3306,20 @@ dbuf_refcount(dmu_buf_impl_t *db)
 	return (refcount_count(&db->db_holds));
 }
 
+uint64_t
+dmu_buf_user_refcount(dmu_buf_t *db_fake)
+{
+	uint64_t holds;
+	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
+
+	mutex_enter(&db->db_mtx);
+	ASSERT3U(refcount_count(&db->db_holds), >=, db->db_dirtycnt);
+	holds = refcount_count(&db->db_holds) - db->db_dirtycnt;
+	mutex_exit(&db->db_mtx);
+
+	return (holds);
+}
+
 void *
 dmu_buf_replace_user(dmu_buf_t *db_fake, dmu_buf_user_t *old_user,
     dmu_buf_user_t *new_user)
