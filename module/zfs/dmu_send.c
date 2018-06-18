@@ -1539,6 +1539,7 @@ recv_begin_check_existing_impl(dmu_recv_begin_arg_t *drba, dsl_dataset_t *ds,
 	dsl_pool_t *dp = ds->ds_dir->dd_pool;
 	boolean_t encrypted = ds->ds_dir->dd_crypto_obj != 0;
 	boolean_t raw = (featureflags & DMU_BACKUP_FEATURE_RAW) != 0;
+	boolean_t embed = (featureflags & DMU_BACKUP_FEATURE_EMBED_DATA) != 0;
 
 	/* temporary clone name must not exist */
 	error = zap_lookup(dp->dp_meta_objset,
@@ -1574,6 +1575,10 @@ recv_begin_check_existing_impl(dmu_recv_begin_arg_t *drba, dsl_dataset_t *ds,
 
 		/* Can't perform a raw receive on top of a non-raw receive */
 		if (!encrypted && raw)
+			return (SET_ERROR(EINVAL));
+
+		/* Encryption is incompatible with embedded data */
+		if (encrypted && embed)
 			return (SET_ERROR(EINVAL));
 
 		/* Find snapshot in this dir that matches fromguid. */
@@ -1623,11 +1628,21 @@ recv_begin_check_existing_impl(dmu_recv_begin_arg_t *drba, dsl_dataset_t *ds,
 		if ((!encrypted && raw) || encrypted)
 			return (SET_ERROR(EINVAL));
 
-		if ((featureflags & DMU_BACKUP_FEATURE_RAW) == 0) {
+		/*
+		 * Perform the same encryption checks we would if
+		 * we were creating a new dataset from scratch.
+		 */
+		if (!raw) {
+			boolean_t will_encrypt;
+
 			error = dmu_objset_create_crypt_check(
-			    ds->ds_dir->dd_parent, drba->drba_dcp);
+			    ds->ds_dir->dd_parent, drba->drba_dcp,
+			    &will_encrypt);
 			if (error != 0)
 				return (error);
+
+			if (will_encrypt && embed)
+				return (SET_ERROR(EINVAL));
 		}
 
 		drba->drba_snapobj = 0;
@@ -1700,6 +1715,10 @@ dmu_recv_begin_check(void *arg, dmu_tx_t *tx)
 		/* raw receives require the encryption feature */
 		if (!spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_ENCRYPTION))
 			return (SET_ERROR(ENOTSUP));
+
+		/* embedded data is incompatible with encryption and raw recv */
+		if (featureflags & DMU_BACKUP_FEATURE_EMBED_DATA)
+			return (SET_ERROR(EINVAL));
 	} else {
 		dsflags |= DS_HOLD_FLAG_DECRYPT;
 	}
@@ -1747,11 +1766,26 @@ dmu_recv_begin_check(void *arg, dmu_tx_t *tx)
 
 		if ((featureflags & DMU_BACKUP_FEATURE_RAW) == 0 &&
 		    drba->drba_origin == NULL) {
+			boolean_t will_encrypt;
+
+			/*
+			 * Check that we aren't breaking any encryption rules
+			 * and that we have all the parameters we need to
+			 * create an encrypted dataset if necessary. If we are
+			 * making an encrypted dataset the stream can't have
+			 * embedded data.
+			 */
 			error = dmu_objset_create_crypt_check(ds->ds_dir,
-			    drba->drba_dcp);
+			    drba->drba_dcp, &will_encrypt);
 			if (error != 0) {
 				dsl_dataset_rele_flags(ds, dsflags, FTAG);
 				return (error);
+			}
+
+			if (will_encrypt &&
+			    (featureflags & DMU_BACKUP_FEATURE_EMBED_DATA)) {
+				dsl_dataset_rele_flags(ds, dsflags, FTAG);
+				return (SET_ERROR(EINVAL));
 			}
 		}
 
@@ -1793,6 +1827,12 @@ dmu_recv_begin_check(void *arg, dmu_tx_t *tx)
 				dsl_dataset_rele_flags(origin, dsflags, FTAG);
 				dsl_dataset_rele_flags(ds, dsflags, FTAG);
 				return (SET_ERROR(ENODEV));
+			}
+			if (origin->ds_dir->dd_crypto_obj != 0 &&
+			    (featureflags & DMU_BACKUP_FEATURE_EMBED_DATA)) {
+				dsl_dataset_rele_flags(origin, dsflags, FTAG);
+				dsl_dataset_rele_flags(ds, dsflags, FTAG);
+				return (SET_ERROR(EINVAL));
 			}
 			dsl_dataset_rele_flags(origin,
 			    dsflags, FTAG);
@@ -3786,12 +3826,8 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp,
 	featureflags = DMU_GET_FEATUREFLAGS(drc->drc_drrb->drr_versioninfo);
 	ra->featureflags = featureflags;
 
-	/* embedded data is incompatible with encrypted datasets */
-	if (ra->os->os_encrypted &&
-	    (featureflags & DMU_BACKUP_FEATURE_EMBED_DATA)) {
-		err = SET_ERROR(EINVAL);
-		goto out;
-	}
+	ASSERT0(ra->os->os_encrypted &&
+	    (featureflags & DMU_BACKUP_FEATURE_EMBED_DATA));
 
 	/* if this stream is dedup'ed, set up the avl tree for guid mapping */
 	if (featureflags & DMU_BACKUP_FEATURE_DEDUP) {
