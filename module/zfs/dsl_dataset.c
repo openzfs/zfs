@@ -791,6 +791,15 @@ dsl_dataset_rele_flags(dsl_dataset_t *ds, ds_hold_flags_t flags, void *tag)
 	    (flags & DS_HOLD_FLAG_DECRYPT)) {
 		(void) spa_keystore_remove_mapping(ds->ds_dir->dd_pool->dp_spa,
 		    ds->ds_object, ds);
+
+		/*
+		 * Encrypted datasets require that users only release their
+		 * decrypting reference after the dirty data has actually
+		 * been written out. This ensures that the mapping exists
+		 * when it is needed to write out dirty data.
+		 */
+		ASSERT(dmu_buf_user_refcount(ds->ds_dbuf) != 0 ||
+		    !dsl_dataset_is_dirty(ds));
 	}
 
 	dmu_buf_rele(ds->ds_dbuf, tag);
