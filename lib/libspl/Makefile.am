@@ -18,8 +18,6 @@ noinst_LTLIBRARIES = libspl.la
 USER_C = \
 	getexecname.c \
 	gethostid.c \
-	gethrtime.c \
-	gethrestime.c \
 	getmntany.c \
 	list.c \
 	mkdirp.c \

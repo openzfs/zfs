@@ -27,8 +27,9 @@
 #ifndef _LIBSPL_SYS_TIME_H
 #define	_LIBSPL_SYS_TIME_H
 
-#include_next <sys/time.h>
+#include <time.h>
 #include <sys/types.h>
+#include_next <sys/time.h>
 
 #ifndef SEC
 #define	SEC		1
@@ -74,13 +75,33 @@
 #define	SEC2NSEC(m)	((hrtime_t)(m) * (NANOSEC / SEC))
 #endif
 
-
 typedef	long long		hrtime_t;
-typedef	struct	timespec	timestruc_t;
-typedef	struct	timespec	timespec_t;
+typedef	struct timespec		timespec_t;
+typedef struct timespec		inode_timespec_t;
 
+static inline void
+gethrestime(inode_timespec_t *ts)
+{
+	struct timeval tv;
+	(void) gettimeofday(&tv, NULL);
+	ts->tv_sec = tv.tv_sec;
+	ts->tv_nsec = tv.tv_usec * NSEC_PER_USEC;
+}
 
-extern hrtime_t gethrtime(void);
-extern void gethrestime(timestruc_t *);
+static inline time_t
+gethrestime_sec(void)
+{
+	struct timeval tv;
+	(void) gettimeofday(&tv, NULL);
+	return (tv.tv_sec);
+}
+
+static inline hrtime_t
+gethrtime(void)
+{
+	struct timespec ts;
+	(void) clock_gettime(CLOCK_MONOTONIC, &ts);
+	return ((((u_int64_t)ts.tv_sec) * NANOSEC) + ts.tv_nsec);
+}
 
 #endif /* _LIBSPL_SYS_TIME_H */
