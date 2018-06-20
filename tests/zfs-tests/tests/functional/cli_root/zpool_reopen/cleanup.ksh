@@ -25,7 +25,7 @@ cleanup_devices $DISKS
 # Unplug the disk and remove scsi_debug module
 if is_linux; then
 	for SDDEVICE in $(get_debug_device); do
-		unplug $SDDEVICE
+		remove_disk $SDDEVICE
 	done
 	unload_scsi_debug
 fi

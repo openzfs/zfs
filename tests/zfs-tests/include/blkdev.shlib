@@ -312,6 +312,7 @@ function on_off_disk # disk state{online,offline} host
 					log_fail "Onlining $disk failed"
 				fi
 			elif is_real_device $disk; then
+				block_device_wait
 				typeset -i retries=0
 				while ! lsscsi | egrep -q $disk; do
 					if (( $retries > 2 )); then
@@ -410,9 +411,7 @@ function load_scsi_debug # dev_size_mb add_host num_tgts max_luns blksz
 #
 function unload_scsi_debug
 {
-	if lsmod | grep scsi_debug >/dev/null; then
-		log_must modprobe -r scsi_debug
-	fi
+	log_must_retry "in use" 5 modprobe -r scsi_debug
 }
 
 #

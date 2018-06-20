@@ -146,6 +146,21 @@ zfs_device_get_devid(struct udev_device *dev, char *bufptr, size_t buflen)
 		}
 
 		/*
+		 * For volumes use the persistent /dev/zvol/dataset identifier
+		 */
+		entry = udev_device_get_devlinks_list_entry(dev);
+		while (entry != NULL) {
+			const char *name;
+
+			name = udev_list_entry_get_name(entry);
+			if (strncmp(name, ZVOL_ROOT, strlen(ZVOL_ROOT)) == 0) {
+				(void) strlcpy(bufptr, name, buflen);
+				return (0);
+			}
+			entry = udev_list_entry_get_next(entry);
+		}
+
+		/*
 		 * NVME 'by-id' symlinks are similar to bus case
 		 */
 		struct udev_device *parent;
@@ -187,26 +202,57 @@ int
 zfs_device_get_physical(struct udev_device *dev, char *bufptr, size_t buflen)
 {
 	const char *physpath = NULL;
+	struct udev_list_entry *entry;
 
 	/*
-	 * Normal disks use ID_PATH for their physical path.  Device mapper
-	 * devices are virtual and don't have a physical path.  For them we
-	 * use ID_VDEV instead, which is setup via the /etc/vdev_id.conf file.
-	 * ID_VDEV provides a persistent path to a virtual device.  If you
-	 * don't have vdev_id.conf setup, you cannot use multipath autoreplace.
+	 * Normal disks use ID_PATH for their physical path.
 	 */
-	if (!((physpath = udev_device_get_property_value(dev, "ID_PATH")) &&
-	    physpath[0])) {
-		if (!((physpath =
-		    udev_device_get_property_value(dev, "ID_VDEV")) &&
-		    physpath[0])) {
-			return (ENODATA);
-		}
+	physpath = udev_device_get_property_value(dev, "ID_PATH");
+	if (physpath != NULL && strlen(physpath) > 0) {
+		(void) strlcpy(bufptr, physpath, buflen);
+		return (0);
 	}
 
-	(void) strlcpy(bufptr, physpath, buflen);
+	/*
+	 * Device mapper devices are virtual and don't have a physical
+	 * path. For them we use ID_VDEV instead, which is setup via the
+	 * /etc/vdev_id.conf file.  ID_VDEV provides a persistent path
+	 * to a virtual device.  If you don't have vdev_id.conf setup,
+	 * you cannot use multipath autoreplace with device mapper.
+	 */
+	physpath = udev_device_get_property_value(dev, "ID_VDEV");
+	if (physpath != NULL && strlen(physpath) > 0) {
+		(void) strlcpy(bufptr, physpath, buflen);
+		return (0);
+	}
 
-	return (0);
+	/*
+	 * For ZFS volumes use the persistent /dev/zvol/dataset identifier
+	 */
+	entry = udev_device_get_devlinks_list_entry(dev);
+	while (entry != NULL) {
+		physpath = udev_list_entry_get_name(entry);
+		if (strncmp(physpath, ZVOL_ROOT, strlen(ZVOL_ROOT)) == 0) {
+			(void) strlcpy(bufptr, physpath, buflen);
+			return (0);
+		}
+		entry = udev_list_entry_get_next(entry);
+	}
+
+	/*
+	 * For all other devices fallback to using the by-uuid name.
+	 */
+	entry = udev_device_get_devlinks_list_entry(dev);
+	while (entry != NULL) {
+		physpath = udev_list_entry_get_name(entry);
+		if (strncmp(physpath, "/dev/disk/by-uuid", 17) == 0) {
+			(void) strlcpy(bufptr, physpath, buflen);
+			return (0);
+		}
+		entry = udev_list_entry_get_next(entry);
+	}
+
+	return (ENODATA);
 }
 
 boolean_t

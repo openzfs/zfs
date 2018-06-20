@@ -7,7 +7,8 @@ dist_pkgdata_SCRIPTS = \
 	zpool_reopen_003_pos.ksh \
 	zpool_reopen_004_pos.ksh \
 	zpool_reopen_005_pos.ksh \
-	zpool_reopen_006_neg.ksh
+	zpool_reopen_006_neg.ksh \
+	zpool_reopen_007_pos.ksh
 
 dist_pkgdata_DATA = \
 	zpool_reopen.cfg \

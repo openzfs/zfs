@@ -36,7 +36,7 @@
 #
 # DESCRIPTION:
 # After zpool online -e poolname zvol vdevs, zpool can autoexpand by
-# Dynamic LUN Expansion
+# Dynamic VDEV Expansion
 #
 #
 # STRATEGY:
@@ -52,9 +52,7 @@ verify_runnable "global"
 
 function cleanup
 {
-        if poolexists $TESTPOOL1; then
-                log_must zpool destroy $TESTPOOL1
-        fi
+	poolexists $TESTPOOL1 && destroy_pool $TESTPOOL1
 
 	for i in 1 2 3; do
 		[ -e ${TEMPFILE}.$i ] && log_must rm ${TEMPFILE}.$i
@@ -63,7 +61,7 @@ function cleanup
 
 log_onexit cleanup
 
-log_assert "zpool can expand after zpool online -e zvol vdevs on LUN expansion"
+log_assert "zpool can expand after zpool online -e zvol vdevs on vdev expansion"
 
 for type in " " mirror raidz raidz2; do
 	# Initialize the file devices and the pool
@@ -77,7 +75,7 @@ for type in " " mirror raidz raidz2; do
 	typeset autoexp=$(get_pool_prop autoexpand $TESTPOOL1)
 
 	if [[ $autoexp != "off" ]]; then
-		log_fail "zpool $TESTPOOL1 autoexpand should off but is " \
+		log_fail "zpool $TESTPOOL1 autoexpand should be off but is " \
 		    "$autoexp"
 	fi
 	typeset prev_size=$(get_pool_prop size $TESTPOOL1)
@@ -109,14 +107,14 @@ for type in " " mirror raidz raidz2; do
 		    "expected $expected_zpool_expandsize"
 	fi
 
-	# Online the devices to add the new space to the pool
+	# Online the devices to add the new space to the pool.  Add an
+	# artificial delay between online commands order to prevent them
+	# from being merged in to a single history entry.  This makes
+	# is easier to verify each expansion for the striped pool case.
 	for i in 1 2 3; do
 		log_must zpool online -e $TESTPOOL1 ${TEMPFILE}.$i
+		sleep 3
 	done
-
-	sync
-	sleep 10
-	sync
 
 	typeset expand_size=$(get_pool_prop size $TESTPOOL1)
 	typeset zfs_expand_size=$(get_prop avail $TESTPOOL1)
@@ -134,8 +132,9 @@ for type in " " mirror raidz raidz2; do
 			    grep "(+${expansion_size}" | wc -l)
 
 			if [[ $size_addition -ne $i ]]; then
-				log_fail "pool $TESTPOOL1 did not expand " \
-				    "after LUN expansion and zpool online -e"
+				log_fail "pool $TESTPOOL1 has not expanded " \
+				    "after zpool online -e, " \
+				    "$size_addition/3 vdevs expanded"
 			fi
 		elif [[ $type == "mirror" ]]; then
 			typeset expansion_size=$(($exp_size-$org_size))
@@ -145,8 +144,8 @@ for type in " " mirror raidz raidz2; do
 			    grep "(+${expansion_size})" >/dev/null 2>&1
 
 			if [[ $? -ne 0 ]]; then
-				log_fail "pool $TESTPOOL1 did not expand " \
-				    "after LUN expansion and zpool online -e"
+				log_fail "pool $TESTPOOL1 has not expanded " \
+				    "after zpool online -e"
 			fi
 		else
 			typeset expansion_size=$((3*($exp_size-$org_size)))
@@ -156,14 +155,14 @@ for type in " " mirror raidz raidz2; do
 			    grep "(+${expansion_size})" >/dev/null 2>&1
 
 			if [[ $? -ne 0 ]] ; then
-				log_fail "pool $TESTPOOL1 did not expand " \
-				    "after LUN expansion and zpool online -e"
+				log_fail "pool $TESTPOOL1 has not expanded " \
+				    "after zpool online -e"
 			fi
 		fi
 	else
-		log_fail "pool $TESTPOOL1 did not expand after LUN expansion " \
+		log_fail "pool $TESTPOOL1 did not expand after vdev expansion " \
 		    "and zpool online -e"
 	fi
 	log_must zpool destroy $TESTPOOL1
 done
-log_pass "zpool can expand after zpool online -e zvol vdevs on LUN expansion"
+log_pass "zpool can expand after zpool online -e"
