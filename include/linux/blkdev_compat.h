@@ -106,17 +106,6 @@ blk_queue_set_write_cache(struct request_queue *q, bool wc, bool fua)
 #endif
 
 /*
- * 2.6.27 API change,
- * The blk_queue_stackable() queue flag was added in 2.6.27 to handle dm
- * stacking drivers.  Prior to this request stacking drivers were detected
- * by checking (q->request_fn == NULL), for earlier kernels we revert to
- * this legacy behavior.
- */
-#ifndef blk_queue_stackable
-#define	blk_queue_stackable(q)	((q)->request_fn == NULL)
-#endif
-
-/*
  * 2.6.34 API change,
  * The blk_queue_max_hw_sectors() function replaces blk_queue_max_sectors().
  */

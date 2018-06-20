@@ -1,6 +1,6 @@
 dnl #
-dnl # 2.6.36 API change
-dnl # Verify the elevator_change() symbol is available.
+dnl # 2.6.36 API, exported elevator_change() symbol
+dnl # 4.12 API, removed elevator_change() symbol
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_ELEVATOR_CHANGE], [
 	AC_MSG_CHECKING([whether elevator_change() is available])
