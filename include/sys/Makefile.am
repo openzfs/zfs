@@ -14,6 +14,7 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/bqueue.h \
 	$(top_srcdir)/include/sys/cityhash.h \
 	$(top_srcdir)/include/sys/spa_checkpoint.h \
+	$(top_srcdir)/include/sys/dataset_kstats.h \
 	$(top_srcdir)/include/sys/dbuf.h \
 	$(top_srcdir)/include/sys/ddt.h \
 	$(top_srcdir)/include/sys/dmu.h \

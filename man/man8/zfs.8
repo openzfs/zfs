@@ -718,6 +718,16 @@ This property can be either
 .Sy yes
 or
 .Sy no .
+.It Sy objsetid
+A unique identifier for this dataset within the pool. Unlike the dataset's
+.Sy guid
+, the
+.Sy objsetid
+of a dataset is not transferred to other pools when the snapshot is copied
+with a send/receive operation.
+The
+.Sy objsetid
+can be reused (for a new datatset) after the dataset is deleted.
 .It Sy origin
 For cloned file systems or volumes, the snapshot from which the clone was
 created.

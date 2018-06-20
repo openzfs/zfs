@@ -21,7 +21,7 @@
 /*
  * Copyright (c) 2007, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
- * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  */
 
 #include <sys/zio.h>
@@ -93,6 +93,8 @@ zpool_prop_init(void)
 	    ZFS_TYPE_POOL, "<size>", "CAP");
 	zprop_register_number(ZPOOL_PROP_GUID, "guid", 0, PROP_READONLY,
 	    ZFS_TYPE_POOL, "<guid>", "GUID");
+	zprop_register_number(ZPOOL_PROP_LOAD_GUID, "load_guid", 0,
+	    PROP_READONLY, ZFS_TYPE_POOL, "<load_guid>", "LOAD_GUID");
 	zprop_register_number(ZPOOL_PROP_HEALTH, "health", 0, PROP_READONLY,
 	    ZFS_TYPE_POOL, "<state>", "HEALTH");
 	zprop_register_number(ZPOOL_PROP_DEDUPRATIO, "dedupratio", 0,
