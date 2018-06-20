@@ -1,4 +1,4 @@
-#! /bin/ksh -p
+#!/bin/ksh -p
 #
 # CDDL HEADER START
 #
@@ -30,7 +30,8 @@
 # Copyright 2016 Nexenta Systems, Inc.
 #
 
-. $STF_SUITE/tests/functional/grow_replicas/grow_replicas.cfg
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/grow/grow.cfg
 
 # DESCRIPTION:
 # A ZFS filesystem is limited by the amount of disk space
@@ -44,18 +45,10 @@
 
 verify_runnable "global"
 
-if is_32bit; then
-	log_unsupported "Test case fails on 32-bit systems"
-fi
-
-if ! is_physical_device $DISKS; then
-	log_unsupported "This test case cannot be run on raw files"
-fi
-
 function cleanup
 {
-	datasetexists $TESTPOOL && log_must destroy_pool $TESTPOOL
-	[[ -d $TESTDIR ]] && log_must rm -rf $TESTDIR
+	destroy_pool $TESTPOOL
+	rm -f $DEVICE1 $DEVICE2 $DEVICE3 $DEVICE4
 }
 
 log_assert "mirror/raidz pool may be increased in capacity by adding a disk"
@@ -67,28 +60,13 @@ readonly ENOSPC=28
 for pooltype in "mirror" "raidz"; do
 	log_note "Creating pool type: $pooltype"
 
-	if [[ -n $DISK ]]; then
-		log_note "No spare disks available. Using slices on $DISK"
-		for slice in $SLICES; do
-			log_must set_partition $slice "$cyl" $SIZE $DISK
-			cyl=$(get_endslice $DISK $slice)
-		done
-		create_pool $TESTPOOL $pooltype \
-			${DISK}${SLICE_PREFIX}${SLICE0} \
-			${DISK}${SLICE_PREFIX}${SLICE1}
-	else
-		log_must set_partition 0 "" $SIZE $DISK0
-		log_must set_partition 0 "" $SIZE $DISK1
-		create_pool $TESTPOOL $pooltype \
-			${DISK0}${SLICE_PREFIX}${SLICE0} \
-			${DISK1}${SLICE_PREFIX}${SLICE0}
-	fi
+	truncate -s $SPA_MINDEVSIZE $DEVICE1 $DEVICE2
+	create_pool $TESTPOOL $pooltype $DEVICE1 $DEVICE2
 
-	[[ -d $TESTDIR ]] && log_must rm -rf $TESTDIR
 	log_must zfs create $TESTPOOL/$TESTFS
 	log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
-
 	log_must zfs set compression=off $TESTPOOL/$TESTFS
+
 	file_write -o create -f $TESTDIR/$TESTFILE1 \
             -b $BLOCK_SIZE -c $WRITE_COUNT -d 0
 
@@ -98,23 +76,14 @@ for pooltype in "mirror" "raidz"; do
 	[[ ! -s $TESTDIR/$TESTFILE1 ]] && \
 	    log_fail "$TESTDIR/$TESTFILE1 was not created"
 
-	# $DISK will be set if we're using slices on one disk
-	if [[ -n $DISK ]]; then
-		log_must zpool add $TESTPOOL $pooltype \
-		    ${DISK}${SLICE_PREFIX}${SLICE3} \
-		    ${DISK}${SLICE_PREFIX}${SLICE4}
-	else
-		[[ -z $DISK2 || -z $DISK3 ]] && 
-		    log_unsupported "No spare disks available"
-		log_must zpool add $TESTPOOL $pooltype \
-			${DISK2}${SLICE_PREFIX}${SLICE0} \
-			${DISK3}${SLICE_PREFIX}${SLICE0}
-	fi
+	truncate -s $SPA_MINDEVSIZE $DEVICE3 $DEVICE4
+	log_must zpool add $TESTPOOL $pooltype $DEVICE3 $DEVICE4
 
 	log_must file_write -o append -f $TESTDIR/$TESTFILE1 \
 	    -b $BLOCK_SIZE -c $SMALL_WRITE_COUNT -d 0
 
 	log_must destroy_pool $TESTPOOL
+	rm -f $DEVICE1 $DEVICE2 $DEVICE3 $DEVICE4
 done
 
 log_pass "mirror/raidz pool successfully grown"

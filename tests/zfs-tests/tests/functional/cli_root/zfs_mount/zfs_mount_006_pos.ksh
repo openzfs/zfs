@@ -49,6 +49,11 @@
 
 verify_runnable "both"
 
+# See issue: https://github.com/zfsonlinux/zfs/issues/4990
+if is_linux; then
+	log_unsupported "Test case needs to be updated"
+fi
+
 function cleanup
 {
 	log_must force_unmount $TESTPOOL/$TESTFS

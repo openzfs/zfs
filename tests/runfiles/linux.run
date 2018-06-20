@@ -20,11 +20,8 @@ post = cleanup
 outputdir = /var/tmp/test_results
 tags = ['functional']
 
-# Update to use ZFS_ACL_* variables and user_run helper.
-# posix_001_pos
-# posix_002_pos
 [tests/functional/acl/posix]
-tests = ['posix_003_pos']
+tests = ['posix_001_pos', 'posix_002_pos', 'posix_003_pos']
 tags = ['functional', 'acl', 'posix']
 
 [tests/functional/arc]
@@ -52,14 +49,14 @@ tests = ['cachefile_001_pos', 'cachefile_002_pos', 'cachefile_003_pos',
     'cachefile_004_pos']
 tags = ['functional', 'cachefile']
 
-# 'sensitive_none_lookup', 'sensitive_none_delete',
-# 'sensitive_formd_lookup', 'sensitive_formd_delete',
-# 'insensitive_none_lookup', 'insensitive_none_delete',
-# 'insensitive_formd_lookup', 'insensitive_formd_delete',
-# 'mixed_none_lookup', 'mixed_none_lookup_ci', 'mixed_none_delete',
-# 'mixed_formd_lookup', 'mixed_formd_lookup_ci', 'mixed_formd_delete']
 [tests/functional/casenorm]
-tests = ['case_all_values', 'norm_all_values', 'mixed_create_failure']
+tests = ['case_all_values', 'norm_all_values', 'mixed_create_failure',
+    'sensitive_none_lookup', 'sensitive_none_delete',
+    'sensitive_formd_lookup', 'sensitive_formd_delete',
+    'insensitive_none_lookup', 'insensitive_none_delete',
+    'insensitive_formd_lookup', 'insensitive_formd_delete',
+    'mixed_none_lookup', 'mixed_none_lookup_ci', 'mixed_none_delete',
+    'mixed_formd_lookup', 'mixed_formd_lookup_ci', 'mixed_formd_delete']
 tags = ['functional', 'casenorm']
 
 [tests/functional/channel_program/lua_core]
@@ -89,7 +86,8 @@ tests = ['chattr_001_pos', 'chattr_002_neg']
 tags = ['functional', 'chattr']
 
 [tests/functional/checksum]
-tests = ['run_edonr_test', 'run_sha2_test', 'run_skein_test', 'filetest_001_pos']
+tests = ['run_edonr_test', 'run_sha2_test', 'run_skein_test',
+    'filetest_001_pos']
 tags = ['functional', 'checksum']
 
 [tests/functional/clean_mirror]
@@ -168,13 +166,13 @@ tests = ['zfs_load-key', 'zfs_load-key_all', 'zfs_load-key_file',
     'zfs_load-key_location', 'zfs_load-key_noop', 'zfs_load-key_recursive']
 tags = ['functional', 'cli_root', 'zfs_load-key']
 
-# zfs_mount_006_pos - https://github.com/zfsonlinux/zfs/issues/4990
 [tests/functional/cli_root/zfs_mount]
 tests = ['zfs_mount_001_pos', 'zfs_mount_002_pos', 'zfs_mount_003_pos',
-    'zfs_mount_004_pos', 'zfs_mount_005_pos', 'zfs_mount_007_pos',
-    'zfs_mount_008_pos', 'zfs_mount_009_neg', 'zfs_mount_010_neg',
-    'zfs_mount_011_neg', 'zfs_mount_012_neg', 'zfs_mount_all_001_pos',
-    'zfs_mount_encrypted', 'zfs_mount_remount', 'zfs_multi_mount']
+    'zfs_mount_004_pos', 'zfs_mount_005_pos', 'zfs_mount_006_pos',
+    'zfs_mount_007_pos', 'zfs_mount_008_pos', 'zfs_mount_009_neg',
+    'zfs_mount_010_neg', 'zfs_mount_011_neg', 'zfs_mount_012_neg',
+    'zfs_mount_all_001_pos', 'zfs_mount_encrypted', 'zfs_mount_remount',
+    'zfs_multi_mount']
 tags = ['functional', 'cli_root', 'zfs_mount']
 
 [tests/functional/cli_root/zfs_program]
@@ -191,10 +189,9 @@ tags = ['functional', 'cli_root', 'zfs_promote']
 tests = ['zfs_written_property_001_pos']
 tags = ['functional', 'cli_root', 'zfs_property']
 
-# zfs_receive_004_neg - Fails for OpenZFS on illumos
 [tests/functional/cli_root/zfs_receive]
 tests = ['zfs_receive_001_pos', 'zfs_receive_002_pos', 'zfs_receive_003_pos',
-    'zfs_receive_005_neg', 'zfs_receive_006_pos',
+    'zfs_receive_004_neg', 'zfs_receive_005_neg', 'zfs_receive_006_pos',
     'zfs_receive_007_neg', 'zfs_receive_008_pos', 'zfs_receive_009_neg',
     'zfs_receive_010_pos', 'zfs_receive_011_pos', 'zfs_receive_012_pos',
     'zfs_receive_013_pos', 'zfs_receive_014_pos', 'zfs_receive_015_pos',
@@ -207,12 +204,10 @@ tags = ['functional', 'cli_root', 'zfs_receive']
 tests = ['zfs_remap_cliargs', 'zfs_remap_obsolete_counts']
 tags = ['functional', 'cli_root', 'zfs_remap']
 
-# zfs_rename_006_pos - https://github.com/zfsonlinux/zfs/issues/5647
-# zfs_rename_009_neg - https://github.com/zfsonlinux/zfs/issues/5648
 [tests/functional/cli_root/zfs_rename]
 tests = ['zfs_rename_001_pos', 'zfs_rename_002_pos', 'zfs_rename_003_pos',
-    'zfs_rename_004_neg', 'zfs_rename_005_neg',
-    'zfs_rename_007_pos', 'zfs_rename_008_pos',
+    'zfs_rename_004_neg', 'zfs_rename_005_neg', 'zfs_rename_006_pos',
+    'zfs_rename_007_pos', 'zfs_rename_008_pos', 'zfs_rename_009_neg',
     'zfs_rename_010_neg', 'zfs_rename_011_pos', 'zfs_rename_012_neg',
     'zfs_rename_013_pos', 'zfs_rename_encrypted_child',
     'zfs_rename_to_encrypted']
@@ -355,7 +350,6 @@ tags = ['functional', 'cli_root', 'zpool_get']
 tests = ['zpool_history_001_neg', 'zpool_history_002_pos']
 tags = ['functional', 'cli_root', 'zpool_history']
 
-# zpool_import_missing_003_pos - https://github.com/zfsonlinux/zfs/issues/6839
 [tests/functional/cli_root/zpool_import]
 tests = ['zpool_import_001_pos', 'zpool_import_002_pos',
     'zpool_import_003_pos', 'zpool_import_004_pos', 'zpool_import_005_pos',
@@ -365,7 +359,7 @@ tests = ['zpool_import_001_pos', 'zpool_import_002_pos',
     'zpool_import_015_pos',
     'zpool_import_features_001_pos', 'zpool_import_features_002_neg',
     'zpool_import_features_003_pos', 'zpool_import_missing_001_pos',
-    'zpool_import_missing_002_pos',
+    'zpool_import_missing_002_pos', 'zpool_import_missing_003_pos',
     'zpool_import_rename_001_pos', 'zpool_import_all_001_pos',
     'zpool_import_encrypted', 'zpool_import_encrypted_load',
     'zpool_import_errata3',
@@ -379,7 +373,6 @@ tests = ['zpool_import_001_pos', 'zpool_import_002_pos',
     'import_paths_changed',
     'import_rewind_config_changed',
     'import_rewind_device_replaced']
-
 tags = ['functional', 'cli_root', 'zpool_import']
 
 [tests/functional/cli_root/zpool_labelclear]
@@ -389,7 +382,8 @@ post =
 tags = ['functional', 'cli_root', 'zpool_labelclear']
 
 [tests/functional/cli_root/zpool_offline]
-tests = ['zpool_offline_001_pos', 'zpool_offline_002_neg', 'zpool_offline_003_pos']
+tests = ['zpool_offline_001_pos', 'zpool_offline_002_neg',
+    'zpool_offline_003_pos']
 tags = ['functional', 'cli_root', 'zpool_offline']
 
 [tests/functional/cli_root/zpool_online]
@@ -542,15 +536,11 @@ tests = ['large_dnode_001_pos', 'large_dnode_002_pos', 'large_dnode_003_pos',
          'large_dnode_007_neg', 'large_dnode_008_pos', 'large_dnode_009_pos']
 tags = ['functional', 'features', 'large_dnode']
 
-[tests/functional/grow_pool]
-tests = ['grow_pool_001_pos']
-tags = ['functional', 'grow_pool']
-
-[tests/functional/grow_replicas]
-tests = ['grow_replicas_001_pos']
+[tests/functional/grow]
 pre =
 post =
-tags = ['functional', 'grow_replicas']
+tests = ['grow_pool_001_pos', 'grow_replicas_001_pos']
+tags = ['functional', 'grow']
 
 [tests/functional/history]
 tests = ['history_001_pos', 'history_002_pos', 'history_003_pos',
@@ -686,10 +676,9 @@ tests = ['refquota_001_pos', 'refquota_002_pos', 'refquota_003_pos',
     'refquota_004_pos', 'refquota_005_pos', 'refquota_006_neg']
 tags = ['functional', 'refquota']
 
-# refreserv_004_pos - Fails for OpenZFS on illumos
 [tests/functional/refreserv]
 tests = ['refreserv_001_pos', 'refreserv_002_pos', 'refreserv_003_pos',
-    'refreserv_005_pos']
+    'refreserv_004_pos', 'refreserv_005_pos']
 tags = ['functional', 'refreserv']
 
 [tests/functional/removal]
@@ -714,28 +703,25 @@ tags = ['functional', 'rename_dirs']
 tests = ['replacement_001_pos', 'replacement_002_pos', 'replacement_003_pos']
 tags = ['functional', 'replacement']
 
-# reservation_001_pos - https://github.com/zfsonlinux/zfs/issues/4445
-# reservation_013_pos - https://github.com/zfsonlinux/zfs/issues/4444
-# reservation_018_pos - https://github.com/zfsonlinux/zfs/issues/5642
 [tests/functional/reservation]
 tests = ['reservation_001_pos', 'reservation_002_pos', 'reservation_003_pos',
     'reservation_004_pos', 'reservation_005_pos', 'reservation_006_pos',
     'reservation_007_pos', 'reservation_008_pos', 'reservation_009_pos',
     'reservation_010_pos', 'reservation_011_pos', 'reservation_012_pos',
     'reservation_013_pos', 'reservation_014_pos', 'reservation_015_pos',
-    'reservation_016_pos', 'reservation_017_pos', 'reservation_019_pos',
-    'reservation_020_pos', 'reservation_021_neg', 'reservation_022_pos']
+    'reservation_016_pos', 'reservation_017_pos', 'reservation_018_pos',
+    'reservation_019_pos', 'reservation_020_pos', 'reservation_021_neg',
+    'reservation_022_pos']
 tags = ['functional', 'reservation']
 
 [tests/functional/rootpool]
 tests = ['rootpool_002_neg', 'rootpool_003_neg', 'rootpool_007_pos']
 tags = ['functional', 'rootpool']
 
-# rsend_008_pos - https://github.com/zfsonlinux/zfs/issues/6066
 [tests/functional/rsend]
 tests = ['rsend_001_pos', 'rsend_002_pos', 'rsend_003_pos', 'rsend_004_pos',
-    'rsend_005_pos', 'rsend_006_pos', 'rsend_007_pos', 'rsend_009_pos',
-    'rsend_010_pos', 'rsend_011_pos', 'rsend_012_pos',
+    'rsend_005_pos', 'rsend_006_pos', 'rsend_007_pos', 'rsend_008_pos',
+    'rsend_009_pos', 'rsend_010_pos', 'rsend_011_pos', 'rsend_012_pos',
     'rsend_013_pos', 'rsend_014_pos',
     'rsend_019_pos', 'rsend_020_pos',
     'rsend_021_pos', 'rsend_022_pos', 'rsend_024_pos',
@@ -771,10 +757,9 @@ tests = ['clone_001_pos', 'rollback_001_pos', 'rollback_002_pos',
     'snapshot_015_pos', 'snapshot_016_pos', 'snapshot_017_pos']
 tags = ['functional', 'snapshot']
 
-# snapused_004_pos - https://github.com/zfsonlinux/zfs/issues/5513
 [tests/functional/snapused]
 tests = ['snapused_001_pos', 'snapused_002_pos', 'snapused_003_pos',
-    'snapused_005_pos']
+    'snapused_004_pos', 'snapused_005_pos']
 tags = ['functional', 'snapused']
 
 [tests/functional/sparse]
@@ -812,10 +797,10 @@ tests = [
     'groupspace_001_pos', 'groupspace_002_pos', 'groupspace_003_pos' ]
 tags = ['functional', 'userquota']
 
-# vdev_zaps_007_pos -- fails due to a pre-existing issue with zpool split
 [tests/functional/vdev_zaps]
 tests = ['vdev_zaps_001_pos', 'vdev_zaps_002_pos', 'vdev_zaps_003_pos',
-    'vdev_zaps_004_pos', 'vdev_zaps_005_pos', 'vdev_zaps_006_pos']
+    'vdev_zaps_004_pos', 'vdev_zaps_005_pos', 'vdev_zaps_006_pos',
+    'vdev_zaps_007_pos']
 tags = ['functional', 'vdev_zaps']
 
 [tests/functional/write_dirs]

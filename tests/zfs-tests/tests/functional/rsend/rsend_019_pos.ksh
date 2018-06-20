@@ -35,11 +35,6 @@
 
 verify_runnable "both"
 
-# See issue: https://github.com/zfsonlinux/zfs/issues/6086
-if is_32bit; then
-	log_unsupported "Test case occasionally fails"
-fi
-
 log_assert "Verify resumability of a full and incremental ZFS send/receive " \
     "in the presence of a corrupted stream"
 log_onexit resume_cleanup $sendfs $streamfs

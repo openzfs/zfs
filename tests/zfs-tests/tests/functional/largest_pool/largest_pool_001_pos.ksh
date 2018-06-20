@@ -46,11 +46,6 @@
 
 verify_runnable "global"
 
-# See issue: https://github.com/zfsonlinux/zfs/issues/6145
-if is_linux; then
-	log_unsupported "Test case occasionally fails"
-fi
-
 #
 # Parse the results of zpool & zfs creation with specified size
 #
