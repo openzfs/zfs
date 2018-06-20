@@ -27,6 +27,12 @@
 
 verify_runnable "global"
 
+# Verify that the required dependencies for testing are installed.
+python -c "import cffi" 2>/dev/null
+if [ $? -eq 1 ]; then
+	log_unsupported "python-cffi not found by Python"
+fi
+
 # We don't just try to "import libzfs_core" because we want to skip these tests
 # only if pyzfs was not installed due to missing, build-time, dependencies; if
 # we cannot load "libzfs_core" due to other reasons, for instance an API/ABI
@@ -34,8 +40,7 @@ verify_runnable "global"
 python -c '
 import pkgutil, sys
 sys.exit(pkgutil.find_loader("libzfs_core") is None)'
-if [ $? -eq 1 ]
-then
+if [ $? -eq 1 ]; then
 	log_unsupported "libzfs_core not found by Python"
 fi
 

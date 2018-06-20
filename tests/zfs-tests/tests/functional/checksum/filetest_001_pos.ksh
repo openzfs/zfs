@@ -22,6 +22,7 @@
 
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/include/properties.shlib
+. $STF_SUITE/tests/functional/checksum/default.cfg
 
 # DESCRIPTION:
 # Sanity test to make sure checksum algorithms work.
@@ -60,14 +61,9 @@ log_assert "Create and read back files with using different checksum algorithms"
 
 log_onexit cleanup
 
-FSSIZE=$(zpool list -Hp -o size $TESTPOOL)
 WRITESZ=1048576
-WRITECNT=$((($FSSIZE) / $WRITESZ ))
-# Skip the first and last 4MB
-SKIP=4127518
-SKIPCNT=$((($SKIP / $WRITESZ )))
-SKIPCNT=$((($SKIPCNT * 2)))
-WRITECNT=$((($WRITECNT - $SKIPCNT)))
+SKIPCNT=$(((4194304 / $WRITESZ) * 2))
+WRITECNT=$((($MINVDEVSIZE / $WRITESZ) - $SKIPCNT))
 
 # Get a list of vdevs in our pool
 set -A array $(get_disklist_fullpath)
@@ -75,19 +71,21 @@ set -A array $(get_disklist_fullpath)
 # Get the first vdev, since we will corrupt it later
 firstvdev=${array[0]}
 
-# First test each checksum by writing a file using it, and confirm there's no
-# errors.
-for ((count = 0; count < ${#checksum_props[*]} ; count++)); do
-	i=${checksum_props[$count]}
-	zfs set checksum=$i $TESTPOOL
-	file_write -o overwrite -f $TESTDIR/test_$i -b $WRITESZ -c 5 -d R
+# Test each checksum by writing a file using it, confirm there are no errors.
+typeset -i i=1
+while [[ $i -lt ${#CHECKSUM_TYPES[*]} ]]; do
+	type=${CHECKSUM_TYPES[i]}
+	log_must zfs set checksum=$type $TESTPOOL
+	log_must file_write -o overwrite -f $TESTDIR/test_$type \
+	    -b $WRITESZ -c 5 -d R
+	(( i = i + 1 ))
 done
-zpool export $TESTPOOL
-zpool import $TESTPOOL
-zpool scrub $TESTPOOL
-while is_pool_scrubbing $TESTPOOL; do
-	sleep 1
-done
+
+log_must zpool export $TESTPOOL
+log_must zpool import $TESTPOOL
+log_must zpool scrub $TESTPOOL
+log_must wait_scrubbed $TESTPOOL
+
 zpool status -P -v $TESTPOOL | grep $firstvdev | read -r name state rd wr cksum
 log_assert "Normal file write test saw $cksum checksum errors"
 log_must [ $cksum -eq 0 ]
@@ -95,31 +93,32 @@ log_must [ $cksum -eq 0 ]
 rm -fr $TESTDIR/*
 
 log_assert "Test scrambling the disk and seeing checksum errors"
-for ((count = 0; count < ${#checksum_props[*]} ; count++)); do
-	i=${checksum_props[$count]}
-	zfs set checksum=$i $TESTPOOL
-	file_write -o overwrite -f $TESTDIR/test_$i -b $WRITESZ -c 5 -d R
+typeset -i j=1
+while [[ $j -lt ${#CHECKSUM_TYPES[*]} ]]; do
+	type=${CHECKSUM_TYPES[$j]}
+	log_must zfs set checksum=$type $TESTPOOL
+	log_must file_write -o overwrite -f $TESTDIR/test_$type \
+	    -b $WRITESZ -c 5 -d R
 
-	zpool export $TESTPOOL
+	log_must zpool export $TESTPOOL
 
-	# Scramble the data on the first vdev in our pool.
-	# Skip the first and last 16MB of data, then scramble the rest after that
-	#
-	file_write -o overwrite -f $firstvdev -s $SKIP -c $WRITECNT -b $WRITESZ -d R
+	# Scramble the data on the first vdev in our pool.  Skip the first
+	# and last 16MB of data, then scramble the rest after that.
+	log_must dd if=/dev/zero of=$firstvdev bs=$WRITESZ skip=$SKIPCNT \
+	    count=$WRITECNT
 
-	zpool import $TESTPOOL
+	log_must zpool import $TESTPOOL
+	log_must zpool scrub $TESTPOOL
+	log_must wait_scrubbed $TESTPOOL
 
-	i=${checksum_props[$count]}
-	zpool scrub $TESTPOOL
-	while is_pool_scrubbing $TESTPOOL; do
-                sleep 1
-        done
+	zpool status -P -v $TESTPOOL | grep $firstvdev | \
+	    read -r name state rd wr cksum
 
-	zpool status -P -v $TESTPOOL | grep $firstvdev | read -r name state rd wr cksum
-
-	log_assert "Checksum '$i' caught $cksum checksum errors"
+	log_assert "Checksum '$type' caught $cksum checksum errors"
 	log_must [ $cksum -ne 0 ]
 
-	rm -f $TESTDIR/test_$i
-	zpool clear $TESTPOOL
+	rm -f $TESTDIR/test_$type
+	log_must zpool clear $TESTPOOL
+
+	(( j = j + 1 ))
 done

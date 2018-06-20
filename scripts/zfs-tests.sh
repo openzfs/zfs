@@ -575,12 +575,31 @@ export __ZFS_POOL_EXCLUDE
 export TESTFAIL_CALLBACKS
 export PATH=$STF_PATH
 
+RESULTS_FILE=$(mktemp -u -t zts-results.XXXX -p "$FILEDIR")
+REPORT_FILE=$(mktemp -u -t zts-report.XXXX -p "$FILEDIR")
+
+#
+# Run all the tests as specified.
+#
 msg "${TEST_RUNNER} ${QUIET} -c ${RUNFILE} -T ${TAGS} -i ${STF_SUITE}" \
     "-I ${ITERATIONS}"
 ${TEST_RUNNER} ${QUIET} -c "${RUNFILE}" -T "${TAGS}" -i "${STF_SUITE}" \
-    -I "${ITERATIONS}"
+    -I "${ITERATIONS}" 2>&1 | tee "$RESULTS_FILE"
+
+#
+# Analyze the results.
+#
+set -o pipefail
+${ZTS_REPORT} "$RESULTS_FILE" | tee "$REPORT_FILE"
 RESULT=$?
-echo
+set +o pipefail
+
+RESULTS_DIR=$(awk '/^Log directory/ { print $3 }' "$RESULTS_FILE")
+if [ -d "$RESULTS_DIR" ]; then
+	cat "$RESULTS_FILE" "$REPORT_FILE" >"$RESULTS_DIR/results"
+fi
+
+rm -f "$RESULTS_FILE" "$REPORT_FILE"
 
 if [ ${#SINGLETEST[@]} -ne 0 ]; then
 	rm -f "$RUNFILE" &>/dev/null

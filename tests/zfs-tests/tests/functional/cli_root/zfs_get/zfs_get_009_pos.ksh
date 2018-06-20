@@ -45,7 +45,6 @@
 
 verify_runnable "both"
 
-# See issue: https://github.com/zfsonlinux/zfs/issues/5479
 if is_kmemleak; then
 	log_unsupported "Test case runs slowly when kmemleak is enabled"
 fi

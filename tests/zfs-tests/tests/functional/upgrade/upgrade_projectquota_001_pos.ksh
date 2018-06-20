@@ -43,7 +43,7 @@
 verify_runnable "global"
 
 if ! lsattr -pd > /dev/null 2>&1; then
-	log_unsupported "Current e2fsprogs does not support set/show project ID"
+	log_unsupported "Current lsattr does not support set/show project ID"
 fi
 
 log_assert "pool upgrade for projectquota should work"
