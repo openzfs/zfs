@@ -923,7 +923,6 @@ spa_taskqs_init(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 	uint_t value = ztip->zti_value;
 	uint_t count = ztip->zti_count;
 	spa_taskqs_t *tqs = &spa->spa_zio_taskq[t][q];
-	char name[32];
 	uint_t flags = 0;
 	boolean_t batch = B_FALSE;
 
@@ -960,14 +959,10 @@ spa_taskqs_init(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 
 	for (uint_t i = 0; i < count; i++) {
 		taskq_t *tq;
+		char name[32];
 
-		if (count > 1) {
-			(void) snprintf(name, sizeof (name), "%s_%s_%u",
-			    zio_type_name[t], zio_taskq_types[q], i);
-		} else {
-			(void) snprintf(name, sizeof (name), "%s_%s",
-			    zio_type_name[t], zio_taskq_types[q]);
-		}
+		(void) snprintf(name, sizeof (name), "%s_%s",
+		    zio_type_name[t], zio_taskq_types[q]);
 
 		if (zio_taskq_sysdc && spa->spa_proc != &p0) {
 			if (batch)
