@@ -53,10 +53,6 @@ typedef unsigned long long	rlim64_t;
 typedef struct task_struct	kthread_t;
 typedef struct task_struct	proc_t;
 
-typedef struct timespec		timestruc_t;
-typedef struct timespec		timespec_t;
-typedef longlong_t		hrtime_t;
-
 typedef int			id_t;
 typedef short			pri_t;
 typedef short			index_t;

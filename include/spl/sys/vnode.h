@@ -128,9 +128,9 @@ typedef struct vattr {
 	long		va_nodeid;	/* node # */
 	uint32_t	va_nlink;	/* # links */
 	uint64_t	va_size;	/* file size */
-	struct timespec	va_atime;	/* last acc */
-	struct timespec	va_mtime;	/* last mod */
-	struct timespec	va_ctime;	/* last chg */
+	inode_timespec_t va_atime;	/* last acc */
+	inode_timespec_t va_mtime;	/* last mod */
+	inode_timespec_t va_ctime;	/* last chg */
 	dev_t		va_rdev;	/* dev */
 	uint64_t	va_nblocks;	/* space used */
 	uint32_t	va_blksize;	/* block size */
