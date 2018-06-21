@@ -185,3 +185,19 @@ Description: Debugging symbols for OpenZFS userland libraries and tools
  .
  This package contains the debugging symbols for libzpool2linux, libzfs2linux,
  libnvpair1linux, libuutil1linux, zfs-zed and zfsutils-linux.
+
+Package: delphix-zfs
+Section: misc
+Architecture: linux-any
+Depends: libnvpair1linux (= ${binary:Version}),
+         libuutil1linux (= ${binary:Version}),
+         libzfs2linux (= ${binary:Version}),
+         libzpool2linux (= ${binary:Version}),
+         libzfslinux-dev (= ${binary:Version}),
+         zfsutils-linux (= ${binary:Version}),
+         zfs-dbg (= ${binary:Version}),
+         zfs-initramfs (= ${binary:Version}),
+         zfs-test (= ${binary:Version}),
+         zfs-zed (= ${binary:Version}),
+         delphix-zfs-modules
+Description: Meta package for all ZFS packages installed on a Delphix appliance.
