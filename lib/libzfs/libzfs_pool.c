@@ -350,6 +350,7 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf,
 			break;
 
 		case ZPOOL_PROP_EXPANDSZ:
+		case ZPOOL_PROP_CHECKPOINT:
 			if (intval == 0) {
 				(void) strlcpy(buf, "-", len);
 			} else if (literal) {
@@ -1374,6 +1375,48 @@ zpool_destroy(zpool_handle_t *zhp, const char *log_str)
 	if (zfp) {
 		remove_mountpoint(zfp);
 		zfs_close(zfp);
+	}
+
+	return (0);
+}
+
+/*
+ * Create a checkpoint in the given pool.
+ */
+int
+zpool_checkpoint(zpool_handle_t *zhp)
+{
+	libzfs_handle_t *hdl = zhp->zpool_hdl;
+	char msg[1024];
+	int error;
+
+	error = lzc_pool_checkpoint(zhp->zpool_name);
+	if (error != 0) {
+		(void) snprintf(msg, sizeof (msg), dgettext(TEXT_DOMAIN,
+		    "cannot checkpoint '%s'"), zhp->zpool_name);
+		(void) zpool_standard_error(hdl, error, msg);
+		return (-1);
+	}
+
+	return (0);
+}
+
+/*
+ * Discard the checkpoint from the given pool.
+ */
+int
+zpool_discard_checkpoint(zpool_handle_t *zhp)
+{
+	libzfs_handle_t *hdl = zhp->zpool_hdl;
+	char msg[1024];
+	int error;
+
+	error = lzc_pool_checkpoint_discard(zhp->zpool_name);
+	if (error != 0) {
+		(void) snprintf(msg, sizeof (msg), dgettext(TEXT_DOMAIN,
+		    "cannot discard checkpoint in '%s'"), zhp->zpool_name);
+		(void) zpool_standard_error(hdl, error, msg);
+		return (-1);
 	}
 
 	return (0);

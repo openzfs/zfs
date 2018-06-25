@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2017 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_VDEV_IMPL_H
@@ -235,6 +235,9 @@ struct vdev {
 	boolean_t	vdev_ishole;	/* is a hole in the namespace	*/
 	kmutex_t	vdev_queue_lock; /* protects vdev_queue_depth	*/
 	uint64_t	vdev_top_zap;
+
+	/* pool checkpoint related */
+	space_map_t	*vdev_checkpoint_sm;	/* contains reserved blocks */
 
 	/*
 	 * Values stored in the config for an indirect or removing vdev.
@@ -469,6 +472,7 @@ extern void vdev_set_min_asize(vdev_t *vd);
 /*
  * Global variables
  */
+extern int vdev_standard_sm_blksz;
 /* zdb uses this tunable, so it must be declared here to make lint happy. */
 extern int zfs_vdev_cache_size;
 
@@ -480,6 +484,11 @@ extern boolean_t vdev_indirect_should_condense(vdev_t *vd);
 extern void spa_condense_indirect_start_sync(vdev_t *vd, dmu_tx_t *tx);
 extern int vdev_obsolete_sm_object(vdev_t *vd);
 extern boolean_t vdev_obsolete_counts_are_precise(vdev_t *vd);
+
+/*
+ * Other miscellaneous functions
+ */
+int vdev_checkpoint_sm_object(vdev_t *vd);
 
 #ifdef	__cplusplus
 }

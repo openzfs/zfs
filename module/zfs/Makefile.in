@@ -68,6 +68,7 @@ $(MODULE)-objs += sha256.o
 $(MODULE)-objs += skein_zfs.o
 $(MODULE)-objs += spa.o
 $(MODULE)-objs += spa_boot.o
+$(MODULE)-objs += spa_checkpoint.o
 $(MODULE)-objs += spa_config.o
 $(MODULE)-objs += spa_errlog.o
 $(MODULE)-objs += spa_history.o

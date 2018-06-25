@@ -15,7 +15,7 @@
 #
 
 #
-# Copyright (c) 2014, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2014, 2017 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -24,12 +24,9 @@
 default_setup_noexit "$DISKS"
 log_onexit default_cleanup_noexit
 
-function callback # count
+function callback
 {
-	typeset count=$1
-	if ((count == 0)); then
-		log_mustnot zpool remove $TESTPOOL $NOTREMOVEDISK
-	fi
+	log_mustnot zpool remove $TESTPOOL $NOTREMOVEDISK
 	return 0
 }
 

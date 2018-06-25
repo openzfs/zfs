@@ -15,7 +15,7 @@
 #
 
 #
-# Copyright (c) 2014, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2014, 2017 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -26,11 +26,8 @@ log_onexit default_cleanup_noexit
 
 function callback
 {
-	typeset count=$1
-	if ((count == 0)); then
-		log_must zfs create $TESTPOOL/$TESTFS1
-		log_must zfs destroy $TESTPOOL/$TESTFS1
-	fi
+	log_must zfs create $TESTPOOL/$TESTFS1
+	log_must zfs destroy $TESTPOOL/$TESTFS1
 	return 0
 }
 

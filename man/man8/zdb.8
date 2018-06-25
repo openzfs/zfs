@@ -23,7 +23,7 @@
 .Nd display zpool debugging and consistency information
 .Sh SYNOPSIS
 .Nm
-.Op Fl AbcdDFGhiLMPsvX
+.Op Fl AbcdDFGhikLMPsvX
 .Op Fl e Oo Fl V Oc Op Fl p Ar path ...
 .Op Fl I Ar inflight I/Os
 .Oo Fl o Ar var Ns = Ns Ar value Oc Ns ...
@@ -172,6 +172,9 @@ Display information about intent log
 .Pq ZIL
 entries relating to each dataset.
 If specified multiple times, display counts of each intent log transaction type.
+.It Fl k
+Examine the checkpointed state of the pool.
+Note, the on disk format of the pool is not reverted to the checkpointed state.
 .It Fl l Ar device
 Read the vdev labels from the specified device.
 .Nm Fl l

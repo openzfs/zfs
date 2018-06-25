@@ -18,6 +18,7 @@ SUBDIRS = \
 	mmapwrite \
 	nvlist_to_lua \
 	randfree_file \
+	randwritecomp \
 	readmmap \
 	rename_dir \
 	rm_lnkcnt_zero_file \

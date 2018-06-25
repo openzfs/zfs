@@ -1036,7 +1036,7 @@ dsl_destroy_head(const char *name)
 
 		error = dsl_sync_task(name, dsl_destroy_head_check,
 		    dsl_destroy_head_begin_sync, &ddha,
-		    0, ZFS_SPACE_CHECK_NONE);
+		    0, ZFS_SPACE_CHECK_DESTROY);
 		if (error != 0)
 			return (error);
 
@@ -1062,7 +1062,7 @@ dsl_destroy_head(const char *name)
 	}
 
 	return (dsl_sync_task(name, dsl_destroy_head_check,
-	    dsl_destroy_head_sync, &ddha, 0, ZFS_SPACE_CHECK_NONE));
+	    dsl_destroy_head_sync, &ddha, 0, ZFS_SPACE_CHECK_DESTROY));
 }
 
 /*

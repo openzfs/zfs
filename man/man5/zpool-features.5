@@ -1,5 +1,5 @@
 '\" te
-.\" Copyright (c) 2013, 2016 by Delphix. All rights reserved.
+.\" Copyright (c) 2013, 2017 by Delphix. All rights reserved.
 .\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
 .\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
 .\" The contents of this file are subject to the terms of the Common Development
@@ -484,6 +484,24 @@ used on a top-level vdev, and will never return to being \fBenabled\fR.
 .sp
 .ne 2
 .na
+\fB\fBzpool_checkpoint\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.delphix:zpool_checkpoint
+READ\-ONLY COMPATIBLE	yes
+DEPENDENCIES	none
+.TE
+
+This feature enables the "zpool checkpoint" subcommand that can
+checkpoint the state of the pool at the time it was issued and later
+rewind back to it or discard it.
+
+This feature becomes \fBactive\fR when the "zpool checkpoint" command
+is used to checkpoint the pool.
+The feature will only return back to being \fBenabled\fR when the pool
+is rewound or the checkpoint has been discarded.
 \fB\fBlarge_blocks\fR\fR
 .ad
 .RS 4n
