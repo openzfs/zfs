@@ -68,9 +68,9 @@ if is_linux; then
 
 	export collect_scripts=(
 	    "zpool iostat -lpvyL $PERFPOOL 1" "zpool.iostat"
-	    "vmstat 1" "vmstat"
+	    "vmstat -t 1" "vmstat"
 	    "mpstat -P ALL 1" "mpstat"
-	    "iostat -dxyz 1" "iostat"
+	    "iostat -tdxyz 1" "iostat"
 	    "$perf_record_cmd" "perf"
 	)
 else
