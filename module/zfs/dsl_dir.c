@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
  * Copyright (c) 2013 Martin Matuska. All rights reserved.
  * Copyright (c) 2014 Joyent, Inc. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
@@ -942,14 +942,14 @@ dsl_dir_create_sync(dsl_pool_t *dp, dsl_dir_t *pds, const char *name,
 	ddobj = dmu_object_alloc(mos, DMU_OT_DSL_DIR, 0,
 	    DMU_OT_DSL_DIR, sizeof (dsl_dir_phys_t), tx);
 	if (pds) {
-		VERIFY(0 == zap_add(mos, dsl_dir_phys(pds)->dd_child_dir_zapobj,
+		VERIFY0(zap_add(mos, dsl_dir_phys(pds)->dd_child_dir_zapobj,
 		    name, sizeof (uint64_t), 1, &ddobj, tx));
 	} else {
 		/* it's the root dir */
-		VERIFY(0 == zap_add(mos, DMU_POOL_DIRECTORY_OBJECT,
+		VERIFY0(zap_add(mos, DMU_POOL_DIRECTORY_OBJECT,
 		    DMU_POOL_ROOT_DATASET, sizeof (uint64_t), 1, &ddobj, tx));
 	}
-	VERIFY(0 == dmu_bonus_hold(mos, ddobj, FTAG, &dbuf));
+	VERIFY0(dmu_bonus_hold(mos, ddobj, FTAG, &dbuf));
 	dmu_buf_will_dirty(dbuf, tx);
 	ddphys = dbuf->db_data;
 
@@ -985,6 +985,12 @@ uint64_t
 dsl_dir_get_used(dsl_dir_t *dd)
 {
 	return (dsl_dir_phys(dd)->dd_used_bytes);
+}
+
+uint64_t
+dsl_dir_get_compressed(dsl_dir_t *dd)
+{
+	return (dsl_dir_phys(dd)->dd_compressed_bytes);
 }
 
 uint64_t
@@ -1215,7 +1221,8 @@ dsl_dir_space_available(dsl_dir_t *dd,
 		used += dsl_dir_space_towrite(dd);
 
 	if (dd->dd_parent == NULL) {
-		uint64_t poolsize = dsl_pool_adjustedsize(dd->dd_pool, FALSE);
+		uint64_t poolsize = dsl_pool_adjustedsize(dd->dd_pool,
+		    ZFS_SPACE_CHECK_NORMAL);
 		quota = MIN(quota, poolsize);
 	}
 
@@ -1326,11 +1333,12 @@ top_of_function:
 	 */
 	uint64_t deferred = 0;
 	if (dd->dd_parent == NULL) {
-		spa_t *spa = dd->dd_pool->dp_spa;
-		uint64_t poolsize = dsl_pool_adjustedsize(dd->dd_pool, netfree);
-		deferred = metaslab_class_get_deferred(spa_normal_class(spa));
-		if (poolsize - deferred < quota) {
-			quota = poolsize - deferred;
+		uint64_t avail = dsl_pool_unreserved_space(dd->dd_pool,
+		    (netfree) ?
+		    ZFS_SPACE_CHECK_RESERVED : ZFS_SPACE_CHECK_NORMAL);
+
+		if (avail < quota) {
+			quota = avail;
 			retval = ENOSPC;
 		}
 	}
@@ -1684,7 +1692,8 @@ dsl_dir_set_quota(const char *ddname, zprop_source_t source, uint64_t quota)
 	ddsqra.ddsqra_value = quota;
 
 	return (dsl_sync_task(ddname, dsl_dir_set_quota_check,
-	    dsl_dir_set_quota_sync, &ddsqra, 0, ZFS_SPACE_CHECK_NONE));
+	    dsl_dir_set_quota_sync, &ddsqra, 0,
+	    ZFS_SPACE_CHECK_EXTRA_RESERVED));
 }
 
 int
@@ -1727,7 +1736,8 @@ dsl_dir_set_reservation_check(void *arg, dmu_tx_t *tx)
 		avail = dsl_dir_space_available(dd->dd_parent,
 		    NULL, 0, FALSE);
 	} else {
-		avail = dsl_pool_adjustedsize(dd->dd_pool, B_FALSE) - used;
+		avail = dsl_pool_adjustedsize(dd->dd_pool,
+		    ZFS_SPACE_CHECK_NORMAL) - used;
 	}
 
 	if (MAX(used, newval) > MAX(used, dsl_dir_phys(dd)->dd_reserved)) {
@@ -1805,7 +1815,8 @@ dsl_dir_set_reservation(const char *ddname, zprop_source_t source,
 	ddsqra.ddsqra_value = reservation;
 
 	return (dsl_sync_task(ddname, dsl_dir_set_reservation_check,
-	    dsl_dir_set_reservation_sync, &ddsqra, 0, ZFS_SPACE_CHECK_NONE));
+	    dsl_dir_set_reservation_sync, &ddsqra, 0,
+	    ZFS_SPACE_CHECK_EXTRA_RESERVED));
 }
 
 static dsl_dir_t *

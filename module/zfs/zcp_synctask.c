@@ -110,7 +110,7 @@ static zcp_synctask_info_t zcp_synctask_destroy_info = {
 	    {.za_name = "defer", .za_lua_type = LUA_TBOOLEAN},
 	    {NULL, 0}
 	},
-	.space_check = ZFS_SPACE_CHECK_NONE,
+	.space_check = ZFS_SPACE_CHECK_DESTROY,
 	.blocks_modified = 0
 };
 
@@ -303,10 +303,9 @@ zcp_synctask_wrapper(lua_State *state)
 	zcp_parse_args(state, info->name, info->pargs, info->kwargs);
 
 	err = 0;
-	if (info->space_check != ZFS_SPACE_CHECK_NONE && funcspace > 0) {
-		uint64_t quota = dsl_pool_adjustedsize(dp,
-		    info->space_check == ZFS_SPACE_CHECK_RESERVED) -
-		    metaslab_class_get_deferred(spa_normal_class(dp->dp_spa));
+	if (info->space_check != ZFS_SPACE_CHECK_NONE) {
+		uint64_t quota = dsl_pool_unreserved_space(dp,
+		    info->space_check);
 		uint64_t used = dsl_dir_phys(dp->dp_root_dir)->dd_used_bytes +
 		    ri->zri_space_used;
 

@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2017 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_VDEV_H
@@ -81,7 +81,7 @@ extern uint64_t vdev_create_link_zap(vdev_t *vd, dmu_tx_t *tx);
 extern void vdev_construct_zaps(vdev_t *vd, dmu_tx_t *tx);
 extern void vdev_destroy_spacemaps(vdev_t *vd, dmu_tx_t *tx);
 extern void vdev_indirect_mark_obsolete(vdev_t *vd, uint64_t offset,
-    uint64_t size, uint64_t txg);
+    uint64_t size);
 extern void spa_vdev_indirect_mark_obsolete(spa_t *spa, uint64_t vdev,
     uint64_t offset, uint64_t size, dmu_tx_t *tx);
 
@@ -122,6 +122,7 @@ extern boolean_t vdev_readable(vdev_t *vd);
 extern boolean_t vdev_writeable(vdev_t *vd);
 extern boolean_t vdev_allocatable(vdev_t *vd);
 extern boolean_t vdev_accessible(vdev_t *vd, zio_t *zio);
+extern boolean_t vdev_is_spacemap_addressable(vdev_t *vd);
 
 extern void vdev_cache_init(vdev_t *vd);
 extern void vdev_cache_fini(vdev_t *vd);

@@ -1142,7 +1142,7 @@ zcp_eval(const char *poolname, const char *program, boolean_t sync,
 
 	if (sync) {
 		err = dsl_sync_task(poolname, NULL,
-		    zcp_eval_sync, &evalargs, 0, ZFS_SPACE_CHECK_NONE);
+		    zcp_eval_sync, &evalargs, 0, ZFS_SPACE_CHECK_ZCP_EVAL);
 		if (err != 0)
 			zcp_pool_error(&evalargs, poolname);
 	} else {

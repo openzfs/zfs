@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
  * Copyright (c) 2014, Joyent, Inc. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  */
@@ -138,6 +138,7 @@ uint64_t dsl_dir_create_sync(dsl_pool_t *dp, dsl_dir_t *pds,
     const char *name, dmu_tx_t *tx);
 
 uint64_t dsl_dir_get_used(dsl_dir_t *dd);
+uint64_t dsl_dir_get_compressed(dsl_dir_t *dd);
 uint64_t dsl_dir_get_quota(dsl_dir_t *dd);
 uint64_t dsl_dir_get_reservation(dsl_dir_t *dd);
 uint64_t dsl_dir_get_compressratio(dsl_dir_t *dd);

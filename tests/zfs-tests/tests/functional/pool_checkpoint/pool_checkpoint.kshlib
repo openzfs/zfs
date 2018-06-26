@@ -1,0 +1,393 @@
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+
+#
+# Copyright (c) 2017, 2018 by Delphix. All rights reserved.
+#
+
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/removal/removal.kshlib
+
+#
+# In general all the tests related to the pool checkpoint can
+# be divided into two categories. TESTS that verify features
+# provided by the checkpoint (e.g. checkpoint_rewind) and tests
+# that stress-test the checkpoint (e.g. checkpoint_big_rewind).
+#
+# For the first group we don't really care about the size of
+# the pool or the individual file sizes within the filesystems.
+# This is why these tests run directly on pools that use a
+# "real disk vdev" (meaning not a file based one). These tests
+# use the $TESTPOOL pool that is created on top of $TESTDISK.
+# This pool is refered to as the "test pool" and thus all
+# the tests of this group use the testpool-related functions of
+# this file (not the nested_pools ones).
+#
+# For the second group we generally try to bring the pool to its
+# limits by increasing fragmentation, filling all allocatable
+# space, attempting to use vdevs that the checkpoint spacemap
+# cannot represent, etc. For these tests we need to control
+# almost all parameters of the pool and the vdevs that back it
+# so we create them based on file-based vdevs that we carefully
+# create within the $TESTPOOL pool. So most of these tests, in
+# order to create this nested pool sctructure, generally start
+# like this:
+# 1] We create the test pool ($TESTPOOL).
+# 2] We create a filesystem and we populate it with files of
+#    some predetermined size.
+# 3] We use those files as vdevs for the pool that the test
+#    will use ($NESTEDPOOL).
+# 4] Go on and let the test run and operate on $NESTEDPOOL.
+#
+
+#
+# These disks are used to back $TESTPOOL
+#
+TESTDISK="$(echo $DISKS | cut -d' ' -f1)"
+EXTRATESTDISK="$(echo $DISKS | cut -d' ' -f2)"
+
+FS0=$TESTPOOL/$TESTFS
+FS1=$TESTPOOL/$TESTFS1
+FS2=$TESTPOOL/$TESTFS2
+
+FS0FILE=/$FS0/$TESTFILE0
+FS1FILE=/$FS1/$TESTFILE1
+FS2FILE=/$FS2/$TESTFILE2
+
+#
+# The following are created within $TESTPOOL and
+# will be used to back $NESTEDPOOL
+#
+DISKFS=$TESTPOOL/disks
+FILEDISKDIR=/$DISKFS
+FILEDISK1=/$DISKFS/dsk1
+FILEDISK2=/$DISKFS/dsk2
+FILEDISKS="$FILEDISK1 $FILEDISK2"
+
+#
+# $NESTEDPOOL related variables
+#
+NESTEDPOOL=nestedpool
+NESTEDFS0=$NESTEDPOOL/$TESTFS
+NESTEDFS1=$NESTEDPOOL/$TESTFS1
+NESTEDFS2=$NESTEDPOOL/$TESTFS2
+NESTEDFS0FILE=/$NESTEDFS0/$TESTFILE0
+NESTEDFS1FILE=/$NESTEDFS1/$TESTFILE1
+NESTEDFS2FILE=/$NESTEDFS2/$TESTFILE2
+
+#
+# In the tests that stress-test the pool (second category
+# mentioned above), there exist some that need to bring
+# fragmentation at high percentages in a relatively short
+# period of time. In order to do that we set the following
+# parameters:
+#
+# * We use two disks of 1G each, to create a pool of size 2G.
+#   The point is that 2G is not small nor large, and we also
+#   want to have 2 disks to introduce indirect vdevs on our
+#   setup.
+# * We enable compression and set the record size of all
+#   filesystems to 8K. The point of compression is to
+#   ensure that we are not filling up the whole pool (that's
+#   what checkpoint_capacity is for), and the specific
+#   record size is set to match the block size of randwritecomp
+#   which is used to increase fragmentation by writing on
+#   files.
+# * We always have 2 big files present of 512M each, which
+#   should account for 40%~50% capacity by the end of each
+#   test with fragmentation around 50~60%.
+# * At each file we attempt to do enough random writes to
+#   touch every offset twice on average.
+#
+# Note that the amount of random writes per files are based
+# on the following calculation:
+#
+# ((512M / 8K) * 3) * 2 = ~400000
+#
+# Given that the file is 512M and one write is 8K, we would
+# need (512M / 8K) writes to go through the whole file.
+# Assuming though that each write has a compression ratio of
+# 3, then we want 3 times that to cover the same amount of
+# space. Finally, we multiply that by 2 since our goal is to
+# touch each offset twice on average.
+#
+# Examples of those tests are checkpoint_big_rewind and
+# checkpoint_discard_busy.
+#
+FILEDISKSIZE=1g
+DISKSIZE=1g
+BIGFILESIZE=512M
+RANDOMWRITES=400000
+
+
+#
+# Assumes create_test_pool has been called beforehand.
+#
+function setup_nested_pool
+{
+	log_must zfs create $DISKFS
+
+	log_must truncate -s $DISKSIZE $FILEDISK1
+	log_must truncate -s $DISKSIZE $FILEDISK2
+
+	log_must zpool create -O sync=disabled $NESTEDPOOL $FILEDISKS
+}
+
+function setup_test_pool
+{
+	log_must zpool create -O sync=disabled $TESTPOOL "$TESTDISK"
+}
+
+function setup_nested_pools
+{
+	setup_test_pool
+	setup_nested_pool
+}
+
+function cleanup_nested_pool
+{
+	log_must zpool destroy $NESTEDPOOL
+	log_must rm -f $FILEDISKS
+}
+
+function cleanup_test_pool
+{
+	log_must zpool destroy $TESTPOOL
+	zpool labelclear -f "$TESTDISK"
+}
+
+function cleanup_nested_pools
+{
+	cleanup_nested_pool
+	cleanup_test_pool
+}
+
+#
+# Remove and re-add each vdev to ensure that data is
+# moved between disks and indirect mappings are created
+#
+function introduce_indirection
+{
+	for disk in ${FILEDISKS[@]}; do
+		log_must zpool remove $NESTEDPOOL $disk
+		log_must wait_for_removal $NESTEDPOOL
+		log_mustnot vdevs_in_pool $NESTEDPOOL $disk
+		log_must zpool add $NESTEDPOOL $disk
+	done
+}
+
+FILECONTENTS0="Can't wait to be checkpointed!"
+FILECONTENTS1="Can't wait to be checkpointed too!"
+NEWFILECONTENTS0="I survived after the checkpoint!"
+NEWFILECONTENTS2="I was born after the checkpoint!"
+
+function populate_test_pool
+{
+	log_must zfs create -o compression=lz4 -o recordsize=8k $FS0
+	log_must zfs create -o compression=lz4 -o recordsize=8k $FS1
+
+	echo $FILECONTENTS0 > $FS0FILE
+	echo $FILECONTENTS1 > $FS1FILE
+}
+
+function populate_nested_pool
+{
+	log_must zfs create -o compression=lz4 -o recordsize=8k $NESTEDFS0
+	log_must zfs create -o compression=lz4 -o recordsize=8k $NESTEDFS1
+
+	echo $FILECONTENTS0 > $NESTEDFS0FILE
+	echo $FILECONTENTS1 > $NESTEDFS1FILE
+}
+
+function test_verify_pre_checkpoint_state
+{
+	log_must zfs list $FS0
+	log_must zfs list $FS1
+	log_must [ "$(cat $FS0FILE)" = "$FILECONTENTS0" ]
+	log_must [ "$(cat $FS1FILE)" = "$FILECONTENTS1" ]
+
+	#
+	# If we've opened the checkpointed state of the
+	# pool as read-only without rewinding on-disk we
+	# can't really use zdb on it.
+	#
+	if [[ "$1" != "ro-check" ]] ; then
+		log_must zdb $TESTPOOL
+	fi
+
+	#
+	# Ensure post-checkpoint state is not present
+	#
+	log_mustnot zfs list $FS2
+	log_mustnot [ "$(cat $FS0FILE)" = "$NEWFILECONTENTS0" ]
+}
+
+function nested_verify_pre_checkpoint_state
+{
+	log_must zfs list $NESTEDFS0
+	log_must zfs list $NESTEDFS1
+	log_must [ "$(cat $NESTEDFS0FILE)" = "$FILECONTENTS0" ]
+	log_must [ "$(cat $NESTEDFS1FILE)" = "$FILECONTENTS1" ]
+
+	#
+	# If we've opened the checkpointed state of the
+	# pool as read-only without rewinding on-disk we
+	# can't really use zdb on it.
+	#
+	if [[ "$1" != "ro-check" ]] ; then
+		log_must zdb $NESTEDPOOL
+	fi
+
+	#
+	# Ensure post-checkpoint state is not present
+	#
+	log_mustnot zfs list $NESTEDFS2
+	log_mustnot [ "$(cat $NESTEDFS0FILE)" = "$NEWFILECONTENTS0" ]
+}
+
+function test_change_state_after_checkpoint
+{
+	log_must zfs destroy $FS1
+	log_must zfs create -o compression=lz4 -o recordsize=8k $FS2
+
+	echo $NEWFILECONTENTS0 > $FS0FILE
+	echo $NEWFILECONTENTS2 > $FS2FILE
+}
+
+function nested_change_state_after_checkpoint
+{
+	log_must zfs destroy $NESTEDFS1
+	log_must zfs create -o compression=lz4 -o recordsize=8k $NESTEDFS2
+
+	echo $NEWFILECONTENTS0 > $NESTEDFS0FILE
+	echo $NEWFILECONTENTS2 > $NESTEDFS2FILE
+}
+
+function test_verify_post_checkpoint_state
+{
+	log_must zfs list $FS0
+	log_must zfs list $FS2
+	log_must [ "$(cat $FS0FILE)" = "$NEWFILECONTENTS0" ]
+	log_must [ "$(cat $FS2FILE)" = "$NEWFILECONTENTS2" ]
+
+	log_must zdb $TESTPOOL
+
+	#
+	# Ensure pre-checkpointed state that was removed post-checkpoint
+	# is not present
+	#
+	log_mustnot zfs list $FS1
+	log_mustnot [ "$(cat $FS0FILE)" = "$FILECONTENTS0" ]
+}
+
+function fragment_before_checkpoint
+{
+	populate_nested_pool
+	log_must mkfile -n $BIGFILESIZE $NESTEDFS0FILE
+	log_must mkfile -n $BIGFILESIZE $NESTEDFS1FILE
+	log_must randwritecomp $NESTEDFS0FILE $RANDOMWRITES
+	log_must randwritecomp $NESTEDFS1FILE $RANDOMWRITES
+
+	#
+	# Display fragmentation on test log
+	#
+	log_must zpool list -v
+}
+
+function fragment_after_checkpoint_and_verify
+{
+	log_must zfs destroy $NESTEDFS1
+	log_must zfs create -o compression=lz4 -o recordsize=8k $NESTEDFS2
+	log_must mkfile -n $BIGFILESIZE $NESTEDFS2FILE
+	log_must randwritecomp $NESTEDFS0FILE $RANDOMWRITES
+	log_must randwritecomp $NESTEDFS2FILE $RANDOMWRITES
+
+	#
+	# Display fragmentation on test log
+	#
+	log_must zpool list -v
+
+	log_must zdb $NESTEDPOOL
+	log_must zdb -kc $NESTEDPOOL
+}
+
+function wait_discard_finish
+{
+	typeset pool="$1"
+
+	typeset status
+	status=$(zpool status $pool | grep "checkpoint:")
+	while [ "" != "$status" ]; do
+		sleep 5
+		status=$(zpool status $pool | grep "checkpoint:")
+	done
+}
+
+function test_wait_discard_finish
+{
+	wait_discard_finish $TESTPOOL
+}
+
+function nested_wait_discard_finish
+{
+	wait_discard_finish $NESTEDPOOL
+}
+
+#
+# Creating the setup for the second group of tests mentioned in
+# block comment of this file can take some time as we are doing
+# random writes to raise capacity and fragmentation before taking
+# the checkpoint. Thus we create this setup once and save the
+# disks of the nested pool in a temporary directory where we can
+# reuse it for each test that requires that setup.
+#
+SAVEDPOOLDIR="/var/tmp/ckpoint_saved_pool"
+
+function test_group_premake_nested_pools
+{
+	setup_nested_pools
+
+	#
+	# Populate and fragment the pool.
+	#
+	fragment_before_checkpoint
+
+	#
+	# Export and save the pool for other tests.
+	#
+	log_must zpool export $NESTEDPOOL
+	log_must mkdir $SAVEDPOOLDIR
+	log_must cp $FILEDISKS $SAVEDPOOLDIR
+
+	#
+	# Reimport pool to be destroyed by
+	# cleanup_nested_pools function
+	#
+	log_must zpool import -d $FILEDISKDIR $NESTEDPOOL
+}
+
+function test_group_destroy_saved_pool
+{
+	log_must rm -rf $SAVEDPOOLDIR
+}
+
+#
+# Recreate nested pool setup from saved pool.
+#
+function setup_nested_pool_state
+{
+	setup_test_pool
+
+	log_must zfs create $DISKFS
+	log_must cp $SAVEDPOOLDIR/* $FILEDISKDIR
+
+	log_must zpool import -d $FILEDISKDIR $NESTEDPOOL
+}

@@ -1147,8 +1147,9 @@ zio_claim(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 	 * starts allocating blocks -- so that nothing is allocated twice.
 	 * If txg == 0 we just verify that the block is claimable.
 	 */
-	ASSERT3U(spa->spa_uberblock.ub_rootbp.blk_birth, <, spa_first_txg(spa));
-	ASSERT(txg == spa_first_txg(spa) || txg == 0);
+	ASSERT3U(spa->spa_uberblock.ub_rootbp.blk_birth, <,
+	    spa_min_claim_txg(spa));
+	ASSERT(txg == spa_min_claim_txg(spa) || txg == 0);
 	ASSERT(!BP_GET_DEDUP(bp) || !spa_writeable(spa));	/* zdb(1M) */
 
 	zio = zio_create(pio, spa, txg, bp, NULL, BP_GET_PSIZE(bp),
@@ -3455,18 +3456,6 @@ zio_alloc_zil(spa_t *spa, objset_t *os, uint64_t txg, blkptr_t *new_bp,
 	}
 
 	return (error);
-}
-
-/*
- * Free an intent log block.
- */
-void
-zio_free_zil(spa_t *spa, uint64_t txg, blkptr_t *bp)
-{
-	ASSERT(BP_GET_TYPE(bp) == DMU_OT_INTENT_LOG);
-	ASSERT(!BP_IS_GANG(bp));
-
-	zio_free(spa, txg, bp);
 }
 
 /*

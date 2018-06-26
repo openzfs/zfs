@@ -497,8 +497,6 @@ vn_open(char *path, int x1, int flags, int mode, vnode_t **vpp, int x2, int x3)
 #ifdef __linux__
 		flags |= O_DIRECT;
 #endif
-		/* We shouldn't be writing to block devices in userspace */
-		VERIFY(!(flags & FWRITE));
 	}
 
 	if (flags & FCREAT)

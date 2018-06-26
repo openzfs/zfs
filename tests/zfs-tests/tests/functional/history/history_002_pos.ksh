@@ -143,8 +143,8 @@ run_and_verify "zfs snapshot $fssnap2"
 run_and_verify "zfs snapshot $volsnap2"
 
 # Send isn't logged...
-log_must zfs send -i $fssnap $fssnap2 > $tmpfile
-log_must zfs send -i $volsnap $volsnap2 > $tmpfile2
+log_must eval "zfs send -i $fssnap $fssnap2 > $tmpfile"
+log_must eval "zfs send -i $volsnap $volsnap2 > $tmpfile2"
 # Verify that's true
 zpool history $TESTPOOL | grep 'zfs send' >/dev/null 2>&1 && \
     log_fail "'zfs send' found in history of \"$TESTPOOL\""

@@ -153,8 +153,7 @@ const zio_taskq_info_t zio_taskqs[ZIO_TYPES][ZIO_TASKQ_TYPES] = {
 static void spa_sync_version(void *arg, dmu_tx_t *tx);
 static void spa_sync_props(void *arg, dmu_tx_t *tx);
 static boolean_t spa_has_active_shared_spare(spa_t *spa);
-static int spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport,
-    boolean_t reloading);
+static int spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport);
 static void spa_vdev_resilver_done(spa_t *spa);
 
 uint_t		zio_taskq_batch_pct = 75;	/* 1 thread per cpu in pset */
@@ -216,12 +215,18 @@ unsigned long	zfs_max_missing_tvds = 0;
  * and we get a chance to retrieve the trusted config.
  */
 uint64_t	zfs_max_missing_tvds_cachefile = SPA_DVAS_PER_BP - 1;
+
 /*
  * In the case where config was assembled by scanning device paths (/dev/dsks
  * by default) we are less tolerant since all the existing devices should have
  * been detected and we want spa_load to return the right error codes.
  */
 uint64_t	zfs_max_missing_tvds_scan = 0;
+
+/*
+ * Debugging aid that pauses spa_sync() towards the end.
+ */
+boolean_t	zfs_pause_spa_sync = B_FALSE;
 
 /*
  * ==========================================================================
@@ -274,6 +279,8 @@ spa_prop_get_config(spa_t *spa, nvlist_t **nvp)
 		spa_prop_add_list(*nvp, ZPOOL_PROP_ALLOCATED, NULL, alloc, src);
 		spa_prop_add_list(*nvp, ZPOOL_PROP_FREE, NULL,
 		    size - alloc, src);
+		spa_prop_add_list(*nvp, ZPOOL_PROP_CHECKPOINT, NULL,
+		    spa->spa_checkpoint_info.sci_dspace, src);
 
 		spa_prop_add_list(*nvp, ZPOOL_PROP_FRAGMENTATION, NULL,
 		    metaslab_class_fragmentation(mc), src);
@@ -810,6 +817,12 @@ spa_change_guid_check(void *arg, dmu_tx_t *tx)
 	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
 	vdev_t *rvd = spa->spa_root_vdev;
 	uint64_t vdev_state;
+
+	if (spa_feature_is_active(spa, SPA_FEATURE_POOL_CHECKPOINT)) {
+		int error = (spa_has_checkpoint(spa)) ?
+		    ZFS_ERR_CHECKPOINT_EXISTS : ZFS_ERR_DISCARDING_CHECKPOINT;
+		return (SET_ERROR(error));
+	}
 
 	spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
 	vdev_state = rvd->vdev_state;
@@ -1452,6 +1465,12 @@ spa_unload(spa_t *spa)
 		spa->spa_condense_zthr = NULL;
 	}
 
+	if (spa->spa_checkpoint_discard_zthr != NULL) {
+		ASSERT(!zthr_isrunning(spa->spa_checkpoint_discard_zthr));
+		zthr_destroy(spa->spa_checkpoint_discard_zthr);
+		spa->spa_checkpoint_discard_zthr = NULL;
+	}
+
 	spa_condense_fini(spa);
 
 	bpobj_close(&spa->spa_deferred_bpobj);
@@ -1534,6 +1553,18 @@ spa_load_spares(spa_t *spa)
 	uint_t nspares;
 	int i;
 	vdev_t *vd, *tvd;
+
+#ifndef _KERNEL
+	/*
+	 * zdb opens both the current state of the pool and the
+	 * checkpointed state (if present), with a different spa_t.
+	 *
+	 * As spare vdevs are shared among open pools, we skip loading
+	 * them when we load the checkpointed state of the pool.
+	 */
+	if (!spa_writeable(spa))
+		return;
+#endif
 
 	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
 
@@ -1653,6 +1684,19 @@ spa_load_l2cache(spa_t *spa)
 	uint64_t guid;
 	vdev_t *vd, **oldvdevs, **newvdevs;
 	spa_aux_vdev_t *sav = &spa->spa_l2cache;
+
+#ifndef _KERNEL
+	/*
+	 * zdb opens both the current state of the pool and the
+	 * checkpointed state (if present), with a different spa_t.
+	 *
+	 * As L2 caches are part of the ARC which is shared among open
+	 * pools, we skip loading them when we load the checkpointed
+	 * state of the pool.
+	 */
+	if (!spa_writeable(spa))
+		return;
+#endif
 
 	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
 
@@ -2206,6 +2250,11 @@ spa_spawn_aux_threads(spa_t *spa)
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
 
 	spa_start_indirect_condensing_thread(spa);
+
+	ASSERT3P(spa->spa_checkpoint_discard_zthr, ==, NULL);
+	spa->spa_checkpoint_discard_zthr =
+	    zthr_create(spa_checkpoint_discard_thread_check,
+	    spa_checkpoint_discard_thread, spa);
 }
 
 /*
@@ -2299,7 +2348,7 @@ spa_load(spa_t *spa, spa_load_state_t state, spa_import_type_t type)
 	spa->spa_load_state = state;
 
 	gethrestime(&spa->spa_loaded_ts);
-	error = spa_load_impl(spa, type, &ereport, B_FALSE);
+	error = spa_load_impl(spa, type, &ereport);
 
 	/*
 	 * Don't count references from objsets that are already closed
@@ -2606,8 +2655,25 @@ spa_ld_parse_config(spa_t *spa, spa_import_type_t type)
 		return (SET_ERROR(EINVAL));
 	}
 
-	if ((spa->spa_load_state == SPA_LOAD_IMPORT || spa->spa_load_state ==
-	    SPA_LOAD_TRYIMPORT) && spa_guid_exists(pool_guid, 0)) {
+	/*
+	 * If we are doing an import, ensure that the pool is not already
+	 * imported by checking if its pool guid already exists in the
+	 * spa namespace.
+	 *
+	 * The only case that we allow an already imported pool to be
+	 * imported again, is when the pool is checkpointed and we want to
+	 * look at its checkpointed state from userland tools like zdb.
+	 */
+#ifdef _KERNEL
+	if ((spa->spa_load_state == SPA_LOAD_IMPORT ||
+	    spa->spa_load_state == SPA_LOAD_TRYIMPORT) &&
+	    spa_guid_exists(pool_guid, 0)) {
+#else
+	if ((spa->spa_load_state == SPA_LOAD_IMPORT ||
+	    spa->spa_load_state == SPA_LOAD_TRYIMPORT) &&
+	    spa_guid_exists(pool_guid, 0) &&
+	    !spa_importing_readonly_checkpoint(spa)) {
+#endif
 		spa_load_failed(spa, "a pool with guid %llu is already open",
 		    (u_longlong_t)pool_guid);
 		return (SET_ERROR(EEXIST));
@@ -2766,6 +2832,19 @@ spa_ld_validate_vdevs(spa_t *spa)
 	return (0);
 }
 
+static void
+spa_ld_select_uberblock_done(spa_t *spa, uberblock_t *ub)
+{
+	spa->spa_state = POOL_STATE_ACTIVE;
+	spa->spa_ubsync = spa->spa_uberblock;
+	spa->spa_verify_min_txg = spa->spa_extreme_rewind ?
+	    TXG_INITIAL - 1 : spa_last_synced_txg(spa) - TXG_DEFER_SIZE - 1;
+	spa->spa_first_txg = spa->spa_last_ubsync_txg ?
+	    spa->spa_last_ubsync_txg : spa_last_synced_txg(spa) + 1;
+	spa->spa_claim_max_txg = spa->spa_first_txg;
+	spa->spa_prev_software_version = ub->ub_software_version;
+}
+
 static int
 spa_ld_select_uberblock(spa_t *spa, spa_import_type_t type)
 {
@@ -2773,6 +2852,29 @@ spa_ld_select_uberblock(spa_t *spa, spa_import_type_t type)
 	nvlist_t *label;
 	uberblock_t *ub = &spa->spa_uberblock;
 	boolean_t activity_check = B_FALSE;
+
+	/*
+	 * If we are opening the checkpointed state of the pool by
+	 * rewinding to it, at this point we will have written the
+	 * checkpointed uberblock to the vdev labels, so searching
+	 * the labels will find the right uberblock.  However, if
+	 * we are opening the checkpointed state read-only, we have
+	 * not modified the labels. Therefore, we must ignore the
+	 * labels and continue using the spa_uberblock that was set
+	 * by spa_ld_checkpoint_rewind.
+	 *
+	 * Note that it would be fine to ignore the labels when
+	 * rewinding (opening writeable) as well. However, if we
+	 * crash just after writing the labels, we will end up
+	 * searching the labels. Doing so in the common case means
+	 * that this code path gets exercised normally, rather than
+	 * just in the edge case.
+	 */
+	if (ub->ub_checkpoint_txg != 0 &&
+	    spa_importing_readonly_checkpoint(spa)) {
+		spa_ld_select_uberblock_done(spa, ub);
+		return (0);
+	}
 
 	/*
 	 * Find the best uberblock.
@@ -2905,14 +3007,7 @@ spa_ld_select_uberblock(spa_t *spa, spa_import_type_t type)
 	/*
 	 * Initialize internal SPA structures.
 	 */
-	spa->spa_state = POOL_STATE_ACTIVE;
-	spa->spa_ubsync = spa->spa_uberblock;
-	spa->spa_verify_min_txg = spa->spa_extreme_rewind ?
-	    TXG_INITIAL - 1 : spa_last_synced_txg(spa) - TXG_DEFER_SIZE - 1;
-	spa->spa_first_txg = spa->spa_last_ubsync_txg ?
-	    spa->spa_last_ubsync_txg : spa_last_synced_txg(spa) + 1;
-	spa->spa_claim_max_txg = spa->spa_first_txg;
-	spa->spa_prev_software_version = ub->ub_software_version;
+	spa_ld_select_uberblock_done(spa, ub);
 
 	return (0);
 }
@@ -2935,7 +3030,7 @@ spa_ld_open_rootbp(spa_t *spa)
 }
 
 static int
-spa_ld_load_trusted_config(spa_t *spa, spa_import_type_t type,
+spa_ld_trusted_config(spa_t *spa, spa_import_type_t type,
     boolean_t reloading)
 {
 	vdev_t *mrvd, *rvd = spa->spa_root_vdev;
@@ -3609,7 +3704,7 @@ spa_ld_claim_log_blocks(spa_t *spa)
 
 static void
 spa_ld_check_for_config_update(spa_t *spa, uint64_t config_cache_txg,
-    boolean_t reloading)
+    boolean_t update_config_cache)
 {
 	vdev_t *rvd = spa->spa_root_vdev;
 	int need_update = B_FALSE;
@@ -3621,7 +3716,7 @@ spa_ld_check_for_config_update(spa_t *spa, uint64_t config_cache_txg,
 	 * If this is a verbatim import, trust the current
 	 * in-core spa_config and update the disk labels.
 	 */
-	if (reloading || config_cache_txg != spa->spa_config_txg ||
+	if (update_config_cache || config_cache_txg != spa->spa_config_txg ||
 	    spa->spa_load_state == SPA_LOAD_IMPORT ||
 	    spa->spa_load_state == SPA_LOAD_RECOVER ||
 	    (spa->spa_import_flags & ZFS_IMPORT_VERBATIM))
@@ -3657,18 +3752,38 @@ spa_ld_prepare_for_reload(spa_t *spa)
 	spa->spa_async_suspended = async_suspended;
 }
 
-/*
- * Load an existing storage pool, using the config provided. This config
- * describes which vdevs are part of the pool and is later validated against
- * partial configs present in each vdev's label and an entire copy of the
- * config stored in the MOS.
- */
 static int
-spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport,
-    boolean_t reloading)
+spa_ld_read_checkpoint_txg(spa_t *spa)
+{
+	uberblock_t checkpoint;
+	int error = 0;
+
+	ASSERT0(spa->spa_checkpoint_txg);
+	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+
+	error = zap_lookup(spa->spa_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
+	    DMU_POOL_ZPOOL_CHECKPOINT, sizeof (uint64_t),
+	    sizeof (uberblock_t) / sizeof (uint64_t), &checkpoint);
+
+	if (error == ENOENT)
+		return (0);
+
+	if (error != 0)
+		return (error);
+
+	ASSERT3U(checkpoint.ub_txg, !=, 0);
+	ASSERT3U(checkpoint.ub_checkpoint_txg, !=, 0);
+	ASSERT3U(checkpoint.ub_timestamp, !=, 0);
+	spa->spa_checkpoint_txg = checkpoint.ub_txg;
+	spa->spa_checkpoint_info.sci_timestamp = checkpoint.ub_timestamp;
+
+	return (0);
+}
+
+static int
+spa_ld_mos_init(spa_t *spa, spa_import_type_t type)
 {
 	int error = 0;
-	boolean_t missing_feat_write = B_FALSE;
 
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
 	ASSERT(spa->spa_config_source != SPA_CONFIG_SRC_NONE);
@@ -3683,11 +3798,6 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport,
 	 */
 	if (type != SPA_IMPORT_ASSEMBLE)
 		spa->spa_trust_config = B_FALSE;
-
-	if (reloading)
-		spa_load_note(spa, "RELOADING");
-	else
-		spa_load_note(spa, "LOADING");
 
 	/*
 	 * Parse the config provided to create a vdev tree.
@@ -3721,11 +3831,11 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport,
 	}
 
 	/*
-	 * Read vdev labels to find the best uberblock (i.e. latest, unless
-	 * spa_load_max_txg is set) and store it in spa_uberblock. We get the
-	 * list of features required to read blkptrs in the MOS from the vdev
-	 * label with the best uberblock and verify that our version of zfs
-	 * supports them all.
+	 * Read all vdev labels to find the best uberblock (i.e. latest,
+	 * unless spa_load_max_txg is set) and store it in spa_uberblock. We
+	 * get the list of features required to read blkptrs in the MOS from
+	 * the vdev label with the best uberblock and verify that our version
+	 * of zfs supports them all.
 	 */
 	error = spa_ld_select_uberblock(spa, type);
 	if (error != 0)
@@ -3740,22 +3850,210 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport,
 	if (error != 0)
 		return (error);
 
+	return (0);
+}
+
+static int
+spa_ld_checkpoint_rewind(spa_t *spa)
+{
+	uberblock_t checkpoint;
+	int error = 0;
+
+	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+	ASSERT(spa->spa_import_flags & ZFS_IMPORT_CHECKPOINT);
+
+	error = zap_lookup(spa->spa_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
+	    DMU_POOL_ZPOOL_CHECKPOINT, sizeof (uint64_t),
+	    sizeof (uberblock_t) / sizeof (uint64_t), &checkpoint);
+
+	if (error != 0) {
+		spa_load_failed(spa, "unable to retrieve checkpointed "
+		    "uberblock from the MOS config [error=%d]", error);
+
+		if (error == ENOENT)
+			error = ZFS_ERR_NO_CHECKPOINT;
+
+		return (error);
+	}
+
+	ASSERT3U(checkpoint.ub_txg, <, spa->spa_uberblock.ub_txg);
+	ASSERT3U(checkpoint.ub_txg, ==, checkpoint.ub_checkpoint_txg);
+
+	/*
+	 * We need to update the txg and timestamp of the checkpointed
+	 * uberblock to be higher than the latest one. This ensures that
+	 * the checkpointed uberblock is selected if we were to close and
+	 * reopen the pool right after we've written it in the vdev labels.
+	 * (also see block comment in vdev_uberblock_compare)
+	 */
+	checkpoint.ub_txg = spa->spa_uberblock.ub_txg + 1;
+	checkpoint.ub_timestamp = gethrestime_sec();
+
+	/*
+	 * Set current uberblock to be the checkpointed uberblock.
+	 */
+	spa->spa_uberblock = checkpoint;
+
+	/*
+	 * If we are doing a normal rewind, then the pool is open for
+	 * writing and we sync the "updated" checkpointed uberblock to
+	 * disk. Once this is done, we've basically rewound the whole
+	 * pool and there is no way back.
+	 *
+	 * There are cases when we don't want to attempt and sync the
+	 * checkpointed uberblock to disk because we are opening a
+	 * pool as read-only. Specifically, verifying the checkpointed
+	 * state with zdb, and importing the checkpointed state to get
+	 * a "preview" of its content.
+	 */
+	if (spa_writeable(spa)) {
+		vdev_t *rvd = spa->spa_root_vdev;
+
+		spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
+		vdev_t *svd[SPA_SYNC_MIN_VDEVS] = { NULL };
+		int svdcount = 0;
+		int children = rvd->vdev_children;
+		int c0 = spa_get_random(children);
+
+		for (int c = 0; c < children; c++) {
+			vdev_t *vd = rvd->vdev_child[(c0 + c) % children];
+
+			/* Stop when revisiting the first vdev */
+			if (c > 0 && svd[0] == vd)
+				break;
+
+			if (vd->vdev_ms_array == 0 || vd->vdev_islog ||
+			    !vdev_is_concrete(vd))
+				continue;
+
+			svd[svdcount++] = vd;
+			if (svdcount == SPA_SYNC_MIN_VDEVS)
+				break;
+		}
+		error = vdev_config_sync(svd, svdcount, spa->spa_first_txg);
+		if (error == 0)
+			spa->spa_last_synced_guid = rvd->vdev_guid;
+		spa_config_exit(spa, SCL_ALL, FTAG);
+
+		if (error != 0) {
+			spa_load_failed(spa, "failed to write checkpointed "
+			    "uberblock to the vdev labels [error=%d]", error);
+			return (error);
+		}
+	}
+
+	return (0);
+}
+
+static int
+spa_ld_mos_with_trusted_config(spa_t *spa, spa_import_type_t type,
+    boolean_t *update_config_cache)
+{
+	int error;
+
+	/*
+	 * Parse the config for pool, open and validate vdevs,
+	 * select an uberblock, and use that uberblock to open
+	 * the MOS.
+	 */
+	error = spa_ld_mos_init(spa, type);
+	if (error != 0)
+		return (error);
+
 	/*
 	 * Retrieve the trusted config stored in the MOS and use it to create
 	 * a new, exact version of the vdev tree, then reopen all vdevs.
 	 */
-	error = spa_ld_load_trusted_config(spa, type, reloading);
+	error = spa_ld_trusted_config(spa, type, B_FALSE);
 	if (error == EAGAIN) {
-		VERIFY(!reloading);
+		if (update_config_cache != NULL)
+			*update_config_cache = B_TRUE;
+
 		/*
 		 * Redo the loading process with the trusted config if it is
 		 * too different from the untrusted config.
 		 */
 		spa_ld_prepare_for_reload(spa);
-		return (spa_load_impl(spa, type, ereport, B_TRUE));
+		spa_load_note(spa, "RELOADING");
+		error = spa_ld_mos_init(spa, type);
+		if (error != 0)
+			return (error);
+
+		error = spa_ld_trusted_config(spa, type, B_TRUE);
+		if (error != 0)
+			return (error);
+
 	} else if (error != 0) {
 		return (error);
 	}
+
+	return (0);
+}
+
+/*
+ * Load an existing storage pool, using the config provided. This config
+ * describes which vdevs are part of the pool and is later validated against
+ * partial configs present in each vdev's label and an entire copy of the
+ * config stored in the MOS.
+ */
+static int
+spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport)
+{
+	int error = 0;
+	boolean_t missing_feat_write = B_FALSE;
+	boolean_t checkpoint_rewind =
+	    (spa->spa_import_flags & ZFS_IMPORT_CHECKPOINT);
+	boolean_t update_config_cache = B_FALSE;
+
+	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+	ASSERT(spa->spa_config_source != SPA_CONFIG_SRC_NONE);
+
+	spa_load_note(spa, "LOADING");
+
+	error = spa_ld_mos_with_trusted_config(spa, type, &update_config_cache);
+	if (error != 0)
+		return (error);
+
+	/*
+	 * If we are rewinding to the checkpoint then we need to repeat
+	 * everything we've done so far in this function but this time
+	 * selecting the checkpointed uberblock and using that to open
+	 * the MOS.
+	 */
+	if (checkpoint_rewind) {
+		/*
+		 * If we are rewinding to the checkpoint update config cache
+		 * anyway.
+		 */
+		update_config_cache = B_TRUE;
+
+		/*
+		 * Extract the checkpointed uberblock from the current MOS
+		 * and use this as the pool's uberblock from now on. If the
+		 * pool is imported as writeable we also write the checkpoint
+		 * uberblock to the labels, making the rewind permanent.
+		 */
+		error = spa_ld_checkpoint_rewind(spa);
+		if (error != 0)
+			return (error);
+
+		/*
+		 * Redo the loading process process again with the
+		 * checkpointed uberblock.
+		 */
+		spa_ld_prepare_for_reload(spa);
+		spa_load_note(spa, "LOADING checkpointed uberblock");
+		error = spa_ld_mos_with_trusted_config(spa, type, NULL);
+		if (error != 0)
+			return (error);
+	}
+
+	/*
+	 * Retrieve the checkpoint txg if the pool has a checkpoint.
+	 */
+	error = spa_ld_read_checkpoint_txg(spa);
+	if (error != 0)
+		return (error);
 
 	/*
 	 * Retrieve the mapping of indirect vdevs. Those vdevs were removed
@@ -3860,6 +4158,16 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport,
 		ASSERT(spa->spa_load_state != SPA_LOAD_TRYIMPORT);
 
 		/*
+		 * In case of a checkpoint rewind, log the original txg
+		 * of the checkpointed uberblock.
+		 */
+		if (checkpoint_rewind) {
+			spa_history_log_internal(spa, "checkpoint rewind",
+			    NULL, "rewound state to txg=%llu",
+			    (u_longlong_t)spa->spa_uberblock.ub_checkpoint_txg);
+		}
+
+		/*
 		 * Traverse the ZIL and claim all blocks.
 		 */
 		spa_ld_claim_log_blocks(spa);
@@ -3886,7 +4194,7 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport,
 		 * and the cachefile (by default /etc/zfs/zpool.cache).
 		 */
 		spa_ld_check_for_config_update(spa, config_cache_txg,
-		    reloading);
+		    update_config_cache);
 
 		/*
 		 * Check all DTLs to see if anything needs resilvering.
@@ -3970,6 +4278,15 @@ spa_load_best(spa_t *spa, spa_load_state_t state, uint64_t max_request,
 	load_error = rewind_error = spa_load(spa, state, SPA_IMPORT_EXISTING);
 	if (load_error == 0)
 		return (0);
+	if (load_error == ZFS_ERR_NO_CHECKPOINT) {
+		/*
+		 * When attempting checkpoint-rewind on a pool with no
+		 * checkpoint, we should not attempt to load uberblocks
+		 * from previous txgs when spa_load fails.
+		 */
+		ASSERT(spa->spa_import_flags & ZFS_IMPORT_CHECKPOINT);
+		return (load_error);
+	}
 
 	if (spa->spa_root_vdev != NULL)
 		config = spa_config_generate(spa, NULL, -1ULL, B_TRUE);
@@ -5564,6 +5881,13 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 
 	oldvd = spa_lookup_by_guid(spa, guid, B_FALSE);
 
+	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+	if (spa_feature_is_active(spa, SPA_FEATURE_POOL_CHECKPOINT)) {
+		error = (spa_has_checkpoint(spa)) ?
+		    ZFS_ERR_CHECKPOINT_EXISTS : ZFS_ERR_DISCARDING_CHECKPOINT;
+		return (spa_vdev_exit(spa, NULL, txg, error));
+	}
+
 	if (spa->spa_vdev_removal != NULL)
 		return (spa_vdev_exit(spa, NULL, txg, EBUSY));
 
@@ -5775,6 +6099,27 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 	txg = spa_vdev_enter(spa);
 
 	vd = spa_lookup_by_guid(spa, guid, B_FALSE);
+
+	/*
+	 * Besides being called directly from the userland through the
+	 * ioctl interface, spa_vdev_detach() can be potentially called
+	 * at the end of spa_vdev_resilver_done().
+	 *
+	 * In the regular case, when we have a checkpoint this shouldn't
+	 * happen as we never empty the DTLs of a vdev during the scrub
+	 * [see comment in dsl_scan_done()]. Thus spa_vdev_resilvering_done()
+	 * should never get here when we have a checkpoint.
+	 *
+	 * That said, even in a case when we checkpoint the pool exactly
+	 * as spa_vdev_resilver_done() calls this function everything
+	 * should be fine as the resilver will return right away.
+	 */
+	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+	if (spa_feature_is_active(spa, SPA_FEATURE_POOL_CHECKPOINT)) {
+		error = (spa_has_checkpoint(spa)) ?
+		    ZFS_ERR_CHECKPOINT_EXISTS : ZFS_ERR_DISCARDING_CHECKPOINT;
+		return (spa_vdev_exit(spa, NULL, txg, error));
+	}
 
 	if (vd == NULL)
 		return (spa_vdev_exit(spa, NULL, txg, ENODEV));
@@ -6013,6 +6358,13 @@ spa_vdev_split_mirror(spa_t *spa, char *newname, nvlist_t *config,
 	ASSERT(spa_writeable(spa));
 
 	txg = spa_vdev_enter(spa);
+
+	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+	if (spa_feature_is_active(spa, SPA_FEATURE_POOL_CHECKPOINT)) {
+		error = (spa_has_checkpoint(spa)) ?
+		    ZFS_ERR_CHECKPOINT_EXISTS : ZFS_ERR_DISCARDING_CHECKPOINT;
+		return (spa_vdev_exit(spa, NULL, txg, error));
+	}
 
 	/* clear the log and flush everything up to now */
 	activate_slog = spa_passivate_log(spa);
@@ -6665,6 +7017,10 @@ spa_async_suspend(spa_t *spa)
 	zthr_t *condense_thread = spa->spa_condense_zthr;
 	if (condense_thread != NULL && zthr_isrunning(condense_thread))
 		VERIFY0(zthr_cancel(condense_thread));
+
+	zthr_t *discard_thread = spa->spa_checkpoint_discard_zthr;
+	if (discard_thread != NULL && zthr_isrunning(discard_thread))
+		VERIFY0(zthr_cancel(discard_thread));
 }
 
 void
@@ -6679,6 +7035,10 @@ spa_async_resume(spa_t *spa)
 	zthr_t *condense_thread = spa->spa_condense_zthr;
 	if (condense_thread != NULL && !zthr_isrunning(condense_thread))
 		zthr_resume(condense_thread);
+
+	zthr_t *discard_thread = spa->spa_checkpoint_discard_zthr;
+	if (discard_thread != NULL && !zthr_isrunning(discard_thread))
+		zthr_resume(discard_thread);
 }
 
 static boolean_t
@@ -7454,6 +7814,8 @@ spa_sync(spa_t *spa, uint64_t txg)
 				    txg));
 				ASSERT(txg_list_empty(&dp->dp_dirty_dirs, txg));
 				ASSERT(txg_list_empty(&dp->dp_sync_tasks, txg));
+				ASSERT(txg_list_empty(&dp->dp_early_sync_tasks,
+				    txg));
 				break;
 			}
 			spa_sync_deferred_frees(spa, tx);
@@ -7499,16 +7861,22 @@ spa_sync(spa_t *spa, uint64_t txg)
 		spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
 
 		if (list_is_empty(&spa->spa_config_dirty_list)) {
-			vdev_t *svd[SPA_SYNC_MIN_VDEVS];
+			vdev_t *svd[SPA_SYNC_MIN_VDEVS] = { NULL };
 			int svdcount = 0;
 			int children = rvd->vdev_children;
 			int c0 = spa_get_random(children);
 
 			for (int c = 0; c < children; c++) {
 				vd = rvd->vdev_child[(c0 + c) % children];
+
+				/* Stop when revisiting the first vdev */
+				if (c > 0 && svd[0] == vd)
+					break;
+
 				if (vd->vdev_ms_array == 0 || vd->vdev_islog ||
 				    !vdev_is_concrete(vd))
 					continue;
+
 				svd[svdcount++] = vd;
 				if (svdcount == SPA_SYNC_MIN_VDEVS)
 					break;
@@ -7571,6 +7939,9 @@ spa_sync(spa_t *spa, uint64_t txg)
 	ASSERT(txg_list_empty(&dp->dp_dirty_datasets, txg));
 	ASSERT(txg_list_empty(&dp->dp_dirty_dirs, txg));
 	ASSERT(txg_list_empty(&spa->spa_vdev_txg_list, txg));
+
+	while (zfs_pause_spa_sync)
+		delay(1);
 
 	spa->spa_sync_pass = 0;
 

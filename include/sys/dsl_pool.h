@@ -38,6 +38,7 @@
 #include <sys/bpobj.h>
 #include <sys/bptree.h>
 #include <sys/rrwlock.h>
+#include <sys/dsl_synctask.h>
 #include <sys/mmp.h>
 
 #ifdef	__cplusplus
@@ -128,6 +129,7 @@ typedef struct dsl_pool {
 	txg_list_t dp_dirty_zilogs;
 	txg_list_t dp_dirty_dirs;
 	txg_list_t dp_sync_tasks;
+	txg_list_t dp_early_sync_tasks;
 	taskq_t *dp_sync_taskq;
 	taskq_t *dp_zil_clean_taskq;
 
@@ -151,7 +153,9 @@ dsl_pool_t *dsl_pool_create(spa_t *spa, nvlist_t *zplprops,
 void dsl_pool_sync(dsl_pool_t *dp, uint64_t txg);
 void dsl_pool_sync_done(dsl_pool_t *dp, uint64_t txg);
 int dsl_pool_sync_context(dsl_pool_t *dp);
-uint64_t dsl_pool_adjustedsize(dsl_pool_t *dp, boolean_t netfree);
+uint64_t dsl_pool_adjustedsize(dsl_pool_t *dp, zfs_space_check_t slop_policy);
+uint64_t dsl_pool_unreserved_space(dsl_pool_t *dp,
+    zfs_space_check_t slop_policy);
 void dsl_pool_dirty_space(dsl_pool_t *dp, int64_t space, dmu_tx_t *tx);
 void dsl_pool_undirty_space(dsl_pool_t *dp, int64_t space, uint64_t txg);
 void dsl_free(dsl_pool_t *dp, uint64_t txg, const blkptr_t *bpp);
@@ -161,6 +165,8 @@ void dsl_pool_create_origin(dsl_pool_t *dp, dmu_tx_t *tx);
 void dsl_pool_upgrade_clones(dsl_pool_t *dp, dmu_tx_t *tx);
 void dsl_pool_upgrade_dir_clones(dsl_pool_t *dp, dmu_tx_t *tx);
 void dsl_pool_mos_diduse_space(dsl_pool_t *dp,
+    int64_t used, int64_t comp, int64_t uncomp);
+void dsl_pool_ckpoint_diduse_space(dsl_pool_t *dp,
     int64_t used, int64_t comp, int64_t uncomp);
 boolean_t dsl_pool_need_dirty_delay(dsl_pool_t *dp);
 void dsl_pool_config_enter(dsl_pool_t *dp, void *tag);

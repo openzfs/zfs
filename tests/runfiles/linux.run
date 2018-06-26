@@ -627,6 +627,17 @@ tests = ['online_offline_001_pos', 'online_offline_002_neg',
     'online_offline_003_neg']
 tags = ['functional', 'online_offline']
 
+[tests/functional/pool_checkpoint]
+tests = ['checkpoint_after_rewind', 'checkpoint_big_rewind',
+    'checkpoint_capacity', 'checkpoint_conf_change', 'checkpoint_discard',
+    'checkpoint_discard_busy', 'checkpoint_discard_many',
+    'checkpoint_indirect', 'checkpoint_invalid', 'checkpoint_lun_expsz',
+    'checkpoint_open', 'checkpoint_removal', 'checkpoint_rewind',
+    'checkpoint_ro_rewind', 'checkpoint_sm_scale', 'checkpoint_twice',
+    'checkpoint_vdev_add', 'checkpoint_zdb', 'checkpoint_zhack_feat']
+tags = ['functional', 'pool_checkpoint']
+timeout = 1800
+
 [tests/functional/pool_names]
 tests = ['pool_names_001_pos', 'pool_names_002_neg']
 pre =

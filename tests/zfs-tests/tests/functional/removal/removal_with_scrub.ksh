@@ -15,7 +15,7 @@
 #
 
 #
-# Copyright (c) 2014, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2014, 2017 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -24,15 +24,6 @@
 default_setup_noexit "$DISKS"
 log_onexit default_cleanup_noexit
 
-function callback
-{
-	typeset count=$1
-	if ((count == 0)); then
-		log_must zpool scrub $TESTPOOL
-	fi
-	return 0
-}
-
-test_removal_with_operation callback
+test_removal_with_operation zpool scrub $TESTPOOL
 
 log_pass "Can use scrub during removal"

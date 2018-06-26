@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
  */
 
 #ifndef	_SYS_DSL_SYNCTASK_H
@@ -57,14 +57,41 @@ typedef enum zfs_space_check {
 	ZFS_SPACE_CHECK_RESERVED,
 
 	/*
-	 * No space check is performed.  Only operations which we expect to
-	 * result in a net reduction in space should use this
-	 * (e.g. "zfs destroy". Setting quotas & reservations also uses
-	 * this because it needs to circumvent the quota/reservation checks).
+	 * Space check allows use of three quarters of the slop space.
+	 * If there is less than 0.8% free space, the operation will
+	 * fail.
+	 */
+	ZFS_SPACE_CHECK_EXTRA_RESERVED,
+
+	/*
+	 * In all cases "zfs destroy" is expected to result in an net
+	 * reduction of space, except one. When the pool has a
+	 * checkpoint, space freed by "zfs destroy" will not actually
+	 * free anything internally. Thus, it starts failing after
+	 * three quarters of the slop space is exceeded.
+	 */
+	ZFS_SPACE_CHECK_DESTROY = ZFS_SPACE_CHECK_EXTRA_RESERVED,
+
+	/*
+	 * A channel program can run a "zfs destroy" as part of its
+	 * script and therefore has the same space_check policy when
+	 * being evaluated.
+	 */
+	ZFS_SPACE_CHECK_ZCP_EVAL = ZFS_SPACE_CHECK_DESTROY,
+
+	/*
+	 * No space check is performed. This level of space check should
+	 * be used cautiously as operations that use it can even run when
+	 * 0.8% capacity is left for use. In this scenario, if there is a
+	 * checkpoint, async destroys are suspended and any kind of freeing
+	 * can potentially add space instead of freeing it.
 	 *
 	 * See also the comments above spa_slop_shift.
 	 */
 	ZFS_SPACE_CHECK_NONE,
+
+	ZFS_SPACE_CHECK_DISCARD_CHECKPOINT = ZFS_SPACE_CHECK_NONE,
+
 } zfs_space_check_t;
 
 typedef struct dsl_sync_task {
@@ -84,6 +111,10 @@ void dsl_sync_task_sync(dsl_sync_task_t *, dmu_tx_t *);
 int dsl_sync_task(const char *, dsl_checkfunc_t *,
     dsl_syncfunc_t *, void *, int, zfs_space_check_t);
 void dsl_sync_task_nowait(struct dsl_pool *, dsl_syncfunc_t *,
+    void *, int, zfs_space_check_t, dmu_tx_t *);
+int dsl_early_sync_task(const char *, dsl_checkfunc_t *,
+    dsl_syncfunc_t *, void *, int, zfs_space_check_t);
+void dsl_early_sync_task_nowait(struct dsl_pool *, dsl_syncfunc_t *,
     void *, int, zfs_space_check_t, dmu_tx_t *);
 
 #ifdef	__cplusplus

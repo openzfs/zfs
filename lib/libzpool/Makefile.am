@@ -92,6 +92,7 @@ KERNEL_C = \
 	skein_zfs.c \
 	spa.c \
 	spa_boot.c \
+	spa_checkpoint.c \
 	spa_config.c \
 	spa_errlog.c \
 	spa_history.c \
