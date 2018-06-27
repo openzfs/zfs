@@ -53,7 +53,7 @@ print_rpmtemplate_header()
 {
 	echo
 	echo '%global kmodinstdir_prefix  '${prefix}/lib/modules/
-	echo '%global kmodinstdir_postfix '/extra/${kmodname}/
+	echo '%global kmodinstdir_postfix '/updates/${kmodname}/
 	echo '%global kernel_versions     '${kernel_versions}
 	echo
 }
@@ -192,8 +192,8 @@ This package provides the ${kmodname} kernel modules built for the Linux
 kernel ${kernel_uname_r} for the %{_target_cpu} family of processors.
 %files        -n kmod-${kmodname}-${kernel_uname_r}
 %defattr(644,root,root,755)
-%dir $prefix/lib/modules/${kernel_uname_r}/extra
-${prefix}/lib/modules/${kernel_uname_r}/extra/${kmodname}/
+%dir $prefix/lib/modules/${kernel_uname_r}/updates
+${prefix}/lib/modules/${kernel_uname_r}/updates/${kmodname}/
 
 
 EOF

@@ -73,11 +73,11 @@ make %{?_smp_mflags}
 %install
 make install \
         DESTDIR=${RPM_BUILD_ROOT} \
-        INSTALL_MOD_DIR=extra/%{kmod_name}
+        INSTALL_MOD_DIR=updates/%{kmod_name}
 %{__rm} -f %{buildroot}/lib/modules/%{kverrel}/modules.*
 
 # find-debuginfo.sh only considers executables
-%{__chmod} u+x  %{buildroot}/lib/modules/%{kverrel}/extra/*/*/*
+%{__chmod} u+x  %{buildroot}/lib/modules/%{kverrel}/updates/*/*/*
 
 %clean
 rm -rf $RPM_BUILD_ROOT

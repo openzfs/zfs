@@ -7,7 +7,7 @@ subdir-m += unicode
 subdir-m += zcommon
 subdir-m += zfs
 
-INSTALL_MOD_DIR ?= extra
+INSTALL_MOD_DIR ?= updates
 
 ZFS_MODULE_CFLAGS += -std=gnu99 -Wno-declaration-after-statement
 ZFS_MODULE_CFLAGS += @KERNEL_DEBUG_CFLAGS@
