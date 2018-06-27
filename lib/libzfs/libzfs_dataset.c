@@ -3856,32 +3856,34 @@ zfs_create(libzfs_handle_t *hdl, const char *path, zfs_type_t type,
 int
 zfs_destroy(zfs_handle_t *zhp, boolean_t defer)
 {
-	zfs_cmd_t zc = {"\0"};
+	int error;
+
+	if (zhp->zfs_type != ZFS_TYPE_SNAPSHOT && defer)
+		return (EINVAL);
 
 	if (zhp->zfs_type == ZFS_TYPE_BOOKMARK) {
 		nvlist_t *nv = fnvlist_alloc();
 		fnvlist_add_boolean(nv, zhp->zfs_name);
-		int error = lzc_destroy_bookmarks(nv, NULL);
+		error = lzc_destroy_bookmarks(nv, NULL);
 		fnvlist_free(nv);
 		if (error != 0) {
-			return (zfs_standard_error_fmt(zhp->zfs_hdl, errno,
+			return (zfs_standard_error_fmt(zhp->zfs_hdl, error,
 			    dgettext(TEXT_DOMAIN, "cannot destroy '%s'"),
 			    zhp->zfs_name));
 		}
 		return (0);
 	}
 
-	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
-
-	if (ZFS_IS_VOLUME(zhp)) {
-		zc.zc_objset_type = DMU_OST_ZVOL;
+	if (zhp->zfs_type == ZFS_TYPE_SNAPSHOT) {
+		nvlist_t *nv = fnvlist_alloc();
+		fnvlist_add_boolean(nv, zhp->zfs_name);
+		error = lzc_destroy_snaps(nv, defer, NULL);
+		fnvlist_free(nv);
 	} else {
-		zc.zc_objset_type = DMU_OST_ZFS;
+		error = lzc_destroy(zhp->zfs_name);
 	}
 
-	zc.zc_defer_destroy = defer;
-	if (zfs_ioctl(zhp->zfs_hdl, ZFS_IOC_DESTROY, &zc) != 0 &&
-	    errno != ENOENT) {
+	if (error != 0 && error != ENOENT) {
 		return (zfs_standard_error_fmt(zhp->zfs_hdl, errno,
 		    dgettext(TEXT_DOMAIN, "cannot destroy '%s'"),
 		    zhp->zfs_name));

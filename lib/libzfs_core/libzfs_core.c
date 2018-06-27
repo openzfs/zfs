@@ -316,6 +316,30 @@ lzc_remap(const char *fsname)
 	return (error);
 }
 
+int
+lzc_rename(const char *source, const char *target)
+{
+	zfs_cmd_t zc = { "\0" };
+	int error;
+	ASSERT3S(g_refcount, >, 0);
+	VERIFY3S(g_fd, !=, -1);
+	(void) strlcpy(zc.zc_name, source, sizeof (zc.zc_name));
+	(void) strlcpy(zc.zc_value, target, sizeof (zc.zc_value));
+	error = ioctl(g_fd, ZFS_IOC_RENAME, &zc);
+	if (error != 0)
+		error = errno;
+	return (error);
+}
+int
+lzc_destroy(const char *fsname)
+{
+	int error;
+	nvlist_t *args = fnvlist_alloc();
+	error = lzc_ioctl(ZFS_IOC_DESTROY, fsname, args, NULL);
+	nvlist_free(args);
+	return (error);
+}
+
 /*
  * Creates snapshots.
  *

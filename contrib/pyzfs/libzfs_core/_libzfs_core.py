@@ -1605,7 +1605,6 @@ def lzc_pool_checkpoint_discard(name):
     errors.lzc_pool_checkpoint_discard_translate_error(ret, name)
 
 
-@_uncommitted()
 def lzc_rename(source, target):
     '''
     Rename the ZFS dataset.
@@ -1621,12 +1620,11 @@ def lzc_rename(source, target):
     :raises FilesystemExists: if the target already exists.
     :raises PoolsDiffer: if the source and target belong to different pools.
     '''
-    ret = _lib.lzc_rename(source, target, _ffi.NULL, _ffi.NULL)
+    ret = _lib.lzc_rename(source, target)
     errors.lzc_rename_translate_error(ret, source, target)
 
 
-@_uncommitted()
-def lzc_destroy_one(name):
+def lzc_destroy(name):
     '''
     Destroy the ZFS dataset.
 
@@ -1635,14 +1633,8 @@ def lzc_destroy_one(name):
     :raises NameTooLong: if the dataset name is too long.
     :raises FilesystemNotFound: if the dataset does not exist.
     '''
-    ret = _lib.lzc_destroy_one(name, _ffi.NULL)
+    ret = _lib.lzc_destroy(name)
     errors.lzc_destroy_translate_error(ret, name)
-
-
-# As the extended API is not committed yet, the names of the new interfaces
-# are not settled down yet.
-# lzc_destroy() might make more sense as we do not have lzc_create_one().
-lzc_destroy = lzc_destroy_one
 
 
 @_uncommitted()

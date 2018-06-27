@@ -650,7 +650,6 @@ zfs_destroy(const char *dataset)
 
 	(void) strlcpy(zc.zc_name, dataset, sizeof (zc.zc_name));
 	zc.zc_name[sizeof (zc.zc_name) - 1] = '\0';
-	zc.zc_objset_type = DMU_OST_ZFS;
 	err = ioctl(zfs_fd, ZFS_IOC_DESTROY, &zc);
 
 	return (err == 0 ? 0 : errno);
