@@ -2454,6 +2454,8 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 	dmu_tx_t *tx;
 	uint64_t object;
 	int err;
+	uint8_t dn_slots = drro->drr_dn_slots != 0 ?
+	    drro->drr_dn_slots : DNODE_MIN_SLOTS;
 
 	if (drro->drr_type == DMU_OT_NONE ||
 	    !DMU_OT_IS_VALID(drro->drr_type) ||
@@ -2465,7 +2467,7 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 	    drro->drr_blksz > spa_maxblocksize(dmu_objset_spa(rwa->os)) ||
 	    drro->drr_bonuslen >
 	    DN_BONUS_SIZE(spa_maxdnodesize(dmu_objset_spa(rwa->os))) ||
-	    drro->drr_dn_slots >
+	    dn_slots >
 	    (spa_maxdnodesize(dmu_objset_spa(rwa->os)) >> DNODE_SHIFT))  {
 		return (SET_ERROR(EINVAL));
 	}
@@ -2481,7 +2483,7 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 		    drro->drr_indblkshift > SPA_MAXBLOCKSHIFT ||
 		    drro->drr_nlevels > DN_MAX_LEVELS ||
 		    drro->drr_nblkptr > DN_MAX_NBLKPTR ||
-		    DN_SLOTS_TO_BONUSLEN(drro->drr_dn_slots) <
+		    DN_SLOTS_TO_BONUSLEN(dn_slots) <
 		    drro->drr_raw_bonuslen)
 			return (SET_ERROR(EINVAL));
 	} else {
@@ -2519,7 +2521,7 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 
 		if (drro->drr_blksz != doi.doi_data_block_size ||
 		    nblkptr < doi.doi_nblkptr ||
-		    drro->drr_dn_slots != doi.doi_dnodesize >> DNODE_SHIFT ||
+		    dn_slots != doi.doi_dnodesize >> DNODE_SHIFT ||
 		    (rwa->raw &&
 		    (indblksz != doi.doi_metadata_block_size ||
 		    drro->drr_nlevels < doi.doi_indirection))) {
@@ -2540,7 +2542,7 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 		 * instead.
 		 */
 		if ((rwa->raw && drro->drr_nlevels < doi.doi_indirection) ||
-		    drro->drr_dn_slots != doi.doi_dnodesize >> DNODE_SHIFT) {
+		    dn_slots != doi.doi_dnodesize >> DNODE_SHIFT) {
 			err = dmu_free_long_object(rwa->os, drro->drr_object);
 			if (err != 0)
 				return (SET_ERROR(EINVAL));
@@ -2569,11 +2571,11 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 	 * another object from the previous snapshot. We must free
 	 * these objects before we attempt to allocate the new dnode.
 	 */
-	if (drro->drr_dn_slots > 1) {
+	if (dn_slots > 1) {
 		boolean_t need_sync = B_FALSE;
 
 		for (uint64_t slot = drro->drr_object + 1;
-		    slot < drro->drr_object + drro->drr_dn_slots;
+		    slot < drro->drr_object + dn_slots;
 		    slot++) {
 			dmu_object_info_t slot_doi;
 
@@ -2609,7 +2611,7 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 		err = dmu_object_claim_dnsize(rwa->os, drro->drr_object,
 		    drro->drr_type, drro->drr_blksz,
 		    drro->drr_bonustype, drro->drr_bonuslen,
-		    drro->drr_dn_slots << DNODE_SHIFT, tx);
+		    dn_slots << DNODE_SHIFT, tx);
 	} else if (drro->drr_type != doi.doi_type ||
 	    drro->drr_blksz != doi.doi_data_block_size ||
 	    drro->drr_bonustype != doi.doi_bonus_type ||
@@ -2618,7 +2620,7 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 		err = dmu_object_reclaim_dnsize(rwa->os, drro->drr_object,
 		    drro->drr_type, drro->drr_blksz,
 		    drro->drr_bonustype, drro->drr_bonuslen,
-		    drro->drr_dn_slots << DNODE_SHIFT, tx);
+		    dn_slots << DNODE_SHIFT, tx);
 	}
 	if (err != 0) {
 		dmu_tx_commit(tx);
