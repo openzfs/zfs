@@ -102,6 +102,9 @@ boolean_t lzc_exists(const char *);
 int lzc_rollback(const char *, char *, int);
 int lzc_rollback_to(const char *, const char *);
 
+int lzc_rename(const char *, const char *);
+int lzc_destroy(const char *);
+
 int lzc_channel_program(const char *, const char *, uint64_t,
     uint64_t, nvlist_t *, nvlist_t **);
 int lzc_channel_program_nosync(const char *, const char *, uint64_t,
