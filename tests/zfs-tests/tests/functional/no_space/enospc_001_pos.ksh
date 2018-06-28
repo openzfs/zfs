@@ -48,13 +48,14 @@ verify_runnable "both"
 
 function cleanup
 {
-	rm -f $TESTDIR/$TESTFILE0
-	rm -f $TESTDIR/$TESTFILE1
+	default_cleanup_noexit
 }
 
 log_onexit cleanup
 
 log_assert "ENOSPC is returned when file system is full."
+
+default_setup_noexit $DISK_SMALL
 log_must zfs set compression=off $TESTPOOL/$TESTFS
 
 log_note "Writing file: $TESTFILE0 until ENOSPC."
