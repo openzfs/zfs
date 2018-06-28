@@ -2137,13 +2137,17 @@ arc_buf_fill(arc_buf_t *buf, spa_t *spa, const zbookmark_phys_t *zb,
 	}
 
 	/*
-	 * Adjust encrypted and authenticated headers to accomodate the
-	 * request if needed.
+	 * Adjust encrypted and authenticated headers to accomodate
+	 * the request if needed. Dnode blocks (ARC_FILL_IN_PLACE) are
+	 * allowed to fail decryption due to keys not being loaded
+	 * without being marked as an IO error.
 	 */
 	if (HDR_PROTECTED(hdr)) {
 		error = arc_fill_hdr_crypt(hdr, hash_lock, spa,
 		    zb, !!(flags & ARC_FILL_NOAUTH));
-		if (error != 0) {
+		if (error == EACCES && (flags & ARC_FILL_IN_PLACE) != 0) {
+			return (error);
+		} else if (error != 0) {
 			if (hash_lock != NULL)
 				mutex_enter(hash_lock);
 			arc_hdr_set_flags(hdr, ARC_FLAG_IO_ERROR);
