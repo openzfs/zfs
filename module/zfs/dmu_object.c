@@ -261,6 +261,9 @@ dmu_object_reclaim_dnsize(objset_t *os, uint64_t object, dmu_object_type_t ot,
 	int dn_slots = dnodesize >> DNODE_SHIFT;
 	int err;
 
+	if (dn_slots == 0)
+		dn_slots = DNODE_MIN_SLOTS;
+
 	if (object == DMU_META_DNODE_OBJECT)
 		return (SET_ERROR(EBADF));
 
