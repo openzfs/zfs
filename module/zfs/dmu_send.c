@@ -2139,6 +2139,8 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 	dmu_tx_t *tx;
 	uint64_t object;
 	int err;
+	uint8_t dn_slots = drro->drr_dn_slots != 0 ?
+	    drro->drr_dn_slots : DNODE_MIN_SLOTS;
 
 	if (drro->drr_type == DMU_OT_NONE ||
 	    !DMU_OT_IS_VALID(drro->drr_type) ||
@@ -2150,7 +2152,7 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 	    drro->drr_blksz > spa_maxblocksize(dmu_objset_spa(rwa->os)) ||
 	    drro->drr_bonuslen >
 	    DN_BONUS_SIZE(spa_maxdnodesize(dmu_objset_spa(rwa->os))) ||
-	    drro->drr_dn_slots >
+	    dn_slots >
 	    (spa_maxdnodesize(dmu_objset_spa(rwa->os)) >> DNODE_SHIFT))  {
 		return (SET_ERROR(EINVAL));
 	}
@@ -2177,11 +2179,30 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 
 		if (drro->drr_blksz != doi.doi_data_block_size ||
 		    nblkptr < doi.doi_nblkptr ||
-		    drro->drr_dn_slots != doi.doi_dnodesize >> DNODE_SHIFT) {
+		    dn_slots != doi.doi_dnodesize >> DNODE_SHIFT) {
 			err = dmu_free_long_range(rwa->os, drro->drr_object,
 			    0, DMU_OBJECT_END);
 			if (err != 0)
 				return (SET_ERROR(EINVAL));
+		}
+
+		/*
+		 * The dmu does not currently support decreasing nlevels
+		 * on an object. For non-raw sends, this does not matter
+		 * and the new object can just use the previous one's nlevels.
+		 * For raw sends, however, the structure of the received dnode
+		 * (including nlevels) must match that of the send side.
+		 * Therefore, instead of using dmu_object_reclaim(), we must
+		 * free the object completely and call dmu_object_claim_dnsize()
+		 * instead.
+		 */
+		if (dn_slots != doi.doi_dnodesize >> DNODE_SHIFT) {
+			err = dmu_free_long_object(rwa->os, drro->drr_object);
+			if (err != 0)
+				return (SET_ERROR(EINVAL));
+
+			txg_wait_synced(dmu_objset_pool(rwa->os), 0);
+			object = DMU_NEW_OBJECT;
 		}
 	} else if (err == EEXIST) {
 		/*
@@ -2204,9 +2225,9 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 	 * another object from the previous snapshot. We must free
 	 * these objects before we attempt to allocate the new dnode.
 	 */
-	if (drro->drr_dn_slots > 1) {
+	if (dn_slots > 1) {
 		for (uint64_t slot = drro->drr_object + 1;
-		    slot < drro->drr_object + drro->drr_dn_slots;
+		    slot < drro->drr_object + dn_slots;
 		    slot++) {
 			dmu_object_info_t slot_doi;
 
@@ -2238,7 +2259,7 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 		err = dmu_object_claim_dnsize(rwa->os, drro->drr_object,
 		    drro->drr_type, drro->drr_blksz,
 		    drro->drr_bonustype, drro->drr_bonuslen,
-		    drro->drr_dn_slots << DNODE_SHIFT, tx);
+		    dn_slots << DNODE_SHIFT, tx);
 	} else if (drro->drr_type != doi.doi_type ||
 	    drro->drr_blksz != doi.doi_data_block_size ||
 	    drro->drr_bonustype != doi.doi_bonus_type ||
@@ -2247,7 +2268,7 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 		err = dmu_object_reclaim_dnsize(rwa->os, drro->drr_object,
 		    drro->drr_type, drro->drr_blksz,
 		    drro->drr_bonustype, drro->drr_bonuslen,
-		    drro->drr_dn_slots << DNODE_SHIFT, tx);
+		    dn_slots << DNODE_SHIFT, tx);
 	}
 	if (err != 0) {
 		dmu_tx_commit(tx);
