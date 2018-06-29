@@ -156,7 +156,7 @@ Description: OpenZFS Event Daemon
 Package: zfs-test
 Section: contrib/admin
 Architecture: linux-any
-Depends: ${misc:Depends}, ${shlibs:Depends}, zfs-modules | zfs-dkms, zfsutils-linux (>=${binary:Version}), parted, lsscsi, mdadm, bc, ksh, fio, acl, sudo, sysstat, python
+Depends: ${misc:Depends}, ${shlibs:Depends}, zfs-modules | zfs-dkms, zfsutils-linux (>=${binary:Version}), parted, lsscsi, mdadm, bc, ksh, fio, acl, sudo, sysstat, python, attr
 Breaks: zfsutils-linux (<= 0.6.5.11-1)
 Replaces: zfsutils-linux (<= 0.6.5.11-1)
 Description: OpenZFS test infrastructure an support scripts
