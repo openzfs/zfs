@@ -1,2 +1,16 @@
 # Force the inclusion of Busybox in the initramfs.
 BUSYBOX=y
+
+# Workaround for https://bugs.launchpad.net/ubuntu/+source/initramfs-tools/+bug/1661629
+#
+# When building an initrd with MODULES=dep, which ubuntu tries to do when
+# installing kdump-tools, mkinitramfs tries to detect which modules are
+# necessary based on the hardware and filesystem, and include only those
+# moules in the image.
+#
+# However, the detection logic doesn't understand zfs on root, so building the
+# initramfs fails. As a workaround, override MODULES to get mkinitramfs to just
+# includes most modules without checking whether they are really needed. The
+# result is a larger initrd image than is strictly necessary, but at least it is
+# created successfully.
+MODULES=most
