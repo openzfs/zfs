@@ -106,6 +106,14 @@ user_ns_reason = 'Kernel user namespace support required'
 rewind_reason = 'Arbitrary pool rewind is not guaranteed'
 
 #
+# Some tests may by structured in a way that relies on exact knowledge
+# of how much free space in available in a pool.  These tests cannot be
+# made completely reliable because the internal details of how free space
+# is managed are not exposed to user space.
+#
+enospc_reason = 'Exact free space reporting is not guaranteed'
+
+#
 # Some tests are not applicable to Linux or need to be updated to operate
 # in the manor required by Linux.  Any tests which are skipped for this
 # reason will be suppressed in the final analysis output.
@@ -235,8 +243,7 @@ maybe = {
     'inuse/inuse_009_pos': ['SKIP', disk_reason],
     'largest_pool/largest_pool_001_pos': ['FAIL', known_reason],
     'pyzfs/pyzfs_unittest': ['SKIP', python_deps_reason],
-    'no_space/setup': ['SKIP', disk_reason],
-    'no_space/enospc_002_pos': ['FAIL', known_reason],
+    'no_space/enospc_002_pos': ['FAIL', enospc_reason],
     'projectquota/setup': ['SKIP', exec_reason],
     'reservation/reservation_018_pos': ['FAIL', '5642'],
     'rsend/rsend_019_pos': ['FAIL', '6086'],

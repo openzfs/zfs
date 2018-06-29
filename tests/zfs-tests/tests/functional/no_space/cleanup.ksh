@@ -33,22 +33,7 @@
 
 verify_runnable "global"
 
-DISK=${DISKS%% *}
-
-ismounted "$TESTPOOL/$TESTFS"
-(( $? == 0 )) && \
-        log_must zfs umount $TESTDIR
-
-destroy_pool $TESTPOOL
-
-if is_mpath_device $DISK; then
-	delete_partitions
-fi
-
-#
-# Remove 100mb partition.
-#
-create_pool dummy$$ "$DISK"
-destroy_pool dummy$$
+default_cleanup_noexit
+log_must rm -f $DISK_SMALL $DISK_LARGE
 
 log_pass
