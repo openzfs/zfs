@@ -45,19 +45,13 @@ verify_runnable "both"
 function cleanup
 {
 	log_must zpool destroy $TESTPOOL1
-	log_must rm -f $disk
 }
 
 log_onexit cleanup
 
 log_assert "ENOSPC is returned on pools with large physical block size"
 
-disk=$TEST_BASE_DIR/$FILEDISK0
-# we need a device big enough to test this or failure will not trigger
-size="512m"
-log_must mkfile $size $disk
-
-log_must zpool create $TESTPOOL1 -o ashift=13 $disk
+log_must zpool create $TESTPOOL1 -o ashift=13 $DISK_LARGE
 log_must zfs set mountpoint=$TESTDIR $TESTPOOL1
 log_must zfs set compression=off $TESTPOOL1
 log_must zfs set recordsize=512 $TESTPOOL1
