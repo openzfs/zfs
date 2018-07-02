@@ -61,7 +61,7 @@ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
 	export PERF_NTHREADS=${PERF_NTHREADS:-'1 4 8 16 32 64 128'}
 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
 	export PERF_SYNC_TYPES=${PERF_SYNC_TYPES:-'0 1'}
-	export PERF_IOSIZES=${PERF_IOSIZES:-'8k 128k 1m'}
+	export PERF_IOSIZES=${PERF_IOSIZES:-'8k 64k 256k'}
 elif [[ -n $PERF_REGRESSION_NIGHTLY ]]; then
 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_NIGHTLY}
 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'nightly'}
@@ -80,17 +80,17 @@ if is_linux; then
 
 	export collect_scripts=(
 	    "zpool iostat -lpvyL $PERFPOOL 1" "zpool.iostat"
-	    "vmstat 1" "vmstat"
+	    "vmstat -t 1" "vmstat"
 	    "mpstat -P ALL 1" "mpstat"
-	    "iostat -dxyz 1" "iostat"
+	    "iostat -tdxyz 1" "iostat"
 	    "$perf_record_cmd" "perf"
 	)
 else
 	export collect_scripts=(
 	    "$PERF_SCRIPTS/io.d $PERFPOOL $lun_list 1" "io"
-	    "vmstat 1" "vmstat"
-	    "mpstat 1" "mpstat"
-	    "iostat -xcnz 1" "iostat"
+	    "vmstat -T d 1" "vmstat"
+	    "mpstat -T d 1" "mpstat"
+	    "iostat -T d -xcnz 1" "iostat"
 	)
 fi
 

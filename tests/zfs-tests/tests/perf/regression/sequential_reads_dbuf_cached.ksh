@@ -84,9 +84,9 @@ if is_linux; then
 	export collect_scripts=(
 	    "zpool iostat -lpvyL $PERFPOOL 1" "zpool.iostat"
 	    "$PERF_SCRIPTS/prefetch_io.sh $PERFPOOL 1" "prefetch"
-	    "vmstat 1" "vmstat"
-	    "mpstat  -P ALL 1" "mpstat"
-	    "iostat -dxyz 1" "iostat"
+	    "vmstat -t 1" "vmstat"
+	    "mpstat -P ALL 1" "mpstat"
+	    "iostat -tdxyz 1" "iostat"
 	    "$perf_record_cmd" "perf"
 	)
 else
