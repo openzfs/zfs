@@ -1108,6 +1108,7 @@ zfs_secpolicy_create_clone(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 	char	parentname[ZFS_MAX_DATASET_NAME_LEN];
 	int	error;
 	char	*origin;
+	uint32_t	type;
 
 	if ((error = zfs_get_parent(zc->zc_name, parentname,
 	    sizeof (parentname))) != 0)
@@ -1121,6 +1122,12 @@ zfs_secpolicy_create_clone(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 	if ((error = zfs_secpolicy_write_perms(parentname,
 	    ZFS_DELEG_PERM_CREATE, cr)) != 0)
 		return (error);
+
+	/* Mount permission is not required for a ZVOL */
+	if (nvlist_lookup_int32(innvl, "type", &type) != 0)
+		return (SET_ERROR(EINVAL));
+	if (type == DMU_OST_ZVOL)
+		return (0);
 
 	return (zfs_secpolicy_write_perms(parentname,
 	    ZFS_DELEG_PERM_MOUNT, cr));
