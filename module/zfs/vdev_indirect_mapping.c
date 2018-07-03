@@ -14,7 +14,7 @@
  */
 
 /*
- * Copyright (c) 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2015, 2017 by Delphix. All rights reserved.
  */
 
 #include <sys/dmu_tx.h>
@@ -539,14 +539,13 @@ typedef struct load_obsolete_space_map_arg {
 } load_obsolete_space_map_arg_t;
 
 static int
-load_obsolete_sm_callback(maptype_t type, uint64_t offset, uint64_t size,
-    void *arg)
+load_obsolete_sm_callback(space_map_entry_t *sme, void *arg)
 {
 	load_obsolete_space_map_arg_t *losma = arg;
-	ASSERT3S(type, ==, SM_ALLOC);
+	ASSERT3S(sme->sme_type, ==, SM_ALLOC);
 
 	vdev_indirect_mapping_increment_obsolete_count(losma->losma_vim,
-	    offset, size, losma->losma_counts);
+	    sme->sme_offset, sme->sme_run, losma->losma_counts);
 
 	return (0);
 }
