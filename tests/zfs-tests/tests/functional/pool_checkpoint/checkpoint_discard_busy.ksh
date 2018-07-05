@@ -19,7 +19,7 @@
 
 #
 # DESCRIPTION:
-# 	Discard checkpoint on a stressed pool. Ensure that we can
+#	Discard checkpoint on a stressed pool. Ensure that we can
 #	export and import the pool while discarding but not run any
 #	operations that have to do with the checkpoint or change the
 #	pool's config.
@@ -62,6 +62,10 @@ log_onexit test_cleanup
 # discarding the checkpoint for a long time as with
 # the current setup the checkpoint space maps should
 # have tens of thousands of entries.
+#
+# Note: If two-words entries are used in the space
+#	map, we should have even more time to
+#	verify this.
 #
 set_tunable64 zfs_spa_discard_memory_limit 128
 
