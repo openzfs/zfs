@@ -55,6 +55,7 @@ extern "C" {
 #endif
 
 #define	_SUNOS_VTOC_16
+#define	HAVE_EFFICIENT_UNALIGNED_ACCESS
 
 /* i386 arch specific defines */
 #elif defined(__i386) || defined(__i386__)
@@ -76,6 +77,7 @@ extern "C" {
 #endif
 
 #define	_SUNOS_VTOC_16
+#define	HAVE_EFFICIENT_UNALIGNED_ACCESS
 
 /* powerpc arch specific defines */
 #elif defined(__powerpc) || defined(__powerpc__) || defined(__powerpc64__)
@@ -99,6 +101,7 @@ extern "C" {
 #endif
 
 #define	_SUNOS_VTOC_16
+#define	HAVE_EFFICIENT_UNALIGNED_ACCESS
 
 /* arm arch specific defines */
 #elif defined(__arm) || defined(__arm__) || defined(__aarch64__)
@@ -128,6 +131,10 @@ extern "C" {
 #endif
 
 #define	_SUNOS_VTOC_16
+
+#if defined(__ARM_FEATURE_UNALIGNED)
+#define	HAVE_EFFICIENT_UNALIGNED_ACCESS
+#endif
 
 /* sparc arch specific defines */
 #elif defined(__sparc) || defined(__sparc__)
