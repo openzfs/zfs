@@ -191,6 +191,7 @@ static vdev_disk_db_entry_t vdev_disk_database[] = {
 	{"ATA     INTEL SSDSC2BP24", 4096},
 	{"ATA     INTEL SSDSC2BP48", 4096},
 	{"NA      SmrtStorSDLKAE9W", 4096},
+	{"NVMe    Amazon EC2 NVMe ", 4096},
 	/* Imported from Open Solaris */
 	{"ATA     MARVELL SD88SA02", 4096},
 	/* Advanced format Hard drives */
