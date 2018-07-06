@@ -371,6 +371,9 @@ systemctl --system daemon-reload >/dev/null || true
 %endif
 
 %changelog
+* Thu Jul 05 2018 Tony Hutter <hutter2@llnl.gov> - 0.7.10-1
+- Released 0.7.10-1, detailed release notes are available at:
+- https://github.com/zfsonlinux/zfs/releases/tag/zfs-0.7.10
 * Tue May 08 2018 Tony Hutter <hutter2@llnl.gov> - 0.7.9-1
 - Released 0.7.9-1, detailed release notes are available at:
 - https://github.com/zfsonlinux/zfs/releases/tag/zfs-0.7.9
