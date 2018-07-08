@@ -27,13 +27,14 @@
 #
 # Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
+
+. $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/scrub_mirror/default.cfg
 
 function overwrite_verify_mirror
 {
-	typeset POOL=$1
-	typeset AFFECTED_DEVICE=$2
-	typeset OVERWRITING_DEVICE=$3
+	typeset AFFECTED_DEVICE=$1
+	typeset OVERWRITING_DEVICE=$2
 
 	typeset atfile=0
 	set -A files
@@ -49,14 +50,11 @@ function overwrite_verify_mirror
 	done
 
 	# dd the affected side of the mirror
-	log_must dd if=$OVERWRITING_DEVICE of=${DEV_DSKDIR}/$AFFECTED_DEVICE \
+	log_must dd if=$OVERWRITING_DEVICE of=$AFFECTED_DEVICE \
 		seek=8 bs=$DD_BLOCK count=$(( DD_COUNT - 128 )) conv=notrunc
 
-	log_must zpool scrub $POOL
-
-	while is_pool_scrubbing $POOL; do
-		sleep 2
-	done
+	log_must zpool scrub $TESTPOOL
+	log_must wait_scrubbed $TESTPOOL
 
 	atfile=0
 
