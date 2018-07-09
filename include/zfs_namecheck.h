@@ -23,7 +23,7 @@
  * Use is subject to license terms.
  */
 /*
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2016 by Delphix. All rights reserved.
  */
 
 #ifndef	_ZFS_NAMECHECK_H
@@ -48,9 +48,13 @@ typedef enum {
 
 #define	ZFS_PERMSET_MAXLEN	64
 
+extern int zfs_max_dataset_nesting;
+
+int get_dataset_depth(const char *);
 int pool_namecheck(const char *, namecheck_err_t *, char *);
 int entity_namecheck(const char *, namecheck_err_t *, char *);
 int dataset_namecheck(const char *, namecheck_err_t *, char *);
+int dataset_nestcheck(const char *);
 int mountpoint_namecheck(const char *, namecheck_err_t *);
 int zfs_component_namecheck(const char *, namecheck_err_t *, char *);
 int permset_namecheck(const char *, namecheck_err_t *, char *);
