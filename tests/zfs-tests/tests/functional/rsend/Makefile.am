@@ -41,7 +41,8 @@ dist_pkgdata_SCRIPTS = \
 	send-cpL_varied_recsize.ksh \
 	send_freeobjects.ksh \
 	send_realloc_dnode_size.ksh \
-	send_hole_birth.ksh
+	send_hole_birth.ksh \
+	send-wDR_encrypted_zvol.ksh
 
 dist_pkgdata_DATA = \
 	rsend.cfg \

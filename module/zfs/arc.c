@@ -1561,6 +1561,9 @@ arc_cksum_free(arc_buf_hdr_t *hdr)
 static boolean_t
 arc_hdr_has_uncompressed_buf(arc_buf_hdr_t *hdr)
 {
+	ASSERT(hdr->b_l1hdr.b_state == arc_anon ||
+	    MUTEX_HELD(HDR_LOCK(hdr)) || HDR_EMPTY(hdr));
+
 	for (arc_buf_t *b = hdr->b_l1hdr.b_buf; b != NULL; b = b->b_next) {
 		if (!ARC_BUF_COMPRESSED(b)) {
 			return (B_TRUE);
@@ -1584,15 +1587,13 @@ arc_cksum_verify(arc_buf_t *buf)
 	if (!(zfs_flags & ZFS_DEBUG_MODIFY))
 		return;
 
-	if (ARC_BUF_COMPRESSED(buf)) {
-		ASSERT(hdr->b_l1hdr.b_freeze_cksum == NULL ||
-		    arc_hdr_has_uncompressed_buf(hdr));
+	if (ARC_BUF_COMPRESSED(buf))
 		return;
-	}
 
 	ASSERT(HDR_HAS_L1HDR(hdr));
 
 	mutex_enter(&hdr->b_l1hdr.b_freeze_lock);
+
 	if (hdr->b_l1hdr.b_freeze_cksum == NULL || HDR_IO_ERROR(hdr)) {
 		mutex_exit(&hdr->b_l1hdr.b_freeze_lock);
 		return;
@@ -1650,11 +1651,7 @@ arc_cksum_compute(arc_buf_t *buf)
 	ASSERT(HDR_HAS_L1HDR(hdr));
 
 	mutex_enter(&buf->b_hdr->b_l1hdr.b_freeze_lock);
-	if (hdr->b_l1hdr.b_freeze_cksum != NULL) {
-		ASSERT(arc_hdr_has_uncompressed_buf(hdr));
-		mutex_exit(&hdr->b_l1hdr.b_freeze_lock);
-		return;
-	} else if (ARC_BUF_COMPRESSED(buf)) {
+	if (hdr->b_l1hdr.b_freeze_cksum != NULL || ARC_BUF_COMPRESSED(buf)) {
 		mutex_exit(&hdr->b_l1hdr.b_freeze_lock);
 		return;
 	}
@@ -1746,14 +1743,10 @@ arc_buf_thaw(arc_buf_t *buf)
 	arc_cksum_verify(buf);
 
 	/*
-	 * Compressed buffers do not manipulate the b_freeze_cksum or
-	 * allocate b_thawed.
+	 * Compressed buffers do not manipulate the b_freeze_cksum.
 	 */
-	if (ARC_BUF_COMPRESSED(buf)) {
-		ASSERT(hdr->b_l1hdr.b_freeze_cksum == NULL ||
-		    arc_hdr_has_uncompressed_buf(hdr));
+	if (ARC_BUF_COMPRESSED(buf))
 		return;
-	}
 
 	ASSERT(HDR_HAS_L1HDR(hdr));
 	arc_cksum_free(hdr);
@@ -1763,26 +1756,14 @@ arc_buf_thaw(arc_buf_t *buf)
 void
 arc_buf_freeze(arc_buf_t *buf)
 {
-	arc_buf_hdr_t *hdr = buf->b_hdr;
-	kmutex_t *hash_lock;
-
 	if (!(zfs_flags & ZFS_DEBUG_MODIFY))
 		return;
 
-	if (ARC_BUF_COMPRESSED(buf)) {
-		ASSERT(hdr->b_l1hdr.b_freeze_cksum == NULL ||
-		    arc_hdr_has_uncompressed_buf(hdr));
+	if (ARC_BUF_COMPRESSED(buf))
 		return;
-	}
 
-	hash_lock = HDR_LOCK(hdr);
-	mutex_enter(hash_lock);
-
-	ASSERT(HDR_HAS_L1HDR(hdr));
-	ASSERT(hdr->b_l1hdr.b_freeze_cksum != NULL ||
-	    hdr->b_l1hdr.b_state == arc_anon);
+	ASSERT(HDR_HAS_L1HDR(buf->b_hdr));
 	arc_cksum_compute(buf);
-	mutex_exit(hash_lock);
 }
 
 /*
@@ -1901,7 +1882,7 @@ arc_hdr_authenticate(arc_buf_hdr_t *hdr, spa_t *spa, uint64_t dsobj)
 	void *tmpbuf = NULL;
 	abd_t *abd = hdr->b_l1hdr.b_pabd;
 
-	ASSERT(HDR_LOCK(hdr) == NULL || MUTEX_HELD(HDR_LOCK(hdr)));
+	ASSERT(MUTEX_HELD(HDR_LOCK(hdr)) || HDR_EMPTY(hdr));
 	ASSERT(HDR_AUTHENTICATED(hdr));
 	ASSERT3P(hdr->b_l1hdr.b_pabd, !=, NULL);
 
@@ -1971,7 +1952,7 @@ arc_hdr_decrypt(arc_buf_hdr_t *hdr, spa_t *spa, const zbookmark_phys_t *zb)
 	boolean_t no_crypt = B_FALSE;
 	boolean_t bswap = (hdr->b_l1hdr.b_byteswap != DMU_BSWAP_NUMFUNCS);
 
-	ASSERT(HDR_LOCK(hdr) == NULL || MUTEX_HELD(HDR_LOCK(hdr)));
+	ASSERT(MUTEX_HELD(HDR_LOCK(hdr)) || HDR_EMPTY(hdr));
 	ASSERT(HDR_ENCRYPTED(hdr));
 
 	arc_hdr_alloc_abd(hdr, B_FALSE);
@@ -2090,7 +2071,7 @@ arc_buf_untransform_in_place(arc_buf_t *buf, kmutex_t *hash_lock)
 
 	ASSERT(HDR_ENCRYPTED(hdr));
 	ASSERT3U(hdr->b_crypt_hdr.b_ot, ==, DMU_OT_DNODE);
-	ASSERT(HDR_LOCK(hdr) == NULL || MUTEX_HELD(HDR_LOCK(hdr)));
+	ASSERT(MUTEX_HELD(HDR_LOCK(hdr)) || HDR_EMPTY(hdr));
 	ASSERT3P(hdr->b_l1hdr.b_pabd, !=, NULL);
 
 	zio_crypt_copy_dnode_bonus(hdr->b_l1hdr.b_pabd, buf->b_data,
