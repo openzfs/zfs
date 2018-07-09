@@ -48,6 +48,6 @@ verify_runnable "global"
 log_assert "The primary side of a zpool mirror may be completely mangled" \
 	"without affecting the content of the pool"
 
-overwrite_verify_mirror $TESTPOOL $SIDE_PRIMARY /dev/urandom
+overwrite_verify_mirror $SIDE_PRIMARY /dev/urandom
 
 log_pass "The overwrite did not have any effect on the data"

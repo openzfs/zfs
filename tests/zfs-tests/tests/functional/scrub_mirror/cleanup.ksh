@@ -35,21 +35,8 @@
 
 verify_runnable "global"
 
-df -F zfs -h | grep "$TESTFS " >/dev/null
-[[ $? == 0 ]] && log_must zfs umount -f $TESTDIR
 destroy_pool $TESTPOOL
-
-DISK=${DISKS%% *}
-if is_mpath_device $DISK; then
-	delete_partitions
-fi
-
-# recreate and destroy a zpool over the disks to restore the partitions to
-# normal
-if [[ -n $SINGLE_DISK ]]; then
-	log_must cleanup_devices $MIRROR_PRIMARY
-else
-	log_must cleanup_devices $MIRROR_PRIMARY $MIRROR_SECONDARY
-fi
+log_must rm -f $SIDE_PRIMARY $SIDE_SECONDARY
+log_must rmdir $SIDE_DIR
 
 log_pass
