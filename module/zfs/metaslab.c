@@ -1283,7 +1283,7 @@ metaslab_cf_alloc(metaslab_t *msp, uint64_t size)
 	if ((*cursor + size) > *cursor_end) {
 		range_seg_t *rs;
 
-		rs = avl_last(&msp->ms_size_tree);
+		rs = avl_last(&msp->ms_allocatable_by_size);
 		if (rs == NULL || (rs->rs_end - rs->rs_start) < size)
 			return (-1ULL);
 
@@ -1436,7 +1436,7 @@ metaslab_load_impl(metaslab_t *msp)
 		 */
 		if (msp->ms_trimming_ts != NULL) {
 			range_tree_walk(msp->ms_trimming_ts, range_tree_remove,
-			    msp->ms_tree);
+			    msp->ms_allocatable);
 		}
 		msp->ms_max_size = metaslab_block_maxsize(msp);
 	}
@@ -1528,7 +1528,7 @@ metaslab_init(metaslab_group_t *mg, uint64_t id, uint64_t object, uint64_t txg,
 		ASSERT(ms->ms_sm != NULL);
 	}
 
-	ms->ms_cur_ts = range_tree_create(NULL, NULL, &ms->ms_lock);
+	ms->ms_cur_ts = range_tree_create(NULL, NULL);
 
 	/*
 	 * We create the main range tree here, but we don't create the
@@ -2367,7 +2367,7 @@ metaslab_condense(metaslab_t *msp, uint64_t txg, dmu_tx_t *tx)
 	range_tree_vacate(condense_tree, NULL, NULL);
 	range_tree_destroy(condense_tree);
 
-	space_map_write(sm, msp->ms_tree, SM_FREE, tx);
+	space_map_write(sm, msp->ms_allocatable, SM_FREE, SM_NO_VDEVID, tx);
 	if (msp->ms_trimming_ts != NULL)
 		space_map_write(sm, msp->ms_trimming_ts, SM_FREE, SM_NO_VDEVID, tx);
 
@@ -2683,8 +2683,7 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 	    !vd->vdev_man_trimming) {
 		range_tree_walk(*defer_tree, metaslab_trim_add, msp);
 		if (!defer_allowed) {
-			range_tree_walk(msp->ms_freedtree, metaslab_trim_add,
-			    msp);
+			range_tree_walk(msp->ms_freed, metaslab_trim_add, msp);
 		}
 	}
 	range_tree_vacate(*defer_tree,
@@ -4398,9 +4397,9 @@ metaslab_trim_all(metaslab_t *msp, uint64_t *cursor, uint64_t *delta,
 
 	rsearch.rs_start = cur;
 	rsearch.rs_end = cur + SPA_MINBLOCKSIZE;
-	rs = avl_find(&msp->ms_tree->rt_root, &rsearch, &where);
+	rs = avl_find(&msp->ms_allocatable->rt_root, &rsearch, &where);
 	if (rs == NULL) {
-		rs = avl_nearest(&msp->ms_tree->rt_root, where, AVL_AFTER);
+		rs = avl_nearest(&msp->ms_allocatable->rt_root, where, AVL_AFTER);
 		if (rs != NULL)
 			cur = rs->rs_start;
 	}
@@ -4414,13 +4413,13 @@ metaslab_trim_all(metaslab_t *msp, uint64_t *cursor, uint64_t *delta,
 		trimmed_space += (end - cur);
 		cur = end;
 		if (cur == rs->rs_end)
-			rs = AVL_NEXT(&msp->ms_tree->rt_root, rs);
+			rs = AVL_NEXT(&msp->ms_allocatable->rt_root, rs);
 	}
 
 	if (trimmed_space != 0) {
 		/* Force this trim to take place ASAP. */
 		msp->ms_prev_ts = msp->ms_cur_ts;
-		msp->ms_cur_ts = range_tree_create(NULL, NULL, &msp->ms_lock);
+		msp->ms_cur_ts = range_tree_create(NULL, NULL);
 		trim_io = metaslab_exec_trim(msp, B_FALSE);
 		ASSERT(trim_io != NULL);
 
@@ -4548,7 +4547,7 @@ metaslab_auto_trim(metaslab_t *msp, boolean_t preserve_spilled)
 		}
 	}
 	msp->ms_prev_ts = msp->ms_cur_ts;
-	msp->ms_cur_ts = range_tree_create(NULL, NULL, &msp->ms_lock);
+	msp->ms_cur_ts = range_tree_create(NULL, NULL);
 
 	mutex_exit(&msp->ms_lock);
 }
@@ -4609,7 +4608,7 @@ metaslab_trim_done(zio_t *zio)
 	VERIFY(!msp->ms_condensing);
 	if (msp->ms_loaded) {
 		range_tree_walk(msp->ms_trimming_ts, range_tree_add,
-		    msp->ms_tree);
+		    msp->ms_allocatable);
 	}
 	metaslab_free_trimset(msp->ms_trimming_ts);
 	msp->ms_trimming_ts = NULL;
@@ -4684,7 +4683,7 @@ metaslab_exec_trim(metaslab_t *msp, boolean_t auto_trim)
 		for (range_seg_t *rs = avl_first(&trim_tree->rt_root);
 		    rs != NULL; rs = AVL_NEXT(&trim_tree->rt_root, rs)) {
 #ifdef	DEBUG
-			if (!range_tree_contains_part(msp->ms_tree,
+			if (!range_tree_contains_part(msp->ms_allocatable,
 			    rs->rs_start, rs->rs_end - rs->rs_start)) {
 				panic("trimming allocated region; rs=%p",
 				    (void*)rs);
@@ -4696,7 +4695,7 @@ metaslab_exec_trim(metaslab_t *msp, boolean_t auto_trim)
 			 * the tree of free space. They'll then be added back
 			 * in in metaslab_trim_done.
 			 */
-			range_tree_remove(msp->ms_tree, rs->rs_start,
+			range_tree_remove(msp->ms_allocatable, rs->rs_start,
 			    rs->rs_end - rs->rs_start);
 		}
 	}
@@ -4724,8 +4723,7 @@ metaslab_exec_trim(metaslab_t *msp, boolean_t auto_trim)
 	if (auto_trim) {
 		uint64_t start = 0;
 		range_seg_t *rs;
-		range_tree_t *sub_trim_tree = range_tree_create(NULL, NULL,
-		    &msp->ms_lock);
+		range_tree_t *sub_trim_tree = range_tree_create(NULL, NULL);
 
 		zio = zio_null(NULL, spa, vd, metaslab_trim_done, msp, 0);
 

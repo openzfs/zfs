@@ -3549,9 +3549,9 @@ spa_ld_get_props(spa_t *spa)
 	}
 
 	(void) spa_dir_prop(spa, DMU_POOL_TRIM_START_TIME,
-	    &spa->spa_man_trim_start_time);
+	    &spa->spa_man_trim_start_time, B_FALSE);
 	(void) spa_dir_prop(spa, DMU_POOL_TRIM_STOP_TIME,
-	    &spa->spa_man_trim_stop_time);
+	    &spa->spa_man_trim_stop_time, B_FALSE);
 
 	/*
 	 * If we are importing a pool with missing top-level vdevs,
