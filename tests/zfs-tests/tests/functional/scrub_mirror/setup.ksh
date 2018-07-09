@@ -29,22 +29,13 @@
 # Copyright (c) 2013 by Delphix. All rights reserved.
 #
 
-. $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/scrub_mirror/default.cfg
+. $STF_SUITE/include/libtest.shlib
 
 verify_runnable "global"
 
-if ! $(is_physical_device $DISKS) ; then
-	log_unsupported "This directory cannot be run on raw files."
-fi
-
-if [[ -n $SINGLE_DISK ]]; then
-	log_note "Partitioning a single disk ($SINGLE_DISK)"
-else
-	log_note "Partitioning disks ($MIRROR_PRIMARY $MIRROR_SECONDARY)"
-fi
-log_must set_partition $SIDE_PRIMARY_PART "" $MIRROR_SIZE $MIRROR_PRIMARY
-log_must set_partition $SIDE_SECONDARY_PART "" $MIRROR_SIZE $MIRROR_SECONDARY
+log_must mkdir -p $SIDE_DIR
+log_must truncate -s $MINVDEVSIZE $SIDE_PRIMARY $SIDE_SECONDARY
 
 default_mirror_setup $SIDE_PRIMARY $SIDE_SECONDARY
 
