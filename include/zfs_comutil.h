@@ -38,6 +38,9 @@ extern void zpool_get_load_policy(nvlist_t *, zpool_load_policy_t *);
 
 extern int zfs_zpl_version_map(int spa_version);
 extern int zfs_spa_version_map(int zpl_version);
+
+extern boolean_t zfs_dataset_name_hidden(const char *);
+
 #define	ZFS_NUM_LEGACY_HISTORY_EVENTS 41
 extern const char *zfs_history_event_names[ZFS_NUM_LEGACY_HISTORY_EVENTS];
 

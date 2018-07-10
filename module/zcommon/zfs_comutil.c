@@ -204,10 +204,28 @@ const char *zfs_history_event_names[ZFS_NUM_LEGACY_HISTORY_EVENTS] = {
 	"pool split",
 };
 
+boolean_t
+zfs_dataset_name_hidden(const char *name)
+{
+	/*
+	 * Skip over datasets that are not visible in this zone,
+	 * internal datasets (which have a $ in their name), and
+	 * temporary datasets (which have a % in their name).
+	 */
+	if (strchr(name, '$') != NULL)
+		return (B_TRUE);
+	if (strchr(name, '%') != NULL)
+		return (B_TRUE);
+	if (!INGLOBALZONE(curproc) && !zone_dataset_visible(name, NULL))
+		return (B_TRUE);
+	return (B_FALSE);
+}
+
 #if defined(_KERNEL)
 EXPORT_SYMBOL(zfs_allocatable_devs);
 EXPORT_SYMBOL(zpool_get_load_policy);
 EXPORT_SYMBOL(zfs_zpl_version_map);
 EXPORT_SYMBOL(zfs_spa_version_map);
 EXPORT_SYMBOL(zfs_history_event_names);
+EXPORT_SYMBOL(zfs_dataset_name_hidden);
 #endif
