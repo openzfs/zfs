@@ -84,6 +84,13 @@ typedef enum dbuf_states {
 	DB_EVICTING
 } dbuf_states_t;
 
+typedef enum dbuf_cached_state {
+	DB_NO_CACHE = -1,
+	DB_DBUF_CACHE,
+	DB_DBUF_METADATA_CACHE,
+	DB_CACHE_MAX
+} dbuf_cached_state_t;
+
 struct dnode;
 struct dmu_tx;
 
@@ -240,10 +247,11 @@ typedef struct dmu_buf_impl {
 	 */
 	avl_node_t db_link;
 
-	/*
-	 * Link in dbuf_cache.
-	 */
+	/* Link in dbuf_cache or dbuf_metadata_cache */
 	multilist_node_t db_cache_link;
+
+	/* Tells us which dbuf cache this dbuf is in, if any */
+	dbuf_cached_state_t db_caching_status;
 
 	/* Data which is unique to data (leaf) blocks: */
 
@@ -305,7 +313,7 @@ boolean_t dbuf_try_add_ref(dmu_buf_t *db, objset_t *os, uint64_t obj,
 uint64_t dbuf_refcount(dmu_buf_impl_t *db);
 
 void dbuf_rele(dmu_buf_impl_t *db, void *tag);
-void dbuf_rele_and_unlock(dmu_buf_impl_t *db, void *tag, boolean_t evicting);
+void dbuf_rele_and_unlock(dmu_buf_impl_t *db, void *tag);
 
 dmu_buf_impl_t *dbuf_find(struct objset *os, uint64_t object, uint8_t level,
     uint64_t blkid);

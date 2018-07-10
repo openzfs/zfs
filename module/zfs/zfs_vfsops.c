@@ -2234,6 +2234,7 @@ zfs_set_version(zfsvfs_t *zfsvfs, uint64_t newvers)
 	dmu_tx_commit(tx);
 
 	zfsvfs->z_version = newvers;
+	os->os_version = newvers;
 
 	zfs_set_fuid_feature(zfsvfs);
 
@@ -2246,13 +2247,42 @@ zfs_set_version(zfsvfs_t *zfsvfs, uint64_t newvers)
 int
 zfs_get_zplprop(objset_t *os, zfs_prop_t prop, uint64_t *value)
 {
-	const char *pname;
-	int error = SET_ERROR(ENOENT);
+	uint64_t *cached_copy = NULL;
 
 	/*
-	 * Look up the file system's value for the property.  For the
-	 * version property, we look up a slightly different string.
+	 * Figure out where in the objset_t the cached copy would live, if it
+	 * is available for the requested property.
 	 */
+	if (os != NULL) {
+		switch (prop) {
+		case ZFS_PROP_VERSION:
+			cached_copy = &os->os_version;
+			break;
+		case ZFS_PROP_NORMALIZE:
+			cached_copy = &os->os_normalization;
+			break;
+		case ZFS_PROP_UTF8ONLY:
+			cached_copy = &os->os_utf8only;
+			break;
+		case ZFS_PROP_CASE:
+			cached_copy = &os->os_casesensitivity;
+			break;
+		default:
+			break;
+		}
+	}
+	if (cached_copy != NULL && *cached_copy != OBJSET_PROP_UNINITIALIZED) {
+		*value = *cached_copy;
+		return (0);
+	}
+
+	/*
+	 * If the property wasn't cached, look up the file system's value for
+	 * the property. For the version property, we look up a slightly
+	 * different string.
+	 */
+	const char *pname;
+	int error = ENOENT;
 	if (prop == ZFS_PROP_VERSION)
 		pname = ZPL_VERSION_STR;
 	else
@@ -2284,6 +2314,15 @@ zfs_get_zplprop(objset_t *os, zfs_prop_t prop, uint64_t *value)
 		}
 		error = 0;
 	}
+
+	/*
+	 * If one of the methods for getting the property value above worked,
+	 * copy it into the objset_t's cache.
+	 */
+	if (error == 0 && cached_copy != NULL) {
+		*cached_copy = *value;
+	}
+
 	return (error);
 }
 

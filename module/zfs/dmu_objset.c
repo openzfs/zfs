@@ -471,6 +471,14 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 		os->os_phys = os->os_phys_buf->b_data;
 		bzero(os->os_phys, size);
 	}
+	/*
+	 * These properties will be filled in by the logic in zfs_get_zplprop()
+	 * when they are queried for the first time.
+	 */
+	os->os_version = OBJSET_PROP_UNINITIALIZED;
+	os->os_normalization = OBJSET_PROP_UNINITIALIZED;
+	os->os_utf8only = OBJSET_PROP_UNINITIALIZED;
+	os->os_casesensitivity = OBJSET_PROP_UNINITIALIZED;
 
 	/*
 	 * Note: the changed_cb will be called once before the register
