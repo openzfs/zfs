@@ -150,21 +150,26 @@ arc_byteswap_func_t sa_bswap_table[] = {
 	zfs_acl_byteswap,
 };
 
-#define	SA_COPY_DATA(f, s, t, l) \
-	{ \
-		if (f == NULL) { \
-			if (l == 8) { \
-				*(uint64_t *)t = *(uint64_t *)s; \
-			} else if (l == 16) { \
-				*(uint64_t *)t = *(uint64_t *)s; \
-				*(uint64_t *)((uintptr_t)t + 8) = \
-				    *(uint64_t *)((uintptr_t)s + 8); \
-			} else { \
-				bcopy(s, t, l); \
-			} \
-		} else \
-			sa_copy_data(f, s, t, l); \
-	}
+#ifdef HAVE_EFFICIENT_UNALIGNED_ACCESS
+#define	SA_COPY_DATA(f, s, t, l)				\
+do {								\
+	if (f == NULL) {					\
+		if (l == 8) {					\
+			*(uint64_t *)t = *(uint64_t *)s;	\
+		} else if (l == 16) {				\
+			*(uint64_t *)t = *(uint64_t *)s;	\
+			*(uint64_t *)((uintptr_t)t + 8) =	\
+			    *(uint64_t *)((uintptr_t)s + 8);	\
+		} else {					\
+			bcopy(s, t, l);				\
+		}						\
+	} else {						\
+		sa_copy_data(f, s, t, l);			\
+	}							\
+} while (0)
+#else
+#define	SA_COPY_DATA(f, s, t, l)	sa_copy_data(f, s, t, l)
+#endif
 
 /*
  * This table is fixed and cannot be changed.  Its purpose is to
