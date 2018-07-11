@@ -32,6 +32,7 @@
 #include <sys/zil.h>
 #include <sys/sa.h>
 #include <sys/rrwlock.h>
+#include <sys/dsl_dataset.h>
 #include <sys/zfs_ioctl.h>
 
 #ifdef	__cplusplus
