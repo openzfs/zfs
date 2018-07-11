@@ -58,7 +58,7 @@ function testdbufstat # stat_name dbufstat_filter
 	from_dbufstat=$(grep -w "$name" "$DBUFSTATS_FILE" | awk '{ print $3 }')
 	from_dbufs=$(dbufstat.py -bxn -i "$DBUFS_FILE" "$filter" | wc -l)
 
-	within_tolerance $from_dbufstat $from_dbufs 5 \
+	within_tolerance $from_dbufstat $from_dbufs 9 \
 	    || log_fail "Stat $name exceeded tolerance"
 }
 
