@@ -4738,7 +4738,8 @@ verify_checkpoint_vdev_spacemaps(spa_t *checkpoint, spa_t *current)
 		    space_map_length(checkpoint_sm) / sizeof (uint64_t);
 		VERIFY0(space_map_iterate(checkpoint_sm,
 		    verify_checkpoint_sm_entry_cb, &vcsec));
-		dump_spacemap(current->spa_meta_objset, checkpoint_sm);
+		if (dump_opt['m'] > 3)
+			dump_spacemap(current->spa_meta_objset, checkpoint_sm);
 		space_map_close(checkpoint_sm);
 	}
 
@@ -4920,7 +4921,8 @@ verify_checkpoint(spa_t *spa)
 		 */
 		(void) printf("\nPartially discarded checkpoint "
 		    "state found:\n");
-		dump_leftover_checkpoint_blocks(spa);
+		if (dump_opt['m'] > 3)
+			dump_leftover_checkpoint_blocks(spa);
 		return (0);
 	} else if (error != 0) {
 		(void) printf("lookup error %d when looking for "
