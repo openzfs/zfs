@@ -28,7 +28,7 @@
 #include <sys/crypto/common.h>
 #include <sys/crypto/impl.h>
 
-#if defined(__i386) || defined(__amd64)
+#ifdef HAVE_EFFICIENT_UNALIGNED_ACCESS
 #include <sys/byteorder.h>
 #define	UNALIGNED_POINTERS_PERMITTED
 #endif
