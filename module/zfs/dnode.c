@@ -1574,11 +1574,11 @@ void
 dnode_rele(dnode_t *dn, void *tag)
 {
 	mutex_enter(&dn->dn_mtx);
-	dnode_rele_and_unlock(dn, tag, B_FALSE);
+	dnode_rele_and_unlock(dn, tag);
 }
 
 void
-dnode_rele_and_unlock(dnode_t *dn, void *tag, boolean_t evicting)
+dnode_rele_and_unlock(dnode_t *dn, void *tag)
 {
 	uint64_t refs;
 	/* Get while the hold prevents the dnode from moving. */
@@ -1610,7 +1610,7 @@ dnode_rele_and_unlock(dnode_t *dn, void *tag, boolean_t evicting)
 		 * asserted anyway when the handle gets destroyed.
 		 */
 		mutex_enter(&db->db_mtx);
-		dbuf_rele_and_unlock(db, dnh, evicting);
+		dbuf_rele_and_unlock(db, dnh);
 	}
 }
 

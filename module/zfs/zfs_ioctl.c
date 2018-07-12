@@ -2252,23 +2252,6 @@ zfs_ioc_objset_zplprops(zfs_cmd_t *zc)
 	return (err);
 }
 
-boolean_t
-dataset_name_hidden(const char *name)
-{
-	/*
-	 * Skip over datasets that are not visible in this zone,
-	 * internal datasets (which have a $ in their name), and
-	 * temporary datasets (which have a % in their name).
-	 */
-	if (strchr(name, '$') != NULL)
-		return (B_TRUE);
-	if (strchr(name, '%') != NULL)
-		return (B_TRUE);
-	if (!INGLOBALZONE(curproc) && !zone_dataset_visible(name, NULL))
-		return (B_TRUE);
-	return (B_FALSE);
-}
-
 /*
  * inputs:
  * zc_name		name of filesystem
@@ -2308,7 +2291,7 @@ top:
 		    NULL, &zc->zc_cookie);
 		if (error == ENOENT)
 			error = SET_ERROR(ESRCH);
-	} while (error == 0 && dataset_name_hidden(zc->zc_name));
+	} while (error == 0 && zfs_dataset_name_hidden(zc->zc_name));
 	dmu_objset_rele(os, FTAG);
 
 	/*

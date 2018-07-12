@@ -33,6 +33,8 @@
 
 #include <sys/zcp.h>
 
+#include "zfs_comutil.h"
+
 typedef int (zcp_list_func_t)(lua_State *);
 typedef struct zcp_list_info {
 	const char *name;
@@ -232,20 +234,6 @@ zcp_snapshots_list(lua_State *state)
 	return (1);
 }
 
-/*
- * Note: channel programs only run in the global zone, so all datasets
- * are visible to this zone.
- */
-static boolean_t
-dataset_name_hidden(const char *name)
-{
-	if (strchr(name, '$') != NULL)
-		return (B_TRUE);
-	if (strchr(name, '%') != NULL)
-		return (B_TRUE);
-	return (B_FALSE);
-}
-
 static int
 zcp_children_iter(lua_State *state)
 {
@@ -275,7 +263,7 @@ zcp_children_iter(lua_State *state)
 	do {
 		err = dmu_dir_list_next(os,
 		    sizeof (childname) - (p - childname), p, NULL, &cursor);
-	} while (err == 0 && dataset_name_hidden(childname));
+	} while (err == 0 && zfs_dataset_name_hidden(childname));
 	dsl_dataset_rele(ds, FTAG);
 
 	if (err == ENOENT) {
