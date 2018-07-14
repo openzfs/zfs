@@ -35,6 +35,14 @@
 #include <sys/zfs_fuid.h>
 #include <sys/sa.h>
 
+/*
+ * Only include native NFS4 ACL support if underlying kernel will support it.
+ * XXX - what other kernel config should be checked?
+ */
+#if defined(CONFIG_KEYS)
+#define	ZFS_NFS4_ACL
+#endif
+
 #ifdef	__cplusplus
 extern "C" {
 #endif

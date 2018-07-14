@@ -82,11 +82,7 @@ extern struct posix_acl *zpl_get_acl(struct inode *ip, int type);
 extern int zpl_check_acl(struct inode *inode, int mask, unsigned int flags);
 #elif defined(HAVE_CHECK_ACL)
 extern int zpl_check_acl(struct inode *inode, int mask);
-#elif defined(HAVE_PERMISSION_WITH_NAMEIDATA)
-extern int zpl_permission(struct inode *ip, int mask, struct nameidata *nd);
-#elif defined(HAVE_PERMISSION)
-extern int zpl_permission(struct inode *ip, int mask);
-#endif /*  HAVE_CHECK_ACL | HAVE_PERMISSION */
+#endif /*  HAVE_CHECK_ACL */
 #endif /* HAVE_GET_ACL */
 
 extern int zpl_init_acl(struct inode *ip, struct inode *dir);
@@ -104,6 +100,10 @@ zpl_chmod_acl(struct inode *ip)
 	return (0);
 }
 #endif /* CONFIG_FS_POSIX_ACL */
+
+#if defined(ZFS_NFS4_ACL) && defined(HAVE_PERMISSION)
+extern int zpl_permission(struct inode *ip, int mask);
+#endif /* ZFS_NFS4_ACL & HAVE_PERMISSION */
 
 extern xattr_handler_t *zpl_xattr_handlers[];
 

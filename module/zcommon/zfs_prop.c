@@ -159,6 +159,7 @@ zfs_prop_init(void)
 		{ "disabled",	ZFS_ACLTYPE_OFF },
 		{ "noacl",	ZFS_ACLTYPE_OFF },
 		{ "posixacl",	ZFS_ACLTYPE_POSIXACL },
+		{ "nfs4acl",	ZFS_ACLTYPE_NFS4ACL },
 		{ NULL }
 	};
 
@@ -316,7 +317,7 @@ zfs_prop_init(void)
 	    "hidden | visible", "SNAPDEV", snapdev_table);
 	zprop_register_index(ZFS_PROP_ACLTYPE, "acltype", ZFS_ACLTYPE_OFF,
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT,
-	    "noacl | posixacl", "ACLTYPE", acltype_table);
+	    "noacl | nfs4acl | posixacl", "ACLTYPE", acltype_table);
 	zprop_register_index(ZFS_PROP_ACLINHERIT, "aclinherit",
 	    ZFS_ACL_RESTRICTED, PROP_INHERIT, ZFS_TYPE_FILESYSTEM,
 	    "discard | noallow | restricted | passthrough | passthrough-x",

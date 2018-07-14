@@ -176,35 +176,6 @@ AC_DEFUN([ZFS_AC_KERNEL_INODE_OPERATIONS_PERMISSION], [
 ])
 
 dnl #
-dnl # 2.6.26 API change,
-dnl # Check if inode_operations contains the function permission
-dnl # and expects the nameidata structure to be passed.
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_INODE_OPERATIONS_PERMISSION_WITH_NAMEIDATA], [
-	AC_MSG_CHECKING([whether iops->permission() wants nameidata])
-	ZFS_LINUX_TRY_COMPILE([
-		#include <linux/fs.h>
-		#include <linux/sched.h>
-
-		int permission_fn(struct inode *inode, int mask,
-		    struct nameidata *nd) { return 0; }
-
-		static const struct inode_operations
-		    iops __attribute__ ((unused)) = {
-			.permission = permission_fn,
-		};
-	],[
-	],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_PERMISSION, 1, [iops->permission() exists])
-		AC_DEFINE(HAVE_PERMISSION_WITH_NAMEIDATA, 1,
-		    [iops->permission() with nameidata exists])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
 dnl # 2.6.32 API change,
 dnl # Check if inode_operations contains the function check_acl
 dnl #
@@ -320,6 +291,128 @@ AC_DEFUN([ZFS_AC_KERNEL_GET_ACL_HANDLE_CACHE], [
 	],[
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_KERNEL_GET_ACL_HANDLE_CACHE, 1, [uncached_acl_sentinel() exists])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
+dnl # check whether user_key_payload() exists 
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_USER_KEY_PAYLOAD], [
+	AC_MSG_CHECKING([whether user_key_payload() exists])
+	ZFS_LINUX_TRY_COMPILE([
+		#include <keys/user-type.h>
+	],[
+		const struct user_key_payload *ukp;
+		const struct key *k = NULL;
+
+		ukp = user_key_payload(k);
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_USER_KEY_PAYLOAD, 1, [user_key_payload() exists])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
+dnl # check whether user_key_payload_rcu() exists 
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_USER_KEY_PAYLOAD_RCU], [
+	AC_MSG_CHECKING([whether user_key_payload_rcu() exists])
+	ZFS_LINUX_TRY_COMPILE([
+		#include <keys/user-type.h>
+	],[
+		const struct user_key_payload *ukp;
+		const struct key *k = NULL;
+
+		ukp = user_key_payload_rcu(k);
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_USER_KEY_PAYLOAD_RCU, 1, [user_key_payload_rcu() exists])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
+dnl # Check whether key subsystem has generic_key_instantiate
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_GENERIC_KEY_INSTANTIATE], [
+	AC_MSG_CHECKING([whether generic_key_instantiate() exists])
+	ZFS_LINUX_TRY_COMPILE([
+		#include <linux/key-type.h>
+	],[
+		struct key_type k;
+
+		k.instantiate = generic_key_instantiate;
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_GENERIC_KEY_INSTANTIATE, 1, [generic_key_instantiate() exists])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
+dnl # Check whether struct key_preparsed_payload exists
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_STRUCT_KEY_PREPARSED_PAYLOAD], [
+	AC_MSG_CHECKING([whether struct key_preparsed_payload exists])
+	ZFS_LINUX_TRY_COMPILE([
+		#include <linux/key-type.h>
+
+		int instantiate(struct key *key, struct key_preparsed_payload *prep) { return 0; }
+	],[
+		struct key_type k;
+
+		k.instantiate = instantiate;
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_STRUCT_KEY_PREPARSED_PAYLOAD, 1, [struct key_preparsed_payload exists])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
+dnl # Check whether key_is_positive() exists
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_KEY_IS_POSITIVE], [
+	AC_MSG_CHECKING([whether key_is_positive() exists])
+	ZFS_LINUX_TRY_COMPILE([
+		#include <linux/key.h>
+	],[
+		struct key *k = NULL;
+		bool v;
+
+		v = key_is_positive(k);
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_KEY_IS_POSITIVE, 1, [key_is_positive() exists])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
+dnl # Check whether generic_permission takes check_acl parameter
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_GENERIC_PERMISSION_CHECK_ACL], [
+	AC_MSG_CHECKING([whether generic_permission takes check_acl parameter])
+	ZFS_LINUX_TRY_COMPILE([
+		#include <linux/fs.h>
+
+		int check_acl(struct inode *, int);
+	],[
+		struct inode *in = NULL;
+		int i = 0;
+
+		i = generic_permission(in, i, check_acl);
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_GENERIC_PERMISSION_CHECK_ACL, 1, [generic_permission takes check_acl parameter])
 	],[
 		AC_MSG_RESULT(no)
 	])

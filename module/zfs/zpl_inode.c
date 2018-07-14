@@ -732,10 +732,11 @@ const struct inode_operations zpl_inode_operations = {
 	.get_acl	= zpl_get_acl,
 #elif defined(HAVE_CHECK_ACL)
 	.check_acl	= zpl_check_acl,
-#elif defined(HAVE_PERMISSION)
-	.permission	= zpl_permission,
-#endif /* HAVE_GET_ACL | HAVE_CHECK_ACL | HAVE_PERMISSION */
+#endif /* HAVE_GET_ACL | HAVE_CHECK_ACL */
 #endif /* CONFIG_FS_POSIX_ACL */
+#if defined(ZFS_NFS4_ACL) && defined(HAVE_PERMISSION)
+	.permission	= zpl_permission,
+#endif /* ZFS_NFS4_ACL & HAVE_PERMISSION */
 };
 
 const struct inode_operations zpl_dir_inode_operations = {
@@ -771,10 +772,11 @@ const struct inode_operations zpl_dir_inode_operations = {
 	.get_acl	= zpl_get_acl,
 #elif defined(HAVE_CHECK_ACL)
 	.check_acl	= zpl_check_acl,
-#elif defined(HAVE_PERMISSION)
-	.permission	= zpl_permission,
-#endif /* HAVE_GET_ACL | HAVE_CHECK_ACL | HAVE_PERMISSION */
+#endif /* HAVE_GET_ACL | HAVE_CHECK_ACL */
 #endif /* CONFIG_FS_POSIX_ACL */
+#if defined(ZFS_NFS4_ACL) && defined(HAVE_PERMISSION)
+	.permission	= zpl_permission,
+#endif /* ZFS_NFS4_ACL & HAVE_PERMISSION */
 };
 
 const struct inode_operations zpl_symlink_inode_operations = {
@@ -816,10 +818,11 @@ const struct inode_operations zpl_special_inode_operations = {
 	.get_acl	= zpl_get_acl,
 #elif defined(HAVE_CHECK_ACL)
 	.check_acl	= zpl_check_acl,
-#elif defined(HAVE_PERMISSION)
-	.permission	= zpl_permission,
-#endif /* HAVE_GET_ACL | HAVE_CHECK_ACL | HAVE_PERMISSION */
+#endif /* HAVE_GET_ACL | HAVE_CHECK_ACL */
 #endif /* CONFIG_FS_POSIX_ACL */
+#if defined(ZFS_NFS4_ACL) && defined(HAVE_PERMISSION)
+	.permission	= zpl_permission,
+#endif /* ZFS_NFS4_ACL & HAVE_PERMISSION */
 };
 
 dentry_operations_t zpl_dentry_operations = {

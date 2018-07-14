@@ -68,6 +68,7 @@ extern "C" {
  */
 #define	ZFS_ACLTYPE_OFF			0
 #define	ZFS_ACLTYPE_POSIXACL		1
+#define	ZFS_ACLTYPE_NFS4ACL		2
 
 /*
  * Field manipulation macros for the drr_versioninfo field of the

@@ -1082,8 +1082,54 @@ accordance to the requested mode from the application.
 .Pp
 The
 .Sy aclinherit
-property does not apply to POSIX ACLs.
-.It Sy acltype Ns = Ns Sy off Ns | Ns Sy noacl Ns | Ns Sy posixacl
+property does not apply to posix ACLs.
+.It Xo
+.Sy aclmode Ns = Ns Sy discard Ns | Ns Sy groupmask Ns | Ns
+.Sy passthrough Ns | Ns Sy restricted Ns
+.Xc
+Controls how an ACL is modified during chmod(2) and how inherited ACEs
+are modified by the file creation mode.
+.Bl -tag -width "passthrough"
+.It Sy discard
+default, deletes all
+.Sy ACEs
+except for those representing
+the mode of the file or directory requested by
+.Xr chmod 2 .
+.It Sy groupmask
+reduces permissions granted in all
+.Sy ALLOW
+entries found in the
+.Sy ACL
+such that they are no greater than the group permissions specified by
+.Xr chmod 2 .
+.It Sy passthrough
+indicates that no changes are made to the
+.Sy ACL
+other than creating or updating the necessary
+.Sy ACE Ns s
+to represent the new mode of the file or directory.
+.It Sy restricted
+causes the
+.Xr chmod 2 .
+operation to return an error when used on any file or directory which has a
+non-trivial
+.Sy ACL
+, with entries in addition to those that represent the mode.
+.El
+.Pp
+.Xr chmod 2
+is required to change the set user ID, set group ID, or sticky bits on a file
+or directory, as they do not have equivalent
+.Sy ACE Ns s.
+In order to use
+.Xr chmod 2
+on a file or directory with a non-trivial
+.Sy ACL
+when aclmode is set to restricted, you must first remove all
+.Sy ACEs
+except for those that represent the current mode.
+.It Sy acltype Ns = Ns Sy off Ns | Ns Sy noacl Ns | Ns Sy nfs4acl Ns | Ns Sy posixacl
 Controls whether ACLs are enabled and if so what type of ACL to use.
 .Bl -tag -width "posixacl"
 .It Sy off
@@ -1093,6 +1139,17 @@ property set to off then ACLs are disabled.
 .It Sy noacl
 an alias for
 .Sy off
+.It Sy nfs4acl
+indicates the native ZFS NFSv4 based ACLs should be used. The Linux implementation of
+native ZFS ACLs uses the kernel request-key mechanism, and requires the NFSv4
+nfsidmap program installed as well as the following line in either /etc/request-key.conf
+or in a file in /etc/request-key.d: 
+.Bd -literal
+create zfs_nfs4acl_resolver * * /usr/sbin/nfsidmap -t 600 %k %d
+.Ed
+
+Unless you are installing zfs manually, this dependency and configuration was likely
+dealt with by your package manager.
 .It Sy posixacl
 indicates POSIX ACLs should be used. POSIX ACLs are specific to Linux and are
 not functional on other platforms. POSIX ACLs are stored as an extended
@@ -4161,6 +4218,7 @@ projectobjused   other          Allows reading any projectobjused@... property
 projectused      other          Allows reading any projectused@... property
 
 aclinherit       property
+aclmode          property
 acltype          property
 atime            property
 canmount         property
@@ -4682,6 +4740,7 @@ pool/home/bob  zoned                 off                    default
 pool/home/bob  snapdir               hidden                 default
 pool/home/bob  acltype               off                    default
 pool/home/bob  aclinherit            restricted             default
+pool/home/bob  aclmode               discard                default
 pool/home/bob  canmount              on                     default
 pool/home/bob  xattr                 on                     default
 pool/home/bob  copies                1                      default

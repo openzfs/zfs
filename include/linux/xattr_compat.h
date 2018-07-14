@@ -26,6 +26,10 @@
 #ifndef _ZFS_XATTR_H
 #define	_ZFS_XATTR_H
 
+#include <linux/key.h>
+#include <linux/keyctl.h>
+#include <linux/key-type.h>
+#include <keys/user-type.h>
 #include <linux/posix_acl_xattr.h>
 
 /*
@@ -214,6 +218,21 @@ fn(struct inode *ip, const char *name, const void *buffer,		\
 #define	zpl_security_inode_init_security(ip, dip, qstr, nm, val, len)	\
 	security_inode_init_security(ip, dip, nm, val, len)
 #endif /* HAVE_6ARGS_SECURITY_INODE_INIT_SECURITY */
+
+#ifndef GLOBAL_ROOT_UID
+#define GLOBAL_ROOT_UID 0
+#endif
+#ifndef GLOBAL_ROOT_GID
+#define GLOBAL_ROOT_GID 0
+#endif
+
+#if defined(HAVE_USER_KEY_PAYLOAD)
+#define	zpl_user_key_payload_rcu(k) user_key_payload(k)
+#elif defined(HAVE_USER_KEY_PAYLOAD_RCU)
+#define	zpl_user_key_payload_rcu(k) user_key_payload_rcu(k)
+#else
+#define zpl_user_key_payload_rcu(k) rcu_dereference_key(k)
+#endif /* HAVE_USER_KEY_PAYLOAD */
 
 /*
  * Linux 3.7 API change. posix_acl_{from,to}_xattr gained the user_ns

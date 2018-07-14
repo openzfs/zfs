@@ -101,6 +101,15 @@ typedef struct ace_object {
 
 #define	ACE_ALL_TYPES	0x001F
 
+/*
+ * The following flags are supported by both NFSv4 ACLs and ace_t.
+ */
+#define	ACE_NFSV4_SUP_FLAGS (ACE_FILE_INHERIT_ACE | \
+    ACE_DIRECTORY_INHERIT_ACE | \
+    ACE_NO_PROPAGATE_INHERIT_ACE | \
+    ACE_INHERIT_ONLY_ACE | \
+    ACE_IDENTIFIER_GROUP)
+
 #define	ACE_TYPE_FLAGS	(ACE_OWNER|ACE_GROUP|ACE_EVERYONE|ACE_IDENTIFIER_GROUP)
 
 /* BEGIN CSTYLED */
