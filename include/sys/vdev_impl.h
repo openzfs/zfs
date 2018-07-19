@@ -335,6 +335,7 @@ struct vdev {
 	boolean_t	vdev_isspare;	/* was a hot spare		*/
 	boolean_t	vdev_isl2cache;	/* was a l2cache device		*/
 	boolean_t	vdev_copy_uberblocks;  /* post expand copy uberblocks */
+	boolean_t	vdev_resilver_deferred;  /* resilver deferred */
 	vdev_queue_t	vdev_queue;	/* I/O deadline schedule queue	*/
 	vdev_cache_t	vdev_cache;	/* physical block cache		*/
 	spa_aux_vdev_t	*vdev_aux;	/* for l2cache and spares vdevs	*/

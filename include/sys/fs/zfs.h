@@ -710,6 +710,7 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_VDEV_TOP_ZAP	"com.delphix:vdev_zap_top"
 #define	ZPOOL_CONFIG_VDEV_LEAF_ZAP	"com.delphix:vdev_zap_leaf"
 #define	ZPOOL_CONFIG_HAS_PER_VDEV_ZAPS	"com.delphix:has_per_vdev_zaps"
+#define	ZPOOL_CONFIG_RESILVER_DEFER	"com.datto:resilver_defer"
 #define	ZPOOL_CONFIG_CACHEFILE		"cachefile"	/* not stored on disk */
 #define	ZPOOL_CONFIG_MMP_STATE		"mmp_state"	/* not stored on disk */
 #define	ZPOOL_CONFIG_MMP_TXG		"mmp_txg"	/* not stored on disk */
@@ -988,6 +989,7 @@ typedef struct vdev_stat {
 	uint64_t	vs_scan_processed;	/* scan processed bytes	*/
 	uint64_t	vs_fragmentation;	/* device fragmentation */
 	uint64_t	vs_checkpoint_space;    /* checkpoint-consumed space */
+	uint64_t	vs_resilver_deferred;	/* resilver deferred	*/
 } vdev_stat_t;
 
 /*

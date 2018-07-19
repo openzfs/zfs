@@ -524,6 +524,12 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 			fnvlist_add_uint64(nv, ZPOOL_CONFIG_VDEV_TOP_ZAP,
 			    vd->vdev_top_zap);
 		}
+
+		if (vd->vdev_resilver_deferred) {
+			ASSERT(vd->vdev_ops->vdev_op_leaf);
+			ASSERT(spa->spa_resilver_deferred);
+			fnvlist_add_boolean(nv, ZPOOL_CONFIG_RESILVER_DEFER);
+		}
 	}
 
 	if (getstats) {
