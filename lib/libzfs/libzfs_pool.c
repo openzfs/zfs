@@ -2283,17 +2283,25 @@ vdev_to_nvlist_iter(nvlist_t *nv, nvlist_t *search, boolean_t *avail_spare,
 }
 
 /*
- * Given a physical path (minus the "/devices" prefix), find the
- * associated vdev.
+ * Given a physical path or guid, find the associated vdev.
  */
 nvlist_t *
 zpool_find_vdev_by_physpath(zpool_handle_t *zhp, const char *ppath,
     boolean_t *avail_spare, boolean_t *l2cache, boolean_t *log)
 {
 	nvlist_t *search, *nvroot, *ret;
+	uint64_t guid;
+	char *end;
 
 	verify(nvlist_alloc(&search, NV_UNIQUE_NAME, KM_SLEEP) == 0);
-	verify(nvlist_add_string(search, ZPOOL_CONFIG_PHYS_PATH, ppath) == 0);
+
+	guid = strtoull(ppath, &end, 0);
+	if (guid != 0 && *end == '\0') {
+		verify(nvlist_add_uint64(search, ZPOOL_CONFIG_GUID, guid) == 0);
+	} else {
+		verify(nvlist_add_string(search, ZPOOL_CONFIG_PHYS_PATH,
+		    ppath) == 0);
+	}
 
 	verify(nvlist_lookup_nvlist(zhp->zpool_config, ZPOOL_CONFIG_VDEV_TREE,
 	    &nvroot) == 0);

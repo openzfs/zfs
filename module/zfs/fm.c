@@ -665,25 +665,37 @@ out:
 	return (error);
 }
 
+/*
+ * Wait in an interruptible state for any new events.
+ */
 int
 zfs_zevent_wait(zfs_zevent_t *ze)
 {
-	int error = 0;
+	int error = EAGAIN;
 
 	mutex_enter(&zevent_lock);
+	zevent_waiters++;
 
-	if (zevent_flags & ZEVENT_SHUTDOWN) {
-		error = ESHUTDOWN;
-		goto out;
+	while (error == EAGAIN) {
+		if (zevent_flags & ZEVENT_SHUTDOWN) {
+			error = SET_ERROR(ESHUTDOWN);
+			break;
+		}
+
+		error = cv_timedwait_sig(&zevent_cv, &zevent_lock,
+		    ddi_get_lbolt() + MSEC_TO_TICK(10));
+		if (signal_pending(current)) {
+			error = SET_ERROR(EINTR);
+			break;
+		} else if (!list_is_empty(&zevent_list)) {
+			error = 0;
+			continue;
+		} else {
+			error = EAGAIN;
+		}
 	}
 
-	zevent_waiters++;
-	cv_wait_sig(&zevent_cv, &zevent_lock);
-	if (issig(JUSTLOOKING))
-		error = EINTR;
-
 	zevent_waiters--;
-out:
 	mutex_exit(&zevent_lock);
 
 	return (error);

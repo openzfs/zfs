@@ -85,50 +85,64 @@ vdev_bdev_mode(int smode)
 }
 #endif /* HAVE_OPEN_BDEV_EXCLUSIVE */
 
-/* The capacity (in bytes) of a bdev that is available to be used by a vdev */
+/*
+ * Returns the usable capacity (in bytes) for the partition or disk.
+ */
 static uint64_t
-bdev_capacity(struct block_device *bdev, boolean_t wholedisk)
+bdev_capacity(struct block_device *bdev)
 {
-	struct hd_struct *part = bdev->bd_part;
-	uint64_t sectors = get_capacity(bdev->bd_disk);
-	/* If there are no paritions, return the entire device capacity */
-	if (part == NULL)
-		return (sectors << SECTOR_BITS);
+	return (i_size_read(bdev->bd_inode));
+}
 
-	/*
-	 * If there are partitions, decide if we are using a `wholedisk`
-	 * layout (composed of part1 and part9) or just a single partition.
-	 */
-	if (wholedisk) {
-		/* Verify the expected device layout */
-		ASSERT3P(bdev, !=, bdev->bd_contains);
+/*
+ * Returns the maximum expansion capacity of the block device (in bytes).
+ *
+ * It is possible to expand a vdev when it has been created as a wholedisk
+ * and the containing block device has increased in capacity.  Or when the
+ * partition containing the pool has been manually increased in size.
+ *
+ * This function is only responsible for calculating the potential expansion
+ * size so it can be reported by 'zpool list'.  The efi_use_whole_disk() is
+ * responsible for verifying the expected partition layout in the wholedisk
+ * case, and updating the partition table if appropriate.  Once the partition
+ * size has been increased the additional capacity will be visible using
+ * bdev_capacity().
+ */
+static uint64_t
+bdev_max_capacity(struct block_device *bdev, uint64_t wholedisk)
+{
+	uint64_t psize;
+	int64_t available;
+
+	if (wholedisk && bdev->bd_part != NULL && bdev != bdev->bd_contains) {
 		/*
-		 * Sectors used by the EFI partition (part9) as well as
-		 * partion alignment.
+		 * When reporting maximum expansion capacity for a wholedisk
+		 * deduct any capacity which is expected to be lost due to
+		 * alignment restrictions.  Over reporting this value isn't
+		 * harmful and would only result in slightly less capacity
+		 * than expected post expansion.
 		 */
-		uint64_t used = EFI_MIN_RESV_SIZE + NEW_START_BLOCK +
-		    PARTITION_END_ALIGNMENT;
-
-		/* Space available to the vdev, i.e. the size of part1 */
-		if (sectors <= used)
-			return (0);
-		uint64_t available = sectors - used;
-		return (available << SECTOR_BITS);
+		available = i_size_read(bdev->bd_contains->bd_inode) -
+		    ((EFI_MIN_RESV_SIZE + NEW_START_BLOCK +
+		    PARTITION_END_ALIGNMENT) << SECTOR_BITS);
+		if (available > 0)
+			psize = available;
+		else
+			psize = bdev_capacity(bdev);
 	} else {
-		/* The partition capacity referenced by the block device */
-		return (part->nr_sects << SECTOR_BITS);
+		psize = bdev_capacity(bdev);
 	}
+
+	return (psize);
 }
 
 static void
 vdev_disk_error(zio_t *zio)
 {
-#ifdef ZFS_DEBUG
-	printk(KERN_WARNING "ZFS: zio error=%d type=%d offset=%llu size=%llu "
+	zfs_dbgmsg(KERN_WARNING "zio error=%d type=%d offset=%llu size=%llu "
 	    "flags=%x\n", zio->io_error, zio->io_type,
 	    (u_longlong_t)zio->io_offset, (u_longlong_t)zio->io_size,
 	    zio->io_flags);
-#endif
 }
 
 /*
@@ -200,109 +214,73 @@ vdev_elevator_switch(vdev_t *v, char *elevator)
 	}
 }
 
-/*
- * Expanding a whole disk vdev involves invoking BLKRRPART on the
- * whole disk device. This poses a problem, because BLKRRPART will
- * return EBUSY if one of the disk's partitions is open. That's why
- * we have to do it here, just before opening the data partition.
- * Unfortunately, BLKRRPART works by dropping all partitions and
- * recreating them, which means that for a short time window, all
- * /dev/sdxN device files disappear (until udev recreates them).
- * This means two things:
- *  - When we open the data partition just after a BLKRRPART, we
- *    can't do it using the normal device file path because of the
- *    obvious race condition with udev. Instead, we use reliable
- *    kernel APIs to get a handle to the new partition device from
- *    the whole disk device.
- *  - Because vdev_disk_open() initially needs to find the device
- *    using its path, multiple vdev_disk_open() invocations in
- *    short succession on the same disk with BLKRRPARTs in the
- *    middle have a high probability of failure (because of the
- *    race condition with udev). A typical situation where this
- *    might happen is when the zpool userspace tool does a
- *    TRYIMPORT immediately followed by an IMPORT. For this
- *    reason, we only invoke BLKRRPART in the module when strictly
- *    necessary (zpool online -e case), and rely on userspace to
- *    do it when possible.
- */
-static struct block_device *
-vdev_disk_rrpart(const char *path, int mode, vdev_disk_t *vd)
-{
-#if defined(HAVE_3ARG_BLKDEV_GET) && defined(HAVE_GET_GENDISK)
-	struct block_device *bdev, *result = ERR_PTR(-ENXIO);
-	struct gendisk *disk;
-	int error, partno;
-
-	bdev = vdev_bdev_open(path, vdev_bdev_mode(mode), zfs_vdev_holder);
-	if (IS_ERR(bdev))
-		return (bdev);
-
-	disk = get_gendisk(bdev->bd_dev, &partno);
-	vdev_bdev_close(bdev, vdev_bdev_mode(mode));
-
-	if (disk) {
-		bdev = bdget(disk_devt(disk));
-		if (bdev) {
-			error = blkdev_get(bdev, vdev_bdev_mode(mode), vd);
-			if (error == 0)
-				error = ioctl_by_bdev(bdev, BLKRRPART, 0);
-			vdev_bdev_close(bdev, vdev_bdev_mode(mode));
-		}
-
-		bdev = bdget_disk(disk, partno);
-		if (bdev) {
-			error = blkdev_get(bdev,
-			    vdev_bdev_mode(mode) | FMODE_EXCL, vd);
-			if (error == 0)
-				result = bdev;
-		}
-		put_disk(disk);
-	}
-
-	return (result);
-#else
-	return (ERR_PTR(-EOPNOTSUPP));
-#endif /* defined(HAVE_3ARG_BLKDEV_GET) && defined(HAVE_GET_GENDISK) */
-}
-
 static int
 vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
     uint64_t *ashift)
 {
-	struct block_device *bdev = ERR_PTR(-ENXIO);
+	struct block_device *bdev;
+	fmode_t mode = vdev_bdev_mode(spa_mode(v->vdev_spa));
+	int count = 0, block_size;
+	int bdev_retry_count = 50;
 	vdev_disk_t *vd;
-	int count = 0, mode, block_size;
 
 	/* Must have a pathname and it must be absolute. */
 	if (v->vdev_path == NULL || v->vdev_path[0] != '/') {
 		v->vdev_stat.vs_aux = VDEV_AUX_BAD_LABEL;
-		vdev_dbgmsg(v, "vdev_disk_open: invalid "
-		    "vdev_path '%s'", v->vdev_path);
+		vdev_dbgmsg(v, "invalid vdev_path");
 		return (SET_ERROR(EINVAL));
 	}
 
 	/*
-	 * Reopen the device if it's not currently open. Otherwise,
-	 * just update the physical size of the device.
+	 * Reopen the device if it is currently open.  When expanding a
+	 * partition force re-scanning the partition table while closed
+	 * in order to get an accurate updated block device size.  Then
+	 * since udev may need to recreate the device links increase the
+	 * open retry count before reporting the device as unavailable.
 	 */
-	if (v->vdev_tsd != NULL) {
-		ASSERT(v->vdev_reopening);
-		vd = v->vdev_tsd;
-		goto skip_open;
-	}
+	vd = v->vdev_tsd;
+	if (vd) {
+		char disk_name[BDEVNAME_SIZE + 6] = "/dev/";
+		boolean_t reread_part = B_FALSE;
 
-	vd = kmem_zalloc(sizeof (vdev_disk_t), KM_SLEEP);
-	if (vd == NULL)
-		return (SET_ERROR(ENOMEM));
+		rw_enter(&vd->vd_lock, RW_WRITER);
+		bdev = vd->vd_bdev;
+		vd->vd_bdev = NULL;
+
+		if (bdev) {
+			if (v->vdev_expanding && bdev != bdev->bd_contains) {
+				bdevname(bdev->bd_contains, disk_name + 5);
+				reread_part = B_TRUE;
+			}
+
+			vdev_bdev_close(bdev, mode);
+		}
+
+		if (reread_part) {
+			bdev = vdev_bdev_open(disk_name, mode, zfs_vdev_holder);
+			if (!IS_ERR(bdev)) {
+				int error = vdev_bdev_reread_part(bdev);
+				vdev_bdev_close(bdev, mode);
+				if (error == 0)
+					bdev_retry_count = 100;
+			}
+		}
+	} else {
+		vd = kmem_zalloc(sizeof (vdev_disk_t), KM_SLEEP);
+
+		rw_init(&vd->vd_lock, NULL, RW_DEFAULT, NULL);
+		rw_enter(&vd->vd_lock, RW_WRITER);
+	}
 
 	/*
 	 * Devices are always opened by the path provided at configuration
 	 * time.  This means that if the provided path is a udev by-id path
-	 * then drives may be recabled without an issue.  If the provided
+	 * then drives may be re-cabled without an issue.  If the provided
 	 * path is a udev by-path path, then the physical location information
 	 * will be preserved.  This can be critical for more complicated
 	 * configurations where drives are located in specific physical
-	 * locations to maximize the systems tolerence to component failure.
+	 * locations to maximize the systems tolerance to component failure.
+	 *
 	 * Alternatively, you can provide your own udev rule to flexibly map
 	 * the drives as you see fit.  It is not advised that you use the
 	 * /dev/[hd]d devices which may be reordered due to probing order.
@@ -317,15 +295,11 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 	 * and it is reasonable to sleep and retry before giving up.  In
 	 * practice delays have been observed to be on the order of 100ms.
 	 */
-	mode = spa_mode(v->vdev_spa);
-	if (v->vdev_wholedisk && v->vdev_expanding)
-		bdev = vdev_disk_rrpart(v->vdev_path, mode, vd);
-
-	while (IS_ERR(bdev) && count < 50) {
-		bdev = vdev_bdev_open(v->vdev_path,
-		    vdev_bdev_mode(mode), zfs_vdev_holder);
+	bdev = ERR_PTR(-ENXIO);
+	while (IS_ERR(bdev) && count < bdev_retry_count) {
+		bdev = vdev_bdev_open(v->vdev_path, mode, zfs_vdev_holder);
 		if (unlikely(PTR_ERR(bdev) == -ENOENT)) {
-			msleep(10);
+			schedule_timeout(MSEC_TO_TICK(10));
 			count++;
 		} else if (IS_ERR(bdev)) {
 			break;
@@ -333,16 +307,18 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 	}
 
 	if (IS_ERR(bdev)) {
-		dprintf("failed open v->vdev_path=%s, error=%d count=%d\n",
-		    v->vdev_path, -PTR_ERR(bdev), count);
-		kmem_free(vd, sizeof (vdev_disk_t));
-		return (SET_ERROR(-PTR_ERR(bdev)));
+		int error = -PTR_ERR(bdev);
+		vdev_dbgmsg(v, "open error=%d count=%d\n", error, count);
+		vd->vd_bdev = NULL;
+		v->vdev_tsd = vd;
+		rw_exit(&vd->vd_lock);
+		return (SET_ERROR(error));
+	} else {
+		vd->vd_bdev = bdev;
+		v->vdev_tsd = vd;
+		rw_exit(&vd->vd_lock);
 	}
 
-	v->vdev_tsd = vd;
-	vd->vd_bdev = bdev;
-
-skip_open:
 	/*  Determine the physical block size */
 	block_size = vdev_bdev_block_size(vd->vd_bdev);
 
@@ -352,9 +328,11 @@ skip_open:
 	/* Inform the ZIO pipeline that we are non-rotational */
 	v->vdev_nonrot = blk_queue_nonrot(bdev_get_queue(vd->vd_bdev));
 
-	/* Physical volume size in bytes */
-	*psize = bdev_capacity(vd->vd_bdev, v->vdev_wholedisk);
-	*max_psize = *psize;
+	/* Physical volume size in bytes for the partition */
+	*psize = bdev_capacity(vd->vd_bdev);
+
+	/* Physical volume size in bytes including possible expansion space */
+	*max_psize = bdev_max_capacity(vd->vd_bdev, v->vdev_wholedisk);
 
 	/* Based on the minimum sector size set the block size */
 	*ashift = highbit64(MAX(block_size, SPA_MINBLOCKSIZE)) - 1;
@@ -373,10 +351,12 @@ vdev_disk_close(vdev_t *v)
 	if (v->vdev_reopening || vd == NULL)
 		return;
 
-	if (vd->vd_bdev != NULL)
+	if (vd->vd_bdev != NULL) {
 		vdev_bdev_close(vd->vd_bdev,
 		    vdev_bdev_mode(spa_mode(v->vdev_spa)));
+	}
 
+	rw_destroy(&vd->vd_lock);
 	kmem_free(vd, sizeof (vdev_disk_t));
 	v->vdev_tsd = NULL;
 }
@@ -562,9 +542,15 @@ __vdev_disk_physio(struct block_device *bdev, zio_t *zio,
 #if defined(HAVE_BLK_QUEUE_HAVE_BLK_PLUG)
 	struct blk_plug plug;
 #endif
-
-	ASSERT(zio != NULL);
-	ASSERT3U(io_offset + io_size, <=, bdev->bd_inode->i_size);
+	/*
+	 * Accessing outside the block device is never allowed.
+	 */
+	if (io_offset + io_size > bdev->bd_inode->i_size) {
+		vdev_dbgmsg(zio->io_vd,
+		    "Illegal access %llu size %llu, device size %llu",
+		    io_offset, io_size, i_size_read(bdev->bd_inode));
+		return (SET_ERROR(EIO));
+	}
 
 retry:
 	dr = vdev_disk_dio_alloc(bio_count);
@@ -705,10 +691,34 @@ vdev_disk_io_start(zio_t *zio)
 	vdev_disk_t *vd = v->vdev_tsd;
 	int rw, flags, error;
 
+	/*
+	 * If the vdev is closed, it's likely in the REMOVED or FAULTED state.
+	 * Nothing to be done here but return failure.
+	 */
+	if (vd == NULL) {
+		zio->io_error = ENXIO;
+		zio_interrupt(zio);
+		return;
+	}
+
+	rw_enter(&vd->vd_lock, RW_READER);
+
+	/*
+	 * If the vdev is closed, it's likely due to a failed reopen and is
+	 * in the UNAVAIL state.  Nothing to be done here but return failure.
+	 */
+	if (vd->vd_bdev == NULL) {
+		rw_exit(&vd->vd_lock);
+		zio->io_error = ENXIO;
+		zio_interrupt(zio);
+		return;
+	}
+
 	switch (zio->io_type) {
 	case ZIO_TYPE_IOCTL:
 
 		if (!vdev_readable(v)) {
+			rw_exit(&vd->vd_lock);
 			zio->io_error = SET_ERROR(ENXIO);
 			zio_interrupt(zio);
 			return;
@@ -726,8 +736,10 @@ vdev_disk_io_start(zio_t *zio)
 			}
 
 			error = vdev_disk_io_flush(vd->vd_bdev, zio);
-			if (error == 0)
+			if (error == 0) {
+				rw_exit(&vd->vd_lock);
 				return;
+			}
 
 			zio->io_error = error;
 
@@ -737,6 +749,7 @@ vdev_disk_io_start(zio_t *zio)
 			zio->io_error = SET_ERROR(ENOTSUP);
 		}
 
+		rw_exit(&vd->vd_lock);
 		zio_execute(zio);
 		return;
 	case ZIO_TYPE_WRITE:
@@ -762,6 +775,7 @@ vdev_disk_io_start(zio_t *zio)
 		break;
 
 	default:
+		rw_exit(&vd->vd_lock);
 		zio->io_error = SET_ERROR(ENOTSUP);
 		zio_interrupt(zio);
 		return;
@@ -770,6 +784,8 @@ vdev_disk_io_start(zio_t *zio)
 	zio->io_target_timestamp = zio_handle_io_delay(zio);
 	error = __vdev_disk_physio(vd->vd_bdev, zio,
 	    zio->io_size, zio->io_offset, rw, flags);
+	rw_exit(&vd->vd_lock);
+
 	if (error) {
 		zio->io_error = error;
 		zio_interrupt(zio);
