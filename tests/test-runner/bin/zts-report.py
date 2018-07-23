@@ -82,6 +82,13 @@ python_deps_reason = 'Python modules missing: python-cffi'
 tmpfile_reason = 'Kernel O_TMPFILE support required'
 
 #
+# Some tests may depend on udev change events being generated when block
+# devices change capacity.  This functionality wasn't available until the
+# 2.6.38 kernel.
+#
+udev_reason = 'Kernel block device udev change events required'
+
+#
 # Some tests require that the NFS client and server utilities be installed.
 #
 share_reason = 'NFS client and server utilities required'
@@ -159,8 +166,6 @@ known = {
     'cli_root/zfs_unshare/zfs_unshare_002_pos': ['SKIP', na_reason],
     'cli_root/zfs_unshare/zfs_unshare_006_pos': ['SKIP', na_reason],
     'cli_root/zpool_create/zpool_create_016_pos': ['SKIP', na_reason],
-    'cli_root/zpool_expand/zpool_expand_001_pos': ['SKIP', '5771'],
-    'cli_root/zpool_expand/zpool_expand_003_neg': ['SKIP', '5771'],
     'cli_user/misc/zfs_share_001_neg': ['SKIP', na_reason],
     'cli_user/misc/zfs_unshare_001_neg': ['SKIP', na_reason],
     'inuse/inuse_001_pos': ['SKIP', na_reason],
@@ -219,6 +224,7 @@ maybe = {
     'cli_root/zpool_create/setup': ['SKIP', disk_reason],
     'cli_root/zpool_create/zpool_create_008_pos': ['FAIL', known_reason],
     'cli_root/zpool_destroy/zpool_destroy_001_pos': ['SKIP', '6145'],
+    'cli_root/zpool_expand/setup': ['SKIP', udev_reason],
     'cli_root/zpool_export/setup': ['SKIP', disk_reason],
     'cli_root/zpool_import/setup': ['SKIP', disk_reason],
     'cli_root/zpool_import/import_rewind_device_replaced':
