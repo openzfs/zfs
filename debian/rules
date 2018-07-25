@@ -146,7 +146,8 @@ override_dh_install:
 # ------------
 
 override_dh_prep-deb-files:
-	for templ in $(wildcard $(CURDIR)/debian/*_KVERS_*.in); do \
+	for templ in $(wildcard $(CURDIR)/debian/*_KVERS_*.in) \
+		$$(find $(CURDIR)/debian/tree/zfs-modules -name '*_KVERS_*.in'); do \
 		sed -e 's/##KVERS##/$(KVERS)/g ; s/#KVERS#/$(KVERS)/g ; s/_KVERS_/$(KVERS)/g ; s/##KDREV##/$(KDREV)/g ; s/#KDREV#/$(KDREV)/g ; s/_KDREV_/$(KDREV)/g ; s/_ARCH_/$(DEB_HOST_ARCH)/' \
 		< $$templ > `echo $$templ | sed -e 's/_KVERS_/$(KVERS)/g ; s/_ARCH_/$(DEB_HOST_ARCH)/g ; s/\.in$$//'` ; \
 	done
