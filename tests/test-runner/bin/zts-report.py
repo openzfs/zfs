@@ -250,6 +250,7 @@ maybe = {
     'pyzfs/pyzfs_unittest': ['SKIP', python_deps_reason],
     'no_space/enospc_002_pos': ['FAIL', enospc_reason],
     'projectquota/setup': ['SKIP', exec_reason],
+    'reservation/reservation_008_pos': ['FAIL', '7741'],
     'reservation/reservation_018_pos': ['FAIL', '5642'],
     'rsend/rsend_019_pos': ['FAIL', '6086'],
     'rsend/rsend_020_pos': ['FAIL', '6446'],
