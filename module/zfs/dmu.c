@@ -826,6 +826,7 @@ dmu_free_long_range_impl(objset_t *os, dnode_t *dn, uint64_t offset,
 		 */
 		if (dirty_frees_threshold != 0 &&
 		    long_free_dirty_all_txgs >= dirty_frees_threshold) {
+			DMU_TX_STAT_BUMP(dmu_tx_dirty_frees_delay);
 			txg_wait_open(dp, 0);
 			continue;
 		}
