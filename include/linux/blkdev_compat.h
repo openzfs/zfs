@@ -365,6 +365,20 @@ bio_set_bi_error(struct bio *bio, int error)
 #endif /* HAVE_BLKDEV_GET_BY_PATH | HAVE_OPEN_BDEV_EXCLUSIVE */
 
 /*
+ * 4.1 - x.y.z API,
+ * 3.10.0 CentOS 7.x API,
+ *   blkdev_reread_part()
+ *
+ * For older kernels trigger a re-reading of the partition table by calling
+ * check_disk_change() which calls flush_disk() to invalidate the device.
+ */
+#ifdef HAVE_BLKDEV_REREAD_PART
+#define	vdev_bdev_reread_part(bdev)	blkdev_reread_part(bdev)
+#else
+#define	vdev_bdev_reread_part(bdev)	check_disk_change(bdev)
+#endif /* HAVE_BLKDEV_REREAD_PART */
+
+/*
  * 2.6.22 API change
  * The function invalidate_bdev() lost it's second argument because
  * it was unused.

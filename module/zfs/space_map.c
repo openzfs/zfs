@@ -52,6 +52,14 @@
  */
 boolean_t zfs_force_some_double_word_sm_entries = B_FALSE;
 
+/*
+ * Override the default indirect block size of 128K, instead use 16K for
+ * spacemaps (2^14 bytes).  This dramatically reduces write inflation since
+ * appending to a spacemap typically has to write one data block (4KB) and one
+ * or two indirect blocks (16K-32K, rather than 128K).
+ */
+int space_map_ibs = 14;
+
 boolean_t
 sm_entry_is_debug(uint64_t e)
 {
@@ -674,8 +682,8 @@ space_map_write_impl(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
 		 *
 		 * [1] The feature is enabled.
 		 * [2] The offset or run is too big for a single-word entry,
-		 * 	or the vdev_id is set (meaning not equal to
-		 * 	SM_NO_VDEVID).
+		 *	or the vdev_id is set (meaning not equal to
+		 *	SM_NO_VDEVID).
 		 *
 		 * Note that for purposes of testing we've added the case that
 		 * we write two-word entries occasionally when the feature is
@@ -837,7 +845,8 @@ space_map_truncate(space_map_t *sm, int blocksize, dmu_tx_t *tx)
 	 */
 	if ((spa_feature_is_enabled(spa, SPA_FEATURE_SPACEMAP_HISTOGRAM) &&
 	    doi.doi_bonus_size != sizeof (space_map_phys_t)) ||
-	    doi.doi_data_block_size != blocksize) {
+	    doi.doi_data_block_size != blocksize ||
+	    doi.doi_metadata_block_size != 1 << space_map_ibs) {
 		zfs_dbgmsg("txg %llu, spa %s, sm %p, reallocating "
 		    "object[%llu]: old bonus %u, old blocksz %u",
 		    dmu_tx_get_txg(tx), spa_name(spa), sm, sm->sm_object,
@@ -893,8 +902,8 @@ space_map_alloc(objset_t *os, int blocksize, dmu_tx_t *tx)
 		bonuslen = SPACE_MAP_SIZE_V0;
 	}
 
-	object = dmu_object_alloc(os, DMU_OT_SPACE_MAP, blocksize,
-	    DMU_OT_SPACE_MAP_HEADER, bonuslen, tx);
+	object = dmu_object_alloc_ibs(os, DMU_OT_SPACE_MAP, blocksize,
+	    space_map_ibs, DMU_OT_SPACE_MAP_HEADER, bonuslen, tx);
 
 	return (object);
 }
