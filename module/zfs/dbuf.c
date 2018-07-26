@@ -148,7 +148,7 @@ dbuf_stats_t dbuf_stats = {
 		continue;						\
 }
 
-struct dbuf_hold_impl_data {
+typedef struct dbuf_hold_arg {
 	/* Function arguments */
 	dnode_t *dh_dn;
 	uint8_t dh_level;
@@ -163,14 +163,13 @@ struct dbuf_hold_impl_data {
 	blkptr_t *dh_bp;
 	int dh_err;
 	dbuf_dirty_record_t *dh_dr;
-	int dh_depth;
-};
+} dbuf_hold_arg_t;
 
-static void __dbuf_hold_impl_init(struct dbuf_hold_impl_data *dh,
-    dnode_t *dn, uint8_t level, uint64_t blkid, boolean_t fail_sparse,
-	boolean_t fail_uncached,
-	void *tag, dmu_buf_impl_t **dbp, int depth);
-static int __dbuf_hold_impl(struct dbuf_hold_impl_data *dh);
+static dbuf_hold_arg_t *dbuf_hold_arg_create(dnode_t *dn, uint8_t level,
+	uint64_t blkid, boolean_t fail_sparse, boolean_t fail_uncached,
+	void *tag, dmu_buf_impl_t **dbp);
+static int dbuf_hold_impl_arg(dbuf_hold_arg_t *dh);
+static void dbuf_hold_arg_destroy(dbuf_hold_arg_t *dh);
 
 static boolean_t dbuf_undirty(dmu_buf_impl_t *db, dmu_tx_t *tx);
 static void dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx);
@@ -2621,7 +2620,7 @@ dbuf_destroy(dmu_buf_impl_t *db)
 __attribute__((always_inline))
 static inline int
 dbuf_findbp(dnode_t *dn, int level, uint64_t blkid, int fail_sparse,
-    dmu_buf_impl_t **parentp, blkptr_t **bpp, struct dbuf_hold_impl_data *dh)
+    dmu_buf_impl_t **parentp, blkptr_t **bpp)
 {
 	*parentp = NULL;
 	*bpp = NULL;
@@ -2675,15 +2674,10 @@ dbuf_findbp(dnode_t *dn, int level, uint64_t blkid, int fail_sparse,
 	} else if (level < nlevels-1) {
 		/* this block is referenced from an indirect block */
 		int err;
-		if (dh == NULL) {
-			err = dbuf_hold_impl(dn, level+1,
-			    blkid >> epbs, fail_sparse, FALSE, NULL, parentp);
-		} else {
-			__dbuf_hold_impl_init(dh + 1, dn, dh->dh_level + 1,
-			    blkid >> epbs, fail_sparse, FALSE, NULL,
-			    parentp, dh->dh_depth + 1);
-			err = __dbuf_hold_impl(dh + 1);
-		}
+		dbuf_hold_arg_t *dh = dbuf_hold_arg_create(dn, level + 1,
+		    blkid >> epbs, fail_sparse, FALSE, NULL, parentp);
+		err = dbuf_hold_impl_arg(dh);
+		dbuf_hold_arg_destroy(dh);
 		if (err)
 			return (err);
 		err = dbuf_read(*parentp, NULL,
@@ -3054,15 +3048,15 @@ dbuf_prefetch(dnode_t *dn, int64_t level, uint64_t blkid, zio_priority_t prio,
 #define	DBUF_HOLD_IMPL_MAX_DEPTH	20
 
 /*
- * Helper function for __dbuf_hold_impl() to copy a buffer. Handles
+ * Helper function for dbuf_hold_impl_arg() to copy a buffer. Handles
  * the case of encrypted, compressed and uncompressed buffers by
  * allocating the new buffer, respectively, with arc_alloc_raw_buf(),
  * arc_alloc_compressed_buf() or arc_alloc_buf().*
  *
- * NOTE: Declared noinline to avoid stack bloat in __dbuf_hold_impl().
+ * NOTE: Declared noinline to avoid stack bloat in dbuf_hold_impl_arg().
  */
 noinline static void
-dbuf_hold_copy(struct dbuf_hold_impl_data *dh)
+dbuf_hold_copy(struct dbuf_hold_arg *dh)
 {
 	dnode_t *dn = dh->dh_dn;
 	dmu_buf_impl_t *db = dh->dh_db;
@@ -3099,9 +3093,8 @@ dbuf_hold_copy(struct dbuf_hold_impl_data *dh)
  * Note: dn_struct_rwlock must be held.
  */
 static int
-__dbuf_hold_impl(struct dbuf_hold_impl_data *dh)
+dbuf_hold_impl_arg(struct dbuf_hold_arg *dh)
 {
-	ASSERT3S(dh->dh_depth, <, DBUF_HOLD_IMPL_MAX_DEPTH);
 	dh->dh_parent = NULL;
 
 	ASSERT(dh->dh_blkid != DMU_BONUS_BLKID);
@@ -3122,7 +3115,7 @@ __dbuf_hold_impl(struct dbuf_hold_impl_data *dh)
 
 		ASSERT3P(dh->dh_parent, ==, NULL);
 		dh->dh_err = dbuf_findbp(dh->dh_dn, dh->dh_level, dh->dh_blkid,
-		    dh->dh_fail_sparse, &dh->dh_parent, &dh->dh_bp, dh);
+		    dh->dh_fail_sparse, &dh->dh_parent, &dh->dh_bp);
 		if (dh->dh_fail_sparse) {
 			if (dh->dh_err == 0 &&
 			    dh->dh_bp && BP_IS_HOLE(dh->dh_bp))
@@ -3204,38 +3197,33 @@ __dbuf_hold_impl(struct dbuf_hold_impl_data *dh)
 }
 
 /*
- * The following code preserves the recursive function dbuf_hold_impl()
- * but moves the local variables AND function arguments to the heap to
- * minimize the stack frame size.  Enough space is initially allocated
- * on the stack for 20 levels of recursion.
+ * dbuf_hold_impl_arg() is called recursively, via dbuf_findbp().  There can
+ * be as many recursive calls as there are levels of on-disk indirect blocks,
+ * but typically only 0-2 recursive calls.  To minimize the stack frame size,
+ * the recursive function's arguments and "local variables" are allocated on
+ * the heap as the dbuf_hold_arg_t.
  */
 int
 dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
     boolean_t fail_sparse, boolean_t fail_uncached,
     void *tag, dmu_buf_impl_t **dbp)
 {
-	struct dbuf_hold_impl_data *dh;
-	int error;
+	dbuf_hold_arg_t *dh = dbuf_hold_arg_create(dn, level, blkid,
+	    fail_sparse, fail_uncached, tag, dbp);
 
-	dh = kmem_alloc(sizeof (struct dbuf_hold_impl_data) *
-	    DBUF_HOLD_IMPL_MAX_DEPTH, KM_SLEEP);
-	__dbuf_hold_impl_init(dh, dn, level, blkid, fail_sparse,
-	    fail_uncached, tag, dbp, 0);
+	int error = dbuf_hold_impl_arg(dh);
 
-	error = __dbuf_hold_impl(dh);
-
-	kmem_free(dh, sizeof (struct dbuf_hold_impl_data) *
-	    DBUF_HOLD_IMPL_MAX_DEPTH);
+	dbuf_hold_arg_destroy(dh);
 
 	return (error);
 }
 
-static void
-__dbuf_hold_impl_init(struct dbuf_hold_impl_data *dh,
-    dnode_t *dn, uint8_t level, uint64_t blkid,
+static dbuf_hold_arg_t *
+dbuf_hold_arg_create(dnode_t *dn, uint8_t level, uint64_t blkid,
     boolean_t fail_sparse, boolean_t fail_uncached,
-    void *tag, dmu_buf_impl_t **dbp, int depth)
+    void *tag, dmu_buf_impl_t **dbp)
 {
+	dbuf_hold_arg_t *dh = kmem_alloc(sizeof (*dh), KM_SLEEP);
 	dh->dh_dn = dn;
 	dh->dh_level = level;
 	dh->dh_blkid = blkid;
@@ -3252,7 +3240,13 @@ __dbuf_hold_impl_init(struct dbuf_hold_impl_data *dh,
 	dh->dh_err = 0;
 	dh->dh_dr = NULL;
 
-	dh->dh_depth = depth;
+	return (dh);
+}
+
+static void
+dbuf_hold_arg_destroy(dbuf_hold_arg_t *dh)
+{
+	kmem_free(dh, sizeof (*dh));
 }
 
 dmu_buf_impl_t *
