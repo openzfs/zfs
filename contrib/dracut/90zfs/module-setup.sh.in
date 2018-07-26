@@ -97,8 +97,7 @@ install() {
 				type mark_hostonly >/dev/null 2>&1 && mark_hostonly @systemdunitdir@/zfs-import-$_item.service
 			fi
 		done
-		inst_multiple -o \
-			systemd-ask-password systemd-tty-ask-password-agent \
-			${NULL}
+		dracut_install systemd-ask-password
+		dracut_install systemd-tty-ask-password-agent
 	fi
 }
