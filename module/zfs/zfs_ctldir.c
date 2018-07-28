@@ -355,8 +355,6 @@ snapentry_expire(void *data)
 static void
 zfsctl_snapshot_unmount_cancel(zfs_snapentry_t *se)
 {
-	ASSERT(RW_LOCK_HELD(&zfs_snapshot_lock));
-
 	if (taskq_cancel_id(system_delay_taskq, se->se_taskqid) == 0) {
 		se->se_taskqid = TASKQID_INVALID;
 		zfsctl_snapshot_rele(se);
@@ -569,11 +567,13 @@ zfsctl_destroy(zfsvfs_t *zfsvfs)
 		rw_enter(&zfs_snapshot_lock, RW_WRITER);
 		if ((se = zfsctl_snapshot_find_by_objsetid(spa, objsetid))
 		    != NULL) {
-			zfsctl_snapshot_unmount_cancel(se);
 			zfsctl_snapshot_remove(se);
-			zfsctl_snapshot_rele(se);
 		}
 		rw_exit(&zfs_snapshot_lock);
+		if (se) {
+			zfsctl_snapshot_unmount_cancel(se);
+			zfsctl_snapshot_rele(se);
+		}
 	} else if (zfsvfs->z_ctldir) {
 		iput(zfsvfs->z_ctldir);
 		zfsvfs->z_ctldir = NULL;
