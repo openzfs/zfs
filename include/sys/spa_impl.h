@@ -363,6 +363,11 @@ struct spa {
 	uint64_t	spa_errata;		/* errata issues detected */
 	spa_stats_t	spa_stats;		/* assorted spa statistics */
 	spa_keystore_t	spa_keystore;		/* loaded crypto keys */
+
+	/* arc_memory_throttle() parameters during low memory condition */
+	uint64_t	spa_lowmem_page_load;	/* memory load during txg */
+	uint64_t	spa_lowmem_last_txg;	/* txg window start */
+
 	hrtime_t	spa_ccw_fail_time;	/* Conf cache write fail time */
 	taskq_t		*spa_zvol_taskq;	/* Taskq for minor management */
 	taskq_t		*spa_prefetch_taskq;	/* Taskq for prefetch threads */

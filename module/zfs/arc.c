@@ -392,6 +392,16 @@ int zfs_arc_shrink_shift = 0;
 int zfs_arc_p_min_shift = 0;
 int zfs_arc_average_blocksize = 8 * 1024; /* 8KB */
 
+/*
+ * ARC dirty data constraints for arc_tempreserve_space() throttle.
+ */
+unsigned long zfs_arc_dirty_limit_percent = 50;	/* total dirty data limit */
+unsigned long zfs_arc_anon_limit_percent = 25;	/* anon block dirty limit */
+unsigned long zfs_arc_pool_dirty_percent = 20;	/* each pool's anon allowance */
+
+/*
+ * Enable or disable compressed arc buffers.
+ */
 int zfs_compressed_arc_enabled = B_TRUE;
 
 /*
@@ -7182,12 +7192,10 @@ arc_write(zio_t *pio, spa_t *spa, uint64_t txg,
 }
 
 static int
-arc_memory_throttle(uint64_t reserve, uint64_t txg)
+arc_memory_throttle(spa_t *spa, uint64_t reserve, uint64_t txg)
 {
 #ifdef _KERNEL
 	uint64_t available_memory = arc_free_memory();
-	static uint64_t page_load = 0;
-	static uint64_t last_txg = 0;
 
 #if defined(_ILP32)
 	available_memory =
@@ -7197,9 +7205,9 @@ arc_memory_throttle(uint64_t reserve, uint64_t txg)
 	if (available_memory > arc_all_memory() * arc_lotsfree_percent / 100)
 		return (0);
 
-	if (txg > last_txg) {
-		last_txg = txg;
-		page_load = 0;
+	if (txg > spa->spa_lowmem_last_txg) {
+		spa->spa_lowmem_last_txg = txg;
+		spa->spa_lowmem_page_load = 0;
 	}
 	/*
 	 * If we are in pageout, we know that memory is already tight,
@@ -7207,21 +7215,22 @@ arc_memory_throttle(uint64_t reserve, uint64_t txg)
 	 * continue to let page writes occur as quickly as possible.
 	 */
 	if (current_is_kswapd()) {
-		if (page_load > MAX(arc_sys_free / 4, available_memory) / 4) {
+		if (spa->spa_lowmem_page_load >
+		    MAX(arc_sys_free / 4, available_memory) / 4) {
 			DMU_TX_STAT_BUMP(dmu_tx_memory_reclaim);
 			return (SET_ERROR(ERESTART));
 		}
 		/* Note: reserve is inflated, so we deflate */
-		page_load += reserve / 8;
+		atomic_add_64(&spa->spa_lowmem_page_load, reserve / 8);
 		return (0);
-	} else if (page_load > 0 && arc_reclaim_needed()) {
+	} else if (spa->spa_lowmem_page_load > 0 && arc_reclaim_needed()) {
 		/* memory is low, delay before restarting */
 		ARCSTAT_INCR(arcstat_memory_throttle_count, 1);
 		DMU_TX_STAT_BUMP(dmu_tx_memory_reclaim);
 		return (SET_ERROR(EAGAIN));
 	}
-	page_load = 0;
-#endif
+	spa->spa_lowmem_page_load = 0;
+#endif /* _KERNEL */
 	return (0);
 }
 
@@ -7233,7 +7242,7 @@ arc_tempreserve_clear(uint64_t reserve)
 }
 
 int
-arc_tempreserve_space(uint64_t reserve, uint64_t txg)
+arc_tempreserve_space(spa_t *spa, uint64_t reserve, uint64_t txg)
 {
 	int error;
 	uint64_t anon_size;
@@ -7269,7 +7278,7 @@ arc_tempreserve_space(uint64_t reserve, uint64_t txg)
 	 * in order to compress/encrypt/etc the data.  We therefore need to
 	 * make sure that there is sufficient available memory for this.
 	 */
-	error = arc_memory_throttle(reserve, txg);
+	error = arc_memory_throttle(spa, reserve, txg);
 	if (error != 0)
 		return (error);
 
@@ -7277,12 +7286,24 @@ arc_tempreserve_space(uint64_t reserve, uint64_t txg)
 	 * Throttle writes when the amount of dirty data in the cache
 	 * gets too large.  We try to keep the cache less than half full
 	 * of dirty blocks so that our sync times don't grow too large.
+	 *
+	 * In the case of one pool being built on another pool, we want
+	 * to make sure we don't end up throttling the lower (backing)
+	 * pool when the upper pool is the majority contributor to dirty
+	 * data. To insure we make forward progress during throttling, we
+	 * also check the current pool's net dirty data and only throttle
+	 * if it exceeds zfs_arc_pool_dirty_percent of the anonymous dirty
+	 * data in the cache.
+	 *
 	 * Note: if two requests come in concurrently, we might let them
 	 * both succeed, when one of them should fail.  Not a huge deal.
 	 */
+	uint64_t total_dirty = reserve + arc_tempreserve + anon_size;
+	uint64_t spa_dirty_anon = spa_dirty_data(spa);
 
-	if (reserve + arc_tempreserve + anon_size > arc_c / 2 &&
-	    anon_size > arc_c / 4) {
+	if (total_dirty > arc_c * zfs_arc_dirty_limit_percent / 100 &&
+	    anon_size > arc_c * zfs_arc_anon_limit_percent / 100 &&
+	    spa_dirty_anon > anon_size * zfs_arc_pool_dirty_percent / 100) {
 #ifdef ZFS_DEBUG
 		uint64_t meta_esize =
 		    refcount_count(&arc_anon->arcs_esize[ARC_BUFC_METADATA]);

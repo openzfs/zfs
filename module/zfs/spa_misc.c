@@ -1921,6 +1921,12 @@ bp_get_dsize(spa_t *spa, const blkptr_t *bp)
 	return (dsize);
 }
 
+uint64_t
+spa_dirty_data(spa_t *spa)
+{
+	return (spa->spa_dsl_pool->dp_dirty_total);
+}
+
 /*
  * ==========================================================================
  * Initialization and Termination
