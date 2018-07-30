@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2000, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
  */
 
 #ifndef	_SYS_NVPAIR_H
@@ -35,6 +35,7 @@ extern "C" {
 #endif
 
 typedef enum {
+	DATA_TYPE_DONTCARE = -1,
 	DATA_TYPE_UNKNOWN = 0,
 	DATA_TYPE_BOOLEAN,
 	DATA_TYPE_BYTE,
