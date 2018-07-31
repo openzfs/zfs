@@ -945,7 +945,7 @@ spa_vdev_copy_segment(vdev_t *vd, range_tree_t *segs,
 	ASSERT3U(size, <=, maxalloc);
 
 	int error = metaslab_alloc_dva(spa, mg->mg_class, size,
-	    &dst, 0, NULL, txg, 0, zal);
+	    &dst, 0, NULL, txg, 0, zal, 0);
 	if (error != 0)
 		return (error);
 

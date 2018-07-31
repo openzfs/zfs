@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_VDEV_IMPL_H
@@ -60,6 +60,7 @@ typedef struct vdev_cache_entry vdev_cache_entry_t;
 struct abd;
 
 extern int zfs_vdev_queue_depth_pct;
+extern int zfs_vdev_def_queue_depth;
 extern uint32_t zfs_vdev_async_write_max_active;
 
 /*
