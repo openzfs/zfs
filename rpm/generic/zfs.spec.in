@@ -202,7 +202,7 @@ Requires:       fio
 Requires:       acl
 Requires:       sudo
 Requires:       sysstat
-Requires:	libaio
+Requires:       libaio
 AutoReqProv:    no
 
 %description test
@@ -214,6 +214,8 @@ Summary:        Dracut module
 Group:          System Environment/Kernel
 Requires:       %{name}%{?_isa} = %{version}-%{release}
 Requires:       dracut
+Requires:       /usr/bin/awk
+Requires:       grep
 
 %description dracut
 This package contains a dracut module used to construct an initramfs
