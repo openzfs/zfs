@@ -501,7 +501,8 @@ dsl_dir_hold(dsl_pool_t *dp, const char *name, void *tag,
 	}
 	if (tailp != NULL)
 		*tailp = next;
-	*ddp = dd;
+	if (err == 0)
+		*ddp = dd;
 error:
 	kmem_free(buf, ZFS_MAX_DATASET_NAME_LEN);
 	return (err);

@@ -469,8 +469,10 @@ dsl_crypto_can_set_keylocation(const char *dsname, const char *keylocation)
 		goto out;
 
 	ret = dsl_dir_hold(dp, dsname, FTAG, &dd, NULL);
-	if (ret != 0)
+	if (ret != 0) {
+		dd = NULL;
 		goto out;
+	}
 
 	/* if dd is not encrypted, the value may only be "none" */
 	if (dd->dd_crypto_obj == 0) {
@@ -778,8 +780,10 @@ spa_keystore_load_wkey(const char *dsname, dsl_crypto_params_t *dcp,
 
 	/* hold the dsl dir */
 	ret = dsl_dir_hold(dp, dsname, FTAG, &dd, NULL);
-	if (ret != 0)
+	if (ret != 0) {
+		dd = NULL;
 		goto error;
+	}
 
 	/* initialize the wkey's ddobj */
 	wkey->wk_ddobj = dd->dd_object;
@@ -904,8 +908,10 @@ spa_keystore_unload_wkey(const char *dsname)
 	}
 
 	ret = dsl_dir_hold(dp, dsname, FTAG, &dd, NULL);
-	if (ret != 0)
+	if (ret != 0) {
+		dd = NULL;
 		goto error;
+	}
 
 	/* unload the wkey */
 	ret = spa_keystore_unload_wkey_impl(dp->dp_spa, dd->dd_object);
@@ -1205,8 +1211,10 @@ spa_keystore_change_key_check(void *arg, dmu_tx_t *tx)
 
 	/* hold the dd */
 	ret = dsl_dir_hold(dp, skcka->skcka_dsname, FTAG, &dd, NULL);
-	if (ret != 0)
+	if (ret != 0) {
+		dd = NULL;
 		goto error;
+	}
 
 	/* verify that the dataset is encrypted */
 	if (dd->dd_crypto_obj == 0) {
