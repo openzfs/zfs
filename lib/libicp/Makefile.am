@@ -18,8 +18,8 @@ if TARGET_ASM_X86_64
 ASM_SOURCES_C = asm-x86_64/aes/aeskey.c
 ASM_SOURCES_AS = \
 	asm-x86_64/aes/aes_amd64.S \
-	asm-x86_64/aes/aes_intel.S \
-	asm-x86_64/modes/gcm_intel.S \
+	asm-x86_64/aes/aes_aesni.S \
+	asm-x86_64/modes/gcm_pclmulqdq.S \
 	asm-x86_64/sha1/sha1-x86_64.S \
 	asm-x86_64/sha2/sha256_impl.S \
 	asm-x86_64/sha2/sha512_impl.S
@@ -46,11 +46,16 @@ KERNEL_C = \
 	api/kcf_cipher.c \
 	api/kcf_miscapi.c \
 	api/kcf_mac.c \
+	algs/aes/aes_impl_aesni.c \
+	algs/aes/aes_impl_generic.c \
+	algs/aes/aes_impl_x86-64.c \
 	algs/aes/aes_impl.c \
 	algs/aes/aes_modes.c \
 	algs/edonr/edonr.c \
 	algs/modes/modes.c \
 	algs/modes/cbc.c \
+	algs/modes/gcm_generic.c \
+	algs/modes/gcm_pclmulqdq.c \
 	algs/modes/gcm.c \
 	algs/modes/ctr.c \
 	algs/modes/ccm.c \
