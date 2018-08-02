@@ -1212,7 +1212,7 @@ dbuf_read_done(zio_t *zio, const zbookmark_phys_t *zb, const blkptr_t *bp,
 		db->db_state = DB_UNCACHED;
 	}
 	cv_broadcast(&db->db_changed);
-	dbuf_rele_and_unlock(db, NULL);
+	dbuf_rele_and_unlock(db, NULL, B_FALSE);
 }
 
 
@@ -2580,7 +2580,7 @@ dbuf_destroy(dmu_buf_impl_t *db)
 		 * release any lock.
 		 */
 		mutex_enter(&dn->dn_mtx);
-		dnode_rele_and_unlock(dn, db);
+		dnode_rele_and_unlock(dn, db, B_TRUE);
 		db->db_dnode_handle = NULL;
 
 		dbuf_hash_remove(db);
@@ -2609,7 +2609,7 @@ dbuf_destroy(dmu_buf_impl_t *db)
 	 */
 	if (parent && parent != dndb) {
 		mutex_enter(&parent->db_mtx);
-		dbuf_rele_and_unlock(parent, db);
+		dbuf_rele_and_unlock(parent, db, B_TRUE);
 	}
 }
 
@@ -3351,7 +3351,7 @@ void
 dbuf_rele(dmu_buf_impl_t *db, void *tag)
 {
 	mutex_enter(&db->db_mtx);
-	dbuf_rele_and_unlock(db, tag);
+	dbuf_rele_and_unlock(db, tag, B_FALSE);
 }
 
 void
@@ -3374,7 +3374,7 @@ dmu_buf_rele(dmu_buf_t *db, void *tag)
  *
  */
 void
-dbuf_rele_and_unlock(dmu_buf_impl_t *db, void *tag)
+dbuf_rele_and_unlock(dmu_buf_impl_t *db, void *tag, boolean_t evicting)
 {
 	int64_t holds;
 
@@ -3495,7 +3495,8 @@ dbuf_rele_and_unlock(dmu_buf_impl_t *db, void *tag)
 				}
 				mutex_exit(&db->db_mtx);
 
-				if (db->db_caching_status == DB_DBUF_CACHE) {
+				if (db->db_caching_status == DB_DBUF_CACHE &&
+				    !evicting) {
 					dbuf_evict_notify();
 				}
 			}
@@ -3848,7 +3849,7 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 		kmem_free(dr, sizeof (dbuf_dirty_record_t));
 		ASSERT(db->db_dirtycnt > 0);
 		db->db_dirtycnt -= 1;
-		dbuf_rele_and_unlock(db, (void *)(uintptr_t)txg);
+		dbuf_rele_and_unlock(db, (void *)(uintptr_t)txg, B_FALSE);
 		return;
 	}
 
@@ -4223,7 +4224,7 @@ dbuf_write_done(zio_t *zio, arc_buf_t *buf, void *vdb)
 	ASSERT(db->db_dirtycnt > 0);
 	db->db_dirtycnt -= 1;
 	db->db_data_pending = NULL;
-	dbuf_rele_and_unlock(db, (void *)(uintptr_t)tx->tx_txg);
+	dbuf_rele_and_unlock(db, (void *)(uintptr_t)tx->tx_txg, B_FALSE);
 }
 
 static void

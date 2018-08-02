@@ -457,7 +457,7 @@ dnode_evict_dbufs(dnode_t *dn)
 			 * flow would look like:
 			 *
 			 * dbuf_destroy():
-			 *   dnode_rele_and_unlock(parent_dbuf):
+			 *   dnode_rele_and_unlock(parent_dbuf, evicting=TRUE):
 			 *	if (!cacheable || pending_evict)
 			 *	  dbuf_destroy()
 			 */
@@ -521,7 +521,7 @@ dnode_undirty_dbufs(list_t *list)
 			list_destroy(&dr->dt.di.dr_children);
 		}
 		kmem_free(dr, sizeof (dbuf_dirty_record_t));
-		dbuf_rele_and_unlock(db, (void *)(uintptr_t)txg);
+		dbuf_rele_and_unlock(db, (void *)(uintptr_t)txg, B_FALSE);
 	}
 }
 
