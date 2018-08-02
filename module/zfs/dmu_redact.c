@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright (c) 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2017, 2018 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -148,7 +148,8 @@ record_merge_enqueue(bqueue_t *q, struct redact_record **build,
 	}
 	struct redact_record *curbuild = *build;
 	if ((curbuild->end_object == new->start_object &&
-	    curbuild->end_blkid + 1 == new->start_blkid) ||
+	    curbuild->end_blkid + 1 == new->start_blkid &&
+	    curbuild->end_blkid != UINT64_MAX) ||
 	    (curbuild->end_object + 1 == new->start_object &&
 	    curbuild->end_blkid == UINT64_MAX && new->start_blkid == 0)) {
 		curbuild->end_object = new->end_object;

@@ -1653,45 +1653,30 @@ struct send_prefetch_thread_arg {
 };
 
 /*
- * Create a new record with the given values.  If the record is of a type that
- * can be coalesced, and if it can be coalesced with the previous record, then
- * coalesce those and don't push anything out.  If either of those are not true,
- * we push out the pending record and create a new one out of the current
- * record.
+ * Create a new record with the given values.
  */
 static void
 enqueue_range(struct send_prefetch_thread_arg *spta, bqueue_t *q, dnode_t *dn,
-    uint64_t blkid, blkptr_t *bp, uint32_t datablksz, struct send_range **pendp)
+    uint64_t blkid, uint64_t count, const blkptr_t *bp, uint32_t datablksz)
 {
-	struct send_range *pending = *pendp;
-	enum type pending_type = (pending == NULL ? PREVIOUSLY_REDACTED :
-	    pending->type);
-	enum type new_type = (BP_IS_HOLE(bp) ? HOLE :
+	enum type range_type = (bp == NULL || BP_IS_HOLE(bp) ? HOLE :
 	    (BP_IS_REDACTED(bp) ? REDACT : DATA));
 
-	if (pending_type == new_type) {
-		pending->end_blkid = blkid;
-		return;
-	}
-	if (pending_type != PREVIOUSLY_REDACTED) {
-		bqueue_enqueue(q, pending, sizeof (*pending));
-		pending = NULL;
-	}
-	ASSERT3P(pending, ==, NULL);
-	pending = range_alloc(new_type, dn->dn_object, blkid, blkid + 1,
-	    B_FALSE);
+	struct send_range *range = range_alloc(range_type, dn->dn_object,
+	    blkid, blkid + count, B_FALSE);
 
 	if (blkid == DMU_SPILL_BLKID)
 		ASSERT3U(BP_GET_TYPE(bp), ==, DMU_OT_SA);
 
-	switch (new_type) {
+	switch (range_type) {
 	case HOLE:
-		pending->sru.hole.datablksz = datablksz;
+		range->sru.hole.datablksz = datablksz;
 		break;
 	case DATA:
-		pending->sru.data.datablksz = datablksz;
-		pending->sru.data.obj_type = dn->dn_type;
-		pending->sru.data.bp = *bp;
+		ASSERT3U(count, ==, 1);
+		range->sru.data.datablksz = datablksz;
+		range->sru.data.obj_type = dn->dn_type;
+		range->sru.data.bp = *bp;
 		if (spta->issue_prefetches) {
 			zbookmark_phys_t zb = {0};
 			zb.zb_objset = dmu_objset_id(dn->dn_objset);
@@ -1704,16 +1689,14 @@ enqueue_range(struct send_prefetch_thread_arg *spta, bqueue_t *q, dnode_t *dn,
 			    NULL, ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL |
 			    ZIO_FLAG_SPECULATIVE, &aflags, &zb);
 		}
-		bqueue_enqueue(q, pending, datablksz);
-		pending = NULL;
 		break;
 	case REDACT:
-		pending->sru.redact.datablksz = datablksz;
+		range->sru.redact.datablksz = datablksz;
 		break;
 	default:
 		break;
 	}
-	*pendp = pending;
+	bqueue_enqueue(q, range, datablksz);
 }
 
 /*
@@ -1745,7 +1728,8 @@ send_prefetch_thread(void *arg)
 	 */
 	uint64_t last_obj = UINT64_MAX;
 	uint64_t last_obj_exists = B_TRUE;
-	while (!range->eos_marker && !spta->cancel && smta->error == 0) {
+	while (!range->eos_marker && !spta->cancel && smta->error == 0 &&
+	    err == 0) {
 		switch (range->type) {
 		case DATA: {
 			zbookmark_phys_t zb;
@@ -1829,7 +1813,6 @@ send_prefetch_thread(void *arg)
 				range = get_next_range(inq, range);
 				continue;
 			}
-			struct send_range *pending = NULL;
 			uint64_t file_max =
 			    (dn->dn_maxblkid < range->end_blkid ?
 			    dn->dn_maxblkid : range->end_blkid);
@@ -1840,19 +1823,49 @@ send_prefetch_thread(void *arg)
 			rw_enter(&dn->dn_struct_rwlock, RW_READER);
 			for (uint64_t blkid = range->start_blkid;
 			    blkid < file_max; blkid++) {
-				uint16_t datablkszsec;
 				blkptr_t bp;
+				uint32_t datablksz =
+				    dn->dn_phys->dn_datablkszsec <<
+				    SPA_MINBLOCKSHIFT;
+				uint64_t offset = blkid * datablksz;
+				/*
+				 * This call finds the next non-hole block in
+				 * the object. This is to prevent a
+				 * performance problem where we're unredacting
+				 * a large hole. Using dnode_next_offset to
+				 * skip over the large hole avoids iterating
+				 * over every block in it.
+				 */
+				err = dnode_next_offset(dn, DNODE_FIND_HAVELOCK,
+				    &offset, 1, 1, 0);
+				if (err == ESRCH) {
+					offset = UINT64_MAX;
+					err = 0;
+				} else if (err != 0) {
+					break;
+				}
+				if (offset != blkid * datablksz) {
+					/*
+					 * if there is a hole from here
+					 * (blkid) to offset
+					 */
+					offset = MIN(offset, file_max *
+					    datablksz);
+					uint64_t nblks = (offset / datablksz) -
+					    blkid;
+					enqueue_range(spta, outq, dn, blkid,
+					    nblks, NULL, datablksz);
+					blkid += nblks;
+				}
+				if (blkid >= file_max)
+					break;
 				err = dbuf_dnode_findbp(dn, 0, blkid, &bp,
-				    &datablkszsec, NULL);
+				    NULL, NULL);
 				if (err != 0)
 					break;
-				enqueue_range(spta, outq, dn, blkid, &bp,
-				    datablkszsec << SPA_MINBLOCKSHIFT,
-				    &pending);
-			}
-			if (pending != NULL) {
-				bqueue_enqueue(outq, pending,
-				    sizeof (*pending));
+				ASSERT(!BP_IS_HOLE(&bp));
+				enqueue_range(spta, outq, dn, blkid, 1, &bp,
+				    datablksz);
 			}
 			rw_exit(&dn->dn_struct_rwlock);
 			dnode_rele(dn, FTAG);
