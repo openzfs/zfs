@@ -8,8 +8,8 @@ TARGET_ASM_DIR = @TARGET_ASM_DIR@
 ifeq ($(TARGET_ASM_DIR), asm-x86_64)
 ASM_SOURCES := asm-x86_64/aes/aeskey.o
 ASM_SOURCES += asm-x86_64/aes/aes_amd64.o
-ASM_SOURCES += asm-x86_64/aes/aes_intel.o
-ASM_SOURCES += asm-x86_64/modes/gcm_intel.o
+ASM_SOURCES += asm-x86_64/aes/aes_aesni.o
+ASM_SOURCES += asm-x86_64/modes/gcm_pclmulqdq.o
 ASM_SOURCES += asm-x86_64/sha1/sha1-x86_64.o
 ASM_SOURCES += asm-x86_64/sha2/sha256_impl.o
 ASM_SOURCES += asm-x86_64/sha2/sha512_impl.o
@@ -53,8 +53,10 @@ $(MODULE)-objs += algs/modes/cbc.o
 $(MODULE)-objs += algs/modes/ccm.o
 $(MODULE)-objs += algs/modes/ctr.o
 $(MODULE)-objs += algs/modes/ecb.o
+$(MODULE)-objs += algs/modes/gcm_generic.o
 $(MODULE)-objs += algs/modes/gcm.o
 $(MODULE)-objs += algs/modes/modes.o
+$(MODULE)-objs += algs/aes/aes_impl_generic.o
 $(MODULE)-objs += algs/aes/aes_impl.o
 $(MODULE)-objs += algs/aes/aes_modes.o
 $(MODULE)-objs += algs/edonr/edonr.o
@@ -65,6 +67,10 @@ $(MODULE)-objs += algs/skein/skein.o
 $(MODULE)-objs += algs/skein/skein_block.o
 $(MODULE)-objs += algs/skein/skein_iv.o
 $(MODULE)-objs += $(ASM_SOURCES)
+
+$(MODULE)-$(CONFIG_X86) += algs/modes/gcm_pclmulqdq.o
+$(MODULE)-$(CONFIG_X86) += algs/aes/aes_impl_aesni.o
+$(MODULE)-$(CONFIG_X86) += algs/aes/aes_impl_x86-64.o
 
 ICP_DIRS = \
 	api \

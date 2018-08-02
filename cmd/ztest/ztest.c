@@ -129,6 +129,7 @@
 #include <zfs_fletcher.h>
 #include <libnvpair.h>
 #include <libzfs.h>
+#include <sys/crypto/icp.h>
 #ifdef __GLIBC__
 #include <execinfo.h> /* for backtrace() */
 #endif
@@ -3835,6 +3836,13 @@ ztest_dataset_create(char *dsname)
 
 		VERIFY0(dsl_crypto_params_create_nvlist(DCP_CMD_NONE, props,
 		    crypto_args, &dcp));
+
+		/*
+		 * Cycle through all available encryption implementations
+		 * to verify interoperability.
+		 */
+		VERIFY0(gcm_impl_set("cycle"));
+		VERIFY0(aes_impl_set("cycle"));
 
 		fnvlist_free(crypto_args);
 		fnvlist_free(props);
