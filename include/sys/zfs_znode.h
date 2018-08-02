@@ -259,28 +259,35 @@ zfs_inherit_projid(znode_t *dzp)
 
 #define	S_ISDEV(mode)	(S_ISCHR(mode) || S_ISBLK(mode) || S_ISFIFO(mode))
 
-/* Called on entry to each ZFS vnode and vfs operation  */
-#define	ZFS_ENTER(zfsvfs) \
-	{ \
-		rrm_enter_read(&(zfsvfs)->z_teardown_lock, FTAG); \
-		if ((zfsvfs)->z_unmounted) { \
-			ZFS_EXIT(zfsvfs); \
-			return (EIO); \
-		} \
-	}
+/* Called on entry to each ZFS inode and vfs operation. */
+#define	ZFS_ENTER_ERROR(zfsvfs, error)				\
+do {								\
+	rrm_enter_read(&(zfsvfs)->z_teardown_lock, FTAG);	\
+	if ((zfsvfs)->z_unmounted) {				\
+		ZFS_EXIT(zfsvfs);				\
+		return (error);					\
+	}							\
+} while (0)
+#define	ZFS_ENTER(zfsvfs)	ZFS_ENTER_ERROR(zfsvfs, EIO)
+#define	ZPL_ENTER(zfsvfs)	ZFS_ENTER_ERROR(zfsvfs, -EIO)
 
-/* Must be called before exiting the vop */
-#define	ZFS_EXIT(zfsvfs) \
-	{ \
-		rrm_exit(&(zfsvfs)->z_teardown_lock, FTAG); \
-	}
+/* Must be called before exiting the operation. */
+#define	ZFS_EXIT(zfsvfs)					\
+do {								\
+	rrm_exit(&(zfsvfs)->z_teardown_lock, FTAG);		\
+} while (0)
+#define	ZPL_EXIT(zfsvfs)	ZFS_EXIT(zfsvfs)
 
-/* Verifies the znode is valid */
-#define	ZFS_VERIFY_ZP(zp) \
-	if ((zp)->z_sa_hdl == NULL) { \
-		ZFS_EXIT(ZTOZSB(zp)); \
-		return (EIO); \
-	}
+/* Verifies the znode is valid. */
+#define	ZFS_VERIFY_ZP_ERROR(zp, error)				\
+do {								\
+	if ((zp)->z_sa_hdl == NULL) {				\
+		ZFS_EXIT(ZTOZSB(zp));				\
+		return (error);					\
+	}							\
+} while (0)
+#define	ZFS_VERIFY_ZP(zp)	ZFS_VERIFY_ZP_ERROR(zp, EIO)
+#define	ZPL_VERIFY_ZP(zp)	ZFS_VERIFY_ZP_ERROR(zp, -EIO)
 
 /*
  * Macros for dealing with dmu_buf_hold
