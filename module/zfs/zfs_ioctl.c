@@ -3967,7 +3967,6 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 	{
 		spa_feature_t feature;
 		spa_t *spa;
-		uint64_t intval;
 		int err;
 
 		/* dedup feature version checks */
@@ -3975,22 +3974,23 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 		    zfs_earlier_version(dsname, SPA_VERSION_DEDUP))
 			return (SET_ERROR(ENOTSUP));
 
-		if (nvpair_value_uint64(pair, &intval) != 0)
-			return (SET_ERROR(EINVAL));
+		if (nvpair_type(pair) == DATA_TYPE_UINT64 &&
+		    nvpair_value_uint64(pair, &intval) == 0) {
+			/* check prop value is enabled in features */
+			feature = zio_checksum_to_feature(
+			    intval & ZIO_CHECKSUM_MASK);
+			if (feature == SPA_FEATURE_NONE)
+				break;
 
-		/* check prop value is enabled in features */
-		feature = zio_checksum_to_feature(intval & ZIO_CHECKSUM_MASK);
-		if (feature == SPA_FEATURE_NONE)
-			break;
+			if ((err = spa_open(dsname, &spa, FTAG)) != 0)
+				return (err);
 
-		if ((err = spa_open(dsname, &spa, FTAG)) != 0)
-			return (err);
-
-		if (!spa_feature_is_enabled(spa, feature)) {
+			if (!spa_feature_is_enabled(spa, feature)) {
+				spa_close(spa, FTAG);
+				return (SET_ERROR(ENOTSUP));
+			}
 			spa_close(spa, FTAG);
-			return (SET_ERROR(ENOTSUP));
 		}
-		spa_close(spa, FTAG);
 		break;
 	}
 
