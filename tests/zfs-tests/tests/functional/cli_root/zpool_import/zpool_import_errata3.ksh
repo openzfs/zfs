@@ -45,7 +45,7 @@ function uncompress_pool
 {
 	log_note "Creating pool from $POOL_FILE"
 	log_must bzcat \
-	    $STF_SUITE/tests/functional/cli_root/zpool_import/$POOL_FILE.bz2 \
+	    $STF_SUITE/tests/functional/cli_root/zpool_import/blockfiles/$POOL_FILE.bz2 \
 	    > /$TESTPOOL/$POOL_FILE
 	return 0
 }

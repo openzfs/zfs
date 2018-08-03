@@ -1,8 +1,9 @@
+SUBDIRS = blockfiles
+
 pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/cli_root/zpool_import
 dist_pkgdata_SCRIPTS = \
 	setup.ksh \
 	cleanup.ksh \
-	zpool_import.kshlib \
 	import_cache_device_added.ksh \
 	import_cache_device_removed.ksh \
 	import_cache_device_replaced.ksh \
@@ -40,11 +41,7 @@ dist_pkgdata_SCRIPTS = \
 	zpool_import_encrypted_load.ksh \
 	zpool_import_errata3.ksh
 
-BLOCKFILES = \
-	unclean_export.dat.bz2 \
-	cryptv0.dat.bz2
+dist_pkgdata_DATA = \
+	zpool_import.cfg \
+	zpool_import.kshlib
 
-dist_pkgdata_DATA = $(BLOCKFILES) \
-	zpool_import.cfg
-
-EXTRA_DIST = $(BLOCKFILES)

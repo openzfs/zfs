@@ -51,6 +51,7 @@ AC_PROG_LIBTOOL
 AM_PROG_AS
 AM_PROG_CC_C_O
 AX_CODE_COVERAGE
+_AM_PROG_TAR(pax)
 
 ZFS_AC_LICENSE
 ZFS_AC_PACKAGE
@@ -242,6 +243,7 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/cli_root/zpool_get/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zpool_history/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zpool_import/Makefile
+	tests/zfs-tests/tests/functional/cli_root/zpool_import/blockfiles/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zpool_labelclear/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zpool/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zpool_offline/Makefile
@@ -255,6 +257,7 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/cli_root/zpool_status/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zpool_sync/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zpool_upgrade/Makefile
+	tests/zfs-tests/tests/functional/cli_root/zpool_upgrade/blockfiles/Makefile
 	tests/zfs-tests/tests/functional/cli_user/Makefile
 	tests/zfs-tests/tests/functional/cli_user/misc/Makefile
 	tests/zfs-tests/tests/functional/cli_user/zfs_list/Makefile

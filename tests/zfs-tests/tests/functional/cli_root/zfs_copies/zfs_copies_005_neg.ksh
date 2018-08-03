@@ -61,7 +61,7 @@ function cleanup
 log_assert "Verify that copies cannot be set with pool version 1"
 log_onexit cleanup
 
-log_must cp $STF_SUITE/tests/functional/cli_root/zpool_upgrade/$ZPOOL_VERSION_1_FILES $TEST_BASE_DIR
+log_must cp $STF_SUITE/tests/functional/cli_root/zpool_upgrade/blockfiles/$ZPOOL_VERSION_1_FILES $TEST_BASE_DIR
 log_must bunzip2 $TEST_BASE_DIR/$ZPOOL_VERSION_1_FILES
 log_must zpool import -d $TEST_BASE_DIR $ZPOOL_VERSION_1_NAME
 log_must zfs create $ZPOOL_VERSION_1_NAME/$TESTFS
