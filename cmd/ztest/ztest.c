@@ -2770,6 +2770,8 @@ ztest_mmp_enable_disable(ztest_ds_t *zd, uint64_t id)
 	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 	mutex_enter(&spa->spa_props_lock);
 
+	zfs_multihost_fail_intervals = 0;
+
 	if (!spa_multihost(spa)) {
 		spa->spa_multihost = B_TRUE;
 		mmp_thread_start(spa);
