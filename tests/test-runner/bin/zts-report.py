@@ -231,6 +231,7 @@ maybe = {
         ['FAIL', rewind_reason],
     'cli_root/zpool_import/import_rewind_config_changed':
         ['FAIL', rewind_reason],
+    'cli_root/zpool_import/import_cache_device_replaced': ['FAIL', '7765'],
     'cli_root/zpool_import/zpool_import_missing_003_pos': ['SKIP', '6839'],
     'cli_root/zpool_remove/setup': ['SKIP', disk_reason],
     'cli_root/zpool_upgrade/zpool_upgrade_004_pos': ['FAIL', '6141'],
@@ -250,6 +251,7 @@ maybe = {
     'pyzfs/pyzfs_unittest': ['SKIP', python_deps_reason],
     'no_space/enospc_002_pos': ['FAIL', enospc_reason],
     'projectquota/setup': ['SKIP', exec_reason],
+    'redundancy/redundancy_004_neg': ['FAIL', '7290'],
     'reservation/reservation_008_pos': ['FAIL', '7741'],
     'reservation/reservation_018_pos': ['FAIL', '5642'],
     'rsend/rsend_019_pos': ['FAIL', '6086'],
