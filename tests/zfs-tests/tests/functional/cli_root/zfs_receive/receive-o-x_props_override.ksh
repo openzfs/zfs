@@ -221,15 +221,17 @@ log_must eval "zfs set '$userprop:snap'='$userval' $origsub@snap3"
 log_must eval "zfs send -R -I $orig@snap1 $orig@snap3 > $streamfile_incr"
 # Sets various combination of override and exclude options
 log_must eval "zfs recv -F -o atime=off -o '$userprop:dest2'='$userval' "\
-	"-o quota=123456789 -x compression -x '$userprop:orig' " \
-	"-x '$userprop:snap3' $dest < $streamfile_incr"
+	"-o quota=123456789 -o checksum=sha512 -x compression "\
+        "-x '$userprop:orig' -x '$userprop:snap3' $dest < $streamfile_incr"
 # Verify we can correctly override and exclude properties
 log_must eval "check_prop_source $dest copies 2 received"
 log_must eval "check_prop_source $dest atime off local"
 log_must eval "check_prop_source $dest '$userprop:dest2' '$userval' local"
 log_must eval "check_prop_source $dest quota 123456789 local"
+log_must eval "check_prop_source $dest checksum sha512 local"
 log_must eval "check_prop_inherit $destsub copies $dest"
 log_must eval "check_prop_inherit $destsub atime $dest"
+log_must eval "check_prop_inherit $destsub checksum $dest"
 log_must eval "check_prop_inherit $destsub '$userprop:dest2' $dest"
 log_must eval "check_prop_source $destsub quota 0 default"
 log_must eval "check_prop_source $destsub compression off default"
