@@ -1152,7 +1152,7 @@ dbuf_whichblock(const dnode_t *dn, const int64_t level, const uint64_t offset)
 		 * 2^(level*(indblkshift - SPA_BLKPTRSHIFT)).
 		 *
 		 * Thus, the level n blkid is: offset /
-		 * ((2^datablkshift)*(2^(level*(indblkshift - SPA_BLKPTRSHIFT)))
+		 * ((2^datablkshift)*(2^(level*(indblkshift-SPA_BLKPTRSHIFT))))
 		 * = offset / 2^(datablkshift + level *
 		 *   (indblkshift - SPA_BLKPTRSHIFT))
 		 * = offset >> (datablkshift + level *
