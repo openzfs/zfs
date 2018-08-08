@@ -73,7 +73,7 @@ function mini_format
 		parted $disk -s -- mklabel gpt
 		typeset -i retval=$?
 	else
-		typeset format_file=/var/tmp/format_in.$$.1
+		typeset format_file=$TEST_BASE_DIR/format_in.$$.1
 		echo "partition" > $format_file
 		echo "modify" >> $format_file
 
