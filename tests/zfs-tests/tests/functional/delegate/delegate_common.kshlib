@@ -384,8 +384,8 @@ function verify_send
 	typeset -i ret=1
 
 	log_must zfs snapshot $snap
-	typeset bak_user=/tmp/bak.$user.$stamp
-	typeset bak_root=/tmp/bak.root.$stamp
+	typeset bak_user=$TEST_BASE_DIR/bak.$user.$stamp
+	typeset bak_root=$TEST_BASE_DIR/bak.root.$stamp
 
 	user_run $user eval "zfs send $snap > $bak_user"
 	log_must eval "zfs send $snap > $bak_root"
@@ -410,8 +410,8 @@ function verify_fs_receive
 	typeset stamp=${perm}.${user}.$(date +'%F-%T-%N')
 	typeset newfs=$fs/newfs.$stamp
 	typeset newvol=$fs/newvol.$stamp
-	typeset bak_user=/tmp/bak.$user.$stamp
-	typeset bak_root=/tmp/bak.root.$stamp
+	typeset bak_user=$TEST_BASE_DIR/bak.$user.$stamp
+	typeset bak_root=$TEST_BASE_DIR/bak.root.$stamp
 
 	log_must zfs create $newfs
 	typeset datasets="$newfs"
@@ -895,7 +895,7 @@ function verify_fs_mount
 
 	typeset stamp=${perm}.${user}.$(date +'%F-%T-%N')
 	typeset mntpt=$(get_prop mountpoint $fs)
-	typeset newmntpt=/tmp/mnt.$stamp
+	typeset newmntpt=$TEST_BASE_DIR/mnt.$stamp
 
 	if ismounted $fs ; then
 		user_run $user zfs unmount $fs
@@ -963,7 +963,7 @@ function verify_fs_mountpoint
 
 	typeset stamp=${perm}.${user}.$(date +'%F-%T-%N')
 	typeset mntpt=$(get_prop mountpoint $fs)
-	typeset newmntpt=/tmp/mnt.$stamp
+	typeset newmntpt=$TEST_BASE_DIR/mnt.$stamp
 
 	if ! ismounted $fs ; then
 		user_run $user zfs set mountpoint=$newmntpt $fs
