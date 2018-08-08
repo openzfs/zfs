@@ -45,9 +45,10 @@
 #include <sys/random.h>
 #include <sys/strings.h>
 #include <linux/kmod.h>
+#include <sys/zfs_gitrev.h>
 
-char spl_version[32] = "SPL v" ZFS_META_VERSION "-" ZFS_META_RELEASE;
-EXPORT_SYMBOL(spl_version);
+char spl_gitrev[64] = ZFS_META_GITREV;
+EXPORT_SYMBOL(spl_gitrev);
 
 /* BEGIN CSTYLED */
 unsigned long spl_hostid = 0;
