@@ -891,7 +891,7 @@ uint64_t dmu_objset_fsid_guid(objset_t *os);
 /*
  * Get the [cm]time for an objset's snapshot dir
  */
-timestruc_t dmu_objset_snap_cmtime(objset_t *os);
+inode_timespec_t dmu_objset_snap_cmtime(objset_t *os);
 
 int dmu_objset_is_snapshot(objset_t *os);
 

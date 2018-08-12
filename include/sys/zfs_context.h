@@ -527,7 +527,7 @@ extern char *vn_dumpdir;
 #define	AV_SCANSTAMP_SZ	32		/* length of anti-virus scanstamp */
 
 typedef struct xoptattr {
-	timestruc_t	xoa_createtime;	/* Create time of file */
+	inode_timespec_t xoa_createtime;	/* Create time of file */
 	uint8_t		xoa_archive;
 	uint8_t		xoa_system;
 	uint8_t		xoa_readonly;
@@ -639,13 +639,6 @@ extern void delay(clock_t ticks);
 #define	MSEC_TO_TICK(msec)	((msec) / (MILLISEC / hz))
 #define	USEC_TO_TICK(usec)	((usec) / (MICROSEC / hz))
 #define	NSEC_TO_TICK(usec)	((usec) / (NANOSEC / hz))
-
-#define	gethrestime_sec() time(NULL)
-#define	gethrestime(t) \
-	do {\
-		(t)->tv_sec = gethrestime_sec();\
-		(t)->tv_nsec = 0;\
-	} while (0);
 
 #define	max_ncpus	64
 #define	boot_ncpus	(sysconf(_SC_NPROCESSORS_ONLN))

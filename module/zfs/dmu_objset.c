@@ -860,7 +860,7 @@ dmu_objset_evict_done(objset_t *os)
 	kmem_free(os, sizeof (objset_t));
 }
 
-timestruc_t
+inode_timespec_t
 dmu_objset_snap_cmtime(objset_t *os)
 {
 	return (dsl_dir_snap_cmtime(os->os_dsl_dataset->ds_dir));
