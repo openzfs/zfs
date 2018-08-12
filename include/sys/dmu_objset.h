@@ -179,7 +179,7 @@ int dmu_objset_find_dp(struct dsl_pool *dp, uint64_t ddobj,
     int func(struct dsl_pool *, struct dsl_dataset *, void *),
     void *arg, int flags);
 void dmu_objset_evict_dbufs(objset_t *os);
-timestruc_t dmu_objset_snap_cmtime(objset_t *os);
+inode_timespec_t dmu_objset_snap_cmtime(objset_t *os);
 
 /* called from dsl */
 void dmu_objset_sync(objset_t *os, zio_t *zio, dmu_tx_t *tx);

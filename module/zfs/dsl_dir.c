@@ -1975,10 +1975,10 @@ dsl_dir_transfer_possible(dsl_dir_t *sdd, dsl_dir_t *tdd,
 	return (0);
 }
 
-timestruc_t
+inode_timespec_t
 dsl_dir_snap_cmtime(dsl_dir_t *dd)
 {
-	timestruc_t t;
+	inode_timespec_t t;
 
 	mutex_enter(&dd->dd_lock);
 	t = dd->dd_snap_cmtime;
@@ -1990,7 +1990,7 @@ dsl_dir_snap_cmtime(dsl_dir_t *dd)
 void
 dsl_dir_snap_cmtime_update(dsl_dir_t *dd)
 {
-	timestruc_t t;
+	inode_timespec_t t;
 
 	gethrestime(&t);
 	mutex_enter(&dd->dd_lock);

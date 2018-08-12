@@ -508,8 +508,8 @@ zfs_zevent_insert(zevent_t *ev)
 int
 zfs_zevent_post(nvlist_t *nvl, nvlist_t *detector, zevent_cb_t *cb)
 {
+	inode_timespec_t tv;
 	int64_t tv_array[2];
-	timestruc_t tv;
 	uint64_t eid;
 	size_t nvl_size = 0;
 	zevent_t *ev;
