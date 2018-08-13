@@ -92,8 +92,8 @@ function compare_acls #<src> <tgt>
 	(( ${#src} == 0 || ${#tgt} == 0 )) && return 1
 	[[ $src == $tgt ]] && return 0
 
-	typeset tmpsrc=/tmp/compare_acls.src.$$
-	typeset tmptgt=/tmp/compare_acls.tgt.$$
+	typeset tmpsrc=$TEST_BASE_DIR/compare_acls.src.$$
+	typeset tmptgt=$TEST_BASE_DIR/compare_acls.tgt.$$
 
 	get_acl $src > $tmpsrc
 	get_acl $tgt > $tmptgt
@@ -160,8 +160,8 @@ function compare_xattrs #<src> <tgt>
 	(( ${#src} == 0 || ${#tgt} == 0 )) && return 1
 	[[ $src == $tgt ]] && return 0
 
-	typeset tmpsrc=/tmp/compare_xattrs.src.$$
-	typeset tmptgt=/tmp/compare_xattrs.tgt.$$
+	typeset tmpsrc=$TEST_BASE_DIR/compare_xattrs.src.$$
+	typeset tmptgt=$TEST_BASE_DIR/compare_xattrs.tgt.$$
 
 	get_xattr $src > $tmpsrc
 	get_xattr $tgt > $tmptgt
@@ -276,7 +276,7 @@ function get_ACE #<file or dir name> <specified number> <verbose|compact>
 	typeset format=${3:-verbose}
 	typeset -i next_num=-1
 
-        typeset tmpfile=/tmp/tmp_get_ACE.$$
+        typeset tmpfile=$TEST_BASE_DIR/tmp_get_ACE.$$
         typeset line=""
 	typeset args
 
