@@ -1715,10 +1715,18 @@ dmu_objset_clone_crypt_check(dsl_dir_t *parentdd, dsl_dir_t *origindd)
 
 
 int
-dmu_objset_create_crypt_check(dsl_dir_t *parentdd, dsl_crypto_params_t *dcp)
+dmu_objset_create_crypt_check(dsl_dir_t *parentdd, dsl_crypto_params_t *dcp,
+    boolean_t *will_encrypt)
 {
 	int ret;
 	uint64_t pcrypt, crypt;
+	dsl_crypto_params_t dummy_dcp = { 0 };
+
+	if (will_encrypt != NULL)
+		*will_encrypt = B_FALSE;
+
+	if (dcp == NULL)
+		dcp = &dummy_dcp;
 
 	if (dcp->cp_cmd != DCP_CMD_NONE)
 		return (SET_ERROR(EINVAL));
@@ -1754,10 +1762,13 @@ dmu_objset_create_crypt_check(dsl_dir_t *parentdd, dsl_crypto_params_t *dcp)
 		return (0);
 	}
 
+	if (will_encrypt != NULL)
+		*will_encrypt = B_TRUE;
+
 	/*
 	 * We will now definitely be encrypting. Check the feature flag. When
 	 * creating the pool the caller will check this for us since we won't
-	 * technically have the fetaure activated yet.
+	 * technically have the feature activated yet.
 	 */
 	if (parentdd != NULL &&
 	    !spa_feature_is_enabled(parentdd->dd_pool->dp_spa,

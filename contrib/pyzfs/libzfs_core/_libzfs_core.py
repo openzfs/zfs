@@ -1303,7 +1303,8 @@ def lzc_receive_one(
 @_uncommitted()
 def lzc_receive_with_cmdprops(
     snapname, fd, begin_record, force=False, resumable=False, raw=False,
-    origin=None, props=None, cmdprops=None, cleanup_fd=-1, action_handle=0
+    origin=None, props=None, cmdprops=None, key=None, cleanup_fd=-1,
+    action_handle=0
 ):
     '''
     Like :func:`lzc_receive_one`, but allows the caller to pass an additional
@@ -1333,6 +1334,8 @@ def lzc_receive_with_cmdprops(
         every other value is set locally as if the command "zfs set" was
         invoked immediately before the receive.
     :type cmdprops: dict of bytes : Any
+    :param key: raw bytes representing user's wrapping key
+    :type key: bytes
     :param int cleanup_fd: file descriptor used to set a cleanup-on-exit file
         descriptor.
     :param int action_handle: variable used to pass the handle for guid/ds
@@ -1400,14 +1403,19 @@ def lzc_receive_with_cmdprops(
         props = {}
     if cmdprops is None:
         cmdprops = {}
+    if key is None:
+        key = bytes("")
+    else:
+        key = bytes(key)
+
     nvlist = nvlist_in(props)
     cmdnvlist = nvlist_in(cmdprops)
     properrs = {}
     with nvlist_out(properrs) as c_errors:
         ret = _lib.lzc_receive_with_cmdprops(
-            snapname, nvlist, cmdnvlist, c_origin, force, resumable, raw, fd,
-            begin_record, cleanup_fd, c_read_bytes, c_errflags,
-            c_action_handle, c_errors)
+            snapname, nvlist, cmdnvlist, key, len(key), c_origin,
+            force, resumable, raw, fd, begin_record, cleanup_fd, c_read_bytes,
+            c_errflags, c_action_handle, c_errors)
     errors.lzc_receive_translate_errors(
         ret, snapname, fd, force, raw, False, False, origin, properrs)
     return (int(c_read_bytes[0]), action_handle)

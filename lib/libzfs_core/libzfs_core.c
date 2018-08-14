@@ -662,8 +662,9 @@ recv_read(int fd, void *buf, int ilen)
  */
 static int
 recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
-    const char *origin, boolean_t force, boolean_t resumable, boolean_t raw,
-    int input_fd, const dmu_replay_record_t *begin_record, int cleanup_fd,
+    uint8_t *wkeydata, uint_t wkeylen, const char *origin, boolean_t force,
+    boolean_t resumable, boolean_t raw, int input_fd,
+    const dmu_replay_record_t *begin_record, int cleanup_fd,
     uint64_t *read_bytes, uint64_t *errflags, uint64_t *action_handle,
     nvlist_t **errors)
 {
@@ -703,7 +704,11 @@ recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
 		drr = *begin_record;
 	}
 
-	if (resumable || raw) {
+	/*
+	 * Raw receives, resumable receives, and receives that include a
+	 * wrapping key all use the new interface.
+	 */
+	if (resumable || raw || wkeydata != NULL) {
 		nvlist_t *outnvl = NULL;
 		nvlist_t *innvl = fnvlist_alloc();
 
@@ -714,6 +719,20 @@ recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
 
 		if (localprops != NULL)
 			fnvlist_add_nvlist(innvl, "localprops", localprops);
+
+		if (wkeydata != NULL) {
+			/*
+			 * wkeydata must be placed in the special
+			 * ZPOOL_HIDDEN_ARGS nvlist so that it
+			 * will not be printed to the zpool history.
+			 */
+			nvlist_t *hidden_args = fnvlist_alloc();
+			fnvlist_add_uint8_array(hidden_args, "wkeydata",
+			    wkeydata, wkeylen);
+			fnvlist_add_nvlist(innvl, ZPOOL_HIDDEN_ARGS,
+			    hidden_args);
+			nvlist_free(hidden_args);
+		}
 
 		if (origin != NULL && strlen(origin))
 			fnvlist_add_string(innvl, "origin", origin);
@@ -846,8 +865,8 @@ int
 lzc_receive(const char *snapname, nvlist_t *props, const char *origin,
     boolean_t force, boolean_t raw, int fd)
 {
-	return (recv_impl(snapname, props, NULL, origin, force, B_FALSE, raw,
-	    fd, NULL, -1, NULL, NULL, NULL, NULL));
+	return (recv_impl(snapname, props, NULL, NULL, 0, origin, force,
+	    B_FALSE, raw, fd, NULL, -1, NULL, NULL, NULL, NULL));
 }
 
 /*
@@ -860,8 +879,8 @@ int
 lzc_receive_resumable(const char *snapname, nvlist_t *props, const char *origin,
     boolean_t force, boolean_t raw, int fd)
 {
-	return (recv_impl(snapname, props, NULL, origin, force, B_TRUE, raw,
-	    fd, NULL, -1, NULL, NULL, NULL, NULL));
+	return (recv_impl(snapname, props, NULL, NULL, 0, origin, force,
+	    B_TRUE, raw, fd, NULL, -1, NULL, NULL, NULL, NULL));
 }
 
 /*
@@ -883,8 +902,8 @@ lzc_receive_with_header(const char *snapname, nvlist_t *props,
 	if (begin_record == NULL)
 		return (EINVAL);
 
-	return (recv_impl(snapname, props, NULL, origin, force, resumable, raw,
-	    fd, begin_record, -1, NULL, NULL, NULL, NULL));
+	return (recv_impl(snapname, props, NULL, NULL, 0, origin, force,
+	    resumable, raw, fd, begin_record, -1, NULL, NULL, NULL, NULL));
 }
 
 /*
@@ -913,9 +932,9 @@ int lzc_receive_one(const char *snapname, nvlist_t *props,
     uint64_t *read_bytes, uint64_t *errflags, uint64_t *action_handle,
     nvlist_t **errors)
 {
-	return (recv_impl(snapname, props, NULL, origin, force, resumable,
-	    raw, input_fd, begin_record, cleanup_fd, read_bytes, errflags,
-	    action_handle, errors));
+	return (recv_impl(snapname, props, NULL, NULL, 0, origin, force,
+	    resumable, raw, input_fd, begin_record, cleanup_fd, read_bytes,
+	    errflags, action_handle, errors));
 }
 
 /*
@@ -927,15 +946,15 @@ int lzc_receive_one(const char *snapname, nvlist_t *props,
  * this nvlist
  */
 int lzc_receive_with_cmdprops(const char *snapname, nvlist_t *props,
-    nvlist_t *cmdprops, const char *origin, boolean_t force,
-    boolean_t resumable, boolean_t raw, int input_fd,
+    nvlist_t *cmdprops, uint8_t *wkeydata, uint_t wkeylen, const char *origin,
+    boolean_t force, boolean_t resumable, boolean_t raw, int input_fd,
     const dmu_replay_record_t *begin_record, int cleanup_fd,
     uint64_t *read_bytes, uint64_t *errflags, uint64_t *action_handle,
     nvlist_t **errors)
 {
-	return (recv_impl(snapname, props, cmdprops, origin, force, resumable,
-	    raw, input_fd, begin_record, cleanup_fd, read_bytes, errflags,
-	    action_handle, errors));
+	return (recv_impl(snapname, props, cmdprops, wkeydata, wkeylen, origin,
+	    force, resumable, raw, input_fd, begin_record, cleanup_fd,
+	    read_bytes, errflags, action_handle, errors));
 }
 
 /*
