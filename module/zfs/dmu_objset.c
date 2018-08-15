@@ -1118,7 +1118,7 @@ dmu_objset_create_check(void *arg, dmu_tx_t *tx)
 		return (SET_ERROR(EEXIST));
 	}
 
-	error = dmu_objset_create_crypt_check(pdd, doca->doca_dcp);
+	error = dmu_objset_create_crypt_check(pdd, doca->doca_dcp, NULL);
 	if (error != 0) {
 		dsl_dir_rele(pdd, FTAG);
 		return (error);

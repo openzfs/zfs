@@ -3461,22 +3461,52 @@ recv_ecksum_set_aux(libzfs_handle_t *hdl, const char *target_snap,
  * oxprops: valid output override (-o) and excluded (-x) properties
  */
 static int
-zfs_setup_cmdline_props(libzfs_handle_t *hdl, zfs_type_t type, boolean_t zoned,
-    boolean_t recursive, boolean_t toplevel, nvlist_t *recvprops,
-    nvlist_t *cmdprops, nvlist_t *origprops, nvlist_t **oxprops,
-    const char *errbuf)
+zfs_setup_cmdline_props(libzfs_handle_t *hdl, zfs_type_t type,
+    char *fsname, boolean_t zoned, boolean_t recursive, boolean_t newfs,
+    boolean_t raw, boolean_t toplevel, nvlist_t *recvprops, nvlist_t *cmdprops,
+    nvlist_t *origprops, nvlist_t **oxprops, uint8_t **wkeydata_out,
+    uint_t *wkeylen_out, const char *errbuf)
 {
 	nvpair_t *nvp;
 	nvlist_t *oprops, *voprops;
 	zfs_handle_t *zhp = NULL;
 	zpool_handle_t *zpool_hdl = NULL;
+	char *cp;
 	int ret = 0;
+	char namebuf[ZFS_MAX_DATASET_NAME_LEN];
 
 	if (nvlist_empty(cmdprops))
 		return (0); /* No properties to override or exclude */
 
 	*oxprops = fnvlist_alloc();
 	oprops = fnvlist_alloc();
+
+	strlcpy(namebuf, fsname, ZFS_MAX_DATASET_NAME_LEN);
+
+	/*
+	 * Get our dataset handle. The target dataset may not exist yet.
+	 */
+	if (zfs_dataset_exists(hdl, namebuf, ZFS_TYPE_DATASET)) {
+		zhp = zfs_open(hdl, namebuf, ZFS_TYPE_DATASET);
+		if (zhp == NULL) {
+			ret = -1;
+			goto error;
+		}
+	}
+
+	/* open the zpool handle */
+	cp = strchr(namebuf, '/');
+	if (cp != NULL)
+		*cp = '\0';
+	zpool_hdl = zpool_open(hdl, namebuf);
+	if (zpool_hdl == NULL) {
+		ret = -1;
+		goto error;
+	}
+
+	/* restore namebuf to match fsname for later use */
+	if (cp != NULL)
+		*cp = '/';
 
 	/*
 	 * first iteration: process excluded (-x) properties now and gather
@@ -3505,6 +3535,17 @@ zfs_setup_cmdline_props(libzfs_handle_t *hdl, zfs_type_t type, boolean_t zoned,
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "property '%s' does not apply to datasets of this "
 			    "type"), name);
+			ret = zfs_error(hdl, EZFS_BADPROP, errbuf);
+			goto error;
+		}
+
+		/* raw streams can't override encryption properties */
+		if ((zfs_prop_encryption_key_param(prop) ||
+		    prop == ZFS_PROP_ENCRYPTION) && (raw || !newfs)) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "encryption property '%s' cannot "
+			    "be set or excluded for raw or incremental "
+			    "streams."), name);
 			ret = zfs_error(hdl, EZFS_BADPROP, errbuf);
 			goto error;
 		}
@@ -3559,6 +3600,21 @@ zfs_setup_cmdline_props(libzfs_handle_t *hdl, zfs_type_t type, boolean_t zoned,
 			goto error;
 		}
 
+		/*
+		 * zfs_crypto_create() requires the parent name. Get it
+		 * by truncating the fsname copy stored in namebuf.
+		 */
+		cp = strrchr(namebuf, '/');
+		if (cp != NULL)
+			*cp = '\0';
+
+		if (!raw && zfs_crypto_create(hdl, namebuf, voprops, NULL,
+		    B_FALSE, wkeydata_out, wkeylen_out) != 0) {
+			fnvlist_free(voprops);
+			ret = zfs_error(hdl, EZFS_CRYPTOFAILED, errbuf);
+			goto error;
+		}
+
 		/* second pass: process "-o" properties */
 		fnvlist_merge(*oxprops, voprops);
 		fnvlist_free(voprops);
@@ -3572,6 +3628,10 @@ zfs_setup_cmdline_props(libzfs_handle_t *hdl, zfs_type_t type, boolean_t zoned,
 	}
 
 error:
+	if (zhp != NULL)
+		zfs_close(zhp);
+	if (zpool_hdl != NULL)
+		zpool_close(zpool_hdl);
 	fnvlist_free(oprops);
 	return (ret);
 }
@@ -3615,6 +3675,8 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	boolean_t toplevel = B_FALSE;
 	boolean_t zoned = B_FALSE;
 	boolean_t hastoken = B_FALSE;
+	uint8_t *wkeydata = NULL;
+	uint_t wkeylen = 0;
 
 	begin_time = time(NULL);
 	bzero(origin, MAXNAMELEN);
@@ -4001,9 +4063,13 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		 * locally set on the send side would not be received correctly.
 		 * We can infer encryption=off if the stream is not raw and
 		 * properties were included since the send side will only ever
-		 * send the encryption property in a raw nvlist header.
+		 * send the encryption property in a raw nvlist header. This
+		 * check will be avoided if the user specifically overrides
+		 * the encryption property on the command line.
 		 */
-		if (!raw && rcvprops != NULL) {
+		if (!raw && rcvprops != NULL &&
+		    !nvlist_exists(cmdprops,
+		    zfs_prop_to_name(ZFS_PROP_ENCRYPTION))) {
 			uint64_t crypt;
 
 			zhp = zfs_open(hdl, name, ZFS_TYPE_DATASET);
@@ -4053,13 +4119,15 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		err = zfs_error(hdl, EZFS_BADSTREAM, errbuf);
 		goto out;
 	}
-	if ((err = zfs_setup_cmdline_props(hdl, type, zoned, recursive,
-	    toplevel, rcvprops, cmdprops, origprops, &oxprops, errbuf)) != 0)
+	if ((err = zfs_setup_cmdline_props(hdl, type, name, zoned, recursive,
+	    stream_wantsnewfs, raw, toplevel, rcvprops, cmdprops, origprops,
+	    &oxprops, &wkeydata, &wkeylen, errbuf)) != 0)
 		goto out;
 
-	err = ioctl_err = lzc_receive_with_cmdprops(destsnap, rcvprops, oxprops,
-	    origin, flags->force, flags->resumable, raw, infd, drr_noswap,
-	    cleanup_fd, &read_bytes, &errflags, action_handlep, &prop_errors);
+	err = ioctl_err = lzc_receive_with_cmdprops(destsnap, rcvprops,
+	    oxprops, wkeydata, wkeylen, origin, flags->force, flags->resumable,
+	    raw, infd, drr_noswap, cleanup_fd, &read_bytes, &errflags,
+	    action_handlep, &prop_errors);
 	ioctl_errno = ioctl_err;
 	prop_errflags = errflags;
 
@@ -4344,6 +4412,11 @@ zfs_receive_checkprops(libzfs_handle_t *hdl, nvlist_t *props,
 		 * clones so we don't raise an error here
 		 */
 		if (prop == ZFS_PROP_ORIGIN)
+			continue;
+
+		/* encryption params have their own verification later */
+		if (prop == ZFS_PROP_ENCRYPTION ||
+		    zfs_prop_encryption_key_param(prop))
 			continue;
 
 		/*

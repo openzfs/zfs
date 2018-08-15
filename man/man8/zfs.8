@@ -3912,6 +3912,34 @@ results if the same property is specified in multiple
 or
 .Fl x
 options.
+.Pp
+The
+.Fl o
+option may also be used to override encryption properties upon initial
+receive. This allows unencrypted streams to be received as encrypted datasets.
+To cause the received dataset (or root dataset of a recursive stream) to be
+received as an encryption root, specify encryption properties in the same
+manner as is required for
+.Nm
+.Cm create .
+For instance:
+.Bd -literal
+# zfs send tank/test@snap1 | zfs recv -o encryption=on -o keyformat=passphrase -o keylocation=file:///path/to/keyfile
+.Ed
+.Pp
+Note that
+.Op Fl o Ar keylocation Ns = Ns Ar prompt
+may not be specified here, since stdin is already being utilized for the send
+stream. Once the receive has completed, you can use
+.Nm
+.Cm set
+to change this setting after the fact. Similarly, you can receive a dataset as
+an encrypted child by specifying
+.Op Fl x Ar encryption
+to force the property to be inherited. Overriding encryption properties (except
+for
+.Sy keylocation Ns )
+is not possible with raw send streams.
 .It Fl s
 If the receive is interrupted, save the partially received state, rather
 than deleting it.

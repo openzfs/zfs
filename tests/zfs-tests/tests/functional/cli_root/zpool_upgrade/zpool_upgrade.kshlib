@@ -49,7 +49,7 @@ function create_old_pool
 	log_note "Creating $pool_name from $pool_files"
 	for pool_file in $pool_files; do
 		log_must bzcat \
-		    $STF_SUITE/tests/functional/cli_root/zpool_upgrade/$pool_file.bz2 \
+		    $STF_SUITE/tests/functional/cli_root/zpool_upgrade/blockfiles/$pool_file.bz2 \
 		    >$TEST_BASE_DIR/$pool_file
 	done
 	log_must zpool import -d $TEST_BASE_DIR $pool_name

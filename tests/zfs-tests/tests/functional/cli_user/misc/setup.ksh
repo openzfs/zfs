@@ -153,7 +153,7 @@ then
 	done
 
 	# copy a v1 pool from cli_root
-	cp $STF_SUITE/tests/functional/cli_root/zpool_upgrade/zfs-pool-v1.dat.bz2 \
+	cp $STF_SUITE/tests/functional/cli_root/zpool_upgrade/blockfiles/zfs-pool-v1.dat.bz2 \
 	    /$TESTDIR
 	log_must bunzip2 /$TESTDIR/zfs-pool-v1.dat.bz2
 	log_must zpool import -d /$TESTDIR v1-pool

@@ -23,6 +23,7 @@ dist_pkgdata_SCRIPTS = \
 	rsend_024_pos.ksh \
 	send_encrypted_files.ksh \
 	send_encrypted_heirarchy.ksh \
+	send_encrypted_props.ksh \
 	send-cD.ksh \
 	send-c_embedded_blocks.ksh \
 	send-c_incremental.ksh \
