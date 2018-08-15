@@ -55,7 +55,7 @@ valid_args=("$TESTPOOL/$TESTFS1@snap $TESTPOOL/$TESTFS2@snap \
 log_assert "verify zfs supports multiple consistent snapshots"
 log_onexit cleanup
 typeset -i i=1
-test_data=$STF_SUITE/tests/functional/cli_root/zpool_upgrade/*.bz2
+test_data=$STF_SUITE/tests/functional/cli_root/zpool_upgrade/blockfiles/*.bz2
 
 log_note "destroy a list of valid snapshots"
 for ds in $datasets; do
