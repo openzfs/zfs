@@ -54,7 +54,7 @@ verify_runnable "both"
 function cleanup
 {
 	for obj in $OBJ_LIST; do
-		datasetexists $obj && log_must zfs destroy -f $obj
+		destroy_dataset $obj
 	done
 }
 
