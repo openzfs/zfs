@@ -353,7 +353,7 @@ get_usage(zfs_help_t idx)
 	case HELP_HOLD:
 		return (gettext("\thold [-r] <tag> <snapshot> ...\n"));
 	case HELP_HOLDS:
-		return (gettext("\tholds [-r] <snapshot> ...\n"));
+		return (gettext("\tholds [-rH] <snapshot> ...\n"));
 	case HELP_RELEASE:
 		return (gettext("\trelease [-r] <tag> <snapshot> ...\n"));
 	case HELP_DIFF:
@@ -5961,9 +5961,10 @@ holds_callback(zfs_handle_t *zhp, void *data)
 }
 
 /*
- * zfs holds [-r] <snap> ...
+ * zfs holds [-rH] <snap> ...
  *
- *	-r	Recursively hold
+ *	-r	Lists holds that are set on the named snapshots recursively.
+ *	-H	Scripted mode; elide headers and separate columns by tabs.
  */
 static int
 zfs_do_holds(int argc, char **argv)
