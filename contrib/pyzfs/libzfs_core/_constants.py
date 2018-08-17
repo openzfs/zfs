@@ -57,5 +57,12 @@ zio_encrypt = enum(
     'ZIO_CRYPT_AES_192_GCM',
     'ZIO_CRYPT_AES_256_GCM'
 )
+# ZFS-specific error codes
+ZFS_ERR_CHECKPOINT_EXISTS = 1024
+ZFS_ERR_DISCARDING_CHECKPOINT = 1025
+ZFS_ERR_NO_CHECKPOINT = 1026
+ZFS_ERR_DEVRM_IN_PROGRESS = 1027
+ZFS_ERR_VDEV_TOO_BIG = 1028
+
 
 # vim: softtabstop=4 tabstop=4 expandtab shiftwidth=4
