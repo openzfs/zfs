@@ -992,7 +992,7 @@ metaslab_group_fragmentation(metaslab_group_t *mg)
  */
 static boolean_t
 metaslab_group_allocatable(metaslab_group_t *mg, metaslab_group_t *rotor,
-    uint64_t psize, int allocator)
+    uint64_t psize, int allocator, int d)
 {
 	spa_t *spa = mg->mg_vd->vdev_spa;
 	metaslab_class_t *mc = mg->mg_class;
@@ -1033,6 +1033,13 @@ metaslab_group_allocatable(metaslab_group_t *mg, metaslab_group_t *rotor,
 		if (mg->mg_no_free_space)
 			return (B_FALSE);
 
+		/*
+		 * Relax allocation throttling for ditto blocks.  Due to
+		 * random imbalances in allocation it tends to push copies
+		 * to one vdev, that looks a bit better at the moment.
+		 */
+		qmax = qmax * (4 + d) / 4;
+
 		qdepth = refcount_count(&mg->mg_alloc_queue_depth[allocator]);
 
 		/*
@@ -1053,7 +1060,7 @@ metaslab_group_allocatable(metaslab_group_t *mg, metaslab_group_t *rotor,
 		 */
 		for (mgp = mg->mg_next; mgp != rotor; mgp = mgp->mg_next) {
 			qmax = mgp->mg_cur_max_alloc_queue_depth[allocator];
-
+			qmax = qmax * (4 + d) / 4;
 			qdepth = refcount_count(
 			    &mgp->mg_alloc_queue_depth[allocator]);
 
@@ -3379,7 +3386,7 @@ top:
 		 */
 		if (allocatable && !GANG_ALLOCATION(flags) && !try_hard) {
 			allocatable = metaslab_group_allocatable(mg, rotor,
-			    psize, allocator);
+			    psize, allocator, d);
 		}
 
 		if (!allocatable) {
