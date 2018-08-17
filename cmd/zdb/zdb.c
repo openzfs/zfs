@@ -24,7 +24,7 @@
  * Copyright (c) 2011, 2017 by Delphix. All rights reserved.
  * Copyright (c) 2014 Integros [integros.com]
  * Copyright 2016 Nexenta Systems, Inc.
- * Copyright (c) 2017 Lawrence Livermore National Security, LLC.
+ * Copyright (c) 2017, 2018 Lawrence Livermore National Security, LLC.
  * Copyright (c) 2015, 2017, Intel Corporation.
  */
 
@@ -4558,6 +4558,22 @@ verify_device_removal_feature_counts(spa_t *spa)
 	return (ret);
 }
 
+static void
+zdb_set_skip_mmp(char *target)
+{
+	spa_t *spa;
+
+	/*
+	 * Disable the activity check to allow examination of
+	 * active pools.
+	 */
+	mutex_enter(&spa_namespace_lock);
+	if ((spa = spa_lookup(target)) != NULL) {
+		spa->spa_import_flags |= ZFS_IMPORT_SKIP_MMP;
+	}
+	mutex_exit(&spa_namespace_lock);
+}
+
 #define	BOGUS_SUFFIX "_CHECKPOINTED_UNIVERSE"
 /*
  * Import the checkpointed state of the pool specified by the target
@@ -4592,6 +4608,7 @@ import_checkpointed_state(char *target, nvlist_t *cfg, char **new_path)
 	}
 
 	if (cfg == NULL) {
+		zdb_set_skip_mmp(poolname);
 		error = spa_get_stats(poolname, &cfg, NULL, 0);
 		if (error != 0) {
 			fatal("Tried to read config of pool \"%s\" but "
@@ -4605,7 +4622,8 @@ import_checkpointed_state(char *target, nvlist_t *cfg, char **new_path)
 	fnvlist_add_string(cfg, ZPOOL_CONFIG_POOL_NAME, bogus_name);
 
 	error = spa_import(bogus_name, cfg, NULL,
-	    ZFS_IMPORT_MISSING_LOG | ZFS_IMPORT_CHECKPOINT);
+	    ZFS_IMPORT_MISSING_LOG | ZFS_IMPORT_CHECKPOINT |
+	    ZFS_IMPORT_SKIP_MMP);
 	if (error != 0) {
 		fatal("Tried to import pool \"%s\" but spa_import() failed "
 		    "with error %d\n", bogus_name, error);
@@ -5739,15 +5757,15 @@ main(int argc, char **argv)
 				    target, strerror(ENOMEM));
 			}
 
-			/*
-			 * Disable the activity check to allow examination of
-			 * active pools.
-			 */
 			if (dump_opt['C'] > 1) {
 				(void) printf("\nConfiguration for import:\n");
 				dump_nvlist(cfg, 8);
 			}
 
+			/*
+			 * Disable the activity check to allow examination of
+			 * active pools.
+			 */
 			error = spa_import(target_pool, cfg, NULL,
 			    flags | ZFS_IMPORT_SKIP_MMP);
 		}
@@ -5769,16 +5787,7 @@ main(int argc, char **argv)
 			}
 
 		} else if (target_is_spa || dump_opt['R']) {
-			/*
-			 * Disable the activity check to allow examination of
-			 * active pools.
-			 */
-			mutex_enter(&spa_namespace_lock);
-			if ((spa = spa_lookup(target)) != NULL) {
-				spa->spa_import_flags |= ZFS_IMPORT_SKIP_MMP;
-			}
-			mutex_exit(&spa_namespace_lock);
-
+			zdb_set_skip_mmp(target);
 			error = spa_open_rewind(target, &spa, FTAG, policy,
 			    NULL);
 			if (error) {
@@ -5801,6 +5810,7 @@ main(int argc, char **argv)
 				}
 			}
 		} else {
+			zdb_set_skip_mmp(target);
 			error = open_objset(target, DMU_OST_ANY, FTAG, &os);
 			if (error == 0)
 				spa = dmu_objset_spa(os);
