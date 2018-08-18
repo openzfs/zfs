@@ -292,7 +292,7 @@
 .Ar tag Ar snapshot Ns ...
 .Nm
 .Cm holds
-.Op Fl r
+.Op Fl rH
 .Ar snapshot Ns ...
 .Nm
 .Cm release
@@ -4294,7 +4294,7 @@ of all descendent file systems.
 .It Xo
 .Nm
 .Cm holds
-.Op Fl r
+.Op Fl rH
 .Ar snapshot Ns ...
 .Xc
 Lists all existing user references for the given snapshot or snapshots.
@@ -4302,6 +4302,8 @@ Lists all existing user references for the given snapshot or snapshots.
 .It Fl r
 Lists the holds that are set on the named descendent snapshots, in addition to
 listing the holds on the named snapshot.
+.It Fl H
+Do not print headers, use tab-delimited output.
 .El
 .It Xo
 .Nm
