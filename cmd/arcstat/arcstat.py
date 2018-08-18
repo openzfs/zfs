@@ -285,7 +285,7 @@ def init():
             ]
         )
     except getopt.error as msg:
-        sys.stderr.write(msg)
+        sys.stderr.write("Error: %s\n" % str(msg))
         usage()
         opts = None
 
