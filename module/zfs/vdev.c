@@ -4051,17 +4051,6 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
 	if (zio->io_vd == NULL && (zio->io_flags & ZIO_FLAG_DONT_PROPAGATE))
 		return;
 
-	mutex_enter(&vd->vdev_stat_lock);
-	if (type == ZIO_TYPE_READ && !vdev_is_dead(vd)) {
-		if (zio->io_error == ECKSUM)
-			vs->vs_checksum_errors++;
-		else
-			vs->vs_read_errors++;
-	}
-	if (type == ZIO_TYPE_WRITE && !vdev_is_dead(vd))
-		vs->vs_write_errors++;
-	mutex_exit(&vd->vdev_stat_lock);
-
 	if (spa->spa_load_state == SPA_LOAD_NONE &&
 	    type == ZIO_TYPE_WRITE && txg != 0 &&
 	    (!(flags & ZIO_FLAG_IO_REPAIR) ||
