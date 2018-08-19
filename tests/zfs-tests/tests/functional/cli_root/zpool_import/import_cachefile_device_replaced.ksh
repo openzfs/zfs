@@ -60,6 +60,7 @@ function custom_cleanup
 	    log_must set_zfs_txg_timeout $ZFS_TXG_TIMEOUT
 
 	zinject -c all
+	log_must set_tunable64 zfs_scan_vdev_limit $ZFS_SCAN_VDEV_LIMIT_DEFAULT
 	cleanup
 }
 
@@ -87,9 +88,10 @@ function test_replacing_vdevs
 	log_must zpool export $TESTPOOL1
 	log_must cp $CPATHBKP $CPATH
 	log_must zpool import -c $CPATH -o cachefile=$CPATH $TESTPOOL1
+	log_must set_tunable64 zfs_scan_vdev_limit $ZFS_SCAN_VDEV_LIMIT_SLOW
 	typeset device
 	for device in $zinjectdevices ; do
-		log_must zinject -d $device -D 200:1 $TESTPOOL1 > /dev/null
+		log_must zinject -d $device -D 50:1 $TESTPOOL1 > /dev/null
 	done
 	log_must zpool replace $TESTPOOL1 $replacevdev $replaceby
 
@@ -102,6 +104,7 @@ function test_replacing_vdevs
 	# Confirm pool is still replacing
 	log_must pool_is_replacing $TESTPOOL1
 	log_must zinject -c all > /dev/null
+	log_must set_tunable64 zfs_scan_vdev_limit $ZFS_SCAN_VDEV_LIMIT_DEFAULT
 	log_must zpool export $TESTPOOL1
 
 	( $earlyremove ) && log_must rm $replacevdev
