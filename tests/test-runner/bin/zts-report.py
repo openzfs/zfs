@@ -231,7 +231,6 @@ maybe = {
         ['FAIL', rewind_reason],
     'cli_root/zpool_import/import_rewind_config_changed':
         ['FAIL', rewind_reason],
-    'cli_root/zpool_import/import_cache_device_replaced': ['FAIL', '7765'],
     'cli_root/zpool_import/zpool_import_missing_003_pos': ['SKIP', '6839'],
     'cli_root/zpool_remove/setup': ['SKIP', disk_reason],
     'cli_root/zpool_upgrade/zpool_upgrade_004_pos': ['FAIL', '6141'],
