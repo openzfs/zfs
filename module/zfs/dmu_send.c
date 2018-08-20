@@ -2343,9 +2343,14 @@ free_guid_map_onexit(void *arg)
 	guid_map_entry_t *gmep;
 
 	while ((gmep = avl_destroy_nodes(ca, &cookie)) != NULL) {
-		dsl_dataset_long_rele(gmep->gme_ds, gmep);
-		dsl_dataset_rele_flags(gmep->gme_ds,
-		    (gmep->raw) ? 0 : DS_HOLD_FLAG_DECRYPT, gmep);
+		ds_hold_flags_t dsflags = DS_HOLD_FLAG_DECRYPT;
+
+		if (gmep->raw) {
+			gmep->gme_ds->ds_objset->os_raw_receive = B_FALSE;
+			dsflags &= ~DS_HOLD_FLAG_DECRYPT;
+		}
+
+		dsl_dataset_disown(gmep->gme_ds, dsflags, gmep);
 		kmem_free(gmep, sizeof (guid_map_entry_t));
 	}
 	avl_destroy(ca);
@@ -4237,6 +4242,7 @@ add_ds_to_guidmap(const char *name, avl_tree_t *guid_map, uint64_t snapobj,
 	dsl_pool_t *dp;
 	dsl_dataset_t *snapds;
 	guid_map_entry_t *gmep;
+	objset_t *os;
 	ds_hold_flags_t dsflags = (raw) ? 0 : DS_HOLD_FLAG_DECRYPT;
 	int err;
 
@@ -4246,13 +4252,29 @@ add_ds_to_guidmap(const char *name, avl_tree_t *guid_map, uint64_t snapobj,
 	if (err != 0)
 		return (err);
 	gmep = kmem_alloc(sizeof (*gmep), KM_SLEEP);
-	err = dsl_dataset_hold_obj_flags(dp, snapobj, dsflags, gmep, &snapds);
+	err = dsl_dataset_own_obj(dp, snapobj, dsflags, gmep, &snapds);
 	if (err == 0) {
-		gmep->guid = dsl_dataset_phys(snapds)->ds_guid;
+		/*
+		 * If this is a deduplicated raw send stream, we need
+		 * to make sure that we can still read raw blocks from
+		 * earlier datasets in the stream, so we set the
+		 * os_raw_receive flag now.
+		 */
+		if (raw) {
+			err = dmu_objset_from_ds(snapds, &os);
+			if (err != 0) {
+				dsl_dataset_disown(snapds, dsflags, FTAG);
+				dsl_pool_rele(dp, FTAG);
+				kmem_free(gmep, sizeof (*gmep));
+				return (err);
+			}
+			os->os_raw_receive = B_TRUE;
+		}
+
 		gmep->raw = raw;
+		gmep->guid = dsl_dataset_phys(snapds)->ds_guid;
 		gmep->gme_ds = snapds;
 		avl_add(guid_map, gmep);
-		dsl_dataset_long_hold(snapds, gmep);
 	} else {
 		kmem_free(gmep, sizeof (*gmep));
 	}
