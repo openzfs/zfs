@@ -133,6 +133,13 @@ extern void *txg_list_next(txg_list_t *tl, void *p, uint64_t txg);
 /* Global tuning */
 extern int zfs_txg_timeout;
 
+
+#ifdef ZFS_DEBUG
+#define	TXG_VERIFY(spa, txg)		txg_verify(spa, txg)
+#else
+#define	TXG_VERIFY(spa, txg)
+#endif
+
 #ifdef	__cplusplus
 }
 #endif
