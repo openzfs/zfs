@@ -36,7 +36,7 @@
  *
  * Copyright 2014 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2016 Actifio, Inc. All rights reserved.
- * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  */
 
 /*
@@ -74,6 +74,7 @@
  * and zvol_release()->zvol_last_close() directly as well.
  */
 
+#include <sys/dataset_kstats.h>
 #include <sys/dbuf.h>
 #include <sys/dmu_traverse.h>
 #include <sys/dsl_dataset.h>
@@ -88,7 +89,9 @@
 #include <sys/zfs_znode.h>
 #include <sys/spa_impl.h>
 #include <sys/zvol.h>
+
 #include <linux/blkdev_compat.h>
+#include <linux/task_io_accounting_ops.h>
 
 unsigned int zvol_inhibit_dev = 0;
 unsigned int zvol_major = ZVOL_MAJOR;
@@ -126,6 +129,7 @@ struct zvol_state {
 	dev_t			zv_dev;		/* device id */
 	struct gendisk		*zv_disk;	/* generic disk */
 	struct request_queue	*zv_queue;	/* request queue */
+	dataset_kstats_t	zv_kstat;	/* zvol kstats */
 	list_node_t		zv_next;	/* next zvol_state_t linkage */
 	uint64_t		zv_hash;	/* name hash */
 	struct hlist_node	zv_hlink;	/* hash link */
@@ -731,25 +735,25 @@ uio_from_bio(uio_t *uio, struct bio *bio)
 static void
 zvol_write(void *arg)
 {
+	int error = 0;
+
 	zv_request_t *zvr = arg;
 	struct bio *bio = zvr->bio;
 	uio_t uio;
-	zvol_state_t *zv = zvr->zv;
-	uint64_t volsize = zv->zv_volsize;
-	boolean_t sync;
-	int error = 0;
-	unsigned long start_jif;
-
 	uio_from_bio(&uio, bio);
 
+	zvol_state_t *zv = zvr->zv;
 	ASSERT(zv && zv->zv_open_count > 0);
 
-	start_jif = jiffies;
+	ssize_t start_resid = uio.uio_resid;
+	unsigned long start_jif = jiffies;
 	blk_generic_start_io_acct(zv->zv_queue, WRITE, bio_sectors(bio),
 	    &zv->zv_disk->part0);
 
-	sync = bio_is_fua(bio) || zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS;
+	boolean_t sync =
+	    bio_is_fua(bio) || zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS;
 
+	uint64_t volsize = zv->zv_volsize;
 	while (uio.uio_resid > 0 && uio.uio_loffset < volsize) {
 		uint64_t bytes = MIN(uio.uio_resid, DMU_MAX_ACCESS >> 1);
 		uint64_t off = uio.uio_loffset;
@@ -767,14 +771,20 @@ zvol_write(void *arg)
 			break;
 		}
 		error = dmu_write_uio_dnode(zv->zv_dn, &uio, bytes, tx);
-		if (error == 0)
+		if (error == 0) {
 			zvol_log_write(zv, tx, off, bytes, sync);
+		}
 		dmu_tx_commit(tx);
 
 		if (error)
 			break;
 	}
 	zfs_range_unlock(zvr->rl);
+
+	int64_t nwritten = start_resid - uio.uio_resid;
+	dataset_kstats_update_write_kstats(&zv->zv_kstat, nwritten);
+	task_io_account_write(nwritten);
+
 	if (sync)
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
 
@@ -877,22 +887,22 @@ unlock:
 static void
 zvol_read(void *arg)
 {
+	int error = 0;
+
 	zv_request_t *zvr = arg;
 	struct bio *bio = zvr->bio;
 	uio_t uio;
-	zvol_state_t *zv = zvr->zv;
-	uint64_t volsize = zv->zv_volsize;
-	int error = 0;
-	unsigned long start_jif;
-
 	uio_from_bio(&uio, bio);
 
+	zvol_state_t *zv = zvr->zv;
 	ASSERT(zv && zv->zv_open_count > 0);
 
-	start_jif = jiffies;
+	ssize_t start_resid = uio.uio_resid;
+	unsigned long start_jif = jiffies;
 	blk_generic_start_io_acct(zv->zv_queue, READ, bio_sectors(bio),
 	    &zv->zv_disk->part0);
 
+	uint64_t volsize = zv->zv_volsize;
 	while (uio.uio_resid > 0 && uio.uio_loffset < volsize) {
 		uint64_t bytes = MIN(uio.uio_resid, DMU_MAX_ACCESS >> 1);
 
@@ -909,6 +919,10 @@ zvol_read(void *arg)
 		}
 	}
 	zfs_range_unlock(zvr->rl);
+
+	int64_t nread = start_resid - uio.uio_resid;
+	dataset_kstats_update_read_kstats(&zv->zv_kstat, nread);
+	task_io_account_read(nread);
 
 	rw_exit(&zv->zv_suspend_lock);
 	blk_generic_end_io_acct(zv->zv_queue, READ, &zv->zv_disk->part0,
@@ -1742,6 +1756,7 @@ zvol_free(void *arg)
 	ida_simple_remove(&zvol_ida, MINOR(zv->zv_dev) >> ZVOL_MINOR_BITS);
 
 	mutex_destroy(&zv->zv_state_lock);
+	dataset_kstats_destroy(&zv->zv_kstat);
 
 	kmem_free(zv, sizeof (zvol_state_t));
 }
@@ -1833,6 +1848,8 @@ zvol_create_minor_impl(const char *name)
 		else
 			zil_replay(os, zv, zvol_replay_vector);
 	}
+	ASSERT3P(zv->zv_kstat.dk_kstats, ==, NULL);
+	dataset_kstats_create(&zv->zv_kstat, zv->zv_objset);
 
 	/*
 	 * When udev detects the addition of the device it will immediately

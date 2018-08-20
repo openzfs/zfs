@@ -242,7 +242,6 @@ zpl_read_common_iovec(struct inode *ip, const struct iovec *iovp, size_t count,
 
 	read = count - uio.uio_resid;
 	*ppos += read;
-	task_io_account_read(read);
 
 	return (read);
 }
@@ -339,7 +338,6 @@ zpl_write_common_iovec(struct inode *ip, const struct iovec *iovp, size_t count,
 
 	wrote = count - uio.uio_resid;
 	*ppos += wrote;
-	task_io_account_write(wrote);
 
 	return (wrote);
 }

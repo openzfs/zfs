@@ -8479,6 +8479,7 @@ main(int argc, char **argv)
 	int ret = 0;
 	int i = 0;
 	char *cmdname;
+	char **newargv;
 
 	(void) setlocale(LC_ALL, "");
 	(void) textdomain(TEXT_DOMAIN);
@@ -8512,15 +8513,24 @@ main(int argc, char **argv)
 	zfs_save_arguments(argc, argv, history_str, sizeof (history_str));
 
 	/*
+	 * Many commands modify input strings for string parsing reasons.
+	 * We create a copy to protect the original argv.
+	 */
+	newargv = malloc((argc + 1) * sizeof (newargv[0]));
+	for (i = 0; i < argc; i++)
+		newargv[i] = strdup(argv[i]);
+	newargv[argc] = NULL;
+
+	/*
 	 * Run the appropriate command.
 	 */
 	if (find_command_idx(cmdname, &i) == 0) {
 		current_command = &command_table[i];
-		ret = command_table[i].func(argc - 1, argv + 1);
+		ret = command_table[i].func(argc - 1, newargv + 1);
 	} else if (strchr(cmdname, '=')) {
 		verify(find_command_idx("set", &i) == 0);
 		current_command = &command_table[i];
-		ret = command_table[i].func(argc, argv);
+		ret = command_table[i].func(argc, newargv);
 	} else if (strcmp(cmdname, "freeze") == 0 && argc == 3) {
 		/*
 		 * 'freeze' is a vile debugging abomination, so we treat
@@ -8543,6 +8553,10 @@ main(int argc, char **argv)
 		usage(B_FALSE);
 		ret = 1;
 	}
+
+	for (i = 0; i < argc; i++)
+		free(newargv[i]);
+	free(newargv);
 
 	if (ret == 0 && log_history)
 		(void) zpool_log_history(g_zfs, history_str);
