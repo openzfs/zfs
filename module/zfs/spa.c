@@ -306,6 +306,8 @@ spa_prop_get_config(spa_t *spa, nvlist_t **nvp)
 			spa_prop_add_list(*nvp, ZPOOL_PROP_VERSION, NULL,
 			    version, ZPROP_SRC_LOCAL);
 		}
+		spa_prop_add_list(*nvp, ZPOOL_PROP_LOAD_GUID,
+		    NULL, spa_load_guid(spa), src);
 	}
 
 	if (pool != NULL) {
