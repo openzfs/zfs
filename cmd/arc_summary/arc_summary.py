@@ -204,6 +204,10 @@ def get_arc_summary(Kstat):
     arc_size = Kstat["kstat.zfs.misc.arcstats.size"]
     mru_size = Kstat["kstat.zfs.misc.arcstats.mru_size"]
     mfu_size = Kstat["kstat.zfs.misc.arcstats.mfu_size"]
+    dnode_size = Kstat["kstat.zfs.misc.arcstats.dnode_size"]
+    dnode_limit = Kstat["kstat.zfs.misc.arcstats.arc_dnode_limit"]
+    meta_size = Kstat["kstat.zfs.misc.arcstats.arc_meta_used"]
+    meta_limit = Kstat["kstat.zfs.misc.arcstats.arc_meta_limit"]
     target_max_size = Kstat["kstat.zfs.misc.arcstats.c_max"]
     target_min_size = Kstat["kstat.zfs.misc.arcstats.c_min"]
     target_size = Kstat["kstat.zfs.misc.arcstats.c"]
@@ -227,6 +231,22 @@ def get_arc_summary(Kstat):
     output['arc_sizing']['target_size'] = {
         'per': fPerc(target_size, target_max_size),
         'num': fBytes(target_size),
+    }
+    output['arc_sizing']['meta_size'] = {
+        'per': fPerc(meta_size, meta_limit),
+        'num': fBytes(meta_size),
+    }
+    output['arc_sizing']['meta_limit'] = {
+        'per': fPerc(meta_limit, target_max_size),
+        'num': fBytes(meta_limit),
+    }
+    output['arc_sizing']['dnode_limit'] = {
+        'per': fPerc(dnode_limit, meta_limit),
+        'num': fBytes(dnode_limit),
+    }
+    output['arc_sizing']['dnode_size'] = {
+        'per': fPerc(dnode_size, dnode_limit),
+        'num': fBytes(dnode_size),
     }
 
     # ARC Hash Breakdown
@@ -331,6 +351,26 @@ def _arc_summary(Kstat):
     sys.stdout.write("\tFrequently Used Cache Size:\t%s\t%s\n" % (
         arc['arc_size_break']['frequently_used_cache_size']['per'],
         arc['arc_size_break']['frequently_used_cache_size']['num'],
+        )
+    )
+    sys.stdout.write("\tMetadata Size (Hard Limit):\t%s\t%s\n" % (
+        arc['arc_sizing']['meta_limit']['per'],
+        arc['arc_sizing']['meta_limit']['num'],
+        )
+    )
+    sys.stdout.write("\tMetadata Size:\t\t\t%s\t%s\n" % (
+        arc['arc_sizing']['meta_size']['per'],
+        arc['arc_sizing']['meta_size']['num'],
+        )
+    )
+    sys.stdout.write("\tDnode Size (Hard Limit):\t%s\t%s\n" % (
+        arc['arc_sizing']['dnode_limit']['per'],
+        arc['arc_sizing']['dnode_limit']['num'],
+        )
+    )
+    sys.stdout.write("\tDnode Size:\t\t\t%s\t%s\n" % (
+        arc['arc_sizing']['dnode_size']['per'],
+        arc['arc_sizing']['dnode_size']['num'],
         )
     )
 
