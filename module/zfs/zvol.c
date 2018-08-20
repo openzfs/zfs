@@ -1179,10 +1179,10 @@ zvol_shutdown_zv(zvol_state_t *zv)
 	zv->zv_dn = NULL;
 
 	/*
-	 * Evict cached data
+	 * Evict cached data. We must write out any dirty data before
+	 * disowning the dataset.
 	 */
-	if (dsl_dataset_is_dirty(dmu_objset_ds(zv->zv_objset)) &&
-	    !(zv->zv_flags & ZVOL_RDONLY))
+	if (!(zv->zv_flags & ZVOL_RDONLY))
 		txg_wait_synced(dmu_objset_pool(zv->zv_objset), 0);
 	(void) dmu_objset_evict_dbufs(zv->zv_objset);
 }
@@ -1475,8 +1475,7 @@ zvol_ioctl(struct block_device *bdev, fmode_t mode,
 		invalidate_bdev(bdev);
 		rw_enter(&zv->zv_suspend_lock, RW_READER);
 
-		if (dsl_dataset_is_dirty(dmu_objset_ds(zv->zv_objset)) &&
-		    !(zv->zv_flags & ZVOL_RDONLY))
+		if (!(zv->zv_flags & ZVOL_RDONLY))
 			txg_wait_synced(dmu_objset_pool(zv->zv_objset), 0);
 
 		rw_exit(&zv->zv_suspend_lock);
