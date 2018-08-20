@@ -558,6 +558,10 @@ tests = ['inherit_001_pos']
 pre =
 tags = ['functional', 'inheritance']
 
+[tests/functional/io]
+tests = ['sync', 'psync', 'libaio', 'posixaio', 'mmap']
+tags = ['functional', 'io']
+
 [tests/functional/inuse]
 tests = ['inuse_001_pos', 'inuse_003_pos', 'inuse_004_pos',
     'inuse_005_pos', 'inuse_006_pos', 'inuse_007_pos', 'inuse_008_pos',

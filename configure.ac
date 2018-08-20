@@ -280,6 +280,7 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/hkdf/Makefile
 	tests/zfs-tests/tests/functional/inheritance/Makefile
 	tests/zfs-tests/tests/functional/inuse/Makefile
+	tests/zfs-tests/tests/functional/io/Makefile
 	tests/zfs-tests/tests/functional/kstat/Makefile
 	tests/zfs-tests/tests/functional/large_files/Makefile
 	tests/zfs-tests/tests/functional/largest_pool/Makefile

@@ -27,6 +27,7 @@ SUBDIRS = \
 	hkdf \
 	inheritance \
 	inuse \
+	io \
 	kstat \
 	large_files \
 	largest_pool \
