@@ -1575,6 +1575,37 @@ def lzc_remap(name):
 
 
 @_uncommitted()
+def lzc_pool_checkpoint(name):
+    '''
+    Creates a checkpoint for the specified pool.
+
+    :param bytes name: the name of the pool to create a checkpoint for.
+    :raises CheckpointExists: if the pool already has a checkpoint.
+    :raises CheckpointDiscarding: if ZFS is in the middle of discarding a
+        checkpoint for this pool.
+    :raises DeviceRemovalRunning: if a vdev is currently being removed.
+    :raises DeviceTooBig: if one or more top-level vdevs exceed the maximum
+        vdev size.
+    '''
+    ret = _lib.lzc_pool_checkpoint(name)
+    errors.lzc_pool_checkpoint_translate_error(ret, name)
+
+
+@_uncommitted()
+def lzc_pool_checkpoint_discard(name):
+    '''
+    Discard the checkpoint from the specified pool.
+
+    :param bytes name: the name of the pool to discard the checkpoint from.
+    :raises CheckpointNotFound: if pool does not have a checkpoint.
+    :raises CheckpointDiscarding: if ZFS is in the middle of discarding a
+        checkpoint for this pool.
+    '''
+    ret = _lib.lzc_pool_checkpoint_discard(name)
+    errors.lzc_pool_checkpoint_discard_translate_error(ret, name)
+
+
+@_uncommitted()
 def lzc_rename(source, target):
     '''
     Rename the ZFS dataset.

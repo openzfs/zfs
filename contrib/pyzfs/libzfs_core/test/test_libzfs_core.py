@@ -3576,6 +3576,42 @@ zfs.sync.snapshot('""" + pool + """@zcp')
 
         lzc.lzc_remap(name)
 
+    def test_checkpoint(self):
+        pool = ZFSTest.pool.getRoot().getName()
+
+        lzc.lzc_pool_checkpoint(pool)
+
+    def test_checkpoint_missing_pool(self):
+        pool = "nonexistent"
+
+        with self.assertRaises(lzc_exc.PoolNotFound):
+            lzc.lzc_pool_checkpoint(pool)
+
+    def test_checkpoint_already_exists(self):
+        pool = ZFSTest.pool.getRoot().getName()
+
+        lzc.lzc_pool_checkpoint(pool)
+        with self.assertRaises(lzc_exc.CheckpointExists):
+            lzc.lzc_pool_checkpoint(pool)
+
+    def test_checkpoint_discard(self):
+        pool = ZFSTest.pool.getRoot().getName()
+
+        lzc.lzc_pool_checkpoint(pool)
+        lzc.lzc_pool_checkpoint_discard(pool)
+
+    def test_checkpoint_discard_missing_pool(self):
+        pool = "nonexistent"
+
+        with self.assertRaises(lzc_exc.PoolNotFound):
+            lzc.lzc_pool_checkpoint_discard(pool)
+
+    def test_checkpoint_discard_missing_checkpoint(self):
+        pool = ZFSTest.pool.getRoot().getName()
+
+        with self.assertRaises(lzc_exc.CheckpointNotFound):
+            lzc.lzc_pool_checkpoint_discard(pool)
+
     @needs_support(lzc.lzc_list_children)
     def test_list_children(self):
         name = ZFSTest.pool.makeName("fs1/fs")
