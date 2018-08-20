@@ -127,6 +127,8 @@ CDEF = """
     int lzc_sync(const char *, nvlist_t *, nvlist_t **);
     int lzc_unload_key(const char *);
     int lzc_remap(const char *);
+    int lzc_pool_checkpoint(const char *);
+    int lzc_pool_checkpoint_discard(const char *);
 
     int lzc_rename(const char *, const char *, nvlist_t *, char **);
     int lzc_destroy_one(const char *fsname, nvlist_t *);

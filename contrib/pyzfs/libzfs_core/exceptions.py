@@ -19,6 +19,13 @@ Exceptions that can be raised by libzfs_core operations.
 """
 
 import errno
+from ._constants import (
+    ZFS_ERR_CHECKPOINT_EXISTS,
+    ZFS_ERR_DISCARDING_CHECKPOINT,
+    ZFS_ERR_NO_CHECKPOINT,
+    ZFS_ERR_DEVRM_IN_PROGRESS,
+    ZFS_ERR_VDEV_TOO_BIG
+)
 
 
 class ZFSError(Exception):
@@ -545,6 +552,31 @@ class ZCPMemoryError(ZCPError):
 class ZCPPermissionError(ZCPError):
     errno = errno.EPERM
     message = "Channel programs must be run as root"
+
+
+class CheckpointExists(ZFSError):
+    errno = ZFS_ERR_CHECKPOINT_EXISTS
+    message = "Pool already has a checkpoint"
+
+
+class CheckpointNotFound(ZFSError):
+    errno = ZFS_ERR_NO_CHECKPOINT
+    message = "Pool does not have a checkpoint"
+
+
+class CheckpointDiscarding(ZFSError):
+    errno = ZFS_ERR_DISCARDING_CHECKPOINT
+    message = "Pool checkpoint is being discarded"
+
+
+class DeviceRemovalRunning(ZFSError):
+    errno = ZFS_ERR_DEVRM_IN_PROGRESS
+    message = "A vdev is currently being removed"
+
+
+class DeviceTooBig(ZFSError):
+    errno = ZFS_ERR_VDEV_TOO_BIG
+    message = "One or more top-level vdevs exceed the maximum vdev size"
 
 
 # vim: softtabstop=4 tabstop=4 expandtab shiftwidth=4

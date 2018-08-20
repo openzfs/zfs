@@ -31,7 +31,14 @@ import errno
 import re
 import string
 from . import exceptions as lzc_exc
-from ._constants import MAXNAMELEN
+from ._constants import (
+    MAXNAMELEN,
+    ZFS_ERR_CHECKPOINT_EXISTS,
+    ZFS_ERR_DISCARDING_CHECKPOINT,
+    ZFS_ERR_NO_CHECKPOINT,
+    ZFS_ERR_DEVRM_IN_PROGRESS,
+    ZFS_ERR_VDEV_TOO_BIG
+)
 
 
 def lzc_create_translate_error(ret, name, ds_type, props):
@@ -546,6 +553,32 @@ def lzc_remap_translate_error(ret, name):
     if ret == errno.ENOTSUP:
         return lzc_exc.FeatureNotSupported(name)
     raise _generic_exception(ret, name, "Failed to remap dataset")
+
+
+def lzc_pool_checkpoint_translate_error(ret, name, discard=False):
+    if ret == 0:
+        return
+    if ret == errno.ENOENT:
+        raise lzc_exc.PoolNotFound(name)
+    if ret == ZFS_ERR_CHECKPOINT_EXISTS:
+        raise lzc_exc.CheckpointExists()
+    if ret == ZFS_ERR_NO_CHECKPOINT:
+        raise lzc_exc.CheckpointNotFound()
+    if ret == ZFS_ERR_DISCARDING_CHECKPOINT:
+        raise lzc_exc.CheckpointDiscarding()
+    if ret == ZFS_ERR_DEVRM_IN_PROGRESS:
+        raise lzc_exc.DeviceRemovalRunning()
+    if ret == ZFS_ERR_VDEV_TOO_BIG:
+        raise lzc_exc.DeviceTooBig()
+    if discard:
+        raise _generic_exception(
+            ret, name, "Failed to discard pool checkpoint")
+    else:
+        raise _generic_exception(ret, name, "Failed to create pool checkpoint")
+
+
+def lzc_pool_checkpoint_discard_translate_error(ret, name):
+    lzc_pool_checkpoint_translate_error(ret, name, discard=True)
 
 
 def lzc_rename_translate_error(ret, source, target):
