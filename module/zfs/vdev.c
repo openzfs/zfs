@@ -2774,7 +2774,8 @@ vdev_checkpoint_sm_object(vdev_t *vd)
 	int err = zap_lookup(spa_meta_objset(vd->vdev_spa), vd->vdev_top_zap,
 	    VDEV_TOP_ZAP_POOL_CHECKPOINT_SM, sizeof (uint64_t), 1, &sm_obj);
 
-	VERIFY(err == 0 || err == ENOENT);
+	if (err != 0)
+		VERIFY3S(err, ==, ENOENT);
 
 	return (sm_obj);
 }
