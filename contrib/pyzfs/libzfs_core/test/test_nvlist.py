@@ -21,6 +21,7 @@ and verify that no information is lost and value types are correct.
 The tests also check that various error conditions like unsupported
 value types or out of bounds values are detected.
 """
+from __future__ import absolute_import, division, print_function
 
 import unittest
 
