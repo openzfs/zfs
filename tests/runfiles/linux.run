@@ -120,7 +120,7 @@ tags = ['functional', 'cli_root', 'zfs_change-key']
 tests = ['zfs_clone_001_neg', 'zfs_clone_002_pos', 'zfs_clone_003_pos',
     'zfs_clone_004_pos', 'zfs_clone_005_pos', 'zfs_clone_006_pos',
     'zfs_clone_007_pos', 'zfs_clone_008_neg', 'zfs_clone_009_neg',
-    'zfs_clone_010_pos', 'zfs_clone_encrypted']
+    'zfs_clone_010_pos', 'zfs_clone_encrypted', 'zfs_clone_deeply_nested']
 tags = ['functional', 'cli_root', 'zfs_clone']
 
 [tests/functional/cli_root/zfs_copies]
