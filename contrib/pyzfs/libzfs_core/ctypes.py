@@ -17,6 +17,7 @@
 """
 Utility functions for casting to a specific C type.
 """
+from __future__ import absolute_import, division, print_function
 
 from .bindings.libnvpair import ffi as _ffi
 

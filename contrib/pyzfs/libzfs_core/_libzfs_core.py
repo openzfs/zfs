@@ -26,6 +26,7 @@ increased convenience.  Output parameters are not used and return values
 are directly returned.  Error conditions are signalled by exceptions
 rather than by integer error codes.
 """
+from __future__ import absolute_import, division, print_function
 
 import errno
 import functools
@@ -485,8 +486,8 @@ def lzc_hold(holds, fd=None):
     errors.lzc_hold_translate_errors(ret, errlist, holds, fd)
     # If there is no error (no exception raised by _handleErrList), but errlist
     # is not empty, then it contains missing snapshots.
-    assert all(x == errno.ENOENT for x in errlist.itervalues())
-    return errlist.keys()
+    assert all(errlist[x] == errno.ENOENT for x in errlist)
+    return list(errlist.keys())
 
 
 def lzc_release(holds):
@@ -521,7 +522,8 @@ def lzc_release(holds):
     '''
     errlist = {}
     holds_dict = {}
-    for snap, hold_list in holds.iteritems():
+    for snap in holds:
+        hold_list = holds[snap]
         if not isinstance(hold_list, list):
             raise TypeError('holds must be in a list')
         holds_dict[snap] = {hold: None for hold in hold_list}
@@ -531,8 +533,8 @@ def lzc_release(holds):
     errors.lzc_release_translate_errors(ret, errlist, holds)
     # If there is no error (no exception raised by _handleErrList), but errlist
     # is not empty, then it contains missing snapshots and tags.
-    assert all(x == errno.ENOENT for x in errlist.itervalues())
-    return errlist.keys()
+    assert all(errlist[x] == errno.ENOENT for x in errlist)
+    return list(errlist.keys())
 
 
 def lzc_get_holds(snapname):
@@ -1873,9 +1875,9 @@ def lzc_get_props(name):
         mountpoint_val = '/' + name
     else:
         mountpoint_val = None
-    result = {k: v['value'] for k, v in result.iteritems()}
+    result = {k: result[k]['value'] for k in result}
     if 'clones' in result:
-        result['clones'] = result['clones'].keys()
+        result['clones'] = list(result['clones'].keys())
     if mountpoint_val is not None:
         result['mountpoint'] = mountpoint_val
     return result
