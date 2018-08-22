@@ -21,7 +21,7 @@ Important `libzfs_core` constants.
 
 # https://stackoverflow.com/a/1695250
 def enum(*sequential, **named):
-    enums = dict(zip(sequential, range(len(sequential))), **named)
+    enums = dict(list(zip(sequential, list(range(len(sequential))))), **named)
     return type('Enum', (), enums)
 
 

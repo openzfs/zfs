@@ -263,7 +263,7 @@ def _nvlist_to_dict(nvlist, props):
 
 
 def _dict_to_nvlist(props, nvlist):
-    for k, v in props.items():
+    for k, v in list(props.items()):
         if not isinstance(k, bytes):
             raise TypeError('Unsupported key type ' + type(k).__name__)
         ret = 0

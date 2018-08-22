@@ -102,7 +102,7 @@ def lzc_snapshot_translate_errors(ret, errlist, snaps, props):
 
     def _map(ret, name):
         if ret == errno.EXDEV:
-            pool_names = map(_pool_name, snaps)
+            pool_names = list(map(_pool_name, snaps))
             same_pool = all(x == pool_names[0] for x in pool_names)
             if same_pool:
                 return lzc_exc.DuplicateSnapshots(name)
@@ -150,7 +150,7 @@ def lzc_bookmark_translate_errors(ret, errlist, bookmarks):
         if ret == errno.EINVAL:
             if name:
                 snap = bookmarks[name]
-                pool_names = map(_pool_name, bookmarks.keys())
+                pool_names = list(map(_pool_name, list(bookmarks.keys())))
                 if not _is_valid_bmark_name(name):
                     return lzc_exc.BookmarkNameInvalid(name)
                 elif not _is_valid_snap_name(snap):
@@ -161,7 +161,7 @@ def lzc_bookmark_translate_errors(ret, errlist, bookmarks):
                     return lzc_exc.PoolsDiffer(name)
             else:
                 invalid_names = [
-                    b for b in bookmarks.keys() if not _is_valid_bmark_name(b)]
+                    b for b in list(bookmarks.keys()) if not _is_valid_bmark_name(b)]
                 if invalid_names:
                     return lzc_exc.BookmarkNameInvalid(invalid_names[0])
         if ret == errno.EEXIST:
@@ -173,7 +173,7 @@ def lzc_bookmark_translate_errors(ret, errlist, bookmarks):
         return _generic_exception(ret, name, "Failed to create bookmark")
 
     _handle_err_list(
-        ret, errlist, bookmarks.keys(), lzc_exc.BookmarkFailure, _map)
+        ret, errlist, list(bookmarks.keys()), lzc_exc.BookmarkFailure, _map)
 
 
 def lzc_get_bookmarks_translate_error(ret, fsname, props):
@@ -233,7 +233,7 @@ def lzc_hold_translate_errors(ret, errlist, holds, fd):
             return lzc_exc.PoolsDiffer(name)
         elif ret == errno.EINVAL:
             if name:
-                pool_names = map(_pool_name, holds.keys())
+                pool_names = list(map(_pool_name, list(holds.keys())))
                 if not _is_valid_snap_name(name):
                     return lzc_exc.NameInvalid(name)
                 elif len(name) > MAXNAMELEN:
@@ -242,7 +242,7 @@ def lzc_hold_translate_errors(ret, errlist, holds, fd):
                     return lzc_exc.PoolsDiffer(name)
             else:
                 invalid_names = [
-                    b for b in holds.keys() if not _is_valid_snap_name(b)]
+                    b for b in list(holds.keys()) if not _is_valid_snap_name(b)]
                 if invalid_names:
                     return lzc_exc.NameInvalid(invalid_names[0])
         fs_name = None
@@ -264,13 +264,13 @@ def lzc_hold_translate_errors(ret, errlist, holds, fd):
 
     if ret == errno.EBADF:
         raise lzc_exc.BadHoldCleanupFD()
-    _handle_err_list(ret, errlist, holds.keys(), lzc_exc.HoldFailure, _map)
+    _handle_err_list(ret, errlist, list(holds.keys()), lzc_exc.HoldFailure, _map)
 
 
 def lzc_release_translate_errors(ret, errlist, holds):
     if ret == 0:
         return
-    for _, hold_list in holds.iteritems():
+    for _, hold_list in holds.items():
         if not isinstance(hold_list, list):
             raise lzc_exc.TypeError('holds must be in a list')
 
@@ -279,7 +279,7 @@ def lzc_release_translate_errors(ret, errlist, holds):
             return lzc_exc.PoolsDiffer(name)
         elif ret == errno.EINVAL:
             if name:
-                pool_names = map(_pool_name, holds.keys())
+                pool_names = list(map(_pool_name, list(holds.keys())))
                 if not _is_valid_snap_name(name):
                     return lzc_exc.NameInvalid(name)
                 elif len(name) > MAXNAMELEN:
@@ -288,7 +288,7 @@ def lzc_release_translate_errors(ret, errlist, holds):
                     return lzc_exc.PoolsDiffer(name)
             else:
                 invalid_names = [
-                    b for b in holds.keys() if not _is_valid_snap_name(b)]
+                    b for b in list(holds.keys()) if not _is_valid_snap_name(b)]
                 if invalid_names:
                     return lzc_exc.NameInvalid(invalid_names[0])
         elif ret == errno.ENOENT:
@@ -307,7 +307,7 @@ def lzc_release_translate_errors(ret, errlist, holds):
                 ret, name, "Failed to release snapshot hold")
 
     _handle_err_list(
-        ret, errlist, holds.keys(), lzc_exc.HoldReleaseFailure, _map)
+        ret, errlist, list(holds.keys()), lzc_exc.HoldReleaseFailure, _map)
 
 
 def lzc_get_holds_translate_error(ret, snapname):
@@ -713,7 +713,7 @@ def _handle_err_list(ret, errlist, names, exception, mapper):
     else:
         errors = []
         suppressed_count = errlist.pop('N_MORE_ERRORS', 0)
-        for name, err in errlist.iteritems():
+        for name, err in errlist.items():
             errors.append(mapper(err, name))
 
     raise exception(errors, suppressed_count)
