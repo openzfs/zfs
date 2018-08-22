@@ -109,9 +109,14 @@ def draw_graph(kstats_dict):
     arc_perc = f_perc(arc_stats['size'], arc_stats['c_max'])
     mfu_size = f_bytes(arc_stats['mfu_size'])
     mru_size = f_bytes(arc_stats['mru_size'])
+    meta_limit = f_bytes(arc_stats['arc_meta_limit'])
+    meta_size = f_bytes(arc_stats['arc_meta_used'])
+    dnode_limit = f_bytes(arc_stats['arc_dnode_limit'])
+    dnode_size = f_bytes(arc_stats['dnode_size'])
 
-    info_form = 'ARC: {0} ({1})  MFU: {2}  MRU: {3}'
-    info_line = info_form.format(arc_size, arc_perc, mfu_size, mru_size)
+    info_form = 'ARC: {0} ({1})  MFU: {2}  MRU: {3}  META: {4} ({5}) DNODE {6} ({7})'
+    info_line = info_form.format(arc_size, arc_perc, mfu_size, mru_size,
+                                 meta_size, meta_limit, dnode_size, dnode_limit)
     info_spc = ' '*int((GRAPH_WIDTH-len(info_line))/2)
     info_line = GRAPH_INDENT+info_spc+info_line
 
@@ -483,6 +488,10 @@ def section_arc(kstats_dict):
     arc_min = arc_stats['c_min']
     mfu_size = arc_stats['mfu_size']
     mru_size = arc_stats['mru_size']
+    meta_limit = arc_stats['arc_meta_limit']
+    meta_size = arc_stats['arc_meta_used']
+    dnode_limit = arc_stats['arc_dnode_limit']
+    dnode_size = arc_stats['dnode_size']
     target_size_ratio = '{0}:1'.format(int(arc_max) // int(arc_min))
 
     prt_2('ARC size (current):',
@@ -498,6 +507,14 @@ def section_arc(kstats_dict):
            f_perc(mfu_size, caches_size), f_bytes(mfu_size))
     prt_i2('Most Recently Used (MRU) cache size:',
            f_perc(mru_size, caches_size), f_bytes(mru_size))
+    prt_i2('Metadata cache size (hard limit):',
+           f_perc(meta_limit, arc_max), f_bytes(meta_limit))
+    prt_i2('Metadata cache size (current):',
+           f_perc(meta_size, meta_limit), f_bytes(meta_size))
+    prt_i2('Dnode cache size (hard limit):',
+           f_perc(dnode_limit, meta_limit), f_bytes(dnode_limit))
+    prt_i2('Dnode cache size (current):',
+           f_perc(dnode_size, dnode_limit), f_bytes(dnode_size))
     print()
 
     print('ARC hash breakdown:')
