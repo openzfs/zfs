@@ -197,6 +197,7 @@ Requires:       sudo
 Requires:       sysstat
 Requires:       rng-tools
 Requires:       libaio
+BuildRequires:  libaio-devel
 AutoReqProv:    no
 
 %description test
