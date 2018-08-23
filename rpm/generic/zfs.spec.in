@@ -203,6 +203,7 @@ Requires:       acl
 Requires:       sudo
 Requires:       sysstat
 Requires:       libaio
+BuildRequires:  libaio-devel
 AutoReqProv:    no
 
 %description test
