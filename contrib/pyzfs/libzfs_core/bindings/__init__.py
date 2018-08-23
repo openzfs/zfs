@@ -19,6 +19,7 @@ The package that contains a module per each C library that
 `libzfs_core` uses.  The modules expose CFFI objects required
 to make calls to functions in the libraries.
 """
+from __future__ import absolute_import, division, print_function
 
 import threading
 import importlib

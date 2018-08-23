@@ -17,6 +17,7 @@
 """
 Python bindings for ``libzfs_core``.
 """
+from __future__ import absolute_import, division, print_function
 
 CDEF = """
 

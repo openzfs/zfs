@@ -21,6 +21,7 @@ These are mostly functional and conformance tests that validate
 that the operations produce expected effects or fail with expected
 exceptions.
 """
+from __future__ import absolute_import, division, print_function
 
 import unittest
 import contextlib

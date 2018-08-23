@@ -18,6 +18,8 @@
 Important `libzfs_core` constants.
 """
 
+from __future__ import absolute_import, division, print_function
+
 
 # https://stackoverflow.com/a/1695250
 def enum(*sequential, **named):

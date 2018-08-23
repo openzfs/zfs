@@ -26,6 +26,7 @@ corresponding interface functions.
 
 The parameters and exceptions are documented in the `libzfs_core` interfaces.
 """
+from __future__ import absolute_import, division, print_function
 
 import errno
 import re

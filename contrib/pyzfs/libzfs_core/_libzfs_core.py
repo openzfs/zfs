@@ -26,6 +26,7 @@ increased convenience.  Output parameters are not used and return values
 are directly returned.  Error conditions are signalled by exceptions
 rather than by integer error codes.
 """
+from __future__ import absolute_import, division, print_function
 
 import errno
 import functools

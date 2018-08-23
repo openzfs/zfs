@@ -47,6 +47,7 @@ Format:
 - a value can be a list of dictionaries that adhere to this format
 - all elements of a list value must be of the same type
 """
+from __future__ import absolute_import, division, print_function
 
 import numbers
 from collections import namedtuple
