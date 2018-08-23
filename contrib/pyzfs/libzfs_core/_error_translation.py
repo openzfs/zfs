@@ -272,7 +272,8 @@ def lzc_hold_translate_errors(ret, errlist, holds, fd):
 def lzc_release_translate_errors(ret, errlist, holds):
     if ret == 0:
         return
-    for _, hold_list in holds.items():
+    for snap in holds:
+        hold_list = holds[snap]
         if not isinstance(hold_list, list):
             raise lzc_exc.TypeError('holds must be in a list')
 
@@ -716,7 +717,8 @@ def _handle_err_list(ret, errlist, names, exception, mapper):
     else:
         errors = []
         suppressed_count = errlist.pop('N_MORE_ERRORS', 0)
-        for name, err in errlist.items():
+        for name in errlist:
+            err = errlist[name]
             errors.append(mapper(err, name))
 
     raise exception(errors, suppressed_count)
