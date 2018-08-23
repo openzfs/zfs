@@ -1356,7 +1356,7 @@ class ZFSTest(unittest.TestCase):
 
         space = lzc.lzc_snaprange_space(snap, snap)
         self.assertGreater(space, 1024 * 1024)
-        self.assertAlmostEqual(space, 1024 * 1024, delta=1024 * 1024 / 20)
+        self.assertAlmostEqual(space, 1024 * 1024, delta=1024 * 1024 // 20)
 
     def test_snaprange_space_wrong_order(self):
         snap1 = ZFSTest.pool.makeName("fs1@snap1")
@@ -1595,7 +1595,7 @@ class ZFSTest(unittest.TestCase):
             lzc.lzc_send(snap, None, fd)
             st = os.fstat(fd)
             # 5%, arbitrary.
-            self.assertAlmostEqual(st.st_size, estimate, delta=estimate / 20)
+            self.assertAlmostEqual(st.st_size, estimate, delta=estimate // 20)
 
     def test_send_incremental(self):
         snap1 = ZFSTest.pool.makeName("fs1@snap1")
@@ -1616,7 +1616,7 @@ class ZFSTest(unittest.TestCase):
             lzc.lzc_send(snap2, snap1, fd)
             st = os.fstat(fd)
             # 5%, arbitrary.
-            self.assertAlmostEqual(st.st_size, estimate, delta=estimate / 20)
+            self.assertAlmostEqual(st.st_size, estimate, delta=estimate // 20)
 
     def test_send_flags(self):
         flags = ['embedded_data', 'large_blocks', 'compress', 'raw']
