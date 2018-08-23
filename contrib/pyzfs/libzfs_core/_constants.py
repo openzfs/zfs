@@ -23,7 +23,7 @@ from __future__ import absolute_import, division, print_function
 
 # https://stackoverflow.com/a/1695250
 def enum(*sequential, **named):
-    enums = dict(list(zip(sequential, list(range(len(sequential))))), **named)
+    enums = dict(((b, a) for a, b in enumerate(sequential)), **named)
     return type('Enum', (), enums)
 
 
