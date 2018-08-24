@@ -161,6 +161,40 @@ typedef enum zfs_error {
 } zfs_error_t;
 
 /*
+ * Message types
+ */
+typedef struct stream_node stream_node_t;
+typedef struct stream_list stream_list_t;
+
+typedef struct stream {
+	FILE *fd;
+	char **buf;
+	size_t *buf_len;
+	boolean_t err;
+} stream_t;
+
+extern stream_list_t *output_list;
+
+/* Data structures */
+
+struct stream_node {
+	stream_node_t *next;
+	stream_t *output;
+};
+
+struct stream_list {
+	stream_node_t *head;
+	stream_node_t *tail;
+};
+
+FILE *set_stream(boolean_t err);
+void stream_print_list(void);
+void free_stream(stream_t *output);
+void destroy_stream_list(stream_list_t *list);
+
+void nomem(void);
+void nomem_print(void);
+/*
  * The following data structures are all part
  * of the zfs_allow_t data structure which is
  * used for printing 'allow' permissions.

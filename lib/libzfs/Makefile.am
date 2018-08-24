@@ -27,6 +27,7 @@ USER_C = \
 	libzfs_import.c \
 	libzfs_iter.c \
 	libzfs_mount.c \
+	libzfs_output.c \
 	libzfs_pool.c \
 	libzfs_sendrecv.c \
 	libzfs_status.c \
