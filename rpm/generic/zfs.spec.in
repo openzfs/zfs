@@ -426,8 +426,3 @@ systemctl --system daemon-reload >/dev/null || true
 # ignore those files.
 %exclude /usr/share/initramfs-tools
 %endif
-
-%changelog
-* Wed Jul 26 2017 Brian Behlendorf <behlendorf1@llnl.gov> - 0.7.0-1
-- Released 0.7.0-1, detailed release notes are available at:
-- https://github.com/zfsonlinux/zfs/releases/tag/zfs-0.7.0

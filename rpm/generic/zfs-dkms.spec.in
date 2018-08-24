@@ -79,7 +79,3 @@ if [ "$SPEC_META_ALIAS" = "$DKMS_META_ALIAS" ]; then
     dkms remove -m %{module} -v %{version} --all %{!?not_rpm:--rpm_safe_upgrade}
 fi
 exit 0
-
-%changelog
-* %(date "+%a %b %d %Y") %packager %{version}-%{release}
-- Automatic build by DKMS
