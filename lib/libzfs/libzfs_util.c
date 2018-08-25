@@ -47,13 +47,46 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-#include <libzfs.h>
 #include <libzfs_core.h>
-
+#include "libzfs.h"
 #include "libzfs_impl.h"
 #include "zfs_prop.h"
 #include "zfeature_common.h"
 #include <zfs_fletcher.h>
+
+void
+nomem(void)
+{
+	(void) fprintf(stderr, gettext("internal error: out of memory\n"));
+	exit(1);
+}
+
+/*
+ * Utility function to guarantee malloc() success.
+ */
+
+void *
+safe_malloc(size_t size)
+{
+	void *data;
+
+	if ((data = calloc(1, size)) == NULL)
+		nomem();
+
+	return (data);
+}
+
+void *
+safe_realloc(void *data, size_t size)
+{
+	void *newp;
+	if ((newp = realloc(data, size)) == NULL) {
+		free(data);
+		nomem();
+	}
+
+	return (newp);
+}
 
 int
 libzfs_errno(libzfs_handle_t *hdl)

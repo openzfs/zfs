@@ -32,6 +32,7 @@ extern "C" {
 #endif
 
 void * safe_malloc(size_t size);
+void *safe_realloc(void *data, size_t size);
 void nomem(void);
 libzfs_handle_t *g_zfs;
 

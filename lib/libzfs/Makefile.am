@@ -26,6 +26,7 @@ USER_C = \
 	libzfs_diff.c \
 	libzfs_import.c \
 	libzfs_iter.c \
+	zfs_iter.c \
 	libzfs_mount.c \
 	libzfs_output.c \
 	libzfs_pool.c \
@@ -56,7 +57,7 @@ nodist_libzfs_la_SOURCES = \
 	$(KERNEL_C)
 
 libzfs_la_LIBADD = \
-        $(top_builddir)/lib/libefi/libefi.la \
+	$(top_builddir)/lib/libefi/libefi.la \
 	$(top_builddir)/lib/libnvpair/libnvpair.la \
 	$(top_builddir)/lib/libshare/libshare.la \
 	$(top_builddir)/lib/libtpool/libtpool.la \
