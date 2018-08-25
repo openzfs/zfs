@@ -203,7 +203,9 @@ Requires:       acl
 Requires:       sudo
 Requires:       sysstat
 Requires:       libaio
+%if 0%{?rhel}%{?fedora}%{?suse_version}
 BuildRequires:  libaio-devel
+%endif
 AutoReqProv:    no
 
 %description test
