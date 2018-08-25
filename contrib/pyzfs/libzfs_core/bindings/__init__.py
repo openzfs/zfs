@@ -48,7 +48,7 @@ def _setup_cffi():
     ffi = FFI()
 
     for module_name in MODULES:
-        module = importlib.import_module("." + module_name, __package__)
+        module = importlib.import_module("." + module_name, __name__)
         ffi.cdef(module.CDEF)
         lib = LazyLibrary(ffi, module.LIBRARY)
         setattr(module, "ffi", ffi)
