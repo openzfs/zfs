@@ -321,7 +321,7 @@ kcf_create_mech_entry(kcf_ops_class_t class, char *mechname)
 		mutex_enter(&(me_tab[i].me_mutex));
 		if (me_tab[i].me_name[0] == 0) {
 			/* Found an empty spot */
-			(void) strncpy(me_tab[i].me_name, mechname,
+			(void) strlcpy(me_tab[i].me_name, mechname,
 			    CRYPTO_MAX_MECH_NAME);
 			me_tab[i].me_name[CRYPTO_MAX_MECH_NAME-1] = '\0';
 			me_tab[i].me_mechid = KCF_MECHID(class, i);
