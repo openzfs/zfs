@@ -57,7 +57,7 @@
 void
 nomem(void)
 {
-	(void) fprintf(stderr, gettext("internal error: out of memory\n"));
+	(void) fprintf(stre(), gettext("internal error: out of memory\n"));
 	exit(1);
 }
 
@@ -884,7 +884,7 @@ libzfs_run_process_impl(const char *path, char *argv[], char *env[], int flags,
 
 	/*
 	 * Setup a pipe between our child and parent process if we're
-	 * reading stdout.
+	 * reading stro().
 	 */
 	if ((lines != NULL) && pipe(link) == -1)
 		return (-ESTRPIPE);
@@ -950,7 +950,7 @@ libzfs_run_process(const char *path, char *argv[], int flags)
 }
 
 /*
- * Run a command and store its stdout lines in an array of strings (lines[]).
+ * Run a command and store its stro() lines in an array of strings (lines[]).
  * lines[] is allocated and populated for you, and the number of lines is set in
  * lines_cnt.  lines[] must be freed after use with libzfs_free_str_array().
  * All newlines (\n) in lines[] are terminated for convenience.
@@ -1641,14 +1641,14 @@ zprop_print_headers(zprop_get_cbdata_t *cbp, zfs_type_t type)
 		if (title != NULL) {
 			if (i == (ZFS_GET_NCOLS - 1) ||
 			    cbp->cb_columns[i + 1] == GET_COL_NONE)
-				(void) printf("%s", title);
+				(void) fprintf(stro(), "%s", title);
 			else
-				(void) printf("%-*s  ",
+				(void) fprintf(stro(), "%-*s  ",
 				    cbp->cb_colwidths[cbp->cb_columns[i]],
 				    title);
 		}
 	}
-	(void) printf("\n");
+	(void) fprintf(stro(), "\n");
 }
 
 /*
@@ -1730,16 +1730,16 @@ zprop_print_one_property(const char *name, zprop_get_cbdata_t *cbp,
 
 		if (i == (ZFS_GET_NCOLS - 1) ||
 		    cbp->cb_columns[i + 1] == GET_COL_NONE)
-			(void) printf("%s", str);
+			(void) fprintf(stro(), "%s", str);
 		else if (cbp->cb_scripted)
-			(void) printf("%s\t", str);
+			(void) fprintf(stro(), "%s\t", str);
 		else
-			(void) printf("%-*s  ",
+			(void) fprintf(stro(), "%-*s  ",
 			    cbp->cb_colwidths[cbp->cb_columns[i]],
 			    str);
 	}
 
-	(void) printf("\n");
+	(void) fprintf(stro(), "\n");
 }
 
 /*

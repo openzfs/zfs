@@ -50,6 +50,7 @@
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"
 #include "libzfs_impl.h"
+#include "libzfs.h"
 #include "zfs_comutil.h"
 #include "zfeature_common.h"
 
@@ -1602,28 +1603,28 @@ zpool_rewind_exclaim(libzfs_handle_t *hdl, const char *name, boolean_t dryrun,
 	if (localtime_r((time_t *)&rewindto, &t) != NULL &&
 	    strftime(timestr, 128, "%c", &t) != 0) {
 		if (dryrun) {
-			(void) printf(dgettext(TEXT_DOMAIN,
+			(void) fprintf(stro(), dgettext(TEXT_DOMAIN,
 			    "Would be able to return %s "
 			    "to its state as of %s.\n"),
 			    name, timestr);
 		} else {
-			(void) printf(dgettext(TEXT_DOMAIN,
+			(void) fprintf(stro(), dgettext(TEXT_DOMAIN,
 			    "Pool %s returned to its state as of %s.\n"),
 			    name, timestr);
 		}
 		if (loss > 120) {
-			(void) printf(dgettext(TEXT_DOMAIN,
+			(void) fprintf(stro(), dgettext(TEXT_DOMAIN,
 			    "%s approximately %lld "),
 			    dryrun ? "Would discard" : "Discarded",
 			    ((longlong_t)loss + 30) / 60);
-			(void) printf(dgettext(TEXT_DOMAIN,
+			(void) fprintf(stro(), dgettext(TEXT_DOMAIN,
 			    "minutes of transactions.\n"));
 		} else if (loss > 0) {
-			(void) printf(dgettext(TEXT_DOMAIN,
+			(void) fprintf(stro(), dgettext(TEXT_DOMAIN,
 			    "%s approximately %lld "),
 			    dryrun ? "Would discard" : "Discarded",
 			    (longlong_t)loss);
-			(void) printf(dgettext(TEXT_DOMAIN,
+			(void) fprintf(stro(), dgettext(TEXT_DOMAIN,
 			    "seconds of transactions.\n"));
 		}
 	}
@@ -1644,9 +1645,9 @@ zpool_explain_recover(libzfs_handle_t *hdl, const char *name, int reason,
 		return;
 
 	if (reason >= 0)
-		(void) printf(dgettext(TEXT_DOMAIN, "action: "));
+		(void) fprintf(stro(), dgettext(TEXT_DOMAIN, "action: "));
 	else
-		(void) printf(dgettext(TEXT_DOMAIN, "\t"));
+		(void) fprintf(stro(), dgettext(TEXT_DOMAIN, "\t"));
 
 	/* All attempted rewinds failed if ZPOOL_CONFIG_LOAD_TIME missing */
 	if (nvlist_lookup_nvlist(config, ZPOOL_CONFIG_LOAD_INFO, &nv) != 0 ||
@@ -1658,54 +1659,54 @@ zpool_explain_recover(libzfs_handle_t *hdl, const char *name, int reason,
 	(void) nvlist_lookup_uint64(nv, ZPOOL_CONFIG_LOAD_DATA_ERRORS,
 	    &edata);
 
-	(void) printf(dgettext(TEXT_DOMAIN,
+	(void) fprintf(stro(), dgettext(TEXT_DOMAIN,
 	    "Recovery is possible, but will result in some data loss.\n"));
 
 	if (localtime_r((time_t *)&rewindto, &t) != NULL &&
 	    strftime(timestr, 128, "%c", &t) != 0) {
-		(void) printf(dgettext(TEXT_DOMAIN,
+		(void) fprintf(stro(), dgettext(TEXT_DOMAIN,
 		    "\tReturning the pool to its state as of %s\n"
 		    "\tshould correct the problem.  "),
 		    timestr);
 	} else {
-		(void) printf(dgettext(TEXT_DOMAIN,
+		(void) fprintf(stro(), dgettext(TEXT_DOMAIN,
 		    "\tReverting the pool to an earlier state "
 		    "should correct the problem.\n\t"));
 	}
 
 	if (loss > 120) {
-		(void) printf(dgettext(TEXT_DOMAIN,
+		(void) fprintf(stro(), dgettext(TEXT_DOMAIN,
 		    "Approximately %lld minutes of data\n"
 		    "\tmust be discarded, irreversibly.  "),
 		    ((longlong_t)loss + 30) / 60);
 	} else if (loss > 0) {
-		(void) printf(dgettext(TEXT_DOMAIN,
+		(void) fprintf(stro(), dgettext(TEXT_DOMAIN,
 		    "Approximately %lld seconds of data\n"
 		    "\tmust be discarded, irreversibly.  "),
 		    (longlong_t)loss);
 	}
 	if (edata != 0 && edata != UINT64_MAX) {
 		if (edata == 1) {
-			(void) printf(dgettext(TEXT_DOMAIN,
+			(void) fprintf(stro(), dgettext(TEXT_DOMAIN,
 			    "After rewind, at least\n"
 			    "\tone persistent user-data error will remain.  "));
 		} else {
-			(void) printf(dgettext(TEXT_DOMAIN,
+			(void) fprintf(stro(), dgettext(TEXT_DOMAIN,
 			    "After rewind, several\n"
 			    "\tpersistent user-data errors will remain.  "));
 		}
 	}
-	(void) printf(dgettext(TEXT_DOMAIN,
+	(void) fprintf(stro(), dgettext(TEXT_DOMAIN,
 	    "Recovery can be attempted\n\tby executing 'zpool %s -F %s'.  "),
 	    reason >= 0 ? "clear" : "import", name);
 
-	(void) printf(dgettext(TEXT_DOMAIN,
+	(void) fprintf(stro(), dgettext(TEXT_DOMAIN,
 	    "A scrub of the pool\n"
 	    "\tis strongly recommended after recovery.\n"));
 	return;
 
 no_info:
-	(void) printf(dgettext(TEXT_DOMAIN,
+	(void) fprintf(stro(), dgettext(TEXT_DOMAIN,
 	    "Destroy and re-create the pool from\n\ta backup source.\n"));
 }
 
@@ -1760,7 +1761,7 @@ print_vdev_tree(libzfs_handle_t *hdl, const char *name, nvlist_t *nv,
 	    &is_log);
 
 	if (name != NULL)
-		(void) printf("\t%*s%s%s\n", indent, "", name,
+		(void) fprintf(stro(), "\t%*s%s%s\n", indent, "", name,
 		    is_log ? " [log]" : "");
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
@@ -1793,9 +1794,10 @@ zpool_print_unsup_feat(nvlist_t *config)
 		verify(nvpair_value_string(nvp, &desc) == 0);
 
 		if (strlen(desc) > 0)
-			(void) printf("\t%s (%s)\n", nvpair_name(nvp), desc);
+			(void) fprintf(stro(), "\t%s (%s)\n",
+			    nvpair_name(nvp), desc);
 		else
-			(void) printf("\t%s\n", nvpair_name(nvp));
+			(void) fprintf(stro(), "\t%s\n", nvpair_name(nvp));
 	}
 }
 
@@ -1913,13 +1915,15 @@ zpool_import_props(libzfs_handle_t *hdl, nvlist_t *config, const char *newname,
 			if (nv != NULL && nvlist_lookup_nvlist(nv,
 			    ZPOOL_CONFIG_LOAD_INFO, &nvinfo) == 0 &&
 			    nvlist_exists(nvinfo, ZPOOL_CONFIG_UNSUP_FEAT)) {
-				(void) printf(dgettext(TEXT_DOMAIN, "This "
+				(void) fprintf(stro(),
+				    dgettext(TEXT_DOMAIN, "This "
 				    "pool uses the following feature(s) not "
 				    "supported by this system:\n"));
 				zpool_print_unsup_feat(nv);
 				if (nvlist_exists(nvinfo,
 				    ZPOOL_CONFIG_CAN_RDONLY)) {
-					(void) printf(dgettext(TEXT_DOMAIN,
+					(void) fprintf(stro(),
+					    dgettext(TEXT_DOMAIN,
 					    "All unsupported features are only "
 					    "required for writing to the pool."
 					    "\nThe pool can be imported using "
@@ -1988,12 +1992,12 @@ zpool_import_props(libzfs_handle_t *hdl, nvlist_t *config, const char *newname,
 			    ZPOOL_CONFIG_LOAD_INFO, &nvinfo) == 0 &&
 			    nvlist_lookup_nvlist(nvinfo,
 			    ZPOOL_CONFIG_MISSING_DEVICES, &missing) == 0) {
-				(void) printf(dgettext(TEXT_DOMAIN,
+				(void) fprintf(stro(), dgettext(TEXT_DOMAIN,
 				    "The devices below are missing or "
 				    "corrupted, use '-m' to import the pool "
 				    "anyway:\n"));
 				print_vdev_tree(hdl, NULL, missing, 2);
-				(void) printf("\n");
+				(void) fprintf(stro(), "\n");
 			}
 			(void) zpool_standard_error(hdl, error, desc);
 			break;
@@ -2897,7 +2901,7 @@ zpool_vdev_attach(zpool_handle_t *zhp,
 			 * XXX need a better way to prevent user from
 			 * booting up a half-baked vdev.
 			 */
-			(void) fprintf(stderr, dgettext(TEXT_DOMAIN, "Make "
+			(void) fprintf(stre(), dgettext(TEXT_DOMAIN, "Make "
 			    "sure to wait until resilver is done "
 			    "before rebooting.\n"));
 		}
@@ -3101,7 +3105,7 @@ zpool_vdev_split(zpool_handle_t *zhp, char *newname, nvlist_t **newroot,
 		return (zfs_error(hdl, EZFS_INVALIDNAME, msg));
 
 	if ((config = zpool_get_config(zhp, NULL)) == NULL) {
-		(void) fprintf(stderr, gettext("Internal error: unable to "
+		(void) fprintf(stre(), gettext("Internal error: unable to "
 		    "retrieve pool configuration\n"));
 		return (-1);
 	}
