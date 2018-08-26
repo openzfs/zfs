@@ -155,7 +155,7 @@ do_link(const char *pfile)
 		return (-1);
 	}
 
-	strncpy(pfile_copy, pfile, sizeof (pfile_copy));
+	strncpy(pfile_copy, pfile, sizeof (pfile_copy)-1);
 	pfile_copy[sizeof (pfile_copy) - 1] = '\0';
 	/*
 	 * Figure out source file directory name, and create
