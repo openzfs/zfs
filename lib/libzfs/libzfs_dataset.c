@@ -2586,12 +2586,12 @@ zcp_check(zfs_handle_t *zhp, zfs_prop_t prop, uint64_t intval,
 			int64_t ans;
 			error = nvlist_lookup_int64(retnvl, "value", &ans);
 			if (error != 0) {
-				(void) fprintf(stderr, "%s: zcp check error: "
+				(void) fprintf(stre(), "%s: zcp check error: "
 				    "%u\n", prop_name, error);
 				return;
 			}
 			if (ans != intval) {
-				(void) fprintf(stderr, "%s: zfs found %llu, "
+				(void) fprintf(stre(), "%s: zfs found %llu, "
 				    "but zcp found %llu\n", prop_name,
 				    (u_longlong_t)intval, (u_longlong_t)ans);
 			}
@@ -2599,18 +2599,18 @@ zcp_check(zfs_handle_t *zhp, zfs_prop_t prop, uint64_t intval,
 			char *str_ans;
 			error = nvlist_lookup_string(retnvl, "value", &str_ans);
 			if (error != 0) {
-				(void) fprintf(stderr, "%s: zcp check error: "
+				(void) fprintf(stre(), "%s: zcp check error: "
 				    "%u\n", prop_name, error);
 				return;
 			}
 			if (strcmp(strval, str_ans) != 0) {
-				(void) fprintf(stderr,
+				(void) fprintf(stre(),
 				    "%s: zfs found '%s', but zcp found '%s'\n",
 				    prop_name, strval, str_ans);
 			}
 		}
 	} else {
-		(void) fprintf(stderr, "%s: zcp check failed, channel program "
+		(void) fprintf(stre(), "%s: zcp check failed, channel program "
 		    "error: %u\n", prop_name, error);
 	}
 	nvlist_free(argnvl);

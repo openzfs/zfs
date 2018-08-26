@@ -61,7 +61,6 @@
 #include <sys/types.h>
 #include <time.h>
 #include <sys/zfs_project.h>
-
 #include <libzfs.h>
 #include <libzfs_core.h>
 #include <zfs_prop.h>
@@ -384,40 +383,6 @@ get_usage(zfs_help_t idx)
 	/* NOTREACHED */
 }
 
-void
-nomem(void)
-{
-	(void) fprintf(stderr, gettext("internal error: out of memory\n"));
-	exit(1);
-}
-
-/*
- * Utility function to guarantee malloc() success.
- */
-
-void *
-safe_malloc(size_t size)
-{
-	void *data;
-
-	if ((data = calloc(1, size)) == NULL)
-		nomem();
-
-	return (data);
-}
-
-void *
-safe_realloc(void *data, size_t size)
-{
-	void *newp;
-	if ((newp = realloc(data, size)) == NULL) {
-		free(data);
-		nomem();
-	}
-
-	return (newp);
-}
-
 static char *
 safe_strdup(char *str)
 {
@@ -427,6 +392,27 @@ safe_strdup(char *str)
 		nomem();
 
 	return (dupstr);
+}
+
+static zfs_cmd_data_t *
+set_zfs_cmd_data(libzfs_handle_t **cmd_g_zfs,
+    FILE **cmd_mnttab_file, char cmd_history_str[HIS_MAX_RECORD_LEN],
+    boolean_t *cmd_log_history)
+{
+	zfs_cmd_data_t *cmd_data = malloc(sizeof (zfs_cmd_data_t));
+	if (cmd_data == NULL) {
+		nomem_print(output_list);
+	}
+
+	cmd_data->g_zfs = cmd_g_zfs;
+	cmd_data->mnttab_file = cmd_mnttab_file;
+
+	snprintf(cmd_data->history_str, HIS_MAX_RECORD_LEN, "%s",
+	    cmd_history_str);
+
+	cmd_data->log_history = cmd_log_history;
+
+	return (cmd_data);
 }
 
 /*
@@ -753,8 +739,10 @@ zfs_mount_and_share(libzfs_handle_t *hdl, const char *dataset, zfs_type_t type)
 static int
 zfs_do_clone(int argc, char **argv)
 {
+	init_stream_list(&output_list);
+
 	zfs_handle_t *zhp = NULL;
-	boolean_t parents = B_FALSE;
+	zfs_clone_options_t options = { 0 };
 	nvlist_t *props;
 	int ret = 0;
 	int c;
@@ -772,7 +760,7 @@ zfs_do_clone(int argc, char **argv)
 			}
 			break;
 		case 'p':
-			parents = B_TRUE;
+			options.parents = B_TRUE;
 			break;
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
@@ -784,62 +772,18 @@ zfs_do_clone(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
-	/* check number of arguments */
-	if (argc < 1) {
-		(void) fprintf(stderr, gettext("missing source dataset "
-		    "argument\n"));
-		goto usage;
-	}
-	if (argc < 2) {
-		(void) fprintf(stderr, gettext("missing target dataset "
-		    "argument\n"));
-		goto usage;
-	}
-	if (argc > 2) {
-		(void) fprintf(stderr, gettext("too many arguments\n"));
+	zfs_cmd_data_t *cmd_data = set_zfs_cmd_data(&g_zfs, &mnttab_file,
+	    history_str, &log_history);
+
+	ret = libzfs_cmd_zfs_clone(argc, argv, props, &options, cmd_data);
+
+	stream_print_list_destroy(output_list);
+	free(cmd_data);
+
+	if (ret == ZFS_CMD_PRINT_USAGE) {
 		goto usage;
 	}
 
-	/* open the source dataset */
-	if ((zhp = zfs_open(g_zfs, argv[0], ZFS_TYPE_SNAPSHOT)) == NULL) {
-		nvlist_free(props);
-		return (1);
-	}
-
-	if (parents && zfs_name_valid(argv[1], ZFS_TYPE_FILESYSTEM |
-	    ZFS_TYPE_VOLUME)) {
-		/*
-		 * Now create the ancestors of the target dataset.  If the
-		 * target already exists and '-p' option was used we should not
-		 * complain.
-		 */
-		if (zfs_dataset_exists(g_zfs, argv[1], ZFS_TYPE_FILESYSTEM |
-		    ZFS_TYPE_VOLUME)) {
-			zfs_close(zhp);
-			nvlist_free(props);
-			return (0);
-		}
-		if (zfs_create_ancestors(g_zfs, argv[1]) != 0) {
-			zfs_close(zhp);
-			nvlist_free(props);
-			return (1);
-		}
-	}
-
-	/* pass to libzfs */
-	ret = zfs_clone(zhp, argv[1], props);
-
-	/* create the mountpoint if necessary */
-	if (ret == 0) {
-		if (log_history) {
-			(void) zpool_log_history(g_zfs, history_str);
-			log_history = B_FALSE;
-		}
-
-		ret = zfs_mount_and_share(g_zfs, argv[1], ZFS_TYPE_DATASET);
-	}
-
-	zfs_close(zhp);
 	nvlist_free(props);
 
 	return (!!ret);

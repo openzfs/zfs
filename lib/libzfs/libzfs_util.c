@@ -47,13 +47,46 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-#include <libzfs.h>
 #include <libzfs_core.h>
-
+#include "libzfs.h"
 #include "libzfs_impl.h"
 #include "zfs_prop.h"
 #include "zfeature_common.h"
 #include <zfs_fletcher.h>
+
+void
+nomem(void)
+{
+	(void) fprintf(stre(), gettext("internal error: out of memory\n"));
+	exit(1);
+}
+
+/*
+ * Utility function to guarantee malloc() success.
+ */
+
+void *
+safe_malloc(size_t size)
+{
+	void *data;
+
+	if ((data = calloc(1, size)) == NULL)
+		nomem();
+
+	return (data);
+}
+
+void *
+safe_realloc(void *data, size_t size)
+{
+	void *newp;
+	if ((newp = realloc(data, size)) == NULL) {
+		free(data);
+		nomem();
+	}
+
+	return (newp);
+}
 
 int
 libzfs_errno(libzfs_handle_t *hdl)
@@ -317,15 +350,19 @@ zfs_verror(libzfs_handle_t *hdl, int error, const char *fmt, va_list ap)
 
 	if (hdl->libzfs_printerr) {
 		if (error == EZFS_UNKNOWN) {
-			(void) fprintf(stderr, dgettext(TEXT_DOMAIN, "internal "
-			    "error: %s\n"), libzfs_error_description(hdl));
+			(void) fprintf(stre(),
+			    dgettext(TEXT_DOMAIN, "internal error: %s\n"),
+			    libzfs_error_description(hdl));
+			stream_print_list(output_list);
 			abort();
 		}
 
-		(void) fprintf(stderr, "%s: %s\n", hdl->libzfs_action,
-		    libzfs_error_description(hdl));
-		if (error == EZFS_NOMEM)
+		(void) fprintf(stre(), "%s: %s\n",
+		    hdl->libzfs_action, libzfs_error_description(hdl));
+		if (error == EZFS_NOMEM) {
+			stream_print_list(output_list);
 			exit(1);
+		}
 	}
 }
 
@@ -847,7 +884,7 @@ libzfs_run_process_impl(const char *path, char *argv[], char *env[], int flags,
 
 	/*
 	 * Setup a pipe between our child and parent process if we're
-	 * reading stdout.
+	 * reading stro().
 	 */
 	if ((lines != NULL) && pipe(link) == -1)
 		return (-ESTRPIPE);
@@ -913,7 +950,7 @@ libzfs_run_process(const char *path, char *argv[], int flags)
 }
 
 /*
- * Run a command and store its stdout lines in an array of strings (lines[]).
+ * Run a command and store its stro() lines in an array of strings (lines[]).
  * lines[] is allocated and populated for you, and the number of lines is set in
  * lines_cnt.  lines[] must be freed after use with libzfs_free_str_array().
  * All newlines (\n) in lines[] are terminated for convenience.
@@ -1154,7 +1191,8 @@ zfs_path_to_zhandle(libzfs_handle_t *hdl, char *path, zfs_type_t argtype)
 	}
 
 	if (stat64(path, &statbuf) != 0) {
-		(void) fprintf(stderr, "%s: %s\n", path, strerror(errno));
+		(void) fprintf(stre(), "%s: %s\n", path,
+		    strerror(errno));
 		return (NULL);
 	}
 
@@ -1173,7 +1211,7 @@ zfs_path_to_zhandle(libzfs_handle_t *hdl, char *path, zfs_type_t argtype)
 	}
 
 	if (strcmp(entry.mnt_fstype, MNTTYPE_ZFS) != 0) {
-		(void) fprintf(stderr, gettext("'%s': not a ZFS filesystem\n"),
+		(void) fprintf(stre(), gettext("'%s': not a ZFS filesystem\n"),
 		    path);
 		return (NULL);
 	}
@@ -1603,14 +1641,14 @@ zprop_print_headers(zprop_get_cbdata_t *cbp, zfs_type_t type)
 		if (title != NULL) {
 			if (i == (ZFS_GET_NCOLS - 1) ||
 			    cbp->cb_columns[i + 1] == GET_COL_NONE)
-				(void) printf("%s", title);
+				(void) fprintf(stro(), "%s", title);
 			else
-				(void) printf("%-*s  ",
+				(void) fprintf(stro(), "%-*s  ",
 				    cbp->cb_colwidths[cbp->cb_columns[i]],
 				    title);
 		}
 	}
-	(void) printf("\n");
+	(void) fprintf(stro(), "\n");
 }
 
 /*
@@ -1692,16 +1730,16 @@ zprop_print_one_property(const char *name, zprop_get_cbdata_t *cbp,
 
 		if (i == (ZFS_GET_NCOLS - 1) ||
 		    cbp->cb_columns[i + 1] == GET_COL_NONE)
-			(void) printf("%s", str);
+			(void) fprintf(stro(), "%s", str);
 		else if (cbp->cb_scripted)
-			(void) printf("%s\t", str);
+			(void) fprintf(stro(), "%s\t", str);
 		else
-			(void) printf("%-*s  ",
+			(void) fprintf(stro(), "%-*s  ",
 			    cbp->cb_colwidths[cbp->cb_columns[i]],
 			    str);
 	}
 
-	(void) printf("\n");
+	(void) fprintf(stro(), "\n");
 }
 
 /*

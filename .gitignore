@@ -58,3 +58,11 @@ cscope.*
 *.tar.gz
 *.patch
 *.orig
+
+#
+# IDE files
+#
+.idea
+.vscode
+cmake-build-*
+CMakeLists\.txt

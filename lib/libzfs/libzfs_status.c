@@ -450,7 +450,8 @@ dump_ddt_stat(const ddt_stat_t *dds, int h)
 	zfs_nicebytes(dds->dds_ref_psize, ref_psize, sizeof (ref_psize));
 	zfs_nicebytes(dds->dds_ref_dsize, ref_dsize, sizeof (ref_dsize));
 
-	(void) printf("%6s   %6s   %5s   %5s   %5s   %6s   %5s   %5s   %5s\n",
+	(void) fprintf(stro(),
+	    "%6s   %6s   %5s   %5s   %5s   %6s   %5s   %5s   %5s\n",
 	    refcnt,
 	    blocks, lsize, psize, dsize,
 	    ref_blocks, ref_lsize, ref_psize, ref_dsize);
@@ -464,21 +465,23 @@ zpool_dump_ddt(const ddt_stat_t *dds_total, const ddt_histogram_t *ddh)
 {
 	int h;
 
-	(void) printf("\n");
+	(void) fprintf(stro(), "\n");
 
-	(void) printf("bucket   "
+	(void) fprintf(stro(), "bucket   "
 	    "           allocated             "
 	    "          referenced          \n");
-	(void) printf("______   "
+	(void) fprintf(stro(), "______   "
 	    "______________________________   "
 	    "______________________________\n");
 
-	(void) printf("%6s   %6s   %5s   %5s   %5s   %6s   %5s   %5s   %5s\n",
+	(void) fprintf(stro(),
+	    "%6s   %6s   %5s   %5s   %5s   %6s   %5s   %5s   %5s\n",
 	    "refcnt",
 	    "blocks", "LSIZE", "PSIZE", "DSIZE",
 	    "blocks", "LSIZE", "PSIZE", "DSIZE");
 
-	(void) printf("%6s   %6s   %5s   %5s   %5s   %6s   %5s   %5s   %5s\n",
+	(void) fprintf(stro(),
+	    "%6s   %6s   %5s   %5s   %5s   %6s   %5s   %5s   %5s\n",
 	    "------",
 	    "------", "-----", "-----", "-----",
 	    "------", "-----", "-----", "-----");
@@ -488,5 +491,5 @@ zpool_dump_ddt(const ddt_stat_t *dds_total, const ddt_histogram_t *ddh)
 
 	dump_ddt_stat(dds_total, -1);
 
-	(void) printf("\n");
+	(void) fprintf(stro(), "\n");
 }

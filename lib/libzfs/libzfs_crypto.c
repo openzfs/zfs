@@ -173,12 +173,12 @@ get_key_material_raw(FILE *fd, const char *fsname, zfs_keyformat_t keyformat,
 
 		/* prompt for the key */
 		if (fsname != NULL) {
-			(void) printf("%s %s%s for '%s': ",
+			(void) fprintf(stro(), "%s %s%s for '%s': ",
 			    (again) ? "Re-enter" : "Enter",
 			    (newkey) ? "new " : "",
 			    get_format_prompt_string(keyformat), fsname);
 		} else {
-			(void) printf("%s %s%s: ",
+			(void) fprintf(stro(), "%s %s%s: ",
 			    (again) ? "Re-enter" : "Enter",
 			    (newkey) ? "new " : "",
 			    get_format_prompt_string(keyformat));
@@ -253,7 +253,7 @@ out:
 		}
 
 		/* print the newline that was not echo'd */
-		printf("\n");
+		fprintf(stro(), "\n");
 	}
 
 	return (ret);
@@ -959,7 +959,8 @@ zfs_crypto_attempt_load_keys(libzfs_handle_t *hdl, char *fsname)
 	if (ret)
 		goto error;
 
-	(void) printf(gettext("%llu / %llu keys successfully loaded\n"),
+	(void) fprintf(stro(),
+	    gettext("%llu / %llu keys successfully loaded\n"),
 	    (u_longlong_t)(cb.cb_numattempted - cb.cb_numfailed),
 	    (u_longlong_t)cb.cb_numattempted);
 

@@ -473,7 +473,7 @@ cksummer(void *arg)
 		}
 
 		default:
-			(void) fprintf(stderr, "INVALID record type 0x%x\n",
+			(void) fprintf(stre(), "INVALID record type 0x%x\n",
 			    drr->drr_type);
 			/* should never happen, so assert */
 			assert(B_FALSE);
@@ -673,7 +673,7 @@ send_iterate_snap(zfs_handle_t *zhp, void *arg)
 
 	if (sd->tosnap_txg != 0 && txg > sd->tosnap_txg) {
 		if (sd->verbose) {
-			(void) fprintf(stderr, dgettext(TEXT_DOMAIN,
+			(void) fprintf(stre(), dgettext(TEXT_DOMAIN,
 			    "skipping snapshot %s because it was created "
 			    "after the destination snapshot (%s)\n"),
 			    zhp->zfs_name, sd->tosnap);
@@ -858,12 +858,12 @@ send_iterate_fs(zfs_handle_t *zhp, void *arg)
 	if (sd->tosnap != NULL && tosnap_txg == 0) {
 		if (sd->tosnap_txg != 0 && txg > sd->tosnap_txg) {
 			if (sd->verbose) {
-				(void) fprintf(stderr, dgettext(TEXT_DOMAIN,
+				(void) fprintf(stre(), dgettext(TEXT_DOMAIN,
 				    "skipping dataset %s: snapshot %s does "
 				    "not exist\n"), zhp->zfs_name, sd->tosnap);
 			}
 		} else {
-			(void) fprintf(stderr, dgettext(TEXT_DOMAIN,
+			(void) fprintf(stre(), dgettext(TEXT_DOMAIN,
 			    "cannot send %s@%s%s: snapshot %s@%s does not "
 			    "exist\n"), sd->fsname, sd->tosnap, sd->recursive ?
 			    dgettext(TEXT_DOMAIN, " recursively") : "",
@@ -914,7 +914,7 @@ send_iterate_fs(zfs_handle_t *zhp, void *arg)
 		 * for new encryption parameters.
 		 */
 		if (!sd->raw) {
-			(void) fprintf(stderr, dgettext(TEXT_DOMAIN,
+			(void) fprintf(stre(), dgettext(TEXT_DOMAIN,
 			    "cannot send %s@%s: encrypted dataset %s may not "
 			    "be sent with properties without the raw flag\n"),
 			    sd->fsname, sd->tosnap, zhp->zfs_name);
@@ -1191,7 +1191,7 @@ send_progress_thread(void *arg)
 	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
 
 	if (!pa->pa_parsable)
-		(void) fprintf(stderr, "TIME        SENT   SNAPSHOT\n");
+		(void) fprintf(stre(), "TIME        SENT   SNAPSHOT\n");
 
 	/*
 	 * Print the progress from ZFS_IOC_SEND_PROGRESS every second.
@@ -1208,12 +1208,12 @@ send_progress_thread(void *arg)
 		bytes = zc.zc_cookie;
 
 		if (pa->pa_parsable) {
-			(void) fprintf(stderr, "%02d:%02d:%02d\t%llu\t%s\n",
+			(void) fprintf(stre(), "%02d:%02d:%02d\t%llu\t%s\n",
 			    tm->tm_hour, tm->tm_min, tm->tm_sec,
 			    bytes, zhp->zfs_name);
 		} else {
 			zfs_nicebytes(bytes, buf, sizeof (buf));
-			(void) fprintf(stderr, "%02d:%02d:%02d   %5s   %s\n",
+			(void) fprintf(stre(), "%02d:%02d:%02d   %5s   %s\n",
 			    tm->tm_hour, tm->tm_min, tm->tm_sec,
 			    buf, zhp->zfs_name);
 		}
@@ -1274,7 +1274,7 @@ dump_snapshot(zfs_handle_t *zhp, void *arg)
 	int err;
 	boolean_t isfromsnap, istosnap, fromorigin;
 	boolean_t exclude = B_FALSE;
-	FILE *fout = sdd->std_out ? stdout : stderr;
+	FILE *fout = sdd->std_out ? stro() : stre();
 
 	err = 0;
 	thissnap = strchr(zhp->zfs_name, '@') + 1;
@@ -1415,7 +1415,7 @@ dump_filesystem(zfs_handle_t *zhp, void *arg)
 	(void) snprintf(zc.zc_name, sizeof (zc.zc_name), "%s@%s",
 	    zhp->zfs_name, sdd->tosnap);
 	if (ioctl(zhp->zfs_hdl->libzfs_fd, ZFS_IOC_OBJSET_STATS, &zc) != 0) {
-		(void) fprintf(stderr, dgettext(TEXT_DOMAIN,
+		(void) fprintf(stre(), dgettext(TEXT_DOMAIN,
 		    "WARNING: could not send %s@%s: does not exist\n"),
 		    zhp->zfs_name, sdd->tosnap);
 		sdd->err = B_TRUE;
@@ -1445,7 +1445,7 @@ dump_filesystem(zfs_handle_t *zhp, void *arg)
 
 	rv = zfs_iter_snapshots_sorted(zhp, dump_snapshot, arg);
 	if (!sdd->seenfrom) {
-		(void) fprintf(stderr, dgettext(TEXT_DOMAIN,
+		(void) fprintf(stre(), dgettext(TEXT_DOMAIN,
 		    "WARNING: could not send %s@%s:\n"
 		    "incremental source (%s@%s) does not exist\n"),
 		    zhp->zfs_name, sdd->tosnap,
@@ -1453,14 +1453,14 @@ dump_filesystem(zfs_handle_t *zhp, void *arg)
 		sdd->err = B_TRUE;
 	} else if (!sdd->seento) {
 		if (sdd->fromsnap) {
-			(void) fprintf(stderr, dgettext(TEXT_DOMAIN,
+			(void) fprintf(stre(), dgettext(TEXT_DOMAIN,
 			    "WARNING: could not send %s@%s:\n"
 			    "incremental source (%s@%s) "
 			    "is not earlier than it\n"),
 			    zhp->zfs_name, sdd->tosnap,
 			    zhp->zfs_name, sdd->fromsnap);
 		} else {
-			(void) fprintf(stderr, dgettext(TEXT_DOMAIN,
+			(void) fprintf(stre(), dgettext(TEXT_DOMAIN,
 			    "WARNING: "
 			    "could not send %s@%s: does not exist\n"),
 			    zhp->zfs_name, sdd->tosnap);
@@ -1663,7 +1663,7 @@ zfs_send_resume(libzfs_handle_t *hdl, sendflags_t *flags, int outfd,
 	int error = 0;
 	char name[ZFS_MAX_DATASET_NAME_LEN];
 	enum lzc_send_flags lzc_flags = 0;
-	FILE *fout = (flags->verbose && flags->dryrun) ? stdout : stderr;
+	FILE *fout = (flags->verbose && flags->dryrun) ? stro() : stre();
 
 	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
 	    "cannot resume send"));
@@ -1993,7 +1993,7 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 		sdd.debugnv = *debugnvp;
 	if (sdd.verbose && sdd.dryrun)
 		sdd.std_out = B_TRUE;
-	fout = sdd.std_out ? stdout : stderr;
+	fout = sdd.std_out ? stro() : stre();
 
 	/*
 	 * Some flags require that we place user holds on the datasets that are
@@ -2126,7 +2126,7 @@ zfs_send_one(zfs_handle_t *zhp, const char *from, int fd, sendflags_t flags)
 	int err = 0;
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
 	enum lzc_send_flags lzc_flags = 0;
-	FILE *fout = (flags.verbose && flags.dryrun) ? stdout : stderr;
+	FILE *fout = (flags.verbose && flags.dryrun) ? stro() : stre();
 	char errbuf[1024];
 
 	if (flags.largeblock)
@@ -2145,7 +2145,7 @@ zfs_send_one(zfs_handle_t *zhp, const char *from, int fd, sendflags_t flags)
 			send_print_verbose(fout, zhp->zfs_name, from, size,
 			    flags.parsable);
 		} else {
-			(void) fprintf(stderr, "Cannot estimate send size: "
+			(void) fprintf(stre(), "Cannot estimate send size: "
 			    "%s\n", strerror(errno));
 		}
 	}
@@ -2359,7 +2359,7 @@ recv_rename(libzfs_handle_t *hdl, const char *name, const char *tryname,
 		(void) strlcpy(zc.zc_value, tryname, sizeof (zc.zc_value));
 
 		if (flags->verbose) {
-			(void) printf("attempting rename %s to %s\n",
+			(void) fprintf(stro(), "attempting rename %s to %s\n",
 			    zc.zc_name, zc.zc_value);
 		}
 		err = recv_rename_impl(zhp, &zc);
@@ -2377,22 +2377,23 @@ recv_rename(libzfs_handle_t *hdl, const char *name, const char *tryname,
 		(void) strlcpy(zc.zc_value, newname, sizeof (zc.zc_value));
 
 		if (flags->verbose) {
-			(void) printf("failed - trying rename %s to %s\n",
+			(void) fprintf(stro(),
+			    "failed - trying rename %s to %s\n",
 			    zc.zc_name, zc.zc_value);
 		}
 		err = recv_rename_impl(zhp, &zc);
 		if (err == 0)
 			changelist_rename(clp, name, newname);
 		if (err && flags->verbose) {
-			(void) printf("failed (%u) - "
+			(void) fprintf(stro(), "failed (%u) - "
 			    "will try again on next pass\n", errno);
 		}
 		err = EAGAIN;
 	} else if (flags->verbose) {
 		if (err == 0)
-			(void) printf("success\n");
+			(void) fprintf(stro(), "success\n");
 		else
-			(void) printf("failed (%u)\n", errno);
+			(void) fprintf(stro(), "failed (%u)\n", errno);
 	}
 
 	(void) changelist_postfix(clp);
@@ -2415,7 +2416,7 @@ recv_promote(libzfs_handle_t *hdl, const char *fsname,
 	zfs_handle_t *zhp = NULL, *ozhp = NULL;
 
 	if (flags->verbose)
-		(void) printf("promoting %s\n", fsname);
+		(void) fprintf(stro(), "promoting %s\n", fsname);
 
 	(void) strlcpy(zc.zc_value, origin_fsname, sizeof (zc.zc_value));
 	(void) strlcpy(zc.zc_name, fsname, sizeof (zc.zc_name));
@@ -2488,11 +2489,11 @@ recv_destroy(libzfs_handle_t *hdl, const char *name, int baselen,
 	(void) strlcpy(zc.zc_name, name, sizeof (zc.zc_name));
 
 	if (flags->verbose)
-		(void) printf("attempting destroy %s\n", zc.zc_name);
+		(void) fprintf(stro(), "attempting destroy %s\n", zc.zc_name);
 	err = ioctl(hdl->libzfs_fd, ZFS_IOC_DESTROY, &zc);
 	if (err == 0) {
 		if (flags->verbose)
-			(void) printf("success\n");
+			(void) fprintf(stro(), "success\n");
 		changelist_remove(clp, zc.zc_name);
 	}
 
@@ -2997,7 +2998,8 @@ again:
 
 		if (fromguid == 0) {
 			if (flags->verbose) {
-				(void) printf("local fs %s does not have "
+				(void) fprintf(stro(),
+				    "local fs %s does not have "
 				    "fromsnap (%s in stream); must have "
 				    "been deleted locally; ignoring\n",
 				    fsname, fromsnap);
@@ -3064,7 +3066,8 @@ again:
 			} else {
 				tryname[0] = '\0';
 				if (flags->verbose) {
-					(void) printf("local fs %s new parent "
+					(void) fprintf(stro(),
+					    "local fs %s new parent "
 					    "not found\n", fsname);
 				}
 			}
@@ -3094,7 +3097,7 @@ doagain:
 	if (needagain && progress) {
 		/* do another pass to fix up temporary names */
 		if (flags->verbose)
-			(void) printf("another pass:\n");
+			(void) fprintf(stro(), "another pass:\n");
 		goto again;
 	}
 
@@ -3320,10 +3323,10 @@ trunc_prop_errs(int truncated)
 	ASSERT(truncated != 0);
 
 	if (truncated == 1)
-		(void) fprintf(stderr, dgettext(TEXT_DOMAIN,
+		(void) fprintf(stre(), dgettext(TEXT_DOMAIN,
 		    "1 more property could not be set\n"));
 	else
-		(void) fprintf(stderr, dgettext(TEXT_DOMAIN,
+		(void) fprintf(stre(), dgettext(TEXT_DOMAIN,
 		    "%d more properties could not be set\n"), truncated);
 }
 
@@ -3822,7 +3825,8 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	if (originsnap) {
 		(void) strlcpy(origin, originsnap, sizeof (origin));
 		if (flags->verbose)
-			(void) printf("using provided clone origin %s\n",
+			(void) fprintf(stro(),
+			    "using provided clone origin %s\n",
 			    origin);
 	} else if (drrb->drr_flags & DRR_FLAG_CLONE) {
 		if (guid_to_name(hdl, destsnap,
@@ -3834,7 +3838,8 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			goto out;
 		}
 		if (flags->verbose)
-			(void) printf("found clone origin %s\n", origin);
+			(void) fprintf(stro(),
+			    "found clone origin %s\n", origin);
 	}
 
 	boolean_t resuming = DMU_GET_FEATUREFLAGS(drrb->drr_versioninfo) &
@@ -4095,11 +4100,11 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	}
 
 	if (flags->verbose) {
-		(void) printf("%s %s stream of %s into %s\n",
+		(void) fprintf(stro(), "%s %s stream of %s into %s\n",
 		    flags->dryrun ? "would receive" : "receiving",
 		    drrb->drr_fromguid ? "incremental" : "full",
 		    drrb->drr_toname, destsnap);
-		(void) fflush(stdout);
+		(void) fflush(stro());
 	}
 
 	if (flags->dryrun) {
@@ -4206,7 +4211,8 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 
 			if (fs != NULL) {
 				if (flags->verbose) {
-					(void) printf("snap %s already exists; "
+					(void) fprintf(stro(),
+					    "snap %s already exists; "
 					    "ignoring\n", destsnap);
 				}
 				err = ioctl_err = recv_skip(hdl, infd,
@@ -4335,14 +4341,14 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	}
 
 	if (prop_errflags & ZPROP_ERR_NOCLEAR) {
-		(void) fprintf(stderr, dgettext(TEXT_DOMAIN, "Warning: "
+		(void) fprintf(stre(), dgettext(TEXT_DOMAIN, "Warning: "
 		    "failed to clear unreceived properties on %s"), name);
-		(void) fprintf(stderr, "\n");
+		(void) fprintf(stre(), "\n");
 	}
 	if (prop_errflags & ZPROP_ERR_NORESTORE) {
-		(void) fprintf(stderr, dgettext(TEXT_DOMAIN, "Warning: "
+		(void) fprintf(stre(), dgettext(TEXT_DOMAIN, "Warning: "
 		    "failed to restore original properties on %s"), name);
-		(void) fprintf(stderr, "\n");
+		(void) fprintf(stre(), "\n");
 	}
 
 	if (err || ioctl_err) {
@@ -4360,7 +4366,8 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		zfs_nicebytes(bytes, buf1, sizeof (buf1));
 		zfs_nicebytes(bytes/delta, buf2, sizeof (buf1));
 
-		(void) printf("received %s stream in %lu seconds (%s/sec)\n",
+		(void) fprintf(stro(),
+		    "received %s stream in %lu seconds (%s/sec)\n",
 		    buf1, delta, buf2);
 	}
 
