@@ -203,7 +203,9 @@ Requires:       acl
 Requires:       sudo
 Requires:       sysstat
 Requires:       libaio
+%if 0%{?rhel}%{?fedora}%{?suse_version}
 BuildRequires:  libaio-devel
+%endif
 AutoReqProv:    no
 
 %description test
@@ -426,8 +428,3 @@ systemctl --system daemon-reload >/dev/null || true
 # ignore those files.
 %exclude /usr/share/initramfs-tools
 %endif
-
-%changelog
-* Wed Jul 26 2017 Brian Behlendorf <behlendorf1@llnl.gov> - 0.7.0-1
-- Released 0.7.0-1, detailed release notes are available at:
-- https://github.com/zfsonlinux/zfs/releases/tag/zfs-0.7.0
