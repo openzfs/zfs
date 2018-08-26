@@ -350,15 +350,19 @@ zfs_verror(libzfs_handle_t *hdl, int error, const char *fmt, va_list ap)
 
 	if (hdl->libzfs_printerr) {
 		if (error == EZFS_UNKNOWN) {
-			(void) fprintf(stderr, dgettext(TEXT_DOMAIN, "internal "
-			    "error: %s\n"), libzfs_error_description(hdl));
+			(void) fprintf(stre(),
+			    dgettext(TEXT_DOMAIN, "internal error: %s\n"),
+			    libzfs_error_description(hdl));
+			stream_print_list(output_list);
 			abort();
 		}
 
-		(void) fprintf(stderr, "%s: %s\n", hdl->libzfs_action,
-		    libzfs_error_description(hdl));
-		if (error == EZFS_NOMEM)
+		(void) fprintf(stre(), "%s: %s\n",
+		    hdl->libzfs_action, libzfs_error_description(hdl));
+		if (error == EZFS_NOMEM) {
+			stream_print_list(output_list);
 			exit(1);
+		}
 	}
 }
 
@@ -1187,7 +1191,8 @@ zfs_path_to_zhandle(libzfs_handle_t *hdl, char *path, zfs_type_t argtype)
 	}
 
 	if (stat64(path, &statbuf) != 0) {
-		(void) fprintf(stderr, "%s: %s\n", path, strerror(errno));
+		(void) fprintf(stre(), "%s: %s\n", path,
+		    strerror(errno));
 		return (NULL);
 	}
 
@@ -1206,7 +1211,7 @@ zfs_path_to_zhandle(libzfs_handle_t *hdl, char *path, zfs_type_t argtype)
 	}
 
 	if (strcmp(entry.mnt_fstype, MNTTYPE_ZFS) != 0) {
-		(void) fprintf(stderr, gettext("'%s': not a ZFS filesystem\n"),
+		(void) fprintf(stre(), gettext("'%s': not a ZFS filesystem\n"),
 		    path);
 		return (NULL);
 	}

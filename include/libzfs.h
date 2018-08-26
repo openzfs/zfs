@@ -174,6 +174,7 @@ typedef struct stream {
 } stream_t;
 
 extern stream_list_t *output_list;
+extern boolean_t use_stdout;
 
 /* Data structures */
 
@@ -188,12 +189,15 @@ struct stream_list {
 };
 
 FILE *set_stream(boolean_t err);
-void stream_print_list(void);
+FILE *stre(void);
+FILE *stro(void);
+int init_stream_list(stream_list_t **stream_output_list);
+void stream_print_list_destroy(stream_list_t *stream_output_list);
+void stream_print_list(stream_list_t *stream_output_list);
+void destroy_stream_list(stream_list_t *stream_output_list);
+void nomem_print(stream_list_t *stream_output_list);
 void free_stream(stream_t *output);
-void destroy_stream_list(stream_list_t *list);
 
-void nomem(void);
-void nomem_print(void);
 /*
  * The following data structures are all part
  * of the zfs_allow_t data structure which is
@@ -942,6 +946,30 @@ extern int zfs_device_get_physical(struct udev_device *, char *, size_t);
 #endif
 
 extern int zfs_remap_indirects(libzfs_handle_t *hdl, const char *);
+
+/*
+ * ZFS command options
+ */
+
+#define	ZFS_CMD_PRINT_USAGE	2
+
+typedef struct zfs_cmd_data {
+	libzfs_handle_t **g_zfs;
+	FILE **mnttab_file;
+	char history_str[HIS_MAX_RECORD_LEN];
+	boolean_t *log_history;
+} zfs_cmd_data_t;
+
+typedef struct zfs_clone_options {
+	boolean_t parents;
+} zfs_clone_options_t;
+
+/*
+ * Commands
+ */
+
+extern int libzfs_cmd_zfs_clone(int, char **, nvlist_t *,
+    zfs_clone_options_t *, zfs_cmd_data_t *);
 
 #ifdef	__cplusplus
 }
