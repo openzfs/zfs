@@ -76,7 +76,7 @@ zpl_release(struct inode *ip, struct file *filp)
 }
 
 static int
-zpl_iterate(struct file *filp, struct dir_context *ctx)
+zpl_iterate(struct file *filp, zpl_dir_context_t *ctx)
 {
 	struct dentry *dentry = filp->f_path.dentry;
 	cred_t *cr = CRED();
@@ -92,12 +92,27 @@ zpl_iterate(struct file *filp, struct dir_context *ctx)
 
 	return (error);
 }
+#if defined(HAVE_VFS_ITERATE) && defined(FMODE_KABI_ITERATE)
+/*
+ * RHEL 7.5 compatibility; the fops.iterate() method was added to
+ * the file_operations structure but in order to maintain KABI
+ * compatibility all callers must set FMODE_KABI_ITERATE which
+ * is checked in iterate_dir().
+ */
+static int
+zpl_dir_open(struct inode *ip, struct file *filp)
+{
+	filp->f_mode |= FMODE_KABI_ITERATE;
+ 	return (0);
+}
+#endif
 
 #if !defined(HAVE_VFS_ITERATE) && !defined(HAVE_VFS_ITERATE_SHARED)
 static int
 zpl_readdir(struct file *filp, void *dirent, filldir_t filldir)
 {
-	struct dir_context ctx = DIR_CONTEXT_INIT(dirent, filldir, filp->f_pos);
+	zpl_dir_context_t ctx =
+	    ZPL_DIR_CONTEXT_INIT(dirent, filldir, filp->f_pos);
 	int error;
 
 	error = zpl_iterate(filp, &ctx);
@@ -105,7 +120,7 @@ zpl_readdir(struct file *filp, void *dirent, filldir_t filldir)
 
 	return (error);
 }
-#endif /* HAVE_VFS_ITERATE */
+#endif /* !HAVE_VFS_ITERATE && !HAVE_VFS_ITERATE_SHARED */
 
 #if defined(HAVE_FSYNC_WITH_DENTRY)
 /*
@@ -886,7 +901,10 @@ const struct file_operations zpl_file_operations = {
 const struct file_operations zpl_dir_file_operations = {
 	.llseek		= generic_file_llseek,
 	.read		= generic_read_dir,
-#ifdef HAVE_VFS_ITERATE_SHARED
+#if defined(HAVE_VFS_ITERATE) && defined(FMODE_KABI_ITERATE)
+	.open		= zpl_dir_open,
+#endif
+#if defined(HAVE_VFS_ITERATE_SHARED)
 	.iterate_shared	= zpl_iterate,
 #elif defined(HAVE_VFS_ITERATE)
 	.iterate	= zpl_iterate,

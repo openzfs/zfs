@@ -125,27 +125,34 @@ extern const struct inode_operations zpl_ops_shares;
 
 #if defined(HAVE_VFS_ITERATE) || defined(HAVE_VFS_ITERATE_SHARED)
 
-#define	DIR_CONTEXT_INIT(_dirent, _actor, _pos) {	\
+#define	ZPL_DIR_CONTEXT_INIT(_dirent, _actor, _pos) {	\
 	.actor = _actor,				\
 	.pos = _pos,					\
 }
 
+typedef struct dir_context zpl_dir_context_t;
+
+#define	zpl_dir_emit		dir_emit
+#define	zpl_dir_emit_dot	dir_emit_dot
+#define	zpl_dir_emit_dotdot	dir_emit_dotdot
+#define	zpl_dir_emit_dots	dir_emit_dots
+
 #else
 
-typedef struct dir_context {
+typedef struct zpl_dir_context {
 	void *dirent;
 	const filldir_t actor;
 	loff_t pos;
-} dir_context_t;
+} zpl_dir_context_t;
 
-#define	DIR_CONTEXT_INIT(_dirent, _actor, _pos) {	\
+#define	ZPL_DIR_CONTEXT_INIT(_dirent, _actor, _pos) {	\
 	.dirent = _dirent,				\
 	.actor = _actor,				\
 	.pos = _pos,					\
 }
 
 static inline bool
-dir_emit(struct dir_context *ctx, const char *name, int namelen,
+zpl_dir_emit(zpl_dir_context_t *ctx, const char *name, int namelen,
     uint64_t ino, unsigned type)
 {
 	return (ctx->actor(ctx->dirent, name, namelen, ctx->pos, ino, type)
@@ -153,29 +160,29 @@ dir_emit(struct dir_context *ctx, const char *name, int namelen,
 }
 
 static inline bool
-dir_emit_dot(struct file *file, struct dir_context *ctx)
+zpl_dir_emit_dot(struct file *file, zpl_dir_context_t *ctx)
 {
 	return (ctx->actor(ctx->dirent, ".", 1, ctx->pos,
 	    file->f_path.dentry->d_inode->i_ino, DT_DIR) == 0);
 }
 
 static inline bool
-dir_emit_dotdot(struct file *file, struct dir_context *ctx)
+zpl_dir_emit_dotdot(struct file *file, zpl_dir_context_t *ctx)
 {
 	return (ctx->actor(ctx->dirent, "..", 2, ctx->pos,
 	    parent_ino(file->f_path.dentry), DT_DIR) == 0);
 }
 
 static inline bool
-dir_emit_dots(struct file *file, struct dir_context *ctx)
+zpl_dir_emit_dots(struct file *file, zpl_dir_context_t *ctx)
 {
 	if (ctx->pos == 0) {
-		if (!dir_emit_dot(file, ctx))
+		if (!zpl_dir_emit_dot(file, ctx))
 			return (false);
 		ctx->pos = 1;
 	}
 	if (ctx->pos == 1) {
-		if (!dir_emit_dotdot(file, ctx))
+		if (!zpl_dir_emit_dotdot(file, ctx))
 			return (false);
 		ctx->pos = 2;
 	}
