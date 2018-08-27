@@ -5748,6 +5748,8 @@ main(int argc, char **argv)
 		args.can_be_active = B_TRUE;
 
 		error = zpool_tryimport(g_zfs, target_pool, &cfg, &args);
+		if (error)
+			printf("zdb: zpool_tryimport returned %d", error);
 
 		if (error == 0) {
 
@@ -5768,6 +5770,8 @@ main(int argc, char **argv)
 			 */
 			error = spa_import(target_pool, cfg, NULL,
 			    flags | ZFS_IMPORT_SKIP_MMP);
+			if (error)
+				printf("zdb: spa_import returned %d", error);
 		}
 	}
 
@@ -5791,6 +5795,7 @@ main(int argc, char **argv)
 			error = spa_open_rewind(target, &spa, FTAG, policy,
 			    NULL);
 			if (error) {
+				printf("zdb: spa_open_rewind try 1 returned %d", error);
 				/*
 				 * If we're missing the log device then
 				 * try opening the pool after clearing the
@@ -5807,6 +5812,8 @@ main(int argc, char **argv)
 				if (!error) {
 					error = spa_open_rewind(target, &spa,
 					    FTAG, policy, NULL);
+					if (error)
+						printf("zdb: spa_open_rewind try 2 returned %d", error);
 				}
 			}
 		} else {
@@ -5814,6 +5821,8 @@ main(int argc, char **argv)
 			error = open_objset(target, DMU_OST_ANY, FTAG, &os);
 			if (error == 0)
 				spa = dmu_objset_spa(os);
+			else
+				printf("zdb: open_objset returned %d", error);
 		}
 	}
 	nvlist_free(policy);
