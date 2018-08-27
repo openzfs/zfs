@@ -275,7 +275,6 @@ dmu_object_reclaim_dnsize(objset_t *os, uint64_t object, dmu_object_type_t ot,
 	return (err);
 }
 
-
 int
 dmu_object_free(objset_t *os, uint64_t object, dmu_tx_t *tx)
 {
