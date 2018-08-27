@@ -1745,10 +1745,10 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 	zfs_unregister_callbacks(zfsvfs);
 
 	/*
-	 * Evict cached data
+	 * Evict cached data. We must write out any dirty data before
+	 * disowning the dataset.
 	 */
-	if (dsl_dataset_is_dirty(dmu_objset_ds(zfsvfs->z_os)) &&
-	    !zfs_is_readonly(zfsvfs))
+	if (!zfs_is_readonly(zfsvfs))
 		txg_wait_synced(dmu_objset_pool(zfsvfs->z_os), 0);
 	dmu_objset_evict_dbufs(zfsvfs->z_os);
 
@@ -1969,6 +1969,9 @@ zfs_remount(struct super_block *sb, int *flags, zfs_mnt_t *zm)
 	error = zfsvfs_parse_options(zm->mnt_data, &vfsp);
 	if (error)
 		return (error);
+
+	if (!zfs_is_readonly(zfsvfs) && (*flags & MS_RDONLY))
+		txg_wait_synced(dmu_objset_pool(zfsvfs->z_os), 0);
 
 	zfs_unregister_callbacks(zfsvfs);
 	zfsvfs_vfs_free(zfsvfs->z_vfs);
