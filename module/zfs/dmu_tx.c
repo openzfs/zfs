@@ -87,7 +87,7 @@ dmu_tx_create_assigned(struct dsl_pool *dp, uint64_t txg)
 {
 	dmu_tx_t *tx = dmu_tx_create_dd(NULL);
 
-	txg_verify(dp->dp_spa, txg);
+	TXG_VERIFY(dp->dp_spa, txg);
 	tx->tx_pool = dp;
 	tx->tx_txg = txg;
 	tx->tx_anyobj = TRUE;
