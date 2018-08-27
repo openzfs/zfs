@@ -438,6 +438,57 @@ zpl_aio_write(struct kiocb *kiocb, const struct iovec *iovp,
 }
 #endif /* HAVE_VFS_RW_ITERATE */
 
+#if defined(HAVE_VFS_RW_ITERATE)
+static ssize_t
+zpl_direct_IO_impl(int rw, struct kiocb *kiocb, struct iov_iter *iter)
+{
+	if (rw == WRITE)
+		return (zpl_iter_write(kiocb, iter));
+	else
+		return (zpl_iter_read(kiocb, iter));
+}
+#if defined(HAVE_VFS_DIRECT_IO_ITER)
+static ssize_t
+zpl_direct_IO(struct kiocb *kiocb, struct iov_iter *iter)
+{
+	return (zpl_direct_IO_impl(iov_iter_rw(iter), kiocb, iter));
+}
+#elif defined(HAVE_VFS_DIRECT_IO_ITER_OFFSET)
+static ssize_t
+zpl_direct_IO(struct kiocb *kiocb, struct iov_iter *iter, loff_t pos)
+{
+	ASSERT3S(pos, ==, kiocb->ki_pos);
+	return (zpl_direct_IO_impl(iov_iter_rw(iter), kiocb, iter));
+}
+#elif defined(HAVE_VFS_DIRECT_IO_ITER_RW_OFFSET)
+static ssize_t
+zpl_direct_IO(int rw, struct kiocb *kiocb, struct iov_iter *iter, loff_t pos)
+{
+	ASSERT3S(pos, ==, kiocb->ki_pos);
+	return (zpl_direct_IO_impl(rw, kiocb, iter));
+}
+#else
+#error "Unknown direct IO interface"
+#endif
+
+#else
+
+#if defined(HAVE_VFS_DIRECT_IO_IOVEC)
+static ssize_t
+zpl_direct_IO(int rw, struct kiocb *kiocb, const struct iovec *iovp,
+    loff_t pos, unsigned long nr_segs)
+{
+	if (rw == WRITE)
+		return (zpl_aio_write(kiocb, iovp, nr_segs, pos));
+	else
+		return (zpl_aio_read(kiocb, iovp, nr_segs, pos));
+}
+#else
+#error "Unknown direct IO interface"
+#endif
+
+#endif /* HAVE_VFS_RW_ITERATE */
+
 static loff_t
 zpl_llseek(struct file *filp, loff_t offset, int whence)
 {
@@ -929,6 +980,7 @@ const struct address_space_operations zpl_address_space_operations = {
 	.readpage	= zpl_readpage,
 	.writepage	= zpl_writepage,
 	.writepages	= zpl_writepages,
+	.direct_IO	= zpl_direct_IO,
 };
 
 const struct file_operations zpl_file_operations = {

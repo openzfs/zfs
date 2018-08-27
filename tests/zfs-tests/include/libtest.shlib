@@ -41,6 +41,20 @@ if [ -n "$STF_PATH" ]; then
 	PATH="$STF_PATH"
 fi
 
+#
+# Generic dot version comparison function
+#
+# Returns success when version $1 is greater than or equal to $2.
+#
+function compare_version_gte
+{
+	if [[ "$(printf "$1\n$2" | sort -V | tail -n1)" == "$1" ]]; then
+		return 0
+	else
+		return 1
+	fi
+}
+
 # Linux kernel version comparison function
 #
 # $1 Linux version ("4.10", "2.6.32") or blank for installed Linux version

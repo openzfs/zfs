@@ -121,6 +121,12 @@ rewind_reason = 'Arbitrary pool rewind is not guaranteed'
 enospc_reason = 'Exact free space reporting is not guaranteed'
 
 #
+# Some tests require a minimum version of the fio benchmark utility.
+# Older distributions such as CentOS 6.x only provide fio-2.0.13.
+#
+fio_reason = 'Fio v2.3 or newer required'
+
+#
 # Some tests are not applicable to Linux or need to be updated to operate
 # in the manor required by Linux.  Any tests which are skipped for this
 # reason will be suppressed in the final analysis output.
@@ -246,6 +252,7 @@ maybe = {
     'inuse/inuse_005_pos': ['SKIP', disk_reason],
     'inuse/inuse_008_pos': ['SKIP', disk_reason],
     'inuse/inuse_009_pos': ['SKIP', disk_reason],
+    'io/mmap': ['SKIP', fio_reason],
     'largest_pool/largest_pool_001_pos': ['FAIL', known_reason],
     'pyzfs/pyzfs_unittest': ['SKIP', python_deps_reason],
     'no_space/enospc_002_pos': ['FAIL', enospc_reason],

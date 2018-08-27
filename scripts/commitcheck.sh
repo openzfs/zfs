@@ -16,10 +16,11 @@ function test_url()
 }
 
 # test commit body for length
+# lines containing urls are exempt for the length limit.
 function test_commit_bodylength()
 {
     length="72"
-    body=$(git log -n 1 --pretty=%b "$REF" | grep -E -m 1 ".{$((length + 1))}")
+    body=$(git log -n 1 --pretty=%b "$REF" | grep -Ev "http(s)*://" | grep -E -m 1 ".{$((length + 1))}")
     if [ -n "$body" ]; then
         echo "error: commit message body contains line over ${length} characters"
         return 1
