@@ -48,7 +48,7 @@ verify_runnable "global"
 log_assert "zpool/zfs destroy <rootpool> should fail"
 
 typeset rootpool=$(get_rootpool)
-typeset tmpfile="/tmp/mounted-datasets.$$"
+typeset tmpfile="$TEST_BASE_DIR/mounted-datasets.$$"
 
 # Collect the currently mounted ZFS filesystems, so that we can repair any
 # damage done by the attempted pool destroy. The destroy itself should fail,

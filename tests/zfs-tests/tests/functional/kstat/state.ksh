@@ -125,7 +125,7 @@ ln $DEV_RDSKDIR/$SDISK $REALDISK
 log_must zpool create $TESTPOOL2 $REALDISK
 
 # Backup the contents of the disk image
-BACKUP=/tmp/kstat-state-realdisk.gz
+BACKUP=$TEST_BASE_DIR/kstat-state-realdisk.gz
 log_must [ ! -e $BACKUP ]
 gzip -c $REALDISK > $BACKUP
 

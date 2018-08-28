@@ -97,7 +97,6 @@ eval set -A mirrorarray $mirrordevs
 eval set -A raidzarray $raidzdevs
 
 while (( $i < ${#keywords[*]} )); do
-	echo "I=$i keyword=${keywords[i]}" >>/tmp/LOG
 
         case ${keywords[i]} in
         ""|spare)

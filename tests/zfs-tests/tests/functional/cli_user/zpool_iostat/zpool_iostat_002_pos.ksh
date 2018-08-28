@@ -43,7 +43,7 @@
 
 verify_runnable "both"
 
-typeset tmpfile=/var/tmp/zfsiostat.out.$$
+typeset tmpfile=$TEST_BASE_DIR/zfsiostat.out.$$
 typeset -i stat_count=0
 
 function cleanup

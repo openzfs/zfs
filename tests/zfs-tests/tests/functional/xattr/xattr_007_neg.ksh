@@ -49,9 +49,9 @@ function cleanup {
 	log_must zfs destroy $TESTPOOL/$TESTFS@snap
 	log_must rm $TESTDIR/myfile2.$$
 	log_must rm $TESTDIR/myfile.$$
-	log_must rm /tmp/output.$$
-	[[ -e /tmp/expected_output.$$ ]]  && log_must rm  \
-	/tmp/expected_output.$$
+	log_must rm $TEST_BASE_DIR/output.$$
+	[[ -e $TEST_BASE_DIR/expected_output.$$ ]]  && log_must rm  \
+	$TEST_BASE_DIR/expected_output.$$
 
 }
 
@@ -71,20 +71,20 @@ log_must zfs snapshot $TESTPOOL/$TESTFS@snap
 # we shouldn't be able to alter the first file's xattr
 if is_linux; then
 	log_mustnot eval "attr -s cp $TESTDIR/.zfs/snapshot/snap/myfile.$$ \
-	     </etc/passwd  >/tmp/output.$$  2>&1"
-	log_must grep  -i  Read-only  /tmp/output.$$
+	     </etc/passwd  > $TEST_BASE_DIR/output.$$  2>&1"
+	log_must grep  -i  Read-only  $TEST_BASE_DIR/output.$$
 	log_must eval "attr -q -l $TESTDIR/.zfs/snapshot/snap/myfile2.$$ \
-	    >/tmp/output.$$  2>&1"
-	log_must eval "attr -q -l $TESTDIR/myfile2.$$ >/tmp/expected_output.$$"
+	    > $TEST_BASE_DIR/output.$$  2>&1"
+	log_must eval "attr -q -l $TESTDIR/myfile2.$$ > $TEST_BASE_DIR/expected_output.$$"
 else
 	log_mustnot eval " runat $TESTDIR/.zfs/snapshot/snap/myfile.$$ \
-	    cp /etc/passwd .  >/tmp/output.$$  2>&1"
-	log_must grep  -i  Read-only  /tmp/output.$$
+	    cp /etc/passwd .  > $TEST_BASE_DIR/output.$$  2>&1"
+	log_must grep  -i  Read-only  $TEST_BASE_DIR/output.$$
 	log_must eval "runat $TESTDIR/.zfs/snapshot/snap/myfile2.$$  \
-	    ls >/tmp/output.$$  2>&1"
-	create_expected_output  /tmp/expected_output.$$ SUNWattr_ro SUNWattr_rw
+	    ls > $TEST_BASE_DIR/output.$$  2>&1"
+	create_expected_output  $TEST_BASE_DIR/expected_output.$$ SUNWattr_ro SUNWattr_rw
 fi
 
-log_must diff /tmp/output.$$ /tmp/expected_output.$$
+log_must diff $TEST_BASE_DIR/output.$$ $TEST_BASE_DIR/expected_output.$$
 
 log_pass "create/write xattr on a snapshot fails"

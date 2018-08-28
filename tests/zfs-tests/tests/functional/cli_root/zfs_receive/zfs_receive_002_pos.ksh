@@ -70,7 +70,7 @@ log_assert "Verifying 'zfs receive <volume>' works."
 log_onexit cleanup
 
 set -A orig_snap "$TESTPOOL/$TESTVOL@init_snap" "$TESTPOOL/$TESTVOL@inc_snap"
-set -A bkup "/var/tmp/fullbkup" "/var/tmp/incbkup"
+set -A bkup "$TEST_BASE_DIR/fullbkup" "$TEST_BASE_DIR/incbkup"
 rst_root=$TESTPOOL/rst_ctr
 rst_vol=$rst_root/$TESTVOL
 set -A rst_snap "${rst_vol}@init_snap" "${rst_vol}@inc_snap"

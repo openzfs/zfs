@@ -156,7 +156,7 @@ done
 typeset -i fspropnum=27
 typeset -i snappropnum=8
 typeset -i volpropnum=15
-propfile=/var/tmp/allpropfile.$$
+propfile=$TEST_BASE_DIR/allpropfile.$$
 
 typeset -i i=0
 typeset -i propnum=0

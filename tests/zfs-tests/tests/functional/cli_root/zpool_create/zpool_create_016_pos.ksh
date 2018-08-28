@@ -57,7 +57,7 @@ function cleanup
 	fi
 
 	#recover swap devices
-	FSTAB=/tmp/fstab_$$
+	FSTAB=$TEST_BASE_DIR/fstab_$$
 	rm -f $FSTAB
 	for sdisk in $swap_disks; do
 		echo "$sdisk	-	-	swap	-	no	-" >> $FSTAB
