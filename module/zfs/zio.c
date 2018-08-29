@@ -389,6 +389,9 @@ zio_decompress(zio_t *zio, abd_t *data, uint64_t size)
 		    zio->io_abd, tmp, zio->io_size, size);
 		abd_return_buf_copy(data, tmp, size);
 
+		if (zio_injection_enabled && ret == 0)
+			ret = zio_handle_fault_injection(zio, EINVAL);
+
 		if (ret != 0)
 			zio->io_error = SET_ERROR(EIO);
 	}

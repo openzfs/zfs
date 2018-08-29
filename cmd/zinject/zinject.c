@@ -116,9 +116,9 @@
  * specified.
  *
  * The '-e' option takes a string describing the errno to simulate.  This must
- * be one of 'io', 'checksum', or 'decrypt'.  In most cases this will result
- * in the same behavior, but RAID-Z will produce a different set of ereports
- * for this situation.
+ * be one of 'io', 'checksum', 'decompress', or 'decrypt'.  In most cases this
+ * will result in the same behavior, but RAID-Z will produce a different set of
+ * ereports for this situation.
  *
  * The '-a', '-u', and '-m' flags toggle internal flush behavior.  If '-a' is
  * specified, then the ARC cache is flushed appropriately.  If '-u' is
@@ -300,7 +300,7 @@ usage(void)
 	    "\n"
 	    "\t\t-q\tQuiet mode.  Only print out the handler number added.\n"
 	    "\t\t-e\tInject a specific error.  Must be one of 'io',\n"
-	    "\t\t\t'checksum', or decrypt.  Default is 'io'.\n"
+	    "\t\t\t'checksum', 'decompress', or decrypt.  Default is 'io'.\n"
 	    "\t\t-l\tInject error at a particular block level. Default is "
 	    "0.\n"
 	    "\t\t-m\tAutomatically remount underlying filesystem.\n"
@@ -774,6 +774,8 @@ main(int argc, char **argv)
 				error = EIO;
 			} else if (strcasecmp(optarg, "checksum") == 0) {
 				error = ECKSUM;
+			} else if (strcasecmp(optarg, "decompress") == 0) {
+				error = EINVAL;
 			} else if (strcasecmp(optarg, "decrypt") == 0) {
 				error = EACCES;
 			} else if (strcasecmp(optarg, "nxio") == 0) {

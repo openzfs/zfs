@@ -20,19 +20,20 @@
 
 #
 # DESCRIPTION:
-# Test that injected decryption errors are handled correctly.
+# Test that injected decompression errors are handled correctly.
 #
 # STRATEGY:
-# 1. Create an encrypted dataset with a test file
-# 2. Inject decryption errors on the file 20% of the time
+# 1. Create an compressed dataset with a test file
+# 2. Inject decompression errors on the file 20% of the time
 # 3. Read the file to confirm that errors are handled correctly
-# 4. Confirm that the decryption injection was added to the ZED logs
+# 4. Confirm that the decompression injection was added to the ZED logs
 #
 
-log_assert "Testing that injected decryption errors are handled correctly"
+log_assert "Testing that injected decompression errors are handled correctly"
 
 function cleanup
 {
+	log_must set_tunable64 zfs_compressed_arc_enabled 1
 	log_must zinject -c all
 	default_cleanup_noexit
 }
@@ -40,16 +41,15 @@ function cleanup
 log_onexit cleanup
 
 default_mirror_setup_noexit $DISK1 $DISK2
-log_must eval "echo 'password' | zfs create -o encryption=on \
-	-o keyformat=passphrase -o keylocation=prompt $TESTPOOL/fs"
+log_must set_tunable64 zfs_compressed_arc_enabled 0
+log_must zfs create -o compression=on $TESTPOOL/fs
 mntpt=$(get_prop mountpoint $TESTPOOL/fs)
-log_must mkfile 32M $mntpt/file1
-
-log_must zinject -a -t data -e decrypt -f 20 $mntpt/file1
+write_compressible $mntpt 32m 1 0 "testfile"
+log_must sync
 log_must zfs umount $TESTPOOL/fs
 log_must zfs mount $TESTPOOL/fs
+log_must zinject -a -t data -e decompress -f 20 $mntpt/testfile.0
+log_mustnot eval "cat $mntpt/testfile.0 > /dev/null"
+log_must eval "zpool events $TESTPOOL | grep -q 'data'"
 
-log_mustnot eval "cat $mntpt/file1 > /dev/null"
-log_must eval "zpool events $TESTPOOL | grep -q 'authentication'"
-
-log_pass "Injected decryption errors are handled correctly"
+log_pass "Injected decompression errors are handled correctly"

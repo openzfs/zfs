@@ -2514,6 +2514,19 @@ Default value: \fB786,432\fR.
 .sp
 .ne 2
 .na
+\fBzio_decompress_fail_fraction\fR (int)
+.ad
+.RS 12n
+If non-zero, this value represents the denominator of the probability that zfs
+should induce a decompression failure. For instance, for a 5% decompression
+failure rate, this value should be set to 20.
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzio_delay_max\fR (int)
 .ad
 .RS 12n
