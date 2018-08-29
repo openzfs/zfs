@@ -193,7 +193,7 @@ static const ztest_shared_opts_t ztest_opts_defaults = {
 	.zo_init = 1,
 	.zo_time = 300,			/* 5 minutes */
 	.zo_maxloops = 50,		/* max loops during spa_freeze() */
-	.zo_metaslab_force_ganging = 32 << 10
+	.zo_metaslab_force_ganging = 32 << 10,
 };
 
 extern uint64_t metaslab_force_ganging;
@@ -204,6 +204,7 @@ extern boolean_t zfs_compressed_arc_enabled;
 extern int zfs_abd_scatter_enabled;
 extern int dmu_object_alloc_chunk_shift;
 extern boolean_t zfs_force_some_double_word_sm_entries;
+extern unsigned long zio_decompress_fail_fraction;
 
 static ztest_shared_opts_t *ztest_shared_opts;
 static ztest_shared_opts_t ztest_opts;
@@ -482,9 +483,6 @@ static int zc_cb_counter = 0;
  * implementation bug.
  */
 #define	ZTEST_COMMIT_CB_THRESH	(TXG_CONCURRENT_STATES + 1000)
-
-extern uint64_t metaslab_gang_bang;
-extern uint64_t metaslab_df_alloc_threshold;
 
 enum ztest_object {
 	ZTEST_META_DNODE = 0,
