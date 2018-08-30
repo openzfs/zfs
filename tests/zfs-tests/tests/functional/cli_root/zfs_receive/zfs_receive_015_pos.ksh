@@ -36,8 +36,8 @@
 
 verify_runnable "both"
 
-typeset streamfile_full=/var/tmp/streamfile_full.$$
-typeset streamfile_incr=/var/tmp/streamfile_incr.$$
+typeset streamfile_full=$TEST_BASE_DIR/streamfile_full.$$
+typeset streamfile_incr=$TEST_BASE_DIR/streamfile_incr.$$
 orig=$TESTPOOL/$TESTFS1
 dest=$TESTPOOL/$TESTFS2
 typeset user_prop=$(valid_user_property 8)

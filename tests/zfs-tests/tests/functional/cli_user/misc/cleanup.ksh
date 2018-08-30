@@ -42,9 +42,9 @@ then
 	log_must zpool destroy v1-pool
 fi
 
-if [[ -f /tmp/zfstest_datastream.dat ]]
+if [[ -f $TEST_BASE_DIR/zfstest_datastream.dat ]]
 then
-	log_must rm -f /tmp/zfstest_datastream.dat
+	log_must rm -f $TEST_BASE_DIR/zfstest_datastream.dat
 fi
 
 default_cleanup

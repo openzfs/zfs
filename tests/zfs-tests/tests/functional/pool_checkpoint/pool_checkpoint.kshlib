@@ -349,7 +349,7 @@ function nested_wait_discard_finish
 # disks of the nested pool in a temporary directory where we can
 # reuse it for each test that requires that setup.
 #
-SAVEDPOOLDIR="/var/tmp/ckpoint_saved_pool"
+SAVEDPOOLDIR="$TEST_BASE_DIR/ckpoint_saved_pool"
 
 function test_group_premake_nested_pools
 {

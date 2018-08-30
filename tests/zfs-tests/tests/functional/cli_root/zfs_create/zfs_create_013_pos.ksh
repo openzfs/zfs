@@ -48,8 +48,7 @@ function cleanup
 {
 	typeset -i j=0
 	while [[ $j -lt ${#size[*]} ]]; do
-		datasetexists $TESTPOOL/${LONGFSNAME}${size[j]} && \
-		    log_must zfs destroy $TESTPOOL/${LONGFSNAME}${size[j]}
+		destroy_dataset $TESTPOOL/${LONGFSNAME}${size[j]}
 		((j = j + 1))
 	done
 }

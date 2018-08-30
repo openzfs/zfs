@@ -40,7 +40,7 @@
 
 verify_runnable "both"
 
-typeset streamfile=/var/tmp/streamfile.$$
+typeset streamfile=$TEST_BASE_DIR/streamfile.$$
 
 function cleanup
 {

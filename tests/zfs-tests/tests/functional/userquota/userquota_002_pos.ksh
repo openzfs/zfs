@@ -59,7 +59,7 @@ log_onexit cleanup
 log_assert \
 	"the userquota and groupquota can be set during zpool,zfs creation"
 
-typeset pool_vdev=/var/tmp/pool_dev.$$
+typeset pool_vdev=$TEST_BASE_DIR/pool_dev.$$
 
 log_must mkfile 500m $pool_vdev
 

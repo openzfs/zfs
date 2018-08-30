@@ -114,9 +114,11 @@ def draw_graph(kstats_dict):
     dnode_limit = f_bytes(arc_stats['arc_dnode_limit'])
     dnode_size = f_bytes(arc_stats['dnode_size'])
 
-    info_form = 'ARC: {0} ({1})  MFU: {2}  MRU: {3}  META: {4} ({5}) DNODE {6} ({7})'
+    info_form = ('ARC: {0} ({1})  MFU: {2}  MRU: {3}  META: {4} ({5}) '
+                 'DNODE {6} ({7})')
     info_line = info_form.format(arc_size, arc_perc, mfu_size, mru_size,
-                                 meta_size, meta_limit, dnode_size, dnode_limit)
+                                 meta_size, meta_limit, dnode_size,
+                                 dnode_limit)
     info_spc = ' '*int((GRAPH_WIDTH-len(info_line))/2)
     info_line = GRAPH_INDENT+info_spc+info_line
 

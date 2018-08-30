@@ -61,7 +61,7 @@ log_assert "'zpool add -n <pool> <vdev> ...' can display the configuration" \
 
 log_onexit cleanup
 
-tmpfile="/var/tmp/zpool_add_003.tmp$$"
+tmpfile="$TEST_BASE_DIR/zpool_add_003.tmp$$"
 
 create_pool "$TESTPOOL" "${disk}${SLICE_PREFIX}${SLICE0}"
 log_must poolexists "$TESTPOOL"

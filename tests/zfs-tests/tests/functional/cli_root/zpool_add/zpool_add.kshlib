@@ -42,10 +42,10 @@ function find_vfstab_dev
 
 	if is_linux; then
 		vfstab="/etc/fstab"
-		tmpfile="/tmp/fstab.tmp"
+		tmpfile="$TEST_BASE_DIR/fstab.tmp"
 	else
 		vfstab="/etc/vfstab"
-		tmpfile="/tmp/vfstab.tmp"
+		tmpfile="$TEST_BASE_DIR/vfstab.tmp"
 	fi
 
 	cat $vfstab | grep "^${DEV_DSKDIR}" >$tmpfile
@@ -71,10 +71,10 @@ function find_mnttab_dev
 
 	if is_linux; then
 		typeset mnttab="/etc/mtab"
-		typeset tmpfile="/tmp/mtab.tmp"
+		typeset tmpfile="$TEST_BASE_DIR/mtab.tmp"
 	else
 		typeset mnttab="/etc/mnttab"
-		typeset tmpfile="/tmp/mnttab.tmp"
+		typeset tmpfile="$TEST_BASE_DIR/mnttab.tmp"
 	fi
 
 	cat $mnttab | grep "^${DEV_DSKDIR}" >$tmpfile

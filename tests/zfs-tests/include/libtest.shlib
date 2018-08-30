@@ -2006,7 +2006,7 @@ function check_hotspare_state # pool disk state{inuse,avail}
 function wait_hotspare_state # pool disk state timeout
 {
 	typeset pool=$1
-	typeset disk=${2#$/DEV_DSKDIR/}
+	typeset disk=${2#*$DEV_DSKDIR/}
 	typeset state=$3
 	typeset timeout=${4:-60}
 	typeset -i i=0
@@ -2050,7 +2050,7 @@ function check_slog_state # pool disk state{online,offline,unavail}
 function check_vdev_state # pool disk state{online,offline,unavail}
 {
 	typeset pool=$1
-	typeset disk=${2#$/DEV_DSKDIR/}
+	typeset disk=${2#*$DEV_DSKDIR/}
 	typeset state=$3
 
 	cur_state=$(get_device_state $pool $disk)
@@ -2069,7 +2069,7 @@ function check_vdev_state # pool disk state{online,offline,unavail}
 function wait_vdev_state # pool disk state timeout
 {
 	typeset pool=$1
-	typeset disk=${2#$/DEV_DSKDIR/}
+	typeset disk=${2#*$DEV_DSKDIR/}
 	typeset state=$3
 	typeset timeout=${4:-60}
 	typeset -i i=0

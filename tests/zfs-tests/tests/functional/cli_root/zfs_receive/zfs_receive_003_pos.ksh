@@ -59,7 +59,7 @@ function cleanup
 log_assert "'zfs recv -F' to force rollback."
 log_onexit cleanup
 
-ibackup=/var/tmp/ibackup.$$
+ibackup=$TEST_BASE_DIR/ibackup.$$
 fs=$TESTPOOL/$TESTFS; snap1=$fs@snap1; snap2=$fs@snap2
 
 mntpnt=$(get_prop mountpoint $fs) || log_fail "get_prop mountpoint $fs"

@@ -69,12 +69,12 @@ log_must zfs unmount $TESTPOOL/$TESTFS/$TESTFS2.unmounted
 
 
 # send our snapshot to a known file in /tmp
-zfs send $TESTPOOL/$TESTFS@snap > /tmp/zfstest_datastream.dat
-if [ ! -s /tmp/zfstest_datastream.dat ]
+zfs send $TESTPOOL/$TESTFS@snap > $TEST_BASE_DIR/zfstest_datastream.dat
+if [ ! -s $TEST_BASE_DIR/zfstest_datastream.dat ]
 then
 	log_fail "ZFS send datafile was not created!"
 fi
-log_must chmod 644 /tmp/zfstest_datastream.dat
+log_must chmod 644 $TEST_BASE_DIR/zfstest_datastream.dat
 
 
 # create a filesystem that has particular properties to test set/get
