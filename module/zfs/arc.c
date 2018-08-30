@@ -343,6 +343,15 @@ static uint_t		zfs_arc_pc_percent = 0;
 #endif
 
 /*
+ * Set to zero to disable indirect memory reclaim by the kernel shrinker.
+ * Only direct reclaim requests will release memory in order to properly
+ * handle low memory situations.
+ */
+#ifdef _KERNEL
+static int zfs_arc_shrinker_enabled = 1;
+#endif /* _KERNEL */
+
+/*
  * log2(fraction of ARC which must be free to allow growing).
  * I.e. If there is less than arc_c >> arc_no_grow_shift free memory,
  * when reading a new block into the ARC, we will evict an equal-sized block
@@ -5254,6 +5263,14 @@ __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 	if (sc->nr_to_scan == 0)
 		return (pages);
 
+	/*
+	 * Disable indirect ARC memory reclamation by the shrinker.  The
+	 * arc_reclaim_thread will be solely responsible, direct reclaim
+	 * is not disabled in order to handle low memory situations.
+	 */
+	if (current_is_kswapd() && !zfs_arc_shrinker_enabled)
+		return (SHRINK_STOP);
+
 	/* Not allowed to perform filesystem reclaim */
 	if (!(sc->gfp_mask & __GFP_FS))
 		return (SHRINK_STOP);
@@ -9350,5 +9367,9 @@ MODULE_PARM_DESC(zfs_arc_dnode_limit_percent,
 module_param(zfs_arc_dnode_reduce_percent, ulong, 0644);
 MODULE_PARM_DESC(zfs_arc_dnode_reduce_percent,
 	"Percentage of excess dnodes to try to unpin");
+
+module_param(zfs_arc_shrinker_enabled, int, 0644);
+MODULE_PARM_DESC(zfs_arc_shrinker_enabled,
+       "Allow kswapd to request memory be freed from the ARC");
 /* END CSTYLED */
 #endif
