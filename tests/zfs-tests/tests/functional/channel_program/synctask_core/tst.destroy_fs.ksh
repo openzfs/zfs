@@ -22,7 +22,7 @@ fs=$TESTPOOL/$TESTFS/testchild
 
 function cleanup
 {
-	datasetexists $fs && log_must zfs destroy $fs
+	destroy_dataset $fs
 }
 
 log_onexit cleanup

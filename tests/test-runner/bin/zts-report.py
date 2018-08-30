@@ -216,8 +216,6 @@ maybe = {
     'cli_root/zdb/zdb_006_pos': ['FAIL', known_reason],
     'cli_root/zfs_get/zfs_get_004_pos': ['FAIL', known_reason],
     'cli_root/zfs_get/zfs_get_009_pos': ['SKIP', '5479'],
-    'cli_root/zfs_receive/receive-o-x_props_override':
-        ['FAIL', known_reason],
     'cli_root/zfs_rename/zfs_rename_006_pos': ['FAIL', '5647'],
     'cli_root/zfs_rename/zfs_rename_009_neg': ['FAIL', '5648'],
     'cli_root/zfs_rollback/zfs_rollback_001_pos': ['FAIL', '6415'],

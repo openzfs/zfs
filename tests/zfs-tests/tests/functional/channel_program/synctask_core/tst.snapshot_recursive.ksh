@@ -28,7 +28,7 @@ snapname=snap
 
 function cleanup
 {
-	datasetexists $rootfs && log_must zfs destroy -R $rootfs
+	destroy_dataset $rootfs "-R"
 }
 
 log_onexit cleanup

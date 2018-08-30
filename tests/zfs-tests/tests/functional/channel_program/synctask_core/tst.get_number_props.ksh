@@ -30,8 +30,8 @@ vol=$TESTPOOL/$TESTVOL
 
 function cleanup
 {
-	datasetexists $fs && log_must zfs destroy -R $fs
-	datasetexists $vol && log_must zfs destroy $vol
+	destroy_dataset $fs "-R"
+	destroy_dataset $vol
 }
 
 log_onexit cleanup

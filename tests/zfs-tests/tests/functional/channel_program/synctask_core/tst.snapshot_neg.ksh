@@ -28,7 +28,7 @@ fs2=$TESTPOOL/$TESTFS/testchild2
 function cleanup
 {
 	for fs in $fs1 $fs2; do
-		datasetexists $fs && log_must zfs destroy -R $fs
+		destroy_dataset $fs "-R"
 	done
 }
 

@@ -28,9 +28,9 @@ snap=$fs@$TESTSNAP
 vol=$TESTPOOL/$TESTVOL
 function cleanup
 {
-	datasetexists $snap && log_must zfs destroy $snap
-	datasetexists $fs && log_must zfs destroy $fs
-	datasetexists $vol && log_must zfs destroy $vol
+	destroy_dataset $snap
+	destroy_dataset $fs
+	destroy_dataset $vol
 }
 
 log_onexit cleanup
