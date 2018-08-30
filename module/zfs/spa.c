@@ -28,6 +28,7 @@
  * Copyright (c) 2014 Integros [integros.com]
  * Copyright 2016 Toomas Soome <tsoome@me.com>
  * Copyright (c) 2016 Actifio, Inc. All rights reserved.
+ * Copyright 2018 Joyent, Inc.
  * Copyright (c) 2017 Datto Inc.
  * Copyright 2017 Joyent, Inc.
  * Copyright (c) 2017, Intel Corporation.
@@ -6703,6 +6704,7 @@ spa_vdev_resilver_done_hunt(vdev_t *vd)
 
 	/*
 	 * Check for a completed resilver with the 'unspare' flag set.
+	 * Also potentially update faulted state.
 	 */
 	if (vd->vdev_ops == &vdev_spare_ops) {
 		vdev_t *first = vd->vdev_child[0];
@@ -6723,6 +6725,8 @@ spa_vdev_resilver_done_hunt(vdev_t *vd)
 		    vdev_dtl_empty(newvd, DTL_OUTAGE) &&
 		    !vdev_dtl_required(oldvd))
 			return (oldvd);
+
+		vdev_propagate_state(vd);
 
 		/*
 		 * If there are more than two spares attached to a disk,
