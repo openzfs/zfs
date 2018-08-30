@@ -4658,6 +4658,13 @@ arc_adjust(void)
 	}
 
 	/*
+	 * Re-sum ARC stats after the first round of evictions.
+	 */
+	asize = aggsum_value(&arc_size);
+	ameta = aggsum_value(&arc_meta_used);
+
+
+	/*
 	 * Adjust MFU size
 	 *
 	 * Now that we've tried to evict enough from the MRU to get its
