@@ -85,7 +85,7 @@ function check_err # <pool> [<vdev>]
 	typeset c_read=0
 	typeset c_write=0
 	typeset c_cksum=0
-	typeset tmpfile=/var/tmp/file.$$
+	typeset tmpfile=$TEST_BASE_DIR/file.$$
 	typeset healthstr="pool '$pool' is healthy"
 	typeset output="`zpool status -x $pool`"
 

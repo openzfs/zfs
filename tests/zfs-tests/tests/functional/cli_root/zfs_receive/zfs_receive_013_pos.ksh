@@ -33,8 +33,8 @@
 src_fs=$TESTPOOL/drecvsrc
 temppool=recvtank
 dst_fs=$temppool/drecvdest
-streamfile=/var/tmp/drecvstream.$$
-tpoolfile=/temptank.$$
+streamfile=$TEST_BASE_DIR/drecvstream.$$
+tpoolfile=$TEST_BASE_DIR/temptank.$$
 
 function cleanup
 {

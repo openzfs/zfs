@@ -45,23 +45,23 @@
 
 function cleanup
 {
-	if [ -e /tmp/zfstest_datastream.$$ ]
+	if [ -e $TEST_BASE_DIR/zfstest_datastream.$$ ]
 	then
-		log_must rm /tmp/zfstest_datastream.$$
+		log_must rm $TEST_BASE_DIR/zfstest_datastream.$$
 	fi
 }
 
 log_assert "zfs send returns an error when run as a user"
 log_onexit cleanup
 
-log_mustnot eval "zfs send $TESTPOOL/$TESTFS@snap > /tmp/zfstest_datastream.$$"
+log_mustnot eval "zfs send $TESTPOOL/$TESTFS@snap > $TEST_BASE_DIR/zfstest_datastream.$$"
 
 # Now check that the above command actually did nothing
 
 # We should have a non-zero-length file in /tmp
-if [ -s /tmp/zfstest_datastream.$$ ]
+if [ -s $TEST_BASE_DIR/zfstest_datastream.$$ ]
 then
-	log_fail "A zfs send file was created in /tmp/zfstest_datastream.$$ !"
+	log_fail "A zfs send file was created in $TEST_BASE_DIR/zfstest_datastream.$$ !"
 fi
 
 log_pass "zfs send returns an error when run as a user"

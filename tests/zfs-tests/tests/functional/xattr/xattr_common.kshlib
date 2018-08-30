@@ -60,15 +60,15 @@ function compare_xattrs { # filename1 filename2 xattr_name
 	typeset XATTR_NAME=$3
 
 	if is_linux; then
-		attr -q -g $XATTR_NAME $FILE1 >/tmp/file1.$$
-		attr -q -g $XATTR_NAME $FILE2 >/tmp/file2.$$
+		attr -q -g $XATTR_NAME $FILE1 > $TEST_BASE_DIR/file1.$$
+		attr -q -g $XATTR_NAME $FILE2 > $TEST_BASE_DIR/file2.$$
 	else
-		runat $FILE1 cat $XATTR_NAME > /tmp/file1.$$
-		runat $FILE2 cat $XATTR_NAME > /tmp/file2.$$
+		runat $FILE1 cat $XATTR_NAME > $TEST_BASE_DIR/file1.$$
+		runat $FILE2 cat $XATTR_NAME > $TEST_BASE_DIR/file2.$$
 	fi
 
-	log_must diff /tmp/file1.$$ /tmp/file2.$$
-	log_must rm /tmp/file1.$$ /tmp/file2.$$
+	log_must diff $TEST_BASE_DIR/file1.$$ $TEST_BASE_DIR/file2.$$
+	log_must rm $TEST_BASE_DIR/file1.$$ $TEST_BASE_DIR/file2.$$
 }
 
 function verify_xattr { # filename xattr_name xattr_contents
@@ -79,14 +79,14 @@ function verify_xattr { # filename xattr_name xattr_contents
 	# read the xattr, writing it to a temp file
 	if is_linux; then
 		log_must eval \
-		    "attr -q -g $XATTR_NAME $FILE >/tmp/$XATTR_NAME.$$"
+		    "attr -q -g $XATTR_NAME $FILE > $TEST_BASE_DIR/$XATTR_NAME.$$"
 	else
 		log_must eval \
-		    "runat $FILE cat $XATTR_NAME >/tmp/$XATTR_NAME.$$ 2>&1"
+		    "runat $FILE cat $XATTR_NAME > $TEST_BASE_DIR/$XATTR_NAME.$$ 2>&1"
 	fi
 
-	log_must diff $XATTR_CONTENTS /tmp/$XATTR_NAME.$$
-	rm /tmp/$XATTR_NAME.$$
+	log_must diff $XATTR_CONTENTS $TEST_BASE_DIR/$XATTR_NAME.$$
+	rm $TEST_BASE_DIR/$XATTR_NAME.$$
 }
 
 function delete_xattr { # filename xattr_name
@@ -111,15 +111,15 @@ function verify_write_xattr { # filename xattr_name
 	if is_linux; then
                 log_must attr -q -s $XATTR_NAME $FILE < /etc/passwd
 		log_must eval \
-		    "attr -q -g $XATTR_NAME $FILE >/tmp/$XATTR_NAME.$$"
+		    "attr -q -g $XATTR_NAME $FILE > $TEST_BASE_DIR/$XATTR_NAME.$$"
 	else
 	        log_must eval "runat $FILE dd if=/etc/passwd of=$XATTR_NAME"
 	        log_must eval \
-		    "runat $FILE cat $XATTR_NAME > /tmp/$XATTR_NAME.$$ 2>&1"
+		    "runat $FILE cat $XATTR_NAME > $TEST_BASE_DIR/$XATTR_NAME.$$ 2>&1"
 	fi
-        log_must dd if=/etc/passwd of=/tmp/passwd_dd.$$
-        log_must diff /tmp/passwd_dd.$$ /tmp/$XATTR_NAME.$$
-        log_must rm /tmp/passwd_dd.$$ /tmp/$XATTR_NAME.$$
+        log_must dd if=/etc/passwd of=$TEST_BASE_DIR/passwd_dd.$$
+        log_must diff $TEST_BASE_DIR/passwd_dd.$$ $TEST_BASE_DIR/$XATTR_NAME.$$
+        log_must rm $TEST_BASE_DIR/passwd_dd.$$ $TEST_BASE_DIR/$XATTR_NAME.$$
 }
 
 # this function is to create the expected output

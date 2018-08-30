@@ -66,8 +66,8 @@ log_assert "Executing 'zfs upgrade' command succeeds."
 log_onexit cleanup
 
 rootfs=$TESTPOOL/$TESTFS
-typeset output=/tmp/zfs-versions.$$
-typeset oldoutput=/tmp/zfs-versions-old.$$
+typeset output=$TEST_BASE_DIR/zfs-versions.$$
+typeset oldoutput=$TEST_BASE_DIR/zfs-versions-old.$$
 typeset expect_str1="This system is currently running ZFS filesystem version"
 typeset expect_str2="All filesystems are formatted with the current version"
 typeset expect_str3="The following filesystems are out of date, and can be upgraded"

@@ -75,8 +75,8 @@ ancestor_fs=$TESTPOOL/$TESTFS
 fs=$TESTPOOL/$TESTFS/$TESTFS1
 snap1=$fs@snap1
 snap2=$fs@snap2
-fbackup1=/var/tmp/fbackup1.$$
-fbackup2=/var/tmp/fbackup2.$$
+fbackup1=$TEST_BASE_DIR/fbackup1.$$
+fbackup2=$TEST_BASE_DIR/fbackup2.$$
 
 datasetexists $ancestor_fs || \
 	log_must zfs create $ancestor_fs

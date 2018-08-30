@@ -61,7 +61,7 @@ fs=$TESTPOOL/$TESTFS1; newfs=$TESTPOOL/newfs; fsclone=$TESTPOOL/clone
 vol=$TESTPOOL/$TESTVOL ; newvol=$TESTPOOL/newvol; volclone=$TESTPOOL/volclone
 fssnap=$fs@fssnap; fssnap2=$fs@fssnap2
 volsnap=$vol@volsnap; volsnap2=$vol@volsnap2
-tmpfile=/tmp/tmpfile.$$ ; tmpfile2=/tmp/tmpfile2.$$
+tmpfile=$TEST_BASE_DIR/tmpfile.$$ ; tmpfile2=$TEST_BASE_DIR/tmpfile2.$$
 
 if is_linux; then
 #	property	value		property	value

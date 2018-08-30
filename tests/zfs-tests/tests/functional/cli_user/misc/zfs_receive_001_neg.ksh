@@ -46,7 +46,7 @@
 log_assert "zfs receive returns an error when run as a user"
 
 log_mustnot eval "zfs receive -d $TESTPOOL/$TESTFS/$TESTFS2 \
- < /tmp/zfstest_datastream.dat"
+ < $TEST_BASE_DIR/zfstest_datastream.dat"
 
 # verify that command actually did nothing
 

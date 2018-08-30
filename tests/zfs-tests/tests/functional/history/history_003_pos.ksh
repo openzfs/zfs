@@ -79,7 +79,7 @@ while ((i < 300)); do
 	((i += 1))
 done
 
-TMPFILE=/tmp/spool.$$
+TMPFILE=$TEST_BASE_DIR/spool.$$
 zpool history $spool >$TMPFILE
 typeset -i entry_count=$(wc -l $TMPFILE | awk '{print $1}')
 typeset final_md5=$(head -2 $TMPFILE | md5sum | awk '{print $1}')

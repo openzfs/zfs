@@ -53,11 +53,14 @@ function cleanup
 	then
 		log_must rmdir /${TESTPOOL}.root
 	fi
+	[[ -e $values ]] && log_must rm -f $values
 }
 
 log_onexit cleanup
 
 log_assert "zpool create -R works as expected"
+
+typeset values=$TEST_BASE_DIR/values.$$
 
 if [[ -n $DISK ]]; then
 	disk=$DISK
@@ -80,23 +83,23 @@ then
 fi
 
 log_must zpool get all $TESTPOOL
-zpool get all $TESTPOOL > /tmp/values.$$
+zpool get all $TESTPOOL > $values
 
 # check for the cachefile property, verifying that it's set to 'none'
-grep "$TESTPOOL[ ]*cachefile[ ]*none" /tmp/values.$$ > /dev/null 2>&1
+grep "$TESTPOOL[ ]*cachefile[ ]*none" $values > /dev/null 2>&1
 if [ $? -ne 0 ]
 then
 	log_fail "zpool property \'cachefile\' was not set to \'none\'."
 fi
 
 # check that the root = /mountpoint property is set correctly
-grep "$TESTPOOL[ ]*altroot[ ]*/${TESTPOOL}.root" /tmp/values.$$ > /dev/null 2>&1
+grep "$TESTPOOL[ ]*altroot[ ]*/${TESTPOOL}.root" $values > /dev/null 2>&1
 if [ $? -ne 0 ]
 then
 	log_fail "zpool property root was not found in pool output."
 fi
 
-rm /tmp/values.$$
+rm $values
 
 # finally, check that the pool has no reference in /etc/zfs/zpool.cache
 if [[ -f /etc/zfs/zpool.cache ]] ; then
@@ -107,6 +110,5 @@ if [[ -f /etc/zfs/zpool.cache ]] ; then
 		log_fail "/etc/zfs/zpool.cache appears to have a reference to $TESTPOOL"
 	fi
 fi
-
 
 log_pass "zpool create -R works as expected"

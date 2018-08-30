@@ -54,7 +54,7 @@ function cleanup
 log_assert "Executing 'zfs upgrade -v' command succeeds."
 log_onexit cleanup
 
-typeset output=/tmp/zfs-versions.$$
+typeset output=$TEST_BASE_DIR/zfs-versions.$$
 typeset expect_str1="Initial ZFS filesystem version"
 typeset expect_str2="Enhanced directory entries"
 

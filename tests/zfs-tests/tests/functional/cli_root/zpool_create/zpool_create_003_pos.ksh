@@ -49,7 +49,7 @@ function cleanup
 	[[ -e $tmpfile ]] && log_must rm -f $tmpfile
 }
 
-tmpfile="/var/tmp/zpool_create_003.tmp$$"
+tmpfile="$TEST_BASE_DIR/zpool_create_003.tmp$$"
 
 log_assert "'zpool create -n <pool> <vspec> ...' can display the configuration" \
         "without actually creating the pool."

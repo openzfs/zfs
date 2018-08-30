@@ -34,10 +34,10 @@
 
 verify_runnable "global"
 
-[[ -f /var/tmp/exitsZero.ksh ]] && \
-	log_must rm -f /var/tmp/exitsZero.ksh
-[[ -f /var/tmp/testbackgprocs.ksh ]] && \
-	log_must rm -f /var/tmp/testbackgprocs.ksh
+[[ -f $TEST_BASE_DIR/exitsZero.ksh ]] && \
+	log_must rm -f $TEST_BASE_DIR/exitsZero.ksh
+[[ -f $TEST_BASE_DIR/testbackgprocs.ksh ]] && \
+	log_must rm -f $TEST_BASE_DIR/testbackgprocs.ksh
 
 ismounted $TESTPOOL/$TESTFS_TGT
 (( $? == 0 )) && log_must zfs umount $TESTPOOL/$TESTFS_TGT

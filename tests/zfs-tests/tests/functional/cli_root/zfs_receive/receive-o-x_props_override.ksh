@@ -41,8 +41,8 @@ function cleanup
 	log_must rm -f $streamfile_incr
 	log_must rm -f $streamfile_repl
 	log_must rm -f $streamfile_trun
-	log_must zfs destroy -r -f $orig
-	log_must zfs destroy -r -f $dest
+	destroy_dataset "$orig" "-rf"
+	destroy_dataset "$dest" "-rf"
 }
 
 log_assert "ZFS receive property override and exclude options work as expected."

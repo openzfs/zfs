@@ -44,16 +44,16 @@
 
 function cleanup
 {
-	if [ -e /tmp/zfs_001_neg.$$.txt ]
+	if [ -e $TEST_BASE_DIR/zfs_001_neg.$$.txt ]
 	then
-		rm /tmp/zfs_001_neg.$$.txt
+		rm $TEST_BASE_DIR/zfs_001_neg.$$.txt
 	fi
 }
 
 log_onexit cleanup
 log_assert "zfs shows a usage message when run as a user"
 
-eval "zfs > /tmp/zfs_001_neg.$$.txt 2>&1"
-log_must grep "usage: zfs command args" /tmp/zfs_001_neg.$$.txt
+eval "zfs > $TEST_BASE_DIR/zfs_001_neg.$$.txt 2>&1"
+log_must grep "usage: zfs command args" $TEST_BASE_DIR/zfs_001_neg.$$.txt
 
 log_pass "zfs shows a usage message when run as a user"

@@ -116,7 +116,7 @@ origfile=$TESTDIR/$TESTFILE1
 rstfile=/$rstfs/$TESTFILE1
 origsnapfile=$TESTDIR/$snapdir/$TESTFILE1
 rstsnapfile=/$rstfs/$snapdir/$TESTFILE1
-stream=/var/tmp/streamfile.$$
+stream=$TEST_BASE_DIR/streamfile.$$
 
 set -A props "compression" "checksum" "recordsize"
 set -A propval "on lzjb" "on fletcher2 fletcher4 sha256" \

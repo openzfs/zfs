@@ -71,25 +71,25 @@ else
 	log_note "Checking cpio"
 	log_must touch $TESTDIR/cpio.$$
 	create_xattr $TESTDIR/cpio.$$ passwd /etc/passwd
-	echo $TESTDIR/cpio.$$ | cpio -o@ > /tmp/xattr.$$.cpio
-	echo $TESTDIR/cpio.$$ | cpio -o > /tmp/noxattr.$$.cpio
+	echo $TESTDIR/cpio.$$ | cpio -o@ > $TEST_BASE_DIR/xattr.$$.cpio
+	echo $TESTDIR/cpio.$$ | cpio -o > $TEST_BASE_DIR/noxattr.$$.cpio
 
 	# we should have no xattr here
-	log_must cpio -iu < /tmp/xattr.$$.cpio
+	log_must cpio -iu < $TEST_BASE_DIR/xattr.$$.cpio
 	log_mustnot eval "runat $TESTDIR/cpio.$$ cat passwd > /dev/null 2>&1"
 
 	# we should have an xattr here
-	log_must cpio -iu@ < /tmp/xattr.$$.cpio
+	log_must cpio -iu@ < $TEST_BASE_DIR/xattr.$$.cpio
 	log_must eval "runat $TESTDIR/cpio.$$ cat passwd > /dev/null 2>&1"
 
 	# we should have no xattr here
-	log_must cpio -iu < /tmp/noxattr.$$.cpio
+	log_must cpio -iu < $TEST_BASE_DIR/noxattr.$$.cpio
 	log_mustnot eval "runat $TESTDIR/cpio.$$ cat passwd > /dev/null 2>&1"
 
 	# we should have no xattr here
-	log_must cpio -iu@ < /tmp/noxattr.$$.cpio
+	log_must cpio -iu@ < $TEST_BASE_DIR/noxattr.$$.cpio
 	log_mustnot eval "runat $TESTDIR/cpio.$$ cat passwd > /dev/null 2>&1"
-	log_must rm $TESTDIR/cpio.$$ /tmp/xattr.$$.cpio /tmp/noxattr.$$.cpio
+	log_must rm $TESTDIR/cpio.$$ $TEST_BASE_DIR/xattr.$$.cpio $TEST_BASE_DIR/noxattr.$$.cpio
 fi
 
 log_note "Checking cp"
