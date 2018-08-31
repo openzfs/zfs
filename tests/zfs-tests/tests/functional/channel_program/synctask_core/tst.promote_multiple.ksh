@@ -32,7 +32,7 @@ snap2=$clone1@testchild_snap2
 function cleanup
 {
     for to_destroy in $fs $clone1 $clone2; do
-        datasetexists $to_destroy && log_must zfs destroy -R $to_destroy
+        destroy_dataset $to_destroy "-R"
     done
 }
 

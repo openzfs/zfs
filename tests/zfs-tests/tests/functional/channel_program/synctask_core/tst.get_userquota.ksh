@@ -31,8 +31,8 @@ groupid='456'
 
 function cleanup
 {
-	datasetexists $fs && log_must zfs destroy $fs
-	datasetexists $fs1 && log_must zfs destroy $fs1
+	destroy_dataset $fs
+	destroy_dataset $fs1
 }
 
 log_onexit cleanup
