@@ -2759,8 +2759,8 @@ vdev_resilver_needed(vdev_t *vd, uint64_t *minp, uint64_t *maxp)
 
 /*
  * Gets the checkpoint space map object from the vdev's ZAP.
- * Returns the spacemap object, or 0 if it wasn't in the ZAP
- * or the ZAP doesn't exist yet.
+ * Returns the spacemap object, or 0 if it wasn't in the ZAP,
+ * the ZAP doesn't exist yet, or the ZAP is damaged.
  */
 int
 vdev_checkpoint_sm_object(vdev_t *vd)
@@ -2774,8 +2774,12 @@ vdev_checkpoint_sm_object(vdev_t *vd)
 	int err = zap_lookup(spa_meta_objset(vd->vdev_spa), vd->vdev_top_zap,
 	    VDEV_TOP_ZAP_POOL_CHECKPOINT_SM, sizeof (uint64_t), 1, &sm_obj);
 
-	if (err != 0)
-		VERIFY3S(err, ==, ENOENT);
+	if (err != 0 && err != ENOENT) {
+		vdev_dbgmsg(vd, "vdev_load: vdev_checkpoint_sm_objset "
+		    "failed to retrieve checkpoint space map object from "
+		    "vdev ZAP [error=%d]", err);
+		ASSERT3S(err, ==, ECKSUM);
+	}
 
 	return (sm_obj);
 }
