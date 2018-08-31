@@ -12,6 +12,8 @@ AM_CFLAGS += $(NO_UNUSED_BUT_SET_VARIABLE)
 # Includes kernel code generate warnings for large stack frames
 AM_CFLAGS += $(FRAME_LARGER_THAN)
 
+AM_CFLAGS += -DLIB_ZPOOL_BUILD
+
 DEFAULT_INCLUDES += \
 	-I$(top_srcdir)/include \
 	-I$(top_srcdir)/lib/libspl/include

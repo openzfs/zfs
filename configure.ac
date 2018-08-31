@@ -227,6 +227,7 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/cli_root/zfs_set/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zfs_share/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zfs_snapshot/Makefile
+	tests/zfs-tests/tests/functional/cli_root/zfs_sysfs/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zfs_unload-key/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zfs_unmount/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zfs_unshare/Makefile

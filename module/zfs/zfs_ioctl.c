@@ -187,6 +187,7 @@
 #include <sys/zcp.h>
 #include <sys/zio_checksum.h>
 #include <sys/vdev_removal.h>
+#include <sys/zfs_sysfs.h>
 
 #include <linux/miscdevice.h>
 #include <linux/slab.h>
@@ -7083,6 +7084,7 @@ _init(void)
 	zfs_init();
 
 	zfs_ioctl_init();
+	zfs_sysfs_init();
 
 	if ((error = zfs_attach()) != 0)
 		goto out;
@@ -7102,6 +7104,7 @@ _init(void)
 	return (0);
 
 out:
+	zfs_sysfs_fini();
 	zfs_fini();
 	spa_fini();
 	(void) zvol_fini();
@@ -7116,6 +7119,7 @@ static void __exit
 _fini(void)
 {
 	zfs_detach();
+	zfs_sysfs_fini();
 	zfs_fini();
 	spa_fini();
 	zvol_fini();

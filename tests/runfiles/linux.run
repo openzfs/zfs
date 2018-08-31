@@ -255,6 +255,12 @@ tests = ['zfs_snapshot_001_neg', 'zfs_snapshot_002_neg',
     'zfs_snapshot_009_pos']
 tags = ['functional', 'cli_root', 'zfs_snapshot']
 
+[tests/functional/cli_root/zfs_sysfs]
+tests = ['zfeature_set_unsupported.ksh', 'zfs_get_unsupported',
+    'zfs_set_unsupported', 'zfs_sysfs_live.ksh', 'zpool_get_unsupported',
+    'zpool_set_unsupported']
+tags = ['functional', 'cli_root', 'zfs_sysfs']
+
 [tests/functional/cli_root/zfs_unload-key]
 tests = ['zfs_unload-key', 'zfs_unload-key_all', 'zfs_unload-key_recursive']
 tags = ['functional', 'cli_root', 'zfs_unload-key']

@@ -1091,6 +1091,22 @@ libzfs_init(void)
 		hdl->libzfs_prop_debug = B_TRUE;
 	}
 
+	/*
+	 * For testing, remove some settable properties and features
+	 */
+	if (libzfs_envvar_is_set("ZFS_SYSFS_PROP_SUPPORT_TEST")) {
+		zprop_desc_t *proptbl;
+
+		proptbl = zpool_prop_get_table();
+		proptbl[ZPOOL_PROP_COMMENT].pd_zfs_mod_supported = B_FALSE;
+
+		proptbl = zfs_prop_get_table();
+		proptbl[ZFS_PROP_DNODESIZE].pd_zfs_mod_supported = B_FALSE;
+
+		zfeature_info_t *ftbl = spa_feature_table;
+		ftbl[SPA_FEATURE_LARGE_BLOCKS].fi_zfs_mod_supported = B_FALSE;
+	}
+
 	return (hdl);
 }
 
