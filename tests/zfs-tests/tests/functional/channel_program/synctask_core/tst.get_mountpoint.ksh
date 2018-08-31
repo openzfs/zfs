@@ -31,8 +31,8 @@ mnt2=/$fs/mnt2
 
 function cleanup
 {
-	datasetexists $clone && log_must zfs destroy $clone
-	datasetexists $fs && log_must zfs destroy -R $fs
+	destroy_dataset $clone
+	destroy_dataset $fs "-R"
 	log_must rm -rf $mnt1
 	log_must rm -rf $mnt2
 }

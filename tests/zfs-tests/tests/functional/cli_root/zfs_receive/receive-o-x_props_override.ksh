@@ -268,7 +268,7 @@ log_must zfs snapshot $orig@snap1
 log_must eval "zfs send $orig@snap1 > $streamfile_full"
 log_mustnot eval "zfs receive -x atime $dest < $streamfile_full"
 log_mustnot eval "zfs receive -o atime=off $dest < $streamfile_full"
-log_must zfs destroy -r -f $orig
+log_must_busy zfs destroy -r -f $orig
 log_must zfs create $orig
 log_must zfs create -V 128K -s $origsub
 log_must zfs snapshot -r $orig@snap1
@@ -279,8 +279,9 @@ log_must eval "check_prop_source $dest atime off local"
 log_must eval "check_prop_source $destsub type volume -"
 log_must eval "check_prop_source $destsub atime - -"
 # Cleanup
-log_must zfs destroy -r -f $orig
-log_must zfs destroy -r -f $dest
+block_device_wait
+log_must_busy zfs destroy -r -f $orig
+log_must_busy zfs destroy -r -f $dest
 
 #
 # 3.8 Verify 'zfs recv -x|-o' works correctly when used in conjunction with -d
