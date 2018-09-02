@@ -992,7 +992,7 @@ metaslab_group_fragmentation(metaslab_group_t *mg)
  */
 static boolean_t
 metaslab_group_allocatable(metaslab_group_t *mg, metaslab_group_t *rotor,
-    uint64_t psize, int allocator)
+    uint64_t psize, int allocator, int d)
 {
 	spa_t *spa = mg->mg_vd->vdev_spa;
 	metaslab_class_t *mc = mg->mg_class;
@@ -1033,6 +1033,13 @@ metaslab_group_allocatable(metaslab_group_t *mg, metaslab_group_t *rotor,
 		if (mg->mg_no_free_space)
 			return (B_FALSE);
 
+		/*
+		 * Relax allocation throttling for ditto blocks.  Due to
+		 * random imbalances in allocation it tends to push copies
+		 * to one vdev, that looks a bit better at the moment.
+		 */
+		qmax = qmax * (4 + d) / 4;
+
 		qdepth = refcount_count(&mg->mg_alloc_queue_depth[allocator]);
 
 		/*
@@ -1053,7 +1060,7 @@ metaslab_group_allocatable(metaslab_group_t *mg, metaslab_group_t *rotor,
 		 */
 		for (mgp = mg->mg_next; mgp != rotor; mgp = mgp->mg_next) {
 			qmax = mgp->mg_cur_max_alloc_queue_depth[allocator];
-
+			qmax = qmax * (4 + d) / 4;
 			qdepth = refcount_count(
 			    &mgp->mg_alloc_queue_depth[allocator]);
 
@@ -3035,7 +3042,6 @@ metaslab_group_alloc_normal(metaslab_group_t *mg, zio_alloc_list_t *zal,
 	metaslab_t *msp = NULL;
 	uint64_t offset = -1ULL;
 	uint64_t activation_weight;
-	boolean_t tertiary = B_FALSE;
 
 	activation_weight = METASLAB_WEIGHT_PRIMARY;
 	for (int i = 0; i < d; i++) {
@@ -3044,7 +3050,7 @@ metaslab_group_alloc_normal(metaslab_group_t *mg, zio_alloc_list_t *zal,
 			activation_weight = METASLAB_WEIGHT_SECONDARY;
 		} else if (activation_weight == METASLAB_WEIGHT_SECONDARY &&
 		    DVA_GET_VDEV(&dva[i]) == mg->mg_vd->vdev_id) {
-			tertiary = B_TRUE;
+			activation_weight = METASLAB_WEIGHT_CLAIM;
 			break;
 		}
 	}
@@ -3053,10 +3059,8 @@ metaslab_group_alloc_normal(metaslab_group_t *mg, zio_alloc_list_t *zal,
 	 * If we don't have enough metaslabs active to fill the entire array, we
 	 * just use the 0th slot.
 	 */
-	if (mg->mg_ms_ready < mg->mg_allocators * 2) {
-		tertiary = B_FALSE;
+	if (mg->mg_ms_ready < mg->mg_allocators * 3)
 		allocator = 0;
-	}
 
 	ASSERT3U(mg->mg_vd->vdev_ms_count, >=, 2);
 
@@ -3082,7 +3086,7 @@ metaslab_group_alloc_normal(metaslab_group_t *mg, zio_alloc_list_t *zal,
 			msp = mg->mg_primaries[allocator];
 			was_active = B_TRUE;
 		} else if (activation_weight == METASLAB_WEIGHT_SECONDARY &&
-		    mg->mg_secondaries[allocator] != NULL && !tertiary) {
+		    mg->mg_secondaries[allocator] != NULL) {
 			msp = mg->mg_secondaries[allocator];
 			was_active = B_TRUE;
 		} else {
@@ -3125,7 +3129,8 @@ metaslab_group_alloc_normal(metaslab_group_t *mg, zio_alloc_list_t *zal,
 			continue;
 		}
 
-		if (msp->ms_weight & METASLAB_WEIGHT_CLAIM) {
+		if (msp->ms_weight & METASLAB_WEIGHT_CLAIM &&
+		    activation_weight != METASLAB_WEIGHT_CLAIM) {
 			metaslab_passivate(msp, msp->ms_weight &
 			    ~METASLAB_WEIGHT_CLAIM);
 			mutex_exit(&msp->ms_lock);
@@ -3381,7 +3386,7 @@ top:
 		 */
 		if (allocatable && !GANG_ALLOCATION(flags) && !try_hard) {
 			allocatable = metaslab_group_allocatable(mg, rotor,
-			    psize, allocator);
+			    psize, allocator, d);
 		}
 
 		if (!allocatable) {

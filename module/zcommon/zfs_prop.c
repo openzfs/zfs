@@ -720,7 +720,8 @@ zfs_prop_readonly(zfs_prop_t prop)
 boolean_t
 zfs_prop_visible(zfs_prop_t prop)
 {
-	return (zfs_prop_table[prop].pd_visible);
+	return (zfs_prop_table[prop].pd_visible &&
+	    zfs_prop_table[prop].pd_zfs_mod_supported);
 }
 
 /*

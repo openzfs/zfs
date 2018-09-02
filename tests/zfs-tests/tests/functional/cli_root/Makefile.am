@@ -28,6 +28,7 @@ SUBDIRS = \
 	zfs_set \
 	zfs_share \
 	zfs_snapshot \
+	zfs_sysfs \
 	zfs_unload-key \
 	zfs_unmount \
 	zfs_unshare \
