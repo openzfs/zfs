@@ -858,5 +858,5 @@ tests = ['zvol_swap_001_pos', 'zvol_swap_002_pos', 'zvol_swap_003_pos',
 tags = ['functional', 'zvol', 'zvol_swap']
 
 [tests/functional/libzfs]
-tests = ['many_fds']
+tests = ['many_fds', 'libzfs_input']
 tags = ['functional', 'libzfs']

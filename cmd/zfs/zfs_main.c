@@ -7238,7 +7238,7 @@ zfs_do_bookmark(int argc, char **argv)
 	fnvlist_free(nvl);
 
 	if (ret != 0) {
-		const char *err_msg;
+		const char *err_msg = NULL;
 		char errbuf[1024];
 
 		(void) snprintf(errbuf, sizeof (errbuf),
@@ -7265,11 +7265,13 @@ zfs_do_bookmark(int argc, char **argv)
 			err_msg = "dataset does not exist";
 			break;
 		default:
-			err_msg = "unknown error";
+			(void) zfs_standard_error(g_zfs, ret, errbuf);
 			break;
 		}
-		(void) fprintf(stderr, "%s: %s\n", errbuf,
-		    dgettext(TEXT_DOMAIN, err_msg));
+		if (err_msg != NULL) {
+			(void) fprintf(stderr, "%s: %s\n", errbuf,
+			    dgettext(TEXT_DOMAIN, err_msg));
+		}
 	}
 
 	return (ret != 0);
@@ -7285,7 +7287,7 @@ zfs_do_channel_program(int argc, char **argv)
 	int ret, fd, c;
 	char *progbuf, *filename, *poolname;
 	size_t progsize, progread;
-	nvlist_t *outnvl;
+	nvlist_t *outnvl = NULL;
 	uint64_t instrlimit = ZCP_DEFAULT_INSTRLIMIT;
 	uint64_t memlimit = ZCP_DEFAULT_MEMLIMIT;
 	boolean_t sync_flag = B_TRUE, json_output = B_FALSE;
@@ -7412,8 +7414,9 @@ zfs_do_channel_program(int argc, char **argv)
 		 * falling back on strerror() for an unexpected return code.
 		 */
 		char *errstring = NULL;
+		const char *msg = gettext("Channel program execution failed");
 		uint64_t instructions = 0;
-		if (nvlist_exists(outnvl, ZCP_RET_ERROR)) {
+		if (outnvl != NULL && nvlist_exists(outnvl, ZCP_RET_ERROR)) {
 			(void) nvlist_lookup_string(outnvl,
 			    ZCP_RET_ERROR, &errstring);
 			if (errstring == NULL)
@@ -7442,12 +7445,12 @@ zfs_do_channel_program(int argc, char **argv)
 				    "programs must be run as root.";
 				break;
 			default:
-				errstring = strerror(ret);
+				(void) zfs_standard_error(g_zfs, ret, msg);
 			}
 		}
-		(void) fprintf(stderr,
-		    gettext("Channel program execution failed:\n%s\n"),
-		    errstring);
+		if (errstring != NULL)
+			(void) fprintf(stderr, "%s:\n%s\n", msg, errstring);
+
 		if (ret == ETIME && instructions != 0)
 			(void) fprintf(stderr,
 			    gettext("%llu Lua instructions\n"),

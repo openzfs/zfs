@@ -6,7 +6,8 @@ pkgexecdir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/libzfs
 
 dist_pkgdata_SCRIPTS = \
 	cleanup.ksh \
-	setup.ksh
+	setup.ksh \
+	libzfs_input.ksh
 
 DEFAULT_INCLUDES += \
 	-I$(top_srcdir)/include \
