@@ -119,6 +119,7 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/zfs_rlock.h \
 	$(top_srcdir)/include/sys/zfs_sa.h \
 	$(top_srcdir)/include/sys/zfs_stat.h \
+	$(top_srcdir)/include/sys/zfs_sysfs.h \
 	$(top_srcdir)/include/sys/zfs_vfsops.h \
 	$(top_srcdir)/include/sys/zfs_vnops.h \
 	$(top_srcdir)/include/sys/zfs_znode.h \

@@ -34,6 +34,7 @@
 #include <sys/spa.h>
 #include <sys/zfs_acl.h>
 #include <sys/zfs_ioctl.h>
+#include <sys/zfs_sysfs.h>
 #include <sys/zfs_znode.h>
 #include <sys/fs/zfs.h>
 
@@ -48,6 +49,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <sys/stat.h>
 #endif
 
 static zprop_desc_t *
@@ -66,6 +68,34 @@ zprop_get_numprops(zfs_type_t type)
 		return (ZPOOL_NUM_PROPS);
 	else
 		return (ZFS_NUM_PROPS);
+}
+
+static boolean_t
+zfs_mod_supported_prop(const char *name, zfs_type_t type)
+{
+/*
+ * The zfs module spa_feature_table[], whether in-kernel or in libzpool,
+ * always supports all the properties. libzfs needs to query the running
+ * module, via sysfs, to determine which properties are supported.
+ */
+#if defined(_KERNEL) || defined(LIB_ZPOOL_BUILD)
+	return (B_TRUE);
+#else
+	struct stat64 statbuf;
+	char *path;
+	boolean_t supported = B_FALSE;
+	int len;
+
+	len = asprintf(&path, "%s/%s/%s", ZFS_SYSFS_DIR,
+	    (type == ZFS_TYPE_POOL) ? ZFS_SYSFS_POOL_PROPERTIES :
+	    ZFS_SYSFS_DATASET_PROPERTIES, name);
+
+	if (len > 0) {
+		supported = !!(stat64(path, &statbuf) == 0);
+		free(path);
+	}
+	return (supported);
+#endif
 }
 
 void
@@ -94,6 +124,7 @@ zprop_register_impl(int prop, const char *name, zprop_type_t type,
 	pd->pd_colname = colname;
 	pd->pd_rightalign = rightalign;
 	pd->pd_visible = visible;
+	pd->pd_zfs_mod_supported = zfs_mod_supported_prop(name, objset_types);
 	pd->pd_table = idx_tbl;
 	pd->pd_table_size = 0;
 	while (idx_tbl && (idx_tbl++)->pi_name != NULL)
@@ -193,6 +224,7 @@ zprop_iter_common(zprop_func func, void *cb, boolean_t show_all,
 	prop = ZPROP_CONT;
 	for (i = 0; i < num_props; i++) {
 		if ((order[i]->pd_visible || show_all) &&
+		    order[i]->pd_zfs_mod_supported &&
 		    (func(order[i]->pd_propnum, cb) != ZPROP_CONT)) {
 			prop = order[i]->pd_propnum;
 			break;
