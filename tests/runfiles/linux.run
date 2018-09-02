@@ -499,7 +499,7 @@ post =
 tags = ['functional', 'deadman']
 
 [tests/functional/delegate]
-tests = ['zfs_allow_001_pos', 'zfs_allow_002_pos',
+tests = ['zfs_allow_001_pos', 'zfs_allow_002_pos', 'zfs_allow_003_pos',
     'zfs_allow_004_pos', 'zfs_allow_005_pos', 'zfs_allow_006_pos',
     'zfs_allow_007_pos', 'zfs_allow_008_pos', 'zfs_allow_009_neg',
     'zfs_allow_010_pos', 'zfs_allow_011_neg', 'zfs_allow_012_neg',
