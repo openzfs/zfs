@@ -1177,7 +1177,7 @@ zfsctl_snapdir_vget(struct super_block *sb, uint64_t objsetid, int gen,
 		goto out;
 
 	/* Trigger automount */
-	error = kern_path(mnt, LOOKUP_FOLLOW|LOOKUP_DIRECTORY, &path);
+	error = -kern_path(mnt, LOOKUP_FOLLOW|LOOKUP_DIRECTORY, &path);
 	if (error)
 		goto out;
 
