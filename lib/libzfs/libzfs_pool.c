@@ -22,7 +22,7 @@
 /*
  * Copyright 2015 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
  * Copyright 2016 Igor Kozhukhov <ikozhukhov@gmail.com>
  * Copyright (c) 2017 Datto Inc.
  */
@@ -42,6 +42,7 @@
 #include <sys/efi_partition.h>
 #include <sys/vtoc.h>
 #include <sys/zfs_ioctl.h>
+#include <sys/vdev_disk.h>
 #include <dlfcn.h>
 
 #include "zfs_namecheck.h"
@@ -239,6 +240,38 @@ zpool_pool_state_to_name(pool_state_t state)
 }
 
 /*
+ * Given a pool handle, return the pool health string ("ONLINE", "DEGRADED",
+ * "SUSPENDED", etc).
+ */
+const char *
+zpool_get_state_str(zpool_handle_t *zhp)
+{
+	zpool_errata_t errata;
+	zpool_status_t status;
+	nvlist_t *nvroot;
+	vdev_stat_t *vs;
+	uint_t vsc;
+	const char *str;
+
+	status = zpool_get_status(zhp, NULL, &errata);
+
+	if (zpool_get_state(zhp) == POOL_STATE_UNAVAIL) {
+		str = gettext("FAULTED");
+	} else if (status == ZPOOL_STATUS_IO_FAILURE_WAIT ||
+	    status == ZPOOL_STATUS_IO_FAILURE_MMP) {
+		str = gettext("SUSPENDED");
+	} else {
+		verify(nvlist_lookup_nvlist(zpool_get_config(zhp, NULL),
+		    ZPOOL_CONFIG_VDEV_TREE, &nvroot) == 0);
+		verify(nvlist_lookup_uint64_array(nvroot,
+		    ZPOOL_CONFIG_VDEV_STATS, (uint64_t **)&vs, &vsc)
+		    == 0);
+		str = zpool_state_to_name(vs->vs_state, vs->vs_aux);
+	}
+	return (str);
+}
+
+/*
  * Get a zpool property value for 'prop' and return the value in
  * a pre-allocated buffer.
  */
@@ -249,9 +282,6 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf,
 	uint64_t intval;
 	const char *strval;
 	zprop_source_t src = ZPROP_SRC_NONE;
-	nvlist_t *nvroot;
-	vdev_stat_t *vs;
-	uint_t vsc;
 
 	if (zpool_get_state(zhp) == POOL_STATE_UNAVAIL) {
 		switch (prop) {
@@ -260,7 +290,7 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf,
 			break;
 
 		case ZPOOL_PROP_HEALTH:
-			(void) strlcpy(buf, "FAULTED", len);
+			(void) strlcpy(buf, zpool_get_state_str(zhp), len);
 			break;
 
 		case ZPOOL_PROP_GUID:
@@ -361,14 +391,7 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf,
 			break;
 
 		case ZPOOL_PROP_HEALTH:
-			verify(nvlist_lookup_nvlist(zpool_get_config(zhp, NULL),
-			    ZPOOL_CONFIG_VDEV_TREE, &nvroot) == 0);
-			verify(nvlist_lookup_uint64_array(nvroot,
-			    ZPOOL_CONFIG_VDEV_STATS, (uint64_t **)&vs, &vsc)
-			    == 0);
-
-			(void) strlcpy(buf, zpool_state_to_name(intval,
-			    vs->vs_aux), len);
+			(void) strlcpy(buf, zpool_get_state_str(zhp), len);
 			break;
 		case ZPOOL_PROP_VERSION:
 			if (intval >= SPA_VERSION_FEATURES) {
@@ -911,17 +934,6 @@ zpool_prop_get_feature(zpool_handle_t *zhp, const char *propname, char *buf,
 
 	return (0);
 }
-
-/*
- * Don't start the slice at the default block of 34; many storage
- * devices will use a stripe width of 128k, other vendors prefer a 1m
- * alignment.  It is best to play it safe and ensure a 1m alignment
- * given 512B blocks.  When the block size is larger by a power of 2
- * we will still be 1m aligned.  Some devices are sensitive to the
- * partition ending alignment as well.
- */
-#define	NEW_START_BLOCK		2048
-#define	PARTITION_END_ALIGNMENT	2048
 
 /*
  * Validate the given pool name, optionally putting an extended error message in

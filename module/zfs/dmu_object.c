@@ -249,7 +249,7 @@ dmu_object_reclaim(objset_t *os, uint64_t object, dmu_object_type_t ot,
     int blocksize, dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx)
 {
 	return (dmu_object_reclaim_dnsize(os, object, ot, blocksize, bonustype,
-	    bonuslen, 0, tx));
+	    bonuslen, DNODE_MIN_SIZE, tx));
 }
 
 int
@@ -260,6 +260,9 @@ dmu_object_reclaim_dnsize(objset_t *os, uint64_t object, dmu_object_type_t ot,
 	dnode_t *dn;
 	int dn_slots = dnodesize >> DNODE_SHIFT;
 	int err;
+
+	if (dn_slots == 0)
+		dn_slots = DNODE_MIN_SLOTS;
 
 	if (object == DMU_META_DNODE_OBJECT)
 		return (SET_ERROR(EBADF));
@@ -274,7 +277,6 @@ dmu_object_reclaim_dnsize(objset_t *os, uint64_t object, dmu_object_type_t ot,
 	dnode_rele(dn, FTAG);
 	return (err);
 }
-
 
 int
 dmu_object_free(objset_t *os, uint64_t object, dmu_tx_t *tx)

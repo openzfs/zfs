@@ -730,6 +730,7 @@ typedef struct spa_stats {
 	spa_stats_history_t	tx_assign_histogram;
 	spa_stats_history_t	io_history;
 	spa_stats_history_t	mmp_history;
+	spa_stats_history_t	state;		/* pool state */
 } spa_stats_t;
 
 typedef enum txg_state {
@@ -888,6 +889,8 @@ extern void spa_history_log_internal_ds(struct dsl_dataset *ds, const char *op,
     dmu_tx_t *tx, const char *fmt, ...);
 extern void spa_history_log_internal_dd(dsl_dir_t *dd, const char *operation,
     dmu_tx_t *tx, const char *fmt, ...);
+
+extern const char *spa_state_to_name(spa_t *spa);
 
 /* error handling */
 struct zbookmark_phys;

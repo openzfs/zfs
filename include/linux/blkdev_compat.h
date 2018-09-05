@@ -32,6 +32,7 @@
 #include <linux/blkdev.h>
 #include <linux/elevator.h>
 #include <linux/backing-dev.h>
+#include <linux/msdos_fs.h>	/* for SECTOR_* */
 
 #ifndef HAVE_FMODE_T
 typedef unsigned __bitwise__ fmode_t;
@@ -102,17 +103,6 @@ blk_queue_set_write_cache(struct request_queue *q, bool wc, bool fua)
  */
 #ifndef blk_fs_request
 #define	blk_fs_request(rq)	((rq)->cmd_type == REQ_TYPE_FS)
-#endif
-
-/*
- * 2.6.27 API change,
- * The blk_queue_stackable() queue flag was added in 2.6.27 to handle dm
- * stacking drivers.  Prior to this request stacking drivers were detected
- * by checking (q->request_fn == NULL), for earlier kernels we revert to
- * this legacy behavior.
- */
-#ifndef blk_queue_stackable
-#define	blk_queue_stackable(q)	((q)->request_fn == NULL)
 #endif
 
 /*

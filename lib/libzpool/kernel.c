@@ -498,7 +498,7 @@ cv_timedwait(kcondvar_t *cv, kmutex_t *mp, clock_t abstime)
 {
 	int error;
 	struct timeval tv;
-	timestruc_t ts;
+	struct timespec ts;
 	clock_t delta;
 
 	ASSERT3U(cv->cv_magic, ==, CV_MAGIC);
@@ -536,7 +536,7 @@ cv_timedwait_hires(kcondvar_t *cv, kmutex_t *mp, hrtime_t tim, hrtime_t res,
 {
 	int error;
 	struct timeval tv;
-	timestruc_t ts;
+	struct timespec ts;
 	hrtime_t delta;
 
 	ASSERT(flag == 0 || flag == CALLOUT_FLAG_ABSOLUTE);

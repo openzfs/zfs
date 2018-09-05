@@ -360,6 +360,7 @@ int dnode_next_offset(dnode_t *dn, int flags, uint64_t *off,
     int minlvl, uint64_t blkfill, uint64_t txg);
 void dnode_evict_dbufs(dnode_t *dn);
 void dnode_evict_bonus(dnode_t *dn);
+void dnode_free_interior_slots(dnode_t *dn);
 
 #define	DNODE_IS_CACHEABLE(_dn)						\
 	((_dn)->dn_objset->os_primary_cache == ZFS_CACHE_ALL ||		\
@@ -453,6 +454,11 @@ typedef struct dnode_stats {
 	 * which had already been unlinked in an earlier txg.
 	 */
 	kstat_named_t dnode_hold_free_txg;
+	/*
+	 * Number of times dnode_free_interior_slots() needed to retry
+	 * acquiring a slot zrl lock due to contention.
+	 */
+	kstat_named_t dnode_free_interior_lock_retry;
 	/*
 	 * Number of new dnodes allocated by dnode_allocate().
 	 */

@@ -23,20 +23,25 @@
  * Produced at Lawrence Livermore National Laboratory (cf, DISCLAIMER).
  * Rewritten for Linux by Brian Behlendorf <behlendorf1@llnl.gov>.
  * LLNL-CODE-403049.
- * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
-#include <sys/spa.h>
+#include <sys/spa_impl.h>
 #include <sys/vdev_disk.h>
 #include <sys/vdev_impl.h>
 #include <sys/abd.h>
 #include <sys/fs/zfs.h>
 #include <sys/zio.h>
 #include <sys/sunldi.h>
+#include <linux/mod_compat.h>
+#include <linux/msdos_fs.h>
 
 char *zfs_vdev_scheduler = VDEV_SCHEDULER;
 static void *zfs_vdev_holder = VDEV_HOLDER;
+
+/* size of the "reserved" partition, in blocks */
+#define	EFI_MIN_RESV_SIZE	(16 * 1024)
 
 /*
  * Virtual device vector for disks.
@@ -81,17 +86,39 @@ vdev_bdev_mode(int smode)
 }
 #endif /* HAVE_OPEN_BDEV_EXCLUSIVE */
 
+/* The capacity (in bytes) of a bdev that is available to be used by a vdev */
 static uint64_t
-bdev_capacity(struct block_device *bdev)
+bdev_capacity(struct block_device *bdev, boolean_t wholedisk)
 {
 	struct hd_struct *part = bdev->bd_part;
+	uint64_t sectors = get_capacity(bdev->bd_disk);
+	/* If there are no paritions, return the entire device capacity */
+	if (part == NULL)
+		return (sectors << SECTOR_BITS);
 
-	/* The partition capacity referenced by the block device */
-	if (part)
-		return (part->nr_sects << 9);
+	/*
+	 * If there are partitions, decide if we are using a `wholedisk`
+	 * layout (composed of part1 and part9) or just a single partition.
+	 */
+	if (wholedisk) {
+		/* Verify the expected device layout */
+		ASSERT3P(bdev, !=, bdev->bd_contains);
+		/*
+		 * Sectors used by the EFI partition (part9) as well as
+		 * partion alignment.
+		 */
+		uint64_t used = EFI_MIN_RESV_SIZE + NEW_START_BLOCK +
+		    PARTITION_END_ALIGNMENT;
 
-	/* Otherwise assume the full device capacity */
-	return (get_capacity(bdev->bd_disk) << 9);
+		/* Space available to the vdev, i.e. the size of part1 */
+		if (sectors <= used)
+			return (0);
+		uint64_t available = sectors - used;
+		return (available << SECTOR_BITS);
+	} else {
+		/* The partition capacity referenced by the block device */
+		return (part->nr_sects << SECTOR_BITS);
+	}
 }
 
 static void
@@ -113,14 +140,22 @@ vdev_disk_error(zio_t *zio)
  * physical device.  This yields the largest possible requests for
  * the device with the lowest total overhead.
  */
-static int
+static void
 vdev_elevator_switch(vdev_t *v, char *elevator)
 {
 	vdev_disk_t *vd = v->vdev_tsd;
-	struct block_device *bdev = vd->vd_bdev;
-	struct request_queue *q = bdev_get_queue(bdev);
-	char *device = bdev->bd_disk->disk_name;
+	struct request_queue *q;
+	char *device;
 	int error;
+
+	for (int c = 0; c < v->vdev_children; c++)
+		vdev_elevator_switch(v->vdev_child[c], elevator);
+
+	if (!v->vdev_ops->vdev_op_leaf || vd->vd_bdev == NULL)
+		return;
+
+	q = bdev_get_queue(vd->vd_bdev);
+	device = vd->vd_bdev->bd_disk->disk_name;
 
 	/*
 	 * Skip devices which are not whole disks (partitions).
@@ -131,45 +166,39 @@ vdev_elevator_switch(vdev_t *v, char *elevator)
 	 * "Skip devices without schedulers" check below will fail.
 	 */
 	if (!v->vdev_wholedisk && strncmp(device, "dm-", 3) != 0)
-		return (0);
-
-	/* Skip devices without schedulers (loop, ram, dm, etc) */
-	if (!q->elevator || !blk_queue_stackable(q))
-		return (0);
+		return;
 
 	/* Leave existing scheduler when set to "none" */
 	if ((strncmp(elevator, "none", 4) == 0) && (strlen(elevator) == 4))
-		return (0);
+		return;
 
+	/*
+	 * The elevator_change() function was available in kernels from
+	 * 2.6.36 to 4.11.  When not available fall back to using the user
+	 * mode helper functionality to set the elevator via sysfs.  This
+	 * requires /bin/echo and sysfs to be mounted which may not be true
+	 * early in the boot process.
+	 */
 #ifdef HAVE_ELEVATOR_CHANGE
 	error = elevator_change(q, elevator);
 #else
-	/*
-	 * For pre-2.6.36 kernels elevator_change() is not available.
-	 * Therefore we fall back to using a usermodehelper to echo the
-	 * elevator into sysfs;  This requires /bin/echo and sysfs to be
-	 * mounted which may not be true early in the boot process.
-	 */
 #define	SET_SCHEDULER_CMD \
 	"exec 0</dev/null " \
 	"     1>/sys/block/%s/queue/scheduler " \
 	"     2>/dev/null; " \
 	"echo %s"
 
-	{
-		char *argv[] = { "/bin/sh", "-c", NULL, NULL };
-		char *envp[] = { NULL };
+	char *argv[] = { "/bin/sh", "-c", NULL, NULL };
+	char *envp[] = { NULL };
 
-		argv[2] = kmem_asprintf(SET_SCHEDULER_CMD, device, elevator);
-		error = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
-		strfree(argv[2]);
-	}
+	argv[2] = kmem_asprintf(SET_SCHEDULER_CMD, device, elevator);
+	error = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
+	strfree(argv[2]);
 #endif /* HAVE_ELEVATOR_CHANGE */
-	if (error)
-		printk("ZFS: Unable to set \"%s\" scheduler for %s (%s): %d\n",
+	if (error) {
+		zfs_dbgmsg("Unable to set \"%s\" scheduler for %s (%s): %d\n",
 		    elevator, v->vdev_path, device, error);
-
-	return (error);
+	}
 }
 
 /*
@@ -323,9 +352,7 @@ skip_open:
 	v->vdev_nonrot = blk_queue_nonrot(bdev_get_queue(vd->vd_bdev));
 
 	/* Physical volume size in bytes */
-	*psize = bdev_capacity(vd->vd_bdev);
-
-	/* TODO: report possible expansion size */
+	*psize = bdev_capacity(vd->vd_bdev, v->vdev_wholedisk);
 	*max_psize = *psize;
 
 	/* Based on the minimum sector size set the block size */
@@ -798,6 +825,37 @@ vdev_disk_rele(vdev_t *vd)
 	/* XXX: Implement me as a vnode rele for the device */
 }
 
+static int
+param_set_vdev_scheduler(const char *val, zfs_kernel_param_t *kp)
+{
+	spa_t *spa = NULL;
+	char *p;
+
+	if (val == NULL)
+		return (SET_ERROR(-EINVAL));
+
+	if ((p = strchr(val, '\n')) != NULL)
+		*p = '\0';
+
+	if (spa_mode_global != 0) {
+		mutex_enter(&spa_namespace_lock);
+		while ((spa = spa_next(spa)) != NULL) {
+			if (spa_state(spa) != POOL_STATE_ACTIVE ||
+			    !spa_writeable(spa) || spa_suspended(spa))
+				continue;
+
+			spa_open_ref(spa, FTAG);
+			mutex_exit(&spa_namespace_lock);
+			vdev_elevator_switch(spa->spa_root_vdev, (char *)val);
+			mutex_enter(&spa_namespace_lock);
+			spa_close(spa, FTAG);
+		}
+		mutex_exit(&spa_namespace_lock);
+	}
+
+	return (param_set_charp(val, kp));
+}
+
 vdev_ops_t vdev_disk_ops = {
 	vdev_disk_open,
 	vdev_disk_close,
@@ -812,5 +870,6 @@ vdev_ops_t vdev_disk_ops = {
 	B_TRUE			/* leaf vdev */
 };
 
-module_param(zfs_vdev_scheduler, charp, 0644);
+module_param_call(zfs_vdev_scheduler, param_set_vdev_scheduler,
+    param_get_charp, &zfs_vdev_scheduler, 0644);
 MODULE_PARM_DESC(zfs_vdev_scheduler, "I/O scheduler");

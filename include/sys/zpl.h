@@ -189,4 +189,13 @@ zpl_dir_emit_dots(struct file *file, zpl_dir_context_t *ctx)
 }
 #endif /* HAVE_VFS_ITERATE */
 
+/*
+ * Linux 4.18, inode times converted from timespec to timespec64.
+ */
+#if defined(HAVE_INODE_TIMESPEC64_TIMES)
+#define	zpl_inode_timespec_trunc(ts, gran)	timespec64_trunc(ts, gran)
+#else
+#define	zpl_inode_timespec_trunc(ts, gran)	timespec_trunc(ts, gran)
+#endif
+
 #endif	/* _SYS_ZPL_H */

@@ -533,6 +533,7 @@ dnode_sync_free(dnode_t *dn, dmu_tx_t *tx)
 	if (dn->dn_allocated_txg != dn->dn_free_txg)
 		dmu_buf_will_dirty(&dn->dn_dbuf->db, tx);
 	bzero(dn->dn_phys, sizeof (dnode_phys_t) * dn->dn_num_slots);
+	dnode_free_interior_slots(dn);
 
 	mutex_enter(&dn->dn_mtx);
 	dn->dn_type = DMU_OT_NONE;
@@ -540,6 +541,7 @@ dnode_sync_free(dnode_t *dn, dmu_tx_t *tx)
 	dn->dn_allocated_txg = 0;
 	dn->dn_free_txg = 0;
 	dn->dn_have_spill = B_FALSE;
+	dn->dn_num_slots = 1;
 	mutex_exit(&dn->dn_mtx);
 
 	ASSERT(dn->dn_object != DMU_META_DNODE_OBJECT);

@@ -11,6 +11,7 @@ SUBDIRS = \
 	cli_root \
 	cli_user \
 	compression \
+	cp_files \
 	ctime \
 	delegate \
 	devices \
@@ -23,6 +24,7 @@ SUBDIRS = \
 	history \
 	inheritance \
 	inuse \
+	kstat \
 	large_files \
 	largest_pool \
 	libzfs \

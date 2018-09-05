@@ -129,7 +129,7 @@
  *
  *	If dmu_tx_assign() returns ERESTART and zfsvfs->z_assign is TXG_NOWAIT,
  *	then drop all locks, call dmu_tx_wait(), and try again.  On subsequent
- *	calls to dmu_tx_assign(), pass TXG_WAITED rather than TXG_NOWAIT,
+ *	calls to dmu_tx_assign(), pass TXG_NOTHROTTLE in addition to TXG_NOWAIT,
  *	to indicate that this operation has already called dmu_tx_wait().
  *	This will ensure that we don't retry forever, waiting a short bit
  *	each time.
@@ -154,7 +154,7 @@
  *	rw_enter(...);			// grab any other locks you need
  *	tx = dmu_tx_create(...);	// get DMU tx
  *	dmu_tx_hold_*();		// hold each object you might modify
- *	error = dmu_tx_assign(tx, waited ? TXG_WAITED : TXG_NOWAIT);
+ *	error = dmu_tx_assign(tx, (waited ? TXG_NOTHROTTLE : 0) | TXG_NOWAIT);
  *	if (error) {
  *		rw_exit(...);		// drop locks
  *		zfs_dirent_unlock(dl);	// unlock directory entry
@@ -1427,7 +1427,9 @@ top:
 			dmu_tx_hold_write(tx, DMU_NEW_OBJECT,
 			    0, acl_ids.z_aclp->z_acl_bytes);
 		}
-		error = dmu_tx_assign(tx, waited ? TXG_WAITED : TXG_NOWAIT);
+
+		error = dmu_tx_assign(tx,
+		    (waited ? TXG_NOTHROTTLE : 0) | TXG_NOWAIT);
 		if (error) {
 			zfs_dirent_unlock(dl);
 			if (error == ERESTART) {
@@ -1443,10 +1445,22 @@ top:
 		}
 		zfs_mknode(dzp, vap, tx, cr, 0, &zp, &acl_ids);
 
+		error = zfs_link_create(dl, zp, tx, ZNEW);
+		if (error != 0) {
+			/*
+			 * Since, we failed to add the directory entry for it,
+			 * delete the newly created dnode.
+			 */
+			zfs_znode_delete(zp, tx);
+			remove_inode_hash(ZTOI(zp));
+			zfs_acl_ids_free(&acl_ids);
+			dmu_tx_commit(tx);
+			goto out;
+		}
+
 		if (fuid_dirtied)
 			zfs_fuid_sync(zfsvfs, tx);
 
-		(void) zfs_link_create(dl, zp, tx, ZNEW);
 		txtype = zfs_log_create_txtype(Z_FILE, vsecp, vap);
 		if (flag & FIGNORECASE)
 			txtype |= TX_CI;
@@ -1602,7 +1616,7 @@ top:
 		dmu_tx_hold_write(tx, DMU_NEW_OBJECT,
 		    0, acl_ids.z_aclp->z_acl_bytes);
 	}
-	error = dmu_tx_assign(tx, waited ? TXG_WAITED : TXG_NOWAIT);
+	error = dmu_tx_assign(tx, (waited ? TXG_NOTHROTTLE : 0) | TXG_NOWAIT);
 	if (error) {
 		if (error == ERESTART) {
 			waited = B_TRUE;
@@ -1775,7 +1789,7 @@ top:
 	 */
 	dmu_tx_mark_netfree(tx);
 
-	error = dmu_tx_assign(tx, waited ? TXG_WAITED : TXG_NOWAIT);
+	error = dmu_tx_assign(tx, (waited ? TXG_NOTHROTTLE : 0) | TXG_NOWAIT);
 	if (error) {
 		zfs_dirent_unlock(dl);
 		if (error == ERESTART) {
@@ -2017,7 +2031,7 @@ top:
 	dmu_tx_hold_sa_create(tx, acl_ids.z_aclp->z_acl_bytes +
 	    ZFS_SA_BASE_ATTR_SIZE);
 
-	error = dmu_tx_assign(tx, waited ? TXG_WAITED : TXG_NOWAIT);
+	error = dmu_tx_assign(tx, (waited ? TXG_NOTHROTTLE : 0) | TXG_NOWAIT);
 	if (error) {
 		zfs_dirent_unlock(dl);
 		if (error == ERESTART) {
@@ -2037,13 +2051,18 @@ top:
 	 */
 	zfs_mknode(dzp, vap, tx, cr, 0, &zp, &acl_ids);
 
-	if (fuid_dirtied)
-		zfs_fuid_sync(zfsvfs, tx);
-
 	/*
 	 * Now put new name in parent dir.
 	 */
-	(void) zfs_link_create(dl, zp, tx, ZNEW);
+	error = zfs_link_create(dl, zp, tx, ZNEW);
+	if (error != 0) {
+		zfs_znode_delete(zp, tx);
+		remove_inode_hash(ZTOI(zp));
+		goto out;
+	}
+
+	if (fuid_dirtied)
+		zfs_fuid_sync(zfsvfs, tx);
 
 	*ipp = ZTOI(zp);
 
@@ -2053,6 +2072,7 @@ top:
 	zfs_log_create(zilog, tx, txtype, dzp, zp, dirname, vsecp,
 	    acl_ids.z_fuidp, vap);
 
+out:
 	zfs_acl_ids_free(&acl_ids);
 
 	dmu_tx_commit(tx);
@@ -2062,10 +2082,14 @@ top:
 	if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		zil_commit(zilog, 0);
 
-	zfs_inode_update(dzp);
-	zfs_inode_update(zp);
+	if (error != 0) {
+		iput(ZTOI(zp));
+	} else {
+		zfs_inode_update(dzp);
+		zfs_inode_update(zp);
+	}
 	ZFS_EXIT(zfsvfs);
-	return (0);
+	return (error);
 }
 
 /*
@@ -2156,7 +2180,7 @@ top:
 	zfs_sa_upgrade_txholds(tx, zp);
 	zfs_sa_upgrade_txholds(tx, dzp);
 	dmu_tx_mark_netfree(tx);
-	error = dmu_tx_assign(tx, waited ? TXG_WAITED : TXG_NOWAIT);
+	error = dmu_tx_assign(tx, (waited ? TXG_NOTHROTTLE : 0) | TXG_NOWAIT);
 	if (error) {
 		rw_exit(&zp->z_parent_lock);
 		rw_exit(&zp->z_name_lock);
@@ -3158,7 +3182,7 @@ top:
 
 	if (mask & (ATTR_MTIME | ATTR_SIZE)) {
 		ZFS_TIME_ENCODE(&vap->va_mtime, mtime);
-		ZTOI(zp)->i_mtime = timespec_trunc(vap->va_mtime,
+		ZTOI(zp)->i_mtime = zpl_inode_timespec_trunc(vap->va_mtime,
 		    ZTOI(zp)->i_sb->s_time_gran);
 
 		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MTIME(zfsvfs), NULL,
@@ -3167,7 +3191,7 @@ top:
 
 	if (mask & (ATTR_CTIME | ATTR_SIZE)) {
 		ZFS_TIME_ENCODE(&vap->va_ctime, ctime);
-		ZTOI(zp)->i_ctime = timespec_trunc(vap->va_ctime,
+		ZTOI(zp)->i_ctime = zpl_inode_timespec_trunc(vap->va_ctime,
 		    ZTOI(zp)->i_sb->s_time_gran);
 		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CTIME(zfsvfs), NULL,
 		    ctime, sizeof (ctime));
@@ -3623,7 +3647,7 @@ top:
 
 	zfs_sa_upgrade_txholds(tx, szp);
 	dmu_tx_hold_zap(tx, zfsvfs->z_unlinkedobj, FALSE, NULL);
-	error = dmu_tx_assign(tx, waited ? TXG_WAITED : TXG_NOWAIT);
+	error = dmu_tx_assign(tx, (waited ? TXG_NOTHROTTLE : 0) | TXG_NOWAIT);
 	if (error) {
 		if (zl != NULL)
 			zfs_rename_unlock(&zl);
@@ -3683,6 +3707,13 @@ top:
 				VERIFY3U(zfs_link_destroy(tdl, szp, tx,
 				    ZRENAMING, NULL), ==, 0);
 			}
+		} else {
+			/*
+			 * If we had removed the existing target, subsequent
+			 * call to zfs_link_create() to add back the same entry
+			 * but, the new dnode (szp) should not fail.
+			 */
+			ASSERT(tzp == NULL);
 		}
 	}
 
@@ -3815,7 +3846,7 @@ top:
 	}
 	if (fuid_dirtied)
 		zfs_fuid_txhold(zfsvfs, tx);
-	error = dmu_tx_assign(tx, waited ? TXG_WAITED : TXG_NOWAIT);
+	error = dmu_tx_assign(tx, (waited ? TXG_NOTHROTTLE : 0) | TXG_NOWAIT);
 	if (error) {
 		zfs_dirent_unlock(dl);
 		if (error == ERESTART) {
@@ -3853,14 +3884,18 @@ top:
 	/*
 	 * Insert the new object into the directory.
 	 */
-	(void) zfs_link_create(dl, zp, tx, ZNEW);
+	error = zfs_link_create(dl, zp, tx, ZNEW);
+	if (error != 0) {
+		zfs_znode_delete(zp, tx);
+		remove_inode_hash(ZTOI(zp));
+	} else {
+		if (flags & FIGNORECASE)
+			txtype |= TX_CI;
+		zfs_log_symlink(zilog, tx, txtype, dzp, zp, name, link);
 
-	if (flags & FIGNORECASE)
-		txtype |= TX_CI;
-	zfs_log_symlink(zilog, tx, txtype, dzp, zp, name, link);
-
-	zfs_inode_update(dzp);
-	zfs_inode_update(zp);
+		zfs_inode_update(dzp);
+		zfs_inode_update(zp);
+	}
 
 	zfs_acl_ids_free(&acl_ids);
 
@@ -3868,10 +3903,14 @@ top:
 
 	zfs_dirent_unlock(dl);
 
-	*ipp = ZTOI(zp);
+	if (error == 0) {
+		*ipp = ZTOI(zp);
 
-	if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
-		zil_commit(zilog, 0);
+		if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
+			zil_commit(zilog, 0);
+	} else {
+		iput(ZTOI(zp));
+	}
 
 	ZFS_EXIT(zfsvfs);
 	return (error);
@@ -4041,7 +4080,7 @@ top:
 
 	zfs_sa_upgrade_txholds(tx, szp);
 	zfs_sa_upgrade_txholds(tx, dzp);
-	error = dmu_tx_assign(tx, waited ? TXG_WAITED : TXG_NOWAIT);
+	error = dmu_tx_assign(tx, (waited ? TXG_NOTHROTTLE : 0) | TXG_NOWAIT);
 	if (error) {
 		zfs_dirent_unlock(dl);
 		if (error == ERESTART) {

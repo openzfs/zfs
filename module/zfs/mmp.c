@@ -327,7 +327,7 @@ mmp_delay_update(spa_t *spa, boolean_t write_completed)
 	 */
 	if (delay < mts->mmp_delay) {
 		hrtime_t min_delay = MSEC2NSEC(zfs_multihost_interval) /
-		    vdev_count_leaves(spa);
+		    MAX(1, vdev_count_leaves(spa));
 		mts->mmp_delay = MAX(((delay + mts->mmp_delay * 127) / 128),
 		    min_delay);
 	}
@@ -607,7 +607,8 @@ param_set_multihost_interval(const char *val, zfs_kernel_param_t *kp)
 	if (ret < 0)
 		return (ret);
 
-	mmp_signal_all_threads();
+	if (spa_mode_global != 0)
+		mmp_signal_all_threads();
 
 	return (ret);
 }

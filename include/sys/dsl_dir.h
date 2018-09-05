@@ -103,7 +103,7 @@ struct dsl_dir {
 	/* Protected by dd_lock */
 	kmutex_t dd_lock;
 	list_t dd_props; /* list of dsl_prop_record_t's */
-	timestruc_t dd_snap_cmtime; /* last time snapshot namespace changed */
+	inode_timespec_t dd_snap_cmtime; /* last snapshot namespace change */
 	uint64_t dd_origin_txg;
 
 	/* gross estimate of space used by in-flight tx's */
@@ -159,7 +159,7 @@ boolean_t dsl_dir_is_clone(dsl_dir_t *dd);
 void dsl_dir_new_refreservation(dsl_dir_t *dd, struct dsl_dataset *ds,
     uint64_t reservation, cred_t *cr, dmu_tx_t *tx);
 void dsl_dir_snap_cmtime_update(dsl_dir_t *dd);
-timestruc_t dsl_dir_snap_cmtime(dsl_dir_t *dd);
+inode_timespec_t dsl_dir_snap_cmtime(dsl_dir_t *dd);
 void dsl_dir_set_reservation_sync_impl(dsl_dir_t *dd, uint64_t value,
     dmu_tx_t *tx);
 void dsl_dir_zapify(dsl_dir_t *dd, dmu_tx_t *tx);

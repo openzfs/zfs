@@ -55,7 +55,7 @@ tags = ['functional', 'cachefile']
 # 'mixed_none_lookup', 'mixed_none_lookup_ci', 'mixed_none_delete',
 # 'mixed_formd_lookup', 'mixed_formd_lookup_ci', 'mixed_formd_delete']
 [tests/functional/casenorm]
-tests = ['case_all_values', 'norm_all_values']
+tests = ['case_all_values', 'norm_all_values', 'mixed_create_failure']
 tags = ['functional', 'casenorm']
 
 [tests/functional/chattr]
@@ -394,6 +394,10 @@ tests = ['compress_001_pos', 'compress_002_pos', 'compress_003_pos',
     'compress_004_pos']
 tags = ['functional', 'compression']
 
+[tests/functional/cp_files]
+tests = ['cp_files_001_pos']
+tags = ['functional', 'cp_files']
+
 [tests/functional/ctime]
 tests = ['ctime_001_pos' ]
 tags = ['functional', 'ctime']
@@ -462,6 +466,10 @@ tests = ['inuse_001_pos', 'inuse_003_pos', 'inuse_004_pos',
     'inuse_009_pos']
 post =
 tags = ['functional', 'inuse']
+
+[tests/functional/kstat]
+tests = ['state']
+tags = ['functional', 'kstat']
 
 [tests/functional/large_files]
 tests = ['large_files_001_pos', 'large_files_002_pos']
@@ -597,7 +605,7 @@ tests = ['rsend_001_pos', 'rsend_002_pos', 'rsend_003_pos', 'rsend_004_pos',
     'send-c_lz4_disabled', 'send-c_recv_lz4_disabled',
     'send-c_mixed_compression', 'send-c_stream_size_estimate', 'send-cD',
     'send-c_embedded_blocks', 'send-c_resume', 'send-cpL_varied_recsize',
-    'send-c_recv_dedup', 'send_freeobjects']
+    'send-c_recv_dedup', 'send_freeobjects', 'send_realloc_dnode_size']
 tags = ['functional', 'rsend']
 
 [tests/functional/scrub_mirror]

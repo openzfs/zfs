@@ -451,7 +451,7 @@ static struct inode *
 zfsctl_inode_alloc(zfsvfs_t *zfsvfs, uint64_t id,
     const struct file_operations *fops, const struct inode_operations *ops)
 {
-	struct timespec now;
+	inode_timespec_t now;
 	struct inode *ip;
 	znode_t *zp;
 
@@ -1181,7 +1181,7 @@ zfsctl_snapdir_vget(struct super_block *sb, uint64_t objsetid, int gen,
 		goto out;
 
 	/* Trigger automount */
-	error = kern_path(mnt, LOOKUP_FOLLOW|LOOKUP_DIRECTORY, &path);
+	error = -kern_path(mnt, LOOKUP_FOLLOW|LOOKUP_DIRECTORY, &path);
 	if (error)
 		goto out;
 
