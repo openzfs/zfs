@@ -1722,6 +1722,29 @@ Default value: \fB0\fR.
 .sp
 .ne 2
 .na
+\fBzfs_ddt_data_is_special\fR (int)
+.ad
+.RS 12n
+If enabled, ZFS will place DDT data into the special allocation class.
+.sp
+Default value: \fB1\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_user_indirect_is_special\fR (int)
+.ad
+.RS 12n
+If enabled, ZFS will place user data (both file and zvol) indirect blocks
+into the special allocation class.
+.sp
+Default value: \fB1\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_multihost_history\fR (int)
 .ad
 .RS 12n

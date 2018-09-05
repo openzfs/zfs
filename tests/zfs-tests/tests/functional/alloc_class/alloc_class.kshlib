@@ -1,0 +1,67 @@
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+
+#
+# Copyright (c) 2017, Intel Corporation.
+# Copyright (c) 2018 by Delphix. All rights reserved.
+#
+
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/alloc_class/alloc_class.cfg
+
+function disk_setup
+{
+	truncate -s $ZPOOL_DEVSIZE $ZPOOL_DISKS
+	truncate -s $CLASS_DEVSIZE $CLASS_DISKS
+}
+
+function disk_cleanup
+{
+	rm -f $ZPOOL_DEVSIZE $ZPOOL_DISKS 2> /dev/null
+	rm -f $CLASS_DEVSIZE $CLASS_DISKS 2> /dev/null
+}
+
+function cleanup
+{
+	if datasetexists $TESTPOOL ; then
+		zpool destroy -f $TESTPOOL 2> /dev/null
+	fi
+
+	disk_cleanup
+}
+
+#
+# Try zpool status/iostat for given pool
+#
+# $1 pool
+#
+function display_status
+{
+	typeset pool=$1
+
+	typeset -i ret=0
+	zpool status -xv $pool > /dev/null 2>&1
+	ret=$?
+
+	zpool iostat > /dev/null 2>&1
+	((ret |= $?))
+
+	typeset mntpnt=$(get_prop mountpoint $pool)
+	dd if=/dev/random of=$mntpnt/testfile.$$ &
+	typeset pid=$!
+
+	zpool iostat -v 1 3 > /dev/null
+	((ret |= $?))
+
+	kill -9 $pid
+
+	return $ret
+}

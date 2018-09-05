@@ -1195,6 +1195,36 @@ zfs_valid_proplist(libzfs_handle_t *hdl, zfs_type_t type, nvlist_t *nvl,
 			}
 			break;
 		}
+
+		case ZFS_PROP_SPECIAL_SMALL_BLOCKS:
+			if (zpool_hdl != NULL) {
+				char state[64] = "";
+
+				/*
+				 * Issue a warning but do not fail so that
+				 * tests for setable properties succeed.
+				 */
+				if (zpool_prop_get_feature(zpool_hdl,
+				    "feature@allocation_classes", state,
+				    sizeof (state)) != 0 ||
+				    strcmp(state, ZFS_FEATURE_ACTIVE) != 0) {
+					(void) fprintf(stderr, gettext(
+					    "%s: property requires a special "
+					    "device in the pool\n"), propname);
+				}
+			}
+			if (intval != 0 &&
+			    (intval < SPA_MINBLOCKSIZE ||
+			    intval > SPA_OLD_MAXBLOCKSIZE || !ISP2(intval))) {
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "invalid '%s=%d' property: must be zero or "
+				    "a power of 2 from 512B to 128K"), propname,
+				    intval);
+				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
+				goto error;
+			}
+			break;
+
 		case ZFS_PROP_MLSLABEL:
 		{
 #ifdef HAVE_MLSLABEL

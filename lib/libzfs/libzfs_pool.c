@@ -26,6 +26,7 @@
  * Copyright 2016 Igor Kozhukhov <ikozhukhov@gmail.com>
  * Copyright (c) 2018 Datto Inc.
  * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+ * Copyright (c) 2017, Intel Corporation.
  */
 
 #include <ctype.h>
@@ -720,6 +721,7 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 				goto error;
 			}
 			break;
+
 		default:
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "property '%s'(%d) not defined"), propname, prop);
@@ -1173,6 +1175,30 @@ zpool_get_state(zpool_handle_t *zhp)
 }
 
 /*
+ * Check if vdev list contains a special vdev
+ */
+static boolean_t
+zpool_has_special_vdev(nvlist_t *nvroot)
+{
+	nvlist_t **child;
+	uint_t children;
+
+	if (nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN, &child,
+	    &children) == 0) {
+		for (uint_t c = 0; c < children; c++) {
+			char *bias;
+
+			if (nvlist_lookup_string(child[c],
+			    ZPOOL_CONFIG_ALLOCATION_BIAS, &bias) == 0 &&
+			    strcmp(bias, VDEV_ALLOC_BIAS_SPECIAL) == 0) {
+				return (B_TRUE);
+			}
+		}
+	}
+	return (B_FALSE);
+}
+
+/*
  * Create the named pool, using the provided vdev list.  It is assumed
  * that the consumer has already validated the contents of the nvlist, so we
  * don't have to worry about error semantics.
@@ -1220,6 +1246,17 @@ zpool_create(libzfs_handle_t *hdl, const char *pool, nvlist_t *nvroot,
 		    fsprops, zoned, NULL, NULL, B_TRUE, msg)) == NULL) {
 			goto create_failed;
 		}
+
+		if (nvlist_exists(zc_fsprops,
+		    zfs_prop_to_name(ZFS_PROP_SPECIAL_SMALL_BLOCKS)) &&
+		    !zpool_has_special_vdev(nvroot)) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "%s property requires a special vdev"),
+			    zfs_prop_to_name(ZFS_PROP_SPECIAL_SMALL_BLOCKS));
+			(void) zfs_error(hdl, EZFS_BADPROP, msg);
+			goto create_failed;
+		}
+
 		if (!zc_props &&
 		    (nvlist_alloc(&zc_props, NV_UNIQUE_NAME, 0) != 0)) {
 			goto create_failed;

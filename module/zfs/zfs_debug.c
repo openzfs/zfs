@@ -133,11 +133,15 @@ zfs_dbgmsg_fini(void)
 {
 	if (zfs_dbgmsg_kstat)
 		kstat_delete(zfs_dbgmsg_kstat);
-
+	/*
+	 * TODO - decide how to make this permanent
+	 */
+#ifdef _KERNEL
 	mutex_enter(&zfs_dbgmsgs_lock);
 	zfs_dbgmsg_purge(0);
 	mutex_exit(&zfs_dbgmsgs_lock);
 	mutex_destroy(&zfs_dbgmsgs_lock);
+#endif
 }
 
 void

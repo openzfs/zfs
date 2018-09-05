@@ -50,6 +50,7 @@ function cleanup
 #  "l" - log
 # "ll" - mirrored log
 #  "c" - cache
+#  "sc" - special class
 #
 function pool_config # <vdev-type>
 {
@@ -66,6 +67,7 @@ function pool_config # <vdev-type>
 	disks[l]="l1"
 	disks[ll]="l1 l2"
 	disks[c]="c1"
+	disks[sc]="sc1 sc2"
 	case $1 in
 	d|t) # single disk or stripe
 		vdev='' ;;
@@ -85,6 +87,8 @@ function pool_config # <vdev-type>
 		vdev='log mirror';;
 	c) # cache
 		vdev='cache';;
+	sc) # mirrored special class
+		vdev='special mirror';;
 	*)
 		log_fail "setup_pool: unsupported vdev type '$1'"
 	esac
@@ -108,7 +112,7 @@ log_onexit cleanup
 # "good" and "bad" pool layouts
 # first token is always used with "zpool create"
 # second to last tokens, if any, are used with "zpool add"
-typeset -a goodconfs=("m" "m l" "m s" "m c" "m m" "m3" "m3 m3" "m m3 l s c")
+typeset -a goodconfs=("m" "m l" "m s" "m c" "m m" "m3" "m3 m3" "m m3 l s c" "m m sc")
 typeset -a badconfs=("d" "z1" "z2" "z3" "m d" "m3 d" "m z1" "m z2" "m z3")
 typeset FILEDEV_PREFIX="$TEST_BASE_DIR/filedev"
 typeset altroot="$TESTDIR/altroot-$TESTPOOL2"

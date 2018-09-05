@@ -1522,6 +1522,16 @@ This feature must be enabled to be used
 .Po see
 .Xr zpool-features 5
 .Pc .
+.It Sy special_small_blocks Ns = Ns Em size
+This value represents the threshold block size for including small file
+blocks into the special allocation class. Valid values are zero or a
+power of two from 512B up to 128K. The default size is 0 which means no
+small file blocks will be allocated in the special class.
+.Pp
+Before setting this property, a special class vdev must be added to the
+pool. See
+.Xr zpool 8
+for more details on the special allocation class.
 .It Sy mountpoint Ns = Ns Pa path Ns | Ns Sy none Ns | Ns Sy legacy
 Controls the mount point used for this file system.
 See the
