@@ -869,6 +869,21 @@ Default value: \fB0\fR.
 .sp
 .ne 2
 .na
+\fBzfs_arc_shrinker_enabled\fR (int)
+.ad
+.RS 12n
+When enabled kswapd can request that the ARC size be reduced in order to
+maintain a minimum amount of free memory on the system.  When disabled these
+requests will not be honored.  This option never prevents direct memory
+reclaim if the kernel requests it.  This option is experimental and
+provided for performance analysis.  It is enabled by default.
+.sp
+Default value: \fB1\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_arc_pc_percent\fR (uint)
 .ad
 .RS 12n
