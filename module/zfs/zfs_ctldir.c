@@ -106,7 +106,7 @@ static krwlock_t zfs_snapshot_lock;
  * Control Directory Tunables (.zfs)
  */
 int zfs_expire_snapshot = ZFSCTL_EXPIRE_SNAPSHOT;
-int zfs_admin_snapshot = 1;
+int zfs_admin_snapshot = 0;
 
 typedef struct {
 	char		*se_name;	/* full snapshot name */
