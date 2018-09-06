@@ -71,7 +71,7 @@ unsigned long zfs_per_txg_dirty_frees_percent = 30;
 /*
  * Enable/disable forcing txg sync when dirty in dmu_offset_next.
  */
-int zfs_dmu_offset_next_sync = 1;
+int zfs_dmu_offset_next_sync = 0;
 
 /*
  * This can be used for testing, to ensure that certain actions happen
