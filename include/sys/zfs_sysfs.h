@@ -35,6 +35,7 @@ void zfs_sysfs_fini(void);
 #define	zfs_sysfs_init()
 #define	zfs_sysfs_fini()
 
+boolean_t zfs_mod_supported(const char *, const char *);
 #endif
 
 #define	ZFS_SYSFS_POOL_PROPERTIES	"properties.pool"
@@ -43,5 +44,7 @@ void zfs_sysfs_fini(void);
 #define	ZFS_SYSFS_POOL_FEATURES		"features.pool"
 
 #define	ZFS_SYSFS_DIR			"/sys/module/zfs"
+/* Alternate location when ZFS is built as part of the kernel (rare) */
+#define	ZFS_SYSFS_ALT_DIR		"/sys/fs/zfs"
 
 #endif	/* _SYS_ZFS_SYSFS_H */

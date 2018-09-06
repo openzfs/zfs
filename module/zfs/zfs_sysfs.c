@@ -570,11 +570,16 @@ zfs_sysfs_properties_init(zfs_mod_kobj_t *zfs_kobj, struct kobject *parent,
 void
 zfs_sysfs_init(void)
 {
-	struct kobject *parent =
-	    &(((struct module *)(THIS_MODULE))->mkobj).kobj;
+	struct kobject *parent;
+#if defined(CONFIG_ZFS) && !defined(CONFIG_ZFS_MODULE)
+	parent = kobject_create_and_add("zfs", fs_kobj);
+#else
+	parent = &(((struct module *)(THIS_MODULE))->mkobj).kobj;
+#endif
 	int err;
 
-	ASSERT(parent != NULL);
+	if (parent == NULL)
+		return;
 
 	err = zfs_kernel_features_init(&kernel_features_kobj, parent);
 	if (err)

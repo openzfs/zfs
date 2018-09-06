@@ -81,20 +81,8 @@ zfs_mod_supported_prop(const char *name, zfs_type_t type)
 #if defined(_KERNEL) || defined(LIB_ZPOOL_BUILD)
 	return (B_TRUE);
 #else
-	struct stat64 statbuf;
-	char *path;
-	boolean_t supported = B_FALSE;
-	int len;
-
-	len = asprintf(&path, "%s/%s/%s", ZFS_SYSFS_DIR,
-	    (type == ZFS_TYPE_POOL) ? ZFS_SYSFS_POOL_PROPERTIES :
-	    ZFS_SYSFS_DATASET_PROPERTIES, name);
-
-	if (len > 0) {
-		supported = !!(stat64(path, &statbuf) == 0);
-		free(path);
-	}
-	return (supported);
+	return (zfs_mod_supported(type == ZFS_TYPE_POOL ?
+	    ZFS_SYSFS_POOL_PROPERTIES : ZFS_SYSFS_DATASET_PROPERTIES, name));
 #endif
 }
 
