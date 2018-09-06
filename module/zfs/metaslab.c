@@ -99,7 +99,7 @@ int zfs_metaslab_condense_block_threshold = 4;
  * eligible to allocate on any metaslab group. The default value of 0 means
  * no metaslab group will be excluded based on this criterion.
  */
-int zfs_mg_noalloc_threshold = 5;
+int zfs_mg_noalloc_threshold = 0;
 
 /*
  * Metaslab groups are considered eligible for allocations if their

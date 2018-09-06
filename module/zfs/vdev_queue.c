@@ -142,13 +142,13 @@ uint32_t zfs_vdev_max_active = 1000;
  * more quickly, but reads and writes to have higher latency and lower
  * throughput.
  */
-uint32_t zfs_vdev_sync_read_min_active = 35;
-uint32_t zfs_vdev_sync_read_max_active = 35;
-uint32_t zfs_vdev_sync_write_min_active = 35;
-uint32_t zfs_vdev_sync_write_max_active = 35;
+uint32_t zfs_vdev_sync_read_min_active = 10;
+uint32_t zfs_vdev_sync_read_max_active = 10;
+uint32_t zfs_vdev_sync_write_min_active = 10;
+uint32_t zfs_vdev_sync_write_max_active = 10;
 uint32_t zfs_vdev_async_read_min_active = 1;
-uint32_t zfs_vdev_async_read_max_active = 10;
-uint32_t zfs_vdev_async_write_min_active = 1;
+uint32_t zfs_vdev_async_read_max_active = 3;
+uint32_t zfs_vdev_async_write_min_active = 2;
 uint32_t zfs_vdev_async_write_max_active = 10;
 uint32_t zfs_vdev_scrub_min_active = 1;
 uint32_t zfs_vdev_scrub_max_active = 2;
@@ -171,7 +171,7 @@ int zfs_vdev_async_write_active_max_dirty_percent = 60;
  * we include spans of optional I/Os to aid aggregation at the disk even when
  * they aren't able to help us aggregate at this level.
  */
-int zfs_vdev_aggregation_limit = SPA_OLD_MAXBLOCKSIZE;
+int zfs_vdev_aggregation_limit = 1 << 20;
 int zfs_vdev_read_gap_limit = 32 << 10;
 int zfs_vdev_write_gap_limit = 4 << 10;
 
