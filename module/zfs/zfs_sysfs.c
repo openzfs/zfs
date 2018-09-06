@@ -294,9 +294,11 @@ zprop_sysfs_show(const char *attr_name, const zprop_desc_t *property,
 			    property->pd_strdefault : "";
 			break;
 		case PROP_TYPE_INDEX:
-			(void) zprop_index_to_string(property->pd_propnum,
+			if (zprop_index_to_string(property->pd_propnum,
 			    property->pd_numdefault, &show_str,
-			    property->pd_types);
+			    property->pd_types) != 0) {
+				show_str = "";
+			}
 			break;
 		default:
 			return (0);
