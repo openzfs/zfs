@@ -516,7 +516,8 @@ dsl_pool_create(spa_t *spa, nvlist_t *zplprops, dsl_crypto_params_t *dcp,
 	obj = dsl_dataset_create_sync_dd(dp->dp_root_dir, NULL, dcp, 0, tx);
 
 	/* create the root objset */
-	VERIFY0(dsl_dataset_hold_obj(dp, obj, FTAG, &ds));
+	VERIFY0(dsl_dataset_hold_obj_flags(dp, obj,
+	    DS_HOLD_FLAG_DECRYPT, FTAG, &ds));
 #ifdef _KERNEL
 	{
 		objset_t *os;
@@ -527,7 +528,7 @@ dsl_pool_create(spa_t *spa, nvlist_t *zplprops, dsl_crypto_params_t *dcp,
 		zfs_create_fs(os, kcred, zplprops, tx);
 	}
 #endif
-	dsl_dataset_rele(ds, FTAG);
+	dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
 
 	dmu_tx_commit(tx);
 
@@ -690,9 +691,22 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 	 */
 	zio = zio_root(dp->dp_spa, NULL, NULL, ZIO_FLAG_MUSTSUCCEED);
 	while ((ds = txg_list_remove(&dp->dp_dirty_datasets, txg)) != NULL) {
+		objset_t *os = ds->ds_objset;
+
 		ASSERT(list_link_active(&ds->ds_synced_link));
 		dmu_buf_rele(ds->ds_dbuf, ds);
 		dsl_dataset_sync(ds, zio, tx);
+
+		/*
+		 * Release any key mappings created by calls to
+		 * dsl_dataset_dirty() from the userquota accounting
+		 * code paths.
+		 */
+		if (os->os_encrypted && !os->os_raw_receive &&
+		    !os->os_next_write_raw[txg & TXG_MASK]) {
+			ASSERT3P(ds->ds_key_mapping, !=, NULL);
+			key_mapping_rele(dp->dp_spa, ds->ds_key_mapping, ds);
+		}
 	}
 	VERIFY0(zio_wait(zio));
 
@@ -702,8 +716,17 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 	 *
 	 *  - move dead blocks from the pending deadlist to the on-disk deadlist
 	 *  - release hold from dsl_dataset_dirty()
+	 *  - release key mapping hold from dsl_dataset_dirty()
 	 */
 	while ((ds = list_remove_head(&synced_datasets)) != NULL) {
+		objset_t *os = ds->ds_objset;
+
+		if (os->os_encrypted && !os->os_raw_receive &&
+		    !os->os_next_write_raw[txg & TXG_MASK]) {
+			ASSERT3P(ds->ds_key_mapping, !=, NULL);
+			key_mapping_rele(dp->dp_spa, ds->ds_key_mapping, ds);
+		}
+
 		dsl_dataset_sync_done(ds, tx);
 	}
 

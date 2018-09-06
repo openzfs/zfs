@@ -4116,7 +4116,6 @@ ztest_dmu_objset_create_destroy(ztest_ds_t *zd, uint64_t id)
 		ztest_zd_init(zdtmp, NULL, os);
 		zil_replay(os, zdtmp, ztest_replay_vector);
 		ztest_zd_fini(zdtmp);
-		txg_wait_synced(dmu_objset_pool(os), 0);
 		dmu_objset_disown(os, B_TRUE, FTAG);
 	}
 
@@ -4186,7 +4185,6 @@ ztest_dmu_objset_create_destroy(ztest_ds_t *zd, uint64_t id)
 	    B_FALSE, B_TRUE, FTAG, &os2));
 
 	zil_close(zilog);
-	txg_wait_synced(spa_get_dsl(os->os_spa), 0);
 	dmu_objset_disown(os, B_TRUE, FTAG);
 	ztest_zd_fini(zdtmp);
 out:
@@ -6870,7 +6868,6 @@ ztest_dataset_close(int d)
 	ztest_ds_t *zd = &ztest_ds[d];
 
 	zil_close(zd->zd_zilog);
-	txg_wait_synced(spa_get_dsl(zd->zd_os->os_spa), 0);
 	dmu_objset_disown(zd->zd_os, B_TRUE, zd);
 
 	ztest_zd_fini(zd);

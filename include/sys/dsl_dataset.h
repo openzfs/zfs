@@ -49,6 +49,7 @@ struct dsl_dataset;
 struct dsl_dir;
 struct dsl_pool;
 struct dsl_crypto_params;
+struct dsl_key_mapping;
 
 #define	DS_FLAG_INCONSISTENT	(1ULL<<0)
 #define	DS_IS_INCONSISTENT(ds)	\
@@ -165,6 +166,7 @@ typedef struct dsl_dataset {
 	uint64_t ds_object;
 	uint64_t ds_fsid_guid;
 	boolean_t ds_is_snapshot;
+	struct dsl_key_mapping *ds_key_mapping;
 
 	/* only used in syncing context, only valid for non-snapshots: */
 	struct dsl_dataset *ds_prev;
@@ -305,10 +307,12 @@ int dsl_dataset_hold_flags(struct dsl_pool *dp, const char *name,
     ds_hold_flags_t flags, void *tag, dsl_dataset_t **dsp);
 boolean_t dsl_dataset_try_add_ref(struct dsl_pool *dp, dsl_dataset_t *ds,
     void *tag);
+int dsl_dataset_create_key_mapping(dsl_dataset_t *ds);
 int dsl_dataset_hold_obj(struct dsl_pool *dp, uint64_t dsobj, void *tag,
     dsl_dataset_t **);
 int dsl_dataset_hold_obj_flags(struct dsl_pool *dp, uint64_t dsobj,
     ds_hold_flags_t flags, void *tag, dsl_dataset_t **);
+void dsl_dataset_remove_key_mapping(dsl_dataset_t *ds);
 void dsl_dataset_rele(dsl_dataset_t *ds, void *tag);
 void dsl_dataset_rele_flags(dsl_dataset_t *ds, ds_hold_flags_t flags,
     void *tag);
