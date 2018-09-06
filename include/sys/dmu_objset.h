@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  */
@@ -137,6 +137,11 @@ struct objset {
 	uint64_t os_normalization;
 	uint64_t os_utf8only;
 	uint64_t os_casesensitivity;
+	/*
+	 * The largest zpl file block allowed in special class.
+	 * cached here instead of zfsvfs for easier access.
+	 */
+	int os_zpl_special_smallblock;
 
 	/*
 	 * Pointer is constant; the blkptr it points to is protected by
