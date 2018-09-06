@@ -353,6 +353,7 @@ typedef struct zio_prop {
 	uint8_t			zp_salt[ZIO_DATA_SALT_LEN];
 	uint8_t			zp_iv[ZIO_DATA_IV_LEN];
 	uint8_t			zp_mac[ZIO_DATA_MAC_LEN];
+	uint32_t		zp_zpl_smallblk;
 } zio_prop_t;
 
 typedef struct zio_cksum_report zio_cksum_report_t;
@@ -473,6 +474,7 @@ struct zio {
 	vdev_t		*io_vd;
 	void		*io_vsd;
 	const zio_vsd_ops_t *io_vsd_ops;
+	metaslab_class_t *io_metaslab_class;	/* dva throttle class */
 
 	uint64_t	io_offset;
 	hrtime_t	io_timestamp;	/* submitted at */

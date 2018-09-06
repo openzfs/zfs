@@ -758,5 +758,27 @@ for the filesystems containing a large number of files.
 
 .RE
 
+.sp
+.ne 2
+.na
+\fB\fBallocation_classes\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.intel:allocation_classes
+READ\-ONLY COMPATIBLE	yes
+DEPENDENCIES	none
+.TE
+
+This feature enables support for separate allocation classes.
+
+This feature becomes \fBactive\fR when a dedicated allocation class vdev
+(dedup or special) is created with zpool create or zpool add. With device
+removal, it can be returned to the \fBenabled\fR state if all the top-level
+vdevs from an allocation class are removed.
+
+.RE
+
 .SH "SEE ALSO"
 \fBzpool\fR(8)

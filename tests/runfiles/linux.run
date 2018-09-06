@@ -24,6 +24,14 @@ tags = ['functional']
 tests = ['posix_001_pos', 'posix_002_pos', 'posix_003_pos']
 tags = ['functional', 'acl', 'posix']
 
+[tests/functional/alloc_class]
+tests = ['alloc_class_001_pos', 'alloc_class_002_neg', 'alloc_class_003_pos',
+    'alloc_class_004_pos', 'alloc_class_005_pos', 'alloc_class_006_pos',
+    'alloc_class_007_pos', 'alloc_class_008_pos', 'alloc_class_009_pos',
+    'alloc_class_010_pos', 'alloc_class_011_neg', 'alloc_class_012_pos',
+    'alloc_class_013_pos']
+tags = ['functional', 'alloc_class']
+
 [tests/functional/arc]
 tests = ['dbufstats_001_pos', 'dbufstats_002_pos']
 tags = ['functional', 'arc']

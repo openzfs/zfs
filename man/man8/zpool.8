@@ -278,6 +278,21 @@ However, raidz vdev types are not supported for the intent log.
 For more information, see the
 .Sx Intent Log
 section.
+.It Sy dedup
+A device dedicated solely for allocating dedup data.
+The redundancy of this device should match the redundancy of the other normal
+devices in the pool. If more than one dedup device is specified, then
+allocations are load-balanced between devices.
+.It Sy special
+A device dedicated solely for allocating various kinds of internal metadata,
+and optionally small file data.
+The redundancy of this device should match the redundancy of the other normal
+devices in the pool. If more than one special device is specified, then
+allocations are load-balanced between devices.
+.Pp
+For more information on special allocations, see the
+.Sx Special Allocation Class
+section.
 .It Sy cache
 A device used to cache storage pool data.
 A cache device cannot be configured as a mirror or raidz group.
@@ -520,6 +535,29 @@ zfs properties) may be unenforceable while a checkpoint exists, because the
 checkpoint is allowed to consume the dataset's reservation.
 Finally, data that is part of the checkpoint but has been freed in the
 current state of the pool won't be scanned during a scrub.
+.Ss Special Allocation Class
+The allocations in the special class are dedicated to specific block types.
+By default this includes all metadata, the indirect blocks of user data, and
+any dedup data.  The class can also be provisioned to accept a limited
+percentage of small file data blocks.
+.Pp
+A pool must always have at least one general (non-specified) vdev before
+other devices can be assigned to the special class. If the special class
+becomes full, then allocations intended for it will spill back into the
+normal class.
+.Pp
+Dedup data can be excluded from the special class by setting the
+.Sy zfs_ddt_data_is_special
+zfs module parameter to false (0).
+.Pp
+Inclusion of small file blocks in the special class is opt-in. Each dataset
+can control the size of small file blocks allowed in the special class by
+setting the
+.Sy special_small_blocks
+dataset property. It defaults to zero so you must opt-in by setting it to a
+non-zero value. See
+.Xr zfs 8
+for more info on setting this property.
 .Ss Properties
 Each pool has several properties associated with it.
 Some properties are read-only statistics while others are configurable and
