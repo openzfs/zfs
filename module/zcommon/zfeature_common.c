@@ -159,6 +159,32 @@ deps_contains_feature(const spa_feature_t *deps, const spa_feature_t feature)
 	return (B_FALSE);
 }
 
+#if !defined(_KERNEL) && !defined(LIB_ZPOOL_BUILD)
+static boolean_t
+zfs_mod_supported_impl(const char *scope, const char *name, const char *sysfs)
+{
+	struct stat64 statbuf;
+	char *path;
+	boolean_t supported = B_FALSE;
+	int len;
+
+	len = asprintf(&path, "%s/%s/%s", sysfs, scope, name);
+
+	if (len > 0) {
+		supported = !!(stat64(path, &statbuf) == 0);
+		free(path);
+	}
+	return (supported);
+}
+
+boolean_t
+zfs_mod_supported(const char *scope, const char *name)
+{
+	return (zfs_mod_supported_impl(scope, name, ZFS_SYSFS_DIR) ||
+	    zfs_mod_supported_impl(scope, name, ZFS_SYSFS_ALT_DIR));
+}
+#endif
+
 static boolean_t
 zfs_mod_supported_feature(const char *name)
 {
@@ -171,19 +197,7 @@ zfs_mod_supported_feature(const char *name)
 #if defined(_KERNEL) || defined(LIB_ZPOOL_BUILD)
 	return (B_TRUE);
 #else
-	struct stat64 statbuf;
-	char *path;
-	boolean_t supported = B_FALSE;
-	int len;
-
-	len = asprintf(&path, "%s/%s/%s", ZFS_SYSFS_DIR,
-	    ZFS_SYSFS_POOL_FEATURES, name);
-
-	if (len > 0) {
-		supported = !!(stat64(path, &statbuf) == 0);
-		free(path);
-	}
-	return (supported);
+	return (zfs_mod_supported(ZFS_SYSFS_POOL_FEATURES, name));
 #endif
 }
 
