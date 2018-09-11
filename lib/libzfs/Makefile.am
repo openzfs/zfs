@@ -60,6 +60,7 @@ libzfs_la_LIBADD = \
 	$(top_builddir)/lib/libshare/libshare.la \
 	$(top_builddir)/lib/libtpool/libtpool.la \
 	$(top_builddir)/lib/libuutil/libuutil.la \
+	$(top_builddir)/lib/libzpool/libzpool.la \
 	$(top_builddir)/lib/libzfs_core/libzfs_core.la
 
 libzfs_la_LIBADD += -lm $(LIBBLKID) $(LIBUDEV) $(LIBSSL)

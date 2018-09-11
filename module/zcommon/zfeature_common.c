@@ -253,6 +253,10 @@ zpool_feature_init(void)
 	    "Crash dumps to multiple vdev pools.",
 	    0, NULL);
 
+	zfeature_register(SPA_FEATURE_DRAID,
+	    "com.intel:draid", "draid", "draid vdev driver.",
+	    ZFEATURE_FLAG_MOS, NULL);
+
 	zfeature_register(SPA_FEATURE_SPACEMAP_HISTOGRAM,
 	    "com.delphix:spacemap_histogram", "spacemap_histogram",
 	    "Spacemaps maintain space histograms.",

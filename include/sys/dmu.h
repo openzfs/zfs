@@ -382,6 +382,7 @@ typedef struct dmu_buf {
 #define	DMU_POOL_OBSOLETE_BPOBJ		"com.delphix:obsolete_bpobj"
 #define	DMU_POOL_CONDENSING_INDIRECT	"com.delphix:condensing_indirect"
 #define	DMU_POOL_ZPOOL_CHECKPOINT	"com.delphix:zpool_checkpoint"
+#define	DMU_POOL_REBUILDING		"com.intel:rebuilding"
 
 /*
  * Allocate an object from this objset.  The range of object numbers

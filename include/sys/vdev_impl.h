@@ -250,6 +250,9 @@ struct vdev {
 	/* pool checkpoint related */
 	space_map_t	*vdev_checkpoint_sm;	/* contains reserved blocks */
 
+	uint64_t	vdev_last_io;	/* lbolt of last non-scan I/O */
+	nvlist_t	*vdev_cfg;	/* additional dRAID configuration */
+
 	/*
 	 * Values stored in the config for an indirect or removing vdev.
 	 */
@@ -466,12 +469,39 @@ extern vdev_ops_t vdev_root_ops;
 extern vdev_ops_t vdev_mirror_ops;
 extern vdev_ops_t vdev_replacing_ops;
 extern vdev_ops_t vdev_raidz_ops;
+extern vdev_ops_t vdev_draid_ops;
+extern vdev_ops_t vdev_draid_spare_ops;
 extern vdev_ops_t vdev_disk_ops;
 extern vdev_ops_t vdev_file_ops;
 extern vdev_ops_t vdev_missing_ops;
 extern vdev_ops_t vdev_hole_ops;
 extern vdev_ops_t vdev_spare_ops;
 extern vdev_ops_t vdev_indirect_ops;
+
+/*
+ * Virtual device vector for mirroring.
+ */
+typedef struct mirror_child {
+	vdev_t		*mc_vd;
+	uint64_t	mc_offset;
+	int		mc_error;
+	int		mc_load;
+	uint8_t		mc_tried;
+	uint8_t		mc_skipped;
+	uint8_t		mc_speculative;
+} mirror_child_t;
+
+typedef struct mirror_map {
+	int		*mm_preferred;
+	int		mm_preferred_cnt;
+	int		mm_children;
+	boolean_t	mm_replacing;
+	boolean_t	mm_root;
+	mirror_child_t	mm_child[];
+} mirror_map_t;
+
+extern mirror_map_t *vdev_mirror_map_alloc(int, boolean_t, boolean_t);
+extern const zio_vsd_ops_t vdev_mirror_vsd_ops;
 
 /*
  * Common size functions

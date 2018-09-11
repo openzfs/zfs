@@ -38,6 +38,8 @@
 #include <sys/dmu_tx.h>
 #include <sys/dsl_dir.h>
 #include <sys/vdev_impl.h>
+#include <sys/vdev_scan.h>
+#include <sys/vdev_draid_impl.h>
 #include <sys/uberblock_impl.h>
 #include <sys/metaslab.h>
 #include <sys/metaslab_impl.h>
@@ -179,6 +181,8 @@ vdev_dbgmsg_print_tree(vdev_t *vd, int indent)
 static vdev_ops_t *vdev_ops_table[] = {
 	&vdev_root_ops,
 	&vdev_raidz_ops,
+	&vdev_draid_ops,
+	&vdev_draid_spare_ops,
 	&vdev_mirror_ops,
 	&vdev_replacing_ops,
 	&vdev_spare_ops,
@@ -274,6 +278,16 @@ vdev_get_min_asize(vdev_t *vd)
 	if (pvd->vdev_ops == &vdev_raidz_ops)
 		return ((pvd->vdev_min_asize + pvd->vdev_children - 1) /
 		    pvd->vdev_children);
+
+	if (pvd->vdev_ops == &vdev_draid_ops) {
+		struct vdev_draid_configuration *cfg = pvd->vdev_tsd;
+
+		ASSERT(cfg != NULL);
+		ASSERT3U(pvd->vdev_nparity, ==, cfg->dcf_parity);
+		ASSERT3U(pvd->vdev_children, ==, cfg->dcf_children);
+		return (pvd->vdev_min_asize /
+		    (pvd->vdev_children - cfg->dcf_spare));
+	}
 
 	return (pvd->vdev_min_asize);
 }
@@ -496,6 +510,8 @@ vdev_alloc_common(spa_t *spa, uint_t id, uint64_t guid, vdev_ops_t *ops)
 	vd->vdev_ops = ops;
 	vd->vdev_state = VDEV_STATE_CLOSED;
 	vd->vdev_ishole = (ops == &vdev_hole_ops);
+	vd->vdev_cfg = NULL;
+	vd->vdev_last_io = 0;
 	vic->vic_prev_indirect_vdev = UINT64_MAX;
 
 	rw_init(&vd->vdev_indirect_rwlock, NULL, RW_DEFAULT, NULL);
@@ -548,6 +564,7 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 	vdev_indirect_config_t *vic;
 	char *tmp = NULL;
 	int rc;
+	nvlist_t *draidcfg = NULL;
 	vdev_alloc_bias_t alloc_bias = VDEV_BIAS_NONE;
 	boolean_t top_level = (parent && !parent->vdev_parent);
 
@@ -604,7 +621,7 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 	 * Set the nparity property for RAID-Z vdevs.
 	 */
 	nparity = -1ULL;
-	if (ops == &vdev_raidz_ops) {
+	if (ops == &vdev_raidz_ops || ops == &vdev_draid_ops) {
 		if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_NPARITY,
 		    &nparity) == 0) {
 			if (nparity == 0 || nparity > VDEV_RAIDZ_MAXPARITY)
@@ -655,6 +672,21 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 		}
 	}
 
+	if (ops == &vdev_draid_ops) {
+		if (nvlist_lookup_nvlist(nv,
+		    ZPOOL_CONFIG_DRAIDCFG, &draidcfg) != 0)
+			return (SET_ERROR(EINVAL));
+		if (!vdev_draid_config_validate(NULL, draidcfg))
+			return (SET_ERROR(EINVAL));
+		if (alloctype == VDEV_ALLOC_ADD &&
+		    spa->spa_load_state != SPA_LOAD_CREATE &&
+		    !spa_feature_is_enabled(spa, SPA_FEATURE_DRAID)) {
+			cmn_err(CE_WARN, "pool '%s' adding a dRAID "
+			    "VDEV requires feature@draid", spa_name(spa));
+			return (SET_ERROR(EINVAL));
+		}
+	}
+
 	vd = vdev_alloc_common(spa, id, guid, ops);
 	vic = &vd->vdev_indirect_config;
 
@@ -662,6 +694,8 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 	vd->vdev_nparity = nparity;
 	if (top_level && alloc_bias != VDEV_BIAS_NONE)
 		vd->vdev_alloc_bias = alloc_bias;
+	if (ops == &vdev_draid_ops)
+		vd->vdev_cfg = fnvlist_dup(draidcfg);
 
 	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &vd->vdev_path) == 0)
 		vd->vdev_path = spa_strdup(vd->vdev_path);
@@ -912,6 +946,9 @@ vdev_free(vdev_t *vd)
 	if (vd->vdev_isl2cache)
 		spa_l2cache_remove(vd);
 
+	if (vd->vdev_cfg)
+		fnvlist_free(vd->vdev_cfg);
+
 	txg_list_destroy(&vd->vdev_ms_list);
 	txg_list_destroy(&vd->vdev_dtl_list);
 
@@ -967,6 +1004,7 @@ vdev_top_transfer(vdev_t *svd, vdev_t *tvd)
 	int t;
 
 	ASSERT(tvd == tvd->vdev_top);
+	ASSERT(svd->vdev_ops != &vdev_draid_ops);
 
 	tvd->vdev_pending_fastwrite = svd->vdev_pending_fastwrite;
 	tvd->vdev_ms_array = svd->vdev_ms_array;
@@ -1412,6 +1450,9 @@ vdev_probe(vdev_t *vd, zio_t *zio)
 
 	ASSERT(vd->vdev_ops->vdev_op_leaf);
 
+	if (vd->vdev_ops == &vdev_draid_spare_ops)
+		return (NULL);
+
 	/*
 	 * Don't probe the probe.
 	 */
@@ -1771,6 +1812,7 @@ vdev_open(vdev_t *vd)
 	 * vdev open for business.
 	 */
 	if (vd->vdev_ops->vdev_op_leaf &&
+	    vd->vdev_ops != &vdev_draid_spare_ops &&
 	    (error = zio_wait(vdev_probe(vd, NULL))) != 0) {
 		vdev_set_state(vd, B_TRUE, VDEV_STATE_FAULTED,
 		    VDEV_AUX_ERR_EXCEEDED);
@@ -3454,6 +3496,9 @@ top:
 	if (!vd->vdev_ops->vdev_op_leaf)
 		return (spa_vdev_state_exit(spa, NULL, ENOTSUP));
 
+	if (vd->vdev_ops == &vdev_draid_spare_ops)
+		return (spa_vdev_state_exit(spa, NULL, ENOTSUP));
+
 	tvd = vd->vdev_top;
 	mg = tvd->vdev_mg;
 	generation = spa->spa_config_generation + 1;
@@ -3639,6 +3684,18 @@ vdev_is_dead(vdev_t *vd)
 	return (vd->vdev_state < VDEV_STATE_DEGRADED ||
 	    vd->vdev_ops == &vdev_hole_ops ||
 	    vd->vdev_ops == &vdev_missing_ops);
+}
+
+boolean_t
+vdev_is_dead_at(vdev_t *vd, uint64_t zio_offset)
+{
+	if (vd->vdev_top == NULL || vd->vdev_top->vdev_ops != &vdev_draid_ops)
+		return (vdev_is_dead(vd));
+
+	if (vd->vdev_ops == &vdev_draid_spare_ops)
+		zio_offset -= VDEV_LABEL_START_SIZE;
+
+	return (vdev_draid_is_dead(vd, zio_offset));
 }
 
 boolean_t
@@ -3918,7 +3975,8 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
 				uint64_t *processed = &scn_phys->scn_processed;
 
 				/* XXX cleanup? */
-				if (vd->vdev_ops->vdev_op_leaf)
+				if (vd->vdev_ops->vdev_op_leaf &&
+				    vd->vdev_ops != &vdev_draid_spare_ops)
 					atomic_add_64(processed, psize);
 				vs->vs_scan_processed += psize;
 			}
@@ -3981,20 +4039,22 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
 		return;
 
 	mutex_enter(&vd->vdev_stat_lock);
-	if (type == ZIO_TYPE_READ && !vdev_is_dead(vd)) {
+	if (type == ZIO_TYPE_READ && !vdev_is_dead_at(vd, zio->io_offset)) {
 		if (zio->io_error == ECKSUM)
 			vs->vs_checksum_errors++;
 		else
 			vs->vs_read_errors++;
 	}
-	if (type == ZIO_TYPE_WRITE && !vdev_is_dead(vd))
+	if (type == ZIO_TYPE_WRITE && !vdev_is_dead_at(vd, zio->io_offset))
 		vs->vs_write_errors++;
 	mutex_exit(&vd->vdev_stat_lock);
 
+	/* HH: todo proper rebuild IO error handling... */
 	if (spa->spa_load_state == SPA_LOAD_NONE &&
 	    type == ZIO_TYPE_WRITE && txg != 0 &&
+	    vd->vdev_ops != &vdev_draid_spare_ops &&
 	    (!(flags & ZIO_FLAG_IO_REPAIR) ||
-	    (flags & ZIO_FLAG_SCAN_THREAD) ||
+	    ((flags & ZIO_FLAG_SCAN_THREAD) && spa->spa_vdev_scan == NULL) ||
 	    spa->spa_claiming)) {
 		/*
 		 * This is either a normal write (not a repair), or it's

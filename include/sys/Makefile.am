@@ -93,11 +93,13 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/vdev_disk.h \
 	$(top_srcdir)/include/sys/vdev_file.h \
 	$(top_srcdir)/include/sys/vdev.h \
+	$(top_srcdir)/include/sys/vdev_scan.h \
 	$(top_srcdir)/include/sys/vdev_impl.h \
 	$(top_srcdir)/include/sys/vdev_indirect_births.h \
 	$(top_srcdir)/include/sys/vdev_indirect_mapping.h \
 	$(top_srcdir)/include/sys/vdev_raidz.h \
 	$(top_srcdir)/include/sys/vdev_raidz_impl.h \
+	$(top_srcdir)/include/sys/vdev_draid_impl.h \
 	$(top_srcdir)/include/sys/vdev_removal.h \
 	$(top_srcdir)/include/sys/xvattr.h \
 	$(top_srcdir)/include/sys/zap.h \

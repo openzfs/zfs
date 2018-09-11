@@ -43,6 +43,7 @@
 #include <sys/zfs_znode.h>
 #include <sys/spa_impl.h>
 #include <sys/vdev_impl.h>
+#include <sys/vdev_scan.h>
 #include <sys/zil_impl.h>
 #include <sys/zio_checksum.h>
 #include <sys/ddt.h>
@@ -199,8 +200,9 @@ int zfs_free_bpobj_enabled = 1;
 /* the order has to match pool_scan_type */
 static scan_cb_t *scan_funcs[POOL_SCAN_FUNCS] = {
 	NULL,
-	dsl_scan_scrub_cb,	/* POOL_SCAN_SCRUB */
-	dsl_scan_scrub_cb,	/* POOL_SCAN_RESILVER */
+	dsl_scan_scrub_cb,		/* POOL_SCAN_SCRUB */
+	dsl_scan_scrub_cb,		/* POOL_SCAN_RESILVER */
+	spa_vdev_scan_rebuild_cb,	/* POOL_SCAN_REBUILD */
 };
 
 /* In core node for the scn->scn_queue. Represents a dataset to be scanned */
@@ -330,8 +332,11 @@ dsl_scan_is_running(const dsl_scan_t *scn)
 boolean_t
 dsl_scan_resilvering(dsl_pool_t *dp)
 {
-	return (dsl_scan_is_running(dp->dp_scan) &&
-	    dp->dp_scan->scn_phys.scn_func == POOL_SCAN_RESILVER);
+	dsl_scan_t *scn = dp->dp_scan;
+
+	return (dsl_scan_is_running(scn) &&
+	    (scn->scn_phys.scn_func == POOL_SCAN_RESILVER ||
+	    DSL_SCAN_IS_REBUILD(scn)));
 }
 
 static inline void
@@ -479,6 +484,12 @@ dsl_scan_init(dsl_pool_t *dp, uint64_t txg)
 			zfs_dbgmsg("new-style scrub was modified "
 			    "by old software; restarting in txg %llu",
 			    (longlong_t)scn->scn_restart_txg);
+		}
+
+		if (DSL_SCAN_IS_REBUILD(scn) &&
+		    scn->scn_phys.scn_state == DSS_SCANNING) {
+			ASSERT3P(spa->spa_vdev_scan, ==, NULL);
+			scn->scn_phys.scn_state = DSS_CANCELED;
 		}
 	}
 
@@ -631,6 +642,7 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 
 	ASSERT(!dsl_scan_is_running(scn));
 	ASSERT(*funcp > POOL_SCAN_NONE && *funcp < POOL_SCAN_FUNCS);
+	ASSERT(*funcp != POOL_SCAN_REBUILD);
 	bzero(&scn->scn_phys, sizeof (scn->scn_phys));
 	scn->scn_phys.scn_func = *funcp;
 	scn->scn_phys.scn_state = DSS_SCANNING;
@@ -754,18 +766,22 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 
 	dsl_pool_t *dp = scn->scn_dp;
 	spa_t *spa = dp->dp_spa;
-	int i;
+	boolean_t rebuild = DSL_SCAN_IS_REBUILD(scn);
 
-	/* Remove any remnants of an old-style scrub. */
-	for (i = 0; old_names[i]; i++) {
-		(void) zap_remove(dp->dp_meta_objset,
-		    DMU_POOL_DIRECTORY_OBJECT, old_names[i], tx);
-	}
+	if (!rebuild) {
+		int i;
 
-	if (scn->scn_phys.scn_queue_obj != 0) {
-		VERIFY0(dmu_object_free(dp->dp_meta_objset,
-		    scn->scn_phys.scn_queue_obj, tx));
-		scn->scn_phys.scn_queue_obj = 0;
+		/* Remove any remnants of an old-style scrub. */
+		for (i = 0; old_names[i]; i++) {
+			(void) zap_remove(dp->dp_meta_objset,
+			    DMU_POOL_DIRECTORY_OBJECT, old_names[i], tx);
+		}
+
+		if (scn->scn_phys.scn_queue_obj != 0) {
+			VERIFY0(dmu_object_free(dp->dp_meta_objset,
+			    scn->scn_phys.scn_queue_obj, tx));
+			scn->scn_phys.scn_queue_obj = 0;
+		}
 	}
 	scan_ds_queue_clear(scn);
 
@@ -802,7 +818,7 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 		spa_history_log_internal(spa, "scan done", tx,
 		    "errors=%llu", spa_get_errlog_size(spa));
 
-	if (DSL_SCAN_IS_SCRUB_RESILVER(scn)) {
+	if (DSL_SCAN_IS_SCRUB_RESILVER(scn) || rebuild) {
 		spa->spa_scrub_started = B_FALSE;
 		spa->spa_scrub_active = B_FALSE;
 
@@ -821,9 +837,16 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 			vdev_dtl_reassess(spa->spa_root_vdev, tx->tx_txg,
 			    scn->scn_phys.scn_max_txg, B_TRUE);
 
-			spa_event_notify(spa, NULL, NULL,
-			    scn->scn_phys.scn_min_txg ?
-			    ESC_ZFS_RESILVER_FINISH : ESC_ZFS_SCRUB_FINISH);
+			const char *name;
+
+			if (rebuild)
+				name = ESC_ZFS_REBUILD_FINISH;
+			else if (scn->scn_phys.scn_min_txg)
+				name = ESC_ZFS_RESILVER_FINISH;
+			else
+				name = ESC_ZFS_SCRUB_FINISH;
+
+			spa_event_notify(spa, NULL, NULL, name);
 		} else {
 			vdev_dtl_reassess(spa->spa_root_vdev, tx->tx_txg,
 			    0, B_TRUE);
@@ -853,6 +876,8 @@ dsl_scan_cancel_check(void *arg, dmu_tx_t *tx)
 
 	if (!dsl_scan_is_running(scn))
 		return (SET_ERROR(ENOENT));
+	if (DSL_SCAN_IS_REBUILD(scn))
+		return (SET_ERROR(ENOTSUP));
 	return (0);
 }
 
@@ -943,6 +968,9 @@ dsl_scrub_set_pause_resume(const dsl_pool_t *dp, pool_scrub_cmd_t cmd)
 void
 dsl_resilver_restart(dsl_pool_t *dp, uint64_t txg)
 {
+	if (dp->dp_spa->spa_vdev_scan != NULL)
+		return;
+
 	if (txg == 0) {
 		dmu_tx_t *tx;
 		tx = dmu_tx_create_dd(dp->dp_mos_dir);
@@ -2322,7 +2350,7 @@ dsl_scan_ddt_entry(dsl_scan_t *scn, enum zio_checksum checksum,
 	zbookmark_phys_t zb = { 0 };
 	int p;
 
-	if (!dsl_scan_is_running(scn))
+	if (!dsl_scan_is_running(scn) || DSL_SCAN_IS_REBUILD(scn))
 		return;
 
 	for (p = 0; p < DDT_PHYS_TYPES; p++, ddp++) {
@@ -3010,10 +3038,7 @@ dsl_scan_need_resilver(spa_t *spa, const dva_t *dva, size_t psize,
 	 * then it may be possible to skip the resilver IO.  The psize
 	 * is provided instead of asize to simplify the check for RAIDZ.
 	 */
-	if (!vdev_dtl_need_resilver(vd, DVA_GET_OFFSET(dva), psize))
-		return (B_FALSE);
-
-	return (B_TRUE);
+	return (vdev_dtl_need_resilver(vd, DVA_GET_OFFSET(dva), psize));
 }
 
 static int
@@ -3181,11 +3206,18 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 	if (dsl_scan_restarting(scn, tx)) {
 		pool_scan_func_t func = POOL_SCAN_SCRUB;
 		dsl_scan_done(scn, B_FALSE, tx);
-		if (vdev_resilver_needed(spa->spa_root_vdev, NULL, NULL))
-			func = POOL_SCAN_RESILVER;
+		if (vdev_resilver_needed(spa->spa_root_vdev, NULL, NULL)) {
+			if (spa->spa_vdev_scan != NULL)
+				func = POOL_SCAN_REBUILD;
+			else
+				func = POOL_SCAN_RESILVER;
+		}
 		zfs_dbgmsg("restarting scan func=%u txg=%llu",
 		    func, (longlong_t)tx->tx_txg);
-		dsl_scan_setup_sync(&func, tx);
+		if (func == POOL_SCAN_REBUILD)
+			spa_vdev_scan_setup_sync(tx);
+		else
+			dsl_scan_setup_sync(&func, tx);
 	}
 
 	/*
@@ -3236,6 +3268,47 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 
 	if (!dsl_scan_is_running(scn) || dsl_scan_is_paused_scrub(scn))
 		return;
+
+	if (DSL_SCAN_IS_REBUILD(scn)) {
+		spa_vdev_scan_t *svs = spa->spa_vdev_scan;
+		int msi;
+		boolean_t done;
+
+		ASSERT(svs != NULL);
+
+		mutex_enter(&svs->svs_lock);
+		done = (svs->svs_thread == NULL) ? B_TRUE : B_FALSE;
+		msi = svs->svs_msi_synced;
+		mutex_exit(&svs->svs_lock);
+
+		if (done) {
+			boolean_t complete = !svs->svs_thread_exit;
+
+			if (complete) {
+				ASSERT3U(msi + 1, ==,
+				    svs->svs_vd->vdev_top->vdev_ms_count);
+				svs->svs_phys.sr_ms = -1;
+				svs->svs_phys.sr_vdev = 0;
+				svs->svs_phys.sr_oldvd = 0;
+			}
+			dsl_scan_done(scn, complete, tx);
+			/*
+			 * HH: remove calls to dsl_scan_sync_state() here and
+			 * below, when states shared with DSL scan are removed
+			 */
+			dsl_scan_sync_state(scn, tx, SYNC_MANDATORY);
+			spa_vdev_scan_sync_state(svs, tx);
+
+			spa_vdev_scan_destroy(spa);
+			svs = NULL;
+		} else if (msi == -1 || msi > svs->svs_phys.sr_ms) {
+			svs->svs_phys.sr_ms = msi;
+			dsl_scan_sync_state(scn, tx, SYNC_MANDATORY);
+			spa_vdev_scan_sync_state(svs, tx);
+		}
+		/* Rebuild is mostly handled in the open-context scan thread */
+		return;
+	}
 
 	/*
 	 * Wait a few txgs after importing to begin scanning so that
