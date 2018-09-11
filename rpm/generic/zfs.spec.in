@@ -376,7 +376,7 @@ systemctl --system daemon-reload >/dev/null || true
 /usr/lib/modules-load.d/*
 %{_unitdir}/*
 %{_presetdir}/*
-%{_generatordir}/*
+%{_systemdgeneratordir}/*
 %else
 %config(noreplace) %{_sysconfdir}/init.d/*
 %config(noreplace) %{_initconfdir}/zfs
