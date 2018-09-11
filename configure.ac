@@ -68,6 +68,7 @@ AC_CONFIG_FILES([
 	cmd/arc_summary/Makefile
 	cmd/arcstat/Makefile
 	cmd/dbufstat/Makefile
+	cmd/draidcfg/Makefile
 	cmd/fsck_zfs/Makefile
 	cmd/mount_zfs/Makefile
 	cmd/raidz_test/Makefile

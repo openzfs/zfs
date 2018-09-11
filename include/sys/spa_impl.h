@@ -37,6 +37,8 @@
 #include <sys/spa_log_spacemap.h>
 #include <sys/vdev.h>
 #include <sys/vdev_removal.h>
+#include <sys/vdev_scan.h>
+#include <sys/vdev_scan.h>
 #include <sys/metaslab.h>
 #include <sys/dmu.h>
 #include <sys/dsl_pool.h>
@@ -307,10 +309,11 @@ struct spa {
 	spa_condensing_indirect_phys_t	spa_condensing_indirect_phys;
 	spa_condensing_indirect_t	*spa_condensing_indirect;
 	zthr_t		*spa_condense_zthr;	/* zthr doing condense. */
-
 	uint64_t	spa_checkpoint_txg;	/* the txg of the checkpoint */
 	spa_checkpoint_info_t spa_checkpoint_info; /* checkpoint accounting */
-	zthr_t		*spa_checkpoint_discard_zthr;
+	zthr_t	*spa_checkpoint_discard_zthr;
+
+	spa_vdev_scan_t *spa_vdev_scan;
 
 	space_map_t	*spa_syncing_log_sm;	/* current log space map */
 	avl_tree_t	spa_sm_logs_by_txg;

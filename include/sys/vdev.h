@@ -115,7 +115,8 @@ extern void vdev_space_update(vdev_t *vd,
 
 extern int64_t vdev_deflated_space(vdev_t *vd, int64_t space);
 
-extern uint64_t vdev_psize_to_asize(vdev_t *vd, uint64_t psize);
+extern uint64_t vdev_psize_to_asize(vdev_t *vd,
+    uint64_t offset, uint64_t psize);
 
 extern int vdev_fault(spa_t *spa, uint64_t guid, vdev_aux_t aux);
 extern int vdev_degrade(spa_t *spa, uint64_t guid, vdev_aux_t aux);
@@ -125,6 +126,7 @@ extern int vdev_offline(spa_t *spa, uint64_t guid, uint64_t flags);
 extern void vdev_clear(spa_t *spa, vdev_t *vd);
 
 extern boolean_t vdev_is_dead(vdev_t *vd);
+extern boolean_t vdev_is_dead_at(vdev_t *vd, uint64_t offset);
 extern boolean_t vdev_readable(vdev_t *vd);
 extern boolean_t vdev_writeable(vdev_t *vd);
 extern boolean_t vdev_allocatable(vdev_t *vd);

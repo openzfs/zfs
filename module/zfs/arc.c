@@ -3497,7 +3497,7 @@ arc_hdr_l2hdr_destroy(arc_buf_hdr_t *hdr)
 	l2arc_buf_hdr_t *l2hdr = &hdr->b_l2hdr;
 	l2arc_dev_t *dev = l2hdr->b_dev;
 	uint64_t psize = HDR_GET_PSIZE(hdr);
-	uint64_t asize = vdev_psize_to_asize(dev->l2ad_vdev, psize);
+	uint64_t asize = vdev_psize_to_asize(dev->l2ad_vdev, -1, psize);
 
 	ASSERT(MUTEX_HELD(&dev->l2ad_mtx));
 	ASSERT(HDR_HAS_L2HDR(hdr));
@@ -5702,6 +5702,7 @@ top:
 		 * Gracefully handle a damaged logical block size as a
 		 * checksum error.
 		 */
+		ASSERT3U(lsize, <=, spa_maxblocksize);
 		if (lsize > spa_maxblocksize(spa)) {
 			rc = SET_ERROR(ECKSUM);
 			goto out;
@@ -5903,7 +5904,7 @@ top:
 				cb->l2rcb_zb = *zb;
 				cb->l2rcb_flags = zio_flags;
 
-				asize = vdev_psize_to_asize(vd, size);
+				asize = vdev_psize_to_asize(vd, -1, size);
 				if (asize != size) {
 					abd = abd_alloc_for_io(asize,
 					    HDR_ISTYPE_METADATA(hdr));
@@ -7107,6 +7108,12 @@ arc_target_bytes(void)
 	return (arc_c);
 }
 
+uint64_t
+arc_max_bytes(void)
+{
+	return (arc_c_max);
+}
+
 void
 arc_init(void)
 {
@@ -7662,7 +7669,7 @@ top:
 			ARCSTAT_INCR(arcstat_l2_lsize, -HDR_GET_LSIZE(hdr));
 
 			bytes_dropped +=
-			    vdev_psize_to_asize(dev->l2ad_vdev, psize);
+			    vdev_psize_to_asize(dev->l2ad_vdev, -1, psize);
 			(void) zfs_refcount_remove_many(&dev->l2ad_alloc,
 			    arc_hdr_size(hdr), hdr);
 		}
@@ -8289,7 +8296,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 			    HDR_HAS_RABD(hdr));
 			uint64_t psize = HDR_GET_PSIZE(hdr);
 			uint64_t asize = vdev_psize_to_asize(dev->l2ad_vdev,
-			    psize);
+			    -1, psize);
 
 			if ((write_asize + asize) > target_sz) {
 				full = B_TRUE;

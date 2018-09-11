@@ -788,12 +788,6 @@ extern int bpobj_enqueue_free_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx);
 #define	SPA_ASYNC_TRIM_RESTART			0x200
 #define	SPA_ASYNC_AUTOTRIM_RESTART		0x400
 
-/*
- * Controls the behavior of spa_vdev_remove().
- */
-#define	SPA_REMOVE_UNSPARE	0x01
-#define	SPA_REMOVE_DONE		0x02
-
 /* device manipulation */
 extern int spa_vdev_add(spa_t *spa, nvlist_t *nvroot);
 extern int spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot,

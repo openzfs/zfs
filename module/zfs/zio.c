@@ -975,7 +975,8 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp, boolean_t config_held)
 		uint64_t offset = DVA_GET_OFFSET(&bp->blk_dva[i]);
 		uint64_t asize = DVA_GET_ASIZE(&bp->blk_dva[i]);
 		if (BP_IS_GANG(bp))
-			asize = vdev_psize_to_asize(vd, SPA_GANGBLOCKSIZE);
+			asize = vdev_psize_to_asize(vd,
+			    offset, SPA_GANGBLOCKSIZE);
 		if (offset + asize > vd->vdev_asize) {
 			zfs_panic_recover("blkptr at %p DVA %u has invalid "
 			    "OFFSET %llu",
@@ -1009,7 +1010,7 @@ zfs_dva_valid(spa_t *spa, const dva_t *dva, const blkptr_t *bp)
 	uint64_t asize = DVA_GET_ASIZE(dva);
 
 	if (BP_IS_GANG(bp))
-		asize = vdev_psize_to_asize(vd, SPA_GANGBLOCKSIZE);
+		asize = vdev_psize_to_asize(vd, offset, SPA_GANGBLOCKSIZE);
 	if (offset + asize > vd->vdev_asize)
 		return (B_FALSE);
 
@@ -3607,6 +3608,27 @@ zio_vdev_io_start(zio_t *zio)
 		}
 	}
 
+	/*
+	 * We keep track of time-sensitive I/Os so that the scan thread
+	 * can quickly react to certain workloads.  In particular, we care
+	 * about non-scrubbing, top-level reads and writes with the following
+	 * characteristics:
+	 *	- synchronous/async writes of user data to non-slog devices
+	 *	- any reads of user data
+	 * When these conditions are met, adjust the timestamp of vdev_last_io
+	 * which allows the scan thread to adjust its workload accordingly.
+	 */
+	if (!(zio->io_flags & ZIO_FLAG_SCAN_THREAD) && zio->io_bp != NULL &&
+	    !vd->vdev_islog && zio->io_bookmark.zb_objset != DMU_META_OBJSET) {
+		vdev_t *tvd = vd->vdev_top;
+		uint64_t old = tvd->vdev_last_io;
+		uint64_t new = ddi_get_lbolt64();
+		int spa_vdev_scan_idle = get_spa_vdev_scan_idle();
+
+		if (new > old + spa_vdev_scan_idle/2)
+			(void) atomic_cas_64(&tvd->vdev_last_io, old, new);
+	}
+
 	align = 1ULL << vd->vdev_top->vdev_ashift;
 
 	if (!(zio->io_flags & ZIO_FLAG_PHYSICAL) &&
@@ -3670,19 +3692,32 @@ zio_vdev_io_start(zio_t *zio)
 	 * However, indirect vdevs point off to other vdevs which may have
 	 * DTL's, so we never bypass them.  The child i/os on concrete vdevs
 	 * will be properly bypassed instead.
+	 *
+	 * Leaf DTL_PARTIAL can be empty when a legitimate write comes from
+	 * a dRAID spare vdev. For example, when a dRAID spare is first
+	 * used, its spare blocks need to be written to but the leaf vdev's
+	 * of such blocks can have empty DTL_PARTIAL.
+	 *
+	 * There seemed no clean way to allow such writes while bypassing
+	 * spurious ones. At this point, just avoid all bypassing for dRAID
+	 * for correctness.
 	 */
 	if ((zio->io_flags & ZIO_FLAG_IO_REPAIR) &&
 	    !(zio->io_flags & ZIO_FLAG_SELF_HEAL) &&
 	    zio->io_txg != 0 &&	/* not a delegated i/o */
 	    vd->vdev_ops != &vdev_indirect_ops &&
+	    vd->vdev_top->vdev_ops != &vdev_draid_ops &&
 	    !vdev_dtl_contains(vd, DTL_PARTIAL, zio->io_txg, 1)) {
 		ASSERT(zio->io_type == ZIO_TYPE_WRITE);
 		zio_vdev_io_bypass(zio);
 		return (zio);
 	}
 
-	if (vd->vdev_ops->vdev_op_leaf && (zio->io_type == ZIO_TYPE_READ ||
-	    zio->io_type == ZIO_TYPE_WRITE || zio->io_type == ZIO_TYPE_TRIM)) {
+	if (vd->vdev_ops->vdev_op_leaf &&
+	    vd->vdev_ops != &vdev_draid_spare_ops &&
+	    (zio->io_type == ZIO_TYPE_READ ||
+	    zio->io_type == ZIO_TYPE_WRITE ||
+	    zio->io_type == ZIO_TYPE_TRIM)) {
 
 		if (zio->io_type == ZIO_TYPE_READ && vdev_cache_read(zio))
 			return (zio);
@@ -3719,8 +3754,8 @@ zio_vdev_io_done(zio_t *zio)
 	if (zio->io_delay)
 		zio->io_delay = gethrtime() - zio->io_delay;
 
-	if (vd != NULL && vd->vdev_ops->vdev_op_leaf) {
-
+	if (vd != NULL && vd->vdev_ops->vdev_op_leaf &&
+	    vd->vdev_ops != &vdev_draid_spare_ops) {
 		vdev_queue_io_done(zio);
 
 		if (zio->io_type == ZIO_TYPE_WRITE)
@@ -4122,7 +4157,7 @@ zio_checksum_verify(zio_t *zio)
 		if (zio->io_prop.zp_checksum == ZIO_CHECKSUM_OFF)
 			return (zio);
 
-		ASSERT(zio->io_prop.zp_checksum == ZIO_CHECKSUM_LABEL);
+		ASSERT3U(zio->io_prop.zp_checksum, ==, ZIO_CHECKSUM_LABEL);
 	}
 
 	if ((error = zio_checksum_error(zio, &info)) != 0) {

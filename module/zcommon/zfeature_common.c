@@ -559,6 +559,10 @@ zpool_feature_init(void)
 	    "com.datto:resilver_defer", "resilver_defer",
 	    "Support for deferring new resilvers when one is already running.",
 	    ZFEATURE_FLAG_READONLY_COMPAT, ZFEATURE_TYPE_BOOLEAN, NULL);
+
+	zfeature_register(SPA_FEATURE_DRAID,
+	    "com.intel:draid", "draid", "Support for distributed parity RAID",
+	    ZFEATURE_FLAG_MOS, ZFEATURE_TYPE_BOOLEAN, NULL);
 }
 
 #if defined(_KERNEL)

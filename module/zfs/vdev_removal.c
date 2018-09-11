@@ -251,6 +251,7 @@ vdev_remove_initiate_sync(void *arg, dmu_tx_t *tx)
 	uint64_t txg __maybe_unused = dmu_tx_get_txg(tx);
 
 	ASSERT3P(vd->vdev_ops, !=, &vdev_raidz_ops);
+	ASSERT3P(vd->vdev_ops, !=, &vdev_draid_ops);
 	svr = spa_vdev_removal_create(vd);
 
 	ASSERT(vd->vdev_removing);
@@ -1121,6 +1122,7 @@ vdev_remove_enlist_zaps(vdev_t *vd, nvlist_t *zlist)
 {
 	ASSERT3P(zlist, !=, NULL);
 	ASSERT3P(vd->vdev_ops, !=, &vdev_raidz_ops);
+	ASSERT3P(vd->vdev_ops, !=, &vdev_draid_ops);
 
 	if (vd->vdev_leaf_zap != 0) {
 		char zkey[32];
@@ -2030,7 +2032,7 @@ spa_vdev_remove_top_check(vdev_t *vd)
 
 	/*
 	 * All vdevs in normal class must have the same ashift
-	 * and not be raidz.
+	 * and not be raidz or draid.
 	 */
 	vdev_t *rvd = spa->spa_root_vdev;
 	int num_indirect = 0;
@@ -2042,7 +2044,8 @@ spa_vdev_remove_top_check(vdev_t *vd)
 			num_indirect++;
 		if (!vdev_is_concrete(cvd))
 			continue;
-		if (cvd->vdev_ops == &vdev_raidz_ops)
+		if (cvd->vdev_ops == &vdev_raidz_ops ||
+		    cvd->vdev_ops == &vdev_draid_ops)
 			return (SET_ERROR(EINVAL));
 		/*
 		 * Need the mirror to be mirror of leaf vdevs only
@@ -2196,18 +2199,30 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 		 * in this pool.
 		 */
 		if (vd == NULL || unspare) {
-			if (vd == NULL)
-				vd = spa_lookup_by_guid(spa, guid, B_TRUE);
-			ev = spa_event_create(spa, vd, NULL,
-			    ESC_ZFS_VDEV_REMOVE_AUX);
+			char *type;
+			boolean_t draid_spare = B_FALSE;
 
-			vd_type = VDEV_TYPE_SPARE;
-			vd_path = spa_strdup(fnvlist_lookup_string(
-			    nv, ZPOOL_CONFIG_PATH));
-			spa_vdev_remove_aux(spa->spa_spares.sav_config,
-			    ZPOOL_CONFIG_SPARES, spares, nspares, nv);
-			spa_load_spares(spa);
-			spa->spa_spares.sav_sync = B_TRUE;
+			if (nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &type)
+			    == 0 && strcmp(type, VDEV_TYPE_DRAID_SPARE) == 0)
+				draid_spare = B_TRUE;
+
+			if (vd == NULL && draid_spare) {
+				error = SET_ERROR(ENOTSUP);
+			} else {
+				if (vd == NULL)
+					vd = spa_lookup_by_guid(spa,
+					    guid, B_TRUE);
+				ev = spa_event_create(spa, vd, NULL,
+				    ESC_ZFS_VDEV_REMOVE_AUX);
+
+				vd_type = VDEV_TYPE_SPARE;
+				vd_path = spa_strdup(fnvlist_lookup_string(
+				    nv, ZPOOL_CONFIG_PATH));
+				spa_vdev_remove_aux(spa->spa_spares.sav_config,
+				    ZPOOL_CONFIG_SPARES, spares, nspares, nv);
+				spa_load_spares(spa);
+				spa->spa_spares.sav_sync = B_TRUE;
+			}
 		} else {
 			error = SET_ERROR(EBUSY);
 		}

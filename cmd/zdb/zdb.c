@@ -1044,7 +1044,11 @@ dump_metaslab(metaslab_t *msp)
 		    SPACE_MAP_HISTOGRAM_SIZE, sm->sm_shift);
 	}
 
-	ASSERT(msp->ms_size == (1ULL << vd->vdev_ms_shift));
+	if (vd->vdev_ops == &vdev_draid_ops)
+		ASSERT3U(msp->ms_size, <=, 1ULL << vd->vdev_ms_shift);
+	else
+		ASSERT3U(msp->ms_size, ==, 1ULL << vd->vdev_ms_shift);
+
 	dump_spacemap(spa->spa_meta_objset, msp->ms_sm);
 
 	if (spa_feature_is_active(spa, SPA_FEATURE_LOG_SPACEMAP)) {
@@ -6688,7 +6692,7 @@ zdb_read_block(char *thing, spa_t *spa)
 	DVA_SET_VDEV(&dva[0], vd->vdev_id);
 	DVA_SET_OFFSET(&dva[0], offset);
 	DVA_SET_GANG(&dva[0], !!(flags & ZDB_FLAG_GBH));
-	DVA_SET_ASIZE(&dva[0], vdev_psize_to_asize(vd, psize));
+	DVA_SET_ASIZE(&dva[0], vdev_psize_to_asize(vd, offset, psize));
 
 	BP_SET_BIRTH(bp, TXG_INITIAL, TXG_INITIAL);
 

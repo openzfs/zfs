@@ -18,7 +18,11 @@
 #
 # Copyright (c) 2015 by Delphix. All rights reserved.
 # Copyright (C) 2016 Lawrence Livermore National Security, LLC.
+# Copyright (c) 2017, Intel Corporation.
 #
+
+# Turns on generation of draid groups of different sizes if non-zero
+degenerate=1
 
 BASE_DIR=$(dirname "$0")
 SCRIPT_COMMON=common.sh
@@ -239,27 +243,106 @@ curtime=$starttime
 
 # if no timeout was specified, loop forever.
 while [[ $timeout -eq 0 ]] || [[ $curtime -le $((starttime + timeout)) ]]; do
-	zopt="-G -VVVVV"
+	zopt="-L -VVVVV"
 
 	# start each run with an empty directory
 	workdir="$basedir/$rundir"
 	or_die rm -rf "$workdir"
 	or_die mkdir "$workdir"
 
-	# switch between common arrangements & fully randomized
-	if [[ $((RANDOM % 2)) -eq 0 ]]; then
+	# switch between three types of configs
+	# 25% basic, 25% raidz mix, and 50% draid mix
+	choice=$((RANDOM % 4))
+
+	# ashift range 9 - 15
+	align=$(((RANDOM % 2) * 3 + 9))
+
+	if [[ $choice -eq 0 ]]; then
+		# basic mirror only
 		mirrors=2
 		raidz=0
 		parity=1
 		vdevs=2
-	else
+		zopt="$zopt -K raidz"
+	elif [[ $choice -eq 1 ]]; then
+		# fully randomized mirror/raidz (sans dRAID)
 		mirrors=$(((RANDOM % 3) * 1))
 		parity=$(((RANDOM % 3) + 1))
 		raidz=$((((RANDOM % 9) + parity + 1) * (RANDOM % 2)))
 		vdevs=$(((RANDOM % 3) + 3))
+		zopt="$zopt -K raidz"
+	else
+		# mix of draid fixed (one per parity) and fully random
+		mirrors=0
+		raidz=1
+		align=12
+		case $((RANDOM % 4)) in
+		0 )	# draid1: 3 x (4 + 1) + 1 = 16 drives
+			parity=1
+			draid_data=4
+			draid_groups=3
+			draid_spares=1
+			vdevs=2
+			class="special=off"
+			size=320m
+			;;
+		1 )	# draid2: 3 x (5 + 2) + 2 = 23 drives
+			parity=2
+			draid_data=5
+			draid_groups=3
+			draid_spares=2
+			vdevs=0
+			class="special=on"
+			size=240m
+			;;
+		2 )	# draid3: 4 x (6 + 3) + 3 = 39 drives
+			parity=3
+			draid_data=6
+			draid_groups=4
+			draid_spares=3
+			vdevs=0
+			class="special=on"
+			size=160m
+			;;
+		3 )	# dRAID with varying choices
+			# parity: 1 --> 3
+			# data: 3 --> 6
+			# groups: 2 --> 6
+			# spares: 0 --> parity + 1
+			# yields max drives = 6 x (6 + 3) + 4 = 58 drives
+			parity=$(((RANDOM % 3) + 1))
+			draid_data=$(((RANDOM % 4) + 3 + parity))
+			draid_groups=$(((RANDOM % 5) + 2))
+			draid_spares=$(((RANDOM % 2) + parity))
+			vdevs=$((RANDOM % 3))
+			class="special=random"
+			gbavail=$(df -B 1G "$workdir" | awk 'NR==2 {print $4}')
+			# check if we have at least 60G availible
+			if [[ $gbavail -gt 60 ]]; then
+				# use size range 128MB - 1GB
+				megabytes=$((((RANDOM % 8) + 1) * 128))
+				size="${megabytes}m"
+			else
+				echo "limited storage on '$workdir'" >>ztest.out
+				size=128m
+			fi
+		esac
+
+		if [[ $degenerate -gt 0 ]]; then
+			draid_extra=$((RANDOM % draid_data))
+		else
+			draid_extra=0
+		fi
+		zopt="$zopt -K draid"
+		zopt="$zopt -D $(((draid_data + parity) * draid_groups + \
+			draid_spares + draid_extra))"
+		zopt="$zopt -G $draid_groups"
+		zopt="$zopt -S $draid_spares"
+		zopt="$zopt -C $class"
 	fi
-	align=$(((RANDOM % 2) * 3 + 9))
-	runtime=$((RANDOM % 100))
+
+	# run from 30 to 120 seconds
+	runtime=$(((RANDOM % 90) + 30))
 	passtime=$((RANDOM % (runtime / 3 + 1) + 10))
 
 	zopt="$zopt -m $mirrors"

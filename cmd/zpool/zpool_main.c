@@ -7123,7 +7123,8 @@ print_scan_status(pool_scan_stat_t *ps)
 	zfs_nicebytes(ps->pss_processed, processed_buf, sizeof (processed_buf));
 
 	assert(ps->pss_func == POOL_SCAN_SCRUB ||
-	    ps->pss_func == POOL_SCAN_RESILVER);
+	    ps->pss_func == POOL_SCAN_RESILVER ||
+	    ps->pss_func == POOL_SCAN_REBUILD);
 
 	/* Scan is finished or canceled. */
 	if (ps->pss_state == DSS_FINISHED) {
@@ -7147,6 +7148,13 @@ print_scan_status(pool_scan_stat_t *ps)
 			    (u_longlong_t)days_left, (u_longlong_t)hours_left,
 			    (u_longlong_t)mins_left, (u_longlong_t)secs_left,
 			    (u_longlong_t)ps->pss_errors, ctime(&end));
+		} else if (ps->pss_func == POOL_SCAN_REBUILD) {
+			(void) printf(gettext("rebuilt %s "
+			    "in %llu days %02llu:%02llu:%02llu "
+			    "with %llu errors on %s"), processed_buf,
+			    (u_longlong_t)days_left, (u_longlong_t)hours_left,
+			    (u_longlong_t)mins_left, (u_longlong_t)secs_left,
+			    (u_longlong_t)ps->pss_errors, ctime(&end));
 		}
 		return;
 	} else if (ps->pss_state == DSS_CANCELED) {
@@ -7155,6 +7163,9 @@ print_scan_status(pool_scan_stat_t *ps)
 			    ctime(&end));
 		} else if (ps->pss_func == POOL_SCAN_RESILVER) {
 			(void) printf(gettext("resilver canceled on %s"),
+			    ctime(&end));
+		} else if (ps->pss_func == POOL_SCAN_REBUILD) {
+			(void) printf(gettext("rebuild canceled on %s"),
 			    ctime(&end));
 		}
 		return;
@@ -7176,6 +7187,9 @@ print_scan_status(pool_scan_stat_t *ps)
 	} else if (ps->pss_func == POOL_SCAN_RESILVER) {
 		(void) printf(gettext("resilver in progress since %s"),
 		    ctime(&start));
+	} else if (ps->pss_func == POOL_SCAN_REBUILD) {
+		(void) printf(gettext("rebuild in progress since %s"),
+		    ctime(&start));
 	}
 
 	scanned = ps->pss_examined;
@@ -7184,8 +7198,21 @@ print_scan_status(pool_scan_stat_t *ps)
 	pass_issued = ps->pss_pass_issued;
 	total = ps->pss_to_examine;
 
-	/* we are only done with a block once we have issued the IO for it */
-	fraction_done = (double)issued / total;
+	if (ps->pss_func == POOL_SCAN_REBUILD) {
+		/*
+		 * "issued" only corresponds to a fraction of the
+		 * the total scanned pool size (just for the blocks that
+		 * needs to be rebuilt). So using "scanned" to calculate
+		 * the percent complete.
+		 */
+		fraction_done = (double)scanned / total;
+	} else {
+		/*
+		 * we are only done with a block once we have issued
+		 * the IO for it
+		 */
+		fraction_done = (double)issued / total;
+	}
 
 	/* elapsed time for this pass, rounding up to 1 if it's 0 */
 	elapsed = time(NULL) - ps->pss_pass_start;
@@ -7224,6 +7251,9 @@ print_scan_status(pool_scan_stat_t *ps)
 		    processed_buf, 100 * fraction_done);
 	} else if (ps->pss_func == POOL_SCAN_SCRUB) {
 		(void) printf(gettext("\t%s repaired, %.2f%% done"),
+		    processed_buf, 100 * fraction_done);
+	} else if (ps->pss_func == POOL_SCAN_REBUILD) {
+		(void) printf(gettext("\t%s rebuilt, %.2f%% done"),
 		    processed_buf, 100 * fraction_done);
 	}
 

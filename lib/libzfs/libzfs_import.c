@@ -35,6 +35,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <sys/vdev_impl.h>
+#include <sys/vdev_draid_impl.h>
 #include <libzfs.h>
 #include <libzfs_impl.h>
 #include <libzutil.h>
@@ -110,7 +111,6 @@ refresh_config_libzfs(void *handle, nvlist_t *tryconfig)
 {
 	return (refresh_config((libzfs_handle_t *)handle, tryconfig));
 }
-
 
 static int
 pool_active_libzfs(void *handle, const char *name, uint64_t guid,

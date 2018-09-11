@@ -23,6 +23,7 @@
 .\" Copyright (c) 2009 Oracle and/or its affiliates. All rights reserved.
 .\" Copyright (c) 2009 Michael Gebetsroither <michael.geb@gmx.at>. All rights
 .\" reserved.
+.\" Copyright (c) 2017, Intel Corporation.
 .\"
 .TH ztest 1 "2009 NOV 01" "ZFS on Linux" "User Commands"
 
@@ -70,7 +71,7 @@ Print a help summary.
 .IP
 Number of vdevs.
 .HP
-.BI "\-s" " size_of_each_vdev" " (default: 64M)"
+.BI "\-s" " size_of_each_vdev" " (default: 256M)"
 .IP
 Size of each vdev.
 .HP
@@ -86,9 +87,29 @@ Number of mirror copies.
 .IP
 Number of raidz disks.
 .HP
-.BI "\-R" " raidz_parity" " (default: 1)"
+.BI "\-R" " raid_parity" " (default: 1)"
 .IP
-Raidz parity.
+Raid parity (raidz & draid).
+.HP
+.BI "\-K" " raid_kind" " (default: 'random') raidz|draid|random"
+.IP
+The kind of RAID config to use. With 'random' the kind alternates between raidz and draid.
+.HP
+.BI "\-D" " draid_data_disks" " (default: 4)"
+.IP
+Number of data disks in a dRAID redundancy group.
+.HP
+.BI "\-G" " draidz_groups" " (default: 2)"
+.IP
+Number of dRAID redundancy groups.
+.HP
+.BI "\-S" " draid_spares" " (default: 1)"
+.IP
+Number of dRAID distributed spare disks.
+.HP
+.BI "\-C" " vdev_class_state" " (default: random)"
+.IP
+The vdev allocation class state: special=on|off|random.
 .HP
 .BI "\-d" " datasets" " (default: 7)"
 .IP
@@ -130,7 +151,7 @@ Total test run time.
 .IP
 Injected failure rate.
 .HP
-.BI "\-G"
+.BI "\-L"
 .IP
 Dump zfs_dbgmsg buffer before exiting.
 .SH "EXAMPLES"

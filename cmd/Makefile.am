@@ -1,5 +1,5 @@
 SUBDIRS  = zfs zpool zdb zhack zinject zstreamdump ztest
-SUBDIRS += fsck_zfs vdev_id raidz_test zgenhostid
+SUBDIRS += fsck_zfs vdev_id raidz_test zgenhostid draidcfg
 
 if USING_PYTHON
 SUBDIRS += arcstat arc_summary dbufstat

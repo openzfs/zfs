@@ -718,6 +718,16 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_HAS_PER_VDEV_ZAPS	"com.delphix:has_per_vdev_zaps"
 #define	ZPOOL_CONFIG_RESILVER_DEFER	"com.datto:resilver_defer"
 #define	ZPOOL_CONFIG_CACHEFILE		"cachefile"	/* not stored on disk */
+
+#define	ZPOOL_CONFIG_DRAIDCFG		"com.intel:draid_config"
+#define	ZPOOL_CONFIG_DRAIDCFG_DATA	"com.intel:draid_data"
+#define	ZPOOL_CONFIG_DRAIDCFG_PARITY	"com.intel:draid_parity"
+#define	ZPOOL_CONFIG_DRAIDCFG_SPARE	"com.intel:draid_spare"
+#define	ZPOOL_CONFIG_DRAIDCFG_BASE	"com.intel:draid_base"
+#define	ZPOOL_CONFIG_DRAIDCFG_CHILDREN	"com.intel:draid_children"
+#define	ZPOOL_CONFIG_DRAIDCFG_PERM	"com.intel:draid_perm"
+#define	ZPOOL_CONFIG_DRAIDCFG_GROUPS	"com.cray:draid_groups"
+
 #define	ZPOOL_CONFIG_MMP_STATE		"mmp_state"	/* not stored on disk */
 #define	ZPOOL_CONFIG_MMP_TXG		"mmp_txg"	/* not stored on disk */
 #define	ZPOOL_CONFIG_MMP_SEQ		"mmp_seq"	/* not stored on disk */
@@ -754,6 +764,8 @@ typedef struct zpool_load_policy {
 #define	VDEV_TYPE_MIRROR		"mirror"
 #define	VDEV_TYPE_REPLACING		"replacing"
 #define	VDEV_TYPE_RAIDZ			"raidz"
+#define	VDEV_TYPE_DRAID			"draid"
+#define	VDEV_TYPE_DRAID_SPARE		"dspare"
 #define	VDEV_TYPE_DISK			"disk"
 #define	VDEV_TYPE_FILE			"file"
 #define	VDEV_TYPE_MISSING		"missing"
@@ -899,6 +911,7 @@ typedef enum pool_scan_func {
 	POOL_SCAN_NONE,
 	POOL_SCAN_SCRUB,
 	POOL_SCAN_RESILVER,
+	POOL_SCAN_REBUILD, /* sequential SPA scan */
 	POOL_SCAN_FUNCS
 } pool_scan_func_t;
 
@@ -1457,6 +1470,8 @@ typedef enum {
  *
  *	ESC_ZFS_RESILVER_START
  *	ESC_ZFS_RESILVER_END
+ *	ESC_ZFS_REBUILD_START
+ *	ESC_ZFS_REBUILD_FINISH
  *	ESC_ZFS_POOL_DESTROY
  *	ESC_ZFS_POOL_REGUID
  *

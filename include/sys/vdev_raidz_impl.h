@@ -29,6 +29,7 @@
 #include <sys/debug.h>
 #include <sys/kstat.h>
 #include <sys/abd.h>
+#include <sys/vdev_impl.h>
 
 #ifdef  __cplusplus
 extern "C" {
@@ -106,6 +107,7 @@ typedef struct raidz_col {
 	uint64_t rc_offset;		/* device offset */
 	uint64_t rc_size;		/* I/O size */
 	abd_t *rc_abd;			/* I/O data */
+	abd_t *rc_abd_skip;		/* Skip sector */
 	void *rc_gdata;			/* used to store the "good" version */
 	int rc_error;			/* I/O error for this device */
 	uint8_t rc_tried;		/* Did we attempt this I/O column? */
@@ -123,12 +125,17 @@ typedef struct raidz_map {
 	uint64_t rm_nskip;		/* Skipped sectors for padding */
 	uint64_t rm_skipstart;		/* Column index of padding start */
 	abd_t *rm_abd_copy;		/* rm_asize-buffer of copied data */
+	abd_t *rm_abd_skip;		/* dRAID skip sectors */
 	uintptr_t rm_reports;		/* # of referencing checksum reports */
 	uint8_t	rm_freed;		/* map no longer has referencing ZIO */
 	uint8_t	rm_ecksuminjected;	/* checksum error was injected */
 	const raidz_impl_ops_t *rm_ops;	/* RAIDZ math operations */
+	vdev_t *rm_vdev;		/* RAIDz/dRAID vdev */
 	raidz_col_t rm_col[1];		/* Flexible array of I/O columns */
 } raidz_map_t;
+
+#define	vdev_raidz_map_declustered(rm)	\
+	((rm)->rm_vdev != NULL && (rm)->rm_vdev->vdev_ops == &vdev_draid_ops)
 
 #define	RAIDZ_ORIGINAL_IMPL	(INT_MAX)
 

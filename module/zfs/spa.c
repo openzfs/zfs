@@ -59,6 +59,7 @@
 #include <sys/vdev_initialize.h>
 #include <sys/vdev_trim.h>
 #include <sys/vdev_disk.h>
+#include <sys/vdev_draid_impl.h>
 #include <sys/metaslab.h>
 #include <sys/metaslab_impl.h>
 #include <sys/mmp.h>
@@ -81,6 +82,7 @@
 #include <sys/spa_boot.h>
 #include <sys/zfs_ioctl.h>
 #include <sys/dsl_scan.h>
+#include <sys/vdev_scan.h>
 #include <sys/zfeature.h>
 #include <sys/dsl_destroy.h>
 #include <sys/zvol.h>
@@ -1556,6 +1558,7 @@ spa_unload(spa_t *spa)
 	 * Stop async tasks.
 	 */
 	spa_async_suspend(spa);
+	spa_vdev_scan_suspend(spa);
 
 	if (spa->spa_root_vdev) {
 		vdev_t *root_vdev = spa->spa_root_vdev;
@@ -1605,6 +1608,8 @@ spa_unload(spa_t *spa)
 	spa_destroy_aux_threads(spa);
 
 	spa_condense_fini(spa);
+
+	spa_vdev_scan_destroy(spa);
 
 	bpobj_close(&spa->spa_deferred_bpobj);
 
@@ -4823,7 +4828,8 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport)
 		 * Check all DTLs to see if anything needs resilvering.
 		 */
 		if (!dsl_scan_resilvering(spa->spa_dsl_pool) &&
-		    vdev_resilver_needed(spa->spa_root_vdev, NULL, NULL))
+		    vdev_resilver_needed(spa->spa_root_vdev, NULL, NULL) &&
+		    spa_vdev_scan_restart(spa->spa_root_vdev) != 0)
 			spa_async_request(spa, SPA_ASYNC_RESILVER);
 
 		/*
@@ -5601,6 +5607,72 @@ spa_create_check_encryption_params(dsl_crypto_params_t *dcp,
 	return (dmu_objset_create_crypt_check(NULL, dcp, NULL));
 }
 
+static int
+spa_add_draid_spare(nvlist_t *nvroot, vdev_t *rvd)
+{
+	int i, j, n;
+	nvlist_t **oldspares, **newspares;
+	uint_t nspares;
+	vdev_t *c;
+	struct vdev_draid_configuration *cfg;
+
+	for (i = 0, n = 0; i < rvd->vdev_children; i++) {
+		c = rvd->vdev_child[i];
+
+		if (c->vdev_ops == &vdev_draid_ops) {
+			cfg = c->vdev_tsd;
+			ASSERT(cfg != NULL);
+			n += cfg->dcf_spare;
+		}
+	}
+
+	if (n == 0)
+		return (0);
+
+	if (nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_SPARES,
+	    &oldspares, &nspares) != 0)
+		nspares = 0;
+
+	newspares = kmem_alloc(sizeof (*newspares) * (n + nspares), KM_SLEEP);
+	for (i = 0; i < nspares; i++)
+		newspares[i] = fnvlist_dup(oldspares[i]);
+
+	for (i = 0, n = nspares; i < rvd->vdev_children; i++) {
+		c = rvd->vdev_child[i];
+
+		if (c->vdev_ops != &vdev_draid_ops)
+			continue;
+
+		cfg = c->vdev_tsd;
+		for (j = 0; j < cfg->dcf_spare; j++) {
+			nvlist_t *ds = fnvlist_alloc();
+			char path[64];
+
+			snprintf(path, sizeof (path), VDEV_DRAID_SPARE_PATH_FMT,
+			    (long unsigned)c->vdev_nparity,
+			    (long unsigned)c->vdev_id, (long unsigned)j);
+			fnvlist_add_string(ds, ZPOOL_CONFIG_PATH, path);
+			fnvlist_add_string(ds,
+			    ZPOOL_CONFIG_TYPE, VDEV_TYPE_DRAID_SPARE);
+			fnvlist_add_uint64(ds, ZPOOL_CONFIG_IS_LOG, 0);
+			fnvlist_add_uint64(ds, ZPOOL_CONFIG_IS_SPARE, 1);
+			fnvlist_add_uint64(ds, ZPOOL_CONFIG_WHOLE_DISK, 1);
+			fnvlist_add_uint64(ds,
+			    ZPOOL_CONFIG_ASHIFT, c->vdev_ashift);
+
+			newspares[n] = ds;
+			n++;
+		}
+	}
+
+	(void) nvlist_remove_all(nvroot, ZPOOL_CONFIG_SPARES);
+	fnvlist_add_nvlist_array(nvroot, ZPOOL_CONFIG_SPARES, newspares, n);
+	for (i = 0; i < n; i++)
+		nvlist_free(newspares[i]);
+	kmem_free(newspares, sizeof (*newspares) * n);
+	return (0);
+}
+
 /*
  * Pool Creation
  */
@@ -5625,6 +5697,7 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	char *feat_name;
 	char *poolname;
 	nvlist_t *nvl;
+	int draid = 0;
 
 	if (props == NULL ||
 	    nvlist_lookup_string(props, "tname", &poolname) != 0)
@@ -5739,17 +5812,21 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 
 	if (error == 0 &&
 	    (error = vdev_create(rvd, txg, B_FALSE)) == 0 &&
+	    (error = spa_add_draid_spare(nvroot, rvd)) == 0 &&
 	    (error = spa_validate_aux(spa, nvroot, txg,
 	    VDEV_ALLOC_ADD)) == 0) {
 		/*
 		 * instantiate the metaslab groups (this will dirty the vdevs)
 		 * we can no longer error exit past this point
 		 */
-		for (int c = 0; error == 0 && c < rvd->vdev_children; c++) {
+		for (int c = 0; c < rvd->vdev_children; c++) {
 			vdev_t *vd = rvd->vdev_child[c];
 
 			vdev_metaslab_set_size(vd);
 			vdev_expand(vd, txg);
+
+			if (vd->vdev_ops == &vdev_draid_ops)
+				draid++;
 		}
 	}
 
@@ -5880,6 +5957,9 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 		spa_configfile_set(spa, props, B_FALSE);
 		spa_sync_props(props, tx);
 	}
+
+	for (int i = 0; i < draid; i++)
+		spa_feature_incr(spa, SPA_FEATURE_DRAID, tx);
 
 	dmu_tx_commit(tx);
 
@@ -6389,6 +6469,19 @@ spa_reset(char *pool)
  */
 
 /*
+ * This is called as a synctask to increment the draid feature flag
+ */
+static void
+spa_draid_feature_incr(void *arg, dmu_tx_t *tx)
+{
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+	int c, draid = (int)(uintptr_t)arg;
+
+	for (c = 0; c < draid; c++)
+		spa_feature_incr(spa, SPA_FEATURE_DRAID, tx);
+}
+
+/*
  * Add a device to a storage pool.
  */
 int
@@ -6400,6 +6493,7 @@ spa_vdev_add(spa_t *spa, nvlist_t *nvroot)
 	vdev_t *vd, *tvd;
 	nvlist_t **spares, **l2cache;
 	uint_t nspares, nl2cache;
+	int c, draid = 0;
 
 	ASSERT(spa_writeable(spa));
 
@@ -6437,18 +6531,19 @@ spa_vdev_add(spa_t *spa, nvlist_t *nvroot)
 	 * If we are in the middle of a device removal, we can only add
 	 * devices which match the existing devices in the pool.
 	 * If we are in the middle of a removal, or have some indirect
-	 * vdevs, we can not add raidz toplevels.
+	 * vdevs, we can not add raidz or draid toplevels.
 	 */
 	if (spa->spa_vdev_removal != NULL ||
 	    spa->spa_removing_phys.sr_prev_indirect_vdev != -1) {
-		for (int c = 0; c < vd->vdev_children; c++) {
+		for (c = 0; c < vd->vdev_children; c++) {
 			tvd = vd->vdev_child[c];
 			if (spa->spa_vdev_removal != NULL &&
 			    tvd->vdev_ashift != spa->spa_max_ashift) {
 				return (spa_vdev_exit(spa, vd, txg, EINVAL));
 			}
 			/* Fail if top level vdev is raidz */
-			if (tvd->vdev_ops == &vdev_raidz_ops) {
+			if (tvd->vdev_ops == &vdev_raidz_ops ||
+			    tvd->vdev_ops == &vdev_draid_ops) {
 				return (spa_vdev_exit(spa, vd, txg, EINVAL));
 			}
 			/*
@@ -6474,6 +6569,9 @@ spa_vdev_add(spa_t *spa, nvlist_t *nvroot)
 		tvd->vdev_id = rvd->vdev_children;
 		vdev_add_child(rvd, tvd);
 		vdev_config_dirty(tvd);
+
+		if (tvd->vdev_ops == &vdev_draid_ops)
+			draid++;
 	}
 
 	if (nspares != 0) {
@@ -6488,6 +6586,19 @@ spa_vdev_add(spa_t *spa, nvlist_t *nvroot)
 		    ZPOOL_CONFIG_L2CACHE);
 		spa_load_l2cache(spa);
 		spa->spa_l2cache.sav_sync = B_TRUE;
+	}
+
+	/*
+	 * We can't increment a feature while holding spa_vdev so we
+	 * have to do it in a synctask.
+	 */
+	if (draid != 0) {
+		dmu_tx_t *tx;
+
+		tx = dmu_tx_create_assigned(spa->spa_dsl_pool, txg);
+		dsl_sync_task_nowait(spa->spa_dsl_pool, spa_draid_feature_incr,
+		    (void *)(uintptr_t)draid, 0, ZFS_SPACE_CHECK_NONE, tx);
+		dmu_tx_commit(tx);
 	}
 
 	/*
@@ -6513,6 +6624,7 @@ spa_vdev_add(spa_t *spa, nvlist_t *nvroot)
 	return (0);
 }
 
+static int spa_rebuild_mirror = 0;
 /*
  * Attach a device to a mirror.  The arguments are the path to any device
  * in the mirror, and the nvroot for the new device.  If the path specifies
@@ -6536,10 +6648,14 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 	char *oldvdpath, *newvdpath;
 	int newvd_isspare;
 	int error;
+	boolean_t rebuild = B_FALSE;
 
 	ASSERT(spa_writeable(spa));
 
 	txg = spa_vdev_enter(spa);
+
+	if (spa->spa_vdev_scan != NULL)
+		return (spa_vdev_exit(spa, NULL, txg, EBUSY));
 
 	oldvd = spa_lookup_by_guid(spa, guid, B_FALSE);
 
@@ -6575,6 +6691,14 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 
 	if ((error = vdev_create(newrootvd, txg, replacing)) != 0)
 		return (spa_vdev_exit(spa, newrootvd, txg, error));
+
+	/*
+	 * dRAID spare can only replace a child drive of its parent
+	 * dRAID vdev
+	 */
+	if (newvd->vdev_ops == &vdev_draid_spare_ops &&
+	    oldvd->vdev_top != vdev_draid_spare_get_parent(newvd))
+		return (spa_vdev_exit(spa, newrootvd, txg, ENOTSUP));
 
 	/*
 	 * Spares can't replace logs
@@ -6693,8 +6817,8 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 	 */
 	dtl_max_txg = txg + TXG_CONCURRENT_STATES;
 
-	vdev_dtl_dirty(newvd, DTL_MISSING, TXG_INITIAL,
-	    dtl_max_txg - TXG_INITIAL);
+	vdev_dtl_dirty(newvd, DTL_MISSING,
+	    TXG_INITIAL, dtl_max_txg - TXG_INITIAL);
 
 	if (newvd->vdev_isspare) {
 		spa_spare_activate(newvd);
@@ -6710,13 +6834,19 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 	 */
 	vdev_dirty(tvd, VDD_DTL, newvd, txg);
 
+	if (newvd->vdev_ops == &vdev_draid_spare_ops ||
+	    (tvd->vdev_ops == &vdev_mirror_ops && spa_rebuild_mirror != 0))
+		rebuild = B_TRUE; /* HH: let zpool cmd choose */
+
 	/*
 	 * Schedule the resilver to restart in the future. We do this to
 	 * ensure that dmu_sync-ed blocks have been stitched into the
 	 * respective datasets. We do not do this if resilvers have been
 	 * deferred.
 	 */
-	if (dsl_scan_resilvering(spa_get_dsl(spa)) &&
+	if (rebuild)
+		spa_vdev_scan_start(spa, oldvd, 0, dtl_max_txg);
+	else if (dsl_scan_resilvering(spa_get_dsl(spa)) &&
 	    spa_feature_is_enabled(spa, SPA_FEATURE_RESILVER_DEFER))
 		vdev_defer_resilver(newvd);
 	else
@@ -6872,6 +7002,17 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 	    vd->vdev_id == 0 &&
 	    pvd->vdev_child[pvd->vdev_children - 1]->vdev_isspare)
 		unspare = B_TRUE;
+
+	/*
+	 * If we are detaching a draid spare that is being rebuilt, we need to
+	 * abort the rebuild thread.
+	 */
+	if (replace_done == 0 &&
+	    pvd->vdev_ops == &vdev_spare_ops &&
+	    vd->vdev_ops == &vdev_draid_spare_ops &&
+	    spa->spa_vdev_scan != NULL &&
+	    spa->spa_vdev_scan->svs_vd->vdev_parent == pvd)
+		spa->spa_vdev_scan->svs_thread_exit = B_TRUE;
 
 	/*
 	 * Erase the disk labels so the disk can be used for other things.
@@ -7793,12 +7934,16 @@ spa_scan(spa_t *spa, pool_scan_func_t func)
 {
 	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == 0);
 
-	if (func >= POOL_SCAN_FUNCS || func == POOL_SCAN_NONE)
+	if (func >= POOL_SCAN_FUNCS ||
+	    func == POOL_SCAN_NONE || func == POOL_SCAN_REBUILD)
 		return (SET_ERROR(ENOTSUP));
 
 	if (func == POOL_SCAN_RESILVER &&
 	    !spa_feature_is_enabled(spa, SPA_FEATURE_RESILVER_DEFER))
 		return (SET_ERROR(ENOTSUP));
+
+	if (spa->spa_vdev_scan != NULL)
+		return (SET_ERROR(EBUSY));
 
 	/*
 	 * If a resilver was requested, but there is no DTL on a
@@ -9628,6 +9773,9 @@ ZFS_MODULE_PARAM(zfs_spa, spa_, load_verify_data, INT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_spa, spa_, load_print_vdev_tree, INT, ZMOD_RW,
 	"Print vdev tree to zfs_dbgmsg during pool import");
+
+ZFS_MODULE_PARAM(zfs_spa, spa_, rebuild_mirror, INT, ZMOD_RW,
+	"Set to enable rebuild on mirror vdev");
 
 ZFS_MODULE_PARAM(zfs_zio, zio_, taskq_batch_pct, UINT, ZMOD_RD,
 	"Percentage of CPUs to run an IO worker thread");
