@@ -39,7 +39,7 @@ TESTVAL4="TOZwOfACvQtmDyiq68elB3a3g9YYyxBjSnLtN3ZyQYNOAKykzIE2khKKOBncJiDx"
 # 0 properties handled correctly
 log_must_program $TESTPOOL - <<-EOF
 	n = 0
-	for p in zfs.list.properties("$TESTPOOL/$TESTFS") do
+	for p in zfs.list.user_properties("$TESTPOOL/$TESTFS") do
 		n = n + 1
 	end
 	assert(n == 0)
@@ -51,7 +51,7 @@ log_must zfs set $TESTPROP="$TESTVAL" $TESTPOOL/$TESTFS
 
 log_must_program $TESTPOOL - <<-EOF
 	n = 0
-	for p,v in zfs.list.properties("$TESTPOOL/$TESTFS") do
+	for p,v in zfs.list.user_properties("$TESTPOOL/$TESTFS") do
 		assert(p == "$TESTPROP")
 		assert(v == "$TESTVAL")
 		n = n + 1
@@ -80,7 +80,7 @@ log_must_program $TESTPOOL - <<-EOF
 	m["$TESTPROP3"] = "$TESTVAL3"
 	m["$TESTPROP4"] = "$TESTVAL4"
 	n = 0
-	for p,v in zfs.list.properties("$TESTPOOL/$TESTFS") do
+	for p,v in zfs.list.user_properties("$TESTPOOL/$TESTFS") do
 		assert(not a[p])
 		a[p] = true
 		assert(v == m[p])
