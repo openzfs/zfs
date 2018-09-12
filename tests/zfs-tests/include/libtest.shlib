@@ -742,6 +742,18 @@ function bkmarkexists
 }
 
 #
+# Return 0 if a hold exists; $? otherwise
+#
+# $1 - hold tag
+# $2 - snapshot name
+#
+function holdexists
+{
+	zfs holds "$2" | awk '{ print $2 }' | grep "$1" > /dev/null 2>&1
+	return $?
+}
+
+#
 # Set a property to a certain value on a dataset.
 # Sets a property of the dataset to the value as passed in.
 # @param:

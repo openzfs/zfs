@@ -14,7 +14,7 @@
  */
 
 /*
- * Copyright (c) 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2016, 2018 by Delphix. All rights reserved.
  */
 
 #include <sys/lua/lua.h>
@@ -23,6 +23,7 @@
 #include <sys/dmu.h>
 #include <sys/dsl_prop.h>
 #include <sys/dsl_synctask.h>
+#include <sys/dsl_bookmark.h>
 #include <sys/dsl_dataset.h>
 #include <sys/dsl_pool.h>
 #include <sys/dmu_tx.h>
@@ -124,8 +125,6 @@ zcp_clones_list(lua_State *state)
 {
 	const char *snapname = lua_tostring(state, 1);
 	dsl_pool_t *dp = zcp_run_info(state)->zri_pool;
-	boolean_t issnap;
-	uint64_t dsobj, cursor;
 
 	/*
 	 * zcp_dataset_hold will either successfully return the requested
@@ -135,9 +134,9 @@ zcp_clones_list(lua_State *state)
 	dsl_dataset_t *ds = zcp_dataset_hold(state, dp, snapname, FTAG);
 	if (ds == NULL)
 		return (1); /* not reached; zcp_dataset_hold() longjmp'd */
-	cursor = 0;
-	issnap = ds->ds_is_snapshot;
-	dsobj = ds->ds_object;
+	boolean_t issnap = ds->ds_is_snapshot;
+	uint64_t cursor = 0;
+	uint64_t dsobj = ds->ds_object;
 	dsl_dataset_rele(ds, FTAG);
 
 	if (!issnap) {
@@ -323,7 +322,7 @@ zcp_children_list(lua_State *state)
 }
 
 static int
-zcp_props_list_gc(lua_State *state)
+zcp_user_props_list_gc(lua_State *state)
 {
 	nvlist_t **props = lua_touserdata(state, 1);
 	if (*props != NULL)
@@ -332,7 +331,7 @@ zcp_props_list_gc(lua_State *state)
 }
 
 static int
-zcp_props_iter(lua_State *state)
+zcp_user_props_iter(lua_State *state)
 {
 	char *source, *val;
 	nvlist_t *nvprop;
@@ -361,11 +360,33 @@ zcp_props_iter(lua_State *state)
 	return (3);
 }
 
-static int zcp_props_list(lua_State *);
+static int zcp_user_props_list(lua_State *);
+static zcp_list_info_t zcp_user_props_list_info = {
+	.name = "user_properties",
+	.func = zcp_user_props_list,
+	.gc = zcp_user_props_list_gc,
+	.pargs = {
+	    { .za_name = "filesystem | snapshot | volume",
+	    .za_lua_type = LUA_TSTRING},
+	    {NULL, 0}
+	},
+	.kwargs = {
+	    {NULL, 0}
+	}
+};
+
+/*
+ * 'properties' was the initial name for 'user_properties' seen
+ * above. 'user_properties' is a better name as it distinguishes
+ * these properties from 'system_properties' which are different.
+ * In order to avoid breaking compatibility between different
+ * versions of ZFS, we declare 'properties' as an alias for
+ * 'user_properties'.
+ */
 static zcp_list_info_t zcp_props_list_info = {
 	.name = "properties",
-	.func = zcp_props_list,
-	.gc = zcp_props_list_gc,
+	.func = zcp_user_props_list,
+	.gc = zcp_user_props_list_gc,
 	.pargs = {
 	    { .za_name = "filesystem | snapshot | volume",
 	    .za_lua_type = LUA_TSTRING},
@@ -377,7 +398,7 @@ static zcp_list_info_t zcp_props_list_info = {
 };
 
 static int
-zcp_props_list(lua_State *state)
+zcp_user_props_list(lua_State *state)
 {
 	const char *dsname = lua_tostring(state, 1);
 	dsl_pool_t *dp = zcp_run_info(state)->zri_pool;
@@ -392,23 +413,24 @@ zcp_props_list(lua_State *state)
 	dsl_dataset_rele(ds, FTAG);
 
 	/*
-	 * Set the metatable for the properties list to free it on completion.
+	 * Set the metatable for the properties list to free it on
+	 * completion.
 	 */
-	luaL_getmetatable(state, zcp_props_list_info.name);
+	luaL_getmetatable(state, zcp_user_props_list_info.name);
 	(void) lua_setmetatable(state, -2);
 
 	lua_pushlightuserdata(state, NULL);
-	lua_pushcclosure(state, &zcp_props_iter, 2);
+	lua_pushcclosure(state, &zcp_user_props_iter, 2);
 	return (1);
 }
 
 
 /*
- * Populate nv with all valid properties and their values for the given
+ * Populate nv with all valid system properties and their values for the given
  * dataset.
  */
 static void
-zcp_dataset_props(dsl_dataset_t *ds, nvlist_t *nv)
+zcp_dataset_system_props(dsl_dataset_t *ds, nvlist_t *nv)
 {
 	for (int prop = ZFS_PROP_TYPE; prop < ZFS_NUM_PROPS; prop++) {
 		/* Do not display hidden props */
@@ -435,8 +457,8 @@ static zcp_list_info_t zcp_system_props_list_info = {
 };
 
 /*
- * Get a list of all visble properties and their values for a given dataset.
- * Returned on the stack as a Lua table.
+ * Get a list of all visble system properties and their values for a given
+ * dataset. Returned on the stack as a Lua table.
  */
 static int
 zcp_system_props_list(lua_State *state)
@@ -454,8 +476,8 @@ zcp_system_props_list(lua_State *state)
 	if (ds == NULL)
 		return (1); /* not reached; zcp_dataset_hold() longjmp'd */
 
-	/* Get the names of all valid properties for this dataset */
-	zcp_dataset_props(ds, nv);
+	/* Get the names of all valid system properties for this dataset */
+	zcp_dataset_system_props(ds, nv);
 	dsl_dataset_rele(ds, FTAG);
 
 	/* push list as lua table */
@@ -465,6 +487,213 @@ zcp_system_props_list(lua_State *state)
 		return (luaL_error(state,
 		    "Error returning nvlist: %s", errbuf));
 	}
+	return (1);
+}
+
+static int
+zcp_bookmarks_iter(lua_State *state)
+{
+	char ds_name[ZFS_MAX_DATASET_NAME_LEN];
+	char bookmark_name[ZFS_MAX_DATASET_NAME_LEN];
+	uint64_t dsobj = lua_tonumber(state, lua_upvalueindex(1));
+	uint64_t cursor = lua_tonumber(state, lua_upvalueindex(2));
+	dsl_pool_t *dp = zcp_run_info(state)->zri_pool;
+	dsl_dataset_t *ds;
+	zap_attribute_t za;
+	zap_cursor_t zc;
+
+	int err = dsl_dataset_hold_obj(dp, dsobj, FTAG, &ds);
+	if (err == ENOENT) {
+		return (0);
+	} else if (err != 0) {
+		return (luaL_error(state,
+		    "unexpected error %d from dsl_dataset_hold_obj(dsobj)",
+		    err));
+	}
+
+	if (!dsl_dataset_is_zapified(ds)) {
+		dsl_dataset_rele(ds, FTAG);
+		return (0);
+	}
+
+	err = zap_lookup(dp->dp_meta_objset, ds->ds_object,
+	    DS_FIELD_BOOKMARK_NAMES, sizeof (ds->ds_bookmarks_obj), 1,
+	    &ds->ds_bookmarks_obj);
+	if (err != 0 && err != ENOENT) {
+		dsl_dataset_rele(ds, FTAG);
+		return (luaL_error(state,
+		    "unexpected error %d from zap_lookup()", err));
+	}
+	if (ds->ds_bookmarks_obj == 0) {
+		dsl_dataset_rele(ds, FTAG);
+		return (0);
+	}
+
+	/* Store the dataset's name so we can append the bookmark's name */
+	dsl_dataset_name(ds, ds_name);
+
+	zap_cursor_init_serialized(&zc, ds->ds_dir->dd_pool->dp_meta_objset,
+	    ds->ds_bookmarks_obj, cursor);
+	dsl_dataset_rele(ds, FTAG);
+
+	err = zap_cursor_retrieve(&zc, &za);
+	if (err != 0) {
+		zap_cursor_fini(&zc);
+		if (err != ENOENT) {
+			return (luaL_error(state,
+			    "unexpected error %d from zap_cursor_retrieve()",
+			    err));
+		}
+		return (0);
+	}
+	zap_cursor_advance(&zc);
+	cursor = zap_cursor_serialize(&zc);
+	zap_cursor_fini(&zc);
+
+	/* Create the full "pool/fs#bookmark" string to return */
+	int n = snprintf(bookmark_name, ZFS_MAX_DATASET_NAME_LEN, "%s#%s",
+	    ds_name, za.za_name);
+	if (n >= ZFS_MAX_DATASET_NAME_LEN) {
+		return (luaL_error(state,
+		    "unexpected error %d from snprintf()", ENAMETOOLONG));
+	}
+
+	lua_pushnumber(state, cursor);
+	lua_replace(state, lua_upvalueindex(2));
+
+	(void) lua_pushstring(state, bookmark_name);
+	return (1);
+}
+
+static int zcp_bookmarks_list(lua_State *);
+static zcp_list_info_t zcp_bookmarks_list_info = {
+	.name = "bookmarks",
+	.func = zcp_bookmarks_list,
+	.pargs = {
+	    { .za_name = "dataset", .za_lua_type = LUA_TSTRING},
+	    {NULL, 0}
+	},
+	.kwargs = {
+	    {NULL, 0}
+	}
+};
+
+static int
+zcp_bookmarks_list(lua_State *state)
+{
+	const char *dsname = lua_tostring(state, 1);
+	dsl_pool_t *dp = zcp_run_info(state)->zri_pool;
+
+	dsl_dataset_t *ds = zcp_dataset_hold(state, dp, dsname, FTAG);
+	if (ds == NULL)
+		return (1); /* not reached; zcp_dataset_hold() longjmp'd */
+
+	boolean_t issnap = ds->ds_is_snapshot;
+	uint64_t dsobj = ds->ds_object;
+	uint64_t cursor = 0;
+	dsl_dataset_rele(ds, FTAG);
+
+	if (issnap) {
+		return (zcp_argerror(state, 1, "%s is a snapshot", dsname));
+	}
+
+	lua_pushnumber(state, dsobj);
+	lua_pushnumber(state, cursor);
+	lua_pushcclosure(state, &zcp_bookmarks_iter, 2);
+	return (1);
+}
+
+static int
+zcp_holds_iter(lua_State *state)
+{
+	uint64_t dsobj = lua_tonumber(state, lua_upvalueindex(1));
+	uint64_t cursor = lua_tonumber(state, lua_upvalueindex(2));
+	dsl_pool_t *dp = zcp_run_info(state)->zri_pool;
+	dsl_dataset_t *ds;
+	zap_attribute_t za;
+	zap_cursor_t zc;
+
+	int err = dsl_dataset_hold_obj(dp, dsobj, FTAG, &ds);
+	if (err == ENOENT) {
+		return (0);
+	} else if (err != 0) {
+		return (luaL_error(state,
+		    "unexpected error %d from dsl_dataset_hold_obj(dsobj)",
+		    err));
+	}
+
+	if (dsl_dataset_phys(ds)->ds_userrefs_obj == 0) {
+		dsl_dataset_rele(ds, FTAG);
+		return (0);
+	}
+
+	zap_cursor_init_serialized(&zc, ds->ds_dir->dd_pool->dp_meta_objset,
+	    dsl_dataset_phys(ds)->ds_userrefs_obj, cursor);
+	dsl_dataset_rele(ds, FTAG);
+
+	err = zap_cursor_retrieve(&zc, &za);
+	if (err != 0) {
+		zap_cursor_fini(&zc);
+		if (err != ENOENT) {
+			return (luaL_error(state,
+			    "unexpected error %d from zap_cursor_retrieve()",
+			    err));
+		}
+		return (0);
+	}
+	zap_cursor_advance(&zc);
+	cursor = zap_cursor_serialize(&zc);
+	zap_cursor_fini(&zc);
+
+	lua_pushnumber(state, cursor);
+	lua_replace(state, lua_upvalueindex(2));
+
+	(void) lua_pushstring(state, za.za_name);
+	(void) lua_pushnumber(state, za.za_first_integer);
+	return (2);
+}
+
+static int zcp_holds_list(lua_State *);
+static zcp_list_info_t zcp_holds_list_info = {
+	.name = "holds",
+	.func = zcp_holds_list,
+	.gc = NULL,
+	.pargs = {
+	    { .za_name = "snapshot", .za_lua_type = LUA_TSTRING},
+	    {NULL, 0}
+	},
+	.kwargs = {
+	    {NULL, 0}
+	}
+};
+
+/*
+ * Iterate over all the holds for a given dataset. Each iteration returns
+ * a hold's tag and its timestamp as an integer.
+ */
+static int
+zcp_holds_list(lua_State *state)
+{
+	const char *snapname = lua_tostring(state, 1);
+	dsl_pool_t *dp = zcp_run_info(state)->zri_pool;
+
+	dsl_dataset_t *ds = zcp_dataset_hold(state, dp, snapname, FTAG);
+	if (ds == NULL)
+		return (1); /* not reached; zcp_dataset_hold() longjmp'd */
+
+	boolean_t issnap = ds->ds_is_snapshot;
+	uint64_t dsobj = ds->ds_object;
+	uint64_t cursor = 0;
+	dsl_dataset_rele(ds, FTAG);
+
+	if (!issnap) {
+		return (zcp_argerror(state, 1, "%s is not a snapshot",
+		    snapname));
+	}
+
+	lua_pushnumber(state, dsobj);
+	lua_pushnumber(state, cursor);
+	lua_pushcclosure(state, &zcp_holds_iter, 2);
 	return (1);
 }
 
@@ -485,9 +714,12 @@ zcp_load_list_lib(lua_State *state)
 	zcp_list_info_t *zcp_list_funcs[] = {
 		&zcp_children_list_info,
 		&zcp_snapshots_list_info,
+		&zcp_user_props_list_info,
 		&zcp_props_list_info,
 		&zcp_clones_list_info,
 		&zcp_system_props_list_info,
+		&zcp_bookmarks_list_info,
+		&zcp_holds_list_info,
 		NULL
 	};
 
