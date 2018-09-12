@@ -53,7 +53,7 @@ function ensure_thread_running # spa_address
 	if is_linux; then
 		typeset TRIES=0
 		typeset THREAD_PID
-		while [[ $TRIES -lt 10 ]]; do
+		while [[ $TRIES -lt 50 ]]; do
 			THREAD_PID=$(pgrep spa_vdev_remove)
 			[[ "$THREAD_PID" ]] && break
 			sleep 0.1
