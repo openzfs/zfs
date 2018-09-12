@@ -2,11 +2,11 @@
 # This ensures that custom built modules override built-in modules provided
 # with the kernel
 #
-override icp _KVERS_ extra
-override spl _KVERS_ extra
-override zavl _KVERS_ extra
-override zcommon _KVERS_ extra
-override zfs _KVERS_ extra
-override zlua _KVERS_ extra
-override znvpair _KVERS_ extra
-override zunicode _KVERS_ extra
+override icp _KVERS_ extra/icp
+override spl _KVERS_ extra/spl
+override zavl _KVERS_ extra/avl
+override zcommon _KVERS_ extra/zcommon
+override zfs _KVERS_ extra/zfs
+override zlua _KVERS_ extra/lua
+override znvpair _KVERS_ extra/nvpair
+override zunicode _KVERS_ extra/unicode
