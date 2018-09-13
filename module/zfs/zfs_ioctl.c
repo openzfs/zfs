@@ -6221,6 +6221,7 @@ static const zfs_ioc_key_t zfs_keys_send_new[] = {
 	{"rawok",		DATA_TYPE_BOOLEAN,	ZK_OPTIONAL},
 	{"resume_object",	DATA_TYPE_UINT64,	ZK_OPTIONAL},
 	{"resume_offset",	DATA_TYPE_UINT64,	ZK_OPTIONAL},
+	{"redactbook",		DATA_TYPE_STRING,	ZK_OPTIONAL},
 };
 
 /* ARGSUSED */
@@ -6295,6 +6296,8 @@ send_space_sum(objset_t *os, void *buf, int len, void *arg)
  *     (optional) "compressok" -> (value ignored)
  *         presence indicates compressed DRR_WRITE records are permitted
  *	(optional) "rawok" -> (value ignored)
+ *         presence indicates raw encrypted records should be used.
+ *     (optional) "fd" -> file descriptor to use as a cookie for progress
  *         tracking (int32)
  * }
  *
@@ -6309,6 +6312,11 @@ static const zfs_ioc_key_t zfs_keys_send_space[] = {
 	{"embedok",		DATA_TYPE_BOOLEAN,	ZK_OPTIONAL},
 	{"compressok",		DATA_TYPE_BOOLEAN,	ZK_OPTIONAL},
 	{"rawok",		DATA_TYPE_BOOLEAN,	ZK_OPTIONAL},
+	{"fd",			DATA_TYPE_INT32,	ZK_OPTIONAL},
+	{"redactbook",		DATA_TYPE_STRING,	ZK_OPTIONAL},
+	{"resumeobj",		DATA_TYPE_UINT64,	ZK_OPTIONAL},
+	{"resumeoff",		DATA_TYPE_UINT64,	ZK_OPTIONAL},
+	{"bytes",		DATA_TYPE_UINT64,	ZK_OPTIONAL},
 };
 
 static int
