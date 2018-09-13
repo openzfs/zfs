@@ -22,8 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2017 by Delphix. All rights reserved.
- * Copyright (c) 2015, Nexenta Systems, Inc.  All rights reserved.
- * Copyright (c) 2013, 2014, Nexenta Systems, Inc.  All rights reserved.
+ * Copyright (c) 2018, Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright 2013 Saso Kiselkov. All rights reserved.
  * Copyright (c) 2014 Integros [integros.com]
@@ -6485,7 +6484,8 @@ spa_vdev_split_mirror(spa_t *spa, char *newname, nvlist_t *config,
 			break;
 		}
 
-		if (vdev_dtl_required(vml[c])) {
+		if (vdev_dtl_required(vml[c]) ||
+		    vdev_resilver_needed(vml[c], NULL, NULL)) {
 			error = SET_ERROR(EBUSY);
 			break;
 		}
