@@ -536,7 +536,6 @@ add_prop_list(const char *propname, char *propval, nvlist_t **props,
     boolean_t poolprop)
 {
 	zpool_prop_t prop = ZPOOL_PROP_INVAL;
-	zfs_prop_t fprop;
 	nvlist_t *proplist;
 	const char *normnm;
 	char *strval;
@@ -580,10 +579,18 @@ add_prop_list(const char *propname, char *propval, nvlist_t **props,
 		else
 			normnm = zpool_prop_to_name(prop);
 	} else {
-		if ((fprop = zfs_name_to_prop(propname)) != ZPROP_INVAL) {
-			normnm = zfs_prop_to_name(fprop);
-		} else {
+		zfs_prop_t fsprop = zfs_name_to_prop(propname);
+
+		if (zfs_prop_valid_for_type(fsprop, ZFS_TYPE_FILESYSTEM,
+		    B_FALSE)) {
+			normnm = zfs_prop_to_name(fsprop);
+		} else if (zfs_prop_user(propname) ||
+		    zfs_prop_userquota(propname)) {
 			normnm = propname;
+		} else {
+			(void) fprintf(stderr, gettext("property '%s' is "
+			    "not a valid filesystem property\n"), propname);
+			return (2);
 		}
 	}
 
