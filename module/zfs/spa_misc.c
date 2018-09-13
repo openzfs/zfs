@@ -2553,6 +2553,26 @@ param_set_deadman_synctime(const char *val, zfs_kernel_param_t *kp)
 	return (0);
 }
 
+static int
+param_set_slop_shift(const char *buf, zfs_kernel_param_t *kp)
+{
+	unsigned long val;
+	int error;
+
+	error = kstrtoul(buf, 0, &val);
+	if (error)
+		return (SET_ERROR(error));
+
+	if (val < 1 || val > 31)
+		return (SET_ERROR(-EINVAL));
+
+	error = param_set_int(buf, kp);
+	if (error < 0)
+		return (SET_ERROR(error));
+
+	return (0);
+}
+
 /* Namespace manipulation */
 EXPORT_SYMBOL(spa_lookup);
 EXPORT_SYMBOL(spa_add);
@@ -2678,7 +2698,8 @@ module_param(spa_asize_inflation, int, 0644);
 MODULE_PARM_DESC(spa_asize_inflation,
 	"SPA size estimate multiplication factor");
 
-module_param(spa_slop_shift, int, 0644);
+module_param_call(spa_slop_shift, param_set_slop_shift, param_get_int,
+    &spa_slop_shift, 0644);
 MODULE_PARM_DESC(spa_slop_shift, "Reserved free space in pool");
 
 module_param(zfs_ddt_data_is_special, int, 0644);
