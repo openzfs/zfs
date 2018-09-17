@@ -864,6 +864,7 @@ zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
 	if (!zfs_is_mountable(zhp, mountpoint, sizeof (mountpoint), NULL))
 		return (0);
 
+	verify(sharetab_lock() == 0);
 	for (curr_proto = proto; *curr_proto != PROTO_END; curr_proto++) {
 		/*
 		 * Return success if there are no share options.
@@ -879,6 +880,7 @@ zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
 			(void) zfs_error_fmt(hdl, EZFS_SHARENFSFAILED,
 			    dgettext(TEXT_DOMAIN, "cannot share '%s': %s"),
 			    zfs_get_name(zhp), sa_errorstr(ret));
+			verify(sharetab_unlock() == 0);
 			return (-1);
 		}
 
@@ -910,6 +912,7 @@ zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
 				    proto_table[*curr_proto].p_share_err,
 				    dgettext(TEXT_DOMAIN, "cannot share '%s'"),
 				    zfs_get_name(zhp));
+				verify(sharetab_unlock() == 0);
 				return (-1);
 			}
 			hdl->libzfs_shareflags |= ZFSSHARE_MISS;
@@ -925,6 +928,7 @@ zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
 				    proto_table[*curr_proto].p_share_err,
 				    dgettext(TEXT_DOMAIN, "cannot share '%s'"),
 				    zfs_get_name(zhp));
+				verify(sharetab_unlock() == 0);
 				return (-1);
 			}
 		} else {
@@ -932,10 +936,12 @@ zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
 			    proto_table[*curr_proto].p_share_err,
 			    dgettext(TEXT_DOMAIN, "cannot share '%s'"),
 			    zfs_get_name(zhp));
+			verify(sharetab_unlock() == 0);
 			return (-1);
 		}
 
 	}
+	verify(sharetab_unlock() == 0);
 	return (0);
 }
 

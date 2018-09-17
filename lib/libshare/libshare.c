@@ -26,6 +26,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <fcntl.h>
 #include <errno.h>
 #include <strings.h>
 #include <libintl.h>
@@ -165,6 +166,58 @@ parse_sharetab(sa_handle_impl_t impl_handle)
 	fclose(fp);
 }
 
+static int sharetab_fd = -1;
+
+int
+sharetab_lock(void)
+{
+	struct flock lock;
+
+	assert(sharetab_fd == -1);
+
+	if (mkdir("/etc/dfs", 0755) < 0 && errno != EEXIST) {
+		perror("sharetab_lock: failed to create /etc/dfs");
+		return (-1);
+	}
+
+	sharetab_fd = open(ZFS_SHARETAB_LOCK, (O_RDWR | O_CREAT), 0600);
+
+	if (sharetab_fd < 0) {
+		perror("sharetab_lock: failed to open");
+		return (-1);
+	}
+
+	lock.l_type = F_WRLCK;
+	lock.l_whence = SEEK_SET;
+	lock.l_start = 0;
+	lock.l_len = 0;
+	if (fcntl(sharetab_fd, F_SETLKW, &lock) < 0) {
+		perror("sharetab_lock: failed to lock");
+		return (-1);
+	}
+	return (0);
+}
+
+int
+sharetab_unlock(void)
+{
+	struct flock lock;
+	int retval = -1;
+
+	if (sharetab_fd < 0)
+		return (-1);
+	lock.l_type = F_UNLCK;
+	lock.l_whence = SEEK_SET;
+	lock.l_start = 0;
+	lock.l_len = 0;
+	if (fcntl(sharetab_fd, F_SETLK, &lock) == 0)
+		retval = 0;
+	close(sharetab_fd);
+	sharetab_fd = -1;
+	return (retval);
+}
+
+
 static void
 update_sharetab(sa_handle_impl_t impl_handle)
 {
@@ -175,9 +228,6 @@ update_sharetab(sa_handle_impl_t impl_handle)
 	sa_fstype_t *fstype;
 	const char *resource;
 
-	if (mkdir("/etc/dfs", 0755) < 0 && errno != EEXIST) {
-		return;
-	}
 
 	temp_fd = mkstemp(tempfile);
 
