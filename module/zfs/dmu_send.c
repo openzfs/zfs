@@ -94,7 +94,7 @@ int zfs_send_no_prefetch_queue_ff = 20;
 /*
  * Use this to override the recordsize calculation for fast zfs send estimates.
  */
-uint64_t zfs_override_estimate_recordsize = 0;
+int zfs_override_estimate_recordsize = 0;
 
 /* Set this tunable to FALSE to disable setting of DRR_FLAG_FREERECORDS */
 int zfs_send_set_freerecords_bit = B_TRUE;
@@ -2866,4 +2866,8 @@ MODULE_PARM_DESC(zfs_send_queue_ff, "Send queue fill fraction");
 module_param(zfs_send_no_prefetch_queue_ff, int, 0644);
 MODULE_PARM_DESC(zfs_send_no_prefetch_queue_ff,
 	"Send queue fill fraction for non-prefetch queues");
+
+module_param(zfs_override_estimate_recordsize, int, 0644);
+MODULE_PARM_DESC(zfs_override_estimate_recordsize,
+	"Override block size estimate with fixed size");
 #endif
