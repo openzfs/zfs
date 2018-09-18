@@ -476,7 +476,20 @@ zfs_iter_vdev(zpool_handle_t *zhp, nvlist_t *nvl, void *data)
 	    &child, &children) == 0) {
 		for (c = 0; c < children; c++)
 			zfs_iter_vdev(zhp, child[c], data);
-		return;
+	}
+
+	/*
+	 * Iterate over any spares and cache devices
+	 */
+	if (nvlist_lookup_nvlist_array(nvl, ZPOOL_CONFIG_SPARES,
+	    &child, &children) == 0) {
+		for (c = 0; c < children; c++)
+			zfs_iter_vdev(zhp, child[c], data);
+	}
+	if (nvlist_lookup_nvlist_array(nvl, ZPOOL_CONFIG_L2CACHE,
+	    &child, &children) == 0) {
+		for (c = 0; c < children; c++)
+			zfs_iter_vdev(zhp, child[c], data);
 	}
 
 	/* once a vdev was matched and processed there is nothing left to do */

@@ -3424,6 +3424,7 @@ vdev_online(spa_t *spa, uint64_t guid, uint64_t flags, vdev_state_t *newstate)
 		for (pvd = vd; pvd != rvd; pvd = pvd->vdev_parent)
 			pvd->vdev_expanding = !!((flags & ZFS_ONLINE_EXPAND) ||
 			    spa->spa_autoexpand);
+		vd->vdev_expansion_time = gethrestime_sec();
 	}
 
 	vdev_reopen(tvd);

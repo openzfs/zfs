@@ -515,6 +515,10 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 	if (vd->vdev_crtxg)
 		fnvlist_add_uint64(nv, ZPOOL_CONFIG_CREATE_TXG, vd->vdev_crtxg);
 
+	if (vd->vdev_expansion_time)
+		fnvlist_add_uint64(nv, ZPOOL_CONFIG_EXPANSION_TIME,
+		    vd->vdev_expansion_time);
+
 	if (flags & VDEV_CONFIG_MOS) {
 		if (vd->vdev_leaf_zap != 0) {
 			ASSERT(vd->vdev_ops->vdev_op_leaf);
