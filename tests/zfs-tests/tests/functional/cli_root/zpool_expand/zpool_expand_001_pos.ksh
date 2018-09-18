@@ -96,8 +96,7 @@ for type in " " mirror raidz raidz2; do
 	fi
 
 	typeset prev_size=$(get_pool_prop size $TESTPOOL1)
-	typeset zfs_prev_size=$(zfs get -p avail $TESTPOOL1 | tail -1 | \
-	    awk '{print $3}')
+	typeset zfs_prev_size=$(get_prop avail $TESTPOOL1)
 
 	# Expand each device as appropriate being careful to add an artificial
 	# delay to ensure we get a single history entry for each.  This makes
@@ -117,8 +116,7 @@ for type in " " mirror raidz raidz2; do
 	log_must zpool online -e $TESTPOOL1 $FILE_RAW
 
 	typeset expand_size=$(get_pool_prop size $TESTPOOL1)
-	typeset zfs_expand_size=$(zfs get -p avail $TESTPOOL1 | tail -1 | \
-	    awk '{print $3}')
+	typeset zfs_expand_size=$(get_prop avail $TESTPOOL1)
 
 	log_note "$TESTPOOL1 $type has previous size: $prev_size and " \
 	    "expanded size: $expand_size"
