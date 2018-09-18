@@ -34,6 +34,7 @@ Helpful resources
 
   * [ZFS on Linux wiki](https://github.com/zfsonlinux/zfs/wiki)
   * [OpenZFS Documentation](http://open-zfs.org/wiki/Developer_resources)
+  * [Git and GitHub for beginners](https://github.com/zfsonlinux/zfs/wiki/Git-and-GitHub-for-beginners)
 
 ## What should I know before I get started?
 
