@@ -385,10 +385,12 @@ main(int argc, char *argv[])
 				if (ferror(send_stream))
 					perror("fread");
 				err = nvlist_unpack(buf, sz, &nv, 0);
-				if (err)
+				if (err) {
 					perror(strerror(err));
-				nvlist_print(stdout, nv);
-				nvlist_free(nv);
+				} else {
+					nvlist_print(stdout, nv);
+					nvlist_free(nv);
+				}
 			}
 			break;
 
