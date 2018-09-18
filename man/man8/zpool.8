@@ -1926,8 +1926,10 @@ result in partially resilvered devices unless a second scrub is performed.
 .Ar pool Ar device Ns ...
 .Xc
 Removes the specified device from the pool.
-This command currently only supports removing hot spares, cache, log
-devices and mirrored top-level vdevs (mirror of leaf devices); but not raidz.
+This command supports removing hot spare, cache, log, and both mirrored and
+non-redundant primary top-level vdevs, including dedup and special vdevs.
+When the primary pool storage includes a top-level raidz vdev only hot spare,
+cache, and log devices can be removed.
 .sp
 Removing a top-level vdev reduces the total amount of space in the storage pool.
 The specified device will be evacuated by copying all allocated space from it to
@@ -1938,8 +1940,10 @@ command initiates the removal and returns, while the evacuation continues in
 the background.
 The removal progress can be monitored with
 .Nm zpool Cm status.
-This feature must be enabled to be used, see
-.Xr zpool-features 5
+The
+.Sy device_removal
+feature flag must be enabled to remove a top-level vdev, see
+.Xr zpool-features 5 .
 .Pp
 A mirrored top-level device (log or data) can be removed by specifying the top-level mirror for the
 same.
