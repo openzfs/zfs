@@ -43,8 +43,7 @@ typeset recv_mnt="/$POOL2/$ds_name"
 
 log_onexit redacted_cleanup $sendfs $recvfs
 
-log_must zfs_dd if=/dev/urandom of=$clone_mnt/f2 bs=512 count=64 stride=512 \
-    conv=notrunc
+log_must stride_dd -i /dev/urandom -o $clone_mnt/f2 -b 512 -c 64 -s 512
 log_must zfs snapshot $clone@snap1
 
 # Do the full resumable send
