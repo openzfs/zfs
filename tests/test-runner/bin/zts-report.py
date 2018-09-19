@@ -278,15 +278,15 @@ maybe = {
 
 
 def usage(s):
-    print s
+    print(s)
     sys.exit(1)
 
 
 def process_results(pathname):
     try:
         f = open(pathname)
-    except IOError, e:
-        print 'Error opening file: %s' % e
+    except IOError as e:
+        print('Error opening file: %s' % e)
         sys.exit(1)
 
     prefix = '/zfs-tests/tests/functional/'
@@ -317,14 +317,14 @@ if __name__ == "__main__":
     results = process_results(sys.argv[1])
 
     if summary['total'] == 0:
-        print "\n\nNo test results were found."
-        print "Log directory:  %s" % summary['logfile']
+        print("\n\nNo test results were found.")
+        print("Log directory:  %s" % summary['logfile'])
         sys.exit(0)
 
     expected = []
     unexpected = []
 
-    for test in results.keys():
+    for test in list(results.keys()):
         if results[test] == "PASS":
             continue
 
@@ -341,7 +341,7 @@ if __name__ == "__main__":
         else:
             expected.append(test)
 
-    print "\nTests with results other than PASS that are expected:"
+    print("\nTests with results other than PASS that are expected:")
     for test in sorted(expected):
         issue_url = 'https://github.com/zfsonlinux/zfs/issues/'
 
@@ -367,20 +367,20 @@ if __name__ == "__main__":
             continue
         else:
             expect = "UNKNOWN REASON"
-        print "    %s %s (%s)" % (results[test], test, expect)
+        print("    %s %s (%s)" % (results[test], test, expect))
 
-    print "\nTests with result of PASS that are unexpected:"
+    print("\nTests with result of PASS that are unexpected:")
     for test in sorted(known.keys()):
         # We probably should not be silently ignoring the case
         # where "test" is not in "results".
         if test not in results or results[test] != "PASS":
             continue
-        print "    %s %s (expected %s)" % (results[test], test, known[test][0])
+        print("    %s %s (expected %s)" % (results[test], test, known[test][0]))
 
-    print "\nTests with results other than PASS that are unexpected:"
+    print("\nTests with results other than PASS that are unexpected:")
     for test in sorted(unexpected):
         expect = "PASS" if test not in known else known[test][0]
-        print "    %s %s (expected %s)" % (results[test], test, expect)
+        print("    %s %s (expected %s)" % (results[test], test, expect))
 
     if len(unexpected) == 0:
         sys.exit(0)
