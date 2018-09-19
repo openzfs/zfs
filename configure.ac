@@ -186,7 +186,7 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/cmd/rm_lnkcnt_zero_file/Makefile
 	tests/zfs-tests/cmd/threadsappend/Makefile
 	tests/zfs-tests/cmd/xattrtest/Makefile
-	tests/zfs-tests/cmd/zfs_dd/Makefile
+	tests/zfs-tests/cmd/stride_dd/Makefile
 	tests/zfs-tests/include/Makefile
 	tests/zfs-tests/tests/Makefile
 	tests/zfs-tests/tests/functional/Makefile

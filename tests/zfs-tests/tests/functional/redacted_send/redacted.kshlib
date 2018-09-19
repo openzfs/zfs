@@ -99,8 +99,8 @@ function setup_holes
 
 	log_must zfs create $sendfs/manyrm
 	for i in {1..256}; do
-		log_must zfs_dd if=/dev/urandom of=$mntpnt/manyrm/f$i bs=512 \
-		    count=$(random 100) stride=$(random 4) 2>/dev/null
+		log_must stride_dd -i /dev/urandom -o $mntpnt/manyrm/f$i -b 512 \
+		    -c $(random 100) -s $(random 4)
 	done
 
 	log_must zfs snapshot $sendfs/manyrm@snap
@@ -127,14 +127,12 @@ function setup_incrementals
 
 	log_must zfs clone $sendfs@snap0 $POOL/stride3
 	mntpnt=$(get_prop mountpoint $POOL/stride3)
-	log_must zfs_dd if=/dev/urandom of=$mntpnt/f2 bs=$bs count=11 stride=3 \
-	    conv=notrunc
+	log_must stride_dd -i /dev/urandom -o $mntpnt/f2 -b $bs -c 11 -s 3
 	log_must zfs snapshot $POOL/stride3@snap
 
 	log_must zfs clone $sendfs@snap0 $POOL/stride5
 	mntpnt=$(get_prop mountpoint $POOL/stride5)
-	log_must zfs_dd if=/dev/urandom of=$mntpnt/f2 bs=$bs count=7 stride=5 \
-	    conv=notrunc
+	log_must stride_dd -i /dev/urandom -o $mntpnt/f2 -b $bs -c 7 -s 5
 	log_must zfs snapshot $POOL/stride5@snap
 
 	log_must zfs clone $sendfs@snap0 $POOL/int

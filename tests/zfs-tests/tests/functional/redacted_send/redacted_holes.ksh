@@ -61,10 +61,8 @@ log_must zfs rollback -R $clone@snap
 log_must zfs destroy -R $recvfs
 
 # Write two overlapping sets of holes into the same non-sparse file.
-log_must zfs_dd if=/dev/zero of=$clone_mnt/f1 bs=128k count=8 stride=2 seek=3 \
-    conv=notrunc
-log_must zfs_dd if=/dev/zero of=$clone_mnt/f1 bs=256k count=8 stride=2 seek=6 \
-    conv=notrunc
+log_must stride_dd -i /dev/zero -o $clone_mnt/f1 -b $((128 * 1024)) -c 8 -s 2 -k 3
+log_must stride_dd -i /dev/zero -o $clone_mnt/f1 -b $((256 * 1024)) -c 8 -s 2 -k 6
 log_must zfs snapshot $clone@snap1
 log_must zfs redact $sendfs@snap book2 $clone@snap1
 log_must eval "zfs send --redact book2 $sendfs@snap >$stream"

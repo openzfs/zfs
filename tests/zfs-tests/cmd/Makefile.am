@@ -26,4 +26,4 @@ SUBDIRS = \
 	rm_lnkcnt_zero_file \
 	threadsappend \
 	xattrtest \
-	zfs_dd
+	stride_dd

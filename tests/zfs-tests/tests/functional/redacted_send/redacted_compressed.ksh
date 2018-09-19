@@ -40,8 +40,7 @@ typeset clone_mnt="$(get_prop mountpoint $clone)"
 
 log_onexit redacted_cleanup $sendfs $recvfs
 
-log_must zfs_dd if=/dev/urandom of=$clone_mnt/f1 bs=128k count=4 stride=2 \
-    conv=notrunc
+log_must stride_dd -i /dev/urandom -o $clone_mnt/f1 -b $((128 * 1024)) -c 4 -s 2
 log_must zfs snapshot $clone@snap1
 log_must rm $clone_mnt/f2
 log_must zfs snapshot $clone@snap2

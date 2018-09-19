@@ -134,11 +134,11 @@ log_must zfs destroy -R $recvfs
 # FizzBuzz version
 log_must zfs clone $sendfs@snap $POOL/stride3
 mntpnt="$(get_prop mountpoint $POOL/stride3)"
-log_must zfs_dd if=/dev/urandom of=$mntpnt/f2 bs=128k count=11 stride=3 conv=notrunc
+log_must stride_dd -i /dev/urandom -o $mntpnt/f2 -b $((128 * 1024)) -c 11 -s 3
 log_must zfs snapshot $POOL/stride3@snap
 log_must zfs clone $sendfs@snap $POOL/stride5
 mntpnt="$(get_prop mountpoint $POOL/stride5)"
-log_must zfs_dd if=/dev/urandom of=$mntpnt/f2 bs=128k count=7 stride=5 conv=notrunc
+log_must stride_dd -i /dev/urandom -o $mntpnt/f2 -b $((128 * 1024)) -c 7 -s 5
 log_must zfs snapshot $POOL/stride5@snap
 log_must zfs redact $sendfs@snap book8a $POOL/stride3@snap $POOL/stride5@snap
 log_must eval "zfs send --redact book8a $sendfs@snap >$stream"
