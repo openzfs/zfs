@@ -16,7 +16,7 @@
 # Copyright (c) 2017 Datto Inc.
 #
 
-import ConfigParser
+import configparser
 import os
 import logging
 from datetime import datetime
@@ -27,7 +27,7 @@ from select import select
 from subprocess import PIPE
 from subprocess import Popen
 from sys import argv
-from sys import maxint
+from sys import maxsize
 from threading import Timer
 from time import time
 
@@ -204,16 +204,16 @@ class Cmd(object):
         if needed. Run the command, and update the result object.
         """
         if options.dryrun is True:
-            print self
+            print(self)
             return
 
         privcmd = self.update_cmd_privs(self.pathname, self.user)
         try:
             old = os.umask(0)
             if not os.path.isdir(self.outputdir):
-                os.makedirs(self.outputdir, mode=0777)
+                os.makedirs(self.outputdir, mode=0o777)
             os.umask(old)
-        except OSError, e:
+        except OSError as e:
             fail('%s' % e)
 
         self.result.starttime = time()
@@ -552,7 +552,7 @@ class TestRun(object):
         in the 'DEFAULT' section. If the Test or TestGroup passes
         verification, add it to the TestRun.
         """
-        config = ConfigParser.RawConfigParser()
+        config = configparser.RawConfigParser()
         if not len(config.read(options.runfile)):
             fail("Coulnd't read config file %s" % options.runfile)
 
@@ -608,7 +608,7 @@ class TestRun(object):
 
         defaults = dict([(prop, getattr(options, prop)) for prop, _ in
                          self.defaults])
-        config = ConfigParser.RawConfigParser(defaults)
+        config = configparser.RawConfigParser(defaults)
 
         for test in sorted(self.tests.keys()):
             config.add_section(test)
@@ -637,14 +637,14 @@ class TestRun(object):
         """
         done = False
         components = 0
-        tmp_dict = dict(self.tests.items() + self.testgroups.items())
+        tmp_dict = dict(list(self.tests.items()) + list(self.testgroups.items()))
         total = len(tmp_dict)
         base = self.outputdir
 
         while not done:
             paths = []
             components -= 1
-            for testfile in tmp_dict.keys():
+            for testfile in list(tmp_dict.keys()):
                 uniq = '/'.join(testfile.split('/')[components:]).lstrip('/')
                 if uniq not in paths:
                     paths.append(uniq)
@@ -672,9 +672,9 @@ class TestRun(object):
         if options.cmd is not 'wrconfig':
             try:
                 old = os.umask(0)
-                os.makedirs(self.outputdir, mode=0777)
+                os.makedirs(self.outputdir, mode=0o777)
                 os.umask(old)
-            except OSError, e:
+            except OSError as e:
                 fail('%s' % e)
             filename = os.path.join(self.outputdir, 'log')
 
@@ -707,8 +707,8 @@ class TestRun(object):
         if not os.path.exists(logsymlink):
             os.symlink(self.outputdir, logsymlink)
         else:
-            print 'Could not make a symlink to directory %s' % (
-                self.outputdir)
+            print('Could not make a symlink to directory %s' % (
+                self.outputdir))
         iteration = 0
         while iteration < options.iterations:
             for test in sorted(self.tests.keys()):
@@ -721,17 +721,17 @@ class TestRun(object):
         if Result.total is 0:
             return 2
 
-        print '\nResults Summary'
-        for key in Result.runresults.keys():
+        print('\nResults Summary')
+        for key in list(Result.runresults.keys()):
             if Result.runresults[key] is not 0:
-                print '%s\t% 4d' % (key, Result.runresults[key])
+                print('%s\t% 4d' % (key, Result.runresults[key]))
 
         m, s = divmod(time() - self.starttime, 60)
         h, m = divmod(m, 60)
-        print '\nRunning Time:\t%02d:%02d:%02d' % (h, m, s)
-        print 'Percent passed:\t%.1f%%' % ((float(Result.runresults['PASS']) /
-                                            float(Result.total)) * 100)
-        print 'Log directory:\t%s' % self.outputdir
+        print('\nRunning Time:\t%02d:%02d:%02d' % (h, m, s))
+        print('Percent passed:\t%.1f%%' % ((float(Result.runresults['PASS']) /
+                                            float(Result.total)) * 100))
+        print('Log directory:\t%s' % self.outputdir)
 
         if Result.runresults['FAIL'] > 0:
             return 1
@@ -804,7 +804,7 @@ def find_tests(testrun, options):
 
 
 def fail(retstr, ret=1):
-    print '%s: %s' % (argv[0], retstr)
+    print('%s: %s' % (argv[0], retstr))
     exit(ret)
 
 
