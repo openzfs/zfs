@@ -30,6 +30,7 @@
 #include <sys/taskq.h>
 #include <sys/cred.h>
 #include <linux/backing-dev.h>
+#include <linux/compat.h>
 
 /*
  * 2.6.28 API change,
@@ -625,5 +626,22 @@ inode_set_iversion(struct inode *ip, u64 val)
 	ip->i_version = val;
 }
 #endif
+
+/*
+ * Returns true when called in the context of a 32-bit system call.
+ */
+static inline int
+zpl_is_32bit_api(void)
+{
+#ifdef CONFIG_COMPAT
+#ifdef HAVE_IN_COMPAT_SYSCALL
+	return (in_compat_syscall());
+#else
+	return (is_compat_task());
+#endif
+#else
+	return (BITS_PER_LONG == 32);
+#endif
+}
 
 #endif /* _ZFS_VFS_H */
