@@ -2557,8 +2557,8 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, int cleanup_fd,
 		if (err != 0)
 			goto out;
 
-                if (!drc->drc_newfs)
-                        drc->drc_keynvl = fnvlist_dup(keynvl);
+		if (!drc->drc_newfs)
+			drc->drc_keynvl = fnvlist_dup(keynvl);
 	}
 
 	if (drc->drc_featureflags & DMU_BACKUP_FEATURE_RESUMING) {

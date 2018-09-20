@@ -2867,7 +2867,9 @@ module_param(zfs_send_no_prefetch_queue_ff, int, 0644);
 MODULE_PARM_DESC(zfs_send_no_prefetch_queue_ff,
 	"Send queue fill fraction for non-prefetch queues");
 
+/* BEGIN CSTYLED */
 module_param(zfs_override_estimate_recordsize, ulong, 0644);
 MODULE_PARM_DESC(zfs_override_estimate_recordsize,
 	"Override block size estimate with fixed size");
+/* END CSTYLED */
 #endif
