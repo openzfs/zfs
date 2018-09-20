@@ -286,6 +286,9 @@ dsl_dataset_block_kill(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx,
 			    DD_USED_HEAD, DD_USED_SNAP, tx);
 		}
 	}
+
+	dsl_bookmark_block_killed(ds, bp, tx);
+
 	mutex_enter(&ds->ds_lock);
 	ASSERT3U(dsl_dataset_phys(ds)->ds_referenced_bytes, >=, used);
 	dsl_dataset_phys(ds)->ds_referenced_bytes -= used;
