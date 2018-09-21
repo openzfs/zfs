@@ -664,7 +664,7 @@ zfs_unmount(zfs_handle_t *zhp, const char *mountpoint, int flags)
 		 * then get freed later. We strdup it to play it safe.
 		 */
 		if (mountpoint == NULL)
-			mntpt = zfs_strdup(hdl, entry.mnt_special);
+			mntpt = zfs_strdup(hdl, entry.mnt_mountp);
 		else
 			mntpt = zfs_strdup(hdl, mountpoint);
 

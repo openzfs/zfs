@@ -184,6 +184,7 @@ known = {
     'removal/removal_with_zdb': ['SKIP', known_reason],
     'rootpool/setup': ['SKIP', na_reason],
     'rsend/rsend_008_pos': ['SKIP', '6066'],
+    'snapshot/rollback_003_pos': ['SKIP', '6143'],
     'vdev_zaps/vdev_zaps_007_pos': ['FAIL', known_reason],
     'xattr/xattr_008_pos': ['SKIP', na_reason],
     'xattr/xattr_009_neg': ['SKIP', na_reason],
