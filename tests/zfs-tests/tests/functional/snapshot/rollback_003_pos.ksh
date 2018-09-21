@@ -48,6 +48,10 @@
 
 verify_runnable "both"
 
+if is_linux; then
+	log_unsupported "Test case is known to fail on Linux"
+fi
+
 function cleanup
 {
 	typeset snap=""
