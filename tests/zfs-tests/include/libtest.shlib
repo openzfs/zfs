@@ -1230,6 +1230,34 @@ function datasetnonexists
 	return 0
 }
 
+function is_shared_impl
+{
+	typeset fs=$1
+	typeset mtpt
+
+	if is_linux; then
+		for mtpt in `share | awk '{print $1}'` ; do
+			if [[ $mtpt == $fs ]] ; then
+				return 0
+			fi
+		done
+		return 1
+	fi
+
+	for mtpt in `share | awk '{print $2}'` ; do
+		if [[ $mtpt == $fs ]] ; then
+			return 0
+		fi
+	done
+
+	typeset stat=$(svcs -H -o STA nfs/server:default)
+	if [[ $stat != "ON" ]]; then
+		log_note "Current nfs/server status: $stat"
+	fi
+
+	return 1
+}
+
 #
 # Given a mountpoint, or a dataset name, determine if it is shared via NFS.
 #
@@ -1254,27 +1282,7 @@ function is_shared
 		fi
 	fi
 
-	if is_linux; then
-		for mtpt in `share | awk '{print $1}'` ; do
-			if [[ $mtpt == $fs ]] ; then
-				return 0
-			fi
-		done
-		return 1
-	fi
-
-	for mtpt in `share | awk '{print $2}'` ; do
-		if [[ $mtpt == $fs ]] ; then
-			return 0
-		fi
-	done
-
-	typeset stat=$(svcs -H -o STA nfs/server:default)
-	if [[ $stat != "ON" ]]; then
-		log_note "Current nfs/server status: $stat"
-	fi
-
-	return 1
+	is_shared_impl "$fs"
 }
 
 #
