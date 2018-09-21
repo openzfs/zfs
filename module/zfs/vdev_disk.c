@@ -139,10 +139,9 @@ bdev_max_capacity(struct block_device *bdev, uint64_t wholedisk)
 static void
 vdev_disk_error(zio_t *zio)
 {
-	zfs_dbgmsg(KERN_WARNING "zio error=%d type=%d offset=%llu size=%llu "
-	    "flags=%x\n", zio->io_error, zio->io_type,
-	    (u_longlong_t)zio->io_offset, (u_longlong_t)zio->io_size,
-	    zio->io_flags);
+	zfs_dbgmsg("zio error=%d type=%d offset=%llu size=%llu flags=%x\n",
+	    zio->io_error, zio->io_type, (u_longlong_t)zio->io_offset,
+	    (u_longlong_t)zio->io_size, zio->io_flags);
 }
 
 /*
