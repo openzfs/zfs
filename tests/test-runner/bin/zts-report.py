@@ -265,6 +265,7 @@ maybe = {
     'rsend/rsend_024_pos': ['FAIL', '5665'],
     'rsend/send-c_volume': ['FAIL', '6087'],
     'snapshot/clone_001_pos': ['FAIL', known_reason],
+    'snapshot/rollback_003_pos': ['FAIL', '6143'],
     'snapused/snapused_004_pos': ['FAIL', '5513'],
     'tmpfile/setup': ['SKIP', tmpfile_reason],
     'threadsappend/threadsappend_001_pos': ['FAIL', '6136'],
