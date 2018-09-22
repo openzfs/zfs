@@ -3755,7 +3755,7 @@ single_histo_average(uint64_t *histo, unsigned int buckets)
 
 static void
 print_iostat_queues(iostat_cbdata_t *cb, nvlist_t *oldnv,
-    nvlist_t *newnv, double scale)
+    nvlist_t *newnv)
 {
 	int i;
 	uint64_t val;
@@ -3785,7 +3785,7 @@ print_iostat_queues(iostat_cbdata_t *cb, nvlist_t *oldnv,
 		format = ZFS_NICENUM_1024;
 
 	for (i = 0; i < ARRAY_SIZE(names); i++) {
-		val = nva[i].data[0] * scale;
+		val = nva[i].data[0];
 		print_one_stat(val, format, column_width, cb->cb_scripted);
 	}
 
@@ -3794,7 +3794,7 @@ print_iostat_queues(iostat_cbdata_t *cb, nvlist_t *oldnv,
 
 static void
 print_iostat_latency(iostat_cbdata_t *cb, nvlist_t *oldnv,
-    nvlist_t *newnv, double scale)
+    nvlist_t *newnv)
 {
 	int i;
 	uint64_t val;
@@ -3824,7 +3824,7 @@ print_iostat_latency(iostat_cbdata_t *cb, nvlist_t *oldnv,
 	/* Print our avg latencies on the line */
 	for (i = 0; i < ARRAY_SIZE(names); i++) {
 		/* Compute average latency for a latency histo */
-		val = single_histo_average(nva[i].data, nva[i].count) * scale;
+		val = single_histo_average(nva[i].data, nva[i].count);
 		print_one_stat(val, format, column_width, cb->cb_scripted);
 	}
 	free_calc_stats(nva, ARRAY_SIZE(names));
@@ -3972,9 +3972,9 @@ print_vdev_stats(zpool_handle_t *zhp, const char *name, nvlist_t *oldnv,
 		print_iostat_default(calcvs, cb, scale);
 	}
 	if (cb->cb_flags & IOS_LATENCY_M)
-		print_iostat_latency(cb, oldnv, newnv, scale);
+		print_iostat_latency(cb, oldnv, newnv);
 	if (cb->cb_flags & IOS_QUEUES_M)
-		print_iostat_queues(cb, oldnv, newnv, scale);
+		print_iostat_queues(cb, oldnv, newnv);
 	if (cb->cb_flags & IOS_ANYHISTO_M) {
 		printf("\n");
 		print_iostat_histos(cb, oldnv, newnv, scale, name);
