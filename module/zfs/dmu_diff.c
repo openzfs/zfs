@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  */
 
 #include <sys/dmu.h>
@@ -115,7 +115,8 @@ diff_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	if (issig(JUSTLOOKING) && issig(FORREAL))
 		return (SET_ERROR(EINTR));
 
-	if (bp == NULL || zb->zb_object != DMU_META_DNODE_OBJECT)
+	if (zb->zb_level == ZB_DNODE_LEVEL ||
+	    zb->zb_object != DMU_META_DNODE_OBJECT)
 		return (0);
 
 	if (BP_IS_HOLE(bp)) {

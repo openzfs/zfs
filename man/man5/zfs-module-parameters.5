@@ -1667,6 +1667,18 @@ Default value: \fB1,048,576\fR.
 .sp
 .ne 2
 .na
+\fBzfs_allow_redacted_dataset_mount\fR (int)
+.ad
+.RS 12n
+Allow datasets received with redacted send/receive to be mounted. Normally
+disabled because these datasets may be missing key data.
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_metaslab_fragmentation_threshold\fR (int)
 .ad
 .RS 12n
@@ -2151,13 +2163,60 @@ Use \fB1\fR for yes and \fB0\fR for no (default).
 .sp
 .ne 2
 .na
+\fBzfs_send_no_prefetch_queue_ff\fR (int)
+.ad
+.RS 12n
+The fill fraction of the \fBzfs send\fR internal queues. The fill fraction
+controls the timing with which internal threads are woken up.
+.sp
+Default value: \fB20\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_send_no_prefetch_queue_length\fR (int)
+.ad
+.RS 12n
+The maximum number of bytes allowed in \fBzfs send\fR's internal queues.
+.sp
+Default value: \fB1,048,576\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_send_queue_ff\fR (int)
+.ad
+.RS 12n
+The fill fraction of the \fBzfs send\fR prefetch queue. The fill fraction
+controls the timing with which internal threads are woken up.
+.sp
+Default value: \fB20\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_send_queue_length\fR (int)
 .ad
 .RS 12n
-The maximum number of bytes allowed in the \fBzfs send\fR queue. This value
-must be at least twice the maximum block size in use.
+The maximum number of bytes allowed that will be prefetched by \fBzfs send\fR.
+This value must be at least twice the maximum block size in use.
 .sp
 Default value: \fB16,777,216\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_recv_queue_ff\fR (int)
+.ad
+.RS 12n
+The fill fraction of the \fBzfs receive\fR queue. The fill fraction
+controls the timing with which internal threads are woken up.
+.sp
+Default value: \fB20\fR.
 .RE
 
 .sp
@@ -2171,6 +2230,21 @@ The maximum number of bytes allowed in the \fBzfs receive\fR queue. This value
 must be at least twice the maximum block size in use.
 .sp
 Default value: \fB16,777,216\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_override_estimate_recordsize\fR (ulong)
+.ad
+.RS 12n
+Setting this variable overrides the default logic for estimating block
+sizes when doing a zfs send. The default heuristic is that the average
+block size will be the current recordsize. Override this value if most data
+in your dataset is not of that size and you require accurate zfs send size
+estimates.
+.sp
+Default value: \fB0\fR.
 .RE
 
 .sp

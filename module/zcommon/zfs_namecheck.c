@@ -397,6 +397,7 @@ pool_namecheck(const char *pool, namecheck_err_t *why, char *what)
 }
 
 #if defined(_KERNEL)
+EXPORT_SYMBOL(entity_namecheck);
 EXPORT_SYMBOL(pool_namecheck);
 EXPORT_SYMBOL(dataset_namecheck);
 EXPORT_SYMBOL(zfs_component_namecheck);

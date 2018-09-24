@@ -391,7 +391,8 @@ function create_recv_clone
 	log_must eval "zfs send $snap | zfs recv -u $recvfs"
 	log_must mkfile 1m "$mountpoint/data"
 	log_must zfs snapshot $incr
-	log_must eval "zfs send -i $snap $incr | dd bs=10K count=1 > $sendfile"
+	log_must eval "zfs send -i $snap $incr | dd bs=10K count=1 \
+	    iflag=fullblock > $sendfile"
 	log_mustnot eval "zfs recv -su $recvfs < $sendfile"
 	destroy_dataset "$sendfs" "-r"
 	log_must rm -f "$sendfile"

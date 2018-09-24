@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  */
 
@@ -45,6 +45,7 @@ int dsl_destroy_inconsistent(const char *, void *);
 int dsl_destroy_snapshot_check_impl(struct dsl_dataset *, boolean_t);
 void dsl_destroy_snapshot_sync_impl(struct dsl_dataset *,
     boolean_t, struct dmu_tx *);
+void dsl_dir_remove_clones_key(dsl_dir_t *, uint64_t, dmu_tx_t *);
 
 typedef struct dsl_destroy_snapshot_arg {
 	const char *ddsa_name;

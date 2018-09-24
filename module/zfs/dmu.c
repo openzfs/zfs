@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  * Copyright (c) 2013, Joyent, Inc. All rights reserved.
  * Copyright (c) 2016, Nexenta Systems, Inc. All rights reserved.
@@ -1225,6 +1225,20 @@ dmu_write_embedded(objset_t *os, uint64_t object, uint64_t offset,
 	    uncompressed_size, compressed_size, byteorder, tx);
 
 	dmu_buf_rele(db, FTAG);
+}
+
+void
+dmu_redact(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
+    dmu_tx_t *tx)
+{
+	int numbufs, i;
+	dmu_buf_t **dbp;
+
+	VERIFY0(dmu_buf_hold_array(os, object, offset, size, FALSE, FTAG,
+	    &numbufs, &dbp));
+	for (i = 0; i < numbufs; i++)
+		dmu_buf_redact(dbp[i], tx);
+	dmu_buf_rele_array(dbp, numbufs, FTAG);
 }
 
 /*

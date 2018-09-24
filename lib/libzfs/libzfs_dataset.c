@@ -22,7 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2018, Joyent, Inc. All rights reserved.
- * Copyright (c) 2011, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2012 DEY Storage Systems, Inc.  All rights reserved.
  * Copyright (c) 2012 Pawel Jakub Dawidek <pawel@dawidek.net>.
  * Copyright (c) 2013 Martin Matuska. All rights reserved.
@@ -581,7 +581,6 @@ zfs_bookmark_exists(const char *path)
 	char *pound;
 	int err;
 	boolean_t rv;
-
 
 	(void) strlcpy(fsname, path, sizeof (fsname));
 	pound = strchr(fsname, '#');
@@ -2368,6 +2367,10 @@ get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
 		*val = zhp->zfs_dmustats.dds_inconsistent;
 		break;
 
+	case ZFS_PROP_REDACTED:
+		*val = zhp->zfs_dmustats.dds_redacted;
+		break;
+
 	default:
 		switch (zfs_prop_get_type(prop)) {
 		case PROP_TYPE_NUMBER:
@@ -2580,6 +2583,37 @@ zfs_get_clones_nvl(zfs_handle_t *zhp)
 	return (value);
 }
 
+static int
+get_rsnaps_string(zfs_handle_t *zhp, char *propbuf, size_t proplen)
+{
+	nvlist_t *value;
+	uint64_t *snaps;
+	uint_t nsnaps;
+
+	if (nvlist_lookup_nvlist(zhp->zfs_props,
+	    zfs_prop_to_name(ZFS_PROP_REDACT_SNAPS), &value) != 0)
+		return (-1);
+	if (nvlist_lookup_uint64_array(value, ZPROP_VALUE, &snaps,
+	    &nsnaps) != 0)
+		return (-1);
+	if (nsnaps == 0) {
+		/* There's no redaction snapshots; pass a special value back */
+		(void) snprintf(propbuf, proplen, "none");
+		return (0);
+	}
+	propbuf[0] = '\0';
+	for (int i = 0; i < nsnaps; i++) {
+		char buf[128];
+		if (propbuf[0] != '\0')
+			(void) strlcat(propbuf, ",", proplen);
+		(void) snprintf(buf, sizeof (buf), "%llu",
+		    (u_longlong_t)snaps[i]);
+		(void) strlcat(propbuf, buf, proplen);
+	}
+
+	return (0);
+}
+
 /*
  * Accepts a property and value and checks that the value
  * matches the one found by the channel program. If they are
@@ -2772,6 +2806,11 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 			return (-1);
 		(void) strlcpy(propbuf, str, proplen);
 		zcp_check(zhp, prop, 0, str);
+		break;
+
+	case ZFS_PROP_REDACT_SNAPS:
+		if (get_rsnaps_string(zhp, propbuf, proplen) != 0)
+			return (-1);
 		break;
 
 	case ZFS_PROP_CLONES:
@@ -3291,6 +3330,9 @@ zfs_prop_get_userquota(zfs_handle_t *zhp, const char *propname,
 	return (0);
 }
 
+/*
+ * propname must start with "written@" or "written#".
+ */
 int
 zfs_prop_get_written_int(zfs_handle_t *zhp, const char *propname,
     uint64_t *propvalue)
@@ -3301,8 +3343,10 @@ zfs_prop_get_written_int(zfs_handle_t *zhp, const char *propname,
 
 	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
 
-	snapname = strchr(propname, '@') + 1;
-	if (strchr(snapname, '@')) {
+	assert(zfs_prop_written(propname));
+	snapname = propname + strlen("written@");
+	if (strchr(snapname, '@') != NULL || strchr(snapname, '#') != NULL) {
+		/* full snapshot or bookmark name specified */
 		(void) strlcpy(zc.zc_value, snapname, sizeof (zc.zc_value));
 	} else {
 		/* snapname is the short name, append it to zhp's fsname */
@@ -3313,8 +3357,7 @@ zfs_prop_get_written_int(zfs_handle_t *zhp, const char *propname,
 		cp = strchr(zc.zc_value, '@');
 		if (cp != NULL)
 			*cp = '\0';
-		(void) strlcat(zc.zc_value, "@", sizeof (zc.zc_value));
-		(void) strlcat(zc.zc_value, snapname, sizeof (zc.zc_value));
+		(void) strlcat(zc.zc_value, snapname - 1, sizeof (zc.zc_value));
 	}
 
 	err = ioctl(zhp->zfs_hdl->libzfs_fd, ZFS_IOC_SPACE_WRITTEN, &zc);

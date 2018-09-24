@@ -86,7 +86,7 @@ refcount_destroy_many(refcount_t *rc, uint64_t number)
 {
 	reference_t *ref;
 
-	ASSERT(rc->rc_count == number);
+	ASSERT3U(rc->rc_count, ==, number);
 	while ((ref = list_head(&rc->rc_list))) {
 		list_remove(&rc->rc_list, ref);
 		kmem_cache_free(reference_cache, ref);
@@ -132,7 +132,7 @@ refcount_add_many(refcount_t *rc, uint64_t number, void *holder)
 		ref->ref_number = number;
 	}
 	mutex_enter(&rc->rc_mtx);
-	ASSERT(rc->rc_count >= 0);
+	ASSERT3U(rc->rc_count, >=, 0);
 	if (rc->rc_tracked)
 		list_insert_head(&rc->rc_list, ref);
 	rc->rc_count += number;
@@ -155,7 +155,7 @@ refcount_remove_many(refcount_t *rc, uint64_t number, void *holder)
 	int64_t count;
 
 	mutex_enter(&rc->rc_mtx);
-	ASSERT(rc->rc_count >= number);
+	ASSERT3U(rc->rc_count, >=, number);
 
 	if (!rc->rc_tracked) {
 		rc->rc_count -= number;

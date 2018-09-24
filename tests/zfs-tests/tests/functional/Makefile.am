@@ -51,6 +51,7 @@ SUBDIRS = \
 	projectquota \
 	quota \
 	raidz \
+	redacted_send \
 	redundancy \
 	refquota \
 	refreserv \

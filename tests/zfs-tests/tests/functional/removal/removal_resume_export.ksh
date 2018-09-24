@@ -109,6 +109,7 @@ log_must dd if=/dev/urandom of=$TESTDIR/$TESTFILE0 bs=64M count=32
 #
 log_must zpool add -f $TESTPOOL $NOTREMOVEDISK
 
+log_must set_tunable64 zfs_remove_max_bytes_pause 0
 #
 # Start removal.
 #
@@ -128,6 +129,8 @@ log_must ensure_thread_running $SPA_ADDR
 log_mustnot zpool export $TESTPOOL
 
 log_must ensure_thread_running $SPA_ADDR
+
+log_must set_tunable64 zfs_remove_max_bytes_pause 18446744073709551615
 
 wait_for_removal $TESTPOOL
 
