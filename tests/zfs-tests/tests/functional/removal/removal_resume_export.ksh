@@ -37,8 +37,7 @@
 # 3. Inject a fault in the pool and attempt to export (it
 #    should fail).
 # 4. After the export fails ensure that the removal thread
-#    was restarted (i.e. the svr_thread field in the spa
-#    should be non-zero).
+#    was restarted and the process complete successfully.
 #
 
 
@@ -48,34 +47,9 @@ function cleanup
 	default_cleanup_noexit
 }
 
-function ensure_thread_running # spa_address
+function callback
 {
-	if is_linux; then
-		typeset TRIES=0
-		typeset THREAD_PID
-		while [[ $TRIES -lt 50 ]]; do
-			THREAD_PID=$(pgrep spa_vdev_remove)
-			[[ "$THREAD_PID" ]] && break
-			sleep 0.1
-			(( TRIES = TRIES + 1 ))
-		done
-		[[ "$THREAD_PID" ]] || \
-		    log_fail "removal thread is not running TRIES=$TRIES THREAD_PID=$THREAD_PID"
-	else
-		#
-		# Try to get the address of the removal thread.
-		#
-		typeset THREAD_ADDR=$(mdb -ke "$1::print \
-		    spa_t spa_vdev_removal->svr_thread" | awk "{print \$3}")
-
-		#
-		# if address is NULL it means that the thread is
-		# not running.
-		#
-		[[ "$THREAD_ADDR" = 0 ]] && \
-		    log_fail "removal thread is not running"
-	fi
-
+	log_mustnot zpool export $TESTPOOL
 	return 0
 }
 
@@ -85,12 +59,6 @@ log_onexit cleanup
 # Create pool with one disk.
 #
 log_must default_setup_noexit "$REMOVEDISK"
-
-#
-# Save address of SPA in memory so you can check with mdb
-# if the removal thread is running.
-#
-is_linux || typeset SPA_ADDR=$(mdb -ke "::spa" | awk "/$TESTPOOL/ {print \$1}")
 
 #
 # Turn off compression to raise capacity as much as possible
@@ -110,25 +78,14 @@ log_must dd if=/dev/urandom of=$TESTDIR/$TESTFILE0 bs=64M count=32
 log_must zpool add -f $TESTPOOL $NOTREMOVEDISK
 
 #
-# Start removal.
-#
-log_must zpool remove $TESTPOOL $REMOVEDISK
-
-#
 # Inject an error so export fails after having just suspended
 # the removal thread. [spa_inject_ref gets incremented]
 #
 log_must zinject -d $REMOVEDISK -D 10:1 $TESTPOOL
 
-log_must ensure_thread_running $SPA_ADDR
-
 #
 # Because of the above error export should fail.
 #
-log_mustnot zpool export $TESTPOOL
-
-log_must ensure_thread_running $SPA_ADDR
-
-wait_for_removal $TESTPOOL
+log_must attempt_during_removal $TESTPOOL $REMOVEDISK callback
 
 log_pass "Device removal thread resumes after failed export"
