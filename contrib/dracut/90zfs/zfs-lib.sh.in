@@ -74,14 +74,22 @@ import_pool() {
 # mount_dataset DATASET
 #   mounts the given zfs dataset.
 mount_dataset() {
-        dataset="${1}"
+    dataset="${1}"
     mountpoint="$(zfs get -H -o value mountpoint "${dataset}")"
-
+    mountopts="strictatime"
+    ATIME_OPTION=$(zfs get -H -o value -s default,local,inherited atime ${dataset})
+    if [ "${ATIME_OPTION}" = "off" ]; then
+        mountopts="noatime"
+    fi
+    RELATIME_OPTION=$(zfs get -H -o value -s default,local,inherited relatime ${dataset})
+    if [ "${RELATIME_OPTION}" = "on" ]; then
+        mountopts="relatime"
+    fi
     # We need zfsutil for non-legacy mounts and not for legacy mounts.
     if [ "${mountpoint}" = "legacy" ] ; then
-        mount -t zfs "${dataset}" "${NEWROOT}"
+        mount -t zfs -o ${mountopts} "${dataset}" "${NEWROOT}"
     else
-        mount -o zfsutil -t zfs "${dataset}" "${NEWROOT}"
+        mount -o zfsutil -t zfs -o ${mountopts} "${dataset}" "${NEWROOT}"
     fi
 
     return $?
