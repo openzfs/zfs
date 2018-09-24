@@ -783,6 +783,9 @@ zil_destroy(zilog_t *zilog, boolean_t keep_first)
 	mutex_exit(&zilog->zl_lock);
 
 	dmu_tx_commit(tx);
+
+	/* wait for everything to be synced before disowning the dataset */
+	txg_wait_synced(zilog->zl_dmu_pool, txg);
 }
 
 void
@@ -3259,12 +3262,11 @@ zil_suspend(const char *osname, void **cookiep)
 	zil_commit_impl(zilog, 0);
 
 	/*
-	 * Now that we've ensured all lwb's are LWB_STATE_DONE, we use
-	 * txg_wait_synced() to ensure the data from the zilog has
-	 * migrated to the main pool before calling zil_destroy().
+	 * Now that we've ensured all lwb's are LWB_STATE_DONE,
+	 * txg_wait_synced() will be called from within zil_destroy(),
+	 * which will ensure the data from the zilog has migrated to the
+	 * main pool before it returns.
 	 */
-	txg_wait_synced(zilog->zl_dmu_pool, 0);
-
 	zil_destroy(zilog, B_FALSE);
 
 	mutex_enter(&zilog->zl_lock);
@@ -3272,16 +3274,11 @@ zil_suspend(const char *osname, void **cookiep)
 	cv_broadcast(&zilog->zl_cv_suspend);
 	mutex_exit(&zilog->zl_lock);
 
+	/*
+	 * zil_destroy() has already waited for all dirty data to be
+	 * synced out, so it's safe to remove the mapping now.
+	 */
 	if (os->os_encrypted) {
-		/*
-		 * Encrypted datasets need to wait for all data to be
-		 * synced out before removing the mapping.
-		 *
-		 * XXX: Depending on the number of datasets with
-		 * outstanding ZIL data on a given log device, this
-		 * might cause spa_offline_log() to take a long time.
-		 */
-		txg_wait_synced(zilog->zl_dmu_pool, zilog->zl_destroy_txg);
 		VERIFY0(spa_keystore_remove_mapping(os->os_spa,
 		    dmu_objset_id(os), FTAG));
 	}
@@ -3456,7 +3453,6 @@ zil_replay(objset_t *os, void *arg, zil_replay_func_t *replay_func[TX_MAX_TYPE])
 	vmem_free(zr.zr_lr, 2 * SPA_MAXBLOCKSIZE);
 
 	zil_destroy(zilog, B_FALSE);
-	txg_wait_synced(zilog->zl_dmu_pool, zilog->zl_destroy_txg);
 	zilog->zl_replay = B_FALSE;
 }
 
