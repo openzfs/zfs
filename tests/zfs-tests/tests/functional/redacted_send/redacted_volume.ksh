@@ -40,6 +40,7 @@ typeset clone_file="/dev/zvol/$clone"
 log_onexit redacted_cleanup $sendvol $recvvol
 
 log_must zfs create -b 8k -V 1g $sendvol
+sleep 5
 log_must zpool export $POOL
 log_must zpool import $POOL
 udevadm settle
