@@ -181,6 +181,28 @@ zpl_statfs(struct dentry *dentry, struct kstatfs *statp)
 	spl_fstrans_unmark(cookie);
 	ASSERT3S(error, <=, 0);
 
+	/*
+	 * If required by a 32-bit system call, dynamically scale the
+	 * block size up to 16MiB and decrease the block counts.  This
+	 * allows for a maximum size of 64EiB to be reported.  The file
+	 * counts must be artificially capped at 2^32-1.
+	 */
+	if (unlikely(zpl_is_32bit_api())) {
+		while (statp->f_blocks > UINT32_MAX &&
+		    statp->f_bsize < SPA_MAXBLOCKSIZE) {
+			statp->f_frsize <<= 1;
+			statp->f_bsize <<= 1;
+
+			statp->f_blocks >>= 1;
+			statp->f_bfree >>= 1;
+			statp->f_bavail >>= 1;
+		}
+
+		uint64_t usedobjs = statp->f_files - statp->f_ffree;
+		statp->f_ffree = MIN(statp->f_ffree, UINT32_MAX - usedobjs);
+		statp->f_files = statp->f_ffree + usedobjs;
+	}
+
 	return (error);
 }
 

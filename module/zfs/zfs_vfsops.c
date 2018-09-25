@@ -1245,15 +1245,13 @@ zfs_statvfs(struct dentry *dentry, struct kstatfs *statp)
 {
 	zfsvfs_t *zfsvfs = dentry->d_sb->s_fs_info;
 	uint64_t refdbytes, availbytes, usedobjs, availobjs;
-	uint64_t fsid;
-	uint32_t bshift;
 
 	ZFS_ENTER(zfsvfs);
 
 	dmu_objset_space(zfsvfs->z_os,
 	    &refdbytes, &availbytes, &usedobjs, &availobjs);
 
-	fsid = dmu_objset_fsid_guid(zfsvfs->z_os);
+	uint64_t fsid = dmu_objset_fsid_guid(zfsvfs->z_os);
 	/*
 	 * The underlying storage pool actually uses multiple block
 	 * size.  Under Solaris frsize (fragment size) is reported as
@@ -1265,7 +1263,7 @@ zfs_statvfs(struct dentry *dentry, struct kstatfs *statp)
 	 */
 	statp->f_frsize = zfsvfs->z_max_blksz;
 	statp->f_bsize = zfsvfs->z_max_blksz;
-	bshift = fls(statp->f_bsize) - 1;
+	uint32_t bshift = fls(statp->f_bsize) - 1;
 
 	/*
 	 * The following report "total" blocks of various kinds in
@@ -1282,7 +1280,7 @@ zfs_statvfs(struct dentry *dentry, struct kstatfs *statp)
 	 * static metadata.  ZFS doesn't preallocate files, so the best
 	 * we can do is report the max that could possibly fit in f_files,
 	 * and that minus the number actually used in f_ffree.
-	 * For f_ffree, report the smaller of the number of object available
+	 * For f_ffree, report the smaller of the number of objects available
 	 * and the number of blocks (each object will take at least a block).
 	 */
 	statp->f_ffree = MIN(availobjs, availbytes >> DNODE_SHIFT);
