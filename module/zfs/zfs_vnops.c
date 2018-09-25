@@ -4608,13 +4608,11 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 int
 zfs_dirty_inode(struct inode *ip, int flags)
 {
-	znode_t		*zp = ITOZ(ip);
-	zfsvfs_t	*zfsvfs = ITOZSB(ip);
-	dmu_tx_t	*tx;
-	uint64_t	mode, atime[2], mtime[2], ctime[2];
-	sa_bulk_attr_t	bulk[4];
-	int		error = 0;
-	int		cnt = 0;
+	znode_t *zp = ITOZ(ip);
+	zfsvfs_t *zfsvfs = ITOZSB(ip);
+	boolean_t waited = B_FALSE;
+	dmu_tx_t *tx;
+	int error;
 
 	if (zfs_is_readonly(zfsvfs) || dmu_objset_is_snapshot(zfsvfs->z_os))
 		return (0);
@@ -4624,31 +4622,55 @@ zfs_dirty_inode(struct inode *ip, int flags)
 
 #ifdef I_DIRTY_TIME
 	/*
-	 * This is the lazytime semantic indroduced in Linux 4.0
-	 * This flag will only be called from update_time when lazytime is set.
-	 * (Note, I_DIRTY_SYNC will also set if not lazytime)
-	 * Fortunately mtime and ctime are managed within ZFS itself, so we
-	 * only need to dirty atime.
+	 * This is the SB_LAZYTIME semantic introduced in Linux 4.0 kernel.
+	 * When the I_DIRTY_TIME flag is set and neither I_DIRTY_DATASYNC or
+	 * I_DIRTY_SYNC is set then the inode times may be written lazily.
+	 * Fortunately mtime and ctime are managed within ZFS itself, so
+	 * we only need to dirty atime.
 	 */
-	if (flags == I_DIRTY_TIME) {
+	if ((flags & I_DIRTY_TIME) &&
+	    !(flags & (I_DIRTY_SYNC | I_DIRTY_DATASYNC))) {
 		zp->z_atime_dirty = 1;
-		goto out;
+		ZFS_EXIT(zfsvfs);
+		return (0);
 	}
 #endif
 
+top:
 	tx = dmu_tx_create(zfsvfs->z_os);
 
 	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
 	zfs_sa_upgrade_txholds(tx, zp);
 
-	error = dmu_tx_assign(tx, TXG_WAIT);
+	/*
+	 * When a page is faulted in by filemap_page_mkwrite() this function
+	 * may be called by update_time() with the file's mmap_sem held.
+	 * Therefore it's necessary to use TXG_NOWAIT since we cannot release
+	 * the mmap_sem, and even if we could, it would be undesirable to
+	 * delay the page fault.  TXG_NOTHROTTLE will be set as needed to
+	 * bypass the write throttle.  In the unlikely case the transaction
+	 * cannot be assigned set z_atime_dirty=1 so at least the times will
+	 * be updated when the file is closed.
+	 */
+	error = dmu_tx_assign(tx, (waited ? TXG_NOTHROTTLE : 0) | TXG_NOWAIT);
 	if (error) {
+		if (error == ERESTART && waited == B_FALSE) {
+			waited = B_TRUE;
+			dmu_tx_abort(tx);
+			goto top;
+		}
 		dmu_tx_abort(tx);
-		goto out;
+		zp->z_atime_dirty = 1;
+		ZFS_EXIT(zfsvfs);
+		return (0);
 	}
 
 	mutex_enter(&zp->z_lock);
 	zp->z_atime_dirty = 0;
+
+	int cnt = 0;
+	sa_bulk_attr_t bulk[4];
+	uint64_t mode, atime[2], mtime[2], ctime[2];
 
 	SA_ADD_BULK_ATTR(bulk, cnt, SA_ZPL_MODE(zfsvfs), NULL, &mode, 8);
 	SA_ADD_BULK_ATTR(bulk, cnt, SA_ZPL_ATIME(zfsvfs), NULL, &atime, 16);
@@ -4667,8 +4689,7 @@ zfs_dirty_inode(struct inode *ip, int flags)
 	mutex_exit(&zp->z_lock);
 
 	dmu_tx_commit(tx);
-out:
-	ZFS_EXIT(zfsvfs);
+
 	return (error);
 }
 
