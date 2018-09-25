@@ -438,6 +438,8 @@ vdev_disk_dio_put(dio_request_t *dr)
 		vdev_disk_dio_free(dr);
 
 		if (zio) {
+			vdev_disk_t *vd = zio->io_vd->vdev_tsd;
+			atomic_dec(&vd->vd_dr);
 			zio->io_error = error;
 			ASSERT3S(zio->io_error, >=, 0);
 			if (zio->io_error)
@@ -662,6 +664,8 @@ retry:
 		abd_offset += BIO_BI_SIZE(dr->dr_bio[i]);
 		bio_offset += BIO_BI_SIZE(dr->dr_bio[i]);
 	}
+	vdev_disk_t *vd = zio->io_vd->vdev_tsd;
+	atomic_inc(&vd->vd_dr);
 
 	/* Extra reference to protect dio_request during vdev_submit_bio */
 	vdev_disk_dio_get(dr);
@@ -940,6 +944,16 @@ param_set_vdev_scheduler(const char *val, zfs_kernel_param_t *kp)
 	return (error);
 }
 
+static boolean_t
+vdev_disk_abandoned(zio_t *zio)
+{
+	vdev_disk_t *vd = zio->io_vd->vdev_tsd;
+
+	if (atomic_read(&vd->vd_dr) == 0)
+		return (B_FALSE);
+	return (B_TRUE);
+}
+
 vdev_ops_t vdev_disk_ops = {
 	.vdev_op_open = vdev_disk_open,
 	.vdev_op_close = vdev_disk_close,
@@ -952,6 +966,7 @@ vdev_ops_t vdev_disk_ops = {
 	.vdev_op_rele = vdev_disk_rele,
 	.vdev_op_remap = NULL,
 	.vdev_op_xlate = vdev_default_xlate,
+	.vdev_op_abandoned = vdev_disk_abandoned,
 	.vdev_op_type = VDEV_TYPE_DISK,		/* name of this vdev type */
 	.vdev_op_leaf = B_TRUE			/* leaf vdev */
 };

@@ -82,6 +82,7 @@ typedef void	vdev_remap_cb_t(uint64_t inner_offset, vdev_t *vd,
     uint64_t offset, uint64_t size, void *arg);
 typedef void	vdev_remap_func_t(vdev_t *vd, uint64_t offset, uint64_t size,
     vdev_remap_cb_t callback, void *arg);
+typedef boolean_t vdev_abandoned_func_t(zio_t *zio);
 /*
  * Given a target vdev, translates the logical range "in" to the physical
  * range "res"
@@ -105,6 +106,7 @@ typedef const struct vdev_ops {
 	 * Used when initializing vdevs. Isn't used by leaf ops.
 	 */
 	vdev_xlation_func_t		*vdev_op_xlate;
+	vdev_abandoned_func_t		*vdev_op_abandoned;
 	char				vdev_op_type[16];
 	boolean_t			vdev_op_leaf;
 } vdev_ops_t;

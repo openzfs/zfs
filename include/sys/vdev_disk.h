@@ -47,6 +47,7 @@ typedef struct vdev_disk {
 	ddi_devid_t		vd_devid;
 	char			*vd_minor;
 	struct block_device	*vd_bdev;
+	atomic_t		vd_dr;		/* count of dio_request_t */
 	krwlock_t		vd_lock;
 } vdev_disk_t;
 

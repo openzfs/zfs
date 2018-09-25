@@ -1859,7 +1859,11 @@ zio_deadman_impl(zio_t *pio, int ziodepth)
 		    pio->io_spa, vd, zb, pio, 0, 0);
 
 		if (failmode == ZIO_FAILURE_MODE_CONTINUE &&
+		    pio->io_stage == ZIO_STAGE_VDEV_IO_START &&
+		    pio->io_target_timestamp == 0 &&
 		    taskq_empty_ent(&pio->io_tqent)) {
+			vdev_queue_io_done(pio);
+			pio->io_error = SET_ERROR(EIO);
 			zio_interrupt(pio);
 		}
 	}
@@ -2063,8 +2067,12 @@ zio_wait(zio_t *zio)
 	mutex_exit(&zio->io_lock);
 
 	error = zio->io_error;
-	zio_destroy(zio);
-
+	if (zio->io_vd && zio->io_vd->vdev_ops->vdev_op_abandoned &&
+	    zio->io_vd->vdev_ops->vdev_op_abandoned(zio) == B_TRUE) {
+		zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;
+	} else {
+		zio_destroy(zio);
+	}
 	return (error);
 }
 
