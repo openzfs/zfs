@@ -115,6 +115,7 @@ KERNEL_C = \
 	vdev_indirect_births.c \
 	vdev_indirect.c \
 	vdev_indirect_mapping.c \
+	vdev_initialize.c \
 	vdev_label.c \
 	vdev_mirror.c \
 	vdev_missing.c \

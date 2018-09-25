@@ -1,0 +1,43 @@
+#
+# CDDL HEADER START
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
+function initialize_prog_line # pool disk
+{
+        typeset pool="$1"
+        typeset disk="$2"
+        zpool status "$pool" | grep "$disk" | grep "initialized"
+}
+
+function initialize_progress # pool disk
+{
+        initialize_prog_line "$1" "$2" | \
+	    sed 's/.*(\([0-9]\{1,\}\)% initialized.*/\1/g'
+}
+
+function cleanup
+{
+        if poolexists $TESTPOOL; then
+                log_must zpool destroy -f $TESTPOOL
+        fi
+
+	if poolexists $TESTPOOL1; then
+		log_must zpool destroy -f $TESTPOOL1
+	fi
+}
+log_onexit cleanup

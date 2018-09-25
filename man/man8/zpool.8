@@ -115,6 +115,11 @@
 .Ar pool Ns | Ns Ar id
 .Op Ar newpool Oo Fl t Oc
 .Nm
+.Cm initialize
+.Op Fl cs
+.Ar pool
+.Op Ar device Ns ...
+.Nm
 .Cm iostat
 .Op Oo Oo Fl c Ar SCRIPT Oc Oo Fl lq Oc Oc Ns | Ns Fl rw
 .Op Fl T Sy u Ns | Ns Sy d
@@ -1591,6 +1596,32 @@ is temporary. Temporary pool names last until export. Ensures that
 the original pool name will be used in all label updates and therefore
 is retained upon export.
 Will also set -o cachefile=none when not explicitly specified.
+.El
+.It Xo
+.Nm
+.Cm initialize
+.Op Fl cs
+.Ar pool
+.Op Ar device Ns ...
+.Xc
+Begins initializing by writing to all unallocated regions on the specified
+devices, or all eligible devices in the pool if no individual devices are
+specified.
+Only leaf data or log devices may be initialized.
+.Bl -tag -width Ds
+.It Fl c, -cancel
+Cancel initializing on the specified devices, or all eligible devices if none
+are specified.
+If one or more target devices are invalid or are not currently being
+initialized, the command will fail and no cancellation will occur on any device.
+.It Fl s -suspend
+Suspend initializing on the specified devices, or all eligible devices if none
+are specified.
+If one or more target devices are invalid or are not currently being
+initialized, the command will fail and no suspension will occur on any device.
+Initializing can then be resumed by running
+.Nm zpool Cm initialize
+with no flags on the relevant target devices.
 .El
 .It Xo
 .Nm

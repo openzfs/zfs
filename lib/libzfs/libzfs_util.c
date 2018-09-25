@@ -285,6 +285,11 @@ libzfs_error_description(libzfs_handle_t *hdl)
 		return (dgettext(TEXT_DOMAIN, "encryption failure"));
 	case EZFS_TOOMANY:
 		return (dgettext(TEXT_DOMAIN, "argument list too long"));
+	case EZFS_INITIALIZING:
+		return (dgettext(TEXT_DOMAIN, "currently initializing"));
+	case EZFS_NO_INITIALIZE:
+		return (dgettext(TEXT_DOMAIN, "there is no active "
+		    "initialization"));
 	case EZFS_UNKNOWN:
 		return (dgettext(TEXT_DOMAIN, "unknown error"));
 	default:

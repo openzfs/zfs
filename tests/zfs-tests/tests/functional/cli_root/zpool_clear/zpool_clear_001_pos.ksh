@@ -150,7 +150,7 @@ function do_testing #<clear type> <vdevs>
 
 	#
 	# Make errors to the testing pool by overwrite the vdev device with
-	# /usr/bin/dd command. We do not want to have a full overwrite. That
+	# dd command. We do not want to have a full overwrite. That
 	# may cause the system panic. So, we should skip the vdev label space.
 	#
 	(( i = $RANDOM % 3 ))
