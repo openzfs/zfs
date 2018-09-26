@@ -19,16 +19,11 @@
 #
 # CDDL HEADER END
 #
+
 #
-# Copyright (c) 2018 by Lawrence Livermore National Security, LLC.
+# Copyright (c) 2018 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
 
-if ! is_linux ; then
-	log_unsupported "/proc/spl/kstat/<pool>/health only supported on Linux"
-fi
-
-default_mirror_setup $DISKS
-
-log_pass
+default_cleanup

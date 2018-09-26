@@ -29,7 +29,6 @@ SUBDIRS = \
 	inheritance \
 	inuse \
 	io \
-	kstat \
 	large_files \
 	largest_pool \
 	libzfs \
@@ -48,6 +47,7 @@ SUBDIRS = \
 	pool_names \
 	poolversion \
 	privilege \
+	procfs \
 	projectquota \
 	quota \
 	raidz \

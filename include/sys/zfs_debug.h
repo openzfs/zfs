@@ -76,13 +76,6 @@ extern void __dprintf(const char *file, const char *func,
 
 extern void zfs_panic_recover(const char *fmt, ...);
 
-typedef struct zfs_dbgmsg {
-	list_node_t zdm_node;
-	time_t zdm_timestamp;
-	int zdm_size;
-	char zdm_msg[1]; /* variable length allocation */
-} zfs_dbgmsg_t;
-
 extern void zfs_dbgmsg_init(void);
 extern void zfs_dbgmsg_fini(void);
 

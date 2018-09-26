@@ -863,22 +863,27 @@ extern boolean_t spa_refcount_zero(spa_t *spa);
 #define	SCL_STATE_ALL	(SCL_STATE | SCL_L2ARC | SCL_ZIO)
 
 /* Historical pool statistics */
-typedef struct spa_stats_history {
+typedef struct spa_history_kstat {
 	kmutex_t		lock;
 	uint64_t		count;
 	uint64_t		size;
 	kstat_t			*kstat;
 	void			*private;
 	list_t			list;
-} spa_stats_history_t;
+} spa_history_kstat_t;
+
+typedef struct spa_history_list {
+	uint64_t		size;
+	procfs_list_t		procfs_list;
+} spa_history_list_t;
 
 typedef struct spa_stats {
-	spa_stats_history_t	read_history;
-	spa_stats_history_t	txg_history;
-	spa_stats_history_t	tx_assign_histogram;
-	spa_stats_history_t	io_history;
-	spa_stats_history_t	mmp_history;
-	spa_stats_history_t	state;		/* pool state */
+	spa_history_list_t	read_history;
+	spa_history_list_t	txg_history;
+	spa_history_kstat_t	tx_assign_histogram;
+	spa_history_kstat_t	io_history;
+	spa_history_list_t	mmp_history;
+	spa_history_kstat_t	state;		/* pool state */
 } spa_stats_t;
 
 typedef enum txg_state {
@@ -911,7 +916,7 @@ extern void spa_tx_assign_add_nsecs(spa_t *spa, uint64_t nsecs);
 extern int spa_mmp_history_set_skip(spa_t *spa, uint64_t mmp_kstat_id);
 extern int spa_mmp_history_set(spa_t *spa, uint64_t mmp_kstat_id, int io_error,
     hrtime_t duration);
-extern void *spa_mmp_history_add(spa_t *spa, uint64_t txg, uint64_t timestamp,
+extern void spa_mmp_history_add(spa_t *spa, uint64_t txg, uint64_t timestamp,
     uint64_t mmp_delay, vdev_t *vd, int label, uint64_t mmp_kstat_id,
     int error);
 
