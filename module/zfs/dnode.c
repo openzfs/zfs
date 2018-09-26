@@ -1267,7 +1267,7 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 		if ((flag & DNODE_MUST_BE_FREE) && type != DMU_OT_NONE)
 			return (SET_ERROR(EEXIST));
 		DNODE_VERIFY(dn);
-		(void) refcount_add(&dn->dn_holds, tag);
+		(void) zfs_refcount_add(&dn->dn_holds, tag);
 		*dnp = dn;
 		return (0);
 	}
@@ -1484,7 +1484,7 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 		return (type == DMU_OT_NONE ? ENOENT : EEXIST);
 	}
 
-	if (refcount_add(&dn->dn_holds, tag) == 1)
+	if (zfs_refcount_add(&dn->dn_holds, tag) == 1)
 		dbuf_add_ref(db, dnh);
 
 	mutex_exit(&dn->dn_mtx);
@@ -1524,7 +1524,7 @@ dnode_add_ref(dnode_t *dn, void *tag)
 		mutex_exit(&dn->dn_mtx);
 		return (FALSE);
 	}
-	VERIFY(1 < refcount_add(&dn->dn_holds, tag));
+	VERIFY(1 < zfs_refcount_add(&dn->dn_holds, tag));
 	mutex_exit(&dn->dn_mtx);
 	return (TRUE);
 }

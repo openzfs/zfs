@@ -76,7 +76,7 @@ struct arc_prune {
 	void			*p_private;
 	uint64_t		p_adjust;
 	list_node_t		p_node;
-	refcount_t		p_refcnt;
+	zfs_refcount_t		p_refcnt;
 };
 
 typedef enum arc_strategy {

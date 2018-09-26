@@ -74,12 +74,12 @@ typedef struct arc_state {
 	/*
 	 * total amount of evictable data in this state
 	 */
-	refcount_t arcs_esize[ARC_BUFC_NUMTYPES];
+	zfs_refcount_t arcs_esize[ARC_BUFC_NUMTYPES];
 	/*
 	 * total amount of data in this state; this includes: evictable,
 	 * non-evictable, ARC_BUFC_DATA, and ARC_BUFC_METADATA.
 	 */
-	refcount_t arcs_size;
+	zfs_refcount_t arcs_size;
 	/*
 	 * supports the "dbufs" kstat
 	 */
@@ -163,7 +163,7 @@ typedef struct l1arc_buf_hdr {
 	uint32_t		b_l2_hits;
 
 	/* self protecting */
-	refcount_t		b_refcnt;
+	zfs_refcount_t		b_refcnt;
 
 	arc_callback_t		*b_acb;
 	abd_t			*b_pabd;
@@ -180,7 +180,7 @@ typedef struct l2arc_dev {
 	kmutex_t		l2ad_mtx;	/* lock for buffer list */
 	list_t			l2ad_buflist;	/* buffer list */
 	list_node_t		l2ad_node;	/* device list node */
-	refcount_t		l2ad_alloc;	/* allocated bytes */
+	zfs_refcount_t		l2ad_alloc;	/* allocated bytes */
 } l2arc_dev_t;
 
 typedef struct l2arc_buf_hdr {

@@ -186,7 +186,7 @@ typedef struct dsl_dataset {
 	 * Owning counts as a long hold.  See the comments above
 	 * dsl_pool_hold() for details.
 	 */
-	refcount_t ds_longholds;
+	zfs_refcount_t ds_longholds;
 
 	/* no locking; only for making guesses */
 	uint64_t ds_trysnap_txg;

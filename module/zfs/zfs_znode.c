@@ -272,7 +272,7 @@ zfs_znode_hold_enter(zfsvfs_t *zfsvfs, uint64_t obj)
 		ASSERT3U(zh->zh_obj, ==, obj);
 		found = B_TRUE;
 	}
-	refcount_add(&zh->zh_refcount, NULL);
+	zfs_refcount_add(&zh->zh_refcount, NULL);
 	mutex_exit(&zfsvfs->z_hold_locks[i]);
 
 	if (found == B_TRUE)
