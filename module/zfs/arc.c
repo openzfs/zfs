@@ -1966,7 +1966,7 @@ add_reference(arc_buf_hdr_t *hdr, void *tag)
 
 	state = hdr->b_l1hdr.b_state;
 
-	if ((refcount_add(&hdr->b_l1hdr.b_refcnt, tag) == 1) &&
+	if ((zfs_refcount_add(&hdr->b_l1hdr.b_refcnt, tag) == 1) &&
 	    (state != arc_anon)) {
 		/* We don't use the L2-only state list. */
 		if (state != arc_l2c_only) {
@@ -2505,7 +2505,7 @@ arc_return_buf(arc_buf_t *buf, void *tag)
 
 	ASSERT3P(buf->b_data, !=, NULL);
 	ASSERT(HDR_HAS_L1HDR(hdr));
-	(void) refcount_add(&hdr->b_l1hdr.b_refcnt, tag);
+	(void) zfs_refcount_add(&hdr->b_l1hdr.b_refcnt, tag);
 	(void) refcount_remove(&hdr->b_l1hdr.b_refcnt, arc_onloan_tag);
 
 	arc_loaned_bytes_update(-arc_buf_size(buf));
@@ -2519,7 +2519,7 @@ arc_loan_inuse_buf(arc_buf_t *buf, void *tag)
 
 	ASSERT3P(buf->b_data, !=, NULL);
 	ASSERT(HDR_HAS_L1HDR(hdr));
-	(void) refcount_add(&hdr->b_l1hdr.b_refcnt, arc_onloan_tag);
+	(void) zfs_refcount_add(&hdr->b_l1hdr.b_refcnt, arc_onloan_tag);
 	(void) refcount_remove(&hdr->b_l1hdr.b_refcnt, tag);
 
 	arc_loaned_bytes_update(arc_buf_size(buf));
@@ -3533,7 +3533,7 @@ arc_prune_async(int64_t adjust)
 		if (refcount_count(&ap->p_refcnt) >= 2)
 			continue;
 
-		refcount_add(&ap->p_refcnt, ap->p_pfunc);
+		zfs_refcount_add(&ap->p_refcnt, ap->p_pfunc);
 		ap->p_adjust = adjust;
 		if (taskq_dispatch(arc_prune_taskq, arc_prune_task,
 		    ap, TQ_SLEEP) == TASKQID_INVALID) {
@@ -5549,7 +5549,7 @@ arc_add_prune_callback(arc_prune_func_t *func, void *private)
 	refcount_create(&p->p_refcnt);
 
 	mutex_enter(&arc_prune_mtx);
-	refcount_add(&p->p_refcnt, &arc_prune_list);
+	zfs_refcount_add(&p->p_refcnt, &arc_prune_list);
 	list_insert_head(&arc_prune_list, p);
 	mutex_exit(&arc_prune_mtx);
 
@@ -5815,7 +5815,7 @@ arc_release(arc_buf_t *buf, void *tag)
 		nhdr->b_l1hdr.b_mfu_hits = 0;
 		nhdr->b_l1hdr.b_mfu_ghost_hits = 0;
 		nhdr->b_l1hdr.b_l2_hits = 0;
-		(void) refcount_add(&nhdr->b_l1hdr.b_refcnt, tag);
+		(void) zfs_refcount_add(&nhdr->b_l1hdr.b_refcnt, tag);
 		buf->b_hdr = nhdr;
 
 		mutex_exit(&buf->b_evict_lock);

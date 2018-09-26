@@ -2663,7 +2663,7 @@ metaslab_group_alloc_increment(spa_t *spa, uint64_t vdev, void *tag, int flags)
 	if (!mg->mg_class->mc_alloc_throttle_enabled)
 		return;
 
-	(void) refcount_add(&mg->mg_alloc_queue_depth, tag);
+	(void) zfs_refcount_add(&mg->mg_alloc_queue_depth, tag);
 }
 
 void
@@ -3360,7 +3360,7 @@ metaslab_class_throttle_reserve(metaslab_class_t *mc, int slots, zio_t *zio,
 		 * them individually when an I/O completes.
 		 */
 		for (d = 0; d < slots; d++) {
-			reserved_slots = refcount_add(&mc->mc_alloc_slots, zio);
+			reserved_slots = zfs_refcount_add(&mc->mc_alloc_slots, zio);
 		}
 		zio->io_flags |= ZIO_FLAG_IO_ALLOCATING;
 		slot_reserved = B_TRUE;

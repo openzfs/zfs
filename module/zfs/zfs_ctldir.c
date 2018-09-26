@@ -120,7 +120,7 @@ typedef struct {
 	taskqid_t	se_taskqid;	/* scheduled unmount taskqid */
 	avl_node_t	se_node_name;	/* zfs_snapshots_by_name link */
 	avl_node_t	se_node_objsetid; /* zfs_snapshots_by_objsetid link */
-	refcount_t	se_refcount;	/* reference count */
+	zfs_refcount_t	se_refcount;	/* reference count */
 } zfs_snapentry_t;
 
 static void zfsctl_snapshot_unmount_delay_impl(zfs_snapentry_t *se, int delay);
@@ -169,7 +169,7 @@ zfsctl_snapshot_free(zfs_snapentry_t *se)
 static void
 zfsctl_snapshot_hold(zfs_snapentry_t *se)
 {
-	refcount_add(&se->se_refcount, NULL);
+	zfs_refcount_add(&se->se_refcount, NULL);
 }
 
 /*
@@ -192,7 +192,7 @@ static void
 zfsctl_snapshot_add(zfs_snapentry_t *se)
 {
 	ASSERT(RW_WRITE_HELD(&zfs_snapshot_lock));
-	refcount_add(&se->se_refcount, NULL);
+	zfs_refcount_add(&se->se_refcount, NULL);
 	avl_add(&zfs_snapshots_by_name, se);
 	avl_add(&zfs_snapshots_by_objsetid, se);
 }
@@ -269,7 +269,7 @@ zfsctl_snapshot_find_by_name(char *snapname)
 	search.se_name = snapname;
 	se = avl_find(&zfs_snapshots_by_name, &search, NULL);
 	if (se)
-		refcount_add(&se->se_refcount, NULL);
+		zfs_refcount_add(&se->se_refcount, NULL);
 
 	return (se);
 }
@@ -290,7 +290,7 @@ zfsctl_snapshot_find_by_objsetid(spa_t *spa, uint64_t objsetid)
 	search.se_objsetid = objsetid;
 	se = avl_find(&zfs_snapshots_by_objsetid, &search, NULL);
 	if (se)
-		refcount_add(&se->se_refcount, NULL);
+		zfs_refcount_add(&se->se_refcount, NULL);
 
 	return (se);
 }

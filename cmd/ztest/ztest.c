@@ -1189,7 +1189,7 @@ ztest_spa_prop_set_uint64(zpool_prop_t prop, uint64_t value)
  */
 typedef struct {
 	list_node_t z_lnode;
-	refcount_t z_refcnt;
+	zfs_refcount_t z_refcnt;
 	uint64_t z_object;
 	zfs_rlock_t z_range_lock;
 } ztest_znode_t;
@@ -1248,13 +1248,13 @@ ztest_znode_get(ztest_ds_t *zd, uint64_t object)
 	for (zp = list_head(&zll->z_list); (zp);
 	    zp = list_next(&zll->z_list, zp)) {
 		if (zp->z_object == object) {
-			refcount_add(&zp->z_refcnt, RL_TAG);
+			zfs_refcount_add(&zp->z_refcnt, RL_TAG);
 			break;
 		}
 	}
 	if (zp == NULL) {
 		zp = ztest_znode_init(object);
-		refcount_add(&zp->z_refcnt, RL_TAG);
+		zfs_refcount_add(&zp->z_refcnt, RL_TAG);
 		list_insert_head(&zll->z_list, zp);
 	}
 	mutex_exit(&zll->z_lock);

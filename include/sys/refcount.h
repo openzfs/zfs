@@ -41,17 +41,6 @@ extern "C" {
  */
 #define	FTAG ((char *)__func__)
 
-/*
- * Starting with 4.11, torvalds/linux@f405df5, the linux kernel defines a
- * refcount_t type of its own.  The macro below effectively changes references
- * in the ZFS code from refcount_t to zfs_refcount_t at compile time, so that
- * existing code need not be altered, reducing conflicts when landing openZFS
- * patches.
- */
-
-#define	refcount_t	zfs_refcount_t
-#define	refcount_add	zfs_refcount_add
-
 #ifdef	ZFS_DEBUG
 typedef struct reference {
 	list_node_t ref_link;
@@ -69,23 +58,28 @@ typedef struct refcount {
 	uint64_t rc_removed_count;
 } zfs_refcount_t;
 
-/* Note: refcount_t must be initialized with refcount_create[_untracked]() */
+/*
+ * Note: zfs_refcount_t must be initialized with
+ * refcount_create[_untracked]()
+ */
 
-void refcount_create(refcount_t *rc);
-void refcount_create_untracked(refcount_t *rc);
-void refcount_create_tracked(refcount_t *rc);
-void refcount_destroy(refcount_t *rc);
-void refcount_destroy_many(refcount_t *rc, uint64_t number);
-int refcount_is_zero(refcount_t *rc);
-int64_t refcount_count(refcount_t *rc);
-int64_t zfs_refcount_add(refcount_t *rc, void *holder_tag);
-int64_t refcount_remove(refcount_t *rc, void *holder_tag);
-int64_t refcount_add_many(refcount_t *rc, uint64_t number, void *holder_tag);
-int64_t refcount_remove_many(refcount_t *rc, uint64_t number, void *holder_tag);
-void refcount_transfer(refcount_t *dst, refcount_t *src);
-void refcount_transfer_ownership(refcount_t *, void *, void *);
-boolean_t refcount_held(refcount_t *, void *);
-boolean_t refcount_not_held(refcount_t *, void *);
+void refcount_create(zfs_refcount_t *rc);
+void refcount_create_untracked(zfs_refcount_t *rc);
+void refcount_create_tracked(zfs_refcount_t *rc);
+void refcount_destroy(zfs_refcount_t *rc);
+void refcount_destroy_many(zfs_refcount_t *rc, uint64_t number);
+int refcount_is_zero(zfs_refcount_t *rc);
+int64_t refcount_count(zfs_refcount_t *rc);
+int64_t zfs_refcount_add(zfs_refcount_t *rc, void *holder_tag);
+int64_t refcount_remove(zfs_refcount_t *rc, void *holder_tag);
+int64_t refcount_add_many(zfs_refcount_t *rc, uint64_t number,
+    void *holder_tag);
+int64_t refcount_remove_many(zfs_refcount_t *rc, uint64_t number,
+    void *holder_tag);
+void refcount_transfer(zfs_refcount_t *dst, zfs_refcount_t *src);
+void refcount_transfer_ownership(zfs_refcount_t *, void *, void *);
+boolean_t refcount_held(zfs_refcount_t *, void *);
+boolean_t refcount_not_held(zfs_refcount_t *, void *);
 
 void refcount_init(void);
 void refcount_fini(void);
@@ -94,7 +88,7 @@ void refcount_fini(void);
 
 typedef struct refcount {
 	uint64_t rc_count;
-} refcount_t;
+} zfs_refcount_t;
 
 #define	refcount_create(rc) ((rc)->rc_count = 0)
 #define	refcount_create_untracked(rc) ((rc)->rc_count = 0)

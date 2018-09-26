@@ -212,7 +212,7 @@ typedef struct dmu_buf_impl {
 	 * If nonzero, the buffer can't be destroyed.
 	 * Protected by db_mtx.
 	 */
-	refcount_t db_holds;
+	zfs_refcount_t db_holds;
 
 	/* buffer holding our data */
 	arc_buf_t *db_buf;

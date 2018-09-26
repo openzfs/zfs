@@ -52,7 +52,7 @@ typedef struct abd {
 	abd_flags_t	abd_flags;
 	uint_t		abd_size;	/* excludes scattered abd_offset */
 	struct abd	*abd_parent;
-	refcount_t	abd_children;
+	zfs_refcount_t	abd_children;
 	union {
 		struct abd_scatter {
 			uint_t		abd_offset;

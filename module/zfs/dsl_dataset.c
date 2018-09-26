@@ -645,7 +645,7 @@ void
 dsl_dataset_long_hold(dsl_dataset_t *ds, void *tag)
 {
 	ASSERT(dsl_pool_config_held(ds->ds_dir->dd_pool));
-	(void) refcount_add(&ds->ds_longholds, tag);
+	(void) zfs_refcount_add(&ds->ds_longholds, tag);
 }
 
 void

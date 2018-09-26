@@ -104,7 +104,7 @@ static boolean_t dbuf_evict_thread_exit;
  * become eligible for arc eviction.
  */
 static multilist_t *dbuf_cache;
-static refcount_t dbuf_cache_size;
+static zfs_refcount_t dbuf_cache_size;
 unsigned long  dbuf_cache_max_bytes = 100 * 1024 * 1024;
 
 /* Cap the size of the dbuf cache to log2 fraction of arc size. */
@@ -2384,7 +2384,7 @@ dbuf_create(dnode_t *dn, uint8_t level, uint64_t blkid,
 
 	ASSERT(dn->dn_object == DMU_META_DNODE_OBJECT ||
 	    refcount_count(&dn->dn_holds) > 0);
-	(void) refcount_add(&dn->dn_holds, db);
+	(void) zfs_refcount_add(&dn->dn_holds, db);
 	atomic_inc_32(&dn->dn_dbufs_count);
 
 	dprintf_dbuf(db, "db=%p\n", db);
@@ -2749,7 +2749,7 @@ __dbuf_hold_impl(struct dbuf_hold_impl_data *dh)
 		(void) refcount_remove_many(&dbuf_cache_size,
 		    dh->dh_db->db.db_size, dh->dh_db);
 	}
-	(void) refcount_add(&dh->dh_db->db_holds, dh->dh_tag);
+	(void) zfs_refcount_add(&dh->dh_db->db_holds, dh->dh_tag);
 	DBUF_VERIFY(dh->dh_db);
 	mutex_exit(&dh->dh_db->db_mtx);
 
@@ -2873,7 +2873,7 @@ dbuf_rm_spill(dnode_t *dn, dmu_tx_t *tx)
 void
 dbuf_add_ref(dmu_buf_impl_t *db, void *tag)
 {
-	int64_t holds = refcount_add(&db->db_holds, tag);
+	int64_t holds = zfs_refcount_add(&db->db_holds, tag);
 	VERIFY3S(holds, >, 1);
 }
 
@@ -2893,7 +2893,7 @@ dbuf_try_add_ref(dmu_buf_t *db_fake, objset_t *os, uint64_t obj, uint64_t blkid,
 
 	if (found_db != NULL) {
 		if (db == found_db && dbuf_refcount(db) > db->db_dirtycnt) {
-			(void) refcount_add(&db->db_holds, tag);
+			(void) zfs_refcount_add(&db->db_holds, tag);
 			result = B_TRUE;
 		}
 		mutex_exit(&found_db->db_mtx);

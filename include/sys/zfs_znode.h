@@ -209,7 +209,7 @@ typedef struct znode_hold {
 	uint64_t	zh_obj;		/* object id */
 	kmutex_t	zh_lock;	/* lock serializing object access */
 	avl_node_t	zh_node;	/* avl tree linkage */
-	refcount_t	zh_refcount;	/* active consumer reference count */
+	zfs_refcount_t	zh_refcount;	/* active consumer reference count */
 } znode_hold_t;
 
 /*
