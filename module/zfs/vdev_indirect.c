@@ -1514,8 +1514,9 @@ vdev_indirect_splits_enumerate_all(indirect_vsd_t *iv, zio_t *zio)
 
 		for (indirect_split_t *is = list_head(&iv->iv_splits);
 		    is != NULL; is = list_next(&iv->iv_splits, is)) {
-			if ((is->is_good_child = list_next(
-			    &is->is_unique_child, is->is_good_child)) != NULL) {
+			is->is_good_child = list_next(&is->is_unique_child,
+			    is->is_good_child);
+			if (is->is_good_child != NULL) {
 				more = B_TRUE;
 				break;
 			}
@@ -1584,7 +1585,10 @@ vdev_indirect_splits_damage(indirect_vsd_t *iv, zio_t *zio)
 		}
 	}
 
-	/* Attempt to select a valid one randomly. */
+	/*
+	 * Set each is_good_child to a randomly-selected child which
+	 * is known to contain validated data.
+	 */
 	int error = vdev_indirect_splits_enumerate_randomly(iv, zio);
 	if (error)
 		goto out;
@@ -1593,7 +1597,8 @@ vdev_indirect_splits_damage(indirect_vsd_t *iv, zio_t *zio)
 	 * Damage all but the known good copy by zeroing it.  This will
 	 * result in two or less unique copies per indirect_child_t.
 	 * Both may need to be checked in order to reconstruct the block.
-	 * Set iv->iv_attempts_max such that they will all be enumerated.
+	 * Set iv->iv_attempts_max such that all unique combinations will
+	 * enumerated, but limit the damage to at most 16 indirect splits.
 	 */
 	iv->iv_attempts_max = 1;
 
@@ -1609,7 +1614,12 @@ vdev_indirect_splits_damage(indirect_vsd_t *iv, zio_t *zio)
 
 			abd_zero(ic->ic_data, ic->ic_data->abd_size);
 		}
+
 		iv->iv_attempts_max *= 2;
+		if (iv->iv_attempts_max > (1ULL << 16)) {
+			iv->iv_attempts_max = UINT64_MAX;
+			break;
+		}
 	}
 
 out:
@@ -1754,15 +1764,9 @@ vdev_indirect_reconstruct_io_done(zio_t *zio)
 		ASSERT3B(known_good, ==, B_FALSE);
 		zio->io_error = error;
 		vdev_indirect_all_checksum_errors(zio);
-
-		zfs_dbgmsg("reconstruction failed (%d) after %llu / %llu "
-		    "allowed attempts, %llu unique combination(s)\n", error,
-		    (u_longlong_t)iv->iv_attempts,
-		    (u_longlong_t)iv->iv_attempts_max,
-		    (u_longlong_t)iv->iv_unique_combinations);
 	} else {
 		/*
-		 * The checksum has been successfully validated issue
+		 * The checksum has been successfully validated.  Issue
 		 * repair I/Os to any copies of splits which don't match
 		 * the validated version.
 		 */
