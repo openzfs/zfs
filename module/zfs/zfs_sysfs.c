@@ -102,7 +102,7 @@ typedef ssize_t	(*sysfs_show_func)(struct kobject *, struct attribute *,
 static void
 zfs_kobj_fini(zfs_mod_kobj_t *zkobj)
 {
-	/* finialize any child kobjects */
+	/* finalize any child kobjects */
 	if (zkobj->zko_child_count != 0) {
 		ASSERT(zkobj->zko_children);
 		for (int i = 0; i < zkobj->zko_child_count; i++)
@@ -119,18 +119,19 @@ zfs_kobj_release(struct kobject *kobj)
 {
 	zfs_mod_kobj_t *zkobj = container_of(kobj, zfs_mod_kobj_t, zko_kobj);
 
-	if (zkobj->zko_attr_count != 0) {
-		ASSERT(zkobj->zko_attr_list);
-		ASSERT(zkobj->zko_default_attrs);
-
+	if (zkobj->zko_attr_list != NULL) {
+		ASSERT3S(zkobj->zko_attr_count, !=, 0);
 		kmem_free(zkobj->zko_attr_list,
 		    ATTR_TABLE_SIZE(zkobj->zko_attr_count));
+		zkobj->zko_attr_list = NULL;
+	}
+
+	if (zkobj->zko_default_attrs != NULL) {
 		kmem_free(zkobj->zko_default_attrs,
 		    DEFAULT_ATTR_SIZE(zkobj->zko_attr_count));
-		zkobj->zko_attr_count = 0;
-		zkobj->zko_attr_list = NULL;
 		zkobj->zko_default_attrs = NULL;
 	}
+
 	if (zkobj->zko_child_count != 0) {
 		ASSERT(zkobj->zko_children);
 
@@ -139,6 +140,8 @@ zfs_kobj_release(struct kobject *kobj)
 		zkobj->zko_child_count = 0;
 		zkobj->zko_children = NULL;
 	}
+
+	zkobj->zko_attr_count = 0;
 }
 
 static void
@@ -170,7 +173,7 @@ zfs_kobj_init(zfs_mod_kobj_t *zkobj, int attr_cnt, int child_cnt,
 	zkobj->zko_default_attrs = kmem_zalloc(DEFAULT_ATTR_SIZE(attr_cnt),
 	    KM_SLEEP);
 	if (zkobj->zko_default_attrs == NULL) {
-		if (zkobj->zko_attr_list) {
+		if (zkobj->zko_attr_list != NULL) {
 			kmem_free(zkobj->zko_attr_list,
 			    ATTR_TABLE_SIZE(attr_cnt));
 		}
@@ -183,9 +186,11 @@ zfs_kobj_init(zfs_mod_kobj_t *zkobj, int attr_cnt, int child_cnt,
 		zkobj->zko_children = kmem_zalloc(CHILD_TABLE_SIZE(child_cnt),
 		    KM_SLEEP);
 		if (zkobj->zko_children == NULL) {
-			if (attr_cnt > 0) {
-				kmem_free(zkobj->zko_attr_list,
+			if (zkobj->zko_default_attrs != NULL) {
+				kmem_free(zkobj->zko_default_attrs,
 				    DEFAULT_ATTR_SIZE(attr_cnt));
+			}
+			if (zkobj->zko_attr_list != NULL) {
 				kmem_free(zkobj->zko_attr_list,
 				    ATTR_TABLE_SIZE(attr_cnt));
 			}
