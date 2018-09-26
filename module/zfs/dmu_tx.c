@@ -114,7 +114,7 @@ dmu_tx_hold_dnode_impl(dmu_tx_t *tx, dnode_t *dn, enum dmu_tx_hold_type type,
 	dmu_tx_hold_t *txh;
 
 	if (dn != NULL) {
-		(void) refcount_add(&dn->dn_holds, tx);
+		(void) zfs_refcount_add(&dn->dn_holds, tx);
 		if (tx->tx_txg != 0) {
 			mutex_enter(&dn->dn_mtx);
 			/*
@@ -124,7 +124,7 @@ dmu_tx_hold_dnode_impl(dmu_tx_t *tx, dnode_t *dn, enum dmu_tx_hold_type type,
 			 */
 			ASSERT(dn->dn_assigned_txg == 0);
 			dn->dn_assigned_txg = tx->tx_txg;
-			(void) refcount_add(&dn->dn_tx_holds, tx);
+			(void) zfs_refcount_add(&dn->dn_tx_holds, tx);
 			mutex_exit(&dn->dn_mtx);
 		}
 	}
@@ -932,7 +932,7 @@ dmu_tx_try_assign(dmu_tx_t *tx, uint64_t txg_how)
 			if (dn->dn_assigned_txg == 0)
 				dn->dn_assigned_txg = tx->tx_txg;
 			ASSERT3U(dn->dn_assigned_txg, ==, tx->tx_txg);
-			(void) refcount_add(&dn->dn_tx_holds, tx);
+			(void) zfs_refcount_add(&dn->dn_tx_holds, tx);
 			mutex_exit(&dn->dn_mtx);
 		}
 		towrite += refcount_count(&txh->txh_space_towrite);

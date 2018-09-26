@@ -335,8 +335,8 @@ struct dnode {
 	uint8_t *dn_dirtyctx_firstset;		/* dbg: contents meaningless */
 
 	/* protected by own devices */
-	refcount_t dn_tx_holds;
-	refcount_t dn_holds;
+	zfs_refcount_t dn_tx_holds;
+	zfs_refcount_t dn_holds;
 
 	kmutex_t dn_dbufs_mtx;
 	/*

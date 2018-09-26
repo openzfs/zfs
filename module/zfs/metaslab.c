@@ -247,7 +247,7 @@ metaslab_class_create(spa_t *spa, metaslab_ops_t *ops)
 	mc->mc_ops = ops;
 	mutex_init(&mc->mc_lock, NULL, MUTEX_DEFAULT, NULL);
 	mc->mc_alloc_slots = kmem_zalloc(spa->spa_alloc_count *
-	    sizeof (refcount_t), KM_SLEEP);
+	    sizeof (zfs_refcount_t), KM_SLEEP);
 	mc->mc_alloc_max_slots = kmem_zalloc(spa->spa_alloc_count *
 	    sizeof (uint64_t), KM_SLEEP);
 	for (int i = 0; i < spa->spa_alloc_count; i++)
@@ -268,7 +268,7 @@ metaslab_class_destroy(metaslab_class_t *mc)
 	for (int i = 0; i < mc->mc_spa->spa_alloc_count; i++)
 		refcount_destroy(&mc->mc_alloc_slots[i]);
 	kmem_free(mc->mc_alloc_slots, mc->mc_spa->spa_alloc_count *
-	    sizeof (refcount_t));
+	    sizeof (zfs_refcount_t));
 	kmem_free(mc->mc_alloc_max_slots, mc->mc_spa->spa_alloc_count *
 	    sizeof (uint64_t));
 	mutex_destroy(&mc->mc_lock);
@@ -648,8 +648,8 @@ metaslab_group_create(metaslab_class_t *mc, vdev_t *vd, int allocators)
 	mg->mg_no_free_space = B_TRUE;
 	mg->mg_allocators = allocators;
 
-	mg->mg_alloc_queue_depth = kmem_zalloc(allocators * sizeof (refcount_t),
-	    KM_SLEEP);
+	mg->mg_alloc_queue_depth = kmem_zalloc(allocators *
+	    sizeof (zfs_refcount_t), KM_SLEEP);
 	mg->mg_cur_max_alloc_queue_depth = kmem_zalloc(allocators *
 	    sizeof (uint64_t), KM_SLEEP);
 	for (int i = 0; i < allocators; i++) {
@@ -687,7 +687,7 @@ metaslab_group_destroy(metaslab_group_t *mg)
 		mg->mg_cur_max_alloc_queue_depth[i] = 0;
 	}
 	kmem_free(mg->mg_alloc_queue_depth, mg->mg_allocators *
-	    sizeof (refcount_t));
+	    sizeof (zfs_refcount_t));
 	kmem_free(mg->mg_cur_max_alloc_queue_depth, mg->mg_allocators *
 	    sizeof (uint64_t));
 
@@ -2905,7 +2905,7 @@ metaslab_group_alloc_increment(spa_t *spa, uint64_t vdev, void *tag, int flags,
 	if (!mg->mg_class->mc_alloc_throttle_enabled)
 		return;
 
-	(void) refcount_add(&mg->mg_alloc_queue_depth[allocator], tag);
+	(void) zfs_refcount_add(&mg->mg_alloc_queue_depth[allocator], tag);
 }
 
 static void
@@ -3852,7 +3852,7 @@ metaslab_class_throttle_reserve(metaslab_class_t *mc, int slots, int allocator,
 		 */
 		for (int d = 0; d < slots; d++) {
 			reserved_slots =
-			    refcount_add(&mc->mc_alloc_slots[allocator],
+			    zfs_refcount_add(&mc->mc_alloc_slots[allocator],
 			    zio);
 		}
 		zio->io_flags |= ZIO_FLAG_IO_ALLOCATING;

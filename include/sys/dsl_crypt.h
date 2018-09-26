@@ -62,7 +62,7 @@ typedef struct dsl_wrapping_key {
 	crypto_key_t wk_key;
 
 	/* refcount of number of dsl_crypto_key_t's holding this struct */
-	refcount_t wk_refcnt;
+	zfs_refcount_t wk_refcnt;
 
 	/* dsl directory object that owns this wrapping key */
 	uint64_t wk_ddobj;
@@ -112,7 +112,7 @@ typedef struct dsl_crypto_key {
 	avl_node_t dck_avl_link;
 
 	/* refcount of dsl_key_mapping_t's holding this key */
-	refcount_t dck_holds;
+	zfs_refcount_t dck_holds;
 
 	/* master key used to derive encryption keys */
 	zio_crypt_key_t dck_key;
@@ -134,7 +134,7 @@ typedef struct dsl_key_mapping {
 	avl_node_t km_avl_link;
 
 	/* refcount of how many users are depending on this mapping */
-	refcount_t km_refcnt;
+	zfs_refcount_t km_refcnt;
 
 	/* dataset this crypto key belongs to (index) */
 	uint64_t km_dsobj;

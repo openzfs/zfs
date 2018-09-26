@@ -183,9 +183,9 @@ rrw_enter_read_impl(rrwlock_t *rrl, boolean_t prio, void *tag)
 	if (rrl->rr_writer_wanted || rrl->rr_track_all) {
 		/* may or may not be a re-entrant enter */
 		rrn_add(rrl, tag);
-		(void) refcount_add(&rrl->rr_linked_rcount, tag);
+		(void) zfs_refcount_add(&rrl->rr_linked_rcount, tag);
 	} else {
-		(void) refcount_add(&rrl->rr_anon_rcount, tag);
+		(void) zfs_refcount_add(&rrl->rr_anon_rcount, tag);
 	}
 	ASSERT(rrl->rr_writer == NULL);
 	mutex_exit(&rrl->rr_lock);
