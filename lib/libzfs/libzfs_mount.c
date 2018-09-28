@@ -1030,6 +1030,7 @@ zfs_unshare_proto(zfs_handle_t *zhp, const char *mountpoint,
 		if (mountpoint == NULL)
 			mntpt = zfs_strdup(zhp->zfs_hdl, entry.mnt_mountp);
 
+		verify(sharetab_lock() == 0);
 		for (curr_proto = proto; *curr_proto != PROTO_END;
 		    curr_proto++) {
 
@@ -1038,9 +1039,11 @@ zfs_unshare_proto(zfs_handle_t *zhp, const char *mountpoint,
 			    mntpt, *curr_proto) != 0) {
 				if (mntpt != NULL)
 					free(mntpt);
+				verify(sharetab_unlock() == 0);
 				return (-1);
 			}
 		}
+		verify(sharetab_unlock() == 0);
 	}
 	if (mntpt != NULL)
 		free(mntpt);
