@@ -184,7 +184,7 @@ struct metaslab_class {
 	 * number of allocations allowed.
 	 */
 	uint64_t		*mc_alloc_max_slots;
-	refcount_t		*mc_alloc_slots;
+	zfs_refcount_t		*mc_alloc_slots;
 
 	uint64_t		mc_alloc_groups; /* # of allocatable groups */
 
@@ -256,7 +256,7 @@ struct metaslab_group {
 	 */
 	uint64_t		mg_max_alloc_queue_depth;
 	uint64_t		*mg_cur_max_alloc_queue_depth;
-	refcount_t		*mg_alloc_queue_depth;
+	zfs_refcount_t		*mg_alloc_queue_depth;
 	int			mg_allocators;
 	/*
 	 * A metalab group that can no longer allocate the minimum block

@@ -55,7 +55,7 @@ refcount_fini(void)
 }
 
 void
-refcount_create(refcount_t *rc)
+refcount_create(zfs_refcount_t *rc)
 {
 	mutex_init(&rc->rc_mtx, NULL, MUTEX_DEFAULT, NULL);
 	list_create(&rc->rc_list, sizeof (reference_t),
@@ -68,21 +68,21 @@ refcount_create(refcount_t *rc)
 }
 
 void
-refcount_create_tracked(refcount_t *rc)
+refcount_create_tracked(zfs_refcount_t *rc)
 {
 	refcount_create(rc);
 	rc->rc_tracked = B_TRUE;
 }
 
 void
-refcount_create_untracked(refcount_t *rc)
+refcount_create_untracked(zfs_refcount_t *rc)
 {
 	refcount_create(rc);
 	rc->rc_tracked = B_FALSE;
 }
 
 void
-refcount_destroy_many(refcount_t *rc, uint64_t number)
+refcount_destroy_many(zfs_refcount_t *rc, uint64_t number)
 {
 	reference_t *ref;
 
@@ -103,25 +103,25 @@ refcount_destroy_many(refcount_t *rc, uint64_t number)
 }
 
 void
-refcount_destroy(refcount_t *rc)
+refcount_destroy(zfs_refcount_t *rc)
 {
 	refcount_destroy_many(rc, 0);
 }
 
 int
-refcount_is_zero(refcount_t *rc)
+refcount_is_zero(zfs_refcount_t *rc)
 {
 	return (rc->rc_count == 0);
 }
 
 int64_t
-refcount_count(refcount_t *rc)
+refcount_count(zfs_refcount_t *rc)
 {
 	return (rc->rc_count);
 }
 
 int64_t
-refcount_add_many(refcount_t *rc, uint64_t number, void *holder)
+refcount_add_many(zfs_refcount_t *rc, uint64_t number, void *holder)
 {
 	reference_t *ref = NULL;
 	int64_t count;
@@ -143,13 +143,13 @@ refcount_add_many(refcount_t *rc, uint64_t number, void *holder)
 }
 
 int64_t
-zfs_refcount_add(refcount_t *rc, void *holder)
+zfs_refcount_add(zfs_refcount_t *rc, void *holder)
 {
 	return (refcount_add_many(rc, 1, holder));
 }
 
 int64_t
-refcount_remove_many(refcount_t *rc, uint64_t number, void *holder)
+refcount_remove_many(zfs_refcount_t *rc, uint64_t number, void *holder)
 {
 	reference_t *ref;
 	int64_t count;
@@ -197,13 +197,13 @@ refcount_remove_many(refcount_t *rc, uint64_t number, void *holder)
 }
 
 int64_t
-refcount_remove(refcount_t *rc, void *holder)
+refcount_remove(zfs_refcount_t *rc, void *holder)
 {
 	return (refcount_remove_many(rc, 1, holder));
 }
 
 void
-refcount_transfer(refcount_t *dst, refcount_t *src)
+refcount_transfer(zfs_refcount_t *dst, zfs_refcount_t *src)
 {
 	int64_t count, removed_count;
 	list_t list, removed;
@@ -234,7 +234,7 @@ refcount_transfer(refcount_t *dst, refcount_t *src)
 }
 
 void
-refcount_transfer_ownership(refcount_t *rc, void *current_holder,
+refcount_transfer_ownership(zfs_refcount_t *rc, void *current_holder,
     void *new_holder)
 {
 	reference_t *ref;
@@ -264,7 +264,7 @@ refcount_transfer_ownership(refcount_t *rc, void *current_holder,
  * might be held.
  */
 boolean_t
-refcount_held(refcount_t *rc, void *holder)
+refcount_held(zfs_refcount_t *rc, void *holder)
 {
 	reference_t *ref;
 
@@ -292,7 +292,7 @@ refcount_held(refcount_t *rc, void *holder)
  * since the reference might not be held.
  */
 boolean_t
-refcount_not_held(refcount_t *rc, void *holder)
+refcount_not_held(zfs_refcount_t *rc, void *holder)
 {
 	reference_t *ref;
 

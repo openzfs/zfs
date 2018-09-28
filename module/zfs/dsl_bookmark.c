@@ -962,7 +962,7 @@ void
 dsl_redaction_list_long_hold(dsl_pool_t *dp, redaction_list_t *rl, void *tag)
 {
 	ASSERT(dsl_pool_config_held(dp));
-	(void) refcount_add(&rl->rl_longholds, tag);
+	(void) zfs_refcount_add(&rl->rl_longholds, tag);
 }
 
 void

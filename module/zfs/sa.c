@@ -1347,7 +1347,7 @@ sa_idx_tab_hold(objset_t *os, sa_idx_tab_t *idx_tab)
 	ASSERTV(sa_os_t *sa = os->os_sa);
 
 	ASSERT(MUTEX_HELD(&sa->sa_lock));
-	(void) refcount_add(&idx_tab->sa_refcount, NULL);
+	(void) zfs_refcount_add(&idx_tab->sa_refcount, NULL);
 }
 
 void

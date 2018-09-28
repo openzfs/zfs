@@ -223,7 +223,7 @@ static boolean_t dbuf_evict_thread_exit;
  */
 typedef struct dbuf_cache {
 	multilist_t *cache;
-	refcount_t size;
+	zfs_refcount_t size;
 } dbuf_cache_t;
 dbuf_cache_t dbuf_caches[DB_CACHE_MAX];
 
@@ -2835,7 +2835,7 @@ dbuf_create(dnode_t *dn, uint8_t level, uint64_t blkid,
 
 	ASSERT(dn->dn_object == DMU_META_DNODE_OBJECT ||
 	    refcount_count(&dn->dn_holds) > 0);
-	(void) refcount_add(&dn->dn_holds, db);
+	(void) zfs_refcount_add(&dn->dn_holds, db);
 	atomic_inc_32(&dn->dn_dbufs_count);
 
 	dprintf_dbuf(db, "db=%p\n", db);
@@ -3276,7 +3276,7 @@ dbuf_hold_impl_arg(struct dbuf_hold_arg *dh)
 		}
 		dh->dh_db->db_caching_status = DB_NO_CACHE;
 	}
-	(void) refcount_add(&dh->dh_db->db_holds, dh->dh_tag);
+	(void) zfs_refcount_add(&dh->dh_db->db_holds, dh->dh_tag);
 	DBUF_VERIFY(dh->dh_db);
 	mutex_exit(&dh->dh_db->db_mtx);
 
@@ -3401,7 +3401,7 @@ dbuf_rm_spill(dnode_t *dn, dmu_tx_t *tx)
 void
 dbuf_add_ref(dmu_buf_impl_t *db, void *tag)
 {
-	int64_t holds = refcount_add(&db->db_holds, tag);
+	int64_t holds = zfs_refcount_add(&db->db_holds, tag);
 	VERIFY3S(holds, >, 1);
 }
 
@@ -3421,7 +3421,7 @@ dbuf_try_add_ref(dmu_buf_t *db_fake, objset_t *os, uint64_t obj, uint64_t blkid,
 
 	if (found_db != NULL) {
 		if (db == found_db && dbuf_refcount(db) > db->db_dirtycnt) {
-			(void) refcount_add(&db->db_holds, tag);
+			(void) zfs_refcount_add(&db->db_holds, tag);
 			result = B_TRUE;
 		}
 		mutex_exit(&found_db->db_mtx);

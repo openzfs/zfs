@@ -97,8 +97,8 @@ typedef struct dmu_tx_hold {
 	dmu_tx_t *txh_tx;
 	list_node_t txh_node;
 	struct dnode *txh_dnode;
-	refcount_t txh_space_towrite;
-	refcount_t txh_memory_tohold;
+	zfs_refcount_t txh_space_towrite;
+	zfs_refcount_t txh_memory_tohold;
 	enum dmu_tx_hold_type txh_type;
 	uint64_t txh_arg1;
 	uint64_t txh_arg2;
