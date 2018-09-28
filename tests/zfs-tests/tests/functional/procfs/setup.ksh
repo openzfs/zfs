@@ -19,10 +19,16 @@
 #
 # CDDL HEADER END
 #
+
 #
-# Copyright (c) 2018 by Lawrence Livermore National Security, LLC.
+# Copyright (c) 2018 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
 
-default_cleanup
+if ! is_linux ; then
+	log_unsupported "procfs is only used on Linux"
+fi
+
+default_mirror_setup $DISKS
+log_pass

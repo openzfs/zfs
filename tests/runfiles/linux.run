@@ -585,10 +585,6 @@ tests = ['inuse_001_pos', 'inuse_003_pos', 'inuse_004_pos',
 post =
 tags = ['functional', 'inuse']
 
-[tests/functional/kstat]
-tests = ['state']
-tags = ['functional', 'kstat']
-
 [tests/functional/large_files]
 tests = ['large_files_001_pos', 'large_files_002_pos']
 tags = ['functional', 'large_files']
@@ -672,6 +668,11 @@ tags = ['functional', 'poolversion']
 [tests/functional/privilege]
 tests = ['privilege_001_pos', 'privilege_002_pos']
 tags = ['functional', 'privilege']
+
+[tests/functional/procfs]
+tests = ['procfs_list_basic', 'procfs_list_concurrent_readers',
+    'procfs_list_stale_read', 'pool_state']
+tags = ['functional', 'procfs']
 
 [tests/functional/projectquota]
 tests = ['projectid_001_pos', 'projectid_002_pos', 'projectid_003_pos',

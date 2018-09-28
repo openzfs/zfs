@@ -55,7 +55,6 @@ int zfs_multihost_history = 0;
  * Read statistics - Information exported regarding each arc_read call
  */
 typedef struct spa_read_history {
-	uint64_t	uid;		/* unique identifier */
 	hrtime_t	start;		/* time read completed */
 	uint64_t	objset;		/* read from this objset */
 	uint64_t	object;		/* read of this object number */
@@ -65,13 +64,13 @@ typedef struct spa_read_history {
 	uint32_t	aflags;		/* ARC flags (cached, prefetch, etc.) */
 	pid_t		pid;		/* PID of task doing read */
 	char		comm[16];	/* process name of task doing read */
-	list_node_t	srh_link;
+	procfs_list_node_t	srh_node;
 } spa_read_history_t;
 
 static int
-spa_read_history_headers(char *buf, size_t size)
+spa_read_history_show_header(struct seq_file *f)
 {
-	(void) snprintf(buf, size, "%-8s %-16s %-8s %-8s %-8s %-8s %-8s "
+	seq_printf(f, "%-8s %-16s %-8s %-8s %-8s %-8s %-8s "
 	    "%-24s %-8s %-16s\n", "UID", "start", "objset", "object",
 	    "level", "blkid", "aflags", "origin", "pid", "process");
 
@@ -79,13 +78,13 @@ spa_read_history_headers(char *buf, size_t size)
 }
 
 static int
-spa_read_history_data(char *buf, size_t size, void *data)
+spa_read_history_show(struct seq_file *f, void *data)
 {
 	spa_read_history_t *srh = (spa_read_history_t *)data;
 
-	(void) snprintf(buf, size, "%-8llu %-16llu 0x%-6llx "
+	seq_printf(f, "%-8llu %-16llu 0x%-6llx "
 	    "%-8lli %-8lli %-8lli 0x%-6x %-24s %-8i %-16s\n",
-	    (u_longlong_t)srh->uid, srh->start,
+	    (u_longlong_t)srh->srh_node.pln_id, srh->start,
 	    (longlong_t)srh->objset, (longlong_t)srh->object,
 	    (longlong_t)srh->level, (longlong_t)srh->blkid,
 	    srh->aflags, srh->origin, srh->pid, srh->comm);
@@ -93,120 +92,73 @@ spa_read_history_data(char *buf, size_t size, void *data)
 	return (0);
 }
 
-/*
- * Calculate the address for the next spa_stats_history_t entry.  The
- * ssh->lock will be held until ksp->ks_ndata entries are processed.
- */
-static void *
-spa_read_history_addr(kstat_t *ksp, loff_t n)
+/* Remove oldest elements from list until there are no more than 'size' left */
+static void
+spa_read_history_truncate(spa_history_list_t *shl, unsigned int size)
 {
-	spa_t *spa = ksp->ks_private;
-	spa_stats_history_t *ssh = &spa->spa_stats.read_history;
-
-	ASSERT(MUTEX_HELD(&ssh->lock));
-
-	if (n == 0)
-		ssh->private = list_tail(&ssh->list);
-	else if (ssh->private)
-		ssh->private = list_prev(&ssh->list, ssh->private);
-
-	return (ssh->private);
-}
-
-/*
- * When the kstat is written discard all spa_read_history_t entries.  The
- * ssh->lock will be held until ksp->ks_ndata entries are processed.
- */
-static int
-spa_read_history_update(kstat_t *ksp, int rw)
-{
-	spa_t *spa = ksp->ks_private;
-	spa_stats_history_t *ssh = &spa->spa_stats.read_history;
-
-	if (rw == KSTAT_WRITE) {
-		spa_read_history_t *srh;
-
-		while ((srh = list_remove_head(&ssh->list))) {
-			ssh->size--;
-			kmem_free(srh, sizeof (spa_read_history_t));
-		}
-
-		ASSERT3U(ssh->size, ==, 0);
+	spa_read_history_t *srh;
+	while (shl->size > size) {
+		srh = list_remove_head(&shl->procfs_list.pl_list);
+		ASSERT3P(srh, !=, NULL);
+		kmem_free(srh, sizeof (spa_read_history_t));
+		shl->size--;
 	}
 
-	ksp->ks_ndata = ssh->size;
-	ksp->ks_data_size = ssh->size * sizeof (spa_read_history_t);
+	if (size == 0)
+		ASSERT(list_is_empty(&shl->procfs_list.pl_list));
+}
 
+static int
+spa_read_history_clear(procfs_list_t *procfs_list)
+{
+	spa_history_list_t *shl = procfs_list->pl_private;
+	mutex_enter(&procfs_list->pl_lock);
+	spa_read_history_truncate(shl, 0);
+	mutex_exit(&procfs_list->pl_lock);
 	return (0);
 }
 
 static void
 spa_read_history_init(spa_t *spa)
 {
-	spa_stats_history_t *ssh = &spa->spa_stats.read_history;
-	char *name;
-	kstat_t *ksp;
+	spa_history_list_t *shl = &spa->spa_stats.read_history;
+	char *module;
 
-	mutex_init(&ssh->lock, NULL, MUTEX_DEFAULT, NULL);
-	list_create(&ssh->list, sizeof (spa_read_history_t),
-	    offsetof(spa_read_history_t, srh_link));
+	shl->size = 0;
 
-	ssh->count = 0;
-	ssh->size = 0;
-	ssh->private = NULL;
+	module = kmem_asprintf("zfs/%s", spa_name(spa));
 
-	name = kmem_asprintf("zfs/%s", spa_name(spa));
+	shl->procfs_list.pl_private = shl;
+	procfs_list_install(module,
+	    "reads",
+	    &shl->procfs_list,
+	    spa_read_history_show,
+	    spa_read_history_show_header,
+	    spa_read_history_clear,
+	    offsetof(spa_read_history_t, srh_node));
 
-	ksp = kstat_create(name, 0, "reads", "misc",
-	    KSTAT_TYPE_RAW, 0, KSTAT_FLAG_VIRTUAL);
-	ssh->kstat = ksp;
-
-	if (ksp) {
-		ksp->ks_lock = &ssh->lock;
-		ksp->ks_data = NULL;
-		ksp->ks_private = spa;
-		ksp->ks_update = spa_read_history_update;
-		kstat_set_raw_ops(ksp, spa_read_history_headers,
-		    spa_read_history_data, spa_read_history_addr);
-		kstat_install(ksp);
-	}
-	strfree(name);
+	strfree(module);
 }
 
 static void
 spa_read_history_destroy(spa_t *spa)
 {
-	spa_stats_history_t *ssh = &spa->spa_stats.read_history;
-	spa_read_history_t *srh;
-	kstat_t *ksp;
-
-	ksp = ssh->kstat;
-	if (ksp)
-		kstat_delete(ksp);
-
-	mutex_enter(&ssh->lock);
-	while ((srh = list_remove_head(&ssh->list))) {
-		ssh->size--;
-		kmem_free(srh, sizeof (spa_read_history_t));
-	}
-
-	ASSERT3U(ssh->size, ==, 0);
-	list_destroy(&ssh->list);
-	mutex_exit(&ssh->lock);
-
-	mutex_destroy(&ssh->lock);
+	spa_history_list_t *shl = &spa->spa_stats.read_history;
+	procfs_list_uninstall(&shl->procfs_list);
+	spa_read_history_truncate(shl, 0);
+	procfs_list_destroy(&shl->procfs_list);
 }
 
 void
 spa_read_history_add(spa_t *spa, const zbookmark_phys_t *zb, uint32_t aflags)
 {
-	spa_stats_history_t *ssh = &spa->spa_stats.read_history;
-	spa_read_history_t *srh, *rm;
+	spa_history_list_t *shl = &spa->spa_stats.read_history;
+	spa_read_history_t *srh;
 
 	ASSERT3P(spa, !=, NULL);
 	ASSERT3P(zb,  !=, NULL);
 
-	if (zfs_read_history == 0 && ssh->size == 0)
+	if (zfs_read_history == 0 && shl->size == 0)
 		return;
 
 	if (zfs_read_history_hits == 0 && (aflags & ARC_FLAG_CACHED))
@@ -222,19 +174,14 @@ spa_read_history_add(spa_t *spa, const zbookmark_phys_t *zb, uint32_t aflags)
 	srh->aflags = aflags;
 	srh->pid    = getpid();
 
-	mutex_enter(&ssh->lock);
+	mutex_enter(&shl->procfs_list.pl_lock);
 
-	srh->uid = ssh->count++;
-	list_insert_head(&ssh->list, srh);
-	ssh->size++;
+	procfs_list_add(&shl->procfs_list, srh);
+	shl->size++;
 
-	while (ssh->size > zfs_read_history) {
-		ssh->size--;
-		rm = list_remove_tail(&ssh->list);
-		kmem_free(rm, sizeof (spa_read_history_t));
-	}
+	spa_read_history_truncate(shl, zfs_read_history);
 
-	mutex_exit(&ssh->lock);
+	mutex_exit(&shl->procfs_list.pl_lock);
 }
 
 /*
@@ -256,22 +203,21 @@ typedef struct spa_txg_history {
 	uint64_t	writes;		/* number of write operations */
 	uint64_t	ndirty;		/* number of dirty bytes */
 	hrtime_t	times[TXG_STATE_COMMITTED]; /* completion times */
-	list_node_t	sth_link;
+	procfs_list_node_t	sth_node;
 } spa_txg_history_t;
 
 static int
-spa_txg_history_headers(char *buf, size_t size)
+spa_txg_history_show_header(struct seq_file *f)
 {
-	(void) snprintf(buf, size, "%-8s %-16s %-5s %-12s %-12s %-12s "
+	seq_printf(f, "%-8s %-16s %-5s %-12s %-12s %-12s "
 	    "%-8s %-8s %-12s %-12s %-12s %-12s\n", "txg", "birth", "state",
 	    "ndirty", "nread", "nwritten", "reads", "writes",
 	    "otime", "qtime", "wtime", "stime");
-
 	return (0);
 }
 
 static int
-spa_txg_history_data(char *buf, size_t size, void *data)
+spa_txg_history_show(struct seq_file *f, void *data)
 {
 	spa_txg_history_t *sth = (spa_txg_history_t *)data;
 	uint64_t open = 0, quiesce = 0, wait = 0, sync = 0;
@@ -303,7 +249,7 @@ spa_txg_history_data(char *buf, size_t size, void *data)
 		sync = sth->times[TXG_STATE_SYNCED] -
 		    sth->times[TXG_STATE_WAIT_FOR_SYNC];
 
-	(void) snprintf(buf, size, "%-8llu %-16llu %-5c %-12llu "
+	seq_printf(f, "%-8llu %-16llu %-5c %-12llu "
 	    "%-12llu %-12llu %-8llu %-8llu %-12llu %-12llu %-12llu %-12llu\n",
 	    (longlong_t)sth->txg, sth->times[TXG_STATE_BIRTH], state,
 	    (u_longlong_t)sth->ndirty,
@@ -315,110 +261,62 @@ spa_txg_history_data(char *buf, size_t size, void *data)
 	return (0);
 }
 
-/*
- * Calculate the address for the next spa_stats_history_t entry.  The
- * ssh->lock will be held until ksp->ks_ndata entries are processed.
- */
-static void *
-spa_txg_history_addr(kstat_t *ksp, loff_t n)
+/* Remove oldest elements from list until there are no more than 'size' left */
+static void
+spa_txg_history_truncate(spa_history_list_t *shl, unsigned int size)
 {
-	spa_t *spa = ksp->ks_private;
-	spa_stats_history_t *ssh = &spa->spa_stats.txg_history;
-
-	ASSERT(MUTEX_HELD(&ssh->lock));
-
-	if (n == 0)
-		ssh->private = list_tail(&ssh->list);
-	else if (ssh->private)
-		ssh->private = list_prev(&ssh->list, ssh->private);
-
-	return (ssh->private);
-}
-
-/*
- * When the kstat is written discard all spa_txg_history_t entries.  The
- * ssh->lock will be held until ksp->ks_ndata entries are processed.
- */
-static int
-spa_txg_history_update(kstat_t *ksp, int rw)
-{
-	spa_t *spa = ksp->ks_private;
-	spa_stats_history_t *ssh = &spa->spa_stats.txg_history;
-
-	ASSERT(MUTEX_HELD(&ssh->lock));
-
-	if (rw == KSTAT_WRITE) {
-		spa_txg_history_t *sth;
-
-		while ((sth = list_remove_head(&ssh->list))) {
-			ssh->size--;
-			kmem_free(sth, sizeof (spa_txg_history_t));
-		}
-
-		ASSERT3U(ssh->size, ==, 0);
+	spa_txg_history_t *sth;
+	while (shl->size > size) {
+		sth = list_remove_head(&shl->procfs_list.pl_list);
+		ASSERT3P(sth, !=, NULL);
+		kmem_free(sth, sizeof (spa_txg_history_t));
+		shl->size--;
 	}
 
-	ksp->ks_ndata = ssh->size;
-	ksp->ks_data_size = ssh->size * sizeof (spa_txg_history_t);
+	if (size == 0)
+		ASSERT(list_is_empty(&shl->procfs_list.pl_list));
 
+}
+
+static int
+spa_txg_history_clear(procfs_list_t *procfs_list)
+{
+	spa_history_list_t *shl = procfs_list->pl_private;
+	mutex_enter(&procfs_list->pl_lock);
+	spa_txg_history_truncate(shl, 0);
+	mutex_exit(&procfs_list->pl_lock);
 	return (0);
 }
 
 static void
 spa_txg_history_init(spa_t *spa)
 {
-	spa_stats_history_t *ssh = &spa->spa_stats.txg_history;
-	char *name;
-	kstat_t *ksp;
+	spa_history_list_t *shl = &spa->spa_stats.txg_history;
+	char *module;
 
-	mutex_init(&ssh->lock, NULL, MUTEX_DEFAULT, NULL);
-	list_create(&ssh->list, sizeof (spa_txg_history_t),
-	    offsetof(spa_txg_history_t, sth_link));
+	shl->size = 0;
 
-	ssh->count = 0;
-	ssh->size = 0;
-	ssh->private = NULL;
+	module = kmem_asprintf("zfs/%s", spa_name(spa));
 
-	name = kmem_asprintf("zfs/%s", spa_name(spa));
+	shl->procfs_list.pl_private = shl;
+	procfs_list_install(module,
+	    "txgs",
+	    &shl->procfs_list,
+	    spa_txg_history_show,
+	    spa_txg_history_show_header,
+	    spa_txg_history_clear,
+	    offsetof(spa_txg_history_t, sth_node));
 
-	ksp = kstat_create(name, 0, "txgs", "misc",
-	    KSTAT_TYPE_RAW, 0, KSTAT_FLAG_VIRTUAL);
-	ssh->kstat = ksp;
-
-	if (ksp) {
-		ksp->ks_lock = &ssh->lock;
-		ksp->ks_data = NULL;
-		ksp->ks_private = spa;
-		ksp->ks_update = spa_txg_history_update;
-		kstat_set_raw_ops(ksp, spa_txg_history_headers,
-		    spa_txg_history_data, spa_txg_history_addr);
-		kstat_install(ksp);
-	}
-	strfree(name);
+	strfree(module);
 }
 
 static void
 spa_txg_history_destroy(spa_t *spa)
 {
-	spa_stats_history_t *ssh = &spa->spa_stats.txg_history;
-	spa_txg_history_t *sth;
-	kstat_t *ksp;
-
-	ksp = ssh->kstat;
-	if (ksp)
-		kstat_delete(ksp);
-
-	mutex_enter(&ssh->lock);
-	while ((sth = list_remove_head(&ssh->list))) {
-		ssh->size--;
-		kmem_free(sth, sizeof (spa_txg_history_t));
-	}
-
-	ASSERT3U(ssh->size, ==, 0);
-	list_destroy(&ssh->list);
-	mutex_exit(&ssh->lock);
-
-	mutex_destroy(&ssh->lock);
+	spa_history_list_t *shl = &spa->spa_stats.txg_history;
+	procfs_list_uninstall(&shl->procfs_list);
+	spa_txg_history_truncate(shl, 0);
+	procfs_list_destroy(&shl->procfs_list);
 }
 
 /*
@@ -427,10 +325,10 @@ spa_txg_history_destroy(spa_t *spa)
 void
 spa_txg_history_add(spa_t *spa, uint64_t txg, hrtime_t birth_time)
 {
-	spa_stats_history_t *ssh = &spa->spa_stats.txg_history;
-	spa_txg_history_t *sth, *rm;
+	spa_history_list_t *shl = &spa->spa_stats.txg_history;
+	spa_txg_history_t *sth;
 
-	if (zfs_txg_history == 0 && ssh->size == 0)
+	if (zfs_txg_history == 0 && shl->size == 0)
 		return;
 
 	sth = kmem_zalloc(sizeof (spa_txg_history_t), KM_SLEEP);
@@ -438,18 +336,11 @@ spa_txg_history_add(spa_t *spa, uint64_t txg, hrtime_t birth_time)
 	sth->state = TXG_STATE_OPEN;
 	sth->times[TXG_STATE_BIRTH] = birth_time;
 
-	mutex_enter(&ssh->lock);
-
-	list_insert_head(&ssh->list, sth);
-	ssh->size++;
-
-	while (ssh->size > zfs_txg_history) {
-		ssh->size--;
-		rm = list_remove_tail(&ssh->list);
-		kmem_free(rm, sizeof (spa_txg_history_t));
-	}
-
-	mutex_exit(&ssh->lock);
+	mutex_enter(&shl->procfs_list.pl_lock);
+	procfs_list_add(&shl->procfs_list, sth);
+	shl->size++;
+	spa_txg_history_truncate(shl, zfs_txg_history);
+	mutex_exit(&shl->procfs_list.pl_lock);
 }
 
 /*
@@ -459,16 +350,16 @@ int
 spa_txg_history_set(spa_t *spa, uint64_t txg, txg_state_t completed_state,
     hrtime_t completed_time)
 {
-	spa_stats_history_t *ssh = &spa->spa_stats.txg_history;
+	spa_history_list_t *shl = &spa->spa_stats.txg_history;
 	spa_txg_history_t *sth;
 	int error = ENOENT;
 
 	if (zfs_txg_history == 0)
 		return (0);
 
-	mutex_enter(&ssh->lock);
-	for (sth = list_head(&ssh->list); sth != NULL;
-	    sth = list_next(&ssh->list, sth)) {
+	mutex_enter(&shl->procfs_list.pl_lock);
+	for (sth = list_tail(&shl->procfs_list.pl_list); sth != NULL;
+	    sth = list_prev(&shl->procfs_list.pl_list, sth)) {
 		if (sth->txg == txg) {
 			sth->times[completed_state] = completed_time;
 			sth->state++;
@@ -476,7 +367,7 @@ spa_txg_history_set(spa_t *spa, uint64_t txg, txg_state_t completed_state,
 			break;
 		}
 	}
-	mutex_exit(&ssh->lock);
+	mutex_exit(&shl->procfs_list.pl_lock);
 
 	return (error);
 }
@@ -488,16 +379,16 @@ static int
 spa_txg_history_set_io(spa_t *spa, uint64_t txg, uint64_t nread,
     uint64_t nwritten, uint64_t reads, uint64_t writes, uint64_t ndirty)
 {
-	spa_stats_history_t *ssh = &spa->spa_stats.txg_history;
+	spa_history_list_t *shl = &spa->spa_stats.txg_history;
 	spa_txg_history_t *sth;
 	int error = ENOENT;
 
 	if (zfs_txg_history == 0)
 		return (0);
 
-	mutex_enter(&ssh->lock);
-	for (sth = list_head(&ssh->list); sth != NULL;
-	    sth = list_next(&ssh->list, sth)) {
+	mutex_enter(&shl->procfs_list.pl_lock);
+	for (sth = list_tail(&shl->procfs_list.pl_list); sth != NULL;
+	    sth = list_prev(&shl->procfs_list.pl_list, sth)) {
 		if (sth->txg == txg) {
 			sth->nread = nread;
 			sth->nwritten = nwritten;
@@ -508,7 +399,7 @@ spa_txg_history_set_io(spa_t *spa, uint64_t txg, uint64_t nread,
 			break;
 		}
 	}
-	mutex_exit(&ssh->lock);
+	mutex_exit(&shl->procfs_list.pl_lock);
 
 	return (error);
 }
@@ -580,16 +471,16 @@ static int
 spa_tx_assign_update(kstat_t *ksp, int rw)
 {
 	spa_t *spa = ksp->ks_private;
-	spa_stats_history_t *ssh = &spa->spa_stats.tx_assign_histogram;
+	spa_history_kstat_t *shk = &spa->spa_stats.tx_assign_histogram;
 	int i;
 
 	if (rw == KSTAT_WRITE) {
-		for (i = 0; i < ssh->count; i++)
-			((kstat_named_t *)ssh->private)[i].value.ui64 = 0;
+		for (i = 0; i < shk->count; i++)
+			((kstat_named_t *)shk->private)[i].value.ui64 = 0;
 	}
 
-	for (i = ssh->count; i > 0; i--)
-		if (((kstat_named_t *)ssh->private)[i-1].value.ui64 != 0)
+	for (i = shk->count; i > 0; i--)
+		if (((kstat_named_t *)shk->private)[i-1].value.ui64 != 0)
 			break;
 
 	ksp->ks_ndata = i;
@@ -601,22 +492,22 @@ spa_tx_assign_update(kstat_t *ksp, int rw)
 static void
 spa_tx_assign_init(spa_t *spa)
 {
-	spa_stats_history_t *ssh = &spa->spa_stats.tx_assign_histogram;
+	spa_history_kstat_t *shk = &spa->spa_stats.tx_assign_histogram;
 	char *name;
 	kstat_named_t *ks;
 	kstat_t *ksp;
 	int i;
 
-	mutex_init(&ssh->lock, NULL, MUTEX_DEFAULT, NULL);
+	mutex_init(&shk->lock, NULL, MUTEX_DEFAULT, NULL);
 
-	ssh->count = 42; /* power of two buckets for 1ns to 2,199s */
-	ssh->size = ssh->count * sizeof (kstat_named_t);
-	ssh->private = kmem_alloc(ssh->size, KM_SLEEP);
+	shk->count = 42; /* power of two buckets for 1ns to 2,199s */
+	shk->size = shk->count * sizeof (kstat_named_t);
+	shk->private = kmem_alloc(shk->size, KM_SLEEP);
 
 	name = kmem_asprintf("zfs/%s", spa_name(spa));
 
-	for (i = 0; i < ssh->count; i++) {
-		ks = &((kstat_named_t *)ssh->private)[i];
+	for (i = 0; i < shk->count; i++) {
+		ks = &((kstat_named_t *)shk->private)[i];
 		ks->data_type = KSTAT_DATA_UINT64;
 		ks->value.ui64 = 0;
 		(void) snprintf(ks->name, KSTAT_STRLEN, "%llu ns",
@@ -625,13 +516,13 @@ spa_tx_assign_init(spa_t *spa)
 
 	ksp = kstat_create(name, 0, "dmu_tx_assign", "misc",
 	    KSTAT_TYPE_NAMED, 0, KSTAT_FLAG_VIRTUAL);
-	ssh->kstat = ksp;
+	shk->kstat = ksp;
 
 	if (ksp) {
-		ksp->ks_lock = &ssh->lock;
-		ksp->ks_data = ssh->private;
-		ksp->ks_ndata = ssh->count;
-		ksp->ks_data_size = ssh->size;
+		ksp->ks_lock = &shk->lock;
+		ksp->ks_data = shk->private;
+		ksp->ks_ndata = shk->count;
+		ksp->ks_data_size = shk->size;
 		ksp->ks_private = spa;
 		ksp->ks_update = spa_tx_assign_update;
 		kstat_install(ksp);
@@ -642,27 +533,27 @@ spa_tx_assign_init(spa_t *spa)
 static void
 spa_tx_assign_destroy(spa_t *spa)
 {
-	spa_stats_history_t *ssh = &spa->spa_stats.tx_assign_histogram;
+	spa_history_kstat_t *shk = &spa->spa_stats.tx_assign_histogram;
 	kstat_t *ksp;
 
-	ksp = ssh->kstat;
+	ksp = shk->kstat;
 	if (ksp)
 		kstat_delete(ksp);
 
-	kmem_free(ssh->private, ssh->size);
-	mutex_destroy(&ssh->lock);
+	kmem_free(shk->private, shk->size);
+	mutex_destroy(&shk->lock);
 }
 
 void
 spa_tx_assign_add_nsecs(spa_t *spa, uint64_t nsecs)
 {
-	spa_stats_history_t *ssh = &spa->spa_stats.tx_assign_histogram;
+	spa_history_kstat_t *shk = &spa->spa_stats.tx_assign_histogram;
 	uint64_t idx = 0;
 
-	while (((1ULL << idx) < nsecs) && (idx < ssh->size - 1))
+	while (((1ULL << idx) < nsecs) && (idx < shk->size - 1))
 		idx++;
 
-	atomic_inc_64(&((kstat_named_t *)ssh->private)[idx].value.ui64);
+	atomic_inc_64(&((kstat_named_t *)shk->private)[idx].value.ui64);
 }
 
 /*
@@ -682,19 +573,19 @@ spa_io_history_update(kstat_t *ksp, int rw)
 static void
 spa_io_history_init(spa_t *spa)
 {
-	spa_stats_history_t *ssh = &spa->spa_stats.io_history;
+	spa_history_kstat_t *shk = &spa->spa_stats.io_history;
 	char *name;
 	kstat_t *ksp;
 
-	mutex_init(&ssh->lock, NULL, MUTEX_DEFAULT, NULL);
+	mutex_init(&shk->lock, NULL, MUTEX_DEFAULT, NULL);
 
 	name = kmem_asprintf("zfs/%s", spa_name(spa));
 
 	ksp = kstat_create(name, 0, "io", "disk", KSTAT_TYPE_IO, 1, 0);
-	ssh->kstat = ksp;
+	shk->kstat = ksp;
 
 	if (ksp) {
-		ksp->ks_lock = &ssh->lock;
+		ksp->ks_lock = &shk->lock;
 		ksp->ks_private = spa;
 		ksp->ks_update = spa_io_history_update;
 		kstat_install(ksp);
@@ -705,12 +596,12 @@ spa_io_history_init(spa_t *spa)
 static void
 spa_io_history_destroy(spa_t *spa)
 {
-	spa_stats_history_t *ssh = &spa->spa_stats.io_history;
+	spa_history_kstat_t *shk = &spa->spa_stats.io_history;
 
-	if (ssh->kstat)
-		kstat_delete(ssh->kstat);
+	if (shk->kstat)
+		kstat_delete(shk->kstat);
 
-	mutex_destroy(&ssh->lock);
+	mutex_destroy(&shk->lock);
 }
 
 /*
@@ -733,7 +624,7 @@ spa_io_history_destroy(spa_t *spa)
  */
 
 typedef struct spa_mmp_history {
-	uint64_t	mmp_kstat_id;	/* unique # for updates */
+	uint64_t	mmp_node_id;	/* unique # for updates */
 	uint64_t	txg;		/* txg of last sync */
 	uint64_t	timestamp;	/* UTC time MMP write issued */
 	uint64_t	mmp_delay;	/* mmp_thread.mmp_delay at timestamp */
@@ -743,20 +634,20 @@ typedef struct spa_mmp_history {
 	int		io_error;	/* error status of MMP write */
 	hrtime_t	error_start;	/* hrtime of start of error period */
 	hrtime_t	duration;	/* time from submission to completion */
-	list_node_t	smh_link;
+	procfs_list_node_t	smh_node;
 } spa_mmp_history_t;
 
 static int
-spa_mmp_history_headers(char *buf, size_t size)
+spa_mmp_history_show_header(struct seq_file *f)
 {
-	(void) snprintf(buf, size, "%-10s %-10s %-10s %-6s %-10s %-12s %-24s "
+	seq_printf(f, "%-10s %-10s %-10s %-6s %-10s %-12s %-24s "
 	    "%-10s %s\n", "id", "txg", "timestamp", "error", "duration",
 	    "mmp_delay", "vdev_guid", "vdev_label", "vdev_path");
 	return (0);
 }
 
 static int
-spa_mmp_history_data(char *buf, size_t size, void *data)
+spa_mmp_history_show(struct seq_file *f, void *data)
 {
 	spa_mmp_history_t *smh = (spa_mmp_history_t *)data;
 	char skip_fmt[] = "%-10llu %-10llu %10llu %#6llx %10lld %12llu %-24llu "
@@ -764,8 +655,8 @@ spa_mmp_history_data(char *buf, size_t size, void *data)
 	char write_fmt[] = "%-10llu %-10llu %10llu %6lld %10lld %12llu %-24llu "
 	    "%-10lld %s\n";
 
-	(void) snprintf(buf, size, (smh->error_start ? skip_fmt : write_fmt),
-	    (u_longlong_t)smh->mmp_kstat_id, (u_longlong_t)smh->txg,
+	seq_printf(f, (smh->error_start ? skip_fmt : write_fmt),
+	    (u_longlong_t)smh->mmp_node_id, (u_longlong_t)smh->txg,
 	    (u_longlong_t)smh->timestamp, (longlong_t)smh->io_error,
 	    (longlong_t)smh->duration, (u_longlong_t)smh->mmp_delay,
 	    (u_longlong_t)smh->vdev_guid, (u_longlong_t)smh->vdev_label,
@@ -774,137 +665,86 @@ spa_mmp_history_data(char *buf, size_t size, void *data)
 	return (0);
 }
 
-/*
- * Calculate the address for the next spa_stats_history_t entry.  The
- * ssh->lock will be held until ksp->ks_ndata entries are processed.
- */
-static void *
-spa_mmp_history_addr(kstat_t *ksp, loff_t n)
+/* Remove oldest elements from list until there are no more than 'size' left */
+static void
+spa_mmp_history_truncate(spa_history_list_t *shl, unsigned int size)
 {
-	spa_t *spa = ksp->ks_private;
-	spa_stats_history_t *ssh = &spa->spa_stats.mmp_history;
-
-	ASSERT(MUTEX_HELD(&ssh->lock));
-
-	if (n == 0)
-		ssh->private = list_tail(&ssh->list);
-	else if (ssh->private)
-		ssh->private = list_prev(&ssh->list, ssh->private);
-
-	return (ssh->private);
-}
-
-/*
- * When the kstat is written discard all spa_mmp_history_t entries.  The
- * ssh->lock will be held until ksp->ks_ndata entries are processed.
- */
-static int
-spa_mmp_history_update(kstat_t *ksp, int rw)
-{
-	spa_t *spa = ksp->ks_private;
-	spa_stats_history_t *ssh = &spa->spa_stats.mmp_history;
-
-	ASSERT(MUTEX_HELD(&ssh->lock));
-
-	if (rw == KSTAT_WRITE) {
-		spa_mmp_history_t *smh;
-
-		while ((smh = list_remove_head(&ssh->list))) {
-			ssh->size--;
-			if (smh->vdev_path)
-				strfree(smh->vdev_path);
-			kmem_free(smh, sizeof (spa_mmp_history_t));
-		}
-
-		ASSERT3U(ssh->size, ==, 0);
+	spa_mmp_history_t *smh;
+	while (shl->size > size) {
+		smh = list_remove_head(&shl->procfs_list.pl_list);
+		if (smh->vdev_path)
+			strfree(smh->vdev_path);
+		kmem_free(smh, sizeof (spa_mmp_history_t));
+		shl->size--;
 	}
 
-	ksp->ks_ndata = ssh->size;
-	ksp->ks_data_size = ssh->size * sizeof (spa_mmp_history_t);
+	if (size == 0)
+		ASSERT(list_is_empty(&shl->procfs_list.pl_list));
 
+}
+
+static int
+spa_mmp_history_clear(procfs_list_t *procfs_list)
+{
+	spa_history_list_t *shl = procfs_list->pl_private;
+	mutex_enter(&procfs_list->pl_lock);
+	spa_mmp_history_truncate(shl, 0);
+	mutex_exit(&procfs_list->pl_lock);
 	return (0);
 }
 
 static void
 spa_mmp_history_init(spa_t *spa)
 {
-	spa_stats_history_t *ssh = &spa->spa_stats.mmp_history;
-	char *name;
-	kstat_t *ksp;
+	spa_history_list_t *shl = &spa->spa_stats.mmp_history;
+	char *module;
 
-	mutex_init(&ssh->lock, NULL, MUTEX_DEFAULT, NULL);
-	list_create(&ssh->list, sizeof (spa_mmp_history_t),
-	    offsetof(spa_mmp_history_t, smh_link));
+	shl->size = 0;
 
-	ssh->count = 0;
-	ssh->size = 0;
-	ssh->private = NULL;
+	module = kmem_asprintf("zfs/%s", spa_name(spa));
 
-	name = kmem_asprintf("zfs/%s", spa_name(spa));
+	shl->procfs_list.pl_private = shl;
+	procfs_list_install(module,
+	    "multihost",
+	    &shl->procfs_list,
+	    spa_mmp_history_show,
+	    spa_mmp_history_show_header,
+	    spa_mmp_history_clear,
+	    offsetof(spa_mmp_history_t, smh_node));
 
-	ksp = kstat_create(name, 0, "multihost", "misc",
-	    KSTAT_TYPE_RAW, 0, KSTAT_FLAG_VIRTUAL);
-	ssh->kstat = ksp;
-
-	if (ksp) {
-		ksp->ks_lock = &ssh->lock;
-		ksp->ks_data = NULL;
-		ksp->ks_private = spa;
-		ksp->ks_update = spa_mmp_history_update;
-		kstat_set_raw_ops(ksp, spa_mmp_history_headers,
-		    spa_mmp_history_data, spa_mmp_history_addr);
-		kstat_install(ksp);
-	}
-	strfree(name);
+	strfree(module);
 }
 
 static void
 spa_mmp_history_destroy(spa_t *spa)
 {
-	spa_stats_history_t *ssh = &spa->spa_stats.mmp_history;
-	spa_mmp_history_t *smh;
-	kstat_t *ksp;
-
-	ksp = ssh->kstat;
-	if (ksp)
-		kstat_delete(ksp);
-
-	mutex_enter(&ssh->lock);
-	while ((smh = list_remove_head(&ssh->list))) {
-		ssh->size--;
-		if (smh->vdev_path)
-			strfree(smh->vdev_path);
-		kmem_free(smh, sizeof (spa_mmp_history_t));
-	}
-
-	ASSERT3U(ssh->size, ==, 0);
-	list_destroy(&ssh->list);
-	mutex_exit(&ssh->lock);
-
-	mutex_destroy(&ssh->lock);
+	spa_history_list_t *shl = &spa->spa_stats.mmp_history;
+	procfs_list_uninstall(&shl->procfs_list);
+	spa_mmp_history_truncate(shl, 0);
+	procfs_list_destroy(&shl->procfs_list);
 }
 
 /*
  * Set duration in existing "skip" record to how long we have waited for a leaf
  * vdev to become available.
  *
- * Important that we start search at the head of the list where new
+ * Important that we start search at the tail of the list where new
  * records are inserted, so this is normally an O(1) operation.
  */
 int
-spa_mmp_history_set_skip(spa_t *spa, uint64_t mmp_kstat_id)
+spa_mmp_history_set_skip(spa_t *spa, uint64_t mmp_node_id)
 {
-	spa_stats_history_t *ssh = &spa->spa_stats.mmp_history;
+	spa_history_list_t *shl = &spa->spa_stats.mmp_history;
 	spa_mmp_history_t *smh;
 	int error = ENOENT;
 
-	if (zfs_multihost_history == 0 && ssh->size == 0)
+	if (zfs_multihost_history == 0 && shl->size == 0)
 		return (0);
 
-	mutex_enter(&ssh->lock);
-	for (smh = list_head(&ssh->list); smh != NULL;
-	    smh = list_next(&ssh->list, smh)) {
-		if (smh->mmp_kstat_id == mmp_kstat_id) {
+	mutex_enter(&shl->procfs_list.pl_lock);
+	for (smh = list_tail(&shl->procfs_list.pl_list); smh != NULL;
+	    smh = list_prev(&shl->procfs_list.pl_list, smh)) {
+		if (smh->mmp_node_id == mmp_node_id) {
 			ASSERT3U(smh->io_error, !=, 0);
 			smh->duration = gethrtime() - smh->error_start;
 			smh->vdev_guid++;
@@ -912,7 +752,7 @@ spa_mmp_history_set_skip(spa_t *spa, uint64_t mmp_kstat_id)
 			break;
 		}
 	}
-	mutex_exit(&ssh->lock);
+	mutex_exit(&shl->procfs_list.pl_lock);
 
 	return (error);
 }
@@ -922,20 +762,20 @@ spa_mmp_history_set_skip(spa_t *spa, uint64_t mmp_kstat_id)
  * See comment re: search order above spa_mmp_history_set_skip().
  */
 int
-spa_mmp_history_set(spa_t *spa, uint64_t mmp_kstat_id, int io_error,
+spa_mmp_history_set(spa_t *spa, uint64_t mmp_node_id, int io_error,
     hrtime_t duration)
 {
-	spa_stats_history_t *ssh = &spa->spa_stats.mmp_history;
+	spa_history_list_t *shl = &spa->spa_stats.mmp_history;
 	spa_mmp_history_t *smh;
 	int error = ENOENT;
 
-	if (zfs_multihost_history == 0 && ssh->size == 0)
+	if (zfs_multihost_history == 0 && shl->size == 0)
 		return (0);
 
-	mutex_enter(&ssh->lock);
-	for (smh = list_head(&ssh->list); smh != NULL;
-	    smh = list_next(&ssh->list, smh)) {
-		if (smh->mmp_kstat_id == mmp_kstat_id) {
+	mutex_enter(&shl->procfs_list.pl_lock);
+	for (smh = list_tail(&shl->procfs_list.pl_list); smh != NULL;
+	    smh = list_prev(&shl->procfs_list.pl_list, smh)) {
+		if (smh->mmp_node_id == mmp_node_id) {
 			ASSERT(smh->io_error == 0);
 			smh->io_error = io_error;
 			smh->duration = duration;
@@ -943,7 +783,7 @@ spa_mmp_history_set(spa_t *spa, uint64_t mmp_kstat_id, int io_error,
 			break;
 		}
 	}
-	mutex_exit(&ssh->lock);
+	mutex_exit(&shl->procfs_list.pl_lock);
 
 	return (error);
 }
@@ -953,16 +793,16 @@ spa_mmp_history_set(spa_t *spa, uint64_t mmp_kstat_id, int io_error,
  * error == 0 : a write was issued.
  * error != 0 : a write was not issued because no leaves were found.
  */
-void *
+void
 spa_mmp_history_add(spa_t *spa, uint64_t txg, uint64_t timestamp,
-    uint64_t mmp_delay, vdev_t *vd, int label, uint64_t mmp_kstat_id,
+    uint64_t mmp_delay, vdev_t *vd, int label, uint64_t mmp_node_id,
     int error)
 {
-	spa_stats_history_t *ssh = &spa->spa_stats.mmp_history;
-	spa_mmp_history_t *smh, *rm;
+	spa_history_list_t *shl = &spa->spa_stats.mmp_history;
+	spa_mmp_history_t *smh;
 
-	if (zfs_multihost_history == 0 && ssh->size == 0)
-		return (NULL);
+	if (zfs_multihost_history == 0 && shl->size == 0)
+		return;
 
 	smh = kmem_zalloc(sizeof (spa_mmp_history_t), KM_SLEEP);
 	smh->txg = txg;
@@ -974,7 +814,7 @@ spa_mmp_history_add(spa_t *spa, uint64_t txg, uint64_t timestamp,
 			smh->vdev_path = strdup(vd->vdev_path);
 	}
 	smh->vdev_label = label;
-	smh->mmp_kstat_id = mmp_kstat_id;
+	smh->mmp_node_id = mmp_node_id;
 
 	if (error) {
 		smh->io_error = error;
@@ -982,21 +822,11 @@ spa_mmp_history_add(spa_t *spa, uint64_t txg, uint64_t timestamp,
 		smh->vdev_guid = 1;
 	}
 
-	mutex_enter(&ssh->lock);
-
-	list_insert_head(&ssh->list, smh);
-	ssh->size++;
-
-	while (ssh->size > zfs_multihost_history) {
-		ssh->size--;
-		rm = list_remove_tail(&ssh->list);
-		if (rm->vdev_path)
-			strfree(rm->vdev_path);
-		kmem_free(rm, sizeof (spa_mmp_history_t));
-	}
-
-	mutex_exit(&ssh->lock);
-	return ((void *)smh);
+	mutex_enter(&shl->procfs_list.pl_lock);
+	procfs_list_add(&shl->procfs_list, smh);
+	shl->size++;
+	spa_mmp_history_truncate(shl, zfs_multihost_history);
+	mutex_exit(&shl->procfs_list.pl_lock);
 }
 
 static void *
@@ -1023,19 +853,19 @@ spa_state_data(char *buf, size_t size, void *data)
 static void
 spa_state_init(spa_t *spa)
 {
-	spa_stats_history_t *ssh = &spa->spa_stats.state;
+	spa_history_kstat_t *shk = &spa->spa_stats.state;
 	char *name;
 	kstat_t *ksp;
 
-	mutex_init(&ssh->lock, NULL, MUTEX_DEFAULT, NULL);
+	mutex_init(&shk->lock, NULL, MUTEX_DEFAULT, NULL);
 
 	name = kmem_asprintf("zfs/%s", spa_name(spa));
 	ksp = kstat_create(name, 0, "state", "misc",
 	    KSTAT_TYPE_RAW, 0, KSTAT_FLAG_VIRTUAL);
 
-	ssh->kstat = ksp;
+	shk->kstat = ksp;
 	if (ksp) {
-		ksp->ks_lock = &ssh->lock;
+		ksp->ks_lock = &shk->lock;
 		ksp->ks_data = NULL;
 		ksp->ks_private = spa;
 		ksp->ks_flags |= KSTAT_FLAG_NO_HEADERS;
@@ -1049,12 +879,12 @@ spa_state_init(spa_t *spa)
 static void
 spa_health_destroy(spa_t *spa)
 {
-	spa_stats_history_t *ssh = &spa->spa_stats.state;
-	kstat_t *ksp = ssh->kstat;
+	spa_history_kstat_t *shk = &spa->spa_stats.state;
+	kstat_t *ksp = shk->kstat;
 	if (ksp)
 		kstat_delete(ksp);
 
-	mutex_destroy(&ssh->lock);
+	mutex_destroy(&shk->lock);
 }
 
 void
