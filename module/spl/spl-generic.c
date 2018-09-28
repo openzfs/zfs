@@ -48,7 +48,6 @@
 #include <sys/zfs_gitrev.h>
 
 char spl_gitrev[64] = ZFS_META_GITREV;
-EXPORT_SYMBOL(spl_gitrev);
 
 /* BEGIN CSTYLED */
 unsigned long spl_hostid = 0;
