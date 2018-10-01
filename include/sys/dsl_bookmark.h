@@ -72,7 +72,7 @@ typedef struct redaction_list {
 	redaction_list_phys_t	*rl_phys;
 	dmu_buf_t		*rl_dbuf;
 	uint64_t		rl_object;
-	refcount_t		rl_longholds;
+	zfs_refcount_t		rl_longholds;
 	objset_t		*rl_mos;
 } redaction_list_t;
 

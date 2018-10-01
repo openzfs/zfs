@@ -1302,7 +1302,7 @@ send_traverse_thread(void *arg)
  * Utility function that causes End of Stream records to compare after of all
  * others, so that other threads' comparison logic can stay simple.
  */
-static int
+static int __attribute__((unused))
 send_range_after(const struct send_range *from, const struct send_range *to)
 {
 	if (from->eos_marker == B_TRUE)
