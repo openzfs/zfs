@@ -477,7 +477,7 @@ zfs_read(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 	/*
 	 * Lock the range against changes.
 	 */
-	rl_t *rl = zfs_range_lock(&zp->z_range_lock,
+	locked_range_t *lr = rangelock_enter(&zp->z_rangelock,
 	    uio->uio_loffset, uio->uio_resid, RL_READER);
 
 	/*
@@ -550,7 +550,7 @@ zfs_read(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 	dataset_kstats_update_read_kstats(&zfsvfs->z_kstat, nread);
 	task_io_account_read(nread);
 out:
-	zfs_range_unlock(rl);
+	rangelock_exit(lr);
 
 	ZFS_EXIT(zfsvfs);
 	return (error);
@@ -652,19 +652,18 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 #endif
 		uio_prefaultpages(MIN(n, max_blksz), uio);
 
-	rl_t	 *rl;
-
 	/*
 	 * If in append mode, set the io offset pointer to eof.
 	 */
+	locked_range_t *lr;
 	if (ioflag & FAPPEND) {
 		/*
 		 * Obtain an appending range lock to guarantee file append
 		 * semantics.  We reset the write offset once we have the lock.
 		 */
-		rl = zfs_range_lock(&zp->z_range_lock, 0, n, RL_APPEND);
-		woff = rl->r_off;
-		if (rl->r_len == UINT64_MAX) {
+		lr = rangelock_enter(&zp->z_rangelock, 0, n, RL_APPEND);
+		woff = lr->lr_offset;
+		if (lr->lr_length == UINT64_MAX) {
 			/*
 			 * We overlocked the file because this write will cause
 			 * the file block size to increase.
@@ -679,11 +678,11 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 		 * this write, then this range lock will lock the entire file
 		 * so that we can re-write the block safely.
 		 */
-		rl = zfs_range_lock(&zp->z_range_lock, woff, n, RL_WRITER);
+		lr = rangelock_enter(&zp->z_rangelock, woff, n, RL_WRITER);
 	}
 
 	if (woff >= limit) {
-		zfs_range_unlock(rl);
+		rangelock_exit(lr);
 		ZFS_EXIT(zfsvfs);
 		return (SET_ERROR(EFBIG));
 	}
@@ -776,12 +775,12 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 		}
 
 		/*
-		 * If zfs_range_lock() over-locked we grow the blocksize
+		 * If rangelock_enter() over-locked we grow the blocksize
 		 * and then reduce the lock range.  This will only happen
-		 * on the first iteration since zfs_range_reduce() will
-		 * shrink down r_len to the appropriate size.
+		 * on the first iteration since rangelock_reduce() will
+		 * shrink down lr_length to the appropriate size.
 		 */
-		if (rl->r_len == UINT64_MAX) {
+		if (lr->lr_length == UINT64_MAX) {
 			uint64_t new_blksz;
 
 			if (zp->z_blksz > max_blksz) {
@@ -797,7 +796,7 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 				new_blksz = MIN(end_size, max_blksz);
 			}
 			zfs_grow_blocksize(zp, new_blksz, tx);
-			zfs_range_reduce(rl, woff, n);
+			rangelock_reduce(lr, woff, n);
 		}
 
 		/*
@@ -915,7 +914,7 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 	}
 
 	zfs_inode_update(zp);
-	zfs_range_unlock(rl);
+	rangelock_exit(lr);
 
 	/*
 	 * If we're in replay mode, or we made no progress, return error.
@@ -967,7 +966,7 @@ zfs_get_done(zgd_t *zgd, int error)
 	if (zgd->zgd_db)
 		dmu_buf_rele(zgd->zgd_db, zgd);
 
-	zfs_range_unlock(zgd->zgd_rl);
+	rangelock_exit(zgd->zgd_lr);
 
 	/*
 	 * Release the vnode asynchronously as we currently have the
@@ -1031,8 +1030,8 @@ zfs_get_data(void *arg, lr_write_t *lr, char *buf, struct lwb *lwb, zio_t *zio)
 	 * we don't have to write the data twice.
 	 */
 	if (buf != NULL) { /* immediate write */
-		zgd->zgd_rl = zfs_range_lock(&zp->z_range_lock, offset, size,
-		    RL_READER);
+		zgd->zgd_lr = rangelock_enter(&zp->z_rangelock,
+		    offset, size, RL_READER);
 		/* test for truncation needs to be done while range locked */
 		if (offset >= zp->z_size) {
 			error = SET_ERROR(ENOENT);
@@ -1053,12 +1052,12 @@ zfs_get_data(void *arg, lr_write_t *lr, char *buf, struct lwb *lwb, zio_t *zio)
 			size = zp->z_blksz;
 			blkoff = ISP2(size) ? P2PHASE(offset, size) : offset;
 			offset -= blkoff;
-			zgd->zgd_rl = zfs_range_lock(&zp->z_range_lock, offset,
-			    size, RL_READER);
+			zgd->zgd_lr = rangelock_enter(&zp->z_rangelock,
+			    offset, size, RL_READER);
 			if (zp->z_blksz == size)
 				break;
 			offset += blkoff;
-			zfs_range_unlock(zgd->zgd_rl);
+			rangelock_exit(zgd->zgd_lr);
 		}
 		/* test for truncation needs to be done while range locked */
 		if (lr->lr_offset >= zp->z_size)
@@ -4432,7 +4431,6 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	loff_t		offset;
 	loff_t		pgoff;
 	unsigned int	pglen;
-	rl_t		*rl;
 	dmu_tx_t	*tx;
 	caddr_t		va;
 	int		err = 0;
@@ -4506,13 +4504,14 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	redirty_page_for_writepage(wbc, pp);
 	unlock_page(pp);
 
-	rl = zfs_range_lock(&zp->z_range_lock, pgoff, pglen, RL_WRITER);
+	locked_range_t *lr = rangelock_enter(&zp->z_rangelock,
+	    pgoff, pglen, RL_WRITER);
 	lock_page(pp);
 
 	/* Page mapping changed or it was no longer dirty, we're done */
 	if (unlikely((mapping != pp->mapping) || !PageDirty(pp))) {
 		unlock_page(pp);
-		zfs_range_unlock(rl);
+		rangelock_exit(lr);
 		ZFS_EXIT(zfsvfs);
 		return (0);
 	}
@@ -4520,7 +4519,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	/* Another process started write block if required */
 	if (PageWriteback(pp)) {
 		unlock_page(pp);
-		zfs_range_unlock(rl);
+		rangelock_exit(lr);
 
 		if (wbc->sync_mode != WB_SYNC_NONE)
 			wait_on_page_writeback(pp);
@@ -4532,7 +4531,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	/* Clear the dirty flag the required locks are held */
 	if (!clear_page_dirty_for_io(pp)) {
 		unlock_page(pp);
-		zfs_range_unlock(rl);
+		rangelock_exit(lr);
 		ZFS_EXIT(zfsvfs);
 		return (0);
 	}
@@ -4559,7 +4558,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 		__set_page_dirty_nobuffers(pp);
 		ClearPageError(pp);
 		end_page_writeback(pp);
-		zfs_range_unlock(rl);
+		rangelock_exit(lr);
 		ZFS_EXIT(zfsvfs);
 		return (err);
 	}
@@ -4586,7 +4585,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	    zfs_putpage_commit_cb, pp);
 	dmu_tx_commit(tx);
 
-	zfs_range_unlock(rl);
+	rangelock_exit(lr);
 
 	if (wbc->sync_mode != WB_SYNC_NONE) {
 		/*
