@@ -595,7 +595,7 @@ abd_alloc(size_t size, boolean_t is_metadata)
 	}
 	abd->abd_size = size;
 	abd->abd_parent = NULL;
-	refcount_create(&abd->abd_children);
+	zfs_refcount_create(&abd->abd_children);
 
 	abd->abd_u.abd_scatter.abd_offset = 0;
 
@@ -612,7 +612,7 @@ abd_free_scatter(abd_t *abd)
 {
 	abd_free_pages(abd);
 
-	refcount_destroy(&abd->abd_children);
+	zfs_refcount_destroy(&abd->abd_children);
 	ABDSTAT_BUMPDOWN(abdstat_scatter_cnt);
 	ABDSTAT_INCR(abdstat_scatter_data_size, -(int)abd->abd_size);
 	ABDSTAT_INCR(abdstat_scatter_chunk_waste,
@@ -639,7 +639,7 @@ abd_alloc_linear(size_t size, boolean_t is_metadata)
 	}
 	abd->abd_size = size;
 	abd->abd_parent = NULL;
-	refcount_create(&abd->abd_children);
+	zfs_refcount_create(&abd->abd_children);
 
 	if (is_metadata) {
 		abd->abd_u.abd_linear.abd_buf = zio_buf_alloc(size);
@@ -662,7 +662,7 @@ abd_free_linear(abd_t *abd)
 		zio_data_buf_free(abd->abd_u.abd_linear.abd_buf, abd->abd_size);
 	}
 
-	refcount_destroy(&abd->abd_children);
+	zfs_refcount_destroy(&abd->abd_children);
 	ABDSTAT_BUMPDOWN(abdstat_linear_cnt);
 	ABDSTAT_INCR(abdstat_linear_data_size, -(int)abd->abd_size);
 
@@ -773,8 +773,8 @@ abd_get_offset_impl(abd_t *sabd, size_t off, size_t size)
 
 	abd->abd_size = size;
 	abd->abd_parent = sabd;
-	refcount_create(&abd->abd_children);
-	(void) refcount_add_many(&sabd->abd_children, abd->abd_size, abd);
+	zfs_refcount_create(&abd->abd_children);
+	(void) zfs_refcount_add_many(&sabd->abd_children, abd->abd_size, abd);
 
 	return (abd);
 }
@@ -816,7 +816,7 @@ abd_get_from_buf(void *buf, size_t size)
 	abd->abd_flags = ABD_FLAG_LINEAR;
 	abd->abd_size = size;
 	abd->abd_parent = NULL;
-	refcount_create(&abd->abd_children);
+	zfs_refcount_create(&abd->abd_children);
 
 	abd->abd_u.abd_linear.abd_buf = buf;
 
@@ -834,11 +834,11 @@ abd_put(abd_t *abd)
 	ASSERT(!(abd->abd_flags & ABD_FLAG_OWNER));
 
 	if (abd->abd_parent != NULL) {
-		(void) refcount_remove_many(&abd->abd_parent->abd_children,
+		(void) zfs_refcount_remove_many(&abd->abd_parent->abd_children,
 		    abd->abd_size, abd);
 	}
 
-	refcount_destroy(&abd->abd_children);
+	zfs_refcount_destroy(&abd->abd_children);
 	abd_free_struct(abd);
 }
 
@@ -870,7 +870,7 @@ abd_borrow_buf(abd_t *abd, size_t n)
 	} else {
 		buf = zio_buf_alloc(n);
 	}
-	(void) refcount_add_many(&abd->abd_children, n, buf);
+	(void) zfs_refcount_add_many(&abd->abd_children, n, buf);
 
 	return (buf);
 }
@@ -902,7 +902,7 @@ abd_return_buf(abd_t *abd, void *buf, size_t n)
 		ASSERT0(abd_cmp_buf(abd, buf, n));
 		zio_buf_free(buf, n);
 	}
-	(void) refcount_remove_many(&abd->abd_children, n, buf);
+	(void) zfs_refcount_remove_many(&abd->abd_children, n, buf);
 }
 
 void

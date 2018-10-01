@@ -1314,8 +1314,8 @@ scan_prefetch_queue_compare(const void *a, const void *b)
 static void
 scan_prefetch_ctx_rele(scan_prefetch_ctx_t *spc, void *tag)
 {
-	if (refcount_remove(&spc->spc_refcnt, tag) == 0) {
-		refcount_destroy(&spc->spc_refcnt);
+	if (zfs_refcount_remove(&spc->spc_refcnt, tag) == 0) {
+		zfs_refcount_destroy(&spc->spc_refcnt);
 		kmem_free(spc, sizeof (scan_prefetch_ctx_t));
 	}
 }
@@ -1326,7 +1326,7 @@ scan_prefetch_ctx_create(dsl_scan_t *scn, dnode_phys_t *dnp, void *tag)
 	scan_prefetch_ctx_t *spc;
 
 	spc = kmem_alloc(sizeof (scan_prefetch_ctx_t), KM_SLEEP);
-	refcount_create(&spc->spc_refcnt);
+	zfs_refcount_create(&spc->spc_refcnt);
 	zfs_refcount_add(&spc->spc_refcnt, tag);
 	spc->spc_scn = scn;
 	if (dnp != NULL) {
