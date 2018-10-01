@@ -215,6 +215,7 @@ extern int zfs_abd_scatter_enabled;
 extern int dmu_object_alloc_chunk_shift;
 extern boolean_t zfs_force_some_double_word_sm_entries;
 extern unsigned long zio_decompress_fail_fraction;
+extern unsigned long zfs_reconstruct_indirect_damage_fraction;
 
 static ztest_shared_opts_t *ztest_shared_opts;
 static ztest_shared_opts_t ztest_opts;
@@ -6574,7 +6575,7 @@ ztest_run_zdb(char *pool)
 
 	(void) sprintf(zdb,
 	    "%s -bcc%s%s -G -d -U %s "
-	    "-o zfs_reconstruct_indirect_combinations_max=1000000 %s",
+	    "-o zfs_reconstruct_indirect_combinations_max=65536 %s",
 	    bin,
 	    ztest_opts.zo_verbose >= 3 ? "s" : "",
 	    ztest_opts.zo_verbose >= 4 ? "v" : "",
@@ -7612,6 +7613,13 @@ main(int argc, char **argv)
 	 * of them so the feature get tested.
 	 */
 	zfs_force_some_double_word_sm_entries = B_TRUE;
+
+	/*
+	 * Verify that even extensively damaged split blocks with many
+	 * segments can be reconstructed in a reasonable amount of time
+	 * when reconstruction is known to be possible.
+	 */
+	zfs_reconstruct_indirect_damage_fraction = 4;
 
 	action.sa_handler = sig_handler;
 	sigemptyset(&action.sa_mask);
