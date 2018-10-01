@@ -66,21 +66,54 @@ libspl_assertf(const char *file, const char *func, int line, char *format, ...)
 	(void) ((!(cond)) &&						\
 	    libspl_assert(#cond, __FILE__, __FUNCTION__, __LINE__))
 
-#define	VERIFY3_IMPL(LEFT, OP, RIGHT, TYPE)				\
+#define	VERIFY3B(LEFT, OP, RIGHT)					\
 do {									\
-	const TYPE __left = (TYPE)(LEFT);				\
-	const TYPE __right = (TYPE)(RIGHT);				\
+	const boolean_t __left = (boolean_t)(LEFT);			\
+	const boolean_t __right = (boolean_t)(RIGHT);			\
 	if (!(__left OP __right))					\
 		libspl_assertf(__FILE__, __FUNCTION__, __LINE__,	\
 		    "%s %s %s (0x%llx %s 0x%llx)", #LEFT, #OP, #RIGHT,	\
 		    (u_longlong_t)__left, #OP, (u_longlong_t)__right);	\
 } while (0)
 
-#define	VERIFY3B(x, y, z)	VERIFY3_IMPL(x, y, z, boolean_t)
-#define	VERIFY3S(x, y, z)	VERIFY3_IMPL(x, y, z, int64_t)
-#define	VERIFY3U(x, y, z)	VERIFY3_IMPL(x, y, z, uint64_t)
-#define	VERIFY3P(x, y, z)	VERIFY3_IMPL(x, y, z, uintptr_t)
-#define	VERIFY0(x)		VERIFY3_IMPL(x, ==, 0, uint64_t)
+#define	VERIFY3S(LEFT, OP, RIGHT)					\
+do {									\
+	const int64_t __left = (int64_t)(LEFT);				\
+	const int64_t __right = (int64_t)(RIGHT);			\
+	if (!(__left OP __right))					\
+		libspl_assertf(__FILE__, __FUNCTION__, __LINE__,	\
+		    "%s %s %s (0x%llx %s 0x%llx)", #LEFT, #OP, #RIGHT,	\
+		    (u_longlong_t)__left, #OP, (u_longlong_t)__right);	\
+} while (0)
+
+#define	VERIFY3U(LEFT, OP, RIGHT)					\
+do {									\
+	const uint64_t __left = (uint64_t)(LEFT);			\
+	const uint64_t __right = (uint64_t)(RIGHT);			\
+	if (!(__left OP __right))					\
+		libspl_assertf(__FILE__, __FUNCTION__, __LINE__,	\
+		    "%s %s %s (0x%llx %s 0x%llx)", #LEFT, #OP, #RIGHT,	\
+		    (u_longlong_t)__left, #OP, (u_longlong_t)__right);	\
+} while (0)
+
+#define	VERIFY3P(LEFT, OP, RIGHT)					\
+do {									\
+	const uintptr_t __left = (uintptr_t)(LEFT);			\
+	const uintptr_t __right = (uintptr_t)(RIGHT);			\
+	if (!(__left OP __right))					\
+		libspl_assertf(__FILE__, __FUNCTION__, __LINE__,	\
+		    "%s %s %s (0x%llx %s 0x%llx)", #LEFT, #OP, #RIGHT,	\
+		    (u_longlong_t)__left, #OP, (u_longlong_t)__right);	\
+} while (0)
+
+#define	VERIFY0(LEFT)							\
+do {									\
+	const uint64_t __left = (uint64_t)(LEFT);			\
+	if (!(__left == 0))						\
+		libspl_assertf(__FILE__, __FUNCTION__, __LINE__,	\
+		    "%s == 0 (0x%llx == 0)", #LEFT,			\
+		    (u_longlong_t)__left);				\
+} while (0)
 
 #ifdef assert
 #undef assert
@@ -106,13 +139,13 @@ do {									\
 #define	IMPLY(A, B)		((void)0)
 #define	EQUIV(A, B)		((void)0)
 #else
-#define	ASSERT3B(x, y, z)	VERIFY3B(x, y, z)
-#define	ASSERT3S(x, y, z)	VERIFY3S(x, y, z)
-#define	ASSERT3U(x, y, z)	VERIFY3U(x, y, z)
-#define	ASSERT3P(x, y, z)	VERIFY3P(x, y, z)
-#define	ASSERT0(x)		VERIFY0(x)
-#define	ASSERT(x)		VERIFY(x)
-#define	assert(x)		VERIFY(x)
+#define	ASSERT3B	VERIFY3B
+#define	ASSERT3S	VERIFY3S
+#define	ASSERT3U	VERIFY3U
+#define	ASSERT3P	VERIFY3P
+#define	ASSERT0		VERIFY0
+#define	ASSERT		VERIFY
+#define	assert		VERIFY
 #define	ASSERTV(x)		x
 #define	IMPLY(A, B) \
 	((void)(((!(A)) || (B)) || \

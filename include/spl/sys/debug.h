@@ -68,10 +68,10 @@ void spl_dumpstack(void);
 		boolean_t _verify3_right = (boolean_t)(RIGHT);		\
 		if (!(_verify3_left OP _verify3_right))			\
 		    spl_panic(__FILE__, __FUNCTION__, __LINE__,		\
-		    "VERIFY3(" #LEFT  #OP  #RIGHT ") "			\
+		    "VERIFY3(" #LEFT " "  #OP " "  #RIGHT ") "		\
 		    "failed (%d " #OP " %d)\n",				\
 		    (boolean_t) (_verify3_left),			\
-                    (boolean_t) (_verify3_right));			\
+		    (boolean_t) (_verify3_right));			\
 	} while (0)
 
 #define	VERIFY3S(LEFT, OP, RIGHT)	do {				\
@@ -79,7 +79,7 @@ void spl_dumpstack(void);
 		int64_t _verify3_right = (int64_t)(RIGHT);		\
 		if (!(_verify3_left OP _verify3_right))			\
 		    spl_panic(__FILE__, __FUNCTION__, __LINE__,		\
-		    "VERIFY3(" #LEFT  #OP  #RIGHT ") "			\
+		    "VERIFY3(" #LEFT " "  #OP " "  #RIGHT ") "		\
 		    "failed (%lld " #OP " %lld)\n",			\
 		    (long long) (_verify3_left),			\
 		    (long long) (_verify3_right));			\
@@ -90,7 +90,7 @@ void spl_dumpstack(void);
 		uint64_t _verify3_right = (uint64_t)(RIGHT);		\
 		if (!(_verify3_left OP _verify3_right))			\
 		    spl_panic(__FILE__, __FUNCTION__, __LINE__,		\
-		    "VERIFY3(" #LEFT  #OP  #RIGHT ") "			\
+		    "VERIFY3(" #LEFT " "  #OP " "  #RIGHT ") "		\
 		    "failed (%llu " #OP " %llu)\n",			\
 		    (unsigned long long) (_verify3_left),		\
 		    (unsigned long long) (_verify3_right));		\
@@ -101,7 +101,7 @@ void spl_dumpstack(void);
 		uintptr_t _verify3_right = (uintptr_t)(RIGHT);		\
 		if (!(_verify3_left OP _verify3_right))			\
 		    spl_panic(__FILE__, __FUNCTION__, __LINE__,		\
-		    "VERIFY3(" #LEFT  #OP  #RIGHT ") "			\
+		    "VERIFY3(" #LEFT " "  #OP " "  #RIGHT ") "		\
 		    "failed (%p " #OP " %p)\n",				\
 		    (void *) (_verify3_left),				\
 		    (void *) (_verify3_right));				\
