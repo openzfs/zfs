@@ -223,7 +223,7 @@ metaslab_class_create(spa_t *spa, metaslab_ops_t *ops)
 	mc->mc_rotor = NULL;
 	mc->mc_ops = ops;
 	mutex_init(&mc->mc_lock, NULL, MUTEX_DEFAULT, NULL);
-	refcount_create_tracked(&mc->mc_alloc_slots);
+	zfs_refcount_create_tracked(&mc->mc_alloc_slots);
 
 	return (mc);
 }
@@ -237,7 +237,7 @@ metaslab_class_destroy(metaslab_class_t *mc)
 	ASSERT(mc->mc_space == 0);
 	ASSERT(mc->mc_dspace == 0);
 
-	refcount_destroy(&mc->mc_alloc_slots);
+	zfs_refcount_destroy(&mc->mc_alloc_slots);
 	mutex_destroy(&mc->mc_lock);
 	kmem_free(mc, sizeof (metaslab_class_t));
 }
@@ -585,7 +585,7 @@ metaslab_group_create(metaslab_class_t *mc, vdev_t *vd)
 	mg->mg_activation_count = 0;
 	mg->mg_initialized = B_FALSE;
 	mg->mg_no_free_space = B_TRUE;
-	refcount_create_tracked(&mg->mg_alloc_queue_depth);
+	zfs_refcount_create_tracked(&mg->mg_alloc_queue_depth);
 
 	mg->mg_taskq = taskq_create("metaslab_group_taskq", metaslab_load_pct,
 	    maxclsyspri, 10, INT_MAX, TASKQ_THREADS_CPU_PCT | TASKQ_DYNAMIC);
@@ -608,7 +608,7 @@ metaslab_group_destroy(metaslab_group_t *mg)
 	taskq_destroy(mg->mg_taskq);
 	avl_destroy(&mg->mg_metaslab_tree);
 	mutex_destroy(&mg->mg_lock);
-	refcount_destroy(&mg->mg_alloc_queue_depth);
+	zfs_refcount_destroy(&mg->mg_alloc_queue_depth);
 	kmem_free(mg, sizeof (metaslab_group_t));
 }
 
@@ -907,7 +907,7 @@ metaslab_group_allocatable(metaslab_group_t *mg, metaslab_group_t *rotor,
 		if (mg->mg_no_free_space)
 			return (B_FALSE);
 
-		qdepth = refcount_count(&mg->mg_alloc_queue_depth);
+		qdepth = zfs_refcount_count(&mg->mg_alloc_queue_depth);
 
 		/*
 		 * If this metaslab group is below its qmax or it's
@@ -928,7 +928,7 @@ metaslab_group_allocatable(metaslab_group_t *mg, metaslab_group_t *rotor,
 		for (mgp = mg->mg_next; mgp != rotor; mgp = mgp->mg_next) {
 			qmax = mgp->mg_max_alloc_queue_depth;
 
-			qdepth = refcount_count(&mgp->mg_alloc_queue_depth);
+			qdepth = zfs_refcount_count(&mgp->mg_alloc_queue_depth);
 
 			/*
 			 * If there is another metaslab group that
@@ -2679,7 +2679,7 @@ metaslab_group_alloc_decrement(spa_t *spa, uint64_t vdev, void *tag, int flags)
 	if (!mg->mg_class->mc_alloc_throttle_enabled)
 		return;
 
-	(void) refcount_remove(&mg->mg_alloc_queue_depth, tag);
+	(void) zfs_refcount_remove(&mg->mg_alloc_queue_depth, tag);
 }
 
 void
@@ -2693,7 +2693,7 @@ metaslab_group_alloc_verify(spa_t *spa, const blkptr_t *bp, void *tag)
 	for (d = 0; d < ndvas; d++) {
 		uint64_t vdev = DVA_GET_VDEV(&dva[d]);
 		metaslab_group_t *mg = vdev_lookup_top(spa, vdev)->vdev_mg;
-		VERIFY(refcount_not_held(&mg->mg_alloc_queue_depth, tag));
+		VERIFY(zfs_refcount_not_held(&mg->mg_alloc_queue_depth, tag));
 	}
 #endif
 }
@@ -3348,7 +3348,7 @@ metaslab_class_throttle_reserve(metaslab_class_t *mc, int slots, zio_t *zio,
 	ASSERT(mc->mc_alloc_throttle_enabled);
 	mutex_enter(&mc->mc_lock);
 
-	reserved_slots = refcount_count(&mc->mc_alloc_slots);
+	reserved_slots = zfs_refcount_count(&mc->mc_alloc_slots);
 	if (reserved_slots < mc->mc_alloc_max_slots)
 		available_slots = mc->mc_alloc_max_slots - reserved_slots;
 
@@ -3360,7 +3360,8 @@ metaslab_class_throttle_reserve(metaslab_class_t *mc, int slots, zio_t *zio,
 		 * them individually when an I/O completes.
 		 */
 		for (d = 0; d < slots; d++) {
-			reserved_slots = zfs_refcount_add(&mc->mc_alloc_slots, zio);
+			reserved_slots = zfs_refcount_add(&mc->mc_alloc_slots,
+			    zio);
 		}
 		zio->io_flags |= ZIO_FLAG_IO_ALLOCATING;
 		slot_reserved = B_TRUE;
@@ -3378,7 +3379,7 @@ metaslab_class_throttle_unreserve(metaslab_class_t *mc, int slots, zio_t *zio)
 	ASSERT(mc->mc_alloc_throttle_enabled);
 	mutex_enter(&mc->mc_lock);
 	for (d = 0; d < slots; d++) {
-		(void) refcount_remove(&mc->mc_alloc_slots, zio);
+		(void) zfs_refcount_remove(&mc->mc_alloc_slots, zio);
 	}
 	mutex_exit(&mc->mc_lock);
 }

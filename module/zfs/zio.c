@@ -2338,7 +2338,7 @@ zio_write_gang_block(zio_t *pio)
 		ASSERT(!(pio->io_flags & ZIO_FLAG_NODATA));
 
 		flags |= METASLAB_ASYNC_ALLOC;
-		VERIFY(refcount_held(&mc->mc_alloc_slots, pio));
+		VERIFY(zfs_refcount_held(&mc->mc_alloc_slots, pio));
 
 		/*
 		 * The logical zio has already placed a reservation for
@@ -3766,7 +3766,7 @@ zio_done(zio_t *zio)
 		ASSERT(zio->io_priority == ZIO_PRIORITY_ASYNC_WRITE);
 		ASSERT(zio->io_bp != NULL);
 		metaslab_group_alloc_verify(zio->io_spa, zio->io_bp, zio);
-		VERIFY(refcount_not_held(
+		VERIFY(zfs_refcount_not_held(
 		    &(spa_normal_class(zio->io_spa)->mc_alloc_slots), zio));
 	}
 

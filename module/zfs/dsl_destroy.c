@@ -258,7 +258,7 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 	rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
 	ASSERT3U(dsl_dataset_phys(ds)->ds_bp.blk_birth, <=, tx->tx_txg);
 	rrw_exit(&ds->ds_bp_rwlock, FTAG);
-	ASSERT(refcount_is_zero(&ds->ds_longholds));
+	ASSERT(zfs_refcount_is_zero(&ds->ds_longholds));
 
 	if (defer &&
 	    (ds->ds_userrefs > 0 ||
@@ -619,7 +619,7 @@ dsl_destroy_head_check_impl(dsl_dataset_t *ds, int expected_holds)
 	if (ds->ds_is_snapshot)
 		return (SET_ERROR(EINVAL));
 
-	if (refcount_count(&ds->ds_longholds) != expected_holds)
+	if (zfs_refcount_count(&ds->ds_longholds) != expected_holds)
 		return (SET_ERROR(EBUSY));
 
 	mos = ds->ds_dir->dd_pool->dp_meta_objset;
@@ -647,7 +647,7 @@ dsl_destroy_head_check_impl(dsl_dataset_t *ds, int expected_holds)
 	    dsl_dataset_phys(ds->ds_prev)->ds_num_children == 2 &&
 	    ds->ds_prev->ds_userrefs == 0) {
 		/* We need to remove the origin snapshot as well. */
-		if (!refcount_is_zero(&ds->ds_prev->ds_longholds))
+		if (!zfs_refcount_is_zero(&ds->ds_prev->ds_longholds))
 			return (SET_ERROR(EBUSY));
 	}
 	return (0);

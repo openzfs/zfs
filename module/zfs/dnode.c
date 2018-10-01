@@ -124,8 +124,8 @@ dnode_cons(void *arg, void *unused, int kmflag)
 	 * Every dbuf has a reference, and dropping a tracked reference is
 	 * O(number of references), so don't track dn_holds.
 	 */
-	refcount_create_untracked(&dn->dn_holds);
-	refcount_create(&dn->dn_tx_holds);
+	zfs_refcount_create_untracked(&dn->dn_holds);
+	zfs_refcount_create(&dn->dn_tx_holds);
 	list_link_init(&dn->dn_link);
 
 	bzero(&dn->dn_next_nblkptr[0], sizeof (dn->dn_next_nblkptr));
@@ -180,8 +180,8 @@ dnode_dest(void *arg, void *unused)
 	mutex_destroy(&dn->dn_mtx);
 	mutex_destroy(&dn->dn_dbufs_mtx);
 	cv_destroy(&dn->dn_notxholds);
-	refcount_destroy(&dn->dn_holds);
-	refcount_destroy(&dn->dn_tx_holds);
+	zfs_refcount_destroy(&dn->dn_holds);
+	zfs_refcount_destroy(&dn->dn_tx_holds);
 	ASSERT(!list_link_active(&dn->dn_link));
 
 	for (i = 0; i < TXG_SIZE; i++) {
@@ -377,7 +377,7 @@ dnode_buf_byteswap(void *vbuf, size_t size)
 void
 dnode_setbonuslen(dnode_t *dn, int newsize, dmu_tx_t *tx)
 {
-	ASSERT3U(refcount_count(&dn->dn_holds), >=, 1);
+	ASSERT3U(zfs_refcount_count(&dn->dn_holds), >=, 1);
 
 	dnode_setdirty(dn, tx);
 	rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
@@ -394,7 +394,7 @@ dnode_setbonuslen(dnode_t *dn, int newsize, dmu_tx_t *tx)
 void
 dnode_setbonus_type(dnode_t *dn, dmu_object_type_t newtype, dmu_tx_t *tx)
 {
-	ASSERT3U(refcount_count(&dn->dn_holds), >=, 1);
+	ASSERT3U(zfs_refcount_count(&dn->dn_holds), >=, 1);
 	dnode_setdirty(dn, tx);
 	rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
 	dn->dn_bonustype = newtype;
@@ -405,7 +405,7 @@ dnode_setbonus_type(dnode_t *dn, dmu_object_type_t newtype, dmu_tx_t *tx)
 void
 dnode_rm_spill(dnode_t *dn, dmu_tx_t *tx)
 {
-	ASSERT3U(refcount_count(&dn->dn_holds), >=, 1);
+	ASSERT3U(zfs_refcount_count(&dn->dn_holds), >=, 1);
 	ASSERT(RW_WRITE_HELD(&dn->dn_struct_rwlock));
 	dnode_setdirty(dn, tx);
 	dn->dn_rm_spillblk[tx->tx_txg&TXG_MASK] = DN_KILL_SPILLBLK;
@@ -596,8 +596,8 @@ dnode_allocate(dnode_t *dn, dmu_object_type_t ot, int blocksize, int ibs,
 	ASSERT0(dn->dn_allocated_txg);
 	ASSERT0(dn->dn_assigned_txg);
 	ASSERT0(dn->dn_dirty_txg);
-	ASSERT(refcount_is_zero(&dn->dn_tx_holds));
-	ASSERT3U(refcount_count(&dn->dn_holds), <=, 1);
+	ASSERT(zfs_refcount_is_zero(&dn->dn_tx_holds));
+	ASSERT3U(zfs_refcount_count(&dn->dn_holds), <=, 1);
 	ASSERT(avl_is_empty(&dn->dn_dbufs));
 
 	for (i = 0; i < TXG_SIZE; i++) {
@@ -786,8 +786,8 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 	ndn->dn_dirty_txg = odn->dn_dirty_txg;
 	ndn->dn_dirtyctx = odn->dn_dirtyctx;
 	ndn->dn_dirtyctx_firstset = odn->dn_dirtyctx_firstset;
-	ASSERT(refcount_count(&odn->dn_tx_holds) == 0);
-	refcount_transfer(&ndn->dn_holds, &odn->dn_holds);
+	ASSERT(zfs_refcount_count(&odn->dn_tx_holds) == 0);
+	zfs_refcount_transfer(&ndn->dn_holds, &odn->dn_holds);
 	ASSERT(avl_is_empty(&ndn->dn_dbufs));
 	avl_swap(&ndn->dn_dbufs, &odn->dn_dbufs);
 	ndn->dn_dbufs_count = odn->dn_dbufs_count;
@@ -975,7 +975,7 @@ dnode_move(void *buf, void *newbuf, size_t size, void *arg)
 	 * hold before the dbuf is removed, the hold is discounted, and the
 	 * removal is blocked until the move completes.
 	 */
-	refcount = refcount_count(&odn->dn_holds);
+	refcount = zfs_refcount_count(&odn->dn_holds);
 	ASSERT(refcount >= 0);
 	dbufs = odn->dn_dbufs_count;
 
@@ -1003,7 +1003,7 @@ dnode_move(void *buf, void *newbuf, size_t size, void *arg)
 
 	list_link_replace(&odn->dn_link, &ndn->dn_link);
 	/* If the dnode was safe to move, the refcount cannot have changed. */
-	ASSERT(refcount == refcount_count(&ndn->dn_holds));
+	ASSERT(refcount == zfs_refcount_count(&ndn->dn_holds));
 	ASSERT(dbufs == ndn->dn_dbufs_count);
 	zrl_exit(&ndn->dn_handle->dnh_zrlock); /* handle has moved */
 	mutex_exit(&os->os_lock);
@@ -1152,7 +1152,7 @@ dnode_special_close(dnode_handle_t *dnh)
 	 * has a hold on this dnode while we are trying to evict this
 	 * dnode.
 	 */
-	while (refcount_count(&dn->dn_holds) > 0)
+	while (zfs_refcount_count(&dn->dn_holds) > 0)
 		delay(1);
 	ASSERT(dn->dn_dbuf == NULL ||
 	    dmu_buf_get_user(&dn->dn_dbuf->db) == NULL);
@@ -1207,8 +1207,8 @@ dnode_buf_evict_async(void *dbu)
 		 * it wouldn't be eligible for eviction and this function
 		 * would not have been called.
 		 */
-		ASSERT(refcount_is_zero(&dn->dn_holds));
-		ASSERT(refcount_is_zero(&dn->dn_tx_holds));
+		ASSERT(zfs_refcount_is_zero(&dn->dn_holds));
+		ASSERT(zfs_refcount_is_zero(&dn->dn_tx_holds));
 
 		dnode_destroy(dn); /* implicit zrl_remove() for first slot */
 		zrl_destroy(&dnh->dnh_zrlock);
@@ -1460,7 +1460,7 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 		}
 
 		mutex_enter(&dn->dn_mtx);
-		if (!refcount_is_zero(&dn->dn_holds)) {
+		if (!zfs_refcount_is_zero(&dn->dn_holds)) {
 			DNODE_STAT_BUMP(dnode_hold_free_refcount);
 			mutex_exit(&dn->dn_mtx);
 			dnode_slots_rele(dnc, idx, slots);
@@ -1520,7 +1520,7 @@ boolean_t
 dnode_add_ref(dnode_t *dn, void *tag)
 {
 	mutex_enter(&dn->dn_mtx);
-	if (refcount_is_zero(&dn->dn_holds)) {
+	if (zfs_refcount_is_zero(&dn->dn_holds)) {
 		mutex_exit(&dn->dn_mtx);
 		return (FALSE);
 	}
@@ -1544,7 +1544,7 @@ dnode_rele_and_unlock(dnode_t *dn, void *tag)
 	dmu_buf_impl_t *db = dn->dn_dbuf;
 	dnode_handle_t *dnh = dn->dn_handle;
 
-	refs = refcount_remove(&dn->dn_holds, tag);
+	refs = zfs_refcount_remove(&dn->dn_holds, tag);
 	mutex_exit(&dn->dn_mtx);
 
 	/*
@@ -1608,7 +1608,7 @@ dnode_setdirty(dnode_t *dn, dmu_tx_t *tx)
 		return;
 	}
 
-	ASSERT(!refcount_is_zero(&dn->dn_holds) ||
+	ASSERT(!zfs_refcount_is_zero(&dn->dn_holds) ||
 	    !avl_is_empty(&dn->dn_dbufs));
 	ASSERT(dn->dn_datablksz != 0);
 	ASSERT0(dn->dn_next_bonuslen[txg&TXG_MASK]);

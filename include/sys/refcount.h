@@ -63,26 +63,24 @@ typedef struct refcount {
  * refcount_create[_untracked]()
  */
 
-void refcount_create(zfs_refcount_t *rc);
-void refcount_create_untracked(zfs_refcount_t *rc);
-void refcount_create_tracked(zfs_refcount_t *rc);
-void refcount_destroy(zfs_refcount_t *rc);
-void refcount_destroy_many(zfs_refcount_t *rc, uint64_t number);
-int refcount_is_zero(zfs_refcount_t *rc);
-int64_t refcount_count(zfs_refcount_t *rc);
-int64_t zfs_refcount_add(zfs_refcount_t *rc, void *holder_tag);
-int64_t refcount_remove(zfs_refcount_t *rc, void *holder_tag);
-int64_t refcount_add_many(zfs_refcount_t *rc, uint64_t number,
-    void *holder_tag);
-int64_t refcount_remove_many(zfs_refcount_t *rc, uint64_t number,
-    void *holder_tag);
-void refcount_transfer(zfs_refcount_t *dst, zfs_refcount_t *src);
-void refcount_transfer_ownership(zfs_refcount_t *, void *, void *);
-boolean_t refcount_held(zfs_refcount_t *, void *);
-boolean_t refcount_not_held(zfs_refcount_t *, void *);
+void zfs_refcount_create(zfs_refcount_t *);
+void zfs_refcount_create_untracked(zfs_refcount_t *);
+void zfs_refcount_create_tracked(zfs_refcount_t *);
+void zfs_refcount_destroy(zfs_refcount_t *);
+void zfs_refcount_destroy_many(zfs_refcount_t *, uint64_t);
+int zfs_refcount_is_zero(zfs_refcount_t *);
+int64_t zfs_refcount_count(zfs_refcount_t *);
+int64_t zfs_refcount_add(zfs_refcount_t *, void *);
+int64_t zfs_refcount_remove(zfs_refcount_t *, void *);
+int64_t zfs_refcount_add_many(zfs_refcount_t *, uint64_t, void *);
+int64_t zfs_refcount_remove_many(zfs_refcount_t *, uint64_t, void *);
+void zfs_refcount_transfer(zfs_refcount_t *, zfs_refcount_t *);
+void zfs_refcount_transfer_ownership(zfs_refcount_t *, void *, void *);
+boolean_t zfs_refcount_held(zfs_refcount_t *, void *);
+boolean_t zfs_refcount_not_held(zfs_refcount_t *, void *);
 
-void refcount_init(void);
-void refcount_fini(void);
+void zfs_refcount_init(void);
+void zfs_refcount_fini(void);
 
 #else	/* ZFS_DEBUG */
 
@@ -90,30 +88,30 @@ typedef struct refcount {
 	uint64_t rc_count;
 } zfs_refcount_t;
 
-#define	refcount_create(rc) ((rc)->rc_count = 0)
-#define	refcount_create_untracked(rc) ((rc)->rc_count = 0)
-#define	refcount_create_tracked(rc) ((rc)->rc_count = 0)
-#define	refcount_destroy(rc) ((rc)->rc_count = 0)
-#define	refcount_destroy_many(rc, number) ((rc)->rc_count = 0)
-#define	refcount_is_zero(rc) ((rc)->rc_count == 0)
-#define	refcount_count(rc) ((rc)->rc_count)
+#define	zfs_refcount_create(rc) ((rc)->rc_count = 0)
+#define	zfs_refcount_create_untracked(rc) ((rc)->rc_count = 0)
+#define	zfs_refcount_create_tracked(rc) ((rc)->rc_count = 0)
+#define	zfs_refcount_destroy(rc) ((rc)->rc_count = 0)
+#define	zfs_refcount_destroy_many(rc, number) ((rc)->rc_count = 0)
+#define	zfs_refcount_is_zero(rc) ((rc)->rc_count == 0)
+#define	zfs_refcount_count(rc) ((rc)->rc_count)
 #define	zfs_refcount_add(rc, holder) atomic_inc_64_nv(&(rc)->rc_count)
-#define	refcount_remove(rc, holder) atomic_dec_64_nv(&(rc)->rc_count)
-#define	refcount_add_many(rc, number, holder) \
+#define	zfs_refcount_remove(rc, holder) atomic_dec_64_nv(&(rc)->rc_count)
+#define	zfs_refcount_add_many(rc, number, holder) \
 	atomic_add_64_nv(&(rc)->rc_count, number)
-#define	refcount_remove_many(rc, number, holder) \
+#define	zfs_refcount_remove_many(rc, number, holder) \
 	atomic_add_64_nv(&(rc)->rc_count, -number)
-#define	refcount_transfer(dst, src) { \
+#define	zfs_refcount_transfer(dst, src) { \
 	uint64_t __tmp = (src)->rc_count; \
 	atomic_add_64(&(src)->rc_count, -__tmp); \
 	atomic_add_64(&(dst)->rc_count, __tmp); \
 }
-#define	refcount_transfer_ownership(rc, current_holder, new_holder)	(void)0
-#define	refcount_held(rc, holder)		((rc)->rc_count > 0)
-#define	refcount_not_held(rc, holder)		(B_TRUE)
+#define	zfs_refcount_transfer_ownership(rc, current_holder, new_holder)	(void)0
+#define	zfs_refcount_held(rc, holder)		((rc)->rc_count > 0)
+#define	zfs_refcount_not_held(rc, holder)		(B_TRUE)
 
-#define	refcount_init()
-#define	refcount_fini()
+#define	zfs_refcount_init()
+#define	zfs_refcount_fini()
 
 #endif	/* ZFS_DEBUG */
 

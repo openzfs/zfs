@@ -165,7 +165,7 @@ dbuf_cons(void *vdb, void *unused, int kmflag)
 	mutex_init(&db->db_mtx, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&db->db_changed, NULL, CV_DEFAULT, NULL);
 	multilist_link_init(&db->db_cache_link);
-	refcount_create(&db->db_holds);
+	zfs_refcount_create(&db->db_holds);
 	multilist_link_init(&db->db_cache_link);
 
 	return (0);
@@ -179,7 +179,7 @@ dbuf_dest(void *vdb, void *unused)
 	mutex_destroy(&db->db_mtx);
 	cv_destroy(&db->db_changed);
 	ASSERT(!multilist_link_active(&db->db_cache_link));
-	refcount_destroy(&db->db_holds);
+	zfs_refcount_destroy(&db->db_holds);
 }
 
 /*
@@ -317,7 +317,7 @@ dbuf_hash_remove(dmu_buf_impl_t *db)
 	 * We mustn't hold db_mtx to maintain lock ordering:
 	 * DBUF_HASH_MUTEX > db_mtx.
 	 */
-	ASSERT(refcount_is_zero(&db->db_holds));
+	ASSERT(zfs_refcount_is_zero(&db->db_holds));
 	ASSERT(db->db_state == DB_EVICTING);
 	ASSERT(!MUTEX_HELD(&db->db_mtx));
 
@@ -354,7 +354,7 @@ dbuf_verify_user(dmu_buf_impl_t *db, dbvu_verify_type_t verify_type)
 	ASSERT(db->db.db_data != NULL);
 	ASSERT3U(db->db_state, ==, DB_CACHED);
 
-	holds = refcount_count(&db->db_holds);
+	holds = zfs_refcount_count(&db->db_holds);
 	if (verify_type == DBVU_EVICTING) {
 		/*
 		 * Immediate eviction occurs when holds == dirtycnt.
@@ -478,7 +478,7 @@ dbuf_cache_above_hiwater(void)
 	uint64_t dbuf_cache_hiwater_bytes =
 	    (dbuf_cache_target * dbuf_cache_hiwater_pct) / 100;
 
-	return (refcount_count(&dbuf_cache_size) >
+	return (zfs_refcount_count(&dbuf_cache_size) >
 	    dbuf_cache_target + dbuf_cache_hiwater_bytes);
 }
 
@@ -490,7 +490,7 @@ dbuf_cache_above_lowater(void)
 	uint64_t dbuf_cache_lowater_bytes =
 	    (dbuf_cache_target * dbuf_cache_lowater_pct) / 100;
 
-	return (refcount_count(&dbuf_cache_size) >
+	return (zfs_refcount_count(&dbuf_cache_size) >
 	    dbuf_cache_target - dbuf_cache_lowater_bytes);
 }
 
@@ -524,7 +524,7 @@ dbuf_evict_one(void)
 	if (db != NULL) {
 		multilist_sublist_remove(mls, db);
 		multilist_sublist_unlock(mls);
-		(void) refcount_remove_many(&dbuf_cache_size,
+		(void) zfs_refcount_remove_many(&dbuf_cache_size,
 		    db->db.db_size, db);
 		dbuf_destroy(db);
 	} else {
@@ -611,7 +611,7 @@ dbuf_evict_notify(void)
 	 * because it's OK to occasionally make the wrong decision here,
 	 * and grabbing the lock results in massive lock contention.
 	 */
-	if (refcount_count(&dbuf_cache_size) > dbuf_cache_target_bytes()) {
+	if (zfs_refcount_count(&dbuf_cache_size) > dbuf_cache_target_bytes()) {
 		if (dbuf_cache_above_hiwater())
 			dbuf_evict_one();
 		cv_signal(&dbuf_evict_cv);
@@ -679,7 +679,7 @@ retry:
 	dbuf_cache = multilist_create(sizeof (dmu_buf_impl_t),
 	    offsetof(dmu_buf_impl_t, db_cache_link),
 	    dbuf_cache_multilist_index_func);
-	refcount_create(&dbuf_cache_size);
+	zfs_refcount_create(&dbuf_cache_size);
 
 	tsd_create(&zfs_dbuf_evict_key, NULL);
 	dbuf_evict_thread_exit = B_FALSE;
@@ -723,7 +723,7 @@ dbuf_fini(void)
 	mutex_destroy(&dbuf_evict_lock);
 	cv_destroy(&dbuf_evict_cv);
 
-	refcount_destroy(&dbuf_cache_size);
+	zfs_refcount_destroy(&dbuf_cache_size);
 	multilist_destroy(dbuf_cache);
 }
 
@@ -910,7 +910,7 @@ dbuf_loan_arcbuf(dmu_buf_impl_t *db)
 
 	ASSERT(db->db_blkid != DMU_BONUS_BLKID);
 	mutex_enter(&db->db_mtx);
-	if (arc_released(db->db_buf) || refcount_count(&db->db_holds) > 1) {
+	if (arc_released(db->db_buf) || zfs_refcount_count(&db->db_holds) > 1) {
 		int blksz = db->db.db_size;
 		spa_t *spa = db->db_objset->os_spa;
 
@@ -983,7 +983,7 @@ dbuf_read_done(zio_t *zio, arc_buf_t *buf, void *vdb)
 	/*
 	 * All reads are synchronous, so we must have a hold on the dbuf
 	 */
-	ASSERT(refcount_count(&db->db_holds) > 0);
+	ASSERT(zfs_refcount_count(&db->db_holds) > 0);
 	ASSERT(db->db_buf == NULL);
 	ASSERT(db->db.db_data == NULL);
 	if (db->db_level == 0 && db->db_freed_in_flight) {
@@ -1017,7 +1017,7 @@ dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 
 	DB_DNODE_ENTER(db);
 	dn = DB_DNODE(db);
-	ASSERT(!refcount_is_zero(&db->db_holds));
+	ASSERT(!zfs_refcount_is_zero(&db->db_holds));
 	/* We need the struct_rwlock to prevent db_blkptr from changing. */
 	ASSERT(RW_LOCK_HELD(&dn->dn_struct_rwlock));
 	ASSERT(MUTEX_HELD(&db->db_mtx));
@@ -1150,7 +1150,7 @@ dbuf_fix_old_data(dmu_buf_impl_t *db, uint64_t txg)
 		dr->dt.dl.dr_data = kmem_alloc(bonuslen, KM_SLEEP);
 		arc_space_consume(bonuslen, ARC_SPACE_BONUS);
 		bcopy(db->db.db_data, dr->dt.dl.dr_data, bonuslen);
-	} else if (refcount_count(&db->db_holds) > db->db_dirtycnt) {
+	} else if (zfs_refcount_count(&db->db_holds) > db->db_dirtycnt) {
 		int size = arc_buf_size(db->db_buf);
 		arc_buf_contents_t type = DBUF_GET_BUFC_TYPE(db);
 		spa_t *spa = db->db_objset->os_spa;
@@ -1182,7 +1182,7 @@ dbuf_read(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 	 * We don't have to hold the mutex to check db_state because it
 	 * can't be freed while we have a hold on the buffer.
 	 */
-	ASSERT(!refcount_is_zero(&db->db_holds));
+	ASSERT(!zfs_refcount_is_zero(&db->db_holds));
 
 	if (db->db_state == DB_NOFILL)
 		return (SET_ERROR(EIO));
@@ -1277,7 +1277,7 @@ dbuf_read(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 static void
 dbuf_noread(dmu_buf_impl_t *db)
 {
-	ASSERT(!refcount_is_zero(&db->db_holds));
+	ASSERT(!zfs_refcount_is_zero(&db->db_holds));
 	ASSERT(db->db_blkid != DMU_BONUS_BLKID);
 	mutex_enter(&db->db_mtx);
 	while (db->db_state == DB_READ || db->db_state == DB_FILL)
@@ -1397,7 +1397,7 @@ dbuf_free_range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid,
 			mutex_exit(&db->db_mtx);
 			continue;
 		}
-		if (refcount_count(&db->db_holds) == 0) {
+		if (zfs_refcount_count(&db->db_holds) == 0) {
 			ASSERT(db->db_buf);
 			dbuf_destroy(db);
 			continue;
@@ -1544,7 +1544,7 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	int txgoff = tx->tx_txg & TXG_MASK;
 
 	ASSERT(tx->tx_txg != 0);
-	ASSERT(!refcount_is_zero(&db->db_holds));
+	ASSERT(!zfs_refcount_is_zero(&db->db_holds));
 	DMU_TX_DIRTY_BUF(tx, db);
 
 	DB_DNODE_ENTER(db);
@@ -1912,7 +1912,7 @@ dbuf_undirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	ASSERT(db->db_dirtycnt > 0);
 	db->db_dirtycnt -= 1;
 
-	if (refcount_remove(&db->db_holds, (void *)(uintptr_t)txg) == 0) {
+	if (zfs_refcount_remove(&db->db_holds, (void *)(uintptr_t)txg) == 0) {
 		ASSERT(db->db_state == DB_NOFILL || arc_released(db->db_buf));
 		dbuf_destroy(db);
 		return (B_TRUE);
@@ -1929,7 +1929,7 @@ dmu_buf_will_dirty(dmu_buf_t *db_fake, dmu_tx_t *tx)
 	dbuf_dirty_record_t *dr;
 
 	ASSERT(tx->tx_txg != 0);
-	ASSERT(!refcount_is_zero(&db->db_holds));
+	ASSERT(!zfs_refcount_is_zero(&db->db_holds));
 
 	/*
 	 * Quick check for dirtyness.  For already dirty blocks, this
@@ -1981,7 +1981,7 @@ dmu_buf_will_fill(dmu_buf_t *db_fake, dmu_tx_t *tx)
 	ASSERT(db->db_blkid != DMU_BONUS_BLKID);
 	ASSERT(tx->tx_txg != 0);
 	ASSERT(db->db_level == 0);
-	ASSERT(!refcount_is_zero(&db->db_holds));
+	ASSERT(!zfs_refcount_is_zero(&db->db_holds));
 
 	ASSERT(db->db.db_object != DMU_META_DNODE_OBJECT ||
 	    dmu_tx_private_ok(tx));
@@ -2056,7 +2056,7 @@ dmu_buf_write_embedded(dmu_buf_t *dbuf, void *data,
 void
 dbuf_assign_arcbuf(dmu_buf_impl_t *db, arc_buf_t *buf, dmu_tx_t *tx)
 {
-	ASSERT(!refcount_is_zero(&db->db_holds));
+	ASSERT(!zfs_refcount_is_zero(&db->db_holds));
 	ASSERT(db->db_blkid != DMU_BONUS_BLKID);
 	ASSERT(db->db_level == 0);
 	ASSERT3U(dbuf_is_metadata(db), ==, arc_is_metadata(buf));
@@ -2075,7 +2075,7 @@ dbuf_assign_arcbuf(dmu_buf_impl_t *db, arc_buf_t *buf, dmu_tx_t *tx)
 	ASSERT(db->db_state == DB_CACHED || db->db_state == DB_UNCACHED);
 
 	if (db->db_state == DB_CACHED &&
-	    refcount_count(&db->db_holds) - 1 > db->db_dirtycnt) {
+	    zfs_refcount_count(&db->db_holds) - 1 > db->db_dirtycnt) {
 		mutex_exit(&db->db_mtx);
 		(void) dbuf_dirty(db, tx);
 		bcopy(buf->b_data, db->db.db_data, db->db.db_size);
@@ -2120,7 +2120,7 @@ dbuf_destroy(dmu_buf_impl_t *db)
 	dmu_buf_impl_t *dndb;
 
 	ASSERT(MUTEX_HELD(&db->db_mtx));
-	ASSERT(refcount_is_zero(&db->db_holds));
+	ASSERT(zfs_refcount_is_zero(&db->db_holds));
 
 	if (db->db_buf != NULL) {
 		arc_buf_destroy(db->db_buf, db);
@@ -2140,7 +2140,7 @@ dbuf_destroy(dmu_buf_impl_t *db)
 
 	if (multilist_link_active(&db->db_cache_link)) {
 		multilist_remove(dbuf_cache, db);
-		(void) refcount_remove_many(&dbuf_cache_size,
+		(void) zfs_refcount_remove_many(&dbuf_cache_size,
 		    db->db.db_size, db);
 	}
 
@@ -2186,7 +2186,7 @@ dbuf_destroy(dmu_buf_impl_t *db)
 		DB_DNODE_EXIT(db);
 	}
 
-	ASSERT(refcount_is_zero(&db->db_holds));
+	ASSERT(zfs_refcount_is_zero(&db->db_holds));
 
 	db->db_parent = NULL;
 
@@ -2383,7 +2383,7 @@ dbuf_create(dnode_t *dn, uint8_t level, uint64_t blkid,
 		dbuf_add_ref(parent, db);
 
 	ASSERT(dn->dn_object == DMU_META_DNODE_OBJECT ||
-	    refcount_count(&dn->dn_holds) > 0);
+	    zfs_refcount_count(&dn->dn_holds) > 0);
 	(void) zfs_refcount_add(&dn->dn_holds, db);
 	atomic_inc_32(&dn->dn_dbufs_count);
 
@@ -2744,9 +2744,9 @@ __dbuf_hold_impl(struct dbuf_hold_impl_data *dh)
 	}
 
 	if (multilist_link_active(&dh->dh_db->db_cache_link)) {
-		ASSERT(refcount_is_zero(&dh->dh_db->db_holds));
+		ASSERT(zfs_refcount_is_zero(&dh->dh_db->db_holds));
 		multilist_remove(dbuf_cache, dh->dh_db);
-		(void) refcount_remove_many(&dbuf_cache_size,
+		(void) zfs_refcount_remove_many(&dbuf_cache_size,
 		    dh->dh_db->db.db_size, dh->dh_db);
 	}
 	(void) zfs_refcount_add(&dh->dh_db->db_holds, dh->dh_tag);
@@ -2938,7 +2938,7 @@ dbuf_rele_and_unlock(dmu_buf_impl_t *db, void *tag)
 	 * dnode so we can guarantee in dnode_move() that a referenced bonus
 	 * buffer has a corresponding dnode hold.
 	 */
-	holds = refcount_remove(&db->db_holds, tag);
+	holds = zfs_refcount_remove(&db->db_holds, tag);
 	ASSERT(holds >= 0);
 
 	/*
@@ -3017,7 +3017,7 @@ dbuf_rele_and_unlock(dmu_buf_impl_t *db, void *tag)
 				dbuf_destroy(db);
 			} else if (!multilist_link_active(&db->db_cache_link)) {
 				multilist_insert(dbuf_cache, db);
-				(void) refcount_add_many(&dbuf_cache_size,
+				(void) zfs_refcount_add_many(&dbuf_cache_size,
 				    db->db.db_size, db);
 				mutex_exit(&db->db_mtx);
 
@@ -3037,7 +3037,7 @@ dbuf_rele_and_unlock(dmu_buf_impl_t *db, void *tag)
 uint64_t
 dbuf_refcount(dmu_buf_impl_t *db)
 {
-	return (refcount_count(&db->db_holds));
+	return (zfs_refcount_count(&db->db_holds));
 }
 
 void *
@@ -3340,7 +3340,7 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 
 	if (db->db_state != DB_NOFILL &&
 	    dn->dn_object != DMU_META_DNODE_OBJECT &&
-	    refcount_count(&db->db_holds) > 1 &&
+	    zfs_refcount_count(&db->db_holds) > 1 &&
 	    dr->dt.dl.dr_override_state != DR_OVERRIDDEN &&
 	    *datap == db->db_buf) {
 		/*
