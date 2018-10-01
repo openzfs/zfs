@@ -144,7 +144,7 @@ zfsctl_snapshot_alloc(char *full_name, char *full_path, spa_t *spa,
 	se->se_root_dentry = root_dentry;
 	se->se_taskqid = TASKQID_INVALID;
 
-	refcount_create(&se->se_refcount);
+	zfs_refcount_create(&se->se_refcount);
 
 	return (se);
 }
@@ -156,7 +156,7 @@ zfsctl_snapshot_alloc(char *full_name, char *full_path, spa_t *spa,
 static void
 zfsctl_snapshot_free(zfs_snapentry_t *se)
 {
-	refcount_destroy(&se->se_refcount);
+	zfs_refcount_destroy(&se->se_refcount);
 	strfree(se->se_name);
 	strfree(se->se_path);
 
@@ -179,7 +179,7 @@ zfsctl_snapshot_hold(zfs_snapentry_t *se)
 static void
 zfsctl_snapshot_rele(zfs_snapentry_t *se)
 {
-	if (refcount_remove(&se->se_refcount, NULL) == 0)
+	if (zfs_refcount_remove(&se->se_refcount, NULL) == 0)
 		zfsctl_snapshot_free(se);
 }
 

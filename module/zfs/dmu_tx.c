@@ -132,8 +132,8 @@ dmu_tx_hold_dnode_impl(dmu_tx_t *tx, dnode_t *dn, enum dmu_tx_hold_type type,
 	txh = kmem_zalloc(sizeof (dmu_tx_hold_t), KM_SLEEP);
 	txh->txh_tx = tx;
 	txh->txh_dnode = dn;
-	refcount_create(&txh->txh_space_towrite);
-	refcount_create(&txh->txh_memory_tohold);
+	zfs_refcount_create(&txh->txh_space_towrite);
+	zfs_refcount_create(&txh->txh_memory_tohold);
 	txh->txh_type = type;
 	txh->txh_arg1 = arg1;
 	txh->txh_arg2 = arg2;
@@ -228,9 +228,9 @@ dmu_tx_count_write(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 	if (len == 0)
 		return;
 
-	(void) refcount_add_many(&txh->txh_space_towrite, len, FTAG);
+	(void) zfs_refcount_add_many(&txh->txh_space_towrite, len, FTAG);
 
-	if (refcount_count(&txh->txh_space_towrite) > 2 * DMU_MAX_ACCESS)
+	if (zfs_refcount_count(&txh->txh_space_towrite) > 2 * DMU_MAX_ACCESS)
 		err = SET_ERROR(EFBIG);
 
 	if (dn == NULL)
@@ -295,7 +295,8 @@ dmu_tx_count_write(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 static void
 dmu_tx_count_dnode(dmu_tx_hold_t *txh)
 {
-	(void) refcount_add_many(&txh->txh_space_towrite, DNODE_MIN_SIZE, FTAG);
+	(void) zfs_refcount_add_many(&txh->txh_space_towrite, DNODE_MIN_SIZE,
+	    FTAG);
 }
 
 void
@@ -418,7 +419,7 @@ dmu_tx_hold_free_impl(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 				return;
 			}
 
-			(void) refcount_add_many(&txh->txh_memory_tohold,
+			(void) zfs_refcount_add_many(&txh->txh_memory_tohold,
 			    1 << dn->dn_indblkshift, FTAG);
 
 			err = dmu_tx_check_ioerr(zio, dn, 1, i);
@@ -477,7 +478,7 @@ dmu_tx_hold_zap_impl(dmu_tx_hold_t *txh, const char *name)
 	 *    - 2 blocks for possibly split leaves,
 	 *    - 2 grown ptrtbl blocks
 	 */
-	(void) refcount_add_many(&txh->txh_space_towrite,
+	(void) zfs_refcount_add_many(&txh->txh_space_towrite,
 	    MZAP_MAX_BLKSZ, FTAG);
 
 	if (dn == NULL)
@@ -568,7 +569,8 @@ dmu_tx_hold_space(dmu_tx_t *tx, uint64_t space)
 	txh = dmu_tx_hold_object_impl(tx, tx->tx_objset,
 	    DMU_NEW_OBJECT, THT_SPACE, space, 0);
 	if (txh)
-		(void) refcount_add_many(&txh->txh_space_towrite, space, FTAG);
+		(void) zfs_refcount_add_many(&txh->txh_space_towrite, space,
+		    FTAG);
 }
 
 #ifdef ZFS_DEBUG
@@ -919,8 +921,8 @@ dmu_tx_try_assign(dmu_tx_t *tx, uint64_t txg_how)
 			(void) zfs_refcount_add(&dn->dn_tx_holds, tx);
 			mutex_exit(&dn->dn_mtx);
 		}
-		towrite += refcount_count(&txh->txh_space_towrite);
-		tohold += refcount_count(&txh->txh_memory_tohold);
+		towrite += zfs_refcount_count(&txh->txh_space_towrite);
+		tohold += zfs_refcount_count(&txh->txh_memory_tohold);
 	}
 
 	/* needed allocation: worst-case estimate of write space */
@@ -962,7 +964,7 @@ dmu_tx_unassign(dmu_tx_t *tx)
 		mutex_enter(&dn->dn_mtx);
 		ASSERT3U(dn->dn_assigned_txg, ==, tx->tx_txg);
 
-		if (refcount_remove(&dn->dn_tx_holds, tx) == 0) {
+		if (zfs_refcount_remove(&dn->dn_tx_holds, tx) == 0) {
 			dn->dn_assigned_txg = 0;
 			cv_broadcast(&dn->dn_notxholds);
 		}
@@ -1100,10 +1102,10 @@ dmu_tx_destroy(dmu_tx_t *tx)
 		dnode_t *dn = txh->txh_dnode;
 
 		list_remove(&tx->tx_holds, txh);
-		refcount_destroy_many(&txh->txh_space_towrite,
-		    refcount_count(&txh->txh_space_towrite));
-		refcount_destroy_many(&txh->txh_memory_tohold,
-		    refcount_count(&txh->txh_memory_tohold));
+		zfs_refcount_destroy_many(&txh->txh_space_towrite,
+		    zfs_refcount_count(&txh->txh_space_towrite));
+		zfs_refcount_destroy_many(&txh->txh_memory_tohold,
+		    zfs_refcount_count(&txh->txh_memory_tohold));
 		kmem_free(txh, sizeof (dmu_tx_hold_t));
 		if (dn != NULL)
 			dnode_rele(dn, tx);
@@ -1135,7 +1137,7 @@ dmu_tx_commit(dmu_tx_t *tx)
 		mutex_enter(&dn->dn_mtx);
 		ASSERT3U(dn->dn_assigned_txg, ==, tx->tx_txg);
 
-		if (refcount_remove(&dn->dn_tx_holds, tx) == 0) {
+		if (zfs_refcount_remove(&dn->dn_tx_holds, tx) == 0) {
 			dn->dn_assigned_txg = 0;
 			cv_broadcast(&dn->dn_notxholds);
 		}
@@ -1250,7 +1252,7 @@ dmu_tx_hold_spill(dmu_tx_t *tx, uint64_t object)
 	txh = dmu_tx_hold_object_impl(tx, tx->tx_objset, object,
 	    THT_SPILL, 0, 0);
 	if (txh != NULL)
-		(void) refcount_add_many(&txh->txh_space_towrite,
+		(void) zfs_refcount_add_many(&txh->txh_space_towrite,
 		    SPA_OLD_MAXBLOCKSIZE, FTAG);
 }
 

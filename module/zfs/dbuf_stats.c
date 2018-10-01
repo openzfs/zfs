@@ -89,7 +89,7 @@ __dbuf_stats_hash_table_data(char *buf, size_t size, dmu_buf_impl_t *db)
 	    (u_longlong_t)db->db.db_size,
 	    !!dbuf_is_metadata(db),
 	    db->db_state,
-	    (ulong_t)refcount_count(&db->db_holds),
+	    (ulong_t)zfs_refcount_count(&db->db_holds),
 	    /* arc_buf_info_t */
 	    abi.abi_state_type,
 	    abi.abi_state_contents,
@@ -113,7 +113,7 @@ __dbuf_stats_hash_table_data(char *buf, size_t size, dmu_buf_impl_t *db)
 	    (ulong_t)doi.doi_metadata_block_size,
 	    (u_longlong_t)doi.doi_bonus_size,
 	    (ulong_t)doi.doi_indirection,
-	    (ulong_t)refcount_count(&dn->dn_holds),
+	    (ulong_t)zfs_refcount_count(&dn->dn_holds),
 	    (u_longlong_t)doi.doi_fill_count,
 	    (u_longlong_t)doi.doi_max_offset);
 

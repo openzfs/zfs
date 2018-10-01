@@ -149,7 +149,7 @@ zfs_znode_hold_cache_constructor(void *buf, void *arg, int kmflags)
 	znode_hold_t *zh = buf;
 
 	mutex_init(&zh->zh_lock, NULL, MUTEX_DEFAULT, NULL);
-	refcount_create(&zh->zh_refcount);
+	zfs_refcount_create(&zh->zh_refcount);
 	zh->zh_obj = ZFS_NO_OBJECT;
 
 	return (0);
@@ -161,7 +161,7 @@ zfs_znode_hold_cache_destructor(void *buf, void *arg)
 	znode_hold_t *zh = buf;
 
 	mutex_destroy(&zh->zh_lock);
-	refcount_destroy(&zh->zh_refcount);
+	zfs_refcount_destroy(&zh->zh_refcount);
 }
 
 void
@@ -279,7 +279,7 @@ zfs_znode_hold_enter(zfsvfs_t *zfsvfs, uint64_t obj)
 		kmem_cache_free(znode_hold_cache, zh_new);
 
 	ASSERT(MUTEX_NOT_HELD(&zh->zh_lock));
-	ASSERT3S(refcount_count(&zh->zh_refcount), >, 0);
+	ASSERT3S(zfs_refcount_count(&zh->zh_refcount), >, 0);
 	mutex_enter(&zh->zh_lock);
 
 	return (zh);
@@ -292,11 +292,11 @@ zfs_znode_hold_exit(zfsvfs_t *zfsvfs, znode_hold_t *zh)
 	boolean_t remove = B_FALSE;
 
 	ASSERT(zfs_znode_held(zfsvfs, zh->zh_obj));
-	ASSERT3S(refcount_count(&zh->zh_refcount), >, 0);
+	ASSERT3S(zfs_refcount_count(&zh->zh_refcount), >, 0);
 	mutex_exit(&zh->zh_lock);
 
 	mutex_enter(&zfsvfs->z_hold_locks[i]);
-	if (refcount_remove(&zh->zh_refcount, NULL) == 0) {
+	if (zfs_refcount_remove(&zh->zh_refcount, NULL) == 0) {
 		avl_remove(&zfsvfs->z_hold_trees[i], zh);
 		remove = B_TRUE;
 	}
