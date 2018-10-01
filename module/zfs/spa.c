@@ -2381,7 +2381,7 @@ spa_load(spa_t *spa, spa_load_state_t state, spa_import_type_t type)
 	 * and are making their way through the eviction process.
 	 */
 	spa_evicting_os_wait(spa);
-	spa->spa_minref = refcount_count(&spa->spa_refcount);
+	spa->spa_minref = zfs_refcount_count(&spa->spa_refcount);
 	if (error) {
 		if (error != EEXIST) {
 			spa->spa_loaded_ts.tv_sec = 0;
@@ -5292,7 +5292,7 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	 * and are making their way through the eviction process.
 	 */
 	spa_evicting_os_wait(spa);
-	spa->spa_minref = refcount_count(&spa->spa_refcount);
+	spa->spa_minref = zfs_refcount_count(&spa->spa_refcount);
 	spa->spa_load_state = SPA_LOAD_NONE;
 
 	mutex_exit(&spa_namespace_lock);
@@ -7901,7 +7901,8 @@ spa_sync(spa_t *spa, uint64_t txg)
 		 * allocations all happen from spa_sync().
 		 */
 		for (int i = 0; i < spa->spa_alloc_count; i++)
-			ASSERT0(refcount_count(&(mg->mg_alloc_queue_depth[i])));
+			ASSERT0(zfs_refcount_count(
+			    &(mg->mg_alloc_queue_depth[i])));
 		mg->mg_max_alloc_queue_depth = max_queue_depth;
 
 		for (int i = 0; i < spa->spa_alloc_count; i++) {
@@ -7912,9 +7913,9 @@ spa_sync(spa_t *spa, uint64_t txg)
 	}
 
 	for (int i = 0; i < spa->spa_alloc_count; i++) {
-		ASSERT0(refcount_count(&normal->mc_alloc_slots[i]));
-		ASSERT0(refcount_count(&special->mc_alloc_slots[i]));
-		ASSERT0(refcount_count(&dedup->mc_alloc_slots[i]));
+		ASSERT0(zfs_refcount_count(&normal->mc_alloc_slots[i]));
+		ASSERT0(zfs_refcount_count(&special->mc_alloc_slots[i]));
+		ASSERT0(zfs_refcount_count(&dedup->mc_alloc_slots[i]));
 		normal->mc_alloc_max_slots[i] = slots_per_allocator;
 		special->mc_alloc_max_slots[i] = slots_per_allocator;
 		dedup->mc_alloc_max_slots[i] = slots_per_allocator;

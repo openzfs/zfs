@@ -955,7 +955,7 @@ dsl_bookmark_destroy(nvlist_t *bmarks, nvlist_t *errors)
 boolean_t
 dsl_redaction_list_long_held(redaction_list_t *rl)
 {
-	return (!refcount_is_zero(&rl->rl_longholds));
+	return (!zfs_refcount_is_zero(&rl->rl_longholds));
 }
 
 void
@@ -968,7 +968,7 @@ dsl_redaction_list_long_hold(dsl_pool_t *dp, redaction_list_t *rl, void *tag)
 void
 dsl_redaction_list_long_rele(redaction_list_t *rl, void *tag)
 {
-	(void) refcount_remove(&rl->rl_longholds, tag);
+	(void) zfs_refcount_remove(&rl->rl_longholds, tag);
 }
 
 /* ARGSUSED */
@@ -976,7 +976,7 @@ static void
 redaction_list_evict_sync(void *rlu)
 {
 	redaction_list_t *rl = rlu;
-	refcount_destroy(&rl->rl_longholds);
+	zfs_refcount_destroy(&rl->rl_longholds);
 
 	kmem_free(rl, sizeof (redaction_list_t));
 }
@@ -1011,7 +1011,7 @@ dsl_redaction_list_hold_obj(dsl_pool_t *dp, uint64_t rlobj, void *tag,
 		rl->rl_object = rlobj;
 		rl->rl_phys = dbuf->db_data;
 		rl->rl_mos = dp->dp_meta_objset;
-		refcount_create(&rl->rl_longholds);
+		zfs_refcount_create(&rl->rl_longholds);
 		dmu_buf_init_user(&rl->rl_dbu, redaction_list_evict_sync, NULL,
 		    &rl->rl_dbuf);
 		if ((winner = dmu_buf_set_user_ie(dbuf, &rl->rl_dbu)) != NULL) {

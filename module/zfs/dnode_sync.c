@@ -443,7 +443,7 @@ dnode_evict_dbufs(dnode_t *dn)
 
 		mutex_enter(&db->db_mtx);
 		if (db->db_state != DB_EVICTING &&
-		    refcount_is_zero(&db->db_holds)) {
+		    zfs_refcount_is_zero(&db->db_holds)) {
 			db_marker->db_level = db->db_level;
 			db_marker->db_blkid = db->db_blkid;
 			db_marker->db_state = DB_SEARCH;
@@ -485,7 +485,7 @@ dnode_evict_bonus(dnode_t *dn)
 {
 	rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
 	if (dn->dn_bonus != NULL) {
-		if (refcount_is_zero(&dn->dn_bonus->db_holds)) {
+		if (zfs_refcount_is_zero(&dn->dn_bonus->db_holds)) {
 			mutex_enter(&dn->dn_bonus->db_mtx);
 			dbuf_destroy(dn->dn_bonus);
 			dn->dn_bonus = NULL;
@@ -551,7 +551,7 @@ dnode_sync_free(dnode_t *dn, dmu_tx_t *tx)
 	 * zfs_obj_to_path() also depends on this being
 	 * commented out.
 	 *
-	 * ASSERT3U(refcount_count(&dn->dn_holds), ==, 1);
+	 * ASSERT3U(zfs_refcount_count(&dn->dn_holds), ==, 1);
 	 */
 
 	/* Undirty next bits */

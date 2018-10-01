@@ -2639,7 +2639,7 @@ zio_write_gang_block(zio_t *pio)
 		ASSERT(!(pio->io_flags & ZIO_FLAG_NODATA));
 
 		flags |= METASLAB_ASYNC_ALLOC;
-		VERIFY(refcount_held(&mc->mc_alloc_slots[pio->io_allocator],
+		VERIFY(zfs_refcount_held(&mc->mc_alloc_slots[pio->io_allocator],
 		    pio));
 
 		/*
@@ -4351,7 +4351,7 @@ zio_done(zio_t *zio)
 
 		metaslab_group_alloc_verify(zio->io_spa, zio->io_bp, zio,
 		    zio->io_allocator);
-		VERIFY(refcount_not_held(
+		VERIFY(zfs_refcount_not_held(
 		    &zio->io_metaslab_class->mc_alloc_slots[zio->io_allocator],
 		    zio));
 	}
