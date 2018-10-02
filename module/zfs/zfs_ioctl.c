@@ -192,6 +192,7 @@
 #include <sys/fm/util.h>
 #include <sys/dsl_crypt.h>
 
+#include <sys/dmu_recv.h>
 #include <sys/dmu_send.h>
 #include <sys/dsl_destroy.h>
 #include <sys/dsl_bookmark.h>

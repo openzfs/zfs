@@ -58,7 +58,7 @@
 #include <sys/zfeature.h>
 #include <sys/policy.h>
 #include <sys/spa_impl.h>
-#include <sys/dmu_send.h>
+#include <sys/dmu_recv.h>
 #include <sys/zfs_project.h>
 #include "zfs_namecheck.h"
 
