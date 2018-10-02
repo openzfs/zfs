@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2014, Joyent, Inc. All rights reserved.
  * Copyright (c) 2014 RackTop Systems.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
@@ -89,6 +89,8 @@ static void dsl_dataset_set_remap_deadlist_object(dsl_dataset_t *ds,
 static void dsl_dataset_unset_remap_deadlist_object(dsl_dataset_t *ds,
     dmu_tx_t *tx);
 
+static void unload_zfeature(dsl_dataset_t *ds, spa_feature_t f);
+
 extern int spa_asize_inflation;
 
 static zil_header_t zero_zil;
@@ -149,13 +151,16 @@ dsl_dataset_block_born(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx)
 	dsl_dataset_phys(ds)->ds_unique_bytes += used;
 
 	if (BP_GET_LSIZE(bp) > SPA_OLD_MAXBLOCKSIZE) {
-		ds->ds_feature_activation_needed[SPA_FEATURE_LARGE_BLOCKS] =
-		    B_TRUE;
+		ds->ds_feature_activation[SPA_FEATURE_LARGE_BLOCKS] =
+		    (void *)B_TRUE;
 	}
 
 	spa_feature_t f = zio_checksum_to_feature(BP_GET_CHECKSUM(bp));
-	if (f != SPA_FEATURE_NONE)
-		ds->ds_feature_activation_needed[f] = B_TRUE;
+	if (f != SPA_FEATURE_NONE) {
+		ASSERT3S(spa_feature_table[f].fi_type, ==,
+		    ZFEATURE_TYPE_BOOLEAN);
+		ds->ds_feature_activation[f] = (void *)B_TRUE;
+	}
 
 	mutex_exit(&ds->ds_lock);
 	dsl_dir_diduse_space(ds->ds_dir, DD_USED_HEAD, delta,
@@ -291,6 +296,72 @@ dsl_dataset_block_kill(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx,
 	return (used);
 }
 
+struct feature_type_uint64_array_arg {
+	uint64_t length;
+	uint64_t *array;
+};
+
+static void
+unload_zfeature(dsl_dataset_t *ds, spa_feature_t f)
+{
+	switch (spa_feature_table[f].fi_type) {
+	case ZFEATURE_TYPE_BOOLEAN:
+		break;
+	case ZFEATURE_TYPE_UINT64_ARRAY:
+	{
+		struct feature_type_uint64_array_arg *ftuaa = ds->ds_feature[f];
+		kmem_free(ftuaa->array, ftuaa->length * sizeof (uint64_t));
+		kmem_free(ftuaa, sizeof (*ftuaa));
+		break;
+	}
+	default:
+		panic("Invalid zfeature type %d", spa_feature_table[f].fi_type);
+	}
+}
+
+static int
+load_zfeature(objset_t *mos, dsl_dataset_t *ds, spa_feature_t f)
+{
+	int err = 0;
+	switch (spa_feature_table[f].fi_type) {
+	case ZFEATURE_TYPE_BOOLEAN:
+		err = zap_contains(mos, ds->ds_object,
+		    spa_feature_table[f].fi_guid);
+		if (err == 0) {
+			ds->ds_feature[f] = (void *)B_TRUE;
+		} else {
+			ASSERT3U(err, ==, ENOENT);
+			err = 0;
+		}
+		break;
+	case ZFEATURE_TYPE_UINT64_ARRAY:
+	{
+		uint64_t int_size, num_int;
+		uint64_t *data;
+		err = zap_length(mos, ds->ds_object,
+		    spa_feature_table[f].fi_guid, &int_size, &num_int);
+		if (err != 0) {
+			ASSERT3U(err, ==, ENOENT);
+			err = 0;
+			break;
+		}
+		ASSERT3U(int_size, ==, sizeof (uint64_t));
+		data = kmem_alloc(int_size * num_int, KM_SLEEP);
+		VERIFY0(zap_lookup(mos, ds->ds_object,
+		    spa_feature_table[f].fi_guid, int_size, num_int, data));
+		struct feature_type_uint64_array_arg *ftuaa =
+		    kmem_alloc(sizeof (*ftuaa), KM_SLEEP);
+		ftuaa->length = num_int;
+		ftuaa->array = data;
+		ds->ds_feature[f] = ftuaa;
+		break;
+	}
+	default:
+		panic("Invalid zfeature type %d", spa_feature_table[f].fi_type);
+	}
+	return (err);
+}
+
 /*
  * We have to release the fsid syncronously or we risk that a subsequent
  * mount of the same dataset will fail to unique_insert the fsid.  This
@@ -333,6 +404,11 @@ dsl_dataset_evict_async(void *dbu)
 		dsl_dir_async_rele(ds->ds_dir, ds);
 
 	ASSERT(!list_link_active(&ds->ds_synced_link));
+
+	for (spa_feature_t f = 0; f < SPA_FEATURES; f++) {
+		if (dsl_dataset_feature_is_active(ds, f))
+			unload_zfeature(ds, f);
+	}
 
 	list_destroy(&ds->ds_prop_cbs);
 	mutex_destroy(&ds->ds_lock);
@@ -501,14 +577,7 @@ dsl_dataset_hold_obj(dsl_pool_t *dp, uint64_t dsobj, void *tag,
 				if (!(spa_feature_table[f].fi_flags &
 				    ZFEATURE_FLAG_PER_DATASET))
 					continue;
-				err = zap_contains(mos, dsobj,
-				    spa_feature_table[f].fi_guid);
-				if (err == 0) {
-					ds->ds_feature_inuse[f] = B_TRUE;
-				} else {
-					ASSERT3U(err, ==, ENOENT);
-					err = 0;
-				}
+				err = load_zfeature(mos, ds, f);
 			}
 		}
 
@@ -872,8 +941,55 @@ dsl_dataset_has_owner(dsl_dataset_t *ds)
 	return (rv);
 }
 
+static boolean_t
+zfeature_active(spa_feature_t f, void *arg)
+{
+	switch (spa_feature_table[f].fi_type) {
+	case ZFEATURE_TYPE_BOOLEAN: {
+		boolean_t val = (boolean_t)arg;
+		ASSERT(val == B_FALSE || val == B_TRUE);
+		return (val);
+	}
+	case ZFEATURE_TYPE_UINT64_ARRAY:
+		/*
+		 * In this case, arg is a uint64_t array.  The feature is active
+		 * if the array is non-null.
+		 */
+		return (arg != NULL);
+	default:
+		panic("Invalid zfeature type %d", spa_feature_table[f].fi_type);
+		return (B_FALSE);
+	}
+}
+
+boolean_t
+dsl_dataset_feature_is_active(dsl_dataset_t *ds, spa_feature_t f)
+{
+	return (zfeature_active(f, ds->ds_feature[f]));
+}
+
+/*
+ * The buffers passed out by this function are references to internal buffers;
+ * they should not be freed by callers of this function, and they should not be
+ * used after the dataset has been released.
+ */
+boolean_t
+dsl_dataset_get_uint64_array_feature(dsl_dataset_t *ds, spa_feature_t f,
+    uint64_t *outlength, uint64_t **outp)
+{
+	VERIFY(spa_feature_table[f].fi_type & ZFEATURE_TYPE_UINT64_ARRAY);
+	if (!dsl_dataset_feature_is_active(ds, f)) {
+		return (B_FALSE);
+	}
+	struct feature_type_uint64_array_arg *ftuaa = ds->ds_feature[f];
+	*outp = ftuaa->array;
+	*outlength = ftuaa->length;
+	return (B_TRUE);
+}
+
 void
-dsl_dataset_activate_feature(uint64_t dsobj, spa_feature_t f, dmu_tx_t *tx)
+dsl_dataset_activate_feature(uint64_t dsobj, spa_feature_t f, void *arg,
+    dmu_tx_t *tx)
 {
 	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
 	objset_t *mos = dmu_tx_pool(tx)->dp_meta_objset;
@@ -884,20 +1000,44 @@ dsl_dataset_activate_feature(uint64_t dsobj, spa_feature_t f, dmu_tx_t *tx)
 	spa_feature_incr(spa, f, tx);
 	dmu_object_zapify(mos, dsobj, DMU_OT_DSL_DATASET, tx);
 
-	VERIFY0(zap_add(mos, dsobj, spa_feature_table[f].fi_guid,
-	    sizeof (zero), 1, &zero, tx));
+	switch (spa_feature_table[f].fi_type) {
+	case ZFEATURE_TYPE_BOOLEAN:
+		ASSERT3S((boolean_t)arg, ==, B_TRUE);
+		VERIFY0(zap_add(mos, dsobj, spa_feature_table[f].fi_guid,
+		    sizeof (zero), 1, &zero, tx));
+		break;
+	case ZFEATURE_TYPE_UINT64_ARRAY:
+	{
+		struct feature_type_uint64_array_arg *ftuaa = arg;
+		VERIFY0(zap_add(mos, dsobj, spa_feature_table[f].fi_guid,
+		    sizeof (uint64_t), ftuaa->length, ftuaa->array, tx));
+		break;
+	}
+	default:
+		panic("Invalid zfeature type %d", spa_feature_table[f].fi_type);
+	}
 }
 
 void
-dsl_dataset_deactivate_feature(uint64_t dsobj, spa_feature_t f, dmu_tx_t *tx)
+dsl_dataset_deactivate_feature_impl(dsl_dataset_t *ds, spa_feature_t f,
+    dmu_tx_t *tx)
 {
 	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
 	objset_t *mos = dmu_tx_pool(tx)->dp_meta_objset;
+	uint64_t dsobj = ds->ds_object;
 
 	VERIFY(spa_feature_table[f].fi_flags & ZFEATURE_FLAG_PER_DATASET);
 
 	VERIFY0(zap_remove(mos, dsobj, spa_feature_table[f].fi_guid, tx));
 	spa_feature_decr(spa, f, tx);
+	ds->ds_feature[f] = NULL;
+}
+
+void
+dsl_dataset_deactivate_feature(dsl_dataset_t *ds, spa_feature_t f, dmu_tx_t *tx)
+{
+	unload_zfeature(ds, f);
+	dsl_dataset_deactivate_feature_impl(ds, f, tx);
 }
 
 uint64_t
@@ -961,8 +1101,10 @@ dsl_dataset_create_sync_dd(dsl_dir_t *dd, dsl_dataset_t *origin,
 		    (DS_FLAG_INCONSISTENT | DS_FLAG_CI_DATASET);
 
 		for (spa_feature_t f = 0; f < SPA_FEATURES; f++) {
-			if (origin->ds_feature_inuse[f])
-				dsl_dataset_activate_feature(dsobj, f, tx);
+			if (zfeature_active(f, origin->ds_feature[f])) {
+				dsl_dataset_activate_feature(dsobj, f,
+				    origin->ds_feature[f], tx);
+			}
 		}
 
 		dmu_buf_will_dirty(origin->ds_dbuf, tx);
@@ -1492,8 +1634,10 @@ dsl_dataset_snapshot_sync_impl(dsl_dataset_t *ds, const char *snapname,
 	dmu_buf_rele(dbuf, FTAG);
 
 	for (spa_feature_t f = 0; f < SPA_FEATURES; f++) {
-		if (ds->ds_feature_inuse[f])
-			dsl_dataset_activate_feature(dsobj, f, tx);
+		if (zfeature_active(f, ds->ds_feature[f])) {
+			dsl_dataset_activate_feature(dsobj, f,
+			    ds->ds_feature[f], tx);
+		}
 	}
 
 	ASSERT3U(ds->ds_prev != 0, ==,
@@ -1808,11 +1952,12 @@ dsl_dataset_sync(dsl_dataset_t *ds, zio_t *zio, dmu_tx_t *tx)
 	dmu_objset_sync(ds->ds_objset, zio, tx);
 
 	for (spa_feature_t f = 0; f < SPA_FEATURES; f++) {
-		if (ds->ds_feature_activation_needed[f]) {
-			if (ds->ds_feature_inuse[f])
+		if (zfeature_active(f, ds->ds_feature_activation[f])) {
+			if (zfeature_active(f, ds->ds_feature[f]))
 				continue;
-			dsl_dataset_activate_feature(ds->ds_object, f, tx);
-			ds->ds_feature_inuse[f] = B_TRUE;
+			dsl_dataset_activate_feature(ds->ds_object, f,
+			    ds->ds_feature_activation[f], tx);
+			ds->ds_feature[f] = ds->ds_feature_activation[f];
 		}
 	}
 }
@@ -3530,31 +3675,31 @@ dsl_dataset_clone_swap_sync_impl(dsl_dataset_t *clone,
 	for (spa_feature_t f = 0; f < SPA_FEATURES; f++) {
 		if (!(spa_feature_table[f].fi_flags &
 		    ZFEATURE_FLAG_PER_DATASET)) {
-			ASSERT(!clone->ds_feature_inuse[f]);
-			ASSERT(!origin_head->ds_feature_inuse[f]);
+			ASSERT(!dsl_dataset_feature_is_active(clone, f));
+			ASSERT(!dsl_dataset_feature_is_active(origin_head, f));
 			continue;
 		}
 
-		boolean_t clone_inuse = clone->ds_feature_inuse[f];
-		boolean_t origin_head_inuse = origin_head->ds_feature_inuse[f];
+		boolean_t clone_inuse = dsl_dataset_feature_is_active(clone, f);
+		void *clone_feature = clone->ds_feature[f];
+		boolean_t origin_head_inuse =
+		    dsl_dataset_feature_is_active(origin_head, f);
+		void *origin_head_feature = origin_head->ds_feature[f];
+
+		if (clone_inuse)
+			dsl_dataset_deactivate_feature_impl(clone, f, tx);
+		if (origin_head_inuse)
+			dsl_dataset_deactivate_feature_impl(origin_head, f, tx);
 
 		if (clone_inuse) {
-			dsl_dataset_deactivate_feature(clone->ds_object, f, tx);
-			clone->ds_feature_inuse[f] = B_FALSE;
+			dsl_dataset_activate_feature(origin_head->ds_object, f,
+			    clone_feature, tx);
+			origin_head->ds_feature[f] = clone_feature;
 		}
 		if (origin_head_inuse) {
-			dsl_dataset_deactivate_feature(origin_head->ds_object,
-			    f, tx);
-			origin_head->ds_feature_inuse[f] = B_FALSE;
-		}
-		if (clone_inuse) {
-			dsl_dataset_activate_feature(origin_head->ds_object,
-			    f, tx);
-			origin_head->ds_feature_inuse[f] = B_TRUE;
-		}
-		if (origin_head_inuse) {
-			dsl_dataset_activate_feature(clone->ds_object, f, tx);
-			clone->ds_feature_inuse[f] = B_TRUE;
+			dsl_dataset_activate_feature(clone->ds_object, f,
+			    origin_head_feature, tx);
+			clone->ds_feature[f] = origin_head_feature;
 		}
 	}
 

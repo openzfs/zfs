@@ -15,6 +15,7 @@
 
 /*
  * Copyright (c) 2017, Datto, Inc. All rights reserved.
+ * Copyright (c) 2018 by Delphix. All rights reserved.
  */
 
 #include <sys/dsl_crypt.h>
@@ -1938,7 +1939,8 @@ dsl_dataset_create_crypt_sync(uint64_t dsobj, dsl_dir_t *dd,
 	VERIFY0(zap_add(dp->dp_meta_objset, dd->dd_object,
 	    DD_FIELD_CRYPTO_KEY_OBJ, sizeof (uint64_t), 1, &dd->dd_crypto_obj,
 	    tx));
-	dsl_dataset_activate_feature(dsobj, SPA_FEATURE_ENCRYPTION, tx);
+	dsl_dataset_activate_feature(dsobj, SPA_FEATURE_ENCRYPTION,
+	    (void *)B_TRUE, tx);
 
 	/*
 	 * If we inherited the wrapping key we release our reference now.
@@ -2249,8 +2251,8 @@ dsl_crypto_recv_raw_key_sync(dsl_dataset_t *ds, nvlist_t *nvl, dmu_tx_t *tx)
 		    sizeof (uint64_t), 1, &version, tx));
 
 		dsl_dataset_activate_feature(ds->ds_object,
-		    SPA_FEATURE_ENCRYPTION, tx);
-		ds->ds_feature_inuse[SPA_FEATURE_ENCRYPTION] = B_TRUE;
+		    SPA_FEATURE_ENCRYPTION, (void *)B_TRUE, tx);
+		ds->ds_feature[SPA_FEATURE_ENCRYPTION] = (void *)B_TRUE;
 
 		/* save the dd_crypto_obj on disk */
 		VERIFY0(zap_add(mos, dd->dd_object, DD_FIELD_CRYPTO_KEY_OBJ,
