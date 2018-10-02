@@ -28,14 +28,13 @@
 
 BASE_DIR=$(dirname "$0")
 
-#file=${BASE_DIR}/../include/spl/sys/zfs_gitrev.h
 file=${BASE_DIR}/../include/zfs_gitrev.h
 
 #
 # Set default file contents in case we bail.
 #
-rm -f $file
-/bin/echo -e "#define\tZFS_META_GITREV \"unknown\"" >>$file
+rm -f "$file"
+/bin/echo -e "#define\tZFS_META_GITREV \"unknown\"" >>"$file"
 
 #
 # Check if git is installed and we are in a git repo.
@@ -49,5 +48,5 @@ git diff-index --quiet HEAD || exit
 
 rev=$(git describe 2>/dev/null) || exit
 
-rm -f $file
-/bin/echo -e "#define\tZFS_META_GITREV \"${rev}\"" >>$file
+rm -f "$file"
+/bin/echo -e "#define\tZFS_META_GITREV \"${rev}\"" >>"$file"
