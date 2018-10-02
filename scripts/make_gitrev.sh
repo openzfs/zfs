@@ -28,7 +28,8 @@
 
 BASE_DIR=$(dirname "$0")
 
-file=${BASE_DIR}/../include/spl/sys/zfs_gitrev.h
+#file=${BASE_DIR}/../include/spl/sys/zfs_gitrev.h
+file=${BASE_DIR}/../include/zfs_gitrev.h
 
 #
 # Set default file contents in case we bail.

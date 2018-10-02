@@ -46,7 +46,7 @@ distclean-local::
 all-local:
 	-${top_srcdir}/scripts/zfs-tests.sh -c
 
-dist-hook:
+dist-hook: gitrev
 	sed -i 's/Release:[[:print:]]*/Release:      $(RELEASE)/' \
 		$(distdir)/META
 

@@ -45,7 +45,7 @@
 #include <sys/random.h>
 #include <sys/strings.h>
 #include <linux/kmod.h>
-#include <sys/zfs_gitrev.h>
+#include "zfs_gitrev.h"
 
 char spl_gitrev[64] = ZFS_META_GITREV;
 
