@@ -642,7 +642,7 @@ function destroy_snapshot
 	typeset snap=${1:-$TESTPOOL/$TESTFS@$TESTSNAP}
 
 	if ! snapexists $snap; then
-		log_fail "'$snap' does not existed."
+		log_fail "'$snap' does not exist."
 	fi
 
 	#
