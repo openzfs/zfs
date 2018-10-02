@@ -1,13 +1,34 @@
 #!/bin/sh
 
 #
+# CDDL HEADER START
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright (c) 2018 by Delphix. All rights reserved.
+#
+
+#
 # Generate zfs_gitrev.h.  Note that we need to do this for every
 # invocation of `make`, including for incremental builds.  Therefore we
 # can't use a zfs_gitrev.h.in file which would be processed only when
 # `configure` is run.
 #
 
-file=include/spl/sys/zfs_gitrev.h
+BASE_DIR=$(dirname "$0")
+
+file=${BASE_DIR}/../include/spl/sys/zfs_gitrev.h
 
 #
 # Set default file contents in case we bail.
