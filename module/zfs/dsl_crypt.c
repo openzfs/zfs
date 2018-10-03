@@ -897,6 +897,20 @@ spa_keystore_unload_wkey(const char *dsname)
 	int ret = 0;
 	dsl_dir_t *dd = NULL;
 	dsl_pool_t *dp = NULL;
+	spa_t *spa = NULL;
+
+	ret = spa_open(dsname, &spa, FTAG);
+	if (ret != 0)
+		return (ret);
+
+	/*
+	 * Wait for any outstanding txg IO to complete, releasing any
+	 * remaining references on the wkey.
+	 */
+	if (spa_mode(spa) != FREAD)
+		txg_wait_synced(spa->spa_dsl_pool, 0);
+
+	spa_close(spa, FTAG);
 
 	/* hold the dsl dir */
 	ret = dsl_pool_hold(dsname, FTAG, &dp);
@@ -936,9 +950,56 @@ error:
 	return (ret);
 }
 
+void
+key_mapping_add_ref(dsl_key_mapping_t *km, void *tag)
+{
+	ASSERT3U(zfs_refcount_count(&km->km_refcnt), >=, 1);
+	zfs_refcount_add(&km->km_refcnt, tag);
+}
+
+/*
+ * The locking here is a little tricky to ensure we don't cause unnecessary
+ * performance problems. We want to release a key mapping whenever someone
+ * decrements the refcount to 0, but freeing the mapping requires removing
+ * it from the spa_keystore, which requires holding sk_km_lock as a writer.
+ * Most of the time we don't want to hold this lock as a writer, since the
+ * same lock is held as a reader for each IO that needs to encrypt / decrypt
+ * data for any dataset and in practice we will only actually free the
+ * mapping after unmounting a dataset.
+ */
+void
+key_mapping_rele(spa_t *spa, dsl_key_mapping_t *km, void *tag)
+{
+	ASSERT3U(zfs_refcount_count(&km->km_refcnt), >=, 1);
+
+	if (zfs_refcount_remove(&km->km_refcnt, tag) != 0)
+		return;
+
+	/*
+	 * We think we are going to need to free the mapping. Add a
+	 * reference to prevent most other releasers from thinking
+	 * this might be their responsibility. This is inherently
+	 * racy, so we will confirm that we are legitimately the
+	 * last holder once we have the sk_km_lock as a writer.
+	 */
+	zfs_refcount_add(&km->km_refcnt, FTAG);
+
+	rw_enter(&spa->spa_keystore.sk_km_lock, RW_WRITER);
+	if (zfs_refcount_remove(&km->km_refcnt, FTAG) != 0) {
+		rw_exit(&spa->spa_keystore.sk_km_lock);
+		return;
+	}
+
+	avl_remove(&spa->spa_keystore.sk_key_mappings, km);
+	rw_exit(&spa->spa_keystore.sk_km_lock);
+
+	spa_keystore_dsl_key_rele(spa, km->km_key, km);
+	kmem_free(km, sizeof (dsl_key_mapping_t));
+}
+
 int
-spa_keystore_create_mapping_impl(spa_t *spa, uint64_t dsobj,
-    dsl_dir_t *dd, void *tag)
+spa_keystore_create_mapping(spa_t *spa, dsl_dataset_t *ds, void *tag,
+    dsl_key_mapping_t **km_out)
 {
 	int ret;
 	avl_index_t where;
@@ -949,14 +1010,17 @@ spa_keystore_create_mapping_impl(spa_t *spa, uint64_t dsobj,
 	km = kmem_zalloc(sizeof (dsl_key_mapping_t), KM_SLEEP);
 	zfs_refcount_create(&km->km_refcnt);
 
-	ret = spa_keystore_dsl_key_hold_dd(spa, dd, km, &km->km_key);
+	ret = spa_keystore_dsl_key_hold_dd(spa, ds->ds_dir, km, &km->km_key);
 	if (ret != 0) {
 		zfs_refcount_destroy(&km->km_refcnt);
 		kmem_free(km, sizeof (dsl_key_mapping_t));
+
+		if (km_out != NULL)
+			*km_out = NULL;
 		return (ret);
 	}
 
-	km->km_dsobj = dsobj;
+	km->km_dsobj = ds->ds_object;
 
 	rw_enter(&spa->spa_keystore.sk_km_lock, RW_WRITER);
 
@@ -972,9 +1036,13 @@ spa_keystore_create_mapping_impl(spa_t *spa, uint64_t dsobj,
 	if (found_km != NULL) {
 		should_free = B_TRUE;
 		zfs_refcount_add(&found_km->km_refcnt, tag);
+		if (km_out != NULL)
+			*km_out = found_km;
 	} else {
 		zfs_refcount_add(&km->km_refcnt, tag);
 		avl_insert(&spa->spa_keystore.sk_key_mappings, km, where);
+		if (km_out != NULL)
+			*km_out = km;
 	}
 
 	rw_exit(&spa->spa_keystore.sk_km_lock);
@@ -989,24 +1057,16 @@ spa_keystore_create_mapping_impl(spa_t *spa, uint64_t dsobj,
 }
 
 int
-spa_keystore_create_mapping(spa_t *spa, dsl_dataset_t *ds, void *tag)
-{
-	return (spa_keystore_create_mapping_impl(spa, ds->ds_object,
-	    ds->ds_dir, tag));
-}
-
-int
 spa_keystore_remove_mapping(spa_t *spa, uint64_t dsobj, void *tag)
 {
 	int ret;
 	dsl_key_mapping_t search_km;
 	dsl_key_mapping_t *found_km;
-	boolean_t should_free = B_FALSE;
 
 	/* init the search key mapping */
 	search_km.km_dsobj = dsobj;
 
-	rw_enter(&spa->spa_keystore.sk_km_lock, RW_WRITER);
+	rw_enter(&spa->spa_keystore.sk_km_lock, RW_READER);
 
 	/* find the matching mapping */
 	found_km = avl_find(&spa->spa_keystore.sk_key_mappings,
@@ -1016,23 +1076,9 @@ spa_keystore_remove_mapping(spa_t *spa, uint64_t dsobj, void *tag)
 		goto error_unlock;
 	}
 
-	/*
-	 * Decrement the refcount on the mapping and remove it from the tree if
-	 * it is zero. Try to minimize time spent in this lock by deferring
-	 * cleanup work.
-	 */
-	if (zfs_refcount_remove(&found_km->km_refcnt, tag) == 0) {
-		should_free = B_TRUE;
-		avl_remove(&spa->spa_keystore.sk_key_mappings, found_km);
-	}
-
 	rw_exit(&spa->spa_keystore.sk_km_lock);
 
-	/* destroy the key mapping */
-	if (should_free) {
-		spa_keystore_dsl_key_rele(spa, found_km->km_key, found_km);
-		kmem_free(found_km, sizeof (dsl_key_mapping_t));
-	}
+	key_mapping_rele(spa, found_km, tag);
 
 	return (0);
 

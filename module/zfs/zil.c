@@ -3236,8 +3236,8 @@ zil_suspend(const char *osname, void **cookiep)
 	 * grabbing a reference to it. If the key isn't loaded we have no
 	 * choice but to return an error until the wrapping key is loaded.
 	 */
-	if (os->os_encrypted && spa_keystore_create_mapping(os->os_spa,
-	    dmu_objset_ds(os), FTAG) != 0) {
+	if (os->os_encrypted &&
+	    dsl_dataset_create_key_mapping(dmu_objset_ds(os)) != 0) {
 		zilog->zl_suspend--;
 		mutex_exit(&zilog->zl_lock);
 		dsl_dataset_long_rele(dmu_objset_ds(os), suspend_tag);
@@ -3259,9 +3259,10 @@ zil_suspend(const char *osname, void **cookiep)
 	zil_commit_impl(zilog, 0);
 
 	/*
-	 * Now that we've ensured all lwb's are LWB_STATE_DONE, we use
-	 * txg_wait_synced() to ensure the data from the zilog has
-	 * migrated to the main pool before calling zil_destroy().
+	 * Now that we've ensured all lwb's are LWB_STATE_DONE,
+	 * txg_wait_synced() will be called from within zil_destroy(),
+	 * which will ensure the data from the zilog has migrated to the
+	 * main pool before it returns.
 	 */
 	txg_wait_synced(zilog->zl_dmu_pool, 0);
 
@@ -3272,19 +3273,8 @@ zil_suspend(const char *osname, void **cookiep)
 	cv_broadcast(&zilog->zl_cv_suspend);
 	mutex_exit(&zilog->zl_lock);
 
-	if (os->os_encrypted) {
-		/*
-		 * Encrypted datasets need to wait for all data to be
-		 * synced out before removing the mapping.
-		 *
-		 * XXX: Depending on the number of datasets with
-		 * outstanding ZIL data on a given log device, this
-		 * might cause spa_offline_log() to take a long time.
-		 */
-		txg_wait_synced(zilog->zl_dmu_pool, zilog->zl_destroy_txg);
-		VERIFY0(spa_keystore_remove_mapping(os->os_spa,
-		    dmu_objset_id(os), FTAG));
-	}
+	if (os->os_encrypted)
+		dsl_dataset_remove_key_mapping(dmu_objset_ds(os));
 
 	if (cookiep == NULL)
 		zil_resume(os);

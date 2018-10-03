@@ -111,7 +111,7 @@ typedef struct dsl_crypto_key {
 	/* link on spa_keystore_t:sk_dsl_keys */
 	avl_node_t dck_avl_link;
 
-	/* refcount of dsl_key_mapping_t's holding this key */
+	/* refcount of holders of this key */
 	zfs_refcount_t dck_holds;
 
 	/* master key used to derive encryption keys */
@@ -181,10 +181,11 @@ int spa_keystore_load_wkey(const char *dsname, dsl_crypto_params_t *dcp,
 int spa_keystore_unload_wkey_impl(spa_t *spa, uint64_t ddobj);
 int spa_keystore_unload_wkey(const char *dsname);
 
-int spa_keystore_create_mapping_impl(spa_t *spa, uint64_t dsobj, dsl_dir_t *dd,
-    void *tag);
-int spa_keystore_create_mapping(spa_t *spa, struct dsl_dataset *ds, void *tag);
+int spa_keystore_create_mapping(spa_t *spa, struct dsl_dataset *ds, void *tag,
+    dsl_key_mapping_t **km_out);
 int spa_keystore_remove_mapping(spa_t *spa, uint64_t dsobj, void *tag);
+void key_mapping_add_ref(dsl_key_mapping_t *km, void *tag);
+void key_mapping_rele(spa_t *spa, dsl_key_mapping_t *km, void *tag);
 int spa_keystore_lookup_key(spa_t *spa, uint64_t dsobj, void *tag,
     dsl_crypto_key_t **dck_out);
 
