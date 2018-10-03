@@ -62,6 +62,7 @@ SUBDIRS = \
 	rsend \
 	scrub_mirror \
 	slog \
+	slop_space \
 	snapshot \
 	snapused \
 	sparse \

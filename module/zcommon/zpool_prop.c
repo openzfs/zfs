@@ -108,6 +108,9 @@ zpool_prop_init(void)
 	    PROP_DEFAULT, ZFS_TYPE_POOL, "<threshold (min 100)>", "DEDUPDITTO");
 	zprop_register_number(ZPOOL_PROP_ASHIFT, "ashift", 0, PROP_DEFAULT,
 	    ZFS_TYPE_POOL, "<ashift, 9-16, or 0=default>", "ASHIFT");
+	zprop_register_number(ZPOOL_PROP_SLOP_SPACE, "slopspace", 0,
+	    PROP_DEFAULT, ZFS_TYPE_POOL, "<size, 0=default>",
+	    "SLOPSPACE");
 
 	/* default index (boolean) properties */
 	zprop_register_index(ZPOOL_PROP_DELEGATION, "delegation", 1,

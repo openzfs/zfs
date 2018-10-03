@@ -837,6 +837,14 @@ See
 .Xr spl-module-parameters 5
 for additional details.  The default value is
 .Sy off .
+.It Sy slopspace Ns = Ns Ar size
+When set this property overrides the reserved space that is normally determined
+using the system-wide kernel mode tunable
+.Sy spa_slop_shift .
+This allows users to specify different per-pool settings on systems sharing very
+large pools with smaller ones (e.g boot pool).
+The default value is
+.Sy 0 .
 .It Sy version Ns = Ns Ar version
 The current on-disk version of the pool.
 This can be increased, but never decreased.

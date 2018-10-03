@@ -138,6 +138,12 @@ _NOTE(CONSTCOND) } while (0)
 #define	ASHIFT_MAX		16
 
 /*
+ * SPA slop shift
+ */
+#define	SLOP_SHIFT_MIN		1
+#define	SLOP_SHIFT_MAX		31
+
+/*
  * Size of block to hold the configuration data (a packed nvlist)
  */
 #define	SPA_CONFIG_BLOCKSIZE	(1ULL << 14)

@@ -1702,7 +1702,12 @@ uint64_t
 spa_get_slop_space(spa_t *spa)
 {
 	uint64_t space = spa_get_dspace(spa);
-	return (MAX(space >> spa_slop_shift, MIN(space >> 1, spa_min_slop)));
+	uint64_t slop_space = space >> spa_slop_shift;
+
+	if (spa->spa_slop_space != 0)
+		slop_space = spa->spa_slop_space;
+
+	return (MAX(slop_space, MIN(space >> 1, spa_min_slop)));
 }
 
 uint64_t
@@ -2511,7 +2516,7 @@ param_set_slop_shift(const char *buf, zfs_kernel_param_t *kp)
 	if (error)
 		return (SET_ERROR(error));
 
-	if (val < 1 || val > 31)
+	if (val < SLOP_SHIFT_MIN || val > SLOP_SHIFT_MAX)
 		return (SET_ERROR(-EINVAL));
 
 	error = param_set_int(buf, kp);

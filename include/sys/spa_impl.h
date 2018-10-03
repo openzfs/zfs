@@ -237,6 +237,7 @@ struct spa {
 	vdev_t		*spa_root_vdev;		/* top-level vdev container */
 	int		spa_min_ashift;		/* of vdevs in normal class */
 	int		spa_max_ashift;		/* of vdevs in normal class */
+	uint64_t	spa_slop_space;		/* reserved free space */
 	uint64_t	spa_config_guid;	/* config pool guid */
 	uint64_t	spa_load_guid;		/* spa_load initialized guid */
 	uint64_t	spa_last_synced_guid;	/* last synced guid */

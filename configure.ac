@@ -191,6 +191,7 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/Makefile
 	tests/zfs-tests/tests/functional/acl/Makefile
 	tests/zfs-tests/tests/functional/acl/posix/Makefile
+	tests/zfs-tests/tests/functional/alloc_class/Makefile
 	tests/zfs-tests/tests/functional/arc/Makefile
 	tests/zfs-tests/tests/functional/atime/Makefile
 	tests/zfs-tests/tests/functional/bootfs/Makefile
@@ -318,10 +319,10 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/rsend/Makefile
 	tests/zfs-tests/tests/functional/scrub_mirror/Makefile
 	tests/zfs-tests/tests/functional/slog/Makefile
+	tests/zfs-tests/tests/functional/slop_space/Makefile
 	tests/zfs-tests/tests/functional/snapshot/Makefile
 	tests/zfs-tests/tests/functional/snapused/Makefile
 	tests/zfs-tests/tests/functional/sparse/Makefile
-	tests/zfs-tests/tests/functional/alloc_class/Makefile
 	tests/zfs-tests/tests/functional/threadsappend/Makefile
 	tests/zfs-tests/tests/functional/tmpfile/Makefile
 	tests/zfs-tests/tests/functional/truncate/Makefile

@@ -789,6 +789,10 @@ tests = ['slog_001_pos', 'slog_002_pos', 'slog_003_pos', 'slog_004_pos',
     'slog_replay_volume']
 tags = ['functional', 'slog']
 
+[tests/functional/slop_space]
+tests = ['slop_space_perpool', 'slop_space_property', 'slop_space_tunable']
+tags = ['functional', 'slop_space']
+
 [tests/functional/snapshot]
 tests = ['clone_001_pos', 'rollback_001_pos', 'rollback_002_pos',
     'rollback_003_pos', 'snapshot_001_pos', 'snapshot_002_pos',

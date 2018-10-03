@@ -699,6 +699,12 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 				error = SET_ERROR(EINVAL);
 			break;
 
+		case ZPOOL_PROP_SLOP_SPACE:
+			error = nvpair_value_uint64(elem, &intval);
+			if (error == 0 && intval > spa_get_dspace(spa))
+				error = SET_ERROR(ENOSPC);
+			break;
+
 		default:
 			break;
 		}
@@ -7532,6 +7538,9 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 				break;
 			case ZPOOL_PROP_DEDUPDITTO:
 				spa->spa_dedup_ditto = intval;
+				break;
+			case ZPOOL_PROP_SLOP_SPACE:
+				spa->spa_slop_space = intval;
 				break;
 			default:
 				break;

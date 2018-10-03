@@ -343,6 +343,7 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf,
 		case ZPOOL_PROP_FREEING:
 		case ZPOOL_PROP_LEAKED:
 		case ZPOOL_PROP_ASHIFT:
+		case ZPOOL_PROP_SLOP_SPACE:
 			if (literal)
 				(void) snprintf(buf, len, "%llu",
 				    (u_longlong_t)intval);
@@ -732,6 +733,8 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 				goto error;
 			}
 			break;
+		case ZPOOL_PROP_SLOP_SPACE:
+			break; /* no default error, libzfs will use errno */
 
 		default:
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
