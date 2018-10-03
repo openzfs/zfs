@@ -113,7 +113,7 @@ parse_options(int argc, char *argv[])
 	if (bsize <= 0 || count <= 0 || stride <= 0 || ifile == NULL ||
 	    ofile == NULL || seek < 0) {
 		(void) fprintf(stderr,
-			"Required parameter(s) missing or invalid.\n");
+		    "Required parameter(s) missing or invalid.\n");
 		(void) usage();
 	}
 }
@@ -143,14 +143,14 @@ main(int argc, char *argv[])
 		exit(2);
 	}
 
-	/* 
+	/*
 	 * We use valloc because some character block devices expect a
 	 * page-aligned buffer.
 	 */
 	buf = valloc(bsize);
 	if (buf == NULL) {
 		(void) fprintf(stderr,
-			"%s: %s\n", execname, "not enough memory");
+		    "%s: %s\n", execname, "not enough memory");
 		exit(2);
 	}
 
@@ -210,5 +210,3 @@ main(int argc, char *argv[])
 
 	return (0);
 }
-
-
