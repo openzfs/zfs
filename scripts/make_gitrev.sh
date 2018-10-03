@@ -34,6 +34,7 @@ file=${BASE_DIR}/../include/zfs_gitrev.h
 # Set default file contents in case we bail.
 #
 rm -f "$file"
+# shellcheck disable=SC2039
 /bin/echo -e "#define\tZFS_META_GITREV \"unknown\"" >>"$file"
 
 #
@@ -49,4 +50,5 @@ git diff-index --quiet HEAD || exit
 rev=$(git describe 2>/dev/null) || exit
 
 rm -f "$file"
+# shellcheck disable=SC2039
 /bin/echo -e "#define\tZFS_META_GITREV \"${rev}\"" >>"$file"
