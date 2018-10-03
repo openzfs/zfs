@@ -1157,6 +1157,7 @@ dmu_objset_create_sync(void *arg, dmu_tx_t *tx)
 {
 	dmu_objset_create_arg_t *doca = arg;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
+	spa_t *spa = dp->dp_spa;
 	dsl_dir_t *pdd;
 	const char *tail;
 	dsl_dataset_t *ds;
@@ -1174,8 +1175,7 @@ dmu_objset_create_sync(void *arg, dmu_tx_t *tx)
 	    DS_HOLD_FLAG_DECRYPT, FTAG, &ds));
 	rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
 	bp = dsl_dataset_get_blkptr(ds);
-	os = dmu_objset_create_impl(pdd->dd_pool->dp_spa,
-	    ds, bp, doca->doca_type, tx);
+	os = dmu_objset_create_impl(spa, ds, bp, doca->doca_type, tx);
 	rrw_exit(&ds->ds_bp_rwlock, FTAG);
 
 	if (doca->doca_userfunc != NULL) {
@@ -1199,7 +1199,7 @@ dmu_objset_create_sync(void *arg, dmu_tx_t *tx)
 		ds->ds_owner = FTAG;
 		mutex_exit(&ds->ds_lock);
 
-		rzio = zio_root(dp->dp_spa, NULL, NULL, ZIO_FLAG_MUSTSUCCEED);
+		rzio = zio_root(spa, NULL, NULL, ZIO_FLAG_MUSTSUCCEED);
 		tmpds = txg_list_remove_this(&dp->dp_dirty_datasets, ds,
 		    tx->tx_txg);
 		if (tmpds != NULL) {
@@ -1210,8 +1210,12 @@ dmu_objset_create_sync(void *arg, dmu_tx_t *tx)
 
 		dmu_objset_do_userquota_updates(os, tx);
 		taskq_wait(dp->dp_sync_taskq);
+		if (txg_list_member(&dp->dp_dirty_datasets, ds, tx->tx_txg)) {
+			ASSERT3P(ds->ds_key_mapping, !=, NULL);
+			key_mapping_rele(spa, ds->ds_key_mapping, ds);
+		}
 
-		rzio = zio_root(dp->dp_spa, NULL, NULL, ZIO_FLAG_MUSTSUCCEED);
+		rzio = zio_root(spa, NULL, NULL, ZIO_FLAG_MUSTSUCCEED);
 		tmpds = txg_list_remove_this(&dp->dp_dirty_datasets, ds,
 		    tx->tx_txg);
 		if (tmpds != NULL) {
@@ -1220,8 +1224,11 @@ dmu_objset_create_sync(void *arg, dmu_tx_t *tx)
 		}
 		VERIFY0(zio_wait(rzio));
 
-		if (need_sync_done)
+		if (need_sync_done) {
+			ASSERT3P(ds->ds_key_mapping, !=, NULL);
+			key_mapping_rele(spa, ds->ds_key_mapping, ds);
 			dsl_dataset_sync_done(ds, tx);
+		}
 
 		mutex_enter(&ds->ds_lock);
 		ds->ds_owner = NULL;
@@ -1229,7 +1236,7 @@ dmu_objset_create_sync(void *arg, dmu_tx_t *tx)
 	}
 
 	spa_history_log_internal_ds(ds, "create", tx, "");
-	zvol_create_minors(dp->dp_spa, doca->doca_name, B_TRUE);
+	zvol_create_minors(spa, doca->doca_name, B_TRUE);
 
 	dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
 	dsl_dir_rele(pdd, FTAG);
@@ -1702,7 +1709,6 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 	if (os->os_raw_receive ||
 	    os->os_next_write_raw[tx->tx_txg & TXG_MASK]) {
 		ASSERT(os->os_encrypted);
-		os->os_next_write_raw[tx->tx_txg & TXG_MASK] = B_FALSE;
 		arc_convert_to_raw(os->os_phys_buf,
 		    os->os_dsl_dataset->ds_object, ZFS_HOST_BYTEORDER,
 		    DMU_OT_OBJSET, NULL, NULL, NULL);
