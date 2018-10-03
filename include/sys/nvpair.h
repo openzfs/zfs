@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2000, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  */
 
 #ifndef	_SYS_NVPAIR_H
@@ -313,20 +313,30 @@ void fnvlist_add_nvlist_array(nvlist_t *, const char *, nvlist_t **, uint_t);
 void fnvlist_remove(nvlist_t *, const char *);
 void fnvlist_remove_nvpair(nvlist_t *, nvpair_t *);
 
-nvpair_t *fnvlist_lookup_nvpair(nvlist_t *nvl, const char *name);
-boolean_t fnvlist_lookup_boolean(nvlist_t *nvl, const char *name);
-boolean_t fnvlist_lookup_boolean_value(nvlist_t *nvl, const char *name);
-uchar_t fnvlist_lookup_byte(nvlist_t *nvl, const char *name);
-int8_t fnvlist_lookup_int8(nvlist_t *nvl, const char *name);
-int16_t fnvlist_lookup_int16(nvlist_t *nvl, const char *name);
-int32_t fnvlist_lookup_int32(nvlist_t *nvl, const char *name);
-int64_t fnvlist_lookup_int64(nvlist_t *nvl, const char *name);
-uint8_t fnvlist_lookup_uint8(nvlist_t *nvl, const char *name);
-uint16_t fnvlist_lookup_uint16(nvlist_t *nvl, const char *name);
-uint32_t fnvlist_lookup_uint32(nvlist_t *nvl, const char *name);
-uint64_t fnvlist_lookup_uint64(nvlist_t *nvl, const char *name);
-char *fnvlist_lookup_string(nvlist_t *nvl, const char *name);
-nvlist_t *fnvlist_lookup_nvlist(nvlist_t *nvl, const char *name);
+nvpair_t *fnvlist_lookup_nvpair(nvlist_t *, const char *);
+boolean_t fnvlist_lookup_boolean(nvlist_t *, const char *);
+boolean_t fnvlist_lookup_boolean_value(nvlist_t *, const char *);
+uchar_t fnvlist_lookup_byte(nvlist_t *, const char *);
+int8_t fnvlist_lookup_int8(nvlist_t *, const char *);
+int16_t fnvlist_lookup_int16(nvlist_t *, const char *);
+int32_t fnvlist_lookup_int32(nvlist_t *, const char *);
+int64_t fnvlist_lookup_int64(nvlist_t *, const char *);
+uint8_t fnvlist_lookup_uint8(nvlist_t *, const char *);
+uint16_t fnvlist_lookup_uint16(nvlist_t *, const char *);
+uint32_t fnvlist_lookup_uint32(nvlist_t *, const char *);
+uint64_t fnvlist_lookup_uint64(nvlist_t *, const char *);
+char *fnvlist_lookup_string(nvlist_t *, const char *);
+nvlist_t *fnvlist_lookup_nvlist(nvlist_t *, const char *);
+boolean_t *fnvlist_lookup_boolean_array(nvlist_t *, const char *, uint_t *);
+uchar_t *fnvlist_lookup_byte_array(nvlist_t *, const char *, uint_t *);
+int8_t *fnvlist_lookup_int8_array(nvlist_t *, const char *, uint_t *);
+uint8_t *fnvlist_lookup_uint8_array(nvlist_t *, const char *, uint_t *);
+int16_t *fnvlist_lookup_int16_array(nvlist_t *, const char *, uint_t *);
+uint16_t *fnvlist_lookup_uint16_array(nvlist_t *, const char *, uint_t *);
+int32_t *fnvlist_lookup_int32_array(nvlist_t *, const char *, uint_t *);
+uint32_t *fnvlist_lookup_uint32_array(nvlist_t *, const char *, uint_t *);
+int64_t *fnvlist_lookup_int64_array(nvlist_t *, const char *, uint_t *);
+uint64_t *fnvlist_lookup_uint64_array(nvlist_t *, const char *, uint_t *);
 
 boolean_t fnvpair_value_boolean_value(nvpair_t *nvp);
 uchar_t fnvpair_value_byte(nvpair_t *nvp);
