@@ -481,10 +481,26 @@ rangelock_enter(rangelock_t *rl, uint64_t off, uint64_t len,
 }
 
 /*
+ * Safely free the locked_range_t.
+ */
+static void
+rangelock_free(locked_range_t *lr)
+{
+	if (lr->lr_write_wanted)
+		cv_destroy(&lr->lr_write_cv);
+
+	if (lr->lr_read_wanted)
+		cv_destroy(&lr->lr_read_cv);
+
+	kmem_free(lr, sizeof (locked_range_t));
+}
+
+/*
  * Unlock a reader lock
  */
 static void
-rangelock_exit_reader(rangelock_t *rl, locked_range_t *remove)
+rangelock_exit_reader(rangelock_t *rl, locked_range_t *remove,
+    list_t *free_list)
 {
 	avl_tree_t *tree = &rl->rl_tree;
 	uint64_t len;
@@ -498,14 +514,11 @@ rangelock_exit_reader(rangelock_t *rl, locked_range_t *remove)
 	 */
 	if (remove->lr_count == 1) {
 		avl_remove(tree, remove);
-		if (remove->lr_write_wanted) {
+		if (remove->lr_write_wanted)
 			cv_broadcast(&remove->lr_write_cv);
-			cv_destroy(&remove->lr_write_cv);
-		}
-		if (remove->lr_read_wanted) {
+		if (remove->lr_read_wanted)
 			cv_broadcast(&remove->lr_read_cv);
-			cv_destroy(&remove->lr_read_cv);
-		}
+		list_insert_tail(free_list, remove);
 	} else {
 		ASSERT0(remove->lr_count);
 		ASSERT0(remove->lr_write_wanted);
@@ -533,19 +546,15 @@ rangelock_exit_reader(rangelock_t *rl, locked_range_t *remove)
 			lr->lr_count--;
 			if (lr->lr_count == 0) {
 				avl_remove(tree, lr);
-				if (lr->lr_write_wanted) {
+				if (lr->lr_write_wanted)
 					cv_broadcast(&lr->lr_write_cv);
-					cv_destroy(&lr->lr_write_cv);
-				}
-				if (lr->lr_read_wanted) {
+				if (lr->lr_read_wanted)
 					cv_broadcast(&lr->lr_read_cv);
-					cv_destroy(&lr->lr_read_cv);
-				}
-				kmem_free(lr, sizeof (locked_range_t));
+				list_insert_tail(free_list, lr);
 			}
 		}
+		kmem_free(remove, sizeof (locked_range_t));
 	}
-	kmem_free(remove, sizeof (locked_range_t));
 }
 
 /*
@@ -555,33 +564,42 @@ void
 rangelock_exit(locked_range_t *lr)
 {
 	rangelock_t *rl = lr->lr_rangelock;
+	list_t free_list;
+	locked_range_t *free_lr;
 
 	ASSERT(lr->lr_type == RL_WRITER || lr->lr_type == RL_READER);
 	ASSERT(lr->lr_count == 1 || lr->lr_count == 0);
 	ASSERT(!lr->lr_proxy);
 
+	/*
+	 * The free list is used to defer the cv_destroy() and
+	 * subsequent kmem_free until after the mutex is dropped.
+	 */
+	list_create(&free_list, sizeof (locked_range_t),
+	    offsetof(locked_range_t, lr_node));
+
 	mutex_enter(&rl->rl_lock);
 	if (lr->lr_type == RL_WRITER) {
 		/* writer locks can't be shared or split */
 		avl_remove(&rl->rl_tree, lr);
-		mutex_exit(&rl->rl_lock);
-		if (lr->lr_write_wanted) {
+		if (lr->lr_write_wanted)
 			cv_broadcast(&lr->lr_write_cv);
-			cv_destroy(&lr->lr_write_cv);
-		}
-		if (lr->lr_read_wanted) {
+		if (lr->lr_read_wanted)
 			cv_broadcast(&lr->lr_read_cv);
-			cv_destroy(&lr->lr_read_cv);
-		}
-		kmem_free(lr, sizeof (locked_range_t));
+		list_insert_tail(&free_list, lr);
 	} else {
 		/*
 		 * lock may be shared, let rangelock_exit_reader()
-		 * release the lock and free the rl_t
+		 * release the lock and free the locked_range_t.
 		 */
-		rangelock_exit_reader(rl, lr);
-		mutex_exit(&rl->rl_lock);
+		rangelock_exit_reader(rl, lr, &free_list);
 	}
+	mutex_exit(&rl->rl_lock);
+
+	while ((free_lr = list_remove_head(&free_list)) != NULL)
+		rangelock_free(free_lr);
+
+	list_destroy(&free_list);
 }
 
 /*
