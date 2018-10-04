@@ -63,22 +63,59 @@ void spl_dumpstack(void);
 	    spl_panic(__FILE__, __FUNCTION__, __LINE__,			\
 	    "%s", "VERIFY(" #cond ") failed\n"))
 
-#define	VERIFY3_IMPL(LEFT, OP, RIGHT, TYPE, FMT, CAST)	do {		\
-		TYPE _verify3_left = (TYPE)(LEFT);				\
-		TYPE _verify3_right = (TYPE)(RIGHT);				\
+#define	VERIFY3B(LEFT, OP, RIGHT)	do {				\
+		boolean_t _verify3_left = (boolean_t)(LEFT);		\
+		boolean_t _verify3_right = (boolean_t)(RIGHT);		\
 		if (!(_verify3_left OP _verify3_right))			\
 		    spl_panic(__FILE__, __FUNCTION__, __LINE__,		\
-		    "VERIFY3(" #LEFT " " #OP " " #RIGHT ") "		\
-		    "failed (" FMT " " #OP " " FMT ")\n",		\
-		    CAST (_verify3_left), CAST (_verify3_right));	\
+		    "VERIFY3(" #LEFT " "  #OP " "  #RIGHT ") "		\
+		    "failed (%d " #OP " %d)\n",				\
+		    (boolean_t) (_verify3_left),			\
+		    (boolean_t) (_verify3_right));			\
 	} while (0)
 
-#define	VERIFY3B(x,y,z)	VERIFY3_IMPL(x, y, z, boolean_t, "%d", (boolean_t))
-#define	VERIFY3S(x,y,z)	VERIFY3_IMPL(x, y, z, int64_t, "%lld", (long long))
-#define	VERIFY3U(x,y,z)	VERIFY3_IMPL(x, y, z, uint64_t, "%llu",		\
-				    (unsigned long long))
-#define	VERIFY3P(x,y,z)	VERIFY3_IMPL(x, y, z, uintptr_t, "%p", (void *))
-#define	VERIFY0(x)	VERIFY3_IMPL(0, ==, x, int64_t, "%lld",	(long long))
+#define	VERIFY3S(LEFT, OP, RIGHT)	do {				\
+		int64_t _verify3_left = (int64_t)(LEFT);		\
+		int64_t _verify3_right = (int64_t)(RIGHT);		\
+		if (!(_verify3_left OP _verify3_right))			\
+		    spl_panic(__FILE__, __FUNCTION__, __LINE__,		\
+		    "VERIFY3(" #LEFT " "  #OP " "  #RIGHT ") "		\
+		    "failed (%lld " #OP " %lld)\n",			\
+		    (long long) (_verify3_left),			\
+		    (long long) (_verify3_right));			\
+	} while (0)
+
+#define	VERIFY3U(LEFT, OP, RIGHT)	do {				\
+		uint64_t _verify3_left = (uint64_t)(LEFT);		\
+		uint64_t _verify3_right = (uint64_t)(RIGHT);		\
+		if (!(_verify3_left OP _verify3_right))			\
+		    spl_panic(__FILE__, __FUNCTION__, __LINE__,		\
+		    "VERIFY3(" #LEFT " "  #OP " "  #RIGHT ") "		\
+		    "failed (%llu " #OP " %llu)\n",			\
+		    (unsigned long long) (_verify3_left),		\
+		    (unsigned long long) (_verify3_right));		\
+	} while (0)
+
+#define	VERIFY3P(LEFT, OP, RIGHT)	do {				\
+		uintptr_t _verify3_left = (uintptr_t)(LEFT);		\
+		uintptr_t _verify3_right = (uintptr_t)(RIGHT);		\
+		if (!(_verify3_left OP _verify3_right))			\
+		    spl_panic(__FILE__, __FUNCTION__, __LINE__,		\
+		    "VERIFY3(" #LEFT " "  #OP " "  #RIGHT ") "		\
+		    "failed (%p " #OP " %p)\n",				\
+		    (void *) (_verify3_left),				\
+		    (void *) (_verify3_right));				\
+	} while (0)
+
+#define	VERIFY0(RIGHT)	do {				\
+		int64_t _verify3_left = (int64_t)(0);		\
+		int64_t _verify3_right = (int64_t)(RIGHT);		\
+		if (!(_verify3_left == _verify3_right))			\
+		    spl_panic(__FILE__, __FUNCTION__, __LINE__,		\
+		    "VERIFY3(0 == " #RIGHT ") "				\
+		    "failed (0 == %lld)\n",				\
+		    (long long) (_verify3_right));			\
+	} while (0)
 
 #define	CTASSERT_GLOBAL(x)		_CTASSERT(x, __LINE__)
 #define	CTASSERT(x)			{ _CTASSERT(x, __LINE__); }
@@ -107,13 +144,13 @@ void spl_dumpstack(void);
  */
 #else
 
-#define	ASSERT(cond)		VERIFY(cond)
+#define	ASSERT3B	VERIFY3B
+#define	ASSERT3S	VERIFY3S
+#define	ASSERT3U	VERIFY3U
+#define	ASSERT3P	VERIFY3P
+#define	ASSERT0		VERIFY0
+#define	ASSERT		VERIFY
 #define	ASSERTV(x)		x
-#define	ASSERT3B(x,y,z)		VERIFY3B(x, y, z)
-#define	ASSERT3S(x,y,z)		VERIFY3S(x, y, z)
-#define	ASSERT3U(x,y,z)		VERIFY3U(x, y, z)
-#define	ASSERT3P(x,y,z)		VERIFY3P(x, y, z)
-#define	ASSERT0(x)		VERIFY0(x)
 #define	IMPLY(A, B) \
 	((void)(((!(A)) || (B)) || \
 	    spl_panic(__FILE__, __FUNCTION__, __LINE__, \
