@@ -1225,12 +1225,14 @@ Default value: \fB10\fR%, subject to \fBzfs_dirty_data_max_max\fR.
 .sp
 .ne 2
 .na
-\fBzfs_dirty_data_sync\fR (int)
+\fBzfs_dirty_data_sync_percent\fR (int)
 .ad
 .RS 12n
-Start syncing out a transaction group if there is at least this much dirty data.
+Start syncing out a transaction group if there's at least this much dirty data
+as a percentage of \fBzfs_dirty_data_max\fR.  This should be less than
+\fBzfs_vdev_async_write_active_min_dirty_percent\fR.
 .sp
-Default value: \fB67,108,864\fR.
+Default value: \fB20\fR% of \fBzfs_dirty_data_max\fR.
 .RE
 
 .sp
