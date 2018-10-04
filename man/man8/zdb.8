@@ -10,7 +10,7 @@
 .\"
 .\"
 .\" Copyright 2012, Richard Lowe.
-.\" Copyright (c) 2012, 2017 by Delphix. All rights reserved.
+.\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Lawrence Livermore National Security, LLC.
 .\" Copyright (c) 2017 Intel Corporation.
@@ -70,6 +70,12 @@
 .Op Fl e Oo Fl V Oc Op Fl p Ar path ...
 .Op Fl U Ar cache
 .Ar poolname
+.Nm
+.Fl N Ar file-path
+.Fl e
+.Op Fl p Ar path
+.Ar poolname
+
 .Sh DESCRIPTION
 The
 .Nm
@@ -215,6 +221,11 @@ Also display information about the maximum contiguous free space and the
 percentage of free space in each space map.
 .It Fl MMM
 Display every spacemap record.
+.It Fl N Ar file-path
+Write a pool's config nvlist to a file. Requires
+.Fl e
+option and a
+.Ar poolname .
 .It Fl O Ar dataset path
 Look up the specified
 .Ar path

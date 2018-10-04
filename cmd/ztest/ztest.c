@@ -129,7 +129,6 @@
 #include <sys/fs/zfs.h>
 #include <zfs_fletcher.h>
 #include <libnvpair.h>
-#include <libzfs.h>
 #include <sys/crypto/icp.h>
 #ifdef __GLIBC__
 #include <execinfo.h> /* for backtrace() */
@@ -6510,6 +6509,80 @@ out:
 	umem_free(zbuf, 1024);
 }
 
+static nvlist_t *
+ztest_zdb_find_config(const char *pool, const char *devpath)
+{
+	nvlist_t *config = NULL;
+	struct stat64 statbuf;
+	char *bin;
+	char *zdb;
+	char *zbuf;
+	char *tmpfile;
+	char *packed;
+	const int len = MAXPATHLEN + MAXNAMELEN + 20;
+	FILE *fp;
+	int fd, residual;
+
+	bin = umem_alloc(len, UMEM_NOFAIL);
+	zdb = umem_alloc(len, UMEM_NOFAIL);
+	zbuf = umem_alloc(1024, UMEM_NOFAIL);
+
+	ztest_get_zdb_bin(bin, len);
+
+	/*
+	 * Create a unique tempfile to hold the config
+	 */
+	tmpfile = umem_alloc(len, UMEM_NOFAIL);
+	(void) snprintf(tmpfile, len, "%s/ztest_pool_config_XXXXXX",
+	    ztest_opts.zo_dir);
+	fd = mkstemp(tmpfile);
+	ASSERT(fd > 0);
+	(void) close(fd);
+
+	(void) sprintf(zdb, "%s -e -p %s -N %s %s", bin, devpath,
+	    tmpfile, pool);
+
+	if (ztest_opts.zo_verbose >= 5)
+		(void) printf("Executing %s\n", strstr(zdb, "zdb "));
+
+	fp = popen(zdb, "r");
+
+	while (fgets(zbuf, 1024, fp) != NULL)
+		if (ztest_opts.zo_verbose >= 3)
+			(void) printf("%s", zbuf);
+
+	if (pclose(fp) != 0) {
+		ztest_dump_core = 0;
+		(void) unlink(tmpfile);
+		(void) fatal(0, "No pools found\n");
+	}
+
+	umem_free(bin, len);
+	umem_free(zdb, len);
+	umem_free(zbuf, 1024);
+
+	fd = open(tmpfile, O_RDONLY);
+	if (fd < 0)
+		(void) fatal(0, "cannot open %s\n", tmpfile);
+	ASSERT0(fstat64(fd, &statbuf));
+	packed = umem_alloc(statbuf.st_size, UMEM_NOFAIL);
+
+	residual = statbuf.st_size;
+	while (residual > 0) {
+		ssize_t bytes = read(fd, packed, residual);
+		ASSERT(bytes >= 0);
+		residual -= bytes;
+	}
+	(void) close(fd);
+	(void) unlink(tmpfile);
+	umem_free(tmpfile, len);
+
+	config = fnvlist_unpack(packed, statbuf.st_size);
+	umem_free(packed, statbuf.st_size);
+
+	return (config);
+}
+
 static void
 ztest_walk_pool_directory(char *header)
 {
@@ -7193,31 +7266,18 @@ make_random_props(void)
 static void
 ztest_import(ztest_shared_t *zs)
 {
-	libzfs_handle_t *hdl;
-	importargs_t args = { 0 };
 	spa_t *spa;
 	nvlist_t *cfg = NULL;
-	int nsearch = 1;
-	char *searchdirs[nsearch];
 	char *name = ztest_opts.zo_pool;
 	int flags = ZFS_IMPORT_MISSING_LOG;
-	int error;
 
 	mutex_init(&ztest_vdev_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&ztest_checkpoint_lock, NULL, MUTEX_DEFAULT, NULL);
 	VERIFY0(pthread_rwlock_init(&ztest_name_lock, NULL));
 
 	kernel_init(FREAD | FWRITE);
-	hdl = libzfs_init();
 
-	searchdirs[0] = ztest_opts.zo_dir;
-	args.paths = nsearch;
-	args.path = searchdirs;
-	args.can_be_active = B_FALSE;
-
-	error = zpool_tryimport(hdl, name, &cfg, &args);
-	if (error)
-		(void) fatal(0, "No pools found\n");
+	cfg = ztest_zdb_find_config(name, ztest_opts.zo_dir);
 
 	VERIFY0(spa_import(name, cfg, NULL, flags));
 	VERIFY0(spa_open(name, &spa, FTAG));
@@ -7225,7 +7285,6 @@ ztest_import(ztest_shared_t *zs)
 	    1ULL << spa->spa_root_vdev->vdev_child[0]->vdev_ms_shift;
 	spa_close(spa, FTAG);
 
-	libzfs_fini(hdl);
 	kernel_fini();
 
 	if (!ztest_opts.zo_mmp_test) {
