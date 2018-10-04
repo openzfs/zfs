@@ -61,7 +61,9 @@ install-data-hook:
 	ln -fs zfs.release spl.release
 endif
 
-checkstyle: cstyle shellcheck flake8 commitcheck mancheck testscheck
+codecheck: cstyle shellcheck flake8 mancheck testscheck
+
+checkstyle: codecheck commitcheck
 
 commitcheck:
 	@if git rev-parse --git-dir > /dev/null 2>&1; then \
