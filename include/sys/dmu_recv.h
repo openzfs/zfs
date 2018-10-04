@@ -37,23 +37,23 @@
 extern const char *recv_clone_name;
 
 typedef struct dmu_recv_cookie {
-        struct dsl_dataset *drc_ds;
-        struct dmu_replay_record *drc_drr_begin;
-        struct drr_begin *drc_drrb;
-        const char *drc_tofs;
-        const char *drc_tosnap;
-        boolean_t drc_newfs;
-        boolean_t drc_byteswap;
-        boolean_t drc_force;
-        boolean_t drc_resumable;
-        boolean_t drc_raw;
-        boolean_t drc_clone;
-        struct avl_tree *drc_guid_to_ds_map;
-        nvlist_t *drc_keynvl;
-        zio_cksum_t drc_cksum;
-        uint64_t drc_newsnapobj;
-        void *drc_owner;
-        cred_t *drc_cred;
+	struct dsl_dataset *drc_ds;
+	struct dmu_replay_record *drc_drr_begin;
+	struct drr_begin *drc_drrb;
+	const char *drc_tofs;
+	const char *drc_tosnap;
+	boolean_t drc_newfs;
+	boolean_t drc_byteswap;
+	boolean_t drc_force;
+	boolean_t drc_resumable;
+	boolean_t drc_raw;
+	boolean_t drc_clone;
+	struct avl_tree *drc_guid_to_ds_map;
+	nvlist_t *drc_keynvl;
+	zio_cksum_t drc_cksum;
+	uint64_t drc_newsnapobj;
+	void *drc_owner;
+	cred_t *drc_cred;
 } dmu_recv_cookie_t;
 
 int dmu_recv_begin(char *tofs, char *tosnap,
