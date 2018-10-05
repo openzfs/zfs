@@ -47,6 +47,7 @@ all-local:
 	-${top_srcdir}/scripts/zfs-tests.sh -c
 
 dist-hook: gitrev
+	cp ${top_srcdir}/include/zfs_gitrev.h $(distdir)/include; \
 	sed -i 's/Release:[[:print:]]*/Release:      $(RELEASE)/' \
 		$(distdir)/META
 
