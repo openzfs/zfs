@@ -6057,17 +6057,6 @@ main(int argc, char **argv)
 	error = 0;
 	target = argv[0];
 
-	char *checkpoint_pool = NULL;
-	char *checkpoint_target = NULL;
-	if (dump_opt['k']) {
-		checkpoint_pool = import_checkpointed_state(target, cfg,
-		    &checkpoint_target);
-
-		if (checkpoint_target != NULL)
-			target = checkpoint_target;
-
-	}
-
 	if (strpbrk(target, "/@") != NULL) {
 		size_t targetlen;
 
@@ -6111,6 +6100,24 @@ main(int argc, char **argv)
 			error = spa_import(target_pool, cfg, NULL,
 			    flags | ZFS_IMPORT_SKIP_MMP);
 		}
+	}
+
+	/*
+	 * import_checkpointed_state makes the assumption that the
+	 * target pool that we pass it is already part of the spa
+	 * namespace. Because of that we need to make sure to call
+	 * it always after the -e option has been processed, which
+	 * imports the pool to the namespace if it's not in the
+	 * cachefile.
+	 */
+	char *checkpoint_pool = NULL;
+	char *checkpoint_target = NULL;
+	if (dump_opt['k']) {
+		checkpoint_pool = import_checkpointed_state(target, cfg,
+		    &checkpoint_target);
+
+		if (checkpoint_target != NULL)
+			target = checkpoint_target;
 	}
 
 	if (target_pool != target)
