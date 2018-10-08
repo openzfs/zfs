@@ -6825,7 +6825,7 @@ arc_release(arc_buf_t *buf, void *tag)
 
 		mutex_exit(&buf->b_evict_lock);
 		(void) zfs_refcount_add_many(&arc_anon->arcs_size,
-		    HDR_GET_LSIZE(nhdr), buf);
+		    arc_buf_size(buf), buf);
 	} else {
 		mutex_exit(&buf->b_evict_lock);
 		ASSERT(zfs_refcount_count(&hdr->b_l1hdr.b_refcnt) == 1);
