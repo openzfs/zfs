@@ -52,6 +52,7 @@
 #include <sys/sysmacros.h>
 #include <sys/strings.h>
 #include <linux/kmap_compat.h>
+#include <linux/uaccess.h>
 
 /*
  * Move "n" bytes at byte address "p"; "rw" indicates the direction
@@ -79,8 +80,24 @@ uiomove_iov(void *p, size_t n, enum uio_rw rw, struct uio *uio)
 				if (copy_to_user(iov->iov_base+skip, p, cnt))
 					return (EFAULT);
 			} else {
-				if (copy_from_user(p, iov->iov_base+skip, cnt))
-					return (EFAULT);
+				if (uio->uio_fault_disable) {
+					if (!access_ok(VERIFY_READ,
+					    (iov->iov_base + skip), cnt)) {
+						return (EFAULT);
+					}
+
+					pagefault_disable();
+					if (__copy_from_user_inatomic(p,
+					    (iov->iov_base + skip), cnt)) {
+						pagefault_enable();
+						return (EFAULT);
+					}
+					pagefault_enable();
+				} else {
+					if (copy_from_user(p,
+					    (iov->iov_base + skip), cnt))
+						return (EFAULT);
+				}
 			}
 			break;
 		case UIO_SYSSPACE:

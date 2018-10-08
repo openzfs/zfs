@@ -809,8 +809,17 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 		ssize_t tx_bytes;
 		if (abuf == NULL) {
 			tx_bytes = uio->uio_resid;
+			uio->uio_fault_disable = B_TRUE;
 			error = dmu_write_uio_dbuf(sa_get_db(zp->z_sa_hdl),
 			    uio, nbytes, tx);
+			if (error == EFAULT) {
+				dmu_tx_commit(tx);
+				uio_prefaultpages(MIN(n, max_blksz), uio);
+				continue;
+			} else if (error != 0) {
+				dmu_tx_abort(tx);
+				break;
+			}
 			tx_bytes -= uio->uio_resid;
 		} else {
 			tx_bytes = nbytes;
@@ -4636,13 +4645,22 @@ zfs_dirty_inode(struct inode *ip, int flags)
 	}
 #endif
 
+top:
 	tx = dmu_tx_create(zfsvfs->z_os);
 
 	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
 	zfs_sa_upgrade_txholds(tx, zp);
 
-	error = dmu_tx_assign(tx, TXG_WAIT);
+	boolean_t waited = B_FALSE;
+	error = dmu_tx_assign(tx,
+	    waited ? (TXG_NOTHROTTLE | TXG_WAIT) : TXG_NOWAIT);
 	if (error) {
+		if (error == ERESTART && waited == B_FALSE) {
+			waited = B_TRUE;
+			dmu_tx_wait(tx);
+			dmu_tx_abort(tx);
+			goto top;
+		}
 		dmu_tx_abort(tx);
 		goto out;
 	}
