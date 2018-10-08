@@ -1245,7 +1245,8 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 
 		/*
 		 * zdb uses this path to report on active pools that were
-		 * imported or created using -R.
+		 * imported or created using -R. It also avoids the refresh
+		 * step (i.e. a trip to kernel).
 		 */
 		if (active_ok)
 			goto add_pool;

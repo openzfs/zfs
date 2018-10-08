@@ -141,7 +141,6 @@ usage(void)
 	    "\t%s -l [-Aqu] <device>\n"
 	    "\t%s -m [-AFLPX] [-e [-V] [-p <path> ...]] [-t <txg>] "
 	    "[-U <cache>]\n\t\t<poolname> [<vdev> [<metaslab> ...]]\n"
-	    "\t%s -N <file-path> -e [-p <path>] <poolname>\n"
 	    "\t%s -O <dataset> <path>\n"
 	    "\t%s -R [-A] [-e [-V] [-p <path> ...]] [-U <cache>]\n"
 	    "\t\t<poolname> <vdev>:<offset>:<size>[:<flags>]\n"
@@ -149,7 +148,7 @@ usage(void)
 	    "\t%s -S [-AP] [-e [-V] [-p <path> ...]] [-U <cache>] "
 	    "<poolname>\n\n",
 	    cmdname, cmdname, cmdname, cmdname, cmdname, cmdname, cmdname,
-	    cmdname, cmdname, cmdname);
+	    cmdname, cmdname);
 
 	(void) fprintf(stderr, "    Dataset name must include at least one "
 	    "separator character '/' or '@'\n");
@@ -175,8 +174,6 @@ usage(void)
 	    "load spacemaps)\n");
 	(void) fprintf(stderr, "        -m metaslabs\n");
 	(void) fprintf(stderr, "        -M metaslab groups\n");
-	(void) fprintf(stderr, "        -N <file-path> write the pool's config "
-	    "nvlist to file\n");
 	(void) fprintf(stderr, "        -O perform object lookups by path\n");
 	(void) fprintf(stderr, "        -R read and display block from a "
 	    "device\n");
@@ -5595,7 +5592,6 @@ main(int argc, char **argv)
 	int flags = ZFS_IMPORT_MISSING_LOG;
 	int rewind = ZPOOL_NEVER_REWIND;
 	char *spa_config_path_env;
-	const char *nvlist_config_file = NULL;
 	boolean_t target_is_spa = B_TRUE;
 	nvlist_t *cfg = NULL;
 
@@ -5614,7 +5610,7 @@ main(int argc, char **argv)
 		spa_config_path = spa_config_path_env;
 
 	while ((c = getopt(argc, argv,
-	    "AbcCdDeEFGhiI:klLmMN:o:Op:PqRsSt:uU:vVx:X")) != -1) {
+	    "AbcCdDeEFGhiI:klLmMo:Op:PqRsSt:uU:vVx:X")) != -1) {
 		switch (c) {
 		case 'b':
 		case 'c':
@@ -5647,15 +5643,6 @@ main(int argc, char **argv)
 			dump_opt[c]++;
 			break;
 		/* NB: Sort single match options below. */
-		case 'N':
-			nvlist_config_file = optarg;
-			if (nvlist_config_file[0] != '/') {
-				(void) fprintf(stderr, "N: must be an absolute "
-				    "path (i.e. start with a slash)\n");
-				usage();
-			}
-			dump_all = 0;
-			break;
 		case 'I':
 			max_inflight = strtoull(optarg, NULL, 0);
 			if (max_inflight == 0) {
@@ -5719,11 +5706,6 @@ main(int argc, char **argv)
 
 	if (!dump_opt['e'] && searchdirs != NULL) {
 		(void) fprintf(stderr, "-p option requires use of -e\n");
-		usage();
-	}
-
-	if (!dump_opt['e'] && nvlist_config_file != NULL) {
-		(void) fprintf(stderr, "-N option requires use of -e\n");
 		usage();
 	}
 
@@ -5849,32 +5831,8 @@ main(int argc, char **argv)
 
 		error = zpool_tryimport(g_zfs, target_pool, &cfg, &args);
 
-		/*
-		 * '-N' writes the XDR encoded pool config nvlist
-		 */
-		if (error == 0 && nvlist_config_file != NULL) {
-			size_t nvsize, residual;
-			char *packed;
-			int fd;
-
-			fd = open(nvlist_config_file,
-			    O_RDWR | O_CREAT | O_TRUNC, 0644);
-			if (fd < 0) {
-				fatal("can't open '%s': %s", nvlist_config_file,
-				    strerror(errno));
-			}
-			packed = fnvlist_pack(cfg, &nvsize);
-			residual = nvsize;
-			while (residual > 0) {
-				ssize_t bytes = write(fd, packed, residual);
-				ASSERT(bytes >= 0);
-				residual -= bytes;
-			}
-			(void) close(fd);
-			fnvlist_pack_free(packed, nvsize);
-		}
-
 		if (error == 0) {
+
 			if (nvlist_add_nvlist(cfg,
 			    ZPOOL_LOAD_POLICY, policy) != 0) {
 				fatal("can't open '%s': %s",

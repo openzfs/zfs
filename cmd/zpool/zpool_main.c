@@ -333,7 +333,8 @@ get_usage(zpool_help_t idx)
 		    "\timport [-o mntopts] [-o property=value] ... \n"
 		    "\t    [-d dir | -c cachefile] [-D] [-l] [-f] [-m] [-N] "
 		    "[-R root] [-F [-n]]\n"
-		    "\t    [--rewind-to-checkpoint] <pool | id> [newpool]\n"));
+		    "\t    [--rewind-to-checkpoint] <pool | id> [newpool]\n"
+		    "\timport -C configfile [-d dir] <pool | id>\n"));
 	case HELP_IOSTAT:
 		return (gettext("\tiostat [[[-c [script1,script2,...]"
 		    "[-lq]]|[-rw]] [-T d | u] [-ghHLpPvy]\n"
@@ -2521,6 +2522,36 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 	return (ret);
 }
 
+static int
+do_write_config(nvlist_t *config, const char *path)
+{
+	size_t nvsize;
+	char *packed;
+	int fd;
+
+	fd = open(path, O_RDWR | O_CREAT | O_TRUNC, 0644);
+	if (fd < 0) {
+		(void) fprintf(stderr, gettext("can't open '%s': %s\n"),
+		    path, strerror(errno));
+		return (errno);
+	}
+	packed = fnvlist_pack(config, &nvsize);
+
+	char *bufptr = packed;
+	int residual = nvsize;
+
+	while (residual > 0) {
+		ssize_t bytes = write(fd, bufptr, residual);
+		ASSERT(bytes >= 0);
+		bufptr += bytes;
+		residual -= bytes;
+	}
+	(void) close(fd);
+	fnvlist_pack_free(packed, nvsize);
+
+	return (0);
+}
+
 /*
  * zpool checkpoint <pool>
  *       checkpoint --discard <pool>
@@ -2604,6 +2635,8 @@ zpool_do_checkpoint(int argc, char **argv)
  *	 -c	Read pool information from a cachefile instead of searching
  *		devices.
  *
+ *       -C	Write the pool's config into a file.
+ *
  *       -d	Scan in a specific directory, other than /dev/.  More than
  *		one directory can be specified using multiple '-d' options.
  *
@@ -2675,6 +2708,7 @@ zpool_do_import(int argc, char **argv)
 	boolean_t do_scan = B_FALSE;
 	uint64_t pool_state, txg = -1ULL;
 	char *cachefile = NULL;
+	const char *configfile = NULL;
 	importargs_t idata = { 0 };
 	char *endptr;
 
@@ -2684,7 +2718,7 @@ zpool_do_import(int argc, char **argv)
 	};
 
 	/* check options */
-	while ((c = getopt_long(argc, argv, ":aCc:d:DEfFlmnNo:R:stT:VX",
+	while ((c = getopt_long(argc, argv, ":aC:c:d:DEfFlmnNo:R:stT:VX",
 	    long_options, NULL)) != -1) {
 		switch (c) {
 		case 'a':
@@ -2692,6 +2726,9 @@ zpool_do_import(int argc, char **argv)
 			break;
 		case 'c':
 			cachefile = optarg;
+			break;
+		case 'C':
+			configfile = optarg;
 			break;
 		case 'd':
 			if (searchdirs == NULL) {
@@ -2825,6 +2862,14 @@ zpool_do_import(int argc, char **argv)
 	    rewind_policy) != 0)
 		goto error;
 
+	if (configfile != NULL) {
+		if (argc != 1) {
+			(void) fprintf(stderr, gettext("option 'C' must "
+			    "specify exacly one pool\n"));
+			usage(B_FALSE);
+		}
+	}
+
 	/* check argument count */
 	if (do_all) {
 		if (argc != 0) {
@@ -2915,6 +2960,8 @@ zpool_do_import(int argc, char **argv)
 	idata.cachefile = cachefile;
 	idata.scan = do_scan;
 	idata.policy = policy;
+	if (configfile != NULL)
+		idata.can_be_active = B_TRUE; /* also avoids ioctl refresh */
 
 	pools = zpool_search_import(g_zfs, &idata);
 
@@ -3031,6 +3078,8 @@ zpool_do_import(int argc, char **argv)
 			(void) fprintf(stderr, gettext("cannot import '%s': "
 			    "no such pool available\n"), argv[0]);
 			err = B_TRUE;
+		} else if (configfile != NULL) {
+			err |= do_write_config(found_config, configfile);
 		} else {
 			err |= do_import(found_config, argc == 1 ? NULL :
 			    argv[1], mntopts, props, flags);

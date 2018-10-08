@@ -115,6 +115,11 @@
 .Ar pool Ns | Ns Ar id
 .Op Ar newpool Oo Fl t Oc
 .Nm
+.Cm import
+.Fl C Ar configfile
+.Op Fl d Ar dir
+.Ar pool Ns | Ns Ar id
+.Nm
 .Cm iostat
 .Op Oo Oo Fl c Ar SCRIPT Oc Oo Fl lq Oc Oc Ns | Ns Fl rw
 .Op Fl T Sy u Ns | Ns Sy d
@@ -1591,6 +1596,26 @@ is temporary. Temporary pool names last until export. Ensures that
 the original pool name will be used in all label updates and therefore
 is retained upon export.
 Will also set -o cachefile=none when not explicitly specified.
+.El
+.It Xo
+.Nm
+.Cm import
+.Fl C Ar configfile
+.Op Fl d Ar dir
+.Ar pool Ns | Ns Ar id
+.Xc
+Writes the given pool's configuration to a file. A pool can be
+identified by its name or the numeric identifier.
+.Bl -tag -width Ds
+.It Fl C Ar configfile
+Writes the configuration to the specified
+.Ar configfile .
+.It Fl d Ar dir
+Searches for devices in
+.Ar dir .
+The
+.Fl d
+option can be specified multiple times.
 .El
 .It Xo
 .Nm

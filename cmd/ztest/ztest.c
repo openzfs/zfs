@@ -6430,30 +6430,31 @@ ztest_check_path(char *path)
 }
 
 static void
-ztest_get_zdb_bin(char *bin, int len)
+ztest_get_binary(const char *name, const char *env_var, char *bin, int len)
 {
-	char *zdb_path;
+	char *env_path;
 	/*
-	 * Try to use ZDB_PATH and in-tree zdb path. If not successful, just
-	 * let popen to search through PATH.
+	 * Try to use env_var and in-tree paths. If not successful, just
+	 * allow popen to search through PATH.
 	 */
-	if ((zdb_path = getenv("ZDB_PATH"))) {
-		strlcpy(bin, zdb_path, len); /* In env */
+	if (env_var != NULL && (env_path = getenv(env_var))) {
+		strlcpy(bin, env_path, len); /* In env */
 		if (!ztest_check_path(bin)) {
 			ztest_dump_core = 0;
-			fatal(1, "invalid ZDB_PATH '%s'", bin);
+			fatal(1, "invalid %s '%s'", env_var, bin);
 		}
 		return;
 	}
 
 	VERIFY(realpath(getexecname(), bin) != NULL);
-	if (strstr(bin, "/ztest/")) {
-		strstr(bin, "/ztest/")[0] = '\0'; /* In-tree */
-		strcat(bin, "/zdb/zdb");
+	char *parent = strstr(bin, "/ztest/");
+	if (parent != NULL) {
+		size_t resid = len - (parent - bin);
+		(void) snprintf(parent, resid, "/%s/%s", name, name);
 		if (ztest_check_path(bin))
 			return;
 	}
-	strcpy(bin, "zdb");
+	strlcpy(bin, name, len);
 }
 
 /*
@@ -6473,7 +6474,7 @@ ztest_run_zdb(char *pool)
 	zdb = umem_alloc(len, UMEM_NOFAIL);
 	zbuf = umem_alloc(1024, UMEM_NOFAIL);
 
-	ztest_get_zdb_bin(bin, len);
+	ztest_get_binary("zdb", "ZDB_PATH", bin, len);
 
 	(void) sprintf(zdb,
 	    "%s -bcc%s%s -G -d -U %s "
@@ -6509,25 +6510,28 @@ out:
 	umem_free(zbuf, 1024);
 }
 
+/*
+ * Use the zpool(8) command to find the config for 'pool'
+ */
 static nvlist_t *
-ztest_zdb_find_config(const char *pool, const char *devpath)
+ztest_find_config(const char *pool, const char *devpath)
 {
 	nvlist_t *config = NULL;
 	struct stat64 statbuf;
 	char *bin;
-	char *zdb;
+	char *zpool;
 	char *zbuf;
 	char *tmpfile;
 	char *packed;
 	const int len = MAXPATHLEN + MAXNAMELEN + 20;
 	FILE *fp;
-	int fd, residual;
+	int fd;
 
 	bin = umem_alloc(len, UMEM_NOFAIL);
-	zdb = umem_alloc(len, UMEM_NOFAIL);
+	zpool = umem_alloc(len, UMEM_NOFAIL);
 	zbuf = umem_alloc(1024, UMEM_NOFAIL);
 
-	ztest_get_zdb_bin(bin, len);
+	ztest_get_binary("zpool", NULL, bin, len);
 
 	/*
 	 * Create a unique tempfile to hold the config
@@ -6539,13 +6543,13 @@ ztest_zdb_find_config(const char *pool, const char *devpath)
 	ASSERT(fd > 0);
 	(void) close(fd);
 
-	(void) sprintf(zdb, "%s -e -p %s -N %s %s", bin, devpath,
-	    tmpfile, pool);
+	(void) sprintf(zpool, "%s import -d %s -C %s %s",
+	    bin, devpath, tmpfile, pool);
 
 	if (ztest_opts.zo_verbose >= 5)
-		(void) printf("Executing %s\n", strstr(zdb, "zdb "));
+		(void) printf("Executing %s\n", strstr(zpool, "zpool "));
 
-	fp = popen(zdb, "r");
+	fp = popen(zpool, "r");
 
 	while (fgets(zbuf, 1024, fp) != NULL)
 		if (ztest_opts.zo_verbose >= 3)
@@ -6558,7 +6562,7 @@ ztest_zdb_find_config(const char *pool, const char *devpath)
 	}
 
 	umem_free(bin, len);
-	umem_free(zdb, len);
+	umem_free(zpool, len);
 	umem_free(zbuf, 1024);
 
 	fd = open(tmpfile, O_RDONLY);
@@ -6567,10 +6571,13 @@ ztest_zdb_find_config(const char *pool, const char *devpath)
 	ASSERT0(fstat64(fd, &statbuf));
 	packed = umem_alloc(statbuf.st_size, UMEM_NOFAIL);
 
-	residual = statbuf.st_size;
+	char *bufptr = packed;
+	int residual = statbuf.st_size;
+
 	while (residual > 0) {
-		ssize_t bytes = read(fd, packed, residual);
+		ssize_t bytes = read(fd, bufptr, residual);
 		ASSERT(bytes >= 0);
+		bufptr += bytes;
 		residual -= bytes;
 	}
 	(void) close(fd);
@@ -7277,7 +7284,7 @@ ztest_import(ztest_shared_t *zs)
 
 	kernel_init(FREAD | FWRITE);
 
-	cfg = ztest_zdb_find_config(name, ztest_opts.zo_dir);
+	cfg = ztest_find_config(name, ztest_opts.zo_dir);
 
 	VERIFY0(spa_import(name, cfg, NULL, flags));
 	VERIFY0(spa_open(name, &spa, FTAG));
