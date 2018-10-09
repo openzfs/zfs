@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2016, 2018 by Delphix. All rights reserved.
  * Copyright 2017 Jason King
  * Copyright (c) 2017, Intel Corporation.
  */
@@ -34,6 +34,8 @@
 #include <sys/spa.h>
 #include <sys/fs/zfs.h>
 #include <sys/refcount.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
 #include <dlfcn.h>
 
 /*
@@ -299,4 +301,178 @@ set_global_var(char *arg)
 	}
 
 	return (0);
+}
+
+static void
+locate_binary_path(const char *binary, char *path, size_t len)
+{
+	/*
+	 * Try to use the in-tree path. If not successful, just
+	 * allow execv to search for binary through PATH.
+	 */
+	if (realpath(getexecname(), path) == NULL)
+		goto filename;
+
+	/*
+	 * our executable basename is typically "ztest" or "zdb"
+	 */
+	char *basename = strrchr(path, '/');
+	if (basename == NULL)
+		goto filename;
+	basename++;
+
+	/*
+	 * in-tree match is typically for "/cmd/ztest/" or "/cmd/zdb/"
+	 */
+	char match[MAXNAMELEN];
+	(void) snprintf(match, sizeof (match), "/cmd/%s/", basename);
+
+	char *parent = strstr(path, match);
+	if (parent != NULL) {
+		struct stat s;
+		size_t resid = len - (parent - path);
+		(void) snprintf(parent, resid, "/cmd/%s/%s", binary, binary);
+		if (stat(path, &s) == 0)
+			return;
+	}
+
+filename:
+	strlcpy(path, binary, len);
+}
+
+static int
+run_zpool_import_config(const char *pool, const char *config, int nsearch,
+    char *searchdirs[])
+{
+	char *bin;
+	char **argv;
+	const int len = MAXPATHLEN + MAXNAMELEN + 20;
+	int result;
+	int argc = 0, argsiz;
+
+	bin = umem_alloc(len, UMEM_NOFAIL);
+	locate_binary_path("zpool", bin, len);
+
+	/*
+	 * basic argv set = {"zpool", "import", "-C", tmpfile, pool, NULL}
+	 */
+	argsiz = 6 * sizeof (char *);
+	if (nsearch > 0)
+		argsiz += (nsearch * 2) * sizeof (char *);
+	argv = umem_alloc(argsiz, UMEM_NOFAIL);
+
+	argv[argc++] = bin;
+	argv[argc++] = "import";
+	argv[argc++] = "-C";
+	argv[argc++] = (char *)config;
+	for (int i = 0; i < nsearch; i++) {
+		argv[argc++] = "-d";
+		argv[argc++] = searchdirs[i];
+	}
+	argv[argc++] = (char *)pool;
+	argv[argc++] = NULL;
+
+	pid_t pid = vfork();
+	switch (pid) {
+	case -1:
+		_exit(-1);
+
+	case 0: /* Child process */
+	{
+		int fd = open("/dev/null", O_WRONLY);
+
+		if (fd > 0) {
+			(void) dup2(fd, 1);
+			(void) dup2(fd, 2);
+			(void) close(fd);
+		}
+
+		if (bin[0] == '/')
+			(void) execvp(bin, argv);
+		else
+			(void) execv(bin, argv);
+
+		_exit(-1);
+	}
+	default: /* Parent process */
+	{
+		int error, status;
+
+		while ((error = waitpid(pid, &status, 0)) == -1 &&
+		    errno == EINTR) { }
+
+		if (error < 0 || !WIFEXITED(status)) {
+			result = -1;
+			break;
+		}
+
+		result = WEXITSTATUS(status);
+		break;
+	}
+	}
+
+	umem_free(bin, len);
+	umem_free(argv, argsiz);
+
+	return (result);
+}
+
+/*
+ * Run the zpool(8) command to find the config for 'pool'
+ *
+ * Used by ztest(1) and zdb(8)
+ */
+nvlist_t *
+lzp_find_pool_config(const char *pool, int nsearch, char *searchdirs[])
+{
+	nvlist_t *config = NULL;
+	struct stat64 statbuf;
+	char *packed;
+	int fd;
+
+	/*
+	 * Create a unique tempfile to hold the config
+	 */
+	char tmpfile[] = "/tmp/lzp_pool_config_XXXXXX";
+	fd = mkstemp(tmpfile);
+	if (fd < 0)
+		return (NULL);
+	(void) close(fd);
+
+	if (run_zpool_import_config(pool, tmpfile, nsearch, searchdirs) != 0) {
+		(void) unlink(tmpfile);
+		return (NULL);
+	}
+
+	fd = open(tmpfile, O_RDONLY);
+	if (fd < 0) {
+		(void) unlink(tmpfile);
+		return (NULL);
+	}
+	if (fstat64(fd, &statbuf) != 0) {
+		(void) close(fd);
+		(void) unlink(tmpfile);
+		return (NULL);
+	}
+
+	packed = umem_alloc(statbuf.st_size, UMEM_NOFAIL);
+
+	char *bufptr = packed;
+	int residual = statbuf.st_size;
+
+	while (residual > 0) {
+		ssize_t bytes = read(fd, bufptr, residual);
+		if (bytes < 0)
+			goto exit;
+		bufptr += bytes;
+		residual -= bytes;
+	}
+
+	config = fnvlist_unpack(packed, statbuf.st_size);
+exit:
+	(void) close(fd);
+	(void) unlink(tmpfile);
+	umem_free(packed, statbuf.st_size);
+
+	return (config);
 }

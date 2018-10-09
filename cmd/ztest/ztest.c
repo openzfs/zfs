@@ -6430,31 +6430,20 @@ ztest_check_path(char *path)
 }
 
 static void
-ztest_get_binary(const char *name, const char *env_var, char *bin, int len)
+ztest_get_zdb_bin(char *bin, int len)
 {
-	char *env_path;
 	/*
-	 * Try to use env_var and in-tree paths. If not successful, just
-	 * allow popen to search through PATH.
+	 * Try to use the in-tree path. If not successful,
+	 * just allow popen(3) to search through PATH.
 	 */
-	if (env_var != NULL && (env_path = getenv(env_var))) {
-		strlcpy(bin, env_path, len); /* In env */
-		if (!ztest_check_path(bin)) {
-			ztest_dump_core = 0;
-			fatal(1, "invalid %s '%s'", env_var, bin);
-		}
-		return;
-	}
-
 	VERIFY(realpath(getexecname(), bin) != NULL);
-	char *parent = strstr(bin, "/ztest/");
-	if (parent != NULL) {
-		size_t resid = len - (parent - bin);
-		(void) snprintf(parent, resid, "/%s/%s", name, name);
+	if (strstr(bin, "/ztest/")) {
+		strstr(bin, "/ztest/")[0] = '\0'; /* In-tree */
+		strcat(bin, "/zdb/zdb");
 		if (ztest_check_path(bin))
 			return;
 	}
-	strlcpy(bin, name, len);
+	strcpy(bin, "zdb");
 }
 
 /*
@@ -6474,7 +6463,7 @@ ztest_run_zdb(char *pool)
 	zdb = umem_alloc(len, UMEM_NOFAIL);
 	zbuf = umem_alloc(1024, UMEM_NOFAIL);
 
-	ztest_get_binary("zdb", "ZDB_PATH", bin, len);
+	ztest_get_zdb_bin(bin, len);
 
 	(void) sprintf(zdb,
 	    "%s -bcc%s%s -G -d -U %s "
@@ -6508,86 +6497,6 @@ out:
 	umem_free(bin, len);
 	umem_free(zdb, len);
 	umem_free(zbuf, 1024);
-}
-
-/*
- * Use the zpool(8) command to find the config for 'pool'
- */
-static nvlist_t *
-ztest_find_config(const char *pool, const char *devpath)
-{
-	nvlist_t *config = NULL;
-	struct stat64 statbuf;
-	char *bin;
-	char *zpool;
-	char *zbuf;
-	char *tmpfile;
-	char *packed;
-	const int len = MAXPATHLEN + MAXNAMELEN + 20;
-	FILE *fp;
-	int fd;
-
-	bin = umem_alloc(len, UMEM_NOFAIL);
-	zpool = umem_alloc(len, UMEM_NOFAIL);
-	zbuf = umem_alloc(1024, UMEM_NOFAIL);
-
-	ztest_get_binary("zpool", NULL, bin, len);
-
-	/*
-	 * Create a unique tempfile to hold the config
-	 */
-	tmpfile = umem_alloc(len, UMEM_NOFAIL);
-	(void) snprintf(tmpfile, len, "%s/ztest_pool_config_XXXXXX",
-	    ztest_opts.zo_dir);
-	fd = mkstemp(tmpfile);
-	ASSERT(fd > 0);
-	(void) close(fd);
-
-	(void) sprintf(zpool, "%s import -d %s -C %s %s",
-	    bin, devpath, tmpfile, pool);
-
-	if (ztest_opts.zo_verbose >= 5)
-		(void) printf("Executing %s\n", strstr(zpool, "zpool "));
-
-	fp = popen(zpool, "r");
-
-	while (fgets(zbuf, 1024, fp) != NULL)
-		if (ztest_opts.zo_verbose >= 3)
-			(void) printf("%s", zbuf);
-
-	if (pclose(fp) != 0) {
-		ztest_dump_core = 0;
-		(void) unlink(tmpfile);
-		(void) fatal(0, "No pools found\n");
-	}
-
-	umem_free(bin, len);
-	umem_free(zpool, len);
-	umem_free(zbuf, 1024);
-
-	fd = open(tmpfile, O_RDONLY);
-	if (fd < 0)
-		(void) fatal(0, "cannot open %s\n", tmpfile);
-	ASSERT0(fstat64(fd, &statbuf));
-	packed = umem_alloc(statbuf.st_size, UMEM_NOFAIL);
-
-	char *bufptr = packed;
-	int residual = statbuf.st_size;
-
-	while (residual > 0) {
-		ssize_t bytes = read(fd, bufptr, residual);
-		ASSERT(bytes >= 0);
-		bufptr += bytes;
-		residual -= bytes;
-	}
-	(void) close(fd);
-	(void) unlink(tmpfile);
-	umem_free(tmpfile, len);
-
-	config = fnvlist_unpack(packed, statbuf.st_size);
-	umem_free(packed, statbuf.st_size);
-
-	return (config);
 }
 
 static void
@@ -7275,6 +7184,7 @@ ztest_import(ztest_shared_t *zs)
 {
 	spa_t *spa;
 	nvlist_t *cfg = NULL;
+	char *searchdirs[1];
 	char *name = ztest_opts.zo_pool;
 	int flags = ZFS_IMPORT_MISSING_LOG;
 
@@ -7284,7 +7194,11 @@ ztest_import(ztest_shared_t *zs)
 
 	kernel_init(FREAD | FWRITE);
 
-	cfg = ztest_find_config(name, ztest_opts.zo_dir);
+	searchdirs[0] = ztest_opts.zo_dir;
+
+	cfg = lzp_find_pool_config(name, 1, searchdirs);
+	if (cfg == NULL)
+		(void) fatal(0, "No pools found\n");
 
 	VERIFY0(spa_import(name, cfg, NULL, flags));
 	VERIFY0(spa_open(name, &spa, FTAG));

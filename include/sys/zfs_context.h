@@ -21,7 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
- * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  */
 
@@ -666,6 +666,7 @@ struct spa;
 extern void nicenum(uint64_t num, char *buf, size_t);
 extern void show_pool_stats(struct spa *);
 extern int set_global_var(char *arg);
+extern nvlist_t *lzp_find_pool_config(const char *, int, char *searchdirs[]);
 
 typedef struct callb_cpr {
 	kmutex_t	*cc_lockp;

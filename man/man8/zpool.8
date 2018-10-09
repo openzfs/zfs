@@ -116,7 +116,7 @@
 .Op Ar newpool Oo Fl t Oc
 .Nm
 .Cm import
-.Fl C Ar configfile
+.Fl C Ar cachefile
 .Op Fl d Ar dir
 .Ar pool Ns | Ns Ar id
 .Nm
@@ -1600,16 +1600,16 @@ Will also set -o cachefile=none when not explicitly specified.
 .It Xo
 .Nm
 .Cm import
-.Fl C Ar configfile
+.Fl C Ar cachefile
 .Op Fl d Ar dir
 .Ar pool Ns | Ns Ar id
 .Xc
 Writes the given pool's configuration to a file. A pool can be
 identified by its name or the numeric identifier.
 .Bl -tag -width Ds
-.It Fl C Ar configfile
+.It Fl C Ar cachefile
 Writes the configuration to the specified
-.Ar configfile .
+.Ar cachefile .
 .It Fl d Ar dir
 Searches for devices in
 .Ar dir .

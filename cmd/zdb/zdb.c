@@ -5823,16 +5823,9 @@ main(int argc, char **argv)
 	}
 
 	if (dump_opt['e']) {
-		importargs_t args = { 0 };
+		cfg = lzp_find_pool_config(target_pool, nsearch, searchdirs);
 
-		args.paths = nsearch;
-		args.path = searchdirs;
-		args.can_be_active = B_TRUE;
-
-		error = zpool_tryimport(g_zfs, target_pool, &cfg, &args);
-
-		if (error == 0) {
-
+		if (cfg != NULL) {
 			if (nvlist_add_nvlist(cfg,
 			    ZPOOL_LOAD_POLICY, policy) != 0) {
 				fatal("can't open '%s': %s",

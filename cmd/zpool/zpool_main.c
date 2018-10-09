@@ -334,7 +334,7 @@ get_usage(zpool_help_t idx)
 		    "\t    [-d dir | -c cachefile] [-D] [-l] [-f] [-m] [-N] "
 		    "[-R root] [-F [-n]]\n"
 		    "\t    [--rewind-to-checkpoint] <pool | id> [newpool]\n"
-		    "\timport -C configfile [-d dir] <pool | id>\n"));
+		    "\timport -C cachefile [-d dir] <pool | id>\n"));
 	case HELP_IOSTAT:
 		return (gettext("\tiostat [[[-c [script1,script2,...]"
 		    "[-lq]]|[-rw]] [-T d | u] [-ghHLpPvy]\n"
@@ -2527,13 +2527,14 @@ do_write_config(nvlist_t *config, const char *path)
 {
 	size_t nvsize;
 	char *packed;
-	int fd;
+	int fd, error;
 
 	fd = open(path, O_RDWR | O_CREAT | O_TRUNC, 0644);
 	if (fd < 0) {
+		error = errno;
 		(void) fprintf(stderr, gettext("can't open '%s': %s\n"),
-		    path, strerror(errno));
-		return (errno);
+		    path, strerror(error));
+		return (error);
 	}
 	packed = fnvlist_pack(config, &nvsize);
 
@@ -2542,7 +2543,14 @@ do_write_config(nvlist_t *config, const char *path)
 
 	while (residual > 0) {
 		ssize_t bytes = write(fd, bufptr, residual);
-		ASSERT(bytes >= 0);
+		if (bytes < 0) {
+			error = errno;
+			(void) fprintf(stderr, gettext("write failed '%s': "
+			    "%s\n"), path, strerror(error));
+			(void) close(fd);
+			fnvlist_pack_free(packed, nvsize);
+			return (error);
+		}
 		bufptr += bytes;
 		residual -= bytes;
 	}
