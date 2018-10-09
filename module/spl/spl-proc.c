@@ -659,9 +659,9 @@ static struct ctl_table spl_table[] = {
 	 * sysctl(8) prefers to go via /proc for portability.
 	 */
 	{
-		.procname	= "version",
-		.data		= spl_version,
-		.maxlen		= sizeof (spl_version),
+		.procname	= "gitrev",
+		.data		= spl_gitrev,
+		.maxlen		= sizeof (spl_gitrev),
 		.mode		= 0444,
 		.proc_handler	= &proc_dostring,
 	},

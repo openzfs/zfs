@@ -25,6 +25,12 @@ EXTRA_DIST += META AUTHORS COPYRIGHT LICENSE NEWS NOTICE README.md
 
 @CODE_COVERAGE_RULES@
 
+.PHONY: gitrev
+gitrev:
+	-${top_srcdir}/scripts/make_gitrev.sh
+
+BUILT_SOURCES = gitrev
+
 distclean-local::
 	-$(RM) -R autom4te*.cache
 	-find . \( -name SCCS -o -name BitKeeper -o -name .svn -o -name CVS \
@@ -40,7 +46,8 @@ distclean-local::
 all-local:
 	-${top_srcdir}/scripts/zfs-tests.sh -c
 
-dist-hook:
+dist-hook: gitrev
+	cp ${top_srcdir}/include/zfs_gitrev.h $(distdir)/include; \
 	sed -i 's/Release:[[:print:]]*/Release:      $(RELEASE)/' \
 		$(distdir)/META
 
