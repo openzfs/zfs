@@ -175,7 +175,7 @@ EXPORT_SYMBOL(uiomove);
  * error will terminate the process as this is only a best attempt to get
  * the pages resident.
  */
-void
+int
 uio_prefaultpages(ssize_t n, struct uio *uio)
 {
 	const struct iovec *iov;
@@ -189,7 +189,7 @@ uio_prefaultpages(ssize_t n, struct uio *uio)
 	switch (uio->uio_segflg) {
 		case UIO_SYSSPACE:
 		case UIO_BVEC:
-			return;
+			return (0);
 		case UIO_USERSPACE:
 		case UIO_USERISPACE:
 			break;
@@ -213,7 +213,7 @@ uio_prefaultpages(ssize_t n, struct uio *uio)
 		p = iov->iov_base + skip;
 		while (cnt) {
 			if (fuword8((uint8_t *)p, &tmp))
-				return;
+				return (EFAULT);
 			incr = MIN(cnt, PAGESIZE);
 			p += incr;
 			cnt -= incr;
@@ -223,8 +223,10 @@ uio_prefaultpages(ssize_t n, struct uio *uio)
 		 */
 		p--;
 		if (fuword8((uint8_t *)p, &tmp))
-			return;
+			return (EFAULT);
 	}
+
+	return (0);
 }
 EXPORT_SYMBOL(uio_prefaultpages);
 

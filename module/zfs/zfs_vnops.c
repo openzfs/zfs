@@ -650,7 +650,9 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 		xuio = (xuio_t *)uio;
 	else
 #endif
-		uio_prefaultpages(MIN(n, max_blksz), uio);
+		if (uio_prefaultpages(MIN(n, max_blksz), uio)) {
+			return (SET_ERROR(EFAULT));
+		}
 
 	rl_t	 *rl;
 
@@ -814,7 +816,9 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 			    uio, nbytes, tx);
 			if (error == EFAULT) {
 				dmu_tx_commit(tx);
-				uio_prefaultpages(MIN(n, max_blksz), uio);
+				if (uio_prefaultpages(MIN(n, max_blksz), uio)) {
+					break;
+				}
 				continue;
 			} else if (error != 0) {
 				dmu_tx_abort(tx);
@@ -919,8 +923,12 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 		ASSERT(tx_bytes == nbytes);
 		n -= nbytes;
 
-		if (!xuio && n > 0)
-			uio_prefaultpages(MIN(n, max_blksz), uio);
+		if (!xuio && n > 0) {
+			if (uio_prefaultpages(MIN(n, max_blksz), uio)) {
+				error = EFAULT;
+				break;
+			}
+		}
 	}
 
 	zfs_inode_update(zp);
