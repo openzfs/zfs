@@ -297,7 +297,7 @@ void zfs_znode_byteswap(void *buf, size_t size);
  * operation, including metadata.
  */
 #define	DMU_MAX_ACCESS (64 * 1024 * 1024) /* 64MB */
-#define	DMU_MAX_DELETEBLKCNT (20480) /* ~5MB of indirect blocks */
+#define	DMU_MAX_DELETEBLKCNT (20480) /* ~2.5MB of indirect blocks */
 
 #define	DMU_USERUSED_OBJECT	(-1ULL)
 #define	DMU_GROUPUSED_OBJECT	(-2ULL)

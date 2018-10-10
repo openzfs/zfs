@@ -90,6 +90,7 @@
 static kmem_cache_t *znode_cache = NULL;
 static kmem_cache_t *znode_hold_cache = NULL;
 unsigned int zfs_object_mutex_size = ZFS_OBJ_MTX_SZ;
+unsigned long zfs_delete_blocks = DMU_MAX_DELETEBLKCNT;
 
 /*
  * This callback is invoked when acquiring a RL_WRITER or RL_APPEND lock on
@@ -1140,7 +1141,6 @@ again:
 	if (hdl != NULL) {
 		zp = sa_get_userdata(hdl);
 
-
 		/*
 		 * Since "SA" does immediate eviction we
 		 * should never find a sa handle that doesn't
@@ -1387,11 +1387,20 @@ zfs_zinactive(znode_t *zp)
 	 * closed.  The file will remain in the unlinked set.
 	 */
 	if (zp->z_unlinked) {
+		boolean_t toobig = zp->z_size > zp->z_blksz * zfs_delete_blocks;
+		taskq_t *itq = dsl_pool_iput_taskq(
+		    dmu_objset_pool(ZTOZSB(zp)->z_os));
+
 		ASSERT(!zfsvfs->z_issnap);
 		if (!zfs_is_readonly(zfsvfs)) {
 			mutex_exit(&zp->z_lock);
 			zfs_znode_hold_exit(zfsvfs, zh);
-			zfs_rmnode(zp);
+			if (toobig && !taskq_member(itq, curthread))
+				VERIFY(taskq_dispatch(itq,
+				    (task_func_t *)zfs_rmnode,
+				    zp, TQ_SLEEP) != TASKQID_INVALID);
+			else
+				zfs_rmnode(zp);
 			return;
 		}
 	}
@@ -2269,4 +2278,6 @@ EXPORT_SYMBOL(zfs_obj_to_path);
 /* CSTYLED */
 module_param(zfs_object_mutex_size, uint, 0644);
 MODULE_PARM_DESC(zfs_object_mutex_size, "Size of znode hold array");
+module_param(zfs_delete_blocks, ulong, 0644);
+MODULE_PARM_DESC(zfs_delete_blocks, "Delete files larger than N blocks async");
 #endif

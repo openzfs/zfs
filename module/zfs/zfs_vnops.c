@@ -415,7 +415,6 @@ mappedread(struct inode *ip, int nbytes, uio_t *uio)
 #endif /* _KERNEL */
 
 unsigned long zfs_read_chunk_size = 1024 * 1024; /* Tunable */
-unsigned long zfs_delete_blocks = DMU_MAX_DELETEBLKCNT;
 
 /*
  * Read bytes from specified file into supplied buffer.
@@ -1716,7 +1715,7 @@ zfs_remove(struct inode *dip, char *name, cred_t *cr, int flags)
 	zfs_dirlock_t	*dl;
 	dmu_tx_t	*tx;
 	boolean_t	may_delete_now, delete_now = FALSE;
-	boolean_t	unlinked, toobig = FALSE;
+	boolean_t	unlinked;
 	uint64_t	txtype;
 	pathname_t	*realnmp = NULL;
 	pathname_t	realnm;
@@ -1788,12 +1787,8 @@ top:
 	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
 	zfs_sa_upgrade_txholds(tx, zp);
 	zfs_sa_upgrade_txholds(tx, dzp);
-	if (may_delete_now) {
-		toobig = zp->z_size > zp->z_blksz * zfs_delete_blocks;
-		/* if the file is too big, only hold_free a token amount */
-		dmu_tx_hold_free(tx, zp->z_id, 0,
-		    (toobig ? DMU_MAX_ACCESS : DMU_OBJECT_END));
-	}
+	if (may_delete_now)
+		dmu_tx_hold_free(tx, zp->z_id, 0, DMU_OBJECT_END);
 
 	/* are there any extended attributes? */
 	error = sa_lookup(zp->z_sa_hdl, SA_ZPL_XATTR(zfsvfs),
@@ -1859,7 +1854,7 @@ top:
 		mutex_enter(&zp->z_lock);
 		(void) sa_lookup(zp->z_sa_hdl, SA_ZPL_XATTR(zfsvfs),
 		    &xattr_obj_unlinked, sizeof (xattr_obj_unlinked));
-		delete_now = may_delete_now && !toobig &&
+		delete_now = may_delete_now &&
 		    atomic_read(&ip->i_count) == 1 && !(zp->z_is_mapped) &&
 		    xattr_obj == xattr_obj_unlinked && zfs_external_acl(zp) ==
 		    acl_obj;
@@ -5269,8 +5264,6 @@ EXPORT_SYMBOL(zfs_dirty_inode);
 EXPORT_SYMBOL(zfs_map);
 
 /* CSTYLED */
-module_param(zfs_delete_blocks, ulong, 0644);
-MODULE_PARM_DESC(zfs_delete_blocks, "Delete files larger than N blocks async");
 module_param(zfs_read_chunk_size, long, 0644);
 MODULE_PARM_DESC(zfs_read_chunk_size, "Bytes to read per chunk");
 #endif
