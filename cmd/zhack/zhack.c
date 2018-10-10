@@ -48,13 +48,13 @@
 #include <sys/zio_compress.h>
 #include <sys/zfeature.h>
 #include <sys/dmu_tx.h>
-#include <libzfs.h>
 
 extern boolean_t zfeature_checks_disable;
 
 const char cmdname[] = "zhack";
-libzfs_handle_t *g_zfs;
-static importargs_t g_importargs;
+static char **g_path;		/* a list of paths to search */
+static int g_paths;		/* number of paths to search */
+static char *g_cachefile;	/* cachefile to use for import */
 static char *g_pool;
 static boolean_t g_readonly;
 
@@ -128,20 +128,21 @@ zhack_import(char *target, boolean_t readonly)
 	int error;
 
 	kernel_init(readonly ? FREAD : (FREAD | FWRITE));
-	g_zfs = libzfs_init();
-	ASSERT(g_zfs != NULL);
 
 	dmu_objset_register_type(DMU_OST_ZFS, space_delta_cb);
 
 	g_readonly = readonly;
-	g_importargs.unique = B_TRUE;
-	g_importargs.can_be_active = readonly;
 	g_pool = strdup(target);
 
-	error = zpool_tryimport(g_zfs, target, &config, &g_importargs);
-	if (error)
-		fatal(NULL, FTAG, "cannot import '%s': %s", target,
-		    libzfs_error_description(g_zfs));
+	if (g_cachefile) {
+		config = lzp_find_import_cached(target, g_cachefile, readonly);
+	} else {
+		config = lzp_find_pool_config(target, g_paths, g_path,
+		    readonly);
+	}
+
+	if (config == NULL)
+		fatal(NULL, FTAG, "cannot import '%s'", target);
 
 	props = NULL;
 	if (readonly) {
@@ -321,7 +322,8 @@ zhack_do_feature_enable(int argc, char **argv)
 	mos = spa->spa_meta_objset;
 
 	if (zfeature_is_supported(feature.fi_guid))
-		fatal(spa, FTAG, "'%s' is a real feature, will not enable");
+		fatal(spa, FTAG, "'%s' is a real feature, will not enable",
+		    feature.fi_guid);
 	if (0 == zap_contains(mos, spa->spa_feat_desc_obj, feature.fi_guid))
 		fatal(spa, FTAG, "feature already enabled: %s",
 		    feature.fi_guid);
@@ -414,8 +416,8 @@ zhack_do_feature_ref(int argc, char **argv)
 	mos = spa->spa_meta_objset;
 
 	if (zfeature_is_supported(feature.fi_guid)) {
-		fatal(spa, FTAG,
-		    "'%s' is a real feature, will not change refcount");
+		fatal(spa, FTAG, "'%s' is a real feature, will not change "
+		    "refcount", feature.fi_guid);
 	}
 
 	if (0 == zap_contains(mos, spa->spa_feat_for_read_obj,
@@ -485,7 +487,7 @@ main(int argc, char **argv)
 	int rv = 0;
 	int c;
 
-	g_importargs.path = path;
+	g_path = path;
 
 	dprintf_setup(&argc, argv);
 	zfs_prop_init();
@@ -493,11 +495,11 @@ main(int argc, char **argv)
 	while ((c = getopt(argc, argv, "+c:d:")) != -1) {
 		switch (c) {
 		case 'c':
-			g_importargs.cachefile = optarg;
+			g_cachefile = optarg;
 			break;
 		case 'd':
-			assert(g_importargs.paths < MAX_NUM_PATHS);
-			g_importargs.path[g_importargs.paths++] = optarg;
+			assert(g_paths < MAX_NUM_PATHS);
+			g_path[g_paths++] = optarg;
 			break;
 		default:
 			usage();
@@ -526,10 +528,9 @@ main(int argc, char **argv)
 
 	if (!g_readonly && spa_export(g_pool, NULL, B_TRUE, B_FALSE) != 0) {
 		fatal(NULL, FTAG, "pool export failed; "
-		    "changes may not be committed to disk\n");
+		    "changes may not be committed to disk");
 	}
 
-	libzfs_fini(g_zfs);
 	kernel_fini();
 
 	return (rv);

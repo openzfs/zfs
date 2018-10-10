@@ -409,6 +409,13 @@ extern void zpool_print_unsup_feat(nvlist_t *config);
 
 /*
  * Search for pools to import
+ *
+ * Note:
+ * . returned config will contain runtime stats (unless 'can_be_active' is set)
+ * . 'paths' and 'cachefile' are mutually exclusive operations
+ * . 'can_be_active' (aka zdb mode) also avoids refeshing the config via ioctl
+ * . 'cachefile' mode precludes 'can_be_active'
+ * . 'unique' is for reporting uniqueness (no enforcement)
  */
 
 typedef struct importargs {
@@ -417,7 +424,7 @@ typedef struct importargs {
 	char *poolname;		/* name of a pool to find		*/
 	uint64_t guid;		/* guid of a pool to find		*/
 	char *cachefile;	/* cachefile to use for import		*/
-	int can_be_active : 1;	/* can the pool be active?		*/
+	int can_be_active : 1;	/* can the pool be active? for "zdb -e"	*/
 	int unique : 1;		/* does 'poolname' already exist?	*/
 	int exists : 1;		/* set on return if pool already exists	*/
 	int scan : 1;		/* prefer scanning to libblkid cache    */

@@ -5823,7 +5823,8 @@ main(int argc, char **argv)
 	}
 
 	if (dump_opt['e']) {
-		cfg = lzp_find_pool_config(target_pool, nsearch, searchdirs);
+		cfg = lzp_find_pool_config(target_pool, nsearch, searchdirs,
+		    B_TRUE);
 
 		if (cfg != NULL) {
 			if (nvlist_add_nvlist(cfg,

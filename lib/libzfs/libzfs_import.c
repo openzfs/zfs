@@ -1275,6 +1275,7 @@ get_configs(libzfs_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 				goto nomem;
 		}
 
+		/* Use ZFS_IOC_POOL_TRYIMPORT ioctl to update config */
 		if ((nvl = refresh_config(hdl, config)) == NULL) {
 			nvlist_free(config);
 			config = NULL;
@@ -2232,6 +2233,7 @@ zpool_find_import_cached(libzfs_handle_t *hdl, const char *cachefile,
 
 	elem = NULL;
 	while ((elem = nvlist_next_nvpair(raw, elem)) != NULL) {
+		VERIFY3U(nvpair_type(elem), ==, DATA_TYPE_NVLIST);
 		src = fnvpair_value_nvlist(elem);
 
 		name = fnvlist_lookup_string(src, ZPOOL_CONFIG_POOL_NAME);
@@ -2259,6 +2261,7 @@ zpool_find_import_cached(libzfs_handle_t *hdl, const char *cachefile,
 			return (NULL);
 		}
 
+		/* Use ZFS_IOC_POOL_TRYIMPORT ioctl to update config */
 		if ((dst = refresh_config(hdl, src)) == NULL) {
 			nvlist_free(raw);
 			nvlist_free(pools);

@@ -7196,7 +7196,7 @@ ztest_import(ztest_shared_t *zs)
 
 	searchdirs[0] = ztest_opts.zo_dir;
 
-	cfg = lzp_find_pool_config(name, 1, searchdirs);
+	cfg = lzp_find_pool_config(name, 1, searchdirs, B_FALSE);
 	if (cfg == NULL)
 		(void) fatal(0, "No pools found\n");
 
@@ -7205,6 +7205,7 @@ ztest_import(ztest_shared_t *zs)
 	zs->zs_metaslab_sz =
 	    1ULL << spa->spa_root_vdev->vdev_child[0]->vdev_ms_shift;
 	spa_close(spa, FTAG);
+	nvlist_free(cfg);
 
 	kernel_fini();
 

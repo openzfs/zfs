@@ -2525,8 +2525,9 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 static int
 do_write_config(nvlist_t *config, const char *path)
 {
+	nvlist_t *nvl;
 	size_t nvsize;
-	char *packed;
+	char *packed, *pool;
 	int fd, error;
 
 	fd = open(path, O_RDWR | O_CREAT | O_TRUNC, 0644);
@@ -2536,7 +2537,12 @@ do_write_config(nvlist_t *config, const char *path)
 		    path, strerror(error));
 		return (error);
 	}
-	packed = fnvlist_pack(config, &nvsize);
+
+	pool = fnvlist_lookup_string(config, ZPOOL_CONFIG_POOL_NAME);
+	nvl = fnvlist_alloc();
+	fnvlist_add_nvlist(nvl, pool, config);
+	packed = fnvlist_pack(nvl, &nvsize);
+	nvlist_free(nvl);
 
 	char *bufptr = packed;
 	int residual = nvsize;
@@ -2872,8 +2878,18 @@ zpool_do_import(int argc, char **argv)
 
 	if (configfile != NULL) {
 		if (argc != 1) {
-			(void) fprintf(stderr, gettext("option 'C' must "
-			    "specify exacly one pool\n"));
+			(void) fprintf(stderr, gettext("-C must specify exacly "
+			    "one pool\n"));
+			usage(B_FALSE);
+		}
+		if (cachefile != NULL) {
+			/*
+			 * A cachefile search with zpool_search_import()
+			 * generates a config full of runtime stats so
+			 * we avoid using it with '-C' option.
+			 */
+			(void) fprintf(stderr, gettext("-C is incompatible "
+			    "with -c\n"));
 			usage(B_FALSE);
 		}
 	}
@@ -2968,8 +2984,10 @@ zpool_do_import(int argc, char **argv)
 	idata.cachefile = cachefile;
 	idata.scan = do_scan;
 	idata.policy = policy;
-	if (configfile != NULL)
+	if (configfile != NULL) {
 		idata.can_be_active = B_TRUE; /* also avoids ioctl refresh */
+		idata.unique = B_FALSE;
+	}
 
 	pools = zpool_search_import(g_zfs, &idata);
 
@@ -3087,7 +3105,7 @@ zpool_do_import(int argc, char **argv)
 			    "no such pool available\n"), argv[0]);
 			err = B_TRUE;
 		} else if (configfile != NULL) {
-			err |= do_write_config(found_config, configfile);
+			err = do_write_config(found_config, configfile);
 		} else {
 			err |= do_import(found_config, argc == 1 ? NULL :
 			    argv[1], mntopts, props, flags);

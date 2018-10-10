@@ -36,7 +36,9 @@
 #include <sys/refcount.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <sys/zfs_ioctl.h>
 #include <dlfcn.h>
+#include <libnvpair.h>
 
 /*
  * Routines needed by more than one client of libzpool.
@@ -417,13 +419,91 @@ run_zpool_import_config(const char *pool, const char *config, int nsearch,
 	return (result);
 }
 
+static boolean_t
+check_pool_active(const char *pool)
+{
+	zfs_cmd_t *zcp;
+	nvlist_t *innvl;
+	char *packed = NULL;
+	size_t size = 0;
+	int fd, ret;
+
+	/*
+	 * Use ZFS_IOC_POOL_SYNC to confirm if a pool is active
+	 */
+
+	fd = open("/dev/zfs", O_RDWR);
+	if (fd < 0)
+		return (B_FALSE);
+
+	zcp = umem_zalloc(sizeof (zfs_cmd_t), UMEM_NOFAIL);
+
+	innvl = fnvlist_alloc();
+	fnvlist_add_boolean_value(innvl, "force", B_FALSE);
+
+	(void) strlcpy(zcp->zc_name, pool, sizeof (zcp->zc_name));
+	packed = fnvlist_pack(innvl, &size);
+	zcp->zc_nvlist_src = (uint64_t)(uintptr_t)packed;
+	zcp->zc_nvlist_src_size = size;
+
+	ret = ioctl(fd, ZFS_IOC_POOL_SYNC, zcp);
+
+	fnvlist_pack_free(packed, size);
+	free((void *)(uintptr_t)zcp->zc_nvlist_dst);
+	nvlist_free(innvl);
+	umem_free(zcp, sizeof (zfs_cmd_t));
+
+	(void) close(fd);
+
+	return (ret == 0);
+}
+
+static nvlist_t *
+cache_find_pool(nvlist_t *raw, const char *pool)
+{
+	nvlist_t *config = NULL;
+	nvpair_t *elem = NULL;
+	uint64_t guid = strtoull(pool, NULL, 0);
+
+	/*
+	 * walk the configs in raw looking for a match by name or guid
+	 */
+	while ((elem = nvlist_next_nvpair(raw, elem)) != NULL) {
+		nvlist_t *nvl;
+		char *s;
+		uint64_t g;
+
+		VERIFY3U(nvpair_type(elem), ==, DATA_TYPE_NVLIST);
+
+		nvl = fnvpair_value_nvlist(elem);
+
+		if (guid != 0) {
+			g = fnvlist_lookup_uint64(nvl, ZPOOL_CONFIG_POOL_GUID);
+			if (guid == g) {
+				config = fnvlist_dup(nvl);
+				break;
+			}
+		}
+
+		s = fnvlist_lookup_string(nvl, ZPOOL_CONFIG_POOL_NAME);
+		if (strcmp(pool, s) == 0) {
+			config = fnvlist_dup(nvl);
+			break;
+		}
+	}
+
+	return (config);
+}
+
 /*
- * Run the zpool(8) command to find the config for 'pool'
+ * Run the zpool(8) command to find the config for 'pool' where the
+ * pool value can be a name or a guid.
  *
  * Used by ztest(1) and zdb(8)
  */
 nvlist_t *
-lzp_find_pool_config(const char *pool, int nsearch, char *searchdirs[])
+lzp_find_pool_config(const char *pool, int nsearch, char *searchdirs[],
+    boolean_t active_ok)
 {
 	nvlist_t *config = NULL;
 	struct stat64 statbuf;
@@ -468,11 +548,72 @@ lzp_find_pool_config(const char *pool, int nsearch, char *searchdirs[])
 		residual -= bytes;
 	}
 
-	config = fnvlist_unpack(packed, statbuf.st_size);
+	nvlist_t *raw = fnvlist_unpack(packed, statbuf.st_size);
+	config = cache_find_pool(raw, pool);
+	nvlist_free(raw);
+
+	if (config && !active_ok && check_pool_active(pool)) {
+		nvlist_free(config);
+		config = NULL;
+	}
 exit:
 	(void) close(fd);
 	(void) unlink(tmpfile);
 	umem_free(packed, statbuf.st_size);
+
+	return (config);
+}
+
+/*
+ * Given a cache file, return the config that matches
+ * 'pool' (can be a name or a guid)
+ */
+nvlist_t *
+lzp_find_import_cached(const char *pool, const char *cachefile,
+    boolean_t active_ok)
+{
+	char *buf;
+	int fd;
+	struct stat64 statbuf;
+	nvlist_t *raw, *config = NULL;
+
+	if ((fd = open(cachefile, O_RDONLY)) < 0)
+		return (NULL);
+
+	if (fstat64(fd, &statbuf) != 0) {
+		(void) close(fd);
+		return (NULL);
+	}
+
+	buf = umem_zalloc(statbuf.st_size, UMEM_NOFAIL);
+	if (buf == NULL) {
+		(void) close(fd);
+		return (NULL);
+	}
+
+	if (read(fd, buf, statbuf.st_size) != statbuf.st_size) {
+		(void) close(fd);
+		umem_free(buf, statbuf.st_size);
+		return (NULL);
+	}
+
+	(void) close(fd);
+
+	if (nvlist_unpack(buf, statbuf.st_size, &raw, 0) != 0) {
+		umem_free(buf, statbuf.st_size);
+		return (NULL);
+	}
+
+	umem_free(buf, statbuf.st_size);
+
+	config = cache_find_pool(raw, pool);
+
+	if (config && !active_ok && check_pool_active(pool)) {
+		nvlist_free(config);
+		config = NULL;
+	}
+
+	nvlist_free(raw);
 
 	return (config);
 }
