@@ -502,6 +502,9 @@ sa_fini(sa_handle_t handle)
 
 	update_sharetab(impl_handle);
 
+	if (impl_handle->zfs_libhandle != NULL)
+		libzfs_fini(impl_handle->zfs_libhandle);
+
 	impl_share = impl_handle->shares;
 	while (impl_share != NULL) {
 		next = impl_share->next;

@@ -64,6 +64,7 @@
 #include <math.h>
 
 #include <libzfs.h>
+#include <libshare.h>
 
 #include "zpool_util.h"
 #include "zfs_comutil.h"
@@ -2675,12 +2676,15 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 			ret = 1;
 	}
 
+	verify(sharetab_lock() == 0);
 	if (zpool_get_state(zhp) != POOL_STATE_UNAVAIL &&
 	    !(flags & ZFS_IMPORT_ONLY) &&
 	    zpool_enable_datasets(zhp, mntopts, 0) != 0) {
 		zpool_close(zhp);
+		verify(sharetab_unlock() == 0);
 		return (1);
 	}
+	verify(sharetab_unlock() == 0);
 
 	zpool_close(zhp);
 	return (ret);

@@ -3905,8 +3905,8 @@ zfs_do_set(int argc, char **argv)
 	}
 
 	/*
-	 * Lock the sharetab to ensure concurrent writers don't update
-	 * the file simultaneously.
+	 * If we are setting the sharenfs property, lock the sharetab to
+	 * ensure concurrent writers don't update the file simultaneously.
 	 */
 	boolean_t sharetab_lock_required = B_FALSE;
 	if (nvlist_exists(props, zfs_prop_to_name(ZFS_PROP_SHARENFS))) {
