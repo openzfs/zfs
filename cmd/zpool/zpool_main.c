@@ -1573,12 +1573,15 @@ zpool_do_destroy(int argc, char **argv)
 		return (1);
 	}
 
+	verify(sharetab_lock() == 0);
 	if (zpool_disable_datasets(zhp, force) != 0) {
 		(void) fprintf(stderr, gettext("could not destroy '%s': "
 		    "could not unmount datasets\n"), zpool_get_name(zhp));
 		zpool_close(zhp);
+		verify(sharetab_unlock() == 0);
 		return (1);
 	}
+	verify(sharetab_unlock() == 0);
 
 	/* The history must be logged as part of the export */
 	log_history = B_FALSE;
@@ -1603,8 +1606,12 @@ zpool_export_one(zpool_handle_t *zhp, void *data)
 {
 	export_cbdata_t *cb = data;
 
-	if (zpool_disable_datasets(zhp, cb->force) != 0)
+	verify(sharetab_lock() == 0);
+	if (zpool_disable_datasets(zhp, cb->force) != 0) {
+		verify(sharetab_unlock() == 0);
 		return (1);
+	}
+	verify(sharetab_unlock() == 0);
 
 	/* The history must be logged as part of the export */
 	log_history = B_FALSE;

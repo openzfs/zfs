@@ -173,18 +173,18 @@ sharetab_lock(void)
 {
 	struct flock lock;
 
-	assert(sharetab_fd == -1);
+	verify(sharetab_fd == -1);
 
 	if (mkdir("/etc/dfs", 0755) < 0 && errno != EEXIST) {
 		perror("sharetab_lock: failed to create /etc/dfs");
-		return (-1);
+		return (errno);
 	}
 
 	sharetab_fd = open(ZFS_SHARETAB_LOCK, (O_RDWR | O_CREAT), 0600);
 
 	if (sharetab_fd < 0) {
 		perror("sharetab_lock: failed to open");
-		return (-1);
+		return (errno);
 	}
 
 	lock.l_type = F_WRLCK;
@@ -193,7 +193,7 @@ sharetab_lock(void)
 	lock.l_len = 0;
 	if (fcntl(sharetab_fd, F_SETLKW, &lock) < 0) {
 		perror("sharetab_lock: failed to lock");
-		return (-1);
+		return (errno);
 	}
 	return (0);
 }
@@ -227,7 +227,6 @@ update_sharetab(sa_handle_impl_t impl_handle)
 	char tempfile[] = ZFS_SHARETAB".XXXXXX";
 	sa_fstype_t *fstype;
 	const char *resource;
-
 
 	temp_fd = mkstemp(tempfile);
 
@@ -502,9 +501,6 @@ sa_fini(sa_handle_t handle)
 	}
 
 	update_sharetab(impl_handle);
-
-	if (impl_handle->zfs_libhandle != NULL)
-		libzfs_fini(impl_handle->zfs_libhandle);
 
 	impl_share = impl_handle->shares;
 	while (impl_share != NULL) {
