@@ -6495,13 +6495,20 @@ ztest_deadman_thread(void *arg)
 {
 	ztest_shared_t *zs = arg;
 	spa_t *spa = ztest_spa;
-	hrtime_t delta, overdue, total = 0;
+	hrtime_t delay, overdue, last_run = gethrtime();
 
-	for (;;) {
-		delta = zs->zs_thread_stop - zs->zs_thread_start +
-		    MSEC2NSEC(zfs_deadman_synctime_ms);
+	delay = (zs->zs_thread_stop - zs->zs_thread_start) +
+	    MSEC2NSEC(zfs_deadman_synctime_ms);
 
-		(void) poll(NULL, 0, (int)NSEC2MSEC(delta));
+	while (!ztest_exiting) {
+		/*
+		 * Wait for the delay timer while checking occasionally
+		 * if we should stop.
+		 */
+		if (gethrtime() < last_run + delay) {
+			(void) poll(NULL, 0, 1000);
+			continue;
+		}
 
 		/*
 		 * If the pool is suspended then fail immediately. Otherwise,
@@ -6522,15 +6529,20 @@ ztest_deadman_thread(void *arg)
 		 * then it may be hung and is terminated.
 		 */
 		overdue = zs->zs_proc_stop + MSEC2NSEC(zfs_deadman_synctime_ms);
-		total += zfs_deadman_synctime_ms / 1000;
 		if (gethrtime() > overdue) {
 			fatal(0, "aborting test after %llu seconds because "
-			    "the process is overdue for termination.", total);
+			    "the process is overdue for termination.",
+			    (gethrtime() - zs->zs_proc_start) / NANOSEC);
 		}
 
 		(void) printf("ztest has been running for %lld seconds\n",
-		    total);
+		    (gethrtime() - zs->zs_proc_start) / NANOSEC);
+
+		last_run = gethrtime();
+		delay = MSEC2NSEC(zfs_deadman_checktime_ms);
 	}
+
+	thread_exit();
 }
 
 static void
@@ -6724,7 +6736,7 @@ ztest_run(ztest_shared_t *zs)
 {
 	spa_t *spa;
 	objset_t *os;
-	kthread_t *resume_thread;
+	kthread_t *resume_thread, *deadman_thread;
 	kthread_t **run_threads;
 	uint64_t object;
 	int error;
@@ -6782,7 +6794,7 @@ ztest_run(ztest_shared_t *zs)
 	/*
 	 * Create a deadman thread and set to panic if we hang.
 	 */
-	(void) thread_create(NULL, 0, ztest_deadman_thread,
+	deadman_thread = thread_create(NULL, 0, ztest_deadman_thread,
 	    zs, 0, NULL, TS_RUN | TS_JOINABLE, defclsyspri);
 
 	spa->spa_deadman_failmode = ZIO_FAILURE_MODE_PANIC;
@@ -6849,9 +6861,10 @@ ztest_run(ztest_shared_t *zs)
 
 	umem_free(run_threads, ztest_opts.zo_threads * sizeof (kthread_t *));
 
-	/* Kill the resume thread */
+	/* Kill the resume and deadman threads */
 	ztest_exiting = B_TRUE;
 	VERIFY0(thread_join(resume_thread));
+	VERIFY0(thread_join(deadman_thread));
 	ztest_resume(spa);
 
 	/*
@@ -7351,6 +7364,7 @@ main(int argc, char **argv)
 
 	dprintf_setup(&argc, argv);
 	zfs_deadman_synctime_ms = 300000;
+	zfs_deadman_checktime_ms = 30000;
 	/*
 	 * As two-word space map entries may not come up often (especially
 	 * if pool and vdev sizes are small) we want to force at least some

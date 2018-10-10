@@ -312,7 +312,7 @@ unsigned long zfs_deadman_ziotime_ms = 300000ULL;
  * Check time in milliseconds. This defines the frequency at which we check
  * for hung I/O.
  */
-unsigned long  zfs_deadman_checktime_ms = 60000ULL;
+unsigned long zfs_deadman_checktime_ms = 60000ULL;
 
 /*
  * By default the deadman is enabled.
