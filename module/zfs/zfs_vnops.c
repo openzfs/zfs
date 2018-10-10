@@ -651,6 +651,7 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 	else
 #endif
 		if (uio_prefaultpages(MIN(n, max_blksz), uio)) {
+			ZFS_EXIT(zfsvfs);
 			return (SET_ERROR(EFAULT));
 		}
 
