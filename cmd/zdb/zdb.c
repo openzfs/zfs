@@ -5126,7 +5126,7 @@ mos_leaks_cb(void *arg, uint64_t start, uint64_t size)
 {
 	for (uint64_t i = start; i < size; i++) {
 		(void) printf("MOS object %llu referenced but not allocated\n",
-		    (long long)i);
+		    (u_longlong_t)i);
 	}
 }
 
@@ -5272,7 +5272,7 @@ dump_mos_leaks(spa_t *spa)
 			}
 
 			(void) printf("MOS object %llu (%s) leaked\n",
-			    (long long)object, name);
+			    (u_longlong_t)object, name);
 			rv = 2;
 		}
 	}
