@@ -39,7 +39,7 @@ pre_mountroot()
 	fi
 }
 
-# If plymouth is availible, hide the splash image.
+# If plymouth is available, hide the splash image.
 disable_plymouth()
 {
 	if [ -x /bin/plymouth ] && /bin/plymouth --ping
@@ -108,7 +108,7 @@ find_pools()
 	echo "${pools%%;}" # Return without the last ';'.
 }
 
-# Get a list of all availible pools
+# Get a list of all available pools
 get_pools()
 {
 	local available_pools npools
@@ -118,7 +118,7 @@ get_pools()
 		return 0
 	fi
 
-	# Get the base list of availible pools.
+	# Get the base list of available pools.
 	available_pools=$(find_pools "$ZPOOL" import)
 
 	# Just in case - seen it happen (that a pool isn't visable/found
@@ -181,7 +181,7 @@ get_pools()
 		available_pools="$apools"
 	fi
 
-	# Return list of availible pools.
+	# Return list of available pools.
 	echo "$available_pools"
 }
 
@@ -391,67 +391,37 @@ mount_fs()
 decrypt_fs()
 {
 	local fs="$1"
+	
+	# If pool encryption is active and the zfs command understands '-o encryption'
+	if [ "$(zpool list -H -o feature@encryption $(echo "${fs}" | awk -F\/ '{print $1}'))" = 'active' ]; then
 
-	# If the 'zfs key' command isn't availible, exit right here.
-	"${ZFS}" 2>&1 | grep -q 'key -l ' || return 0
+		# Determine dataset that holds key for root dataset
+		ENCRYPTIONROOT=$(${ZFS} get -H -o value encryptionroot "${fs}")
+		DECRYPT_CMD="${ZFS} load-key '${ENCRYPTIONROOT}'"
 
-	# Check if filesystem is encrypted. If not, exit right here.
-	[ "$(get_fs_value "$fs" encryption)" != "off" ] || return 0
+		# If root dataset is encrypted...
+		if ! [ "${ENCRYPTIONROOT}" = "-" ]; then
 
-	[ "$quiet" != "y" ] && \
-	    zfs_log_begin_msg "Loading crypto wrapper key for $fs"
+			# Prompt with plymouth, if active
+			if [ -e /bin/plymouth ] && /bin/plymouth --ping 2>/dev/null; then
+				plymouth ask-for-password --prompt "Encrypted ZFS password for ${ENCRYPTIONROOT}" \
+					--number-of-tries="3" \
+					--command="${DECRYPT_CMD}"
 
-	# Just make sure that ALL crypto modules module is loaded.
-	# Simplest just to load all...
-	for mod in sun-ccm sun-gcm sun-ctr
-	do
-		[ "$quiet" != "y" ] && zfs_log_progress_msg "${mod} "
+			# Prompt with systemd, if active 
+			elif [ -e /run/systemd/system ]; then
+				TRY_COUNT=3
+				while [ $TRY_COUNT -gt 0 ]; do
+					systemd-ask-password "Encrypted ZFS password for ${ENCRYPTIONROOT}" --no-tty | \
+						${DECRYPT_CMD} && break
+					TRY_COUNT=$((TRY_COUNT - 1))
+				done
 
-		ZFS_CMD="load_module $mod"
-		ZFS_STDERR="$(${ZFS_CMD} 2>&1)"
-		ZFS_ERROR="$?"
-
-		if [ "${ZFS_ERROR}" != 0 ]
-		then
-			[ "$quiet" != "y" ] && zfs_log_failure_msg "${ZFS_ERROR}"
-
-			disable_plymouth
-			echo ""
-			echo "Command: $ZFS_CMD"
-			echo "Message: $ZFS_STDERR"
-			echo "Error: $ZFS_ERROR"
-			echo ""
-			echo "Failed to load $mod module."
-			echo "Please verify that it is availible on the initrd image"
-			echo "(without it it won't be possible to unlock the filesystem)"
-			echo "and rerun:  $ZFS_CMD"
-			/bin/sh
-		else
-			[ "$quiet" != "y" ] && zfs_log_end_msg
+			# Prompt with ZFS tty, otherwise
+			else
+				eval "${DECRYPT_CMD}"
+			fi
 		fi
-	done
-
-	# If the key isn't availible, then this will fail!
-	ZFS_CMD="${ZFS} key -l -r $fs"
-	ZFS_STDERR="$(${ZFS_CMD} 2>&1)"
-	ZFS_ERROR="$?"
-
-	if [ "${ZFS_ERROR}" != 0 ]
-	then
-		[ "$quiet" != "y" ] && zfs_log_failure_msg "${ZFS_ERROR}"
-
-		disable_plymouth
-		echo ""
-		echo "Command: $ZFS_CMD"
-		echo "Message: $ZFS_STDERR"
-		echo "Error: $ZFS_ERROR"
-		echo ""
-		echo "Failed to load zfs encryption wrapper key (s)."
-		echo "Please verify dataset property 'keysource' for datasets"
-		echo "and rerun:  $ZFS_CMD"
-		/bin/sh
-	else
-		[ "$quiet" != "y" ] && zfs_log_end_msg
 	fi
 
 	return 0
