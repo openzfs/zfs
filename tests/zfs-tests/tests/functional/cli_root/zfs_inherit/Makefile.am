@@ -4,4 +4,5 @@ dist_pkgdata_SCRIPTS = \
 	setup.ksh \
 	zfs_inherit_001_neg.ksh \
 	zfs_inherit_002_neg.ksh \
-	zfs_inherit_003_pos.ksh
+	zfs_inherit_003_pos.ksh \
+	zfs_inherit_mountpoint.ksh

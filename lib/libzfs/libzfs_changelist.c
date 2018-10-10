@@ -553,39 +553,50 @@ change_one(zfs_handle_t *zhp, void *data)
 	return (0);
 }
 
-/*ARGSUSED*/
 static int
-compare_mountpoints(const void *a, const void *b, void *unused)
+compare_props(const void *a, const void *b, zfs_prop_t prop)
 {
 	const prop_changenode_t *ca = a;
 	const prop_changenode_t *cb = b;
 
-	char mounta[MAXPATHLEN];
-	char mountb[MAXPATHLEN];
+	char propa[MAXPATHLEN];
+	char propb[MAXPATHLEN];
 
-	boolean_t hasmounta, hasmountb;
+	boolean_t haspropa, haspropb;
 
+	haspropa = (zfs_prop_get(ca->cn_handle, prop, propa, sizeof (propa),
+	    NULL, NULL, 0, B_FALSE) == 0);
+	haspropb = (zfs_prop_get(cb->cn_handle, prop, propb, sizeof (propb),
+	    NULL, NULL, 0, B_FALSE) == 0);
+
+	if (!haspropa && haspropb)
+		return (-1);
+	else if (haspropa && !haspropb)
+		return (1);
+	else if (!haspropa && !haspropb)
+		return (0);
+	else
+		return (strcmp(propb, propa));
+}
+
+/*ARGSUSED*/
+static int
+compare_mountpoints(const void *a, const void *b, void *unused)
+{
 	/*
 	 * When unsharing or unmounting filesystems, we need to do it in
 	 * mountpoint order.  This allows the user to have a mountpoint
 	 * hierarchy that is different from the dataset hierarchy, and still
-	 * allow it to be changed.  However, if either dataset doesn't have a
-	 * mountpoint (because it is a volume or a snapshot), we place it at the
-	 * end of the list, because it doesn't affect our change at all.
+	 * allow it to be changed.
 	 */
-	hasmounta = (zfs_prop_get(ca->cn_handle, ZFS_PROP_MOUNTPOINT, mounta,
-	    sizeof (mounta), NULL, NULL, 0, B_FALSE) == 0);
-	hasmountb = (zfs_prop_get(cb->cn_handle, ZFS_PROP_MOUNTPOINT, mountb,
-	    sizeof (mountb), NULL, NULL, 0, B_FALSE) == 0);
+	return (compare_props(a, b, ZFS_PROP_MOUNTPOINT));
+}
 
-	if (!hasmounta && hasmountb)
-		return (-1);
-	else if (hasmounta && !hasmountb)
-		return (1);
-	else if (!hasmounta && !hasmountb)
-		return (0);
-	else
-		return (strcmp(mountb, mounta));
+/*ARGSUSED*/
+static int
+compare_dataset_names(const void *a, const void *b, void *unused)
+{
+	return (compare_props(a, b, ZFS_PROP_NAME));
 }
 
 /*
@@ -630,7 +641,7 @@ changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int gather_flags,
 	clp->cl_pool = uu_avl_pool_create("changelist_pool",
 	    sizeof (prop_changenode_t),
 	    offsetof(prop_changenode_t, cn_treenode),
-	    compare_mountpoints, 0);
+	    legacy ? compare_dataset_names : compare_mountpoints, 0);
 	if (clp->cl_pool == NULL) {
 		assert(uu_error() == UU_ERROR_NO_MEMORY);
 		(void) zfs_error(zhp->zfs_hdl, EZFS_NOMEM, "internal error");
@@ -687,7 +698,7 @@ changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int gather_flags,
 		clp->cl_shareprop = ZFS_PROP_SHARENFS;
 
 	if (clp->cl_prop == ZFS_PROP_MOUNTPOINT &&
-	    (clp->cl_gflags & CL_GATHER_MOUNT_ALWAYS) == 0) {
+	    (clp->cl_gflags & CL_GATHER_ITER_MOUNTED)) {
 		/*
 		 * Instead of iterating through all of the dataset children we
 		 * gather mounted dataset children from MNTTAB
