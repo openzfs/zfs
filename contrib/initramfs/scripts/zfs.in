@@ -900,7 +900,7 @@ mountroot()
 	    }' |
 	    while read i
 	do
-		if [ -e "/sys/block/$i/queue/scheduler" ]
+		if grep -sq noop /sys/block/$i/queue/scheduler
 		then
 			echo noop > "/sys/block/$i/queue/scheduler"
 		fi
