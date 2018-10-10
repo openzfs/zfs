@@ -66,6 +66,9 @@ typedef struct timespec64	inode_timespec_t;
 typedef struct timespec		inode_timespec_t;
 #endif
 
+/* Include for Lustre compatibility */
+#define	timestruc_t	inode_timespec_t
+
 static inline void
 gethrestime(inode_timespec_t *ts)
 {
