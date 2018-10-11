@@ -22,6 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2018 Datto Inc.
  */
 
 #ifndef	_LIBZFS_IMPL_H
@@ -146,6 +147,10 @@ int zprop_expand_list(libzfs_handle_t *hdl, zprop_list_t **plp,
  * mounted.
  */
 #define	CL_GATHER_MOUNT_ALWAYS	1
+/*
+ * changelist_gather() flag to force it to iterate on mounted datasets only
+ */
+#define	CL_GATHER_ITER_MOUNTED	2
 
 typedef struct prop_changelist prop_changelist_t;
 

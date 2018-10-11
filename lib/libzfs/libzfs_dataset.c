@@ -30,6 +30,7 @@
  * Copyright 2017 Nexenta Systems, Inc.
  * Copyright 2016 Igor Kozhukhov <ikozhukhov@gmail.com>
  * Copyright 2017-2018 RackTop Systems.
+ * Copyright (c) 2018 Datto Inc.
  */
 
 #include <ctype.h>
@@ -4591,7 +4592,8 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive,
 			goto error;
 		}
 	} else if (zhp->zfs_type != ZFS_TYPE_SNAPSHOT) {
-		if ((cl = changelist_gather(zhp, ZFS_PROP_NAME, 0,
+		if ((cl = changelist_gather(zhp, ZFS_PROP_NAME,
+		    CL_GATHER_ITER_MOUNTED,
 		    force_unmount ? MS_FORCE : 0)) == NULL)
 			return (-1);
 
