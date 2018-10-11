@@ -121,11 +121,6 @@ function openzfs_port_commit()
         error=1
     fi
 
-    # need a approved by line
-    if ! check_tagged_line "Approved by" ; then
-        error=1
-    fi
-
     # need ported by line
     if ! check_tagged_line "Ported-by" ; then
         error=1
