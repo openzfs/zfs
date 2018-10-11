@@ -27,6 +27,7 @@
 # Copyright (c) 2017 Lawrence Livermore National Security, LLC.
 # Copyright (c) 2017 Datto Inc.
 # Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+# Copyright 2017-2018 Richard Elling
 #
 
 . ${STF_TOOLS}/include/logapi.shlib
@@ -2032,6 +2033,67 @@ function wait_hotspare_state # pool disk state timeout
 }
 
 #
+# Wait until a vdev is not in a pool (eg was replaced)
+#
+function wait_vdev_gone { # pool vdev timeout
+	typeset pool=$1
+	typeset vdev=$2
+	typeset timeout=${3:-60}
+	typeset -i i=0
+
+	while (( $i < $timeout )); do
+		if ! vdevs_in_pool $pool $vdev; then
+			return 0
+		fi
+
+		((i++))
+		sleep 1
+	done
+
+	return 1
+}
+
+#
+# Wait until a pool scan status reaches resilvered state
+#
+function wait_pool_resilvered { # pool [timeout]
+	typeset pool=$1
+	typeset timeout=${2:-60}
+	typeset -i i=0
+
+	while (( $i < $timeout )); do
+		if is_pool_resilvered $pool; then
+			return 0
+		fi
+
+		((i++))
+		sleep 1
+	done
+
+	return 1
+}
+
+#
+# Wait until a pool scan status reaches rebuilt state
+#
+function wait_pool_rebuilt { # pool [timeout]
+	typeset pool=$1
+	typeset timeout=${2:-60}
+	typeset -i i=0
+
+	while (( $i < $timeout )); do
+		if is_pool_rebuilt $pool; then
+			return 0
+		fi
+
+		((i++))
+		sleep 1
+	done
+
+	return 1
+}
+
+#
 # Verify a given slog disk is inuse or avail
 #
 # Return 0 is pool/disk matches expected state, 1 otherwise
@@ -2118,9 +2180,11 @@ function check_pool_status # pool token keyword <verbose>
 }
 
 #
-# These 6 following functions are instance of check_pool_status()
+# These functions are instance of check_pool_status()
 #	is_pool_resilvering - to check if the pool is resilver in progress
 #	is_pool_resilvered - to check if the pool is resilver completed
+#	is_pool_rebuilding - to check if the pool rebuild is in progress
+#	is_pool_rebuilt - to check if the pool rebuild is completed
 #	is_pool_scrubbing - to check if the pool is scrub in progress
 #	is_pool_scrubbed - to check if the pool is scrub completed
 #	is_pool_scrub_stopped - to check if the pool is scrub stopped
@@ -2137,6 +2201,19 @@ function is_pool_resilvering #pool <verbose>
 function is_pool_resilvered #pool <verbose>
 {
 	check_pool_status "$1" "scan" "resilvered " $2
+	return $?
+}
+
+function is_pool_rebuilding #pool <verbose>
+{
+	check_pool_status "$1" "scan" "rebuild in progress since " $2
+	return $?
+}
+
+function is_pool_rebuilt #pool <verbose>
+{
+    log_note $(zpool status | grep scan)
+	check_pool_status "$1" "scan" "rebuilt " $2
 	return $?
 }
 
@@ -3028,8 +3105,11 @@ function vdevs_in_pool
 	typeset tmpfile=$(mktemp)
 	zpool list -Hv "$pool" >$tmpfile
 	for vdev in $@; do
-		grep -w ${vdev##*/} $tmpfile >/dev/null 2>&1
-		[[ $? -ne 0 ]] && return 1
+		awk -v vdev=$vdev '$1 == vdev && NF == 7 {exit 11}' <$tmpfile
+		if [[ $? -ne 11 ]]; then
+			rm -f $tmpfile
+			return 1
+		fi
 	done
 
 	rm -f $tmpfile
