@@ -407,6 +407,10 @@ uint64_t dmu_object_alloc_ibs(objset_t *os, dmu_object_type_t ot, int blocksize,
 uint64_t dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot,
     int blocksize, dmu_object_type_t bonus_type, int bonus_len,
     int dnodesize, dmu_tx_t *tx);
+uint64_t dmu_object_alloc_hold(objset_t *os, dmu_object_type_t ot,
+    int blocksize, int indirect_blockshift, dmu_object_type_t bonustype,
+    int bonuslen, int dnodesize, dnode_t **allocated_dnode, void *tag,
+    dmu_tx_t *tx);
 int dmu_object_claim(objset_t *os, uint64_t object, dmu_object_type_t ot,
     int blocksize, dmu_object_type_t bonus_type, int bonus_len, dmu_tx_t *tx);
 int dmu_object_claim_dnsize(objset_t *os, uint64_t object, dmu_object_type_t ot,
@@ -521,9 +525,9 @@ void dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp,
  *
  * Returns ENOENT, EIO, or 0.
  */
-int dmu_bonus_hold_impl(objset_t *os, uint64_t object, void *tag,
-    uint32_t flags, dmu_buf_t **dbp);
-int dmu_bonus_hold(objset_t *os, uint64_t object, void *tag, dmu_buf_t **);
+int dmu_bonus_hold(objset_t *os, uint64_t object, void *tag, dmu_buf_t **dbp);
+int dmu_bonus_hold_by_dnode(dnode_t *dn, void *tag, dmu_buf_t **dbp,
+    uint32_t flags);
 int dmu_bonus_max(void);
 int dmu_set_bonus(dmu_buf_t *, int, dmu_tx_t *);
 int dmu_set_bonustype(dmu_buf_t *, dmu_object_type_t, dmu_tx_t *);

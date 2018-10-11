@@ -1323,13 +1323,15 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 
 	if (data != NULL) {
 		dmu_buf_t *db;
+		dnode_t *dn;
 		uint32_t flags = DMU_READ_NO_PREFETCH;
 
 		if (rwa->raw)
 			flags |= DMU_READ_NO_DECRYPT;
 
-		VERIFY0(dmu_bonus_hold_impl(rwa->os, drro->drr_object,
-		    FTAG, flags, &db));
+		VERIFY0(dnode_hold(rwa->os, drro->drr_object, FTAG, &dn));
+		VERIFY0(dmu_bonus_hold_by_dnode(dn, FTAG, &db, flags));
+
 		dmu_buf_will_dirty(db, tx);
 
 		ASSERT3U(db->db_size, >=, drro->drr_bonuslen);
@@ -1346,6 +1348,7 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 			    DRR_OBJECT_PAYLOAD_SIZE(drro));
 		}
 		dmu_buf_rele(db, FTAG);
+		dnode_rele(dn, FTAG);
 	}
 	dmu_tx_commit(tx);
 
