@@ -720,7 +720,8 @@ zil_create(zilog_t *zilog)
 		txg_wait_synced(zilog->zl_dmu_pool, txg);
 	}
 
-	ASSERT(bcmp(&blk, &zh->zh_log, sizeof (blk)) == 0);
+	ASSERT(error != 0 || bcmp(&blk, &zh->zh_log, sizeof (blk)) == 0);
+	IMPLY(error == 0, lwb != NULL);
 
 	return (lwb);
 }
