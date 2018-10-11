@@ -600,6 +600,20 @@ parseprop(nvlist_t *props, char *propname)
 		    "specified multiple times\n"), propname);
 		return (B_FALSE);
 	}
+
+	/*
+	 * If we are setting the sharenfs property, lock the sharetab to
+	 * ensure concurrent writers don't update the file simultaneously.
+	 * The sharetab will remain locked until the process exits.
+	 */
+	if (strcmp(propname, zfs_prop_to_name(ZFS_PROP_SHARENFS)) == 0) {
+		if (sharetab_lock() != 0) {
+			(void) fprintf(stderr, gettext("unable to set "
+			    "property: %s\n"), strerror(errno));
+			exit(1);
+		}
+	}
+
 	if (nvlist_add_string(props, propname, propval) != 0)
 		nomem();
 	return (B_TRUE);
@@ -3904,26 +3918,8 @@ zfs_do_set(int argc, char **argv)
 		}
 	}
 
-	/*
-	 * If we are setting the sharenfs property, lock the sharetab to
-	 * ensure concurrent writers don't update the file simultaneously.
-	 */
-	boolean_t sharetab_lock_required = B_FALSE;
-	if (nvlist_exists(props, zfs_prop_to_name(ZFS_PROP_SHARENFS))) {
-		if (sharetab_lock() != 0) {
-			(void) fprintf(stderr, gettext("unable to set "
-			    "property: %s\n"), strerror(errno));
-			ret = -1;
-			goto error;
-		}
-		sharetab_lock_required = B_TRUE;
-	}
-
 	ret = zfs_for_each(argc - ds_start, argv + ds_start, 0,
 	    ZFS_TYPE_DATASET, NULL, NULL, 0, set_callback, props);
-
-	if (sharetab_lock_required)
-		verify(sharetab_unlock() == 0);
 
 error:
 	nvlist_free(props);

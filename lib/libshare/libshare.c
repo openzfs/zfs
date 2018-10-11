@@ -217,7 +217,6 @@ sharetab_unlock(void)
 	return (retval);
 }
 
-
 static void
 update_sharetab(sa_handle_impl_t impl_handle)
 {
