@@ -251,7 +251,9 @@ vdev_remove_initiate_sync(void *arg, dmu_tx_t *tx)
 		VERIFY0(zap_add(spa->spa_meta_objset, vd->vdev_top_zap,
 		    VDEV_TOP_ZAP_OBSOLETE_COUNTS_ARE_PRECISE, sizeof (one), 1,
 		    &one, tx));
-		ASSERT3U(vdev_obsolete_counts_are_precise(vd), !=, 0);
+		ASSERTV(boolean_t are_precise);
+		ASSERT0(vdev_obsolete_counts_are_precise(vd, &are_precise));
+		ASSERT3B(are_precise, ==, B_TRUE);
 	}
 
 	vic->vic_mapping_object = vdev_indirect_mapping_alloc(mos, tx);
@@ -1563,15 +1565,20 @@ spa_vdev_remove_cancel_sync(void *arg, dmu_tx_t *tx)
 	ASSERT3P(svr->svr_thread, ==, NULL);
 
 	spa_feature_decr(spa, SPA_FEATURE_DEVICE_REMOVAL, tx);
-	if (vdev_obsolete_counts_are_precise(vd)) {
+
+	boolean_t are_precise;
+	VERIFY0(vdev_obsolete_counts_are_precise(vd, &are_precise));
+	if (are_precise) {
 		spa_feature_decr(spa, SPA_FEATURE_OBSOLETE_COUNTS, tx);
 		VERIFY0(zap_remove(spa->spa_meta_objset, vd->vdev_top_zap,
 		    VDEV_TOP_ZAP_OBSOLETE_COUNTS_ARE_PRECISE, tx));
 	}
 
-	if (vdev_obsolete_sm_object(vd) != 0) {
+	uint64_t obsolete_sm_object;
+	VERIFY0(vdev_obsolete_sm_object(vd, &obsolete_sm_object));
+	if (obsolete_sm_object != 0) {
 		ASSERT(vd->vdev_obsolete_sm != NULL);
-		ASSERT3U(vdev_obsolete_sm_object(vd), ==,
+		ASSERT3U(obsolete_sm_object, ==,
 		    space_map_object(vd->vdev_obsolete_sm));
 
 		space_map_free(vd->vdev_obsolete_sm, tx);

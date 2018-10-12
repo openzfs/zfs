@@ -2895,30 +2895,28 @@ vdev_resilver_needed(vdev_t *vd, uint64_t *minp, uint64_t *maxp)
 }
 
 /*
- * Gets the checkpoint space map object from the vdev's ZAP.
- * Returns the spacemap object, or 0 if it wasn't in the ZAP,
- * the ZAP doesn't exist yet, or the ZAP is damaged.
+ * Gets the checkpoint space map object from the vdev's ZAP.  On success sm_obj
+ * will contain either the checkpoint spacemap object or zero if none exists.
+ * All other errors are returned to the caller.
  */
 int
-vdev_checkpoint_sm_object(vdev_t *vd)
+vdev_checkpoint_sm_object(vdev_t *vd, uint64_t *sm_obj)
 {
 	ASSERT0(spa_config_held(vd->vdev_spa, SCL_ALL, RW_WRITER));
+
 	if (vd->vdev_top_zap == 0) {
+		*sm_obj = 0;
 		return (0);
 	}
 
-	uint64_t sm_obj = 0;
-	int err = zap_lookup(spa_meta_objset(vd->vdev_spa), vd->vdev_top_zap,
-	    VDEV_TOP_ZAP_POOL_CHECKPOINT_SM, sizeof (uint64_t), 1, &sm_obj);
-
-	if (err != 0 && err != ENOENT) {
-		vdev_dbgmsg(vd, "vdev_load: vdev_checkpoint_sm_objset "
-		    "failed to retrieve checkpoint space map object from "
-		    "vdev ZAP [error=%d]", err);
-		ASSERT3S(err, ==, ECKSUM);
+	int error = zap_lookup(spa_meta_objset(vd->vdev_spa), vd->vdev_top_zap,
+	    VDEV_TOP_ZAP_POOL_CHECKPOINT_SM, sizeof (uint64_t), 1, sm_obj);
+	if (error == ENOENT) {
+		*sm_obj = 0;
+		error = 0;
 	}
 
-	return (sm_obj);
+	return (error);
 }
 
 int
@@ -2974,8 +2972,9 @@ vdev_load(vdev_t *vd)
 			return (error);
 		}
 
-		uint64_t checkpoint_sm_obj = vdev_checkpoint_sm_object(vd);
-		if (checkpoint_sm_obj != 0) {
+		uint64_t checkpoint_sm_obj;
+		error = vdev_checkpoint_sm_object(vd, &checkpoint_sm_obj);
+		if (error == 0 && checkpoint_sm_obj != 0) {
 			objset_t *mos = spa_meta_objset(vd->vdev_spa);
 			ASSERT(vd->vdev_asize != 0);
 			ASSERT3P(vd->vdev_checkpoint_sm, ==, NULL);
@@ -2995,12 +2994,17 @@ vdev_load(vdev_t *vd)
 			/*
 			 * Since the checkpoint_sm contains free entries
 			 * exclusively we can use sm_alloc to indicate the
-			 * culmulative checkpointed space that has been freed.
+			 * cumulative checkpointed space that has been freed.
 			 */
 			vd->vdev_stat.vs_checkpoint_space =
 			    -vd->vdev_checkpoint_sm->sm_alloc;
 			vd->vdev_spa->spa_checkpoint_info.sci_dspace +=
 			    vd->vdev_stat.vs_checkpoint_space;
+		} else if (error != 0) {
+			vdev_dbgmsg(vd, "vdev_load: failed to retrieve "
+			    "checkpoint space map object from vdev ZAP "
+			    "[error=%d]", error);
+			return (error);
 		}
 	}
 
@@ -3015,8 +3019,9 @@ vdev_load(vdev_t *vd)
 		return (error);
 	}
 
-	uint64_t obsolete_sm_object = vdev_obsolete_sm_object(vd);
-	if (obsolete_sm_object != 0) {
+	uint64_t obsolete_sm_object;
+	error = vdev_obsolete_sm_object(vd, &obsolete_sm_object);
+	if (error == 0 && obsolete_sm_object != 0) {
 		objset_t *mos = vd->vdev_spa->spa_meta_objset;
 		ASSERT(vd->vdev_asize != 0);
 		ASSERT3P(vd->vdev_obsolete_sm, ==, NULL);
@@ -3031,6 +3036,10 @@ vdev_load(vdev_t *vd)
 			return (error);
 		}
 		space_map_update(vd->vdev_obsolete_sm);
+	} else if (error != 0) {
+		vdev_dbgmsg(vd, "vdev_load: failed to retrieve obsolete "
+		    "space map object from vdev ZAP [error=%d]", error);
+		return (error);
 	}
 
 	return (0);
