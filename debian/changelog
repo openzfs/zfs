@@ -1,9 +1,3 @@
-zfs-linux (_DELPHIX_PKG_VERSION_-_DELPHIX_PKG_REVISION_) UNRELEASED; urgency=medium
-
-  * Delphix trunk release
-
- -- Pavel Zakharov <pavel.zakharov@delphix.com>  Mon, 16 Apr 2018 19:42:09 +0000
-
 zfs-linux (0.7.5-1ubuntu14) bionic; urgency=medium
 
   * Clean up symlink'd /etc/zfs/zed.d/zed-functions.sh (LP: #1757939)
