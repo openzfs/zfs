@@ -26,7 +26,7 @@
 #ifndef _DRAID_PERMUTATION_H
 #define	_DRAID_PERMUTATION_H
 
-#include <sys/vdev_draid_impl.h>
+#include "draid_config.h"
 
 #ifdef  __cplusplus
 extern "C" {

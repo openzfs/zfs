@@ -34,6 +34,7 @@ USER_C = \
 
 KERNEL_C = \
 	algs/sha2/sha2.c \
+	draid_config.c \
 	zfeature_common.c \
 	zfs_comutil.c \
 	zfs_deleg.c \
@@ -60,7 +61,6 @@ libzfs_la_LIBADD = \
 	$(top_builddir)/lib/libshare/libshare.la \
 	$(top_builddir)/lib/libtpool/libtpool.la \
 	$(top_builddir)/lib/libuutil/libuutil.la \
-	$(top_builddir)/lib/libzpool/libzpool.la \
 	$(top_builddir)/lib/libzfs_core/libzfs_core.la
 
 libzfs_la_LIBADD += -lm $(LIBBLKID) $(LIBUDEV) $(LIBSSL)

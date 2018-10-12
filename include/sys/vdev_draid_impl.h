@@ -32,20 +32,11 @@
 #include <sys/vdev_impl.h>
 #include <sys/vdev_raidz_impl.h>
 
+#include "draid_config.h"
+
 #ifdef  __cplusplus
 extern "C" {
 #endif
-
-
-struct vdev_draid_configuration {
-	uint64_t dcf_data;
-	uint64_t dcf_parity;
-	uint64_t dcf_spare;
-	uint64_t dcf_children;
-	uint64_t dcf_bases;
-	abd_t *dcf_zero_abd;
-	const uint64_t *dcf_base_perms;
-};
 
 extern boolean_t vdev_draid_ms_mirrored(const vdev_t *, uint64_t);
 extern boolean_t vdev_draid_group_degraded(vdev_t *, vdev_t *,
@@ -57,8 +48,6 @@ extern uint64_t vdev_draid_group2offset(const vdev_t *, uint64_t, boolean_t);
 extern boolean_t vdev_draid_is_remainder_group(const vdev_t *,
     uint64_t, boolean_t);
 extern uint64_t vdev_draid_get_groupsz(const vdev_t *, boolean_t);
-extern boolean_t vdev_draid_config_validate(const vdev_t *, nvlist_t *);
-extern boolean_t vdev_draid_config_add(nvlist_t *, nvlist_t *);
 extern void vdev_draid_fix_skip_sectors(zio_t *);
 extern int vdev_draid_hide_skip_sectors(raidz_map_t *);
 extern void vdev_draid_restore_skip_sectors(raidz_map_t *, int);
@@ -69,15 +58,6 @@ extern vdev_t *vdev_draid_spare_get_parent(vdev_t *);
 extern nvlist_t *vdev_draid_spare_read_config(vdev_t *);
 extern uint64_t vdev_draid_asize2psize(vdev_t *, uint64_t, uint64_t);
 extern uint64_t vdev_draid_max_rebuildable_asize(vdev_t *, uint64_t);
-
-#define	VDEV_DRAID_MAX_CHILDREN	255
-#define	VDEV_DRAID_U8_MAX	((uint8_t)-1)
-
-/*
- * Double '%' characters in the front because it's used as format string in
- * scanf()/printf() family of functions
- */
-#define	VDEV_DRAID_SPARE_PATH_FMT "%%"VDEV_TYPE_DRAID"%lu-%lu-s%lu"
 
 #ifdef _KERNEL
 #define	U64FMT "%llu"

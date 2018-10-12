@@ -26,6 +26,7 @@ USER_C = \
 	util.c
 
 KERNEL_C = \
+	draid_config.c \
 	zfeature_common.c \
 	zfs_comutil.c \
 	zfs_deleg.c \

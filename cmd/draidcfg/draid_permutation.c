@@ -22,6 +22,7 @@
  * Copyright (c) 2016 Intel Corporation.
  */
 
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -29,6 +30,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <math.h>
+#include <sys/stat.h>
 
 #include "draid_permutation.h"
 

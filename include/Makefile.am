@@ -1,6 +1,7 @@
 SUBDIRS = linux spl sys
 
 COMMON_H = \
+	$(top_srcdir)/include/draid_config.h \
 	$(top_srcdir)/include/zfeature_common.h \
 	$(top_srcdir)/include/zfs_comutil.h \
 	$(top_srcdir)/include/zfs_deleg.h \

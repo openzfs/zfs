@@ -893,11 +893,6 @@ extern int zpool_enable_datasets(zpool_handle_t *, const char *, int);
 extern int zpool_disable_datasets(zpool_handle_t *, boolean_t);
 
 /*
- * dRAID import support
- */
-nvlist_t *draidcfg_read_file(const char *);
-
-/*
  * Support for Linux libudev derived persistent device strings
  */
 extern boolean_t is_mpath_whole_disk(const char *);

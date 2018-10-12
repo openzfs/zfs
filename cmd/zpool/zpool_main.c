@@ -58,7 +58,6 @@
 #include <sys/fm/util.h>
 #include <sys/fm/protocol.h>
 #include <sys/zfs_ioctl.h>
-#include <sys/vdev_draid_impl.h>
 #include <sys/mount.h>
 #include <sys/sysmacros.h>
 

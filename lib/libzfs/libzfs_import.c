@@ -63,7 +63,6 @@
 #include <sys/efi_partition.h>
 #include <thread_pool.h>
 #include <sys/vdev_impl.h>
-#include <sys/vdev_draid_impl.h>
 #include <blkid/blkid.h>
 #include "libzfs.h"
 #include "libzfs_impl.h"
@@ -925,64 +924,6 @@ vdev_is_hole(uint64_t *hole_array, uint_t holes, uint_t id)
 			return (B_TRUE);
 	}
 	return (B_FALSE);
-}
-
-nvlist_t *
-draidcfg_read_file(const char *path)
-{
-	int fd;
-	struct stat64 sb;
-	char *buf;
-	nvlist_t *config;
-
-	if ((fd = open(path, O_RDONLY)) < 0) {
-		(void) fprintf(stderr, "Cannot open '%s'\n", path);
-		return (NULL);
-	}
-
-	if (fstat64(fd, &sb) != 0) {
-		(void) fprintf(stderr, "Failed to stat '%s'\n", path);
-		close(fd);
-		return (NULL);
-	}
-
-	if (!S_ISREG(sb.st_mode)) {
-		(void) fprintf(stderr, "Not a regular file '%s'\n", path);
-		close(fd);
-		return (NULL);
-	}
-
-	if ((buf = malloc(sb.st_size)) == NULL) {
-		(void) fprintf(stderr, "Failed to allocate %llu bytes\n",
-		    (u_longlong_t)sb.st_size);
-		close(fd);
-		return (NULL);
-	}
-
-	if (read(fd, buf, sb.st_size) != sb.st_size) {
-		(void) fprintf(stderr, "Failed to read %llu bytes\n",
-		    (u_longlong_t)sb.st_size);
-		close(fd);
-		free(buf);
-		return (NULL);
-	}
-
-	(void) close(fd);
-
-	if (nvlist_unpack(buf, sb.st_size, &config, 0) != 0) {
-		(void) fprintf(stderr, "Failed to unpack nvlist\n");
-		free(buf);
-		return (NULL);
-	}
-
-	free(buf);
-
-	if (!vdev_draid_config_validate(NULL, config)) {
-		nvlist_free(config);
-		return (NULL);
-	}
-
-	return (config);
 }
 
 /*

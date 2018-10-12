@@ -13,6 +13,7 @@ ifeq ($(target_cpu),sparc64)
 ccflags-y += -Wno-unused-value
 endif
 
+$(MODULE)-objs += draid_config.o
 $(MODULE)-objs += zfeature_common.o
 $(MODULE)-objs += zfs_comutil.o
 $(MODULE)-objs += zfs_deleg.o

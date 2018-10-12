@@ -28,9 +28,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <libintl.h>
-#include <sys/vdev_impl.h>
-#include <sys/vdev_draid_impl.h>
 
+#include "draid_config.h"
 #include "draid_permutation.h"
 
 
