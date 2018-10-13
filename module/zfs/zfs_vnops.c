@@ -4656,16 +4656,18 @@ zfs_dirty_inode(struct inode *ip, int flags)
 
 top:
 	tx = dmu_tx_create(zfsvfs->z_os);
-
 	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
 	zfs_sa_upgrade_txholds(tx, zp);
 
-	boolean_t waited = B_FALSE;
-	error = dmu_tx_assign(tx,
-	    waited ? (TXG_NOTHROTTLE | TXG_WAIT) : TXG_NOWAIT);
+	/*
+	 * Despite this function allows an error to be returned, it's called
+	 * from zpl_dirty_inode() which is a Linux VFS callback functions
+	 * (.dirty_inode) which must always succeed, so we have to assign a
+	 * txg with TXG_NOTHROTTLE plus TX_WAIT.
+	 */
+	error = dmu_tx_assign(tx, TXG_NOTHROTTLE | TXG_WAIT);
 	if (error) {
-		if (error == ERESTART && waited == B_FALSE) {
-			waited = B_TRUE;
+		if (error == ERESTART) {
 			dmu_tx_wait(tx);
 			dmu_tx_abort(tx);
 			goto top;
