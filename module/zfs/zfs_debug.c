@@ -124,11 +124,10 @@ __set_error(const char *file, const char *func, int line, int err)
 	 * $ echo 512 >/sys/module/zfs/parameters/zfs_flags
 	 */
 	if (zfs_flags & ZFS_DEBUG_SET_ERROR)
-		__dprintf(file, func, line, "error %lu", err);
+		__dprintf(B_FALSE, file, func, line, "error %lu", err);
 }
 
-#ifdef _KERNEL
-static void
+void
 __zfs_dbgmsg(char *buf)
 {
 	int size = sizeof (zfs_dbgmsg_t) + strlen(buf);
@@ -144,8 +143,11 @@ __zfs_dbgmsg(char *buf)
 	mutex_exit(&zfs_dbgmsgs.pl_lock);
 }
 
+#ifdef _KERNEL
+
 void
-__dprintf(const char *file, const char *func, int line, const char *fmt, ...)
+__dprintf(boolean_t dprint, const char *file, const char *func,
+    int line, const char *fmt, ...)
 {
 	const char *newfile;
 	va_list adx;
@@ -153,6 +155,7 @@ __dprintf(const char *file, const char *func, int line, const char *fmt, ...)
 	char *buf;
 	char *nl;
 	int i;
+	char *prefix = (dprint) ? "dprintf: " : "";
 
 	size = 1024;
 	buf = kmem_alloc(size, KM_SLEEP);
@@ -167,7 +170,7 @@ __dprintf(const char *file, const char *func, int line, const char *fmt, ...)
 		newfile = file;
 	}
 
-	i = snprintf(buf, size, "%s:%d:%s(): ", newfile, line, func);
+	i = snprintf(buf, size, "%s%s:%d:%s(): ", prefix, newfile, line, func);
 
 	if (i < size) {
 		va_start(adx, fmt);
@@ -176,11 +179,13 @@ __dprintf(const char *file, const char *func, int line, const char *fmt, ...)
 	}
 
 	/*
-	 * Get rid of trailing newline.
+	 * Get rid of trailing newline for dprintf logs.
 	 */
-	nl = strrchr(buf, '\n');
-	if (nl != NULL)
-		*nl = '\0';
+	if (dprint && buf[0] != '\0') {
+		nl = &buf[strlen(buf) - 1];
+		if (*nl == '\n')
+			*nl = '\0';
+	}
 
 	/*
 	 * To get this data enable the zfs__dprintf trace point as shown:
@@ -212,11 +217,28 @@ __dprintf(const char *file, const char *func, int line, const char *fmt, ...)
 void
 zfs_dbgmsg_print(const char *tag)
 {
-	(void) printf("ZFS_DBGMSG(%s):\n", tag);
+	ssize_t ret __attribute__((unused));
+
+	/*
+	 * We use write() in this function instead of printf()
+	 * so it is safe to call from a signal handler.
+	 */
+	ret = write(STDOUT_FILENO, "ZFS_DBGMSG(", 11);
+	ret = write(STDOUT_FILENO, tag, strlen(tag));
+	ret = write(STDOUT_FILENO, ") START:\n", 9);
+
 	mutex_enter(&zfs_dbgmsgs.pl_lock);
 	for (zfs_dbgmsg_t *zdm = list_head(&zfs_dbgmsgs.pl_list); zdm != NULL;
-	    zdm = list_next(&zfs_dbgmsgs.pl_list, zdm))
-		(void) printf("%s\n", zdm->zdm_msg);
+	    zdm = list_next(&zfs_dbgmsgs.pl_list, zdm)) {
+		ret = write(STDOUT_FILENO, zdm->zdm_msg,
+		    strlen(zdm->zdm_msg));
+		ret = write(STDOUT_FILENO, "\n", 1);
+	}
+
+	ret = write(STDOUT_FILENO, "ZFS_DBGMSG(", 11);
+	ret = write(STDOUT_FILENO, tag, strlen(tag));
+	ret = write(STDOUT_FILENO, ") END\n", 6);
+
 	mutex_exit(&zfs_dbgmsgs.pl_lock);
 }
 #endif /* _KERNEL */
