@@ -873,3 +873,14 @@ tags = ['functional', 'zvol', 'zvol_swap']
 [tests/functional/libzfs]
 tests = ['many_fds', 'libzfs_input']
 tags = ['functional', 'libzfs']
+
+
+# Unit tests are separate from functional tests because they cover the
+# test framework itself. To run use "zfs-tests.sh -T unit ..."
+[tests/unit/libtest]
+tests = ['libtest_001_pos','libtest_002_pos','libtest_003_pos']
+tags = ['unit', 'libtest']
+
+[tests/unit/math]
+tests = ['math_001_pos']
+tags = ['unit', 'math']

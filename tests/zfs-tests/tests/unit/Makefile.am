@@ -1,0 +1,3 @@
+SUBDIRS = \
+	libtest \
+	math

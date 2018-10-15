@@ -2212,7 +2212,6 @@ function is_pool_rebuilding #pool <verbose>
 
 function is_pool_rebuilt #pool <verbose>
 {
-    log_note $(zpool status | grep scan)
 	check_pool_status "$1" "scan" "rebuilt " $2
 	return $?
 }
@@ -2604,9 +2603,17 @@ function get_compress_opts
 		COMPRESS_OPTS="on off lzjb"
 	fi
 	typeset valid_opts="$COMPRESS_OPTS"
-	zfs get 2>&1 | grep gzip >/dev/null 2>&1
+	zfs get 2>&1 | grep -w compression | grep gzip >/dev/null 2>&1
 	if [[ $? -eq 0 ]]; then
 		valid_opts="$valid_opts $GZIP_OPTS"
+	fi
+	zfs get 2>&1 | grep -w compression | grep -w zle >/dev/null 2>&1
+	if [[ $? -eq 0 ]]; then
+		valid_opts="$valid_opts zle"
+	fi
+	zfs get 2>&1 | grep -w compression | grep -w lz4 >/dev/null 2>&1
+	if [[ $? -eq 0 ]]; then
+		valid_opts="$valid_opts lz4"
 	fi
 	echo "$valid_opts"
 }
@@ -2983,16 +2990,6 @@ function get_rootpool
 }
 
 #
-# Get the package name
-#
-function get_package_name
-{
-	typeset dirpath=${1:-$STC_NAME}
-
-	echo "SUNWstc-${dirpath}" | /usr/bin/sed -e "s/\//-/g"
-}
-
-#
 # Get the word numbers from a string separated by white space
 #
 function get_word_count
@@ -3037,10 +3034,13 @@ function ds_is_snapshot
 }
 
 #
-# Check if Trusted Extensions are installed and enabled
+# Check if Solaris Trusted Extensions are installed and enabled
 #
 function is_te_enabled
 {
+	if is_linux; then
+		return 1
+	fi
 	svcs -H -o state labeld 2>/dev/null | grep "enabled"
 	if (($? != 0)); then
 		return 1
@@ -3105,7 +3105,7 @@ function vdevs_in_pool
 	typeset tmpfile=$(mktemp)
 	zpool list -Hv "$pool" >$tmpfile
 	for vdev in $@; do
-		awk -v vdev=$vdev '$1 == vdev && NF == 7 {exit 11}' <$tmpfile
+		awk -v vdev=$vdev '$1 == vdev && NF < 11 {exit 11}' <$tmpfile
 		if [[ $? -ne 11 ]]; then
 			rm -f $tmpfile
 			return 1
@@ -3583,14 +3583,6 @@ function get_tunable_impl
 	esac
 
 	return 1
-}
-
-#
-# Prints the current time in seconds since UNIX Epoch.
-#
-function current_epoch
-{
-	printf '%(%s)T'
 }
 
 #

@@ -68,6 +68,7 @@ function within_tolerance #value #target #tolerance
 #
 # Return 0 if the human readable string of the form <value>[suffix] can
 # be converted to bytes.  Allow suffixes are shown in the table below.
+# Decimals are not supported.
 #
 function to_bytes
 {

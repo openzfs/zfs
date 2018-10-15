@@ -291,7 +291,7 @@ def process_results(pathname):
         print('Error opening file: %s' % e)
         sys.exit(1)
 
-    prefix = '/zfs-tests/tests/functional/'
+    prefix = '/zfs-tests/tests/'
     pattern = '^Test:\s*\S*%s(\S+)\s*\(run as (\S+)\)\s*\[(\S+)\]\s*\[(\S+)\]'\
         % prefix
     pattern_log = '^\s*Log directory:\s*(\S*)'
