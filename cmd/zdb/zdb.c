@@ -225,6 +225,7 @@ dump_debug_buffer(void)
 {
 	if (dump_opt['G']) {
 		(void) printf("\n");
+		(void) fflush(stdout);
 		zfs_dbgmsg_print("zdb");
 	}
 }

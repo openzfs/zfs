@@ -178,6 +178,7 @@ typedef struct ztest_shared_opts {
 	uint64_t zo_metaslab_force_ganging;
 	int zo_mmp_test;
 	int zo_special_vdevs;
+	int zo_dump_dbgmsg;
 } ztest_shared_opts_t;
 
 static const ztest_shared_opts_t ztest_opts_defaults = {
@@ -484,7 +485,6 @@ static kmutex_t ztest_checkpoint_lock;
 static pthread_rwlock_t ztest_name_lock;
 
 static boolean_t ztest_dump_core = B_TRUE;
-static boolean_t ztest_dump_debug_buffer = B_FALSE;
 static boolean_t ztest_exiting;
 
 /* Global commit callback list */
@@ -533,10 +533,16 @@ _umem_logging_init(void)
 static void
 dump_debug_buffer(void)
 {
-	if (!ztest_dump_debug_buffer)
+	ssize_t ret __attribute__((unused));
+
+	if (!ztest_opts.zo_dump_dbgmsg)
 		return;
 
-	(void) printf("\n");
+	/*
+	 * We use write() instead of printf() so that this function
+	 * is safe to call from a signal handler.
+	 */
+	ret = write(STDOUT_FILENO, "\n", 1);
 	zfs_dbgmsg_print("ztest");
 }
 
@@ -591,10 +597,11 @@ fatal(int do_perror, char *message, ...)
 	(void) fprintf(stderr, "%s\n", buf);
 	fatal_msg = buf;			/* to ease debugging */
 
-	dump_debug_buffer();
-
 	if (ztest_dump_core)
 		abort();
+	else
+		dump_debug_buffer();
+
 	exit(3);
 }
 
@@ -866,7 +873,7 @@ process_options(int argc, char **argv)
 				usage(B_FALSE);
 			break;
 		case 'G':
-			ztest_dump_debug_buffer = B_TRUE;
+			zo->zo_dump_dbgmsg = 1;
 			break;
 		case 'h':
 			usage(B_TRUE);
