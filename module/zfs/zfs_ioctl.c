@@ -202,6 +202,8 @@
 #include <sys/zio_checksum.h>
 #include <sys/vdev_removal.h>
 #include <sys/zfs_sysfs.h>
+#include <sys/vdev_impl.h>
+#include <sys/vdev_initialize.h>
 
 #include <linux/miscdevice.h>
 #include <linux/slab.h>
@@ -3885,6 +3887,86 @@ zfs_ioc_destroy(zfs_cmd_t *zc)
 }
 
 /*
+ * innvl: {
+ *     vdevs: {
+ *         guid 1, guid 2, ...
+ *     },
+ *     func: POOL_INITIALIZE_{CANCEL|DO|SUSPEND}
+ * }
+ *
+ * outnvl: {
+ *     [func: EINVAL (if provided command type didn't make sense)],
+ *     [vdevs: {
+ *         guid1: errno, (see function body for possible errnos)
+ *         ...
+ *     }]
+ * }
+ *
+ */
+
+static const zfs_ioc_key_t zfs_keys_pool_initialize[] = {
+	{ZPOOL_INITIALIZE_COMMAND, DATA_TYPE_UINT64, 0},
+	{ZPOOL_INITIALIZE_VDEVS, DATA_TYPE_NVLIST, ZK_OPTIONAL},
+};
+
+static int
+zfs_ioc_pool_initialize(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
+{
+	spa_t *spa;
+	int error;
+
+	error = spa_open(poolname, &spa, FTAG);
+	if (error != 0)
+		return (error);
+
+	uint64_t cmd_type;
+	if (nvlist_lookup_uint64(innvl, ZPOOL_INITIALIZE_COMMAND,
+	    &cmd_type) != 0) {
+		spa_close(spa, FTAG);
+		return (SET_ERROR(EINVAL));
+	}
+	if (!(cmd_type == POOL_INITIALIZE_CANCEL ||
+	    cmd_type == POOL_INITIALIZE_DO ||
+	    cmd_type == POOL_INITIALIZE_SUSPEND)) {
+		spa_close(spa, FTAG);
+		return (SET_ERROR(EINVAL));
+	}
+
+	nvlist_t *vdev_guids;
+	if (nvlist_lookup_nvlist(innvl, ZPOOL_INITIALIZE_VDEVS,
+	    &vdev_guids) != 0) {
+		spa_close(spa, FTAG);
+		return (SET_ERROR(EINVAL));
+	}
+
+	nvlist_t *vdev_errlist = fnvlist_alloc();
+	int total_errors = 0;
+
+	for (nvpair_t *pair = nvlist_next_nvpair(vdev_guids, NULL);
+	    pair != NULL; pair = nvlist_next_nvpair(vdev_guids, pair)) {
+		uint64_t vdev_guid = fnvpair_value_uint64(pair);
+
+		error = spa_vdev_initialize(spa, vdev_guid, cmd_type);
+		if (error != 0) {
+			char guid_as_str[MAXNAMELEN];
+
+			(void) snprintf(guid_as_str, sizeof (guid_as_str),
+			    "%llu", (unsigned long long)vdev_guid);
+			fnvlist_add_int64(vdev_errlist, guid_as_str, error);
+			total_errors++;
+		}
+	}
+	if (fnvlist_size(vdev_errlist) > 0) {
+		fnvlist_add_nvlist(outnvl, ZPOOL_INITIALIZE_VDEVS,
+		    vdev_errlist);
+	}
+	fnvlist_free(vdev_errlist);
+
+	spa_close(spa, FTAG);
+	return (total_errors > 0 ? EINVAL : 0);
+}
+
+/*
  * fsname is name of dataset to rollback (to most recent snapshot)
  *
  * innvl may contain name of expected target snapshot
@@ -6634,6 +6716,12 @@ zfs_ioctl_init(void)
 	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_TRUE, B_TRUE,
 	    zfs_keys_pool_discard_checkpoint,
 	    ARRAY_SIZE(zfs_keys_pool_discard_checkpoint));
+
+	zfs_ioctl_register("initialize", ZFS_IOC_POOL_INITIALIZE,
+	    zfs_ioc_pool_initialize, zfs_secpolicy_config, POOL_NAME,
+	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_TRUE, B_TRUE,
+	    zfs_keys_pool_initialize,
+	    ARRAY_SIZE(zfs_keys_pool_initialize));
 
 	/* IOCTLS that use the legacy function signature */
 

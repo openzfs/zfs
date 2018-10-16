@@ -1843,6 +1843,7 @@ vdev_ops_t vdev_indirect_ops = {
 	NULL,
 	NULL,
 	vdev_indirect_remap,
+	NULL,
 	VDEV_TYPE_INDIRECT,	/* name of this vdev type */
 	B_FALSE			/* leaf vdev */
 };

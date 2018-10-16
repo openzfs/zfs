@@ -635,6 +635,8 @@ metaslab_group_create(metaslab_class_t *mc, vdev_t *vd, int allocators)
 
 	mg = kmem_zalloc(sizeof (metaslab_group_t), KM_SLEEP);
 	mutex_init(&mg->mg_lock, NULL, MUTEX_DEFAULT, NULL);
+	mutex_init(&mg->mg_ms_initialize_lock, NULL, MUTEX_DEFAULT, NULL);
+	cv_init(&mg->mg_ms_initialize_cv, NULL, CV_DEFAULT, NULL);
 	mg->mg_primaries = kmem_zalloc(allocators * sizeof (metaslab_t *),
 	    KM_SLEEP);
 	mg->mg_secondaries = kmem_zalloc(allocators * sizeof (metaslab_t *),
@@ -681,6 +683,8 @@ metaslab_group_destroy(metaslab_group_t *mg)
 	kmem_free(mg->mg_secondaries, mg->mg_allocators *
 	    sizeof (metaslab_t *));
 	mutex_destroy(&mg->mg_lock);
+	mutex_destroy(&mg->mg_ms_initialize_lock);
+	cv_destroy(&mg->mg_ms_initialize_cv);
 
 	for (int i = 0; i < mg->mg_allocators; i++) {
 		zfs_refcount_destroy(&mg->mg_alloc_queue_depth[i]);
@@ -1502,6 +1506,7 @@ metaslab_init(metaslab_group_t *mg, uint64_t id, uint64_t object, uint64_t txg,
 	mutex_init(&ms->ms_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&ms->ms_sync_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&ms->ms_load_cv, NULL, CV_DEFAULT, NULL);
+
 	ms->ms_id = id;
 	ms->ms_start = id << vd->vdev_ms_shift;
 	ms->ms_size = 1ULL << vd->vdev_ms_shift;
@@ -2686,6 +2691,7 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 	 * from it in 'metaslab_unload_delay' txgs, then unload it.
 	 */
 	if (msp->ms_loaded &&
+	    msp->ms_initializing == 0 &&
 	    msp->ms_selected_txg + metaslab_unload_delay < txg) {
 
 		for (int t = 1; t < TXG_CONCURRENT_STATES; t++) {
@@ -2967,6 +2973,7 @@ metaslab_block_alloc(metaslab_t *msp, uint64_t size, uint64_t txg)
 	metaslab_class_t *mc = msp->ms_group->mg_class;
 
 	VERIFY(!msp->ms_condensing);
+	VERIFY0(msp->ms_initializing);
 
 	start = mc->mc_ops->msop_alloc(msp, size);
 	if (start != -1ULL) {
@@ -3027,9 +3034,10 @@ find_valid_metaslab(metaslab_group_t *mg, uint64_t activation_weight,
 		}
 
 		/*
-		 * If the selected metaslab is condensing, skip it.
+		 * If the selected metaslab is condensing or being
+		 * initialized, skip it.
 		 */
-		if (msp->ms_condensing)
+		if (msp->ms_condensing || msp->ms_initializing > 0)
 			continue;
 
 		*was_active = msp->ms_allocator != -1;
@@ -3190,11 +3198,20 @@ metaslab_group_alloc_normal(metaslab_group_t *mg, zio_alloc_list_t *zal,
 		/*
 		 * If this metaslab is currently condensing then pick again as
 		 * we can't manipulate this metaslab until it's committed
-		 * to disk.
+		 * to disk. If this metaslab is being initialized, we shouldn't
+		 * allocate from it since the allocated region might be
+		 * overwritten after allocation.
 		 */
 		if (msp->ms_condensing) {
 			metaslab_trace_add(zal, mg, msp, asize, d,
 			    TRACE_CONDENSING, allocator);
+			metaslab_passivate(msp, msp->ms_weight &
+			    ~METASLAB_ACTIVE_MASK);
+			mutex_exit(&msp->ms_lock);
+			continue;
+		} else if (msp->ms_initializing > 0) {
+			metaslab_trace_add(zal, mg, msp, asize, d,
+			    TRACE_INITIALIZING, allocator);
 			metaslab_passivate(msp, msp->ms_weight &
 			    ~METASLAB_ACTIVE_MASK);
 			mutex_exit(&msp->ms_lock);
