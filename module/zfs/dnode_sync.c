@@ -753,8 +753,8 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 	if (dn->dn_num_slots > DNODE_MIN_SLOTS) {
 		dsl_dataset_t *ds = dn->dn_objset->os_dsl_dataset;
 		mutex_enter(&ds->ds_lock);
-		ds->ds_feature_activation_needed[SPA_FEATURE_LARGE_DNODE] =
-		    B_TRUE;
+		ds->ds_feature_activation[SPA_FEATURE_LARGE_DNODE] =
+		    (void *)B_TRUE;
 		mutex_exit(&ds->ds_lock);
 	}
 

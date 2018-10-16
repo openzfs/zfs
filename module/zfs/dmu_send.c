@@ -1022,9 +1022,9 @@ dmu_send_impl(void *tag, dsl_pool_t *dp, dsl_dataset_t *to_ds,
 
 	/* raw sends imply large_block_ok */
 	if ((large_block_ok || rawok) &&
-	    to_ds->ds_feature_inuse[SPA_FEATURE_LARGE_BLOCKS])
+	    dsl_dataset_feature_is_active(to_ds, SPA_FEATURE_LARGE_BLOCKS))
 		featureflags |= DMU_BACKUP_FEATURE_LARGE_BLOCKS;
-	if (to_ds->ds_feature_inuse[SPA_FEATURE_LARGE_DNODE])
+	if (dsl_dataset_feature_is_active(to_ds, SPA_FEATURE_LARGE_DNODE))
 		featureflags |= DMU_BACKUP_FEATURE_LARGE_DNODE;
 
 	/* encrypted datasets will not have embedded blocks */

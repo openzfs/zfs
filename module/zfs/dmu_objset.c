@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  * Copyright (c) 2013, Joyent, Inc. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
@@ -1073,14 +1073,14 @@ dmu_objset_create_impl_dnstats(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 	    (!os->os_encrypted || !dmu_objset_is_receiving(os))) {
 		os->os_phys->os_flags |= OBJSET_FLAG_USERACCOUNTING_COMPLETE;
 		if (dmu_objset_userobjused_enabled(os)) {
-			ds->ds_feature_activation_needed[
-			    SPA_FEATURE_USEROBJ_ACCOUNTING] = B_TRUE;
+			ds->ds_feature_activation[
+			    SPA_FEATURE_USEROBJ_ACCOUNTING] = (void *)B_TRUE;
 			os->os_phys->os_flags |=
 			    OBJSET_FLAG_USEROBJACCOUNTING_COMPLETE;
 		}
 		if (dmu_objset_projectquota_enabled(os)) {
-			ds->ds_feature_activation_needed[
-			    SPA_FEATURE_PROJECT_QUOTA] = B_TRUE;
+			ds->ds_feature_activation[
+			    SPA_FEATURE_PROJECT_QUOTA] = (void *)B_TRUE;
 			os->os_phys->os_flags |=
 			    OBJSET_FLAG_PROJECTQUOTA_COMPLETE;
 		}
@@ -2377,11 +2377,11 @@ dmu_objset_id_quota_upgrade_cb(objset_t *os)
 	    dmu_objset_userobjspace_present(os))
 		return (SET_ERROR(ENOTSUP));
 
-	dmu_objset_ds(os)->ds_feature_activation_needed[
-	    SPA_FEATURE_USEROBJ_ACCOUNTING] = B_TRUE;
+	dmu_objset_ds(os)->ds_feature_activation[
+	    SPA_FEATURE_USEROBJ_ACCOUNTING] = (void *)B_TRUE;
 	if (dmu_objset_projectquota_enabled(os))
-		dmu_objset_ds(os)->ds_feature_activation_needed[
-		    SPA_FEATURE_PROJECT_QUOTA] = B_TRUE;
+		dmu_objset_ds(os)->ds_feature_activation[
+		    SPA_FEATURE_PROJECT_QUOTA] = (void *)B_TRUE;
 
 	err = dmu_objset_space_upgrade(os);
 	if (err)
