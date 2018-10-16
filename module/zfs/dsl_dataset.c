@@ -988,7 +988,7 @@ zfeature_active(spa_feature_t f, void *arg)
 		 */
 		return (arg != NULL);
 	default:
-		panic("Invalid zfeature type!");
+		panic("Invalid zfeature type %d", spa_feature_table[f].fi_type);
 		return (B_FALSE);
 	}
 }
@@ -1045,7 +1045,7 @@ dsl_dataset_activate_feature(uint64_t dsobj, spa_feature_t f, void *arg,
 		break;
 	}
 	default:
-		panic("Invalid zfeature type!");
+		panic("Invalid zfeature type %d", spa_feature_table[f].fi_type);
 	}
 }
 
