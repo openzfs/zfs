@@ -822,7 +822,7 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 				}
 				continue;
 			} else if (error != 0) {
-				dmu_tx_abort(tx);
+				dmu_tx_commit(tx);
 				break;
 			}
 			tx_bytes -= uio->uio_resid;
