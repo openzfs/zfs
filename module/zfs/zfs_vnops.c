@@ -675,7 +675,10 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 		xuio = (xuio_t *)uio;
 	else
 #endif
-		uio_prefaultpages(MIN(n, max_blksz), uio);
+		if (uio_prefaultpages(MIN(n, max_blksz), uio)) {
+			ZFS_EXIT(zfsvfs);
+			return (SET_ERROR(EFAULT));
+		}
 
 	/*
 	 * If in append mode, set the io offset pointer to eof.
@@ -820,8 +823,19 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 
 		if (abuf == NULL) {
 			tx_bytes = uio->uio_resid;
+			uio->uio_fault_disable = B_TRUE;
 			error = dmu_write_uio_dbuf(sa_get_db(zp->z_sa_hdl),
 			    uio, nbytes, tx);
+			if (error == EFAULT) {
+				dmu_tx_commit(tx);
+				if (uio_prefaultpages(MIN(n, max_blksz), uio)) {
+					break;
+				}
+				continue;
+			} else if (error != 0) {
+				dmu_tx_commit(tx);
+				break;
+			}
 			tx_bytes -= uio->uio_resid;
 		} else {
 			tx_bytes = nbytes;
@@ -921,8 +935,12 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 		ASSERT(tx_bytes == nbytes);
 		n -= nbytes;
 
-		if (!xuio && n > 0)
-			uio_prefaultpages(MIN(n, max_blksz), uio);
+		if (!xuio && n > 0) {
+			if (uio_prefaultpages(MIN(n, max_blksz), uio)) {
+				error = EFAULT;
+				break;
+			}
+		}
 	}
 
 	zfs_inode_update(zp);

@@ -31,74 +31,132 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <pthread.h>
+#include <errno.h>
+#include <err.h>
 
 /*
  * --------------------------------------------------------------------
- * Bug Id: 5032643
+ * Bug Issue Id: #7512
+ * The bug time sequence:
+ * 1. context #1, zfs_write assign a txg "n".
+ * 2. In the same process, context #2, mmap page fault (which means the mm_sem
+ *    is hold) occurred, zfs_dirty_inode open a txg failed, and wait previous
+ *    txg "n" completed.
+ * 3. context #1 call uiomove to write, however page fault is occurred in
+ *    uiomove, which means it need mm_sem, but mm_sem is hold by
+ *    context #2, so it stuck and can't complete, then txg "n" will not
+ *    complete.
  *
- * Simply writing to a file and mmaping that file at the same time can
- * result in deadlock.  Nothing perverse like writing from the file's
- * own mapping is required.
+ * So context #1 and context #2 trap into the "dead lock".
  * --------------------------------------------------------------------
  */
 
-static void *
-mapper(void *fdp)
-{
-	void *addr;
-	int fd = *(int *)fdp;
+#define	NORMAL_WRITE_TH_NUM	2
 
-	if ((addr =
-	    mmap(0, 8192, PROT_READ, MAP_SHARED, fd, 0)) == MAP_FAILED) {
-		perror("mmap");
-		exit(1);
+static void *
+normal_writer(void *filename)
+{
+	char *file_path = filename;
+	int fd = -1;
+	ssize_t write_num = 0;
+	int page_size = getpagesize();
+
+	fd = open(file_path, O_RDWR | O_CREAT, 0777);
+	if (fd == -1) {
+		err(1, "failed to open %s", file_path);
 	}
-	for (;;) {
-		if (mmap(addr, 8192, PROT_READ,
-		    MAP_SHARED|MAP_FIXED, fd, 0) == MAP_FAILED) {
-			perror("mmap");
-			exit(1);
+
+	char *buf = malloc(1);
+	while (1) {
+		write_num = write(fd, buf, 1);
+		if (write_num == 0) {
+			err(1, "write failed!");
+			break;
+		}
+		lseek(fd, page_size, SEEK_CUR);
+	}
+
+	if (buf) {
+		free(buf);
+	}
+}
+
+static void *
+map_writer(void *filename)
+{
+	int fd = -1;
+	int ret = 0;
+	char *buf = NULL;
+	int page_size = getpagesize();
+	int op_errno = 0;
+	char *file_path = filename;
+
+	while (1) {
+		ret = access(file_path, F_OK);
+		if (ret) {
+			op_errno = errno;
+			if (op_errno == ENOENT) {
+				fd = open(file_path, O_RDWR | O_CREAT, 0777);
+				if (fd == -1) {
+					err(1, "open file failed");
+				}
+
+				ret = ftruncate(fd, page_size);
+				if (ret == -1) {
+					err(1, "truncate file failed");
+				}
+			} else {
+				err(1, "access file failed!");
+			}
+		} else {
+			fd = open(file_path, O_RDWR, 0777);
+			if (fd == -1) {
+				err(1, "open file failed");
+			}
+		}
+
+		if ((buf = mmap(NULL, page_size, PROT_READ | PROT_WRITE,
+		    MAP_SHARED, fd, 0)) == MAP_FAILED) {
+			err(1, "map file failed");
+		}
+
+		if (fd != -1)
+			close(fd);
+
+		char s[10] = {0, };
+		memcpy(buf, s, 10);
+		ret = munmap(buf, page_size);
+		if (ret != 0) {
+			err(1, "unmap file failed");
 		}
 	}
-	/* NOTREACHED */
-	return ((void *)1);
 }
 
 int
 main(int argc, char **argv)
 {
-	int fd;
-	char buf[1024];
-	pthread_t tid;
+	pthread_t map_write_tid;
+	pthread_t normal_write_tid[NORMAL_WRITE_TH_NUM];
+	int i = 0;
 
-	memset(buf, 'a', sizeof (buf));
-
-	if (argc != 2) {
-		(void) printf("usage: %s <file name>\n", argv[0]);
+	if (argc != 3) {
+		(void) printf("usage: %s <normal write file name>"
+		    "<map write file name>\n", argv[0]);
 		exit(1);
 	}
 
-	if ((fd = open(argv[1], O_RDWR|O_CREAT|O_TRUNC, 0666)) == -1) {
-		perror("open");
-		exit(1);
-	}
-
-	(void) pthread_setconcurrency(2);
-	if (pthread_create(&tid, NULL, mapper, &fd) != 0) {
-		perror("pthread_create");
-		close(fd);
-		exit(1);
-	}
-	for (;;) {
-		if (write(fd, buf, sizeof (buf)) == -1) {
-			perror("write");
-			close(fd);
-			exit(1);
+	for (i = 0; i < NORMAL_WRITE_TH_NUM; i++) {
+		if (pthread_create(&normal_write_tid[i], NULL, normal_writer,
+		    argv[1])) {
+			err(1, "pthread_create normal_writer failed.");
 		}
 	}
 
-	close(fd);
+	if (pthread_create(&map_write_tid, NULL, map_writer, argv[2])) {
+		err(1, "pthread_create map_writer failed.");
+	}
 
 	/* NOTREACHED */
+	pthread_join(map_write_tid, NULL);
 	return (0);
 }
