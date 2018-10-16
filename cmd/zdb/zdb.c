@@ -2566,6 +2566,7 @@ count_ds_mos_objects(dsl_dataset_t *ds)
 	mos_obj_refd(dsl_dataset_phys(ds)->ds_props_obj);
 	mos_obj_refd(dsl_dataset_phys(ds)->ds_userrefs_obj);
 	mos_obj_refd(dsl_dataset_phys(ds)->ds_snapnames_zapobj);
+	mos_obj_refd(ds->ds_bookmarks_obj);
 
 	if (!dsl_dataset_is_snapshot(ds)) {
 		count_dir_mos_objects(ds->ds_dir);
@@ -3428,6 +3429,7 @@ dump_one_dir(const char *dsname, void *arg)
 	for (dsl_bookmark_node_t *dbn =
 	    avl_first(&dmu_objset_ds(os)->ds_bookmarks); dbn != NULL;
 	    dbn = AVL_NEXT(&dmu_objset_ds(os)->ds_bookmarks, dbn)) {
+		mos_obj_refd(dbn->dbn_phys.zbm_redaction_obj);
 		if (dbn->dbn_phys.zbm_redaction_obj != 0)
 			global_feature_count[SPA_FEATURE_REDACTION_BOOKMARKS]++;
 		if (dbn->dbn_phys.zbm_flags & ZBM_FLAG_HAS_FBN)
