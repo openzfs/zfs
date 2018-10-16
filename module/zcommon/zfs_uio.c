@@ -52,6 +52,7 @@
 #include <sys/sysmacros.h>
 #include <sys/strings.h>
 #include <linux/kmap_compat.h>
+#include <linux/uaccess.h>
 
 /*
  * Move "n" bytes at byte address "p"; "rw" indicates the direction
@@ -79,8 +80,24 @@ uiomove_iov(void *p, size_t n, enum uio_rw rw, struct uio *uio)
 				if (copy_to_user(iov->iov_base+skip, p, cnt))
 					return (EFAULT);
 			} else {
-				if (copy_from_user(p, iov->iov_base+skip, cnt))
-					return (EFAULT);
+				if (uio->uio_fault_disable) {
+					if (!access_ok(VERIFY_READ,
+					    (iov->iov_base + skip), cnt)) {
+						return (EFAULT);
+					}
+
+					pagefault_disable();
+					if (__copy_from_user_inatomic(p,
+					    (iov->iov_base + skip), cnt)) {
+						pagefault_enable();
+						return (EFAULT);
+					}
+					pagefault_enable();
+				} else {
+					if (copy_from_user(p,
+					    (iov->iov_base + skip), cnt))
+						return (EFAULT);
+				}
 			}
 			break;
 		case UIO_SYSSPACE:
@@ -158,7 +175,7 @@ EXPORT_SYMBOL(uiomove);
  * error will terminate the process as this is only a best attempt to get
  * the pages resident.
  */
-void
+int
 uio_prefaultpages(ssize_t n, struct uio *uio)
 {
 	const struct iovec *iov;
@@ -172,7 +189,7 @@ uio_prefaultpages(ssize_t n, struct uio *uio)
 	switch (uio->uio_segflg) {
 		case UIO_SYSSPACE:
 		case UIO_BVEC:
-			return;
+			return (0);
 		case UIO_USERSPACE:
 		case UIO_USERISPACE:
 			break;
@@ -196,7 +213,7 @@ uio_prefaultpages(ssize_t n, struct uio *uio)
 		p = iov->iov_base + skip;
 		while (cnt) {
 			if (fuword8((uint8_t *)p, &tmp))
-				return;
+				return (EFAULT);
 			incr = MIN(cnt, PAGESIZE);
 			p += incr;
 			cnt -= incr;
@@ -206,8 +223,10 @@ uio_prefaultpages(ssize_t n, struct uio *uio)
 		 */
 		p--;
 		if (fuword8((uint8_t *)p, &tmp))
-			return;
+			return (EFAULT);
 	}
+
+	return (0);
 }
 EXPORT_SYMBOL(uio_prefaultpages);
 

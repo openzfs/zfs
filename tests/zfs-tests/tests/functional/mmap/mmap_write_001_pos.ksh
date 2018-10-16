@@ -53,12 +53,14 @@ if ! is_mp; then
 fi
 
 log_must chmod 777 $TESTDIR
-mmapwrite $TESTDIR/test-write-file &
+mmapwrite $TESTDIR/normal_write_file $TESTDIR/map_write_file &
 PID_MMAPWRITE=$!
-log_note "mmapwrite $TESTDIR/test-write-file pid: $PID_MMAPWRITE"
+log_note "mmapwrite $TESTDIR/normal_write_file $TESTDIR/map_write_file"\
+	 "pid: $PID_MMAPWRITE"
 log_must sleep 30
 
 log_must kill -9 $PID_MMAPWRITE
-log_must ls -l $TESTDIR/test-write-file
+log_must ls -l $TESTDIR/normal_write_file
+log_must ls -l $TESTDIR/map_write_file
 
 log_pass "write(2) a mmap(2)'ing file succeeded."

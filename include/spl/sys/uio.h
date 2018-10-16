@@ -53,6 +53,7 @@ typedef struct uio {
 	int		uio_iovcnt;
 	offset_t	uio_loffset;
 	uio_seg_t	uio_segflg;
+	boolean_t	uio_fault_disable;
 	uint16_t	uio_fmode;
 	uint16_t	uio_extflg;
 	offset_t	uio_limit;
