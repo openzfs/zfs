@@ -15,9 +15,8 @@
 # CDDL HEADER END
 #
 
-#
 # Copyright (c) 2018 by Delphix. All rights reserved.
-#
+# Copyright (c) 2018 by Matthew Thode. All rights reserved.
 
 #
 # Generate zfs_gitrev.h.  Note that we need to do this for every
@@ -26,29 +25,19 @@
 # `configure` is run.
 #
 
-BASE_DIR=$(dirname "$0")
+set -e -u
 
-file=${BASE_DIR}/../include/zfs_gitrev.h
+cleanup() {
+    ZFS_GIT_REV=${ZFS_GIT_REV:-"unknown"}
+    cat << EOF > "$(dirname "$0")"/../include/zfs_gitrev.h
+#define	ZFS_META_GITREV "${ZFS_GIT_REV}"
+EOF
+}
+trap cleanup EXIT
 
-#
-# Set default file contents in case we bail.
-#
-rm -f "$file"
-# shellcheck disable=SC2039
-/bin/echo -e "#define\tZFS_META_GITREV \"unknown\"" >>"$file"
-
-#
 # Check if git is installed and we are in a git repo.
-#
-git rev-parse --git-dir > /dev/null 2>&1 || exit
-
-#
+git rev-parse --git-dir > /dev/null 2>&1
 # Check if there are uncommitted changes
-#
-git diff-index --quiet HEAD || exit
-
-rev=$(git describe 2>/dev/null) || exit
-
-rm -f "$file"
-# shellcheck disable=SC2039
-/bin/echo -e "#define\tZFS_META_GITREV \"${rev}\"" >>"$file"
+git diff-index --quiet HEAD
+# Get the git current git revision
+ZFS_GIT_REV=$(git describe 2>/dev/null)
