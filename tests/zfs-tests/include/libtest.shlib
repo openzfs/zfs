@@ -3190,6 +3190,7 @@ function wait_scrubbed
 {
 	typeset pool=${1:-$TESTPOOL}
 	typeset iter=${2:-10}
+	typeset -i i=0
 	for i in {1..$iter} ; do
 		if is_pool_scrubbed $pool ; then
 			return 0
