@@ -1,3 +1,5 @@
+<!-- Please fill out the following template, which will help other contributors address your issue. -->
+
 <!--
 Thank you for reporting an issue.
 
