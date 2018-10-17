@@ -475,6 +475,13 @@ recv_begin_check_existing_impl(dmu_recv_begin_arg_t *drba, dsl_dataset_t *ds,
 static int
 recv_begin_check_feature_flags_impl(uint64_t featureflags, spa_t *spa)
 {
+	/*
+	 * Check if there are any unsupported feature flags.
+	 */
+	if (!DMU_STREAM_SUPPORTED(featureflags)) {
+		return (SET_ERROR(ZFS_ERR_UNKNOWN_SEND_STREAM_FEATURE));
+	}
+
 	/* Verify pool version supports SA if SA_SPILL feature set */
 	if ((featureflags & DMU_BACKUP_FEATURE_SA_SPILL) &&
 	    spa_version(spa) < SPA_VERSION_SA)
