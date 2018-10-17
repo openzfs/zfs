@@ -117,7 +117,7 @@ cppcheck:
 		cppcheck --quiet --force --error-exitcode=2 --inline-suppr \
 			--suppressions-list=.github/suppressions.txt \
 			-UHAVE_SSE2 -UHAVE_AVX512F -UHAVE_UIO_ZEROCOPY \
-			-UHAVE_DNLC ${top_srcdir}; \
+			${top_srcdir}; \
 	else \
 		echo "skipping cppcheck because cppcheck is not installed"; \
 	fi
