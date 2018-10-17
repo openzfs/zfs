@@ -99,11 +99,6 @@ zfs_match_find(zfsvfs_t *zfsvfs, znode_t *dzp, char *name, matchtype_t mt,
 
 	*zoid = ZFS_DIRENT_OBJ(*zoid);
 
-#ifdef HAVE_DNLC
-	if (error == ENOENT && update)
-		dnlc_update(ZTOI(dzp), name, DNLC_NO_VNODE);
-#endif /* HAVE_DNLC */
-
 	return (error);
 }
 
@@ -151,9 +146,6 @@ zfs_dirent_lock(zfs_dirlock_t **dlpp, znode_t *dzp, char *name, znode_t **zpp,
 	boolean_t	update;
 	matchtype_t	mt = 0;
 	uint64_t	zoid;
-#ifdef HAVE_DNLC
-	vnode_t		*vp = NULL;
-#endif /* HAVE_DNLC */
 	int		error = 0;
 	int		cmpflags;
 
@@ -320,29 +312,8 @@ zfs_dirent_lock(zfs_dirlock_t **dlpp, znode_t *dzp, char *name, znode_t **zpp,
 		if (error == 0)
 			error = (zoid == 0 ? SET_ERROR(ENOENT) : 0);
 	} else {
-#ifdef HAVE_DNLC
-		if (update)
-			vp = dnlc_lookup(ZTOI(dzp), name);
-		if (vp == DNLC_NO_VNODE) {
-			iput(vp);
-			error = SET_ERROR(ENOENT);
-		} else if (vp) {
-			if (flag & ZNEW) {
-				zfs_dirent_unlock(dl);
-				iput(vp);
-				return (SET_ERROR(EEXIST));
-			}
-			*dlpp = dl;
-			*zpp = VTOZ(vp);
-			return (0);
-		} else {
-			error = zfs_match_find(zfsvfs, dzp, name, mt,
-			    update, direntflags, realpnp, &zoid);
-		}
-#else
 		error = zfs_match_find(zfsvfs, dzp, name, mt,
 		    update, direntflags, realpnp, &zoid);
-#endif /* HAVE_DNLC */
 	}
 	if (error) {
 		if (error != ENOENT || (flag & ZEXISTS)) {
@@ -359,10 +330,6 @@ zfs_dirent_lock(zfs_dirlock_t **dlpp, znode_t *dzp, char *name, znode_t **zpp,
 			zfs_dirent_unlock(dl);
 			return (error);
 		}
-#ifdef HAVE_DNLC
-		if (!(flag & ZXATTR) && update)
-			dnlc_update(ZTOI(dzp), name, ZTOI(*zpp));
-#endif /* HAVE_DNLC */
 	}
 
 	*dlpp = dl;
@@ -900,10 +867,6 @@ zfs_link_destroy(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag,
 	uint64_t links;
 	int count = 0;
 	int error;
-
-#ifdef HAVE_DNLC
-	dnlc_remove(ZTOI(dzp), dl->dl_name);
-#endif /* HAVE_DNLC */
 
 	if (!(flag & ZRENAMING)) {
 		mutex_enter(&zp->z_lock);
