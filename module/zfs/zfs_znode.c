@@ -329,55 +329,6 @@ zfs_znode_hold_exit(zfsvfs_t *zfsvfs, znode_hold_t *zh)
 		kmem_cache_free(znode_hold_cache, zh);
 }
 
-int
-zfs_create_share_dir(zfsvfs_t *zfsvfs, dmu_tx_t *tx)
-{
-#ifdef HAVE_SMB_SHARE
-	zfs_acl_ids_t acl_ids;
-	vattr_t vattr;
-	znode_t *sharezp;
-	vnode_t *vp;
-	znode_t *zp;
-	int error;
-
-	vattr.va_mask = AT_MODE|AT_UID|AT_GID|AT_TYPE;
-	vattr.va_mode = S_IFDIR | 0555;
-	vattr.va_uid = crgetuid(kcred);
-	vattr.va_gid = crgetgid(kcred);
-
-	sharezp = kmem_cache_alloc(znode_cache, KM_SLEEP);
-	sharezp->z_moved = 0;
-	sharezp->z_unlinked = 0;
-	sharezp->z_atime_dirty = 0;
-	sharezp->z_zfsvfs = zfsvfs;
-	sharezp->z_is_sa = zfsvfs->z_use_sa;
-	sharezp->z_pflags = 0;
-
-	vp = ZTOV(sharezp);
-	vn_reinit(vp);
-	vp->v_type = VDIR;
-
-	VERIFY(0 == zfs_acl_ids_create(sharezp, IS_ROOT_NODE, &vattr,
-	    kcred, NULL, &acl_ids));
-	zfs_mknode(sharezp, &vattr, tx, kcred, IS_ROOT_NODE, &zp, &acl_ids);
-	ASSERT3P(zp, ==, sharezp);
-	ASSERT(!vn_in_dnlc(ZTOV(sharezp))); /* not valid to move */
-	POINTER_INVALIDATE(&sharezp->z_zfsvfs);
-	error = zap_add(zfsvfs->z_os, MASTER_NODE_OBJ,
-	    ZFS_SHARES_DIR, 8, 1, &sharezp->z_id, tx);
-	zfsvfs->z_shares_dir = sharezp->z_id;
-
-	zfs_acl_ids_free(&acl_ids);
-	// ZTOV(sharezp)->v_count = 0;
-	sa_handle_destroy(sharezp->z_sa_hdl);
-	kmem_cache_free(znode_cache, sharezp);
-
-	return (error);
-#else
-	return (0);
-#endif /* HAVE_SMB_SHARE */
-}
-
 static void
 zfs_znode_sa_init(zfsvfs_t *zfsvfs, znode_t *zp,
     dmu_buf_t *db, dmu_object_type_t obj_type, sa_handle_t *sa_hdl)
@@ -1976,12 +1927,6 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 	atomic_set(&ZTOI(rootzp)->i_count, 0);
 	sa_handle_destroy(rootzp->z_sa_hdl);
 	kmem_cache_free(znode_cache, rootzp);
-
-	/*
-	 * Create shares directory
-	 */
-	error = zfs_create_share_dir(zfsvfs, tx);
-	ASSERT(error == 0);
 
 	for (i = 0; i != size; i++) {
 		avl_destroy(&zfsvfs->z_hold_trees[i]);
