@@ -37,7 +37,5 @@ trap cleanup EXIT
 
 # Check if git is installed and we are in a git repo.
 git rev-parse --git-dir > /dev/null 2>&1
-# Check if there are uncommitted changes
-git diff-index --quiet HEAD
 # Get the git current git revision
-ZFS_GIT_REV=$(git describe 2>/dev/null)
+ZFS_GIT_REV=$(git describe --always --long --dirty 2>/dev/null)
