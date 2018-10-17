@@ -546,7 +546,7 @@ tags = ['functional', 'exec']
 tests = ['auto_online_001_pos', 'auto_replace_001_pos', 'auto_spare_001_pos',
     'auto_spare_002_pos', 'auto_spare_ashift', 'auto_spare_multiple',
     'auto_spare_shared', 'scrub_after_resilver', 'decrypt_fault',
-    'decompress_fault']
+    'decompress_fault','zpool_status_-s']
 tags = ['functional', 'fault']
 
 [tests/functional/features/async_destroy]

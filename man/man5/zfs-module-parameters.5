@@ -1086,7 +1086,7 @@ Default value: \fB600,000\fR.
 .ad
 .RS 12n
 Interval in milliseconds after which the deadman is triggered and an
-individual IO operation is considered to be "hung".  As long as the I/O
+individual I/O operation is considered to be "hung".  As long as the I/O
 remains "hung" the deadman will be invoked every \fBzfs_deadman_checktime_ms\fR
 milliseconds until the I/O completes.
 .sp
@@ -1141,10 +1141,10 @@ Default value: \fB500,000\fR.
 .sp
 .ne 2
 .na
-\fBzfs_delays_per_second\fR (int)
+\fBzfs_low_ios_per_second\fR (int)
 .ad
 .RS 12n
-Rate limit IO delay events to this many per second.
+Rate limit delay zevents (which report slow I/Os) to this many per second.
 .sp
 Default value: 20
 .RE
@@ -1655,7 +1655,7 @@ Default value: \fB50\fR.
 .ad
 .RS 12n
 We currently support block sizes from 512 bytes to 16MB.  The benefits of
-larger blocks, and thus larger IO, need to be weighed against the cost of
+larger blocks, and thus larger I/O, need to be weighed against the cost of
 COWing a giant block to modify one byte.  Additionally, very large blocks
 can have an impact on i/o latency, and also potentially on the memory
 allocator.  Therefore, we do not allow the recordsize to be set larger than
@@ -2552,12 +2552,13 @@ Default value: \fB0\fR.
 .sp
 .ne 2
 .na
-\fBzio_delay_max\fR (int)
+\fBzio_slow_io_ms\fR (int)
 .ad
 .RS 12n
-A zevent will be logged if a ZIO operation takes more than N milliseconds to
-complete. Note that this is only a logging facility, not a timeout on
-operations.
+When an I/O operation takes more than \fBzio_slow_io_ms\fR milliseconds to
+complete is marked as a slow I/O.  Each slow I/O causes a delay zevent.  Slow
+I/O counters can be seen with "zpool status -s".
+
 .sp
 Default value: \fB30,000\fR.
 .RE
@@ -2568,7 +2569,7 @@ Default value: \fB30,000\fR.
 \fBzio_dva_throttle_enabled\fR (int)
 .ad
 .RS 12n
-Throttle block allocations in the ZIO pipeline. This allows for
+Throttle block allocations in the I/O pipeline. This allows for
 dynamic allocation distribution when devices are imbalanced.
 When enabled, the maximum number of pending allocations per top-level vdev
 is limited by \fBzfs_vdev_queue_depth_pct\fR.
@@ -2594,7 +2595,7 @@ Default value: \fB0\fR.
 .ad
 .RS 12n
 Percentage of online CPUs (or CPU cores, etc) which will run a worker thread
-for IO. These workers are responsible for IO work such as compression and
+for I/O. These workers are responsible for I/O work such as compression and
 checksum calculations. Fractional number of CPUs will be rounded down.
 .sp
 The default value of 75 was chosen to avoid using all CPUs which can result in
