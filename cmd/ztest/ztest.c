@@ -7383,8 +7383,13 @@ main(int argc, char **argv)
 	 * Verify that even extensively damaged split blocks with many
 	 * segments can be reconstructed in a reasonable amount of time
 	 * when reconstruction is known to be possible.
+	 *
+	 * Note: the lower this value is, the more damage we inflict, and
+	 * the more time ztest spends in recovering that damage. We chose
+	 * to induce damage 1/100th of the time so recovery is tested but
+	 * not so frequently that ztest doesn't get to test other code paths.
 	 */
-	zfs_reconstruct_indirect_damage_fraction = 4;
+	zfs_reconstruct_indirect_damage_fraction = 100;
 
 	action.sa_handler = sig_handler;
 	sigemptyset(&action.sa_mask);

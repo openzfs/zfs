@@ -1614,7 +1614,7 @@ vdev_indirect_splits_damage(indirect_vsd_t *iv, zio_t *zio)
 	 * result in two or less unique copies per indirect_child_t.
 	 * Both may need to be checked in order to reconstruct the block.
 	 * Set iv->iv_attempts_max such that all unique combinations will
-	 * enumerated, but limit the damage to at most 16 indirect splits.
+	 * enumerated, but limit the damage to at most 12 indirect splits.
 	 */
 	iv->iv_attempts_max = 1;
 
@@ -1632,7 +1632,7 @@ vdev_indirect_splits_damage(indirect_vsd_t *iv, zio_t *zio)
 		}
 
 		iv->iv_attempts_max *= 2;
-		if (iv->iv_attempts_max > (1ULL << 16)) {
+		if (iv->iv_attempts_max >= (1ULL << 12)) {
 			iv->iv_attempts_max = UINT64_MAX;
 			break;
 		}
@@ -1718,7 +1718,7 @@ vdev_indirect_reconstruct_io_done(zio_t *zio)
 	/*
 	 * If nonzero, every 1/x blocks will be damaged, in order to validate
 	 * reconstruction when there are split segments with damaged copies.
-	 * Known_good will TRUE when reconstruction is known to be possible.
+	 * Known_good will be TRUE when reconstruction is known to be possible.
 	 */
 	if (zfs_reconstruct_indirect_damage_fraction != 0 &&
 	    spa_get_random(zfs_reconstruct_indirect_damage_fraction) == 0)
