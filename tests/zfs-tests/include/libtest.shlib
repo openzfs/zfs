@@ -2593,29 +2593,25 @@ function safe_to_destroy_pool { # $1 the pool name
 #
 function get_compress_opts
 {
-	typeset COMPRESS_OPTS
-	typeset GZIP_OPTS="gzip gzip-1 gzip-2 gzip-3 gzip-4 gzip-5 \
-			gzip-6 gzip-7 gzip-8 gzip-9"
+	# these compressors are in all OpenZFS implementations
+	typeset COMPRESS_OPTS="on lzjb zle gzip gzip-1 gzip-2 gzip-3 gzip-4
+	    gzip-5 gzip-6 gzip-7 gzip-8 gzip-9"
 
-	if [[ $1 == "zfs_compress" ]] ; then
-		COMPRESS_OPTS="on lzjb"
-	elif [[ $1 == "zfs_set" ]] ; then
-		COMPRESS_OPTS="on off lzjb"
+	# optional compression implementations
+	for i in lz4; do
+		zfs get 2>&1 | grep -w compression | \
+		    grep -w "$i" >/dev/null 2>&1
+		if [[ $? -eq 0 ]]; then
+			COMPRESS_OPTS="$COMPRESS_OPTS $i"
+		fi
+	done
+
+	# when setting compression option, "off" is also possible
+	if [[ $1 == "zfs_set" ]] ; then
+		COMPRESS_OPTS="$COMPRESS_OPTS off"
 	fi
-	typeset valid_opts="$COMPRESS_OPTS"
-	zfs get 2>&1 | grep -w compression | grep gzip >/dev/null 2>&1
-	if [[ $? -eq 0 ]]; then
-		valid_opts="$valid_opts $GZIP_OPTS"
-	fi
-	zfs get 2>&1 | grep -w compression | grep -w zle >/dev/null 2>&1
-	if [[ $? -eq 0 ]]; then
-		valid_opts="$valid_opts zle"
-	fi
-	zfs get 2>&1 | grep -w compression | grep -w lz4 >/dev/null 2>&1
-	if [[ $? -eq 0 ]]; then
-		valid_opts="$valid_opts lz4"
-	fi
-	echo "$valid_opts"
+
+	echo "$COMPRESS_OPTS"
 }
 
 #
