@@ -63,19 +63,19 @@ log_must touch $PRJFILE
 log_must mkdir $PRJDIR
 
 log_must chattr -p $PRJID1 $PRJFILE
-log_must eval "lsattr -p $PRJFILE | grep $PRJID1 | grep '\- '"
+log_must eval "lsattr -p $PRJFILE | grep $PRJID1 | grep -v '\-P[- ]* '"
 log_must chattr -p $PRJID1 $PRJDIR
-log_must eval "lsattr -pd $PRJDIR | grep $PRJID1 | grep '\- '"
+log_must eval "lsattr -pd $PRJDIR | grep $PRJID1 | grep -v '\-P[- ]* '"
 
 log_must chattr +P $PRJDIR
-log_must eval "lsattr -pd $PRJDIR | grep $PRJID1 | grep '\-P '"
+log_must eval "lsattr -pd $PRJDIR | grep $PRJID1 | grep '\-P[- ]* '"
 
 # "-1" is invalid project ID, should be denied
 log_mustnot chattr -p -1 $PRJFILE
-log_must eval "lsattr -p $PRJFILE | grep $PRJID1 | grep '\- '"
+log_must eval "lsattr -p $PRJFILE | grep $PRJID1 | grep -v '\-P[- ]* '"
 
 log_must mkdir $PRJDIR/dchild
-log_must eval "lsattr -pd $PRJDIR/dchild | grep $PRJID1 | grep '\-P '"
+log_must eval "lsattr -pd $PRJDIR/dchild | grep $PRJID1 | grep '\-P[- ]* '"
 log_must touch $PRJDIR/fchild
 log_must eval "lsattr -p $PRJDIR/fchild | grep $PRJID1"
 
