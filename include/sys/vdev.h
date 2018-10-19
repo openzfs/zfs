@@ -149,6 +149,8 @@ extern int vdev_config_sync(vdev_t **svd, int svdcount, uint64_t txg);
 extern void vdev_state_dirty(vdev_t *vd);
 extern void vdev_state_clean(vdev_t *vd);
 
+extern void vdev_set_deferred_resilver(spa_t *spa, vdev_t *vd);
+
 typedef enum vdev_config_flag {
 	VDEV_CONFIG_SPARE = 1 << 0,
 	VDEV_CONFIG_L2CACHE = 1 << 1,

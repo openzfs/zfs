@@ -790,6 +790,9 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 		(void) nvlist_lookup_uint64(nv, ZPOOL_CONFIG_RESILVER_TXG,
 		    &vd->vdev_resilver_txg);
 
+		if (nvlist_exists(nv, ZPOOL_CONFIG_RESILVER_DEFER))
+			vdev_set_deferred_resilver(spa, vd);
+
 		/*
 		 * In general, when importing a pool we want to ignore the
 		 * persistent fault state, as the diagnosis made on another
@@ -1798,8 +1801,13 @@ vdev_open(vdev_t *vd)
 	 * since this would just restart the scrub we are already doing.
 	 */
 	if (vd->vdev_ops->vdev_op_leaf && !spa->spa_scrub_reopen &&
-	    vdev_resilver_needed(vd, NULL, NULL))
-		spa_async_request(spa, SPA_ASYNC_RESILVER);
+	    vdev_resilver_needed(vd, NULL, NULL)) {
+		if (dsl_scan_resilvering(spa->spa_dsl_pool) &&
+		    spa_feature_is_enabled(spa, SPA_FEATURE_RESILVER_DEFER))
+			vdev_set_deferred_resilver(spa, vd);
+		else
+			spa_async_request(spa, SPA_ASYNC_RESILVER);
+	}
 
 	return (0);
 }
@@ -2486,6 +2494,9 @@ vdev_dtl_should_excise(vdev_t *vd)
 	ASSERT0(vd->vdev_children);
 
 	if (vd->vdev_state < VDEV_STATE_DEGRADED)
+		return (B_FALSE);
+
+	if (vd->vdev_resilver_deferred)
 		return (B_FALSE);
 
 	if (vd->vdev_resilver_txg == 0 ||
@@ -3618,8 +3629,14 @@ vdev_clear(spa_t *spa, vdev_t *vd)
 		if (vd != rvd && vdev_writeable(vd->vdev_top))
 			vdev_state_dirty(vd->vdev_top);
 
-		if (vd->vdev_aux == NULL && !vdev_is_dead(vd))
-			spa_async_request(spa, SPA_ASYNC_RESILVER);
+		if (vd->vdev_aux == NULL && !vdev_is_dead(vd)) {
+			if (dsl_scan_resilvering(spa->spa_dsl_pool) &&
+			    spa_feature_is_enabled(spa,
+			    SPA_FEATURE_RESILVER_DEFER))
+				vdev_set_deferred_resilver(spa, vd);
+			else
+				spa_async_request(spa, SPA_ASYNC_RESILVER);
+		}
 
 		spa_event_notify(spa, vd, NULL, ESC_ZFS_VDEV_CLEAR);
 	}
@@ -3840,6 +3857,8 @@ vdev_get_stats_ex(vdev_t *vd, vdev_stat_t *vs, vdev_stat_ex_t *vsx)
 			vs->vs_fragmentation = (vd->vdev_mg != NULL) ?
 			    vd->vdev_mg->mg_fragmentation : 0;
 		}
+		if (vd->vdev_ops->vdev_op_leaf)
+			vs->vs_resilver_deferred = vd->vdev_resilver_deferred;
 	}
 
 	ASSERT(spa_config_held(vd->vdev_spa, SCL_ALL, RW_READER) != 0);
@@ -4576,6 +4595,14 @@ vdev_deadman(vdev_t *vd, char *tag)
 		}
 		mutex_exit(&vq->vq_lock);
 	}
+}
+
+void
+vdev_set_deferred_resilver(spa_t *spa, vdev_t *vd)
+{
+	ASSERT(vd->vdev_ops->vdev_op_leaf);
+	vd->vdev_resilver_deferred = B_TRUE;
+	spa->spa_resilver_deferred = B_TRUE;
 }
 
 #if defined(_KERNEL)

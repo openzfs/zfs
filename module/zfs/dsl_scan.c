@@ -175,6 +175,8 @@ enum ddt_class zfs_scrub_ddt_class_max = DDT_CLASS_DUPLICATE;
 /* max number of blocks to free in a single TXG */
 unsigned long zfs_async_block_max_blocks = 100000;
 
+int zfs_resilver_disable_defer = 0; /* set to disable resilver deferring */
+
 /*
  * We wait a few txgs after importing a pool to begin scanning so that
  * the import / mounting code isn't held up by scrub / resilver IO.
@@ -720,6 +722,11 @@ dsl_scan(dsl_pool_t *dp, pool_scan_func_t func)
 	spa->spa_scrub_reopen = B_FALSE;
 	(void) spa_vdev_state_exit(spa, NULL, 0);
 
+	if (func == POOL_SCAN_RESILVER) {
+		dsl_resilver_restart(spa->spa_dsl_pool, 0);
+		return (0);
+	}
+
 	if (func == POOL_SCAN_SCRUB && dsl_scan_is_paused_scrub(scn)) {
 		/* got scrub start cmd, resume paused scrub */
 		int err = dsl_scrub_set_pause_resume(scn->scn_dp,
@@ -734,6 +741,41 @@ dsl_scan(dsl_pool_t *dp, pool_scan_func_t func)
 
 	return (dsl_sync_task(spa_name(spa), dsl_scan_setup_check,
 	    dsl_scan_setup_sync, &func, 0, ZFS_SPACE_CHECK_EXTRA_RESERVED));
+}
+
+/*
+ * Sets the resilver defer flag to B_FALSE on all leaf devs under vd. Returns
+ * B_TRUE if we have devices that need to be resilvered and are available to
+ * accept resilver I/Os.
+ */
+static boolean_t
+dsl_scan_clear_deferred(vdev_t *vd, dmu_tx_t *tx)
+{
+	boolean_t resilver_needed = B_FALSE;
+	spa_t *spa = vd->vdev_spa;
+
+	for (int c = 0; c < vd->vdev_children; c++) {
+		resilver_needed |=
+		    dsl_scan_clear_deferred(vd->vdev_child[c], tx);
+	}
+
+	if (vd == spa->spa_root_vdev &&
+	    spa_feature_is_active(spa, SPA_FEATURE_RESILVER_DEFER)) {
+		spa_feature_decr(spa, SPA_FEATURE_RESILVER_DEFER, tx);
+		vdev_config_dirty(vd);
+		spa->spa_resilver_deferred = B_FALSE;
+		return (resilver_needed);
+	}
+
+	if (!vdev_is_concrete(vd) || vd->vdev_aux ||
+	    !vd->vdev_ops->vdev_op_leaf)
+		return (resilver_needed);
+
+	if (vd->vdev_resilver_deferred)
+		vd->vdev_resilver_deferred = B_FALSE;
+
+	return (!vdev_is_dead(vd) && !vd->vdev_offline &&
+	    vdev_resilver_needed(vd, NULL, NULL));
 }
 
 /* ARGSUSED */
@@ -835,6 +877,25 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 		 * Let the async thread assess this and handle the detach.
 		 */
 		spa_async_request(spa, SPA_ASYNC_RESILVER_DONE);
+
+		/*
+		 * Clear any deferred_resilver flags in the config.
+		 * If there are drives that need resilvering, kick
+		 * off an asynchronous request to start resilver.
+		 * dsl_scan_clear_deferred() may update the config
+		 * before the resilver can restart. In the event of
+		 * a crash during this period, the spa loading code
+		 * will find the drives that need to be resilvered
+		 * when the machine reboots and start the resilver then.
+		 */
+		boolean_t resilver_needed =
+		    dsl_scan_clear_deferred(spa->spa_root_vdev, tx);
+		if (resilver_needed) {
+			spa_history_log_internal(spa,
+			    "starting deferred resilver", tx,
+			    "errors=%llu", spa_get_errlog_size(spa));
+			spa_async_request(spa, SPA_ASYNC_RESILVER);
+		}
 	}
 
 	scn->scn_phys.scn_end_time = gethrestime_sec();
@@ -2967,6 +3028,26 @@ dsl_scan_active(dsl_scan_t *scn)
 }
 
 static boolean_t
+dsl_scan_check_deferred(vdev_t *vd)
+{
+	boolean_t need_resilver = B_FALSE;
+
+	for (int c = 0; c < vd->vdev_children; c++) {
+		need_resilver |=
+		    dsl_scan_check_deferred(vd->vdev_child[c]);
+	}
+
+	if (!vdev_is_concrete(vd) || vd->vdev_aux ||
+	    !vd->vdev_ops->vdev_op_leaf)
+		return (need_resilver);
+
+	if (!vd->vdev_resilver_deferred)
+		need_resilver = B_TRUE;
+
+	return (need_resilver);
+}
+
+static boolean_t
 dsl_scan_need_resilver(spa_t *spa, const dva_t *dva, size_t psize,
     uint64_t phys_birth)
 {
@@ -3011,6 +3092,13 @@ dsl_scan_need_resilver(spa_t *spa, const dva_t *dva, size_t psize,
 	 * is provided instead of asize to simplify the check for RAIDZ.
 	 */
 	if (!vdev_dtl_need_resilver(vd, DVA_GET_OFFSET(dva), psize))
+		return (B_FALSE);
+
+	/*
+	 * Check that this top-level vdev has a device under it which
+	 * is resilvering and is not deferred.
+	 */
+	if (!dsl_scan_check_deferred(vd))
 		return (B_FALSE);
 
 	return (B_TRUE);
@@ -3173,12 +3261,19 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 	spa_t *spa = dp->dp_spa;
 	state_sync_type_t sync_type = SYNC_OPTIONAL;
 
+	if (spa->spa_resilver_deferred &&
+	    !spa_feature_is_active(dp->dp_spa, SPA_FEATURE_RESILVER_DEFER))
+		spa_feature_incr(spa, SPA_FEATURE_RESILVER_DEFER, tx);
+
 	/*
 	 * Check for scn_restart_txg before checking spa_load_state, so
 	 * that we can restart an old-style scan while the pool is being
-	 * imported (see dsl_scan_init).
+	 * imported (see dsl_scan_init). We also restart scans if there
+	 * is a deferred resilver and the user has manually disabled
+	 * deferred resilvers via the tunable.
 	 */
-	if (dsl_scan_restarting(scn, tx)) {
+	if (dsl_scan_restarting(scn, tx) ||
+	    (spa->spa_resilver_deferred && zfs_resilver_disable_defer)) {
 		pool_scan_func_t func = POOL_SCAN_SCRUB;
 		dsl_scan_done(scn, B_FALSE, tx);
 		if (vdev_resilver_needed(spa->spa_root_vdev, NULL, NULL))
@@ -4000,4 +4095,8 @@ MODULE_PARM_DESC(zfs_scan_strict_mem_lim,
 module_param(zfs_scan_fill_weight, int, 0644);
 MODULE_PARM_DESC(zfs_scan_fill_weight,
 	"Tunable to adjust bias towards more filled segments during scans");
+
+module_param(zfs_resilver_disable_defer, int, 0644);
+MODULE_PARM_DESC(zfs_resilver_disable_defer,
+	"Process all resilvers immediately");
 #endif

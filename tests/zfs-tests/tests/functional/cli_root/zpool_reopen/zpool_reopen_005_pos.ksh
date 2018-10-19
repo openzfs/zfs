@@ -72,13 +72,13 @@ log_must zinject -d $REMOVED_DISK_ID -D25:1 $TESTPOOL
 log_must wait_for_resilver_start $TESTPOOL $MAXTIMEOUT
 
 # 6. Reopen a pool again with -n flag.
-zpool reopen -n $TESTPOOL
+log_must zpool reopen -n $TESTPOOL
 
 # 7. Wait until resilvering is finished and check if it was restarted.
 log_must wait_for_resilver_end $TESTPOOL $MAXTIMEOUT
 # remove delay from disk
 log_must zinject -c all
-log_must is_scan_restarted $TESTPOOL
+log_mustnot is_scan_restarted $TESTPOOL
 
 # clean up
 log_must zpool destroy $TESTPOOL
