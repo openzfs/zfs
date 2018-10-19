@@ -2049,7 +2049,7 @@ metaslab_activate(metaslab_t *msp, int allocator, uint64_t activation_weight)
 			 * The metaslab was activated for another allocator
 			 * while we were waiting, we should reselect.
 			 */
-			return (EBUSY);
+			return (SET_ERROR(EBUSY));
 		}
 		if ((error = metaslab_activate_allocator(msp->ms_group, msp,
 		    allocator, activation_weight)) != 0) {
@@ -3886,15 +3886,21 @@ metaslab_claim_concrete(vdev_t *vd, uint64_t offset, uint64_t size,
 	int error = 0;
 
 	if (offset >> vd->vdev_ms_shift >= vd->vdev_ms_count)
-		return (ENXIO);
+		return (SET_ERROR(ENXIO));
 
 	ASSERT3P(vd->vdev_ms, !=, NULL);
 	msp = vd->vdev_ms[offset >> vd->vdev_ms_shift];
 
 	mutex_enter(&msp->ms_lock);
 
-	if ((txg != 0 && spa_writeable(spa)) || !msp->ms_loaded)
+	if ((txg != 0 && spa_writeable(spa)) || !msp->ms_loaded) {
 		error = metaslab_activate(msp, 0, METASLAB_WEIGHT_CLAIM);
+		if (error == EBUSY) {
+			ASSERT(msp->ms_loaded);
+			ASSERT(msp->ms_weight & METASLAB_ACTIVE_MASK);
+			error = 0;
+		}
+	}
 
 	if (error == 0 &&
 	    !range_tree_contains(msp->ms_allocatable, offset, size))
