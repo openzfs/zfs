@@ -3101,7 +3101,8 @@ function vdevs_in_pool
 	typeset tmpfile=$(mktemp)
 	zpool list -Hv "$pool" >$tmpfile
 	for vdev in $@; do
-		awk -v vdev=$vdev '$1 == vdev && NF < 11 {exit 11}' <$tmpfile
+		awk -v vdev=${vdev##*/} \
+		    '$1 == vdev && NF < 11 {exit 11}' <$tmpfile
 		if [[ $? -ne 11 ]]; then
 			rm -f $tmpfile
 			return 1

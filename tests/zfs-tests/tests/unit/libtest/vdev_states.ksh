@@ -58,6 +58,7 @@ EOM
 	assertTrue "sdd1 in pool" "vdevs_in_pool mockpool sdd1"
 	assertTrue "disk1 in pool" "vdevs_in_pool mockpool sdd1"
 	assertTrue "sdd1 and disk1 in pool" "vdevs_in_pool mockpool sdd1 disk1"
+	assertTrue "/dev prefix ok" "vdevs_in_pool mockpool /dev/sdd1"
 	assertFalse "sdd not in pool" "vdevs_in_pool mockpool sdd"
 	assertFalse "poolname is not vdev" "vdevs_in_pool mockpool tank"
 }
