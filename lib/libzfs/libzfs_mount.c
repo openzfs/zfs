@@ -26,6 +26,7 @@
  * Copyright 2016 Igor Kozhukhov <ikozhukhov@gmail.com>
  * Copyright 2017 RackTop Systems.
  * Copyright (c) 2018 Datto Inc.
+ * Copyright 2018 OmniOS Community Edition (OmniOSce) Association.
  */
 
 /*
@@ -1217,19 +1218,28 @@ zfs_iter_cb(zfs_handle_t *zhp, void *data)
 /*
  * Sort comparator that compares two mountpoint paths. We sort these paths so
  * that subdirectories immediately follow their parents. This means that we
- * effectively treat the '/' character as the lowest value non-nul char. An
- * example sorted list using this comparator would look like:
+ * effectively treat the '/' character as the lowest value non-nul char.
+ * Since filesystems from non-global zones can have the same mountpoint
+ * as other filesystems, the comparator sorts global zone filesystems to
+ * the top of the list. This means that the global zone will traverse the
+ * filesystem list in the correct order and can stop when it sees the
+ * first zoned filesystem. In a non-global zone, only the delegated
+ * filesystems are seen.
+ *
+ * An example sorted list using this comparator would look like:
  *
  * /foo
  * /foo/bar
  * /foo/bar/baz
  * /foo/baz
  * /foo.bar
+ * /foo (NGZ1)
+ * /foo (NGZ2)
  *
  * The mounting code depends on this ordering to deterministically iterate
  * over filesystems in order to spawn parallel mount tasks.
  */
-int
+static int
 mountpoint_cmp(const void *arga, const void *argb)
 {
 	zfs_handle_t *const *zap = arga;
@@ -1241,6 +1251,14 @@ mountpoint_cmp(const void *arga, const void *argb)
 	const char *a = mounta;
 	const char *b = mountb;
 	boolean_t gota, gotb;
+	uint64_t zoneda, zonedb;
+
+	zoneda = zfs_prop_get_int(za, ZFS_PROP_ZONED);
+	zonedb = zfs_prop_get_int(zb, ZFS_PROP_ZONED);
+	if (zoneda && !zonedb)
+		return (1);
+	if (!zoneda && zonedb)
+		return (-1);
 
 	gota = (zfs_get_type(za) == ZFS_TYPE_FILESYSTEM);
 	if (gota) {
@@ -1461,6 +1479,8 @@ void
 zfs_foreach_mountpoint(libzfs_handle_t *hdl, zfs_handle_t **handles,
     size_t num_handles, zfs_iter_f func, void *data, boolean_t parallel)
 {
+	zoneid_t zoneid = getzoneid();
+
 	/*
 	 * The ZFS_SERIAL_MOUNT environment variable is an undocumented
 	 * variable that can be used as a convenience to do a/b comparison
@@ -1495,6 +1515,14 @@ zfs_foreach_mountpoint(libzfs_handle_t *hdl, zfs_handle_t **handles,
 	 */
 	for (int i = 0; i < num_handles;
 	    i = non_descendant_idx(handles, num_handles, i)) {
+		/*
+		 * Since the mountpoints have been sorted so that the zoned
+		 * filesystems are at the end, a zoned filesystem seen from
+		 * the global zone means that we're done.
+		 */
+		if (zoneid == GLOBAL_ZONEID &&
+		    zfs_prop_get_int(handles[i], ZFS_PROP_ZONED))
+			break;
 		zfs_dispatch_mount(hdl, handles, num_handles, i, func, data,
 		    tp);
 	}
