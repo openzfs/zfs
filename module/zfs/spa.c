@@ -4236,8 +4236,17 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport)
 		 */
 		spa_history_log_version(spa, "open", NULL);
 
+		spa_restart_removal(spa);
+		spa_spawn_aux_threads(spa);
+
 		/*
 		 * Delete any inconsistent datasets.
+		 *
+		 * Note:
+		 * Since we may be issuing deletes for clones here,
+		 * we make sure to do so after we've spawned all the
+		 * auxiliary threads above (from which the livelist
+		 * deletion zthr is part of).
 		 */
 		(void) dmu_objset_find(spa_name(spa),
 		    dsl_destroy_inconsistent, NULL, DS_FIND_CHILDREN);
@@ -4246,10 +4255,6 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport)
 		 * Clean up any stale temporary dataset userrefs.
 		 */
 		dsl_pool_clean_tmp_userrefs(spa->spa_dsl_pool);
-
-		spa_restart_removal(spa);
-
-		spa_spawn_aux_threads(spa);
 
 		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 		vdev_initialize_restart(spa->spa_root_vdev);
