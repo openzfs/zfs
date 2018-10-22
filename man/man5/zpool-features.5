@@ -757,6 +757,27 @@ The upgrade process runs in the background and may take a while to complete
 for the filesystems containing a large number of files.
 
 .RE
+.sp
+.ne 2
+.na
+\fB\fBresilver_defer\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.datto:resilver_defer
+READ\-ONLY COMPATIBLE	yes
+DEPENDENCIES	none
+.TE
+
+This feature allows zfs to postpone new resilvers if an existing one is already
+in progress. Without this feature, any new resilvers will cause the currently
+running one to be immediately restarted from the beginning.
+
+This feature becomes \fBactive\fR once a resilver has been defered, and returns
+to being \fBenabled\fR when the defered resilver begins.
+
+.RE
 
 .sp
 .ne 2

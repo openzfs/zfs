@@ -25,6 +25,7 @@
 #
 
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_root/zpool_reopen/zpool_reopen.shlib
 . $STF_SUITE/tests/functional/cli_root/zpool_scrub/zpool_scrub.cfg
 
 #
@@ -95,6 +96,7 @@ DISK1="$TEST_BASE_DIR/zpool_disk1.dat"
 DISK2="$TEST_BASE_DIR/zpool_disk2.dat"
 DISK3="$TEST_BASE_DIR/zpool_disk3.dat"
 DISK4="$TEST_BASE_DIR/zpool_disk4.dat"
+RESILVER_TIMEOUT=40
 
 # 1. Create the pool
 log_must truncate -s $DEVSIZE $DISK1
@@ -117,6 +119,7 @@ zpool_scrub_sync $TESTPOOL
 # 5. Online the first device and offline the second device
 zpool_do_sync 'online' $TESTPOOL $DISK1
 zpool_do_sync 'offline' $TESTPOOL $DISK2
+log_must wait_for_resilver_end $TESTPOOL $RESILVER_TIMEOUT
 
 # 6. Scrub the pool again
 zpool_scrub_sync $TESTPOOL

@@ -115,3 +115,10 @@ function is_scan_restarted #pool
 	zpool history -i $pool | grep -q "scan aborted, restarting"
 	return $?
 }
+
+function is_deferred_scan_started #pool
+{
+	typeset pool=$1
+	zpool history -i $pool | grep -q "starting deferred resilver"
+	return $?
+}
