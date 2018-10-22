@@ -3543,6 +3543,15 @@ ztest_device_removal(ztest_ds_t *zd, uint64_t id)
 	if (error == 0) {
 		mutex_exit(&ztest_vdev_lock);
 
+		/*
+		 * spa->spa_vdev_removal is created in a sync task that
+		 * is initiated via dsl_sync_task_nowait(). Since the
+		 * task may not run before spa_vdev_remove() returns, we
+		 * must wait at least 1 txg to ensure that the removal
+		 * struct has been created.
+		 */
+		txg_wait_synced(spa_get_dsl(spa), 0);
+
 		while (spa->spa_vdev_removal != NULL)
 			txg_wait_synced(spa_get_dsl(spa), 0);
 	} else {
