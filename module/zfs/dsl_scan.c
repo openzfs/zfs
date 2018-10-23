@@ -390,7 +390,6 @@ dsl_scan_init(dsl_pool_t *dp, uint64_t txg)
 	scn->scn_maxinflight_bytes = MAX(zfs_scan_vdev_limit *
 	    dsl_scan_count_leaves(spa->spa_root_vdev), 1ULL << 20);
 
-	bcopy(&scn->scn_phys, &scn->scn_phys_cached, sizeof (scn->scn_phys));
 	avl_create(&scn->scn_queue, scan_ds_queue_compare, sizeof (scan_ds_t),
 	    offsetof(scan_ds_t, sds_node));
 	avl_create(&scn->scn_prefetch_queue, scan_prefetch_queue_compare,
@@ -483,6 +482,8 @@ dsl_scan_init(dsl_pool_t *dp, uint64_t txg)
 			    (longlong_t)scn->scn_restart_txg);
 		}
 	}
+
+	bcopy(&scn->scn_phys, &scn->scn_phys_cached, sizeof (scn->scn_phys));
 
 	/* reload the queue into the in-core state */
 	if (scn->scn_phys.scn_queue_obj != 0) {
@@ -969,6 +970,7 @@ dsl_scrub_pause_resume_sync(void *arg, dmu_tx_t *tx)
 		/* can't pause a scrub when there is no in-progress scrub */
 		spa->spa_scan_pass_scrub_pause = gethrestime_sec();
 		scn->scn_phys.scn_flags |= DSF_SCRUB_PAUSED;
+		scn->scn_phys_cached.scn_flags |= DSF_SCRUB_PAUSED;
 		dsl_scan_sync_state(scn, tx, SYNC_CACHED);
 		spa_event_notify(spa, NULL, NULL, ESC_ZFS_SCRUB_PAUSED);
 	} else {
@@ -983,6 +985,7 @@ dsl_scrub_pause_resume_sync(void *arg, dmu_tx_t *tx)
 			    gethrestime_sec() - spa->spa_scan_pass_scrub_pause;
 			spa->spa_scan_pass_scrub_pause = 0;
 			scn->scn_phys.scn_flags &= ~DSF_SCRUB_PAUSED;
+			scn->scn_phys_cached.scn_flags &= ~DSF_SCRUB_PAUSED;
 			dsl_scan_sync_state(scn, tx, SYNC_CACHED);
 		}
 	}
