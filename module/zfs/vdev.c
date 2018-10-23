@@ -99,6 +99,13 @@ int zfs_scan_ignore_errors = 0;
  */
 int vdev_standard_sm_blksz = (1 << 17);
 
+/*
+ * Tunable parameter for debugging or performance analysis. Setting this
+ * will cause pool corruption on power loss if a volatile out-of-order
+ * write cache is enabled.
+ */
+int zfs_nocacheflush = 0;
+
 /*PRINTFLIKE2*/
 void
 vdev_dbgmsg(vdev_t *vd, const char *fmt, ...)
@@ -4650,5 +4657,8 @@ MODULE_PARM_DESC(zfs_scan_ignore_errors,
 module_param(vdev_validate_skip, int, 0644);
 MODULE_PARM_DESC(vdev_validate_skip,
 	"Bypass vdev_validate()");
+
+module_param(zfs_nocacheflush, int, 0644);
+MODULE_PARM_DESC(zfs_nocacheflush, "Disable cache flushes");
 /* END CSTYLED */
 #endif
