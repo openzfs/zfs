@@ -1846,8 +1846,9 @@ Use \fB1\fR for yes and \fB0\fR for no (default).
 \fBzfs_nocacheflush\fR (int)
 .ad
 .RS 12n
-Disable cache flush operations on disks when writing. Beware, this may cause
-corruption if disks re-order writes.
+Disable cache flush operations on disks when writing.  Setting this will
+cause pool corruption on power loss if a volatile out-of-order write cache
+is enabled.
 .sp
 Use \fB1\fR for yes and \fB0\fR for no (default).
 .RE
@@ -1902,8 +1903,6 @@ A value of zero will disable this throttle.
 .sp
 Default value: \fB30\fR and \fB0\fR to disable.
 .RE
-
-
 
 .sp
 .ne 2
@@ -2525,6 +2524,19 @@ This controls the number of threads used by the dp_zil_clean_taskq.  The default
 value of 100% will create a maximum of one thread per cpu.
 .sp
 Default value: \fB100\fR%.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzil_nocacheflush\fR (int)
+.ad
+.RS 12n
+Disable the cache flush commands that are normally sent to the disk(s) by
+the ZIL after an LWB write has completed. Setting this will cause ZIL
+corruption on power loss if a volatile out-of-order write cache is enabled.
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
 .RE
 
 .sp

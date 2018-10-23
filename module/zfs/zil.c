@@ -118,11 +118,12 @@ static kstat_t *zil_ksp;
 int zil_replay_disable = 0;
 
 /*
- * Tunable parameter for debugging or performance analysis.  Setting
- * zfs_nocacheflush will cause corruption on power loss if a volatile
- * out-of-order write cache is enabled.
+ * Disable the DKIOCFLUSHWRITECACHE commands that are normally sent to
+ * the disk(s) by the ZIL after an LWB write has completed. Setting this
+ * will cause ZIL corruption on power loss if a volatile out-of-order
+ * write cache is enabled.
  */
-int zfs_nocacheflush = 0;
+int zil_nocacheflush = 0;
 
 /*
  * Limit SLOG write size per commit executed with synchronous priority.
@@ -1041,7 +1042,7 @@ zil_lwb_add_block(lwb_t *lwb, const blkptr_t *bp)
 	int ndvas = BP_GET_NDVAS(bp);
 	int i;
 
-	if (zfs_nocacheflush)
+	if (zil_nocacheflush)
 		return;
 
 	mutex_enter(&lwb->lwb_vdev_lock);
@@ -1065,7 +1066,7 @@ zil_lwb_add_txg(lwb_t *lwb, uint64_t txg)
 /*
  * This function is a called after all VDEVs associated with a given lwb
  * write have completed their DKIOCFLUSHWRITECACHE command; or as soon
- * as the lwb write completes, if "zfs_nocacheflush" is set.
+ * as the lwb write completes, if "zil_nocacheflush" is set.
  *
  * The intention is for this function to be called as soon as the
  * contents of an lwb are considered "stable" on disk, and will survive
@@ -3513,8 +3514,8 @@ MODULE_PARM_DESC(zfs_commit_timeout_pct, "ZIL block open timeout percentage");
 module_param(zil_replay_disable, int, 0644);
 MODULE_PARM_DESC(zil_replay_disable, "Disable intent logging replay");
 
-module_param(zfs_nocacheflush, int, 0644);
-MODULE_PARM_DESC(zfs_nocacheflush, "Disable cache flushes");
+module_param(zil_nocacheflush, int, 0644);
+MODULE_PARM_DESC(zil_nocacheflush, "Disable ZIL cache flushes");
 
 module_param(zil_slog_bulk, ulong, 0644);
 MODULE_PARM_DESC(zil_slog_bulk, "Limit in bytes slog sync writes per commit");
