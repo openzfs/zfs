@@ -784,7 +784,8 @@ dprintf_setup(int *argc, char **argv)
  * =========================================================================
  */
 void
-__dprintf(const char *file, const char *func, int line, const char *fmt, ...)
+__dprintf(boolean_t dprint, const char *file, const char *func,
+    int line, const char *fmt, ...)
 {
 	const char *newfile;
 	va_list adx;
@@ -799,9 +800,14 @@ __dprintf(const char *file, const char *func, int line, const char *fmt, ...)
 		newfile = file;
 	}
 
-	if (dprintf_print_all ||
-	    dprintf_find_string(newfile) ||
-	    dprintf_find_string(func)) {
+	if (dprint) {
+		/* dprintf messages are printed immediately */
+
+		if (!dprintf_print_all &&
+		    !dprintf_find_string(newfile) &&
+		    !dprintf_find_string(func))
+			return;
+
 		/* Print out just the function name if requested */
 		flockfile(stdout);
 		if (dprintf_find_string("pid"))
@@ -814,11 +820,30 @@ __dprintf(const char *file, const char *func, int line, const char *fmt, ...)
 			(void) printf("%llu ", gethrtime());
 		if (dprintf_find_string("long"))
 			(void) printf("%s, line %d: ", newfile, line);
-		(void) printf("%s: ", func);
+		(void) printf("dprintf: %s: ", func);
 		va_start(adx, fmt);
 		(void) vprintf(fmt, adx);
 		va_end(adx);
 		funlockfile(stdout);
+	} else {
+		/* zfs_dbgmsg is logged for dumping later */
+		size_t size;
+		char *buf;
+		int i;
+
+		size = 1024;
+		buf = umem_alloc(size, UMEM_NOFAIL);
+		i = snprintf(buf, size, "%s:%d:%s(): ", newfile, line, func);
+
+		if (i < size) {
+			va_start(adx, fmt);
+			(void) vsnprintf(buf + i, size - i, fmt, adx);
+			va_end(adx);
+		}
+
+		__zfs_dbgmsg(buf);
+
+		umem_free(buf, size);
 	}
 }
 
