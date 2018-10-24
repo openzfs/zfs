@@ -69,30 +69,30 @@ log_must chattr -p $PRJID1 $PRJDIR/a3
 log_must eval "zfs project $PRJDIR/a3 | grep '$PRJID1 \-'"
 
 log_must zfs project -p $PRJID2 $PRJDIR/a3
-log_must eval "lsattr -p $PRJDIR/a3 | grep $PRJID2 | grep '\- '"
+log_must eval "lsattr -p $PRJDIR/a3 | grep $PRJID2 | grep -v '\-P[- ]* '"
 
 log_must chattr -p $PRJID1 $PRJDIR/a1
 log_must eval "zfs project -d $PRJDIR/a1 | grep '$PRJID1 \-'"
 
 log_must zfs project -p $PRJID2 $PRJDIR/a1
-log_must eval "lsattr -pd $PRJDIR/a1 | grep $PRJID2 | grep '\- '"
+log_must eval "lsattr -pd $PRJDIR/a1 | grep $PRJID2 | grep -v '\-P[- ]* '"
 
 log_must chattr +P $PRJDIR/a2
 log_must eval "zfs project -d $PRJDIR/a2 | grep '0 P'"
 
 log_must zfs project -s $PRJDIR/a2
-log_must eval "lsattr -pd $PRJDIR/a2 | grep 0 | grep '\-P '"
+log_must eval "lsattr -pd $PRJDIR/a2 | grep 0 | grep '\-P[- ]* '"
 
 log_must chattr +P -p $PRJID1 $PRJDIR/a1
 log_must eval "zfs project -d $PRJDIR/a1 | grep '$PRJID1 P'"
 
 log_must zfs project -s -p $PRJID2 $PRJDIR/a2
-log_must eval "lsattr -pd $PRJDIR/a2 | grep $PRJID2 | grep '\-P '"
+log_must eval "lsattr -pd $PRJDIR/a2 | grep $PRJID2 | grep '\-P[- ]* '"
 
 log_must chattr -P $PRJDIR/a1
 log_must eval "zfs project -d $PRJDIR/a1 | grep '$PRJID1 \-'"
 
 log_must zfs project -C -k $PRJDIR/a2
-log_must eval "lsattr -pd $PRJDIR/a2 | grep $PRJID2 | grep '\- '"
+log_must eval "lsattr -pd $PRJDIR/a2 | grep $PRJID2 | grep -v '\-P[- ]* '"
 
 log_pass "Check 'zfs project' is compatible with chattr/lsattr"
