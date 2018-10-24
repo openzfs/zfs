@@ -193,7 +193,7 @@ import_pool()
 
 	# Verify that the pool isn't already imported
 	# Make as sure as we can to not require '-f' to import.
-	"${ZPOOL}" status "$pool" > /dev/null 2>&1 && return 0
+	"${ZPOOL}" get name,guid -o value -H 2>/dev/null | grep -Fxq "$pool" && return 0
 
 	# For backwards compatibility, make sure that ZPOOL_IMPORT_PATH is set
 	# to something we can use later with the real import(s). We want to
@@ -772,6 +772,7 @@ mountroot()
 	#	root=zfs:<pool>/<dataset>	(uses this for rpool - first part, without 'zfs:')
 	#
 	# Option <dataset> could also be <snapshot>
+	# Option <pool> could also be <guid>
 
 	# ------------
 	# Support force option
@@ -887,6 +888,14 @@ mountroot()
 		echo "at the command prompt and then exit."
 		echo "Hint: Try:  zpool import -R ${rootmnt} -N ${ZFS_RPOOL}"
 		/bin/sh
+	fi
+
+	# In case the pool was specified as guid, resolve guid to name
+	pool="$("${ZPOOL}" get name,guid -o name,value -H | \
+	    awk -v pool="${ZFS_RPOOL}" '$2 == pool { print $1 }')"
+	if [ -n "$pool" ]; then
+		ZFS_BOOTFS="${pool}/${ZFS_BOOTFS#*/}"
+		ZFS_RPOOL="${pool}"
 	fi
 
 	# Set elevator=noop on the root pool's vdevs' disks.  ZFS already
