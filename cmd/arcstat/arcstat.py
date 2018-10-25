@@ -112,7 +112,6 @@ cur = {}
 d = {}
 out = None
 kstat = None
-float_pobj = re.compile("^[0-9]+(\.[0-9]+)?$")
 
 
 def detailed_usage():

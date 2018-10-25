@@ -292,9 +292,10 @@ def process_results(pathname):
         sys.exit(1)
 
     prefix = '/zfs-tests/tests/functional/'
-    pattern = '^Test:\s*\S*%s(\S+)\s*\(run as (\S+)\)\s*\[(\S+)\]\s*\[(\S+)\]'\
+    pattern = \
+        r'^Test:\s*\S*%s(\S+)\s*\(run as (\S+)\)\s*\[(\S+)\]\s*\[(\S+)\]' \
         % prefix
-    pattern_log = '^\s*Log directory:\s*(\S*)'
+    pattern_log = r'^\s*Log directory:\s*(\S*)'
 
     d = {}
     for l in f.readlines():
