@@ -267,16 +267,19 @@ zthr_cancel(zthr_t *t)
 void
 zthr_resume(zthr_t *t)
 {
-	ASSERT3P(t->zthr_thread, ==, NULL);
-
 	mutex_enter(&t->zthr_lock);
 
-	ASSERT3P(&t->zthr_checkfunc, !=, NULL);
-	ASSERT3P(&t->zthr_func, !=, NULL);
-	ASSERT(!t->zthr_cancel);
+	ASSERT3P(t->zthr_checkfunc, !=, NULL);
+	ASSERT3P(t->zthr_func, !=, NULL);
 
-	t->zthr_thread = thread_create(NULL, 0, zthr_procedure, t,
-	    0, &p0, TS_RUN, minclsyspri);
+	/* Wait for any in-progress cancellations */
+	while (t->zthr_cancel)
+		cv_wait(&t->zthr_cv, &t->zthr_lock);
+
+	if (t->zthr_thread == NULL) {
+		t->zthr_thread = thread_create(NULL, 0, zthr_procedure,
+		    t, 0, &p0, TS_RUN, minclsyspri);
+	}
 
 	mutex_exit(&t->zthr_lock);
 }
