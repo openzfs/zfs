@@ -71,7 +71,7 @@ cols = {
     "pm%":        [3, 100, "Prefetch miss percentage"],
     "mhit":       [4, 1000, "Metadata hits per second"],
     "mmis":       [4, 1000, "Metadata misses per second"],
-    "mread":      [4, 1000, "Metadata accesses per second"],
+    "mread":      [5, 1000, "Metadata accesses per second"],
     "mh%":        [3, 100, "Metadata hit percentage"],
     "mm%":        [3, 100, "Metadata miss percentage"],
     "arcsz":      [5, 1024, "ARC Size"],
@@ -92,6 +92,9 @@ cols = {
     "l2asize":    [7, 1024, "Actual (compressed) size of the L2ARC"],
     "l2size":     [6, 1024, "Size of the L2ARC"],
     "l2bytes":    [7, 1024, "bytes read per second from the L2ARC"],
+    "grow":       [4, 1000, "ARC Grow disabled"],
+    "need":       [4, 1024, "ARC Reclaim need"],
+    "free":       [4, 1024, "ARC Free memory"],
 }
 
 v = {}
@@ -422,6 +425,10 @@ def calculate():
         v["l2asize"] = cur["l2_asize"]
         v["l2size"] = cur["l2_size"]
         v["l2bytes"] = d["l2_read_bytes"] / sint
+
+    v["grow"] = 0 if cur["arc_no_grow"] else 1
+    v["need"] = cur["arc_need_free"]
+    v["free"] = cur["arc_sys_free"]
 
 
 def main():
