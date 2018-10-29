@@ -2603,7 +2603,7 @@ vdev_dtl_reassess(vdev_t *vd, uint64_t txg, uint64_t scrub_txg, int scrub_done)
 		 * DTLs then reset its resilvering flag and dirty
 		 * the top level so that we persist the change.
 		 */
-		if (vd->vdev_resilver_txg != 0 &&
+		if (txg != 0 && vd->vdev_resilver_txg != 0 &&
 		    range_tree_is_empty(vd->vdev_dtl[DTL_MISSING]) &&
 		    range_tree_is_empty(vd->vdev_dtl[DTL_OUTAGE])) {
 			vd->vdev_resilver_txg = 0;
