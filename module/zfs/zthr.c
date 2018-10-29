@@ -14,7 +14,7 @@
  */
 
 /*
- * Copyright (c) 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2017, 2018 by Delphix. All rights reserved.
  */
 
 /*
@@ -60,7 +60,7 @@
  * 2] A user-defined ZTHR function (func) which the zthr executes when
  *    it is not sleeping. The function should adhere to the following
  *    signature type:
- *    int func_name(void *args, zthr_t *t);
+ *    void func_name(void *args, zthr_t *t);
  *
  * 3] A void args pointer that will be passed to checkfunc and func
  *    implicitly by the infrastructure.
@@ -112,16 +112,7 @@
  *     while (!work_done && !zthr_iscancelled(t)) {
  *         ... <do more work> ...
  *     }
- *     return (0);
  * }
- *
- * == ZTHR exit
- *
- * For the rare cases where the zthr wants to stop running voluntarily
- * while running its ZTHR function (func), we provide zthr_exit().
- * When a zthr has voluntarily stopped running, it can be resumed with
- * zthr_resume(), just like it would if it was cancelled by some other
- * thread.
  *
  * == ZTHR cleanup
  *
@@ -163,38 +154,63 @@
 #include <sys/zfs_context.h>
 #include <sys/zthr.h>
 
-void
-zthr_exit(zthr_t *t, int rc)
-{
-	ASSERT3P(t->zthr_thread, ==, curthread);
-	mutex_enter(&t->zthr_lock);
-	t->zthr_thread = NULL;
-	t->zthr_rc = rc;
-	cv_broadcast(&t->zthr_cv);
-	mutex_exit(&t->zthr_lock);
-	thread_exit();
-}
+struct zthr {
+	kthread_t	*zthr_thread;
+	kmutex_t	zthr_lock;
+	kcondvar_t	zthr_cv;
+	boolean_t	zthr_cancel;
+	uint64_t	zthr_cancellation_stamp;
+
+	kcondvar_t	zthr_initializing_cv;
+	boolean_t	zthr_initializing;
+
+	/* consumer-provided data */
+	zthr_checkfunc_t	*zthr_checkfunc;
+	zthr_func_t	*zthr_func;
+	void		*zthr_arg;
+};
 
 static void
 zthr_procedure(void *arg)
 {
 	zthr_t *t = arg;
-	int rc = 0;
 
 	mutex_enter(&t->zthr_lock);
+	ASSERT3P(t->zthr_thread, ==, curthread);
+
+	/*
+	 * Mark the end of initialization and notify waiters
+	 * (e.g. callers of zthr_resume()) that we are done.
+	 */
+	t->zthr_initializing = B_FALSE;
+	cv_broadcast(&t->zthr_initializing_cv);
+
 	while (!t->zthr_cancel) {
 		if (t->zthr_checkfunc(t->zthr_arg, t)) {
 			mutex_exit(&t->zthr_lock);
-			rc = t->zthr_func(t->zthr_arg, t);
+			t->zthr_func(t->zthr_arg, t);
 			mutex_enter(&t->zthr_lock);
 		} else {
 			/* go to sleep */
 			cv_wait_sig(&t->zthr_cv, &t->zthr_lock);
 		}
 	}
-	mutex_exit(&t->zthr_lock);
 
-	zthr_exit(t, rc);
+	/*
+	 * Clear out any metadata that keep track of the running thread
+	 * and notify the respective waiters (e.g. callers of zthr_cancel()).
+	 *
+	 * We also increment the cancellation stamp so any threads that
+	 * called zthr_cancel() on this cycle won't hang forever [see
+	 * comment in zthr_cancel()].
+	 */
+	t->zthr_thread = NULL;
+	t->zthr_cancel = B_FALSE;
+	t->zthr_cancellation_stamp++;
+	cv_broadcast(&t->zthr_cv);
+
+	mutex_exit(&t->zthr_lock);
+	thread_exit();
 }
 
 zthr_t *
@@ -203,6 +219,7 @@ zthr_create(zthr_checkfunc_t *checkfunc, zthr_func_t *func, void *arg)
 	zthr_t *t = kmem_zalloc(sizeof (*t), KM_SLEEP);
 	mutex_init(&t->zthr_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&t->zthr_cv, NULL, CV_DEFAULT, NULL);
+	cv_init(&t->zthr_initializing_cv, NULL, CV_DEFAULT, NULL);
 
 	mutex_enter(&t->zthr_lock);
 	t->zthr_checkfunc = checkfunc;
@@ -211,6 +228,16 @@ zthr_create(zthr_checkfunc_t *checkfunc, zthr_func_t *func, void *arg)
 
 	t->zthr_thread = thread_create(NULL, 0, zthr_procedure, t,
 	    0, &p0, TS_RUN, minclsyspri);
+
+	/*
+	 * Wait until the zthr has finished initializing. This ensures
+	 * that the only time another thread can obtain the lock is when
+	 * the zthr func is running or the zthr is asleep.
+	 */
+	t->zthr_initializing = B_TRUE;
+	while (!t->zthr_initializing) {
+		cv_wait(&t->zthr_initializing_cv, &t->zthr_lock);
+	}
 	mutex_exit(&t->zthr_lock);
 
 	return (t);
@@ -219,9 +246,11 @@ zthr_create(zthr_checkfunc_t *checkfunc, zthr_func_t *func, void *arg)
 void
 zthr_destroy(zthr_t *t)
 {
+	ASSERT(!MUTEX_HELD(&t->zthr_lock));
 	VERIFY3P(t->zthr_thread, ==, NULL);
 	mutex_destroy(&t->zthr_lock);
 	cv_destroy(&t->zthr_cv);
+	cv_destroy(&t->zthr_initializing_cv);
 	kmem_free(t, sizeof (*t));
 }
 
@@ -241,42 +270,68 @@ zthr_wakeup(zthr_t *t)
 }
 
 /*
- * Note: If the zthr is not running (e.g. has been cancelled
+ * Sends a cancel request to the zthr and blocks until the zthr is
+ * blocked. If the zthr is not running (e.g. has been cancelled
  * already), this is a no-op.
  */
-int
+void
 zthr_cancel(zthr_t *t)
 {
-	int rc = 0;
-
 	mutex_enter(&t->zthr_lock);
 
-	/* broadcast in case the zthr is sleeping */
-	cv_broadcast(&t->zthr_cv);
+	if (t->zthr_thread != NULL) {
+		/* broadcast in case the zthr is sleeping */
+		cv_broadcast(&t->zthr_cv);
 
-	t->zthr_cancel = B_TRUE;
-	while (t->zthr_thread != NULL)
-		cv_wait(&t->zthr_cv, &t->zthr_lock);
-	t->zthr_cancel = B_FALSE;
-	rc = t->zthr_rc;
+		/*
+		 * We raise the cancellation flag so the zthr gets notified.
+		 *
+		 * We also save the current cancellation stamp and compare it
+		 * to the value that it has next time we wake up. The point
+		 * of this is to ensure that we (e.g. this thread) don't hang
+		 * when the zthr gets cancelled from us, but then immediately
+		 * resumed from somewhere else (e.g. zthr_thread gets
+		 * repopulated) before we get to wake up and exit this function.
+		 */
+		uint64_t stamp = t->zthr_cancellation_stamp;
+		t->zthr_cancel = B_TRUE;
+		while (t->zthr_thread != NULL &&
+		    stamp == t->zthr_cancellation_stamp) {
+			cv_wait(&t->zthr_cv, &t->zthr_lock);
+		}
+	}
+
 	mutex_exit(&t->zthr_lock);
-
-	return (rc);
 }
 
+/*
+ * Sends a resume request to the zthr and blocks until the zthr is
+ * running again. If the zthr is already running, this is a no-op.
+ */
 void
 zthr_resume(zthr_t *t)
 {
-	ASSERT3P(t->zthr_thread, ==, NULL);
-
 	mutex_enter(&t->zthr_lock);
 
-	ASSERT3P(&t->zthr_checkfunc, !=, NULL);
-	ASSERT3P(&t->zthr_func, !=, NULL);
-	ASSERT(!t->zthr_cancel);
+	if (t->zthr_thread == NULL) {
+		ASSERT3P(&t->zthr_checkfunc, !=, NULL);
+		ASSERT3P(&t->zthr_func, !=, NULL);
+		ASSERT(!t->zthr_cancel);
 
-	t->zthr_thread = thread_create(NULL, 0, zthr_procedure, t,
-	    0, &p0, TS_RUN, minclsyspri);
+		t->zthr_thread = thread_create(NULL, 0, zthr_procedure, t,
+		    0, &p0, TS_RUN, minclsyspri);
+
+		/*
+		* Wait until the zthr has finished initializing.
+		* This ensures that the only time another thread
+		* can obtain the lock is when the zthr func is
+		* running or the zthr is asleep.
+		*/
+		t->zthr_initializing = B_TRUE;
+		while (t->zthr_initializing) {
+			cv_wait(&t->zthr_initializing_cv, &t->zthr_lock);
+		}
+	}
 
 	mutex_exit(&t->zthr_lock);
 }
@@ -293,12 +348,10 @@ zthr_resume(zthr_t *t)
 boolean_t
 zthr_iscancelled(zthr_t *t)
 {
-	boolean_t cancelled;
-
 	ASSERT3P(t->zthr_thread, ==, curthread);
 
 	mutex_enter(&t->zthr_lock);
-	cancelled = t->zthr_cancel;
+	boolean_t cancelled = t->zthr_cancel;
 	mutex_exit(&t->zthr_lock);
 
 	return (cancelled);
@@ -307,10 +360,8 @@ zthr_iscancelled(zthr_t *t)
 boolean_t
 zthr_isrunning(zthr_t *t)
 {
-	boolean_t running;
-
 	mutex_enter(&t->zthr_lock);
-	running = (t->zthr_thread != NULL);
+	boolean_t running = (t->zthr_thread != NULL);
 	mutex_exit(&t->zthr_lock);
 
 	return (running);

@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright (c) 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2017, 2018 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_SPA_CHECKPOINT_H
@@ -37,7 +37,7 @@ int spa_checkpoint(const char *);
 int spa_checkpoint_discard(const char *);
 
 boolean_t spa_checkpoint_discard_thread_check(void *, zthr_t *);
-int spa_checkpoint_discard_thread(void *, zthr_t *);
+void spa_checkpoint_discard_thread(void *, zthr_t *);
 
 int spa_checkpoint_get_stats(spa_t *, pool_checkpoint_stat_t *);
 
