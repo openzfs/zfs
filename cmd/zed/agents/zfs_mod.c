@@ -427,8 +427,16 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 	nvlist_free(newvd);
 
 	/*
-	 * auto replace a leaf disk at same physical location
+	 * Wait for udev to verify the links exist, then auto-replace
+	 * the leaf disk at same physical location.
 	 */
+	if (zpool_label_disk_wait(path, 3000) != 0) {
+		zed_log_msg(LOG_WARNING, "zfs_mod: expected replacement "
+		    "disk %s is missing", path);
+		nvlist_free(nvroot);
+		return;
+	}
+
 	ret = zpool_vdev_attach(zhp, fullpath, path, nvroot, B_TRUE);
 
 	zed_log_msg(LOG_INFO, "  zpool_vdev_replace: %s with %s (%s)",
