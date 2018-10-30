@@ -1304,19 +1304,18 @@ ztest_dmu_objset_own(const char *name, dmu_objset_type_t type,
     boolean_t readonly, boolean_t decrypt, void *tag, objset_t **osp)
 {
 	int err;
+	char *cp = NULL;
+	char ddname[ZFS_MAX_DATASET_NAME_LEN];
+
+	strcpy(ddname, name);
+	cp = strchr(ddname, '@');
+	if (cp != NULL)
+		*cp = '\0';
 
 	err = dmu_objset_own(name, type, readonly, decrypt, tag, osp);
-	if (decrypt && err == EACCES) {
-		char ddname[ZFS_MAX_DATASET_NAME_LEN];
+	while (decrypt && err == EACCES) {
 		dsl_crypto_params_t *dcp;
 		nvlist_t *crypto_args = fnvlist_alloc();
-		char *cp = NULL;
-
-		/* spa_keystore_load_wkey() expects a dsl dir name */
-		strcpy(ddname, name);
-		cp = strchr(ddname, '@');
-		if (cp != NULL)
-			*cp = '\0';
 
 		fnvlist_add_uint8_array(crypto_args, "wkeydata",
 		    (uint8_t *)ztest_wkeydata, WRAPPING_KEY_LEN);
@@ -1326,10 +1325,26 @@ ztest_dmu_objset_own(const char *name, dmu_objset_type_t type,
 		dsl_crypto_params_free(dcp, B_FALSE);
 		fnvlist_free(crypto_args);
 
-		if (err != 0)
-			return (err);
+		if (err == EINVAL) {
+			/*
+			 * We couldn't load a key for this dataset so try
+			 * the parent. This loop will eventually hit the
+			 * encryption root since ztest only makes clones
+			 * as children of their origin datasets.
+			 */
+			cp = strrchr(ddname, '/');
+			if (cp == NULL)
+				return (err);
+
+			*cp = '\0';
+			err = EACCES;
+			continue;
+		} else if (err != 0) {
+			break;
+		}
 
 		err = dmu_objset_own(name, type, readonly, decrypt, tag, osp);
+		break;
 	}
 
 	return (err);
@@ -6744,6 +6759,39 @@ ztest_dataset_close(int d)
 	ztest_zd_fini(zd);
 }
 
+/* ARGSUSED */
+static int
+ztest_replay_zil_cb(const char *name, void *arg)
+{
+	objset_t *os;
+	ztest_ds_t *zdtmp;
+
+	VERIFY0(ztest_dmu_objset_own(name, DMU_OST_ANY, B_TRUE,
+	    B_TRUE, FTAG, &os));
+
+	zdtmp = umem_alloc(sizeof (ztest_ds_t), UMEM_NOFAIL);
+
+	ztest_zd_init(zdtmp, NULL, os);
+	zil_replay(os, zdtmp, ztest_replay_vector);
+	ztest_zd_fini(zdtmp);
+
+	if (dmu_objset_zil(os)->zl_parse_lr_count != 0 &&
+	    ztest_opts.zo_verbose >= 6) {
+		zilog_t *zilog = dmu_objset_zil(os);
+
+		(void) printf("%s replay %llu blocks, %llu records, seq %llu\n",
+		    name,
+		    (u_longlong_t)zilog->zl_parse_blk_count,
+		    (u_longlong_t)zilog->zl_parse_lr_count,
+		    (u_longlong_t)zilog->zl_replaying_seq);
+	}
+
+	umem_free(zdtmp, sizeof (ztest_ds_t));
+
+	dmu_objset_disown(os, B_TRUE, FTAG);
+	return (0);
+}
+
 /*
  * Kick off threads to run tests on all datasets in parallel.
  */
@@ -6844,6 +6892,15 @@ ztest_run(ztest_shared_t *zs)
 
 	if (ztest_opts.zo_verbose >= 4)
 		(void) printf("starting main threads...\n");
+
+	/*
+	 * Replay all logs of all datasets in the pool. This is primarily for
+	 * temporary datasets which wouldn't otherwise get replayed, which
+	 * can trigger failures when attempting to offline a SLOG in
+	 * ztest_fault_inject().
+	 */
+	(void) dmu_objset_find(ztest_opts.zo_pool, ztest_replay_zil_cb,
+	    NULL, DS_FIND_CHILDREN);
 
 	/*
 	 * Kick off all the tests that run in parallel.
