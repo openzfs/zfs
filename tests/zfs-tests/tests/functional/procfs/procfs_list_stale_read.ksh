@@ -86,7 +86,7 @@ typeset default_max_entries
 
 log_onexit cleanup
 
-default_max_entries=$(cat $MAX_ENTRIES_PARAM) || log_fail
+default_max_entries=$(<$MAX_ENTRIES_PARAM) || log_fail
 echo 50 >$MAX_ENTRIES_PARAM || log_fail
 
 # Clear all of the existing entries.

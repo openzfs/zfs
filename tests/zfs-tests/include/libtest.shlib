@@ -3332,7 +3332,7 @@ function zed_stop
 
 	log_note "Stopping ZED"
 	if [[ -f ${ZEDLET_DIR}/zed.pid ]]; then
-		zedpid=$(cat ${ZEDLET_DIR}/zed.pid)
+		zedpid=$(<${ZEDLET_DIR}/zed.pid)
 		kill $zedpid
 		while ps -p $zedpid > /dev/null; do
 			sleep 1

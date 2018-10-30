@@ -416,7 +416,7 @@ function get_system_config
 			then
 				printf ",\n" >>$config
 			fi
-			printf  "    \"$tunable\": \"$(cat $zfs_tunables/$tunable)\"" \
+			printf  "    \"$tunable\": \"$(<$zfs_tunables/$tunable)\"" \
 			    >>$config
 		done
 		printf "\n  }\n" >>$config
