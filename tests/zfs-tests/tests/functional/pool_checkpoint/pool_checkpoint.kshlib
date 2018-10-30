@@ -161,7 +161,16 @@ function cleanup_nested_pool
 function cleanup_test_pool
 {
 	log_must zpool destroy $TESTPOOL
-	zpool labelclear -f "$TESTDISK"
+
+	#
+	# We always clear the labels of all disks
+	# between tests so imports from zpool or
+	# or zdb do not get confused with leftover
+	# data from old pools.
+	#
+	for disk in $DISKS; do
+		zpool labelclear -f $disk
+	done
 }
 
 function cleanup_nested_pools

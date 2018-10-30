@@ -19,7 +19,7 @@
 
 #
 # DESCRIPTION:
-#	Ensure that checkpoint verification within zdb wowrks as
+#	Ensure that checkpoint verification within zdb works as
 #	we expect.
 #
 # STRATEGY:
@@ -30,10 +30,12 @@
 #	5. Verify zdb finds checkpoint when run on current state
 #	6. Verify zdb finds old dataset when run on checkpointed
 #	   state
-#	7. Discard checkpoint
-#	8. Verify zdb does not find the checkpoint anymore in the
+#	7. Export pool, and verify the same things with zdb to
+#	   test the -e option.
+#	8. Import pool and discard checkpoint
+#	9. Verify zdb does not find the checkpoint anymore in the
 #	   current state.
-#	9. Verify that zdb cannot find the checkpointed state
+#	10.Verify that zdb cannot find the checkpointed state
 #	   anymore when trying to open it for verification.
 #
 
@@ -67,6 +69,22 @@ zdb $TESTPOOL | grep "Dataset $FS1" && \
 
 zdb -k $TESTPOOL | grep "Dataset $CHECKPOINTED_FS1" || \
 	log_fail "zdb could not find destroyed dataset in checkpoint"
+
+log_must zpool export $TESTPOOL
+
+zdb -e $TESTPOOL | grep "Checkpointed uberblock found" || \
+	log_fail "zdb could not find checkpointed uberblock"
+
+zdb -k -e $TESTPOOL | grep "Checkpointed uberblock found" && \
+	log_fail "zdb found checkpointed uberblock in checkpointed state"
+
+zdb -e $TESTPOOL | grep "Dataset $FS1" && \
+	log_fail "zdb found destroyed dataset in current state"
+
+zdb -k -e $TESTPOOL | grep "Dataset $CHECKPOINTED_FS1" || \
+	log_fail "zdb could not find destroyed dataset in checkpoint"
+
+log_must zpool import $TESTPOOL
 
 log_must zpool checkpoint -d $TESTPOOL
 
