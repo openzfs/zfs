@@ -16,6 +16,7 @@ USER_H = \
 	$(top_srcdir)/include/libzfs.h \
 	$(top_srcdir)/include/libzfs_core.h \
 	$(top_srcdir)/include/libzfs_impl.h \
+	$(top_srcdir)/include/libzutil.h \
 	$(top_srcdir)/include/thread_pool.h
 
 EXTRA_DIST = $(COMMON_H) $(USER_H)

@@ -69,6 +69,7 @@
 #include <fcntl.h>
 #include <libintl.h>
 #include <libnvpair.h>
+#include <libzutil.h>
 #include <limits.h>
 #include <sys/spa.h>
 #include <scsi/scsi.h>

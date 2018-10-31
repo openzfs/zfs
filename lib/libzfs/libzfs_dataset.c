@@ -36,7 +36,6 @@
 #include <ctype.h>
 #include <errno.h>
 #include <libintl.h>
-#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <strings.h>
@@ -61,6 +60,7 @@
 #include <sys/zap.h>
 #include <sys/dsl_crypt.h>
 #include <libzfs.h>
+#include <libzutil.h>
 
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"

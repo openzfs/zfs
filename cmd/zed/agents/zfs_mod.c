@@ -73,6 +73,7 @@
 #include <fcntl.h>
 #include <libnvpair.h>
 #include <libzfs.h>
+#include <libzutil.h>
 #include <limits.h>
 #include <stddef.h>
 #include <stdlib.h>

@@ -36,6 +36,7 @@
 #include <thread_pool.h>
 
 #include <libzfs.h>
+#include <libzutil.h>
 #include <sys/zfs_context.h>
 #include <sys/wait.h>
 
