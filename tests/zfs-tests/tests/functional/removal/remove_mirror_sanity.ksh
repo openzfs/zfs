@@ -39,7 +39,7 @@ elif [[ -f $WORDS_FILE2 ]]; then
     log_must cp $WORDS_FILE2 $TESTDIR
 else
     echo $FILE_CONTENTS  >$TESTDIR/$TESTFILE0
-    log_must [ "x$(cat $TESTDIR/$TESTFILE0)" = "x$FILE_CONTENTS" ]
+    log_must [ "x$(<$TESTDIR/$TESTFILE0)" = "x$FILE_CONTENTS" ]
 fi
 
 log_must zpool remove $TESTPOOL mirror-1
@@ -52,7 +52,7 @@ elif [[ -f $WORDS_FILE2 ]]; then
     log_must diff $WORDS_FILE2 $TESTDIR/words
 else
     log_must dd if=/$TESTDIR/$TESTFILE0 of=/dev/null
-    log_must [ "x$(cat $TESTDIR/$TESTFILE0)" = "x$FILE_CONTENTS" ]
+    log_must [ "x$(<$TESTDIR/$TESTFILE0)" = "x$FILE_CONTENTS" ]
 fi
 
 log_pass "Removed top-level mirror device not in use after removal."

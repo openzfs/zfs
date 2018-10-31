@@ -63,7 +63,7 @@ fi
 
 log_assert "The RBAC profile \"ZFS Storage Management\" works"
 
-ZFS_USER=$(cat $TEST_BASE_DIR/zfs-privs-test-user.txt)
+ZFS_USER=$(<$TEST_BASE_DIR/zfs-privs-test-user.txt)
 
 # the user shouldn't be able to do anything initially
 log_mustnot user_run $ZFS_USER "zpool create $TESTPOOL $DISKS"

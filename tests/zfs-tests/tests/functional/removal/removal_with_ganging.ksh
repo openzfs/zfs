@@ -34,7 +34,7 @@ log_onexit cleanup
 FILE_CONTENTS="Leeloo Dallas mul-ti-pass."
 
 echo $FILE_CONTENTS  >$TESTDIR/$TESTFILE0
-log_must [ "x$(cat $TESTDIR/$TESTFILE0)" = "x$FILE_CONTENTS" ]
+log_must [ "x$(<$TESTDIR/$TESTFILE0)" = "x$FILE_CONTENTS" ]
 log_must file_write -o create -f $TESTDIR/$TESTFILE1 -b $((2**20)) -c $((2**7))
 
 log_must zpool remove $TESTPOOL $REMOVEDISK
@@ -42,6 +42,6 @@ log_must wait_for_removal $TESTPOOL
 log_mustnot vdevs_in_pool $TESTPOOL $REMOVEDISK
 
 log_must dd if=/$TESTDIR/$TESTFILE0 of=/dev/null
-log_must [ "x$(cat $TESTDIR/$TESTFILE0)" = "x$FILE_CONTENTS" ]
+log_must [ "x$(<$TESTDIR/$TESTFILE0)" = "x$FILE_CONTENTS" ]
 
 log_pass "Removed device not in use after removal."

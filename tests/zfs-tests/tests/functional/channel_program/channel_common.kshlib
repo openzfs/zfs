@@ -67,10 +67,10 @@ function log_program
 
 		outdiff=$(diff "$basename.out" "$tmpout")
 		if [[ $? -ne 0 ]]; then
-			output=$(cat $tmpout)
+			output=$(<$tmpout)
 			rm $tmpout $tmperr $tmpin
 			log_fail "Output mismatch. Expected:\n" \
-				"$(cat $basename.out)\nBut got:\n$output\n" \
+				"$(<$basename.out)\nBut got:\n$output\n" \
 				"Diff:\n$outdiff"
 		fi
 
@@ -78,10 +78,10 @@ function log_program
 
 		outdiff=$(diff "$basename.err" "$tmperr")
 		if [[ $? -ne 0 ]]; then
-			outputerror=$(cat $tmperr)
+			outputerror=$(<$tmperr)
 			rm $tmpout $tmperr $tmpin
 			log_fail "Error mismatch. Expected:\n" \
-				"$(cat $basename.err)\nBut got:\n$outputerror\n" \
+				"$(<$basename.err)\nBut got:\n$outputerror\n" \
 				"Diff:\n$outdiff"
 		fi
 
@@ -89,7 +89,7 @@ function log_program
 
 		grep -q "$expecterror" $tmperr
 		if [[ $? -ne 0 ]]; then
-			outputerror=$(cat $tmperr)
+			outputerror=$(<$tmperr)
 			rm $tmpout $tmperr $tmpin
 			log_fail "Error mismatch. Expected to contain:\n" \
 				"$expecterror\nBut got:\n$outputerror\n"
@@ -100,7 +100,7 @@ function log_program
 		# If there's no expected output, error reporting is allowed to
 		# vary, but ensure that we didn't fail silently.
 		#
-		if [[ -z "$(cat $tmperr)" ]]; then
+		if [[ -z "$(<$tmperr)" ]]; then
 			rm $tmpout $tmperr $tmpin
 			log_fail "error with no stderr output"
 		fi

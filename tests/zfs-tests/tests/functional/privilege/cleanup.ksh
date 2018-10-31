@@ -37,10 +37,10 @@ fi
 
 verify_runnable "global"
 
-ZFS_USER=$(cat $TEST_BASE_DIR/zfs-privs-test-user.txt)
+ZFS_USER=$(<$TEST_BASE_DIR/zfs-privs-test-user.txt)
 [[ -z $ZFS_USER ]] && log_fail "no ZFS_USER found"
 
-USES_NIS=$(cat $TEST_BASE_DIR/zfs-privs-test-nis.txt)
+USES_NIS=$(<$TEST_BASE_DIR/zfs-privs-test-nis.txt)
 
 if [ "${USES_NIS}" == "true" ]
 then
