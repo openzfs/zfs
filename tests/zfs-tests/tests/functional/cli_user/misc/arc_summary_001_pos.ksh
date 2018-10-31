@@ -29,15 +29,15 @@
 
 set -A args  "" "-a" "-d" "-p 1"
 
-log_assert "arc_summary.py generates output and doesn't return an error code"
+log_assert "arc_summary generates output and doesn't return an error code"
 
 typeset -i i=0
 while [[ $i -lt ${#args[*]} ]]; do
-        log_must eval "arc_summary.py ${args[i]} > /dev/null"
+        log_must eval "arc_summary ${args[i]} > /dev/null"
         ((i = i + 1))
 done
 
-log_must eval "arc_summary.py | head > /dev/null"
-log_must eval "arc_summary.py | head -1 > /dev/null"
+log_must eval "arc_summary | head > /dev/null"
+log_must eval "arc_summary | head -1 > /dev/null"
 
-log_pass "arc_summary.py generates output and doesn't return an error code"
+log_pass "arc_summary generates output and doesn't return an error code"

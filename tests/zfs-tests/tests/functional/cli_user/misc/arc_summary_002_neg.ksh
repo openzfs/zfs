@@ -29,10 +29,10 @@
 
 typeset args=("-x" "-r" "-5" "-p 7" "--err" "-@")
 
-log_assert "arc_summary.py generates an error code with invalid options"
+log_assert "arc_summary generates an error code with invalid options"
 
 for arg in "${args[@]}"; do
-        log_mustnot eval "arc_summary.py $arg > /dev/null"
+        log_mustnot eval "arc_summary $arg > /dev/null"
 done
 
-log_pass "arc_summary.py generates an error code with invalid options"
+log_pass "arc_summary generates an error code with invalid options"
