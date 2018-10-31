@@ -67,8 +67,8 @@ log_onexit cleanup
 log_must set_tunable32 zfs_remove_max_segment 32768
 
 log_must dd if=/dev/urandom of=$TESTDIR/$TESTFILE0 bs=128k count=1
-FILE_CONTENTS=`cat $TESTDIR/$TESTFILE0`
-log_must [ "x$(cat $TESTDIR/$TESTFILE0)" = "x$FILE_CONTENTS" ]
+FILE_CONTENTS=$(<$TESTDIR/$TESTFILE0)
+log_must [ "x$(<$TESTDIR/$TESTFILE0)" = "x$FILE_CONTENTS" ]
 
 for i in {1..10}; do
 	log_must zpool remove $TESTPOOL $TMPDIR/dsk1
@@ -78,7 +78,7 @@ for i in {1..10}; do
 
 	log_must zinject -a
 	log_must dd if=$TESTDIR/$TESTFILE0 of=/dev/null
-	log_must [ "x$(cat $TESTDIR/$TESTFILE0)" = "x$FILE_CONTENTS" ]
+	log_must [ "x$(<$TESTDIR/$TESTFILE0)" = "x$FILE_CONTENTS" ]
 
 	log_must zpool remove $TESTPOOL $TMPDIR/dsk2
 	log_must wait_for_removal $TESTPOOL
@@ -87,7 +87,7 @@ for i in {1..10}; do
 
 	log_must zinject -a
 	log_must dd if=$TESTDIR/$TESTFILE0 of=/dev/null
-	log_must [ "x$(cat $TESTDIR/$TESTFILE0)" = "x$FILE_CONTENTS" ]
+	log_must [ "x$(<$TESTDIR/$TESTFILE0)" = "x$FILE_CONTENTS" ]
 done
 
 log_pass "File contents transferred completely from one disk to another."

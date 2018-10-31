@@ -86,7 +86,7 @@ function check_all
 
 	state1=$(zpool status $pool | awk '/state: /{print $2}');
 	state2=$(zpool list -H -o health $pool)
-	state3=$(cat /proc/spl/kstat/zfs/$pool/state)
+	state3=$(</proc/spl/kstat/zfs/$pool/state)
 	log_note "Checking $expected = $state1 = $state2 = $state3"
 	if [[ "$expected" == "$state1" &&  "$expected" == "$state2" && \
 	    "$expected" == "$state3" ]] ; then
