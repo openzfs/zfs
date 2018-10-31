@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python2
 #
 # $Id: arc_summary.pl,v 388:e27800740aa2 2011-07-08 02:53:29Z jhell $
 #
@@ -35,6 +35,8 @@
 # Note some of this code uses older code (eg getopt instead of argparse,
 # subprocess.Popen() instead of subprocess.run()) because we need to support
 # some very old versions of Python.
+#
+
 """Print statistics on the ZFS Adjustable Replacement Cache (ARC)
 
 Provides basic information on the ARC, its efficiency, the L2ARC (if present),
@@ -1005,7 +1007,7 @@ def zfs_header():
 def usage():
     """Print usage information"""
 
-    sys.stdout.write("Usage: arc_summary.py [-h] [-a] [-d] [-p PAGE]\n\n")
+    sys.stdout.write("Usage: arc_summary [-h] [-a] [-d] [-p PAGE]\n\n")
     sys.stdout.write("\t -h, --help           : "
                      "Print this help message and exit\n")
     sys.stdout.write("\t -a, --alternate      : "
@@ -1018,10 +1020,10 @@ def usage():
                      "should be an integer between 1 and " +
                      str(len(unSub)) + "\n\n")
     sys.stdout.write("Examples:\n")
-    sys.stdout.write("\tarc_summary.py -a\n")
-    sys.stdout.write("\tarc_summary.py -p 4\n")
-    sys.stdout.write("\tarc_summary.py -ad\n")
-    sys.stdout.write("\tarc_summary.py --page=2\n")
+    sys.stdout.write("\tarc_summary -a\n")
+    sys.stdout.write("\tarc_summary -p 4\n")
+    sys.stdout.write("\tarc_summary -ad\n")
+    sys.stdout.write("\tarc_summary --page=2\n")
 
 
 def main():

@@ -30,12 +30,12 @@
 set -A args  "" "-s \",\"" "-x" "-v" \
     "-f time,hit%,dh%,ph%,mh%"
 
-log_assert "arcstat.py generates output and doesn't return an error code"
+log_assert "arcstat generates output and doesn't return an error code"
 
 typeset -i i=0
 while [[ $i -lt ${#args[*]} ]]; do
-        log_must eval "arcstat.py ${args[i]} > /dev/null"
+        log_must eval "arcstat ${args[i]} > /dev/null"
         ((i = i + 1))
 done
-log_pass "arcstat.py generates output and doesn't return an error code"
+log_pass "arcstat generates output and doesn't return an error code"
 

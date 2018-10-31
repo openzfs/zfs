@@ -27,7 +27,7 @@ install-exec-local:
 	$(PYTHON) $(srcdir)/setup.py install \
 	--prefix $(prefix) \
 	--root $(DESTDIR)/ \
-	--install-lib $(pythondir) \
+	--install-lib $(pythonsitedir) \
 	--single-version-externally-managed \
 	--verbose
 

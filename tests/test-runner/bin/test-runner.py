@@ -15,6 +15,8 @@
 # Copyright (c) 2012, 2015 by Delphix. All rights reserved.
 # Copyright (c) 2017 Datto Inc.
 #
+# This script must remain compatible with Python 2.6+ and Python 3.4+.
+#
 
 # some python 2.7 system don't have a configparser shim
 try:
