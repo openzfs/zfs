@@ -1587,6 +1587,8 @@ vdev_indirect_splits_enumerate_randomly(indirect_vsd_t *iv, zio_t *zio)
 static int
 vdev_indirect_splits_damage(indirect_vsd_t *iv, zio_t *zio)
 {
+	int error;
+
 	/* Presume all the copies are unique for initial selection. */
 	for (indirect_split_t *is = list_head(&iv->iv_splits);
 	    is != NULL; is = list_next(&iv->iv_splits, is)) {
@@ -1599,13 +1601,18 @@ vdev_indirect_splits_damage(indirect_vsd_t *iv, zio_t *zio)
 				list_insert_tail(&is->is_unique_child, ic);
 			}
 		}
+
+		if (list_is_empty(&is->is_unique_child)) {
+			error = SET_ERROR(EIO);
+			goto out;
+		}
 	}
 
 	/*
 	 * Set each is_good_child to a randomly-selected child which
 	 * is known to contain validated data.
 	 */
-	int error = vdev_indirect_splits_enumerate_randomly(iv, zio);
+	error = vdev_indirect_splits_enumerate_randomly(iv, zio);
 	if (error)
 		goto out;
 
