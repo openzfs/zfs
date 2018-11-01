@@ -151,8 +151,6 @@ summary = {
 # reasons listed above can be used.
 #
 known = {
-    'acl/posix/posix_001_pos': ['FAIL', known_reason],
-    'acl/posix/posix_002_pos': ['FAIL', known_reason],
     'casenorm/sensitive_none_lookup': ['FAIL', '7633'],
     'casenorm/sensitive_none_delete': ['FAIL', '7633'],
     'casenorm/sensitive_formd_lookup': ['FAIL', '7633'],
