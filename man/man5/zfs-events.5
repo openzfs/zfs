@@ -407,7 +407,7 @@ Pool name.
 .RS 12n
 Failmode - \fBwait\fR, \fBcontinue\fR or \fBpanic\fR.
 See
-.BR pool (8)
+.BR zpool (8)
 (\fIfailmode\fR property) for more information.
 .RE
 
@@ -775,7 +775,7 @@ Whether or not the data is byteswapped.
 .RS 12n
 [start, end) pairs of corruption offsets. Offsets are always aligned on a
 64-bit boundary, and can include some gaps of non-corruption.
-(See bad_ranges_min_gap)
+(See \fBbad_ranges_min_gap\fR)
 .RE
 
 .sp
@@ -784,10 +784,10 @@ Whether or not the data is byteswapped.
 \fBbad_ranges_min_gap\fR
 .ad
 .RS 12n
-In order to bound the size of the bad_ranges array, gaps of non-corruption
-less than or equal to bad_ranges_max_gap bytes have been merged with adjacent
-corruption. Always at least 8, since corruption is detected on on a 64-bit
-word basis.
+In order to bound the size of the \fBbad_ranges\fR array, gaps of non-corruption
+less than or equal to \fBbad_ranges_min_gap\fR bytes have been merged with
+adjacent corruption. Always at least 8 bytes, since corruption is detected
+on a 64-bit word basis.
 .RE
 
 .sp
@@ -796,7 +796,7 @@ word basis.
 \fBbad_range_sets\fR
 .ad
 .RS 12n
-This array has one element per range in bad_ranges. Each element contains
+This array has one element per range in \fBbad_ranges\fR. Each element contains
 the count of bits in that range which were clear in the good data and set
 in the bad data.
 .RE
@@ -807,9 +807,9 @@ in the bad data.
 \fBbad_range_clears\fR
 .ad
 .RS 12n
-This array has one element per range in bad_ranges. Each element contains the
-count of bits for that range which were set in the good data and clear in the
-bad data.
+This array has one element per range in \fBbad_ranges\fR. Each element contains
+the count of bits for that range which were set in the good data and clear in
+the bad data.
 .RE
 
 .sp
@@ -820,10 +820,10 @@ bad data.
 .RS 12n
 If this field exists, it is an array of: (bad data & ~(good data)); that is,
 the bits set in the bad data which are cleared in the good data. Each element
-corresponds a byte whose offset is in a range in bad_ranges, and the array is
-ordered by offset. Thus the first element is the first byte in the first
-bad_ranges range and the last element is the last byte in the last bad_ranges
-range.
+corresponds a byte whose offset is in a range in \fBbad_ranges\fR, and the
+array is ordered by offset. Thus, the first element is the first byte in the
+first \fBbad_ranges\fR range, and the last element is the last byte in the last
+\fBbad_ranges\fR range.
 .RE
 
 .sp
@@ -832,8 +832,8 @@ range.
 \fBbad_cleared_bits\fR
 .ad
 .RS 12n
-Like bad_set_bits, but contains: (good data & ~(bad data)); that is, the bits
-set in the good data which are cleared in the bad data.
+Like \fBbad_set_bits\fR, but contains: (good data & ~(bad data)); that is,
+the bits set in the good data which are cleared in the bad data.
 .RE
 
 .sp
@@ -842,10 +842,12 @@ set in the good data which are cleared in the bad data.
 \fBbad_set_histogram\fR
 .ad
 .RS 12n
-If this field exists, it is an array of counters. Each entry counts bit sets
-in a particular bit of a big-endian uint64 type. The first entry counts sets
-of the the high-order bit of the first byte, the 9th byte, etc, and the last
-entry counts sets of the low-order bit of the 8th byte, the 16th byte, etc.
+If this field exists, it is an array of counters. Each entry counts bits set
+in a particular bit of a big-endian uint64 type. The first entry counts bits
+set in the high-order bit of the first byte, the 9th byte, etc, and the last
+entry counts bits set of the low-order bit of the 8th byte, the 16th byte, etc.
+This information is useful for observing a stuck bit in a parallel data path,
+such as IDE or parallel SCSI.
 .RE
 
 .sp
@@ -855,10 +857,11 @@ entry counts sets of the low-order bit of the 8th byte, the 16th byte, etc.
 .ad
 .RS 12n
 If this field exists, it is an array of counters. Each entry counts bit clears
-in a particular bit of a big-endian uint64 type. So the first entry counts
+in a particular bit of a big-endian uint64 type. The first entry counts bits
 clears of the the high-order bit of the first byte, the 9th byte, etc, and the
 last entry counts clears of the low-order bit of the 8th byte, the 16th byte,
-etc.
+etc. This information is useful for observing a stuck bit in a parallel data
+path, such as IDE or parallel SCSI.
 .RE
 
 .SS "I/O STAGES"
