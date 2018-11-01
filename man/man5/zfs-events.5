@@ -1,5 +1,6 @@
 '\" te
 .\" Copyright (c) 2013 by Turbo Fredriksson <turbo@bayour.com>. All rights reserved.
+.\" Portions Copyright 2018 by Richard Elling
 .\" The contents of this file are subject to the terms of the Common Development
 .\" and Distribution License (the "License").  You may not use this file except
 .\" in compliance with the License. You can obtain a copy of the license at
@@ -12,7 +13,7 @@
 .\" CDDL HEADER, with the fields enclosed by brackets "[]" replaced with your
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
-.TH ZFS-EVENTS 5 "Jun 6, 2015"
+.TH ZFS-EVENTS 5 "Oct 24, 2018"
 .SH NAME
 zfs\-events \- Events created by the ZFS filesystem.
 .SH DESCRIPTION
@@ -406,7 +407,7 @@ Pool name.
 .RS 12n
 Failmode - \fBwait\fR, \fBcontinue\fR or \fBpanic\fR.
 See
-.BR pool (8)
+.BR zpool (8)
 (\fIfailmode\fR property) for more information.
 .RE
 
@@ -618,7 +619,8 @@ The object number for a given I/O.
 \fBzio_level\fR
 .ad
 .RS 12n
-The block level for a given I/O.
+The indirect level for the block. Level 0 is the lowest level and includes
+data blocks. Values > 0 indicate metadata blocks at the appropriate level.
 .RE
 
 .sp
@@ -636,7 +638,9 @@ The block ID for a given I/O.
 \fBzio_err\fR
 .ad
 .RS 12n
-The errno for a failure when handling a given I/O.
+The errno for a failure when handling a given I/O. The errno is compatible
+with \fBerrno\fR(3) with the value for EBADE (0x34) used to indicate ZFS
+checksum error.
 .RE
 
 .sp
@@ -732,7 +736,7 @@ The previous state of the vdev.
 \fBcksum_expected\fR
 .ad
 .RS 12n
-The expected checksum value.
+The expected checksum value for the block.
 .RE
 
 .sp
@@ -741,7 +745,7 @@ The expected checksum value.
 \fBcksum_actual\fR
 .ad
 .RS 12n
-The actual/current checksum value.
+The actual checksum value for an errant block.
 .RE
 
 .sp
@@ -750,7 +754,8 @@ The actual/current checksum value.
 \fBcksum_algorithm\fR
 .ad
 .RS 12n
-Checksum algorithm used. See \fBzfs\fR(8) for more information on checksum algorithms available.
+Checksum algorithm used. See \fBzfs\fR(8) for more information on checksum
+algorithms available.
 .RE
 
 .sp
@@ -759,7 +764,7 @@ Checksum algorithm used. See \fBzfs\fR(8) for more information on checksum algor
 \fBcksum_byteswap\fR
 .ad
 .RS 12n
-Checksum value is byte swapped.
+Whether or not the data is byteswapped.
 .RE
 
 .sp
@@ -768,7 +773,9 @@ Checksum value is byte swapped.
 \fBbad_ranges\fR
 .ad
 .RS 12n
-Checksum bad offset ranges.
+[start, end) pairs of corruption offsets. Offsets are always aligned on a
+64-bit boundary, and can include some gaps of non-corruption.
+(See \fBbad_ranges_min_gap\fR)
 .RE
 
 .sp
@@ -777,7 +784,10 @@ Checksum bad offset ranges.
 \fBbad_ranges_min_gap\fR
 .ad
 .RS 12n
-Checksum allowed minimum gap.
+In order to bound the size of the \fBbad_ranges\fR array, gaps of non-corruption
+less than or equal to \fBbad_ranges_min_gap\fR bytes have been merged with
+adjacent corruption. Always at least 8 bytes, since corruption is detected
+on a 64-bit word basis.
 .RE
 
 .sp
@@ -786,7 +796,9 @@ Checksum allowed minimum gap.
 \fBbad_range_sets\fR
 .ad
 .RS 12n
-Checksum for each range the number of bits set.
+This array has one element per range in \fBbad_ranges\fR. Each element contains
+the count of bits in that range which were clear in the good data and set
+in the bad data.
 .RE
 
 .sp
@@ -795,7 +807,9 @@ Checksum for each range the number of bits set.
 \fBbad_range_clears\fR
 .ad
 .RS 12n
-Checksum for each range the number of bits cleared.
+This array has one element per range in \fBbad_ranges\fR. Each element contains
+the count of bits for that range which were set in the good data and clear in
+the bad data.
 .RE
 
 .sp
@@ -804,7 +818,12 @@ Checksum for each range the number of bits cleared.
 \fBbad_set_bits\fR
 .ad
 .RS 12n
-Checksum array of bits set.
+If this field exists, it is an array of: (bad data & ~(good data)); that is,
+the bits set in the bad data which are cleared in the good data. Each element
+corresponds a byte whose offset is in a range in \fBbad_ranges\fR, and the
+array is ordered by offset. Thus, the first element is the first byte in the
+first \fBbad_ranges\fR range, and the last element is the last byte in the last
+\fBbad_ranges\fR range.
 .RE
 
 .sp
@@ -813,7 +832,8 @@ Checksum array of bits set.
 \fBbad_cleared_bits\fR
 .ad
 .RS 12n
-Checksum array of bits cleared.
+Like \fBbad_set_bits\fR, but contains: (good data & ~(bad data)); that is,
+the bits set in the good data which are cleared in the bad data.
 .RE
 
 .sp
@@ -822,7 +842,12 @@ Checksum array of bits cleared.
 \fBbad_set_histogram\fR
 .ad
 .RS 12n
-Checksum histogram of set bits by bit number in a 64-bit word.
+If this field exists, it is an array of counters. Each entry counts bits set
+in a particular bit of a big-endian uint64 type. The first entry counts bits
+set in the high-order bit of the first byte, the 9th byte, etc, and the last
+entry counts bits set of the low-order bit of the 8th byte, the 16th byte, etc.
+This information is useful for observing a stuck bit in a parallel data path,
+such as IDE or parallel SCSI.
 .RE
 
 .sp
@@ -831,7 +856,12 @@ Checksum histogram of set bits by bit number in a 64-bit word.
 \fBbad_cleared_histogram\fR
 .ad
 .RS 12n
-Checksum histogram of cleared bits by bit number in a 64-bit word.
+If this field exists, it is an array of counters. Each entry counts bit clears
+in a particular bit of a big-endian uint64 type. The first entry counts bits
+clears of the the high-order bit of the first byte, the 9th byte, etc, and the
+last entry counts clears of the low-order bit of the 8th byte, the 16th byte,
+etc. This information is useful for observing a stuck bit in a parallel data
+path, such as IDE or parallel SCSI.
 .RE
 
 .SS "I/O STAGES"
@@ -850,35 +880,38 @@ _:_:_
 ZIO_STAGE_OPEN:0x00000001:RWFCI
 
 ZIO_STAGE_READ_BP_INIT:0x00000002:R----
-ZIO_STAGE_FREE_BP_INIT:0x00000004:--F--
-ZIO_STAGE_ISSUE_ASYNC:0x00000008:RWF--
-ZIO_STAGE_WRITE_BP_INIT:0x00000010:-W---
+ZIO_STAGE_WRITE_BP_INIT:0x00000004:-W---
+ZIO_STAGE_FREE_BP_INIT:0x00000008:--F--
+ZIO_STAGE_ISSUE_ASYNC:0x00000010:RWF--
+ZIO_STAGE_WRITE_COMPRESS:0x00000020:-W---
 
-ZIO_STAGE_CHECKSUM_GENERATE:0x00000020:-W---
+ZIO_STAGE_ENCRYPT:0x00000040:-W---
+ZIO_STAGE_CHECKSUM_GENERATE:0x00000080:-W---
 
-ZIO_STAGE_NOP_WRITE:0x00000040:-W---
+ZIO_STAGE_NOP_WRITE:0x00000100:-W---
 
-ZIO_STAGE_DDT_READ_START:0x00000080:R----
-ZIO_STAGE_DDT_READ_DONE:0x00000100:R----
-ZIO_STAGE_DDT_WRITE:0x00000200:-W---
-ZIO_STAGE_DDT_FREE:0x00000400:--F--
+ZIO_STAGE_DDT_READ_START:0x00000200:R----
+ZIO_STAGE_DDT_READ_DONE:0x00000400:R----
+ZIO_STAGE_DDT_WRITE:0x00000800:-W---
+ZIO_STAGE_DDT_FREE:0x00001000:--F--
 
-ZIO_STAGE_GANG_ASSEMBLE:0x00000800:RWFC-
-ZIO_STAGE_GANG_ISSUE:0x00001000:RWFC-
+ZIO_STAGE_GANG_ASSEMBLE:0x00002000:RWFC-
+ZIO_STAGE_GANG_ISSUE:0x00004000:RWFC-
 
-ZIO_STAGE_DVA_ALLOCATE:0x00002000:-W---
-ZIO_STAGE_DVA_FREE:0x00004000:--F--
-ZIO_STAGE_DVA_CLAIM:0x00008000:---C-
+ZIO_STAGE_DVA_THROTTLE:0x00008000:-W---
+ZIO_STAGE_DVA_ALLOCATE:0x00010000:-W---
+ZIO_STAGE_DVA_FREE:0x00020000:--F--
+ZIO_STAGE_DVA_CLAIM:0x00040000:---C-
 
-ZIO_STAGE_READY:0x00010000:RWFCI
+ZIO_STAGE_READY:0x00080000:RWFCI
 
-ZIO_STAGE_VDEV_IO_START:0x00020000:RW--I
-ZIO_STAGE_VDEV_IO_DONE:0x00040000:RW--I
-ZIO_STAGE_VDEV_IO_ASSESS:0x00080000:RW--I
+ZIO_STAGE_VDEV_IO_START:0x00100000:RW--I
+ZIO_STAGE_VDEV_IO_DONE:0x00200000:RW--I
+ZIO_STAGE_VDEV_IO_ASSESS:0x00400000:RW--I
 
-ZIO_STAGE_CHECKSUM_VERIFY0:0x00100000:R----
+ZIO_STAGE_CHECKSUM_VERIFY:0x00800000:R----
 
-ZIO_STAGE_DONE:0x00200000:RWFCI
+ZIO_STAGE_DONE:0x01000000:RWFCI
 .TE
 
 .SS "I/O FLAGS"
@@ -909,21 +942,24 @@ ZIO_FLAG_DONT_CACHE:0x00000800
 ZIO_FLAG_NODATA:0x00001000
 ZIO_FLAG_INDUCE_DAMAGE:0x00002000
 
-ZIO_FLAG_IO_RETRY:0x00004000
-ZIO_FLAG_PROBE:0x00008000
-ZIO_FLAG_TRYHARD:0x00010000
-ZIO_FLAG_OPTIONAL:0x00020000
+ZIO_FLAG_IO_ALLOCATING:0x00004000
+ZIO_FLAG_IO_RETRY:0x00008000
+ZIO_FLAG_PROBE:0x00010000
+ZIO_FLAG_TRYHARD:0x00020000
+ZIO_FLAG_OPTIONAL:0x00040000
 
-ZIO_FLAG_DONT_QUEUE:0x00040000
-ZIO_FLAG_DONT_PROPAGATE:0x00080000
-ZIO_FLAG_IO_BYPASS:0x00100000
-ZIO_FLAG_IO_REWRITE:0x00200000
-ZIO_FLAG_RAW:0x00400000
-ZIO_FLAG_GANG_CHILD:0x00800000
-ZIO_FLAG_DDT_CHILD:0x01000000
-ZIO_FLAG_GODFATHER:0x02000000
-ZIO_FLAG_NOPWRITE:0x04000000
-ZIO_FLAG_REEXECUTED:0x08000000
-ZIO_FLAG_DELEGATED:0x10000000
-ZIO_FLAG_FASTWRITE:0x20000000
+ZIO_FLAG_DONT_QUEUE:0x00080000
+ZIO_FLAG_DONT_PROPAGATE:0x00100000
+ZIO_FLAG_IO_BYPASS:0x00200000
+ZIO_FLAG_IO_REWRITE:0x00400000
+ZIO_FLAG_RAW_COMPRESS:0x00800000
+ZIO_FLAG_RAW_ENCRYPT:0x01000000
+
+ZIO_FLAG_GANG_CHILD:0x02000000
+ZIO_FLAG_DDT_CHILD:0x04000000
+ZIO_FLAG_GODFATHER:0x08000000
+ZIO_FLAG_NOPWRITE:0x10000000
+ZIO_FLAG_REEXECUTED:0x20000000
+ZIO_FLAG_DELEGATED:0x40000000
+ZIO_FLAG_FASTWRITE:0x80000000
 .TE
