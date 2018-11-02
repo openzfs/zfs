@@ -25,8 +25,6 @@
 
 #include <libzfs.h>
 
-#include <sys/zfs_context.h>
-
 #include <errno.h>
 #include <fcntl.h>
 #include <stdarg.h>
@@ -48,9 +46,6 @@
 #include <sys/mkdev.h>
 
 #include "zinject.h"
-
-extern void kernel_init(int);
-extern void kernel_fini(void);
 
 static int debug;
 
@@ -161,51 +156,32 @@ parse_pathname(const char *inpath, char *dataset, char *relpath,
 }
 
 /*
- * Convert from a (dataset, path) pair into a (objset, object) pair.  Note that
- * we grab the object number from the inode number, since looking this up via
- * libzpool is a real pain.
+ * Convert from a dataset to a objset id. Note that
+ * we grab the object number from the inode number.
  */
-/* ARGSUSED */
 static int
-object_from_path(const char *dataset, const char *path, struct stat64 *statbuf,
-    zinject_record_t *record)
+object_from_path(const char *dataset, uint64_t object, zinject_record_t *record)
 {
-	objset_t *os;
-	int err;
+	zfs_handle_t *zhp;
 
-	/*
-	 * Before doing any libzpool operations, call sync() to ensure that the
-	 * on-disk state is consistent with the in-core state.
-	 */
-	sync();
-
-	err = dmu_objset_own(dataset, DMU_OST_ZFS, B_TRUE, B_FALSE, FTAG, &os);
-	if (err != 0) {
-		(void) fprintf(stderr, "cannot open dataset '%s': %s\n",
-		    dataset, strerror(err));
+	if ((zhp = zfs_open(g_zfs, dataset, ZFS_TYPE_DATASET)) == NULL)
 		return (-1);
-	}
 
-	record->zi_objset = dmu_objset_id(os);
-	record->zi_object = statbuf->st_ino;
+	record->zi_objset = zfs_prop_get_int(zhp, ZFS_PROP_OBJSETID);
+	record->zi_object = object;
 
-	dmu_objset_disown(os, B_FALSE, FTAG);
+	zfs_close(zhp);
 
 	return (0);
 }
 
 /*
- * Calculate the real range based on the type, level, and range given.
+ * Intialize the range based on the type, level, and range given.
  */
 static int
-calculate_range(const char *dataset, err_type_t type, int level, char *range,
+initialize_range(err_type_t type, int level, char *range,
     zinject_record_t *record)
 {
-	objset_t *os = NULL;
-	dnode_t *dn = NULL;
-	int err;
-	int ret = -1;
-
 	/*
 	 * Determine the numeric range from the string.
 	 */
@@ -233,7 +209,7 @@ calculate_range(const char *dataset, err_type_t type, int level, char *range,
 			(void) fprintf(stderr, "invalid range '%s': must be "
 			    "a numeric range of the form 'start[,end]'\n",
 			    range);
-			goto out;
+			return (-1);
 		}
 	}
 
@@ -253,7 +229,7 @@ calculate_range(const char *dataset, err_type_t type, int level, char *range,
 		if (range != NULL) {
 			(void) fprintf(stderr, "range cannot be specified when "
 			    "type is 'dnode'\n");
-			goto out;
+			return (-1);
 		}
 
 		record->zi_start = record->zi_object * sizeof (dnode_phys_t);
@@ -262,76 +238,9 @@ calculate_range(const char *dataset, err_type_t type, int level, char *range,
 		break;
 	}
 
-	/*
-	 * Get the dnode associated with object, so we can calculate the block
-	 * size.
-	 */
-	if ((err = dmu_objset_own(dataset, DMU_OST_ANY,
-	    B_TRUE, B_FALSE, FTAG, &os)) != 0) {
-		(void) fprintf(stderr, "cannot open dataset '%s': %s\n",
-		    dataset, strerror(err));
-		goto out;
-	}
-
-	if (record->zi_object == 0) {
-		dn = DMU_META_DNODE(os);
-	} else {
-		err = dnode_hold(os, record->zi_object, FTAG, &dn);
-		if (err != 0) {
-			(void) fprintf(stderr, "failed to hold dnode "
-			    "for object %llu\n",
-			    (u_longlong_t)record->zi_object);
-			goto out;
-		}
-	}
-
-
-	ziprintf("data shift: %d\n", (int)dn->dn_datablkshift);
-	ziprintf(" ind shift: %d\n", (int)dn->dn_indblkshift);
-
-	/*
-	 * Translate range into block IDs.
-	 */
-	if (record->zi_start != 0 || record->zi_end != -1ULL) {
-		record->zi_start >>= dn->dn_datablkshift;
-		record->zi_end >>= dn->dn_datablkshift;
-	}
-
-	/*
-	 * Check level, and then translate level 0 blkids into ranges
-	 * appropriate for level of indirection.
-	 */
 	record->zi_level = level;
-	if (level > 0) {
-		ziprintf("level 0 blkid range: [%llu, %llu]\n",
-		    record->zi_start, record->zi_end);
 
-		if (level >= dn->dn_nlevels) {
-			(void) fprintf(stderr, "level %d exceeds max level "
-			    "of object (%d)\n", level, dn->dn_nlevels - 1);
-			goto out;
-		}
-
-		if (record->zi_start != 0 || record->zi_end != 0) {
-			int shift = dn->dn_indblkshift - SPA_BLKPTRSHIFT;
-
-			for (; level > 0; level--) {
-				record->zi_start >>= shift;
-				record->zi_end >>= shift;
-			}
-		}
-	}
-
-	ret = 0;
-out:
-	if (dn) {
-		if (dn != DMU_META_DNODE(os))
-			dnode_rele(dn, FTAG);
-	}
-	if (os)
-		dmu_objset_disown(os, B_FALSE, FTAG);
-
-	return (ret);
+	return (0);
 }
 
 int
@@ -342,8 +251,6 @@ translate_record(err_type_t type, const char *object, const char *range,
 	char *slash;
 	struct stat64 statbuf;
 	int ret = -1;
-
-	kernel_init(FREAD);
 
 	debug = (getenv("ZINJECT_DEBUG") != NULL);
 
@@ -396,16 +303,16 @@ translate_record(err_type_t type, const char *object, const char *range,
 	/*
 	 * Convert (dataset, file) into (objset, object)
 	 */
-	if (object_from_path(dataset, path, &statbuf, record) != 0)
+	if (object_from_path(dataset, statbuf.st_ino, record) != 0)
 		goto err;
 
 	ziprintf("raw objset: %llu\n", record->zi_objset);
 	ziprintf("raw object: %llu\n", record->zi_object);
 
 	/*
-	 * For the given object, calculate the real (type, level, range)
+	 * For the given object, intialize the range in bytes
 	 */
-	if (calculate_range(dataset, type, level, (char *)range, record) != 0)
+	if (initialize_range(type, level, (char *)range, record) != 0)
 		goto err;
 
 	ziprintf("    objset: %llu\n", record->zi_objset);
@@ -427,7 +334,6 @@ translate_record(err_type_t type, const char *object, const char *range,
 	ret = 0;
 
 err:
-	kernel_fini();
 	return (ret);
 }
 

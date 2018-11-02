@@ -561,6 +561,7 @@ register_handler(const char *pool, int flags, zinject_record_t *record,
 
 	if (ioctl(zfs_fd, ZFS_IOC_INJECT_FAULT, &zc) != 0) {
 		(void) fprintf(stderr, "failed to add handler: %s\n",
+		    errno == EDOM ? "block level exceeds max level of object" :
 		    strerror(errno));
 		return (1);
 	}
@@ -853,6 +854,7 @@ main(int argc, char **argv)
 			break;
 		case 'r':
 			range = optarg;
+			flags |= ZINJECT_CALC_RANGE;
 			break;
 		case 's':
 			dur_secs = 1;
