@@ -27,6 +27,7 @@
 
 #
 # Copyright (c) 2016 by Delphix. All rights reserved.
+# Copyright (c) 2018, Datto, Inc. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -35,24 +36,26 @@
 #
 # DESCRIPTION:
 #	Invoke "zfs mount <filesystem>" with a filesystem
-#	which mountpoint be the identical or the top of an existing one,
-#	it will fail with a return code of 1
+#	mountpoint that is identical to an existing one.
+#	It will fail with a return code of 1.  For Linux,
+#	place a file in the directory to ensure the failure.
+#	Also for Linux, test overlay=off (default) in which case
+#	the mount will fail, and overlay=on, where the mount
+#	will succeed.
 #
 # STRATEGY:
 #	1. Prepare an existing mounted filesystem.
 #	2. Setup a new filesystem and make sure that it is unmounted.
-#       3. Mount the new filesystem using the various combinations
+#	3. For Linux, place a file in the mount point folder.
+#       4. Mount the new filesystem using the various combinations
 #		- zfs set mountpoint=<identical path> <filesystem>
 #		- zfs set mountpoint=<top path> <filesystem>
-#       4. Verify that mount failed with return code of 1.
+#       5. Verify that mount failed with return code of 1.
+#	6. For Linux, also set overlay=on and verify the mount is
+#	   allowed.
 #
 
 verify_runnable "both"
-
-# See issue: https://github.com/zfsonlinux/zfs/issues/4990
-if is_linux; then
-	log_unsupported "Test case needs to be updated"
-fi
 
 function cleanup
 {
@@ -71,8 +74,8 @@ function cleanup
 
 typeset -i ret=0
 
-log_assert "Verify that 'zfs $mountcmd <filesystem>' " \
-	"which mountpoint be the identical or the top of an existing one " \
+log_assert "Verify that 'zfs $mountcmd <filesystem>'" \
+	"where the mountpoint is identical or on top of an existing one" \
 	"will fail with return code 1."
 
 log_onexit cleanup
@@ -95,6 +98,12 @@ done
 log_must zfs set mountpoint=$mtpt $TESTPOOL/$TESTFS
 log_must zfs $mountcmd $TESTPOOL/$TESTFS
 
+if is_linux; then
+	log_must zfs set overlay=off $TESTPOOL/$TESTFS
+	touch $mtpt/file.1
+	log_must ls -l $mtpt | grep file
+fi
+
 mounted $TESTPOOL/$TESTFS || \
 	log_unresolved "Filesystem $TESTPOOL/$TESTFS is unmounted"
 
@@ -103,14 +112,25 @@ log_must zfs create $TESTPOOL/$TESTFS1
 unmounted $TESTPOOL/$TESTFS1 || \
 	log_must force_unmount $TESTPOOL/$TESTFS1
 
-while [[ -n $mtpt ]] ; do
+while [[ $depth -gt 0 ]] ; do
 	(( depth == MAXDEPTH )) && \
-		log_note "Verify that 'zfs $mountcmd <filesystem>' " \
-		"which mountpoint be the identical of an existing one " \
+		log_note "Verify that 'zfs $mountcmd <filesystem>'" \
+		"with a mountpoint that is identical to an existing one" \
 		"will fail with return code 1."
 
 	log_must zfs set mountpoint=$mtpt $TESTPOOL/$TESTFS1
+	log_note "zfs $mountcmd $TESTPOOL/$TESTFS1"
+
 	log_mustnot zfs $mountcmd $TESTPOOL/$TESTFS1
+
+	# For Linux, test the overlay=on feature which allows
+	# mounting of non-empty directory.
+	if is_linux; then
+		log_must zfs set overlay=on $TESTPOOL/$TESTFS1
+		log_must zfs $mountcmd $TESTPOOL/$TESTFS1
+		log_must force_unmount $TESTPOOL/$TESTFS1
+		log_must zfs set overlay=off $TESTPOOL/$TESTFS1
+	fi
 
 	unmounted $TESTPOOL/$TESTFS1 || \
 		log_fail "Filesystem $TESTPOOL/$TESTFS1 is mounted."
@@ -118,12 +138,12 @@ while [[ -n $mtpt ]] ; do
 	mtpt=${mtpt%/*}
 
 	(( depth == MAXDEPTH )) && \
-		log_note "Verify that 'zfs $mountcmd <filesystem>' " \
-		"which mountpoint be the top of an existing one " \
+		log_note "Verify that 'zfs $mountcmd <filesystem>'" \
+		"with a mountpoint on top of an existing one" \
 		"will fail with return code 1."
 	(( depth = depth - 1 ))
 done
 
-log_pass "'zfs $mountcmd <filesystem>' " \
-	"which mountpoint be the identical or the top of an existing one " \
+log_pass "'zfs $mountcmd <filesystem>'" \
+	"with a mountpoint that is identical or on top of an existing one" \
 	"will fail with return code 1."
