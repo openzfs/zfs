@@ -1738,7 +1738,8 @@ zio_taskq_dispatch(zio_t *zio, zio_taskq_type_t q, boolean_t cutinline)
 	 * If this is a high priority I/O, then use the high priority taskq if
 	 * available.
 	 */
-	if (zio->io_priority == ZIO_PRIORITY_NOW &&
+	if ((zio->io_priority == ZIO_PRIORITY_NOW ||
+	    zio->io_priority == ZIO_PRIORITY_SYNC_WRITE) &&
 	    spa->spa_zio_taskq[t][q + 1].stqs_count != 0)
 		q++;
 
