@@ -25,7 +25,7 @@
 #
 
 #
-# Copyright (c) 2016 by Delphix. All rights reserved.
+# Copyright (c) 2017 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -84,14 +84,12 @@ function setup_filesystem #disklist #pool #fs #mntpoint #type #vdev
 	fi
 
 	case "$type" in
-		'ctr')	log_must zfs create $pool/$fs
-			log_must zfs set mountpoint=$mntpoint $pool/$fs
+		'ctr')	log_must zfs create -o mountpoint=$mntpoint $pool/$fs
 			;;
 		'vol')	log_must zfs create -V $VOLSIZE $pool/$fs
 			block_device_wait
 			;;
-		*)	log_must zfs create $pool/$fs
-			log_must zfs set mountpoint=$mntpoint $pool/$fs
+		*)	log_must zfs create -o mountpoint=$mntpoint $pool/$fs
 			;;
 	esac
 
