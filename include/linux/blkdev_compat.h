@@ -145,6 +145,7 @@ get_disk_ro(struct gendisk *disk)
 #define	BIO_BI_SECTOR(bio)	(bio)->bi_iter.bi_sector
 #define	BIO_BI_SIZE(bio)	(bio)->bi_iter.bi_size
 #define	BIO_BI_IDX(bio)		(bio)->bi_iter.bi_idx
+#define	BIO_BI_SKIP(bio)	(bio)->bi_iter.bi_bvec_done
 #define	bio_for_each_segment4(bv, bvp, b, i)	\
 	bio_for_each_segment((bv), (b), (i))
 typedef struct bvec_iter bvec_iterator_t;
@@ -152,6 +153,7 @@ typedef struct bvec_iter bvec_iterator_t;
 #define	BIO_BI_SECTOR(bio)	(bio)->bi_sector
 #define	BIO_BI_SIZE(bio)	(bio)->bi_size
 #define	BIO_BI_IDX(bio)		(bio)->bi_idx
+#define	BIO_BI_SKIP(bio)	(0)
 #define	bio_for_each_segment4(bv, bvp, b, i)	\
 	bio_for_each_segment((bvp), (b), (i))
 typedef int bvec_iterator_t;
@@ -501,8 +503,14 @@ blk_queue_discard_granularity(struct request_queue *q, unsigned int dg)
 #define	VDEV_HOLDER			((void *)0x2401de7)
 
 #ifndef HAVE_GENERIC_IO_ACCT
-#define	generic_start_io_acct(rw, slen, part)		((void)0)
-#define	generic_end_io_acct(rw, part, start_jiffies)	((void)0)
+static inline void
+generic_start_io_acct(int rw, unsigned long sectors, struct hd_struct *part)
+{
+}
+static inline void
+generic_end_io_acct(int rw, struct hd_struct *part, unsigned long start_time)
+{
+}
 #endif
 
 #endif /* _ZFS_BLKDEV_H */

@@ -55,9 +55,12 @@
 
 unsigned int zvol_inhibit_dev = 0;
 unsigned int zvol_major = ZVOL_MAJOR;
+unsigned int zvol_threads = 32;
+unsigned int zvol_request_sync = 1;
 unsigned int zvol_prefetch_bytes = (128 * 1024);
 unsigned long zvol_max_discard_blocks = 16384;
 
+static taskq_t *zvol_taskq;
 static kmutex_t zvol_state_lock;
 static list_t zvol_state_list;
 static char *zvol_tag = "zvol_tag";
@@ -611,17 +614,42 @@ zvol_log_write(zvol_state_t *zv, dmu_tx_t *tx, uint64_t offset,
 	}
 }
 
-static int
-zvol_write(struct bio *bio)
+typedef struct zv_request {
+    zvol_state_t	*zv;
+    struct bio	*bio;
+    rl_t		*rl;
+} zv_request_t;
+static void
+uio_from_bio(uio_t *uio, struct bio *bio)
 {
-	zvol_state_t *zv = bio->bi_bdev->bd_disk->private_data;
+    uio->uio_bvec = &bio->bi_io_vec[BIO_BI_IDX(bio)];
+    uio->uio_skip = BIO_BI_SKIP(bio);
+    uio->uio_resid = BIO_BI_SIZE(bio);
+    uio->uio_iovcnt = bio->bi_vcnt - BIO_BI_IDX(bio);
+    uio->uio_loffset = BIO_BI_SECTOR(bio) << 9;
+    uio->uio_limit = MAXOFFSET_T;
+    uio->uio_segflg = UIO_BVEC;
+}
+
+static void
+zvol_write(void *arg)
+{
+	zv_request_t *zvr = arg;
+	struct bio *bio = zvr->bio;
+	uio_t uio;
+	zvol_state_t *zv = zvr->zv;
 	uint64_t offset = BIO_BI_SECTOR(bio) << 9;
 	uint64_t size = BIO_BI_SIZE(bio);
 	int error = 0;
 	dmu_tx_t *tx;
-	rl_t *rl;
+
+	unsigned long start_jif;
+	uio_from_bio(&uio, bio);
 
 	ASSERT(zv && zv->zv_open_count > 0);
+
+	start_jif = jiffies;
+	generic_start_io_acct(WRITE, bio_sectors(bio), &zv->zv_disk->part0);
 
 	if (bio_is_flush(bio))
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
@@ -632,7 +660,6 @@ zvol_write(struct bio *bio)
 	if (size == 0)
 		goto out;
 
-	rl = zfs_range_lock(&zv->zv_range_lock, offset, size, RL_WRITER);
 
 	tx = dmu_tx_create(zv->zv_objset);
 	dmu_tx_hold_write(tx, ZVOL_OBJ, offset, size);
@@ -641,7 +668,7 @@ zvol_write(struct bio *bio)
 	error = dmu_tx_assign(tx, TXG_WAIT);
 	if (error) {
 		dmu_tx_abort(tx);
-		zfs_range_unlock(rl);
+		zfs_range_unlock(zvr->rl);
 		goto out;
 	}
 
@@ -651,30 +678,39 @@ zvol_write(struct bio *bio)
 		    !!(bio_is_fua(bio)));
 
 	dmu_tx_commit(tx);
-	zfs_range_unlock(rl);
+	zfs_range_unlock(zvr->rl);
 
 	if ((bio_is_fua(bio)) ||
 	    zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS)
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
 
 out:
-	return (error);
+	generic_end_io_acct(WRITE, &zv->zv_disk->part0, start_jif);
+	BIO_END_IO(bio, -error);
+	kmem_free(zvr, sizeof (zv_request_t));
 }
 
-static int
-zvol_discard(struct bio *bio)
+static void
+zvol_discard(void *arg)
 {
-	zvol_state_t *zv = bio->bi_bdev->bd_disk->private_data;
+	zv_request_t *zvr = arg;
+	struct bio *bio = zvr->bio;
+	zvol_state_t *zv = zvr->zv;
 	uint64_t start = BIO_BI_SECTOR(bio) << 9;
 	uint64_t size = BIO_BI_SIZE(bio);
 	uint64_t end = start + size;
-	int error;
-	rl_t *rl;
+	int error = 0;
+	unsigned long start_jif;
+
 
 	ASSERT(zv && zv->zv_open_count > 0);
 
-	if (end > zv->zv_volsize)
-		return (SET_ERROR(EIO));
+	start_jif = jiffies;
+	generic_start_io_acct(WRITE, bio_sectors(bio), &zv->zv_disk->part0);
+	if (end > zv->zv_volsize) {
+		error = SET_ERROR(EIO);
+		goto out;
+	}
 
 	/*
 	 * Align the request to volume block boundaries when a secure erase is
@@ -689,45 +725,52 @@ zvol_discard(struct bio *bio)
 	}
 
 	if (start >= end)
-		return (0);
-
-	rl = zfs_range_lock(&zv->zv_range_lock, start, size, RL_WRITER);
+		goto out;
 
 	error = dmu_free_long_range(zv->zv_objset, ZVOL_OBJ, start, size);
 
 	/*
 	 * TODO: maybe we should add the operation to the log.
 	 */
-	zfs_range_unlock(rl);
-
-	return (error);
+out:
+	zfs_range_unlock(zvr->rl);
+	generic_end_io_acct(WRITE, &zv->zv_disk->part0, start_jif);
+	BIO_END_IO(bio, -error);
+	kmem_free(zvr, sizeof (zv_request_t));
 }
 
-static int
-zvol_read(struct bio *bio)
+static void
+zvol_read(void *arg)
 {
-	zvol_state_t *zv = bio->bi_bdev->bd_disk->private_data;
-	uint64_t offset = BIO_BI_SECTOR(bio) << 9;
+	zv_request_t *zvr = arg;
+	struct bio *bio = zvr->bio;
+	uio_t uio;
+	zvol_state_t *zv = zvr->zv;
 	uint64_t len = BIO_BI_SIZE(bio);
 	int error;
-	rl_t *rl;
+	unsigned long start_jif;
+
+	uio_from_bio(&uio, bio);
 
 	ASSERT(zv && zv->zv_open_count > 0);
 
 	if (len == 0)
-		return (0);
+		return ;
 
-	rl = zfs_range_lock(&zv->zv_range_lock, offset, len, RL_READER);
+	start_jif = jiffies;
+	generic_start_io_acct(READ, bio_sectors(bio), &zv->zv_disk->part0);
+
 
 	error = dmu_read_bio(zv->zv_objset, ZVOL_OBJ, bio);
-
-	zfs_range_unlock(rl);
 
 	/* convert checksum errors into IO errors */
 	if (error == ECKSUM)
 		error = SET_ERROR(EIO);
 
-	return (error);
+	zfs_range_unlock(zvr->rl);
+	generic_end_io_acct(READ, &zv->zv_disk->part0, start_jif);
+	BIO_END_IO(bio, -error);
+	kmem_free(zvr, sizeof (zv_request_t));
 }
 
 static MAKE_REQUEST_FN_RET
@@ -735,13 +778,12 @@ zvol_request(struct request_queue *q, struct bio *bio)
 {
 	zvol_state_t *zv = q->queuedata;
 	fstrans_cookie_t cookie = spl_fstrans_mark();
-	uint64_t offset = BIO_BI_SECTOR(bio);
+    uint64_t size = BIO_BI_SIZE(bio);
+	uint64_t offset = BIO_BI_SECTOR(bio);     // maybe some bugs
 	unsigned int sectors = bio_sectors(bio);
 	int rw = bio_data_dir(bio);
-#ifdef HAVE_GENERIC_IO_ACCT
-	unsigned long start = jiffies;
-#endif
-	int error = 0;
+
+    zv_request_t *zvr;
 
 	if (bio_has_data(bio) && offset + sectors >
 	    get_capacity(zv->zv_disk)) {
@@ -750,31 +792,68 @@ zvol_request(struct request_queue *q, struct bio *bio)
 		    zv->zv_disk->disk_name,
 		    (long long unsigned)offset,
 		    (long unsigned)sectors);
-		error = SET_ERROR(EIO);
-		goto out1;
+        BIO_END_IO(bio, -SET_ERROR(EIO));
+        goto out;
 	}
 
-	generic_start_io_acct(rw, sectors, &zv->zv_disk->part0);
 
 	if (rw == WRITE) {
 		if (unlikely(zv->zv_flags & ZVOL_RDONLY)) {
-			error = SET_ERROR(EROFS);
-			goto out2;
+			BIO_END_IO(bio, -SET_ERROR(EROFS));
+			goto out;
 		}
 
+		/*
+		 * To be released in the I/O function. See the comment on
+		 * zfs_range_lock below.
+		 */
+		// rw_enter(&zv->zv_suspend_lock, RW_READER);
+
+		/* bio marked as FLUSH need to flush before write */
+		if (bio_is_flush(bio))
+			zil_commit(zv->zv_zilog, ZVOL_OBJ);
+
+		/* Some requests are just for flush and nothing else. */
+		if (size == 0) {
+			BIO_END_IO(bio, 0);
+			goto out;
+		}
+
+		zvr = kmem_alloc(sizeof (zv_request_t), KM_SLEEP);
+		zvr->zv = zv;
+		zvr->bio = bio;
+
+		/*
+		 * To be released in the I/O function. Since the I/O functions
+		 * are asynchronous, we take it here synchronously to make
+		 * sure overlapped I/Os are properly ordered.
+		 */
+		zvr->rl = zfs_range_lock(&zv->zv_range_lock, offset << 9, size,
+								 RL_WRITER);
 		if (bio_is_discard(bio) || bio_is_secure_erase(bio)) {
-			error = zvol_discard(bio);
-			goto out2;
+			if (zvol_request_sync || taskq_dispatch(zvol_taskq,
+													zvol_discard, zvr, TQ_SLEEP) == 0)
+				zvol_discard(zvr);
+		} else {
+			if (zvol_request_sync || taskq_dispatch(zvol_taskq,
+													zvol_write, zvr, TQ_SLEEP) == 0)
+				zvol_write(zvr);
 		}
+	} else {
+		zvr = kmem_alloc(sizeof (zv_request_t), KM_SLEEP);
+		zvr->zv = zv;
+		zvr->bio = bio;
 
-		error = zvol_write(bio);
-	} else
-		error = zvol_read(bio);
+		// rw_enter(&zv->zv_suspend_lock, RW_READER);
 
-out2:
-	generic_end_io_acct(rw, &zv->zv_disk->part0, start);
-out1:
-	BIO_END_IO(bio, -error);
+		zvr->rl = zfs_range_lock(&zv->zv_range_lock, offset << 9, size,
+								 RL_READER);
+		if (zvol_request_sync || taskq_dispatch(zvol_taskq,
+												zvol_read, zvr, TQ_SLEEP) == 0)
+			zvol_read(zvr);
+	}
+
+out:
 	spl_fstrans_unmark(cookie);
 #ifdef HAVE_MAKE_REQUEST_FN_RET_INT
 	return (0);
@@ -1873,16 +1952,25 @@ zvol_rename_minors(spa_t *spa, const char *name1, const char *name2,
 int
 zvol_init(void)
 {
+	int threads = MIN(MAX(zvol_threads, 1), 1024);
 	int error;
 
 	list_create(&zvol_state_list, sizeof (zvol_state_t),
 	    offsetof(zvol_state_t, zv_next));
 	mutex_init(&zvol_state_lock, NULL, MUTEX_DEFAULT, NULL);
 
+	zvol_taskq = taskq_create(ZVOL_DRIVER, threads, maxclsyspri,
+							  threads * 2, INT_MAX, TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
+	if (zvol_taskq == NULL) {
+		printk(KERN_INFO "ZFS: taskq_create() failed\n");
+		error = -ENOMEM;
+		goto out;
+	}
+
 	error = register_blkdev(zvol_major, ZVOL_DRIVER);
 	if (error) {
 		printk(KERN_INFO "ZFS: register_blkdev() failed %d\n", error);
-		goto out;
+		goto out_taskq;;
 	}
 
 	blk_register_region(MKDEV(zvol_major, 0), 1UL << MINORBITS,
@@ -1890,6 +1978,8 @@ zvol_init(void)
 
 	return (0);
 
+out_taskq:
+	taskq_destroy(zvol_taskq);
 out:
 	mutex_destroy(&zvol_state_lock);
 	list_destroy(&zvol_state_list);
@@ -1905,6 +1995,7 @@ zvol_fini(void)
 	blk_unregister_region(MKDEV(zvol_major, 0), 1UL << MINORBITS);
 	unregister_blkdev(zvol_major, ZVOL_DRIVER);
 
+	taskq_destroy(zvol_taskq);
 	list_destroy(&zvol_state_list);
 	mutex_destroy(&zvol_state_lock);
 }
@@ -1914,6 +2005,12 @@ MODULE_PARM_DESC(zvol_inhibit_dev, "Do not create zvol device nodes");
 
 module_param(zvol_major, uint, 0444);
 MODULE_PARM_DESC(zvol_major, "Major number for zvol device");
+
+module_param(zvol_threads, uint, 0444);
+MODULE_PARM_DESC(zvol_threads, "Max number of threads to handle I/O requests");
+
+module_param(zvol_request_sync, uint, 0644);
+MODULE_PARM_DESC(zvol_request_sync, "Synchronously handle bio requests");
 
 module_param(zvol_max_discard_blocks, ulong, 0444);
 MODULE_PARM_DESC(zvol_max_discard_blocks, "Max number of blocks to discard");
