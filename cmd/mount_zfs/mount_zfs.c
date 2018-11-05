@@ -31,6 +31,7 @@
 #include <sys/mntent.h>
 #include <sys/stat.h>
 #include <libzfs.h>
+#include <libzutil.h>
 #include <locale.h>
 #include <getopt.h>
 #include <fcntl.h>

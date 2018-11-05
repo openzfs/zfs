@@ -64,6 +64,7 @@
 #include <math.h>
 
 #include <libzfs.h>
+#include <libzutil.h>
 
 #include "zpool_util.h"
 #include "zfs_comutil.h"
@@ -2533,6 +2534,40 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 	return (ret);
 }
 
+typedef struct target_exists_args {
+	const char	*poolname;
+	uint64_t	poolguid;
+} target_exists_args_t;
+
+static int
+name_or_guid_exists(zpool_handle_t *zhp, void *data)
+{
+	target_exists_args_t *args = data;
+	nvlist_t *config = zpool_get_config(zhp, NULL);
+	int found = 0;
+
+	if (config == NULL)
+		return (0);
+
+	if (args->poolname != NULL) {
+		char *pool_name;
+
+		verify(nvlist_lookup_string(config, ZPOOL_CONFIG_POOL_NAME,
+		    &pool_name) == 0);
+		if (strcmp(pool_name, args->poolname) == 0)
+			found = 1;
+	} else {
+		uint64_t pool_guid;
+
+		verify(nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_GUID,
+		    &pool_guid) == 0);
+		if (pool_guid == args->poolguid)
+			found = 1;
+	}
+	zpool_close(zhp);
+
+	return (found);
+}
 /*
  * zpool checkpoint <pool>
  *       checkpoint --discard <pool>
@@ -2685,6 +2720,7 @@ zpool_do_import(int argc, char **argv)
 	boolean_t do_rewind = B_FALSE;
 	boolean_t xtreme_rewind = B_FALSE;
 	boolean_t do_scan = B_FALSE;
+	boolean_t pool_exists = B_FALSE;
 	uint64_t pool_state, txg = -1ULL;
 	char *cachefile = NULL;
 	importargs_t idata = { 0 };
@@ -2892,7 +2928,8 @@ zpool_do_import(int argc, char **argv)
 		/*
 		 * User specified a name or guid.  Ensure it's unique.
 		 */
-		idata.unique = B_TRUE;
+		target_exists_args_t search = {searchname, searchguid};
+		pool_exists = zpool_iter(g_zfs, name_or_guid_exists, &search);
 	}
 
 	/*
@@ -2928,9 +2965,9 @@ zpool_do_import(int argc, char **argv)
 	idata.scan = do_scan;
 	idata.policy = policy;
 
-	pools = zpool_search_import(g_zfs, &idata);
+	pools = zpool_search_import(g_zfs, &idata, &libzfs_config_ops);
 
-	if (pools != NULL && idata.exists &&
+	if (pools != NULL && pool_exists &&
 	    (argc == 1 || strcmp(argv[0], argv[1]) == 0)) {
 		(void) fprintf(stderr, gettext("cannot import '%s': "
 		    "a pool with that name already exists\n"),
@@ -2939,7 +2976,7 @@ zpool_do_import(int argc, char **argv)
 		    "<pool | id> <newpool>' to give it a new name\n"),
 		    "zpool import");
 		err = 1;
-	} else if (pools == NULL && idata.exists) {
+	} else if (pools == NULL && pool_exists) {
 		(void) fprintf(stderr, gettext("cannot import '%s': "
 		    "a pool with that name is already created/imported,\n"),
 		    argv[0]);

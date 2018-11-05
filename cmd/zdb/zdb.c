@@ -67,7 +67,9 @@
 #include <sys/dsl_crypt.h>
 #include <sys/dsl_scan.h>
 #include <zfs_comutil.h>
-#include <libzfs.h>
+
+#include <libnvpair.h>
+#include <libzutil.h>
 
 #include "zdb.h"
 
@@ -106,7 +108,6 @@ typedef void object_viewer_t(objset_t *, uint64_t, void *data, size_t size);
 
 uint64_t *zopt_object = NULL;
 static unsigned zopt_objects = 0;
-libzfs_handle_t *g_zfs;
 uint64_t max_inflight = 1000;
 static int leaked_objects = 0;
 static range_tree_t *mos_refd_objs;
@@ -5996,10 +5997,6 @@ main(int argc, char **argv)
 	spa_load_verify_dryrun = B_TRUE;
 
 	kernel_init(FREAD);
-	if ((g_zfs = libzfs_init()) == NULL) {
-		(void) fprintf(stderr, "%s", libzfs_error_init(errno));
-		return (1);
-	}
 
 	if (dump_all)
 		verbose = MAX(verbose, 1);
@@ -6078,7 +6075,8 @@ main(int argc, char **argv)
 		args.path = searchdirs;
 		args.can_be_active = B_TRUE;
 
-		error = zpool_tryimport(g_zfs, target_pool, &cfg, &args);
+		error = zpool_find_config(NULL, target_pool, &cfg, &args,
+		    &libzpool_config_ops);
 
 		if (error == 0) {
 
@@ -6228,7 +6226,6 @@ main(int argc, char **argv)
 
 	dump_debug_buffer();
 
-	libzfs_fini(g_zfs);
 	kernel_fini();
 
 	return (error);

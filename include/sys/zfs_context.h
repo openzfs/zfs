@@ -663,7 +663,6 @@ extern void random_init(void);
 extern void random_fini(void);
 
 struct spa;
-extern void nicenum(uint64_t num, char *buf, size_t);
 extern void show_pool_stats(struct spa *);
 extern int set_global_var(char *arg);
 
