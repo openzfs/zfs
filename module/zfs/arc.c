@@ -6249,6 +6249,28 @@ top:
 		uint64_t size;
 		abd_t *hdr_abd;
 
+		uint64_t bp_size=0;
+		/*
+		 * the same size as in arc_hdr_size(arc_buf_hdr_t *hdr)
+		 */
+		if (BP_GET_COMPRESS(bp) != ZIO_COMPRESS_OFF &&
+				BP_GET_PSIZE(bp) > 0) {
+				bp_size = BP_GET_PSIZE(bp);
+		} else {
+				bp_size = BP_GET_LSIZE(bp);
+		}
+		/*
+		 * Gracefully handle a damaged logical block size as a
+		 * checksum error.
+		 */
+		if(bp_size == 0){
+				(void) printk("arc_read: error wrong size  %llu\n",
+								(long long unsigned)bp_size);
+
+			rc = SET_ERROR(ECKSUM);
+			goto out;
+		}
+
 		/*
 		 * Gracefully handle a damaged logical block size as a
 		 * checksum error.
