@@ -6254,10 +6254,10 @@ top:
 		 * the same size as in arc_hdr_size(arc_buf_hdr_t *hdr)
 		 */
 		if (BP_GET_COMPRESS(bp) != ZIO_COMPRESS_OFF &&
-				BP_GET_PSIZE(bp) > 0) {
-				bp_size = BP_GET_PSIZE(bp);
+				psize > 0) {
+				bp_size = psize;
 		} else {
-				bp_size = BP_GET_LSIZE(bp);
+				bp_size = lsize;
 		}
 		/*
 		 * Gracefully handle a damaged logical block size as a
