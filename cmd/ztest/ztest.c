@@ -202,7 +202,7 @@ static const ztest_shared_opts_t ztest_opts_defaults = {
 	.zo_init = 1,
 	.zo_time = 300,			/* 5 minutes */
 	.zo_maxloops = 50,		/* max loops during spa_freeze() */
-	.zo_metaslab_force_ganging = 32 << 10,
+	.zo_metaslab_force_ganging = 64 << 10,
 	.zo_special_vdevs = ZTEST_VDEV_CLASS_RND,
 };
 
