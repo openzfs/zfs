@@ -27,6 +27,7 @@
  * Copyright (c) 2018 Datto Inc.
  * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
  * Copyright (c) 2017, Intel Corporation.
+ * Copyright (c) 2018, loli10K <ezomori.nozomu@gmail.com>
  */
 
 #include <errno.h>
@@ -580,9 +581,9 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 			if (intval != 0 &&
 			    (intval < ASHIFT_MIN || intval > ASHIFT_MAX)) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "invalid '%s=%d' property: only values "
-				    "between %" PRId32 " and %" PRId32 " "
-				    "are allowed.\n"),
+				    "property '%s' number %d is invalid, only "
+				    "values between %" PRId32 " and "
+				    "%" PRId32 " are allowed."),
 				    propname, intval, ASHIFT_MIN, ASHIFT_MAX);
 				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
 				goto error;
@@ -716,6 +717,17 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 			if (get_system_hostid() == 0) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "requires a non-zero system hostid"));
+				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
+				goto error;
+			}
+			break;
+		case ZPOOL_PROP_DEDUPDITTO:
+			if (intval < ZIO_DEDUPDITTO_MIN && intval != 0) {
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "property '%s' value %d is invalid; only "
+				    "values of 0 or >= %" PRId32 " are allowed "
+				    "for this property."),
+				    propname, intval, ZIO_DEDUPDITTO_MIN);
 				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
 				goto error;
 			}
