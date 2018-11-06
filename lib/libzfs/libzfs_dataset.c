@@ -918,7 +918,14 @@ libzfs_mnttab_add(libzfs_handle_t *hdl, const char *special,
 		mtn->mtn_mt.mnt_mountp = zfs_strdup(hdl, mountp);
 		mtn->mtn_mt.mnt_fstype = zfs_strdup(hdl, MNTTYPE_ZFS);
 		mtn->mtn_mt.mnt_mntopts = zfs_strdup(hdl, mntopts);
-		avl_add(&hdl->libzfs_mnttab_cache, mtn);
+		/*
+		 * Another thread may have already added this entry
+		 * via libzfs_mnttab_update. If so we should skip it.
+		 */
+		if (avl_find(&hdl->libzfs_mnttab_cache, mtn, NULL) != NULL)
+			free(mtn);
+		else
+			avl_add(&hdl->libzfs_mnttab_cache, mtn);
 	}
 	pthread_mutex_unlock(&hdl->libzfs_mnttab_cache_lock);
 }
