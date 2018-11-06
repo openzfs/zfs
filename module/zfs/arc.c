@@ -6251,7 +6251,7 @@ top:
 
 		uint64_t bp_size = 0;
 		/*
-		 * the same size as in arc_hdr_size(arc_buf_hdr_t *hdr)
+		 * The same size as in arc_hdr_size(arc_buf_hdr_t *hdr)
 		 */
 		if (BP_GET_COMPRESS(bp) != ZIO_COMPRESS_OFF &&
 		    psize > 0) {
