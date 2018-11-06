@@ -67,6 +67,7 @@
 #include <libzfs_core.h>
 #include <zfs_prop.h>
 #include <zfs_deleg.h>
+#include <libzutil.h>
 #include <libuutil.h>
 #ifdef HAVE_IDMAP
 #include <aclutils.h>

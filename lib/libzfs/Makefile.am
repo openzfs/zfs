@@ -55,14 +55,13 @@ nodist_libzfs_la_SOURCES = \
 	$(KERNEL_C)
 
 libzfs_la_LIBADD = \
-        $(top_builddir)/lib/libefi/libefi.la \
 	$(top_builddir)/lib/libnvpair/libnvpair.la \
 	$(top_builddir)/lib/libshare/libshare.la \
-	$(top_builddir)/lib/libtpool/libtpool.la \
 	$(top_builddir)/lib/libuutil/libuutil.la \
-	$(top_builddir)/lib/libzfs_core/libzfs_core.la
+	$(top_builddir)/lib/libzfs_core/libzfs_core.la \
+	$(top_builddir)/lib/libzutil/libzutil.la
 
-libzfs_la_LIBADD += -lm $(LIBBLKID) $(LIBUDEV) $(LIBSSL)
+libzfs_la_LIBADD += -lm $(LIBSSL)
 libzfs_la_LDFLAGS = -version-info 2:0:0
 
 EXTRA_DIST = $(libzfs_pc_DATA) $(USER_C)

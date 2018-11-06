@@ -21,6 +21,7 @@
 #include <libnvpair.h>
 #include <libudev.h>
 #include <libzfs.h>
+#include <libzutil.h>
 #include <pthread.h>
 #include <stdlib.h>
 #include <string.h>

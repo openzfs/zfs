@@ -34,111 +34,13 @@
 #include <sys/spa.h>
 #include <sys/fs/zfs.h>
 #include <sys/refcount.h>
+#include <sys/zfs_ioctl.h>
 #include <dlfcn.h>
+#include <libzutil.h>
 
 /*
  * Routines needed by more than one client of libzpool.
  */
-
-/* The largest suffix that can fit, aka an exabyte (2^60 / 10^18) */
-#define	INDEX_MAX	(6)
-
-/* Verify INDEX_MAX fits */
-CTASSERT_GLOBAL(INDEX_MAX * 10 < sizeof (uint64_t) * 8);
-
-void
-nicenum_scale(uint64_t n, size_t units, char *buf, size_t buflen,
-    uint32_t flags)
-{
-	uint64_t divamt = 1024;
-	uint64_t divisor = 1;
-	int index = 0;
-	int rc = 0;
-	char u;
-
-	if (units == 0)
-		units = 1;
-
-	if (n > 0) {
-		n *= units;
-		if (n < units)
-			goto overflow;
-	}
-
-	if (flags & NN_DIVISOR_1000)
-		divamt = 1000;
-
-	/*
-	 * This tries to find the suffix S(n) such that
-	 * S(n) <= n < S(n+1), where S(n) = 2^(n*10) | 10^(3*n)
-	 * (i.e. 1024/1000, 1,048,576/1,000,000, etc).  Stop once S(n)
-	 * is the largest prefix supported (i.e. don't bother computing
-	 * and checking S(n+1).  Since INDEX_MAX should be the largest
-	 * suffix that fits (currently an exabyte), S(INDEX_MAX + 1) is
-	 * never checked as it would overflow.
-	 */
-	while (index < INDEX_MAX) {
-		uint64_t newdiv = divisor * divamt;
-
-		/* CTASSERT() guarantee these never trip */
-		VERIFY3U(newdiv, >=, divamt);
-		VERIFY3U(newdiv, >=, divisor);
-
-		if (n < newdiv)
-			break;
-
-		divisor = newdiv;
-		index++;
-	}
-
-	u = " KMGTPE"[index];
-
-	if (index == 0) {
-		rc = snprintf(buf, buflen, "%llu", (u_longlong_t)n);
-	} else if (n % divisor == 0) {
-		/*
-		 * If this is an even multiple of the base, always display
-		 * without any decimal precision.
-		 */
-		rc = snprintf(buf, buflen, "%llu%c",
-		    (u_longlong_t)(n / divisor), u);
-	} else {
-		/*
-		 * We want to choose a precision that reflects the best choice
-		 * for fitting in 5 characters.  This can get rather tricky
-		 * when we have numbers that are very close to an order of
-		 * magnitude.  For example, when displaying 10239 (which is
-		 * really 9.999K), we want only a single place of precision
-		 * for 10.0K.  We could develop some complex heuristics for
-		 * this, but it's much easier just to try each combination
-		 * in turn.
-		 */
-		int i;
-		for (i = 2; i >= 0; i--) {
-			if ((rc = snprintf(buf, buflen, "%.*f%c", i,
-			    (double)n / divisor, u)) <= 5)
-				break;
-		}
-	}
-
-	if (rc + 1 > buflen || rc < 0)
-		goto overflow;
-
-	return;
-
-overflow:
-	/* prefer a more verbose message if possible */
-	if (buflen > 10)
-		(void) strlcpy(buf, "<overflow>", buflen);
-	else
-		(void) strlcpy(buf, "??", buflen);
-}
-
-void
-nicenum(uint64_t num, char *buf, size_t buflen)
-{
-	nicenum_scale(num, 1, buf, buflen, 0);
-}
 
 static void
 show_vdev_stats(const char *desc, const char *ctype, nvlist_t *nv, int indent)
@@ -300,3 +202,56 @@ set_global_var(char *arg)
 
 	return (0);
 }
+
+static nvlist_t *
+refresh_config(void *unused, nvlist_t *tryconfig)
+{
+	return (spa_tryimport(tryconfig));
+}
+
+static int
+pool_active(void *unused, const char *name, uint64_t guid,
+    boolean_t *isactive)
+{
+	zfs_cmd_t *zcp;
+	nvlist_t *innvl;
+	char *packed = NULL;
+	size_t size = 0;
+	int fd, ret;
+
+	/*
+	 * Use ZFS_IOC_POOL_SYNC to confirm if a pool is active
+	 */
+
+	fd = open("/dev/zfs", O_RDWR);
+	if (fd < 0)
+		return (-1);
+
+	zcp = umem_zalloc(sizeof (zfs_cmd_t), UMEM_NOFAIL);
+
+	innvl = fnvlist_alloc();
+	fnvlist_add_boolean_value(innvl, "force", B_FALSE);
+
+	(void) strlcpy(zcp->zc_name, name, sizeof (zcp->zc_name));
+	packed = fnvlist_pack(innvl, &size);
+	zcp->zc_nvlist_src = (uint64_t)(uintptr_t)packed;
+	zcp->zc_nvlist_src_size = size;
+
+	ret = ioctl(fd, ZFS_IOC_POOL_SYNC, zcp);
+
+	fnvlist_pack_free(packed, size);
+	free((void *)(uintptr_t)zcp->zc_nvlist_dst);
+	nvlist_free(innvl);
+	umem_free(zcp, sizeof (zfs_cmd_t));
+
+	(void) close(fd);
+
+	*isactive = (ret == 0);
+
+	return (0);
+}
+
+const pool_config_ops_t libzpool_config_ops = {
+	.pco_refresh_config = refresh_config,
+	.pco_pool_active = pool_active,
+};

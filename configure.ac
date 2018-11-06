@@ -93,6 +93,7 @@ AC_CONFIG_FILES([
 	lib/libefi/Makefile
 	lib/libicp/Makefile
 	lib/libnvpair/Makefile
+	lib/libzutil/Makefile
 	lib/libtpool/Makefile
 	lib/libunicode/Makefile
 	lib/libuutil/Makefile
