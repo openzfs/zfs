@@ -6259,23 +6259,12 @@ top:
 		} else {
 				bp_size = lsize;
 		}
-		/*
-		 * Gracefully handle a damaged logical block size as a
-		 * checksum error.
-		 */
-		if(bp_size == 0){
-				(void) printk("arc_read: error wrong size  %llu\n",
-								(long long unsigned)bp_size);
-
-			rc = SET_ERROR(ECKSUM);
-			goto out;
-		}
 
 		/*
 		 * Gracefully handle a damaged logical block size as a
 		 * checksum error.
 		 */
-		if (lsize > spa_maxblocksize(spa)) {
+		if (lsize > spa_maxblocksize(spa) || bp_size == 0) {
 			rc = SET_ERROR(ECKSUM);
 			goto out;
 		}
