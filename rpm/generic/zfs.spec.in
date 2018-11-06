@@ -93,6 +93,7 @@ Obsoletes:      spl
 Conflicts:      zfs-fuse
 
 %if 0%{?rhel}%{?fedora}%{?suse_version}
+BuildRequires:  gcc, make
 BuildRequires:  zlib-devel
 BuildRequires:  libuuid-devel
 BuildRequires:  libblkid-devel
