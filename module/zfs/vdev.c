@@ -2539,7 +2539,8 @@ vdev_dtl_should_excise(vdev_t *vd)
 }
 
 /*
- * Reassess DTLs after a config change or scrub completion.
+ * Reassess DTLs after a config change or scrub completion. If txg == 0 no
+ * write operations will be issued to the pool.
  */
 void
 vdev_dtl_reassess(vdev_t *vd, uint64_t txg, uint64_t scrub_txg, int scrub_done)
@@ -2622,7 +2623,7 @@ vdev_dtl_reassess(vdev_t *vd, uint64_t txg, uint64_t scrub_txg, int scrub_done)
 		 * DTLs then reset its resilvering flag and dirty
 		 * the top level so that we persist the change.
 		 */
-		if (vd->vdev_resilver_txg != 0 &&
+		if (txg != 0 && vd->vdev_resilver_txg != 0 &&
 		    range_tree_is_empty(vd->vdev_dtl[DTL_MISSING]) &&
 		    range_tree_is_empty(vd->vdev_dtl[DTL_OUTAGE])) {
 			vd->vdev_resilver_txg = 0;
@@ -4640,7 +4641,14 @@ vdev_deadman(vdev_t *vd, char *tag)
 void
 vdev_set_deferred_resilver(spa_t *spa, vdev_t *vd)
 {
-	ASSERT(vd->vdev_ops->vdev_op_leaf);
+	for (uint64_t i = 0; i < vd->vdev_children; i++)
+		vdev_set_deferred_resilver(spa, vd->vdev_child[i]);
+
+	if (!vd->vdev_ops->vdev_op_leaf || !vdev_writeable(vd) ||
+	    range_tree_is_empty(vd->vdev_dtl[DTL_MISSING])) {
+		return;
+	}
+
 	vd->vdev_resilver_deferred = B_TRUE;
 	spa->spa_resilver_deferred = B_TRUE;
 }
