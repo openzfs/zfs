@@ -758,7 +758,7 @@ spa_keystore_load_wkey(const char *dsname, dsl_crypto_params_t *dcp,
 	dsl_crypto_key_t *dck = NULL;
 	dsl_wrapping_key_t *wkey = dcp->cp_wkey;
 	dsl_pool_t *dp = NULL;
-	uint64_t keyformat, salt, iters;
+	uint64_t rddobj, keyformat, salt, iters;
 
 	/*
 	 * We don't validate the wrapping key's keyformat, salt, or iters
@@ -775,7 +775,7 @@ spa_keystore_load_wkey(const char *dsname, dsl_crypto_params_t *dcp,
 		goto error;
 
 	if (!spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_ENCRYPTION)) {
-		ret = (SET_ERROR(ENOTSUP));
+		ret = SET_ERROR(ENOTSUP);
 		goto error;
 	}
 
@@ -783,6 +783,13 @@ spa_keystore_load_wkey(const char *dsname, dsl_crypto_params_t *dcp,
 	ret = dsl_dir_hold(dp, dsname, FTAG, &dd, NULL);
 	if (ret != 0) {
 		dd = NULL;
+		goto error;
+	}
+
+	/* confirm that dd is the encryption root */
+	ret = dsl_dir_get_encryption_root_ddobj(dd, &rddobj);
+	if (ret != 0 || rddobj != dd->dd_object) {
+		ret = SET_ERROR(EINVAL);
 		goto error;
 	}
 
