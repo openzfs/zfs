@@ -1115,19 +1115,16 @@ vdev_remove_replace_with_indirect(vdev_t *vd, uint64_t txg)
 
 	ASSERT(!list_link_active(&vd->vdev_state_dirty_node));
 
-	tx = dmu_tx_create_assigned(spa->spa_dsl_pool, txg);
-	dsl_sync_task_nowait(spa->spa_dsl_pool, vdev_remove_complete_sync, svr,
-	    0, ZFS_SPACE_CHECK_NONE, tx);
-	dmu_tx_commit(tx);
-
-	/*
-	 * Indicate that this thread has exited.
-	 * After this, we can not use svr.
-	 */
 	mutex_enter(&svr->svr_lock);
 	svr->svr_thread = NULL;
 	cv_broadcast(&svr->svr_cv);
 	mutex_exit(&svr->svr_lock);
+
+	/* After this, we can not use svr. */
+	tx = dmu_tx_create_assigned(spa->spa_dsl_pool, txg);
+	dsl_sync_task_nowait(spa->spa_dsl_pool, vdev_remove_complete_sync, svr,
+	    0, ZFS_SPACE_CHECK_NONE, tx);
+	dmu_tx_commit(tx);
 }
 
 /*
