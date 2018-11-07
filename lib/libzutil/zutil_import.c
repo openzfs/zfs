@@ -224,6 +224,7 @@ typedef struct vdev_dev_strs {
 	char	vds_devphys[128];
 } vdev_dev_strs_t;
 
+#ifdef HAVE_LIBUDEV
 /*
  * Obtain the persistent device id string (describes what)
  *
@@ -398,6 +399,7 @@ udev_device_is_ready(struct udev_device *dev)
 	return (udev_device_get_property_value(dev, "DEVLINKS") != NULL);
 #endif
 }
+#endif /* HAVE_LIBUDEV */
 
 /*
  * Wait up to timeout_ms for udev to set up the device node.  The device is
