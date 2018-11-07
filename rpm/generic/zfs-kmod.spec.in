@@ -52,6 +52,10 @@ URL:            http://zfsonlinux.org/
 Source0:        %{module}-%{version}.tar.gz
 Source10:       kmodtool
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id} -u -n)
+%if 0%{?rhel}%{?fedora}
+BuildRequires:  gcc, make
+BuildRequires:  elfutils-libelf-devel
+%endif
 
 # The developments headers will conflict with the dkms packages.
 Conflicts:      %{module}-dkms
