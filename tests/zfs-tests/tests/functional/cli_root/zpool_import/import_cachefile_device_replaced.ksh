@@ -42,10 +42,10 @@
 #	   each sync.
 #	2. Add data to pool
 #	3. Re-import the pool so that data isn't cached
-#	4. Use zinject to slow down device I/O
+#	4. Use zfs_scan_suspend_progress to ensure resilvers don't progress
 #	5. Trigger the resilvering
 #	6. Use spa freeze to stop writing to the pool.
-#	7. Clear zinject events (needed to export the pool)
+#	7. Re-enable scan progress
 #	8. Export the pool
 #
 
@@ -59,8 +59,7 @@ function custom_cleanup
 	[[ -n ZFS_TXG_TIMEOUT ]] &&
 	    log_must set_zfs_txg_timeout $ZFS_TXG_TIMEOUT
 
-	zinject -c all
-	log_must set_tunable64 zfs_scan_vdev_limit $ZFS_SCAN_VDEV_LIMIT_DEFAULT
+	log_must set_tunable32 zfs_scan_suspend_progress 0
 	cleanup
 }
 
@@ -88,24 +87,16 @@ function test_replacing_vdevs
 	log_must zpool export $TESTPOOL1
 	log_must cp $CPATHBKP $CPATH
 	log_must zpool import -c $CPATH -o cachefile=$CPATH $TESTPOOL1
-	log_must set_tunable64 zfs_scan_vdev_limit $ZFS_SCAN_VDEV_LIMIT_SLOW
-	typeset device
-	for device in $zinjectdevices ; do
-		log_must zinject -d $device -D 50:1 $TESTPOOL1 > /dev/null
-	done
+	log_must set_tunable32 zfs_scan_suspend_progress 1
 	log_must zpool replace $TESTPOOL1 $replacevdev $replaceby
 
 	# Cachefile: pool in resilvering state
 	log_must cp $CPATH $CPATHBKP2
 
-	# We must disable zinject in order to export the pool, so we freeze
-	# it first to prevent writing out subsequent resilvering progress.
-	log_must zpool freeze $TESTPOOL1
 	# Confirm pool is still replacing
 	log_must pool_is_replacing $TESTPOOL1
-	log_must zinject -c all > /dev/null
-	log_must set_tunable64 zfs_scan_vdev_limit $ZFS_SCAN_VDEV_LIMIT_DEFAULT
 	log_must zpool export $TESTPOOL1
+	log_must set_tunable32 zfs_scan_suspend_progress 0
 
 	( $earlyremove ) && log_must rm $replacevdev
 
