@@ -165,7 +165,6 @@ known = {
     'casenorm/mixed_formd_lookup': ['FAIL', '7633'],
     'casenorm/mixed_formd_lookup_ci': ['FAIL', '7633'],
     'casenorm/mixed_formd_delete': ['FAIL', '7633'],
-    'cli_root/zfs_mount/zfs_mount_006_pos': ['SKIP', '4990'],
     'cli_root/zfs_receive/zfs_receive_004_neg': ['FAIL', known_reason],
     'cli_root/zfs_unshare/zfs_unshare_002_pos': ['SKIP', na_reason],
     'cli_root/zfs_unshare/zfs_unshare_006_pos': ['SKIP', na_reason],
