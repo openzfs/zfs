@@ -7013,11 +7013,17 @@ ztest_run(ztest_shared_t *zs)
 	}
 
 	/*
-	 * Wait for all of the tests to complete.  We go in reverse order
-	 * so we don't close datasets while threads are still using them.
+	 * Wait for all of the tests to complete.
 	 */
-	for (t = ztest_opts.zo_threads - 1; t >= 0; t--) {
+	for (t = 0; t < ztest_opts.zo_threads; t++)
 		VERIFY0(thread_join(run_threads[t]));
+
+	/*
+	 * Close all datasets. This must be done after all the threads
+	 * are joined so we can be sure none of the datasets are in-use
+	 * by any of the threads.
+	 */
+	for (t = 0; t < ztest_opts.zo_threads; t++) {
 		if (t < ztest_opts.zo_datasets)
 			ztest_dataset_close(t);
 	}
