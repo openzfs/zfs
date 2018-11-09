@@ -721,6 +721,7 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_MMP_HOSTNAME	"mmp_hostname"	/* not stored on disk */
 #define	ZPOOL_CONFIG_MMP_HOSTID		"mmp_hostid"	/* not stored on disk */
 #define	ZPOOL_CONFIG_ALLOCATION_BIAS	"alloc_bias"	/* not stored on disk */
+#define	ZPOOL_CONFIG_EXPANSION_TIME	"expansion_time"	/* not stored */
 
 /*
  * The persistent vdev state is stored as separate values rather than a single
