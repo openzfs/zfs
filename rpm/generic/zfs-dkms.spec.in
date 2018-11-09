@@ -4,6 +4,9 @@
 %define not_rpm 1
 %endif
 
+# See comment in zfs.spec.in.
+%global __brp_mangle_shebangs_exclude_from arc_summary.py|arcstat.py|dbufstat.py|test-runner.py|zts-report.py
+
 %define module  @PACKAGE@
 %define mkconf  scripts/dkms.mkconf
 
