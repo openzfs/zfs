@@ -645,6 +645,9 @@ typedef struct sendflags {
 
 	/* only send received properties (ie. -b) */
 	boolean_t backup;
+
+	/* include snapshot holds in send stream */
+	boolean_t holds;
 } sendflags_t;
 
 typedef boolean_t (snapfilter_cb_t)(zfs_handle_t *, void *);
@@ -707,6 +710,12 @@ typedef struct recvflags {
 
 	/* do not mount file systems as they are extracted (private) */
 	boolean_t nomount;
+
+	/* Was holds flag set in the compound header? */
+	boolean_t holds;
+
+	/* skip receive of snapshot holds */
+	boolean_t skipholds;
 } recvflags_t;
 
 extern int zfs_receive(libzfs_handle_t *, const char *, nvlist_t *,

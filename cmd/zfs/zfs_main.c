@@ -278,10 +278,10 @@ get_usage(zfs_help_t idx)
 	case HELP_PROMOTE:
 		return (gettext("\tpromote <clone-filesystem>\n"));
 	case HELP_RECEIVE:
-		return (gettext("\treceive [-vnsFu] "
+		return (gettext("\treceive [-vnsFhu] "
 		    "[-o <property>=<value>] ... [-x <property>] ...\n"
 		    "\t    <filesystem|volume|snapshot>\n"
-		    "\treceive [-vnsFu] [-o <property>=<value>] ... "
+		    "\treceive [-vnsFhu] [-o <property>=<value>] ... "
 		    "[-x <property>] ... \n"
 		    "\t    [-d | -e] <filesystem>\n"
 		    "\treceive -A <filesystem|volume>\n"));
@@ -293,7 +293,7 @@ get_usage(zfs_help_t idx)
 	case HELP_ROLLBACK:
 		return (gettext("\trollback [-rRf] <snapshot>\n"));
 	case HELP_SEND:
-		return (gettext("\tsend [-DnPpRvLecwb] [-[i|I] snapshot] "
+		return (gettext("\tsend [-DnPpRvLecwhb] [-[i|I] snapshot] "
 		    "<snapshot>\n"
 		    "\tsend [-nvPLecw] [-i snapshot|bookmark] "
 		    "<filesystem|volume|snapshot>\n"
@@ -3981,11 +3981,12 @@ zfs_do_send(int argc, char **argv)
 		{"compressed",	no_argument,		NULL, 'c'},
 		{"raw",		no_argument,		NULL, 'w'},
 		{"backup",	no_argument,		NULL, 'b'},
+		{"holds",	no_argument,		NULL, 'h'},
 		{0, 0, 0, 0}
 	};
 
 	/* check options */
-	while ((c = getopt_long(argc, argv, ":i:I:RDpvnPLet:cwb", long_options,
+	while ((c = getopt_long(argc, argv, ":i:I:RDpvnPLeht:cwb", long_options,
 	    NULL)) != -1) {
 		switch (c) {
 		case 'i':
@@ -4007,6 +4008,9 @@ zfs_do_send(int argc, char **argv)
 			break;
 		case 'b':
 			flags.backup = B_TRUE;
+			break;
+		case 'h':
+			flags.holds = B_TRUE;
 			break;
 		case 'P':
 			flags.parsable = B_TRUE;
@@ -4130,7 +4134,7 @@ zfs_do_send(int argc, char **argv)
 		char frombuf[ZFS_MAX_DATASET_NAME_LEN];
 
 		if (flags.replicate || flags.doall || flags.props ||
-		    flags.backup || flags.dedup ||
+		    flags.backup || flags.dedup || flags.holds ||
 		    (strchr(argv[0], '@') == NULL &&
 		    (flags.dryrun || flags.verbose || flags.progress))) {
 			(void) fprintf(stderr, gettext("Error: "
@@ -4235,7 +4239,7 @@ zfs_do_receive(int argc, char **argv)
 		nomem();
 
 	/* check options */
-	while ((c = getopt(argc, argv, ":o:x:denuvFsA")) != -1) {
+	while ((c = getopt(argc, argv, ":o:x:dehnuvFsA")) != -1) {
 		switch (c) {
 		case 'o':
 			if (!parseprop(props, optarg)) {
@@ -4266,6 +4270,9 @@ zfs_do_receive(int argc, char **argv)
 				usage(B_FALSE);
 			}
 			flags.istail = B_TRUE;
+			break;
+		case 'h':
+			flags.skipholds = B_TRUE;
 			break;
 		case 'n':
 			flags.dryrun = B_TRUE;
