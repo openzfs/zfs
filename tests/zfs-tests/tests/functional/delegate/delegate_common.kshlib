@@ -27,6 +27,7 @@
 #
 # Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 # Copyright 2016 Nexenta Systems, Inc.
+# Copyright (c) 2018 George Melikov. All Rights Reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -766,7 +767,7 @@ function verify_fs_clone
 	typeset fs=$3
 
 	typeset stamp=${perm}.${user}.$(date +'%F-%T-%N')
-        typeset basefs=${fs%/*}
+	typeset basefs=${fs%/*}
 	typeset snap=$fs@snap.$stamp
 	typeset clone=$basefs/cfs.$stamp
 
@@ -811,7 +812,7 @@ function verify_fs_rename
 	typeset fs=$3
 
 	typeset stamp=${perm}.${user}.$(date +'%F-%T-%N')
-        typeset basefs=${fs%/*}
+	typeset basefs=${fs%/*}
 	typeset snap=$fs@snap.$stamp
 	typeset renamefs=$basefs/nfs.$stamp
 
@@ -1001,7 +1002,7 @@ function verify_fs_promote
 	typeset fs=$3
 
 	typeset stamp=${perm}.${user}.$(date +'%F-%T-%N')
-        typeset basefs=${fs%/*}
+	typeset basefs=${fs%/*}
 	typeset snap=$fs@snap.$stamp
 	typeset clone=$basefs/cfs.$stamp
 
@@ -1368,7 +1369,7 @@ function verify_vol_snapshot
 	typeset vol=$3
 
 	typeset stamp=${perm}.${user}.$(date +'%F-%T-%N')
-        typeset basevol=${vol%/*}
+	typeset basevol=${vol%/*}
 	typeset snap=$vol@snap.$stamp
 
 	user_run $user zfs snapshot $snap
@@ -1393,7 +1394,7 @@ function verify_vol_rollback
 	typeset vol=$3
 
 	typeset stamp=${perm}.${user}.$(date+'%F-%T-%N')
-        typeset basevol=${vol%/*}
+	typeset basevol=${vol%/*}
 	typeset snap=$vol@snap.$stamp
 
 	typeset oldval
@@ -1428,7 +1429,7 @@ function verify_vol_clone
 	typeset vol=$3
 
 	typeset stamp=${perm}.${user}.$(date+'%F-%T-%N')
-        typeset basevol=${vol%/*}
+	typeset basevol=${vol%/*}
 	typeset snap=$vol@snap.$stamp
 	typeset clone=$basevol/cvol.$stamp
 
@@ -1474,7 +1475,7 @@ function verify_vol_rename
 	typeset vol=$3
 
 	typeset stamp=${perm}.${user}.$(date+'%F-%T-%N')
-        typeset basevol=${vol%/*}
+	typeset basevol=${vol%/*}
 	typeset snap=$vol@snap.$stamp
 	typeset clone=$basevol/cvol.$stamp
 	typeset renamevol=$basevol/nvol.$stamp
@@ -1521,7 +1522,7 @@ function verify_vol_promote
 	typeset vol=$3
 
 	typeset stamp=${perm}.${user}.$(date+'%F-%T-%N')
-        typeset basevol=${vol%/*}
+	typeset basevol=${vol%/*}
 	typeset snap=$vol@snap.$stamp
 	typeset clone=$basevol/cvol.$stamp
 

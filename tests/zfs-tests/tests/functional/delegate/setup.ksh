@@ -27,6 +27,7 @@
 
 #
 # Copyright (c) 2013, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2018 George Melikov. All Rights Reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -68,7 +69,9 @@ if [ $? -ne 0 ]; then
 fi
 
 DISK=${DISKS%% *}
-default_volume_setup $DISK
-log_must chmod 777 $TESTDIR
 
-log_pass
+if is_linux; then
+	log_must set_tunable64 zfs_admin_snapshot 1
+fi
+
+default_volume_setup $DISK
