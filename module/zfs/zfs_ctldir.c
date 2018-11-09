@@ -29,6 +29,7 @@
  *   Brian Behlendorf <behlendorf1@llnl.gov>
  * Copyright (c) 2013 by Delphix. All rights reserved.
  * Copyright 2015, OmniTI Computer Consulting, Inc. All rights reserved.
+ * Copyright (c) 2018 George Melikov. All Rights Reserved.
  */
 
 /*
@@ -106,7 +107,7 @@ static krwlock_t zfs_snapshot_lock;
  * Control Directory Tunables (.zfs)
  */
 int zfs_expire_snapshot = ZFSCTL_EXPIRE_SNAPSHOT;
-int zfs_admin_snapshot = 1;
+int zfs_admin_snapshot = 0;
 
 typedef struct {
 	char		*se_name;	/* full snapshot name */
