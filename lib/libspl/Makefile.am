@@ -22,9 +22,6 @@ USER_C = \
 	list.c \
 	mkdirp.c \
 	page.c \
-	strlcat.c \
-	strlcpy.c \
-	strnlen.c \
 	timestamp.c \
 	zone.c \
 	include/sys/list.h \
