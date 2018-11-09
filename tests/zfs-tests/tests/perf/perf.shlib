@@ -410,7 +410,7 @@ function get_system_config
 		    zfs_vdev_async_write_max_active \
 		    zfs_vdev_sync_read_max_active \
 		    zfs_vdev_sync_write_max_active \
-		    zio_delay_max
+		    zio_slow_io_ms
 		do
 			if [ "$tunable" != "zfs_arc_max" ]
 			then

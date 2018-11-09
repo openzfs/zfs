@@ -11,7 +11,8 @@ dist_pkgdata_SCRIPTS = \
 	auto_spare_shared.ksh \
 	decrypt_fault.ksh \
 	decompress_fault.ksh \
-	scrub_after_resilver.ksh
+	scrub_after_resilver.ksh \
+	zpool_status_-s.ksh
 
 dist_pkgdata_DATA = \
 	fault.cfg
