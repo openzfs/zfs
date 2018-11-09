@@ -77,14 +77,14 @@ int vdev_validate_skip = B_FALSE;
 int vdev_dtl_sm_blksz = (1 << 12);
 
 /*
- * Rate limit delay events to this many IO delays per second.
+ * Rate limit slow IO (delay) events to this many per second.
  */
-unsigned int zfs_delays_per_second = 20;
+unsigned int zfs_slow_io_events_per_second = 20;
 
 /*
  * Rate limit checksum events after this many checksum errors per second.
  */
-unsigned int zfs_checksums_per_second = 20;
+unsigned int zfs_checksum_events_per_second = 20;
 
 /*
  * Ignore errors during scrub/resilver.  Allows to work around resilver
@@ -507,8 +507,10 @@ vdev_alloc_common(spa_t *spa, uint_t id, uint64_t guid, vdev_ops_t *ops)
 	 * and checksum events so that we don't overwhelm ZED with thousands
 	 * of events when a disk is acting up.
 	 */
-	zfs_ratelimit_init(&vd->vdev_delay_rl, &zfs_delays_per_second, 1);
-	zfs_ratelimit_init(&vd->vdev_checksum_rl, &zfs_checksums_per_second, 1);
+	zfs_ratelimit_init(&vd->vdev_delay_rl, &zfs_slow_io_events_per_second,
+	    1);
+	zfs_ratelimit_init(&vd->vdev_checksum_rl,
+	    &zfs_checksum_events_per_second, 1);
 
 	list_link_init(&vd->vdev_config_dirty_node);
 	list_link_init(&vd->vdev_state_dirty_node);
@@ -3591,6 +3593,7 @@ vdev_clear(spa_t *spa, vdev_t *vd)
 	vd->vdev_stat.vs_read_errors = 0;
 	vd->vdev_stat.vs_write_errors = 0;
 	vd->vdev_stat.vs_checksum_errors = 0;
+	vd->vdev_stat.vs_slow_ios = 0;
 
 	for (int c = 0; c < vd->vdev_children; c++)
 		vdev_clear(spa, vd->vdev_child[c]);
@@ -4630,12 +4633,12 @@ module_param(vdev_ms_count_limit, int, 0644);
 MODULE_PARM_DESC(vdev_ms_count_limit,
 	"Practical upper limit of total metaslabs per top-level vdev");
 
-module_param(zfs_delays_per_second, uint, 0644);
-MODULE_PARM_DESC(zfs_delays_per_second, "Rate limit delay events to this many "
-	"IO delays per second");
+module_param(zfs_slow_io_events_per_second, uint, 0644);
+MODULE_PARM_DESC(zfs_slow_io_events_per_second,
+	"Rate limit slow IO (delay) events to this many per second");
 
-module_param(zfs_checksums_per_second, uint, 0644);
-	MODULE_PARM_DESC(zfs_checksums_per_second, "Rate limit checksum events "
+module_param(zfs_checksum_events_per_second, uint, 0644);
+MODULE_PARM_DESC(zfs_checksum_events_per_second, "Rate limit checksum events "
 	"to this many checksum errors per second (do not set below zed"
 	"threshold).");
 

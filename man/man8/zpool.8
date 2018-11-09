@@ -182,7 +182,7 @@
 .Nm
 .Cm status
 .Oo Fl c Ar SCRIPT Oc
-.Op Fl gLPvxD
+.Op Fl DgLpPsvx
 .Op Fl T Sy u Ns | Ns Sy d
 .Oo Ar pool Oc Ns ...
 .Op Ar interval Op Ar count
@@ -2167,7 +2167,7 @@ and automatically import it.
 .Nm
 .Cm status
 .Op Fl c Op Ar SCRIPT1 Ns Oo , Ns Ar SCRIPT2 Oc Ns ...
-.Op Fl gLPvxD
+.Op Fl DgLpPsvx
 .Op Fl T Sy u Ns | Ns Sy d
 .Oo Ar pool Oc Ns ...
 .Op Ar interval Op Ar count
@@ -2203,6 +2203,8 @@ Display real paths for vdevs resolving all symbolic links. This can
 be used to look up the current block device name regardless of the
 .Pa /dev/disk/
 path used to open it.
+.It Fl p
+Display numbers in parsable (exact) values.
 .It Fl P
 Display full paths for vdevs instead of only the last component of
 the path. This can be used in conjunction with the
@@ -2214,6 +2216,12 @@ Display a histogram of deduplication statistics, showing the allocated
 and referenced
 .Pq logically referenced in the pool
 block counts and sizes by reference count.
+.It Fl s
+Display the number of leaf VDEV slow IOs.  This is the number of IOs that
+didn't complete in \fBzio_slow_io_ms\fR milliseconds (default 30 seconds).
+This does not necessarily mean the IOs failed to complete, just took an
+unreasonably long amount of time.  This may indicate a problem with the
+underlying storage.
 .It Fl T Sy u Ns | Ns Sy d
 Display a time stamp.
 Specify

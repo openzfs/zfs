@@ -96,8 +96,9 @@ information regarding "hung" I/O detection and configuration.
 .ad
 .RS 12n
 Issued when a completed I/O exceeds the maximum allowed time specified
-by the \fBzio_delay_max\fR module option.  This can be an indicator of
-problems with the underlying storage device.
+by the \fBzio_slow_io_ms\fR module option.  This can be an indicator of
+problems with the underlying storage device.  The number of delay events is
+ratelimited by the \fBzfs_slow_io_events_per_second\fR module parameter.
 .RE
 
 .sp
@@ -697,10 +698,9 @@ full list of all the I/O stages.
 \fBzio_delay\fR
 .ad
 .RS 12n
-The time in ticks (HZ) required for the block layer to service the I/O.  Unlike
-\fBzio_delta\fR this does not include any vdev queuing time and is therefore
-solely a measure of the block layer performance.  On most modern Linux systems
-HZ is defined as 1000 making a tick equivalent to 1 millisecond.
+The time elapsed (in nanoseconds) waiting for the block layer to complete the
+I/O.  Unlike \fBzio_delta\fR this does not include any vdev queuing time and is
+therefore solely a measure of the block layer performance.
 .RE
 
 .sp
