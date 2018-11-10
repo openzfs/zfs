@@ -33,15 +33,15 @@
 %endif
 
 %if %{undefined _unitdir}
-%global _unitdir %{prefix}/lib/systemd/system
+%global _unitdir %{_prefix}/lib/systemd/system
 %endif
 
 %if %{undefined _presetdir}
-%global _presetdir %{prefix}/lib/systemd/system-preset
+%global _presetdir %{_prefix}/lib/systemd/system-preset
 %endif
 
 %if %{undefined _modulesloaddir}
-%global _modulesloaddir %{prefix}/lib/modules-load.d
+%global _modulesloaddir %{_prefix}/lib/modules-load.d
 %endif
 
 %if %{undefined _systemdgeneratordir}
