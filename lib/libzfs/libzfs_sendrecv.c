@@ -3801,8 +3801,9 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	}
 
 	ASSERT(strstr(drrb->drr_toname, sendfs) == drrb->drr_toname);
-	ASSERT(chopprefix > drrb->drr_toname);
-	ASSERT(chopprefix <= drrb->drr_toname + strlen(drrb->drr_toname));
+	ASSERT(chopprefix > drrb->drr_toname || strchr(sendfs, '/') == NULL);
+	ASSERT(chopprefix <= drrb->drr_toname + strlen(drrb->drr_toname) ||
+	    strchr(sendfs, '/') == NULL);
 	ASSERT(chopprefix[0] == '/' || chopprefix[0] == '@' ||
 	    chopprefix[0] == '\0');
 
