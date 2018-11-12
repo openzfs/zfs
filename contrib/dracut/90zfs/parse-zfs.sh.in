@@ -39,11 +39,14 @@ case "${root}" in
 		# root=zfs:rpool/ROOT
 		# root=zfs:FILESYSTEM=rpool/ROOT
 		# root=FILESYSTEM=rpool/ROOT
+		# root=ZFS=pool+with+space/ROOT+WITH+SPACE (translates to root=ZFS=pool with space/ROOT WITH SPACE)
 
 		# Strip down to just the pool/fs
 		root="${root#zfs:}"
 		root="${root#FILESYSTEM=}"
 		root="zfs:${root#ZFS=}"
+		# switch + with spaces because kernel cmdline does not allow us to quote parameters
+		root=$(printf '%s\n' "$root" | sed "s/+/ /g")
 		rootok=1
 		wait_for_zfs=1
 
