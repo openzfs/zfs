@@ -1,5 +1,8 @@
 %define module  @PACKAGE@
 
+# See comment in zfs.spec.in.
+%global __brp_mangle_shebangs_exclude_from arc_summary.py|arcstat.py|dbufstat.py|test-runner.py|zts-report.py
+
 %if !%{defined ksrc}
 %if 0%{?rhel}%{?fedora}
 %define ksrc    ${kernel_version##*___}

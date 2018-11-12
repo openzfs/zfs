@@ -18,7 +18,7 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_SYSTEMD], [
 	AC_ARG_WITH(systemdmodulesloaddir,
 		AC_HELP_STRING([--with-systemdmodulesloaddir=DIR],
 		[install systemd module load files into dir [[/usr/lib/modules-load.d]]]),
-		systemdmoduleloaddir=$withval,systemdmodulesloaddir=/usr/lib/modules-load.d)
+		systemdmodulesloaddir=$withval,systemdmodulesloaddir=/usr/lib/modules-load.d)
 
 	AC_ARG_WITH(systemdgeneratordir,
 		AC_HELP_STRING([--with-systemdgeneratordir=DIR],

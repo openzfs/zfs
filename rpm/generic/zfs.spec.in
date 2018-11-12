@@ -28,9 +28,24 @@
 %endif
 %endif
 
-# Set the default _initconfdir when undefined.
 %if %{undefined _initconfdir}
 %global _initconfdir /etc/sysconfig
+%endif
+
+%if %{undefined _unitdir}
+%global _unitdir %{_prefix}/lib/systemd/system
+%endif
+
+%if %{undefined _presetdir}
+%global _presetdir %{_prefix}/lib/systemd/system-preset
+%endif
+
+%if %{undefined _modulesloaddir}
+%global _modulesloaddir %{_prefix}/lib/modules-load.d
+%endif
+
+%if %{undefined _systemdgeneratordir}
+%global _systemdgeneratordir %{_prefix}/lib/systemd/system-generators
 %endif
 
 %bcond_with    debug
@@ -278,7 +293,7 @@ image which is ZFS aware.
 %endif
 
 %if 0%{?_systemd}
-    %define systemd --enable-systemd --with-systemdunitdir=%{_unitdir} --with-systemdpresetdir=%{_presetdir} --disable-sysvinit
+    %define systemd --enable-systemd --with-systemdunitdir=%{_unitdir} --with-systemdpresetdir=%{_presetdir} --with-systemdmodulesloaddir=%{_modulesloaddir} --with-systemdgeneratordir=%{_systemdgeneratordir} --disable-sysvinit
     %define systemd_svcs zfs-import-cache.service zfs-import-scan.service zfs-mount.service zfs-share.service zfs-zed.service zfs.target zfs-import.target
 %else
     %define systemd --enable-sysvinit --disable-systemd
@@ -374,10 +389,10 @@ systemctl --system daemon-reload >/dev/null || true
 %{_udevdir}/zvol_id
 %{_udevdir}/rules.d/*
 %if 0%{?_systemd}
-/usr/lib/modules-load.d/*
 %{_unitdir}/*
 %{_presetdir}/*
-%{_generatordir}/*
+%{_modulesloaddir}/*
+%{_systemdgeneratordir}/*
 %else
 %config(noreplace) %{_sysconfdir}/init.d/*
 %config(noreplace) %{_initconfdir}/zfs

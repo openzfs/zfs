@@ -1,6 +1,9 @@
 %bcond_with     debug
 %bcond_with     debuginfo
 
+# See comment in zfs.spec.in.
+%global __brp_mangle_shebangs_exclude_from arc_summary.py|arcstat.py|dbufstat.py|test-runner.py|zts-report.py
+
 Name:           @PACKAGE@-kmod
 Version:        @VERSION@
 Release:        @RELEASE@%{?dist}
