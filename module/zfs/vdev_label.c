@@ -228,8 +228,6 @@ vdev_config_generate_stats(vdev_t *vd, nvlist_t *nv)
 	fnvlist_add_uint64_array(nv, ZPOOL_CONFIG_VDEV_STATS,
 	    (uint64_t *)vs, sizeof (*vs) / sizeof (uint64_t));
 
-	kmem_free(vs, sizeof (*vs));
-
 	/*
 	 * Add extended stats into a special extended stats nvlist.  This keeps
 	 * all the extended stats nicely grouped together.  The extended stats
@@ -354,6 +352,7 @@ vdev_config_generate_stats(vdev_t *vd, nvlist_t *nv)
 	fnvlist_add_nvlist(nv, ZPOOL_CONFIG_VDEV_STATS_EX, nvx);
 
 	fnvlist_free(nvx);
+	kmem_free(vs, sizeof (*vs));
 	kmem_free(vsx, sizeof (*vsx));
 }
 
