@@ -44,6 +44,8 @@ typedef struct mmp_thread {
 	zio_t		*mmp_zio_root;	/* root of mmp write zios */
 	uint64_t	mmp_kstat_id;	/* unique id for next MMP write kstat */
 	int		mmp_skip_error; /* reason for last skipped write */
+	vdev_t		*mmp_last_leaf;	/* last mmp write sent here */
+	uint64_t	mmp_leaf_last_gen;	/* last mmp write sent here */
 } mmp_thread_t;
 
 
