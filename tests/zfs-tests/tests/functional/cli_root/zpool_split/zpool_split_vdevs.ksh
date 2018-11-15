@@ -15,6 +15,7 @@
 #
 
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_root/zpool_split/zpool_split.cfg
 . $STF_SUITE/include/math.shlib
 
 #
