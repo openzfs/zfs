@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2017 by Delphix. All rights reserved.
  * Copyright (c) 2018 Datto Inc.
  */
 
@@ -60,6 +60,13 @@ struct libzfs_handle {
 	void *libzfs_sharehdl; /* libshare handle */
 	uint_t libzfs_shareflags;
 	boolean_t libzfs_mnttab_enable;
+	/*
+	 * We need a lock to handle the case where parallel mount
+	 * threads are populating the mnttab cache simultaneously. The
+	 * lock only protects the integrity of the avl tree, and does
+	 * not protect the contents of the mnttab entries themselves.
+	 */
+	pthread_mutex_t libzfs_mnttab_cache_lock;
 	avl_tree_t libzfs_mnttab_cache;
 	int libzfs_pool_iter;
 	char libzfs_chassis_id[256];
