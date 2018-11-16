@@ -20,6 +20,10 @@
 # CDDL HEADER END
 #
 
+#
+# Copyright (c) 2018 by Delphix. All rights reserved.
+#
+
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/include/properties.shlib
 . $STF_SUITE/tests/functional/checksum/default.cfg
@@ -86,7 +90,7 @@ log_must zpool import $TESTPOOL
 log_must zpool scrub $TESTPOOL
 log_must wait_scrubbed $TESTPOOL
 
-zpool status -P -v $TESTPOOL | grep $firstvdev | read -r name state rd wr cksum
+cksum=$(zpool status -P -v $TESTPOOL | grep "$firstvdev" | awk '{print $5}')
 log_assert "Normal file write test saw $cksum checksum errors"
 log_must [ $cksum -eq 0 ]
 
@@ -111,8 +115,8 @@ while [[ $j -lt ${#CHECKSUM_TYPES[*]} ]]; do
 	log_must zpool scrub $TESTPOOL
 	log_must wait_scrubbed $TESTPOOL
 
-	zpool status -P -v $TESTPOOL | grep $firstvdev | \
-	    read -r name state rd wr cksum
+	cksum=$(zpool status -P -v $TESTPOOL | grep "$firstvdev" | \
+	    awk '{print $5}')
 
 	log_assert "Checksum '$type' caught $cksum checksum errors"
 	log_must [ $cksum -ne 0 ]
