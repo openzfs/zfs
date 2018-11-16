@@ -2951,8 +2951,8 @@ For each property, the following columns are displayed:
     name      Dataset name
     property  Property name
     value     Property value
-    source    Property source.  Can either be local, default,
-              temporary, inherited, or none (-).
+    source    Property source  \fBlocal\fP, \fBdefault\fP, \fBinherited\fP,
+              \fBtemporary\fP, \fBreceived\fP or none (\fB-\fP).
 .Ed
 .Pp
 All columns are displayed by default, though this can be controlled by using the
@@ -2997,6 +2997,7 @@ Each source must be one of the following:
 .Sy default ,
 .Sy inherited ,
 .Sy temporary ,
+.Sy received ,
 and
 .Sy none .
 The default value is all sources.
