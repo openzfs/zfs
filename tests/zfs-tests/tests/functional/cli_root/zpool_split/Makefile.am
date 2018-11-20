@@ -10,4 +10,8 @@ dist_pkgdata_SCRIPTS = \
 	zpool_split_encryption.ksh \
 	zpool_split_props.ksh \
 	zpool_split_vdevs.ksh \
-	zpool_split_resilver.ksh
+	zpool_split_resilver.ksh \
+	zpool_split_wholedisk.ksh
+
+dist_pkgdata_DATA = \
+	zpool_split.cfg
