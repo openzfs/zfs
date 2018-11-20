@@ -15,6 +15,7 @@
 #
 
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_root/zpool_split/zpool_split.cfg
 
 #
 # DESCRIPTION:
@@ -91,7 +92,7 @@ do
 	# Verify "good" devices ended up in the new pool
 	log_must poolexists $TESTPOOL2
 	for filedev in ${gooddevs[$i]}; do
-		log_must check_vdev_state $TESTPOOL2 $filedev ""
+		log_must check_vdev_state $TESTPOOL2 $filedev "ONLINE"
 	done
 	cleanup
 	((i = i + 1))
