@@ -1328,7 +1328,6 @@ dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 	    (db->db_level == 0 && (dnode_block_freed(dn, db->db_blkid) ||
 	    BP_IS_HOLE(db->db_blkptr)))) {
 		arc_buf_contents_t type = DBUF_GET_BUFC_TYPE(db);
-
 		dbuf_set_data(db, arc_alloc_buf(db->db_objset->os_spa, db, type,
 		    db->db.db_size));
 		bzero(db->db.db_data, db->db.db_size);
@@ -1396,8 +1395,9 @@ dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 	zio_flags = (flags & DB_RF_CANFAIL) ?
 	    ZIO_FLAG_CANFAIL : ZIO_FLAG_MUSTSUCCEED;
 
-	if ((flags & DB_RF_NO_DECRYPT) && BP_IS_PROTECTED(db->db_blkptr))
-		zio_flags |= ZIO_FLAG_RAW;
+	if (((flags & DB_RF_NO_DECRYPT) && BP_IS_PROTECTED(db->db_blkptr)) ||
+		(flags & DB_RF_NO_DECOMPRESS))
+		zio_flags = zio_flags | ZIO_FLAG_RAW;
 
 	err = arc_read(zio, db->db_objset->os_spa, db->db_blkptr,
 	    dbuf_read_done, db, ZIO_PRIORITY_SYNC_READ, zio_flags,
@@ -1526,6 +1526,7 @@ dbuf_read(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 		 */
 		if (err == 0 && db->db_buf != NULL &&
 		    (flags & DB_RF_NO_DECRYPT) == 0 &&
+		    (flags & DB_RF_NO_DECOMPRESS) == 0 &&
 		    (arc_is_encrypted(db->db_buf) ||
 		    arc_is_unauthenticated(db->db_buf) ||
 		    arc_get_compression(db->db_buf) != ZIO_COMPRESS_OFF)) {
@@ -2463,6 +2464,7 @@ dbuf_assign_arcbuf(dmu_buf_impl_t *db, arc_buf_t *buf, dmu_tx_t *tx)
 		ASSERT(!arc_is_encrypted(buf));
 		mutex_exit(&db->db_mtx);
 		(void) dbuf_dirty(db, tx);
+
 		bcopy(buf->b_data, db->db.db_data, db->db.db_size);
 		arc_buf_destroy(buf, db);
 		xuio_stat_wbuf_copied();
@@ -2818,9 +2820,11 @@ dbuf_issue_final_prefetch(dbuf_prefetch_arg_t *dpa, blkptr_t *bp)
 	    dpa->dpa_aflags | ARC_FLAG_NOWAIT | ARC_FLAG_PREFETCH;
 
 	/* dnodes are always read as raw and then converted later */
-	if (BP_GET_TYPE(bp) == DMU_OT_DNODE && BP_IS_PROTECTED(bp) &&
-	    dpa->dpa_curlevel == 0)
+	if ((BP_GET_TYPE(bp) == DMU_OT_DNODE && BP_IS_PROTECTED(bp) &&
+	    dpa->dpa_curlevel == 0) || (aflags & ARC_FLAG_COMPRESSED_ARC) != 0) {
+		ASSERT(dpa->dpa_curlevel == 0);
 		zio_flags |= ZIO_FLAG_RAW;
+	}
 
 	ASSERT3U(dpa->dpa_curlevel, ==, BP_GET_LEVEL(bp));
 	ASSERT3U(dpa->dpa_curlevel, ==, dpa->dpa_zb.zb_level);
@@ -3132,10 +3136,10 @@ dbuf_hold_impl_arg(struct dbuf_hold_arg *dh)
 		}
 		if (dh->dh_err && dh->dh_err != ENOENT)
 			return (dh->dh_err);
+
 		dh->dh_db = dbuf_create(dh->dh_dn, dh->dh_level, dh->dh_blkid,
 		    dh->dh_parent, dh->dh_bp);
 	}
-
 	if (dh->dh_fail_uncached && dh->dh_db->db_state != DB_CACHED) {
 		mutex_exit(&dh->dh_db->db_mtx);
 		return (SET_ERROR(ENOENT));
@@ -3158,6 +3162,7 @@ dbuf_hold_impl_arg(struct dbuf_hold_arg *dh)
 	    dh->dh_dn->dn_object != DMU_META_DNODE_OBJECT &&
 	    dh->dh_db->db_state == DB_CACHED && dh->dh_db->db_data_pending) {
 		dh->dh_dr = dh->dh_db->db_data_pending;
+
 		if (dh->dh_dr->dt.dl.dr_data == dh->dh_db->db_buf)
 			dbuf_hold_copy(dh);
 	}
@@ -3918,6 +3923,7 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 		}
 		bcopy(db->db.db_data, (*datap)->b_data, psize);
 	}
+
 	db->db_data_pending = dr;
 
 	mutex_exit(&db->db_mtx);

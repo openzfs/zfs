@@ -207,13 +207,21 @@ dmu_tx_check_ioerr(zio_t *zio, dnode_t *dn, int level, uint64_t blkid)
 {
 	int err;
 	dmu_buf_impl_t *db;
+	uint32_t flags;
 
 	rw_enter(&dn->dn_struct_rwlock, RW_READER);
 	db = dbuf_hold_level(dn, level, blkid, FTAG);
 	rw_exit(&dn->dn_struct_rwlock);
 	if (db == NULL)
 		return (SET_ERROR(EIO));
-	err = dbuf_read(db, zio, DB_RF_CANFAIL | DB_RF_NOPREFETCH);
+
+	flags = DB_RF_CANFAIL | DB_RF_NOPREFETCH;
+	if (db->db_buf != NULL &&
+	    arc_get_compression(db->db_buf) == ZIO_COMPRESS_EXTERNAL) {
+		flags |= DB_RF_NO_DECOMPRESS;
+	}
+
+	err = dbuf_read(db, zio, flags);
 	dbuf_rele(db, FTAG);
 	return (err);
 }

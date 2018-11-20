@@ -233,6 +233,8 @@ dmu_buf_hold(objset_t *os, uint64_t object, uint64_t offset,
 		db_flags |= DB_RF_NOPREFETCH;
 	if (flags & DMU_READ_NO_DECRYPT)
 		db_flags |= DB_RF_NO_DECRYPT;
+	if (flags & DMU_READ_NO_DECOMPRESS)
+		db_flags |= DB_RF_NO_DECOMPRESS;
 
 	err = dmu_buf_hold_noread(os, object, offset, tag, dbp);
 	if (err == 0) {
@@ -345,6 +347,8 @@ dmu_bonus_hold_impl(objset_t *os, uint64_t object, void *tag, uint32_t flags,
 		db_flags |= DB_RF_NOPREFETCH;
 	if (flags & DMU_READ_NO_DECRYPT)
 		db_flags |= DB_RF_NO_DECRYPT;
+	if (flags & DMU_READ_NO_DECOMPRESS)
+		db_flags |= DB_RF_NO_DECOMPRESS;
 
 	error = dnode_hold(os, object, FTAG, &dn);
 	if (error)
@@ -504,6 +508,9 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 	dbuf_flags = DB_RF_CANFAIL | DB_RF_NEVERWAIT | DB_RF_HAVESTRUCT |
 	    DB_RF_NOPREFETCH;
 
+	if ((flags & DMU_READ_NO_DECOMPRESS) != 0)
+		dbuf_flags |= DB_RF_NO_DECOMPRESS;
+
 	rw_enter(&dn->dn_struct_rwlock, RW_READER);
 	if (dn->dn_datablkshift) {
 		int blkshift = dn->dn_datablkshift;
@@ -593,6 +600,25 @@ dmu_buf_hold_array(objset_t *os, uint64_t object, uint64_t offset,
 	    numbufsp, dbpp, DMU_READ_PREFETCH);
 
 	dnode_rele(dn, FTAG);
+
+	return (err);
+}
+
+int
+dmu_buf_hold_array_by_bonus_compressed(dmu_buf_t *db_fake, uint64_t offset,
+    uint64_t length, boolean_t read, void *tag, int *numbufsp,
+    dmu_buf_t ***dbpp)
+{
+	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
+	dnode_t *dn;
+	int err;
+
+	DB_DNODE_ENTER(db);
+	dn = DB_DNODE(db);
+	err = dmu_buf_hold_array_by_dnode(dn, offset, length,
+	    read, tag, numbufsp, dbpp, DMU_READ_PREFETCH |
+	    DMU_READ_NO_DECOMPRESS);
+	DB_DNODE_EXIT(db);
 
 	return (err);
 }
@@ -1400,12 +1426,9 @@ dmu_read_uio_dnode(dnode_t *dn, uio_t *uio, uint64_t size)
 		uint64_t tocpy;
 		int64_t bufoff;
 		dmu_buf_t *db = dbp[i];
-
 		ASSERT(size > 0);
-
 		bufoff = uio->uio_loffset - db->db_offset;
 		tocpy = MIN(db->db_size - bufoff, size);
-
 #ifdef HAVE_UIO_ZEROCOPY
 		if (xuio) {
 			dmu_buf_impl_t *dbi = (dmu_buf_impl_t *)db;
@@ -1605,6 +1628,16 @@ dmu_request_arcbuf(dmu_buf_t *handle, int size)
 	return (arc_loan_buf(db->db_objset->os_spa, B_FALSE, size));
 }
 
+arc_buf_t *
+dmu_request_compressed_arcbuf(dmu_buf_t *handle, int psize, int lsize)
+{
+	dmu_buf_impl_t *db = (dmu_buf_impl_t *)handle;
+	spa_t *spa = db->db_objset->os_spa;
+	return (arc_loan_compressed_buf(spa,
+	    P2ROUNDUP(psize, 1ULL << spa_get_min_ashift(spa)), lsize,
+	    ZIO_COMPRESS_EXTERNAL));
+}
+
 /*
  * Free a loaned arc buffer.
  */
@@ -1663,6 +1696,40 @@ dmu_copy_from_buf(objset_t *os, uint64_t object, uint64_t offset,
 	bcopy(srcdb->db_buf->b_data, abuf->b_data, datalen);
 	dbuf_assign_arcbuf(dstdb, abuf, tx);
 	dmu_buf_rele(dst_handle, FTAG);
+}
+
+void
+dmu_assign_compressed_arcbuf(dmu_buf_t *handle, uint64_t offset,
+    uint64_t psize, arc_buf_t *buf, dmu_tx_t *tx)
+{
+	dmu_buf_impl_t *dbuf = (dmu_buf_impl_t *)handle;
+	dnode_t *dn;
+	dmu_buf_impl_t *db;
+	uint32_t blksz = (uint32_t)arc_buf_lsize(buf);
+	uint64_t blkid;
+
+	memset((char *)buf->b_data + psize, 0, arc_buf_size(buf) - psize);
+
+	DB_DNODE_ENTER(dbuf);
+	dn = DB_DNODE(dbuf);
+	rw_enter(&dn->dn_struct_rwlock, RW_READER);
+	blkid = dbuf_whichblock(dn, 0, offset);
+	VERIFY((db = dbuf_hold(dn, blkid, FTAG)) != NULL);
+	rw_exit(&dn->dn_struct_rwlock);
+	DB_DNODE_EXIT(dbuf);
+
+	/*
+	 * We can only assign if the offset is aligned, the arc buf is the
+	 * same size as the dbuf, and the dbuf is not metadata.
+	 */
+	if (offset == db->db.db_offset && blksz == db->db.db_size) {
+		dbuf_assign_arcbuf(db, buf, tx);
+		dbuf_rele(db, FTAG);
+	} else {
+		/* compressed bufs must always be assignable to their dbuf */
+		ASSERT3U(arc_get_compression(buf), ==, ZIO_COMPRESS_OFF);
+		ASSERT(!(buf->b_flags & ARC_BUF_FLAG_COMPRESSED));
+	}
 }
 
 /*
@@ -2246,6 +2313,9 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 	 * result in a new ciphertext. Only encrypted blocks can be dedup'd
 	 * to avoid ambiguity in the dedup code since the DDT does not store
 	 * object types.
+	 * If we're writing a pre-compressed buffer, the compression type we use
+	 * must match the data. If it hasn't been compressed yet, then we should
+	 * use the value dictated by the policies above.
 	 */
 	if (os->os_encrypted && (wp & WP_NOFILL) == 0) {
 		encrypt = B_TRUE;
@@ -2263,6 +2333,11 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 		}
 	}
 
+	/*
+	 * If we're writing a pre-compressed buffer, the compression type we use
+	 * must match the data. If it hasn't been compressed yet, then we should
+	 * use the value dictated by the policies above.
+	 */
 	zp->zp_compress = compress;
 	zp->zp_checksum = checksum;
 	zp->zp_type = (wp & WP_SPILL) ? dn->dn_bonustype : type;
@@ -2516,6 +2591,7 @@ dmu_fini(void)
 #if defined(_KERNEL)
 EXPORT_SYMBOL(dmu_bonus_hold);
 EXPORT_SYMBOL(dmu_buf_hold_array_by_bonus);
+EXPORT_SYMBOL(dmu_buf_hold_array_by_bonus_compressed);
 EXPORT_SYMBOL(dmu_buf_rele_array);
 EXPORT_SYMBOL(dmu_prefetch);
 EXPORT_SYMBOL(dmu_free_range);
@@ -2539,9 +2615,11 @@ EXPORT_SYMBOL(dmu_object_set_compress);
 EXPORT_SYMBOL(dmu_write_policy);
 EXPORT_SYMBOL(dmu_sync);
 EXPORT_SYMBOL(dmu_request_arcbuf);
+EXPORT_SYMBOL(dmu_request_compressed_arcbuf);
 EXPORT_SYMBOL(dmu_return_arcbuf);
 EXPORT_SYMBOL(dmu_assign_arcbuf_by_dnode);
 EXPORT_SYMBOL(dmu_assign_arcbuf_by_dbuf);
+EXPORT_SYMBOL(dmu_assign_compressed_arcbuf);
 EXPORT_SYMBOL(dmu_buf_hold);
 EXPORT_SYMBOL(dmu_ot);
 

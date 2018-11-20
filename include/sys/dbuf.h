@@ -55,6 +55,7 @@ extern "C" {
 #define	DB_RF_NEVERWAIT		(1 << 4)
 #define	DB_RF_CACHED		(1 << 5)
 #define	DB_RF_NO_DECRYPT	(1 << 6)
+#define	DB_RF_NO_DECOMPRESS	(1 << 7)
 
 /*
  * The simplified state transition diagram for dbufs looks like:
@@ -278,6 +279,7 @@ typedef struct dmu_buf_impl {
 	uint8_t db_pending_evict;
 
 	uint8_t db_dirtycnt;
+
 } dmu_buf_impl_t;
 
 /* Note: the dbuf hash table is exposed only for the mdb module */

@@ -375,6 +375,7 @@ ztest_func_t ztest_spa_checkpoint_create_discard;
 ztest_func_t ztest_fletcher;
 ztest_func_t ztest_fletcher_incr;
 ztest_func_t ztest_verify_dnode_bt;
+ztest_func_t ztest_write_external_compressed;
 
 uint64_t zopt_always = 0ULL * NANOSEC;		/* all the time */
 uint64_t zopt_incessant = 1ULL * NANOSEC / 10;	/* every 1/10 second */
@@ -428,6 +429,7 @@ ztest_info_t ztest_info[] = {
 	ZTI_INIT(ztest_fletcher, 1, &zopt_rarely),
 	ZTI_INIT(ztest_fletcher_incr, 1, &zopt_rarely),
 	ZTI_INIT(ztest_verify_dnode_bt, 1, &zopt_sometimes),
+	ZTI_INIT(ztest_write_external_compressed, 1, &zopt_always),
 };
 
 #define	ZTEST_FUNCS	(sizeof (ztest_info) / sizeof (ztest_info_t))
@@ -4880,6 +4882,76 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 	umem_free(bigbuf, bigsize);
 	umem_free(bigbuf_arcbufs, 2 * s * sizeof (arc_buf_t *));
 	umem_free(od, size);
+}
+
+void
+ztest_write_external_compressed(ztest_ds_t *zd, uint64_t id)
+{
+	int od_size;
+	ztest_od_t *od;
+	uint64_t txg;
+
+	objset_t *os = zd->zd_os;
+	od_size = sizeof (ztest_od_t);
+	od = umem_alloc(od_size, UMEM_NOFAIL);
+	// TODO Hauke Stieler: Random value currently doesn't work
+	uint64_t blocksize = 16896;//ztest_random_blocksize();
+	uint64_t psize, lsize;
+	void *data;
+	dmu_buf_t *db;
+	dmu_tx_t *tx;
+	arc_buf_t *abuf;
+
+	psize = blocksize;
+	// TODO Hauke Stieler: Random value currently doesn't work
+	lsize = psize + 1024;//(1 << (SPA_MINBLOCKSHIFT + ztest_random(5)));
+	data = umem_zalloc(psize, UMEM_NOFAIL);
+
+	ztest_od_init(od, id, FTAG, 0, DMU_OT_UINT64_OTHER, lsize, 0, 0);
+
+	/*
+	 * Fill buffer with pattern. This pattern will be chacked later to
+	 * verify that the write and read was succesfull.
+	 */
+	char *pattern = "moin";
+	for(int i = 0; i < psize; i += 4) {
+		memcpy(data + i, pattern, 4);
+	}
+
+	if (ztest_object_init(zd, od, od_size, B_FALSE) != 0) {
+		umem_free(od, od_size);
+		return;
+	}
+
+	os = zd->zd_os;
+
+	/*
+	 * TODO Hauke Stieler: Maybe find an alternative to dmu_bonus_hold_impl
+	 * that does not take the flags as parameters?
+	 */
+	VERIFY3U(0, ==, dmu_bonus_hold_impl(os, od->od_object, FTAG, DMU_READ_NO_PREFETCH | DMU_READ_NO_DECOMPRESS, &db));
+
+	abuf = dmu_request_compressed_arcbuf(db, psize, lsize);
+	bcopy(data, abuf->b_data, psize);
+
+	tx = dmu_tx_create(os);
+
+	dmu_tx_hold_write(tx, od->od_object, 0, psize);
+
+	txg = ztest_tx_assign(tx, TXG_WAIT, FTAG);
+	if (txg == 0) {
+		if (abuf != NULL)
+			dmu_return_arcbuf(abuf);
+		umem_free(od, od_size);
+		dmu_buf_rele(db, FTAG);
+		return;
+	}
+
+	dmu_assign_compressed_arcbuf(db, 0, psize, abuf, tx);
+
+	dmu_tx_commit(tx);
+
+	return;
 }
 
 /* ARGSUSED */

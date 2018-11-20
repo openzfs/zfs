@@ -2103,6 +2103,8 @@ arc_buf_fill(arc_buf_t *buf, spa_t *spa, const zbookmark_phys_t *zb,
 	boolean_t hdr_compressed =
 	    (arc_hdr_get_compress(hdr) != ZIO_COMPRESS_OFF);
 	boolean_t compressed = (flags & ARC_FILL_COMPRESSED) != 0;
+	boolean_t decompress =
+	    (arc_hdr_get_compress(hdr) != ZIO_COMPRESS_EXTERNAL);
 	boolean_t encrypted = (flags & ARC_FILL_ENCRYPTED) != 0;
 	dmu_object_byteswap_t bswap = hdr->b_l1hdr.b_byteswap;
 	kmutex_t *hash_lock = (flags & ARC_FILL_LOCKED) ? NULL : HDR_LOCK(hdr);
@@ -2205,7 +2207,7 @@ arc_buf_fill(arc_buf_t *buf, spa_t *spa, const zbookmark_phys_t *zb,
 
 			/* Previously overhead was 0; just add new overhead */
 			ARCSTAT_INCR(arcstat_overhead_size, HDR_GET_LSIZE(hdr));
-		} else if (ARC_BUF_COMPRESSED(buf)) {
+		} else if (ARC_BUF_COMPRESSED(buf) && decompress) {
 			/* We need to reallocate the buf's b_data */
 			arc_free_data_buf(hdr, buf->b_data, HDR_GET_PSIZE(hdr),
 			    buf);
@@ -2232,7 +2234,7 @@ arc_buf_fill(arc_buf_t *buf, spa_t *spa, const zbookmark_phys_t *zb,
 			/* Skip byteswapping and checksumming (already done) */
 			ASSERT3P(hdr->b_l1hdr.b_freeze_cksum, !=, NULL);
 			return (0);
-		} else {
+		} else if (decompress) {
 			error = zio_decompress_data(HDR_GET_COMPRESS(hdr),
 			    hdr->b_l1hdr.b_pabd, buf->b_data,
 			    HDR_GET_PSIZE(hdr), HDR_GET_LSIZE(hdr));
@@ -2881,6 +2883,9 @@ arc_buf_alloc_impl(arc_buf_hdr_t *hdr, spa_t *spa, const zbookmark_phys_t *zb,
 		buf->b_flags |= ARC_BUF_FLAG_ENCRYPTED;
 		flags |= ARC_FILL_COMPRESSED | ARC_FILL_ENCRYPTED;
 	} else if (compressed &&
+	    arc_hdr_get_compress(hdr) == ZIO_COMPRESS_EXTERNAL) {
+		buf->b_flags |= ARC_BUF_FLAG_COMPRESSED;
+	} else if (compressed &&
 	    arc_hdr_get_compress(hdr) != ZIO_COMPRESS_OFF) {
 		buf->b_flags |= ARC_BUF_FLAG_COMPRESSED;
 		flags |= ARC_FILL_COMPRESSED;
@@ -3360,6 +3365,7 @@ arc_hdr_alloc(uint64_t spa, int32_t psize, int32_t lsize,
 
 	ASSERT(HDR_EMPTY(hdr));
 	ASSERT3P(hdr->b_l1hdr.b_freeze_cksum, ==, NULL);
+
 	HDR_SET_PSIZE(hdr, psize);
 	HDR_SET_LSIZE(hdr, lsize);
 	hdr->b_spa = spa;
@@ -6091,6 +6097,10 @@ arc_read(zio_t *pio, spa_t *spa, const blkptr_t *bp,
 	    BPE_GET_ETYPE(bp) == BP_EMBEDDED_TYPE_DATA);
 
 top:
+	if(*arc_flags & ARC_FLAG_COMPRESSED_ARC) {
+		zio_flags |= ZIO_FLAG_RAW;
+		compressed_read = TRUE;
+	}
 	if (!BP_IS_EMBEDDED(bp)) {
 		/*
 		 * Embedded BP's have no DVA and require no I/O to "read".
