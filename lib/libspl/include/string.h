@@ -28,9 +28,56 @@
 #define	_LIBSPL_STRING_H
 
 #include_next <string.h>
+#include <sys/types.h>
 
-extern size_t strlcat(char *dst, const char *src, size_t dstsize);
-extern size_t strlcpy(char *dst, const char *src, size_t len);
-extern size_t strnlen(const char *str, size_t maxlen);
+/*
+ * Appends src to the dstsize buffer at dst. The append will never
+ * overflow the destination buffer and the buffer will always be null
+ * terminated. Never reference beyond &dst[dstsize-1] when computing
+ * the length of the pre-existing string.
+ */
+static inline size_t
+strlcat(char *dst, const char *src, size_t dstsize)
+{
+	char *df = dst;
+	size_t left = dstsize;
+	size_t l1;
+	size_t l2 = strlen(src);
+	size_t copied;
+
+	while (left-- != 0 && *df != '\0')
+		df++;
+
+	l1 = df - dst;
+
+	if (dstsize == l1)
+		return (l1 + l2);
+
+	copied = l1 + l2 >= dstsize ? dstsize - l1 - 1 : l2;
+	(void) memcpy(dst + l1, src, copied);
+	dst[l1+copied] = '\0';
+
+	return (l1 + l2);
+}
+
+/*
+ * Copies src to the dstsize buffer at dst. The copy will never
+ * overflow the destination buffer and the buffer will always be null
+ * terminated.
+ */
+static inline size_t
+strlcpy(char *dst, const char *src, size_t len)
+{
+	size_t slen = strlen(src);
+
+	if (len == 0)
+		return (slen);
+
+	size_t copied = (slen >= len) ? len - 1 : slen;
+	(void) memcpy(dst, src, copied);
+	dst[copied] = '\0';
+
+	return (slen);
+}
 
 #endif

@@ -147,7 +147,7 @@ lzc_ioctl_run(zfs_ioc_t ioc, const char *name, nvlist_t *innvl, int expected)
 	}
 
 	packed = fnvlist_pack(innvl, &size);
-	(void) strncpy(zc.zc_name, name, sizeof (zc.zc_name));
+	(void) strlcpy(zc.zc_name, name, sizeof (zc.zc_name));
 	zc.zc_name[sizeof (zc.zc_name) - 1] = '\0';
 	zc.zc_nvlist_src = (uint64_t)(uintptr_t)packed;
 	zc.zc_nvlist_src_size = size;
@@ -234,7 +234,7 @@ lzc_ioctl_test(zfs_ioc_t ioc, const char *name, nvlist_t *required,
 			char pname[MAXNAMELEN];
 			data_type_t ptype;
 
-			strncpy(pname, nvpair_name(pair), sizeof (pname));
+			strlcpy(pname, nvpair_name(pair), sizeof (pname));
 			pname[sizeof (pname) - 1] = '\0';
 			ptype = nvpair_type(pair);
 			fnvlist_remove_nvpair(input, pair);
@@ -648,7 +648,7 @@ zfs_destroy(const char *dataset)
 	zfs_cmd_t zc = {"\0"};
 	int err;
 
-	(void) strncpy(zc.zc_name, dataset, sizeof (zc.zc_name));
+	(void) strlcpy(zc.zc_name, dataset, sizeof (zc.zc_name));
 	zc.zc_name[sizeof (zc.zc_name) - 1] = '\0';
 	zc.zc_objset_type = DMU_OST_ZFS;
 	err = ioctl(zfs_fd, ZFS_IOC_DESTROY, &zc);
@@ -760,7 +760,7 @@ zfs_ioc_input_tests(const char *pool)
 		ioc_tested[ioc_skip[i] - ZFS_IOC_FIRST] = B_TRUE;
 	}
 
-	(void) strncpy(zc.zc_name, pool, sizeof (zc.zc_name));
+	(void) strlcpy(zc.zc_name, pool, sizeof (zc.zc_name));
 	zc.zc_name[sizeof (zc.zc_name) - 1] = '\0';
 
 	for (unsigned ioc = ZFS_IOC_FIRST; ioc < ZFS_IOC_LAST; ioc++) {
