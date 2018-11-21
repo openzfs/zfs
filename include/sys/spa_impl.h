@@ -392,6 +392,7 @@ struct spa {
 	uint64_t	spa_multihost;		/* multihost aware (mmp) */
 	mmp_thread_t	spa_mmp;		/* multihost mmp thread */
 
+	kmutex_t	spa_config_update_lock;	/* Lock to serialize config updates */
 	/*
 	 * spa_refcount & spa_config_lock must be the last elements
 	 * because zfs_refcount_t changes size based on compilation options.
