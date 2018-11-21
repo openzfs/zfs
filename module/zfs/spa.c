@@ -5439,8 +5439,17 @@ spa_import(char *pool, nvlist_t *config, nvlist_t *props, uint64_t flags)
 	if (spa_writeable(spa)) {
 		/*
 		 * Update the config cache to include the newly-imported pool.
+		 * We need to give away namespace lock before config update.
+		 * Since an export on this pool may be issued in parallel, It's
+		 * important to take a reference on spa before dropping the lock
 		 */
+		spa_open_ref(spa, FTAG);
+		mutex_exit(&spa_namespace_lock);
+		mutex_enter(&spa->spa_config_update_lock);
 		spa_config_update(spa, SPA_CONFIG_UPDATE_POOL);
+		mutex_exit(&spa->spa_config_update_lock);
+		mutex_enter(&spa_namespace_lock);
+		spa_close(spa, FTAG);
 	}
 
 	/*
@@ -5857,10 +5866,15 @@ spa_vdev_add(spa_t *spa, nvlist_t *nvroot)
 	 */
 	(void) spa_vdev_exit(spa, vd, txg, 0);
 
-	mutex_enter(&spa_namespace_lock);
+	/*
+	 * At this point we just need to serialize this update
+	 * within the pool and the only time we need to take the
+	 * namespace_lock is when we update the global cache
+	 */
+	mutex_enter(&spa->spa_config_update_lock);
 	spa_config_update(spa, SPA_CONFIG_UPDATE_POOL);
 	spa_event_notify(spa, NULL, NULL, ESC_ZFS_VDEV_ADD);
-	mutex_exit(&spa_namespace_lock);
+	mutex_exit(&spa->spa_config_update_lock);
 
 	return (0);
 }
@@ -6960,7 +6974,7 @@ spa_async_thread(void *arg)
 	if (tasks & SPA_ASYNC_CONFIG_UPDATE) {
 		uint64_t old_space, new_space;
 
-		mutex_enter(&spa_namespace_lock);
+		mutex_enter(&spa->spa_config_update_lock);
 		old_space = metaslab_class_get_space(spa_normal_class(spa));
 		old_space += metaslab_class_get_space(spa_special_class(spa));
 		old_space += metaslab_class_get_space(spa_dedup_class(spa));
@@ -6970,7 +6984,7 @@ spa_async_thread(void *arg)
 		new_space = metaslab_class_get_space(spa_normal_class(spa));
 		new_space += metaslab_class_get_space(spa_special_class(spa));
 		new_space += metaslab_class_get_space(spa_dedup_class(spa));
-		mutex_exit(&spa_namespace_lock);
+		mutex_exit(&spa->spa_config_update_lock);
 
 		/*
 		 * If the pool grew as a result of the config update,

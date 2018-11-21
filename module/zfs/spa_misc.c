@@ -662,6 +662,7 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	spa_set_deadman_failmode(spa, zfs_deadman_failmode);
 
 	zfs_refcount_create(&spa->spa_refcount);
+	mutex_init(&spa->spa_config_update_lock, NULL, MUTEX_DEFAULT, NULL);
 	spa_config_lock_init(spa);
 	spa_stats_init(spa);
 
@@ -805,6 +806,7 @@ spa_remove(spa_t *spa)
 	mutex_destroy(&spa->spa_suspend_lock);
 	mutex_destroy(&spa->spa_vdev_top_lock);
 	mutex_destroy(&spa->spa_feat_stats_lock);
+	mutex_destroy(&spa->spa_config_update_lock);
 
 	kmem_free(spa, sizeof (spa_t));
 }
