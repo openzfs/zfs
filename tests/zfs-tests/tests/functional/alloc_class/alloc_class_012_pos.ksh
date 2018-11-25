@@ -24,7 +24,7 @@
 
 verify_runnable "global"
 
-claim= "Removing a special device from a pool succeeds."
+claim="Removing a special device from a pool succeeds."
 
 log_assert $claim
 log_onexit cleanup

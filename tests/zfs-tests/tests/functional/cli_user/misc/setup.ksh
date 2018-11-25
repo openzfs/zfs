@@ -55,7 +55,7 @@ default_setup_noexit "$DISK" "" "volume"
 log_must zfs snapshot $TESTPOOL/$TESTFS@snap
 log_must zfs clone $TESTPOOL/$TESTFS@snap $TESTPOOL/$TESTFS/clone
 # create a file in the filesystem that isn't in the above snapshot
-touch /$TESTDIR/file.txt
+touch $TESTDIR/file.txt
 
 
 # create a non-default property and a child we can use to test inherit
@@ -116,28 +116,28 @@ then
 
 	# Now create several virtual disks to test zpool with
 
-	mkfile $MINVDEVSIZE /$TESTDIR/disk1.dat
-	mkfile $MINVDEVSIZE /$TESTDIR/disk2.dat
-	mkfile $MINVDEVSIZE /$TESTDIR/disk3.dat
-	mkfile $MINVDEVSIZE /$TESTDIR/disk-additional.dat
-	mkfile $MINVDEVSIZE /$TESTDIR/disk-export.dat
-	mkfile $MINVDEVSIZE /$TESTDIR/disk-offline.dat
-	mkfile $MINVDEVSIZE /$TESTDIR/disk-spare1.dat
-	mkfile $MINVDEVSIZE /$TESTDIR/disk-spare2.dat
+	mkfile $MINVDEVSIZE $TEST_BASE_DIR/disk1.dat
+	mkfile $MINVDEVSIZE $TEST_BASE_DIR/disk2.dat
+	mkfile $MINVDEVSIZE $TEST_BASE_DIR/disk3.dat
+	mkfile $MINVDEVSIZE $TEST_BASE_DIR/disk-additional.dat
+	mkfile $MINVDEVSIZE $TEST_BASE_DIR/disk-export.dat
+	mkfile $MINVDEVSIZE $TEST_BASE_DIR/disk-offline.dat
+	mkfile $MINVDEVSIZE $TEST_BASE_DIR/disk-spare1.dat
+	mkfile $MINVDEVSIZE $TEST_BASE_DIR/disk-spare2.dat
 
 	# and create a pool we can perform attach remove replace,
 	# etc. operations with
-	log_must zpool create $TESTPOOL.virt mirror /$TESTDIR/disk1.dat \
-	/$TESTDIR/disk2.dat /$TESTDIR/disk3.dat /$TESTDIR/disk-offline.dat \
-	spare /$TESTDIR/disk-spare1.dat
+	log_must zpool create $TESTPOOL.virt mirror $TEST_BASE_DIR/disk1.dat \
+	$TEST_BASE_DIR/disk2.dat $TEST_BASE_DIR/disk3.dat \
+	$TEST_BASE_DIR/disk-offline.dat spare $TEST_BASE_DIR/disk-spare1.dat
 
 
 	# Offline one of the disks to test online
-	log_must zpool offline $TESTPOOL.virt /$TESTDIR/disk-offline.dat
+	log_must zpool offline $TESTPOOL.virt $TEST_BASE_DIR/disk-offline.dat
 
 
 	# create an exported pool to test import
-	log_must zpool create $TESTPOOL.exported /$TESTDIR/disk-export.dat
+	log_must zpool create $TESTPOOL.exported $TEST_BASE_DIR/disk-export.dat
 	log_must zpool export $TESTPOOL.exported
 
 	set -A props $POOL_PROPS
@@ -154,8 +154,8 @@ then
 
 	# copy a v1 pool from cli_root
 	cp $STF_SUITE/tests/functional/cli_root/zpool_upgrade/blockfiles/zfs-pool-v1.dat.bz2 \
-	    /$TESTDIR
-	log_must bunzip2 /$TESTDIR/zfs-pool-v1.dat.bz2
-	log_must zpool import -d /$TESTDIR v1-pool
+	    $TEST_BASE_DIR/
+	log_must bunzip2 $TEST_BASE_DIR/zfs-pool-v1.dat.bz2
+	log_must zpool import -d $TEST_BASE_DIR/ v1-pool
 fi
 log_pass
