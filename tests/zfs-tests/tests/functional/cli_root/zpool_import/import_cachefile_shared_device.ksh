@@ -90,7 +90,7 @@ function test_shared_device
 	typeset checksum2=$(dev_checksum $sharedvdev)
 
 	if [[ $checksum1 == $checksum2 ]]; then
-		log_pos "Device hasn't been modified by original pool"
+		log_pass "Device hasn't been modified by original pool"
 	else
 		log_fail "Device has been modified by original pool." \
 		    "Checksum mismatch: $checksum1 != $checksum2."

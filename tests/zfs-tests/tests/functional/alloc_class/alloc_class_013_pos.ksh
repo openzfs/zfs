@@ -24,7 +24,7 @@
 
 verify_runnable "global"
 
-claim= "Removing a dedup device from a pool succeeds."
+claim="Removing a dedup device from a pool succeeds."
 
 log_assert $claim
 log_onexit cleanup

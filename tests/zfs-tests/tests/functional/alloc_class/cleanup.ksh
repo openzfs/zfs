@@ -21,7 +21,7 @@
 
 verify_runnable "global"
 
-pool_cleanup
+default_cleanup
 disk_cleanup
 
 log_pass
