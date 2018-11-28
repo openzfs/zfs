@@ -43,14 +43,10 @@
 #	4. Export/import the pool to ensure the cache is dropped
 #	5. Verify scrub failed until the resilver completed
 #
-# NOTES:
-#	Artificially limit the scrub speed by setting the zfs_scan_vdev_limit
-#	low in order to ensure that the scrub does not complete early.
-#
 
 function cleanup
 {
-	log_must set_tunable64 zfs_scan_vdev_limit $ZFS_SCAN_VDEV_LIMIT_DEFAULT
+	log_must set_tunable32 zfs_scan_suspend_progress 0
 	rm -f $mntpnt/extra
 }
 
@@ -61,7 +57,9 @@ log_onexit cleanup
 log_assert "Resilver prevent scrub from starting until the resilver completes"
 
 mntpnt=$(get_prop mountpoint $TESTPOOL/$TESTFS)
-log_must set_tunable64 zfs_scan_vdev_limit $ZFS_SCAN_VDEV_LIMIT_SLOW
+
+# Temporarily prevent scan progress so our test doesn't race
+log_must set_tunable32 zfs_scan_suspend_progress 1
 
 while ! is_pool_resilvering $TESTPOOL; do
 	log_must zpool detach $TESTPOOL $DISK2
@@ -74,6 +72,7 @@ done
 log_must is_pool_resilvering $TESTPOOL
 log_mustnot zpool scrub $TESTPOOL
 
+log_must set_tunable32 zfs_scan_suspend_progress 0
 while ! is_pool_resilvered $TESTPOOL; do
 	sleep 1
 done
