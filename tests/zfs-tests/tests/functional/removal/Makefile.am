@@ -21,7 +21,8 @@ dist_pkgdata_SCRIPTS = \
 	removal_remap_deadlists.ksh removal_remap.ksh \
 	removal_reservation.ksh removal_resume_export.ksh \
 	removal_sanity.ksh removal_with_add.ksh removal_with_create_fs.ksh \
-	removal_with_dedup.ksh removal_with_export.ksh \
+	removal_with_dedup.ksh removal_with_errors.ksh \
+	removal_with_export.ksh removal_with_faulted.ksh \
 	removal_with_ganging.ksh removal_with_remap.ksh \
 	removal_with_remove.ksh removal_with_scrub.ksh \
 	removal_with_send.ksh removal_with_send_recv.ksh \
