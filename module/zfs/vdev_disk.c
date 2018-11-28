@@ -139,9 +139,16 @@ bdev_max_capacity(struct block_device *bdev, uint64_t wholedisk)
 static void
 vdev_disk_error(zio_t *zio)
 {
-	zfs_dbgmsg("zio error=%d type=%d offset=%llu size=%llu flags=%x\n",
-	    zio->io_error, zio->io_type, (u_longlong_t)zio->io_offset,
-	    (u_longlong_t)zio->io_size, zio->io_flags);
+	/*
+	 * This function can be called in interrupt context, for instance while
+	 * handling IRQs coming from a misbehaving disk device; use printk()
+	 * which is safe from any context.
+	 */
+	printk(KERN_WARNING "zio pool=%s vdev=%s error=%d type=%d "
+	    "offset=%llu size=%llu flags=%x\n", spa_name(zio->io_spa),
+	    zio->io_vd->vdev_path, zio->io_error, zio->io_type,
+	    (u_longlong_t)zio->io_offset, (u_longlong_t)zio->io_size,
+	    zio->io_flags);
 }
 
 /*
