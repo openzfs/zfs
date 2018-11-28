@@ -72,6 +72,14 @@ echo -e "support or upgrade DKMS to a more current version."
 exit 1
 
 %preun
+if [ $1 -ne 0 ] ; then
+	# We're upgrading to a newer version of this package.  DKMS will
+	# automatically remove our package when it builds the new package
+	# so there's nothing to do at this step.
+	exit 0
+fi
+
+# If we're here then we're doing an uninstall (not upgrade).
 CONFIG_H="/var/lib/dkms/%{module}/%{version}/*/*/%{module}_config.h"
 SPEC_META_ALIAS="@PACKAGE@-@VERSION@-@RELEASE@"
 DKMS_META_ALIAS=`cat $CONFIG_H 2>/dev/null |
