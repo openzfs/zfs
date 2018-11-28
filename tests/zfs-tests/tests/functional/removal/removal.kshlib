@@ -62,7 +62,7 @@ function attempt_during_removal # pool disk callback [args]
 	typeset callback=$3
 
 	shift 3
-	set_tunable64 zfs_remove_max_bytes_pause 0
+	set_tunable32 zfs_removal_suspend_progress 1
 
 	log_must zpool remove $pool $disk
 
@@ -81,7 +81,7 @@ function attempt_during_removal # pool disk callback [args]
 	#
 	log_must is_pool_removing $pool
 
-	set_tunable64 zfs_remove_max_bytes_pause 18446744073709551615
+	set_tunable32 zfs_removal_suspend_progress 0
 
 	log_must wait_for_removal $pool
 	log_mustnot vdevs_in_pool $pool $disk

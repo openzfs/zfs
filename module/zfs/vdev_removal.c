@@ -122,7 +122,7 @@ int vdev_removal_max_span = 32 * 1024;
  * This is used by the test suite so that it can ensure that certain
  * actions happen while in the middle of a removal.
  */
-unsigned long zfs_remove_max_bytes_pause = -1UL;
+int zfs_removal_suspend_progress = 0;
 
 #define	VDEV_REMOVAL_ZAP_OBJS	"lzap"
 
@@ -1451,14 +1451,14 @@ spa_vdev_remove_thread(void *arg)
 
 			/*
 			 * This delay will pause the removal around the point
-			 * specified by zfs_remove_max_bytes_pause. We do this
+			 * specified by zfs_removal_suspend_progress. We do this
 			 * solely from the test suite or during debugging.
 			 */
 			uint64_t bytes_copied =
 			    spa->spa_removing_phys.sr_copied;
 			for (int i = 0; i < TXG_SIZE; i++)
 				bytes_copied += svr->svr_bytes_done[i];
-			while (zfs_remove_max_bytes_pause <= bytes_copied &&
+			while (zfs_removal_suspend_progress &&
 			    !svr->svr_thread_exit)
 				delay(hz);
 
@@ -2191,8 +2191,8 @@ MODULE_PARM_DESC(vdev_removal_max_span,
 	"Largest span of free chunks a remap segment can span");
 
 /* BEGIN CSTYLED */
-module_param(zfs_remove_max_bytes_pause, ulong, 0644);
-MODULE_PARM_DESC(zfs_remove_max_bytes_pause,
+module_param(zfs_removal_suspend_progress, int, 0644);
+MODULE_PARM_DESC(zfs_removal_suspend_progress,
 	"Pause device removal after this many bytes are copied "
 	"(debug use only - causes removal to hang)");
 /* END CSTYLED */
