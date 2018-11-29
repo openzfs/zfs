@@ -3577,7 +3577,7 @@ ztest_device_removal(ztest_ds_t *zd, uint64_t id)
 		 */
 		txg_wait_synced(spa_get_dsl(spa), 0);
 
-		while (spa->spa_vdev_removal != NULL)
+		while (spa->spa_removing_phys.sr_state == DSS_SCANNING)
 			txg_wait_synced(spa_get_dsl(spa), 0);
 	} else {
 		mutex_exit(&ztest_vdev_lock);
@@ -6981,6 +6981,26 @@ ztest_run(ztest_shared_t *zs)
 		ztest_dataset_destroy(d);
 	}
 	zs->zs_enospc_count = 0;
+
+	/*
+	 * If we were in the middle of ztest_device_removal() and were killed
+	 * we need to ensure the removal and scrub complete before running
+	 * any tests that check ztest_device_removal_active. The removal will
+	 * be restarted automatically when the spa is opened, but we need to
+	 * initate the scrub manually if it is not already in progress. Note
+	 * that we always run the scrub whenever an indirect vdev exists
+	 * because we have no way of knowing for sure if ztest_device_removal()
+	 * fully completed its scrub before the pool was reimported.
+	 */
+	if (spa->spa_removing_phys.sr_state == DSS_SCANNING ||
+	    spa->spa_removing_phys.sr_prev_indirect_vdev != -1) {
+		while (spa->spa_removing_phys.sr_state == DSS_SCANNING)
+			txg_wait_synced(spa_get_dsl(spa), 0);
+
+		(void) spa_scan(spa, POOL_SCAN_SCRUB);
+		while (dsl_scan_scrubbing(spa_get_dsl(spa)))
+			txg_wait_synced(spa_get_dsl(spa), 0);
+	}
 
 	run_threads = umem_zalloc(ztest_opts.zo_threads * sizeof (kthread_t *),
 	    UMEM_NOFAIL);

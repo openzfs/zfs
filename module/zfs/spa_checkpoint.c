@@ -462,7 +462,7 @@ spa_checkpoint_check(void *arg, dmu_tx_t *tx)
 	if (!spa_top_vdevs_spacemap_addressable(spa))
 		return (SET_ERROR(ZFS_ERR_VDEV_TOO_BIG));
 
-	if (spa->spa_vdev_removal != NULL)
+	if (spa->spa_removing_phys.sr_state == DSS_SCANNING)
 		return (SET_ERROR(ZFS_ERR_DEVRM_IN_PROGRESS));
 
 	if (spa->spa_checkpoint_txg != 0)
