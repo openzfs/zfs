@@ -2422,7 +2422,7 @@ function del_group #<group_name>
 			# Group does not exist.
 			2) return 0 ;;
 			# Name already exists as a group name
-			0) log_must groupdel $grp ;;
+			0) log_must_retry "cannot remove" 5 groupdel $grp ;;
 			*) return 1 ;;
 		esac
 	else
