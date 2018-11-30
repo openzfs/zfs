@@ -22,6 +22,28 @@
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/removal/removal.kshlib
 
+#
+# DESCRIPTION:
+#
+# This test ensures the device removal is cancelled when hard IO
+# errors are encountered during the removal process.  This is done
+# to ensure that when removing a device all of the data is copied.
+#
+# STRATEGY:
+#
+# 1. We create a pool with enough redundancy such that IO errors
+#    will not result in the pool being suspended.
+# 2. We write some test data to the pool.
+# 3. We inject READ errors in to one half of the top-level mirror-0
+#    vdev which is being removed.  Then we start the removal process.
+# 4. Verify that the injected read errors cause the removal of
+#    mirror-0 to be cancelled and that mirror-0 has not been removed.
+# 5. Clear the read fault injection.
+# 6. Repeat steps 3-6 above except inject WRITE errors on one of
+#    child vdevs in the destination mirror-1.
+# 7. Lastly verify the pool data is still intact.
+#
+
 TMPDIR=${TMPDIR:-$TEST_BASE_DIR}
 DISK0=$TMPDIR/dsk0
 DISK1=$TMPDIR/dsk1
@@ -80,7 +102,8 @@ log_must wait_for_removing_cancel $TESTPOOL
 log_must vdevs_in_pool $TESTPOOL mirror-0
 log_must zinject -c all
 
-log_must dd if=/$TESTDIR/$TESTFILE0 of=/dev/null
+log_must dd if=$TESTDIR/$TESTFILE0 of=/dev/null
 log_must [ "x$(<$TESTDIR/$TESTFILE0)" = "x$FILE_CONTENTS" ]
+log_must dd if=$TESTDIR/$TESTFILE1 of=/dev/null
 
 log_pass "Device not removed due to unexpected errors."

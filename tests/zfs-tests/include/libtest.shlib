@@ -1936,13 +1936,15 @@ function verify_filesys # pool filesystem dir
 #
 function verify_pool
 {
-	log_must zpool scrub $TESTPOOL
-	log_must wait_scrubbed $TESTPOOL
+	typeset pool=${1:-$TESTPOOL}
 
-	cksum=$(zpool status $TESTPOOL | awk 'L{print $NF;L=0} /CKSUM$/{L=1}')
+	log_must zpool scrub $pool
+	log_must wait_scrubbed $pool
+
+	cksum=$(zpool status $pool | awk 'L{print $NF;L=0} /CKSUM$/{L=1}')
 	if [[ $cksum != 0 ]]; then
 		log_must zpool status -v
-	        log_fail "Unexpected CKSUM errors found on $TESTPOOL ($cksum)"
+	        log_fail "Unexpected CKSUM errors found on $pool ($cksum)"
 	fi
 }
 
