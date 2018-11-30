@@ -840,7 +840,7 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 	    offsetof(dmu_buf_impl_t, db_link));
 	odn->dn_dbufs_count = 0;
 	odn->dn_bonus = NULL;
-	odn->dn_zfetch.zf_dnode = NULL;
+	dmu_zfetch_fini(&odn->dn_zfetch);
 
 	/*
 	 * Set the low bit of the objset pointer to ensure that dnode_move()
