@@ -3042,6 +3042,9 @@ function vdevs_in_pool
 
 	shift
 
+	# We could use 'zpool list' to only get the vdevs of the pool but we
+	# can't reference a mirror/raidz vdev using its ID (i.e mirror-0),
+	# therefore we use the 'zpool status' output.
 	typeset tmpfile=$(mktemp)
 	zpool status -v "$pool" | grep -A 1000 "config:" >$tmpfile
 	for vdev in $@; do

@@ -830,10 +830,11 @@ spa_vdev_copy_segment_read_done(zio_t *zio)
 {
 	vdev_copy_arg_t *vca = zio->io_private;
 
-	mutex_enter(&vca->vca_lock);
-	if (zio->io_error != 0)
+	if (zio->io_error != 0) {
+		mutex_enter(&vca->vca_lock);
 		vca->vca_read_error_bytes += zio->io_size;
-	mutex_exit(&vca->vca_lock);
+		mutex_exit(&vca->vca_lock);
+	}
 
 	zio_nowait(zio_unique_parent(zio));
 }
@@ -907,8 +908,7 @@ spa_vdev_copy_one_child(vdev_copy_arg_t *vca, zio_t *nzio,
 		 * Source and dest are both mirrors.  Copy from the same
 		 * child id as we are copying to (wrapping around if there
 		 * are more dest children than source children).  If the
-		 * preferred source child is unreadable select another,
-		 * there will always be at least one readable source child.
+		 * preferred source child is unreadable select another.
 		 */
 		for (int i = 0; i < source_vd->vdev_children; i++) {
 			source_child_vd = source_vd->vdev_child[
@@ -920,6 +920,12 @@ spa_vdev_copy_one_child(vdev_copy_arg_t *vca, zio_t *nzio,
 		source_child_vd = source_vd;
 	}
 
+	/*
+	 * There should always be at least one readable source child or
+	 * the pool would be in a suspended state.  Somehow selecting an
+	 * unreadable child would result in IO errors, the removal process
+	 * being cancelled, and the pool reverting to its pre-removal state.
+	 */
 	ASSERT3P(source_child_vd, !=, NULL);
 
 	zio_t *write_zio = zio_vdev_child_io(nzio, NULL,
