@@ -2522,15 +2522,15 @@ dump_dir(objset_t *os)
 	(void) printf("\tPercent empty: %10lf\n",
 	    (double)(max_slot_used - total_slots_used)*100 /
 	    (double)max_slot_used);
-
-	ASSERT3U(object_count, ==, usedobjs);
-
 	(void) printf("\n");
 
 	if (error != ESRCH) {
 		(void) fprintf(stderr, "dmu_object_next() = %d\n", error);
 		abort();
 	}
+
+	ASSERT3U(object_count, ==, usedobjs);
+
 	if (leaked_objects != 0) {
 		(void) printf("%d potentially leaked objects detected\n",
 		    leaked_objects);
