@@ -255,7 +255,7 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 	AS_IF([test "$utsrelease"], [
 		kernsrcver=`(echo "#include <$utsrelease>";
 		             echo "kernsrcver=UTS_RELEASE") |
-		             cpp -I $kernelbuild/include |
+		             ${CPP} -I $kernelbuild/include - |
 		             grep "^kernsrcver=" | cut -d \" -f 2`
 
 		AS_IF([test -z "$kernsrcver"], [
@@ -420,7 +420,7 @@ AC_DEFUN([ZFS_AC_SPL], [
 
 		splsrcver=`(echo "#include <spl_config.h>";
 		            echo "splsrcver=SPL_META_VERSION-SPL_META_RELEASE") |
-		            cpp -I $splbuild |
+		            ${CPP} -I $splbuild - |
 		            grep "^splsrcver=" | tr -d \" | cut -d= -f2`
 	])
 
