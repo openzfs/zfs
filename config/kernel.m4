@@ -275,7 +275,7 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 	AS_IF([test "$utsrelease"], [
 		kernsrcver=`(echo "#include <$utsrelease>";
 		             echo "kernsrcver=UTS_RELEASE") |
-		             cpp -I $kernelbuild/include |
+		             ${CPP} -I $kernelbuild/include - |
 		             grep "^kernsrcver=" | cut -d \" -f 2`
 
 		AS_IF([test -z "$kernsrcver"], [
