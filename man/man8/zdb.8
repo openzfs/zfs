@@ -23,7 +23,7 @@
 .Nd display zpool debugging and consistency information
 .Sh SYNOPSIS
 .Nm
-.Op Fl AbcdDFGhikLMPsvX
+.Op Fl AbcdDFGhikLMPsvXY
 .Op Fl e Oo Fl V Oc Op Fl p Ar path ...
 .Op Fl I Ar inflight I/Os
 .Oo Fl o Ar var Ns = Ns Ar value Oc Ns ...
@@ -50,7 +50,7 @@
 .Ar device
 .Nm
 .Fl m
-.Op Fl AFLPX
+.Op Fl AFLPXY
 .Op Fl e Oo Fl V Oc Op Fl p Ar path ...
 .Op Fl t Ar txg
 .Op Fl U Ar cache
@@ -349,6 +349,10 @@ Attempt
 transaction rewind, that is attempt the same recovery as
 .Fl F
 but read transactions otherwise deemed too old.
+.It Fl Y
+Attempt all possible combinations when reconstructing indirect split blocks.
+This flag disables the individual I/O deadman timer in order to allow as
+much time as required for the attempted reconstruction.
 .El
 .Pp
 Specifying a display option more than once enables verbosity for only that

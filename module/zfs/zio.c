@@ -4323,7 +4323,7 @@ zio_done(zio_t *zio)
 {
 	/*
 	 * Always attempt to keep stack usage minimal here since
-	 * we can be called recurisvely up to 19 levels deep.
+	 * we can be called recursively up to 19 levels deep.
 	 */
 	const uint64_t psize = zio->io_size;
 	zio_t *pio, *pio_next;
