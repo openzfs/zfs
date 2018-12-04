@@ -423,9 +423,14 @@ is_mounted()
 	mount | \
 	    while read line; do
 		if echo "$line" | grep -q " on $mntpt "; then
-		    return 0
+		    # returns:
+		    #   0 on unsuccessful match
+		    #   1 on a successful match
+		    return 1
 		fi
 	    done
 
-	return 1
+	# The negation will flip the subshell return result where the default
+	# return value is 0 when a match is not found.
+	return $(( !$? ))
 }

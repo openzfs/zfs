@@ -437,6 +437,12 @@ zprop_width(int prop, boolean_t *fixed, zfs_type_t type)
 		 */
 		if (prop == ZFS_PROP_CREATION)
 			*fixed = B_FALSE;
+		/*
+		 * 'health' is handled specially because it's a number
+		 * internally, but displayed as a fixed 8 character string.
+		 */
+		if (prop == ZPOOL_PROP_HEALTH)
+			ret = 8;
 		break;
 	case PROP_TYPE_INDEX:
 		idx = prop_tbl[prop].pd_table;
