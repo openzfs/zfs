@@ -1985,6 +1985,22 @@ Use \fB1\fR for yes and \fB0\fR for no (default).
 .sp
 .ne 2
 .na
+\fBzfs_removal_ignore_errors\fR (int)
+.ad
+.RS 12n
+.sp
+Ignore hard IO errors during device removal.  When set, if a device encounters
+a hard IO error during the removal process the removal will not be cancelled.
+This can result in a normally recoverable block becoming permanently damaged
+and is not recommended.  This should only be used as a last resort when the
+pool cannot be returned to a healthy state prior to removing the device.
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_resilver_min_time_ms\fR (int)
 .ad
 .RS 12n

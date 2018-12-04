@@ -27,7 +27,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd April 27, 2018
+.Dd November 29, 2018
 .Dt ZPOOL 8 SMM
 .Os Linux
 .Sh NAME
@@ -1942,8 +1942,9 @@ In this case, the
 command initiates the removal and returns, while the evacuation continues in
 the background.
 The removal progress can be monitored with
-.Nm zpool Cm status.
-The
+.Nm zpool Cm status .
+If an IO error is encountered during the removal process it will be
+cancelled. The
 .Sy device_removal
 feature flag must be enabled to remove a top-level vdev, see
 .Xr zpool-features 5 .
