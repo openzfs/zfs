@@ -141,6 +141,8 @@ function test_removal_with_operation # callback [args]
 
 	kill $killpid
 	wait
+
+	verify_pool $TESTPOOL
 }
 
 #

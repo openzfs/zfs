@@ -207,7 +207,7 @@ tests = ['zfs_receive_001_pos', 'zfs_receive_002_pos', 'zfs_receive_003_pos',
     'zfs_receive_013_pos', 'zfs_receive_014_pos', 'zfs_receive_015_pos',
     'receive-o-x_props_override', 'zfs_receive_from_encrypted',
     'zfs_receive_to_encrypted', 'zfs_receive_raw',
-    'zfs_receive_raw_incremental']
+    'zfs_receive_raw_incremental', 'zfs_receive_-e']
 tags = ['functional', 'cli_root', 'zfs_receive']
 
 [tests/functional/cli_root/zfs_remap]
@@ -753,9 +753,9 @@ tests = ['removal_all_vdev', 'removal_check_space',
     'removal_remap', 'removal_remap_deadlists',
     'removal_resume_export', 'removal_sanity', 'removal_with_add',
     'removal_with_create_fs', 'removal_with_dedup',
-    'removal_with_export', 'removal_with_ganging',
-    'removal_with_remap', 'removal_with_remove',
-    'removal_with_scrub', 'removal_with_send',
+    'removal_with_errors', 'removal_with_export',
+    'removal_with_ganging', 'removal_with_faulted', 'removal_with_remap',
+    'removal_with_remove', 'removal_with_scrub', 'removal_with_send',
     'removal_with_send_recv', 'removal_with_snapshot',
     'removal_with_write', 'removal_with_zdb', 'remove_expanded',
     'remove_mirror', 'remove_mirror_sanity', 'remove_raidz']
