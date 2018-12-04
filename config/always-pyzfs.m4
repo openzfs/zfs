@@ -116,7 +116,7 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_PYZFS], [
 	AC_SUBST([PYZFS_ENABLED], [$enable_pyzfs])
 
 	AS_IF([test "x$enable_pyzfs" = xyes], [
-		DEFINE_PYZFS='--define "_pyzfs 1"'
+		DEFINE_PYZFS='--with pyzfs'
 	],[
 		DEFINE_PYZFS=''
 	])

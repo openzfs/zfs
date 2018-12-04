@@ -52,6 +52,7 @@
 %bcond_with    debuginfo
 %bcond_with    asan
 %bcond_with    systemd
+%bcond_with    pyzfs
 
 # Python permits the !/usr/bin/python shebang for scripts that are cross
 # compatible between python2 and python3, but Fedora 28 does not.  Fedora
@@ -240,7 +241,7 @@ Requires:       grep
 This package contains a dracut module used to construct an initramfs
 image which is ZFS aware.
 
-%if 0%{?_pyzfs}
+%if %{with pyzfs}
 %package -n pyzfs
 Summary:        Python wrapper for libzfs_core
 Group:          Development/Languages/Python
@@ -252,6 +253,7 @@ Requires:       libffi
 Requires:       python >= 2.7
 Requires:       python-cffi
 %if 0%{?rhel}%{?fedora}%{?suse_version}
+BuildRequires:  python-cffi
 BuildRequires:  python-devel
 BuildRequires:  libffi-devel
 %endif
@@ -292,6 +294,12 @@ image which is ZFS aware.
     %define asan --disable-asan
 %endif
 
+%if %{with pyzfs}
+    %define pyzfs --enable-pyzfs
+%else
+    %define pyzfs --disable-pyzfs
+%endif
+
 %if 0%{?_systemd}
     %define systemd --enable-systemd --with-systemdunitdir=%{_unitdir} --with-systemdpresetdir=%{_presetdir} --with-systemdmodulesloaddir=%{_modulesloaddir} --with-systemdgeneratordir=%{_systemdgeneratordir} --disable-sysvinit
     %define systemd_svcs zfs-import-cache.service zfs-import-scan.service zfs-mount.service zfs-share.service zfs-zed.service zfs.target zfs-import.target
@@ -311,6 +319,7 @@ image which is ZFS aware.
     %{debug} \
     %{debuginfo} \
     %{asan} \
+    %{pyzfs} \
     %{systemd}
 make %{?_smp_mflags}
 
@@ -426,7 +435,7 @@ systemctl --system daemon-reload >/dev/null || true
 %doc contrib/dracut/README.dracut.markdown
 %{_dracutdir}/modules.d/*
 
-%if 0%{?_pyzfs}
+%if %{with pyzfs}
 %files -n pyzfs
 %doc contrib/pyzfs/README
 %doc contrib/pyzfs/LICENSE
