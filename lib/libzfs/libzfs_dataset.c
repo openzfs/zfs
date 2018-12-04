@@ -3809,11 +3809,6 @@ zfs_create(libzfs_handle_t *hdl, const char *path, zfs_type_t type,
 			    "no such parent '%s'"), parent);
 			return (zfs_error(hdl, EZFS_NOENT, errbuf));
 
-		case EINVAL:
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "parent '%s' is not a filesystem"), parent);
-			return (zfs_error(hdl, EZFS_BADTYPE, errbuf));
-
 		case ENOTSUP:
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "pool must be upgraded to set this "

@@ -38,7 +38,8 @@ from ._constants import (
     ZFS_ERR_DISCARDING_CHECKPOINT,
     ZFS_ERR_NO_CHECKPOINT,
     ZFS_ERR_DEVRM_IN_PROGRESS,
-    ZFS_ERR_VDEV_TOO_BIG
+    ZFS_ERR_VDEV_TOO_BIG,
+    ZFS_ERR_WRONG_PARENT
 )
 
 
@@ -46,13 +47,14 @@ def lzc_create_translate_error(ret, name, ds_type, props):
     if ret == 0:
         return
     if ret == errno.EINVAL:
-        # XXX: should raise lzc_exc.WrongParent if parent is ZVOL
         _validate_fs_name(name)
         raise lzc_exc.PropertyInvalid(name)
     if ret == errno.EEXIST:
         raise lzc_exc.FilesystemExists(name)
     if ret == errno.ENOENT:
         raise lzc_exc.ParentNotFound(name)
+    if ret == ZFS_ERR_WRONG_PARENT:
+        raise lzc_exc.WrongParent(_fs_name(name))
     raise _generic_exception(ret, name, "Failed to create filesystem")
 
 
@@ -444,6 +446,8 @@ def lzc_receive_translate_errors(
         raise lzc_exc.SuspendedPool(_pool_name(snapname))
     if ret == errno.EBADE:  # ECKSUM
         raise lzc_exc.BadStream()
+    if ret == ZFS_ERR_WRONG_PARENT:
+        raise lzc_exc.WrongParent(_fs_name(snapname))
 
     raise lzc_exc.StreamIOError(ret)
 
@@ -596,6 +600,8 @@ def lzc_rename_translate_error(ret, source, target):
         raise lzc_exc.FilesystemExists(target)
     if ret == errno.ENOENT:
         raise lzc_exc.FilesystemNotFound(source)
+    if ret == ZFS_ERR_WRONG_PARENT:
+        raise lzc_exc.WrongParent(target)
     raise _generic_exception(ret, source, "Failed to rename dataset")
 
 
