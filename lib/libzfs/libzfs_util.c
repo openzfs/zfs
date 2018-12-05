@@ -907,10 +907,10 @@ libzfs_load_module(const char *module)
 		if (load) {
 			if (libzfs_run_process("/sbin/modprobe", argv, 0))
 				return (ENOEXEC);
-
-			if (!libzfs_module_loaded(module))
-				return (ENXIO);
 		}
+
+		if (!libzfs_module_loaded(module))
+			return (ENXIO);
 	}
 
 	/*
