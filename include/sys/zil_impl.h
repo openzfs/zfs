@@ -47,10 +47,11 @@ extern "C" {
  * via zil_lwb_write_issue(). Again, the zilog's "zl_issuer_lock" must
  * be held when making this transition.
  *
- * After the lwb's zio completes, and the vdev's are flushed, the lwb
- * will transition into the "done" state via zil_lwb_write_done(). When
- * transitioning from "issued" to "done", the zilog's "zl_lock" must be
- * held, *not* the "zl_issuer_lock".
+ * After the lwb's write zio completes, it transitions into the "write
+ * done" state via zil_lwb_write_done(); and then into the "flush done"
+ * state via zil_lwb_flush_vdevs_done(). When transitioning from
+ * "issued" to "write done", and then from "write done" to "flush done",
+ * the zilog's "zl_lock" must be held, *not* the "zl_issuer_lock".
  *
  * The zilog's "zl_issuer_lock" can become heavily contended in certain
  * workloads, so we specifically avoid acquiring that lock when
@@ -67,13 +68,14 @@ extern "C" {
  * "zl_issuer_lock" will prevent a concurrent thread from transitioning
  * that lwb to the "issued" state. Likewise, if an lwb is already in the
  * "issued" state, holding the "zl_lock" will prevent a concurrent
- * thread from transitioning that lwb to the "done" state.
+ * thread from transitioning that lwb to the "write done" state.
  */
 typedef enum {
     LWB_STATE_CLOSED,
     LWB_STATE_OPENED,
     LWB_STATE_ISSUED,
-    LWB_STATE_DONE,
+    LWB_STATE_WRITE_DONE,
+    LWB_STATE_FLUSH_DONE,
     LWB_NUM_STATES
 } lwb_state_t;
 

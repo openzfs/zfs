@@ -1031,6 +1031,7 @@ out:
 #endif
 }
 
+/* ARGSUSED */
 static void
 zvol_get_done(zgd_t *zgd, int error)
 {
@@ -1038,9 +1039,6 @@ zvol_get_done(zgd_t *zgd, int error)
 		dmu_buf_rele(zgd->zgd_db, zgd);
 
 	rangelock_exit(zgd->zgd_lr);
-
-	if (error == 0 && zgd->zgd_bp)
-		zil_lwb_add_block(zgd->zgd_lwb, zgd->zgd_bp);
 
 	kmem_free(zgd, sizeof (zgd_t));
 }
