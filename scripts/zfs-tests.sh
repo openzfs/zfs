@@ -35,6 +35,7 @@ QUIET=
 CLEANUP="yes"
 CLEANUPALL="no"
 LOOPBACK="yes"
+STACK_TRACER="no"
 FILESIZE="4G"
 RUNFILE=${RUNFILE:-"linux.run"}
 FILEDIR=${FILEDIR:-/var/tmp}
@@ -254,7 +255,7 @@ constrain_path() {
 usage() {
 cat << EOF
 USAGE:
-$0 [hvqxkf] [-s SIZE] [-r RUNFILE] [-t PATH] [-u USER]
+$0 [hvqxkfS] [-s SIZE] [-r RUNFILE] [-t PATH] [-u USER]
 
 DESCRIPTION:
 	ZFS Test Suite launch script
@@ -266,6 +267,7 @@ OPTIONS:
 	-x          Remove all testpools, dm, lo, and files (unsafe)
 	-k          Disable cleanup after test failure
 	-f          Use files only, disables block device tests
+	-S          Enable stack tracer (negative performance impact)
 	-c          Only create and populate constrained path
 	-I NUM      Number of iterations
 	-d DIR      Use DIR for files and loopback devices
@@ -289,7 +291,7 @@ $0 -x
 EOF
 }
 
-while getopts 'hvqxkfcd:s:r:?t:T:u:I:' OPTION; do
+while getopts 'hvqxkfScd:s:r:?t:T:u:I:' OPTION; do
 	case $OPTION in
 	h)
 		usage
@@ -310,6 +312,9 @@ while getopts 'hvqxkfcd:s:r:?t:T:u:I:' OPTION; do
 		;;
 	f)
 		LOOPBACK="no"
+		;;
+	S)
+		STACK_TRACER="yes"
 		;;
 	c)
 		constrain_path
@@ -449,7 +454,11 @@ constrain_path
 #
 # Verify the ZFS module stack is loaded.
 #
-sudo "${ZFS_SH}" &>/dev/null
+if [ "$STACK_TRACER" = "yes" ]; then
+	sudo "${ZFS_SH}" -S &>/dev/null
+else
+	sudo "${ZFS_SH}" &>/dev/null
+fi
 
 #
 # Attempt to cleanup all previous state for a new test run.
@@ -561,6 +570,7 @@ msg "NUM_DISKS:       $NUM_DISKS"
 msg "FILESIZE:        $FILESIZE"
 msg "ITERATIONS:      $ITERATIONS"
 msg "TAGS:            $TAGS"
+msg "STACK_TRACER:    $STACK_TRACER"
 msg "Keep pool(s):    $KEEP"
 msg "Missing util(s): $STF_MISSING_BIN"
 msg ""
