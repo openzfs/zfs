@@ -38,6 +38,19 @@ defined by udev.  This may be an absolute path or the base filename.
 Maps a physical path to a channel name (typically representing a single
 disk enclosure).
 
+.TP
+\fIenclosure_symlinks\fR <yes|no>
+Additionally create /dev/by-enclosure symlinks to the disk enclosure
+sg devices using the naming scheme from from vdev_id.conf.
+\fIenclosure_symlinks\fR is only allowed for sas_direct mode.
+.TP
+\fIenclosure_symlinks_prefix\fR <prefix>
+Specify the prefix for the enclosure symlinks in the form of:
+
+/dev/by-enclosure/<prefix>-<channel><num>
+
+Defaults to "enc" if not specified.
+.TP
 \fIpci_slot\fR - specifies the PCI SLOT of the HBA
 hosting the disk enclosure being mapped, as found in the output of
 .BR lspci (8).
@@ -167,6 +180,27 @@ definitions - one per physical path.
 	channel 85:00.0  0         B
 	channel 86:00.0  1         A
 	channel 86:00.0  0         B
+.fi
+.P
+A configuration with enclosure_symlinks enabled.
+.P
+.nf
+	multipath yes
+	enclosure_symlinks yes
+
+	#          PCI_ID      HBA PORT     CHANNEL NAME
+	channel    05:00.0     1            U
+	channel    05:00.0     0            L
+	channel    06:00.0     1            U
+	channel    06:00.0     0            L
+.fi
+In addition to the disks symlinks, this configuration will create:
+.P
+.nf
+	/dev/by-enclosure/enc-L0
+	/dev/by-enclosure/enc-L1
+	/dev/by-enclosure/enc-U0
+	/dev/by-enclosure/enc-U1
 .fi
 .P
 A configuration using device link aliases.
