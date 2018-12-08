@@ -33,6 +33,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <locale.h>
 #include <sys/zfs_context.h>
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
@@ -41,15 +42,22 @@
 #include <sys/zfs_znode.h>
 #include <sys/dsl_synctask.h>
 #include <sys/vdev.h>
+#include <sys/vdev_impl.h>
 #include <sys/fs/zfs.h>
 #include <sys/dmu_objset.h>
 #include <sys/dsl_pool.h>
+#include <sys/dsl_scan.h>
 #include <sys/zio_checksum.h>
 #include <sys/zio_compress.h>
 #include <sys/zfeature.h>
 #include <sys/dmu_tx.h>
 #include <zfeature_common.h>
+#include <libzfs.h>
 #include <libzutil.h>
+
+extern int reference_tracking_enable;
+extern int zfs_txg_timeout;
+extern boolean_t zfeature_checks_disable;
 
 const char cmdname[] = "zhack";
 static importargs_t g_importargs;
@@ -76,7 +84,12 @@ usage(void)
 	    "        -d decrease instead of increase the refcount\n"
 	    "        -m add the feature to the label if increasing refcount\n"
 	    "\n"
-	    "    <feature> : should be a feature guid\n");
+	    "      <feature> : should be a feature guid\n"
+	    "\n"
+	    "    scrub [-EPRTnprsv] [-D ddt_class]\n"
+	    "          [-G gap] [-H hard_factor] [-M physmem]\n"
+	    "          [-O optkey=value]* [-S soft_fact] [-i ckpt_interval]\n"
+	    "          [-t scan_op_time] [-x txg_timeout] <pool>\n");
 	exit(1);
 }
 
@@ -470,6 +483,489 @@ zhack_do_feature(int argc, char **argv)
 	return (0);
 }
 
+static void
+zhack_print_vdev(spa_t *spa, const char *name, nvlist_t *nv, int depth)
+{
+	nvlist_t **child;
+	uint_t c, children;
+
+	vdev_stat_t *vs;
+
+	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
+	    &child, &children) != 0)
+		children = 0;
+
+	if (nvlist_lookup_uint64_array(nv, ZPOOL_CONFIG_VDEV_STATS,
+	    (uint64_t **)&vs, &c) == 0) {
+		(void) fprintf(stderr, "  %*s%s %s\t"
+		    "er=%" PRIu64 " ew=%" PRIu64 " ec=%" PRIu64,
+		    depth, "", name,
+		    zpool_state_to_name(vs->vs_state, vs->vs_aux),
+		    vs->vs_read_errors, vs->vs_write_errors,
+		    vs->vs_checksum_errors);
+	} else {
+		(void) fprintf(stderr, "\t%*s%s (No status)",
+		    depth, "", name);
+	}
+
+	if (children == 0) {
+		uint64_t guid;
+
+		VERIFY0(nvlist_lookup_uint64(nv, ZPOOL_CONFIG_GUID, &guid));
+
+		spa_vdev_state_enter(spa, SCL_NONE);
+		vdev_t *vd = spa_lookup_by_guid(spa, guid, B_TRUE);
+		VERIFY(vd != NULL);
+
+		/*
+		 * See vdev_resilver_needed; we skip the vdev_writeable test
+		 * because this is just for printout (and it might be useful to
+		 * show the DTLs for OFFLINE/UNAVAIL devices).
+		 */
+		mutex_enter(&vd->vdev_dtl_lock);
+
+		boolean_t hasdtl =
+		    !range_tree_is_empty(vd->vdev_dtl[DTL_MISSING]);
+
+		if (hasdtl) {
+			uint64_t dtlmin, dtlmax;
+
+			dtlmin = range_tree_min(vd->vdev_dtl[DTL_MISSING]) - 1;
+			dtlmax = range_tree_max(vd->vdev_dtl[DTL_MISSING]);
+
+			(void) fprintf(stderr, " dtl=[%" PRIu64 ",%" PRIu64 "]",
+			    dtlmin, dtlmax);
+		}
+
+		mutex_exit(&vd->vdev_dtl_lock);
+		spa_vdev_state_exit(spa, NULL, 0);
+	}
+
+	(void) fprintf(stderr, "\n");
+
+	for (c = 0; c < children; c++) {
+		char *vname;
+
+		vname = zpool_vdev_name(NULL, NULL, child[c],
+		    VDEV_NAME_TYPE_ID);
+		zhack_print_vdev(spa, vname, child[c], depth + 2);
+		free(vname);
+	}
+}
+
+static void
+zhack_print_spa_vdevs(spa_t *spa)
+{
+	nvlist_t *nvroot;
+	nvlist_t *config;
+
+	config = spa_config_generate(spa, NULL, -1, 1);
+	VERIFY(config);
+
+	VERIFY0(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE, &nvroot));
+	zhack_print_vdev(spa, g_importargs.poolname, nvroot, 0);
+
+	nvlist_free(config);
+}
+
+static boolean_t
+zhack_scrub_optu64(char *arg, uint64_t *v)
+{
+	char *endptr = NULL;
+
+	*v = strtoul(arg, &endptr, 0);
+	return (errno == 0) && (*endptr == '\0');
+}
+
+static int
+zhack_do_scrub(int argc, char **argv)
+{
+	int verbose = 0;
+	int do_ddt_reset = 0;
+	int do_resilver = 0;
+	int do_restart = 0;
+	int do_pause_stop = 0;
+	int no_spawn = 0;
+	spa_t *spa = NULL;
+	int c;
+	uint64_t scan_op_time = 0;
+
+	(void) setlocale(LC_ALL, "");
+
+	/* Disable reference tracking debugging */
+	reference_tracking_enable = B_FALSE;
+
+	/* Disable prefetch during scan */
+	zfs_no_scrub_prefetch = B_TRUE;
+
+	while ((c = getopt(argc, argv, "D:EG:H:M:O:PRS:Ti:nprst:vx:")) != -1) {
+		switch (c) {
+		case 'D':
+			/* How much of the DDT are we scanning? */
+		{
+			uint64_t class;
+			if (zhack_scrub_optu64(optarg, &class) &&
+			    (class < DDT_CLASSES)) {
+				zfs_scrub_ddt_class_max = class;
+			} else {
+				fatal(NULL, FTAG, "DDT class must be between "
+				    "0 and %d, inclusive", DDT_CLASSES-1);
+			}
+		}
+		break;
+		case 'E':
+			/* Forcibly reset DDT class max after import */
+			do_ddt_reset++;
+			break;
+		case 'G':
+		{
+			uint64_t gap;
+			if (zhack_scrub_optu64(optarg, &gap)) {
+				zfs_scan_max_ext_gap = gap;
+			} else {
+				fatal(NULL, FTAG, "Bad range tree gap (-G)");
+			}
+		}
+		break;
+		case 'H':
+		{
+			uint64_t fact;
+			if (zhack_scrub_optu64(optarg, &fact) &&
+			    (fact >= 1) && (fact <= 1000)) {
+				zfs_scan_mem_lim_fact = fact;
+			} else {
+				fatal(NULL, FTAG, "Bad hard factor (-H)");
+			}
+		}
+		break;
+		case 'M':
+		{
+			uint64_t mem;
+			if (zhack_scrub_optu64(optarg, &mem) &&
+			    (mem >= (1 << 15)) &&
+			    (mem <= sysconf(_SC_PHYS_PAGES))) {
+				physmem = mem;
+			} else {
+				fatal(NULL, FTAG,
+				    "Bad physical memory override (-M)");
+			}
+		}
+		break;
+		case 'O':
+			if (set_global_var(optarg) != 0)
+				usage();
+			break;
+		case 'P':
+			zfs_no_scrub_prefetch = B_FALSE;
+			break;
+		case 'R':
+			do_restart++;
+			break;
+		case 'S':
+		{
+			uint64_t fact;
+			if (zhack_scrub_optu64(optarg, &fact) &&
+			    (fact >= 1) &&
+			    (fact <= 1000)) {
+				zfs_scan_mem_lim_soft_fact = fact;
+			} else {
+				fatal(NULL, FTAG, "Bad soft factor (-S)");
+			}
+		}
+		break;
+		case 'T':
+			reference_tracking_enable = B_TRUE;
+			break;
+		case 'i':
+		{
+			extern int zfs_scan_checkpoint_intval;
+			uint64_t intval;
+			if (zhack_scrub_optu64(optarg, &intval)) {
+				zfs_scan_checkpoint_intval = intval;
+			} else {
+				fatal(NULL, FTAG, "Bad scan interval (-i)");
+			}
+		}
+		break;
+		case 'n':
+			no_spawn++;
+			break;
+		case 'p':
+			do_pause_stop = 1;
+			break;
+		case 'r':
+			do_resilver++;
+			break;
+		case 's':
+			do_pause_stop = 2;
+			break;
+		case 't':
+			if (!zhack_scrub_optu64(optarg, &scan_op_time)) {
+				fatal(NULL, FTAG, "Bad scan op time (-t)");
+			}
+		case 'v':
+			verbose++;
+			break;
+		case 'x':
+		{
+			uint64_t intval;
+			if (zhack_scrub_optu64(optarg, &intval) &&
+			    (intval > 4)) {
+				zfs_txg_timeout = intval;
+			} else {
+				fatal(NULL, FTAG, "Bad txg timeout (-x)");
+			}
+		}
+		break;
+		case '?':
+			fatal(NULL, FTAG, "invalid option '%c'", optopt);
+		}
+	}
+
+	if (optind == argc) {
+		fatal(NULL, FTAG, "Need pool name");
+	}
+	if (optind + 1 < argc) {
+		(void) fprintf(stderr,
+		    "WARNING: Discarding excess arguments\n");
+	}
+	if (no_spawn && (do_resilver || do_restart)) {
+		fatal(NULL, FTAG, "-n is incompatible with -[Rr]");
+	}
+
+	if ((scan_op_time != 0) && (((int)scan_op_time) < 1000)) {
+		fatal(NULL, FTAG, "Bad scan op time (-t)");
+	}
+
+	if (verbose && (g_importargs.paths != 0)) {
+		int sdix = 0;
+		(void) fprintf(stderr, "Will search:\n");
+		for (sdix = 0; sdix < g_importargs.paths; sdix++) {
+			(void) fprintf(stderr, "\t%s\n",
+			    g_importargs.path[sdix]);
+		}
+	}
+
+	g_importargs.poolname = argv[optind];
+	zhack_spa_open(argv[optind], B_FALSE, FTAG, &spa);
+
+	if (verbose) {
+		(void) fprintf(stderr, "Found pool; vdev tree:\n");
+		zhack_print_spa_vdevs(spa);
+	}
+
+	if (do_pause_stop) {
+		int err = 0;
+		switch (do_pause_stop) {
+		case 1:
+			err = spa_scrub_pause_resume(spa, POOL_SCRUB_PAUSE);
+			break;
+		case 2:
+			if (do_resilver) {
+				err = dsl_scan_cancel(spa_get_dsl(spa));
+			} else {
+				err = spa_scan_stop(spa);
+			}
+		}
+		if (err != 0) {
+			(void) fprintf(stderr,
+			    "Cannot stop/pause; error %d\n", err);
+		}
+		goto out;
+	}
+
+	if (do_restart) {
+		if (verbose) {
+			(void) fprintf(stderr,
+			    "First, cancelling any existing scrub...\n");
+		}
+		dsl_scan_cancel(spa_get_dsl(spa));
+	}
+
+	if (no_spawn) {
+		if (spa_get_dsl(spa)->dp_scan->scn_phys.scn_state ==
+		    DSS_FINISHED) {
+			(void) fprintf(stderr, "No scrub to resume.\n");
+			goto out;
+		}
+	} else {
+		if (verbose) {
+			(void) fprintf(stderr, "Kicking off %s...\n",
+			    do_resilver ? "resilver" : "scrub");
+		}
+		spa_scan(spa,
+		    do_resilver ? POOL_SCAN_RESILVER : POOL_SCAN_SCRUB);
+	}
+
+	if (verbose)
+		(void) fprintf(stderr, "Awaiting initial txg sync...\n");
+	txg_wait_synced(spa_get_dsl(spa), 0);
+
+	/*
+	 * Let the first few transactions happen with the default times; this
+	 * likely lets us get through the initial sync faster.
+	 */
+	if (scan_op_time != 0) {
+		extern int zfs_scrub_min_time_ms;
+		extern int zfs_resilver_min_time_ms;
+
+		zfs_scrub_min_time_ms = zfs_resilver_min_time_ms
+		    = scan_op_time;
+	}
+
+	/*
+	 * dsl_scan_setup_sync() has its own ideas about DDT behavior and
+	 * doesn't expose hooks for much second-guessing, which means we might
+	 * start off running the wrong flavor for a little while, but since the
+	 * scan code bases its behavior off scn_ddt_class_max dynamically, it
+	 * should soon jump to doing the right thing.
+	 */
+	if (do_ddt_reset) {
+		spa_config_enter(spa, SCL_CONFIG | SCL_STATE, FTAG, RW_WRITER);
+
+		dsl_scan_t *scn = spa_get_dsl(spa)->dp_scan;
+		if (scn->scn_phys.scn_ddt_class_max < zfs_scrub_ddt_class_max) {
+			if (verbose) {
+				(void) fprintf(stderr,
+				    "Forcibly resetting DDT scan class\n");
+			}
+			scn->scn_phys.scn_ddt_class_max =
+			    zfs_scrub_ddt_class_max;
+		} else if (scn->scn_phys.scn_ddt_class_max ==
+		    zfs_scrub_ddt_class_max) {
+			if (verbose) {
+				(void) fprintf(stderr,
+				    "No need to reset DDT scan class\n");
+			}
+		} else {
+			if (verbose) {
+				(void) fprintf(stderr,
+				    "Unsafe to reset DDT scan class; won't!\n");
+			}
+		}
+
+		spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);
+	}
+
+	{
+		spa_config_enter(spa, SCL_CONFIG | SCL_STATE, FTAG, RW_READER);
+
+		dsl_scan_t *scn = spa_get_dsl(spa)->dp_scan;
+		dsl_scan_phys_t *scnp = &scn->scn_phys;
+		uint64_t funcix = scnp->scn_func;
+
+		char *func;
+		switch (funcix) {
+		case POOL_SCAN_NONE:
+			func = "none";
+			break;
+		case POOL_SCAN_SCRUB:
+			func = "scrub";
+			break;
+		case POOL_SCAN_RESILVER:
+			func = "resilver";
+			break;
+		default:
+			func = "unknown";
+			break;
+		}
+
+		(void) fprintf(stderr, "Info: func=%s toex=%'" PRIu64
+		    " mintxg=%" PRIu64 " maxtxg=%" PRIu64 " ddtclass=%" PRIu64
+		    "\n",
+		    func, scnp->scn_to_examine,
+		    scnp->scn_min_txg, scnp->scn_max_txg,
+		    scnp->scn_ddt_class_max);
+
+		spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);
+	}
+
+	uint64_t state;
+	do {
+		/*
+		 * While not strictly necessary, grabbing a transaction here
+		 * seems to give us a more even pacing of outputs.
+		 */
+		dmu_tx_t *tx;
+		tx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
+		VERIFY0(dmu_tx_assign(tx, TXG_WAIT));
+
+		uint64_t now = (uint64_t)(time(NULL));
+		uint64_t txg = dmu_tx_get_txg(tx);
+
+		spa_config_enter(spa, SCL_CONFIG | SCL_STATE, FTAG, RW_READER);
+
+		dsl_pool_t *dp = spa_get_dsl(spa);
+		dsl_scan_t *scn = dp->dp_scan;
+		dsl_scan_phys_t *scnp = &scn->scn_phys;
+
+		uint64_t issued = scn->scn_issued_before_pass
+		    + spa->spa_scan_pass_issued;
+
+		state = scnp->scn_state;
+
+		/*
+		 * Announce almost everything of possible interest.
+		 *
+		 * examined, issued, and repair are monotone nondecreasing, so
+		 * we do not pad with whitespace (by contrast to pending).
+		 */
+		(void) fprintf(stderr,
+		    "Scan: time=%" PRIu64 " txg=%-6" PRIu64
+		    " clr=%d ckpt=%d err=%" PRIu64
+		    " exd=%'" PRIu64 " (%.2f%%)"
+		    " pend=%'-16" PRIu64 " (%05.2f%%)"
+		    " iss=%'" PRIu64 " (%.2f%%)"
+		    " repair=%'" PRIu64 " (%.2f%%)"
+		    " ddtbk=%" PRIu64 "/%" PRIu64 "/%" PRIu64 "/%" PRIx64
+		    " bk=%" PRIu64 "/%" PRIu64 "/%" PRId64 "/%" PRIu64
+		    "\n",
+		    now, txg,
+		    scn->scn_clearing, scn->scn_checkpointing, scnp->scn_errors,
+		    scnp->scn_examined,
+		    (float)scnp->scn_examined * 100 / scnp->scn_to_examine,
+		    scn->scn_bytes_pending,
+		    (float)scn->scn_bytes_pending * 100 / scnp->scn_to_examine,
+		    issued,
+		    (float)issued * 100 / scnp->scn_to_examine,
+		    scnp->scn_processed,
+		    (float)scnp->scn_processed * 100 / scnp->scn_to_examine,
+		    scnp->scn_ddt_bookmark.ddb_class,
+		    scnp->scn_ddt_bookmark.ddb_type,
+		    scnp->scn_ddt_bookmark.ddb_checksum,
+		    scnp->scn_ddt_bookmark.ddb_cursor,
+		    scnp->scn_bookmark.zb_objset,
+		    scnp->scn_bookmark.zb_object,
+		    scnp->scn_bookmark.zb_level,
+		    scnp->scn_bookmark.zb_blkid);
+
+		spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);
+
+		/*
+		 * Report at most once per txg, as the state cannot change
+		 * without a txg finishing sync phase.  Because we don't have
+		 * txs in every txg, we probably won't end up reporting as
+		 * frequently as txgs sync, but it's just diagnostics.
+		 *
+		 * Either the pipeline is driving itself due to the ongoing scan
+		 * or this will signal the sync thread to wake up.
+		 */
+		dmu_tx_commit(tx);
+		txg_wait_synced(dp, txg);
+
+	} while (state == DSS_SCANNING);
+
+	if (verbose) {
+		(void) fprintf(stderr, "Shutting down; pool state is now...\n");
+		zhack_print_spa_vdevs(spa);
+	}
+
+out:
+	spa_close(spa, FTAG);
+
+	return (0);
+}
+
 #define	MAX_NUM_PATHS 1024
 
 int
@@ -515,6 +1011,8 @@ main(int argc, char **argv)
 
 	if (strcmp(subcommand, "feature") == 0) {
 		rv = zhack_do_feature(argc, argv);
+	} else if (strcmp(subcommand, "scrub") == 0) {
+		rv = zhack_do_scrub(argc, argv);
 	} else {
 		(void) fprintf(stderr, "error: unknown subcommand: %s\n",
 		    subcommand);

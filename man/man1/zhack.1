@@ -94,8 +94,66 @@ The
 flag indicates that the
 .Ar guid
 feature is now required to read the pool MOS.
-.El
 .
+.It Xo
+.Nm zhack
+.Cm scrub
+.Ar pool
+.Xc
+Import and scrub a pool, entirely from userland.
+This is mostly useful for developers and is substantially less friendly than
+scrubbing an imported pool.
+In particular, there is no status reporting mechanism, and so any discovered
+errors are not easily identified.
+.Pp
+The \fB\-n\fR option causes the program to only resume a scrub (or resilver) if
+one was in progress at time of export; that is, it will not begin a new scrub.
+Contrawise, \fB\-R\fR will forcibly restart any existing scrub or resilver, and
+has no effect if one was not in progress at time of export.
+.Pp
+The \fB\-r\fR option requests the tool to (re)start a resilver rather than a
+scrub (the default).
+.Pp
+The \fB\-s\fR and \fB\-p\fR options cause the program, respectively, to stop
+and pause any ongoing scan and take no further action.
+While resilvers cannot ordinarily be cancelled, pairing \fB-s\fR and \fB-r\fR
+will do so, but, in many circumstances, ZFS will initiate a resilver at the
+pool's next import anyway.
+.Pp
+The \fB\-i seconds\fR option controls the inter-checkpoint time of the scan.
+That is, every \fBseconds\fR seconds, the scan will drain its queue of blocks
+to scan in media order.
+.Pp
+The \fB\-t milliseconds\fR option adjusts the minimum time devoted to the
+requested operation each transaction group and \fB\-x seconds\fR sets the
+baseline transaction group timeout.
+Adjusting these higher in tandem will reduce write traffic to the pool by doing
+more scanning per transaction group (and will reduce the rate of status updates
+from the program as a side effect).
+.Pp
+The \fB\-M\fR option overrides ZFS's detection of the amount of physical memory
+to use, limiting the ARC and the scan queue; it counts in multples of
+\fBsysconf(_SC_PAGE_SIZE)\fR bytes.
+.Pp
+The \fB\-D class\fR option specifies the DDT class(es) to scan specially.
+Setting \fBclass\fR to 0 will limit special handling to dedup-ditto blocks.
+The value 1 will ensure that the scan will visit all deduplicated blocks with
+refcounts greater than one a single time, but will require that the DDT be
+frequently accessed during scan.
+The value 2 will cause the scan to walk all DDT entries, including those with
+refcount one, and will then not need to probe the DDT during the residual scan
+of non-deduplicated blocks.
+The default behavior is as if the value 1 had been specified.
+Pass \fB\-E\fR to attempt to change the DDT class on an existing scrub; the tool
+will refuse to execute any unsafe change (i.e., downwards).
+.Pp
+Give \fB\-v\fR to cause the command to be chatty during initialization.
+.Pp
+The \fB\-G\fR, \fB\-H\fR, \fB\-O\fR, \fB\-P\fR, \fB\-S\fR, and \fB\-T\fR options
+affect internal parameters of ZFS and are almost surely of interest only to
+developers seeking to explore the scrub algorithm; for details, please see the
+source.
+.El
 .Sh GLOBAL OPTIONS
 The following can be passed to all
 .Nm
