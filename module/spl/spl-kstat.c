@@ -261,9 +261,10 @@ kstat_seq_show_intr(struct seq_file *f, kstat_intr_t *kip)
 static int
 kstat_seq_show_io(struct seq_file *f, kstat_io_t *kip)
 {
+	/* though wlentime & friends are signed, they will never be negative */
 	seq_printf(f,
-	    "%-8llu %-8llu %-8u %-8u %-8lld %-8lld "
-	    "%-8lld %-8lld %-8lld %-8lld %-8u %-8u\n",
+	    "%-8llu %-8llu %-8u %-8u %-8llu %-8llu "
+	    "%-8llu %-8llu %-8llu %-8llu %-8u %-8u\n",
 	    kip->nread, kip->nwritten,
 	    kip->reads, kip->writes,
 	    kip->wtime, kip->wlentime, kip->wlastupdate,
@@ -277,7 +278,7 @@ static int
 kstat_seq_show_timer(struct seq_file *f, kstat_timer_t *ktp)
 {
 	seq_printf(f,
-	    "%-31s %-8llu %-8lld %-8lld %-8lld %-8lld %-8lld\n",
+	    "%-31s %-8llu %-8llu %-8llu %-8llu %-8llu %-8llu\n",
 	    ktp->name, ktp->num_events, ktp->elapsed_time,
 	    ktp->min_time, ktp->max_time,
 	    ktp->start_time, ktp->stop_time);
