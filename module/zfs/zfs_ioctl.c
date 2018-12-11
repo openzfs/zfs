@@ -6634,12 +6634,12 @@ static const struct file_operations zfsdev_fops = {
 };
 
 static struct miscdevice zfs_misc = {
-	.minor		= ZFS_MINOR,
+	.minor		= ZFS_DEVICE_MINOR,
 	.name		= ZFS_DRIVER,
 	.fops		= &zfsdev_fops,
 };
 
-MODULE_ALIAS_MISCDEV(ZFS_MINOR);
+MODULE_ALIAS_MISCDEV(ZFS_DEVICE_MINOR);
 MODULE_ALIAS("devname:zfs");
 
 static int
@@ -6660,7 +6660,7 @@ zfs_attach(void)
 		 */
 		printk(KERN_INFO "ZFS: misc_register() with static minor %d "
 		    "failed %d, retrying with MISC_DYNAMIC_MINOR\n",
-		    ZFS_MINOR, error);
+		    ZFS_DEVICE_MINOR, error);
 
 		zfs_misc.minor = MISC_DYNAMIC_MINOR;
 		error = misc_register(&zfs_misc);
