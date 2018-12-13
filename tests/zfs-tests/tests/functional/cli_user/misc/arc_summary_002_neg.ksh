@@ -27,7 +27,7 @@
 
 . $STF_SUITE/include/libtest.shlib
 
-typeset args=("-x" "-r" "-5" "-p 7" "--err" "-@")
+typeset args=("-x" "-5" "-p 7" "--err" "-@")
 
 log_assert "arc_summary generates an error code with invalid options"
 
