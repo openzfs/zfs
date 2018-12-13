@@ -46,7 +46,6 @@ dist_pkgdata_SCRIPTS = \
 	arcstat_001_pos.ksh \
 	arc_summary_001_pos.ksh \
 	arc_summary_002_neg.ksh \
-	arc_summary3_001_pos.ksh \
 	dbufstat_001_pos.ksh
 
 dist_pkgdata_DATA = \
