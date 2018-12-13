@@ -647,7 +647,7 @@ spa_condense_indirect_thread_check(void *arg, zthr_t *zthr)
 }
 
 /* ARGSUSED */
-static int
+static void
 spa_condense_indirect_thread(void *arg, zthr_t *zthr)
 {
 	spa_t *spa = arg;
@@ -744,13 +744,11 @@ spa_condense_indirect_thread(void *arg, zthr_t *zthr)
 	 * shutting down.
 	 */
 	if (zthr_iscancelled(zthr))
-		return (0);
+		return;
 
 	VERIFY0(dsl_sync_task(spa_name(spa), NULL,
 	    spa_condense_indirect_complete_sync, sci, 0,
 	    ZFS_SPACE_CHECK_EXTRA_RESERVED));
-
-	return (0);
 }
 
 /*
