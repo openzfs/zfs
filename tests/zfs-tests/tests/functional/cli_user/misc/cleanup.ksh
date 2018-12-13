@@ -32,19 +32,20 @@
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_user/misc/misc.cfg
 
-if poolexists $TESTPOOL.virt
-then
+if poolexists $TESTPOOL.virt; then
 	log_must zpool destroy $TESTPOOL.virt
 fi
 
-if poolexists v1-pool
-then
+if poolexists v1-pool; then
 	log_must zpool destroy v1-pool
 fi
 
-if [[ -f $TEST_BASE_DIR/zfstest_datastream.dat ]]
-then
-	log_must rm -f $TEST_BASE_DIR/zfstest_datastream.dat
-fi
+log_must rm -f $TEST_BASE_DIR/zfstest_datastream.dat
+log_must rm -f $TEST_BASE_DIR/disk1.dat $TEST_BASE_DIR/disk2.dat \
+    $TEST_BASE_DIR/disk3.dat $TEST_BASE_DIR/disk-additional.dat \
+    $TEST_BASE_DIR/disk-export.dat $TEST_BASE_DIR/disk-offline.dat \
+    $TEST_BASE_DIR/disk-spare1.dat $TEST_BASE_DIR/disk-spare2.dat
+log_must rm -f $TEST_BASE_DIR/zfs-pool-v1.dat \
+    $TEST_BASE_DIR/zfs-pool-v1.dat.bz2
 
 default_cleanup
