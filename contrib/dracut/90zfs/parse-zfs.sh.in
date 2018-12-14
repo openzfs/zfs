@@ -10,7 +10,7 @@ if [ -n "${spl_hostid}" ] ; then
 	BB=$(echo "${spl_hostid}" | cut -b 3,4)
 	CC=$(echo "${spl_hostid}" | cut -b 5,6)
 	DD=$(echo "${spl_hostid}" | cut -b 7,8)
-	printf "\\x%s\\x%s\\x%s\\x%s" "${DD}" "${CC}" "${BB}" "${AA}" >/etc/hostid
+	echo -ne "\\x${DD}\\x${CC}\\x${BB}\\x${AA}" >/etc/hostid
 elif [ -f "/etc/hostid" ] ; then
 	info "ZFS: Using hostid from /etc/hostid: $(hostid)"
 else

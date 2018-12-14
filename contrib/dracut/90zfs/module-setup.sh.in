@@ -59,6 +59,7 @@ install() {
 	dracut_install @udevdir@/vdev_id
 	dracut_install awk
 	dracut_install basename
+	dracut_install cut
 	dracut_install head
 	dracut_install @udevdir@/zvol_id
 	inst_hook cmdline 95 "${moddir}/parse-zfs.sh"
@@ -86,7 +87,7 @@ install() {
 	BB=`hostid | cut -b 3,4`
 	CC=`hostid | cut -b 5,6`
 	DD=`hostid | cut -b 7,8`
-	printf "\x${DD}\x${CC}\x${BB}\x${AA}" > "${initdir}/etc/hostid"
+	echo -ne "\\x${DD}\\x${CC}\\x${BB}\\x${AA}" > "${initdir}/etc/hostid"
 
 	if dracut_module_included "systemd"; then
 		mkdir -p "${initdir}/$systemdsystemunitdir/zfs-import.target.wants"
