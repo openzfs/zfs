@@ -129,9 +129,9 @@ CDEF = """
     int lzc_remap(const char *);
     int lzc_pool_checkpoint(const char *);
     int lzc_pool_checkpoint_discard(const char *);
+    int lzc_rename(const char *, const char *);
+    int lzc_destroy(const char *fsname);
 
-    int lzc_rename(const char *, const char *, nvlist_t *, char **);
-    int lzc_destroy_one(const char *fsname, nvlist_t *);
     int lzc_inherit(const char *fsname, const char *name, nvlist_t *);
     int lzc_set_props(const char *, nvlist_t *, nvlist_t *, nvlist_t *);
     int lzc_list (const char *, nvlist_t *);
