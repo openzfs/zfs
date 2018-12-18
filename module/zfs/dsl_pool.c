@@ -83,7 +83,7 @@
  * zfs_dirty_data_max determines the dirty space limit. Once that value is
  * exceeded, new writes are halted until space frees up.
  *
- * The zfs_dirty_data_sync tunable dictates the threshold at which we
+ * The zfs_dirty_data_sync_percent tunable dictates the threshold at which we
  * ensure that there is a txg syncing (see the comment in txg.c for a full
  * description of transaction group stages).
  *
@@ -1350,7 +1350,8 @@ MODULE_PARM_DESC(zfs_dirty_data_max_max,
 	"zfs_dirty_data_max upper bound in bytes");
 
 module_param(zfs_dirty_data_sync_percent, int, 0644);
-MODULE_PARM_DESC(zfs_dirty_data_sync, "sync txg when this much dirty data");
+MODULE_PARM_DESC(zfs_dirty_data_sync_percent,
+	"dirty data txg sync threshold as a percentage of zfs_dirty_data_max");
 
 module_param(zfs_delay_scale, ulong, 0644);
 MODULE_PARM_DESC(zfs_delay_scale, "how quickly delay approaches infinity");
