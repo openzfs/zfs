@@ -96,6 +96,7 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/vdev_impl.h \
 	$(top_srcdir)/include/sys/vdev_indirect_births.h \
 	$(top_srcdir)/include/sys/vdev_indirect_mapping.h \
+	$(top_srcdir)/include/sys/vdev_initialize.h \
 	$(top_srcdir)/include/sys/vdev_raidz.h \
 	$(top_srcdir)/include/sys/vdev_raidz_impl.h \
 	$(top_srcdir)/include/sys/vdev_removal.h \

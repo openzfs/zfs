@@ -68,7 +68,8 @@ typedef enum trace_alloc_type {
 	TRACE_GROUP_FAILURE	= -5ULL,
 	TRACE_ENOSPC		= -6ULL,
 	TRACE_CONDENSING	= -7ULL,
-	TRACE_VDEV_ERROR	= -8ULL
+	TRACE_VDEV_ERROR	= -8ULL,
+	TRACE_INITIALIZING	= -9ULL
 } trace_alloc_type_t;
 
 #define	METASLAB_WEIGHT_PRIMARY		(1ULL << 63)
@@ -270,6 +271,11 @@ struct metaslab_group {
 	uint64_t		mg_failed_allocations;
 	uint64_t		mg_fragmentation;
 	uint64_t		mg_histogram[RANGE_TREE_HISTOGRAM_SIZE];
+
+	int			mg_ms_initializing;
+	boolean_t		mg_initialize_updating;
+	kmutex_t		mg_ms_initialize_lock;
+	kcondvar_t		mg_ms_initialize_cv;
 };
 
 /*
@@ -359,6 +365,8 @@ struct metaslab {
 	boolean_t	ms_condensing;	/* condensing? */
 	boolean_t	ms_condense_wanted;
 	uint64_t	ms_condense_checked_txg;
+
+	uint64_t	ms_initializing; /* leaves initializing this ms */
 
 	/*
 	 * We must hold both ms_lock and ms_group->mg_lock in order to

@@ -1375,6 +1375,30 @@ Default value: \fB2\fR.
 .sp
 .ne 2
 .na
+\fBzfs_vdev_initializing_max_active\fR (int)
+.ad
+.RS 12n
+Maximum initializing I/Os active to each device.
+See the section "ZFS I/O SCHEDULER".
+.sp
+Default value: \fB1\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_initializing_min_active\fR (int)
+.ad
+.RS 12n
+Minimum initializing I/Os active to each device.
+See the section "ZFS I/O SCHEDULER".
+.sp
+Default value: \fB1\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_vdev_max_active\fR (int)
 .ad
 .RS 12n
@@ -1383,6 +1407,30 @@ the sum of each queue's max_active.  It must be at least the sum of each
 queue's min_active.  See the section "ZFS I/O SCHEDULER".
 .sp
 Default value: \fB1,000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_removal_max_active\fR (int)
+.ad
+.RS 12n
+Maximum removal I/Os active to each device.
+See the section "ZFS I/O SCHEDULER".
+.sp
+Default value: \fB2\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_removal_min_active\fR (int)
+.ad
+.RS 12n
+Minimum removal I/Os active to each device.
+See the section "ZFS I/O SCHEDULER".
+.sp
+Default value: \fB1\fR.
 .RE
 
 .sp
@@ -1610,6 +1658,17 @@ Largest data block to write to zil. Larger blocks will be treated as if the
 dataset being written to had the property setting \fBlogbias=throughput\fR.
 .sp
 Default value: \fB32,768\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_initialize_value\fR (ulong)
+.ad
+.RS 12n
+Pattern written to vdev free space by \fBzpool initialize\fR.
+.sp
+Default value: \fB16,045,690,984,833,335,022\fR (0xdeadbeefdeadbeee).
 .RE
 
 .sp
