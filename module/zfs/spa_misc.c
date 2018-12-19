@@ -1197,7 +1197,8 @@ spa_vdev_config_exit(spa_t *spa, vdev_t *vd, uint64_t txg, int error, char *tag)
 		ASSERT(!vd->vdev_detached || vd->vdev_dtl_sm == NULL);
 		if (vd->vdev_ops->vdev_op_leaf) {
 			mutex_enter(&vd->vdev_initialize_lock);
-			vdev_initialize_stop(vd, VDEV_INITIALIZE_CANCELED);
+			vdev_initialize_stop(vd, VDEV_INITIALIZE_CANCELED,
+			    NULL);
 			mutex_exit(&vd->vdev_initialize_lock);
 		}
 
