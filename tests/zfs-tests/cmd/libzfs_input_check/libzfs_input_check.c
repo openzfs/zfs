@@ -642,6 +642,22 @@ test_unload_key(const char *dataset)
 	IOC_INPUT_TEST(ZFS_IOC_UNLOAD_KEY, dataset, NULL, NULL, EACCES);
 }
 
+static void
+test_vdev_initialize(const char *pool)
+{
+	nvlist_t *required = fnvlist_alloc();
+	nvlist_t *vdev_guids = fnvlist_alloc();
+
+	fnvlist_add_uint64(vdev_guids, "path", 0xdeadbeefdeadbeef);
+	fnvlist_add_uint64(required, ZPOOL_INITIALIZE_COMMAND,
+	    POOL_INITIALIZE_DO);
+	fnvlist_add_nvlist(required, ZPOOL_INITIALIZE_VDEVS, vdev_guids);
+
+	IOC_INPUT_TEST(ZFS_IOC_POOL_INITIALIZE, pool, required, NULL, EINVAL);
+	nvlist_free(vdev_guids);
+	nvlist_free(required);
+}
+
 static int
 zfs_destroy(const char *dataset)
 {
@@ -731,6 +747,8 @@ zfs_ioc_input_tests(const char *pool)
 	test_load_key(dataset);
 	test_change_key(dataset);
 	test_unload_key(dataset);
+
+	test_vdev_initialize(pool);
 
 	/*
 	 * cleanup
@@ -869,6 +887,7 @@ validate_ioc_values(void)
 	    ZFS_IOC_BASE + 76 == ZFS_IOC_REMAP &&
 	    ZFS_IOC_BASE + 77 == ZFS_IOC_POOL_CHECKPOINT &&
 	    ZFS_IOC_BASE + 78 == ZFS_IOC_POOL_DISCARD_CHECKPOINT &&
+	    ZFS_IOC_BASE + 79 == ZFS_IOC_POOL_INITIALIZE &&
 	    LINUX_IOC_BASE + 1 == ZFS_IOC_EVENTS_NEXT &&
 	    LINUX_IOC_BASE + 2 == ZFS_IOC_EVENTS_CLEAR &&
 	    LINUX_IOC_BASE + 3 == ZFS_IOC_EVENTS_SEEK);

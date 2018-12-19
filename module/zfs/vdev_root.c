@@ -24,7 +24,7 @@
  */
 
 /*
- * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -146,6 +146,7 @@ vdev_ops_t vdev_root_ops = {
 	NULL,			/* io_start - not applicable to the root */
 	NULL,			/* io_done - not applicable to the root */
 	vdev_root_state_change,
+	NULL,
 	NULL,
 	NULL,
 	NULL,

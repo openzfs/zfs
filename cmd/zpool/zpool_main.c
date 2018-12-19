@@ -97,6 +97,7 @@ static int zpool_do_detach(int, char **);
 static int zpool_do_replace(int, char **);
 static int zpool_do_split(int, char **);
 
+static int zpool_do_initialize(int, char **);
 static int zpool_do_scrub(int, char **);
 static int zpool_do_resilver(int, char **);
 
@@ -150,6 +151,7 @@ typedef enum {
 	HELP_ONLINE,
 	HELP_REPLACE,
 	HELP_REMOVE,
+	HELP_INITIALIZE,
 	HELP_SCRUB,
 	HELP_RESILVER,
 	HELP_STATUS,
@@ -278,6 +280,7 @@ static zpool_command_t command_table[] = {
 	{ "replace",	zpool_do_replace,	HELP_REPLACE		},
 	{ "split",	zpool_do_split,		HELP_SPLIT		},
 	{ NULL },
+	{ "initialize",	zpool_do_initialize,	HELP_INITIALIZE		},
 	{ "scrub",	zpool_do_scrub,		HELP_SCRUB		},
 	{ "resilver",	zpool_do_resilver,	HELP_RESILVER		},
 	{ NULL },
@@ -360,6 +363,8 @@ get_usage(zpool_help_t idx)
 		return (gettext("\tremove [-nps] <pool> <device> ...\n"));
 	case HELP_REOPEN:
 		return (gettext("\treopen [-n] <pool>\n"));
+	case HELP_INITIALIZE:
+		return (gettext("\tinitialize [-cs] <pool> [<device> ...]\n"));
 	case HELP_SCRUB:
 		return (gettext("\tscrub [-s | -p] <pool> ...\n"));
 	case HELP_RESILVER:
@@ -393,6 +398,27 @@ get_usage(zpool_help_t idx)
 	/* NOTREACHED */
 }
 
+static void
+zpool_collect_leaves(zpool_handle_t *zhp, nvlist_t *nvroot, nvlist_t *res)
+{
+	uint_t children = 0;
+	nvlist_t **child;
+	uint_t i;
+
+	(void) nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
+	    &child, &children);
+
+	if (children == 0) {
+		char *path = zpool_vdev_name(g_zfs, zhp, nvroot, B_FALSE);
+		fnvlist_add_boolean(res, path);
+		free(path);
+		return;
+	}
+
+	for (i = 0; i < children; i++) {
+		zpool_collect_leaves(zhp, child[i], res);
+	}
+}
 
 /*
  * Callback routine that will print out a pool property value.
@@ -477,6 +503,97 @@ usage(boolean_t requested)
 	}
 
 	exit(requested ? 0 : 2);
+}
+
+/*
+ * zpool initialize [-cs] <pool> [<vdev> ...]
+ * Initialize all unused blocks in the specified vdevs, or all vdevs in the pool
+ * if none specified.
+ *
+ *	-c	Cancel. Ends active initializing.
+ *	-s	Suspend. Initializing can then be restarted with no flags.
+ */
+int
+zpool_do_initialize(int argc, char **argv)
+{
+	int c;
+	char *poolname;
+	zpool_handle_t *zhp;
+	nvlist_t *vdevs;
+	int err = 0;
+
+	struct option long_options[] = {
+		{"cancel",	no_argument,		NULL, 'c'},
+		{"suspend",	no_argument,		NULL, 's'},
+		{0, 0, 0, 0}
+	};
+
+	pool_initialize_func_t cmd_type = POOL_INITIALIZE_DO;
+	while ((c = getopt_long(argc, argv, "cs", long_options, NULL)) != -1) {
+		switch (c) {
+		case 'c':
+			if (cmd_type != POOL_INITIALIZE_DO) {
+				(void) fprintf(stderr, gettext("-c cannot be "
+				    "combined with other options\n"));
+				usage(B_FALSE);
+			}
+			cmd_type = POOL_INITIALIZE_CANCEL;
+			break;
+		case 's':
+			if (cmd_type != POOL_INITIALIZE_DO) {
+				(void) fprintf(stderr, gettext("-s cannot be "
+				    "combined with other options\n"));
+				usage(B_FALSE);
+			}
+			cmd_type = POOL_INITIALIZE_SUSPEND;
+			break;
+		case '?':
+			if (optopt != 0) {
+				(void) fprintf(stderr,
+				    gettext("invalid option '%c'\n"), optopt);
+			} else {
+				(void) fprintf(stderr,
+				    gettext("invalid option '%s'\n"),
+				    argv[optind - 1]);
+			}
+			usage(B_FALSE);
+		}
+	}
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc < 1) {
+		(void) fprintf(stderr, gettext("missing pool name argument\n"));
+		usage(B_FALSE);
+		return (-1);
+	}
+
+	poolname = argv[0];
+	zhp = zpool_open(g_zfs, poolname);
+	if (zhp == NULL)
+		return (-1);
+
+	vdevs = fnvlist_alloc();
+	if (argc == 1) {
+		/* no individual leaf vdevs specified, so add them all */
+		nvlist_t *config = zpool_get_config(zhp, NULL);
+		nvlist_t *nvroot = fnvlist_lookup_nvlist(config,
+		    ZPOOL_CONFIG_VDEV_TREE);
+		zpool_collect_leaves(zhp, nvroot, vdevs);
+	} else {
+		int i;
+		for (i = 1; i < argc; i++) {
+			fnvlist_add_boolean(vdevs, argv[i]);
+		}
+	}
+
+	err = zpool_initialize(zhp, cmd_type, vdevs);
+
+	fnvlist_free(vdevs);
+	zpool_close(zhp);
+
+	return (err);
 }
 
 /*
@@ -1921,6 +2038,43 @@ print_status_config(zpool_handle_t *zhp, status_cbdata_t *cb, const char *name,
 			printf("  ");
 			zpool_print_cmd(cb->vcdl, zpool_get_name(zhp), path);
 		}
+	}
+
+	if ((vs->vs_initialize_state == VDEV_INITIALIZE_ACTIVE ||
+	    vs->vs_initialize_state == VDEV_INITIALIZE_SUSPENDED ||
+	    vs->vs_initialize_state == VDEV_INITIALIZE_COMPLETE) &&
+	    !vs->vs_scan_removing) {
+		char zbuf[1024];
+		char tbuf[256];
+		struct tm zaction_ts;
+
+		time_t t = vs->vs_initialize_action_time;
+		int initialize_pct = 100;
+		if (vs->vs_initialize_state != VDEV_INITIALIZE_COMPLETE) {
+			initialize_pct = (vs->vs_initialize_bytes_done * 100 /
+			    (vs->vs_initialize_bytes_est + 1));
+		}
+
+		(void) localtime_r(&t, &zaction_ts);
+		(void) strftime(tbuf, sizeof (tbuf), "%c", &zaction_ts);
+
+		switch (vs->vs_initialize_state) {
+		case VDEV_INITIALIZE_SUSPENDED:
+			(void) snprintf(zbuf, sizeof (zbuf),
+			    ", suspended, started at %s", tbuf);
+			break;
+		case VDEV_INITIALIZE_ACTIVE:
+			(void) snprintf(zbuf, sizeof (zbuf),
+			    ", started at %s", tbuf);
+			break;
+		case VDEV_INITIALIZE_COMPLETE:
+			(void) snprintf(zbuf, sizeof (zbuf),
+			    ", completed at %s", tbuf);
+			break;
+		}
+
+		(void) printf(gettext("  (%d%% initialized%s)"),
+		    initialize_pct, zbuf);
 	}
 
 	(void) printf("\n");
