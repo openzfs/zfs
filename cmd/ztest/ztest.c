@@ -6403,7 +6403,14 @@ ztest_initialize(ztest_ds_t *zd, uint64_t id)
 	spa_config_exit(spa, SCL_VDEV, FTAG);
 
 	uint64_t cmd = ztest_random(POOL_INITIALIZE_FUNCS);
-	error = spa_vdev_initialize(spa, guid, cmd);
+
+	nvlist_t *vdev_guids = fnvlist_alloc();
+	nvlist_t *vdev_errlist = fnvlist_alloc();
+	fnvlist_add_uint64(vdev_guids, path, guid);
+	error = spa_vdev_initialize(spa, vdev_guids, cmd, vdev_errlist);
+	fnvlist_free(vdev_guids);
+	fnvlist_free(vdev_errlist);
+
 	switch (cmd) {
 	case POOL_INITIALIZE_CANCEL:
 		if (ztest_opts.zo_verbose >= 4) {

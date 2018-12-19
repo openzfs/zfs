@@ -3897,22 +3897,9 @@ zfs_ioc_pool_initialize(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 	}
 
 	nvlist_t *vdev_errlist = fnvlist_alloc();
-	int total_errors = 0;
+	int total_errors = spa_vdev_initialize(spa, vdev_guids, cmd_type,
+	    vdev_errlist);
 
-	for (nvpair_t *pair = nvlist_next_nvpair(vdev_guids, NULL);
-	    pair != NULL; pair = nvlist_next_nvpair(vdev_guids, pair)) {
-		uint64_t vdev_guid = fnvpair_value_uint64(pair);
-
-		error = spa_vdev_initialize(spa, vdev_guid, cmd_type);
-		if (error != 0) {
-			char guid_as_str[MAXNAMELEN];
-
-			(void) snprintf(guid_as_str, sizeof (guid_as_str),
-			    "%llu", (unsigned long long)vdev_guid);
-			fnvlist_add_int64(vdev_errlist, guid_as_str, error);
-			total_errors++;
-		}
-	}
 	if (fnvlist_size(vdev_errlist) > 0) {
 		fnvlist_add_nvlist(outnvl, ZPOOL_INITIALIZE_VDEVS,
 		    vdev_errlist);

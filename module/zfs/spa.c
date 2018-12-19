@@ -6381,32 +6381,23 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 	return (error);
 }
 
-int
-spa_vdev_initialize(spa_t *spa, uint64_t guid, uint64_t cmd_type)
+static int
+spa_vdev_initialize_impl(spa_t *spa, uint64_t guid, uint64_t cmd_type)
 {
-	/*
-	 * We hold the namespace lock through the whole function
-	 * to prevent any changes to the pool while we're starting or
-	 * stopping initialization. The config and state locks are held so that
-	 * we can properly assess the vdev state before we commit to
-	 * the initializing operation.
-	 */
-	mutex_enter(&spa_namespace_lock);
+	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+
 	spa_config_enter(spa, SCL_CONFIG | SCL_STATE, FTAG, RW_READER);
 
 	/* Look up vdev and ensure it's a leaf. */
 	vdev_t *vd = spa_lookup_by_guid(spa, guid, B_FALSE);
 	if (vd == NULL || vd->vdev_detached) {
 		spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);
-		mutex_exit(&spa_namespace_lock);
 		return (SET_ERROR(ENODEV));
 	} else if (!vd->vdev_ops->vdev_op_leaf || !vdev_is_concrete(vd)) {
 		spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);
-		mutex_exit(&spa_namespace_lock);
 		return (SET_ERROR(EINVAL));
 	} else if (!vdev_writeable(vd)) {
 		spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);
-		mutex_exit(&spa_namespace_lock);
 		return (SET_ERROR(EROFS));
 	}
 	mutex_enter(&vd->vdev_initialize_lock);
@@ -6423,18 +6414,15 @@ spa_vdev_initialize(spa_t *spa, uint64_t guid, uint64_t cmd_type)
 	    (vd->vdev_initialize_thread != NULL ||
 	    vd->vdev_top->vdev_removing)) {
 		mutex_exit(&vd->vdev_initialize_lock);
-		mutex_exit(&spa_namespace_lock);
 		return (SET_ERROR(EBUSY));
 	} else if (cmd_type == POOL_INITIALIZE_CANCEL &&
 	    (vd->vdev_initialize_state != VDEV_INITIALIZE_ACTIVE &&
 	    vd->vdev_initialize_state != VDEV_INITIALIZE_SUSPENDED)) {
 		mutex_exit(&vd->vdev_initialize_lock);
-		mutex_exit(&spa_namespace_lock);
 		return (SET_ERROR(ESRCH));
 	} else if (cmd_type == POOL_INITIALIZE_SUSPEND &&
 	    vd->vdev_initialize_state != VDEV_INITIALIZE_ACTIVE) {
 		mutex_exit(&vd->vdev_initialize_lock);
-		mutex_exit(&spa_namespace_lock);
 		return (SET_ERROR(ESRCH));
 	}
 
@@ -6453,13 +6441,45 @@ spa_vdev_initialize(spa_t *spa, uint64_t guid, uint64_t cmd_type)
 	}
 	mutex_exit(&vd->vdev_initialize_lock);
 
+	return (0);
+}
+
+int
+spa_vdev_initialize(spa_t *spa, nvlist_t *nv, uint64_t cmd_type,
+    nvlist_t *vdev_errlist)
+{
+	int total_errors = 0;
+
+	/*
+	 * We hold the namespace lock through the whole function
+	 * to prevent any changes to the pool while we're starting or
+	 * stopping initialization. The config and state locks are held so that
+	 * we can properly assess the vdev state before we commit to
+	 * the initializing operation.
+	 */
+	mutex_enter(&spa_namespace_lock);
+
+	for (nvpair_t *pair = nvlist_next_nvpair(nv, NULL);
+	    pair != NULL; pair = nvlist_next_nvpair(nv, pair)) {
+		uint64_t vdev_guid = fnvpair_value_uint64(pair);
+
+		int error = spa_vdev_initialize_impl(spa, vdev_guid, cmd_type);
+		if (error != 0) {
+			char guid_as_str[MAXNAMELEN];
+
+			(void) snprintf(guid_as_str, sizeof (guid_as_str),
+			    "%llu", (unsigned long long)vdev_guid);
+			fnvlist_add_int64(vdev_errlist, guid_as_str, error);
+			total_errors++;
+		}
+	}
+
 	/* Sync out the initializing state */
 	txg_wait_synced(spa->spa_dsl_pool, 0);
 	mutex_exit(&spa_namespace_lock);
 
-	return (0);
+	return (total_errors);
 }
-
 
 /*
  * Split a set of devices from their mirrors, and create a new pool from them.
