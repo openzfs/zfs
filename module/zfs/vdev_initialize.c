@@ -702,18 +702,51 @@ vdev_initialize(vdev_t *vd)
 }
 
 /*
- * Stop initializng a device, with the resultant initialing state being
- * tgt_state. Blocks until the initializing thread has exited.
- * Caller must hold vdev_initialize_lock and must not be writing to the spa
- * config, as the initializing thread may try to enter the config as a reader
- * before exiting.
+ * Wait for the initialize thread to be terminated (cancelled or stopped).
+ */
+static void
+vdev_initialize_stop_wait_impl(vdev_t *vd)
+{
+	ASSERT(MUTEX_HELD(&vd->vdev_initialize_lock));
+
+	while (vd->vdev_initialize_thread != NULL)
+		cv_wait(&vd->vdev_initialize_cv, &vd->vdev_initialize_lock);
+
+	ASSERT3P(vd->vdev_initialize_thread, ==, NULL);
+	vd->vdev_initialize_exit_wanted = B_FALSE;
+}
+
+/*
+ * Wait for vdev initialize threads which were either to cleanly exit.
  */
 void
-vdev_initialize_stop(vdev_t *vd, vdev_initializing_state_t tgt_state)
+vdev_initialize_stop_wait(spa_t *spa, list_t *vd_list)
 {
-	ASSERTV(spa_t *spa = vd->vdev_spa);
-	ASSERT(!spa_config_held(spa, SCL_CONFIG | SCL_STATE, RW_WRITER));
+	vdev_t *vd;
 
+	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+
+	while ((vd = list_remove_head(vd_list)) != NULL) {
+		mutex_enter(&vd->vdev_initialize_lock);
+		vdev_initialize_stop_wait_impl(vd);
+		mutex_exit(&vd->vdev_initialize_lock);
+	}
+}
+
+/*
+ * Stop initializing a device, with the resultant initialing state being
+ * tgt_state.  For blocking behavior pass NULL for vd_list.  Otherwise, when
+ * a list_t is provided the stopping vdev is inserted in to the list.  Callers
+ * are then required to call vdev_initialize_stop_wait() to block for all the
+ * initialization threads to exit.  The caller must hold vdev_initialize_lock
+ * and must not be writing to the spa config, as the initializing thread may
+ * try to enter the config as a reader before exiting.
+ */
+void
+vdev_initialize_stop(vdev_t *vd, vdev_initializing_state_t tgt_state,
+    list_t *vd_list)
+{
+	ASSERT(!spa_config_held(vd->vdev_spa, SCL_CONFIG|SCL_STATE, RW_WRITER));
 	ASSERT(MUTEX_HELD(&vd->vdev_initialize_lock));
 	ASSERT(vd->vdev_ops->vdev_op_leaf);
 	ASSERT(vdev_is_concrete(vd));
@@ -729,25 +762,29 @@ vdev_initialize_stop(vdev_t *vd, vdev_initializing_state_t tgt_state)
 
 	vdev_initialize_change_state(vd, tgt_state);
 	vd->vdev_initialize_exit_wanted = B_TRUE;
-	while (vd->vdev_initialize_thread != NULL)
-		cv_wait(&vd->vdev_initialize_cv, &vd->vdev_initialize_lock);
 
-	ASSERT3P(vd->vdev_initialize_thread, ==, NULL);
-	vd->vdev_initialize_exit_wanted = B_FALSE;
+	if (vd_list == NULL) {
+		vdev_initialize_stop_wait_impl(vd);
+	} else {
+		ASSERT(MUTEX_HELD(&spa_namespace_lock));
+		list_insert_tail(vd_list, vd);
+	}
 }
 
 static void
-vdev_initialize_stop_all_impl(vdev_t *vd, vdev_initializing_state_t tgt_state)
+vdev_initialize_stop_all_impl(vdev_t *vd, vdev_initializing_state_t tgt_state,
+    list_t *vd_list)
 {
 	if (vd->vdev_ops->vdev_op_leaf && vdev_is_concrete(vd)) {
 		mutex_enter(&vd->vdev_initialize_lock);
-		vdev_initialize_stop(vd, tgt_state);
+		vdev_initialize_stop(vd, tgt_state, vd_list);
 		mutex_exit(&vd->vdev_initialize_lock);
 		return;
 	}
 
 	for (uint64_t i = 0; i < vd->vdev_children; i++) {
-		vdev_initialize_stop_all_impl(vd->vdev_child[i], tgt_state);
+		vdev_initialize_stop_all_impl(vd->vdev_child[i], tgt_state,
+		    vd_list);
 	}
 }
 
@@ -758,12 +795,23 @@ vdev_initialize_stop_all_impl(vdev_t *vd, vdev_initializing_state_t tgt_state)
 void
 vdev_initialize_stop_all(vdev_t *vd, vdev_initializing_state_t tgt_state)
 {
-	vdev_initialize_stop_all_impl(vd, tgt_state);
+	spa_t *spa = vd->vdev_spa;
+	list_t vd_list;
+
+	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+
+	list_create(&vd_list, sizeof (vdev_t),
+	    offsetof(vdev_t, vdev_initialize_node));
+
+	vdev_initialize_stop_all_impl(vd, tgt_state, &vd_list);
+	vdev_initialize_stop_wait(spa, &vd_list);
 
 	if (vd->vdev_spa->spa_sync_on) {
 		/* Make sure that our state has been synced to disk */
 		txg_wait_synced(spa_get_dsl(vd->vdev_spa), 0);
 	}
+
+	list_destroy(&vd_list);
 }
 
 void
@@ -808,9 +856,10 @@ vdev_initialize_restart(vdev_t *vd)
 #if defined(_KERNEL)
 EXPORT_SYMBOL(vdev_initialize_restart);
 EXPORT_SYMBOL(vdev_xlate);
-EXPORT_SYMBOL(vdev_initialize_stop_all);
 EXPORT_SYMBOL(vdev_initialize);
 EXPORT_SYMBOL(vdev_initialize_stop);
+EXPORT_SYMBOL(vdev_initialize_stop_all);
+EXPORT_SYMBOL(vdev_initialize_stop_wait);
 
 /* CSTYLED */
 module_param(zfs_initialize_value, ulong, 0644);

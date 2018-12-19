@@ -263,6 +263,7 @@ struct vdev {
 
 	boolean_t	vdev_initialize_exit_wanted;
 	vdev_initializing_state_t	vdev_initialize_state;
+	list_node_t	vdev_initialize_node;
 	kthread_t	*vdev_initialize_thread;
 	/* Protects vdev_initialize_thread and vdev_initialize_state. */
 	kmutex_t	vdev_initialize_lock;
