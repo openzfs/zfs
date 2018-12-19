@@ -139,6 +139,9 @@ typedef enum zfs_error {
 	EZFS_DEVRM_IN_PROGRESS,	/* a device is currently being removed */
 	EZFS_VDEV_TOO_BIG,	/* a device is too big to be used */
 	EZFS_IOC_NOTSUPPORTED,	/* operation not supported by zfs module */
+	EZFS_TOOMANY,		/* argument list too long */
+	EZFS_INITIALIZING,	/* currently initializing */
+	EZFS_NO_INITIALIZE,	/* no active initialize */
 	EZFS_UNKNOWN
 } zfs_error_t;
 
@@ -253,6 +256,8 @@ typedef struct splitflags {
  * Functions to manipulate pool and vdev state
  */
 extern int zpool_scan(zpool_handle_t *, pool_scan_func_t, pool_scrub_cmd_t);
+extern int zpool_initialize(zpool_handle_t *, pool_initialize_func_t,
+    nvlist_t *);
 extern int zpool_clear(zpool_handle_t *, const char *, nvlist_t *);
 extern int zpool_reguid(zpool_handle_t *);
 extern int zpool_reopen_one(zpool_handle_t *, void *);
