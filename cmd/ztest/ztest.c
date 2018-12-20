@@ -1811,6 +1811,8 @@ ztest_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 
 	ASSERT(lr->lr_foid != 0);
 
+	ztest_object_lock(zd, lr->lr_foid, RL_WRITER);
+
 	if (lr->lrz_type != DMU_OT_ZAP_OTHER)
 		VERIFY3U(0, ==, dmu_object_set_blocksize(os, lr->lr_foid,
 		    lr->lrz_blocksize, lr->lrz_ibshift, tx));
@@ -1822,6 +1824,8 @@ ztest_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 	    lr->lr_gen, txg, txg);
 	ztest_fill_unused_bonus(db, bbt, lr->lr_foid, os, lr->lr_gen);
 	dmu_buf_rele(db, FTAG);
+
+	ztest_object_unlock(zd, lr->lr_foid);
 
 	VERIFY3U(0, ==, zap_add(os, lr->lr_doid, name, sizeof (uint64_t), 1,
 	    &lr->lr_foid, tx));
