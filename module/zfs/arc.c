@@ -3365,7 +3365,6 @@ arc_hdr_alloc(uint64_t spa, int32_t psize, int32_t lsize,
 
 	ASSERT(HDR_EMPTY(hdr));
 	ASSERT3P(hdr->b_l1hdr.b_freeze_cksum, ==, NULL);
-
 	HDR_SET_PSIZE(hdr, psize);
 	HDR_SET_LSIZE(hdr, lsize);
 	hdr->b_spa = spa;
@@ -6097,7 +6096,7 @@ arc_read(zio_t *pio, spa_t *spa, const blkptr_t *bp,
 	    BPE_GET_ETYPE(bp) == BP_EMBEDDED_TYPE_DATA);
 
 top:
-	if(*arc_flags & ARC_FLAG_COMPRESSED_ARC) {
+	if (*arc_flags & ARC_FLAG_COMPRESSED_ARC) {
 		zio_flags |= ZIO_FLAG_RAW;
 		compressed_read = TRUE;
 	}

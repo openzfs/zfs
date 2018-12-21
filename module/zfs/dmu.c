@@ -1426,9 +1426,12 @@ dmu_read_uio_dnode(dnode_t *dn, uio_t *uio, uint64_t size)
 		uint64_t tocpy;
 		int64_t bufoff;
 		dmu_buf_t *db = dbp[i];
+
 		ASSERT(size > 0);
+
 		bufoff = uio->uio_loffset - db->db_offset;
 		tocpy = MIN(db->db_size - bufoff, size);
+
 #ifdef HAVE_UIO_ZEROCOPY
 		if (xuio) {
 			dmu_buf_impl_t *dbi = (dmu_buf_impl_t *)db;
@@ -2313,9 +2316,6 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 	 * result in a new ciphertext. Only encrypted blocks can be dedup'd
 	 * to avoid ambiguity in the dedup code since the DDT does not store
 	 * object types.
-	 * If we're writing a pre-compressed buffer, the compression type we use
-	 * must match the data. If it hasn't been compressed yet, then we should
-	 * use the value dictated by the policies above.
 	 */
 	if (os->os_encrypted && (wp & WP_NOFILL) == 0) {
 		encrypt = B_TRUE;
@@ -2333,11 +2333,6 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 		}
 	}
 
-	/*
-	 * If we're writing a pre-compressed buffer, the compression type we use
-	 * must match the data. If it hasn't been compressed yet, then we should
-	 * use the value dictated by the policies above.
-	 */
 	zp->zp_compress = compress;
 	zp->zp_checksum = checksum;
 	zp->zp_type = (wp & WP_SPILL) ? dn->dn_bonustype : type;

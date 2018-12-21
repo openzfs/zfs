@@ -1556,6 +1556,7 @@ zio_write_compress(zio_t *zio)
 
 		if (pass >= zfs_sync_pass_dont_compress)
 			compress = ZIO_COMPRESS_OFF;
+
 		/* Make sure someone doesn't change their mind on overwrites */
 		ASSERT(BP_IS_EMBEDDED(bp) || MIN(zp->zp_copies + BP_IS_GANG(bp),
 		    spa_max_replication(spa)) == BP_GET_NDVAS(bp));
@@ -1564,7 +1565,7 @@ zio_write_compress(zio_t *zio)
 	/* If it's a compressed write that is not raw, compress the buffer. */
 	if (compress != ZIO_COMPRESS_OFF && psize == lsize &&
 	    (!(zio->io_flags & ZIO_FLAG_RAW_COMPRESS) ||
-		(zio->io_flags & ZIO_FLAG_RAW) == 0)) {
+	    (zio->io_flags & ZIO_FLAG_RAW) == 0)) {
 		void *cbuf = zio_buf_alloc(lsize);
 		psize = zio_compress_data(compress, zio->io_abd, cbuf, lsize);
 		if (psize == 0 || psize == lsize) {

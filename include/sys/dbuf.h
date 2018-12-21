@@ -279,7 +279,6 @@ typedef struct dmu_buf_impl {
 	uint8_t db_pending_evict;
 
 	uint8_t db_dirtycnt;
-
 } dmu_buf_impl_t;
 
 /* Note: the dbuf hash table is exposed only for the mdb module */

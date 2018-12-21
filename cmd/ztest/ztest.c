@@ -4894,17 +4894,23 @@ ztest_write_external_compressed(ztest_ds_t *zd, uint64_t id)
 	objset_t *os = zd->zd_os;
 	od_size = sizeof (ztest_od_t);
 	od = umem_alloc(od_size, UMEM_NOFAIL);
-	// TODO Hauke Stieler: Random value currently doesn't work
-	uint64_t blocksize = 16896;//ztest_random_blocksize();
 	uint64_t psize, lsize;
+	/*
+	 * To compare written and read data, we create a buffer so that we can
+	 * compare the data later.
+	 */
+	void *data_buf;
 	void *data;
 	dmu_buf_t *db;
 	dmu_tx_t *tx;
 	arc_buf_t *abuf;
 
-	psize = blocksize;
-	// TODO Hauke Stieler: Random value currently doesn't work
-	lsize = psize + 1024;//(1 << (SPA_MINBLOCKSHIFT + ztest_random(5)));
+	zfs_compressed_arc_enabled = B_TRUE;
+
+	psize = 4096;
+	lsize = psize + (1 << (SPA_MINBLOCKSHIFT + 1));
+
+	data_buf = umem_zalloc(psize, UMEM_NOFAIL);
 	data = umem_zalloc(psize, UMEM_NOFAIL);
 
 	ztest_od_init(od, id, FTAG, 0, DMU_OT_UINT64_OTHER, lsize, 0, 0);
@@ -4914,22 +4920,22 @@ ztest_write_external_compressed(ztest_ds_t *zd, uint64_t id)
 	 * verify that the write and read was succesfull.
 	 */
 	char *pattern = "moin";
-	for(int i = 0; i < psize; i += 4) {
-		memcpy(data + i, pattern, 4);
+	for (int i = 0; i < psize; i += 4) {
+		memcpy(data_buf + i, pattern, 4);
 	}
+	memcpy(data, data_buf, psize);
 
 	if (ztest_object_init(zd, od, od_size, B_FALSE) != 0) {
 		umem_free(od, od_size);
 		return;
 	}
 
-	os = zd->zd_os;
-
 	/*
 	 * TODO Hauke Stieler: Maybe find an alternative to dmu_bonus_hold_impl
 	 * that does not take the flags as parameters?
 	 */
-	VERIFY3U(0, ==, dmu_bonus_hold_impl(os, od->od_object, FTAG, DMU_READ_NO_PREFETCH | DMU_READ_NO_DECOMPRESS, &db));
+	VERIFY3U(0, ==, dmu_bonus_hold_impl(os, od->od_object,
+	    FTAG, DMU_READ_NO_PREFETCH | DMU_READ_NO_DECOMPRESS, &db));
 
 	abuf = dmu_request_compressed_arcbuf(db, psize, lsize);
 	bcopy(data, abuf->b_data, psize);
@@ -4950,8 +4956,34 @@ ztest_write_external_compressed(ztest_ds_t *zd, uint64_t id)
 	dmu_assign_compressed_arcbuf(db, 0, psize, abuf, tx);
 
 	dmu_tx_commit(tx);
+	dmu_buf_rele(db, FTAG);
 
-	return;
+	/*
+	 * Read the data and compare the content
+	 */
+	int numbufs;
+	int unequal_bytes;
+	dmu_buf_t **dbp;
+
+	unequal_bytes = 0;
+
+	VERIFY3U(0, ==, dmu_bonus_hold_impl(os, od->od_object,
+	    FTAG, DMU_READ_NO_PREFETCH | DMU_READ_NO_DECOMPRESS, &db));
+	dmu_buf_hold_array_by_bonus_compressed(db, 0, psize, B_TRUE, FTAG, &numbufs, &dbp);
+
+	for (int i = 0; i < numbufs; i++) {
+		for (int j = 0; j < psize; j++) {
+			unequal_bytes += ((uint8_t *)data_buf)[j] !=
+			    ((uint8_t *)dbp[i]->db_data)[j];
+		}
+	}
+
+	VERIFY(unequal_bytes == 0);
+
+	txg_wait_synced(dmu_objset_pool(os), txg);
+
+	dmu_buf_rele(db, FTAG);
+	dmu_buf_rele_array(dbp, numbufs, FTAG);
 }
 
 /* ARGSUSED */
