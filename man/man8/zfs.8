@@ -1082,7 +1082,7 @@ accordance to the requested mode from the application.
 .Pp
 The
 .Sy aclinherit
-property does not apply to posix ACLs.
+property does not apply to POSIX ACLs.
 .It Sy acltype Ns = Ns Sy off Ns | Ns Sy noacl Ns | Ns Sy posixacl
 Controls whether ACLs are enabled and if so what type of ACL to use.
 .Bl -tag -width "posixacl"
@@ -1094,8 +1094,8 @@ property set to off then ACLs are disabled.
 an alias for
 .Sy off
 .It Sy posixacl
-indicates posix ACLs should be used. Posix ACLs are specific to Linux and are
-not functional on other platforms. Posix ACLs are stored as an extended
+indicates POSIX ACLs should be used. POSIX ACLs are specific to Linux and are
+not functional on other platforms. POSIX ACLs are stored as an extended
 attribute and therefore will not overwrite any existing NFSv4 ACLs which
 may be set.
 .El
@@ -1104,7 +1104,7 @@ To obtain the best performance when setting
 .Sy posixacl
 users are strongly encouraged to set the
 .Sy xattr=sa
-property. This will result in the posix ACL being stored more efficiently on
+property. This will result in the POSIX ACL being stored more efficiently on
 disk. But as a consequence of this all new extended attributes will only be
 accessible from OpenZFS implementations which support the
 .Sy xattr=sa
@@ -2161,7 +2161,7 @@ on platforms which do not support the
 feature.
 .Pp
 The use of system attribute based xattrs is strongly encouraged for users of
-SELinux or posix ACLs. Both of these features heavily rely of extended
+SELinux or POSIX ACLs. Both of these features heavily rely of extended
 attributes and benefit significantly from the reduced access time.
 .Pp
 The values
