@@ -303,6 +303,8 @@ typedef enum {
 	/*
 	 * The following correspond to faults as defined in the (fault.fs.zfs.*)
 	 * event namespace.  Each is associated with a corresponding message ID.
+	 * This must be kept in sync with the zfs_msgid_table in
+	 * lib/libzfs/libzfs_status.c.
 	 */
 	ZPOOL_STATUS_CORRUPT_CACHE,	/* corrupt /kernel/drv/zpool.cache */
 	ZPOOL_STATUS_MISSING_DEV_R,	/* missing device with replicas */
