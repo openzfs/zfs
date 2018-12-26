@@ -47,6 +47,10 @@
  * 3] When the zthr is done, it changes the indicator to stopped, allowing
  *    a new cycle to start.
  *
+ * Besides being awakened by other threads, a zthr can be configured
+ * during creation to wakeup on its own after a specified interval
+ * [see zthr_create_timer()].
+ *
  * == ZTHR creation
  *
  * Every zthr needs three inputs to start running:
@@ -74,6 +78,9 @@
  *
  * To start a zthr:
  *     zthr_t *zthr_pointer = zthr_create(checkfunc, func, args);
+ * or
+ *     zthr_t *zthr_pointer = zthr_create_timer(checkfunc, func,
+ *         args, max_sleep);
  *
  * After that you should be able to wakeup, cancel, and resume the
  * zthr from another thread using zthr_pointer.
@@ -189,7 +196,13 @@ zthr_procedure(void *arg)
 			mutex_enter(&t->zthr_lock);
 		} else {
 			/* go to sleep */
-			cv_wait_sig(&t->zthr_cv, &t->zthr_lock);
+			if (t->zthr_wait_time == 0) {
+				cv_wait_sig(&t->zthr_cv, &t->zthr_lock);
+			} else {
+				(void) cv_timedwait_sig_hires(&t->zthr_cv,
+				    &t->zthr_lock, t->zthr_wait_time,
+				    MSEC2NSEC(1), 0);
+			}
 		}
 	}
 	mutex_exit(&t->zthr_lock);
@@ -200,6 +213,18 @@ zthr_procedure(void *arg)
 zthr_t *
 zthr_create(zthr_checkfunc_t *checkfunc, zthr_func_t *func, void *arg)
 {
+	return (zthr_create_timer(checkfunc, func, arg, (hrtime_t)0));
+}
+
+/*
+ * Create a zthr with specified maximum sleep time.  If the time
+ * in sleeping state exceeds max_sleep, a wakeup(do the check and
+ * start working if required) will be triggered.
+ */
+zthr_t *
+zthr_create_timer(zthr_checkfunc_t *checkfunc, zthr_func_t *func,
+    void *arg, hrtime_t max_sleep)
+{
 	zthr_t *t = kmem_zalloc(sizeof (*t), KM_SLEEP);
 	mutex_init(&t->zthr_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&t->zthr_cv, NULL, CV_DEFAULT, NULL);
@@ -208,6 +233,7 @@ zthr_create(zthr_checkfunc_t *checkfunc, zthr_func_t *func, void *arg)
 	t->zthr_checkfunc = checkfunc;
 	t->zthr_func = func;
 	t->zthr_arg = arg;
+	t->zthr_wait_time = max_sleep;
 
 	t->zthr_thread = thread_create(NULL, 0, zthr_procedure, t,
 	    0, &p0, TS_RUN, minclsyspri);

@@ -163,6 +163,7 @@ extern unsigned int spl_kmem_alloc_max;
 #define	kmem_alloc(sz, fl)	spl_kmem_alloc((sz), (fl), __func__, __LINE__)
 #define	kmem_zalloc(sz, fl)	spl_kmem_zalloc((sz), (fl), __func__, __LINE__)
 #define	kmem_free(ptr, sz)	spl_kmem_free((ptr), (sz))
+#define	kmem_cache_reap_active	spl_kmem_cache_reap_active
 
 extern void *spl_kmem_alloc(size_t sz, int fl, const char *func, int line);
 extern void *spl_kmem_zalloc(size_t sz, int fl, const char *func, int line);
@@ -181,5 +182,6 @@ extern void spl_kmem_free_track(const void *buf, size_t size);
 
 extern int spl_kmem_init(void);
 extern void spl_kmem_fini(void);
+extern int spl_kmem_cache_reap_active(void);
 
 #endif	/* _SPL_KMEM_H */
