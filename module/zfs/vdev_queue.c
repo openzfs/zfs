@@ -445,6 +445,7 @@ vdev_queue_io_add(vdev_queue_t *vq, zio_t *zio)
 {
 	spa_t *spa = zio->io_spa;
 	spa_history_kstat_t *shk = &spa->spa_stats.io_history;
+	avl_tree_t *qtt;
 
 	ASSERT3U(zio->io_priority, <, ZIO_PRIORITY_NUM_QUEUEABLE);
 	avl_add(vdev_queue_class_tree(vq, zio->io_priority), zio);
@@ -464,6 +465,7 @@ vdev_queue_io_remove(vdev_queue_t *vq, zio_t *zio)
 {
 	spa_t *spa = zio->io_spa;
 	spa_history_kstat_t *shk = &spa->spa_stats.io_history;
+	avl_tree_t *qtt;
 
 	ASSERT3U(zio->io_priority, <, ZIO_PRIORITY_NUM_QUEUEABLE);
 	avl_remove(vdev_queue_class_tree(vq, zio->io_priority), zio);
