@@ -3927,7 +3927,7 @@ zio_vdev_io_start(zio_t *zio)
 	}
 
 	if (ZIO_IS_TRIM(zio) && zio_trim_should_bypass(zio))
-		return (ZIO_PIPELINE_CONTINUE);
+		return (zio);
 
 	vd->vdev_ops->vdev_op_io_start(zio);
 	return (NULL);
