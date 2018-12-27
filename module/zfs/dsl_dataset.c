@@ -1566,6 +1566,14 @@ dsl_dataset_snapshot_check(void *arg, dmu_tx_t *tx)
 		}
 	}
 
+	/*
+	 * The user credential was verified and has the required access.
+	 * It must be converted to the kcred in order for this check to
+	 * pass again when run on the callers behalf in syncing context.
+	 */
+	if (rv == 0 && ddsa->ddsa_cr == CRED())
+		ddsa->ddsa_cr = kcred;
+
 	return (rv);
 }
 
@@ -3134,6 +3142,14 @@ dsl_dataset_promote_check(void *arg, dmu_tx_t *tx)
 	    0, ss_mv_cnt, ddpa->used, ddpa->cr);
 	if (err != 0)
 		goto out;
+
+	/*
+	 * The user credential was verified and has the required access.
+	 * It must be converted to the kcred in order for this check to
+	 * pass again when run on the callers behalf in syncing context.
+	 */
+	if (err == 0 && ddpa->cr == CRED())
+		ddpa->cr = kcred;
 
 	/*
 	 * Compute the amounts of space that will be used by snapshots

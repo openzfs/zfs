@@ -1149,6 +1149,14 @@ dmu_objset_create_check(void *arg, dmu_tx_t *tx)
 
 	dsl_dir_rele(pdd, FTAG);
 
+	/*
+	 * The user credential was verified and has the required access.
+	 * It must be converted to the kcred in order for this check to
+	 * pass again when run on the callers behalf in syncing context.
+	 */
+	if (error == 0 && doca->doca_cred == CRED())
+		doca->doca_cred = kcred;
+
 	return (error);
 }
 
@@ -1332,7 +1340,15 @@ dmu_objset_clone_check(void *arg, dmu_tx_t *tx)
 	dsl_dataset_rele(origin, FTAG);
 	dsl_dir_rele(pdd, FTAG);
 
-	return (0);
+	/*
+	 * The user credential was verified and has the required access.
+	 * It must be converted to the kcred in order for this check to
+	 * pass again when run on the callers behalf in syncing context.
+	 */
+	if (error == 0 && doca->doca_cred == CRED())
+		doca->doca_cred = kcred;
+
+	return (error);
 }
 
 static void
