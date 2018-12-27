@@ -371,7 +371,7 @@ get_usage(zpool_help_t idx)
 		return (gettext("\tresilver <pool> ...\n"));
 	case HELP_STATUS:
 		return (gettext("\tstatus [-c [script1,script2,...]] "
-		    "[-gLpPsvxD]  [-T d|u] [pool] ... \n"
+		    "[-igLpPsvxD]  [-T d|u] [pool] ... \n"
 		    "\t    [interval [count]]\n"));
 	case HELP_UPGRADE:
 		return (gettext("\tupgrade\n"
@@ -1792,6 +1792,7 @@ typedef struct status_cbdata {
 	boolean_t	cb_dedup_stats;
 	boolean_t	cb_print_status;
 	boolean_t	cb_print_slow_ios;
+	boolean_t	cb_print_vdev_init;
 	vdev_cmd_data_list_t	*vcdl;
 } status_cbdata_t;
 
@@ -2040,41 +2041,52 @@ print_status_config(zpool_handle_t *zhp, status_cbdata_t *cb, const char *name,
 		}
 	}
 
-	if ((vs->vs_initialize_state == VDEV_INITIALIZE_ACTIVE ||
-	    vs->vs_initialize_state == VDEV_INITIALIZE_SUSPENDED ||
-	    vs->vs_initialize_state == VDEV_INITIALIZE_COMPLETE) &&
-	    !vs->vs_scan_removing) {
-		char zbuf[1024];
-		char tbuf[256];
-		struct tm zaction_ts;
+	/* Optionally display vdev initialization status for leaves */
+	if (cb->cb_print_vdev_init && children == 0) {
+		if ((vs->vs_initialize_state == VDEV_INITIALIZE_ACTIVE ||
+		    vs->vs_initialize_state == VDEV_INITIALIZE_SUSPENDED ||
+		    vs->vs_initialize_state == VDEV_INITIALIZE_COMPLETE) &&
+		    !vs->vs_scan_removing) {
+			char zbuf[1024];
+			char tbuf[256];
+			struct tm zaction_ts;
 
-		time_t t = vs->vs_initialize_action_time;
-		int initialize_pct = 100;
-		if (vs->vs_initialize_state != VDEV_INITIALIZE_COMPLETE) {
-			initialize_pct = (vs->vs_initialize_bytes_done * 100 /
-			    (vs->vs_initialize_bytes_est + 1));
+			time_t t = vs->vs_initialize_action_time;
+			int initialize_pct = 100;
+			if (vs->vs_initialize_state !=
+			    VDEV_INITIALIZE_COMPLETE) {
+				initialize_pct = (vs->vs_initialize_bytes_done *
+				    100 / (vs->vs_initialize_bytes_est + 1));
+			}
+
+			(void) localtime_r(&t, &zaction_ts);
+			(void) strftime(tbuf, sizeof (tbuf), "%c", &zaction_ts);
+
+			switch (vs->vs_initialize_state) {
+			case VDEV_INITIALIZE_SUSPENDED:
+				(void) snprintf(zbuf, sizeof (zbuf),
+				    ", suspended, started at %s", tbuf);
+				break;
+			case VDEV_INITIALIZE_ACTIVE:
+				(void) snprintf(zbuf, sizeof (zbuf),
+				    ", started at %s", tbuf);
+				break;
+			case VDEV_INITIALIZE_COMPLETE:
+				(void) snprintf(zbuf, sizeof (zbuf),
+				    ", completed at %s", tbuf);
+				break;
+			}
+
+			(void) printf(gettext("  (%d%% initialized%s)"),
+			    initialize_pct, zbuf);
+		} else {
+			(void) printf(gettext("  (uninitialized)"));
 		}
-
-		(void) localtime_r(&t, &zaction_ts);
-		(void) strftime(tbuf, sizeof (tbuf), "%c", &zaction_ts);
-
-		switch (vs->vs_initialize_state) {
-		case VDEV_INITIALIZE_SUSPENDED:
-			(void) snprintf(zbuf, sizeof (zbuf),
-			    ", suspended, started at %s", tbuf);
-			break;
-		case VDEV_INITIALIZE_ACTIVE:
-			(void) snprintf(zbuf, sizeof (zbuf),
-			    ", started at %s", tbuf);
-			break;
-		case VDEV_INITIALIZE_COMPLETE:
-			(void) snprintf(zbuf, sizeof (zbuf),
-			    ", completed at %s", tbuf);
-			break;
+	} else {
+		if (vs->vs_initialize_state == VDEV_INITIALIZE_ACTIVE &&
+		    children == 0) {
+			(void) printf(gettext("  (initializing)"));
 		}
-
-		(void) printf(gettext("  (%d%% initialized%s)"),
-		    initialize_pct, zbuf);
 	}
 
 	(void) printf("\n");
@@ -7477,10 +7489,11 @@ status_callback(zpool_handle_t *zhp, void *data)
 }
 
 /*
- * zpool status [-c [script1,script2,...]] [-gLpPsvx] [-T d|u] [pool] ...
+ * zpool status [-c [script1,script2,...]] [-igLpPsvx] [-T d|u] [pool] ...
  *              [interval [count]]
  *
  *	-c CMD	For each vdev, run command CMD
+ *	-i	Display vdev initialization status.
  *	-g	Display guid for individual vdev name.
  *	-L	Follow links when resolving vdev path name.
  *	-p	Display values in parsable (exact) format.
@@ -7504,7 +7517,7 @@ zpool_do_status(int argc, char **argv)
 	char *cmd = NULL;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "c:gLpPsvxDT:")) != -1) {
+	while ((c = getopt(argc, argv, "c:igLpPsvxDT:")) != -1) {
 		switch (c) {
 		case 'c':
 			if (cmd != NULL) {
@@ -7529,6 +7542,9 @@ zpool_do_status(int argc, char **argv)
 				exit(1);
 			}
 			cmd = optarg;
+			break;
+		case 'i':
+			cb.cb_print_vdev_init = B_TRUE;
 			break;
 		case 'g':
 			cb.cb_name_flags |= VDEV_NAME_GUID;
