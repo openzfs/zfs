@@ -163,25 +163,49 @@ deps_contains_feature(const spa_feature_t *deps, const spa_feature_t feature)
 static boolean_t
 zfs_mod_supported_impl(const char *scope, const char *name, const char *sysfs)
 {
-	struct stat64 statbuf;
-	char *path;
 	boolean_t supported = B_FALSE;
-	int len;
+	char *path;
 
-	len = asprintf(&path, "%s/%s/%s", sysfs, scope, name);
-
+	int len = asprintf(&path, "%s%s%s%s%s", sysfs,
+	    scope == NULL ? "" : "/", scope == NULL ? "" : scope,
+	    name == NULL ? "" : "/", name == NULL ? "" : name);
 	if (len > 0) {
+		struct stat64 statbuf;
 		supported = !!(stat64(path, &statbuf) == 0);
 		free(path);
 	}
+
 	return (supported);
 }
 
 boolean_t
 zfs_mod_supported(const char *scope, const char *name)
 {
-	return (zfs_mod_supported_impl(scope, name, ZFS_SYSFS_DIR) ||
+	boolean_t supported;
+
+	/*
+	 * Check both the primary and alternate sysfs locations to determine
+	 * if the required functionality is supported.
+	 */
+	supported = (zfs_mod_supported_impl(scope, name, ZFS_SYSFS_DIR) ||
 	    zfs_mod_supported_impl(scope, name, ZFS_SYSFS_ALT_DIR));
+
+	/*
+	 * For backwards compatibility with kernel modules that predate
+	 * supported feature/property checking.  Report the feature/property
+	 * as supported if the kernel module is loaded but the requested
+	 * scope directory does not exist.
+	 */
+	if (supported == B_FALSE) {
+		struct stat64 statbuf;
+		if ((stat64(ZFS_SYSFS_DIR, &statbuf) == 0) &&
+		    !zfs_mod_supported_impl(scope, NULL, ZFS_SYSFS_DIR) &&
+		    !zfs_mod_supported_impl(scope, NULL, ZFS_SYSFS_ALT_DIR)) {
+			supported = B_TRUE;
+		}
+	}
+
+	return (supported);
 }
 #endif
 
