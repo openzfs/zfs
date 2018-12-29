@@ -14,6 +14,7 @@ fi
 PROG=zfs.sh
 VERBOSE="no"
 UNLOAD="no"
+STACK_TRACER="no"
 
 ZED_PIDFILE=${ZED_PIDFILE:-/var/run/zed.pid}
 LDMOD=${LDMOD:-/sbin/modprobe}
@@ -33,7 +34,7 @@ KMOD_ZFS=${KMOD_ZFS:-zfs}
 usage() {
 cat << EOF
 USAGE:
-$0 [hvud] [module-options]
+$0 [hvudS] [module-options]
 
 DESCRIPTION:
 	Load/unload the ZFS module stack.
@@ -42,10 +43,11 @@ OPTIONS:
 	-h      Show this message
 	-v      Verbose
 	-u      Unload modules
+	-S      Enable kernel stack tracer
 EOF
 }
 
-while getopts 'hvu' OPTION; do
+while getopts 'hvuS' OPTION; do
 	case $OPTION in
 	h)
 		usage
@@ -56,6 +58,9 @@ while getopts 'hvu' OPTION; do
 		;;
 	u)
 		UNLOAD="yes"
+		;;
+	S)
+		STACK_TRACER="yes"
 		;;
 	?)
 		usage
@@ -192,7 +197,7 @@ stack_clear() {
 	STACK_MAX_SIZE=/sys/kernel/debug/tracing/stack_max_size
 	STACK_TRACER_ENABLED=/proc/sys/kernel/stack_tracer_enabled
 
-	if [ -e "$STACK_MAX_SIZE" ]; then
+	if [ "$STACK_TRACER" = "yes" ] && [ -e "$STACK_MAX_SIZE" ]; then
 		echo 1 >"$STACK_TRACER_ENABLED"
 		echo 0 >"$STACK_MAX_SIZE"
 	fi

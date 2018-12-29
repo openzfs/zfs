@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  * Copyright (c) 2013 by Joyent, Inc. All rights reserved.
  * Copyright (c) 2016 Actifio, Inc. All rights reserved.
@@ -181,46 +181,70 @@ process_old_deadlist(dsl_dataset_t *ds, dsl_dataset_t *ds_prev,
 	    dsl_dataset_phys(ds_next)->ds_deadlist_obj);
 }
 
+struct removeclonesnode {
+	list_node_t link;
+	dsl_dataset_t *ds;
+};
+
 static void
 dsl_dataset_remove_clones_key(dsl_dataset_t *ds, uint64_t mintxg, dmu_tx_t *tx)
 {
 	objset_t *mos = ds->ds_dir->dd_pool->dp_meta_objset;
-	zap_cursor_t *zc;
-	zap_attribute_t *za;
+	list_t clones;
+	struct removeclonesnode *rcn;
 
-	/*
-	 * If it is the old version, dd_clones doesn't exist so we can't
-	 * find the clones, but dsl_deadlist_remove_key() is a no-op so it
-	 * doesn't matter.
-	 */
-	if (dsl_dir_phys(ds->ds_dir)->dd_clones == 0)
-		return;
+	list_create(&clones, sizeof (struct removeclonesnode),
+	    offsetof(struct removeclonesnode, link));
 
-	zc = kmem_alloc(sizeof (zap_cursor_t), KM_SLEEP);
-	za = kmem_alloc(sizeof (zap_attribute_t), KM_SLEEP);
+	rcn = kmem_zalloc(sizeof (struct removeclonesnode), KM_SLEEP);
+	rcn->ds = ds;
+	list_insert_head(&clones, rcn);
 
-	for (zap_cursor_init(zc, mos, dsl_dir_phys(ds->ds_dir)->dd_clones);
-	    zap_cursor_retrieve(zc, za) == 0;
-	    zap_cursor_advance(zc)) {
-		dsl_dataset_t *clone;
+	for (; rcn != NULL; rcn = list_next(&clones, rcn)) {
+		zap_cursor_t zc;
+		zap_attribute_t za;
+		/*
+		 * If it is the old version, dd_clones doesn't exist so we can't
+		 * find the clones, but dsl_deadlist_remove_key() is a no-op so
+		 * it doesn't matter.
+		 */
+		if (dsl_dir_phys(rcn->ds->ds_dir)->dd_clones == 0)
+			continue;
 
-		VERIFY0(dsl_dataset_hold_obj(ds->ds_dir->dd_pool,
-		    za->za_first_integer, FTAG, &clone));
-		if (clone->ds_dir->dd_origin_txg > mintxg) {
-			dsl_deadlist_remove_key(&clone->ds_deadlist,
-			    mintxg, tx);
-			if (dsl_dataset_remap_deadlist_exists(clone)) {
-				dsl_deadlist_remove_key(
-				    &clone->ds_remap_deadlist, mintxg, tx);
+		for (zap_cursor_init(&zc, mos,
+		    dsl_dir_phys(rcn->ds->ds_dir)->dd_clones);
+		    zap_cursor_retrieve(&zc, &za) == 0;
+		    zap_cursor_advance(&zc)) {
+			dsl_dataset_t *clone;
+
+			VERIFY0(dsl_dataset_hold_obj(rcn->ds->ds_dir->dd_pool,
+			    za.za_first_integer, FTAG, &clone));
+			if (clone->ds_dir->dd_origin_txg > mintxg) {
+				dsl_deadlist_remove_key(&clone->ds_deadlist,
+				    mintxg, tx);
+				if (dsl_dataset_remap_deadlist_exists(clone)) {
+					dsl_deadlist_remove_key(
+					    &clone->ds_remap_deadlist, mintxg,
+					    tx);
+				}
+				rcn = kmem_zalloc(
+				    sizeof (struct removeclonesnode), KM_SLEEP);
+				rcn->ds = clone;
+				list_insert_tail(&clones, rcn);
+			} else {
+				dsl_dataset_rele(clone, FTAG);
 			}
-			dsl_dataset_remove_clones_key(clone, mintxg, tx);
 		}
-		dsl_dataset_rele(clone, FTAG);
+		zap_cursor_fini(&zc);
 	}
-	zap_cursor_fini(zc);
 
-	kmem_free(za, sizeof (zap_attribute_t));
-	kmem_free(zc, sizeof (zap_cursor_t));
+	rcn = list_remove_head(&clones);
+	kmem_free(rcn, sizeof (struct removeclonesnode));
+	while ((rcn = list_remove_head(&clones)) != NULL) {
+		dsl_dataset_rele(rcn->ds, FTAG);
+		kmem_free(rcn, sizeof (struct removeclonesnode));
+	}
+	list_destroy(&clones);
 }
 
 static void
@@ -269,7 +293,7 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 	rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
 	ASSERT3U(dsl_dataset_phys(ds)->ds_bp.blk_birth, <=, tx->tx_txg);
 	rrw_exit(&ds->ds_bp_rwlock, FTAG);
-	ASSERT(refcount_is_zero(&ds->ds_longholds));
+	ASSERT(zfs_refcount_is_zero(&ds->ds_longholds));
 
 	if (defer &&
 	    (ds->ds_userrefs > 0 ||
@@ -291,10 +315,8 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 	obj = ds->ds_object;
 
 	for (spa_feature_t f = 0; f < SPA_FEATURES; f++) {
-		if (ds->ds_feature_inuse[f]) {
-			dsl_dataset_deactivate_feature(obj, f, tx);
-			ds->ds_feature_inuse[f] = B_FALSE;
-		}
+		if (dsl_dataset_feature_is_active(ds, f))
+			dsl_dataset_deactivate_feature(ds, f, tx);
 	}
 	if (dsl_dataset_phys(ds)->ds_prev_snap_obj != 0) {
 		ASSERT3P(ds->ds_prev, ==, NULL);
@@ -705,7 +727,7 @@ dsl_destroy_head_check_impl(dsl_dataset_t *ds, int expected_holds)
 	if (ds->ds_is_snapshot)
 		return (SET_ERROR(EINVAL));
 
-	if (refcount_count(&ds->ds_longholds) != expected_holds)
+	if (zfs_refcount_count(&ds->ds_longholds) != expected_holds)
 		return (SET_ERROR(EBUSY));
 
 	mos = ds->ds_dir->dd_pool->dp_meta_objset;
@@ -733,7 +755,7 @@ dsl_destroy_head_check_impl(dsl_dataset_t *ds, int expected_holds)
 	    dsl_dataset_phys(ds->ds_prev)->ds_num_children == 2 &&
 	    ds->ds_prev->ds_userrefs == 0) {
 		/* We need to remove the origin snapshot as well. */
-		if (!refcount_is_zero(&ds->ds_prev->ds_longholds))
+		if (!zfs_refcount_is_zero(&ds->ds_prev->ds_longholds))
 			return (SET_ERROR(EBUSY));
 	}
 	return (0);
@@ -799,6 +821,8 @@ dsl_dir_destroy_sync(uint64_t ddobj, dmu_tx_t *tx)
 
 	VERIFY0(zap_destroy(mos, dsl_dir_phys(dd)->dd_child_dir_zapobj, tx));
 	VERIFY0(zap_destroy(mos, dsl_dir_phys(dd)->dd_props_zapobj, tx));
+	if (dsl_dir_phys(dd)->dd_clones != 0)
+		VERIFY0(zap_destroy(mos, dsl_dir_phys(dd)->dd_clones, tx));
 	VERIFY0(dsl_deleg_destroy(mos, dsl_dir_phys(dd)->dd_deleg_zapobj, tx));
 	VERIFY0(zap_remove(mos,
 	    dsl_dir_phys(dd->dd_parent)->dd_child_dir_zapobj,
@@ -843,10 +867,8 @@ dsl_destroy_head_sync_impl(dsl_dataset_t *ds, dmu_tx_t *tx)
 	obj = ds->ds_object;
 
 	for (spa_feature_t f = 0; f < SPA_FEATURES; f++) {
-		if (ds->ds_feature_inuse[f]) {
-			dsl_dataset_deactivate_feature(obj, f, tx);
-			ds->ds_feature_inuse[f] = B_FALSE;
-		}
+		if (dsl_dataset_feature_is_active(ds, f))
+			dsl_dataset_deactivate_feature(ds, f, tx);
 	}
 
 	dsl_scan_ds_destroyed(ds, tx);

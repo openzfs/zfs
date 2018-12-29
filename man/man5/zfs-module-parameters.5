@@ -44,6 +44,21 @@ Default value: \fB0\fR.
 .sp
 .ne 2
 .na
+\fBdbuf_metadata_cache_max_bytes\fR (ulong)
+.ad
+.RS 12n
+Maximum size in bytes of the metadata dbuf cache.  When \fB0\fR this value will
+default to \fB1/2^dbuf_cache_shift\fR (1/16) of the target ARC size, otherwise
+the provided value in bytes will be used.  The behavior of the metadata dbuf
+cache and its associated settings can be observed via the
+\fB/proc/spl/kstat/zfs/dbufstats\fR kstat.
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBdbuf_cache_hiwater_pct\fR (uint)
 .ad
 .RS 12n
@@ -75,6 +90,18 @@ Set the size of the dbuf cache, \fBdbuf_cache_max_bytes\fR, to a log2 fraction
 of the target arc size.
 .sp
 Default value: \fB5\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBdbuf_metadata_cache_shift\fR (int)
+.ad
+.RS 12n
+Set the size of the dbuf metadata cache, \fBdbuf_metadata_cache_max_bytes\fR,
+to a log2 fraction of the target arc size.
+.sp
+Default value: \fB6\fR.
 .RE
 
 .sp
@@ -296,7 +323,7 @@ Use \fB1\fR for yes (default) and \fB0\fR for no.
 \fBvdev_max_ms_count\fR (int)
 .ad
 .RS 12n
-When a vdev is added, it will be divided into approximately (but no more than) this number of metaslabs.
+When a vdev is added target this number of metaslabs per top-level vdev.
 .sp
 Default value: \fB200\fR.
 .RE
@@ -310,6 +337,17 @@ Default value: \fB200\fR.
 Minimum number of metaslabs to create in a top-level vdev.
 .sp
 Default value: \fB16\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBvdev_ms_count_limit\fR (int)
+.ad
+.RS 12n
+Practical upper limit of total metaslabs per top-level vdev.
+.sp
+Default value: \fB131,072\fR.
 .RE
 
 .sp
@@ -1048,7 +1086,7 @@ Default value: \fB600,000\fR.
 .ad
 .RS 12n
 Interval in milliseconds after which the deadman is triggered and an
-individual IO operation is considered to be "hung".  As long as the I/O
+individual I/O operation is considered to be "hung".  As long as the I/O
 remains "hung" the deadman will be invoked every \fBzfs_deadman_checktime_ms\fR
 milliseconds until the I/O completes.
 .sp
@@ -1103,10 +1141,10 @@ Default value: \fB500,000\fR.
 .sp
 .ne 2
 .na
-\fBzfs_delays_per_second\fR (int)
+\fBzfs_slow_io_events_per_second\fR (int)
 .ad
 .RS 12n
-Rate limit IO delay events to this many per second.
+Rate limit delay zevents (which report slow I/Os) to this many per second.
 .sp
 Default value: 20
 .RE
@@ -1187,12 +1225,14 @@ Default value: \fB10\fR%, subject to \fBzfs_dirty_data_max_max\fR.
 .sp
 .ne 2
 .na
-\fBzfs_dirty_data_sync\fR (int)
+\fBzfs_dirty_data_sync_percent\fR (int)
 .ad
 .RS 12n
-Start syncing out a transaction group if there is at least this much dirty data.
+Start syncing out a transaction group if there's at least this much dirty data
+as a percentage of \fBzfs_dirty_data_max\fR.  This should be less than
+\fBzfs_vdev_async_write_active_min_dirty_percent\fR.
 .sp
-Default value: \fB67,108,864\fR.
+Default value: \fB20\fR% of \fBzfs_dirty_data_max\fR.
 .RE
 
 .sp
@@ -1615,7 +1655,7 @@ Default value: \fB50\fR.
 .ad
 .RS 12n
 We currently support block sizes from 512 bytes to 16MB.  The benefits of
-larger blocks, and thus larger IO, need to be weighed against the cost of
+larger blocks, and thus larger I/O, need to be weighed against the cost of
 COWing a giant block to modify one byte.  Additionally, very large blocks
 can have an impact on i/o latency, and also potentially on the memory
 allocator.  Therefore, we do not allow the recordsize to be set larger than
@@ -1679,6 +1719,29 @@ and allow lesser filled vdevs to acquire more allocations than they
 otherwise would under the old \fBzfs_mg_alloc_failures\fR facility.
 .sp
 Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_ddt_data_is_special\fR (int)
+.ad
+.RS 12n
+If enabled, ZFS will place DDT data into the special allocation class.
+.sp
+Default value: \fB1\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_user_indirect_is_special\fR (int)
+.ad
+.RS 12n
+If enabled, ZFS will place user data (both file and zvol) indirect blocks
+into the special allocation class.
+.sp
+Default value: \fB1\fR.
 .RE
 
 .sp
@@ -1783,8 +1846,9 @@ Use \fB1\fR for yes and \fB0\fR for no (default).
 \fBzfs_nocacheflush\fR (int)
 .ad
 .RS 12n
-Disable cache flush operations on disks when writing. Beware, this may cause
-corruption if disks re-order writes.
+Disable cache flush operations on disks when writing.  Setting this will
+cause pool corruption on power loss if a volatile out-of-order write cache
+is enabled.
 .sp
 Use \fB1\fR for yes and \fB0\fR for no (default).
 .RE
@@ -1839,8 +1903,6 @@ A value of zero will disable this throttle.
 .sp
 Default value: \fB30\fR and \fB0\fR to disable.
 .RE
-
-
 
 .sp
 .ne 2
@@ -1904,7 +1966,7 @@ combinations each time the block is accessed.  This allows all segment
 copies to participate fairly in the reconstruction when all combinations
 cannot be checked and prevents repeated use of one bad copy.
 .sp
-Default value: \fB100\fR.
+Default value: \fB256\fR.
 .RE
 
 .sp
@@ -1917,6 +1979,22 @@ Set to attempt to recover from fatal errors. This should only be used as a
 last resort, as it typically results in leaked space, or worse.
 .sp
 Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_removal_ignore_errors\fR (int)
+.ad
+.RS 12n
+.sp
+Ignore hard IO errors during device removal.  When set, if a device encounters
+a hard IO error during the removal process the removal will not be cancelled.
+This can result in a normally recoverable block becoming permanently damaged
+and is not recommended.  This should only be used as a last resort when the
+pool cannot be returned to a healthy state prior to removing the device.
+.sp
+Default value: \fB0\fR.
 .RE
 
 .sp
@@ -2451,6 +2529,19 @@ Default value: \fB100\fR%.
 .sp
 .ne 2
 .na
+\fBzil_nocacheflush\fR (int)
+.ad
+.RS 12n
+Disable the cache flush commands that are normally sent to the disk(s) by
+the ZIL after an LWB write has completed. Setting this will cause ZIL
+corruption on power loss if a volatile out-of-order write cache is enabled.
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
 \fBzil_replay_disable\fR (int)
 .ad
 .RS 12n
@@ -2476,12 +2567,26 @@ Default value: \fB786,432\fR.
 .sp
 .ne 2
 .na
-\fBzio_delay_max\fR (int)
+\fBzio_decompress_fail_fraction\fR (int)
 .ad
 .RS 12n
-A zevent will be logged if a ZIO operation takes more than N milliseconds to
-complete. Note that this is only a logging facility, not a timeout on
-operations.
+If non-zero, this value represents the denominator of the probability that zfs
+should induce a decompression failure. For instance, for a 5% decompression
+failure rate, this value should be set to 20.
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzio_slow_io_ms\fR (int)
+.ad
+.RS 12n
+When an I/O operation takes more than \fBzio_slow_io_ms\fR milliseconds to
+complete is marked as a slow I/O.  Each slow I/O causes a delay zevent.  Slow
+I/O counters can be seen with "zpool status -s".
+
 .sp
 Default value: \fB30,000\fR.
 .RE
@@ -2492,7 +2597,7 @@ Default value: \fB30,000\fR.
 \fBzio_dva_throttle_enabled\fR (int)
 .ad
 .RS 12n
-Throttle block allocations in the ZIO pipeline. This allows for
+Throttle block allocations in the I/O pipeline. This allows for
 dynamic allocation distribution when devices are imbalanced.
 When enabled, the maximum number of pending allocations per top-level vdev
 is limited by \fBzfs_vdev_queue_depth_pct\fR.
@@ -2518,7 +2623,7 @@ Default value: \fB0\fR.
 .ad
 .RS 12n
 Percentage of online CPUs (or CPU cores, etc) which will run a worker thread
-for IO. These workers are responsible for IO work such as compression and
+for I/O. These workers are responsible for I/O work such as compression and
 checksum calculations. Fractional number of CPUs will be rounded down.
 .sp
 The default value of 75 was chosen to avoid using all CPUs which can result in

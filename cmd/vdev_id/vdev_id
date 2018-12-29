@@ -104,6 +104,7 @@ Usage: vdev_id [-h]
 
   -c    specify name of alernate config file [default=$CONFIG]
   -d    specify basename of device (i.e. sda)
+  -e    Create enclose device symlinks only (/dev/by-enclosure)
   -g    Storage network topology [default="$TOPOLOGY"]
   -m    Run in multipath mode
   -p    number of phy's per switch port [default=$PHYS_PER_PORT]
@@ -417,6 +418,45 @@ scsi_handler() {
 	echo ${CHAN}${SLOT}${PART}
 }
 
+# Figure out the name for the enclosure symlink
+enclosure_handler () {
+	# We get all the info we need from udev's DEVPATH variable:
+	#
+	# DEVPATH=/sys/devices/pci0000:00/0000:00:03.0/0000:05:00.0/host0/subsystem/devices/0:0:0:0/scsi_generic/sg0
+
+	# Get the enclosure ID ("0:0:0:0")
+	ENC=$(basename $(readlink -m "/sys/$DEVPATH/../.."))
+	if [ ! -d /sys/class/enclosure/$ENC ] ; then
+		# Not an enclosure, bail out
+		return
+	fi
+
+	# Get the long sysfs device path to our enclosure. Looks like:
+	# /devices/pci0000:00/0000:00:03.0/0000:05:00.0/host0/port-0:0/ ... /enclosure/0:0:0:0
+
+	ENC_DEVICE=$(readlink /sys/class/enclosure/$ENC)
+
+	# Grab the full path to the hosts port dir:
+	# /devices/pci0000:00/0000:00:03.0/0000:05:00.0/host0/port-0:0
+	PORT_DIR=$(echo $ENC_DEVICE | grep -Eo '.+host[0-9]+/port-[0-9]+:[0-9]+')
+
+	# Get the port number
+	PORT_ID=$(echo $PORT_DIR | grep -Eo "[0-9]+$")
+
+	# The PCI directory is two directories up from the port directory
+	# /sys/devices/pci0000:00/0000:00:03.0/0000:05:00.0
+	PCI_ID_LONG=$(basename $(readlink -m "/sys/$PORT_DIR/../.."))
+
+	# Strip down the PCI address from 0000:05:00.0 to 05:00.0
+	PCI_ID=$(echo "$PCI_ID_LONG" | sed -r 's/^[0-9]+://g')
+
+	# Name our device according to vdev_id.conf (like "L0" or "U1").
+	NAME=$(awk "/channel/{if (\$1 == \"channel\" && \$2 == \"$PCI_ID\" && \
+		\$3 == \"$PORT_ID\") {print \$4int(count[\$4])}; count[\$4]++}" $CONFIG)
+
+	echo "${NAME}"
+}
+
 alias_handler () {
 	# Special handling is needed to correctly append a -part suffix
 	# to partitions of device mapper devices.  The DEVTYPE attribute
@@ -472,13 +512,23 @@ alias_handler () {
 	done
 }
 
-while getopts 'c:d:g:mp:h' OPTION; do
+while getopts 'c:d:eg:mp:h' OPTION; do
 	case ${OPTION} in
 	c)
 		CONFIG=${OPTARG}
 		;;
 	d)
 		DEV=${OPTARG}
+		;;
+	e)
+	# When udev sees a scsi_generic device, it calls this script with -e to
+	# create the enclosure device symlinks only.  We also need
+	# "enclosure_symlinks yes" set in vdev_id.config to actually create the
+	# symlink.
+	ENCLOSURE_MODE=$(awk '{if ($1 == "enclosure_symlinks") print $2}' $CONFIG)
+	if [ "$ENCLOSURE_MODE" != "yes" ] ; then
+		exit 0
+	fi
 		;;
 	g)
 		TOPOLOGY=$OPTARG
@@ -499,7 +549,7 @@ if [ ! -r $CONFIG ] ; then
 	exit 0
 fi
 
-if [ -z "$DEV" ] ; then
+if [ -z "$DEV" -a -z "$ENCLOSURE_MODE" ] ; then
 	echo "Error: missing required option -d"
 	exit 1
 fi
@@ -512,12 +562,30 @@ if [ -z "$BAY" ] ; then
 	BAY=`awk "\\$1 == \"slot\" {print \\$2; exit}" $CONFIG`
 fi
 
+TOPOLOGY=${TOPOLOGY:-sas_direct}
+
+# Should we create /dev/by-enclosure symlinks?
+if [ "$ENCLOSURE_MODE" = "yes" -a "$TOPOLOGY" = "sas_direct" ] ; then
+	ID_ENCLOSURE=$(enclosure_handler)
+	if [ -z "$ID_ENCLOSURE" ] ; then
+		exit 0
+	fi
+
+	# Just create the symlinks to the enclosure devices and then exit.
+	ENCLOSURE_PREFIX=$(awk '/enclosure_symlinks_prefix/{print $2}' $CONFIG)
+	if [ -z "$ENCLOSURE_PREFIX" ] ; then
+		ENCLOSURE_PREFIX="enc"
+	fi
+	echo "ID_ENCLOSURE=$ID_ENCLOSURE"
+	echo "ID_ENCLOSURE_PATH=by-enclosure/$ENCLOSURE_PREFIX-$ID_ENCLOSURE"
+	exit 0
+fi
+
 # First check if an alias was defined for this device.
 ID_VDEV=`alias_handler`
 
 if [ -z "$ID_VDEV" ] ; then
 	BAY=${BAY:-bay}
-	TOPOLOGY=${TOPOLOGY:-sas_direct}
 	case $TOPOLOGY in
 		sas_direct|sas_switch)
 			ID_VDEV=`sas_handler`

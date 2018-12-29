@@ -62,6 +62,7 @@
 #include <sys/ctype.h>
 #include <sys/disp.h>
 #include <sys/trace.h>
+#include <sys/procfs_list.h>
 #include <linux/dcache_compat.h>
 #include <linux/utsname_compat.h>
 
@@ -352,6 +353,37 @@ extern void kstat_set_raw_ops(kstat_t *ksp,
     void *(*addr)(kstat_t *ksp, loff_t index));
 
 /*
+ * procfs list manipulation
+ */
+
+struct seq_file { };
+void seq_printf(struct seq_file *m, const char *fmt, ...);
+
+typedef struct procfs_list {
+	void		*pl_private;
+	kmutex_t	pl_lock;
+	list_t		pl_list;
+	uint64_t	pl_next_id;
+	size_t		pl_node_offset;
+} procfs_list_t;
+
+typedef struct procfs_list_node {
+	list_node_t	pln_link;
+	uint64_t	pln_id;
+} procfs_list_node_t;
+
+void procfs_list_install(const char *module,
+    const char *name,
+    procfs_list_t *procfs_list,
+    int (*show)(struct seq_file *f, void *p),
+    int (*show_header)(struct seq_file *f),
+    int (*clear)(procfs_list_t *procfs_list),
+    size_t procfs_list_node_off);
+void procfs_list_uninstall(procfs_list_t *procfs_list);
+void procfs_list_destroy(procfs_list_t *procfs_list);
+void procfs_list_add(procfs_list_t *procfs_list, void *p);
+
+/*
  * Kernel memory
  */
 #define	KM_SLEEP		UMEM_NOFAIL
@@ -631,7 +663,6 @@ extern void random_init(void);
 extern void random_fini(void);
 
 struct spa;
-extern void nicenum(uint64_t num, char *buf, size_t);
 extern void show_pool_stats(struct spa *);
 extern int set_global_var(char *arg);
 
@@ -742,6 +773,7 @@ typedef int fstrans_cookie_t;
 extern fstrans_cookie_t spl_fstrans_mark(void);
 extern void spl_fstrans_unmark(fstrans_cookie_t);
 extern int __spl_pf_fstrans_check(void);
+extern int kmem_cache_reap_active(void);
 
 #define	____cacheline_aligned
 

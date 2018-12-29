@@ -24,7 +24,7 @@
  */
 
 /*
- * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -190,6 +190,15 @@ int zfs_vdev_queue_depth_pct = 1000;
 #else
 int zfs_vdev_queue_depth_pct = 300;
 #endif
+
+/*
+ * When performing allocations for a given metaslab, we want to make sure that
+ * there are enough IOs to aggregate together to improve throughput. We want to
+ * ensure that there are at least 128k worth of IOs that can be aggregated, and
+ * we assume that the average allocation size is 4k, so we need the queue depth
+ * to be 32 per allocator to get good aggregation of sequential writes.
+ */
+int zfs_vdev_def_queue_depth = 32;
 
 
 int
@@ -420,16 +429,16 @@ static void
 vdev_queue_io_add(vdev_queue_t *vq, zio_t *zio)
 {
 	spa_t *spa = zio->io_spa;
-	spa_stats_history_t *ssh = &spa->spa_stats.io_history;
+	spa_history_kstat_t *shk = &spa->spa_stats.io_history;
 
 	ASSERT3U(zio->io_priority, <, ZIO_PRIORITY_NUM_QUEUEABLE);
 	avl_add(vdev_queue_class_tree(vq, zio->io_priority), zio);
 	avl_add(vdev_queue_type_tree(vq, zio->io_type), zio);
 
-	if (ssh->kstat != NULL) {
-		mutex_enter(&ssh->lock);
-		kstat_waitq_enter(ssh->kstat->ks_data);
-		mutex_exit(&ssh->lock);
+	if (shk->kstat != NULL) {
+		mutex_enter(&shk->lock);
+		kstat_waitq_enter(shk->kstat->ks_data);
+		mutex_exit(&shk->lock);
 	}
 }
 
@@ -437,16 +446,16 @@ static void
 vdev_queue_io_remove(vdev_queue_t *vq, zio_t *zio)
 {
 	spa_t *spa = zio->io_spa;
-	spa_stats_history_t *ssh = &spa->spa_stats.io_history;
+	spa_history_kstat_t *shk = &spa->spa_stats.io_history;
 
 	ASSERT3U(zio->io_priority, <, ZIO_PRIORITY_NUM_QUEUEABLE);
 	avl_remove(vdev_queue_class_tree(vq, zio->io_priority), zio);
 	avl_remove(vdev_queue_type_tree(vq, zio->io_type), zio);
 
-	if (ssh->kstat != NULL) {
-		mutex_enter(&ssh->lock);
-		kstat_waitq_exit(ssh->kstat->ks_data);
-		mutex_exit(&ssh->lock);
+	if (shk->kstat != NULL) {
+		mutex_enter(&shk->lock);
+		kstat_waitq_exit(shk->kstat->ks_data);
+		mutex_exit(&shk->lock);
 	}
 }
 
@@ -454,17 +463,17 @@ static void
 vdev_queue_pending_add(vdev_queue_t *vq, zio_t *zio)
 {
 	spa_t *spa = zio->io_spa;
-	spa_stats_history_t *ssh = &spa->spa_stats.io_history;
+	spa_history_kstat_t *shk = &spa->spa_stats.io_history;
 
 	ASSERT(MUTEX_HELD(&vq->vq_lock));
 	ASSERT3U(zio->io_priority, <, ZIO_PRIORITY_NUM_QUEUEABLE);
 	vq->vq_class[zio->io_priority].vqc_active++;
 	avl_add(&vq->vq_active_tree, zio);
 
-	if (ssh->kstat != NULL) {
-		mutex_enter(&ssh->lock);
-		kstat_runq_enter(ssh->kstat->ks_data);
-		mutex_exit(&ssh->lock);
+	if (shk->kstat != NULL) {
+		mutex_enter(&shk->lock);
+		kstat_runq_enter(shk->kstat->ks_data);
+		mutex_exit(&shk->lock);
 	}
 }
 
@@ -472,17 +481,17 @@ static void
 vdev_queue_pending_remove(vdev_queue_t *vq, zio_t *zio)
 {
 	spa_t *spa = zio->io_spa;
-	spa_stats_history_t *ssh = &spa->spa_stats.io_history;
+	spa_history_kstat_t *shk = &spa->spa_stats.io_history;
 
 	ASSERT(MUTEX_HELD(&vq->vq_lock));
 	ASSERT3U(zio->io_priority, <, ZIO_PRIORITY_NUM_QUEUEABLE);
 	vq->vq_class[zio->io_priority].vqc_active--;
 	avl_remove(&vq->vq_active_tree, zio);
 
-	if (ssh->kstat != NULL) {
-		kstat_io_t *ksio = ssh->kstat->ks_data;
+	if (shk->kstat != NULL) {
+		kstat_io_t *ksio = shk->kstat->ks_data;
 
-		mutex_enter(&ssh->lock);
+		mutex_enter(&shk->lock);
 		kstat_runq_exit(ksio);
 		if (zio->io_type == ZIO_TYPE_READ) {
 			ksio->reads++;
@@ -491,7 +500,7 @@ vdev_queue_pending_remove(vdev_queue_t *vq, zio_t *zio)
 			ksio->writes++;
 			ksio->nwritten += zio->io_size;
 		}
-		mutex_exit(&ssh->lock);
+		mutex_exit(&shk->lock);
 	}
 }
 

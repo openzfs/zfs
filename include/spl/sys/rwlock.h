@@ -172,7 +172,7 @@ RW_LOCK_HELD(krwlock_t *rwp)
 }
 
 /*
- * The following functions must be a #define	and not static inline.
+ * The following functions must be a #define and not static inline.
  * This ensures that the native linux semaphore functions (down/up)
  * will be correctly located in the users code which is important
  * for the built in kernel lock analysis tools
@@ -188,10 +188,10 @@ RW_LOCK_HELD(krwlock_t *rwp)
 	spl_rw_set_type(rwp, type);					\
 })
 
-#define	rw_destroy(rwp)							\
-({									\
-	VERIFY(!RW_LOCK_HELD(rwp));					\
-})
+/*
+ * The Linux rwsem implementation does not require a matching destroy.
+ */
+#define	rw_destroy(rwp)		((void) 0)
 
 #define	rw_tryenter(rwp, rw)						\
 ({									\

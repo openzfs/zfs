@@ -1,3 +1,5 @@
+<!--- Please fill out the following template, which will help other contributors review your Pull Request. -->
+
 <!--- Provide a general summary of your changes in the Title above -->
 
 <!---
@@ -5,12 +7,12 @@ Documentation on ZFS Buildbot options can be found at
 https://github.com/zfsonlinux/zfs/wiki/Buildbot-Options
 -->
 
-### Description
-<!--- Describe your changes in detail -->
-
 ### Motivation and Context
 <!--- Why is this change required? What problem does it solve? -->
 <!--- If it fixes an open issue, please link to the issue here. -->
+
+### Description
+<!--- Describe your changes in detail -->
 
 ### How Has This Been Tested?
 <!--- Please describe in detail how you tested your changes. -->
@@ -36,4 +38,3 @@ https://github.com/zfsonlinux/zfs/wiki/Buildbot-Options
 - [ ] I have added [tests](https://github.com/zfsonlinux/zfs/tree/master/tests) to cover my changes.
 - [ ] All new and existing tests passed.
 - [ ] All commit messages are properly formatted and contain [`Signed-off-by`](https://github.com/zfsonlinux/zfs/blob/master/.github/CONTRIBUTING.md#signed-off-by).
-- [ ] Change has been approved by a ZFS on Linux member.

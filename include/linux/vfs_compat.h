@@ -30,6 +30,7 @@
 #include <sys/taskq.h>
 #include <sys/cred.h>
 #include <linux/backing-dev.h>
+#include <linux/compat.h>
 
 /*
  * 2.6.28 API change,
@@ -296,9 +297,6 @@ lseek_execute(
  * This is several orders of magnitude larger than expected grace period.
  * At 60 seconds the kernel will also begin issuing RCU stall warnings.
  */
-#ifdef refcount_t
-#undef refcount_t
-#endif
 
 #include <linux/posix_acl.h>
 
@@ -428,8 +426,6 @@ typedef mode_t zpl_equivmode_t;
 #else
 #define	zpl_posix_acl_valid(ip, acl)  posix_acl_valid(acl)
 #endif
-
-#define	refcount_t	zfs_refcount_t
 
 #endif /* CONFIG_FS_POSIX_ACL */
 
@@ -625,5 +621,22 @@ inode_set_iversion(struct inode *ip, u64 val)
 	ip->i_version = val;
 }
 #endif
+
+/*
+ * Returns true when called in the context of a 32-bit system call.
+ */
+static inline int
+zpl_is_32bit_api(void)
+{
+#ifdef CONFIG_COMPAT
+#ifdef HAVE_IN_COMPAT_SYSCALL
+	return (in_compat_syscall());
+#else
+	return (is_compat_task());
+#endif
+#else
+	return (BITS_PER_LONG == 32);
+#endif
+}
 
 #endif /* _ZFS_VFS_H */

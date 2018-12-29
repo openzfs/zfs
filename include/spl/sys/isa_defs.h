@@ -210,6 +210,14 @@
 
 #include <sys/byteorder.h>
 
+/*
+ * CONFIG_HAVE_EFFICIENT_UNALIGNED_ACCESS will be defined by the Linux
+ * kernel for architectures which support efficient unaligned access.
+ */
+#if defined(CONFIG_HAVE_EFFICIENT_UNALIGNED_ACCESS)
+#define	HAVE_EFFICIENT_UNALIGNED_ACCESS
+#endif
+
 #if defined(__LITTLE_ENDIAN) && !defined(_LITTLE_ENDIAN)
 #define	_LITTLE_ENDIAN __LITTLE_ENDIAN
 #endif

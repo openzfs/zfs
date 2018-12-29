@@ -1733,6 +1733,18 @@ out:
 EXPORT_SYMBOL(spl_kmem_cache_reap_now);
 
 /*
+ * This is stubbed out for code consistency with other platforms.  There
+ * is existing logic to prevent concurrent reaping so while this is ugly
+ * it should do no harm.
+ */
+int
+spl_kmem_cache_reap_active()
+{
+	return (0);
+}
+EXPORT_SYMBOL(spl_kmem_cache_reap_active);
+
+/*
  * Reap all free slabs from all registered caches.
  */
 void

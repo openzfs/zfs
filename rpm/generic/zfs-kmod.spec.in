@@ -1,5 +1,8 @@
 %define module  @PACKAGE@
 
+# See comment in zfs.spec.in.
+%global __brp_mangle_shebangs_exclude_from arc_summary.py|arcstat.py|dbufstat.py|test-runner.py|zts-report.py
+
 %if !%{defined ksrc}
 %if 0%{?rhel}%{?fedora}
 %define ksrc    ${kernel_version##*___}
@@ -52,6 +55,10 @@ URL:            http://zfsonlinux.org/
 Source0:        %{module}-%{version}.tar.gz
 Source10:       kmodtool
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id} -u -n)
+%if 0%{?rhel}%{?fedora}
+BuildRequires:  gcc, make
+BuildRequires:  elfutils-libelf-devel
+%endif
 
 # The developments headers will conflict with the dkms packages.
 Conflicts:      %{module}-dkms
@@ -158,8 +165,3 @@ chmod u+x ${RPM_BUILD_ROOT}%{kmodinstdir_prefix}/*/extra/*/*/*
 
 %clean
 rm -rf $RPM_BUILD_ROOT
-
-%changelog
-* Wed Jul 26 2017 Brian Behlendorf <behlendorf1@llnl.gov> - 0.7.0-1
-- Released 0.7.0-1, detailed release notes are available at:
-- https://github.com/zfsonlinux/zfs/releases/tag/zfs-0.7.0

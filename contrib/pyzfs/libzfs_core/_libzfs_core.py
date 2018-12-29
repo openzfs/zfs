@@ -1303,7 +1303,8 @@ def lzc_receive_one(
 @_uncommitted()
 def lzc_receive_with_cmdprops(
     snapname, fd, begin_record, force=False, resumable=False, raw=False,
-    origin=None, props=None, cmdprops=None, cleanup_fd=-1, action_handle=0
+    origin=None, props=None, cmdprops=None, key=None, cleanup_fd=-1,
+    action_handle=0
 ):
     '''
     Like :func:`lzc_receive_one`, but allows the caller to pass an additional
@@ -1333,6 +1334,8 @@ def lzc_receive_with_cmdprops(
         every other value is set locally as if the command "zfs set" was
         invoked immediately before the receive.
     :type cmdprops: dict of bytes : Any
+    :param key: raw bytes representing user's wrapping key
+    :type key: bytes
     :param int cleanup_fd: file descriptor used to set a cleanup-on-exit file
         descriptor.
     :param int action_handle: variable used to pass the handle for guid/ds
@@ -1400,14 +1403,19 @@ def lzc_receive_with_cmdprops(
         props = {}
     if cmdprops is None:
         cmdprops = {}
+    if key is None:
+        key = bytes("")
+    else:
+        key = bytes(key)
+
     nvlist = nvlist_in(props)
     cmdnvlist = nvlist_in(cmdprops)
     properrs = {}
     with nvlist_out(properrs) as c_errors:
         ret = _lib.lzc_receive_with_cmdprops(
-            snapname, nvlist, cmdnvlist, c_origin, force, resumable, raw, fd,
-            begin_record, cleanup_fd, c_read_bytes, c_errflags,
-            c_action_handle, c_errors)
+            snapname, nvlist, cmdnvlist, key, len(key), c_origin,
+            force, resumable, raw, fd, begin_record, cleanup_fd, c_read_bytes,
+            c_errflags, c_action_handle, c_errors)
     errors.lzc_receive_translate_errors(
         ret, snapname, fd, force, raw, False, False, origin, properrs)
     return (int(c_read_bytes[0]), action_handle)
@@ -1567,6 +1575,36 @@ def lzc_remap(name):
 
 
 @_uncommitted()
+def lzc_pool_checkpoint(name):
+    '''
+    Creates a checkpoint for the specified pool.
+
+    :param bytes name: the name of the pool to create a checkpoint for.
+    :raises CheckpointExists: if the pool already has a checkpoint.
+    :raises CheckpointDiscarding: if ZFS is in the middle of discarding a
+        checkpoint for this pool.
+    :raises DeviceRemovalRunning: if a vdev is currently being removed.
+    :raises DeviceTooBig: if one or more top-level vdevs exceed the maximum
+        vdev size.
+    '''
+    ret = _lib.lzc_pool_checkpoint(name)
+    errors.lzc_pool_checkpoint_translate_error(ret, name)
+
+
+@_uncommitted()
+def lzc_pool_checkpoint_discard(name):
+    '''
+    Discard the checkpoint from the specified pool.
+
+    :param bytes name: the name of the pool to discard the checkpoint from.
+    :raises CheckpointNotFound: if pool does not have a checkpoint.
+    :raises CheckpointDiscarding: if ZFS is in the middle of discarding a
+        checkpoint for this pool.
+    '''
+    ret = _lib.lzc_pool_checkpoint_discard(name)
+    errors.lzc_pool_checkpoint_discard_translate_error(ret, name)
+
+
 def lzc_rename(source, target):
     '''
     Rename the ZFS dataset.
@@ -1582,12 +1620,11 @@ def lzc_rename(source, target):
     :raises FilesystemExists: if the target already exists.
     :raises PoolsDiffer: if the source and target belong to different pools.
     '''
-    ret = _lib.lzc_rename(source, target, _ffi.NULL, _ffi.NULL)
+    ret = _lib.lzc_rename(source, target)
     errors.lzc_rename_translate_error(ret, source, target)
 
 
-@_uncommitted()
-def lzc_destroy_one(name):
+def lzc_destroy(name):
     '''
     Destroy the ZFS dataset.
 
@@ -1596,14 +1633,8 @@ def lzc_destroy_one(name):
     :raises NameTooLong: if the dataset name is too long.
     :raises FilesystemNotFound: if the dataset does not exist.
     '''
-    ret = _lib.lzc_destroy_one(name, _ffi.NULL)
+    ret = _lib.lzc_destroy(name)
     errors.lzc_destroy_translate_error(ret, name)
-
-
-# As the extended API is not committed yet, the names of the new interfaces
-# are not settled down yet.
-# lzc_destroy() might make more sense as we do not have lzc_create_one().
-lzc_destroy = lzc_destroy_one
 
 
 @_uncommitted()

@@ -65,7 +65,7 @@ done
 log_must mkdir -p /export/home/$ZFS_USER
 log_must useradd -c "ZFS Privileges Test User" -d /export/home/$ZFS_USER $ZFS_USER
 
-echo $ZFS_USER > /tmp/zfs-privs-test-user.txt
-echo $USES_NIS > /tmp/zfs-privs-test-nis.txt
+echo $ZFS_USER > $TEST_BASE_DIR/zfs-privs-test-user.txt
+echo $USES_NIS > $TEST_BASE_DIR/zfs-privs-test-nis.txt
 
 log_pass

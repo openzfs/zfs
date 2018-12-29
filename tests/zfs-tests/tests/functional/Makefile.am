@@ -1,5 +1,6 @@
 SUBDIRS = \
 	acl \
+	alloc_class \
 	arc \
 	atime \
 	bootfs \
@@ -27,7 +28,7 @@ SUBDIRS = \
 	hkdf \
 	inheritance \
 	inuse \
-	kstat \
+	io \
 	large_files \
 	largest_pool \
 	libzfs \
@@ -46,6 +47,7 @@ SUBDIRS = \
 	pool_names \
 	poolversion \
 	privilege \
+	procfs \
 	projectquota \
 	quota \
 	raidz \

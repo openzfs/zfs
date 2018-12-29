@@ -110,7 +110,7 @@ typedef struct sa_idx_tab {
 	list_node_t	sa_next;
 	sa_lot_t	*sa_layout;
 	uint16_t	*sa_variable_lengths;
-	refcount_t	sa_refcount;
+	zfs_refcount_t	sa_refcount;
 	uint32_t	*sa_idx_tab;	/* array of offsets */
 } sa_idx_tab_t;
 

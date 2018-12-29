@@ -245,7 +245,8 @@ zpl_xattr_list(struct dentry *dentry, char *buffer, size_t buffer_size)
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();
-	rrm_enter_read(&(zfsvfs)->z_teardown_lock, FTAG);
+	ZPL_ENTER(zfsvfs);
+	ZPL_VERIFY_ZP(zp);
 	rw_enter(&zp->z_xattr_lock, RW_READER);
 
 	if (zfsvfs->z_use_sa && zp->z_is_sa) {
@@ -262,7 +263,7 @@ zpl_xattr_list(struct dentry *dentry, char *buffer, size_t buffer_size)
 out:
 
 	rw_exit(&zp->z_xattr_lock);
-	rrm_exit(&(zfsvfs)->z_teardown_lock, FTAG);
+	ZPL_EXIT(zfsvfs);
 	spl_fstrans_unmark(cookie);
 	crfree(cr);
 
@@ -418,11 +419,12 @@ zpl_xattr_get(struct inode *ip, const char *name, void *value, size_t size)
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();
-	rrm_enter_read(&(zfsvfs)->z_teardown_lock, FTAG);
+	ZPL_ENTER(zfsvfs);
+	ZPL_VERIFY_ZP(zp);
 	rw_enter(&zp->z_xattr_lock, RW_READER);
 	error = __zpl_xattr_get(ip, name, value, size, cr);
 	rw_exit(&zp->z_xattr_lock);
-	rrm_exit(&(zfsvfs)->z_teardown_lock, FTAG);
+	ZPL_EXIT(zfsvfs);
 	spl_fstrans_unmark(cookie);
 	crfree(cr);
 
@@ -590,7 +592,8 @@ zpl_xattr_set(struct inode *ip, const char *name, const void *value,
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();
-	rrm_enter_read(&(zfsvfs)->z_teardown_lock, FTAG);
+	ZPL_ENTER(zfsvfs);
+	ZPL_VERIFY_ZP(zp);
 	rw_enter(&ITOZ(ip)->z_xattr_lock, RW_WRITER);
 
 	/*
@@ -643,7 +646,7 @@ zpl_xattr_set(struct inode *ip, const char *name, const void *value,
 		zpl_xattr_set_sa(ip, name, NULL, 0, 0, cr);
 out:
 	rw_exit(&ITOZ(ip)->z_xattr_lock);
-	rrm_exit(&(zfsvfs)->z_teardown_lock, FTAG);
+	ZPL_EXIT(zfsvfs);
 	spl_fstrans_unmark(cookie);
 	crfree(cr);
 	ASSERT3S(error, <=, 0);

@@ -261,9 +261,10 @@ kstat_seq_show_intr(struct seq_file *f, kstat_intr_t *kip)
 static int
 kstat_seq_show_io(struct seq_file *f, kstat_io_t *kip)
 {
+	/* though wlentime & friends are signed, they will never be negative */
 	seq_printf(f,
-	    "%-8llu %-8llu %-8u %-8u %-8lld %-8lld "
-	    "%-8lld %-8lld %-8lld %-8lld %-8u %-8u\n",
+	    "%-8llu %-8llu %-8u %-8u %-8llu %-8llu "
+	    "%-8llu %-8llu %-8llu %-8llu %-8u %-8u\n",
 	    kip->nread, kip->nwritten,
 	    kip->reads, kip->writes,
 	    kip->wtime, kip->wlentime, kip->wlastupdate,
@@ -277,7 +278,7 @@ static int
 kstat_seq_show_timer(struct seq_file *f, kstat_timer_t *ktp)
 {
 	seq_printf(f,
-	    "%-31s %-8llu %-8lld %-8lld %-8lld %-8lld %-8lld\n",
+	    "%-31s %-8llu %-8llu %-8llu %-8llu %-8llu %-8llu\n",
 	    ktp->name, ktp->num_events, ktp->elapsed_time,
 	    ktp->min_time, ktp->max_time,
 	    ktp->start_time, ktp->stop_time);
@@ -530,6 +531,18 @@ __kstat_set_raw_ops(kstat_t *ksp,
 }
 EXPORT_SYMBOL(__kstat_set_raw_ops);
 
+void
+kstat_proc_entry_init(kstat_proc_entry_t *kpep, const char *module,
+    const char *name)
+{
+	kpep->kpe_owner = NULL;
+	kpep->kpe_proc = NULL;
+	INIT_LIST_HEAD(&kpep->kpe_list);
+	strncpy(kpep->kpe_module, module, KSTAT_STRLEN);
+	strncpy(kpep->kpe_name, name, KSTAT_STRLEN);
+}
+EXPORT_SYMBOL(kstat_proc_entry_init);
+
 kstat_t *
 __kstat_create(const char *ks_module, int ks_instance, const char *ks_name,
     const char *ks_class, uchar_t ks_type, uint_t ks_ndata,
@@ -556,13 +569,10 @@ __kstat_create(const char *ks_module, int ks_instance, const char *ks_name,
 	ksp->ks_magic = KS_MAGIC;
 	mutex_init(&ksp->ks_private_lock, NULL, MUTEX_DEFAULT, NULL);
 	ksp->ks_lock = &ksp->ks_private_lock;
-	INIT_LIST_HEAD(&ksp->ks_list);
 
 	ksp->ks_crtime = gethrtime();
 	ksp->ks_snaptime = ksp->ks_crtime;
-	strncpy(ksp->ks_module, ks_module, KSTAT_STRLEN);
 	ksp->ks_instance = ks_instance;
-	strncpy(ksp->ks_name, ks_name, KSTAT_STRLEN);
 	strncpy(ksp->ks_class, ks_class, KSTAT_STRLEN);
 	ksp->ks_type = ks_type;
 	ksp->ks_flags = ks_flags;
@@ -573,6 +583,7 @@ __kstat_create(const char *ks_module, int ks_instance, const char *ks_name,
 	ksp->ks_raw_ops.addr = NULL;
 	ksp->ks_raw_buf = NULL;
 	ksp->ks_raw_bufsize = 0;
+	kstat_proc_entry_init(&ksp->ks_proc, ks_module, ks_name);
 
 	switch (ksp->ks_type) {
 		case KSTAT_TYPE_RAW:
@@ -614,14 +625,14 @@ __kstat_create(const char *ks_module, int ks_instance, const char *ks_name,
 EXPORT_SYMBOL(__kstat_create);
 
 static int
-kstat_detect_collision(kstat_t *ksp)
+kstat_detect_collision(kstat_proc_entry_t *kpep)
 {
 	kstat_module_t *module;
-	kstat_t *tmp;
+	kstat_proc_entry_t *tmp;
 	char *parent;
 	char *cp;
 
-	parent = kmem_asprintf("%s", ksp->ks_module);
+	parent = kmem_asprintf("%s", kpep->kpe_module);
 
 	if ((cp = strrchr(parent, '/')) == NULL) {
 		strfree(parent);
@@ -630,8 +641,8 @@ kstat_detect_collision(kstat_t *ksp)
 
 	cp[0] = '\0';
 	if ((module = kstat_find_module(parent)) != NULL) {
-		list_for_each_entry(tmp, &module->ksm_kstat_list, ks_list) {
-			if (strncmp(tmp->ks_name, cp+1, KSTAT_STRLEN) == 0) {
+		list_for_each_entry(tmp, &module->ksm_kstat_list, kpe_list) {
+			if (strncmp(tmp->kpe_name, cp+1, KSTAT_STRLEN) == 0) {
 				strfree(parent);
 				return (EEXIST);
 			}
@@ -642,24 +653,30 @@ kstat_detect_collision(kstat_t *ksp)
 	return (0);
 }
 
+/*
+ * Add a file to the proc filesystem under the kstat namespace (i.e.
+ * /proc/spl/kstat/). The file need not necessarily be implemented as a
+ * kstat.
+ */
 void
-__kstat_install(kstat_t *ksp)
+kstat_proc_entry_install(kstat_proc_entry_t *kpep,
+    const struct file_operations *file_ops, void *data)
 {
 	kstat_module_t *module;
-	kstat_t *tmp;
+	kstat_proc_entry_t *tmp;
 
-	ASSERT(ksp);
+	ASSERT(kpep);
 
 	mutex_enter(&kstat_module_lock);
 
-	module = kstat_find_module(ksp->ks_module);
+	module = kstat_find_module(kpep->kpe_module);
 	if (module == NULL) {
-		if (kstat_detect_collision(ksp) != 0) {
+		if (kstat_detect_collision(kpep) != 0) {
 			cmn_err(CE_WARN, "kstat_create('%s', '%s'): namespace" \
-			    " collision", ksp->ks_module, ksp->ks_name);
+			    " collision", kpep->kpe_module, kpep->kpe_name);
 			goto out;
 		}
-		module = kstat_create_module(ksp->ks_module);
+		module = kstat_create_module(kpep->kpe_module);
 		if (module == NULL)
 			goto out;
 	}
@@ -668,44 +685,60 @@ __kstat_install(kstat_t *ksp)
 	 * Only one entry by this name per-module, on failure the module
 	 * shouldn't be deleted because we know it has at least one entry.
 	 */
-	list_for_each_entry(tmp, &module->ksm_kstat_list, ks_list) {
-		if (strncmp(tmp->ks_name, ksp->ks_name, KSTAT_STRLEN) == 0)
+	list_for_each_entry(tmp, &module->ksm_kstat_list, kpe_list) {
+		if (strncmp(tmp->kpe_name, kpep->kpe_name, KSTAT_STRLEN) == 0)
 			goto out;
 	}
 
-	list_add_tail(&ksp->ks_list, &module->ksm_kstat_list);
+	list_add_tail(&kpep->kpe_list, &module->ksm_kstat_list);
 
-	mutex_enter(ksp->ks_lock);
-	ksp->ks_owner = module;
-	ksp->ks_proc = proc_create_data(ksp->ks_name, 0644,
-	    module->ksm_proc, &proc_kstat_operations, (void *)ksp);
-	if (ksp->ks_proc == NULL) {
-		list_del_init(&ksp->ks_list);
+	kpep->kpe_owner = module;
+	kpep->kpe_proc = proc_create_data(kpep->kpe_name, 0644,
+	    module->ksm_proc, file_ops, data);
+	if (kpep->kpe_proc == NULL) {
+		list_del_init(&kpep->kpe_list);
 		if (list_empty(&module->ksm_kstat_list))
 			kstat_delete_module(module);
 	}
-	mutex_exit(ksp->ks_lock);
 out:
 	mutex_exit(&kstat_module_lock);
+
+}
+EXPORT_SYMBOL(kstat_proc_entry_install);
+
+void
+__kstat_install(kstat_t *ksp)
+{
+	ASSERT(ksp);
+	kstat_proc_entry_install(&ksp->ks_proc, &proc_kstat_operations, ksp);
 }
 EXPORT_SYMBOL(__kstat_install);
 
 void
-__kstat_delete(kstat_t *ksp)
+kstat_proc_entry_delete(kstat_proc_entry_t *kpep)
 {
-	kstat_module_t *module = ksp->ks_owner;
+	kstat_module_t *module = kpep->kpe_owner;
+	if (kpep->kpe_proc)
+		remove_proc_entry(kpep->kpe_name, module->ksm_proc);
 
 	mutex_enter(&kstat_module_lock);
-	list_del_init(&ksp->ks_list);
+	list_del_init(&kpep->kpe_list);
+
+	/*
+	 * Remove top level module directory if it wasn't empty before, but now
+	 * is.
+	 */
+	if (kpep->kpe_proc && list_empty(&module->ksm_kstat_list))
+		kstat_delete_module(module);
 	mutex_exit(&kstat_module_lock);
 
-	if (ksp->ks_proc) {
-		remove_proc_entry(ksp->ks_name, module->ksm_proc);
+}
+EXPORT_SYMBOL(kstat_proc_entry_delete);
 
-		/* Remove top level module directory if it's empty */
-		if (list_empty(&module->ksm_kstat_list))
-			kstat_delete_module(module);
-	}
+void
+__kstat_delete(kstat_t *ksp)
+{
+	kstat_proc_entry_delete(&ksp->ks_proc);
 
 	if (!(ksp->ks_flags & KSTAT_FLAG_VIRTUAL))
 		kmem_free(ksp->ks_data, ksp->ks_data_size);

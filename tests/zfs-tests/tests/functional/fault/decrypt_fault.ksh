@@ -11,7 +11,7 @@
 #
 
 #
-# Copyright (c) 2018 by Lawrence Livermore National Security, LLC.
+# Copyright (c) 2018 by Datto Inc.
 # All rights reserved.
 #
 
@@ -23,7 +23,7 @@
 # Test that injected decryption errors are handled correctly.
 #
 # STRATEGY:
-# 1. Create an encrypted dataset with an test file
+# 1. Create an encrypted dataset with a test file
 # 2. Inject decryption errors on the file 20% of the time
 # 3. Read the file to confirm that errors are handled correctly
 # 4. Confirm that the decryption injection was added to the ZED logs

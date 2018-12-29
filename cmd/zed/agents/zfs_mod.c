@@ -73,6 +73,7 @@
 #include <fcntl.h>
 #include <libnvpair.h>
 #include <libzfs.h>
+#include <libzutil.h>
 #include <limits.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -427,8 +428,16 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 	nvlist_free(newvd);
 
 	/*
-	 * auto replace a leaf disk at same physical location
+	 * Wait for udev to verify the links exist, then auto-replace
+	 * the leaf disk at same physical location.
 	 */
+	if (zpool_label_disk_wait(path, 3000) != 0) {
+		zed_log_msg(LOG_WARNING, "zfs_mod: expected replacement "
+		    "disk %s is missing", path);
+		nvlist_free(nvroot);
+		return;
+	}
+
 	ret = zpool_vdev_attach(zhp, fullpath, path, nvroot, B_TRUE);
 
 	zed_log_msg(LOG_INFO, "  zpool_vdev_replace: %s with %s (%s)",
@@ -467,7 +476,20 @@ zfs_iter_vdev(zpool_handle_t *zhp, nvlist_t *nvl, void *data)
 	    &child, &children) == 0) {
 		for (c = 0; c < children; c++)
 			zfs_iter_vdev(zhp, child[c], data);
-		return;
+	}
+
+	/*
+	 * Iterate over any spares and cache devices
+	 */
+	if (nvlist_lookup_nvlist_array(nvl, ZPOOL_CONFIG_SPARES,
+	    &child, &children) == 0) {
+		for (c = 0; c < children; c++)
+			zfs_iter_vdev(zhp, child[c], data);
+	}
+	if (nvlist_lookup_nvlist_array(nvl, ZPOOL_CONFIG_L2CACHE,
+	    &child, &children) == 0) {
+		for (c = 0; c < children; c++)
+			zfs_iter_vdev(zhp, child[c], data);
 	}
 
 	/* once a vdev was matched and processed there is nothing left to do */
@@ -697,8 +719,8 @@ zfsdle_vdev_online(zpool_handle_t *zhp, void *data)
 {
 	char *devname = data;
 	boolean_t avail_spare, l2cache;
-	vdev_state_t newstate;
 	nvlist_t *tgt;
+	int error;
 
 	zed_log_msg(LOG_INFO, "zfsdle_vdev_online: searching for '%s' in '%s'",
 	    devname, zpool_get_name(zhp));
@@ -706,42 +728,58 @@ zfsdle_vdev_online(zpool_handle_t *zhp, void *data)
 	if ((tgt = zpool_find_vdev_by_physpath(zhp, devname,
 	    &avail_spare, &l2cache, NULL)) != NULL) {
 		char *path, fullpath[MAXPATHLEN];
-		uint64_t wholedisk = 0ULL;
+		uint64_t wholedisk;
 
-		verify(nvlist_lookup_string(tgt, ZPOOL_CONFIG_PATH,
-		    &path) == 0);
-		verify(nvlist_lookup_uint64(tgt, ZPOOL_CONFIG_WHOLE_DISK,
-		    &wholedisk) == 0);
+		error = nvlist_lookup_string(tgt, ZPOOL_CONFIG_PATH, &path);
+		if (error) {
+			zpool_close(zhp);
+			return (0);
+		}
 
-		(void) strlcpy(fullpath, path, sizeof (fullpath));
+		error = nvlist_lookup_uint64(tgt, ZPOOL_CONFIG_WHOLE_DISK,
+		    &wholedisk);
+		if (error)
+			wholedisk = 0;
+
 		if (wholedisk) {
-			char *spath = zfs_strip_partition(fullpath);
-			boolean_t scrub_restart = B_TRUE;
-
-			if (!spath) {
-				zed_log_msg(LOG_INFO, "%s: Can't alloc",
-				    __func__);
+			path = strrchr(path, '/');
+			if (path != NULL) {
+				path = zfs_strip_partition(path + 1);
+				if (path == NULL) {
+					zpool_close(zhp);
+					return (0);
+				}
+			} else {
+				zpool_close(zhp);
 				return (0);
 			}
 
-			(void) strlcpy(fullpath, spath, sizeof (fullpath));
-			free(spath);
+			(void) strlcpy(fullpath, path, sizeof (fullpath));
+			free(path);
 
 			/*
 			 * We need to reopen the pool associated with this
-			 * device so that the kernel can update the size
-			 * of the expanded device.
+			 * device so that the kernel can update the size of
+			 * the expanded device.  When expanding there is no
+			 * need to restart the scrub from the beginning.
 			 */
+			boolean_t scrub_restart = B_FALSE;
 			(void) zpool_reopen_one(zhp, &scrub_restart);
+		} else {
+			(void) strlcpy(fullpath, path, sizeof (fullpath));
 		}
 
 		if (zpool_get_prop_int(zhp, ZPOOL_PROP_AUTOEXPAND, NULL)) {
-			zed_log_msg(LOG_INFO, "zfsdle_vdev_online: setting "
-			    "device '%s' to ONLINE state in pool '%s'",
-			    fullpath, zpool_get_name(zhp));
-			if (zpool_get_state(zhp) != POOL_STATE_UNAVAIL)
-				(void) zpool_vdev_online(zhp, fullpath, 0,
+			vdev_state_t newstate;
+
+			if (zpool_get_state(zhp) != POOL_STATE_UNAVAIL) {
+				error = zpool_vdev_online(zhp, fullpath, 0,
 				    &newstate);
+				zed_log_msg(LOG_INFO, "zfsdle_vdev_online: "
+				    "setting device '%s' to ONLINE state "
+				    "in pool '%s': %d", fullpath,
+				    zpool_get_name(zhp), error);
+			}
 		}
 		zpool_close(zhp);
 		return (1);
@@ -751,23 +789,32 @@ zfsdle_vdev_online(zpool_handle_t *zhp, void *data)
 }
 
 /*
- * This function handles the ESC_DEV_DLE event.
+ * This function handles the ESC_DEV_DLE device change event.  Use the
+ * provided vdev guid when looking up a disk or partition, when the guid
+ * is not present assume the entire disk is owned by ZFS and append the
+ * expected -part1 partition information then lookup by physical path.
  */
 static int
 zfs_deliver_dle(nvlist_t *nvl)
 {
-	char *devname;
+	char *devname, name[MAXPATHLEN];
+	uint64_t guid;
 
-	if (nvlist_lookup_string(nvl, DEV_PHYS_PATH, &devname) != 0) {
-		zed_log_msg(LOG_INFO, "zfs_deliver_dle: no physpath");
-		return (-1);
+	if (nvlist_lookup_uint64(nvl, ZFS_EV_VDEV_GUID, &guid) == 0) {
+		sprintf(name, "%llu", (u_longlong_t)guid);
+	} else if (nvlist_lookup_string(nvl, DEV_PHYS_PATH, &devname) == 0) {
+		strlcpy(name, devname, MAXPATHLEN);
+		zfs_append_partition(name, MAXPATHLEN);
+	} else {
+		zed_log_msg(LOG_INFO, "zfs_deliver_dle: no guid or physpath");
 	}
 
-	if (zpool_iter(g_zfshdl, zfsdle_vdev_online, devname) != 1) {
+	if (zpool_iter(g_zfshdl, zfsdle_vdev_online, name) != 1) {
 		zed_log_msg(LOG_INFO, "zfs_deliver_dle: device '%s' not "
-		    "found", devname);
+		    "found", name);
 		return (1);
 	}
+
 	return (0);
 }
 

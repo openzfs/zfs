@@ -181,6 +181,28 @@ zpl_statfs(struct dentry *dentry, struct kstatfs *statp)
 	spl_fstrans_unmark(cookie);
 	ASSERT3S(error, <=, 0);
 
+	/*
+	 * If required by a 32-bit system call, dynamically scale the
+	 * block size up to 16MiB and decrease the block counts.  This
+	 * allows for a maximum size of 64EiB to be reported.  The file
+	 * counts must be artificially capped at 2^32-1.
+	 */
+	if (unlikely(zpl_is_32bit_api())) {
+		while (statp->f_blocks > UINT32_MAX &&
+		    statp->f_bsize < SPA_MAXBLOCKSIZE) {
+			statp->f_frsize <<= 1;
+			statp->f_bsize <<= 1;
+
+			statp->f_blocks >>= 1;
+			statp->f_bfree >>= 1;
+			statp->f_bavail >>= 1;
+		}
+
+		uint64_t usedobjs = statp->f_files - statp->f_ffree;
+		statp->f_ffree = MIN(statp->f_ffree, UINT32_MAX - usedobjs);
+		statp->f_files = statp->f_ffree + usedobjs;
+	}
+
 	return (error);
 }
 
@@ -271,8 +293,17 @@ zpl_mount_impl(struct file_system_type *fs_type, int flags, zfs_mnt_t *zm)
 	if (err)
 		return (ERR_PTR(-err));
 
+	/*
+	 * The dsl pool lock must be released prior to calling sget().
+	 * It is possible sget() may block on the lock in grab_super()
+	 * while deactivate_super() holds that same lock and waits for
+	 * a txg sync.  If the dsl_pool lock is held over over sget()
+	 * this can prevent the pool sync and cause a deadlock.
+	 */
+	dsl_pool_rele(dmu_objset_pool(os), FTAG);
 	s = zpl_sget(fs_type, zpl_test_super, set_anon_super, flags, os);
-	dmu_objset_rele(os, FTAG);
+	dsl_dataset_rele(dmu_objset_ds(os), FTAG);
+
 	if (IS_ERR(s))
 		return (ERR_CAST(s));
 

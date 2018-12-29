@@ -226,7 +226,7 @@ int zap_lookup_norm_by_dnode(dnode_t *dn, const char *name,
     boolean_t *ncp);
 
 int zap_count_write_by_dnode(dnode_t *dn, const char *name,
-    int add, refcount_t *towrite, refcount_t *tooverwrite);
+    int add, zfs_refcount_t *towrite, zfs_refcount_t *tooverwrite);
 
 /*
  * Create an attribute with the given name and value.

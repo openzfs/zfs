@@ -14,14 +14,14 @@
 # Copyright (c) 2016 by Delphix. All rights reserved.
 #
 
-verify_runnable "global"
-
 . $STF_SUITE/tests/functional/channel_program/channel_common.kshlib
 
 #
 # DESCRIPTION:
 #	run C program which tests passing different nvlists to lua
 #
+
+verify_runnable "global"
 
 log_assert "nvlist arguments can be passed to LUA."
 

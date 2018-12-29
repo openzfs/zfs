@@ -23,6 +23,7 @@
  * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
+#ifndef HAVE_STRLCAT
 
 #include <string.h>
 #include <sys/types.h>
@@ -52,5 +53,8 @@ strlcat(char *dst, const char *src, size_t dstsize)
 	copied = l1 + l2 >= dstsize ? dstsize - l1 - 1 : l2;
 	(void) memcpy(dst + l1, src, copied);
 	dst[l1+copied] = '\0';
+
 	return (l1 + l2);
 }
+
+#endif

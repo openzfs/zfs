@@ -1,0 +1,72 @@
+#!/bin/ksh -p
+#
+# CDDL HEADER START
+#
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License (the "License").
+# You may not use this file except in compliance with the License.
+#
+# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+# or http://www.opensolaris.org/os/licensing.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+# If applicable, add the following below this CDDL HEADER, with the
+# fields enclosed by brackets "[]" replaced with your own identifying
+# information: Portions Copyright [yyyy] [name of copyright owner]
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright 2016, loli10K. All rights reserved.
+# Copyright (c) 2018 by Delphix. All rights reserved.
+#
+
+. $STF_SUITE/include/libtest.shlib
+
+#
+# DESCRIPTION:
+# Verify that 'zfs destroy' on a shared dataset, will unshare it.
+#
+# STRATEGY:
+# 1. Create and share a dataset with sharenfs.
+# 2. Verify the dataset is shared.
+# 3. Invoke 'zfs destroy' on the dataset.
+# 4. Verify the dataset is not shared.
+#
+
+verify_runnable "global"
+
+function cleanup
+{
+	if datasetexists "$TESTPOOL/$TESTFS/shared1"; then
+		log_must zfs destroy -f $TESTPOOL/$TESTFS/shared1
+	fi
+}
+
+log_assert "Verify 'zfs destroy' will unshare the dataset"
+log_onexit cleanup
+
+# 1. Create and share a dataset with sharenfs.
+log_must zfs create \
+	-o sharenfs=on -o mountpoint=$TESTDIR/1 $TESTPOOL/$TESTFS/shared1
+
+#
+# 2. Verify the datasets is shared.
+#
+# The "non-impl" variant of "is_shared" requires the dataset to exist.
+# Thus, we can only use the "impl" variant in step 4, below. To be
+# consistent with step 4, we also use the "impl" variant here.
+#
+log_must eval "is_shared_impl $TESTDIR/1"
+
+# 3. Invoke 'zfs destroy' on the dataset.
+log_must zfs destroy -f $TESTPOOL/$TESTFS/shared1
+
+# 4. Verify the dataset is not shared.
+log_mustnot eval "is_shared_impl $TESTDIR/1"
+
+log_pass "'zfs destroy' will unshare the dataset."

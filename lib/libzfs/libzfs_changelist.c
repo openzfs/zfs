@@ -26,6 +26,7 @@
  * Portions Copyright 2007 Ramprakash Jelari
  * Copyright (c) 2014, 2015 by Delphix. All rights reserved.
  * Copyright 2016 Igor Kozhukhov <ikozhukhov@gmail.com>
+ * Copyright (c) 2018 Datto Inc.
  */
 
 #include <libintl.h>
@@ -68,22 +69,21 @@ typedef struct prop_changenode {
 	int			cn_mounted;
 	int			cn_zoned;
 	boolean_t		cn_needpost;	/* is postfix() needed? */
-	uu_list_node_t		cn_listnode;
+	uu_avl_node_t		cn_treenode;
 } prop_changenode_t;
 
 struct prop_changelist {
 	zfs_prop_t		cl_prop;
 	zfs_prop_t		cl_realprop;
 	zfs_prop_t		cl_shareprop;  /* used with sharenfs/sharesmb */
-	uu_list_pool_t		*cl_pool;
-	uu_list_t		*cl_list;
+	uu_avl_pool_t		*cl_pool;
+	uu_avl_t		*cl_tree;
 	boolean_t		cl_waslegacy;
 	boolean_t		cl_allchildren;
 	boolean_t		cl_alldependents;
 	int			cl_mflags;	/* Mount flags */
 	int			cl_gflags;	/* Gather request flags */
 	boolean_t		cl_haszonedchild;
-	boolean_t		cl_sorted;
 };
 
 /*
@@ -96,14 +96,17 @@ int
 changelist_prefix(prop_changelist_t *clp)
 {
 	prop_changenode_t *cn;
+	uu_avl_walk_t *walk;
 	int ret = 0;
 
 	if (clp->cl_prop != ZFS_PROP_MOUNTPOINT &&
 	    clp->cl_prop != ZFS_PROP_SHARESMB)
 		return (0);
 
-	for (cn = uu_list_first(clp->cl_list); cn != NULL;
-	    cn = uu_list_next(clp->cl_list, cn)) {
+	if ((walk = uu_avl_walk_start(clp->cl_tree, UU_WALK_ROBUST)) == NULL)
+		return (-1);
+
+	while ((cn = uu_avl_walk_next(walk)) != NULL) {
 
 		/* if a previous loop failed, set the remaining to false */
 		if (ret == -1) {
@@ -140,6 +143,8 @@ changelist_prefix(prop_changelist_t *clp)
 		}
 	}
 
+	uu_avl_walk_end(walk);
+
 	if (ret == -1)
 		(void) changelist_postfix(clp);
 
@@ -159,6 +164,7 @@ int
 changelist_postfix(prop_changelist_t *clp)
 {
 	prop_changenode_t *cn;
+	uu_avl_walk_t *walk;
 	char shareopts[ZFS_MAXPROPLEN];
 	int errors = 0;
 	libzfs_handle_t *hdl;
@@ -170,7 +176,7 @@ changelist_postfix(prop_changelist_t *clp)
 	 * location), or have explicit mountpoints set (in which case they won't
 	 * be in the changelist).
 	 */
-	if ((cn = uu_list_last(clp->cl_list)) == NULL)
+	if ((cn = uu_avl_last(clp->cl_tree)) == NULL)
 		return (0);
 
 	if (clp->cl_prop == ZFS_PROP_MOUNTPOINT)
@@ -193,8 +199,11 @@ changelist_postfix(prop_changelist_t *clp)
 	 * datasets before mounting the children.  We walk all datasets even if
 	 * there are errors.
 	 */
-	for (cn = uu_list_last(clp->cl_list); cn != NULL;
-	    cn = uu_list_prev(clp->cl_list, cn)) {
+	if ((walk = uu_avl_walk_start(clp->cl_tree,
+	    UU_WALK_REVERSE | UU_WALK_ROBUST)) == NULL)
+		return (-1);
+
+	while ((cn = uu_avl_walk_next(walk)) != NULL) {
 
 		boolean_t sharenfs;
 		boolean_t sharesmb;
@@ -261,6 +270,8 @@ changelist_postfix(prop_changelist_t *clp)
 			errors += zfs_unshare_smb(cn->cn_handle, NULL);
 	}
 
+	uu_avl_walk_end(walk);
+
 	return (errors ? -1 : 0);
 }
 
@@ -294,10 +305,13 @@ void
 changelist_rename(prop_changelist_t *clp, const char *src, const char *dst)
 {
 	prop_changenode_t *cn;
+	uu_avl_walk_t *walk;
 	char newname[ZFS_MAX_DATASET_NAME_LEN];
 
-	for (cn = uu_list_first(clp->cl_list); cn != NULL;
-	    cn = uu_list_next(clp->cl_list, cn)) {
+	if ((walk = uu_avl_walk_start(clp->cl_tree, UU_WALK_ROBUST)) == NULL)
+		return;
+
+	while ((cn = uu_avl_walk_next(walk)) != NULL) {
 		/*
 		 * Do not rename a clone that's not in the source hierarchy.
 		 */
@@ -316,6 +330,8 @@ changelist_rename(prop_changelist_t *clp, const char *src, const char *dst)
 		(void) strlcpy(cn->cn_handle->zfs_name, newname,
 		    sizeof (cn->cn_handle->zfs_name));
 	}
+
+	uu_avl_walk_end(walk);
 }
 
 /*
@@ -326,17 +342,22 @@ int
 changelist_unshare(prop_changelist_t *clp, zfs_share_proto_t *proto)
 {
 	prop_changenode_t *cn;
+	uu_avl_walk_t *walk;
 	int ret = 0;
 
 	if (clp->cl_prop != ZFS_PROP_SHARENFS &&
 	    clp->cl_prop != ZFS_PROP_SHARESMB)
 		return (0);
 
-	for (cn = uu_list_first(clp->cl_list); cn != NULL;
-	    cn = uu_list_next(clp->cl_list, cn)) {
+	if ((walk = uu_avl_walk_start(clp->cl_tree, UU_WALK_ROBUST)) == NULL)
+		return (-1);
+
+	while ((cn = uu_avl_walk_next(walk)) != NULL) {
 		if (zfs_unshare_proto(cn->cn_handle, NULL, proto) != 0)
 			ret = -1;
 	}
+
+	uu_avl_walk_end(walk);
 
 	return (ret);
 }
@@ -359,17 +380,22 @@ void
 changelist_remove(prop_changelist_t *clp, const char *name)
 {
 	prop_changenode_t *cn;
+	uu_avl_walk_t *walk;
 
-	for (cn = uu_list_first(clp->cl_list); cn != NULL;
-	    cn = uu_list_next(clp->cl_list, cn)) {
+	if ((walk = uu_avl_walk_start(clp->cl_tree, UU_WALK_ROBUST)) == NULL)
+		return;
 
+	while ((cn = uu_avl_walk_next(walk)) != NULL) {
 		if (strcmp(cn->cn_handle->zfs_name, name) == 0) {
-			uu_list_remove(clp->cl_list, cn);
+			uu_avl_remove(clp->cl_tree, cn);
 			zfs_close(cn->cn_handle);
 			free(cn);
+			uu_avl_walk_end(walk);
 			return;
 		}
 	}
+
+	uu_avl_walk_end(walk);
 }
 
 /*
@@ -379,21 +405,68 @@ void
 changelist_free(prop_changelist_t *clp)
 {
 	prop_changenode_t *cn;
-	void *cookie;
 
-	if (clp->cl_list) {
-		cookie = NULL;
-		while ((cn = uu_list_teardown(clp->cl_list, &cookie)) != NULL) {
+	if (clp->cl_tree) {
+		uu_avl_walk_t *walk;
+
+		if ((walk = uu_avl_walk_start(clp->cl_tree,
+		    UU_WALK_ROBUST)) == NULL)
+			return;
+
+		while ((cn = uu_avl_walk_next(walk)) != NULL) {
+			uu_avl_remove(clp->cl_tree, cn);
 			zfs_close(cn->cn_handle);
 			free(cn);
 		}
 
-		uu_list_destroy(clp->cl_list);
+		uu_avl_walk_end(walk);
+		uu_avl_destroy(clp->cl_tree);
 	}
 	if (clp->cl_pool)
-		uu_list_pool_destroy(clp->cl_pool);
+		uu_avl_pool_destroy(clp->cl_pool);
 
 	free(clp);
+}
+
+/*
+ * Add one dataset to changelist
+ */
+static int
+changelist_add_mounted(zfs_handle_t *zhp, void *data)
+{
+	prop_changelist_t *clp = data;
+	prop_changenode_t *cn;
+	uu_avl_index_t idx;
+
+	ASSERT3U(clp->cl_prop, ==, ZFS_PROP_MOUNTPOINT);
+
+	if ((cn = zfs_alloc(zfs_get_handle(zhp),
+	    sizeof (prop_changenode_t))) == NULL) {
+		zfs_close(zhp);
+		return (ENOMEM);
+	}
+
+	cn->cn_handle = zhp;
+	cn->cn_mounted = zfs_is_mounted(zhp, NULL);
+	ASSERT3U(cn->cn_mounted, ==, B_TRUE);
+	cn->cn_shared = zfs_is_shared(zhp);
+	cn->cn_zoned = zfs_prop_get_int(zhp, ZFS_PROP_ZONED);
+	cn->cn_needpost = B_TRUE;
+
+	/* Indicate if any child is exported to a local zone. */
+	if (getzoneid() == GLOBAL_ZONEID && cn->cn_zoned)
+		clp->cl_haszonedchild = B_TRUE;
+
+	uu_avl_node_init(cn, &cn->cn_treenode, clp->cl_pool);
+
+	if (uu_avl_find(clp->cl_tree, cn, NULL, &idx) == NULL) {
+		uu_avl_insert(clp->cl_tree, cn, idx);
+	} else {
+		free(cn);
+		zfs_close(zhp);
+	}
+
+	return (0);
 }
 
 static int
@@ -460,26 +533,15 @@ change_one(zfs_handle_t *zhp, void *data)
 		if (getzoneid() == GLOBAL_ZONEID && cn->cn_zoned)
 			clp->cl_haszonedchild = B_TRUE;
 
-		uu_list_node_init(cn, &cn->cn_listnode, clp->cl_pool);
+		uu_avl_node_init(cn, &cn->cn_treenode, clp->cl_pool);
 
-		if (clp->cl_sorted) {
-			uu_list_index_t idx;
+		uu_avl_index_t idx;
 
-			(void) uu_list_find(clp->cl_list, cn, NULL,
-			    &idx);
-			uu_list_insert(clp->cl_list, cn, idx);
+		if (uu_avl_find(clp->cl_tree, cn, NULL, &idx) == NULL) {
+			uu_avl_insert(clp->cl_tree, cn, idx);
 		} else {
-			/*
-			 * Add this child to beginning of the list. Children
-			 * below this one in the hierarchy will get added above
-			 * this one in the list. This produces a list in
-			 * reverse dataset name order.
-			 * This is necessary when the original mountpoint
-			 * is legacy or none.
-			 */
-			ASSERT(!clp->cl_alldependents);
-			verify(uu_list_insert_before(clp->cl_list,
-			    uu_list_first(clp->cl_list), cn) == 0);
+			free(cn);
+			zfs_close(zhp);
 		}
 
 		if (!clp->cl_alldependents)
@@ -491,39 +553,50 @@ change_one(zfs_handle_t *zhp, void *data)
 	return (0);
 }
 
-/*ARGSUSED*/
 static int
-compare_mountpoints(const void *a, const void *b, void *unused)
+compare_props(const void *a, const void *b, zfs_prop_t prop)
 {
 	const prop_changenode_t *ca = a;
 	const prop_changenode_t *cb = b;
 
-	char mounta[MAXPATHLEN];
-	char mountb[MAXPATHLEN];
+	char propa[MAXPATHLEN];
+	char propb[MAXPATHLEN];
 
-	boolean_t hasmounta, hasmountb;
+	boolean_t haspropa, haspropb;
 
+	haspropa = (zfs_prop_get(ca->cn_handle, prop, propa, sizeof (propa),
+	    NULL, NULL, 0, B_FALSE) == 0);
+	haspropb = (zfs_prop_get(cb->cn_handle, prop, propb, sizeof (propb),
+	    NULL, NULL, 0, B_FALSE) == 0);
+
+	if (!haspropa && haspropb)
+		return (-1);
+	else if (haspropa && !haspropb)
+		return (1);
+	else if (!haspropa && !haspropb)
+		return (0);
+	else
+		return (strcmp(propb, propa));
+}
+
+/*ARGSUSED*/
+static int
+compare_mountpoints(const void *a, const void *b, void *unused)
+{
 	/*
 	 * When unsharing or unmounting filesystems, we need to do it in
 	 * mountpoint order.  This allows the user to have a mountpoint
 	 * hierarchy that is different from the dataset hierarchy, and still
-	 * allow it to be changed.  However, if either dataset doesn't have a
-	 * mountpoint (because it is a volume or a snapshot), we place it at the
-	 * end of the list, because it doesn't affect our change at all.
+	 * allow it to be changed.
 	 */
-	hasmounta = (zfs_prop_get(ca->cn_handle, ZFS_PROP_MOUNTPOINT, mounta,
-	    sizeof (mounta), NULL, NULL, 0, B_FALSE) == 0);
-	hasmountb = (zfs_prop_get(cb->cn_handle, ZFS_PROP_MOUNTPOINT, mountb,
-	    sizeof (mountb), NULL, NULL, 0, B_FALSE) == 0);
+	return (compare_props(a, b, ZFS_PROP_MOUNTPOINT));
+}
 
-	if (!hasmounta && hasmountb)
-		return (-1);
-	else if (hasmounta && !hasmountb)
-		return (1);
-	else if (!hasmounta && !hasmountb)
-		return (0);
-	else
-		return (strcmp(mountb, mounta));
+/*ARGSUSED*/
+static int
+compare_dataset_names(const void *a, const void *b, void *unused)
+{
+	return (compare_props(a, b, ZFS_PROP_NAME));
 }
 
 /*
@@ -542,7 +615,6 @@ changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int gather_flags,
 	prop_changenode_t *cn;
 	zfs_handle_t *temp;
 	char property[ZFS_MAXPROPLEN];
-	uu_compare_fn_t *compare = NULL;
 	boolean_t legacy = B_FALSE;
 
 	if ((clp = zfs_alloc(zhp->zfs_hdl, sizeof (prop_changelist_t))) == NULL)
@@ -562,19 +634,14 @@ changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int gather_flags,
 		    NULL, NULL, 0, B_FALSE) == 0 &&
 		    (strcmp(property, "legacy") == 0 ||
 		    strcmp(property, "none") == 0)) {
-
 			legacy = B_TRUE;
-		}
-		if (!legacy) {
-			compare = compare_mountpoints;
-			clp->cl_sorted = B_TRUE;
 		}
 	}
 
-	clp->cl_pool = uu_list_pool_create("changelist_pool",
+	clp->cl_pool = uu_avl_pool_create("changelist_pool",
 	    sizeof (prop_changenode_t),
-	    offsetof(prop_changenode_t, cn_listnode),
-	    compare, 0);
+	    offsetof(prop_changenode_t, cn_treenode),
+	    legacy ? compare_dataset_names : compare_mountpoints, 0);
 	if (clp->cl_pool == NULL) {
 		assert(uu_error() == UU_ERROR_NO_MEMORY);
 		(void) zfs_error(zhp->zfs_hdl, EZFS_NOMEM, "internal error");
@@ -582,12 +649,11 @@ changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int gather_flags,
 		return (NULL);
 	}
 
-	clp->cl_list = uu_list_create(clp->cl_pool, NULL,
-	    clp->cl_sorted ? UU_LIST_SORTED : 0);
+	clp->cl_tree = uu_avl_create(clp->cl_pool, NULL, UU_DEFAULT);
 	clp->cl_gflags = gather_flags;
 	clp->cl_mflags = mnt_flags;
 
-	if (clp->cl_list == NULL) {
+	if (clp->cl_tree == NULL) {
 		assert(uu_error() == UU_ERROR_NO_MEMORY);
 		(void) zfs_error(zhp->zfs_hdl, EZFS_NOMEM, "internal error");
 		changelist_free(clp);
@@ -631,7 +697,17 @@ changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int gather_flags,
 	else if (clp->cl_prop == ZFS_PROP_SHARESMB)
 		clp->cl_shareprop = ZFS_PROP_SHARENFS;
 
-	if (clp->cl_alldependents) {
+	if (clp->cl_prop == ZFS_PROP_MOUNTPOINT &&
+	    (clp->cl_gflags & CL_GATHER_ITER_MOUNTED)) {
+		/*
+		 * Instead of iterating through all of the dataset children we
+		 * gather mounted dataset children from MNTTAB
+		 */
+		if (zfs_iter_mounted(zhp, changelist_add_mounted, clp) != 0) {
+			changelist_free(clp);
+			return (NULL);
+		}
+	} else if (clp->cl_alldependents) {
 		if (zfs_iter_dependents(zhp, B_TRUE, change_one, clp) != 0) {
 			changelist_free(clp);
 			return (NULL);
@@ -669,20 +745,13 @@ changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int gather_flags,
 	cn->cn_zoned = zfs_prop_get_int(zhp, ZFS_PROP_ZONED);
 	cn->cn_needpost = B_TRUE;
 
-	uu_list_node_init(cn, &cn->cn_listnode, clp->cl_pool);
-	if (clp->cl_sorted) {
-		uu_list_index_t idx;
-		(void) uu_list_find(clp->cl_list, cn, NULL, &idx);
-		uu_list_insert(clp->cl_list, cn, idx);
+	uu_avl_node_init(cn, &cn->cn_treenode, clp->cl_pool);
+	uu_avl_index_t idx;
+	if (uu_avl_find(clp->cl_tree, cn, NULL, &idx) == NULL) {
+		uu_avl_insert(clp->cl_tree, cn, idx);
 	} else {
-		/*
-		 * Add the target dataset to the end of the list.
-		 * The list is not really unsorted. The list will be
-		 * in reverse dataset name order. This is necessary
-		 * when the original mountpoint is legacy or none.
-		 */
-		verify(uu_list_insert_after(clp->cl_list,
-		    uu_list_last(clp->cl_list), cn) == 0);
+		free(cn);
+		zfs_close(temp);
 	}
 
 	/*

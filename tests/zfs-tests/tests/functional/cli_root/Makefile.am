@@ -28,6 +28,7 @@ SUBDIRS = \
 	zfs_set \
 	zfs_share \
 	zfs_snapshot \
+	zfs_sysfs \
 	zfs_unload-key \
 	zfs_unmount \
 	zfs_unshare \
@@ -51,6 +52,7 @@ SUBDIRS = \
 	zpool_remove \
 	zpool_reopen \
 	zpool_replace \
+	zpool_resilver \
 	zpool_scrub \
 	zpool_set \
 	zpool_split \

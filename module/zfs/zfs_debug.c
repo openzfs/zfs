@@ -24,13 +24,17 @@
  */
 
 #include <sys/zfs_context.h>
-#include <sys/kstat.h>
 
-list_t zfs_dbgmsgs;
+typedef struct zfs_dbgmsg {
+	procfs_list_node_t	zdm_node;
+	time_t			zdm_timestamp;
+	int			zdm_size;
+	char			zdm_msg[1]; /* variable length allocation */
+} zfs_dbgmsg_t;
+
+procfs_list_t zfs_dbgmsgs;
 int zfs_dbgmsg_size = 0;
-kmutex_t zfs_dbgmsgs_lock;
 int zfs_dbgmsg_maxsize = 4<<20; /* 4MB */
-kstat_t *zfs_dbgmsg_kstat;
 
 /*
  * Internal ZFS debug messages are enabled by default.
@@ -47,116 +51,68 @@ kstat_t *zfs_dbgmsg_kstat;
 int zfs_dbgmsg_enable = 1;
 
 static int
-zfs_dbgmsg_headers(char *buf, size_t size)
+zfs_dbgmsg_show_header(struct seq_file *f)
 {
-	(void) snprintf(buf, size, "%-12s %-8s\n", "timestamp", "message");
-
+	seq_printf(f, "%-12s %-8s\n", "timestamp", "message");
 	return (0);
 }
 
 static int
-zfs_dbgmsg_data(char *buf, size_t size, void *data)
+zfs_dbgmsg_show(struct seq_file *f, void *p)
 {
-	zfs_dbgmsg_t *zdm = (zfs_dbgmsg_t *)data;
-
-	(void) snprintf(buf, size, "%-12llu %-s\n",
+	zfs_dbgmsg_t *zdm = (zfs_dbgmsg_t *)p;
+	seq_printf(f, "%-12llu %-s\n",
 	    (u_longlong_t)zdm->zdm_timestamp, zdm->zdm_msg);
-
 	return (0);
-}
-
-static void *
-zfs_dbgmsg_addr(kstat_t *ksp, loff_t n)
-{
-	zfs_dbgmsg_t *zdm = (zfs_dbgmsg_t *)ksp->ks_private;
-
-	ASSERT(MUTEX_HELD(&zfs_dbgmsgs_lock));
-
-	if (n == 0)
-		ksp->ks_private = list_head(&zfs_dbgmsgs);
-	else if (zdm)
-		ksp->ks_private = list_next(&zfs_dbgmsgs, zdm);
-
-	return (ksp->ks_private);
 }
 
 static void
 zfs_dbgmsg_purge(int max_size)
 {
-	zfs_dbgmsg_t *zdm;
-	int size;
-
-	ASSERT(MUTEX_HELD(&zfs_dbgmsgs_lock));
-
 	while (zfs_dbgmsg_size > max_size) {
-		zdm = list_remove_head(&zfs_dbgmsgs);
+		zfs_dbgmsg_t *zdm = list_remove_head(&zfs_dbgmsgs.pl_list);
 		if (zdm == NULL)
 			return;
 
-		size = zdm->zdm_size;
+		int size = zdm->zdm_size;
 		kmem_free(zdm, size);
 		zfs_dbgmsg_size -= size;
 	}
 }
 
 static int
-zfs_dbgmsg_update(kstat_t *ksp, int rw)
+zfs_dbgmsg_clear(procfs_list_t *procfs_list)
 {
-	if (rw == KSTAT_WRITE)
-		zfs_dbgmsg_purge(0);
-
+	mutex_enter(&zfs_dbgmsgs.pl_lock);
+	zfs_dbgmsg_purge(0);
+	mutex_exit(&zfs_dbgmsgs.pl_lock);
 	return (0);
 }
 
 void
 zfs_dbgmsg_init(void)
 {
-	list_create(&zfs_dbgmsgs, sizeof (zfs_dbgmsg_t),
+	procfs_list_install("zfs",
+	    "dbgmsg",
+	    &zfs_dbgmsgs,
+	    zfs_dbgmsg_show,
+	    zfs_dbgmsg_show_header,
+	    zfs_dbgmsg_clear,
 	    offsetof(zfs_dbgmsg_t, zdm_node));
-	mutex_init(&zfs_dbgmsgs_lock, NULL, MUTEX_DEFAULT, NULL);
-
-	zfs_dbgmsg_kstat = kstat_create("zfs", 0, "dbgmsg", "misc",
-	    KSTAT_TYPE_RAW, 0, KSTAT_FLAG_VIRTUAL);
-	if (zfs_dbgmsg_kstat) {
-		zfs_dbgmsg_kstat->ks_lock = &zfs_dbgmsgs_lock;
-		zfs_dbgmsg_kstat->ks_ndata = UINT32_MAX;
-		zfs_dbgmsg_kstat->ks_private = NULL;
-		zfs_dbgmsg_kstat->ks_update = zfs_dbgmsg_update;
-		kstat_set_raw_ops(zfs_dbgmsg_kstat, zfs_dbgmsg_headers,
-		    zfs_dbgmsg_data, zfs_dbgmsg_addr);
-		kstat_install(zfs_dbgmsg_kstat);
-	}
 }
 
 void
 zfs_dbgmsg_fini(void)
 {
-	if (zfs_dbgmsg_kstat)
-		kstat_delete(zfs_dbgmsg_kstat);
-
-	mutex_enter(&zfs_dbgmsgs_lock);
+	procfs_list_uninstall(&zfs_dbgmsgs);
 	zfs_dbgmsg_purge(0);
-	mutex_exit(&zfs_dbgmsgs_lock);
-	mutex_destroy(&zfs_dbgmsgs_lock);
-}
 
-void
-__zfs_dbgmsg(char *buf)
-{
-	zfs_dbgmsg_t *zdm;
-	int size;
-
-	size = sizeof (zfs_dbgmsg_t) + strlen(buf);
-	zdm = kmem_zalloc(size, KM_SLEEP);
-	zdm->zdm_size = size;
-	zdm->zdm_timestamp = gethrestime_sec();
-	strcpy(zdm->zdm_msg, buf);
-
-	mutex_enter(&zfs_dbgmsgs_lock);
-	list_insert_tail(&zfs_dbgmsgs, zdm);
-	zfs_dbgmsg_size += size;
-	zfs_dbgmsg_purge(MAX(zfs_dbgmsg_maxsize, 0));
-	mutex_exit(&zfs_dbgmsgs_lock);
+	/*
+	 * TODO - decide how to make this permanent
+	 */
+#ifdef _KERNEL
+	procfs_list_destroy(&zfs_dbgmsgs);
+#endif
 }
 
 void
@@ -168,12 +124,30 @@ __set_error(const char *file, const char *func, int line, int err)
 	 * $ echo 512 >/sys/module/zfs/parameters/zfs_flags
 	 */
 	if (zfs_flags & ZFS_DEBUG_SET_ERROR)
-		__dprintf(file, func, line, "error %lu", err);
+		__dprintf(B_FALSE, file, func, line, "error %lu", err);
+}
+
+void
+__zfs_dbgmsg(char *buf)
+{
+	int size = sizeof (zfs_dbgmsg_t) + strlen(buf);
+	zfs_dbgmsg_t *zdm = kmem_zalloc(size, KM_SLEEP);
+	zdm->zdm_size = size;
+	zdm->zdm_timestamp = gethrestime_sec();
+	strcpy(zdm->zdm_msg, buf);
+
+	mutex_enter(&zfs_dbgmsgs.pl_lock);
+	procfs_list_add(&zfs_dbgmsgs, zdm);
+	zfs_dbgmsg_size += size;
+	zfs_dbgmsg_purge(MAX(zfs_dbgmsg_maxsize, 0));
+	mutex_exit(&zfs_dbgmsgs.pl_lock);
 }
 
 #ifdef _KERNEL
+
 void
-__dprintf(const char *file, const char *func, int line, const char *fmt, ...)
+__dprintf(boolean_t dprint, const char *file, const char *func,
+    int line, const char *fmt, ...)
 {
 	const char *newfile;
 	va_list adx;
@@ -181,6 +155,7 @@ __dprintf(const char *file, const char *func, int line, const char *fmt, ...)
 	char *buf;
 	char *nl;
 	int i;
+	char *prefix = (dprint) ? "dprintf: " : "";
 
 	size = 1024;
 	buf = kmem_alloc(size, KM_SLEEP);
@@ -195,7 +170,7 @@ __dprintf(const char *file, const char *func, int line, const char *fmt, ...)
 		newfile = file;
 	}
 
-	i = snprintf(buf, size, "%s:%d:%s(): ", newfile, line, func);
+	i = snprintf(buf, size, "%s%s:%d:%s(): ", prefix, newfile, line, func);
 
 	if (i < size) {
 		va_start(adx, fmt);
@@ -204,11 +179,13 @@ __dprintf(const char *file, const char *func, int line, const char *fmt, ...)
 	}
 
 	/*
-	 * Get rid of trailing newline.
+	 * Get rid of trailing newline for dprintf logs.
 	 */
-	nl = strrchr(buf, '\n');
-	if (nl != NULL)
-		*nl = '\0';
+	if (dprint && buf[0] != '\0') {
+		nl = &buf[strlen(buf) - 1];
+		if (*nl == '\n')
+			*nl = '\0';
+	}
 
 	/*
 	 * To get this data enable the zfs__dprintf trace point as shown:
@@ -240,14 +217,29 @@ __dprintf(const char *file, const char *func, int line, const char *fmt, ...)
 void
 zfs_dbgmsg_print(const char *tag)
 {
-	zfs_dbgmsg_t *zdm;
+	ssize_t ret __attribute__((unused));
 
-	(void) printf("ZFS_DBGMSG(%s):\n", tag);
-	mutex_enter(&zfs_dbgmsgs_lock);
-	for (zdm = list_head(&zfs_dbgmsgs); zdm;
-	    zdm = list_next(&zfs_dbgmsgs, zdm))
-		(void) printf("%s\n", zdm->zdm_msg);
-	mutex_exit(&zfs_dbgmsgs_lock);
+	/*
+	 * We use write() in this function instead of printf()
+	 * so it is safe to call from a signal handler.
+	 */
+	ret = write(STDOUT_FILENO, "ZFS_DBGMSG(", 11);
+	ret = write(STDOUT_FILENO, tag, strlen(tag));
+	ret = write(STDOUT_FILENO, ") START:\n", 9);
+
+	mutex_enter(&zfs_dbgmsgs.pl_lock);
+	for (zfs_dbgmsg_t *zdm = list_head(&zfs_dbgmsgs.pl_list); zdm != NULL;
+	    zdm = list_next(&zfs_dbgmsgs.pl_list, zdm)) {
+		ret = write(STDOUT_FILENO, zdm->zdm_msg,
+		    strlen(zdm->zdm_msg));
+		ret = write(STDOUT_FILENO, "\n", 1);
+	}
+
+	ret = write(STDOUT_FILENO, "ZFS_DBGMSG(", 11);
+	ret = write(STDOUT_FILENO, tag, strlen(tag));
+	ret = write(STDOUT_FILENO, ") END\n", 6);
+
+	mutex_exit(&zfs_dbgmsgs.pl_lock);
 }
 #endif /* _KERNEL */
 

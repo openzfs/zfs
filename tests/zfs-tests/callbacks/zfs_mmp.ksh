@@ -18,7 +18,7 @@
 
 # $1: number of lines to output (default: 40)
 typeset lines=${1:-40}
-typeset history=$(cat /sys/module/zfs/parameters/zfs_multihost_history)
+typeset history=$(</sys/module/zfs/parameters/zfs_multihost_history)
 
 if [ $history -eq 0 ]; then
 	exit

@@ -12,6 +12,8 @@ AM_CFLAGS += $(NO_UNUSED_BUT_SET_VARIABLE)
 # Includes kernel code generate warnings for large stack frames
 AM_CFLAGS += $(FRAME_LARGER_THAN)
 
+AM_CFLAGS += -DLIB_ZPOOL_BUILD
+
 DEFAULT_INCLUDES += \
 	-I$(top_srcdir)/include \
 	-I$(top_srcdir)/lib/libspl/include
@@ -56,6 +58,7 @@ KERNEL_C = \
 	dmu_diff.c \
 	dmu_object.c \
 	dmu_objset.c \
+	dmu_recv.c \
 	dmu_send.c \
 	dmu_traverse.c \
 	dmu_tx.c \
@@ -185,11 +188,10 @@ nodist_libzpool_la_SOURCES = \
 	$(LUA_C)
 
 libzpool_la_LIBADD = \
-	$(top_builddir)/lib/libavl/libavl.la \
 	$(top_builddir)/lib/libicp/libicp.la \
 	$(top_builddir)/lib/libnvpair/libnvpair.la \
-	$(top_builddir)/lib/libspl/libspl.la \
-	$(top_builddir)/lib/libunicode/libunicode.la
+	$(top_builddir)/lib/libunicode/libunicode.la \
+	$(top_builddir)/lib/libzutil/libzutil.la
 
 libzpool_la_LIBADD += $(ZLIB) -ldl
 libzpool_la_LDFLAGS = -pthread -version-info 2:0:0

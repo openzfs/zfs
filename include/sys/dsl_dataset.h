@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  */
@@ -49,6 +49,7 @@ struct dsl_dataset;
 struct dsl_dir;
 struct dsl_pool;
 struct dsl_crypto_params;
+struct dsl_key_mapping;
 
 #define	DS_FLAG_INCONSISTENT	(1ULL<<0)
 #define	DS_IS_INCONSISTENT(ds)	\
@@ -165,6 +166,7 @@ typedef struct dsl_dataset {
 	uint64_t ds_object;
 	uint64_t ds_fsid_guid;
 	boolean_t ds_is_snapshot;
+	struct dsl_key_mapping *ds_key_mapping;
 
 	/* only used in syncing context, only valid for non-snapshots: */
 	struct dsl_dataset *ds_prev;
@@ -211,7 +213,7 @@ typedef struct dsl_dataset {
 	 * Owning counts as a long hold.  See the comments above
 	 * dsl_pool_hold() for details.
 	 */
-	refcount_t ds_longholds;
+	zfs_refcount_t ds_longholds;
 
 	/* no locking; only for making guesses */
 	uint64_t ds_trysnap_txg;
@@ -240,13 +242,13 @@ typedef struct dsl_dataset {
 	 * For ZFEATURE_FLAG_PER_DATASET features, set if this dataset
 	 * uses this feature.
 	 */
-	uint8_t ds_feature_inuse[SPA_FEATURES];
+	void *ds_feature[SPA_FEATURES];
 
 	/*
 	 * Set if we need to activate the feature on this dataset this txg
 	 * (used only in syncing context).
 	 */
-	uint8_t ds_feature_activation_needed[SPA_FEATURES];
+	void *ds_feature_activation[SPA_FEATURES];
 
 	/* Protected by ds_lock; keep at end of struct for better locality */
 	char ds_snapname[ZFS_MAX_DATASET_NAME_LEN];
@@ -305,10 +307,12 @@ int dsl_dataset_hold_flags(struct dsl_pool *dp, const char *name,
     ds_hold_flags_t flags, void *tag, dsl_dataset_t **dsp);
 boolean_t dsl_dataset_try_add_ref(struct dsl_pool *dp, dsl_dataset_t *ds,
     void *tag);
+int dsl_dataset_create_key_mapping(dsl_dataset_t *ds);
 int dsl_dataset_hold_obj(struct dsl_pool *dp, uint64_t dsobj, void *tag,
     dsl_dataset_t **);
 int dsl_dataset_hold_obj_flags(struct dsl_pool *dp, uint64_t dsobj,
     ds_hold_flags_t flags, void *tag, dsl_dataset_t **);
+void dsl_dataset_remove_key_mapping(dsl_dataset_t *ds);
 void dsl_dataset_rele(dsl_dataset_t *ds, void *tag);
 void dsl_dataset_rele_flags(dsl_dataset_t *ds, ds_hold_flags_t flags,
     void *tag);
@@ -395,7 +399,6 @@ int dsl_dataset_space_written(dsl_dataset_t *oldsnap, dsl_dataset_t *new,
     uint64_t *usedp, uint64_t *compp, uint64_t *uncompp);
 int dsl_dataset_space_wouldfree(dsl_dataset_t *firstsnap, dsl_dataset_t *last,
     uint64_t *usedp, uint64_t *compp, uint64_t *uncompp);
-boolean_t dsl_dataset_is_dirty(dsl_dataset_t *ds);
 
 int dsl_dsobj_to_dsname(char *pname, uint64_t obj, char *buf);
 
@@ -446,10 +449,13 @@ void dsl_dataset_create_remap_deadlist(dsl_dataset_t *ds, dmu_tx_t *tx);
 boolean_t dsl_dataset_remap_deadlist_exists(dsl_dataset_t *ds);
 void dsl_dataset_destroy_remap_deadlist(dsl_dataset_t *ds, dmu_tx_t *tx);
 
-void dsl_dataset_activate_feature(uint64_t dsobj,
-    spa_feature_t f, dmu_tx_t *tx);
-void dsl_dataset_deactivate_feature(uint64_t dsobj,
-    spa_feature_t f, dmu_tx_t *tx);
+void dsl_dataset_activate_feature(uint64_t dsobj, spa_feature_t f, void *arg,
+    dmu_tx_t *tx);
+void dsl_dataset_deactivate_feature(dsl_dataset_t *ds, spa_feature_t f,
+    dmu_tx_t *tx);
+boolean_t dsl_dataset_feature_is_active(dsl_dataset_t *ds, spa_feature_t f);
+boolean_t dsl_dataset_get_uint64_array_feature(dsl_dataset_t *ds,
+    spa_feature_t f, uint64_t *outlength, uint64_t **outp);
 
 #ifdef ZFS_DEBUG
 #define	dprintf_ds(ds, fmt, ...) do { \

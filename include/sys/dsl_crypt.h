@@ -62,7 +62,7 @@ typedef struct dsl_wrapping_key {
 	crypto_key_t wk_key;
 
 	/* refcount of number of dsl_crypto_key_t's holding this struct */
-	refcount_t wk_refcnt;
+	zfs_refcount_t wk_refcnt;
 
 	/* dsl directory object that owns this wrapping key */
 	uint64_t wk_ddobj;
@@ -111,8 +111,8 @@ typedef struct dsl_crypto_key {
 	/* link on spa_keystore_t:sk_dsl_keys */
 	avl_node_t dck_avl_link;
 
-	/* refcount of dsl_key_mapping_t's holding this key */
-	refcount_t dck_holds;
+	/* refcount of holders of this key */
+	zfs_refcount_t dck_holds;
 
 	/* master key used to derive encryption keys */
 	zio_crypt_key_t dck_key;
@@ -134,7 +134,7 @@ typedef struct dsl_key_mapping {
 	avl_node_t km_avl_link;
 
 	/* refcount of how many users are depending on this mapping */
-	refcount_t km_refcnt;
+	zfs_refcount_t km_refcnt;
 
 	/* dataset this crypto key belongs to (index) */
 	uint64_t km_dsobj;
@@ -181,10 +181,11 @@ int spa_keystore_load_wkey(const char *dsname, dsl_crypto_params_t *dcp,
 int spa_keystore_unload_wkey_impl(spa_t *spa, uint64_t ddobj);
 int spa_keystore_unload_wkey(const char *dsname);
 
-int spa_keystore_create_mapping_impl(spa_t *spa, uint64_t dsobj, dsl_dir_t *dd,
-    void *tag);
-int spa_keystore_create_mapping(spa_t *spa, struct dsl_dataset *ds, void *tag);
+int spa_keystore_create_mapping(spa_t *spa, struct dsl_dataset *ds, void *tag,
+    dsl_key_mapping_t **km_out);
 int spa_keystore_remove_mapping(spa_t *spa, uint64_t dsobj, void *tag);
+void key_mapping_add_ref(dsl_key_mapping_t *km, void *tag);
+void key_mapping_rele(spa_t *spa, dsl_key_mapping_t *km, void *tag);
 int spa_keystore_lookup_key(spa_t *spa, uint64_t dsobj, void *tag,
     dsl_crypto_key_t **dck_out);
 
@@ -202,7 +203,7 @@ int dsl_dataset_promote_crypt_check(dsl_dir_t *target, dsl_dir_t *origin);
 void dsl_dataset_promote_crypt_sync(dsl_dir_t *target, dsl_dir_t *origin,
     dmu_tx_t *tx);
 int dmu_objset_create_crypt_check(dsl_dir_t *parentdd,
-    dsl_crypto_params_t *dcp);
+    dsl_crypto_params_t *dcp, boolean_t *will_encrypt);
 void dsl_dataset_create_crypt_sync(uint64_t dsobj, dsl_dir_t *dd,
     struct dsl_dataset *origin, dsl_crypto_params_t *dcp, dmu_tx_t *tx);
 uint64_t dsl_crypto_key_create_sync(uint64_t crypt, dsl_wrapping_key_t *wkey,

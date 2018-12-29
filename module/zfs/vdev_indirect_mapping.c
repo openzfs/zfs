@@ -282,7 +282,6 @@ vdev_indirect_mapping_entry_for_offset_or_next(vdev_indirect_mapping_t *vim,
 	    B_TRUE));
 }
 
-
 void
 vdev_indirect_mapping_close(vdev_indirect_mapping_t *vim)
 {

@@ -27,6 +27,7 @@
 
 #
 # Copyright (c) 2013, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2018 George Melikov. All Rights Reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -42,6 +43,8 @@ if ! is_linux; then
 	fi
 fi
 
-default_cleanup
+if is_linux; then
+	log_must set_tunable64 zfs_admin_snapshot 0
+fi
 
-log_pass
+default_cleanup

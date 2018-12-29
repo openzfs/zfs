@@ -141,7 +141,7 @@
 #define	DTRACE_PROBE4(a, b, c, d, e, f, g, h, i)	((void)0)
 
 /* Missing globals */
-extern char spl_version[32];
+extern char spl_gitrev[64];
 extern unsigned long spl_hostid;
 
 /* Missing misc functions */

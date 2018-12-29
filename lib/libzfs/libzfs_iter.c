@@ -23,6 +23,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2013, 2015 by Delphix. All rights reserved.
  * Copyright 2014 Nexenta Systems, Inc.  All rights reserved.
+ * Copyright (c) 2018 Datto Inc.
  */
 
 #include <stdio.h>
@@ -32,6 +33,8 @@
 #include <stddef.h>
 #include <libintl.h>
 #include <libzfs.h>
+#include <libzutil.h>
+#include <sys/mntent.h>
 
 #include "libzfs_impl.h"
 
@@ -521,4 +524,51 @@ zfs_iter_dependents(zfs_handle_t *zhp, boolean_t allowrecursion,
 	ida.data = data;
 	ida.first = B_TRUE;
 	return (iter_dependents_cb(zfs_handle_dup(zhp), &ida));
+}
+
+/*
+ * Iterate over mounted children of the specified dataset
+ */
+int
+zfs_iter_mounted(zfs_handle_t *zhp, zfs_iter_f func, void *data)
+{
+	char mnt_prop[ZFS_MAXPROPLEN];
+	struct mnttab entry;
+	zfs_handle_t *mtab_zhp;
+	size_t namelen = strlen(zhp->zfs_name);
+	FILE *mnttab;
+	int err = 0;
+
+	if ((mnttab = fopen(MNTTAB, "r")) == NULL)
+		return (ENOENT);
+
+	while (err == 0 && getmntent(mnttab, &entry) == 0) {
+		/* Ignore non-ZFS entries */
+		if (strcmp(entry.mnt_fstype, MNTTYPE_ZFS) != 0)
+			continue;
+
+		/* Ignore datasets not within the provided dataset */
+		if (strncmp(entry.mnt_special, zhp->zfs_name, namelen) != 0 ||
+		    (entry.mnt_special[namelen] != '/' &&
+		    entry.mnt_special[namelen] != '@'))
+			continue;
+
+		if ((mtab_zhp = zfs_open(zhp->zfs_hdl, entry.mnt_special,
+		    ZFS_TYPE_FILESYSTEM)) == NULL)
+			continue;
+
+		/* Ignore legacy mounts as they are user managed */
+		verify(zfs_prop_get(mtab_zhp, ZFS_PROP_MOUNTPOINT, mnt_prop,
+		    sizeof (mnt_prop), NULL, NULL, 0, B_FALSE) == 0);
+		if (strcmp(mnt_prop, "legacy") == 0) {
+			zfs_close(mtab_zhp);
+			continue;
+		}
+
+		err = func(mtab_zhp, data);
+	}
+
+	fclose(mnttab);
+
+	return (err);
 }

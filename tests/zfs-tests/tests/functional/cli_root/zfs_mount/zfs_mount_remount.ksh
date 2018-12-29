@@ -36,8 +36,10 @@
 # 2. Verify we can (re)mount the dataset readonly/read-write
 # 3. Verify we can mount the snapshot and it's mounted readonly
 # 4. Verify we can't remount it read-write
-# 5. Re-import the pool readonly
-# 6. Verify we can't remount its filesystem read-write
+# 5. Verify we can remount a dataset readonly and unmount it with
+#    encryption=on and sync=disabled (issue #7753)
+# 6. Re-import the pool readonly
+# 7. Verify we can't remount its filesystem read-write
 #
 
 verify_runnable "both"
@@ -130,11 +132,21 @@ readonlyfs $MNTPSNAP
 checkmount $TESTSNAP 'ro'
 log_must umount $MNTPSNAP
 
-# 5. Re-import the pool readonly
+# 5. Verify we can remount a dataset readonly and unmount it with
+#    encryption=on and sync=disabled (issue #7753)
+log_must eval "echo 'password' | zfs create -o sync=disabled \
+    -o encryption=on -o keyformat=passphrase $TESTFS/crypt"
+CRYPT_MNTPFS="$(get_prop mountpoint $TESTFS/crypt)"
+log_must touch $CRYPT_MNTPFS/file.dat
+log_must mount -o remount,ro $TESTFS/crypt $CRYPT_MNTPFS
+log_must umount -f $CRYPT_MNTPFS
+zpool sync $TESTPOOL
+
+# 6. Re-import the pool readonly
 log_must zpool export $TESTPOOL
 log_must zpool import -o readonly=on $TESTPOOL
 
-# 6. Verify we can't remount its filesystem read-write
+# 7. Verify we can't remount its filesystem read-write
 readonlyfs $MNTPFS
 checkmount $TESTFS 'ro'
 log_mustnot mount -o remount,rw $MNTPFS

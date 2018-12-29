@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -1256,6 +1256,9 @@ zfsvfs_setup(zfsvfs_t *zfsvfs, boolean_t mounting)
 		/* restore readonly bit */
 		if (readonly != 0)
 			readonly_changed_cb(zfsvfs, B_TRUE);
+
+		ASSERT3P(zfsvfs->z_kstat.dk_kstats, ==, NULL);
+		dataset_kstats_create(&zfsvfs->z_kstat, zfsvfs->z_os);
 	}
 
 	/*
@@ -1288,6 +1291,7 @@ zfsvfs_free(zfsvfs_t *zfsvfs)
 	vmem_free(zfsvfs->z_hold_trees, sizeof (avl_tree_t) * size);
 	vmem_free(zfsvfs->z_hold_locks, sizeof (kmutex_t) * size);
 	zfsvfs_vfs_free(zfsvfs->z_vfs);
+	dataset_kstats_destroy(&zfsvfs->z_kstat);
 	kmem_free(zfsvfs, sizeof (zfsvfs_t));
 }
 
@@ -1418,8 +1422,6 @@ zfs_statvfs(struct dentry *dentry, struct kstatfs *statp)
 {
 	zfsvfs_t *zfsvfs = dentry->d_sb->s_fs_info;
 	uint64_t refdbytes, availbytes, usedobjs, availobjs;
-	uint64_t fsid;
-	uint32_t bshift;
 	int err = 0;
 
 	ZFS_ENTER(zfsvfs);
@@ -1427,7 +1429,7 @@ zfs_statvfs(struct dentry *dentry, struct kstatfs *statp)
 	dmu_objset_space(zfsvfs->z_os,
 	    &refdbytes, &availbytes, &usedobjs, &availobjs);
 
-	fsid = dmu_objset_fsid_guid(zfsvfs->z_os);
+	uint64_t fsid = dmu_objset_fsid_guid(zfsvfs->z_os);
 	/*
 	 * The underlying storage pool actually uses multiple block
 	 * size.  Under Solaris frsize (fragment size) is reported as
@@ -1439,7 +1441,7 @@ zfs_statvfs(struct dentry *dentry, struct kstatfs *statp)
 	 */
 	statp->f_frsize = zfsvfs->z_max_blksz;
 	statp->f_bsize = zfsvfs->z_max_blksz;
-	bshift = fls(statp->f_bsize) - 1;
+	uint32_t bshift = fls(statp->f_bsize) - 1;
 
 	/*
 	 * The following report "total" blocks of various kinds in
@@ -1456,7 +1458,7 @@ zfs_statvfs(struct dentry *dentry, struct kstatfs *statp)
 	 * static metadata.  ZFS doesn't preallocate files, so the best
 	 * we can do is report the max that could possibly fit in f_files,
 	 * and that minus the number actually used in f_ffree.
-	 * For f_ffree, report the smaller of the number of object available
+	 * For f_ffree, report the smaller of the number of objects available
 	 * and the number of blocks (each object will take at least a block).
 	 */
 	statp->f_ffree = MIN(availobjs, availbytes >> DNODE_SHIFT);
@@ -1741,10 +1743,10 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 	zfs_unregister_callbacks(zfsvfs);
 
 	/*
-	 * Evict cached data
+	 * Evict cached data. We must write out any dirty data before
+	 * disowning the dataset.
 	 */
-	if (dsl_dataset_is_dirty(dmu_objset_ds(zfsvfs->z_os)) &&
-	    !zfs_is_readonly(zfsvfs))
+	if (!zfs_is_readonly(zfsvfs))
 		txg_wait_synced(dmu_objset_pool(zfsvfs->z_os), 0);
 	dmu_objset_evict_dbufs(zfsvfs->z_os);
 
@@ -1965,6 +1967,9 @@ zfs_remount(struct super_block *sb, int *flags, zfs_mnt_t *zm)
 	error = zfsvfs_parse_options(zm->mnt_data, &vfsp);
 	if (error)
 		return (error);
+
+	if (!zfs_is_readonly(zfsvfs) && (*flags & MS_RDONLY))
+		txg_wait_synced(dmu_objset_pool(zfsvfs->z_os), 0);
 
 	zfs_unregister_callbacks(zfsvfs);
 	zfsvfs_vfs_free(zfsvfs->z_vfs);
@@ -2234,6 +2239,7 @@ zfs_set_version(zfsvfs_t *zfsvfs, uint64_t newvers)
 	dmu_tx_commit(tx);
 
 	zfsvfs->z_version = newvers;
+	os->os_version = newvers;
 
 	zfs_set_fuid_feature(zfsvfs);
 
@@ -2246,13 +2252,42 @@ zfs_set_version(zfsvfs_t *zfsvfs, uint64_t newvers)
 int
 zfs_get_zplprop(objset_t *os, zfs_prop_t prop, uint64_t *value)
 {
-	const char *pname;
-	int error = SET_ERROR(ENOENT);
+	uint64_t *cached_copy = NULL;
 
 	/*
-	 * Look up the file system's value for the property.  For the
-	 * version property, we look up a slightly different string.
+	 * Figure out where in the objset_t the cached copy would live, if it
+	 * is available for the requested property.
 	 */
+	if (os != NULL) {
+		switch (prop) {
+		case ZFS_PROP_VERSION:
+			cached_copy = &os->os_version;
+			break;
+		case ZFS_PROP_NORMALIZE:
+			cached_copy = &os->os_normalization;
+			break;
+		case ZFS_PROP_UTF8ONLY:
+			cached_copy = &os->os_utf8only;
+			break;
+		case ZFS_PROP_CASE:
+			cached_copy = &os->os_casesensitivity;
+			break;
+		default:
+			break;
+		}
+	}
+	if (cached_copy != NULL && *cached_copy != OBJSET_PROP_UNINITIALIZED) {
+		*value = *cached_copy;
+		return (0);
+	}
+
+	/*
+	 * If the property wasn't cached, look up the file system's value for
+	 * the property. For the version property, we look up a slightly
+	 * different string.
+	 */
+	const char *pname;
+	int error = ENOENT;
 	if (prop == ZFS_PROP_VERSION)
 		pname = ZPL_VERSION_STR;
 	else
@@ -2284,6 +2319,15 @@ zfs_get_zplprop(objset_t *os, zfs_prop_t prop, uint64_t *value)
 		}
 		error = 0;
 	}
+
+	/*
+	 * If one of the methods for getting the property value above worked,
+	 * copy it into the objset_t's cache.
+	 */
+	if (error == 0 && cached_copy != NULL) {
+		*cached_copy = *value;
+	}
+
 	return (error);
 }
 

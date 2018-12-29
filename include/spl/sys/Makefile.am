@@ -28,6 +28,7 @@ KERNEL_H = \
 	$(top_srcdir)/include/spl/sys/param.h \
 	$(top_srcdir)/include/spl/sys/processor.h \
 	$(top_srcdir)/include/spl/sys/proc.h \
+	$(top_srcdir)/include/spl/sys/procfs_list.h \
 	$(top_srcdir)/include/spl/sys/random.h \
 	$(top_srcdir)/include/spl/sys/rwlock.h \
 	$(top_srcdir)/include/spl/sys/shrinker.h \

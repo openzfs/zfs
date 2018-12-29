@@ -219,7 +219,7 @@ smb_enable_share_one(const char *sharename, const char *sharepath)
 	int rc;
 
 	/* Support ZFS share name regexp '[[:alnum:]_-.: ]' */
-	strncpy(name, sharename, sizeof (name));
+	strlcpy(name, sharename, sizeof (name));
 	name [sizeof (name)-1] = '\0';
 
 	pos = name;

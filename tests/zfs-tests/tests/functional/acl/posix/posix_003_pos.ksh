@@ -36,7 +36,6 @@
 verify_runnable "both"
 log_assert "Verify regular and default POSIX ACLs survive  remount"
 
-typeset output=/tmp/zfs-posixacl.$$
 typeset acl_str1="^group:$ZFS_ACL_STAFF_GROUP:-wx$"
 typeset acl_str2="^default:group:$ZFS_ACL_STAFF_GROUP:-wx$"
 typeset ACLDIR="$TESTDIR/dir.1"

@@ -31,9 +31,9 @@ FILE_CONTENTS="Leeloo Dallas mul-ti-pass."
 echo $FILE_CONTENTS  >$TESTDIR/$TESTFILE0
 echo $FILE_CONTENTS  >$TESTDIR/$TESTFILE1
 echo $FILE_CONTENTS  >$TESTDIR/$TESTFILE2
-log_must [ "x$(cat $TESTDIR/$TESTFILE0)" = "x$FILE_CONTENTS" ]
-log_must [ "x$(cat $TESTDIR/$TESTFILE1)" = "x$FILE_CONTENTS" ]
-log_must [ "x$(cat $TESTDIR/$TESTFILE2)" = "x$FILE_CONTENTS" ]
+log_must [ "x$(<$TESTDIR/$TESTFILE0)" = "x$FILE_CONTENTS" ]
+log_must [ "x$(<$TESTDIR/$TESTFILE1)" = "x$FILE_CONTENTS" ]
+log_must [ "x$(<$TESTDIR/$TESTFILE2)" = "x$FILE_CONTENTS" ]
 
 log_must zpool remove $TESTPOOL $REMOVEDISK
 log_must wait_for_removal $TESTPOOL
@@ -42,8 +42,8 @@ log_mustnot vdevs_in_pool $TESTPOOL $REMOVEDISK
 log_must dd if=/$TESTDIR/$TESTFILE0 of=/dev/null
 log_must dd if=/$TESTDIR/$TESTFILE1 of=/dev/null
 log_must dd if=/$TESTDIR/$TESTFILE2 of=/dev/null
-log_must [ "x$(cat $TESTDIR/$TESTFILE0)" = "x$FILE_CONTENTS" ]
-log_must [ "x$(cat $TESTDIR/$TESTFILE1)" = "x$FILE_CONTENTS" ]
-log_must [ "x$(cat $TESTDIR/$TESTFILE2)" = "x$FILE_CONTENTS" ]
+log_must [ "x$(<$TESTDIR/$TESTFILE0)" = "x$FILE_CONTENTS" ]
+log_must [ "x$(<$TESTDIR/$TESTFILE1)" = "x$FILE_CONTENTS" ]
+log_must [ "x$(<$TESTDIR/$TESTFILE2)" = "x$FILE_CONTENTS" ]
 
 log_pass "Removed device not in use after removal."

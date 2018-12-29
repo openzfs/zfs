@@ -501,7 +501,8 @@ dsl_dir_hold(dsl_pool_t *dp, const char *name, void *tag,
 	}
 	if (tailp != NULL)
 		*tailp = next;
-	*ddp = dd;
+	if (err == 0)
+		*ddp = dd;
 error:
 	kmem_free(buf, ZFS_MAX_DATASET_NAME_LEN);
 	return (err);
@@ -1416,7 +1417,7 @@ dsl_dir_tempreserve_space(dsl_dir_t *dd, uint64_t lsize, uint64_t asize,
 	    offsetof(struct tempreserve, tr_node));
 	ASSERT3S(asize, >, 0);
 
-	err = arc_tempreserve_space(lsize, tx->tx_txg);
+	err = arc_tempreserve_space(dd->dd_pool->dp_spa, lsize, tx->tx_txg);
 	if (err == 0) {
 		struct tempreserve *tr;
 

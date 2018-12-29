@@ -372,6 +372,7 @@ typedef struct zinject_record {
 #define	ZINJECT_NULL		0x1
 #define	ZINJECT_FLUSH_ARC	0x2
 #define	ZINJECT_UNLOAD_SPA	0x4
+#define	ZINJECT_CALC_RANGE	0x8
 
 #define	ZEVENT_NONE		0x0
 #define	ZEVENT_NONBLOCK		0x1
@@ -488,7 +489,6 @@ extern int zfs_secpolicy_rename_perms(const char *, const char *, cred_t *);
 extern int zfs_secpolicy_destroy_perms(const char *, cred_t *);
 extern void zfs_unmount_snap(const char *);
 extern void zfs_destroy_unmount_origin(const char *);
-extern boolean_t dataset_name_hidden(const char *);
 extern int getzfsvfs_impl(struct objset *, struct zfsvfs **);
 extern int getzfsvfs(const char *, struct zfsvfs **);
 

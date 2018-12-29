@@ -24,6 +24,8 @@
  * Use is subject to license terms.
  */
 
+#ifndef HAVE_STRLCPY
+
 #include <string.h>
 #include <sys/types.h>
 
@@ -50,3 +52,5 @@ strlcpy(char *dst, const char *src, size_t len)
 	dst[copied] = '\0';
 	return (slen);
 }
+
+#endif /* HAVE_STRLCPY */

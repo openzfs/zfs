@@ -41,6 +41,20 @@ if [ -n "$STF_PATH" ]; then
 	PATH="$STF_PATH"
 fi
 
+#
+# Generic dot version comparison function
+#
+# Returns success when version $1 is greater than or equal to $2.
+#
+function compare_version_gte
+{
+	if [[ "$(printf "$1\n$2" | sort -V | tail -n1)" == "$1" ]]; then
+		return 0
+	else
+		return 1
+	fi
+}
+
 # Linux kernel version comparison function
 #
 # $1 Linux version ("4.10", "2.6.32") or blank for installed Linux version
@@ -628,7 +642,7 @@ function destroy_snapshot
 	typeset snap=${1:-$TESTPOOL/$TESTFS@$TESTSNAP}
 
 	if ! snapexists $snap; then
-		log_fail "'$snap' does not existed."
+		log_fail "'$snap' does not exist."
 	fi
 
 	#
@@ -1015,7 +1029,7 @@ function get_endslice #<disk> <slice>
 
 		((endcyl = (endcyl + 1) / ratio))
 	fi
-	
+
 	echo $endcyl
 }
 
@@ -1216,6 +1230,34 @@ function datasetnonexists
 	return 0
 }
 
+function is_shared_impl
+{
+	typeset fs=$1
+	typeset mtpt
+
+	if is_linux; then
+		for mtpt in `share | awk '{print $1}'` ; do
+			if [[ $mtpt == $fs ]] ; then
+				return 0
+			fi
+		done
+		return 1
+	fi
+
+	for mtpt in `share | awk '{print $2}'` ; do
+		if [[ $mtpt == $fs ]] ; then
+			return 0
+		fi
+	done
+
+	typeset stat=$(svcs -H -o STA nfs/server:default)
+	if [[ $stat != "ON" ]]; then
+		log_note "Current nfs/server status: $stat"
+	fi
+
+	return 1
+}
+
 #
 # Given a mountpoint, or a dataset name, determine if it is shared via NFS.
 #
@@ -1240,27 +1282,7 @@ function is_shared
 		fi
 	fi
 
-	if is_linux; then
-		for mtpt in `share | awk '{print $1}'` ; do
-			if [[ $mtpt == $fs ]] ; then
-				return 0
-			fi
-		done
-		return 1
-	fi
-
-	for mtpt in `share | awk '{print $2}'` ; do
-		if [[ $mtpt == $fs ]] ; then
-			return 0
-		fi
-	done
-
-	typeset stat=$(svcs -H -o STA nfs/server:default)
-	if [[ $stat != "ON" ]]; then
-		log_note "Current nfs/server status: $stat"
-	fi
-
-	return 1
+	is_shared_impl "$fs"
 }
 
 #
@@ -1910,6 +1932,23 @@ function verify_filesys # pool filesystem dir
 }
 
 #
+# Given a pool issue a scrub and verify that no checksum errors are reported.
+#
+function verify_pool
+{
+	typeset pool=${1:-$TESTPOOL}
+
+	log_must zpool scrub $pool
+	log_must wait_scrubbed $pool
+
+	cksum=$(zpool status $pool | awk 'L{print $NF;L=0} /CKSUM$/{L=1}')
+	if [[ $cksum != 0 ]]; then
+		log_must zpool status -v
+	        log_fail "Unexpected CKSUM errors found on $pool ($cksum)"
+	fi
+}
+
+#
 # Given a pool, and this function list all disks in the pool
 #
 function get_disklist # pool
@@ -1992,7 +2031,7 @@ function check_hotspare_state # pool disk state{inuse,avail}
 function wait_hotspare_state # pool disk state timeout
 {
 	typeset pool=$1
-	typeset disk=${2#$/DEV_DSKDIR/}
+	typeset disk=${2#*$DEV_DSKDIR/}
 	typeset state=$3
 	typeset timeout=${4:-60}
 	typeset -i i=0
@@ -2036,7 +2075,7 @@ function check_slog_state # pool disk state{online,offline,unavail}
 function check_vdev_state # pool disk state{online,offline,unavail}
 {
 	typeset pool=$1
-	typeset disk=${2#$/DEV_DSKDIR/}
+	typeset disk=${2#*$DEV_DSKDIR/}
 	typeset state=$3
 
 	cur_state=$(get_device_state $pool $disk)
@@ -2055,7 +2094,7 @@ function check_vdev_state # pool disk state{online,offline,unavail}
 function wait_vdev_state # pool disk state timeout
 {
 	typeset pool=$1
-	typeset disk=${2#$/DEV_DSKDIR/}
+	typeset disk=${2#*$DEV_DSKDIR/}
 	typeset state=$3
 	typeset timeout=${4:-60}
 	typeset -i i=0
@@ -3003,8 +3042,11 @@ function vdevs_in_pool
 
 	shift
 
+	# We could use 'zpool list' to only get the vdevs of the pool but we
+	# can't reference a mirror/raidz vdev using its ID (i.e mirror-0),
+	# therefore we use the 'zpool status' output.
 	typeset tmpfile=$(mktemp)
-	zpool list -Hv "$pool" >$tmpfile
+	zpool status -v "$pool" | grep -A 1000 "config:" >$tmpfile
 	for vdev in $@; do
 		grep -w ${vdev##*/} $tmpfile >/dev/null 2>&1
 		[[ $? -ne 0 ]] && return 1
@@ -3167,14 +3209,10 @@ function wait_replacing #pool
 function wait_scrubbed
 {
 	typeset pool=${1:-$TESTPOOL}
-	typeset iter=${2:-10}
-	for i in {1..$iter} ; do
-		if is_pool_scrubbed $pool ; then
-			return 0
-		fi
-		sleep 1
+	while true ; do
+		is_pool_scrubbed $pool && break
+		log_must sleep 1
 	done
-	return 1
 }
 
 # Backup the zed.rc in our test directory so that we can edit it for our test.
@@ -3309,7 +3347,7 @@ function zed_stop
 
 	log_note "Stopping ZED"
 	if [[ -f ${ZEDLET_DIR}/zed.pid ]]; then
-		zedpid=$(cat ${ZEDLET_DIR}/zed.pid)
+		zedpid=$(<${ZEDLET_DIR}/zed.pid)
 		kill $zedpid
 		while ps -p $zedpid > /dev/null; do
 			sleep 1

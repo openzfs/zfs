@@ -9,6 +9,7 @@ SUBDIRS = \
 	file_trunc \
 	file_write \
 	largest_file \
+	libzfs_input_check \
 	mkbusy \
 	mkfile \
 	mkfiles \

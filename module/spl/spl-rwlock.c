@@ -35,16 +35,24 @@
 static int
 __rwsem_tryupgrade(struct rw_semaphore *rwsem)
 {
-
+#if defined(READER_BIAS) && defined(WRITER_BIAS)
+	/*
+	 * After the 4.9.20-rt16 kernel the realtime patch series lifted the
+	 * single reader restriction.  While this could be accommodated by
+	 * adding additional compatibility code assume the rwsem can never
+	 * be upgraded.  All caller must already cleanly handle this case.
+	 */
+	return (0);
+#else
 	ASSERT((struct task_struct *)
 	    ((unsigned long)rwsem->lock.owner & ~RT_MUTEX_OWNER_MASKALL) ==
 	    current);
 
 	/*
-	 * Under the realtime patch series, rwsem is implemented as a
-	 * single mutex held by readers and writers alike. However,
-	 * this implementation would prevent a thread from taking a
-	 * read lock twice, as the mutex would already be locked on
+	 * Prior to 4.9.20-rt16 kernel the realtime patch series, rwsem is
+	 * implemented as a single mutex held by readers and writers alike.
+	 * However, this implementation would prevent a thread from taking
+	 * a read lock twice, as the mutex would already be locked on
 	 * the second attempt. Therefore the implementation allows a
 	 * single thread to take a rwsem as read lock multiple times
 	 * tracking that nesting as read_depth counter.
@@ -60,6 +68,7 @@ __rwsem_tryupgrade(struct rw_semaphore *rwsem)
 		return (1);
 	}
 	return (0);
+#endif
 }
 #elif defined(CONFIG_RWSEM_GENERIC_SPINLOCK)
 static int

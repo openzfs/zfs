@@ -21,9 +21,15 @@ endif
 AUTOMAKE_OPTIONS = foreign
 EXTRA_DIST  = autogen.sh copy-builtin
 EXTRA_DIST += config/config.awk config/rpm.am config/deb.am config/tgz.am
-EXTRA_DIST += META AUTHORS COPYRIGHT LICENSE NOTICE README.md
+EXTRA_DIST += META AUTHORS COPYRIGHT LICENSE NEWS NOTICE README.md
 
 @CODE_COVERAGE_RULES@
+
+.PHONY: gitrev
+gitrev:
+	-${top_srcdir}/scripts/make_gitrev.sh
+
+BUILT_SOURCES = gitrev
 
 distclean-local::
 	-$(RM) -R autom4te*.cache
@@ -40,7 +46,8 @@ distclean-local::
 all-local:
 	-${top_srcdir}/scripts/zfs-tests.sh -c
 
-dist-hook:
+dist-hook: gitrev
+	cp ${top_srcdir}/include/zfs_gitrev.h $(distdir)/include; \
 	sed -i 's/Release:[[:print:]]*/Release:      $(RELEASE)/' \
 		$(distdir)/META
 
@@ -61,7 +68,9 @@ install-data-hook:
 	ln -fs zfs.release spl.release
 endif
 
-checkstyle: cstyle shellcheck flake8 commitcheck mancheck testscheck
+codecheck: cstyle shellcheck flake8 mancheck testscheck
+
+checkstyle: codecheck commitcheck
 
 commitcheck:
 	@if git rev-parse --git-dir > /dev/null 2>&1; then \
@@ -79,6 +88,8 @@ shellcheck:
 			$$(find ${top_srcdir}/scripts/*.sh -type f) \
 			$$(find ${top_srcdir}/cmd/zed/zed.d/*.sh -type f) \
 			$$(find ${top_srcdir}/cmd/zpool/zpool.d/* -executable); \
+	else \
+		echo "skipping shellcheck because shellcheck is not installed"; \
 	fi
 
 mancheck:
@@ -87,6 +98,8 @@ mancheck:
 			-o -name 'zpool.8' -o -name 'zdb.8' \
 			-o -name 'zgenhostid.8' | \
 			xargs mandoc -Tlint -Werror; \
+	else \
+		echo "skipping mancheck because mandoc is not installed"; \
 	fi
 
 testscheck:
@@ -104,17 +117,23 @@ cppcheck:
 		cppcheck --quiet --force --error-exitcode=2 --inline-suppr \
 			--suppressions-list=.github/suppressions.txt \
 			-UHAVE_SSE2 -UHAVE_AVX512F -UHAVE_UIO_ZEROCOPY \
-			-UHAVE_DNLC ${top_srcdir}; \
+			${top_srcdir}; \
+	else \
+		echo "skipping cppcheck because cppcheck is not installed"; \
 	fi
 
 paxcheck:
 	@if type scanelf > /dev/null 2>&1; then \
 		${top_srcdir}/scripts/paxcheck.sh ${top_srcdir}; \
+	else \
+		echo "skipping paxcheck because scanelf is not installed"; \
 	fi
 
 flake8:
 	@if type flake8 > /dev/null 2>&1; then \
 		flake8 ${top_srcdir}; \
+	else \
+		echo "skipping flake8 because flake8 is not installed"; \
 	fi
 
 ctags:

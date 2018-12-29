@@ -41,17 +41,10 @@
  */
 int dmu_object_alloc_chunk_shift = 7;
 
-uint64_t
-dmu_object_alloc(objset_t *os, dmu_object_type_t ot, int blocksize,
-    dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx)
-{
-	return dmu_object_alloc_dnsize(os, ot, blocksize, bonustype, bonuslen,
-	    0, tx);
-}
-
-uint64_t
-dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot, int blocksize,
-    dmu_object_type_t bonustype, int bonuslen, int dnodesize, dmu_tx_t *tx)
+static uint64_t
+dmu_object_alloc_impl(objset_t *os, dmu_object_type_t ot, int blocksize,
+    int indirect_blockshift, dmu_object_type_t bonustype, int bonuslen,
+    int dnodesize, dmu_tx_t *tx)
 {
 	uint64_t object;
 	uint64_t L1_dnode_count = DNODES_PER_BLOCK <<
@@ -182,8 +175,9 @@ dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot, int blocksize,
 			 * again now that we have the struct lock.
 			 */
 			if (dn->dn_type == DMU_OT_NONE) {
-				dnode_allocate(dn, ot, blocksize, 0,
-				    bonustype, bonuslen, dn_slots, tx);
+				dnode_allocate(dn, ot, blocksize,
+				    indirect_blockshift, bonustype,
+				    bonuslen, dn_slots, tx);
 				rw_exit(&dn->dn_struct_rwlock);
 				dmu_tx_add_new_object(tx, dn);
 				dnode_rele(dn, FTAG);
@@ -204,6 +198,31 @@ dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot, int blocksize,
 		}
 		(void) atomic_swap_64(cpuobj, object);
 	}
+}
+
+uint64_t
+dmu_object_alloc(objset_t *os, dmu_object_type_t ot, int blocksize,
+    dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx)
+{
+	return dmu_object_alloc_impl(os, ot, blocksize, 0, bonustype,
+	    bonuslen, 0, tx);
+}
+
+uint64_t
+dmu_object_alloc_ibs(objset_t *os, dmu_object_type_t ot, int blocksize,
+    int indirect_blockshift, dmu_object_type_t bonustype, int bonuslen,
+    dmu_tx_t *tx)
+{
+	return dmu_object_alloc_impl(os, ot, blocksize, indirect_blockshift,
+	    bonustype, bonuslen, 0, tx);
+}
+
+uint64_t
+dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot, int blocksize,
+    dmu_object_type_t bonustype, int bonuslen, int dnodesize, dmu_tx_t *tx)
+{
+	return (dmu_object_alloc_impl(os, ot, blocksize, 0, bonustype,
+	    bonuslen, dnodesize, tx));
 }
 
 int
@@ -292,6 +311,10 @@ dmu_object_free(objset_t *os, uint64_t object, dmu_tx_t *tx)
 		return (err);
 
 	ASSERT(dn->dn_type != DMU_OT_NONE);
+	/*
+	 * If we don't create this free range, we'll leak indirect blocks when
+	 * we get to freeing the dnode in syncing context.
+	 */
 	dnode_free_range(dn, 0, DMU_OBJECT_END, tx);
 	dnode_free(dn, tx);
 	dnode_rele(dn, FTAG);
@@ -314,7 +337,8 @@ dmu_object_next(objset_t *os, uint64_t *objectp, boolean_t hole, uint64_t txg)
 
 	if (*objectp == 0) {
 		start_obj = 1;
-	} else if (ds && ds->ds_feature_inuse[SPA_FEATURE_LARGE_DNODE]) {
+	} else if (ds && dsl_dataset_feature_is_active(ds,
+	    SPA_FEATURE_LARGE_DNODE)) {
 		uint64_t i = *objectp + 1;
 		uint64_t last_obj = *objectp | (DNODES_PER_BLOCK - 1);
 		dmu_object_info_t doi;
@@ -423,6 +447,7 @@ dmu_object_free_zapified(objset_t *mos, uint64_t object, dmu_tx_t *tx)
 
 #if defined(_KERNEL)
 EXPORT_SYMBOL(dmu_object_alloc);
+EXPORT_SYMBOL(dmu_object_alloc_ibs);
 EXPORT_SYMBOL(dmu_object_alloc_dnsize);
 EXPORT_SYMBOL(dmu_object_claim);
 EXPORT_SYMBOL(dmu_object_claim_dnsize);

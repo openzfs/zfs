@@ -150,21 +150,26 @@ arc_byteswap_func_t sa_bswap_table[] = {
 	zfs_acl_byteswap,
 };
 
-#define	SA_COPY_DATA(f, s, t, l) \
-	{ \
-		if (f == NULL) { \
-			if (l == 8) { \
-				*(uint64_t *)t = *(uint64_t *)s; \
-			} else if (l == 16) { \
-				*(uint64_t *)t = *(uint64_t *)s; \
-				*(uint64_t *)((uintptr_t)t + 8) = \
-				    *(uint64_t *)((uintptr_t)s + 8); \
-			} else { \
-				bcopy(s, t, l); \
-			} \
-		} else \
-			sa_copy_data(f, s, t, l); \
-	}
+#ifdef HAVE_EFFICIENT_UNALIGNED_ACCESS
+#define	SA_COPY_DATA(f, s, t, l)				\
+do {								\
+	if (f == NULL) {					\
+		if (l == 8) {					\
+			*(uint64_t *)t = *(uint64_t *)s;	\
+		} else if (l == 16) {				\
+			*(uint64_t *)t = *(uint64_t *)s;	\
+			*(uint64_t *)((uintptr_t)t + 8) =	\
+			    *(uint64_t *)((uintptr_t)s + 8);	\
+		} else {					\
+			bcopy(s, t, l);				\
+		}						\
+	} else {						\
+		sa_copy_data(f, s, t, l);			\
+	}							\
+} while (0)
+#else
+#define	SA_COPY_DATA(f, s, t, l)	sa_copy_data(f, s, t, l)
+#endif
 
 /*
  * This table is fixed and cannot be changed.  Its purpose is to
@@ -1131,7 +1136,7 @@ sa_tear_down(objset_t *os)
 	    avl_destroy_nodes(&sa->sa_layout_hash_tree, &cookie))) {
 		sa_idx_tab_t *tab;
 		while ((tab = list_head(&layout->lot_idx_tab))) {
-			ASSERT(refcount_count(&tab->sa_refcount));
+			ASSERT(zfs_refcount_count(&tab->sa_refcount));
 			sa_idx_tab_rele(os, tab);
 		}
 	}
@@ -1322,13 +1327,13 @@ sa_idx_tab_rele(objset_t *os, void *arg)
 		return;
 
 	mutex_enter(&sa->sa_lock);
-	if (refcount_remove(&idx_tab->sa_refcount, NULL) == 0) {
+	if (zfs_refcount_remove(&idx_tab->sa_refcount, NULL) == 0) {
 		list_remove(&idx_tab->sa_layout->lot_idx_tab, idx_tab);
 		if (idx_tab->sa_variable_lengths)
 			kmem_free(idx_tab->sa_variable_lengths,
 			    sizeof (uint16_t) *
 			    idx_tab->sa_layout->lot_var_sizes);
-		refcount_destroy(&idx_tab->sa_refcount);
+		zfs_refcount_destroy(&idx_tab->sa_refcount);
 		kmem_free(idx_tab->sa_idx_tab,
 		    sizeof (uint32_t) * sa->sa_num_attrs);
 		kmem_free(idx_tab, sizeof (sa_idx_tab_t));
@@ -1342,7 +1347,7 @@ sa_idx_tab_hold(objset_t *os, sa_idx_tab_t *idx_tab)
 	ASSERTV(sa_os_t *sa = os->os_sa);
 
 	ASSERT(MUTEX_HELD(&sa->sa_lock));
-	(void) refcount_add(&idx_tab->sa_refcount, NULL);
+	(void) zfs_refcount_add(&idx_tab->sa_refcount, NULL);
 }
 
 void
@@ -1743,7 +1748,7 @@ sa_find_idx_tab(objset_t *os, dmu_object_type_t bonustype, sa_hdr_phys_t *hdr)
 	idx_tab->sa_idx_tab =
 	    kmem_zalloc(sizeof (uint32_t) * sa->sa_num_attrs, KM_SLEEP);
 	idx_tab->sa_layout = tb;
-	refcount_create(&idx_tab->sa_refcount);
+	zfs_refcount_create(&idx_tab->sa_refcount);
 	if (tb->lot_var_sizes)
 		idx_tab->sa_variable_lengths = kmem_alloc(sizeof (uint16_t) *
 		    tb->lot_var_sizes, KM_SLEEP);

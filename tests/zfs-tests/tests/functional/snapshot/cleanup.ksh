@@ -31,4 +31,8 @@
 
 . $STF_SUITE/include/libtest.shlib
 
+if is_linux; then
+	log_must set_tunable64 zfs_admin_snapshot 0
+fi
+
 default_container_cleanup

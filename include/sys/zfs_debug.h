@@ -55,11 +55,12 @@ extern int zfs_dbgmsg_enable;
 #define	ZFS_DEBUG_SET_ERROR		(1 << 9)
 #define	ZFS_DEBUG_INDIRECT_REMAP	(1 << 10)
 
-extern void __dprintf(const char *file, const char *func,
+extern void __zfs_dbgmsg(char *buf);
+extern void __dprintf(boolean_t dprint, const char *file, const char *func,
     int line, const char *fmt, ...);
 #define	zfs_dbgmsg(...) \
 	if (zfs_dbgmsg_enable) \
-		__dprintf(__FILE__, __func__, __LINE__, __VA_ARGS__)
+		__dprintf(B_FALSE, __FILE__, __func__, __LINE__, __VA_ARGS__)
 
 #ifdef ZFS_DEBUG
 /*
@@ -69,19 +70,12 @@ extern void __dprintf(const char *file, const char *func,
  */
 #define	dprintf(...) \
 	if (zfs_flags & ZFS_DEBUG_DPRINTF) \
-		__dprintf(__FILE__, __func__, __LINE__, __VA_ARGS__)
+		__dprintf(B_TRUE, __FILE__, __func__, __LINE__, __VA_ARGS__)
 #else
 #define	dprintf(...) ((void)0)
 #endif /* ZFS_DEBUG */
 
 extern void zfs_panic_recover(const char *fmt, ...);
-
-typedef struct zfs_dbgmsg {
-	list_node_t zdm_node;
-	time_t zdm_timestamp;
-	int zdm_size;
-	char zdm_msg[1]; /* variable length allocation */
-} zfs_dbgmsg_t;
 
 extern void zfs_dbgmsg_init(void);
 extern void zfs_dbgmsg_fini(void);

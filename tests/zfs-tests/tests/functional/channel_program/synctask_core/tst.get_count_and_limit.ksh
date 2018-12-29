@@ -29,7 +29,7 @@ snap=$fs@$TESTSNAP
 
 function cleanup
 {
-	datasetexists $fs && log_must zfs destroy -R $fs
+	destroy_dataset $fs "-R"
 	log_must rm -rf $fs/foo
 	log_must rm -rf $fs/bar
 }

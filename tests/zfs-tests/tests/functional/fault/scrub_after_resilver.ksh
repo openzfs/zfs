@@ -60,5 +60,5 @@ log_must zpool replace $TESTPOOL $DISK1 $DISK3
 # Wait for the resilver to finish, and then the subsequent scrub to finish.
 # Waiting for the scrub has the effect of waiting for both.  Timeout after 10
 # seconds if nothing is happening.
-log_must wait_scrubbed $TESTPOOL 10
+log_must wait_scrubbed $TESTPOOL
 log_pass "Successfully ran the scrub after resilver zedlet"

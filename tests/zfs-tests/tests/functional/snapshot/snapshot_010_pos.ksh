@@ -49,15 +49,13 @@ function cleanup
 {
 	typeset snap
 
-	datasetexists $ctrvol && \
-		log_must zfs destroy -f $ctrvol
+	destroy_dataset $ctrvol "-rf"
 
 	for snap in $ctrfs@$TESTSNAP1 \
 		$snappool $snapvol $snapctr $snapctrvol \
 		$snapctrclone $snapctrfs
 	do
-		snapexists $snap && \
-			log_must zfs destroy -rf $snap
+		snapexists $snap && destroy_dataset $snap "-rf"
 	done
 
 }
@@ -85,6 +83,7 @@ else
 fi
 
 log_must zfs snapshot -r $snappool
+log_must block_device_wait
 
 #select the $TESTCTR as destroy point, $TESTCTR is a child of $TESTPOOL
 log_must zfs destroy -r $snapctr

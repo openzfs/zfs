@@ -20,12 +20,13 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  * Copyright 2014 HybridCluster. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright 2013 Saso Kiselkov. All rights reserved.
+ * Copyright (c) 2017, Intel Corporation.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -72,6 +73,7 @@ struct arc_buf;
 struct zio_prop;
 struct sa_handle;
 struct dsl_crypto_params;
+struct locked_range;
 
 typedef struct objset objset_t;
 typedef struct dmu_tx dmu_tx_t;
@@ -107,7 +109,8 @@ typedef enum dmu_object_byteswap {
 /*
  * Defines a uint8_t object type. Object types specify if the data
  * in the object is metadata (boolean) and how to byteswap the data
- * (dmu_object_byteswap_t).
+ * (dmu_object_byteswap_t). All of the types created by this method
+ * are cached in the dbuf metadata cache.
  */
 #define	DMU_OT(byteswap, metadata, encrypted) \
 	(DMU_OT_NEWTYPE | \
@@ -118,6 +121,9 @@ typedef enum dmu_object_byteswap {
 #define	DMU_OT_IS_VALID(ot) (((ot) & DMU_OT_NEWTYPE) ? \
 	((ot) & DMU_OT_BYTESWAP_MASK) < DMU_BSWAP_NUMFUNCS : \
 	(ot) < DMU_OT_NUMTYPES)
+
+#define	DMU_OT_IS_METADATA_CACHED(ot) (((ot) & DMU_OT_NEWTYPE) ? \
+	B_TRUE : dmu_ot[(ot)].ot_dbuf_metadata_cache)
 
 /*
  * MDB doesn't have dmu_ot; it defines these macros itself.
@@ -131,6 +137,16 @@ typedef enum dmu_object_byteswap {
 #define	DMU_OT_IS_METADATA(ot) (((ot) & DMU_OT_NEWTYPE) ? \
 	((ot) & DMU_OT_METADATA) : \
 	DMU_OT_IS_METADATA_IMPL(ot))
+
+#define	DMU_OT_IS_DDT(ot) \
+	((ot) == DMU_OT_DDT_ZAP)
+
+#define	DMU_OT_IS_ZIL(ot) \
+	((ot) == DMU_OT_INTENT_LOG)
+
+/* Note: ztest uses DMU_OT_UINT64_OTHER as a proxy for file blocks */
+#define	DMU_OT_IS_FILE(ot) \
+	((ot) == DMU_OT_PLAIN_FILE_CONTENTS || (ot) == DMU_OT_UINT64_OTHER)
 
 #define	DMU_OT_IS_ENCRYPTED(ot) (((ot) & DMU_OT_NEWTYPE) ? \
 	((ot) & DMU_OT_ENCRYPTED) : \
@@ -222,7 +238,7 @@ typedef enum dmu_object_type {
 	 * values.
 	 *
 	 * The DMU_OTN_* types do not have entries in the dmu_ot table,
-	 * use the DMU_OT_IS_METDATA() and DMU_OT_BYTESWAP() macros instead
+	 * use the DMU_OT_IS_METADATA() and DMU_OT_BYTESWAP() macros instead
 	 * of indexing into dmu_ot directly (this works for both DMU_OT_* types
 	 * and DMU_OTN_* types).
 	 */
@@ -385,6 +401,9 @@ typedef struct dmu_buf {
  */
 uint64_t dmu_object_alloc(objset_t *os, dmu_object_type_t ot,
     int blocksize, dmu_object_type_t bonus_type, int bonus_len, dmu_tx_t *tx);
+uint64_t dmu_object_alloc_ibs(objset_t *os, dmu_object_type_t ot, int blocksize,
+    int indirect_blockshift,
+    dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx);
 uint64_t dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot,
     int blocksize, dmu_object_type_t bonus_type, int bonus_len,
     int dnodesize, dmu_tx_t *tx);
@@ -883,6 +902,7 @@ typedef void (*const arc_byteswap_func_t)(void *buf, size_t size);
 typedef struct dmu_object_type_info {
 	dmu_object_byteswap_t	ot_byteswap;
 	boolean_t		ot_metadata;
+	boolean_t		ot_dbuf_metadata_cache;
 	boolean_t		ot_encrypt;
 	char			*ot_name;
 } dmu_object_type_info_t;
@@ -1015,7 +1035,7 @@ typedef struct zgd {
 	struct lwb	*zgd_lwb;
 	struct blkptr	*zgd_bp;
 	dmu_buf_t	*zgd_db;
-	struct rl	*zgd_rl;
+	struct locked_range *zgd_lr;
 	void		*zgd_private;
 } zgd_t;
 

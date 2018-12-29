@@ -20,14 +20,14 @@
 .\"
 .\"
 .\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
-.\" Copyright (c) 2012, 2017 by Delphix. All rights reserved.
+.\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
 .\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
 .\" Copyright (c) 2017 Datto Inc.
 .\" Copyright (c) 2018 George Melikov. All Rights Reserved.
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd April 27, 2018
+.Dd November 29, 2018
 .Dt ZPOOL 8 SMM
 .Os Linux
 .Sh NAME
@@ -83,7 +83,7 @@
 .Op Fl Hp
 .Op Fl o Ar field Ns Oo , Ns Ar field Oc Ns ...
 .Sy all Ns | Ns Ar property Ns Oo , Ns Ar property Oc Ns ...
-.Ar pool Ns ...
+.Oo Ar pool Oc Ns ...
 .Nm
 .Cm history
 .Op Fl il
@@ -162,6 +162,9 @@
 .Oo Fl o Ar property Ns = Ns Ar value Oc
 .Ar pool Ar device Op Ar new_device
 .Nm
+.Cm resilver
+.Ar pool Ns ...
+.Nm
 .Cm scrub
 .Op Fl s | Fl p
 .Ar pool Ns ...
@@ -179,7 +182,7 @@
 .Nm
 .Cm status
 .Oo Fl c Ar SCRIPT Oc
-.Op Fl gLPvxD
+.Op Fl DgLpPsvx
 .Op Fl T Sy u Ns | Ns Sy d
 .Oo Ar pool Oc Ns ...
 .Op Ar interval Op Ar count
@@ -277,6 +280,21 @@ Log devices can be mirrored.
 However, raidz vdev types are not supported for the intent log.
 For more information, see the
 .Sx Intent Log
+section.
+.It Sy dedup
+A device dedicated solely for allocating dedup data.
+The redundancy of this device should match the redundancy of the other normal
+devices in the pool. If more than one dedup device is specified, then
+allocations are load-balanced between devices.
+.It Sy special
+A device dedicated solely for allocating various kinds of internal metadata,
+and optionally small file data.
+The redundancy of this device should match the redundancy of the other normal
+devices in the pool. If more than one special device is specified, then
+allocations are load-balanced between devices.
+.Pp
+For more information on special allocations, see the
+.Sx Special Allocation Class
 section.
 .It Sy cache
 A device used to cache storage pool data.
@@ -520,6 +538,29 @@ zfs properties) may be unenforceable while a checkpoint exists, because the
 checkpoint is allowed to consume the dataset's reservation.
 Finally, data that is part of the checkpoint but has been freed in the
 current state of the pool won't be scanned during a scrub.
+.Ss Special Allocation Class
+The allocations in the special class are dedicated to specific block types.
+By default this includes all metadata, the indirect blocks of user data, and
+any dedup data.  The class can also be provisioned to accept a limited
+percentage of small file data blocks.
+.Pp
+A pool must always have at least one general (non-specified) vdev before
+other devices can be assigned to the special class. If the special class
+becomes full, then allocations intended for it will spill back into the
+normal class.
+.Pp
+Dedup data can be excluded from the special class by setting the
+.Sy zfs_ddt_data_is_special
+zfs module parameter to false (0).
+.Pp
+Inclusion of small file blocks in the special class is opt-in. Each dataset
+can control the size of small file blocks allowed in the special class by
+setting the
+.Sy special_small_blocks
+dataset property. It defaults to zero so you must opt-in by setting it to a
+non-zero value. See
+.Xr zfs 8
+for more info on setting this property.
 .Ss Properties
 Each pool has several properties associated with it.
 Some properties are read-only statistics while others are configurable and
@@ -562,6 +603,15 @@ Health can be one of
 .Sy ONLINE , DEGRADED , FAULTED , OFFLINE, REMOVED , UNAVAIL .
 .It Sy guid
 A unique identifier for the pool.
+.It Sy load_guid
+A unique identifier for the pool.
+Unlike the
+.Sy guid
+property, this identifier is generated every time we load the pool (e.g. does
+not persist across imports/exports) and never changes while the pool is loaded
+(even if a
+.Sy reguid
+operation takes place).
 .It Sy size
 Total size of the storage pool.
 .It Sy unsupported@ Ns Em feature_guid
@@ -1179,7 +1229,7 @@ This may lead to potential data corruption.
 .Op Fl Hp
 .Op Fl o Ar field Ns Oo , Ns Ar field Oc Ns ...
 .Sy all Ns | Ns Ar property Ns Oo , Ns Ar property Oc Ns ...
-.Ar pool Ns ...
+.Oo Ar pool Oc Ns ...
 .Xc
 Retrieves the given list of properties
 .Po
@@ -1879,8 +1929,10 @@ result in partially resilvered devices unless a second scrub is performed.
 .Ar pool Ar device Ns ...
 .Xc
 Removes the specified device from the pool.
-This command currently only supports removing hot spares, cache, log
-devices and mirrored top-level vdevs (mirror of leaf devices); but not raidz.
+This command supports removing hot spare, cache, log, and both mirrored and
+non-redundant primary top-level vdevs, including dedup and special vdevs.
+When the primary pool storage includes a top-level raidz vdev only hot spare,
+cache, and log devices can be removed.
 .sp
 Removing a top-level vdev reduces the total amount of space in the storage pool.
 The specified device will be evacuated by copying all allocated space from it to
@@ -1890,9 +1942,12 @@ In this case, the
 command initiates the removal and returns, while the evacuation continues in
 the background.
 The removal progress can be monitored with
-.Nm zpool Cm status.
-This feature must be enabled to be used, see
-.Xr zpool-features 5
+.Nm zpool Cm status .
+If an IO error is encountered during the removal process it will be
+cancelled. The
+.Sy device_removal
+feature flag must be enabled to remove a top-level vdev, see
+.Xr zpool-features 5 .
 .Pp
 A mirrored top-level device (log or data) can be removed by specifying the top-level mirror for the
 same.
@@ -2018,6 +2073,14 @@ again.
 .El
 .It Xo
 .Nm
+.Cm resilver
+.Ar pool Ns ...
+.Xc
+Starts a resilver. If an existing resilver is already running it will be
+restarted from the beginning. Any drives that were scheduled for a deferred
+resilver will be added to the new one.
+.It Xo
+.Nm
 .Cm set
 .Ar property Ns = Ns Ar value
 .Ar pool
@@ -2105,7 +2168,7 @@ and automatically import it.
 .Nm
 .Cm status
 .Op Fl c Op Ar SCRIPT1 Ns Oo , Ns Ar SCRIPT2 Oc Ns ...
-.Op Fl gLPvxD
+.Op Fl DgLpPsvx
 .Op Fl T Sy u Ns | Ns Sy d
 .Oo Ar pool Oc Ns ...
 .Op Ar interval Op Ar count
@@ -2141,6 +2204,8 @@ Display real paths for vdevs resolving all symbolic links. This can
 be used to look up the current block device name regardless of the
 .Pa /dev/disk/
 path used to open it.
+.It Fl p
+Display numbers in parsable (exact) values.
 .It Fl P
 Display full paths for vdevs instead of only the last component of
 the path. This can be used in conjunction with the
@@ -2152,6 +2217,12 @@ Display a histogram of deduplication statistics, showing the allocated
 and referenced
 .Pq logically referenced in the pool
 block counts and sizes by reference count.
+.It Fl s
+Display the number of leaf VDEV slow IOs.  This is the number of IOs that
+didn't complete in \fBzio_slow_io_ms\fR milliseconds (default 30 seconds).
+This does not necessarily mean the IOs failed to complete, just took an
+unreasonably long amount of time.  This may indicate a problem with the
+underlying storage.
 .It Fl T Sy u Ns | Ns Sy d
 Display a time stamp.
 Specify
@@ -2212,7 +2283,7 @@ Enables all supported features on the given pool.
 Once this is done, the pool will no longer be accessible on systems that do not
 support feature flags.
 See
-.Xr zfs-features 5
+.Xr zpool-features 5
 for details on compatibility with systems that support feature flags, but do not
 support all features enabled on the pool.
 .Bl -tag -width Ds

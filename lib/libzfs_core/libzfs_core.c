@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  * Copyright (c) 2017 Datto Inc.
  * Copyright 2017 RackTop Systems.
@@ -78,6 +78,9 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef ZFS_DEBUG
+#include <stdio.h>
+#endif
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
@@ -91,6 +94,42 @@ static int g_fd = -1;
 static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
 static int g_refcount;
 
+#ifdef ZFS_DEBUG
+static zfs_ioc_t fail_ioc_cmd;
+static zfs_errno_t fail_ioc_err;
+
+static void
+libzfs_core_debug_ioc(void)
+{
+	/*
+	 * To test running newer user space binaries with kernel's
+	 * that don't yet support an ioctl or a new ioctl arg we
+	 * provide an override to intentionally fail an ioctl.
+	 *
+	 * USAGE:
+	 * The override variable, ZFS_IOC_TEST, is of the form "cmd:err"
+	 *
+	 * For example, to fail a ZFS_IOC_POOL_CHECKPOINT with a
+	 * ZFS_ERR_IOC_CMD_UNAVAIL, the string would be "0x5a4d:1029"
+	 *
+	 * $ sudo sh -c "ZFS_IOC_TEST=0x5a4d:1029 zpool checkpoint tank"
+	 * cannot checkpoint 'tank': the loaded zfs module does not support
+	 * this operation. A reboot may be required to enable this operation.
+	 */
+	if (fail_ioc_cmd == 0) {
+		char *ioc_test = getenv("ZFS_IOC_TEST");
+		unsigned int ioc_num = 0, ioc_err = 0;
+
+		if (ioc_test != NULL &&
+		    sscanf(ioc_test, "%i:%i", &ioc_num, &ioc_err) == 2 &&
+		    ioc_num < ZFS_IOC_LAST)  {
+			fail_ioc_cmd = ioc_num;
+			fail_ioc_err = ioc_err;
+		}
+	}
+}
+#endif
+
 int
 libzfs_core_init(void)
 {
@@ -103,6 +142,10 @@ libzfs_core_init(void)
 		}
 	}
 	g_refcount++;
+
+#ifdef ZFS_DEBUG
+	libzfs_core_debug_ioc();
+#endif
 	(void) pthread_mutex_unlock(&g_lock);
 	return (0);
 }
@@ -134,6 +177,11 @@ lzc_ioctl(zfs_ioc_t ioc, const char *name,
 
 	ASSERT3S(g_refcount, >, 0);
 	VERIFY3S(g_fd, !=, -1);
+
+#ifdef ZFS_DEBUG
+	if (ioc == fail_ioc_cmd)
+		return (fail_ioc_err);
+#endif
 
 	if (name != NULL)
 		(void) strlcpy(zc.zc_name, name, sizeof (zc.zc_name));
@@ -264,6 +312,30 @@ lzc_remap(const char *fsname)
 	int error;
 	nvlist_t *args = fnvlist_alloc();
 	error = lzc_ioctl(ZFS_IOC_REMAP, fsname, args, NULL);
+	nvlist_free(args);
+	return (error);
+}
+
+int
+lzc_rename(const char *source, const char *target)
+{
+	zfs_cmd_t zc = { "\0" };
+	int error;
+	ASSERT3S(g_refcount, >, 0);
+	VERIFY3S(g_fd, !=, -1);
+	(void) strlcpy(zc.zc_name, source, sizeof (zc.zc_name));
+	(void) strlcpy(zc.zc_value, target, sizeof (zc.zc_value));
+	error = ioctl(g_fd, ZFS_IOC_RENAME, &zc);
+	if (error != 0)
+		error = errno;
+	return (error);
+}
+int
+lzc_destroy(const char *fsname)
+{
+	int error;
+	nvlist_t *args = fnvlist_alloc();
+	error = lzc_ioctl(ZFS_IOC_DESTROY, fsname, args, NULL);
 	nvlist_free(args);
 	return (error);
 }
@@ -662,8 +734,9 @@ recv_read(int fd, void *buf, int ilen)
  */
 static int
 recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
-    const char *origin, boolean_t force, boolean_t resumable, boolean_t raw,
-    int input_fd, const dmu_replay_record_t *begin_record, int cleanup_fd,
+    uint8_t *wkeydata, uint_t wkeylen, const char *origin, boolean_t force,
+    boolean_t resumable, boolean_t raw, int input_fd,
+    const dmu_replay_record_t *begin_record, int cleanup_fd,
     uint64_t *read_bytes, uint64_t *errflags, uint64_t *action_handle,
     nvlist_t **errors)
 {
@@ -703,7 +776,11 @@ recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
 		drr = *begin_record;
 	}
 
-	if (resumable || raw) {
+	/*
+	 * Raw receives, resumable receives, and receives that include a
+	 * wrapping key all use the new interface.
+	 */
+	if (resumable || raw || wkeydata != NULL) {
 		nvlist_t *outnvl = NULL;
 		nvlist_t *innvl = fnvlist_alloc();
 
@@ -714,6 +791,20 @@ recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
 
 		if (localprops != NULL)
 			fnvlist_add_nvlist(innvl, "localprops", localprops);
+
+		if (wkeydata != NULL) {
+			/*
+			 * wkeydata must be placed in the special
+			 * ZPOOL_HIDDEN_ARGS nvlist so that it
+			 * will not be printed to the zpool history.
+			 */
+			nvlist_t *hidden_args = fnvlist_alloc();
+			fnvlist_add_uint8_array(hidden_args, "wkeydata",
+			    wkeydata, wkeylen);
+			fnvlist_add_nvlist(innvl, ZPOOL_HIDDEN_ARGS,
+			    hidden_args);
+			nvlist_free(hidden_args);
+		}
 
 		if (origin != NULL && strlen(origin))
 			fnvlist_add_string(innvl, "origin", origin);
@@ -846,8 +937,8 @@ int
 lzc_receive(const char *snapname, nvlist_t *props, const char *origin,
     boolean_t force, boolean_t raw, int fd)
 {
-	return (recv_impl(snapname, props, NULL, origin, force, B_FALSE, raw,
-	    fd, NULL, -1, NULL, NULL, NULL, NULL));
+	return (recv_impl(snapname, props, NULL, NULL, 0, origin, force,
+	    B_FALSE, raw, fd, NULL, -1, NULL, NULL, NULL, NULL));
 }
 
 /*
@@ -860,8 +951,8 @@ int
 lzc_receive_resumable(const char *snapname, nvlist_t *props, const char *origin,
     boolean_t force, boolean_t raw, int fd)
 {
-	return (recv_impl(snapname, props, NULL, origin, force, B_TRUE, raw,
-	    fd, NULL, -1, NULL, NULL, NULL, NULL));
+	return (recv_impl(snapname, props, NULL, NULL, 0, origin, force,
+	    B_TRUE, raw, fd, NULL, -1, NULL, NULL, NULL, NULL));
 }
 
 /*
@@ -883,8 +974,8 @@ lzc_receive_with_header(const char *snapname, nvlist_t *props,
 	if (begin_record == NULL)
 		return (EINVAL);
 
-	return (recv_impl(snapname, props, NULL, origin, force, resumable, raw,
-	    fd, begin_record, -1, NULL, NULL, NULL, NULL));
+	return (recv_impl(snapname, props, NULL, NULL, 0, origin, force,
+	    resumable, raw, fd, begin_record, -1, NULL, NULL, NULL, NULL));
 }
 
 /*
@@ -913,9 +1004,9 @@ int lzc_receive_one(const char *snapname, nvlist_t *props,
     uint64_t *read_bytes, uint64_t *errflags, uint64_t *action_handle,
     nvlist_t **errors)
 {
-	return (recv_impl(snapname, props, NULL, origin, force, resumable,
-	    raw, input_fd, begin_record, cleanup_fd, read_bytes, errflags,
-	    action_handle, errors));
+	return (recv_impl(snapname, props, NULL, NULL, 0, origin, force,
+	    resumable, raw, input_fd, begin_record, cleanup_fd, read_bytes,
+	    errflags, action_handle, errors));
 }
 
 /*
@@ -927,15 +1018,15 @@ int lzc_receive_one(const char *snapname, nvlist_t *props,
  * this nvlist
  */
 int lzc_receive_with_cmdprops(const char *snapname, nvlist_t *props,
-    nvlist_t *cmdprops, const char *origin, boolean_t force,
-    boolean_t resumable, boolean_t raw, int input_fd,
+    nvlist_t *cmdprops, uint8_t *wkeydata, uint_t wkeylen, const char *origin,
+    boolean_t force, boolean_t resumable, boolean_t raw, int input_fd,
     const dmu_replay_record_t *begin_record, int cleanup_fd,
     uint64_t *read_bytes, uint64_t *errflags, uint64_t *action_handle,
     nvlist_t **errors)
 {
-	return (recv_impl(snapname, props, cmdprops, origin, force, resumable,
-	    raw, input_fd, begin_record, cleanup_fd, read_bytes, errflags,
-	    action_handle, errors));
+	return (recv_impl(snapname, props, cmdprops, wkeydata, wkeylen, origin,
+	    force, resumable, raw, input_fd, begin_record, cleanup_fd,
+	    read_bytes, errflags, action_handle, errors));
 }
 
 /*

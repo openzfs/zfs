@@ -161,7 +161,16 @@ function cleanup_nested_pool
 function cleanup_test_pool
 {
 	log_must zpool destroy $TESTPOOL
-	zpool labelclear -f "$TESTDISK"
+
+	#
+	# We always clear the labels of all disks
+	# between tests so imports from zpool or
+	# or zdb do not get confused with leftover
+	# data from old pools.
+	#
+	for disk in $DISKS; do
+		zpool labelclear -f $disk
+	done
 }
 
 function cleanup_nested_pools
@@ -211,8 +220,8 @@ function test_verify_pre_checkpoint_state
 {
 	log_must zfs list $FS0
 	log_must zfs list $FS1
-	log_must [ "$(cat $FS0FILE)" = "$FILECONTENTS0" ]
-	log_must [ "$(cat $FS1FILE)" = "$FILECONTENTS1" ]
+	log_must [ "$(<$FS0FILE)" = "$FILECONTENTS0" ]
+	log_must [ "$(<$FS1FILE)" = "$FILECONTENTS1" ]
 
 	#
 	# If we've opened the checkpointed state of the
@@ -227,15 +236,15 @@ function test_verify_pre_checkpoint_state
 	# Ensure post-checkpoint state is not present
 	#
 	log_mustnot zfs list $FS2
-	log_mustnot [ "$(cat $FS0FILE)" = "$NEWFILECONTENTS0" ]
+	log_mustnot [ "$(<$FS0FILE)" = "$NEWFILECONTENTS0" ]
 }
 
 function nested_verify_pre_checkpoint_state
 {
 	log_must zfs list $NESTEDFS0
 	log_must zfs list $NESTEDFS1
-	log_must [ "$(cat $NESTEDFS0FILE)" = "$FILECONTENTS0" ]
-	log_must [ "$(cat $NESTEDFS1FILE)" = "$FILECONTENTS1" ]
+	log_must [ "$(<$NESTEDFS0FILE)" = "$FILECONTENTS0" ]
+	log_must [ "$(<$NESTEDFS1FILE)" = "$FILECONTENTS1" ]
 
 	#
 	# If we've opened the checkpointed state of the
@@ -250,7 +259,7 @@ function nested_verify_pre_checkpoint_state
 	# Ensure post-checkpoint state is not present
 	#
 	log_mustnot zfs list $NESTEDFS2
-	log_mustnot [ "$(cat $NESTEDFS0FILE)" = "$NEWFILECONTENTS0" ]
+	log_mustnot [ "$(<$NESTEDFS0FILE)" = "$NEWFILECONTENTS0" ]
 }
 
 function test_change_state_after_checkpoint
@@ -275,8 +284,8 @@ function test_verify_post_checkpoint_state
 {
 	log_must zfs list $FS0
 	log_must zfs list $FS2
-	log_must [ "$(cat $FS0FILE)" = "$NEWFILECONTENTS0" ]
-	log_must [ "$(cat $FS2FILE)" = "$NEWFILECONTENTS2" ]
+	log_must [ "$(<$FS0FILE)" = "$NEWFILECONTENTS0" ]
+	log_must [ "$(<$FS2FILE)" = "$NEWFILECONTENTS2" ]
 
 	log_must zdb $TESTPOOL
 
@@ -285,7 +294,7 @@ function test_verify_post_checkpoint_state
 	# is not present
 	#
 	log_mustnot zfs list $FS1
-	log_mustnot [ "$(cat $FS0FILE)" = "$FILECONTENTS0" ]
+	log_mustnot [ "$(<$FS0FILE)" = "$FILECONTENTS0" ]
 }
 
 function fragment_before_checkpoint
@@ -349,7 +358,7 @@ function nested_wait_discard_finish
 # disks of the nested pool in a temporary directory where we can
 # reuse it for each test that requires that setup.
 #
-SAVEDPOOLDIR="/var/tmp/ckpoint_saved_pool"
+SAVEDPOOLDIR="$TEST_BASE_DIR/ckpoint_saved_pool"
 
 function test_group_premake_nested_pools
 {

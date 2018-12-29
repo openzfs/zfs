@@ -108,9 +108,9 @@ CDEF = """
     int lzc_receive_resumable(const char *, nvlist_t *, const char *,
         boolean_t, boolean_t, int);
     int lzc_receive_with_cmdprops(const char *, nvlist_t *, nvlist_t *,
-        const char *, boolean_t, boolean_t, boolean_t, int,
-        const dmu_replay_record_t *, int, uint64_t *, uint64_t *, uint64_t *,
-        nvlist_t **);
+        uint8_t *, uint_t, const char *, boolean_t, boolean_t,
+        boolean_t, int, const dmu_replay_record_t *, int, uint64_t *,
+        uint64_t *, uint64_t *, nvlist_t **);
     int lzc_receive_with_header(const char *, nvlist_t *, const char *,
         boolean_t, boolean_t, boolean_t, int, const dmu_replay_record_t *);
     int lzc_release(nvlist_t *, nvlist_t **);
@@ -127,9 +127,11 @@ CDEF = """
     int lzc_sync(const char *, nvlist_t *, nvlist_t **);
     int lzc_unload_key(const char *);
     int lzc_remap(const char *);
+    int lzc_pool_checkpoint(const char *);
+    int lzc_pool_checkpoint_discard(const char *);
+    int lzc_rename(const char *, const char *);
+    int lzc_destroy(const char *fsname);
 
-    int lzc_rename(const char *, const char *, nvlist_t *, char **);
-    int lzc_destroy_one(const char *fsname, nvlist_t *);
     int lzc_inherit(const char *fsname, const char *name, nvlist_t *);
     int lzc_set_props(const char *, nvlist_t *, nvlist_t *, nvlist_t *);
     int lzc_list (const char *, nvlist_t *);

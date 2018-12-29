@@ -24,7 +24,6 @@ USER_C = \
 	page.c \
 	strlcat.c \
 	strlcpy.c \
-	strnlen.c \
 	timestamp.c \
 	zone.c \
 	include/sys/list.h \

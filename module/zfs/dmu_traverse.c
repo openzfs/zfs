@@ -650,7 +650,7 @@ traverse_impl(spa_t *spa, dsl_dataset_t *ds, uint64_t objset, blkptr_t *rootbp,
 			 */
 			if (!(td->td_flags & TRAVERSE_HARD) ||
 			    !(td->td_flags & TRAVERSE_PRE))
-				return (err);
+				goto out;
 		} else {
 			osp = buf->b_data;
 			traverse_zil(td, &osp->os_zil_header);
@@ -671,7 +671,7 @@ traverse_impl(spa_t *spa, dsl_dataset_t *ds, uint64_t objset, blkptr_t *rootbp,
 	while (!pd->pd_exited)
 		cv_wait_sig(&pd->pd_cv, &pd->pd_mtx);
 	mutex_exit(&pd->pd_mtx);
-
+out:
 	mutex_destroy(&pd->pd_mtx);
 	cv_destroy(&pd->pd_cv);
 

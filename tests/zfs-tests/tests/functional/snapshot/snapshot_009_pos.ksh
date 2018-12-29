@@ -52,18 +52,15 @@ function cleanup
 	typeset snap
 
 	for ds in $ctr/$TESTVOL1 $ctr/$TESTCLONE; do
-		datasetexists $ds && \
-			log_must zfs destroy -f $ds
+		destroy_dataset $ds "-rf"
 	done
 
 	for snap in $ctr/$TESTFS1@$TESTSNAP1 \
 		$snappool $snapvol $snapctr $snapctrvol \
 		$snapctrclone $snapctrfs
 	do
-		snapexists $snap && \
-			log_must zfs destroy -rf $snap
+		snapexists $snap && destroy_dataset $snap "-rf"
 	done
-
 }
 
 log_assert "Verify snapshot -r can correctly create a snapshot tree."
@@ -91,6 +88,7 @@ else
 fi
 
 log_must zfs snapshot -r $snappool
+log_must block_device_wait
 
 #verify the snapshot -r results
 for snap in $snappool $snapfs $snapvol $snapctr $snapctrvol \

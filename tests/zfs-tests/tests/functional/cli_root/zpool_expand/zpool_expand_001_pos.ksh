@@ -27,6 +27,7 @@
 
 #
 # Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2018 by Lawrence Livermore National Security, LLC.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -35,78 +36,93 @@
 #
 # DESCRIPTION:
 # Once zpool set autoexpand=on poolname, zpool can autoexpand by
-# Dynamic LUN Expansion
+# Dynamic VDEV Expansion
 #
 #
 # STRATEGY:
-# 1) Create a pool
-# 2) Create volume on top of the pool
-# 3) Create pool by using the zvols and set autoexpand=on
-# 4) Expand the vol size by 'zfs set volsize'
-# 5) Check that the pool size was expanded
+# 1) Create three vdevs (loopback, scsi_debug, and file)
+# 2) Create pool by using the different devices and set autoexpand=on
+# 3) Expand each device as appropriate
+# 4) Check that the pool size was expanded
+#
+# NOTE: Three different device types are used in this test to verify
+# expansion of non-partitioned block devices (loopback), partitioned
+# block devices (scsi_debug), and non-disk file vdevs.  ZFS volumes
+# are not used in order to avoid a possible lock inversion when
+# layering pools on zvols.
 #
 
 verify_runnable "global"
 
-# See issue: https://github.com/zfsonlinux/zfs/issues/5771
-if is_linux; then
-	log_unsupported "Requires autoexpand property support"
-fi
-
 function cleanup
 {
-	if poolexists $TESTPOOL1; then
-		log_must zpool destroy $TESTPOOL1
+	poolexists $TESTPOOL1 && destroy_pool $TESTPOOL1
+
+	if losetup -a | grep -q $DEV1; then
+		losetup -d $DEV1
 	fi
 
-	for i in 1 2 3; do
-		if datasetexists $VFS/vol$i; then
-			log_must zfs destroy $VFS/vol$i
-		fi
-	done
+	rm -f $FILE_LO $FILE_RAW
+
+	block_device_wait
+	unload_scsi_debug
 }
 
 log_onexit cleanup
 
-log_assert "zpool can be autoexpanded after set autoexpand=on on LUN expansion"
-
-for i in 1 2 3; do
-	log_must zfs create -V $org_size $VFS/vol$i
-done
-block_device_wait
+log_assert "zpool can be autoexpanded after set autoexpand=on on vdev expansion"
 
 for type in " " mirror raidz raidz2; do
+	log_note "Setting up loopback, scsi_debug, and file vdevs"
+	log_must truncate -s $org_size $FILE_LO
+	DEV1=$(losetup -f)
+	log_must losetup $DEV1 $FILE_LO
 
-	log_must zpool create -o autoexpand=on $TESTPOOL1 $type \
-	    ${ZVOL_DEVDIR}/$VFS/vol1  ${ZVOL_DEVDIR}/$VFS/vol2 \
-	    ${ZVOL_DEVDIR}/$VFS/vol3
+	load_scsi_debug $org_size_mb 1 1 1 '512b'
+	block_device_wait
+	DEV2=$(get_debug_device)
+
+	log_must truncate -s $org_size $FILE_RAW
+	DEV3=$FILE_RAW
+
+	# The -f is required since we're mixing disk and file vdevs.
+	log_must zpool create -f -o autoexpand=on $TESTPOOL1 $type \
+	    $DEV1 $DEV2 $DEV3
 
 	typeset autoexp=$(get_pool_prop autoexpand $TESTPOOL1)
 	if [[ $autoexp != "on" ]]; then
-		log_fail "zpool $TESTPOOL1 autoexpand should on but is $autoexp"
+		log_fail "zpool $TESTPOOL1 autoexpand should be on but is " \
+		    "$autoexp"
 	fi
 
 	typeset prev_size=$(get_pool_prop size $TESTPOOL1)
-	typeset zfs_prev_size=$(zfs get -p avail $TESTPOOL1 | tail -1 | \
-	    awk '{print $3}')
+	typeset zfs_prev_size=$(get_prop avail $TESTPOOL1)
 
-	for i in 1 2 3; do
-		log_must zfs set volsize=$exp_size $VFS/vol$i
-	done
+	# Expand each device as appropriate being careful to add an artificial
+	# delay to ensure we get a single history entry for each.  This makes
+	# is easier to verify each expansion for the striped pool case, since
+	# they will not be merged in to a single larger expansion.
+	log_note "Expanding loopback, scsi_debug, and file vdevs"
+	log_must truncate -s $exp_size $FILE_LO
+	log_must losetup -c $DEV1
+	sleep 3
 
-	sync
-	sleep 10
-	sync
+	echo "2" > /sys/bus/pseudo/drivers/scsi_debug/virtual_gb
+	echo "1" > /sys/class/block/$DEV2/device/rescan
+	block_device_wait
+	sleep 3
+
+	log_must truncate -s $exp_size $FILE_RAW
+	log_must zpool online -e $TESTPOOL1 $FILE_RAW
 
 	typeset expand_size=$(get_pool_prop size $TESTPOOL1)
-	typeset zfs_expand_size=$(zfs get -p avail $TESTPOOL1 | tail -1 | \
-	    awk '{print $3}')
+	typeset zfs_expand_size=$(get_prop avail $TESTPOOL1)
 
 	log_note "$TESTPOOL1 $type has previous size: $prev_size and " \
 	    "expanded size: $expand_size"
 	# compare available pool size from zfs
-	if [[ $zfs_expand_size > $zfs_prev_size ]]; then
-	# check for zpool history for the pool size expansion
+	if [[ $zfs_expand_size -gt $zfs_prev_size ]]; then
+		# check for zpool history for the pool size expansion
 		if [[ $type == " " ]]; then
 			typeset expansion_size=$(($exp_size-$org_size))
 			typeset	size_addition=$(zpool history -il $TESTPOOL1 |\
@@ -114,9 +130,9 @@ for type in " " mirror raidz raidz2; do
 			    grep "vdev online" | \
 			    grep "(+${expansion_size}" | wc -l)
 
-			if [[ $size_addition -ne $i ]]; then
-				log_fail "pool $TESTPOOL1 is not autoexpand " \
-				    "after LUN expansion"
+			if [[ $size_addition -ne 3 ]]; then
+				log_fail "pool $TESTPOOL1 has not expanded, " \
+				    "$size_addition/3 vdevs expanded"
 			fi
 		elif [[ $type == "mirror" ]]; then
 			typeset expansion_size=$(($exp_size-$org_size))
@@ -126,8 +142,7 @@ for type in " " mirror raidz raidz2; do
 			    grep "(+${expansion_size})" >/dev/null 2>&1
 
 			if [[ $? -ne 0 ]] ; then
-				log_fail "pool $TESTPOOL1 is not autoexpand " \
-				    "after LUN expansion"
+				log_fail "pool $TESTPOOL1 has not expanded"
 			fi
 		else
 			typeset expansion_size=$((3*($exp_size-$org_size)))
@@ -137,19 +152,16 @@ for type in " " mirror raidz raidz2; do
 			    grep "(+${expansion_size})" >/dev/null 2>&1
 
 			if [[ $? -ne 0 ]]; then
-				log_fail "pool $TESTPOOL is not autoexpand " \
-				    "after LUN expansion"
+				log_fail "pool $TESTPOOL has not expanded"
 			fi
 		fi
 	else
-		log_fail "pool $TESTPOOL1 is not autoexpanded after LUN " \
-		    "expansion"
+		log_fail "pool $TESTPOOL1 is not autoexpanded after vdev " \
+		    "expansion.  Previous size: $zfs_prev_size and expanded " \
+		    "size: $zfs_expand_size"
 	fi
 
-	log_must zpool destroy $TESTPOOL1
-	for i in 1 2 3; do
-		log_must zfs set volsize=$org_size $VFS/vol$i
-	done
-
+	cleanup
 done
-log_pass "zpool can be autoexpanded after set autoexpand=on on LUN expansion"
+
+log_pass "zpool can autoexpand if autoexpand=on after vdev expansion"

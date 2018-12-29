@@ -22,6 +22,8 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2017, Intel Corporation.
  */
 
 /*
@@ -226,8 +228,6 @@ vdev_config_generate_stats(vdev_t *vd, nvlist_t *nv)
 	fnvlist_add_uint64_array(nv, ZPOOL_CONFIG_VDEV_STATS,
 	    (uint64_t *)vs, sizeof (*vs) / sizeof (uint64_t));
 
-	kmem_free(vs, sizeof (*vs));
-
 	/*
 	 * Add extended stats into a special extended stats nvlist.  This keeps
 	 * all the extended stats nicely grouped together.  The extended stats
@@ -345,10 +345,14 @@ vdev_config_generate_stats(vdev_t *vd, nvlist_t *nv)
 	    vsx->vsx_agg_histo[ZIO_PRIORITY_SCRUB],
 	    ARRAY_SIZE(vsx->vsx_agg_histo[ZIO_PRIORITY_SCRUB]));
 
+	/* IO delays */
+	fnvlist_add_uint64(nvx, ZPOOL_CONFIG_VDEV_SLOW_IOS, vs->vs_slow_ios);
+
 	/* Add extended stats nvlist to main nvlist */
 	fnvlist_add_nvlist(nv, ZPOOL_CONFIG_VDEV_STATS_EX, nvx);
 
 	fnvlist_free(nvx);
+	kmem_free(vs, sizeof (*vs));
 	kmem_free(vsx, sizeof (*vsx));
 }
 
@@ -463,6 +467,28 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 			fnvlist_add_uint64(nv, ZPOOL_CONFIG_REMOVING,
 			    vd->vdev_removing);
 		}
+
+		/* zpool command expects alloc class data */
+		if (getstats && vd->vdev_alloc_bias != VDEV_BIAS_NONE) {
+			const char *bias = NULL;
+
+			switch (vd->vdev_alloc_bias) {
+			case VDEV_BIAS_LOG:
+				bias = VDEV_ALLOC_BIAS_LOG;
+				break;
+			case VDEV_BIAS_SPECIAL:
+				bias = VDEV_ALLOC_BIAS_SPECIAL;
+				break;
+			case VDEV_BIAS_DEDUP:
+				bias = VDEV_ALLOC_BIAS_DEDUP;
+				break;
+			default:
+				ASSERT3U(vd->vdev_alloc_bias, ==,
+				    VDEV_BIAS_NONE);
+			}
+			fnvlist_add_string(nv, ZPOOL_CONFIG_ALLOCATION_BIAS,
+			    bias);
+		}
 	}
 
 	if (vd->vdev_dtl_sm != NULL) {
@@ -488,6 +514,10 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 	if (vd->vdev_crtxg)
 		fnvlist_add_uint64(nv, ZPOOL_CONFIG_CREATE_TXG, vd->vdev_crtxg);
 
+	if (vd->vdev_expansion_time)
+		fnvlist_add_uint64(nv, ZPOOL_CONFIG_EXPANSION_TIME,
+		    vd->vdev_expansion_time);
+
 	if (flags & VDEV_CONFIG_MOS) {
 		if (vd->vdev_leaf_zap != 0) {
 			ASSERT(vd->vdev_ops->vdev_op_leaf);
@@ -499,6 +529,12 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 			ASSERT(vd == vd->vdev_top);
 			fnvlist_add_uint64(nv, ZPOOL_CONFIG_VDEV_TOP_ZAP,
 			    vd->vdev_top_zap);
+		}
+
+		if (vd->vdev_resilver_deferred) {
+			ASSERT(vd->vdev_ops->vdev_op_leaf);
+			ASSERT(spa->spa_resilver_deferred);
+			fnvlist_add_boolean(nv, ZPOOL_CONFIG_RESILVER_DEFER);
 		}
 	}
 

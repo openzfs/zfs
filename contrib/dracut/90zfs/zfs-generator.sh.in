@@ -41,8 +41,7 @@ echo "zfs-generator: writing extension for sysroot.mount to $GENERATOR_DIR"/sysr
 {
     echo "[Unit]"
     echo "Before=initrd-root-fs.target"
-    echo "After=zfs-import-scan.service"
-    echo "After=zfs-import-cache.service"
+    echo "After=zfs-import.target"
     echo "[Mount]"
     if [ "${root}" = "zfs:AUTO" ] ; then
       echo "PassEnvironment=BOOTFS"

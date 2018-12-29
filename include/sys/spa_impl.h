@@ -20,12 +20,13 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright 2013 Saso Kiselkov. All rights reserved.
  * Copyright (c) 2016 Actifio, Inc. All rights reserved.
  * Copyright (c) 2017 Datto Inc.
+ * Copyright (c) 2017, Intel Corporation.
  */
 
 #ifndef _SYS_SPA_IMPL_H
@@ -138,7 +139,7 @@ typedef struct spa_config_lock {
 	kthread_t	*scl_writer;
 	int		scl_write_wanted;
 	kcondvar_t	scl_cv;
-	refcount_t	scl_count;
+	zfs_refcount_t	scl_count;
 } spa_config_lock_t;
 
 typedef struct spa_config_dirent {
@@ -220,6 +221,8 @@ struct spa {
 	boolean_t	spa_is_initializing;	/* true while opening pool */
 	metaslab_class_t *spa_normal_class;	/* normal data class */
 	metaslab_class_t *spa_log_class;	/* intent log data class */
+	metaslab_class_t *spa_special_class;	/* special allocation class */
+	metaslab_class_t *spa_dedup_class;	/* dedup allocation class */
 	uint64_t	spa_first_txg;		/* first txg after spa_open() */
 	uint64_t	spa_final_txg;		/* txg of export/destroy */
 	uint64_t	spa_freeze_txg;		/* freeze pool at this txg */
@@ -239,8 +242,16 @@ struct spa {
 	uint64_t	spa_last_synced_guid;	/* last synced guid */
 	list_t		spa_config_dirty_list;	/* vdevs with dirty config */
 	list_t		spa_state_dirty_list;	/* vdevs with dirty state */
-	kmutex_t	spa_alloc_lock;
-	avl_tree_t	spa_alloc_tree;
+	/*
+	 * spa_alloc_locks and spa_alloc_trees are arrays, whose lengths are
+	 * stored in spa_alloc_count. There is one tree and one lock for each
+	 * allocator, to help improve allocation performance in write-heavy
+	 * workloads.
+	 */
+	kmutex_t	*spa_alloc_locks;
+	avl_tree_t	*spa_alloc_trees;
+	int		spa_alloc_count;
+
 	spa_aux_vdev_t	spa_spares;		/* hot spares */
 	spa_aux_vdev_t	spa_l2cache;		/* L2ARC cache devices */
 	nvlist_t	*spa_label_features;	/* Features for reading MOS */
@@ -270,6 +281,13 @@ struct spa {
 	uint64_t	spa_scan_pass_scrub_spent_paused; /* total paused */
 	uint64_t	spa_scan_pass_exam;	/* examined bytes per pass */
 	uint64_t	spa_scan_pass_issued;	/* issued bytes per pass */
+
+	/*
+	 * We are in the middle of a resilver, and another resilver
+	 * is needed once this one completes. This is set iff any
+	 * vdev_resilver_deferred is set.
+	 */
+	boolean_t	spa_resilver_deferred;
 	kmutex_t	spa_async_lock;		/* protect async state */
 	kthread_t	*spa_async_thread;	/* thread doing async task */
 	int		spa_async_suspended;	/* async tasks suspended */
@@ -363,6 +381,11 @@ struct spa {
 	uint64_t	spa_errata;		/* errata issues detected */
 	spa_stats_t	spa_stats;		/* assorted spa statistics */
 	spa_keystore_t	spa_keystore;		/* loaded crypto keys */
+
+	/* arc_memory_throttle() parameters during low memory condition */
+	uint64_t	spa_lowmem_page_load;	/* memory load during txg */
+	uint64_t	spa_lowmem_last_txg;	/* txg window start */
+
 	hrtime_t	spa_ccw_fail_time;	/* Conf cache write fail time */
 	taskq_t		*spa_zvol_taskq;	/* Taskq for minor management */
 	taskq_t		*spa_prefetch_taskq;	/* Taskq for prefetch threads */
@@ -371,12 +394,12 @@ struct spa {
 
 	/*
 	 * spa_refcount & spa_config_lock must be the last elements
-	 * because refcount_t changes size based on compilation options.
+	 * because zfs_refcount_t changes size based on compilation options.
 	 * In order for the MDB module to function correctly, the other
 	 * fields must remain in the same location.
 	 */
 	spa_config_lock_t spa_config_lock[SCL_LOCKS]; /* config changes */
-	refcount_t	spa_refcount;		/* number of opens */
+	zfs_refcount_t	spa_refcount;		/* number of opens */
 
 	taskq_t		*spa_upgrade_taskq;	/* taskq for upgrade jobs */
 };
