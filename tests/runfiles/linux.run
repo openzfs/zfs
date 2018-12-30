@@ -472,6 +472,7 @@ tags = ['functional', 'cli_root', 'zpool_sync']
 [tests/functional/cli_root/zpool_trim]
 tests = ['zpool_trim_001_pos', 'zpool_trim_002_pos', 'zpool_trim_003_pos',
     'zpool_trim_004_pos', 'zpool_trim_005_neg', 'zpool_trim_006_neg']
+tags = ['functional', 'zpool_trim']
 
 [tests/functional/cli_root/zpool_upgrade]
 tests = ['zpool_upgrade_001_pos', 'zpool_upgrade_002_pos',
