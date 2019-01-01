@@ -297,6 +297,34 @@ AC_DEFUN([ZFS_AC_KERNEL_GET_ACL_HANDLE_CACHE], [
 ])
 
 dnl #
+dnl # check whether keyring_alloc() takes 8 args
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_KEYRING_ALLOC_8_ARGS], [
+	AC_MSG_CHECKING([whether keyring_alloc() takes 8 args])
+	ZFS_LINUX_TRY_COMPILE([
+		#include <linux/cred.h>
+		#include <linux/key.h>
+
+		#ifndef GLOBAL_ROOT_UID
+		#define GLOBAL_ROOT_UID 0
+		#endif
+		#ifndef GLOBAL_ROOT_GID
+		#define GLOBAL_ROOT_GID 0
+		#endif
+	],[
+		struct key *k;
+		struct cred c;
+
+		k = keyring_alloc("", GLOBAL_ROOT_UID, GLOBAL_ROOT_GID, &c, 0, 0, NULL, NULL);
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_KEYRING_ALLOC_WITH_8_ARGS, 1, [keyring_alloc() takes 8 args])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
 dnl # check whether user_key_payload() exists 
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_USER_KEY_PAYLOAD], [

@@ -2126,7 +2126,7 @@ zpl_xattr_init(void)
 	if (!cred)
 		return (-ENOMEM);
 
-#if defined(HAVE_GENERIC_KEY_INSTANTIATE)
+#if defined(HAVE_KEYRING_ALLOC_WITH_8_ARGS)
 	keyring = keyring_alloc(".zfs_nfs4acl_resolver",
 	    GLOBAL_ROOT_UID, GLOBAL_ROOT_GID, cred,
 	    (KEY_POS_ALL & ~KEY_POS_SETATTR) |
