@@ -220,10 +220,10 @@ fn(struct inode *ip, const char *name, const void *buffer,		\
 #endif /* HAVE_6ARGS_SECURITY_INODE_INIT_SECURITY */
 
 #ifndef GLOBAL_ROOT_UID
-#define GLOBAL_ROOT_UID 0
+#define	GLOBAL_ROOT_UID 0
 #endif
 #ifndef GLOBAL_ROOT_GID
-#define GLOBAL_ROOT_GID 0
+#define	GLOBAL_ROOT_GID 0
 #endif
 
 #if defined(HAVE_USER_KEY_PAYLOAD)
@@ -231,7 +231,7 @@ fn(struct inode *ip, const char *name, const void *buffer,		\
 #elif defined(HAVE_USER_KEY_PAYLOAD_RCU)
 #define	zpl_user_key_payload_rcu(k) user_key_payload_rcu(k)
 #else
-#define zpl_user_key_payload_rcu(k) rcu_dereference_key(k)
+#define	zpl_user_key_payload_rcu(k) rcu_dereference_key(k)
 #endif /* HAVE_USER_KEY_PAYLOAD */
 
 /*
