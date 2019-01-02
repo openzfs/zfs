@@ -3301,7 +3301,7 @@ next:
 		 * we may end up in an infinite loop retrying the same
 		 * metaslab.
 		 */
-		ASSERT(!metaslab_should_allocate(msp, asize));
+		/* ASSERT(!metaslab_should_allocate(msp, asize)); XXX */
 		mutex_exit(&msp->ms_lock);
 	}
 	mutex_exit(&msp->ms_lock);
@@ -4717,7 +4717,8 @@ metaslab_exec_trim(metaslab_t *msp, boolean_t auto_trim)
 		 * don't know which buckets to alter with what we have in
 		 * trim_tree.
 		 */
-		metaslab_group_sort(msp->ms_group, msp, metaslab_weight(msp));
+		metaslab_group_sort(msp->ms_group, msp, metaslab_weight(msp) |
+		    (msp->ms_weight & METASLAB_ACTIVE_MASK));
 	}
 
 	if (auto_trim) {
