@@ -1589,7 +1589,9 @@ nfs4acl_get_key(const char *name, size_t namelen, const char *type,
 		ret = PTR_ERR(rkey);
 		goto get_key_out;
 	} else {
+#if defined(HAVE_KEY_FLAG_ROOT_CAN_INVAL)
 		set_bit(KEY_FLAG_ROOT_CAN_INVAL, &rkey->flags);
+#endif
 	}
 
 	rcu_read_lock();

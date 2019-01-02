@@ -384,6 +384,25 @@ AC_DEFUN([ZFS_AC_KERNEL_GENERIC_KEY_INSTANTIATE], [
 ])
 
 dnl #
+dnl # Check whether KEY_FLAG_ROOT_CAN_INVAL exists
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_KEY_FLAG_ROOT_CAN_INVAL_EXISTS], [
+	AC_MSG_CHECKING([whether KEY_FLAG_ROOT_CAN_INVAL exists])
+	ZFS_LINUX_TRY_COMPILE([
+		#include <linux/key.h>
+	],[
+		unsigned long addr;
+
+		set_bit(KEY_FLAG_ROOT_CAN_INVAL, &addr);
+	],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_KEY_FLAG_ROOT_CAN_INVAL, 1, [KEY_FLAG_ROOT_CAN_INVAL exists])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
 dnl # Check whether struct key_preparsed_payload exists
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_STRUCT_KEY_PREPARSED_PAYLOAD], [
