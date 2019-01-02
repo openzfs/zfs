@@ -216,6 +216,8 @@ extern int dmu_object_alloc_chunk_shift;
 extern boolean_t zfs_force_some_double_word_sm_entries;
 extern unsigned long zio_decompress_fail_fraction;
 extern unsigned long zfs_reconstruct_indirect_damage_fraction;
+extern int zfs_object_remap_one_indirect_delay_ms;
+
 
 static ztest_shared_opts_t *ztest_shared_opts;
 static ztest_shared_opts_t ztest_opts;
@@ -6621,6 +6623,12 @@ ztest_resume_thread(void *arg)
 		 */
 		if (ztest_random(10) == 0)
 			zfs_abd_scatter_enabled = ztest_random(2);
+
+		/*
+		 * Periodically inject remapping delays (10% of the time).
+		 */
+		zfs_object_remap_one_indirect_delay_ms =
+		    ztest_random(10) == 0 ? ztest_random(1000) + 1 : 0;
 	}
 
 	thread_exit();
