@@ -1144,8 +1144,14 @@ dmu_objset_create_check(void *arg, dmu_tx_t *tx)
 		return (error);
 	}
 
+	/*
+	 * The user credential can only be verified correctly in open context
+	 * because Linux provides and interface to check the *current* process
+	 * credentials; when in syncing context we use the kcred which allows
+	 * the same checks to pass successfully.
+	 */
 	error = dsl_fs_ss_limit_check(pdd, 1, ZFS_PROP_FILESYSTEM_LIMIT, NULL,
-	    doca->doca_cred);
+	    dmu_tx_is_syncing(tx) ? kcred : doca->doca_cred);
 
 	dsl_dir_rele(pdd, FTAG);
 

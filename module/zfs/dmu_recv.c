@@ -337,16 +337,24 @@ dmu_recv_begin_check(void *arg, dmu_tx_t *tx)
 		 * Check filesystem and snapshot limits before receiving. We'll
 		 * recheck snapshot limits again at the end (we create the
 		 * filesystems and increment those counts during begin_sync).
+		 *
+		 * The user credential can only be verified correctly in open
+		 * context because Linux provides and interface to check the
+		 * *current* process credentials; when in syncing context we
+		 * use the kcred which allows the same checks to pass
+		 * successfully.
 		 */
 		error = dsl_fs_ss_limit_check(ds->ds_dir, 1,
-		    ZFS_PROP_FILESYSTEM_LIMIT, NULL, drba->drba_cred);
+		    ZFS_PROP_FILESYSTEM_LIMIT, NULL,
+		    dmu_tx_is_syncing(tx) ? kcred : drba->drba_cred);
 		if (error != 0) {
 			dsl_dataset_rele_flags(ds, dsflags, FTAG);
 			return (error);
 		}
 
 		error = dsl_fs_ss_limit_check(ds->ds_dir, 1,
-		    ZFS_PROP_SNAPSHOT_LIMIT, NULL, drba->drba_cred);
+		    ZFS_PROP_SNAPSHOT_LIMIT, NULL,
+		    dmu_tx_is_syncing(tx) ? kcred : drba->drba_cred);
 		if (error != 0) {
 			dsl_dataset_rele_flags(ds, dsflags, FTAG);
 			return (error);

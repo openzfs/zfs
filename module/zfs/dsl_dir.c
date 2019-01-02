@@ -2005,8 +2005,16 @@ dsl_dir_rename_check(void *arg, dmu_tx_t *tx)
 			return (SET_ERROR(EINVAL));
 		}
 
+		/*
+		 * The user credential can only be verified correctly in open
+		 * context because Linux provides and interface to check the
+		 * *current* process credentials; when in syncing context we
+		 * use the kcred which allows the same checks to pass
+		 * successfully.
+		 */
 		error = dsl_dir_transfer_possible(dd->dd_parent,
-		    newparent, fs_cnt, ss_cnt, myspace, ddra->ddra_cred);
+		    newparent, fs_cnt, ss_cnt, myspace,
+		    dmu_tx_is_syncing(tx) ? kcred : ddra->ddra_cred);
 		if (error != 0) {
 			dsl_dir_rele(newparent, FTAG);
 			dsl_dir_rele(dd, FTAG);

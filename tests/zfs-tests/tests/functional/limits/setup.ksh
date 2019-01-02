@@ -15,7 +15,14 @@
 #
 
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/delegate/delegate_common.kshlib
 
 DISK=${DISKS%% *}
+
+cleanup_user_group
+
+# Create staff group and user
+log_must add_group $STAFF_GROUP
+log_must add_user $STAFF_GROUP $STAFF1
 
 default_volume_setup $DISK
