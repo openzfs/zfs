@@ -8522,8 +8522,11 @@ spa_auto_trim(spa_t *spa, uint64_t txg)
 	mutex_exit(&spa->spa_auto_trim_lock);
 
 	for (uint64_t i = 0; i < spa->spa_root_vdev->vdev_children; i++) {
+		vdev_t *cvd = spa->spa_root_vdev->vdev_child[i];
+		if (!vdev_is_concrete(cvd))
+			continue;
 		vdev_trim_info_t *vti = kmem_zalloc(sizeof (*vti), KM_SLEEP);
-		vti->vti_vdev = spa->spa_root_vdev->vdev_child[i];
+		vti->vti_vdev = cvd;
 		vti->vti_txg = txg;
 		vti->vti_done_cb = (void (*)(void *))spa_vdev_auto_trim_done;
 		vti->vti_done_arg = spa;
@@ -8612,6 +8615,8 @@ spa_man_trim(spa_t *spa, uint64_t rate, boolean_t fulltrim)
 	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 	for (uint64_t i = 0; i < spa->spa_root_vdev->vdev_children; i++) {
 		vdev_t *vd = spa->spa_root_vdev->vdev_child[i];
+		if (!vdev_is_concrete(vd))
+			continue;
 		vdev_trim_info_t *vti = kmem_zalloc(sizeof (*vti), KM_SLEEP);
 		vti->vti_vdev = vd;
 		vti->vti_done_cb = (void (*)(void *))spa_vdev_man_trim_done;
@@ -8690,7 +8695,9 @@ spa_get_trim_prog(spa_t *spa, uint64_t *prog, uint64_t *rate,
 	mutex_enter(&spa->spa_man_trim_lock);
 	if (spa->spa_num_man_trimming > 0) {
 		for (uint64_t i = 0; i < root_vd->vdev_children; i++) {
-			total += root_vd->vdev_child[i]->vdev_trim_prog;
+			vdev_t *cvd = root_vd->vdev_child[i];
+			if (vdev_is_concrete(cvd))
+				total += cvd->vdev_trim_prog;
 		}
 	}
 	*prog = total;
@@ -8757,8 +8764,10 @@ spa_min_trim_rate(spa_t *spa)
 	/* find the smallest metaslab */
 	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 	for (i = 0; i < spa->spa_root_vdev->vdev_children; i++) {
-		smallest_ms_sz = MIN(smallest_ms_sz,
-		    spa->spa_root_vdev->vdev_child[i]->vdev_ms[0]->ms_size);
+		vdev_t *cvd = spa->spa_root_vdev->vdev_child[i];
+		if (vdev_is_concrete(cvd))
+			smallest_ms_sz = MIN(smallest_ms_sz,
+			    cvd->vdev_ms[0]->ms_size);
 	}
 	spa_config_exit(spa, SCL_CONFIG, FTAG);
 	VERIFY(smallest_ms_sz != 0);
