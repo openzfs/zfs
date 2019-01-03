@@ -52,7 +52,6 @@
 #include <sys/sa.h>
 #include <sys/trace_acl.h>
 #include <sys/zpl.h>
-#include <acl/acl_common.h>
 
 #define	ALLOW	ACE_ACCESS_ALLOWED_ACE_TYPE
 #define	DENY	ACE_ACCESS_DENIED_ACE_TYPE
@@ -1181,6 +1180,15 @@ zfs_acl_chown_setattr(znode_t *zp)
 
 	return (error);
 }
+
+typedef struct trivial_acl {
+        uint32_t        allow0;         /* allow mask for bits only in owner */
+        uint32_t        deny1;          /* deny mask for bits not in owner */
+        uint32_t        deny2;          /* deny mask for bits not in group */
+        uint32_t        owner;          /* allow mask matching mode */
+        uint32_t        group;          /* allow mask matching mode */
+        uint32_t        everyone;       /* allow mask matching mode */
+} trivial_acl_t;
 
 void
 acl_trivial_access_masks(mode_t mode, boolean_t isdir, trivial_acl_t *masks)
