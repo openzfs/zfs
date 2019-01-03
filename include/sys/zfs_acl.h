@@ -37,9 +37,17 @@
 
 /*
  * Only include native NFS4 ACL support if underlying kernel will support it.
+ *
+ * It seems if CONFIG_PREEMPT_RCU is defined you end up with this error:
+ *
+ * FATAL: modpost: GPL-incompatible module zfs.ko uses GPL-only symbol '__rcu_read_lock'
+ *
+ * I'm not sure how to work around that, that functionality seems a bit
+ * too complicated to duplicate.
+ * 
  * XXX - what other kernel config should be checked?
  */
-#if defined(CONFIG_KEYS)
+#if defined(CONFIG_KEYS) && !defined(CONFIG_PREEMPT_RCU)
 #define	ZFS_NFS4_ACL
 #endif
 
