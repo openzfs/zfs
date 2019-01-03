@@ -1182,12 +1182,12 @@ zfs_acl_chown_setattr(znode_t *zp)
 }
 
 typedef struct trivial_acl {
-        uint32_t        allow0;         /* allow mask for bits only in owner */
-        uint32_t        deny1;          /* deny mask for bits not in owner */
-        uint32_t        deny2;          /* deny mask for bits not in group */
-        uint32_t        owner;          /* allow mask matching mode */
-        uint32_t        group;          /* allow mask matching mode */
-        uint32_t        everyone;       /* allow mask matching mode */
+	uint32_t	allow0;		/* allow mask for bits only in owner */
+	uint32_t	deny1;		/* deny mask for bits not in owner */
+	uint32_t	deny2;		/* deny mask for bits not in group */
+	uint32_t	owner;		/* allow mask matching mode */
+	uint32_t	group;		/* allow mask matching mode */
+	uint32_t	everyone;	/* allow mask matching mode */
 } trivial_acl_t;
 
 void
