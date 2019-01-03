@@ -51,27 +51,41 @@
 
 /*
  * Message ID table.  This must be kept in sync with the ZPOOL_STATUS_* defines
- * in libzfs.h.  Note that there are some status results which go past the end
- * of this table, and hence have no associated message ID.
+ * in include/libzfs.h.  Note that there are some status results which go past
+ * the end of this table, and hence have no associated message ID.
  */
 static char *zfs_msgid_table[] = {
-	"ZFS-8000-14",
-	"ZFS-8000-2Q",
-	"ZFS-8000-3C",
-	"ZFS-8000-4J",
-	"ZFS-8000-5E",
-	"ZFS-8000-6X",
-	"ZFS-8000-72",
-	"ZFS-8000-8A",
-	"ZFS-8000-9P",
-	"ZFS-8000-A5",
-	"ZFS-8000-EY",
-	"ZFS-8000-EY",
-	"ZFS-8000-EY",
-	"ZFS-8000-HC",
-	"ZFS-8000-JQ",
-	"ZFS-8000-K4",
-	"ZFS-8000-ER",
+	"ZFS-8000-14", /* ZPOOL_STATUS_CORRUPT_CACHE */
+	"ZFS-8000-2Q", /* ZPOOL_STATUS_MISSING_DEV_R */
+	"ZFS-8000-3C", /* ZPOOL_STATUS_MISSING_DEV_NR */
+	"ZFS-8000-4J", /* ZPOOL_STATUS_CORRUPT_LABEL_R */
+	"ZFS-8000-5E", /* ZPOOL_STATUS_CORRUPT_LABEL_NR */
+	"ZFS-8000-6X", /* ZPOOL_STATUS_BAD_GUID_SUM */
+	"ZFS-8000-72", /* ZPOOL_STATUS_CORRUPT_POOL */
+	"ZFS-8000-8A", /* ZPOOL_STATUS_CORRUPT_DATA */
+	"ZFS-8000-9P", /* ZPOOL_STATUS_FAILING_DEV */
+	"ZFS-8000-A5", /* ZPOOL_STATUS_VERSION_NEWER */
+	"ZFS-8000-EY", /* ZPOOL_STATUS_HOSTID_MISMATCH */
+	"ZFS-8000-EY", /* ZPOOL_STATUS_HOSTID_ACTIVE */
+	"ZFS-8000-EY", /* ZPOOL_STATUS_HOSTID_REQUIRED */
+	"ZFS-8000-HC", /* ZPOOL_STATUS_IO_FAILURE_WAIT */
+	"ZFS-8000-JQ", /* ZPOOL_STATUS_IO_FAILURE_CONTINUE */
+	"ZFS-8000-MM", /* ZPOOL_STATUS_IO_FAILURE_MMP */
+	"ZFS-8000-K4", /* ZPOOL_STATUS_BAD_LOG */
+	"ZFS-8000-ER", /* ZPOOL_STATUS_ERRATA */
+	/*
+	 * The following results have no message ID.
+	 *	ZPOOL_STATUS_UNSUP_FEAT_READ
+	 *	ZPOOL_STATUS_UNSUP_FEAT_WRITE
+	 *	ZPOOL_STATUS_FAULTED_DEV_R
+	 *	ZPOOL_STATUS_FAULTED_DEV_NR
+	 *	ZPOOL_STATUS_VERSION_OLDER
+	 *	ZPOOL_STATUS_FEAT_DISABLED
+	 *	ZPOOL_STATUS_RESILVERING
+	 *	ZPOOL_STATUS_OFFLINE_DEV
+	 *	ZPOOL_STATUS_REMOVED_DEV
+	 *	ZPOOL_STATUS_OK
+	 */
 };
 
 #define	NMSGID	(sizeof (zfs_msgid_table) / sizeof (zfs_msgid_table[0]))
