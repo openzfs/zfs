@@ -732,7 +732,7 @@ def _pool_name(name):
     '@' separates a snapshot name from the rest of the dataset name.
     '#' separates a bookmark name from the rest of the dataset name.
     '''
-    return re.split('[/@#]', name, 1)[0]
+    return re.split(b'[/@#]', name, 1)[0]
 
 
 def _fs_name(name):
@@ -742,26 +742,26 @@ def _fs_name(name):
     '@' separates a snapshot name from the rest of the dataset name.
     '#' separates a bookmark name from the rest of the dataset name.
     '''
-    return re.split('[@#]', name, 1)[0]
+    return re.split(b'[@#]', name, 1)[0]
 
 
 def _is_valid_name_component(component):
-    allowed = string.ascii_letters + string.digits + '-_.: '
-    return component and all(x in allowed for x in component)
+    allowed = string.ascii_letters + string.digits + u'-_.: '
+    return component and all(x in allowed.encode() for x in component)
 
 
 def _is_valid_fs_name(name):
-    return name and all(_is_valid_name_component(c) for c in name.split('/'))
+    return name and all(_is_valid_name_component(c) for c in name.split(b'/'))
 
 
 def _is_valid_snap_name(name):
-    parts = name.split('@')
+    parts = name.split(b'@')
     return (len(parts) == 2 and _is_valid_fs_name(parts[0]) and
             _is_valid_name_component(parts[1]))
 
 
 def _is_valid_bmark_name(name):
-    parts = name.split('#')
+    parts = name.split(b'#')
     return (len(parts) == 2 and _is_valid_fs_name(parts[0]) and
             _is_valid_name_component(parts[1]))
 

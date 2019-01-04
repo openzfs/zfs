@@ -31,8 +31,8 @@ def _ffi_cast(type_name):
             try:
                 type_info.elements[value]
             except KeyError as e:
-                raise OverflowError('Invalid enum <%s> value %s' %
-                                    (type_info.cname, e.message))
+                raise OverflowError('Invalid enum <%s> value %s: %s' %
+                                    (type_info.cname, value, e))
         else:
             _ffi.new(type_name + '*', value)
         return _ffi.cast(type_name, value)
