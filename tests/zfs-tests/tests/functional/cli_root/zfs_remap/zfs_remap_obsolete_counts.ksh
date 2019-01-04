@@ -29,6 +29,9 @@
 #    feature@obsolete_counts is enabled
 #
 
+# N.B. The 'zfs remap' command has been disabled and may be removed.
+export ZFS_REMAP_ENABLED=YES
+
 verify_runnable "both"
 
 function cleanup

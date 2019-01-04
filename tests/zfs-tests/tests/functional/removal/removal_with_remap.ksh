@@ -21,6 +21,9 @@
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/removal/removal.kshlib
 
+# N.B. The 'zfs remap' command has been disabled and may be removed.
+export ZFS_REMAP_ENABLED=YES
+
 default_setup_noexit "$DISKS"
 log_onexit default_cleanup_noexit
 

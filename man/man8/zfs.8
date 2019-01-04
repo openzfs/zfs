@@ -103,9 +103,6 @@
 .Oo Fl t Ar type Ns Oo , Ns Ar type Oc Ns ... Oc
 .Oo Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot Oc Ns ...
 .Nm
-.Cm remap
-.Ar filesystem Ns | Ns Ar volume
-.Nm
 .Cm set
 .Ar property Ns = Ns Ar value Oo Ar property Ns = Ns Ar value Oc Ns ...
 .Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot Ns ...
@@ -3035,16 +3032,6 @@ if the
 .Fl S
 option was not specified.
 .El
-.It Xo
-.Nm
-.Cm remap
-.Ar filesystem Ns | Ns Ar volume
-.Xc
-Remap the indirect blocks in the given fileystem or volume so that they no
-longer reference blocks on previously removed vdevs and we can eventually
-shrink the size of the indirect mapping objects for the previously removed
-vdevs. Note that remapping all blocks might not be possible and that
-references from snapshots will still exist and cannot be remapped.
 .It Xo
 .Nm
 .Cm upgrade
