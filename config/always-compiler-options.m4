@@ -87,6 +87,27 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_NO_FORMAT_TRUNCATION], [
 	AC_SUBST([NO_FORMAT_TRUNCATION])
 ])
 
+dnl #
+dnl # Check if gcc supports -Wno-format-truncation option.
+dnl #
+AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_NO_FORMAT_ZERO_LENGTH], [
+	AC_MSG_CHECKING([whether $CC supports -Wno-format-zero-length])
+
+	saved_flags="$CFLAGS"
+	CFLAGS="$CFLAGS -Werror -Wno-format-zero-length"
+
+	AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [])], [
+		NO_FORMAT_ZERO_LENGTH=-Wno-format-zero-length
+		AC_MSG_RESULT([yes])
+	], [
+		NO_FORMAT_ZERO_LENGTH=
+		AC_MSG_RESULT([no])
+	])
+
+	CFLAGS="$saved_flags"
+	AC_SUBST([NO_FORMAT_ZERO_LENGTH])
+])
+
 
 dnl #
 dnl # Check if gcc supports -Wno-bool-compare option.

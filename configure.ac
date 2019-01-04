@@ -109,6 +109,14 @@ AC_CONFIG_FILES([
 	etc/zfs/Makefile
 	include/Makefile
 	include/os/Makefile
+	include/os/freebsd/Makefile
+	include/os/freebsd/linux/Makefile
+	include/os/freebsd/spl/Makefile
+	include/os/freebsd/spl/acl/Makefile
+	include/os/freebsd/spl/rpc/Makefile
+	include/os/freebsd/spl/sys/Makefile
+	include/os/freebsd/zfs/Makefile
+	include/os/freebsd/zfs/sys/Makefile
 	include/os/linux/Makefile
 	include/os/linux/kernel/Makefile
 	include/os/linux/kernel/linux/Makefile
@@ -138,6 +146,8 @@ AC_CONFIG_FILES([
 	lib/libspl/include/ia32/Makefile
 	lib/libspl/include/ia32/sys/Makefile
 	lib/libspl/include/os/Makefile
+	lib/libspl/include/os/freebsd/Makefile
+	lib/libspl/include/os/freebsd/sys/Makefile
 	lib/libspl/include/os/linux/Makefile
 	lib/libspl/include/os/linux/sys/Makefile
 	lib/libspl/include/rpc/Makefile
