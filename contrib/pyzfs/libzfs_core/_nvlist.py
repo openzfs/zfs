@@ -160,10 +160,10 @@ def _type_info(typeid):
 
 # only integer properties need to be here
 _prop_name_to_type_str = {
-    "rewind-request":   "uint32",
-    "type":             "uint32",
-    "N_MORE_ERRORS":    "int32",
-    "pool_context":     "int32",
+    b"rewind-request":   "uint32",
+    b"type":             "uint32",
+    b"N_MORE_ERRORS":    "int32",
+    b"pool_context":     "int32",
 }
 
 

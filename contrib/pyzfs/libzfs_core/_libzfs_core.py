@@ -113,7 +113,7 @@ def lzc_create(name, ds_type='zfs', props=None, key=None):
     if props is None:
         props = {}
     if key is None:
-        key = bytes("")
+        key = b""
     else:
         key = bytes(key)
     if ds_type == 'zfs':
@@ -848,7 +848,7 @@ def lzc_change_key(fsname, crypt_cmd, props=None, key=None):
     if props is None:
         props = {}
     if key is None:
-        key = bytes("")
+        key = b""
     else:
         key = bytes(key)
     cmd = {
@@ -931,13 +931,13 @@ def lzc_channel_program(
         error.
     '''
     output = {}
-    params_nv = nvlist_in({"argv": params})
+    params_nv = nvlist_in({b"argv": params})
     with nvlist_out(output) as outnvl:
         ret = _lib.lzc_channel_program(
             poolname, program, instrlimit, memlimit, params_nv, outnvl)
     errors.lzc_channel_program_translate_error(
-        ret, poolname, output.get("error"))
-    return output.get("return")
+        ret, poolname, output.get(b"error"))
+    return output.get(b"return")
 
 
 def lzc_channel_program_nosync(
@@ -976,13 +976,13 @@ def lzc_channel_program_nosync(
         error.
     '''
     output = {}
-    params_nv = nvlist_in({"argv": params})
+    params_nv = nvlist_in({b"argv": params})
     with nvlist_out(output) as outnvl:
         ret = _lib.lzc_channel_program_nosync(
             poolname, program, instrlimit, memlimit, params_nv, outnvl)
     errors.lzc_channel_program_translate_error(
-        ret, poolname, output.get("error"))
-    return output.get("return")
+        ret, poolname, output.get(b"error"))
+    return output.get(b"return")
 
 
 def lzc_receive_resumable(
@@ -1406,7 +1406,7 @@ def lzc_receive_with_cmdprops(
     if cmdprops is None:
         cmdprops = {}
     if key is None:
-        key = bytes("")
+        key = b""
     else:
         key = bytes(key)
 
@@ -1511,7 +1511,7 @@ def lzc_sync(poolname, force=False):
         `innvl` has been replaced by the `force` boolean and `outnvl` has been
         conveniently removed since it's not used.
     '''
-    innvl = nvlist_in({"force": force})
+    innvl = nvlist_in({b"force": force})
     with nvlist_out({}) as outnvl:
         ret = _lib.lzc_sync(poolname, innvl, outnvl)
     errors.lzc_sync_translate_error(ret, poolname)
