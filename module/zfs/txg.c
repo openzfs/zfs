@@ -556,12 +556,12 @@ txg_sync_thread(void *arg)
 			} else {
 				while (tx->tx_threads != 1)
 					txg_thread_wait(tx, &cpr,
-				            &tx->tx_exit_cv, 0);
+					    &tx->tx_exit_cv, 0);
 				if (tx->tx_quiesced_txg)
 					checked_quiescing = B_TRUE;
 				else
 					txg_thread_exit(tx, &cpr,
-				            &tx->tx_sync_thread);
+					    &tx->tx_sync_thread);
 			}
 		}
 
