@@ -508,6 +508,7 @@ txg_sync_thread(void *arg)
 	tx_state_t *tx = &dp->dp_tx;
 	callb_cpr_t cpr;
 	clock_t start, delta;
+	boolean_t checked_quiescing = B_FALSE;
 
 	(void) spl_fstrans_mark();
 	txg_thread_enter(tx, &cpr);
@@ -549,8 +550,18 @@ txg_sync_thread(void *arg)
 			txg_thread_wait(tx, &cpr, &tx->tx_quiesce_done_cv, 0);
 		}
 
-		if (tx->tx_exiting)
-			txg_thread_exit(tx, &cpr, &tx->tx_sync_thread);
+		if (tx->tx_exiting) {
+			if (checked_quiescing)
+				txg_thread_exit(tx, &cpr, &tx->tx_sync_thread);
+			else {
+				while (tx->tx_threads != 1)
+					txg_thread_wait(tx, &cpr, &tx->tx_exit_cv, 0);
+				if (tx->tx_quiesced_txg)
+					checked_quiescing = B_TRUE;
+				else
+					txg_thread_exit(tx, &cpr, &tx->tx_sync_thread);
+			}
+		}
 
 		/*
 		 * Consume the quiesced txg which has been handed off to
