@@ -551,15 +551,17 @@ txg_sync_thread(void *arg)
 		}
 
 		if (tx->tx_exiting) {
-			if (checked_quiescing)
+			if (checked_quiescing) {
 				txg_thread_exit(tx, &cpr, &tx->tx_sync_thread);
-			else {
+			} else {
 				while (tx->tx_threads != 1)
-					txg_thread_wait(tx, &cpr, &tx->tx_exit_cv, 0);
+					txg_thread_wait(tx, &cpr,
+							&tx->tx_exit_cv, 0);
 				if (tx->tx_quiesced_txg)
 					checked_quiescing = B_TRUE;
 				else
-					txg_thread_exit(tx, &cpr, &tx->tx_sync_thread);
+					txg_thread_exit(tx, &cpr,
+							&tx->tx_sync_thread);
 			}
 		}
 
