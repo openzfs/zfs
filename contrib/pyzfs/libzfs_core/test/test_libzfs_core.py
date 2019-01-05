@@ -4138,7 +4138,7 @@ class _TempPool(object):
                     self._zpool_create, stderr=subprocess.STDOUT)
                 break
             except subprocess.CalledProcessError as e:
-                if 'pool is busy' in e.output and retry < 5:
+                if b'pool is busy' in e.output and retry < 5:
                     retry += 1
                     time.sleep(1)
                     continue
