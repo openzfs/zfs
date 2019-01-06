@@ -364,7 +364,8 @@ get_usage(zpool_help_t idx)
 	case HELP_REOPEN:
 		return (gettext("\treopen [-n] <pool>\n"));
 	case HELP_INITIALIZE:
-		return (gettext("\tinitialize [-cs] <pool> [<device> ...]\n"));
+		return (gettext("\tinitialize [-c | -s] <pool> "
+		    "[<device> ...]\n"));
 	case HELP_SCRUB:
 		return (gettext("\tscrub [-s | -p] <pool> ...\n"));
 	case HELP_RESILVER:
@@ -506,7 +507,7 @@ usage(boolean_t requested)
 }
 
 /*
- * zpool initialize [-cs] <pool> [<vdev> ...]
+ * zpool initialize [-c | -s] <pool> [<vdev> ...]
  * Initialize all unused blocks in the specified vdevs, or all vdevs in the pool
  * if none specified.
  *
@@ -532,7 +533,8 @@ zpool_do_initialize(int argc, char **argv)
 	while ((c = getopt_long(argc, argv, "cs", long_options, NULL)) != -1) {
 		switch (c) {
 		case 'c':
-			if (cmd_type != POOL_INITIALIZE_DO) {
+			if (cmd_type != POOL_INITIALIZE_DO &&
+			    cmd_type != POOL_INITIALIZE_CANCEL) {
 				(void) fprintf(stderr, gettext("-c cannot be "
 				    "combined with other options\n"));
 				usage(B_FALSE);
@@ -540,7 +542,8 @@ zpool_do_initialize(int argc, char **argv)
 			cmd_type = POOL_INITIALIZE_CANCEL;
 			break;
 		case 's':
-			if (cmd_type != POOL_INITIALIZE_DO) {
+			if (cmd_type != POOL_INITIALIZE_DO &&
+			    cmd_type != POOL_INITIALIZE_SUSPEND) {
 				(void) fprintf(stderr, gettext("-s cannot be "
 				    "combined with other options\n"));
 				usage(B_FALSE);

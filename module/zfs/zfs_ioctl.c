@@ -3873,30 +3873,21 @@ static const zfs_ioc_key_t zfs_keys_pool_initialize[] = {
 static int
 zfs_ioc_pool_initialize(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 {
-	spa_t *spa;
-	int error;
-
-	error = spa_open(poolname, &spa, FTAG);
-	if (error != 0)
-		return (error);
-
 	uint64_t cmd_type;
 	if (nvlist_lookup_uint64(innvl, ZPOOL_INITIALIZE_COMMAND,
 	    &cmd_type) != 0) {
-		spa_close(spa, FTAG);
 		return (SET_ERROR(EINVAL));
 	}
+
 	if (!(cmd_type == POOL_INITIALIZE_CANCEL ||
 	    cmd_type == POOL_INITIALIZE_DO ||
 	    cmd_type == POOL_INITIALIZE_SUSPEND)) {
-		spa_close(spa, FTAG);
 		return (SET_ERROR(EINVAL));
 	}
 
 	nvlist_t *vdev_guids;
 	if (nvlist_lookup_nvlist(innvl, ZPOOL_INITIALIZE_VDEVS,
 	    &vdev_guids) != 0) {
-		spa_close(spa, FTAG);
 		return (SET_ERROR(EINVAL));
 	}
 
@@ -3904,10 +3895,14 @@ zfs_ioc_pool_initialize(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 	    pair != NULL; pair = nvlist_next_nvpair(vdev_guids, pair)) {
 		uint64_t vdev_guid;
 		if (nvpair_value_uint64(pair, &vdev_guid) != 0) {
-			spa_close(spa, FTAG);
 			return (SET_ERROR(EINVAL));
 		}
 	}
+
+	spa_t *spa;
+	int error = spa_open(poolname, &spa, FTAG);
+	if (error != 0)
+		return (error);
 
 	nvlist_t *vdev_errlist = fnvlist_alloc();
 	int total_errors = spa_vdev_initialize(spa, vdev_guids, cmd_type,

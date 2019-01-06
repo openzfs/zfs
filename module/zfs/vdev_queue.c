@@ -946,11 +946,29 @@ module_param(zfs_vdev_async_write_min_active, int, 0644);
 MODULE_PARM_DESC(zfs_vdev_async_write_min_active,
 	"Min active async write I/Os per vdev");
 
+module_param(zfs_vdev_initializing_max_active, int, 0644);
+MODULE_PARM_DESC(zfs_vdev_initializing_max_active,
+	"Max active initializing I/Os per vdev");
+
+module_param(zfs_vdev_initializing_min_active, int, 0644);
+MODULE_PARM_DESC(zfs_vdev_initializing_min_active,
+	"Min active initializing I/Os per vdev");
+
+module_param(zfs_vdev_removal_max_active, int, 0644);
+MODULE_PARM_DESC(zfs_vdev_removal_max_active,
+	"Max active removal I/Os per vdev");
+
+module_param(zfs_vdev_removal_min_active, int, 0644);
+MODULE_PARM_DESC(zfs_vdev_removal_min_active,
+	"Min active removal I/Os per vdev");
+
 module_param(zfs_vdev_scrub_max_active, int, 0644);
-MODULE_PARM_DESC(zfs_vdev_scrub_max_active, "Max active scrub I/Os per vdev");
+MODULE_PARM_DESC(zfs_vdev_scrub_max_active,
+	"Max active scrub I/Os per vdev");
 
 module_param(zfs_vdev_scrub_min_active, int, 0644);
-MODULE_PARM_DESC(zfs_vdev_scrub_min_active, "Min active scrub I/Os per vdev");
+MODULE_PARM_DESC(zfs_vdev_scrub_min_active,
+	"Min active scrub I/Os per vdev");
 
 module_param(zfs_vdev_sync_read_max_active, int, 0644);
 MODULE_PARM_DESC(zfs_vdev_sync_read_max_active,
