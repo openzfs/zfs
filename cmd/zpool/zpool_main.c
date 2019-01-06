@@ -5067,7 +5067,7 @@ zpool_do_iostat(int argc, char **argv)
 			if (((++cb.cb_iteration == 1 && !skip) ||
 			    (skip != verbose)) &&
 			    (!(cb.cb_flags & IOS_ANYHISTO_M)) &&
-			    !cb.cb_scripted || (!headers_once && (cb.iteration%winheight)==0))
+			    !cb.cb_scripted || (!headers_once && (cb.cb_iteration%winheight)==0))
 				print_iostat_header(&cb);
 
 			if (skip) {
