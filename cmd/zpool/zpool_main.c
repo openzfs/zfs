@@ -4748,6 +4748,7 @@ get_namewidth_iostat(zpool_handle_t *zhp, void *data)
  *	-w	Display latency histograms
  *	-r	Display request size histogram
  *	-T	Display a timestamp in date(1) or Unix format
+ *	-n  Only print headers once
  *
  * This command can be tricky because we want to be able to deal with pool
  * creation/destruction as well as vdev configuration changes.  The bulk of this
@@ -4763,6 +4764,8 @@ zpool_do_iostat(int argc, char **argv)
 	int npools;
 	float interval = 0;
 	unsigned long count = 0;
+    struct winsize win;
+    int winheight = 24;         // Default number of terminal rows
 	zpool_list_t *list;
 	boolean_t verbose = B_FALSE;
 	boolean_t latency = B_FALSE, l_histo = B_FALSE, rq_histo = B_FALSE;
@@ -4771,6 +4774,7 @@ zpool_do_iostat(int argc, char **argv)
 	boolean_t guid = B_FALSE;
 	boolean_t follow_links = B_FALSE;
 	boolean_t full_name = B_FALSE;
+    bollean_t headers_once = B_FALSE;
 	iostat_cbdata_t cb = { 0 };
 	char *cmd = NULL;
 
@@ -4844,6 +4848,9 @@ zpool_do_iostat(int argc, char **argv)
 		case 'y':
 			omit_since_boot = B_TRUE;
 			break;
+        case 'n':
+            headers_once = B_TRUE;
+            break;
 		case 'h':
 			usage(B_FALSE);
 			break;
@@ -5005,6 +5012,10 @@ zpool_do_iostat(int argc, char **argv)
 		return (1);
 	}
 
+
+    if(ioctl(1,TIOCGWINSZ, &win) != -1 && win.ws_row > 0)
+        winheight = win.ws_row;
+
 	for (;;) {
 		if ((npools = pool_list_count(list)) == 0)
 			(void) fprintf(stderr, gettext("no pools available\n"));
@@ -5051,11 +5062,12 @@ zpool_do_iostat(int argc, char **argv)
 			 *
 			 * The histogram code explicitly prints its header on
 			 * every vdev, so skip this for histograms.
+             *
 			 */
 			if (((++cb.cb_iteration == 1 && !skip) ||
 			    (skip != verbose)) &&
 			    (!(cb.cb_flags & IOS_ANYHISTO_M)) &&
-			    !cb.cb_scripted)
+			    !cb.cb_scriptedi || (!silent && (cb.iteration%winheight)==0))
 				print_iostat_header(&cb);
 
 			if (skip) {
