@@ -22,6 +22,8 @@
 *.swp
 *.gcno
 *.gcda
+*.pyc
+*.pyo
 .deps
 .libs
 .dirstamp

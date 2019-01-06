@@ -26,6 +26,7 @@ corresponding interface functions.
 
 The parameters and exceptions are documented in the `libzfs_core` interfaces.
 """
+from __future__ import absolute_import, division, print_function
 
 import errno
 import re
@@ -102,8 +103,9 @@ def lzc_snapshot_translate_errors(ret, errlist, snaps, props):
 
     def _map(ret, name):
         if ret == errno.EXDEV:
-            pool_names = map(_pool_name, snaps)
-            same_pool = all(x == pool_names[0] for x in pool_names)
+            pool_names = iter(map(_pool_name, snaps))
+            pool_name = next(pool_names, None)
+            same_pool = all(x == pool_name for x in pool_names)
             if same_pool:
                 return lzc_exc.DuplicateSnapshots(name)
             else:
@@ -270,7 +272,8 @@ def lzc_hold_translate_errors(ret, errlist, holds, fd):
 def lzc_release_translate_errors(ret, errlist, holds):
     if ret == 0:
         return
-    for _, hold_list in holds.iteritems():
+    for snap in holds:
+        hold_list = holds[snap]
         if not isinstance(hold_list, list):
             raise lzc_exc.TypeError('holds must be in a list')
 
@@ -705,15 +708,17 @@ def _handle_err_list(ret, errlist, names, exception, mapper):
 
     if len(errlist) == 0:
         suppressed_count = 0
+        names = list(zip(names, range(2)))
         if len(names) == 1:
-            name = names[0]
+            name, _ = names[0]
         else:
             name = None
         errors = [mapper(ret, name)]
     else:
         errors = []
         suppressed_count = errlist.pop('N_MORE_ERRORS', 0)
-        for name, err in errlist.iteritems():
+        for name in errlist:
+            err = errlist[name]
             errors.append(mapper(err, name))
 
     raise exception(errors, suppressed_count)
@@ -727,7 +732,7 @@ def _pool_name(name):
     '@' separates a snapshot name from the rest of the dataset name.
     '#' separates a bookmark name from the rest of the dataset name.
     '''
-    return re.split('[/@#]', name, 1)[0]
+    return re.split(b'[/@#]', name, 1)[0]
 
 
 def _fs_name(name):
@@ -737,26 +742,26 @@ def _fs_name(name):
     '@' separates a snapshot name from the rest of the dataset name.
     '#' separates a bookmark name from the rest of the dataset name.
     '''
-    return re.split('[@#]', name, 1)[0]
+    return re.split(b'[@#]', name, 1)[0]
 
 
 def _is_valid_name_component(component):
-    allowed = string.ascii_letters + string.digits + '-_.: '
-    return component and all(x in allowed for x in component)
+    allowed = string.ascii_letters + string.digits + u'-_.: '
+    return component and all(x in allowed.encode() for x in component)
 
 
 def _is_valid_fs_name(name):
-    return name and all(_is_valid_name_component(c) for c in name.split('/'))
+    return name and all(_is_valid_name_component(c) for c in name.split(b'/'))
 
 
 def _is_valid_snap_name(name):
-    parts = name.split('@')
+    parts = name.split(b'@')
     return (len(parts) == 2 and _is_valid_fs_name(parts[0]) and
             _is_valid_name_component(parts[1]))
 
 
 def _is_valid_bmark_name(name):
-    parts = name.split('#')
+    parts = name.split(b'#')
     return (len(parts) == 2 and _is_valid_fs_name(parts[0]) and
             _is_valid_name_component(parts[1]))
 

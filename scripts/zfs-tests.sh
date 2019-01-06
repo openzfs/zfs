@@ -247,6 +247,10 @@ constrain_path() {
 	ln -fs "$STF_PATH/gunzip" "$STF_PATH/uncompress"
 	ln -fs "$STF_PATH/exportfs" "$STF_PATH/share"
 	ln -fs "$STF_PATH/exportfs" "$STF_PATH/unshare"
+
+	if [ -L "$STF_PATH/arc_summary3" ]; then
+		ln -fs "$STF_PATH/arc_summary3" "$STF_PATH/arc_summary"
+	fi
 }
 
 #

@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 #
 # Print out statistics for all cached dmu buffers.  This information
 # is available through the dbufs kstat and may be post-processed as
@@ -26,6 +26,8 @@
 #
 # Copyright (C) 2013 Lawrence Livermore National Security, LLC.
 # Produced at Lawrence Livermore National Laboratory (cf, DISCLAIMER).
+#
+# This script must remain compatible with Python 2.6+ and Python 3.4+.
 #
 
 import sys
@@ -106,7 +108,7 @@ cols = {
 hdr = None
 xhdr = None
 sep = "  "  # Default separator is 2 spaces
-cmd = ("Usage: dbufstat.py [-bdhnrtvx] [-i file] [-f fields] [-o file] "
+cmd = ("Usage: dbufstat [-bdhnrtvx] [-i file] [-f fields] [-o file] "
        "[-s string] [-F filter]\n")
 raw = 0
 
@@ -167,11 +169,11 @@ def usage():
                      "character or string\n")
     sys.stderr.write("\t -F : Filter output by value or regex\n")
     sys.stderr.write("\nExamples:\n")
-    sys.stderr.write("\tdbufstat.py -d -o /tmp/d.log\n")
-    sys.stderr.write("\tdbufstat.py -t -s \",\" -o /tmp/t.log\n")
-    sys.stderr.write("\tdbufstat.py -v\n")
-    sys.stderr.write("\tdbufstat.py -d -f pool,object,objset,dsize,cached\n")
-    sys.stderr.write("\tdbufstat.py -bx -F dbc=1,objset=54,pool=testpool\n")
+    sys.stderr.write("\tdbufstat -d -o /tmp/d.log\n")
+    sys.stderr.write("\tdbufstat -t -s \",\" -o /tmp/t.log\n")
+    sys.stderr.write("\tdbufstat -v\n")
+    sys.stderr.write("\tdbufstat -d -f pool,object,objset,dsize,cached\n")
+    sys.stderr.write("\tdbufstat -bx -F dbc=1,objset=54,pool=testpool\n")
     sys.stderr.write("\n")
 
     sys.exit(1)

@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 #
 # Print out ZFS ARC Statistics exported via kstat(1)
 # For a definition of fields, or usage, use arctstat.pl -v
@@ -42,7 +42,8 @@
 # @hdr is the array of fields that needs to be printed, so we
 # just iterate over this array and print the values using our pretty printer.
 #
-
+# This script must remain compatible with Python 2.6+ and Python 3.4+.
+#
 
 import sys
 import time
@@ -109,7 +110,7 @@ opfile = None
 sep = "  "              # Default separator is 2 spaces
 version = "0.4"
 l2exist = False
-cmd = ("Usage: arcstat.py [-hvx] [-f fields] [-o file] [-s string] [interval "
+cmd = ("Usage: arcstat [-hvx] [-f fields] [-o file] [-s string] [interval "
        "[count]]\n")
 cur = {}
 d = {}
@@ -138,10 +139,10 @@ def usage():
     sys.stderr.write("\t -s : Override default field separator with custom "
                      "character or string\n")
     sys.stderr.write("\nExamples:\n")
-    sys.stderr.write("\tarcstat.py -o /tmp/a.log 2 10\n")
-    sys.stderr.write("\tarcstat.py -s \",\" -o /tmp/a.log 2 10\n")
-    sys.stderr.write("\tarcstat.py -v\n")
-    sys.stderr.write("\tarcstat.py -f time,hit%,dh%,ph%,mh% 1\n")
+    sys.stderr.write("\tarcstat -o /tmp/a.log 2 10\n")
+    sys.stderr.write("\tarcstat -s \",\" -o /tmp/a.log 2 10\n")
+    sys.stderr.write("\tarcstat -v\n")
+    sys.stderr.write("\tarcstat -f time,hit%,dh%,ph%,mh% 1\n")
     sys.stderr.write("\n")
 
     sys.exit(1)

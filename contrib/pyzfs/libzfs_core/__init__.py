@@ -38,6 +38,7 @@ please visit its `GitHub repository <https://github.com/zfsonlinux/zfs>`_.
 
     Maximum length of any ZFS name.
 '''
+from __future__ import absolute_import, division, print_function
 
 from ._constants import (
     MAXNAMELEN,
