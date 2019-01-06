@@ -4774,7 +4774,7 @@ zpool_do_iostat(int argc, char **argv)
 	boolean_t guid = B_FALSE;
 	boolean_t follow_links = B_FALSE;
 	boolean_t full_name = B_FALSE;
-    bollean_t headers_once = B_FALSE;
+    boolean_t headers_once = B_FALSE;
 	iostat_cbdata_t cb = { 0 };
 	char *cmd = NULL;
 
