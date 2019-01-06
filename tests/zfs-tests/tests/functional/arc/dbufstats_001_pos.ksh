@@ -37,7 +37,7 @@
 # 2. Store output from dbufs kstat
 # 3. Store output from dbufstats kstat
 # 4. Compare stats presented in dbufstats with stat generated using
-#    dbufstat.py and the dbufs kstat output
+#    dbufstat and the dbufs kstat output
 #
 
 DBUFSTATS_FILE=$(mktemp $TEST_BASE_DIR/dbufstats.out.XXXXXX)
@@ -56,7 +56,7 @@ function testdbufstat # stat_name dbufstat_filter
         [[ -n "$2" ]] && filter="-F $2"
 
 	from_dbufstat=$(grep -w "$name" "$DBUFSTATS_FILE" | awk '{ print $3 }')
-	from_dbufs=$(dbufstat.py -bxn -i "$DBUFS_FILE" "$filter" | wc -l)
+	from_dbufs=$(dbufstat -bxn -i "$DBUFS_FILE" "$filter" | wc -l)
 
 	within_tolerance $from_dbufstat $from_dbufs 9 \
 	    || log_fail "Stat $name exceeded tolerance"

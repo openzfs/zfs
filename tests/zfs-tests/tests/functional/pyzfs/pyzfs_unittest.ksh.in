@@ -28,7 +28,7 @@
 verify_runnable "global"
 
 # Verify that the required dependencies for testing are installed.
-python -c "import cffi" 2>/dev/null
+@PYTHON@ -c "import cffi" 2>/dev/null
 if [ $? -eq 1 ]; then
 	log_unsupported "python-cffi not found by Python"
 fi
@@ -37,7 +37,7 @@ fi
 # only if pyzfs was not installed due to missing, build-time, dependencies; if
 # we cannot load "libzfs_core" due to other reasons, for instance an API/ABI
 # mismatch, we want to report it.
-python -c '
+@PYTHON@ -c '
 import pkgutil, sys
 sys.exit(pkgutil.find_loader("libzfs_core") is None)'
 if [ $? -eq 1 ]; then
@@ -47,7 +47,7 @@ fi
 log_assert "Verify the nvlist and libzfs_core Python unittest run successfully"
 
 # NOTE: don't use log_must() here because it makes output unreadable
-python -m unittest --verbose \
+@PYTHON@ -m unittest --verbose \
 	libzfs_core.test.test_nvlist.TestNVList \
 	libzfs_core.test.test_libzfs_core.ZFSTest
 if [ $? -ne 0 ]; then

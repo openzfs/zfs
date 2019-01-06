@@ -17,6 +17,7 @@
 """
 Utility functions for casting to a specific C type.
 """
+from __future__ import absolute_import, division, print_function
 
 from .bindings.libnvpair import ffi as _ffi
 
@@ -30,8 +31,8 @@ def _ffi_cast(type_name):
             try:
                 type_info.elements[value]
             except KeyError as e:
-                raise OverflowError('Invalid enum <%s> value %s' %
-                                    (type_info.cname, e.message))
+                raise OverflowError('Invalid enum <%s> value %s: %s' %
+                                    (type_info.cname, value, e))
         else:
             _ffi.new(type_name + '*', value)
         return _ffi.cast(type_name, value)

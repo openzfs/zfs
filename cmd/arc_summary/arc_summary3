@@ -346,7 +346,7 @@ def get_version(request):
         error_msg = '(ERROR: "{0}" requested)'.format(request)
         return error_msg
 
-    # The original arc_summary.py called /sbin/modinfo/{spl,zfs} to get
+    # The original arc_summary called /sbin/modinfo/{spl,zfs} to get
     # the version information. We switch to /sys/module/{spl,zfs}/version
     # to make sure we get what is really loaded in the kernel
     command = ["cat", "/sys/module/{0}/version".format(request)]
@@ -374,7 +374,7 @@ def print_header():
     """
 
     # datetime is now recommended over time but we keep the exact formatting
-    # from the older version of arc_summary.py in case there are scripts
+    # from the older version of arc_summary in case there are scripts
     # that expect it in this way
     daydate = time.strftime(DATE_FORMAT)
     spc_date = LINE_LENGTH-len(daydate)
@@ -586,7 +586,7 @@ def section_archits(kstats_dict):
 
     # For some reason, anon_hits can turn negative, which is weird. Until we
     # have figured out why this happens, we just hide the problem, following
-    # the behavior of the original arc_summary.py
+    # the behavior of the original arc_summary.
     if anon_hits >= 0:
         prt_i2('Anonymously used:',
                f_perc(anon_hits, arc_stats['hits']), f_hits(anon_hits))
