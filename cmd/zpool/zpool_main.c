@@ -342,7 +342,7 @@ get_usage(zpool_help_t idx)
 		return (gettext("\tiostat [[[-c [script1,script2,...]"
 		    "[-lq]]|[-rw]] [-T d | u] [-ghHLpPvy]\n"
 		    "\t    [[pool ...]|[pool vdev ...]|[vdev ...]]"
-		    " [interval [count]]\n"));
+		    " [[-n] interval [count]]\n"));
 	case HELP_LABELCLEAR:
 		return (gettext("\tlabelclear [-f] <vdev>\n"));
 	case HELP_LIST:
@@ -4785,7 +4785,7 @@ zpool_do_iostat(int argc, char **argv)
 	uint64_t unsupported_flags;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "c:gLPT:vyhplqrwH")) != -1) {
+	while ((c = getopt(argc, argv, "c:gLPT:vyhplqrwnH")) != -1) {
 		switch (c) {
 		case 'c':
 			if (cmd != NULL) {
@@ -5065,9 +5065,9 @@ zpool_do_iostat(int argc, char **argv)
              *
 			 */
 			if (((++cb.cb_iteration == 1 && !skip) ||
-			    (skip != verbose)) &&
+			    (skip != verbose) || (!headers_once && (cb.cb_iteration%winheight)==0)) &&
 			    (!(cb.cb_flags & IOS_ANYHISTO_M)) &&
-			    !cb.cb_scripted || (!headers_once && (cb.cb_iteration%winheight)==0))
+			    !cb.cb_scripted)
 				print_iostat_header(&cb);
 
 			if (skip) {

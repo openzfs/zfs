@@ -118,7 +118,7 @@
 .Cm iostat
 .Op Oo Oo Fl c Ar SCRIPT Oc Oo Fl lq Oc Oc Ns | Ns Fl rw
 .Op Fl T Sy u Ns | Ns Sy d
-.Op Fl ghHLpPvy
+.Op Fl ghHLpPvyn
 .Oo Oo Ar pool Ns ... Oc Ns | Ns Oo Ar pool vdev Ns ... Oc Ns | Ns Oo Ar vdev Ns ... Oc Oc
 .Op Ar interval Op Ar count
 .Nm
@@ -1600,7 +1600,7 @@ Will also set -o cachefile=none when not explicitly specified.
 .Cm iostat
 .Op Oo Oo Fl c Ar SCRIPT Oc Oo Fl lq Oc Oc Ns | Ns Fl rw
 .Op Fl T Sy u Ns | Ns Sy d
-.Op Fl ghHLpPvy
+.Op Fl ghHLpPvyn
 .Oo Oo Ar pool Ns ... Oc Ns | Ns Oo Ar pool vdev Ns ... Oc Ns | Ns Oo Ar vdev Ns ... Oc Oc
 .Op Ar interval Op Ar count
 .Xc
@@ -1612,7 +1612,10 @@ When given an
 .Ar interval ,
 the statistics are printed every
 .Ar interval
-seconds until ^C is pressed. If count is specified, the command exits
+seconds until ^C is pressed. If 
+.Fl n
+flag is enabled headers are printed only once, otherwise they are 
+printed every time screen fills. If count is specified, the command exits
 after count reports are printed. The first report printed is always
 the statistics since boot regardless of whether
 .Ar interval
@@ -1729,12 +1732,15 @@ pool, in addition to the pool-wide statistics.
 Omit statistics since boot.
 Normally the first line of output reports the statistics since boot.
 This option suppresses that first line of output.
+.It Fl n
+Print headers only once when passed 
+.Ar interval
 .It Fl w
 Display latency histograms:
 .Pp
 .Ar total_wait :
 Total IO time (queuing + disk IO time).
-.Ar disk_wait :
+.Ar disk_wait 
 Disk IO time (time reading/writing the disk).
 .Ar syncq_wait :
 Amount of time IO spent in synchronous priority queues.  Does not include
