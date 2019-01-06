@@ -131,6 +131,7 @@ AC_CONFIG_FILES([
 	contrib/initramfs/scripts/Makefile
 	contrib/initramfs/scripts/local-top/Makefile
 	contrib/pyzfs/Makefile
+	contrib/pyzfs/setup.py
 	module/Makefile
 	module/avl/Makefile
 	module/nvpair/Makefile
