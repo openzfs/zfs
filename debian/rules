@@ -42,6 +42,7 @@ endif
 	  --with-udevdir=/lib/udev \
 	  --with-systemdunitdir=/lib/systemd/system \
 	  --with-systemdpresetdir=/lib/systemd/system-preset \
+	  --with-python=3 \
 	  --with-config=user \
 	  --enable-debuginfo
 
@@ -53,14 +54,11 @@ override_dh_auto_install:
 	@# Install the utilities.
 	$(MAKE) install DESTDIR='$(CURDIR)/debian/tmp'
 
- 
 	# Move from bin_dir to /usr/sbin
-	# Remove suffix (.py) as per policy 10.4 - Scripts
-	# https://www.debian.org/doc/debian-policy/ch-files.html#s-scripts
 	mkdir -p '$(CURDIR)/debian/tmp/usr/sbin/'
-	mv '$(CURDIR)/debian/tmp/usr/bin/arc_summary.py' '$(CURDIR)/debian/tmp/usr/sbin/arc_summary'
-	mv '$(CURDIR)/debian/tmp/usr/bin/arcstat.py' '$(CURDIR)/debian/tmp/usr/sbin/arcstat'
-	mv '$(CURDIR)/debian/tmp/usr/bin/dbufstat.py' '$(CURDIR)/debian/tmp/usr/sbin/dbufstat'
+	mv '$(CURDIR)/debian/tmp/usr/bin/arc_summary' '$(CURDIR)/debian/tmp/usr/sbin/arc_summary'
+	mv '$(CURDIR)/debian/tmp/usr/bin/arcstat' '$(CURDIR)/debian/tmp/usr/sbin/arcstat'
+	mv '$(CURDIR)/debian/tmp/usr/bin/dbufstat' '$(CURDIR)/debian/tmp/usr/sbin/dbufstat'
 
 	@# Zed has dependencies outside of the system root.
 	$(INSTALL) -d '$(CURDIR)/debian/tmp/usr/sbin/'

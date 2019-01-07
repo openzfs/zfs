@@ -22,7 +22,6 @@ sbin/zhack
 sbin/zdb
 sbin/zpool
 sbin/zfs
-usr/bin/arc_summary3.py
 usr/bin/zgenhostid
 usr/sbin/arc_summary
 usr/sbin/arcstat
