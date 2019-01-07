@@ -8615,7 +8615,8 @@ spa_man_trim(spa_t *spa, uint64_t rate, boolean_t fulltrim)
 	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 	for (uint64_t i = 0; i < spa->spa_root_vdev->vdev_children; i++) {
 		vdev_t *vd = spa->spa_root_vdev->vdev_child[i];
-		if (!vdev_is_concrete(vd))
+		if (!vdev_is_concrete(vd) || vd->vdev_ms == NULL ||
+		    vd->vdev_ms[0] == NULL)
 			continue;
 		vdev_trim_info_t *vti = kmem_zalloc(sizeof (*vti), KM_SLEEP);
 		vti->vti_vdev = vd;
@@ -8765,9 +8766,10 @@ spa_min_trim_rate(spa_t *spa)
 	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 	for (i = 0; i < spa->spa_root_vdev->vdev_children; i++) {
 		vdev_t *cvd = spa->spa_root_vdev->vdev_child[i];
-		if (vdev_is_concrete(cvd))
-			smallest_ms_sz = MIN(smallest_ms_sz,
-			    cvd->vdev_ms[0]->ms_size);
+		if (!vdev_is_concrete(cvd) || cvd->vdev_ms == NULL ||
+		    cvd->vdev_ms[0] == NULL)
+			continue;
+		smallest_ms_sz = MIN(smallest_ms_sz, cvd->vdev_ms[0]->ms_size);
 	}
 	spa_config_exit(spa, SCL_CONFIG, FTAG);
 	VERIFY(smallest_ms_sz != 0);
