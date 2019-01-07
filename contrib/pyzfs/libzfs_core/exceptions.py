@@ -17,6 +17,7 @@
 """
 Exceptions that can be raised by libzfs_core operations.
 """
+from __future__ import absolute_import, division, print_function
 
 import errno
 from ._constants import (

@@ -26,6 +26,7 @@ increased convenience.  Output parameters are not used and return values
 are directly returned.  Error conditions are signalled by exceptions
 rather than by integer error codes.
 """
+from __future__ import absolute_import, division, print_function
 
 import errno
 import functools
@@ -112,7 +113,7 @@ def lzc_create(name, ds_type='zfs', props=None, key=None):
     if props is None:
         props = {}
     if key is None:
-        key = bytes("")
+        key = b""
     else:
         key = bytes(key)
     if ds_type == 'zfs':
@@ -485,8 +486,8 @@ def lzc_hold(holds, fd=None):
     errors.lzc_hold_translate_errors(ret, errlist, holds, fd)
     # If there is no error (no exception raised by _handleErrList), but errlist
     # is not empty, then it contains missing snapshots.
-    assert all(x == errno.ENOENT for x in errlist.itervalues())
-    return errlist.keys()
+    assert all(errlist[x] == errno.ENOENT for x in errlist)
+    return list(errlist.keys())
 
 
 def lzc_release(holds):
@@ -521,7 +522,8 @@ def lzc_release(holds):
     '''
     errlist = {}
     holds_dict = {}
-    for snap, hold_list in holds.iteritems():
+    for snap in holds:
+        hold_list = holds[snap]
         if not isinstance(hold_list, list):
             raise TypeError('holds must be in a list')
         holds_dict[snap] = {hold: None for hold in hold_list}
@@ -531,8 +533,8 @@ def lzc_release(holds):
     errors.lzc_release_translate_errors(ret, errlist, holds)
     # If there is no error (no exception raised by _handleErrList), but errlist
     # is not empty, then it contains missing snapshots and tags.
-    assert all(x == errno.ENOENT for x in errlist.itervalues())
-    return errlist.keys()
+    assert all(errlist[x] == errno.ENOENT for x in errlist)
+    return list(errlist.keys())
 
 
 def lzc_get_holds(snapname):
@@ -846,7 +848,7 @@ def lzc_change_key(fsname, crypt_cmd, props=None, key=None):
     if props is None:
         props = {}
     if key is None:
-        key = bytes("")
+        key = b""
     else:
         key = bytes(key)
     cmd = {
@@ -929,13 +931,13 @@ def lzc_channel_program(
         error.
     '''
     output = {}
-    params_nv = nvlist_in({"argv": params})
+    params_nv = nvlist_in({b"argv": params})
     with nvlist_out(output) as outnvl:
         ret = _lib.lzc_channel_program(
             poolname, program, instrlimit, memlimit, params_nv, outnvl)
     errors.lzc_channel_program_translate_error(
-        ret, poolname, output.get("error"))
-    return output.get("return")
+        ret, poolname, output.get(b"error"))
+    return output.get(b"return")
 
 
 def lzc_channel_program_nosync(
@@ -974,13 +976,13 @@ def lzc_channel_program_nosync(
         error.
     '''
     output = {}
-    params_nv = nvlist_in({"argv": params})
+    params_nv = nvlist_in({b"argv": params})
     with nvlist_out(output) as outnvl:
         ret = _lib.lzc_channel_program_nosync(
             poolname, program, instrlimit, memlimit, params_nv, outnvl)
     errors.lzc_channel_program_translate_error(
-        ret, poolname, output.get("error"))
-    return output.get("return")
+        ret, poolname, output.get(b"error"))
+    return output.get(b"return")
 
 
 def lzc_receive_resumable(
@@ -1404,7 +1406,7 @@ def lzc_receive_with_cmdprops(
     if cmdprops is None:
         cmdprops = {}
     if key is None:
-        key = bytes("")
+        key = b""
     else:
         key = bytes(key)
 
@@ -1509,7 +1511,7 @@ def lzc_sync(poolname, force=False):
         `innvl` has been replaced by the `force` boolean and `outnvl` has been
         conveniently removed since it's not used.
     '''
-    innvl = nvlist_in({"force": force})
+    innvl = nvlist_in({b"force": force})
     with nvlist_out({}) as outnvl:
         ret = _lib.lzc_sync(poolname, innvl, outnvl)
     errors.lzc_sync_translate_error(ret, poolname)
@@ -1873,9 +1875,9 @@ def lzc_get_props(name):
         mountpoint_val = '/' + name
     else:
         mountpoint_val = None
-    result = {k: v['value'] for k, v in result.iteritems()}
+    result = {k: result[k]['value'] for k in result}
     if 'clones' in result:
-        result['clones'] = result['clones'].keys()
+        result['clones'] = list(result['clones'].keys())
     if mountpoint_val is not None:
         result['mountpoint'] = mountpoint_val
     return result
