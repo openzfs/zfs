@@ -521,23 +521,28 @@ vdev_initialize_calculate_progress(vdev_t *vd)
 	}
 }
 
-static void
+static int
 vdev_initialize_load(vdev_t *vd)
 {
+	int err = 0;
 	ASSERT(spa_config_held(vd->vdev_spa, SCL_CONFIG, RW_READER) ||
 	    spa_config_held(vd->vdev_spa, SCL_CONFIG, RW_WRITER));
 	ASSERT(vd->vdev_leaf_zap != 0);
 
 	if (vd->vdev_initialize_state == VDEV_INITIALIZE_ACTIVE ||
 	    vd->vdev_initialize_state == VDEV_INITIALIZE_SUSPENDED) {
-		int err = zap_lookup(vd->vdev_spa->spa_meta_objset,
+		err = zap_lookup(vd->vdev_spa->spa_meta_objset,
 		    vd->vdev_leaf_zap, VDEV_LEAF_ZAP_INITIALIZE_LAST_OFFSET,
 		    sizeof (vd->vdev_initialize_last_offset), 1,
 		    &vd->vdev_initialize_last_offset);
-		ASSERT(err == 0 || err == ENOENT);
+		if (err == ENOENT) {
+			vd->vdev_initialize_last_offset = 0;
+			err = 0;
+		}
 	}
 
 	vdev_initialize_calculate_progress(vd);
+	return (err);
 }
 
 
@@ -604,7 +609,7 @@ vdev_initialize_thread(void *arg)
 	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 
 	vd->vdev_initialize_last_offset = 0;
-	vdev_initialize_load(vd);
+	VERIFY0(vdev_initialize_load(vd));
 
 	abd_t *deadbeef = vdev_initialize_block_alloc();
 
@@ -706,7 +711,7 @@ vdev_initialize(vdev_t *vd)
 void
 vdev_initialize_stop(vdev_t *vd, vdev_initializing_state_t tgt_state)
 {
-	spa_t *spa = vd->vdev_spa;
+	ASSERTV(spa_t *spa = vd->vdev_spa);
 	ASSERT(!spa_config_held(spa, SCL_CONFIG | SCL_STATE, RW_WRITER));
 
 	ASSERT(MUTEX_HELD(&vd->vdev_initialize_lock));
@@ -786,7 +791,7 @@ vdev_initialize_restart(vdev_t *vd)
 		if (vd->vdev_initialize_state == VDEV_INITIALIZE_SUSPENDED ||
 		    vd->vdev_offline) {
 			/* load progress for reporting, but don't resume */
-			vdev_initialize_load(vd);
+			VERIFY0(vdev_initialize_load(vd));
 		} else if (vd->vdev_initialize_state ==
 		    VDEV_INITIALIZE_ACTIVE && vdev_writeable(vd)) {
 			vdev_initialize(vd);

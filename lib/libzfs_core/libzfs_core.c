@@ -1494,21 +1494,6 @@ lzc_reopen(const char *pool_name, boolean_t scrub_restart)
 }
 
 /*
- * Create a redaction bookmark named bookname by redacting snapshot with respect
- * to all the snapshots in snapnv.
- */
-int
-lzc_redact(const char *snapshot, const char *bookname, nvlist_t *snapnv)
-{
-	nvlist_t *args = fnvlist_alloc();
-	fnvlist_add_string(args, "bookname", bookname);
-	fnvlist_add_nvlist(args, "snapnv", snapnv);
-	int error = lzc_ioctl(ZFS_IOC_REDACT, snapshot, args, NULL);
-	fnvlist_free(args);
-	return (error);
-}
-
-/*
  * Changes initializing state.
  *
  * vdevs should be a list of (<key>, guid) where guid is a uint64 vdev GUID.
@@ -1542,5 +1527,20 @@ lzc_initialize(const char *poolname, pool_initialize_func_t cmd_type,
 
 	fnvlist_free(args);
 
+	return (error);
+}
+
+/*
+ * Create a redaction bookmark named bookname by redacting snapshot with respect
+ * to all the snapshots in snapnv.
+ */
+int
+lzc_redact(const char *snapshot, const char *bookname, nvlist_t *snapnv)
+{
+	nvlist_t *args = fnvlist_alloc();
+	fnvlist_add_string(args, "bookname", bookname);
+	fnvlist_add_nvlist(args, "snapnv", snapnv);
+	int error = lzc_ioctl(ZFS_IOC_REDACT, snapshot, args, NULL);
+	fnvlist_free(args);
 	return (error);
 }
