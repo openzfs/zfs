@@ -508,7 +508,6 @@ txg_sync_thread(void *arg)
 	tx_state_t *tx = &dp->dp_tx;
 	callb_cpr_t cpr;
 	clock_t start, delta;
-	boolean_t checked_quiescing = B_FALSE;
 
 	(void) spl_fstrans_mark();
 	txg_thread_enter(tx, &cpr);
