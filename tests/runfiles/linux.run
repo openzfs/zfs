@@ -656,7 +656,8 @@ tests = ['nestedfs_001_pos']
 tags = ['functional', 'nestedfs']
 
 [tests/functional/no_space]
-tests = ['enospc_001_pos', 'enospc_002_pos', 'enospc_003_pos']
+tests = ['enospc_001_pos', 'enospc_002_pos', 'enospc_003_pos',
+    'enospc_df']
 tags = ['functional', 'no_space']
 
 [tests/functional/nopwrite]
