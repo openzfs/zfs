@@ -616,6 +616,11 @@ pre =
 post =
 tags = ['functional', 'largest_pool']
 
+[tests/functional/limits]
+tests = ['filesystem_count', 'filesystem_limit', 'snapshot_count',
+    'snapshot_limit']
+tags = ['functional', 'limits']
+
 [tests/functional/link_count]
 tests = ['link_count_001']
 tags = ['functional', 'link_count']

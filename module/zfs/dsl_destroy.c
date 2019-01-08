@@ -792,14 +792,8 @@ dsl_dir_destroy_sync(uint64_t ddobj, dmu_tx_t *tx)
 
 	ASSERT0(dsl_dir_phys(dd)->dd_head_dataset_obj);
 
-	/*
-	 * Decrement the filesystem count for all parent filesystems.
-	 *
-	 * When we receive an incremental stream into a filesystem that already
-	 * exists, a temporary clone is created.  We never count this temporary
-	 * clone, whose name begins with a '%'.
-	 */
-	if (dd->dd_myname[0] != '%' && dd->dd_parent != NULL)
+	/* Decrement the filesystem count for all parent filesystems. */
+	if (dd->dd_parent != NULL)
 		dsl_fs_ss_count_adjust(dd->dd_parent, -1,
 		    DD_FIELD_FILESYSTEM_COUNT, tx);
 
