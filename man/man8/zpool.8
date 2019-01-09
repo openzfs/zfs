@@ -116,7 +116,7 @@
 .Op Ar newpool Oo Fl t Oc
 .Nm
 .Cm initialize
-.Op Fl cs
+.Op Fl c | Fl s
 .Ar pool
 .Op Ar device Ns ...
 .Nm
@@ -187,7 +187,7 @@
 .Nm
 .Cm status
 .Oo Fl c Ar SCRIPT Oc
-.Op Fl DgLpPsvx
+.Op Fl DigLpPsvx
 .Op Fl T Sy u Ns | Ns Sy d
 .Oo Ar pool Oc Ns ...
 .Op Ar interval Op Ar count
@@ -1603,7 +1603,7 @@ Will also set -o cachefile=none when not explicitly specified.
 .It Xo
 .Nm
 .Cm initialize
-.Op Fl cs
+.Op Fl c | Fl s
 .Ar pool
 .Op Ar device Ns ...
 .Xc
@@ -2199,7 +2199,7 @@ and automatically import it.
 .Nm
 .Cm status
 .Op Fl c Op Ar SCRIPT1 Ns Oo , Ns Ar SCRIPT2 Oc Ns ...
-.Op Fl DgLpPsvx
+.Op Fl DigLpPsvx
 .Op Fl T Sy u Ns | Ns Sy d
 .Oo Ar pool Oc Ns ...
 .Op Ar interval Op Ar count
@@ -2226,6 +2226,8 @@ output.  See the
 option of
 .Nm zpool Cm iostat
 for complete details.
+.It Fl i
+Display vdev initialization status.
 .It Fl g
 Display vdev GUIDs instead of the normal device names. These GUIDs
 can be used in place of device names for the zpool

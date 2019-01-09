@@ -30,7 +30,7 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2018 Joyent, Inc.
 .\"
-.Dd July 13, 2018
+.Dd Jan 05, 2019
 .Dt ZFS 8 SMM
 .Os Linux
 .Sh NAME
@@ -4935,9 +4935,9 @@ renames the remaining snapshots, and then creates a new snapshot, as follows:
 # zfs destroy -r pool/users@7daysago
 # zfs rename -r pool/users@6daysago @7daysago
 # zfs rename -r pool/users@5daysago @6daysago
-# zfs rename -r pool/users@yesterday @5daysago
-# zfs rename -r pool/users@yesterday @4daysago
-# zfs rename -r pool/users@yesterday @3daysago
+# zfs rename -r pool/users@4daysago @5daysago
+# zfs rename -r pool/users@3daysago @4daysago
+# zfs rename -r pool/users@2daysago @3daysago
 # zfs rename -r pool/users@yesterday @2daysago
 # zfs rename -r pool/users@today @yesterday
 # zfs snapshot -r pool/users@today

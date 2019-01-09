@@ -72,6 +72,24 @@ echo -e "support or upgrade DKMS to a more current version."
 exit 1
 
 %preun
+# Are we doing an upgrade?
+if [ $1 -ne 0 ] ; then
+	# Yes we are.  Are we upgrading to a new ZFS version?
+	NEWEST_VER=$(dkms status zfs | sed 's/,//g' | sort -r -V | awk '/installed/{print $2; exit}')
+	if [ "$NEWEST_VER" != "%{version}" ] ; then
+		# Yes, it's a new ZFS version.  We'll uninstall the old module
+		# later on in this script.
+		true
+	else
+		# No, it's probably an upgrade of the same ZFS version
+		# to a new distro (zfs-dkms-0.7.12.fc28->zfs-dkms-0.7.12.fc29).
+		# Don't remove our modules, since the rebuild for the new
+		# distro will automatically delete the old modules.
+		exit 0
+	fi
+fi
+
+# If we're here then we're doing an uninstall (not upgrade).
 CONFIG_H="/var/lib/dkms/%{module}/%{version}/*/*/%{module}_config.h"
 SPEC_META_ALIAS="@PACKAGE@-@VERSION@-@RELEASE@"
 DKMS_META_ALIAS=`cat $CONFIG_H 2>/dev/null |

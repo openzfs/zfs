@@ -131,6 +131,7 @@ AC_CONFIG_FILES([
 	contrib/initramfs/scripts/Makefile
 	contrib/initramfs/scripts/local-top/Makefile
 	contrib/pyzfs/Makefile
+	contrib/pyzfs/setup.py
 	module/Makefile
 	module/avl/Makefile
 	module/nvpair/Makefile
@@ -292,6 +293,7 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/largest_pool/Makefile
 	tests/zfs-tests/tests/functional/link_count/Makefile
 	tests/zfs-tests/tests/functional/libzfs/Makefile
+	tests/zfs-tests/tests/functional/limits/Makefile
 	tests/zfs-tests/tests/functional/migration/Makefile
 	tests/zfs-tests/tests/functional/mmap/Makefile
 	tests/zfs-tests/tests/functional/mmp/Makefile

@@ -1,4 +1,4 @@
-EXTRA_DIST = libzfs_core setup.py README LICENSE docs
+EXTRA_DIST = libzfs_core setup.py.in README LICENSE docs
 
 if PYZFS_ENABLED
 all:

@@ -1899,7 +1899,7 @@ spa_vdev_remove_log(vdev_t *vd, uint64_t *txg)
 	spa_vdev_config_exit(spa, NULL, *txg, 0, FTAG);
 
 	/* Stop initializing */
-	(void) vdev_initialize_stop_all(vd, VDEV_INITIALIZE_CANCELED);
+	vdev_initialize_stop_all(vd, VDEV_INITIALIZE_CANCELED);
 
 	*txg = spa_vdev_config_enter(spa);
 

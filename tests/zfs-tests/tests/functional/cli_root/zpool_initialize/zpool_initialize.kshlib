@@ -21,7 +21,7 @@ function initialize_prog_line # pool disk
 {
         typeset pool="$1"
         typeset disk="$2"
-        zpool status "$pool" | grep "$disk" | grep "initialized"
+        zpool status -i "$pool" | grep "$disk" | grep "[[:digit:]]* initialized"
 }
 
 function initialize_progress # pool disk
