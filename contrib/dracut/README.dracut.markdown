@@ -11,12 +11,6 @@ the dataset mountpoint property to '/'.
     $ zpool set bootfs=pool/dataset pool
     $ zfs set mountpoint=/ pool/dataset
 
-It is also possible to set the bootfs property for an entire pool, just in
-case you are not using a dedicated dataset for '/'.
-
-    $ zpool set bootfs=pool pool
-    $ zfs set mountpoint=/ pool
-
 Alternately, legacy mountpoints can be used by setting the 'root=' option
 on the kernel line of your grub.conf/menu.lst configuration file.  Then
 set the dataset mountpoint property to 'legacy'.
