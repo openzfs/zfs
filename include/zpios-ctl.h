@@ -181,9 +181,12 @@ zpios_timespec_t
 zpios_timespec_now(void)
 {
 	zpios_timespec_t zts_now;
-	struct timespec ts_now;
+	#if defined(HAVE_INODE_TIMESPEC64_TIMES)
+		inode_timespec_t ts_now = current_kernel_time64();
+	#else
+		inode_timespec_t ts_now = current_kernel_time();
+	#endif
 
-	ts_now = current_kernel_time();
 	zts_now.ts_sec  = ts_now.tv_sec;
 	zts_now.ts_nsec = ts_now.tv_nsec;
 
