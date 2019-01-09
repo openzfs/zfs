@@ -775,6 +775,13 @@ typedef struct zpool_load_policy {
 #define	VDEV_ALLOC_BIAS_SPECIAL		"special"
 #define	VDEV_ALLOC_BIAS_DEDUP		"dedup"
 
+#define	VDEV_LEAF_ZAP_INITIALIZE_LAST_OFFSET	\
+	"com.delphix:next_offset_to_initialize"
+#define	VDEV_LEAF_ZAP_INITIALIZE_STATE	\
+	"com.delphix:vdev_initialize_state"
+#define	VDEV_LEAF_ZAP_INITIALIZE_ACTION_TIME	\
+	"com.delphix:vdev_initialize_action_time"
+
 /*
  * This is needed in userland to report the minimum necessary device size.
  */
@@ -988,10 +995,15 @@ typedef struct vdev_stat {
 	uint64_t	vs_read_errors;		/* read errors		*/
 	uint64_t	vs_write_errors;	/* write errors		*/
 	uint64_t	vs_checksum_errors;	/* checksum errors	*/
+	uint64_t	vs_initialize_errors;	/* initializing errors	*/
 	uint64_t	vs_self_healed;		/* self-healed bytes	*/
 	uint64_t	vs_scan_removing;	/* removing?	*/
 	uint64_t	vs_scan_processed;	/* scan processed bytes	*/
 	uint64_t	vs_fragmentation;	/* device fragmentation */
+	uint64_t	vs_initialize_bytes_done; /* bytes initialized */
+	uint64_t	vs_initialize_bytes_est; /* total bytes to initialize */
+	uint64_t	vs_initialize_state;	/* vdev_initialzing_state_t */
+	uint64_t	vs_initialize_action_time; /* time_t */
 	uint64_t	vs_checkpoint_space;    /* checkpoint-consumed space */
 	uint64_t	vs_resilver_deferred;	/* resilver deferred	*/
 	uint64_t	vs_slow_ios;		/* slow IOs */
@@ -1023,7 +1035,6 @@ typedef struct vdev_stat_ex {
 #define	VDEV_L_HISTO_BUCKETS 37		/* Latency histo buckets */
 #define	VDEV_RQ_HISTO_BUCKETS 25	/* Request size histo buckets */
 
-
 	/* Amount of time in ZIO queue (ns) */
 	uint64_t vsx_queue_histo[ZIO_PRIORITY_NUM_QUEUEABLE]
 	    [VDEV_L_HISTO_BUCKETS];
@@ -1049,6 +1060,16 @@ typedef struct vdev_stat_ex {
 	    [VDEV_RQ_HISTO_BUCKETS];
 
 } vdev_stat_ex_t;
+
+/*
+ * Initialize functions.
+ */
+typedef enum pool_initialize_func {
+	POOL_INITIALIZE_DO,
+	POOL_INITIALIZE_CANCEL,
+	POOL_INITIALIZE_SUSPEND,
+	POOL_INITIALIZE_FUNCS
+} pool_initialize_func_t;
 
 /*
  * DDT statistics.  Note: all fields should be 64-bit because this
@@ -1093,6 +1114,14 @@ typedef struct ddt_histogram {
 
 #define	ZVOL_PROP_NAME		"name"
 #define	ZVOL_DEFAULT_BLOCKSIZE	8192
+
+typedef enum {
+	VDEV_INITIALIZE_NONE,
+	VDEV_INITIALIZE_ACTIVE,
+	VDEV_INITIALIZE_CANCELED,
+	VDEV_INITIALIZE_SUSPENDED,
+	VDEV_INITIALIZE_COMPLETE
+} vdev_initializing_state_t;
 
 /*
  * /dev/zfs ioctl numbers.
@@ -1184,6 +1213,7 @@ typedef enum zfs_ioc {
 	ZFS_IOC_REMAP,				/* 0x5a4c */
 	ZFS_IOC_POOL_CHECKPOINT,		/* 0x5a4d */
 	ZFS_IOC_POOL_DISCARD_CHECKPOINT,	/* 0x5a4e */
+	ZFS_IOC_POOL_INITIALIZE,		/* 0x5a4f */
 
 	/*
 	 * Linux - 3/64 numbers reserved.
@@ -1276,6 +1306,12 @@ typedef enum {
  * history log.
  */
 #define	ZPOOL_HIDDEN_ARGS	"hidden_args"
+
+/*
+ * The following are names used when invoking ZFS_IOC_POOL_INITIALIZE.
+ */
+#define	ZPOOL_INITIALIZE_COMMAND	"initialize_command"
+#define	ZPOOL_INITIALIZE_VDEVS		"initialize_vdevs"
 
 /*
  * Flags for ZFS_IOC_VDEV_SET_STATE

@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2016 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -254,6 +254,7 @@ vdev_ops_t vdev_file_ops = {
 	vdev_file_hold,
 	vdev_file_rele,
 	NULL,
+	vdev_default_xlate,
 	VDEV_TYPE_FILE,		/* name of this vdev type */
 	B_TRUE			/* leaf vdev */
 };
@@ -289,6 +290,7 @@ vdev_ops_t vdev_disk_ops = {
 	vdev_file_hold,
 	vdev_file_rele,
 	NULL,
+	vdev_default_xlate,
 	VDEV_TYPE_DISK,		/* name of this vdev type */
 	B_TRUE			/* leaf vdev */
 };

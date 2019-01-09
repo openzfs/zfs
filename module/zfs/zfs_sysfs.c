@@ -358,6 +358,7 @@ pool_property_show(struct kobject *kobj, struct attribute *attr, char *buf)
  */
 static const char *zfs_features[]  = {
 	/* --> Add new kernel features here (post ZoL 0.8.0) */
+	"vdev_initialize"
 };
 
 #define	ZFS_FEATURE_COUNT	ARRAY_SIZE(zfs_features)

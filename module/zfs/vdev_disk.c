@@ -890,6 +890,7 @@ vdev_ops_t vdev_disk_ops = {
 	vdev_disk_hold,
 	vdev_disk_rele,
 	NULL,
+	vdev_default_xlate,
 	VDEV_TYPE_DISK,		/* name of this vdev type */
 	B_TRUE			/* leaf vdev */
 };

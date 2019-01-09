@@ -89,6 +89,7 @@ $(MODULE)-objs += vdev_file.o
 $(MODULE)-objs += vdev_indirect.o
 $(MODULE)-objs += vdev_indirect_births.o
 $(MODULE)-objs += vdev_indirect_mapping.o
+$(MODULE)-objs += vdev_initialize.o
 $(MODULE)-objs += vdev_label.o
 $(MODULE)-objs += vdev_mirror.o
 $(MODULE)-objs += vdev_missing.o

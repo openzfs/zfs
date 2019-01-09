@@ -32,6 +32,7 @@ SUBDIRS = \
 	large_files \
 	largest_pool \
 	libzfs \
+	limits \
 	pyzfs \
 	link_count \
 	migration \
