@@ -44,7 +44,7 @@ int dmu_object_alloc_chunk_shift = 7;
 static uint64_t
 dmu_object_alloc_impl(objset_t *os, dmu_object_type_t ot, int blocksize,
     int indirect_blockshift, dmu_object_type_t bonustype, int bonuslen,
-    int dnodesize, dmu_tx_t *tx)
+    int dnodesize, dnode_t **allocated_dnode, void *tag, dmu_tx_t *tx)
 {
 	uint64_t object;
 	uint64_t L1_dnode_count = DNODES_PER_BLOCK <<
@@ -79,6 +79,19 @@ dmu_object_alloc_impl(objset_t *os, dmu_object_type_t ot, int blocksize,
 		dnodes_per_chunk = DNODES_PER_BLOCK;
 	if (dnodes_per_chunk > L1_dnode_count)
 		dnodes_per_chunk = L1_dnode_count;
+
+	/*
+	 * The caller requested the dnode be returned as a performance
+	 * optimization in order to avoid releasing the hold only to
+	 * immediately reacquire it.  Since they caller is responsible
+	 * for releasing the hold they must provide the tag.
+	 */
+	if (allocated_dnode != NULL) {
+		ASSERT3P(tag, !=, NULL);
+	} else {
+		ASSERT3P(tag, ==, NULL);
+		tag = FTAG;
+	}
 
 	object = *cpuobj;
 	for (;;) {
@@ -167,7 +180,7 @@ dmu_object_alloc_impl(objset_t *os, dmu_object_type_t ot, int blocksize,
 		 * to do so.
 		 */
 		error = dnode_hold_impl(os, object, DNODE_MUST_BE_FREE,
-		    dn_slots, FTAG, &dn);
+		    dn_slots, tag, &dn);
 		if (error == 0) {
 			rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
 			/*
@@ -180,11 +193,20 @@ dmu_object_alloc_impl(objset_t *os, dmu_object_type_t ot, int blocksize,
 				    bonuslen, dn_slots, tx);
 				rw_exit(&dn->dn_struct_rwlock);
 				dmu_tx_add_new_object(tx, dn);
-				dnode_rele(dn, FTAG);
+
+				/*
+				 * Caller requested the allocated dnode be
+				 * returned and is responsible for the hold.
+				 */
+				if (allocated_dnode != NULL)
+					*allocated_dnode = dn;
+				else
+					dnode_rele(dn, tag);
+
 				return (object);
 			}
 			rw_exit(&dn->dn_struct_rwlock);
-			dnode_rele(dn, FTAG);
+			dnode_rele(dn, tag);
 			DNODE_STAT_BUMP(dnode_alloc_race);
 		}
 
@@ -205,7 +227,7 @@ dmu_object_alloc(objset_t *os, dmu_object_type_t ot, int blocksize,
     dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx)
 {
 	return dmu_object_alloc_impl(os, ot, blocksize, 0, bonustype,
-	    bonuslen, 0, tx);
+	    bonuslen, 0, NULL, NULL, tx);
 }
 
 uint64_t
@@ -214,7 +236,7 @@ dmu_object_alloc_ibs(objset_t *os, dmu_object_type_t ot, int blocksize,
     dmu_tx_t *tx)
 {
 	return dmu_object_alloc_impl(os, ot, blocksize, indirect_blockshift,
-	    bonustype, bonuslen, 0, tx);
+	    bonustype, bonuslen, 0, NULL, NULL, tx);
 }
 
 uint64_t
@@ -222,7 +244,21 @@ dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot, int blocksize,
     dmu_object_type_t bonustype, int bonuslen, int dnodesize, dmu_tx_t *tx)
 {
 	return (dmu_object_alloc_impl(os, ot, blocksize, 0, bonustype,
-	    bonuslen, dnodesize, tx));
+	    bonuslen, dnodesize, NULL, NULL, tx));
+}
+
+/*
+ * Allocate a new object and return a pointer to the newly allocated dnode
+ * via the allocated_dnode argument.  The returned dnode will be held and
+ * the caller is responsible for releasing the hold by calling dnode_rele().
+ */
+uint64_t
+dmu_object_alloc_hold(objset_t *os, dmu_object_type_t ot, int blocksize,
+    int indirect_blockshift, dmu_object_type_t bonustype, int bonuslen,
+    int dnodesize, dnode_t **allocated_dnode, void *tag, dmu_tx_t *tx)
+{
+	return (dmu_object_alloc_impl(os, ot, blocksize, indirect_blockshift,
+	    bonustype, bonuslen, dnodesize, allocated_dnode, tag, tx));
 }
 
 int
@@ -414,13 +450,12 @@ dmu_object_zapify(objset_t *mos, uint64_t object, dmu_object_type_t old_type,
 	 * so that concurrent calls to *_is_zapified() can determine if
 	 * the object has been completely zapified by checking the type.
 	 */
-	mzap_create_impl(mos, object, 0, 0, tx);
+	mzap_create_impl(dn, 0, 0, tx);
 
 	dn->dn_next_type[tx->tx_txg & TXG_MASK] = dn->dn_type =
 	    DMU_OTN_ZAP_METADATA;
 	dnode_setdirty(dn, tx);
 	dnode_rele(dn, FTAG);
-
 
 	spa_feature_incr(dmu_objset_spa(mos),
 	    SPA_FEATURE_EXTENSIBLE_DATASET, tx);
@@ -449,6 +484,7 @@ dmu_object_free_zapified(objset_t *mos, uint64_t object, dmu_tx_t *tx)
 EXPORT_SYMBOL(dmu_object_alloc);
 EXPORT_SYMBOL(dmu_object_alloc_ibs);
 EXPORT_SYMBOL(dmu_object_alloc_dnsize);
+EXPORT_SYMBOL(dmu_object_alloc_hold);
 EXPORT_SYMBOL(dmu_object_claim);
 EXPORT_SYMBOL(dmu_object_claim_dnsize);
 EXPORT_SYMBOL(dmu_object_reclaim);
