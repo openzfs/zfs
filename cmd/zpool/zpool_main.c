@@ -345,7 +345,7 @@ get_usage(zpool_help_t idx)
 		return (gettext("\tiostat [[[-c [script1,script2,...]"
 		    "[-lq]]|[-rw]] [-T d | u] [-ghHLpPvy]\n"
 		    "\t    [[pool ...]|[pool vdev ...]|[vdev ...]]"
-		    " [interval [count]]\n"));
+		    " [[-n] interval [count]]\n"));
 	case HELP_LABELCLEAR:
 		return (gettext("\tlabelclear [-f] <vdev>\n"));
 	case HELP_LIST:
@@ -4917,6 +4917,7 @@ get_namewidth_iostat(zpool_handle_t *zhp, void *data)
  *	-w	Display latency histograms
  *	-r	Display request size histogram
  *	-T	Display a timestamp in date(1) or Unix format
+ *	-n	Only print headers once
  *
  * This command can be tricky because we want to be able to deal with pool
  * creation/destruction as well as vdev configuration changes.  The bulk of this
@@ -4932,6 +4933,8 @@ zpool_do_iostat(int argc, char **argv)
 	int npools;
 	float interval = 0;
 	unsigned long count = 0;
+	struct winsize win;
+	int winheight = 24;
 	zpool_list_t *list;
 	boolean_t verbose = B_FALSE;
 	boolean_t latency = B_FALSE, l_histo = B_FALSE, rq_histo = B_FALSE;
@@ -4940,6 +4943,7 @@ zpool_do_iostat(int argc, char **argv)
 	boolean_t guid = B_FALSE;
 	boolean_t follow_links = B_FALSE;
 	boolean_t full_name = B_FALSE;
+	boolean_t headers_once = B_FALSE;
 	iostat_cbdata_t cb = { 0 };
 	char *cmd = NULL;
 
@@ -4950,7 +4954,7 @@ zpool_do_iostat(int argc, char **argv)
 	uint64_t unsupported_flags;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "c:gLPT:vyhplqrwH")) != -1) {
+	while ((c = getopt(argc, argv, "c:gLPT:vyhplqrwnH")) != -1) {
 		switch (c) {
 		case 'c':
 			if (cmd != NULL) {
@@ -5012,6 +5016,9 @@ zpool_do_iostat(int argc, char **argv)
 			break;
 		case 'y':
 			omit_since_boot = B_TRUE;
+			break;
+		case 'n':
+			headers_once = B_TRUE;
 			break;
 		case 'h':
 			usage(B_FALSE);
@@ -5215,6 +5222,26 @@ zpool_do_iostat(int argc, char **argv)
 			}
 
 			/*
+			 * Are we connected to TTY? If not, headers_once
+			 * should be true, to avoid breaking scripts.
+			 */
+			if (isatty(fileno(stdout)) == 0)
+				headers_once = B_TRUE;
+
+			/*
+			 * Check terminal size so we can print headers
+			 * even when terminal window has its height
+			 * changed.
+			 */
+			if (headers_once == B_FALSE) {
+				if (ioctl(1, TIOCGWINSZ, &win) != -1 &&
+				    win.ws_row > 0)
+					winheight = win.ws_row;
+				else
+					headers_once = B_TRUE;
+			}
+
+			/*
 			 * If it's the first time and we're not skipping it,
 			 * or either skip or verbose mode, print the header.
 			 *
@@ -5222,7 +5249,9 @@ zpool_do_iostat(int argc, char **argv)
 			 * every vdev, so skip this for histograms.
 			 */
 			if (((++cb.cb_iteration == 1 && !skip) ||
-			    (skip != verbose)) &&
+			    (skip != verbose) ||
+			    (!headers_once &&
+			    (cb.cb_iteration % winheight) == 0)) &&
 			    (!(cb.cb_flags & IOS_ANYHISTO_M)) &&
 			    !cb.cb_scripted)
 				print_iostat_header(&cb);
@@ -5231,7 +5260,6 @@ zpool_do_iostat(int argc, char **argv)
 				(void) fsleep(interval);
 				continue;
 			}
-
 
 			pool_list_iter(list, B_FALSE, print_iostat, &cb);
 
