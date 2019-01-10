@@ -66,6 +66,7 @@
 #include <sys/dmu_objset.h>
 #include <sys/spa_boot.h>
 #include <sys/zpl.h>
+#include <linux/vfs_compat.h>
 #include "zfs_comutil.h"
 
 enum {
@@ -259,7 +260,7 @@ zfsvfs_parse_options(char *mntopts, vfs_t **vfsp)
 boolean_t
 zfs_is_readonly(zfsvfs_t *zfsvfs)
 {
-	return (!!(zfsvfs->z_sb->s_flags & MS_RDONLY));
+	return (!!(zfsvfs->z_sb->s_flags & SB_RDONLY));
 }
 
 /*ARGSUSED*/
@@ -353,15 +354,15 @@ acltype_changed_cb(void *arg, uint64_t newval)
 	switch (newval) {
 	case ZFS_ACLTYPE_OFF:
 		zfsvfs->z_acl_type = ZFS_ACLTYPE_OFF;
-		zfsvfs->z_sb->s_flags &= ~MS_POSIXACL;
+		zfsvfs->z_sb->s_flags &= ~SB_POSIXACL;
 		break;
 	case ZFS_ACLTYPE_POSIXACL:
 #ifdef CONFIG_FS_POSIX_ACL
 		zfsvfs->z_acl_type = ZFS_ACLTYPE_POSIXACL;
-		zfsvfs->z_sb->s_flags |= MS_POSIXACL;
+		zfsvfs->z_sb->s_flags |= SB_POSIXACL;
 #else
 		zfsvfs->z_acl_type = ZFS_ACLTYPE_OFF;
-		zfsvfs->z_sb->s_flags &= ~MS_POSIXACL;
+		zfsvfs->z_sb->s_flags &= ~SB_POSIXACL;
 #endif /* CONFIG_FS_POSIX_ACL */
 		break;
 	default:
@@ -390,9 +391,9 @@ readonly_changed_cb(void *arg, uint64_t newval)
 		return;
 
 	if (newval)
-		sb->s_flags |= MS_RDONLY;
+		sb->s_flags |= SB_RDONLY;
 	else
-		sb->s_flags &= ~MS_RDONLY;
+		sb->s_flags &= ~SB_RDONLY;
 }
 
 static void
@@ -420,9 +421,9 @@ nbmand_changed_cb(void *arg, uint64_t newval)
 		return;
 
 	if (newval == TRUE)
-		sb->s_flags |= MS_MANDLOCK;
+		sb->s_flags |= SB_MANDLOCK;
 	else
-		sb->s_flags &= ~MS_MANDLOCK;
+		sb->s_flags &= ~SB_MANDLOCK;
 }
 
 static void
@@ -1763,8 +1764,8 @@ zfs_remount(struct super_block *sb, int *flags, zfs_mnt_t *zm)
 	int error;
 
 	if ((issnap || !spa_writeable(dmu_objset_spa(zfsvfs->z_os))) &&
-	    !(*flags & MS_RDONLY)) {
-		*flags |= MS_RDONLY;
+	    !(*flags & SB_RDONLY)) {
+		*flags |= SB_RDONLY;
 		return (EROFS);
 	}
 
