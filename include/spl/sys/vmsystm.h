@@ -33,8 +33,14 @@
 #include <sys/types.h>
 #include <asm/uaccess.h>
 
+#ifdef HAVE_TOTALRAM_PAGES_FUNC
+#define	zfs_totalram_pages	totalram_pages()
+#else
+#define	zfs_totalram_pages	totalram_pages
+#endif
+
 #define	membar_producer()		smp_wmb()
-#define	physmem				totalram_pages
+#define	physmem				zfs_totalram_pages
 #define	freemem			(nr_free_pages() + \
 				global_page_state(NR_INACTIVE_FILE) + \
 				global_page_state(NR_INACTIVE_ANON) + \
