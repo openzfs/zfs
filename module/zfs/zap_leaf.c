@@ -45,9 +45,6 @@ static uint16_t *zap_leaf_rehash_entry(zap_leaf_t *l, uint16_t entry);
 
 #define	CHAIN_END 0xffff /* end of the chunk chain */
 
-/* half the (current) minimum block size */
-#define	MAX_ARRAY_BYTES (8<<10)
-
 #define	LEAF_HASH(l, h) \
 	((ZAP_LEAF_HASH_NUMENTRIES(l)-1) & \
 	((h) >> \
@@ -233,7 +230,7 @@ zap_leaf_array_create(zap_leaf_t *l, const char *buf,
 	int shift = (integer_size - 1) * 8;
 	int len = num_integers;
 
-	ASSERT3U(num_integers * integer_size, <, MAX_ARRAY_BYTES);
+	ASSERT3U(num_integers * integer_size, <=, ZAP_MAXVALUELEN);
 
 	while (len > 0) {
 		uint16_t chunk = zap_leaf_chunk_alloc(l);
