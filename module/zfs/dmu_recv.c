@@ -1777,6 +1777,8 @@ receive_read_payload_and_next_header(struct receive_arg *ra, int len, void *buf)
 			ra->rrd->payload_size = len;
 			ra->rrd->bytes_read = ra->bytes_read;
 		}
+	} else {
+		ASSERT3P(buf, ==, NULL);
 	}
 
 	ra->prev_cksum = ra->cksum;
@@ -1928,8 +1930,11 @@ receive_read_record(struct receive_arg *ra)
 	{
 		struct drr_object *drro = &ra->rrd->header.drr_u.drr_object;
 		uint32_t size = DRR_OBJECT_PAYLOAD_SIZE(drro);
-		void *buf = kmem_zalloc(size, KM_SLEEP);
+		void *buf = NULL;
 		dmu_object_info_t doi;
+
+		if (size != 0)
+			buf = kmem_zalloc(size, KM_SLEEP);
 
 		err = receive_read_payload_and_next_header(ra, size, buf);
 		if (err != 0) {
