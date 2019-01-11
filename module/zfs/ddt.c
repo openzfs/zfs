@@ -291,7 +291,7 @@ ddt_bp_create(enum zio_checksum checksum,
 	BP_SET_CHECKSUM(bp, checksum);
 	BP_SET_TYPE(bp, DMU_OT_DEDUP);
 	BP_SET_LEVEL(bp, 0);
-	BP_SET_DEDUP(bp, 0);
+	BP_SET_DEDUP(bp, 1);
 	BP_SET_BYTEORDER(bp, ZFS_HOST_BYTEORDER);
 }
 
@@ -346,6 +346,13 @@ ddt_phys_free(ddt_t *ddt, ddt_key_t *ddk, ddt_phys_t *ddp, uint64_t txg)
 	blkptr_t blk;
 
 	ddt_bp_create(ddt->ddt_checksum, ddk, ddp, &blk);
+
+	/*
+	 * We clear the dedup bit so that zio_free() will actually free the
+	 * space, rather than just decrementing the refcount in the DDT.
+	 */
+	BP_SET_DEDUP(&blk, 0);
+
 	ddt_phys_clear(ddp);
 	zio_free(ddt->ddt_spa, txg, &blk);
 }
