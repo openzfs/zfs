@@ -213,8 +213,7 @@ int zfs_condense_indirect_commit_entry_delay_ms = 0;
  * copies to participate fairly in the reconstruction when all combinations
  * cannot be checked and prevents repeated use of one bad copy.
  */
-int zfs_reconstruct_indirect_combinations_max = 256;
-
+int zfs_reconstruct_indirect_combinations_max = 4096;
 
 /*
  * Enable to simulate damaged segments and validate reconstruction.  This
