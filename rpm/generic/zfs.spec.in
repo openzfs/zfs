@@ -79,18 +79,21 @@
 # is normally Python 3, but for RHEL <= 7 only Python 2 is provided.
 %if %{undefined __use_python}
 %if 0%{?rhel} && 0%{?rhel} <= 7
-%define __python              /usr/bin/python2
-%define __python_pkg_version  2
-%define __python_cffi_pkg     python-cffi
+%define __python                  /usr/bin/python2
+%define __python_pkg_version      2
+%define __python_cffi_pkg         python-cffi
+%define __python_setuptools_pkg   python-setuptools
 %else
-%define __python              /usr/bin/python3
-%define __python_pkg_version  3
-%define __python_cffi_pkg     python3-cffi
+%define __python                  /usr/bin/python3
+%define __python_pkg_version      3
+%define __python_cffi_pkg         python3-cffi
+%define __python_setuptools_pkg   python3-setuptools
 %endif
 %else
-%define __python              %{__use_python}
-%define __python_pkg_version  %{__use_python_pkg_version}
-%define __python_cffi_pkg     python%{__python_pkg_version}-cffi
+%define __python                  %{__use_python}
+%define __python_pkg_version      %{__use_python_pkg_version}
+%define __python_cffi_pkg         python%{__python_pkg_version}-cffi
+%define __python_setuptools_pkg   python%{__python_pkg_version}-setuptools
 %endif
 
 # By default python-pyzfs is enabled, with the exception of
@@ -270,6 +273,8 @@ Requires:       python%{__python_pkg_version}
 Requires:       %{__python_cffi_pkg}
 %if 0%{?rhel}%{?fedora}%{?suse_version}
 BuildRequires:  python%{__python_pkg_version}-devel
+BuildRequires:  %{__python_cffi_pkg}
+BuildRequires:  %{__python_setuptools_pkg}
 BuildRequires:  libffi-devel
 %endif
 
