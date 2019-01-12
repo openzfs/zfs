@@ -81,7 +81,7 @@
 #endif
 
 #if defined(_KERNEL)
-#if defined(HAVE_FPU_API_H)
+#if defined(HAVE_UNDERSCORE_KERNEL_FPU)
 #include <asm/fpu/api.h>
 #include <asm/fpu/internal.h>
 #define	kfpu_begin()		\
@@ -94,12 +94,18 @@
 	__kernel_fpu_end();		\
 	preempt_enable();		\
 }
-#else
+#elif defined(HAVE_KERNEL_FPU)
 #include <asm/i387.h>
 #include <asm/xcr.h>
 #define	kfpu_begin()	kernel_fpu_begin()
 #define	kfpu_end()		kernel_fpu_end()
-#endif /* defined(HAVE_FPU_API_H) */
+#else
+/* Kernel doesn't export any kernel_fpu_* functions */
+#include <asm/fpu/internal.h>	/* For kernel xgetbv() */
+#define	kfpu_begin() 	panic("This code should never run")
+#define	kfpu_end() 	panic("This code should never run")
+#endif /* defined(HAVE_KERNEL_FPU) */
+
 #else
 /*
  * fpu dummy methods for userspace
@@ -286,11 +292,13 @@ __simd_state_enabled(const uint64_t state)
 	boolean_t has_osxsave;
 	uint64_t xcr0;
 
-#if defined(_KERNEL) && defined(X86_FEATURE_OSXSAVE)
+#if defined(_KERNEL)
+#if defined(X86_FEATURE_OSXSAVE) && defined(KERNEL_EXPORTS_X86_FPU)
 	has_osxsave = !!boot_cpu_has(X86_FEATURE_OSXSAVE);
-#elif defined(_KERNEL) && !defined(X86_FEATURE_OSXSAVE)
-	has_osxsave = B_FALSE;
 #else
+	has_osxsave = B_FALSE;
+#endif
+#elif !defined(_KERNEL)
 	has_osxsave = __cpuid_has_osxsave();
 #endif
 
@@ -315,8 +323,12 @@ static inline boolean_t
 zfs_sse_available(void)
 {
 #if defined(_KERNEL)
+#if defined(KERNEL_EXPORTS_X86_FPU)
 	return (!!boot_cpu_has(X86_FEATURE_XMM));
 #else
+	return (B_FALSE);
+#endif
+#elif !defined(_KERNEL)
 	return (__cpuid_has_sse());
 #endif
 }
@@ -328,8 +340,12 @@ static inline boolean_t
 zfs_sse2_available(void)
 {
 #if defined(_KERNEL)
+#if defined(KERNEL_EXPORTS_X86_FPU)
 	return (!!boot_cpu_has(X86_FEATURE_XMM2));
 #else
+	return (B_FALSE);
+#endif
+#elif !defined(_KERNEL)
 	return (__cpuid_has_sse2());
 #endif
 }
@@ -341,8 +357,12 @@ static inline boolean_t
 zfs_sse3_available(void)
 {
 #if defined(_KERNEL)
+#if defined(KERNEL_EXPORTS_X86_FPU)
 	return (!!boot_cpu_has(X86_FEATURE_XMM3));
 #else
+	return (B_FALSE);
+#endif
+#elif !defined(_KERNEL)
 	return (__cpuid_has_sse3());
 #endif
 }
@@ -354,8 +374,12 @@ static inline boolean_t
 zfs_ssse3_available(void)
 {
 #if defined(_KERNEL)
+#if defined(KERNEL_EXPORTS_X86_FPU)
 	return (!!boot_cpu_has(X86_FEATURE_SSSE3));
 #else
+	return (B_FALSE);
+#endif
+#elif !defined(_KERNEL)
 	return (__cpuid_has_ssse3());
 #endif
 }
@@ -367,8 +391,12 @@ static inline boolean_t
 zfs_sse4_1_available(void)
 {
 #if defined(_KERNEL)
+#if defined(KERNEL_EXPORTS_X86_FPU)
 	return (!!boot_cpu_has(X86_FEATURE_XMM4_1));
 #else
+	return (B_FALSE);
+#endif
+#elif !defined(_KERNEL)
 	return (__cpuid_has_sse4_1());
 #endif
 }
@@ -380,8 +408,12 @@ static inline boolean_t
 zfs_sse4_2_available(void)
 {
 #if defined(_KERNEL)
+#if defined(KERNEL_EXPORTS_X86_FPU)
 	return (!!boot_cpu_has(X86_FEATURE_XMM4_2));
 #else
+	return (B_FALSE);
+#endif
+#elif !defined(_KERNEL)
 	return (__cpuid_has_sse4_2());
 #endif
 }
@@ -394,8 +426,12 @@ zfs_avx_available(void)
 {
 	boolean_t has_avx;
 #if defined(_KERNEL)
+#if defined(KERNEL_EXPORTS_X86_FPU)
 	has_avx = !!boot_cpu_has(X86_FEATURE_AVX);
 #else
+	has_avx = B_FALSE;
+#endif
+#elif !defined(_KERNEL)
 	has_avx = __cpuid_has_avx();
 #endif
 
@@ -409,11 +445,13 @@ static inline boolean_t
 zfs_avx2_available(void)
 {
 	boolean_t has_avx2;
-#if defined(_KERNEL) && defined(X86_FEATURE_AVX2)
+#if defined(_KERNEL)
+#if defined(X86_FEATURE_AVX2) && defined(KERNEL_EXPORTS_X86_FPU)
 	has_avx2 = !!boot_cpu_has(X86_FEATURE_AVX2);
-#elif defined(_KERNEL) && !defined(X86_FEATURE_AVX2)
-	has_avx2 = B_FALSE;
 #else
+	has_avx2 = B_FALSE;
+#endif
+#elif !defined(_KERNEL)
 	has_avx2 = __cpuid_has_avx2();
 #endif
 
@@ -426,11 +464,13 @@ zfs_avx2_available(void)
 static inline boolean_t
 zfs_bmi1_available(void)
 {
-#if defined(_KERNEL) && defined(X86_FEATURE_BMI1)
+#if defined(_KERNEL)
+#if defined(X86_FEATURE_BMI1) && defined(KERNEL_EXPORTS_X86_FPU)
 	return (!!boot_cpu_has(X86_FEATURE_BMI1));
-#elif defined(_KERNEL) && !defined(X86_FEATURE_BMI1)
-	return (B_FALSE);
 #else
+	return (B_FALSE);
+#endif
+#elif !defined(_KERNEL)
 	return (__cpuid_has_bmi1());
 #endif
 }
@@ -441,11 +481,13 @@ zfs_bmi1_available(void)
 static inline boolean_t
 zfs_bmi2_available(void)
 {
-#if defined(_KERNEL) && defined(X86_FEATURE_BMI2)
+#if defined(_KERNEL)
+#if defined(X86_FEATURE_BMI2) && defined(KERNEL_EXPORTS_X86_FPU)
 	return (!!boot_cpu_has(X86_FEATURE_BMI2));
-#elif defined(_KERNEL) && !defined(X86_FEATURE_BMI2)
-	return (B_FALSE);
 #else
+	return (B_FALSE);
+#endif
+#elif !defined(_KERNEL)
 	return (__cpuid_has_bmi2());
 #endif
 }
@@ -456,11 +498,13 @@ zfs_bmi2_available(void)
 static inline boolean_t
 zfs_aes_available(void)
 {
-#if defined(_KERNEL) && defined(X86_FEATURE_AES)
+#if defined(_KERNEL)
+#if defined(X86_FEATURE_AES) && defined(KERNEL_EXPORTS_X86_FPU)
 	return (!!boot_cpu_has(X86_FEATURE_AES));
-#elif defined(_KERNEL) && !defined(X86_FEATURE_AES)
-	return (B_FALSE);
 #else
+	return (B_FALSE);
+#endif
+#elif !defined(_KERNEL)
 	return (__cpuid_has_aes());
 #endif
 }
@@ -471,11 +515,13 @@ zfs_aes_available(void)
 static inline boolean_t
 zfs_pclmulqdq_available(void)
 {
-#if defined(_KERNEL) && defined(X86_FEATURE_PCLMULQDQ)
+#if defined(_KERNEL)
+#if defined(X86_FEATURE_PCLMULQDQ) && defined(KERNEL_EXPORTS_X86_FPU)
 	return (!!boot_cpu_has(X86_FEATURE_PCLMULQDQ));
-#elif defined(_KERNEL) && !defined(X86_FEATURE_PCLMULQDQ)
-	return (B_FALSE);
 #else
+	return (B_FALSE);
+#endif
+#elif !defined(_KERNEL)
 	return (__cpuid_has_pclmulqdq());
 #endif
 }
@@ -503,8 +549,12 @@ zfs_avx512f_available(void)
 {
 	boolean_t has_avx512 = B_FALSE;
 
-#if defined(_KERNEL) && defined(X86_FEATURE_AVX512F)
+#if defined(_KERNEL)
+#if defined(X86_FEATURE_AVX512F) && defined(KERNEL_EXPORTS_X86_FPU)
 	has_avx512 = !!boot_cpu_has(X86_FEATURE_AVX512F);
+#else
+	has_avx512 = B_FALSE;
+#endif
 #elif !defined(_KERNEL)
 	has_avx512 = __cpuid_has_avx512f();
 #endif
@@ -518,9 +568,13 @@ zfs_avx512cd_available(void)
 {
 	boolean_t has_avx512 = B_FALSE;
 
-#if defined(_KERNEL) && defined(X86_FEATURE_AVX512CD)
+#if defined(_KERNEL)
+#if defined(X86_FEATURE_AVX512CD) && defined(KERNEL_EXPORTS_X86_FPU)
 	has_avx512 = boot_cpu_has(X86_FEATURE_AVX512F) &&
 	    boot_cpu_has(X86_FEATURE_AVX512CD);
+#else
+	has_avx512 = B_FALSE;
+#endif
 #elif !defined(_KERNEL)
 	has_avx512 = __cpuid_has_avx512cd();
 #endif
@@ -534,9 +588,13 @@ zfs_avx512er_available(void)
 {
 	boolean_t has_avx512 = B_FALSE;
 
-#if defined(_KERNEL) && defined(X86_FEATURE_AVX512ER)
+#if defined(_KERNEL)
+#if defined(X86_FEATURE_AVX512ER) && defined(KERNEL_EXPORTS_X86_FPU)
 	has_avx512 = boot_cpu_has(X86_FEATURE_AVX512F) &&
 	    boot_cpu_has(X86_FEATURE_AVX512ER);
+#else
+	has_avx512 = B_FALSE;
+#endif
 #elif !defined(_KERNEL)
 	has_avx512 = __cpuid_has_avx512er();
 #endif
@@ -550,9 +608,13 @@ zfs_avx512pf_available(void)
 {
 	boolean_t has_avx512 = B_FALSE;
 
-#if defined(_KERNEL) && defined(X86_FEATURE_AVX512PF)
+#if defined(_KERNEL)
+#if defined(X86_FEATURE_AVX512PF) && defined(KERNEL_EXPORTS_X86_FPU)
 	has_avx512 = boot_cpu_has(X86_FEATURE_AVX512F) &&
 	    boot_cpu_has(X86_FEATURE_AVX512PF);
+#else
+	has_avx512 = B_FALSE;
+#endif
 #elif !defined(_KERNEL)
 	has_avx512 = __cpuid_has_avx512pf();
 #endif
@@ -566,9 +628,13 @@ zfs_avx512bw_available(void)
 {
 	boolean_t has_avx512 = B_FALSE;
 
-#if defined(_KERNEL) && defined(X86_FEATURE_AVX512BW)
+#if defined(_KERNEL)
+#if defined(X86_FEATURE_AVX512BW) && defined(KERNEL_EXPORTS_X86_FPU)
 	has_avx512 = boot_cpu_has(X86_FEATURE_AVX512F) &&
 	    boot_cpu_has(X86_FEATURE_AVX512BW);
+#else
+	has_avx512 = B_FALSE;
+#endif
 #elif !defined(_KERNEL)
 	has_avx512 = __cpuid_has_avx512bw();
 #endif
@@ -582,9 +648,13 @@ zfs_avx512dq_available(void)
 {
 	boolean_t has_avx512 = B_FALSE;
 
-#if defined(_KERNEL) && defined(X86_FEATURE_AVX512DQ)
+#if defined(_KERNEL)
+#if defined(X86_FEATURE_AVX512DQ) && defined(KERNEL_EXPORTS_X86_FPU)
 	has_avx512 = boot_cpu_has(X86_FEATURE_AVX512F) &&
 	    boot_cpu_has(X86_FEATURE_AVX512DQ);
+#else
+	has_avx512 = B_FALSE;
+#endif
 #elif !defined(_KERNEL)
 	has_avx512 = __cpuid_has_avx512dq();
 #endif
@@ -598,9 +668,13 @@ zfs_avx512vl_available(void)
 {
 	boolean_t has_avx512 = B_FALSE;
 
-#if defined(_KERNEL) && defined(X86_FEATURE_AVX512VL)
+#if defined(_KERNEL)
+#if defined(X86_FEATURE_AVX512VL) && defined(KERNEL_EXPORTS_X86_FPU)
 	has_avx512 = boot_cpu_has(X86_FEATURE_AVX512F) &&
 	    boot_cpu_has(X86_FEATURE_AVX512VL);
+#else
+	has_avx512 = B_FALSE;
+#endif
 #elif !defined(_KERNEL)
 	has_avx512 = __cpuid_has_avx512vl();
 #endif
@@ -614,9 +688,13 @@ zfs_avx512ifma_available(void)
 {
 	boolean_t has_avx512 = B_FALSE;
 
-#if defined(_KERNEL) && defined(X86_FEATURE_AVX512IFMA)
+#if defined(_KERNEL)
+#if defined(X86_FEATURE_AVX512IFMA) && defined(KERNEL_EXPORTS_X86_FPU)
 	has_avx512 = boot_cpu_has(X86_FEATURE_AVX512F) &&
 	    boot_cpu_has(X86_FEATURE_AVX512IFMA);
+#else
+	has_avx512 = B_FALSE;
+#endif
 #elif !defined(_KERNEL)
 	has_avx512 = __cpuid_has_avx512ifma();
 #endif
@@ -630,9 +708,13 @@ zfs_avx512vbmi_available(void)
 {
 	boolean_t has_avx512 = B_FALSE;
 
-#if defined(_KERNEL) && defined(X86_FEATURE_AVX512VBMI)
+#if defined(_KERNEL)
+#if defined(X86_FEATURE_AVX512VBMI) && defined(KERNEL_EXPORTS_X86_FPU)
 	has_avx512 = boot_cpu_has(X86_FEATURE_AVX512F) &&
 	    boot_cpu_has(X86_FEATURE_AVX512VBMI);
+#else
+	has_avx512 = B_FALSE;
+#endif
 #elif !defined(_KERNEL)
 	has_avx512 = __cpuid_has_avx512f() &&
 	    __cpuid_has_avx512vbmi();
