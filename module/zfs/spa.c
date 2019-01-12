@@ -8518,7 +8518,13 @@ spa_auto_trim(spa_t *spa, uint64_t txg)
 	 */
 	if (!mutex_tryenter(&spa->spa_auto_trim_lock))
 		return;
-	spa->spa_num_auto_trimming += spa->spa_root_vdev->vdev_children;
+
+	/* Count the number of auto trim threads which will be launched below */
+	/* spa->spa_num_auto_trimming += spa->spa_root_vdev->vdev_children; */
+	for (uint64_t i = 0; i < spa->spa_root_vdev->vdev_children; i++) {
+		if (vdev_is_concrete(spa->spa_root_vdev->vdev_child[i]))
+			++spa->spa_num_auto_trimming;
+	}
 	mutex_exit(&spa->spa_auto_trim_lock);
 
 	for (uint64_t i = 0; i < spa->spa_root_vdev->vdev_children; i++) {

@@ -1904,6 +1904,9 @@ spa_vdev_remove_log(vdev_t *vd, uint64_t *txg)
 	/* Stop initializing */
 	vdev_initialize_stop_all(vd, VDEV_INITIALIZE_CANCELED);
 
+	/* Stop trim */
+	vdev_trim_stop_wait(vd);
+
 	*txg = spa_vdev_config_enter(spa);
 
 	sysevent_t *ev = spa_event_create(spa, vd, NULL,
@@ -2086,6 +2089,9 @@ spa_vdev_remove_top(vdev_t *vd, uint64_t *txg)
 	 * if the removal is canceled sometime later.
 	 */
 	vdev_initialize_stop_all(vd, VDEV_INITIALIZE_ACTIVE);
+
+	/* Stop trim */
+	vdev_trim_stop_wait(vd);
 
 	*txg = spa_vdev_config_enter(spa);
 
