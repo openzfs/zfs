@@ -60,3 +60,4 @@ cscope.*
 *.tar.gz
 *.patch
 *.orig
+*.log
