@@ -2820,7 +2820,7 @@ ztest_spa_upgrade(ztest_ds_t *zd, uint64_t id)
 
 	/*
 	 * If we're configuring a RAIDZ device then make sure that the
-	 * the initial version is capable of supporting that feature.
+	 * initial version is capable of supporting that feature.
 	 */
 	switch (ztest_opts.zo_raidz_parity) {
 	case 0:
@@ -3252,7 +3252,7 @@ ztest_split_pool(ztest_ds_t *zd, uint64_t id)
 
 	mutex_enter(&ztest_vdev_lock);
 
-	/* ensure we have a useable config; mirrors of raidz aren't supported */
+	/* ensure we have a usable config; mirrors of raidz aren't supported */
 	if (zs->zs_mirrors < 3 || ztest_opts.zo_raidz > 1) {
 		mutex_exit(&ztest_vdev_lock);
 		return;
@@ -5025,7 +5025,7 @@ ztest_zap(ztest_ds_t *zd, uint64_t id)
 	dmu_tx_commit(tx);
 
 	/*
-	 * Generate a buch of random entries.
+	 * Generate a bunch of random entries.
 	 */
 	ints = MAX(ZTEST_ZAP_MIN_INTS, object % ZTEST_ZAP_MAX_INTS);
 
@@ -5115,7 +5115,7 @@ out:
 }
 
 /*
- * Testcase to test the upgrading of a microzap to fatzap.
+ * Test case to test the upgrading of a microzap to fatzap.
  */
 void
 ztest_fzap(ztest_ds_t *zd, uint64_t id)
@@ -7012,7 +7012,7 @@ ztest_run(ztest_shared_t *zs)
 	 * we need to ensure the removal and scrub complete before running
 	 * any tests that check ztest_device_removal_active. The removal will
 	 * be restarted automatically when the spa is opened, but we need to
-	 * initate the scrub manually if it is not already in progress. Note
+	 * initiate the scrub manually if it is not already in progress. Note
 	 * that we always run the scrub whenever an indirect vdev exists
 	 * because we have no way of knowing for sure if ztest_device_removal()
 	 * fully completed its scrub before the pool was reimported.
