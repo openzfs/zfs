@@ -4016,7 +4016,7 @@ zio_encrypt(zio_t *zio)
 	/*
 	 * Later passes of sync-to-convergence may decide to rewrite data
 	 * in place to avoid more disk reallocations. This presents a problem
-	 * for encryption because this consitutes rewriting the new data with
+	 * for encryption because this constitutes rewriting the new data with
 	 * the same encryption key and IV. However, this only applies to blocks
 	 * in the MOS (particularly the spacemaps) and we do not encrypt the
 	 * MOS. We assert that the zio is allocating or an intent log write
@@ -4152,7 +4152,7 @@ zio_checksum_verified(zio_t *zio)
  * ==========================================================================
  * Error rank.  Error are ranked in the order 0, ENXIO, ECKSUM, EIO, other.
  * An error of 0 indicates success.  ENXIO indicates whole-device failure,
- * which may be transient (e.g. unplugged) or permament.  ECKSUM and EIO
+ * which may be transient (e.g. unplugged) or permanent.  ECKSUM and EIO
  * indicate errors that are specific to one I/O, and most likely permanent.
  * Any other error is presumed to be worse because we weren't expecting it.
  * ==========================================================================
@@ -4323,7 +4323,7 @@ zio_done(zio_t *zio)
 {
 	/*
 	 * Always attempt to keep stack usage minimal here since
-	 * we can be called recurisvely up to 19 levels deep.
+	 * we can be called recursively up to 19 levels deep.
 	 */
 	const uint64_t psize = zio->io_size;
 	zio_t *pio, *pio_next;
