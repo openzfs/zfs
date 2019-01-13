@@ -1449,6 +1449,8 @@ zfs_statvfs(struct dentry *dentry, struct kstatfs *statp)
 	 * "preferred" size.
 	 */
 
+	/* Round up so we never have a filesytem using 0 blocks. */
+	refdbytes = P2ROUNDUP(refdbytes, statp->f_bsize);
 	statp->f_blocks = (refdbytes + availbytes) >> bshift;
 	statp->f_bfree = availbytes >> bshift;
 	statp->f_bavail = statp->f_bfree; /* no root reservation */
