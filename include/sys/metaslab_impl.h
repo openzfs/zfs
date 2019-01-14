@@ -369,8 +369,8 @@ struct metaslab {
 	uint64_t	ms_initializing; /* leaves initializing this ms */
 
 	/*
-	 * We must hold both ms_lock and ms_group->mg_lock in order to
-	 * modify ms_loaded.
+	 * We must always hold the ms_lock when modifying ms_loaded
+	 * and ms_loading.
 	 */
 	boolean_t	ms_loaded;
 	boolean_t	ms_loading;

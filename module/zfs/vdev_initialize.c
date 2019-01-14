@@ -363,16 +363,6 @@ vdev_initialize_ranges(vdev_t *vd, abd_t *data)
 }
 
 static void
-vdev_initialize_ms_load(metaslab_t *msp)
-{
-	ASSERT(MUTEX_HELD(&msp->ms_lock));
-
-	metaslab_load_wait(msp);
-	if (!msp->ms_loaded)
-		VERIFY0(metaslab_load(msp));
-}
-
-static void
 vdev_initialize_mg_wait(metaslab_group_t *mg)
 {
 	ASSERT(MUTEX_HELD(&mg->mg_ms_initialize_lock));
@@ -494,7 +484,7 @@ vdev_initialize_calculate_progress(vdev_t *vd)
 		 * metaslab. Load it and walk the free tree for more accurate
 		 * progress estimation.
 		 */
-		vdev_initialize_ms_load(msp);
+		VERIFY0(metaslab_load(msp));
 
 		for (range_seg_t *rs = avl_first(&msp->ms_allocatable->rt_root);
 		    rs; rs = AVL_NEXT(&msp->ms_allocatable->rt_root, rs)) {
@@ -630,7 +620,7 @@ vdev_initialize_thread(void *arg)
 
 		vdev_initialize_ms_mark(msp);
 		mutex_enter(&msp->ms_lock);
-		vdev_initialize_ms_load(msp);
+		VERIFY0(metaslab_load(msp));
 
 		range_tree_walk(msp->ms_allocatable, vdev_initialize_range_add,
 		    vd);
