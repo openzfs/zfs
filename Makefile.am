@@ -75,7 +75,7 @@ install-data-hook:
 	ln -fs zfs.release spl.release
 endif
 
-codecheck: cstyle shellcheck flake8 mancheck testscheck
+codecheck: cstyle shellcheck flake8 mancheck testscheck vcscheck
 
 checkstyle: codecheck commitcheck
 
@@ -116,6 +116,12 @@ testscheck:
 		\( -name '*.cfg' -executable \) | \
 		xargs -r stat -c '%A %n' | \
 		awk '{c++; print} END {if(c>0) exit 1}'
+
+vcscheck:
+	@if git rev-parse --git-dir > /dev/null 2>&1; then \
+		git ls-files . --exclude-standard --others | \
+		awk '{c++; print} END {if(c>0) exit 1}' ; \
+	fi
 
 lint: cppcheck paxcheck
 
