@@ -7323,6 +7323,9 @@ spa_sync_frees(spa_t *spa, bplist_t *bpl, dmu_tx_t *tx)
 static void
 spa_sync_deferred_frees(spa_t *spa, dmu_tx_t *tx)
 {
+	if (spa_sync_pass(spa) != 1)
+		return;
+
 	zio_t *zio = zio_root(spa, NULL, NULL, 0);
 	VERIFY3U(bpobj_iterate(&spa->spa_deferred_bpobj,
 	    spa_free_sync_cb, zio, tx), ==, 0);
@@ -7718,10 +7721,10 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 static void
 spa_sync_upgrades(spa_t *spa, dmu_tx_t *tx)
 {
+	if (spa_sync_pass(spa) != 1)
+		return;
+
 	dsl_pool_t *dp = spa->spa_dsl_pool;
-
-	ASSERT(spa->spa_sync_pass == 1);
-
 	rrw_enter(&dp->dp_config_rwlock, RW_WRITER, FTAG);
 
 	if (spa->spa_ubsync.ub_version < SPA_VERSION_ORIGIN &&
@@ -7817,24 +7820,223 @@ vdev_indirect_state_sync_verify(vdev_t *vd)
 }
 
 /*
+ * Set the top-level vdev's max queue depth. Evaluate each top-level's
+ * async write queue depth in case it changed. The max queue depth will
+ * not change in the middle of syncing out this txg.
+ */
+static void
+spa_sync_adjust_vdev_max_queue_depth(spa_t *spa)
+{
+	ASSERT(spa_writeable(spa));
+
+	vdev_t *rvd = spa->spa_root_vdev;
+	uint32_t max_queue_depth = zfs_vdev_async_write_max_active *
+	    zfs_vdev_queue_depth_pct / 100;
+	metaslab_class_t *normal = spa_normal_class(spa);
+	metaslab_class_t *special = spa_special_class(spa);
+	metaslab_class_t *dedup = spa_dedup_class(spa);
+
+	uint64_t slots_per_allocator = 0;
+	for (int c = 0; c < rvd->vdev_children; c++) {
+		vdev_t *tvd = rvd->vdev_child[c];
+
+		metaslab_group_t *mg = tvd->vdev_mg;
+		if (mg == NULL || !metaslab_group_initialized(mg))
+			continue;
+
+		metaslab_class_t *mc = mg->mg_class;
+		if (mc != normal && mc != special && mc != dedup)
+			continue;
+
+		/*
+		 * It is safe to do a lock-free check here because only async
+		 * allocations look at mg_max_alloc_queue_depth, and async
+		 * allocations all happen from spa_sync().
+		 */
+		for (int i = 0; i < spa->spa_alloc_count; i++)
+			ASSERT0(zfs_refcount_count(
+			    &(mg->mg_alloc_queue_depth[i])));
+		mg->mg_max_alloc_queue_depth = max_queue_depth;
+
+		for (int i = 0; i < spa->spa_alloc_count; i++) {
+			mg->mg_cur_max_alloc_queue_depth[i] =
+			    zfs_vdev_def_queue_depth;
+		}
+		slots_per_allocator += zfs_vdev_def_queue_depth;
+	}
+
+	for (int i = 0; i < spa->spa_alloc_count; i++) {
+		ASSERT0(zfs_refcount_count(&normal->mc_alloc_slots[i]));
+		ASSERT0(zfs_refcount_count(&special->mc_alloc_slots[i]));
+		ASSERT0(zfs_refcount_count(&dedup->mc_alloc_slots[i]));
+		normal->mc_alloc_max_slots[i] = slots_per_allocator;
+		special->mc_alloc_max_slots[i] = slots_per_allocator;
+		dedup->mc_alloc_max_slots[i] = slots_per_allocator;
+	}
+	normal->mc_alloc_throttle_enabled = zio_dva_throttle_enabled;
+	special->mc_alloc_throttle_enabled = zio_dva_throttle_enabled;
+	dedup->mc_alloc_throttle_enabled = zio_dva_throttle_enabled;
+}
+
+static void
+spa_sync_condense_indirect(spa_t *spa, dmu_tx_t *tx)
+{
+	ASSERT(spa_writeable(spa));
+
+	vdev_t *rvd = spa->spa_root_vdev;
+	for (int c = 0; c < rvd->vdev_children; c++) {
+		vdev_t *vd = rvd->vdev_child[c];
+		vdev_indirect_state_sync_verify(vd);
+
+		if (vdev_indirect_should_condense(vd)) {
+			spa_condense_indirect_start_sync(vd, tx);
+			break;
+		}
+	}
+}
+
+static void
+spa_sync_iterate_to_convergence(spa_t *spa, dmu_tx_t *tx)
+{
+	objset_t *mos = spa->spa_meta_objset;
+	dsl_pool_t *dp = spa->spa_dsl_pool;
+	uint64_t txg = tx->tx_txg;
+	bplist_t *free_bpl = &spa->spa_free_bplist[txg & TXG_MASK];
+
+	do {
+		int pass = ++spa->spa_sync_pass;
+
+		spa_sync_config_object(spa, tx);
+		spa_sync_aux_dev(spa, &spa->spa_spares, tx,
+		    ZPOOL_CONFIG_SPARES, DMU_POOL_SPARES);
+		spa_sync_aux_dev(spa, &spa->spa_l2cache, tx,
+		    ZPOOL_CONFIG_L2CACHE, DMU_POOL_L2CACHE);
+		spa_errlog_sync(spa, txg);
+		dsl_pool_sync(dp, txg);
+
+		if (pass < zfs_sync_pass_deferred_free) {
+			spa_sync_frees(spa, free_bpl, tx);
+		} else {
+			/*
+			 * We can not defer frees in pass 1, because
+			 * we sync the deferred frees later in pass 1.
+			 */
+			ASSERT3U(pass, >, 1);
+			bplist_iterate(free_bpl, bpobj_enqueue_cb,
+			    &spa->spa_deferred_bpobj, tx);
+		}
+
+		ddt_sync(spa, txg);
+		dsl_scan_sync(dp, tx);
+		svr_sync(spa, tx);
+		spa_sync_upgrades(spa, tx);
+
+		vdev_t *vd = NULL;
+		while ((vd = txg_list_remove(&spa->spa_vdev_txg_list, txg))
+		    != NULL)
+			vdev_sync(vd, txg);
+
+		/*
+		 * Note: We need to check if the MOS is dirty because we could
+		 * have marked the MOS dirty without updating the uberblock
+		 * (e.g. if we have sync tasks but no dirty user data). We need
+		 * to check the uberblock's rootbp because it is updated if we
+		 * have synced out dirty data (though in this case the MOS will
+		 * most likely also be dirty due to second order effects, we
+		 * don't want to rely on that here).
+		 */
+		if (pass == 1 &&
+		    spa->spa_uberblock.ub_rootbp.blk_birth < txg &&
+		    !dmu_objset_is_dirty(mos, txg)) {
+			/*
+			 * Nothing changed on the first pass, therefore this
+			 * TXG is a no-op. Avoid syncing deferred frees, so
+			 * that we can keep this TXG as a no-op.
+			 */
+			ASSERT(txg_list_empty(&dp->dp_dirty_datasets, txg));
+			ASSERT(txg_list_empty(&dp->dp_dirty_dirs, txg));
+			ASSERT(txg_list_empty(&dp->dp_sync_tasks, txg));
+			ASSERT(txg_list_empty(&dp->dp_early_sync_tasks, txg));
+			break;
+		}
+
+		spa_sync_deferred_frees(spa, tx);
+	} while (dmu_objset_is_dirty(mos, txg));
+}
+
+/*
+ * Rewrite the vdev configuration (which includes the uberblock) to
+ * commit the transaction group.
+ *
+ * If there are no dirty vdevs, we sync the uberblock to a few random
+ * top-level vdevs that are known to be visible in the config cache
+ * (see spa_vdev_add() for a complete description). If there *are* dirty
+ * vdevs, sync the uberblock to all vdevs.
+ */
+static void
+spa_sync_rewrite_vdev_config(spa_t *spa, dmu_tx_t *tx)
+{
+	vdev_t *rvd = spa->spa_root_vdev;
+	uint64_t txg = tx->tx_txg;
+
+	for (;;) {
+		int error = 0;
+
+		/*
+		 * We hold SCL_STATE to prevent vdev open/close/etc.
+		 * while we're attempting to write the vdev labels.
+		 */
+		spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
+
+		if (list_is_empty(&spa->spa_config_dirty_list)) {
+			vdev_t *svd[SPA_SYNC_MIN_VDEVS] = { NULL };
+			int svdcount = 0;
+			int children = rvd->vdev_children;
+			int c0 = spa_get_random(children);
+
+			for (int c = 0; c < children; c++) {
+				vdev_t *vd =
+				    rvd->vdev_child[(c0 + c) % children];
+
+				/* Stop when revisiting the first vdev */
+				if (c > 0 && svd[0] == vd)
+					break;
+
+				if (vd->vdev_ms_array == 0 ||
+				    vd->vdev_islog ||
+				    !vdev_is_concrete(vd))
+					continue;
+
+				svd[svdcount++] = vd;
+				if (svdcount == SPA_SYNC_MIN_VDEVS)
+					break;
+			}
+			error = vdev_config_sync(svd, svdcount, txg);
+		} else {
+			error = vdev_config_sync(rvd->vdev_child,
+			    rvd->vdev_children, txg);
+		}
+
+		if (error == 0)
+			spa->spa_last_synced_guid = rvd->vdev_guid;
+
+		spa_config_exit(spa, SCL_STATE, FTAG);
+
+		if (error == 0)
+			break;
+		zio_suspend(spa, NULL, ZIO_SUSPEND_IOERR);
+		zio_resume_wait(spa);
+	}
+}
+
+/*
  * Sync the specified transaction group.  New blocks may be dirtied as
  * part of the process, so we iterate until it converges.
  */
 void
 spa_sync(spa_t *spa, uint64_t txg)
 {
-	dsl_pool_t *dp = spa->spa_dsl_pool;
-	objset_t *mos = spa->spa_meta_objset;
-	bplist_t *free_bpl = &spa->spa_free_bplist[txg & TXG_MASK];
-	metaslab_class_t *normal = spa_normal_class(spa);
-	metaslab_class_t *special = spa_special_class(spa);
-	metaslab_class_t *dedup = spa_dedup_class(spa);
-	vdev_t *rvd = spa->spa_root_vdev;
-	vdev_t *vd;
-	dmu_tx_t *tx;
-	int error;
-	uint32_t max_queue_depth = zfs_vdev_async_write_max_active *
-	    zfs_vdev_queue_depth_pct / 100;
+	vdev_t *vd = NULL;
 
 	VERIFY(spa_writeable(spa));
 
@@ -7884,7 +8086,8 @@ spa_sync(spa_t *spa, uint64_t txg)
 	}
 	spa_config_exit(spa, SCL_STATE, FTAG);
 
-	tx = dmu_tx_create_assigned(dp, txg);
+	dsl_pool_t *dp = spa->spa_dsl_pool;
+	dmu_tx_t *tx = dmu_tx_create_assigned(dp, txg);
 
 	spa->spa_sync_starttime = gethrtime();
 	taskq_cancel_id(system_delay_taskq, spa->spa_deadman_tqid);
@@ -7898,8 +8101,9 @@ spa_sync(spa_t *spa, uint64_t txg)
 	 */
 	if (spa->spa_ubsync.ub_version < SPA_VERSION_RAIDZ_DEFLATE &&
 	    spa->spa_uberblock.ub_version >= SPA_VERSION_RAIDZ_DEFLATE) {
-		int i;
+		vdev_t *rvd = spa->spa_root_vdev;
 
+		int i;
 		for (i = 0; i < rvd->vdev_children; i++) {
 			vd = rvd->vdev_child[i];
 			if (vd->vdev_deflate_ratio != SPA_MINBLOCKSIZE)
@@ -7907,151 +8111,27 @@ spa_sync(spa_t *spa, uint64_t txg)
 		}
 		if (i == rvd->vdev_children) {
 			spa->spa_deflate = TRUE;
-			VERIFY(0 == zap_add(spa->spa_meta_objset,
+			VERIFY0(zap_add(spa->spa_meta_objset,
 			    DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_DEFLATE,
 			    sizeof (uint64_t), 1, &spa->spa_deflate, tx));
 		}
 	}
 
-	/*
-	 * Set the top-level vdev's max queue depth. Evaluate each
-	 * top-level's async write queue depth in case it changed.
-	 * The max queue depth will not change in the middle of syncing
-	 * out this txg.
-	 */
-	uint64_t slots_per_allocator = 0;
-	for (int c = 0; c < rvd->vdev_children; c++) {
-		vdev_t *tvd = rvd->vdev_child[c];
-		metaslab_group_t *mg = tvd->vdev_mg;
-		metaslab_class_t *mc;
+	spa_sync_adjust_vdev_max_queue_depth(spa);
 
-		if (mg == NULL || !metaslab_group_initialized(mg))
-			continue;
+	spa_sync_condense_indirect(spa, tx);
 
-		mc = mg->mg_class;
-		if (mc != normal && mc != special && mc != dedup)
-			continue;
-
-		/*
-		 * It is safe to do a lock-free check here because only async
-		 * allocations look at mg_max_alloc_queue_depth, and async
-		 * allocations all happen from spa_sync().
-		 */
-		for (int i = 0; i < spa->spa_alloc_count; i++)
-			ASSERT0(zfs_refcount_count(
-			    &(mg->mg_alloc_queue_depth[i])));
-		mg->mg_max_alloc_queue_depth = max_queue_depth;
-
-		for (int i = 0; i < spa->spa_alloc_count; i++) {
-			mg->mg_cur_max_alloc_queue_depth[i] =
-			    zfs_vdev_def_queue_depth;
-		}
-		slots_per_allocator += zfs_vdev_def_queue_depth;
-	}
-
-	for (int i = 0; i < spa->spa_alloc_count; i++) {
-		ASSERT0(zfs_refcount_count(&normal->mc_alloc_slots[i]));
-		ASSERT0(zfs_refcount_count(&special->mc_alloc_slots[i]));
-		ASSERT0(zfs_refcount_count(&dedup->mc_alloc_slots[i]));
-		normal->mc_alloc_max_slots[i] = slots_per_allocator;
-		special->mc_alloc_max_slots[i] = slots_per_allocator;
-		dedup->mc_alloc_max_slots[i] = slots_per_allocator;
-	}
-	normal->mc_alloc_throttle_enabled = zio_dva_throttle_enabled;
-	special->mc_alloc_throttle_enabled = zio_dva_throttle_enabled;
-	dedup->mc_alloc_throttle_enabled = zio_dva_throttle_enabled;
-
-	for (int c = 0; c < rvd->vdev_children; c++) {
-		vdev_t *vd = rvd->vdev_child[c];
-		vdev_indirect_state_sync_verify(vd);
-
-		if (vdev_indirect_should_condense(vd)) {
-			spa_condense_indirect_start_sync(vd, tx);
-			break;
-		}
-	}
-
-	/*
-	 * Iterate to convergence.
-	 */
-	do {
-		int pass = ++spa->spa_sync_pass;
-
-		spa_sync_config_object(spa, tx);
-		spa_sync_aux_dev(spa, &spa->spa_spares, tx,
-		    ZPOOL_CONFIG_SPARES, DMU_POOL_SPARES);
-		spa_sync_aux_dev(spa, &spa->spa_l2cache, tx,
-		    ZPOOL_CONFIG_L2CACHE, DMU_POOL_L2CACHE);
-		spa_errlog_sync(spa, txg);
-		dsl_pool_sync(dp, txg);
-
-		if (pass < zfs_sync_pass_deferred_free) {
-			spa_sync_frees(spa, free_bpl, tx);
-		} else {
-			/*
-			 * We can not defer frees in pass 1, because
-			 * we sync the deferred frees later in pass 1.
-			 */
-			ASSERT3U(pass, >, 1);
-			bplist_iterate(free_bpl, bpobj_enqueue_cb,
-			    &spa->spa_deferred_bpobj, tx);
-		}
-
-		ddt_sync(spa, txg);
-		dsl_scan_sync(dp, tx);
-
-		if (spa->spa_vdev_removal != NULL)
-			svr_sync(spa, tx);
-
-		while ((vd = txg_list_remove(&spa->spa_vdev_txg_list, txg))
-		    != NULL)
-			vdev_sync(vd, txg);
-
-		if (pass == 1) {
-			spa_sync_upgrades(spa, tx);
-			ASSERT3U(txg, >=,
-			    spa->spa_uberblock.ub_rootbp.blk_birth);
-			/*
-			 * Note: We need to check if the MOS is dirty
-			 * because we could have marked the MOS dirty
-			 * without updating the uberblock (e.g. if we
-			 * have sync tasks but no dirty user data).  We
-			 * need to check the uberblock's rootbp because
-			 * it is updated if we have synced out dirty
-			 * data (though in this case the MOS will most
-			 * likely also be dirty due to second order
-			 * effects, we don't want to rely on that here).
-			 */
-			if (spa->spa_uberblock.ub_rootbp.blk_birth < txg &&
-			    !dmu_objset_is_dirty(mos, txg)) {
-				/*
-				 * Nothing changed on the first pass,
-				 * therefore this TXG is a no-op.  Avoid
-				 * syncing deferred frees, so that we
-				 * can keep this TXG as a no-op.
-				 */
-				ASSERT(txg_list_empty(&dp->dp_dirty_datasets,
-				    txg));
-				ASSERT(txg_list_empty(&dp->dp_dirty_dirs, txg));
-				ASSERT(txg_list_empty(&dp->dp_sync_tasks, txg));
-				ASSERT(txg_list_empty(&dp->dp_early_sync_tasks,
-				    txg));
-				break;
-			}
-			spa_sync_deferred_frees(spa, tx);
-		}
-
-	} while (dmu_objset_is_dirty(mos, txg));
+	spa_sync_iterate_to_convergence(spa, tx);
 
 #ifdef ZFS_DEBUG
 	if (!list_is_empty(&spa->spa_config_dirty_list)) {
-		/*
-		 * Make sure that the number of ZAPs for all the vdevs matches
-		 * the number of ZAPs in the per-vdev ZAP list. This only gets
-		 * called if the config is dirty; otherwise there may be
-		 * outstanding AVZ operations that weren't completed in
-		 * spa_sync_config_object.
-		 */
+	/*
+	 * Make sure that the number of ZAPs for all the vdevs matches
+	 * the number of ZAPs in the per-vdev ZAP list. This only gets
+	 * called if the config is dirty; otherwise there may be
+	 * outstanding AVZ operations that weren't completed in
+	 * spa_sync_config_object.
+	 */
 		uint64_t all_vdev_zap_entry_count;
 		ASSERT0(zap_count(spa->spa_meta_objset,
 		    spa->spa_all_vdev_zaps, &all_vdev_zap_entry_count));
@@ -8064,59 +8144,7 @@ spa_sync(spa_t *spa, uint64_t txg)
 		ASSERT0(spa->spa_vdev_removal->svr_bytes_done[txg & TXG_MASK]);
 	}
 
-	/*
-	 * Rewrite the vdev configuration (which includes the uberblock)
-	 * to commit the transaction group.
-	 *
-	 * If there are no dirty vdevs, we sync the uberblock to a few
-	 * random top-level vdevs that are known to be visible in the
-	 * config cache (see spa_vdev_add() for a complete description).
-	 * If there *are* dirty vdevs, sync the uberblock to all vdevs.
-	 */
-	for (;;) {
-		/*
-		 * We hold SCL_STATE to prevent vdev open/close/etc.
-		 * while we're attempting to write the vdev labels.
-		 */
-		spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
-
-		if (list_is_empty(&spa->spa_config_dirty_list)) {
-			vdev_t *svd[SPA_SYNC_MIN_VDEVS] = { NULL };
-			int svdcount = 0;
-			int children = rvd->vdev_children;
-			int c0 = spa_get_random(children);
-
-			for (int c = 0; c < children; c++) {
-				vd = rvd->vdev_child[(c0 + c) % children];
-
-				/* Stop when revisiting the first vdev */
-				if (c > 0 && svd[0] == vd)
-					break;
-
-				if (vd->vdev_ms_array == 0 || vd->vdev_islog ||
-				    !vdev_is_concrete(vd))
-					continue;
-
-				svd[svdcount++] = vd;
-				if (svdcount == SPA_SYNC_MIN_VDEVS)
-					break;
-			}
-			error = vdev_config_sync(svd, svdcount, txg);
-		} else {
-			error = vdev_config_sync(rvd->vdev_child,
-			    rvd->vdev_children, txg);
-		}
-
-		if (error == 0)
-			spa->spa_last_synced_guid = rvd->vdev_guid;
-
-		spa_config_exit(spa, SCL_STATE, FTAG);
-
-		if (error == 0)
-			break;
-		zio_suspend(spa, NULL, ZIO_SUSPEND_IOERR);
-		zio_resume_wait(spa);
-	}
+	spa_sync_rewrite_vdev_config(spa, tx);
 	dmu_tx_commit(tx);
 
 	taskq_cancel_id(system_delay_taskq, spa->spa_deadman_tqid);

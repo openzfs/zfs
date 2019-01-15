@@ -1798,6 +1798,9 @@ svr_sync(spa_t *spa, dmu_tx_t *tx)
 	spa_vdev_removal_t *svr = spa->spa_vdev_removal;
 	int txgoff = dmu_tx_get_txg(tx) & TXG_MASK;
 
+	if (svr == NULL)
+		return;
+
 	/*
 	 * This check is necessary so that we do not dirty the
 	 * DIRECTORY_OBJECT via spa_sync_removing_state() when there
