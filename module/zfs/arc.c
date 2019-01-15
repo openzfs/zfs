@@ -3786,7 +3786,8 @@ arc_hdr_l2hdr_destroy(arc_buf_hdr_t *hdr)
 {
 	l2arc_buf_hdr_t *l2hdr = &hdr->b_l2hdr;
 	l2arc_dev_t *dev = l2hdr->b_dev;
-	uint64_t psize = arc_hdr_size(hdr);
+	uint64_t psize = HDR_GET_PSIZE(hdr);
+	uint64_t asize = vdev_psize_to_asize(dev->l2ad_vdev, psize);
 
 	ASSERT(MUTEX_HELD(&dev->l2ad_mtx));
 	ASSERT(HDR_HAS_L2HDR(hdr));
@@ -3796,9 +3797,10 @@ arc_hdr_l2hdr_destroy(arc_buf_hdr_t *hdr)
 	ARCSTAT_INCR(arcstat_l2_psize, -psize);
 	ARCSTAT_INCR(arcstat_l2_lsize, -HDR_GET_LSIZE(hdr));
 
-	vdev_space_update(dev->l2ad_vdev, -psize, 0, 0);
+	vdev_space_update(dev->l2ad_vdev, -asize, 0, 0);
 
-	(void) zfs_refcount_remove_many(&dev->l2ad_alloc, psize, hdr);
+	(void) zfs_refcount_remove_many(&dev->l2ad_alloc, arc_hdr_size(hdr),
+	    hdr);
 	arc_hdr_clear_flags(hdr, ARC_FLAG_HAS_L2HDR);
 }
 
@@ -8296,10 +8298,12 @@ top:
 			list_remove(buflist, hdr);
 			arc_hdr_clear_flags(hdr, ARC_FLAG_HAS_L2HDR);
 
-			ARCSTAT_INCR(arcstat_l2_psize, -arc_hdr_size(hdr));
+			uint64_t psize = HDR_GET_PSIZE(hdr);
+			ARCSTAT_INCR(arcstat_l2_psize, -psize);
 			ARCSTAT_INCR(arcstat_l2_lsize, -HDR_GET_LSIZE(hdr));
 
-			bytes_dropped += arc_hdr_size(hdr);
+			bytes_dropped +=
+			    vdev_psize_to_asize(dev->l2ad_vdev, psize);
 			(void) zfs_refcount_remove_many(&dev->l2ad_alloc,
 			    arc_hdr_size(hdr), hdr);
 		}
@@ -9015,6 +9019,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 			write_psize += psize;
 			write_asize += asize;
 			dev->l2ad_hand += asize;
+			vdev_space_update(dev->l2ad_vdev, asize, 0, 0);
 
 			mutex_exit(hash_lock);
 
@@ -9040,7 +9045,6 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 	ARCSTAT_INCR(arcstat_l2_write_bytes, write_psize);
 	ARCSTAT_INCR(arcstat_l2_lsize, write_lsize);
 	ARCSTAT_INCR(arcstat_l2_psize, write_psize);
-	vdev_space_update(dev->l2ad_vdev, write_psize, 0, 0);
 
 	/*
 	 * Bump device hand to the device start if it is approaching the end.
