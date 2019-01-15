@@ -27,6 +27,9 @@
 # 3. Verify other unsupported parameters raise an error
 #
 
+# The 'zfs remap' command has been disabled and may be removed.
+export ZFS_REMAP_ENABLED=YES
+
 verify_runnable "both"
 
 function cleanup

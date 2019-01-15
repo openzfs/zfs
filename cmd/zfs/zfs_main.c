@@ -7084,6 +7084,21 @@ zfs_do_unshare(int argc, char **argv)
 }
 
 static int
+disable_command_idx(char *command)
+{
+	for (int i = 0; i < NCOMMAND; i++) {
+		if (command_table[i].name == NULL)
+			continue;
+
+		if (strcmp(command, command_table[i].name) == 0) {
+			command_table[i].name = NULL;
+			return (0);
+		}
+	}
+	return (1);
+}
+
+static int
 find_command_idx(char *command, int *idx)
 {
 	int i;
@@ -7180,7 +7195,22 @@ zfs_do_diff(int argc, char **argv)
 /*
  * zfs remap <filesystem | volume>
  *
- * Remap the indirect blocks in the given fileystem or volume.
+ * N.B. The remap command has been disabled and may be removed in the future.
+ *
+ * Remap the indirect blocks in the given filesystem or volume so that they no
+ * longer reference blocks on previously removed vdevs and we can eventually
+ * shrink the size of the indirect mapping objects for the previously removed
+ * vdevs. Note that remapping all blocks might not be possible and that
+ * references from snapshots will still exist and cannot be remapped.
+ *
+ * This functionality is no longer particularly useful now that the removal
+ * code can map large chunks.  Furthermore, explaining what this command
+ * does and why it may be useful requires a detailed understanding of the
+ * internals of device removal.  These are details users should not be
+ * bothered with.  If required, the remap command can be re-enabled by
+ * setting the ZFS_REMAP_ENABLED environment variable.
+ *
+ * > ZFS_REMAP_ENABLED=yes zfs remap <filesystem | volume>
  */
 static int
 zfs_do_remap(int argc, char **argv)
@@ -8005,6 +8035,13 @@ main(int argc, char **argv)
 	 */
 	if (strcmp(cmdname, "snap") == 0)
 		cmdname = "snapshot";
+
+	/*
+	 * The 'remap' command has been disabled and may be removed in the
+	 * future.  See the comment above zfs_do_remap() for details.
+	 */
+	if (!libzfs_envvar_is_set("ZFS_REMAP_ENABLED"))
+		disable_command_idx("remap");
 
 	/*
 	 * Special case '-?'
