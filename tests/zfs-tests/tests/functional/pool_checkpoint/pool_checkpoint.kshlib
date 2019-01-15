@@ -324,8 +324,19 @@ function fragment_after_checkpoint_and_verify
 	#
 	log_must zpool list -v
 
-	log_must zdb $NESTEDPOOL
-	log_must zdb -kc $NESTEDPOOL
+	#
+	# Typically we would just run zdb at this point and things
+	# would be fine. Unfortunately, if there is still any
+	# background I/O in the pool the zdb command can fail with
+	# checksum errors temporarily.
+	#
+	# Export the pool when running zdb so the pool is idle and
+	# the verification results are consistent.
+	#
+	log_must zpool export $NESTEDPOOL
+	log_must zdb -e -p $FILEDISKDIR $NESTEDPOOL
+	log_must zdb -e -p $FILEDISKDIR -kc $NESTEDPOOL
+	log_must zpool import -d $FILEDISKDIR $NESTEDPOOL
 }
 
 function wait_discard_finish
