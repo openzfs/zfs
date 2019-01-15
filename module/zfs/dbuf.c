@@ -1565,8 +1565,17 @@ dbuf_read(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 		DB_DNODE_EXIT(db);
 		DBUF_STAT_BUMP(hash_misses);
 
-		if (!err && need_wait)
-			err = zio_wait(zio);
+		/*
+		 * If we created a zio_root we must execute it to avoid
+		 * leaking it, even if it isn't attached to any work due
+		 * to an error in dbuf_read_impl().
+		 */
+		if (need_wait) {
+			if (err == 0)
+				err = zio_wait(zio);
+			else
+				VERIFY0(zio_wait(zio));
+		}
 	} else {
 		/*
 		 * Another reader came in while the dbuf was in flight
