@@ -259,13 +259,6 @@ zfs_sync(struct super_block *sb, int wait, cred_t *cr)
 	zfsvfs_t *zfsvfs = sb->s_fs_info;
 
 	/*
-	 * Data integrity is job one.  We don't want a compromised kernel
-	 * writing to the storage pool, so we never sync during panic.
-	 */
-	if (unlikely(oops_in_progress))
-		return (0);
-
-	/*
 	 * Semantically, the only requirement is that the sync be initiated.
 	 * The DMU syncs out txgs frequently, so there's nothing to do.
 	 */
