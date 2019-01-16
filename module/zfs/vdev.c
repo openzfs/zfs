@@ -4952,8 +4952,11 @@ trim_stop_set(vdev_t *vd, boolean_t flag)
 	vd->vdev_trim_zios_stop = flag;
 	mutex_exit(&vd->vdev_trim_zios_lock);
 
-	for (uint64_t i = 0; i < vd->vdev_children; i++)
-		trim_stop_set(vd->vdev_child[i], flag);
+	for (uint64_t i = 0; i < vd->vdev_children; i++) {
+		vdev_t *cvd = vd->vdev_child[i];
+		if (vdev_is_concrete(cvd))
+			trim_stop_set(cvd, flag);
+	}
 }
 
 static void
@@ -4964,8 +4967,11 @@ trim_stop_wait(vdev_t *vd)
 		cv_wait(&vd->vdev_trim_zios_cv, &vd->vdev_trim_zios_lock);
 	mutex_exit(&vd->vdev_trim_zios_lock);
 
-	for (uint64_t i = 0; i < vd->vdev_children; i++)
-		trim_stop_wait(vd->vdev_child[i]);
+	for (uint64_t i = 0; i < vd->vdev_children; i++) {
+		vdev_t *cvd = vd->vdev_child[i];
+		if (vdev_is_concrete(cvd))
+			trim_stop_wait(vd->vdev_child[i]);
+	}
 }
 
 /*
