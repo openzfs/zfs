@@ -55,7 +55,10 @@ log_must zpool list -v $TESTPOOL
 
 #
 # remove a special allocation vdev and force a remapping
+# N.B. The 'zfs remap' command has been disabled and may be removed.
 #
+export ZFS_REMAP_ENABLED=YES
+
 log_must zpool remove $TESTPOOL $CLASS_DISK0
 log_must zfs remap $TESTPOOL/$TESTFS
 

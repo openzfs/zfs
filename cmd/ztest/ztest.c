@@ -216,7 +216,6 @@ extern int dmu_object_alloc_chunk_shift;
 extern boolean_t zfs_force_some_double_word_sm_entries;
 extern unsigned long zio_decompress_fail_fraction;
 extern unsigned long zfs_reconstruct_indirect_damage_fraction;
-extern int zfs_object_remap_one_indirect_delay_ms;
 
 
 static ztest_shared_opts_t *ztest_shared_opts;
@@ -373,7 +372,6 @@ ztest_func_t ztest_split_pool;
 ztest_func_t ztest_reguid;
 ztest_func_t ztest_spa_upgrade;
 ztest_func_t ztest_device_removal;
-ztest_func_t ztest_remap_blocks;
 ztest_func_t ztest_spa_checkpoint_create_discard;
 ztest_func_t ztest_initialize;
 ztest_func_t ztest_initialize;
@@ -428,7 +426,6 @@ ztest_info_t ztest_info[] = {
 	ZTI_INIT(ztest_vdev_class_add, 1, &ztest_opts.zo_vdevtime),
 	ZTI_INIT(ztest_vdev_aux_add_remove, 1, &ztest_opts.zo_vdevtime),
 	ZTI_INIT(ztest_device_removal, 1, &zopt_sometimes),
-	ZTI_INIT(ztest_remap_blocks, 1, &zopt_sometimes),
 	ZTI_INIT(ztest_spa_checkpoint_create_discard, 1, &zopt_rarely),
 	ZTI_INIT(ztest_initialize, 1, &zopt_sometimes),
 	ZTI_INIT(ztest_fletcher, 1, &zopt_rarely),
@@ -5553,20 +5550,6 @@ ztest_dsl_prop_get_set(ztest_ds_t *zd, uint64_t id)
 
 /* ARGSUSED */
 void
-ztest_remap_blocks(ztest_ds_t *zd, uint64_t id)
-{
-	(void) pthread_rwlock_rdlock(&ztest_name_lock);
-
-	int error = dmu_objset_remap_indirects(zd->zd_name);
-	if (error == ENOSPC)
-		error = 0;
-	ASSERT0(error);
-
-	(void) pthread_rwlock_unlock(&ztest_name_lock);
-}
-
-/* ARGSUSED */
-void
 ztest_spa_prop_get_set(ztest_ds_t *zd, uint64_t id)
 {
 	nvlist_t *props = NULL;
@@ -6630,12 +6613,6 @@ ztest_resume_thread(void *arg)
 		 */
 		if (ztest_random(10) == 0)
 			zfs_abd_scatter_enabled = ztest_random(2);
-
-		/*
-		 * Periodically inject remapping delays (10% of the time).
-		 */
-		zfs_object_remap_one_indirect_delay_ms =
-		    ztest_random(10) == 0 ? ztest_random(1000) + 1 : 0;
 	}
 
 	thread_exit();

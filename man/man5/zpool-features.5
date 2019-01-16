@@ -475,8 +475,7 @@ DEPENDENCIES	device_removal
 This feature is an enhancement of device_removal, which will over time
 reduce the memory used to track removed devices.  When indirect blocks
 are freed or remapped, we note that their part of the indirect mapping
-is "obsolete", i.e. no longer needed.  See also the \fBzfs remap\fR
-subcommand in \fBzfs\fR(1M).
+is "obsolete", i.e. no longer needed.
 
 This feature becomes \fBactive\fR when the "zpool remove" command is
 used on a top-level vdev, and will never return to being \fBenabled\fR.
