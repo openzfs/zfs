@@ -3804,13 +3804,17 @@ vdev_get_child_stat_ex(vdev_t *cvd, vdev_stat_ex_t *vsx, vdev_stat_ex_t *cvsx)
 boolean_t
 vdev_is_spacemap_addressable(vdev_t *vd)
 {
+	if (spa_feature_is_active(vd->vdev_spa, SPA_FEATURE_SPACEMAP_V2))
+		return (B_TRUE);
+
 	/*
-	 * Assuming 47 bits of the space map entry dedicated for the entry's
-	 * offset (see description in space_map.h), we calculate the maximum
-	 * address that can be described by a space map entry for the given
-	 * device.
+	 * If double-word space map entries are not enabled we assume
+	 * 47 bits of the space map entry are dedicated to the entry's
+	 * offset (see SM_OFFSET_BITS in space_map.h). We then use that
+	 * to calculate the maximum address that can be described by a
+	 * space map entry for the given device.
 	 */
-	uint64_t shift = vd->vdev_ashift + 47;
+	uint64_t shift = vd->vdev_ashift + SM_OFFSET_BITS;
 
 	if (shift >= 63) /* detect potential overflow */
 		return (B_TRUE);
