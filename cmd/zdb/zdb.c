@@ -100,6 +100,7 @@ extern int zfs_recover;
 extern uint64_t zfs_arc_max, zfs_arc_meta_limit;
 extern int zfs_vdev_async_read_max_active;
 extern boolean_t spa_load_verify_dryrun;
+extern int zfs_reconstruct_indirect_combinations_max;
 
 static const char cmdname[] = "zdb";
 uint8_t dump_opt[256];
@@ -215,6 +216,8 @@ usage(void)
 	    "dump all read blocks into specified directory\n");
 	(void) fprintf(stderr, "        -X attempt extreme rewind (does not "
 	    "work with dataset)\n");
+	(void) fprintf(stderr, "        -Y attempt all reconstruction "
+	    "combinations for split blocks\n");
 	(void) fprintf(stderr, "Specify an option more than once (e.g. -bb) "
 	    "to make only that option verbose\n");
 	(void) fprintf(stderr, "Default is to dump everything non-verbosely\n");
@@ -5871,7 +5874,7 @@ main(int argc, char **argv)
 		spa_config_path = spa_config_path_env;
 
 	while ((c = getopt(argc, argv,
-	    "AbcCdDeEFGhiI:klLmMo:Op:PqRsSt:uU:vVx:X")) != -1) {
+	    "AbcCdDeEFGhiI:klLmMo:Op:PqRsSt:uU:vVx:XY")) != -1) {
 		switch (c) {
 		case 'b':
 		case 'c':
@@ -5902,6 +5905,10 @@ main(int argc, char **argv)
 		case 'q':
 		case 'X':
 			dump_opt[c]++;
+			break;
+		case 'Y':
+			zfs_reconstruct_indirect_combinations_max = INT_MAX;
+			zfs_deadman_enabled = 0;
 			break;
 		/* NB: Sort single match options below. */
 		case 'I':
