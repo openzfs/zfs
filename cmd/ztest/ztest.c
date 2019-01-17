@@ -5994,20 +5994,13 @@ ztest_ddt_repair(ztest_ds_t *zd, uint64_t id)
 	spa_t *spa = ztest_spa;
 	objset_t *os = zd->zd_os;
 	ztest_od_t *od;
-	uint64_t object, blocksize, txg, pattern, psize;
+	uint64_t object, blocksize, txg, pattern;
 	enum zio_checksum checksum = spa_dedup_checksum(spa);
 	dmu_buf_t *db;
 	dmu_tx_t *tx;
-	abd_t *abd;
-	blkptr_t blk;
-	int copies = 2 * ZIO_DEDUPDITTO_MIN;
-	int i;
-
-	blocksize = ztest_random_blocksize();
-	blocksize = MIN(blocksize, 2048);	/* because we write so many */
 
 	od = umem_alloc(sizeof (ztest_od_t), UMEM_NOFAIL);
-	ztest_od_init(od, id, FTAG, 0, DMU_OT_UINT64_OTHER, blocksize, 0, 0);
+	ztest_od_init(od, id, FTAG, 0, DMU_OT_UINT64_OTHER, 0, 0, 0);
 
 	if (ztest_object_init(zd, od, sizeof (ztest_od_t), B_FALSE) != 0) {
 		umem_free(od, sizeof (ztest_od_t));
@@ -6016,7 +6009,7 @@ ztest_ddt_repair(ztest_ds_t *zd, uint64_t id)
 
 	/*
 	 * Take the name lock as writer to prevent anyone else from changing
-	 * the pool and dataset properies we need to maintain during this test.
+	 * the pool and dataset properties we need to maintain during this test.
 	 */
 	(void) pthread_rwlock_wrlock(&ztest_name_lock);
 
@@ -6038,6 +6031,31 @@ ztest_ddt_repair(ztest_ds_t *zd, uint64_t id)
 	blocksize = od[0].od_blocksize;
 	pattern = zs->zs_guid ^ dds.dds_guid;
 
+	/*
+	 * The numbers of copies written must always be greater than or
+	 * equal to the threshold set by the dedupditto property.  This
+	 * is initialized in ztest_run() and then randomly changed by
+	 * ztest_spa_prop_get_set(), these function will never set it
+	 * larger than 2 * ZIO_DEDUPDITTO_MIN.
+	 */
+	int copies = 2 * ZIO_DEDUPDITTO_MIN;
+
+	/*
+	 * The block size is limited by DMU_MAX_ACCESS (64MB) which
+	 * caps the maximum transaction size.  A block size of up to
+	 * SPA_OLD_MAXBLOCKSIZE is allowed which results in a maximum
+	 * transaction size of: 128K * 200 (copies) = ~25MB
+	 *
+	 * The actual block size is checked here, rather than requested
+	 * above, because the way ztest_od_init() is implemented it does
+	 * not guarantee the block size requested will be used.
+	 */
+	if (blocksize > SPA_OLD_MAXBLOCKSIZE) {
+		(void) pthread_rwlock_unlock(&ztest_name_lock);
+		umem_free(od, sizeof (ztest_od_t));
+		return;
+	}
+
 	ASSERT(object != 0);
 
 	tx = dmu_tx_create(os);
@@ -6052,7 +6070,7 @@ ztest_ddt_repair(ztest_ds_t *zd, uint64_t id)
 	/*
 	 * Write all the copies of our block.
 	 */
-	for (i = 0; i < copies; i++) {
+	for (int i = 0; i < copies; i++) {
 		uint64_t offset = i * blocksize;
 		int error = dmu_buf_hold(os, object, offset, FTAG, &db,
 		    DMU_READ_NO_PREFETCH);
@@ -6075,16 +6093,15 @@ ztest_ddt_repair(ztest_ds_t *zd, uint64_t id)
 	/*
 	 * Find out what block we got.
 	 */
-	VERIFY0(dmu_buf_hold(os, object, 0, FTAG, &db,
-	    DMU_READ_NO_PREFETCH));
-	blk = *((dmu_buf_impl_t *)db)->db_blkptr;
+	VERIFY0(dmu_buf_hold(os, object, 0, FTAG, &db, DMU_READ_NO_PREFETCH));
+	blkptr_t blk = *((dmu_buf_impl_t *)db)->db_blkptr;
 	dmu_buf_rele(db, FTAG);
 
 	/*
 	 * Damage the block.  Dedup-ditto will save us when we read it later.
 	 */
-	psize = BP_GET_PSIZE(&blk);
-	abd = abd_alloc_linear(psize, B_TRUE);
+	uint64_t psize = BP_GET_PSIZE(&blk);
+	abd_t *abd = abd_alloc_linear(psize, B_TRUE);
 	ztest_pattern_set(abd_to_buf(abd), psize, ~pattern);
 
 	(void) zio_wait(zio_rewrite(NULL, spa, 0, &blk,
