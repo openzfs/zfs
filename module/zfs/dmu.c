@@ -1688,7 +1688,7 @@ dmu_copy_from_buf(objset_t *os, uint64_t object, uint64_t offset,
  * If this is not possible copy the contents of passed arc buf via
  * dmu_write().
  */
-void
+int
 dmu_assign_arcbuf_by_dnode(dnode_t *dn, uint64_t offset, arc_buf_t *buf,
     dmu_tx_t *tx)
 {
@@ -1700,7 +1700,9 @@ dmu_assign_arcbuf_by_dnode(dnode_t *dn, uint64_t offset, arc_buf_t *buf,
 
 	rw_enter(&dn->dn_struct_rwlock, RW_READER);
 	blkid = dbuf_whichblock(dn, 0, offset);
-	VERIFY((db = dbuf_hold(dn, blkid, FTAG)) != NULL);
+	db = dbuf_hold(dn, blkid, FTAG);
+	if (db == NULL)
+		return (SET_ERROR(EIO));
 	rw_exit(&dn->dn_struct_rwlock);
 
 	/*
@@ -1720,17 +1722,22 @@ dmu_assign_arcbuf_by_dnode(dnode_t *dn, uint64_t offset, arc_buf_t *buf,
 		dmu_return_arcbuf(buf);
 		XUIOSTAT_BUMP(xuiostat_wbuf_copied);
 	}
+
+	return (0);
 }
 
-void
+int
 dmu_assign_arcbuf_by_dbuf(dmu_buf_t *handle, uint64_t offset, arc_buf_t *buf,
     dmu_tx_t *tx)
 {
+	int err;
 	dmu_buf_impl_t *dbuf = (dmu_buf_impl_t *)handle;
 
 	DB_DNODE_ENTER(dbuf);
-	dmu_assign_arcbuf_by_dnode(DB_DNODE(dbuf), offset, buf, tx);
+	err = dmu_assign_arcbuf_by_dnode(DB_DNODE(dbuf), offset, buf, tx);
 	DB_DNODE_EXIT(dbuf);
+
+	return (err);
 }
 
 typedef struct {

@@ -2886,6 +2886,12 @@ dbuf_prefetch_indirect_done(zio_t *zio, const zbookmark_phys_t *zb,
 		    dpa->dpa_zb.zb_level));
 		dmu_buf_impl_t *db = dbuf_hold_level(dpa->dpa_dnode,
 		    dpa->dpa_curlevel, curblkid, FTAG);
+		if (db == NULL) {
+			kmem_free(dpa, sizeof (*dpa));
+			arc_buf_destroy(abuf, private);
+			return;
+		}
+
 		(void) dbuf_read(db, NULL,
 		    DB_RF_MUST_SUCCEED | DB_RF_NOPREFETCH | DB_RF_HAVESTRUCT);
 		dbuf_rele(db, FTAG);
