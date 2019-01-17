@@ -54,20 +54,20 @@
 #include <sys/zvol.h>
 #include <sys/zfs_ratelimit.h>
 
-/* target number of metaslabs per top-level vdev */
-int vdev_max_ms_count = 200;
+/* default target for number of metaslabs per top-level vdev */
+int zfs_vdev_default_ms_count = 200;
 
 /* minimum number of metaslabs per top-level vdev */
-int vdev_min_ms_count = 16;
+int zfs_vdev_min_ms_count = 16;
 
 /* practical upper limit of total metaslabs per top-level vdev */
-int vdev_ms_count_limit = 1ULL << 17;
+int zfs_vdev_ms_count_limit = 1ULL << 17;
 
 /* lower limit for metaslab size (512M) */
-int vdev_default_ms_shift = 29;
+int zfs_vdev_default_ms_shift = 29;
 
-/* upper limit for metaslab size (256G) */
-int vdev_max_ms_shift = 38;
+/* upper limit for metaslab size (16G) */
+int zfs_vdev_max_ms_shift = 34;
 
 int vdev_validate_skip = B_FALSE;
 
@@ -2281,16 +2281,24 @@ void
 vdev_metaslab_set_size(vdev_t *vd)
 {
 	uint64_t asize = vd->vdev_asize;
-	uint64_t ms_count = asize >> vdev_default_ms_shift;
+	uint64_t ms_count = asize >> zfs_vdev_default_ms_shift;
 	uint64_t ms_shift;
 
 	/*
 	 * There are two dimensions to the metaslab sizing calculation:
 	 * the size of the metaslab and the count of metaslabs per vdev.
-	 * In general, we aim for vdev_max_ms_count (200) metaslabs. The
-	 * range of the dimensions are as follows:
 	 *
-	 *	2^29 <= ms_size  <= 2^38
+	 * The default values used below are a good balance between memory
+	 * usage (larger metaslab size means more memory needed for loaded
+	 * metaslabs; more metaslabs means more memory needed for the
+	 * metaslab_t structs), metaslab load time (larger metaslabs take
+	 * longer to load), and metaslab sync time (more metaslabs means
+	 * more time spent syncing all of them).
+	 *
+	 * In general, we aim for zfs_vdev_default_ms_count (200) metaslabs.
+	 * The range of the dimensions are as follows:
+	 *
+	 *	2^29 <= ms_size  <= 2^34
 	 *	  16 <= ms_count <= 131,072
 	 *
 	 * On the lower end of vdev sizes, we aim for metaslabs sizes of
@@ -2299,35 +2307,41 @@ vdev_metaslab_set_size(vdev_t *vd)
 	 * of at least 16 metaslabs will override this minimum size goal.
 	 *
 	 * On the upper end of vdev sizes, we aim for a maximum metaslab
-	 * size of 256GB.  However, we will cap the total count to 2^17
-	 * metaslabs to keep our memory footprint in check.
+	 * size of 16GB.  However, we will cap the total count to 2^17
+	 * metaslabs to keep our memory footprint in check and let the
+	 * metaslab size grow from there if that limit is hit.
 	 *
 	 * The net effect of applying above constrains is summarized below.
 	 *
-	 *	vdev size	metaslab count
-	 *	-------------|-----------------
-	 *	< 8GB		~16
-	 *	8GB - 100GB	one per 512MB
-	 *	100GB - 50TB	~200
-	 *	50TB - 32PB	one per 256GB
-	 *	> 32PB		~131,072
-	 *	-------------------------------
+	 *   vdev size       metaslab count
+	 *  --------------|-----------------
+	 *      < 8GB        ~16
+	 *  8GB   - 100GB   one per 512MB
+	 *  100GB - 3TB     ~200
+	 *  3TB   - 2PB     one per 16GB
+	 *      > 2PB       ~131,072
+	 *  --------------------------------
+	 *
+	 *  Finally, note that all of the above calculate the initial
+	 *  number of metaslabs. Expanding a top-level vdev will result
+	 *  in additional metaslabs being allocated making it possible
+	 *  to exceed the zfs_vdev_ms_count_limit.
 	 */
 
-	if (ms_count < vdev_min_ms_count)
-		ms_shift = highbit64(asize / vdev_min_ms_count);
-	else if (ms_count > vdev_max_ms_count)
-		ms_shift = highbit64(asize / vdev_max_ms_count);
+	if (ms_count < zfs_vdev_min_ms_count)
+		ms_shift = highbit64(asize / zfs_vdev_min_ms_count);
+	else if (ms_count > zfs_vdev_default_ms_count)
+		ms_shift = highbit64(asize / zfs_vdev_default_ms_count);
 	else
-		ms_shift = vdev_default_ms_shift;
+		ms_shift = zfs_vdev_default_ms_shift;
 
 	if (ms_shift < SPA_MAXBLOCKSHIFT) {
 		ms_shift = SPA_MAXBLOCKSHIFT;
-	} else if (ms_shift > vdev_max_ms_shift) {
-		ms_shift = vdev_max_ms_shift;
+	} else if (ms_shift > zfs_vdev_max_ms_shift) {
+		ms_shift = zfs_vdev_max_ms_shift;
 		/* cap the total count to constrain memory footprint */
-		if ((asize >> ms_shift) > vdev_ms_count_limit)
-			ms_shift = highbit64(asize / vdev_ms_count_limit);
+		if ((asize >> ms_shift) > zfs_vdev_ms_count_limit)
+			ms_shift = highbit64(asize / zfs_vdev_ms_count_limit);
 	}
 
 	vd->vdev_ms_shift = ms_shift;
@@ -4674,16 +4688,16 @@ EXPORT_SYMBOL(vdev_online);
 EXPORT_SYMBOL(vdev_offline);
 EXPORT_SYMBOL(vdev_clear);
 /* BEGIN CSTYLED */
-module_param(vdev_max_ms_count, int, 0644);
-MODULE_PARM_DESC(vdev_max_ms_count,
+module_param(zfs_vdev_default_ms_count, int, 0644);
+MODULE_PARM_DESC(zfs_vdev_default_ms_count,
 	"Target number of metaslabs per top-level vdev");
 
-module_param(vdev_min_ms_count, int, 0644);
-MODULE_PARM_DESC(vdev_min_ms_count,
+module_param(zfs_vdev_min_ms_count, int, 0644);
+MODULE_PARM_DESC(zfs_vdev_min_ms_count,
 	"Minimum number of metaslabs per top-level vdev");
 
-module_param(vdev_ms_count_limit, int, 0644);
-MODULE_PARM_DESC(vdev_ms_count_limit,
+module_param(zfs_vdev_ms_count_limit, int, 0644);
+MODULE_PARM_DESC(zfs_vdev_ms_count_limit,
 	"Practical upper limit of total metaslabs per top-level vdev");
 
 module_param(zfs_slow_io_events_per_second, uint, 0644);
