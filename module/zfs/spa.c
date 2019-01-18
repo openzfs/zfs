@@ -3538,14 +3538,7 @@ spa_ld_get_props(spa_t *spa)
 		spa_prop_find(spa, ZPOOL_PROP_DEDUPDITTO,
 		    &spa->spa_dedup_ditto);
 		spa_prop_find(spa, ZPOOL_PROP_FORCETRIM, &spa->spa_force_trim);
-
-		mutex_enter(&spa->spa_auto_trim_lock);
 		spa_prop_find(spa, ZPOOL_PROP_AUTOTRIM, &spa->spa_auto_trim);
-		if (spa->spa_auto_trim == SPA_AUTO_TRIM_ON &&
-			strcmp(spa->spa_name, TRYIMPORT_NAME) != 0)
-			spa_auto_trim_taskq_create(spa);
-		mutex_exit(&spa->spa_auto_trim_lock);
-
 		spa->spa_autoreplace = (autoreplace != 0);
 	}
 
@@ -4248,6 +4241,16 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport)
 		spa->spa_sync_on = B_TRUE;
 		txg_sync_start(spa->spa_dsl_pool);
 		mmp_thread_start(spa);
+
+		/*
+		 * Start the auto trim taskq if autotrim is enabled.
+		 */
+		mutex_enter(&spa->spa_auto_trim_lock);
+		if (spa->spa_auto_trim == SPA_AUTO_TRIM_ON &&
+			strcmp(spa->spa_name, TRYIMPORT_NAME) != 0)
+			spa_auto_trim_taskq_create(spa);
+		mutex_exit(&spa->spa_auto_trim_lock);
+
 
 		/*
 		 * Wait for all claims to sync.  We sync up to the highest
