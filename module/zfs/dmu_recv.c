@@ -1629,7 +1629,12 @@ receive_write(struct receive_writer_arg *rwa, struct drr_write *drrw,
 
 	/* use the bonus buf to look up the dnode in dmu_assign_arcbuf */
 	VERIFY0(dnode_hold(rwa->os, drrw->drr_object, FTAG, &dn));
-	dmu_assign_arcbuf_by_dnode(dn, drrw->drr_offset, abuf, tx);
+	err = dmu_assign_arcbuf_by_dnode(dn, drrw->drr_offset, abuf, tx);
+	if (err != 0) {
+		dnode_rele(dn, FTAG);
+		dmu_tx_commit(tx);
+		return (err);
+	}
 	dnode_rele(dn, FTAG);
 
 	/*

@@ -4848,14 +4848,14 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 				    FTAG, &dbt, DMU_READ_NO_PREFETCH) == 0);
 			}
 			if (i != 5 || chunksize < (SPA_MINBLOCKSIZE * 2)) {
-				dmu_assign_arcbuf_by_dbuf(bonus_db, off,
-				    bigbuf_arcbufs[j], tx);
+				VERIFY0(dmu_assign_arcbuf_by_dbuf(bonus_db,
+				    off, bigbuf_arcbufs[j], tx));
 			} else {
-				dmu_assign_arcbuf_by_dbuf(bonus_db, off,
-				    bigbuf_arcbufs[2 * j], tx);
-				dmu_assign_arcbuf_by_dbuf(bonus_db,
+				VERIFY0(dmu_assign_arcbuf_by_dbuf(bonus_db,
+				    off, bigbuf_arcbufs[2 * j], tx));
+				VERIFY0(dmu_assign_arcbuf_by_dbuf(bonus_db,
 				    off + chunksize / 2,
-				    bigbuf_arcbufs[2 * j + 1], tx);
+				    bigbuf_arcbufs[2 * j + 1], tx));
 			}
 			if (i == 1) {
 				dmu_buf_rele(dbt, FTAG);
