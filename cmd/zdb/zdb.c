@@ -910,11 +910,8 @@ dump_metaslab(metaslab_t *msp)
 
 	if (dump_opt['m'] > 2 && !dump_opt['L']) {
 		mutex_enter(&msp->ms_lock);
-		metaslab_load_wait(msp);
-		if (!msp->ms_loaded) {
-			VERIFY0(metaslab_load(msp));
-			range_tree_stat_verify(msp->ms_allocatable);
-		}
+		VERIFY0(metaslab_load(msp));
+		range_tree_stat_verify(msp->ms_allocatable);
 		dump_metaslab_stats(msp);
 		metaslab_unload(msp);
 		mutex_exit(&msp->ms_lock);
