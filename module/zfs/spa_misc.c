@@ -2601,6 +2601,10 @@ spa_auto_trim_taskq_create(spa_t *spa)
 {
 	char *name = kmem_alloc(MAXPATHLEN, KM_SLEEP);
 
+	/* Don't create the taskq if the pool is unloading */
+	if (spa->spa_sync_on == B_FALSE)
+		return;
+
 	ASSERT(MUTEX_HELD(&spa->spa_auto_trim_lock));
 	ASSERT(spa->spa_auto_trim_taskq == NULL);
 	(void) snprintf(name, MAXPATHLEN, "z_atrim_%s", spa->spa_name);

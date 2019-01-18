@@ -3541,7 +3541,8 @@ spa_ld_get_props(spa_t *spa)
 
 		mutex_enter(&spa->spa_auto_trim_lock);
 		spa_prop_find(spa, ZPOOL_PROP_AUTOTRIM, &spa->spa_auto_trim);
-		if (spa->spa_auto_trim == SPA_AUTO_TRIM_ON)
+		if (spa->spa_auto_trim == SPA_AUTO_TRIM_ON &&
+			strcmp(spa->spa_name, TRYIMPORT_NAME) != 0)
 			spa_auto_trim_taskq_create(spa);
 		mutex_exit(&spa->spa_auto_trim_lock);
 
@@ -5306,7 +5307,8 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 
 	mutex_enter(&spa->spa_auto_trim_lock);
 	spa->spa_auto_trim = zpool_prop_default_numeric(ZPOOL_PROP_AUTOTRIM);
-	if (spa->spa_auto_trim == SPA_AUTO_TRIM_ON)
+	if (spa->spa_auto_trim == SPA_AUTO_TRIM_ON &&
+	    strcmp(spa->spa_name, TRYIMPORT_NAME) != 0)
 		spa_auto_trim_taskq_create(spa);
 	mutex_exit(&spa->spa_auto_trim_lock);
 
@@ -7250,11 +7252,27 @@ spa_async_thread(void *arg)
 		mutex_exit(&spa_namespace_lock);
 	}
 
+	/*
+	 * Trim taskq management.
+	 */
 	if (tasks & SPA_ASYNC_MAN_TRIM_TASKQ_DESTROY) {
 		mutex_enter(&spa->spa_man_trim_lock);
 		spa_man_trim_taskq_destroy(spa);
 		mutex_exit(&spa->spa_man_trim_lock);
 	}
+	if (tasks & SPA_ASYNC_AUTO_TRIM_TASKQ_CREATE) {
+		mutex_enter(&spa->spa_auto_trim_lock);
+		if (spa->spa_auto_trim_taskq == NULL)
+			spa_auto_trim_taskq_create(spa);
+		mutex_exit(&spa->spa_auto_trim_lock);
+	}
+	if (tasks & SPA_ASYNC_AUTO_TRIM_TASKQ_DESTROY) {
+		mutex_enter(&spa->spa_auto_trim_lock);
+		if (spa->spa_auto_trim_taskq != NULL)
+			spa_auto_trim_taskq_destroy(spa);
+		mutex_exit(&spa->spa_auto_trim_lock);
+	}
+
 
 	/*
 	 * Let the world know that we're done.
@@ -7768,16 +7786,9 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 				spa->spa_force_trim = intval;
 				break;
 			case ZPOOL_PROP_AUTOTRIM:
-				mutex_enter(&spa->spa_auto_trim_lock);
-				if (intval != spa->spa_auto_trim) {
-					spa->spa_auto_trim = intval;
-					if (intval != 0)
-						spa_auto_trim_taskq_create(spa);
-					else
-						spa_auto_trim_taskq_destroy(
-						    spa);
-				}
-				mutex_exit(&spa->spa_auto_trim_lock);
+				spa_async_request(spa, intval ?
+				    SPA_ASYNC_AUTO_TRIM_TASKQ_CREATE :
+				    SPA_ASYNC_AUTO_TRIM_TASKQ_DESTROY);
 				break;
 			case ZPOOL_PROP_AUTOEXPAND:
 				spa->spa_autoexpand = intval;
@@ -8509,7 +8520,6 @@ spa_auto_trim(spa_t *spa, uint64_t txg)
 {
 	ASSERT(spa_config_held(spa, SCL_CONFIG, RW_READER) == SCL_CONFIG);
 	ASSERT(!MUTEX_HELD(&spa->spa_auto_trim_lock));
-	ASSERT(spa->spa_auto_trim_taskq != NULL);
 
 	/*
 	 * Another pool management task might be currently prevented from
@@ -8518,6 +8528,12 @@ spa_auto_trim(spa_t *spa, uint64_t txg)
 	 */
 	if (!mutex_tryenter(&spa->spa_auto_trim_lock))
 		return;
+
+	/* Async start-up of the auto trim taskq may not yet have completed */
+	if (spa->spa_auto_trim_taskq == NULL) {
+		mutex_exit(&spa->spa_auto_trim_lock);
+		return;
+	}
 
 	/* Count the number of auto trim threads which will be launched below */
 	/* spa->spa_num_auto_trimming += spa->spa_root_vdev->vdev_children; */
