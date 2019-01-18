@@ -476,6 +476,7 @@ static ztest_ds_t *ztest_ds;
 
 static kmutex_t ztest_vdev_lock;
 static boolean_t ztest_device_removal_active = B_FALSE;
+static boolean_t ztest_pool_scrubbed = B_FALSE;
 static kmutex_t ztest_checkpoint_lock;
 
 /*
@@ -515,6 +516,7 @@ enum ztest_object {
 };
 
 static void usage(boolean_t) __NORETURN;
+static int ztest_scrub_impl(spa_t *spa);
 
 /*
  * These libumem hooks provide a reasonable set of defaults for the allocator's
@@ -3427,10 +3429,17 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	pguid = pvd->vdev_guid;
 
 	/*
-	 * If oldvd has siblings, then half of the time, detach it.
+	 * If oldvd has siblings, then half of the time, detach it.  Prior
+	 * to the detach the pool is scrubbed in order to prevent creating
+	 * unrepairable blocks as a result of the data corruption injection.
 	 */
 	if (oldvd_has_siblings && ztest_random(2) == 0) {
 		spa_config_exit(spa, SCL_ALL, FTAG);
+
+		error = ztest_scrub_impl(spa);
+		if (error)
+			goto out;
+
 		error = spa_vdev_detach(spa, oldguid, pguid, B_FALSE);
 		if (error != 0 && error != ENODEV && error != EBUSY &&
 		    error != ENOTSUP && error != ZFS_ERR_CHECKPOINT_EXISTS &&
@@ -5758,6 +5767,19 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 	ASSERT(leaves >= 1);
 
 	/*
+	 * While ztest is running the number of leaves will not change.  This
+	 * is critical for the fault injection logic as it determines where
+	 * errors can be safely injected such that they are always repairable.
+	 *
+	 * When restarting ztest a different number of leaves may be requested
+	 * which will shift the regions to be damaged.  This is fine as long
+	 * as the pool has been scrubbed prior to using the new mapping.
+	 * Failure to do can result in non-repairable damage being injected.
+	 */
+	if (ztest_pool_scrubbed == B_FALSE)
+		goto out;
+
+	/*
 	 * Grab the name lock as reader. There are some operations
 	 * which don't like to have their vdevs changed while
 	 * they are in progress (i.e. spa_change_guid). Those
@@ -6114,6 +6136,32 @@ ztest_ddt_repair(ztest_ds_t *zd, uint64_t id)
 }
 
 /*
+ * By design ztest will never inject uncorrectable damage in to the pool.
+ * Issue a scrub, wait for it to complete, and verify there is never any
+ * any persistent damage.
+ *
+ * Only after a full scrub has been completed is it safe to start injecting
+ * data corruption.  See the comment in zfs_fault_inject().
+ */
+static int
+ztest_scrub_impl(spa_t *spa)
+{
+	int error = spa_scan(spa, POOL_SCAN_SCRUB);
+	if (error)
+		return (error);
+
+	while (dsl_scan_scrubbing(spa_get_dsl(spa)))
+		txg_wait_synced(spa_get_dsl(spa), 0);
+
+	if (spa_get_errlog_size(spa) > 0)
+		return (ECKSUM);
+
+	ztest_pool_scrubbed = B_TRUE;
+
+	return (0);
+}
+
+/*
  * Scrub the pool.
  */
 /* ARGSUSED */
@@ -6121,6 +6169,7 @@ void
 ztest_scrub(ztest_ds_t *zd, uint64_t id)
 {
 	spa_t *spa = ztest_spa;
+	int error;
 
 	/*
 	 * Scrub in progress by device removal.
@@ -6128,9 +6177,16 @@ ztest_scrub(ztest_ds_t *zd, uint64_t id)
 	if (ztest_device_removal_active)
 		return;
 
+	/*
+	 * Start a scrub, wait a moment, then force a restart.
+	 */
 	(void) spa_scan(spa, POOL_SCAN_SCRUB);
-	(void) poll(NULL, 0, 100); /* wait a moment, then force a restart */
-	(void) spa_scan(spa, POOL_SCAN_SCRUB);
+	(void) poll(NULL, 0, 100);
+
+	error = ztest_scrub_impl(spa);
+	if (error == EBUSY)
+		error = 0;
+	ASSERT0(error);
 }
 
 /*
@@ -7014,9 +7070,10 @@ ztest_run(ztest_shared_t *zs)
 		while (spa->spa_removing_phys.sr_state == DSS_SCANNING)
 			txg_wait_synced(spa_get_dsl(spa), 0);
 
-		(void) spa_scan(spa, POOL_SCAN_SCRUB);
-		while (dsl_scan_scrubbing(spa_get_dsl(spa)))
-			txg_wait_synced(spa_get_dsl(spa), 0);
+		error = ztest_scrub_impl(spa);
+		if (error == EBUSY)
+			error = 0;
+		ASSERT0(error);
 	}
 
 	run_threads = umem_zalloc(ztest_opts.zo_threads * sizeof (kthread_t *),
