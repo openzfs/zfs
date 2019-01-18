@@ -48,17 +48,32 @@ verify_runnable "both"
 log_assert "ZFS can handle invalid user property."
 log_onexit cleanup_user_prop $TESTPOOL
 
-typeset -i i=0
-while ((i < 10)); do
+typeset -a names=()
+typeset -a values=()
+
+# Too long property name (256 bytes)
+names+=("$(awk 'BEGIN { printf "x:"; while (c++ < 254) printf "a" }')")
+values+=("too-long-property-name")
+# Too long property value (8K)
+names+=("too:long:property:value")
+values+=("$(awk 'BEGIN { while (c++ < 8192) printf "A" }')")
+# Invalid property names
+for i in {1..10}; do
 	typeset -i len
 	((len = RANDOM % 32))
-	typeset user_prop=$(invalid_user_property $len)
+	names+=("$(invalid_user_property $len)")
 	((len = RANDOM % 512))
-	typeset value=$(user_property_value $len)
+	values+=("$(user_property_value $len)")
+done
+
+typeset -i i=0
+while ((i < ${#names[@]})); do
+	typeset name="${names[$i]}"
+	typeset value="${values[$i]}"
 
 	for dtst in $TESTPOOL $TESTPOOL/$TESTFS $TESTPOOL/$TESTVOL ; do
-		log_mustnot zfs set $user_prop=$value $dtst
-		log_mustnot check_user_prop $dtst \"$user_prop\" \"$value\"
+		log_mustnot zfs set $name=$value $dtst
+		log_mustnot check_user_prop $dtst \"$name\" \"$value\"
 	done
 
 	((i += 1))
