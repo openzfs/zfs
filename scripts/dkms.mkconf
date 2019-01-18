@@ -65,6 +65,10 @@ PRE_BUILD="configure
       then
         echo --enable-debug-dmu-tx
       fi
+      if [[ \${ZFS_DKMS_ENABLE_DEBUGINFO,,} == @(y|yes) ]]
+      then
+        echo --enable-debuginfo
+      fi
     }
   )
 "
