@@ -457,6 +457,11 @@ dsl_pool_create(spa_t *spa, nvlist_t *zplprops, dsl_crypto_params_t *dcp,
 	int err;
 	dsl_pool_t *dp = dsl_pool_open_impl(spa, txg);
 	dmu_tx_t *tx = dmu_tx_create_assigned(dp, txg);
+#ifdef _KERNEL
+	objset_t *os;
+#else
+	objset_t *os __attribute__((unused));
+#endif
 	dsl_dataset_t *ds;
 	uint64_t obj;
 
@@ -520,15 +525,12 @@ dsl_pool_create(spa_t *spa, nvlist_t *zplprops, dsl_crypto_params_t *dcp,
 	/* create the root objset */
 	VERIFY0(dsl_dataset_hold_obj_flags(dp, obj,
 	    DS_HOLD_FLAG_DECRYPT, FTAG, &ds));
+	rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
+	os = dmu_objset_create_impl(dp->dp_spa, ds,
+	    dsl_dataset_get_blkptr(ds), DMU_OST_ZFS, tx);
+	rrw_exit(&ds->ds_bp_rwlock, FTAG);
 #ifdef _KERNEL
-	{
-		objset_t *os;
-		rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
-		os = dmu_objset_create_impl(dp->dp_spa, ds,
-		    dsl_dataset_get_blkptr(ds), DMU_OST_ZFS, tx);
-		rrw_exit(&ds->ds_bp_rwlock, FTAG);
-		zfs_create_fs(os, kcred, zplprops, tx);
-	}
+	zfs_create_fs(os, kcred, zplprops, tx);
 #endif
 	dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
 
