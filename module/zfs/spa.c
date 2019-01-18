@@ -5307,18 +5307,18 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	spa->spa_autoexpand = zpool_prop_default_numeric(ZPOOL_PROP_AUTOEXPAND);
 	spa->spa_multihost = zpool_prop_default_numeric(ZPOOL_PROP_MULTIHOST);
 	spa->spa_force_trim = zpool_prop_default_numeric(ZPOOL_PROP_FORCETRIM);
-
-	mutex_enter(&spa->spa_auto_trim_lock);
 	spa->spa_auto_trim = zpool_prop_default_numeric(ZPOOL_PROP_AUTOTRIM);
-	if (spa->spa_auto_trim == SPA_AUTO_TRIM_ON &&
-	    strcmp(spa->spa_name, TRYIMPORT_NAME) != 0)
-		spa_auto_trim_taskq_create(spa);
-	mutex_exit(&spa->spa_auto_trim_lock);
 
 	if (props != NULL) {
 		spa_configfile_set(spa, props, B_FALSE);
 		spa_sync_props(props, tx);
 	}
+
+	/* Handle "zpool create -o autotrim=on" */
+	uint64_t auto_trim;
+	if (nvlist_lookup_uint64(props, zpool_prop_to_name(ZPOOL_PROP_AUTOTRIM),
+	    &auto_trim) == 0)
+		spa->spa_auto_trim = auto_trim;
 
 	dmu_tx_commit(tx);
 
@@ -8168,7 +8168,6 @@ spa_sync(spa_t *spa, uint64_t txg)
 
 	if (spa->spa_auto_trim == SPA_AUTO_TRIM_ON)
 		spa_auto_trim(spa, txg);
-
 
 	/*
 	 * If there are any pending vdev state changes, convert them
