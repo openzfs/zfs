@@ -1986,6 +1986,8 @@ receive_read_payload_and_next_header(dmu_recv_cookie_t *drc, int len, void *buf)
 			drc->drc_rrd->payload_size = len;
 			drc->drc_rrd->bytes_read = drc->drc_bytes_read;
 		}
+	} else {
+		ASSERT3P(buf, ==, NULL);
 	}
 
 	drc->drc_prev_cksum = drc->drc_cksum;
@@ -2078,8 +2080,11 @@ receive_read_record(dmu_recv_cookie_t *drc)
 		struct drr_object *drro =
 		    &drc->drc_rrd->header.drr_u.drr_object;
 		uint32_t size = DRR_OBJECT_PAYLOAD_SIZE(drro);
-		void *buf = kmem_zalloc(size, KM_SLEEP);
+		void *buf = NULL;
 		dmu_object_info_t doi;
+
+		if (size != 0)
+			buf = kmem_zalloc(size, KM_SLEEP);
 
 		err = receive_read_payload_and_next_header(drc, size, buf);
 		if (err != 0) {
