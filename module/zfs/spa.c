@@ -7260,7 +7260,8 @@ spa_async_thread(void *arg)
 	 */
 	if (tasks & SPA_ASYNC_MAN_TRIM_TASKQ_DESTROY) {
 		mutex_enter(&spa->spa_man_trim_lock);
-		spa_man_trim_taskq_destroy(spa);
+		if (spa->spa_man_trim_taskq != NULL)
+			spa_man_trim_taskq_destroy(spa);
 		mutex_exit(&spa->spa_man_trim_lock);
 	}
 	if (tasks & SPA_ASYNC_AUTO_TRIM_TASKQ_CREATE) {
