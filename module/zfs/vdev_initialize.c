@@ -452,7 +452,7 @@ vdev_initialize_calculate_progress(vdev_t *vd)
 		mutex_enter(&msp->ms_lock);
 
 		uint64_t ms_free = msp->ms_size -
-		    space_map_allocated(msp->ms_sm);
+		    metaslab_allocated_space(msp);
 
 		if (vd->vdev_top->vdev_ops == &vdev_raidz_ops)
 			ms_free /= vd->vdev_top->vdev_children;

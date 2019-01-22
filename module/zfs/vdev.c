@@ -2701,13 +2701,6 @@ vdev_dtl_load(vdev_t *vd)
 		ASSERT(vd->vdev_dtl_sm != NULL);
 
 		mutex_enter(&vd->vdev_dtl_lock);
-
-		/*
-		 * Now that we've opened the space_map we need to update
-		 * the in-core DTL.
-		 */
-		space_map_update(vd->vdev_dtl_sm);
-
 		error = space_map_load(vd->vdev_dtl_sm,
 		    vd->vdev_dtl[DTL_MISSING], SM_ALLOC);
 		mutex_exit(&vd->vdev_dtl_lock);
@@ -2867,10 +2860,6 @@ vdev_dtl_sync(vdev_t *vd, uint64_t txg)
 	}
 
 	dmu_tx_commit(tx);
-
-	mutex_enter(&vd->vdev_dtl_lock);
-	space_map_update(vd->vdev_dtl_sm);
-	mutex_exit(&vd->vdev_dtl_lock);
 }
 
 /*
@@ -3042,15 +3031,15 @@ vdev_load(vdev_t *vd)
 				return (error);
 			}
 			ASSERT3P(vd->vdev_checkpoint_sm, !=, NULL);
-			space_map_update(vd->vdev_checkpoint_sm);
 
 			/*
 			 * Since the checkpoint_sm contains free entries
-			 * exclusively we can use sm_alloc to indicate the
-			 * cumulative checkpointed space that has been freed.
+			 * exclusively we can use space_map_allocated() to
+			 * indicate the cumulative checkpointed space that
+			 * has been freed.
 			 */
 			vd->vdev_stat.vs_checkpoint_space =
-			    -vd->vdev_checkpoint_sm->sm_alloc;
+			    -space_map_allocated(vd->vdev_checkpoint_sm);
 			vd->vdev_spa->spa_checkpoint_info.sci_dspace +=
 			    vd->vdev_stat.vs_checkpoint_space;
 		} else if (error != 0) {
@@ -3088,7 +3077,6 @@ vdev_load(vdev_t *vd)
 			    (u_longlong_t)obsolete_sm_object, error);
 			return (error);
 		}
-		space_map_update(vd->vdev_obsolete_sm);
 	} else if (error != 0) {
 		vdev_dbgmsg(vd, "vdev_load: failed to retrieve obsolete "
 		    "space map object from vdev ZAP [error=%d]", error);
@@ -3519,8 +3507,8 @@ top:
 			 */
 			if (error == 0 &&
 			    tvd->vdev_checkpoint_sm != NULL) {
-				ASSERT3U(tvd->vdev_checkpoint_sm->sm_alloc,
-				    !=, 0);
+				ASSERT3U(space_map_allocated(
+				    tvd->vdev_checkpoint_sm), !=, 0);
 				error = ZFS_ERR_CHECKPOINT_EXISTS;
 			}
 
