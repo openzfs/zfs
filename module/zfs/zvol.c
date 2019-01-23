@@ -2267,7 +2267,7 @@ zvol_rename_minors_impl(const char *oldname, const char *newname)
 			    zv->zv_name[oldnamelen],
 			    zv->zv_name + oldnamelen + 1);
 			zvol_rename_minor(zv, name);
-			kmem_free(name, strlen(name + 1));
+			strfree(name);
 		}
 
 		mutex_exit(&zv->zv_state_lock);
