@@ -123,7 +123,7 @@
 .Cm iostat
 .Op Oo Oo Fl c Ar SCRIPT Oc Oo Fl lq Oc Oc Ns | Ns Fl rw
 .Op Fl T Sy u Ns | Ns Sy d
-.Op Fl ghHLpPvy
+.Op Fl ghHLnpPvy
 .Oo Oo Ar pool Ns ... Oc Ns | Ns Oo Ar pool vdev Ns ... Oc Ns | Ns Oo Ar vdev Ns ... Oc Oc
 .Op Ar interval Op Ar count
 .Nm
@@ -1631,7 +1631,7 @@ with no flags on the relevant target devices.
 .Cm iostat
 .Op Oo Oo Fl c Ar SCRIPT Oc Oo Fl lq Oc Oc Ns | Ns Fl rw
 .Op Fl T Sy u Ns | Ns Sy d
-.Op Fl ghHLpPvy
+.Op Fl ghHLnpPvy
 .Oo Oo Ar pool Ns ... Oc Ns | Ns Oo Ar pool vdev Ns ... Oc Ns | Ns Oo Ar vdev Ns ... Oc Oc
 .Op Ar interval Op Ar count
 .Xc
@@ -1643,7 +1643,10 @@ When given an
 .Ar interval ,
 the statistics are printed every
 .Ar interval
-seconds until ^C is pressed. If count is specified, the command exits
+seconds until ^C is pressed. If 
+.Fl n
+flag is specified the headers are displayed only once, otherwise they are 
+displayed periodically. If count is specified, the command exits
 after count reports are printed. The first report printed is always
 the statistics since boot regardless of whether
 .Ar interval
@@ -1735,6 +1738,8 @@ Display real paths for vdevs resolving all symbolic links. This can
 be used to look up the current block device name regardless of the
 .Pa /dev/disk/
 path used to open it.
+.It Fl n
+Print headers only once when passed
 .It Fl p
 Display numbers in parsable (exact) values. Time values are in
 nanoseconds.
@@ -1760,6 +1765,7 @@ pool, in addition to the pool-wide statistics.
 Omit statistics since boot.
 Normally the first line of output reports the statistics since boot.
 This option suppresses that first line of output.
+.Ar interval
 .It Fl w
 Display latency histograms:
 .Pp
