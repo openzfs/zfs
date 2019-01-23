@@ -183,8 +183,8 @@ typedef struct ztest_shared_opts {
 } ztest_shared_opts_t;
 
 static const ztest_shared_opts_t ztest_opts_defaults = {
-	.zo_pool = { 'z', 't', 'e', 's', 't', '\0' },
-	.zo_dir = { '/', 't', 'm', 'p', '\0' },
+	.zo_pool = "ztest",
+	.zo_dir = "/tmp",
 	.zo_alt_ztest = { '\0' },
 	.zo_alt_libpath = { '\0' },
 	.zo_vdevs = 5,
