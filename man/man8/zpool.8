@@ -1767,10 +1767,10 @@ Display latency histograms:
 Total IO time (queuing + disk IO time).
 .Ar disk_wait :
 Disk IO time (time reading/writing the disk).
-.Ar syncq_wait :
+.Ar sync_queue :
 Amount of time IO spent in synchronous priority queues.  Does not include
 disk time.
-.Ar asyncq_wait :
+.Ar async_queue :
 Amount of time IO spent in asynchronous priority queues.  Does not include
 disk time.
 .Ar scrub :
@@ -1782,10 +1782,10 @@ Include average latency statistics:
 Average total IO time (queuing + disk IO time).
 .Ar disk_wait :
 Average disk IO time (time reading/writing the disk).
-.Ar syncq_wait :
+.Ar sync_queue :
 Average amount of time IO spent in synchronous priority queues. Does
 not include disk time.
-.Ar asyncq_wait :
+.Ar async_queue :
 Average amount of time IO spent in asynchronous priority queues.
 Does not include disk time.
 .Ar scrub :
