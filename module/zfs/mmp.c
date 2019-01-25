@@ -421,7 +421,7 @@ mmp_write_uberblock(spa_t *spa)
 			    mmp->mmp_kstat_id++, error);
 		}
 		mutex_exit(&mmp->mmp_io_lock);
-		spa_config_exit(spa, SCL_STATE, FTAG);
+		spa_config_exit(spa, SCL_STATE, mmp_tag);
 		return;
 	}
 
