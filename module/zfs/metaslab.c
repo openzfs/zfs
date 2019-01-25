@@ -4256,14 +4256,16 @@ metaslab_check_free_impl(vdev_t *vd, uint64_t offset, uint64_t size)
 	msp = vd->vdev_ms[offset >> vd->vdev_ms_shift];
 
 	mutex_enter(&msp->ms_lock);
-	if (msp->ms_loaded)
-		range_tree_verify(msp->ms_allocatable, offset, size);
+	if (msp->ms_loaded) {
+		range_tree_verify_not_present(msp->ms_allocatable,
+		    offset, size);
+	}
 
-	range_tree_verify(msp->ms_freeing, offset, size);
-	range_tree_verify(msp->ms_checkpointing, offset, size);
-	range_tree_verify(msp->ms_freed, offset, size);
+	range_tree_verify_not_present(msp->ms_freeing, offset, size);
+	range_tree_verify_not_present(msp->ms_checkpointing, offset, size);
+	range_tree_verify_not_present(msp->ms_freed, offset, size);
 	for (int j = 0; j < TXG_DEFER_SIZE; j++)
-		range_tree_verify(msp->ms_defer[j], offset, size);
+		range_tree_verify_not_present(msp->ms_defer[j], offset, size);
 	mutex_exit(&msp->ms_lock);
 }
 

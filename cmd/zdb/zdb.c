@@ -4858,7 +4858,8 @@ verify_checkpoint_sm_entry_cb(space_map_entry_t *sme, void *arg)
 	 * their respective ms_allocateable trees should not contain them.
 	 */
 	mutex_enter(&ms->ms_lock);
-	range_tree_verify(ms->ms_allocatable, sme->sme_offset, sme->sme_run);
+	range_tree_verify_not_present(ms->ms_allocatable,
+	    sme->sme_offset, sme->sme_run);
 	mutex_exit(&ms->ms_lock);
 
 	return (0);
@@ -5009,7 +5010,7 @@ verify_checkpoint_ms_spacemaps(spa_t *checkpoint, spa_t *current)
 			 * are part of the checkpoint were freed by mistake.
 			 */
 			range_tree_walk(ckpoint_msp->ms_allocatable,
-			    (range_tree_func_t *)range_tree_verify,
+			    (range_tree_func_t *)range_tree_verify_not_present,
 			    current_msp->ms_allocatable);
 		}
 	}

@@ -511,13 +511,11 @@ range_tree_find(range_tree_t *rt, uint64_t start, uint64_t size)
 }
 
 void
-range_tree_verify(range_tree_t *rt, uint64_t off, uint64_t size)
+range_tree_verify_not_present(range_tree_t *rt, uint64_t off, uint64_t size)
 {
-	range_seg_t *rs;
-
-	rs = range_tree_find(rt, off, size);
+	range_seg_t *rs = range_tree_find(rt, off, size);
 	if (rs != NULL)
-		panic("freeing free block; rs=%p", (void *)rs);
+		panic("segment already in tree; rs=%p", (void *)rs);
 }
 
 boolean_t
