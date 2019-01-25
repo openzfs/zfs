@@ -89,12 +89,13 @@ range_tree_t *range_tree_create_impl(range_tree_ops_t *ops, void *arg,
 range_tree_t *range_tree_create(range_tree_ops_t *ops, void *arg);
 void range_tree_destroy(range_tree_t *rt);
 boolean_t range_tree_contains(range_tree_t *rt, uint64_t start, uint64_t size);
+void range_tree_verify_not_present(range_tree_t *rt,
+    uint64_t start, uint64_t size);
 range_seg_t *range_tree_find(range_tree_t *rt, uint64_t start, uint64_t size);
 void range_tree_resize_segment(range_tree_t *rt, range_seg_t *rs,
     uint64_t newstart, uint64_t newsize);
 uint64_t range_tree_space(range_tree_t *rt);
 boolean_t range_tree_is_empty(range_tree_t *rt);
-void range_tree_verify(range_tree_t *rt, uint64_t start, uint64_t size);
 void range_tree_swap(range_tree_t **rtsrc, range_tree_t **rtdst);
 void range_tree_stat_verify(range_tree_t *rt);
 uint64_t range_tree_min(range_tree_t *rt);

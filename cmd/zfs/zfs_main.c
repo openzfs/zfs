@@ -3070,8 +3070,15 @@ zfs_do_userspace(int argc, char **argv)
 		} while (delim != NULL);
 	}
 
-	if ((zhp = zfs_open(g_zfs, argv[0], ZFS_TYPE_DATASET)) == NULL)
+	if ((zhp = zfs_open(g_zfs, argv[0], ZFS_TYPE_FILESYSTEM |
+	    ZFS_TYPE_SNAPSHOT)) == NULL)
 		return (1);
+	if (zhp->zfs_head_type != ZFS_TYPE_FILESYSTEM) {
+		(void) fprintf(stderr, gettext("operation is only applicable "
+		    "to filesystems and their snapshots\n"));
+		zfs_close(zhp);
+		return (1);
+	}
 
 	if ((avl_pool = uu_avl_pool_create("us_avl_pool", sizeof (us_node_t),
 	    offsetof(us_node_t, usn_avlnode), us_compare, UU_DEFAULT)) == NULL)
@@ -3102,9 +3109,12 @@ zfs_do_userspace(int argc, char **argv)
 			continue;
 
 		cb.cb_prop = p;
-		if ((ret = zfs_userspace(zhp, p, userspace_cb, &cb)) != 0)
+		if ((ret = zfs_userspace(zhp, p, userspace_cb, &cb)) != 0) {
+			zfs_close(zhp);
 			return (ret);
+		}
 	}
+	zfs_close(zhp);
 
 	/* Sort the list */
 	if ((node = uu_avl_first(avl_tree)) == NULL)
