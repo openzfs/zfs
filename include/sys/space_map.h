@@ -201,6 +201,7 @@ int space_map_iterate(space_map_t *sm, uint64_t length,
 int space_map_incremental_destroy(space_map_t *sm, sm_cb_t callback, void *arg,
     dmu_tx_t *tx);
 
+boolean_t space_map_histogram_verify(space_map_t *sm, range_tree_t *rt);
 void space_map_histogram_clear(space_map_t *sm);
 void space_map_histogram_add(space_map_t *sm, range_tree_t *rt,
     dmu_tx_t *tx);
