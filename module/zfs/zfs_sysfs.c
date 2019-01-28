@@ -71,13 +71,13 @@ typedef struct zfs_mod_kobj zfs_mod_kobj_t;
 struct zfs_mod_kobj {
 	struct kobject		zko_kobj;
 	struct kobj_type	zko_kobj_type;
-	struct sysfs_ops	zko_sysfs_ops;
+	struct sysfs_ops	*zko_sysfs_ops;
 	size_t			zko_attr_count;
 	struct attribute	*zko_attr_list;		/* allocated */
 	struct attribute	**zko_default_attrs;	/* allocated */
 	size_t			zko_child_count;
 	zfs_mod_kobj_t		*zko_children;		/* allocated */
-};
+} __no_const;
 
 #define	ATTR_TABLE_SIZE(cnt)	(sizeof (struct attribute) * (cnt))
 /* Note +1 for NULL terminator slot */
@@ -157,8 +157,7 @@ zfs_kobj_add_attr(zfs_mod_kobj_t *zkobj, int attr_num, const char *attr_name)
 }
 
 static int
-zfs_kobj_init(zfs_mod_kobj_t *zkobj, int attr_cnt, int child_cnt,
-    sysfs_show_func show_func)
+zfs_kobj_init(zfs_mod_kobj_t *zkobj, int attr_cnt, int child_cnt)
 {
 	/*
 	 * Initialize object's attributes. Count can be zero.
@@ -199,11 +198,32 @@ zfs_kobj_init(zfs_mod_kobj_t *zkobj, int attr_cnt, int child_cnt,
 		zkobj->zko_child_count = child_cnt;
 	}
 
-	zkobj->zko_sysfs_ops.show = show_func;
-	zkobj->zko_kobj_type.sysfs_ops = &zkobj->zko_sysfs_ops;
 	zkobj->zko_kobj_type.release = zfs_kobj_release;
 
 	return (0);
+}
+
+/*
+ * Always use statically allocated const variables for sysfs_ops: they are
+ * supposed to be IMMUTABLE.  Not doing so breaks compat with CONSTIFY, and will
+ * manifest as a pagefault when a write access is attempted to a read-only page.
+ * It's also bad practice (sysfs_ops is const for a reason!) and creates
+ * unnecessary *writable* function pointers in kernel space, waiting for someone
+ * to abuse them.
+ */
+static int
+zfs_kobj_init_static_sysfsops(zfs_mod_kobj_t *zkobj, int attr_cnt,
+    int child_cnt, const struct sysfs_ops *ops)
+{
+	int err = zfs_kobj_init(zkobj, attr_cnt, child_cnt);
+
+	if (!err) {
+		zkobj->zko_sysfs_ops = (const struct sysfs_ops *) ops;
+		zkobj->zko_kobj_type.sysfs_ops = zkobj->zko_sysfs_ops;
+		return (0);
+	}
+
+	return (err);
 }
 
 static int
@@ -369,13 +389,17 @@ kernel_feature_show(struct kobject *kobj, struct attribute *attr, char *buf)
 	return (snprintf(buf, PAGE_SIZE, "supported\n"));
 }
 
+static const struct sysfs_ops zfs_kernel_features_sysfs_ops = {
+	.show = kernel_feature_show
+};
+
 static int
 zfs_kernel_features_init(zfs_mod_kobj_t *zfs_kobj, struct kobject *parent)
 {
 	int err;
 
-	err = zfs_kobj_init(zfs_kobj, ZFS_FEATURE_COUNT, 0,
-	    kernel_feature_show);
+	err = zfs_kobj_init_static_sysfsops(zfs_kobj, ZFS_FEATURE_COUNT, 0,
+	    &zfs_kernel_features_sysfs_ops);
 	if (err)
 		return (err);
 
@@ -441,6 +465,10 @@ pool_feature_show(struct kobject *kobj, struct attribute *attr, char *buf)
 	return (snprintf(buf, PAGE_SIZE, "%s\n", show_str));
 }
 
+static const struct sysfs_ops zfs_pool_features_sysfs_ops = {
+	.show = pool_feature_show
+};
+
 static void
 pool_feature_to_kobj(zfs_mod_kobj_t *parent, spa_feature_t fid,
     const char *name)
@@ -450,8 +478,8 @@ pool_feature_to_kobj(zfs_mod_kobj_t *parent, spa_feature_t fid,
 	ASSERT3U(fid, <, SPA_FEATURES);
 	ASSERT(name);
 
-	int err = zfs_kobj_init(zfs_kobj, ZPOOL_FEATURE_ATTR_COUNT, 0,
-	    pool_feature_show);
+	int err = zfs_kobj_init_static_sysfsops(zfs_kobj,
+	    ZPOOL_FEATURE_ATTR_COUNT, 0, &zfs_pool_features_sysfs_ops);
 	if (err)
 		return;
 
@@ -471,7 +499,8 @@ zfs_pool_features_init(zfs_mod_kobj_t *zfs_kobj, struct kobject *parent)
 	 *
 	 * '/sys/module/zfs/features.pool'
 	 */
-	int err = zfs_kobj_init(zfs_kobj, 0, SPA_FEATURES, pool_feature_show);
+	int err = zfs_kobj_init_static_sysfsops(zfs_kobj, 0, SPA_FEATURES,
+	    &zfs_pool_features_sysfs_ops);
 	if (err)
 		return (err);
 	err = zfs_kobj_add(zfs_kobj, parent, ZFS_SYSFS_POOL_FEATURES);
@@ -494,7 +523,7 @@ zfs_pool_features_init(zfs_mod_kobj_t *zfs_kobj, struct kobject *parent)
 typedef struct prop_to_kobj_arg {
 	zprop_desc_t	*p2k_table;
 	zfs_mod_kobj_t	*p2k_parent;
-	sysfs_show_func	p2k_show_func;
+	struct sysfs_ops *p2k_sysfs_ops;
 	int		p2k_attr_count;
 } prop_to_kobj_arg_t;
 
@@ -509,8 +538,8 @@ zprop_to_kobj(int prop, void *args)
 
 	ASSERT(name);
 
-	err = zfs_kobj_init(zfs_kobj, data->p2k_attr_count, 0,
-	    data->p2k_show_func);
+	err = zfs_kobj_init_static_sysfsops(zfs_kobj, data->p2k_attr_count, 0,
+	    data->p2k_sysfs_ops);
 	if (err)
 		return (ZPROP_CONT);
 
@@ -523,6 +552,14 @@ zprop_to_kobj(int prop, void *args)
 
 	return (ZPROP_CONT);
 }
+
+static const struct sysfs_ops zfs_pool_property_sysfs_ops = {
+	.show = pool_property_show
+};
+
+static const struct sysfs_ops zfs_dataset_property_sysfs_ops = {
+	.show = dataset_property_show
+};
 
 static int
 zfs_sysfs_properties_init(zfs_mod_kobj_t *zfs_kobj, struct kobject *parent,
@@ -542,17 +579,20 @@ zfs_sysfs_properties_init(zfs_mod_kobj_t *zfs_kobj, struct kobject *parent,
 		context.p2k_table = zpool_prop_get_table();
 		context.p2k_attr_count = ZPOOL_PROP_ATTR_COUNT;
 		context.p2k_parent = zfs_kobj;
-		context.p2k_show_func = pool_property_show;
-		err = zfs_kobj_init(zfs_kobj, 0, ZPOOL_NUM_PROPS,
-		    pool_property_show);
+		context.p2k_sysfs_ops = &zfs_pool_property_sysfs_ops;
+
+		err = zfs_kobj_init_static_sysfsops(zfs_kobj, 0,
+		    ZPOOL_NUM_PROPS, &zfs_pool_property_sysfs_ops);
+
 	} else {
 		name = ZFS_SYSFS_DATASET_PROPERTIES;
 		context.p2k_table = zfs_prop_get_table();
 		context.p2k_attr_count = ZFS_PROP_ATTR_COUNT;
 		context.p2k_parent = zfs_kobj;
-		context.p2k_show_func = dataset_property_show;
-		err = zfs_kobj_init(zfs_kobj, 0, ZFS_NUM_PROPS,
-		    dataset_property_show);
+		context.p2k_sysfs_ops = &zfs_dataset_property_sysfs_ops;
+
+		err = zfs_kobj_init_static_sysfsops(zfs_kobj, 0, ZFS_NUM_PROPS,
+		    &zfs_dataset_property_sysfs_ops);
 	}
 
 	if (err)
