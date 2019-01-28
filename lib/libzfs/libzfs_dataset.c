@@ -123,7 +123,7 @@ zfs_validate_name(libzfs_handle_t *hdl, const char *path, int type,
 
 			case NAME_ERR_EMPTY_COMPONENT:
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "empty component in name"));
+				    "empty component or illegal character in name"));
 				break;
 
 			case NAME_ERR_TRAILING_SLASH:
