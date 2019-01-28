@@ -29,12 +29,12 @@ modules:
 	list='$(SUBDIR_TARGETS)'; for targetdir in $$list; do \
 		$(MAKE) -C $$targetdir; \
 	done
-	$(MAKE) -C @LINUX_OBJ@ SUBDIRS=`pwd` @KERNEL_MAKE@ CONFIG_ZFS=m $@
+	$(MAKE) -C @LINUX_OBJ@ M=`pwd` @KERNEL_MAKE@ CONFIG_ZFS=m $@
 
 clean:
 	@# Only cleanup the kernel build directories when CONFIG_KERNEL
 	@# is defined.  This indicates that kernel modules should be built.
-@CONFIG_KERNEL_TRUE@	$(MAKE) -C @LINUX_OBJ@ SUBDIRS=`pwd` @KERNEL_MAKE@ $@
+@CONFIG_KERNEL_TRUE@	$(MAKE) -C @LINUX_OBJ@ M=`pwd` @KERNEL_MAKE@ $@
 
 	if [ -f @LINUX_SYMBOLS@ ]; then $(RM) @LINUX_SYMBOLS@; fi
 	if [ -f Module.markers ]; then $(RM) Module.markers; fi
@@ -43,7 +43,7 @@ clean:
 
 modules_install:
 	@# Install the kernel modules
-	$(MAKE) -C @LINUX_OBJ@ SUBDIRS=`pwd` $@ \
+	$(MAKE) -C @LINUX_OBJ@ M=`pwd` $@ \
 		INSTALL_MOD_PATH=$(DESTDIR)$(INSTALL_MOD_PATH) \
 		INSTALL_MOD_DIR=$(INSTALL_MOD_DIR) \
 		KERNELRELEASE=@LINUX_VERSION@

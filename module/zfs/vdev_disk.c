@@ -35,6 +35,7 @@
 #include <sys/zio.h>
 #include <linux/mod_compat.h>
 #include <linux/msdos_fs.h>
+#include <linux/vfs_compat.h>
 
 char *zfs_vdev_scheduler = VDEV_SCHEDULER;
 static void *zfs_vdev_holder = VDEV_HOLDER;
@@ -79,7 +80,7 @@ vdev_bdev_mode(int smode)
 	ASSERT3S(smode & (FREAD | FWRITE), !=, 0);
 
 	if ((smode & FREAD) && !(smode & FWRITE))
-		mode = MS_RDONLY;
+		mode = SB_RDONLY;
 
 	return (mode);
 }
@@ -512,13 +513,38 @@ vdev_submit_bio_impl(struct bio *bio)
 #endif
 }
 
-#ifndef HAVE_BIO_SET_DEV
+#ifdef HAVE_BIO_SET_DEV
+#if defined(CONFIG_BLK_CGROUP) && defined(HAVE_BIO_SET_DEV_GPL_ONLY)
+/*
+ * The Linux 5.0 kernel updated the bio_set_dev() macro so it calls the
+ * GPL-only bio_associate_blkg() symbol thus inadvertently converting
+ * the entire macro.  Provide a minimal version which always assigns the
+ * request queue's root_blkg to the bio.
+ */
+static inline void
+vdev_bio_associate_blkg(struct bio *bio)
+{
+	struct request_queue *q = bio->bi_disk->queue;
+
+	ASSERT3P(q, !=, NULL);
+	ASSERT3P(q->root_blkg, !=, NULL);
+	ASSERT3P(bio->bi_blkg, ==, NULL);
+
+	if (blkg_tryget(q->root_blkg))
+		bio->bi_blkg = q->root_blkg;
+}
+#define	bio_associate_blkg vdev_bio_associate_blkg
+#endif
+#else
+/*
+ * Provide a bio_set_dev() helper macro for pre-Linux 4.14 kernels.
+ */
 static inline void
 bio_set_dev(struct bio *bio, struct block_device *bdev)
 {
 	bio->bi_bdev = bdev;
 }
-#endif /* !HAVE_BIO_SET_DEV */
+#endif /* HAVE_BIO_SET_DEV */
 
 static inline void
 vdev_submit_bio(struct bio *bio)
