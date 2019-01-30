@@ -92,7 +92,16 @@
  * user should take this into account when writing a checkfunc.
  * [see ZTHR state transitions]
  *
- * == ZTHR cancellation
+ * == ZTHR wakeup
+ *
+ * ZTHR wakeup should be used when new work is added for the zthr. The
+ * sleeping zthr will wakeup, see that it has more work to complete
+ * and proceed. This can be invoked from open or syncing context.
+ *
+ * To wakeup a zthr:
+ *     zthr_wakeup(zthr_t *t)
+ *
+ * == ZTHR cancellation and resumption
  *
  * ZTHR threads must be cancelled when their SPA is being exported
  * or when they need to be paused so they don't interfere with other
@@ -103,6 +112,9 @@
  *
  * To resume it:
  *     zthr_resume(zthr_pointer);
+ *
+ * ZTHR cancel and resume should be invoked in open context during the
+ * lifecycle of the pool as it is imported, exported or destroyed.
  *
  * A zthr will implicitly check if it has received a cancellation
  * signal every time func returns and every time it wakes up [see
@@ -161,15 +173,19 @@
  *
  * == Implementation of ZTHR requests
  *
- * ZTHR wakeup, cancel, and resume are requests on a zthr to
- * change its internal state. Requests on a zthr are serialized
- * using the zthr_request_lock, while changes in its internal
- * state are protected by the zthr_state_lock. A request will
- * first acquire the zthr_request_lock and then immediately
- * acquire the zthr_state_lock. We do this so that incoming
- * requests are serialized using the request lock, while still
- * allowing us to use the state lock for thread communication
- * via zthr_cv.
+ * ZTHR cancel and resume are requests on a zthr to change its
+ * internal state. These requests are serialized using the
+ * zthr_request_lock, while changes in its internal state are
+ * protected by the zthr_state_lock. A request will first acquire
+ * the zthr_request_lock and then immediately acquire the
+ * zthr_state_lock. We do this so that incoming requests are
+ * serialized using the request lock, while still allowing us
+ * to use the state lock for thread communication via zthr_cv.
+ *
+ * ZTHR wakeup broadcasts to zthr_cv, causing sleeping threads
+ * to wakeup. It acquires the zthr_state_lock but not the
+ * zthr_request_lock, so that a wakeup on a zthr in the middle
+ * of being cancelled will not block.
  */
 
 #include <sys/zfs_context.h>
@@ -287,17 +303,16 @@ zthr_destroy(zthr_t *t)
 }
 
 /*
- * Wake up the zthr if it is sleeping. If the thread has been
- * cancelled that does nothing.
+ * Wake up the zthr if it is sleeping. If the thread has been cancelled
+ * or is in the process of being cancelled, this is a no-op.
  */
 void
 zthr_wakeup(zthr_t *t)
 {
-	mutex_enter(&t->zthr_request_lock);
 	mutex_enter(&t->zthr_state_lock);
 
 	/*
-	 * There are 4 states that we can find the zthr when issuing
+	 * There are 5 states that we can find the zthr when issuing
 	 * this broadcast:
 	 *
 	 * [1] The common case of the thread being asleep, at which
@@ -310,17 +325,19 @@ zthr_wakeup(zthr_t *t)
 	 *     is basically a no-op.
 	 * [4] The thread was just created/resumed, in which case the
 	 *     behavior is similar to [3].
+	 * [5] The thread is in the middle of being cancelled, which
+	 *     will be a no-op.
 	 */
 	cv_broadcast(&t->zthr_cv);
 
 	mutex_exit(&t->zthr_state_lock);
-	mutex_exit(&t->zthr_request_lock);
 }
 
 /*
  * Sends a cancel request to the zthr and blocks until the zthr is
  * cancelled. If the zthr is not running (e.g. has been cancelled
- * already), this is a no-op.
+ * already), this is a no-op. Note that this function should not be
+ * called from syncing context as it could deadlock with the zthr_func.
  */
 void
 zthr_cancel(zthr_t *t)
@@ -363,8 +380,9 @@ zthr_cancel(zthr_t *t)
 }
 
 /*
- * Sends a resume request to the supplied zthr. If the zthr is
- * already running this is a no-op.
+ * Sends a resume request to the supplied zthr. If the zthr is already
+ * running this is a no-op. Note that this function should not be
+ * called from syncing context as it could deadlock with the zthr_func.
  */
 void
 zthr_resume(zthr_t *t)
