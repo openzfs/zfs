@@ -799,12 +799,15 @@ dump_spacemap(objset_t *os, space_map_t *sm)
 	(void) printf("  smp_alloc = 0x%llx\n",
 	    (longlong_t)sm->sm_phys->smp_alloc);
 
+	if (dump_opt['d'] < 6 && dump_opt['m'] < 4)
+		return;
+
 	/*
 	 * Print out the freelist entries in both encoded and decoded form.
 	 */
 	uint8_t mapshift = sm->sm_shift;
 	int64_t alloc = 0;
-	uint64_t word;
+	uint64_t word, entry_id = 0;
 	for (uint64_t offset = 0; offset < space_map_length(sm);
 	    offset += sizeof (word)) {
 
@@ -812,11 +815,12 @@ dump_spacemap(objset_t *os, space_map_t *sm)
 		    sizeof (word), &word, DMU_READ_PREFETCH));
 
 		if (sm_entry_is_debug(word)) {
-			(void) printf("\t    [%6llu] %s: txg %llu, pass %llu\n",
-			    (u_longlong_t)(offset / sizeof (word)),
+			(void) printf("\t    [%6llu] %s: txg %llu pass %llu\n",
+			    (u_longlong_t)entry_id,
 			    ddata[SM_DEBUG_ACTION_DECODE(word)],
 			    (u_longlong_t)SM_DEBUG_TXG_DECODE(word),
 			    (u_longlong_t)SM_DEBUG_SYNCPASS_DECODE(word));
+			entry_id++;
 			continue;
 		}
 
@@ -854,7 +858,7 @@ dump_spacemap(objset_t *os, space_map_t *sm)
 
 		(void) printf("\t    [%6llu]    %c  range:"
 		    " %010llx-%010llx  size: %06llx vdev: %06llu words: %u\n",
-		    (u_longlong_t)(offset / sizeof (word)),
+		    (u_longlong_t)entry_id,
 		    entry_type, (u_longlong_t)entry_off,
 		    (u_longlong_t)(entry_off + entry_run),
 		    (u_longlong_t)entry_run,
@@ -864,6 +868,7 @@ dump_spacemap(objset_t *os, space_map_t *sm)
 			alloc += entry_run;
 		else
 			alloc -= entry_run;
+		entry_id++;
 	}
 	if ((uint64_t)alloc != space_map_allocated(sm)) {
 		(void) printf("space_map_object alloc (%lld) INCONSISTENT "
@@ -929,11 +934,8 @@ dump_metaslab(metaslab_t *msp)
 		    SPACE_MAP_HISTOGRAM_SIZE, sm->sm_shift);
 	}
 
-	if (dump_opt['d'] > 5 || dump_opt['m'] > 3) {
-		ASSERT(msp->ms_size == (1ULL << vd->vdev_ms_shift));
-
-		dump_spacemap(spa->spa_meta_objset, msp->ms_sm);
-	}
+	ASSERT(msp->ms_size == (1ULL << vd->vdev_ms_shift));
+	dump_spacemap(spa->spa_meta_objset, msp->ms_sm);
 }
 
 static void
@@ -3599,6 +3601,9 @@ claim_segment_cb(void *arg, uint64_t offset, uint64_t size)
 static void
 zdb_claim_removing(spa_t *spa, zdb_cb_t *zcb)
 {
+	if (dump_opt['L'])
+		return;
+
 	if (spa->spa_vdev_removal == NULL)
 		return;
 
@@ -3708,6 +3713,8 @@ zdb_ddt_leak_init(spa_t *spa, zdb_cb_t *zcb)
 	int error;
 	int p;
 
+	ASSERT(!dump_opt['L']);
+
 	bzero(&ddb, sizeof (ddb));
 	while ((error = ddt_walk(spa, &ddb, &dde)) == 0) {
 		blkptr_t blk;
@@ -3731,12 +3738,10 @@ zdb_ddt_leak_init(spa_t *spa, zdb_cb_t *zcb)
 				zcb->zcb_dedup_blocks++;
 			}
 		}
-		if (!dump_opt['L']) {
-			ddt_t *ddt = spa->spa_ddt[ddb.ddb_checksum];
-			ddt_enter(ddt);
-			VERIFY(ddt_lookup(ddt, &blk, B_TRUE) != NULL);
-			ddt_exit(ddt);
-		}
+		ddt_t *ddt = spa->spa_ddt[ddb.ddb_checksum];
+		ddt_enter(ddt);
+		VERIFY(ddt_lookup(ddt, &blk, B_TRUE) != NULL);
+		ddt_exit(ddt);
 	}
 
 	ASSERT(error == ENOENT);
@@ -3840,6 +3845,8 @@ zdb_leak_init_vdev_exclude_checkpoint(vdev_t *vd, zdb_cb_t *zcb)
 static void
 zdb_leak_init_exclude_checkpoint(spa_t *spa, zdb_cb_t *zcb)
 {
+	ASSERT(!dump_opt['L']);
+
 	vdev_t *rvd = spa->spa_root_vdev;
 	for (uint64_t c = 0; c < rvd->vdev_children; c++) {
 		ASSERT3U(c, ==, rvd->vdev_child[c]->vdev_id);
@@ -3936,6 +3943,8 @@ load_indirect_ms_allocatable_tree(vdev_t *vd, metaslab_t *msp,
 static void
 zdb_leak_init_prepare_indirect_vdevs(spa_t *spa, zdb_cb_t *zcb)
 {
+	ASSERT(!dump_opt['L']);
+
 	vdev_t *rvd = spa->spa_root_vdev;
 	for (uint64_t c = 0; c < rvd->vdev_children; c++) {
 		vdev_t *vd = rvd->vdev_child[c];
@@ -3982,67 +3991,63 @@ zdb_leak_init(spa_t *spa, zdb_cb_t *zcb)
 {
 	zcb->zcb_spa = spa;
 
-	if (!dump_opt['L']) {
-		dsl_pool_t *dp = spa->spa_dsl_pool;
-		vdev_t *rvd = spa->spa_root_vdev;
+	if (dump_opt['L'])
+		return;
 
-		/*
-		 * We are going to be changing the meaning of the metaslab's
-		 * ms_allocatable.  Ensure that the allocator doesn't try to
-		 * use the tree.
-		 */
-		spa->spa_normal_class->mc_ops = &zdb_metaslab_ops;
-		spa->spa_log_class->mc_ops = &zdb_metaslab_ops;
+	dsl_pool_t *dp = spa->spa_dsl_pool;
+	vdev_t *rvd = spa->spa_root_vdev;
 
-		zcb->zcb_vd_obsolete_counts =
-		    umem_zalloc(rvd->vdev_children * sizeof (uint32_t *),
-		    UMEM_NOFAIL);
+	/*
+	 * We are going to be changing the meaning of the metaslab's
+	 * ms_allocatable.  Ensure that the allocator doesn't try to
+	 * use the tree.
+	 */
+	spa->spa_normal_class->mc_ops = &zdb_metaslab_ops;
+	spa->spa_log_class->mc_ops = &zdb_metaslab_ops;
 
-		/*
-		 * For leak detection, we overload the ms_allocatable trees
-		 * to contain allocated segments instead of free segments.
-		 * As a result, we can't use the normal metaslab_load/unload
-		 * interfaces.
-		 */
-		zdb_leak_init_prepare_indirect_vdevs(spa, zcb);
-		load_concrete_ms_allocatable_trees(spa, SM_ALLOC);
+	zcb->zcb_vd_obsolete_counts =
+	    umem_zalloc(rvd->vdev_children * sizeof (uint32_t *),
+	    UMEM_NOFAIL);
 
-		/*
-		 * On load_concrete_ms_allocatable_trees() we loaded all the
-		 * allocated entries from the ms_sm to the ms_allocatable for
-		 * each metaslab. If the pool has a checkpoint or is in the
-		 * middle of discarding a checkpoint, some of these blocks
-		 * may have been freed but their ms_sm may not have been
-		 * updated because they are referenced by the checkpoint. In
-		 * order to avoid false-positives during leak-detection, we
-		 * go through the vdev's checkpoint space map and exclude all
-		 * its entries from their relevant ms_allocatable.
-		 *
-		 * We also aggregate the space held by the checkpoint and add
-		 * it to zcb_checkpoint_size.
-		 *
-		 * Note that at this point we are also verifying that all the
-		 * entries on the checkpoint_sm are marked as allocated in
-		 * the ms_sm of their relevant metaslab.
-		 * [see comment in checkpoint_sm_exclude_entry_cb()]
-		 */
-		zdb_leak_init_exclude_checkpoint(spa, zcb);
+	/*
+	 * For leak detection, we overload the ms_allocatable trees
+	 * to contain allocated segments instead of free segments.
+	 * As a result, we can't use the normal metaslab_load/unload
+	 * interfaces.
+	 */
+	zdb_leak_init_prepare_indirect_vdevs(spa, zcb);
+	load_concrete_ms_allocatable_trees(spa, SM_ALLOC);
 
-		/* for cleaner progress output */
-		(void) fprintf(stderr, "\n");
+	/*
+	 * On load_concrete_ms_allocatable_trees() we loaded all the
+	 * allocated entries from the ms_sm to the ms_allocatable for
+	 * each metaslab. If the pool has a checkpoint or is in the
+	 * middle of discarding a checkpoint, some of these blocks
+	 * may have been freed but their ms_sm may not have been
+	 * updated because they are referenced by the checkpoint. In
+	 * order to avoid false-positives during leak-detection, we
+	 * go through the vdev's checkpoint space map and exclude all
+	 * its entries from their relevant ms_allocatable.
+	 *
+	 * We also aggregate the space held by the checkpoint and add
+	 * it to zcb_checkpoint_size.
+	 *
+	 * Note that at this point we are also verifying that all the
+	 * entries on the checkpoint_sm are marked as allocated in
+	 * the ms_sm of their relevant metaslab.
+	 * [see comment in checkpoint_sm_exclude_entry_cb()]
+	 */
+	zdb_leak_init_exclude_checkpoint(spa, zcb);
+	ASSERT3U(zcb->zcb_checkpoint_size, ==, spa_get_checkpoint_space(spa));
 
-		if (bpobj_is_open(&dp->dp_obsolete_bpobj)) {
-			ASSERT(spa_feature_is_enabled(spa,
-			    SPA_FEATURE_DEVICE_REMOVAL));
-			(void) bpobj_iterate_nofree(&dp->dp_obsolete_bpobj,
-			    increment_indirect_mapping_cb, zcb, NULL);
-		}
-	} else {
-		/*
-		 * If leak tracing is disabled, we still need to consider
-		 * any checkpointed space in our space verification.
-		 */
-		zcb->zcb_checkpoint_size += spa_get_checkpoint_space(spa);
+	/* for cleaner progress output */
+	(void) fprintf(stderr, "\n");
+
+	if (bpobj_is_open(&dp->dp_obsolete_bpobj)) {
+		ASSERT(spa_feature_is_enabled(spa,
+		    SPA_FEATURE_DEVICE_REMOVAL));
+		(void) bpobj_iterate_nofree(&dp->dp_obsolete_bpobj,
+		    increment_indirect_mapping_cb, zcb, NULL);
 	}
 
 	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
@@ -4125,51 +4130,54 @@ zdb_check_for_obsolete_leaks(vdev_t *vd, zdb_cb_t *zcb)
 static boolean_t
 zdb_leak_fini(spa_t *spa, zdb_cb_t *zcb)
 {
+	if (dump_opt['L'])
+		return (B_FALSE);
+
 	boolean_t leaks = B_FALSE;
-	if (!dump_opt['L']) {
-		vdev_t *rvd = spa->spa_root_vdev;
-		for (unsigned c = 0; c < rvd->vdev_children; c++) {
-			vdev_t *vd = rvd->vdev_child[c];
-			ASSERTV(metaslab_group_t *mg = vd->vdev_mg);
+	vdev_t *rvd = spa->spa_root_vdev;
+	for (unsigned c = 0; c < rvd->vdev_children; c++) {
+		vdev_t *vd = rvd->vdev_child[c];
+		ASSERTV(metaslab_group_t *mg = vd->vdev_mg);
 
-			if (zcb->zcb_vd_obsolete_counts[c] != NULL) {
-				leaks |= zdb_check_for_obsolete_leaks(vd, zcb);
-			}
-
-			for (uint64_t m = 0; m < vd->vdev_ms_count; m++) {
-				metaslab_t *msp = vd->vdev_ms[m];
-				ASSERT3P(mg, ==, msp->ms_group);
-
-				/*
-				 * ms_allocatable has been overloaded
-				 * to contain allocated segments. Now that
-				 * we finished traversing all blocks, any
-				 * block that remains in the ms_allocatable
-				 * represents an allocated block that we
-				 * did not claim during the traversal.
-				 * Claimed blocks would have been removed
-				 * from the ms_allocatable.  For indirect
-				 * vdevs, space remaining in the tree
-				 * represents parts of the mapping that are
-				 * not referenced, which is not a bug.
-				 */
-				if (vd->vdev_ops == &vdev_indirect_ops) {
-					range_tree_vacate(msp->ms_allocatable,
-					    NULL, NULL);
-				} else {
-					range_tree_vacate(msp->ms_allocatable,
-					    zdb_leak, vd);
-				}
-
-				if (msp->ms_loaded)
-					msp->ms_loaded = B_FALSE;
-			}
+		if (zcb->zcb_vd_obsolete_counts[c] != NULL) {
+			leaks |= zdb_check_for_obsolete_leaks(vd, zcb);
 		}
 
-		umem_free(zcb->zcb_vd_obsolete_counts,
-		    rvd->vdev_children * sizeof (uint32_t *));
-		zcb->zcb_vd_obsolete_counts = NULL;
+		for (uint64_t m = 0; m < vd->vdev_ms_count; m++) {
+			metaslab_t *msp = vd->vdev_ms[m];
+			ASSERT3P(mg, ==, msp->ms_group);
+
+			/*
+			 * ms_allocatable has been overloaded
+			 * to contain allocated segments. Now that
+			 * we finished traversing all blocks, any
+			 * block that remains in the ms_allocatable
+			 * represents an allocated block that we
+			 * did not claim during the traversal.
+			 * Claimed blocks would have been removed
+			 * from the ms_allocatable.  For indirect
+			 * vdevs, space remaining in the tree
+			 * represents parts of the mapping that are
+			 * not referenced, which is not a bug.
+			 */
+			if (vd->vdev_ops == &vdev_indirect_ops) {
+				range_tree_vacate(msp->ms_allocatable,
+				    NULL, NULL);
+			} else {
+				range_tree_vacate(msp->ms_allocatable,
+				    zdb_leak, vd);
+			}
+
+			if (msp->ms_loaded) {
+				msp->ms_loaded = B_FALSE;
+			}
+		}
 	}
+
+	umem_free(zcb->zcb_vd_obsolete_counts,
+	    rvd->vdev_children * sizeof (uint32_t *));
+	zcb->zcb_vd_obsolete_counts = NULL;
+
 	return (leaks);
 }
 
@@ -4210,12 +4218,16 @@ dump_block_stats(spa_t *spa)
 	    !dump_opt['L'] ? "nothing leaked " : "");
 
 	/*
-	 * Load all space maps as SM_ALLOC maps, then traverse the pool
-	 * claiming each block we discover.  If the pool is perfectly
-	 * consistent, the space maps will be empty when we're done.
-	 * Anything left over is a leak; any block we can't claim (because
-	 * it's not part of any space map) is a double allocation,
-	 * reference to a freed block, or an unclaimed log block.
+	 * When leak detection is enabled we load all space maps as SM_ALLOC
+	 * maps, then traverse the pool claiming each block we discover. If
+	 * the pool is perfectly consistent, the segment trees will be empty
+	 * when we're done. Anything left over is a leak; any block we can't
+	 * claim (because it's not part of any space map) is a double
+	 * allocation, reference to a freed block, or an unclaimed log block.
+	 *
+	 * When leak detection is disabled (-L option) we still traverse the
+	 * pool claiming each block we discover, but we skip opening any space
+	 * maps.
 	 */
 	bzero(&zcb, sizeof (zdb_cb_t));
 	zdb_leak_init(spa, &zcb);
@@ -4296,11 +4308,10 @@ dump_block_stats(spa_t *spa)
 	total_found = tzb->zb_asize - zcb.zcb_dedup_asize +
 	    zcb.zcb_removing_size + zcb.zcb_checkpoint_size;
 
-	if (total_found == total_alloc) {
-		if (!dump_opt['L'])
-			(void) printf("\n\tNo leaks (block sum matches space"
-			    " maps exactly)\n");
-	} else {
+	if (total_found == total_alloc && !dump_opt['L']) {
+		(void) printf("\n\tNo leaks (block sum matches space"
+		    " maps exactly)\n");
+	} else if (!dump_opt['L']) {
 		(void) printf("block traversal size %llu != alloc %llu "
 		    "(%s %lld)\n",
 		    (u_longlong_t)total_found,
@@ -5022,6 +5033,8 @@ verify_checkpoint_ms_spacemaps(spa_t *checkpoint, spa_t *current)
 static void
 verify_checkpoint_blocks(spa_t *spa)
 {
+	ASSERT(!dump_opt['L']);
+
 	spa_t *checkpoint_spa;
 	char *checkpoint_pool;
 	nvlist_t *config = NULL;
