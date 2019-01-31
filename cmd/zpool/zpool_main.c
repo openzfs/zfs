@@ -3371,8 +3371,8 @@ static const name_and_columns_t iostat_top_labels[][IOSTAT_MAX_LABELS] =
 	[IOS_QUEUES] = {{"syncq_read", 2}, {"syncq_write", 2},
 	    {"asyncq_read", 2}, {"asyncq_write", 2}, {"scrubq_read", 2},
 	    {NULL}},
-	[IOS_L_HISTO] = {{"total_wait", 2}, {"disk_wait", 2},
-	    {"sync_queue", 2}, {"async_queue", 2}, {NULL}},
+	[IOS_L_HISTO] = {{"total_wait", 2}, {"disk_wait", 2}, {"syncq_wait", 2},
+	    {"asyncq_wait", 2}, {NULL}},
 	[IOS_RQ_HISTO] = {{"sync_read", 2}, {"sync_write", 2},
 	    {"async_read", 2}, {"async_write", 2}, {"scrub", 2}, {NULL}},
 
