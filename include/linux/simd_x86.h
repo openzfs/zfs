@@ -81,9 +81,16 @@
 #endif
 
 #if defined(_KERNEL)
-#if defined(HAVE_UNDERSCORE_KERNEL_FPU)
+
+#if defined(HAVE_KERNEL_FPU_API_HEADER)
 #include <asm/fpu/api.h>
 #include <asm/fpu/internal.h>
+#else
+#include <asm/i387.h>
+#include <asm/xcr.h>
+#endif
+
+#if defined(HAVE_UNDERSCORE_KERNEL_FPU)
 #define	kfpu_begin()		\
 {							\
 	preempt_disable();		\
@@ -95,8 +102,6 @@
 	preempt_enable();		\
 }
 #elif defined(HAVE_KERNEL_FPU)
-#include <asm/i387.h>
-#include <asm/xcr.h>
 #define	kfpu_begin()	kernel_fpu_begin()
 #define	kfpu_end()		kernel_fpu_end()
 #else
