@@ -308,8 +308,7 @@ do_start()
 
 # ----------------------------------------------------
 
-if [ ! -e /sbin/openrc-run ]
-then
+if ! (echo @SHELL@ | grep openrc 1>/dev/null 2>/dev/null); then
 	case "$1" in
 		start)
 			do_start
