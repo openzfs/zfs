@@ -3179,47 +3179,6 @@ vdev_remove_empty_log(vdev_t *vd, uint64_t txg)
 	ASSERT(vd == vd->vdev_top);
 	ASSERT3U(txg, ==, spa_syncing_txg(spa));
 
-	if (vd->vdev_ms != NULL) {
-		metaslab_group_t *mg = vd->vdev_mg;
-
-		metaslab_group_histogram_verify(mg);
-		metaslab_class_histogram_verify(mg->mg_class);
-
-		for (int m = 0; m < vd->vdev_ms_count; m++) {
-			metaslab_t *msp = vd->vdev_ms[m];
-
-			if (msp == NULL || msp->ms_sm == NULL)
-				continue;
-
-			mutex_enter(&msp->ms_lock);
-			/*
-			 * If the metaslab was not loaded when the vdev
-			 * was removed then the histogram accounting may
-			 * not be accurate. Update the histogram information
-			 * here so that we ensure that the metaslab group
-			 * and metaslab class are up-to-date.
-			 */
-			metaslab_group_histogram_remove(mg, msp);
-
-			VERIFY0(space_map_allocated(msp->ms_sm));
-			space_map_close(msp->ms_sm);
-			msp->ms_sm = NULL;
-			mutex_exit(&msp->ms_lock);
-		}
-
-		if (vd->vdev_checkpoint_sm != NULL) {
-			ASSERT(spa_has_checkpoint(spa));
-			space_map_close(vd->vdev_checkpoint_sm);
-			vd->vdev_checkpoint_sm = NULL;
-		}
-
-		metaslab_group_histogram_verify(mg);
-		metaslab_class_histogram_verify(mg->mg_class);
-
-		for (int i = 0; i < RANGE_TREE_HISTOGRAM_SIZE; i++)
-			ASSERT0(mg->mg_histogram[i]);
-	}
-
 	dmu_tx_t *tx = dmu_tx_create_assigned(spa_get_dsl(spa), txg);
 
 	vdev_destroy_spacemaps(vd, tx);
@@ -3253,17 +3212,14 @@ vdev_sync(vdev_t *vd, uint64_t txg)
 	spa_t *spa = vd->vdev_spa;
 	vdev_t *lvd;
 	metaslab_t *msp;
-	dmu_tx_t *tx;
 
+	ASSERT3U(txg, ==, spa->spa_syncing_txg);
+	dmu_tx_t *tx = dmu_tx_create_assigned(spa->spa_dsl_pool, txg);
 	if (range_tree_space(vd->vdev_obsolete_segments) > 0) {
-		dmu_tx_t *tx;
-
 		ASSERT(vd->vdev_removing ||
 		    vd->vdev_ops == &vdev_indirect_ops);
 
-		tx = dmu_tx_create_assigned(spa->spa_dsl_pool, txg);
 		vdev_indirect_sync_obsolete(vd, tx);
-		dmu_tx_commit(tx);
 
 		/*
 		 * If the vdev is indirect, it can't have dirty
@@ -3272,6 +3228,7 @@ vdev_sync(vdev_t *vd, uint64_t txg)
 		if (vd->vdev_ops == &vdev_indirect_ops) {
 			ASSERT(txg_list_empty(&vd->vdev_ms_list, txg));
 			ASSERT(txg_list_empty(&vd->vdev_dtl_list, txg));
+			dmu_tx_commit(tx);
 			return;
 		}
 	}
@@ -3282,12 +3239,10 @@ vdev_sync(vdev_t *vd, uint64_t txg)
 	    !vd->vdev_removing) {
 		ASSERT(vd == vd->vdev_top);
 		ASSERT0(vd->vdev_indirect_config.vic_mapping_object);
-		tx = dmu_tx_create_assigned(spa->spa_dsl_pool, txg);
 		vd->vdev_ms_array = dmu_object_alloc(spa->spa_meta_objset,
 		    DMU_OT_OBJECT_ARRAY, 0, DMU_OT_NONE, 0, tx);
 		ASSERT(vd->vdev_ms_array != 0);
 		vdev_config_dirty(vd);
-		dmu_tx_commit(tx);
 	}
 
 	while ((msp = txg_list_remove(&vd->vdev_ms_list, txg)) != NULL) {
@@ -3306,6 +3261,7 @@ vdev_sync(vdev_t *vd, uint64_t txg)
 		vdev_remove_empty_log(vd, txg);
 
 	(void) txg_list_add(&spa->spa_vdev_txg_list, vd, TXG_CLEAN(txg));
+	dmu_tx_commit(tx);
 }
 
 uint64_t
@@ -4162,6 +4118,11 @@ vdev_space_update(vdev_t *vd, int64_t alloc_delta, int64_t defer_delta,
 	dspace_delta = vdev_deflated_space(vd, space_delta);
 
 	mutex_enter(&vd->vdev_stat_lock);
+	/* ensure we won't underflow */
+	if (alloc_delta < 0) {
+		ASSERT3U(vd->vdev_stat.vs_alloc, >=, -alloc_delta);
+	}
+
 	vd->vdev_stat.vs_alloc += alloc_delta;
 	vd->vdev_stat.vs_space += space_delta;
 	vd->vdev_stat.vs_dspace += dspace_delta;
@@ -4169,6 +4130,7 @@ vdev_space_update(vdev_t *vd, int64_t alloc_delta, int64_t defer_delta,
 
 	/* every class but log contributes to root space stats */
 	if (vd->vdev_mg != NULL && !vd->vdev_islog) {
+		ASSERT(!vd->vdev_isl2cache);
 		mutex_enter(&rvd->vdev_stat_lock);
 		rvd->vdev_stat.vs_alloc += alloc_delta;
 		rvd->vdev_stat.vs_space += space_delta;
