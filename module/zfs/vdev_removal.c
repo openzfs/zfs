@@ -1858,6 +1858,7 @@ spa_vdev_remove_log(vdev_t *vd, uint64_t *txg)
 
 	ASSERT(vd->vdev_islog);
 	ASSERT(vd == vd->vdev_top);
+	ASSERT(MUTEX_HELD(&spa_namespace_lock));
 
 	/*
 	 * Stop allocating from this vdev.
@@ -1872,15 +1873,14 @@ spa_vdev_remove_log(vdev_t *vd, uint64_t *txg)
 	    *txg + TXG_CONCURRENT_STATES + TXG_DEFER_SIZE, 0, FTAG);
 
 	/*
-	 * Evacuate the device.  We don't hold the config lock as writer
-	 * since we need to do I/O but we do keep the
+	 * Evacuate the device.  We don't hold the config lock as
+	 * writer since we need to do I/O but we do keep the
 	 * spa_namespace_lock held.  Once this completes the device
 	 * should no longer have any blocks allocated on it.
 	 */
-	if (vd->vdev_islog) {
-		if (vd->vdev_stat.vs_alloc != 0)
-			error = spa_reset_logs(spa);
-	}
+	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+	if (vd->vdev_stat.vs_alloc != 0)
+		error = spa_reset_logs(spa);
 
 	*txg = spa_vdev_config_enter(spa);
 
@@ -1898,6 +1898,8 @@ spa_vdev_remove_log(vdev_t *vd, uint64_t *txg)
 
 	vdev_dirty_leaves(vd, VDD_DTL, *txg);
 	vdev_config_dirty(vd);
+
+	vdev_metaslab_fini(vd);
 
 	spa_vdev_config_exit(spa, NULL, *txg, 0, FTAG);
 
@@ -1922,6 +1924,8 @@ spa_vdev_remove_log(vdev_t *vd, uint64_t *txg)
 		vdev_state_clean(vd);
 	if (list_link_active(&vd->vdev_config_dirty_node))
 		vdev_config_clean(vd);
+
+	ASSERT0(vd->vdev_stat.vs_alloc);
 
 	/*
 	 * Clean up the vdev namespace.
