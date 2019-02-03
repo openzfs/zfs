@@ -36,4 +36,6 @@ verify_runnable "global"
 
 default_zvol_cleanup
 
+[[ -d $TESTDIR ]] && rm -rf $TESTDIR
+
 log_pass
