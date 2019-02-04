@@ -112,7 +112,7 @@ raw = 0
 def print_incompat_helper(incompat):
     cnt = 0
     for key in sorted(incompat):
-        if cnt is 0:
+        if cnt == 0:
             sys.stderr.write("\t")
         elif cnt > 8:
             sys.stderr.write(",\n\t")
@@ -537,7 +537,7 @@ def main():
             elif ((bflag and bincompat and ele in bincompat) or
                   (dflag and dincompat and ele in dincompat) or
                   (tflag and tincompat and ele in tincompat)):
-                    incompat.append(ele)
+                incompat.append(ele)
 
         if len(invalid) > 0:
             sys.stderr.write("Invalid column definition! -- %s\n" % invalid)
@@ -560,7 +560,7 @@ def main():
     if not ifile:
         ifile = '/proc/spl/kstat/zfs/dbufs'
 
-    if ifile is not "-":
+    if ifile != "-":
         try:
             tmp = open(ifile, "r")
             sys.stdin = tmp
