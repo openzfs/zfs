@@ -36,7 +36,24 @@ typedef struct zfs_bookmark_phys {
 	uint64_t zbm_guid;		/* guid of bookmarked dataset */
 	uint64_t zbm_creation_txg;	/* birth transaction group */
 	uint64_t zbm_creation_time;	/* bookmark creation time */
+
+	/* the following fields are reserved for redacted send / recv */
+	uint64_t zbm_redaction_obj;	/* redaction list object */
+	uint64_t zbm_flags;		/* ZBM_FLAG_* */
+	uint64_t zbm_referenced_bytes_refd;
+	uint64_t zbm_compressed_bytes_refd;
+	uint64_t zbm_uncompressed_bytes_refd;
+	uint64_t zbm_referenced_freed_before_next_snap;
+	uint64_t zbm_compressed_freed_before_next_snap;
+	uint64_t zbm_uncompressed_freed_before_next_snap;
+
+	/* fields used for raw sends */
+	uint64_t zbm_ivset_guid;
 } zfs_bookmark_phys_t;
+
+
+#define	BOOKMARK_PHYS_SIZE_V1	(3 * sizeof (uint64_t))
+#define	BOOKMARK_PHYS_SIZE_V2	(12 * sizeof (uint64_t))
 
 int dsl_bookmark_create(nvlist_t *, nvlist_t *);
 int dsl_get_bookmarks(const char *, nvlist_t *, nvlist_t *);
