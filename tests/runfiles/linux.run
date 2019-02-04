@@ -378,7 +378,7 @@ tests = ['zpool_import_001_pos', 'zpool_import_002_pos',
     'zpool_import_missing_002_pos', 'zpool_import_missing_003_pos',
     'zpool_import_rename_001_pos', 'zpool_import_all_001_pos',
     'zpool_import_encrypted', 'zpool_import_encrypted_load',
-    'zpool_import_errata3',
+    'zpool_import_errata3', 'zpool_import_errata4',
     'import_cachefile_device_added',
     'import_cachefile_device_removed',
     'import_cachefile_device_replaced',
@@ -793,7 +793,8 @@ tests = ['rsend_001_pos', 'rsend_002_pos', 'rsend_003_pos', 'rsend_004_pos',
     'send-c_embedded_blocks', 'send-c_resume', 'send-cpL_varied_recsize',
     'send-c_recv_dedup', 'send_encrypted_files', 'send_encrypted_heirarchy',
     'send_encrypted_props', 'send_freeobjects', 'send_realloc_dnode_size',
-    'send_holds', 'send_hole_birth', 'send-wDR_encrypted_zvol']
+    'send_holds', 'send_hole_birth', 'send_mixed_raw',
+    'send-wDR_encrypted_zvol']
 tags = ['functional', 'rsend']
 
 [tests/functional/scrub_mirror]

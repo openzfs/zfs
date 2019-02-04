@@ -43,6 +43,7 @@ dist_pkgdata_SCRIPTS = \
 	send_realloc_dnode_size.ksh \
 	send_holds.ksh \
 	send_hole_birth.ksh \
+	send_mixed_raw.ksh \
 	send-wDR_encrypted_zvol.ksh
 
 dist_pkgdata_DATA = \

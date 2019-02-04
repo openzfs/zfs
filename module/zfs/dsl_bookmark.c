@@ -221,6 +221,26 @@ dsl_bookmark_create_sync(void *arg, dmu_tx_t *tx)
 		bmark_phys.zbm_creation_time =
 		    dsl_dataset_phys(snapds)->ds_creation_time;
 
+		/*
+		 * If the dataset is encrypted create a larger bookmark to
+		 * accommodate the IVset guid. The IVset guid was added
+		 * after the encryption feature to prevent a problem with
+		 * raw sends. If we encounter an encrypted dataset without
+		 * an IVset guid we fall back to a normal bookmark.
+		 */
+		if (snapds->ds_dir->dd_crypto_obj != 0 &&
+		    spa_feature_is_enabled(dp->dp_spa,
+		    SPA_FEATURE_BOOKMARK_V2)) {
+			int err = zap_lookup(mos, snapds->ds_object,
+			    DS_FIELD_IVSET_GUID, sizeof (uint64_t), 1,
+			    &bmark_phys.zbm_ivset_guid);
+			if (err == 0) {
+				bmark_len = BOOKMARK_PHYS_SIZE_V2;
+				spa_feature_incr(dp->dp_spa,
+				    SPA_FEATURE_BOOKMARK_V2, tx);
+			}
+		}
+
 		VERIFY0(zap_add(mos, bmark_fs->ds_bookmarks,
 		    shortname, sizeof (uint64_t),
 		    bmark_len / sizeof (uint64_t), &bmark_phys, tx));
@@ -273,7 +293,7 @@ dsl_get_bookmarks_impl(dsl_dataset_t *ds, nvlist_t *props, nvlist_t *outnvl)
 	    zap_cursor_retrieve(&zc, &attr) == 0;
 	    zap_cursor_advance(&zc)) {
 		char *bmark_name = attr.za_name;
-		zfs_bookmark_phys_t bmark_phys;
+		zfs_bookmark_phys_t bmark_phys = { 0 };
 
 		err = dsl_dataset_bmark_lookup(ds, bmark_name, &bmark_phys);
 		ASSERT3U(err, !=, ENOENT);
@@ -295,6 +315,11 @@ dsl_get_bookmarks_impl(dsl_dataset_t *ds, nvlist_t *props, nvlist_t *outnvl)
 		    zfs_prop_to_name(ZFS_PROP_CREATION))) {
 			dsl_prop_nvlist_add_uint64(out_props,
 			    ZFS_PROP_CREATION, bmark_phys.zbm_creation_time);
+		}
+		if (nvlist_exists(props,
+		    zfs_prop_to_name(ZFS_PROP_IVSET_GUID))) {
+			dsl_prop_nvlist_add_uint64(out_props,
+			    ZFS_PROP_IVSET_GUID, bmark_phys.zbm_ivset_guid);
 		}
 
 		fnvlist_add_nvlist(outnvl, bmark_name, out_props);
@@ -343,12 +368,25 @@ typedef struct dsl_bookmark_destroy_arg {
 static int
 dsl_dataset_bookmark_remove(dsl_dataset_t *ds, const char *name, dmu_tx_t *tx)
 {
+	int err;
 	objset_t *mos = ds->ds_dir->dd_pool->dp_meta_objset;
 	uint64_t bmark_zapobj = ds->ds_bookmarks;
 	matchtype_t mt = 0;
+	uint64_t int_size, num_ints;
 
 	if (dsl_dataset_phys(ds)->ds_flags & DS_FLAG_CI_DATASET)
 		mt = MT_NORMALIZE;
+
+	err = zap_length(mos, bmark_zapobj, name, &int_size, &num_ints);
+	if (err != 0)
+		return (err);
+
+	ASSERT3U(int_size, ==, sizeof (uint64_t));
+
+	if (num_ints * int_size > BOOKMARK_PHYS_SIZE_V1) {
+		spa_feature_decr(dmu_objset_spa(mos),
+		    SPA_FEATURE_BOOKMARK_V2, tx);
+	}
 
 	return (zap_remove_norm(mos, bmark_zapobj, name, mt, tx));
 }

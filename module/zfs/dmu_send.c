@@ -1119,9 +1119,13 @@ dmu_send_impl(void *tag, dsl_pool_t *dp, dsl_dataset_t *to_ds,
 		}
 
 		if (featureflags & DMU_BACKUP_FEATURE_RAW) {
+			uint64_t ivset_guid = (ancestor_zb != NULL) ?
+			    ancestor_zb->zbm_ivset_guid : 0;
+
 			ASSERT(os->os_encrypted);
 
-			err = dsl_crypto_populate_key_nvlist(to_ds, &keynvl);
+			err = dsl_crypto_populate_key_nvlist(to_ds,
+			    ivset_guid, &keynvl);
 			if (err != 0) {
 				fnvlist_free(nvl);
 				goto out;
@@ -1235,7 +1239,7 @@ dmu_send_obj(const char *pool, uint64_t tosnap, uint64_t fromsnap,
 	}
 
 	if (fromsnap != 0) {
-		zfs_bookmark_phys_t zb;
+		zfs_bookmark_phys_t zb = { 0 };
 		boolean_t is_clone;
 
 		err = dsl_dataset_hold_obj(dp, fromsnap, FTAG, &fromds);
@@ -1244,12 +1248,25 @@ dmu_send_obj(const char *pool, uint64_t tosnap, uint64_t fromsnap,
 			dsl_pool_rele(dp, FTAG);
 			return (err);
 		}
-		if (!dsl_dataset_is_before(ds, fromds, 0))
+		if (!dsl_dataset_is_before(ds, fromds, 0)) {
 			err = SET_ERROR(EXDEV);
+			dsl_dataset_rele(fromds, FTAG);
+			dsl_dataset_rele_flags(ds, dsflags, FTAG);
+			dsl_pool_rele(dp, FTAG);
+			return (err);
+		}
+
 		zb.zbm_creation_time =
 		    dsl_dataset_phys(fromds)->ds_creation_time;
 		zb.zbm_creation_txg = dsl_dataset_phys(fromds)->ds_creation_txg;
 		zb.zbm_guid = dsl_dataset_phys(fromds)->ds_guid;
+
+		if (dsl_dataset_is_zapified(fromds)) {
+			(void) zap_lookup(dp->dp_meta_objset,
+			    fromds->ds_object, DS_FIELD_IVSET_GUID, 8, 1,
+			    &zb.zbm_ivset_guid);
+		}
+
 		is_clone = (fromds->ds_dir != ds->ds_dir);
 		dsl_dataset_rele(fromds, FTAG);
 		err = dmu_send_impl(FTAG, dp, ds, &zb, is_clone,
@@ -1298,7 +1315,7 @@ dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
 	}
 
 	if (fromsnap != NULL) {
-		zfs_bookmark_phys_t zb;
+		zfs_bookmark_phys_t zb = { 0 };
 		boolean_t is_clone = B_FALSE;
 		int fsnamelen = strchr(tosnap, '@') - tosnap;
 
@@ -1324,6 +1341,13 @@ dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
 				    dsl_dataset_phys(fromds)->ds_creation_txg;
 				zb.zbm_guid = dsl_dataset_phys(fromds)->ds_guid;
 				is_clone = (ds->ds_dir != fromds->ds_dir);
+
+				if (dsl_dataset_is_zapified(fromds)) {
+					(void) zap_lookup(dp->dp_meta_objset,
+					    fromds->ds_object,
+					    DS_FIELD_IVSET_GUID, 8, 1,
+					    &zb.zbm_ivset_guid);
+				}
 				dsl_dataset_rele(fromds, FTAG);
 			}
 		} else {

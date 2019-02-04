@@ -1124,6 +1124,7 @@ lzc_bookmark(nvlist_t *bookmarks, nvlist_t **errlist)
  * "guid" - globally unique identifier of the snapshot it refers to
  * "createtxg" - txg when the snapshot it refers to was created
  * "creation" - timestamp when the snapshot it refers to was created
+ * "ivsetguid" - IVset guid for identifying encrypted snapshots
  *
  * The format of the returned nvlist as follows:
  * <short name of bookmark> -> {

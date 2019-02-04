@@ -411,6 +411,11 @@ get_special_prop(lua_State *state, dsl_dataset_t *ds, const char *dsname,
 	case ZFS_PROP_INCONSISTENT:
 		numval = dsl_get_inconsistent(ds);
 		break;
+	case ZFS_PROP_IVSET_GUID:
+		error = zap_lookup(ds->ds_dir->dd_pool->dp_meta_objset,
+		    ds->ds_object, DS_FIELD_IVSET_GUID, sizeof (numval),
+		    1, &numval);
+		break;
 	case ZFS_PROP_RECEIVE_RESUME_TOKEN: {
 		char *token = get_receive_resume_stats_impl(ds);
 
