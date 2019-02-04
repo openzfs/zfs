@@ -6147,13 +6147,14 @@ arc_read(zio_t *pio, spa_t *spa, const blkptr_t *bp,
 	    (zio_flags & ZIO_FLAG_RAW_ENCRYPT) != 0;
 	boolean_t noauth_read = BP_IS_AUTHENTICATED(bp) &&
 	    (zio_flags & ZIO_FLAG_RAW_ENCRYPT) != 0;
+	boolean_t embedded_bp = !!BP_IS_EMBEDDED(bp);
 	int rc = 0;
 
-	ASSERT(!BP_IS_EMBEDDED(bp) ||
+	ASSERT(!embedded_bp ||
 	    BPE_GET_ETYPE(bp) == BP_EMBEDDED_TYPE_DATA);
 
 top:
-	if (!BP_IS_EMBEDDED(bp)) {
+	if (!embedded_bp) {
 		/*
 		 * Embedded BP's have no DVA and require no I/O to "read".
 		 * Create an anonymous arc buf to back it.
@@ -6253,7 +6254,7 @@ top:
 				    ARC_FLAG_PRESCIENT_PREFETCH);
 			}
 
-			ASSERT(!BP_IS_EMBEDDED(bp) || !BP_IS_HOLE(bp));
+			ASSERT(!embedded_bp || !BP_IS_HOLE(bp));
 
 			/* Get a buf with the desired data in it. */
 			rc = arc_buf_alloc_impl(hdr, spa, zb, private,
@@ -6321,14 +6322,17 @@ top:
 		}
 
 		if (hdr == NULL) {
-			/* this block is not in the cache */
+			/*
+			 * This block is not in the cache or it has
+			 * embedded data.
+			 */
 			arc_buf_hdr_t *exists = NULL;
 			arc_buf_contents_t type = BP_GET_BUFC_TYPE(bp);
 			hdr = arc_hdr_alloc(spa_load_guid(spa), psize, lsize,
 			    BP_IS_PROTECTED(bp), BP_GET_COMPRESS(bp), type,
 			    encrypted_read);
 
-			if (!BP_IS_EMBEDDED(bp)) {
+			if (!embedded_bp) {
 				hdr->b_dva = *BP_IDENTITY(bp);
 				hdr->b_birth = BP_PHYSICAL_BIRTH(bp);
 				exists = buf_hash_insert(hdr, &hash_lock);
@@ -6465,17 +6469,25 @@ top:
 			arc_hdr_clear_flags(hdr, ARC_FLAG_PRIO_ASYNC_READ);
 
 		/*
-		 * At this point, we have a level 1 cache miss.  Try again in
-		 * L2ARC if possible.
+		 * At this point, we have a level 1 cache miss or a blkptr
+		 * with embedded data.  Try again in L2ARC if possible.
 		 */
 		ASSERT3U(HDR_GET_LSIZE(hdr), ==, lsize);
 
-		DTRACE_PROBE4(arc__miss, arc_buf_hdr_t *, hdr, blkptr_t *, bp,
-		    uint64_t, lsize, zbookmark_phys_t *, zb);
-		ARCSTAT_BUMP(arcstat_misses);
-		ARCSTAT_CONDSTAT(!HDR_PREFETCH(hdr),
-		    demand, prefetch, !HDR_ISTYPE_METADATA(hdr),
-		    data, metadata, misses);
+		/*
+		 * Skip ARC stat bump for block pointers with embedded
+		 * data. The data are read from the blkptr itself via
+		 * decode_embedded_bp_compressed().
+		 */
+		if (!embedded_bp) {
+			DTRACE_PROBE4(arc__miss, arc_buf_hdr_t *, hdr,
+			    blkptr_t *, bp, uint64_t, lsize,
+			    zbookmark_phys_t *, zb);
+			ARCSTAT_BUMP(arcstat_misses);
+			ARCSTAT_CONDSTAT(!HDR_PREFETCH(hdr),
+			    demand, prefetch, !HDR_ISTYPE_METADATA(hdr), data,
+			    metadata, misses);
+		}
 
 		if (vd != NULL && l2arc_ndev != 0 && !(l2arc_norw && devw)) {
 			/*
@@ -6567,7 +6579,12 @@ top:
 		} else {
 			if (vd != NULL)
 				spa_config_exit(spa, SCL_L2ARC, vd);
-			if (l2arc_ndev != 0) {
+			/*
+			 * Skip ARC stat bump for block pointers with
+			 * embedded data. The data are read from the blkptr
+			 * itself via decode_embedded_bp_compressed().
+			 */
+			if (l2arc_ndev != 0 && !embedded_bp) {
 				DTRACE_PROBE1(l2arc__miss,
 				    arc_buf_hdr_t *, hdr);
 				ARCSTAT_BUMP(arcstat_l2_misses);
@@ -6592,7 +6609,7 @@ top:
 
 out:
 	/* embedded bps don't actually go to disk */
-	if (!BP_IS_EMBEDDED(bp))
+	if (!embedded_bp)
 		spa_read_history_add(spa, zb, *arc_flags);
 	return (rc);
 }
