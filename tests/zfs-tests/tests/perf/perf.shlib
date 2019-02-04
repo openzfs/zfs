@@ -112,6 +112,16 @@ function do_fio_run_impl
 	export BLOCKSIZE=$iosize
 	sync
 
+	# When running locally, we want to keep the default behavior of
+	# DIRECT == 0, so only set it when we're running over NFS to
+	# disable client cache for reads.
+	if [[ $NFS -eq 1 ]]; then
+		export DIRECT=1
+		do_setup_nfs $script
+	else
+		export DIRECT=0
+	fi
+
 	# This will be part of the output filename.
 	typeset suffix=$(get_suffix $threads $sync $iosize)
 
@@ -124,7 +134,14 @@ function do_fio_run_impl
 	typeset outfile="$logbase.fio.$suffix"
 
 	# Start the load
-	log_must fio --output $outfile $FIO_SCRIPTS/$script
+	if [[ $NFS -eq 1 ]]; then
+		log_must ssh -t $NFS_USER@$NFS_CLIENT "
+			fio --output /tmp/fio.out /tmp/test.fio
+		"
+		log_must scp $NFS_USER@$NFS_CLIENT:/tmp/fio.out $outfile
+	else
+		log_must fio --output $outfile $FIO_SCRIPTS/$script
+	fi
 }
 
 #
@@ -164,6 +181,34 @@ function do_fio_run
 			done
 		done
 	done
+}
+
+# This function sets NFS mount on the client and make sure all correct
+# permissions are in place
+#
+function do_setup_nfs
+{
+	typeset script=$1
+	zfs  set sharenfs=on $TESTFS
+	log_must chmod  -R 777 /$TESTFS
+
+	ssh -t $NFS_USER@$NFS_CLIENT "mkdir -m 777 -p $NFS_MOUNT"
+	ssh -t $NFS_USER@$NFS_CLIENT "sudo -S umount $NFS_MOUNT"
+	log_must ssh -t $NFS_USER@$NFS_CLIENT "
+		sudo -S mount $NFS_OPTIONS $NFS_SERVER:/$TESTFS $NFS_MOUNT
+	"
+	#
+	# The variables in the fio script are only available in our current
+	# shell session, so we have to evaluate them here before copying
+	# the resulting script over to the target machine.
+	#
+	export jobnum='$jobnum'
+	while read line; do
+		eval echo "$line"
+	done < $FIO_SCRIPTS/$script > /tmp/test.fio
+	log_must sed -i -e "s%directory.*%directory=$NFS_MOUNT%" /tmp/test.fio
+	log_must scp /tmp/test.fio $NFS_USER@$NFS_CLIENT:/tmp
+	log_must rm /tmp/test.fio
 }
 
 #
