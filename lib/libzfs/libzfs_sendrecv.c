@@ -4392,6 +4392,20 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			    "destination %s space quota exceeded."), name);
 			(void) zfs_error(hdl, EZFS_NOSPC, errbuf);
 			break;
+		case ZFS_ERR_FROM_IVSET_GUID_MISSING:
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "IV set guid missing. See errata %u at"
+			    "http://zfsonlinux.org/msg/ZFS-8000-ER"),
+			    ZPOOL_ERRATA_ZOL_8308_ENCRYPTION);
+			(void) zfs_error(hdl, EZFS_BADSTREAM, errbuf);
+			break;
+		case ZFS_ERR_FROM_IVSET_GUID_MISMATCH:
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "IV set guid mismatch. See the 'zfs receive' "
+			    "man page section\n discussing the limitations "
+			    "of raw encrypted send streams."));
+			(void) zfs_error(hdl, EZFS_BADSTREAM, errbuf);
+			break;
 		case EBUSY:
 			if (hastoken) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,

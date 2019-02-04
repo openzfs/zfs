@@ -115,6 +115,12 @@ struct dsl_key_mapping;
 #define	DS_FIELD_REMAP_DEADLIST	"com.delphix:remap_deadlist"
 
 /*
+ * This field is set to the ivset guid for encrypted snapshots. This is used
+ * for validating raw receives.
+ */
+#define	DS_FIELD_IVSET_GUID	"com.datto:ivset_guid"
+
+/*
  * DS_FLAG_CI_DATASET is set if the dataset contains a file system whose
  * name lookups should be performed case-insensitively.
  */

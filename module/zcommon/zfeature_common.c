@@ -442,6 +442,7 @@ zpool_feature_init(void)
 	{
 	static const spa_feature_t bookmark_v2_deps[] = {
 		SPA_FEATURE_EXTENSIBLE_DATASET,
+		SPA_FEATURE_BOOKMARKS,
 		SPA_FEATURE_NONE
 	};
 	zfeature_register(SPA_FEATURE_BOOKMARK_V2,
@@ -453,6 +454,7 @@ zpool_feature_init(void)
 	{
 	static const spa_feature_t encryption_deps[] = {
 		SPA_FEATURE_EXTENSIBLE_DATASET,
+		SPA_FEATURE_BOOKMARK_V2,
 		SPA_FEATURE_NONE
 	};
 	zfeature_register(SPA_FEATURE_ENCRYPTION,
