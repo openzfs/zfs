@@ -312,7 +312,7 @@ def process_results(pathname):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) is not 2:
+    if len(sys.argv) != 2:
         usage('usage: %s <pathname>' % sys.argv[0])
     results = process_results(sys.argv[1])
 
