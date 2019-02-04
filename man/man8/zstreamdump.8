@@ -9,7 +9,7 @@ zstreamdump \- filter data in zfs send stream
 .SH SYNOPSIS
 .LP
 .nf
-\fBzstreamdump\fR [\fB-C\fR] [\fB-v\fR]
+\fBzstreamdump\fR [\fB-C\fR] [\fB-v\fR] [\fB-d\fR]
 .fi
 
 .SH DESCRIPTION
@@ -17,7 +17,7 @@ zstreamdump \- filter data in zfs send stream
 .LP
 The \fBzstreamdump\fR utility reads from the output of the \fBzfs send\fR
 command, then displays headers and some statistics from that output.  See
-\fBzfs\fR(1M).
+\fBzfs\fR(8).
 .SH OPTIONS
 .sp
 .LP
@@ -40,6 +40,16 @@ Suppress the validation of checksums.
 .sp .6
 .RS 4n
 Verbose. Dump all headers, not only begin and end headers.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fB-d\fR\fR
+.ad
+.sp .6
+.RS 4n
+Dump contents of blocks modified. Implies verbose.
 .RE
 
 .SH SEE ALSO

@@ -434,7 +434,7 @@ zed_guid_to_pool()
 	fi
 
 	guid=$(printf "%llu" "$1")
-	if [ ! -z "$guid" ] ; then
+	if [ -n "$guid" ] ; then
 		$ZPOOL get -H -ovalue,name guid | awk '$1=='"$guid"' {print $2}'
 	fi
 }
