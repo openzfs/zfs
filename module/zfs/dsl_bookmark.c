@@ -70,6 +70,12 @@ dsl_dataset_bmark_lookup(dsl_dataset_t *ds, const char *shortname,
 	if (dsl_dataset_phys(ds)->ds_flags & DS_FLAG_CI_DATASET)
 		mt = MT_NORMALIZE;
 
+	/*
+	 * Zero out the bookmark in case the one stored on disk
+	 * is in an older, shorter format.
+	 */
+	bzero(bmark_phys, sizeof (*bmark_phys));
+
 	err = zap_lookup_norm(mos, bmark_zapobj, shortname, sizeof (uint64_t),
 	    sizeof (*bmark_phys) / sizeof (uint64_t), bmark_phys, mt,
 	    NULL, 0, NULL);
@@ -188,8 +194,9 @@ dsl_bookmark_create_sync(void *arg, dmu_tx_t *tx)
 	for (nvpair_t *pair = nvlist_next_nvpair(dbca->dbca_bmarks, NULL);
 	    pair != NULL; pair = nvlist_next_nvpair(dbca->dbca_bmarks, pair)) {
 		dsl_dataset_t *snapds, *bmark_fs;
-		zfs_bookmark_phys_t bmark_phys;
+		zfs_bookmark_phys_t bmark_phys = { 0 };
 		char *shortname;
+		uint32_t bmark_len = BOOKMARK_PHYS_SIZE_V1;
 
 		VERIFY0(dsl_dataset_hold(dp, fnvpair_value_string(pair),
 		    FTAG, &snapds));
@@ -216,8 +223,7 @@ dsl_bookmark_create_sync(void *arg, dmu_tx_t *tx)
 
 		VERIFY0(zap_add(mos, bmark_fs->ds_bookmarks,
 		    shortname, sizeof (uint64_t),
-		    sizeof (zfs_bookmark_phys_t) / sizeof (uint64_t),
-		    &bmark_phys, tx));
+		    bmark_len / sizeof (uint64_t), &bmark_phys, tx));
 
 		spa_history_log_internal_ds(bmark_fs, "bookmark", tx,
 		    "name=%s creation_txg=%llu target_snap=%llu",
