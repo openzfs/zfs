@@ -887,7 +887,8 @@ tags = ['functional', 'zvol', 'zvol_cli']
 [tests/functional/zvol/zvol_misc]
 tests = ['zvol_misc_001_neg', 'zvol_misc_002_pos', 'zvol_misc_003_neg',
     'zvol_misc_004_pos', 'zvol_misc_005_neg', 'zvol_misc_006_pos',
-    'zvol_misc_snapdev', 'zvol_misc_volmode', 'zvol_misc_zil']
+    'zvol_misc_hierarchy', 'zvol_misc_snapdev', 'zvol_misc_volmode',
+    'zvol_misc_zil']
 tags = ['functional', 'zvol', 'zvol_misc']
 
 [tests/functional/zvol/zvol_swap]

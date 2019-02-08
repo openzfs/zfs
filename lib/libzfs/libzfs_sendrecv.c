@@ -28,7 +28,7 @@
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  * Copyright 2015, OmniTI Computer Consulting, Inc. All rights reserved.
  * Copyright 2016 Igor Kozhukhov <ikozhukhov@gmail.com>
- * Copyright (c) 2017, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
+ * Copyright (c) 2018, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
  */
 
 #include <assert.h>
@@ -3912,6 +3912,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		 *  - we are resuming a failed receive.
 		 */
 		if (stream_wantsnewfs) {
+			boolean_t is_volume = drrb->drr_type == DMU_OST_ZVOL;
 			if (!flags->force) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "destination '%s' exists\n"
@@ -3926,6 +3927,24 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 				    "must destroy them to overwrite it"),
 				    zc.zc_name);
 				err = zfs_error(hdl, EZFS_EXISTS, errbuf);
+				goto out;
+			}
+			if (is_volume && strrchr(name, '/') == NULL) {
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "destination %s is the root dataset\n"
+				    "cannot overwrite with a ZVOL"),
+				    name);
+				err = zfs_error(hdl, EZFS_EXISTS, errbuf);
+				goto out;
+			}
+			if (is_volume &&
+			    ioctl(hdl->libzfs_fd, ZFS_IOC_DATASET_LIST_NEXT,
+			    &zc) == 0) {
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "destination has children (eg. %s)\n"
+				    "cannot overwrite with a ZVOL"),
+				    zc.zc_name);
+				err = zfs_error(hdl, EZFS_WRONG_PARENT, errbuf);
 				goto out;
 			}
 		}
@@ -4051,6 +4070,20 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			goto out;
 		}
 
+		/* validate parent */
+		zhp = zfs_open(hdl, name, ZFS_TYPE_DATASET);
+		if (zhp == NULL) {
+			err = zfs_error(hdl, EZFS_BADRESTORE, errbuf);
+			goto out;
+		}
+		if (zfs_get_type(zhp) != ZFS_TYPE_FILESYSTEM) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "parent '%s' is not a filesystem"), name);
+			err = zfs_error(hdl, EZFS_WRONG_PARENT, errbuf);
+			zfs_close(zhp);
+			goto out;
+		}
+
 		/*
 		 * It is invalid to receive a properties stream that was
 		 * unencrypted on the send side as a child of an encrypted
@@ -4068,23 +4101,18 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		    zfs_prop_to_name(ZFS_PROP_ENCRYPTION))) {
 			uint64_t crypt;
 
-			zhp = zfs_open(hdl, name, ZFS_TYPE_DATASET);
-			if (zhp == NULL) {
-				err = zfs_error(hdl, EZFS_BADRESTORE, errbuf);
-				goto out;
-			}
-
 			crypt = zfs_prop_get_int(zhp, ZFS_PROP_ENCRYPTION);
-			zfs_close(zhp);
 
 			if (crypt != ZIO_CRYPT_OFF) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "parent '%s' must not be encrypted to "
 				    "receive unenecrypted property"), name);
 				err = zfs_error(hdl, EZFS_BADPROP, errbuf);
+				zfs_close(zhp);
 				goto out;
 			}
 		}
+		zfs_close(zhp);
 
 		newfs = B_TRUE;
 		*cp = '/';

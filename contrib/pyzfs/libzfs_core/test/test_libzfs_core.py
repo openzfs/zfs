@@ -193,11 +193,11 @@ def make_snapshots(fs, before, modified, after):
 @contextlib.contextmanager
 def streams(fs, first, second):
     (filename, snaps) = make_snapshots(fs, None, first, second)
-    with tempfile.TemporaryFile(suffix='.ztream') as full:
+    with tempfile.TemporaryFile(suffix='.zstream') as full:
         lzc.lzc_send(snaps[1], None, full.fileno())
         full.seek(0)
         if snaps[2] is not None:
-            with tempfile.TemporaryFile(suffix='.ztream') as incremental:
+            with tempfile.TemporaryFile(suffix='.zstream') as incremental:
                 lzc.lzc_send(snaps[2], snaps[1], incremental.fileno())
                 incremental.seek(0)
                 yield (filename, (full, incremental))
@@ -357,8 +357,6 @@ class ZFSTest(unittest.TestCase):
         with self.assertRaises(lzc_exc.DatasetTypeInvalid):
             lzc.lzc_create(name, ds_type='wrong')
 
-    # XXX: we should have a way to raise lzc_exc.WrongParent from lzc_create()
-    @unittest.expectedFailure
     def test_create_fs_below_zvol(self):
         name = ZFSTest.pool.makeName(b"fs1/fs/zvol")
         props = {b"volsize": 1024 * 1024}
@@ -366,6 +364,14 @@ class ZFSTest(unittest.TestCase):
         lzc.lzc_create(name, ds_type='zvol', props=props)
         with self.assertRaises(lzc_exc.WrongParent):
             lzc.lzc_create(name + b'/fs')
+
+    def test_create_zvol_below_zvol(self):
+        name = ZFSTest.pool.makeName(b"fs1/fs/zvol")
+        props = {b"volsize": 1024 * 1024}
+
+        lzc.lzc_create(name, ds_type='zvol', props=props)
+        with self.assertRaises(lzc_exc.WrongParent):
+            lzc.lzc_create(name + b'/zvol', ds_type='zvol', props=props)
 
     def test_create_fs_duplicate(self):
         name = ZFSTest.pool.makeName(b"fs1/fs/test6")
@@ -1590,7 +1596,7 @@ class ZFSTest(unittest.TestCase):
                 f.flush()
                 lzc.lzc_snapshot([snap])
 
-        with tempfile.TemporaryFile(suffix='.ztream') as output:
+        with tempfile.TemporaryFile(suffix='.zstream') as output:
             estimate = lzc.lzc_send_space(snap)
 
             fd = output.fileno()
@@ -1611,7 +1617,7 @@ class ZFSTest(unittest.TestCase):
                 f.flush()
                 lzc.lzc_snapshot([snap2])
 
-        with tempfile.TemporaryFile(suffix='.ztream') as output:
+        with tempfile.TemporaryFile(suffix='.zstream') as output:
             estimate = lzc.lzc_send_space(snap2, snap1)
 
             fd = output.fileno()
@@ -1640,7 +1646,7 @@ class ZFSTest(unittest.TestCase):
     def test_send_same_snap(self):
         snap1 = ZFSTest.pool.makeName(b"fs1@snap1")
         lzc.lzc_snapshot([snap1])
-        with tempfile.TemporaryFile(suffix='.ztream') as output:
+        with tempfile.TemporaryFile(suffix='.zstream') as output:
             fd = output.fileno()
             with self.assertRaises(lzc_exc.SnapshotMismatch):
                 lzc.lzc_send(snap1, snap1, fd)
@@ -1652,7 +1658,7 @@ class ZFSTest(unittest.TestCase):
         lzc.lzc_snapshot([snap1])
         lzc.lzc_snapshot([snap2])
 
-        with tempfile.TemporaryFile(suffix='.ztream') as output:
+        with tempfile.TemporaryFile(suffix='.zstream') as output:
             fd = output.fileno()
             with self.assertRaises(lzc_exc.SnapshotMismatch):
                 lzc.lzc_send(snap1, snap2, fd)
@@ -1664,7 +1670,7 @@ class ZFSTest(unittest.TestCase):
         lzc.lzc_snapshot([snap1])
         lzc.lzc_snapshot([snap2])
 
-        with tempfile.TemporaryFile(suffix='.ztream') as output:
+        with tempfile.TemporaryFile(suffix='.zstream') as output:
             fd = output.fileno()
             with self.assertRaises(lzc_exc.SnapshotMismatch):
                 lzc.lzc_send(snap1, snap2, fd)
@@ -1676,7 +1682,7 @@ class ZFSTest(unittest.TestCase):
         lzc.lzc_snapshot([snap1])
         lzc.lzc_snapshot([snap2])
 
-        with tempfile.TemporaryFile(suffix='.ztream') as output:
+        with tempfile.TemporaryFile(suffix='.zstream') as output:
             fd = output.fileno()
             with self.assertRaises(lzc_exc.PoolsDiffer):
                 lzc.lzc_send(snap1, snap2, fd)
@@ -1687,7 +1693,7 @@ class ZFSTest(unittest.TestCase):
 
         lzc.lzc_snapshot([snap1])
 
-        with tempfile.TemporaryFile(suffix='.ztream') as output:
+        with tempfile.TemporaryFile(suffix='.zstream') as output:
             fd = output.fileno()
             with self.assertRaises(lzc_exc.SnapshotNotFound) as ctx:
                 lzc.lzc_send(snap1, snap2, fd)
@@ -1707,7 +1713,7 @@ class ZFSTest(unittest.TestCase):
 
         lzc.lzc_snapshot([snap1])
 
-        with tempfile.TemporaryFile(suffix='.ztream') as output:
+        with tempfile.TemporaryFile(suffix='.zstream') as output:
             fd = output.fileno()
             with self.assertRaises(lzc_exc.NameInvalid) as ctx:
                 lzc.lzc_send(snap2, snap1, fd)
@@ -1729,7 +1735,7 @@ class ZFSTest(unittest.TestCase):
 
         lzc.lzc_snapshot([snap])
 
-        with tempfile.TemporaryFile(suffix='.ztream') as output:
+        with tempfile.TemporaryFile(suffix='.zstream') as output:
             fd = output.fileno()
             lzc.lzc_send(fs, snap, fd)
             lzc.lzc_send(fs, None, fd)
@@ -1740,7 +1746,7 @@ class ZFSTest(unittest.TestCase):
 
         lzc.lzc_snapshot([snap])
 
-        with tempfile.TemporaryFile(suffix='.ztream') as output:
+        with tempfile.TemporaryFile(suffix='.zstream') as output:
             fd = output.fileno()
             with self.assertRaises(lzc_exc.NameInvalid):
                 lzc.lzc_send(snap, fs, fd)
@@ -1756,7 +1762,7 @@ class ZFSTest(unittest.TestCase):
         lzc.lzc_bookmark({bmark: snap2})
         lzc.lzc_destroy_snaps([snap2], defer=False)
 
-        with tempfile.TemporaryFile(suffix='.ztream') as output:
+        with tempfile.TemporaryFile(suffix='.zstream') as output:
             fd = output.fileno()
             with self.assertRaises(lzc_exc.NameInvalid):
                 lzc.lzc_send(bmark, snap1, fd)
@@ -1774,7 +1780,7 @@ class ZFSTest(unittest.TestCase):
         lzc.lzc_bookmark({bmark: snap1})
         lzc.lzc_destroy_snaps([snap1], defer=False)
 
-        with tempfile.TemporaryFile(suffix='.ztream') as output:
+        with tempfile.TemporaryFile(suffix='.zstream') as output:
             fd = output.fileno()
             lzc.lzc_send(snap2, bmark, fd)
 
@@ -1854,7 +1860,7 @@ class ZFSTest(unittest.TestCase):
         lzc.lzc_snapshot([snap])
 
         with tempfile.NamedTemporaryFile(
-                suffix='.ztream', delete=False) as output:
+                suffix='.zstream', delete=False) as output:
             # tempfile always opens a temporary file in read-write mode
             # regardless of the specified mode, so we have to open it again.
             os.chmod(output.name, stat.S_IRUSR)
@@ -1871,7 +1877,7 @@ class ZFSTest(unittest.TestCase):
         with temp_file_in_fs(ZFSTest.pool.makeName(b"fs1")) as name:
             lzc.lzc_snapshot([src])
 
-        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(src, None, stream.fileno())
             stream.seek(0)
             lzc.lzc_receive(dst, stream.fileno())
@@ -1892,11 +1898,11 @@ class ZFSTest(unittest.TestCase):
         with temp_file_in_fs(ZFSTest.pool.makeName(b"fs1")) as name:
             lzc.lzc_snapshot([src2])
 
-        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(src1, None, stream.fileno())
             stream.seek(0)
             lzc.lzc_receive(dst1, stream.fileno())
-        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(src2, src1, stream.fileno())
             stream.seek(0)
             lzc.lzc_receive(dst2, stream.fileno())
@@ -1933,14 +1939,14 @@ class ZFSTest(unittest.TestCase):
         clone_dst = ZFSTest.pool.makeName(b"fs1/fs/recv-clone@snap")
 
         lzc.lzc_snapshot([orig_src])
-        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(orig_src, None, stream.fileno())
             stream.seek(0)
             lzc.lzc_receive(orig_dst, stream.fileno())
 
         lzc.lzc_clone(clone, orig_src)
         lzc.lzc_snapshot([clone_snap])
-        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(clone_snap, orig_src, stream.fileno())
             stream.seek(0)
             lzc.lzc_receive(clone_dst, stream.fileno(), origin=orig_dst)
@@ -1953,7 +1959,7 @@ class ZFSTest(unittest.TestCase):
         with temp_file_in_fs(ZFSTest.pool.makeName(b"fs1")):
             lzc.lzc_snapshot([src])
         lzc.lzc_create(dstfs)
-        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(src, None, stream.fileno())
             stream.seek(0)
             with self.assertRaises((
@@ -1992,7 +1998,7 @@ class ZFSTest(unittest.TestCase):
             lzc.lzc_snapshot([src])
         lzc.lzc_create(dstfs)
         with temp_file_in_fs(dstfs):
-            with tempfile.TemporaryFile(suffix='.ztream') as stream:
+            with tempfile.TemporaryFile(suffix='.zstream') as stream:
                 lzc.lzc_send(src, None, stream.fileno())
                 stream.seek(0)
                 with self.assertRaises((
@@ -2008,7 +2014,7 @@ class ZFSTest(unittest.TestCase):
             lzc.lzc_snapshot([src])
         lzc.lzc_create(dstfs)
         lzc.lzc_snapshot([dstfs + b"@snap1"])
-        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(src, None, stream.fileno())
             stream.seek(0)
             with self.assertRaises((
@@ -2024,7 +2030,7 @@ class ZFSTest(unittest.TestCase):
             lzc.lzc_snapshot([src])
         lzc.lzc_create(dstfs)
         lzc.lzc_snapshot([dst])
-        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(src, None, stream.fileno())
             stream.seek(0)
             with self.assertRaises(lzc_exc.DatasetExists):
@@ -2036,7 +2042,7 @@ class ZFSTest(unittest.TestCase):
 
         with temp_file_in_fs(ZFSTest.pool.makeName(b"fs1")):
             lzc.lzc_snapshot([src])
-        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(src, None, stream.fileno())
             stream.seek(0)
             with self.assertRaises(lzc_exc.DatasetNotFound):
@@ -2251,14 +2257,14 @@ class ZFSTest(unittest.TestCase):
         clone_dst = ZFSTest.pool.makeName(b"fs1/fs/recv-clone-2@snap")
 
         lzc.lzc_snapshot([orig_src])
-        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(orig_src, None, stream.fileno())
             stream.seek(0)
             lzc.lzc_receive(orig_dst, stream.fileno())
 
         lzc.lzc_clone(clone, orig_src)
         lzc.lzc_snapshot([clone_snap])
-        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(clone_snap, orig_src, stream.fileno())
             stream.seek(0)
             with self.assertRaises(lzc_exc.BadStream):
@@ -2272,14 +2278,14 @@ class ZFSTest(unittest.TestCase):
         clone_dst = ZFSTest.pool.makeName(b"fs1/fs/recv-clone-3@snap")
 
         lzc.lzc_snapshot([orig_src])
-        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(orig_src, None, stream.fileno())
             stream.seek(0)
             lzc.lzc_receive(orig_dst, stream.fileno())
 
         lzc.lzc_clone(clone, orig_src)
         lzc.lzc_snapshot([clone_snap])
-        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(clone_snap, orig_src, stream.fileno())
             stream.seek(0)
             with self.assertRaises(lzc_exc.NameInvalid):
@@ -2296,7 +2302,7 @@ class ZFSTest(unittest.TestCase):
         wrong_origin = ZFSTest.pool.makeName(b"fs1/fs@snap")
 
         lzc.lzc_snapshot([orig_src])
-        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(orig_src, None, stream.fileno())
             stream.seek(0)
             lzc.lzc_receive(orig_dst, stream.fileno())
@@ -2304,7 +2310,7 @@ class ZFSTest(unittest.TestCase):
         lzc.lzc_clone(clone, orig_src)
         lzc.lzc_snapshot([clone_snap])
         lzc.lzc_snapshot([wrong_origin])
-        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(clone_snap, orig_src, stream.fileno())
             stream.seek(0)
             with self.assertRaises(lzc_exc.StreamMismatch):
@@ -2320,14 +2326,14 @@ class ZFSTest(unittest.TestCase):
         wrong_origin = ZFSTest.pool.makeName(b"fs1/fs@snap")
 
         lzc.lzc_snapshot([orig_src])
-        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(orig_src, None, stream.fileno())
             stream.seek(0)
             lzc.lzc_receive(orig_dst, stream.fileno())
 
         lzc.lzc_clone(clone, orig_src)
         lzc.lzc_snapshot([clone_snap])
-        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(clone_snap, orig_src, stream.fileno())
             stream.seek(0)
             with self.assertRaises(lzc_exc.DatasetNotFound):
@@ -2346,7 +2352,7 @@ class ZFSTest(unittest.TestCase):
         with temp_file_in_fs(dstfs):
             pass  # enough to taint the fs
 
-        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(src, None, stream.fileno())
             stream.seek(0)
             lzc.lzc_receive(dst, stream.fileno(), force=True)
@@ -2361,7 +2367,7 @@ class ZFSTest(unittest.TestCase):
 
         lzc.lzc_create(dstfs)
 
-        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(src, None, stream.fileno())
             stream.seek(0)
             with zfs_mount(dstfs) as mntdir:
@@ -2391,7 +2397,7 @@ class ZFSTest(unittest.TestCase):
             pass  # enough to taint the fs
         lzc.lzc_snapshot([dstfs + b"@snap1"])
 
-        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(src, None, stream.fileno())
             stream.seek(0)
             lzc.lzc_receive(dst, stream.fileno(), force=True)
@@ -2409,7 +2415,7 @@ class ZFSTest(unittest.TestCase):
             pass  # enough to taint the fs
         lzc.lzc_snapshot([dst])
 
-        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(src, None, stream.fileno())
             stream.seek(0)
             with self.assertRaises(lzc_exc.DatasetExists):
@@ -2421,7 +2427,7 @@ class ZFSTest(unittest.TestCase):
 
         with temp_file_in_fs(ZFSTest.pool.makeName(b"fs1")):
             lzc.lzc_snapshot([src])
-        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(src, None, stream.fileno())
             stream.seek(0)
             with self.assertRaises(lzc_exc.DatasetNotFound):
@@ -2569,7 +2575,7 @@ class ZFSTest(unittest.TestCase):
         with temp_file_in_fs(ZFSTest.pool.makeName(b"fs1")) as name:
             lzc.lzc_snapshot([src])
 
-        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(src, None, stream.fileno())
             stream.seek(0)
 
@@ -2585,6 +2591,50 @@ class ZFSTest(unittest.TestCase):
                 filecmp.cmp(
                     os.path.join(mnt1, name), os.path.join(mnt2, name), False))
 
+    def test_recv_fs_below_zvol(self):
+        send = ZFSTest.pool.makeName(b"fs1@snap")
+        zvol = ZFSTest.pool.makeName(b"fs1/zvol")
+        dest = zvol + b"/fs@snap"
+        props = {b"volsize": 1024 * 1024}
+
+        lzc.lzc_snapshot([send])
+        lzc.lzc_create(zvol, ds_type='zvol', props=props)
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
+            lzc.lzc_send(send, None, stream.fileno())
+            stream.seek(0)
+            with self.assertRaises(lzc_exc.WrongParent):
+                lzc.lzc_receive(dest, stream.fileno())
+
+    def test_recv_zvol_over_fs_with_children(self):
+        parent = ZFSTest.pool.makeName(b"fs1")
+        child = parent + b"subfs"
+        zvol = ZFSTest.pool.makeName(b"fs1/zvol")
+        send = zvol + b"@snap"
+        props = {b"volsize": 1024 * 1024}
+
+        lzc.lzc_create(child)
+        lzc.lzc_create(zvol, ds_type='zvol', props=props)
+        lzc.lzc_snapshot([send])
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
+            lzc.lzc_send(send, None, stream.fileno())
+            stream.seek(0)
+            with self.assertRaises(lzc_exc.WrongParent):
+                lzc.lzc_receive(parent + b"@snap", stream.fileno(), force=True)
+
+    def test_recv_zvol_overwrite_rootds(self):
+        zvol = ZFSTest.pool.makeName(b"fs1/zvol")
+        snap = zvol + b"@snap"
+        rootds = ZFSTest.pool.getRoot().getName()
+        props = {b"volsize": 1024 * 1024}
+
+        lzc.lzc_create(zvol, ds_type='zvol', props=props)
+        lzc.lzc_snapshot([snap])
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
+            lzc.lzc_send(snap, None, stream.fileno())
+            stream.seek(0)
+            with self.assertRaises(lzc_exc.WrongParent):
+                lzc.lzc_receive(rootds + b"@snap", stream.fileno(), force=True)
+
     def test_send_full_across_clone_branch_point(self):
         origfs = ZFSTest.pool.makeName(b"fs2")
 
@@ -2596,7 +2646,7 @@ class ZFSTest(unittest.TestCase):
 
         (_, (_, tosnap, _)) = make_snapshots(clonefs, None, b"snap", None)
 
-        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(tosnap, None, stream.fileno())
 
     def test_send_incr_across_clone_branch_point(self):
@@ -2610,7 +2660,7 @@ class ZFSTest(unittest.TestCase):
 
         (_, (_, tosnap, _)) = make_snapshots(clonefs, None, b"snap", None)
 
-        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(tosnap, fromsnap, stream.fileno())
 
     def test_send_resume_token_full(self):
@@ -2625,7 +2675,7 @@ class ZFSTest(unittest.TestCase):
                     f.flush()
         lzc.lzc_snapshot([src])
 
-        with tempfile.NamedTemporaryFile(suffix='.ztream') as stream:
+        with tempfile.NamedTemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(src, None, stream.fileno())
             stream.seek(0)
             stream.truncate(1024 * 3)
@@ -2656,7 +2706,7 @@ class ZFSTest(unittest.TestCase):
             resume_values = packed_nvlist_out(payload, packed_size)
             resumeobj = resume_values.get(b'object')
             resumeoff = resume_values.get(b'offset')
-            with tempfile.NamedTemporaryFile(suffix='.ztream') as rstream:
+            with tempfile.NamedTemporaryFile(suffix='.zstream') as rstream:
                 lzc.lzc_send_resume(
                     src, None, rstream.fileno(), None, resumeobj, resumeoff)
                 rstream.seek(0)
@@ -2670,7 +2720,7 @@ class ZFSTest(unittest.TestCase):
         dst2 = dstfs.getSnap()
 
         lzc.lzc_snapshot([snap1])
-        with tempfile.NamedTemporaryFile(suffix='.ztream') as stream:
+        with tempfile.NamedTemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(snap1, None, stream.fileno())
             stream.seek(0)
             lzc.lzc_receive(dst1, stream.fileno())
@@ -2682,7 +2732,7 @@ class ZFSTest(unittest.TestCase):
                     f.flush()
         lzc.lzc_snapshot([snap2])
 
-        with tempfile.NamedTemporaryFile(suffix='.ztream') as stream:
+        with tempfile.NamedTemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(snap2, snap1, stream.fileno())
             stream.seek(0)
             stream.truncate(1024 * 3)
@@ -2712,7 +2762,7 @@ class ZFSTest(unittest.TestCase):
             resume_values = packed_nvlist_out(payload, packed_size)
             resumeobj = resume_values.get(b'object')
             resumeoff = resume_values.get(b'offset')
-            with tempfile.NamedTemporaryFile(suffix='.ztream') as rstream:
+            with tempfile.NamedTemporaryFile(suffix='.zstream') as rstream:
                 lzc.lzc_send_resume(
                     snap2, snap1, rstream.fileno(), None, resumeobj, resumeoff)
                 rstream.seek(0)
@@ -2731,7 +2781,7 @@ class ZFSTest(unittest.TestCase):
 
         recvfs = ZFSTest.pool.makeName(b"fs1/recv-clone-30")
         recvsnap = recvfs + b"@snap"
-        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(tosnap, None, stream.fileno())
             stream.seek(0)
             lzc.lzc_receive(recvsnap, stream.fileno())
@@ -2741,7 +2791,7 @@ class ZFSTest(unittest.TestCase):
         tosnap = ZFSTest.pool.makeName(b"recv@snap1")
 
         lzc.lzc_snapshot([fromsnap])
-        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(fromsnap, None, stream.fileno())
             stream.seek(0)
             (header, c_header) = lzc.receive_header(stream.fileno())
@@ -2752,7 +2802,7 @@ class ZFSTest(unittest.TestCase):
         tosnap = ZFSTest.pool.makeName(b"recv@snap1")
 
         lzc.lzc_snapshot([fromsnap])
-        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(fromsnap, None, stream.fileno())
             size = os.fstat(stream.fileno()).st_size
             stream.seek(0)
@@ -2770,7 +2820,7 @@ class ZFSTest(unittest.TestCase):
         }
 
         lzc.lzc_snapshot([fromsnap])
-        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(fromsnap, None, stream.fileno())
             stream.seek(0)
             (header, c_header) = lzc.receive_header(stream.fileno())
@@ -2789,7 +2839,7 @@ class ZFSTest(unittest.TestCase):
         }
 
         lzc.lzc_snapshot([fromsnap])
-        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(fromsnap, None, stream.fileno())
             stream.seek(0)
             (header, c_header) = lzc.receive_header(stream.fileno())
@@ -2813,7 +2863,7 @@ class ZFSTest(unittest.TestCase):
         }
 
         lzc.lzc_snapshot([fromsnap])
-        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(fromsnap, None, stream.fileno())
             stream.seek(0)
             (header, c_header) = lzc.receive_header(stream.fileno())
@@ -2840,7 +2890,7 @@ class ZFSTest(unittest.TestCase):
         }
 
         lzc.lzc_snapshot([fromsnap])
-        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(fromsnap, None, stream.fileno())
             stream.seek(0)
             (header, c_header) = lzc.receive_header(stream.fileno())
@@ -2869,11 +2919,11 @@ class ZFSTest(unittest.TestCase):
         recvfs = ZFSTest.pool.makeName(b"fs1/recv-clone-32")
         recvsnap1 = recvfs + b"@snap1"
         recvsnap2 = recvfs + b"@snap2"
-        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(fromsnap, None, stream.fileno())
             stream.seek(0)
             lzc.lzc_receive(recvsnap1, stream.fileno())
-        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(tosnap, fromsnap, stream.fileno())
             stream.seek(0)
             with self.assertRaises(lzc_exc.BadStream):
@@ -2893,11 +2943,11 @@ class ZFSTest(unittest.TestCase):
         recvfs = ZFSTest.pool.makeName(b"fs1/recv-clone-31")
         recvsnap1 = recvfs + b"@snap1"
         recvsnap2 = recvfs + b"@snap2"
-        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(fromsnap, None, stream.fileno())
             stream.seek(0)
             lzc.lzc_receive(recvsnap1, stream.fileno())
-        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(tosnap, fromsnap, stream.fileno())
             stream.seek(0)
             with self.assertRaises(lzc_exc.BadStream):
@@ -2918,11 +2968,11 @@ class ZFSTest(unittest.TestCase):
         recvsnap1 = recvfs1 + b"@snap"
         recvfs2 = ZFSTest.pool.makeName(b"fs1/recv-clone-33_2")
         recvsnap2 = recvfs2 + b"@snap"
-        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(fromsnap, None, stream.fileno())
             stream.seek(0)
             lzc.lzc_receive(recvsnap1, stream.fileno())
-        with tempfile.TemporaryFile(suffix='.ztream') as stream:
+        with tempfile.TemporaryFile(suffix='.zstream') as stream:
             lzc.lzc_send(tosnap, fromsnap, stream.fileno())
             stream.seek(0)
             lzc.lzc_receive(recvsnap2, stream.fileno(), origin=recvsnap1)
@@ -3854,6 +3904,18 @@ zfs.sync.snapshot('""" + pool + b"""@zcp')
 
         lzc.lzc_create(src)
         with self.assertRaises(lzc_exc.FilesystemNotFound):
+            lzc.lzc_rename(src, tgt)
+
+    @needs_support(lzc.lzc_rename)
+    def test_rename_parent_is_zvol(self):
+        src = ZFSTest.pool.makeName(b"source")
+        zvol = ZFSTest.pool.makeName(b"parent")
+        tgt = zvol + b"/target"
+        props = {b"volsize": 1024 * 1024}
+
+        lzc.lzc_create(src)
+        lzc.lzc_create(zvol, ds_type='zvol', props=props)
+        with self.assertRaises(lzc_exc.WrongParent):
             lzc.lzc_rename(src, tgt)
 
     @needs_support(lzc.lzc_destroy)

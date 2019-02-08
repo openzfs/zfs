@@ -142,6 +142,7 @@ typedef enum zfs_error {
 	EZFS_TOOMANY,		/* argument list too long */
 	EZFS_INITIALIZING,	/* currently initializing */
 	EZFS_NO_INITIALIZE,	/* no active initialize */
+	EZFS_WRONG_PARENT,	/* invalid parent dataset (e.g ZVOL) */
 	EZFS_UNKNOWN
 } zfs_error_t;
 

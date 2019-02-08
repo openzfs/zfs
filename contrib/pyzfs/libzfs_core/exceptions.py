@@ -25,7 +25,8 @@ from ._constants import (
     ZFS_ERR_DISCARDING_CHECKPOINT,
     ZFS_ERR_NO_CHECKPOINT,
     ZFS_ERR_DEVRM_IN_PROGRESS,
-    ZFS_ERR_VDEV_TOO_BIG
+    ZFS_ERR_VDEV_TOO_BIG,
+    ZFS_ERR_WRONG_PARENT
 )
 
 
@@ -140,7 +141,7 @@ class ParentNotFound(ZFSError):
 
 
 class WrongParent(ZFSError):
-    errno = errno.EINVAL
+    errno = ZFS_ERR_WRONG_PARENT
     message = "Parent dataset is not a filesystem"
 
     def __init__(self, name):
