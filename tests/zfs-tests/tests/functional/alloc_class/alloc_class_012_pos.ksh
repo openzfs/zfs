@@ -24,6 +24,39 @@
 
 verify_runnable "global"
 
+#
+# Verify the file identified by the input <inode> is written on a special vdev
+# According to the pool layout used in this test vdev_id 3 and 4 are special
+# XXX: move this function to libtest.shlib once we get "Vdev Properties"
+#
+function file_in_special_vdev # <dataset> <inode>
+{
+	typeset dataset="$1"
+	typeset inum="$2"
+
+	zdb -dddddd $dataset $inum | awk '{
+# find DVAs from string "offset level dva" only for L0 (data) blocks
+if (match($0,"L0 [0-9]+")) {
+   dvas[0]=$3
+   dvas[1]=$4
+   dvas[2]=$5
+   for (i = 0; i < 3; ++i) {
+      if (match(dvas[i],"([^:]+):.*")) {
+         dva = substr(dvas[i], RSTART, RLENGTH);
+         # parse DVA from string "vdev:offset:asize"
+         if (split(dva,arr,":") != 3) {
+            print "Error parsing DVA: <" dva ">";
+            exit 1;
+         }
+         # verify vdev is "special"
+         if (arr[1] < 3) {
+            exit 1;
+         }
+      }
+   }
+}}'
+}
+
 claim="Removing a special device from a pool succeeds."
 
 log_assert $claim
@@ -53,6 +86,13 @@ done
 log_must sync_pool $TESTPOOL
 log_must zpool list -v $TESTPOOL
 
+# Verify the files were written in the special class vdevs
+for i in 1 2 3 4; do
+	dataset="$TESTPOOL/$TESTFS"
+	inum="$(stat -c '%i' /$TESTPOOL/$TESTFS/testfile.$i)"
+	log_must file_in_special_vdev $dataset $inum
+done
+
 #
 # remove a special allocation vdev and force a remapping
 # N.B. The 'zfs remap' command has been disabled and may be removed.
@@ -67,6 +107,7 @@ log_must sync_pool $TESTPOOL
 sleep 1
 
 log_must zdb -bbcc $TESTPOOL
+log_must zpool list -v $TESTPOOL
 log_must zpool destroy -f "$TESTPOOL"
 
 log_pass $claim
