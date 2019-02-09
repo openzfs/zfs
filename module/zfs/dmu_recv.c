@@ -24,6 +24,7 @@
  * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2014, Joyent, Inc. All rights reserved.
  * Copyright 2014 HybridCluster. All rights reserved.
+ * Copyright (c) 2018, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
  */
 
 #include <sys/dmu.h>
@@ -341,6 +342,7 @@ recv_begin_check_existing_impl(dmu_recv_begin_arg_t *drba, dsl_dataset_t *ds,
     uint64_t fromguid, uint64_t featureflags)
 {
 	uint64_t val;
+	uint64_t children;
 	int error;
 	dsl_pool_t *dp = ds->ds_dir->dd_pool;
 	boolean_t encrypted = ds->ds_dir->dd_crypto_obj != 0;
@@ -360,6 +362,15 @@ recv_begin_check_existing_impl(dmu_recv_begin_arg_t *drba, dsl_dataset_t *ds,
 	    drba->drba_cookie->drc_tosnap, 8, 1, &val);
 	if (error != ENOENT)
 		return (error == 0 ? SET_ERROR(EEXIST) : error);
+
+	/* must not have children if receiving a ZVOL */
+	error = zap_count(dp->dp_meta_objset,
+	    dsl_dir_phys(ds->ds_dir)->dd_child_dir_zapobj, &children);
+	if (error != 0)
+		return (error);
+	if (drba->drba_cookie->drc_drrb->drr_type != DMU_OST_ZFS &&
+	    children > 0)
+		return (SET_ERROR(ZFS_ERR_WRONG_PARENT));
 
 	/*
 	 * Check snapshot limit before receiving. We'll recheck again at the
@@ -578,6 +589,7 @@ dmu_recv_begin_check(void *arg, dmu_tx_t *tx)
 	} else if (error == ENOENT) {
 		/* target fs does not exist; must be a full backup or clone */
 		char buf[ZFS_MAX_DATASET_NAME_LEN];
+		objset_t *os;
 
 		/*
 		 * If it's a non-clone incremental, we are missing the
@@ -647,6 +659,17 @@ dmu_recv_begin_check(void *arg, dmu_tx_t *tx)
 			return (error);
 		}
 
+		/* can't recv below anything but filesystems (eg. no ZVOLs) */
+		error = dmu_objset_from_ds(ds, &os);
+		if (error != 0) {
+			dsl_dataset_rele_flags(ds, dsflags, FTAG);
+			return (error);
+		}
+		if (dmu_objset_type(os) != DMU_OST_ZFS) {
+			dsl_dataset_rele_flags(ds, dsflags, FTAG);
+			return (SET_ERROR(ZFS_ERR_WRONG_PARENT));
+		}
+
 		if (drba->drba_origin != NULL) {
 			dsl_dataset_t *origin;
 			error = dsl_dataset_hold_flags(dp, drba->drba_origin,
@@ -692,6 +715,7 @@ dmu_recv_begin_check(void *arg, dmu_tx_t *tx)
 
 			dsl_dataset_rele_flags(origin, dsflags, FTAG);
 		}
+
 		dsl_dataset_rele_flags(ds, dsflags, FTAG);
 		error = 0;
 	}
