@@ -1,7 +1,7 @@
 '\" te
 .\" Copyright (c) 2013 by Turbo Fredriksson <turbo@bayour.com>. All rights reserved.
-.\" Copyright (c) 2017 Datto Inc.
 .\" Copyright (c) 2018 by Delphix. All rights reserved.
+.\" Copyright (c) 2019 Datto Inc.
 .\" The contents of this file are subject to the terms of the Common Development
 .\" and Distribution License (the "License").  You may not use this file except
 .\" in compliance with the License. You can obtain a copy of the license at
@@ -14,7 +14,7 @@
 .\" CDDL HEADER, with the fields enclosed by brackets "[]" replaced with your
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
-.TH ZFS-MODULE-PARAMETERS 5 "Oct 28, 2017"
+.TH ZFS-MODULE-PARAMETERS 5 "Feb 8, 2019"
 .SH NAME
 zfs\-module\-parameters \- ZFS module parameters
 .SH DESCRIPTION
@@ -1970,12 +1970,12 @@ Default value: \fB52,428,800\fR.
 \fBzfs_per_txg_dirty_frees_percent \fR (ulong)
 .ad
 .RS 12n
-Tunable to control percentage of dirtied blocks from frees in one TXG.
-After this threshold is crossed, additional dirty blocks from frees
-wait until the next TXG.
+Tunable to control percentage of dirtied indirect blocks from frees allowed
+into one TXG. After this threshold is crossed, additional frees will wait until
+the next TXG.
 A value of zero will disable this throttle.
 .sp
-Default value: \fB30\fR and \fB0\fR to disable.
+Default value: \fB5\fR, set to \fB0\fR to disable.
 .RE
 
 .sp
