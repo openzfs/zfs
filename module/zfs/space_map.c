@@ -23,7 +23,7 @@
  * Use is subject to license terms.
  */
 /*
- * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -81,20 +81,22 @@ sm_entry_is_double_word(uint64_t e)
 
 /*
  * Iterate through the space map, invoking the callback on each (non-debug)
- * space map entry.
+ * space map entry. Stop after reading 'end' bytes of the space map.
  */
 int
-space_map_iterate(space_map_t *sm, sm_cb_t callback, void *arg)
+space_map_iterate(space_map_t *sm, uint64_t end, sm_cb_t callback, void *arg)
 {
-	uint64_t sm_len = space_map_length(sm);
-	ASSERT3U(sm->sm_blksz, !=, 0);
+	uint64_t blksz = sm->sm_blksz;
 
-	dmu_prefetch(sm->sm_os, space_map_object(sm), 0, 0, sm_len,
+	ASSERT3U(blksz, !=, 0);
+	ASSERT3U(end, <=, space_map_length(sm));
+	ASSERT0(P2PHASE(end, sizeof (uint64_t)));
+
+	dmu_prefetch(sm->sm_os, space_map_object(sm), 0, 0, end,
 	    ZIO_PRIORITY_SYNC_READ);
 
-	uint64_t blksz = sm->sm_blksz;
 	int error = 0;
-	for (uint64_t block_base = 0; block_base < sm_len && error == 0;
+	for (uint64_t block_base = 0; block_base < end && error == 0;
 	    block_base += blksz) {
 		dmu_buf_t *db;
 		error = dmu_buf_hold(sm->sm_os, space_map_object(sm),
@@ -103,7 +105,7 @@ space_map_iterate(space_map_t *sm, sm_cb_t callback, void *arg)
 			return (error);
 
 		uint64_t *block_start = db->db_data;
-		uint64_t block_length = MIN(sm_len - block_base, blksz);
+		uint64_t block_length = MIN(end - block_base, blksz);
 		uint64_t *block_end = block_start +
 		    (block_length / sizeof (uint64_t));
 
@@ -186,7 +188,7 @@ space_map_reversed_last_block_entries(space_map_t *sm, uint64_t *buf,
 	 * dmu_buf_hold().
 	 */
 	uint64_t last_word_offset =
-	    sm->sm_phys->smp_objsize - sizeof (uint64_t);
+	    sm->sm_phys->smp_length - sizeof (uint64_t);
 	error = dmu_buf_hold(sm->sm_os, space_map_object(sm), last_word_offset,
 	    FTAG, &db, DMU_READ_NO_PREFETCH);
 	if (error != 0)
@@ -199,7 +201,7 @@ space_map_reversed_last_block_entries(space_map_t *sm, uint64_t *buf,
 
 	uint64_t *words = db->db_data;
 	*nwords =
-	    (sm->sm_phys->smp_objsize - db->db_offset) / sizeof (uint64_t);
+	    (sm->sm_phys->smp_length - db->db_offset) / sizeof (uint64_t);
 
 	ASSERT3U(*nwords, <=, bufsz / sizeof (uint64_t));
 
@@ -298,8 +300,7 @@ space_map_incremental_destroy(space_map_t *sm, sm_cb_t callback, void *arg,
 			uint64_t e = buf[i];
 
 			if (sm_entry_is_debug(e)) {
-				sm->sm_phys->smp_objsize -= sizeof (uint64_t);
-				space_map_update(sm);
+				sm->sm_phys->smp_length -= sizeof (uint64_t);
 				continue;
 			}
 
@@ -354,15 +355,13 @@ space_map_incremental_destroy(space_map_t *sm, sm_cb_t callback, void *arg,
 				sm->sm_phys->smp_alloc -= entry_run;
 			else
 				sm->sm_phys->smp_alloc += entry_run;
-			sm->sm_phys->smp_objsize -= words * sizeof (uint64_t);
-			space_map_update(sm);
+			sm->sm_phys->smp_length -= words * sizeof (uint64_t);
 		}
 	}
 
 	if (space_map_length(sm) == 0) {
 		ASSERT0(error);
-		ASSERT0(sm->sm_phys->smp_objsize);
-		ASSERT0(sm->sm_alloc);
+		ASSERT0(space_map_allocated(sm));
 	}
 
 	zio_buf_free(buf, bufsz);
@@ -391,36 +390,40 @@ space_map_load_callback(space_map_entry_t *sme, void *arg)
 }
 
 /*
+ * Load the spacemap into the rangetree, like space_map_load. But only
+ * read the first 'length' bytes of the spacemap.
+ */
+int
+space_map_load_length(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
+    uint64_t length)
+{
+	space_map_load_arg_t smla;
+
+	VERIFY0(range_tree_space(rt));
+
+	if (maptype == SM_FREE)
+		range_tree_add(rt, sm->sm_start, sm->sm_size);
+
+	smla.smla_rt = rt;
+	smla.smla_sm = sm;
+	smla.smla_type = maptype;
+	int err = space_map_iterate(sm, length,
+	    space_map_load_callback, &smla);
+
+	if (err != 0)
+		range_tree_vacate(rt, NULL, NULL);
+
+	return (err);
+}
+
+/*
  * Load the space map disk into the specified range tree. Segments of maptype
  * are added to the range tree, other segment types are removed.
  */
 int
 space_map_load(space_map_t *sm, range_tree_t *rt, maptype_t maptype)
 {
-	uint64_t space;
-	int err;
-	space_map_load_arg_t smla;
-
-	VERIFY0(range_tree_space(rt));
-	space = space_map_allocated(sm);
-
-	if (maptype == SM_FREE) {
-		range_tree_add(rt, sm->sm_start, sm->sm_size);
-		space = sm->sm_size - space;
-	}
-
-	smla.smla_rt = rt;
-	smla.smla_sm = sm;
-	smla.smla_type = maptype;
-	err = space_map_iterate(sm, space_map_load_callback, &smla);
-
-	if (err == 0) {
-		VERIFY3U(range_tree_space(rt), ==, space);
-	} else {
-		range_tree_vacate(rt, NULL, NULL);
-	}
-
-	return (err);
+	return (space_map_load_length(sm, rt, maptype, space_map_length(sm)));
 }
 
 void
@@ -506,10 +509,10 @@ space_map_write_intro_debug(space_map_t *sm, maptype_t maptype, dmu_tx_t *tx)
 	    SM_DEBUG_SYNCPASS_ENCODE(spa_sync_pass(tx->tx_pool->dp_spa)) |
 	    SM_DEBUG_TXG_ENCODE(dmu_tx_get_txg(tx));
 
-	dmu_write(sm->sm_os, space_map_object(sm), sm->sm_phys->smp_objsize,
+	dmu_write(sm->sm_os, space_map_object(sm), sm->sm_phys->smp_length,
 	    sizeof (dentry), &dentry, tx);
 
-	sm->sm_phys->smp_objsize += sizeof (dentry);
+	sm->sm_phys->smp_length += sizeof (dentry);
 }
 
 /*
@@ -541,7 +544,7 @@ space_map_write_seg(space_map_t *sm, range_seg_t *rs, maptype_t maptype,
 	uint64_t *block_base = db->db_data;
 	uint64_t *block_end = block_base + (sm->sm_blksz / sizeof (uint64_t));
 	uint64_t *block_cursor = block_base +
-	    (sm->sm_phys->smp_objsize - db->db_offset) / sizeof (uint64_t);
+	    (sm->sm_phys->smp_length - db->db_offset) / sizeof (uint64_t);
 
 	ASSERT3P(block_cursor, <=, block_end);
 
@@ -564,7 +567,7 @@ space_map_write_seg(space_map_t *sm, range_seg_t *rs, maptype_t maptype,
 		if (block_cursor == block_end) {
 			dmu_buf_rele(db, tag);
 
-			uint64_t next_word_offset = sm->sm_phys->smp_objsize;
+			uint64_t next_word_offset = sm->sm_phys->smp_length;
 			VERIFY0(dmu_buf_hold(sm->sm_os,
 			    space_map_object(sm), next_word_offset,
 			    tag, &db, DMU_READ_PREFETCH));
@@ -594,7 +597,7 @@ space_map_write_seg(space_map_t *sm, range_seg_t *rs, maptype_t maptype,
 			    SM_DEBUG_SYNCPASS_ENCODE(0) |
 			    SM_DEBUG_TXG_ENCODE(0);
 			block_cursor++;
-			sm->sm_phys->smp_objsize += sizeof (uint64_t);
+			sm->sm_phys->smp_length += sizeof (uint64_t);
 			ASSERT3P(block_cursor, ==, block_end);
 			continue;
 		}
@@ -625,7 +628,7 @@ space_map_write_seg(space_map_t *sm, range_seg_t *rs, maptype_t maptype,
 			    words);
 			break;
 		}
-		sm->sm_phys->smp_objsize += words * sizeof (uint64_t);
+		sm->sm_phys->smp_length += words * sizeof (uint64_t);
 
 		start += run_len;
 		size -= run_len;
@@ -652,7 +655,7 @@ space_map_write_impl(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
 	 * We do this right after we write the intro debug entry
 	 * because the estimate does not take it into account.
 	 */
-	uint64_t initial_objsize = sm->sm_phys->smp_objsize;
+	uint64_t initial_objsize = sm->sm_phys->smp_length;
 	uint64_t estimated_growth =
 	    space_map_estimate_optimal_size(sm, rt, SM_NO_VDEVID);
 	uint64_t estimated_final_objsize = initial_objsize + estimated_growth;
@@ -663,7 +666,7 @@ space_map_write_impl(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
 	 * and use that to get a hold of the last block, so we can
 	 * start appending to it.
 	 */
-	uint64_t next_word_offset = sm->sm_phys->smp_objsize;
+	uint64_t next_word_offset = sm->sm_phys->smp_length;
 	VERIFY0(dmu_buf_hold(sm->sm_os, space_map_object(sm),
 	    next_word_offset, FTAG, &db, DMU_READ_PREFETCH));
 	ASSERT3U(db->db_size, ==, sm->sm_blksz);
@@ -711,7 +714,7 @@ space_map_write_impl(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
 	 * Therefore we expect the actual objsize to be equal or less
 	 * than whatever we estimated it to be.
 	 */
-	ASSERT3U(estimated_final_objsize, >=, sm->sm_phys->smp_objsize);
+	ASSERT3U(estimated_final_objsize, >=, sm->sm_phys->smp_length);
 #endif
 }
 
@@ -792,8 +795,6 @@ space_map_open(space_map_t **smp, objset_t *os, uint64_t object,
 	sm->sm_shift = shift;
 	sm->sm_os = os;
 	sm->sm_object = object;
-	sm->sm_length = 0;
-	sm->sm_alloc = 0;
 	sm->sm_blksz = 0;
 	sm->sm_dbuf = NULL;
 	sm->sm_phys = NULL;
@@ -870,21 +871,8 @@ space_map_truncate(space_map_t *sm, int blocksize, dmu_tx_t *tx)
 	}
 
 	dmu_buf_will_dirty(sm->sm_dbuf, tx);
-	sm->sm_phys->smp_objsize = 0;
+	sm->sm_phys->smp_length = 0;
 	sm->sm_phys->smp_alloc = 0;
-}
-
-/*
- * Update the in-core space_map allocation and length values.
- */
-void
-space_map_update(space_map_t *sm)
-{
-	if (sm == NULL)
-		return;
-
-	sm->sm_alloc = sm->sm_phys->smp_alloc;
-	sm->sm_length = sm->sm_phys->smp_objsize;
 }
 
 uint64_t
@@ -1068,32 +1056,14 @@ space_map_object(space_map_t *sm)
 	return (sm != NULL ? sm->sm_object : 0);
 }
 
-/*
- * Returns the already synced, on-disk allocated space.
- */
-uint64_t
+int64_t
 space_map_allocated(space_map_t *sm)
 {
-	return (sm != NULL ? sm->sm_alloc : 0);
+	return (sm != NULL ? sm->sm_phys->smp_alloc : 0);
 }
 
-/*
- * Returns the already synced, on-disk length;
- */
 uint64_t
 space_map_length(space_map_t *sm)
 {
-	return (sm != NULL ? sm->sm_length : 0);
-}
-
-/*
- * Returns the allocated space that is currently syncing.
- */
-int64_t
-space_map_alloc_delta(space_map_t *sm)
-{
-	if (sm == NULL)
-		return (0);
-	ASSERT(sm->sm_dbuf != NULL);
-	return (sm->sm_phys->smp_alloc - space_map_allocated(sm));
+	return (sm != NULL ? sm->sm_phys->smp_length : 0);
 }
