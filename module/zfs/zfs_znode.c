@@ -92,6 +92,12 @@ static kmem_cache_t *znode_hold_cache = NULL;
 unsigned int zfs_object_mutex_size = ZFS_OBJ_MTX_SZ;
 
 /*
+ * This is used by the test suite so that it can delay znodes from being
+ * freed in order to inspect the unlinked set.
+ */
+int zfs_unlink_suspend_progress = 0;
+
+/*
  * This callback is invoked when acquiring a RL_WRITER or RL_APPEND lock on
  * z_rangelock. It will modify the offset and length of the lock to reflect
  * znode-specific information, and convert RL_APPEND to RL_WRITER.  This is
@@ -1339,7 +1345,7 @@ zfs_zinactive(znode_t *zp)
 	 */
 	if (zp->z_unlinked) {
 		ASSERT(!zfsvfs->z_issnap);
-		if (!zfs_is_readonly(zfsvfs)) {
+		if (!zfs_is_readonly(zfsvfs) && !zfs_unlink_suspend_progress) {
 			mutex_exit(&zp->z_lock);
 			zfs_znode_hold_exit(zfsvfs, zh);
 			zfs_rmnode(zp);
@@ -2214,4 +2220,7 @@ EXPORT_SYMBOL(zfs_obj_to_path);
 /* CSTYLED */
 module_param(zfs_object_mutex_size, uint, 0644);
 MODULE_PARM_DESC(zfs_object_mutex_size, "Size of znode hold array");
+module_param(zfs_unlink_suspend_progress, int, 0644);
+MODULE_PARM_DESC(zfs_unlink_suspend_progress, "Set to prevent async unlinks "
+"(debug - leaks space into the unlinked set)");
 #endif

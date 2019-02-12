@@ -1152,6 +1152,21 @@ Default value: 20
 .sp
 .ne 2
 .na
+\fBzfs_unlink_suspend_progress\fR (uint)
+.ad
+.RS 12n
+When enabled, files will not be asynchronously removed from the list of pending
+unlinks and the space they consume will be leaked. Once this option has been
+disabled and the dataset is remounted, the pending unlinks will be processed
+and the freed space returned to the pool.
+This option is used by the test suite to facilitate testing.
+.sp
+Uses \fB0\fR (default) to allow progress and \fB1\fR to pause progress.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_delete_blocks\fR (ulong)
 .ad
 .RS 12n
