@@ -3892,7 +3892,6 @@ vdev_get_stats_ex(vdev_t *vd, vdev_stat_t *vs, vdev_stat_ex_t *vsx)
 			vs->vs_resilver_deferred = vd->vdev_resilver_deferred;
 	}
 
-	ASSERT(spa_config_held(vd->vdev_spa, SCL_ALL, RW_READER) != 0);
 	vdev_get_stats_ex_impl(vd, vs, vsx);
 	mutex_exit(&vd->vdev_stat_lock);
 }
