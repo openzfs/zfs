@@ -1008,6 +1008,16 @@ zvol_request(struct request_queue *q, struct bio *bio)
 				zvol_write(zvr);
 		}
 	} else {
+		/*
+		 * The SCST driver, and possibly others, may issue READ I/Os
+		 * with a length of zero bytes.  These empty I/Os contain no
+		 * data and require no additional handling.
+		 */
+		if (size == 0) {
+			BIO_END_IO(bio, 0);
+			goto out;
+		}
+
 		zvr = kmem_alloc(sizeof (zv_request_t), KM_SLEEP);
 		zvr->zv = zv;
 		zvr->bio = bio;
