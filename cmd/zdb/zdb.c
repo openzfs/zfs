@@ -3030,17 +3030,17 @@ print_label_numbers(char *prefix, cksum_record_t *rec)
 
 #define	MAX_UBERBLOCK_COUNT (VDEV_UBERBLOCK_RING >> UBERBLOCK_SHIFT)
 
-typedef struct label {
+typedef struct zdb_label {
 	vdev_label_t label;
 	nvlist_t *config_nv;
 	cksum_record_t *config;
 	cksum_record_t *uberblocks[MAX_UBERBLOCK_COUNT];
 	boolean_t header_printed;
 	boolean_t read_failed;
-} label_t;
+} zdb_label_t;
 
 static void
-print_label_header(label_t *label, int l)
+print_label_header(zdb_label_t *label, int l)
 {
 
 	if (dump_opt['q'])
@@ -3057,7 +3057,7 @@ print_label_header(label_t *label, int l)
 }
 
 static void
-dump_config_from_label(label_t *label, size_t buflen, int l)
+dump_config_from_label(zdb_label_t *label, size_t buflen, int l)
 {
 	if (dump_opt['q'])
 		return;
@@ -3076,7 +3076,7 @@ dump_config_from_label(label_t *label, size_t buflen, int l)
 #define	ZDB_MAX_UB_HEADER_SIZE 32
 
 static void
-dump_label_uberblocks(label_t *label, uint64_t ashift, int label_num)
+dump_label_uberblocks(zdb_label_t *label, uint64_t ashift, int label_num)
 {
 
 	vdev_t vd;
@@ -3220,7 +3220,7 @@ static int
 dump_label(const char *dev)
 {
 	char path[MAXPATHLEN];
-	label_t labels[VDEV_LABELS];
+	zdb_label_t labels[VDEV_LABELS];
 	uint64_t psize, ashift;
 	struct stat64 statbuf;
 	boolean_t config_found = B_FALSE;
@@ -3285,7 +3285,7 @@ dump_label(const char *dev)
 	 * 3. Traverse all uberblocks and insert in uberblock tree.
 	 */
 	for (int l = 0; l < VDEV_LABELS; l++) {
-		label_t *label = &labels[l];
+		zdb_label_t *label = &labels[l];
 		char *buf = label->label.vl_vdev_phys.vp_nvlist;
 		size_t buflen = sizeof (label->label.vl_vdev_phys.vp_nvlist);
 		nvlist_t *config;
@@ -3348,7 +3348,7 @@ dump_label(const char *dev)
 	 * Dump the label and uberblocks.
 	 */
 	for (int l = 0; l < VDEV_LABELS; l++) {
-		label_t *label = &labels[l];
+		zdb_label_t *label = &labels[l];
 		size_t buflen = sizeof (label->label.vl_vdev_phys.vp_nvlist);
 
 		if (label->read_failed == B_TRUE)
