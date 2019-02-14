@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2019 by Delphix. All rights reserved.
  * Copyright 2012 Milan Jurik. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  * Copyright (c) 2013 Steven Hartland.  All rights reserved.
@@ -366,8 +366,8 @@ get_usage(zfs_help_t idx)
 		return (gettext("\tbookmark <snapshot> <bookmark>\n"));
 	case HELP_CHANNEL_PROGRAM:
 		return (gettext("\tprogram [-jn] [-t <instruction limit>] "
-		    "[-m <memory limit (b)>] <pool> <program file> "
-		    "[lua args...]\n"));
+		    "[-m <memory limit (b)>]\n"
+		    "\t    <pool> <program file> [lua args...]\n"));
 	case HELP_LOAD_KEY:
 		return (gettext("\tload-key [-rn] [-L <keylocation>] "
 		    "<-a | filesystem|volume>\n"));
