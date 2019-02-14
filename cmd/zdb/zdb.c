@@ -1922,7 +1922,7 @@ dump_bookmark(dsl_pool_t *dp, char *name, boolean_t print_redact,
 }
 
 static void
-dump_bookmarks(objset_t *os, const char *osname, int verbosity)
+dump_bookmarks(objset_t *os, int verbosity)
 {
 	zap_cursor_t zc;
 	zap_attribute_t attr;
@@ -1931,18 +1931,20 @@ dump_bookmarks(objset_t *os, const char *osname, int verbosity)
 	objset_t *mos = os->os_spa->spa_meta_objset;
 	if (verbosity < 4)
 		return;
-	VERIFY0(dsl_pool_hold(osname, FTAG, &dp));
+	dsl_pool_config_enter(dp, FTAG);
 
 	for (zap_cursor_init(&zc, mos, ds->ds_bookmarks_obj);
 	    zap_cursor_retrieve(&zc, &attr) == 0;
 	    zap_cursor_advance(&zc)) {
+		char osname[ZFS_MAX_DATASET_NAME_LEN];
 		char buf[ZFS_MAX_DATASET_NAME_LEN];
+		dmu_objset_name(os, osname);
 		VERIFY0(snprintf(buf, sizeof (buf), "%s#%s", osname,
 		    attr.za_name));
 		(void) dump_bookmark(dp, buf, verbosity >= 5, verbosity >= 6);
 	}
 	zap_cursor_fini(&zc);
-	dsl_pool_rele(dp, FTAG);
+	dsl_pool_config_exit(dp, FTAG);
 }
 
 static void
@@ -2057,7 +2059,7 @@ open_objset(const char *path, void *tag, objset_t **osp)
 	/*
 	 * We can't own an objset if it's redacted.  Therefore, we do this
 	 * dance: hold the objset, then acquire a long hold on its dataset, then
-	 * release the pool.
+	 * release the pool (which is held as part of holding the objset).
 	 */
 	err = dmu_objset_hold(path, tag, osp);
 	if (err != 0) {
@@ -2660,7 +2662,7 @@ dump_dir(objset_t *os)
 	}
 
 	if (dmu_objset_ds(os) != NULL)
-		dump_bookmarks(os, osname, verbosity);
+		dump_bookmarks(os, verbosity);
 
 	if (verbosity < 2)
 		return;
