@@ -961,7 +961,7 @@ zvol_request(struct request_queue *q, struct bio *bio)
 
 		/*
 		 * To be released in the I/O function. See the comment on
-		 * zfs_range_lock below.
+		 * rangelock_enter() below.
 		 */
 		rw_enter(&zv->zv_suspend_lock, RW_READER);
 
