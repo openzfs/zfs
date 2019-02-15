@@ -2612,7 +2612,6 @@ dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
 	err = dsl_pool_hold(tosnap, FTAG, &dspp.dp);
 	if (err != 0)
 		return (err);
-
 	if (strchr(tosnap, '@') == NULL && spa_writeable(dspp.dp->dp_spa)) {
 		/*
 		 * We are sending a filesystem or volume.  Ensure

@@ -195,7 +195,7 @@
 .Ar snapshot bookmark
 .Nm
 .Cm send
-.Op Fl DLPRbcenpvw
+.Op Fl DLPRbcehnpvw
 .Op Oo Fl I Ns | Ns Fl i Oc Ar snapshot
 .Ar snapshot
 .Nm
@@ -216,14 +216,14 @@
 .Fl t Ar receive_resume_token
 .Nm
 .Cm receive
-.Op Fl Fnuvs
+.Op Fl Fhnsuv
 .Op Fl o Ar origin=<snapshot>
 .Op Fl o Ar property Ns = Ns Ar value
 .Op Fl x Ar property
 .Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot
 .Nm
 .Cm receive
-.Op Fl Fnsuv
+.Op Fl Fhnsuv
 .Op Fl d Ns | Ns Fl e
 .Op Fl o Sy origin Ns = Ns Ar snapshot
 .Op Fl o Ar property Ns = Ns Ar value
@@ -3426,7 +3426,7 @@ feature.
 .It Xo
 .Nm
 .Cm send
-.Op Fl DLPRbcenpvw
+.Op Fl DLPRbcehnpvw
 .Op Oo Fl I Ns | Ns Fl i Oc Ar snapshot
 .Ar snapshot
 .Xc
@@ -3566,6 +3566,12 @@ Note that if you do not use this flag for sending encrypted datasets, data will
 be sent unencrypted and may be re-encrypted with a different encryption key on
 the receiving system, which will disable the ability to do a raw send to that
 system for incrementals.
+.It Fl h, -holds
+Generate a stream package that includes any snapshot holds (created with the
+.Sy zfs hold
+command), and indicating to
+.Sy zfs receive 
+that the holds be applied to the dataset on the receiving system.
 .It Fl i Ar snapshot
 Generate an incremental stream from the first
 .Ar snapshot
@@ -3849,7 +3855,7 @@ for more details.
 .It Xo
 .Nm
 .Cm receive
-.Op Fl Fnsuv
+.Op Fl Fhnsuv
 .Op Fl o Sy origin Ns = Ns Ar snapshot
 .Op Fl o Ar property Ns = Ns Ar value
 .Op Fl x Ar property
@@ -3858,7 +3864,7 @@ for more details.
 .It Xo
 .Nm
 .Cm receive
-.Op Fl Fnsuv
+.Op Fl Fhnsuv
 .Op Fl d Ns | Ns Fl e
 .Op Fl o Sy origin Ns = Ns Ar snapshot
 .Op Fl o Ar property Ns = Ns Ar value
@@ -3984,6 +3990,8 @@ snapshot as described in the paragraph above.
 Discard all but the last element of the sent snapshot's file system name, using
 that element to determine the name of the target file system for the new
 snapshot as described in the paragraph above.
+.It Fl h 
+Skip the receive of holds.  There is no effect if holds are not sent.
 .It Fl n
 Do not actually receive the stream.
 This can be useful in conjunction with the
