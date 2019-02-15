@@ -2054,9 +2054,11 @@ The reservation is kept equal to the volume's logical size to prevent unexpected
 behavior for consumers.
 Without the reservation, the volume could run out of space, resulting in
 undefined behavior or data corruption, depending on how the volume is used.
-These effects can also occur when the volume size is changed while it is in use
-.Pq particularly when shrinking the size .
-Extreme care should be used when adjusting the volume size.
+In particular, asynchronous write errors are not propagated to consumers without
+the use of O_DIRECT. These effects can also occur when the volume size is
+changed while it is in use, especially when shrinking the size.
+Extreme care should be taken when adjusting
+.Sy volsize .
 .Pp
 Though not recommended, a
 .Qq sparse volume
