@@ -2641,6 +2641,22 @@ Default value: \fB786,432\fR.
 .sp
 .ne 2
 .na
+\fBzio_deadman_log_all\fR (int)
+.ad
+.RS 12n
+If non-zero, the zio deadman will produce debugging messages (see
+\fBzfs_dbgmsg_enable\fR) for all zios, rather than only for leaf
+zios possessing a vdev. This is meant to be used by developers to gain
+diagnostic information for hang conditions which don't involve a mutex
+or other locking primitive; typically conditions in which a thread in
+the zio pipeline is looping indefinitely.
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzio_decompress_fail_fraction\fR (int)
 .ad
 .RS 12n
