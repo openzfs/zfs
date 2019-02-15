@@ -793,7 +793,7 @@ tests = ['rsend_001_pos', 'rsend_002_pos', 'rsend_003_pos', 'rsend_004_pos',
     'send-c_embedded_blocks', 'send-c_resume', 'send-cpL_varied_recsize',
     'send-c_recv_dedup', 'send_encrypted_files', 'send_encrypted_heirarchy',
     'send_encrypted_props', 'send_freeobjects', 'send_realloc_dnode_size',
-    'send_hole_birth', 'send-wDR_encrypted_zvol']
+    'send_holds', 'send_hole_birth', 'send-wDR_encrypted_zvol']
 tags = ['functional', 'rsend']
 
 [tests/functional/scrub_mirror]

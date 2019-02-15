@@ -83,6 +83,7 @@ dsl_dataset_user_hold_check(void *arg, dmu_tx_t *tx)
 {
 	dsl_dataset_user_hold_arg_t *dduha = arg;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
+	nvlist_t *tmp_holds;
 
 	if (spa_version(dp->dp_spa) < SPA_VERSION_USERREFS)
 		return (SET_ERROR(ENOTSUP));
@@ -90,6 +91,26 @@ dsl_dataset_user_hold_check(void *arg, dmu_tx_t *tx)
 	if (!dmu_tx_is_syncing(tx))
 		return (0);
 
+	/*
+	 * Ensure the list has no duplicates by copying name/values from
+	 * non-unique dduha_holds to unique tmp_holds, and comparing counts.
+	 */
+	tmp_holds = fnvlist_alloc();
+	for (nvpair_t *pair = nvlist_next_nvpair(dduha->dduha_holds, NULL);
+	    pair != NULL; pair = nvlist_next_nvpair(dduha->dduha_holds, pair)) {
+		size_t len = strlen(nvpair_name(pair)) +
+		    strlen(fnvpair_value_string(pair));
+		char *nameval = kmem_zalloc(len + 2, KM_SLEEP);
+		(void) strcpy(nameval, nvpair_name(pair));
+		(void) strcat(nameval, "@");
+		(void) strcat(nameval, fnvpair_value_string(pair));
+		fnvlist_add_string(tmp_holds, nameval, "");
+		kmem_free(nameval, len + 2);
+	}
+	size_t tmp_count = fnvlist_num_pairs(tmp_holds);
+	fnvlist_free(tmp_holds);
+	if (tmp_count != fnvlist_num_pairs(dduha->dduha_holds))
+		return (SET_ERROR(EEXIST));
 	for (nvpair_t *pair = nvlist_next_nvpair(dduha->dduha_holds, NULL);
 	    pair != NULL; pair = nvlist_next_nvpair(dduha->dduha_holds, pair)) {
 		dsl_dataset_t *ds;
@@ -312,7 +333,8 @@ dsl_dataset_user_hold(nvlist_t *holds, minor_t cleanup_minor, nvlist_t *errlist)
 		return (0);
 
 	dduha.dduha_holds = holds;
-	dduha.dduha_chkholds = fnvlist_alloc();
+	/* chkholds can have non-unique name */
+	VERIFY(0 == nvlist_alloc(&dduha.dduha_chkholds, 0, KM_SLEEP));
 	dduha.dduha_errlist = errlist;
 	dduha.dduha_minor = cleanup_minor;
 
