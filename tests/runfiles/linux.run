@@ -841,7 +841,8 @@ tests = ['truncate_001_pos', 'truncate_002_pos', 'truncate_timestamps']
 tags = ['functional', 'truncate']
 
 [tests/functional/upgrade]
-tests = ['upgrade_userobj_001_pos', 'upgrade_projectquota_001_pos']
+tests = ['upgrade_userobj_001_pos', 'upgrade_projectquota_001_pos',
+    'upgrade_readonly_pool']
 tags = ['functional', 'upgrade']
 
 [tests/functional/user_namespace]
