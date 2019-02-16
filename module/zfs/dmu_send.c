@@ -1360,6 +1360,7 @@ dmu_adjust_send_estimate_for_indirects(dsl_dataset_t *ds, uint64_t uncompressed,
 {
 	int err = 0;
 	uint64_t size;
+	uint64_t datasetsize;
 	/*
 	 * Assume that space (both on-disk and in-stream) is dominated by
 	 * data.  We will adjust for indirect blocks and the copies property,
@@ -1378,8 +1379,21 @@ dmu_adjust_send_estimate_for_indirects(dsl_dataset_t *ds, uint64_t uncompressed,
 		err = dsl_prop_get_int_ds(ds,
 		    zfs_prop_to_name(ZFS_PROP_VOLBLOCKSIZE), &recordsize);
 	} else {
-		err = dsl_prop_get_int_ds(ds,
-		    zfs_prop_to_name(ZFS_PROP_RECORDSIZE), &recordsize);
+		/*
+		 * Rather than using the value of the recordsize property of the
+		 * dataset, get the number of live objects in the dataset, and
+		 * its uncompressed size, and use those to calculate the
+		 * average recordsize. Then use that value and the size of
+		 * the snapshot we are sending to calculate a more accurate
+		 * record_count.
+		 */
+		rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
+		record_count = BP_GET_FILL(&dsl_dataset_phys(ds)->ds_bp);
+		rrw_exit(&ds->ds_bp_rwlock, FTAG);
+
+		datasetsize = dsl_dataset_phys(ds)->ds_uncompressed_bytes;
+
+		recordsize = datasetsize / record_count;
 	}
 	if (err != 0)
 		return (err);
@@ -1402,8 +1416,12 @@ dmu_adjust_send_estimate_for_indirects(dsl_dataset_t *ds, uint64_t uncompressed,
 	 */
 	size -= record_count * sizeof (blkptr_t);
 
-	/* Add in the space for the record associated with each block. */
-	size += record_count * sizeof (dmu_replay_record_t);
+	/*
+	 * Add in the space for the records associated with each block.
+	 * At minimum, there will be an OBJECT, one of WRITE or WRITE_EMBEDDED,
+	 * and a FREE.
+	 */
+	size += record_count * sizeof (dmu_replay_record_t) * 3;
 
 	*sizep = size;
 
