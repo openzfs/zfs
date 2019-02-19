@@ -53,7 +53,6 @@
  */
 #define	DUMP_GROUPING	4
 
-uint64_t total_write_size = 0;
 uint64_t total_stream_len = 0;
 FILE *send_stream = 0;
 boolean_t do_byteswap = B_FALSE;
@@ -219,6 +218,9 @@ main(int argc, char *argv[])
 {
 	char *buf = safe_malloc(SPA_MAXBLOCKSIZE);
 	uint64_t drr_record_count[DRR_NUMTYPES] = { 0 };
+	uint64_t total_payload_size = 0;
+	uint64_t total_overhead_size = 0;
+	uint64_t drr_byte_count[DRR_NUMTYPES] = { 0 };
 	char salt[ZIO_DATA_SALT_LEN * 2 + 1];
 	char iv[ZIO_DATA_IV_LEN * 2 + 1];
 	char mac[ZIO_DATA_MAC_LEN * 2 + 1];
@@ -336,7 +338,9 @@ main(int argc, char *argv[])
 		}
 
 		drr_record_count[drr->drr_type]++;
+		total_overhead_size += sizeof (*drr);
 		total_records++;
+		payload_size = 0;
 
 		switch (drr->drr_type) {
 		case DRR_BEGIN:
@@ -390,6 +394,7 @@ main(int argc, char *argv[])
 					nvlist_print(stdout, nv);
 					nvlist_free(nv);
 				}
+				payload_size = sz;
 			}
 			break;
 
@@ -554,7 +559,6 @@ main(int argc, char *argv[])
 			if (dump) {
 				print_block(buf, payload_size);
 			}
-			total_write_size += payload_size;
 			break;
 
 		case DRR_WRITE_BYREF:
@@ -683,6 +687,7 @@ main(int argc, char *argv[])
 				print_block(buf,
 				    P2ROUNDUP(drrwe->drr_psize, 8));
 			}
+			payload_size = P2ROUNDUP(drrwe->drr_psize, 8);
 			break;
 		case DRR_OBJECT_RANGE:
 			if (do_byteswap) {
@@ -723,6 +728,8 @@ main(int argc, char *argv[])
 			    (longlong_t)drrc->drr_checksum.zc_word[3]);
 		}
 		pcksum = zc;
+		drr_byte_count[drr->drr_type] += payload_size;
+		total_payload_size += payload_size;
 	}
 	free(buf);
 	fletcher_4_fini();
@@ -730,28 +737,40 @@ main(int argc, char *argv[])
 	/* Print final summary */
 
 	(void) printf("SUMMARY:\n");
-	(void) printf("\tTotal DRR_BEGIN records = %lld\n",
-	    (u_longlong_t)drr_record_count[DRR_BEGIN]);
-	(void) printf("\tTotal DRR_END records = %lld\n",
-	    (u_longlong_t)drr_record_count[DRR_END]);
-	(void) printf("\tTotal DRR_OBJECT records = %lld\n",
-	    (u_longlong_t)drr_record_count[DRR_OBJECT]);
-	(void) printf("\tTotal DRR_FREEOBJECTS records = %lld\n",
-	    (u_longlong_t)drr_record_count[DRR_FREEOBJECTS]);
-	(void) printf("\tTotal DRR_WRITE records = %lld\n",
-	    (u_longlong_t)drr_record_count[DRR_WRITE]);
-	(void) printf("\tTotal DRR_WRITE_BYREF records = %lld\n",
-	    (u_longlong_t)drr_record_count[DRR_WRITE_BYREF]);
-	(void) printf("\tTotal DRR_WRITE_EMBEDDED records = %lld\n",
-	    (u_longlong_t)drr_record_count[DRR_WRITE_EMBEDDED]);
-	(void) printf("\tTotal DRR_FREE records = %lld\n",
-	    (u_longlong_t)drr_record_count[DRR_FREE]);
-	(void) printf("\tTotal DRR_SPILL records = %lld\n",
-	    (u_longlong_t)drr_record_count[DRR_SPILL]);
+	(void) printf("\tTotal DRR_BEGIN records = %lld (%llu bytes)\n",
+	    (u_longlong_t)drr_record_count[DRR_BEGIN],
+	    (u_longlong_t)drr_byte_count[DRR_BEGIN]);
+	(void) printf("\tTotal DRR_END records = %lld (%llu bytes)\n",
+	    (u_longlong_t)drr_record_count[DRR_END],
+	    (u_longlong_t)drr_byte_count[DRR_END]);
+	(void) printf("\tTotal DRR_OBJECT records = %lld (%llu bytes)\n",
+	    (u_longlong_t)drr_record_count[DRR_OBJECT],
+	    (u_longlong_t)drr_byte_count[DRR_OBJECT]);
+	(void) printf("\tTotal DRR_FREEOBJECTS records = %lld (%llu bytes)\n",
+	    (u_longlong_t)drr_record_count[DRR_FREEOBJECTS],
+	    (u_longlong_t)drr_byte_count[DRR_FREEOBJECTS]);
+	(void) printf("\tTotal DRR_WRITE records = %lld (%llu bytes)\n",
+	    (u_longlong_t)drr_record_count[DRR_WRITE],
+	    (u_longlong_t)drr_byte_count[DRR_WRITE]);
+	(void) printf("\tTotal DRR_WRITE_BYREF records = %lld (%llu bytes)\n",
+	    (u_longlong_t)drr_record_count[DRR_WRITE_BYREF],
+	    (u_longlong_t)drr_byte_count[DRR_WRITE_BYREF]);
+	(void) printf("\tTotal DRR_WRITE_EMBEDDED records = %lld (%llu "
+	    "bytes)\n", (u_longlong_t)drr_record_count[DRR_WRITE_EMBEDDED],
+	    (u_longlong_t)drr_byte_count[DRR_WRITE_EMBEDDED]);
+	(void) printf("\tTotal DRR_FREE records = %lld (%llu bytes)\n",
+	    (u_longlong_t)drr_record_count[DRR_FREE],
+	    (u_longlong_t)drr_byte_count[DRR_FREE]);
+	(void) printf("\tTotal DRR_SPILL records = %lld (%llu bytes)\n",
+	    (u_longlong_t)drr_record_count[DRR_SPILL],
+	    (u_longlong_t)drr_byte_count[DRR_SPILL]);
 	(void) printf("\tTotal records = %lld\n",
 	    (u_longlong_t)total_records);
-	(void) printf("\tTotal write size = %lld (0x%llx)\n",
-	    (u_longlong_t)total_write_size, (u_longlong_t)total_write_size);
+	(void) printf("\tTotal payload size = %lld (0x%llx)\n",
+	    (u_longlong_t)total_payload_size, (u_longlong_t)total_payload_size);
+	(void) printf("\tTotal header overhead = %lld (0x%llx)\n",
+	    (u_longlong_t)total_overhead_size,
+	    (u_longlong_t)total_overhead_size);
 	(void) printf("\tTotal stream length = %lld (0x%llx)\n",
 	    (u_longlong_t)total_stream_len, (u_longlong_t)total_stream_len);
 	return (0);
