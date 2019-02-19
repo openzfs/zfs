@@ -679,6 +679,10 @@ main(int argc, char *argv[])
 			}
 			(void) ssread(buf,
 			    P2ROUNDUP(drrwe->drr_psize, 8), &zc);
+			if (dump) {
+				print_block(buf,
+				    P2ROUNDUP(drrwe->drr_psize, 8));
+			}
 			break;
 		case DRR_OBJECT_RANGE:
 			if (do_byteswap) {
