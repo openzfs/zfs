@@ -1834,6 +1834,7 @@ zio_delay_interrupt(zio_t *zio)
 			if (NSEC_TO_TICK(diff) == 0) {
 				/* Our delay is less than a jiffy - just spin */
 				zfs_sleep_until(zio->io_target_timestamp);
+				zio_interrupt(zio);
 			} else {
 				/*
 				 * Use taskq_dispatch_delay() in the place of
