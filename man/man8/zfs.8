@@ -3304,16 +3304,24 @@ Displays all ZFS file systems currently mounted.
 .Op Fl o Ar options
 .Fl a | Ar filesystem
 .Xc
-Mounts ZFS file systems.
+Mount ZFS filesystem on a path described by its
+.Sy mountpoint
+property, if the path exists and is empty. If
+.Sy mountpoint
+is set to
+.Em legacy ,
+the filesystem should be instead mounted using
+.Xr mount 8 .
 .Bl -tag -width "-O"
 .It Fl O
-Perform an overlay mount.
+Perform an overlay mount. Allows mounting in non-empty
+.Sy mountpoint .
 See
 .Xr mount 8
 for more information.
 .It Fl a
 Mount all available ZFS file systems.
-Invoked automatically as part of the boot process.
+Invoked automatically as part of the boot process if configured.
 .It Ar filesystem
 Mount the specified filesystem.
 .It Fl o Ar options
