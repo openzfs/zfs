@@ -271,6 +271,17 @@ Default value: \fB16,777,217\fR.
 .sp
 .ne 2
 .na
+\fBzfs_keep_log_spacemaps_at_export\fR (int)
+.ad
+.RS 12n
+Prevent log spacemaps from being destroyed during pool exports and destroys.
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_metaslab_segment_weight_enabled\fR (int)
 .ad
 .RS 12n
@@ -368,6 +379,17 @@ Use \fB1\fR for yes and \fB0\fR for no (default).
 When a vdev is added target this number of metaslabs per top-level vdev.
 .sp
 Default value: \fB200\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_default_ms_shift\fR (int)
+.ad
+.RS 12n
+Default limit for metaslab size.
+.sp
+Default value: \fB29\fR [meaning (1 << 29) = 512MB].
 .RE
 
 .sp
@@ -1232,6 +1254,93 @@ Default value: 20
 .sp
 .ne 2
 .na
+\fBzfs_unflushed_max_mem_amt\fR (ulong)
+.ad
+.RS 12n
+Upper-bound limit for unflushed metadata changes to be held by the
+log spacemap in memory (in bytes).
+.sp
+Default value: \fB1,073,741,824\fR (1GB).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_unflushed_max_mem_ppm\fR (ulong)
+.ad
+.RS 12n
+Percentage of the overall system memory that ZFS allows to be used
+for unflushed metadata changes by the log spacemap.
+(value is calculated over 1000000 for finer granularity).
+.sp
+Default value: \fB1000\fR (which is divided by 1000000, resulting in
+the limit to be \fB0.1\fR% of memory)
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_unflushed_log_block_max\fR (ulong)
+.ad
+.RS 12n
+Describes the maximum number of log spacemap blocks allowed for each pool.
+The default value of 262144 means that the space in all the log spacemaps
+can add up to no more than 262144 blocks (which means 32GB of logical
+space before compression and ditto blocks, assuming that blocksize is
+128k).
+.sp
+This tunable is important because it involves a trade-off between import
+time after an unclean export and the frequency of flushing metaslabs.
+The higher this number is, the more log blocks we allow when the pool is
+active which means that we flush metaslabs less often and thus decrease
+the number of I/Os for spacemap updates per TXG.
+At the same time though, that means that in the event of an unclean export,
+there will be more log spacemap blocks for us to read, inducing overhead
+in the import time of the pool.
+The lower the number, the amount of flushing increases destroying log
+blocks quicker as they become obsolete faster, which leaves less blocks
+to be read during import time after a crash.
+.sp
+Each log spacemap block existing during pool import leads to approximately
+one extra logical I/O issued.
+This is the reason why this tunable is exposed in terms of blocks rather
+than space used.
+.sp
+Default value: \fB262144\fR (256K).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_unflushed_log_block_min\fR (ulong)
+.ad
+.RS 12n
+If the number of metaslabs is small and our incoming rate is high, we
+could get into a situation that we are flushing all our metaslabs every
+TXG.
+Thus we always allow at least this many log blocks.
+.sp
+Default value: \fB1000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_unflushed_log_block_pct\fR (ulong)
+.ad
+.RS 12n
+Tunable used to determine the number of blocks that can be used for
+the spacemap log, expressed as a percentage of the total number of
+metaslabs in the pool.
+.sp
+Default value: \fB400\fR (read as \fB400\fR% - meaning that the number
+of log spacemap blocks are capped at 4 times the number of
+metaslabs in the pool).
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_unlink_suspend_progress\fR (uint)
 .ad
 .RS 12n
@@ -1717,6 +1826,10 @@ _
 _
 2048	ZFS_DEBUG_TRIM
 	Verify TRIM ranges are always within the allocatable range tree.
+_
+4096	ZFS_DEBUG_LOG_SPACEMAP
+	Verify that the log summary is consistent with the spacemap log
+	and enable zfs_dbgmsgs for metaslab loading and flushing.
 .TE
 .sp
 * Requires debug build.
@@ -1835,6 +1948,29 @@ Default value: \fB50\fR.
 .sp
 .ne 2
 .na
+\fBzfs_max_log_walking\fR (ulong)
+.ad
+.RS 12n
+The number of past TXGs that the flushing algorithm of the log spacemap
+feature uses to estimate incoming log blocks.
+.sp
+Default value: \fB5\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_max_logsm_summary_length\fR (ulong)
+.ad
+.RS 12n
+Maximum number of rows allowed in the summary of the spacemap log.
+.sp
+Default value: \fB10\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_max_recordsize\fR (int)
 .ad
 .RS 12n
@@ -1860,6 +1996,17 @@ Allow datasets received with redacted send/receive to be mounted. Normally
 disabled because these datasets may be missing key data.
 .sp
 Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_min_metaslabs_to_flush\fR (ulong)
+.ad
+.RS 12n
+Minimum number of metaslabs to flush per dirty TXG
+.sp
+Default value: \fB1\fR.
 .RE
 
 .sp

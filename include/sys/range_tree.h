@@ -24,7 +24,7 @@
  */
 
 /*
- * Copyright (c) 2013, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2019 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_RANGE_TREE_H
@@ -95,6 +95,7 @@ range_seg_t *range_tree_find(range_tree_t *rt, uint64_t start, uint64_t size);
 void range_tree_resize_segment(range_tree_t *rt, range_seg_t *rs,
     uint64_t newstart, uint64_t newsize);
 uint64_t range_tree_space(range_tree_t *rt);
+uint64_t range_tree_numsegs(range_tree_t *rt);
 boolean_t range_tree_is_empty(range_tree_t *rt);
 void range_tree_swap(range_tree_t **rtsrc, range_tree_t **rtdst);
 void range_tree_stat_verify(range_tree_t *rt);
@@ -111,6 +112,11 @@ void range_tree_clear(range_tree_t *rt, uint64_t start, uint64_t size);
 void range_tree_vacate(range_tree_t *rt, range_tree_func_t *func, void *arg);
 void range_tree_walk(range_tree_t *rt, range_tree_func_t *func, void *arg);
 range_seg_t *range_tree_first(range_tree_t *rt);
+
+void range_tree_remove_xor_add_segment(uint64_t start, uint64_t end,
+    range_tree_t *removefrom, range_tree_t *addto);
+void range_tree_remove_xor_add(range_tree_t *rt, range_tree_t *removefrom,
+    range_tree_t *addto);
 
 void rt_avl_create(range_tree_t *rt, void *arg);
 void rt_avl_destroy(range_tree_t *rt, void *arg);

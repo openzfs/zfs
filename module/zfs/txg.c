@@ -21,7 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Portions Copyright 2011 Martin Matuska
- * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2019 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -272,7 +272,7 @@ txg_sync_stop(dsl_pool_t *dp)
 	ASSERT3U(tx->tx_threads, ==, 2);
 
 	/*
-	 * We need to ensure that we've vacated the deferred space_maps.
+	 * We need to ensure that we've vacated the deferred metaslab trees.
 	 */
 	txg_wait_synced(dp, tx->tx_open_txg + TXG_DEFER_SIZE);
 
