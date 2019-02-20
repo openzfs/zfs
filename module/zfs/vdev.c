@@ -1346,12 +1346,12 @@ vdev_metaslab_fini(vdev_t *vd)
 	}
 
 	if (vd->vdev_ms != NULL) {
-		uint64_t count = vd->vdev_ms_count;
+		metaslab_group_t *mg = vd->vdev_mg;
+		metaslab_group_passivate(mg);
 
-		metaslab_group_passivate(vd->vdev_mg);
+		uint64_t count = vd->vdev_ms_count;
 		for (uint64_t m = 0; m < count; m++) {
 			metaslab_t *msp = vd->vdev_ms[m];
-
 			if (msp != NULL)
 				metaslab_fini(msp);
 		}
@@ -1359,6 +1359,9 @@ vdev_metaslab_fini(vdev_t *vd)
 		vd->vdev_ms = NULL;
 
 		vd->vdev_ms_count = 0;
+
+		for (int i = 0; i < RANGE_TREE_HISTOGRAM_SIZE; i++)
+			ASSERT0(mg->mg_histogram[i]);
 	}
 	ASSERT0(vd->vdev_ms_count);
 	ASSERT3U(vd->vdev_pending_fastwrite, ==, 0);
@@ -3006,7 +3009,10 @@ vdev_load(vdev_t *vd)
 			    "asize=%llu", (u_longlong_t)vd->vdev_ashift,
 			    (u_longlong_t)vd->vdev_asize);
 			return (SET_ERROR(ENXIO));
-		} else if ((error = vdev_metaslab_init(vd, 0)) != 0) {
+		}
+
+		error = vdev_metaslab_init(vd, 0);
+		if (error != 0) {
 			vdev_dbgmsg(vd, "vdev_load: metaslab_init failed "
 			    "[error=%d]", error);
 			vdev_set_state(vd, B_FALSE, VDEV_STATE_CANT_OPEN,
@@ -3021,9 +3027,10 @@ vdev_load(vdev_t *vd)
 			ASSERT(vd->vdev_asize != 0);
 			ASSERT3P(vd->vdev_checkpoint_sm, ==, NULL);
 
-			if ((error = space_map_open(&vd->vdev_checkpoint_sm,
+			error = space_map_open(&vd->vdev_checkpoint_sm,
 			    mos, checkpoint_sm_obj, 0, vd->vdev_asize,
-			    vd->vdev_ashift))) {
+			    vd->vdev_ashift);
+			if (error != 0) {
 				vdev_dbgmsg(vd, "vdev_load: space_map_open "
 				    "failed for checkpoint spacemap (obj %llu) "
 				    "[error=%d]",
