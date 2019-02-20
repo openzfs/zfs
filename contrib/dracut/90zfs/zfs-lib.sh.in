@@ -66,6 +66,47 @@ import_pool() {
             warn "ZFS: Unable to import pool ${pool}"
             return 1
         fi
+
+	# Set elevator=none or noop on the root pool's vdevs' disks.  ZFS
+	# already does this for whole_disk vdevs (for all pools), so this is
+	# only important for partitions.
+	if getargbool 0 zfs_elevator ; then
+		zpool status -L "${pool}" 2> /dev/null |
+		    awk '/^\t / && !/(mirror|raidz|cache|logs|special|dedup)/'\
+				'&& !/(nvme)/ {
+			dev=$1;
+			sub(/[0-9]+$/, "", dev);
+			print dev
+		    }' |
+		    while read -r i ; do
+			# Determine the current scheduler
+			if [ -e "/sys/block/$i/queue/scheduler" ] ; then
+				scheduler="$(cut -d "[" -f2 \
+				    /sys/block/"$i"/queue/scheduler | \
+				    cut -d "]" -f1)"
+			else
+				warn "ZFS: ${i} missing IO scheduler file"
+				continue
+			fi
+
+			# Skip if we are already set correctly
+			if [ "$scheduler" == "none" ] ; then continue ; fi
+			if [ "$scheduler" == "noop" ] ; then continue ; fi
+
+			# Set the scheduler, prefer none over noop
+			if grep -sq none /sys/block/"$i"/queue/scheduler ; then
+				echo none > /sys/block/"$i"/queue/scheduler
+				continue
+			fi
+			if grep -sq noop /sys/block/"$i"/queue/scheduler ; then
+				echo noop > /sys/block/"$i"/queue/scheduler
+				continue
+			fi
+
+			# Should never get here, but not fatal
+			warn "ZFS: ${i} missing none or noop IO scheduler"
+		    done
+	fi
     fi
 
     return 0

@@ -45,6 +45,11 @@ cases where storage is on a shared fabric such as iSCSI where multiple hosts
 can access storage devices concurrently.  _Please understand the implications
 of force-importing a pool before enabling this option!_
 
+* `zfs_elevator=0`: If set to 1, the initramfs will attempt to change the IO
+scheduler (also referred to as the elevator) of the root pool's vdevs' disks to
+"none" for mq systems, or "noop" for iosched systems.  ZFS already does this
+for whole_disk vdevs (for all pools), so this is only important for partitions.
+
 * `spl_hostid`: By default, the hostid used by the SPL module is read from
 /etc/hostid inside the initramfs.  This file is placed there from the host
 system when the initramfs is built which effectively ties the ramdisk to the
