@@ -403,6 +403,49 @@ struct metaslab {
 	boolean_t	ms_loading;
 
 	/*
+	 * The following histograms count entries that are in the
+	 * metaslab's space map (and its histogram) but are not in
+	 * ms_allocatable yet, because they are in ms_freed, ms_freeing,
+	 * or ms_defer[].
+	 *
+	 * When the metaslab is not loaded, its ms_weight needs to
+	 * reflect what is allocatable (i.e. what will be part of
+	 * ms_allocatable if it is loaded).  The weight is computed from
+	 * the spacemap histogram, but that includes ranges that are
+	 * not yet allocatable (because they are in ms_freed,
+	 * ms_freeing, or ms_defer[]).  Therefore, when calculating the
+	 * weight, we need to remove those ranges.
+	 *
+	 * The ranges in the ms_freed and ms_defer[] range trees are all
+	 * present in the spacemap.  However, the spacemap may have
+	 * multiple entries to represent a contiguous range, because it
+	 * is written across multiple sync passes, but the changes of
+	 * all sync passes are consolidated into the range trees.
+	 * Adjacent ranges that are freed in different sync passes of
+	 * one txg will be represented separately (as 2 or more entries)
+	 * in the space map (and its histogram), but these adjacent
+	 * ranges will be consolidated (represented as one entry) in the
+	 * ms_freed/ms_defer[] range trees (and their histograms).
+	 *
+	 * When calculating the weight, we can not simply subtract the
+	 * range trees' histograms from the spacemap's histogram,
+	 * because the range trees' histograms may have entries in
+	 * higher buckets than the spacemap, due to consolidation.
+	 * Instead we must subtract the exact entries that were added to
+	 * the spacemap's histogram.  ms_synchist and ms_deferhist[]
+	 * represent these exact entries, so we can subtract them from
+	 * the spacemap's histogram when calculating ms_weight.
+	 *
+	 * ms_synchist represents the same ranges as ms_freeing +
+	 * ms_freed, but without consolidation across sync passes.
+	 *
+	 * ms_deferhist[i] represents the same ranges as ms_defer[i],
+	 * but without consolidation across sync passes.
+	 */
+	uint64_t	ms_synchist[SPACE_MAP_HISTOGRAM_SIZE];
+	uint64_t	ms_deferhist[TXG_DEFER_SIZE][SPACE_MAP_HISTOGRAM_SIZE];
+
+	/*
 	 * Tracks the exact amount of allocated space of this metaslab
 	 * (and specifically the metaslab's space map) up to the most
 	 * recently completed sync pass [see usage in metaslab_sync()].
