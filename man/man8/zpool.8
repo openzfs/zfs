@@ -1635,10 +1635,15 @@ with no flags on the relevant target devices.
 .Oo Oo Ar pool Ns ... Oc Ns | Ns Oo Ar pool vdev Ns ... Oc Ns | Ns Oo Ar vdev Ns ... Oc Oc
 .Op Ar interval Op Ar count
 .Xc
-Displays I/O statistics for the given pools/vdevs. You can pass in a
-list of pools, a pool and list of vdevs in that pool, or a list of any
-vdevs from any pool. If no items are specified, statistics for every
-pool in the system are shown.
+Displays logical I/O statistics for the given pools/vdevs. Physical I/Os may
+be observed via
+.Xr iostat 1 .
+If writes are located nearby, they may be merged into a single
+larger operation. Additional I/O may be generated depending on the level of
+vdev redundancy.
+To filter output, you may pass in a list of pools, a pool and list of vdevs
+in that pool, or a list of any vdevs from any pool. If no items are specified,
+statistics for every pool in the system are shown.
 When given an
 .Ar interval ,
 the statistics are printed every
