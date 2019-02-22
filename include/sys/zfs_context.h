@@ -236,6 +236,7 @@ extern kthread_t *zk_thread_create(void (*func)(void *), void *arg,
 
 #define	kpreempt_disable()	((void)0)
 #define	kpreempt_enable()	((void)0)
+#define	cond_resched()		sched_yield()
 
 /*
  * Mutexes
