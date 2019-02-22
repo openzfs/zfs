@@ -195,6 +195,9 @@ chmod u+x ${RPM_BUILD_ROOT}%{kmodinstdir_prefix}/*/extra/*/*/*
 rm -rf $RPM_BUILD_ROOT
 
 %changelog
+* Fri Feb 22 2019 Tony Hutter <hutter2@llnl.gov> - 0.7.13-1
+- Released 0.7.13-1, detailed release notes are available at:
+- https://github.com/zfsonlinux/zfs/releases/tag/zfs-0.7.13
 * Thu Nov 08 2018 Tony Hutter <hutter2@llnl.gov> - 0.7.12-1
 - Released 0.7.12-1, detailed release notes are available at:
 - https://github.com/zfsonlinux/zfs/releases/tag/zfs-0.7.12
