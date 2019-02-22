@@ -45,7 +45,15 @@
 
 verify_runnable "global"
 
+function cleanup
+{
+	rm -f $versions
+}
+
 log_assert "Executing 'zpool upgrade -v' command succeeds"
+log_onexit cleanup
+
+typeset versions=$TEST_BASE_DIR/zpool-versions.$$
 
 log_must zpool upgrade -v
 
@@ -54,7 +62,7 @@ log_must zpool upgrade -v
 
 log_must eval "zpool upgrade -v | head -1 | grep 'feature flags'"
 
-zpool upgrade -v > /tmp/zpool-versions.$$
+zpool upgrade -v > $versions
 
 #
 # Current output for 'zpool upgrade -v' has different indent space
@@ -64,8 +72,7 @@ zpool upgrade -v > /tmp/zpool-versions.$$
 #
 for version in {1..28}; do
 	log_note "Checking for a description of pool version $version"
-	log_must eval "awk '/^ $version / { print $1 }' /tmp/zpool-versions.$$ | grep $version"
+	log_must eval "awk '/^ $version / { print $1 }' $versions | grep $version"
 done
-rm /tmp/zpool-versions.$$
 
 log_pass "Executing 'zpool upgrade -v' command succeeds"

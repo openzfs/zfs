@@ -89,7 +89,7 @@ function cleanup
 #
 function create_overlap_slice
 {
-        typeset format_file=/var/tmp/format_overlap.$$
+        typeset format_file=$TEST_BASE_DIR/format_overlap.$$
         typeset disk=$1
 
         echo "partition" >$format_file

@@ -14,7 +14,7 @@
  */
 
 /*
- * Copyright (c) 2016, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2016, 2018 by Delphix. All rights reserved.
  */
 
 /*
@@ -100,7 +100,6 @@
 #include <sys/zcp_iter.h>
 #include <sys/zcp_prop.h>
 #include <sys/zcp_global.h>
-#include <util/sscanf.h>
 
 #ifndef KM_NORMALPRI
 #define	KM_NORMALPRI	0
@@ -109,8 +108,8 @@
 #define	ZCP_NVLIST_MAX_DEPTH 20
 
 uint64_t zfs_lua_check_instrlimit_interval = 100;
-uint64_t zfs_lua_max_instrlimit = ZCP_MAX_INSTRLIMIT;
-uint64_t zfs_lua_max_memlimit = ZCP_MAX_MEMLIMIT;
+unsigned long zfs_lua_max_instrlimit = ZCP_MAX_INSTRLIMIT;
+unsigned long zfs_lua_max_memlimit = ZCP_MAX_MEMLIMIT;
 
 /*
  * Forward declarations for mutually recursive functions
@@ -430,7 +429,7 @@ zcp_lua_to_nvlist_impl(lua_State *state, int index, nvlist_t *nvl,
 /*
  * Convert a lua value to an nvpair, adding it to an nvlist with the given key.
  */
-void
+static void
 zcp_lua_to_nvlist(lua_State *state, int index, nvlist_t *nvl, const char *key)
 {
 	/*
@@ -442,7 +441,7 @@ zcp_lua_to_nvlist(lua_State *state, int index, nvlist_t *nvl, const char *key)
 		(void) lua_error(state);
 }
 
-int
+static int
 zcp_lua_to_nvlist_helper(lua_State *state)
 {
 	nvlist_t *nv = (nvlist_t *)lua_touserdata(state, 2);
@@ -451,11 +450,12 @@ zcp_lua_to_nvlist_helper(lua_State *state)
 	return (0);
 }
 
-void
+static void
 zcp_convert_return_values(lua_State *state, nvlist_t *nvl,
     const char *key, zcp_eval_arg_t *evalargs)
 {
 	int err;
+	VERIFY3U(1, ==, lua_gettop(state));
 	lua_pushcfunction(state, zcp_lua_to_nvlist_helper);
 	lua_pushlightuserdata(state, (char *)key);
 	lua_pushlightuserdata(state, nvl);
@@ -901,6 +901,7 @@ zcp_eval_impl(dmu_tx_t *tx, boolean_t sync, zcp_eval_arg_t *evalargs)
 			    ZCP_RET_RETURN, evalargs);
 		} else if (return_count > 1) {
 			evalargs->ea_result = SET_ERROR(ECHRNG);
+			lua_settop(state, 0);
 			(void) lua_pushfstring(state, "Multiple return "
 			    "values not supported");
 			zcp_convert_return_values(state, evalargs->ea_outnvl,
@@ -968,6 +969,7 @@ static void
 zcp_pool_error(zcp_eval_arg_t *evalargs, const char *poolname)
 {
 	evalargs->ea_result = SET_ERROR(ECHRNG);
+	lua_settop(evalargs->ea_state, 0);
 	(void) lua_pushfstring(evalargs->ea_state, "Could not open pool: %s",
 	    poolname);
 	zcp_convert_return_values(evalargs->ea_state, evalargs->ea_outnvl,
@@ -1143,7 +1145,7 @@ zcp_eval(const char *poolname, const char *program, boolean_t sync,
 
 	if (sync) {
 		err = dsl_sync_task(poolname, NULL,
-		    zcp_eval_sync, &evalargs, 0, ZFS_SPACE_CHECK_NONE);
+		    zcp_eval_sync, &evalargs, 0, ZFS_SPACE_CHECK_ZCP_EVAL);
 		if (err != 0)
 			zcp_pool_error(&evalargs, poolname);
 	} else {
@@ -1418,3 +1420,15 @@ zcp_parse_args(lua_State *state, const char *fname, const zcp_arg_t *pargs,
 		zcp_parse_pos_args(state, fname, pargs, kwargs);
 	}
 }
+
+#if defined(_KERNEL)
+/* BEGIN CSTYLED */
+module_param(zfs_lua_max_instrlimit, ulong, 0644);
+MODULE_PARM_DESC(zfs_lua_max_instrlimit,
+	"Max instruction limit that can be specified for a channel program");
+
+module_param(zfs_lua_max_memlimit, ulong, 0644);
+MODULE_PARM_DESC(zfs_lua_max_memlimit,
+	"Max memory limit that can be specified for a channel program");
+/* END CSTYLED */
+#endif

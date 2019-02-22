@@ -14,6 +14,7 @@
 # Normal rules
 #
 *.[oa]
+*.o.ur-safe
 *.lo
 *.la
 *.mod.c
@@ -21,6 +22,8 @@
 *.swp
 *.gcno
 *.gcda
+*.pyc
+*.pyo
 .deps
 .libs
 .dirstamp
@@ -57,3 +60,4 @@ cscope.*
 *.tar.gz
 *.patch
 *.orig
+*.log

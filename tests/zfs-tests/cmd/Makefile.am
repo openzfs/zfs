@@ -9,6 +9,7 @@ SUBDIRS = \
 	file_trunc \
 	file_write \
 	largest_file \
+	libzfs_input_check \
 	mkbusy \
 	mkfile \
 	mkfiles \
@@ -18,6 +19,7 @@ SUBDIRS = \
 	mmapwrite \
 	nvlist_to_lua \
 	randfree_file \
+	randwritecomp \
 	readmmap \
 	rename_dir \
 	rm_lnkcnt_zero_file \

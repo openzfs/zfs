@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  * Copyright 2016 Nexenta Systems, Inc. All rights reserved.
  */
 
@@ -30,7 +30,6 @@
 #ifdef _KERNEL
 #include <sys/isa_defs.h>
 #include <sys/types32.h>
-#include <sys/attr.h>
 #include <sys/list.h>
 #include <sys/dmu.h>
 #include <sys/sa.h>
@@ -192,7 +191,7 @@ typedef struct znode {
 	krwlock_t	z_parent_lock;	/* parent lock for directories */
 	krwlock_t	z_name_lock;	/* "master" lock for dirent locks */
 	zfs_dirlock_t	*z_dirlocks;	/* directory entry lock list */
-	zfs_rlock_t	z_range_lock;	/* file range lock */
+	rangelock_t	z_rangelock;	/* file range locks */
 	uint8_t		z_unlinked;	/* file has been unlinked */
 	uint8_t		z_atime_dirty;	/* atime needs to be synced */
 	uint8_t		z_zn_prefetch;	/* Prefetch znodes? */
@@ -224,7 +223,7 @@ typedef struct znode_hold {
 	uint64_t	zh_obj;		/* object id */
 	kmutex_t	zh_lock;	/* lock serializing object access */
 	avl_node_t	zh_node;	/* avl tree linkage */
-	refcount_t	zh_refcount;	/* active consumer reference count */
+	zfs_refcount_t	zh_refcount;	/* active consumer reference count */
 } znode_hold_t;
 
 static inline uint64_t
@@ -260,28 +259,35 @@ zfs_inherit_projid(znode_t *dzp)
 
 #define	S_ISDEV(mode)	(S_ISCHR(mode) || S_ISBLK(mode) || S_ISFIFO(mode))
 
-/* Called on entry to each ZFS vnode and vfs operation  */
-#define	ZFS_ENTER(zfsvfs) \
-	{ \
-		rrm_enter_read(&(zfsvfs)->z_teardown_lock, FTAG); \
-		if ((zfsvfs)->z_unmounted) { \
-			ZFS_EXIT(zfsvfs); \
-			return (EIO); \
-		} \
-	}
+/* Called on entry to each ZFS inode and vfs operation. */
+#define	ZFS_ENTER_ERROR(zfsvfs, error)				\
+do {								\
+	rrm_enter_read(&(zfsvfs)->z_teardown_lock, FTAG);	\
+	if ((zfsvfs)->z_unmounted) {				\
+		ZFS_EXIT(zfsvfs);				\
+		return (error);					\
+	}							\
+} while (0)
+#define	ZFS_ENTER(zfsvfs)	ZFS_ENTER_ERROR(zfsvfs, EIO)
+#define	ZPL_ENTER(zfsvfs)	ZFS_ENTER_ERROR(zfsvfs, -EIO)
 
-/* Must be called before exiting the vop */
-#define	ZFS_EXIT(zfsvfs) \
-	{ \
-		rrm_exit(&(zfsvfs)->z_teardown_lock, FTAG); \
-	}
+/* Must be called before exiting the operation. */
+#define	ZFS_EXIT(zfsvfs)					\
+do {								\
+	rrm_exit(&(zfsvfs)->z_teardown_lock, FTAG);		\
+} while (0)
+#define	ZPL_EXIT(zfsvfs)	ZFS_EXIT(zfsvfs)
 
-/* Verifies the znode is valid */
-#define	ZFS_VERIFY_ZP(zp) \
-	if ((zp)->z_sa_hdl == NULL) { \
-		ZFS_EXIT(ZTOZSB(zp)); \
-		return (EIO); \
-	}
+/* Verifies the znode is valid. */
+#define	ZFS_VERIFY_ZP_ERROR(zp, error)				\
+do {								\
+	if ((zp)->z_sa_hdl == NULL) {				\
+		ZFS_EXIT(ZTOZSB(zp));				\
+		return (error);					\
+	}							\
+} while (0)
+#define	ZFS_VERIFY_ZP(zp)	ZFS_VERIFY_ZP_ERROR(zp, EIO)
+#define	ZPL_VERIFY_ZP(zp)	ZFS_VERIFY_ZP_ERROR(zp, -EIO)
 
 /*
  * Macros for dealing with dmu_buf_hold
@@ -292,19 +298,36 @@ zfs_inherit_projid(znode_t *dzp)
 
 extern unsigned int zfs_object_mutex_size;
 
-/* Encode ZFS stored time values from a struct timespec */
+/*
+ * Encode ZFS stored time values from a struct timespec / struct timespec64.
+ */
 #define	ZFS_TIME_ENCODE(tp, stmp)		\
-{						\
+do {						\
 	(stmp)[0] = (uint64_t)(tp)->tv_sec;	\
 	(stmp)[1] = (uint64_t)(tp)->tv_nsec;	\
-}
+} while (0)
 
-/* Decode ZFS stored time values to a struct timespec */
+#if defined(HAVE_INODE_TIMESPEC64_TIMES)
+/*
+ * Decode ZFS stored time values to a struct timespec64
+ * 4.18 and newer kernels.
+ */
 #define	ZFS_TIME_DECODE(tp, stmp)		\
-{						\
-	(tp)->tv_sec = (time_t)(stmp)[0];		\
-	(tp)->tv_nsec = (long)(stmp)[1];		\
-}
+do {						\
+	(tp)->tv_sec = (time64_t)(stmp)[0];	\
+	(tp)->tv_nsec = (long)(stmp)[1];	\
+} while (0)
+#else
+/*
+ * Decode ZFS stored time values to a struct timespec
+ * 4.17 and older kernels.
+ */
+#define	ZFS_TIME_DECODE(tp, stmp)		\
+do {						\
+	(tp)->tv_sec = (time_t)(stmp)[0];	\
+	(tp)->tv_nsec = (long)(stmp)[1];	\
+} while (0)
+#endif /* HAVE_INODE_TIMESPEC64_TIMES */
 
 /*
  * Timestamp defines
@@ -366,7 +389,6 @@ extern void zfs_log_acl(zilog_t *zilog, dmu_tx_t *tx, znode_t *zp,
     vsecattr_t *vsecp, zfs_fuid_info_t *fuidp);
 extern void zfs_xvattr_set(znode_t *zp, xvattr_t *xvap, dmu_tx_t *tx);
 extern void zfs_upgrade(zfsvfs_t *zfsvfs, dmu_tx_t *tx);
-extern int zfs_create_share_dir(zfsvfs_t *zfsvfs, dmu_tx_t *tx);
 
 #if defined(HAVE_UIO_RW)
 extern caddr_t zfs_map_page(page_t *, enum seg_rw);

@@ -44,10 +44,6 @@
 
 verify_runnable "global"
 
-if is_32bit; then
-	log_unsupported "Test case runs slowly on 32 bit"
-fi
-
 volsize=$(zfs get -H -o value volsize $TESTPOOL/$TESTVOL)
 
 function cleanup
@@ -111,7 +107,6 @@ if [ $retval -ne 0 ] ; then
 		# e2fsprogs-1.43.3 (Fedora 25 and older): returns 4
 		# e2fsprogs-1.43.4 (Fedora 26): returns 8
 		#
-		# https://github.com/zfsonlinux/zfs/issues/6297
 		if [ $retval -ne 4 -a $retval -ne 8 ] ; then
 			log_fail "fsck exited with wrong value $retval"
 		fi

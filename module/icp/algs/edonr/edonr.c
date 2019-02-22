@@ -29,12 +29,7 @@
  * Portions copyright (c) 2013, Saso Kiselkov, All rights reserved
  */
 
-/* determine where we can get bcopy/bzero declarations */
-#ifdef	_KERNEL
-#include <sys/systm.h>
-#else
-#include <strings.h>
-#endif
+#include <sys/strings.h>
 #include <sys/edonr.h>
 #include <sys/debug.h>
 

@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_ZFS_DEBUG_H
@@ -48,17 +48,35 @@ extern int zfs_dbgmsg_enable;
 #define	ZFS_DEBUG_DNODE_VERIFY		(1 << 2)
 #define	ZFS_DEBUG_SNAPNAMES		(1 << 3)
 #define	ZFS_DEBUG_MODIFY		(1 << 4)
-#define	ZFS_DEBUG_SPA			(1 << 5)
+/* 1<<5 was previously used, try not to reuse */
 #define	ZFS_DEBUG_ZIO_FREE		(1 << 6)
 #define	ZFS_DEBUG_HISTOGRAM_VERIFY	(1 << 7)
 #define	ZFS_DEBUG_METASLAB_VERIFY	(1 << 8)
 #define	ZFS_DEBUG_SET_ERROR		(1 << 9)
+#define	ZFS_DEBUG_INDIRECT_REMAP	(1 << 10)
 
-extern void __dprintf(const char *file, const char *func,
+extern void __zfs_dbgmsg(char *buf);
+extern void __dprintf(boolean_t dprint, const char *file, const char *func,
     int line, const char *fmt, ...);
+
+/*
+ * Some general principles for using zfs_dbgmsg():
+ * 1. We don't want to pollute the log with typically-irrelevant messages,
+ *    so don't print too many messages in the "normal" code path - O(1)
+ *    per txg.
+ * 2. We want to know for sure what happened, so make the message specific
+ *    (e.g. *which* thing am I operating on).
+ * 3. Do print a message when something unusual or unexpected happens
+ *    (e.g. error cases).
+ * 4. Print a message when making user-initiated on-disk changes.
+ *
+ * Note that besides principle 1, another reason that we don't want to
+ * use zfs_dbgmsg in high-frequency routines is the potential impact
+ * that it can have on performance.
+ */
 #define	zfs_dbgmsg(...) \
 	if (zfs_dbgmsg_enable) \
-		__dprintf(__FILE__, __func__, __LINE__, __VA_ARGS__)
+		__dprintf(B_FALSE, __FILE__, __func__, __LINE__, __VA_ARGS__)
 
 #ifdef ZFS_DEBUG
 /*
@@ -68,19 +86,12 @@ extern void __dprintf(const char *file, const char *func,
  */
 #define	dprintf(...) \
 	if (zfs_flags & ZFS_DEBUG_DPRINTF) \
-		__dprintf(__FILE__, __func__, __LINE__, __VA_ARGS__)
+		__dprintf(B_TRUE, __FILE__, __func__, __LINE__, __VA_ARGS__)
 #else
 #define	dprintf(...) ((void)0)
 #endif /* ZFS_DEBUG */
 
 extern void zfs_panic_recover(const char *fmt, ...);
-
-typedef struct zfs_dbgmsg {
-	list_node_t zdm_node;
-	time_t zdm_timestamp;
-	int zdm_size;
-	char zdm_msg[1]; /* variable length allocation */
-} zfs_dbgmsg_t;
 
 extern void zfs_dbgmsg_init(void);
 extern void zfs_dbgmsg_fini(void);

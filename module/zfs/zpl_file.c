@@ -27,6 +27,7 @@
 #ifdef CONFIG_COMPAT
 #include <linux/compat.h>
 #endif
+#include <sys/file.h>
 #include <sys/dmu_objset.h>
 #include <sys/zfs_vfsops.h>
 #include <sys/zfs_vnops.h>
@@ -76,7 +77,7 @@ zpl_release(struct inode *ip, struct file *filp)
 }
 
 static int
-zpl_iterate(struct file *filp, struct dir_context *ctx)
+zpl_iterate(struct file *filp, zpl_dir_context_t *ctx)
 {
 	cred_t *cr = CRED();
 	int error;
@@ -96,7 +97,8 @@ zpl_iterate(struct file *filp, struct dir_context *ctx)
 static int
 zpl_readdir(struct file *filp, void *dirent, filldir_t filldir)
 {
-	struct dir_context ctx = DIR_CONTEXT_INIT(dirent, filldir, filp->f_pos);
+	zpl_dir_context_t ctx =
+	    ZPL_DIR_CONTEXT_INIT(dirent, filldir, filp->f_pos);
 	int error;
 
 	error = zpl_iterate(filp, &ctx);
@@ -104,7 +106,7 @@ zpl_readdir(struct file *filp, void *dirent, filldir_t filldir)
 
 	return (error);
 }
-#endif /* HAVE_VFS_ITERATE */
+#endif /* !HAVE_VFS_ITERATE && !HAVE_VFS_ITERATE_SHARED */
 
 #if defined(HAVE_FSYNC_WITH_DENTRY)
 /*
@@ -240,7 +242,6 @@ zpl_read_common_iovec(struct inode *ip, const struct iovec *iovp, size_t count,
 
 	read = count - uio.uio_resid;
 	*ppos += read;
-	task_io_account_read(read);
 
 	return (read);
 }
@@ -337,7 +338,6 @@ zpl_write_common_iovec(struct inode *ip, const struct iovec *iovp, size_t count,
 
 	wrote = count - uio.uio_resid;
 	*ppos += wrote;
-	task_io_account_write(wrote);
 
 	return (wrote);
 }
@@ -436,6 +436,57 @@ zpl_aio_write(struct kiocb *kiocb, const struct iovec *iovp,
 	return (zpl_iter_write_common(kiocb, iovp, nr_segs, count,
 	    UIO_USERSPACE, 0));
 }
+#endif /* HAVE_VFS_RW_ITERATE */
+
+#if defined(HAVE_VFS_RW_ITERATE)
+static ssize_t
+zpl_direct_IO_impl(int rw, struct kiocb *kiocb, struct iov_iter *iter)
+{
+	if (rw == WRITE)
+		return (zpl_iter_write(kiocb, iter));
+	else
+		return (zpl_iter_read(kiocb, iter));
+}
+#if defined(HAVE_VFS_DIRECT_IO_ITER)
+static ssize_t
+zpl_direct_IO(struct kiocb *kiocb, struct iov_iter *iter)
+{
+	return (zpl_direct_IO_impl(iov_iter_rw(iter), kiocb, iter));
+}
+#elif defined(HAVE_VFS_DIRECT_IO_ITER_OFFSET)
+static ssize_t
+zpl_direct_IO(struct kiocb *kiocb, struct iov_iter *iter, loff_t pos)
+{
+	ASSERT3S(pos, ==, kiocb->ki_pos);
+	return (zpl_direct_IO_impl(iov_iter_rw(iter), kiocb, iter));
+}
+#elif defined(HAVE_VFS_DIRECT_IO_ITER_RW_OFFSET)
+static ssize_t
+zpl_direct_IO(int rw, struct kiocb *kiocb, struct iov_iter *iter, loff_t pos)
+{
+	ASSERT3S(pos, ==, kiocb->ki_pos);
+	return (zpl_direct_IO_impl(rw, kiocb, iter));
+}
+#else
+#error "Unknown direct IO interface"
+#endif
+
+#else
+
+#if defined(HAVE_VFS_DIRECT_IO_IOVEC)
+static ssize_t
+zpl_direct_IO(int rw, struct kiocb *kiocb, const struct iovec *iovp,
+    loff_t pos, unsigned long nr_segs)
+{
+	if (rw == WRITE)
+		return (zpl_aio_write(kiocb, iovp, nr_segs, pos));
+	else
+		return (zpl_aio_read(kiocb, iovp, nr_segs, pos));
+}
+#else
+#error "Unknown direct IO interface"
+#endif
+
 #endif /* HAVE_VFS_RW_ITERATE */
 
 static loff_t
@@ -929,6 +980,7 @@ const struct address_space_operations zpl_address_space_operations = {
 	.readpage	= zpl_readpage,
 	.writepage	= zpl_writepage,
 	.writepages	= zpl_writepages,
+	.direct_IO	= zpl_direct_IO,
 };
 
 const struct file_operations zpl_file_operations = {
@@ -965,7 +1017,7 @@ const struct file_operations zpl_file_operations = {
 const struct file_operations zpl_dir_file_operations = {
 	.llseek		= generic_file_llseek,
 	.read		= generic_read_dir,
-#ifdef HAVE_VFS_ITERATE_SHARED
+#if defined(HAVE_VFS_ITERATE_SHARED)
 	.iterate_shared	= zpl_iterate,
 #elif defined(HAVE_VFS_ITERATE)
 	.iterate	= zpl_iterate,

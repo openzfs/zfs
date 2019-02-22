@@ -64,13 +64,13 @@ log_onexit cleanup
 
 init_snap=$TESTPOOL/$TESTFS@initsnap
 inc_snap=$TESTPOOL/$TESTFS@incsnap
-full_bkup=/var/tmp/full_bkup.$$
-inc_bkup=/var/tmp/inc_bkup.$$
+full_bkup=$TEST_BASE_DIR/full_bkup.$$
+inc_bkup=$TEST_BASE_DIR/inc_bkup.$$
 
 init_topsnap=$TESTPOOL@initsnap
 inc_topsnap=$TESTPOOL@incsnap
-full_topbkup=/var/tmp/full_topbkup.$$
-inc_topbkup=/var/tmp/inc_topbkup.$$
+full_topbkup=$TEST_BASE_DIR/full_topbkup.$$
+inc_topbkup=$TEST_BASE_DIR/inc_topbkup.$$
 
 log_must zfs snapshot $init_topsnap
 log_must eval "zfs send $init_topsnap > $full_topbkup"

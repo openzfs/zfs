@@ -37,7 +37,7 @@ log_must_program $TESTPOOL $ZCP_ROOT/lua_core/tst.exists.zcp \
     $TESTPOOL $TESTPOOL/$TESTFS $TESTPOOL/$TESTFS@$TESTSNAP \
     $TESTPOOL/$TESTCLONE
 
-log_mustnot_checkerr_program "not in the target pool" \
+log_mustnot_checkerror_program "not in the target pool" \
     $TESTPOOL - <<-EOF
 	return zfs.exists('rpool')
 EOF

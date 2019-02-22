@@ -31,11 +31,6 @@
 
 . $STF_SUITE/include/libtest.shlib
 
-# See issue: https://github.com/zfsonlinux/zfs/issues/7026
-if is_linux; then
-	log_unsupported "Test case occasionally fails"
-fi
-
 #
 # DESCRIPTION:
 #	'zpool history' can cope with simultaneous commands.

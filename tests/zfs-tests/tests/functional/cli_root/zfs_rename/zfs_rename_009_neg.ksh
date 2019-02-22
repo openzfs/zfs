@@ -33,13 +33,13 @@
 
 #
 # DESCRIPTION:
-#	A snapshot already exists with the new name, then none of the
-#	snapshots is renamed.
+#	When renaming a set of snapshots, if a snapshot already exists with
+#	the new name, then none of the snapshots is renamed.
 #
 # STRATEGY:
-#	1. Create snapshot for a set of datasets.
+#	1. Create a snapshot for a set of datasets.
 #	2. Create a new snapshot for one of datasets.
-#	3. Using rename -r command with exists snapshot name.
+#	3. Attempt to "zfs rename -r" with the second snapshot's name.
 #	4. Verify none of the snapshots is renamed.
 #
 
@@ -54,7 +54,7 @@ function cleanup
 	done
 }
 
-log_assert "zfs rename -r failed, when snapshot name is already existing."
+log_assert "Verify zfs rename -r failed when the snapshot name already exists."
 log_onexit cleanup
 
 set -A datasets $TESTPOOL		$TESTPOOL/$TESTCTR \
@@ -71,7 +71,7 @@ while ((i < ${#datasets[@]})); do
 	log_mustnot zfs rename -r ${TESTPOOL}@snap ${TESTPOOL}@snap2
 	log_must zfs destroy ${datasets[$i]}@snap2
 
-	# Check datasets, make sure none of them was renamed.
+	# Check datasets, make sure none of them have snap2.
 	typeset -i j=0
 	while ((j < ${#datasets[@]})); do
 		if datasetexists ${datasets[$j]}@snap2 ; then
@@ -83,4 +83,4 @@ while ((i < ${#datasets[@]})); do
 	((i += 1))
 done
 
-log_pass "zfs rename -r failed, when snapshot name is already existing passed."
+log_pass "zfs rename -r failed when the snapshot name already exists."

@@ -20,22 +20,23 @@
  */
 
 /*
- * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  * Copyright (c) 2013, Joyent, Inc. All rights reserved.
  * Copyright (c) 2014, Nexenta Systems, Inc. All rights reserved.
+ * Copyright (c) 2017, Intel Corporation.
  */
 
-#ifdef _KERNEL
-#include <sys/systm.h>
-#else
+#ifndef _KERNEL
 #include <errno.h>
 #include <string.h>
+#include <sys/stat.h>
 #endif
 #include <sys/debug.h>
 #include <sys/fs/zfs.h>
 #include <sys/inttypes.h>
 #include <sys/types.h>
+#include <sys/zfs_sysfs.h>
 #include "zfeature_common.h"
 
 /*
@@ -103,10 +104,29 @@ zfeature_is_supported(const char *guid)
 }
 
 int
+zfeature_lookup_guid(const char *guid, spa_feature_t *res)
+{
+	for (spa_feature_t i = 0; i < SPA_FEATURES; i++) {
+		zfeature_info_t *feature = &spa_feature_table[i];
+		if (!feature->fi_zfs_mod_supported)
+			continue;
+		if (strcmp(guid, feature->fi_guid) == 0) {
+			if (res != NULL)
+				*res = i;
+			return (0);
+		}
+	}
+
+	return (ENOENT);
+}
+
+int
 zfeature_lookup_name(const char *name, spa_feature_t *res)
 {
 	for (spa_feature_t i = 0; i < SPA_FEATURES; i++) {
 		zfeature_info_t *feature = &spa_feature_table[i];
+		if (!feature->fi_zfs_mod_supported)
+			continue;
 		if (strcmp(name, feature->fi_uname) == 0) {
 			if (res != NULL)
 				*res = i;
@@ -139,9 +159,76 @@ deps_contains_feature(const spa_feature_t *deps, const spa_feature_t feature)
 	return (B_FALSE);
 }
 
+#if !defined(_KERNEL) && !defined(LIB_ZPOOL_BUILD)
+static boolean_t
+zfs_mod_supported_impl(const char *scope, const char *name, const char *sysfs)
+{
+	boolean_t supported = B_FALSE;
+	char *path;
+
+	int len = asprintf(&path, "%s%s%s%s%s", sysfs,
+	    scope == NULL ? "" : "/", scope == NULL ? "" : scope,
+	    name == NULL ? "" : "/", name == NULL ? "" : name);
+	if (len > 0) {
+		struct stat64 statbuf;
+		supported = !!(stat64(path, &statbuf) == 0);
+		free(path);
+	}
+
+	return (supported);
+}
+
+boolean_t
+zfs_mod_supported(const char *scope, const char *name)
+{
+	boolean_t supported;
+
+	/*
+	 * Check both the primary and alternate sysfs locations to determine
+	 * if the required functionality is supported.
+	 */
+	supported = (zfs_mod_supported_impl(scope, name, ZFS_SYSFS_DIR) ||
+	    zfs_mod_supported_impl(scope, name, ZFS_SYSFS_ALT_DIR));
+
+	/*
+	 * For backwards compatibility with kernel modules that predate
+	 * supported feature/property checking.  Report the feature/property
+	 * as supported if the kernel module is loaded but the requested
+	 * scope directory does not exist.
+	 */
+	if (supported == B_FALSE) {
+		struct stat64 statbuf;
+		if ((stat64(ZFS_SYSFS_DIR, &statbuf) == 0) &&
+		    !zfs_mod_supported_impl(scope, NULL, ZFS_SYSFS_DIR) &&
+		    !zfs_mod_supported_impl(scope, NULL, ZFS_SYSFS_ALT_DIR)) {
+			supported = B_TRUE;
+		}
+	}
+
+	return (supported);
+}
+#endif
+
+static boolean_t
+zfs_mod_supported_feature(const char *name)
+{
+	/*
+	 * The zfs module spa_feature_table[], whether in-kernel or in
+	 * libzpool, always supports all the features. libzfs needs to
+	 * query the running module, via sysfs, to determine which
+	 * features are supported.
+	 */
+#if defined(_KERNEL) || defined(LIB_ZPOOL_BUILD)
+	return (B_TRUE);
+#else
+	return (zfs_mod_supported(ZFS_SYSFS_POOL_FEATURES, name));
+#endif
+}
+
 static void
 zfeature_register(spa_feature_t fid, const char *guid, const char *name,
-    const char *desc, zfeature_flags_t flags, const spa_feature_t *deps)
+    const char *desc, zfeature_flags_t flags, zfeature_type_t type,
+    const spa_feature_t *deps)
 {
 	zfeature_info_t *feature = &spa_feature_table[fid];
 	static spa_feature_t nodeps[] = { SPA_FEATURE_NONE };
@@ -164,7 +251,9 @@ zfeature_register(spa_feature_t fid, const char *guid, const char *name,
 	feature->fi_uname = name;
 	feature->fi_desc = desc;
 	feature->fi_flags = flags;
+	feature->fi_type = type;
 	feature->fi_depends = deps;
+	feature->fi_zfs_mod_supported = zfs_mod_supported_feature(guid);
 }
 
 void
@@ -173,32 +262,32 @@ zpool_feature_init(void)
 	zfeature_register(SPA_FEATURE_ASYNC_DESTROY,
 	    "com.delphix:async_destroy", "async_destroy",
 	    "Destroy filesystems asynchronously.",
-	    ZFEATURE_FLAG_READONLY_COMPAT, NULL);
+	    ZFEATURE_FLAG_READONLY_COMPAT, ZFEATURE_TYPE_BOOLEAN, NULL);
 
 	zfeature_register(SPA_FEATURE_EMPTY_BPOBJ,
 	    "com.delphix:empty_bpobj", "empty_bpobj",
 	    "Snapshots use less space.",
-	    ZFEATURE_FLAG_READONLY_COMPAT, NULL);
+	    ZFEATURE_FLAG_READONLY_COMPAT, ZFEATURE_TYPE_BOOLEAN, NULL);
 
 	zfeature_register(SPA_FEATURE_LZ4_COMPRESS,
 	    "org.illumos:lz4_compress", "lz4_compress",
 	    "LZ4 compression algorithm support.",
-	    ZFEATURE_FLAG_ACTIVATE_ON_ENABLE, NULL);
+	    ZFEATURE_FLAG_ACTIVATE_ON_ENABLE, ZFEATURE_TYPE_BOOLEAN, NULL);
 
 	zfeature_register(SPA_FEATURE_MULTI_VDEV_CRASH_DUMP,
 	    "com.joyent:multi_vdev_crash_dump", "multi_vdev_crash_dump",
 	    "Crash dumps to multiple vdev pools.",
-	    0, NULL);
+	    0, ZFEATURE_TYPE_BOOLEAN, NULL);
 
 	zfeature_register(SPA_FEATURE_SPACEMAP_HISTOGRAM,
 	    "com.delphix:spacemap_histogram", "spacemap_histogram",
 	    "Spacemaps maintain space histograms.",
-	    ZFEATURE_FLAG_READONLY_COMPAT, NULL);
+	    ZFEATURE_FLAG_READONLY_COMPAT, ZFEATURE_TYPE_BOOLEAN, NULL);
 
 	zfeature_register(SPA_FEATURE_ENABLED_TXG,
 	    "com.delphix:enabled_txg", "enabled_txg",
 	    "Record txg at which a feature is enabled",
-	    ZFEATURE_FLAG_READONLY_COMPAT, NULL);
+	    ZFEATURE_FLAG_READONLY_COMPAT, ZFEATURE_TYPE_BOOLEAN, NULL);
 
 	{
 	static const spa_feature_t hole_birth_deps[] = {
@@ -209,13 +298,24 @@ zpool_feature_init(void)
 	    "com.delphix:hole_birth", "hole_birth",
 	    "Retain hole birth txg for more precise zfs send",
 	    ZFEATURE_FLAG_MOS | ZFEATURE_FLAG_ACTIVATE_ON_ENABLE,
-	    hole_birth_deps);
+	    ZFEATURE_TYPE_BOOLEAN, hole_birth_deps);
 	}
+
+	zfeature_register(SPA_FEATURE_POOL_CHECKPOINT,
+	    "com.delphix:zpool_checkpoint", "zpool_checkpoint",
+	    "Pool state can be checkpointed, allowing rewind later.",
+	    ZFEATURE_FLAG_READONLY_COMPAT, ZFEATURE_TYPE_BOOLEAN, NULL);
+
+	zfeature_register(SPA_FEATURE_SPACEMAP_V2,
+	    "com.delphix:spacemap_v2", "spacemap_v2",
+	    "Space maps representing large segments are more efficient.",
+	    ZFEATURE_FLAG_READONLY_COMPAT | ZFEATURE_FLAG_ACTIVATE_ON_ENABLE,
+	    ZFEATURE_TYPE_BOOLEAN, NULL);
 
 	zfeature_register(SPA_FEATURE_EXTENSIBLE_DATASET,
 	    "com.delphix:extensible_dataset", "extensible_dataset",
 	    "Enhanced dataset functionality, used by other features.",
-	    0, NULL);
+	    0, ZFEATURE_TYPE_BOOLEAN, NULL);
 
 	{
 	static const spa_feature_t bookmarks_deps[] = {
@@ -226,7 +326,8 @@ zpool_feature_init(void)
 	zfeature_register(SPA_FEATURE_BOOKMARKS,
 	    "com.delphix:bookmarks", "bookmarks",
 	    "\"zfs bookmark\" command",
-	    ZFEATURE_FLAG_READONLY_COMPAT, bookmarks_deps);
+	    ZFEATURE_FLAG_READONLY_COMPAT, ZFEATURE_TYPE_BOOLEAN,
+	    bookmarks_deps);
 	}
 
 	{
@@ -237,14 +338,15 @@ zpool_feature_init(void)
 	zfeature_register(SPA_FEATURE_FS_SS_LIMIT,
 	    "com.joyent:filesystem_limits", "filesystem_limits",
 	    "Filesystem and snapshot limits.",
-	    ZFEATURE_FLAG_READONLY_COMPAT, filesystem_limits_deps);
+	    ZFEATURE_FLAG_READONLY_COMPAT, ZFEATURE_TYPE_BOOLEAN,
+	    filesystem_limits_deps);
 	}
 
 	zfeature_register(SPA_FEATURE_EMBEDDED_DATA,
 	    "com.delphix:embedded_data", "embedded_data",
 	    "Blocks which compress very well use even less space.",
 	    ZFEATURE_FLAG_MOS | ZFEATURE_FLAG_ACTIVATE_ON_ENABLE,
-	    NULL);
+	    ZFEATURE_TYPE_BOOLEAN, NULL);
 
 	{
 	static const spa_feature_t large_blocks_deps[] = {
@@ -254,7 +356,8 @@ zpool_feature_init(void)
 	zfeature_register(SPA_FEATURE_LARGE_BLOCKS,
 	    "org.open-zfs:large_blocks", "large_blocks",
 	    "Support for blocks larger than 128KB.",
-	    ZFEATURE_FLAG_PER_DATASET, large_blocks_deps);
+	    ZFEATURE_FLAG_PER_DATASET, ZFEATURE_TYPE_BOOLEAN,
+	    large_blocks_deps);
 	}
 
 	{
@@ -265,7 +368,8 @@ zpool_feature_init(void)
 	zfeature_register(SPA_FEATURE_LARGE_DNODE,
 	    "org.zfsonlinux:large_dnode", "large_dnode",
 	    "Variable on-disk size of dnodes.",
-	    ZFEATURE_FLAG_PER_DATASET, large_dnode_deps);
+	    ZFEATURE_FLAG_PER_DATASET, ZFEATURE_TYPE_BOOLEAN,
+	    large_dnode_deps);
 	}
 
 	{
@@ -276,8 +380,10 @@ zpool_feature_init(void)
 	zfeature_register(SPA_FEATURE_SHA512,
 	    "org.illumos:sha512", "sha512",
 	    "SHA-512/256 hash algorithm.",
-	    ZFEATURE_FLAG_PER_DATASET, sha512_deps);
+	    ZFEATURE_FLAG_PER_DATASET, ZFEATURE_TYPE_BOOLEAN,
+	    sha512_deps);
 	}
+
 	{
 	static const spa_feature_t skein_deps[] = {
 		SPA_FEATURE_EXTENSIBLE_DATASET,
@@ -286,7 +392,8 @@ zpool_feature_init(void)
 	zfeature_register(SPA_FEATURE_SKEIN,
 	    "org.illumos:skein", "skein",
 	    "Skein hash algorithm.",
-	    ZFEATURE_FLAG_PER_DATASET, skein_deps);
+	    ZFEATURE_FLAG_PER_DATASET, ZFEATURE_TYPE_BOOLEAN,
+	    skein_deps);
 	}
 
 	{
@@ -297,8 +404,29 @@ zpool_feature_init(void)
 	zfeature_register(SPA_FEATURE_EDONR,
 	    "org.illumos:edonr", "edonr",
 	    "Edon-R hash algorithm.",
-	    ZFEATURE_FLAG_PER_DATASET, edonr_deps);
+	    ZFEATURE_FLAG_PER_DATASET, ZFEATURE_TYPE_BOOLEAN,
+	    edonr_deps);
 	}
+
+	zfeature_register(SPA_FEATURE_DEVICE_REMOVAL,
+	    "com.delphix:device_removal", "device_removal",
+	    "Top-level vdevs can be removed, reducing logical pool size.",
+	    ZFEATURE_FLAG_MOS, ZFEATURE_TYPE_BOOLEAN, NULL);
+
+	{
+	static const spa_feature_t obsolete_counts_deps[] = {
+		SPA_FEATURE_EXTENSIBLE_DATASET,
+		SPA_FEATURE_DEVICE_REMOVAL,
+		SPA_FEATURE_NONE
+	};
+	zfeature_register(SPA_FEATURE_OBSOLETE_COUNTS,
+	    "com.delphix:obsolete_counts", "obsolete_counts",
+	    "Reduce memory used by removed devices when their blocks are "
+	    "freed or remapped.",
+	    ZFEATURE_FLAG_READONLY_COMPAT, ZFEATURE_TYPE_BOOLEAN,
+	    obsolete_counts_deps);
+	}
+
 	{
 	static const spa_feature_t userobj_accounting_deps[] = {
 		SPA_FEATURE_EXTENSIBLE_DATASET,
@@ -308,7 +436,7 @@ zpool_feature_init(void)
 	    "org.zfsonlinux:userobj_accounting", "userobj_accounting",
 	    "User/Group object accounting.",
 	    ZFEATURE_FLAG_READONLY_COMPAT | ZFEATURE_FLAG_PER_DATASET,
-	    userobj_accounting_deps);
+	    ZFEATURE_TYPE_BOOLEAN, userobj_accounting_deps);
 	}
 
 	{
@@ -319,7 +447,8 @@ zpool_feature_init(void)
 	zfeature_register(SPA_FEATURE_ENCRYPTION,
 	    "com.datto:encryption", "encryption",
 	    "Support for dataset level encryption",
-	    ZFEATURE_FLAG_PER_DATASET, encryption_deps);
+	    ZFEATURE_FLAG_PER_DATASET, ZFEATURE_TYPE_BOOLEAN,
+	    encryption_deps);
 	}
 
 	{
@@ -331,11 +460,24 @@ zpool_feature_init(void)
 	    "org.zfsonlinux:project_quota", "project_quota",
 	    "space/object accounting based on project ID.",
 	    ZFEATURE_FLAG_READONLY_COMPAT | ZFEATURE_FLAG_PER_DATASET,
-	    project_quota_deps);
+	    ZFEATURE_TYPE_BOOLEAN, project_quota_deps);
 	}
+
+	{
+	zfeature_register(SPA_FEATURE_ALLOCATION_CLASSES,
+	    "org.zfsonlinux:allocation_classes", "allocation_classes",
+	    "Support for separate allocation classes.",
+	    ZFEATURE_FLAG_READONLY_COMPAT, ZFEATURE_TYPE_BOOLEAN, NULL);
+	}
+
+	zfeature_register(SPA_FEATURE_RESILVER_DEFER,
+	    "com.datto:resilver_defer", "resilver_defer",
+	    "Support for defering new resilvers when one is already running.",
+	    ZFEATURE_FLAG_READONLY_COMPAT, ZFEATURE_TYPE_BOOLEAN, NULL);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
+EXPORT_SYMBOL(zfeature_lookup_guid);
 EXPORT_SYMBOL(zfeature_lookup_name);
 EXPORT_SYMBOL(zfeature_is_supported);
 EXPORT_SYMBOL(zfeature_is_valid_guid);

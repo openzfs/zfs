@@ -32,12 +32,6 @@
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/clean_mirror/default.cfg
 
-# Most of the code related to the clearing of mirrors is duplicated in all
-# the test cases below this directory, barring a few minor changes
-# involving the device to be affected and the 'object' to use to mangle
-# the contents of the mirror.
-# This code is sourced into each of these test cases.
-
 function overwrite_verify_mirror
 {
 	typeset AFFECTED_DEVICE=$1
@@ -56,7 +50,7 @@ function overwrite_verify_mirror
 		(( atfile = atfile + 1 ))
 	done
 
-	# dd the primary side of the mirror
+	# dd the affected side of the mirror
 	log_must dd if=$OVERWRITING_DEVICE of=$AFFECTED_DEVICE \
 		seek=8 bs=$DD_BLOCK count=$(( DD_COUNT - 128 )) conv=notrunc
 
@@ -66,7 +60,7 @@ function overwrite_verify_mirror
 	# Flush out the cache so that we ensure we're reading from disk.
 	#
 	log_must zpool export $TESTPOOL
-	log_must zpool import $TESTPOOL
+	log_must zpool import -d $SIDE_DIR $TESTPOOL
 
 	typeset -i failedcount=0
 	while (( atfile < FILE_COUNT )); do
@@ -84,5 +78,6 @@ function overwrite_verify_mirror
 		    "have the same checksum before and after."
 	fi
 
-	sync_pool $TESTPOOL
+	log_must zpool scrub $TESTPOOL
+	log_must wait_scrubbed $TESTPOOL
 }

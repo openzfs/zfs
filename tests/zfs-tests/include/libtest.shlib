@@ -22,7 +22,7 @@
 #
 # Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
-# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2017 by Delphix. All rights reserved.
 # Copyright 2016 Nexenta Systems, Inc.
 # Copyright (c) 2017 Lawrence Livermore National Security, LLC.
 # Copyright (c) 2017 Datto Inc.
@@ -40,6 +40,20 @@
 if [ -n "$STF_PATH" ]; then
 	PATH="$STF_PATH"
 fi
+
+#
+# Generic dot version comparison function
+#
+# Returns success when version $1 is greater than or equal to $2.
+#
+function compare_version_gte
+{
+	if [[ "$(printf "$1\n$2" | sort -V | tail -n1)" == "$1" ]]; then
+		return 0
+	else
+		return 1
+	fi
+}
 
 # Linux kernel version comparison function
 #
@@ -589,6 +603,8 @@ function default_cleanup_noexit
 	if is_mpath_device $disk1; then
 		delete_partitions
 	fi
+
+	rm -f $TEST_BASE_DIR/{err,out}
 }
 
 
@@ -626,7 +642,7 @@ function destroy_snapshot
 	typeset snap=${1:-$TESTPOOL/$TESTFS@$TESTSNAP}
 
 	if ! snapexists $snap; then
-		log_fail "'$snap' does not existed."
+		log_fail "'$snap' does not exist."
 	fi
 
 	#
@@ -1013,7 +1029,7 @@ function get_endslice #<disk> <slice>
 
 		((endcyl = (endcyl + 1) / ratio))
 	fi
-	
+
 	echo $endcyl
 }
 
@@ -1214,6 +1230,34 @@ function datasetnonexists
 	return 0
 }
 
+function is_shared_impl
+{
+	typeset fs=$1
+	typeset mtpt
+
+	if is_linux; then
+		for mtpt in `share | awk '{print $1}'` ; do
+			if [[ $mtpt == $fs ]] ; then
+				return 0
+			fi
+		done
+		return 1
+	fi
+
+	for mtpt in `share | awk '{print $2}'` ; do
+		if [[ $mtpt == $fs ]] ; then
+			return 0
+		fi
+	done
+
+	typeset stat=$(svcs -H -o STA nfs/server:default)
+	if [[ $stat != "ON" ]]; then
+		log_note "Current nfs/server status: $stat"
+	fi
+
+	return 1
+}
+
 #
 # Given a mountpoint, or a dataset name, determine if it is shared via NFS.
 #
@@ -1238,27 +1282,7 @@ function is_shared
 		fi
 	fi
 
-	if is_linux; then
-		for mtpt in `share | awk '{print $1}'` ; do
-			if [[ $mtpt == $fs ]] ; then
-				return 0
-			fi
-		done
-		return 1
-	fi
-
-	for mtpt in `share | awk '{print $2}'` ; do
-		if [[ $mtpt == $fs ]] ; then
-			return 0
-		fi
-	done
-
-	typeset stat=$(svcs -H -o STA nfs/server:default)
-	if [[ $stat != "ON" ]]; then
-		log_note "Current nfs/server status: $stat"
-	fi
-
-	return 1
+	is_shared_impl "$fs"
 }
 
 #
@@ -1599,6 +1623,31 @@ function destroy_pool #pool
 	return 0
 }
 
+# Return 0 if created successfully; $? otherwise
+#
+# $1 - dataset name
+# $2-n - dataset options
+
+function create_dataset #dataset dataset_options
+{
+	typeset dataset=$1
+
+	shift
+
+	if [[ -z $dataset ]]; then
+		log_note "Missing dataset name."
+		return 1
+	fi
+
+	if datasetexists $dataset ; then
+		destroy_dataset $dataset
+	fi
+
+	log_must zfs create $@ $dataset
+
+	return 0
+}
+
 # Return 0 if destroy successfully or the dataset exists; $? otherwise
 # Note: In local zones, this function should return 0 silently.
 #
@@ -1883,6 +1932,23 @@ function verify_filesys # pool filesystem dir
 }
 
 #
+# Given a pool issue a scrub and verify that no checksum errors are reported.
+#
+function verify_pool
+{
+	typeset pool=${1:-$TESTPOOL}
+
+	log_must zpool scrub $pool
+	log_must wait_scrubbed $pool
+
+	cksum=$(zpool status $pool | awk 'L{print $NF;L=0} /CKSUM$/{L=1}')
+	if [[ $cksum != 0 ]]; then
+		log_must zpool status -v
+	        log_fail "Unexpected CKSUM errors found on $pool ($cksum)"
+	fi
+}
+
+#
 # Given a pool, and this function list all disks in the pool
 #
 function get_disklist # pool
@@ -1965,7 +2031,7 @@ function check_hotspare_state # pool disk state{inuse,avail}
 function wait_hotspare_state # pool disk state timeout
 {
 	typeset pool=$1
-	typeset disk=${2#$/DEV_DSKDIR/}
+	typeset disk=${2#*$DEV_DSKDIR/}
 	typeset state=$3
 	typeset timeout=${4:-60}
 	typeset -i i=0
@@ -2009,7 +2075,7 @@ function check_slog_state # pool disk state{online,offline,unavail}
 function check_vdev_state # pool disk state{online,offline,unavail}
 {
 	typeset pool=$1
-	typeset disk=${2#$/DEV_DSKDIR/}
+	typeset disk=${2#*$DEV_DSKDIR/}
 	typeset state=$3
 
 	cur_state=$(get_device_state $pool $disk)
@@ -2028,7 +2094,7 @@ function check_vdev_state # pool disk state{online,offline,unavail}
 function wait_vdev_state # pool disk state timeout
 {
 	typeset pool=$1
-	typeset disk=${2#$/DEV_DSKDIR/}
+	typeset disk=${2#*$DEV_DSKDIR/}
 	typeset state=$3
 	typeset timeout=${4:-60}
 	typeset -i i=0
@@ -2076,6 +2142,8 @@ function check_pool_status # pool token keyword <verbose>
 #	is_pool_scrubbed - to check if the pool is scrub completed
 #	is_pool_scrub_stopped - to check if the pool is scrub stopped
 #	is_pool_scrub_paused - to check if the pool has scrub paused
+#	is_pool_removing - to check if the pool is removing a vdev
+#	is_pool_removed - to check if the pool is remove completed
 #
 function is_pool_resilvering #pool <verbose>
 {
@@ -2111,6 +2179,37 @@ function is_pool_scrub_paused #pool <verbose>
 {
 	check_pool_status "$1" "scan" "scrub paused since " $2
 	return $?
+}
+
+function is_pool_removing #pool
+{
+	check_pool_status "$1" "remove" "in progress since "
+	return $?
+}
+
+function is_pool_removed #pool
+{
+	check_pool_status "$1" "remove" "completed on"
+	return $?
+}
+
+function wait_for_degraded
+{
+	typeset pool=$1
+	typeset timeout=${2:-30}
+	typeset t0=$SECONDS
+
+	while :; do
+		[[ $(get_pool_prop health $pool) == "DEGRADED" ]] && break
+		log_note "$pool is not yet degraded."
+		sleep 1
+		if ((SECONDS - t0 > $timeout)); then
+			log_note "$pool not degraded after $timeout seconds."
+			return 1
+		fi
+	done
+
+	return 0
 }
 
 #
@@ -2918,7 +3017,7 @@ function user_run
 	shift
 
 	log_note "user:$user $@"
-	eval su - \$user -c \"$@\" > /tmp/out 2>/tmp/err
+	eval su - \$user -c \"$@\" > $TEST_BASE_DIR/out 2>$TEST_BASE_DIR/err
 	return $?
 }
 
@@ -2943,8 +3042,11 @@ function vdevs_in_pool
 
 	shift
 
+	# We could use 'zpool list' to only get the vdevs of the pool but we
+	# can't reference a mirror/raidz vdev using its ID (i.e mirror-0),
+	# therefore we use the 'zpool status' output.
 	typeset tmpfile=$(mktemp)
-	zpool list -Hv "$pool" >$tmpfile
+	zpool status -v "$pool" | grep -A 1000 "config:" >$tmpfile
 	for vdev in $@; do
 		grep -w ${vdev##*/} $tmpfile >/dev/null 2>&1
 		[[ $? -ne 0 ]] && return 1
@@ -3107,14 +3209,10 @@ function wait_replacing #pool
 function wait_scrubbed
 {
 	typeset pool=${1:-$TESTPOOL}
-	typeset iter=${2:-10}
-	for i in {1..$iter} ; do
-		if is_pool_scrubbed $pool ; then
-			return 0
-		fi
-		sleep 1
+	while true ; do
+		is_pool_scrubbed $pool && break
+		log_must sleep 1
 	done
-	return 1
 }
 
 # Backup the zed.rc in our test directory so that we can edit it for our test.
@@ -3249,7 +3347,7 @@ function zed_stop
 
 	log_note "Stopping ZED"
 	if [[ -f ${ZEDLET_DIR}/zed.pid ]]; then
-		zedpid=$(cat ${ZEDLET_DIR}/zed.pid)
+		zedpid=$(<${ZEDLET_DIR}/zed.pid)
 		kill $zedpid
 		while ps -p $zedpid > /dev/null; do
 			sleep 1
@@ -3421,4 +3519,65 @@ function get_tunable_impl
 	esac
 
 	return 1
+}
+
+#
+# Prints the current time in seconds since UNIX Epoch.
+#
+function current_epoch
+{
+	printf '%(%s)T'
+}
+
+#
+# Get decimal value of global uint32_t variable using mdb.
+#
+function mdb_get_uint32
+{
+	typeset variable=$1
+	typeset value
+
+	value=$(mdb -k -e "$variable/X | ::eval .=U")
+	if [[ $? -ne 0 ]]; then
+		log_fail "Failed to get value of '$variable' from mdb."
+		return 1
+	fi
+
+	echo $value
+	return 0
+}
+
+#
+# Set global uint32_t variable to a decimal value using mdb.
+#
+function mdb_set_uint32
+{
+	typeset variable=$1
+	typeset value=$2
+
+	mdb -kw -e "$variable/W 0t$value" > /dev/null
+	if [[ $? -ne 0 ]]; then
+		echo "Failed to set '$variable' to '$value' in mdb."
+		return 1
+	fi
+
+	return 0
+}
+
+#
+# Set global scalar integer variable to a hex value using mdb.
+# Note: Target should have CTF data loaded.
+#
+function mdb_ctf_set_int
+{
+	typeset variable=$1
+	typeset value=$2
+
+	mdb -kw -e "$variable/z $value" > /dev/null
+	if [[ $? -ne 0 ]]; then
+		echo "Failed to set '$variable' to '$value' in mdb."
+		return 1
+	fi
+
+	return 0
 }

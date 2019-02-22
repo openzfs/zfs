@@ -46,6 +46,7 @@
 #include <sys/zfs_ioctl.h>
 #include <sys/vdev_impl.h>
 #include <sys/dmu_objset.h>
+#include <sys/dsl_dataset.h>
 #include <sys/fs/zfs.h>
 
 uint32_t zio_injection_enabled = 0;
@@ -123,7 +124,7 @@ freq_triggered(uint32_t frequency)
  * Returns true if the given record matches the I/O in progress.
  */
 static boolean_t
-zio_match_handler(zbookmark_phys_t *zb, uint64_t type,
+zio_match_handler(const zbookmark_phys_t *zb, uint64_t type,
     zinject_record_t *record, int error)
 {
 	/*
@@ -176,6 +177,36 @@ zio_handle_panic_injection(spa_t *spa, char *tag, uint64_t type)
 	}
 
 	rw_exit(&inject_lock);
+}
+
+/*
+ * Inject a decryption failure. Decryption failures can occur in
+ * both the ARC and the ZIO layers.
+ */
+int
+zio_handle_decrypt_injection(spa_t *spa, const zbookmark_phys_t *zb,
+    uint64_t type, int error)
+{
+	int ret = 0;
+	inject_handler_t *handler;
+
+	rw_enter(&inject_lock, RW_READER);
+
+	for (handler = list_head(&inject_handlers); handler != NULL;
+	    handler = list_next(&inject_handlers, handler)) {
+
+		if (spa != handler->zi_spa ||
+		    handler->zi_record.zi_cmd != ZINJECT_DECRYPT_FAULT)
+			continue;
+
+		if (zio_match_handler(zb, type, &handler->zi_record, error)) {
+			ret = error;
+			break;
+		}
+	}
+
+	rw_exit(&inject_lock);
+	return (ret);
 }
 
 /*
@@ -629,6 +660,63 @@ zio_handle_io_delay(zio_t *zio)
 	return (min_target);
 }
 
+static int
+zio_calculate_range(const char *pool, zinject_record_t *record)
+{
+	dsl_pool_t *dp;
+	dsl_dataset_t *ds;
+	objset_t *os = NULL;
+	dnode_t *dn = NULL;
+	int error;
+
+	/*
+	 * Obtain the dnode for object using pool, objset, and object
+	 */
+	error = dsl_pool_hold(pool, FTAG, &dp);
+	if (error)
+		return (error);
+
+	error = dsl_dataset_hold_obj(dp, record->zi_objset, FTAG, &ds);
+	dsl_pool_rele(dp, FTAG);
+	if (error)
+		return (error);
+
+	error = dmu_objset_from_ds(ds, &os);
+	dsl_dataset_rele(ds, FTAG);
+	if (error)
+		return (error);
+
+	error = dnode_hold(os, record->zi_object, FTAG, &dn);
+	if (error)
+		return (error);
+
+	/*
+	 * Translate the range into block IDs
+	 */
+	if (record->zi_start != 0 || record->zi_end != -1ULL) {
+		record->zi_start >>= dn->dn_datablkshift;
+		record->zi_end >>= dn->dn_datablkshift;
+	}
+	if (record->zi_level > 0) {
+		if (record->zi_level >= dn->dn_nlevels) {
+			dnode_rele(dn, FTAG);
+			return (SET_ERROR(EDOM));
+		}
+
+		if (record->zi_start != 0 || record->zi_end != 0) {
+			int shift = dn->dn_indblkshift - SPA_BLKPTRSHIFT;
+
+			for (int level = record->zi_level; level > 0; level--) {
+				record->zi_start >>= shift;
+				record->zi_end >>= shift;
+			}
+		}
+	}
+
+	dnode_rele(dn, FTAG);
+	return (0);
+}
+
 /*
  * Create a new handler for the given record.  We add it to the list, adding
  * a reference to the spa_t in the process.  We increment zio_injection_enabled,
@@ -666,6 +754,15 @@ zio_inject_fault(char *name, int flags, int *id, zinject_record_t *record)
 		 */
 		if (record->zi_nlanes >= UINT16_MAX)
 			return (SET_ERROR(EINVAL));
+	}
+
+	/*
+	 * If the supplied range was in bytes -- calculate the actual blkid
+	 */
+	if (flags & ZINJECT_CALC_RANGE) {
+		error = zio_calculate_range(name, record);
+		if (error != 0)
+			return (error);
 	}
 
 	if (!(flags & ZINJECT_NULL)) {
@@ -825,7 +922,7 @@ zio_inject_fini(void)
 	rw_destroy(&inject_lock);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 EXPORT_SYMBOL(zio_injection_enabled);
 EXPORT_SYMBOL(zio_inject_fault);
 EXPORT_SYMBOL(zio_inject_list_next);

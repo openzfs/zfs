@@ -46,10 +46,6 @@
 
 verify_runnable "both"
 
-if is_32bit; then
-	log_unsupported "Test case runs slowly on 32 bit"
-fi
-
 function cleanup
 {
 	for file in `find $TESTDIR -type f`; do

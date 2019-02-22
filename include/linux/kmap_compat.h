@@ -27,6 +27,7 @@
 #define	_ZFS_KMAP_H
 
 #include <linux/highmem.h>
+#include <linux/uaccess.h>
 
 #ifdef HAVE_1ARG_KMAP_ATOMIC
 /* 2.6.37 API change */
@@ -35,6 +36,13 @@
 #else
 #define	zfs_kmap_atomic(page, km_type)		kmap_atomic(page, km_type)
 #define	zfs_kunmap_atomic(addr, km_type)	kunmap_atomic(addr, km_type)
+#endif
+
+/* 5.0 API change - no more 'type' argument for access_ok() */
+#ifdef HAVE_ACCESS_OK_TYPE
+#define	zfs_access_ok(type, addr, size)	access_ok(type, addr, size)
+#else
+#define	zfs_access_ok(type, addr, size)	access_ok(addr, size)
 #endif
 
 #endif	/* _ZFS_KMAP_H */

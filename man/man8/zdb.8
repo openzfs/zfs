@@ -10,7 +10,7 @@
 .\"
 .\"
 .\" Copyright 2012, Richard Lowe.
-.\" Copyright (c) 2012, 2017 by Delphix. All rights reserved.
+.\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Lawrence Livermore National Security, LLC.
 .\" Copyright (c) 2017 Intel Corporation.
@@ -23,7 +23,7 @@
 .Nd display zpool debugging and consistency information
 .Sh SYNOPSIS
 .Nm
-.Op Fl AbcdDFGhiLMPsvX
+.Op Fl AbcdDFGhikLMPsvXY
 .Op Fl e Oo Fl V Oc Op Fl p Ar path ...
 .Op Fl I Ar inflight I/Os
 .Oo Fl o Ar var Ns = Ns Ar value Oc Ns ...
@@ -50,7 +50,7 @@
 .Ar device
 .Nm
 .Fl m
-.Op Fl AFLPX
+.Op Fl AFLPXY
 .Op Fl e Oo Fl V Oc Op Fl p Ar path ...
 .Op Fl t Ar txg
 .Op Fl U Ar cache
@@ -172,6 +172,9 @@ Display information about intent log
 .Pq ZIL
 entries relating to each dataset.
 If specified multiple times, display counts of each intent log transaction type.
+.It Fl k
+Examine the checkpointed state of the pool.
+Note, the on disk format of the pool is not reverted to the checkpointed state.
 .It Fl l Ar device
 Read the vdev labels from the specified device.
 .Nm Fl l
@@ -191,7 +194,7 @@ If the
 option is also specified, also display the uberblocks on this device.  Specify
 multiple times to increase verbosity.
 .It Fl L
-Disable leak tracing and the loading of space maps.
+Disable leak detection and the loading of space maps.
 By default,
 .Nm
 verifies that all non-free blocks are referenced, which can be very expensive.
@@ -346,6 +349,10 @@ Attempt
 transaction rewind, that is attempt the same recovery as
 .Fl F
 but read transactions otherwise deemed too old.
+.It Fl Y
+Attempt all possible combinations when reconstructing indirect split blocks.
+This flag disables the individual I/O deadman timer in order to allow as
+much time as required for the attempted reconstruction.
 .El
 .Pp
 Specifying a display option more than once enables verbosity for only that

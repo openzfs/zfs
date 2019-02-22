@@ -31,7 +31,6 @@
 #include <linux/dcache_compat.h>
 #include <linux/exportfs.h>
 #include <linux/falloc.h>
-#include <linux/file_compat.h>
 #include <linux/parser.h>
 #include <linux/task_io_accounting_ops.h>
 #include <linux/vfs_compat.h>
@@ -125,61 +124,77 @@ extern const struct inode_operations zpl_ops_shares;
 
 #if defined(HAVE_VFS_ITERATE) || defined(HAVE_VFS_ITERATE_SHARED)
 
-#define	DIR_CONTEXT_INIT(_dirent, _actor, _pos) {	\
+#define	ZPL_DIR_CONTEXT_INIT(_dirent, _actor, _pos) {	\
 	.actor = _actor,				\
 	.pos = _pos,					\
 }
 
+typedef struct dir_context zpl_dir_context_t;
+
+#define	zpl_dir_emit		dir_emit
+#define	zpl_dir_emit_dot	dir_emit_dot
+#define	zpl_dir_emit_dotdot	dir_emit_dotdot
+#define	zpl_dir_emit_dots	dir_emit_dots
+
 #else
 
-typedef struct dir_context {
+typedef struct zpl_dir_context {
 	void *dirent;
 	const filldir_t actor;
 	loff_t pos;
-} dir_context_t;
+} zpl_dir_context_t;
 
-#define	DIR_CONTEXT_INIT(_dirent, _actor, _pos) {	\
+#define	ZPL_DIR_CONTEXT_INIT(_dirent, _actor, _pos) {	\
 	.dirent = _dirent,				\
 	.actor = _actor,				\
 	.pos = _pos,					\
 }
 
 static inline bool
-dir_emit(struct dir_context *ctx, const char *name, int namelen,
+zpl_dir_emit(zpl_dir_context_t *ctx, const char *name, int namelen,
     uint64_t ino, unsigned type)
 {
 	return (!ctx->actor(ctx->dirent, name, namelen, ctx->pos, ino, type));
 }
 
 static inline bool
-dir_emit_dot(struct file *file, struct dir_context *ctx)
+zpl_dir_emit_dot(struct file *file, zpl_dir_context_t *ctx)
 {
 	return (ctx->actor(ctx->dirent, ".", 1, ctx->pos,
 	    file_inode(file)->i_ino, DT_DIR) == 0);
 }
 
 static inline bool
-dir_emit_dotdot(struct file *file, struct dir_context *ctx)
+zpl_dir_emit_dotdot(struct file *file, zpl_dir_context_t *ctx)
 {
 	return (ctx->actor(ctx->dirent, "..", 2, ctx->pos,
 	    parent_ino(file_dentry(file)), DT_DIR) == 0);
 }
 
 static inline bool
-dir_emit_dots(struct file *file, struct dir_context *ctx)
+zpl_dir_emit_dots(struct file *file, zpl_dir_context_t *ctx)
 {
 	if (ctx->pos == 0) {
-		if (!dir_emit_dot(file, ctx))
+		if (!zpl_dir_emit_dot(file, ctx))
 			return (false);
 		ctx->pos = 1;
 	}
 	if (ctx->pos == 1) {
-		if (!dir_emit_dotdot(file, ctx))
+		if (!zpl_dir_emit_dotdot(file, ctx))
 			return (false);
 		ctx->pos = 2;
 	}
 	return (true);
 }
 #endif /* HAVE_VFS_ITERATE */
+
+/*
+ * Linux 4.18, inode times converted from timespec to timespec64.
+ */
+#if defined(HAVE_INODE_TIMESPEC64_TIMES)
+#define	zpl_inode_timespec_trunc(ts, gran)	timespec64_trunc(ts, gran)
+#else
+#define	zpl_inode_timespec_trunc(ts, gran)	timespec_trunc(ts, gran)
+#endif
 
 #endif	/* _SYS_ZPL_H */

@@ -297,6 +297,16 @@ rw_tryenter(krwlock_t *rwlp, krw_t rw)
 	return (0);
 }
 
+/* ARGSUSED */
+uint32_t
+zone_get_hostid(void *zonep)
+{
+	/*
+	 * We're emulating the system's hostid in userland.
+	 */
+	return (strtoul(hw_serial, NULL, 10));
+}
+
 int
 rw_tryupgrade(krwlock_t *rwlp)
 {
@@ -334,7 +344,7 @@ cv_timedwait(kcondvar_t *cv, kmutex_t *mp, clock_t abstime)
 {
 	int error;
 	struct timeval tv;
-	timestruc_t ts;
+	struct timespec ts;
 	clock_t delta;
 
 	delta = abstime - ddi_get_lbolt();
@@ -369,7 +379,7 @@ cv_timedwait_hires(kcondvar_t *cv, kmutex_t *mp, hrtime_t tim, hrtime_t res,
 {
 	int error;
 	struct timeval tv;
-	timestruc_t ts;
+	struct timespec ts;
 	hrtime_t delta;
 
 	ASSERT(flag == 0 || flag == CALLOUT_FLAG_ABSOLUTE);
@@ -412,6 +422,57 @@ void
 cv_broadcast(kcondvar_t *cv)
 {
 	VERIFY0(pthread_cond_broadcast(cv));
+}
+
+/*
+ * =========================================================================
+ * procfs list
+ * =========================================================================
+ */
+
+void
+seq_printf(struct seq_file *m, const char *fmt, ...)
+{}
+
+void
+procfs_list_install(const char *module,
+    const char *name,
+    procfs_list_t *procfs_list,
+    int (*show)(struct seq_file *f, void *p),
+    int (*show_header)(struct seq_file *f),
+    int (*clear)(procfs_list_t *procfs_list),
+    size_t procfs_list_node_off)
+{
+	mutex_init(&procfs_list->pl_lock, NULL, MUTEX_DEFAULT, NULL);
+	list_create(&procfs_list->pl_list,
+	    procfs_list_node_off + sizeof (procfs_list_node_t),
+	    procfs_list_node_off + offsetof(procfs_list_node_t, pln_link));
+	procfs_list->pl_next_id = 1;
+	procfs_list->pl_node_offset = procfs_list_node_off;
+}
+
+void
+procfs_list_uninstall(procfs_list_t *procfs_list)
+{}
+
+void
+procfs_list_destroy(procfs_list_t *procfs_list)
+{
+	ASSERT(list_is_empty(&procfs_list->pl_list));
+	list_destroy(&procfs_list->pl_list);
+	mutex_destroy(&procfs_list->pl_lock);
+}
+
+#define	NODE_ID(procfs_list, obj) \
+		(((procfs_list_node_t *)(((char *)obj) + \
+		(procfs_list)->pl_node_offset))->pln_id)
+
+void
+procfs_list_add(procfs_list_t *procfs_list, void *p)
+{
+	ASSERT(MUTEX_HELD(&procfs_list->pl_lock));
+	NODE_ID(procfs_list, p) = procfs_list->pl_next_id++;
+	list_insert_tail(&procfs_list->pl_list, p);
 }
 
 /*
@@ -487,8 +548,6 @@ vn_open(char *path, int x1, int flags, int mode, vnode_t **vpp, int x2, int x3)
 #ifdef __linux__
 		flags |= O_DIRECT;
 #endif
-		/* We shouldn't be writing to block devices in userspace */
-		VERIFY(!(flags & FWRITE));
 	}
 
 	if (flags & FCREAT)
@@ -724,7 +783,8 @@ dprintf_setup(int *argc, char **argv)
  * =========================================================================
  */
 void
-__dprintf(const char *file, const char *func, int line, const char *fmt, ...)
+__dprintf(boolean_t dprint, const char *file, const char *func,
+    int line, const char *fmt, ...)
 {
 	const char *newfile;
 	va_list adx;
@@ -739,9 +799,14 @@ __dprintf(const char *file, const char *func, int line, const char *fmt, ...)
 		newfile = file;
 	}
 
-	if (dprintf_print_all ||
-	    dprintf_find_string(newfile) ||
-	    dprintf_find_string(func)) {
+	if (dprint) {
+		/* dprintf messages are printed immediately */
+
+		if (!dprintf_print_all &&
+		    !dprintf_find_string(newfile) &&
+		    !dprintf_find_string(func))
+			return;
+
 		/* Print out just the function name if requested */
 		flockfile(stdout);
 		if (dprintf_find_string("pid"))
@@ -754,11 +819,30 @@ __dprintf(const char *file, const char *func, int line, const char *fmt, ...)
 			(void) printf("%llu ", gethrtime());
 		if (dprintf_find_string("long"))
 			(void) printf("%s, line %d: ", newfile, line);
-		(void) printf("%s: ", func);
+		(void) printf("dprintf: %s: ", func);
 		va_start(adx, fmt);
 		(void) vprintf(fmt, adx);
 		va_end(adx);
 		funlockfile(stdout);
+	} else {
+		/* zfs_dbgmsg is logged for dumping later */
+		size_t size;
+		char *buf;
+		int i;
+
+		size = 1024;
+		buf = umem_alloc(size, UMEM_NOFAIL);
+		i = snprintf(buf, size, "%s:%d:%s(): ", newfile, line, func);
+
+		if (i < size) {
+			va_start(adx, fmt);
+			(void) vsnprintf(buf + i, size - i, fmt, adx);
+			va_end(adx);
+		}
+
+		__zfs_dbgmsg(buf);
+
+		umem_free(buf, size);
 	}
 }
 
@@ -1188,6 +1272,12 @@ spl_fstrans_unmark(fstrans_cookie_t cookie)
 
 int
 __spl_pf_fstrans_check(void)
+{
+	return (0);
+}
+
+int
+kmem_cache_reap_active(void)
 {
 	return (0);
 }

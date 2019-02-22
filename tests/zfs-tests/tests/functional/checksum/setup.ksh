@@ -30,22 +30,7 @@
 #
 
 . $STF_SUITE/include/libtest.shlib
-. $STF_SUITE/tests/functional/checksum/default.cfg
 
 verify_runnable "global"
 
-if ! $(is_physical_device $DISKS) ; then
-	log_unsupported "This directory cannot be run on raw files."
-fi
-
-if [[ -n $SINGLE_DISK ]]; then
-	log_note "Partitioning a single disk ($SINGLE_DISK)"
-else
-	log_note "Partitioning disks ($MIRROR_PRIMARY $MIRROR_SECONDARY)"
-fi
-log_must set_partition $SIDE_PRIMARY_PART "" $MIRROR_SIZE $MIRROR_PRIMARY
-log_must set_partition $SIDE_SECONDARY_PART "" $MIRROR_SIZE $MIRROR_SECONDARY
-
-default_mirror_setup $SIDE_PRIMARY $SIDE_SECONDARY
-
-log_pass
+default_mirror_setup $DISKS

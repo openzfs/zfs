@@ -58,6 +58,8 @@ install() {
 	dracut_install @mounthelperdir@/mount.zfs
 	dracut_install @udevdir@/vdev_id
 	dracut_install awk
+	dracut_install basename
+	dracut_install cut
 	dracut_install head
 	dracut_install @udevdir@/zvol_id
 	inst_hook cmdline 95 "${moddir}/parse-zfs.sh"
@@ -85,16 +87,24 @@ install() {
 	BB=`hostid | cut -b 3,4`
 	CC=`hostid | cut -b 5,6`
 	DD=`hostid | cut -b 7,8`
-	printf "\x${DD}\x${CC}\x${BB}\x${AA}" > "${initdir}/etc/hostid"
+	echo -ne "\\x${DD}\\x${CC}\\x${BB}\\x${AA}" > "${initdir}/etc/hostid"
 
 	if dracut_module_included "systemd"; then
-		mkdir -p "${initdir}/$systemdsystemunitdir/initrd.target.wants"
+		mkdir -p "${initdir}/$systemdsystemunitdir/zfs-import.target.wants"
 		for _item in scan cache ; do
 			dracut_install @systemdunitdir@/zfs-import-$_item.service
-			if ! [ -L "${initdir}/$systemdsystemunitdir/initrd.target.wants"/zfs-import-$_item.service ]; then
-				ln -s ../zfs-import-$_item.service "${initdir}/$systemdsystemunitdir/initrd.target.wants"/zfs-import-$_item.service
+			if ! [ -L "${initdir}/$systemdsystemunitdir/zfs-import.target.wants"/zfs-import-$_item.service ]; then
+				ln -s ../zfs-import-$_item.service "${initdir}/$systemdsystemunitdir/zfs-import.target.wants"/zfs-import-$_item.service
 				type mark_hostonly >/dev/null 2>&1 && mark_hostonly @systemdunitdir@/zfs-import-$_item.service
 			fi
 		done
+		dracut_install systemd-ask-password
+		dracut_install systemd-tty-ask-password-agent
+		mkdir -p "${initdir}/$systemdsystemunitdir/initrd.target.wants"
+		dracut_install @systemdunitdir@/zfs-import.target
+		if ! [ -L "${initdir}/$systemdsystemunitdir/initrd.target.wants"/zfs-import.target ]; then
+			ln -s ../zfs-import.target "${initdir}/$systemdsystemunitdir/initrd.target.wants"/zfs-import.target
+			type mark_hostonly >/dev/null 2>&1 && mark_hostonly @systemdunitdir@/zfs-import.target
+		fi
 	fi
 }

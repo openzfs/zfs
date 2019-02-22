@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  */
 
 #include <sys/nvpair.h>
@@ -411,6 +411,85 @@ fnvlist_lookup_nvlist(nvlist_t *nvl, const char *name)
 	VERIFY0(nvlist_lookup_nvlist(nvl, name, &rv));
 	return (rv);
 }
+boolean_t *
+fnvlist_lookup_boolean_array(nvlist_t *nvl, const char *name, uint_t *n)
+{
+	boolean_t *rv;
+	VERIFY0(nvlist_lookup_boolean_array(nvl, name, &rv, n));
+	return (rv);
+}
+
+uchar_t *
+fnvlist_lookup_byte_array(nvlist_t *nvl, const char *name, uint_t *n)
+{
+	uchar_t *rv;
+	VERIFY0(nvlist_lookup_byte_array(nvl, name, &rv, n));
+	return (rv);
+}
+
+int8_t *
+fnvlist_lookup_int8_array(nvlist_t *nvl, const char *name, uint_t *n)
+{
+	int8_t *rv;
+	VERIFY0(nvlist_lookup_int8_array(nvl, name, &rv, n));
+	return (rv);
+}
+
+uint8_t *
+fnvlist_lookup_uint8_array(nvlist_t *nvl, const char *name, uint_t *n)
+{
+	uint8_t *rv;
+	VERIFY0(nvlist_lookup_uint8_array(nvl, name, &rv, n));
+	return (rv);
+}
+
+int16_t *
+fnvlist_lookup_int16_array(nvlist_t *nvl, const char *name, uint_t *n)
+{
+	int16_t *rv;
+	VERIFY0(nvlist_lookup_int16_array(nvl, name, &rv, n));
+	return (rv);
+}
+
+uint16_t *
+fnvlist_lookup_uint16_array(nvlist_t *nvl, const char *name, uint_t *n)
+{
+	uint16_t *rv;
+	VERIFY0(nvlist_lookup_uint16_array(nvl, name, &rv, n));
+	return (rv);
+}
+
+int32_t *
+fnvlist_lookup_int32_array(nvlist_t *nvl, const char *name, uint_t *n)
+{
+	int32_t *rv;
+	VERIFY0(nvlist_lookup_int32_array(nvl, name, &rv, n));
+	return (rv);
+}
+
+uint32_t *
+fnvlist_lookup_uint32_array(nvlist_t *nvl, const char *name, uint_t *n)
+{
+	uint32_t *rv;
+	VERIFY0(nvlist_lookup_uint32_array(nvl, name, &rv, n));
+	return (rv);
+}
+
+int64_t *
+fnvlist_lookup_int64_array(nvlist_t *nvl, const char *name, uint_t *n)
+{
+	int64_t *rv;
+	VERIFY0(nvlist_lookup_int64_array(nvl, name, &rv, n));
+	return (rv);
+}
+
+uint64_t *
+fnvlist_lookup_uint64_array(nvlist_t *nvl, const char *name, uint_t *n)
+{
+	uint64_t *rv;
+	VERIFY0(nvlist_lookup_uint64_array(nvl, name, &rv, n));
+	return (rv);
+}
 
 boolean_t
 fnvpair_value_boolean_value(nvpair_t *nvp)
@@ -508,7 +587,7 @@ fnvpair_value_nvlist(nvpair_t *nvp)
 	return (rv);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 
 EXPORT_SYMBOL(fnvlist_alloc);
 EXPORT_SYMBOL(fnvlist_free);

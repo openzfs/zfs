@@ -99,7 +99,6 @@ export ZFS_ABORT=yes
 for subcmd in "${cmds[@]}" "${badparams[@]}"; do
 	corefile=${corepath}/core.zpool
 	zpool $subcmd >/dev/null 2>&1
-	ls -l $corepath >>/tmp/CORE
 	if [[ ! -e $corefile ]]; then
 		log_fail "zpool $subcmd cannot generate core file  with ZFS_ABORT set."
 	fi

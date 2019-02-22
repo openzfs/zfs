@@ -20,12 +20,13 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  * Copyright 2014 HybridCluster. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright 2013 Saso Kiselkov. All rights reserved.
+ * Copyright (c) 2017, Intel Corporation.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -72,6 +73,7 @@ struct arc_buf;
 struct zio_prop;
 struct sa_handle;
 struct dsl_crypto_params;
+struct locked_range;
 
 typedef struct objset objset_t;
 typedef struct dmu_tx dmu_tx_t;
@@ -107,7 +109,8 @@ typedef enum dmu_object_byteswap {
 /*
  * Defines a uint8_t object type. Object types specify if the data
  * in the object is metadata (boolean) and how to byteswap the data
- * (dmu_object_byteswap_t).
+ * (dmu_object_byteswap_t). All of the types created by this method
+ * are cached in the dbuf metadata cache.
  */
 #define	DMU_OT(byteswap, metadata, encrypted) \
 	(DMU_OT_NEWTYPE | \
@@ -118,6 +121,9 @@ typedef enum dmu_object_byteswap {
 #define	DMU_OT_IS_VALID(ot) (((ot) & DMU_OT_NEWTYPE) ? \
 	((ot) & DMU_OT_BYTESWAP_MASK) < DMU_BSWAP_NUMFUNCS : \
 	(ot) < DMU_OT_NUMTYPES)
+
+#define	DMU_OT_IS_METADATA_CACHED(ot) (((ot) & DMU_OT_NEWTYPE) ? \
+	B_TRUE : dmu_ot[(ot)].ot_dbuf_metadata_cache)
 
 /*
  * MDB doesn't have dmu_ot; it defines these macros itself.
@@ -131,6 +137,16 @@ typedef enum dmu_object_byteswap {
 #define	DMU_OT_IS_METADATA(ot) (((ot) & DMU_OT_NEWTYPE) ? \
 	((ot) & DMU_OT_METADATA) : \
 	DMU_OT_IS_METADATA_IMPL(ot))
+
+#define	DMU_OT_IS_DDT(ot) \
+	((ot) == DMU_OT_DDT_ZAP)
+
+#define	DMU_OT_IS_ZIL(ot) \
+	((ot) == DMU_OT_INTENT_LOG)
+
+/* Note: ztest uses DMU_OT_UINT64_OTHER as a proxy for file blocks */
+#define	DMU_OT_IS_FILE(ot) \
+	((ot) == DMU_OT_PLAIN_FILE_CONTENTS || (ot) == DMU_OT_UINT64_OTHER)
 
 #define	DMU_OT_IS_ENCRYPTED(ot) (((ot) & DMU_OT_NEWTYPE) ? \
 	((ot) & DMU_OT_ENCRYPTED) : \
@@ -222,7 +238,7 @@ typedef enum dmu_object_type {
 	 * values.
 	 *
 	 * The DMU_OTN_* types do not have entries in the dmu_ot table,
-	 * use the DMU_OT_IS_METDATA() and DMU_OT_BYTESWAP() macros instead
+	 * use the DMU_OT_IS_METADATA() and DMU_OT_BYTESWAP() macros instead
 	 * of indexing into dmu_ot directly (this works for both DMU_OT_* types
 	 * and DMU_OTN_* types).
 	 */
@@ -326,6 +342,7 @@ int dmu_objset_find(char *name, int func(const char *, void *), void *arg,
 void dmu_objset_byteswap(void *buf, size_t size);
 int dsl_dataset_rename_snapshot(const char *fsname,
     const char *oldsnapname, const char *newsnapname, boolean_t recursive);
+int dmu_objset_remap_indirects(const char *fsname);
 
 typedef struct dmu_buf {
 	uint64_t db_object;		/* object that this buffer is part of */
@@ -362,6 +379,10 @@ typedef struct dmu_buf {
 #define	DMU_POOL_EMPTY_BPOBJ		"empty_bpobj"
 #define	DMU_POOL_CHECKSUM_SALT		"org.illumos:checksum_salt"
 #define	DMU_POOL_VDEV_ZAP_MAP		"com.delphix:vdev_zap_map"
+#define	DMU_POOL_REMOVING		"com.delphix:removing"
+#define	DMU_POOL_OBSOLETE_BPOBJ		"com.delphix:obsolete_bpobj"
+#define	DMU_POOL_CONDENSING_INDIRECT	"com.delphix:condensing_indirect"
+#define	DMU_POOL_ZPOOL_CHECKPOINT	"com.delphix:zpool_checkpoint"
 
 /*
  * Allocate an object from this objset.  The range of object numbers
@@ -380,9 +401,16 @@ typedef struct dmu_buf {
  */
 uint64_t dmu_object_alloc(objset_t *os, dmu_object_type_t ot,
     int blocksize, dmu_object_type_t bonus_type, int bonus_len, dmu_tx_t *tx);
+uint64_t dmu_object_alloc_ibs(objset_t *os, dmu_object_type_t ot, int blocksize,
+    int indirect_blockshift,
+    dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx);
 uint64_t dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot,
     int blocksize, dmu_object_type_t bonus_type, int bonus_len,
     int dnodesize, dmu_tx_t *tx);
+uint64_t dmu_object_alloc_hold(objset_t *os, dmu_object_type_t ot,
+    int blocksize, int indirect_blockshift, dmu_object_type_t bonustype,
+    int bonuslen, int dnodesize, dnode_t **allocated_dnode, void *tag,
+    dmu_tx_t *tx);
 int dmu_object_claim(objset_t *os, uint64_t object, dmu_object_type_t ot,
     int blocksize, dmu_object_type_t bonus_type, int bonus_len, dmu_tx_t *tx);
 int dmu_object_claim_dnsize(objset_t *os, uint64_t object, dmu_object_type_t ot,
@@ -468,7 +496,8 @@ void dmu_object_set_checksum(objset_t *os, uint64_t object, uint8_t checksum,
 void dmu_object_set_compress(objset_t *os, uint64_t object, uint8_t compress,
     dmu_tx_t *tx);
 
-int dmu_object_dirty_raw(objset_t *os, uint64_t object, dmu_tx_t *tx);
+
+int dmu_object_remap_indirects(objset_t *os, uint64_t object, uint64_t txg);
 
 void dmu_write_embedded(objset_t *os, uint64_t object, uint64_t offset,
     void *data, uint8_t etype, uint8_t comp, int uncompressed_size,
@@ -488,17 +517,17 @@ void dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp,
  * The bonus data is accessed more or less like a regular buffer.
  * You must dmu_bonus_hold() to get the buffer, which will give you a
  * dmu_buf_t with db_offset==-1ULL, and db_size = the size of the bonus
- * data.  As with any normal buffer, you must call dmu_buf_read() to
- * read db_data, dmu_buf_will_dirty() before modifying it, and the
+ * data.  As with any normal buffer, you must call dmu_buf_will_dirty()
+ * before modifying it, and the
  * object must be held in an assigned transaction before calling
  * dmu_buf_will_dirty.  You may use dmu_buf_set_user() on the bonus
  * buffer as well.  You must release what you hold with dmu_buf_rele().
  *
  * Returns ENOENT, EIO, or 0.
  */
-int dmu_bonus_hold_impl(objset_t *os, uint64_t object, void *tag,
-    uint32_t flags, dmu_buf_t **dbp);
-int dmu_bonus_hold(objset_t *os, uint64_t object, void *tag, dmu_buf_t **);
+int dmu_bonus_hold(objset_t *os, uint64_t object, void *tag, dmu_buf_t **dbp);
+int dmu_bonus_hold_by_dnode(dnode_t *dn, void *tag, dmu_buf_t **dbp,
+    uint32_t flags);
 int dmu_bonus_max(void);
 int dmu_set_bonus(dmu_buf_t *, int, dmu_tx_t *);
 int dmu_set_bonustype(dmu_buf_t *, dmu_object_type_t, dmu_tx_t *);
@@ -509,7 +538,8 @@ int dmu_rm_spill(objset_t *, uint64_t, dmu_tx_t *);
  * Special spill buffer support used by "SA" framework
  */
 
-int dmu_spill_hold_by_bonus(dmu_buf_t *bonus, void *tag, dmu_buf_t **dbp);
+int dmu_spill_hold_by_bonus(dmu_buf_t *bonus, uint32_t flags, void *tag,
+    dmu_buf_t **dbp);
 int dmu_spill_hold_by_dnode(dnode_t *dn, uint32_t flags,
     void *tag, dmu_buf_t **dbp);
 int dmu_spill_hold_existing(dmu_buf_t *bonus, void *tag, dmu_buf_t **dbp);
@@ -551,6 +581,7 @@ boolean_t dmu_buf_try_add_ref(dmu_buf_t *, objset_t *os, uint64_t object,
 
 void dmu_buf_rele(dmu_buf_t *db, void *tag);
 uint64_t dmu_buf_refcount(dmu_buf_t *db);
+uint64_t dmu_buf_user_refcount(dmu_buf_t *db);
 
 /*
  * dmu_buf_hold_array holds the DMU buffers which contain all bytes in a
@@ -709,7 +740,8 @@ struct blkptr *dmu_buf_get_blkptr(dmu_buf_t *db);
  * (ie. you've called dmu_tx_hold_object(tx, db->db_object)).
  */
 void dmu_buf_will_dirty(dmu_buf_t *db, dmu_tx_t *tx);
-void dmu_buf_will_change_crypt_params(dmu_buf_t *db, dmu_tx_t *tx);
+void dmu_buf_set_crypt_params(dmu_buf_t *db_fake, boolean_t byteorder,
+    const uint8_t *salt, const uint8_t *iv, const uint8_t *mac, dmu_tx_t *tx);
 
 /*
  * You must create a transaction, then hold the objects which you will
@@ -740,6 +772,7 @@ void dmu_tx_hold_free(dmu_tx_t *tx, uint64_t object, uint64_t off,
     uint64_t len);
 void dmu_tx_hold_free_by_dnode(dmu_tx_t *tx, dnode_t *dn, uint64_t off,
     uint64_t len);
+void dmu_tx_hold_remap_l1indirect(dmu_tx_t *tx, uint64_t object);
 void dmu_tx_hold_zap(dmu_tx_t *tx, uint64_t object, int add, const char *name);
 void dmu_tx_hold_zap_by_dnode(dmu_tx_t *tx, dnode_t *dn, int add,
     const char *name);
@@ -787,10 +820,7 @@ int dmu_free_range(objset_t *os, uint64_t object, uint64_t offset,
     uint64_t size, dmu_tx_t *tx);
 int dmu_free_long_range(objset_t *os, uint64_t object, uint64_t offset,
     uint64_t size);
-int dmu_free_long_range_raw(objset_t *os, uint64_t object, uint64_t offset,
-    uint64_t size);
 int dmu_free_long_object(objset_t *os, uint64_t object);
-int dmu_free_long_object_raw(objset_t *os, uint64_t object);
 
 /*
  * Convenience functions.
@@ -825,14 +855,11 @@ int dmu_write_uio_dnode(dnode_t *dn, struct uio *uio, uint64_t size,
 #endif
 struct arc_buf *dmu_request_arcbuf(dmu_buf_t *handle, int size);
 void dmu_return_arcbuf(struct arc_buf *buf);
-void dmu_assign_arcbuf_by_dnode(dnode_t *dn, uint64_t offset,
+int dmu_assign_arcbuf_by_dnode(dnode_t *dn, uint64_t offset,
     struct arc_buf *buf, dmu_tx_t *tx);
-void dmu_assign_arcbuf_by_dbuf(dmu_buf_t *handle, uint64_t offset,
+int dmu_assign_arcbuf_by_dbuf(dmu_buf_t *handle, uint64_t offset,
     struct arc_buf *buf, dmu_tx_t *tx);
 #define	dmu_assign_arcbuf	dmu_assign_arcbuf_by_dbuf
-int dmu_convert_mdn_block_to_raw(objset_t *os, uint64_t firstobj,
-    boolean_t byteorder, const uint8_t *salt, const uint8_t *iv,
-    const uint8_t *mac, dmu_tx_t *tx);
 void dmu_copy_from_buf(objset_t *os, uint64_t object, uint64_t offset,
     dmu_buf_t *handle, dmu_tx_t *tx);
 #ifdef HAVE_UIO_ZEROCOPY
@@ -879,6 +906,7 @@ typedef void (*const arc_byteswap_func_t)(void *buf, size_t size);
 typedef struct dmu_object_type_info {
 	dmu_object_byteswap_t	ot_byteswap;
 	boolean_t		ot_metadata;
+	boolean_t		ot_dbuf_metadata_cache;
 	boolean_t		ot_encrypt;
 	char			*ot_name;
 } dmu_object_type_info_t;
@@ -959,7 +987,7 @@ uint64_t dmu_objset_fsid_guid(objset_t *os);
 /*
  * Get the [cm]time for an objset's snapshot dir
  */
-timestruc_t dmu_objset_snap_cmtime(objset_t *os);
+inode_timespec_t dmu_objset_snap_cmtime(objset_t *os);
 
 int dmu_objset_is_snapshot(objset_t *os);
 
@@ -1011,7 +1039,7 @@ typedef struct zgd {
 	struct lwb	*zgd_lwb;
 	struct blkptr	*zgd_bp;
 	dmu_buf_t	*zgd_db;
-	struct rl	*zgd_rl;
+	struct locked_range *zgd_lr;
 	void		*zgd_private;
 } zgd_t;
 

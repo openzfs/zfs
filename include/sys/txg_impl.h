@@ -25,7 +25,7 @@
  */
 
 /*
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2017 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_TXG_IMPL_H
@@ -92,6 +92,7 @@ typedef struct tx_state {
 	kmutex_t	tx_sync_lock;	/* protects the rest of this struct */
 
 	uint64_t	tx_open_txg;	/* currently open txg id */
+	uint64_t	tx_quiescing_txg; /* currently quiescing txg id */
 	uint64_t	tx_quiesced_txg; /* quiesced txg waiting for sync */
 	uint64_t	tx_syncing_txg;	/* currently syncing txg id */
 	uint64_t	tx_synced_txg;	/* last synced txg id */

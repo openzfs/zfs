@@ -31,10 +31,16 @@
 
 . $STF_SUITE/include/libtest.shlib
 
+if is_linux; then
+	log_unsupported "Privilege tests require pfexec command"
+fi
+
 verify_runnable "global"
 
-ZFS_USER=$(cat /tmp/zfs-privs-test-user.txt)
-USES_NIS=$(cat /tmp/zfs-privs-test-nis.txt)
+ZFS_USER=$(<$TEST_BASE_DIR/zfs-privs-test-user.txt)
+[[ -z $ZFS_USER ]] && log_fail "no ZFS_USER found"
+
+USES_NIS=$(<$TEST_BASE_DIR/zfs-privs-test-nis.txt)
 
 if [ "${USES_NIS}" == "true" ]
 then
@@ -43,7 +49,7 @@ fi
 
 userdel $ZFS_USER
 [[ -d /export/home/$ZFS_USER ]] && rm -rf /export/home/$ZFS_USER
-rm /tmp/zfs-privs-test-nis.txt
-rm /tmp/zfs-privs-test-user.txt
+rm $TEST_BASE_DIR/zfs-privs-test-nis.txt
+rm $TEST_BASE_DIR/zfs-privs-test-user.txt
 
 default_cleanup

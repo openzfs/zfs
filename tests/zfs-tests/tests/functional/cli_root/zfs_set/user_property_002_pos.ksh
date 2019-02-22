@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2016 by Delphix. All rights reserved.
+# Copyright (c) 2016, 2019 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/cli_root/zfs_set/zfs_set_common.kshlib
@@ -53,9 +53,7 @@ function cleanup
 	typeset dtst
 	for dtst in $new_fsclone $new_volclone $fsclone $volclone \
 	    $fssnap $volsnap; do
-		if datasetexists $dtst; then
-			log_must zfs destroy -f $dtst
-		fi
+		destroy_dataset "$dtst" "-f"
 	done
 
 	cleanup_user_prop $pool

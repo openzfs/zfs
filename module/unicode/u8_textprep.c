@@ -36,18 +36,13 @@
  */
 
 #include <sys/types.h>
-#ifdef	_KERNEL
+#include <sys/strings.h>
 #include <sys/param.h>
 #include <sys/sysmacros.h>
-#include <sys/systm.h>
 #include <sys/debug.h>
 #include <sys/kmem.h>
-#include <sys/ddi.h>
 #include <sys/sunddi.h>
-#else
 #include <sys/u8_textprep.h>
-#include <strings.h>
-#endif	/* _KERNEL */
 #include <sys/byteorder.h>
 #include <sys/errno.h>
 #include <sys/u8_textprep_data.h>
@@ -2130,7 +2125,7 @@ u8_textprep_str(char *inarray, size_t *inlen, char *outarray, size_t *outlen,
 	return (ret_val);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 static int __init
 unicode_init(void)
 {

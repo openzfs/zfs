@@ -1,0 +1,156 @@
+#
+# CDDL HEADER START
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright (c) 2014, 2017 by Delphix. All rights reserved.
+#
+
+export REMOVEDISK=${DISKS%% *}
+export NOTREMOVEDISK=${DISKS##* }
+
+#
+# Waits for the pool to finish a removal.
+#
+function wait_for_removal # pool
+{
+	typeset pool=$1
+	typeset callback=$2
+
+	while is_pool_removing $pool; do
+		sleep 1
+	done
+
+	#
+	# The pool state changes before the TXG finishes syncing; wait for
+	# the removal to be completed on disk.
+	#
+	sync_pool
+
+	log_must is_pool_removed $pool
+	return 0
+}
+
+#
+# Removes the specified disk from its respective pool and
+# runs the callback while the removal is in progress.
+#
+# This function is mainly used to test how other operations
+# interact with device removal. After the callback is done,
+# the removal is unpaused and we wait for it to finish.
+#
+# Example usage:
+#
+#    attempt_during_removal $TESTPOOL $DISK dd if=/dev/urandom \
+#        of=/$TESTPOOL/file count=1
+#
+function attempt_during_removal # pool disk callback [args]
+{
+	typeset pool=$1
+	typeset disk=$2
+	typeset callback=$3
+
+	shift 3
+	set_tunable32 zfs_removal_suspend_progress 1
+
+	log_must zpool remove $pool $disk
+
+	#
+	# We want to make sure that the removal started
+	# before issuing the callback.
+	#
+	sync
+	log_must is_pool_removing $pool
+
+	log_must $callback "$@"
+
+	#
+	# Ensure that we still haven't finished the removal
+	# as expected.
+	#
+	log_must is_pool_removing $pool
+
+	set_tunable32 zfs_removal_suspend_progress 0
+
+	log_must wait_for_removal $pool
+	log_mustnot vdevs_in_pool $pool $disk
+	return 0
+}
+
+function indirect_vdev_mapping_size # pool
+{
+	typeset pool=$1
+	zdb -P $pool | grep 'indirect vdev' | \
+	    sed -E 's/.*\(([0-9]+) in memory\).*/\1/g'
+}
+
+function random_write # file write_size
+{
+	typeset file=$1
+	typeset block_size=$2
+	typeset file_size=$(stat -c%s $file 2>/dev/null)
+	typeset nblocks=$((file_size / block_size))
+
+	[[ -w $file ]] || return 1
+
+	dd if=/dev/urandom of=$file conv=notrunc \
+	    bs=$block_size count=1 seek=$((RANDOM % nblocks)) >/dev/null 2>&1
+}
+
+function start_random_writer # file
+{
+	typeset file=$1
+	(
+		log_note "Starting writer for $file"
+		# This will fail when we destroy the pool.
+		while random_write $file $((2**12)); do
+			:
+		done
+		log_note "Stopping writer for $file"
+	) &
+}
+
+function test_removal_with_operation # callback [args]
+{
+	#
+	# To ensure that the removal takes a while, we fragment the pool
+	# by writing random blocks and continue to do during the removal.
+	#
+	log_must mkfile 1g $TESTDIR/$TESTFILE0
+	for i in $(seq $((2**10))); do
+		random_write $TESTDIR/$TESTFILE0 $((2**12)) || \
+		    log_fail "Could not write to $TESTDIR/$TESTFILE0."
+	done
+	start_random_writer $TESTDIR/$TESTFILE0 1g
+	killpid=$!
+
+	log_must attempt_during_removal $TESTPOOL $REMOVEDISK "$@"
+	log_mustnot vdevs_in_pool $TESTPOOL $REMOVEDISK
+	log_must zdb -cd $TESTPOOL
+
+	kill $killpid
+	wait
+
+	verify_pool $TESTPOOL
+}
+
+#
+# Kill the background job use by the test_removal_with_operation function.
+#
+function test_removal_with_operation_kill
+{
+	kill $killpid
+	wait $killpid
+	return 0
+}

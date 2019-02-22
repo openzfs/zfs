@@ -41,8 +41,8 @@ function cleanup
 	log_must rm -f $streamfile_incr
 	log_must rm -f $streamfile_repl
 	log_must rm -f $streamfile_trun
-	log_must zfs destroy -r -f $orig
-	log_must zfs destroy -r -f $dest
+	destroy_dataset "$orig" "-rf"
+	destroy_dataset "$dest" "-rf"
 }
 
 log_assert "ZFS receive property override and exclude options work as expected."
@@ -113,23 +113,26 @@ log_must eval "zfs send -R $orig@snap1 > $streamfile_repl"
 log_must eval "zfs recv $dest < $streamfile_repl"
 # Fill the datasets with properties and create an incremental replication stream
 log_must zfs snapshot -r $orig@snap2
+log_must zfs snapshot -r $orig@snap3
 log_must eval "zfs set copies=2 $orig"
 log_must eval "zfs set '$userprop:orig'='$userval' $orig"
 log_must eval "zfs set '$userprop:orig'='$userval' $origsub"
 log_must eval "zfs set '$userprop:snap'='$userval' $orig@snap1"
-log_must eval "zfs set '$userprop:snap'='$userval' $origsub@snap2"
-log_must eval "zfs send -R -I $orig@snap1 $orig@snap2 > $streamfile_incr"
+log_must eval "zfs set '$userprop:snap'='$userval' $origsub@snap3"
+log_must eval "zfs send -R -I $orig@snap1 $orig@snap3 > $streamfile_incr"
 # Sets various combination of override and exclude options
 log_must eval "zfs recv -F -o atime=off -o '$userprop:dest2'='$userval' "\
-	"-o quota=123456789 -x compression -x '$userprop:orig' " \
-	"-x '$userprop:snap2' $dest < $streamfile_incr"
+	"-o quota=123456789 -o checksum=sha512 -x compression "\
+        "-x '$userprop:orig' -x '$userprop:snap3' $dest < $streamfile_incr"
 # Verify we can correctly override and exclude properties
 log_must eval "check_prop_source $dest copies 2 received"
 log_must eval "check_prop_source $dest atime off local"
 log_must eval "check_prop_source $dest '$userprop:dest2' '$userval' local"
 log_must eval "check_prop_source $dest quota 123456789 local"
+log_must eval "check_prop_source $dest checksum sha512 local"
 log_must eval "check_prop_inherit $destsub copies $dest"
 log_must eval "check_prop_inherit $destsub atime $dest"
+log_must eval "check_prop_inherit $destsub checksum $dest"
 log_must eval "check_prop_inherit $destsub '$userprop:dest2' $dest"
 log_must eval "check_prop_source $destsub quota 0 default"
 log_must eval "check_prop_source $destsub compression off default"
@@ -138,9 +141,9 @@ log_must eval "check_prop_missing $destsub '$userprop:orig'"
 log_must eval "check_prop_source " \
 	"$dest@snap1 '$userprop:snap' '$userval' received"
 log_must eval "check_prop_source " \
-	"$destsub@snap2 '$userprop:snap' '$userval' received"
-log_must eval "check_prop_missing $dest@snap2 '$userprop:snap2'"
-log_must eval "check_prop_missing $destsub@snap2 '$userprop:snap2'"
+	"$destsub@snap3 '$userprop:snap' '$userval' received"
+log_must eval "check_prop_missing $dest@snap3 '$userprop:snap3'"
+log_must eval "check_prop_missing $destsub@snap3 '$userprop:snap3'"
 # Cleanup
 log_must zfs destroy -r -f $orig
 log_must zfs destroy -r -f $dest
@@ -171,7 +174,8 @@ log_must eval "zfs set compression=gzip $dest"
 log_must eval "zfs set '$userprop:dest'='localval' $dest"
 # Receive the new stream, verify we preserve locally set properties
 log_must zfs snapshot -r $orig@snap2
-log_must eval "zfs send -R -I $orig@snap1 $orig@snap2 > $streamfile_incr"
+log_must zfs snapshot -r $orig@snap3
+log_must eval "zfs send -R -I $orig@snap1 $orig@snap3 > $streamfile_incr"
 log_must eval "zfs recv -F -x copies -x compression -x '$userprop:orig' " \
 	"-x '$userprop:dest' $dest < $streamfile_incr"
 log_must eval "check_prop_source $dest '$userprop:dest' 'localval' local"
@@ -206,7 +210,8 @@ log_must eval "check_prop_source $destsub quota 0 default"
 log_must eval "zfs set quota=123456789 $dest"
 log_must eval "zfs set canmount=off $destsub"
 log_must zfs snapshot -r $orig@snap2
-log_must eval "zfs send -R -I $orig@snap1 $orig@snap2 > $streamfile_incr"
+log_must zfs snapshot -r $orig@snap3
+log_must eval "zfs send -R -I $orig@snap1 $orig@snap3 > $streamfile_incr"
 log_must eval "zfs recv -F -x quota -x canmount $dest < $streamfile_incr"
 log_must eval "check_prop_source $dest quota 123456789 local"
 log_must eval "check_prop_source $destsub quota 0 default"
@@ -233,7 +238,8 @@ log_must eval "zfs set '$userprop:origsub'='$userval' $destsub"
 mntpnt=$(get_prop mountpoint $orig)
 log_must eval "dd if=/dev/urandom of=$mntpnt/file bs=1024k count=10"
 log_must zfs snapshot -r $orig@snap2
-log_must eval "zfs send -R -I $orig@snap1 $orig@snap2 > $streamfile_incr"
+log_must zfs snapshot -r $orig@snap3
+log_must eval "zfs send -R -I $orig@snap1 $orig@snap3 > $streamfile_incr"
 log_must eval "dd if=$streamfile_incr of=$streamfile_trun bs=1024k count=9"
 # Receive the truncated stream, verify original properties are kept
 log_mustnot eval "zfs recv -F -o copies=3 -o quota=987654321 "\
@@ -262,7 +268,7 @@ log_must zfs snapshot $orig@snap1
 log_must eval "zfs send $orig@snap1 > $streamfile_full"
 log_mustnot eval "zfs receive -x atime $dest < $streamfile_full"
 log_mustnot eval "zfs receive -o atime=off $dest < $streamfile_full"
-log_must zfs destroy -r -f $orig
+log_must_busy zfs destroy -r -f $orig
 log_must zfs create $orig
 log_must zfs create -V 128K -s $origsub
 log_must zfs snapshot -r $orig@snap1
@@ -273,8 +279,9 @@ log_must eval "check_prop_source $dest atime off local"
 log_must eval "check_prop_source $destsub type volume -"
 log_must eval "check_prop_source $destsub atime - -"
 # Cleanup
-log_must zfs destroy -r -f $orig
-log_must zfs destroy -r -f $dest
+block_device_wait
+log_must_busy zfs destroy -r -f $orig
+log_must_busy zfs destroy -r -f $dest
 
 #
 # 3.8 Verify 'zfs recv -x|-o' works correctly when used in conjunction with -d

@@ -149,7 +149,7 @@ icp_init(void)
 	return (0);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 module_exit(icp_fini);
 module_init(icp_init);
 MODULE_AUTHOR(ZFS_META_AUTHOR);

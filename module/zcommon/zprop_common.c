@@ -34,6 +34,7 @@
 #include <sys/spa.h>
 #include <sys/zfs_acl.h>
 #include <sys/zfs_ioctl.h>
+#include <sys/zfs_sysfs.h>
 #include <sys/zfs_znode.h>
 #include <sys/fs/zfs.h>
 
@@ -41,12 +42,14 @@
 #include "zfs_deleg.h"
 
 #if defined(_KERNEL)
-#include <sys/systm.h>
-#include <util/qsort.h>
+#include <linux/sort.h>
+#define	qsort(base, num, size, cmp) \
+    sort(base, num, size, cmp, NULL)
 #else
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <sys/stat.h>
 #endif
 
 static zprop_desc_t *
@@ -65,6 +68,22 @@ zprop_get_numprops(zfs_type_t type)
 		return (ZPOOL_NUM_PROPS);
 	else
 		return (ZFS_NUM_PROPS);
+}
+
+static boolean_t
+zfs_mod_supported_prop(const char *name, zfs_type_t type)
+{
+/*
+ * The zfs module spa_feature_table[], whether in-kernel or in libzpool,
+ * always supports all the properties. libzfs needs to query the running
+ * module, via sysfs, to determine which properties are supported.
+ */
+#if defined(_KERNEL) || defined(LIB_ZPOOL_BUILD)
+	return (B_TRUE);
+#else
+	return (zfs_mod_supported(type == ZFS_TYPE_POOL ?
+	    ZFS_SYSFS_POOL_PROPERTIES : ZFS_SYSFS_DATASET_PROPERTIES, name));
+#endif
 }
 
 void
@@ -93,6 +112,7 @@ zprop_register_impl(int prop, const char *name, zprop_type_t type,
 	pd->pd_colname = colname;
 	pd->pd_rightalign = rightalign;
 	pd->pd_visible = visible;
+	pd->pd_zfs_mod_supported = zfs_mod_supported_prop(name, objset_types);
 	pd->pd_table = idx_tbl;
 	pd->pd_table_size = 0;
 	while (idx_tbl && (idx_tbl++)->pi_name != NULL)
@@ -192,6 +212,7 @@ zprop_iter_common(zprop_func func, void *cb, boolean_t show_all,
 	prop = ZPROP_CONT;
 	for (i = 0; i < num_props; i++) {
 		if ((order[i]->pd_visible || show_all) &&
+		    order[i]->pd_zfs_mod_supported &&
 		    (func(order[i]->pd_propnum, cb) != ZPROP_CONT)) {
 			prop = order[i]->pd_propnum;
 			break;
@@ -416,6 +437,12 @@ zprop_width(int prop, boolean_t *fixed, zfs_type_t type)
 		 */
 		if (prop == ZFS_PROP_CREATION)
 			*fixed = B_FALSE;
+		/*
+		 * 'health' is handled specially because it's a number
+		 * internally, but displayed as a fixed 8 character string.
+		 */
+		if (prop == ZPOOL_PROP_HEALTH)
+			ret = 8;
 		break;
 	case PROP_TYPE_INDEX:
 		idx = prop_tbl[prop].pd_table;
@@ -435,7 +462,7 @@ zprop_width(int prop, boolean_t *fixed, zfs_type_t type)
 
 #endif
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 /* Common routines to initialize property tables */
 EXPORT_SYMBOL(zprop_register_impl);
 EXPORT_SYMBOL(zprop_register_string);

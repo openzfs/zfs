@@ -27,14 +27,10 @@ log_assert "Listing zfs snapshots should work correctly."
 
 function cleanup
 {
-	datasetexists $TESTPOOL/$TESTFS@$TESTSNAP && \
-	    log_must zfs destroy $TESTPOOL/$TESTFS@$TESTSNAP
-	datasetexists $TESTPOOL/$TESTFS@$TESTSNAP1 && \
-	    log_must zfs destroy $TESTPOOL/$TESTFS@$TESTSNAP1
-	datasetexists $TESTPOOL/$TESTFS@$TESTSNAP2 && \
-	    log_must zfs destroy $TESTPOOL/$TESTFS@$TESTSNAP2
-	datasetexists $TESTPOOL/$TESTFS@$TESTSNAP3 && \
-	    log_must zfs destroy $TESTPOOL/$TESTFS@$TESTSNAP3
+	destroy_dataset $TESTPOOL/$TESTFS@$TESTSNAP
+	destroy_dataset $TESTPOOL/$TESTFS@$TESTSNAP1
+	destroy_dataset $TESTPOOL/$TESTFS@$TESTSNAP2
+	destroy_dataset $TESTPOOL/$TESTFS@$TESTSNAP3
 }
 
 log_onexit cleanup

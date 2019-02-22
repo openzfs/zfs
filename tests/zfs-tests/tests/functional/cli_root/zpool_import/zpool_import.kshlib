@@ -1,0 +1,379 @@
+#!/bin/ksh
+
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+#
+
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_root/zpool_import/zpool_import.cfg
+
+#
+# Prototype cleanup function for zpool_import tests.
+#
+function cleanup
+{
+	# clear any remaining zinjections
+	log_must zinject -c all > /dev/null
+
+	destroy_pool $TESTPOOL1
+
+	log_must rm -f $CPATH $CPATHBKP $CPATHBKP2 $MD5FILE $MD5FILE2
+
+	log_must rm -rf $DEVICE_DIR/*
+	typeset i=0
+	while (( i < $MAX_NUM )); do
+		log_must mkfile $FILE_SIZE ${DEVICE_DIR}/${DEVICE_FILE}$i
+		((i += 1))
+	done
+	is_linux && set_tunable32 "zfs_txg_history" 0
+}
+
+#
+# Write a bit of data and sync several times.
+# This function is intended to be used by zpool rewind tests.
+#
+function sync_some_data_a_few_times
+{
+	typeset pool=$1
+	typeset -i a_few_times=${2:-10}
+
+	typeset file="/$pool/tmpfile"
+	for i in {0..$a_few_times}; do
+		dd if=/dev/urandom of=${file}_$i bs=128k count=10
+		sync_pool "$pool"
+	done
+
+	return 0
+}
+
+#
+# Just write a moderate amount of data to the pool.
+#
+function write_some_data
+{
+	typeset pool=$1
+	typeset files10mb=${2:-10}
+
+	typeset ds="$pool/fillerds"
+	zfs create $ds
+	[[ $? -ne 0 ]] && return 1
+
+	# Create 100 MB of data
+	typeset file="/$ds/fillerfile"
+	for i in {1..$files10mb}; do
+		dd if=/dev/urandom of=$file.$i bs=128k count=80
+		[[ $? -ne 0 ]] && return 1
+	done
+
+	return 0
+}
+
+#
+# Create/overwrite a few datasets with files.
+# Apply md5sum on all the files and store checksums in a file.
+#
+# newdata: overwrite existing files if false.
+# md5file: file where to store md5sums
+# datasetname: base name for datasets
+#
+function _generate_data_common
+{
+	typeset pool=$1
+	typeset newdata=$2
+	typeset md5file=$3
+	typeset datasetname=$4
+
+	typeset -i datasets=3
+	typeset -i files=5
+	typeset -i blocks=10
+
+	[[ -n $md5file ]] && rm -f $md5file
+	for i in {1..$datasets}; do
+		( $newdata ) && log_must zfs create "$pool/$datasetname$i"
+		for j in {1..$files}; do
+			typeset file="/$pool/$datasetname$i/file$j"
+			dd if=/dev/urandom of=$file bs=128k count=$blocks > /dev/null
+			[[ -n $md5file ]] && md5sum $file >> $md5file
+		done
+		( $newdata ) && sync_pool "$pool"
+	done
+
+	return 0
+}
+
+function generate_data
+{
+	typeset pool=$1
+	typeset md5file="$2"
+	typeset datasetname=${3:-ds}
+
+	_generate_data_common $pool true "$md5file" $datasetname
+}
+
+function overwrite_data
+{
+	typeset pool=$1
+	typeset md5file="$2"
+	typeset datasetname=${3:-ds}
+
+	_generate_data_common $1 false "$md5file" $datasetname
+}
+
+#
+# Verify md5sums of every file in md5sum file $1.
+#
+function verify_data_md5sums
+{
+	typeset md5file=$1
+
+	if [[ ! -f $md5file ]]; then
+		log_note "md5 sums file '$md5file' doesn't exist"
+		return 1
+	fi
+
+	md5sum -c --quiet $md5file
+	return $?
+}
+
+#
+# Set devices size in DEVICE_DIR to $1.
+#
+function increase_device_sizes
+{
+	typeset newfilesize=$1
+
+	typeset -i i=0
+	while (( i < $MAX_NUM )); do
+		log_must mkfile $newfilesize ${DEVICE_DIR}/${DEVICE_FILE}$i
+		((i += 1))
+	done
+}
+
+#
+# Translate vdev names returned by zpool status into more generic names.
+#
+# eg: mirror-2 --> mirror
+#
+function _translate_vdev
+{
+	typeset vdev=$1
+
+	typeset keywords="mirror replacing raidz1 raidz2 raidz3 indirect"
+	for word in $keywords; do
+		echo $vdev | egrep "^${word}-[0-9]+\$" > /dev/null
+		if [[ $? -eq 0 ]]; then
+			vdev=$word
+			break
+		fi
+	done
+
+	[[ $vdev == "logs" ]] && echo "log" && return 0
+	[[ $vdev == "raidz1" ]] && echo "raidz" && return 0
+
+	echo $vdev
+	return 0
+}
+
+#
+# Check that pool configuration returned by zpool status matches expected
+# configuration. Format for the check string is same as the vdev arguments for
+# creating a pool
+# Add -q for quiet mode.
+#
+# eg: check_pool_config pool1 "mirror c0t0d0s0 c0t1d0s0 log c1t1d0s0"
+#
+function check_pool_config
+{
+	typeset logfailure=true
+	if [[ $1 == '-q' ]]; then
+		logfailure=false
+		shift
+	fi
+
+	typeset poolname=$1
+	typeset expected=$2
+
+	typeset status
+	status=$(zpool status $poolname 2>&1)
+	if [[ $? -ne 0 ]]; then
+		if ( $logfailure ); then
+			log_note "zpool status $poolname failed: $status"
+		fi
+		return 1
+	fi
+
+	typeset actual=""
+	typeset began=false
+	printf "$status\n" | while read line; do
+		typeset vdev=$(echo "$line" | awk '{printf $1}')
+		if ( ! $began ) && [[ $vdev == NAME ]]; then
+			began=true
+			continue
+		fi
+		( $began ) && [[ -z $vdev ]] && break;
+
+		if ( $began ); then
+			[[ -z $actual ]] && actual="$vdev" && continue
+			vdev=$(_translate_vdev $vdev)
+			actual="$actual $vdev"
+		fi
+	done
+
+	expected="$poolname $expected"
+
+	if [[ "$actual" != "$expected" ]]; then
+		if ( $logfailure ); then
+			log_note "expected pool vdevs:"
+			log_note "> '$expected'"
+			log_note "actual pool vdevs:"
+			log_note "> '$actual'"
+		fi
+		return 1
+	fi
+
+	return 0
+}
+
+#
+# Check that pool configuration returned by zpool status matches expected
+# configuration within a given timeout in seconds. See check_pool_config().
+#
+# eg: wait_for_pool_config pool1 "mirror c0t0d0s0 c0t1d0s0" 60
+#
+function wait_for_pool_config
+{
+	typeset poolname=$1
+	typeset expectedconfig="$2"
+	typeset -i timeout=${3:-60}
+
+	timeout=$(( $timeout + $(date +%s) ))
+
+	while  (( $(date +%s) < $timeout )); do
+		check_pool_config -q $poolname "$expectedconfig"
+		[[ $? -eq 0 ]] && return 0
+		sleep 3
+	done
+
+	check_pool_config $poolname "$expectedconfig"
+	return $?
+}
+
+#
+# Check that pool status is ONLINE
+#
+function check_pool_healthy
+{
+	typeset pool=$1
+
+	typeset status
+	status=$(zpool status $pool 2>&1)
+	if [[ $? -ne 0 ]]; then
+		log_note "zpool status $pool failed: $status"
+		return 1
+	fi
+
+	status=$(echo "$status" | grep "$pool" | grep -v "pool:" | \
+	    awk '{print $2}')
+
+	if [[ $status != "ONLINE" ]]; then
+		log_note "Invalid zpool status for '$pool': '$status'" \
+		    "!= 'ONLINE'"
+		return 1
+	fi
+
+	return 0
+}
+
+#
+# Return 0 if a device is currently being replaced in the pool.
+#
+function pool_is_replacing
+{
+	typeset pool=$1
+
+	zpool status $pool | grep "replacing" | grep "ONLINE" > /dev/null
+
+	return $?
+}
+
+function set_vdev_validate_skip
+{
+	set_tunable32 "vdev_validate_skip" "$1"
+}
+
+function get_zfs_txg_timeout
+{
+	get_tunable "zfs_txg_timeout"
+}
+
+function set_zfs_txg_timeout
+{
+	set_tunable32 "zfs_txg_timeout" "$1"
+}
+
+function set_spa_load_verify_metadata
+{
+	set_tunable32 "spa_load_verify_metadata" "$1"
+}
+
+function set_spa_load_verify_data
+{
+	set_tunable32 "spa_load_verify_data" "$1"
+}
+
+function set_zfs_max_missing_tvds
+{
+	set_tunable32 "zfs_max_missing_tvds" "$1"
+}
+
+#
+# Use mdb to find the last txg that was synced in an active pool.
+#
+function get_last_txg_synced
+{
+	typeset pool=$1
+
+	if is_linux; then
+		txg=$(tail "/proc/spl/kstat/zfs/$pool/txgs" |
+		    awk '$3=="C" {print $1}' | tail -1)
+		[[ "$txg" ]] || txg=0
+		echo $txg
+		return 0
+	fi
+
+	typeset spas
+	spas=$(mdb -k -e "::spa")
+	[[ $? -ne 0 ]] && return 1
+
+	typeset spa=""
+	print "$spas\n" | while read line; do
+		typeset poolname=$(echo "$line" | awk '{print $3}')
+		typeset addr=$(echo "$line" | awk '{print $1}')
+		if [[ $poolname == $pool ]]; then
+			spa=$addr
+			break
+		fi
+	done
+	if [[ -z $spa ]]; then
+		log_fail "Couldn't find pool '$pool'"
+		return 1
+	fi
+	typeset mdbcmd="$spa::print spa_t spa_ubsync.ub_txg | ::eval '.=E'"
+	typeset -i txg
+	txg=$(mdb -k -e "$mdbcmd")
+	[[ $? -ne 0 ]] && return 1
+
+	echo $txg
+	return 0
+}

@@ -43,7 +43,7 @@
 function cleanup {
 	typeset file
 
-	for file in /tmp/output.$$ /tmp/expected-output.$$ \
+	for file in $TEST_BASE_DIR/output.$$ $TEST_BASE_DIR/expected-output.$$ \
 		$TESTDIR/myfile.$$ ; do
 		log_must rm -f $file
 	done
@@ -61,15 +61,15 @@ log_must touch $TESTDIR/myfile.$$
 create_xattr $TESTDIR/myfile.$$ passwd /etc/passwd
 
 # listing the directory .
-log_must eval "runat $TESTDIR/myfile.$$ ls  . > /tmp/output.$$"
-create_expected_output  /tmp/expected-output.$$  \
+log_must eval "runat $TESTDIR/myfile.$$ ls  . > $TEST_BASE_DIR/output.$$"
+create_expected_output  $TEST_BASE_DIR/expected-output.$$  \
     SUNWattr_ro  SUNWattr_rw  passwd
-log_must diff /tmp/output.$$ /tmp/expected-output.$$
+log_must diff $TEST_BASE_DIR/output.$$ $TEST_BASE_DIR/expected-output.$$
 # list the directory . long form
-log_must eval "runat $TESTDIR/myfile.$$ ls -a . > /tmp/output.$$"
-create_expected_output  /tmp/expected-output.$$ . ..  \
+log_must eval "runat $TESTDIR/myfile.$$ ls -a . > $TEST_BASE_DIR/output.$$"
+create_expected_output  $TEST_BASE_DIR/expected-output.$$ . ..  \
     SUNWattr_ro  SUNWattr_rw  passwd
-log_must diff /tmp/output.$$ /tmp/expected-output.$$
+log_must diff $TEST_BASE_DIR/output.$$ $TEST_BASE_DIR/expected-output.$$
 
 # list the directory .. expecting one file
 OUTPUT=$(runat $TESTDIR/myfile.$$ ls ..)

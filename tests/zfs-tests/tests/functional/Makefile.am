@@ -1,5 +1,6 @@
 SUBDIRS = \
 	acl \
+	alloc_class \
 	arc \
 	atime \
 	bootfs \
@@ -13,6 +14,7 @@ SUBDIRS = \
 	cli_root \
 	cli_user \
 	compression \
+	cp_files \
 	ctime \
 	deadman \
 	delegate \
@@ -21,15 +23,17 @@ SUBDIRS = \
 	exec \
 	fault \
 	features \
-	grow_pool \
-	grow_replicas \
+	grow \
 	history \
 	hkdf \
 	inheritance \
 	inuse \
+	io \
 	large_files \
 	largest_pool \
 	libzfs \
+	limits \
+	pyzfs \
 	link_count \
 	migration \
 	mmap \
@@ -40,15 +44,18 @@ SUBDIRS = \
 	no_space \
 	nopwrite \
 	online_offline \
+	pool_checkpoint \
 	pool_names \
 	poolversion \
 	privilege \
+	procfs \
 	projectquota \
 	quota \
 	raidz \
 	redundancy \
 	refquota \
 	refreserv \
+	removal \
 	rename_dirs \
 	replacement \
 	reservation \

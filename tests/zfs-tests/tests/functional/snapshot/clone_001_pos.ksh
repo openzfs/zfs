@@ -49,11 +49,6 @@
 
 verify_runnable "both"
 
-# See issue: https://github.com/zfsonlinux/zfs/issues/6145
-if is_linux; then
-	log_unsupported "Test case occasionally fails"
-fi
-
 # Setup array, 4 elements as a group, refer to:
 # i+0: name of a snapshot
 # i+1: mountpoint of the snapshot
@@ -80,7 +75,7 @@ function cleanup_all
 	i=0
 	while (( i < ${#args[*]} )); do
 		snapexists ${args[i]} && \
-			log_must zfs destroy -Rf ${args[i]}
+			destroy_dataset "${args[i]}" "-Rf"
 
 		[[ -d ${args[i+3]} ]] && \
 			log_must rm -rf ${args[i+3]}

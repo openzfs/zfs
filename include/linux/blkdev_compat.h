@@ -32,10 +32,28 @@
 #include <linux/blkdev.h>
 #include <linux/elevator.h>
 #include <linux/backing-dev.h>
+#include <linux/hdreg.h>
+#include <linux/msdos_fs.h>	/* for SECTOR_* */
 
 #ifndef HAVE_FMODE_T
 typedef unsigned __bitwise__ fmode_t;
 #endif /* HAVE_FMODE_T */
+
+#ifndef HAVE_BLK_QUEUE_FLAG_SET
+static inline void
+blk_queue_flag_set(unsigned int flag, struct request_queue *q)
+{
+	queue_flag_set(flag, q);
+}
+#endif
+
+#ifndef HAVE_BLK_QUEUE_FLAG_CLEAR
+static inline void
+blk_queue_flag_clear(unsigned int flag, struct request_queue *q)
+{
+	queue_flag_clear(flag, q);
+}
+#endif
 
 /*
  * 4.7 - 4.x API,
@@ -56,16 +74,14 @@ static inline void
 blk_queue_set_write_cache(struct request_queue *q, bool wc, bool fua)
 {
 #if defined(HAVE_BLK_QUEUE_WRITE_CACHE_GPL_ONLY)
-	spin_lock_irq(q->queue_lock);
 	if (wc)
-		queue_flag_set(QUEUE_FLAG_WC, q);
+		blk_queue_flag_set(QUEUE_FLAG_WC, q);
 	else
-		queue_flag_clear(QUEUE_FLAG_WC, q);
+		blk_queue_flag_clear(QUEUE_FLAG_WC, q);
 	if (fua)
-		queue_flag_set(QUEUE_FLAG_FUA, q);
+		blk_queue_flag_set(QUEUE_FLAG_FUA, q);
 	else
-		queue_flag_clear(QUEUE_FLAG_FUA, q);
-	spin_unlock_irq(q->queue_lock);
+		blk_queue_flag_clear(QUEUE_FLAG_FUA, q);
 #elif defined(HAVE_BLK_QUEUE_WRITE_CACHE)
 	blk_queue_write_cache(q, wc, fua);
 #elif defined(HAVE_BLK_QUEUE_FLUSH_GPL_ONLY)
@@ -88,17 +104,6 @@ blk_queue_set_write_cache(struct request_queue *q, bool wc, bool fua)
  */
 #ifndef blk_fs_request
 #define	blk_fs_request(rq)	((rq)->cmd_type == REQ_TYPE_FS)
-#endif
-
-/*
- * 2.6.27 API change,
- * The blk_queue_stackable() queue flag was added in 2.6.27 to handle dm
- * stacking drivers.  Prior to this request stacking drivers were detected
- * by checking (q->request_fn == NULL), for earlier kernels we revert to
- * this legacy behavior.
- */
-#ifndef blk_queue_stackable
-#define	blk_queue_stackable(q)	((q)->request_fn == NULL)
 #endif
 
 /*
@@ -358,6 +363,20 @@ bio_set_bi_error(struct bio *bio, int error)
 #define	vdev_bdev_open(path, md, hld)	open_bdev_excl(path, md, hld)
 #define	vdev_bdev_close(bdev, md)	close_bdev_excl(bdev)
 #endif /* HAVE_BLKDEV_GET_BY_PATH | HAVE_OPEN_BDEV_EXCLUSIVE */
+
+/*
+ * 4.1 - x.y.z API,
+ * 3.10.0 CentOS 7.x API,
+ *   blkdev_reread_part()
+ *
+ * For older kernels trigger a re-reading of the partition table by calling
+ * check_disk_change() which calls flush_disk() to invalidate the device.
+ */
+#ifdef HAVE_BLKDEV_REREAD_PART
+#define	vdev_bdev_reread_part(bdev)	blkdev_reread_part(bdev)
+#else
+#define	vdev_bdev_reread_part(bdev)	check_disk_change(bdev)
+#endif /* HAVE_BLKDEV_REREAD_PART */
 
 /*
  * 2.6.22 API change

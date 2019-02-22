@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  */
 
@@ -329,13 +329,14 @@ struct dnode {
 	uint64_t dn_allocated_txg;
 	uint64_t dn_free_txg;
 	uint64_t dn_assigned_txg;
+	uint64_t dn_dirty_txg;			/* txg dnode was last dirtied */
 	kcondvar_t dn_notxholds;
 	enum dnode_dirtycontext dn_dirtyctx;
 	uint8_t *dn_dirtyctx_firstset;		/* dbg: contents meaningless */
 
 	/* protected by own devices */
-	refcount_t dn_tx_holds;
-	refcount_t dn_holds;
+	zfs_refcount_t dn_tx_holds;
+	zfs_refcount_t dn_holds;
 
 	kmutex_t dn_dbufs_mtx;
 	/*
@@ -407,7 +408,7 @@ int dnode_hold_impl(struct objset *dd, uint64_t object, int flag, int dn_slots,
     void *ref, dnode_t **dnp);
 boolean_t dnode_add_ref(dnode_t *dn, void *ref);
 void dnode_rele(dnode_t *dn, void *ref);
-void dnode_rele_and_unlock(dnode_t *dn, void *tag);
+void dnode_rele_and_unlock(dnode_t *dn, void *tag, boolean_t evicting);
 void dnode_setdirty(dnode_t *dn, dmu_tx_t *tx);
 void dnode_sync(dnode_t *dn, dmu_tx_t *tx);
 void dnode_allocate(dnode_t *dn, dmu_object_type_t ot, int blocksize, int ibs,
@@ -431,6 +432,10 @@ int dnode_next_offset(dnode_t *dn, int flags, uint64_t *off,
 void dnode_evict_dbufs(dnode_t *dn);
 void dnode_evict_bonus(dnode_t *dn);
 void dnode_free_interior_slots(dnode_t *dn);
+boolean_t dnode_needs_remap(const dnode_t *dn);
+
+#define	DNODE_IS_DIRTY(_dn)						\
+	((_dn)->dn_dirty_txg >= spa_syncing_txg((_dn)->dn_objset->os_spa))
 
 #define	DNODE_IS_CACHEABLE(_dn)						\
 	((_dn)->dn_objset->os_primary_cache == ZFS_CACHE_ALL ||		\

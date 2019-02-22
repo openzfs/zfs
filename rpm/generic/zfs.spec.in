@@ -28,9 +28,24 @@
 %endif
 %endif
 
-# Set the default _initconfdir when undefined.
 %if %{undefined _initconfdir}
 %global _initconfdir /etc/sysconfig
+%endif
+
+%if %{undefined _unitdir}
+%global _unitdir %{_prefix}/lib/systemd/system
+%endif
+
+%if %{undefined _presetdir}
+%global _presetdir %{_prefix}/lib/systemd/system-preset
+%endif
+
+%if %{undefined _modulesloaddir}
+%global _modulesloaddir %{_prefix}/lib/modules-load.d
+%endif
+
+%if %{undefined _systemdgeneratordir}
+%global _systemdgeneratordir %{_prefix}/lib/systemd/system-generators
 %endif
 
 %bcond_with    debug
@@ -38,15 +53,9 @@
 %bcond_with    asan
 %bcond_with    systemd
 
-# Python permits the !/usr/bin/python shebang for scripts that are cross
-# compatible between python2 and python3, but Fedora 28 does not.  Fedora
-# wants us to choose python3 for cross-compatible scripts.  Since we want
-# to support python2 and python3 users, exclude our scripts from Fedora 28's
-# RPM build check, so that we don't get a bunch of build warnings.
-#
-# Details: https://github.com/zfsonlinux/zfs/issues/7360
-#
-%global __brp_mangle_shebangs_exclude_from arc_summary.py|arcstat.py|dbufstat.py|test-runner.py
+# Exclude test-runner.py from the rpmbuild shebang check to allow it to run
+# under Python 2 and 3.
+%global __brp_mangle_shebangs_exclude_from test-runner.py
 
 # Generic enable switch for systemd
 %if %{with systemd}
@@ -70,6 +79,35 @@
 %define _systemd 1
 %endif
 
+# When not specified default to distribution provided version.  This
+# is normally Python 3, but for RHEL <= 7 only Python 2 is provided.
+%if %{undefined __use_python}
+%if 0%{?rhel} && 0%{?rhel} <= 7
+%define __python                  /usr/bin/python2
+%define __python_pkg_version      2
+%define __python_cffi_pkg         python-cffi
+%define __python_setuptools_pkg   python-setuptools
+%else
+%define __python                  /usr/bin/python3
+%define __python_pkg_version      3
+%define __python_cffi_pkg         python3-cffi
+%define __python_setuptools_pkg   python3-setuptools
+%endif
+%else
+%define __python                  %{__use_python}
+%define __python_pkg_version      %{__use_python_pkg_version}
+%define __python_cffi_pkg         python%{__python_pkg_version}-cffi
+%define __python_setuptools_pkg   python%{__python_pkg_version}-setuptools
+%endif
+
+# By default python-pyzfs is enabled, with the exception of
+# RHEL 6 which by default uses Python 2.6 which is too old.
+%if 0%{?rhel} == 6
+%bcond_with    pyzfs
+%else
+%bcond_without pyzfs
+%endif
+
 Name:           @PACKAGE@
 Version:        @VERSION@
 Release:        @RELEASE@%{?dist}
@@ -80,25 +118,29 @@ License:        @ZFS_META_LICENSE@
 URL:            http://zfsonlinux.org/
 Source0:        %{name}-%{version}.tar.gz
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
-Requires:       spl = %{version}
 Requires:       libzpool2 = %{version}
 Requires:       libnvpair1 = %{version}
 Requires:       libuutil1 = %{version}
 Requires:       libzfs2 = %{version}
 Requires:       %{name}-kmod = %{version}
 Provides:       %{name}-kmod-common = %{version}
+Obsoletes:      spl
 
 # zfs-fuse provides the same commands and man pages that ZoL does. Renaming
 # those on either side would conflict with all available documentation.
 Conflicts:      zfs-fuse
 
 %if 0%{?rhel}%{?fedora}%{?suse_version}
+BuildRequires:  gcc, make
 BuildRequires:  zlib-devel
 BuildRequires:  libuuid-devel
 BuildRequires:  libblkid-devel
 BuildRequires:  libudev-devel
 BuildRequires:  libattr-devel
 BuildRequires:  openssl-devel
+%if 0%{?fedora} >= 28
+BuildRequires:  libtirpc-devel
+%endif
 Requires:       openssl
 %if 0%{?_systemd}
 BuildRequires: systemd
@@ -116,7 +158,7 @@ Requires:  util-linux
 Requires:  sysstat
 
 %description
-This package contains the ZFS command line utilities.
+This package contains the core ZFS command line utilities.
 
 %package -n libzpool2
 Summary:        Native ZFS pool library for Linux
@@ -199,7 +241,11 @@ Requires:       fio
 Requires:       acl
 Requires:       sudo
 Requires:       sysstat
-Requires:	libaio
+Requires:       libaio
+Requires:       python%{__python_pkg_version}
+%if 0%{?rhel}%{?fedora}%{?suse_version}
+BuildRequires:  libaio-devel
+%endif
 AutoReqProv:    no
 
 %description test
@@ -211,10 +257,34 @@ Summary:        Dracut module
 Group:          System Environment/Kernel
 Requires:       %{name}%{?_isa} = %{version}-%{release}
 Requires:       dracut
+Requires:       /usr/bin/awk
+Requires:       grep
 
 %description dracut
 This package contains a dracut module used to construct an initramfs
 image which is ZFS aware.
+
+%if %{with pyzfs}
+%package -n python%{__python_pkg_version}-pyzfs
+Summary:        Python %{python_version} wrapper for libzfs_core
+Group:          Development/Languages/Python
+License:        Apache-2.0
+BuildArch:      noarch
+Requires:       libzfs2 = %{version}
+Requires:       libnvpair1 = %{version}
+Requires:       libffi
+Requires:       python%{__python_pkg_version}
+Requires:       %{__python_cffi_pkg}
+%if 0%{?rhel}%{?fedora}%{?suse_version}
+BuildRequires:  python%{__python_pkg_version}-devel
+BuildRequires:  %{__python_cffi_pkg}
+BuildRequires:  %{__python_setuptools_pkg}
+BuildRequires:  libffi-devel
+%endif
+
+%description -n python%{__python_pkg_version}-pyzfs
+This package provides a python wrapper for the libzfs_core C library.
+%endif
 
 %if 0%{?_initramfs}
 %package initramfs
@@ -249,10 +319,16 @@ image which is ZFS aware.
 %endif
 
 %if 0%{?_systemd}
-    %define systemd --enable-systemd --with-systemdunitdir=%{_unitdir} --with-systemdpresetdir=%{_presetdir} --disable-sysvinit
+    %define systemd --enable-systemd --with-systemdunitdir=%{_unitdir} --with-systemdpresetdir=%{_presetdir} --with-systemdmodulesloaddir=%{_modulesloaddir} --with-systemdgeneratordir=%{_systemdgeneratordir} --disable-sysvinit
     %define systemd_svcs zfs-import-cache.service zfs-import-scan.service zfs-mount.service zfs-share.service zfs-zed.service zfs.target zfs-import.target
 %else
     %define systemd --enable-sysvinit --disable-systemd
+%endif
+
+%if %{with pyzfs}
+    %define pyzfs --enable-pyzfs
+%else
+    %define pyzfs --disable-pyzfs
 %endif
 
 %setup -q
@@ -263,11 +339,13 @@ image which is ZFS aware.
     --with-udevdir=%{_udevdir} \
     --with-udevruledir=%{_udevruledir} \
     --with-dracutdir=%{_dracutdir} \
+    --with-python=%{__python} \
     --disable-static \
     %{debug} \
     %{debuginfo} \
     %{asan} \
-    %{systemd}
+    %{systemd}\
+    %{pyzfs}
 make %{?_smp_mflags}
 
 %install
@@ -335,20 +413,28 @@ systemctl --system daemon-reload >/dev/null || true
 %endif
 
 %files
+# Core utilities
 %{_sbindir}/*
-%{_bindir}/*
-%{_libexecdir}/%{name}
+%{_bindir}/raidz_test
+%{_bindir}/zgenhostid
+# Optional Python 2/3 scripts
+%{_bindir}/arc_summary
+%{_bindir}/arcstat
+%{_bindir}/dbufstat
+# Man pages
 %{_mandir}/man1/*
 %{_mandir}/man5/*
 %{_mandir}/man8/*
+# Configuration files and scripts
+%{_libexecdir}/%{name}
 %{_udevdir}/vdev_id
 %{_udevdir}/zvol_id
 %{_udevdir}/rules.d/*
 %if 0%{?_systemd}
-/usr/lib/modules-load.d/*
 %{_unitdir}/*
 %{_presetdir}/*
-%{_generatordir}/*
+%{_modulesloaddir}/*
+%{_systemdgeneratordir}/*
 %else
 %config(noreplace) %{_sysconfdir}/init.d/*
 %config(noreplace) %{_initconfdir}/zfs
@@ -373,8 +459,7 @@ systemctl --system daemon-reload >/dev/null || true
 %{_datadir}/pkgconfig/libzfs_core.pc
 %{_libdir}/*.so
 %{_includedir}/*
-%doc AUTHORS COPYRIGHT DISCLAIMER
-%doc OPENSOLARIS.LICENSE README.markdown
+%doc AUTHORS COPYRIGHT LICENSE NOTICE README.md
 
 %files test
 %{_datadir}/%{name}
@@ -382,6 +467,15 @@ systemctl --system daemon-reload >/dev/null || true
 %files dracut
 %doc contrib/dracut/README.dracut.markdown
 %{_dracutdir}/modules.d/*
+
+%if %{with pyzfs}
+%files -n python%{__python_pkg_version}-pyzfs
+%doc contrib/pyzfs/README
+%doc contrib/pyzfs/LICENSE
+%defattr(-,root,root,-)
+%{python_sitelib}/libzfs_core/*
+%{python_sitelib}/pyzfs*
+%endif
 
 %if 0%{?_initramfs}
 %files initramfs
@@ -392,8 +486,3 @@ systemctl --system daemon-reload >/dev/null || true
 # ignore those files.
 %exclude /usr/share/initramfs-tools
 %endif
-
-%changelog
-* Wed Jul 26 2017 Brian Behlendorf <behlendorf1@llnl.gov> - 0.7.0-1
-- Released 0.7.0-1, detailed release notes are available at:
-- https://github.com/zfsonlinux/zfs/releases/tag/zfs-0.7.0

@@ -48,12 +48,11 @@
 #include <sys/zio_compress.h>
 #include <sys/zfeature.h>
 #include <sys/dmu_tx.h>
-#include <libzfs.h>
+#include <libzutil.h>
 
 extern boolean_t zfeature_checks_disable;
 
 const char cmdname[] = "zhack";
-libzfs_handle_t *g_zfs;
 static importargs_t g_importargs;
 static char *g_pool;
 static boolean_t g_readonly;
@@ -128,20 +127,17 @@ zhack_import(char *target, boolean_t readonly)
 	int error;
 
 	kernel_init(readonly ? FREAD : (FREAD | FWRITE));
-	g_zfs = libzfs_init();
-	ASSERT(g_zfs != NULL);
 
 	dmu_objset_register_type(DMU_OST_ZFS, space_delta_cb);
 
 	g_readonly = readonly;
-	g_importargs.unique = B_TRUE;
 	g_importargs.can_be_active = readonly;
 	g_pool = strdup(target);
 
-	error = zpool_tryimport(g_zfs, target, &config, &g_importargs);
+	error = zpool_find_config(NULL, target, &config, &g_importargs,
+	    &libzpool_config_ops);
 	if (error)
-		fatal(NULL, FTAG, "cannot import '%s': %s", target,
-		    libzfs_error_description(g_zfs));
+		fatal(NULL, FTAG, "cannot import '%s'", target);
 
 	props = NULL;
 	if (readonly) {
@@ -529,7 +525,6 @@ main(int argc, char **argv)
 		    "changes may not be committed to disk\n");
 	}
 
-	libzfs_fini(g_zfs);
 	kernel_fini();
 
 	return (rv);

@@ -28,9 +28,7 @@
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/time.h>
-#include <sys/systm.h>
 #include <sys/sysmacros.h>
-#include <sys/resource.h>
 #include <sys/vfs.h>
 #include <sys/vnode.h>
 #include <sys/file.h>
@@ -41,7 +39,6 @@
 #include <sys/cmn_err.h>
 #include <sys/errno.h>
 #include <sys/stat.h>
-#include <sys/unistd.h>
 #include <sys/sunddi.h>
 #include <sys/random.h>
 #include <sys/policy.h>
@@ -49,7 +46,6 @@
 #include <sys/zfs_acl.h>
 #include <sys/zfs_vnops.h>
 #include <sys/fs/zfs.h>
-#include "fs/fs_subr.h"
 #include <sys/zap.h>
 #include <sys/dmu.h>
 #include <sys/atomic.h>
@@ -57,8 +53,6 @@
 #include <sys/zfs_fuid.h>
 #include <sys/sa.h>
 #include <sys/zfs_sa.h>
-#include <sys/dnlc.h>
-#include <sys/extdirent.h>
 
 /*
  * zfs_match_find() is used by zfs_dirent_lock() to peform zap lookups
@@ -104,11 +98,6 @@ zfs_match_find(zfsvfs_t *zfsvfs, znode_t *dzp, char *name, matchtype_t mt,
 		*deflags = conflict ? ED_CASE_CONFLICT : 0;
 
 	*zoid = ZFS_DIRENT_OBJ(*zoid);
-
-#ifdef HAVE_DNLC
-	if (error == ENOENT && update)
-		dnlc_update(ZTOI(dzp), name, DNLC_NO_VNODE);
-#endif /* HAVE_DNLC */
 
 	return (error);
 }
@@ -157,9 +146,6 @@ zfs_dirent_lock(zfs_dirlock_t **dlpp, znode_t *dzp, char *name, znode_t **zpp,
 	boolean_t	update;
 	matchtype_t	mt = 0;
 	uint64_t	zoid;
-#ifdef HAVE_DNLC
-	vnode_t		*vp = NULL;
-#endif /* HAVE_DNLC */
 	int		error = 0;
 	int		cmpflags;
 
@@ -326,29 +312,8 @@ zfs_dirent_lock(zfs_dirlock_t **dlpp, znode_t *dzp, char *name, znode_t **zpp,
 		if (error == 0)
 			error = (zoid == 0 ? SET_ERROR(ENOENT) : 0);
 	} else {
-#ifdef HAVE_DNLC
-		if (update)
-			vp = dnlc_lookup(ZTOI(dzp), name);
-		if (vp == DNLC_NO_VNODE) {
-			iput(vp);
-			error = SET_ERROR(ENOENT);
-		} else if (vp) {
-			if (flag & ZNEW) {
-				zfs_dirent_unlock(dl);
-				iput(vp);
-				return (SET_ERROR(EEXIST));
-			}
-			*dlpp = dl;
-			*zpp = VTOZ(vp);
-			return (0);
-		} else {
-			error = zfs_match_find(zfsvfs, dzp, name, mt,
-			    update, direntflags, realpnp, &zoid);
-		}
-#else
 		error = zfs_match_find(zfsvfs, dzp, name, mt,
 		    update, direntflags, realpnp, &zoid);
-#endif /* HAVE_DNLC */
 	}
 	if (error) {
 		if (error != ENOENT || (flag & ZEXISTS)) {
@@ -365,10 +330,6 @@ zfs_dirent_lock(zfs_dirlock_t **dlpp, znode_t *dzp, char *name, znode_t **zpp,
 			zfs_dirent_unlock(dl);
 			return (error);
 		}
-#ifdef HAVE_DNLC
-		if (!(flag & ZXATTR) && update)
-			dnlc_update(ZTOI(dzp), name, ZTOI(*zpp));
-#endif /* HAVE_DNLC */
 	}
 
 	*dlpp = dl;
@@ -497,26 +458,31 @@ zfs_unlinked_add(znode_t *zp, dmu_tx_t *tx)
 
 	VERIFY3U(0, ==,
 	    zap_add_int(zfsvfs->z_os, zfsvfs->z_unlinkedobj, zp->z_id, tx));
+
+	dataset_kstats_update_nunlinks_kstat(&zfsvfs->z_kstat, 1);
 }
 
 /*
  * Clean up any znodes that had no links when we either crashed or
  * (force) umounted the file system.
  */
-void
-zfs_unlinked_drain(zfsvfs_t *zfsvfs)
+static void
+zfs_unlinked_drain_task(void *arg)
 {
+	zfsvfs_t *zfsvfs = arg;
 	zap_cursor_t	zc;
 	zap_attribute_t zap;
 	dmu_object_info_t doi;
 	znode_t		*zp;
 	int		error;
 
+	ASSERT3B(zfsvfs->z_draining, ==, B_TRUE);
+
 	/*
 	 * Iterate over the contents of the unlinked set.
 	 */
 	for (zap_cursor_init(&zc, zfsvfs->z_os, zfsvfs->z_unlinkedobj);
-	    zap_cursor_retrieve(&zc, &zap) == 0;
+	    zap_cursor_retrieve(&zc, &zap) == 0 && !zfsvfs->z_drain_cancel;
 	    zap_cursor_advance(&zc)) {
 
 		/*
@@ -546,9 +512,61 @@ zfs_unlinked_drain(zfsvfs_t *zfsvfs)
 			continue;
 
 		zp->z_unlinked = B_TRUE;
+
+		/*
+		 * iput() is Linux's equivalent to illumos' VN_RELE(). It will
+		 * decrement the inode's ref count and may cause the inode to be
+		 * synchronously freed. We interrupt freeing of this inode, by
+		 * checking the return value of dmu_objset_zfs_unmounting() in
+		 * dmu_free_long_range(), when an unmount is requested.
+		 */
 		iput(ZTOI(zp));
+		ASSERT3B(zfsvfs->z_unmounted, ==, B_FALSE);
 	}
 	zap_cursor_fini(&zc);
+
+	zfsvfs->z_draining = B_FALSE;
+	zfsvfs->z_drain_task = TASKQID_INVALID;
+}
+
+/*
+ * Sets z_draining then tries to dispatch async unlinked drain.
+ * If that fails executes synchronous unlinked drain.
+ */
+void
+zfs_unlinked_drain(zfsvfs_t *zfsvfs)
+{
+	ASSERT3B(zfsvfs->z_unmounted, ==, B_FALSE);
+	ASSERT3B(zfsvfs->z_draining, ==, B_FALSE);
+
+	zfsvfs->z_draining = B_TRUE;
+	zfsvfs->z_drain_cancel = B_FALSE;
+
+	zfsvfs->z_drain_task = taskq_dispatch(
+	    dsl_pool_unlinked_drain_taskq(dmu_objset_pool(zfsvfs->z_os)),
+	    zfs_unlinked_drain_task, zfsvfs, TQ_SLEEP);
+	if (zfsvfs->z_drain_task == TASKQID_INVALID) {
+		zfs_dbgmsg("async zfs_unlinked_drain dispatch failed");
+		zfs_unlinked_drain_task(zfsvfs);
+	}
+}
+
+/*
+ * Wait for the unlinked drain taskq task to stop. This will interrupt the
+ * unlinked set processing if it is in progress.
+ */
+void
+zfs_unlinked_drain_stop_wait(zfsvfs_t *zfsvfs)
+{
+	ASSERT3B(zfsvfs->z_unmounted, ==, B_FALSE);
+
+	if (zfsvfs->z_draining) {
+		zfsvfs->z_drain_cancel = B_TRUE;
+		taskq_cancel_id(dsl_pool_unlinked_drain_taskq(
+		    dmu_objset_pool(zfsvfs->z_os)), zfsvfs->z_drain_task);
+		zfsvfs->z_drain_task = TASKQID_INVALID;
+		zfsvfs->z_draining = B_FALSE;
+	}
 }
 
 /*
@@ -722,6 +740,8 @@ zfs_rmnode(znode_t *zp)
 	/* Remove this znode from the unlinked set */
 	VERIFY3U(0, ==,
 	    zap_remove_int(zfsvfs->z_os, zfsvfs->z_unlinkedobj, zp->z_id, tx));
+
+	dataset_kstats_update_nunlinked_kstat(&zfsvfs->z_kstat, 1);
 
 	zfs_znode_delete(zp, tx);
 
@@ -906,10 +926,6 @@ zfs_link_destroy(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag,
 	uint64_t links;
 	int count = 0;
 	int error;
-
-#ifdef HAVE_DNLC
-	dnlc_remove(ZTOI(dzp), dl->dl_name);
-#endif /* HAVE_DNLC */
 
 	if (!(flag & ZRENAMING)) {
 		mutex_enter(&zp->z_lock);

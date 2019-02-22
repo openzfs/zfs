@@ -50,9 +50,7 @@ verify_runnable "global"
 
 function cleanup
 {
-        if poolexists $TESTPOOL1; then
-                log_must zpool destroy $TESTPOOL1
-        fi
+	poolexists $TESTPOOL1 && destroy_pool $TESTPOOL1
 
 	for i in 1 2 3; do
 		[ -e ${TEMPFILE}.$i ] && log_must rm ${TEMPFILE}.$i

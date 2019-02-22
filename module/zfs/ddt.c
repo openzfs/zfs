@@ -291,7 +291,7 @@ ddt_bp_create(enum zio_checksum checksum,
 	BP_SET_CHECKSUM(bp, checksum);
 	BP_SET_TYPE(bp, DMU_OT_DEDUP);
 	BP_SET_LEVEL(bp, 0);
-	BP_SET_DEDUP(bp, 0);
+	BP_SET_DEDUP(bp, 1);
 	BP_SET_BYTEORDER(bp, ZFS_HOST_BYTEORDER);
 }
 
@@ -346,6 +346,13 @@ ddt_phys_free(ddt_t *ddt, ddt_key_t *ddk, ddt_phys_t *ddp, uint64_t txg)
 	blkptr_t blk;
 
 	ddt_bp_create(ddt->ddt_checksum, ddk, ddp, &blk);
+
+	/*
+	 * We clear the dedup bit so that zio_free() will actually free the
+	 * space, rather than just decrementing the refcount in the DDT.
+	 */
+	BP_SET_DEDUP(&blk, 0);
+
 	ddt_phys_clear(ddp);
 	zio_free(ddt->ddt_spa, txg, &blk);
 }
@@ -760,14 +767,14 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t add)
 	for (type = 0; type < DDT_TYPES; type++) {
 		for (class = 0; class < DDT_CLASSES; class++) {
 			error = ddt_object_lookup(ddt, type, class, dde);
-			if (error != ENOENT)
+			if (error != ENOENT) {
+				ASSERT0(error);
 				break;
+			}
 		}
 		if (error != ENOENT)
 			break;
 	}
-
-	ASSERT(error == 0 || error == ENOENT);
 
 	ddt_enter(ddt);
 
@@ -1181,7 +1188,7 @@ ddt_sync(spa_t *spa, uint64_t txg)
 	tx = dmu_tx_create_assigned(spa->spa_dsl_pool, txg);
 
 	rio = zio_root(spa, NULL, NULL,
-	    ZIO_FLAG_CANFAIL | ZIO_FLAG_SPECULATIVE);
+	    ZIO_FLAG_CANFAIL | ZIO_FLAG_SPECULATIVE | ZIO_FLAG_SELF_HEAL);
 
 	/*
 	 * This function may cause an immediate scan of ddt blocks (see
@@ -1236,7 +1243,7 @@ ddt_walk(spa_t *spa, ddt_bookmark_t *ddb, ddt_entry_t *dde)
 	return (SET_ERROR(ENOENT));
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 module_param(zfs_dedup_prefetch, int, 0644);
 MODULE_PARM_DESC(zfs_dedup_prefetch, "Enable prefetching dedup-ed blks");
 #endif

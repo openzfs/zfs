@@ -175,6 +175,12 @@ bpobj_open(bpobj_t *bpo, objset_t *os, uint64_t object)
 	return (0);
 }
 
+boolean_t
+bpobj_is_open(const bpobj_t *bpo)
+{
+	return (bpo->bpo_object != 0);
+}
+
 void
 bpobj_close(bpobj_t *bpo)
 {
@@ -193,11 +199,11 @@ bpobj_close(bpobj_t *bpo)
 	mutex_destroy(&bpo->bpo_lock);
 }
 
-static boolean_t
-bpobj_hasentries(bpobj_t *bpo)
+boolean_t
+bpobj_is_empty(bpobj_t *bpo)
 {
-	return (bpo->bpo_phys->bpo_num_blkptrs != 0 ||
-	    (bpo->bpo_havesubobj && bpo->bpo_phys->bpo_num_subobjs != 0));
+	return (bpo->bpo_phys->bpo_num_blkptrs == 0 &&
+	    (!bpo->bpo_havesubobj || bpo->bpo_phys->bpo_num_subobjs == 0));
 }
 
 static int
@@ -210,10 +216,8 @@ bpobj_iterate_impl(bpobj_t *bpo, bpobj_itor_t func, void *arg, dmu_tx_t *tx,
 	int err = 0;
 	dmu_buf_t *dbuf = NULL;
 
+	ASSERT(bpobj_is_open(bpo));
 	mutex_enter(&bpo->bpo_lock);
-
-	if (!bpobj_hasentries(bpo))
-		goto out;
 
 	if (free)
 		dmu_buf_will_dirty(bpo->bpo_dbuf, tx);
@@ -344,7 +348,7 @@ bpobj_iterate_impl(bpobj_t *bpo, bpobj_itor_t func, void *arg, dmu_tx_t *tx,
 
 out:
 	/* If there are no entries, there should be no bytes. */
-	if (!bpobj_hasentries(bpo)) {
+	if (bpobj_is_empty(bpo)) {
 		ASSERT0(bpo->bpo_phys->bpo_bytes);
 		ASSERT0(bpo->bpo_phys->bpo_comp);
 		ASSERT0(bpo->bpo_phys->bpo_uncomp);
@@ -373,12 +377,101 @@ bpobj_iterate_nofree(bpobj_t *bpo, bpobj_itor_t func, void *arg, dmu_tx_t *tx)
 	return (bpobj_iterate_impl(bpo, func, arg, tx, B_FALSE));
 }
 
+/*
+ * Logically add subobj's contents to the parent bpobj.
+ *
+ * In the most general case, this is accomplished in constant time by adding
+ * a reference to subobj.  This case is used when enqueuing a large subobj:
+ * +--------------+                        +--------------+
+ * | bpobj        |----------------------->| subobj list  |
+ * +----+----+----+----+----+              +-----+-----+--+--+
+ * | bp | bp | bp | bp | bp |              | obj | obj | obj |
+ * +----+----+----+----+----+              +-----+-----+-----+
+ *
+ * +--------------+                        +--------------+
+ * | sub-bpobj    |----------------------> | subsubobj    |
+ * +----+----+----+----+---------+----+    +-----+-----+--+--------+-----+
+ * | bp | bp | bp | bp |   ...   | bp |    | obj | obj |    ...    | obj |
+ * +----+----+----+----+---------+----+    +-----+-----+-----------+-----+
+ *
+ * Result: sub-bpobj added to parent's subobj list.
+ * +--------------+                        +--------------+
+ * | bpobj        |----------------------->| subobj list  |
+ * +----+----+----+----+----+              +-----+-----+--+--+-----+
+ * | bp | bp | bp | bp | bp |              | obj | obj | obj | OBJ |
+ * +----+----+----+----+----+              +-----+-----+-----+--|--+
+ *                                                              |
+ *       /-----------------------------------------------------/
+ *       v
+ * +--------------+                        +--------------+
+ * | sub-bpobj    |----------------------> | subsubobj    |
+ * +----+----+----+----+---------+----+    +-----+-----+--+--------+-----+
+ * | bp | bp | bp | bp |   ...   | bp |    | obj | obj |    ...    | obj |
+ * +----+----+----+----+---------+----+    +-----+-----+-----------+-----+
+ *
+ *
+ * In a common case, the subobj is small: its bp's and its list of subobj's
+ * are each stored in a single block.  In this case we copy the subobj's
+ * contents to the parent:
+ * +--------------+                        +--------------+
+ * | bpobj        |----------------------->| subobj list  |
+ * +----+----+----+----+----+              +-----+-----+--+--+
+ * | bp | bp | bp | bp | bp |              | obj | obj | obj |
+ * +----+----+----+----+----+              +-----+-----+-----+
+ *                          ^                                ^
+ * +--------------+         |              +--------------+  |
+ * | sub-bpobj    |---------^------------> | subsubobj    |  ^
+ * +----+----+----+         |              +-----+-----+--+  |
+ * | BP | BP |-->-->-->-->-/               | OBJ | OBJ |-->-/
+ * +----+----+                             +-----+-----+
+ *
+ * Result: subobj destroyed, contents copied to parent:
+ * +--------------+                        +--------------+
+ * | bpobj        |----------------------->| subobj list  |
+ * +----+----+----+----+----+----+----+    +-----+-----+--+--+-----+-----+
+ * | bp | bp | bp | bp | bp | BP | BP |    | obj | obj | obj | OBJ | OBJ |
+ * +----+----+----+----+----+----+----+    +-----+-----+-----+-----+-----+
+ *
+ *
+ * If the subobj has many BP's but few subobj's, we can copy the sub-subobj's
+ * but retain the sub-bpobj:
+ * +--------------+                        +--------------+
+ * | bpobj        |----------------------->| subobj list  |
+ * +----+----+----+----+----+              +-----+-----+--+--+
+ * | bp | bp | bp | bp | bp |              | obj | obj | obj |
+ * +----+----+----+----+----+              +-----+-----+-----+
+ *                                                           ^
+ * +--------------+                        +--------------+  |
+ * | sub-bpobj    |----------------------> | subsubobj    |  ^
+ * +----+----+----+----+---------+----+    +-----+-----+--+  |
+ * | bp | bp | bp | bp |   ...   | bp |    | OBJ | OBJ |-->-/
+ * +----+----+----+----+---------+----+    +-----+-----+
+ *
+ * Result: sub-sub-bpobjs and subobj added to parent's subobj list.
+ * +--------------+                     +--------------+
+ * | bpobj        |-------------------->| subobj list  |
+ * +----+----+----+----+----+           +-----+-----+--+--+-----+-----+------+
+ * | bp | bp | bp | bp | bp |           | obj | obj | obj | OBJ | OBJ | OBJ* |
+ * +----+----+----+----+----+           +-----+-----+-----+-----+-----+--|---+
+ *                                                                       |
+ *       /--------------------------------------------------------------/
+ *       v
+ * +--------------+
+ * | sub-bpobj    |
+ * +----+----+----+----+---------+----+
+ * | bp | bp | bp | bp |   ...   | bp |
+ * +----+----+----+----+---------+----+
+ */
 void
 bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx)
 {
 	bpobj_t subbpo;
 	uint64_t used, comp, uncomp, subsubobjs;
+	boolean_t copy_subsub = B_TRUE;
+	boolean_t copy_bps = B_TRUE;
 
+	ASSERT(bpobj_is_open(bpo));
+	ASSERT(subobj != 0);
 	ASSERT(bpo->bpo_havesubobj);
 	ASSERT(bpo->bpo_havecomp);
 	ASSERT(bpo->bpo_object != dmu_objset_pool(bpo->bpo_os)->dp_empty_bpobj);
@@ -391,7 +484,7 @@ bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx)
 	VERIFY3U(0, ==, bpobj_open(&subbpo, bpo->bpo_os, subobj));
 	VERIFY3U(0, ==, bpobj_space(&subbpo, &used, &comp, &uncomp));
 
-	if (!bpobj_hasentries(&subbpo)) {
+	if (bpobj_is_empty(&subbpo)) {
 		/* No point in having an empty subobj. */
 		bpobj_close(&subbpo);
 		bpobj_free(bpo->bpo_os, subobj, tx);
@@ -400,61 +493,110 @@ bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx)
 
 	mutex_enter(&bpo->bpo_lock);
 	dmu_buf_will_dirty(bpo->bpo_dbuf, tx);
-	if (bpo->bpo_phys->bpo_subobjs == 0) {
-		bpo->bpo_phys->bpo_subobjs = dmu_object_alloc(bpo->bpo_os,
-		    DMU_OT_BPOBJ_SUBOBJ, SPA_OLD_MAXBLOCKSIZE,
-		    DMU_OT_NONE, 0, tx);
+
+	dmu_object_info_t doi;
+
+	if (bpo->bpo_phys->bpo_subobjs != 0) {
+		ASSERT0(dmu_object_info(bpo->bpo_os, bpo->bpo_phys->bpo_subobjs,
+		    &doi));
+		ASSERT3U(doi.doi_type, ==, DMU_OT_BPOBJ_SUBOBJ);
 	}
-
-	ASSERTV(dmu_object_info_t doi);
-	ASSERT0(dmu_object_info(bpo->bpo_os, bpo->bpo_phys->bpo_subobjs, &doi));
-	ASSERT3U(doi.doi_type, ==, DMU_OT_BPOBJ_SUBOBJ);
-
-	dmu_write(bpo->bpo_os, bpo->bpo_phys->bpo_subobjs,
-	    bpo->bpo_phys->bpo_num_subobjs * sizeof (subobj),
-	    sizeof (subobj), &subobj, tx);
-	bpo->bpo_phys->bpo_num_subobjs++;
 
 	/*
 	 * If subobj has only one block of subobjs, then move subobj's
-	 * subobjs to bpo's subobj list directly.  This reduces
-	 * recursion in bpobj_iterate due to nested subobjs.
+	 * subobjs to bpo's subobj list directly.  This reduces recursion in
+	 * bpobj_iterate due to nested subobjs.
 	 */
 	subsubobjs = subbpo.bpo_phys->bpo_subobjs;
 	if (subsubobjs != 0) {
-		dmu_object_info_t doi;
-
-		VERIFY3U(0, ==, dmu_object_info(bpo->bpo_os, subsubobjs, &doi));
-		if (doi.doi_max_offset == doi.doi_data_block_size) {
-			dmu_buf_t *subdb;
-			uint64_t numsubsub = subbpo.bpo_phys->bpo_num_subobjs;
-
-			VERIFY3U(0, ==, dmu_buf_hold(bpo->bpo_os, subsubobjs,
-			    0, FTAG, &subdb, 0));
-			/*
-			 * Make sure that we are not asking dmu_write()
-			 * to write more data than we have in our buffer.
-			 */
-			VERIFY3U(subdb->db_size, >=,
-			    numsubsub * sizeof (subobj));
-			dmu_write(bpo->bpo_os, bpo->bpo_phys->bpo_subobjs,
-			    bpo->bpo_phys->bpo_num_subobjs * sizeof (subobj),
-			    numsubsub * sizeof (subobj), subdb->db_data, tx);
-			dmu_buf_rele(subdb, FTAG);
-			bpo->bpo_phys->bpo_num_subobjs += numsubsub;
-
-			dmu_buf_will_dirty(subbpo.bpo_dbuf, tx);
-			subbpo.bpo_phys->bpo_subobjs = 0;
-			VERIFY3U(0, ==, dmu_object_free(bpo->bpo_os,
-			    subsubobjs, tx));
+		VERIFY0(dmu_object_info(bpo->bpo_os, subsubobjs, &doi));
+		if (doi.doi_max_offset > doi.doi_data_block_size) {
+			copy_subsub = B_FALSE;
 		}
 	}
+
+	/*
+	 * If, in addition to having only one block of subobj's, subobj has
+	 * only one block of bp's, then move subobj's bp's to bpo's bp list
+	 * directly. This reduces recursion in bpobj_iterate due to nested
+	 * subobjs.
+	 */
+	VERIFY3U(0, ==, dmu_object_info(bpo->bpo_os, subobj, &doi));
+	if (doi.doi_max_offset > doi.doi_data_block_size || !copy_subsub) {
+		copy_bps = B_FALSE;
+	}
+
+	if (copy_subsub && subsubobjs != 0) {
+		dmu_buf_t *subdb;
+		uint64_t numsubsub = subbpo.bpo_phys->bpo_num_subobjs;
+
+		VERIFY0(dmu_buf_hold(bpo->bpo_os, subsubobjs,
+		    0, FTAG, &subdb, 0));
+		/*
+		 * Make sure that we are not asking dmu_write()
+		 * to write more data than we have in our buffer.
+		 */
+		VERIFY3U(subdb->db_size, >=,
+		    numsubsub * sizeof (subobj));
+		if (bpo->bpo_phys->bpo_subobjs == 0) {
+			bpo->bpo_phys->bpo_subobjs =
+			    dmu_object_alloc(bpo->bpo_os,
+			    DMU_OT_BPOBJ_SUBOBJ, SPA_OLD_MAXBLOCKSIZE,
+			    DMU_OT_NONE, 0, tx);
+		}
+		dmu_write(bpo->bpo_os, bpo->bpo_phys->bpo_subobjs,
+		    bpo->bpo_phys->bpo_num_subobjs * sizeof (subobj),
+		    numsubsub * sizeof (subobj), subdb->db_data, tx);
+		dmu_buf_rele(subdb, FTAG);
+		bpo->bpo_phys->bpo_num_subobjs += numsubsub;
+
+		dmu_buf_will_dirty(subbpo.bpo_dbuf, tx);
+		subbpo.bpo_phys->bpo_subobjs = 0;
+		VERIFY0(dmu_object_free(bpo->bpo_os, subsubobjs, tx));
+	}
+
+	if (copy_bps) {
+		dmu_buf_t *bps;
+		uint64_t numbps = subbpo.bpo_phys->bpo_num_blkptrs;
+
+		ASSERT(copy_subsub);
+		VERIFY0(dmu_buf_hold(bpo->bpo_os, subobj,
+		    0, FTAG, &bps, 0));
+
+		/*
+		 * Make sure that we are not asking dmu_write()
+		 * to write more data than we have in our buffer.
+		 */
+		VERIFY3U(bps->db_size, >=, numbps * sizeof (blkptr_t));
+		dmu_write(bpo->bpo_os, bpo->bpo_object,
+		    bpo->bpo_phys->bpo_num_blkptrs * sizeof (blkptr_t),
+		    numbps * sizeof (blkptr_t),
+		    bps->db_data, tx);
+		dmu_buf_rele(bps, FTAG);
+		bpo->bpo_phys->bpo_num_blkptrs += numbps;
+
+		bpobj_close(&subbpo);
+		VERIFY0(dmu_object_free(bpo->bpo_os, subobj, tx));
+	} else {
+		bpobj_close(&subbpo);
+		if (bpo->bpo_phys->bpo_subobjs == 0) {
+			bpo->bpo_phys->bpo_subobjs =
+			    dmu_object_alloc(bpo->bpo_os,
+			    DMU_OT_BPOBJ_SUBOBJ, SPA_OLD_MAXBLOCKSIZE,
+			    DMU_OT_NONE, 0, tx);
+		}
+
+		dmu_write(bpo->bpo_os, bpo->bpo_phys->bpo_subobjs,
+		    bpo->bpo_phys->bpo_num_subobjs * sizeof (subobj),
+		    sizeof (subobj), &subobj, tx);
+		bpo->bpo_phys->bpo_num_subobjs++;
+	}
+
 	bpo->bpo_phys->bpo_bytes += used;
 	bpo->bpo_phys->bpo_comp += comp;
 	bpo->bpo_phys->bpo_uncomp += uncomp;
 	mutex_exit(&bpo->bpo_lock);
 
-	bpobj_close(&subbpo);
 }
 
 void
@@ -465,6 +607,7 @@ bpobj_enqueue(bpobj_t *bpo, const blkptr_t *bp, dmu_tx_t *tx)
 	int blkoff;
 	blkptr_t *bparray;
 
+	ASSERT(bpobj_is_open(bpo));
 	ASSERT(!BP_IS_HOLE(bp));
 	ASSERT(bpo->bpo_object != dmu_objset_pool(bpo->bpo_os)->dp_empty_bpobj);
 
@@ -550,6 +693,7 @@ space_range_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
 int
 bpobj_space(bpobj_t *bpo, uint64_t *usedp, uint64_t *compp, uint64_t *uncompp)
 {
+	ASSERT(bpobj_is_open(bpo));
 	mutex_enter(&bpo->bpo_lock);
 
 	*usedp = bpo->bpo_phys->bpo_bytes;
@@ -575,6 +719,8 @@ bpobj_space_range(bpobj_t *bpo, uint64_t mintxg, uint64_t maxtxg,
 {
 	struct space_range_arg sra = { 0 };
 	int err;
+
+	ASSERT(bpobj_is_open(bpo));
 
 	/*
 	 * As an optimization, if they want the whole txg range, just

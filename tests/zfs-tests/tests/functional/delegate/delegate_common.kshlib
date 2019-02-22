@@ -27,6 +27,7 @@
 #
 # Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 # Copyright 2016 Nexenta Systems, Inc.
+# Copyright (c) 2018 George Melikov. All Rights Reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -384,8 +385,8 @@ function verify_send
 	typeset -i ret=1
 
 	log_must zfs snapshot $snap
-	typeset bak_user=/tmp/bak.$user.$stamp
-	typeset bak_root=/tmp/bak.root.$stamp
+	typeset bak_user=$TEST_BASE_DIR/bak.$user.$stamp
+	typeset bak_root=$TEST_BASE_DIR/bak.root.$stamp
 
 	user_run $user eval "zfs send $snap > $bak_user"
 	log_must eval "zfs send $snap > $bak_root"
@@ -410,8 +411,8 @@ function verify_fs_receive
 	typeset stamp=${perm}.${user}.$(date +'%F-%T-%N')
 	typeset newfs=$fs/newfs.$stamp
 	typeset newvol=$fs/newvol.$stamp
-	typeset bak_user=/tmp/bak.$user.$stamp
-	typeset bak_root=/tmp/bak.root.$stamp
+	typeset bak_user=$TEST_BASE_DIR/bak.$user.$stamp
+	typeset bak_root=$TEST_BASE_DIR/bak.root.$stamp
 
 	log_must zfs create $newfs
 	typeset datasets="$newfs"
@@ -766,7 +767,7 @@ function verify_fs_clone
 	typeset fs=$3
 
 	typeset stamp=${perm}.${user}.$(date +'%F-%T-%N')
-        typeset basefs=${fs%/*}
+	typeset basefs=${fs%/*}
 	typeset snap=$fs@snap.$stamp
 	typeset clone=$basefs/cfs.$stamp
 
@@ -811,7 +812,7 @@ function verify_fs_rename
 	typeset fs=$3
 
 	typeset stamp=${perm}.${user}.$(date +'%F-%T-%N')
-        typeset basefs=${fs%/*}
+	typeset basefs=${fs%/*}
 	typeset snap=$fs@snap.$stamp
 	typeset renamefs=$basefs/nfs.$stamp
 
@@ -895,7 +896,7 @@ function verify_fs_mount
 
 	typeset stamp=${perm}.${user}.$(date +'%F-%T-%N')
 	typeset mntpt=$(get_prop mountpoint $fs)
-	typeset newmntpt=/tmp/mnt.$stamp
+	typeset newmntpt=$TEST_BASE_DIR/mnt.$stamp
 
 	if ismounted $fs ; then
 		user_run $user zfs unmount $fs
@@ -963,7 +964,7 @@ function verify_fs_mountpoint
 
 	typeset stamp=${perm}.${user}.$(date +'%F-%T-%N')
 	typeset mntpt=$(get_prop mountpoint $fs)
-	typeset newmntpt=/tmp/mnt.$stamp
+	typeset newmntpt=$TEST_BASE_DIR/mnt.$stamp
 
 	if ! ismounted $fs ; then
 		user_run $user zfs set mountpoint=$newmntpt $fs
@@ -1001,7 +1002,7 @@ function verify_fs_promote
 	typeset fs=$3
 
 	typeset stamp=${perm}.${user}.$(date +'%F-%T-%N')
-        typeset basefs=${fs%/*}
+	typeset basefs=${fs%/*}
 	typeset snap=$fs@snap.$stamp
 	typeset clone=$basefs/cfs.$stamp
 
@@ -1368,7 +1369,7 @@ function verify_vol_snapshot
 	typeset vol=$3
 
 	typeset stamp=${perm}.${user}.$(date +'%F-%T-%N')
-        typeset basevol=${vol%/*}
+	typeset basevol=${vol%/*}
 	typeset snap=$vol@snap.$stamp
 
 	user_run $user zfs snapshot $snap
@@ -1393,7 +1394,7 @@ function verify_vol_rollback
 	typeset vol=$3
 
 	typeset stamp=${perm}.${user}.$(date+'%F-%T-%N')
-        typeset basevol=${vol%/*}
+	typeset basevol=${vol%/*}
 	typeset snap=$vol@snap.$stamp
 
 	typeset oldval
@@ -1428,7 +1429,7 @@ function verify_vol_clone
 	typeset vol=$3
 
 	typeset stamp=${perm}.${user}.$(date+'%F-%T-%N')
-        typeset basevol=${vol%/*}
+	typeset basevol=${vol%/*}
 	typeset snap=$vol@snap.$stamp
 	typeset clone=$basevol/cvol.$stamp
 
@@ -1474,7 +1475,7 @@ function verify_vol_rename
 	typeset vol=$3
 
 	typeset stamp=${perm}.${user}.$(date+'%F-%T-%N')
-        typeset basevol=${vol%/*}
+	typeset basevol=${vol%/*}
 	typeset snap=$vol@snap.$stamp
 	typeset clone=$basevol/cvol.$stamp
 	typeset renamevol=$basevol/nvol.$stamp
@@ -1521,7 +1522,7 @@ function verify_vol_promote
 	typeset vol=$3
 
 	typeset stamp=${perm}.${user}.$(date+'%F-%T-%N')
-        typeset basevol=${vol%/*}
+	typeset basevol=${vol%/*}
 	typeset snap=$vol@snap.$stamp
 	typeset clone=$basevol/cvol.$stamp
 

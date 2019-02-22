@@ -32,7 +32,7 @@ log_assert "Verify zdb accurately counts feature refcounts."
 log_onexit cleanup
 
 typeset errstr="feature refcount mismatch"
-typeset tmpfile="/var/tmp/zdb-feature-mismatch"
+typeset tmpfile="$TEST_BASE_DIR/zdb-feature-mismatch"
 function cleanup
 {
 	datasetexists $TESTPOOL && destroy_pool $TESTPOOL

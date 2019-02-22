@@ -127,10 +127,10 @@ function find_vfstab_dev
 
 	if is_linux; then
 		vfstab="/etc/fstab"
-		tmpfile="/tmp/fstab.tmp"
+		tmpfile="$TEST_BASE_DIR/fstab.tmp"
 	else
 		vfstab="/etc/vfstab"
-		tmpfile="/tmp/vfstab.tmp"
+		tmpfile="$TEST_BASE_DIR/vfstab.tmp"
 	fi
 
 	cat $vfstab | grep "^${DEV_DSKDIR}" >$tmpfile

@@ -45,28 +45,28 @@
 
 function check_pool_status
 {
-	RESULT=$(grep "pool:" /tmp/pool-status.$$)
+	RESULT=$(grep "pool:" $TEST_BASE_DIR/pool-status.$$)
 	if [ -z "$RESULT" ]
 	then
 		log_fail "No pool: string found in zpool status output!"
 	fi
-	rm /tmp/pool-status.$$
+	rm $TEST_BASE_DIR/pool-status.$$
 }
 
 verify_runnable "global"
 
 log_assert "zpool status works when run as a user"
 
-log_must eval "zpool status > /tmp/pool-status.$$"
+log_must eval "zpool status > $TEST_BASE_DIR/pool-status.$$"
 check_pool_status
 
-log_must eval "zpool status -v > /tmp/pool-status.$$"
+log_must eval "zpool status -v > $TEST_BASE_DIR/pool-status.$$"
 check_pool_status
 
-log_must eval "zpool status $TESTPOOL> /tmp/pool-status.$$"
+log_must eval "zpool status $TESTPOOL> $TEST_BASE_DIR/pool-status.$$"
 check_pool_status
 
-log_must eval "zpool status -v $TESTPOOL > /tmp/pool-status.$$"
+log_must eval "zpool status -v $TESTPOOL > $TEST_BASE_DIR/pool-status.$$"
 check_pool_status
 
 log_pass "zpool status works when run as a user"

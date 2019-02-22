@@ -28,15 +28,20 @@
  */
 
 /*
- * Copyright (c) 2013, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2018 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
-#include <sys/compress.h>
 #include <sys/spa.h>
 #include <sys/zfeature.h>
 #include <sys/zio.h>
 #include <sys/zio_compress.h>
+
+/*
+ * If nonzero, every 1/X decompression attempts will fail, simulating
+ * an undetected memory error.
+ */
+unsigned long zio_decompress_fail_fraction = 0;
 
 /*
  * Compression vectors.
@@ -148,6 +153,16 @@ zio_decompress_data(enum zio_compress c, abd_t *src, void *dst,
 	void *tmp = abd_borrow_buf_copy(src, s_len);
 	int ret = zio_decompress_data_buf(c, tmp, dst, s_len, d_len);
 	abd_return_buf(src, tmp, s_len);
+
+	/*
+	 * Decompression shouldn't fail, because we've already verifyied
+	 * the checksum.  However, for extra protection (e.g. against bitflips
+	 * in non-ECC RAM), we handle this error (and test it).
+	 */
+	ASSERT0(ret);
+	if (zio_decompress_fail_fraction != 0 &&
+	    spa_get_random(zio_decompress_fail_fraction) == 0)
+		ret = SET_ERROR(EINVAL);
 
 	return (ret);
 }

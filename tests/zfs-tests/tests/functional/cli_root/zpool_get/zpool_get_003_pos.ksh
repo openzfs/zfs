@@ -41,24 +41,31 @@
 # 1. For all properties, verify zpool get retrieves a value
 #
 
+function cleanup
+{
+        rm -f $values
+}
+
 log_assert "Zpool get returns values for all known properties"
+log_onexit cleanup
 
 if ! is_global_zone ; then
 	TESTPOOL=${TESTPOOL%%/*}
 fi
 
 typeset -i i=0;
+typeset values=$TEST_BASE_DIR/values.$$
 
 while [ $i -lt "${#properties[@]}" ]
 do
 	log_note "Checking for ${properties[$i]} property"
-	log_must eval "zpool get ${properties[$i]} $TESTPOOL > /tmp/value.$$"
-	grep "${properties[$i]}" /tmp/value.$$ > /dev/null 2>&1
+	log_must eval "zpool get ${properties[$i]} $TESTPOOL > $values"
+	grep "${properties[$i]}" $values > /dev/null 2>&1
 	if [ $? -ne 0 ]
 	then
 		log_fail "${properties[$i]} not seen in output"
 	fi
-	grep "^NAME " /tmp/value.$$ > /dev/null 2>&1
+	grep "^NAME " $values > /dev/null 2>&1
 	# only need to check this once.
 	if [ $i -eq 0 ] && [ $? -ne 0 ]
 	then
@@ -67,5 +74,4 @@ do
 	i=$(( $i + 1 ))
 done
 
-rm /tmp/value.$$
 log_pass "Zpool get returns values for all known properties"

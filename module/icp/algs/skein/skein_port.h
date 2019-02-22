@@ -16,7 +16,6 @@
 #define	_SKEIN_PORT_H_
 
 #include <sys/types.h>	/* get integer type definitions */
-#include <sys/systm.h>	/* for bcopy() */
 
 #ifndef	RotL_64
 #define	RotL_64(x, N)	(((x) << (N)) | ((x) >> (64 - (N))))

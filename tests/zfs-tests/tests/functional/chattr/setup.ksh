@@ -40,5 +40,17 @@ log_must add_group $QGROUP
 log_must add_user $QGROUP $QUSER1
 log_must add_user $QGROUP $QUSER2
 
+#
+# Verify the test user can execute the zfs utilities.  This may not
+# be possible due to default permissions on the user home directory.
+# This can be resolved granting group read access.
+#
+# chmod 0750 $HOME
+#
+user_run $QUSER1 zfs list
+if [ $? -ne 0 ]; then
+	log_unsupported "Test user $QUSER1 cannot execute zfs utilities"
+fi
+
 DISK=${DISKS%% *}
 default_setup $DISK

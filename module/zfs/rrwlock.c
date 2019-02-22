@@ -85,7 +85,7 @@ rrn_find(rrwlock_t *rrl)
 {
 	rrw_node_t *rn;
 
-	if (refcount_count(&rrl->rr_linked_rcount) == 0)
+	if (zfs_refcount_count(&rrl->rr_linked_rcount) == 0)
 		return (NULL);
 
 	for (rn = tsd_get(rrw_tsd_key); rn != NULL; rn = rn->rn_next) {
@@ -120,7 +120,7 @@ rrn_find_and_remove(rrwlock_t *rrl, void *tag)
 	rrw_node_t *rn;
 	rrw_node_t *prev = NULL;
 
-	if (refcount_count(&rrl->rr_linked_rcount) == 0)
+	if (zfs_refcount_count(&rrl->rr_linked_rcount) == 0)
 		return (B_FALSE);
 
 	for (rn = tsd_get(rrw_tsd_key); rn != NULL; rn = rn->rn_next) {
@@ -143,8 +143,8 @@ rrw_init(rrwlock_t *rrl, boolean_t track_all)
 	mutex_init(&rrl->rr_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&rrl->rr_cv, NULL, CV_DEFAULT, NULL);
 	rrl->rr_writer = NULL;
-	refcount_create(&rrl->rr_anon_rcount);
-	refcount_create(&rrl->rr_linked_rcount);
+	zfs_refcount_create(&rrl->rr_anon_rcount);
+	zfs_refcount_create(&rrl->rr_linked_rcount);
 	rrl->rr_writer_wanted = B_FALSE;
 	rrl->rr_track_all = track_all;
 }
@@ -155,8 +155,8 @@ rrw_destroy(rrwlock_t *rrl)
 	mutex_destroy(&rrl->rr_lock);
 	cv_destroy(&rrl->rr_cv);
 	ASSERT(rrl->rr_writer == NULL);
-	refcount_destroy(&rrl->rr_anon_rcount);
-	refcount_destroy(&rrl->rr_linked_rcount);
+	zfs_refcount_destroy(&rrl->rr_anon_rcount);
+	zfs_refcount_destroy(&rrl->rr_linked_rcount);
 }
 
 static void
@@ -173,19 +173,19 @@ rrw_enter_read_impl(rrwlock_t *rrl, boolean_t prio, void *tag)
 	DTRACE_PROBE(zfs__rrwfastpath__rdmiss);
 #endif
 	ASSERT(rrl->rr_writer != curthread);
-	ASSERT(refcount_count(&rrl->rr_anon_rcount) >= 0);
+	ASSERT(zfs_refcount_count(&rrl->rr_anon_rcount) >= 0);
 
 	while (rrl->rr_writer != NULL || (rrl->rr_writer_wanted &&
-	    refcount_is_zero(&rrl->rr_anon_rcount) && !prio &&
+	    zfs_refcount_is_zero(&rrl->rr_anon_rcount) && !prio &&
 	    rrn_find(rrl) == NULL))
 		cv_wait(&rrl->rr_cv, &rrl->rr_lock);
 
 	if (rrl->rr_writer_wanted || rrl->rr_track_all) {
 		/* may or may not be a re-entrant enter */
 		rrn_add(rrl, tag);
-		(void) refcount_add(&rrl->rr_linked_rcount, tag);
+		(void) zfs_refcount_add(&rrl->rr_linked_rcount, tag);
 	} else {
-		(void) refcount_add(&rrl->rr_anon_rcount, tag);
+		(void) zfs_refcount_add(&rrl->rr_anon_rcount, tag);
 	}
 	ASSERT(rrl->rr_writer == NULL);
 	mutex_exit(&rrl->rr_lock);
@@ -216,8 +216,8 @@ rrw_enter_write(rrwlock_t *rrl)
 	mutex_enter(&rrl->rr_lock);
 	ASSERT(rrl->rr_writer != curthread);
 
-	while (refcount_count(&rrl->rr_anon_rcount) > 0 ||
-	    refcount_count(&rrl->rr_linked_rcount) > 0 ||
+	while (zfs_refcount_count(&rrl->rr_anon_rcount) > 0 ||
+	    zfs_refcount_count(&rrl->rr_linked_rcount) > 0 ||
 	    rrl->rr_writer != NULL) {
 		rrl->rr_writer_wanted = B_TRUE;
 		cv_wait(&rrl->rr_cv, &rrl->rr_lock);
@@ -250,24 +250,25 @@ rrw_exit(rrwlock_t *rrl, void *tag)
 	}
 	DTRACE_PROBE(zfs__rrwfastpath__exitmiss);
 #endif
-	ASSERT(!refcount_is_zero(&rrl->rr_anon_rcount) ||
-	    !refcount_is_zero(&rrl->rr_linked_rcount) ||
+	ASSERT(!zfs_refcount_is_zero(&rrl->rr_anon_rcount) ||
+	    !zfs_refcount_is_zero(&rrl->rr_linked_rcount) ||
 	    rrl->rr_writer != NULL);
 
 	if (rrl->rr_writer == NULL) {
 		int64_t count;
 		if (rrn_find_and_remove(rrl, tag)) {
-			count = refcount_remove(&rrl->rr_linked_rcount, tag);
+			count = zfs_refcount_remove(
+			    &rrl->rr_linked_rcount, tag);
 		} else {
 			ASSERT(!rrl->rr_track_all);
-			count = refcount_remove(&rrl->rr_anon_rcount, tag);
+			count = zfs_refcount_remove(&rrl->rr_anon_rcount, tag);
 		}
 		if (count == 0)
 			cv_broadcast(&rrl->rr_cv);
 	} else {
 		ASSERT(rrl->rr_writer == curthread);
-		ASSERT(refcount_is_zero(&rrl->rr_anon_rcount) &&
-		    refcount_is_zero(&rrl->rr_linked_rcount));
+		ASSERT(zfs_refcount_is_zero(&rrl->rr_anon_rcount) &&
+		    zfs_refcount_is_zero(&rrl->rr_linked_rcount));
 		rrl->rr_writer = NULL;
 		cv_broadcast(&rrl->rr_cv);
 	}
@@ -288,7 +289,7 @@ rrw_held(rrwlock_t *rrl, krw_t rw)
 	if (rw == RW_WRITER) {
 		held = (rrl->rr_writer == curthread);
 	} else {
-		held = (!refcount_is_zero(&rrl->rr_anon_rcount) ||
+		held = (!zfs_refcount_is_zero(&rrl->rr_anon_rcount) ||
 		    rrn_find(rrl) != NULL);
 	}
 	mutex_exit(&rrl->rr_lock);

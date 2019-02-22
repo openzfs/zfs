@@ -34,14 +34,13 @@
 
 verify_runnable "global"
 
+log_must set_tunable32 zfs_scan_suspend_progress 0
+
 for pool in "$TESTPOOL" "$TESTPOOL1"; do
 	datasetexists $pool/$TESTFS && \
 		log_must zfs destroy -Rf $pool/$TESTFS
 	destroy_pool "$pool"
 done
-
-ismounted $DEVICE_DIR $NEWFS_DEFAULT_FS
-(( $? == 0 )) && log_must umount -f $DEVICE_DIR
 
 for dir in "$TESTDIR" "$TESTDIR1" "$DEVICE_DIR" ; do
 	[[ -d $dir ]] && \

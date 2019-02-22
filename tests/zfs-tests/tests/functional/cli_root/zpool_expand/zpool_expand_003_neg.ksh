@@ -27,7 +27,9 @@
 
 #
 # Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2018 by Lawrence Livermore National Security, LLC.
 #
+
 
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zpool_expand/zpool_expand.cfg
@@ -35,87 +37,102 @@
 #
 # Description:
 # Once set zpool autoexpand=off, zpool can *NOT* autoexpand by
-# Dynamic LUN Expansion
+# Dynamic VDEV Expansion
 #
 #
 # STRATEGY:
-# 1) Create a pool
-# 2) Create volumes on top of the pool
-# 3) Create pool by using the zvols and set autoexpand=off
-# 4) Expand the vol size by zfs set volsize
-# 5) Check that the pool size is not changed
+# 1) Create three vdevs (loopback, scsi_debug, and file)
+# 2) Create pool by using the different devices and set autoexpand=off
+# 3) Expand each device as appropriate
+# 4) Check that the pool size is not expanded
+#
+# NOTE: Three different device types are used in this test to verify
+# expansion of non-partitioned block devices (loopback), partitioned
+# block devices (scsi_debug), and non-disk file vdevs.  ZFS volumes
+# are not used in order to avoid a possible lock inversion when
+# layering pools on zvols.
 #
 
 verify_runnable "global"
 
-# See issue: https://github.com/zfsonlinux/zfs/issues/5771
-if is_linux; then
-	log_unsupported "Requires additional ZED support"
-fi
-
 function cleanup
 {
-        if poolexists $TESTPOOL1; then
-                log_must zpool destroy $TESTPOOL1
-        fi
+	poolexists $TESTPOOL1 && destroy_pool $TESTPOOL1
 
-	for i in 1 2 3; do
-		if datasetexists $VFS/vol$i; then
-			log_must zfs destroy $VFS/vol$i
-		fi
-	done
+	if losetup -a | grep -q $DEV1; then
+		losetup -d $DEV1
+	fi
+
+	rm -f $FILE_LO $FILE_RAW
+
+	block_device_wait
+	unload_scsi_debug
 }
 
 log_onexit cleanup
 
-log_assert "zpool can not expand if set autoexpand=off after LUN expansion"
-
-for i  in 1 2 3; do
-	log_must zfs create -V $org_size $VFS/vol$i
-done
-block_device_wait
+log_assert "zpool can not expand if set autoexpand=off after vdev expansion"
 
 for type in " " mirror raidz raidz2; do
-	log_must zpool create $TESTPOOL1 $type ${ZVOL_DEVDIR}/$VFS/vol1 \
-	    ${ZVOL_DEVDIR}/$VFS/vol2 ${ZVOL_DEVDIR}/$VFS/vol3
+	log_note "Setting up loopback, scsi_debug, and file vdevs"
+	log_must truncate -s $org_size $FILE_LO
+	DEV1=$(losetup -f)
+	log_must losetup $DEV1 $FILE_LO
+
+	load_scsi_debug $org_size_mb 1 1 1 '512b'
+	block_device_wait
+	DEV2=$(get_debug_device)
+
+	log_must truncate -s $org_size $FILE_RAW
+	DEV3=$FILE_RAW
+
+	# The -f is required since we're mixing disk and file vdevs.
+	log_must zpool create -f $TESTPOOL1 $type $DEV1 $DEV2 $DEV3
 
 	typeset autoexp=$(get_pool_prop autoexpand $TESTPOOL1)
 	if [[ $autoexp != "off" ]]; then
-		log_fail "zpool $TESTPOOL1 autoexpand should off but is " \
+		log_fail "zpool $TESTPOOL1 autoexpand should be off but is " \
 		    "$autoexp"
 	fi
 
 	typeset prev_size=$(get_pool_prop size $TESTPOOL1)
 
-	for i in 1 2 3; do
-		log_must zfs set volsize=$exp_size $VFS/vol$i
-	done
 
-	sync
-	sleep 10
-	sync
+	# Expand each device as appropriate being careful to add an artificial
+	# delay to ensure we get a single history entry for each.  This makes
+	# is easier to verify each expansion for the striped pool case, since
+	# they will not be merged in to a single larger expansion.
+	log_note "Expanding loopback, scsi_debug, and file vdevs"
+	log_must truncate -s $exp_size $FILE_LO
+	log_must losetup -c $DEV1
+	sleep 3
+
+	echo "2" > /sys/bus/pseudo/drivers/scsi_debug/virtual_gb
+	echo "1" > /sys/class/block/$DEV2/device/rescan
+	block_device_wait
+	sleep 3
+
+	log_must truncate -s $exp_size $FILE_RAW
+
+	# This is far longer than we should need to wait, but let's be sure.
+	sleep 5
 
 	# check for zpool history for the pool size expansion
 	zpool history -il $TESTPOOL1 | grep "pool '$TESTPOOL1' size:" | \
 	    grep "vdev online" >/dev/null 2>&1
 
 	if [[ $? -eq 0 ]]; then
-		log_fail "pool $TESTPOOL1 is not autoexpand after LUN " \
+		log_fail "pool $TESTPOOL1 is not autoexpand after vdev " \
 		    "expansion"
 	fi
 
 	typeset expand_size=$(get_pool_prop size $TESTPOOL1)
 
 	if [[ "$prev_size" != "$expand_size" ]]; then
-		log_fail "pool $TESTPOOL1 size changed after LUN expansion"
+		log_fail "pool $TESTPOOL1 size changed after vdev expansion"
 	fi
 
-	log_must zpool destroy $TESTPOOL1
-
-	for i in 1 2 3; do
-		log_must zfs set volsize=$org_size $VFS/vol$i
-	done
-
+	cleanup
 done
 
-log_pass "zpool can not expand if set autoexpand=off after LUN expansion"
+log_pass "zpool can not autoexpand if autoexpand=off after vdev expansion"

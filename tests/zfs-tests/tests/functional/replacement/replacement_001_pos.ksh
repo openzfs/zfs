@@ -39,7 +39,7 @@
 # STRATEGY:
 #	1. Create multidisk pools (stripe/mirror/raidz) and
 #	   start some random I/O
-#	2. Replace a disk in the pool with anbother disk.
+#	2. Replace a disk in the pool with another disk.
 #	3. Verify the integrity of the file system and the resilvering.
 #
 
@@ -50,7 +50,7 @@ function cleanup
 	if [[ -n "$child_pids" ]]; then
 		for wait_pid in $child_pids
 		do
-		        kill $wait_pid
+			kill $wait_pid
 		done
 	fi
 
@@ -114,29 +114,28 @@ function replace_test
 	done
 	child_pids=""
 
-        log_must zpool export $TESTPOOL1
-        log_must zpool import -d $TESTDIR $TESTPOOL1
-        log_must zfs umount $TESTPOOL1/$TESTFS1
-        log_must zdb -cdui $TESTPOOL1/$TESTFS1
-        log_must zfs mount $TESTPOOL1/$TESTFS1
-
+	log_must zpool export $TESTPOOL1
+	log_must zpool import -d $TESTDIR $TESTPOOL1
+	log_must zfs umount $TESTPOOL1/$TESTFS1
+	log_must zdb -cdui $TESTPOOL1/$TESTFS1
+	log_must zfs mount $TESTPOOL1/$TESTFS1
 }
 
 specials_list=""
 i=0
 while [[ $i != 2 ]]; do
-        mkfile $MINVDEVSIZE $TESTDIR/$TESTFILE1.$i
-        specials_list="$specials_list $TESTDIR/$TESTFILE1.$i"
+	log_must truncate -s $MINVDEVSIZE $TESTDIR/$TESTFILE1.$i
+	specials_list="$specials_list $TESTDIR/$TESTFILE1.$i"
 
-        ((i = i + 1))
+	((i = i + 1))
 done
 
 #
 # Create a replacement disk special file.
 #
-mkfile $MINVDEVSIZE $TESTDIR/$REPLACEFILE
+log_must truncate -s $MINVDEVSIZE $TESTDIR/$REPLACEFILE
 
-for type in "" "raidz" "raidz1" "mirror"; do
+for type in "" "raidz" "mirror"; do
 	for op in "" "-f"; do
 		create_pool $TESTPOOL1 $type $specials_list
 		log_must zfs create $TESTPOOL1/$TESTFS1

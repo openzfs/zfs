@@ -1,0 +1,57 @@
+#!/bin/ksh -p
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+
+#
+# Copyright 2018, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
+#
+
+. $STF_SUITE/include/libtest.shlib
+
+#
+# DESCRIPTION:
+#	Verify the libzfs_core Python test suite can be run successfully
+#
+# STRATEGY:
+#	1. Run the nvlist and libzfs_core Python unittest
+#	2. Verify the exit code is 0 (no errors)
+#
+
+verify_runnable "global"
+
+# Verify that the required dependencies for testing are installed.
+@PYTHON@ -c "import cffi" 2>/dev/null
+if [ $? -eq 1 ]; then
+	log_unsupported "python-cffi not found by Python"
+fi
+
+# We don't just try to "import libzfs_core" because we want to skip these tests
+# only if pyzfs was not installed due to missing, build-time, dependencies; if
+# we cannot load "libzfs_core" due to other reasons, for instance an API/ABI
+# mismatch, we want to report it.
+@PYTHON@ -c '
+import pkgutil, sys
+sys.exit(pkgutil.find_loader("libzfs_core") is None)'
+if [ $? -eq 1 ]; then
+	log_unsupported "libzfs_core not found by Python"
+fi
+
+log_assert "Verify the nvlist and libzfs_core Python unittest run successfully"
+
+# NOTE: don't use log_must() here because it makes output unreadable
+@PYTHON@ -m unittest --verbose \
+	libzfs_core.test.test_nvlist.TestNVList \
+	libzfs_core.test.test_libzfs_core.ZFSTest
+if [ $? -ne 0 ]; then
+	log_fail "Python unittest completed with errors"
+fi
+
+log_pass "Python unittest completed without errors"

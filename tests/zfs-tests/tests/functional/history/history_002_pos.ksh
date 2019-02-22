@@ -61,7 +61,7 @@ fs=$TESTPOOL/$TESTFS1; newfs=$TESTPOOL/newfs; fsclone=$TESTPOOL/clone
 vol=$TESTPOOL/$TESTVOL ; newvol=$TESTPOOL/newvol; volclone=$TESTPOOL/volclone
 fssnap=$fs@fssnap; fssnap2=$fs@fssnap2
 volsnap=$vol@volsnap; volsnap2=$vol@volsnap2
-tmpfile=/tmp/tmpfile.$$ ; tmpfile2=/tmp/tmpfile2.$$
+tmpfile=$TEST_BASE_DIR/tmpfile.$$ ; tmpfile2=$TEST_BASE_DIR/tmpfile2.$$
 
 if is_linux; then
 #	property	value		property	value
@@ -143,8 +143,8 @@ run_and_verify "zfs snapshot $fssnap2"
 run_and_verify "zfs snapshot $volsnap2"
 
 # Send isn't logged...
-log_must zfs send -i $fssnap $fssnap2 > $tmpfile
-log_must zfs send -i $volsnap $volsnap2 > $tmpfile2
+log_must eval "zfs send -i $fssnap $fssnap2 > $tmpfile"
+log_must eval "zfs send -i $volsnap $volsnap2 > $tmpfile2"
 # Verify that's true
 zpool history $TESTPOOL | grep 'zfs send' >/dev/null 2>&1 && \
     log_fail "'zfs send' found in history of \"$TESTPOOL\""

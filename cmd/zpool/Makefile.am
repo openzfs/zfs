@@ -21,7 +21,7 @@ zpool_LDADD = \
 zpool_LDADD += -lm $(LIBBLKID)
 
 zpoolconfdir = $(sysconfdir)/zfs/zpool.d
-zpoolexecdir = $(libexecdir)/zfs/zpool.d
+zpoolexecdir = $(zfsexecdir)/zpool.d
 
 EXTRA_DIST = zpool.d/README
 

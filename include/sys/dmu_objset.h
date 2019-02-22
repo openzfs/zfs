@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  */
@@ -38,6 +38,7 @@
 #include <sys/zio.h>
 #include <sys/zil.h>
 #include <sys/sa.h>
+#include <sys/zfs_ioctl.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -90,6 +91,7 @@ typedef struct objset_phys {
 
 typedef int (*dmu_objset_upgrade_cb_t)(objset_t *);
 
+#define	OBJSET_PROP_UNINITIALIZED	((uint64_t)-1)
 struct objset {
 	/* Immutable: */
 	struct dsl_dataset *os_dsl_dataset;
@@ -125,6 +127,21 @@ struct objset {
 	zfs_sync_type_t os_sync;
 	zfs_redundant_metadata_type_t os_redundant_metadata;
 	int os_recordsize;
+	/*
+	 * The next four values are used as a cache of whatever's on disk, and
+	 * are initialized the first time these properties are queried. Before
+	 * being initialized with their real values, their values are
+	 * OBJSET_PROP_UNINITIALIZED.
+	 */
+	uint64_t os_version;
+	uint64_t os_normalization;
+	uint64_t os_utf8only;
+	uint64_t os_casesensitivity;
+	/*
+	 * The largest zpl file block allowed in special class.
+	 * cached here instead of zfsvfs for easier access.
+	 */
+	int os_zpl_special_smallblock;
 
 	/*
 	 * Pointer is constant; the blkptr it points to is protected by
@@ -139,6 +156,7 @@ struct objset {
 	uint64_t os_flags;
 	uint64_t os_freed_dnodes;
 	boolean_t os_rescan_dnodes;
+	boolean_t os_raw_receive;
 
 	/* os_phys_buf should be written raw next txg */
 	boolean_t os_next_write_raw[TXG_SIZE];
@@ -210,7 +228,7 @@ int dmu_objset_find_dp(struct dsl_pool *dp, uint64_t ddobj,
     int func(struct dsl_pool *, struct dsl_dataset *, void *),
     void *arg, int flags);
 void dmu_objset_evict_dbufs(objset_t *os);
-timestruc_t dmu_objset_snap_cmtime(objset_t *os);
+inode_timespec_t dmu_objset_snap_cmtime(objset_t *os);
 
 /* called from dsl */
 void dmu_objset_sync(objset_t *os, zio_t *zio, dmu_tx_t *tx);

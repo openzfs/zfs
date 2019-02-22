@@ -915,7 +915,7 @@ crypto_decrypt_single(crypto_context_t context, crypto_data_t *ciphertext,
 	return (error);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 EXPORT_SYMBOL(crypto_cipher_init_prov);
 EXPORT_SYMBOL(crypto_cipher_init);
 EXPORT_SYMBOL(crypto_encrypt_prov);

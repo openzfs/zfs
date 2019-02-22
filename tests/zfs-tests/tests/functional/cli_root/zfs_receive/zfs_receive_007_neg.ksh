@@ -60,7 +60,7 @@ log_onexit cleanup
 fs=$TESTPOOL/$TESTFS
 snap1=$fs@snap1
 snap2=$fs@snap2
-ibackup=/var/tmp/ibackup.$$
+ibackup=$TEST_BASE_DIR/ibackup.$$
 
 datasetexists $fs || log_must zfs create $fs
 

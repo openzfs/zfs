@@ -8,3 +8,7 @@ ENV{DEVTYPE}=="partition", IMPORT{program}="@udevdir@/vdev_id -d %k"
 KERNEL=="*[!0-9]", ENV{SUBSYSTEM}=="block", ENV{ID_VDEV}=="?*", SYMLINK+="$env{ID_VDEV_PATH}"
 KERNEL=="*[0-9]", ENV{SUBSYSTEM}=="block", ENV{DEVTYPE}=="partition", ENV{ID_VDEV}=="?*", SYMLINK+="$env{ID_VDEV_PATH}-part%n"
 KERNEL=="dm-[0-9]*", ENV{SUBSYSTEM}=="block", ENV{ID_VDEV}=="?*", SYMLINK+="$env{ID_VDEV_PATH}"
+
+# Enclosure device symlink rules
+ENV{SUBSYSTEM}=="scsi_generic", IMPORT{program}="@udevdir@/vdev_id -e"
+ENV{SUBSYSTEM}=="scsi_generic", ENV{ID_ENCLOSURE}=="?*", SYMLINK+="$env{ID_ENCLOSURE_PATH}"

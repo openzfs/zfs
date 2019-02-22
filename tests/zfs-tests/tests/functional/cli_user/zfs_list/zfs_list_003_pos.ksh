@@ -54,7 +54,7 @@ log_onexit cleanup
 
 log_assert "Verify 'zfs list -r' could display any children recursively."
 
-tmpfile=/var/tmp/zfslist.out.$$
+tmpfile=$TEST_BASE_DIR/zfslist.out.$$
 children="$TESTPOOL/$TESTFS"
 
 for fs in $DATASETS ; do

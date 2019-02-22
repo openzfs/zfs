@@ -45,18 +45,12 @@
 #	5. Resume the paused scrub and verify scrub is again being performed.
 #	6. Verify zpool scrub -s succeed when the system is scrubbing.
 #
-# NOTES:
-#	Artificially limit the scrub speed by setting the zfs_scan_vdev_limit
-#	low and adding a 50ms zio delay in order to ensure that the scrub does
-#	not complete early.
-#
 
 verify_runnable "global"
 
 function cleanup
 {
-	log_must zinject -c all
-	log_must set_tunable64 zfs_scan_vdev_limit $ZFS_SCAN_VDEV_LIMIT_DEFAULT
+	log_must set_tunable32 zfs_scan_suspend_progress 0
 	log_must rm -f $mntpnt/biggerfile
 }
 
@@ -69,8 +63,7 @@ mntpnt=$(get_prop mountpoint $TESTPOOL/$TESTFS)
 log_must file_write -b 1048576 -c 1024 -o create -d 0 -f $mntpnt/biggerfile
 log_must sync
 
-log_must zinject -d $DISK1 -D50:1 $TESTPOOL
-log_must set_tunable64 zfs_scan_vdev_limit $ZFS_SCAN_VDEV_LIMIT_SLOW
+log_must set_tunable32 zfs_scan_suspend_progress 1
 log_must zpool scrub $TESTPOOL
 log_must is_pool_scrubbing $TESTPOOL true
 log_must zpool scrub -p $TESTPOOL

@@ -41,8 +41,8 @@ verify_runnable "global"
 
 function cleanup
 {
-	poolexists $TESTPOOL && destroy_pool $TESTPOOL
-	log_must rm -f $disk
+	destroy_pool $TESTPOOL1
+	rm -f $disk
 }
 
 typeset goodvals=("0" "9" "10" "11" "12" "13" "14" "15" "16")
@@ -54,12 +54,12 @@ log_assert "zpool set can modify 'ashift' property"
 
 disk=$TEST_BASE_DIR/$FILEDISK0
 log_must mkfile $SIZE $disk
-log_must zpool create $TESTPOOL $disk
+log_must zpool create $TESTPOOL1 $disk
 
 for ashift in ${goodvals[@]}
 do
-	log_must zpool set ashift=$ashift $TESTPOOL
-	typeset value=$(get_pool_prop ashift $TESTPOOL)
+	log_must zpool set ashift=$ashift $TESTPOOL1
+	typeset value=$(get_pool_prop ashift $TESTPOOL1)
 	if [[ "$ashift" != "$value" ]]; then
 		log_fail "'zpool set' did not update ashift value to $ashift "\
 		    "(current = $value)"
@@ -68,8 +68,8 @@ done
 
 for ashift in ${badvals[@]}
 do
-	log_mustnot zpool set ashift=$ashift $TESTPOOL
-	typeset value=$(get_pool_prop ashift $TESTPOOL)
+	log_mustnot zpool set ashift=$ashift $TESTPOOL1
+	typeset value=$(get_pool_prop ashift $TESTPOOL1)
 	if [[ "$ashift" == "$value" ]]; then
 		log_fail "'zpool set' incorrectly set ashift value to $value"
 	fi

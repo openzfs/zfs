@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2018 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/slog/slog.kshlib
@@ -45,16 +45,24 @@ verify_runnable "global"
 
 log_assert "log device can survive when one of the pool device get corrupted."
 
-for type in "mirror" "raidz" "raidz2"
-do
-	for spare in "" "spare"
-	do
+for type in "mirror" "raidz" "raidz2"; do
+	for spare in "" "spare"; do
 		log_must zpool create $TESTPOOL $type $VDEV $spare $SDEV \
 			log $LDEV
 
+                # Create a file to be corrupted
+                dd if=/dev/urandom of=/$TESTPOOL/filler bs=1024k count=50
+
+                #
+                # Ensure the file has been synced out before attempting to
+                # corrupt its contents.
+                #
+                sync
+
+		#
 		# Corrupt a pool device to make the pool DEGRADED
-		dd if=/dev/urandom of=/$TESTPOOL/filler bs=1024k count=50
 		# The oseek value below is to skip past the vdev label.
+		#
 		if is_linux; then
 			log_must dd if=/dev/urandom of=$VDIR/a bs=1024k \
 			   seek=4 conv=notrunc count=50
@@ -64,14 +72,8 @@ do
 		fi
 		log_must zpool scrub $TESTPOOL
 		log_must display_status $TESTPOOL
-		log_must zpool status $TESTPOOL 2>&1 >/dev/null
 		log_must zpool offline $TESTPOOL $VDIR/a
-
-		zpool status -v $TESTPOOL | \
-			grep "state: DEGRADED" 2>&1 >/dev/null
-		if (( $? != 0 )); then
-			log_fail "pool $TESTPOOL status should be DEGRADED"
-		fi
+		log_must wait_for_degraded $TESTPOOL
 
 		zpool status -v $TESTPOOL | grep logs | \
 			grep "DEGRADED" 2>&1 >/dev/null

@@ -76,7 +76,7 @@ log_assert "Verifying 'zfs receive [<filesystem|snapshot>] -d <filesystem>' work
 log_onexit cleanup
 
 typeset datasets="$TESTPOOL/$TESTFS $TESTPOOL"
-set -A bkup "/var/tmp/fullbkup" "/var/tmp/incbkup"
+set -A bkup "$TEST_BASE_DIR/fullbkup" "$TEST_BASE_DIR/incbkup"
 orig_sum=""
 rst_sum=""
 rst_root=$TESTPOOL/rst_ctr

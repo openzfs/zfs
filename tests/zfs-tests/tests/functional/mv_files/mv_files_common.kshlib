@@ -37,11 +37,11 @@
 #
 function check_bg_procs_limit_num
 {
-echo "#!/bin/ksh" > /var/tmp/exitsZero.ksh
-echo  "exit 0" >> /var/tmp/exitsZero.ksh
-chmod 777 /var/tmp/exitsZero.ksh
+echo "#!/bin/ksh" > $TEST_BASE_DIR/exitsZero.ksh
+echo  "exit 0" >> $TEST_BASE_DIR/exitsZero.ksh
+chmod 777 $TEST_BASE_DIR/exitsZero.ksh
 
-cat <<EOF > /var/tmp/testbackgprocs.ksh
+cat <<EOF > $TEST_BASE_DIR/testbackgprocs.ksh
 #!/bin/ksh
 #
 # exitsZero.ksh is a one line script
@@ -52,7 +52,7 @@ PIDS=""
 typeset -i i=1
 while [ \$i -le 50 ]
 do
-	/var/tmp/exitsZero.ksh &
+	$TEST_BASE_DIR/exitsZero.ksh &
         PIDS="\$PIDS \$!"
         (( i = i + 1 ))
 done
@@ -67,7 +67,7 @@ done
 exit 0
 EOF
 
-ksh /var/tmp/testbackgprocs.ksh
+ksh $TEST_BASE_DIR/testbackgprocs.ksh
 if [[ $? -eq 1 ]]; then
 #
 # Current ksh being executed has a limit

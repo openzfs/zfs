@@ -46,11 +46,6 @@
 
 verify_runnable "global"
 
-# See issue: https://github.com/zfsonlinux/zfs/issues/6145
-if is_linux; then
-	log_unsupported "Test case occasionally fails"
-fi
-
 #
 # Parse the results of zpool & zfs creation with specified size
 #
@@ -73,13 +68,13 @@ function parse_expected_output
 	esac
 
 	log_note "Detect zpool $TESTPOOL in this test machine."
-	log_must eval "zpool list $TESTPOOL > /tmp/j.$$"
-	log_must eval "grep $TESTPOOL /tmp/j.$$ | \
+	log_must eval "zpool list $TESTPOOL > $TEST_BASE_DIR/j.$$"
+	log_must eval "grep $TESTPOOL $TEST_BASE_DIR/j.$$ | \
 		awk '{print $2}' | grep $CHKUNIT"
 
 	log_note "Detect the file system in this test machine."
-	log_must eval "df -F zfs -h > /tmp/j.$$"
-	log_must eval "grep $TESTPOOL /tmp/j.$$ | \
+	log_must eval "df -F zfs -h > $TEST_BASE_DIR/j.$$"
+	log_must eval "grep $TESTPOOL $TEST_BASE_DIR/j.$$ | \
 		awk '{print $2}' | grep $CHKUNIT"
 
 	return 0
@@ -106,7 +101,7 @@ function cleanup
 
 	destroy_pool $TESTPOOL2
 
-	rm -f /tmp/j.* > /dev/null
+	rm -f $TEST_BASE_DIR/j.* > /dev/null
 }
 
 log_assert "The largest pool can be created and a dataset in that" \

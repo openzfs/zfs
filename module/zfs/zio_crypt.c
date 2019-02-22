@@ -1860,9 +1860,9 @@ error:
  * Primary encryption / decryption entrypoint for zio data.
  */
 int
-zio_do_crypt_data(boolean_t encrypt, zio_crypt_key_t *key, uint8_t *salt,
-    dmu_object_type_t ot, uint8_t *iv, uint8_t *mac, uint_t datalen,
-    boolean_t byteswap, uint8_t *plainbuf, uint8_t *cipherbuf,
+zio_do_crypt_data(boolean_t encrypt, zio_crypt_key_t *key,
+    dmu_object_type_t ot, boolean_t byteswap, uint8_t *salt, uint8_t *iv,
+    uint8_t *mac, uint_t datalen, uint8_t *plainbuf, uint8_t *cipherbuf,
     boolean_t *no_crypt)
 {
 	int ret;
@@ -1984,9 +1984,9 @@ error:
  * linear buffers.
  */
 int
-zio_do_crypt_abd(boolean_t encrypt, zio_crypt_key_t *key, uint8_t *salt,
-    dmu_object_type_t ot, uint8_t *iv, uint8_t *mac, uint_t datalen,
-    boolean_t byteswap, abd_t *pabd, abd_t *cabd, boolean_t *no_crypt)
+zio_do_crypt_abd(boolean_t encrypt, zio_crypt_key_t *key, dmu_object_type_t ot,
+    boolean_t byteswap, uint8_t *salt, uint8_t *iv, uint8_t *mac,
+    uint_t datalen, abd_t *pabd, abd_t *cabd, boolean_t *no_crypt)
 {
 	int ret;
 	void *ptmp, *ctmp;
@@ -1999,8 +1999,8 @@ zio_do_crypt_abd(boolean_t encrypt, zio_crypt_key_t *key, uint8_t *salt,
 		ctmp = abd_borrow_buf_copy(cabd, datalen);
 	}
 
-	ret = zio_do_crypt_data(encrypt, key, salt, ot, iv, mac,
-	    datalen, byteswap, ptmp, ctmp, no_crypt);
+	ret = zio_do_crypt_data(encrypt, key, ot, byteswap, salt, iv, mac,
+	    datalen, ptmp, ctmp, no_crypt);
 	if (ret != 0)
 		goto error;
 
@@ -2026,7 +2026,7 @@ error:
 	return (ret);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 /* BEGIN CSTYLED */
 module_param(zfs_key_max_salt_uses, ulong, 0644);
 MODULE_PARM_DESC(zfs_key_max_salt_uses, "Max number of times a salt value "

@@ -21,6 +21,7 @@
 #include <libnvpair.h>
 #include <libudev.h>
 #include <libzfs.h>
+#include <libzutil.h>
 #include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
@@ -37,7 +38,7 @@
  * A libudev monitor is established to monitor block device actions and pass
  * them on to internal ZED logic modules.  Initially, zfs_mod.c is the only
  * consumer and is the Linux equivalent for the illumos syseventd ZFS SLM
- * module responsible for handeling disk events for ZFS.
+ * module responsible for handling disk events for ZFS.
  */
 
 pthread_t g_mon_tid;

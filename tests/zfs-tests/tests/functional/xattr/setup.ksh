@@ -48,8 +48,8 @@ fi
 log_must add_group $ZFS_GROUP
 log_must add_user $ZFS_GROUP $ZFS_USER
 
-echo $ZFS_USER > /tmp/zfs-xattr-test-user.txt
-echo $USES_NIS > /tmp/zfs-xattr-test-nis.txt
+echo $ZFS_USER > $TEST_BASE_DIR/zfs-xattr-test-user.txt
+echo $USES_NIS > $TEST_BASE_DIR/zfs-xattr-test-nis.txt
 
 DISK=${DISKS%% *}
 default_setup $DISK

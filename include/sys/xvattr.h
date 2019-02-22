@@ -40,6 +40,7 @@
 #define	_SYS_XVATTR_H
 
 #include <sys/vnode.h>
+#include <sys/strings.h>
 
 #define	AV_SCANSTAMP_SZ	32		/* length of anti-virus scanstamp */
 
@@ -47,7 +48,7 @@
  * Structure of all optional attributes.
  */
 typedef struct xoptattr {
-	timestruc_t	xoa_createtime;	/* Create time of file */
+	inode_timespec_t xoa_createtime;	/* Create time of file */
 	uint8_t		xoa_archive;
 	uint8_t		xoa_system;
 	uint8_t		xoa_readonly;

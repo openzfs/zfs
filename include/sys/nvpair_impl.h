@@ -24,10 +24,12 @@
  * Use is subject to license terms.
  */
 
+/*
+ * Copyright (c) 2017 by Delphix. All rights reserved.
+ */
+
 #ifndef	_NVPAIR_IMPL_H
 #define	_NVPAIR_IMPL_H
-
-
 
 #ifdef __cplusplus
 extern "C" {
@@ -47,16 +49,27 @@ typedef struct i_nvp i_nvp_t;
 
 struct i_nvp {
 	union {
-		uint64_t	_nvi_align;	/* ensure alignment */
+		/* ensure alignment */
+		uint64_t	_nvi_align;
+
 		struct {
-			i_nvp_t	*_nvi_next;	/* pointer to next nvpair */
-			i_nvp_t	*_nvi_prev;	/* pointer to prev nvpair */
+			/* pointer to next nvpair */
+			i_nvp_t	*_nvi_next;
+
+			/* pointer to prev nvpair */
+			i_nvp_t	*_nvi_prev;
+
+			/* next pair in table bucket */
+			i_nvp_t	*_nvi_hashtable_next;
 		} _nvi;
 	} _nvi_un;
-	nvpair_t nvi_nvp;			/* nvpair */
+
+	/* nvpair */
+	nvpair_t nvi_nvp;
 };
 #define	nvi_next	_nvi_un._nvi._nvi_next
 #define	nvi_prev	_nvi_un._nvi._nvi_prev
+#define	nvi_hashtable_next	_nvi_un._nvi._nvi_hashtable_next
 
 typedef struct {
 	i_nvp_t		*nvp_list;	/* linked list of nvpairs */
@@ -64,6 +77,10 @@ typedef struct {
 	i_nvp_t		*nvp_curr;	/* current walker nvpair */
 	nv_alloc_t	*nvp_nva;	/* pluggable allocator */
 	uint32_t	nvp_stat;	/* internal state */
+
+	i_nvp_t		**nvp_hashtable; /* table of entries used for lookup */
+	uint32_t	nvp_nbuckets;	/* # of buckets in hash table */
+	uint32_t	nvp_nentries;	/* # of entries in hash table */
 } nvpriv_t;
 
 #ifdef	__cplusplus

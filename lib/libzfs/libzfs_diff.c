@@ -22,7 +22,7 @@
 /*
  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2015 Nexenta Systems, Inc. All rights reserved.
- * Copyright (c) 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2015, 2018 by Delphix. All rights reserved.
  * Copyright 2016 Joyent, Inc.
  * Copyright 2016 Igor Kozhukhov <ikozhukhov@gmail.com>
  */
@@ -37,7 +37,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include <attr.h>
 #include <stddef.h>
 #include <unistd.h>
 #include <stdio.h>
@@ -49,7 +48,7 @@
 #include "libzfs_impl.h"
 
 #define	ZDIFF_SNAPDIR		"/.zfs/snapshot/"
-#define	ZDIFF_SHARESDIR 	"/.zfs/shares/"
+#define	ZDIFF_SHARESDIR		"/.zfs/shares/"
 #define	ZDIFF_PREFIX		"zfs-diff-%d"
 
 #define	ZDIFF_ADDED	'+'
@@ -103,7 +102,10 @@ get_stats_for_obj(differ_info_t *di, const char *dsname, uint64_t obj,
 		return (0);
 	}
 
-	if (di->zerr == EPERM) {
+	if (di->zerr == ESTALE) {
+		(void) snprintf(pn, maxlen, "(on_delete_queue)");
+		return (0);
+	} else if (di->zerr == EPERM) {
 		(void) snprintf(di->errbuf, sizeof (di->errbuf),
 		    dgettext(TEXT_DOMAIN,
 		    "The sys_config privilege or diff delegated permission "
@@ -365,12 +367,12 @@ describe_free(FILE *fp, differ_info_t *di, uint64_t object, char *namebuf,
 
 	if (get_stats_for_obj(di, di->fromsnap, object, namebuf,
 	    maxlen, &sb) != 0) {
-		/* Let it slide, if in the delete queue on from side */
-		if (di->zerr == ENOENT && sb.zs_links == 0) {
-			di->zerr = 0;
-			return (0);
-		}
 		return (-1);
+	}
+	/* Don't print if in the delete queue on from side */
+	if (di->zerr == ESTALE) {
+		di->zerr = 0;
+		return (0);
 	}
 
 	print_file(fp, di, ZDIFF_REMOVED, namebuf, &sb);

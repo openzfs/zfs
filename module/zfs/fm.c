@@ -57,7 +57,6 @@
 #include <sys/nvpair.h>
 #include <sys/cmn_err.h>
 #include <sys/sysmacros.h>
-#include <sys/compress.h>
 #include <sys/sunddi.h>
 #include <sys/systeminfo.h>
 #include <sys/fm/util.h>
@@ -67,10 +66,6 @@
 #ifdef _KERNEL
 #include <sys/atomic.h>
 #include <sys/condvar.h>
-#include <sys/cpuvar.h>
-#include <sys/systm.h>
-#include <sys/dumphdr.h>
-#include <sys/cpuvar.h>
 #include <sys/console.h>
 #include <sys/kobj.h>
 #include <sys/time.h>
@@ -398,6 +393,7 @@ fm_nvprintr(nvlist_t *nvl, int d, int c, int cols)
 			break;
 
 		case DATA_TYPE_UNKNOWN:
+		case DATA_TYPE_DONTCARE:
 			c = fm_printf(d + 1, c, cols, "<unknown>");
 			break;
 		}
@@ -508,8 +504,8 @@ zfs_zevent_insert(zevent_t *ev)
 int
 zfs_zevent_post(nvlist_t *nvl, nvlist_t *detector, zevent_cb_t *cb)
 {
+	inode_timespec_t tv;
 	int64_t tv_array[2];
-	timestruc_t tv;
 	uint64_t eid;
 	size_t nvl_size = 0;
 	zevent_t *ev;
@@ -670,25 +666,37 @@ out:
 	return (error);
 }
 
+/*
+ * Wait in an interruptible state for any new events.
+ */
 int
 zfs_zevent_wait(zfs_zevent_t *ze)
 {
-	int error = 0;
+	int error = EAGAIN;
 
 	mutex_enter(&zevent_lock);
+	zevent_waiters++;
 
-	if (zevent_flags & ZEVENT_SHUTDOWN) {
-		error = ESHUTDOWN;
-		goto out;
+	while (error == EAGAIN) {
+		if (zevent_flags & ZEVENT_SHUTDOWN) {
+			error = SET_ERROR(ESHUTDOWN);
+			break;
+		}
+
+		error = cv_timedwait_sig(&zevent_cv, &zevent_lock,
+		    ddi_get_lbolt() + MSEC_TO_TICK(10));
+		if (signal_pending(current)) {
+			error = SET_ERROR(EINTR);
+			break;
+		} else if (!list_is_empty(&zevent_list)) {
+			error = 0;
+			continue;
+		} else {
+			error = EAGAIN;
+		}
 	}
 
-	zevent_waiters++;
-	cv_wait_sig(&zevent_cv, &zevent_lock);
-	if (issig(JUSTLOOKING))
-		error = EINTR;
-
 	zevent_waiters--;
-out:
 	mutex_exit(&zevent_lock);
 
 	return (error);

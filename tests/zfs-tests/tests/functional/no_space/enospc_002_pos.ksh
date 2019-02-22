@@ -28,18 +28,36 @@
 
 verify_runnable "both"
 
+function cleanup
+{
+	log_must_busy zpool destroy -f $TESTPOOL
+}
+
+log_onexit cleanup
+
 log_assert "ENOSPC is returned when file system is full."
-sync
+
+default_setup_noexit $DISK_SMALL
 log_must zfs set compression=off $TESTPOOL/$TESTFS
 log_must zfs snapshot $TESTPOOL/$TESTFS@snap
 
-log_note "Writing file: $TESTFILE0 until ENOSPC."
-file_write -o create -f $TESTDIR/$TESTFILE0 -b $BLOCKSZ \
-    -c $NUM_WRITES -d $DATA
-ret=$?
+#
+# Completely fill the pool in order to ensure the commands below will more
+# reliably succeed or fail as a result of lack of space.  Care is taken to
+# force multiple transaction groups to ensure as many recently freed blocks
+# as possible are reallocated.
+#
+log_note "Writing files until ENOSPC."
 
-(( $ret != $ENOSPC )) && \
-    log_fail "$TESTFILE0 returned: $ret rather than ENOSPC."
+for i in $(seq 30); do
+	file_write -o create -f $TESTDIR/file.$i -b $BLOCKSZ \
+	    -c $NUM_WRITES -d $DATA
+	ret=$?
+	(( $ret != $ENOSPC )) && \
+	    log_fail "file.$i returned: $ret rather than ENOSPC."
+
+	log_must zpool sync -f
+done
 
 log_mustnot_expect space zfs create $TESTPOOL/$TESTFS/subfs
 log_mustnot_expect space zfs clone $TESTPOOL/$TESTFS@snap $TESTPOOL/clone
@@ -47,9 +65,9 @@ log_mustnot_expect space zfs snapshot $TESTPOOL/$TESTFS@snap2
 log_mustnot_expect space zfs bookmark \
     $TESTPOOL/$TESTFS@snap $TESTPOOL/$TESTFS#bookmark
 
-log_must zfs send $TESTPOOL/$TESTFS@snap >/tmp/stream.$$
-log_mustnot_expect space zfs receive $TESTPOOL/$TESTFS/recvd </tmp/stream.$$
-log_must rm /tmp/stream.$$
+log_must zfs send $TESTPOOL/$TESTFS@snap > $TEST_BASE_DIR/stream.$$
+log_mustnot_expect space zfs receive $TESTPOOL/$TESTFS/recvd < $TEST_BASE_DIR/stream.$$
+log_must rm $TEST_BASE_DIR/stream.$$
 
 log_must zfs rename $TESTPOOL/$TESTFS@snap $TESTPOOL/$TESTFS@snap_newname
 log_must zfs rename $TESTPOOL/$TESTFS@snap_newname $TESTPOOL/$TESTFS@snap

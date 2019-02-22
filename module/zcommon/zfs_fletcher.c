@@ -867,7 +867,7 @@ zio_abd_checksum_func_t fletcher_4_abd_ops = {
 };
 
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 #include <linux/mod_compat.h>
 
 static int

@@ -24,7 +24,7 @@
  */
 
 /*
- * Copyright (c) 2011, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_METASLAB_IMPL_H
@@ -52,6 +52,7 @@ typedef struct metaslab_alloc_trace {
 	uint64_t			mat_weight;
 	uint32_t			mat_dva_id;
 	uint64_t			mat_offset;
+	int					mat_allocator;
 } metaslab_alloc_trace_t;
 
 /*
@@ -67,14 +68,17 @@ typedef enum trace_alloc_type {
 	TRACE_GROUP_FAILURE	= -5ULL,
 	TRACE_ENOSPC		= -6ULL,
 	TRACE_CONDENSING	= -7ULL,
-	TRACE_VDEV_ERROR	= -8ULL
+	TRACE_VDEV_ERROR	= -8ULL,
+	TRACE_INITIALIZING	= -9ULL
 } trace_alloc_type_t;
 
 #define	METASLAB_WEIGHT_PRIMARY		(1ULL << 63)
 #define	METASLAB_WEIGHT_SECONDARY	(1ULL << 62)
-#define	METASLAB_WEIGHT_TYPE		(1ULL << 61)
+#define	METASLAB_WEIGHT_CLAIM		(1ULL << 61)
+#define	METASLAB_WEIGHT_TYPE		(1ULL << 60)
 #define	METASLAB_ACTIVE_MASK		\
-	(METASLAB_WEIGHT_PRIMARY | METASLAB_WEIGHT_SECONDARY)
+	(METASLAB_WEIGHT_PRIMARY | METASLAB_WEIGHT_SECONDARY | \
+	METASLAB_WEIGHT_CLAIM)
 
 /*
  * The metaslab weight is used to encode the amount of free space in a
@@ -97,37 +101,39 @@ typedef enum trace_alloc_type {
  *
  *      64      56      48      40      32      24      16      8       0
  *      +-------+-------+-------+-------+-------+-------+-------+-------+
- *      |PS1|                   weighted-free space                     |
+ *      |PSC1|                  weighted-free space                     |
  *      +-------+-------+-------+-------+-------+-------+-------+-------+
  *
  *	PS - indicates primary and secondary activation
+ *	C - indicates activation for claimed block zio
  *	space - the fragmentation-weighted space
  *
  * Segment-based weight:
  *
  *      64      56      48      40      32      24      16      8       0
  *      +-------+-------+-------+-------+-------+-------+-------+-------+
- *      |PS0| idx|             count of segments in region              |
+ *      |PSC0| idx|            count of segments in region              |
  *      +-------+-------+-------+-------+-------+-------+-------+-------+
  *
  *	PS - indicates primary and secondary activation
+ *	C - indicates activation for claimed block zio
  *	idx - index for the highest bucket in the histogram
  *	count - number of segments in the specified bucket
  */
-#define	WEIGHT_GET_ACTIVE(weight)		BF64_GET((weight), 62, 2)
-#define	WEIGHT_SET_ACTIVE(weight, x)		BF64_SET((weight), 62, 2, x)
+#define	WEIGHT_GET_ACTIVE(weight)		BF64_GET((weight), 61, 3)
+#define	WEIGHT_SET_ACTIVE(weight, x)		BF64_SET((weight), 61, 3, x)
 
 #define	WEIGHT_IS_SPACEBASED(weight)		\
-	((weight) == 0 || BF64_GET((weight), 61, 1))
-#define	WEIGHT_SET_SPACEBASED(weight)		BF64_SET((weight), 61, 1, 1)
+	((weight) == 0 || BF64_GET((weight), 60, 1))
+#define	WEIGHT_SET_SPACEBASED(weight)		BF64_SET((weight), 60, 1, 1)
 
 /*
  * These macros are only applicable to segment-based weighting.
  */
-#define	WEIGHT_GET_INDEX(weight)		BF64_GET((weight), 55, 6)
-#define	WEIGHT_SET_INDEX(weight, x)		BF64_SET((weight), 55, 6, x)
-#define	WEIGHT_GET_COUNT(weight)		BF64_GET((weight), 0, 55)
-#define	WEIGHT_SET_COUNT(weight, x)		BF64_SET((weight), 0, 55, x)
+#define	WEIGHT_GET_INDEX(weight)		BF64_GET((weight), 54, 6)
+#define	WEIGHT_SET_INDEX(weight, x)		BF64_SET((weight), 54, 6, x)
+#define	WEIGHT_GET_COUNT(weight)		BF64_GET((weight), 0, 54)
+#define	WEIGHT_SET_COUNT(weight, x)		BF64_SET((weight), 0, 54, x)
 
 /*
  * A metaslab class encompasses a category of allocatable top-level vdevs.
@@ -178,8 +184,8 @@ struct metaslab_class {
 	 * allowed to reserve slots even if we've reached the maximum
 	 * number of allocations allowed.
 	 */
-	uint64_t		mc_alloc_max_slots;
-	refcount_t		mc_alloc_slots;
+	uint64_t		*mc_alloc_max_slots;
+	zfs_refcount_t		*mc_alloc_slots;
 
 	uint64_t		mc_alloc_groups; /* # of allocatable groups */
 
@@ -201,9 +207,12 @@ struct metaslab_class {
  */
 struct metaslab_group {
 	kmutex_t		mg_lock;
+	metaslab_t		**mg_primaries;
+	metaslab_t		**mg_secondaries;
 	avl_tree_t		mg_metaslab_tree;
 	uint64_t		mg_aliquot;
 	boolean_t		mg_allocatable;		/* can we allocate? */
+	uint64_t		mg_ms_ready;
 
 	/*
 	 * A metaslab group is considered to be initialized only after
@@ -223,15 +232,33 @@ struct metaslab_group {
 	metaslab_group_t	*mg_next;
 
 	/*
-	 * Each metaslab group can handle mg_max_alloc_queue_depth allocations
-	 * which are tracked by mg_alloc_queue_depth. It's possible for a
-	 * metaslab group to handle more allocations than its max. This
-	 * can occur when gang blocks are required or when other groups
-	 * are unable to handle their share of allocations.
+	 * In order for the allocation throttle to function properly, we cannot
+	 * have too many IOs going to each disk by default; the throttle
+	 * operates by allocating more work to disks that finish quickly, so
+	 * allocating larger chunks to each disk reduces its effectiveness.
+	 * However, if the number of IOs going to each allocator is too small,
+	 * we will not perform proper aggregation at the vdev_queue layer,
+	 * also resulting in decreased performance. Therefore, we will use a
+	 * ramp-up strategy.
+	 *
+	 * Each allocator in each metaslab group has a current queue depth
+	 * (mg_alloc_queue_depth[allocator]) and a current max queue depth
+	 * (mg_cur_max_alloc_queue_depth[allocator]), and each metaslab group
+	 * has an absolute max queue depth (mg_max_alloc_queue_depth).  We
+	 * add IOs to an allocator until the mg_alloc_queue_depth for that
+	 * allocator hits the cur_max. Every time an IO completes for a given
+	 * allocator on a given metaslab group, we increment its cur_max until
+	 * it reaches mg_max_alloc_queue_depth. The cur_max resets every txg to
+	 * help protect against disks that decrease in performance over time.
+	 *
+	 * It's possible for an allocator to handle more allocations than
+	 * its max. This can occur when gang blocks are required or when other
+	 * groups are unable to handle their share of allocations.
 	 */
 	uint64_t		mg_max_alloc_queue_depth;
-	refcount_t		mg_alloc_queue_depth;
-
+	uint64_t		*mg_cur_max_alloc_queue_depth;
+	zfs_refcount_t		*mg_alloc_queue_depth;
+	int			mg_allocators;
 	/*
 	 * A metalab group that can no longer allocate the minimum block
 	 * size will set mg_no_free_space. Once a metaslab group is out
@@ -244,6 +271,11 @@ struct metaslab_group {
 	uint64_t		mg_failed_allocations;
 	uint64_t		mg_fragmentation;
 	uint64_t		mg_histogram[RANGE_TREE_HISTOGRAM_SIZE];
+
+	int			mg_ms_initializing;
+	boolean_t		mg_initialize_updating;
+	kmutex_t		mg_ms_initialize_lock;
+	kcondvar_t		mg_ms_initialize_cv;
 };
 
 /*
@@ -255,17 +287,16 @@ struct metaslab_group {
 
 /*
  * Each metaslab maintains a set of in-core trees to track metaslab
- * operations.  The in-core free tree (ms_tree) contains the list of
+ * operations.  The in-core free tree (ms_allocatable) contains the list of
  * free segments which are eligible for allocation.  As blocks are
- * allocated, the allocated segments are removed from the ms_tree and
- * added to a per txg allocation tree (ms_alloctree).  This allows us to
- * process all allocations in syncing context where it is safe to update
- * the on-disk space maps.  Frees are also processed in syncing context.
- * Most frees are generated from syncing context, and those that are not
- * are held in the spa_free_bplist for processing in syncing context.
- * An additional set of in-core trees is maintained to track deferred
- * frees (ms_defertree).  Once a block is freed it will move from the
- * ms_freedtree to the ms_defertree.  A deferred free means that a block
+ * allocated, the allocated segment are removed from the ms_allocatable and
+ * added to a per txg allocation tree (ms_allocating).  As blocks are
+ * freed, they are added to the free tree (ms_freeing).  These trees
+ * allow us to process all allocations and frees in syncing context
+ * where it is safe to update the on-disk space maps.  An additional set
+ * of in-core trees is maintained to track deferred frees
+ * (ms_defer).  Once a block is freed it will move from the
+ * ms_freed to the ms_defer tree.  A deferred free means that a block
  * has been freed but cannot be used by the pool until TXG_DEFER_SIZE
  * transactions groups later.  For example, a block that is freed in txg
  * 50 will not be available for reallocation until txg 52 (50 +
@@ -279,14 +310,14 @@ struct metaslab_group {
  *      ALLOCATE
  *         |
  *         V
- *    free segment (ms_tree) -----> ms_alloctree[4] ----> (write to space map)
+ *    free segment (ms_allocatable) -> ms_allocating[4] -> (write to space map)
  *         ^
- *         |                           ms_freeingtree <--- FREE
- *         |                                 |
- *         |                                 v
- *         |                           ms_freedtree
- *         |                                 |
- *         +-------- ms_defertree[2] <-------+---------> (write to space map)
+ *         |                        ms_freeing <--- FREE
+ *         |                             |
+ *         |                             v
+ *         |                         ms_freed
+ *         |                             |
+ *         +-------- ms_defer[2] <-------+-------> (write to space map)
  *
  *
  * Each metaslab's space is tracked in a single space map in the MOS,
@@ -297,8 +328,8 @@ struct metaslab_group {
  * To load the in-core free tree we read the space map from disk.  This
  * object contains a series of alloc and free records that are combined
  * to make up the list of all free segments in this metaslab.  These
- * segments are represented in-core by the ms_tree and are stored in an
- * AVL tree.
+ * segments are represented in-core by the ms_allocatable and are stored
+ * in an AVL tree.
  *
  * As the space map grows (as a result of the appends) it will
  * eventually become space-inefficient.  When the metaslab's in-core
@@ -309,7 +340,34 @@ struct metaslab_group {
  * being written.
  */
 struct metaslab {
+	/*
+	 * This is the main lock of the metaslab and its purpose is to
+	 * coordinate our allocations and frees [e.g metaslab_block_alloc(),
+	 * metaslab_free_concrete(), ..etc] with our various syncing
+	 * procedures [e.g. metaslab_sync(), metaslab_sync_done(), ..etc].
+	 *
+	 * The lock is also used during some miscellaneous operations like
+	 * using the metaslab's histogram for the metaslab group's histogram
+	 * aggregation, or marking the metaslab for initialization.
+	 */
 	kmutex_t	ms_lock;
+
+	/*
+	 * Acquired together with the ms_lock whenever we expect to
+	 * write to metaslab data on-disk (i.e flushing entries to
+	 * the metaslab's space map). It helps coordinate readers of
+	 * the metaslab's space map [see spa_vdev_remove_thread()]
+	 * with writers [see metaslab_sync()].
+	 *
+	 * Note that metaslab_load(), even though a reader, uses
+	 * a completely different mechanism to deal with the reading
+	 * of the metaslab's space map based on ms_synced_length. That
+	 * said, the function still uses the ms_sync_lock after it
+	 * has read the ms_sm [see relevant comment in metaslab_load()
+	 * as to why].
+	 */
+	kmutex_t	ms_sync_lock;
+
 	kcondvar_t	ms_load_cv;
 	space_map_t	*ms_sm;
 	uint64_t	ms_id;
@@ -317,28 +375,82 @@ struct metaslab {
 	uint64_t	ms_size;
 	uint64_t	ms_fragmentation;
 
-	range_tree_t	*ms_alloctree[TXG_SIZE];
-	range_tree_t	*ms_tree;
+	range_tree_t	*ms_allocating[TXG_SIZE];
+	range_tree_t	*ms_allocatable;
+	uint64_t	ms_allocated_this_txg;
 
 	/*
 	 * The following range trees are accessed only from syncing context.
 	 * ms_free*tree only have entries while syncing, and are empty
 	 * between syncs.
 	 */
-	range_tree_t	*ms_freeingtree; /* to free this syncing txg */
-	range_tree_t	*ms_freedtree; /* already freed this syncing txg */
-	range_tree_t	*ms_defertree[TXG_DEFER_SIZE];
+	range_tree_t	*ms_freeing;	/* to free this syncing txg */
+	range_tree_t	*ms_freed;	/* already freed this syncing txg */
+	range_tree_t	*ms_defer[TXG_DEFER_SIZE];
+	range_tree_t	*ms_checkpointing; /* to add to the checkpoint */
 
 	boolean_t	ms_condensing;	/* condensing? */
 	boolean_t	ms_condense_wanted;
+	uint64_t	ms_condense_checked_txg;
+
+	uint64_t	ms_initializing; /* leaves initializing this ms */
 
 	/*
-	 * We must hold both ms_lock and ms_group->mg_lock in order to
-	 * modify ms_loaded.
+	 * We must always hold the ms_lock when modifying ms_loaded
+	 * and ms_loading.
 	 */
 	boolean_t	ms_loaded;
 	boolean_t	ms_loading;
 
+	/*
+	 * The following histograms count entries that are in the
+	 * metaslab's space map (and its histogram) but are not in
+	 * ms_allocatable yet, because they are in ms_freed, ms_freeing,
+	 * or ms_defer[].
+	 *
+	 * When the metaslab is not loaded, its ms_weight needs to
+	 * reflect what is allocatable (i.e. what will be part of
+	 * ms_allocatable if it is loaded).  The weight is computed from
+	 * the spacemap histogram, but that includes ranges that are
+	 * not yet allocatable (because they are in ms_freed,
+	 * ms_freeing, or ms_defer[]).  Therefore, when calculating the
+	 * weight, we need to remove those ranges.
+	 *
+	 * The ranges in the ms_freed and ms_defer[] range trees are all
+	 * present in the spacemap.  However, the spacemap may have
+	 * multiple entries to represent a contiguous range, because it
+	 * is written across multiple sync passes, but the changes of
+	 * all sync passes are consolidated into the range trees.
+	 * Adjacent ranges that are freed in different sync passes of
+	 * one txg will be represented separately (as 2 or more entries)
+	 * in the space map (and its histogram), but these adjacent
+	 * ranges will be consolidated (represented as one entry) in the
+	 * ms_freed/ms_defer[] range trees (and their histograms).
+	 *
+	 * When calculating the weight, we can not simply subtract the
+	 * range trees' histograms from the spacemap's histogram,
+	 * because the range trees' histograms may have entries in
+	 * higher buckets than the spacemap, due to consolidation.
+	 * Instead we must subtract the exact entries that were added to
+	 * the spacemap's histogram.  ms_synchist and ms_deferhist[]
+	 * represent these exact entries, so we can subtract them from
+	 * the spacemap's histogram when calculating ms_weight.
+	 *
+	 * ms_synchist represents the same ranges as ms_freeing +
+	 * ms_freed, but without consolidation across sync passes.
+	 *
+	 * ms_deferhist[i] represents the same ranges as ms_defer[i],
+	 * but without consolidation across sync passes.
+	 */
+	uint64_t	ms_synchist[SPACE_MAP_HISTOGRAM_SIZE];
+	uint64_t	ms_deferhist[TXG_DEFER_SIZE][SPACE_MAP_HISTOGRAM_SIZE];
+
+	/*
+	 * Tracks the exact amount of allocated space of this metaslab
+	 * (and specifically the metaslab's space map) up to the most
+	 * recently completed sync pass [see usage in metaslab_sync()].
+	 */
+	uint64_t	ms_allocated_space;
 	int64_t		ms_deferspace;	/* sum of ms_defermap[] space	*/
 	uint64_t	ms_weight;	/* weight vs. others in group	*/
 	uint64_t	ms_activation_weight;	/* activation weight	*/
@@ -354,18 +466,31 @@ struct metaslab {
 	uint64_t	ms_max_size;	/* maximum allocatable size	*/
 
 	/*
+	 * -1 if it's not active in an allocator, otherwise set to the allocator
+	 * this metaslab is active for.
+	 */
+	int		ms_allocator;
+	boolean_t	ms_primary; /* Only valid if ms_allocator is not -1 */
+
+	/*
 	 * The metaslab block allocators can optionally use a size-ordered
 	 * range tree and/or an array of LBAs. Not all allocators use
-	 * this functionality. The ms_size_tree should always contain the
-	 * same number of segments as the ms_tree. The only difference
-	 * is that the ms_size_tree is ordered by segment sizes.
+	 * this functionality. The ms_allocatable_by_size should always
+	 * contain the same number of segments as the ms_allocatable. The
+	 * only difference is that the ms_allocatable_by_size is ordered by
+	 * segment sizes.
 	 */
-	avl_tree_t	ms_size_tree;
+	avl_tree_t	ms_allocatable_by_size;
 	uint64_t	ms_lbas[MAX_LBAS];
 
 	metaslab_group_t *ms_group;	/* metaslab group		*/
 	avl_node_t	ms_group_node;	/* node in metaslab group tree	*/
 	txg_node_t	ms_txg_node;	/* per-txg dirty metaslab links	*/
+
+	/* updated every time we are done syncing the metaslab's space map */
+	uint64_t	ms_synced_length;
+
+	boolean_t	ms_new;
 };
 
 #ifdef	__cplusplus

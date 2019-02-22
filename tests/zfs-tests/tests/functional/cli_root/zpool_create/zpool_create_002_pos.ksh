@@ -50,14 +50,14 @@ function cleanup
 	for pool in $TESTPOOL $TESTPOOL1 $TESTPOOL2 $TESTPOOL3 $TESTPOOL4 \
 		$TESTPOOL5 $TESTPOOL6
 	do
-		poolexists $pool && destroy_pool $pool
+		destroy_pool $pool
 	done
 
 	clean_blockfile "$TESTDIR0 $TESTDIR1"
 
 	for file in $FILEDISK0 $FILEDISK1 $FILEDISK2
 	do
-		if [[ -e $file ]]; then
+		if [[ -e $TEST_BASE_DIR/$file ]]; then
 			rm -f $TEST_BASE_DIR/$file
 		fi
 	done

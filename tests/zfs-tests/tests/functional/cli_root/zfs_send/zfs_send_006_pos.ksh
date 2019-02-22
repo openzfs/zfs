@@ -37,7 +37,7 @@ verify_runnable "both"
 function cleanup
 {
 	for ds in $datasets; do
-                datasetexists $ds && zfs destroy -rf $ds
+                destroy_dataset $ds "-rf"
 	done
 }
 

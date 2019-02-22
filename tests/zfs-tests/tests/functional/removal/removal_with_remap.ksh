@@ -1,0 +1,32 @@
+#! /bin/ksh -p
+#
+# CDDL HEADER START
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright (c) 2015, 2017 by Delphix. All rights reserved.
+#
+
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/removal/removal.kshlib
+
+# N.B. The 'zfs remap' command has been disabled and may be removed.
+export ZFS_REMAP_ENABLED=YES
+
+default_setup_noexit "$DISKS"
+log_onexit default_cleanup_noexit
+
+test_removal_with_operation zfs remap $TESTPOOL/$TESTFS
+
+log_pass "Can remap a filesystem during removal"

@@ -425,7 +425,7 @@ vdev_cache_stat_fini(void)
 	}
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 module_param(zfs_vdev_cache_max, int, 0644);
 MODULE_PARM_DESC(zfs_vdev_cache_max, "Inflate reads small than max");
 

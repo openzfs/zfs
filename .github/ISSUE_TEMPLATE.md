@@ -1,3 +1,5 @@
+<!-- Please fill out the following template, which will help other contributors address your issue. -->
+
 <!--
 Thank you for reporting an issue.
 
@@ -14,15 +16,15 @@ Please fill in as much of the template as possible.
 -->
 
 ### System information
-<!--  add version after "|" character -->
-Type                                | Version/Name
-  ---                                  |     --- 
-Distribution Name       | 
-Distribution Version    | 
-Linux Kernel                 | 
-Architecture                 | 
-ZFS Version                  | 
-SPL Version                  | 
+<!--  add version after "|" character -->
+Type | Version/Name
+ --- | --- 
+Distribution Name	| 
+Distribution Version	| 
+Linux Kernel	| 
+Architecture	| 
+ZFS Version	| 
+SPL Version	| 
 <!-- 
 Commands to find ZFS/SPL versions:
 modinfo zfs | grep -iw version

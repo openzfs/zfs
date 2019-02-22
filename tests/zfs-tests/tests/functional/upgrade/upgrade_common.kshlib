@@ -30,7 +30,7 @@
 
 . $STF_SUITE/include/libtest.shlib
 
-export TMPDEV=/tmp/zpool_upgrade_test.dat
+export TMPDEV=$TEST_BASE_DIR/zpool_upgrade_test.dat
 
 function cleanup_upgrade
 {

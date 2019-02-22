@@ -20,6 +20,7 @@
 #define	_SYS_DSL_BOOKMARK_H
 
 #include <sys/zfs_context.h>
+#include <sys/dsl_dataset.h>
 
 #ifdef	__cplusplus
 extern "C" {

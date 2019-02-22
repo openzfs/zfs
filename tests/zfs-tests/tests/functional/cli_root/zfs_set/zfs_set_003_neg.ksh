@@ -33,7 +33,7 @@
 
 #
 # DESCRIPTION:
-# 'zfs set mountpoint/sharenfs' should fail when the mountpoint is invlid
+# 'zfs set mountpoint/sharenfs' should fail when the mountpoint is invalid
 #
 # STRATEGY:
 # 1. Create invalid scenarios
@@ -56,7 +56,7 @@ function cleanup
 log_assert "'zfs set mountpoint/sharenfs' fails with invalid scenarios"
 log_onexit cleanup
 
-badpath=/tmp/foo1.$$
+badpath=$TEST_BASE_DIR/foo1.$$
 touch $badpath
 longpath=$(gen_dataset_name 1030 "abcdefg")
 

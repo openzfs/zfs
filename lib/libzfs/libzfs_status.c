@@ -42,6 +42,7 @@
  */
 
 #include <libzfs.h>
+#include <libzutil.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/systeminfo.h>
@@ -50,27 +51,41 @@
 
 /*
  * Message ID table.  This must be kept in sync with the ZPOOL_STATUS_* defines
- * in libzfs.h.  Note that there are some status results which go past the end
- * of this table, and hence have no associated message ID.
+ * in include/libzfs.h.  Note that there are some status results which go past
+ * the end of this table, and hence have no associated message ID.
  */
 static char *zfs_msgid_table[] = {
-	"ZFS-8000-14",
-	"ZFS-8000-2Q",
-	"ZFS-8000-3C",
-	"ZFS-8000-4J",
-	"ZFS-8000-5E",
-	"ZFS-8000-6X",
-	"ZFS-8000-72",
-	"ZFS-8000-8A",
-	"ZFS-8000-9P",
-	"ZFS-8000-A5",
-	"ZFS-8000-EY",
-	"ZFS-8000-EY",
-	"ZFS-8000-EY",
-	"ZFS-8000-HC",
-	"ZFS-8000-JQ",
-	"ZFS-8000-K4",
-	"ZFS-8000-ER",
+	"ZFS-8000-14", /* ZPOOL_STATUS_CORRUPT_CACHE */
+	"ZFS-8000-2Q", /* ZPOOL_STATUS_MISSING_DEV_R */
+	"ZFS-8000-3C", /* ZPOOL_STATUS_MISSING_DEV_NR */
+	"ZFS-8000-4J", /* ZPOOL_STATUS_CORRUPT_LABEL_R */
+	"ZFS-8000-5E", /* ZPOOL_STATUS_CORRUPT_LABEL_NR */
+	"ZFS-8000-6X", /* ZPOOL_STATUS_BAD_GUID_SUM */
+	"ZFS-8000-72", /* ZPOOL_STATUS_CORRUPT_POOL */
+	"ZFS-8000-8A", /* ZPOOL_STATUS_CORRUPT_DATA */
+	"ZFS-8000-9P", /* ZPOOL_STATUS_FAILING_DEV */
+	"ZFS-8000-A5", /* ZPOOL_STATUS_VERSION_NEWER */
+	"ZFS-8000-EY", /* ZPOOL_STATUS_HOSTID_MISMATCH */
+	"ZFS-8000-EY", /* ZPOOL_STATUS_HOSTID_ACTIVE */
+	"ZFS-8000-EY", /* ZPOOL_STATUS_HOSTID_REQUIRED */
+	"ZFS-8000-HC", /* ZPOOL_STATUS_IO_FAILURE_WAIT */
+	"ZFS-8000-JQ", /* ZPOOL_STATUS_IO_FAILURE_CONTINUE */
+	"ZFS-8000-MM", /* ZPOOL_STATUS_IO_FAILURE_MMP */
+	"ZFS-8000-K4", /* ZPOOL_STATUS_BAD_LOG */
+	"ZFS-8000-ER", /* ZPOOL_STATUS_ERRATA */
+	/*
+	 * The following results have no message ID.
+	 *	ZPOOL_STATUS_UNSUP_FEAT_READ
+	 *	ZPOOL_STATUS_UNSUP_FEAT_WRITE
+	 *	ZPOOL_STATUS_FAULTED_DEV_R
+	 *	ZPOOL_STATUS_FAULTED_DEV_NR
+	 *	ZPOOL_STATUS_VERSION_OLDER
+	 *	ZPOOL_STATUS_FEAT_DISABLED
+	 *	ZPOOL_STATUS_RESILVERING
+	 *	ZPOOL_STATUS_OFFLINE_DEV
+	 *	ZPOOL_STATUS_REMOVED_DEV
+	 *	ZPOOL_STATUS_OK
+	 */
 };
 
 #define	NMSGID	(sizeof (zfs_msgid_table) / sizeof (zfs_msgid_table[0]))
@@ -404,12 +419,12 @@ zpool_status_t
 zpool_get_status(zpool_handle_t *zhp, char **msgid, zpool_errata_t *errata)
 {
 	zpool_status_t ret = check_status(zhp->zpool_config, B_FALSE, errata);
-
-	if (ret >= NMSGID)
-		*msgid = NULL;
-	else
-		*msgid = zfs_msgid_table[ret];
-
+	if (msgid != NULL) {
+		if (ret >= NMSGID)
+			*msgid = NULL;
+		else
+			*msgid = zfs_msgid_table[ret];
+	}
 	return (ret);
 }
 
@@ -424,69 +439,4 @@ zpool_import_status(nvlist_t *config, char **msgid, zpool_errata_t *errata)
 		*msgid = zfs_msgid_table[ret];
 
 	return (ret);
-}
-
-static void
-dump_ddt_stat(const ddt_stat_t *dds, int h)
-{
-	char refcnt[6];
-	char blocks[6], lsize[6], psize[6], dsize[6];
-	char ref_blocks[6], ref_lsize[6], ref_psize[6], ref_dsize[6];
-
-	if (dds == NULL || dds->dds_blocks == 0)
-		return;
-
-	if (h == -1)
-		(void) strcpy(refcnt, "Total");
-	else
-		zfs_nicenum(1ULL << h, refcnt, sizeof (refcnt));
-
-	zfs_nicenum(dds->dds_blocks, blocks, sizeof (blocks));
-	zfs_nicebytes(dds->dds_lsize, lsize, sizeof (lsize));
-	zfs_nicebytes(dds->dds_psize, psize, sizeof (psize));
-	zfs_nicebytes(dds->dds_dsize, dsize, sizeof (dsize));
-	zfs_nicenum(dds->dds_ref_blocks, ref_blocks, sizeof (ref_blocks));
-	zfs_nicebytes(dds->dds_ref_lsize, ref_lsize, sizeof (ref_lsize));
-	zfs_nicebytes(dds->dds_ref_psize, ref_psize, sizeof (ref_psize));
-	zfs_nicebytes(dds->dds_ref_dsize, ref_dsize, sizeof (ref_dsize));
-
-	(void) printf("%6s   %6s   %5s   %5s   %5s   %6s   %5s   %5s   %5s\n",
-	    refcnt,
-	    blocks, lsize, psize, dsize,
-	    ref_blocks, ref_lsize, ref_psize, ref_dsize);
-}
-
-/*
- * Print the DDT histogram and the column totals.
- */
-void
-zpool_dump_ddt(const ddt_stat_t *dds_total, const ddt_histogram_t *ddh)
-{
-	int h;
-
-	(void) printf("\n");
-
-	(void) printf("bucket   "
-	    "           allocated             "
-	    "          referenced          \n");
-	(void) printf("______   "
-	    "______________________________   "
-	    "______________________________\n");
-
-	(void) printf("%6s   %6s   %5s   %5s   %5s   %6s   %5s   %5s   %5s\n",
-	    "refcnt",
-	    "blocks", "LSIZE", "PSIZE", "DSIZE",
-	    "blocks", "LSIZE", "PSIZE", "DSIZE");
-
-	(void) printf("%6s   %6s   %5s   %5s   %5s   %6s   %5s   %5s   %5s\n",
-	    "------",
-	    "------", "-----", "-----", "-----",
-	    "------", "-----", "-----", "-----");
-
-	for (h = 0; h < 64; h++)
-		dump_ddt_stat(&ddh->ddh_stat[h], h);
-
-	dump_ddt_stat(dds_total, -1);
-
-	(void) printf("\n");
 }

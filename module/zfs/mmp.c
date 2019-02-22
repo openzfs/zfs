@@ -210,15 +210,13 @@ mmp_random_leaf_impl(vdev_t *vd, int *fail_mask)
 {
 	int child_idx;
 
-	if (!vdev_writeable(vd)) {
-		*fail_mask |= MMP_FAIL_NOT_WRITABLE;
-		return (NULL);
-	}
-
 	if (vd->vdev_ops->vdev_op_leaf) {
 		vdev_t *ret;
 
-		if (vd->vdev_mmp_pending != 0) {
+		if (!vdev_writeable(vd)) {
+			*fail_mask |= MMP_FAIL_NOT_WRITABLE;
+			ret = NULL;
+		} else if (vd->vdev_mmp_pending != 0) {
 			*fail_mask |= MMP_FAIL_WRITE_PENDING;
 			ret = NULL;
 		} else {
@@ -227,6 +225,9 @@ mmp_random_leaf_impl(vdev_t *vd, int *fail_mask)
 
 		return (ret);
 	}
+
+	if (vd->vdev_children == 0)
+		return (NULL);
 
 	child_idx = spa_get_random(vd->vdev_children);
 	for (int offset = vd->vdev_children; offset > 0; offset--) {
@@ -420,7 +421,7 @@ mmp_write_uberblock(spa_t *spa)
 			    mmp->mmp_kstat_id++, error);
 		}
 		mutex_exit(&mmp->mmp_io_lock);
-		spa_config_exit(spa, SCL_STATE, FTAG);
+		spa_config_exit(spa, SCL_STATE, mmp_tag);
 		return;
 	}
 
@@ -596,7 +597,7 @@ mmp_signal_all_threads(void)
 	mutex_exit(&spa_namespace_lock);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 #include <linux/mod_compat.h>
 
 static int
@@ -608,7 +609,8 @@ param_set_multihost_interval(const char *val, zfs_kernel_param_t *kp)
 	if (ret < 0)
 		return (ret);
 
-	mmp_signal_all_threads();
+	if (spa_mode_global != 0)
+		mmp_signal_all_threads();
 
 	return (ret);
 }

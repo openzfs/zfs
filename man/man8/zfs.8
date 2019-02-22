@@ -27,9 +27,10 @@
 .\" Copyright (c) 2014 by Adam Stevko. All rights reserved.
 .\" Copyright (c) 2014 Integros [integros.com]
 .\" Copyright 2016 Richard Laager. All rights reserved.
-.\" Copyright 2017 Nexenta Systems, Inc.
+.\" Copyright 2018 Nexenta Systems, Inc.
+.\" Copyright 2018 Joyent, Inc.
 .\"
-.Dd January 10, 2018
+.Dd Jan 05, 2019
 .Dt ZFS 8 SMM
 .Os Linux
 .Sh NAME
@@ -113,7 +114,7 @@
 .Oo Fl s Ar source Ns Oo , Ns Ar source Oc Ns ... Oc
 .Oo Fl t Ar type Ns Oo , Ns Ar type Oc Ns ... Oc
 .Cm all | Ar property Ns Oo , Ns Ar property Oc Ns ...
-.Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot Ns | Ns Ar bookmark Ns ...
+.Oo Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot Ns | Ns Ar bookmark Oc Ns ...
 .Nm
 .Cm inherit
 .Op Fl rS
@@ -194,7 +195,7 @@
 .Ar snapshot bookmark
 .Nm
 .Cm send
-.Op Fl DLPRbcenpvw
+.Op Fl DLPRbcehnpvw
 .Op Oo Fl I Ns | Ns Fl i Oc Ar snapshot
 .Ar snapshot
 .Nm
@@ -208,14 +209,14 @@
 .Fl t Ar receive_resume_token
 .Nm
 .Cm receive
-.Op Fl Fnsuv
+.Op Fl Fhnsuv
 .Op Fl o Sy origin Ns = Ns Ar snapshot
 .Op Fl o Ar property Ns = Ns Ar value
 .Op Fl x Ar property
 .Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot
 .Nm
 .Cm receive
-.Op Fl Fnsuv
+.Op Fl Fhnsuv
 .Op Fl d Ns | Ns Fl e
 .Op Fl o Sy origin Ns = Ns Ar snapshot
 .Op Fl o Ar property Ns = Ns Ar value
@@ -288,7 +289,7 @@
 .Ar tag Ar snapshot Ns ...
 .Nm
 .Cm holds
-.Op Fl r
+.Op Fl rH
 .Ar snapshot Ns ...
 .Nm
 .Cm release
@@ -339,7 +340,8 @@ pool/{filesystem,volume,snapshot}
 .Pp
 where the maximum length of a dataset name is
 .Dv MAXNAMELEN
-.Pq 256 bytes .
+.Pq 256 bytes
+and the maximum amount of nesting allowed in a path is 50 levels deep.
 .Pp
 A dataset can be one of the following:
 .Bl -tag -width "file system"
@@ -713,6 +715,16 @@ This property can be either
 .Sy yes
 or
 .Sy no .
+.It Sy objsetid
+A unique identifier for this dataset within the pool. Unlike the dataset's
+.Sy guid
+, the
+.Sy objsetid
+of a dataset is not transferred to other pools when the snapshot is copied
+with a send/receive operation.
+The
+.Sy objsetid
+can be reused (for a new datatset) after the dataset is deleted.
 .It Sy origin
 For cloned file systems or volumes, the snapshot from which the clone was
 created.
@@ -1067,7 +1079,7 @@ accordance to the requested mode from the application.
 .Pp
 The
 .Sy aclinherit
-property does not apply to posix ACLs.
+property does not apply to POSIX ACLs.
 .It Sy acltype Ns = Ns Sy off Ns | Ns Sy noacl Ns | Ns Sy posixacl
 Controls whether ACLs are enabled and if so what type of ACL to use.
 .Bl -tag -width "posixacl"
@@ -1079,8 +1091,8 @@ property set to off then ACLs are disabled.
 an alias for
 .Sy off
 .It Sy posixacl
-indicates posix ACLs should be used. Posix ACLs are specific to Linux and are
-not functional on other platforms. Posix ACLs are stored as an extended
+indicates POSIX ACLs should be used. POSIX ACLs are specific to Linux and are
+not functional on other platforms. POSIX ACLs are stored as an extended
 attribute and therefore will not overwrite any existing NFSv4 ACLs which
 may be set.
 .El
@@ -1089,8 +1101,8 @@ To obtain the best performance when setting
 .Sy posixacl
 users are strongly encouraged to set the
 .Sy xattr=sa
-property. This will result in the posix ACL being stored more efficiently on
-disk. But as a consequence of this all new extended attributes will only be
+property. This will result in the POSIX ACL being stored more efficiently on
+disk. But as a consequence, all new extended attributes will only be
 accessible from OpenZFS implementations which support the
 .Sy xattr=sa
 property. See the
@@ -1179,15 +1191,14 @@ The
 and
 .Sy edonr
 checksum algorithms require enabling the appropriate features on the pool.
+These algorithms are not supported by GRUB and should not be set on the
+.Sy bootfs
+filesystem when using GRUB to boot the system.
 Please see
 .Xr zpool-features 5
 for more information on these algorithms.
 .Pp
 Changing this property affects only newly-written data.
-.Pp
-Salted checksum algorithms
-.Pq Cm edonr , skein
-are currently not supported for any filesystem on the boot pools.
 .It Xo
 .Sy compression Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Sy gzip Ns | Ns
 .Sy gzip- Ns Em N Ns | Ns Sy lz4 Ns | Ns Sy lzjb Ns | Ns Sy zle
@@ -1330,6 +1341,36 @@ and
 .Sy nodev
 mount options.
 .It Xo
+.Sy dedup Ns = Ns Sy off Ns | Ns Sy on Ns | Ns Sy verify Ns | Ns
+.Sy sha256[,verify] Ns | Ns Sy sha512[,verify] Ns | Ns Sy skein[,verify] Ns | Ns
+.Sy edonr,verify
+.Xc
+Configures deduplication for a dataset. The default value is
+.Sy off .
+The default deduplication checksum is
+.Sy sha256
+(this may change in the future). When
+.Sy dedup
+is enabled, the checksum defined here overrides the
+.Sy checksum
+property. Setting the value to
+.Sy verify
+has the same effect as the setting
+.Sy sha256,verify.
+.Pp
+If set to
+.Sy verify ,
+ZFS will do a byte-to-byte comparsion in case of two blocks having the same
+signature to make sure the block contents are identical. Specifying
+.Sy verify
+is mandatory for the
+.Sy edonr
+algorithm.
+.Pp
+Unless necessary, deduplication should NOT be enabled on a system. See
+.Sx Deduplication
+above.
+.It Xo
 .Sy dnodesize Ns = Ns Sy legacy Ns | Ns Sy auto Ns | Ns Sy 1k Ns | Ns
 .Sy 2k Ns | Ns Sy 4k Ns | Ns Sy 8k Ns | Ns Sy 16k
 .Xc
@@ -1410,9 +1451,9 @@ Controls where the user's encryption key will be loaded from by default for
 commands such as
 .Nm zfs Cm load-key
 and
-.Nm zfs Cm mount Cm -l . This property is
-only set for encrypted datasets which are encryption roots. If unspecified, the
-default is
+.Nm zfs Cm mount Cm -l .
+This property is only set for encrypted datasets which are encryption roots. If
+unspecified, the default is
 .Sy prompt.
 .Pp
 Even though the encryption suite cannot be changed after dataset creation, the
@@ -1478,6 +1519,18 @@ This feature must be enabled to be used
 .Po see
 .Xr zpool-features 5
 .Pc .
+.It Sy special_small_blocks Ns = Ns Em size
+This value represents the threshold block size for including small file
+blocks into the special allocation class. Blocks smaller than or equal to this
+value will be assigned to the special allocation class while greater blocks
+will be assigned to the regular class. Valid values are zero or a power of two
+from 512B up to 128K. The default size is 0 which means no small file blocks
+will be allocated in the special class.
+.Pp
+Before setting this property, a special class vdev must be added to the
+pool. See
+.Xr zpool 8
+for more details on the special allocation class.
 .It Sy mountpoint Ns = Ns Pa path Ns | Ns Sy none Ns | Ns Sy legacy
 Controls the mount point used for this file system.
 See the
@@ -1760,7 +1813,7 @@ Limits the amount of space a dataset can consume.
 This property enforces a hard limit on the amount of space used.
 This hard limit does not include space used by descendents, including file
 systems and snapshots.
-.It Sy refreservation Ns = Ns Em size Ns | Ns Sy none
+.It Sy refreservation Ns = Ns Em size Ns | Ns Sy none Ns | Ns Sy auto
 The minimum amount of space guaranteed to a dataset, not including its
 descendents.
 When the amount of space used is below this value, the dataset is treated as if
@@ -1777,6 +1830,22 @@ is set, a snapshot is only allowed if there is enough free pool space outside of
 this reservation to accommodate the current number of
 .Qq referenced
 bytes in the dataset.
+.Pp
+If
+.Sy refreservation
+is set to
+.Sy auto ,
+a volume is thick provisioned
+.Po or
+.Qq not sparse
+.Pc .
+.Sy refreservation Ns = Ns Sy auto
+is only supported on volumes.
+See
+.Sy volsize
+in the
+.Sx Native Properties
+section for more information about sparse volumes.
 .Pp
 This property can also be referred to by its shortened column name,
 .Sy refreserv .
@@ -1992,22 +2061,39 @@ Extreme care should be used when adjusting the volume size.
 Though not recommended, a
 .Qq sparse volume
 .Po also known as
-.Qq thin provisioning
+.Qq thin provisioned
 .Pc
 can be created by specifying the
 .Fl s
 option to the
 .Nm zfs Cm create Fl V
-command, or by changing the reservation after the volume has been created.
+command, or by changing the value of the
+.Sy refreservation
+property
+.Po or
+.Sy reservation
+property on pool version 8 or earlier
+.Pc
+after the volume has been created.
 A
 .Qq sparse volume
-is a volume where the reservation is less then the volume size.
+is a volume where the value of
+.Sy refreservation
+is less than the size of the volume plus the space required to store its
+metadata.
 Consequently, writes to a sparse volume can fail with
 .Er ENOSPC
 when the pool is low on space.
 For a sparse volume, changes to
 .Sy volsize
-are not reflected in the reservation.
+are not reflected in the
+.Sy refreservation.
+A volume that is not sparse is said to be
+.Qq thick provisioned .
+A sparse volume can become thick provisioned by setting
+.Sy refreservation
+to
+.Sy auto .
 .It Sy volmode Ns = Ns Cm default | full | geom | dev | none
 This property specifies how volumes should be exposed to the OS.
 Setting it to
@@ -2074,7 +2160,7 @@ on platforms which do not support the
 feature.
 .Pp
 The use of system attribute based xattrs is strongly encouraged for users of
-SELinux or posix ACLs. Both of these features heavily rely of extended
+SELinux or POSIX ACLs. Both of these features heavily rely of extended
 attributes and benefit significantly from the reduced access time.
 .Pp
 The values
@@ -2732,9 +2818,8 @@ property is
 .Po the default is
 .Sy off
 .Pc .
-The following fields are displayed,
-.Sy name Ns \&, Ns Sy used Ns \&, Ns Sy available Ns \&, Ns Sy referenced Ns \&, Ns
-.Sy mountpoint .
+The following fields are displayed:
+.Sy name Ns \&, Sy used Ns \&, Sy available Ns \&, Sy referenced Ns \&, Sy mountpoint Ns .
 .Bl -tag -width "-H"
 .It Fl H
 Used for scripting mode.
@@ -2855,7 +2940,7 @@ section.
 .Oo Fl s Ar source Ns Oo , Ns Ar source Oc Ns ... Oc
 .Oo Fl t Ar type Ns Oo , Ns Ar type Oc Ns ... Oc
 .Cm all | Ar property Ns Oo , Ns Ar property Oc Ns ...
-.Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot Ns | Ns Ar bookmark Ns ...
+.Oo Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot Ns | Ns Ar bookmark Oc Ns ...
 .Xc
 Displays properties for the given datasets.
 If no datasets are specified, then the command displays properties for all
@@ -2865,8 +2950,8 @@ For each property, the following columns are displayed:
     name      Dataset name
     property  Property name
     value     Property value
-    source    Property source.  Can either be local, default,
-              temporary, inherited, or none (-).
+    source    Property source  \fBlocal\fP, \fBdefault\fP, \fBinherited\fP,
+              \fBtemporary\fP, \fBreceived\fP or none (\fB-\fP).
 .Ed
 .Pp
 All columns are displayed by default, though this can be controlled by using the
@@ -2911,6 +2996,7 @@ Each source must be one of the following:
 .Sy default ,
 .Sy inherited ,
 .Sy temporary ,
+.Sy received ,
 and
 .Sy none .
 The default value is all sources.
@@ -3218,16 +3304,24 @@ Displays all ZFS file systems currently mounted.
 .Op Fl o Ar options
 .Fl a | Ar filesystem
 .Xc
-Mounts ZFS file systems.
+Mount ZFS filesystem on a path described by its
+.Sy mountpoint
+property, if the path exists and is empty. If
+.Sy mountpoint
+is set to
+.Em legacy ,
+the filesystem should be instead mounted using
+.Xr mount 8 .
 .Bl -tag -width "-O"
 .It Fl O
-Perform an overlay mount.
+Perform an overlay mount. Allows mounting in non-empty
+.Sy mountpoint .
 See
 .Xr mount 8
 for more information.
 .It Fl a
 Mount all available ZFS file systems.
-Invoked automatically as part of the boot process.
+Invoked automatically as part of the boot process if configured.
 .It Ar filesystem
 Mount the specified filesystem.
 .It Fl o Ar options
@@ -3322,7 +3416,7 @@ feature.
 .It Xo
 .Nm
 .Cm send
-.Op Fl DLPRbcenpvw
+.Op Fl DLPRbcehnpvw
 .Op Oo Fl I Ns | Ns Fl i Oc Ar snapshot
 .Ar snapshot
 .Xc
@@ -3462,6 +3556,12 @@ Note that if you do not use this flag for sending encrypted datasets, data will
 be sent unencrypted and may be re-encrypted with a different encryption key on
 the receiving system, which will disable the ability to do a raw send to that
 system for incrementals.
+.It Fl h, -holds
+Generate a stream package that includes any snapshot holds (created with the
+.Sy zfs hold
+command), and indicating to
+.Sy zfs receive 
+that the holds be applied to the dataset on the receiving system.
 .It Fl i Ar snapshot
 Generate an incremental stream from the first
 .Ar snapshot
@@ -3657,7 +3757,7 @@ for more details.
 .It Xo
 .Nm
 .Cm receive
-.Op Fl Fnsuv
+.Op Fl Fhnsuv
 .Op Fl o Sy origin Ns = Ns Ar snapshot
 .Op Fl o Ar property Ns = Ns Ar value
 .Op Fl x Ar property
@@ -3666,7 +3766,7 @@ for more details.
 .It Xo
 .Nm
 .Cm receive
-.Op Fl Fnsuv
+.Op Fl Fhnsuv
 .Op Fl d Ns | Ns Fl e
 .Op Fl o Sy origin Ns = Ns Ar snapshot
 .Op Fl o Ar property Ns = Ns Ar value
@@ -3792,6 +3892,8 @@ snapshot as described in the paragraph above.
 Discard all but the last element of the sent snapshot's file system name, using
 that element to determine the name of the target file system for the new
 snapshot as described in the paragraph above.
+.It Fl h 
+Skip the receive of holds.  There is no effect if holds are not sent.
 .It Fl n
 Do not actually receive the stream.
 This can be useful in conjunction with the
@@ -3836,6 +3938,34 @@ results if the same property is specified in multiple
 or
 .Fl x
 options.
+.Pp
+The
+.Fl o
+option may also be used to override encryption properties upon initial
+receive. This allows unencrypted streams to be received as encrypted datasets.
+To cause the received dataset (or root dataset of a recursive stream) to be
+received as an encryption root, specify encryption properties in the same
+manner as is required for
+.Nm
+.Cm create .
+For instance:
+.Bd -literal
+# zfs send tank/test@snap1 | zfs recv -o encryption=on -o keyformat=passphrase -o keylocation=file:///path/to/keyfile
+.Ed
+.Pp
+Note that
+.Op Fl o Ar keylocation Ns = Ns Ar prompt
+may not be specified here, since stdin is already being utilized for the send
+stream. Once the receive has completed, you can use
+.Nm
+.Cm set
+to change this setting after the fact. Similarly, you can receive a dataset as
+an encrypted child by specifying
+.Op Fl x Ar encryption
+to force the property to be inherited. Overriding encryption properties (except
+for
+.Sy keylocation Ns )
+is not possible with raw send streams.
 .It Fl s
 If the receive is interrupted, save the partially received state, rather
 than deleting it.
@@ -3925,7 +4055,8 @@ command restricts modifications of the global namespace to the root user.
 .Ar perm Ns | Ns @ Ns Ar setname Ns Oo , Ns Ar perm Ns | Ns @ Ns
 .Ar setname Oc Ns ...
 .Ar filesystem Ns | Ns Ar volume
-.br
+.Xc
+.It Xo
 .Nm
 .Cm allow
 .Op Fl dl
@@ -4108,7 +4239,8 @@ and can be no more than 64 characters long.
 .Oo Ar perm Ns | Ns @ Ns Ar setname Ns Oo , Ns Ar perm Ns | Ns @ Ns
 .Ar setname Oc Ns ... Oc
 .Ar filesystem Ns | Ns Ar volume
-.br
+.Xc
+.It Xo
 .Nm
 .Cm unallow
 .Op Fl dlr
@@ -4116,7 +4248,8 @@ and can be no more than 64 characters long.
 .Oo Ar perm Ns | Ns @ Ns Ar setname Ns Oo , Ns Ar perm Ns | Ns @ Ns
 .Ar setname Oc Ns ... Oc
 .Ar filesystem Ns | Ns Ar volume
-.br
+.Xc
+.It Xo
 .Nm
 .Cm unallow
 .Op Fl r
@@ -4190,7 +4323,7 @@ of all descendent file systems.
 .It Xo
 .Nm
 .Cm holds
-.Op Fl r
+.Op Fl rH
 .Ar snapshot Ns ...
 .Xc
 Lists all existing user references for the given snapshot or snapshots.
@@ -4198,6 +4331,8 @@ Lists all existing user references for the given snapshot or snapshots.
 .It Fl r
 Lists the holds that are set on the named descendent snapshots, in addition to
 listing the holds on the named snapshot.
+.It Fl H
+Do not print headers, use tab-delimited output.
 .El
 .It Xo
 .Nm
@@ -4681,9 +4816,9 @@ renames the remaining snapshots, and then creates a new snapshot, as follows:
 # zfs destroy -r pool/users@7daysago
 # zfs rename -r pool/users@6daysago @7daysago
 # zfs rename -r pool/users@5daysago @6daysago
-# zfs rename -r pool/users@yesterday @5daysago
-# zfs rename -r pool/users@yesterday @4daysago
-# zfs rename -r pool/users@yesterday @3daysago
+# zfs rename -r pool/users@4daysago @5daysago
+# zfs rename -r pool/users@3daysago @4daysago
+# zfs rename -r pool/users@2daysago @3daysago
 # zfs rename -r pool/users@yesterday @2daysago
 # zfs rename -r pool/users@today @yesterday
 # zfs snapshot -r pool/users@today

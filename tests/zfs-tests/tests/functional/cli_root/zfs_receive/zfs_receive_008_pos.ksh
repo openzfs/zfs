@@ -73,8 +73,8 @@ log_onexit cleanup
 
 typeset datasets="$TESTPOOL/$TESTFS $TESTPOOL"
 typeset rst_fs=$TESTPOOL/$TESTFS/$TESTFS
-typeset fbackup=/var/tmp/fbackup.$$
-typeset tmp_out=/var/tmp/tmpout.$$
+typeset fbackup=$TEST_BASE_DIR/fbackup.$$
+typeset tmp_out=$TEST_BASE_DIR/tmpout.$$
 
 for orig_fs in $datasets ; do
 	typeset rst_snap=$rst_fs@snap

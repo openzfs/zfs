@@ -14,6 +14,7 @@ fi
 PROG=zfs.sh
 VERBOSE="no"
 UNLOAD="no"
+STACK_TRACER="no"
 
 ZED_PIDFILE=${ZED_PIDFILE:-/var/run/zed.pid}
 LDMOD=${LDMOD:-/sbin/modprobe}
@@ -21,7 +22,6 @@ LDMOD=${LDMOD:-/sbin/modprobe}
 KMOD_ZLIB_DEFLATE=${KMOD_ZLIB_DEFLATE:-zlib_deflate}
 KMOD_ZLIB_INFLATE=${KMOD_ZLIB_INFLATE:-zlib_inflate}
 KMOD_SPL=${KMOD_SPL:-spl}
-KMOD_SPLAT=${KMOD_SPLAT:-splat}
 KMOD_ZAVL=${KMOD_ZAVL:-zavl}
 KMOD_ZNVPAIR=${KMOD_ZNVPAIR:-znvpair}
 KMOD_ZUNICODE=${KMOD_ZUNICODE:-zunicode}
@@ -34,7 +34,7 @@ KMOD_ZFS=${KMOD_ZFS:-zfs}
 usage() {
 cat << EOF
 USAGE:
-$0 [hvud] [module-options]
+$0 [hvudS] [module-options]
 
 DESCRIPTION:
 	Load/unload the ZFS module stack.
@@ -43,10 +43,11 @@ OPTIONS:
 	-h      Show this message
 	-v      Verbose
 	-u      Unload modules
+	-S      Enable kernel stack tracer
 EOF
 }
 
-while getopts 'hvu' OPTION; do
+while getopts 'hvuS' OPTION; do
 	case $OPTION in
 	h)
 		usage
@@ -57,6 +58,9 @@ while getopts 'hvu' OPTION; do
 		;;
 	u)
 		UNLOAD="yes"
+		;;
+	S)
+		STACK_TRACER="yes"
 		;;
 	?)
 		usage
@@ -76,7 +80,7 @@ check_modules() {
 	LOADED_MODULES=""
 	MISSING_MODULES=""
 
-	for KMOD in $KMOD_SPL $KMOD_SPLAT $KMOD_ZAVL $KMOD_ZNVPAIR \
+	for KMOD in $KMOD_SPL $KMOD_ZAVL $KMOD_ZNVPAIR \
 	    $KMOD_ZUNICODE $KMOD_ZCOMMON $KMOD_ZLUA $KMOD_ICP $KMOD_ZFS; do
 		NAME=$(basename "$KMOD" .ko)
 
@@ -135,7 +139,7 @@ load_modules() {
 		modprobe "$KMOD_ZLIB_INFLATE" >/dev/null 2>&1
 	fi
 
-	for KMOD in $KMOD_SPL $KMOD_SPLAT $KMOD_ZAVL $KMOD_ZNVPAIR \
+	for KMOD in $KMOD_SPL $KMOD_ZAVL $KMOD_ZNVPAIR \
 	    $KMOD_ZUNICODE $KMOD_ZCOMMON $KMOD_ZLUA $KMOD_ICP $KMOD_ZFS; do
 		load_module "$KMOD" || return 1
 	done
@@ -165,7 +169,7 @@ unload_module() {
 
 unload_modules() {
 	for KMOD in $KMOD_ZFS $KMOD_ICP $KMOD_ZLUA $KMOD_ZCOMMON $KMOD_ZUNICODE \
-	    $KMOD_ZNVPAIR  $KMOD_ZAVL $KMOD_SPLAT $KMOD_SPL; do
+	    $KMOD_ZNVPAIR  $KMOD_ZAVL $KMOD_SPL; do
 		NAME=$(basename "$KMOD" .ko)
 		USE_COUNT=$(lsmod | grep -E "^${NAME} " | awk '{print $3}')
 
@@ -193,7 +197,7 @@ stack_clear() {
 	STACK_MAX_SIZE=/sys/kernel/debug/tracing/stack_max_size
 	STACK_TRACER_ENABLED=/proc/sys/kernel/stack_tracer_enabled
 
-	if [ -e "$STACK_MAX_SIZE" ]; then
+	if [ "$STACK_TRACER" = "yes" ] && [ -e "$STACK_MAX_SIZE" ]; then
 		echo 1 >"$STACK_TRACER_ENABLED"
 		echo 0 >"$STACK_MAX_SIZE"
 	fi
@@ -202,7 +206,7 @@ stack_clear() {
 stack_check() {
 	STACK_MAX_SIZE=/sys/kernel/debug/tracing/stack_max_size
 	STACK_TRACE=/sys/kernel/debug/tracing/stack_trace
-	STACK_LIMIT=7600
+	STACK_LIMIT=15362
 
 	if [ -e "$STACK_MAX_SIZE" ]; then
 		STACK_SIZE=$(cat "$STACK_MAX_SIZE")

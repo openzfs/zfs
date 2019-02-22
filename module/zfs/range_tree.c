@@ -23,7 +23,7 @@
  * Use is subject to license terms.
  */
 /*
- * Copyright (c) 2013, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2017 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -125,18 +125,6 @@ range_tree_stat_verify(range_tree_t *rt)
 	}
 }
 
-/*
- * Changes out the lock used by the range tree. Useful when you are moving
- * the range tree between containing structures without having to recreate
- * it. Both the old and new locks must be held by the caller.
- */
-void
-range_tree_set_lock(range_tree_t *rt, kmutex_t *lp)
-{
-	ASSERT(MUTEX_HELD(rt->rt_lock) && MUTEX_HELD(lp));
-	rt->rt_lock = lp;
-}
-
 static void
 range_tree_stat_incr(range_tree_t *rt, range_seg_t *rs)
 {
@@ -147,7 +135,6 @@ range_tree_stat_incr(range_tree_t *rt, range_seg_t *rs)
 	ASSERT3U(idx, <,
 	    sizeof (rt->rt_histogram) / sizeof (*rt->rt_histogram));
 
-	ASSERT(MUTEX_HELD(rt->rt_lock));
 	rt->rt_histogram[idx]++;
 	ASSERT3U(rt->rt_histogram[idx], !=, 0);
 }
@@ -162,7 +149,6 @@ range_tree_stat_decr(range_tree_t *rt, range_seg_t *rs)
 	ASSERT3U(idx, <,
 	    sizeof (rt->rt_histogram) / sizeof (*rt->rt_histogram));
 
-	ASSERT(MUTEX_HELD(rt->rt_lock));
 	ASSERT3U(rt->rt_histogram[idx], !=, 0);
 	rt->rt_histogram[idx]--;
 }
@@ -184,14 +170,13 @@ range_tree_seg_compare(const void *x1, const void *x2)
 
 range_tree_t *
 range_tree_create_impl(range_tree_ops_t *ops, void *arg,
-    int (*avl_compare) (const void *, const void *), kmutex_t *lp, uint64_t gap)
+    int (*avl_compare) (const void *, const void *), uint64_t gap)
 {
 	range_tree_t *rt = kmem_zalloc(sizeof (range_tree_t), KM_SLEEP);
 
 	avl_create(&rt->rt_root, range_tree_seg_compare,
 	    sizeof (range_seg_t), offsetof(range_seg_t, rs_node));
 
-	rt->rt_lock = lp;
 	rt->rt_ops = ops;
 	rt->rt_gap = gap;
 	rt->rt_arg = arg;
@@ -204,9 +189,9 @@ range_tree_create_impl(range_tree_ops_t *ops, void *arg,
 }
 
 range_tree_t *
-range_tree_create(range_tree_ops_t *ops, void *arg, kmutex_t *lp)
+range_tree_create(range_tree_ops_t *ops, void *arg)
 {
-	return (range_tree_create_impl(ops, arg, NULL, lp, 0));
+	return (range_tree_create_impl(ops, arg, NULL, 0));
 }
 
 void
@@ -224,8 +209,6 @@ range_tree_destroy(range_tree_t *rt)
 void
 range_tree_adjust_fill(range_tree_t *rt, range_seg_t *rs, int64_t delta)
 {
-	ASSERT(MUTEX_HELD(rt->rt_lock));
-
 	ASSERT3U(rs->rs_fill + delta, !=, 0);
 	ASSERT3U(rs->rs_fill + delta, <=, rs->rs_end - rs->rs_start);
 
@@ -246,7 +229,6 @@ range_tree_add_impl(void *arg, uint64_t start, uint64_t size, uint64_t fill)
 	uint64_t bridge_size = 0;
 	boolean_t merge_before, merge_after;
 
-	ASSERT(MUTEX_HELD(rt->rt_lock));
 	ASSERT3U(size, !=, 0);
 	ASSERT3U(fill, <=, size);
 
@@ -383,7 +365,6 @@ range_tree_remove_impl(range_tree_t *rt, uint64_t start, uint64_t size,
 	uint64_t end = start + size;
 	boolean_t left_over, right_over;
 
-	ASSERT(MUTEX_HELD(rt->rt_lock));
 	VERIFY3U(size, !=, 0);
 	VERIFY3U(size, <=, rt->rt_space);
 
@@ -493,8 +474,6 @@ range_tree_resize_segment(range_tree_t *rt, range_seg_t *rs,
 {
 	int64_t delta = newsize - (rs->rs_end - rs->rs_start);
 
-	ASSERT(MUTEX_HELD(rt->rt_lock));
-
 	range_tree_stat_decr(rt, rs);
 	if (rt->rt_ops != NULL && rt->rt_ops->rtop_remove != NULL)
 		rt->rt_ops->rtop_remove(rt, rs, rt->rt_arg);
@@ -512,16 +491,14 @@ range_tree_resize_segment(range_tree_t *rt, range_seg_t *rs,
 static range_seg_t *
 range_tree_find_impl(range_tree_t *rt, uint64_t start, uint64_t size)
 {
-	avl_index_t where;
 	range_seg_t rsearch;
 	uint64_t end = start + size;
 
-	ASSERT(MUTEX_HELD(rt->rt_lock));
 	VERIFY(size != 0);
 
 	rsearch.rs_start = start;
 	rsearch.rs_end = end;
-	return (avl_find(&rt->rt_root, &rsearch, &where));
+	return (avl_find(&rt->rt_root, &rsearch, NULL));
 }
 
 range_seg_t *
@@ -534,15 +511,11 @@ range_tree_find(range_tree_t *rt, uint64_t start, uint64_t size)
 }
 
 void
-range_tree_verify(range_tree_t *rt, uint64_t off, uint64_t size)
+range_tree_verify_not_present(range_tree_t *rt, uint64_t off, uint64_t size)
 {
-	range_seg_t *rs;
-
-	mutex_enter(rt->rt_lock);
-	rs = range_tree_find(rt, off, size);
+	range_seg_t *rs = range_tree_find(rt, off, size);
 	if (rs != NULL)
-		panic("freeing free block; rs=%p", (void *)rs);
-	mutex_exit(rt->rt_lock);
+		panic("segment already in tree; rs=%p", (void *)rs);
 }
 
 boolean_t
@@ -560,6 +533,9 @@ range_tree_clear(range_tree_t *rt, uint64_t start, uint64_t size)
 {
 	range_seg_t *rs;
 
+	if (size == 0)
+		return;
+
 	while ((rs = range_tree_find_impl(rt, start, size)) != NULL) {
 		uint64_t free_start = MAX(rs->rs_start, start);
 		uint64_t free_end = MIN(rs->rs_end, start + size);
@@ -572,7 +548,6 @@ range_tree_swap(range_tree_t **rtsrc, range_tree_t **rtdst)
 {
 	range_tree_t *rt;
 
-	ASSERT(MUTEX_HELD((*rtsrc)->rt_lock));
 	ASSERT0(range_tree_space(*rtdst));
 	ASSERT0(avl_numnodes(&(*rtdst)->rt_root));
 
@@ -586,8 +561,6 @@ range_tree_vacate(range_tree_t *rt, range_tree_func_t *func, void *arg)
 {
 	range_seg_t *rs;
 	void *cookie = NULL;
-
-	ASSERT(MUTEX_HELD(rt->rt_lock));
 
 	if (rt->rt_ops != NULL && rt->rt_ops->rtop_vacate != NULL)
 		rt->rt_ops->rtop_vacate(rt, rt->rt_arg);
@@ -607,8 +580,6 @@ range_tree_walk(range_tree_t *rt, range_tree_func_t *func, void *arg)
 {
 	range_seg_t *rs;
 
-	ASSERT(MUTEX_HELD(rt->rt_lock));
-
 	for (rs = avl_first(&rt->rt_root); rs; rs = AVL_NEXT(&rt->rt_root, rs))
 		func(arg, rs->rs_start, rs->rs_end - rs->rs_start);
 }
@@ -616,7 +587,6 @@ range_tree_walk(range_tree_t *rt, range_tree_func_t *func, void *arg)
 range_seg_t *
 range_tree_first(range_tree_t *rt)
 {
-	ASSERT(MUTEX_HELD(rt->rt_lock));
 	return (avl_first(&rt->rt_root));
 }
 
@@ -624,6 +594,13 @@ uint64_t
 range_tree_space(range_tree_t *rt)
 {
 	return (rt->rt_space);
+}
+
+boolean_t
+range_tree_is_empty(range_tree_t *rt)
+{
+	ASSERT(rt != NULL);
+	return (range_tree_space(rt) == 0);
 }
 
 /* Generic range tree functions for maintaining segments in an AVL tree. */
@@ -669,4 +646,24 @@ rt_avl_vacate(range_tree_t *rt, void *arg)
 	 * will be freed by the range tree, so we don't want to free them here.
 	 */
 	rt_avl_create(rt, arg);
+}
+
+uint64_t
+range_tree_min(range_tree_t *rt)
+{
+	range_seg_t *rs = avl_first(&rt->rt_root);
+	return (rs != NULL ? rs->rs_start : 0);
+}
+
+uint64_t
+range_tree_max(range_tree_t *rt)
+{
+	range_seg_t *rs = avl_last(&rt->rt_root);
+	return (rs != NULL ? rs->rs_end : 0);
+}
+
+uint64_t
+range_tree_span(range_tree_t *rt)
+{
+	return (range_tree_max(rt) - range_tree_min(rt));
 }

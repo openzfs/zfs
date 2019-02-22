@@ -35,6 +35,7 @@ QUIET=
 CLEANUP="yes"
 CLEANUPALL="no"
 LOOPBACK="yes"
+STACK_TRACER="no"
 FILESIZE="4G"
 RUNFILE=${RUNFILE:-"linux.run"}
 FILEDIR=${FILEDIR:-/var/tmp}
@@ -246,6 +247,10 @@ constrain_path() {
 	ln -fs "$STF_PATH/gunzip" "$STF_PATH/uncompress"
 	ln -fs "$STF_PATH/exportfs" "$STF_PATH/share"
 	ln -fs "$STF_PATH/exportfs" "$STF_PATH/unshare"
+
+	if [ -L "$STF_PATH/arc_summary3" ]; then
+		ln -fs "$STF_PATH/arc_summary3" "$STF_PATH/arc_summary"
+	fi
 }
 
 #
@@ -254,7 +259,7 @@ constrain_path() {
 usage() {
 cat << EOF
 USAGE:
-$0 [hvqxkf] [-s SIZE] [-r RUNFILE] [-t PATH] [-u USER]
+$0 [hvqxkfS] [-s SIZE] [-r RUNFILE] [-t PATH] [-u USER]
 
 DESCRIPTION:
 	ZFS Test Suite launch script
@@ -266,7 +271,9 @@ OPTIONS:
 	-x          Remove all testpools, dm, lo, and files (unsafe)
 	-k          Disable cleanup after test failure
 	-f          Use files only, disables block device tests
+	-S          Enable stack tracer (negative performance impact)
 	-c          Only create and populate constrained path
+	-n NFSFILE  Use the nfsfile to determine the NFS configuration
 	-I NUM      Number of iterations
 	-d DIR      Use DIR for files and loopback devices
 	-s SIZE     Use vdevs of SIZE (default: 4G)
@@ -289,7 +296,7 @@ $0 -x
 EOF
 }
 
-while getopts 'hvqxkfcd:s:r:?t:T:u:I:' OPTION; do
+while getopts 'hvqxkfScn:d:s:r:?t:T:u:I:' OPTION; do
 	case $OPTION in
 	h)
 		usage
@@ -311,9 +318,18 @@ while getopts 'hvqxkfcd:s:r:?t:T:u:I:' OPTION; do
 	f)
 		LOOPBACK="no"
 		;;
+	S)
+		STACK_TRACER="yes"
+		;;
 	c)
 		constrain_path
 		exit
+		;;
+	n)
+		nfsfile=$OPTARG
+		[[ -f $nfsfile ]] || fail "Cannot read file: $nfsfile"
+		export NFS=1
+		. "$nfsfile"
 		;;
 	d)
 		FILEDIR="$OPTARG"
@@ -449,7 +465,11 @@ constrain_path
 #
 # Verify the ZFS module stack is loaded.
 #
-sudo "${ZFS_SH}" &>/dev/null
+if [ "$STACK_TRACER" = "yes" ]; then
+	sudo "${ZFS_SH}" -S &>/dev/null
+else
+	sudo "${ZFS_SH}" &>/dev/null
+fi
 
 #
 # Attempt to cleanup all previous state for a new test run.
@@ -505,7 +525,11 @@ if [ -z "${DISKS}" ]; then
 		[ -f "$TEST_FILE" ] && fail "Failed file exists: ${TEST_FILE}"
 		truncate -s "${FILESIZE}" "${TEST_FILE}" ||
 		    fail "Failed creating: ${TEST_FILE} ($?)"
-		DISKS="$DISKS$TEST_FILE "
+		if [[ "$DISKS" ]]; then
+			DISKS="$DISKS $TEST_FILE"
+		else
+			DISKS="$TEST_FILE"
+		fi
 	done
 
 	#
@@ -522,7 +546,11 @@ if [ -z "${DISKS}" ]; then
 			    fail "Failed: ${TEST_FILE} -> ${TEST_LOOPBACK}"
 			LOOPBACKS="${LOOPBACKS}${TEST_LOOPBACK} "
 			BASELOOPBACKS=$(basename "$TEST_LOOPBACK")
-			DISKS="$DISKS$BASELOOPBACKS "
+			if [[ "$DISKS" ]]; then
+				DISKS="$DISKS $BASELOOPBACKS"
+			else
+				DISKS="$BASELOOPBACKS"
+			fi
 		done
 	fi
 fi
@@ -553,6 +581,7 @@ msg "NUM_DISKS:       $NUM_DISKS"
 msg "FILESIZE:        $FILESIZE"
 msg "ITERATIONS:      $ITERATIONS"
 msg "TAGS:            $TAGS"
+msg "STACK_TRACER:    $STACK_TRACER"
 msg "Keep pool(s):    $KEEP"
 msg "Missing util(s): $STF_MISSING_BIN"
 msg ""
@@ -567,12 +596,31 @@ export __ZFS_POOL_EXCLUDE
 export TESTFAIL_CALLBACKS
 export PATH=$STF_PATH
 
+RESULTS_FILE=$(mktemp -u -t zts-results.XXXX -p "$FILEDIR")
+REPORT_FILE=$(mktemp -u -t zts-report.XXXX -p "$FILEDIR")
+
+#
+# Run all the tests as specified.
+#
 msg "${TEST_RUNNER} ${QUIET} -c ${RUNFILE} -T ${TAGS} -i ${STF_SUITE}" \
     "-I ${ITERATIONS}"
 ${TEST_RUNNER} ${QUIET} -c "${RUNFILE}" -T "${TAGS}" -i "${STF_SUITE}" \
-    -I "${ITERATIONS}"
+    -I "${ITERATIONS}" 2>&1 | tee "$RESULTS_FILE"
+
+#
+# Analyze the results.
+#
+set -o pipefail
+${ZTS_REPORT} "$RESULTS_FILE" | tee "$REPORT_FILE"
 RESULT=$?
-echo
+set +o pipefail
+
+RESULTS_DIR=$(awk '/^Log directory/ { print $3 }' "$RESULTS_FILE")
+if [ -d "$RESULTS_DIR" ]; then
+	cat "$RESULTS_FILE" "$REPORT_FILE" >"$RESULTS_DIR/results"
+fi
+
+rm -f "$RESULTS_FILE" "$REPORT_FILE"
 
 if [ ${#SINGLETEST[@]} -ne 0 ]; then
 	rm -f "$RUNFILE" &>/dev/null

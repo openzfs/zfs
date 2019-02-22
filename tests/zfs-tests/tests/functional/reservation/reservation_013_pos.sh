@@ -75,9 +75,9 @@ space_avail=$(get_prop available $TESTPOOL)
 [[ $? -ne 0 ]] && \
     log_fail "Unable to get space available property for $TESTPOOL"
 
-((resv_set = space_avail / 5))
+typeset -il resv_set=space_avail/5
 resv_set=$(floor_volsize $resv_set)
-((sparse_vol_set_size = space_avail * 5))
+typeset -il sparse_vol_set_size=space_avail*5
 sparse_vol_set_size=$(floor_volsize $sparse_vol_set_size)
 
 # When initially created, a regular volume's reservation property is set

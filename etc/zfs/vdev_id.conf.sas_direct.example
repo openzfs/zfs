@@ -2,6 +2,9 @@ multipath     no
 topology      sas_direct
 phys_per_port 4
 
+# Additionally create /dev/by-enclousure/ symlinks for enclosure devices
+enclosure_symlinks	yes
+
 #       PCI_ID  HBA PORT  CHANNEL NAME
 channel 85:00.0 1         A
 channel 85:00.0 0         B

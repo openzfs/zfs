@@ -20,14 +20,14 @@
 .\"
 .\"
 .\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
-.\" Copyright (c) 2013 by Delphix. All rights reserved.
+.\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
 .\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
 .\" Copyright (c) 2017 Datto Inc.
-.\" Copyright (c) 2017 George Melikov. All Rights Reserved.
+.\" Copyright (c) 2018 George Melikov. All Rights Reserved.
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd March 9, 2018
+.Dd November 29, 2018
 .Dt ZPOOL 8 SMM
 .Os Linux
 .Sh NAME
@@ -46,6 +46,10 @@
 .Op Fl f
 .Oo Fl o Ar property Ns = Ns Ar value Oc
 .Ar pool device new_device
+.Nm
+.Cm checkpoint
+.Op Fl d, -discard
+.Ar pool
 .Nm
 .Cm clear
 .Ar pool
@@ -79,7 +83,7 @@
 .Op Fl Hp
 .Op Fl o Ar field Ns Oo , Ns Ar field Oc Ns ...
 .Sy all Ns | Ns Ar property Ns Oo , Ns Ar property Oc Ns ...
-.Ar pool Ns ...
+.Oo Ar pool Oc Ns ...
 .Nm
 .Cm history
 .Op Fl il
@@ -93,6 +97,7 @@
 .Fl a
 .Op Fl DflmN
 .Op Fl F Oo Fl n Oc Oo Fl T Oc Oo Fl X Oc
+.Op Fl -rewind-to-checkpoint
 .Op Fl c Ar cachefile Ns | Ns Fl d Ar dir Ns | Ns device
 .Op Fl o Ar mntopts
 .Oo Fl o Ar property Ns = Ns Ar value Oc Ns ...
@@ -101,6 +106,7 @@
 .Cm import
 .Op Fl Dflm
 .Op Fl F Oo Fl n Oc Oo Fl T Oc Oo Fl X Oc
+.Op Fl -rewind-to-checkpoint
 .Op Fl c Ar cachefile Ns | Ns Fl d Ar dir Ns | Ns device
 .Op Fl o Ar mntopts
 .Oo Fl o Ar property Ns = Ns Ar value Oc Ns ...
@@ -109,10 +115,15 @@
 .Ar pool Ns | Ns Ar id
 .Op Ar newpool Oo Fl t Oc
 .Nm
+.Cm initialize
+.Op Fl c | Fl s
+.Ar pool
+.Op Ar device Ns ...
+.Nm
 .Cm iostat
 .Op Oo Oo Fl c Ar SCRIPT Oc Oo Fl lq Oc Oc Ns | Ns Fl rw
 .Op Fl T Sy u Ns | Ns Sy d
-.Op Fl ghHLpPvy
+.Op Fl ghHLnpPvy
 .Oo Oo Ar pool Ns ... Oc Ns | Ns Oo Ar pool vdev Ns ... Oc Ns | Ns Oo Ar vdev Ns ... Oc Oc
 .Op Ar interval Op Ar count
 .Nm
@@ -144,12 +155,20 @@
 .Ar pool
 .Nm
 .Cm remove
+.Op Fl np
 .Ar pool Ar device Ns ...
+.Nm
+.Cm remove
+.Fl s
+.Ar pool
 .Nm
 .Cm replace
 .Op Fl f
 .Oo Fl o Ar property Ns = Ns Ar value Oc
 .Ar pool Ar device Op Ar new_device
+.Nm
+.Cm resilver
+.Ar pool Ns ...
 .Nm
 .Cm scrub
 .Op Fl s | Fl p
@@ -168,7 +187,7 @@
 .Nm
 .Cm status
 .Oo Fl c Ar SCRIPT Oc
-.Op Fl gLPvxD
+.Op Fl DigLpPsvx
 .Op Fl T Sy u Ns | Ns Sy d
 .Oo Ar pool Oc Ns ...
 .Op Ar interval Op Ar count
@@ -266,6 +285,21 @@ Log devices can be mirrored.
 However, raidz vdev types are not supported for the intent log.
 For more information, see the
 .Sx Intent Log
+section.
+.It Sy dedup
+A device dedicated solely for allocating dedup data.
+The redundancy of this device should match the redundancy of the other normal
+devices in the pool. If more than one dedup device is specified, then
+allocations are load-balanced between devices.
+.It Sy special
+A device dedicated solely for allocating various kinds of internal metadata,
+and optionally small file data.
+The redundancy of this device should match the redundancy of the other normal
+devices in the pool. If more than one special device is specified, then
+allocations are load-balanced between devices.
+.Pp
+For more information on special allocations, see the
+.Sx Special Allocation Class
 section.
 .It Sy cache
 A device used to cache storage pool data.
@@ -438,8 +472,7 @@ section for an example of mirroring multiple log devices.
 Log devices can be added, replaced, attached, detached and removed.  In
 addition, log devices are imported and exported as part of the pool
 that contains them.
-Mirrored log devices can be removed by specifying the top-level mirror for the
-log.
+Mirrored devices can be removed by specifying the top-level mirror vdev.
 .Ss Cache Devices
 Devices can be added to a storage pool as
 .Qq cache devices .
@@ -466,6 +499,73 @@ configuration.
 .Pp
 The content of the cache devices is considered volatile, as is the case with
 other system caches.
+.Ss Pool checkpoint
+Before starting critical procedures that include destructive actions (e.g
+.Nm zfs Cm destroy
+), an administrator can checkpoint the pool's state and in the case of a
+mistake or failure, rewind the entire pool back to the checkpoint.
+Otherwise, the checkpoint can be discarded when the procedure has completed
+successfully.
+.Pp
+A pool checkpoint can be thought of as a pool-wide snapshot and should be used
+with care as it contains every part of the pool's state, from properties to vdev
+configuration.
+Thus, while a pool has a checkpoint certain operations are not allowed.
+Specifically, vdev removal/attach/detach, mirror splitting, and
+changing the pool's guid.
+Adding a new vdev is supported but in the case of a rewind it will have to be
+added again.
+Finally, users of this feature should keep in mind that scrubs in a pool that
+has a checkpoint do not repair checkpointed data.
+.Pp
+To create a checkpoint for a pool:
+.Bd -literal
+# zpool checkpoint pool
+.Ed
+.Pp
+To later rewind to its checkpointed state, you need to first export it and
+then rewind it during import:
+.Bd -literal
+# zpool export pool
+# zpool import --rewind-to-checkpoint pool
+.Ed
+.Pp
+To discard the checkpoint from a pool:
+.Bd -literal
+# zpool checkpoint -d pool
+.Ed
+.Pp
+Dataset reservations (controlled by the
+.Nm reservation
+or
+.Nm refreservation
+zfs properties) may be unenforceable while a checkpoint exists, because the
+checkpoint is allowed to consume the dataset's reservation.
+Finally, data that is part of the checkpoint but has been freed in the
+current state of the pool won't be scanned during a scrub.
+.Ss Special Allocation Class
+The allocations in the special class are dedicated to specific block types.
+By default this includes all metadata, the indirect blocks of user data, and
+any dedup data.  The class can also be provisioned to accept a limited
+percentage of small file data blocks.
+.Pp
+A pool must always have at least one general (non-specified) vdev before
+other devices can be assigned to the special class. If the special class
+becomes full, then allocations intended for it will spill back into the
+normal class.
+.Pp
+Dedup data can be excluded from the special class by setting the
+.Sy zfs_ddt_data_is_special
+zfs module parameter to false (0).
+.Pp
+Inclusion of small file blocks in the special class is opt-in. Each dataset
+can control the size of small file blocks allowed in the special class by
+setting the
+.Sy special_small_blocks
+dataset property. It defaults to zero so you must opt-in by setting it to a
+non-zero value. See
+.Xr zfs 8
+for more info on setting this property.
 .Ss Properties
 Each pool has several properties associated with it.
 Some properties are read-only statistics while others are configurable and
@@ -508,6 +608,15 @@ Health can be one of
 .Sy ONLINE , DEGRADED , FAULTED , OFFLINE, REMOVED , UNAVAIL .
 .It Sy guid
 A unique identifier for the pool.
+.It Sy load_guid
+A unique identifier for the pool.
+Unlike the
+.Sy guid
+property, this identifier is generated every time we load the pool (e.g. does
+not persist across imports/exports) and never changes while the pool is loaded
+(even if a
+.Sy reguid
+operation takes place).
 .It Sy size
 Total size of the storage pool.
 .It Sy unsupported@ Ns Em feature_guid
@@ -801,7 +910,9 @@ device sharing.
 Display real paths for
 .Ar vdev Ns s
 instead of only the last component of the path. This can be used in
-conjunction with the -L flag.
+conjunction with the
+.Fl L
+flag.
 .It Fl o Ar property Ns = Ns Ar value
 Sets the given pool properties. See the
 .Sx Properties
@@ -847,6 +958,39 @@ Sets the given pool properties. See the
 .Sx Properties
 section for a list of valid properties that can be set. The only property
 supported at the moment is ashift.
+.El
+.It Xo
+.Nm
+.Cm checkpoint
+.Op Fl d, -discard
+.Ar pool
+.Xc
+Checkpoints the current state of
+.Ar pool
+, which can be later restored by
+.Nm zpool Cm import --rewind-to-checkpoint .
+The existence of a checkpoint in a pool prohibits the following
+.Nm zpool
+commands:
+.Cm remove ,
+.Cm attach ,
+.Cm detach ,
+.Cm split ,
+and
+.Cm reguid .
+In addition, it may break reservation boundaries if the pool lacks free
+space.
+The
+.Nm zpool Cm status
+command indicates the existence of a checkpoint or the progress of discarding a
+checkpoint from a pool.
+The
+.Nm zpool Cm list
+command reports how much space the checkpoint takes from the pool.
+.Bl -tag -width Ds
+.It Fl d, -discard
+Discards an existing checkpoint from
+.Ar pool .
 .El
 .It Xo
 .Nm
@@ -1090,7 +1234,7 @@ This may lead to potential data corruption.
 .Op Fl Hp
 .Op Fl o Ar field Ns Oo , Ns Ar field Oc Ns ...
 .Sy all Ns | Ns Ar property Ns Oo , Ns Ar property Oc Ns ...
-.Ar pool Ns ...
+.Oo Ar pool Oc Ns ...
 .Xc
 Retrieves the given list of properties
 .Po
@@ -1284,6 +1428,16 @@ and the
 .Sy altroot
 property to
 .Ar root .
+.It Fl -rewind-to-checkpoint
+Rewinds pool to the checkpointed state.
+Once the pool is imported with this flag there is no way to undo the rewind.
+All changes and data that were written after the checkpoint are lost!
+The only exception is when the
+.Sy readonly
+mounting option is enabled.
+In this case, the checkpointed state of the pool is opened and an
+administrator can see how the pool would look like if they were
+to fully rewind.
 .It Fl s
 Scan using the default search path, the libblkid cache will not be
 consulted. A custom search path may be specified by setting the
@@ -1448,22 +1602,56 @@ Will also set -o cachefile=none when not explicitly specified.
 .El
 .It Xo
 .Nm
+.Cm initialize
+.Op Fl c | Fl s
+.Ar pool
+.Op Ar device Ns ...
+.Xc
+Begins initializing by writing to all unallocated regions on the specified
+devices, or all eligible devices in the pool if no individual devices are
+specified.
+Only leaf data or log devices may be initialized.
+.Bl -tag -width Ds
+.It Fl c, -cancel
+Cancel initializing on the specified devices, or all eligible devices if none
+are specified.
+If one or more target devices are invalid or are not currently being
+initialized, the command will fail and no cancellation will occur on any device.
+.It Fl s -suspend
+Suspend initializing on the specified devices, or all eligible devices if none
+are specified.
+If one or more target devices are invalid or are not currently being
+initialized, the command will fail and no suspension will occur on any device.
+Initializing can then be resumed by running
+.Nm zpool Cm initialize
+with no flags on the relevant target devices.
+.El
+.It Xo
+.Nm
 .Cm iostat
 .Op Oo Oo Fl c Ar SCRIPT Oc Oo Fl lq Oc Oc Ns | Ns Fl rw
 .Op Fl T Sy u Ns | Ns Sy d
-.Op Fl ghHLpPvy
+.Op Fl ghHLnpPvy
 .Oo Oo Ar pool Ns ... Oc Ns | Ns Oo Ar pool vdev Ns ... Oc Ns | Ns Oo Ar vdev Ns ... Oc Oc
 .Op Ar interval Op Ar count
 .Xc
-Displays I/O statistics for the given pools/vdevs. You can pass in a
-list of pools, a pool and list of vdevs in that pool, or a list of any
-vdevs from any pool. If no items are specified, statistics for every
-pool in the system are shown.
+Displays logical I/O statistics for the given pools/vdevs. Physical I/Os may
+be observed via
+.Xr iostat 1 .
+If writes are located nearby, they may be merged into a single
+larger operation. Additional I/O may be generated depending on the level of
+vdev redundancy.
+To filter output, you may pass in a list of pools, a pool and list of vdevs
+in that pool, or a list of any vdevs from any pool. If no items are specified,
+statistics for every pool in the system are shown.
 When given an
 .Ar interval ,
 the statistics are printed every
 .Ar interval
-seconds until ^C is pressed. If count is specified, the command exits
+seconds until ^C is pressed. If 
+.Fl n
+flag is specified the headers are displayed only once, otherwise they are 
+displayed periodically. If count is specified, the command exits
 after count reports are printed. The first report printed is always
 the statistics since boot regardless of whether
 .Ar interval
@@ -1555,6 +1743,8 @@ Display real paths for vdevs resolving all symbolic links. This can
 be used to look up the current block device name regardless of the
 .Pa /dev/disk/
 path used to open it.
+.It Fl n
+Print headers only once when passed
 .It Fl p
 Display numbers in parsable (exact) values. Time values are in
 nanoseconds.
@@ -1577,7 +1767,25 @@ block device.
 Verbose statistics Reports usage statistics for individual vdevs within the
 pool, in addition to the pool-wide statistics.
 .It Fl y
+Omit statistics since boot.
+Normally the first line of output reports the statistics since boot.
+This option suppresses that first line of output.
+.Ar interval
 .It Fl w
+Display latency histograms:
+.Pp
+.Ar total_wait :
+Total IO time (queuing + disk IO time).
+.Ar disk_wait :
+Disk IO time (time reading/writing the disk).
+.Ar syncq_wait :
+Amount of time IO spent in synchronous priority queues.  Does not include
+disk time.
+.Ar asyncq_wait :
+Amount of time IO spent in asynchronous priority queues.  Does not include
+disk time.
+.Ar scrub :
+Amount of time IO spent in scrub queue. Does not include disk time.
 .It Fl l
 Include average latency statistics:
 .Pp
@@ -1668,8 +1876,8 @@ See the
 .Sx Properties
 section for a list of valid properties.
 The default list is
-.Cm name , size , allocated , free , expandsize , fragmentation , capacity ,
-.Cm dedupratio , health , altroot .
+.Cm name , size , allocated , free , checkpoint, expandsize , fragmentation ,
+.Cm capacity , dedupratio , health , altroot .
 .It Fl L
 Display real paths for vdevs resolving all symbolic links. This can
 be used to look up the current block device name regardless of the
@@ -1681,16 +1889,17 @@ values.
 .It Fl P
 Display full paths for vdevs instead of only the last component of
 the path. This can be used in conjunction with the
-.Fl L flag.
+.Fl L
+flag.
 .It Fl T Sy u Ns | Ns Sy d
 Display a time stamp.
 Specify
-.Fl u
+.Sy u
 for a printed representation of the internal representation of time.
 See
 .Xr time 2 .
 Specify
-.Fl d
+.Sy d
 for standard date format.
 See
 .Xr date 1 .
@@ -1758,18 +1967,56 @@ result in partially resilvered devices unless a second scrub is performed.
 .It Xo
 .Nm
 .Cm remove
+.Op Fl np
 .Ar pool Ar device Ns ...
 .Xc
 Removes the specified device from the pool.
-This command currently only supports removing hot spares, cache, and log
-devices.
-A mirrored log device can be removed by specifying the top-level mirror for the
-log.
-Non-log devices that are part of a mirrored configuration can be removed using
+This command supports removing hot spare, cache, log, and both mirrored and
+non-redundant primary top-level vdevs, including dedup and special vdevs.
+When the primary pool storage includes a top-level raidz vdev only hot spare,
+cache, and log devices can be removed.
+.sp
+Removing a top-level vdev reduces the total amount of space in the storage pool.
+The specified device will be evacuated by copying all allocated space from it to
+the other devices in the pool.
+In this case, the
+.Nm zpool Cm remove
+command initiates the removal and returns, while the evacuation continues in
+the background.
+The removal progress can be monitored with
+.Nm zpool Cm status .
+If an IO error is encountered during the removal process it will be
+cancelled. The
+.Sy device_removal
+feature flag must be enabled to remove a top-level vdev, see
+.Xr zpool-features 5 .
+.Pp
+A mirrored top-level device (log or data) can be removed by specifying the top-level mirror for the
+same.
+Non-log devices or data devices that are part of a mirrored configuration can be removed using
 the
 .Nm zpool Cm detach
 command.
-Non-redundant and raidz devices cannot be removed from a pool.
+.Bl -tag -width Ds
+.It Fl n
+Do not actually perform the removal ("no-op").
+Instead, print the estimated amount of memory that will be used by the
+mapping table after the removal completes.
+This is nonzero only for top-level vdevs.
+.El
+.Bl -tag -width Ds
+.It Fl p
+Used in conjunction with the
+.Fl n
+flag, displays numbers as parsable (exact) values.
+.El
+.It Xo
+.Nm
+.Cm remove
+.Fl s
+.Ar pool
+.Xc
+Stops and cancels an in-progress removal of a top-level vdev.
 .It Xo
 .Nm
 .Cm replace
@@ -1868,6 +2115,14 @@ again.
 .El
 .It Xo
 .Nm
+.Cm resilver
+.Ar pool Ns ...
+.Xc
+Starts a resilver. If an existing resilver is already running it will be
+restarted from the beginning. Any drives that were scheduled for a deferred
+resilver will be added to the new one.
+.It Xo
+.Nm
 .Cm set
 .Ar property Ns = Ns Ar value
 .Ar pool
@@ -1934,7 +2189,8 @@ Print out the expected configuration of
 .It Fl P
 Display full paths for vdevs instead of only the last component of
 the path. This can be used in conjunction with the
-.Fl L flag.
+.Fl L
+flag.
 .It Fl o Ar property Ns = Ns Ar value
 Sets the specified property for
 .Ar newpool .
@@ -1954,7 +2210,7 @@ and automatically import it.
 .Nm
 .Cm status
 .Op Fl c Op Ar SCRIPT1 Ns Oo , Ns Ar SCRIPT2 Oc Ns ...
-.Op Fl gLPvxD
+.Op Fl DigLpPsvx
 .Op Fl T Sy u Ns | Ns Sy d
 .Oo Ar pool Oc Ns ...
 .Op Ar interval Op Ar count
@@ -1981,6 +2237,8 @@ output.  See the
 option of
 .Nm zpool Cm iostat
 for complete details.
+.It Fl i
+Display vdev initialization status.
 .It Fl g
 Display vdev GUIDs instead of the normal device names. These GUIDs
 can be used in place of device names for the zpool
@@ -1990,25 +2248,34 @@ Display real paths for vdevs resolving all symbolic links. This can
 be used to look up the current block device name regardless of the
 .Pa /dev/disk/
 path used to open it.
+.It Fl p
+Display numbers in parsable (exact) values.
 .It Fl P
 Display full paths for vdevs instead of only the last component of
 the path. This can be used in conjunction with the
-.Fl L flag.
+.Fl L
+flag.
 .It Fl D
 Display a histogram of deduplication statistics, showing the allocated
 .Pq physically present on disk
 and referenced
 .Pq logically referenced in the pool
 block counts and sizes by reference count.
+.It Fl s
+Display the number of leaf VDEV slow IOs.  This is the number of IOs that
+didn't complete in \fBzio_slow_io_ms\fR milliseconds (default 30 seconds).
+This does not necessarily mean the IOs failed to complete, just took an
+unreasonably long amount of time.  This may indicate a problem with the
+underlying storage.
 .It Fl T Sy u Ns | Ns Sy d
 Display a time stamp.
 Specify
-.Fl u
+.Sy u
 for a printed representation of the internal representation of time.
 See
 .Xr time 2 .
 Specify
-.Fl d
+.Sy d
 for standard date format.
 See
 .Xr date 1 .
@@ -2060,7 +2327,7 @@ Enables all supported features on the given pool.
 Once this is done, the pool will no longer be accessible on systems that do not
 support feature flags.
 See
-.Xr zfs-features 5
+.Xr zpool-features 5
 for details on compatibility with systems that support feature flags, but do not
 support all features enabled on the pool.
 .Bl -tag -width Ds
@@ -2216,9 +2483,12 @@ option as follows:
 .Bd -literal
 # zpool iostat -v pool 5
 .Ed
-.It Sy Example 14 No Removing a Mirrored Log Device
-The following command removes the mirrored log device
-.Sy mirror-2 .
+.It Sy Example 14 No Removing a Mirrored top-level (Log or Data) Device
+The following commands remove the mirrored log device
+.Sy mirror-2
+and mirrored top-level data device
+.Sy mirror-1 .
+.Pp
 Given this configuration:
 .Bd -literal
   pool: tank
@@ -2245,6 +2515,13 @@ The command to remove the mirrored log
 is:
 .Bd -literal
 # zpool remove tank mirror-2
+.Ed
+.Pp
+The command to remove the mirrored data
+.Sy mirror-1
+is:
+.Bd -literal
+# zpool remove tank mirror-1
 .Ed
 .It Sy Example 15 No Displaying expanded space on a device
 The following command displays the detailed information for the pool

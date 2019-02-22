@@ -1,5 +1,5 @@
 '\" te
-.\" Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+.\" Copyright (c) 2013, 2017 by Delphix. All rights reserved.
 .\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
 .\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
 .\" The contents of this file are subject to the terms of the Common Development
@@ -14,7 +14,7 @@
 .\" CDDL HEADER, with the fields enclosed by brackets "[]" replaced with your
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
-.TH ZPOOL-FEATURES 5 "Aug 27, 2013"
+.TH ZPOOL-FEATURES 5 "Jun 8, 2018"
 .SH NAME
 zpool\-features \- ZFS pool feature descriptions
 .SH DESCRIPTION
@@ -248,8 +248,9 @@ immediately activate the \fBlz4_compress\fR feature on the underlying
 pool using the \fBzfs\fR(1M) command. Also, all newly written metadata
 will be compressed with \fBlz4\fR algorithm. Since this feature is not
 read-only compatible, this operation will render the pool unimportable
-on systems without support for the \fBlz4_compress\fR feature. Booting
-off of \fBlz4\fR-compressed root pools is supported.
+on systems without support for the \fBlz4_compress\fR feature.
+
+Booting off of \fBlz4\fR-compressed root pools is supported.
 
 This feature becomes \fBactive\fR as soon as it is enabled and will
 never return to being \fBenabled\fB.
@@ -438,7 +439,94 @@ This feature becomes \fBactive\fR as soon as it is enabled and will
 never return to being \fBenabled\fR.
 
 .RE
+.sp
+.ne 2
+.na
+\fB\fBdevice_removal\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.delphix:device_removal
+READ\-ONLY COMPATIBLE	no
+DEPENDENCIES	none
+.TE
 
+This feature enables the "zpool remove" subcommand to remove top-level
+vdevs, evacuating them to reduce the total size of the pool.
+
+This feature becomes \fBactive\fR when the "zpool remove" command is used
+on a top-level vdev, and will never return to being \fBenabled\fR.
+
+.RE
+.sp
+.ne 2
+.na
+\fB\fBobsolete_counts\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.delphix:obsolete_counts
+READ\-ONLY COMPATIBLE	yes
+DEPENDENCIES	device_removal
+.TE
+
+This feature is an enhancement of device_removal, which will over time
+reduce the memory used to track removed devices.  When indirect blocks
+are freed or remapped, we note that their part of the indirect mapping
+is "obsolete", i.e. no longer needed.
+
+This feature becomes \fBactive\fR when the "zpool remove" command is
+used on a top-level vdev, and will never return to being \fBenabled\fR.
+
+.RE
+.sp
+.ne 2
+.na
+\fB\fBzpool_checkpoint\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.delphix:zpool_checkpoint
+READ\-ONLY COMPATIBLE	yes
+DEPENDENCIES	none
+.TE
+
+This feature enables the "zpool checkpoint" subcommand that can
+checkpoint the state of the pool at the time it was issued and later
+rewind back to it or discard it.
+
+This feature becomes \fBactive\fR when the "zpool checkpoint" command
+is used to checkpoint the pool.
+The feature will only return back to being \fBenabled\fR when the pool
+is rewound or the checkpoint has been discarded.
+
+.RE
+.sp
+.ne 2
+.na
+\fB\fBspacemap_v2\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.delphix:spacemap_v2
+READ\-ONLY COMPATIBLE	yes
+DEPENDENCIES	none
+.TE
+
+This feature enables the use of the new space map encoding which
+consists of two words (instead of one) whenever it is advantageous.
+The new encoding allows space maps to represent large regions of
+space more efficiently on-disk while also increasing their maximum
+addressable offset.
+
+This feature becomes \fBactive\fR once it is \fBenabled\fR, and never
+returns back to being \fBenabled\fR.
+
+.RE
 .sp
 .ne 2
 .na
@@ -510,8 +598,7 @@ can turn on the \fBsha512\fR checksum on any dataset using the
 and will return to being \fBenabled\fR once all filesystems that have
 ever had their checksum set to \fBsha512\fR are destroyed.
 
-Booting off of pools utilizing SHA-512/256 is supported (provided that
-the updated GRUB stage2 module is installed).
+Booting off of pools utilizing SHA-512/256 is supported.
 
 .RE
 
@@ -545,9 +632,7 @@ can turn on the \fBskein\fR checksum on any dataset using the
 and will return to being \fBenabled\fR once all filesystems that have
 ever had their checksum set to \fBskein\fR are destroyed.
 
-Booting off of pools using \fBskein\fR is \fBNOT\fR supported
--- any attempt to enable \fBskein\fR on a root pool will fail with an
-error.
+Booting off of pools using \fBskein\fR is supported.
 
 .RE
 
@@ -587,9 +672,7 @@ can turn on the \fBedonr\fR checksum on any dataset using the
 and will return to being \fBenabled\fR once all filesystems that have
 ever had their checksum set to \fBedonr\fR are destroyed.
 
-Booting off of pools using \fBedonr\fR is \fBNOT\fR supported
--- any attempt to enable \fBedonr\fR on a root pool will fail with an
-error.
+Booting off of pools using \fBedonr\fR is supported.
 
 .RE
 
@@ -671,6 +754,49 @@ when remounted or when new file is created under that filesystem. The upgrade
 can also be triggered on filesystems via `zfs set version=current <pool/fs>`.
 The upgrade process runs in the background and may take a while to complete
 for the filesystems containing a large number of files.
+
+.RE
+.sp
+.ne 2
+.na
+\fB\fBresilver_defer\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.datto:resilver_defer
+READ\-ONLY COMPATIBLE	yes
+DEPENDENCIES	none
+.TE
+
+This feature allows zfs to postpone new resilvers if an existing one is already
+in progress. Without this feature, any new resilvers will cause the currently
+running one to be immediately restarted from the beginning.
+
+This feature becomes \fBactive\fR once a resilver has been defered, and returns
+to being \fBenabled\fR when the defered resilver begins.
+
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBallocation_classes\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	org.zfsonlinux:allocation_classes
+READ\-ONLY COMPATIBLE	yes
+DEPENDENCIES	none
+.TE
+
+This feature enables support for separate allocation classes.
+
+This feature becomes \fBactive\fR when a dedicated allocation class vdev
+(dedup or special) is created with zpool create or zpool add. With device
+removal, it can be returned to the \fBenabled\fR state if all the top-level
+vdevs from an allocation class are removed.
 
 .RE
 

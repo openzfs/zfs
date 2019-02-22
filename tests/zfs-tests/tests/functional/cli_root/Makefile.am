@@ -20,6 +20,7 @@ SUBDIRS = \
 	zfs_promote \
 	zfs_property \
 	zfs_receive \
+	zfs_remap \
 	zfs_rename \
 	zfs_reservation \
 	zfs_rollback \
@@ -27,6 +28,7 @@ SUBDIRS = \
 	zfs_set \
 	zfs_share \
 	zfs_snapshot \
+	zfs_sysfs \
 	zfs_unload-key \
 	zfs_unmount \
 	zfs_unshare \
@@ -44,14 +46,17 @@ SUBDIRS = \
 	zpool_get \
 	zpool_history \
 	zpool_import \
+	zpool_initialize \
 	zpool_labelclear \
 	zpool_offline \
 	zpool_online \
 	zpool_remove \
 	zpool_reopen \
 	zpool_replace \
+	zpool_resilver \
 	zpool_scrub \
 	zpool_set \
+	zpool_split \
 	zpool_status \
 	zpool_sync \
 	zpool_upgrade

@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2016, 2017 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_UBERBLOCK_IMPL_H
@@ -61,6 +61,28 @@ struct uberblock {
 	uint64_t	ub_mmp_magic;	/* MMP_MAGIC			*/
 	uint64_t	ub_mmp_delay;	/* nanosec since last MMP write	*/
 	uint64_t	ub_mmp_seq;	/* reserved for sequence number	*/
+
+	/*
+	 * ub_checkpoint_txg indicates two things about the current uberblock:
+	 *
+	 * 1] If it is not zero then this uberblock is a checkpoint. If it is
+	 *    zero, then this uberblock is not a checkpoint.
+	 *
+	 * 2] On checkpointed uberblocks, the value of ub_checkpoint_txg is
+	 *    the ub_txg that the uberblock had at the time we moved it to
+	 *    the MOS config.
+	 *
+	 * The field is set when we checkpoint the uberblock and continues to
+	 * hold that value even after we've rewound (unlike the ub_txg that
+	 * is reset to a higher value).
+	 *
+	 * Besides checks used to determine whether we are reopening the
+	 * pool from a checkpointed uberblock [see spa_ld_select_uberblock()],
+	 * the value of the field is used to determine which ZIL blocks have
+	 * been allocated according to the ms_sm when we are rewinding to a
+	 * checkpoint. Specifically, if blk_birth > ub_checkpoint_txg, then
+	 * the ZIL block is not allocated [see uses of spa_min_claim_txg()].
+	 */
 	uint64_t	ub_checkpoint_txg;
 };
 

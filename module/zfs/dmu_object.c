@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2017 by Delphix. All rights reserved.
  * Copyright 2014 HybridCluster. All rights reserved.
  */
 
@@ -41,17 +41,10 @@
  */
 int dmu_object_alloc_chunk_shift = 7;
 
-uint64_t
-dmu_object_alloc(objset_t *os, dmu_object_type_t ot, int blocksize,
-    dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx)
-{
-	return dmu_object_alloc_dnsize(os, ot, blocksize, bonustype, bonuslen,
-	    0, tx);
-}
-
-uint64_t
-dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot, int blocksize,
-    dmu_object_type_t bonustype, int bonuslen, int dnodesize, dmu_tx_t *tx)
+static uint64_t
+dmu_object_alloc_impl(objset_t *os, dmu_object_type_t ot, int blocksize,
+    int indirect_blockshift, dmu_object_type_t bonustype, int bonuslen,
+    int dnodesize, dnode_t **allocated_dnode, void *tag, dmu_tx_t *tx)
 {
 	uint64_t object;
 	uint64_t L1_dnode_count = DNODES_PER_BLOCK <<
@@ -86,6 +79,19 @@ dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot, int blocksize,
 		dnodes_per_chunk = DNODES_PER_BLOCK;
 	if (dnodes_per_chunk > L1_dnode_count)
 		dnodes_per_chunk = L1_dnode_count;
+
+	/*
+	 * The caller requested the dnode be returned as a performance
+	 * optimization in order to avoid releasing the hold only to
+	 * immediately reacquire it.  Since they caller is responsible
+	 * for releasing the hold they must provide the tag.
+	 */
+	if (allocated_dnode != NULL) {
+		ASSERT3P(tag, !=, NULL);
+	} else {
+		ASSERT3P(tag, ==, NULL);
+		tag = FTAG;
+	}
 
 	object = *cpuobj;
 	for (;;) {
@@ -174,7 +180,7 @@ dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot, int blocksize,
 		 * to do so.
 		 */
 		error = dnode_hold_impl(os, object, DNODE_MUST_BE_FREE,
-		    dn_slots, FTAG, &dn);
+		    dn_slots, tag, &dn);
 		if (error == 0) {
 			rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
 			/*
@@ -182,15 +188,25 @@ dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot, int blocksize,
 			 * again now that we have the struct lock.
 			 */
 			if (dn->dn_type == DMU_OT_NONE) {
-				dnode_allocate(dn, ot, blocksize, 0,
-				    bonustype, bonuslen, dn_slots, tx);
+				dnode_allocate(dn, ot, blocksize,
+				    indirect_blockshift, bonustype,
+				    bonuslen, dn_slots, tx);
 				rw_exit(&dn->dn_struct_rwlock);
 				dmu_tx_add_new_object(tx, dn);
-				dnode_rele(dn, FTAG);
+
+				/*
+				 * Caller requested the allocated dnode be
+				 * returned and is responsible for the hold.
+				 */
+				if (allocated_dnode != NULL)
+					*allocated_dnode = dn;
+				else
+					dnode_rele(dn, tag);
+
 				return (object);
 			}
 			rw_exit(&dn->dn_struct_rwlock);
-			dnode_rele(dn, FTAG);
+			dnode_rele(dn, tag);
 			DNODE_STAT_BUMP(dnode_alloc_race);
 		}
 
@@ -204,6 +220,45 @@ dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot, int blocksize,
 		}
 		(void) atomic_swap_64(cpuobj, object);
 	}
+}
+
+uint64_t
+dmu_object_alloc(objset_t *os, dmu_object_type_t ot, int blocksize,
+    dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx)
+{
+	return dmu_object_alloc_impl(os, ot, blocksize, 0, bonustype,
+	    bonuslen, 0, NULL, NULL, tx);
+}
+
+uint64_t
+dmu_object_alloc_ibs(objset_t *os, dmu_object_type_t ot, int blocksize,
+    int indirect_blockshift, dmu_object_type_t bonustype, int bonuslen,
+    dmu_tx_t *tx)
+{
+	return dmu_object_alloc_impl(os, ot, blocksize, indirect_blockshift,
+	    bonustype, bonuslen, 0, NULL, NULL, tx);
+}
+
+uint64_t
+dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot, int blocksize,
+    dmu_object_type_t bonustype, int bonuslen, int dnodesize, dmu_tx_t *tx)
+{
+	return (dmu_object_alloc_impl(os, ot, blocksize, 0, bonustype,
+	    bonuslen, dnodesize, NULL, NULL, tx));
+}
+
+/*
+ * Allocate a new object and return a pointer to the newly allocated dnode
+ * via the allocated_dnode argument.  The returned dnode will be held and
+ * the caller is responsible for releasing the hold by calling dnode_rele().
+ */
+uint64_t
+dmu_object_alloc_hold(objset_t *os, dmu_object_type_t ot, int blocksize,
+    int indirect_blockshift, dmu_object_type_t bonustype, int bonuslen,
+    int dnodesize, dnode_t **allocated_dnode, void *tag, dmu_tx_t *tx)
+{
+	return (dmu_object_alloc_impl(os, ot, blocksize, indirect_blockshift,
+	    bonustype, bonuslen, dnodesize, allocated_dnode, tag, tx));
 }
 
 int
@@ -249,7 +304,7 @@ dmu_object_reclaim(objset_t *os, uint64_t object, dmu_object_type_t ot,
     int blocksize, dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx)
 {
 	return (dmu_object_reclaim_dnsize(os, object, ot, blocksize, bonustype,
-	    bonuslen, 0, tx));
+	    bonuslen, DNODE_MIN_SIZE, tx));
 }
 
 int
@@ -260,6 +315,9 @@ dmu_object_reclaim_dnsize(objset_t *os, uint64_t object, dmu_object_type_t ot,
 	dnode_t *dn;
 	int dn_slots = dnodesize >> DNODE_SHIFT;
 	int err;
+
+	if (dn_slots == 0)
+		dn_slots = DNODE_MIN_SLOTS;
 
 	if (object == DMU_META_DNODE_OBJECT)
 		return (SET_ERROR(EBADF));
@@ -289,6 +347,10 @@ dmu_object_free(objset_t *os, uint64_t object, dmu_tx_t *tx)
 		return (err);
 
 	ASSERT(dn->dn_type != DMU_OT_NONE);
+	/*
+	 * If we don't create this free range, we'll leak indirect blocks when
+	 * we get to freeing the dnode in syncing context.
+	 */
 	dnode_free_range(dn, 0, DMU_OBJECT_END, tx);
 	dnode_free(dn, tx);
 	dnode_rele(dn, FTAG);
@@ -311,7 +373,8 @@ dmu_object_next(objset_t *os, uint64_t *objectp, boolean_t hole, uint64_t txg)
 
 	if (*objectp == 0) {
 		start_obj = 1;
-	} else if (ds && ds->ds_feature_inuse[SPA_FEATURE_LARGE_DNODE]) {
+	} else if (ds && dsl_dataset_feature_is_active(ds,
+	    SPA_FEATURE_LARGE_DNODE)) {
 		uint64_t i = *objectp + 1;
 		uint64_t last_obj = *objectp | (DNODES_PER_BLOCK - 1);
 		dmu_object_info_t doi;
@@ -381,12 +444,18 @@ dmu_object_zapify(objset_t *mos, uint64_t object, dmu_object_type_t old_type,
 	}
 	ASSERT3U(dn->dn_type, ==, old_type);
 	ASSERT0(dn->dn_maxblkid);
+
+	/*
+	 * We must initialize the ZAP data before changing the type,
+	 * so that concurrent calls to *_is_zapified() can determine if
+	 * the object has been completely zapified by checking the type.
+	 */
+	mzap_create_impl(dn, 0, 0, tx);
+
 	dn->dn_next_type[tx->tx_txg & TXG_MASK] = dn->dn_type =
 	    DMU_OTN_ZAP_METADATA;
 	dnode_setdirty(dn, tx);
 	dnode_rele(dn, FTAG);
-
-	mzap_create_impl(mos, object, 0, 0, tx);
 
 	spa_feature_incr(dmu_objset_spa(mos),
 	    SPA_FEATURE_EXTENSIBLE_DATASET, tx);
@@ -411,9 +480,11 @@ dmu_object_free_zapified(objset_t *mos, uint64_t object, dmu_tx_t *tx)
 	VERIFY0(dmu_object_free(mos, object, tx));
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 EXPORT_SYMBOL(dmu_object_alloc);
+EXPORT_SYMBOL(dmu_object_alloc_ibs);
 EXPORT_SYMBOL(dmu_object_alloc_dnsize);
+EXPORT_SYMBOL(dmu_object_alloc_hold);
 EXPORT_SYMBOL(dmu_object_claim);
 EXPORT_SYMBOL(dmu_object_claim_dnsize);
 EXPORT_SYMBOL(dmu_object_reclaim);

@@ -105,6 +105,8 @@ typedef enum drr_headertype {
 #define	DMU_BACKUP_FEATURE_COMPRESSED		(1 << 22)
 #define	DMU_BACKUP_FEATURE_LARGE_DNODE		(1 << 23)
 #define	DMU_BACKUP_FEATURE_RAW			(1 << 24)
+/* flag #25 is reserved for the ZSTD compression feature */
+#define	DMU_BACKUP_FEATURE_HOLDS		(1 << 26)
 
 /*
  * Mask of all supported backup features
@@ -114,7 +116,7 @@ typedef enum drr_headertype {
     DMU_BACKUP_FEATURE_EMBED_DATA | DMU_BACKUP_FEATURE_LZ4 | \
     DMU_BACKUP_FEATURE_RESUMING | DMU_BACKUP_FEATURE_LARGE_BLOCKS | \
     DMU_BACKUP_FEATURE_COMPRESSED | DMU_BACKUP_FEATURE_LARGE_DNODE | \
-    DMU_BACKUP_FEATURE_RAW)
+    DMU_BACKUP_FEATURE_RAW | DMU_BACKUP_FEATURE_HOLDS)
 
 /* Are all features in the given flag word currently supported? */
 #define	DMU_STREAM_SUPPORTED(x)	(!((x) & ~DMU_BACKUP_FEATURE_MASK))
@@ -371,6 +373,7 @@ typedef struct zinject_record {
 #define	ZINJECT_NULL		0x1
 #define	ZINJECT_FLUSH_ARC	0x2
 #define	ZINJECT_UNLOAD_SPA	0x4
+#define	ZINJECT_CALC_RANGE	0x8
 
 #define	ZEVENT_NONE		0x0
 #define	ZEVENT_NONBLOCK		0x1
@@ -391,6 +394,7 @@ typedef enum zinject_type {
 	ZINJECT_IGNORED_WRITES,
 	ZINJECT_PANIC,
 	ZINJECT_DELAY_IO,
+	ZINJECT_DECRYPT_FAULT,
 } zinject_type_t;
 
 typedef struct zfs_share {
@@ -486,7 +490,6 @@ extern int zfs_secpolicy_rename_perms(const char *, const char *, cred_t *);
 extern int zfs_secpolicy_destroy_perms(const char *, cred_t *);
 extern void zfs_unmount_snap(const char *);
 extern void zfs_destroy_unmount_origin(const char *);
-extern boolean_t dataset_name_hidden(const char *);
 extern int getzfsvfs_impl(struct objset *, struct zfsvfs **);
 extern int getzfsvfs(const char *, struct zfsvfs **);
 

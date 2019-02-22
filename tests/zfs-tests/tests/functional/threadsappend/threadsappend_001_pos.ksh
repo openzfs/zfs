@@ -45,11 +45,6 @@
 
 verify_runnable "both"
 
-# See issue: https://github.com/zfsonlinux/zfs/issues/6136
-if is_linux; then
-	log_unsupported "Test case occasionally fails"
-fi
-
 log_assert "Ensure multiple threads performing write appends to the same" \
 	"ZFS file succeed"
 

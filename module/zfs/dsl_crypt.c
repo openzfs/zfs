@@ -15,6 +15,7 @@
 
 /*
  * Copyright (c) 2017, Datto, Inc. All rights reserved.
+ * Copyright (c) 2018 by Delphix. All rights reserved.
  */
 
 #include <sys/dsl_crypt.h>
@@ -74,19 +75,19 @@
 static void
 dsl_wrapping_key_hold(dsl_wrapping_key_t *wkey, void *tag)
 {
-	(void) refcount_add(&wkey->wk_refcnt, tag);
+	(void) zfs_refcount_add(&wkey->wk_refcnt, tag);
 }
 
 static void
 dsl_wrapping_key_rele(dsl_wrapping_key_t *wkey, void *tag)
 {
-	(void) refcount_remove(&wkey->wk_refcnt, tag);
+	(void) zfs_refcount_remove(&wkey->wk_refcnt, tag);
 }
 
 static void
 dsl_wrapping_key_free(dsl_wrapping_key_t *wkey)
 {
-	ASSERT0(refcount_count(&wkey->wk_refcnt));
+	ASSERT0(zfs_refcount_count(&wkey->wk_refcnt));
 
 	if (wkey->wk_key.ck_data) {
 		bzero(wkey->wk_key.ck_data,
@@ -95,7 +96,7 @@ dsl_wrapping_key_free(dsl_wrapping_key_t *wkey)
 		    CRYPTO_BITS2BYTES(wkey->wk_key.ck_length));
 	}
 
-	refcount_destroy(&wkey->wk_refcnt);
+	zfs_refcount_destroy(&wkey->wk_refcnt);
 	kmem_free(wkey, sizeof (dsl_wrapping_key_t));
 }
 
@@ -123,7 +124,7 @@ dsl_wrapping_key_create(uint8_t *wkeydata, zfs_keyformat_t keyformat,
 	bcopy(wkeydata, wkey->wk_key.ck_data, WRAPPING_KEY_LEN);
 
 	/* initialize the rest of the struct */
-	refcount_create(&wkey->wk_refcnt);
+	zfs_refcount_create(&wkey->wk_refcnt);
 	wkey->wk_keyformat = keyformat;
 	wkey->wk_salt = salt;
 	wkey->wk_iters = iters;
@@ -469,8 +470,10 @@ dsl_crypto_can_set_keylocation(const char *dsname, const char *keylocation)
 		goto out;
 
 	ret = dsl_dir_hold(dp, dsname, FTAG, &dd, NULL);
-	if (ret != 0)
+	if (ret != 0) {
+		dd = NULL;
 		goto out;
+	}
 
 	/* if dd is not encrypted, the value may only be "none" */
 	if (dd->dd_crypto_obj == 0) {
@@ -516,13 +519,13 @@ out:
 static void
 dsl_crypto_key_free(dsl_crypto_key_t *dck)
 {
-	ASSERT(refcount_count(&dck->dck_holds) == 0);
+	ASSERT(zfs_refcount_count(&dck->dck_holds) == 0);
 
 	/* destroy the zio_crypt_key_t */
 	zio_crypt_key_destroy(&dck->dck_key);
 
 	/* free the refcount, wrapping key, and lock */
-	refcount_destroy(&dck->dck_holds);
+	zfs_refcount_destroy(&dck->dck_holds);
 	if (dck->dck_wkey)
 		dsl_wrapping_key_rele(dck->dck_wkey, dck);
 
@@ -533,7 +536,7 @@ dsl_crypto_key_free(dsl_crypto_key_t *dck)
 static void
 dsl_crypto_key_rele(dsl_crypto_key_t *dck, void *tag)
 {
-	if (refcount_remove(&dck->dck_holds, tag) == 0)
+	if (zfs_refcount_remove(&dck->dck_holds, tag) == 0)
 		dsl_crypto_key_free(dck);
 }
 
@@ -599,11 +602,11 @@ dsl_crypto_key_open(objset_t *mos, dsl_wrapping_key_t *wkey,
 	}
 
 	/* finish initializing the dsl_crypto_key_t */
-	refcount_create(&dck->dck_holds);
+	zfs_refcount_create(&dck->dck_holds);
 	dsl_wrapping_key_hold(wkey, dck);
 	dck->dck_wkey = wkey;
 	dck->dck_obj = dckobj;
-	refcount_add(&dck->dck_holds, tag);
+	zfs_refcount_add(&dck->dck_holds, tag);
 
 	*dck_out = dck;
 	return (0);
@@ -639,7 +642,7 @@ spa_keystore_dsl_key_hold_impl(spa_t *spa, uint64_t dckobj, void *tag,
 	}
 
 	/* increment the refcount */
-	refcount_add(&found_dck->dck_holds, tag);
+	zfs_refcount_add(&found_dck->dck_holds, tag);
 
 	*dck_out = found_dck;
 	return (0);
@@ -712,7 +715,7 @@ spa_keystore_dsl_key_rele(spa_t *spa, dsl_crypto_key_t *dck, void *tag)
 {
 	rw_enter(&spa->spa_keystore.sk_dk_lock, RW_WRITER);
 
-	if (refcount_remove(&dck->dck_holds, tag) == 0) {
+	if (zfs_refcount_remove(&dck->dck_holds, tag) == 0) {
 		avl_remove(&spa->spa_keystore.sk_dsl_keys, dck);
 		dsl_crypto_key_free(dck);
 	}
@@ -755,7 +758,7 @@ spa_keystore_load_wkey(const char *dsname, dsl_crypto_params_t *dcp,
 	dsl_crypto_key_t *dck = NULL;
 	dsl_wrapping_key_t *wkey = dcp->cp_wkey;
 	dsl_pool_t *dp = NULL;
-	uint64_t keyformat, salt, iters;
+	uint64_t rddobj, keyformat, salt, iters;
 
 	/*
 	 * We don't validate the wrapping key's keyformat, salt, or iters
@@ -772,14 +775,23 @@ spa_keystore_load_wkey(const char *dsname, dsl_crypto_params_t *dcp,
 		goto error;
 
 	if (!spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_ENCRYPTION)) {
-		ret = (SET_ERROR(ENOTSUP));
+		ret = SET_ERROR(ENOTSUP);
 		goto error;
 	}
 
 	/* hold the dsl dir */
 	ret = dsl_dir_hold(dp, dsname, FTAG, &dd, NULL);
-	if (ret != 0)
+	if (ret != 0) {
+		dd = NULL;
 		goto error;
+	}
+
+	/* confirm that dd is the encryption root */
+	ret = dsl_dir_get_encryption_root_ddobj(dd, &rddobj);
+	if (ret != 0 || rddobj != dd->dd_object) {
+		ret = SET_ERROR(EINVAL);
+		goto error;
+	}
 
 	/* initialize the wkey's ddobj */
 	wkey->wk_ddobj = dd->dd_object;
@@ -866,9 +878,9 @@ spa_keystore_unload_wkey_impl(spa_t *spa, uint64_t ddobj)
 	found_wkey = avl_find(&spa->spa_keystore.sk_wkeys,
 	    &search_wkey, NULL);
 	if (!found_wkey) {
-		ret = SET_ERROR(ENOENT);
+		ret = SET_ERROR(EACCES);
 		goto error_unlock;
-	} else if (refcount_count(&found_wkey->wk_refcnt) != 0) {
+	} else if (zfs_refcount_count(&found_wkey->wk_refcnt) != 0) {
 		ret = SET_ERROR(EBUSY);
 		goto error_unlock;
 	}
@@ -892,6 +904,20 @@ spa_keystore_unload_wkey(const char *dsname)
 	int ret = 0;
 	dsl_dir_t *dd = NULL;
 	dsl_pool_t *dp = NULL;
+	spa_t *spa = NULL;
+
+	ret = spa_open(dsname, &spa, FTAG);
+	if (ret != 0)
+		return (ret);
+
+	/*
+	 * Wait for any outstanding txg IO to complete, releasing any
+	 * remaining references on the wkey.
+	 */
+	if (spa_mode(spa) != FREAD)
+		txg_wait_synced(spa->spa_dsl_pool, 0);
+
+	spa_close(spa, FTAG);
 
 	/* hold the dsl dir */
 	ret = dsl_pool_hold(dsname, FTAG, &dp);
@@ -904,8 +930,10 @@ spa_keystore_unload_wkey(const char *dsname)
 	}
 
 	ret = dsl_dir_hold(dp, dsname, FTAG, &dd, NULL);
-	if (ret != 0)
+	if (ret != 0) {
+		dd = NULL;
 		goto error;
+	}
 
 	/* unload the wkey */
 	ret = spa_keystore_unload_wkey_impl(dp->dp_spa, dd->dd_object);
@@ -929,9 +957,56 @@ error:
 	return (ret);
 }
 
+void
+key_mapping_add_ref(dsl_key_mapping_t *km, void *tag)
+{
+	ASSERT3U(zfs_refcount_count(&km->km_refcnt), >=, 1);
+	zfs_refcount_add(&km->km_refcnt, tag);
+}
+
+/*
+ * The locking here is a little tricky to ensure we don't cause unnecessary
+ * performance problems. We want to release a key mapping whenever someone
+ * decrements the refcount to 0, but freeing the mapping requires removing
+ * it from the spa_keystore, which requires holding sk_km_lock as a writer.
+ * Most of the time we don't want to hold this lock as a writer, since the
+ * same lock is held as a reader for each IO that needs to encrypt / decrypt
+ * data for any dataset and in practice we will only actually free the
+ * mapping after unmounting a dataset.
+ */
+void
+key_mapping_rele(spa_t *spa, dsl_key_mapping_t *km, void *tag)
+{
+	ASSERT3U(zfs_refcount_count(&km->km_refcnt), >=, 1);
+
+	if (zfs_refcount_remove(&km->km_refcnt, tag) != 0)
+		return;
+
+	/*
+	 * We think we are going to need to free the mapping. Add a
+	 * reference to prevent most other releasers from thinking
+	 * this might be their responsibility. This is inherently
+	 * racy, so we will confirm that we are legitimately the
+	 * last holder once we have the sk_km_lock as a writer.
+	 */
+	zfs_refcount_add(&km->km_refcnt, FTAG);
+
+	rw_enter(&spa->spa_keystore.sk_km_lock, RW_WRITER);
+	if (zfs_refcount_remove(&km->km_refcnt, FTAG) != 0) {
+		rw_exit(&spa->spa_keystore.sk_km_lock);
+		return;
+	}
+
+	avl_remove(&spa->spa_keystore.sk_key_mappings, km);
+	rw_exit(&spa->spa_keystore.sk_km_lock);
+
+	spa_keystore_dsl_key_rele(spa, km->km_key, km);
+	kmem_free(km, sizeof (dsl_key_mapping_t));
+}
+
 int
-spa_keystore_create_mapping_impl(spa_t *spa, uint64_t dsobj,
-    dsl_dir_t *dd, void *tag)
+spa_keystore_create_mapping(spa_t *spa, dsl_dataset_t *ds, void *tag,
+    dsl_key_mapping_t **km_out)
 {
 	int ret;
 	avl_index_t where;
@@ -940,16 +1015,19 @@ spa_keystore_create_mapping_impl(spa_t *spa, uint64_t dsobj,
 
 	/* Allocate and initialize the mapping */
 	km = kmem_zalloc(sizeof (dsl_key_mapping_t), KM_SLEEP);
-	refcount_create(&km->km_refcnt);
+	zfs_refcount_create(&km->km_refcnt);
 
-	ret = spa_keystore_dsl_key_hold_dd(spa, dd, km, &km->km_key);
+	ret = spa_keystore_dsl_key_hold_dd(spa, ds->ds_dir, km, &km->km_key);
 	if (ret != 0) {
-		refcount_destroy(&km->km_refcnt);
+		zfs_refcount_destroy(&km->km_refcnt);
 		kmem_free(km, sizeof (dsl_key_mapping_t));
+
+		if (km_out != NULL)
+			*km_out = NULL;
 		return (ret);
 	}
 
-	km->km_dsobj = dsobj;
+	km->km_dsobj = ds->ds_object;
 
 	rw_enter(&spa->spa_keystore.sk_km_lock, RW_WRITER);
 
@@ -964,28 +1042,25 @@ spa_keystore_create_mapping_impl(spa_t *spa, uint64_t dsobj,
 	found_km = avl_find(&spa->spa_keystore.sk_key_mappings, km, &where);
 	if (found_km != NULL) {
 		should_free = B_TRUE;
-		refcount_add(&found_km->km_refcnt, tag);
+		zfs_refcount_add(&found_km->km_refcnt, tag);
+		if (km_out != NULL)
+			*km_out = found_km;
 	} else {
-		refcount_add(&km->km_refcnt, tag);
+		zfs_refcount_add(&km->km_refcnt, tag);
 		avl_insert(&spa->spa_keystore.sk_key_mappings, km, where);
+		if (km_out != NULL)
+			*km_out = km;
 	}
 
 	rw_exit(&spa->spa_keystore.sk_km_lock);
 
 	if (should_free) {
 		spa_keystore_dsl_key_rele(spa, km->km_key, km);
-		refcount_destroy(&km->km_refcnt);
+		zfs_refcount_destroy(&km->km_refcnt);
 		kmem_free(km, sizeof (dsl_key_mapping_t));
 	}
 
 	return (0);
-}
-
-int
-spa_keystore_create_mapping(spa_t *spa, dsl_dataset_t *ds, void *tag)
-{
-	return (spa_keystore_create_mapping_impl(spa, ds->ds_object,
-	    ds->ds_dir, tag));
 }
 
 int
@@ -994,12 +1069,11 @@ spa_keystore_remove_mapping(spa_t *spa, uint64_t dsobj, void *tag)
 	int ret;
 	dsl_key_mapping_t search_km;
 	dsl_key_mapping_t *found_km;
-	boolean_t should_free = B_FALSE;
 
 	/* init the search key mapping */
 	search_km.km_dsobj = dsobj;
 
-	rw_enter(&spa->spa_keystore.sk_km_lock, RW_WRITER);
+	rw_enter(&spa->spa_keystore.sk_km_lock, RW_READER);
 
 	/* find the matching mapping */
 	found_km = avl_find(&spa->spa_keystore.sk_key_mappings,
@@ -1009,23 +1083,9 @@ spa_keystore_remove_mapping(spa_t *spa, uint64_t dsobj, void *tag)
 		goto error_unlock;
 	}
 
-	/*
-	 * Decrement the refcount on the mapping and remove it from the tree if
-	 * it is zero. Try to minimize time spent in this lock by deferring
-	 * cleanup work.
-	 */
-	if (refcount_remove(&found_km->km_refcnt, tag) == 0) {
-		should_free = B_TRUE;
-		avl_remove(&spa->spa_keystore.sk_key_mappings, found_km);
-	}
-
 	rw_exit(&spa->spa_keystore.sk_km_lock);
 
-	/* destroy the key mapping */
-	if (should_free) {
-		spa_keystore_dsl_key_rele(spa, found_km->km_key, found_km);
-		kmem_free(found_km, sizeof (dsl_key_mapping_t));
-	}
+	key_mapping_rele(spa, found_km, tag);
 
 	return (0);
 
@@ -1066,7 +1126,7 @@ spa_keystore_lookup_key(spa_t *spa, uint64_t dsobj, void *tag,
 	}
 
 	if (found_km && tag)
-		refcount_add(&found_km->km_key->dck_holds, tag);
+		zfs_refcount_add(&found_km->km_key->dck_holds, tag);
 
 	rw_exit(&spa->spa_keystore.sk_km_lock);
 
@@ -1205,8 +1265,10 @@ spa_keystore_change_key_check(void *arg, dmu_tx_t *tx)
 
 	/* hold the dd */
 	ret = dsl_dir_hold(dp, skcka->skcka_dsname, FTAG, &dd, NULL);
-	if (ret != 0)
+	if (ret != 0) {
+		dd = NULL;
 		goto error;
+	}
 
 	/* verify that the dataset is encrypted */
 	if (dd->dd_crypto_obj == 0) {
@@ -1225,7 +1287,7 @@ spa_keystore_change_key_check(void *arg, dmu_tx_t *tx)
 	if (ret != 0)
 		goto error;
 
-	/* Handle inheritence */
+	/* Handle inheritance */
 	if (dcp->cp_cmd == DCP_CMD_INHERIT ||
 	    dcp->cp_cmd == DCP_CMD_FORCE_INHERIT) {
 		/* no other encryption params should be given */
@@ -1498,7 +1560,7 @@ spa_keystore_change_key_sync(void *arg, dmu_tx_t *tx)
 	wkey_search.wk_ddobj = ds->ds_dir->dd_object;
 	found_wkey = avl_find(&spa->spa_keystore.sk_wkeys, &wkey_search, NULL);
 	if (found_wkey != NULL) {
-		ASSERT0(refcount_count(&found_wkey->wk_refcnt));
+		ASSERT0(zfs_refcount_count(&found_wkey->wk_refcnt));
 		avl_remove(&spa->spa_keystore.sk_wkeys, found_wkey);
 		dsl_wrapping_key_free(found_wkey);
 	}
@@ -1707,10 +1769,18 @@ dmu_objset_clone_crypt_check(dsl_dir_t *parentdd, dsl_dir_t *origindd)
 
 
 int
-dmu_objset_create_crypt_check(dsl_dir_t *parentdd, dsl_crypto_params_t *dcp)
+dmu_objset_create_crypt_check(dsl_dir_t *parentdd, dsl_crypto_params_t *dcp,
+    boolean_t *will_encrypt)
 {
 	int ret;
 	uint64_t pcrypt, crypt;
+	dsl_crypto_params_t dummy_dcp = { 0 };
+
+	if (will_encrypt != NULL)
+		*will_encrypt = B_FALSE;
+
+	if (dcp == NULL)
+		dcp = &dummy_dcp;
 
 	if (dcp->cp_cmd != DCP_CMD_NONE)
 		return (SET_ERROR(EINVAL));
@@ -1746,10 +1816,13 @@ dmu_objset_create_crypt_check(dsl_dir_t *parentdd, dsl_crypto_params_t *dcp)
 		return (0);
 	}
 
+	if (will_encrypt != NULL)
+		*will_encrypt = B_TRUE;
+
 	/*
 	 * We will now definitely be encrypting. Check the feature flag. When
 	 * creating the pool the caller will check this for us since we won't
-	 * technically have the fetaure activated yet.
+	 * technically have the feature activated yet.
 	 */
 	if (parentdd != NULL &&
 	    !spa_feature_is_enabled(parentdd->dd_pool->dp_spa,
@@ -1757,7 +1830,7 @@ dmu_objset_create_crypt_check(dsl_dir_t *parentdd, dsl_crypto_params_t *dcp)
 		return (SET_ERROR(EOPNOTSUPP));
 	}
 
-	/* handle inheritence */
+	/* handle inheritance */
 	if (dcp->cp_wkey == NULL) {
 		ASSERT3P(parentdd, !=, NULL);
 
@@ -1873,7 +1946,8 @@ dsl_dataset_create_crypt_sync(uint64_t dsobj, dsl_dir_t *dd,
 	VERIFY0(zap_add(dp->dp_meta_objset, dd->dd_object,
 	    DD_FIELD_CRYPTO_KEY_OBJ, sizeof (uint64_t), 1, &dd->dd_crypto_obj,
 	    tx));
-	dsl_dataset_activate_feature(dsobj, SPA_FEATURE_ENCRYPTION, tx);
+	dsl_dataset_activate_feature(dsobj, SPA_FEATURE_ENCRYPTION,
+	    (void *)B_TRUE, tx);
 
 	/*
 	 * If we inherited the wrapping key we release our reference now.
@@ -2184,8 +2258,8 @@ dsl_crypto_recv_raw_key_sync(dsl_dataset_t *ds, nvlist_t *nvl, dmu_tx_t *tx)
 		    sizeof (uint64_t), 1, &version, tx));
 
 		dsl_dataset_activate_feature(ds->ds_object,
-		    SPA_FEATURE_ENCRYPTION, tx);
-		ds->ds_feature_inuse[SPA_FEATURE_ENCRYPTION] = B_TRUE;
+		    SPA_FEATURE_ENCRYPTION, (void *)B_TRUE, tx);
+		ds->ds_feature[SPA_FEATURE_ENCRYPTION] = (void *)B_TRUE;
 
 		/* save the dd_crypto_obj on disk */
 		VERIFY0(zap_add(mos, dd->dd_object, DD_FIELD_CRYPTO_KEY_OBJ,
@@ -2661,23 +2735,23 @@ error:
  * these fields to populate pabd (the plaintext).
  */
 int
-spa_do_crypt_abd(boolean_t encrypt, spa_t *spa, uint64_t dsobj,
-    const blkptr_t *bp, uint64_t txgid, uint_t datalen, abd_t *pabd,
-    abd_t *cabd, uint8_t *iv, uint8_t *mac, uint8_t *salt, boolean_t *no_crypt)
+spa_do_crypt_abd(boolean_t encrypt, spa_t *spa, const zbookmark_phys_t *zb,
+    dmu_object_type_t ot, boolean_t dedup, boolean_t bswap, uint8_t *salt,
+    uint8_t *iv, uint8_t *mac, uint_t datalen, abd_t *pabd, abd_t *cabd,
+    boolean_t *no_crypt)
 {
 	int ret;
-	dmu_object_type_t ot = BP_GET_TYPE(bp);
 	dsl_crypto_key_t *dck = NULL;
 	uint8_t *plainbuf = NULL, *cipherbuf = NULL;
 
 	ASSERT(spa_feature_is_active(spa, SPA_FEATURE_ENCRYPTION));
-	ASSERT(!BP_IS_EMBEDDED(bp));
-	ASSERT(BP_IS_ENCRYPTED(bp));
 
 	/* look up the key from the spa's keystore */
-	ret = spa_keystore_lookup_key(spa, dsobj, FTAG, &dck);
-	if (ret != 0)
+	ret = spa_keystore_lookup_key(spa, zb->zb_objset, FTAG, &dck);
+	if (ret != 0) {
+		ret = SET_ERROR(EACCES);
 		return (ret);
+	}
 
 	if (encrypt) {
 		plainbuf = abd_borrow_buf_copy(pabd, datalen);
@@ -2696,7 +2770,7 @@ spa_do_crypt_abd(boolean_t encrypt, spa_t *spa, uint64_t dsobj,
 	 * at allocation time in zio_alloc_zil(). On decryption, we simply use
 	 * the provided values.
 	 */
-	if (encrypt && ot != DMU_OT_INTENT_LOG && !BP_GET_DEDUP(bp)) {
+	if (encrypt && ot != DMU_OT_INTENT_LOG && !dedup) {
 		ret = zio_crypt_key_get_salt(&dck->dck_key, salt);
 		if (ret != 0)
 			goto error;
@@ -2704,7 +2778,7 @@ spa_do_crypt_abd(boolean_t encrypt, spa_t *spa, uint64_t dsobj,
 		ret = zio_crypt_generate_iv(iv);
 		if (ret != 0)
 			goto error;
-	} else if (encrypt && BP_GET_DEDUP(bp)) {
+	} else if (encrypt && dedup) {
 		ret = zio_crypt_generate_iv_salt_dedup(&dck->dck_key,
 		    plainbuf, datalen, iv, salt);
 		if (ret != 0)
@@ -2712,8 +2786,17 @@ spa_do_crypt_abd(boolean_t encrypt, spa_t *spa, uint64_t dsobj,
 	}
 
 	/* call lower level function to perform encryption / decryption */
-	ret = zio_do_crypt_data(encrypt, &dck->dck_key, salt, ot, iv, mac,
-	    datalen, BP_SHOULD_BYTESWAP(bp), plainbuf, cipherbuf, no_crypt);
+	ret = zio_do_crypt_data(encrypt, &dck->dck_key, ot, bswap, salt, iv,
+	    mac, datalen, plainbuf, cipherbuf, no_crypt);
+
+	/*
+	 * Handle injected decryption faults. Unfortunately, we cannot inject
+	 * faults for dnode blocks because we might trigger the panic in
+	 * dbuf_prepare_encrypted_dnode_leaf(), which exists because syncing
+	 * context is not prepared to handle malicious decryption failures.
+	 */
+	if (zio_injection_enabled && !encrypt && ot != DMU_OT_DNODE && ret == 0)
+		ret = zio_handle_decrypt_injection(spa, zb, ot, ECKSUM);
 	if (ret != 0)
 		goto error;
 

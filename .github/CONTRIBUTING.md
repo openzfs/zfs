@@ -34,6 +34,7 @@ Helpful resources
 
   * [ZFS on Linux wiki](https://github.com/zfsonlinux/zfs/wiki)
   * [OpenZFS Documentation](http://open-zfs.org/wiki/Developer_resources)
+  * [Git and GitHub for beginners](https://github.com/zfsonlinux/zfs/wiki/Git-and-GitHub-for-beginners)
 
 ## What should I know before I get started?
 
@@ -163,7 +164,7 @@ coding convention.
 ### Commit Message Formats
 #### New Changes
 Commit messages for new changes must meet the following guidelines:
-* In 50 characters or less, provide a summary of the change as the
+* In 72 characters or less, provide a summary of the change as the
 first line in the commit message.
 * A body which provides a description of the change. If necessary,
 please summarize important information such as why the proposed

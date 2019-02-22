@@ -21,4 +21,5 @@ dist_pkgdata_SCRIPTS = \
 	zfs_receive_from_encrypted.ksh \
 	zfs_receive_to_encrypted.ksh \
 	zfs_receive_raw.ksh \
-	zfs_receive_raw_incremental.ksh
+	zfs_receive_raw_incremental.ksh \
+	zfs_receive_-e.ksh

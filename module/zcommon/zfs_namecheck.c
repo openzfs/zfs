@@ -23,7 +23,7 @@
  * Use is subject to license terms.
  */
 /*
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2016 by Delphix. All rights reserved.
  */
 
 /*
@@ -34,13 +34,9 @@
  * name is invalid.  In the kernel, we only care whether it's valid or not.
  * Each routine therefore takes a 'namecheck_err_t' which describes exactly why
  * the name failed to validate.
- *
- * Each function returns 0 on success, -1 on error.
  */
 
-#if defined(_KERNEL)
-#include <sys/systm.h>
-#else
+#if !defined(_KERNEL)
 #include <string.h>
 #endif
 
@@ -49,6 +45,14 @@
 #include <sys/nvpair.h>
 #include "zfs_namecheck.h"
 #include "zfs_deleg.h"
+
+/*
+ * Deeply nested datasets can overflow the stack, so we put a limit
+ * in the amount of nesting a path can have. zfs_max_dataset_nesting
+ * can be tuned temporarily to fix existing datasets that exceed our
+ * predefined limit.
+ */
+int zfs_max_dataset_nesting = 50;
 
 static int
 valid_char(char c)
@@ -60,10 +64,35 @@ valid_char(char c)
 }
 
 /*
+ * Looks at a path and returns its level of nesting (depth).
+ */
+int
+get_dataset_depth(const char *path)
+{
+	const char *loc = path;
+	int nesting = 0;
+
+	/*
+	 * Keep track of nesting until you hit the end of the
+	 * path or found the snapshot/bookmark seperator.
+	 */
+	for (int i = 0; loc[i] != '\0' &&
+	    loc[i] != '@' &&
+	    loc[i] != '#'; i++) {
+		if (loc[i] == '/')
+			nesting++;
+	}
+
+	return (nesting);
+}
+
+/*
  * Snapshot names must be made up of alphanumeric characters plus the following
  * characters:
  *
- * 	[-_.: ]
+ *	[-_.: ]
+ *
+ * Returns 0 on success, -1 on error.
  */
 int
 zfs_component_namecheck(const char *path, namecheck_err_t *why, char *what)
@@ -99,6 +128,8 @@ zfs_component_namecheck(const char *path, namecheck_err_t *why, char *what)
  * Permissions set name must start with the letter '@' followed by the
  * same character restrictions as snapshot names, except that the name
  * cannot exceed 64 characters.
+ *
+ * Returns 0 on success, -1 on error.
  */
 int
 permset_namecheck(const char *path, namecheck_err_t *why, char *what)
@@ -121,28 +152,40 @@ permset_namecheck(const char *path, namecheck_err_t *why, char *what)
 }
 
 /*
+ * Dataset paths should not be deeper than zfs_max_dataset_nesting
+ * in terms of nesting.
+ *
+ * Returns 0 on success, -1 on error.
+ */
+int
+dataset_nestcheck(const char *path)
+{
+	return ((get_dataset_depth(path) < zfs_max_dataset_nesting) ? 0 : -1);
+}
+
+/*
  * Entity names must be of the following form:
  *
- * 	[component/]*[component][(@|#)component]?
+ *	[component/]*[component][(@|#)component]?
  *
  * Where each component is made up of alphanumeric characters plus the following
  * characters:
  *
- * 	[-_.:%]
+ *	[-_.:%]
  *
  * We allow '%' here as we use that character internally to create unique
  * names for temporary clones (for online recv).
+ *
+ * Returns 0 on success, -1 on error.
  */
 int
 entity_namecheck(const char *path, namecheck_err_t *why, char *what)
 {
-	const char *start, *end;
-	int found_delim;
+	const char *end;
 
 	/*
 	 * Make sure the name is not too long.
 	 */
-
 	if (strlen(path) >= ZFS_MAX_DATASET_NAME_LEN) {
 		if (why)
 			*why = NAME_ERR_TOOLONG;
@@ -162,8 +205,8 @@ entity_namecheck(const char *path, namecheck_err_t *why, char *what)
 		return (-1);
 	}
 
-	start = path;
-	found_delim = 0;
+	const char *start = path;
+	boolean_t found_delim = B_FALSE;
 	for (;;) {
 		/* Find the end of this component */
 		end = start;
@@ -198,7 +241,7 @@ entity_namecheck(const char *path, namecheck_err_t *why, char *what)
 				return (-1);
 			}
 
-			found_delim = 1;
+			found_delim = B_TRUE;
 		}
 
 		/* Zero-length components are not allowed */
@@ -250,6 +293,8 @@ dataset_namecheck(const char *path, namecheck_err_t *why, char *what)
  * mountpoint names must be of the following form:
  *
  *	/[component][/]*[component][/]
+ *
+ * Returns 0 on success, -1 on error.
  */
 int
 mountpoint_namecheck(const char *path, namecheck_err_t *why)
@@ -294,6 +339,8 @@ mountpoint_namecheck(const char *path, namecheck_err_t *why)
  * dataset names, with the additional restriction that the pool name must begin
  * with a letter.  The pool names 'raidz' and 'mirror' are also reserved names
  * that cannot be used.
+ *
+ * Returns 0 on success, -1 on error.
  */
 int
 pool_namecheck(const char *pool, namecheck_err_t *why, char *what)
@@ -349,8 +396,14 @@ pool_namecheck(const char *pool, namecheck_err_t *why, char *what)
 	return (0);
 }
 
-#if defined(_KERNEL) && defined(HAVE_SPL)
+#if defined(_KERNEL)
 EXPORT_SYMBOL(pool_namecheck);
 EXPORT_SYMBOL(dataset_namecheck);
 EXPORT_SYMBOL(zfs_component_namecheck);
+EXPORT_SYMBOL(dataset_nestcheck);
+EXPORT_SYMBOL(get_dataset_depth);
+EXPORT_SYMBOL(zfs_max_dataset_nesting);
+
+module_param(zfs_max_dataset_nesting, int, 0644);
+MODULE_PARM_DESC(zfs_max_dataset_nesting, "Maximum depth of nested datasets");
 #endif

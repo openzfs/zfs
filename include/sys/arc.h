@@ -87,7 +87,7 @@ struct arc_prune {
 	void			*p_private;
 	uint64_t		p_adjust;
 	list_node_t		p_node;
-	refcount_t		p_refcnt;
+	zfs_refcount_t		p_refcnt;
 };
 
 typedef enum arc_strategy {
@@ -289,7 +289,7 @@ void arc_freed(spa_t *spa, const blkptr_t *bp);
 
 void arc_flush(spa_t *spa, boolean_t retry);
 void arc_tempreserve_clear(uint64_t reserve);
-int arc_tempreserve_space(uint64_t reserve, uint64_t txg);
+int arc_tempreserve_space(spa_t *spa, uint64_t reserve, uint64_t txg);
 
 uint64_t arc_target_bytes(void);
 void arc_init(void);
