@@ -367,7 +367,7 @@ typedef struct zinject_record {
 	uint64_t	zi_timer;
 	uint64_t	zi_nlanes;
 	uint32_t	zi_cmd;
-	uint32_t	zi_pad;
+	uint32_t	zi_dvas;
 } zinject_record_t;
 
 #define	ZINJECT_NULL		0x1
@@ -385,6 +385,8 @@ typedef struct zinject_record {
 /* scaled frequency ranges */
 #define	ZI_PERCENTAGE_MIN	4294UL
 #define	ZI_PERCENTAGE_MAX	UINT32_MAX
+
+#define	ZI_NO_DVA		(-1)
 
 typedef enum zinject_type {
 	ZINJECT_UNINITIALIZED,

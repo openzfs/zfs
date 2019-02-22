@@ -49,7 +49,7 @@ verify_runnable "global"
 
 function cleanup
 {
-	poolexists $TESTPOOL && destroy_pool $TESTPOOL
+	poolexists $TESTPOOL2 && destroy_pool $TESTPOOL2
 	log_must rm -f $DISK1 $DISK2 $DISK3 $DISK4
 }
 
@@ -103,31 +103,31 @@ log_must truncate -s $DEVSIZE $DISK1
 log_must truncate -s $DEVSIZE $DISK2
 log_must truncate -s $DEVSIZE $DISK3
 log_must truncate -s $DEVSIZE $DISK4
-poolexists $TESTPOOL && destroy_pool $TESTPOOL
-log_must zpool create -O mountpoint=$TESTDIR $TESTPOOL \
+poolexists $TESTPOOL2 && destroy_pool $TESTPOOL2
+log_must zpool create -O mountpoint=$TESTDIR $TESTPOOL2 \
     raidz2 $DISK1 $DISK2 $DISK3 $DISK4
 
 # 2. Offline the first device
-zpool_do_sync 'offline' $TESTPOOL $DISK1
+zpool_do_sync 'offline' $TESTPOOL2 $DISK1
 
 # 3. Write to the pool
 log_must mkfile $FILESIZE "$TESTDIR/data.bin"
 
 # 4. Scrub the pool
-zpool_scrub_sync $TESTPOOL
+zpool_scrub_sync $TESTPOOL2
 
 # 5. Online the first device and offline the second device
-zpool_do_sync 'online' $TESTPOOL $DISK1
-zpool_do_sync 'offline' $TESTPOOL $DISK2
-log_must wait_for_resilver_end $TESTPOOL $RESILVER_TIMEOUT
+zpool_do_sync 'online' $TESTPOOL2 $DISK1
+zpool_do_sync 'offline' $TESTPOOL2 $DISK2
+log_must wait_for_resilver_end $TESTPOOL2 $RESILVER_TIMEOUT
 
 # 6. Scrub the pool again
-zpool_scrub_sync $TESTPOOL
+zpool_scrub_sync $TESTPOOL2
 
 # 7. Verify data integrity
-cksum=$(zpool status $TESTPOOL | awk 'L{print $NF;L=0} /CKSUM$/{L=1}')
+cksum=$(zpool status $TESTPOOL2 | awk 'L{print $NF;L=0} /CKSUM$/{L=1}')
 if [[ $cksum != 0 ]]; then
-	log_fail "Unexpected CKSUM errors found on $TESTPOOL ($cksum)"
+	log_fail "Unexpected CKSUM errors found on $TESTPOOL2 ($cksum)"
 fi
 
 log_pass "Scrubbing a pool with offline devices correctly preserves DTLs"
