@@ -1682,8 +1682,10 @@ metaslab_load_impl(metaslab_t *msp)
 	mutex_enter(&msp->ms_lock);
 	ASSERT(!msp->ms_condensing);
 
-	if (error != 0)
+	if (error != 0) {
+		mutex_exit(&msp->ms_sync_lock);
 		return (error);
+	}
 
 	ASSERT3P(msp->ms_group, !=, NULL);
 	msp->ms_loaded = B_TRUE;
