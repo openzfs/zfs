@@ -2262,12 +2262,6 @@ zvol_rename_minors_impl(const char *oldname, const char *newname)
 
 		mutex_enter(&zv->zv_state_lock);
 
-		/* If in use, leave alone */
-		if (zv->zv_open_count > 0) {
-			mutex_exit(&zv->zv_state_lock);
-			continue;
-		}
-
 		if (strcmp(zv->zv_name, oldname) == 0) {
 			zvol_rename_minor(zv, newname);
 		} else if (strncmp(zv->zv_name, oldname, oldnamelen) == 0 &&
