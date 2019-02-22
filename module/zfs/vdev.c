@@ -1646,6 +1646,17 @@ vdev_open(vdev_t *vd)
 	error = vd->vdev_ops->vdev_op_open(vd, &osize, &max_osize, &ashift);
 
 	/*
+	 * Physical volume size should never be larger than its max size, unless
+	 * the disk has shrunk while we were reading it or the device is buggy
+	 * or damaged: either way it's not safe for use, bail out of the open.
+	 */
+	if (osize > max_osize) {
+		vdev_set_state(vd, B_TRUE, VDEV_STATE_CANT_OPEN,
+		    VDEV_AUX_OPEN_FAILED);
+		return (SET_ERROR(ENXIO));
+	}
+
+	/*
 	 * Reset the vdev_reopening flag so that we actually close
 	 * the vdev on error.
 	 */

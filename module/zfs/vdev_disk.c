@@ -108,6 +108,10 @@ bdev_capacity(struct block_device *bdev)
  * case, and updating the partition table if appropriate.  Once the partition
  * size has been increased the additional capacity will be visible using
  * bdev_capacity().
+ *
+ * The returned maximum expansion capacity is always expected to be larger, or
+ * at the very least equal, to its usable capacity to prevent overestimating
+ * the pool expandsize.
  */
 static uint64_t
 bdev_max_capacity(struct block_device *bdev, uint64_t wholedisk)
@@ -122,14 +126,17 @@ bdev_max_capacity(struct block_device *bdev, uint64_t wholedisk)
 		 * alignment restrictions.  Over reporting this value isn't
 		 * harmful and would only result in slightly less capacity
 		 * than expected post expansion.
+		 * The estimated available space may be slightly smaller than
+		 * bdev_capacity() for devices where the number of sectors is
+		 * not a multiple of the alignment size and the partition layout
+		 * is keeping less than PARTITION_END_ALIGNMENT bytes after the
+		 * "reserved" EFI partition: in such cases return the device
+		 * usable capacity.
 		 */
 		available = i_size_read(bdev->bd_contains->bd_inode) -
 		    ((EFI_MIN_RESV_SIZE + NEW_START_BLOCK +
 		    PARTITION_END_ALIGNMENT) << SECTOR_BITS);
-		if (available > 0)
-			psize = available;
-		else
-			psize = bdev_capacity(bdev);
+		psize = MAX(available, bdev_capacity(bdev));
 	} else {
 		psize = bdev_capacity(bdev);
 	}
