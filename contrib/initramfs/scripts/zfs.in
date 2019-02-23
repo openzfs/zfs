@@ -16,6 +16,20 @@ ZPOOL="@sbindir@/zpool"
 ZPOOL_CACHE="@sysconfdir@/zfs/zpool.cache"
 export ZFS ZPOOL ZPOOL_CACHE
 
+
+# Start interactive shell.
+# Use debian's panic() if defined, because it allows to prevent shell access
+# by setting panic in cmdline (e.g. panic=0 or panic=15).
+# See "4.5 Disable root prompt on the initramfs" of Securing Debian Manual:
+# https://www.debian.org/doc/manuals/securing-debian-howto/ch4.en.html
+shell() {
+	if type panic > /dev/null 2>&1; then
+		panic $@
+	else
+		/bin/sh
+	fi
+}
+
 # This runs any scripts that should run before we start importing
 # pools and mounting any filesystems.
 pre_mountroot()
@@ -256,7 +270,7 @@ import_pool()
 			echo ""
 			echo "Failed to import pool '$pool'."
 			echo "Manually import the pool and exit."
-			/bin/sh
+			shell
 		fi
 	fi
 
@@ -379,7 +393,7 @@ mount_fs()
 		echo ""
 		echo "Failed to mount ${fs} on ${rootmnt}/${mountpoint}."
 		echo "Manually mount the filesystem and exit."
-		/bin/sh
+		shell
 	else
 		[ "$quiet" != "y" ] && zfs_log_end_msg
 	fi
@@ -451,7 +465,7 @@ destroy_fs()
 		echo "Failed to destroy '$fs'. Please make sure that '$fs' is not available."
 		echo "Hint: Try:  zfs destroy -Rfn $fs"
 		echo "If this dryrun looks good, then remove the 'n' from '-Rfn' and try again."
-		/bin/sh
+		shell
 	else
 		[ "$quiet" != "y" ] && zfs_log_end_msg
 	fi
@@ -494,7 +508,7 @@ clone_snap()
 		echo "Failed to clone snapshot."
 		echo "Make sure that the any problems are corrected and then make sure"
 		echo "that the dataset '$destfs' exists and is bootable."
-		/bin/sh
+		shell
 	else
 		[ "$quiet" != "y" ] && zfs_log_end_msg
 	fi
@@ -523,7 +537,7 @@ rollback_snap()
 		echo "Error: $ZFS_ERROR"
 		echo ""
 		echo "Failed to rollback snapshot."
-		/bin/sh
+		shell
 	else
 		[ "$quiet" != "y" ] && zfs_log_end_msg
 	fi
@@ -684,7 +698,7 @@ mountroot()
 		echo ""
 		echo "Failed to load ZFS modules."
 		echo "Manually load the modules and exit."
-		/bin/sh
+		shell
 	fi
 
 	# ------------
@@ -857,7 +871,7 @@ mountroot()
 		echo "No pool imported. Manually import the root pool"
 		echo "at the command prompt and then exit."
 		echo "Hint: Try:  zpool import -R ${rootmnt} -N ${ZFS_RPOOL}"
-		/bin/sh
+		shell
 	fi
 
 	# In case the pool was specified as guid, resolve guid to name
@@ -908,7 +922,7 @@ mountroot()
 		echo ""
 		echo "Manually mount the root filesystem on $rootmnt and then exit."
 		echo "Hint: Try:  mount -o zfsutil -t zfs ${ZFS_RPOOL-rpool}/ROOT/system $rootmnt"
-		/bin/sh
+		shell
 	fi
 
 	# ----------------------------------------------------------------
