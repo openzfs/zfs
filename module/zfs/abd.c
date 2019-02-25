@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2014 by Chunwei Chen. All rights reserved.
- * Copyright (c) 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2019 by Delphix. All rights reserved.
  */
 
 /*
@@ -208,6 +208,30 @@ static abd_stats_t abd_stats = {
 /* see block comment above for description */
 int zfs_abd_scatter_enabled = B_TRUE;
 unsigned zfs_abd_scatter_max_order = MAX_ORDER - 1;
+
+/*
+ * zfs_abd_scatter_min_size is the minimum allocation size to use scatter
+ * ABD's.  Smaller allocations will use linear ABD's which uses
+ * zio_[data_]buf_alloc().
+ *
+ * Scatter ABD's use at least one page each, so sub-page allocations waste
+ * some space when allocated as scatter (e.g. 2KB scatter allocation wastes
+ * half of each page).  Using linear ABD's for small allocations means that
+ * they will be put on slabs which contain many allocations.  This can
+ * improve memory efficiency, but it also makes it much harder for ARC
+ * evictions to actually free pages, because all the buffers on one slab need
+ * to be freed in order for the slab (and underlying pages) to be freed.
+ * Typically, 512B and 1KB kmem caches have 16 buffers per slab, so it's
+ * possible for them to actually waste more memory than scatter (one page per
+ * buf = wasting 3/4 or 7/8th; one buf per slab = wasting 15/16th).
+ *
+ * Spill blocks are typically 512B and are heavily used on systems running
+ * selinux with the default dnode size and the `xattr=sa` property set.
+ *
+ * By default we use linear allocations for 512B and 1KB, and scatter
+ * allocations for larger (1.5KB and up).
+ */
+int zfs_abd_scatter_min_size = 512 * 3;
 
 static kmem_cache_t *abd_cache = NULL;
 static kstat_t *abd_ksp;
@@ -581,7 +605,8 @@ abd_free_struct(abd_t *abd)
 abd_t *
 abd_alloc(size_t size, boolean_t is_metadata)
 {
-	if (!zfs_abd_scatter_enabled || size <= PAGESIZE)
+	/* see the comment above zfs_abd_scatter_min_size */
+	if (!zfs_abd_scatter_enabled || size < zfs_abd_scatter_min_size)
 		return (abd_alloc_linear(size, is_metadata));
 
 	VERIFY3U(size, <=, SPA_MAXBLOCKSIZE);
@@ -1532,6 +1557,9 @@ abd_scatter_bio_map_off(struct bio *bio, abd_t *abd,
 module_param(zfs_abd_scatter_enabled, int, 0644);
 MODULE_PARM_DESC(zfs_abd_scatter_enabled,
 	"Toggle whether ABD allocations must be linear.");
+module_param(zfs_abd_scatter_min_size, int, 0644);
+MODULE_PARM_DESC(zfs_abd_scatter_min_size,
+	"Minimum size of scatter allocations.");
 /* CSTYLED */
 module_param(zfs_abd_scatter_max_order, uint, 0644);
 MODULE_PARM_DESC(zfs_abd_scatter_max_order,
