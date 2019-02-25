@@ -1291,6 +1291,19 @@ compression algorithm compresses runs of zeros.
 This property can also be referred to by its shortened column name
 .Sy compress .
 Changing this property affects only newly-written data.
+.Pp
+When any setting except
+.Sy off
+is selected, compression will explicitly check for blocks consisting of only
+zeroes (the NUL byte).  When a zero-filled block is detected, it is stored as
+a hole and not compressed using the indicated compression algorithm.
+.Pp
+Any block being compressed must be no larger than 7/8 of its original size
+after compression, otherwise the compression will not be considered worthwhile
+and the block saved uncompressed. Note that when the logical block is less than
+8 times the disk sector size this effectively reduces the necessary compression
+ratio; for example 8k blocks on disks with 4k disk sectors must compress to 1/2
+or less of their original size.
 .It Xo
 .Sy context Ns = Ns Sy none Ns | Ns
 .Em SELinux_User:SElinux_Role:Selinux_Type:Sensitivity_Level
