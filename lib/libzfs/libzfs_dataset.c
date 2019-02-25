@@ -108,6 +108,43 @@ zfs_validate_name(libzfs_handle_t *hdl, const char *path, int type,
 	namecheck_err_t why;
 	char what;
 
+	if (!(type & ZFS_TYPE_SNAPSHOT) && strchr(path, '@') != NULL) {
+		if (hdl != NULL)
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "snapshot delimiter '@' is not expected here"));
+		return (0);
+	}
+
+	if (type == ZFS_TYPE_SNAPSHOT && strchr(path, '@') == NULL) {
+		if (hdl != NULL)
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "missing '@' delimiter in snapshot name, "
+			    "did you mean to use -r?"));
+		return (0);
+	}
+
+	if (!(type & ZFS_TYPE_BOOKMARK) && strchr(path, '#') != NULL) {
+		if (hdl != NULL)
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "bookmark delimiter '#' is not expected here"));
+		return (0);
+	}
+
+	if (type == ZFS_TYPE_BOOKMARK && strchr(path, '#') == NULL) {
+		if (hdl != NULL)
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "missing '#' delimiter in bookmark name, "
+			    "did you mean to use -r?"));
+		return (0);
+	}
+
+	if (modifying && strchr(path, '%') != NULL) {
+		if (hdl != NULL)
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "invalid character %c in name"), '%');
+		return (0);
+	}
+
 	if (entity_namecheck(path, &why, &what) != 0) {
 		if (hdl != NULL) {
 			switch (why) {
@@ -123,7 +160,8 @@ zfs_validate_name(libzfs_handle_t *hdl, const char *path, int type,
 
 			case NAME_ERR_EMPTY_COMPONENT:
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "empty component in name"));
+				    "empty component or misplaced '@'"
+				    " or '#' delimiter in name"));
 				break;
 
 			case NAME_ERR_TRAILING_SLASH:
@@ -165,43 +203,6 @@ zfs_validate_name(libzfs_handle_t *hdl, const char *path, int type,
 			}
 		}
 
-		return (0);
-	}
-
-	if (!(type & ZFS_TYPE_SNAPSHOT) && strchr(path, '@') != NULL) {
-		if (hdl != NULL)
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "snapshot delimiter '@' is not expected here"));
-		return (0);
-	}
-
-	if (type == ZFS_TYPE_SNAPSHOT && strchr(path, '@') == NULL) {
-		if (hdl != NULL)
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "missing '@' delimiter in snapshot name, "
-			    "did you mean to use -r?"));
-		return (0);
-	}
-
-	if (!(type & ZFS_TYPE_BOOKMARK) && strchr(path, '#') != NULL) {
-		if (hdl != NULL)
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "bookmark delimiter '#' is not expected here"));
-		return (0);
-	}
-
-	if (type == ZFS_TYPE_BOOKMARK && strchr(path, '#') == NULL) {
-		if (hdl != NULL)
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "missing '#' delimiter in bookmark name, "
-			    "did you mean to use -r?"));
-		return (0);
-	}
-
-	if (modifying && strchr(path, '%') != NULL) {
-		if (hdl != NULL)
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "invalid character %c in name"), '%');
 		return (0);
 	}
 
