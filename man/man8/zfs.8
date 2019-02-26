@@ -21,7 +21,7 @@
 .\"
 .\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
-.\" Copyright (c) 2011, 2017 by Delphix. All rights reserved.
+.\" Copyright (c) 2011, 2019 by Delphix. All rights reserved.
 .\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
 .\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
 .\" Copyright (c) 2014 by Adam Stevko. All rights reserved.
@@ -302,8 +302,8 @@
 .Nm
 .Cm program
 .Op Fl jn
-.Op Fl t Ar timeout
-.Op Fl m Ar memory_limit
+.Op Fl t Ar instruction-limit
+.Op Fl m Ar memory-limit
 .Ar pool script
 .Op Ar arg1 No ...
 .Nm
@@ -4413,8 +4413,8 @@ Display the path's inode change time as the first column of output.
 .Nm
 .Cm program
 .Op Fl jn
-.Op Fl t Ar timeout
-.Op Fl m Ar memory_limit
+.Op Fl t Ar instruction-limit
+.Op Fl m Ar memory-limit
 .Ar pool script
 .Op Ar arg1 No ...
 .Xc
@@ -4446,11 +4446,12 @@ The program can be used to gather information such as properties and
 determining if changes would succeed (zfs.check.*).
 Without this flag, all pending changes must be synced to disk before
 a channel program can complete.
-.It Fl t Ar timeout
-Execution time limit, in milliseconds.
-If a channel program executes for longer than the provided timeout, it will
-be stopped and an error will be returned.
-The default timeout is 1000 ms, and can be set to a maximum of 10000 ms.
+.It Fl t Ar instruction-limit
+Limit the number of Lua instructions to execute.
+If a channel program executes more than the specified number of instructions,
+it will be stopped and an error will be returned.
+The default limit is 10 million instructions, and it can be set to a maximum of
+100 million instructions.
 .It Fl m Ar memory-limit
 Memory limit, in bytes.
 If a channel program attempts to allocate more memory than the given limit,

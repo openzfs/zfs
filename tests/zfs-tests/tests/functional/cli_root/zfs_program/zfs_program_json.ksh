@@ -16,6 +16,7 @@
 
 #
 # Copyright (c) 2018 Datto Inc.
+# Copyright (c) 2019 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -111,7 +112,8 @@ typeset -a neg_cmds=("-Z")
 typeset -a neg_cmds_out=(
 "invalid option 'Z'
 usage:
-	program [-jn] [-t <instruction limit>] [-m <memory limit (b)>] <pool> <program file> [lua args...]
+	program [-jn] [-t <instruction limit>] [-m <memory limit (b)>]
+	    <pool> <program file> [lua args...]
 
 For the property list, run: zfs set|get
 
