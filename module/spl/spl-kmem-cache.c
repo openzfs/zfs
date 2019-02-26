@@ -858,15 +858,15 @@ spl_magazine_destroy(spl_kmem_cache_t *skc)
  * priv		cache private data for ctor/dtor/reclaim
  * vmp		unused must be NULL
  * flags
- *	KMC_NOTOUCH	Disable cache object aging (unsupported)
- *	KMC_NODEBUG	Disable debugging (unsupported)
- *	KMC_NOHASH      Disable hashing (unsupported)
- *	KMC_QCACHE	Disable qcache (unsupported)
- *	KMC_NOMAGAZINE	Enabled for kmem/vmem, Disabled for Linux slab
- *	KMC_KMEM	Force kmem backed cache
- *	KMC_VMEM        Force vmem backed cache
+ *	KMC_KMEM	Force SPL kmem backed cache
+ *	KMC_VMEM        Force SPL vmem backed cache
  *	KMC_SLAB        Force Linux slab backed cache
  *	KMC_OFFSLAB	Locate objects off the slab
+ *	KMC_NOTOUCH	unsupported
+ *	KMC_NODEBUG	unsupported
+ *	KMC_NOHASH      unsupported
+ *	KMC_QCACHE	unsupported
+ *	KMC_NOMAGAZINE	unsupported
  */
 spl_kmem_cache_t *
 spl_kmem_cache_create(char *name, size_t size, size_t align,
@@ -949,29 +949,27 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	 */
 	if (!(skc->skc_flags & (KMC_KMEM | KMC_VMEM | KMC_SLAB))) {
 
-		/*
-		 * Objects smaller than spl_kmem_cache_slab_limit can
-		 * use the Linux slab for better space-efficiency.  By
-		 * default this functionality is disabled until its
-		 * performance characteristics are fully understood.
-		 */
 		if (spl_kmem_cache_slab_limit &&
-		    size <= (size_t)spl_kmem_cache_slab_limit)
+		    size <= (size_t)spl_kmem_cache_slab_limit) {
+			/*
+			 * Objects smaller than spl_kmem_cache_slab_limit can
+			 * use the Linux slab for better space-efficiency.
+			 */
 			skc->skc_flags |= KMC_SLAB;
-
-		/*
-		 * Small objects, less than spl_kmem_cache_kmem_limit per
-		 * object should use kmem because their slabs are small.
-		 */
-		else if (spl_obj_size(skc) <= spl_kmem_cache_kmem_limit)
+		} else if (spl_obj_size(skc) <= spl_kmem_cache_kmem_limit) {
+			/*
+			 * Small objects, less than spl_kmem_cache_kmem_limit
+			 * per object should use kmem because their slabs are
+			 * small.
+			 */
 			skc->skc_flags |= KMC_KMEM;
-
-		/*
-		 * All other objects are considered large and are placed
-		 * on vmem backed slabs.
-		 */
-		else
+		} else {
+			/*
+			 * All other objects are considered large and are
+			 * placed on vmem backed slabs.
+			 */
 			skc->skc_flags |= KMC_VMEM;
+		}
 	}
 
 	/*
@@ -1003,15 +1001,15 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 #endif
 
 #if defined(HAVE_KMEM_CACHE_CREATE_USERCOPY)
-	/*
-	 * Newer grsec patchset uses kmem_cache_create_usercopy()
-	 * instead of SLAB_USERCOPY flag
-	 */
-	skc->skc_linux_cache = kmem_cache_create_usercopy(
-	    skc->skc_name, size, align, slabflags, 0, size, NULL);
+		/*
+		 * Newer grsec patchset uses kmem_cache_create_usercopy()
+		 * instead of SLAB_USERCOPY flag
+		 */
+		skc->skc_linux_cache = kmem_cache_create_usercopy(
+		    skc->skc_name, size, align, slabflags, 0, size, NULL);
 #else
-	skc->skc_linux_cache = kmem_cache_create(
-	    skc->skc_name, size, align, slabflags, NULL);
+		skc->skc_linux_cache = kmem_cache_create(
+		    skc->skc_name, size, align, slabflags, NULL);
 #endif
 		if (skc->skc_linux_cache == NULL) {
 			rc = ENOMEM;
@@ -1026,10 +1024,11 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 		skc->skc_flags |= KMC_NOMAGAZINE;
 	}
 
-	if (spl_kmem_cache_expire & KMC_EXPIRE_AGE)
+	if (spl_kmem_cache_expire & KMC_EXPIRE_AGE) {
 		skc->skc_taskqid = taskq_dispatch_delay(spl_kmem_cache_taskq,
 		    spl_cache_age, skc, TQ_SLEEP,
 		    ddi_get_lbolt() + skc->skc_delay / 3 * HZ);
+	}
 
 	down_write(&spl_kmem_cache_sem);
 	list_add_tail(&skc->skc_list, &spl_kmem_cache_list);
