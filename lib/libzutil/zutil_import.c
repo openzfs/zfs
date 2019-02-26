@@ -1458,7 +1458,7 @@ typedef struct rdsk_node {
 } rdsk_node_t;
 
 /*
- * Sorted by vdev guid and full path to allow for multiple entries with
+ * Sorted by full path and then vdev guid to allow for multiple entries with
  * the same full path name.  This is required because it's possible to
  * have multiple block devices with labels that refer to the same
  * ZPOOL_CONFIG_PATH yet have different vdev guids.  In this case both
@@ -1475,11 +1475,11 @@ slice_cache_compare(const void *arg1, const void *arg2)
 	uint64_t guid2 = ((rdsk_node_t *)arg2)->rn_vdev_guid;
 	int rv;
 
-	rv = AVL_CMP(guid1, guid2);
+	rv = AVL_ISIGN(strcmp(nm1, nm2));
 	if (rv)
 		return (rv);
 
-	return (AVL_ISIGN(strcmp(nm1, nm2)));
+	return (AVL_CMP(guid1, guid2));
 }
 
 static boolean_t
