@@ -414,9 +414,9 @@ spa_txg_history_init_io(spa_t *spa, uint64_t txg, dsl_pool_t *dp)
 
 	ts = kmem_alloc(sizeof (txg_stat_t), KM_SLEEP);
 
-	spa_config_enter(spa, SCL_ALL, FTAG, RW_READER);
+	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 	vdev_get_stats(spa->spa_root_vdev, &ts->vs1);
-	spa_config_exit(spa, SCL_ALL, FTAG);
+	spa_config_exit(spa, SCL_CONFIG, FTAG);
 
 	ts->txg = txg;
 	ts->ndirty = dp->dp_dirty_pertxg[txg & TXG_MASK];
@@ -437,9 +437,9 @@ spa_txg_history_fini_io(spa_t *spa, txg_stat_t *ts)
 		return;
 	}
 
-	spa_config_enter(spa, SCL_ALL, FTAG, RW_READER);
+	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 	vdev_get_stats(spa->spa_root_vdev, &ts->vs2);
-	spa_config_exit(spa, SCL_ALL, FTAG);
+	spa_config_exit(spa, SCL_CONFIG, FTAG);
 
 	spa_txg_history_set(spa, ts->txg, TXG_STATE_SYNCED, gethrtime());
 	spa_txg_history_set_io(spa, ts->txg,
