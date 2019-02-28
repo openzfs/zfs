@@ -1711,8 +1711,18 @@ dsl_dataset_snapshot_sync_impl(dsl_dataset_t *ds, const char *snapname,
 
 	/*
 	 * Create a ivset guid for this snapshot if the dataset is
-	 * encrypted. This may be overridden by a raw receive. We
-	 * only do this if the bookmark_v2 feature is enabled.
+	 * encrypted. This may be overridden by a raw receive. A
+	 * previous implementation of this code did not have this
+	 * field as part of the on-disk format for ZFS encryption
+	 * (see errata #4). As part of the remediation for this
+	 * issue, we ask the user to enable the bookmark_v2 feature
+	 * which is now a dependency of the encryption feature. We
+	 * use this as a heuristic to determine when the user has
+	 * elected to correct any datasets created with the old code.
+	 * As a result, we only do this step if the bookmark_v2
+	 * feature is enabled, which limits the number of states a
+	 * given pool / dataset can be in with regards to terms of
+	 * correcting the issue.
 	 */
 	if (ds->ds_dir->dd_crypto_obj != 0 &&
 	    spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_BOOKMARK_V2)) {

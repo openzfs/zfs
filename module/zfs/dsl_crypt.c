@@ -1986,7 +1986,7 @@ dsl_crypto_recv_raw_objset_check(dsl_dataset_t *ds, dsl_dataset_t *fromds,
 	uint8_t *buf = NULL;
 	uint_t len;
 	uint64_t intval, nlevels, blksz, ibs;
-	uint64_t nblkptr, maxblkid, from_ivset_guid = 0;
+	uint64_t nblkptr, maxblkid;
 
 	if (ostype != DMU_OST_ZFS && ostype != DMU_OST_ZVOL)
 		return (SET_ERROR(EINVAL));
@@ -2061,18 +2061,19 @@ dsl_crypto_recv_raw_objset_check(dsl_dataset_t *ds, dsl_dataset_t *fromds,
 	 * zfs_disable_ivset_guid_check tunable to allow these datasets to
 	 * be received with a generated ivset guid.
 	 */
-	if (fromds != NULL) {
+	if (fromds != NULL && !zfs_disable_ivset_guid_check) {
+		uint64_t from_ivset_guid = 0;
 		intval = 0;
+
 		(void) nvlist_lookup_uint64(nvl, "from_ivset_guid", &intval);
 		(void) zap_lookup(tx->tx_pool->dp_meta_objset,
 		    fromds->ds_object, DS_FIELD_IVSET_GUID,
 		    sizeof (from_ivset_guid), 1, &from_ivset_guid);
 
-		if (!zfs_disable_ivset_guid_check &&
-		    (intval == 0 || from_ivset_guid == 0))
+		if (intval == 0 || from_ivset_guid == 0)
 			return (SET_ERROR(ZFS_ERR_FROM_IVSET_GUID_MISSING));
 
-		if (!zfs_disable_ivset_guid_check && intval != from_ivset_guid)
+		if (intval != from_ivset_guid)
 			return (SET_ERROR(ZFS_ERR_FROM_IVSET_GUID_MISMATCH));
 	}
 
@@ -2332,19 +2333,19 @@ dsl_crypto_recv_key_check(void *arg, dmu_tx_t *tx)
 	ret = dsl_dataset_hold_obj(tx->tx_pool, dcrka->dcrka_dsobj,
 	    FTAG, &ds);
 	if (ret != 0)
-		goto error;
+		goto out;
 
 	if (dcrka->dcrka_fromobj != 0) {
 		ret = dsl_dataset_hold_obj(tx->tx_pool, dcrka->dcrka_fromobj,
 		    FTAG, &fromds);
 		if (ret != 0)
-			goto error;
+			goto out;
 	}
 
 	ret = dsl_crypto_recv_raw_objset_check(ds, fromds,
 	    dcrka->dcrka_ostype, dcrka->dcrka_nvl, tx);
 	if (ret != 0)
-		goto error;
+		goto out;
 
 	/*
 	 * We run this check even if we won't be doing this part of
@@ -2353,15 +2354,9 @@ dsl_crypto_recv_key_check(void *arg, dmu_tx_t *tx)
 	 */
 	ret = dsl_crypto_recv_raw_key_check(ds, dcrka->dcrka_nvl, tx);
 	if (ret != 0)
-		goto error;
+		goto out;
 
-	dsl_dataset_rele(ds, FTAG);
-	if (fromds != NULL)
-		dsl_dataset_rele(fromds, FTAG);
-
-	return (0);
-
-error:
+out:
 	if (ds != NULL)
 		dsl_dataset_rele(ds, FTAG);
 	if (fromds != NULL)
