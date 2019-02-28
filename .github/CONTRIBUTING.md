@@ -56,7 +56,7 @@ of these tools are discussed in detail on the [debugging ZFS wiki
 page](https://github.com/zfsonlinux/zfs/wiki/Debugging).
 
 ### Where can I ask for help?
-The [mailing list](https://github.com/zfsonlinux/zfs/wiki/Mailing-Lists)
+[IRC or the zfs-discuss mailing list](http://list.zfsonlinux.org)
 is the best place to ask for help.
 
 ## How Can I Contribute?
