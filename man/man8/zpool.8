@@ -442,6 +442,11 @@ If a pool has a shared spare that is currently being used, the pool can not be
 exported since other pools may use this shared spare, which may lead to
 potential data corruption.
 .Pp
+Shared spares add some risk.  If the pools are imported on different hosts, and
+both pools suffer a device failure at the same time, both could attempt to use
+the spare at the same time.  This may not be detected, resulting in data
+corruption.
+.Pp
 An in-progress spare replacement can be cancelled by detaching the hot spare.
 If the original faulted device is detached, then the hot spare assumes its
 place in the configuration, and is removed from the spare list of all active
@@ -829,9 +834,15 @@ Controls whether a pool activity check should be performed during
 When a pool is determined to be active it cannot be imported, even with the
 .Fl f
 option.  This property is intended to be used in failover configurations
-where multiple hosts have access to a pool on shared storage.  When this
-property is on, periodic writes to storage occur to show the pool is in use.
-See
+where multiple hosts have access to a pool on shared storage.
+
+Multihost provides protection on import only.  It does not protect against an
+individual device being used in multiple pools, regardless of the type of vdev.
+See the discussion under
+.Sy zpool create.
+
+When this property is on, periodic writes to storage occur to show the pool is
+in use.  See
 .Sy zfs_multihost_interval
 in the
 .Xr zfs-module-parameters 5
@@ -1002,6 +1013,9 @@ Clears device errors in a pool.
 If no arguments are specified, all device errors within the pool are cleared.
 If one or more devices is specified, only those errors associated with the
 specified device or devices are cleared.
+If multihost is enabled, and the pool has been suspended, this will not
+resume I/O.  While the pool was suspended, it may have been imported on
+another host, and resuming I/O could result in pool damage.
 .It Xo
 .Nm
 .Cm create
@@ -1045,8 +1059,22 @@ specification is described in the
 .Sx Virtual Devices
 section.
 .Pp
-The command verifies that each device specified is accessible and not currently
-in use by another subsystem.
+The command attempts to verify that each device specified is accessible and not
+currently in use by another subsystem.  However this check is not robust enough
+to detect simultaneous attempts to use a new device in different pools, even if
+.Sy multihost
+is
+.Sy enabled.
+The
+administrator must ensure that simultaneous invocations of any combination of
+.Sy zpool replace ,
+.Sy zpool create ,
+.Sy zpool add ,
+or
+.Sy zpool labelclear ,
+do not refer to the same device.  Using the same device in two pools will
+result in pool corruption.
+
 There are some uses, such as being currently mounted, or specified as the
 dedicated dump device, that prevents a device from ever being used by ZFS.
 Other uses, such as having a preexisting UFS file system, can be overridden with

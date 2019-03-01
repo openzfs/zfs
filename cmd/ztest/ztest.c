@@ -2764,6 +2764,13 @@ ztest_mmp_enable_disable(ztest_ds_t *zd, uint64_t id)
 	if (zo->zo_mmp_test)
 		return;
 
+	/*
+	 * Since enabling MMP involves setting a property, it could not be done
+	 * while the pool is suspended.
+	 */
+	if (spa_suspended(spa))
+		return;
+
 	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 	mutex_enter(&spa->spa_props_lock);
 

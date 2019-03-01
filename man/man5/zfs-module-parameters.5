@@ -1,6 +1,6 @@
 '\" te
 .\" Copyright (c) 2013 by Turbo Fredriksson <turbo@bayour.com>. All rights reserved.
-.\" Copyright (c) 2018 by Delphix. All rights reserved.
+.\" Copyright (c) 2019 by Delphix. All rights reserved.
 .\" Copyright (c) 2019 Datto Inc.
 .\" The contents of this file are subject to the terms of the Common Development
 .\" and Distribution License (the "License").  You may not use this file except
@@ -535,6 +535,18 @@ Default value: \fB8\fR.
 Min time before an active prefetch stream can be reclaimed
 .sp
 Default value: \fB2\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_abd_scatter_min_size\fR (uint)
+.ad
+.RS 12n
+This is the minimum allocation size that will use scatter (page-based)
+ABD's.  Smaller allocations will use linear ABD's.
+.sp
+Default value: \fB1536\fR (512B and 1KB allocations will be linear).
 .RE
 
 .sp
