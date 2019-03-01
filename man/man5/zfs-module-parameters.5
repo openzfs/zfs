@@ -389,6 +389,21 @@ Default value: \fB3600 seconds\fR (one hour)
 .sp
 .ne 2
 .na
+\fBzfs_metaslab_mem_limit\fR (int)
+.ad
+.RS 12n
+When we are loading a new metaslab, we check the amount of memory being used
+to store metaslab range trees. If it is over a threshold, we attempt to unload
+the least recently used metaslab to prevent the system from clogging all of
+its memory with range trees. This tunable sets the percentage of total system
+memory that is the threshold.
+.sp
+Default value: \fB75 percent\fR
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_vdev_default_ms_count\fR (int)
 .ad
 .RS 12n

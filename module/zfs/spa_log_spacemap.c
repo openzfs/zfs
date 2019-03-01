@@ -1189,6 +1189,7 @@ out:
 
 		if (metaslab_debug_load && m->ms_sm != NULL) {
 			VERIFY0(metaslab_load(m));
+			metaslab_set_selected_txg(m, 0);
 		}
 		mutex_exit(&m->ms_lock);
 	}

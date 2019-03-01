@@ -36,6 +36,7 @@
 #include <sys/vdev.h>
 #include <sys/txg.h>
 #include <sys/avl.h>
+#include <sys/multilist.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -194,6 +195,12 @@ struct metaslab_class {
 	uint64_t		mc_space;	/* total space (alloc + free) */
 	uint64_t		mc_dspace;	/* total deflated space */
 	uint64_t		mc_histogram[RANGE_TREE_HISTOGRAM_SIZE];
+
+	/*
+	 * List of all loaded metaslabs in the class, sorted in order of most
+	 * recent use.
+	 */
+	multilist_t		*mc_metaslab_txg_list;
 };
 
 /*
@@ -378,6 +385,7 @@ struct metaslab {
 	range_tree_t	*ms_allocating[TXG_SIZE];
 	range_tree_t	*ms_allocatable;
 	uint64_t	ms_allocated_this_txg;
+	uint64_t	ms_allocating_total;
 
 	/*
 	 * The following range trees are accessed only from syncing context.
@@ -508,6 +516,10 @@ struct metaslab {
 	avl_node_t	ms_group_node;	/* node in metaslab group tree	*/
 	txg_node_t	ms_txg_node;	/* per-txg dirty metaslab links	*/
 	avl_node_t	ms_spa_txg_node; /* node in spa_metaslabs_by_txg */
+	/*
+	 * Node in metaslab class's selected txg list
+	 */
+	multilist_node_t	ms_class_txg_node;
 
 	/*
 	 * Allocs and frees that are committed to the vdev log spacemap but
