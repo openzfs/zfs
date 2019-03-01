@@ -66,7 +66,7 @@ uint64_t metaslab_allocated_space(metaslab_t *);
 void metaslab_sync(metaslab_t *, uint64_t);
 void metaslab_sync_done(metaslab_t *, uint64_t);
 void metaslab_sync_reassess(metaslab_group_t *);
-uint64_t metaslab_block_maxsize(metaslab_t *);
+uint64_t metaslab_largest_allocatable(metaslab_t *);
 
 /*
  * metaslab alloc flags

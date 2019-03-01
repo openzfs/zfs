@@ -272,6 +272,12 @@ uint64_t metaslab_trace_max_entries = 5000;
  */
 int max_disabled_ms = 3;
 
+/*
+ * Time (in seconds) to respect ms_max_size when the metaslab is not loaded.
+ * To avoid 64-bit overflow, don't set above UINT32_MAX.
+ */
+uint64_t max_size_cache_sec = 3600; /* 1 hour */
+
 static uint64_t metaslab_weight(metaslab_t *);
 static void metaslab_set_fragmentation(metaslab_t *);
 static void metaslab_free_impl(vdev_t *, uint64_t, uint64_t, boolean_t);
@@ -1165,15 +1171,81 @@ metaslab_rangesize_compare(const void *x1, const void *x2)
  * Return the maximum contiguous segment within the metaslab.
  */
 uint64_t
-metaslab_block_maxsize(metaslab_t *msp)
+metaslab_largest_allocatable(metaslab_t *msp)
 {
 	avl_tree_t *t = &msp->ms_allocatable_by_size;
 	range_seg_t *rs;
 
-	if (t == NULL || (rs = avl_last(t)) == NULL)
-		return (0ULL);
+	if (t == NULL)
+		return (0);
+	rs = avl_last(t);
+	if (rs == NULL)
+		return (0);
 
 	return (rs->rs_end - rs->rs_start);
+}
+
+/*
+ * Return the maximum contiguous segment within the unflushed frees of this
+ * metaslab.
+ */
+uint64_t
+metaslab_largest_unflushed_free(metaslab_t *msp)
+{
+	ASSERT(MUTEX_HELD(&msp->ms_lock));
+
+	if (msp->ms_unflushed_frees == NULL)
+		return (0);
+
+	range_seg_t *rs = avl_last(&msp->ms_unflushed_frees_by_size);
+	if (rs == NULL)
+		return (0);
+
+	/*
+	 * When a range is freed from the metaslab, that range is added to
+	 * both the unflushed frees and the deferred frees. While the block
+	 * will eventually be usable, if the metaslab were loaded the range
+	 * would not be added to the ms_allocatable tree until TXG_DEFER_SIZE
+	 * txgs had passed.  As a result, when attempting to estimate an upper
+	 * bound for the largest currently-usable free segment in the
+	 * metaslab, we need to not consider any ranges currently in the defer
+	 * trees. This algorithm approximates the largest available chunk in
+	 * the largest range in the unflushed_frees tree by taking the first
+	 * chunk.  While this may be a poor estimate, it should only remain so
+	 * briefly and should eventually self-correct as frees are no longer
+	 * deferred. Similar logic applies to the ms_freed tree. See
+	 * metaslab_load() for more details.
+	 *
+	 * There are two primary sources of innacuracy in this estimate. Both
+	 * are tolerated for performance reasons. The first source is that we
+	 * only check the largest segment for overlaps. Smaller segments may
+	 * have more favorable overlaps with the other trees, resulting in
+	 * larger usable chunks.  Second, we only look at the first chunk in
+	 * the largest segment; there may be other usable chunks in the
+	 * largest segment, but we ignore them.
+	 */
+	uint64_t rstart = rs->rs_start;
+	uint64_t rsize = rs->rs_end - rstart;
+	for (int t = 0; t < TXG_DEFER_SIZE; t++) {
+		uint64_t start = 0;
+		uint64_t size = 0;
+		boolean_t found = range_tree_find_in(msp->ms_defer[t], rstart,
+		    rsize, &start, &size);
+		if (found) {
+			if (rstart == start)
+				return (0);
+			rsize = start - rstart;
+		}
+	}
+
+	uint64_t start = 0;
+	uint64_t size = 0;
+	boolean_t found = range_tree_find_in(msp->ms_freed, rstart,
+	    rsize, &start, &size);
+	if (found)
+		rsize = start - rstart;
+
+	return (rsize);
 }
 
 static range_seg_t *
@@ -1269,7 +1341,7 @@ metaslab_df_alloc(metaslab_t *msp, uint64_t size)
 	 * If we're running low on space, find a segment based on size,
 	 * rather than iterating based on offset.
 	 */
-	if (metaslab_block_maxsize(msp) < metaslab_df_alloc_threshold ||
+	if (metaslab_largest_allocatable(msp) < metaslab_df_alloc_threshold ||
 	    free_pct < metaslab_df_free_pct) {
 		offset = -1;
 	} else {
@@ -1375,7 +1447,7 @@ metaslab_ndf_alloc(metaslab_t *msp, uint64_t size)
 	range_seg_t *rs, rsearch;
 	uint64_t hbit = highbit64(size);
 	uint64_t *cursor = &msp->ms_lbas[hbit - 1];
-	uint64_t max_size = metaslab_block_maxsize(msp);
+	uint64_t max_size = metaslab_largest_allocatable(msp);
 
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
 	ASSERT3U(avl_numnodes(t), ==,
@@ -1685,7 +1757,6 @@ metaslab_verify_weight_and_frag(metaslab_t *msp)
 
 	msp->ms_weight = 0;
 	msp->ms_fragmentation = 0;
-	msp->ms_max_size = 0;
 
 	/*
 	 * This function is used for verification purposes. Regardless of
@@ -1875,18 +1946,21 @@ metaslab_load_impl(metaslab_t *msp)
 	 * comment for ms_synchist and ms_deferhist[] for more info]
 	 */
 	uint64_t weight = msp->ms_weight;
+	uint64_t max_size = msp->ms_max_size;
 	metaslab_recalculate_weight_and_sort(msp);
 	if (!WEIGHT_IS_SPACEBASED(weight))
 		ASSERT3U(weight, <=, msp->ms_weight);
-	msp->ms_max_size = metaslab_block_maxsize(msp);
-
+	msp->ms_max_size = metaslab_largest_allocatable(msp);
+	ASSERT3U(max_size, <=, msp->ms_max_size);
 	hrtime_t load_end = gethrtime();
+		msp->ms_load_time = load_end;
 	if (zfs_flags & ZFS_DEBUG_LOG_SPACEMAP) {
 		zfs_dbgmsg("loading: txg %llu, spa %s, vdev_id %llu, "
 		    "ms_id %llu, smp_length %llu, "
 		    "unflushed_allocs %llu, unflushed_frees %llu, "
 		    "freed %llu, defer %llu + %llu, "
-		    "loading_time %lld ms",
+		    "loading_time %lld ms, ms_max_size %llu, "
+		    "max size error %llu",
 		    spa_syncing_txg(spa), spa_name(spa),
 		    msp->ms_group->mg_vd->vdev_id, msp->ms_id,
 		    space_map_length(msp->ms_sm),
@@ -1895,7 +1969,8 @@ metaslab_load_impl(metaslab_t *msp)
 		    range_tree_space(msp->ms_freed),
 		    range_tree_space(msp->ms_defer[0]),
 		    range_tree_space(msp->ms_defer[1]),
-		    (longlong_t)((load_end - load_start) / 1000000));
+		    (longlong_t)((load_end - load_start) / 1000000),
+		    msp->ms_max_size, msp->ms_max_size - max_size);
 	}
 
 	metaslab_verify_space(msp, spa_syncing_txg(spa));
@@ -1959,10 +2034,10 @@ metaslab_unload(metaslab_t *msp)
 
 	range_tree_vacate(msp->ms_allocatable, NULL, NULL);
 	msp->ms_loaded = B_FALSE;
+	msp->ms_unload_time = gethrtime();
 
 	msp->ms_activation_weight = 0;
 	msp->ms_weight &= ~METASLAB_ACTIVE_MASK;
-	msp->ms_max_size = 0;
 
 	/*
 	 * We explicitly recalculate the metaslab's weight based on its space
@@ -2519,13 +2594,17 @@ metaslab_segment_weight(metaslab_t *msp)
  * weights we rely on the entire weight (excluding the weight-type bit).
  */
 boolean_t
-metaslab_should_allocate(metaslab_t *msp, uint64_t asize)
+metaslab_should_allocate(metaslab_t *msp, uint64_t asize, boolean_t try_hard)
 {
-	if (msp->ms_loaded) {
+	/*
+	 * If the metaslab is loaded, ms_max_size is definitive and we can use
+	 * the fast check. If it's not, the ms_max_size is a lower bound (once
+	 * set), and we should use the fast check unless we're in try_hard.
+	 */
+	if (msp->ms_loaded ||
+	    (msp->ms_max_size != 0 && !try_hard &&
+	    gethrtime() < msp->ms_unload_time + SEC2NSEC(max_size_cache_sec)))
 		return (msp->ms_max_size >= asize);
-	} else {
-		ASSERT0(msp->ms_max_size);
-	}
 
 	boolean_t should_allocate;
 	if (!WEIGHT_IS_SPACEBASED(msp->ms_weight)) {
@@ -2563,14 +2642,21 @@ metaslab_weight(metaslab_t *msp)
 	metaslab_set_fragmentation(msp);
 
 	/*
-	 * Update the maximum size if the metaslab is loaded. This will
+	 * Update the maximum size. If the metaslab is loaded, this will
 	 * ensure that we get an accurate maximum size if newly freed space
-	 * has been added back into the free tree.
+	 * has been added back into the free tree. If the metaslab is
+	 * unloaded, we check if there's a larger free segment in the
+	 * unflushed frees. This is a lower bound on the largest allocatable
+	 * segment size. Coalescing of adjacent entries may reveal larger
+	 * allocatable segments, but we aren't aware of those until loading
+	 * the space map into a range tree.
 	 */
-	if (msp->ms_loaded)
-		msp->ms_max_size = metaslab_block_maxsize(msp);
-	else
-		ASSERT0(msp->ms_max_size);
+	if (msp->ms_loaded) {
+		msp->ms_max_size = metaslab_largest_allocatable(msp);
+	} else {
+		msp->ms_max_size = MAX(msp->ms_max_size,
+		    metaslab_largest_unflushed_free(msp));
+	}
 
 	/*
 	 * Segment-based weighting requires space map histogram support.
@@ -3587,7 +3673,9 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 		ASSERT3P(msp->ms_unflushed_allocs, ==, NULL);
 		msp->ms_unflushed_allocs = range_tree_create(NULL, NULL);
 		ASSERT3P(msp->ms_unflushed_frees, ==, NULL);
-		msp->ms_unflushed_frees = range_tree_create(NULL, NULL);
+		msp->ms_unflushed_frees = range_tree_create_impl(&rt_avl_ops,
+		    &msp->ms_unflushed_frees_by_size,
+		    metaslab_rangesize_compare, 0);
 
 		metaslab_space_update(vd, mg->mg_class, 0, 0, msp->ms_size);
 	}
@@ -3984,7 +4072,7 @@ metaslab_block_alloc(metaslab_t *msp, uint64_t size, uint64_t txg)
 	 * Now that we've attempted the allocation we need to update the
 	 * metaslab's maximum block size since it may have changed.
 	 */
-	msp->ms_max_size = metaslab_block_maxsize(msp);
+	msp->ms_max_size = metaslab_largest_allocatable(msp);
 	return (start);
 }
 
@@ -4002,7 +4090,8 @@ metaslab_block_alloc(metaslab_t *msp, uint64_t size, uint64_t txg)
 static metaslab_t *
 find_valid_metaslab(metaslab_group_t *mg, uint64_t activation_weight,
     dva_t *dva, int d, boolean_t want_unique, uint64_t asize, int allocator,
-    zio_alloc_list_t *zal, metaslab_t *search, boolean_t *was_active)
+    boolean_t try_hard, zio_alloc_list_t *zal, metaslab_t *search,
+    boolean_t *was_active)
 {
 	avl_index_t idx;
 	avl_tree_t *t = &mg->mg_metaslab_tree;
@@ -4012,7 +4101,7 @@ find_valid_metaslab(metaslab_group_t *mg, uint64_t activation_weight,
 
 	for (; msp != NULL; msp = AVL_NEXT(t, msp)) {
 		int i;
-		if (!metaslab_should_allocate(msp, asize)) {
+		if (!metaslab_should_allocate(msp, asize, try_hard)) {
 			metaslab_trace_add(zal, mg, msp, asize, d,
 			    TRACE_TOO_SMALL, allocator);
 			continue;
@@ -4092,8 +4181,8 @@ metaslab_active_mask_verify(metaslab_t *msp)
 /* ARGSUSED */
 static uint64_t
 metaslab_group_alloc_normal(metaslab_group_t *mg, zio_alloc_list_t *zal,
-    uint64_t asize, uint64_t txg, boolean_t want_unique, dva_t *dva,
-    int d, int allocator)
+    uint64_t asize, uint64_t txg, boolean_t want_unique, dva_t *dva, int d,
+    int allocator, boolean_t try_hard)
 {
 	metaslab_t *msp = NULL;
 	uint64_t offset = -1ULL;
@@ -4166,8 +4255,8 @@ metaslab_group_alloc_normal(metaslab_group_t *mg, zio_alloc_list_t *zal,
 			was_active = B_TRUE;
 		} else {
 			msp = find_valid_metaslab(mg, activation_weight, dva, d,
-			    want_unique, asize, allocator, zal, search,
-			    &was_active);
+			    want_unique, asize, allocator, try_hard, zal,
+			    search, &was_active);
 		}
 
 		mutex_exit(&mg->mg_lock);
@@ -4274,7 +4363,7 @@ metaslab_group_alloc_normal(metaslab_group_t *mg, zio_alloc_list_t *zal,
 		 * can accurately determine if the allocation attempt should
 		 * proceed.
 		 */
-		if (!metaslab_should_allocate(msp, asize)) {
+		if (!metaslab_should_allocate(msp, asize, try_hard)) {
 			/* Passivate this metaslab and select a new one. */
 			metaslab_trace_add(zal, mg, msp, asize, d,
 			    TRACE_TOO_SMALL, allocator);
@@ -4352,7 +4441,7 @@ next:
 		 */
 		uint64_t weight;
 		if (WEIGHT_IS_SPACEBASED(msp->ms_weight)) {
-			weight = metaslab_block_maxsize(msp);
+			weight = metaslab_largest_allocatable(msp);
 			WEIGHT_SET_SPACEBASED(weight);
 		} else {
 			weight = metaslab_weight_from_range_tree(msp);
@@ -4384,7 +4473,7 @@ next:
 		 * we may end up in an infinite loop retrying the same
 		 * metaslab.
 		 */
-		ASSERT(!metaslab_should_allocate(msp, asize));
+		ASSERT(!metaslab_should_allocate(msp, asize, try_hard));
 
 		mutex_exit(&msp->ms_lock);
 	}
@@ -4395,14 +4484,14 @@ next:
 
 static uint64_t
 metaslab_group_alloc(metaslab_group_t *mg, zio_alloc_list_t *zal,
-    uint64_t asize, uint64_t txg, boolean_t want_unique, dva_t *dva,
-    int d, int allocator)
+    uint64_t asize, uint64_t txg, boolean_t want_unique, dva_t *dva, int d,
+    int allocator, boolean_t try_hard)
 {
 	uint64_t offset;
 	ASSERT(mg->mg_initialized);
 
 	offset = metaslab_group_alloc_normal(mg, zal, asize, txg, want_unique,
-	    dva, d, allocator);
+	    dva, d, allocator, try_hard);
 
 	mutex_enter(&mg->mg_lock);
 	if (offset == -1ULL) {
@@ -4584,7 +4673,7 @@ top:
 		 * allow any metaslab to be used (unique=false).
 		 */
 		uint64_t offset = metaslab_group_alloc(mg, zal, asize, txg,
-		    !try_hard, dva, d, allocator);
+		    !try_hard, dva, d, allocator, try_hard);
 
 		if (offset != -1ULL) {
 			/*
