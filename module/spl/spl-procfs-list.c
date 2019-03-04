@@ -201,6 +201,7 @@ static struct file_operations procfs_list_operations = {
 void
 procfs_list_install(const char *module,
     const char *name,
+    mode_t mode,
     procfs_list_t *procfs_list,
     int (*show)(struct seq_file *f, void *p),
     int (*show_header)(struct seq_file *f),
@@ -218,7 +219,7 @@ procfs_list_install(const char *module,
 	procfs_list->pl_node_offset = procfs_list_node_off;
 
 	kstat_proc_entry_init(&procfs_list->pl_kstat_entry, module, name);
-	kstat_proc_entry_install(&procfs_list->pl_kstat_entry,
+	kstat_proc_entry_install(&procfs_list->pl_kstat_entry, mode,
 	    &procfs_list_operations, procfs_list);
 }
 EXPORT_SYMBOL(procfs_list_install);

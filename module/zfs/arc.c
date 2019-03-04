@@ -2266,7 +2266,7 @@ arc_buf_fill(arc_buf_t *buf, spa_t *spa, const zbookmark_phys_t *zb,
 			 */
 			if (error != 0) {
 				zfs_dbgmsg(
-				    "hdr %p, compress %d, psize %d, lsize %d",
+				    "hdr %px, compress %d, psize %d, lsize %d",
 				    hdr, arc_hdr_get_compress(hdr),
 				    HDR_GET_PSIZE(hdr), HDR_GET_LSIZE(hdr));
 				if (hash_lock != NULL)

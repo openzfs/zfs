@@ -3232,7 +3232,7 @@ zil_close(zilog_t *zilog)
 		txg_wait_synced(zilog->zl_dmu_pool, txg);
 
 	if (zilog_is_dirty(zilog))
-		zfs_dbgmsg("zil (%p) is dirty, txg %llu", zilog, txg);
+		zfs_dbgmsg("zil (%px) is dirty, txg %llu", zilog, txg);
 	if (txg < spa_freeze_txg(zilog->zl_spa))
 		VERIFY(!zilog_is_dirty(zilog));
 

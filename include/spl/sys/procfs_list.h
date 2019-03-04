@@ -58,6 +58,7 @@ typedef struct procfs_list_node {
 
 void procfs_list_install(const char *module,
     const char *name,
+    mode_t mode,
     procfs_list_t *procfs_list,
     int (*show)(struct seq_file *f, void *p),
     int (*show_header)(struct seq_file *f),

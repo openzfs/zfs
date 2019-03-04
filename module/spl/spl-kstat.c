@@ -659,7 +659,7 @@ kstat_detect_collision(kstat_proc_entry_t *kpep)
  * kstat.
  */
 void
-kstat_proc_entry_install(kstat_proc_entry_t *kpep,
+kstat_proc_entry_install(kstat_proc_entry_t *kpep, mode_t mode,
     const struct file_operations *file_ops, void *data)
 {
 	kstat_module_t *module;
@@ -693,7 +693,7 @@ kstat_proc_entry_install(kstat_proc_entry_t *kpep,
 	list_add_tail(&kpep->kpe_list, &module->ksm_kstat_list);
 
 	kpep->kpe_owner = module;
-	kpep->kpe_proc = proc_create_data(kpep->kpe_name, 0644,
+	kpep->kpe_proc = proc_create_data(kpep->kpe_name, mode,
 	    module->ksm_proc, file_ops, data);
 	if (kpep->kpe_proc == NULL) {
 		list_del_init(&kpep->kpe_list);
@@ -710,7 +710,15 @@ void
 __kstat_install(kstat_t *ksp)
 {
 	ASSERT(ksp);
-	kstat_proc_entry_install(&ksp->ks_proc, &proc_kstat_operations, ksp);
+	mode_t mode;
+	/* Specify permission modes for different kstats */
+	if (strncmp(ksp->ks_proc.kpe_name, "dbufs", KSTAT_STRLEN) == 0) {
+		mode = 0600;
+	} else {
+		mode = 0644;
+	}
+	kstat_proc_entry_install(
+	    &ksp->ks_proc, mode, &proc_kstat_operations, ksp);
 }
 EXPORT_SYMBOL(__kstat_install);
 

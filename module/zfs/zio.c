@@ -1893,7 +1893,7 @@ zio_deadman_impl(zio_t *pio, int ziodepth)
 		uint64_t delta = gethrtime() - pio->io_timestamp;
 		uint64_t failmode = spa_get_deadman_failmode(pio->io_spa);
 
-		zfs_dbgmsg("slow zio[%d]: zio=%p timestamp=%llu "
+		zfs_dbgmsg("slow zio[%d]: zio=%px timestamp=%llu "
 		    "delta=%llu queued=%llu io=%llu "
 		    "path=%s last=%llu "
 		    "type=%d priority=%d flags=0x%x "
@@ -3444,7 +3444,7 @@ zio_dva_allocate(zio_t *zio)
 	}
 
 	if (error != 0) {
-		zfs_dbgmsg("%s: metaslab allocation failure: zio %p, "
+		zfs_dbgmsg("%s: metaslab allocation failure: zio %px, "
 		    "size %llu, error %d", spa_name(spa), zio, zio->io_size,
 		    error);
 		if (error == ENOSPC && zio->io_size > SPA_MINBLOCKSIZE)
