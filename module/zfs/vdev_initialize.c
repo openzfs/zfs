@@ -628,6 +628,13 @@ vdev_initialize_thread(void *arg)
 
 		spa_config_exit(spa, SCL_CONFIG, FTAG);
 		error = vdev_initialize_ranges(vd, deadbeef);
+
+		/*
+		 * Wait for the outstanding IO to be synced to prevent
+		 * newly allocated blocks from being overwritten.
+		 */
+		txg_wait_synced(spa_get_dsl(spa), 0);
+
 		vdev_initialize_ms_unmark(msp);
 		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 
