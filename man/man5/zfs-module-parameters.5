@@ -529,6 +529,40 @@ Default value: \fB25 percent\fR
 .sp
 .ne 2
 .na
+\fBzfs_metaslab_try_hard_before_gang\fR (int)
+.ad
+.RS 12n
+If not set (the default), we will first try normal allocation.
+If that fails then we will do a gang allocation.
+If that fails then we will do a "try hard" gang allocation.
+If that fails then we will have a multi-layer gang block.
+.sp
+If set, we will first try normal allocation.
+If that fails then we will do a "try hard" allocation.
+If that fails we will do a gang allocation.
+If that fails we will do a "try hard" gang alloation.
+If that fails then we will have a multi-layer gang block.
+.sp
+Default value: \fB0 (false)\fR
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_metaslab_find_max_tries\fR (int)
+.ad
+.RS 12n
+When not trying hard, we only consider this number of the best metaslabs.
+This improves performance, especially when there are many metaslabs per vdev
+and the allocation can't actually be satisfied (so we would otherwise iterate
+all the metaslabs).
+.sp
+Default value: \fB100\fR
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_vdev_default_ms_count\fR (int)
 .ad
 .RS 12n

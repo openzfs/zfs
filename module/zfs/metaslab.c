@@ -314,6 +314,35 @@ boolean_t zfs_metaslab_force_large_segs = B_FALSE;
  */
 uint32_t metaslab_by_size_min_shift = 14;
 
+/*
+ * If not set, we will first try normal allocation.  If that fails then
+ * we will do a gang allocation.  If that fails then we will do a "try hard"
+ * gang allocation.  If that fails then we will have a multi-layer gang
+ * block.
+ *
+ * If set, we will first try normal allocation.  If that fails then
+ * we will do a "try hard" allocation.  If that fails we will do a gang
+ * allocation.  If that fails we will do a "try hard" gang alloation.  If
+ * that fails then we will have a multi-layer gang block.
+ */
+int zfs_metaslab_try_hard_before_gang = B_FALSE;
+
+/*
+ * When not trying hard, we only consider the best zfs_metaslab_find_max_tries
+ * metaslabs.  This improves performance, especially when there are many
+ * metaslabs per vdev and the allocation can't actually be satisfied (so we
+ * would otherwise iterate all the metaslabs).  If there is a metaslab with a
+ * worse weight but it can actually satisfy the allocation, we won't find it
+ * until trying hard.  This may happen if the worse metaslab is not loaded
+ * (and the true weight is better than we have calculated), or due to weight
+ * bucketization.  E.g. we are looking for a 60K segment, and the best
+ * metaslabs all have free segments in the 32-63K bucket, but the best
+ * zfs_metaslab_find_max_tries metaslabs have ms_max_size <60KB, and a
+ * subsequent metaslab has ms_max_size >60KB (but fewer segments in this
+ * bucket, and therefore a lower weight).
+ */
+int zfs_metaslab_find_max_tries = 100;
+
 static uint64_t metaslab_weight(metaslab_t *, boolean_t);
 static void metaslab_set_fragmentation(metaslab_t *, boolean_t);
 static void metaslab_free_impl(vdev_t *, uint64_t, uint64_t, boolean_t);
@@ -325,19 +354,22 @@ static void metaslab_flush_update(metaslab_t *, dmu_tx_t *);
 static unsigned int metaslab_idx_func(multilist_t *, void *);
 static void metaslab_evict(metaslab_t *, uint64_t);
 static void metaslab_rt_add(range_tree_t *rt, range_seg_t *rs, void *arg);
-#ifdef _METASLAB_TRACING
 kmem_cache_t *metaslab_alloc_trace_cache;
 
 typedef struct metaslab_stats {
 	kstat_named_t metaslabstat_trace_over_limit;
 	kstat_named_t metaslabstat_df_find_under_floor;
 	kstat_named_t metaslabstat_reload_tree;
+	kstat_named_t metaslabstat_too_many_tries;
+	kstat_named_t metaslabstat_try_hard;
 } metaslab_stats_t;
 
 static metaslab_stats_t metaslab_stats = {
 	{ "trace_over_limit",		KSTAT_DATA_UINT64 },
 	{ "df_find_under_floor",	KSTAT_DATA_UINT64 },
 	{ "reload_tree",		KSTAT_DATA_UINT64 },
+	{ "too_many_tries",		KSTAT_DATA_UINT64 },
+	{ "try_hard",			KSTAT_DATA_UINT64 },
 };
 
 #define	METASLABSTAT_BUMP(stat) \
@@ -373,18 +405,6 @@ metaslab_stat_fini(void)
 	kmem_cache_destroy(metaslab_alloc_trace_cache);
 	metaslab_alloc_trace_cache = NULL;
 }
-#else
-
-void
-metaslab_stat_init(void)
-{
-}
-
-void
-metaslab_stat_fini(void)
-{
-}
-#endif
 
 /*
  * ==========================================================================
@@ -1351,9 +1371,7 @@ static void
 metaslab_size_tree_full_load(range_tree_t *rt)
 {
 	metaslab_rt_arg_t *mrap = rt->rt_arg;
-#ifdef _METASLAB_TRACING
 	METASLABSTAT_BUMP(metaslabstat_reload_tree);
-#endif
 	ASSERT0(zfs_btree_numnodes(mrap->mra_bt));
 	mrap->mra_floor_shift = 0;
 	struct mssa_arg arg = {0};
@@ -4629,8 +4647,16 @@ find_valid_metaslab(metaslab_group_t *mg, uint64_t activation_weight,
 	if (msp == NULL)
 		msp = avl_nearest(t, idx, AVL_AFTER);
 
+	int tries = 0;
 	for (; msp != NULL; msp = AVL_NEXT(t, msp)) {
 		int i;
+
+		if (!try_hard && tries > zfs_metaslab_find_max_tries) {
+			METASLABSTAT_BUMP(metaslabstat_too_many_tries);
+			return (NULL);
+		}
+		tries++;
+
 		if (!metaslab_should_allocate(msp, asize, try_hard)) {
 			metaslab_trace_add(zal, mg, msp, asize, d,
 			    TRACE_TOO_SMALL, allocator);
@@ -5281,9 +5307,19 @@ next:
 	} while ((mg = mg->mg_next) != rotor);
 
 	/*
-	 * If we haven't tried hard, do so now.
+	 * If we haven't tried hard, perhaps do so now.
 	 */
-	if (!try_hard) {
+	if (!try_hard && (zfs_metaslab_try_hard_before_gang ||
+	    GANG_ALLOCATION(flags) || (flags & METASLAB_ZIL) != 0 ||
+	    psize <= 1 << spa->spa_min_ashift)) {
+		METASLABSTAT_BUMP(metaslabstat_try_hard);
+		if (zfs_flags & ZFS_DEBUG_METASLAB_ALLOC) {
+			zfs_dbgmsg("%s: metaslab allocation failure, "
+			    "trying hard: size %llu class %s",
+			    spa_name(spa), psize,
+			    mc == spa_normal_class(spa) ? "normal" :
+			    mc == spa_log_class(spa) ? "log" : "unknown");
+		}
 		try_hard = B_TRUE;
 		goto top;
 	}
@@ -6241,3 +6277,9 @@ ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, max_size_cache_sec, ULONG,
 
 ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, mem_limit, INT, ZMOD_RW,
 	"Percentage of memory that can be used to store metaslab range trees");
+
+ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, try_hard_before_gang, INT,
+	ZMOD_RW, "Try hard to allocate before ganging");
+
+ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, find_max_tries, INT, ZMOD_RW,
+	"Normally only consider this many of the best metaslabs in each vdev");
