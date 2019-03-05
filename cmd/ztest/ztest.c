@@ -3370,19 +3370,16 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	mutex_enter(&ztest_vdev_lock);
 	leaves = MAX(zs->zs_mirrors, 1) * ztest_opts.zo_raidz;
 
-	spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
-
 	/*
 	 * If a vdev is in the process of being removed, its removal may
 	 * finish while we are in progress, leading to an unexpected error
 	 * value.  Don't bother trying to attach while we are in the middle
 	 * of removal.
 	 */
-	if (ztest_device_removal_active) {
-		spa_config_exit(spa, SCL_ALL, FTAG);
-		mutex_exit(&ztest_vdev_lock);
-		return;
-	}
+	if (ztest_device_removal_active)
+		goto out;
+
+	spa_config_enter(spa, SCL_STATE_ALL, FTAG, RW_WRITER);
 
 	/*
 	 * Decide whether to do an attach or a replace.
@@ -3441,7 +3438,7 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	 * unrepairable blocks as a result of the data corruption injection.
 	 */
 	if (oldvd_has_siblings && ztest_random(2) == 0) {
-		spa_config_exit(spa, SCL_ALL, FTAG);
+		spa_config_exit(spa, SCL_STATE_ALL, FTAG);
 
 		error = ztest_scrub_impl(spa);
 		if (error)
@@ -3514,7 +3511,7 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	else
 		expected_error = 0;
 
-	spa_config_exit(spa, SCL_ALL, FTAG);
+	spa_config_exit(spa, SCL_STATE_ALL, FTAG);
 
 	/*
 	 * Build the nvlist describing newpath.
