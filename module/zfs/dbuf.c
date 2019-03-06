@@ -2116,7 +2116,8 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	if (db->db_level == 0) {
 		ASSERT(!db->db_objset->os_raw_receive ||
 		    dn->dn_maxblkid >= db->db_blkid);
-		dnode_new_blkid(dn, db->db_blkid, tx, drop_struct_lock);
+		dnode_new_blkid(dn, db->db_blkid, tx,
+		    drop_struct_lock, B_FALSE);
 		ASSERT(dn->dn_maxblkid >= db->db_blkid);
 	}
 

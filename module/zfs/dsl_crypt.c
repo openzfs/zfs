@@ -2099,7 +2099,7 @@ dsl_crypto_recv_raw_objset_sync(dsl_dataset_t *ds, dmu_objset_type_t ostype,
 	mdn->dn_checksum = checksum;
 
 	rw_enter(&mdn->dn_struct_rwlock, RW_WRITER);
-	dnode_new_blkid(mdn, maxblkid, tx, B_FALSE);
+	dnode_new_blkid(mdn, maxblkid, tx, B_FALSE, B_TRUE);
 	rw_exit(&mdn->dn_struct_rwlock);
 
 	/*

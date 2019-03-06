@@ -1179,10 +1179,22 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 
 		object = drro->drr_object;
 
-		/* nblkptr will be bounded by the bonus size and type */
+		/* nblkptr should be bounded by the bonus size and type */
 		if (rwa->raw && nblkptr != drro->drr_nblkptr)
 			return (SET_ERROR(EINVAL));
 
+		/*
+		 * Check for indicators that the object was freed and
+		 * reallocated. For all sends, these indicators are:
+		 *     - A changed block size
+		 *     - A smaller nblkptr
+		 *     - A changed dnode size
+		 * For raw sends we also check a few other fields to
+		 * ensure we are preserving the objset structure exactly
+		 * as it was on the receive side:
+		 *     - A changed indirect block size
+		 *     - A smaller nlevels
+		 */
 		if (drro->drr_blksz != doi.doi_data_block_size ||
 		    nblkptr < doi.doi_nblkptr ||
 		    dn_slots != doi.doi_dnodesize >> DNODE_SHIFT ||
@@ -1197,13 +1209,14 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 
 		/*
 		 * The dmu does not currently support decreasing nlevels
-		 * on an object. For non-raw sends, this does not matter
-		 * and the new object can just use the previous one's nlevels.
-		 * For raw sends, however, the structure of the received dnode
-		 * (including nlevels) must match that of the send side.
-		 * Therefore, instead of using dmu_object_reclaim(), we must
-		 * free the object completely and call dmu_object_claim_dnsize()
-		 * instead.
+		 * or changing the number of dnode slots on an object. For
+		 * non-raw sends, this does not matter and the new object
+		 * can just use the previous one's nlevels. For raw sends,
+		 * however, the structure of the received dnode (including
+		 * nlevels and dnode slots) must match that of the send
+		 * side. Therefore, instead of using dmu_object_reclaim(),
+		 * we must free the object completely and call
+		 * dmu_object_claim_dnsize() instead.
 		 */
 		if ((rwa->raw && drro->drr_nlevels < doi.doi_indirection) ||
 		    dn_slots != doi.doi_dnodesize >> DNODE_SHIFT) {
@@ -1213,6 +1226,23 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 
 			txg_wait_synced(dmu_objset_pool(rwa->os), 0);
 			object = DMU_NEW_OBJECT;
+		}
+
+		/*
+		 * For raw receives, free everything beyond the new incoming
+		 * maxblkid. Normally this would be done with a DRR_FREE
+		 * record that would come after this DRR_OBJECT record is
+		 * processed. However, for raw receives we manually set the
+		 * maxblkid from the drr_maxblkid and so we must first free
+		 * everything above that blkid to ensure the DMU is always
+		 * consistent with itself.
+		 */
+		if (rwa->raw) {
+			err = dmu_free_long_range(rwa->os, drro->drr_object,
+			    (drro->drr_maxblkid + 1) * drro->drr_blksz,
+			    DMU_OBJECT_END);
+			if (err != 0)
+				return (SET_ERROR(EINVAL));
 		}
 	} else if (err == EEXIST) {
 		/*
@@ -1333,14 +1363,24 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 	/* handle more restrictive dnode structuring for raw recvs */
 	if (rwa->raw) {
 		/*
-		 * Set the indirect block shift and nlevels. This will not fail
-		 * because we ensured all of the blocks were free earlier if
-		 * this is a new object.
+		 * Set the indirect block size, block shift, nlevels.
+		 * This will not fail because we ensured all of the
+		 * blocks were freed earlier if this is a new object.
+		 * For non-new objects block size and indirect block
+		 * shift cannot change and nlevels can only increase.
 		 */
 		VERIFY0(dmu_object_set_blocksize(rwa->os, drro->drr_object,
 		    drro->drr_blksz, drro->drr_indblkshift, tx));
 		VERIFY0(dmu_object_set_nlevels(rwa->os, drro->drr_object,
 		    drro->drr_nlevels, tx));
+
+		/*
+		 * Set the maxblkid. We will never free the first block of
+		 * an object here because a maxblkid of 0 could indicate
+		 * an object with a single block or one with no blocks.
+		 * This will always succeed because we freed all blocks
+		 * beyond the new maxblkid above.
+		 */
 		VERIFY0(dmu_object_set_maxblkid(rwa->os, drro->drr_object,
 		    drro->drr_maxblkid, tx));
 	}
