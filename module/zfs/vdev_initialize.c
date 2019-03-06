@@ -68,7 +68,7 @@ vdev_initialize_zap_update_sync(void *arg, dmu_tx_t *tx)
 	 * We pass in the guid instead of the vdev_t since the vdev may
 	 * have been freed prior to the sync task being processed. This
 	 * happens when a vdev is detached as we call spa_config_vdev_exit(),
-	 * stop the intializing thread, schedule the sync task, and free
+	 * stop the initializing thread, schedule the sync task, and free
 	 * the vdev. Later when the scheduled sync task is invoked, it would
 	 * find that the vdev has been freed.
 	 */
@@ -838,7 +838,9 @@ vdev_initialize_restart(vdev_t *vd)
 			/* load progress for reporting, but don't resume */
 			VERIFY0(vdev_initialize_load(vd));
 		} else if (vd->vdev_initialize_state ==
-		    VDEV_INITIALIZE_ACTIVE && vdev_writeable(vd)) {
+		    VDEV_INITIALIZE_ACTIVE && vdev_writeable(vd) &&
+		    !vd->vdev_top->vdev_removing &&
+		    vd->vdev_initialize_thread == NULL) {
 			vdev_initialize(vd);
 		}
 
