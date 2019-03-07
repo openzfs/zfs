@@ -83,7 +83,7 @@ spl_kernel_write(struct file *file, const void *buf, size_t count, loff_t *pos)
 	ssize_t ret;
 
 	saved_fs = get_fs();
-	set_fs(get_ds());
+	set_fs(KERNEL_DS);
 
 	ret = vfs_write(file, (__force const char __user *)buf, count, pos);
 
@@ -103,7 +103,7 @@ spl_kernel_read(struct file *file, void *buf, size_t count, loff_t *pos)
 	ssize_t ret;
 
 	saved_fs = get_fs();
-	set_fs(get_ds());
+	set_fs(KERNEL_DS);
 
 	ret = vfs_read(file, (void __user *)buf, count, pos);
 
@@ -682,7 +682,7 @@ vn_set_pwd(const char *filename)
 	 * size to ensure strncpy_from_user() does not fail with -EFAULT.
 	 */
 	saved_fs = get_fs();
-	set_fs(get_ds());
+	set_fs(KERNEL_DS);
 
 	rc = user_path_dir(filename, &path);
 	if (rc)
