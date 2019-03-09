@@ -1204,9 +1204,9 @@ typedef enum zfs_ioc {
 	ZFS_IOC_BOOKMARK,			/* 0x5a43 */
 	ZFS_IOC_GET_BOOKMARKS,			/* 0x5a44 */
 	ZFS_IOC_DESTROY_BOOKMARKS,		/* 0x5a45 */
-	ZFS_IOC_CHANNEL_PROGRAM,		/* 0x5a46 */
-	ZFS_IOC_RECV_NEW,			/* 0x5a47 */
-	ZFS_IOC_POOL_SYNC,			/* 0x5a48 */
+	ZFS_IOC_RECV_NEW,			/* 0x5a46 */
+	ZFS_IOC_POOL_SYNC,			/* 0x5a47 */
+	ZFS_IOC_CHANNEL_PROGRAM,		/* 0x5a48 */
 	ZFS_IOC_LOAD_KEY,			/* 0x5a49 */
 	ZFS_IOC_UNLOAD_KEY,			/* 0x5a4a */
 	ZFS_IOC_CHANGE_KEY,			/* 0x5a4b */
