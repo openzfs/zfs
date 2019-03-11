@@ -216,6 +216,30 @@ zpl_aio_fsync(struct kiocb *kiocb, int datasync)
 #error "Unsupported fops->fsync() implementation"
 #endif
 
+static inline int
+zfs_io_flags(struct kiocb *kiocb)
+{
+	int flags = 0;
+
+#if defined(IOCB_DSYNC)
+	if (kiocb->ki_flags & IOCB_DSYNC)
+		flags |= FDSYNC;
+#endif
+#if defined(IOCB_SYNC)
+	if (kiocb->ki_flags & IOCB_SYNC)
+		flags |= FSYNC;
+#endif
+#if defined(IOCB_APPEND)
+	if (kiocb->ki_flags & IOCB_APPEND)
+		flags |= FAPPEND;
+#endif
+#if defined(IOCB_DIRECT)
+	if (kiocb->ki_flags & IOCB_DIRECT)
+		flags |= FDIRECT;
+#endif
+	return (flags);
+}
+
 static ssize_t
 zpl_read_common_iovec(struct inode *ip, const struct iovec *iovp, size_t count,
     unsigned long nr_segs, loff_t *ppos, uio_seg_t segment, int flags,
@@ -266,10 +290,12 @@ zpl_iter_read_common(struct kiocb *kiocb, const struct iovec *iovp,
 	cred_t *cr = CRED();
 	struct file *filp = kiocb->ki_filp;
 	ssize_t read;
+	unsigned int f_flags = filp->f_flags;
 
+	f_flags |= zfs_io_flags(kiocb);
 	crhold(cr);
 	read = zpl_read_common_iovec(filp->f_mapping->host, iovp, count,
-	    nr_segs, &kiocb->ki_pos, seg, filp->f_flags, cr, skip);
+	    nr_segs, &kiocb->ki_pos, seg, f_flags, cr, skip);
 	crfree(cr);
 
 	file_accessed(filp);
@@ -362,10 +388,12 @@ zpl_iter_write_common(struct kiocb *kiocb, const struct iovec *iovp,
 	cred_t *cr = CRED();
 	struct file *filp = kiocb->ki_filp;
 	ssize_t wrote;
+	unsigned int f_flags = filp->f_flags;
 
+	f_flags |= zfs_io_flags(kiocb);
 	crhold(cr);
 	wrote = zpl_write_common_iovec(filp->f_mapping->host, iovp, count,
-	    nr_segs, &kiocb->ki_pos, seg, filp->f_flags, cr, skip);
+	    nr_segs, &kiocb->ki_pos, seg, f_flags, cr, skip);
 	crfree(cr);
 
 	return (wrote);
