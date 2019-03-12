@@ -575,7 +575,7 @@ spa_condense_indirect_commit_entry(spa_t *spa,
 	 */
 	if (list_is_empty(&sci->sci_new_mapping_entries[txgoff])) {
 		dsl_sync_task_nowait(dmu_tx_pool(tx),
-		    spa_condense_indirect_commit_sync, sci,
+		    spa_condense_indirect_commit_sync, NULL, sci,
 		    0, ZFS_SPACE_CHECK_NONE, tx);
 	}
 

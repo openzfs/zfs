@@ -39,6 +39,12 @@ dsl_null_checkfunc(void *arg, dmu_tx_t *tx)
 	return (0);
 }
 
+/* ARGSUSED */
+static void
+dsl_null_freefunc(void *arg)
+{
+}
+
 static int
 dsl_sync_task_common(const char *pool, dsl_checkfunc_t *checkfunc,
     dsl_syncfunc_t *syncfunc, void *arg,
@@ -65,9 +71,9 @@ top:
 	dst.dst_space_check = space_check;
 	dst.dst_checkfunc = checkfunc != NULL ? checkfunc : dsl_null_checkfunc;
 	dst.dst_syncfunc = syncfunc;
+	dst.dst_freefunc = NULL;
 	dst.dst_arg = arg;
 	dst.dst_error = 0;
-	dst.dst_nowaiter = B_FALSE;
 
 	dsl_pool_config_enter(dp, FTAG);
 	err = dst.dst_checkfunc(arg, tx);
@@ -151,9 +157,9 @@ dsl_early_sync_task(const char *pool, dsl_checkfunc_t *checkfunc,
 }
 
 static void
-dsl_sync_task_nowait_common(dsl_pool_t *dp, dsl_syncfunc_t *syncfunc, void *arg,
-    int blocks_modified, zfs_space_check_t space_check, dmu_tx_t *tx,
-    boolean_t early)
+dsl_sync_task_nowait_common(dsl_pool_t *dp, dsl_syncfunc_t *syncfunc,
+    dsl_freefunc_t *freefunc, void *arg, int blocks_modified,
+    zfs_space_check_t space_check, dmu_tx_t *tx, boolean_t early)
 {
 	dsl_sync_task_t *dst = kmem_zalloc(sizeof (*dst), KM_SLEEP);
 
@@ -163,9 +169,9 @@ dsl_sync_task_nowait_common(dsl_pool_t *dp, dsl_syncfunc_t *syncfunc, void *arg,
 	dst->dst_space_check = space_check;
 	dst->dst_checkfunc = dsl_null_checkfunc;
 	dst->dst_syncfunc = syncfunc;
+	dst->dst_freefunc = freefunc != NULL ? freefunc : dsl_null_freefunc;
 	dst->dst_arg = arg;
 	dst->dst_error = 0;
-	dst->dst_nowaiter = B_TRUE;
 
 	txg_list_t *task_list = (early) ?
 	    &dp->dp_early_sync_tasks : &dp->dp_sync_tasks;
@@ -173,18 +179,20 @@ dsl_sync_task_nowait_common(dsl_pool_t *dp, dsl_syncfunc_t *syncfunc, void *arg,
 }
 
 void
-dsl_sync_task_nowait(dsl_pool_t *dp, dsl_syncfunc_t *syncfunc, void *arg,
-    int blocks_modified, zfs_space_check_t space_check, dmu_tx_t *tx)
+dsl_sync_task_nowait(dsl_pool_t *dp, dsl_syncfunc_t *syncfunc,
+    dsl_freefunc_t *freefunc, void *arg, int blocks_modified,
+    zfs_space_check_t space_check, dmu_tx_t *tx)
 {
-	dsl_sync_task_nowait_common(dp, syncfunc, arg,
+	dsl_sync_task_nowait_common(dp, syncfunc, freefunc, arg,
 	    blocks_modified, space_check, tx, B_FALSE);
 }
 
 void
-dsl_early_sync_task_nowait(dsl_pool_t *dp, dsl_syncfunc_t *syncfunc, void *arg,
-    int blocks_modified, zfs_space_check_t space_check, dmu_tx_t *tx)
+dsl_early_sync_task_nowait(dsl_pool_t *dp, dsl_syncfunc_t *syncfunc,
+    dsl_freefunc_t *freefunc, void *arg, int blocks_modified,
+    zfs_space_check_t space_check, dmu_tx_t *tx)
 {
-	dsl_sync_task_nowait_common(dp, syncfunc, arg,
+	dsl_sync_task_nowait_common(dp, syncfunc, freefunc, arg,
 	    blocks_modified, space_check, tx, B_TRUE);
 }
 
@@ -219,8 +227,10 @@ dsl_sync_task_sync(dsl_sync_task_t *dst, dmu_tx_t *tx)
 		/* MOS space is triple-dittoed, so we multiply by 3. */
 		if (used + dst->dst_space * 3 > quota) {
 			dst->dst_error = SET_ERROR(ENOSPC);
-			if (dst->dst_nowaiter)
+			if (dst->dst_freefunc != NULL) {
+				dst->dst_freefunc(dst->dst_arg);
 				kmem_free(dst, sizeof (*dst));
+			}
 			return;
 		}
 	}
@@ -233,8 +243,10 @@ dsl_sync_task_sync(dsl_sync_task_t *dst, dmu_tx_t *tx)
 	if (dst->dst_error == 0)
 		dst->dst_syncfunc(dst->dst_arg, tx);
 	rrw_exit(&dp->dp_config_rwlock, FTAG);
-	if (dst->dst_nowaiter)
+	if (dst->dst_freefunc != NULL) {
+		dst->dst_freefunc(dst->dst_arg);
 		kmem_free(dst, sizeof (*dst));
+	}
 }
 
 #if defined(_KERNEL)

@@ -37,6 +37,7 @@ struct dsl_pool;
 
 typedef int (dsl_checkfunc_t)(void *, dmu_tx_t *);
 typedef void (dsl_syncfunc_t)(void *, dmu_tx_t *);
+typedef void (dsl_freefunc_t)(void *);
 
 typedef enum zfs_space_check {
 	/*
@@ -102,20 +103,20 @@ typedef struct dsl_sync_task {
 	zfs_space_check_t dst_space_check;
 	dsl_checkfunc_t *dst_checkfunc;
 	dsl_syncfunc_t *dst_syncfunc;
+	dsl_freefunc_t *dst_freefunc;
 	void *dst_arg;
 	int dst_error;
-	boolean_t dst_nowaiter;
 } dsl_sync_task_t;
 
 void dsl_sync_task_sync(dsl_sync_task_t *, dmu_tx_t *);
 int dsl_sync_task(const char *, dsl_checkfunc_t *,
     dsl_syncfunc_t *, void *, int, zfs_space_check_t);
 void dsl_sync_task_nowait(struct dsl_pool *, dsl_syncfunc_t *,
-    void *, int, zfs_space_check_t, dmu_tx_t *);
+    dsl_freefunc_t *, void *, int, zfs_space_check_t, dmu_tx_t *);
 int dsl_early_sync_task(const char *, dsl_checkfunc_t *,
     dsl_syncfunc_t *, void *, int, zfs_space_check_t);
 void dsl_early_sync_task_nowait(struct dsl_pool *, dsl_syncfunc_t *,
-    void *, int, zfs_space_check_t, dmu_tx_t *);
+    dsl_freefunc_t *, void *, int, zfs_space_check_t, dmu_tx_t *);
 
 #ifdef	__cplusplus
 }

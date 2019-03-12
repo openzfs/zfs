@@ -255,6 +255,13 @@ spa_history_log_notify(spa_t *spa, nvlist_t *nvl)
 	nvlist_free(hist_nvl);
 }
 
+static void
+spa_history_log_free(void *arg)
+{
+	nvlist_t *nvl = arg;
+	fnvlist_free(nvl);
+}
+
 /*
  * Write out a history event.
  */
@@ -359,7 +366,6 @@ spa_history_log_sync(void *arg, dmu_tx_t *tx)
 	mutex_exit(&spa->spa_history_lock);
 	fnvlist_pack_free(record_packed, reclen);
 	dmu_buf_rele(dbp, FTAG);
-	fnvlist_free(nvl);
 }
 
 /*
@@ -407,8 +413,9 @@ spa_history_log_nvl(spa_t *spa, nvlist_t *nvl)
 	fnvlist_add_uint64(nvarg, ZPOOL_HIST_WHO, crgetruid(CRED()));
 
 	/* Kick this off asynchronously; errors are ignored. */
-	dsl_sync_task_nowait(spa_get_dsl(spa), spa_history_log_sync,
-	    nvarg, 0, ZFS_SPACE_CHECK_NONE, tx);
+	dsl_sync_task_nowait(spa_get_dsl(spa),
+	    spa_history_log_sync, spa_history_log_free, nvarg, 0,
+	    ZFS_SPACE_CHECK_EXTRA_RESERVED, tx);
 	dmu_tx_commit(tx);
 
 	/* spa_history_log_sync will free nvl */
@@ -525,7 +532,7 @@ log_internal(nvlist_t *nvl, const char *operation, spa_t *spa,
 	/*
 	 * If this is part of creating a pool, not everything is
 	 * initialized yet, so don't bother logging the internal events.
-	 * Likewise if the pool is not writeable.
+	 * Likewise if the pool is not writable.
 	 */
 	if (spa_is_initializing(spa) || !spa_writeable(spa)) {
 		fnvlist_free(nvl);
@@ -541,11 +548,12 @@ log_internal(nvlist_t *nvl, const char *operation, spa_t *spa,
 
 	if (dmu_tx_is_syncing(tx)) {
 		spa_history_log_sync(nvl, tx);
+		spa_history_log_free(nvl);
 	} else {
 		dsl_sync_task_nowait(spa_get_dsl(spa),
-		    spa_history_log_sync, nvl, 0, ZFS_SPACE_CHECK_NONE, tx);
+		    spa_history_log_sync, spa_history_log_free,
+		    nvl, 0, ZFS_SPACE_CHECK_EXTRA_RESERVED, tx);
 	}
-	/* spa_history_log_sync() will free nvl */
 }
 
 void
