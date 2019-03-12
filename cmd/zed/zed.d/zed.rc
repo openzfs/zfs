@@ -52,9 +52,9 @@
 
 ##
 # Send notifications for 'ereport.fs.zfs.data' events.
-# Disabled by default
+# Disabled by default, any non-empty value will enable the feature.
 #
-#ZED_NOTIFY_DATA=1
+#ZED_NOTIFY_DATA=
 
 ##
 # Pushbullet access token.
@@ -88,7 +88,8 @@ ZED_USE_ENCLOSURE_LEDS=1
 
 ##
 # Run a scrub after every resilver
-#ZED_SCRUB_AFTER_RESILVER=1
+# Disabled by default, 1 to enable and 0 to disable.
+#ZED_SCRUB_AFTER_RESILVER=0
 
 ##
 # The syslog priority (e.g., specified as a "facility.level" pair).
