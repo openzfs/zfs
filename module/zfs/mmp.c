@@ -205,80 +205,57 @@ typedef enum mmp_vdev_state_flag {
 	MMP_FAIL_WRITE_PENDING	= (1 << 1),
 } mmp_vdev_state_flag_t;
 
-static vdev_t *
-mmp_random_leaf_impl(vdev_t *vd, int *fail_mask)
-{
-	int child_idx;
-
-	if (vd->vdev_ops->vdev_op_leaf) {
-		vdev_t *ret;
-
-		if (!vdev_writeable(vd)) {
-			*fail_mask |= MMP_FAIL_NOT_WRITABLE;
-			ret = NULL;
-		} else if (vd->vdev_mmp_pending != 0) {
-			*fail_mask |= MMP_FAIL_WRITE_PENDING;
-			ret = NULL;
-		} else {
-			ret = vd;
-		}
-
-		return (ret);
-	}
-
-	if (vd->vdev_children == 0)
-		return (NULL);
-
-	child_idx = spa_get_random(vd->vdev_children);
-	for (int offset = vd->vdev_children; offset > 0; offset--) {
-		vdev_t *leaf;
-		vdev_t *child = vd->vdev_child[(child_idx + offset) %
-		    vd->vdev_children];
-
-		leaf = mmp_random_leaf_impl(child, fail_mask);
-		if (leaf)
-			return (leaf);
-	}
-
-	return (NULL);
-}
-
 /*
  * Find a leaf vdev to write an MMP block to.  It must not have an outstanding
  * mmp write (if so a new write will also likely block).  If there is no usable
- * leaf in the tree rooted at in_vd, a nonzero error value is returned, and
- * *out_vd is unchanged.
+ * leaf, a nonzero error value is returned. The error value returned is a bit
+ * field.
  *
- * The error value returned is a bit field.
- *
- * MMP_FAIL_WRITE_PENDING
- * If set, one or more leaf vdevs are writeable, but have an MMP write which has
- * not yet completed.
- *
- * MMP_FAIL_NOT_WRITABLE
- * If set, one or more vdevs are not writeable.  The children of those vdevs
- * were not examined.
- *
- * Assuming in_vd points to a tree, a random subtree will be chosen to start.
- * That subtree, and successive ones, will be walked until a usable leaf has
- * been found, or all subtrees have been examined (except that the children of
- * un-writeable vdevs are not examined).
- *
- * If the leaf vdevs in the tree are healthy, the distribution of returned leaf
- * vdevs will be even.  If there are unhealthy leaves, the following leaves
- * (child_index % index_children) will be chosen more often.
+ * MMP_FAIL_WRITE_PENDING   One or more leaf vdevs are writeable, but have an
+ *                          outstanding MMP write.
+ * MMP_FAIL_NOT_WRITABLE    One or more leaf vdevs are not writeable.
  */
 
 static int
-mmp_random_leaf(vdev_t *in_vd, vdev_t **out_vd)
+mmp_next_leaf(spa_t *spa)
 {
-	int error_mask = 0;
-	vdev_t *vd = mmp_random_leaf_impl(in_vd, &error_mask);
+	vdev_t *leaf;
+	vdev_t *starting_leaf;
+	int fail_mask = 0;
 
-	if (error_mask == 0)
-		*out_vd = vd;
+	ASSERT(MUTEX_HELD(&spa->spa_mmp.mmp_io_lock));
+	ASSERT(spa_config_held(spa, SCL_STATE, RW_READER));
+	ASSERT(list_link_active(&spa->spa_leaf_list.list_head) == B_TRUE);
+	ASSERT(!list_is_empty(&spa->spa_leaf_list));
 
-	return (error_mask);
+	if (spa->spa_mmp.mmp_leaf_last_gen != spa->spa_leaf_list_gen) {
+		spa->spa_mmp.mmp_last_leaf = list_head(&spa->spa_leaf_list);
+		spa->spa_mmp.mmp_leaf_last_gen = spa->spa_leaf_list_gen;
+	}
+
+	leaf = spa->spa_mmp.mmp_last_leaf;
+	if (leaf == NULL)
+		leaf = list_head(&spa->spa_leaf_list);
+	starting_leaf = leaf;
+
+	do {
+		leaf = list_next(&spa->spa_leaf_list, leaf);
+		if (leaf == NULL)
+			leaf = list_head(&spa->spa_leaf_list);
+
+		if (!vdev_writeable(leaf)) {
+			fail_mask |= MMP_FAIL_NOT_WRITABLE;
+		} else if (leaf->vdev_mmp_pending != 0) {
+			fail_mask |= MMP_FAIL_WRITE_PENDING;
+		} else {
+			spa->spa_mmp.mmp_last_leaf = leaf;
+			return (0);
+		}
+	} while (leaf != starting_leaf);
+
+	ASSERT(fail_mask);
+
+	return (fail_mask);
 }
 
 /*
@@ -398,9 +375,9 @@ mmp_write_uberblock(spa_t *spa)
 		zfs_dbgmsg("SCL_STATE acquisition took %llu ns\n",
 		    (u_longlong_t)lock_acquire_time);
 
-	error = mmp_random_leaf(spa->spa_root_vdev, &vd);
-
 	mutex_enter(&mmp->mmp_io_lock);
+
+	error = mmp_next_leaf(spa);
 
 	/*
 	 * spa_mmp_history has two types of entries:
@@ -425,6 +402,7 @@ mmp_write_uberblock(spa_t *spa)
 		return;
 	}
 
+	vd = spa->spa_mmp.mmp_last_leaf;
 	mmp->mmp_skip_error = 0;
 
 	if (mmp->mmp_zio_root == NULL)

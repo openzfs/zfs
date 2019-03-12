@@ -391,6 +391,8 @@ struct spa {
 	taskq_t		*spa_prefetch_taskq;	/* Taskq for prefetch threads */
 	uint64_t	spa_multihost;		/* multihost aware (mmp) */
 	mmp_thread_t	spa_mmp;		/* multihost mmp thread */
+	list_t		spa_leaf_list;		/* list of leaf vdevs */
+	uint64_t	spa_leaf_list_gen;	/* track leaf_list changes */
 
 	/*
 	 * spa_refcount & spa_config_lock must be the last elements
