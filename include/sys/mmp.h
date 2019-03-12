@@ -29,8 +29,8 @@ extern "C" {
 
 #define	MMP_MIN_INTERVAL		100	/* ms */
 #define	MMP_DEFAULT_INTERVAL		1000	/* ms */
-#define	MMP_DEFAULT_IMPORT_INTERVALS	10
-#define	MMP_DEFAULT_FAIL_INTERVALS	5
+#define	MMP_DEFAULT_IMPORT_INTERVALS	20
+#define	MMP_DEFAULT_FAIL_INTERVALS	10
 
 typedef struct mmp_thread {
 	kmutex_t	mmp_thread_lock; /* protect thread mgmt fields */
