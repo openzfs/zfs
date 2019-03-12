@@ -5077,6 +5077,14 @@ static boolean_t
 arc_adjust_cb_check(void *arg, zthr_t *zthr)
 {
 	/*
+	 * This is necessary so that any changes which may have been made to
+	 * many of the zfs_arc_* module parameters will be propagated to
+	 * their actual internal variable counterparts. Without this,
+	 * changing those module params at runtime would have no effect.
+	 */
+	arc_tuning_update();
+
+	/*
 	 * This is necessary in order to keep the kstat information
 	 * up to date for tools that display kstat data such as the
 	 * mdb ::arc dcmd and the Linux crash utility.  These tools

@@ -34,9 +34,9 @@
  * Copyright 2016 Toomas Soome <tsoome@me.com>
  * Copyright (c) 2016 Actifio, Inc. All rights reserved.
  * Copyright (c) 2018, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
- * Copyright (c) 2017 Datto Inc. All rights reserved.
  * Copyright 2017 RackTop Systems.
  * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+ * Copyright (c) 2019 Datto Inc.
  */
 
 /*
@@ -2317,7 +2317,8 @@ top:
  * inputs:
  * zc_name		name of filesystem
  * zc_cookie		zap cursor
- * zc_nvlist_dst_size	size of buffer for property nvlist
+ * zc_nvlist_src	iteration range nvlist
+ * zc_nvlist_src_size	size of iteration range nvlist
  *
  * outputs:
  * zc_name		name of next snapshot
@@ -2328,8 +2329,23 @@ top:
 static int
 zfs_ioc_snapshot_list_next(zfs_cmd_t *zc)
 {
-	objset_t *os;
 	int error;
+	objset_t *os, *ossnap;
+	dsl_dataset_t *ds;
+	uint64_t min_txg = 0, max_txg = 0;
+
+	if (zc->zc_nvlist_src_size != 0) {
+		nvlist_t *props = NULL;
+		error = get_nvlist(zc->zc_nvlist_src, zc->zc_nvlist_src_size,
+		    zc->zc_iflags, &props);
+		if (error != 0)
+			return (error);
+		(void) nvlist_lookup_uint64(props, SNAP_ITER_MIN_TXG,
+		    &min_txg);
+		(void) nvlist_lookup_uint64(props, SNAP_ITER_MAX_TXG,
+		    &max_txg);
+		nvlist_free(props);
+	}
 
 	error = dmu_objset_hold(zc->zc_name, FTAG, &os);
 	if (error != 0) {
@@ -2346,26 +2362,52 @@ zfs_ioc_snapshot_list_next(zfs_cmd_t *zc)
 		return (SET_ERROR(ESRCH));
 	}
 
-	error = dmu_snapshot_list_next(os,
-	    sizeof (zc->zc_name) - strlen(zc->zc_name),
-	    zc->zc_name + strlen(zc->zc_name), &zc->zc_obj, &zc->zc_cookie,
-	    NULL);
-
-	if (error == 0 && !zc->zc_simple) {
-		dsl_dataset_t *ds;
-		dsl_pool_t *dp = os->os_dsl_dataset->ds_dir->dd_pool;
-
-		error = dsl_dataset_hold_obj(dp, zc->zc_obj, FTAG, &ds);
-		if (error == 0) {
-			objset_t *ossnap;
-
-			error = dmu_objset_from_ds(ds, &ossnap);
-			if (error == 0)
-				error = zfs_ioc_objset_stats_impl(zc, ossnap);
-			dsl_dataset_rele(ds, FTAG);
+	while (error == 0) {
+		if (issig(JUSTLOOKING) && issig(FORREAL)) {
+			error = SET_ERROR(EINTR);
+			break;
 		}
-	} else if (error == ENOENT) {
-		error = SET_ERROR(ESRCH);
+
+		error = dmu_snapshot_list_next(os,
+		    sizeof (zc->zc_name) - strlen(zc->zc_name),
+		    zc->zc_name + strlen(zc->zc_name), &zc->zc_obj,
+		    &zc->zc_cookie, NULL);
+		if (error == ENOENT) {
+			error = SET_ERROR(ESRCH);
+			break;
+		} else if (error != 0) {
+			break;
+		}
+
+		error = dsl_dataset_hold_obj(dmu_objset_pool(os), zc->zc_obj,
+		    FTAG, &ds);
+		if (error != 0)
+			break;
+
+		if ((min_txg != 0 && dsl_get_creationtxg(ds) < min_txg) ||
+		    (max_txg != 0 && dsl_get_creationtxg(ds) > max_txg)) {
+			dsl_dataset_rele(ds, FTAG);
+			/* undo snapshot name append */
+			*(strchr(zc->zc_name, '@') + 1) = '\0';
+			/* skip snapshot */
+			continue;
+		}
+
+		if (zc->zc_simple) {
+			dsl_dataset_rele(ds, FTAG);
+			break;
+		}
+
+		if ((error = dmu_objset_from_ds(ds, &ossnap)) != 0) {
+			dsl_dataset_rele(ds, FTAG);
+			break;
+		}
+		if ((error = zfs_ioc_objset_stats_impl(zc, ossnap)) != 0) {
+			dsl_dataset_rele(ds, FTAG);
+			break;
+		}
+		dsl_dataset_rele(ds, FTAG);
+		break;
 	}
 
 	dmu_objset_rele(os, FTAG);

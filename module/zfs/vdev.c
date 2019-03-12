@@ -398,6 +398,11 @@ vdev_add_child(vdev_t *pvd, vdev_t *cvd)
 	 */
 	for (; pvd != NULL; pvd = pvd->vdev_parent)
 		pvd->vdev_guid_sum += cvd->vdev_guid_sum;
+
+	if (cvd->vdev_ops->vdev_op_leaf) {
+		list_insert_head(&cvd->vdev_spa->spa_leaf_list, cvd);
+		cvd->vdev_spa->spa_leaf_list_gen++;
+	}
 }
 
 void
@@ -425,6 +430,12 @@ vdev_remove_child(vdev_t *pvd, vdev_t *cvd)
 		kmem_free(pvd->vdev_child, c * sizeof (vdev_t *));
 		pvd->vdev_child = NULL;
 		pvd->vdev_children = 0;
+	}
+
+	if (cvd->vdev_ops->vdev_op_leaf) {
+		spa_t *spa = cvd->vdev_spa;
+		list_remove(&spa->spa_leaf_list, cvd);
+		spa->spa_leaf_list_gen++;
 	}
 
 	/*
@@ -531,6 +542,7 @@ vdev_alloc_common(spa_t *spa, uint_t id, uint64_t guid, vdev_ops_t *ops)
 	list_link_init(&vd->vdev_config_dirty_node);
 	list_link_init(&vd->vdev_state_dirty_node);
 	list_link_init(&vd->vdev_initialize_node);
+	list_link_init(&vd->vdev_leaf_node);
 	mutex_init(&vd->vdev_dtl_lock, NULL, MUTEX_NOLOCKDEP, NULL);
 	mutex_init(&vd->vdev_stat_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&vd->vdev_probe_lock, NULL, MUTEX_DEFAULT, NULL);
@@ -914,6 +926,7 @@ vdev_free(vdev_t *vd)
 	vdev_remove_child(vd->vdev_parent, vd);
 
 	ASSERT(vd->vdev_parent == NULL);
+	ASSERT(!list_link_active(&vd->vdev_leaf_node));
 
 	/*
 	 * Clean up vdev structure.

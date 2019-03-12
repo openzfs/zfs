@@ -25,8 +25,8 @@
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2013, 2017 Joyent, Inc. All rights reserved.
  * Copyright (c) 2014 Integros [integros.com]
- * Copyright (c) 2017 Datto Inc.
  * Copyright (c) 2017, Intel Corporation.
+ * Copyright (c) 2019 Datto Inc.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -1077,7 +1077,7 @@ typedef enum pool_initialize_func {
  * is passed between kernel and userland as an nvlist uint64 array.
  */
 typedef struct ddt_object {
-	uint64_t	ddo_count;	/* number of elements in ddt 	*/
+	uint64_t	ddo_count;	/* number of elements in ddt	*/
 	uint64_t	ddo_dspace;	/* size of ddt on disk		*/
 	uint64_t	ddo_mspace;	/* size of ddt in-core		*/
 } ddt_object_t;
@@ -1124,6 +1124,13 @@ typedef enum {
 	VDEV_INITIALIZE_SUSPENDED,
 	VDEV_INITIALIZE_COMPLETE
 } vdev_initializing_state_t;
+
+/*
+ * nvlist name constants. Facilitate restricting snapshot iteration range for
+ * the "list next snapshot" ioctl
+ */
+#define	SNAP_ITER_MIN_TXG	"snap_iter_min_txg"
+#define	SNAP_ITER_MAX_TXG	"snap_iter_max_txg"
 
 /*
  * /dev/zfs ioctl numbers.
