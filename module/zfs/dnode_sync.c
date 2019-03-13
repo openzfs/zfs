@@ -384,12 +384,7 @@ dnode_sync_free_range_impl(dnode_t *dn, uint64_t blkid, uint64_t nblks,
 		}
 	}
 
-	/*
-	 * Do not truncate the maxblkid if we are performing a raw
-	 * receive. The raw receive sets the mablkid manually and
-	 * must not be overriden.
-	 */
-	if (trunc && !dn->dn_objset->os_raw_receive) {
+	if (trunc) {
 		ASSERTV(uint64_t off);
 		dn->dn_phys->dn_maxblkid = blkid == 0 ? 0 : blkid - 1;
 
@@ -765,11 +760,13 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 
 	/*
 	 * This must be done after dnode_sync_free_range()
-	 * and dnode_increase_indirection().
+	 * and dnode_increase_indirection(). See dnode_new_blkid()
+	 * for an explanation of the high bit being set.
 	 */
 	if (dn->dn_next_maxblkid[txgoff]) {
 		mutex_enter(&dn->dn_mtx);
-		dnp->dn_maxblkid = dn->dn_next_maxblkid[txgoff];
+		dnp->dn_maxblkid =
+		    dn->dn_next_maxblkid[txgoff] & ~DMU_NEXT_MAXBLKID_SET;
 		dn->dn_next_maxblkid[txgoff] = 0;
 		mutex_exit(&dn->dn_mtx);
 	}

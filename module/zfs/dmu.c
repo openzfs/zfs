@@ -2155,7 +2155,7 @@ dmu_object_set_maxblkid(objset_t *os, uint64_t object, uint64_t maxblkid,
 	if (err)
 		return (err);
 	rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
-	dnode_new_blkid(dn, maxblkid, tx, B_FALSE);
+	dnode_new_blkid(dn, maxblkid, tx, B_FALSE, B_TRUE);
 	rw_exit(&dn->dn_struct_rwlock);
 	dnode_rele(dn, FTAG);
 	return (0);

@@ -1828,7 +1828,8 @@ out:
 
 /* read-holding callers must not rely on the lock being continuously held */
 void
-dnode_new_blkid(dnode_t *dn, uint64_t blkid, dmu_tx_t *tx, boolean_t have_read)
+dnode_new_blkid(dnode_t *dn, uint64_t blkid, dmu_tx_t *tx, boolean_t have_read,
+    boolean_t force)
 {
 	int epbs, new_nlevels;
 	uint64_t sz;
@@ -1853,14 +1854,25 @@ dnode_new_blkid(dnode_t *dn, uint64_t blkid, dmu_tx_t *tx, boolean_t have_read)
 		}
 	}
 
-	if (blkid <= dn->dn_maxblkid)
+	/*
+	 * Raw sends (indicated by the force flag) require that we take the
+	 * given blkid even if the value is lower than the current value.
+	 */
+	if (!force && blkid <= dn->dn_maxblkid)
 		goto out;
 
+	/*
+	 * We use the (otherwise unused) top bit of dn_next_maxblkid[txgoff]
+	 * to indicate that this field is set. This allows us to set the
+	 * maxblkid to 0 on an existing object in dnode_sync().
+	 */
 	dn->dn_maxblkid = blkid;
-	dn->dn_next_maxblkid[tx->tx_txg & TXG_MASK] = blkid;
+	dn->dn_next_maxblkid[tx->tx_txg & TXG_MASK] =
+	    blkid | DMU_NEXT_MAXBLKID_SET;
 
 	/*
 	 * Compute the number of levels necessary to support the new maxblkid.
+	 * Raw sends will ensure nlevels is set correctly for us.
 	 */
 	new_nlevels = 1;
 	epbs = dn->dn_indblkshift - SPA_BLKPTRSHIFT;
@@ -1870,8 +1882,12 @@ dnode_new_blkid(dnode_t *dn, uint64_t blkid, dmu_tx_t *tx, boolean_t have_read)
 
 	ASSERT3U(new_nlevels, <=, DN_MAX_LEVELS);
 
-	if (new_nlevels > dn->dn_nlevels)
-		dnode_set_nlevels_impl(dn, new_nlevels, tx);
+	if (!force) {
+		if (new_nlevels > dn->dn_nlevels)
+			dnode_set_nlevels_impl(dn, new_nlevels, tx);
+	} else {
+		ASSERT3U(dn->dn_nlevels, >=, new_nlevels);
+	}
 
 out:
 	if (have_read)
