@@ -174,6 +174,7 @@ int zfs_vdev_async_write_active_max_dirty_percent = 60;
  * they aren't able to help us aggregate at this level.
  */
 int zfs_vdev_aggregation_limit = 1 << 20;
+int zfs_vdev_aggregation_limit_non_rotating = SPA_OLD_MAXBLOCKSIZE;
 int zfs_vdev_read_gap_limit = 32 << 10;
 int zfs_vdev_write_gap_limit = 4 << 10;
 
@@ -549,7 +550,11 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 	abd_t *abd;
 
 	maxblocksize = spa_maxblocksize(vq->vq_vdev->vdev_spa);
-	limit = MAX(MIN(zfs_vdev_aggregation_limit, maxblocksize), 0);
+	if (vq->vq_vdev->vdev_nonrot)
+		limit = zfs_vdev_aggregation_limit_non_rotating;
+	else
+		limit = zfs_vdev_aggregation_limit;
+	limit = MAX(MIN(limit, maxblocksize), 0);
 
 	if (zio->io_flags & ZIO_FLAG_DONT_AGGREGATE || limit == 0)
 		return (NULL);
@@ -912,6 +917,10 @@ vdev_queue_last_offset(vdev_t *vd)
 #if defined(_KERNEL)
 module_param(zfs_vdev_aggregation_limit, int, 0644);
 MODULE_PARM_DESC(zfs_vdev_aggregation_limit, "Max vdev I/O aggregation size");
+
+module_param(zfs_vdev_aggregation_limit_non_rotating, int, 0644);
+MODULE_PARM_DESC(zfs_vdev_aggregation_limit_non_rotating,
+	"Max vdev I/O aggregation size for non-rotating media");
 
 module_param(zfs_vdev_read_gap_limit, int, 0644);
 MODULE_PARM_DESC(zfs_vdev_read_gap_limit, "Aggregate read I/O over gap");
