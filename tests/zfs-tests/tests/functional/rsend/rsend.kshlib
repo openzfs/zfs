@@ -620,27 +620,6 @@ function stream_has_features
 }
 
 #
-# Parse zstreamdump -v output.  The output varies for each kind of record:
-# BEGIN records are simply output as "BEGIN"
-# END records are output as "END"
-# OBJECT records become "OBJECT <object num>"
-# FREEOBJECTS records become "FREEOBJECTS <startobj> <numobjs>"
-# FREE records become "<record type> <start> <length>"
-# WRITE records become:
-# "<record type> <compression type> <start> <logical size> <compressed size>
-#  <data size>"
-#
-function parse_dump
-{
-	sed '/^WRITE/{N;s/\n/ /;}' | grep "^[A-Z]" | awk '{
-	    if ($1 == "BEGIN" || $1 == "END") print $1
-	    if ($1 == "OBJECT") print $1" "$4
-	    if ($1 == "FREEOBJECTS") print $1" "$4" "$7
-	    if ($1 == "FREE") print $1" "$7" "$10
-	    if ($1 == "WRITE") print $1" "$15" "$21" "$24" "$27" "$30}'
-}
-
-#
 # Given a send stream, verify that the size of the stream matches what's
 # expected based on the source or target dataset. If the stream is an
 # incremental stream, subtract the size of the source snapshot before

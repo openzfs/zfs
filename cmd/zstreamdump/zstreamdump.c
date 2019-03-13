@@ -523,8 +523,8 @@ main(int argc, char *argv[])
 				    ZIO_DATA_MAC_LEN);
 
 				(void) printf("WRITE object = %llu type = %u "
-				    "checksum type = %u compression type = %u\n"
-				    "    flags = %u offset = %llu "
+				    "checksum type = %u compression type = %u "
+				    "flags = %u offset = %llu "
 				    "logical_size = %llu "
 				    "compressed_size = %llu "
 				    "payload_size = %llu props = %llx "
@@ -578,10 +578,10 @@ main(int argc, char *argv[])
 			}
 			if (verbose) {
 				(void) printf("WRITE_BYREF object = %llu "
-				    "checksum type = %u props = %llx\n"
-				    "    offset = %llu length = %llu\n"
-				    "toguid = %llx refguid = %llx\n"
-				    "    refobject = %llu refoffset = %llu\n",
+				    "checksum type = %u props = %llx "
+				    "offset = %llu length = %llu "
+				    "toguid = %llx refguid = %llx "
+				    "refobject = %llu refoffset = %llu\n",
 				    (u_longlong_t)drrwbr->drr_object,
 				    drrwbr->drr_checksumtype,
 				    (u_longlong_t)drrwbr->drr_key.ddk_prop,
@@ -665,8 +665,8 @@ main(int argc, char *argv[])
 			}
 			if (verbose) {
 				(void) printf("WRITE_EMBEDDED object = %llu "
-				    "offset = %llu length = %llu\n"
-				    "    toguid = %llx comp = %u etype = %u "
+				    "offset = %llu length = %llu "
+				    "toguid = %llx comp = %u etype = %u "
 				    "lsize = %u psize = %u\n",
 				    (u_longlong_t)drrwe->drr_object,
 				    (u_longlong_t)drrwe->drr_offset,
