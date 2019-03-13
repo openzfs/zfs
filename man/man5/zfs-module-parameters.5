@@ -1879,7 +1879,7 @@ the risk of failing to detect an active pool.  The total activity check time is
 never allowed to drop below one second.  A value of 0 is ignored and treated as
 if it was set to 1
 .sp
-Default value: \fB10\fR.
+Default value: \fB20\fR.
 .RE
 
 .sp
@@ -1900,7 +1900,7 @@ will cause the pool to be suspended.  This occurs when
 passed since the last successful multihost write.  This guarantees the activity test
 will see multihost writes if the pool is imported.
 .sp
-Default value: \fB5\fR.
+Default value: \fB10\fR.
 .RE
 
 .sp
