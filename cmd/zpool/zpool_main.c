@@ -2479,15 +2479,17 @@ show_import(nvlist_t *config)
 				break;
 
 			case ZPOOL_ERRATA_ZOL_8308_ENCRYPTION:
-				(void) printf(gettext(" action: Existing "
+				(void) printf(gettext(" action: Any existing "
 				    "encrypted datasets contain an on-disk "
-				    "incompatibility which\n\tmay cause "
+				    "incompatibility\n\twhich may cause "
 				    "on-disk corruption with 'zfs recv' and "
-				    "which needs to be\n\tcorrected. Enable "
-				    "the bookmark_v2 feature and backup "
-				    "these datasets to new encrypted "
-				    "datasets and\n\tdestroy the "
-				    "old ones.\n"));
+				    "which needs\n\tto be corrected. Enable "
+				    "the bookmark_v2 feature, backup "
+				    "these datasets\n\tto new encrypted "
+				    "datasets, and destroy the old ones. "
+				    "If this pool does\n\tnot contain any "
+				    "encrypted datasets, simply enable the "
+				    "bookmark_v2\n\tfeature.\n"));
 				break;
 			default:
 				/*
@@ -7417,10 +7419,12 @@ status_callback(zpool_handle_t *zhp, void *data)
 			    "contain an on-disk incompatibility\n\twhich "
 			    "needs to be corrected.\n"));
 			(void) printf(gettext("action: To correct the issue "
-			    "enable the bookmark_v2 feature and "
-			    "backup\n\texisting encrypted datasets to new "
-			    "encrypted datasets and\n\tdestroy the old "
-			    "ones.\n"));
+			    "enable the bookmark_v2 feature, backup\n\tany "
+			    "existing encrypted datasets to new encrypted "
+			    "datasets,\n\tand destroy the old ones. If this "
+			    "pool does not contain any\n\tencrypted "
+			    "datasets, simply enable the bookmark_v2 "
+			    "feature.\n"));
 			break;
 
 		default:
