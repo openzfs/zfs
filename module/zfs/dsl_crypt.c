@@ -1837,6 +1837,13 @@ dmu_objset_create_crypt_check(dsl_dir_t *parentdd, dsl_crypto_params_t *dcp,
 		return (SET_ERROR(EOPNOTSUPP));
 	}
 
+	/* Check for errata #4 (encryption enabled, bookmark_v2 disabled) */
+	if (parentdd != NULL &&
+	    !spa_feature_is_enabled(parentdd->dd_pool->dp_spa,
+	    SPA_FEATURE_BOOKMARK_V2)) {
+		return (SET_ERROR(EOPNOTSUPP));
+	}
+
 	/* handle inheritance */
 	if (dcp->cp_wkey == NULL) {
 		ASSERT3P(parentdd, !=, NULL);
