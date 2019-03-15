@@ -38,6 +38,7 @@
 
 do_depend()
 {
+	before swap
 	after sysfs udev
 	keyword -lxc -openvz -prefix -vserver
 }
