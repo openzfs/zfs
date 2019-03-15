@@ -392,7 +392,8 @@ tests = ['zpool_import_001_pos', 'zpool_import_002_pos',
 tags = ['functional', 'cli_root', 'zpool_import']
 
 [tests/functional/cli_root/zpool_labelclear]
-tests = ['zpool_labelclear_active', 'zpool_labelclear_exported']
+tests = ['zpool_labelclear_active', 'zpool_labelclear_exported',
+    'zpool_labelclear_removed', 'zpool_labelclear_valid']
 pre =
 post =
 tags = ['functional', 'cli_root', 'zpool_labelclear']
