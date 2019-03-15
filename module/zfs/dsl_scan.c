@@ -236,23 +236,42 @@ typedef enum {
  */
 typedef struct scan_io {
 	/* fields from blkptr_t */
-	uint64_t		sio_offset;
 	uint64_t		sio_blk_prop;
 	uint64_t		sio_phys_birth;
 	uint64_t		sio_birth;
 	zio_cksum_t		sio_cksum;
-	uint32_t		sio_asize;
+	uint32_t		sio_nr_dvas;
 
 	/* fields from zio_t */
-	int			sio_flags;
+	uint32_t		sio_flags;
 	zbookmark_phys_t	sio_zb;
 
 	/* members for queue sorting */
 	union {
-		avl_node_t	sio_addr_node; /* link into issueing queue */
+		avl_node_t	sio_addr_node; /* link into issuing queue */
 		list_node_t	sio_list_node; /* link for issuing to disk */
 	} sio_nodes;
+
+	/*
+	 * There may be up to SPA_DVAS_PER_BP DVAs here from the bp,
+	 * depending on how many were in the original bp. Only the
+	 * first DVA is really used for sorting and issuing purposes.
+	 * The other DVAs (if provided) simply exist so that the zio
+	 * layer can find additional copies to repair from in the
+	 * event of an error. This array must go at the end of the
+	 * struct to allow this for the variable number of elements.
+	 */
+	dva_t			sio_dva[0];
 } scan_io_t;
+
+#define	SIO_SET_OFFSET(sio, x)		DVA_SET_OFFSET(&(sio)->sio_dva[0], x)
+#define	SIO_SET_ASIZE(sio, x)		DVA_SET_ASIZE(&(sio)->sio_dva[0], x)
+#define	SIO_GET_OFFSET(sio)		DVA_GET_OFFSET(&(sio)->sio_dva[0])
+#define	SIO_GET_ASIZE(sio)		DVA_GET_ASIZE(&(sio)->sio_dva[0])
+#define	SIO_GET_END_OFFSET(sio)		\
+	(SIO_GET_OFFSET(sio) + SIO_GET_ASIZE(sio))
+#define	SIO_GET_MUSED(sio)		\
+	(sizeof (scan_io_t) + ((sio)->sio_nr_dvas * sizeof (dva_t)))
 
 struct dsl_scan_io_queue {
 	dsl_scan_t	*q_scn; /* associated dsl_scan_t */
@@ -262,6 +281,7 @@ struct dsl_scan_io_queue {
 	range_tree_t	*q_exts_by_addr;
 	avl_tree_t	q_exts_by_size;
 	avl_tree_t	q_sios_by_addr;
+	uint64_t	q_sio_memused;
 
 	/* members for zio rate limiting */
 	uint64_t	q_maxinflight_bytes;
@@ -300,7 +320,27 @@ static void scan_io_queue_insert_impl(dsl_scan_io_queue_t *queue,
 static dsl_scan_io_queue_t *scan_io_queue_create(vdev_t *vd);
 static void scan_io_queues_destroy(dsl_scan_t *scn);
 
-static kmem_cache_t *sio_cache;
+static kmem_cache_t *sio_cache[SPA_DVAS_PER_BP];
+
+/* sio->sio_nr_dvas must be set so we know which cache to free from */
+static void
+sio_free(scan_io_t *sio)
+{
+	ASSERT3U(sio->sio_nr_dvas, >, 0);
+	ASSERT3U(sio->sio_nr_dvas, <=, SPA_DVAS_PER_BP);
+
+	kmem_cache_free(sio_cache[sio->sio_nr_dvas - 1], sio);
+}
+
+/* It is up to the caller to set sio->sio_nr_dvas for freeing */
+static scan_io_t *
+sio_alloc(unsigned short nr_dvas)
+{
+	ASSERT3U(nr_dvas, >, 0);
+	ASSERT3U(nr_dvas, <=, SPA_DVAS_PER_BP);
+
+	return (kmem_cache_alloc(sio_cache[nr_dvas - 1], KM_SLEEP));
+}
 
 void
 scan_init(void)
@@ -315,14 +355,22 @@ scan_init(void)
 	 */
 	fill_weight = zfs_scan_fill_weight;
 
-	sio_cache = kmem_cache_create("sio_cache",
-	    sizeof (scan_io_t), 0, NULL, NULL, NULL, NULL, NULL, 0);
+	for (int i = 0; i < SPA_DVAS_PER_BP; i++) {
+		char name[36];
+
+		(void) sprintf(name, "sio_cache_%d", i);
+		sio_cache[i] = kmem_cache_create(name,
+		    (sizeof (scan_io_t) + ((i + 1) * sizeof (dva_t))),
+		    0, NULL, NULL, NULL, NULL, NULL, 0);
+	}
 }
 
 void
 scan_fini(void)
 {
-	kmem_cache_destroy(sio_cache);
+	for (int i = 0; i < SPA_DVAS_PER_BP; i++) {
+		kmem_cache_destroy(sio_cache[i]);
+	}
 }
 
 static inline boolean_t
@@ -339,29 +387,39 @@ dsl_scan_resilvering(dsl_pool_t *dp)
 }
 
 static inline void
-sio2bp(const scan_io_t *sio, blkptr_t *bp, uint64_t vdev_id)
+sio2bp(const scan_io_t *sio, blkptr_t *bp)
 {
 	bzero(bp, sizeof (*bp));
-	DVA_SET_ASIZE(&bp->blk_dva[0], sio->sio_asize);
-	DVA_SET_VDEV(&bp->blk_dva[0], vdev_id);
-	DVA_SET_OFFSET(&bp->blk_dva[0], sio->sio_offset);
 	bp->blk_prop = sio->sio_blk_prop;
 	bp->blk_phys_birth = sio->sio_phys_birth;
 	bp->blk_birth = sio->sio_birth;
 	bp->blk_fill = 1;	/* we always only work with data pointers */
 	bp->blk_cksum = sio->sio_cksum;
+
+	ASSERT3U(sio->sio_nr_dvas, >, 0);
+	ASSERT3U(sio->sio_nr_dvas, <=, SPA_DVAS_PER_BP);
+
+	bcopy(sio->sio_dva, bp->blk_dva, sio->sio_nr_dvas * sizeof (dva_t));
 }
 
 static inline void
 bp2sio(const blkptr_t *bp, scan_io_t *sio, int dva_i)
 {
-	/* we discard the vdev id, since we can deduce it from the queue */
-	sio->sio_offset = DVA_GET_OFFSET(&bp->blk_dva[dva_i]);
-	sio->sio_asize = DVA_GET_ASIZE(&bp->blk_dva[dva_i]);
 	sio->sio_blk_prop = bp->blk_prop;
 	sio->sio_phys_birth = bp->blk_phys_birth;
 	sio->sio_birth = bp->blk_birth;
 	sio->sio_cksum = bp->blk_cksum;
+	sio->sio_nr_dvas = BP_GET_NDVAS(bp);
+
+	/*
+	 * Copy the DVAs to the sio. We need all copies of the block so
+	 * that the self healing code can use the alternate copies if the
+	 * first is corrupted. We want the DVA at index dva_i to be first
+	 * in the sio since this is the primary one that we want to issue.
+	 */
+	for (int i = 0, j = dva_i; i < sio->sio_nr_dvas; i++, j++) {
+		sio->sio_dva[i] = bp->blk_dva[j % sio->sio_nr_dvas];
+	}
 }
 
 int
@@ -1176,11 +1234,9 @@ dsl_scan_should_clear(dsl_scan_t *scn)
 		mutex_enter(&tvd->vdev_scan_io_queue_lock);
 		queue = tvd->vdev_scan_io_queue;
 		if (queue != NULL) {
-			/* #extents in exts_by_size = # in exts_by_addr */
+			/* # extents in exts_by_size = # in exts_by_addr */
 			mused += avl_numnodes(&queue->q_exts_by_size) *
-			    sizeof (range_seg_t) +
-			    avl_numnodes(&queue->q_sios_by_addr) *
-			    sizeof (scan_io_t);
+			    sizeof (range_seg_t) + queue->q_sio_memused;
 		}
 		mutex_exit(&tvd->vdev_scan_io_queue_lock);
 	}
@@ -2693,13 +2749,13 @@ scan_io_queue_issue(dsl_scan_io_queue_t *queue, list_t *io_list)
 			break;
 		}
 
-		sio2bp(sio, &bp, queue->q_vd->vdev_id);
-		bytes_issued += sio->sio_asize;
+		sio2bp(sio, &bp);
+		bytes_issued += SIO_GET_ASIZE(sio);
 		scan_exec_io(scn->scn_dp, &bp, sio->sio_flags,
 		    &sio->sio_zb, queue);
 		(void) list_remove_head(io_list);
 		scan_io_queues_update_zio_stats(queue, &bp);
-		kmem_cache_free(sio_cache, sio);
+		sio_free(sio);
 	}
 
 	atomic_add_64(&scn->scn_bytes_pending, -bytes_issued);
@@ -2717,7 +2773,7 @@ scan_io_queue_issue(dsl_scan_io_queue_t *queue, list_t *io_list)
 static boolean_t
 scan_io_queue_gather(dsl_scan_io_queue_t *queue, range_seg_t *rs, list_t *list)
 {
-	scan_io_t srch_sio, *sio, *next_sio;
+	scan_io_t *srch_sio, *sio, *next_sio;
 	avl_index_t idx;
 	uint_t num_sios = 0;
 	int64_t bytes_issued = 0;
@@ -2725,24 +2781,30 @@ scan_io_queue_gather(dsl_scan_io_queue_t *queue, range_seg_t *rs, list_t *list)
 	ASSERT(rs != NULL);
 	ASSERT(MUTEX_HELD(&queue->q_vd->vdev_scan_io_queue_lock));
 
-	srch_sio.sio_offset = rs->rs_start;
+	srch_sio = sio_alloc(1);
+	srch_sio->sio_nr_dvas = 1;
+	SIO_SET_OFFSET(srch_sio, rs->rs_start);
 
 	/*
 	 * The exact start of the extent might not contain any matching zios,
 	 * so if that's the case, examine the next one in the tree.
 	 */
-	sio = avl_find(&queue->q_sios_by_addr, &srch_sio, &idx);
+	sio = avl_find(&queue->q_sios_by_addr, srch_sio, &idx);
+	sio_free(srch_sio);
+
 	if (sio == NULL)
 		sio = avl_nearest(&queue->q_sios_by_addr, idx, AVL_AFTER);
 
-	while (sio != NULL && sio->sio_offset < rs->rs_end && num_sios <= 32) {
-		ASSERT3U(sio->sio_offset, >=, rs->rs_start);
-		ASSERT3U(sio->sio_offset + sio->sio_asize, <=, rs->rs_end);
+	while (sio != NULL &&
+	    SIO_GET_OFFSET(sio) < rs->rs_end && num_sios <= 32) {
+		ASSERT3U(SIO_GET_OFFSET(sio), >=, rs->rs_start);
+		ASSERT3U(SIO_GET_END_OFFSET(sio), <=, rs->rs_end);
 
 		next_sio = AVL_NEXT(&queue->q_sios_by_addr, sio);
 		avl_remove(&queue->q_sios_by_addr, sio);
+		queue->q_sio_memused -= SIO_GET_MUSED(sio);
 
-		bytes_issued += sio->sio_asize;
+		bytes_issued += SIO_GET_ASIZE(sio);
 		num_sios++;
 		list_insert_tail(list, sio);
 		sio = next_sio;
@@ -2754,11 +2816,11 @@ scan_io_queue_gather(dsl_scan_io_queue_t *queue, range_seg_t *rs, list_t *list)
 	 * in the segment we update it to reflect the work we were able to
 	 * complete. Otherwise, we remove it from the range tree entirely.
 	 */
-	if (sio != NULL && sio->sio_offset < rs->rs_end) {
+	if (sio != NULL && SIO_GET_OFFSET(sio) < rs->rs_end) {
 		range_tree_adjust_fill(queue->q_exts_by_addr, rs,
 		    -bytes_issued);
 		range_tree_resize_segment(queue->q_exts_by_addr, rs,
-		    sio->sio_offset, rs->rs_end - sio->sio_offset);
+		    SIO_GET_OFFSET(sio), rs->rs_end - SIO_GET_OFFSET(sio));
 
 		return (B_TRUE);
 	} else {
@@ -2862,9 +2924,9 @@ scan_io_queues_run_one(void *arg)
 			first_sio = list_head(&sio_list);
 			last_sio = list_tail(&sio_list);
 
-			seg_end = last_sio->sio_offset + last_sio->sio_asize;
+			seg_end = SIO_GET_END_OFFSET(last_sio);
 			if (seg_start == 0)
-				seg_start = first_sio->sio_offset;
+				seg_start = SIO_GET_OFFSET(first_sio);
 
 			/*
 			 * Issuing sios can take a long time so drop the
@@ -3567,10 +3629,23 @@ count_block(dsl_scan_t *scn, zfs_all_blkstats_t *zab, const blkptr_t *bp)
 {
 	int i;
 
-	/* update the spa's stats on how many bytes we have issued */
-	for (i = 0; i < BP_GET_NDVAS(bp); i++) {
+	/*
+	 * Update the spa's stats on how many bytes we have issued.
+	 * Sequential scrubs create a zio for each DVA of the bp. Each
+	 * of these will include all DVAs for repair purposes, but the
+	 * zio code will only try the first one unless there is an issue.
+	 * Therefore, we should only count the first DVA for these IOs.
+	 */
+	if (scn->scn_is_sorted) {
 		atomic_add_64(&scn->scn_dp->dp_spa->spa_scan_pass_issued,
-		    DVA_GET_ASIZE(&bp->blk_dva[i]));
+		    DVA_GET_ASIZE(&bp->blk_dva[0]));
+	} else {
+		spa_t *spa = scn->scn_dp->dp_spa;
+
+		for (i = 0; i < BP_GET_NDVAS(bp); i++) {
+			atomic_add_64(&spa->spa_scan_pass_issued,
+			    DVA_GET_ASIZE(&bp->blk_dva[i]));
+		}
 	}
 
 	/*
@@ -3625,7 +3700,7 @@ static void
 scan_io_queue_insert_impl(dsl_scan_io_queue_t *queue, scan_io_t *sio)
 {
 	avl_index_t idx;
-	int64_t asize = sio->sio_asize;
+	int64_t asize = SIO_GET_ASIZE(sio);
 	dsl_scan_t *scn = queue->q_scn;
 
 	ASSERT(MUTEX_HELD(&queue->q_vd->vdev_scan_io_queue_lock));
@@ -3633,11 +3708,12 @@ scan_io_queue_insert_impl(dsl_scan_io_queue_t *queue, scan_io_t *sio)
 	if (avl_find(&queue->q_sios_by_addr, sio, &idx) != NULL) {
 		/* block is already scheduled for reading */
 		atomic_add_64(&scn->scn_bytes_pending, -asize);
-		kmem_cache_free(sio_cache, sio);
+		sio_free(sio);
 		return;
 	}
 	avl_insert(&queue->q_sios_by_addr, sio, idx);
-	range_tree_add(queue->q_exts_by_addr, sio->sio_offset, asize);
+	queue->q_sio_memused += SIO_GET_MUSED(sio);
+	range_tree_add(queue->q_exts_by_addr, SIO_GET_OFFSET(sio), asize);
 }
 
 /*
@@ -3651,7 +3727,7 @@ scan_io_queue_insert(dsl_scan_io_queue_t *queue, const blkptr_t *bp, int dva_i,
     int zio_flags, const zbookmark_phys_t *zb)
 {
 	dsl_scan_t *scn = queue->q_scn;
-	scan_io_t *sio = kmem_cache_alloc(sio_cache, KM_SLEEP);
+	scan_io_t *sio = sio_alloc(BP_GET_NDVAS(bp));
 
 	ASSERT0(BP_IS_GANG(bp));
 	ASSERT(MUTEX_HELD(&queue->q_vd->vdev_scan_io_queue_lock));
@@ -3665,7 +3741,7 @@ scan_io_queue_insert(dsl_scan_io_queue_t *queue, const blkptr_t *bp, int dva_i,
 	 * get an integer underflow in case the worker processes the
 	 * zio before we get to incrementing this counter.
 	 */
-	atomic_add_64(&scn->scn_bytes_pending, sio->sio_asize);
+	atomic_add_64(&scn->scn_bytes_pending, SIO_GET_ASIZE(sio));
 
 	scan_io_queue_insert_impl(queue, sio);
 }
@@ -3905,11 +3981,7 @@ sio_addr_compare(const void *x, const void *y)
 {
 	const scan_io_t *a = x, *b = y;
 
-	if (a->sio_offset < b->sio_offset)
-		return (-1);
-	if (a->sio_offset == b->sio_offset)
-		return (0);
-	return (1);
+	return (AVL_CMP(SIO_GET_OFFSET(a), SIO_GET_OFFSET(b)));
 }
 
 /* IO queues are created on demand when they are needed. */
@@ -3921,6 +3993,7 @@ scan_io_queue_create(vdev_t *vd)
 
 	q->q_scn = scn;
 	q->q_vd = vd;
+	q->q_sio_memused = 0;
 	cv_init(&q->q_zio_cv, NULL, CV_DEFAULT, NULL);
 	q->q_exts_by_addr = range_tree_create_impl(&rt_avl_ops,
 	    &q->q_exts_by_size, ext_size_compare, zfs_scan_max_ext_gap);
@@ -3948,11 +4021,13 @@ dsl_scan_io_queue_destroy(dsl_scan_io_queue_t *queue)
 	while ((sio = avl_destroy_nodes(&queue->q_sios_by_addr, &cookie)) !=
 	    NULL) {
 		ASSERT(range_tree_contains(queue->q_exts_by_addr,
-		    sio->sio_offset, sio->sio_asize));
-		bytes_dequeued += sio->sio_asize;
-		kmem_cache_free(sio_cache, sio);
+		    SIO_GET_OFFSET(sio), SIO_GET_ASIZE(sio)));
+		bytes_dequeued += SIO_GET_ASIZE(sio);
+		queue->q_sio_memused -= SIO_GET_MUSED(sio);
+		sio_free(sio);
 	}
 
+	ASSERT0(queue->q_sio_memused);
 	atomic_add_64(&scn->scn_bytes_pending, -bytes_dequeued);
 	range_tree_vacate(queue->q_exts_by_addr, NULL, queue);
 	range_tree_destroy(queue->q_exts_by_addr);
@@ -4007,7 +4082,7 @@ dsl_scan_freed_dva(spa_t *spa, const blkptr_t *bp, int dva_i)
 	vdev_t *vdev;
 	kmutex_t *q_lock;
 	dsl_scan_io_queue_t *queue;
-	scan_io_t srch, *sio;
+	scan_io_t *srch_sio, *sio;
 	avl_index_t idx;
 	uint64_t start, size;
 
@@ -4022,9 +4097,10 @@ dsl_scan_freed_dva(spa_t *spa, const blkptr_t *bp, int dva_i)
 		return;
 	}
 
-	bp2sio(bp, &srch, dva_i);
-	start = srch.sio_offset;
-	size = srch.sio_asize;
+	srch_sio = sio_alloc(BP_GET_NDVAS(bp));
+	bp2sio(bp, srch_sio, dva_i);
+	start = SIO_GET_OFFSET(srch_sio);
+	size = SIO_GET_ASIZE(srch_sio);
 
 	/*
 	 * We can find the zio in two states:
@@ -4044,15 +4120,18 @@ dsl_scan_freed_dva(spa_t *spa, const blkptr_t *bp, int dva_i)
 	 *	be done with issuing the zio's it gathered and will
 	 *	signal us.
 	 */
-	sio = avl_find(&queue->q_sios_by_addr, &srch, &idx);
+	sio = avl_find(&queue->q_sios_by_addr, srch_sio, &idx);
+	sio_free(srch_sio);
+
 	if (sio != NULL) {
-		int64_t asize = sio->sio_asize;
+		int64_t asize = SIO_GET_ASIZE(sio);
 		blkptr_t tmpbp;
 
 		/* Got it while it was cold in the queue */
-		ASSERT3U(start, ==, sio->sio_offset);
+		ASSERT3U(start, ==, SIO_GET_OFFSET(sio));
 		ASSERT3U(size, ==, asize);
 		avl_remove(&queue->q_sios_by_addr, sio);
+		queue->q_sio_memused -= SIO_GET_MUSED(sio);
 
 		ASSERT(range_tree_contains(queue->q_exts_by_addr, start, size));
 		range_tree_remove_fill(queue->q_exts_by_addr, start, size);
@@ -4065,10 +4144,10 @@ dsl_scan_freed_dva(spa_t *spa, const blkptr_t *bp, int dva_i)
 		atomic_add_64(&scn->scn_bytes_pending, -asize);
 
 		/* count the block as though we issued it */
-		sio2bp(sio, &tmpbp, dva_i);
+		sio2bp(sio, &tmpbp);
 		count_block(scn, dp->dp_blkstats, &tmpbp);
 
-		kmem_cache_free(sio_cache, sio);
+		sio_free(sio);
 	}
 	mutex_exit(q_lock);
 }
