@@ -9,8 +9,8 @@
 #
 ### BEGIN INIT INFO
 # Provides:          zfs-share
-# Required-Start:    $local_fs $network $remote_fs zfs-mount zfs-zed
-# Required-Stop:     $local_fs $network $remote_fs zfs-mount zfs-zed
+# Required-Start:    $local_fs $network $remote_fs zfs-mount
+# Required-Stop:     $local_fs $network $remote_fs zfs-mount
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
 # Should-Start:      iscsi iscsitarget istgt scst @NFS_SRV@ samba samba4 zfs-mount zfs-zed

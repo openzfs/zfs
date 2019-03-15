@@ -10,6 +10,8 @@ DIST_SUBDIRS = include asm-generic asm-i386 asm-x86_64
 DEFAULT_INCLUDES += \
 	-I$(top_srcdir)/lib/libspl/include
 
+AM_CFLAGS += $(LIBTIRPC_CFLAGS)
+
 AM_CCASFLAGS = \
 	$(CFLAGS)
 
@@ -35,6 +37,6 @@ nodist_libspl_la_SOURCES = \
 	$(USER_C) \
 	$(USER_ASM)
 
-libspl_la_LIBADD = -lrt
+libspl_la_LIBADD = -lrt $(LIBTIRPC_LIBS)
 
 EXTRA_DIST = $(USER_C)

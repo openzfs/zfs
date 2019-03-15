@@ -25,8 +25,8 @@
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2013, 2017 Joyent, Inc. All rights reserved.
  * Copyright (c) 2014 Integros [integros.com]
- * Copyright (c) 2017 Datto Inc.
  * Copyright (c) 2017, Intel Corporation.
+ * Copyright (c) 2019 Datto Inc.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -183,6 +183,7 @@ typedef enum {
 	ZFS_PROP_KEYSTATUS,
 	ZFS_PROP_REMAPTXG,		/* not exposed to the user */
 	ZFS_PROP_SPECIAL_SMALL_BLOCKS,
+	ZFS_PROP_IVSET_GUID,		/* not exposed to the user */
 	ZFS_NUM_PROPS
 } zfs_prop_t;
 
@@ -975,6 +976,7 @@ typedef enum zpool_errata {
 	ZPOOL_ERRATA_ZOL_2094_SCRUB,
 	ZPOOL_ERRATA_ZOL_2094_ASYNC_DESTROY,
 	ZPOOL_ERRATA_ZOL_6845_ENCRYPTION,
+	ZPOOL_ERRATA_ZOL_8308_ENCRYPTION,
 } zpool_errata_t;
 
 /*
@@ -1076,7 +1078,7 @@ typedef enum pool_initialize_func {
  * is passed between kernel and userland as an nvlist uint64 array.
  */
 typedef struct ddt_object {
-	uint64_t	ddo_count;	/* number of elements in ddt 	*/
+	uint64_t	ddo_count;	/* number of elements in ddt	*/
 	uint64_t	ddo_dspace;	/* size of ddt on disk		*/
 	uint64_t	ddo_mspace;	/* size of ddt in-core		*/
 } ddt_object_t;
@@ -1122,6 +1124,13 @@ typedef enum {
 	VDEV_INITIALIZE_SUSPENDED,
 	VDEV_INITIALIZE_COMPLETE
 } vdev_initializing_state_t;
+
+/*
+ * nvlist name constants. Facilitate restricting snapshot iteration range for
+ * the "list next snapshot" ioctl
+ */
+#define	SNAP_ITER_MIN_TXG	"snap_iter_min_txg"
+#define	SNAP_ITER_MAX_TXG	"snap_iter_max_txg"
 
 /*
  * /dev/zfs ioctl numbers.
@@ -1204,9 +1213,9 @@ typedef enum zfs_ioc {
 	ZFS_IOC_BOOKMARK,			/* 0x5a43 */
 	ZFS_IOC_GET_BOOKMARKS,			/* 0x5a44 */
 	ZFS_IOC_DESTROY_BOOKMARKS,		/* 0x5a45 */
-	ZFS_IOC_CHANNEL_PROGRAM,		/* 0x5a46 */
-	ZFS_IOC_RECV_NEW,			/* 0x5a47 */
-	ZFS_IOC_POOL_SYNC,			/* 0x5a48 */
+	ZFS_IOC_RECV_NEW,			/* 0x5a46 */
+	ZFS_IOC_POOL_SYNC,			/* 0x5a47 */
+	ZFS_IOC_CHANNEL_PROGRAM,		/* 0x5a48 */
 	ZFS_IOC_LOAD_KEY,			/* 0x5a49 */
 	ZFS_IOC_UNLOAD_KEY,			/* 0x5a4a */
 	ZFS_IOC_CHANGE_KEY,			/* 0x5a4b */
@@ -1256,6 +1265,9 @@ typedef enum {
 	ZFS_ERR_IOC_ARG_UNAVAIL,
 	ZFS_ERR_IOC_ARG_REQUIRED,
 	ZFS_ERR_IOC_ARG_BADTYPE,
+	ZFS_ERR_WRONG_PARENT,
+	ZFS_ERR_FROM_IVSET_GUID_MISSING,
+	ZFS_ERR_FROM_IVSET_GUID_MISMATCH,
 } zfs_errno_t;
 
 /*

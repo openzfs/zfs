@@ -344,7 +344,7 @@ tags = ['functional', 'cli_root', 'zpool_detach']
 
 [tests/functional/cli_root/zpool_events]
 tests = ['zpool_events_clear', 'zpool_events_cliargs', 'zpool_events_follow',
-    'zpool_events_poolname']
+    'zpool_events_poolname', 'zpool_events_errors']
 tags = ['functional', 'cli_root', 'zpool_events']
 
 [tests/functional/cli_root/zpool_expand]
@@ -378,7 +378,7 @@ tests = ['zpool_import_001_pos', 'zpool_import_002_pos',
     'zpool_import_missing_002_pos', 'zpool_import_missing_003_pos',
     'zpool_import_rename_001_pos', 'zpool_import_all_001_pos',
     'zpool_import_encrypted', 'zpool_import_encrypted_load',
-    'zpool_import_errata3',
+    'zpool_import_errata3', 'zpool_import_errata4',
     'import_cachefile_device_added',
     'import_cachefile_device_removed',
     'import_cachefile_device_replaced',
@@ -640,11 +640,11 @@ tags = ['functional', 'mmap']
 tests = ['mmp_on_thread', 'mmp_on_uberblocks', 'mmp_on_off', 'mmp_interval',
     'mmp_active_import', 'mmp_inactive_import', 'mmp_exported_import',
     'mmp_write_uberblocks', 'mmp_reset_interval', 'multihost_history',
-    'mmp_on_zdb']
+    'mmp_on_zdb', 'mmp_write_distribution']
 tags = ['functional', 'mmp']
 
 [tests/functional/mount]
-tests = ['umount_001', 'umountall_001']
+tests = ['umount_001', 'umount_unlinked_drain', 'umountall_001']
 tags = ['functional', 'mount']
 
 [tests/functional/mv_files]
@@ -793,7 +793,8 @@ tests = ['rsend_001_pos', 'rsend_002_pos', 'rsend_003_pos', 'rsend_004_pos',
     'send-c_embedded_blocks', 'send-c_resume', 'send-cpL_varied_recsize',
     'send-c_recv_dedup', 'send_encrypted_files', 'send_encrypted_heirarchy',
     'send_encrypted_props', 'send_freeobjects', 'send_realloc_dnode_size',
-    'send_hole_birth', 'send-wDR_encrypted_zvol']
+    'send_holds', 'send_hole_birth', 'send_mixed_raw',
+    'send-wDR_encrypted_zvol']
 tags = ['functional', 'rsend']
 
 [tests/functional/scrub_mirror]
@@ -841,7 +842,8 @@ tests = ['truncate_001_pos', 'truncate_002_pos', 'truncate_timestamps']
 tags = ['functional', 'truncate']
 
 [tests/functional/upgrade]
-tests = ['upgrade_userobj_001_pos', 'upgrade_projectquota_001_pos']
+tests = ['upgrade_userobj_001_pos', 'upgrade_projectquota_001_pos',
+    'upgrade_readonly_pool']
 tags = ['functional', 'upgrade']
 
 [tests/functional/user_namespace]
@@ -887,7 +889,8 @@ tags = ['functional', 'zvol', 'zvol_cli']
 [tests/functional/zvol/zvol_misc]
 tests = ['zvol_misc_001_neg', 'zvol_misc_002_pos', 'zvol_misc_003_neg',
     'zvol_misc_004_pos', 'zvol_misc_005_neg', 'zvol_misc_006_pos',
-    'zvol_misc_snapdev', 'zvol_misc_volmode', 'zvol_misc_zil']
+    'zvol_misc_hierarchy', 'zvol_misc_rename_inuse', 'zvol_misc_snapdev',
+    'zvol_misc_volmode', 'zvol_misc_zil']
 tags = ['functional', 'zvol', 'zvol_misc']
 
 [tests/functional/zvol/zvol_swap]

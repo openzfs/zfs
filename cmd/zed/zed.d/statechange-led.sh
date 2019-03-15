@@ -165,7 +165,7 @@ process_pool()
 	fi
 }
 
-if [ ! -z "$ZEVENT_VDEV_ENC_SYSFS_PATH" ] && [ ! -z "$ZEVENT_VDEV_STATE_STR" ] ; then
+if [ -n "$ZEVENT_VDEV_ENC_SYSFS_PATH" ] && [ -n "$ZEVENT_VDEV_STATE_STR" ] ; then
 	# Got a statechange for an individual VDEV
 	val=$(state_to_val "$ZEVENT_VDEV_STATE_STR")
 	vdev=$(basename "$ZEVENT_VDEV_PATH")

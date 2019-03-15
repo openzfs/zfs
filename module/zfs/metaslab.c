@@ -496,45 +496,62 @@ metaslab_compare(const void *x1, const void *x2)
 	return (AVL_CMP(m1->ms_start, m2->ms_start));
 }
 
+uint64_t
+metaslab_allocated_space(metaslab_t *msp)
+{
+	return (msp->ms_allocated_space);
+}
+
 /*
  * Verify that the space accounting on disk matches the in-core range_trees.
  */
-void
+static void
 metaslab_verify_space(metaslab_t *msp, uint64_t txg)
 {
 	spa_t *spa = msp->ms_group->mg_vd->vdev_spa;
-	uint64_t allocated = 0;
+	uint64_t allocating = 0;
 	uint64_t sm_free_space, msp_free_space;
 
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
+	ASSERT(!msp->ms_condensing);
 
 	if ((zfs_flags & ZFS_DEBUG_METASLAB_VERIFY) == 0)
 		return;
 
 	/*
 	 * We can only verify the metaslab space when we're called
-	 * from syncing context with a loaded metaslab that has an allocated
-	 * space map. Calling this in non-syncing context does not
-	 * provide a consistent view of the metaslab since we're performing
-	 * allocations in the future.
+	 * from syncing context with a loaded metaslab that has an
+	 * allocated space map. Calling this in non-syncing context
+	 * does not provide a consistent view of the metaslab since
+	 * we're performing allocations in the future.
 	 */
 	if (txg != spa_syncing_txg(spa) || msp->ms_sm == NULL ||
 	    !msp->ms_loaded)
 		return;
 
-	sm_free_space = msp->ms_size - space_map_allocated(msp->ms_sm) -
-	    space_map_alloc_delta(msp->ms_sm);
+	/*
+	 * Even though the smp_alloc field can get negative (e.g.
+	 * see vdev_checkpoint_sm), that should never be the case
+	 * when it come's to a metaslab's space map.
+	 */
+	ASSERT3S(space_map_allocated(msp->ms_sm), >=, 0);
+
+	sm_free_space = msp->ms_size - metaslab_allocated_space(msp);
 
 	/*
-	 * Account for future allocations since we would have already
-	 * deducted that space from the ms_freetree.
+	 * Account for future allocations since we would have
+	 * already deducted that space from the ms_allocatable.
 	 */
 	for (int t = 0; t < TXG_CONCURRENT_STATES; t++) {
-		allocated +=
+		allocating +=
 		    range_tree_space(msp->ms_allocating[(txg + t) & TXG_MASK]);
 	}
 
-	msp_free_space = range_tree_space(msp->ms_allocatable) + allocated +
+	ASSERT3U(msp->ms_deferspace, ==,
+	    range_tree_space(msp->ms_defer[0]) +
+	    range_tree_space(msp->ms_defer[1]));
+
+	msp_free_space = range_tree_space(msp->ms_allocatable) + allocating +
 	    msp->ms_deferspace + range_tree_space(msp->ms_freed);
 
 	VERIFY3U(sm_free_space, ==, msp_free_space);
@@ -839,6 +856,7 @@ metaslab_group_histogram_verify(metaslab_group_t *mg)
 
 	for (int m = 0; m < vd->vdev_ms_count; m++) {
 		metaslab_t *msp = vd->vdev_ms[m];
+		ASSERT(msp != NULL);
 
 		/* skip if not active or not a member */
 		if (msp->ms_sm == NULL || msp->ms_group != mg)
@@ -1399,6 +1417,203 @@ metaslab_ops_t *zfs_metaslab_ops = &metaslab_ndf_ops;
  * ==========================================================================
  */
 
+static void
+metaslab_aux_histograms_clear(metaslab_t *msp)
+{
+	/*
+	 * Auxiliary histograms are only cleared when resetting them,
+	 * which can only happen while the metaslab is loaded.
+	 */
+	ASSERT(msp->ms_loaded);
+
+	bzero(msp->ms_synchist, sizeof (msp->ms_synchist));
+	for (int t = 0; t < TXG_DEFER_SIZE; t++)
+		bzero(msp->ms_deferhist[t], sizeof (msp->ms_deferhist[t]));
+}
+
+static void
+metaslab_aux_histogram_add(uint64_t *histogram, uint64_t shift,
+    range_tree_t *rt)
+{
+	/*
+	 * This is modeled after space_map_histogram_add(), so refer to that
+	 * function for implementation details. We want this to work like
+	 * the space map histogram, and not the range tree histogram, as we
+	 * are essentially constructing a delta that will be later subtracted
+	 * from the space map histogram.
+	 */
+	int idx = 0;
+	for (int i = shift; i < RANGE_TREE_HISTOGRAM_SIZE; i++) {
+		ASSERT3U(i, >=, idx + shift);
+		histogram[idx] += rt->rt_histogram[i] << (i - idx - shift);
+
+		if (idx < SPACE_MAP_HISTOGRAM_SIZE - 1) {
+			ASSERT3U(idx + shift, ==, i);
+			idx++;
+			ASSERT3U(idx, <, SPACE_MAP_HISTOGRAM_SIZE);
+		}
+	}
+}
+
+/*
+ * Called at every sync pass that the metaslab gets synced.
+ *
+ * The reason is that we want our auxiliary histograms to be updated
+ * wherever the metaslab's space map histogram is updated. This way
+ * we stay consistent on which parts of the metaslab space map's
+ * histogram are currently not available for allocations (e.g because
+ * they are in the defer, freed, and freeing trees).
+ */
+static void
+metaslab_aux_histograms_update(metaslab_t *msp)
+{
+	space_map_t *sm = msp->ms_sm;
+	ASSERT(sm != NULL);
+
+	/*
+	 * This is similar to the metaslab's space map histogram updates
+	 * that take place in metaslab_sync(). The only difference is that
+	 * we only care about segments that haven't made it into the
+	 * ms_allocatable tree yet.
+	 */
+	if (msp->ms_loaded) {
+		metaslab_aux_histograms_clear(msp);
+
+		metaslab_aux_histogram_add(msp->ms_synchist,
+		    sm->sm_shift, msp->ms_freed);
+
+		for (int t = 0; t < TXG_DEFER_SIZE; t++) {
+			metaslab_aux_histogram_add(msp->ms_deferhist[t],
+			    sm->sm_shift, msp->ms_defer[t]);
+		}
+	}
+
+	metaslab_aux_histogram_add(msp->ms_synchist,
+	    sm->sm_shift, msp->ms_freeing);
+}
+
+/*
+ * Called every time we are done syncing (writing to) the metaslab,
+ * i.e. at the end of each sync pass.
+ * [see the comment in metaslab_impl.h for ms_synchist, ms_deferhist]
+ */
+static void
+metaslab_aux_histograms_update_done(metaslab_t *msp, boolean_t defer_allowed)
+{
+	spa_t *spa = msp->ms_group->mg_vd->vdev_spa;
+	space_map_t *sm = msp->ms_sm;
+
+	if (sm == NULL) {
+		/*
+		 * We came here from metaslab_init() when creating/opening a
+		 * pool, looking at a metaslab that hasn't had any allocations
+		 * yet.
+		 */
+		return;
+	}
+
+	/*
+	 * This is similar to the actions that we take for the ms_freed
+	 * and ms_defer trees in metaslab_sync_done().
+	 */
+	uint64_t hist_index = spa_syncing_txg(spa) % TXG_DEFER_SIZE;
+	if (defer_allowed) {
+		bcopy(msp->ms_synchist, msp->ms_deferhist[hist_index],
+		    sizeof (msp->ms_synchist));
+	} else {
+		bzero(msp->ms_deferhist[hist_index],
+		    sizeof (msp->ms_deferhist[hist_index]));
+	}
+	bzero(msp->ms_synchist, sizeof (msp->ms_synchist));
+}
+
+/*
+ * Ensure that the metaslab's weight and fragmentation are consistent
+ * with the contents of the histogram (either the range tree's histogram
+ * or the space map's depending whether the metaslab is loaded).
+ */
+static void
+metaslab_verify_weight_and_frag(metaslab_t *msp)
+{
+	ASSERT(MUTEX_HELD(&msp->ms_lock));
+
+	if ((zfs_flags & ZFS_DEBUG_METASLAB_VERIFY) == 0)
+		return;
+
+	/* see comment in metaslab_verify_unflushed_changes() */
+	if (msp->ms_group == NULL)
+		return;
+
+	/*
+	 * Devices being removed always return a weight of 0 and leave
+	 * fragmentation and ms_max_size as is - there is nothing for
+	 * us to verify here.
+	 */
+	vdev_t *vd = msp->ms_group->mg_vd;
+	if (vd->vdev_removing)
+		return;
+
+	/*
+	 * If the metaslab is dirty it probably means that we've done
+	 * some allocations or frees that have changed our histograms
+	 * and thus the weight.
+	 */
+	for (int t = 0; t < TXG_SIZE; t++) {
+		if (txg_list_member(&vd->vdev_ms_list, msp, t))
+			return;
+	}
+
+	/*
+	 * This verification checks that our in-memory state is consistent
+	 * with what's on disk. If the pool is read-only then there aren't
+	 * any changes and we just have the initially-loaded state.
+	 */
+	if (!spa_writeable(msp->ms_group->mg_vd->vdev_spa))
+		return;
+
+	/* some extra verification for in-core tree if you can */
+	if (msp->ms_loaded) {
+		range_tree_stat_verify(msp->ms_allocatable);
+		VERIFY(space_map_histogram_verify(msp->ms_sm,
+		    msp->ms_allocatable));
+	}
+
+	uint64_t weight = msp->ms_weight;
+	uint64_t was_active = msp->ms_weight & METASLAB_ACTIVE_MASK;
+	boolean_t space_based = WEIGHT_IS_SPACEBASED(msp->ms_weight);
+	uint64_t frag = msp->ms_fragmentation;
+	uint64_t max_segsize = msp->ms_max_size;
+
+	msp->ms_weight = 0;
+	msp->ms_fragmentation = 0;
+	msp->ms_max_size = 0;
+
+	/*
+	 * This function is used for verification purposes. Regardless of
+	 * whether metaslab_weight() thinks this metaslab should be active or
+	 * not, we want to ensure that the actual weight (and therefore the
+	 * value of ms_weight) would be the same if it was to be recalculated
+	 * at this point.
+	 */
+	msp->ms_weight = metaslab_weight(msp) | was_active;
+
+	VERIFY3U(max_segsize, ==, msp->ms_max_size);
+
+	/*
+	 * If the weight type changed then there is no point in doing
+	 * verification. Revert fields to their original values.
+	 */
+	if ((space_based && !WEIGHT_IS_SPACEBASED(msp->ms_weight)) ||
+	    (!space_based && WEIGHT_IS_SPACEBASED(msp->ms_weight))) {
+		msp->ms_fragmentation = frag;
+		msp->ms_weight = weight;
+		return;
+	}
+
+	VERIFY3U(msp->ms_fragmentation, ==, frag);
+	VERIFY3U(msp->ms_weight, ==, weight);
+}
+
 /*
  * Wait for any in-progress metaslab loads to complete.
  */
@@ -1420,46 +1635,93 @@ metaslab_load_impl(metaslab_t *msp)
 
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
 	ASSERT(msp->ms_loading);
+	ASSERT(!msp->ms_condensing);
 
 	/*
-	 * Nobody else can manipulate a loading metaslab, so it's now safe
-	 * to drop the lock. This way we don't have to hold the lock while
-	 * reading the spacemap from disk.
+	 * We temporarily drop the lock to unblock other operations while we
+	 * are reading the space map. Therefore, metaslab_sync() and
+	 * metaslab_sync_done() can run at the same time as we do.
+	 *
+	 * metaslab_sync() can append to the space map while we are loading.
+	 * Therefore we load only entries that existed when we started the
+	 * load. Additionally, metaslab_sync_done() has to wait for the load
+	 * to complete because there are potential races like metaslab_load()
+	 * loading parts of the space map that are currently being appended
+	 * by metaslab_sync(). If we didn't, the ms_allocatable would have
+	 * entries that metaslab_sync_done() would try to re-add later.
+	 *
+	 * That's why before dropping the lock we remember the synced length
+	 * of the metaslab and read up to that point of the space map,
+	 * ignoring entries appended by metaslab_sync() that happen after we
+	 * drop the lock.
 	 */
+	uint64_t length = msp->ms_synced_length;
 	mutex_exit(&msp->ms_lock);
 
-	/*
-	 * If the space map has not been allocated yet, then treat
-	 * all the space in the metaslab as free and add it to ms_allocatable.
-	 */
 	if (msp->ms_sm != NULL) {
-		error = space_map_load(msp->ms_sm, msp->ms_allocatable,
-		    SM_FREE);
+		error = space_map_load_length(msp->ms_sm, msp->ms_allocatable,
+		    SM_FREE, length);
 	} else {
+		/*
+		 * The space map has not been allocated yet, so treat
+		 * all the space in the metaslab as free and add it to the
+		 * ms_allocatable tree.
+		 */
 		range_tree_add(msp->ms_allocatable,
 		    msp->ms_start, msp->ms_size);
 	}
 
+	/*
+	 * We need to grab the ms_sync_lock to prevent metaslab_sync() from
+	 * changing the ms_sm and the metaslab's range trees while we are
+	 * about to use them and populate the ms_allocatable. The ms_lock
+	 * is insufficient for this because metaslab_sync() doesn't hold
+	 * the ms_lock while writing the ms_checkpointing tree to disk.
+	 */
+	mutex_enter(&msp->ms_sync_lock);
 	mutex_enter(&msp->ms_lock);
+	ASSERT(!msp->ms_condensing);
 
-	if (error != 0)
+	if (error != 0) {
+		mutex_exit(&msp->ms_sync_lock);
 		return (error);
+	}
 
 	ASSERT3P(msp->ms_group, !=, NULL);
 	msp->ms_loaded = B_TRUE;
 
 	/*
-	 * If the metaslab already has a spacemap, then we need to
-	 * remove all segments from the defer tree; otherwise, the
-	 * metaslab is completely empty and we can skip this.
+	 * The ms_allocatable contains the segments that exist in the
+	 * ms_defer trees [see ms_synced_length]. Thus we need to remove
+	 * them from ms_allocatable as they will be added again in
+	 * metaslab_sync_done().
 	 */
-	if (msp->ms_sm != NULL) {
-		for (int t = 0; t < TXG_DEFER_SIZE; t++) {
-			range_tree_walk(msp->ms_defer[t],
-			    range_tree_remove, msp->ms_allocatable);
-		}
+	for (int t = 0; t < TXG_DEFER_SIZE; t++) {
+		range_tree_walk(msp->ms_defer[t],
+		    range_tree_remove, msp->ms_allocatable);
 	}
+
+	/*
+	 * Call metaslab_recalculate_weight_and_sort() now that the
+	 * metaslab is loaded so we get the metaslab's real weight.
+	 *
+	 * Unless this metaslab was created with older software and
+	 * has not yet been converted to use segment-based weight, we
+	 * expect the new weight to be better or equal to the weight
+	 * that the metaslab had while it was not loaded. This is
+	 * because the old weight does not take into account the
+	 * consolidation of adjacent segments between TXGs. [see
+	 * comment for ms_synchist and ms_deferhist[] for more info]
+	 */
+	uint64_t weight = msp->ms_weight;
+	metaslab_recalculate_weight_and_sort(msp);
+	if (!WEIGHT_IS_SPACEBASED(weight))
+		ASSERT3U(weight, <=, msp->ms_weight);
 	msp->ms_max_size = metaslab_block_maxsize(msp);
+
+	spa_t *spa = msp->ms_group->mg_vd->vdev_spa;
+	metaslab_verify_space(msp, spa_syncing_txg(spa));
+	mutex_exit(&msp->ms_sync_lock);
 
 	return (0);
 }
@@ -1477,6 +1739,7 @@ metaslab_load(metaslab_t *msp)
 	if (msp->ms_loaded)
 		return (0);
 	VERIFY(!msp->ms_loading);
+	ASSERT(!msp->ms_condensing);
 
 	msp->ms_loading = B_TRUE;
 	int error = metaslab_load_impl(msp);
@@ -1490,10 +1753,29 @@ void
 metaslab_unload(metaslab_t *msp)
 {
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
+
+	metaslab_verify_weight_and_frag(msp);
+
 	range_tree_vacate(msp->ms_allocatable, NULL, NULL);
 	msp->ms_loaded = B_FALSE;
+
 	msp->ms_weight &= ~METASLAB_ACTIVE_MASK;
 	msp->ms_max_size = 0;
+
+	/*
+	 * We explicitly recalculate the metaslab's weight based on its space
+	 * map (as it is now not loaded). We want unload metaslabs to always
+	 * have their weights calculated from the space map histograms, while
+	 * loaded ones have it calculated from their in-core range tree
+	 * [see metaslab_load()]. This way, the weight reflects the information
+	 * available in-core, whether it is loaded or not
+	 *
+	 * If ms_group == NULL means that we came here from metaslab_fini(),
+	 * at which point it doesn't make sense for us to do the recalculation
+	 * and the sorting.
+	 */
+	if (msp->ms_group != NULL)
+		metaslab_recalculate_weight_and_sort(msp);
 }
 
 static void
@@ -1533,6 +1815,13 @@ metaslab_init(metaslab_group_t *mg, uint64_t id, uint64_t object, uint64_t txg,
 	/*
 	 * We only open space map objects that already exist. All others
 	 * will be opened when we finally allocate an object for it.
+	 *
+	 * Note:
+	 * When called from vdev_expand(), we can't call into the DMU as
+	 * we are holding the spa_config_lock as a writer and we would
+	 * deadlock [see relevant comment in vdev_metaslab_init()]. in
+	 * that case, the object parameter is zero though, so we won't
+	 * call into the DMU.
 	 */
 	if (object != 0) {
 		error = space_map_open(&ms->ms_sm, mos, object, ms->ms_start,
@@ -1544,14 +1833,16 @@ metaslab_init(metaslab_group_t *mg, uint64_t id, uint64_t object, uint64_t txg,
 		}
 
 		ASSERT(ms->ms_sm != NULL);
+		ms->ms_allocated_space = space_map_allocated(ms->ms_sm);
 	}
 
 	/*
-	 * We create the main range tree here, but we don't create the
+	 * We create the ms_allocatable here, but we don't create the
 	 * other range trees until metaslab_sync_done().  This serves
 	 * two purposes: it allows metaslab_sync_done() to detect the
-	 * addition of new space; and for debugging, it ensures that we'd
-	 * data fault on any attempt to use this metaslab before it's ready.
+	 * addition of new space; and for debugging, it ensures that
+	 * we'd data fault on any attempt to use this metaslab before
+	 * it's ready.
 	 */
 	ms->ms_allocatable = range_tree_create_impl(&rt_avl_ops,
 	    &ms->ms_allocatable_by_size, metaslab_rangesize_compare, 0);
@@ -1568,8 +1859,11 @@ metaslab_init(metaslab_group_t *mg, uint64_t id, uint64_t object, uint64_t txg,
 	 * out this txg. This ensures that we don't attempt to allocate
 	 * from it before we have initialized it completely.
 	 */
-	if (txg <= TXG_INITIAL)
+	if (txg <= TXG_INITIAL) {
 		metaslab_sync_done(ms, 0);
+		metaslab_space_update(vd, mg->mg_class,
+		    metaslab_allocated_space(ms), 0, 0);
+	}
 
 	/*
 	 * If metaslab_debug_load is set and we're initializing a metaslab
@@ -1603,7 +1897,7 @@ metaslab_fini(metaslab_t *msp)
 	mutex_enter(&msp->ms_lock);
 	VERIFY(msp->ms_group == NULL);
 	metaslab_space_update(vd, mg->mg_class,
-	    -space_map_allocated(msp->ms_sm), 0, -msp->ms_size);
+	    -metaslab_allocated_space(msp), 0, -msp->ms_size);
 
 	space_map_close(msp->ms_sm);
 
@@ -1624,6 +1918,9 @@ metaslab_fini(metaslab_t *msp)
 
 	range_tree_destroy(msp->ms_checkpointing);
 
+	for (int t = 0; t < TXG_SIZE; t++)
+		ASSERT(!txg_list_member(&vd->vdev_ms_list, msp, t));
+
 	mutex_exit(&msp->ms_lock);
 	cv_destroy(&msp->ms_load_cv);
 	mutex_destroy(&msp->ms_lock);
@@ -1639,7 +1936,7 @@ metaslab_fini(metaslab_t *msp)
  * This table defines a segment size based fragmentation metric that will
  * allow each metaslab to derive its own fragmentation value. This is done
  * by calculating the space in each bucket of the spacemap histogram and
- * multiplying that by the fragmetation metric in this table. Doing
+ * multiplying that by the fragmentation metric in this table. Doing
  * this for all buckets and dividing it by the total amount of free
  * space in this metaslab (i.e. the total free space in all buckets) gives
  * us the fragmentation metric. This means that a high fragmentation metric
@@ -1674,10 +1971,10 @@ int zfs_frag_table[FRAGMENTATION_TABLE_SIZE] = {
 };
 
 /*
- * Calclate the metaslab's fragmentation metric. A return value
- * of ZFS_FRAG_INVALID means that the metaslab has not been upgraded and does
- * not support this metric. Otherwise, the return value should be in the
- * range [0, 100].
+ * Calculate the metaslab's fragmentation metric and set ms_fragmentation.
+ * Setting this value to ZFS_FRAG_INVALID means that the metaslab has not
+ * been upgraded and does not support this metric. Otherwise, the return
+ * value should be in the range [0, 100].
  */
 static void
 metaslab_set_fragmentation(metaslab_t *msp)
@@ -1770,7 +2067,7 @@ metaslab_space_weight(metaslab_t *msp)
 	/*
 	 * The baseline weight is the metaslab's free space.
 	 */
-	space = msp->ms_size - space_map_allocated(msp->ms_sm);
+	space = msp->ms_size - metaslab_allocated_space(msp);
 
 	if (metaslab_fragmentation_factor_enabled &&
 	    msp->ms_fragmentation != ZFS_FRAG_INVALID) {
@@ -1874,14 +2171,38 @@ metaslab_weight_from_range_tree(metaslab_t *msp)
 static uint64_t
 metaslab_weight_from_spacemap(metaslab_t *msp)
 {
-	uint64_t weight = 0;
+	space_map_t *sm = msp->ms_sm;
+	ASSERT(!msp->ms_loaded);
+	ASSERT(sm != NULL);
+	ASSERT3U(space_map_object(sm), !=, 0);
+	ASSERT3U(sm->sm_dbuf->db_size, ==, sizeof (space_map_phys_t));
 
+	/*
+	 * Create a joint histogram from all the segments that have made
+	 * it to the metaslab's space map histogram, that are not yet
+	 * available for allocation because they are still in the freeing
+	 * pipeline (e.g. freeing, freed, and defer trees). Then subtract
+	 * these segments from the space map's histogram to get a more
+	 * accurate weight.
+	 */
+	uint64_t deferspace_histogram[SPACE_MAP_HISTOGRAM_SIZE] = {0};
+	for (int i = 0; i < SPACE_MAP_HISTOGRAM_SIZE; i++)
+		deferspace_histogram[i] += msp->ms_synchist[i];
+	for (int t = 0; t < TXG_DEFER_SIZE; t++) {
+		for (int i = 0; i < SPACE_MAP_HISTOGRAM_SIZE; i++) {
+			deferspace_histogram[i] += msp->ms_deferhist[t][i];
+		}
+	}
+
+	uint64_t weight = 0;
 	for (int i = SPACE_MAP_HISTOGRAM_SIZE - 1; i >= 0; i--) {
-		if (msp->ms_sm->sm_phys->smp_histogram[i] != 0) {
-			WEIGHT_SET_COUNT(weight,
-			    msp->ms_sm->sm_phys->smp_histogram[i]);
-			WEIGHT_SET_INDEX(weight, i +
-			    msp->ms_sm->sm_shift);
+		ASSERT3U(sm->sm_phys->smp_histogram[i], >=,
+		    deferspace_histogram[i]);
+		uint64_t count =
+		    sm->sm_phys->smp_histogram[i] - deferspace_histogram[i];
+		if (count != 0) {
+			WEIGHT_SET_COUNT(weight, count);
+			WEIGHT_SET_INDEX(weight, i + sm->sm_shift);
 			WEIGHT_SET_ACTIVE(weight, 0);
 			break;
 		}
@@ -1906,7 +2227,7 @@ metaslab_segment_weight(metaslab_t *msp)
 	/*
 	 * The metaslab is completely free.
 	 */
-	if (space_map_allocated(msp->ms_sm) == 0) {
+	if (metaslab_allocated_space(msp) == 0) {
 		int idx = highbit64(msp->ms_size) - 1;
 		int max_idx = SPACE_MAP_HISTOGRAM_SIZE + shift - 1;
 
@@ -1928,7 +2249,7 @@ metaslab_segment_weight(metaslab_t *msp)
 	/*
 	 * If the metaslab is fully allocated then just make the weight 0.
 	 */
-	if (space_map_allocated(msp->ms_sm) == msp->ms_size)
+	if (metaslab_allocated_space(msp) == msp->ms_size)
 		return (0);
 	/*
 	 * If the metaslab is already loaded, then use the range tree to
@@ -2008,6 +2329,8 @@ metaslab_weight(metaslab_t *msp)
 	 */
 	if (msp->ms_loaded)
 		msp->ms_max_size = metaslab_block_maxsize(msp);
+	else
+		ASSERT0(msp->ms_max_size);
 
 	/*
 	 * Segment-based weighting requires space map histogram support.
@@ -2021,6 +2344,15 @@ metaslab_weight(metaslab_t *msp)
 		weight = metaslab_space_weight(msp);
 	}
 	return (weight);
+}
+
+void
+metaslab_recalculate_weight_and_sort(metaslab_t *msp)
+{
+	/* note: we preserve the mask (e.g. indication of primary, etc..) */
+	uint64_t was_active = msp->ms_weight & METASLAB_ACTIVE_MASK;
+	metaslab_group_sort(msp->ms_group, msp,
+	    metaslab_weight(msp) | was_active);
 }
 
 static int
@@ -2411,17 +2743,17 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 	VERIFY(txg <= spa_final_dirty_txg(spa));
 
 	/*
-	 * The only state that can actually be changing concurrently with
-	 * metaslab_sync() is the metaslab's ms_allocatable.  No other
-	 * thread can be modifying this txg's alloc, freeing,
+	 * The only state that can actually be changing concurrently
+	 * with metaslab_sync() is the metaslab's ms_allocatable. No
+	 * other thread can be modifying this txg's alloc, freeing,
 	 * freed, or space_map_phys_t.  We drop ms_lock whenever we
-	 * could call into the DMU, because the DMU can call down to us
-	 * (e.g. via zio_free()) at any time.
+	 * could call into the DMU, because the DMU can call down to
+	 * us (e.g. via zio_free()) at any time.
 	 *
 	 * The spa_vdev_remove_thread() can be reading metaslab state
-	 * concurrently, and it is locked out by the ms_sync_lock.  Note
-	 * that the ms_lock is insufficient for this, because it is dropped
-	 * by space_map_write().
+	 * concurrently, and it is locked out by the ms_sync_lock.
+	 * Note that the ms_lock is insufficient for this, because it
+	 * is dropped by space_map_write().
 	 */
 	tx = dmu_tx_create_assigned(spa_get_dsl(spa), txg);
 
@@ -2433,7 +2765,9 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 
 		VERIFY0(space_map_open(&msp->ms_sm, mos, new_object,
 		    msp->ms_start, msp->ms_size, vd->vdev_ashift));
+
 		ASSERT(msp->ms_sm != NULL);
+		ASSERT0(metaslab_allocated_space(msp));
 	}
 
 	if (!range_tree_is_empty(msp->ms_checkpointing) &&
@@ -2481,6 +2815,11 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 		mutex_enter(&msp->ms_lock);
 	}
 
+	msp->ms_allocated_space += range_tree_space(alloctree);
+	ASSERT3U(msp->ms_allocated_space, >=,
+	    range_tree_space(msp->ms_freeing));
+	msp->ms_allocated_space -= range_tree_space(msp->ms_freeing);
+
 	if (!range_tree_is_empty(msp->ms_checkpointing)) {
 		ASSERT(spa_has_checkpoint(spa));
 		ASSERT3P(vd->vdev_checkpoint_sm, !=, NULL);
@@ -2494,14 +2833,13 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 		space_map_write(vd->vdev_checkpoint_sm,
 		    msp->ms_checkpointing, SM_FREE, SM_NO_VDEVID, tx);
 		mutex_enter(&msp->ms_lock);
-		space_map_update(vd->vdev_checkpoint_sm);
 
 		spa->spa_checkpoint_info.sci_dspace +=
 		    range_tree_space(msp->ms_checkpointing);
 		vd->vdev_stat.vs_checkpoint_space +=
 		    range_tree_space(msp->ms_checkpointing);
 		ASSERT3U(vd->vdev_stat.vs_checkpoint_space, ==,
-		    -vd->vdev_checkpoint_sm->sm_alloc);
+		    -space_map_allocated(vd->vdev_checkpoint_sm));
 
 		range_tree_vacate(msp->ms_checkpointing, NULL, NULL);
 	}
@@ -2546,6 +2884,7 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 	 * time we load the space map.
 	 */
 	space_map_histogram_add(msp->ms_sm, msp->ms_freeing, tx);
+	metaslab_aux_histograms_update(msp);
 
 	metaslab_group_histogram_add(mg, msp);
 	metaslab_group_histogram_verify(mg);
@@ -2553,16 +2892,18 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 
 	/*
 	 * For sync pass 1, we avoid traversing this txg's free range tree
-	 * and instead will just swap the pointers for freeing and
-	 * freed. We can safely do this since the freed_tree is
-	 * guaranteed to be empty on the initial pass.
+	 * and instead will just swap the pointers for freeing and freed.
+	 * We can safely do this since the freed_tree is guaranteed to be
+	 * empty on the initial pass.
 	 */
 	if (spa_sync_pass(spa) == 1) {
 		range_tree_swap(&msp->ms_freeing, &msp->ms_freed);
+		ASSERT0(msp->ms_allocated_this_txg);
 	} else {
 		range_tree_vacate(msp->ms_freeing,
 		    range_tree_add, msp->ms_freed);
 	}
+	msp->ms_allocated_this_txg += range_tree_space(alloctree);
 	range_tree_vacate(alloctree, NULL, NULL);
 
 	ASSERT0(range_tree_space(msp->ms_allocating[txg & TXG_MASK]));
@@ -2640,7 +2981,8 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 	}
 
 	defer_delta = 0;
-	alloc_delta = space_map_alloc_delta(msp->ms_sm);
+	alloc_delta = msp->ms_allocated_this_txg -
+	    range_tree_space(msp->ms_freed);
 	if (defer_allowed) {
 		defer_delta = range_tree_space(msp->ms_freed) -
 		    range_tree_space(*defer_tree);
@@ -2672,7 +3014,8 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 		    msp->ms_loaded ? range_tree_add : NULL,
 		    msp->ms_allocatable);
 	}
-	space_map_update(msp->ms_sm);
+
+	msp->ms_synced_length = space_map_length(msp->ms_sm);
 
 	msp->ms_deferspace += defer_delta;
 	ASSERT3S(msp->ms_deferspace, >=, 0);
@@ -2684,6 +3027,7 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 		 */
 		vdev_dirty(vd, VDD_METASLAB, msp, txg + 1);
 	}
+	metaslab_aux_histograms_update_done(msp, defer_allowed);
 
 	if (msp->ms_new) {
 		msp->ms_new = B_FALSE;
@@ -2691,12 +3035,12 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 		mg->mg_ms_ready++;
 		mutex_exit(&mg->mg_lock);
 	}
+
 	/*
-	 * Calculate the new weights before unloading any metaslabs.
-	 * This will give us the most accurate weighting.
+	 * Re-sort metaslab within its group now that we've adjusted
+	 * its allocatable space.
 	 */
-	metaslab_group_sort(mg, msp, metaslab_weight(msp) |
-	    (msp->ms_weight & METASLAB_ACTIVE_MASK));
+	metaslab_recalculate_weight_and_sort(msp);
 
 	/*
 	 * If the metaslab is loaded and we've not tried to load or allocate
@@ -2724,6 +3068,7 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 	ASSERT0(range_tree_space(msp->ms_freed));
 	ASSERT0(range_tree_space(msp->ms_checkpointing));
 
+	msp->ms_allocated_this_txg = 0;
 	mutex_exit(&msp->ms_lock);
 }
 
@@ -4040,7 +4385,7 @@ metaslab_alloc(spa_t *spa, metaslab_class_t *mc, uint64_t psize, blkptr_t *bp,
     zio_alloc_list_t *zal, zio_t *zio, int allocator)
 {
 	dva_t *dva = bp->blk_dva;
-	dva_t *hintdva = hintbp->blk_dva;
+	dva_t *hintdva = (hintbp != NULL) ? hintbp->blk_dva : NULL;
 	int error = 0;
 
 	ASSERT(bp->blk_birth == 0);
@@ -4256,14 +4601,16 @@ metaslab_check_free_impl(vdev_t *vd, uint64_t offset, uint64_t size)
 	msp = vd->vdev_ms[offset >> vd->vdev_ms_shift];
 
 	mutex_enter(&msp->ms_lock);
-	if (msp->ms_loaded)
-		range_tree_verify(msp->ms_allocatable, offset, size);
+	if (msp->ms_loaded) {
+		range_tree_verify_not_present(msp->ms_allocatable,
+		    offset, size);
+	}
 
-	range_tree_verify(msp->ms_freeing, offset, size);
-	range_tree_verify(msp->ms_checkpointing, offset, size);
-	range_tree_verify(msp->ms_freed, offset, size);
+	range_tree_verify_not_present(msp->ms_freeing, offset, size);
+	range_tree_verify_not_present(msp->ms_checkpointing, offset, size);
+	range_tree_verify_not_present(msp->ms_freed, offset, size);
 	for (int j = 0; j < TXG_DEFER_SIZE; j++)
-		range_tree_verify(msp->ms_defer[j], offset, size);
+		range_tree_verify_not_present(msp->ms_defer[j], offset, size);
 	mutex_exit(&msp->ms_lock);
 }
 

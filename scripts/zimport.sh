@@ -233,8 +233,8 @@ src_set_vars() {
 	ZFS_URL="$REPO/zfs/tarball/$ZFS_TAG"
 
 	if [ "$TAG" = "installed" ]; then
-		ZPOOL_CMD=$(which zpool)
-		ZFS_CMD=$(which zfs)
+		ZPOOL_CMD=$(command -v zpool)
+		ZFS_CMD=$(command -v zfs)
 		ZFS_SH="/usr/share/zfs/zfs.sh"
 	else
 		ZPOOL_CMD="./cmd/zpool/zpool"

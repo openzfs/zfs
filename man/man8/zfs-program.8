@@ -8,7 +8,7 @@
 .\" http://www.illumos.org/license/CDDL.
 .\"
 .\"
-.\" Copyright (c) 2016, 2017 by Delphix. All Rights Reserved.
+.\" Copyright (c) 2016, 2019 by Delphix. All Rights Reserved.
 .\"
 .Dd January 21, 2016
 .Dt ZFS-PROGRAM 8
@@ -59,7 +59,7 @@ determining if changes would succeed (zfs.check.*).
 Without this flag, all pending changes must be synced to disk before a
 channel program can complete.
 .It Fl t Ar instruction-limit
-Execution time limit, in number of Lua instructions to execute.
+Limit the number of Lua instructions to execute.
 If a channel program executes more than the specified number of instructions,
 it will be stopped and an error will be returned.
 The default limit is 10 million instructions, and it can be set to a maximum of

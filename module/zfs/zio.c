@@ -62,6 +62,7 @@ const char *zio_type_name[ZIO_TYPES] = {
 };
 
 int zio_dva_throttle_enabled = B_TRUE;
+int zio_deadman_log_all = B_FALSE;
 
 /*
  * ==========================================================================
@@ -1833,6 +1834,7 @@ zio_delay_interrupt(zio_t *zio)
 			if (NSEC_TO_TICK(diff) == 0) {
 				/* Our delay is less than a jiffy - just spin */
 				zfs_sleep_until(zio->io_target_timestamp);
+				zio_interrupt(zio);
 			} else {
 				/*
 				 * Use taskq_dispatch_delay() in the place of
@@ -1858,30 +1860,30 @@ zio_delay_interrupt(zio_t *zio)
 }
 
 static void
-zio_deadman_impl(zio_t *pio)
+zio_deadman_impl(zio_t *pio, int ziodepth)
 {
 	zio_t *cio, *cio_next;
 	zio_link_t *zl = NULL;
 	vdev_t *vd = pio->io_vd;
 
-	if (vd != NULL && vd->vdev_ops->vdev_op_leaf) {
-		vdev_queue_t *vq = &vd->vdev_queue;
+	if (zio_deadman_log_all || (vd != NULL && vd->vdev_ops->vdev_op_leaf)) {
+		vdev_queue_t *vq = vd ? &vd->vdev_queue : NULL;
 		zbookmark_phys_t *zb = &pio->io_bookmark;
 		uint64_t delta = gethrtime() - pio->io_timestamp;
 		uint64_t failmode = spa_get_deadman_failmode(pio->io_spa);
 
-		zfs_dbgmsg("slow zio: zio=%p timestamp=%llu "
+		zfs_dbgmsg("slow zio[%d]: zio=%p timestamp=%llu "
 		    "delta=%llu queued=%llu io=%llu "
 		    "path=%s last=%llu "
 		    "type=%d priority=%d flags=0x%x "
 		    "stage=0x%x pipeline=0x%x pipeline-trace=0x%x "
 		    "objset=%llu object=%llu level=%llu blkid=%llu "
 		    "offset=%llu size=%llu error=%d",
-		    pio, pio->io_timestamp,
+		    ziodepth, pio, pio->io_timestamp,
 		    delta, pio->io_delta, pio->io_delay,
-		    vd->vdev_path, vq->vq_io_complete_ts,
+		    vd ? vd->vdev_path : "NULL", vq ? vq->vq_io_complete_ts : 0,
 		    pio->io_type, pio->io_priority, pio->io_flags,
-		    pio->io_state, pio->io_pipeline, pio->io_pipeline_trace,
+		    pio->io_stage, pio->io_pipeline, pio->io_pipeline_trace,
 		    zb->zb_objset, zb->zb_object, zb->zb_level, zb->zb_blkid,
 		    pio->io_offset, pio->io_size, pio->io_error);
 		zfs_ereport_post(FM_EREPORT_ZFS_DEADMAN,
@@ -1896,7 +1898,7 @@ zio_deadman_impl(zio_t *pio)
 	mutex_enter(&pio->io_lock);
 	for (cio = zio_walk_children(pio, &zl); cio != NULL; cio = cio_next) {
 		cio_next = zio_walk_children(pio, &zl);
-		zio_deadman_impl(cio);
+		zio_deadman_impl(cio, ziodepth + 1);
 	}
 	mutex_exit(&pio->io_lock);
 }
@@ -1914,7 +1916,7 @@ zio_deadman(zio_t *pio, char *tag)
 	if (!zfs_deadman_enabled || spa_suspended(spa))
 		return;
 
-	zio_deadman_impl(pio);
+	zio_deadman_impl(pio, 0);
 
 	switch (spa_get_deadman_failmode(spa)) {
 	case ZIO_FAILURE_MODE_WAIT:
@@ -4130,6 +4132,10 @@ zio_checksum_verify(zio_t *zio)
 		zio->io_error = error;
 		if (error == ECKSUM &&
 		    !(zio->io_flags & ZIO_FLAG_SPECULATIVE)) {
+			mutex_enter(&zio->io_vd->vdev_stat_lock);
+			zio->io_vd->vdev_stat.vs_checksum_errors++;
+			mutex_exit(&zio->io_vd->vdev_stat_lock);
+
 			zfs_ereport_start_checksum(zio->io_spa,
 			    zio->io_vd, &zio->io_bookmark, zio,
 			    zio->io_offset, zio->io_size, NULL, &info);
@@ -4465,9 +4471,18 @@ zio_done(zio_t *zio)
 		 * device is currently unavailable.
 		 */
 		if (zio->io_error != ECKSUM && zio->io_vd != NULL &&
-		    !vdev_is_dead(zio->io_vd))
+		    !vdev_is_dead(zio->io_vd)) {
+			mutex_enter(&zio->io_vd->vdev_stat_lock);
+			if (zio->io_type == ZIO_TYPE_READ) {
+				zio->io_vd->vdev_stat.vs_read_errors++;
+			} else if (zio->io_type == ZIO_TYPE_WRITE) {
+				zio->io_vd->vdev_stat.vs_write_errors++;
+			}
+			mutex_exit(&zio->io_vd->vdev_stat_lock);
+
 			zfs_ereport_post(FM_EREPORT_ZFS_IO, zio->io_spa,
 			    zio->io_vd, &zio->io_bookmark, zio, 0, 0);
+		}
 
 		if ((zio->io_error == EIO || !(zio->io_flags &
 		    (ZIO_FLAG_SPECULATIVE | ZIO_FLAG_DONT_PROPAGATE))) &&
@@ -4865,4 +4880,8 @@ MODULE_PARM_DESC(zfs_sync_pass_rewrite,
 module_param(zio_dva_throttle_enabled, int, 0644);
 MODULE_PARM_DESC(zio_dva_throttle_enabled,
 	"Throttle block allocations in the ZIO pipeline");
+
+module_param(zio_deadman_log_all, int, 0644);
+MODULE_PARM_DESC(zio_deadman_log_all,
+	"Log all slow ZIOs, not just those with vdevs");
 #endif

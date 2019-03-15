@@ -21,6 +21,7 @@
 
 /*
  * Copyright (c) 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2018 Datto Inc.
  */
 
 #include <sys/dataset_kstats.h>
@@ -34,6 +35,8 @@ static dataset_kstat_values_t empty_dataset_kstats = {
 	{ "nwritten",	KSTAT_DATA_UINT64 },
 	{ "reads",	KSTAT_DATA_UINT64 },
 	{ "nread",	KSTAT_DATA_UINT64 },
+	{ "nunlinks",	KSTAT_DATA_UINT64 },
+	{ "nunlinked",	KSTAT_DATA_UINT64 },
 };
 
 static int
@@ -54,6 +57,10 @@ dataset_kstats_update(kstat_t *ksp, int rw)
 	    aggsum_value(&dk->dk_aggsums.das_reads);
 	dkv->dkv_nread.value.ui64 =
 	    aggsum_value(&dk->dk_aggsums.das_nread);
+	dkv->dkv_nunlinks.value.ui64 =
+	    aggsum_value(&dk->dk_aggsums.das_nunlinks);
+	dkv->dkv_nunlinked.value.ui64 =
+	    aggsum_value(&dk->dk_aggsums.das_nunlinked);
 
 	return (0);
 }
@@ -136,6 +143,8 @@ dataset_kstats_create(dataset_kstats_t *dk, objset_t *objset)
 	aggsum_init(&dk->dk_aggsums.das_nwritten, 0);
 	aggsum_init(&dk->dk_aggsums.das_reads, 0);
 	aggsum_init(&dk->dk_aggsums.das_nread, 0);
+	aggsum_init(&dk->dk_aggsums.das_nunlinks, 0);
+	aggsum_init(&dk->dk_aggsums.das_nunlinked, 0);
 }
 
 void
@@ -156,6 +165,8 @@ dataset_kstats_destroy(dataset_kstats_t *dk)
 	aggsum_fini(&dk->dk_aggsums.das_nwritten);
 	aggsum_fini(&dk->dk_aggsums.das_reads);
 	aggsum_fini(&dk->dk_aggsums.das_nread);
+	aggsum_fini(&dk->dk_aggsums.das_nunlinks);
+	aggsum_fini(&dk->dk_aggsums.das_nunlinked);
 }
 
 void
@@ -182,4 +193,22 @@ dataset_kstats_update_read_kstats(dataset_kstats_t *dk,
 
 	aggsum_add(&dk->dk_aggsums.das_reads, 1);
 	aggsum_add(&dk->dk_aggsums.das_nread, nread);
+}
+
+void
+dataset_kstats_update_nunlinks_kstat(dataset_kstats_t *dk, int64_t delta)
+{
+	if (dk->dk_kstats == NULL)
+		return;
+
+	aggsum_add(&dk->dk_aggsums.das_nunlinks, delta);
+}
+
+void
+dataset_kstats_update_nunlinked_kstat(dataset_kstats_t *dk, int64_t delta)
+{
+	if (dk->dk_kstats == NULL)
+		return;
+
+	aggsum_add(&dk->dk_aggsums.das_nunlinked, delta);
 }

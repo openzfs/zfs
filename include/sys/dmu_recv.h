@@ -51,7 +51,9 @@ typedef struct dmu_recv_cookie {
 	struct avl_tree *drc_guid_to_ds_map;
 	nvlist_t *drc_keynvl;
 	zio_cksum_t drc_cksum;
+	uint64_t drc_fromsnapobj;
 	uint64_t drc_newsnapobj;
+	uint64_t drc_ivset_guid;
 	void *drc_owner;
 	cred_t *drc_cred;
 } dmu_recv_cookie_t;

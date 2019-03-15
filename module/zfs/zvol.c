@@ -961,7 +961,7 @@ zvol_request(struct request_queue *q, struct bio *bio)
 
 		/*
 		 * To be released in the I/O function. See the comment on
-		 * zfs_range_lock below.
+		 * rangelock_enter() below.
 		 */
 		rw_enter(&zv->zv_suspend_lock, RW_READER);
 
@@ -1008,6 +1008,16 @@ zvol_request(struct request_queue *q, struct bio *bio)
 				zvol_write(zvr);
 		}
 	} else {
+		/*
+		 * The SCST driver, and possibly others, may issue READ I/Os
+		 * with a length of zero bytes.  These empty I/Os contain no
+		 * data and require no additional handling.
+		 */
+		if (size == 0) {
+			BIO_END_IO(bio, 0);
+			goto out;
+		}
+
 		zvr = kmem_alloc(sizeof (zv_request_t), KM_SLEEP);
 		zvr->zv = zv;
 		zvr->bio = bio;
@@ -2252,12 +2262,6 @@ zvol_rename_minors_impl(const char *oldname, const char *newname)
 
 		mutex_enter(&zv->zv_state_lock);
 
-		/* If in use, leave alone */
-		if (zv->zv_open_count > 0) {
-			mutex_exit(&zv->zv_state_lock);
-			continue;
-		}
-
 		if (strcmp(zv->zv_name, oldname) == 0) {
 			zvol_rename_minor(zv, newname);
 		} else if (strncmp(zv->zv_name, oldname, oldnamelen) == 0 &&
@@ -2267,7 +2271,7 @@ zvol_rename_minors_impl(const char *oldname, const char *newname)
 			    zv->zv_name[oldnamelen],
 			    zv->zv_name + oldnamelen + 1);
 			zvol_rename_minor(zv, name);
-			kmem_free(name, strlen(name + 1));
+			strfree(name);
 		}
 
 		mutex_exit(&zv->zv_state_lock);

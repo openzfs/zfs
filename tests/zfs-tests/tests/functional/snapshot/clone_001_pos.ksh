@@ -75,7 +75,7 @@ function cleanup_all
 	i=0
 	while (( i < ${#args[*]} )); do
 		snapexists ${args[i]} && \
-			log_must zfs destroy -Rf ${args[i]}
+			destroy_dataset "${args[i]}" "-Rf"
 
 		[[ -d ${args[i+3]} ]] && \
 			log_must rm -rf ${args[i+3]}

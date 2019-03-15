@@ -22,6 +22,7 @@
 /*
  * Copyright (c) 2000, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2015, 2017 by Delphix. All rights reserved.
+ * Copyright 2018 RackTop Systems.
  */
 
 #include <sys/debug.h>
@@ -470,7 +471,7 @@ nvt_remove_nvpair(nvlist_t *nvl, nvpair_t *nvp)
 
 	for (i_nvp_t *prev = NULL, *e = bucket;
 	    e != NULL; prev = e, e = e->nvi_hashtable_next) {
-		if (nvt_nvpair_match(&e->nvi_nvp, nvp, nvl->nvl_flag)) {
+		if (nvt_nvpair_match(&e->nvi_nvp, nvp, nvl->nvl_nvflag)) {
 			if (prev != NULL) {
 				prev->nvi_hashtable_next =
 				    e->nvi_hashtable_next;

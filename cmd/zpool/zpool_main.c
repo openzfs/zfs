@@ -345,7 +345,7 @@ get_usage(zpool_help_t idx)
 		return (gettext("\tiostat [[[-c [script1,script2,...]"
 		    "[-lq]]|[-rw]] [-T d | u] [-ghHLpPvy]\n"
 		    "\t    [[pool ...]|[pool vdev ...]|[vdev ...]]"
-		    " [interval [count]]\n"));
+		    " [[-n] interval [count]]\n"));
 	case HELP_LABELCLEAR:
 		return (gettext("\tlabelclear [-f] <vdev>\n"));
 	case HELP_LIST:
@@ -2478,6 +2478,19 @@ show_import(nvlist_t *config)
 				    "old ones.\n"));
 				break;
 
+			case ZPOOL_ERRATA_ZOL_8308_ENCRYPTION:
+				(void) printf(gettext(" action: Any existing "
+				    "encrypted datasets contain an on-disk "
+				    "incompatibility\n\twhich may cause "
+				    "on-disk corruption with 'zfs recv' and "
+				    "which needs\n\tto be corrected. Enable "
+				    "the bookmark_v2 feature, backup "
+				    "these datasets\n\tto new encrypted "
+				    "datasets, and destroy the old ones. "
+				    "If this pool does\n\tnot contain any "
+				    "encrypted datasets, simply enable the "
+				    "bookmark_v2\n\tfeature.\n"));
+				break;
 			default:
 				/*
 				 * All errata must contain an action message.
@@ -3371,8 +3384,8 @@ static const name_and_columns_t iostat_top_labels[][IOSTAT_MAX_LABELS] =
 	[IOS_QUEUES] = {{"syncq_read", 2}, {"syncq_write", 2},
 	    {"asyncq_read", 2}, {"asyncq_write", 2}, {"scrubq_read", 2},
 	    {NULL}},
-	[IOS_L_HISTO] = {{"total_wait", 2}, {"disk_wait", 2},
-	    {"sync_queue", 2}, {"async_queue", 2}, {NULL}},
+	[IOS_L_HISTO] = {{"total_wait", 2}, {"disk_wait", 2}, {"syncq_wait", 2},
+	    {"asyncq_wait", 2}, {NULL}},
 	[IOS_RQ_HISTO] = {{"sync_read", 2}, {"sync_write", 2},
 	    {"async_read", 2}, {"async_write", 2}, {"scrub", 2}, {NULL}},
 
@@ -4917,6 +4930,7 @@ get_namewidth_iostat(zpool_handle_t *zhp, void *data)
  *	-w	Display latency histograms
  *	-r	Display request size histogram
  *	-T	Display a timestamp in date(1) or Unix format
+ *	-n	Only print headers once
  *
  * This command can be tricky because we want to be able to deal with pool
  * creation/destruction as well as vdev configuration changes.  The bulk of this
@@ -4932,6 +4946,8 @@ zpool_do_iostat(int argc, char **argv)
 	int npools;
 	float interval = 0;
 	unsigned long count = 0;
+	struct winsize win;
+	int winheight = 24;
 	zpool_list_t *list;
 	boolean_t verbose = B_FALSE;
 	boolean_t latency = B_FALSE, l_histo = B_FALSE, rq_histo = B_FALSE;
@@ -4940,6 +4956,7 @@ zpool_do_iostat(int argc, char **argv)
 	boolean_t guid = B_FALSE;
 	boolean_t follow_links = B_FALSE;
 	boolean_t full_name = B_FALSE;
+	boolean_t headers_once = B_FALSE;
 	iostat_cbdata_t cb = { 0 };
 	char *cmd = NULL;
 
@@ -4950,7 +4967,7 @@ zpool_do_iostat(int argc, char **argv)
 	uint64_t unsupported_flags;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "c:gLPT:vyhplqrwH")) != -1) {
+	while ((c = getopt(argc, argv, "c:gLPT:vyhplqrwnH")) != -1) {
 		switch (c) {
 		case 'c':
 			if (cmd != NULL) {
@@ -5012,6 +5029,9 @@ zpool_do_iostat(int argc, char **argv)
 			break;
 		case 'y':
 			omit_since_boot = B_TRUE;
+			break;
+		case 'n':
+			headers_once = B_TRUE;
 			break;
 		case 'h':
 			usage(B_FALSE);
@@ -5215,6 +5235,26 @@ zpool_do_iostat(int argc, char **argv)
 			}
 
 			/*
+			 * Are we connected to TTY? If not, headers_once
+			 * should be true, to avoid breaking scripts.
+			 */
+			if (isatty(fileno(stdout)) == 0)
+				headers_once = B_TRUE;
+
+			/*
+			 * Check terminal size so we can print headers
+			 * even when terminal window has its height
+			 * changed.
+			 */
+			if (headers_once == B_FALSE) {
+				if (ioctl(1, TIOCGWINSZ, &win) != -1 &&
+				    win.ws_row > 0)
+					winheight = win.ws_row;
+				else
+					headers_once = B_TRUE;
+			}
+
+			/*
 			 * If it's the first time and we're not skipping it,
 			 * or either skip or verbose mode, print the header.
 			 *
@@ -5222,7 +5262,9 @@ zpool_do_iostat(int argc, char **argv)
 			 * every vdev, so skip this for histograms.
 			 */
 			if (((++cb.cb_iteration == 1 && !skip) ||
-			    (skip != verbose)) &&
+			    (skip != verbose) ||
+			    (!headers_once &&
+			    (cb.cb_iteration % winheight) == 0)) &&
 			    (!(cb.cb_flags & IOS_ANYHISTO_M)) &&
 			    !cb.cb_scripted)
 				print_iostat_header(&cb);
@@ -5231,7 +5273,6 @@ zpool_do_iostat(int argc, char **argv)
 				(void) fsleep(interval);
 				continue;
 			}
-
 
 			pool_list_iter(list, B_FALSE, print_iostat, &cb);
 
@@ -7371,6 +7412,19 @@ status_callback(zpool_handle_t *zhp, void *data)
 			    "encrypted datasets and destroy the old ones. "
 			    "'zfs mount -o ro' can\n\tbe used to temporarily "
 			    "mount existing encrypted datasets readonly.\n"));
+			break;
+
+		case ZPOOL_ERRATA_ZOL_8308_ENCRYPTION:
+			(void) printf(gettext("\tExisting encrypted datasets "
+			    "contain an on-disk incompatibility\n\twhich "
+			    "needs to be corrected.\n"));
+			(void) printf(gettext("action: To correct the issue "
+			    "enable the bookmark_v2 feature, backup\n\tany "
+			    "existing encrypted datasets to new encrypted "
+			    "datasets,\n\tand destroy the old ones. If this "
+			    "pool does not contain any\n\tencrypted "
+			    "datasets, simply enable the bookmark_v2 "
+			    "feature.\n"));
 			break;
 
 		default:

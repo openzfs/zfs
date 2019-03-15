@@ -594,7 +594,7 @@ def section_archits(kstats_dict):
     print()
     print('Cache hits by data type:')
     dt_todo = (('Demand data:', arc_stats['demand_data_hits']),
-               ('Demand perfetch data:', arc_stats['prefetch_data_hits']),
+               ('Demand prefetch data:', arc_stats['prefetch_data_hits']),
                ('Demand metadata:', arc_stats['demand_metadata_hits']),
                ('Demand prefetch metadata:',
                 arc_stats['prefetch_metadata_hits']))

@@ -73,7 +73,13 @@ static inline void
 gethrestime(inode_timespec_t *ts)
 {
 #if defined(HAVE_INODE_TIMESPEC64_TIMES)
+
+#if defined(HAVE_KTIME_GET_COARSE_REAL_TS64)
+	ktime_get_coarse_real_ts64(ts);
+#else
 	*ts = current_kernel_time64();
+#endif /* HAVE_KTIME_GET_COARSE_REAL_TS64 */
+
 #else
 	*ts = current_kernel_time();
 #endif
@@ -83,7 +89,13 @@ static inline time_t
 gethrestime_sec(void)
 {
 #if defined(HAVE_INODE_TIMESPEC64_TIMES)
+#if defined(HAVE_KTIME_GET_COARSE_REAL_TS64)
+	inode_timespec_t ts;
+	ktime_get_coarse_real_ts64(&ts);
+#else
 	inode_timespec_t ts = current_kernel_time64();
+#endif  /* HAVE_KTIME_GET_COARSE_REAL_TS64 */
+
 #else
 	inode_timespec_t ts = current_kernel_time();
 #endif

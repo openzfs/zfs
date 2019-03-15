@@ -3786,7 +3786,8 @@ arc_hdr_l2hdr_destroy(arc_buf_hdr_t *hdr)
 {
 	l2arc_buf_hdr_t *l2hdr = &hdr->b_l2hdr;
 	l2arc_dev_t *dev = l2hdr->b_dev;
-	uint64_t psize = arc_hdr_size(hdr);
+	uint64_t psize = HDR_GET_PSIZE(hdr);
+	uint64_t asize = vdev_psize_to_asize(dev->l2ad_vdev, psize);
 
 	ASSERT(MUTEX_HELD(&dev->l2ad_mtx));
 	ASSERT(HDR_HAS_L2HDR(hdr));
@@ -3796,9 +3797,10 @@ arc_hdr_l2hdr_destroy(arc_buf_hdr_t *hdr)
 	ARCSTAT_INCR(arcstat_l2_psize, -psize);
 	ARCSTAT_INCR(arcstat_l2_lsize, -HDR_GET_LSIZE(hdr));
 
-	vdev_space_update(dev->l2ad_vdev, -psize, 0, 0);
+	vdev_space_update(dev->l2ad_vdev, -asize, 0, 0);
 
-	(void) zfs_refcount_remove_many(&dev->l2ad_alloc, psize, hdr);
+	(void) zfs_refcount_remove_many(&dev->l2ad_alloc, arc_hdr_size(hdr),
+	    hdr);
 	arc_hdr_clear_flags(hdr, ARC_FLAG_HAS_L2HDR);
 }
 
@@ -4821,9 +4823,9 @@ arc_all_memory(void)
 {
 #ifdef _KERNEL
 #ifdef CONFIG_HIGHMEM
-	return (ptob(totalram_pages - totalhigh_pages));
+	return (ptob(zfs_totalram_pages - totalhigh_pages));
 #else
-	return (ptob(totalram_pages));
+	return (ptob(zfs_totalram_pages));
 #endif /* CONFIG_HIGHMEM */
 #else
 	return (ptob(physmem) / 2);
@@ -5074,6 +5076,14 @@ arc_kmem_reap_soon(void)
 static boolean_t
 arc_adjust_cb_check(void *arg, zthr_t *zthr)
 {
+	/*
+	 * This is necessary so that any changes which may have been made to
+	 * many of the zfs_arc_* module parameters will be propagated to
+	 * their actual internal variable counterparts. Without this,
+	 * changing those module params at runtime would have no effect.
+	 */
+	arc_tuning_update();
+
 	/*
 	 * This is necessary in order to keep the kstat information
 	 * up to date for tools that display kstat data such as the
@@ -6145,13 +6155,14 @@ arc_read(zio_t *pio, spa_t *spa, const blkptr_t *bp,
 	    (zio_flags & ZIO_FLAG_RAW_ENCRYPT) != 0;
 	boolean_t noauth_read = BP_IS_AUTHENTICATED(bp) &&
 	    (zio_flags & ZIO_FLAG_RAW_ENCRYPT) != 0;
+	boolean_t embedded_bp = !!BP_IS_EMBEDDED(bp);
 	int rc = 0;
 
-	ASSERT(!BP_IS_EMBEDDED(bp) ||
+	ASSERT(!embedded_bp ||
 	    BPE_GET_ETYPE(bp) == BP_EMBEDDED_TYPE_DATA);
 
 top:
-	if (!BP_IS_EMBEDDED(bp)) {
+	if (!embedded_bp) {
 		/*
 		 * Embedded BP's have no DVA and require no I/O to "read".
 		 * Create an anonymous arc buf to back it.
@@ -6251,7 +6262,7 @@ top:
 				    ARC_FLAG_PRESCIENT_PREFETCH);
 			}
 
-			ASSERT(!BP_IS_EMBEDDED(bp) || !BP_IS_HOLE(bp));
+			ASSERT(!embedded_bp || !BP_IS_HOLE(bp));
 
 			/* Get a buf with the desired data in it. */
 			rc = arc_buf_alloc_impl(hdr, spa, zb, private,
@@ -6319,14 +6330,17 @@ top:
 		}
 
 		if (hdr == NULL) {
-			/* this block is not in the cache */
+			/*
+			 * This block is not in the cache or it has
+			 * embedded data.
+			 */
 			arc_buf_hdr_t *exists = NULL;
 			arc_buf_contents_t type = BP_GET_BUFC_TYPE(bp);
 			hdr = arc_hdr_alloc(spa_load_guid(spa), psize, lsize,
 			    BP_IS_PROTECTED(bp), BP_GET_COMPRESS(bp), type,
 			    encrypted_read);
 
-			if (!BP_IS_EMBEDDED(bp)) {
+			if (!embedded_bp) {
 				hdr->b_dva = *BP_IDENTITY(bp);
 				hdr->b_birth = BP_PHYSICAL_BIRTH(bp);
 				exists = buf_hash_insert(hdr, &hash_lock);
@@ -6463,17 +6477,25 @@ top:
 			arc_hdr_clear_flags(hdr, ARC_FLAG_PRIO_ASYNC_READ);
 
 		/*
-		 * At this point, we have a level 1 cache miss.  Try again in
-		 * L2ARC if possible.
+		 * At this point, we have a level 1 cache miss or a blkptr
+		 * with embedded data.  Try again in L2ARC if possible.
 		 */
 		ASSERT3U(HDR_GET_LSIZE(hdr), ==, lsize);
 
-		DTRACE_PROBE4(arc__miss, arc_buf_hdr_t *, hdr, blkptr_t *, bp,
-		    uint64_t, lsize, zbookmark_phys_t *, zb);
-		ARCSTAT_BUMP(arcstat_misses);
-		ARCSTAT_CONDSTAT(!HDR_PREFETCH(hdr),
-		    demand, prefetch, !HDR_ISTYPE_METADATA(hdr),
-		    data, metadata, misses);
+		/*
+		 * Skip ARC stat bump for block pointers with embedded
+		 * data. The data are read from the blkptr itself via
+		 * decode_embedded_bp_compressed().
+		 */
+		if (!embedded_bp) {
+			DTRACE_PROBE4(arc__miss, arc_buf_hdr_t *, hdr,
+			    blkptr_t *, bp, uint64_t, lsize,
+			    zbookmark_phys_t *, zb);
+			ARCSTAT_BUMP(arcstat_misses);
+			ARCSTAT_CONDSTAT(!HDR_PREFETCH(hdr),
+			    demand, prefetch, !HDR_ISTYPE_METADATA(hdr), data,
+			    metadata, misses);
+		}
 
 		if (vd != NULL && l2arc_ndev != 0 && !(l2arc_norw && devw)) {
 			/*
@@ -6565,7 +6587,12 @@ top:
 		} else {
 			if (vd != NULL)
 				spa_config_exit(spa, SCL_L2ARC, vd);
-			if (l2arc_ndev != 0) {
+			/*
+			 * Skip ARC stat bump for block pointers with
+			 * embedded data. The data are read from the blkptr
+			 * itself via decode_embedded_bp_compressed().
+			 */
+			if (l2arc_ndev != 0 && !embedded_bp) {
 				DTRACE_PROBE1(l2arc__miss,
 				    arc_buf_hdr_t *, hdr);
 				ARCSTAT_BUMP(arcstat_l2_misses);
@@ -6590,7 +6617,7 @@ top:
 
 out:
 	/* embedded bps don't actually go to disk */
-	if (!BP_IS_EMBEDDED(bp))
+	if (!embedded_bp)
 		spa_read_history_add(spa, zb, *arc_flags);
 	return (rc);
 }
@@ -8296,10 +8323,12 @@ top:
 			list_remove(buflist, hdr);
 			arc_hdr_clear_flags(hdr, ARC_FLAG_HAS_L2HDR);
 
-			ARCSTAT_INCR(arcstat_l2_psize, -arc_hdr_size(hdr));
+			uint64_t psize = HDR_GET_PSIZE(hdr);
+			ARCSTAT_INCR(arcstat_l2_psize, -psize);
 			ARCSTAT_INCR(arcstat_l2_lsize, -HDR_GET_LSIZE(hdr));
 
-			bytes_dropped += arc_hdr_size(hdr);
+			bytes_dropped +=
+			    vdev_psize_to_asize(dev->l2ad_vdev, psize);
 			(void) zfs_refcount_remove_many(&dev->l2ad_alloc,
 			    arc_hdr_size(hdr), hdr);
 		}
@@ -9015,6 +9044,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 			write_psize += psize;
 			write_asize += asize;
 			dev->l2ad_hand += asize;
+			vdev_space_update(dev->l2ad_vdev, asize, 0, 0);
 
 			mutex_exit(hash_lock);
 
@@ -9040,7 +9070,6 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 	ARCSTAT_INCR(arcstat_l2_write_bytes, write_psize);
 	ARCSTAT_INCR(arcstat_l2_lsize, write_lsize);
 	ARCSTAT_INCR(arcstat_l2_psize, write_psize);
-	vdev_space_update(dev->l2ad_vdev, write_psize, 0, 0);
 
 	/*
 	 * Bump device hand to the device start if it is approaching the end.

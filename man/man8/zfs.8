@@ -21,7 +21,7 @@
 .\"
 .\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
-.\" Copyright (c) 2011, 2017 by Delphix. All rights reserved.
+.\" Copyright (c) 2011, 2019 by Delphix. All rights reserved.
 .\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
 .\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
 .\" Copyright (c) 2014 by Adam Stevko. All rights reserved.
@@ -195,7 +195,7 @@
 .Ar snapshot bookmark
 .Nm
 .Cm send
-.Op Fl DLPRbcenpvw
+.Op Fl DLPRbcehnpvw
 .Op Oo Fl I Ns | Ns Fl i Oc Ar snapshot
 .Ar snapshot
 .Nm
@@ -209,14 +209,14 @@
 .Fl t Ar receive_resume_token
 .Nm
 .Cm receive
-.Op Fl Fnsuv
+.Op Fl Fhnsuv
 .Op Fl o Sy origin Ns = Ns Ar snapshot
 .Op Fl o Ar property Ns = Ns Ar value
 .Op Fl x Ar property
 .Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot
 .Nm
 .Cm receive
-.Op Fl Fnsuv
+.Op Fl Fhnsuv
 .Op Fl d Ns | Ns Fl e
 .Op Fl o Sy origin Ns = Ns Ar snapshot
 .Op Fl o Ar property Ns = Ns Ar value
@@ -302,8 +302,8 @@
 .Nm
 .Cm program
 .Op Fl jn
-.Op Fl t Ar timeout
-.Op Fl m Ar memory_limit
+.Op Fl t Ar instruction-limit
+.Op Fl m Ar memory-limit
 .Ar pool script
 .Op Ar arg1 No ...
 .Nm
@@ -1275,6 +1275,19 @@ compression algorithm compresses runs of zeros.
 This property can also be referred to by its shortened column name
 .Sy compress .
 Changing this property affects only newly-written data.
+.Pp
+When any setting except
+.Sy off
+is selected, compression will explicitly check for blocks consisting of only
+zeroes (the NUL byte).  When a zero-filled block is detected, it is stored as
+a hole and not compressed using the indicated compression algorithm.
+.Pp
+Any block being compressed must be no larger than 7/8 of its original size
+after compression, otherwise the compression will not be considered worthwhile
+and the block saved uncompressed. Note that when the logical block is less than
+8 times the disk sector size this effectively reduces the necessary compression
+ratio; for example 8k blocks on disks with 4k disk sectors must compress to 1/2
+or less of their original size.
 .It Xo
 .Sy context Ns = Ns Sy none Ns | Ns
 .Em SELinux_User:SElinux_Role:Selinux_Type:Sensitivity_Level
@@ -1521,9 +1534,11 @@ This feature must be enabled to be used
 .Pc .
 .It Sy special_small_blocks Ns = Ns Em size
 This value represents the threshold block size for including small file
-blocks into the special allocation class. Valid values are zero or a
-power of two from 512B up to 128K. The default size is 0 which means no
-small file blocks will be allocated in the special class.
+blocks into the special allocation class. Blocks smaller than or equal to this
+value will be assigned to the special allocation class while greater blocks
+will be assigned to the regular class. Valid values are zero or a power of two
+from 512B up to 128K. The default size is 0 which means no small file blocks
+will be allocated in the special class.
 .Pp
 Before setting this property, a special class vdev must be added to the
 pool. See
@@ -3302,16 +3317,24 @@ Displays all ZFS file systems currently mounted.
 .Op Fl o Ar options
 .Fl a | Ar filesystem
 .Xc
-Mounts ZFS file systems.
+Mount ZFS filesystem on a path described by its
+.Sy mountpoint
+property, if the path exists and is empty. If
+.Sy mountpoint
+is set to
+.Em legacy ,
+the filesystem should be instead mounted using
+.Xr mount 8 .
 .Bl -tag -width "-O"
 .It Fl O
-Perform an overlay mount.
+Perform an overlay mount. Allows mounting in non-empty
+.Sy mountpoint .
 See
 .Xr mount 8
 for more information.
 .It Fl a
 Mount all available ZFS file systems.
-Invoked automatically as part of the boot process.
+Invoked automatically as part of the boot process if configured.
 .It Ar filesystem
 Mount the specified filesystem.
 .It Fl o Ar options
@@ -3406,7 +3429,7 @@ feature.
 .It Xo
 .Nm
 .Cm send
-.Op Fl DLPRbcenpvw
+.Op Fl DLPRbcehnpvw
 .Op Oo Fl I Ns | Ns Fl i Oc Ar snapshot
 .Ar snapshot
 .Xc
@@ -3546,6 +3569,12 @@ Note that if you do not use this flag for sending encrypted datasets, data will
 be sent unencrypted and may be re-encrypted with a different encryption key on
 the receiving system, which will disable the ability to do a raw send to that
 system for incrementals.
+.It Fl h, -holds
+Generate a stream package that includes any snapshot holds (created with the
+.Sy zfs hold
+command), and indicating to
+.Sy zfs receive 
+that the holds be applied to the dataset on the receiving system.
 .It Fl i Ar snapshot
 Generate an incremental stream from the first
 .Ar snapshot
@@ -3741,7 +3770,7 @@ for more details.
 .It Xo
 .Nm
 .Cm receive
-.Op Fl Fnsuv
+.Op Fl Fhnsuv
 .Op Fl o Sy origin Ns = Ns Ar snapshot
 .Op Fl o Ar property Ns = Ns Ar value
 .Op Fl x Ar property
@@ -3750,7 +3779,7 @@ for more details.
 .It Xo
 .Nm
 .Cm receive
-.Op Fl Fnsuv
+.Op Fl Fhnsuv
 .Op Fl d Ns | Ns Fl e
 .Op Fl o Sy origin Ns = Ns Ar snapshot
 .Op Fl o Ar property Ns = Ns Ar value
@@ -3816,6 +3845,31 @@ parameters with the
 .Fl o
 options.
 .Pp
+The added security provided by raw sends adds some restrictions to the send
+and receive process. ZFS will not allow a mix of raw receives and non-raw
+receives. Specifically, any raw incremental receives that are attempted after
+a non-raw receive will fail. Non-raw receives do not have this restriction and,
+therefore, are always possible. Because of this, it is best practice to always
+use either raw sends for their security benefits or non-raw sends for their
+flexibility when working with encrypted datasets, but not a combination.
+.Pp
+The reason for this restriction stems from the inherent restrictions of the
+AEAD ciphers that ZFS uses to encrypt data. When using ZFS native encryption,
+each block of data is encrypted against a randomly generated number known as
+the "initialization vector" (IV), which is stored in the filesystem metadata.
+This number is required by the encryption algorithms whenever the data is to
+be decrypted. Together, all of the IVs provided for all of the blocks in a
+given snapshot are collectively called an "IV set". When ZFS performs a raw
+send, the IV set is transferred from the source to the destination in the send
+stream. When ZFS performs a non-raw send, the data is decrypted by the source
+system and re-encrypted by the destination system, creating a snapshot with
+effectively the same data, but a different IV set. In order for decryption to
+work after a raw send, ZFS must ensure that the IV set used on both the source
+and destination side match. When an incremental raw receive is performed on
+top of an existing snapshot, ZFS will check to confirm that the "from"
+snapshot on both the source and destination were using the same IV set,
+ensuring the new IV set is consistent.
+.Pp
 The name of the snapshot
 .Pq and file system, if a full stream is received
 that this subcommand creates depends on the argument type and the use of the
@@ -3876,6 +3930,8 @@ snapshot as described in the paragraph above.
 Discard all but the last element of the sent snapshot's file system name, using
 that element to determine the name of the target file system for the new
 snapshot as described in the paragraph above.
+.It Fl h 
+Skip the receive of holds.  There is no effect if holds are not sent.
 .It Fl n
 Do not actually receive the stream.
 This can be useful in conjunction with the
@@ -4382,8 +4438,8 @@ Display the path's inode change time as the first column of output.
 .Nm
 .Cm program
 .Op Fl jn
-.Op Fl t Ar timeout
-.Op Fl m Ar memory_limit
+.Op Fl t Ar instruction-limit
+.Op Fl m Ar memory-limit
 .Ar pool script
 .Op Ar arg1 No ...
 .Xc
@@ -4415,11 +4471,12 @@ The program can be used to gather information such as properties and
 determining if changes would succeed (zfs.check.*).
 Without this flag, all pending changes must be synced to disk before
 a channel program can complete.
-.It Fl t Ar timeout
-Execution time limit, in milliseconds.
-If a channel program executes for longer than the provided timeout, it will
-be stopped and an error will be returned.
-The default timeout is 1000 ms, and can be set to a maximum of 10000 ms.
+.It Fl t Ar instruction-limit
+Limit the number of Lua instructions to execute.
+If a channel program executes more than the specified number of instructions,
+it will be stopped and an error will be returned.
+The default limit is 10 million instructions, and it can be set to a maximum of
+100 million instructions.
 .It Fl m Ar memory-limit
 Memory limit, in bytes.
 If a channel program attempts to allocate more memory than the given limit,

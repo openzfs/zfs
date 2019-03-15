@@ -458,26 +458,31 @@ zfs_unlinked_add(znode_t *zp, dmu_tx_t *tx)
 
 	VERIFY3U(0, ==,
 	    zap_add_int(zfsvfs->z_os, zfsvfs->z_unlinkedobj, zp->z_id, tx));
+
+	dataset_kstats_update_nunlinks_kstat(&zfsvfs->z_kstat, 1);
 }
 
 /*
  * Clean up any znodes that had no links when we either crashed or
  * (force) umounted the file system.
  */
-void
-zfs_unlinked_drain(zfsvfs_t *zfsvfs)
+static void
+zfs_unlinked_drain_task(void *arg)
 {
+	zfsvfs_t *zfsvfs = arg;
 	zap_cursor_t	zc;
 	zap_attribute_t zap;
 	dmu_object_info_t doi;
 	znode_t		*zp;
 	int		error;
 
+	ASSERT3B(zfsvfs->z_draining, ==, B_TRUE);
+
 	/*
 	 * Iterate over the contents of the unlinked set.
 	 */
 	for (zap_cursor_init(&zc, zfsvfs->z_os, zfsvfs->z_unlinkedobj);
-	    zap_cursor_retrieve(&zc, &zap) == 0;
+	    zap_cursor_retrieve(&zc, &zap) == 0 && !zfsvfs->z_drain_cancel;
 	    zap_cursor_advance(&zc)) {
 
 		/*
@@ -507,9 +512,61 @@ zfs_unlinked_drain(zfsvfs_t *zfsvfs)
 			continue;
 
 		zp->z_unlinked = B_TRUE;
+
+		/*
+		 * iput() is Linux's equivalent to illumos' VN_RELE(). It will
+		 * decrement the inode's ref count and may cause the inode to be
+		 * synchronously freed. We interrupt freeing of this inode, by
+		 * checking the return value of dmu_objset_zfs_unmounting() in
+		 * dmu_free_long_range(), when an unmount is requested.
+		 */
 		iput(ZTOI(zp));
+		ASSERT3B(zfsvfs->z_unmounted, ==, B_FALSE);
 	}
 	zap_cursor_fini(&zc);
+
+	zfsvfs->z_draining = B_FALSE;
+	zfsvfs->z_drain_task = TASKQID_INVALID;
+}
+
+/*
+ * Sets z_draining then tries to dispatch async unlinked drain.
+ * If that fails executes synchronous unlinked drain.
+ */
+void
+zfs_unlinked_drain(zfsvfs_t *zfsvfs)
+{
+	ASSERT3B(zfsvfs->z_unmounted, ==, B_FALSE);
+	ASSERT3B(zfsvfs->z_draining, ==, B_FALSE);
+
+	zfsvfs->z_draining = B_TRUE;
+	zfsvfs->z_drain_cancel = B_FALSE;
+
+	zfsvfs->z_drain_task = taskq_dispatch(
+	    dsl_pool_unlinked_drain_taskq(dmu_objset_pool(zfsvfs->z_os)),
+	    zfs_unlinked_drain_task, zfsvfs, TQ_SLEEP);
+	if (zfsvfs->z_drain_task == TASKQID_INVALID) {
+		zfs_dbgmsg("async zfs_unlinked_drain dispatch failed");
+		zfs_unlinked_drain_task(zfsvfs);
+	}
+}
+
+/*
+ * Wait for the unlinked drain taskq task to stop. This will interrupt the
+ * unlinked set processing if it is in progress.
+ */
+void
+zfs_unlinked_drain_stop_wait(zfsvfs_t *zfsvfs)
+{
+	ASSERT3B(zfsvfs->z_unmounted, ==, B_FALSE);
+
+	if (zfsvfs->z_draining) {
+		zfsvfs->z_drain_cancel = B_TRUE;
+		taskq_cancel_id(dsl_pool_unlinked_drain_taskq(
+		    dmu_objset_pool(zfsvfs->z_os)), zfsvfs->z_drain_task);
+		zfsvfs->z_drain_task = TASKQID_INVALID;
+		zfsvfs->z_draining = B_FALSE;
+	}
 }
 
 /*
@@ -683,6 +740,8 @@ zfs_rmnode(znode_t *zp)
 	/* Remove this znode from the unlinked set */
 	VERIFY3U(0, ==,
 	    zap_remove_int(zfsvfs->z_os, zfsvfs->z_unlinkedobj, zp->z_id, tx));
+
+	dataset_kstats_update_nunlinked_kstat(&zfsvfs->z_kstat, 1);
 
 	zfs_znode_delete(zp, tx);
 

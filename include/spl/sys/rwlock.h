@@ -148,16 +148,6 @@ spl_rw_lockdep_on_maybe(krwlock_t *rwp)			\
 #define	spl_rw_lockdep_on_maybe(rwp)
 #endif /* CONFIG_LOCKDEP */
 
-static inline int
-RW_READ_HELD(krwlock_t *rwp)
-{
-	/*
-	 * Linux 4.8 will set owner to 1 when read held instead of leave it
-	 * NULL. So we check whether owner <= 1.
-	 */
-	return (spl_rwsem_is_locked(SEM(rwp)) &&
-	    (unsigned long)rw_owner(rwp) <= 1);
-}
 
 static inline int
 RW_WRITE_HELD(krwlock_t *rwp)
@@ -169,6 +159,51 @@ static inline int
 RW_LOCK_HELD(krwlock_t *rwp)
 {
 	return (spl_rwsem_is_locked(SEM(rwp)));
+}
+
+static inline int
+RW_READ_HELD(krwlock_t *rwp)
+{
+	if (!RW_LOCK_HELD(rwp))
+		return (0);
+
+	/*
+	 * rw_semaphore cheat sheet:
+	 *
+	 * < 3.16:
+	 * There's no rw_semaphore.owner, so use rwp.owner instead.
+	 * If rwp.owner == NULL then it's a reader
+	 *
+	 * 3.16 - 4.7:
+	 * rw_semaphore.owner added (https://lwn.net/Articles/596656/)
+	 * and CONFIG_RWSEM_SPIN_ON_OWNER introduced.
+	 * If rw_semaphore.owner == NULL then it's a reader
+	 *
+	 * 4.8 - 4.16.16:
+	 * RWSEM_READER_OWNED added as an internal #define.
+	 * (https://lore.kernel.org/patchwork/patch/678590/)
+	 * If rw_semaphore.owner == 1 then it's a reader
+	 *
+	 * 4.16.17 - 4.19:
+	 * RWSEM_OWNER_UNKNOWN introduced as ((struct task_struct *)-1L)
+	 * (https://do-db2.lkml.org/lkml/2018/5/15/985)
+	 * If rw_semaphore.owner == 1 then it's a reader.
+	 *
+	 * 4.20+:
+	 * RWSEM_OWNER_UNKNOWN changed to ((struct task_struct *)-2L)
+	 * (https://lkml.org/lkml/2018/9/6/986)
+	 * If rw_semaphore.owner & 1 then it's a reader, and also the reader's
+	 * task_struct may be embedded in rw_semaphore->owner.
+	 */
+#if	defined(CONFIG_RWSEM_SPIN_ON_OWNER) && defined(RWSEM_OWNER_UNKNOWN)
+	if (RWSEM_OWNER_UNKNOWN == (struct task_struct *)-2L) {
+		/* 4.20+ kernels with CONFIG_RWSEM_SPIN_ON_OWNER */
+		return ((unsigned long) SEM(rwp)->owner & 1);
+	}
+#endif
+
+	/* < 4.20 kernel or !CONFIG_RWSEM_SPIN_ON_OWNER */
+	return (rw_owner(rwp) == NULL || (unsigned long) rw_owner(rwp) == 1);
 }
 
 /*

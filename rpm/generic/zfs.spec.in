@@ -53,6 +53,10 @@
 %bcond_with    asan
 %bcond_with    systemd
 
+# Exclude test-runner.py from the rpmbuild shebang check to allow it to run
+# under Python 2 and 3.
+%global __brp_mangle_shebangs_exclude_from test-runner.py
+
 # Generic enable switch for systemd
 %if %{with systemd}
 %define _systemd 1

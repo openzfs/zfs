@@ -60,6 +60,10 @@ elif [[ -n $PERF_REGRESSION_NIGHTLY ]]; then
 	export PERF_IOSIZES=${PERF_IOSIZES:-'8k'}
 fi
 
+# Until the performance tests over NFS can deal with multiple file systems,
+# force the use of only one file system when testing over NFS.
+[[ $NFS -eq 1 ]] && PERF_NTHREADS_PER_FS='0'
+
 lun_list=$(pool_to_lun_list $PERFPOOL)
 log_note "Collecting backend IO stats with lun list $lun_list"
 if is_linux; then

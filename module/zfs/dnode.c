@@ -1153,8 +1153,10 @@ dnode_free_interior_slots(dnode_t *dn)
 
 	ASSERT3S(idx + slots, <=, DNODES_PER_BLOCK);
 
-	while (!dnode_slots_tryenter(children, idx, slots))
+	while (!dnode_slots_tryenter(children, idx, slots)) {
 		DNODE_STAT_BUMP(dnode_free_interior_lock_retry);
+		cond_resched();
+	}
 
 	dnode_set_slots(children, idx, slots, DN_SLOT_FREE);
 	dnode_slots_rele(children, idx, slots);
@@ -1401,34 +1403,30 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 	}
 
 	ASSERT(dnc->dnc_count == epb);
-	dn = DN_SLOT_UNINIT;
 
 	if (flag & DNODE_MUST_BE_ALLOCATED) {
 		slots = 1;
 
-		while (dn == DN_SLOT_UNINIT) {
-			dnode_slots_hold(dnc, idx, slots);
-			dnh = &dnc->dnc_children[idx];
+		dnode_slots_hold(dnc, idx, slots);
+		dnh = &dnc->dnc_children[idx];
 
-			if (DN_SLOT_IS_PTR(dnh->dnh_dnode)) {
-				dn = dnh->dnh_dnode;
-				break;
-			} else if (dnh->dnh_dnode == DN_SLOT_INTERIOR) {
-				DNODE_STAT_BUMP(dnode_hold_alloc_interior);
-				dnode_slots_rele(dnc, idx, slots);
-				dbuf_rele(db, FTAG);
-				return (SET_ERROR(EEXIST));
-			} else if (dnh->dnh_dnode != DN_SLOT_ALLOCATED) {
-				DNODE_STAT_BUMP(dnode_hold_alloc_misses);
-				dnode_slots_rele(dnc, idx, slots);
-				dbuf_rele(db, FTAG);
-				return (SET_ERROR(ENOENT));
-			}
-
+		if (DN_SLOT_IS_PTR(dnh->dnh_dnode)) {
+			dn = dnh->dnh_dnode;
+		} else if (dnh->dnh_dnode == DN_SLOT_INTERIOR) {
+			DNODE_STAT_BUMP(dnode_hold_alloc_interior);
 			dnode_slots_rele(dnc, idx, slots);
-			if (!dnode_slots_tryenter(dnc, idx, slots)) {
+			dbuf_rele(db, FTAG);
+			return (SET_ERROR(EEXIST));
+		} else if (dnh->dnh_dnode != DN_SLOT_ALLOCATED) {
+			DNODE_STAT_BUMP(dnode_hold_alloc_misses);
+			dnode_slots_rele(dnc, idx, slots);
+			dbuf_rele(db, FTAG);
+			return (SET_ERROR(ENOENT));
+		} else {
+			dnode_slots_rele(dnc, idx, slots);
+			while (!dnode_slots_tryenter(dnc, idx, slots)) {
 				DNODE_STAT_BUMP(dnode_hold_alloc_lock_retry);
-				continue;
+				cond_resched();
 			}
 
 			/*
@@ -1463,45 +1461,43 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 			return (SET_ERROR(ENOSPC));
 		}
 
-		while (dn == DN_SLOT_UNINIT) {
-			dnode_slots_hold(dnc, idx, slots);
+		dnode_slots_hold(dnc, idx, slots);
 
-			if (!dnode_check_slots_free(dnc, idx, slots)) {
-				DNODE_STAT_BUMP(dnode_hold_free_misses);
-				dnode_slots_rele(dnc, idx, slots);
-				dbuf_rele(db, FTAG);
-				return (SET_ERROR(ENOSPC));
-			}
-
+		if (!dnode_check_slots_free(dnc, idx, slots)) {
+			DNODE_STAT_BUMP(dnode_hold_free_misses);
 			dnode_slots_rele(dnc, idx, slots);
-			if (!dnode_slots_tryenter(dnc, idx, slots)) {
-				DNODE_STAT_BUMP(dnode_hold_free_lock_retry);
-				continue;
-			}
+			dbuf_rele(db, FTAG);
+			return (SET_ERROR(ENOSPC));
+		}
 
-			if (!dnode_check_slots_free(dnc, idx, slots)) {
-				DNODE_STAT_BUMP(dnode_hold_free_lock_misses);
-				dnode_slots_rele(dnc, idx, slots);
-				dbuf_rele(db, FTAG);
-				return (SET_ERROR(ENOSPC));
-			}
+		dnode_slots_rele(dnc, idx, slots);
+		while (!dnode_slots_tryenter(dnc, idx, slots)) {
+			DNODE_STAT_BUMP(dnode_hold_free_lock_retry);
+			cond_resched();
+		}
 
-			/*
-			 * Allocated but otherwise free dnodes which would
-			 * be in the interior of a multi-slot dnodes need
-			 * to be freed.  Single slot dnodes can be safely
-			 * re-purposed as a performance optimization.
-			 */
-			if (slots > 1)
-				dnode_reclaim_slots(dnc, idx + 1, slots - 1);
+		if (!dnode_check_slots_free(dnc, idx, slots)) {
+			DNODE_STAT_BUMP(dnode_hold_free_lock_misses);
+			dnode_slots_rele(dnc, idx, slots);
+			dbuf_rele(db, FTAG);
+			return (SET_ERROR(ENOSPC));
+		}
 
-			dnh = &dnc->dnc_children[idx];
-			if (DN_SLOT_IS_PTR(dnh->dnh_dnode)) {
-				dn = dnh->dnh_dnode;
-			} else {
-				dn = dnode_create(os, dn_block + idx, db,
-				    object, dnh);
-			}
+		/*
+		 * Allocated but otherwise free dnodes which would
+		 * be in the interior of a multi-slot dnodes need
+		 * to be freed.  Single slot dnodes can be safely
+		 * re-purposed as a performance optimization.
+		 */
+		if (slots > 1)
+			dnode_reclaim_slots(dnc, idx + 1, slots - 1);
+
+		dnh = &dnc->dnc_children[idx];
+		if (DN_SLOT_IS_PTR(dnh->dnh_dnode)) {
+			dn = dnh->dnh_dnode;
+		} else {
+			dn = dnode_create(os, dn_block + idx, db,
+			    object, dnh);
 		}
 
 		mutex_enter(&dn->dn_mtx);
@@ -1832,7 +1828,8 @@ out:
 
 /* read-holding callers must not rely on the lock being continuously held */
 void
-dnode_new_blkid(dnode_t *dn, uint64_t blkid, dmu_tx_t *tx, boolean_t have_read)
+dnode_new_blkid(dnode_t *dn, uint64_t blkid, dmu_tx_t *tx, boolean_t have_read,
+    boolean_t force)
 {
 	int epbs, new_nlevels;
 	uint64_t sz;
@@ -1857,14 +1854,25 @@ dnode_new_blkid(dnode_t *dn, uint64_t blkid, dmu_tx_t *tx, boolean_t have_read)
 		}
 	}
 
-	if (blkid <= dn->dn_maxblkid)
+	/*
+	 * Raw sends (indicated by the force flag) require that we take the
+	 * given blkid even if the value is lower than the current value.
+	 */
+	if (!force && blkid <= dn->dn_maxblkid)
 		goto out;
 
+	/*
+	 * We use the (otherwise unused) top bit of dn_next_maxblkid[txgoff]
+	 * to indicate that this field is set. This allows us to set the
+	 * maxblkid to 0 on an existing object in dnode_sync().
+	 */
 	dn->dn_maxblkid = blkid;
-	dn->dn_next_maxblkid[tx->tx_txg & TXG_MASK] = blkid;
+	dn->dn_next_maxblkid[tx->tx_txg & TXG_MASK] =
+	    blkid | DMU_NEXT_MAXBLKID_SET;
 
 	/*
 	 * Compute the number of levels necessary to support the new maxblkid.
+	 * Raw sends will ensure nlevels is set correctly for us.
 	 */
 	new_nlevels = 1;
 	epbs = dn->dn_indblkshift - SPA_BLKPTRSHIFT;
@@ -1874,8 +1882,12 @@ dnode_new_blkid(dnode_t *dn, uint64_t blkid, dmu_tx_t *tx, boolean_t have_read)
 
 	ASSERT3U(new_nlevels, <=, DN_MAX_LEVELS);
 
-	if (new_nlevels > dn->dn_nlevels)
-		dnode_set_nlevels_impl(dn, new_nlevels, tx);
+	if (!force) {
+		if (new_nlevels > dn->dn_nlevels)
+			dnode_set_nlevels_impl(dn, new_nlevels, tx);
+	} else {
+		ASSERT3U(dn->dn_nlevels, >=, new_nlevels);
+	}
 
 out:
 	if (have_read)

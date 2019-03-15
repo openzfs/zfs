@@ -754,6 +754,8 @@ def lzc_receive(snapname, fd, force=False, raw=False, origin=None, props=None):
         supported on this side.
     :raises NameInvalid: if the name of either snapshot is invalid.
     :raises NameTooLong: if the name of either snapshot is too long.
+    :raises WrongParent: if the parent dataset of the received destination is
+        not a filesystem (e.g. ZVOL)
 
     .. note::
         The ``origin`` is ignored if the actual stream is an incremental stream
@@ -1621,6 +1623,8 @@ def lzc_rename(source, target):
     :raises FilesystemNotFound: if the target's parent does not exist.
     :raises FilesystemExists: if the target already exists.
     :raises PoolsDiffer: if the source and target belong to different pools.
+    :raises WrongParent: if the "new" parent dataset is not a filesystem
+        (e.g. ZVOL)
     '''
     ret = _lib.lzc_rename(source, target)
     errors.lzc_rename_translate_error(ret, source, target)

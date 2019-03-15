@@ -81,11 +81,10 @@ uiomove_iov(void *p, size_t n, enum uio_rw rw, struct uio *uio)
 					return (EFAULT);
 			} else {
 				if (uio->uio_fault_disable) {
-					if (!access_ok(VERIFY_READ,
+					if (!zfs_access_ok(VERIFY_READ,
 					    (iov->iov_base + skip), cnt)) {
 						return (EFAULT);
 					}
-
 					pagefault_disable();
 					if (__copy_from_user_inatomic(p,
 					    (iov->iov_base + skip), cnt)) {

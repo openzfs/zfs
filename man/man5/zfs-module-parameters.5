@@ -1,7 +1,7 @@
 '\" te
 .\" Copyright (c) 2013 by Turbo Fredriksson <turbo@bayour.com>. All rights reserved.
-.\" Copyright (c) 2017 Datto Inc.
-.\" Copyright (c) 2018 by Delphix. All rights reserved.
+.\" Copyright (c) 2019 by Delphix. All rights reserved.
+.\" Copyright (c) 2019 Datto Inc.
 .\" The contents of this file are subject to the terms of the Common Development
 .\" and Distribution License (the "License").  You may not use this file except
 .\" in compliance with the License. You can obtain a copy of the license at
@@ -14,7 +14,7 @@
 .\" CDDL HEADER, with the fields enclosed by brackets "[]" replaced with your
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
-.TH ZFS-MODULE-PARAMETERS 5 "Oct 28, 2017"
+.TH ZFS-MODULE-PARAMETERS 5 "Feb 8, 2019"
 .SH NAME
 zfs\-module\-parameters \- ZFS module parameters
 .SH DESCRIPTION
@@ -320,7 +320,7 @@ Use \fB1\fR for yes (default) and \fB0\fR for no.
 .sp
 .ne 2
 .na
-\fBvdev_max_ms_count\fR (int)
+\fBzfs_vdev_default_ms_count\fR (int)
 .ad
 .RS 12n
 When a vdev is added target this number of metaslabs per top-level vdev.
@@ -331,7 +331,7 @@ Default value: \fB200\fR.
 .sp
 .ne 2
 .na
-\fBvdev_min_ms_count\fR (int)
+\fBzfs_vdev_min_ms_count\fR (int)
 .ad
 .RS 12n
 Minimum number of metaslabs to create in a top-level vdev.
@@ -535,6 +535,18 @@ Default value: \fB8\fR.
 Min time before an active prefetch stream can be reclaimed
 .sp
 Default value: \fB2\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_abd_scatter_min_size\fR (uint)
+.ad
+.RS 12n
+This is the minimum allocation size that will use scatter (page-based)
+ABD's.  Smaller allocations will use linear ABD's.
+.sp
+Default value: \fB1536\fR (512B and 1KB allocations will be linear).
 .RE
 
 .sp
@@ -1147,6 +1159,21 @@ Default value: \fB500,000\fR.
 Rate limit delay zevents (which report slow I/Os) to this many per second.
 .sp
 Default value: 20
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_unlink_suspend_progress\fR (uint)
+.ad
+.RS 12n
+When enabled, files will not be asynchronously removed from the list of pending
+unlinks and the space they consume will be leaked. Once this option has been
+disabled and the dataset is remounted, the pending unlinks will be processed
+and the freed space returned to the pool.
+This option is used by the test suite to facilitate testing.
+.sp
+Uses \fB0\fR (default) to allow progress and \fB1\fR to pause progress.
 .RE
 
 .sp
@@ -1852,7 +1879,7 @@ the risk of failing to detect an active pool.  The total activity check time is
 never allowed to drop below one second.  A value of 0 is ignored and treated as
 if it was set to 1
 .sp
-Default value: \fB10\fR.
+Default value: \fB20\fR.
 .RE
 
 .sp
@@ -1873,7 +1900,7 @@ will cause the pool to be suspended.  This occurs when
 passed since the last successful multihost write.  This guarantees the activity test
 will see multihost writes if the pool is imported.
 .sp
-Default value: \fB5\fR.
+Default value: \fB10\fR.
 .RE
 
 .sp
@@ -1955,12 +1982,12 @@ Default value: \fB52,428,800\fR.
 \fBzfs_per_txg_dirty_frees_percent \fR (ulong)
 .ad
 .RS 12n
-Tunable to control percentage of dirtied blocks from frees in one TXG.
-After this threshold is crossed, additional dirty blocks from frees
-wait until the next TXG.
+Tunable to control percentage of dirtied indirect blocks from frees allowed
+into one TXG. After this threshold is crossed, additional frees will wait until
+the next TXG.
 A value of zero will disable this throttle.
 .sp
-Default value: \fB30\fR and \fB0\fR to disable.
+Default value: \fB5\fR, set to \fB0\fR to disable.
 .RE
 
 .sp
@@ -2337,6 +2364,17 @@ Default value: \fB5\fR.
 .RS 12n
 Max vdev I/O aggregation size
 .sp
+Default value: \fB1,048,576\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_aggregation_limit_non_rotating\fR (int)
+.ad
+.RS 12n
+Max vdev I/O aggregation size for non-rotating media
+.sp
 Default value: \fB131,072\fR.
 .RE
 
@@ -2621,6 +2659,22 @@ Any writes above that will be executed with lower (asynchronous) priority
 to limit potential SLOG device abuse by single active ZIL writer.
 .sp
 Default value: \fB786,432\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzio_deadman_log_all\fR (int)
+.ad
+.RS 12n
+If non-zero, the zio deadman will produce debugging messages (see
+\fBzfs_dbgmsg_enable\fR) for all zios, rather than only for leaf
+zios possessing a vdev. This is meant to be used by developers to gain
+diagnostic information for hang conditions which don't involve a mutex
+or other locking primitive; typically conditions in which a thread in
+the zio pipeline is looping indefinitely.
+.sp
+Default value: \fB0\fR.
 .RE
 
 .sp
