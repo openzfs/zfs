@@ -2274,16 +2274,21 @@ vdev_raidz_io_done(zio_t *zio)
 
 		if (!(zio->io_flags & ZIO_FLAG_SPECULATIVE)) {
 			for (c = 0; c < rm->rm_cols; c++) {
+				vdev_t *cvd;
 				rc = &rm->rm_col[c];
+				cvd = vd->vdev_child[rc->rc_devidx];
 				if (rc->rc_error == 0) {
 					zio_bad_cksum_t zbc;
 					zbc.zbc_has_cksum = 0;
 					zbc.zbc_injected =
 					    rm->rm_ecksuminjected;
 
+					mutex_enter(&cvd->vdev_stat_lock);
+					cvd->vdev_stat.vs_checksum_errors++;
+					mutex_exit(&cvd->vdev_stat_lock);
+
 					zfs_ereport_start_checksum(
-					    zio->io_spa,
-					    vd->vdev_child[rc->rc_devidx],
+					    zio->io_spa, cvd,
 					    &zio->io_bookmark, zio,
 					    rc->rc_offset, rc->rc_size,
 					    (void *)(uintptr_t)c, &zbc);
