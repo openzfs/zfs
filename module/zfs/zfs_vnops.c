@@ -2641,6 +2641,7 @@ zfs_getattr_fast(struct inode *ip, struct kstat *sp)
 	zfsvfs_t *zfsvfs = ITOZSB(ip);
 	uint32_t blksize;
 	u_longlong_t nblocks;
+	uint64_t btime[2];
 
 	ZFS_ENTER(zfsvfs);
 	ZFS_VERIFY_ZP(zp);
@@ -2648,6 +2649,13 @@ zfs_getattr_fast(struct inode *ip, struct kstat *sp)
 	mutex_enter(&zp->z_lock);
 
 	generic_fillattr(ip, sp);
+
+#ifdef HAVE_PATH_IOPS_GETATTR
+	(void) sa_lookup(zp->z_sa_hdl, SA_ZPL_CRTIME(zfsvfs),
+	    btime, sizeof (uint64_t) * 2);
+	ZFS_TIME_DECODE(&sp->btime, btime);
+	stat->result_mask |= STATX_BTIME;
+#endif
 
 	sa_object_size(zp->z_sa_hdl, &blksize, &nblocks);
 	sp->blksize = blksize;
