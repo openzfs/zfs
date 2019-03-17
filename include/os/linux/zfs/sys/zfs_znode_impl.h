@@ -36,20 +36,20 @@
 #include <sys/list.h>
 #include <sys/dmu.h>
 #include <sys/sa.h>
+#include <sys/time.h>
 #include <sys/zfs_vfsops.h>
 #include <sys/rrwlock.h>
 #include <sys/zfs_sa.h>
 #include <sys/zfs_stat.h>
 #include <sys/zfs_rlock.h>
 
-
 #ifdef	__cplusplus
 extern "C" {
 #endif
 
 #define	ZNODE_OS_FIELDS			\
+	inode_timespec_t z_btime; /* creation/birth time (cached) */ \
 	struct inode	z_inode;
-
 
 /*
  * Convert between znode pointers and inode pointers
