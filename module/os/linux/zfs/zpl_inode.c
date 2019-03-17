@@ -378,18 +378,46 @@ zpl_getattr_impl(const struct path *path, struct kstat *stat, u32 request_mask,
 {
 	int error;
 	fstrans_cookie_t cookie;
+	struct inode *ip = path->dentry->d_inode;
+	znode_t *zp __maybe_unused = ITOZ(ip);
 
 	cookie = spl_fstrans_mark();
 
 	/*
-	 * XXX request_mask and query_flags currently ignored.
+	 * XXX query_flags currently ignored.
 	 */
 
 #ifdef HAVE_USERNS_IOPS_GETATTR
-	error = -zfs_getattr_fast(user_ns, path->dentry->d_inode, stat);
+	error = -zfs_getattr_fast(user_ns, ip, stat);
 #else
-	error = -zfs_getattr_fast(kcred->user_ns, path->dentry->d_inode, stat);
+	error = -zfs_getattr_fast(kcred->user_ns, ip, stat);
 #endif
+
+#ifdef STATX_BTIME
+	if (request_mask & STATX_BTIME) {
+		stat->btime = zp->z_btime;
+		stat->result_mask |= STATX_BTIME;
+	}
+#endif
+
+#ifdef STATX_ATTR_IMMUTABLE
+	if (zp->z_pflags & ZFS_IMMUTABLE)
+		stat->attributes |= STATX_ATTR_IMMUTABLE;
+	stat->attributes_mask |= STATX_ATTR_IMMUTABLE;
+#endif
+
+#ifdef STATX_ATTR_APPEND
+	if (zp->z_pflags & ZFS_APPENDONLY)
+		stat->attributes |= STATX_ATTR_APPEND;
+	stat->attributes_mask |= STATX_ATTR_APPEND;
+#endif
+
+#ifdef STATX_ATTR_NODUMP
+	if (zp->z_pflags & ZFS_NODUMP)
+		stat->attributes |= STATX_ATTR_NODUMP;
+	stat->attributes_mask |= STATX_ATTR_NODUMP;
+#endif
+
 	spl_fstrans_unmark(cookie);
 	ASSERT3S(error, <=, 0);
 
