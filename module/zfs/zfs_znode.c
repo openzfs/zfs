@@ -540,7 +540,7 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	uint64_t z_uid, z_gid;
 	uint64_t atime[2], mtime[2], ctime[2];
 	uint64_t projid = ZFS_DEFAULT_PROJID;
-	sa_bulk_attr_t bulk[11];
+	sa_bulk_attr_t bulk[12];
 	int count = 0;
 
 	ASSERT(zfsvfs != NULL);
@@ -582,6 +582,10 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_ATIME(zfsvfs), NULL, &atime, 16);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MTIME(zfsvfs), NULL, &mtime, 16);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CTIME(zfsvfs), NULL, &ctime, 16);
+#ifdef STATX_BTIME
+	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CRTIME(zfsvfs), NULL,
+	    &zp->z_crtime[0], 16);
+#endif
 
 	if (sa_bulk_lookup(zp->z_sa_hdl, bulk, count) != 0 || tmp_gen == 0 ||
 	    (dmu_objset_projectquota_enabled(zfsvfs->z_os) &&

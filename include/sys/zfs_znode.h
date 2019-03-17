@@ -216,6 +216,9 @@ typedef struct znode {
 	boolean_t	z_is_mapped;	/* are we mmap'ed */
 	boolean_t	z_is_ctldir;	/* are we .zfs entry */
 	boolean_t	z_is_stale;	/* are we stale due to rollback? */
+#ifdef STATX_BTIME
+	uint64_t	z_crtime[2];	/* creation/birth time (cached) */
+#endif
 	struct inode	z_inode;	/* generic vfs inode */
 } znode_t;
 

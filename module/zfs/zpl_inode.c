@@ -345,6 +345,7 @@ zpl_getattr_impl(const struct path *path, struct kstat *stat, u32 request_mask,
 {
 	int error;
 	fstrans_cookie_t cookie;
+	struct inode *ip = path->dentry->d_inode;
 
 	cookie = spl_fstrans_mark();
 
@@ -352,7 +353,31 @@ zpl_getattr_impl(const struct path *path, struct kstat *stat, u32 request_mask,
 	 * XXX request_mask and query_flags currently ignored.
 	 */
 
-	error = -zfs_getattr_fast(path->dentry->d_inode, stat);
+	error = -zfs_getattr_fast(ip, stat);
+
+#ifdef STATX_BTIME
+	ZFS_TIME_DECODE(&stat->btime, ITOZ(ip)->z_crtime);
+	stat->result_mask |= STATX_BTIME;
+#endif
+
+#ifdef STATX_ATTR_IMMUTABLE
+	if (zfs_flags & ZFS_IMMUTABLE)
+		stat->attributes |= STATX_ATTR_IMMUTABLE;
+	stat->attributes_mask |= STATX_ATTR_IMMUTABLE;
+#endif
+
+#ifdef STATX_ATTR_APPEND
+	if (zfs_flags & ZFS_APPENDONLY)
+		stat->attributes |= STATX_ATTR_APPEND;
+	stat->attributes_mask |= STATX_ATTR_APPEND;
+#endif
+
+#ifdef STATX_ATTR_NODUMP
+	if (zfs_flags & ZFS_NODUMP)
+		stat->attributes |= STATX_ATTR_NODUMP;
+	stat->attributes_mask |= STATX_ATTR_NODUMP;
+#endif
+
 	spl_fstrans_unmark(cookie);
 	ASSERT3S(error, <=, 0);
 
