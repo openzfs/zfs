@@ -1124,9 +1124,8 @@ send_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 		bqueue_enqueue(&sta->q, record, sizeof (*record));
 		return (0);
 	}
-	if (zb->zb_level == 0 && zb->zb_object == DMU_META_DNODE_OBJECT) {
-		if (BP_IS_HOLE(bp))
-			return (0);
+	if (zb->zb_level == 0 && zb->zb_object == DMU_META_DNODE_OBJECT &&
+	    !BP_IS_HOLE(bp)) {
 		record = range_alloc(OBJECT_RANGE, 0, zb->zb_blkid,
 		    zb->zb_blkid + 1, B_FALSE);
 		record->sru.object_range.bp = *bp;
@@ -2397,10 +2396,13 @@ dmu_send_impl(struct dmu_send_params *dspp)
 	}
 
 	if (featureflags & DMU_BACKUP_FEATURE_RAW) {
+		uint64_t ivset_guid = (ancestor_zb != NULL) ?
+		    ancestor_zb->zbm_ivset_guid : 0;
 		nvlist_t *keynvl = NULL;
 		ASSERT(os->os_encrypted);
 
-		err = dsl_crypto_populate_key_nvlist(to_ds, &keynvl);
+		err = dsl_crypto_populate_key_nvlist(to_ds, ivset_guid,
+		    &keynvl);
 		if (err != 0) {
 			fnvlist_free(nvl);
 			goto out;
@@ -2551,6 +2553,13 @@ dmu_send_obj(const char *pool, uint64_t tosnap, uint64_t fromsnap,
 		    dsl_dataset_phys(fromds)->ds_creation_txg;
 		dspp.ancestor_zb.zbm_creation_time =
 		    dsl_dataset_phys(fromds)->ds_creation_time;
+
+		if (dsl_dataset_is_zapified(fromds)) {
+			(void) zap_lookup(dspp.dp->dp_meta_objset,
+			    fromds->ds_object, DS_FIELD_IVSET_GUID, 8, 1,
+			    &dspp.ancestor_zb.zbm_ivset_guid);
+		}
+
 		/* See dmu_send for the reasons behind this. */
 		uint64_t *fromredact;
 
@@ -2716,6 +2725,14 @@ dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
 					zb->zbm_guid =
 					    dsl_dataset_phys(fromds)->ds_guid;
 					zb->zbm_redaction_obj = 0;
+
+					if (dsl_dataset_is_zapified(fromds)) {
+						(void) zap_lookup(
+						    dspp.dp->dp_meta_objset,
+						    fromds->ds_object,
+						    DS_FIELD_IVSET_GUID, 8, 1,
+						    &zb->zbm_ivset_guid);
+					}
 				}
 				dsl_dataset_rele(fromds, FTAG);
 			}

@@ -127,8 +127,8 @@ log_must zfs redact $sendfs@snap book8 $clone@snap1 $clone/new@snap
 log_must eval "zfs send --redact book8 $sendfs@snap >$stream"
 log_must eval "zfs recv $recvfs <$stream"
 compare_files $sendfs $recvfs "f2" "$RANGE2"
-log_must zfs rollback -R $clone@snap
 log_must zfs destroy -R $clone/new
+log_must zfs rollback -R $clone@snap
 log_must zfs destroy -R $recvfs
 
 # FizzBuzz version

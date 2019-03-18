@@ -43,7 +43,14 @@ typedef struct zfs_bookmark_phys {
 	uint64_t zbm_referenced_freed_before_next_snap;
 	uint64_t zbm_compressed_freed_before_next_snap;
 	uint64_t zbm_uncompressed_freed_before_next_snap;
+
+	/* fields used for raw sends */
+	uint64_t zbm_ivset_guid;
 } zfs_bookmark_phys_t;
+
+
+#define	BOOKMARK_PHYS_SIZE_V1	(3 * sizeof (uint64_t))
+#define	BOOKMARK_PHYS_SIZE_V2	(12 * sizeof (uint64_t))
 
 typedef enum zbm_flags {
 	ZBM_FLAG_HAS_FBN = (1 << 0),

@@ -705,6 +705,27 @@ files.
 .sp
 .ne 2
 .na
+\fB\fBbookmark_v2\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.datto:bookmark_v2
+READ\-ONLY COMPATIBLE	no
+DEPENDENCIES	extensible_dataset
+.TE
+
+This feature enables the creation and management of larger bookmarks which are
+needed for other features in ZFS.
+
+This feature becomes \fBactive\fR when a v2 bookmark is created and will be
+returned to the \fBenabled\fR state when all v2 bookmarks are destroyed.
+
+.RE
+
+.sp
+.ne 2
+.na
 \fB\fBencryption\fR\fR
 .ad
 .RS 4n

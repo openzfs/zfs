@@ -5,7 +5,8 @@ dist_pkgdata_SCRIPTS = \
 	zpool_events_clear.ksh \
 	zpool_events_cliargs.ksh \
 	zpool_events_follow.ksh \
-	zpool_events_poolname.ksh
+	zpool_events_poolname.ksh \
+	zpool_events_errors.ksh
 
 dist_pkgdata_DATA = \
 	zpool_events.cfg \

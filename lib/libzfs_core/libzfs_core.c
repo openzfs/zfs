@@ -1179,6 +1179,7 @@ lzc_bookmark(nvlist_t *bookmarks, nvlist_t **errlist)
  * "guid" - globally unique identifier of the snapshot it refers to
  * "createtxg" - txg when the snapshot it refers to was created
  * "creation" - timestamp when the snapshot it refers to was created
+ * "ivsetguid" - IVset guid for identifying encrypted snapshots
  * "redact_snaps" - list of guids of the redaction snapshots for the specified
  *     bookmark.  If the bookmark is not a redaction bookmark, the nvlist will
  *     not contain an entry for this value.  If it is redacted with respect to

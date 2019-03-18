@@ -3951,6 +3951,31 @@ parameters with the
 .Fl o
 options.
 .Pp
+The added security provided by raw sends adds some restrictions to the send
+and receive process. ZFS will not allow a mix of raw receives and non-raw
+receives. Specifically, any raw incremental receives that are attempted after
+a non-raw receive will fail. Non-raw receives do not have this restriction and,
+therefore, are always possible. Because of this, it is best practice to always
+use either raw sends for their security benefits or non-raw sends for their
+flexibility when working with encrypted datasets, but not a combination.
+.Pp
+The reason for this restriction stems from the inherent restrictions of the
+AEAD ciphers that ZFS uses to encrypt data. When using ZFS native encryption,
+each block of data is encrypted against a randomly generated number known as
+the "initialization vector" (IV), which is stored in the filesystem metadata.
+This number is required by the encryption algorithms whenever the data is to
+be decrypted. Together, all of the IVs provided for all of the blocks in a
+given snapshot are collectively called an "IV set". When ZFS performs a raw
+send, the IV set is transferred from the source to the destination in the send
+stream. When ZFS performs a non-raw send, the data is decrypted by the source
+system and re-encrypted by the destination system, creating a snapshot with
+effectively the same data, but a different IV set. In order for decryption to
+work after a raw send, ZFS must ensure that the IV set used on both the source
+and destination side match. When an incremental raw receive is performed on
+top of an existing snapshot, ZFS will check to confirm that the "from"
+snapshot on both the source and destination were using the same IV set,
+ensuring the new IV set is consistent.
+.Pp
 The name of the snapshot
 .Pq and file system, if a full stream is received
 that this subcommand creates depends on the argument type and the use of the

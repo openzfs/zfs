@@ -75,14 +75,14 @@ dsl_bookmark_lookup_impl(dsl_dataset_t *ds, const char *shortname,
 		mt = MT_NORMALIZE;
 
 	/*
-	 * Zero it in case this is an older format bookmark which
-	 * has fewer entries than the current format.
+	 * Zero out the bookmark in case the one stored on disk
+	 * is in an older, shorter format.
 	 */
 	bzero(bmark_phys, sizeof (*bmark_phys));
 
-	err = zap_lookup_norm(mos, bmark_zapobj, shortname,
-	    sizeof (uint64_t), sizeof (*bmark_phys) / sizeof (uint64_t),
-	    bmark_phys, mt, NULL, 0, NULL);
+	err = zap_lookup_norm(mos, bmark_zapobj, shortname, sizeof (uint64_t),
+	    sizeof (*bmark_phys) / sizeof (uint64_t), bmark_phys, mt,
+	    NULL, 0, NULL);
 
 	return (err == ENOENT ? ESRCH : err);
 }
@@ -138,7 +138,7 @@ dsl_bookmark_create_check_impl(dsl_dataset_t *snapds, const char *bookmark_name,
 	dsl_dataset_t *bmark_fs;
 	char *shortname;
 	int error;
-	zfs_bookmark_phys_t bmark_phys;
+	zfs_bookmark_phys_t bmark_phys = { 0 };
 
 	if (!snapds->ds_is_snapshot)
 		return (SET_ERROR(EINVAL));
@@ -213,11 +213,26 @@ static void
 dsl_bookmark_set_phys(zfs_bookmark_phys_t *zbm, dsl_dataset_t *snap)
 {
 	spa_t *spa = dsl_dataset_get_spa(snap);
+	objset_t *mos = spa_get_dsl(spa)->dp_meta_objset;
 	dsl_dataset_phys_t *dsp = dsl_dataset_phys(snap);
 	zbm->zbm_guid = dsp->ds_guid;
 	zbm->zbm_creation_txg = dsp->ds_creation_txg;
 	zbm->zbm_creation_time = dsp->ds_creation_time;
 	zbm->zbm_redaction_obj = 0;
+
+	/*
+	 * If the dataset is encrypted create a larger bookmark to
+	 * accommodate the IVset guid. The IVset guid was added
+	 * after the encryption feature to prevent a problem with
+	 * raw sends. If we encounter an encrypted dataset without
+	 * an IVset guid we fall back to a normal bookmark.
+	 */
+	if (snap->ds_dir->dd_crypto_obj != 0 &&
+	    spa_feature_is_enabled(spa, SPA_FEATURE_BOOKMARK_V2)) {
+		(void) zap_lookup(mos, snap->ds_object,
+		    DS_FIELD_IVSET_GUID, sizeof (uint64_t), 1,
+		    &zbm->zbm_ivset_guid);
+	}
 
 	if (spa_feature_is_enabled(spa, SPA_FEATURE_BOOKMARK_WRITTEN)) {
 		zbm->zbm_flags = ZBM_FLAG_SNAPSHOT_EXISTS | ZBM_FLAG_HAS_FBN;
@@ -264,21 +279,18 @@ dsl_bookmark_node_add(dsl_dataset_t *hds, dsl_bookmark_node_t *dbn,
 
 	/*
 	 * To maintain backwards compatibility with software that doesn't
-	 * understand SPA_FEATURE_REDACTION_BOOKMARKS or
-	 * SPA_FEATURE_BOOKMARK_WRITTEN, we need to use the smallest of
-	 * the 3 possible bookmark sizes:
-	 *  - original (ends before zbm_redaction_obj)
-	 *  - redaction (ends before zbm_flags)
-	 *  - current / written (ends at end of struct)
+	 * understand SPA_FEATURE_BOOKMARK_V2, we need to use the smallest
+	 * possible bookmark size.
 	 */
-	uint64_t bookmark_phys_size = offsetof(zfs_bookmark_phys_t,
-	    zbm_redaction_obj);
-	if (dbn->dbn_phys.zbm_flags & ZBM_FLAG_HAS_FBN)
-		bookmark_phys_size = sizeof (zfs_bookmark_phys_t);
-	else if (dbn->dbn_phys.zbm_redaction_obj != 0)
-		bookmark_phys_size = offsetof(zfs_bookmark_phys_t, zbm_flags);
+	uint64_t bookmark_phys_size = BOOKMARK_PHYS_SIZE_V1;
+	if (spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_BOOKMARK_V2) &&
+	    (dbn->dbn_phys.zbm_ivset_guid != 0 || dbn->dbn_phys.zbm_flags &
+	    ZBM_FLAG_HAS_FBN || dbn->dbn_phys.zbm_redaction_obj != 0)) {
+		bookmark_phys_size = BOOKMARK_PHYS_SIZE_V2;
+		spa_feature_incr(dp->dp_spa, SPA_FEATURE_BOOKMARK_V2, tx);
+	}
 
-	zfs_bookmark_phys_t zero_phys = { 0 };
+	__attribute__((unused)) zfs_bookmark_phys_t zero_phys = { 0 };
 	ASSERT0(bcmp(((char *)&dbn->dbn_phys) + bookmark_phys_size,
 	    &zero_phys, sizeof (zfs_bookmark_phys_t) - bookmark_phys_size));
 
@@ -484,6 +496,11 @@ dsl_bookmark_fetch_props(dsl_pool_t *dp, zfs_bookmark_phys_t *bmark_phys,
 	    zfs_prop_to_name(ZFS_PROP_CREATION))) {
 		dsl_prop_nvlist_add_uint64(out_props,
 		    ZFS_PROP_CREATION, bmark_phys->zbm_creation_time);
+	}
+	if (props == NULL || nvlist_exists(props,
+	    zfs_prop_to_name(ZFS_PROP_IVSET_GUID))) {
+		dsl_prop_nvlist_add_uint64(out_props,
+		    ZFS_PROP_IVSET_GUID, bmark_phys->zbm_ivset_guid);
 	}
 	if (bmark_phys->zbm_flags & ZBM_FLAG_HAS_FBN) {
 		if (props == NULL || nvlist_exists(props,
@@ -706,7 +723,7 @@ dsl_get_bookmark_props(const char *dsname, const char *bmname, nvlist_t *props)
 {
 	dsl_pool_t *dp;
 	dsl_dataset_t *ds;
-	zfs_bookmark_phys_t bmark_phys;
+	zfs_bookmark_phys_t bmark_phys = { 0 };
 	int err;
 
 	err = dsl_pool_hold(dsname, FTAG, &dp);
@@ -742,6 +759,7 @@ dsl_bookmark_destroy_sync_impl(dsl_dataset_t *ds, const char *name,
 	objset_t *mos = ds->ds_dir->dd_pool->dp_meta_objset;
 	uint64_t bmark_zapobj = ds->ds_bookmarks_obj;
 	matchtype_t mt = 0;
+	uint64_t int_size, num_ints;
 	/*
 	 * 'search' must be zeroed so that dbn_flags (which is used in
 	 * dsl_bookmark_compare()) will be zeroed even if the on-disk
@@ -758,9 +776,17 @@ dsl_bookmark_destroy_sync_impl(dsl_dataset_t *ds, const char *name,
 
 	if (dsl_dataset_phys(ds)->ds_flags & DS_FLAG_CI_DATASET)
 		mt = MT_NORMALIZE;
+
+	VERIFY0(zap_length(mos, bmark_zapobj, name, &int_size, &num_ints));
+
+	ASSERT3U(int_size, ==, sizeof (uint64_t));
+
+	if (num_ints * int_size > BOOKMARK_PHYS_SIZE_V1) {
+		spa_feature_decr(dmu_objset_spa(mos),
+		    SPA_FEATURE_BOOKMARK_V2, tx);
+	}
 	VERIFY0(zap_lookup_norm(mos, bmark_zapobj, name, sizeof (uint64_t),
-	    sizeof (zfs_bookmark_phys_t) / sizeof (uint64_t),
-	    &search.dbn_phys, mt, realname, sizeof (realname), NULL));
+	    num_ints, &search.dbn_phys, mt, realname, sizeof (realname), NULL));
 
 	search.dbn_name = realname;
 	dsl_bookmark_node_t *dbn = avl_find(&ds->ds_bookmarks, &search, NULL);
@@ -1420,7 +1446,7 @@ dsl_redaction_list_traverse(redaction_list_t *rl, zbookmark_phys_t *resume,
 	 * Binary search for the point to resume from.  The goal is to minimize
 	 * the number of disk reads we have to perform.
 	 */
-	buf = kmem_alloc(bufsize, KM_SLEEP);
+	buf = zio_data_buf_alloc(bufsize);
 	uint64_t maxbufid = (rl->rl_phys->rlp_num_entries - 1) /
 	    redact_block_buf_num_entries(bufsize);
 	uint64_t minbufid = 0;
@@ -1503,6 +1529,6 @@ dsl_redaction_list_traverse(redaction_list_t *rl, zbookmark_phys_t *resume,
 			break;
 	}
 
-	kmem_free(buf, bufsize);
+	zio_data_buf_free(buf, bufsize);
 	return (err);
 }

@@ -4132,6 +4132,10 @@ zio_checksum_verify(zio_t *zio)
 		zio->io_error = error;
 		if (error == ECKSUM &&
 		    !(zio->io_flags & ZIO_FLAG_SPECULATIVE)) {
+			mutex_enter(&zio->io_vd->vdev_stat_lock);
+			zio->io_vd->vdev_stat.vs_checksum_errors++;
+			mutex_exit(&zio->io_vd->vdev_stat_lock);
+
 			zfs_ereport_start_checksum(zio->io_spa,
 			    zio->io_vd, &zio->io_bookmark, zio,
 			    zio->io_offset, zio->io_size, NULL, &info);
@@ -4467,9 +4471,18 @@ zio_done(zio_t *zio)
 		 * device is currently unavailable.
 		 */
 		if (zio->io_error != ECKSUM && zio->io_vd != NULL &&
-		    !vdev_is_dead(zio->io_vd))
+		    !vdev_is_dead(zio->io_vd)) {
+			mutex_enter(&zio->io_vd->vdev_stat_lock);
+			if (zio->io_type == ZIO_TYPE_READ) {
+				zio->io_vd->vdev_stat.vs_read_errors++;
+			} else if (zio->io_type == ZIO_TYPE_WRITE) {
+				zio->io_vd->vdev_stat.vs_write_errors++;
+			}
+			mutex_exit(&zio->io_vd->vdev_stat_lock);
+
 			zfs_ereport_post(FM_EREPORT_ZFS_IO, zio->io_spa,
 			    zio->io_vd, &zio->io_bookmark, zio, 0, 0);
+		}
 
 		if ((zio->io_error == EIO || !(zio->io_flags &
 		    (ZIO_FLAG_SPECULATIVE | ZIO_FLAG_DONT_PROPAGATE))) &&
