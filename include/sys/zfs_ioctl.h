@@ -191,7 +191,7 @@ typedef struct dmu_replay_record {
 		DRR_BEGIN, DRR_OBJECT, DRR_FREEOBJECTS,
 		DRR_WRITE, DRR_FREE, DRR_END, DRR_WRITE_BYREF,
 		DRR_SPILL, DRR_WRITE_EMBEDDED, DRR_OBJECT_RANGE,
-		DRR_NUMTYPES
+		DRR_REDACT, DRR_NUMTYPES
 	} drr_type;
 	uint32_t drr_payloadlen;
 	union {

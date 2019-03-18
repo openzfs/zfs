@@ -184,6 +184,8 @@ typedef enum {
 	ZFS_PROP_REMAPTXG,		/* not exposed to the user */
 	ZFS_PROP_SPECIAL_SMALL_BLOCKS,
 	ZFS_PROP_IVSET_GUID,		/* not exposed to the user */
+	ZFS_PROP_REDACTED,
+	ZFS_PROP_REDACT_SNAPS,
 	ZFS_NUM_PROPS
 } zfs_prop_t;
 
@@ -1272,6 +1274,8 @@ typedef enum zfs_ioc {
 	ZFS_IOC_POOL_DISCARD_CHECKPOINT,	/* 0x5a4e */
 	ZFS_IOC_POOL_INITIALIZE,		/* 0x5a4f */
 	ZFS_IOC_POOL_TRIM,			/* 0x5a50 */
+	ZFS_IOC_GET_BOOKMARK_PROPS,		/* 0x5a51 */
+	ZFS_IOC_REDACT,				/* 0x5a52 */
 
 	/*
 	 * Linux - 3/64 numbers reserved.
@@ -1317,6 +1321,7 @@ typedef enum {
 	ZFS_ERR_WRONG_PARENT,
 	ZFS_ERR_FROM_IVSET_GUID_MISSING,
 	ZFS_ERR_FROM_IVSET_GUID_MISMATCH,
+	ZFS_ERR_UNKNOWN_SEND_STREAM_FEATURE,
 } zfs_errno_t;
 
 /*

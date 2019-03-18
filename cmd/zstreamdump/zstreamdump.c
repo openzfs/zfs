@@ -711,6 +711,7 @@ main(int argc, char *argv[])
 				    mac);
 			}
 			break;
+		case DRR_REDACT:
 		case DRR_NUMTYPES:
 			/* should never be reached */
 			exit(1);
