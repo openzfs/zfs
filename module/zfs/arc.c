@@ -1135,6 +1135,9 @@ buf_hash(uint64_t spa, const dva_t *dva, uint64_t birth)
 	((hdr)->b_dva.dva_word[0] == 0 &&			\
 	(hdr)->b_dva.dva_word[1] == 0)
 
+#define	HDR_EMPTY_OR_LOCKED(hdr)				\
+	(HDR_EMPTY(hdr) || MUTEX_HELD(HDR_LOCK(hdr)))
+
 #define	HDR_EQUAL(spa, dva, birth, hdr)				\
 	((hdr)->b_dva.dva_word[0] == (dva)->dva_word[0]) &&	\
 	((hdr)->b_dva.dva_word[1] == (dva)->dva_word[1]) &&	\
@@ -1582,8 +1585,7 @@ arc_cksum_free(arc_buf_hdr_t *hdr)
 static boolean_t
 arc_hdr_has_uncompressed_buf(arc_buf_hdr_t *hdr)
 {
-	ASSERT(hdr->b_l1hdr.b_state == arc_anon ||
-	    MUTEX_HELD(HDR_LOCK(hdr)) || HDR_EMPTY(hdr));
+	ASSERT(hdr->b_l1hdr.b_state == arc_anon || HDR_EMPTY_OR_LOCKED(hdr));
 
 	for (arc_buf_t *b = hdr->b_l1hdr.b_buf; b != NULL; b = b->b_next) {
 		if (!ARC_BUF_COMPRESSED(b)) {
@@ -1798,14 +1800,14 @@ arc_buf_freeze(arc_buf_t *buf)
 static inline void
 arc_hdr_set_flags(arc_buf_hdr_t *hdr, arc_flags_t flags)
 {
-	ASSERT(MUTEX_HELD(HDR_LOCK(hdr)) || HDR_EMPTY(hdr));
+	ASSERT(HDR_EMPTY_OR_LOCKED(hdr));
 	hdr->b_flags |= flags;
 }
 
 static inline void
 arc_hdr_clear_flags(arc_buf_hdr_t *hdr, arc_flags_t flags)
 {
-	ASSERT(MUTEX_HELD(HDR_LOCK(hdr)) || HDR_EMPTY(hdr));
+	ASSERT(HDR_EMPTY_OR_LOCKED(hdr));
 	hdr->b_flags &= ~flags;
 }
 
@@ -1819,7 +1821,7 @@ arc_hdr_clear_flags(arc_buf_hdr_t *hdr, arc_flags_t flags)
 static void
 arc_hdr_set_compress(arc_buf_hdr_t *hdr, enum zio_compress cmp)
 {
-	ASSERT(MUTEX_HELD(HDR_LOCK(hdr)) || HDR_EMPTY(hdr));
+	ASSERT(HDR_EMPTY_OR_LOCKED(hdr));
 
 	/*
 	 * Holes and embedded blocks will always have a psize = 0 so
@@ -1903,7 +1905,7 @@ arc_hdr_authenticate(arc_buf_hdr_t *hdr, spa_t *spa, uint64_t dsobj)
 	void *tmpbuf = NULL;
 	abd_t *abd = hdr->b_l1hdr.b_pabd;
 
-	ASSERT(MUTEX_HELD(HDR_LOCK(hdr)) || HDR_EMPTY(hdr));
+	ASSERT(HDR_EMPTY_OR_LOCKED(hdr));
 	ASSERT(HDR_AUTHENTICATED(hdr));
 	ASSERT3P(hdr->b_l1hdr.b_pabd, !=, NULL);
 
@@ -1973,7 +1975,7 @@ arc_hdr_decrypt(arc_buf_hdr_t *hdr, spa_t *spa, const zbookmark_phys_t *zb)
 	boolean_t no_crypt = B_FALSE;
 	boolean_t bswap = (hdr->b_l1hdr.b_byteswap != DMU_BSWAP_NUMFUNCS);
 
-	ASSERT(MUTEX_HELD(HDR_LOCK(hdr)) || HDR_EMPTY(hdr));
+	ASSERT(HDR_EMPTY_OR_LOCKED(hdr));
 	ASSERT(HDR_ENCRYPTED(hdr));
 
 	arc_hdr_alloc_abd(hdr, B_FALSE);
@@ -2092,7 +2094,7 @@ arc_buf_untransform_in_place(arc_buf_t *buf, kmutex_t *hash_lock)
 
 	ASSERT(HDR_ENCRYPTED(hdr));
 	ASSERT3U(hdr->b_crypt_hdr.b_ot, ==, DMU_OT_DNODE);
-	ASSERT(MUTEX_HELD(HDR_LOCK(hdr)) || HDR_EMPTY(hdr));
+	ASSERT(HDR_EMPTY_OR_LOCKED(hdr));
 	ASSERT3P(hdr->b_l1hdr.b_pabd, !=, NULL);
 
 	zio_crypt_copy_dnode_bonus(hdr->b_l1hdr.b_pabd, buf->b_data,
@@ -2416,7 +2418,7 @@ add_reference(arc_buf_hdr_t *hdr, void *tag)
 	arc_state_t *state;
 
 	ASSERT(HDR_HAS_L1HDR(hdr));
-	if (!MUTEX_HELD(HDR_LOCK(hdr))) {
+	if (!HDR_EMPTY(hdr) && !MUTEX_HELD(HDR_LOCK(hdr))) {
 		ASSERT(hdr->b_l1hdr.b_state == arc_anon);
 		ASSERT(zfs_refcount_is_zero(&hdr->b_l1hdr.b_refcnt));
 		ASSERT3P(hdr->b_l1hdr.b_buf, ==, NULL);
@@ -2890,7 +2892,7 @@ arc_buf_alloc_impl(arc_buf_hdr_t *hdr, spa_t *spa, const zbookmark_phys_t *zb,
 	 * We're about to change the hdr's b_flags. We must either
 	 * hold the hash_lock or be undiscoverable.
 	 */
-	ASSERT(MUTEX_HELD(HDR_LOCK(hdr)) || HDR_EMPTY(hdr));
+	ASSERT(HDR_EMPTY_OR_LOCKED(hdr));
 
 	/*
 	 * Only honor requests for compressed bufs if the hdr is actually
@@ -3095,7 +3097,7 @@ arc_share_buf(arc_buf_hdr_t *hdr, arc_buf_t *buf)
 	ASSERT(arc_can_share(hdr, buf));
 	ASSERT3P(hdr->b_l1hdr.b_pabd, ==, NULL);
 	ASSERT(!ARC_BUF_ENCRYPTED(buf));
-	ASSERT(MUTEX_HELD(HDR_LOCK(hdr)) || HDR_EMPTY(hdr));
+	ASSERT(HDR_EMPTY_OR_LOCKED(hdr));
 
 	/*
 	 * Start sharing the data buffer. We transfer the
@@ -3125,7 +3127,7 @@ arc_unshare_buf(arc_buf_hdr_t *hdr, arc_buf_t *buf)
 {
 	ASSERT(arc_buf_is_shared(buf));
 	ASSERT3P(hdr->b_l1hdr.b_pabd, !=, NULL);
-	ASSERT(MUTEX_HELD(HDR_LOCK(hdr)) || HDR_EMPTY(hdr));
+	ASSERT(HDR_EMPTY_OR_LOCKED(hdr));
 
 	/*
 	 * We are no longer sharing this buffer so we need
@@ -3157,7 +3159,7 @@ static arc_buf_t *
 arc_buf_remove(arc_buf_hdr_t *hdr, arc_buf_t *buf)
 {
 	ASSERT(HDR_HAS_L1HDR(hdr));
-	ASSERT(MUTEX_HELD(HDR_LOCK(hdr)) || HDR_EMPTY(hdr));
+	ASSERT(HDR_EMPTY_OR_LOCKED(hdr));
 
 	arc_buf_t **bufp = &hdr->b_l1hdr.b_buf;
 	arc_buf_t *lastbuf = NULL;
@@ -3208,7 +3210,7 @@ arc_buf_destroy_impl(arc_buf_t *buf)
 		 * We're about to change the hdr's b_flags. We must either
 		 * hold the hash_lock or be undiscoverable.
 		 */
-		ASSERT(MUTEX_HELD(HDR_LOCK(hdr)) || HDR_EMPTY(hdr));
+		ASSERT(HDR_EMPTY_OR_LOCKED(hdr));
 
 		arc_cksum_verify(buf);
 		arc_buf_unwatch(buf);
@@ -3691,7 +3693,6 @@ arc_alloc_buf(spa_t *spa, void *tag, arc_buf_contents_t type, int32_t size)
 {
 	arc_buf_hdr_t *hdr = arc_hdr_alloc(spa_load_guid(spa), size, size,
 	    B_FALSE, ZIO_COMPRESS_OFF, type, B_FALSE);
-	ASSERT(!MUTEX_HELD(HDR_LOCK(hdr)));
 
 	arc_buf_t *buf = NULL;
 	VERIFY0(arc_buf_alloc_impl(hdr, spa, NULL, tag, B_FALSE, B_FALSE,
@@ -3716,7 +3717,6 @@ arc_alloc_compressed_buf(spa_t *spa, void *tag, uint64_t psize, uint64_t lsize,
 
 	arc_buf_hdr_t *hdr = arc_hdr_alloc(spa_load_guid(spa), psize, lsize,
 	    B_FALSE, compression_type, ARC_BUFC_DATA, B_FALSE);
-	ASSERT(!MUTEX_HELD(HDR_LOCK(hdr)));
 
 	arc_buf_t *buf = NULL;
 	VERIFY0(arc_buf_alloc_impl(hdr, spa, NULL, tag, B_FALSE,
@@ -3757,7 +3757,6 @@ arc_alloc_raw_buf(spa_t *spa, void *tag, uint64_t dsobj, boolean_t byteorder,
 
 	hdr = arc_hdr_alloc(spa_load_guid(spa), psize, lsize, B_TRUE,
 	    compression_type, type, B_TRUE);
-	ASSERT(!MUTEX_HELD(HDR_LOCK(hdr)));
 
 	hdr->b_crypt_hdr.b_dsobj = dsobj;
 	hdr->b_crypt_hdr.b_ot = ot;
@@ -3816,9 +3815,6 @@ arc_hdr_destroy(arc_buf_hdr_t *hdr)
 	ASSERT(!HDR_IO_IN_PROGRESS(hdr));
 	ASSERT(!HDR_IN_HASH_TABLE(hdr));
 
-	if (!HDR_EMPTY(hdr))
-		buf_discard_identity(hdr);
-
 	if (HDR_HAS_L2HDR(hdr)) {
 		l2arc_dev_t *dev = hdr->b_l2hdr.b_dev;
 		boolean_t buflist_held = MUTEX_HELD(&dev->l2ad_mtx);
@@ -3842,15 +3838,23 @@ arc_hdr_destroy(arc_buf_hdr_t *hdr)
 			mutex_exit(&dev->l2ad_mtx);
 	}
 
+	/*
+	 * The header's identify can only be safely discarded once it is no
+	 * longer discoverable.  This requires removing it from the hash table
+	 * and the l2arc header list.  After this point the hash lock can not
+	 * be used to protect the header.
+	 */
+	if (!HDR_EMPTY(hdr))
+		buf_discard_identity(hdr);
+
 	if (HDR_HAS_L1HDR(hdr)) {
 		arc_cksum_free(hdr);
 
 		while (hdr->b_l1hdr.b_buf != NULL)
 			arc_buf_destroy_impl(hdr->b_l1hdr.b_buf);
 
-		if (hdr->b_l1hdr.b_pabd != NULL) {
+		if (hdr->b_l1hdr.b_pabd != NULL)
 			arc_hdr_free_abd(hdr, B_FALSE);
-		}
 
 		if (HDR_HAS_RABD(hdr))
 			arc_hdr_free_abd(hdr, B_TRUE);
@@ -3875,7 +3879,6 @@ void
 arc_buf_destroy(arc_buf_t *buf, void* tag)
 {
 	arc_buf_hdr_t *hdr = buf->b_hdr;
-	kmutex_t *hash_lock = HDR_LOCK(hdr);
 
 	if (hdr->b_l1hdr.b_state == arc_anon) {
 		ASSERT3U(hdr->b_l1hdr.b_bufcnt, ==, 1);
@@ -3885,7 +3888,9 @@ arc_buf_destroy(arc_buf_t *buf, void* tag)
 		return;
 	}
 
+	kmutex_t *hash_lock = HDR_LOCK(hdr);
 	mutex_enter(hash_lock);
+
 	ASSERT3P(hdr, ==, buf->b_hdr);
 	ASSERT(hdr->b_l1hdr.b_bufcnt > 0);
 	ASSERT3P(hash_lock, ==, HDR_LOCK(hdr));
@@ -7183,8 +7188,8 @@ arc_write_done(zio_t *zio)
 				ASSERT(zfs_refcount_is_zero(
 				    &exists->b_l1hdr.b_refcnt));
 				arc_change_state(arc_anon, exists, hash_lock);
-				mutex_exit(hash_lock);
 				arc_hdr_destroy(exists);
+				mutex_exit(hash_lock);
 				exists = buf_hash_insert(hdr, &hash_lock);
 				ASSERT3P(exists, ==, NULL);
 			} else if (zio->io_flags & ZIO_FLAG_NOPWRITE) {
@@ -8660,6 +8665,7 @@ top:
 	for (hdr = list_tail(buflist); hdr; hdr = hdr_prev) {
 		hdr_prev = list_prev(buflist, hdr);
 
+		ASSERT(!HDR_EMPTY(hdr));
 		hash_lock = HDR_LOCK(hdr);
 
 		/*
