@@ -1036,9 +1036,9 @@ vdev_autotrim_thread(void *arg)
 		 * device.
 		 *
 		 * For example, when zfs_trim_txg_batch = 32 (default) then
-		 * group 0 will contain metaslabs 0, 16, 32, ...;
-		 * group 1 will contain metaslabs 1, 17, 33, ...;
-		 * group 2 will contain metaslabs 2, 18, 34, ...; and so on.
+		 * group 0 will contain metaslabs 0, 32, 64, ...;
+		 * group 1 will contain metaslabs 1, 33, 65, ...;
+		 * group 2 will contain metaslabs 2, 34, 66, ...; and so on.
 		 *
 		 * On each pass through the while() loop one of these groups
 		 * is selected.  This is accomplished by using a shift value

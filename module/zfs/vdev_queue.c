@@ -811,20 +811,24 @@ vdev_queue_io(zio_t *zio)
 	 * not match the child's i/o type.  Fix it up here.
 	 */
 	if (zio->io_type == ZIO_TYPE_READ) {
+		ASSERT(zio->io_priority != ZIO_PRIORITY_TRIM);
+
 		if (zio->io_priority != ZIO_PRIORITY_SYNC_READ &&
 		    zio->io_priority != ZIO_PRIORITY_ASYNC_READ &&
 		    zio->io_priority != ZIO_PRIORITY_SCRUB &&
 		    zio->io_priority != ZIO_PRIORITY_REMOVAL &&
-		    zio->io_priority != ZIO_PRIORITY_INITIALIZING &&
-		    zio->io_priority != ZIO_PRIORITY_TRIM)
+		    zio->io_priority != ZIO_PRIORITY_INITIALIZING) {
 			zio->io_priority = ZIO_PRIORITY_ASYNC_READ;
+		}
 	} else if (zio->io_type == ZIO_TYPE_WRITE) {
+		ASSERT(zio->io_priority != ZIO_PRIORITY_TRIM);
+
 		if (zio->io_priority != ZIO_PRIORITY_SYNC_WRITE &&
 		    zio->io_priority != ZIO_PRIORITY_ASYNC_WRITE &&
 		    zio->io_priority != ZIO_PRIORITY_REMOVAL &&
-		    zio->io_priority != ZIO_PRIORITY_INITIALIZING &&
-		    zio->io_priority != ZIO_PRIORITY_TRIM)
+		    zio->io_priority != ZIO_PRIORITY_INITIALIZING) {
 			zio->io_priority = ZIO_PRIORITY_ASYNC_WRITE;
+		}
 	} else {
 		ASSERT(zio->io_type == ZIO_TYPE_TRIM);
 		ASSERT(zio->io_priority == ZIO_PRIORITY_TRIM);

@@ -3886,9 +3886,9 @@ zio_vdev_io_assess(zio_t *zio)
 	}
 
 	/*
-	 * If a cache flush or discard returns ENOTSUP or ENOTTY, we know that
-	 * no future attempts will ever succeed. In this case we set a
-	 * persistent bit so that we don't bother with it in the future.
+	 * If a cache flush returns ENOTSUP or ENOTTY, we know that no future
+	 * attempts will ever succeed. In this case we set a persistent bit so
+	 * that we don't bother with it in the future.
 	 */
 	if ((zio->io_error == ENOTSUP || zio->io_error == ENOTTY) &&
 	    zio->io_type == ZIO_TYPE_IOCTL && vd != NULL) {
