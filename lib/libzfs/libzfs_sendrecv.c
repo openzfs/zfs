@@ -4394,8 +4394,8 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			break;
 		case ZFS_ERR_FROM_IVSET_GUID_MISSING:
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "IV set guid missing. See errata %u at"
-			    "http://zfsonlinux.org/msg/ZFS-8000-ER"),
+			    "IV set guid missing. See errata %u at "
+			    "http://zfsonlinux.org/msg/ZFS-8000-ER."),
 			    ZPOOL_ERRATA_ZOL_8308_ENCRYPTION);
 			(void) zfs_error(hdl, EZFS_BADSTREAM, errbuf);
 			break;
