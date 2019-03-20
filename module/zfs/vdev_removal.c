@@ -2101,10 +2101,10 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 	nvlist_t **spares, **l2cache, *nv;
 	uint64_t txg = 0;
 	uint_t nspares, nl2cache;
-	int error = 0;
+	int error = 0, error_log;
 	boolean_t locked = MUTEX_HELD(&spa_namespace_lock);
 	sysevent_t *ev = NULL;
-	char *vd_type = NULL, *vd_path = NULL;
+	char *vd_type = NULL, *vd_path = NULL, *vd_path_log = NULL;
 
 	ASSERT(spa_writeable(spa));
 
@@ -2164,7 +2164,7 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 		spa->spa_l2cache.sav_sync = B_TRUE;
 	} else if (vd != NULL && vd->vdev_islog) {
 		ASSERT(!locked);
-		vd_type = "log";
+		vd_type = VDEV_TYPE_LOG;
 		vd_path = (vd->vdev_path != NULL) ? vd->vdev_path : "-";
 		error = spa_vdev_remove_log(vd, &txg);
 	} else if (vd != NULL) {
@@ -2177,6 +2177,11 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 		error = SET_ERROR(ENOENT);
 	}
 
+	if (vd_path != NULL)
+		vd_path_log = spa_strdup(vd_path);
+
+	error_log = error;
+
 	if (!locked)
 		error = spa_vdev_exit(spa, NULL, txg, error);
 
@@ -2187,10 +2192,12 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 	 * Doing that would prevent the txg sync from actually happening,
 	 * causing a deadlock.
 	 */
-	if (error == 0 && vd_type != NULL && vd_path != NULL) {
+	if (error_log == 0 && vd_type != NULL && vd_path_log != NULL) {
 		spa_history_log_internal(spa, "vdev remove", NULL,
-		    "%s vdev (%s) %s", spa_name(spa), vd_type, vd_path);
+		    "%s vdev (%s) %s", spa_name(spa), vd_type, vd_path_log);
 	}
+	if (vd_path_log != NULL)
+		spa_strfree(vd_path_log);
 
 	if (ev != NULL)
 		spa_event_post(ev);
