@@ -60,6 +60,9 @@ find_bootfs() {
 import_pool() {
         pool="${1}"
 
+    if ! modprobe zfs zfs_autoimport_disable=1 ; then
+        warn "ZFS: Unable to load zfs kernel module while importing pool ${pool}."
+    fi
     if ! zpool list -H "${pool}" > /dev/null 2>&1; then
         info "ZFS: Importing pool ${pool}..."
         if ! zpool import -N ${ZPOOL_IMPORT_OPTS} "${pool}" ; then

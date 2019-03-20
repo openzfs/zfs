@@ -34,12 +34,17 @@ info "ZFS: No sysroot.mount exists or zfs-generator did not extend it."
 info "ZFS: Mounting root with the traditional mount-zfs.sh instead."
 
 # Delay until all required block devices are present.
-modprobe zfs 2>/dev/null
+if ! modprobe zfs zfs_autoimport_disable=1 ; then
+	warn "ZFS: Unable to load zfs kernel module before settling udevadm."
+fi
 udevadm settle
 
 if [ "${root}" = "zfs:AUTO" ] ; then
 	ZFS_DATASET="$(find_bootfs)"
 	if [ $? -ne 0 ] ; then
+		if ! modprobe zfs zfs_autoimport_disable=1 ; then
+			warn "ZFS: Unable to load zfs kernel module while importing all pools."
+		fi
 		zpool import -N -a ${ZPOOL_IMPORT_OPTS}
 		ZFS_DATASET="$(find_bootfs)"
 		if [ $? -ne 0 ] ; then
