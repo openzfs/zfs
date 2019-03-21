@@ -649,10 +649,14 @@ dsl_dataset_hold_obj(dsl_pool_t *dp, uint64_t dsobj, void *tag,
 			if (ds->ds_prev)
 				dsl_dataset_rele(ds->ds_prev, ds);
 			dsl_dir_rele(ds->ds_dir, ds);
+			list_destroy(&ds->ds_prop_cbs);
+			list_destroy(&ds->ds_sendstreams);
 			mutex_destroy(&ds->ds_lock);
 			mutex_destroy(&ds->ds_opening_lock);
 			mutex_destroy(&ds->ds_sendstream_lock);
+			mutex_destroy(&ds->ds_remap_deadlist_lock);
 			zfs_refcount_destroy(&ds->ds_longholds);
+			rrw_destroy(&ds->ds_bp_rwlock);
 			kmem_free(ds, sizeof (dsl_dataset_t));
 			if (err != 0) {
 				dmu_buf_rele(dbuf, tag);
