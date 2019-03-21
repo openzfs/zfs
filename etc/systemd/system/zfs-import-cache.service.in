@@ -4,6 +4,7 @@ Documentation=man:zpool(8)
 DefaultDependencies=no
 Requires=systemd-udev-settle.service
 After=systemd-udev-settle.service
+After=dracut-cmdline.service
 After=cryptsetup.target
 After=systemd-remount-fs.service
 Before=zfs-import.target

@@ -72,14 +72,16 @@ install() {
 	inst_hook shutdown 20 "${moddir}/export-zfs.sh"
 
 	inst_simple "${moddir}/zfs-lib.sh" "/lib/dracut-zfs-lib.sh"
-	if [ -e @sysconfdir@/zfs/zpool.cache ]; then
+	if [[ $hostonly ]]; then
+	    if [ -e @sysconfdir@/zfs/zpool.cache ]; then
 		inst @sysconfdir@/zfs/zpool.cache
 		type mark_hostonly >/dev/null 2>&1 && mark_hostonly @sysconfdir@/zfs/zpool.cache
-	fi
+	    fi
 
-	if [ -e @sysconfdir@/zfs/vdev_id.conf ]; then
+	    if [ -e @sysconfdir@/zfs/vdev_id.conf ]; then
 		inst @sysconfdir@/zfs/vdev_id.conf
 		type mark_hostonly >/dev/null 2>&1 && mark_hostonly @sysconfdir@/zfs/vdev_id.conf
+	    fi
 	fi
 
 	# Synchronize initramfs and system hostid
@@ -95,7 +97,6 @@ install() {
 			dracut_install @systemdunitdir@/zfs-import-$_item.service
 			if ! [ -L "${initdir}/$systemdsystemunitdir/zfs-import.target.wants"/zfs-import-$_item.service ]; then
 				ln -s ../zfs-import-$_item.service "${initdir}/$systemdsystemunitdir/zfs-import.target.wants"/zfs-import-$_item.service
-				type mark_hostonly >/dev/null 2>&1 && mark_hostonly @systemdunitdir@/zfs-import-$_item.service
 			fi
 		done
 		dracut_install systemd-ask-password
@@ -104,7 +105,6 @@ install() {
 		dracut_install @systemdunitdir@/zfs-import.target
 		if ! [ -L "${initdir}/$systemdsystemunitdir/initrd.target.wants"/zfs-import.target ]; then
 			ln -s ../zfs-import.target "${initdir}/$systemdsystemunitdir/initrd.target.wants"/zfs-import.target
-			type mark_hostonly >/dev/null 2>&1 && mark_hostonly @systemdunitdir@/zfs-import.target
 		fi
 	fi
 }
