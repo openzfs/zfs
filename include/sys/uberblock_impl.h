@@ -44,7 +44,36 @@ extern "C" {
  */
 #define	UBERBLOCK_MAGIC		0x00bab10c		/* oo-ba-bloc!	*/
 #define	UBERBLOCK_SHIFT		10			/* up to 1K	*/
-#define	MMP_MAGIC		0xa11cea11		/* all-see-all  */
+#define	MMP_MAGIC		0xa11cea11		/* all-see-all	*/
+
+#define	MMP_INTERVAL_VALID_BIT	0x01
+#define	MMP_SEQ_VALID_BIT	0x02
+#define	MMP_FAIL_INT_VALID_BIT	0x04
+
+#define	MMP_VALID(ubp)		(ubp->ub_magic == UBERBLOCK_MAGIC && \
+				    ubp->ub_mmp_magic == MMP_MAGIC)
+#define	MMP_INTERVAL_VALID(ubp)	(MMP_VALID(ubp) && (ubp->ub_mmp_config & \
+				    MMP_INTERVAL_VALID_BIT))
+#define	MMP_SEQ_VALID(ubp)	(MMP_VALID(ubp) && (ubp->ub_mmp_config & \
+				    MMP_SEQ_VALID_BIT))
+#define	MMP_FAIL_INT_VALID(ubp)	(MMP_VALID(ubp) && (ubp->ub_mmp_config & \
+				    MMP_FAIL_INT_VALID_BIT))
+
+#define	MMP_INTERVAL(ubp)	((ubp->ub_mmp_config & 0x00000000FFFFFF00) \
+				    >> 8)
+#define	MMP_SEQ(ubp)		((ubp->ub_mmp_config & 0x0000FFFF00000000) \
+				    >> 32)
+#define	MMP_FAIL_INT(ubp)	((ubp->ub_mmp_config & 0xFFFF000000000000) \
+				    >> 48)
+
+#define	MMP_INTERVAL_SET(write) \
+	    (((uint64_t)(write & 0xFFFFFF) << 8) | MMP_INTERVAL_VALID_BIT)
+
+#define	MMP_SEQ_SET(seq) \
+	    (((uint64_t)(seq & 0xFFFF) << 32) | MMP_SEQ_VALID_BIT)
+
+#define	MMP_FAIL_INT_SET(fail) \
+	    (((uint64_t)(fail & 0xFFFF) << 48) | MMP_FAIL_INT_VALID_BIT)
 
 struct uberblock {
 	uint64_t	ub_magic;	/* UBERBLOCK_MAGIC		*/
@@ -59,8 +88,31 @@ struct uberblock {
 
 	/* Maybe missing in uberblocks we read, but always written */
 	uint64_t	ub_mmp_magic;	/* MMP_MAGIC			*/
-	uint64_t	ub_mmp_delay;	/* nanosec since last MMP write	*/
-	uint64_t	ub_mmp_seq;	/* reserved for sequence number	*/
+	/*
+	 * If ub_mmp_delay == 0 and ub_mmp_magic is valid, MMP is off.
+	 * Otherwise, nanosec since last MMP write.
+	 */
+	uint64_t	ub_mmp_delay;
+
+	/*
+	 * The ub_mmp_config contains the multihost write interval, multihost
+	 * fail intervals, sequence number for sub-second granularity, and
+	 * valid bit mask.  This layout is as follows:
+	 *
+	 *   64      56      48      40      32      24      16      8       0
+	 *   +-------+-------+-------+-------+-------+-------+-------+-------+
+	 * 0 | Fail Intervals|      Seq      |   Write Interval (ms) | VALID |
+	 *   +-------+-------+-------+-------+-------+-------+-------+-------+
+	 *
+	 * This allows a write_interval of (2^24/1000)s, over 4.5 hours
+	 *
+	 * VALID Bits:
+	 * - 0x01 - Write Interval (ms)
+	 * - 0x02 - Sequence number exists
+	 * - 0x04 - Fail Intervals
+	 * - 0xf8 - Reserved
+	 */
+	uint64_t	ub_mmp_config;
 
 	/*
 	 * ub_checkpoint_txg indicates two things about the current uberblock:

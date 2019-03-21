@@ -1849,20 +1849,14 @@ Default value: \fB0\fR.
 .ad
 .RS 12n
 Used to control the frequency of multihost writes which are performed when the
-\fBmultihost\fR pool property is on.  This is one factor used to determine
-the length of the activity check during import.
+\fBmultihost\fR pool property is on.  This is one factor used to determine the
+length of the activity check during import.
 .sp
-The multihost write period is \fBzfs_multihost_interval / leaf-vdevs\fR milliseconds.
-This means that on average a multihost write will be issued for each leaf vdev every
-\fBzfs_multihost_interval\fR milliseconds.  In practice, the observed period can
-vary with the I/O load and this observed value is the delay which is stored in
-the uberblock.
-.sp
-On import the activity check waits a minimum amount of time determined by
-\fBzfs_multihost_interval * zfs_multihost_import_intervals\fR.  The activity
-check time may be further extended if the value of mmp delay found in the best
-uberblock indicates actual multihost updates happened at longer intervals than
-\fBzfs_multihost_interval\fR.  A minimum value of \fB100ms\fR is enforced.
+The multihost write period is \fBzfs_multihost_interval / leaf-vdevs\fR
+milliseconds.  On average a multihost write will be issued for each leaf vdev
+every \fBzfs_multihost_interval\fR milliseconds.  In practice, the observed
+period can vary with the I/O load and this observed value is the delay which is
+stored in the uberblock.
 .sp
 Default value: \fB1000\fR.
 .RE
@@ -1876,8 +1870,17 @@ Default value: \fB1000\fR.
 Used to control the duration of the activity test on import.  Smaller values of
 \fBzfs_multihost_import_intervals\fR will reduce the import time but increase
 the risk of failing to detect an active pool.  The total activity check time is
-never allowed to drop below one second.  A value of 0 is ignored and treated as
-if it was set to 1
+never allowed to drop below one second.
+.sp
+On import the activity check waits a minimum amount of time determined by
+\fBzfs_multihost_interval * zfs_multihost_import_intervals\fR, or the same
+product computed on the host which last had the pool imported (whichever is
+greater).  The activity check time may be further extended if the value of mmp
+delay found in the best uberblock indicates actual multihost updates happened
+at longer intervals than \fBzfs_multihost_interval\fR.  A minimum value of
+\fB100ms\fR is enforced.
+.sp
+A value of 0 is ignored and treated as if it was set to 1.
 .sp
 Default value: \fB20\fR.
 .RE
@@ -1888,17 +1891,22 @@ Default value: \fB20\fR.
 \fBzfs_multihost_fail_intervals\fR (uint)
 .ad
 .RS 12n
-Controls the behavior of the pool when multihost write failures are detected.
+Controls the behavior of the pool when multihost write failures or delays are
+detected.
 .sp
-When \fBzfs_multihost_fail_intervals = 0\fR then multihost write failures are ignored.
-The failures will still be reported to the ZED which depending on its
-configuration may take action such as suspending the pool or offlining a device.
+When \fBzfs_multihost_fail_intervals = 0\fR, multihost write failures or delays
+are ignored.  The failures will still be reported to the ZED which depending on
+its configuration may take action such as suspending the pool or offlining a
+device.
+
 .sp
-When \fBzfs_multihost_fail_intervals > 0\fR then sequential multihost write failures
-will cause the pool to be suspended.  This occurs when
-\fBzfs_multihost_fail_intervals * zfs_multihost_interval\fR milliseconds have
-passed since the last successful multihost write.  This guarantees the activity test
-will see multihost writes if the pool is imported.
+When \fBzfs_multihost_fail_intervals > 0\fR, the pool will be suspended if
+\fBzfs_multihost_fail_intervals * zfs_multihost_interval\fR milliseconds pass
+without a successful mmp write.  This guarantees the activity test will see
+mmp writes if the pool is imported.  A value of 1 is ignored and treated as
+if it was set to 2.  This is necessary to prevent the pool from being suspended
+due to normal, small I/O latency variations.
+
 .sp
 Default value: \fB10\fR.
 .RE

@@ -162,15 +162,42 @@ function mmp_pool_set_hostid # pool hostid
 
 	return 0
 }
-
 # Return the number of seconds the activity check portion of the import process
-# will take.  Does not include the time to find devices and assemble the
-# preliminary pool configuration passed into the kernel.
+# will take.  Does not include the time to find devices and assemble a config.
+# Note that the activity check may be skipped, e.g. if the pool and host
+# hostid's match, but this will return non-zero because mmp_* are populated.
 function seconds_mmp_waits_for_activity
 {
+	typeset pool=$1
+	typeset devpath=$2
+
+	typeset seconds=0
+	typeset devices=${#DISK[@]}
 	typeset import_intervals=$(get_tunable zfs_multihost_import_intervals)
-	typeset interval=$(get_tunable zfs_multihost_interval)
-	typeset seconds=$((interval*import_intervals/1000))
+	typeset import_interval=$(get_tunable zfs_multihost_interval)
+	typeset tmpfile=$(mktemp)
+	typeset mmp_fail
+	typeset mmp_write
+	typeset mmp_delay
+
+	log_must zdb -e -p $devpath $pool >$tmpfile 2>/dev/null
+	mmp_fail=$(awk '/mmp_fail/ {print $NF}' $tmpfile)
+	mmp_write=$(awk '/mmp_write/ {print $NF}' $tmpfile)
+	mmp_delay=$(awk '/mmp_delay/ {print $NF}' $tmpfile)
+	if [ -f $tmpfile ]; then
+		rm $tmpfile
+	fi
+
+	# In order of preference:
+	if [ -n $mmp_fail -a -n $mmp_write ]; then
+		seconds=$((2*mmp_fail*mmp_write/1000))
+	elif [ -n $mmp_delay ]; then
+		# MMP V0: Based on mmp_delay from the best Uberblock
+		seconds=$((import_intervals*devices*mmp_delay/1000000000))
+	else
+		# Non-MMP aware: Based on zfs_multihost_interval and import_intervals
+		seconds=$((import_intervals*import_interval/1000))
+	fi
 
 	echo $seconds
 }
@@ -180,34 +207,33 @@ function import_no_activity_check # pool opts
 	typeset pool=$1
 	typeset opts=$2
 
-	typeset max_duration=$(seconds_mmp_waits_for_activity)
+	typeset max_duration=$((MMP_TEST_DURATION_DEFAULT-1))
 
 	SECONDS=0
 	zpool import $opts $pool
 	typeset rc=$?
 
 	if [[ $SECONDS -gt $max_duration ]]; then
-		log_fail "unexpected activity check (${SECONDS}s gt \
-$max_duration)"
+		log_fail "ERROR: import_no_activity_check unexpected activity \
+check (${SECONDS}s gt $max_duration)"
 	fi
 
 	return $rc
 }
 
-function import_activity_check # pool opts
+function import_activity_check # pool opts act_test_duration
 {
 	typeset pool=$1
 	typeset opts=$2
-
-	typeset min_duration=$(seconds_mmp_waits_for_activity)
+	typeset min_duration=${3:-$MMP_TEST_DURATION_DEFAULT}
 
 	SECONDS=0
 	zpool import $opts $pool
 	typeset rc=$?
 
 	if [[ $SECONDS -le $min_duration ]]; then
-		log_fail "expected activity check (${SECONDS}s le \
-$min_duration)"
+		log_fail "ERROR: import_activity_check expected activity check \
+(${SECONDS}s le min_duration $min_duration)"
 	fi
 
 	return $rc
@@ -237,4 +263,71 @@ function count_mmp_writes # pool duration
 
 	sleep $duration
 	awk 'BEGIN {count=0}; $NF != "-" {count++}; END {print count};' "$hist_path"
+}
+
+function summarize_uberblock_mmp # device
+{
+	typeset device=$1
+
+	zdb -luuuu $device | awk '
+	BEGIN				{write_fail_present=0; write_fail_missing=0; uber_invalid=0;}
+	/Uberblock\[[0-9][0-9]*\]/	{delay=-99; write=-99; fail=-99; total++; if (/invalid/) {uber_invalid++};};
+	/mmp_fail/			{fail=$3};
+	/mmp_seq/			{seq=$3};
+	/mmp_write/			{write=$3};
+	/mmp_delay/			{delay=$3; if (delay==0) {delay_zero++};};
+	/mmp_valid/ && delay>0 && write>0 && fail>0 {write_fail_present++};
+	/mmp_valid/ && delay>0 && (write<=0 || fail<=0) {write_fail_missing++};
+	/mmp_valid/ && delay>0 && write<=0 {write_missing++};
+	/mmp_valid/ && delay>0 && fail<=0 {fail_missing++};
+	/mmp_valid/ && delay>0 && seq>0 {seq_nonzero++};
+	END {
+		print "total_uberblocks " total;
+		print "delay_zero " delay_zero;
+		print "write_fail_present " write_fail_present;
+		print "write_fail_missing " write_fail_missing;
+		print "write_missing " write_missing;
+		print "fail_missing " fail_missing;
+		print "seq_nonzero " seq_nonzero;
+		print "uberblock_invalid " uber_invalid;
+	}'
+}
+
+function count_mmp_write_fail_present # device
+{
+	typeset device=$1
+
+	summarize_uberblock_mmp $device | awk '/write_fail_present/ {print $NF}'
+}
+
+function count_mmp_write_fail_missing # device
+{
+	typeset device=$1
+
+	summarize_uberblock_mmp $device | awk '/write_fail_missing/ {print $NF}'
+}
+
+function verify_mmp_write_fail_present # device
+{
+	typeset device=$1
+
+	count=$(count_mmp_write_fail_present $device)
+	log_note "present count: $count"
+	if [ $count -eq 0 ]; then
+		summarize_uberblock_mmp $device
+		log_note "----- snip -----"
+		zdb -luuuu $device
+		log_note "----- snip -----"
+		log_fail "No Uberblocks contain valid mmp_write and fail values"
+	fi
+
+	count=$(count_mmp_write_fail_missing $device)
+	log_note "missing count: $count"
+	if [ $count -gt 0 ]; then
+		summarize_uberblock_mmp $device
+		log_note "----- snip -----"
+		zdb -luuuu $device
+		log_note "----- snip -----"
+		log_fail "Uberblocks missing mmp_write or mmp_fail"
+	fi
 }
