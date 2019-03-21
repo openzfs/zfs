@@ -52,8 +52,8 @@ log_onexit cleanup
 
 disk1=$TEST_BASE_DIR/$FILEDISK0
 disk2=$TEST_BASE_DIR/$FILEDISK1
-log_must mkfile $SIZE $disk1
-log_must mkfile $SIZE $disk2
+log_must truncate -s $SIZE $disk1
+log_must truncate -s $SIZE $disk2
 
 typeset ashifts=("9" "10" "11" "12" "13" "14" "15" "16")
 for ashift in ${ashifts[@]}
@@ -89,7 +89,7 @@ do
 		fi
 		# clean things for the next run
 		log_must zpool destroy $TESTPOOL1
-		log_mustnot zpool labelclear $disk1
+		log_must zpool labelclear $disk1
 		log_must zpool labelclear $disk2
 	done
 done
