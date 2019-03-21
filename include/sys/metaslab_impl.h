@@ -392,7 +392,7 @@ struct metaslab {
 	/*
 	 * The ms_trim tree is the set of allocatable segments which are
 	 * eligible for trimming. (When the metaslab is loaded, it's a
-	 * subset of ms_allocatable.)  It is kept in-core as long as the
+	 * subset of ms_allocatable.)  It's kept in-core as long as the
 	 * autotrim property is set and is not vacated when the metaslab
 	 * is unloaded.  Its purpose is to aggregate freed ranges to
 	 * facilitate efficient trimming.

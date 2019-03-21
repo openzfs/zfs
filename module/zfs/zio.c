@@ -3887,14 +3887,13 @@ zio_vdev_io_assess(zio_t *zio)
 
 	/*
 	 * If a cache flush returns ENOTSUP or ENOTTY, we know that no future
-	 * attempts will ever succeed. In this case we set a persistent bit so
-	 * that we don't bother with it in the future.
+	 * attempts will ever succeed. In this case we set a persistent
+	 * boolean flag so that we don't bother with it in the future.
 	 */
 	if ((zio->io_error == ENOTSUP || zio->io_error == ENOTTY) &&
-	    zio->io_type == ZIO_TYPE_IOCTL && vd != NULL) {
-		if (zio->io_cmd == DKIOCFLUSHWRITECACHE)
-			vd->vdev_nowritecache = B_TRUE;
-	}
+	    zio->io_type == ZIO_TYPE_IOCTL &&
+	    zio->io_cmd == DKIOCFLUSHWRITECACHE && vd != NULL)
+		vd->vdev_nowritecache = B_TRUE;
 
 	if (zio->io_error)
 		zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;

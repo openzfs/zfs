@@ -36,6 +36,62 @@
 #include <sys/dmu_tx.h>
 
 /*
+ * TRIM is a feature which is used to notify a SSD that some previously
+ * written space is no longer allocated by the pool.  This is useful because
+ * writes to a SSD must be performed to blocks which have first been erased.
+ * Ensuring the SSD always has a supply of erased blocks for new writes
+ * helps prevent the performance from deteriorating.
+ *
+ * There are two supported TRIM methods; manual and automatic.
+ *
+ * Manual TRIM:
+ *
+ * A manual TRIM is initiated by running the 'zpool trim' command.  A single
+ * 'vdev_trim' thread is created for each leaf vdev, and it is responsible for
+ * managing that vdev TRIM process.  This involves iterating over all the
+ * metaslabs, calculating the unallocated space ranges, and then issuing the
+ * required TRIM I/Os.
+ *
+ * While a metaslab is being actively trimmed it is not eligible to perform
+ * new allocations.  After traversing all of the metaslabs the thread is
+ * terminated.  Finally, the progress of a manual TRIM is regularly written
+ * to the pool allowing it to be suspended and resumed as needed.
+ *
+ * Automatic TRIM:
+ *
+ * An automatic TRIM is enabled by setting the 'autotrim' pool property
+ * to 'on'.  When enabled, a `vdev_autotrim' thread is created for each
+ * top-level (not leaf) vdev in the pool.  These threads perform the same
+ * core TRIM process as a manual TRIM, but with a few key differences.
+ *
+ * 1) Automatic TRIM happens continuously in the background and operates
+ *    solely on recently freed blocks (ms_trim not ms_allocatable).
+ *
+ * 2) Each thread is associated with a top-level (not leaf) vdev.  This has
+ *    the benefit of simplifying the threading model, it makes it easier
+ *    to coordinate administrative commands, and it ensures only a single
+ *    metaslab is disabled at a time.  Unlike manual TRIM, this means each
+ *    'vdev_autotrim' thread is responsible for issuing TRIM I/Os to its
+ *    children.
+ *
+ * 3) There is no automatic TRIM progress information stored on disk, nor
+ *    is it reported by 'zpool status'.
+ *
+ * While the automatic TRIM process is highly effective it is more likely
+ * than a manual TRIM to encounter tiny ranges.  Ranges less than or equal to
+ * 'zfs_trim_extent_bytes_min' (32k) are considered to small to efficiently
+ * TRIM and are skipped.  This means small amount of freed space may not
+ * get trimmed.
+ *
+ * Furthermore, devices with attached hot spares and devices being actively
+ * replaced are skipped.  This is done to avoid adding additional stress to
+ * a potentially unhealthy device and to minimize the required rebuild time.
+ *
+ * For this reason it may be beneficial to occasionally manually TRIM a pool
+ * even when automatic TRIM is enabled.
+ */
+
+/*
  * Maximum size of TRIM I/O, ranges will be chunked in to 128MiB lengths.
  */
 unsigned int zfs_trim_extent_bytes_max = 128 * 1024 * 1024;
@@ -1134,8 +1190,17 @@ vdev_autotrim_thread(void *arg)
 				if (cvd->vdev_detached ||
 				    !vdev_writeable(cvd) ||
 				    !cvd->vdev_has_trim ||
-				    !cvd->vdev_ops->vdev_op_leaf ||
 				    cvd->vdev_trim_thread != NULL)
+					continue;
+
+				/*
+				 * When a device has an attached hot spare, or
+				 * is being replaced it will not be trimmed.
+				 * This is done to avoid adding additional
+				 * stress to a potentially unhealthy device,
+				 * and to minimize the required rebuild time.
+				 */
+				if (!cvd->vdev_ops->vdev_op_leaf)
 					continue;
 
 				ta->trim_tree = range_tree_create(NULL, NULL);
