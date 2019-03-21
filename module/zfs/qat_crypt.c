@@ -455,7 +455,7 @@ qat_checksum(uint64_t cksum, uint8_t *buf, uint64_t size, zio_cksum_t *zcp)
 	Cpa8S *data = NULL;
 	CpaCySymSessionCtx *cy_session_ctx = NULL;
 	cy_callback_t cb;
-	Cpa8U digest_buffer[sizeof (zio_cksum_t)];
+	Cpa8U *digest_buffer = NULL;
 	CpaCySymOpData op_data = { 0 };
 	CpaBufferList src_buffer_list = { 0 };
 	CpaFlatBuffer *flat_src_buf_array = NULL;
@@ -494,6 +494,10 @@ qat_checksum(uint64_t cksum, uint8_t *buf, uint64_t size, zio_cksum_t *zcp)
 	    nr_bufs * sizeof (CpaFlatBuffer));
 	if (status != CPA_STATUS_SUCCESS)
 		goto fail;
+	status = QAT_PHYS_CONTIG_ALLOC(&digest_buffer,
+	    sizeof (zio_cksum_t));
+	if (status != CPA_STATUS_SUCCESS)
+		goto fail;
 
 	bytes_left = size;
 	data = buf;
@@ -530,6 +534,10 @@ qat_checksum(uint64_t cksum, uint8_t *buf, uint64_t size, zio_cksum_t *zcp)
 		status = CPA_STATUS_FAIL;
 		goto fail;
 	}
+	if (cb.verify_result == CPA_FALSE) {
+		status = CPA_STATUS_FAIL;
+		goto fail;
+	}
 
 	bcopy(digest_buffer, zcp, sizeof (zio_cksum_t));
 
@@ -541,6 +549,7 @@ fail:
 		kunmap(in_pages[i]);
 
 	cpaCySymRemoveSession(cy_inst_handle, cy_session_ctx);
+	QAT_PHYS_CONTIG_FREE(digest_buffer);
 	QAT_PHYS_CONTIG_FREE(src_buffer_list.pPrivateMetaData);
 	QAT_PHYS_CONTIG_FREE(cy_session_ctx);
 	QAT_PHYS_CONTIG_FREE(flat_src_buf_array);
