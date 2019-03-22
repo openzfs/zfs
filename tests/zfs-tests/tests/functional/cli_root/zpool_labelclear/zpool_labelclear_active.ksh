@@ -43,26 +43,26 @@ log_assert "zpool labelclear will fail on all vdevs of imported pool"
 log_must zpool create -O mountpoint=none -f $TESTPOOL $disk1 log $disk2
 
 # Check that labelclear [-f] will fail on ACTIVE pool vdevs
-log_mustnot $LABELCLEAR $disk1
-log_must $LABELREAD $disk1
-log_mustnot $LABELCLEAR -f $disk1
-log_must $LABELREAD $disk1
-log_mustnot $LABELCLEAR $disk2
-log_must $LABELREAD $disk2
-log_mustnot $LABELCLEAR -f $disk2
-log_must $LABELREAD $disk2
+log_mustnot zpool labelclear $disk1
+log_must zdb -lq $disk1
+log_mustnot zpool labelclear -f $disk1
+log_must zdb -lq $disk1
+log_mustnot zpool labelclear $disk2
+log_must zdb -lq $disk2
+log_mustnot zpool labelclear -f $disk2
+log_must zdb -lq $disk2
 
 # Add a cache/spare to the pool, check that labelclear [-f] will fail
 # on the vdev and will succeed once it's removed from pool config
 for vdevtype in "cache" "spare"; do
 	log_must zpool add $TESTPOOL $vdevtype $disk3
-	log_mustnot $LABELCLEAR $disk3
-	log_must $LABELREAD $disk3
-	log_mustnot $LABELCLEAR -f $disk3
-	log_must $LABELREAD $disk3
+	log_mustnot zpool labelclear $disk3
+	log_must zdb -lq $disk3
+	log_mustnot zpool labelclear -f $disk3
+	log_must zdb -lq $disk3
 	log_must zpool remove $TESTPOOL $disk3
-	log_must $LABELCLEAR $disk3
-	log_mustnot $LABELREAD $disk3
+	log_must zpool labelclear $disk3
+	log_mustnot zdb -lq $disk3
 done
 
 log_pass "zpool labelclear will fail on all vdevs of imported pool"

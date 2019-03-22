@@ -1113,13 +1113,18 @@ zpool_do_labelclear(int argc, char **argv)
 		return (1);
 	}
 
-	if (ioctl(fd, BLKFLSBUF) != 0)
+	/*
+	 * Flush all dirty pages for the block device.  This should not be
+	 * fatal when the device does not support BLKFLSBUF as would be the
+	 * case for a file vdev.
+	 */
+	if ((ioctl(fd, BLKFLSBUF) != 0) && (errno != ENOTTY))
 		(void) fprintf(stderr, gettext("failed to invalidate "
 		    "cache for %s: %s\n"), vdev, strerror(errno));
 
-	if (zpool_read_label(fd, &config, NULL) != 0 || config == NULL) {
+	if (zpool_read_label(fd, &config, NULL) != 0) {
 		(void) fprintf(stderr,
-		    gettext("failed to check state for %s\n"), vdev);
+		    gettext("failed to read label from %s\n"), vdev);
 		ret = 1;
 		goto errout;
 	}

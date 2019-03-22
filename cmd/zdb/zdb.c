@@ -2555,9 +2555,22 @@ dump_uberblock(uberblock_t *ub, const char *header, const char *footer)
 
 	(void) printf("\tmmp_magic = %016llx\n",
 	    (u_longlong_t)ub->ub_mmp_magic);
-	if (ub->ub_mmp_magic == MMP_MAGIC)
+	if (MMP_VALID(ub)) {
 		(void) printf("\tmmp_delay = %0llu\n",
 		    (u_longlong_t)ub->ub_mmp_delay);
+		if (MMP_SEQ_VALID(ub))
+			(void) printf("\tmmp_seq = %u\n",
+			    (unsigned int) MMP_SEQ(ub));
+		if (MMP_FAIL_INT_VALID(ub))
+			(void) printf("\tmmp_fail = %u\n",
+			    (unsigned int) MMP_FAIL_INT(ub));
+		if (MMP_INTERVAL_VALID(ub))
+			(void) printf("\tmmp_write = %u\n",
+			    (unsigned int) MMP_INTERVAL(ub));
+		/* After MMP_* to make summarize_uberblock_mmp cleaner */
+		(void) printf("\tmmp_valid = %x\n",
+		    (unsigned int) ub->ub_mmp_config & 0xFF);
+	}
 
 	if (dump_opt['u'] >= 4) {
 		char blkbuf[BP_SPRINTF_LEN];
