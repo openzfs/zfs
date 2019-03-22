@@ -1385,7 +1385,6 @@ typedef enum {
 #define	ZPOOL_TRIM_COMMAND		"trim_command"
 #define	ZPOOL_TRIM_VDEVS		"trim_vdevs"
 #define	ZPOOL_TRIM_RATE			"trim_rate"
-#define	ZPOOL_TRIM_PARTIAL		"trim_partial"
 #define	ZPOOL_TRIM_SECURE		"trim_secure"
 
 /*

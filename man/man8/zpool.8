@@ -175,7 +175,7 @@
 .Ar pool Ns ...
 .Nm
 .Cm trim
-.Op Fl dp
+.Op Fl d
 .Op Fl r Ar rate
 .Op Fl c | Fl s
 .Ar pool
@@ -2180,7 +2180,7 @@ resilver will be added to the new one.
 .It Xo
 .Nm
 .Cm trim
-.Op Fl dp
+.Op Fl d
 .Op Fl c | Fl s
 .Ar pool
 .Op Ar device Ns ...
@@ -2200,15 +2200,6 @@ property above for the types of vdev devices which can be trimmed.
 Causes a secure TRIM to be initiated.  When performing a secure TRIM, the
 device guarantees that data stored on the trimmed blocks has been erased.
 This requires support from the device and is not supported by all SSDs.
-.It Fl p -partial
-Causes a partial TRIM to be initiated. A partial TRIM will trim only a subset
-of the space, trading completeness of the trim for increased performance. The
-details of this optimization are subject to change. Currently, when performing
-a partial TRIM, only space which has been previously allocated, and then
-freed, will be trimmed. This option is useful for pools constructed from large
-thinly-provisioned devices where TRIM operations are slow. As the pool ages a
-partial TRIM will become less efficient as a increasing fraction of the pool
-will, at one point, have been allocated.
 .It Fl r -rate Ar rate
 Controls the rate at which the TRIM operation progresses.  Without this
 option TRIM is executed as quickly as possible. The rate, expressed in bytes

@@ -6782,11 +6782,10 @@ zpool_do_resilver(int argc, char **argv)
 }
 
 /*
- * zpool trim [-px] [-r <rate>] [-c | -s] <pool> [<device> ...]
+ * zpool trim [-d] [-r <rate>] [-c | -s] <pool> [<device> ...]
  *
  *	-c		Cancel. Ends any in-progress trim.
  *	-d		Secure trim.  Requires kernel and device support.
- *	-p		Partial trim.  Skips never-allocated space.
  *	-r <rate>	Sets the TRIM rate in bytes (per second). Supports
  *			adding a multiplier suffix such as 'k' or 'm'.
  *	-s		Suspend. TRIM can then be restarted with no flags.
@@ -6797,7 +6796,6 @@ zpool_do_trim(int argc, char **argv)
 	struct option long_options[] = {
 		{"cancel",	no_argument,		NULL,	'c'},
 		{"secure",	no_argument,		NULL,	'd'},
-		{"partial",	no_argument,		NULL,	'p'},
 		{"rate",	required_argument,	NULL,	'r'},
 		{"suspend",	no_argument,		NULL,	's'},
 		{0, 0, 0, 0}
@@ -6805,11 +6803,10 @@ zpool_do_trim(int argc, char **argv)
 
 	pool_trim_func_t cmd_type = POOL_TRIM_START;
 	uint64_t rate = 0;
-	boolean_t partial = B_FALSE;
 	boolean_t secure = B_FALSE;
 
 	int c;
-	while ((c = getopt_long(argc, argv, "cdpr:s", long_options, NULL))
+	while ((c = getopt_long(argc, argv, "cdr:s", long_options, NULL))
 	    != -1) {
 		switch (c) {
 		case 'c':
@@ -6828,14 +6825,6 @@ zpool_do_trim(int argc, char **argv)
 				usage(B_FALSE);
 			}
 			secure = B_TRUE;
-			break;
-		case 'p':
-			if (cmd_type != POOL_TRIM_START) {
-				(void) fprintf(stderr, gettext("-p cannot be "
-				    "combined with the -c or -s options\n"));
-				usage(B_FALSE);
-			}
-			partial = B_TRUE;
 			break;
 		case 'r':
 			if (cmd_type != POOL_TRIM_START) {
@@ -6886,7 +6875,6 @@ zpool_do_trim(int argc, char **argv)
 		return (-1);
 
 	trimflags_t trim_flags = {
-		.partial = partial,
 		.secure = secure,
 		.rate = rate,
 	};

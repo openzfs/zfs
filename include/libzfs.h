@@ -260,9 +260,6 @@ typedef struct trimflags {
 	/* requested vdevs are for the entire pool */
 	boolean_t fullpool;
 
-	/* request a partial trim, ignores unallocated metaslabs */
-	boolean_t partial;
-
 	/* request a secure trim, requires support from device */
 	boolean_t secure;
 

@@ -3967,7 +3967,6 @@ zfs_ioc_pool_initialize(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
  *         ...
  *     },
  *     "trim_rate" -> Target TRIM rate in bytes/sec.
- *     "trim_partial" -> Set to only TRIM space previously allocated.
  *     "trim_secure" -> Set to request a secure TRIM.
  * }
  *
@@ -3986,7 +3985,6 @@ static const zfs_ioc_key_t zfs_keys_pool_trim[] = {
 	{ZPOOL_TRIM_COMMAND,	DATA_TYPE_UINT64,		0},
 	{ZPOOL_TRIM_VDEVS,	DATA_TYPE_NVLIST,		0},
 	{ZPOOL_TRIM_RATE,	DATA_TYPE_UINT64,		ZK_OPTIONAL},
-	{ZPOOL_TRIM_PARTIAL,	DATA_TYPE_BOOLEAN_VALUE,	ZK_OPTIONAL},
 	{ZPOOL_TRIM_SECURE,	DATA_TYPE_BOOLEAN_VALUE,	ZK_OPTIONAL},
 };
 
@@ -4020,13 +4018,6 @@ zfs_ioc_pool_trim(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 	if (nvlist_lookup_uint64(innvl, ZPOOL_TRIM_RATE, &rate) != 0)
 		rate = 0;
 
-	/* Optional, defaults to full TRIM when not provided */
-	boolean_t partial;
-	if (nvlist_lookup_boolean_value(innvl, ZPOOL_TRIM_PARTIAL,
-	    &partial) != 0) {
-		partial = B_FALSE;
-	}
-
 	/* Optional, defaults to standard TRIM when not provided */
 	boolean_t secure;
 	if (nvlist_lookup_boolean_value(innvl, ZPOOL_TRIM_SECURE,
@@ -4041,7 +4032,7 @@ zfs_ioc_pool_trim(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 
 	nvlist_t *vdev_errlist = fnvlist_alloc();
 	int total_errors = spa_vdev_trim(spa, vdev_guids, cmd_type,
-	    rate, partial, secure, vdev_errlist);
+	    rate, !!zfs_trim_metaslab_skip, secure, vdev_errlist);
 
 	if (fnvlist_size(vdev_errlist) > 0)
 		fnvlist_add_nvlist(outnvl, ZPOOL_TRIM_VDEVS, vdev_errlist);

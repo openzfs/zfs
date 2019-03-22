@@ -32,6 +32,8 @@
 extern "C" {
 #endif
 
+extern unsigned int zfs_trim_metaslab_skip;
+
 extern void vdev_trim(vdev_t *vd, uint64_t rate, boolean_t partial,
     boolean_t secure);
 extern void vdev_trim_stop(vdev_t *vd, vdev_trim_state_t tgt, list_t *vd_list);

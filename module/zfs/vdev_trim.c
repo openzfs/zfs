@@ -54,8 +54,9 @@
  *
  * While a metaslab is being actively trimmed it is not eligible to perform
  * new allocations.  After traversing all of the metaslabs the thread is
- * terminated.  Finally, the progress of a manual TRIM is regularly written
- * to the pool allowing it to be suspended and resumed as needed.
+ * terminated.  Finally, both the requested options and current progress of
+ * the TRIM are regularly written to the pool.  This allows the TRIM to be
+ * suspended and resumed as needed.
  *
  * Automatic TRIM:
  *
@@ -71,7 +72,7 @@
  *    the benefit of simplifying the threading model, it makes it easier
  *    to coordinate administrative commands, and it ensures only a single
  *    metaslab is disabled at a time.  Unlike manual TRIM, this means each
- *    'vdev_autotrim' thread is responsible for issuing TRIM I/Os to its
+ *    'vdev_autotrim' thread is responsible for issuing TRIM I/Os for its
  *    children.
  *
  * 3) There is no automatic TRIM progress information stored on disk, nor
@@ -79,9 +80,9 @@
  *
  * While the automatic TRIM process is highly effective it is more likely
  * than a manual TRIM to encounter tiny ranges.  Ranges less than or equal to
- * 'zfs_trim_extent_bytes_min' (32k) are considered to small to efficiently
- * TRIM and are skipped.  This means small amount of freed space may not
- * get trimmed.
+ * 'zfs_trim_extent_bytes_min' (32k) are considered too small to efficiently
+ * TRIM and are skipped.  This means small amounts of freed space may not
+ * be automatically trimmed.
  *
  * Furthermore, devices with attached hot spares and devices being actively
  * replaced are skipped.  This is done to avoid adding additional stress to
@@ -100,6 +101,16 @@ unsigned int zfs_trim_extent_bytes_max = 128 * 1024 * 1024;
  * Minimum size of TRIM I/O, extents smaller than 32Kib will be skipped.
  */
 unsigned int zfs_trim_extent_bytes_min = 32 * 1024;
+
+/*
+ * Skip uninitialized metaslabs during the TRIM process.  This option is
+ * useful for pools constructed from large thinly-provisioned devices where
+ * TRIM operations are slow.  As a pool ages an increasing fraction of
+ * the pools metaslabs will be initialized progressively degrading the
+ * usefulness of this option.  This setting is stored when starting a
+ * manual TRIM and will persist for the duration of the requested TRIM.
+ */
+unsigned int zfs_trim_metaslab_skip = 0;
 
 /*
  * Maximum number of queued TRIM I/Os per leaf vdev.  The number of
@@ -122,7 +133,7 @@ unsigned int zfs_trim_queue_limit = 10;
  * has the opposite effect.  The default value of 32 was determined though
  * testing to be a reasonable compromise.
  */
-int zfs_trim_txg_batch = 32;
+unsigned int zfs_trim_txg_batch = 32;
 
 /*
  * The trim_args are a control structure which describe how a leaf vdev
@@ -1409,6 +1420,10 @@ MODULE_PARM_DESC(zfs_trim_extent_bytes_max,
 module_param(zfs_trim_extent_bytes_min, uint, 0644);
 MODULE_PARM_DESC(zfs_trim_extent_bytes_min,
     "Min size of TRIM commands, smaller will be skipped");
+
+module_param(zfs_trim_metaslab_skip, uint, 0644);
+MODULE_PARM_DESC(zfs_trim_metaslab_skip,
+    "Skip metaslabs which have never been initialized");
 
 module_param(zfs_trim_txg_batch, uint, 0644);
 MODULE_PARM_DESC(zfs_trim_txg_batch,
