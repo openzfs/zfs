@@ -55,6 +55,16 @@ if ! lsattr -pd > /dev/null 2>&1; then
 	log_unsupported "Current e2fsprogs does not support set/show project ID"
 fi
 
+#
+# e2fsprogs-1.44.4 incorrectly reports verity 'V' bit when the project 'P'
+# bit is set.  Skip this test when 1.44.4 is installed to prevent failures.
+#
+# https://github.com/tytso/e2fsprogs/commit/7e5a95e3d
+#
+if lsattr -V 2>&1 | grep "lsattr 1.44.4"; then
+	log_unsupported "Current e2fsprogs incorrectly reports 'V' verity bit"
+fi
+
 log_onexit cleanup
 
 log_assert "Check project ID/flags can be set/inherited properly"
