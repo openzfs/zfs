@@ -61,3 +61,5 @@ cscope.*
 *.patch
 *.orig
 *.log
+venv
+
