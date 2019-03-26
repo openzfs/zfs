@@ -171,6 +171,17 @@ vdev_trim_should_stop(vdev_t *vd)
 }
 
 /*
+ * Determines whether a vdev_autotrim_thread() should be stopped.
+ */
+static boolean_t
+vdev_autotrim_should_stop(vdev_t *tvd)
+{
+	return (tvd->vdev_autotrim_exit_wanted ||
+	    !vdev_writeable(tvd) || tvd->vdev_removing ||
+	    spa_get_autotrim(tvd->vdev_spa) == SPA_AUTOTRIM_OFF);
+}
+
+/*
  * The sync task for updating the on-disk state of a manual TRIM.  This
  * is scheduled by vdev_trim_change_state().
  */
@@ -474,7 +485,10 @@ vdev_trim_range(trim_args_t *ta, uint64_t start, uint64_t size)
 	 * We know the vdev_t will still be around since all consumers of
 	 * vdev_free must stop the trimming first.
 	 */
-	if (vdev_trim_should_stop(vd)) {
+	if ((ta->trim_type == TRIM_TYPE_MANUAL &&
+	    vdev_trim_should_stop(vd)) ||
+	    (ta->trim_type == TRIM_TYPE_AUTO &&
+	    vdev_autotrim_should_stop(vd->vdev_top))) {
 		mutex_enter(&vd->vdev_trim_io_lock);
 		vd->vdev_trim_inflight[ta->trim_type]--;
 		mutex_exit(&vd->vdev_trim_io_lock);
@@ -1091,8 +1105,7 @@ vdev_autotrim_thread(void *arg)
 	uint64_t extent_bytes_max = zfs_trim_extent_bytes_max;
 	uint64_t extent_bytes_min = zfs_trim_extent_bytes_min;
 
-	while (!vd->vdev_autotrim_exit_wanted && vdev_writeable(vd) &&
-	    !vd->vdev_removing && spa_get_autotrim(spa) == SPA_AUTOTRIM_ON) {
+	while (!vdev_autotrim_should_stop(vd)) {
 		int txgs_per_trim = MAX(zfs_trim_txg_batch, 1);
 		boolean_t issued_trim = B_FALSE;
 
@@ -1201,8 +1214,9 @@ vdev_autotrim_thread(void *arg)
 				if (cvd->vdev_detached ||
 				    !vdev_writeable(cvd) ||
 				    !cvd->vdev_has_trim ||
-				    cvd->vdev_trim_thread != NULL)
+				    cvd->vdev_trim_thread != NULL) {
 					continue;
+				}
 
 				/*
 				 * When a device has an attached hot spare, or
@@ -1240,11 +1254,18 @@ vdev_autotrim_thread(void *arg)
 					continue;
 				}
 
+				/*
+				 * After this point metaslab_enable() must be
+				 * called with the sync flag set.  This is done
+				 * here because vdev_trim_ranges() is allowed
+				 * to be interrupted (EINTR) before issuing all
+				 * of the required TRIM I/Os.
+				 */
+				issued_trim = B_TRUE;
+
 				int error = vdev_trim_ranges(ta);
 				if (error)
 					break;
-
-				issued_trim = B_TRUE;
 			}
 
 			/*
