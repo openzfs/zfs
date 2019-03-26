@@ -1969,7 +1969,7 @@ function get_disklist # pool
 
 	disklist=$(zpool iostat -v $1 | nawk '(NR >4) {print $1}' | \
 	    grep -v "\-\-\-\-\-" | \
-	    egrep -v -e "^(mirror|raidz1|raidz2|spare|log|cache)$")
+	    egrep -v -e "^(mirror|raidz[1-3]|spare|log|cache|special|dedup)$")
 
 	echo $disklist
 }
