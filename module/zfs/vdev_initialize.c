@@ -493,6 +493,7 @@ vdev_initialize_thread(void *arg)
 			ms_count = vd->vdev_top->vdev_ms_count;
 		}
 
+		spa_config_exit(spa, SCL_CONFIG, FTAG);
 		metaslab_disable(msp);
 		mutex_enter(&msp->ms_lock);
 		VERIFY0(metaslab_load(msp));
@@ -501,7 +502,6 @@ vdev_initialize_thread(void *arg)
 		    vd);
 		mutex_exit(&msp->ms_lock);
 
-		spa_config_exit(spa, SCL_CONFIG, FTAG);
 		error = vdev_initialize_ranges(vd, deadbeef);
 		metaslab_enable(msp, B_TRUE);
 		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
