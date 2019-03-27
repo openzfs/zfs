@@ -1426,11 +1426,13 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 		 * processed. However, for raw receives we manually set the
 		 * maxblkid from the drr_maxblkid and so we must first free
 		 * everything above that blkid to ensure the DMU is always
-		 * consistent with itself.
+		 * consistent with itself. We will never free the first block
+		 * of the object here because a maxblkid of 0 could indicate
+		 * an object with a single block or one with no blocks.
 		 */
-		if (rwa->raw) {
+		if (rwa->raw && object != DMU_NEW_OBJECT) {
 			err = dmu_free_long_range(rwa->os, drro->drr_object,
-			    (drro->drr_maxblkid + 1) * drro->drr_blksz,
+			    (drro->drr_maxblkid + 1) * doi.doi_data_block_size,
 			    DMU_OBJECT_END);
 			if (err != 0)
 				return (SET_ERROR(EINVAL));
@@ -1566,11 +1568,8 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 		    drro->drr_nlevels, tx));
 
 		/*
-		 * Set the maxblkid. We will never free the first block of
-		 * an object here because a maxblkid of 0 could indicate
-		 * an object with a single block or one with no blocks.
-		 * This will always succeed because we freed all blocks
-		 * beyond the new maxblkid above.
+		 * Set the maxblkid. This will always succeed because
+		 * we freed all blocks beyond the new maxblkid above.
 		 */
 		VERIFY0(dmu_object_set_maxblkid(rwa->os, drro->drr_object,
 		    drro->drr_maxblkid, tx));
@@ -2329,7 +2328,7 @@ dprintf_drr(struct receive_record_arg *rrd, int err)
 	{
 		struct drr_write *drrw = &rrd->header.drr_u.drr_write;
 		dprintf("drr_type = WRITE obj = %llu type = %u offset = %llu "
-		    "lsize = %llu cksumtype = %u cksumflags = %u "
+		    "lsize = %llu cksumtype = %u flags = %u "
 		    "compress = %u psize = %llu err = %d\n",
 		    drrw->drr_object, drrw->drr_type, drrw->drr_offset,
 		    drrw->drr_logical_size, drrw->drr_checksumtype,
@@ -2344,7 +2343,7 @@ dprintf_drr(struct receive_record_arg *rrd, int err)
 		dprintf("drr_type = WRITE_BYREF obj = %llu offset = %llu "
 		    "length = %llu toguid = %llx refguid = %llx "
 		    "refobject = %llu refoffset = %llu cksumtype = %u "
-		    "cksumflags = %u err = %d\n",
+		    "flags = %u err = %d\n",
 		    drrwbr->drr_object, drrwbr->drr_offset,
 		    drrwbr->drr_length, drrwbr->drr_toguid,
 		    drrwbr->drr_refguid, drrwbr->drr_refobject,
@@ -2378,6 +2377,16 @@ dprintf_drr(struct receive_record_arg *rrd, int err)
 		struct drr_spill *drrs = &rrd->header.drr_u.drr_spill;
 		dprintf("drr_type = SPILL obj = %llu length = %llu "
 		    "err = %d\n", drrs->drr_object, drrs->drr_length, err);
+		break;
+	}
+	case DRR_OBJECT_RANGE:
+	{
+		struct drr_object_range *drror =
+		    &rrd->header.drr_u.drr_object_range;
+		dprintf("drr_type = OBJECT_RANGE firstobj = %llu "
+		    "numslots = %llu flags = %u err = %d\n",
+		    drror->drr_firstobj, drror->drr_numslots,
+		    drror->drr_flags, err);
 		break;
 	}
 	default:
@@ -2472,7 +2481,7 @@ receive_process_record(struct receive_writer_arg *rwa,
 		break;
 	}
 	default:
-		return (SET_ERROR(EINVAL));
+		err = (SET_ERROR(EINVAL));
 	}
 
 	if (err != 0)
