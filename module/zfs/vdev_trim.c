@@ -1307,13 +1307,12 @@ vdev_autotrim_thread(void *arg)
 		spa_config_exit(spa, SCL_CONFIG, FTAG);
 
 		/*
-		 * When no TRIM commands were issued for the metaslabs,
-		 * then wait for the next open txg.  This is done to make
-		 * sure that a minimum of zfs_trim_txg_batch txgs will
-		 * occur before these metaslabs are trimmed again.
+		 * After completing the group of metaslabs wait for the next
+		 * open txg.  This is done to make sure that a minimum of
+		 * zfs_trim_txg_batch txgs will occur before these metaslabs
+		 * are trimmed again.
 		 */
-		if (!issued_trim)
-			txg_wait_open(spa_get_dsl(spa), 0, B_FALSE);
+		txg_wait_open(spa_get_dsl(spa), 0, issued_trim);
 
 		shift++;
 		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
