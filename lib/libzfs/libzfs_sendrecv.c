@@ -630,6 +630,7 @@ typedef struct send_data {
 	const char *tosnap;
 	boolean_t recursive;
 	boolean_t raw;
+	boolean_t doall;
 	boolean_t replicate;
 	boolean_t verbose;
 	boolean_t backup;
@@ -954,14 +955,37 @@ send_iterate_fs(zfs_handle_t *zhp, void *arg)
 	sd->parent_fromsnap_guid = 0;
 	sd->parent_snaps = fnvlist_alloc();
 	sd->snapprops = fnvlist_alloc();
-	if (!sd->replicate && fromsnap_txg != 0)
-		min_txg = fromsnap_txg;
-	if (!sd->replicate && tosnap_txg != 0)
-		max_txg = tosnap_txg;
 	if (sd->holds)
 		VERIFY(0 == nvlist_alloc(&sd->snapholds, NV_UNIQUE_NAME, 0));
-	(void) zfs_iter_snapshots_sorted(zhp, send_iterate_snap, sd,
-	    min_txg, max_txg);
+
+
+	/*
+	 * If this is a "doall" send, a replicate send or we're just trying
+	 * to gather a list of previous snapshots, iterate through all the
+	 * snaps in the txg range. Otherwise just look at the one we're
+	 * interested in.
+	 */
+	if (sd->doall || sd->replicate || sd->tosnap == NULL) {
+		if (!sd->replicate && fromsnap_txg != 0)
+			min_txg = fromsnap_txg;
+		if (!sd->replicate && tosnap_txg != 0)
+			max_txg = tosnap_txg;
+		(void) zfs_iter_snapshots_sorted(zhp, send_iterate_snap, sd,
+		    min_txg, max_txg);
+	} else {
+		char snapname[MAXPATHLEN] = { 0 };
+		zfs_handle_t *snap;
+
+		(void) snprintf(snapname, sizeof (snapname) - 1, "%s@%s",
+		    zhp->zfs_name, sd->tosnap);
+		if (sd->fromsnap != NULL)
+			sd->seenfrom = B_TRUE;
+		snap = zfs_open(zhp->zfs_hdl, snapname,
+		    ZFS_TYPE_SNAPSHOT);
+		if (snap != NULL)
+			(void) send_iterate_snap(snap, sd);
+	}
+
 	fnvlist_add_nvlist(nvfs, "snaps", sd->parent_snaps);
 	fnvlist_add_nvlist(nvfs, "snapprops", sd->snapprops);
 	if (sd->holds)
@@ -992,9 +1016,9 @@ out:
 
 static int
 gather_nvlist(libzfs_handle_t *hdl, const char *fsname, const char *fromsnap,
-    const char *tosnap, boolean_t recursive, boolean_t raw, boolean_t replicate,
-    boolean_t verbose, boolean_t backup, boolean_t holds, boolean_t props,
-    nvlist_t **nvlp, avl_tree_t **avlp)
+    const char *tosnap, boolean_t recursive, boolean_t raw, boolean_t doall,
+    boolean_t replicate, boolean_t verbose, boolean_t backup, boolean_t holds,
+    boolean_t props, nvlist_t **nvlp, avl_tree_t **avlp)
 {
 	zfs_handle_t *zhp;
 	send_data_t sd = { 0 };
@@ -1010,6 +1034,7 @@ gather_nvlist(libzfs_handle_t *hdl, const char *fsname, const char *fromsnap,
 	sd.tosnap = tosnap;
 	sd.recursive = recursive;
 	sd.raw = raw;
+	sd.doall = doall;
 	sd.replicate = replicate;
 	sd.verbose = verbose;
 	sd.backup = backup;
@@ -1527,15 +1552,49 @@ dump_filesystem(zfs_handle_t *zhp, void *arg)
 	if (sdd->fromsnap == NULL || missingfrom)
 		sdd->seenfrom = B_TRUE;
 
-	if (!sdd->replicate && sdd->fromsnap != NULL)
-		min_txg = get_snap_txg(zhp->zfs_hdl, zhp->zfs_name,
-		    sdd->fromsnap);
-	if (!sdd->replicate && sdd->tosnap != NULL)
-		max_txg = get_snap_txg(zhp->zfs_hdl, zhp->zfs_name,
-		    sdd->tosnap);
 
-	rv = zfs_iter_snapshots_sorted(zhp, dump_snapshot, arg,
-	    min_txg, max_txg);
+
+	/*
+	 * Iterate through all snapshots and process the ones we will be
+	 * sending. If we only have a "from" and "to" snapshot to deal
+	 * with, we can avoid iterating through all the other snapshots.
+	 */
+	if (sdd->doall || sdd->replicate || sdd->tosnap == NULL) {
+		if (!sdd->replicate && sdd->fromsnap != NULL)
+			min_txg = get_snap_txg(zhp->zfs_hdl, zhp->zfs_name,
+			    sdd->fromsnap);
+		if (!sdd->replicate && sdd->tosnap != NULL)
+			max_txg = get_snap_txg(zhp->zfs_hdl, zhp->zfs_name,
+			    sdd->tosnap);
+		rv = zfs_iter_snapshots_sorted(zhp, dump_snapshot, arg,
+		    min_txg, max_txg);
+	} else {
+		char snapname[MAXPATHLEN] = { 0 };
+		zfs_handle_t *snap;
+
+		if (!sdd->seenfrom) {
+			(void) snprintf(snapname, sizeof (snapname) - 1,
+			    "%s@%s", zhp->zfs_name, sdd->fromsnap);
+			snap = zfs_open(zhp->zfs_hdl, snapname,
+			    ZFS_TYPE_SNAPSHOT);
+			if (snap != NULL)
+				rv = dump_snapshot(snap, sdd);
+			else
+				rv = -1;
+		}
+
+		if (rv == 0) {
+			(void) snprintf(snapname, sizeof (snapname) - 1,
+			    "%s@%s", zhp->zfs_name, sdd->tosnap);
+			snap = zfs_open(zhp->zfs_hdl, snapname,
+			    ZFS_TYPE_SNAPSHOT);
+			if (snap != NULL)
+				rv = dump_snapshot(snap, sdd);
+			else
+				rv = -1;
+		}
+	}
+
 	if (!sdd->seenfrom) {
 		(void) fprintf(stderr, dgettext(TEXT_DOMAIN,
 		    "WARNING: could not send %s@%s:\n"
@@ -2169,7 +2228,8 @@ static int
 send_prelim_records(zfs_handle_t *zhp, const char *from, int fd,
     boolean_t gather_props, boolean_t recursive, boolean_t verbose,
     boolean_t dryrun, boolean_t raw, boolean_t replicate, boolean_t backup,
-    boolean_t holds, boolean_t props, nvlist_t **fssp, avl_tree_t **fsavlp)
+    boolean_t holds, boolean_t props, boolean_t doall,
+    nvlist_t **fssp, avl_tree_t **fsavlp)
 {
 	int err = 0;
 	char *packbuf = NULL;
@@ -2214,8 +2274,8 @@ send_prelim_records(zfs_handle_t *zhp, const char *from, int fd,
 		}
 
 		if ((err = gather_nvlist(zhp->zfs_hdl, tofs,
-		    from, tosnap, recursive, raw, replicate, verbose, backup,
-		    holds, props, &fss, fsavlp)) != 0) {
+		    from, tosnap, recursive, raw, doall, replicate, verbose,
+		    backup, holds, props, &fss, fsavlp)) != 0) {
 			return (zfs_error(zhp->zfs_hdl, EZFS_BADBACKUP,
 			    errbuf));
 		}
@@ -2364,7 +2424,7 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 		    flags->replicate || flags->props || flags->holds,
 		    flags->replicate, flags->verbosity > 0, flags->dryrun,
 		    flags->raw, flags->replicate, flags->backup, flags->holds,
-		    flags->props, &fss, &fsavl);
+		    flags->props, flags->doall, &fss, &fsavl);
 		zfs_close(tosnap);
 		if (err != 0)
 			goto err_out;
@@ -2671,7 +2731,7 @@ zfs_send_one(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
 		err = send_prelim_records(zhp, NULL, fd, B_TRUE, B_FALSE,
 		    flags->verbosity > 0, flags->dryrun, flags->raw,
 		    flags->replicate, flags->backup, flags->holds,
-		    flags->props, NULL, NULL);
+		    flags->props, flags->doall, NULL, NULL);
 		if (err != 0)
 			return (err);
 	}
@@ -3466,8 +3526,8 @@ again:
 	VERIFY(0 == nvlist_alloc(&deleted, NV_UNIQUE_NAME, 0));
 
 	if ((error = gather_nvlist(hdl, tofs, fromsnap, NULL,
-	    recursive, B_TRUE, recursive, B_FALSE, B_FALSE, B_FALSE, B_TRUE,
-	    &local_nv, &local_avl)) != 0)
+	    recursive, B_TRUE, B_FALSE, recursive, B_FALSE, B_FALSE,
+	    B_FALSE, B_TRUE, &local_nv, &local_avl)) != 0)
 		return (error);
 
 	/*
@@ -4905,8 +4965,8 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		 */
 		*cp = '\0';
 		if (gather_nvlist(hdl, destsnap, NULL, NULL, B_FALSE, B_TRUE,
-		    B_FALSE, B_FALSE, B_FALSE, B_FALSE, B_TRUE, &local_nv,
-		    &local_avl) == 0) {
+		    B_FALSE, B_FALSE, B_FALSE, B_FALSE, B_FALSE, B_TRUE,
+		    &local_nv, &local_avl) == 0) {
 			*cp = '@';
 			fs = fsavl_find(local_avl, drrb->drr_toguid, NULL);
 			fsavl_destroy(local_avl);
