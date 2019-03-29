@@ -69,6 +69,7 @@ SUBDIRS = \
 	sparse \
 	threadsappend \
 	tmpfile \
+	trim \
 	truncate \
 	upgrade \
 	user_namespace \
