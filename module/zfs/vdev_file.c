@@ -28,10 +28,13 @@
 #include <sys/spa_impl.h>
 #include <sys/vdev_file.h>
 #include <sys/vdev_impl.h>
+#include <sys/vdev_trim.h>
 #include <sys/zio.h>
 #include <sys/fs/zfs.h>
 #include <sys/fm/fs/zfs.h>
 #include <sys/abd.h>
+#include <sys/fcntl.h>
+#include <sys/vnode.h>
 
 /*
  * Virtual device vector for files.
@@ -60,8 +63,23 @@ vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	vattr_t vattr;
 	int error;
 
-	/* Rotational optimizations only make sense on block devices */
+	/*
+	 * Rotational optimizations only make sense on block devices.
+	 */
 	vd->vdev_nonrot = B_TRUE;
+
+	/*
+	 * Allow TRIM on file based vdevs.  This may not always be supported,
+	 * since it depends on your kernel version and underlying filesystem
+	 * type but it is always safe to attempt.
+	 */
+	vd->vdev_has_trim = B_TRUE;
+
+	/*
+	 * Disable secure TRIM on file based vdevs.  There is no way to
+	 * request this behavior from the underlying filesystem.
+	 */
+	vd->vdev_has_securetrim = B_FALSE;
 
 	/*
 	 * We must have a pathname, and it must be absolute.
@@ -226,6 +244,21 @@ vdev_file_io_start(zio_t *zio)
 		default:
 			zio->io_error = SET_ERROR(ENOTSUP);
 		}
+
+		zio_execute(zio);
+		return;
+	} else if (zio->io_type == ZIO_TYPE_TRIM) {
+		struct flock flck;
+
+		ASSERT3U(zio->io_size, !=, 0);
+		bzero(&flck, sizeof (flck));
+		flck.l_type = F_FREESP;
+		flck.l_start = zio->io_offset;
+		flck.l_len = zio->io_size;
+		flck.l_whence = 0;
+
+		zio->io_error = VOP_SPACE(vf->vf_vnode, F_FREESP, &flck,
+		    0, 0, kcred, NULL);
 
 		zio_execute(zio);
 		return;

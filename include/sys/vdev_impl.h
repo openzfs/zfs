@@ -145,6 +145,7 @@ struct vdev_queue {
 	avl_tree_t	vq_active_tree;
 	avl_tree_t	vq_read_offset_tree;
 	avl_tree_t	vq_write_offset_tree;
+	avl_tree_t	vq_trim_offset_tree;
 	uint64_t	vq_last_offset;
 	hrtime_t	vq_io_complete_ts; /* time last i/o completed */
 	hrtime_t	vq_io_delta_ts;
@@ -260,6 +261,7 @@ struct vdev {
 	/* pool checkpoint related */
 	space_map_t	*vdev_checkpoint_sm;	/* contains reserved blocks */
 
+	/* Initialize related */
 	boolean_t	vdev_initialize_exit_wanted;
 	vdev_initializing_state_t	vdev_initialize_state;
 	list_node_t	vdev_initialize_node;
@@ -274,10 +276,34 @@ struct vdev {
 	uint64_t	vdev_initialize_bytes_done;
 	time_t		vdev_initialize_action_time;	/* start and end time */
 
-	/* for limiting outstanding I/Os */
+	/* TRIM related */
+	boolean_t	vdev_trim_exit_wanted;
+	boolean_t	vdev_autotrim_exit_wanted;
+	vdev_trim_state_t	vdev_trim_state;
+	list_node_t	vdev_trim_node;
+	kmutex_t	vdev_autotrim_lock;
+	kcondvar_t	vdev_autotrim_cv;
+	kthread_t	*vdev_autotrim_thread;
+	/* Protects vdev_trim_thread and vdev_trim_state. */
+	kmutex_t	vdev_trim_lock;
+	kcondvar_t	vdev_trim_cv;
+	kthread_t	*vdev_trim_thread;
+	uint64_t	vdev_trim_offset[TXG_SIZE];
+	uint64_t	vdev_trim_last_offset;
+	uint64_t	vdev_trim_bytes_est;
+	uint64_t	vdev_trim_bytes_done;
+	uint64_t	vdev_trim_rate;		/* requested rate (bytes/sec) */
+	uint64_t	vdev_trim_partial;	/* requested partial TRIM */
+	uint64_t	vdev_trim_secure;	/* requested secure TRIM */
+	time_t		vdev_trim_action_time;	/* start and end time */
+
+	/* for limiting outstanding I/Os (initialize and TRIM) */
 	kmutex_t	vdev_initialize_io_lock;
 	kcondvar_t	vdev_initialize_io_cv;
 	uint64_t	vdev_initialize_inflight;
+	kmutex_t	vdev_trim_io_lock;
+	kcondvar_t	vdev_trim_io_cv;
+	uint64_t	vdev_trim_inflight[2];
 
 	/*
 	 * Values stored in the config for an indirect or removing vdev.
@@ -343,6 +369,8 @@ struct vdev {
 	uint64_t	vdev_not_present; /* not present during import	*/
 	uint64_t	vdev_unspare;	/* unspare when resilvering done */
 	boolean_t	vdev_nowritecache; /* true if flushwritecache failed */
+	boolean_t	vdev_has_trim;	/* TRIM is supported		*/
+	boolean_t	vdev_has_securetrim; /* secure TRIM is supported */
 	boolean_t	vdev_checkremove; /* temporary online test	*/
 	boolean_t	vdev_forcefault; /* force online fault		*/
 	boolean_t	vdev_splitting;	/* split or repair in progress  */

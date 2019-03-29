@@ -609,6 +609,36 @@ blk_queue_discard_granularity(struct request_queue *q, unsigned int dg)
 #endif /* HAVE_DISCARD_GRANULARITY */
 
 /*
+ * 2.6.32 - 4.x API,
+ *   blk_queue_discard()
+ */
+#if !defined(HAVE_BLK_QUEUE_DISCARD)
+#define	blk_queue_discard(q)			(0);
+#endif
+
+/*
+ * 4.8 - 4.x API,
+ *   blk_queue_secure_erase()
+ *
+ * 2.6.36 - 4.7 API,
+ *   blk_queue_secdiscard()
+ *
+ * 2.6.x - 2.6.35 API,
+ *   Unsupported by kernel
+ */
+static inline int
+blk_queue_discard_secure(struct request_queue *q)
+{
+#if defined(HAVE_BLK_QUEUE_SECURE_ERASE)
+	return (blk_queue_secure_erase(q));
+#elif defined(HAVE_BLK_QUEUE_SECDISCARD)
+	return (blk_queue_secdiscard(q));
+#else
+	return (0);
+#endif
+}
+
+/*
  * Default Linux IO Scheduler,
  * Setting the scheduler to noop will allow the Linux IO scheduler to
  * still perform front and back merging, while leaving the request

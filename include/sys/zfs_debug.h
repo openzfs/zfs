@@ -54,6 +54,7 @@ extern int zfs_dbgmsg_enable;
 #define	ZFS_DEBUG_METASLAB_VERIFY	(1 << 8)
 #define	ZFS_DEBUG_SET_ERROR		(1 << 9)
 #define	ZFS_DEBUG_INDIRECT_REMAP	(1 << 10)
+#define	ZFS_DEBUG_TRIM			(1 << 11)
 
 extern void __zfs_dbgmsg(char *buf);
 extern void __dprintf(boolean_t dprint, const char *file, const char *func,
