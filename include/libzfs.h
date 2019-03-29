@@ -808,6 +808,8 @@ extern int zpool_in_use(libzfs_handle_t *, int, pool_state_t *, char **,
  * Label manipulation.
  */
 extern int zpool_clear_label(int);
+extern int zpool_clear_n_labels(int, unsigned int, unsigned int, boolean_t,
+    boolean_t);
 
 /*
  * Management interfaces for SMB ACL files

@@ -441,8 +441,6 @@ typedef struct vdev_label {
  */
 #define	VDEV_LABEL_START_SIZE	(2 * sizeof (vdev_label_t) + VDEV_BOOT_SIZE)
 #define	VDEV_LABEL_END_SIZE	(2 * sizeof (vdev_label_t))
-#define	VDEV_LABELS		4
-#define	VDEV_BEST_LABEL		VDEV_LABELS
 
 #define	VDEV_ALLOC_LOAD		0
 #define	VDEV_ALLOC_ADD		1

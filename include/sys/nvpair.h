@@ -94,6 +94,7 @@ typedef struct nvlist {
 #define	NV_VERSION	0
 
 /* nvlist pack encoding */
+#define	NV_ENCODE_INVALID	(-1)
 #define	NV_ENCODE_NATIVE	0
 #define	NV_ENCODE_XDR		1
 
@@ -150,6 +151,7 @@ void nv_alloc_fini(nv_alloc_t *);
 /* list management */
 int nvlist_alloc(nvlist_t **, uint_t, int);
 void nvlist_free(nvlist_t *);
+int nvlist_invalidate(char *, size_t);
 int nvlist_size(nvlist_t *, size_t *, int);
 int nvlist_pack(nvlist_t *, char **, size_t *, int, int);
 int nvlist_unpack(char *, size_t, nvlist_t **, int);

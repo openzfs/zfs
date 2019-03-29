@@ -2630,6 +2630,18 @@ nvlist_common(nvlist_t *nvl, char *buf, size_t *buflen, int encoding,
 }
 
 int
+nvlist_invalidate(char *buf, size_t buflen)
+{
+	if (buf == NULL || buflen < sizeof (nvs_header_t))
+	    return (EINVAL);
+
+	nvs_header_t *nvh = (void *)buf;
+	nvh->nvh_encoding = NV_ENCODE_INVALID;
+
+	return (0);
+}
+
+int
 nvlist_size(nvlist_t *nvl, size_t *size, int encoding)
 {
 	return (nvlist_common(nvl, NULL, size, encoding, NVS_OP_GETSIZE));
@@ -3656,6 +3668,7 @@ EXPORT_SYMBOL(nvlist_prev_nvpair);
 EXPORT_SYMBOL(nvlist_empty);
 EXPORT_SYMBOL(nvlist_add_hrtime);
 
+EXPORT_SYMBOL(nvlist_invalidate);
 EXPORT_SYMBOL(nvlist_remove);
 EXPORT_SYMBOL(nvlist_remove_nvpair);
 EXPORT_SYMBOL(nvlist_remove_all);

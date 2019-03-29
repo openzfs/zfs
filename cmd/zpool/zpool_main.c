@@ -347,7 +347,8 @@ get_usage(zpool_help_t idx)
 		    "\t    [[pool ...]|[pool vdev ...]|[vdev ...]]"
 		    " [[-n] interval [count]]\n"));
 	case HELP_LABELCLEAR:
-		return (gettext("\tlabelclear [-f] <vdev>\n"));
+		return (gettext("\tlabelclear [-b | -e | -i index] [-w] "
+		    "[-f] <vdev>\n"));
 	case HELP_LIST:
 		return (gettext("\tlist [-gHLpPv] [-o property[,...]] "
 		    "[-T d|u] [pool] ... \n"
@@ -1038,12 +1039,22 @@ zpool_do_remove(int argc, char **argv)
 }
 
 /*
- * zpool labelclear [-f] <vdev>
+ * zpool labelclear [-b | -e | -i index] [-w] [-f] <vdev>
  *
- *	-f	Force clearing the label for the vdevs which are members of
- *		the exported or foreign pools.
+ *     -b              Only work on labels located at the beginning of the
+ *                     device.
  *
- * Verifies that the vdev is not active and zeros out the label information
+ *     -e              Only work on labels located at the end of the device.
+ *
+ *     -i index        Only work on label located at specified index.
+ *
+ *     -w              Wipe label area entirely and replace it with zeroes.
+ *
+ *     -f              Force clearing the label for the vdevs which are
+ *                     members of the exported or foreign pools. If specified
+ *                     twice, clear even seemingly-invalid labels.
+ *
+ * Verifies that the vdev is not active and invalidates the label information
  * on the device.
  */
 int
@@ -1057,11 +1068,42 @@ zpool_do_labelclear(int argc, char **argv)
 	pool_state_t state;
 	boolean_t inuse = B_FALSE;
 	boolean_t force = B_FALSE;
+	boolean_t force_invalid = B_FALSE;
+	boolean_t wipe = B_FALSE;
+	unsigned int start = 0, n = VDEV_LABELS;
+	char *end = NULL;
+	long long index = 0;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "f")) != -1) {
+	while ((c = getopt(argc, argv, "bei:wf")) != -1) {
 		switch (c) {
+		case 'b':
+			start = 0;
+			n = VDEV_LABELS / 2;
+			break;
+		case 'e':
+			start = VDEV_LABELS / 2;
+			n = VDEV_LABELS / 2;
+			break;
+		case 'i':
+			index = strtoll(optarg, &end, 10);
+			if((end == optarg) || (*end != '\0') ||
+			    (index < 0) || (index >= VDEV_LABELS)) {
+				(void) fprintf(stderr,
+				gettext("Invalid index value provided\n"));
+				return (1);
+			}
+			start = (unsigned int)index;
+			n = 1;
+			break;
+		case 'w':
+			wipe = B_TRUE;
+			break;
 		case 'f':
+			if (force) {
+				/* -f specified twice */
+				force_invalid = B_TRUE;
+			}
 			force = B_TRUE;
 			break;
 		default:
@@ -1123,8 +1165,13 @@ zpool_do_labelclear(int argc, char **argv)
 		    "cache for %s: %s\n"), vdev, strerror(errno));
 
 	if (zpool_read_label(fd, &config, NULL) != 0) {
-		(void) fprintf(stderr,
-		    gettext("failed to read label from %s\n"), vdev);
+		if (force) {
+			goto wipe_label;
+		}
+		(void) fprintf(stderr, gettext(
+		    "use '-f' to override the following error:\n"
+		    "failed to read label from \"%s\"\n"),
+		    vdev);
 		ret = 1;
 		goto errout;
 	}
@@ -1179,7 +1226,7 @@ zpool_do_labelclear(int argc, char **argv)
 	}
 
 wipe_label:
-	ret = zpool_clear_label(fd);
+	ret = zpool_clear_n_labels(fd, start, n, force_invalid, wipe);
 	if (ret != 0) {
 		(void) fprintf(stderr,
 		    gettext("failed to clear label for %s\n"), vdev);

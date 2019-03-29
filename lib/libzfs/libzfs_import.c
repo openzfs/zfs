@@ -137,16 +137,17 @@ label_offset(uint64_t size, int l)
 }
 
 /*
- * Given a file descriptor, clear (zero) the label information.  This function
- * is used in the appliance stack as part of the ZFS sysevent module and
- * to implement the "zpool labelclear" command.
+ * Given a file descriptor, a starting label and a number of labels to clear,
+ * invalidate or clear (zero) the label information. This function is used in
+ * the appliance stack as part of the ZFS sysevent module and to implement the
+ * "zpool labelclear" command.
  */
 int
-zpool_clear_label(int fd)
+zpool_clear_n_labels(int fd, unsigned int start, unsigned int n,
+    boolean_t force, boolean_t wipe)
 {
 	struct stat64 statbuf;
-	int l;
-	vdev_label_t *label;
+	unsigned int l, end;
 	uint64_t size;
 	int labels_cleared = 0;
 
@@ -155,60 +156,84 @@ zpool_clear_label(int fd)
 
 	size = P2ALIGN_TYPED(statbuf.st_size, sizeof (vdev_label_t), uint64_t);
 
-	if ((label = calloc(1, sizeof (vdev_label_t))) == NULL)
-		return (-1);
+	end = start + n;
+	if (end > VDEV_LABELS)
+	    return (-1);
 
-	for (l = 0; l < VDEV_LABELS; l++) {
+	for (l = start; l < end; l++) {
+		vdev_label_t label;
+		char *nvbuf = label.vl_vdev_phys.vp_nvlist;
+		size_t nvbuflen = sizeof (label.vl_vdev_phys.vp_nvlist);
+
 		uint64_t state, guid;
 		nvlist_t *config;
 
-		if (pread64(fd, label, sizeof (vdev_label_t),
-		    label_offset(size, l)) != sizeof (vdev_label_t)) {
-			continue;
+		if (!(force && wipe)) {
+			if (pread64(fd, &label, sizeof (vdev_label_t),
+			    label_offset(size, l)) != sizeof (vdev_label_t)) {
+				continue;
+			}
+
+			if (!force) {
+				if (nvlist_unpack(nvbuf, nvbuflen, &config, 0) != 0) {
+					continue;
+				}
+
+				/* Skip labels which do not have a valid guid. */
+				if (nvlist_lookup_uint64(config, ZPOOL_CONFIG_GUID,
+				    &guid) != 0 || guid == 0) {
+					nvlist_free(config);
+					continue;
+				}
+
+				/* Skip labels which are not in a known valid state. */
+				if (nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_STATE,
+				    &state) != 0 || state > POOL_STATE_L2CACHE) {
+					nvlist_free(config);
+					continue;
+				}
+
+				nvlist_free(config);
+			}
 		}
 
-		if (nvlist_unpack(label->vl_vdev_phys.vp_nvlist,
-		    sizeof (label->vl_vdev_phys.vp_nvlist), &config, 0) != 0) {
-			continue;
+		if (wipe) {
+			/*
+			 * A valid label was found, overwrite this label's nvlist
+			 * and uberblocks with zeros on disk.  This is done to prevent
+			 * system utilities, like blkid, from incorrectly detecting a
+			 * partial label.  The leading pad space is left untouched.
+			 */
+			memset(&label, 0, sizeof (vdev_label_t));
+		} else {
+			/*
+			 * Perform minimal on-disk change
+			 */
+			if (nvlist_invalidate(nvbuf, nvbuflen) != 0)
+			    continue;
 		}
 
-		/* Skip labels which do not have a valid guid. */
-		if (nvlist_lookup_uint64(config, ZPOOL_CONFIG_GUID,
-		    &guid) != 0 || guid == 0) {
-			nvlist_free(config);
-			continue;
-		}
-
-		/* Skip labels which are not in a known valid state. */
-		if (nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_STATE,
-		    &state) != 0 || state > POOL_STATE_L2CACHE) {
-			nvlist_free(config);
-			continue;
-		}
-
-		nvlist_free(config);
-
-		/*
-		 * A valid label was found, overwrite this label's nvlist
-		 * and uberblocks with zeros on disk.  This is done to prevent
-		 * system utilities, like blkid, from incorrectly detecting a
-		 * partial label.  The leading pad space is left untouched.
-		 */
-		memset(label, 0, sizeof (vdev_label_t));
 		size_t label_size = sizeof (vdev_label_t) - (2 * VDEV_PAD_SIZE);
 
-		if (pwrite64(fd, label, label_size, label_offset(size, l) +
-		    (2 * VDEV_PAD_SIZE)) == label_size) {
+		if (pwrite64(fd, (void*)&label + (2 * VDEV_PAD_SIZE), label_size,
+		    label_offset(size, l) + (2 * VDEV_PAD_SIZE)) == label_size) {
 			labels_cleared++;
 		}
 	}
-
-	free(label);
 
 	if (labels_cleared == 0)
 		return (-1);
 
 	return (0);
+}
+
+/*
+ * Given a file descriptor, clear (zero) the label information.
+ */
+int
+zpool_clear_label(int fd)
+{
+	return (zpool_clear_n_labels(fd, 0, VDEV_LABELS, B_TRUE, B_TRUE));
 }
 
 static boolean_t
