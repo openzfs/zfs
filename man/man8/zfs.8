@@ -3518,7 +3518,11 @@ set when the stream is received.
 If the
 .Fl F
 flag is specified when this stream is received, snapshots and file systems that
-do not exist on the sending side are destroyed.
+do not exist on the sending side are destroyed. If the
+.Fl R
+flag is used to send encrypted datasets, then
+.Fl w
+must also be specified.
 .It Fl e, -embed
 Generate a more compact stream by using
 .Sy WRITE_EMBEDDED
@@ -3591,7 +3595,7 @@ system for incrementals.
 Generate a stream package that includes any snapshot holds (created with the
 .Sy zfs hold
 command), and indicating to
-.Sy zfs receive 
+.Sy zfs receive
 that the holds be applied to the dataset on the receiving system.
 .It Fl i Ar snapshot
 Generate an incremental stream from the first
@@ -3949,7 +3953,13 @@ recompressed by the receive process. Unencrypted streams can be received as
 encrypted datasets, either through inheritance or by specifying encryption
 parameters with the
 .Fl o
-options.
+options. Note that the
+.Sy keylocation
+property cannot be overridden to
+.Sy prompt
+during a receive. This is because the receive process itself is already using
+stdin for the send stream. Instead, the property can be overridden after the
+receive completes.
 .Pp
 The added security provided by raw sends adds some restrictions to the send
 and receive process. ZFS will not allow a mix of raw receives and non-raw
@@ -4036,7 +4046,7 @@ snapshot as described in the paragraph above.
 Discard all but the last element of the sent snapshot's file system name, using
 that element to determine the name of the target file system for the new
 snapshot as described in the paragraph above.
-.It Fl h 
+.It Fl h
 Skip the receive of holds.  There is no effect if holds are not sent.
 .It Fl n
 Do not actually receive the stream.
