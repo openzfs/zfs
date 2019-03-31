@@ -587,6 +587,11 @@ The following are read-only properties:
 .Bl -tag -width Ds
 .It Cm allocated
 Amount of storage used within the pool.
+See
+.Sy fragmentation
+and
+.Sy free
+for more information.
 .It Sy capacity
 Percentage of pool space used.
 This property can also be referred to by its shortened column name,
@@ -601,9 +606,28 @@ been brought online
 .Pc .
 This space occurs when a LUN is dynamically expanded.
 .It Sy fragmentation
-The amount of fragmentation in the pool.
+The amount of fragmentation in the pool. As the amount of space
+.Sy allocated
+increases, it becomes more difficult to locate
+.Sy free
+space. This may result in lower write performance compared to pools with more
+unfragmented free space.
 .It Sy free
 The amount of free space available in the pool.
+By contrast, the
+.Xr zfs 8
+.Sy available
+property describes how much new data can be written to ZFS filesystems/volumes.
+The zpool
+.Sy free
+property is not generally useful for this purpose, and can be substantially more than the zfs
+.Sy available
+space. This discrepancy is due to several factors, including raidz party; zfs
+reservation, quota, refreservation, and refquota properties; and space set aside by
+.Sy spa_slop_shift
+(see
+.Xr zfs-module-parameters 5
+for more information).
 .It Sy freeing
 After a file system or snapshot is destroyed, the space it was using is
 returned to the pool asynchronously.
