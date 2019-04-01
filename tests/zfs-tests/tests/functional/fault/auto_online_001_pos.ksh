@@ -21,6 +21,7 @@
 #
 #
 # Copyright (c) 2016, 2017 by Intel Corporation. All rights reserved.
+# Copyright (c) 2019 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -54,6 +55,15 @@ fi
 
 function cleanup
 {
+	typeset disk
+
+	# Replace any disk that may have been removed at failure time.
+	for disk in $DISK1 $DISK2 $DISK3; do
+		# Skip loop devices and devices that currently exist.
+		is_loop_device $disk && continue
+		is_real_device $disk && continue
+		insert_disk $disk $(get_scsi_host $disk)
+	done
 	destroy_pool $TESTPOOL
 	unload_scsi_debug
 }
