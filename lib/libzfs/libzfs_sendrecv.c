@@ -1249,7 +1249,8 @@ send_progress_thread(void *arg)
 	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
 
 	if (!pa->pa_parsable)
-		(void) fprintf(stderr, "TIME        SENT   SNAPSHOT\n");
+		(void) fprintf(stderr, "TIME        SENT   SNAPSHOT %s\n",
+		    zhp->zfs_name);
 
 	/*
 	 * Print the progress from ZFS_IOC_SEND_PROGRESS every second.
