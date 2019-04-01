@@ -2594,7 +2594,6 @@ function verify_opt_p_ops
 					"when ops is $ops."
 			fi
 			log_must datasetexists $dataset
-			log_mustnot snapexists $dataset
 			;;
 		*)
 			log_fail "$ops is not supported."
