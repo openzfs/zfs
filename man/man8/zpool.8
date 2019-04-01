@@ -864,12 +864,12 @@ When a pool is determined to be active it cannot be imported, even with the
 .Fl f
 option.  This property is intended to be used in failover configurations
 where multiple hosts have access to a pool on shared storage.
-
+.Pp
 Multihost provides protection on import only.  It does not protect against an
 individual device being used in multiple pools, regardless of the type of vdev.
 See the discussion under
 .Sy zpool create.
-
+.Pp
 When this property is on, periodic writes to storage occur to show the pool is
 in use.  See
 .Sy zfs_multihost_interval
@@ -1103,7 +1103,7 @@ or
 .Sy zpool labelclear ,
 do not refer to the same device.  Using the same device in two pools will
 result in pool corruption.
-
+.Pp
 There are some uses, such as being currently mounted, or specified as the
 dedicated dump device, that prevents a device from ever being used by ZFS.
 Other uses, such as having a preexisting UFS file system, can be overridden with
