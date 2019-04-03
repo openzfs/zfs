@@ -356,10 +356,10 @@ pool_property_show(struct kobject *kobj, struct attribute *attr, char *buf)
  * async calls (i.e. a sync flag). If this mechanism were in place at that
  * time, we could have added a 'channel_program_async' to this list.
  */
-static const char *zfs_kernel_features[]  = {
+static const char *zfs_kernel_features[] = {
 	/* --> Add new kernel features here */
-	"com.delphix.vdev_initialize",
-	"org.zfsonlinux.vdev_trim",
+	"com.delphix:vdev_initialize",
+	"org.zfsonlinux:vdev_trim",
 };
 
 #define	KERNEL_FEATURE_COUNT	ARRAY_SIZE(zfs_kernel_features)

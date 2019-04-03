@@ -39,7 +39,7 @@ fi
 
 claim="Expected '/sys/module/zfs/<dir>/<attr>' attributes are present"
 
-kernel_feature_attr="/sys/module/zfs/features.kernel/org.zfsonlinux.vdev_trim/supported"
+kernel_feature_attr="/sys/module/zfs/features.kernel/org.zfsonlinux:vdev_trim/supported"
 pool_feature_attr="/sys/module/zfs/features.pool/org.open-zfs:large_blocks/guid"
 pool_prop__attr="/sys/module/zfs/properties.pool/comment/values"
 ds_prop__attr="/sys/module/zfs/properties.dataset/recordsize/values"
