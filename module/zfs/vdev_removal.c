@@ -45,6 +45,7 @@
 #include <sys/vdev_indirect_mapping.h>
 #include <sys/abd.h>
 #include <sys/vdev_initialize.h>
+#include <sys/vdev_trim.h>
 #include <sys/trace_vdev.h>
 
 /*
@@ -1181,6 +1182,8 @@ vdev_remove_complete(spa_t *spa)
 	txg = spa_vdev_enter(spa);
 	vdev_t *vd = vdev_lookup_top(spa, spa->spa_vdev_removal->svr_vdev_id);
 	ASSERT3P(vd->vdev_initialize_thread, ==, NULL);
+	ASSERT3P(vd->vdev_trim_thread, ==, NULL);
+	ASSERT3P(vd->vdev_autotrim_thread, ==, NULL);
 
 	sysevent_t *ev = spa_event_create(spa, vd, NULL,
 	    ESC_ZFS_VDEV_REMOVE_DEV);
@@ -1869,8 +1872,10 @@ spa_vdev_remove_log(vdev_t *vd, uint64_t *txg)
 
 	spa_vdev_config_exit(spa, NULL, *txg, 0, FTAG);
 
-	/* Stop initializing */
+	/* Stop initializing and TRIM */
 	vdev_initialize_stop_all(vd, VDEV_INITIALIZE_CANCELED);
+	vdev_trim_stop_all(vd, VDEV_TRIM_CANCELED);
+	vdev_autotrim_stop_wait(vd);
 
 	*txg = spa_vdev_config_enter(spa);
 
@@ -2051,11 +2056,13 @@ spa_vdev_remove_top(vdev_t *vd, uint64_t *txg)
 	error = spa_reset_logs(spa);
 
 	/*
-	 * We stop any initializing that is currently in progress but leave
-	 * the state as "active". This will allow the initializing to resume
-	 * if the removal is canceled sometime later.
+	 * We stop any initializing and TRIM that is currently in progress
+	 * but leave the state as "active". This will allow the process to
+	 * resume if the removal is canceled sometime later.
 	 */
 	vdev_initialize_stop_all(vd, VDEV_INITIALIZE_ACTIVE);
+	vdev_trim_stop_all(vd, VDEV_TRIM_ACTIVE);
+	vdev_autotrim_stop_wait(vd);
 
 	*txg = spa_vdev_config_enter(spa);
 
@@ -2069,6 +2076,8 @@ spa_vdev_remove_top(vdev_t *vd, uint64_t *txg)
 	if (error != 0) {
 		metaslab_group_activate(mg);
 		spa_async_request(spa, SPA_ASYNC_INITIALIZE_RESTART);
+		spa_async_request(spa, SPA_ASYNC_TRIM_RESTART);
+		spa_async_request(spa, SPA_ASYNC_AUTOTRIM_RESTART);
 		return (error);
 	}
 
@@ -2101,10 +2110,10 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 	nvlist_t **spares, **l2cache, *nv;
 	uint64_t txg = 0;
 	uint_t nspares, nl2cache;
-	int error = 0;
+	int error = 0, error_log;
 	boolean_t locked = MUTEX_HELD(&spa_namespace_lock);
 	sysevent_t *ev = NULL;
-	char *vd_type = NULL, *vd_path = NULL;
+	char *vd_type = NULL, *vd_path = NULL, *vd_path_log = NULL;
 
 	ASSERT(spa_writeable(spa));
 
@@ -2164,7 +2173,7 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 		spa->spa_l2cache.sav_sync = B_TRUE;
 	} else if (vd != NULL && vd->vdev_islog) {
 		ASSERT(!locked);
-		vd_type = "log";
+		vd_type = VDEV_TYPE_LOG;
 		vd_path = (vd->vdev_path != NULL) ? vd->vdev_path : "-";
 		error = spa_vdev_remove_log(vd, &txg);
 	} else if (vd != NULL) {
@@ -2177,6 +2186,11 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 		error = SET_ERROR(ENOENT);
 	}
 
+	if (vd_path != NULL)
+		vd_path_log = spa_strdup(vd_path);
+
+	error_log = error;
+
 	if (!locked)
 		error = spa_vdev_exit(spa, NULL, txg, error);
 
@@ -2187,10 +2201,12 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 	 * Doing that would prevent the txg sync from actually happening,
 	 * causing a deadlock.
 	 */
-	if (error == 0 && vd_type != NULL && vd_path != NULL) {
+	if (error_log == 0 && vd_type != NULL && vd_path_log != NULL) {
 		spa_history_log_internal(spa, "vdev remove", NULL,
-		    "%s vdev (%s) %s", spa_name(spa), vd_type, vd_path);
+		    "%s vdev (%s) %s", spa_name(spa), vd_type, vd_path_log);
 	}
+	if (vd_path_log != NULL)
+		spa_strfree(vd_path_log);
 
 	if (ev != NULL)
 		spa_event_post(ev);

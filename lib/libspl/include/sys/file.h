@@ -40,7 +40,6 @@
 #define	FOFFMAX	O_LARGEFILE
 #define	FSYNC	O_SYNC
 #define	FDSYNC	O_DSYNC
-#define	FRSYNC	O_RSYNC
 #define	FEXCL	O_EXCL
 
 #define	FNODSYNC	0x10000	/* fsync pseudo flag */

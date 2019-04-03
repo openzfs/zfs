@@ -169,7 +169,7 @@ lzc_ioctl_run(zfs_ioc_t ioc, const char *name, nvlist_t *innvl, int expected)
 }
 
 /*
- * Test each ioc for the folowing ioctl input errors:
+ * Test each ioc for the following ioctl input errors:
  *   ZFS_ERR_IOC_ARG_UNAVAIL	an input argument is not supported by kernel
  *   ZFS_ERR_IOC_ARG_REQUIRED	a required input argument is missing
  *   ZFS_ERR_IOC_ARG_BADTYPE	an input argument has an invalid type
@@ -650,11 +650,30 @@ test_vdev_initialize(const char *pool)
 
 	fnvlist_add_uint64(vdev_guids, "path", 0xdeadbeefdeadbeef);
 	fnvlist_add_uint64(required, ZPOOL_INITIALIZE_COMMAND,
-	    POOL_INITIALIZE_DO);
+	    POOL_INITIALIZE_START);
 	fnvlist_add_nvlist(required, ZPOOL_INITIALIZE_VDEVS, vdev_guids);
 
 	IOC_INPUT_TEST(ZFS_IOC_POOL_INITIALIZE, pool, required, NULL, EINVAL);
 	nvlist_free(vdev_guids);
+	nvlist_free(required);
+}
+
+static void
+test_vdev_trim(const char *pool)
+{
+	nvlist_t *required = fnvlist_alloc();
+	nvlist_t *optional = fnvlist_alloc();
+	nvlist_t *vdev_guids = fnvlist_alloc();
+
+	fnvlist_add_uint64(vdev_guids, "path", 0xdeadbeefdeadbeef);
+	fnvlist_add_uint64(required, ZPOOL_TRIM_COMMAND, POOL_TRIM_START);
+	fnvlist_add_nvlist(required, ZPOOL_TRIM_VDEVS, vdev_guids);
+	fnvlist_add_uint64(optional, ZPOOL_TRIM_RATE, 1ULL << 30);
+	fnvlist_add_boolean_value(optional, ZPOOL_TRIM_SECURE, B_TRUE);
+
+	IOC_INPUT_TEST(ZFS_IOC_POOL_TRIM, pool, required, optional, EINVAL);
+	nvlist_free(vdev_guids);
+	nvlist_free(optional);
 	nvlist_free(required);
 }
 
@@ -749,6 +768,7 @@ zfs_ioc_input_tests(const char *pool)
 	test_unload_key(dataset);
 
 	test_vdev_initialize(pool);
+	test_vdev_trim(pool);
 
 	/*
 	 * cleanup
@@ -888,6 +908,7 @@ validate_ioc_values(void)
 	    ZFS_IOC_BASE + 77 == ZFS_IOC_POOL_CHECKPOINT &&
 	    ZFS_IOC_BASE + 78 == ZFS_IOC_POOL_DISCARD_CHECKPOINT &&
 	    ZFS_IOC_BASE + 79 == ZFS_IOC_POOL_INITIALIZE &&
+	    ZFS_IOC_BASE + 80 == ZFS_IOC_POOL_TRIM &&
 	    LINUX_IOC_BASE + 1 == ZFS_IOC_EVENTS_NEXT &&
 	    LINUX_IOC_BASE + 2 == ZFS_IOC_EVENTS_CLEAR &&
 	    LINUX_IOC_BASE + 3 == ZFS_IOC_EVENTS_SEEK);

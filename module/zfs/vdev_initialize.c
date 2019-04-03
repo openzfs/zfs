@@ -34,12 +34,6 @@
 #include <sys/dmu_tx.h>
 
 /*
- * Maximum number of metaslabs per group that can be initialized
- * simultaneously.
- */
-int max_initialize_ms = 3;
-
-/*
  * Value that is written to disk during initialization.
  */
 #ifdef _ILP32
@@ -132,7 +126,7 @@ vdev_initialize_change_state(vdev_t *vd, vdev_initializing_state_t new_state)
 	dmu_tx_t *tx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
 	VERIFY0(dmu_tx_assign(tx, TXG_WAIT));
 	dsl_sync_task_nowait(spa_get_dsl(spa), vdev_initialize_zap_update_sync,
-	    guid, 2, ZFS_SPACE_CHECK_RESERVED, tx);
+	    guid, 2, ZFS_SPACE_CHECK_NONE, tx);
 
 	switch (new_state) {
 	case VDEV_INITIALIZE_ACTIVE:
@@ -251,49 +245,6 @@ vdev_initialize_write(vdev_t *vd, uint64_t start, uint64_t size, abd_t *data)
 }
 
 /*
- * Translate a logical range to the physical range for the specified vdev_t.
- * This function is initially called with a leaf vdev and will walk each
- * parent vdev until it reaches a top-level vdev. Once the top-level is
- * reached the physical range is initialized and the recursive function
- * begins to unwind. As it unwinds it calls the parent's vdev specific
- * translation function to do the real conversion.
- */
-void
-vdev_xlate(vdev_t *vd, const range_seg_t *logical_rs, range_seg_t *physical_rs)
-{
-	/*
-	 * Walk up the vdev tree
-	 */
-	if (vd != vd->vdev_top) {
-		vdev_xlate(vd->vdev_parent, logical_rs, physical_rs);
-	} else {
-		/*
-		 * We've reached the top-level vdev, initialize the
-		 * physical range to the logical range and start to
-		 * unwind.
-		 */
-		physical_rs->rs_start = logical_rs->rs_start;
-		physical_rs->rs_end = logical_rs->rs_end;
-		return;
-	}
-
-	vdev_t *pvd = vd->vdev_parent;
-	ASSERT3P(pvd, !=, NULL);
-	ASSERT3P(pvd->vdev_ops->vdev_op_xlate, !=, NULL);
-
-	/*
-	 * As this recursive function unwinds, translate the logical
-	 * range into its physical components by calling the
-	 * vdev specific translate function.
-	 */
-	range_seg_t intermediate = { { { 0, 0 } } };
-	pvd->vdev_ops->vdev_op_xlate(vd, physical_rs, &intermediate);
-
-	physical_rs->rs_start = intermediate.rs_start;
-	physical_rs->rs_end = intermediate.rs_end;
-}
-
-/*
  * Callback to fill each ABD chunk with zfs_initialize_value. len must be
  * divisible by sizeof (uint64_t), and buf must be 8-byte aligned. The ABD
  * allocation will guarantee these for us.
@@ -360,81 +311,6 @@ vdev_initialize_ranges(vdev_t *vd, abd_t *data)
 		}
 	}
 	return (0);
-}
-
-static void
-vdev_initialize_mg_wait(metaslab_group_t *mg)
-{
-	ASSERT(MUTEX_HELD(&mg->mg_ms_initialize_lock));
-	while (mg->mg_initialize_updating) {
-		cv_wait(&mg->mg_ms_initialize_cv, &mg->mg_ms_initialize_lock);
-	}
-}
-
-static void
-vdev_initialize_mg_mark(metaslab_group_t *mg)
-{
-	ASSERT(MUTEX_HELD(&mg->mg_ms_initialize_lock));
-	ASSERT(mg->mg_initialize_updating);
-
-	while (mg->mg_ms_initializing >= max_initialize_ms) {
-		cv_wait(&mg->mg_ms_initialize_cv, &mg->mg_ms_initialize_lock);
-	}
-	mg->mg_ms_initializing++;
-	ASSERT3U(mg->mg_ms_initializing, <=, max_initialize_ms);
-}
-
-/*
- * Mark the metaslab as being initialized to prevent any allocations
- * on this metaslab. We must also track how many metaslabs are currently
- * being initialized within a metaslab group and limit them to prevent
- * allocation failures from occurring because all metaslabs are being
- * initialized.
- */
-static void
-vdev_initialize_ms_mark(metaslab_t *msp)
-{
-	ASSERT(!MUTEX_HELD(&msp->ms_lock));
-	metaslab_group_t *mg = msp->ms_group;
-
-	mutex_enter(&mg->mg_ms_initialize_lock);
-
-	/*
-	 * To keep an accurate count of how many threads are initializing
-	 * a specific metaslab group, we only allow one thread to mark
-	 * the metaslab group at a time. This ensures that the value of
-	 * ms_initializing will be accurate when we decide to mark a metaslab
-	 * group as being initialized. To do this we force all other threads
-	 * to wait till the metaslab's mg_initialize_updating flag is no
-	 * longer set.
-	 */
-	vdev_initialize_mg_wait(mg);
-	mg->mg_initialize_updating = B_TRUE;
-	if (msp->ms_initializing == 0) {
-		vdev_initialize_mg_mark(mg);
-	}
-	mutex_enter(&msp->ms_lock);
-	msp->ms_initializing++;
-	mutex_exit(&msp->ms_lock);
-
-	mg->mg_initialize_updating = B_FALSE;
-	cv_broadcast(&mg->mg_ms_initialize_cv);
-	mutex_exit(&mg->mg_ms_initialize_lock);
-}
-
-static void
-vdev_initialize_ms_unmark(metaslab_t *msp)
-{
-	ASSERT(!MUTEX_HELD(&msp->ms_lock));
-	metaslab_group_t *mg = msp->ms_group;
-	mutex_enter(&mg->mg_ms_initialize_lock);
-	mutex_enter(&msp->ms_lock);
-	if (--msp->ms_initializing == 0) {
-		mg->mg_ms_initializing--;
-		cv_broadcast(&mg->mg_ms_initialize_cv);
-	}
-	mutex_exit(&msp->ms_lock);
-	mutex_exit(&mg->mg_ms_initialize_lock);
 }
 
 static void
@@ -535,9 +411,8 @@ vdev_initialize_load(vdev_t *vd)
 	return (err);
 }
 
-
 /*
- * Convert the logical range into a physcial range and add it to our
+ * Convert the logical range into a physical range and add it to our
  * avl tree.
  */
 void
@@ -618,7 +493,8 @@ vdev_initialize_thread(void *arg)
 			ms_count = vd->vdev_top->vdev_ms_count;
 		}
 
-		vdev_initialize_ms_mark(msp);
+		spa_config_exit(spa, SCL_CONFIG, FTAG);
+		metaslab_disable(msp);
 		mutex_enter(&msp->ms_lock);
 		VERIFY0(metaslab_load(msp));
 
@@ -626,16 +502,8 @@ vdev_initialize_thread(void *arg)
 		    vd);
 		mutex_exit(&msp->ms_lock);
 
-		spa_config_exit(spa, SCL_CONFIG, FTAG);
 		error = vdev_initialize_ranges(vd, deadbeef);
-
-		/*
-		 * Wait for the outstanding IO to be synced to prevent
-		 * newly allocated blocks from being overwritten.
-		 */
-		txg_wait_synced(spa_get_dsl(spa), 0);
-
-		vdev_initialize_ms_unmark(msp);
+		metaslab_enable(msp, B_TRUE);
 		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 
 		range_tree_vacate(vd->vdev_initialize_tree, NULL, NULL);
@@ -853,12 +721,11 @@ vdev_initialize_restart(vdev_t *vd)
 }
 
 #if defined(_KERNEL)
-EXPORT_SYMBOL(vdev_initialize_restart);
-EXPORT_SYMBOL(vdev_xlate);
 EXPORT_SYMBOL(vdev_initialize);
 EXPORT_SYMBOL(vdev_initialize_stop);
 EXPORT_SYMBOL(vdev_initialize_stop_all);
 EXPORT_SYMBOL(vdev_initialize_stop_wait);
+EXPORT_SYMBOL(vdev_initialize_restart);
 
 /* CSTYLED */
 module_param(zfs_initialize_value, ulong, 0644);

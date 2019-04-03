@@ -1,0 +1,14 @@
+[Unit]
+Description=Set BOOTFS environment for dracut
+Documentation=man:zpool(8)
+DefaultDependencies=no
+After=zfs-import-cache.service
+After=zfs-import-scan.service
+Before=zfs-import.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c "/bin/systemctl set-environment BOOTFS=$(@sbindir@/zpool list -H -o bootfs | grep -m1 -v '^-$')"
+
+[Install]
+WantedBy=zfs-import.target

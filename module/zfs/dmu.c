@@ -842,7 +842,7 @@ dmu_free_long_range_impl(objset_t *os, dnode_t *dn, uint64_t offset,
 		if (dirty_frees_threshold != 0 &&
 		    long_free_dirty_all_txgs >= dirty_frees_threshold) {
 			DMU_TX_STAT_BUMP(dmu_tx_dirty_frees_delay);
-			txg_wait_open(dp, 0);
+			txg_wait_open(dp, 0, B_TRUE);
 			continue;
 		}
 
@@ -1737,6 +1737,7 @@ dmu_assign_arcbuf_by_dnode(dnode_t *dn, uint64_t offset, arc_buf_t *buf,
 		/* compressed bufs must always be assignable to their dbuf */
 		ASSERT3U(arc_get_compression(buf), ==, ZIO_COMPRESS_OFF);
 		ASSERT(!(buf->b_flags & ARC_BUF_FLAG_COMPRESSED));
+		ASSERT(!arc_is_encrypted(buf));
 
 		dbuf_rele(db, FTAG);
 		dmu_write(os, object, offset, blksz, buf->b_data, tx);

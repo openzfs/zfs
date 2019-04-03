@@ -11,7 +11,6 @@ KERNEL_H = \
 	$(top_srcdir)/include/spl/sys/ctype.h \
 	$(top_srcdir)/include/spl/sys/debug.h \
 	$(top_srcdir)/include/spl/sys/disp.h \
-	$(top_srcdir)/include/spl/sys/dkioc_free_util.h \
 	$(top_srcdir)/include/spl/sys/dkio.h \
 	$(top_srcdir)/include/spl/sys/errno.h \
 	$(top_srcdir)/include/spl/sys/fcntl.h \

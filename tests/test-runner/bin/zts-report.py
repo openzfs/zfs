@@ -129,6 +129,13 @@ enospc_reason = 'Exact free space reporting is not guaranteed'
 fio_reason = 'Fio v2.3 or newer required'
 
 #
+# Some tests require that the DISKS provided support the discard operation.
+# Normally this is not an issue because loop back devices are used for DISKS
+# and they support discard (TRIM/UNMAP).
+#
+trim_reason = 'DISKS must support discard (TRIM/UNMAP)'
+
+#
 # Some tests are not applicable to Linux or need to be updated to operate
 # in the manor required by Linux.  Any tests which are skipped for this
 # reason will be suppressed in the final analysis output.
@@ -235,6 +242,7 @@ maybe = {
         ['FAIL', rewind_reason],
     'cli_root/zpool_import/zpool_import_missing_003_pos': ['SKIP', '6839'],
     'cli_root/zpool_remove/setup': ['SKIP', disk_reason],
+    'cli_root/zpool_trim/setup': ['SKIP', trim_reason],
     'cli_root/zpool_upgrade/zpool_upgrade_004_pos': ['FAIL', '6141'],
     'cli_user/misc/arc_summary3_001_pos': ['SKIP', python_reason],
     'delegate/setup': ['SKIP', exec_reason],
@@ -267,6 +275,7 @@ maybe = {
     'snapused/snapused_004_pos': ['FAIL', '5513'],
     'tmpfile/setup': ['SKIP', tmpfile_reason],
     'threadsappend/threadsappend_001_pos': ['FAIL', '6136'],
+    'trim/setup': ['SKIP', trim_reason],
     'upgrade/upgrade_projectquota_001_pos': ['SKIP', project_id_reason],
     'user_namespace/setup': ['SKIP', user_ns_reason],
     'userquota/setup': ['SKIP', exec_reason],

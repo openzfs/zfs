@@ -99,6 +99,7 @@ $(MODULE)-objs += vdev_raidz_math.o
 $(MODULE)-objs += vdev_raidz_math_scalar.o
 $(MODULE)-objs += vdev_removal.o
 $(MODULE)-objs += vdev_root.o
+$(MODULE)-objs += vdev_trim.o
 $(MODULE)-objs += zap.o
 $(MODULE)-objs += zap_leaf.o
 $(MODULE)-objs += zap_micro.o

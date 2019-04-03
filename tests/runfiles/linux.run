@@ -470,6 +470,17 @@ tags = ['functional', 'cli_root', 'zpool_status']
 tests = ['zpool_sync_001_pos', 'zpool_sync_002_neg']
 tags = ['functional', 'cli_root', 'zpool_sync']
 
+[tests/functional/cli_root/zpool_trim]
+tests = ['zpool_trim_attach_detach_add_remove',
+    'zpool_trim_import_export', 'zpool_trim_multiple', 'zpool_trim_neg',
+    'zpool_trim_offline_export_import_online', 'zpool_trim_online_offline',
+    'zpool_trim_partial', 'zpool_trim_rate', 'zpool_trim_rate_neg',
+    'zpool_trim_secure', 'zpool_trim_split', 'zpool_trim_start_and_cancel_neg',
+    'zpool_trim_start_and_cancel_pos', 'zpool_trim_suspend_resume',
+    'zpool_trim_unsupported_vdevs', 'zpool_trim_verify_checksums',
+    'zpool_trim_verify_trimmed']
+tags = ['functional', 'zpool_trim']
+
 [tests/functional/cli_root/zpool_upgrade]
 tests = ['zpool_upgrade_001_pos', 'zpool_upgrade_002_pos',
     'zpool_upgrade_003_pos', 'zpool_upgrade_004_pos',
@@ -792,7 +803,8 @@ tests = ['rsend_001_pos', 'rsend_002_pos', 'rsend_003_pos', 'rsend_004_pos',
     'send-c_lz4_disabled', 'send-c_recv_lz4_disabled',
     'send-c_mixed_compression', 'send-c_stream_size_estimate', 'send-cD',
     'send-c_embedded_blocks', 'send-c_resume', 'send-cpL_varied_recsize',
-    'send-c_recv_dedup', 'send_encrypted_files', 'send_encrypted_heirarchy',
+    'send-c_recv_dedup', 'send_encrypted_files',
+    'send_encrypted_truncated_files', 'send_encrypted_heirarchy',
     'send_encrypted_props', 'send_freeobjects', 'send_realloc_dnode_size',
     'send_holds', 'send_hole_birth', 'send_mixed_raw',
     'send-wDR_encrypted_zvol']
@@ -837,6 +849,11 @@ tags = ['functional', 'threadsappend']
 [tests/functional/tmpfile]
 tests = ['tmpfile_001_pos', 'tmpfile_002_pos', 'tmpfile_003_pos']
 tags = ['functional', 'tmpfile']
+
+[tests/functional/trim]
+tests = ['autotrim_integrity', 'autotrim_config', 'autotrim_trim_integrity',
+    'trim_integrity', 'trim_config']
+tags = ['functional', 'trim']
 
 [tests/functional/truncate]
 tests = ['truncate_001_pos', 'truncate_002_pos', 'truncate_timestamps']
