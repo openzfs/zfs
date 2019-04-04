@@ -13,7 +13,7 @@
 
 #
 # Copyright (c) 2012, 2018 by Delphix. All rights reserved.
-# Copyright (c) 2017 Datto Inc.
+# Copyright (c) 2019 Datto Inc.
 #
 # This script must remain compatible with Python 2.6+ and Python 3.4+.
 #
@@ -26,6 +26,7 @@ except ImportError:
 
 import os
 import sys
+import ctypes
 
 from datetime import datetime
 from optparse import OptionParser
@@ -47,10 +48,33 @@ LOG_OUT = 'LOG_OUT'
 LOG_ERR = 'LOG_ERR'
 LOG_FILE_OBJ = None
 
+# some python 2.7 system don't have a concept of monotonic time
+CLOCK_MONOTONIC_RAW = 4  # see <linux/time.h>
+
+
+class timespec(ctypes.Structure):
+    _fields_ = [
+        ('tv_sec', ctypes.c_long),
+        ('tv_nsec', ctypes.c_long)
+    ]
+
+
+librt = ctypes.CDLL('librt.so.1', use_errno=True)
+clock_gettime = librt.clock_gettime
+clock_gettime.argtypes = [ctypes.c_int, ctypes.POINTER(timespec)]
+
+
+def monotonic_time():
+    t = timespec()
+    if clock_gettime(CLOCK_MONOTONIC_RAW, ctypes.pointer(t)) != 0:
+        errno_ = ctypes.get_errno()
+        raise OSError(errno_, os.strerror(errno_))
+    return t.tv_sec + t.tv_nsec * 1e-9
+
 
 class Result(object):
     total = 0
-    runresults = {'PASS': 0, 'FAIL': 0, 'SKIP': 0, 'KILLED': 0}
+    runresults = {'PASS': 0, 'FAIL': 0, 'SKIP': 0, 'KILLED': 0, 'RERAN': 0}
 
     def __init__(self):
         self.starttime = None
@@ -60,14 +84,16 @@ class Result(object):
         self.stderr = []
         self.result = ''
 
-    def done(self, proc, killed):
+    def done(self, proc, killed, reran):
         """
         Finalize the results of this Cmd.
         """
         Result.total += 1
-        m, s = divmod(time() - self.starttime, 60)
+        m, s = divmod(monotonic_time() - self.starttime, 60)
         self.runtime = '%02d:%02d' % (m, s)
         self.returncode = proc.returncode
+        if reran is True:
+            Result.runresults['RERAN'] += 1
         if killed:
             self.result = 'KILLED'
             Result.runresults['KILLED'] += 1
@@ -133,9 +159,13 @@ class Cmd(object):
                  tags=None):
         self.pathname = pathname
         self.outputdir = outputdir or 'BASEDIR'
+        """
+        The timeout for tests is measured in wall-clock time
+        """
         self.timeout = timeout
         self.user = user or ''
         self.killed = False
+        self.reran = None
         self.result = Result()
 
         if self.timeout is None:
@@ -145,7 +175,7 @@ class Cmd(object):
         return "Pathname: %s\nOutputdir: %s\nTimeout: %d\nUser: %s\n" % \
             (self.pathname, self.outputdir, self.timeout, self.user)
 
-    def kill_cmd(self, proc):
+    def kill_cmd(self, proc, keyboard_interrupt=False):
         """
         Kill a running command due to timeout, or ^C from the keyboard. If
         sudo is required, this user was verified previously.
@@ -163,6 +193,20 @@ class Cmd(object):
             kp.wait()
         except Exception:
             pass
+
+        """
+        If this is not a user-initiated kill and the test has not been
+        reran before we consider if the test needs to be reran:
+        If the test has spent some time hibernating and didn't run the whole
+        length of time before being timed out we will rerun the test.
+        """
+        if keyboard_interrupt is False and self.reran is None:
+            runtime = monotonic_time() - self.result.starttime
+            if int(self.timeout) > runtime:
+                self.killed = False
+                self.reran = False
+                self.run(False)
+                self.reran = True
 
     def update_cmd_privs(self, cmd, user):
         """
@@ -207,13 +251,13 @@ class Cmd(object):
 
         return out.lines, err.lines
 
-    def run(self, options):
+    def run(self, dryrun):
         """
         This is the main function that runs each individual test.
         Determine whether or not the command requires sudo, and modify it
         if needed. Run the command, and update the result object.
         """
-        if options.dryrun is True:
+        if dryrun is True:
             print(self)
             return
 
@@ -226,7 +270,7 @@ class Cmd(object):
         except OSError as e:
             fail('%s' % e)
 
-        self.result.starttime = time()
+        self.result.starttime = monotonic_time()
         proc = Popen(privcmd, stdout=PIPE, stderr=PIPE)
         # Allow a special timeout value of 0 to mean infinity
         if int(self.timeout) == 0:
@@ -237,12 +281,13 @@ class Cmd(object):
             t.start()
             self.result.stdout, self.result.stderr = self.collect_output(proc)
         except KeyboardInterrupt:
-            self.kill_cmd(proc)
+            self.kill_cmd(proc, True)
             fail('\nRun terminated at user request.')
         finally:
             t.cancel()
 
-        self.result.done(proc, self.killed)
+        if self.reran is not False:
+            self.result.done(proc, self.killed, self.reran)
 
     def skip(self):
         """
@@ -252,8 +297,8 @@ class Cmd(object):
         Result.total += 1
         Result.runresults['SKIP'] += 1
         self.result.stdout = self.result.stderr = []
-        self.result.starttime = time()
-        m, s = divmod(time() - self.result.starttime, 60)
+        self.result.starttime = monotonic_time()
+        m, s = divmod(monotonic_time() - self.result.starttime, 60)
         self.result.runtime = '%02d:%02d' % (m, s)
         self.result.result = 'SKIP'
 
@@ -266,9 +311,12 @@ class Cmd(object):
         """
 
         logname = getpwuid(os.getuid()).pw_name
+        rer = ''
+        if self.reran is True:
+            rer = ' (RERAN)'
         user = ' (run as %s)' % (self.user if len(self.user) else logname)
         msga = 'Test: %s%s ' % (self.pathname, user)
-        msgb = '[%s] [%s]\n' % (self.result.runtime, self.result.result)
+        msgb = '[%s] [%s]%s\n' % (self.result.runtime, self.result.result, rer)
         pad = ' ' * (80 - (len(msga) + len(msgb)))
         result_line = msga + pad + msgb
 
@@ -368,19 +416,19 @@ class Test(Cmd):
 
         cont = True
         if len(pretest.pathname):
-            pretest.run(options)
+            pretest.run(options.dryrun)
             cont = pretest.result.result == 'PASS'
             pretest.log(options)
 
         if cont:
-            test.run(options)
+            test.run(options.dryrun)
         else:
             test.skip()
 
         test.log(options)
 
         if len(posttest.pathname):
-            posttest.run(options)
+            posttest.run(options.dryrun)
             posttest.log(options)
 
 
@@ -469,7 +517,7 @@ class TestGroup(Test):
 
         cont = True
         if len(pretest.pathname):
-            pretest.run(options)
+            pretest.run(options.dryrun)
             cont = pretest.result.result == 'PASS'
             pretest.log(options)
 
@@ -478,14 +526,14 @@ class TestGroup(Test):
                        outputdir=os.path.join(self.outputdir, fname),
                        timeout=self.timeout, user=self.user)
             if cont:
-                test.run(options)
+                test.run(options.dryrun)
             else:
                 test.skip()
 
             test.log(options)
 
         if len(posttest.pathname):
-            posttest.run(options)
+            posttest.run(options.dryrun)
             posttest.log(options)
 
 
@@ -732,6 +780,9 @@ class TestRun(object):
 
         if Result.runresults['KILLED'] > 0:
             return 1
+
+        if Result.runresults['RERAN'] > 0:
+            return 3
 
         return 0
 
