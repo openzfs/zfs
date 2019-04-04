@@ -351,10 +351,6 @@ pool_property_show(struct kobject *kobj, struct attribute *attr, char *buf)
  *
  * A user processes can easily check if the running zfs kernel module
  * supports the new feature.
- *
- * For example, the initial channel_program feature was extended to support
- * async calls (i.e. a sync flag). If this mechanism were in place at that
- * time, we could have added a 'channel_program_async' to this list.
  */
 static const char *zfs_kernel_features[] = {
 	/* --> Add new kernel features here */
