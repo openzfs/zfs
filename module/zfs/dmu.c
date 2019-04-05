@@ -1737,7 +1737,6 @@ dmu_assign_arcbuf_by_dnode(dnode_t *dn, uint64_t offset, arc_buf_t *buf,
 		/* compressed bufs must always be assignable to their dbuf */
 		ASSERT3U(arc_get_compression(buf), ==, ZIO_COMPRESS_OFF);
 		ASSERT(!(buf->b_flags & ARC_BUF_FLAG_COMPRESSED));
-		ASSERT(!arc_is_encrypted(buf));
 
 		dbuf_rele(db, FTAG);
 		dmu_write(os, object, offset, blksz, buf->b_data, tx);

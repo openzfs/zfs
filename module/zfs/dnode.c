@@ -689,9 +689,12 @@ dnode_reallocate(dnode_t *dn, dmu_object_type_t ot, int blocksize,
 	rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
 	dnode_setdirty(dn, tx);
 	if (dn->dn_datablksz != blocksize) {
-		ASSERT0(dn->dn_maxblkid);
-		ASSERT(BP_IS_HOLE(&dn->dn_phys->dn_blkptr[0]) ||
-		    dnode_block_freed(dn, 0));
+		/* change blocksize */
+		ASSERT(dn->dn_maxblkid == 0 &&
+		    (BP_IS_HOLE(&dn->dn_phys->dn_blkptr[0]) ||
+		    dnode_block_freed(dn, 0)));
+		dnode_setdblksz(dn, blocksize);
+		dn->dn_next_blksz[tx->tx_txg&TXG_MASK] = blocksize;
 	}
 	if (dn->dn_bonuslen != bonuslen)
 		dn->dn_next_bonuslen[tx->tx_txg&TXG_MASK] = bonuslen;
@@ -711,8 +714,6 @@ dnode_reallocate(dnode_t *dn, dmu_object_type_t ot, int blocksize,
 		dnode_rm_spill(dn, tx);
 	}
 	rw_exit(&dn->dn_struct_rwlock);
-
-	VERIFY0(dnode_set_blksz(dn, blocksize, 0, tx));
 
 	/* change type */
 	dn->dn_type = ot;
