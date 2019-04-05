@@ -131,6 +131,7 @@ spa_read_history_init(spa_t *spa)
 	shl->procfs_list.pl_private = shl;
 	procfs_list_install(module,
 	    "reads",
+	    0600,
 	    &shl->procfs_list,
 	    spa_read_history_show,
 	    spa_read_history_show_header,
@@ -301,6 +302,7 @@ spa_txg_history_init(spa_t *spa)
 	shl->procfs_list.pl_private = shl;
 	procfs_list_install(module,
 	    "txgs",
+	    0644,
 	    &shl->procfs_list,
 	    spa_txg_history_show,
 	    spa_txg_history_show_header,
@@ -706,6 +708,7 @@ spa_mmp_history_init(spa_t *spa)
 	shl->procfs_list.pl_private = shl;
 	procfs_list_install(module,
 	    "multihost",
+	    0644,
 	    &shl->procfs_list,
 	    spa_mmp_history_show,
 	    spa_mmp_history_show_header,

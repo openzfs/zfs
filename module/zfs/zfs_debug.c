@@ -94,6 +94,7 @@ zfs_dbgmsg_init(void)
 {
 	procfs_list_install("zfs",
 	    "dbgmsg",
+	    0600,
 	    &zfs_dbgmsgs,
 	    zfs_dbgmsg_show,
 	    zfs_dbgmsg_show_header,

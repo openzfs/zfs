@@ -340,7 +340,7 @@ vdev_remove_initiate_sync(void *arg, dmu_tx_t *tx)
 	 */
 	vdev_config_dirty(vd);
 
-	zfs_dbgmsg("starting removal thread for vdev %llu (%p) in txg %llu "
+	zfs_dbgmsg("starting removal thread for vdev %llu (%px) in txg %llu "
 	    "im_obj=%llu", vd->vdev_id, vd, dmu_tx_get_txg(tx),
 	    vic->vic_mapping_object);
 

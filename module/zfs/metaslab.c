@@ -2643,7 +2643,7 @@ metaslab_condense(metaslab_t *msp, uint64_t txg, dmu_tx_t *tx)
 	ASSERT(msp->ms_loaded);
 
 
-	zfs_dbgmsg("condensing: txg %llu, msp[%llu] %p, vdev id %llu, "
+	zfs_dbgmsg("condensing: txg %llu, msp[%llu] %px, vdev id %llu, "
 	    "spa %s, smp size %llu, segments %lu, forcing condense=%s", txg,
 	    msp->ms_id, msp, msp->ms_group->mg_vd->vdev_id,
 	    msp->ms_group->mg_vd->vdev_spa->spa_name,

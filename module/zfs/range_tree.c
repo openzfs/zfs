@@ -118,7 +118,7 @@ range_tree_stat_verify(range_tree_t *rt)
 
 	for (i = 0; i < RANGE_TREE_HISTOGRAM_SIZE; i++) {
 		if (hist[i] != rt->rt_histogram[i]) {
-			zfs_dbgmsg("i=%d, hist=%p, hist=%llu, rt_hist=%llu",
+			zfs_dbgmsg("i=%d, hist=%px, hist=%llu, rt_hist=%llu",
 			    i, hist, hist[i], rt->rt_histogram[i]);
 		}
 		VERIFY3U(hist[i], ==, rt->rt_histogram[i]);
