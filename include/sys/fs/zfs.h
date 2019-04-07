@@ -1192,7 +1192,7 @@ typedef enum {
  */
 typedef enum zfs_ioc {
 	/*
-	 * Illumos - 71/128 numbers reserved.
+	 * Illumos - 81/128 numbers reserved.
 	 */
 	ZFS_IOC_FIRST =	('Z' << 8),
 	ZFS_IOC = ZFS_IOC_FIRST,
