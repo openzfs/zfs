@@ -857,7 +857,7 @@ recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
 
 		ASSERT3S(g_refcount, >, 0);
 
-		(void) strlcpy(zc.zc_name, fsname, sizeof (zc.zc_value));
+		(void) strlcpy(zc.zc_name, fsname, sizeof (zc.zc_name));
 		(void) strlcpy(zc.zc_value, snapname, sizeof (zc.zc_value));
 
 		if (recvdprops != NULL) {
