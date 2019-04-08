@@ -1926,7 +1926,7 @@ zfs_do_get(int argc, char **argv)
 	 * Handle users who want to get all snapshots of the current
 	 * dataset (ex. 'zfs get -t snapshot refer <dataset>').
 	 */
-	if (types == ZFS_TYPE_SNAPSHOT &&
+	if (types == ZFS_TYPE_SNAPSHOT && argc > 1 &&
 	    (flags & ZFS_ITER_RECURSE) == 0 && limit == 0) {
 		flags |= (ZFS_ITER_DEPTH_LIMIT | ZFS_ITER_RECURSE);
 		limit = 1;
@@ -3430,7 +3430,7 @@ zfs_do_list(int argc, char **argv)
 	 * Handle users who want to list all snapshots of the current
 	 * dataset (ex. 'zfs list -t snapshot <dataset>').
 	 */
-	if (types == ZFS_TYPE_SNAPSHOT &&
+	if (types == ZFS_TYPE_SNAPSHOT && argc > 0 &&
 	    (flags & ZFS_ITER_RECURSE) == 0 && limit == 0) {
 		flags |= (ZFS_ITER_DEPTH_LIMIT | ZFS_ITER_RECURSE);
 		limit = 1;
