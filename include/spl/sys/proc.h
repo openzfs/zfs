@@ -27,6 +27,10 @@
 
 #include <linux/proc_fs.h>
 
+#ifndef HAVE_PDE_DATA
+#define	PDE_DATA(x) (PDE(x)->data)
+#endif
+
 extern struct proc_dir_entry *proc_spl_kstat;
 
 int spl_proc_init(void);

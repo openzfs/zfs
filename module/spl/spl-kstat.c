@@ -30,10 +30,6 @@
 #include <sys/cmn_err.h>
 #include <sys/sysmacros.h>
 
-#ifndef HAVE_PDE_DATA
-#define	PDE_DATA(x) (PDE(x)->data)
-#endif
-
 static kmutex_t kstat_module_lock;
 static struct list_head kstat_module_list;
 static kid_t kstat_id;
