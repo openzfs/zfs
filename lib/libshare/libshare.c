@@ -91,6 +91,20 @@ sa_init(int init_service)
 
 	impl_handle->zfs_libhandle = libzfs_init();
 
+	/*
+	 * When libshare initializes the shares below, it needs to parse the
+	 * MNTTAB to determine if a filesystem is mounted by calling
+	 * zfs_is_mounted(). On systems with thousands of filesystems,
+	 * repeatedly parsing the MNTTAB can be very slow. As a performance
+	 * improvement, we cache the MNTTAB so that we only have to read it
+	 * once. Repeated calls to zfs_is_mounted will just lookup entries in
+	 * the AVL tree. We can only safely do this when we've locked the
+	 * sharetab to other zfs sharenfs operations from concurrently
+	 * updating the MNTTAB.
+	 */
+	if (sharetab_locked())
+		libzfs_mnttab_cache(impl_handle->zfs_libhandle, B_TRUE);
+
 	if (impl_handle->zfs_libhandle != NULL) {
 		libzfs_print_on_error(impl_handle->zfs_libhandle, B_TRUE);
 	}
@@ -215,6 +229,12 @@ sharetab_unlock(void)
 	close(sharetab_fd);
 	sharetab_fd = -1;
 	return (retval);
+}
+
+boolean_t
+sharetab_locked(void)
+{
+	return(sharetab_fd != -1);
 }
 
 static void

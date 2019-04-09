@@ -1635,12 +1635,9 @@ zpool_export_one(zpool_handle_t *zhp, void *data)
 {
 	export_cbdata_t *cb = data;
 
-	verify(sharetab_lock() == 0);
 	if (zpool_disable_datasets(zhp, cb->force) != 0) {
-		verify(sharetab_unlock() == 0);
 		return (1);
 	}
-	verify(sharetab_unlock() == 0);
 
 	/* The history must be logged as part of the export */
 	log_history = B_FALSE;
@@ -1714,7 +1711,9 @@ zpool_do_export(int argc, char **argv)
 		usage(B_FALSE);
 	}
 
+	verify(sharetab_lock() == 0);
 	ret = for_each_pool(argc, argv, B_TRUE, NULL, zpool_export_one, &cb);
+	verify(sharetab_unlock() == 0);
 
 	return (ret);
 }
