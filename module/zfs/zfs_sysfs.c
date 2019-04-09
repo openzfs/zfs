@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright (c) 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2018, 2019 by Delphix. All rights reserved.
  */
 
 #include <sys/types.h>
@@ -351,43 +351,69 @@ pool_property_show(struct kobject *kobj, struct attribute *attr, char *buf)
  *
  * A user processes can easily check if the running zfs kernel module
  * supports the new feature.
- *
- * For example, the initial channel_program feature was extended to support
- * async calls (i.e. a sync flag). If this mechanism were in place at that
- * time, we could have added a 'channel_program_async' to this list.
  */
-static const char *zfs_features[]  = {
-	/* --> Add new kernel features here (post ZoL 0.8.0) */
-	"initialize",
-	"trim",
+static const char *zfs_kernel_features[] = {
+	/* --> Add new kernel features here */
+	"com.delphix:vdev_initialize",
+	"org.zfsonlinux:vdev_trim",
 };
 
-#define	ZFS_FEATURE_COUNT	ARRAY_SIZE(zfs_features)
+#define	KERNEL_FEATURE_COUNT	ARRAY_SIZE(zfs_kernel_features)
 
 static ssize_t
 kernel_feature_show(struct kobject *kobj, struct attribute *attr, char *buf)
 {
-	return (snprintf(buf, PAGE_SIZE, "supported\n"));
+	if (strcmp(attr->name, "supported") == 0)
+		return (snprintf(buf, PAGE_SIZE, "yes\n"));
+	return (0);
+}
+
+static void
+kernel_feature_to_kobj(zfs_mod_kobj_t *parent, int slot, const char *name)
+{
+	zfs_mod_kobj_t *zfs_kobj = &parent->zko_children[slot];
+
+	ASSERT3U(slot, <, KERNEL_FEATURE_COUNT);
+	ASSERT(name);
+
+	int err = zfs_kobj_init(zfs_kobj, 1, 0, kernel_feature_show);
+	if (err)
+		return;
+
+	zfs_kobj_add_attr(zfs_kobj, 0, "supported");
+
+	err = zfs_kobj_add(zfs_kobj, &parent->zko_kobj, name);
+	if (err)
+		zfs_kobj_release(&zfs_kobj->zko_kobj);
 }
 
 static int
 zfs_kernel_features_init(zfs_mod_kobj_t *zfs_kobj, struct kobject *parent)
 {
-	int err;
-
-	err = zfs_kobj_init(zfs_kobj, ZFS_FEATURE_COUNT, 0,
+	/*
+	 * Create a parent kobject to host kernel features.
+	 *
+	 * '/sys/module/zfs/features.kernel'
+	 */
+	int err = zfs_kobj_init(zfs_kobj, 0, KERNEL_FEATURE_COUNT,
 	    kernel_feature_show);
 	if (err)
 		return (err);
-
-	for (int f = 0; f < ZFS_FEATURE_COUNT; f++)
-		zfs_kobj_add_attr(zfs_kobj, f, zfs_features[f]);
-
 	err = zfs_kobj_add(zfs_kobj, parent, ZFS_SYSFS_KERNEL_FEATURES);
-	if (err)
+	if (err) {
 		zfs_kobj_release(&zfs_kobj->zko_kobj);
+		return (err);
+	}
 
-	return (err);
+	/*
+	 * Now create a kobject for each feature.
+	 *
+	 * '/sys/module/zfs/features.kernel/<feature>'
+	 */
+	for (int f = 0; f < KERNEL_FEATURE_COUNT; f++)
+		kernel_feature_to_kobj(zfs_kobj, f, zfs_kernel_features[f]);
+
+	return (0);
 }
 
 /*
