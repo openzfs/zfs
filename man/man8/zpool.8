@@ -587,6 +587,11 @@ The following are read-only properties:
 .Bl -tag -width Ds
 .It Cm allocated
 Amount of storage used within the pool.
+See
+.Sy fragmentation
+and
+.Sy free
+for more information.
 .It Sy capacity
 Percentage of pool space used.
 This property can also be referred to by its shortened column name,
@@ -601,9 +606,28 @@ been brought online
 .Pc .
 This space occurs when a LUN is dynamically expanded.
 .It Sy fragmentation
-The amount of fragmentation in the pool.
+The amount of fragmentation in the pool. As the amount of space
+.Sy allocated
+increases, it becomes more difficult to locate
+.Sy free
+space. This may result in lower write performance compared to pools with more
+unfragmented free space.
 .It Sy free
 The amount of free space available in the pool.
+By contrast, the
+.Xr zfs 8
+.Sy available
+property describes how much new data can be written to ZFS filesystems/volumes.
+The zpool
+.Sy free
+property is not generally useful for this purpose, and can be substantially more than the zfs
+.Sy available
+space. This discrepancy is due to several factors, including raidz party; zfs
+reservation, quota, refreservation, and refquota properties; and space set aside by
+.Sy spa_slop_shift
+(see
+.Xr zfs-module-parameters 5
+for more information).
 .It Sy freeing
 After a file system or snapshot is destroyed, the space it was using is
 returned to the pool asynchronously.
@@ -864,12 +888,12 @@ When a pool is determined to be active it cannot be imported, even with the
 .Fl f
 option.  This property is intended to be used in failover configurations
 where multiple hosts have access to a pool on shared storage.
-
+.Pp
 Multihost provides protection on import only.  It does not protect against an
 individual device being used in multiple pools, regardless of the type of vdev.
 See the discussion under
 .Sy zpool create.
-
+.Pp
 When this property is on, periodic writes to storage occur to show the pool is
 in use.  See
 .Sy zfs_multihost_interval
@@ -1103,7 +1127,7 @@ or
 .Sy zpool labelclear ,
 do not refer to the same device.  Using the same device in two pools will
 result in pool corruption.
-
+.Pp
 There are some uses, such as being currently mounted, or specified as the
 dedicated dump device, that prevents a device from ever being used by ZFS.
 Other uses, such as having a preexisting UFS file system, can be overridden with

@@ -1282,9 +1282,11 @@ send_progress_thread(void *arg)
 		}
 
 		if (firstloop && !pa->pa_parsable) {
-			(void) fprintf(stderr, "TIME       %s   %sSNAPSHOT\n",
+			(void) fprintf(stderr,
+			    "TIME       %s   %sSNAPSHOT %s\n",
 			    pa->pa_estimate ? "BYTES" : " SENT",
-			    pa->pa_verbosity >= 2 ? "   BLOCKS    " : "");
+			    pa->pa_verbosity >= 2 ? "   BLOCKS    " : "",
+			    zhp->zfs_name);
 			firstloop = B_FALSE;
 		}
 

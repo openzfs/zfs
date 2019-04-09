@@ -1426,13 +1426,11 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 		 * processed. However, for raw receives we manually set the
 		 * maxblkid from the drr_maxblkid and so we must first free
 		 * everything above that blkid to ensure the DMU is always
-		 * consistent with itself. We will never free the first block
-		 * of the object here because a maxblkid of 0 could indicate
-		 * an object with a single block or one with no blocks.
+		 * consistent with itself.
 		 */
-		if (rwa->raw && object != DMU_NEW_OBJECT) {
+		if (rwa->raw) {
 			err = dmu_free_long_range(rwa->os, drro->drr_object,
-			    (drro->drr_maxblkid + 1) * doi.doi_data_block_size,
+			    (drro->drr_maxblkid + 1) * drro->drr_blksz,
 			    DMU_OBJECT_END);
 			if (err != 0)
 				return (SET_ERROR(EINVAL));
@@ -1568,8 +1566,11 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 		    drro->drr_nlevels, tx));
 
 		/*
-		 * Set the maxblkid. This will always succeed because
-		 * we freed all blocks beyond the new maxblkid above.
+		 * Set the maxblkid. We will never free the first block of
+		 * an object here because a maxblkid of 0 could indicate
+		 * an object with a single block or one with no blocks.
+		 * This will always succeed because we freed all blocks
+		 * beyond the new maxblkid above.
 		 */
 		VERIFY0(dmu_object_set_maxblkid(rwa->os, drro->drr_object,
 		    drro->drr_maxblkid, tx));

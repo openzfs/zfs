@@ -1955,6 +1955,16 @@ zfs_do_get(int argc, char **argv)
 
 	fields = argv[0];
 
+	/*
+	 * Handle users who want to get all snapshots of the current
+	 * dataset (ex. 'zfs get -t snapshot refer <dataset>').
+	 */
+	if (types == ZFS_TYPE_SNAPSHOT && argc > 1 &&
+	    (flags & ZFS_ITER_RECURSE) == 0 && limit == 0) {
+		flags |= (ZFS_ITER_DEPTH_LIMIT | ZFS_ITER_RECURSE);
+		limit = 1;
+	}
+
 	if (zprop_get_list(g_zfs, fields, &cb.cb_proplist, ZFS_TYPE_DATASET)
 	    != 0)
 		usage(B_FALSE);
@@ -3448,6 +3458,16 @@ zfs_do_list(int argc, char **argv)
 	 */
 	if (strcmp(fields, "space") == 0 && types_specified == B_FALSE)
 		types &= ~ZFS_TYPE_SNAPSHOT;
+
+	/*
+	 * Handle users who want to list all snapshots of the current
+	 * dataset (ex. 'zfs list -t snapshot <dataset>').
+	 */
+	if (types == ZFS_TYPE_SNAPSHOT && argc > 0 &&
+	    (flags & ZFS_ITER_RECURSE) == 0 && limit == 0) {
+		flags |= (ZFS_ITER_DEPTH_LIMIT | ZFS_ITER_RECURSE);
+		limit = 1;
+	}
 
 	/*
 	 * If the user specifies '-o all', the zprop_get_list() doesn't
