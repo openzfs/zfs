@@ -115,6 +115,8 @@ static int zpool_do_set(int, char **);
 
 static int zpool_do_sync(int, char **);
 
+static int zpool_do_version(int, char **);
+
 /*
  * These libumem hooks provide a reasonable set of defaults for the allocator's
  * debugging facilities.
@@ -164,7 +166,8 @@ typedef enum {
 	HELP_SPLIT,
 	HELP_SYNC,
 	HELP_REGUID,
-	HELP_REOPEN
+	HELP_REOPEN,
+	HELP_VERSION
 } zpool_help_t;
 
 
@@ -263,6 +266,8 @@ typedef struct zpool_command {
  * the generic usage message.
  */
 static zpool_command_t command_table[] = {
+	{ "version",	zpool_do_version,	HELP_VERSION		},
+	{ NULL },
 	{ "create",	zpool_do_create,	HELP_CREATE		},
 	{ "destroy",	zpool_do_destroy,	HELP_DESTROY		},
 	{ NULL },
@@ -404,6 +409,8 @@ get_usage(zpool_help_t idx)
 		return (gettext("\treguid <pool>\n"));
 	case HELP_SYNC:
 		return (gettext("\tsync [pool] ...\n"));
+	case HELP_VERSION:
+		return (gettext("\tversion\n"));
 	}
 
 	abort();
@@ -9222,6 +9229,18 @@ find_command_idx(char *command, int *idx)
 	return (1);
 }
 
+/*
+ * Display version message
+ */
+static int
+zpool_do_version(int argc, char **argv)
+{
+	if (zfs_version_print() == -1)
+		return (1);
+
+	return (0);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -9251,6 +9270,12 @@ main(int argc, char **argv)
 	 */
 	if ((strcmp(cmdname, "-?") == 0) || strcmp(cmdname, "--help") == 0)
 		usage(B_TRUE);
+
+	/*
+	 * Special case '-V|--version'
+	 */
+	if ((strcmp(cmdname, "-V") == 0) || (strcmp(cmdname, "--version") == 0))
+		return (zpool_do_version(argc, argv));
 
 	if ((g_zfs = libzfs_init()) == NULL) {
 		(void) fprintf(stderr, "%s", libzfs_error_init(errno));
