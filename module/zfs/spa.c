@@ -8026,6 +8026,39 @@ spa_sync_upgrades(spa_t *spa, dmu_tx_t *tx)
 
 		if (lz4_en && !lz4_ac)
 			spa_feature_incr(spa, SPA_FEATURE_LZ4_COMPRESS, tx);
+
+		/*
+		 * Unfortunately, BOOKMARK_V2 was added as a dependency of
+		 * REDACTION_BOOKMARKS and BOOKMARK_WRITTEN after they were
+		 * already in the wild.  As a result, any pool that already
+		 * has those features that is upgraded to a version with
+		 * BOOKMARK_V2 will crash if the number of bookmarks ever goes
+		 * below the amount that existed when the pool was upgraded.
+		 * This code iterates over all the bookmarks in the system and
+		 * increments the V2 feature once for each bookmark that uses
+		 * either BOOKMARK_WRITTEN or REDACTION_BOOKMARKS.  It's not
+		 * just the sum of the two, because some bookmarks will have
+		 * both REDACTION and WRITTEN, and some could have either
+		 * without the other.
+		 *
+		 * This logic will only execute once because, going forwards,
+		 * any time BOOKMARK_WRITTEN or REDACTION_BOOKMARKS is
+		 * incremented, BOOKMARK_V2 will be as well.  As a result, its
+		 * count should never dip back to zero (maaking in inactive
+		 * but enabled) while the other two are active.
+		 */
+		boolean_t bv2_en = spa_feature_is_enabled(spa,
+		    SPA_FEATURE_BOOKMARK_V2);
+		boolean_t bv2_ac = spa_feature_is_active(spa,
+		    SPA_FEATURE_BOOKMARK_V2);
+
+		boolean_t dep_ac = spa_feature_is_active(spa,
+		    SPA_FEATURE_BOOKMARK_WRITTEN) || spa_feature_is_active(spa,
+		    SPA_FEATURE_REDACTION_BOOKMARKS);
+
+		if (bv2_en && !bv2_ac && dep_ac) {
+			dsl_pool_sync_bookmark_featureflags(dp, tx);
+		}
 	}
 
 	/*

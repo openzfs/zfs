@@ -165,6 +165,7 @@ void dsl_free_sync(zio_t *pio, dsl_pool_t *dp, uint64_t txg,
 void dsl_pool_create_origin(dsl_pool_t *dp, dmu_tx_t *tx);
 void dsl_pool_upgrade_clones(dsl_pool_t *dp, dmu_tx_t *tx);
 void dsl_pool_upgrade_dir_clones(dsl_pool_t *dp, dmu_tx_t *tx);
+void dsl_pool_sync_bookmark_featureflags(dsl_pool_t *dp, dmu_tx_t *tx);
 void dsl_pool_mos_diduse_space(dsl_pool_t *dp,
     int64_t used, int64_t comp, int64_t uncomp);
 void dsl_pool_ckpoint_diduse_space(dsl_pool_t *dp,

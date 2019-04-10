@@ -32,6 +32,7 @@
 #include <sys/dsl_dir.h>
 #include <sys/dsl_synctask.h>
 #include <sys/dsl_scan.h>
+#include <sys/dsl_bookmark.h>
 #include <sys/dnode.h>
 #include <sys/dmu_tx.h>
 #include <sys/dmu_objset.h>
@@ -1072,6 +1073,31 @@ dsl_pool_upgrade_dir_clones(dsl_pool_t *dp, dmu_tx_t *tx)
 
 	VERIFY0(dmu_objset_find_dp(dp, dp->dp_root_dir_obj,
 	    upgrade_dir_clones_cb, tx, DS_FIND_CHILDREN | DS_FIND_SERIALIZE));
+}
+
+static int
+sync_bookmark_featureflags_cb(dsl_pool_t *dp, dsl_dataset_t *ds, void *arg)
+{
+	dmu_tx_t *tx = arg;
+	for (dsl_bookmark_node_t *dbn = avl_first(&ds->ds_bookmarks);
+            dbn != NULL; dbn = AVL_NEXT(&ds->ds_bookmarks, dbn)) {
+		if (dbn->dbn_phys.zbm_flags & ZBM_FLAG_HAS_FBN ||
+		    dbn->dbn_phys.zbm_redaction_obj != 0) {
+			spa_feature_incr(dp->dp_spa, SPA_FEATURE_BOOKMARK_V2,
+			    tx);
+		}
+	}
+	return (0);
+}
+
+void
+dsl_pool_sync_bookmark_featureflags(dsl_pool_t *dp, dmu_tx_t *tx)
+{
+	ASSERT(dmu_tx_is_syncing(tx));
+
+	VERIFY0(dmu_objset_find_dp(dp, dp->dp_root_dir_obj,
+	    sync_bookmark_featureflags_cb, tx, DS_FIND_CHILDREN |
+	    DS_FIND_SERIALIZE));
 }
 
 void
