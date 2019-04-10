@@ -35,7 +35,7 @@
 .Nd configure ZFS storage pools
 .Sh SYNOPSIS
 .Nm
-.Fl ?
+.Fl ?V
 .Nm
 .Cm add
 .Op Fl fgLnP
@@ -210,6 +210,8 @@
 .Cm upgrade
 .Op Fl V Ar version
 .Fl a Ns | Ns Ar pool Ns ...
+.Nm
+.Cm version
 .Sh DESCRIPTION
 The
 .Nm
@@ -931,6 +933,13 @@ The following subcommands are supported:
 .Fl ?
 .Xc
 Displays a help message.
+.It Xo
+.Nm
+.Fl V, -version
+.Xc
+An alias for the
+.Nm zpool Cm version
+subcommand.
 .It Xo
 .Nm
 .Cm add
@@ -2465,6 +2474,13 @@ flag is specified, no features will be enabled on the pool.
 This option can only be used to increase the version number up to the last
 supported legacy version number.
 .El
+.It Xo
+.Nm
+.Cm version
+.Xc
+Displays the software version of the
+.Nm
+userland utility and the zfs kernel module.
 .El
 .Sh EXIT STATUS
 The following exit values are returned:

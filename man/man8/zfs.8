@@ -38,7 +38,7 @@
 .Nd configures ZFS file systems
 .Sh SYNOPSIS
 .Nm
-.Fl ?
+.Fl ?V
 .Nm
 .Cm create
 .Op Fl p
@@ -327,6 +327,8 @@
 .Fl i
 .Op Fl l
 .Ar filesystem
+.Nm
+.Cm version
 .Sh DESCRIPTION
 The
 .Nm
@@ -2451,6 +2453,13 @@ original form.
 .Bl -tag -width ""
 .It Nm Fl ?
 Displays a help message.
+.It Xo
+.Nm
+.Fl V, -version
+.Xc
+An alias for the
+.Nm zfs Cm version
+subcommand.
 .It Xo
 .Nm
 .Cm create
@@ -4624,6 +4633,13 @@ Indicates that zfs should make
 inherit the key of its parent. Note that this command can only be run on an
 encryption root that has an encrypted parent.
 .El
+.It Xo
+.Nm
+.Cm version
+.Xc
+Displays the software version of the
+.Nm
+userland utility and the zfs kernel module.
 .El
 .Sh EXIT STATUS
 The

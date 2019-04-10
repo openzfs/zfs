@@ -816,6 +816,13 @@ void libzfs_free_str_array(char **strs, int count);
 int libzfs_envvar_is_set(char *envvar);
 
 /*
+ * Utility functions for zfs version
+ */
+extern void zfs_version_userland(char *, int);
+extern int zfs_version_kernel(char *, int);
+extern int zfs_version_print(void);
+
+/*
  * Given a device or file, determine if it is part of a pool.
  */
 extern int zpool_in_use(libzfs_handle_t *, int, pool_state_t *, char **,
