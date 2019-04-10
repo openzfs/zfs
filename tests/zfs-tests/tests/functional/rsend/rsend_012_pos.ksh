@@ -44,16 +44,6 @@
 
 verify_runnable "global"
 
-function rand_set_prop
-{
-	typeset dtst=$1
-	typeset prop=$2
-	shift 2
-	typeset value=$(random_get $@)
-
-	log_must eval "zfs set $prop='$value' $dtst"
-}
-
 function edited_prop
 {
 	typeset behaviour=$1
