@@ -1168,10 +1168,10 @@ dsl_dir_sync(dsl_dir_t *dd, dmu_tx_t *tx)
 	ASSERT(dmu_tx_is_syncing(tx));
 
 	mutex_enter(&dd->dd_lock);
-	ASSERT0(dd->dd_tempreserved[tx->tx_txg&TXG_MASK]);
+	ASSERT0(dd->dd_tempreserved[tx->tx_txg & TXG_MASK]);
 	dprintf_dd(dd, "txg=%llu towrite=%lluK\n", tx->tx_txg,
-	    dd->dd_space_towrite[tx->tx_txg&TXG_MASK] / 1024);
-	dd->dd_space_towrite[tx->tx_txg&TXG_MASK] = 0;
+	    dd->dd_space_towrite[tx->tx_txg & TXG_MASK] / 1024);
+	dd->dd_space_towrite[tx->tx_txg & TXG_MASK] = 0;
 	mutex_exit(&dd->dd_lock);
 
 	/* release the hold from dsl_dir_dirty */
