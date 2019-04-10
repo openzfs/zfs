@@ -1176,6 +1176,7 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 		    1ULL << drro->drr_indblkshift : 0;
 		int nblkptr = deduce_nblkptr(drro->drr_bonustype,
 		    drro->drr_bonuslen);
+		boolean_t did_free = B_FALSE;
 
 		object = drro->drr_object;
 
@@ -1205,6 +1206,8 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 			    drro->drr_object, 0, DMU_OBJECT_END);
 			if (err != 0)
 				return (SET_ERROR(EINVAL));
+			else
+				did_free = B_TRUE;
 		}
 
 		/*
@@ -1235,11 +1238,15 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 		 * processed. However, for raw receives we manually set the
 		 * maxblkid from the drr_maxblkid and so we must first free
 		 * everything above that blkid to ensure the DMU is always
-		 * consistent with itself.
+		 * consistent with itself. We will never free the first block
+		 * of the object here because a maxblkid of 0 could indicate
+		 * an object with a single block or one with no blocks. This
+		 * free may be skipped when dmu_free_long_range() was called
+		 * above since it covers the entire object's contents.
 		 */
-		if (rwa->raw) {
+		if (rwa->raw && object != DMU_NEW_OBJECT && !did_free) {
 			err = dmu_free_long_range(rwa->os, drro->drr_object,
-			    (drro->drr_maxblkid + 1) * drro->drr_blksz,
+			    (drro->drr_maxblkid + 1) * doi.doi_data_block_size,
 			    DMU_OBJECT_END);
 			if (err != 0)
 				return (SET_ERROR(EINVAL));
@@ -1380,11 +1387,8 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 		    drro->drr_nlevels, tx));
 
 		/*
-		 * Set the maxblkid. We will never free the first block of
-		 * an object here because a maxblkid of 0 could indicate
-		 * an object with a single block or one with no blocks.
-		 * This will always succeed because we freed all blocks
-		 * beyond the new maxblkid above.
+		 * Set the maxblkid. This will always succeed because
+		 * we freed all blocks beyond the new maxblkid above.
 		 */
 		VERIFY0(dmu_object_set_maxblkid(rwa->os, drro->drr_object,
 		    drro->drr_maxblkid, tx));

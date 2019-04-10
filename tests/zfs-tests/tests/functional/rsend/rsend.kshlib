@@ -464,12 +464,14 @@ function rm_files
 # $1 Number of files to modify
 # $2 Maximum file size
 # $3 File system to modify the file on
+# $4 Enabled xattrs (optional)
 #
 function churn_files
 {
 	nfiles=$1
 	maxsize=$2
 	fs=$3
+	xattrs=${4:-1}
 
 	#
 	# Remove roughly half of the files in order to make it more
@@ -514,7 +516,7 @@ function churn_files
 		#
 		if [[ -e $file_name ]]; then
 			value=$((RANDOM % 5))
-			if [ $value -eq 0 ]; then
+			if [ $value -eq 0 -a $xattrs -ne 0 ]; then
 				attrname="testattr$((RANDOM % 3))"
 				attr -qr $attrname $file_name || \
 				    log_fail "Failed to remove $attrname"
@@ -543,11 +545,14 @@ function churn_files
 			    bs=$file_size count=1 >/dev/null 2>&1 || \
 			    log_fail "Failed to create $file_name"
 
-			for j in {0..2}; do
-				attrname="testattr$j"
-				attr -qs $attrname -V TestValue $file_name || \
-				    log_fail "Failed to set $attrname"
-			done
+			if [ $xattrs -ne 0 ]; then
+				for j in {0..2}; do
+					attrname="testattr$j"
+					attr -qs $attrname -V TestValue \
+					    $file_name || log_fail \
+					    "Failed to set $attrname"
+				done
+			fi
 		fi
 	done
 
