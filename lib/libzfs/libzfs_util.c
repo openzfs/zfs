@@ -55,6 +55,7 @@
 #include <zfs_fletcher.h>
 #include <libzutil.h>
 #include <sys/zfs_sysfs.h>
+#include "zfs_gitrev.h"
 
 int
 libzfs_errno(libzfs_handle_t *hdl)
@@ -1948,7 +1949,10 @@ zprop_iter(zprop_func func, void *cb, boolean_t show_all, boolean_t ordered,
 void
 zfs_version_userland(char *version, int len)
 {
-	(void) strlcpy(version, ZFS_META_ALIAS, len);
+	if (strcmp("unknown", ZFS_META_GITREV) == 0)
+		(void) strlcpy(version, ZFS_META_ALIAS, len);
+	else
+		(void) strlcpy(version, ZFS_META_GITREV, len);
 }
 
 /*
