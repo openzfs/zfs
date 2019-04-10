@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2017 Datto Inc.
  */
 
@@ -83,6 +83,9 @@ bpobj_alloc(objset_t *os, int blocksize, dmu_tx_t *tx)
 		size = BPOBJ_SIZE_V0;
 	else if (spa_version(dmu_objset_spa(os)) < SPA_VERSION_DEADLISTS)
 		size = BPOBJ_SIZE_V1;
+	else if (!spa_feature_is_active(dmu_objset_spa(os),
+	    SPA_FEATURE_LIVELIST))
+		size = BPOBJ_SIZE_V2;
 	else
 		size = sizeof (bpobj_phys_t);
 
@@ -171,6 +174,7 @@ bpobj_open(bpobj_t *bpo, objset_t *os, uint64_t object)
 	bpo->bpo_epb = doi.doi_data_block_size >> SPA_BLKPTRSHIFT;
 	bpo->bpo_havecomp = (doi.doi_bonus_size > BPOBJ_SIZE_V0);
 	bpo->bpo_havesubobj = (doi.doi_bonus_size > BPOBJ_SIZE_V1);
+	bpo->bpo_havefreed = (doi.doi_bonus_size > BPOBJ_SIZE_V2);
 	bpo->bpo_phys = bpo->bpo_dbuf->db_data;
 	return (0);
 }
@@ -245,8 +249,8 @@ bpi_alloc(bpobj_t *bpo, bpobj_info_t *parent, uint64_t index)
  * Update bpobj and all of its parents with new space accounting.
  */
 static void
-propagate_space_reduction(bpobj_info_t *bpi, uint64_t freed,
-    uint64_t comp_freed, uint64_t uncomp_freed, dmu_tx_t *tx)
+propagate_space_reduction(bpobj_info_t *bpi, int64_t freed,
+    int64_t comp_freed, int64_t uncomp_freed, dmu_tx_t *tx)
 {
 
 	for (; bpi != NULL; bpi = bpi->bpi_parent) {
@@ -263,22 +267,22 @@ propagate_space_reduction(bpobj_info_t *bpi, uint64_t freed,
 
 static int
 bpobj_iterate_blkptrs(bpobj_info_t *bpi, bpobj_itor_t func, void *arg,
-    dmu_tx_t *tx, boolean_t free)
+    int64_t start, dmu_tx_t *tx, boolean_t free)
 {
 	int err = 0;
-	uint64_t freed = 0, comp_freed = 0, uncomp_freed = 0;
+	int64_t freed = 0, comp_freed = 0, uncomp_freed = 0;
 	dmu_buf_t *dbuf = NULL;
 	bpobj_t *bpo = bpi->bpi_bpo;
 
-	for (int64_t i = bpo->bpo_phys->bpo_num_blkptrs - 1; i >= 0; i--) {
+	for (int64_t i = bpo->bpo_phys->bpo_num_blkptrs - 1; i >= start; i--) {
 		uint64_t offset = i * sizeof (blkptr_t);
 		uint64_t blkoff = P2PHASE(i, bpo->bpo_epb);
 
 		if (dbuf == NULL || dbuf->db_offset > offset) {
 			if (dbuf)
 				dmu_buf_rele(dbuf, FTAG);
-			err = dmu_buf_hold(bpo->bpo_os, bpo->bpo_object, offset,
-			    FTAG, &dbuf, 0);
+			err = dmu_buf_hold(bpo->bpo_os, bpo->bpo_object,
+			    offset, FTAG, &dbuf, 0);
 			if (err)
 				break;
 		}
@@ -288,18 +292,26 @@ bpobj_iterate_blkptrs(bpobj_info_t *bpi, bpobj_itor_t func, void *arg,
 
 		blkptr_t *bparray = dbuf->db_data;
 		blkptr_t *bp = &bparray[blkoff];
-		err = func(arg, bp, tx);
+
+		boolean_t bp_freed = BP_GET_FREE(bp);
+		err = func(arg, bp, bp_freed, tx);
 		if (err)
 			break;
 
 		if (free) {
+			int sign = bp_freed ? -1 : +1;
 			spa_t *spa = dmu_objset_spa(bpo->bpo_os);
-			freed += bp_get_dsize_sync(spa, bp);
-			comp_freed += BP_GET_PSIZE(bp);
-			uncomp_freed += BP_GET_UCSIZE(bp);
+			freed += sign * bp_get_dsize_sync(spa, bp);
+			comp_freed += sign * BP_GET_PSIZE(bp);
+			uncomp_freed += sign * BP_GET_UCSIZE(bp);
 			ASSERT(dmu_buf_is_dirty(bpo->bpo_dbuf, tx));
 			bpo->bpo_phys->bpo_num_blkptrs--;
 			ASSERT3S(bpo->bpo_phys->bpo_num_blkptrs, >=, 0);
+			if (bp_freed) {
+				ASSERT(bpo->bpo_havefreed);
+				bpo->bpo_phys->bpo_num_freed--;
+				ASSERT3S(bpo->bpo_phys->bpo_num_freed, >=, 0);
+			}
 		}
 	}
 	if (free) {
@@ -354,7 +366,8 @@ bpobj_iterate_impl(bpobj_t *initial_bpo, bpobj_itor_t func, void *arg,
 			dmu_buf_will_dirty(bpo->bpo_dbuf, tx);
 
 		if (bpi->bpi_visited == B_FALSE) {
-			err = bpobj_iterate_blkptrs(bpi, func, arg, tx, free);
+			err = bpobj_iterate_blkptrs(bpi, func, arg, 0, tx,
+			    free);
 			bpi->bpi_visited = B_TRUE;
 			if (err != 0)
 				break;
@@ -496,9 +509,26 @@ bpobj_iterate(bpobj_t *bpo, bpobj_itor_t func, void *arg, dmu_tx_t *tx)
  * Iterate the entries.  If func returns nonzero, iteration will stop.
  */
 int
-bpobj_iterate_nofree(bpobj_t *bpo, bpobj_itor_t func, void *arg, dmu_tx_t *tx)
+bpobj_iterate_nofree(bpobj_t *bpo, bpobj_itor_t func, void *arg)
 {
-	return (bpobj_iterate_impl(bpo, func, arg, tx, B_FALSE));
+	return (bpobj_iterate_impl(bpo, func, arg, NULL, B_FALSE));
+}
+
+/*
+ * Iterate over the blkptrs in the bpobj beginning at index start. If func
+ * returns nonzero, iteration will stop. This is a livelist specific function
+ * since it assumes that there are no subobjs present.
+ */
+int
+livelist_bpobj_iterate_from_nofree(bpobj_t *bpo, bpobj_itor_t func, void *arg,
+    int64_t start)
+{
+	if (bpo->bpo_havesubobj)
+		VERIFY0(bpo->bpo_phys->bpo_subobjs);
+	bpobj_info_t *bpi = bpi_alloc(bpo, NULL, 0);
+	int err = bpobj_iterate_blkptrs(bpi, func, arg, start, NULL, B_FALSE);
+	kmem_free(bpi, sizeof (bpobj_info_t));
+	return (err);
 }
 
 /*
@@ -724,7 +754,7 @@ bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx)
 }
 
 void
-bpobj_enqueue(bpobj_t *bpo, const blkptr_t *bp, dmu_tx_t *tx)
+bpobj_enqueue(bpobj_t *bpo, const blkptr_t *bp, boolean_t free, dmu_tx_t *tx)
 {
 	blkptr_t stored_bp = *bp;
 	uint64_t offset;
@@ -755,8 +785,8 @@ bpobj_enqueue(bpobj_t *bpo, const blkptr_t *bp, dmu_tx_t *tx)
 		bzero(&stored_bp.blk_cksum, sizeof (stored_bp.blk_cksum));
 	}
 
-	/* We never need the fill count. */
 	stored_bp.blk_fill = 0;
+	BP_SET_FREE(&stored_bp, free);
 
 	mutex_enter(&bpo->bpo_lock);
 
@@ -779,11 +809,16 @@ bpobj_enqueue(bpobj_t *bpo, const blkptr_t *bp, dmu_tx_t *tx)
 
 	dmu_buf_will_dirty(bpo->bpo_dbuf, tx);
 	bpo->bpo_phys->bpo_num_blkptrs++;
-	bpo->bpo_phys->bpo_bytes +=
+	int sign = free ? -1 : +1;
+	bpo->bpo_phys->bpo_bytes += sign *
 	    bp_get_dsize_sync(dmu_objset_spa(bpo->bpo_os), bp);
 	if (bpo->bpo_havecomp) {
-		bpo->bpo_phys->bpo_comp += BP_GET_PSIZE(bp);
-		bpo->bpo_phys->bpo_uncomp += BP_GET_UCSIZE(bp);
+		bpo->bpo_phys->bpo_comp += sign * BP_GET_PSIZE(bp);
+		bpo->bpo_phys->bpo_uncomp += sign * BP_GET_UCSIZE(bp);
+	}
+	if (free) {
+		ASSERT(bpo->bpo_havefreed);
+		bpo->bpo_phys->bpo_num_freed++;
 	}
 	mutex_exit(&bpo->bpo_lock);
 }
@@ -799,7 +834,7 @@ struct space_range_arg {
 
 /* ARGSUSED */
 static int
-space_range_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
+space_range_cb(void *arg, const blkptr_t *bp, boolean_t free, dmu_tx_t *tx)
 {
 	struct space_range_arg *sra = arg;
 
@@ -857,9 +892,24 @@ bpobj_space_range(bpobj_t *bpo, uint64_t mintxg, uint64_t maxtxg,
 	sra.mintxg = mintxg;
 	sra.maxtxg = maxtxg;
 
-	err = bpobj_iterate_nofree(bpo, space_range_cb, &sra, NULL);
+	err = bpobj_iterate_nofree(bpo, space_range_cb, &sra);
 	*usedp = sra.used;
 	*compp = sra.comp;
 	*uncompp = sra.uncomp;
 	return (err);
+}
+
+/*
+ * A bpobj_itor_t to append blkptrs to a bplist. Note that while blkptrs in a
+ * bpobj are designated as free or allocated that information is not preserved
+ * in bplists.
+ */
+/* ARGSUSED */
+int
+bplist_append_cb(void *arg, const blkptr_t *bp, boolean_t free,
+    dmu_tx_t *tx)
+{
+	bplist_t *bpl = arg;
+	bplist_append(bpl, bp);
+	return (0);
 }

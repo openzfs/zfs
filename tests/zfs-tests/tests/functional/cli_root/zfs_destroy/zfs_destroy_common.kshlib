@@ -25,7 +25,7 @@
 #
 
 #
-# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2018 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -145,4 +145,44 @@ function check_dataset
 			log_must $funname $i
 		done
 	fi
+}
+
+# Use zdb to see if a livelist exists for a given clone
+# $1   clone name
+function check_livelist_exists
+{
+	zdb -vvvvv $TESTPOOL/$1 | grep "Livelist" || \
+		log_fail "zdb could not find Livelist"
+}
+
+# Wait for the deferred destroy livelists to be removed
+function wait_for_deferred_destroy
+{
+	sync
+	deleted=$(zdb -vvvvv $TESTPOOL | grep "Deleted Livelist")
+	while [[ "$deleted" != "" ]]; do
+		deleted=$(zdb -vvvvv $TESTPOOL | grep "Deleted Livelist")
+	done
+}
+
+# Check that a livelist has been removed, waiting for deferred destroy entries
+# to be cleared from zdb.
+function check_livelist_gone
+{
+	wait_for_deferred_destroy
+	zdb -vvvvv $TESTPOOL | grep "Livelist" && \
+		log_fail "zdb found Livelist after the clone is deleted."
+}
+
+# Create a clone in the testpool based on $TESTFS@snap. Verify that the clone
+# was created and that it includes a livelist
+# $1    fs name
+# $2    snap name
+# $3    clone name
+function clone_dataset
+{
+	log_must zfs clone $TESTPOOL/$1@$2 $TESTPOOL/$3
+	datasetexists $TESTPOOL/$3 || \
+		log_fail "zfs clone $TESTPOOL/$3 fail."
+	check_livelist_exists $3
 }

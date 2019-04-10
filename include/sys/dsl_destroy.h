@@ -33,6 +33,7 @@ extern "C" {
 
 struct nvlist;
 struct dsl_dataset;
+struct dsl_pool;
 struct dmu_tx;
 
 int dsl_destroy_snapshots_nvl(struct nvlist *, boolean_t,
