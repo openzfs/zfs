@@ -559,6 +559,8 @@ zio_crypt_key_unwrap(crypto_key_t *cwkey, uint64_t crypt, uint64_t version,
 	ASSERT3U(crypt, <, ZIO_CRYPT_FUNCTIONS);
 	ASSERT3U(cwkey->ck_format, ==, CRYPTO_KEY_RAW);
 
+	rw_init(&key->zk_salt_lock, NULL, RW_DEFAULT, NULL);
+
 	keydata_len = zio_crypt_table[crypt].ci_keylen;
 
 	/* initialize uio_ts */
@@ -640,7 +642,6 @@ zio_crypt_key_unwrap(crypto_key_t *cwkey, uint64_t crypt, uint64_t version,
 	key->zk_version = version;
 	key->zk_guid = guid;
 	key->zk_salt_count = 0;
-	rw_init(&key->zk_salt_lock, NULL, RW_DEFAULT, NULL);
 
 	return (0);
 
