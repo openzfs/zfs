@@ -147,6 +147,9 @@ typedef struct qat_stats {
 	QAT_STAT_INCR(stat, 1)
 
 extern qat_stats_t qat_stats;
+extern int zfs_qat_compress_disable;
+extern int zfs_qat_checksum_disable;
+extern int zfs_qat_encrypt_disable;
 
 /* inlined for performance */
 static inline struct page *
@@ -167,8 +170,8 @@ void qat_mem_free_contig(void **pp_mem_addr);
 
 extern int qat_dc_init(void);
 extern void qat_dc_fini(void);
-extern int qat_crypt_init(void);
-extern void qat_crypt_fini(void);
+extern int qat_cy_init(void);
+extern void qat_cy_fini(void);
 extern int qat_init(void);
 extern void qat_fini(void);
 

@@ -49,6 +49,14 @@ static Cpa16U num_inst = 0;
 static Cpa32U inst_num = 0;
 static boolean_t qat_dc_init_done = B_FALSE;
 int zfs_qat_compress_disable = 0;
+static Cpa32U
+adler32_swap(Cpa32U adler32)
+{
+	return (((adler32 & 0xff000000) >> 24) |
+	    ((adler32 & 0xff0000) >> 8) |
+	    ((adler32 & 0xff00) << 8) |
+	    ((adler32 & 0xff) << 24));
+}
 
 boolean_t
 qat_dc_use_accel(size_t s_len)
@@ -110,6 +118,9 @@ qat_dc_init(void)
 	Cpa16U buff_num = 0;
 	Cpa32U buff_meta_size = 0;
 	CpaDcSessionSetupData sd = {0};
+
+	if (qat_dc_init_done)
+		return (0);
 
 	status = cpaDcGetNumInstances(&num_inst);
 	if (status != CPA_STATUS_SUCCESS)
@@ -252,6 +263,7 @@ qat_compress_impl(qat_compress_dir_t dir, char *src, int src_len,
 	Cpa32U num_add_buf = (add_len >> PAGE_SHIFT) + 2;
 	Cpa32U bytes_left;
 	Cpa32U dst_pages = 0;
+	Cpa32U adler32 = 0;
 	char *data;
 	struct page *page;
 	struct page **in_pages = NULL;
@@ -468,6 +480,12 @@ qat_compress_impl(qat_compress_dir_t dir, char *src, int src_len,
 			goto fail;
 		}
 
+		/* verify adler checksum */
+		adler32 = *(Cpa32U *)(src + dc_results.consumed + ZLIB_HEAD_SZ);
+		if (adler32 != adler32_swap(dc_results.checksum)) {
+			status = CPA_STATUS_FAIL;
+			goto fail;
+		}
 		*c_len = dc_results.produced;
 		QAT_STAT_INCR(decomp_total_out_bytes, *c_len);
 	}
@@ -534,7 +552,43 @@ qat_compress(qat_compress_dir_t dir, char *src, int src_len,
 	return (ret);
 }
 
-module_param(zfs_qat_compress_disable, int, 0644);
-MODULE_PARM_DESC(zfs_qat_compress_disable, "Disable QAT compression");
+static int
+#ifdef module_param_cb
+param_set_qat_compress(const char *val, const struct kernel_param *kp)
+#else
+param_set_qat_compress(const char *val, struct kernel_param *kp)
+#endif
+{
+	int ret;
+	int *pvalue = kp->arg;
+	ret = param_set_int(val, kp);
+	if (ret)
+		return (ret);
+	/*
+	 * zfs_qat_compress_disable = 0: enable qat compress
+	 * try to initialize qat instance if it has not been done
+	 */
+	if (*pvalue == 0 && !qat_dc_init_done) {
+		ret = qat_dc_init();
+		if (ret != 0) {
+			zfs_qat_compress_disable = 1;
+			return (ret);
+		}
+	}
+	return (ret);
+}
+
+#ifdef module_param_cb
+static struct kernel_param_ops qat_compress_param_ops = {
+	.set = param_set_qat_compress,
+	.get = param_get_int,
+};
+module_param_cb(zfs_qat_compress_disable, &qat_compress_param_ops,
+		&zfs_qat_compress_disable, 0644);
+#else
+module_param_call(zfs_qat_compress_disable, param_set_qat_compress,
+		param_get_int, 0644);
+#endif
+MODULE_PARM_DESC(zfs_qat_compress_disable, "Enable/Disable QAT compression");
 
 #endif

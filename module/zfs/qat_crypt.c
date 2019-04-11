@@ -47,10 +47,16 @@
 
 #define	MAX_PAGE_NUM			1024
 
+/* Check for CY API Version */
+#define	CY_API_VERSION_AT_LEAST(major, minor)		\
+	(CPA_CY_API_VERSION_NUM_MAJOR > major ||	\
+	(CPA_CY_API_VERSION_NUM_MAJOR == major &&	\
+	CPA_CY_API_VERSION_NUM_MINOR >= minor))
+
 static Cpa32U inst_num = 0;
 static Cpa16U num_inst = 0;
 static CpaInstanceHandle cy_inst_handles[QAT_CRYPT_MAX_INSTANCES];
-static boolean_t qat_crypt_init_done = B_FALSE;
+static boolean_t qat_cy_init_done = B_FALSE;
 int zfs_qat_encrypt_disable = 0;
 int zfs_qat_checksum_disable = 0;
 
@@ -72,11 +78,23 @@ symcallback(void *p_callback, CpaStatus status, const CpaCySymOp operation,
 	}
 }
 
+static void
+symsessionwait(CpaCySymSessionCtx cy_session_ctx)
+{
+/* Session reuse is available since Cryptographic API version 2.2 */
+#if CY_API_VERSION_AT_LEAST(2, 2)
+	CpaBoolean inuse = CPA_FALSE;
+	do {
+		cpaCySymSessionInUse(cy_session_ctx, &inuse);
+	} while (inuse);
+#endif
+}
+
 boolean_t
 qat_crypt_use_accel(size_t s_len)
 {
 	return (!zfs_qat_encrypt_disable &&
-	    qat_crypt_init_done &&
+	    qat_cy_init_done &&
 	    s_len >= QAT_MIN_BUF_SIZE &&
 	    s_len <= QAT_MAX_BUF_SIZE);
 }
@@ -85,25 +103,28 @@ boolean_t
 qat_checksum_use_accel(size_t s_len)
 {
 	return (!zfs_qat_checksum_disable &&
-	    qat_crypt_init_done &&
+	    qat_cy_init_done &&
 	    s_len >= QAT_MIN_BUF_SIZE &&
 	    s_len <= QAT_MAX_BUF_SIZE);
 }
 
 void
-qat_crypt_clean(void)
+qat_cy_clean(void)
 {
 	for (Cpa16U i = 0; i < num_inst; i++)
 		cpaCyStopInstance(cy_inst_handles[i]);
 
 	num_inst = 0;
-	qat_crypt_init_done = B_FALSE;
+	qat_cy_init_done = B_FALSE;
 }
 
 int
-qat_crypt_init(void)
+qat_cy_init(void)
 {
 	CpaStatus status = CPA_STATUS_FAIL;
+
+	if (qat_cy_init_done)
+		return (0);
 
 	status = cpaCyGetNumInstances(&num_inst);
 	if (status != CPA_STATUS_SUCCESS)
@@ -131,21 +152,21 @@ qat_crypt_init(void)
 			goto error;
 	}
 
-	qat_crypt_init_done = B_TRUE;
+	qat_cy_init_done = B_TRUE;
 	return (0);
 
 error:
-	qat_crypt_clean();
+	qat_cy_clean();
 	return (-1);
 }
 
 void
-qat_crypt_fini(void)
+qat_cy_fini(void)
 {
-	if (!qat_crypt_init_done)
+	if (!qat_cy_init_done)
 		return;
 
-	qat_crypt_clean();
+	qat_cy_clean();
 }
 
 static CpaStatus
@@ -351,6 +372,21 @@ qat_crypt(qat_encrypt_dir_t dir, uint8_t *src_buf, uint8_t *dst_buf,
 	    nr_bufs * sizeof (CpaFlatBuffer));
 	if (status != CPA_STATUS_SUCCESS)
 		goto fail;
+	status = QAT_PHYS_CONTIG_ALLOC(&op_data.pDigestResult,
+	    ZIO_DATA_MAC_LEN);
+	if (status != CPA_STATUS_SUCCESS)
+		goto fail;
+	status = QAT_PHYS_CONTIG_ALLOC(&op_data.pIv,
+	    ZIO_DATA_IV_LEN);
+	if (status != CPA_STATUS_SUCCESS)
+		goto fail;
+	if (aad_len > 0) {
+		status = QAT_PHYS_CONTIG_ALLOC(&op_data.pAdditionalAuthData,
+		    aad_len);
+		if (status != CPA_STATUS_SUCCESS)
+			goto fail;
+		bcopy(aad_buf, op_data.pAdditionalAuthData, aad_len);
+	}
 
 	bytes_left = enc_len;
 	data = src_buf;
@@ -389,18 +425,13 @@ qat_crypt(qat_encrypt_dir_t dir, uint8_t *src_buf, uint8_t *dst_buf,
 
 	op_data.sessionCtx = cy_session_ctx;
 	op_data.packetType = CPA_CY_SYM_PACKET_TYPE_FULL;
-	op_data.pIv = NULL; /* set this later as the J0 block */
-	op_data.ivLenInBytes = 0;
 	op_data.cryptoStartSrcOffsetInBytes = 0;
 	op_data.messageLenToCipherInBytes = 0;
 	op_data.hashStartSrcOffsetInBytes = 0;
 	op_data.messageLenToHashInBytes = 0;
-	op_data.pDigestResult = 0;
 	op_data.messageLenToCipherInBytes = enc_len;
 	op_data.ivLenInBytes = ZIO_DATA_IV_LEN;
-	op_data.pDigestResult = digest_buf;
-	op_data.pAdditionalAuthData = aad_buf;
-	op_data.pIv = iv_buf;
+	bcopy(iv_buf, op_data.pIv, ZIO_DATA_IV_LEN);
 
 	cb.verify_result = CPA_FALSE;
 	init_completion(&cb.complete);
@@ -420,6 +451,8 @@ qat_crypt(qat_encrypt_dir_t dir, uint8_t *src_buf, uint8_t *dst_buf,
 		goto fail;
 	}
 
+	/* save digest result to digest_buf */
+	bcopy(op_data.pDigestResult, digest_buf, ZIO_DATA_MAC_LEN);
 	if (dir == QAT_ENCRYPT)
 		QAT_STAT_INCR(encrypt_total_out_bytes, enc_len);
 	else
@@ -434,7 +467,13 @@ fail:
 	for (i = 0; i < out_page_num; i++)
 		kunmap(out_pages[i]);
 
+	/* wait session lock release before remove it */
+	symsessionwait(cy_session_ctx);
 	cpaCySymRemoveSession(cy_inst_handle, cy_session_ctx);
+	if (aad_len > 0)
+		QAT_PHYS_CONTIG_FREE(op_data.pAdditionalAuthData);
+	QAT_PHYS_CONTIG_FREE(op_data.pIv);
+	QAT_PHYS_CONTIG_FREE(op_data.pDigestResult);
 	QAT_PHYS_CONTIG_FREE(src_buffer_list.pPrivateMetaData);
 	QAT_PHYS_CONTIG_FREE(dst_buffer_list.pPrivateMetaData);
 	QAT_PHYS_CONTIG_FREE(cy_session_ctx);
@@ -548,6 +587,8 @@ fail:
 	for (i = 0; i < page_num; i++)
 		kunmap(in_pages[i]);
 
+	/* wait session lock release before remove it */
+	symsessionwait(cy_session_ctx);
 	cpaCySymRemoveSession(cy_inst_handle, cy_session_ctx);
 	QAT_PHYS_CONTIG_FREE(digest_buffer);
 	QAT_PHYS_CONTIG_FREE(src_buffer_list.pPrivateMetaData);
@@ -557,10 +598,82 @@ fail:
 	return (status);
 }
 
-module_param(zfs_qat_encrypt_disable, int, 0644);
-MODULE_PARM_DESC(zfs_qat_encrypt_disable, "Disable QAT encryption");
+static int
+#ifdef module_param_cb
+param_set_qat_encrypt(const char *val, const struct kernel_param *kp)
+#else
+param_set_qat_encrypt(const char *val, struct kernel_param *kp)
+#endif
+{
+	int ret;
+	int *pvalue = kp->arg;
+	ret = param_set_int(val, kp);
+	if (ret)
+		return (ret);
+	/*
+	 * zfs_qat_encrypt_disable = 0: enable qat encrypt
+	 * try to initialize qat instance if it has not been done
+	 */
+	if (*pvalue == 0 && !qat_cy_init_done) {
+		ret = qat_cy_init();
+		if (ret != 0) {
+			zfs_qat_encrypt_disable = 1;
+			return (ret);
+		}
+	}
+	return (ret);
+}
 
-module_param(zfs_qat_checksum_disable, int, 0644);
-MODULE_PARM_DESC(zfs_qat_checksum_disable, "Disable QAT checksumming");
+static int
+#ifdef module_param_cb
+param_set_qat_checksum(const char *val, const struct kernel_param *kp)
+#else
+param_set_qat_checksum(const char *val, struct kernel_param *kp)
+#endif
+{
+	int ret;
+	int *pvalue = kp->arg;
+	ret = param_set_int(val, kp);
+	if (ret)
+		return (ret);
+	/*
+	 * set_checksum_param_ops = 0: enable qat checksum
+	 * try to initialize qat instance if it has not been done
+	 */
+	if (*pvalue == 0 && !qat_cy_init_done) {
+		ret = qat_cy_init();
+		if (ret != 0) {
+			zfs_qat_checksum_disable = 1;
+			return (ret);
+		}
+	}
+	return (ret);
+}
+
+#ifdef module_param_cb
+static struct kernel_param_ops qat_encrypt_param_ops = {
+	.set = param_set_qat_encrypt,
+	.get = param_get_int,
+};
+module_param_cb(zfs_qat_encrypt_disable, &qat_encrypt_param_ops,
+		&zfs_qat_encrypt_disable, 0644);
+#else
+module_param_call(zfs_qat_encrypt_disable, param_set_qat_encrypt,
+		param_get_int, &zfs_qat_encrypt_disable, 0644)
+#endif
+MODULE_PARM_DESC(zfs_qat_encrypt_disable, "Enable/Disable QAT encryption");
+
+#ifdef module_param_cb
+static struct kernel_param_ops qat_checksum_param_ops = {
+	.set = param_set_qat_checksum,
+	.get = param_get_int,
+};
+module_param_cb(zfs_qat_checksum_disable, &qat_checksum_param_ops,
+		&zfs_qat_checksum_disable, 0644);
+#else
+module_param_call(zfs_qat_checksum_disable, param_set_qat_checksum,
+		param_get_int, &zfs_qat_checksum_disable, 0644);
+#endif
+MODULE_PARM_DESC(zfs_qat_checksum_disable, "Enable/Disable QAT checksumming");
 
 #endif
