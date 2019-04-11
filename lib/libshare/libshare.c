@@ -234,7 +234,7 @@ sharetab_unlock(void)
 boolean_t
 sharetab_locked(void)
 {
-	return(sharetab_fd != -1);
+	return (sharetab_fd != -1);
 }
 
 static void

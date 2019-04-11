@@ -1081,7 +1081,7 @@ sync_bookmark_featureflags_cb(dsl_pool_t *dp, dsl_dataset_t *ds, void *arg)
 {
 	dmu_tx_t *tx = arg;
 	for (dsl_bookmark_node_t *dbn = avl_first(&ds->ds_bookmarks);
-            dbn != NULL; dbn = AVL_NEXT(&ds->ds_bookmarks, dbn)) {
+	    dbn != NULL; dbn = AVL_NEXT(&ds->ds_bookmarks, dbn)) {
 		if (dbn->dbn_phys.zbm_flags & ZBM_FLAG_HAS_FBN ||
 		    dbn->dbn_phys.zbm_redaction_obj != 0) {
 			spa_feature_incr(dp->dp_spa, SPA_FEATURE_BOOKMARK_V2,
