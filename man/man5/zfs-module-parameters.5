@@ -2045,6 +2045,45 @@ Use \fB1\fR for yes and \fB0\fR for no (default).
 .sp
 .ne 2
 .na
+\fBzfs_qat_checksum_disable\fR (int)
+.ad
+.RS 12n
+This tunable disables qat hardware acceleration for sha256 checksums. It
+may be set after the zfs modules have been loaded to initialize the qat
+hardware as long as support is compiled in and the qat driver is present.
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_qat_compress_disable\fR (int)
+.ad
+.RS 12n
+This tunable disables qat hardware acceleration for gzip compression. It
+may be set after the zfs modules have been loaded to initialize the qat
+hardware as long as support is compiled in and the qat driver is present.
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_qat_encrypt_disable\fR (int)
+.ad
+.RS 12n
+This tunable disables qat hardware acceleration for AES-GCM encryption. It
+may be set after the zfs modules have been loaded to initialize the qat
+hardware as long as support is compiled in and the qat driver is present.
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_read_chunk_size\fR (long)
 .ad
 .RS 12n
@@ -2959,19 +2998,6 @@ Defines zvol block devices behaviour when \fBvolmode\fR is set to \fBdefault\fR.
 Valid values are \fB1\fR (full), \fB2\fR (dev) and \fB3\fR (none).
 .sp
 Default value: \fB1\fR.
-.RE
-
-.sp
-.ne 2
-.na
-\fBzfs_qat_disable\fR (int)
-.ad
-.RS 12n
-This tunable disables qat hardware acceleration for gzip compression and.
-AES-GCM encryption. It is available only if qat acceleration is compiled in
-and the qat driver is present.
-.sp
-Use \fB1\fR for yes and \fB0\fR for no (default).
 .RE
 
 .SH ZFS I/O SCHEDULER
