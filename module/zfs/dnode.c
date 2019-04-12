@@ -415,7 +415,7 @@ dnode_rm_spill(dnode_t *dn, dmu_tx_t *tx)
 	ASSERT3U(zfs_refcount_count(&dn->dn_holds), >=, 1);
 	ASSERT(RW_WRITE_HELD(&dn->dn_struct_rwlock));
 	dnode_setdirty(dn, tx);
-	dn->dn_rm_spillblk[tx->tx_txg&TXG_MASK] = DN_KILL_SPILLBLK;
+	dn->dn_rm_spillblk[tx->tx_txg & TXG_MASK] = DN_KILL_SPILLBLK;
 	dn->dn_have_spill = B_FALSE;
 }
 
@@ -690,14 +690,15 @@ dnode_reallocate(dnode_t *dn, dmu_object_type_t ot, int blocksize,
 	dnode_setdirty(dn, tx);
 	if (dn->dn_datablksz != blocksize) {
 		/* change blocksize */
-		ASSERT(dn->dn_maxblkid == 0 &&
-		    (BP_IS_HOLE(&dn->dn_phys->dn_blkptr[0]) ||
-		    dnode_block_freed(dn, 0)));
+		ASSERT0(dn->dn_maxblkid);
+		ASSERT(BP_IS_HOLE(&dn->dn_phys->dn_blkptr[0]) ||
+		    dnode_block_freed(dn, 0));
+
 		dnode_setdblksz(dn, blocksize);
-		dn->dn_next_blksz[tx->tx_txg&TXG_MASK] = blocksize;
+		dn->dn_next_blksz[tx->tx_txg & TXG_MASK] = blocksize;
 	}
 	if (dn->dn_bonuslen != bonuslen)
-		dn->dn_next_bonuslen[tx->tx_txg&TXG_MASK] = bonuslen;
+		dn->dn_next_bonuslen[tx->tx_txg & TXG_MASK] = bonuslen;
 
 	if (bonustype == DMU_OT_SA) /* Maximize bonus space for SA */
 		nblkptr = 1;
@@ -706,13 +707,14 @@ dnode_reallocate(dnode_t *dn, dmu_object_type_t ot, int blocksize,
 		    1 + ((DN_SLOTS_TO_BONUSLEN(dn_slots) - bonuslen) >>
 		    SPA_BLKPTRSHIFT));
 	if (dn->dn_bonustype != bonustype)
-		dn->dn_next_bonustype[tx->tx_txg&TXG_MASK] = bonustype;
+		dn->dn_next_bonustype[tx->tx_txg & TXG_MASK] = bonustype;
 	if (dn->dn_nblkptr != nblkptr)
-		dn->dn_next_nblkptr[tx->tx_txg&TXG_MASK] = nblkptr;
+		dn->dn_next_nblkptr[tx->tx_txg & TXG_MASK] = nblkptr;
 	if (dn->dn_phys->dn_flags & DNODE_FLAG_SPILL_BLKPTR) {
 		dbuf_rm_spill(dn, tx);
 		dnode_rm_spill(dn, tx);
 	}
+
 	rw_exit(&dn->dn_struct_rwlock);
 
 	/* change type */
@@ -1654,9 +1656,9 @@ dnode_setdirty(dnode_t *dn, dmu_tx_t *tx)
 	ASSERT(!zfs_refcount_is_zero(&dn->dn_holds) ||
 	    !avl_is_empty(&dn->dn_dbufs));
 	ASSERT(dn->dn_datablksz != 0);
-	ASSERT0(dn->dn_next_bonuslen[txg&TXG_MASK]);
-	ASSERT0(dn->dn_next_blksz[txg&TXG_MASK]);
-	ASSERT0(dn->dn_next_bonustype[txg&TXG_MASK]);
+	ASSERT0(dn->dn_next_bonuslen[txg & TXG_MASK]);
+	ASSERT0(dn->dn_next_blksz[txg & TXG_MASK]);
+	ASSERT0(dn->dn_next_bonustype[txg & TXG_MASK]);
 
 	dprintf_ds(os->os_dsl_dataset, "obj=%llu txg=%llu\n",
 	    dn->dn_object, txg);
