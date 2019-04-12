@@ -1280,7 +1280,6 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 				return (err);
 
 			err = dmu_free_long_object(rwa->os, slot);
-
 			if (err != 0)
 				return (err);
 
@@ -1316,6 +1315,7 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 		    drro->drr_bonustype, drro->drr_bonuslen,
 		    dn_slots << DNODE_SHIFT, tx);
 	}
+
 	if (err != 0) {
 		dmu_tx_commit(tx);
 		return (SET_ERROR(EINVAL));

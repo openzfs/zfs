@@ -3959,7 +3959,7 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 
 	ASSERT(!list_link_active(&dr->dr_dirty_node));
 	if (dn->dn_object == DMU_META_DNODE_OBJECT) {
-		list_insert_tail(&dn->dn_dirty_records[txg&TXG_MASK], dr);
+		list_insert_tail(&dn->dn_dirty_records[txg & TXG_MASK], dr);
 		DB_DNODE_EXIT(db);
 	} else {
 		/*
