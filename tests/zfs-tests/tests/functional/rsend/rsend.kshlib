@@ -458,6 +458,103 @@ function rm_files
 }
 
 #
+# Simulate a random set of operations which could be reasonably expected
+# to occur on an average filesystem.
+#
+# $1 Number of files to modify
+# $2 Maximum file size
+# $3 File system to modify the file on
+#
+function churn_files
+{
+	nfiles=$1
+	maxsize=$2
+	fs=$3
+
+	#
+	# Remove roughly half of the files in order to make it more
+	# likely that a dnode will be reallocated.
+	#
+	for ((i=0; i<$nfiles; i=i+1)); do
+		file_name="/$fs/file-$i"
+
+		if [[ -e $file_name ]]; then
+			if [ $((RANDOM % 2)) -eq 0 ]; then
+				rm $file_name || \
+				    log_fail "Failed to remove $file_name"
+			fi
+		fi
+	done
+
+	#
+	# Remount the filesystem to simulate normal usage.  This resets
+	# the last allocated object id allowing for new objects to be
+	# reallocated in the locations of previously freed objects.
+	#
+	log_must zfs unmount $fs
+	log_must zfs mount $fs
+
+	for i in {0..$nfiles}; do
+		file_name="/$fs/file-$i"
+		file_size=$((($RANDOM * $RANDOM % ($maxsize - 1)) + 1))
+
+		#
+		# When the file exists modify it in one of five ways to
+		# simulate normal usage:
+		# - (20%) Remove and set and extended attribute on the file
+		# - (20%) Overwrite the existing file
+		# - (20%) Truncate the existing file to a random length
+		# - (20%) Truncate the existing file to zero length
+		# - (20%) Remove the file
+		#
+		# Otherwise create the missing file.  20% of the created
+		# files will be small and use embedded block pointers, the
+		# remainder with have random sizes up to the maximum size.
+		# Three extended attributes are attached to all of the files.
+		#
+		if [[ -e $file_name ]]; then
+			value=$((RANDOM % 5))
+			if [ $value -eq 0 ]; then
+				attrname="testattr$((RANDOM % 3))"
+				attr -qr $attrname $file_name || \
+				    log_fail "Failed to remove $attrname"
+				attr -qs $attrname -V TestValue $file_name || \
+				    log_fail "Failed to set $attrname"
+			elif [ $value -eq 1 ]; then
+				dd if=/dev/urandom of=$file_name \
+				    bs=$file_size count=1 >/dev/null 2>&1 || \
+				    log_fail "Failed to overwrite $file_name"
+			elif [ $value -eq 2 ]; then
+				truncate -s $file_size $file_name || \
+				    log_fail "Failed to truncate $file_name"
+			elif [ $value -eq 3 ]; then
+				truncate -s 0 $file_name || \
+				    log_fail "Failed to truncate $file_name"
+			else
+				rm $file_name || \
+				    log_fail "Failed to remove $file_name"
+			fi
+		else
+			if [ $((RANDOM % 5)) -eq 0 ]; then
+				file_size=$((($RANDOM % 64) + 1))
+			fi
+
+			dd if=/dev/urandom of=$file_name \
+			    bs=$file_size count=1 >/dev/null 2>&1 || \
+			    log_fail "Failed to create $file_name"
+
+			for j in {0..2}; do
+				attrname="testattr$j"
+				attr -qs $attrname -V TestValue $file_name || \
+				    log_fail "Failed to set $attrname"
+			done
+		fi
+	done
+
+	return 0
+}
+
+#
 # Mess up file contents
 #
 # $1 The file path
@@ -676,4 +773,23 @@ function resume_cleanup
 	datasetexists $streamfs && log_must_busy zfs destroy -r $streamfs
 	cleanup_pool $POOL2
 	rm -f /$sendpool/initial.zsend /$sendpool/incremental.zsend
+}
+
+# Randomly set the property to one of the enumerated values.
+function rand_set_prop
+{
+	typeset dtst=$1
+	typeset prop=$2
+	shift 2
+	typeset value=$(random_get $@)
+
+	log_must eval "zfs set $prop='$value' $dtst"
+}
+
+# Generate a recursive checksum of a filesystems contents.  Only file
+# data is included in the checksum (no meta data, or xattrs).
+function recursive_cksum
+{
+	find $1 -type f -exec sha256sum {} \; | \
+	    sort -k 2 | awk '{ print $1 }' | sha256sum
 }
