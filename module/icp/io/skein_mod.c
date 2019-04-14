@@ -269,7 +269,7 @@ skein_digest_update_uio(skein_ctx_t *ctx, const crypto_data_t *data)
 {
 	off_t		offset = data->cd_offset;
 	size_t		length = data->cd_length;
-	uint_t		vec_idx;
+	uint_t		vec_idx = 0;
 	size_t		cur_len;
 	const uio_t	*uio = data->cd_uio;
 
@@ -281,10 +281,11 @@ skein_digest_update_uio(skein_ctx_t *ctx, const crypto_data_t *data)
 	 * Jump to the first iovec containing data to be
 	 * digested.
 	 */
-	for (vec_idx = 0; vec_idx < uio->uio_iovcnt &&
-	    offset >= uio->uio_iov[vec_idx].iov_len;
-	    offset -= uio->uio_iov[vec_idx++].iov_len)
-		;
+	while (vec_idx < uio->uio_iovcnt &&
+	    offset >= uio->uio_iov[vec_idx].iov_len) {
+		offset -= uio->uio_iov[vec_idx].iov_len;
+		vec_idx++;
+	}
 	if (vec_idx == uio->uio_iovcnt) {
 		/*
 		 * The caller specified an offset that is larger than the
@@ -325,7 +326,7 @@ skein_digest_final_uio(skein_ctx_t *ctx, crypto_data_t *digest,
     crypto_req_handle_t req)
 {
 	off_t	offset = digest->cd_offset;
-	uint_t	vec_idx;
+	uint_t	vec_idx = 0;
 	uio_t	*uio = digest->cd_uio;
 
 	/* we support only kernel buffer */
@@ -335,10 +336,11 @@ skein_digest_final_uio(skein_ctx_t *ctx, crypto_data_t *digest,
 	/*
 	 * Jump to the first iovec containing ptr to the digest to be returned.
 	 */
-	for (vec_idx = 0; offset >= uio->uio_iov[vec_idx].iov_len &&
-	    vec_idx < uio->uio_iovcnt;
-	    offset -= uio->uio_iov[vec_idx++].iov_len)
-		;
+	while (vec_idx < uio->uio_iovcnt &&
+	    offset >= uio->uio_iov[vec_idx].iov_len) {
+		offset -= uio->uio_iov[vec_idx].iov_len;
+		vec_idx++;
+	}
 	if (vec_idx == uio->uio_iovcnt) {
 		/*
 		 * The caller specified an offset that is larger than the
