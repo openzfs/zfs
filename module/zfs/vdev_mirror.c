@@ -257,8 +257,6 @@ vdev_mirror_map_init(zio_t *zio)
 		dsl_scan_t *scn = spa->spa_dsl_pool->dp_scan;
 		dva_t dva_copy[SPA_DVAS_PER_BP];
 
-		c = BP_GET_NDVAS(zio->io_bp);
-
 		/*
 		 * The sequential scrub code sorts and issues all DVAs
 		 * of a bp separately. Each of these IOs includes all

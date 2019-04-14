@@ -1221,7 +1221,7 @@ main(int argc, char **argv)
 
 		if (dvas != 0) {
 			if (error == EACCES || error == EINVAL) {
-				(void) fprintf(stderr, "the '-c' option may "
+				(void) fprintf(stderr, "the '-C' option may "
 				    "not be used with logical data errors "
 				    "'decrypt' and 'decompress'\n");
 				libzfs_fini(g_zfs);
