@@ -4177,7 +4177,9 @@ allow            subcommand     Must also have the permission that is
                                 being allowed
 clone            subcommand     Must also have the 'create' ability and
                                 'mount' ability in the origin file system
-create           subcommand     Must also have the 'mount' ability
+create           subcommand     Must also have the 'mount' ability.
+                                Must also have the 'refreservation' ability to
+                                create a non-sparse volume.
 destroy          subcommand     Must also have the 'mount' ability
 diff             subcommand     Allows lookup of paths within a dataset
                                 given an object number, and the ability
