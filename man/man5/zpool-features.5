@@ -652,8 +652,8 @@ DEPENDENCIES	extensible_dataset
 This feature enables the use of the Edon-R hash algorithm for checksum,
 including for nopwrite (if compression is also enabled, an overwrite of
 a block whose checksum matches the data being written will be ignored).
-In an abundance of caution, Edon-R can not be used with dedup
-(without verification).
+In an abundance of caution, Edon-R requires verification when used with
+dedup: \fBzfs set dedup=edonr,verify\fR.  See \fBzfs\fR(8).
 
 Edon-R is a very high-performance hash algorithm that was part
 of the NIST SHA-3 competition. It provides extremely high hash
