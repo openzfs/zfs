@@ -41,9 +41,9 @@
  * spa_version() number.
  *
  * Each new on-disk format change will be given a uniquely identifying string
- * guid rather than a version number. This avoids the problem of different
+ * GUID rather than a version number. This avoids the problem of different
  * organizations creating new on-disk formats with the same version number. To
- * keep feature guids unique they should consist of the reverse dns name of the
+ * keep feature GUIDs unique they should consist of the reverse dns name of the
  * organization which implemented the feature and a short name for the feature,
  * separated by a colon (e.g. com.delphix:async_destroy).
  *
@@ -95,11 +95,11 @@
  * These objects are linked to by the following names in the pool directory
  * object:
  *
- * 1) features_for_read: feature guid -> reference count
+ * 1) features_for_read: feature GUID -> reference count
  *    Features needed to open the pool for reading.
- * 2) features_for_write: feature guid -> reference count
+ * 2) features_for_write: feature GUID -> reference count
  *    Features needed to open the pool for writing.
- * 3) feature_descriptions: feature guid -> descriptive string
+ * 3) feature_descriptions: feature GUID -> descriptive string
  *    A human readable string.
  *
  * All enabled features appear in either features_for_read or

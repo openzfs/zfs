@@ -38,15 +38,15 @@ this set may include unsupported features.
 .SS "Identifying features"
 .sp
 .LP
-Every feature has a guid of the form \fIcom.example:feature_name\fR. The reverse
-DNS name ensures that the feature's guid is unique across all ZFS
+Every feature has a GUID of the form \fIcom.example:feature_name\fR. The
+reverse DNS name ensures that the feature's GUID is unique across all ZFS
 implementations. When unsupported features are encountered on a pool they will
-be identified by their guids. Refer to the documentation for the ZFS
+be identified by their GUIDs. Refer to the documentation for the ZFS
 implementation that created the pool for information about those features.
 .sp
 .LP
 Each supported feature also has a short name. By convention a feature's short
-name is the portion of its guid which follows the ':' (e.g.
+name is the portion of its GUID which follows the ':' (e.g.
 \fIcom.example:feature_name\fR would have the short name \fIfeature_name\fR),
 however a feature's short name may differ across ZFS implementations if
 following the convention would result in name conflicts.
@@ -109,7 +109,7 @@ importing pools).
 .sp
 .LP
 For each unsupported feature enabled on an imported pool a pool property
-named \fIunsupported@feature_guid\fR will indicate why the import was allowed
+named \fIunsupported@feature_name\fR will indicate why the import was allowed
 despite the unsupported feature. Possible values for this property are:
 
 .sp
