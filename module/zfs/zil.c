@@ -1320,7 +1320,7 @@ zil_lwb_set_zio_dependency(zilog_t *zilog, lwb_t *lwb)
 		 * root zios). This is required because of how we can
 		 * defer the DKIOCFLUSHWRITECACHE commands for each lwb.
 		 *
-		 * When the DKIOCFLUSHWRITECACHE commands are defered,
+		 * When the DKIOCFLUSHWRITECACHE commands are deferred,
 		 * the previous lwb will rely on this lwb to flush the
 		 * vdevs written to by that previous lwb. Thus, we need
 		 * to ensure this lwb doesn't issue the flush until
