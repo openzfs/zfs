@@ -37,7 +37,7 @@ const char *active_test;
 /*
  * Tracks which zfs_ioc_t commands were tested
  */
-boolean_t ioc_tested[256];
+boolean_t ioc_tested[ZFS_IOC_LAST - ZFS_IOC_FIRST];
 
 /*
  * Legacy ioctls that are skipped (for now)

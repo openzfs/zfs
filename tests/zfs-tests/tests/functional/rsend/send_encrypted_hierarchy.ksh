@@ -46,7 +46,7 @@ function cleanup
 log_assert "Raw recursive sends preserve filesystem structure."
 log_onexit cleanup
 
-# Create the filesystem heirarchy
+# Create the filesystem hierarchy
 log_must cleanup_pool $POOL
 log_must eval "echo $PASSPHRASE | zfs create -o encryption=on" \
 	"-o keyformat=passphrase $POOL/$FS"
@@ -72,7 +72,7 @@ log_must verify_origin $POOL/clone "$POOL/$FS@snap"
 log_must verify_encryption_root $POOL/$FS/child $POOL/$FS
 log_must verify_keylocation $POOL/$FS/child "none"
 
-# Alter the heirarchy and re-send
+# Alter the hierarchy and re-send
 log_must eval "echo $PASSPHRASE1 | zfs change-key -o keyformat=passphrase" \
 	"$POOL/$FS/child"
 log_must zfs promote $POOL/clone
