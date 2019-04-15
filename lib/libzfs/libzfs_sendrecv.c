@@ -2759,13 +2759,13 @@ created_before(libzfs_handle_t *hdl, avl_tree_t *avl,
 }
 
 /*
- * This function reestablishes the heirarchy of encryption roots after a
+ * This function reestablishes the hierarchy of encryption roots after a
  * recursive incremental receive has completed. This must be done after the
  * second call to recv_incremental_replication() has renamed and promoted all
- * sent datasets to their final locations in the dataset heriarchy.
+ * sent datasets to their final locations in the dataset hierarchy.
  */
 static int
-recv_fix_encryption_heirarchy(libzfs_handle_t *hdl, const char *destname,
+recv_fix_encryption_hierarchy(libzfs_handle_t *hdl, const char *destname,
     nvlist_t *stream_nv, avl_tree_t *stream_avl)
 {
 	int err;
@@ -3406,7 +3406,7 @@ zfs_receive_package(libzfs_handle_t *hdl, int fd, const char *destname,
 	}
 
 	if (raw && softerr == 0) {
-		softerr = recv_fix_encryption_heirarchy(hdl, destname,
+		softerr = recv_fix_encryption_hierarchy(hdl, destname,
 		    stream_nv, stream_avl);
 	}
 
@@ -3815,7 +3815,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		/*
 		 * The keylocation property may only be set on encryption roots,
 		 * but this dataset might not become an encryption root until
-		 * recv_fix_encryption_heirarchy() is called. That function
+		 * recv_fix_encryption_hierarchy() is called. That function
 		 * will fixup the keylocation anyway, so we temporarily unset
 		 * the keylocation for now to avoid any errors from the receive
 		 * ioctl.
