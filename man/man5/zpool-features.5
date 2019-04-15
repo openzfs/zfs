@@ -311,9 +311,6 @@ can turn on the \fBedonr\fR checksum on any dataset using the
 and will return to being \fBenabled\fR once all filesystems that have
 ever had their checksum set to \fBedonr\fR are destroyed.
 
-The \fBedonr\fR feature is not supported by GRUB and must not be used on
-the pool if GRUB needs to access the pool (e.g. for /boot).
-
 FreeBSD does not support the \fBedonr\fR feature.
 .RE
 
@@ -798,9 +795,6 @@ can turn on the \fBsha512\fR checksum on any dataset using
 \fBactive\fR once a \fBchecksum\fR property has been set to \fBsha512\fR,
 and will return to being \fBenabled\fR once all filesystems that have
 ever had their checksum set to \fBsha512\fR are destroyed.
-
-The \fBsha512\fR feature is not supported by GRUB and must not be used on
-the pool if GRUB needs to access the pool (e.g. for /boot).
 .RE
 
 .sp
@@ -832,9 +826,6 @@ can turn on the \fBskein\fR checksum on any dataset using
 \fBactive\fR once a \fBchecksum\fR property has been set to \fBskein\fR,
 and will return to being \fBenabled\fR once all filesystems that have
 ever had their checksum set to \fBskein\fR are destroyed.
-
-The \fBskein\fR feature is not supported by GRUB and must not be used on
-the pool if GRUB needs to access the pool (e.g. for /boot).
 .RE
 
 .sp
