@@ -26,7 +26,7 @@
 .\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
 .\" Copyright (c) 2014 by Adam Stevko. All rights reserved.
 .\" Copyright (c) 2014 Integros [integros.com]
-.\" Copyright 2016 Richard Laager. All rights reserved.
+.\" Copyright 2019 Richard Laager. All rights reserved.
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2018 Joyent, Inc.
 .\"
@@ -356,7 +356,7 @@ Applications that depend on standards conformance might fail due to non-standard
 behavior when checking file system free space.
 .It Sy volume
 A logical volume exported as a raw or block device.
-This type of dataset should only be used under special circumstances.
+This type of dataset should only be used when a block device is required.
 File systems are typically used in most environments.
 .It Sy snapshot
 A read-only version of a file system or volume at a given point in time.
@@ -2885,7 +2885,7 @@ A property for sorting the output by column in ascending order based on the
 value of the property.
 The property must be one of the properties described in the
 .Sx Properties
-section, or the special value
+section or the value
 .Sy name
 to sort by the dataset name.
 Multiple properties can be specified at one time using multiple
@@ -2976,7 +2976,7 @@ and
 .Sx User Properties
 sections.
 .Pp
-The special value
+The value
 .Sy all
 can be used to display all properties that apply to the given dataset's type
 .Pq filesystem, volume, snapshot, or bookmark .
@@ -4061,7 +4061,7 @@ leaves any existing local setting or explicit inheritance unchanged.
 .Pp
 All
 .Fl o
-restrictions on set-once and special properties apply equally to
+restrictions (e.g. set-once) apply equally to
 .Fl x .
 .El
 .It Xo
