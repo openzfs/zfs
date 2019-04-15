@@ -792,7 +792,7 @@ zfs_replay_truncate(void *arg1, void *arg2, boolean_t byteswap)
 
 	bzero(&fl, sizeof (fl));
 	fl.l_type = F_WRLCK;
-	fl.l_whence = 0;
+	fl.l_whence = SEEK_SET;
 	fl.l_start = lr->lr_offset;
 	fl.l_len = lr->lr_length;
 

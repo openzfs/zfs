@@ -255,7 +255,7 @@ vdev_file_io_start(zio_t *zio)
 		flck.l_type = F_FREESP;
 		flck.l_start = zio->io_offset;
 		flck.l_len = zio->io_size;
-		flck.l_whence = 0;
+		flck.l_whence = SEEK_SET;
 
 		zio->io_error = VOP_SPACE(vf->vf_vnode, F_FREESP, &flck,
 		    0, 0, kcred, NULL);
