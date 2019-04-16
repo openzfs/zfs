@@ -488,6 +488,10 @@ typedef enum zfs_key_location {
 #define	SPA_VERSION_28			28ULL
 #define	SPA_VERSION_5000		5000ULL
 
+/*
+ * The incrementing pool version number has been replaced by pool feature
+ * flags.  For more details, see zfeature.c.
+ */
 #define	SPA_VERSION			SPA_VERSION_5000
 #define	SPA_VERSION_STRING		"5000"
 
