@@ -66,24 +66,25 @@ qat_mem_free_contig(void **pp_mem_addr)
 int
 qat_init(void)
 {
-	int ret;
-
-	ret = qat_dc_init();
-	if (ret != 0)
-		return (ret);
-
-	ret = qat_crypt_init();
-	if (ret != 0) {
-		qat_dc_fini();
-		return (ret);
-	}
-
 	qat_ksp = kstat_create("zfs", 0, "qat", "misc",
 	    KSTAT_TYPE_NAMED, sizeof (qat_stats) / sizeof (kstat_named_t),
 	    KSTAT_FLAG_VIRTUAL);
 	if (qat_ksp != NULL) {
 		qat_ksp->ks_data = &qat_stats;
 		kstat_install(qat_ksp);
+	}
+
+	/*
+	 * Just set the disable flag when qat init failed, qat can be
+	 * turned on again in post-process after zfs module is loaded, e.g.:
+	 * echo 0 > /sys/module/zfs/parameters/zfs_qat_compress_disable
+	 */
+	if (qat_dc_init() != 0)
+		zfs_qat_compress_disable = 1;
+
+	if (qat_cy_init() != 0) {
+		zfs_qat_checksum_disable = 1;
+		zfs_qat_encrypt_disable = 1;
 	}
 
 	return (0);
@@ -97,7 +98,7 @@ qat_fini(void)
 		qat_ksp = NULL;
 	}
 
-	qat_crypt_fini();
+	qat_cy_fini();
 	qat_dc_fini();
 }
 

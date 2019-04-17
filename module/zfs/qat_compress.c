@@ -24,7 +24,9 @@
 #include <linux/vmalloc.h>
 #include <linux/pagemap.h>
 #include <linux/completion.h>
+#include <linux/mod_compat.h>
 #include <sys/zfs_context.h>
+#include <sys/byteorder.h>
 #include <sys/zio.h>
 #include "qat.h"
 
@@ -110,6 +112,9 @@ qat_dc_init(void)
 	Cpa16U buff_num = 0;
 	Cpa32U buff_meta_size = 0;
 	CpaDcSessionSetupData sd = {0};
+
+	if (qat_dc_init_done)
+		return (0);
 
 	status = cpaDcGetNumInstances(&num_inst);
 	if (status != CPA_STATUS_SUCCESS)
@@ -252,6 +257,7 @@ qat_compress_impl(qat_compress_dir_t dir, char *src, int src_len,
 	Cpa32U num_add_buf = (add_len >> PAGE_SHIFT) + 2;
 	Cpa32U bytes_left;
 	Cpa32U dst_pages = 0;
+	Cpa32U adler32 = 0;
 	char *data;
 	struct page *page;
 	struct page **in_pages = NULL;
@@ -468,6 +474,12 @@ qat_compress_impl(qat_compress_dir_t dir, char *src, int src_len,
 			goto fail;
 		}
 
+		/* verify adler checksum */
+		adler32 = *(Cpa32U *)(src + dc_results.consumed + ZLIB_HEAD_SZ);
+		if (adler32 != BSWAP_32(dc_results.checksum)) {
+			status = CPA_STATUS_FAIL;
+			goto fail;
+		}
 		*c_len = dc_results.produced;
 		QAT_STAT_INCR(decomp_total_out_bytes, *c_len);
 	}
@@ -534,7 +546,30 @@ qat_compress(qat_compress_dir_t dir, char *src, int src_len,
 	return (ret);
 }
 
-module_param(zfs_qat_compress_disable, int, 0644);
-MODULE_PARM_DESC(zfs_qat_compress_disable, "Disable QAT compression");
+static int
+param_set_qat_compress(const char *val, struct kernel_param *kp)
+{
+	int ret;
+	int *pvalue = kp->arg;
+	ret = param_set_int(val, kp);
+	if (ret)
+		return (ret);
+	/*
+	 * zfs_qat_compress_disable = 0: enable qat compress
+	 * try to initialize qat instance if it has not been done
+	 */
+	if (*pvalue == 0 && !qat_dc_init_done) {
+		ret = qat_dc_init();
+		if (ret != 0) {
+			zfs_qat_compress_disable = 1;
+			return (ret);
+		}
+	}
+	return (ret);
+}
+
+module_param_call(zfs_qat_compress_disable, param_set_qat_compress,
+    param_get_int, &zfs_qat_compress_disable, 0644);
+MODULE_PARM_DESC(zfs_qat_compress_disable, "Enable/Disable QAT compression");
 
 #endif

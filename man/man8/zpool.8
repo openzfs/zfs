@@ -35,7 +35,7 @@
 .Nd configure ZFS storage pools
 .Sh SYNOPSIS
 .Nm
-.Fl ?
+.Fl ?V
 .Nm
 .Cm add
 .Op Fl fgLnP
@@ -210,6 +210,8 @@
 .Cm upgrade
 .Op Fl V Ar version
 .Fl a Ns | Ns Ar pool Ns ...
+.Nm
+.Cm version
 .Sh DESCRIPTION
 The
 .Nm
@@ -280,7 +282,7 @@ The minimum number of devices in a raidz group is one more than the number of
 parity disks.
 The recommended number is between 3 and 9 to help increase performance.
 .It Sy spare
-A special pseudo-vdev which keeps track of available hot spares for a pool.
+A pseudo-vdev which keeps track of available hot spares for a pool.
 For more information, see the
 .Sx Hot Spares
 section.
@@ -294,16 +296,16 @@ For more information, see the
 .Sx Intent Log
 section.
 .It Sy dedup
-A device dedicated solely for allocating dedup data.
+A device dedicated solely for dedup data.
 The redundancy of this device should match the redundancy of the other normal
 devices in the pool. If more than one dedup device is specified, then
-allocations are load-balanced between devices.
+allocations are load-balanced between those devices.
 .It Sy special
 A device dedicated solely for allocating various kinds of internal metadata,
 and optionally small file data.
 The redundancy of this device should match the redundancy of the other normal
 devices in the pool. If more than one special device is specified, then
-allocations are load-balanced between devices.
+allocations are load-balanced between those devices.
 .Pp
 For more information on special allocations, see the
 .Sx Special Allocation Class
@@ -574,7 +576,7 @@ Inclusion of small file blocks in the special class is opt-in. Each dataset
 can control the size of small file blocks allowed in the special class by
 setting the
 .Sy special_small_blocks
-dataset property. It defaults to zero so you must opt-in by setting it to a
+dataset property. It defaults to zero, so you must opt-in by setting it to a
 non-zero value. See
 .Xr zfs 8
 for more info on setting this property.
@@ -715,7 +717,7 @@ Pool sector size exponent, to the power of
 .Sy 2
 (internally referred to as
 .Sy ashift
-). Values from 9 to 16, inclusive, are valid; also, the special
+). Values from 9 to 16, inclusive, are valid; also, the
 value 0 (the default) means to auto-detect using the kernel's block
 layer and a ZFS internal exception list. I/O operations will be aligned
 to the specified size boundaries. Additionally, the minimum (disk)
@@ -785,9 +787,9 @@ imported.
 Setting this property caches the pool configuration in a different location that
 can later be imported with
 .Nm zpool Cm import Fl c .
-Setting it to the special value
+Setting it to the value
 .Sy none
-creates a temporary pool that is never cached, and the special value
+creates a temporary pool that is never cached, and the
 .Qq
 .Pq empty string
 uses the default location.
@@ -931,6 +933,13 @@ The following subcommands are supported:
 .Fl ?
 .Xc
 Displays a help message.
+.It Xo
+.Nm
+.Fl V, -version
+.Xc
+An alias for the
+.Nm zpool Cm version
+subcommand.
 .It Xo
 .Nm
 .Cm add
@@ -2465,6 +2474,13 @@ flag is specified, no features will be enabled on the pool.
 This option can only be used to increase the version number up to the last
 supported legacy version number.
 .El
+.It Xo
+.Nm
+.Cm version
+.Xc
+Displays the software version of the
+.Nm
+userland utility and the zfs kernel module.
 .El
 .Sh EXIT STATUS
 The following exit values are returned:

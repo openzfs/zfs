@@ -266,7 +266,7 @@ sha1_digest_update_uio(SHA1_CTX *sha1_ctx, crypto_data_t *data)
 {
 	off_t offset = data->cd_offset;
 	size_t length = data->cd_length;
-	uint_t vec_idx;
+	uint_t vec_idx = 0;
 	size_t cur_len;
 
 	/* we support only kernel buffer */
@@ -277,10 +277,11 @@ sha1_digest_update_uio(SHA1_CTX *sha1_ctx, crypto_data_t *data)
 	 * Jump to the first iovec containing data to be
 	 * digested.
 	 */
-	for (vec_idx = 0; vec_idx < data->cd_uio->uio_iovcnt &&
-	    offset >= data->cd_uio->uio_iov[vec_idx].iov_len;
-	    offset -= data->cd_uio->uio_iov[vec_idx++].iov_len)
-		;
+	while (vec_idx < data->cd_uio->uio_iovcnt &&
+	    offset >= data->cd_uio->uio_iov[vec_idx].iov_len) {
+		offset -= data->cd_uio->uio_iov[vec_idx].iov_len;
+		vec_idx++;
+	}
 	if (vec_idx == data->cd_uio->uio_iovcnt) {
 		/*
 		 * The caller specified an offset that is larger than the
@@ -329,7 +330,7 @@ sha1_digest_final_uio(SHA1_CTX *sha1_ctx, crypto_data_t *digest,
     ulong_t digest_len, uchar_t *digest_scratch)
 {
 	off_t offset = digest->cd_offset;
-	uint_t vec_idx;
+	uint_t vec_idx = 0;
 
 	/* we support only kernel buffer */
 	if (digest->cd_uio->uio_segflg != UIO_SYSSPACE)
@@ -339,10 +340,11 @@ sha1_digest_final_uio(SHA1_CTX *sha1_ctx, crypto_data_t *digest,
 	 * Jump to the first iovec containing ptr to the digest to
 	 * be returned.
 	 */
-	for (vec_idx = 0; offset >= digest->cd_uio->uio_iov[vec_idx].iov_len &&
-	    vec_idx < digest->cd_uio->uio_iovcnt;
-	    offset -= digest->cd_uio->uio_iov[vec_idx++].iov_len)
-		;
+	while (vec_idx < digest->cd_uio->uio_iovcnt &&
+	    offset >= digest->cd_uio->uio_iov[vec_idx].iov_len) {
+		offset -= digest->cd_uio->uio_iov[vec_idx].iov_len;
+		vec_idx++;
+	}
 	if (vec_idx == digest->cd_uio->uio_iovcnt) {
 		/*
 		 * The caller specified an offset that is
@@ -1095,7 +1097,7 @@ sha1_mac_verify_atomic(crypto_provider_handle_t provider,
 
 	case CRYPTO_DATA_UIO: {
 		off_t offset = mac->cd_offset;
-		uint_t vec_idx;
+		uint_t vec_idx = 0;
 		off_t scratch_offset = 0;
 		size_t length = digest_len;
 		size_t cur_len;
@@ -1105,11 +1107,11 @@ sha1_mac_verify_atomic(crypto_provider_handle_t provider,
 			return (CRYPTO_ARGUMENTS_BAD);
 
 		/* jump to the first iovec containing the expected digest */
-		for (vec_idx = 0;
-		    offset >= mac->cd_uio->uio_iov[vec_idx].iov_len &&
-		    vec_idx < mac->cd_uio->uio_iovcnt;
-		    offset -= mac->cd_uio->uio_iov[vec_idx++].iov_len)
-			;
+		while (vec_idx < mac->cd_uio->uio_iovcnt &&
+		    offset >= mac->cd_uio->uio_iov[vec_idx].iov_len) {
+			offset -= mac->cd_uio->uio_iov[vec_idx].iov_len;
+			vec_idx++;
+		}
 		if (vec_idx == mac->cd_uio->uio_iovcnt) {
 			/*
 			 * The caller specified an offset that is

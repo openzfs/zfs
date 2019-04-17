@@ -26,7 +26,7 @@
 .\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
 .\" Copyright (c) 2014 by Adam Stevko. All rights reserved.
 .\" Copyright (c) 2014 Integros [integros.com]
-.\" Copyright 2016 Richard Laager. All rights reserved.
+.\" Copyright 2019 Richard Laager. All rights reserved.
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2018 Joyent, Inc.
 .\"
@@ -38,7 +38,7 @@
 .Nd configures ZFS file systems
 .Sh SYNOPSIS
 .Nm
-.Fl ?
+.Fl ?V
 .Nm
 .Cm create
 .Op Fl p
@@ -338,6 +338,8 @@
 .Fl i
 .Op Fl l
 .Ar filesystem
+.Nm
+.Cm version
 .Sh DESCRIPTION
 The
 .Nm
@@ -367,7 +369,7 @@ Applications that depend on standards conformance might fail due to non-standard
 behavior when checking file system free space.
 .It Sy volume
 A logical volume exported as a raw or block device.
-This type of dataset should only be used under special circumstances.
+This type of dataset should only be used when a block device is required.
 File systems are typically used in most environments.
 .It Sy snapshot
 A read-only version of a file system or volume at a given point in time.
@@ -1207,9 +1209,9 @@ The
 and
 .Sy edonr
 checksum algorithms require enabling the appropriate features on the pool.
-These algorithms are not supported by GRUB and should not be set on the
-.Sy bootfs
-filesystem when using GRUB to boot the system.
+These pool features are not supported by GRUB and must not be used on the
+pool if GRUB needs to access the pool (e.g. for /boot).
+.Pp
 Please see
 .Xr zpool-features 5
 for more information on these algorithms.
@@ -2469,6 +2471,13 @@ original form.
 Displays a help message.
 .It Xo
 .Nm
+.Fl V, -version
+.Xc
+An alias for the
+.Nm zfs Cm version
+subcommand.
+.It Xo
+.Nm
 .Cm create
 .Op Fl p
 .Oo Fl o Ar property Ns = Ns Ar value Oc Ns ...
@@ -2901,7 +2910,7 @@ A property for sorting the output by column in ascending order based on the
 value of the property.
 The property must be one of the properties described in the
 .Sx Properties
-section, or the special value
+section or the value
 .Sy name
 to sort by the dataset name.
 Multiple properties can be specified at one time using multiple
@@ -2992,7 +3001,7 @@ and
 .Sx User Properties
 sections.
 .Pp
-The special value
+The value
 .Sy all
 can be used to display all properties that apply to the given dataset's type
 .Pq filesystem, volume, snapshot, or bookmark .
@@ -4167,7 +4176,7 @@ leaves any existing local setting or explicit inheritance unchanged.
 .Pp
 All
 .Fl o
-restrictions on set-once and special properties apply equally to
+restrictions (e.g. set-once) apply equally to
 .Fl x .
 .El
 .It Xo
@@ -4301,7 +4310,9 @@ allow            subcommand     Must also have the permission that is
                                 being allowed
 clone            subcommand     Must also have the 'create' ability and
                                 'mount' ability in the origin file system
-create           subcommand     Must also have the 'mount' ability
+create           subcommand     Must also have the 'mount' ability.
+                                Must also have the 'refreservation' ability to
+                                create a non-sparse volume.
 destroy          subcommand     Must also have the 'mount' ability
 diff             subcommand     Allows lookup of paths within a dataset
                                 given an object number, and the ability
@@ -4746,6 +4757,13 @@ Indicates that zfs should make
 inherit the key of its parent. Note that this command can only be run on an
 encryption root that has an encrypted parent.
 .El
+.It Xo
+.Nm
+.Cm version
+.Xc
+Displays the software version of the
+.Nm
+userland utility and the zfs kernel module.
 .El
 .Sh EXIT STATUS
 The
