@@ -254,8 +254,9 @@ static void
 range_free(struct send_range *range)
 {
 	if (range->type == OBJECT) {
-		kmem_free(range->sru.object.dnp,
-		    sizeof (*range->sru.object.dnp));
+		size_t size = sizeof (dnode_phys_t) *
+		    (range->sru.object.dnp->dn_extra_slots + 1);
+		kmem_free(range->sru.object.dnp, size);
 	}
 	kmem_free(range, sizeof (*range));
 }
@@ -1119,8 +1120,9 @@ send_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 			return (0);
 		record = range_alloc(OBJECT, zb->zb_object, 0, 0, B_FALSE);
 		record->sru.object.bp = *bp;
-		record->sru.object.dnp = kmem_alloc(sizeof (*dnp), KM_SLEEP);
-		*record->sru.object.dnp = *dnp;
+		size_t size  = sizeof (*dnp) * (dnp->dn_extra_slots + 1);
+		record->sru.object.dnp = kmem_alloc(size, KM_SLEEP);
+		bcopy(dnp, record->sru.object.dnp, size);
 		bqueue_enqueue(&sta->q, record, sizeof (*record));
 		return (0);
 	}
