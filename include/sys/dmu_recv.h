@@ -48,6 +48,7 @@ typedef struct dmu_recv_cookie {
 	boolean_t drc_resumable;
 	boolean_t drc_raw;
 	boolean_t drc_clone;
+	boolean_t drc_spill;
 	struct avl_tree *drc_guid_to_ds_map;
 	nvlist_t *drc_keynvl;
 	zio_cksum_t drc_cksum;

@@ -101,7 +101,7 @@ typedef enum drr_headertype {
 /* flag #18 is reserved for a Delphix feature */
 #define	DMU_BACKUP_FEATURE_LARGE_BLOCKS		(1 << 19)
 #define	DMU_BACKUP_FEATURE_RESUMING		(1 << 20)
-/* flag #21 is reserved for a Delphix feature */
+/* flag #21 is reserved for the redacted send/receive feature */
 #define	DMU_BACKUP_FEATURE_COMPRESSED		(1 << 22)
 #define	DMU_BACKUP_FEATURE_LARGE_DNODE		(1 << 23)
 #define	DMU_BACKUP_FEATURE_RAW			(1 << 24)
@@ -131,7 +131,7 @@ typedef enum dmu_send_resume_token_version {
  *
  *	64	56	48	40	32	24	16	8	0
  *	+-------+-------+-------+-------+-------+-------+-------+-------+
- *  	|		reserved	|        feature-flags	    |C|S|
+ *	|		reserved	|        feature-flags	    |C|S|
  *	+-------+-------+-------+-------+-------+-------+-------+-------+
  *
  * The low order two bits indicate the header type: SUBSTREAM (0x1)
@@ -160,16 +160,38 @@ typedef enum dmu_send_resume_token_version {
  * cannot necessarily be received as a clone correctly.
  */
 #define	DRR_FLAG_FREERECORDS	(1<<2)
+/*
+ * When DRR_FLAG_SPILL_BLOCK is set it indicates the DRR_OBJECT_SPILL
+ * and DRR_SPILL_UNMODIFIED flags are meaningful in the send stream.
+ *
+ * When DRR_FLAG_SPILL_BLOCK is set, DRR_OBJECT records will have
+ * DRR_OBJECT_SPILL set if and only if they should have a spill block
+ * (either an existing one, or a new one in the send stream).  When clear
+ * the object does not have a spill block and any existing spill block
+ * should be freed.
+ *
+ * Similarly, when DRR_FLAG_SPILL_BLOCK is set, DRR_SPILL records will
+ * have DRR_SPILL_UNMODIFIED set if and only if they were included for
+ * backward compatibility purposes, and can be safely ignored by new versions
+ * of zfs receive.  Previous versions of ZFS which do not understand the
+ * DRR_FLAG_SPILL_BLOCK will process this record and recreate any missing
+ * spill blocks.
+ */
+#define	DRR_FLAG_SPILL_BLOCK	(1<<3)
 
 /*
  * flags in the drr_flags field in the DRR_WRITE, DRR_SPILL, DRR_OBJECT,
  * DRR_WRITE_BYREF, and DRR_OBJECT_RANGE blocks
  */
-#define	DRR_CHECKSUM_DEDUP	(1<<0) /* not used for DRR_SPILL blocks */
+#define	DRR_CHECKSUM_DEDUP	(1<<0) /* not used for SPILL records */
 #define	DRR_RAW_BYTESWAP	(1<<1)
+#define	DRR_OBJECT_SPILL	(1<<2) /* OBJECT record has a spill block */
+#define	DRR_SPILL_UNMODIFIED	(1<<2) /* SPILL record for unmodified block */
 
 #define	DRR_IS_DEDUP_CAPABLE(flags)	((flags) & DRR_CHECKSUM_DEDUP)
 #define	DRR_IS_RAW_BYTESWAPPED(flags)	((flags) & DRR_RAW_BYTESWAP)
+#define	DRR_OBJECT_HAS_SPILL(flags)	((flags) & DRR_OBJECT_SPILL)
+#define	DRR_SPILL_IS_UNMODIFIED(flags)	((flags) & DRR_SPILL_UNMODIFIED)
 
 /* deal with compressed drr_write replay records */
 #define	DRR_WRITE_COMPRESSED(drrw)	((drrw)->drr_compressiontype != 0)

@@ -274,6 +274,10 @@ dmu_recv_begin_check(void *arg, dmu_tx_t *tx)
 		/* embedded data is incompatible with encryption and raw recv */
 		if (featureflags & DMU_BACKUP_FEATURE_EMBED_DATA)
 			return (SET_ERROR(EINVAL));
+
+		/* raw receives require spill block allocation flag */
+		if (!(flags & DRR_FLAG_SPILL_BLOCK))
+			return (SET_ERROR(ZFS_ERR_SPILL_BLOCK_FLAG_MISSING));
 	} else {
 		dsflags |= DS_HOLD_FLAG_DECRYPT;
 	}
@@ -615,8 +619,13 @@ dmu_recv_resume_begin_check(void *arg, dmu_tx_t *tx)
 	(void) snprintf(recvname, sizeof (recvname), "%s/%s",
 	    tofs, recv_clone_name);
 
-	if ((featureflags & DMU_BACKUP_FEATURE_RAW) == 0)
+	if (featureflags & DMU_BACKUP_FEATURE_RAW) {
+		/* raw receives require spill block allocation flag */
+		if (!(drrb->drr_flags & DRR_FLAG_SPILL_BLOCK))
+			return (SET_ERROR(ZFS_ERR_SPILL_BLOCK_FLAG_MISSING));
+	} else {
 		dsflags |= DS_HOLD_FLAG_DECRYPT;
+	}
 
 	if (dsl_dataset_hold_flags(dp, recvname, dsflags, FTAG, &ds) != 0) {
 		/* %recv does not exist; continue in tofs */
@@ -764,6 +773,9 @@ dmu_recv_begin(char *tofs, char *tosnap, dmu_replay_record_t *drr_begin,
 		return (SET_ERROR(EINVAL));
 	}
 
+	if (drc->drc_drrb->drr_flags & DRR_FLAG_SPILL_BLOCK)
+		drc->drc_spill = B_TRUE;
+
 	drba.drba_origin = origin;
 	drba.drba_cookie = drc;
 	drba.drba_cred = CRED();
@@ -835,7 +847,8 @@ struct receive_writer_arg {
 	/* A map from guid to dataset to help handle dedup'd streams. */
 	avl_tree_t *guid_to_ds_map;
 	boolean_t resumable;
-	boolean_t raw;
+	boolean_t raw;   /* DMU_BACKUP_FEATURE_RAW set */
+	boolean_t spill; /* DRR_FLAG_SPILL_BLOCK set */
 	uint64_t last_object;
 	uint64_t last_offset;
 	uint64_t max_object; /* highest object ID referenced in stream */
@@ -1151,10 +1164,19 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 		    drro->drr_raw_bonuslen)
 			return (SET_ERROR(EINVAL));
 	} else {
-		if (drro->drr_flags != 0 || drro->drr_raw_bonuslen != 0 ||
-		    drro->drr_indblkshift != 0 || drro->drr_nlevels != 0 ||
-		    drro->drr_nblkptr != 0)
+		/*
+		 * The DRR_OBJECT_SPILL flag is valid when the DRR_BEGIN
+		 * record indicates this by setting DRR_FLAG_SPILL_BLOCK.
+		 */
+		if (((drro->drr_flags & ~(DRR_OBJECT_SPILL))) ||
+		    (!rwa->spill && DRR_OBJECT_HAS_SPILL(drro->drr_flags))) {
 			return (SET_ERROR(EINVAL));
+		}
+
+		if (drro->drr_raw_bonuslen != 0 || drro->drr_nblkptr != 0 ||
+		    drro->drr_indblkshift != 0 || drro->drr_nlevels != 0) {
+			return (SET_ERROR(EINVAL));
+		}
 	}
 
 	err = dmu_object_info(rwa->os, drro->drr_object, &doi);
@@ -1312,7 +1334,7 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 	}
 
 	if (object == DMU_NEW_OBJECT) {
-		/* currently free, want to be allocated */
+		/* Currently free, wants to be allocated */
 		err = dmu_object_claim_dnsize(rwa->os, drro->drr_object,
 		    drro->drr_type, drro->drr_blksz,
 		    drro->drr_bonustype, drro->drr_bonuslen,
@@ -1321,11 +1343,19 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 	    drro->drr_blksz != doi.doi_data_block_size ||
 	    drro->drr_bonustype != doi.doi_bonus_type ||
 	    drro->drr_bonuslen != doi.doi_bonus_size) {
-		/* currently allocated, but with different properties */
+		/* Currently allocated, but with different properties */
 		err = dmu_object_reclaim_dnsize(rwa->os, drro->drr_object,
 		    drro->drr_type, drro->drr_blksz,
 		    drro->drr_bonustype, drro->drr_bonuslen,
-		    dn_slots << DNODE_SHIFT, tx);
+		    dn_slots << DNODE_SHIFT, rwa->spill ?
+		    DRR_OBJECT_HAS_SPILL(drro->drr_flags) : B_FALSE, tx);
+	} else if (rwa->spill && !DRR_OBJECT_HAS_SPILL(drro->drr_flags)) {
+		/*
+		 * Currently allocated, the existing version of this object
+		 * may reference a spill block that is no longer allocated
+		 * at the source and needs to be freed.
+		 */
+		err = dmu_object_rm_spill(rwa->os, drro->drr_object, tx);
 	}
 
 	if (err != 0) {
@@ -1665,6 +1695,17 @@ receive_spill(struct receive_writer_arg *rwa, struct drr_spill *drrs,
 	    drrs->drr_length > spa_maxblocksize(dmu_objset_spa(rwa->os)))
 		return (SET_ERROR(EINVAL));
 
+	/*
+	 * This is an unmodified spill block which was added to the stream
+	 * to resolve an issue with incorrectly removing spill blocks.  It
+	 * should be ignored by current versions of the code which support
+	 * the DRR_FLAG_SPILL_BLOCK flag.
+	 */
+	if (rwa->spill && DRR_SPILL_IS_UNMODIFIED(drrs->drr_flags)) {
+		dmu_return_arcbuf(abuf);
+		return (0);
+	}
+
 	if (rwa->raw) {
 		if (!DMU_OT_IS_VALID(drrs->drr_type) ||
 		    drrs->drr_compressiontype >= ZIO_COMPRESS_FUNCTIONS ||
@@ -1699,9 +1740,16 @@ receive_spill(struct receive_writer_arg *rwa, struct drr_spill *drrs,
 		return (err);
 	}
 
-	if (db_spill->db_size < drrs->drr_length)
+	/*
+	 * Spill blocks may both grow and shrink.  When a change in size
+	 * occurs any existing dbuf must be updated to match the logical
+	 * size of the provided arc_buf_t.
+	 */
+	if (db_spill->db_size != drrs->drr_length) {
+		dmu_buf_will_fill(db_spill, tx);
 		VERIFY(0 == dbuf_spill_set_blksz(db_spill,
 		    drrs->drr_length, tx));
+	}
 
 	if (rwa->byteswap && !arc_is_encrypted(abuf) &&
 	    arc_get_compression(abuf) == ZIO_COMPRESS_OFF) {
@@ -2575,6 +2623,7 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp,
 	rwa->byteswap = drc->drc_byteswap;
 	rwa->resumable = drc->drc_resumable;
 	rwa->raw = drc->drc_raw;
+	rwa->spill = drc->drc_spill;
 	rwa->os->os_raw_receive = drc->drc_raw;
 
 	(void) thread_create(NULL, 0, receive_writer_thread, rwa, 0, curproc,

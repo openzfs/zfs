@@ -420,7 +420,8 @@ int dmu_object_reclaim(objset_t *os, uint64_t object, dmu_object_type_t ot,
     int blocksize, dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *txp);
 int dmu_object_reclaim_dnsize(objset_t *os, uint64_t object,
     dmu_object_type_t ot, int blocksize, dmu_object_type_t bonustype,
-    int bonuslen, int dnodesize, dmu_tx_t *txp);
+    int bonuslen, int dnodesize, boolean_t keep_spill, dmu_tx_t *tx);
+int dmu_object_rm_spill(objset_t *os, uint64_t object, dmu_tx_t *tx);
 
 /*
  * Free an object from this objset.

@@ -2340,6 +2340,21 @@ Use \fB1\fR for yes and \fB0\fR for no (default).
 .sp
 .ne 2
 .na
+\fBzfs_send_unmodified_spill_blocks\fR (int)
+.ad
+.RS 12n
+Include unmodified spill blocks in the send stream. Under certain circumstances
+previous versions of ZFS could incorrectly remove the spill block from an
+existing object.  Including unmodified copies of the spill blocks creates a
+backwards compatible stream which will recreate a spill block if it was
+incorrectly removed.
+.sp
+Use \fB1\fR for yes (default) and \fB0\fR for no.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_send_queue_length\fR (int)
 .ad
 .RS 12n
@@ -2355,7 +2370,6 @@ Default value: \fB16,777,216\fR.
 \fBzfs_recv_queue_length\fR (int)
 .ad
 .RS 12n
-.sp
 The maximum number of bytes allowed in the \fBzfs receive\fR queue. This value
 must be at least twice the maximum block size in use.
 .sp
