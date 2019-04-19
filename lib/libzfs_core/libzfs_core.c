@@ -68,7 +68,7 @@
  *  of libzfs_core.  For example, libzfs may implement "zfs send -R |
  *  zfs receive" by using individual "send one snapshot", rename,
  *  destroy, and "receive one snapshot" operations in libzfs_core.
- *  /sbin/zfs and /zbin/zpool will link with both libzfs and
+ *  /sbin/zfs and /sbin/zpool will link with both libzfs and
  *  libzfs_core.  Other consumers should aim to use only libzfs_core,
  *  since that will be the supported, stable interface going forwards.
  */
