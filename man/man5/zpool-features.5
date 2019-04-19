@@ -715,7 +715,7 @@ files.
 l l .
 GUID	com.datto:bookmark_v2
 READ\-ONLY COMPATIBLE	no
-DEPENDENCIES	extensible_dataset
+DEPENDENCIES	bookmark, extensible_dataset
 .TE
 
 This feature enables the creation and management of larger bookmarks which are
@@ -736,7 +736,7 @@ returned to the \fBenabled\fR state when all v2 bookmarks are destroyed.
 l l .
 GUID	com.datto:encryption
 READ\-ONLY COMPATIBLE	no
-DEPENDENCIES	extensible_dataset
+DEPENDENCIES	bookmark_v2, extensible_dataset
 .TE
 
 This feature enables the creation and management of natively encrypted datasets.
