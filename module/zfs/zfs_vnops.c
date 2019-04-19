@@ -1291,7 +1291,7 @@ zfs_lookup(struct inode *dip, char *nm, struct inode **ipp, int flags,
  *		excl	- flag indicating exclusive or non-exclusive mode.
  *		mode	- mode to open file with.
  *		cr	- credentials of caller.
- *		flag	- large file flag [UNUSED].
+ *		flag	- file flag.
  *		vsecp	- ACL to be set
  *
  *	OUT:	ipp	- inode of created or trunc'd entry.
@@ -4916,7 +4916,7 @@ convoff(struct inode *ip, flock64_t *lckdat, int  whence, offset_t offset)
  *		bfp	- section of file to free/alloc.
  *		flag	- current file open mode flags.
  *		offset	- current file offset.
- *		cr	- credentials of caller [UNUSED].
+ *		cr	- credentials of caller.
  *
  *	RETURN:	0 on success, error code on failure.
  *
