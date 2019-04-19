@@ -383,6 +383,14 @@ READ\-ONLY COMPATIBLE	no
 DEPENDENCIES	enabled_txg
 .TE
 
+This feature has/had bugs, the result of which is that, if you do a
+\fBzfs send -i\fR (or \fB-R\fR, since it uses \fB-i\fR) from an affected
+dataset, the receiver will not see any checksum or other errors, but the
+resulting destination snapshot will not match the source.  Its use by
+\fBzfs send -i\fR has been disabled by default.  See the
+\fBsend_holes_without_birth_time\fR module parameter in
+zfs-module-parameters(5).
+
 This feature improves performance of incremental sends (\fBzfs send -i\fR)
 and receives for objects with many holes. The most common case of
 hole-filled objects is zvols.
