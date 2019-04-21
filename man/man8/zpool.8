@@ -806,6 +806,9 @@ such that it is available even if the pool becomes faulted.
 An administrator can provide additional information about a pool using this
 property.
 .It Sy dedupditto Ns = Ns Ar number
+This property is deprecated.  In a future release, it will no longer have any
+effect.
+.Pp
 Threshold for the number of block ditto copies.
 If the reference count for a deduplicated block increases above this number, a
 new ditto copy of this block is automatically stored.
