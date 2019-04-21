@@ -57,7 +57,7 @@ Features can be in one of three states:
 .sp
 .ne 2
 .na
-\fB\fBactive\fR\fR
+\fBactive\fR
 .ad
 .RS 12n
 This feature's on\-disk format changes are in effect on the pool. Support for
@@ -69,7 +69,7 @@ in read\-only mode (see "Read\-only compatibility").
 .sp
 .ne 2
 .na
-\fB\fBenabled\fR\fR
+\fBenabled\fR
 .ad
 .RS 12n
 An administrator has marked this feature as enabled on the pool, but the
@@ -115,7 +115,7 @@ despite the unsupported feature. Possible values for this property are:
 .sp
 .ne 2
 .na
-\fB\fBinactive\fR\fR
+\fBinactive\fR
 .ad
 .RS 12n
 The feature is in the \fBenabled\fR state and therefore the pool's on\-disk
@@ -125,7 +125,7 @@ format is still compatible with software that does not support this feature.
 .sp
 .ne 2
 .na
-\fB\fBreadonly\fR\fR
+\fBreadonly\fR
 .ad
 .RS 12n
 The feature is read\-only compatible and the pool has been imported in
@@ -146,7 +146,7 @@ The following features are supported on this system:
 .sp
 .ne 2
 .na
-\fB\fBallocation_classes\fR\fR
+\fBallocation_classes\fR
 .ad
 .RS 4n
 .TS
@@ -167,7 +167,7 @@ state if all the dedicated allocation class vdevs are removed.
 .sp
 .ne 2
 .na
-\fB\fBasync_destroy\fR\fR
+\fBasync_destroy\fR
 .ad
 .RS 4n
 .TS
@@ -197,7 +197,7 @@ This feature is only \fBactive\fR while \fBfreeing\fR is non\-zero.
 .sp
 .ne 2
 .na
-\fB\fBbookmarks\fR\fR
+\fBbookmarks\fR
 .ad
 .RS 4n
 .TS
@@ -217,7 +217,7 @@ All bookmarks in the pool can be listed by running
 .sp
 .ne 2
 .na
-\fB\fBbookmark_v2\fR\fR
+\fBbookmark_v2\fR
 .ad
 .RS 4n
 .TS
@@ -237,7 +237,7 @@ returned to the \fBenabled\fR state when all v2 bookmarks are destroyed.
 .sp
 .ne 2
 .na
-\fB\fBdevice_removal\fR\fR
+\fBdevice_removal\fR
 .ad
 .RS 4n
 .TS
@@ -257,7 +257,7 @@ on a top-level vdev, and will never return to being \fBenabled\fR.
 .sp
 .ne 2
 .na
-\fB\fBedonr\fR\fR
+\fBedonr\fR
 .ad
 .RS 4n
 .TS
@@ -297,7 +297,7 @@ the pool if GRUB needs to access the pool (e.g. for /boot).
 .sp
 .ne 2
 .na
-\fB\fBembedded_data\fR\fR
+\fBembedded_data\fR
 .ad
 .RS 4n
 .TS
@@ -324,7 +324,7 @@ never return to being \fBenabled\fR.
 .sp
 .ne 2
 .na
-\fB\fBempty_bpobj\fR\fR
+\fBempty_bpobj\fR
 .ad
 .RS 4n
 .TS
@@ -351,7 +351,7 @@ or snapshots which were created after enabling this feature.
 .sp
 .ne 2
 .na
-\fB\fBenabled_txg\fR\fR
+\fBenabled_txg\fR
 .ad
 .RS 4n
 .TS
@@ -372,7 +372,7 @@ never return to being \fBenabled\fB.
 .sp
 .ne 2
 .na
-\fB\fBencryption\fR\fR
+\fBencryption\fR
 .ad
 .RS 4n
 .TS
@@ -392,7 +392,7 @@ are destroyed.
 .sp
 .ne 2
 .na
-\fB\fBextensible_dataset\fR\fR
+\fBextensible_dataset\fR
 .ad
 .RS 4n
 .TS
@@ -413,7 +413,7 @@ this feature are destroyed.
 .sp
 .ne 2
 .na
-\fB\fBfilesystem_limits\fR\fR
+\fBfilesystem_limits\fR
 .ad
 .RS 4n
 .TS
@@ -434,7 +434,7 @@ set on a dataset. Once activated the feature is never deactivated.
 .sp
 .ne 2
 .na
-\fB\fBhole_birth\fR\fR
+\fBhole_birth\fR
 .ad
 .RS 4n
 .TS
@@ -483,7 +483,7 @@ never return to being \fBenabled\fB.
 .sp
 .ne 2
 .na
-\fB\fBlarge_blocks\fR\fR
+\fBlarge_blocks\fR
 .ad
 .RS 4n
 .TS
@@ -504,7 +504,7 @@ filesystems that have ever had their recordsize larger than 128KB are destroyed.
 .sp
 .ne 2
 .na
-\fB\fBlarge_dnode\fR\fR
+\fBlarge_dnode\fR
 .ad
 .RS 4n
 .TS
@@ -529,7 +529,7 @@ improving performance by avoiding the use of spill blocks.
 .sp
 .ne 2
 .na
-\fB\fBlz4_compress\fR\fR
+\fBlz4_compress\fR
 .ad
 .RS 4n
 .TS
@@ -565,7 +565,7 @@ never return to being \fBenabled\fB.
 .sp
 .ne 2
 .na
-\fB\fBmulti_vdev_crash_dump\fR\fR
+\fBmulti_vdev_crash_dump\fR
 .ad
 .RS 4n
 .TS
@@ -593,7 +593,7 @@ where this feature is \fB\fBactive\fR can be imported.
 .sp
 .ne 2
 .na
-\fB\fBobsolete_counts\fR\fR
+\fBobsolete_counts\fR
 .ad
 .RS 4n
 .TS
@@ -615,7 +615,7 @@ used on a top-level vdev, and will never return to being \fBenabled\fR.
 .sp
 .ne 2
 .na
-\fB\fBproject_quota\fR\fR
+\fBproject_quota\fR
 .ad
 .RS 4n
 .TS
@@ -648,7 +648,7 @@ for the filesystems containing a large number of files.
 .sp
 .ne 2
 .na
-\fB\fBresilver_defer\fR\fR
+\fBresilver_defer\fR
 .ad
 .RS 4n
 .TS
@@ -669,7 +669,7 @@ returns to being \fBenabled\fR when the deferred resilver begins.
 .sp
 .ne 2
 .na
-\fB\fBsha512\fR\fR
+\fBsha512\fR
 .ad
 .RS 4n
 .TS
@@ -701,7 +701,7 @@ the pool if GRUB needs to access the pool (e.g. for /boot).
 .sp
 .ne 2
 .na
-\fB\fBskein\fR\fR
+\fBskein\fR
 .ad
 .RS 4n
 .TS
@@ -735,7 +735,7 @@ the pool if GRUB needs to access the pool (e.g. for /boot).
 .sp
 .ne 2
 .na
-\fB\fBspacemap_histogram\fR\fR
+\fBspacemap_histogram\fR
 .ad
 .RS 4n
 .TS
@@ -755,7 +755,7 @@ an existing space map is upgraded to the new format. Once the feature is
 .sp
 .ne 2
 .na
-\fB\fBspacemap_v2\fR\fR
+\fBspacemap_v2\fR
 .ad
 .RS 4n
 .TS
@@ -778,7 +778,7 @@ returns back to being \fBenabled\fR.
 .sp
 .ne 2
 .na
-\fB\fBuserobj_accounting\fR\fR
+\fBuserobj_accounting\fR
 .ad
 .RS 4n
 .TS
@@ -803,7 +803,7 @@ files.
 .sp
 .ne 2
 .na
-\fB\fBzpool_checkpoint\fR\fR
+\fBzpool_checkpoint\fR
 .ad
 .RS 4n
 .TS
