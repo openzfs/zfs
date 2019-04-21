@@ -274,7 +274,6 @@ is organized within the pool. If this feature is \fBenabled\fR, ZFS will
 set this feature to \fBactive\fR when a new space map object is created or
 an existing space map is upgraded to the new format. Once the feature is
 \fBactive\fR, it will remain in that state until the pool is destroyed.
-
 .RE
 
 .sp
@@ -324,7 +323,6 @@ and exists for other features to depend on.
 This feature will be \fBactive\fR when the first dependent feature uses it,
 and will be returned to the \fBenabled\fR state when all datasets that use
 this feature are destroyed.
-
 .RE
 
 .sp
@@ -345,7 +343,6 @@ This feature enables use of the \fBzfs bookmark\fR subcommand.
 This feature is \fBactive\fR while any bookmarks exist in the pool.
 All bookmarks in the pool can be listed by running
 \fBzfs list -t bookmark -r \fIpoolname\fR\fR.
-
 .RE
 
 .sp
@@ -367,7 +364,6 @@ but other features may depend on this feature.
 
 This feature becomes \fBactive\fR as soon as it is enabled and will
 never return to being \fBenabled\fB.
-
 .RE
 
 .sp
@@ -417,7 +413,6 @@ sending information about holes that already exist on the receiving side.
 
 This feature becomes \fBactive\fR as soon as it is enabled and will
 never return to being \fBenabled\fB.
-
 .RE
 
 .sp
@@ -445,8 +440,8 @@ and no additional i/o is needed to read and write the data block.
 
 This feature becomes \fBactive\fR as soon as it is enabled and will
 never return to being \fBenabled\fR.
-
 .RE
+
 .sp
 .ne 2
 .na
@@ -465,8 +460,8 @@ vdevs, evacuating them to reduce the total size of the pool.
 
 This feature becomes \fBactive\fR when the \fBzpool remove\fR subcommand is used
 on a top-level vdev, and will never return to being \fBenabled\fR.
-
 .RE
+
 .sp
 .ne 2
 .na
@@ -487,8 +482,8 @@ is "obsolete", i.e. no longer needed.
 
 This feature becomes \fBactive\fR when the \fBzpool remove\fR subcommand is
 used on a top-level vdev, and will never return to being \fBenabled\fR.
-
 .RE
+
 .sp
 .ne 2
 .na
@@ -510,8 +505,8 @@ This feature becomes \fBactive\fR when the \fBzpool checkpoint\fR subcommand
 is used to checkpoint the pool.
 The feature will only return back to being \fBenabled\fR when the pool
 is rewound or the checkpoint has been discarded.
-
 .RE
+
 .sp
 .ne 2
 .na
@@ -533,8 +528,8 @@ addressable offset.
 
 This feature becomes \fBactive\fR once it is \fBenabled\fR, and never
 returns back to being \fBenabled\fR.
-
 .RE
+
 .sp
 .ne 2
 .na
@@ -611,7 +606,6 @@ ever had their checksum set to \fBsha512\fR are destroyed.
 
 The \fBsha512\fR feature is not supported by GRUB and must not be used on
 the pool if GRUB needs to access the pool (e.g. for /boot).
-
 .RE
 
 .sp
@@ -646,7 +640,6 @@ ever had their checksum set to \fBskein\fR are destroyed.
 
 The \fBskein\fR feature is not supported by GRUB and must not be used on
 the pool if GRUB needs to access the pool (e.g. for /boot).
-
 .RE
 
 .sp
@@ -687,7 +680,6 @@ ever had their checksum set to \fBedonr\fR are destroyed.
 
 The \fBedonr\fR feature is not supported by GRUB and must not be used on
 the pool if GRUB needs to access the pool (e.g. for /boot).
-
 .RE
 
 .sp
@@ -713,7 +705,6 @@ The upgrade can also be started manually on filesystems by running
 `zfs set version=current <pool/fs>`. The upgrade process runs in the background
 and may take a while to complete for filesystems containing a large number of
 files.
-
 .RE
 
 .sp
@@ -734,7 +725,6 @@ needed for other features in ZFS.
 
 This feature becomes \fBactive\fR when a v2 bookmark is created and will be
 returned to the \fBenabled\fR state when all v2 bookmarks are destroyed.
-
 .RE
 
 .sp
@@ -755,7 +745,6 @@ This feature enables the creation and management of natively encrypted datasets.
 This feature becomes \fBactive\fR when an encrypted dataset is created and will
 be returned to the \fBenabled\fR state when all datasets that use this feature
 are destroyed.
-
 .RE
 
 .sp
@@ -789,8 +778,8 @@ when remounted or when new file is created under that filesystem. The upgrade
 can also be triggered on filesystems via `zfs set version=current <pool/fs>`.
 The upgrade process runs in the background and may take a while to complete
 for the filesystems containing a large number of files.
-
 .RE
+
 .sp
 .ne 2
 .na
@@ -810,7 +799,6 @@ running one to be immediately restarted from the beginning.
 
 This feature becomes \fBactive\fR once a resilver has been deferred, and
 returns to being \fBenabled\fR when the deferred resilver begins.
-
 .RE
 
 .sp
@@ -832,7 +820,6 @@ This feature becomes \fBactive\fR when a dedicated allocation class vdev
 (dedup or special) is created with the \fBzpool create\fR or \fBzpool add\fR
 subcommands. With device removal, it can be returned to the \fBenabled\fR
 state if all the dedicated allocation class vdevs are removed.
-
 .RE
 
 .SH "SEE ALSO"
