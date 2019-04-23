@@ -23,7 +23,7 @@
  * Use is subject to license terms.
  */
 /*
- * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2019 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -1066,4 +1066,12 @@ uint64_t
 space_map_length(space_map_t *sm)
 {
 	return (sm != NULL ? sm->sm_phys->smp_length : 0);
+}
+
+uint64_t
+space_map_nblocks(space_map_t *sm)
+{
+	if (sm == NULL)
+		return (0);
+	return (DIV_ROUND_UP(space_map_length(sm), sm->sm_blksz));
 }

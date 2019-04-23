@@ -24,7 +24,7 @@
  */
 
 /*
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2019 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_METASLAB_IMPL_H
@@ -357,7 +357,7 @@ struct metaslab {
 	 * write to metaslab data on-disk (i.e flushing entries to
 	 * the metaslab's space map). It helps coordinate readers of
 	 * the metaslab's space map [see spa_vdev_remove_thread()]
-	 * with writers [see metaslab_sync()].
+	 * with writers [see metaslab_sync() or metaslab_flush()].
 	 *
 	 * Note that metaslab_load(), even though a reader, uses
 	 * a completely different mechanism to deal with the reading
@@ -401,7 +401,6 @@ struct metaslab {
 
 	boolean_t	ms_condensing;	/* condensing? */
 	boolean_t	ms_condense_wanted;
-	uint64_t	ms_condense_checked_txg;
 
 	/*
 	 * The number of consumers which have disabled the metaslab.
@@ -414,6 +413,8 @@ struct metaslab {
 	 */
 	boolean_t	ms_loaded;
 	boolean_t	ms_loading;
+	kcondvar_t	ms_flush_cv;
+	boolean_t	ms_flushing;
 
 	/*
 	 * The following histograms count entries that are in the
@@ -499,12 +500,33 @@ struct metaslab {
 	metaslab_group_t *ms_group;	/* metaslab group		*/
 	avl_node_t	ms_group_node;	/* node in metaslab group tree	*/
 	txg_node_t	ms_txg_node;	/* per-txg dirty metaslab links	*/
+	avl_node_t	ms_spa_txg_node; /* node in spa_metaslabs_by_txg */
+
+	/*
+	 * Allocs and frees that are committed to the vdev log spacemap but
+	 * not yet to this metaslab's spacemap.
+	 */
+	range_tree_t	*ms_unflushed_allocs;
+	range_tree_t	*ms_unflushed_frees;
+
+	/*
+	 * We have flushed entries up to but not including this TXG. In
+	 * other words, all changes from this TXG and onward should not
+	 * be in this metaslab's space map and must be read from the
+	 * log space maps.
+	 */
+	uint64_t	ms_unflushed_txg;
 
 	/* updated every time we are done syncing the metaslab's space map */
 	uint64_t	ms_synced_length;
 
 	boolean_t	ms_new;
 };
+
+typedef struct metaslab_unflushed_phys {
+	/* on-disk counterpart of ms_unflushed_txg */
+	uint64_t	msp_unflushed_txg;
+} metaslab_unflushed_phys_t;
 
 #ifdef	__cplusplus
 }
