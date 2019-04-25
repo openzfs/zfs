@@ -724,13 +724,18 @@ get_next_chunk(dnode_t *dn, uint64_t *start, uint64_t minimum, uint64_t *l1blks)
 
 	ASSERT3U(minimum, <=, *start);
 
-	if (*start - minimum <= iblkrange * maxblks) {
+	/*
+	 * Check if we can free the entire range assuming that all of the
+	 * L1 blocks in this range have data. If we can, we use this
+	 * worst case value as an estimate so we can avoid having to look
+	 * at the object's actual data.
+	 */
+	uint64_t total_l1blks =
+	    (roundup(*start, iblkrange) - (minimum / iblkrange * iblkrange)) /
+	    iblkrange;
+	if (total_l1blks <= maxblks) {
+		*l1blks = total_l1blks;
 		*start = minimum;
-		/*
-		 * Assume full L1 blocks and 128k recordsize to approximate the
-		 * expected number of L1 blocks in this chunk
-		 */
-		*l1blks = minimum / (1024 * 128 * 1024);
 		return (0);
 	}
 	ASSERT(ISP2(iblkrange));
@@ -745,6 +750,7 @@ get_next_chunk(dnode_t *dn, uint64_t *start, uint64_t minimum, uint64_t *l1blks)
 		 * to search.
 		 */
 		(*start)--;
+
 		err = dnode_next_offset(dn,
 		    DNODE_FIND_BACKWARDS, start, 2, 1, 0);
 
@@ -763,6 +769,7 @@ get_next_chunk(dnode_t *dn, uint64_t *start, uint64_t minimum, uint64_t *l1blks)
 	if (*start < minimum)
 		*start = minimum;
 	*l1blks = blks;
+
 	return (0);
 }
 
@@ -809,7 +816,6 @@ dmu_free_long_range_impl(objset_t *os, dnode_t *dn, uint64_t offset,
 
 	while (length != 0) {
 		uint64_t chunk_end, chunk_begin, chunk_len;
-		uint64_t long_free_dirty_all_txgs = 0;
 		uint64_t l1blks;
 		dmu_tx_t *tx;
 
@@ -827,25 +833,6 @@ dmu_free_long_range_impl(objset_t *os, dnode_t *dn, uint64_t offset,
 
 		chunk_len = chunk_end - chunk_begin;
 
-		mutex_enter(&dp->dp_lock);
-		for (int t = 0; t < TXG_SIZE; t++) {
-			long_free_dirty_all_txgs +=
-			    dp->dp_long_free_dirty_pertxg[t];
-		}
-		mutex_exit(&dp->dp_lock);
-
-		/*
-		 * To avoid filling up a TXG with just frees wait for
-		 * the next TXG to open before freeing more chunks if
-		 * we have reached the threshold of frees
-		 */
-		if (dirty_frees_threshold != 0 &&
-		    long_free_dirty_all_txgs >= dirty_frees_threshold) {
-			DMU_TX_STAT_BUMP(dmu_tx_dirty_frees_delay);
-			txg_wait_open(dp, 0, B_TRUE);
-			continue;
-		}
-
 		tx = dmu_tx_create(os);
 		dmu_tx_hold_free(tx, dn->dn_object, chunk_begin, chunk_len);
 
@@ -860,6 +847,26 @@ dmu_free_long_range_impl(objset_t *os, dnode_t *dn, uint64_t offset,
 			return (err);
 		}
 
+		uint64_t txg = dmu_tx_get_txg(tx);
+
+		mutex_enter(&dp->dp_lock);
+		uint64_t long_free_dirty =
+		    dp->dp_long_free_dirty_pertxg[txg & TXG_MASK];
+		mutex_exit(&dp->dp_lock);
+
+		/*
+		 * To avoid filling up a TXG with just frees, wait for
+		 * the next TXG to open before freeing more chunks if
+		 * we have reached the threshold of frees.
+		 */
+		if (dirty_frees_threshold != 0 &&
+		    long_free_dirty >= dirty_frees_threshold) {
+			DMU_TX_STAT_BUMP(dmu_tx_dirty_frees_delay);
+			dmu_tx_commit(tx);
+			txg_wait_open(dp, 0, B_TRUE);
+			continue;
+		}
+
 		/*
 		 * In order to prevent unnecessary write throttling, for each
 		 * TXG, we track the cumulative size of L1 blocks being dirtied
@@ -871,12 +878,12 @@ dmu_free_long_range_impl(objset_t *os, dnode_t *dn, uint64_t offset,
 		 * blocks taking up a large percentage of zfs_dirty_data_max.
 		 */
 		mutex_enter(&dp->dp_lock);
-		dp->dp_long_free_dirty_pertxg[dmu_tx_get_txg(tx) & TXG_MASK] +=
+		dp->dp_long_free_dirty_pertxg[txg & TXG_MASK] +=
 		    l1blks << dn->dn_indblkshift;
 		mutex_exit(&dp->dp_lock);
 		DTRACE_PROBE3(free__long__range,
-		    uint64_t, long_free_dirty_all_txgs, uint64_t, chunk_len,
-		    uint64_t, dmu_tx_get_txg(tx));
+		    uint64_t, long_free_dirty, uint64_t, chunk_len,
+		    uint64_t, txg);
 		dnode_free_range(dn, chunk_begin, chunk_len, tx);
 
 		dmu_tx_commit(tx);

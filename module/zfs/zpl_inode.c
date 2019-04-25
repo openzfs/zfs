@@ -636,7 +636,7 @@ zpl_truncate_range(struct inode *ip, loff_t start, loff_t end)
 	crhold(cr);
 
 	bf.l_type = F_WRLCK;
-	bf.l_whence = 0;
+	bf.l_whence = SEEK_SET;
 	bf.l_start = start;
 	bf.l_len = end - start;
 	bf.l_pid = 0;

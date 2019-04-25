@@ -771,7 +771,7 @@ zpl_fallocate_common(struct inode *ip, int mode, loff_t offset, loff_t len)
 	if (offset + len > olen)
 		len = olen - offset;
 	bf.l_type = F_WRLCK;
-	bf.l_whence = 0;
+	bf.l_whence = SEEK_SET;
 	bf.l_start = offset;
 	bf.l_len = len;
 	bf.l_pid = 0;

@@ -426,7 +426,7 @@ int vn_space(vnode_t *vp, int cmd, struct flock *bfp, int flag,
 	int fstrans;
 #endif
 
-	if (cmd != F_FREESP || bfp->l_whence != 0)
+	if (cmd != F_FREESP || bfp->l_whence != SEEK_SET)
 		return (EOPNOTSUPP);
 
 	ASSERT(vp);

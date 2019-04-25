@@ -4867,19 +4867,19 @@ convoff(struct inode *ip, flock64_t *lckdat, int  whence, offset_t offset)
 	vattr_t vap;
 	int error;
 
-	if ((lckdat->l_whence == 2) || (whence == 2)) {
+	if ((lckdat->l_whence == SEEK_END) || (whence == SEEK_END)) {
 		if ((error = zfs_getattr(ip, &vap, 0, CRED())))
 			return (error);
 	}
 
 	switch (lckdat->l_whence) {
-	case 1:
+	case SEEK_CUR:
 		lckdat->l_start += offset;
 		break;
-	case 2:
+	case SEEK_END:
 		lckdat->l_start += vap.va_size;
 		/* FALLTHRU */
-	case 0:
+	case SEEK_SET:
 		break;
 	default:
 		return (SET_ERROR(EINVAL));
@@ -4889,13 +4889,13 @@ convoff(struct inode *ip, flock64_t *lckdat, int  whence, offset_t offset)
 		return (SET_ERROR(EINVAL));
 
 	switch (whence) {
-	case 1:
+	case SEEK_CUR:
 		lckdat->l_start -= offset;
 		break;
-	case 2:
+	case SEEK_END:
 		lckdat->l_start -= vap.va_size;
 		/* FALLTHRU */
-	case 0:
+	case SEEK_SET:
 		break;
 	default:
 		return (SET_ERROR(EINVAL));
@@ -4950,7 +4950,7 @@ zfs_space(struct inode *ip, int cmd, flock64_t *bfp, int flag,
 		return (SET_ERROR(EROFS));
 	}
 
-	if ((error = convoff(ip, bfp, 0, offset))) {
+	if ((error = convoff(ip, bfp, SEEK_SET, offset))) {
 		ZFS_EXIT(zfsvfs);
 		return (error);
 	}
