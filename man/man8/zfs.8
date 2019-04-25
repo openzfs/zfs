@@ -1358,6 +1358,11 @@ create, for example a two-disk striped pool and set
 on some datasets thinking you have setup redundancy for them. When a disk
 fails you will not be able to import the pool and will have lost all of your
 data.
+.Pp
+Encrypted datasets may not have
+.Sy copies Ns = Ns Em 3
+since the implementation stores some encryption metadata where the third copy
+would normally be.
 .It Sy devices Ns = Ns Sy on Ns | Ns Sy off
 Controls whether device nodes can be opened on this file system.
 The default value is
@@ -2391,17 +2396,19 @@ configuration is not supported.
 .Ss Encryption
 Enabling the
 .Sy encryption
-feature allows for the creation of encrypted filesystems and volumes.
-.Nm
-will encrypt all user data including file and zvol data, file attributes,
-ACLs, permission bits, directory listings, FUID mappings, and userused /
-groupused data.
-.Nm
-will not encrypt metadata related to the pool structure, including dataset
-names, dataset hierarchy, file size, file holes, and dedup tables. Key rotation
-is managed internally by the  kernel module and changing the user's key does not
-require re-encrypting the entire dataset. Datasets can be scrubbed, resilvered,
-renamed, and deleted without the encryption keys being loaded (see the
+feature allows for the creation of encrypted filesystems and volumes.  ZFS
+will encrypt file and zvol data, file attributes, ACLs, permission bits,
+directory listings, FUID mappings, and
+.Sy userused
+/
+.Sy groupused
+data.  ZFS will not encrypt metadata related to the pool structure, including
+dataset and snapshot names, dataset hierarchy, properties, file size, file
+holes, and deduplication tables.
+.Pp
+Key rotation is managed by ZFS.  Changing the user's key (e.g. a passphrase)
+does not require re-encrypting the entire dataset.  Datasets can be scrubbed,
+resilvered, renamed, and deleted without the encryption keys being loaded (see the
 .Nm zfs Cm load-key
 subcommand for more info on key loading).
 .Pp
@@ -2443,8 +2450,7 @@ read-only
 .Sy encryptionroot
 property.
 .Pp
-Encryption changes the behavior of a few
-.Nm
+Encryption changes the behavior of a few ZFS
 operations. Encryption is applied after compression so compression ratios are
 preserved. Normally checksums in ZFS are 256 bits long, but for encrypted data
 the checksum is 128 bits of the user-chosen checksum and 128 bits of MAC from
