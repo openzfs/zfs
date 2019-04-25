@@ -1342,6 +1342,11 @@ create, for example a two-disk striped pool and set
 on some datasets thinking you have setup redundancy for them. When a disk
 fails you will not be able to import the pool and will have lost all of your
 data.
+.Pp
+Encrypted datasets may not have
+.Sy copies Ns = Ns Em 3
+since the implementation stores some encryption metadata where the third copy
+would normally be.
 .It Sy devices Ns = Ns Sy on Ns | Ns Sy off
 Controls whether device nodes can be opened on this file system.
 The default value is
