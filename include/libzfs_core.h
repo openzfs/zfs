@@ -97,6 +97,8 @@ int lzc_receive(const char *, nvlist_t *, const char *, boolean_t, boolean_t,
     int);
 int lzc_receive_resumable(const char *, nvlist_t *, const char *, boolean_t,
     boolean_t, int);
+int lzc_receive_resumable_illumos(const char *, nvlist_t *, const char *,
+    boolean_t, boolean_t, int);
 int lzc_receive_with_header(const char *, nvlist_t *, const char *, boolean_t,
     boolean_t, boolean_t, int, const struct dmu_replay_record *);
 int lzc_receive_one(const char *, nvlist_t *, const char *, boolean_t,

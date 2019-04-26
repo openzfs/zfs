@@ -1080,9 +1080,9 @@ dmu_recv_resume_begin_sync(void *arg, dmu_tx_t *tx)
  */
 int
 dmu_recv_begin(char *tofs, char *tosnap, dmu_replay_record_t *drr_begin,
-    boolean_t force, boolean_t resumable, nvlist_t *localprops,
-    nvlist_t *hidden_args, char *origin, dmu_recv_cookie_t *drc,
-    vnode_t *vp, offset_t *voffp)
+    boolean_t force, boolean_t resumable, boolean_t illumos,
+    nvlist_t *localprops, nvlist_t *hidden_args, char *origin,
+    dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp)
 {
 	dmu_recv_begin_arg_t drba = { 0 };
 	int err;
@@ -1094,6 +1094,7 @@ dmu_recv_begin(char *tofs, char *tosnap, dmu_replay_record_t *drr_begin,
 	drc->drc_tofs = tofs;
 	drc->drc_force = force;
 	drc->drc_resumable = resumable;
+	drc->drc_illumos = illumos;
 	drc->drc_cred = CRED();
 	drc->drc_clone = (origin != NULL);
 
@@ -2146,6 +2147,16 @@ static int
 receive_read_record(dmu_recv_cookie_t *drc)
 {
 	int err;
+	/*
+	 * We should revert the commit that added this logic once we no longer
+	 * support FCR from 5.3 or earlier.
+	 */
+	if (drc->drc_illumos) {
+		if (drc->drc_rrd->header.drr_type == DRR_OBJECT_RANGE)
+			drc->drc_rrd->header.drr_type = DRR_REDACT;
+		else
+			ASSERT3U(drc->drc_rrd->header.drr_type, !=, DRR_REDACT);
+	}
 
 	switch (drc->drc_rrd->header.drr_type) {
 	case DRR_OBJECT:

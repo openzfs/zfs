@@ -788,7 +788,7 @@ recv_read(int fd, void *buf, int ilen)
 static int
 recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
     uint8_t *wkeydata, uint_t wkeylen, const char *origin, boolean_t force,
-    boolean_t resumable, boolean_t raw, int input_fd,
+    boolean_t resumable, boolean_t raw, boolean_t illumos, int input_fd,
     const dmu_replay_record_t *begin_record, int cleanup_fd,
     uint64_t *read_bytes, uint64_t *errflags, uint64_t *action_handle,
     nvlist_t **errors)
@@ -834,7 +834,7 @@ recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
 	/*
 	 * All recives with a payload should use the new interface.
 	 */
-	if (resumable || raw || wkeydata != NULL || payload) {
+	if (resumable || raw || illumos || wkeydata != NULL || payload) {
 		nvlist_t *outnvl = NULL;
 		nvlist_t *innvl = fnvlist_alloc();
 
@@ -880,6 +880,8 @@ recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
 		if (action_handle != NULL)
 			fnvlist_add_uint64(innvl, "action_handle",
 			    *action_handle);
+		if (illumos)
+			fnvlist_add_boolean(innvl, "illumos");
 
 		error = lzc_ioctl(ZFS_IOC_RECV_NEW, fsname, innvl, &outnvl);
 
@@ -992,7 +994,7 @@ lzc_receive(const char *snapname, nvlist_t *props, const char *origin,
     boolean_t force, boolean_t raw, int fd)
 {
 	return (recv_impl(snapname, props, NULL, NULL, 0, origin, force,
-	    B_FALSE, raw, fd, NULL, -1, NULL, NULL, NULL, NULL));
+	    B_FALSE, raw, B_FALSE, fd, NULL, -1, NULL, NULL, NULL, NULL));
 }
 
 /*
@@ -1006,7 +1008,22 @@ lzc_receive_resumable(const char *snapname, nvlist_t *props, const char *origin,
     boolean_t force, boolean_t raw, int fd)
 {
 	return (recv_impl(snapname, props, NULL, NULL, 0, origin, force,
-	    B_TRUE, raw, fd, NULL, -1, NULL, NULL, NULL, NULL));
+	    B_TRUE, raw, B_FALSE, fd, NULL, -1, NULL, NULL, NULL, NULL));
+}
+
+/*
+ * Like lzc_receive_resumable, but DRR_OBJECT_RANGE records will be treated as
+ * REDACT records, and REDACT records will cause an assertion. This is
+ * intended to resolve an issue where streams from DxOS systems have the two
+ * reversed because that OS had redaction land before encryption, unlike all
+ * other platforms.
+ */
+int
+lzc_receive_resumable_illumos(const char *snapname, nvlist_t *props, const char *origin,
+    boolean_t force, boolean_t raw, int fd)
+{
+	return (recv_impl(snapname, props, NULL, NULL, 0, origin, force,
+	    B_TRUE, raw, B_TRUE, fd, NULL, -1, NULL, NULL, NULL, NULL));
 }
 
 /*
@@ -1029,7 +1046,7 @@ lzc_receive_with_header(const char *snapname, nvlist_t *props,
 		return (EINVAL);
 
 	return (recv_impl(snapname, props, NULL, NULL, 0, origin, force,
-	    resumable, raw, fd, begin_record, -1, NULL, NULL, NULL, NULL));
+	    resumable, raw, B_FALSE, fd, begin_record, -1, NULL, NULL, NULL, NULL));
 }
 
 /*
@@ -1059,8 +1076,8 @@ int lzc_receive_one(const char *snapname, nvlist_t *props,
     nvlist_t **errors)
 {
 	return (recv_impl(snapname, props, NULL, NULL, 0, origin, force,
-	    resumable, raw, input_fd, begin_record, cleanup_fd, read_bytes,
-	    errflags, action_handle, errors));
+	    resumable, raw, B_FALSE, input_fd, begin_record, cleanup_fd,
+	    read_bytes, errflags, action_handle, errors));
 }
 
 /*
@@ -1079,7 +1096,7 @@ int lzc_receive_with_cmdprops(const char *snapname, nvlist_t *props,
     nvlist_t **errors)
 {
 	return (recv_impl(snapname, props, cmdprops, wkeydata, wkeylen, origin,
-	    force, resumable, raw, input_fd, begin_record, cleanup_fd,
+	    force, resumable, raw, B_FALSE, input_fd, begin_record, cleanup_fd,
 	    read_bytes, errflags, action_handle, errors));
 }
 

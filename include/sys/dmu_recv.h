@@ -50,6 +50,7 @@ typedef struct dmu_recv_cookie {
 	boolean_t drc_force;
 	boolean_t drc_resumable;
 	boolean_t drc_clone;
+	boolean_t drc_illumos;
 	struct avl_tree *drc_guid_to_ds_map;
 	nvlist_t *drc_keynvl;
 	uint64_t drc_fromsnapobj;
@@ -79,8 +80,8 @@ typedef struct dmu_recv_cookie {
 
 int dmu_recv_begin(char *tofs, char *tosnap,
     struct dmu_replay_record *drr_begin, boolean_t force, boolean_t resumable,
-    nvlist_t *localprops, nvlist_t *hidden_args, char *origin,
-    dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp);
+    boolean_t illumos, nvlist_t *localprops, nvlist_t *hidden_args,
+    char *origin, dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp);
 int dmu_recv_stream(dmu_recv_cookie_t *drc, int cleanup_fd,
     uint64_t *action_handlep, offset_t *voffp);
 int dmu_recv_end(dmu_recv_cookie_t *drc, void *owner);
