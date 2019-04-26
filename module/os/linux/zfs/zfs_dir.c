@@ -905,6 +905,74 @@ zfs_dropname(zfs_dirlock_t *dl, znode_t *zp, znode_t *dzp, dmu_tx_t *tx,
 	return (error);
 }
 
+static int
+zfs_drop_nlink_locked(znode_t *zp, dmu_tx_t *tx, boolean_t *unlinkedp)
+{
+	zfsvfs_t	*zfsvfs = ZTOZSB(zp);
+	int		zp_is_dir = S_ISDIR(ZTOI(zp)->i_mode);
+	boolean_t	unlinked = B_FALSE;
+	sa_bulk_attr_t	bulk[3];
+	uint64_t	mtime[2], ctime[2];
+	uint64_t	links;
+	int		count = 0;
+	int		error;
+
+	if (zp_is_dir && !zfs_dirempty(zp))
+		return (SET_ERROR(ENOTEMPTY));
+
+	if (ZTOI(zp)->i_nlink <= zp_is_dir) {
+		zfs_panic_recover("zfs: link count on %lu is %u, "
+		    "should be at least %u", zp->z_id,
+		    (int)ZTOI(zp)->i_nlink, zp_is_dir + 1);
+		set_nlink(ZTOI(zp), zp_is_dir + 1);
+	}
+	drop_nlink(ZTOI(zp));
+	if (ZTOI(zp)->i_nlink == zp_is_dir) {
+		zp->z_unlinked = B_TRUE;
+		clear_nlink(ZTOI(zp));
+		unlinked = B_TRUE;
+	} else {
+		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CTIME(zfsvfs),
+		    NULL, &ctime, sizeof (ctime));
+		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_FLAGS(zfsvfs),
+		    NULL, &zp->z_pflags, sizeof (zp->z_pflags));
+		zfs_tstamp_update_setup(zp, STATE_CHANGED, mtime,
+		    ctime);
+	}
+	links = ZTOI(zp)->i_nlink;
+	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_LINKS(zfsvfs),
+	    NULL, &links, sizeof (links));
+	error = sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
+	ASSERT3U(error, ==, 0);
+
+	if (unlinkedp != NULL)
+		*unlinkedp = unlinked;
+	else if (unlinked)
+		zfs_unlinked_add(zp, tx);
+
+	return (0);
+}
+
+/*
+ * Forcefully drop an nlink reference from (zp) and mark it for deletion if it
+ * was the last link. This *must* only be done to znodes which have already
+ * been zfs_link_destroy()'d with ZRENAMING. This is explicitly only used in
+ * the error path of zfs_rename(), where we have to correct the nlink count if
+ * we failed to link the target as well as failing to re-link the original
+ * znodes.
+ */
+int
+zfs_drop_nlink(znode_t *zp, dmu_tx_t *tx, boolean_t *unlinkedp)
+{
+	int error;
+
+	mutex_enter(&zp->z_lock);
+	error = zfs_drop_nlink_locked(zp, tx, unlinkedp);
+	mutex_exit(&zp->z_lock);
+
+	return (error);
+}
+
 /*
  * Unlink zp from dl, and mark zp for deletion if this was the last link. Can
  * fail if zp is a mount point (EBUSY) or a non-empty directory (ENOTEMPTY).
@@ -945,31 +1013,8 @@ zfs_link_destroy(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag,
 			return (error);
 		}
 
-		if (ZTOI(zp)->i_nlink <= zp_is_dir) {
-			zfs_panic_recover("zfs: link count on %lu is %u, "
-			    "should be at least %u", zp->z_id,
-			    (int)ZTOI(zp)->i_nlink, zp_is_dir + 1);
-			set_nlink(ZTOI(zp), zp_is_dir + 1);
-		}
-		drop_nlink(ZTOI(zp));
-		if (ZTOI(zp)->i_nlink == zp_is_dir) {
-			zp->z_unlinked = B_TRUE;
-			clear_nlink(ZTOI(zp));
-			unlinked = B_TRUE;
-		} else {
-			SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CTIME(zfsvfs),
-			    NULL, &ctime, sizeof (ctime));
-			SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_FLAGS(zfsvfs),
-			    NULL, &zp->z_pflags, sizeof (zp->z_pflags));
-			zfs_tstamp_update_setup(zp, STATE_CHANGED, mtime,
-			    ctime);
-		}
-		links = ZTOI(zp)->i_nlink;
-		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_LINKS(zfsvfs),
-		    NULL, &links, sizeof (links));
-		error = sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
-		count = 0;
-		ASSERT(error == 0);
+		/* The only error is !zfs_dirempty() and we checked earlier. */
+		ASSERT3U(zfs_drop_nlink_locked(zp, tx, &unlinked), ==, 0);
 		mutex_exit(&zp->z_lock);
 	} else {
 		error = zfs_dropname(dl, zp, dzp, tx, flag);

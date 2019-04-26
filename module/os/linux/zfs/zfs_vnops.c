@@ -3659,8 +3659,7 @@ int
 zfs_rename(struct inode *sdip, char *snm, struct inode *tdip, char *tnm,
     cred_t *cr, int flags)
 {
-	znode_t		*tdzp, *szp, *tzp;
-	znode_t		*sdzp = ITOZ(sdip);
+	znode_t		*sdzp, *tdzp, *szp, *tzp;
 	zfsvfs_t	*zfsvfs = ITOZSB(sdip);
 	zilog_t		*zilog;
 	zfs_dirlock_t	*sdl, *tdl;
@@ -3675,9 +3674,10 @@ zfs_rename(struct inode *sdip, char *snm, struct inode *tdip, char *tnm,
 		return (SET_ERROR(EINVAL));
 
 	ZFS_ENTER(zfsvfs);
-	ZFS_VERIFY_ZP(sdzp);
 	zilog = zfsvfs->z_log;
 
+	sdzp = ITOZ(sdip);
+	ZFS_VERIFY_ZP(sdzp);
 	tdzp = ITOZ(tdip);
 	ZFS_VERIFY_ZP(tdzp);
 
@@ -3867,16 +3867,12 @@ top:
 		/*
 		 * Source and target must be the same type.
 		 */
-		if (S_ISDIR(ZTOI(szp)->i_mode)) {
-			if (!S_ISDIR(ZTOI(tzp)->i_mode)) {
-				error = SET_ERROR(ENOTDIR);
-				goto out;
-			}
-		} else {
-			if (S_ISDIR(ZTOI(tzp)->i_mode)) {
-				error = SET_ERROR(EISDIR);
-				goto out;
-			}
+		boolean_t s_is_dir = S_ISDIR(ZTOI(szp)->i_mode) != 0;
+		boolean_t t_is_dir = S_ISDIR(ZTOI(tzp)->i_mode) != 0;
+
+		if (s_is_dir != t_is_dir) {
+			error = SET_ERROR(s_is_dir ? ENOTDIR : EISDIR);
+			goto out;
 		}
 		/*
 		 * POSIX dictates that when the source and target
@@ -3932,51 +3928,49 @@ top:
 		return (error);
 	}
 
-	if (tzp)	/* Attempt to remove the existing target */
+	/*
+	 * Unlink the source.
+	 */
+	szp->z_pflags |= ZFS_AV_MODIFIED;
+	if (tdzp->z_pflags & ZFS_PROJINHERIT)
+		szp->z_pflags |= ZFS_PROJINHERIT;
+
+	error = sa_update(szp->z_sa_hdl, SA_ZPL_FLAGS(zfsvfs),
+	    (void *)&szp->z_pflags, sizeof (uint64_t), tx);
+	ASSERT0(error);
+
+	error = zfs_link_destroy(sdl, szp, tx, ZRENAMING, NULL);
+	if (error)
+		goto commit;
+
+	/*
+	 * Unlink the target.
+	 */
+	if (tzp) {
 		error = zfs_link_destroy(tdl, tzp, tx, zflg, NULL);
-
-	if (error == 0) {
-		error = zfs_link_create(tdl, szp, tx, ZRENAMING);
-		if (error == 0) {
-			szp->z_pflags |= ZFS_AV_MODIFIED;
-			if (tdzp->z_pflags & ZFS_PROJINHERIT)
-				szp->z_pflags |= ZFS_PROJINHERIT;
-
-			error = sa_update(szp->z_sa_hdl, SA_ZPL_FLAGS(zfsvfs),
-			    (void *)&szp->z_pflags, sizeof (uint64_t), tx);
-			ASSERT0(error);
-
-			error = zfs_link_destroy(sdl, szp, tx, ZRENAMING, NULL);
-			if (error == 0) {
-				zfs_log_rename(zilog, tx, TX_RENAME |
-				    (flags & FIGNORECASE ? TX_CI : 0), sdzp,
-				    sdl->dl_name, tdzp, tdl->dl_name, szp);
-			} else {
-				/*
-				 * At this point, we have successfully created
-				 * the target name, but have failed to remove
-				 * the source name.  Since the create was done
-				 * with the ZRENAMING flag, there are
-				 * complications; for one, the link count is
-				 * wrong.  The easiest way to deal with this
-				 * is to remove the newly created target, and
-				 * return the original error.  This must
-				 * succeed; fortunately, it is very unlikely to
-				 * fail, since we just created it.
-				 */
-				VERIFY3U(zfs_link_destroy(tdl, szp, tx,
-				    ZRENAMING, NULL), ==, 0);
-			}
-		} else {
-			/*
-			 * If we had removed the existing target, subsequent
-			 * call to zfs_link_create() to add back the same entry
-			 * but, the new dnode (szp) should not fail.
-			 */
-			ASSERT(tzp == NULL);
-		}
+		if (error)
+			goto commit_link_szp;
 	}
 
+	/*
+	 * Create a new link at the target.
+	 */
+	error = zfs_link_create(tdl, szp, tx, ZRENAMING);
+	if (error) {
+		/*
+		 * If we have removed the existing target, a subsequent call to
+		 * zfs_link_create() to add back the same entry, but with a new
+		 * dnode (szp), should not fail.
+		 */
+		ASSERT3P(tzp, ==, NULL);
+		goto commit_link_tzp;
+	}
+
+	zfs_log_rename(zilog, tx, TX_RENAME |
+	    (flags & FIGNORECASE ? TX_CI : 0), sdzp,
+	    sdl->dl_name, tdzp, tdl->dl_name, szp);
+
+commit:
 	dmu_tx_commit(tx);
 out:
 	if (zl != NULL)
@@ -4004,6 +3998,29 @@ out:
 
 	ZFS_EXIT(zfsvfs);
 	return (error);
+
+	/*
+	 * Clean-up path for broken link state.
+	 *
+	 * At this point we are in a (very) bad state, so we need to do our
+	 * best to correct the state. In particular, the nlink of szp is wrong
+	 * because we were destroying and creating links with ZRENAMING.
+	 *
+	 * link_create()s are allowed to fail (though they shouldn't because we
+	 * only just unlinked them and are putting the entries back during
+	 * clean-up). But if they fail, we can just forcefully drop the nlink
+	 * value to (at the very least) avoid broken nlink values -- though in
+	 * the case of non-empty directories we will have to panic.
+	 */
+commit_link_tzp:
+	if (tzp) {
+		if (zfs_link_create(tdl, tzp, tx, ZRENAMING))
+			VERIFY3U(zfs_drop_nlink(tzp, tx, NULL), ==, 0);
+	}
+commit_link_szp:
+	if (zfs_link_create(sdl, szp, tx, ZRENAMING))
+		VERIFY3U(zfs_drop_nlink(szp, tx, NULL), ==, 0);
+	goto commit;
 }
 
 /*
