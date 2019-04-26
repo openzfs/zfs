@@ -68,11 +68,26 @@ function check_atime_updated
 
 function setup_snap_clone
 {
-	# Create two file to verify snapshot.
-	log_must touch $TESTDIR/$TESTFILE
+	if [ -d "/$TESTPOOL/$TESTFS" ]; then
+		# No mountpoint case (default).
+		log_must touch /$TESTPOOL/$TESTFS/$TESTFILE
+	else
+		# Create two file to verify snapshot.
+		log_must touch $TESTDIR/$TESTFILE
+	fi
 
 	create_snapshot $TESTPOOL/$TESTFS $TESTSNAP
 	create_clone $TESTPOOL/$TESTFS@$TESTSNAP $TESTPOOL/$TESTCLONE
+}
+
+function reset_atime
+{
+	zfs inherit atime $TESTPOOL
+	zfs inherit atime $TESTPOOL/$TESTFS
+	zfs inherit atime $TESTPOOL/$TESTCLONE
+	zfs inherit relatime $TESTPOOL
+	zfs inherit relatime $TESTPOOL/$TESTFS
+	zfs inherit relatime $TESTPOOL/$TESTCLONE
 }
 
 function cleanup

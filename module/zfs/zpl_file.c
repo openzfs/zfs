@@ -289,6 +289,8 @@ zpl_iter_read_common(struct kiocb *kiocb, const struct iovec *iovp,
 {
 	cred_t *cr = CRED();
 	struct file *filp = kiocb->ki_filp;
+	struct inode *ip = filp->f_mapping->host;
+	zfsvfs_t *zfsvfs = ZTOZSB(ITOZ(ip));
 	ssize_t read;
 	unsigned int f_flags = filp->f_flags;
 
@@ -298,7 +300,20 @@ zpl_iter_read_common(struct kiocb *kiocb, const struct iovec *iovp,
 	    nr_segs, &kiocb->ki_pos, seg, f_flags, cr, skip);
 	crfree(cr);
 
-	file_accessed(filp);
+	/*
+	 * If relatime is enabled, call file_accessed() only if
+	 * zfs_relatime_need_update() is true.  This is needed since datasets
+	 * with inherited "relatime" property aren't necessarily mounted with
+	 * MNT_RELATIME flag (e.g. after `zfs set relatime=...`), which is what
+	 * relatime test in VFS by relatime_need_update() is based on.
+	 */
+	if (!IS_NOATIME(ip) && zfsvfs->z_relatime) {
+		if (zfs_relatime_need_update(ip))
+			file_accessed(filp);
+	} else {
+		file_accessed(filp);
+	}
+
 	return (read);
 }
 

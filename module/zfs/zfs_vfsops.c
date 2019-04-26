@@ -303,7 +303,21 @@ zfs_sync(struct super_block *sb, int wait, cred_t *cr)
 static void
 atime_changed_cb(void *arg, uint64_t newval)
 {
-	((zfsvfs_t *)arg)->z_atime = newval;
+	zfsvfs_t *zfsvfs = arg;
+	struct super_block *sb = zfsvfs->z_sb;
+
+	if (sb == NULL)
+		return;
+	/*
+	 * Update SB_NOATIME bit in VFS super block.  Since atime update is
+	 * determined by atime_needs_update(), atime_needs_update() needs to
+	 * return false if atime is turned off, and not unconditionally return
+	 * false if atime is turned on.
+	 */
+	if (newval)
+		sb->s_flags &= ~SB_NOATIME;
+	else
+		sb->s_flags |= SB_NOATIME;
 }
 
 static void
