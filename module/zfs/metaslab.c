@@ -198,11 +198,14 @@ int metaslab_df_use_largest_segment = B_FALSE;
 int metaslab_load_pct = 50;
 
 /*
- * Determines how many txgs a metaslab may remain loaded without having any
- * allocations from it. As long as a metaslab continues to be used we will
- * keep it loaded.
+ * These tunables control how long a metaslab will remain loaded after the
+ * last allocation from it.  A metaslab can't be unloaded until at least
+ * metaslab_unload_delay TXG's and metaslab_unload_delay_ms milliseconds
+ * have elapsed.  However, zfs_metaslab_mem_limit may cause it to be
+ * unloaded sooner.
  */
 int metaslab_unload_delay = TXG_SIZE * 2;
+int metaslab_unload_delay_ms = 60000; /* one minute */
 
 /*
  * Max number of metaslabs per group to preload.
@@ -539,15 +542,6 @@ metaslab_class_evict_old(metaslab_class_t *mc, uint64_t txg)
 		multilist_sublist_unlock(mls);
 		while (msp != NULL) {
 			mutex_enter(&msp->ms_lock);
-			/*
-			 * Once we've hit a metaslab selected too recently to
-			 * evict, we're done evicting for now.
-			 */
-			if (msp->ms_selected_txg + metaslab_unload_delay >=
-			    txg) {
-				mutex_exit(&msp->ms_lock);
-				break;
-			}
 
 			/*
 			 * If the metaslab has been removed from the list
@@ -563,7 +557,20 @@ metaslab_class_evict_old(metaslab_class_t *mc, uint64_t txg)
 			mls = multilist_sublist_lock(ml, i);
 			metaslab_t *next_msp = multilist_sublist_next(mls, msp);
 			multilist_sublist_unlock(mls);
-			metaslab_evict(msp, txg);
+			if (txg >
+			    msp->ms_selected_txg + metaslab_unload_delay &&
+			    gethrtime() > msp->ms_selected_time +
+			    (uint64_t)metaslab_unload_delay_ms * 1000000ULL) {
+				metaslab_evict(msp, txg);
+			} else {
+				/*
+				 * Once we've hit a metaslab selected too
+				 * recently to evict, we're done evicting for
+				 * now.
+				 */
+				mutex_exit(&msp->ms_lock);
+				break;
+			}
 			mutex_exit(&msp->ms_lock);
 			msp = next_msp;
 		}
@@ -2248,6 +2255,7 @@ metaslab_set_selected_txg(metaslab_t *msp, uint64_t txg)
 	if (multilist_link_active(&msp->ms_class_txg_node))
 		multilist_sublist_remove(mls, msp);
 	msp->ms_selected_txg = txg;
+	msp->ms_selected_time = gethrtime();
 	multilist_sublist_insert_tail(mls, msp);
 	multilist_sublist_unlock(mls);
 }
@@ -5868,6 +5876,14 @@ MODULE_PARM_DESC(metaslab_debug_unload,
 module_param(metaslab_preload_enabled, int, 0644);
 MODULE_PARM_DESC(metaslab_preload_enabled,
 	"preload potential metaslabs during reassessment");
+
+module_param(metaslab_unload_delay, int, 0644);
+MODULE_PARM_DESC(metaslab_unload_delay,
+	"delay in txgs after metaslab was last used before unloading");
+
+module_param(metaslab_unload_delay_ms, int, 0644);
+MODULE_PARM_DESC(metaslab_unload_delay_ms,
+	"delay in milliseconds after metaslab was last used before unloading");
 
 module_param(zfs_mg_noalloc_threshold, int, 0644);
 MODULE_PARM_DESC(zfs_mg_noalloc_threshold,

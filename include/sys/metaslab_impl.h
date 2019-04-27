@@ -489,6 +489,7 @@ struct metaslab {
 	 */
 	hrtime_t	ms_load_time;	/* time last loaded */
 	hrtime_t	ms_unload_time;	/* time last unloaded */
+	hrtime_t	ms_selected_time; /* time last allocated from */
 
 	uint64_t	ms_alloc_txg;	/* last successful alloc (debug only) */
 	uint64_t	ms_max_size;	/* maximum allocatable size	*/
