@@ -79,6 +79,8 @@
 #include "libzfs_impl.h"
 #include "zfs_projectutil.h"
 
+#define ROUND_UP_128K(SIZE) (SIZE + 128) - (SIZE % 128)
+
 libzfs_handle_t *g_zfs;
 
 static FILE *mnttab_file;
@@ -905,6 +907,7 @@ zfs_do_create(int argc, char **argv)
 			    zfs_prop_to_name(ZFS_PROP_VOLSIZE), intval) != 0)
 				nomem();
 			volsize = intval;
+			volsize = ROUND_UP_128K(intval);
 			break;
 		case 'p':
 			parents = B_TRUE;
