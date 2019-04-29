@@ -2177,6 +2177,10 @@ If a scrub is paused, the
 resumes it.
 If a resilver is in progress, ZFS does not allow a scrub to be started until the
 resilver completes.
+.Pp
+Note that, due to changes in pool data on a live system, it is possible for
+scrubs to progress slightly beyond 100% completion. During this period, no
+completion time estimate will be provided.
 .Bl -tag -width Ds
 .It Fl s
 Stop scrubbing.
