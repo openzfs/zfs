@@ -766,8 +766,7 @@ zfsctl_snapshot_path_objset(zfsvfs_t *zfsvfs, uint64_t objsetid,
 			break;
 	}
 
-	memset(full_path, 0, path_len);
-	snprintf(full_path, path_len - 1, "%s/.zfs/snapshot/%s",
+	snprintf(full_path, path_len, "%s/.zfs/snapshot/%s",
 	    zfsvfs->z_vfs->vfs_mntpoint, snapname);
 out:
 	kmem_free(snapname, ZFS_MAX_DATASET_NAME_LEN);

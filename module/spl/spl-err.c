@@ -86,7 +86,7 @@ vcmn_err(int ce, const char *fmt, va_list ap)
 {
 	char msg[MAXMSGLEN];
 
-	vsnprintf(msg, MAXMSGLEN - 1, fmt, ap);
+	vsnprintf(msg, MAXMSGLEN, fmt, ap);
 
 	switch (ce) {
 	case CE_IGNORE:
