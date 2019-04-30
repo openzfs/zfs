@@ -904,7 +904,7 @@ zfs_do_create(int argc, char **argv)
 			if (nvlist_add_uint64(props,
 			    zfs_prop_to_name(ZFS_PROP_VOLSIZE), intval) != 0)
 				nomem();
-			volsize = intval;
+			volsize = P2ROUNDUP(intval, align);
 			break;
 		case 'p':
 			parents = B_TRUE;
