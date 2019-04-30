@@ -543,7 +543,6 @@ vdev_bio_associate_blkg(struct bio *bio)
 	struct request_queue *q = bio->bi_disk->queue;
 
 	ASSERT3P(q, !=, NULL);
-	ASSERT3P(q->root_blkg, !=, NULL);
 	ASSERT3P(bio->bi_blkg, ==, NULL);
 
 	if (blkg_tryget(q->root_blkg))
