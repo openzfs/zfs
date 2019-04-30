@@ -22,6 +22,7 @@ AUTOMAKE_OPTIONS = foreign
 EXTRA_DIST  = autogen.sh copy-builtin
 EXTRA_DIST += config/config.awk config/rpm.am config/deb.am config/tgz.am
 EXTRA_DIST += META AUTHORS COPYRIGHT LICENSE NEWS NOTICE README.md
+EXTRA_DIST += CODE_OF_CONDUCT.md
 
 # Include all the extra licensing information for modules
 EXTRA_DIST += module/icp/algs/skein/THIRDPARTYLICENSE module/icp/algs/skein/THIRDPARTYLICENSE.descrip
