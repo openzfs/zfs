@@ -2404,7 +2404,8 @@ directory listings, FUID mappings, and
 .Sy groupused
 data.  ZFS will not encrypt metadata related to the pool structure, including
 dataset and snapshot names, dataset hierarchy, properties, file size, file
-holes, and deduplication tables.
+holes, and deduplication tables (though the deduplicated data itself is
+encrypted).
 .Pp
 Key rotation is managed by ZFS.  Changing the user's key (e.g. a passphrase)
 does not require re-encrypting the entire dataset.  Datasets can be scrubbed,
