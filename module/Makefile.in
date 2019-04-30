@@ -29,7 +29,7 @@ modules:
 	list='$(SUBDIR_TARGETS)'; for targetdir in $$list; do \
 		$(MAKE) -C $$targetdir; \
 	done
-	$(MAKE) -C @LINUX_OBJ@ M=`pwd` @KERNEL_MAKE@ CONFIG_ZFS=m $@
+	$(MAKE) -C @LINUX_OBJ@ M=`pwd` @KERNEL_MAKE@ CONFIG_ZFS=m KBUILD_OUTPUT="" $@
 
 clean:
 	@# Only cleanup the kernel build directories when CONFIG_KERNEL
