@@ -971,7 +971,7 @@ send_iterate_fs(zfs_handle_t *zhp, void *arg)
 		char snapname[MAXPATHLEN] = { 0 };
 		zfs_handle_t *snap;
 
-		(void) snprintf(snapname, sizeof (snapname) - 1, "%s@%s",
+		(void) snprintf(snapname, sizeof (snapname), "%s@%s",
 		    zhp->zfs_name, sd->tosnap);
 		if (sd->fromsnap != NULL)
 			sd->seenfrom = B_TRUE;
@@ -1524,7 +1524,7 @@ dump_filesystem(zfs_handle_t *zhp, void *arg)
 		zfs_handle_t *snap;
 
 		if (!sdd->seenfrom) {
-			(void) snprintf(snapname, sizeof (snapname) - 1,
+			(void) snprintf(snapname, sizeof (snapname),
 			    "%s@%s", zhp->zfs_name, sdd->fromsnap);
 			snap = zfs_open(zhp->zfs_hdl, snapname,
 			    ZFS_TYPE_SNAPSHOT);
@@ -1535,7 +1535,7 @@ dump_filesystem(zfs_handle_t *zhp, void *arg)
 		}
 
 		if (rv == 0) {
-			(void) snprintf(snapname, sizeof (snapname) - 1,
+			(void) snprintf(snapname, sizeof (snapname),
 			    "%s@%s", zhp->zfs_name, sdd->tosnap);
 			snap = zfs_open(zhp->zfs_hdl, snapname,
 			    ZFS_TYPE_SNAPSHOT);
