@@ -589,11 +589,6 @@ extern dnode_stats_t dnode_stats;
 
 #ifdef ZFS_DEBUG
 
-/*
- * There should be a ## between the string literal and fmt, to make it
- * clear that we're joining two strings together, but that piece of shit
- * gcc doesn't support that preprocessor token.
- */
 #define	dprintf_dnode(dn, fmt, ...) do { \
 	if (zfs_flags & ZFS_DEBUG_DPRINTF) { \
 	char __db_buf[32]; \
