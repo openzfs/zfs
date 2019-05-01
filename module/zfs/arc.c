@@ -4828,7 +4828,7 @@ arc_all_memory(void)
 {
 #ifdef _KERNEL
 #ifdef CONFIG_HIGHMEM
-	return (ptob(zfs_totalram_pages - totalhigh_pages));
+	return (ptob(zfs_totalram_pages - zfs_totalhigh_pages));
 #else
 	return (ptob(zfs_totalram_pages));
 #endif /* CONFIG_HIGHMEM */
