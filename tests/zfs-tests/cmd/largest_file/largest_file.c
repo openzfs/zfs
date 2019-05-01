@@ -67,12 +67,18 @@ main(int argc, char **argv)
 	char		mybuf[5] = "aaaa\0";
 	char		*testfile;
 	mode_t		mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
+	struct sigaction sa;
 
 	if (argc != 2) {
 		usage(argv[0]);
 	}
 
-	(void) sigset(SIGXFSZ, sigxfsz);
+	if (sigemptyset(&sa.sa_mask) == -1)
+		return (errno);
+	sa.sa_flags = 0;
+	sa.sa_handler = sigxfsz;
+	if (sigaction(SIGXFSZ, &sa, NULL) == -1)
+		return (errno);
 
 	testfile = strdup(argv[1]);
 
