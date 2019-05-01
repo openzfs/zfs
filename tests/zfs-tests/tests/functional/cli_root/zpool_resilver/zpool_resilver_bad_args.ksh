@@ -35,6 +35,8 @@
 # 1. Create an array containing bad 'zpool reilver' parameters.
 # 2. For each element, execute the sub-command.
 # 3. Verify it returns an error.
+# 4. Confirm the sub-command returns an error if the resilver_defer
+#    feature isn't active.
 #
 
 verify_runnable "global"
@@ -45,6 +47,13 @@ set -A args "" "-?" "blah blah" "-%" "--?" "-*" "-=" \
     "-A" "-B" "-C" "-D" "-E" "-F" "-G" "-H" "-I" "-J" "-K" "-L" \
     "-M" "-N" "-O" "-P" "-Q" "-R" "-S" "-T" "-U" "-V" "-W" "-X" "-W" "-Z"
 
+function cleanup
+{
+	log_must destroy_pool $TESTPOOL2
+	log_must rm -f $TEST_BASE_DIR/zpool_resilver.dat
+}
+
+log_onexit cleanup
 
 log_assert "Execute 'zpool resilver' using invalid parameters."
 
@@ -54,5 +63,9 @@ while [[ $i -lt ${#args[*]} ]]; do
 
 	((i = i + 1))
 done
+
+log_must mkfile $MINVDEVSIZE $TEST_BASE_DIR/zpool_resilver.dat
+log_must zpool create -d $TESTPOOL2 $TEST_BASE_DIR/zpool_resilver.dat
+log_mustnot zpool resilver $TESTPOOL2
 
 log_pass "Badly formed 'zpool resilver' parameters fail as expected."
