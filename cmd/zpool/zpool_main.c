@@ -2567,20 +2567,19 @@ show_import(nvlist_t *config)
 				break;
 
 			case ZPOOL_ERRATA_ZOL_8308_ENCRYPTION:
-				(void) printf(gettext(" action: Any existing "
-				    "encrypted datasets contain an on-disk "
-				    "incompatibility\n\twhich may cause "
-				    "on-disk corruption with 'zfs recv' and "
-				    "which needs\n\tto be corrected. Enable "
-				    "the bookmark_v2 feature and destroy all "
-				    "snapshots and bookmarks (on encrypted "
-				    "datasets) that were created before "
-				    "enabling bookmark_v2. If preserving "
-				    "those snapshots and bookmarks is required, "
-				    "send (non-raw) them to new encrypted "
-				    "datasets. If this pool does\n\tnot contain "
-				    "any encrypted datasets, simply enable the "
-				    "bookmark_v2 \n\tfeature.\n"));
+				(void) printf(gettext(" action: Existing "
+				    "encrypted snapshots and bookmarks contain "
+				    "an on-disk\n\tincompatibility. This may "
+				    "cause on-disk corruption if they are used "
+				    "with\n\t'zfs recv'. To correct the issue, "
+				    "enable the bookmark_v2 feature. No "
+				    "additional\n\taction is needed if there "
+				    "are no encrypted snapshots or bookmarks. "
+				    "If preserving\n\tthe encrypted snapshots "
+				    "and bookmarks is required, use a non-raw "
+				    "send to backup\n\tand restore them. "
+				    "Alternately, they may be removed to "
+				    "resolve the\n\tincompatibility.\n"));
 				break;
 			default:
 				/*
@@ -7636,18 +7635,19 @@ status_callback(zpool_handle_t *zhp, void *data)
 			break;
 
 		case ZPOOL_ERRATA_ZOL_8308_ENCRYPTION:
-			(void) printf(gettext("\tExisting encrypted datasets "
-			    "contain an on-disk incompatibility\n\twhich "
-			    "needs to be corrected.\n"));
-			(void) printf(gettext("action: To correct the issue "
-			    "enable the bookmark_v2 feature and destroy all "
-			    "snapshots and bookmarks (on encrypted datasets) "
-			    "that were created before enabling bookmark_v2. "
-			    "If preserving those snapshots and bookmarks is "
-			    "required, send (non-raw) them to new encrypted "
-			    "datasets. If this pool does\n\tnot contain any "
-			    "encrypted datasets, simply enable the "
-			    "bookmark_v2 \n\tfeature.\n"));
+			(void) printf(gettext("Existing encrypted snapshots "
+			    "and bookmarks contain an on-disk "
+			    "incompatibility.\n\tThis may cause on-disk "
+			    "corruption if they are used with 'zfs recv'."));
+			(void) printf(gettext(" action:  To correct the issue, "
+			    "enable the bookmark_v2 feature. No "
+			    "additional\n\taction is needed if there "
+			    "are no encrypted snapshots or bookmarks. "
+			    "If preserving\n\tthe encrypted snapshots "
+			    "and bookmarks is required, use a non-raw "
+			    "send to backup\n\tand restore them. "
+			    "Alternately, they may be removed to "
+			    "resolve the\n\tincompatibility.\n"));
 			break;
 
 		default:
