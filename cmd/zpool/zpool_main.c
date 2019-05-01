@@ -2572,15 +2572,15 @@ show_import(nvlist_t *config)
 				    "incompatibility\n\twhich may cause "
 				    "on-disk corruption with 'zfs recv' and "
 				    "which needs\n\tto be corrected. Enable "
-				    "the bookmark_v2 feature. Destroy all "
-				    "snapshots (on encrypted datasets) that "
-				    "were created before enabling bookmark_v2. "
-				    "If preserving those snapshots is "
-				    "required, send (non-raw) them to new "
-				    "encrypted datasets. If this pool "
-				    "does\n\tnot contain any encrypted "
-				    "datasets, simply enable the bookmark_v2 "
-				    "\n\tfeature.\n"));
+				    "the bookmark_v2 feature and destroy all "
+				    "snapshots and bookmarks (on encrypted "
+				    "datasets) that were created before "
+				    "enabling bookmark_v2. If preserving "
+				    "those snapshots and bookmarks is required, "
+				    "send (non-raw) them to new encrypted "
+				    "datasets. If this pool does\n\tnot contain "
+				    "any encrypted datasets, simply enable the "
+				    "bookmark_v2 \n\tfeature.\n"));
 				break;
 			default:
 				/*
@@ -7640,15 +7640,14 @@ status_callback(zpool_handle_t *zhp, void *data)
 			    "contain an on-disk incompatibility\n\twhich "
 			    "needs to be corrected.\n"));
 			(void) printf(gettext("action: To correct the issue "
-			    "enable the bookmark_v2 feature. Destroy all "
-			    "snapshots (on encrypted datasets) that "
-			    "were created before enabling bookmark_v2. "
-			    "If preserving those snapshots is "
-			    "required, send (non-raw) them to new "
-			    "encrypted datasets. If this pool "
-			    "does\n\tnot contain any encrypted "
-			    "datasets, simply enable the bookmark_v2 "
-			    "\n\tfeature.\n"));
+			    "enable the bookmark_v2 feature and destroy all "
+			    "snapshots and bookmarks (on encrypted datasets) "
+			    "that were created before enabling bookmark_v2. "
+			    "If preserving those snapshots and bookmarks is "
+			    "required, send (non-raw) them to new encrypted "
+			    "datasets. If this pool does\n\tnot contain any "
+			    "encrypted datasets, simply enable the "
+			    "bookmark_v2 \n\tfeature.\n"));
 			break;
 
 		default:
