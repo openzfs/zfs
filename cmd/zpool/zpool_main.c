@@ -7021,7 +7021,7 @@ print_scan_status(pool_scan_stat_t *ps)
 
 	scan_rate = pass_scanned / elapsed;
 	issue_rate = pass_issued / elapsed;
-	total_secs_left = (issue_rate != 0) ?
+	total_secs_left = (issue_rate != 0 && total >= issued) ?
 	    ((total - issued) / issue_rate) : UINT64_MAX;
 
 	days_left = total_secs_left / 60 / 60 / 24;
@@ -7055,7 +7055,8 @@ print_scan_status(pool_scan_stat_t *ps)
 	}
 
 	if (pause == 0) {
-		if (issue_rate >= 10 * 1024 * 1024) {
+		if (total_secs_left != UINT64_MAX &&
+		    issue_rate >= 10 * 1024 * 1024) {
 			(void) printf(gettext(", %llu days "
 			    "%02llu:%02llu:%02llu to go\n"),
 			    (u_longlong_t)days_left, (u_longlong_t)hours_left,
