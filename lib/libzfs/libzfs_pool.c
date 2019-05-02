@@ -2354,6 +2354,10 @@ zpool_scan(zpool_handle_t *zhp, pool_scan_func_t func, pool_scrub_cmd_t cmd)
 			(void) snprintf(msg, sizeof (msg), dgettext(TEXT_DOMAIN,
 			    "cannot scrub %s"), zc.zc_name);
 		}
+	} else if (func == POOL_SCAN_RESILVER) {
+		assert(cmd == POOL_SCRUB_NORMAL);
+		(void) snprintf(msg, sizeof (msg), dgettext(TEXT_DOMAIN,
+		    "cannot restart resilver on %s"), zc.zc_name);
 	} else if (func == POOL_SCAN_NONE) {
 		(void) snprintf(msg, sizeof (msg),
 		    dgettext(TEXT_DOMAIN, "cannot cancel scrubbing %s"),
@@ -2381,6 +2385,8 @@ zpool_scan(zpool_handle_t *zhp, pool_scan_func_t func, pool_scrub_cmd_t cmd)
 		}
 	} else if (err == ENOENT) {
 		return (zfs_error(hdl, EZFS_NO_SCRUB, msg));
+	} else if (err == ENOTSUP && func == POOL_SCAN_RESILVER) {
+		return (zfs_error(hdl, EZFS_NO_RESILVER_DEFER, msg));
 	} else {
 		return (zpool_standard_error(hdl, err, msg));
 	}

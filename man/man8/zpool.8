@@ -2216,7 +2216,9 @@ again.
 .Xc
 Starts a resilver. If an existing resilver is already running it will be
 restarted from the beginning. Any drives that were scheduled for a deferred
-resilver will be added to the new one.
+resilver will be added to the new one. This requires the
+.Sy resilver_defer
+feature.
 .It Xo
 .Nm
 .Cm trim
