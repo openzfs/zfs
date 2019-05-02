@@ -7261,6 +7261,10 @@ spa_scan(spa_t *spa, pool_scan_func_t func)
 	if (func >= POOL_SCAN_FUNCS || func == POOL_SCAN_NONE)
 		return (SET_ERROR(ENOTSUP));
 
+	if (func == POOL_SCAN_RESILVER &&
+	    !spa_feature_is_enabled(spa, SPA_FEATURE_RESILVER_DEFER))
+		return (SET_ERROR(ENOTSUP));
+
 	/*
 	 * If a resilver was requested, but there is no DTL on a
 	 * writeable leaf device, we have nothing to do.

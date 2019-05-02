@@ -146,6 +146,7 @@ typedef enum zfs_error {
 	EZFS_TRIMMING,		/* currently trimming */
 	EZFS_NO_TRIM,		/* no active trim */
 	EZFS_TRIM_NOTSUP,	/* device does not support trim */
+	EZFS_NO_RESILVER_DEFER,	/* pool doesn't support resilver_defer */
 	EZFS_UNKNOWN
 } zfs_error_t;
 
