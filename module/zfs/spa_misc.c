@@ -2689,5 +2689,10 @@ MODULE_PARM_DESC(zfs_ddt_data_is_special,
 module_param(zfs_user_indirect_is_special, int, 0644);
 MODULE_PARM_DESC(zfs_user_indirect_is_special,
 	"Place user data indirect blocks into the special class");
+
+module_param(zfs_special_class_metadata_reserve_pct, int, 0644);
+MODULE_PARM_DESC(zfs_special_class_metadata_reserve_pct,
+	"Small file blocks in special vdevs depends on this much "
+	"free space available");
 /* END CSTYLED */
 #endif
