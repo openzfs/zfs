@@ -39,6 +39,12 @@
 #define	zfs_totalram_pages	totalram_pages
 #endif
 
+#ifdef HAVE_TOTALHIGH_PAGES
+#define	zfs_totalhigh_pages	totalhigh_pages()
+#else
+#define	zfs_totalhigh_pages	totalhigh_pages
+#endif
+
 #define	membar_producer()		smp_wmb()
 #define	physmem				zfs_totalram_pages
 #define	freemem			(nr_free_pages() + \
