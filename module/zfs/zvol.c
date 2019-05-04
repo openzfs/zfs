@@ -36,7 +36,7 @@
  *
  * Copyright 2014 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2016 Actifio, Inc. All rights reserved.
- * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2019 by Delphix. All rights reserved.
  */
 
 /*
@@ -155,6 +155,11 @@ typedef struct {
 } zvol_task_t;
 
 #define	ZVOL_RDONLY	0x1
+/*
+ * Whether the zvol has been written to (as opposed to ZVOL_RDONLY, which
+ * specifies whether or not the zvol _can_ be written to)
+ */
+#define	ZVOL_WRITTEN_TO	0x2
 
 static uint64_t
 zvol_name_hash(const char *name)
@@ -742,6 +747,7 @@ zvol_write(void *arg)
 
 	zvol_state_t *zv = zvr->zv;
 	ASSERT(zv && zv->zv_open_count > 0);
+	ASSERT(zv->zv_zilog != NULL);
 
 	ssize_t start_resid = uio.uio_resid;
 	unsigned long start_jif = jiffies;
@@ -832,6 +838,7 @@ zvol_discard(void *arg)
 	unsigned long start_jif;
 
 	ASSERT(zv && zv->zv_open_count > 0);
+	ASSERT(zv->zv_zilog != NULL);
 
 	start_jif = jiffies;
 	blk_generic_start_io_acct(zv->zv_queue, WRITE, bio_sectors(bio),
@@ -930,116 +937,6 @@ zvol_read(void *arg)
 	kmem_free(zvr, sizeof (zv_request_t));
 }
 
-static MAKE_REQUEST_FN_RET
-zvol_request(struct request_queue *q, struct bio *bio)
-{
-	zvol_state_t *zv = q->queuedata;
-	fstrans_cookie_t cookie = spl_fstrans_mark();
-	uint64_t offset = BIO_BI_SECTOR(bio) << 9;
-	uint64_t size = BIO_BI_SIZE(bio);
-	int rw = bio_data_dir(bio);
-	zv_request_t *zvr;
-
-	if (bio_has_data(bio) && offset + size > zv->zv_volsize) {
-		printk(KERN_INFO
-		    "%s: bad access: offset=%llu, size=%lu\n",
-		    zv->zv_disk->disk_name,
-		    (long long unsigned)offset,
-		    (long unsigned)size);
-
-		BIO_END_IO(bio, -SET_ERROR(EIO));
-		goto out;
-	}
-
-	if (rw == WRITE) {
-		boolean_t need_sync = B_FALSE;
-
-		if (unlikely(zv->zv_flags & ZVOL_RDONLY)) {
-			BIO_END_IO(bio, -SET_ERROR(EROFS));
-			goto out;
-		}
-
-		/*
-		 * To be released in the I/O function. See the comment on
-		 * rangelock_enter() below.
-		 */
-		rw_enter(&zv->zv_suspend_lock, RW_READER);
-
-		/* bio marked as FLUSH need to flush before write */
-		if (bio_is_flush(bio))
-			zil_commit(zv->zv_zilog, ZVOL_OBJ);
-
-		/* Some requests are just for flush and nothing else. */
-		if (size == 0) {
-			rw_exit(&zv->zv_suspend_lock);
-			BIO_END_IO(bio, 0);
-			goto out;
-		}
-
-		zvr = kmem_alloc(sizeof (zv_request_t), KM_SLEEP);
-		zvr->zv = zv;
-		zvr->bio = bio;
-
-		/*
-		 * To be released in the I/O function. Since the I/O functions
-		 * are asynchronous, we take it here synchronously to make
-		 * sure overlapped I/Os are properly ordered.
-		 */
-		zvr->lr = rangelock_enter(&zv->zv_rangelock, offset, size,
-		    RL_WRITER);
-		/*
-		 * Sync writes and discards execute zil_commit() which may need
-		 * to take a RL_READER lock on the whole block being modified
-		 * via its zillog->zl_get_data(): to avoid circular dependency
-		 * issues with taskq threads execute these requests
-		 * synchronously here in zvol_request().
-		 */
-		need_sync = bio_is_fua(bio) ||
-		    zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS;
-		if (bio_is_discard(bio) || bio_is_secure_erase(bio)) {
-			if (zvol_request_sync || need_sync ||
-			    taskq_dispatch(zvol_taskq, zvol_discard, zvr,
-			    TQ_SLEEP) == TASKQID_INVALID)
-				zvol_discard(zvr);
-		} else {
-			if (zvol_request_sync || need_sync ||
-			    taskq_dispatch(zvol_taskq, zvol_write, zvr,
-			    TQ_SLEEP) == TASKQID_INVALID)
-				zvol_write(zvr);
-		}
-	} else {
-		/*
-		 * The SCST driver, and possibly others, may issue READ I/Os
-		 * with a length of zero bytes.  These empty I/Os contain no
-		 * data and require no additional handling.
-		 */
-		if (size == 0) {
-			BIO_END_IO(bio, 0);
-			goto out;
-		}
-
-		zvr = kmem_alloc(sizeof (zv_request_t), KM_SLEEP);
-		zvr->zv = zv;
-		zvr->bio = bio;
-
-		rw_enter(&zv->zv_suspend_lock, RW_READER);
-
-		zvr->lr = rangelock_enter(&zv->zv_rangelock, offset, size,
-		    RL_READER);
-		if (zvol_request_sync || taskq_dispatch(zvol_taskq,
-		    zvol_read, zvr, TQ_SLEEP) == TASKQID_INVALID)
-			zvol_read(zvr);
-	}
-
-out:
-	spl_fstrans_unmark(cookie);
-#ifdef HAVE_MAKE_REQUEST_FN_RET_INT
-	return (0);
-#elif defined(HAVE_MAKE_REQUEST_FN_RET_QC)
-	return (BLK_QC_T_NONE);
-#endif
-}
-
 /* ARGSUSED */
 static void
 zvol_get_done(zgd_t *zgd, int error)
@@ -1120,6 +1017,133 @@ zvol_get_data(void *arg, lr_write_t *lr, char *buf, struct lwb *lwb, zio_t *zio)
 	return (SET_ERROR(error));
 }
 
+static MAKE_REQUEST_FN_RET
+zvol_request(struct request_queue *q, struct bio *bio)
+{
+	zvol_state_t *zv = q->queuedata;
+	fstrans_cookie_t cookie = spl_fstrans_mark();
+	uint64_t offset = BIO_BI_SECTOR(bio) << 9;
+	uint64_t size = BIO_BI_SIZE(bio);
+	int rw = bio_data_dir(bio);
+	zv_request_t *zvr;
+
+	if (bio_has_data(bio) && offset + size > zv->zv_volsize) {
+		printk(KERN_INFO
+		    "%s: bad access: offset=%llu, size=%lu\n",
+		    zv->zv_disk->disk_name,
+		    (long long unsigned)offset,
+		    (long unsigned)size);
+
+		BIO_END_IO(bio, -SET_ERROR(EIO));
+		goto out;
+	}
+
+	if (rw == WRITE) {
+		boolean_t need_sync = B_FALSE;
+
+		if (unlikely(zv->zv_flags & ZVOL_RDONLY)) {
+			BIO_END_IO(bio, -SET_ERROR(EROFS));
+			goto out;
+		}
+
+		/*
+		 * To be released in the I/O function. See the comment on
+		 * rangelock_enter() below.
+		 */
+		rw_enter(&zv->zv_suspend_lock, RW_READER);
+
+		/*
+		 * Open a ZIL if this is the first time we have written to this
+		 * zvol. We protect zv->zv_zilog with zv_suspend_lock rather
+		 * than zv_state_lock so that we don't need to acquire an
+		 * additional lock in this path.
+		 */
+		if (zv->zv_zilog == NULL) {
+			rw_exit(&zv->zv_suspend_lock);
+			rw_enter(&zv->zv_suspend_lock, RW_WRITER);
+			if (zv->zv_zilog == NULL) {
+				zv->zv_zilog = zil_open(zv->zv_objset,
+				    zvol_get_data);
+				zv->zv_flags |= ZVOL_WRITTEN_TO;
+			}
+			rw_downgrade(&zv->zv_suspend_lock);
+		}
+
+		/* bio marked as FLUSH need to flush before write */
+		if (bio_is_flush(bio))
+			zil_commit(zv->zv_zilog, ZVOL_OBJ);
+
+		/* Some requests are just for flush and nothing else. */
+		if (size == 0) {
+			rw_exit(&zv->zv_suspend_lock);
+			BIO_END_IO(bio, 0);
+			goto out;
+		}
+
+		zvr = kmem_alloc(sizeof (zv_request_t), KM_SLEEP);
+		zvr->zv = zv;
+		zvr->bio = bio;
+
+		/*
+		 * To be released in the I/O function. Since the I/O functions
+		 * are asynchronous, we take it here synchronously to make
+		 * sure overlapped I/Os are properly ordered.
+		 */
+		zvr->lr = rangelock_enter(&zv->zv_rangelock, offset, size,
+		    RL_WRITER);
+		/*
+		 * Sync writes and discards execute zil_commit() which may need
+		 * to take a RL_READER lock on the whole block being modified
+		 * via its zillog->zl_get_data(): to avoid circular dependency
+		 * issues with taskq threads execute these requests
+		 * synchronously here in zvol_request().
+		 */
+		need_sync = bio_is_fua(bio) ||
+		    zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS;
+		if (bio_is_discard(bio) || bio_is_secure_erase(bio)) {
+			if (zvol_request_sync || need_sync ||
+			    taskq_dispatch(zvol_taskq, zvol_discard, zvr,
+			    TQ_SLEEP) == TASKQID_INVALID)
+				zvol_discard(zvr);
+		} else {
+			if (zvol_request_sync || need_sync ||
+			    taskq_dispatch(zvol_taskq, zvol_write, zvr,
+			    TQ_SLEEP) == TASKQID_INVALID)
+				zvol_write(zvr);
+		}
+	} else {
+		/*
+		 * The SCST driver, and possibly others, may issue READ I/Os
+		 * with a length of zero bytes.  These empty I/Os contain no
+		 * data and require no additional handling.
+		 */
+		if (size == 0) {
+			BIO_END_IO(bio, 0);
+			goto out;
+		}
+
+		zvr = kmem_alloc(sizeof (zv_request_t), KM_SLEEP);
+		zvr->zv = zv;
+		zvr->bio = bio;
+
+		rw_enter(&zv->zv_suspend_lock, RW_READER);
+
+		zvr->lr = rangelock_enter(&zv->zv_rangelock, offset, size,
+		    RL_READER);
+		if (zvol_request_sync || taskq_dispatch(zvol_taskq,
+		    zvol_read, zvr, TQ_SLEEP) == TASKQID_INVALID)
+			zvol_read(zvr);
+	}
+
+out:
+	spl_fstrans_unmark(cookie);
+#ifdef HAVE_MAKE_REQUEST_FN_RET_INT
+	return (0);
+#elif defined(HAVE_MAKE_REQUEST_FN_RET_QC)
+	return (BLK_QC_T_NONE);
+#endif
+}
+
 /*
  * The zvol_state_t's are inserted into zvol_state_list and zvol_htable.
  */
@@ -1157,6 +1181,9 @@ zvol_setup_zv(zvol_state_t *zv)
 	ASSERT(MUTEX_HELD(&zv->zv_state_lock));
 	ASSERT(RW_LOCK_HELD(&zv->zv_suspend_lock));
 
+	zv->zv_zilog = NULL;
+	zv->zv_flags &= ~ZVOL_WRITTEN_TO;
+
 	error = dsl_prop_get_integer(zv->zv_name, "readonly", &ro, NULL);
 	if (error)
 		return (SET_ERROR(error));
@@ -1171,7 +1198,6 @@ zvol_setup_zv(zvol_state_t *zv)
 
 	set_capacity(zv->zv_disk, volsize >> 9);
 	zv->zv_volsize = volsize;
-	zv->zv_zilog = zil_open(os, zvol_get_data);
 
 	if (ro || dmu_objset_is_snapshot(os) ||
 	    !spa_writeable(dmu_objset_spa(os))) {
@@ -1194,7 +1220,11 @@ zvol_shutdown_zv(zvol_state_t *zv)
 	ASSERT(MUTEX_HELD(&zv->zv_state_lock) &&
 	    RW_LOCK_HELD(&zv->zv_suspend_lock));
 
-	zil_close(zv->zv_zilog);
+	if (zv->zv_flags & ZVOL_WRITTEN_TO) {
+		ASSERT(zv->zv_zilog != NULL);
+		zil_close(zv->zv_zilog);
+	}
+
 	zv->zv_zilog = NULL;
 
 	dnode_rele(zv->zv_dn, FTAG);
@@ -1204,7 +1234,7 @@ zvol_shutdown_zv(zvol_state_t *zv)
 	 * Evict cached data. We must write out any dirty data before
 	 * disowning the dataset.
 	 */
-	if (!(zv->zv_flags & ZVOL_RDONLY))
+	if (zv->zv_flags & ZVOL_WRITTEN_TO)
 		txg_wait_synced(dmu_objset_pool(zv->zv_objset), 0);
 	(void) dmu_objset_evict_dbufs(zv->zv_objset);
 }
