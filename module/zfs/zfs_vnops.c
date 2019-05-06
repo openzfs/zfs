@@ -822,6 +822,7 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 			uio->uio_fault_disable = B_TRUE;
 			error = dmu_write_uio_dbuf(sa_get_db(zp->z_sa_hdl),
 			    uio, nbytes, tx);
+			uio->uio_fault_disable = B_FALSE;
 			if (error == EFAULT) {
 				dmu_tx_commit(tx);
 				if (uio_prefaultpages(MIN(n, max_blksz), uio)) {

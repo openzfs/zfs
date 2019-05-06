@@ -727,12 +727,12 @@ static void
 uio_from_bio(uio_t *uio, struct bio *bio)
 {
 	uio->uio_bvec = &bio->bi_io_vec[BIO_BI_IDX(bio)];
-	uio->uio_skip = BIO_BI_SKIP(bio);
-	uio->uio_resid = BIO_BI_SIZE(bio);
 	uio->uio_iovcnt = bio->bi_vcnt - BIO_BI_IDX(bio);
 	uio->uio_loffset = BIO_BI_SECTOR(bio) << 9;
-	uio->uio_limit = MAXOFFSET_T;
 	uio->uio_segflg = UIO_BVEC;
+	uio->uio_limit = MAXOFFSET_T;
+	uio->uio_resid = BIO_BI_SIZE(bio);
+	uio->uio_skip = BIO_BI_SKIP(bio);
 }
 
 static void
@@ -742,7 +742,7 @@ zvol_write(void *arg)
 
 	zv_request_t *zvr = arg;
 	struct bio *bio = zvr->bio;
-	uio_t uio;
+	uio_t uio = { { 0 }, 0 };
 	uio_from_bio(&uio, bio);
 
 	zvol_state_t *zv = zvr->zv;
@@ -897,7 +897,7 @@ zvol_read(void *arg)
 
 	zv_request_t *zvr = arg;
 	struct bio *bio = zvr->bio;
-	uio_t uio;
+	uio_t uio = { { 0 }, 0 };
 	uio_from_bio(&uio, bio);
 
 	zvol_state_t *zv = zvr->zv;
