@@ -2402,6 +2402,20 @@ Default value: \fB16,777,216\fR.
 .sp
 .ne 2
 .na
+\fBzfs_special_class_metadata_reserve_pct\fR (int)
+.ad
+.RS 12n
+Only allow small data blocks to be allocated on the special and dedup vdev
+types when the available free space percentage on these vdevs exceeds this
+value. This ensures reserved space is available for pool meta data as the
+special vdevs approach capacity.
+.sp
+Default value: \fB25\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_sync_pass_dont_compress\fR (int)
 .ad
 .RS 12n
