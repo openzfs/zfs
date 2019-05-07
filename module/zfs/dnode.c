@@ -660,7 +660,8 @@ dnode_allocate(dnode_t *dn, dmu_object_type_t ot, int blocksize, int ibs,
 
 void
 dnode_reallocate(dnode_t *dn, dmu_object_type_t ot, int blocksize,
-    dmu_object_type_t bonustype, int bonuslen, int dn_slots, dmu_tx_t *tx)
+    dmu_object_type_t bonustype, int bonuslen, int dn_slots,
+    boolean_t keep_spill, dmu_tx_t *tx)
 {
 	int nblkptr;
 
@@ -710,7 +711,7 @@ dnode_reallocate(dnode_t *dn, dmu_object_type_t ot, int blocksize,
 		dn->dn_next_bonustype[tx->tx_txg & TXG_MASK] = bonustype;
 	if (dn->dn_nblkptr != nblkptr)
 		dn->dn_next_nblkptr[tx->tx_txg & TXG_MASK] = nblkptr;
-	if (dn->dn_phys->dn_flags & DNODE_FLAG_SPILL_BLKPTR) {
+	if (dn->dn_phys->dn_flags & DNODE_FLAG_SPILL_BLKPTR && !keep_spill) {
 		dbuf_rm_spill(dn, tx);
 		dnode_rm_spill(dn, tx);
 	}

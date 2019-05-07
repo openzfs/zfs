@@ -2466,7 +2466,7 @@ dbuf_assign_arcbuf(dmu_buf_impl_t *db, arc_buf_t *buf, dmu_tx_t *tx)
 	ASSERT(db->db_level == 0);
 	ASSERT3U(dbuf_is_metadata(db), ==, arc_is_metadata(buf));
 	ASSERT(buf != NULL);
-	ASSERT(arc_buf_lsize(buf) == db->db.db_size);
+	ASSERT3U(arc_buf_lsize(buf), ==, db->db.db_size);
 	ASSERT(tx->tx_txg != 0);
 
 	arc_return_buf(buf, db);

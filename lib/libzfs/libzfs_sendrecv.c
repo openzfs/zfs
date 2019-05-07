@@ -4466,6 +4466,13 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			    "of raw encrypted send streams."));
 			(void) zfs_error(hdl, EZFS_BADSTREAM, errbuf);
 			break;
+		case ZFS_ERR_SPILL_BLOCK_FLAG_MISSING:
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "Spill block flag missing for raw send.\n"
+			    "The zfs software on the sending system must "
+			    "be updated."));
+			(void) zfs_error(hdl, EZFS_BADSTREAM, errbuf);
+			break;
 		case EBUSY:
 			if (hastoken) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,

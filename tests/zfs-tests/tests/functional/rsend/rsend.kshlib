@@ -30,6 +30,7 @@
 
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/include/math.shlib
+. $STF_SUITE/tests/functional/cli_root/zfs_set/zfs_set_common.kshlib
 . $STF_SUITE/tests/functional/rsend/rsend.cfg
 
 #
@@ -518,9 +519,13 @@ function churn_files
 			value=$((RANDOM % 5))
 			if [ $value -eq 0 -a $xattrs -ne 0 ]; then
 				attrname="testattr$((RANDOM % 3))"
+				attrlen="$(((RANDOM % 1000) + 1))"
+				attrvalue="$(random_string VALID_NAME_CHAR \
+				    $attrlen)"
 				attr -qr $attrname $file_name || \
 				    log_fail "Failed to remove $attrname"
-				attr -qs $attrname -V TestValue $file_name || \
+				attr -qs $attrname \
+				    -V "$attrvalue" $file_name || \
 				    log_fail "Failed to set $attrname"
 			elif [ $value -eq 1 ]; then
 				dd if=/dev/urandom of=$file_name \
@@ -548,9 +553,12 @@ function churn_files
 			if [ $xattrs -ne 0 ]; then
 				for j in {0..2}; do
 					attrname="testattr$j"
-					attr -qs $attrname -V TestValue \
-					    $file_name || log_fail \
-					    "Failed to set $attrname"
+					attrlen="$(((RANDOM % 1000) + 1))"
+					attrvalue="$(random_string \
+					    VALID_NAME_CHAR $attrlen)"
+					attr -qs $attrname \
+					    -V "$attrvalue" $file_name || \
+					    log_fail "Failed to set $attrname"
 				done
 			fi
 		fi
@@ -791,10 +799,11 @@ function rand_set_prop
 	log_must eval "zfs set $prop='$value' $dtst"
 }
 
-# Generate a recursive checksum of a filesystems contents.  Only file
-# data is included in the checksum (no meta data, or xattrs).
+# Generate a recursive checksum of a filesystem which includes the file
+# contents and any associated xattrs.
 function recursive_cksum
 {
-	find $1 -type f -exec sha256sum {} \; | \
+	find $1 -type f -exec sh -c 'sha256sum {}; getfattr \
+	    --absolute-names --only-values -d {} | sha256sum' \; | \
 	    sort -k 2 | awk '{ print $1 }' | sha256sum
 }
