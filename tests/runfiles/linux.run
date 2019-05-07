@@ -37,7 +37,8 @@ tests = ['dbufstats_001_pos', 'dbufstats_002_pos']
 tags = ['functional', 'arc']
 
 [tests/functional/atime]
-tests = ['atime_001_pos', 'atime_002_neg', 'atime_003_pos']
+tests = ['atime_001_pos', 'atime_002_neg', 'atime_003_pos', 'root_atime_off',
+    'root_atime_on', 'root_relatime_on']
 tags = ['functional', 'atime']
 
 [tests/functional/bootfs]

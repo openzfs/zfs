@@ -28,4 +28,4 @@
 . $STF_SUITE/include/libtest.shlib
 
 DISK=${DISKS%% *}
-default_setup $DISK
+default_setup_no_mountpoint $DISK

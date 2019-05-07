@@ -207,6 +207,10 @@ zpl_bdi_destroy(struct super_block *sb)
 #define	SB_MANDLOCK	MS_MANDLOCK
 #endif
 
+#ifndef	SB_NOATIME
+#define	SB_NOATIME	MS_NOATIME
+#endif
+
 /*
  * 2.6.38 API change,
  * LOOKUP_RCU flag introduced to distinguish rcu-walk from ref-walk cases.
