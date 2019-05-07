@@ -101,6 +101,7 @@ shellcheck:
 	fi
 
 mancheck:
+	@scripts/man-dates.sh
 	@if type mandoc > /dev/null 2>&1; then \
 		find ${top_srcdir}/man/man8 -type f -name 'zfs.8' \
 			-o -name 'zpool.8' -o -name 'zdb.8' \
