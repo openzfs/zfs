@@ -214,6 +214,13 @@ function default_setup
 	log_pass
 }
 
+function default_setup_no_mountpoint
+{
+	default_setup_noexit "$1" "$2" "$3" "yes"
+
+	log_pass
+}
+
 #
 # Given a list of disks, setup storage pools and datasets.
 #
@@ -222,6 +229,7 @@ function default_setup_noexit
 	typeset disklist=$1
 	typeset container=$2
 	typeset volume=$3
+	typeset no_mountpoint=$4
 	log_note begin default_setup_noexit
 
 	if is_global_zone; then
@@ -238,7 +246,9 @@ function default_setup_noexit
 	mkdir -p $TESTDIR || log_unresolved Could not create $TESTDIR
 
 	log_must zfs create $TESTPOOL/$TESTFS
-	log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
+	if [[ -z $no_mountpoint ]]; then
+		log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
+	fi
 
 	if [[ -n $container ]]; then
 		rm -rf $TESTDIR1  || \
@@ -249,8 +259,10 @@ function default_setup_noexit
 		log_must zfs create $TESTPOOL/$TESTCTR
 		log_must zfs set canmount=off $TESTPOOL/$TESTCTR
 		log_must zfs create $TESTPOOL/$TESTCTR/$TESTFS1
-		log_must zfs set mountpoint=$TESTDIR1 \
-		    $TESTPOOL/$TESTCTR/$TESTFS1
+		if [[ -z $no_mountpoint ]]; then
+			log_must zfs set mountpoint=$TESTDIR1 \
+			    $TESTPOOL/$TESTCTR/$TESTFS1
+		fi
 	fi
 
 	if [[ -n $volume ]]; then

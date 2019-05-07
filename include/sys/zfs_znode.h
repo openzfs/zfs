@@ -363,6 +363,7 @@ extern int	zfs_inode_alloc(struct super_block *, struct inode **ip);
 extern void	zfs_inode_destroy(struct inode *);
 extern void	zfs_inode_update(znode_t *);
 extern void	zfs_mark_inode_dirty(struct inode *);
+extern boolean_t zfs_relatime_need_update(const struct inode *);
 
 extern void zfs_log_create(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
     znode_t *dzp, znode_t *zp, char *name, vsecattr_t *, zfs_fuid_info_t *,
