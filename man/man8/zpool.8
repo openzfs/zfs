@@ -296,13 +296,13 @@ For more information, see the
 .Sx Intent Log
 section.
 .It Sy dedup
-A device dedicated solely for dedup data.
+A device dedicated solely for deduplication tables.
 The redundancy of this device should match the redundancy of the other normal
 devices in the pool. If more than one dedup device is specified, then
 allocations are load-balanced between those devices.
 .It Sy special
 A device dedicated solely for allocating various kinds of internal metadata,
-and optionally small file data.
+and optionally small file blocks.
 The redundancy of this device should match the redundancy of the other normal
 devices in the pool. If more than one special device is specified, then
 allocations are load-balanced between those devices.
@@ -560,15 +560,15 @@ current state of the pool won't be scanned during a scrub.
 .Ss Special Allocation Class
 The allocations in the special class are dedicated to specific block types.
 By default this includes all metadata, the indirect blocks of user data, and
-any dedup data.  The class can also be provisioned to accept a limited
-percentage of small file data blocks.
+any deduplication tables.  The class can also be provisioned to accept
+small file blocks.
 .Pp
-A pool must always have at least one general (non-specified) vdev before
+A pool must always have at least one normal (non-dedup/special) vdev before
 other devices can be assigned to the special class. If the special class
 becomes full, then allocations intended for it will spill back into the
 normal class.
 .Pp
-Dedup data can be excluded from the special class by setting the
+Deduplication tables can be excluded from the special class by setting the
 .Sy zfs_ddt_data_is_special
 zfs module parameter to false (0).
 .Pp
