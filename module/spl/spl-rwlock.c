@@ -85,7 +85,8 @@ __rwsem_tryupgrade(struct rw_semaphore *rwsem)
 	spl_rwsem_unlock_irqrestore(&rwsem->wait_lock, flags);
 	return (ret);
 }
-#elif defined(HAVE_RWSEM_ATOMIC_LONG_COUNT)
+#elif defined(RWSEM_ACTIVE_MASK)
+#if defined(HAVE_RWSEM_ATOMIC_LONG_COUNT)
 static int
 __rwsem_tryupgrade(struct rw_semaphore *rwsem)
 {
@@ -102,6 +103,13 @@ __rwsem_tryupgrade(struct rw_semaphore *rwsem)
 	val = cmpxchg(&rwsem->count, SPL_RWSEM_SINGLE_READER_VALUE,
 	    SPL_RWSEM_SINGLE_WRITER_VALUE);
 	return (val == SPL_RWSEM_SINGLE_READER_VALUE);
+}
+#endif
+#else
+static int
+__rwsem_tryupgrade(struct rw_semaphore *rwsem)
+{
+	return (0);
 }
 #endif
 
