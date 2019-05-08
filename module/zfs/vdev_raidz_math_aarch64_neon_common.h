@@ -123,7 +123,7 @@
 #define	_R_23(_0, _1, REG2, REG3, ...) REG2, REG3
 #define	R_23(REG...) _R_23(REG, 1, 2, 3)
 
-#define	ASM_BUG()	ASSERT(0)
+#define	ZFS_ASM_BUG()	ASSERT(0)
 
 #define	OFFSET(ptr, val)	(((unsigned char *)(ptr))+val)
 
@@ -197,7 +197,7 @@ typedef struct v {
 		:	"v20", "v21");					\
 		break;							\
 	default:							\
-		ASM_BUG();						\
+		ZFS_ASM_BUG();						\
 	}								\
 }
 
@@ -221,7 +221,7 @@ typedef struct v {
 		:	RVR0(r), RVR1(r));				\
 		break;							\
 	default:							\
-		ASM_BUG();						\
+		ZFS_ASM_BUG();						\
 	}								\
 }
 
@@ -256,7 +256,7 @@ typedef struct v {
 		:	WVR0(r), WVR1(r));				\
 		break;							\
 	default:							\
-		ASM_BUG();						\
+		ZFS_ASM_BUG();						\
 	}								\
 }
 
@@ -280,7 +280,7 @@ typedef struct v {
 		:	RVR0(r), RVR1(r));				\
 		break;							\
 	default:							\
-		ASM_BUG();						\
+		ZFS_ASM_BUG();						\
 	}								\
 }
 
@@ -329,7 +329,7 @@ typedef struct v {
 		[SRC1] "Q" (*(OFFSET(src, 16))));			\
 		break;							\
 	default:							\
-		ASM_BUG();						\
+		ZFS_ASM_BUG();						\
 	}								\
 }
 
@@ -378,7 +378,7 @@ typedef struct v {
 		:	RVR0(r), RVR1(r));				\
 		break;							\
 	default:							\
-		ASM_BUG();						\
+		ZFS_ASM_BUG();						\
 	}								\
 }
 
@@ -441,7 +441,7 @@ typedef struct v {
 		:	"v18", "v19");					\
 		break;							\
 	default:							\
-		ASM_BUG();						\
+		ZFS_ASM_BUG();						\
 	}								\
 }
 
@@ -512,7 +512,7 @@ typedef struct v {
 		:	"v10", "v11", "v12", "v13", "v14", "v15");	\
 		break;							\
 	default:							\
-		ASM_BUG();						\
+		ZFS_ASM_BUG();						\
 	}								\
 }
 
@@ -527,7 +527,7 @@ typedef struct v {
 		_MULx2(c, R_01(r));					\
 		break;							\
 	default:							\
-		ASM_BUG();						\
+		ZFS_ASM_BUG();						\
 	}								\
 }
 

@@ -8,16 +8,18 @@ dist_pkgdata_SCRIPTS = \
 	$(top_srcdir)/scripts/zfs-helpers.sh
 
 EXTRA_DIST = \
-	common.sh.in \
 	commitcheck.sh \
+	common.sh.in \
+	cstyle.pl \
 	dkms.mkconf \
 	dkms.postbuild \
 	enum-extract.pl \
 	kmodtool \
 	make_gitrev.sh \
+	man-dates.sh \
 	paxcheck.sh \
 	zfs2zol-patch.sed \
-	cstyle.pl
+	zol2zfs-patch.sed
 
 define EXTRA_ENVIRONMENT
 

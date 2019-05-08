@@ -24,6 +24,7 @@
  * Copyright 2014 HybridCluster. All rights reserved.
  */
 
+#include <sys/dbuf.h>
 #include <sys/dmu.h>
 #include <sys/dmu_objset.h>
 #include <sys/dmu_tx.h>
@@ -304,13 +305,13 @@ dmu_object_reclaim(objset_t *os, uint64_t object, dmu_object_type_t ot,
     int blocksize, dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx)
 {
 	return (dmu_object_reclaim_dnsize(os, object, ot, blocksize, bonustype,
-	    bonuslen, DNODE_MIN_SIZE, tx));
+	    bonuslen, DNODE_MIN_SIZE, B_FALSE, tx));
 }
 
 int
 dmu_object_reclaim_dnsize(objset_t *os, uint64_t object, dmu_object_type_t ot,
     int blocksize, dmu_object_type_t bonustype, int bonuslen, int dnodesize,
-    dmu_tx_t *tx)
+    boolean_t keep_spill, dmu_tx_t *tx)
 {
 	dnode_t *dn;
 	int dn_slots = dnodesize >> DNODE_SHIFT;
@@ -327,7 +328,30 @@ dmu_object_reclaim_dnsize(objset_t *os, uint64_t object, dmu_object_type_t ot,
 	if (err)
 		return (err);
 
-	dnode_reallocate(dn, ot, blocksize, bonustype, bonuslen, dn_slots, tx);
+	dnode_reallocate(dn, ot, blocksize, bonustype, bonuslen, dn_slots,
+	    keep_spill, tx);
+
+	dnode_rele(dn, FTAG);
+	return (err);
+}
+
+int
+dmu_object_rm_spill(objset_t *os, uint64_t object, dmu_tx_t *tx)
+{
+	dnode_t *dn;
+	int err;
+
+	err = dnode_hold_impl(os, object, DNODE_MUST_BE_ALLOCATED, 0,
+	    FTAG, &dn);
+	if (err)
+		return (err);
+
+	rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
+	if (dn->dn_phys->dn_flags & DNODE_FLAG_SPILL_BLKPTR) {
+		dbuf_rm_spill(dn, tx);
+		dnode_rm_spill(dn, tx);
+	}
+	rw_exit(&dn->dn_struct_rwlock);
 
 	dnode_rele(dn, FTAG);
 	return (err);
@@ -489,6 +513,7 @@ EXPORT_SYMBOL(dmu_object_claim);
 EXPORT_SYMBOL(dmu_object_claim_dnsize);
 EXPORT_SYMBOL(dmu_object_reclaim);
 EXPORT_SYMBOL(dmu_object_reclaim_dnsize);
+EXPORT_SYMBOL(dmu_object_rm_spill);
 EXPORT_SYMBOL(dmu_object_free);
 EXPORT_SYMBOL(dmu_object_next);
 EXPORT_SYMBOL(dmu_object_zapify);
