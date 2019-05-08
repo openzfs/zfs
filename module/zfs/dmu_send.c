@@ -253,7 +253,7 @@ typedef struct dmu_send_cookie {
 	boolean_t dsc_sent_end;
 } dmu_send_cookie_t;
 
-static int do_dump(dmu_sendarg_t *dsa, struct send_block_record *data);
+static int do_dump(dmu_send_cookie_t *dscp, struct send_range *range);
 
 static void
 range_free(struct send_range *range)
@@ -811,13 +811,17 @@ dump_dnode(dmu_send_cookie_t *dscp, const blkptr_t *bp, uint64_t object,
 	if (zfs_send_unmodified_spill_blocks &&
 	    (dnp->dn_flags & DNODE_FLAG_SPILL_BLKPTR) &&
 	    (DN_SPILL_BLKPTR(dnp)->blk_birth <= dscp->dsc_fromtxg)) {
-		struct send_block_record record;
+		struct send_range record;
+		blkptr_t *bp = DN_SPILL_BLKPTR(dnp);
 
-		bzero(&record, sizeof (struct send_block_record));
+		bzero(&record, sizeof (struct send_range));
+		record.type = DATA;
+		record.object = object;
 		record.eos_marker = B_FALSE;
-		record.bp = *DN_SPILL_BLKPTR(dnp);
-		SET_BOOKMARK(&(record.zb), dmu_objset_id(dscp->dsc_os),
-		    object, 0, DMU_SPILL_BLKID);
+		record.start_blkid = DMU_SPILL_BLKID;
+		record.sru.data.bp = *bp;
+		record.sru.data.obj_type = dnp->dn_type;
+		record.sru.data.datablksz = BP_GET_LSIZE(bp);
 
 		if (do_dump(dscp, &record) != 0)
 			return (SET_ERROR(EINTR));
