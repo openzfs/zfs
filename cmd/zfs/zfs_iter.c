@@ -240,7 +240,7 @@ zfs_compare(const void *larg, const void *rarg, void *unused)
 		*rat = '\0';
 
 	ret = strcmp(lname, rname);
-	if (ret == 0) {
+	if (ret == 0 && (lat != NULL || rat != NULL)) {
 		/*
 		 * If we're comparing a dataset to one of its snapshots, we
 		 * always make the full dataset first.
