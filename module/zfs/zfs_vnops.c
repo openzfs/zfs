@@ -2657,6 +2657,12 @@ zfs_getattr_fast(struct inode *ip, struct kstat *sp)
 	mutex_enter(&zp->z_lock);
 
 	generic_fillattr(ip, sp);
+	/*
+	 * +1 link count for root inode with visible '.zfs' directory.
+	 */
+	if ((zp->z_id == zfsvfs->z_root) && zfs_show_ctldir(zp))
+		if (sp->nlink < ZFS_LINK_MAX)
+			sp->nlink++;
 
 	sa_object_size(zp->z_sa_hdl, &blksize, &nblocks);
 	sp->blksize = blksize;
