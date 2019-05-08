@@ -2570,16 +2570,16 @@ show_import(nvlist_t *config)
 				(void) printf(gettext(" action: Existing "
 				    "encrypted snapshots and bookmarks contain "
 				    "an on-disk\n\tincompatibility. This may "
-				    "cause on-disk corruption if they are used "
-				    "with\n\t'zfs recv'. To correct the issue, "
-				    "enable the bookmark_v2 feature. No "
-				    "additional\n\taction is needed if there "
-				    "are no encrypted snapshots or bookmarks. "
-				    "If preserving\n\tthe encrypted snapshots "
-				    "and bookmarks is required, use a non-raw "
-				    "send to backup\n\tand restore them. "
-				    "Alternately, they may be removed to "
-				    "resolve the\n\tincompatibility.\n"));
+				    "cause on-disk corruption if they are used"
+				    "\n\twith 'zfs recv'. To correct the "
+				    "issue, enable the bookmark_v2 feature.\n\t"
+				    "No additional action is needed if there "
+				    "are no encrypted snapshots or\n\t"
+				    "bookmarks. If preserving the encrypted "
+				    "snapshots and bookmarks is\n\trequired, "
+				    "use a non-raw send to backup and restore "
+				    "them. Alternately,\n\tthey may be removed"
+				    " to resolve the incompatibility.\n"));
 				break;
 			default:
 				/*
@@ -7636,19 +7636,18 @@ status_callback(zpool_handle_t *zhp, void *data)
 			break;
 
 		case ZPOOL_ERRATA_ZOL_8308_ENCRYPTION:
-			(void) printf(gettext("Existing encrypted snapshots "
-			    "and bookmarks contain an on-disk "
-			    "incompatibility.\n\tThis may cause on-disk "
-			    "corruption if they are used with 'zfs recv'."));
-			(void) printf(gettext(" action:  To correct the issue, "
-			    "enable the bookmark_v2 feature. No "
-			    "additional\n\taction is needed if there "
-			    "are no encrypted snapshots or bookmarks. "
-			    "If preserving\n\tthe encrypted snapshots "
-			    "and bookmarks is required, use a non-raw "
-			    "send to backup\n\tand restore them. "
-			    "Alternately, they may be removed to "
-			    "resolve the\n\tincompatibility.\n"));
+			(void) printf(gettext("\tExisting encrypted snapshots "
+			    "and bookmarks contain an on-disk\n\tincompat"
+			    "ibility. This may cause on-disk corruption if "
+			    "they are used\n\twith 'zfs recv'.\n"));
+			(void) printf(gettext("action: To correct the issue, "
+			    "enable the bookmark_v2 feature. No additional\n\t"
+			    "action is needed if there are no encrypted "
+			    "snapshots or bookmarks.\n\tIf preserving the "
+			    "encrypted snapshots and bookmarks is required, "
+			    "use\n\ta non-raw send to backup and restore them. "
+			    "Alternately, they may be\n\tremoved to resolve "
+			    "the incompatibility.\n"));
 			break;
 
 		default:
