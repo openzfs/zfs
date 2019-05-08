@@ -246,17 +246,17 @@ zpl_read_common_iovec(struct inode *ip, const struct iovec *iovp, size_t count,
     cred_t *cr, size_t skip)
 {
 	ssize_t read;
-	uio_t uio;
+	uio_t uio = { { 0 }, 0 };
 	int error;
 	fstrans_cookie_t cookie;
 
 	uio.uio_iov = iovp;
-	uio.uio_skip = skip;
-	uio.uio_resid = count;
 	uio.uio_iovcnt = nr_segs;
 	uio.uio_loffset = *ppos;
-	uio.uio_limit = MAXOFFSET_T;
 	uio.uio_segflg = segment;
+	uio.uio_limit = MAXOFFSET_T;
+	uio.uio_resid = count;
+	uio.uio_skip = skip;
 
 	cookie = spl_fstrans_mark();
 	error = -zfs_read(ip, &uio, flags, cr);
@@ -356,7 +356,7 @@ zpl_write_common_iovec(struct inode *ip, const struct iovec *iovp, size_t count,
     cred_t *cr, size_t skip)
 {
 	ssize_t wrote;
-	uio_t uio;
+	uio_t uio = { { 0 }, 0 };
 	int error;
 	fstrans_cookie_t cookie;
 
@@ -364,12 +364,12 @@ zpl_write_common_iovec(struct inode *ip, const struct iovec *iovp, size_t count,
 		*ppos = i_size_read(ip);
 
 	uio.uio_iov = iovp;
-	uio.uio_skip = skip;
-	uio.uio_resid = count;
 	uio.uio_iovcnt = nr_segs;
 	uio.uio_loffset = *ppos;
-	uio.uio_limit = MAXOFFSET_T;
 	uio.uio_segflg = segment;
+	uio.uio_limit = MAXOFFSET_T;
+	uio.uio_resid = count;
+	uio.uio_skip = skip;
 
 	cookie = spl_fstrans_mark();
 	error = -zfs_write(ip, &uio, flags, cr);
