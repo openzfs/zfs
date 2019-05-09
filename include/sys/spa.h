@@ -965,6 +965,14 @@ extern void spa_iostats_trim_add(spa_t *spa, trim_type_t type,
     uint64_t extents_written, uint64_t bytes_written,
     uint64_t extents_skipped, uint64_t bytes_skipped,
     uint64_t extents_failed, uint64_t bytes_failed);
+extern void spa_import_progress_add(spa_t *spa);
+extern void spa_import_progress_remove(uint64_t spa_guid);
+extern int spa_import_progress_set_mmp_check(uint64_t pool_guid,
+    uint64_t mmp_sec_remaining);
+extern int spa_import_progress_set_max_txg(uint64_t pool_guid,
+    uint64_t max_txg);
+extern int spa_import_progress_set_state(uint64_t pool_guid,
+    spa_load_state_t spa_load_state);
 
 /* Pool configuration locks */
 extern int spa_config_tryenter(spa_t *spa, int locks, void *tag, krw_t rw);
