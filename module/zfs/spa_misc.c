@@ -2041,6 +2041,214 @@ spa_dirty_data(spa_t *spa)
 
 /*
  * ==========================================================================
+ * SPA Import Progress Routines
+ * ==========================================================================
+ */
+
+typedef struct spa_import_progress {
+	uint64_t		pool_guid;	/* unique id for updates */
+	char			*pool_name;
+	spa_load_state_t	spa_load_state;
+	uint64_t		mmp_sec_remaining;	/* MMP activity check */
+	uint64_t		spa_load_max_txg;	/* rewind txg */
+	procfs_list_node_t	smh_node;
+} spa_import_progress_t;
+
+spa_history_list_t *spa_import_progress_list = NULL;
+
+static int
+spa_import_progress_show_header(struct seq_file *f)
+{
+	seq_printf(f, "%-20s %-14s %-14s %-12s %s\n", "pool_guid",
+	    "load_state", "multihost_secs", "max_txg",
+	    "pool_name");
+	return (0);
+}
+
+static int
+spa_import_progress_show(struct seq_file *f, void *data)
+{
+	spa_import_progress_t *sip = (spa_import_progress_t *)data;
+
+	seq_printf(f, "%-20llu %-14llu %-14llu %-12llu %s\n",
+	    (u_longlong_t)sip->pool_guid, (u_longlong_t)sip->spa_load_state,
+	    (u_longlong_t)sip->mmp_sec_remaining,
+	    (u_longlong_t)sip->spa_load_max_txg,
+	    (sip->pool_name ? sip->pool_name : "-"));
+
+	return (0);
+}
+
+/* Remove oldest elements from list until there are no more than 'size' left */
+static void
+spa_import_progress_truncate(spa_history_list_t *shl, unsigned int size)
+{
+	spa_import_progress_t *sip;
+	while (shl->size > size) {
+		sip = list_remove_head(&shl->procfs_list.pl_list);
+		if (sip->pool_name)
+			spa_strfree(sip->pool_name);
+		kmem_free(sip, sizeof (spa_import_progress_t));
+		shl->size--;
+	}
+
+	IMPLY(size == 0, list_is_empty(&shl->procfs_list.pl_list));
+}
+
+static void
+spa_import_progress_init(void)
+{
+	spa_import_progress_list = kmem_zalloc(sizeof (spa_history_list_t),
+	    KM_SLEEP);
+
+	spa_import_progress_list->size = 0;
+
+	spa_import_progress_list->procfs_list.pl_private =
+	    spa_import_progress_list;
+
+	procfs_list_install("zfs",
+	    "import_progress",
+	    0644,
+	    &spa_import_progress_list->procfs_list,
+	    spa_import_progress_show,
+	    spa_import_progress_show_header,
+	    NULL,
+	    offsetof(spa_import_progress_t, smh_node));
+}
+
+static void
+spa_import_progress_destroy(void)
+{
+	spa_history_list_t *shl = spa_import_progress_list;
+	procfs_list_uninstall(&shl->procfs_list);
+	spa_import_progress_truncate(shl, 0);
+	kmem_free(shl, sizeof (spa_history_list_t));
+	procfs_list_destroy(&shl->procfs_list);
+}
+
+int
+spa_import_progress_set_state(uint64_t pool_guid,
+    spa_load_state_t load_state)
+{
+	spa_history_list_t *shl = spa_import_progress_list;
+	spa_import_progress_t *sip;
+	int error = ENOENT;
+
+	if (shl->size == 0)
+		return (0);
+
+	mutex_enter(&shl->procfs_list.pl_lock);
+	for (sip = list_tail(&shl->procfs_list.pl_list); sip != NULL;
+	    sip = list_prev(&shl->procfs_list.pl_list, sip)) {
+		if (sip->pool_guid == pool_guid) {
+			sip->spa_load_state = load_state;
+			error = 0;
+			break;
+		}
+	}
+	mutex_exit(&shl->procfs_list.pl_lock);
+
+	return (error);
+}
+
+int
+spa_import_progress_set_max_txg(uint64_t pool_guid, uint64_t load_max_txg)
+{
+	spa_history_list_t *shl = spa_import_progress_list;
+	spa_import_progress_t *sip;
+	int error = ENOENT;
+
+	if (shl->size == 0)
+		return (0);
+
+	mutex_enter(&shl->procfs_list.pl_lock);
+	for (sip = list_tail(&shl->procfs_list.pl_list); sip != NULL;
+	    sip = list_prev(&shl->procfs_list.pl_list, sip)) {
+		if (sip->pool_guid == pool_guid) {
+			sip->spa_load_max_txg = load_max_txg;
+			error = 0;
+			break;
+		}
+	}
+	mutex_exit(&shl->procfs_list.pl_lock);
+
+	return (error);
+}
+
+int
+spa_import_progress_set_mmp_check(uint64_t pool_guid,
+    uint64_t mmp_sec_remaining)
+{
+	spa_history_list_t *shl = spa_import_progress_list;
+	spa_import_progress_t *sip;
+	int error = ENOENT;
+
+	if (shl->size == 0)
+		return (0);
+
+	mutex_enter(&shl->procfs_list.pl_lock);
+	for (sip = list_tail(&shl->procfs_list.pl_list); sip != NULL;
+	    sip = list_prev(&shl->procfs_list.pl_list, sip)) {
+		if (sip->pool_guid == pool_guid) {
+			sip->mmp_sec_remaining = mmp_sec_remaining;
+			error = 0;
+			break;
+		}
+	}
+	mutex_exit(&shl->procfs_list.pl_lock);
+
+	return (error);
+}
+
+/*
+ * A new import is in progress, add an entry.
+ */
+void
+spa_import_progress_add(spa_t *spa)
+{
+	spa_history_list_t *shl = spa_import_progress_list;
+	spa_import_progress_t *sip;
+	char *poolname = NULL;
+
+	sip = kmem_zalloc(sizeof (spa_import_progress_t), KM_SLEEP);
+	sip->pool_guid = spa_guid(spa);
+
+	(void) nvlist_lookup_string(spa->spa_config, ZPOOL_CONFIG_POOL_NAME,
+	    &poolname);
+	if (poolname == NULL)
+		poolname = spa_name(spa);
+	sip->pool_name = spa_strdup(poolname);
+	sip->spa_load_state = spa_load_state(spa);
+
+	mutex_enter(&shl->procfs_list.pl_lock);
+	procfs_list_add(&shl->procfs_list, sip);
+	shl->size++;
+	mutex_exit(&shl->procfs_list.pl_lock);
+}
+
+void
+spa_import_progress_remove(uint64_t pool_guid)
+{
+	spa_history_list_t *shl = spa_import_progress_list;
+	spa_import_progress_t *sip;
+
+	mutex_enter(&shl->procfs_list.pl_lock);
+	for (sip = list_tail(&shl->procfs_list.pl_list); sip != NULL;
+	    sip = list_prev(&shl->procfs_list.pl_list, sip)) {
+		if (sip->pool_guid == pool_guid) {
+			if (sip->pool_name)
+				spa_strfree(sip->pool_name);
+			list_remove(&shl->procfs_list.pl_list, sip);
+			shl->size--;
+			kmem_free(sip, sizeof (spa_import_progress_t));
+			break;
+		}
+	}
+	mutex_exit(&shl->procfs_list.pl_lock);
+}
+
+/*
+ * ==========================================================================
  * Initialization and Termination
  * ==========================================================================
  */
@@ -2119,6 +2327,7 @@ spa_init(int mode)
 	l2arc_start();
 	scan_init();
 	qat_init();
+	spa_import_progress_init();
 }
 
 void
@@ -2143,6 +2352,7 @@ spa_fini(void)
 	fm_fini();
 	scan_fini();
 	qat_fini();
+	spa_import_progress_destroy();
 
 	avl_destroy(&spa_namespace_avl);
 	avl_destroy(&spa_spare_avl);

@@ -662,7 +662,8 @@ spl_random_init(void)
 		}
 		printk("SPL: get_random_bytes() returned 0 "
 		    "when generating random seed. Setting initial seed to "
-		    "0x%016llx%016llx.", cpu_to_be64(s[0]), cpu_to_be64(s[1]));
+		    "0x%016llx%016llx.\n", cpu_to_be64(s[0]),
+		    cpu_to_be64(s[1]));
 	}
 
 	for_each_possible_cpu(i) {
