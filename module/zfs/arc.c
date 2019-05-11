@@ -1849,6 +1849,8 @@ arc_buf_try_copy_decompressed_data(arc_buf_t *buf)
 {
 	arc_buf_hdr_t *hdr = buf->b_hdr;
 	boolean_t copied = B_FALSE;
+	int cnt = 0;
+	zio_cksum_t *b_freeze_cksum = NULL;
 
 	ASSERT(HDR_HAS_L1HDR(hdr));
 	ASSERT3P(buf->b_data, !=, NULL);
@@ -1866,13 +1868,16 @@ arc_buf_try_copy_decompressed_data(arc_buf_t *buf)
 			copied = B_TRUE;
 			break;
 		}
+		b_freeze_cksum = from->b_hdr->b_l1hdr.b_freeze_cksum;
+		cnt++;
 	}
 
 	/*
 	 * There were no decompressed bufs, so there should not be a
 	 * checksum on the hdr either.
 	 */
-	EQUIV(!copied, hdr->b_l1hdr.b_freeze_cksum == NULL);
+	if (cnt > 0)
+		EQUIV(!copied, b_freeze_cksum == NULL);
 
 	return (copied);
 }
