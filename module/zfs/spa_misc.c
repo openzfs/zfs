@@ -2582,6 +2582,15 @@ spa_set_missing_tvds(spa_t *spa, uint64_t missing)
 const char *
 spa_state_to_name(spa_t *spa)
 {
+	ASSERT3P(spa, !=, NULL);
+
+	/*
+	 * it is possible for the spa to exist, without root vdev
+	 * as the spa transitions during import/export
+	 */
+	if (spa->spa_root_vdev == NULL) {
+		return ("TRANSITIONING");
+	}
 	vdev_state_t state = spa->spa_root_vdev->vdev_state;
 	vdev_aux_t aux = spa->spa_root_vdev->vdev_stat.vs_aux;
 
