@@ -27,6 +27,7 @@
 
 #
 # Copyright (c) 2012, 2017 by Delphix. All rights reserved.
+# Copyright 2019 Richard Elling
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -59,7 +60,8 @@ set -A args "create" "add" "destroy" "import fakepool" \
     "-a" "-f" "-g" "-h" "-j" "-m" "-n" "-o" "-p" \
     "-p /tmp" "-r" "-t" "-w" "-x" "-y" "-z" \
     "-D" "-E" "-G" "-H" "-I" "-J" "-K" "-M" \
-    "-N" "-Q" "-R" "-S" "-T" "-W" "-Y" "-Z"
+    "-N" "-Q" "-R" "-S" "-T" "-W" "-Z" \
+    "--blocks" "--create" "--rewind=10"
 
 log_assert "Execute zdb using invalid parameters."
 

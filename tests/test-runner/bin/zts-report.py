@@ -220,7 +220,6 @@ maybe = {
     'cache/setup': ['SKIP', disk_reason],
     'cache/cache_010_neg': ['FAIL', known_reason],
     'chattr/setup': ['SKIP', exec_reason],
-    'cli_root/zdb/zdb_006_pos': ['FAIL', known_reason],
     'cli_root/zfs_get/zfs_get_004_pos': ['FAIL', known_reason],
     'cli_root/zfs_get/zfs_get_009_pos': ['SKIP', '5479'],
     'cli_root/zfs_rollback/zfs_rollback_001_pos': ['FAIL', '6415'],

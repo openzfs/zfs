@@ -14,6 +14,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Lawrence Livermore National Security, LLC.
 .\" Copyright (c) 2017 Intel Corporation.
+.\" Copyright 2019 Richard Elling
 .\"
 .Dd April 14, 2019
 .Dt ZDB 8 SMM
@@ -103,18 +104,18 @@ that zdb may interpret inconsistent pool data and behave erratically.
 .Sh OPTIONS
 Display options:
 .Bl -tag -width Ds
-.It Fl b
+.It Fl b, -block
 Display statistics regarding the number, size
 .Pq logical, physical and allocated
 and deduplication of blocks.
-.It Fl c
+.It Fl c, -checksum
 Verify the checksum of all metadata blocks while printing block statistics
 .Po see
 .Fl b
 .Pc .
 .Pp
 If specified multiple times, verify the checksums of all blocks.
-.It Fl C
+.It Fl C, -config
 Display information about the configuration.
 If specified with no other options, instead display information about the cache
 file
@@ -127,7 +128,7 @@ cached configuration and the on-disk configuration.
 If specified multiple times with
 .Fl e
 also display the configuration that would be used were the pool to be imported.
-.It Fl d
+.It Fl d, -dataset
 Display information about datasets.
 Specified once, displays basic dataset information: ID, create transaction,
 size, and object count.
@@ -136,7 +137,7 @@ If specified multiple times provides greater and greater verbosity.
 .Pp
 If object IDs are specified, display information about those specific objects
 only.
-.It Fl D
+.It Fl D, -dedup
 Display deduplication statistics, including the deduplication ratio
 .Pq Sy dedup ,
 compression ratio
@@ -157,23 +158,25 @@ Display the statistics independently for each deduplication table.
 Dump the contents of the deduplication tables describing duplicate blocks.
 .It Fl DDDDD
 Also dump the contents of the deduplication tables describing unique blocks.
-.It Fl E Ar word0 Ns \&: Ns Ar word1 Ns :...: Ns Ar word15
+.It Fl E, -embedded-bp Ar word0 Ns \&: Ns Ar word1 Ns :...: Ns Ar word15
 Decode and display block from an embedded block pointer specified by the
 .Ar word
 arguments.
-.It Fl h
+.It Fl -help
+Show usage.
+.It Fl h, -history
 Display pool history similar to
 .Nm zpool Cm history ,
 but include internal changes, transaction, and dataset information.
-.It Fl i
+.It Fl i, -zil
 Display information about intent log
 .Pq ZIL
 entries relating to each dataset.
 If specified multiple times, display counts of each intent log transaction type.
-.It Fl k
+.It Fl k, -checkpoint
 Examine the checkpointed state of the pool.
 Note, the on disk format of the pool is not reverted to the checkpointed state.
-.It Fl l Ar device
+.It Fl l, -label Ar device
 Read the vdev labels from the specified device.
 .Nm Fl l
 will return 0 if valid label was found, 1 if error occurred, and 2 if no valid
@@ -191,12 +194,12 @@ If the
 .Fl u
 option is also specified, also display the uberblocks on this device.  Specify
 multiple times to increase verbosity.
-.It Fl L
+.It Fl L, -no-leak
 Disable leak detection and the loading of space maps.
 By default,
 .Nm
 verifies that all non-free blocks are referenced, which can be very expensive.
-.It Fl m
+.It Fl m, -metaslab
 Display the offset, spacemap, and free space of each metaslab.
 .It Fl mm
 Also display information about the on-disk free space histogram associated with
@@ -206,14 +209,14 @@ Display the maximum contiguous free space, the in-core free space histogram, and
 the percentage of free space in each space map.
 .It Fl mmmm
 Display every spacemap record.
-.It Fl M
+.It Fl M, -metaslab-group
 Display the offset, spacemap, and free space of each metaslab.
 .It Fl MM
 Also display information about the maximum contiguous free space and the
 percentage of free space in each space map.
 .It Fl MMM
 Display every spacemap record.
-.It Fl O Ar dataset path
+.It Fl O, -object-by-path Ar dataset path
 Look up the specified
 .Ar path
 inside of the
@@ -227,7 +230,7 @@ This option can be combined with
 .Fl v
 for increasing verbosity.
 .It Xo
-.Fl R Ar poolname vdev Ns \&: Ns Ar offset Ns \&: Ns Ar size Ns Op : Ns Ar flags
+.Fl R, -read-block Ar poolname vdev Ns \&: Ns Ar offset Ns \&: Ns Ar size Ns Op : Ns Ar flags
 .Xc
 Read and display a block from the specified device.
 By default the block is displayed as a hex dump, but see the description of the
@@ -261,36 +264,40 @@ Dump indirect block
 .It Sy r
 Dump raw uninterpreted block data
 .El
-.It Fl s
+.It Fl s, -stats
 Report statistics on
 .Nm zdb
 I/O.
 Display operation counts, bandwidth, and error counts of I/O to the pool from
 .Nm .
-.It Fl S
+.It Fl S, -simulate-dedup
 Simulate the effects of deduplication, constructing a DDT and then display
 that DDT as with
 .Fl DD .
-.It Fl u
+.It Fl u, -uberblock
 Display the current uberblock.
 .El
 .Pp
 Other options:
 .Bl -tag -width Ds
-.It Fl A
+.It Fl A, -no-assertions
 Do not abort should any assertion fail.
 .It Fl AA
 Enable panic recovery, certain errors which would otherwise be fatal are
 demoted to warnings.
 .It Fl AAA
 Do not abort if asserts fail and also enable panic recovery.
-.It Fl e Op Fl p Ar path ...
+.It Fl e, -exported Op Fl p Ar path ...
 Operate on an exported pool, not present in
 .Pa /etc/zfs/zpool.cache .
 The
 .Fl p
 flag specifies the path under which devices are to be searched.
-.It Fl x Ar dumpdir
+Note: if the poolname is specified and multiple pools are discovered
+with the same name in the exported device paths, then an 'Invalid
+argument' error message is printed. The solution is to use the
+desired pool's guid rather than the conflicted pool name.
+.It Fl x, -dump-dir Ar dumpdir
 All blocks accessed will be copied to files in the specified directory.
 The blocks will be placed in sparse files whose name is the same as
 that of the file or device read.
@@ -301,53 +308,54 @@ Note that the
 flags are sufficient to access
 .Pq and thus copy
 all metadata on the pool.
-.It Fl F
+.It Fl F, -rewind
 Attempt to make an unreadable pool readable by trying progressively older
 transactions.
-.It Fl G
+.It Fl G, -debug-buffer
 Dump the contents of the zfs_dbgmsg buffer before exiting
 .Nm .
 zfs_dbgmsg is a buffer used by ZFS to dump advanced debug information.
-.It Fl I Ar inflight I/Os
+.It Fl I, -inflight Ar inflight I/Os
 Limit the number of outstanding checksum I/Os to the specified value.
-The default value is 200.
+The default value is 1000.
 This option affects the performance of the
 .Fl c
 option.
-.It Fl o Ar var Ns = Ns Ar value ...
+.It Fl o, -set Ar var Ns = Ns Ar value ...
 Set the given global libzpool variable to the provided value.
 The value must be an unsigned 32-bit integer.
 Currently only little-endian systems are supported to avoid accidentally setting
 the high 32 bits of 64-bit variables.
-.It Fl P
+.It Fl P, -parseable
 Print numbers in an unscaled form more amenable to parsing, eg. 1000000 rather
 than 1M.
-.It Fl t Ar transaction
-Specify the highest transaction to use when searching for uberblocks.
+.It Fl t, -txg Ar transaction
+Specify the highest transaction group number to use when searching for
+uberblocks.
 See also the
 .Fl u
 and
 .Fl l
 options for a means to see the available uberblocks and their associated
 transaction numbers.
-.It Fl U Ar cachefile
+.It Fl U, -cachefile  Ar cachefile
 Use a cache file other than
 .Pa /etc/zfs/zpool.cache .
-.It Fl v
+.It Fl v, -verbose
 Enable verbosity.
 Specify multiple times for increased verbosity.
-.It Fl V
+.It Fl V, -verbatim
 Attempt verbatim import.
 This mimics the behavior of the kernel when loading a pool from a cachefile.
 Only usable with
 .Fl e .
-.It Fl X
+.It Fl X, -extreme-rewind
 Attempt
 .Qq extreme
 transaction rewind, that is attempt the same recovery as
 .Fl F
 but read transactions otherwise deemed too old.
-.It Fl Y
+.It Fl Y, -reconstruct
 Attempt all possible combinations when reconstructing indirect split blocks.
 This flag disables the individual I/O deadman timer in order to allow as
 much time as required for the attempted reconstruction.

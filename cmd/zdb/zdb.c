@@ -26,6 +26,7 @@
  * Copyright 2016 Nexenta Systems, Inc.
  * Copyright (c) 2017, 2018 Lawrence Livermore National Security, LLC.
  * Copyright (c) 2015, 2017, Intel Corporation.
+ * Copyright 2019 Richard Elling
  */
 
 #include <stdio.h>
@@ -33,6 +34,7 @@
 #include <stdio_ext.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <getopt.h>
 #include <sys/zfs_context.h>
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
@@ -103,7 +105,13 @@ extern boolean_t spa_load_verify_dryrun;
 extern int zfs_reconstruct_indirect_combinations_max;
 
 static const char cmdname[] = "zdb";
-uint8_t dump_opt[256];
+
+/* option_values are for long-only options */
+enum option_values {
+    OPTION_HELP = 256,
+    NUM_OPTION_VALUES
+};
+uint8_t dump_opt[NUM_OPTION_VALUES];
 
 typedef void object_viewer_t(objset_t *, uint64_t, void *data, size_t size);
 
@@ -139,88 +147,97 @@ usage(void)
 	(void) fprintf(stderr,
 	    "Usage:\t%s [-AbcdDFGhikLMPsvX] [-e [-V] [-p <path> ...]] "
 	    "[-I <inflight I/Os>]\n"
-	    "\t\t[-o <var>=<value>]... [-t <txg>] [-U <cache>] [-x <dumpdir>]\n"
+	    "\t\t[-o <var>=<value>]... [-t <txg>] [-U <cachefile>] "
+	        "[-x <dumpdir>]\n"
 	    "\t\t[<poolname> [<object> ...]]\n"
-	    "\t%s [-AdiPv] [-e [-V] [-p <path> ...]] [-U <cache>] <dataset>\n"
+	    "\t%s [-AdiPv] [-e [-V] [-p <path> ...]] [-U <cachefile>] "
+	        "<dataset>\n"
 	    "\t\t[<object> ...]\n"
-	    "\t%s -C [-A] [-U <cache>]\n"
+	    "\t%s -C [-A] [-U <cachefile>]\n"
 	    "\t%s -l [-Aqu] <device>\n"
 	    "\t%s -m [-AFLPX] [-e [-V] [-p <path> ...]] [-t <txg>] "
-	    "[-U <cache>]\n\t\t<poolname> [<vdev> [<metaslab> ...]]\n"
+	    "[-U <cachefile>]\n\t\t<poolname> [<vdev> [<metaslab> ...]]\n"
 	    "\t%s -O <dataset> <path>\n"
-	    "\t%s -R [-A] [-e [-V] [-p <path> ...]] [-U <cache>]\n"
+	    "\t%s -R [-A] [-e [-V] [-p <path> ...]] [-U <cachefile>]\n"
 	    "\t\t<poolname> <vdev>:<offset>:<size>[:<flags>]\n"
 	    "\t%s -E [-A] word0:word1:...:word15\n"
-	    "\t%s -S [-AP] [-e [-V] [-p <path> ...]] [-U <cache>] "
+	    "\t%s -S [-AP] [-e [-V] [-p <path> ...]] [-U <cachefile>] "
 	    "<poolname>\n\n",
 	    cmdname, cmdname, cmdname, cmdname, cmdname, cmdname, cmdname,
 	    cmdname, cmdname);
 
-	(void) fprintf(stderr, "    Dataset name must include at least one "
-	    "separator character '/' or '@'\n");
-	(void) fprintf(stderr, "    If dataset name is specified, only that "
-	    "dataset is dumped\n");
-	(void) fprintf(stderr, "    If object numbers are specified, only "
-	    "those objects are dumped\n\n");
-	(void) fprintf(stderr, "    Options to control amount of output:\n");
-	(void) fprintf(stderr, "        -b block statistics\n");
-	(void) fprintf(stderr, "        -c checksum all metadata (twice for "
-	    "all data) blocks\n");
-	(void) fprintf(stderr, "        -C config (or cachefile if alone)\n");
-	(void) fprintf(stderr, "        -d dataset(s)\n");
-	(void) fprintf(stderr, "        -D dedup statistics\n");
-	(void) fprintf(stderr, "        -E decode and display block from an "
-	    "embedded block pointer\n");
-	(void) fprintf(stderr, "        -h pool history\n");
-	(void) fprintf(stderr, "        -i intent logs\n");
-	(void) fprintf(stderr, "        -l read label contents\n");
-	(void) fprintf(stderr, "        -k examine the checkpointed state "
-	    "of the pool\n");
-	(void) fprintf(stderr, "        -L disable leak tracking (do not "
-	    "load spacemaps)\n");
-	(void) fprintf(stderr, "        -m metaslabs\n");
-	(void) fprintf(stderr, "        -M metaslab groups\n");
-	(void) fprintf(stderr, "        -O perform object lookups by path\n");
-	(void) fprintf(stderr, "        -R read and display block from a "
-	    "device\n");
-	(void) fprintf(stderr, "        -s report stats on zdb's I/O\n");
-	(void) fprintf(stderr, "        -S simulate dedup to measure effect\n");
-	(void) fprintf(stderr, "        -v verbose (applies to all "
-	    "others)\n\n");
-	(void) fprintf(stderr, "    Below options are intended for use "
-	    "with other options:\n");
-	(void) fprintf(stderr, "        -A ignore assertions (-A), enable "
-	    "panic recovery (-AA) or both (-AAA)\n");
-	(void) fprintf(stderr, "        -e pool is exported/destroyed/"
-	    "has altroot/not in a cachefile\n");
-	(void) fprintf(stderr, "        -F attempt automatic rewind within "
-	    "safe range of transaction groups\n");
-	(void) fprintf(stderr, "        -G dump zfs_dbgmsg buffer before "
-	    "exiting\n");
-	(void) fprintf(stderr, "        -I <number of inflight I/Os> -- "
-	    "specify the maximum number of\n           "
-	    "checksumming I/Os [default is 200]\n");
-	(void) fprintf(stderr, "        -o <variable>=<value> set global "
-	    "variable to an unsigned 32-bit integer\n");
-	(void) fprintf(stderr, "        -p <path> -- use one or more with "
-	    "-e to specify path to vdev dir\n");
-	(void) fprintf(stderr, "        -P print numbers in parseable form\n");
-	(void) fprintf(stderr, "        -q don't print label contents\n");
-	(void) fprintf(stderr, "        -t <txg> -- highest txg to use when "
-	    "searching for uberblocks\n");
-	(void) fprintf(stderr, "        -u uberblock\n");
-	(void) fprintf(stderr, "        -U <cachefile_path> -- use alternate "
-	    "cachefile\n");
-	(void) fprintf(stderr, "        -V do verbatim import\n");
-	(void) fprintf(stderr, "        -x <dumpdir> -- "
-	    "dump all read blocks into specified directory\n");
-	(void) fprintf(stderr, "        -X attempt extreme rewind (does not "
-	    "work with dataset)\n");
-	(void) fprintf(stderr, "        -Y attempt all reconstruction "
-	    "combinations for split blocks\n");
-	(void) fprintf(stderr, "Specify an option more than once (e.g. -bb) "
-	    "to make only that option verbose\n");
-	(void) fprintf(stderr, "Default is to dump everything non-verbosely\n");
+	(void) fprintf(stderr,
+	    "Dataset name must include at least one "
+	    "separator character '/' or '@'\n"
+	    "If <dataset> name is specified, only that dataset is dumped.\n"
+	    "If <object> numbers are specified, only "
+	    "those objects are dumped.\n"
+	    "\n");
+
+	(void) fprintf(stderr,
+	    "Options to control amount of output:\n"
+	    "  -b, --block       block information\n"
+	    "  -c, --checksum    checksum all metadata "
+	        "(-cc for all data) blocks\n"
+	    "  -C, --config      pool configuration "
+	        "(if no pool specified, show cachefile)\n"
+	    "  -d, --dataset     dataset information\n"
+	    "  -D, --dedup       dedup statistics\n"
+	    "  -E, --embedded-bp decode and display block "
+	        "from an embedded block pointer\n"
+	    "  -h, --history     pool history\n"
+	    "      --help        show usage\n"
+	    "  -i, --zil         ZFS intent logs\n"
+	    "  -l, --label       show label contents\n"
+	    "  -k, --checkpoint  examine the checkpointed "
+	        "state of the pool\n"
+	    "  -L, --no-leak     disable leak tracking "
+	        "(do not load spacemaps)\n"
+	    "  -m, --metaslab    show metaslabs\n"
+	    "  -M, --metaslab-group   show metaslab groups\n"
+	    "  -O, --object-by-path   perform object lookups by path\n"
+	    "  -R, --read-block  read and display block from a device\n"
+	    "  -s, --stats       report stats on zdb's I/O\n"
+	    "  -S, --simulate-dedup   simulate dedup to measure effect\n"
+	    "  -v, --verbose     verbose (applies to all others)\n"
+	    "\n");
+
+	(void) fprintf(stderr,
+	    "The following options are used with other options:\n"
+	    "  -A, --no-assertions      ignore assertions, "
+	        "enable panic recovery (-AA), or both (-AAA)\n"
+	    "  -e, --exported     pool is exported, "
+	        "destroyed, or has altroot: not in a cachefile\n"
+	    "  -F, --rewind       attempt automatic rewind "
+	        "within safe range of transaction groups\n"
+	    "  -G, --debug-buffer dump zfs_dbgmsg buffer before exiting\n"
+	    "  -I, --inflight[=NUMBER]  "
+	        "specify the maximum NUMBER of\n"
+	        "                           "
+	        "inflight checksumming I/Os [default=1000]\n"
+	    "  -o, --set=VARIABLE=VALUE set global "
+	        "VARIABLE to unsigned 32-bit integer VALUE\n"
+	    "  -p, --path=DIR    vdev directory, "
+	        "can use one or more with -e option\n"
+	    "  -P, --parseable   print numbers in parseable form\n"
+	    "  -q, --no-label-contents  don't print label contents (quiet)\n"
+	    "  -t, --txg=NUMBER  highest txg NUMBER to use "
+	        "when searching for uberblocks\n"
+	    "  -u, --uberblock   show label uberblocks\n"
+	    "  -U, --cachefile=FILENAME  use alternate cachefile FILENAME\n"
+	    "  -V, --verbatim    do verbatim import\n"
+	    "  -x, --dump-dir=DIR  "
+	        "dump all read blocks into specified directory\n"
+	    "  -X, --extreme-rewind  attempt pool extreme "
+	        "rewind (does not work with dataset)\n"
+	    "  -Y, --reconstruct  attempt all reconstruction "
+	         "combinations for split blocks\n"
+	    "\n");
+
+	(void) fprintf(stderr,
+	    "Specify an option more than once (e.g. -bb) "
+	    "to make only that option verbose\n"
+	    "Default is to dump everything non-verbosely\n");
 	exit(1);
 }
 
@@ -5859,6 +5876,19 @@ zdb_embedded_block(char *thing)
 	free(buf);
 }
 
+static void
+print_options_debug(int opt)
+{
+	if (opt == ':')
+		return;
+	if (opt < 256)
+		(void) fprintf(stderr, "%c %d\n", (char)opt,
+		    dump_opt[opt]);
+	else
+		(void) fprintf(stderr, "%d %d\n", opt,
+		    dump_opt[opt]);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -5883,6 +5913,48 @@ main(int argc, char **argv)
 	(void) setrlimit(RLIMIT_NOFILE, &rl);
 	(void) enable_extended_FILE_stdio(-1, -1);
 
+	static char *short_options = \
+	    "AbcCdDeEFGhiI:klLmMo:Op:PqRsSt:uU:vVx:XY";
+
+	struct option long_options[] = {
+		{"no-assertions", no_argument, NULL, 'A'},
+		{"block", no_argument, NULL, 'b'},
+		{"checksum", no_argument, NULL, 'c'},
+		{"config", no_argument, NULL, 'C'},
+		{"dataset", no_argument, NULL, 'd'},
+		{"dedup", no_argument, NULL, 'D'},
+		{"exported", no_argument, NULL, 'e'},
+		{"embedded-bp", no_argument, NULL, 'E'},
+		{"rewind", no_argument, NULL, 'F'},
+		{"debug-buffer", no_argument, NULL, 'G'},
+		{"help", no_argument, NULL, OPTION_HELP},
+		{"history", no_argument, NULL, 'h'},
+		{"zil", no_argument, NULL, 'i'},
+		{"inflight", required_argument, NULL, 'I'},
+		{"checkpoint", no_argument, NULL, 'k'},
+		{"label", no_argument, NULL, 'l'},
+		{"no-leak", no_argument, NULL, 'L'},
+		{"metaslab", no_argument, NULL, 'm'},
+		{"metaslab-group", no_argument, NULL, 'M'},
+		{"set", required_argument, NULL, 'o'},
+		{"object-by-path", no_argument, NULL, 'O'},
+		{"path", required_argument, NULL, 'p'},
+		{"parseable", no_argument, NULL, 'P'},
+		{"no-label-contents", no_argument, NULL, 'q'},
+		{"read-block", no_argument, NULL, 'R'},
+		{"stats", no_argument, NULL, 's'},
+		{"simulate-dedup", no_argument, NULL, 'S'},
+		{"txg", required_argument, NULL, 't'},
+		{"uberblock", no_argument, NULL, 'u'},
+		{"cachefile", required_argument, NULL, 'U'},
+		{"verbose", no_argument, NULL, 'v'},
+		{"verbatim", no_argument, NULL, 'V'},
+		{"dump-dir", required_argument, NULL, 'x'},
+		{"extreme-rewind", no_argument, NULL, 'X'},
+		{"reconstruct", no_argument, NULL, 'Y'},
+		{0, 0, 0, 0}
+	};
+
 	dprintf_setup(&argc, argv);
 
 	/*
@@ -5894,9 +5966,12 @@ main(int argc, char **argv)
 	if (spa_config_path_env != NULL)
 		spa_config_path = spa_config_path_env;
 
-	while ((c = getopt(argc, argv,
-	    "AbcCdDeEFGhiI:klLmMo:Op:PqRsSt:uU:vVx:XY")) != -1) {
+	while ((c = getopt_long(
+	    argc, argv, short_options, long_options, NULL)) != -1) {
 		switch (c) {
+		case OPTION_HELP:
+			usage();
+			break;
 		case 'b':
 		case 'c':
 		case 'C':
@@ -5933,7 +6008,8 @@ main(int argc, char **argv)
 			break;
 		/* NB: Sort single match options below. */
 		case 'I':
-			max_inflight = strtoull(optarg, NULL, 0);
+			if (optarg != NULL)
+				max_inflight = strtoull(optarg, NULL, 0);
 			if (max_inflight == 0) {
 				(void) fprintf(stderr, "maximum number "
 				    "of inflight I/Os must be greater "
@@ -6042,12 +6118,27 @@ main(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
-	if (argc < 2 && dump_opt['R'])
+	if (getenv("ZFS_OPTIONS_DEBUG") != NULL) {
+		(void) fprintf(stderr, "options parsed\n");
+		for (char *s = short_options; *s != '\0'; s++) {
+			print_options_debug((int)*s);
+		}
+		for (int i = OPTION_HELP; i < NUM_OPTION_VALUES; i++)
+			print_options_debug(i);
+		(void) fprintf(stderr, "argc %d\n", argc);
+		exit(0);
+	}
+
+	if (argc < 2 && dump_opt['R']) {
+		(void) fprintf(stderr, "missing block specification\n");
 		usage();
+	}
 
 	if (dump_opt['E']) {
-		if (argc != 1)
+		if (argc != 1) {
+			(void) fprintf(stderr, "missing block pointer\n");
 			usage();
+		}
 		zdb_embedded_block(argv[0]);
 		return (0);
 	}
@@ -6064,8 +6155,10 @@ main(int argc, char **argv)
 		return (dump_label(argv[0]));
 
 	if (dump_opt['O']) {
-		if (argc != 2)
+		if (argc != 2) {
+			(void) fprintf(stderr, "missing dataset and path\n");
 			usage();
+		}
 		dump_opt['v'] = verbose + 3;
 		return (dump_path(argv[0], argv[1]));
 	}

@@ -13,6 +13,7 @@
 
 #
 # Copyright (c) 2018 by Nutanix. All rights reserved.
+# Copyright 2019 Richard Elling
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -46,16 +47,34 @@ default_mirror_setup_noexit $DISKS
 log_must zfs snap $TESTPOOL/$TESTFS@snap
 
 log_must zdb -d $TESTPOOL
-log_must zdb -d $TESTPOOL/
+log_must zdb --dataset $TESTPOOL/
 log_must zdb -d $TESTPOOL/$TESTFS
 log_must zdb -d $TESTPOOL/$TESTFS@snap
 
+# more detailed dataset information and zdb long option tests
+typeset tmpfile=$(mktemp)
+log_must zdb --dataset $TESTPOOL/$TESTFS >$tmpfile
+log_mustnot grep -q "DMU dnode" $tmpfile
+log_must zdb --dataset --dataset $TESTPOOL/$TESTFS >$tmpfile
+log_must grep -q "DMU dnode" $tmpfile
+rm -f $tmpfile
+
+# in many test systems, $TESTPOOL labels may linger
+# to avoid zdb import confusion on exported pool names, use pool guid
+TESTPOOL_GUID=$(zpool get -Hp -o value guid $TESTPOOL)
 log_must zpool export $TESTPOOL
 
-log_must zdb -ed $TESTPOOL
-log_must zdb -ed $TESTPOOL/
-log_must zdb -ed $TESTPOOL/$TESTFS
-log_must zdb -ed $TESTPOOL/$TESTFS@snap
+# to use the '-e' option, the DISKS need to be in /dev
+# check the dirname to see if they are elsewhere
+DISKS_ARRAY=($DISKS)
+DIRNAME=$(dirname ${DISKS_ARRAY[0]})
+[[ $DIRNAME == "." ]] && DIRNAME=/dev
+
+log_must zdb -ed -p $DIRNAME $TESTPOOL_GUID
+log_must zdb -ed -p $DIRNAME $TESTPOOL_GUID/
+log_must zdb --exported --dataset --path=$DIRNAME $TESTPOOL_GUID/$TESTFS
+log_must zdb -e --dataset --path $DIRNAME $TESTPOOL_GUID/$TESTFS
+log_must zdb -ed -p $DIRNAME $TESTPOOL_GUID/$TESTFS@snap
 
 log_must zpool import $TESTPOOL
 
