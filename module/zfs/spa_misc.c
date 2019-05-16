@@ -2588,11 +2588,12 @@ spa_state_to_name(spa_t *spa)
 	 * it is possible for the spa to exist, without root vdev
 	 * as the spa transitions during import/export
 	 */
-	if (spa->spa_root_vdev == NULL) {
+	vdev_t *rvd = spa->spa_root_vdev;
+	if (rvd == NULL) {
 		return ("TRANSITIONING");
 	}
-	vdev_state_t state = spa->spa_root_vdev->vdev_state;
-	vdev_aux_t aux = spa->spa_root_vdev->vdev_stat.vs_aux;
+	vdev_state_t state = rvd->vdev_state;
+	vdev_aux_t aux = rvd->vdev_stat.vs_aux;
 
 	if (spa_suspended(spa) &&
 	    (spa_get_failmode(spa) != ZIO_FAILURE_MODE_CONTINUE))
