@@ -1514,6 +1514,7 @@ zfs_ioc_pool_create(zfs_cmd_t *zc)
 	nvlist_t *zplprops = NULL;
 	dsl_crypto_params_t *dcp = NULL;
 	char *spa_name = zc->zc_name;
+	boolean_t unload_wkey = B_TRUE;
 
 	if ((error = get_nvlist(zc->zc_nvlist_conf, zc->zc_nvlist_conf_size,
 	    zc->zc_iflags, &config)))
@@ -1541,11 +1542,8 @@ zfs_ioc_pool_create(zfs_cmd_t *zc)
 		(void) nvlist_lookup_nvlist(props, ZPOOL_ROOTFS_PROPS, &nvl);
 		if (nvl) {
 			error = nvlist_dup(nvl, &rootprops, KM_SLEEP);
-			if (error != 0) {
-				nvlist_free(config);
-				nvlist_free(props);
-				return (error);
-			}
+			if (error != 0)
+				goto pool_props_bad;
 			(void) nvlist_remove_all(props, ZPOOL_ROOTFS_PROPS);
 		}
 
@@ -1553,11 +1551,8 @@ zfs_ioc_pool_create(zfs_cmd_t *zc)
 		    &hidden_args);
 		error = dsl_crypto_params_create_nvlist(DCP_CMD_NONE,
 		    rootprops, hidden_args, &dcp);
-		if (error != 0) {
-			nvlist_free(config);
-			nvlist_free(props);
-			return (error);
-		}
+		if (error != 0)
+			goto pool_props_bad;
 		(void) nvlist_remove_all(props, ZPOOL_HIDDEN_ARGS);
 
 		VERIFY(nvlist_alloc(&zplprops, NV_UNIQUE_NAME, KM_SLEEP) == 0);
@@ -1577,15 +1572,17 @@ zfs_ioc_pool_create(zfs_cmd_t *zc)
 	 * Set the remaining root properties
 	 */
 	if (!error && (error = zfs_set_prop_nvlist(spa_name,
-	    ZPROP_SRC_LOCAL, rootprops, NULL)) != 0)
+	    ZPROP_SRC_LOCAL, rootprops, NULL)) != 0) {
 		(void) spa_destroy(spa_name);
+		unload_wkey = B_FALSE; /* spa_destroy() unloads wrapping keys */
+	}
 
 pool_props_bad:
 	nvlist_free(rootprops);
 	nvlist_free(zplprops);
 	nvlist_free(config);
 	nvlist_free(props);
-	dsl_crypto_params_free(dcp, !!error);
+	dsl_crypto_params_free(dcp, unload_wkey && !!error);
 
 	return (error);
 }
