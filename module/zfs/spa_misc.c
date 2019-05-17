@@ -2102,8 +2102,8 @@ spa_import_progress_destroy(void)
 	spa_history_list_t *shl = spa_import_progress_list;
 	procfs_list_uninstall(&shl->procfs_list);
 	spa_import_progress_truncate(shl, 0);
-	kmem_free(shl, sizeof (spa_history_list_t));
 	procfs_list_destroy(&shl->procfs_list);
+	kmem_free(shl, sizeof (spa_history_list_t));
 }
 
 int
