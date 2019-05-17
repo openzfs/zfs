@@ -717,12 +717,13 @@ send_iterate_snap(zfs_handle_t *zhp, void *arg)
 
 	VERIFY(0 == nvlist_alloc(&nv, NV_UNIQUE_NAME, 0));
 	send_iterate_prop(zhp, sd->backup, nv);
-	VERIFY(0 == nvlist_add_nvlist(sd->snapprops, snapname, nv));
+	if (!nvlist_empty(nv))
+		fnvlist_add_nvlist(sd->snapprops, snapname, nv);
 	nvlist_free(nv);
 	if (sd->holds) {
 		nvlist_t *holds = fnvlist_alloc();
 		int err = lzc_get_holds(zhp->zfs_name, &holds);
-		if (err == 0) {
+		if (err == 0 && !nvlist_empty(holds)) {
 			VERIFY(0 == nvlist_add_nvlist(sd->snapholds,
 			    snapname, holds));
 		}
@@ -1381,9 +1382,11 @@ dump_snapshot(zfs_handle_t *zhp, void *arg)
 
 			VERIFY(0 == nvlist_lookup_nvlist(nvfs,
 			    "snapprops", &snapprops));
-			VERIFY(0 == nvlist_lookup_nvlist(snapprops,
-			    thissnap, &snapprops));
-			exclude = !nvlist_exists(snapprops, "is_clone_origin");
+			if (nvlist_lookup_nvlist(snapprops, thissnap,
+			    &snapprops)) {
+				exclude = !nvlist_exists(snapprops,
+				    "is_clone_origin");
+			}
 		} else {
 			exclude = B_TRUE;
 		}
@@ -1599,8 +1602,12 @@ dump_filesystems(zfs_handle_t *rzhp, void *arg)
 				nvlist_t *snapprops;
 				VERIFY(0 == nvlist_lookup_nvlist(origin_nv,
 				    "snapprops", &snapprops));
-				VERIFY(0 == nvlist_lookup_nvlist(snapprops,
-				    snapname, &snapprops));
+				if (!nvlist_lookup_nvlist(snapprops, snapname,
+				    &snapprops)) {
+					snapprops = fnvlist_alloc();
+					fnvlist_add_nvlist(snapprops, snapname,
+					    snapprops);
+				}
 				VERIFY(0 == nvlist_add_boolean(
 				    snapprops, "is_clone_origin"));
 			}
@@ -3837,14 +3844,14 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			newprops = B_FALSE;
 		}
 		if (0 == nvlist_lookup_nvlist(fs, "snapprops", &lookup)) {
-			VERIFY(0 == nvlist_lookup_nvlist(lookup,
-			    snapname, &snapprops_nvlist));
+			nvlist_lookup_nvlist(lookup,
+			    snapname, &snapprops_nvlist);
 		}
 		if (holds) {
 			if (0 == nvlist_lookup_nvlist(fs, "snapholds",
 			    &lookup)) {
-				VERIFY(0 == nvlist_lookup_nvlist(lookup,
-				    snapname, &snapholds_nvlist));
+				nvlist_lookup_nvlist(lookup,
+				    snapname, &snapholds_nvlist);
 			}
 		}
 	}
