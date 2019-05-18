@@ -28,4 +28,8 @@
 #define	bcopy(src, dest, size)		memmove(dest, src, size)
 #define	bcmp(src, dest, size)		memcmp((src), (dest), (size_t)(size))
 
+#ifndef HAVE_KSTRTOUL
+#define	kstrtoul strict_strtoul
+#endif
+
 #endif	/* _SPL_SYS_STRINGS_H */
