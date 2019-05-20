@@ -1967,7 +1967,8 @@ dnode_dirty_l1range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid,
 	for (; db != NULL; db = AVL_NEXT(&dn->dn_dbufs, db)) {
 		if (db->db_level != 1 || db->db_blkid >= end_blkid)
 			break;
-		ASSERT(db->db_dirtycnt > 0);
+		if (db->db_state != DB_EVICTING)
+			ASSERT(db->db_dirtycnt > 0);
 	}
 #endif
 	mutex_exit(&dn->dn_dbufs_mtx);
