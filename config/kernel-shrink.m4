@@ -144,7 +144,9 @@ AC_DEFUN([ZFS_AC_KERNEL_SHRINKER_CALLBACK],[
 	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/mm.h>
 
-		int shrinker_cb(int nr_to_scan, gfp_t gfp_mask);
+		int shrinker_cb(int nr_to_scan, gfp_t gfp_mask) {
+			return 0;
+		}
 	],[
 		struct shrinker cache_shrinker = {
 			.shrink = shrinker_cb,
@@ -166,8 +168,10 @@ AC_DEFUN([ZFS_AC_KERNEL_SHRINKER_CALLBACK],[
 		ZFS_LINUX_TRY_COMPILE([
 			#include <linux/mm.h>
 
-			int shrinker_cb(struct shrinker *, int nr_to_scan,
-					gfp_t gfp_mask);
+			int shrinker_cb(struct shrinker *shrink, int nr_to_scan,
+					gfp_t gfp_mask) {
+				return 0;
+			}
 		],[
 			struct shrinker cache_shrinker = {
 				.shrink = shrinker_cb,
@@ -190,8 +194,10 @@ AC_DEFUN([ZFS_AC_KERNEL_SHRINKER_CALLBACK],[
 			ZFS_LINUX_TRY_COMPILE([
 				#include <linux/mm.h>
 
-				int shrinker_cb(struct shrinker *,
-						struct shrink_control *sc);
+				int shrinker_cb(struct shrinker *shrink,
+						struct shrink_control *sc) {
+					return 0;
+				}
 			],[
 				struct shrinker cache_shrinker = {
 					.shrink = shrinker_cb,
@@ -215,8 +221,10 @@ AC_DEFUN([ZFS_AC_KERNEL_SHRINKER_CALLBACK],[
 					#include <linux/mm.h>
 
 					unsigned long shrinker_cb(
-						struct shrinker *,
-						struct shrink_control *sc);
+						struct shrinker *shrink,
+						struct shrink_control *sc) {
+						return 0;
+					}
 				],[
 					struct shrinker cache_shrinker = {
 						.count_objects = shrinker_cb,
