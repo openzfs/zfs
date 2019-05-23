@@ -2744,10 +2744,9 @@ retry:
  * Check that all the properties are valid user properties.
  */
 static int
-zfs_check_userprops(const char *fsname, nvlist_t *nvl)
+zfs_check_userprops(nvlist_t *nvl)
 {
 	nvpair_t *pair = NULL;
-	int error = 0;
 
 	while ((pair = nvlist_next_nvpair(nvl, pair)) != NULL) {
 		const char *propname = nvpair_name(pair);
@@ -2755,10 +2754,6 @@ zfs_check_userprops(const char *fsname, nvlist_t *nvl)
 		if (!zfs_prop_user(propname) ||
 		    nvpair_type(pair) != DATA_TYPE_STRING)
 			return (SET_ERROR(EINVAL));
-
-		if ((error = zfs_secpolicy_write_perms(fsname,
-		    ZFS_DELEG_PERM_USERPROP, CRED())))
-			return (error);
 
 		if (strlen(propname) >= ZAP_MAXNAMELEN)
 			return (SET_ERROR(ENAMETOOLONG));
@@ -3473,19 +3468,18 @@ zfs_ioc_snapshot(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 	nvpair_t *pair;
 
 	(void) nvlist_lookup_nvlist(innvl, "props", &props);
-	if ((error = zfs_check_userprops(poolname, props)) != 0)
-		return (error);
-
 	if (!nvlist_empty(props) &&
 	    zfs_earlier_version(poolname, SPA_VERSION_SNAP_PROPS))
 		return (SET_ERROR(ENOTSUP));
+	if ((error = zfs_check_userprops(props)) != 0)
+		return (error);
 
 	snaps = fnvlist_lookup_nvlist(innvl, "snaps");
 	poollen = strlen(poolname);
 	for (pair = nvlist_next_nvpair(snaps, NULL); pair != NULL;
 	    pair = nvlist_next_nvpair(snaps, pair)) {
 		const char *name = nvpair_name(pair);
-		const char *cp = strchr(name, '@');
+		char *cp = strchr(name, '@');
 
 		/*
 		 * The snap name must contain an @, and the part after it must
@@ -3501,6 +3495,18 @@ zfs_ioc_snapshot(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 		if (strncmp(name, poolname, poollen) != 0 ||
 		    (name[poollen] != '/' && name[poollen] != '@'))
 			return (SET_ERROR(EXDEV));
+
+		/*
+		 * Check for permission to set the properties on the fs.
+		 */
+		if (!nvlist_empty(props)) {
+			*cp = '\0';
+			error = zfs_secpolicy_write_perms(name,
+			    ZFS_DELEG_PERM_USERPROP, CRED());
+			*cp = '@';
+			if (error != 0)
+				return (error);
+		}
 
 		/* This must be the only snap of this fs. */
 		for (nvpair_t *pair2 = nvlist_next_nvpair(snaps, pair);
@@ -7110,7 +7116,8 @@ zfsdev_ioctl(struct file *filp, unsigned cmd, unsigned long arg)
 
 	zc = kmem_zalloc(sizeof (zfs_cmd_t), KM_SLEEP);
 
-	error = ddi_copyin((void *)arg, zc, sizeof (zfs_cmd_t), flag);
+	error = ddi_copyin((void *)(uintptr_t)arg, zc, sizeof (zfs_cmd_t),
+	    flag);
 	if (error != 0) {
 		error = SET_ERROR(EFAULT);
 		goto out;
@@ -7269,7 +7276,7 @@ zfsdev_ioctl(struct file *filp, unsigned cmd, unsigned long arg)
 
 out:
 	nvlist_free(innvl);
-	rc = ddi_copyout(zc, (void *)arg, sizeof (zfs_cmd_t), flag);
+	rc = ddi_copyout(zc, (void *)(uintptr_t)arg, sizeof (zfs_cmd_t), flag);
 	if (error == 0 && rc != 0)
 		error = SET_ERROR(EFAULT);
 	if (error == 0 && vec->zvec_allow_log) {
@@ -7379,13 +7386,6 @@ static int __init
 _init(void)
 {
 	int error;
-
-	error = -vn_set_pwd("/");
-	if (error) {
-		printk(KERN_NOTICE
-		    "ZFS: Warning unable to set pwd to '/': %d\n", error);
-		return (error);
-	}
 
 	if ((error = -zvol_init()) != 0)
 		return (error);

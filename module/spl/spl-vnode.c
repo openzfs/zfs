@@ -641,64 +641,6 @@ vn_areleasef(int fd, uf_info_t *fip)
 } /* releasef() */
 EXPORT_SYMBOL(areleasef);
 
-
-static void
-vn_set_fs_pwd(struct fs_struct *fs, struct path *path)
-{
-	struct path old_pwd;
-
-#ifdef HAVE_FS_STRUCT_SPINLOCK
-	spin_lock(&fs->lock);
-	old_pwd = fs->pwd;
-	fs->pwd = *path;
-	path_get(path);
-	spin_unlock(&fs->lock);
-#else
-	write_lock(&fs->lock);
-	old_pwd = fs->pwd;
-	fs->pwd = *path;
-	path_get(path);
-	write_unlock(&fs->lock);
-#endif /* HAVE_FS_STRUCT_SPINLOCK */
-
-	if (old_pwd.dentry)
-		path_put(&old_pwd);
-}
-
-int
-vn_set_pwd(const char *filename)
-{
-	struct path path;
-	mm_segment_t saved_fs;
-	int rc;
-
-	/*
-	 * user_path_dir() and __user_walk() both expect 'filename' to be
-	 * a user space address so we must briefly increase the data segment
-	 * size to ensure strncpy_from_user() does not fail with -EFAULT.
-	 */
-	saved_fs = get_fs();
-	set_fs(KERNEL_DS);
-
-	rc = user_path_dir(filename, &path);
-	if (rc)
-		goto out;
-
-	rc = inode_permission(path.dentry->d_inode, MAY_EXEC | MAY_ACCESS);
-	if (rc)
-		goto dput_and_out;
-
-	vn_set_fs_pwd(current->fs, &path);
-
-dput_and_out:
-	path_put(&path);
-out:
-	set_fs(saved_fs);
-
-	return (-rc);
-} /* vn_set_pwd() */
-EXPORT_SYMBOL(vn_set_pwd);
-
 static int
 vn_cache_constructor(void *buf, void *cdrarg, int kmflags)
 {

@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2019 by Delphix. All rights reserved.
  * Copyright (c) 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
  */
@@ -96,9 +96,23 @@ int zio_slow_io_ms = (30 * MILLISEC);
  *
  * The 'zfs_sync_pass_deferred_free' pass must be greater than 1 to ensure that
  * regular blocks are not deferred.
+ *
+ * Starting in sync pass 8 (zfs_sync_pass_dont_compress), we disable
+ * compression (including of metadata).  In practice, we don't have this
+ * many sync passes, so this has no effect.
+ *
+ * The original intent was that disabling compression would help the sync
+ * passes to converge. However, in practice disabling compression increases
+ * the average number of sync passes, because when we turn compression off, a
+ * lot of block's size will change and thus we have to re-allocate (not
+ * overwrite) them. It also increases the number of 128KB allocations (e.g.
+ * for indirect blocks and spacemaps) because these will not be compressed.
+ * The 128K allocations are especially detrimental to performance on highly
+ * fragmented systems, which may have very few free segments of this size,
+ * and may need to load new metaslabs to satisfy 128K allocations.
  */
 int zfs_sync_pass_deferred_free = 2; /* defer frees starting in this pass */
-int zfs_sync_pass_dont_compress = 5; /* don't compress starting in this pass */
+int zfs_sync_pass_dont_compress = 8; /* don't compress starting in this pass */
 int zfs_sync_pass_rewrite = 2; /* rewrite new bps starting in this pass */
 
 /*
@@ -2848,6 +2862,20 @@ zio_nop_write(zio_t *zio)
 		ASSERT(bcmp(&bp->blk_prop, &bp_orig->blk_prop,
 		    sizeof (uint64_t)) == 0);
 
+		/*
+		 * If we're overwriting a block that is currently on an
+		 * indirect vdev, then ignore the nopwrite request and
+		 * allow a new block to be allocated on a concrete vdev.
+		 */
+		spa_config_enter(zio->io_spa, SCL_VDEV, FTAG, RW_READER);
+		vdev_t *tvd = vdev_lookup_top(zio->io_spa,
+		    DVA_GET_VDEV(&bp->blk_dva[0]));
+		if (tvd->vdev_ops == &vdev_indirect_ops) {
+			spa_config_exit(zio->io_spa, SCL_VDEV, FTAG);
+			return (zio);
+		}
+		spa_config_exit(zio->io_spa, SCL_VDEV, FTAG);
+
 		*bp = *bp_orig;
 		zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;
 		zio->io_flags |= ZIO_FLAG_NOPWRITE;
@@ -3178,7 +3206,9 @@ zio_ddt_write(zio_t *zio)
 			BP_ZERO(bp);
 		} else {
 			zp->zp_dedup = B_FALSE;
+			BP_SET_DEDUP(bp, B_FALSE);
 		}
+		ASSERT(!BP_GET_DEDUP(bp));
 		zio->io_pipeline = ZIO_WRITE_PIPELINE;
 		ddt_exit(ddt);
 		return (zio);

@@ -144,6 +144,10 @@ zfs_kobj_release(struct kobject *kobj)
 	zkobj->zko_attr_count = 0;
 }
 
+#ifndef sysfs_attr_init
+#define	sysfs_attr_init(attr) do {} while (0)
+#endif
+
 static void
 zfs_kobj_add_attr(zfs_mod_kobj_t *zkobj, int attr_num, const char *attr_name)
 {
@@ -154,6 +158,7 @@ zfs_kobj_add_attr(zfs_mod_kobj_t *zkobj, int attr_num, const char *attr_name)
 	zkobj->zko_attr_list[attr_num].name = attr_name;
 	zkobj->zko_attr_list[attr_num].mode = 0444;
 	zkobj->zko_default_attrs[attr_num] = &zkobj->zko_attr_list[attr_num];
+	sysfs_attr_init(&zkobj->zko_attr_list[attr_num]);
 }
 
 static int
@@ -259,6 +264,7 @@ zprop_sysfs_show(const char *attr_name, const zprop_desc_t *property,
     char *buf, size_t buflen)
 {
 	const char *show_str;
+	char number[32];
 
 	/* For dataset properties list the dataset types that apply */
 	if (strcmp(attr_name, "datasets") == 0 &&
@@ -286,8 +292,6 @@ zprop_sysfs_show(const char *attr_name, const zprop_desc_t *property,
 	} else if (strcmp(attr_name, "values") == 0) {
 		show_str = property->pd_values ? property->pd_values : "";
 	} else if (strcmp(attr_name, "default") == 0) {
-		char number[32];
-
 		switch (property->pd_proptype) {
 		case PROP_TYPE_NUMBER:
 			(void) snprintf(number, sizeof (number), "%llu",

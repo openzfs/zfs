@@ -6446,8 +6446,25 @@ share_mount_one(zfs_handle_t *zhp, int op, int flags, char *protocol,
 			return (1);
 		}
 
-		if (zfs_mount(zhp, options, flags) != 0)
+		if (zfs_mount(zhp, options, flags) != 0) {
+			/*
+			 * Check if a mount sneaked in after we checked
+			 */
+			if (!explicit &&
+			    libzfs_errno(g_zfs) == EZFS_MOUNTFAILED) {
+				usleep(10 * MILLISEC);
+				libzfs_mnttab_cache(g_zfs, B_FALSE);
+
+				if (zfs_is_mounted(zhp, NULL)) {
+					(void) fprintf(stderr, gettext(
+					    "Ignoring previous 'already "
+					    "mounted' error for '%s'\n"),
+					    zfs_get_name(zhp));
+					return (0);
+				}
+			}
 			return (1);
+		}
 		break;
 	}
 
@@ -6733,8 +6750,8 @@ unshare_unmount_compare(const void *larg, const void *rarg, void *unused)
 
 /*
  * Convenience routine used by zfs_do_umount() and manual_unmount().  Given an
- * absolute path, find the entry /proc/self/mounts, verify that its a
- * ZFS filesystems, and unmount it appropriately.
+ * absolute path, find the entry /proc/self/mounts, verify that it's a
+ * ZFS filesystem, and unmount it appropriately.
  */
 static int
 unshare_unmount_path(int op, char *path, int flags, boolean_t is_manual)

@@ -46,6 +46,7 @@ verify_runnable "global"
 
 log_assert "Slog device can not be replaced with spare device."
 log_onexit cleanup
+log_must setup
 
 log_must zpool create $TESTPOOL $VDEV spare $SDEV log $LDEV
 sdev=$(random_get $SDEV)

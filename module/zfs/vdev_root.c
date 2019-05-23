@@ -140,17 +140,17 @@ vdev_root_state_change(vdev_t *vd, int faulted, int degraded)
 }
 
 vdev_ops_t vdev_root_ops = {
-	vdev_root_open,
-	vdev_root_close,
-	vdev_default_asize,
-	NULL,			/* io_start - not applicable to the root */
-	NULL,			/* io_done - not applicable to the root */
-	vdev_root_state_change,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	VDEV_TYPE_ROOT,		/* name of this vdev type */
-	B_FALSE			/* not a leaf vdev */
+	.vdev_op_open = vdev_root_open,
+	.vdev_op_close = vdev_root_close,
+	.vdev_op_asize = vdev_default_asize,
+	.vdev_op_io_start = NULL,	/* not applicable to the root */
+	.vdev_op_io_done = NULL,	/* not applicable to the root */
+	.vdev_op_state_change = vdev_root_state_change,
+	.vdev_op_need_resilver = NULL,
+	.vdev_op_hold = NULL,
+	.vdev_op_rele = NULL,
+	.vdev_op_remap = NULL,
+	.vdev_op_xlate = NULL,
+	.vdev_op_type = VDEV_TYPE_ROOT,	/* name of this vdev type */
+	.vdev_op_leaf = B_FALSE		/* not a leaf vdev */
 };

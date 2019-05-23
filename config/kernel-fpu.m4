@@ -18,7 +18,8 @@ AC_DEFUN([ZFS_AC_KERNEL_FPU], [
 		#include <asm/fpu/api.h>
 	],[
 	],[
-		AC_DEFINE(HAVE_KERNEL_FPU_API_HEADER, 1, [kernel has asm/fpu/api.h])
+		AC_DEFINE(HAVE_KERNEL_FPU_API_HEADER, 1,
+		    [kernel has asm/fpu/api.h])
 		AC_MSG_RESULT(asm/fpu/api.h)
 	],[
 		AC_MSG_RESULT(i387.h & xcr.h)
@@ -39,8 +40,10 @@ AC_DEFUN([ZFS_AC_KERNEL_FPU], [
 		kernel_fpu_end();
 	], [kernel_fpu_begin], [arch/x86/kernel/fpu/core.c], [
 		AC_MSG_RESULT(kernel_fpu_*)
-		AC_DEFINE(HAVE_KERNEL_FPU, 1, [kernel has kernel_fpu_* functions])
-		AC_DEFINE(KERNEL_EXPORTS_X86_FPU, 1, [kernel exports FPU functions])
+		AC_DEFINE(HAVE_KERNEL_FPU, 1,
+		    [kernel has kernel_fpu_* functions])
+		AC_DEFINE(KERNEL_EXPORTS_X86_FPU, 1,
+		    [kernel exports FPU functions])
 	],[
 		ZFS_LINUX_TRY_COMPILE_SYMBOL([
 			#include <linux/module.h>

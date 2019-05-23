@@ -107,6 +107,18 @@ Default value: \fB6\fR.
 .sp
 .ne 2
 .na
+\fBdmu_prefetch_max\fR (int)
+.ad
+.RS 12n
+Limit the amount we can prefetch with one call to this amount (in bytes).
+This helps to limit the amount of memory that can be used by prefetching.
+.sp
+Default value: \fB134,217,728\fR (128MB).
+.RE
+
+.sp
+.ne 2
+.na
 \fBignore_hole_birth\fR (int)
 .ad
 .RS 12n
@@ -500,6 +512,19 @@ The default value here was chosen to align with
 regular reads (but there's no reason it has to be the same).
 .sp
 Default value: \fB32,768\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzap_iterate_prefetch\fR (int)
+.ad
+.RS 12n
+If this is set, when we start iterating over a ZAP object, zfs will prefetch
+the entire object (all leaf blocks).  However, this is limited by
+\fBdmu_prefetch_max\fR.
+.sp
+Use \fB1\fR for on (default) and \fB0\fR for off.
 .RE
 
 .sp
@@ -1817,7 +1842,7 @@ this value. If a metaslab group exceeds this threshold then it will be
 skipped unless all metaslab groups within the metaslab class have also
 crossed this threshold.
 .sp
-Default value: \fB85\fR.
+Default value: \fB95\fR.
 .RE
 
 .sp
@@ -2172,6 +2197,33 @@ Default value: \fB0\fR.
 .sp
 .ne 2
 .na
+\fBzfs_removal_suspend_progress\fR (int)
+.ad
+.RS 12n
+.sp
+This is used by the test suite so that it can ensure that certain actions
+happen while in the middle of a removal.
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_remove_max_segment\fR (int)
+.ad
+.RS 12n
+.sp
+The largest contiguous segment that we will attempt to allocate when removing
+a device.  This can be no larger than 16MB.  If there is a performance
+problem with attempting to allocate large blocks, consider decreasing this.
+.sp
+Default value: \fB16,777,216\fR (16MB).
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_resilver_min_time_ms\fR (int)
 .ad
 .RS 12n
@@ -2419,9 +2471,21 @@ Default value: \fB25\fR.
 \fBzfs_sync_pass_dont_compress\fR (int)
 .ad
 .RS 12n
-Don't compress starting in this pass
+Starting in this sync pass, we disable compression (including of metadata). 
+With the default setting, in practice, we don't have this many sync passes,
+so this has no effect.
 .sp
-Default value: \fB5\fR.
+The original intent was that disabling compression would help the sync passes
+to converge. However, in practice disabling compression increases the average
+number of sync passes, because when we turn compression off, a lot of block's
+size will change and thus we have to re-allocate (not overwrite) them. It
+also increases the number of 128KB allocations (e.g. for indirect blocks and
+spacemaps) because these will not be compressed. The 128K allocations are
+especially detrimental to performance on highly fragmented systems, which may
+have very few free segments of this size, and may need to load new metaslabs
+to satisfy 128K allocations.
+.sp
+Default value: \fB8\fR.
 .RE
 
 .sp

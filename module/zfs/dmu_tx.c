@@ -925,6 +925,25 @@ dmu_tx_try_assign(dmu_tx_t *tx, uint64_t txg_how)
 	    txh = list_next(&tx->tx_holds, txh)) {
 		dnode_t *dn = txh->txh_dnode;
 		if (dn != NULL) {
+			/*
+			 * This thread can't hold the dn_struct_rwlock
+			 * while assigning the tx, because this can lead to
+			 * deadlock. Specifically, if this dnode is already
+			 * assigned to an earlier txg, this thread may need
+			 * to wait for that txg to sync (the ERESTART case
+			 * below).  The other thread that has assigned this
+			 * dnode to an earlier txg prevents this txg from
+			 * syncing until its tx can complete (calling
+			 * dmu_tx_commit()), but it may need to acquire the
+			 * dn_struct_rwlock to do so (e.g. via
+			 * dmu_buf_hold*()).
+			 *
+			 * Note that this thread can't hold the lock for
+			 * read either, but the rwlock doesn't record
+			 * enough information to make that assertion.
+			 */
+			ASSERT(!RW_WRITE_HELD(&dn->dn_struct_rwlock));
+
 			mutex_enter(&dn->dn_mtx);
 			if (dn->dn_assigned_txg == tx->tx_txg - 1) {
 				mutex_exit(&dn->dn_mtx);
@@ -1319,7 +1338,10 @@ dmu_tx_hold_sa(dmu_tx_t *tx, sa_handle_t *hdl, boolean_t may_grow)
 
 	object = sa_handle_object(hdl);
 
-	dmu_tx_hold_bonus(tx, object);
+	dmu_buf_impl_t *db = (dmu_buf_impl_t *)hdl->sa_bonus;
+	DB_DNODE_ENTER(db);
+	dmu_tx_hold_bonus_by_dnode(tx, DB_DNODE(db));
+	DB_DNODE_EXIT(db);
 
 	if (tx->tx_objset->os_sa->sa_master_obj == 0)
 		return;
@@ -1341,7 +1363,6 @@ dmu_tx_hold_sa(dmu_tx_t *tx, sa_handle_t *hdl, boolean_t may_grow)
 		ASSERT(tx->tx_txg == 0);
 		dmu_tx_hold_spill(tx, object);
 	} else {
-		dmu_buf_impl_t *db = (dmu_buf_impl_t *)hdl->sa_bonus;
 		dnode_t *dn;
 
 		DB_DNODE_ENTER(db);

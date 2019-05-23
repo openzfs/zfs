@@ -60,7 +60,7 @@ all-local:
 		-e '\|^export SBIN_DIR=|s|$$|@abs_top_builddir@/bin|' \
 		-e '\|^export ZTS_DIR=|s|$$|@abs_top_srcdir@/tests|' \
 		-e '\|^export SCRIPT_DIR=|s|$$|@abs_top_srcdir@/scripts|' \
-		common.sh.in >common.sh
+		$(abs_top_srcdir)/scripts/common.sh.in >common.sh
 	-echo "$$EXTRA_ENVIRONMENT" >>common.sh
 
 clean-local:
@@ -71,4 +71,5 @@ install-data-hook:
 		-e '\|^export SBIN_DIR=|s|$$|@sbindir@|' \
 		-e '\|^export ZTS_DIR=|s|$$|@datadir@/@PACKAGE@|' \
 		-e '\|^export SCRIPT_DIR=|s|$$|@datadir@/@PACKAGE@|' \
-		common.sh.in >$(DESTDIR)$(datadir)/@PACKAGE@/common.sh
+		$(abs_top_srcdir)/scripts/common.sh.in \
+		>$(DESTDIR)$(datadir)/@PACKAGE@/common.sh

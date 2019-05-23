@@ -66,6 +66,7 @@ function cleanup_fs
 
 log_assert "Replay of intent log succeeds."
 log_onexit cleanup_fs
+log_must setup
 
 #
 # 1. Create an empty file system (TESTFS)
@@ -159,6 +160,14 @@ log_must touch /$TESTPOOL/$TESTFS/xattr.file
 log_must attr -qs fileattr -V HelloWorld /$TESTPOOL/$TESTFS/xattr.file
 log_must attr -qs tmpattr -V HelloWorld /$TESTPOOL/$TESTFS/xattr.file
 log_must attr -qr tmpattr /$TESTPOOL/$TESTFS/xattr.file
+
+# TX_WRITE, TX_LINK, TX_REMOVE
+# Make sure TX_REMOVE won't affect TX_WRITE if file is not destroyed
+log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/link_and_unlink bs=128k \
+   count=8
+log_must ln /$TESTPOOL/$TESTFS/link_and_unlink \
+   /$TESTPOOL/$TESTFS/link_and_unlink.link
+log_must rm /$TESTPOOL/$TESTFS/link_and_unlink.link
 
 #
 # 4. Copy TESTFS to temporary location (TESTDIR/copy)

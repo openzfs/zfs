@@ -23,7 +23,7 @@
  * Copyright (c) 2011, 2017 by Delphix. All rights reserved.
  * Copyright 2016 Gary Mills
  * Copyright (c) 2017 Datto Inc.
- * Copyright 2017 Joyent, Inc.
+ * Copyright 2019 Joyent, Inc.
  */
 
 #include <sys/dsl_scan.h>
@@ -952,13 +952,16 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 		 * will find the drives that need to be resilvered
 		 * when the machine reboots and start the resilver then.
 		 */
-		boolean_t resilver_needed =
-		    dsl_scan_clear_deferred(spa->spa_root_vdev, tx);
-		if (resilver_needed) {
-			spa_history_log_internal(spa,
-			    "starting deferred resilver", tx,
-			    "errors=%llu", spa_get_errlog_size(spa));
-			spa_async_request(spa, SPA_ASYNC_RESILVER);
+		if (spa_feature_is_enabled(spa, SPA_FEATURE_RESILVER_DEFER)) {
+			boolean_t resilver_needed =
+			    dsl_scan_clear_deferred(spa->spa_root_vdev, tx);
+			if (resilver_needed) {
+				spa_history_log_internal(spa,
+				    "starting deferred resilver", tx,
+				    "errors=%llu",
+				    (u_longlong_t)spa_get_errlog_size(spa));
+				spa_async_request(spa, SPA_ASYNC_RESILVER);
+			}
 		}
 	}
 
@@ -2165,16 +2168,17 @@ ds_clone_swapped_bookmark(dsl_dataset_t *ds1, dsl_dataset_t *ds2,
 }
 
 /*
- * Called when a parent dataset and its clone are swapped. If we were
+ * Called when an origin dataset and its clone are swapped.  If we were
  * currently traversing the dataset, we need to switch to traversing the
- * newly promoted parent.
+ * newly promoted clone.
  */
 void
 dsl_scan_ds_clone_swapped(dsl_dataset_t *ds1, dsl_dataset_t *ds2, dmu_tx_t *tx)
 {
 	dsl_pool_t *dp = ds1->ds_dir->dd_pool;
 	dsl_scan_t *scn = dp->dp_scan;
-	uint64_t mintxg;
+	uint64_t mintxg1, mintxg2;
+	boolean_t ds1_queued, ds2_queued;
 
 	if (!dsl_scan_is_running(scn))
 		return;
@@ -2182,44 +2186,81 @@ dsl_scan_ds_clone_swapped(dsl_dataset_t *ds1, dsl_dataset_t *ds2, dmu_tx_t *tx)
 	ds_clone_swapped_bookmark(ds1, ds2, &scn->scn_phys.scn_bookmark);
 	ds_clone_swapped_bookmark(ds1, ds2, &scn->scn_phys_cached.scn_bookmark);
 
-	if (scan_ds_queue_contains(scn, ds1->ds_object, &mintxg)) {
-		scan_ds_queue_remove(scn, ds1->ds_object);
-		scan_ds_queue_insert(scn, ds2->ds_object, mintxg);
+	/*
+	 * Handle the in-memory scan queue.
+	 */
+	ds1_queued = scan_ds_queue_contains(scn, ds1->ds_object, &mintxg1);
+	ds2_queued = scan_ds_queue_contains(scn, ds2->ds_object, &mintxg2);
+
+	/* Sanity checking. */
+	if (ds1_queued) {
+		ASSERT3U(mintxg1, ==, dsl_dataset_phys(ds1)->ds_prev_snap_txg);
+		ASSERT3U(mintxg1, ==, dsl_dataset_phys(ds2)->ds_prev_snap_txg);
 	}
-	if (scan_ds_queue_contains(scn, ds2->ds_object, &mintxg)) {
-		scan_ds_queue_remove(scn, ds2->ds_object);
-		scan_ds_queue_insert(scn, ds1->ds_object, mintxg);
+	if (ds2_queued) {
+		ASSERT3U(mintxg2, ==, dsl_dataset_phys(ds1)->ds_prev_snap_txg);
+		ASSERT3U(mintxg2, ==, dsl_dataset_phys(ds2)->ds_prev_snap_txg);
 	}
 
-	if (zap_lookup_int_key(dp->dp_meta_objset, scn->scn_phys.scn_queue_obj,
-	    ds1->ds_object, &mintxg) == 0) {
-		int err;
-		ASSERT3U(mintxg, ==, dsl_dataset_phys(ds1)->ds_prev_snap_txg);
-		ASSERT3U(mintxg, ==, dsl_dataset_phys(ds2)->ds_prev_snap_txg);
-		VERIFY3U(0, ==, zap_remove_int(dp->dp_meta_objset,
+	if (ds1_queued && ds2_queued) {
+		/*
+		 * If both are queued, we don't need to do anything.
+		 * The swapping code below would not handle this case correctly,
+		 * since we can't insert ds2 if it is already there. That's
+		 * because scan_ds_queue_insert() prohibits a duplicate insert
+		 * and panics.
+		 */
+	} else if (ds1_queued) {
+		scan_ds_queue_remove(scn, ds1->ds_object);
+		scan_ds_queue_insert(scn, ds2->ds_object, mintxg1);
+	} else if (ds2_queued) {
+		scan_ds_queue_remove(scn, ds2->ds_object);
+		scan_ds_queue_insert(scn, ds1->ds_object, mintxg2);
+	}
+
+	/*
+	 * Handle the on-disk scan queue.
+	 * The on-disk state is an out-of-date version of the in-memory state,
+	 * so the in-memory and on-disk values for ds1_queued and ds2_queued may
+	 * be different. Therefore we need to apply the swap logic to the
+	 * on-disk state independently of the in-memory state.
+	 */
+	ds1_queued = zap_lookup_int_key(dp->dp_meta_objset,
+	    scn->scn_phys.scn_queue_obj, ds1->ds_object, &mintxg1) == 0;
+	ds2_queued = zap_lookup_int_key(dp->dp_meta_objset,
+	    scn->scn_phys.scn_queue_obj, ds2->ds_object, &mintxg2) == 0;
+
+	/* Sanity checking. */
+	if (ds1_queued) {
+		ASSERT3U(mintxg1, ==, dsl_dataset_phys(ds1)->ds_prev_snap_txg);
+		ASSERT3U(mintxg1, ==, dsl_dataset_phys(ds2)->ds_prev_snap_txg);
+	}
+	if (ds2_queued) {
+		ASSERT3U(mintxg2, ==, dsl_dataset_phys(ds1)->ds_prev_snap_txg);
+		ASSERT3U(mintxg2, ==, dsl_dataset_phys(ds2)->ds_prev_snap_txg);
+	}
+
+	if (ds1_queued && ds2_queued) {
+		/*
+		 * If both are queued, we don't need to do anything.
+		 * Alternatively, we could check for EEXIST from
+		 * zap_add_int_key() and back out to the original state, but
+		 * that would be more work than checking for this case upfront.
+		 */
+	} else if (ds1_queued) {
+		VERIFY3S(0, ==, zap_remove_int(dp->dp_meta_objset,
 		    scn->scn_phys.scn_queue_obj, ds1->ds_object, tx));
-		err = zap_add_int_key(dp->dp_meta_objset,
-		    scn->scn_phys.scn_queue_obj, ds2->ds_object, mintxg, tx);
-		VERIFY(err == 0 || err == EEXIST);
-		if (err == EEXIST) {
-			/* Both were there to begin with */
-			VERIFY(0 == zap_add_int_key(dp->dp_meta_objset,
-			    scn->scn_phys.scn_queue_obj,
-			    ds1->ds_object, mintxg, tx));
-		}
+		VERIFY3S(0, ==, zap_add_int_key(dp->dp_meta_objset,
+		    scn->scn_phys.scn_queue_obj, ds2->ds_object, mintxg1, tx));
 		zfs_dbgmsg("clone_swap ds %llu; in queue; "
 		    "replacing with %llu",
 		    (u_longlong_t)ds1->ds_object,
 		    (u_longlong_t)ds2->ds_object);
-	}
-	if (zap_lookup_int_key(dp->dp_meta_objset, scn->scn_phys.scn_queue_obj,
-	    ds2->ds_object, &mintxg) == 0) {
-		ASSERT3U(mintxg, ==, dsl_dataset_phys(ds1)->ds_prev_snap_txg);
-		ASSERT3U(mintxg, ==, dsl_dataset_phys(ds2)->ds_prev_snap_txg);
-		VERIFY3U(0, ==, zap_remove_int(dp->dp_meta_objset,
+	} else if (ds2_queued) {
+		VERIFY3S(0, ==, zap_remove_int(dp->dp_meta_objset,
 		    scn->scn_phys.scn_queue_obj, ds2->ds_object, tx));
-		VERIFY(0 == zap_add_int_key(dp->dp_meta_objset,
-		    scn->scn_phys.scn_queue_obj, ds1->ds_object, mintxg, tx));
+		VERIFY3S(0, ==, zap_add_int_key(dp->dp_meta_objset,
+		    scn->scn_phys.scn_queue_obj, ds1->ds_object, mintxg2, tx));
 		zfs_dbgmsg("clone_swap ds %llu; in queue; "
 		    "replacing with %llu",
 		    (u_longlong_t)ds2->ds_object,

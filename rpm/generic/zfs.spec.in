@@ -99,6 +99,7 @@
 %define __python_cffi_pkg         python%{__python_pkg_version}-cffi
 %define __python_setuptools_pkg   python%{__python_pkg_version}-setuptools
 %endif
+%define __python_sitelib          %(%{__python} -Esc "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
 
 # By default python-pyzfs is enabled, with the exception of
 # RHEL 6 which by default uses Python 2.6 which is too old.
@@ -138,7 +139,7 @@ BuildRequires:  libblkid-devel
 BuildRequires:  libudev-devel
 BuildRequires:  libattr-devel
 BuildRequires:  openssl-devel
-%if 0%{?fedora} >= 28
+%if 0%{?fedora} >= 28 || 0%{?rhel} >= 8 || 0%{?centos} >= 8
 BuildRequires:  libtirpc-devel
 %endif
 Requires:       openssl
@@ -255,7 +256,8 @@ validating the file system.
 %package dracut
 Summary:        Dracut module
 Group:          System Environment/Kernel
-Requires:       %{name}%{?_isa} = %{version}-%{release}
+BuildArch:	noarch
+Requires:       %{name} >= %{version}
 Requires:       dracut
 Requires:       /usr/bin/awk
 Requires:       grep
@@ -320,7 +322,7 @@ image which is ZFS aware.
 
 %if 0%{?_systemd}
     %define systemd --enable-systemd --with-systemdunitdir=%{_unitdir} --with-systemdpresetdir=%{_presetdir} --with-systemdmodulesloaddir=%{_modulesloaddir} --with-systemdgeneratordir=%{_systemdgeneratordir} --disable-sysvinit
-    %define systemd_svcs zfs-import-cache.service zfs-import-scan.service zfs-mount.service zfs-share.service zfs-zed.service zfs.target zfs-import.target
+    %define systemd_svcs zfs-import-cache.service zfs-import-scan.service zfs-mount.service zfs-share.service zfs-zed.service zfs.target zfs-import.target zfs-volume-wait.service zfs-volumes.target
 %else
     %define systemd --enable-sysvinit --disable-systemd
 %endif
@@ -417,6 +419,7 @@ systemctl --system daemon-reload >/dev/null || true
 %{_sbindir}/*
 %{_bindir}/raidz_test
 %{_bindir}/zgenhostid
+%{_bindir}/zvol_wait
 # Optional Python 2/3 scripts
 %{_bindir}/arc_summary
 %{_bindir}/arcstat
@@ -473,8 +476,8 @@ systemctl --system daemon-reload >/dev/null || true
 %doc contrib/pyzfs/README
 %doc contrib/pyzfs/LICENSE
 %defattr(-,root,root,-)
-%{python_sitelib}/libzfs_core/*
-%{python_sitelib}/pyzfs*
+%{__python_sitelib}/libzfs_core/*
+%{__python_sitelib}/pyzfs*
 %endif
 
 %if 0%{?_initramfs}

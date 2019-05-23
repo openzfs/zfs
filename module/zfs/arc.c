@@ -21,7 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2018, Joyent, Inc.
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2019 by Delphix. All rights reserved.
  * Copyright (c) 2014 by Saso Kiselkov. All rights reserved.
  * Copyright 2017 Nexenta Systems, Inc.  All rights reserved.
  */
@@ -1872,7 +1872,8 @@ arc_buf_try_copy_decompressed_data(arc_buf_t *buf)
 	 * There were no decompressed bufs, so there should not be a
 	 * checksum on the hdr either.
 	 */
-	EQUIV(!copied, hdr->b_l1hdr.b_freeze_cksum == NULL);
+	if (zfs_flags & ZFS_DEBUG_MODIFY)
+		EQUIV(!copied, hdr->b_l1hdr.b_freeze_cksum == NULL);
 
 	return (copied);
 }
@@ -2253,7 +2254,6 @@ arc_buf_fill(arc_buf_t *buf, spa_t *spa, const zbookmark_phys_t *zb,
 		 */
 		if (arc_buf_try_copy_decompressed_data(buf)) {
 			/* Skip byteswapping and checksumming (already done) */
-			ASSERT3P(hdr->b_l1hdr.b_freeze_cksum, !=, NULL);
 			return (0);
 		} else {
 			error = zio_decompress_data(HDR_GET_COMPRESS(hdr),
@@ -4801,8 +4801,6 @@ arc_reduce_target_size(int64_t to_free)
 	if (c > to_free && c - to_free > arc_c_min) {
 		arc_c = c - to_free;
 		atomic_add_64(&arc_p, -(arc_p >> arc_shrink_shift));
-		if (asize < arc_c)
-			arc_c = MAX(asize, arc_c_min);
 		if (arc_p > arc_c)
 			arc_p = (arc_c >> 1);
 		ASSERT(arc_c >= arc_c_min);
@@ -5081,6 +5079,9 @@ arc_kmem_reap_soon(void)
 static boolean_t
 arc_adjust_cb_check(void *arg, zthr_t *zthr)
 {
+	if (!arc_initialized)
+		return (B_FALSE);
+
 	/*
 	 * This is necessary so that any changes which may have been made to
 	 * many of the zfs_arc_* module parameters will be propagated to
@@ -5168,6 +5169,9 @@ arc_adjust_cb(void *arg, zthr_t *zthr)
 static boolean_t
 arc_reap_cb_check(void *arg, zthr_t *zthr)
 {
+	if (!arc_initialized)
+		return (B_FALSE);
+
 	int64_t free_memory = arc_available_memory();
 
 	/*
@@ -5608,7 +5612,7 @@ arc_get_data_impl(arc_buf_hdr_t *hdr, uint64_t size, void *tag)
 		 * If we are growing the cache, and we are adding anonymous
 		 * data, and we have outgrown arc_p, update arc_p
 		 */
-		if (aggsum_compare(&arc_size, arc_c) < 0 &&
+		if (aggsum_upper_bound(&arc_size) < arc_c &&
 		    hdr->b_l1hdr.b_state == arc_anon &&
 		    (zfs_refcount_count(&arc_anon->arcs_size) +
 		    zfs_refcount_count(&arc_mru->arcs_size) > arc_p))
@@ -7926,11 +7930,9 @@ arc_fini(void)
 
 	list_destroy(&arc_prune_list);
 	mutex_destroy(&arc_prune_mtx);
-	(void) zthr_cancel(arc_adjust_zthr);
-	zthr_destroy(arc_adjust_zthr);
 
+	(void) zthr_cancel(arc_adjust_zthr);
 	(void) zthr_cancel(arc_reap_zthr);
-	zthr_destroy(arc_reap_zthr);
 
 	mutex_destroy(&arc_adjust_lock);
 	cv_destroy(&arc_adjust_waiters_cv);
@@ -7942,6 +7944,14 @@ arc_fini(void)
 	 */
 	buf_fini();
 	arc_state_fini();
+
+	/*
+	 * We destroy the zthrs after all the ARC state has been
+	 * torn down to avoid the case of them receiving any
+	 * wakeup() signals after they are destroyed.
+	 */
+	zthr_destroy(arc_adjust_zthr);
+	zthr_destroy(arc_reap_zthr);
 
 	ASSERT0(arc_loaned_bytes);
 }
@@ -8760,7 +8770,7 @@ l2arc_apply_transforms(spa_t *spa, arc_buf_hdr_t *hdr, uint64_t asize,
 
 	/*
 	 * If this data simply needs its own buffer, we simply allocate it
-	 * and copy the data. This may be done to elimiate a depedency on a
+	 * and copy the data. This may be done to eliminate a dependency on a
 	 * shared buffer or to reallocate the buffer to match asize.
 	 */
 	if (HDR_HAS_RABD(hdr) && asize != psize) {

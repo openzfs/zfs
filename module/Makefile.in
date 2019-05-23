@@ -1,11 +1,11 @@
-subdir-m += avl
-subdir-m += icp
-subdir-m += lua
-subdir-m += nvpair
-subdir-m += spl
-subdir-m += unicode
-subdir-m += zcommon
-subdir-m += zfs
+obj-m += avl/
+obj-m += icp/
+obj-m += lua/
+obj-m += nvpair/
+obj-m += spl/
+obj-m += unicode/
+obj-m += zcommon/
+obj-m += zfs/
 
 INSTALL_MOD_DIR ?= extra
 
@@ -60,14 +60,15 @@ modules_install:
 modules_uninstall:
 	@# Uninstall the kernel modules
 	kmoddir=$(DESTDIR)$(INSTALL_MOD_PATH)/lib/modules/@LINUX_VERSION@
-	list='$(subdir-m)'; for subdir in $$list; do \
-		$(RM) -R $$kmoddir/$(INSTALL_MOD_DIR)/$$subdir; \
+	list='$(obj-m)'; for objdir in $$list; do \
+		$(RM) -R $$kmoddir/$(INSTALL_MOD_DIR)/$$objdir; \
 	done
 
 distdir:
-	list='$(subdir-m)'; for subdir in $$list; do \
-		(cd @top_srcdir@/module && find $$subdir -name '*.c' -o -name '*.h' -o -name '*.S' |\
-		xargs cp --parents -t $$distdir); \
+	list='$(obj-m)'; for objdir in $$list; do \
+		(cd @top_srcdir@/module && find $$objdir \
+		-name '*.c' -o -name '*.h' -o -name '*.S' | \
+		xargs cp --parents -t @abs_top_builddir@/module/$$distdir); \
 	done
 
 distclean maintainer-clean: clean

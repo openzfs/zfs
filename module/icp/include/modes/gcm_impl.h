@@ -37,12 +37,12 @@ extern "C" {
 #include <sys/crypto/common.h>
 
 /*
- * Methods used to define gcm implementation
+ * Methods used to define GCM implementation
  *
  * @gcm_mul_f Perform carry-less multiplication
  * @gcm_will_work_f Function tests whether implementation will function
  */
-typedef void 		(*gcm_mul_f)(uint64_t *, uint64_t *, uint64_t *);
+typedef void		(*gcm_mul_f)(uint64_t *, uint64_t *, uint64_t *);
 typedef boolean_t	(*gcm_will_work_f)(void);
 
 #define	GCM_IMPL_NAME_MAX (16)

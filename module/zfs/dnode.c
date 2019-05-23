@@ -55,7 +55,6 @@ dnode_stats_t dnode_stats = {
 	{ "dnode_hold_free_lock_retry",		KSTAT_DATA_UINT64 },
 	{ "dnode_hold_free_overflow",		KSTAT_DATA_UINT64 },
 	{ "dnode_hold_free_refcount",		KSTAT_DATA_UINT64 },
-	{ "dnode_hold_free_txg",		KSTAT_DATA_UINT64 },
 	{ "dnode_free_interior_lock_retry",	KSTAT_DATA_UINT64 },
 	{ "dnode_allocate",			KSTAT_DATA_UINT64 },
 	{ "dnode_reallocate",			KSTAT_DATA_UINT64 },
@@ -1255,6 +1254,10 @@ dnode_buf_evict_async(void *dbu)
  * as an extra dnode slot by an large dnode, in which case it returns
  * ENOENT.
  *
+ * If the DNODE_DRY_RUN flag is set, we don't actually hold the dnode, just
+ * return whether the hold would succeed or not. tag and dnp should set to
+ * NULL in this case.
+ *
  * errors:
  * EINVAL - Invalid object number or flags.
  * ENOSPC - Hole too small to fulfill "slots" request (DNODE_MUST_BE_FREE)
@@ -1283,6 +1286,7 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 
 	ASSERT(!(flag & DNODE_MUST_BE_ALLOCATED) || (slots == 0));
 	ASSERT(!(flag & DNODE_MUST_BE_FREE) || (slots > 0));
+	IMPLY(flag & DNODE_DRY_RUN, (tag == NULL) && (dnp == NULL));
 
 	/*
 	 * If you are holding the spa config lock as writer, you shouldn't
@@ -1312,8 +1316,11 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 		if ((flag & DNODE_MUST_BE_FREE) && type != DMU_OT_NONE)
 			return (SET_ERROR(EEXIST));
 		DNODE_VERIFY(dn);
-		(void) zfs_refcount_add(&dn->dn_holds, tag);
-		*dnp = dn;
+		/* Don't actually hold if dry run, just return 0 */
+		if (!(flag & DNODE_DRY_RUN)) {
+			(void) zfs_refcount_add(&dn->dn_holds, tag);
+			*dnp = dn;
+		}
 		return (0);
 	}
 
@@ -1455,6 +1462,14 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 			return (SET_ERROR(ENOENT));
 		}
 
+		/* Don't actually hold if dry run, just return 0 */
+		if (flag & DNODE_DRY_RUN) {
+			mutex_exit(&dn->dn_mtx);
+			dnode_slots_rele(dnc, idx, slots);
+			dbuf_rele(db, FTAG);
+			return (0);
+		}
+
 		DNODE_STAT_BUMP(dnode_hold_alloc_hits);
 	} else if (flag & DNODE_MUST_BE_FREE) {
 
@@ -1512,6 +1527,14 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 			return (SET_ERROR(EEXIST));
 		}
 
+		/* Don't actually hold if dry run, just return 0 */
+		if (flag & DNODE_DRY_RUN) {
+			mutex_exit(&dn->dn_mtx);
+			dnode_slots_rele(dnc, idx, slots);
+			dbuf_rele(db, FTAG);
+			return (0);
+		}
+
 		dnode_set_slots(dnc, idx + 1, slots - 1, DN_SLOT_INTERIOR);
 		DNODE_STAT_BUMP(dnode_hold_free_hits);
 	} else {
@@ -1519,15 +1542,7 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 		return (SET_ERROR(EINVAL));
 	}
 
-	if (dn->dn_free_txg) {
-		DNODE_STAT_BUMP(dnode_hold_free_txg);
-		type = dn->dn_type;
-		mutex_exit(&dn->dn_mtx);
-		dnode_slots_rele(dnc, idx, slots);
-		dbuf_rele(db, FTAG);
-		return (SET_ERROR((flag & DNODE_MUST_BE_ALLOCATED) ?
-		    ENOENT : EEXIST));
-	}
+	ASSERT0(dn->dn_free_txg);
 
 	if (zfs_refcount_add(&dn->dn_holds, tag) == 1)
 		dbuf_add_ref(db, dnh);
@@ -1616,6 +1631,16 @@ dnode_rele_and_unlock(dnode_t *dn, void *tag, boolean_t evicting)
 		mutex_enter(&db->db_mtx);
 		dbuf_rele_and_unlock(db, dnh, evicting);
 	}
+}
+
+/*
+ * Test whether we can create a dnode at the specified location.
+ */
+int
+dnode_try_claim(objset_t *os, uint64_t object, int slots)
+{
+	return (dnode_hold_impl(os, object, DNODE_MUST_BE_FREE | DNODE_DRY_RUN,
+	    slots, NULL, NULL));
 }
 
 void
@@ -2483,3 +2508,13 @@ out:
 
 	return (error);
 }
+
+#if defined(_KERNEL)
+EXPORT_SYMBOL(dnode_hold);
+EXPORT_SYMBOL(dnode_rele);
+EXPORT_SYMBOL(dnode_set_nlevels);
+EXPORT_SYMBOL(dnode_set_blksz);
+EXPORT_SYMBOL(dnode_free_range);
+EXPORT_SYMBOL(dnode_evict_dbufs);
+EXPORT_SYMBOL(dnode_evict_bonus);
+#endif

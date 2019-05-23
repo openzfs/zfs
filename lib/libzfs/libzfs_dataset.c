@@ -197,6 +197,16 @@ zfs_validate_name(libzfs_handle_t *hdl, const char *path, int type,
 				    "reserved disk name"));
 				break;
 
+			case NAME_ERR_SELF_REF:
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "self reference, '.' is found in name"));
+				break;
+
+			case NAME_ERR_PARENT_REF:
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "parent reference, '..' is found in name"));
+				break;
+
 			default:
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "(%d) not defined"), why);
@@ -4107,6 +4117,16 @@ zfs_promote(zfs_handle_t *zhp)
 
 	if (ret != 0) {
 		switch (ret) {
+		case EACCES:
+			/*
+			 * Promoting encrypted dataset outside its
+			 * encryption root.
+			 */
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "cannot promote dataset outside its "
+			    "encryption root"));
+			return (zfs_error(hdl, EZFS_EXISTS, errbuf));
+
 		case EEXIST:
 			/* There is a conflicting snapshot name. */
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
@@ -4470,8 +4490,6 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive,
 	zfs_cmd_t zc = {"\0"};
 	char *delim;
 	prop_changelist_t *cl = NULL;
-	zfs_handle_t *zhrp = NULL;
-	char *parentname = NULL;
 	char parent[ZFS_MAX_DATASET_NAME_LEN];
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
 	char errbuf[1024];
@@ -4566,7 +4584,8 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive,
 	}
 
 	if (recursive) {
-		parentname = zfs_strdup(zhp->zfs_hdl, zhp->zfs_name);
+		zfs_handle_t *zhrp;
+		char *parentname = zfs_strdup(zhp->zfs_hdl, zhp->zfs_name);
 		if (parentname == NULL) {
 			ret = -1;
 			goto error;
@@ -4574,10 +4593,12 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive,
 		delim = strchr(parentname, '@');
 		*delim = '\0';
 		zhrp = zfs_open(zhp->zfs_hdl, parentname, ZFS_TYPE_DATASET);
+		free(parentname);
 		if (zhrp == NULL) {
 			ret = -1;
 			goto error;
 		}
+		zfs_close(zhrp);
 	} else if (zhp->zfs_type != ZFS_TYPE_SNAPSHOT) {
 		if ((cl = changelist_gather(zhp, ZFS_PROP_NAME,
 		    CL_GATHER_ITER_MOUNTED,
@@ -4621,16 +4642,9 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive,
 			    "with the new name"));
 			(void) zfs_error(hdl, EZFS_EXISTS, errbuf);
 		} else if (errno == EACCES) {
-			if (zfs_prop_get_int(zhp, ZFS_PROP_ENCRYPTION) ==
-			    ZIO_CRYPT_OFF) {
-				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "cannot rename an unencrypted dataset to "
-				    "be a decendent of an encrypted one"));
-			} else {
-				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "cannot move encryption child outside of "
-				    "its encryption root"));
-			}
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "cannot move encrypted child outside of "
+			    "its encryption root"));
 			(void) zfs_error(hdl, EZFS_CRYPTOFAILED, errbuf);
 		} else {
 			(void) zfs_standard_error(zhp->zfs_hdl, errno, errbuf);
@@ -4650,12 +4664,6 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive,
 	}
 
 error:
-	if (parentname != NULL) {
-		free(parentname);
-	}
-	if (zhrp != NULL) {
-		zfs_close(zhrp);
-	}
 	if (cl != NULL) {
 		changelist_free(cl);
 	}

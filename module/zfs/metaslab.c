@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2019 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
  */
@@ -103,12 +103,27 @@ int zfs_mg_noalloc_threshold = 0;
 
 /*
  * Metaslab groups are considered eligible for allocations if their
- * fragmenation metric (measured as a percentage) is less than or equal to
- * zfs_mg_fragmentation_threshold. If a metaslab group exceeds this threshold
- * then it will be skipped unless all metaslab groups within the metaslab
- * class have also crossed this threshold.
+ * fragmenation metric (measured as a percentage) is less than or
+ * equal to zfs_mg_fragmentation_threshold. If a metaslab group
+ * exceeds this threshold then it will be skipped unless all metaslab
+ * groups within the metaslab class have also crossed this threshold.
+ *
+ * This tunable was introduced to avoid edge cases where we continue
+ * allocating from very fragmented disks in our pool while other, less
+ * fragmented disks, exists. On the other hand, if all disks in the
+ * pool are uniformly approaching the threshold, the threshold can
+ * be a speed bump in performance, where we keep switching the disks
+ * that we allocate from (e.g. we allocate some segments from disk A
+ * making it bypassing the threshold while freeing segments from disk
+ * B getting its fragmentation below the threshold).
+ *
+ * Empirically, we've seen that our vdev selection for allocations is
+ * good enough that fragmentation increases uniformly across all vdevs
+ * the majority of the time. Thus we set the threshold percentage high
+ * enough to avoid hitting the speed bump on pools that are being pushed
+ * to the edge.
  */
-int zfs_mg_fragmentation_threshold = 85;
+int zfs_mg_fragmentation_threshold = 95;
 
 /*
  * Allow metaslabs to keep their active state as long as their fragmentation
@@ -2934,6 +2949,30 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 	dmu_tx_commit(tx);
 }
 
+void
+metaslab_potentially_unload(metaslab_t *msp, uint64_t txg)
+{
+	/*
+	 * If the metaslab is loaded and we've not tried to load or allocate
+	 * from it in 'metaslab_unload_delay' txgs, then unload it.
+	 */
+	if (msp->ms_loaded &&
+	    msp->ms_disabled == 0 &&
+	    msp->ms_selected_txg + metaslab_unload_delay < txg) {
+		for (int t = 1; t < TXG_CONCURRENT_STATES; t++) {
+			VERIFY0(range_tree_space(
+			    msp->ms_allocating[(txg + t) & TXG_MASK]));
+		}
+		if (msp->ms_allocator != -1) {
+			metaslab_passivate(msp, msp->ms_weight &
+			    ~METASLAB_ACTIVE_MASK);
+		}
+
+		if (!metaslab_debug_unload)
+			metaslab_unload(msp);
+	}
+}
+
 /*
  * Called after a transaction group has completely synced to mark
  * all of the metaslab's free space as usable.
@@ -3070,27 +3109,6 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 	 * its allocatable space.
 	 */
 	metaslab_recalculate_weight_and_sort(msp);
-
-	/*
-	 * If the metaslab is loaded and we've not tried to load or allocate
-	 * from it in 'metaslab_unload_delay' txgs, then unload it.
-	 */
-	if (msp->ms_loaded &&
-	    msp->ms_disabled == 0 &&
-	    msp->ms_selected_txg + metaslab_unload_delay < txg) {
-
-		for (int t = 1; t < TXG_CONCURRENT_STATES; t++) {
-			VERIFY0(range_tree_space(
-			    msp->ms_allocating[(txg + t) & TXG_MASK]));
-		}
-		if (msp->ms_allocator != -1) {
-			metaslab_passivate(msp, msp->ms_weight &
-			    ~METASLAB_ACTIVE_MASK);
-		}
-
-		if (!metaslab_debug_unload)
-			metaslab_unload(msp);
-	}
 
 	ASSERT0(range_tree_space(msp->ms_allocating[txg & TXG_MASK]));
 	ASSERT0(range_tree_space(msp->ms_freeing));

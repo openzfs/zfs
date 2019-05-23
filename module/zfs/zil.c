@@ -1824,7 +1824,7 @@ zil_aitx_compare(const void *x1, const void *x2)
 /*
  * Remove all async itx with the given oid.
  */
-static void
+void
 zil_remove_async(zilog_t *zilog, uint64_t oid)
 {
 	uint64_t otxg, txg;
@@ -1875,16 +1875,6 @@ zil_itx_assign(zilog_t *zilog, itx_t *itx, dmu_tx_t *tx)
 	uint64_t txg;
 	itxg_t *itxg;
 	itxs_t *itxs, *clean = NULL;
-
-	/*
-	 * Object ids can be re-instantiated in the next txg so
-	 * remove any async transactions to avoid future leaks.
-	 * This can happen if a fsync occurs on the re-instantiated
-	 * object for a WR_INDIRECT or WR_NEED_COPY write, which gets
-	 * the new file data and flushes a write record for the old object.
-	 */
-	if ((itx->itx_lr.lrc_txtype & ~TX_CI) == TX_REMOVE)
-		zil_remove_async(zilog, itx->itx_oid);
 
 	/*
 	 * Ensure the data of a renamed file is committed before the rename.

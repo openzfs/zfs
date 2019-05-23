@@ -30,6 +30,7 @@
  * Copyright (c) 2013 by Delphix. All rights reserved.
  * Copyright 2015, OmniTI Computer Consulting, Inc. All rights reserved.
  * Copyright (c) 2018 George Melikov. All Rights Reserved.
+ * Copyright (c) 2019 Datto, Inc. All rights reserved.
  */
 
 /*
@@ -85,6 +86,7 @@
 #include <sys/dsl_destroy.h>
 #include <sys/dsl_deleg.h>
 #include <sys/zpl.h>
+#include <sys/mntent.h>
 #include "zfs_namecheck.h"
 
 /*
@@ -190,7 +192,7 @@ static void
 zfsctl_snapshot_add(zfs_snapentry_t *se)
 {
 	ASSERT(RW_WRITE_HELD(&zfs_snapshot_lock));
-	zfs_refcount_add(&se->se_refcount, NULL);
+	zfsctl_snapshot_hold(se);
 	avl_add(&zfs_snapshots_by_name, se);
 	avl_add(&zfs_snapshots_by_objsetid, se);
 }
@@ -267,7 +269,7 @@ zfsctl_snapshot_find_by_name(char *snapname)
 	search.se_name = snapname;
 	se = avl_find(&zfs_snapshots_by_name, &search, NULL);
 	if (se)
-		zfs_refcount_add(&se->se_refcount, NULL);
+		zfsctl_snapshot_hold(se);
 
 	return (se);
 }
@@ -288,7 +290,7 @@ zfsctl_snapshot_find_by_objsetid(spa_t *spa, uint64_t objsetid)
 	search.se_objsetid = objsetid;
 	se = avl_find(&zfs_snapshots_by_objsetid, &search, NULL);
 	if (se)
-		zfs_refcount_add(&se->se_refcount, NULL);
+		zfsctl_snapshot_hold(se);
 
 	return (se);
 }
@@ -706,37 +708,6 @@ zfsctl_snapshot_name(zfsvfs_t *zfsvfs, const char *snap_name, int len,
  * Returns full path in full_path: "/pool/dataset/.zfs/snapshot/snap_name/"
  */
 static int
-zfsctl_snapshot_path(struct path *path, int len, char *full_path)
-{
-	char *path_buffer, *path_ptr;
-	int path_len, error = 0;
-
-	path_buffer = kmem_alloc(len, KM_SLEEP);
-
-	path_ptr = d_path(path, path_buffer, len);
-	if (IS_ERR(path_ptr)) {
-		error = -PTR_ERR(path_ptr);
-		goto out;
-	}
-
-	path_len = path_buffer + len - 1 - path_ptr;
-	if (path_len > len) {
-		error = SET_ERROR(EFAULT);
-		goto out;
-	}
-
-	memcpy(full_path, path_ptr, path_len);
-	full_path[path_len] = '\0';
-out:
-	kmem_free(path_buffer, len);
-
-	return (error);
-}
-
-/*
- * Returns full path in full_path: "/pool/dataset/.zfs/snapshot/snap_name/"
- */
-static int
 zfsctl_snapshot_path_objset(zfsvfs_t *zfsvfs, uint64_t objsetid,
     int path_len, char *full_path)
 {
@@ -1047,8 +1018,6 @@ zfsctl_snapshot_unmount(char *snapname, int flags)
 	return (error);
 }
 
-#define	MOUNT_BUSY 0x80		/* Mount failed due to EBUSY (from mntent.h) */
-
 int
 zfsctl_snapshot_mount(struct path *path, int flags)
 {
@@ -1078,9 +1047,13 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 	if (error)
 		goto error;
 
-	error = zfsctl_snapshot_path(path, MAXPATHLEN, full_path);
-	if (error)
-		goto error;
+	/*
+	 * Construct a mount point path from sb of the ctldir inode and dirent
+	 * name, instead of from d_path(), so that chroot'd process doesn't fail
+	 * on mount.zfs(8).
+	 */
+	snprintf(full_path, MAXPATHLEN, "%s/.zfs/snapshot/%s",
+	    zfsvfs->z_vfs->vfs_mntpoint, dname(dentry));
 
 	/*
 	 * Multiple concurrent automounts of a snapshot are never allowed.
@@ -1109,8 +1082,8 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 	error = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
 	if (error) {
 		if (!(error & MOUNT_BUSY << 8)) {
-			cmn_err(CE_WARN, "Unable to automount %s/%s: %d",
-			    full_path, full_name, error);
+			zfs_dbgmsg("Unable to automount %s error=%d",
+			    full_path, error);
 			error = SET_ERROR(EISDIR);
 		} else {
 			/*

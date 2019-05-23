@@ -18,6 +18,7 @@
 # Copyright (c) 2017 Lawrence Livermore National Security, LLC.
 # Copyright (c) 2017 Datto Inc.
 # Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+# Copyright 2019 Richard Elling
 #
 
 #
@@ -55,12 +56,29 @@ function scan_scsi_hosts
 
 #
 # Wait for newly created block devices to have their minors created.
+# Additional arguments can be passed to udevadm trigger, with the expected
+# arguments to typically be a block device pathname. This is useful when
+# checking waiting on a specific device to settle rather than triggering
+# all devices and waiting for them all to settle.
+#
+# The udevadm settle timeout can be 120 or 180 seconds by default for
+# some distros. If a long delay is experienced, it could be due to some
+# strangeness in a malfunctioning device that isn't related to the devices
+# under test. To help debug this condition, a notice is given if settle takes
+# too long.
+#
+# Note: there is no meaningful return code if udevadm fails. Consumers
+# should not expect a return code (do not call as argument to log_must)
 #
 function block_device_wait
 {
 	if is_linux; then
-		udevadm trigger
+		udevadm trigger $*
+		typeset local start=$SECONDS
 		udevadm settle
+		typeset local elapsed=$((SECONDS - start))
+		[[ $elapsed > 60 ]] && \
+		    log_note udevadm settle time too long: $elapsed
 	fi
 }
 

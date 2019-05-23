@@ -567,8 +567,13 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 			if (!error && intval > 1)
 				error = SET_ERROR(EINVAL);
 
-			if (!error && !spa_get_hostid())
-				error = SET_ERROR(ENOTSUP);
+			if (!error) {
+				uint32_t hostid = zone_get_hostid(NULL);
+				if (hostid)
+					spa->spa_hostid = hostid;
+				else
+					error = SET_ERROR(ENOTSUP);
+			}
 
 			break;
 
@@ -2496,7 +2501,7 @@ spa_activity_check_required(spa_t *spa, uberblock_t *ub, nvlist_t *label,
 	if (nvlist_exists(label, ZPOOL_CONFIG_HOSTID))
 		hostid = fnvlist_lookup_uint64(label, ZPOOL_CONFIG_HOSTID);
 
-	if (hostid == spa_get_hostid())
+	if (hostid == spa_get_hostid(spa))
 		return (B_FALSE);
 
 	/*
@@ -3015,7 +3020,7 @@ spa_ld_select_uberblock(spa_t *spa, spa_import_type_t type)
 	    spa->spa_config);
 	if (activity_check) {
 		if (ub->ub_mmp_magic == MMP_MAGIC && ub->ub_mmp_delay &&
-		    spa_get_hostid() == 0) {
+		    spa_get_hostid(spa) == 0) {
 			nvlist_free(label);
 			fnvlist_add_uint64(spa->spa_load_info,
 			    ZPOOL_CONFIG_MMP_STATE, MMP_STATE_NO_HOSTID);
@@ -3695,7 +3700,7 @@ spa_ld_load_vdev_metadata(spa_t *spa)
 	 * be imported when the system hostid is zero.  The exception to
 	 * this rule is zdb which is always allowed to access pools.
 	 */
-	if (spa_multihost(spa) && spa_get_hostid() == 0 &&
+	if (spa_multihost(spa) && spa_get_hostid(spa) == 0 &&
 	    (spa->spa_import_flags & ZFS_IMPORT_SKIP_MMP) == 0) {
 		fnvlist_add_uint64(spa->spa_load_info,
 		    ZPOOL_CONFIG_MMP_STATE, MMP_STATE_NO_HOSTID);
@@ -5722,6 +5727,13 @@ spa_export_common(char *pool, int new_state, nvlist_t **oldconfig,
 		return (SET_ERROR(ENOENT));
 	}
 
+	if (spa->spa_is_exporting) {
+		/* the pool is being exported by another thread */
+		mutex_exit(&spa_namespace_lock);
+		return (SET_ERROR(ZFS_ERR_EXPORT_IN_PROGRESS));
+	}
+	spa->spa_is_exporting = B_TRUE;
+
 	/*
 	 * Put a hold on the pool, drop the namespace lock, stop async tasks,
 	 * reacquire the namespace lock, and see if we can export.
@@ -5757,6 +5769,7 @@ spa_export_common(char *pool, int new_state, nvlist_t **oldconfig,
 	    (spa->spa_inject_ref != 0 &&
 	    new_state != POOL_STATE_UNINITIALIZED)) {
 		spa_async_resume(spa);
+		spa->spa_is_exporting = B_FALSE;
 		mutex_exit(&spa_namespace_lock);
 		return (SET_ERROR(EBUSY));
 	}
@@ -5771,6 +5784,7 @@ spa_export_common(char *pool, int new_state, nvlist_t **oldconfig,
 		if (!force && new_state == POOL_STATE_EXPORTED &&
 		    spa_has_active_shared_spare(spa)) {
 			spa_async_resume(spa);
+			spa->spa_is_exporting = B_FALSE;
 			mutex_exit(&spa_namespace_lock);
 			return (SET_ERROR(EXDEV));
 		}
@@ -5822,9 +5836,16 @@ export_spa:
 		if (!hardforce)
 			spa_write_cachefile(spa, B_TRUE, B_TRUE);
 		spa_remove(spa);
+	} else {
+		/*
+		 * If spa_remove() is not called for this spa_t and
+		 * there is any possibility that it can be reused,
+		 * we make sure to reset the exporting flag.
+		 */
+		spa->spa_is_exporting = B_FALSE;
 	}
-	mutex_exit(&spa_namespace_lock);
 
+	mutex_exit(&spa_namespace_lock);
 	return (0);
 }
 

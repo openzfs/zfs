@@ -337,8 +337,8 @@ zfs_replay_create_acl(void *arg1, void *arg2, boolean_t byteswap)
 	xva.xva_vattr.va_nblocks = lr->lr_gen;
 	xva.xva_vattr.va_fsid = dnodesize;
 
-	error = dmu_object_info(zfsvfs->z_os, lr->lr_foid, NULL);
-	if (error != ENOENT)
+	error = dnode_try_claim(zfsvfs->z_os, objid, dnodesize >> DNODE_SHIFT);
+	if (error)
 		goto bail;
 
 	if (lr->lr_common.lrc_txtype & TX_CI)
@@ -473,8 +473,8 @@ zfs_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 	xva.xva_vattr.va_nblocks = lr->lr_gen;
 	xva.xva_vattr.va_fsid = dnodesize;
 
-	error = dmu_object_info(zfsvfs->z_os, objid, NULL);
-	if (error != ENOENT)
+	error = dnode_try_claim(zfsvfs->z_os, objid, dnodesize >> DNODE_SHIFT);
+	if (error)
 		goto out;
 
 	if (lr->lr_common.lrc_txtype & TX_CI)

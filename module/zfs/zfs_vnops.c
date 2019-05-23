@@ -775,7 +775,11 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 		 */
 		dmu_tx_t *tx = dmu_tx_create(zfsvfs->z_os);
 		dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
-		dmu_tx_hold_write(tx, zp->z_id, woff, MIN(n, max_blksz));
+		dmu_buf_impl_t *db = (dmu_buf_impl_t *)sa_get_db(zp->z_sa_hdl);
+		DB_DNODE_ENTER(db);
+		dmu_tx_hold_write_by_dnode(tx, DB_DNODE(db), woff,
+		    MIN(n, max_blksz));
+		DB_DNODE_EXIT(db);
 		zfs_sa_upgrade_txholds(tx, zp);
 		error = dmu_tx_assign(tx, TXG_WAIT);
 		if (error) {
@@ -1048,7 +1052,7 @@ zfs_get_data(void *arg, lr_write_t *lr, char *buf, struct lwb *lwb, zio_t *zio)
 		return (SET_ERROR(ENOENT));
 	}
 
-	zgd = (zgd_t *)kmem_zalloc(sizeof (zgd_t), KM_SLEEP);
+	zgd = kmem_zalloc(sizeof (zgd_t), KM_SLEEP);
 	zgd->zgd_lwb = lwb;
 	zgd->zgd_private = zp;
 
@@ -1676,6 +1680,7 @@ out:
  *	IN:	dip	- inode of directory to remove entry from.
  *		name	- name of entry to remove.
  *		cr	- credentials of caller.
+ *		flags	- case flags.
  *
  *	RETURN:	0 if success
  *		error code if failure
@@ -1881,7 +1886,7 @@ top:
 	txtype = TX_REMOVE;
 	if (flags & FIGNORECASE)
 		txtype |= TX_CI;
-	zfs_log_remove(zilog, tx, txtype, dzp, name, obj);
+	zfs_log_remove(zilog, tx, txtype, dzp, name, obj, unlinked);
 
 	dmu_tx_commit(tx);
 out:
@@ -1917,6 +1922,7 @@ out:
  *		dirname	- name of new directory.
  *		vap	- attributes of new directory.
  *		cr	- credentials of caller.
+ *		flags	- case flags.
  *		vsecp	- ACL to be set
  *
  *	OUT:	ipp	- inode of created directory.
@@ -2213,7 +2219,8 @@ top:
 		uint64_t txtype = TX_RMDIR;
 		if (flags & FIGNORECASE)
 			txtype |= TX_CI;
-		zfs_log_remove(zilog, tx, txtype, dzp, name, ZFS_NO_OBJECT);
+		zfs_log_remove(zilog, tx, txtype, dzp, name, ZFS_NO_OBJECT,
+		    B_FALSE);
 	}
 
 	dmu_tx_commit(tx);
@@ -2235,13 +2242,12 @@ out:
 }
 
 /*
- * Read as many directory entries as will fit into the provided
- * dirent buffer from the given directory cursor position.
+ * Read directory entries from the given directory cursor position and emit
+ * name and position for each entry.
  *
  *	IN:	ip	- inode of directory to read.
- *		dirent	- buffer for directory entries.
- *
- *	OUT:	dirent	- filler buffer of directory entries.
+ *		ctx	- directory entry context.
+ *		cr	- credentials of caller.
  *
  *	RETURN:	0 if success
  *		error code if failure
@@ -4006,12 +4012,13 @@ out:
  * Insert the indicated symbolic reference entry into the directory.
  *
  *	IN:	dip	- Directory to contain new symbolic link.
- *		link	- Name for new symlink entry.
+ *		name	- Name of directory entry in dip.
  *		vap	- Attributes of new entry.
- *		target	- Target path of new symlink.
- *
+ *		link	- Name for new symlink entry.
  *		cr	- credentials of caller.
  *		flags	- case flags
+ *
+ *	OUT:	ipp	- Inode for new symbolic link.
  *
  *	RETURN:	0 on success, error code on failure.
  *
@@ -4216,6 +4223,7 @@ zfs_readlink(struct inode *ip, uio_t *uio, cred_t *cr)
  *		sip	- inode of new entry.
  *		name	- name of new entry.
  *		cr	- credentials of caller.
+ *		flags	- case flags.
  *
  *	RETURN:	0 if success
  *		error code if failure
@@ -4729,7 +4737,6 @@ zfs_inactive(struct inode *ip)
  *	IN:	ip	- inode seeking within
  *		ooff	- old file offset
  *		noffp	- pointer to new file offset
- *		ct	- caller context
  *
  *	RETURN:	0 if success
  *		EINVAL if new offset invalid
@@ -5072,13 +5079,14 @@ zfs_setsecattr(struct inode *ip, vsecattr_t *vsecp, int flag, cred_t *cr)
 
 #ifdef HAVE_UIO_ZEROCOPY
 /*
- * Tunable, both must be a power of 2.
- *
- * zcr_blksz_min: the smallest read we may consider to loan out an arcbuf
- * zcr_blksz_max: if set to less than the file block size, allow loaning out of
- *		an arcbuf for a partial block read
+ * The smallest read we may consider to loan out an arcbuf.
+ * This must be a power of 2.
  */
 int zcr_blksz_min = (1 << 10);	/* 1K */
+/*
+ * If set to less than the file block size, allow loaning out of an
+ * arcbuf for a partial block read.  This must be a power of 2.
+ */
 int zcr_blksz_max = (1 << 17);	/* 128K */
 
 /*ARGSUSED*/
@@ -5257,9 +5265,11 @@ EXPORT_SYMBOL(zfs_putpage);
 EXPORT_SYMBOL(zfs_dirty_inode);
 EXPORT_SYMBOL(zfs_map);
 
-/* CSTYLED */
+/* BEGIN CSTYLED */
 module_param(zfs_delete_blocks, ulong, 0644);
 MODULE_PARM_DESC(zfs_delete_blocks, "Delete files larger than N blocks async");
-module_param(zfs_read_chunk_size, long, 0644);
+module_param(zfs_read_chunk_size, ulong, 0644);
 MODULE_PARM_DESC(zfs_read_chunk_size, "Bytes to read per chunk");
+/* END CSTYLED */
+
 #endif

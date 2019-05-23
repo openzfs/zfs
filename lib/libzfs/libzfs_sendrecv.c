@@ -2827,7 +2827,7 @@ recv_fix_encryption_hierarchy(libzfs_handle_t *hdl, const char *destname,
 		is_clone = zhp->zfs_dmustats.dds_origin[0] != '\0';
 		(void) zfs_crypto_get_encryption_root(zhp, &is_encroot, NULL);
 
-		/* we don't need to do anything for unencrypted filesystems */
+		/* we don't need to do anything for unencrypted datasets */
 		if (crypt == ZIO_CRYPT_OFF) {
 			zfs_close(zhp);
 			continue;
@@ -3992,11 +3992,18 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		}
 	} else {
 		/*
-		 * if the fs does not exist, look for it based on the
-		 * fromsnap GUID
+		 * If the fs does not exist, look for it based on the
+		 * fromsnap GUID.
 		 */
-		(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
-		    "cannot receive incremental stream"));
+		if (resuming) {
+			(void) snprintf(errbuf, sizeof (errbuf),
+			    dgettext(TEXT_DOMAIN,
+			    "cannot receive resume stream"));
+		} else {
+			(void) snprintf(errbuf, sizeof (errbuf),
+			    dgettext(TEXT_DOMAIN,
+			    "cannot receive incremental stream"));
+		}
 
 		(void) strcpy(name, destsnap);
 		*strchr(name, '@') = '\0';
@@ -4210,34 +4217,6 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			goto out;
 		}
 
-		/*
-		 * It is invalid to receive a properties stream that was
-		 * unencrypted on the send side as a child of an encrypted
-		 * parent. Technically there is nothing preventing this, but
-		 * it would mean that the encryption=off property which is
-		 * locally set on the send side would not be received correctly.
-		 * We can infer encryption=off if the stream is not raw and
-		 * properties were included since the send side will only ever
-		 * send the encryption property in a raw nvlist header. This
-		 * check will be avoided if the user specifically overrides
-		 * the encryption property on the command line.
-		 */
-		if (!raw && rcvprops != NULL &&
-		    !nvlist_exists(cmdprops,
-		    zfs_prop_to_name(ZFS_PROP_ENCRYPTION))) {
-			uint64_t crypt;
-
-			crypt = zfs_prop_get_int(zhp, ZFS_PROP_ENCRYPTION);
-
-			if (crypt != ZIO_CRYPT_OFF) {
-				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "parent '%s' must not be encrypted to "
-				    "receive unenecrypted property"), name);
-				err = zfs_error(hdl, EZFS_BADPROP, errbuf);
-				zfs_close(zhp);
-				goto out;
-			}
-		}
 		zfs_close(zhp);
 
 		newfs = B_TRUE;
@@ -4273,6 +4252,24 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	    stream_wantsnewfs, raw, toplevel, rcvprops, cmdprops, origprops,
 	    &oxprops, &wkeydata, &wkeylen, errbuf)) != 0)
 		goto out;
+
+	/*
+	 * When sending with properties (zfs send -p), the encryption property
+	 * is not included because it is a SETONCE property and therefore
+	 * treated as read only. However, we are always able to determine its
+	 * value because raw sends will include it in the DRR_BDEGIN payload
+	 * and non-raw sends with properties are not allowed for encrypted
+	 * datasets. Therefore, if this is a non-raw properties stream, we can
+	 * infer that the value should be ZIO_CRYPT_OFF and manually add that
+	 * to the received properties.
+	 */
+	if (stream_wantsnewfs && !raw && rcvprops != NULL &&
+	    !nvlist_exists(cmdprops, zfs_prop_to_name(ZFS_PROP_ENCRYPTION))) {
+		if (oxprops == NULL)
+			oxprops = fnvlist_alloc();
+		fnvlist_add_uint64(oxprops,
+		    zfs_prop_to_name(ZFS_PROP_ENCRYPTION), ZIO_CRYPT_OFF);
+	}
 
 	err = ioctl_err = lzc_receive_with_cmdprops(destsnap, rcvprops,
 	    oxprops, wkeydata, wkeylen, origin, flags->force, flags->resumable,
@@ -4428,14 +4425,15 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			*cp = '@';
 			break;
 		case EINVAL:
-			if (flags->resumable)
+			if (flags->resumable) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "kernel modules must be upgraded to "
 				    "receive this stream."));
-			if (embedded && !raw)
+			} else if (embedded && !raw) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "incompatible embedded data stream "
 				    "feature with encrypted receive."));
+			}
 			(void) zfs_error(hdl, EZFS_BADSTREAM, errbuf);
 			break;
 		case ECKSUM:

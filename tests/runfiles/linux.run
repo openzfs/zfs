@@ -182,7 +182,8 @@ tests = ['zfs_mount_001_pos', 'zfs_mount_002_pos', 'zfs_mount_003_pos',
     'zfs_mount_007_pos', 'zfs_mount_008_pos', 'zfs_mount_009_neg',
     'zfs_mount_010_neg', 'zfs_mount_011_neg', 'zfs_mount_012_neg',
     'zfs_mount_all_001_pos', 'zfs_mount_encrypted', 'zfs_mount_remount',
-    'zfs_multi_mount', 'zfs_mount_all_fail', 'zfs_mount_all_mountpoints']
+    'zfs_multi_mount', 'zfs_mount_all_fail', 'zfs_mount_all_mountpoints',
+    'zfs_mount_test_race']
 tags = ['functional', 'cli_root', 'zfs_mount']
 
 [tests/functional/cli_root/zfs_program]
@@ -461,10 +462,7 @@ tests = ['zpool_split_cliargs', 'zpool_split_devices',
 tags = ['functional', 'cli_root', 'zpool_split']
 
 [tests/functional/cli_root/zpool_status]
-tests = ['zpool_status_001_pos', 'zpool_status_002_pos','zpool_status_003_pos',
-    'zpool_status_-c_disable', 'zpool_status_-c_homedir',
-    'zpool_status_-c_searchpath']
-user =
+tests = ['zpool_status_001_pos', 'zpool_status_002_pos']
 tags = ['functional', 'cli_root', 'zpool_status']
 
 [tests/functional/cli_root/zpool_sync]
@@ -527,6 +525,12 @@ tags = ['functional', 'cli_user', 'zpool_iostat']
 tests = ['zpool_list_001_pos', 'zpool_list_002_neg']
 user =
 tags = ['functional', 'cli_user', 'zpool_list']
+
+[tests/functional/cli_user/zpool_status]
+tests = ['zpool_status_003_pos', 'zpool_status_-c_disable',
+    'zpool_status_-c_homedir', 'zpool_status_-c_searchpath']
+user =
+tags = ['functional', 'cli_user', 'zpool_status']
 
 [tests/functional/compression]
 tests = ['compress_001_pos', 'compress_002_pos', 'compress_003_pos',
@@ -653,7 +657,7 @@ tags = ['functional', 'mmap']
 tests = ['mmp_on_thread', 'mmp_on_uberblocks', 'mmp_on_off', 'mmp_interval',
     'mmp_active_import', 'mmp_inactive_import', 'mmp_exported_import',
     'mmp_write_uberblocks', 'mmp_reset_interval', 'multihost_history',
-    'mmp_on_zdb', 'mmp_write_distribution']
+    'mmp_on_zdb', 'mmp_write_distribution', 'mmp_hostid']
 tags = ['functional', 'mmp']
 
 [tests/functional/mount]
@@ -758,7 +762,7 @@ tags = ['functional', 'refreserv']
 pre =
 tests = ['removal_all_vdev', 'removal_check_space',
     'removal_condense_export', 'removal_multiple_indirection',
-    'removal_remap', 'removal_remap_deadlists',
+    'removal_remap', 'removal_nopwrite', 'removal_remap_deadlists',
     'removal_resume_export', 'removal_sanity', 'removal_with_add',
     'removal_with_create_fs', 'removal_with_dedup',
     'removal_with_errors', 'removal_with_export',
@@ -820,8 +824,8 @@ tags = ['functional', 'scrub_mirror']
 tests = ['slog_001_pos', 'slog_002_pos', 'slog_003_pos', 'slog_004_pos',
     'slog_005_pos', 'slog_006_pos', 'slog_007_pos', 'slog_008_neg',
     'slog_009_neg', 'slog_010_neg', 'slog_011_neg', 'slog_012_neg',
-    'slog_013_pos', 'slog_014_pos', 'slog_015_neg', 'slog_replay_fs',
-    'slog_replay_volume']
+    'slog_013_pos', 'slog_014_pos', 'slog_015_neg', 'slog_replay_fs_001',
+    'slog_replay_fs_002', 'slog_replay_volume']
 tags = ['functional', 'slog']
 
 [tests/functional/snapshot]
@@ -842,6 +846,11 @@ tags = ['functional', 'snapused']
 [tests/functional/sparse]
 tests = ['sparse_001_pos']
 tags = ['functional', 'sparse']
+
+[tests/functional/suid]
+tests = ['suid_write_to_suid', 'suid_write_to_sgid', 'suid_write_to_suid_sgid',
+    'suid_write_to_none']
+tags = ['functional', 'suid']
 
 [tests/functional/threadsappend]
 tests = ['threadsappend_001_pos']

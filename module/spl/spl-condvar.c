@@ -154,26 +154,39 @@ EXPORT_SYMBOL(__cv_wait_sig);
 #if defined(HAVE_IO_SCHEDULE_TIMEOUT)
 #define	spl_io_schedule_timeout(t)	io_schedule_timeout(t)
 #else
+
+struct spl_task_timer {
+	struct timer_list timer;
+	struct task_struct *task;
+};
+
 static void
-__cv_wakeup(unsigned long data)
+__cv_wakeup(spl_timer_list_t t)
 {
-	wake_up_process((struct task_struct *)data);
+	struct timer_list *tmr = (struct timer_list *)t;
+	struct spl_task_timer *task_timer = from_timer(task_timer, tmr, timer);
+
+	wake_up_process(task_timer->task);
 }
 
 static long
 spl_io_schedule_timeout(long time_left)
 {
 	long expire_time = jiffies + time_left;
-	struct timer_list timer;
+	struct spl_task_timer task_timer;
+	struct timer_list *timer = &task_timer.timer;
 
-	init_timer(&timer);
-	setup_timer(&timer, __cv_wakeup, (unsigned long)current);
-	timer.expires = expire_time;
-	add_timer(&timer);
+	task_timer.task = current;
+
+	timer_setup(timer, __cv_wakeup, 0);
+
+	timer->expires = expire_time;
+	add_timer(timer);
 
 	io_schedule();
 
-	del_timer_sync(&timer);
+	del_timer_sync(timer);
+
 	time_left = expire_time - jiffies;
 
 	return (time_left < 0 ? 0 : time_left);
