@@ -480,6 +480,8 @@ systemctl --system daemon-reload >/dev/null || true
 %if 0%{?_initramfs}
 %files initramfs
 %doc contrib/initramfs/README.initramfs.markdown
+/etc/default/zfs
+/etc/init.d/zfs-functions
 /usr/share/initramfs-tools/*
 %else
 # Since we're not building the initramfs package,

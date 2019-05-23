@@ -3,6 +3,11 @@
 # Add ZoL filesystem capabilities to an initrd, usually for a native ZFS root.
 #
 
+# fail on errors; this might be annoying but for now it's more
+# important to fail during initramfs creation where we can do
+# something about it, vs after a boot when we can't
+set -eu
+
 # This hook installs udev rules for ZoL.
 PREREQ="zdev"
 
@@ -10,11 +15,11 @@ PREREQ="zdev"
 # not strictly required, but it can be useful at the initramfs recovery prompt.
 COPY_EXEC_LIST="@sbindir@/zdb @sbindir@/zpool @sbindir@/zfs"
 COPY_EXEC_LIST="$COPY_EXEC_LIST @mounthelperdir@/mount.zfs @udevdir@/vdev_id"
-COPY_FILE_LIST="/etc/hostid @sysconfdir@/zfs/zpool.cache"
-COPY_FILE_LIST="$COPY_FILE_LIST @sysconfdir@/default/zfs"
 COPY_FILE_LIST="$COPY_FILE_LIST @sysconfdir@/zfs/zfs-functions"
-COPY_FILE_LIST="$COPY_FILE_LIST @sysconfdir@/zfs/vdev_id.conf"
 COPY_FILE_LIST="$COPY_FILE_LIST @udevruledir@/69-vdev.rules"
+
+# These are not required
+OPTIONAL_FILE_LIST="/etc/hostid @sysconfdir@/default/zfs @sysconfdir@/zfs/vdev_id.conf"
 
 # These prerequisites are provided by the base system.
 COPY_EXEC_LIST="$COPY_EXEC_LIST /usr/bin/dirname /bin/hostname /sbin/blkid"
@@ -66,6 +71,15 @@ do
 done
 
 for ii in $COPY_FILE_LIST
+do
+	dir=$(dirname "$ii")
+	[ -d "$dir" ] && mkdir -p "$DESTDIR/$dir"
+	[ -f "$ii" ] && cp -p "$ii" "$DESTDIR/$ii"
+	# error if missing
+	[ -e "$ii" ]
+done
+
+for ii in $OPTIONAL_FILE_LIST
 do
 	dir=$(dirname "$ii")
 	[ -d "$dir" ] && mkdir -p "$DESTDIR/$dir"
