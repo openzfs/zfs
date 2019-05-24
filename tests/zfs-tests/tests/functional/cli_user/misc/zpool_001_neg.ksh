@@ -45,16 +45,20 @@
 
 function cleanup
 {
-	if [ -e $TEST_BASE_DIR/zpool_001_neg.$$.txt ]
+	if [ -e "$TEMPFILE" ]
 	then
-		rm $TEST_BASE_DIR/zpool_001_neg.$$.txt
+		rm -f "$TEMPFILE"
 	fi
 }
+
+TEMPFILE="$TEST_BASE_DIR/zpool_001_neg.$$.txt"
 
 log_onexit cleanup
 log_assert "zpool shows a usage message when run as a user"
 
-eval "zpool > $TEST_BASE_DIR/zpool_001_neg.$$.txt 2>&1"
-log_must grep "usage: zpool command args" $TEST_BASE_DIR/zpool_001_neg.$$.txt
+eval "zpool > $TEMPFILE 2>&1"
+log_must grep "usage: zpool command args" "$TEMPFILE"
+
+log_must eval "awk '{if (length(\$0) > 80) exit 1}' < $TEMPFILE"
 
 log_pass "zpool shows a usage message when run as a user"
