@@ -15,6 +15,7 @@
 
 /*
  * Copyright (c) 2014, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2019, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -902,7 +903,7 @@ vdev_obsolete_sm_object(vdev_t *vd, uint64_t *sm_obj)
 	}
 
 	int error = zap_lookup(vd->vdev_spa->spa_meta_objset, vd->vdev_top_zap,
-	    VDEV_TOP_ZAP_INDIRECT_OBSOLETE_SM, sizeof (sm_obj), 1, sm_obj);
+	    VDEV_TOP_ZAP_INDIRECT_OBSOLETE_SM, sizeof (uint64_t), 1, sm_obj);
 	if (error == ENOENT) {
 		*sm_obj = 0;
 		error = 0;
