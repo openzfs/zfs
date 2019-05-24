@@ -102,7 +102,7 @@ void spl_dumpstack(void);
 		if (!(_verify3_left OP _verify3_right))			\
 		    spl_panic(__FILE__, __FUNCTION__, __LINE__,		\
 		    "VERIFY3(" #LEFT " "  #OP " "  #RIGHT ") "		\
-		    "failed (%px" #OP " %px)\n",			\
+		    "failed (%px " #OP " %px)\n",			\
 		    (void *) (_verify3_left),				\
 		    (void *) (_verify3_right));				\
 	} while (0)
