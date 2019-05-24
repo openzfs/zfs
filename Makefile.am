@@ -111,9 +111,10 @@ mancheck:
 	fi
 
 testscheck:
-	@find ${top_srcdir}/tests/zfs-tests/tests -type f \
+	@find ${top_srcdir}/tests/zfs-tests -type f \
 		\( -name '*.ksh' -not -executable \) -o \
 		\( -name '*.kshlib' -executable \) -o \
+		\( -name '*.shlib' -executable \) -o \
 		\( -name '*.cfg' -executable \) | \
 		xargs -r stat -c '%A %n' | \
 		awk '{c++; print} END {if(c>0) exit 1}'
