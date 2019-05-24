@@ -85,6 +85,7 @@
 #include <sys/dsl_destroy.h>
 #include <sys/dsl_deleg.h>
 #include <sys/zpl.h>
+#include <sys/mntent.h>
 #include "zfs_namecheck.h"
 
 /*
@@ -1046,8 +1047,6 @@ zfsctl_snapshot_unmount(char *snapname, int flags)
 
 	return (error);
 }
-
-#define	MOUNT_BUSY 0x80		/* Mount failed due to EBUSY (from mntent.h) */
 
 int
 zfsctl_snapshot_mount(struct path *path, int flags)
