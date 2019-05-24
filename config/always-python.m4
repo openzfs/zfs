@@ -68,19 +68,19 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_PYTHON], [
 
 	AM_PATH_PYTHON([2.6], [], [:])
 	AM_CONDITIONAL([USING_PYTHON], [test "$PYTHON" != :])
-	AM_CONDITIONAL([USING_PYTHON_2], [test "${PYTHON_VERSION:0:2}" = "2."])
-	AM_CONDITIONAL([USING_PYTHON_3], [test "${PYTHON_VERSION:0:2}" = "3."])
+	AM_CONDITIONAL([USING_PYTHON_2], [echo "${PYTHON_VERSION}" | grep -q "^2\\."])
+	AM_CONDITIONAL([USING_PYTHON_3], [echo "${PYTHON_VERSION}" | grep -q "^3\\."])
 
 	dnl #
 	dnl # Minimum supported Python versions for utilities:
 	dnl # Python 2.6.x, or Python 3.4.x
 	dnl #
-	AS_IF([test "${PYTHON_VERSION:0:2}" = "2."], [
+	AS_IF([echo "${PYTHON_VERSION}" | grep -q "^2\\."], [
 		ZFS_AC_PYTHON_VERSION([>= '2.6'], [ /bin/true ],
 			[AC_MSG_ERROR("Python >= 2.6.x is not available")])
 	])
 
-	AS_IF([test "${PYTHON_VERSION:0:2}" = "3."], [
+	AS_IF([echo "${PYTHON_VERSION}" | grep -q "^3\\."], [
 		ZFS_AC_PYTHON_VERSION([>= '3.4'], [ /bin/true ],
 			[AC_MSG_ERROR("Python >= 3.4.x is not available")])
 	])

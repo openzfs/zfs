@@ -26,10 +26,10 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_PYZFS], [
 	dnl # Require python-devel libraries
 	dnl #
 	AS_IF([test "x$enable_pyzfs" = xcheck  -o "x$enable_pyzfs" = xyes], [
-		AS_IF([test "${PYTHON_VERSION:0:2}" = "2."], [
+		AS_IF([echo "${PYTHON_VERSION}" | grep -q "^2\\."], [
 			PYTHON_REQUIRED_VERSION=">= '2.7.0'"
 		], [
-			AS_IF([test "${PYTHON_VERSION:0:2}" = "3."], [
+			AS_IF([echo "${PYTHON_VERSION}" | grep -q "^3\\."], [
 				PYTHON_REQUIRED_VERSION=">= '3.4.0'"
 			], [
 				AC_MSG_ERROR("Python $PYTHON_VERSION unknown")
