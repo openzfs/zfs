@@ -389,7 +389,7 @@ get_usage(zpool_help_t idx)
 		    "[<device> ...]\n"));
 	case HELP_STATUS:
 		return (gettext("\tstatus [-c [script1,script2,...]] "
-		    "[-igLpPsvxD]  [-T d|u] [pool] ... \n"
+		    "[-igLpPstvxD]  [-T d|u] [pool] ... \n"
 		    "\t    [interval [count]]\n"));
 	case HELP_UPGRADE:
 		return (gettext("\tupgrade\n"
