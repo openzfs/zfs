@@ -3630,6 +3630,13 @@ count_block(dsl_scan_t *scn, zfs_all_blkstats_t *zab, const blkptr_t *bp)
 	int i;
 
 	/*
+	 * Don't count embedded bp's, since we already did the work of
+	 * scanning these when we scanned the containing block.
+	 */
+	if (BP_IS_EMBEDDED(bp))
+		return;
+
+	/*
 	 * Update the spa's stats on how many bytes we have issued.
 	 * Sequential scrubs create a zio for each DVA of the bp. Each
 	 * of these will include all DVAs for repair purposes, but the
