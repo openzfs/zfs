@@ -643,11 +643,7 @@ EXPORT_SYMBOL(areleasef);
 
 
 static void
-#ifdef HAVE_SET_FS_PWD_WITH_CONST
-vn_set_fs_pwd(struct fs_struct *fs, const struct path *path)
-#else
 vn_set_fs_pwd(struct fs_struct *fs, struct path *path)
-#endif /* HAVE_SET_FS_PWD_WITH_CONST */
 {
 	struct path old_pwd;
 
