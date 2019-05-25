@@ -6622,10 +6622,13 @@ share_mount(int op, int argc, char **argv)
 
 		/*
 		 * libshare isn't mt-safe, so only do the operation in parallel
-		 * if we're mounting.
+		 * if we're mounting. Additionally, the key-loading option must
+		 * be serialized so that we can prompt the user for their keys
+		 * in a consistent manner.
 		 */
 		zfs_foreach_mountpoint(g_zfs, cb.cb_handles, cb.cb_used,
-		    share_mount_one_cb, &share_mount_state, op == OP_MOUNT);
+		    share_mount_one_cb, &share_mount_state,
+		    op == OP_MOUNT && !(flags & MS_CRYPT));
 		ret = share_mount_state.sm_status;
 
 		for (int i = 0; i < cb.cb_used; i++)
