@@ -4526,8 +4526,10 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 		unlock_page(pp);
 		rangelock_exit(lr);
 
-		if (wbc->sync_mode != WB_SYNC_NONE)
-			wait_on_page_writeback(pp);
+		if (wbc->sync_mode != WB_SYNC_NONE) {
+			if (PageWriteback(pp))
+				wait_on_page_bit(pp, PG_writeback);
+		}
 
 		ZFS_EXIT(zfsvfs);
 		return (0);
