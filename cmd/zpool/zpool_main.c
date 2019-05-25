@@ -1231,9 +1231,9 @@ errout:
  *	-O	Set fsproperty=value in the pool's root file system
  *
  * Creates the named pool according to the given vdev specification.  The
- * bulk of the vdev processing is done in make_root_vdev() in zpool_vdev.c.  Once
- * we get the nvlist back from make_root_vdev(), we either print out the contents
- * (if '-n' was specified), or pass it to libzfs to do the creation.
+ * bulk of the vdev processing is done in make_root_vdev() in zpool_vdev.c.
+ * Once we get the nvlist back from make_root_vdev(), we either print out the
+ * contents (if '-n' was specified), or pass it to libzfs to do the creation.
  */
 int
 zpool_do_create(int argc, char **argv)
