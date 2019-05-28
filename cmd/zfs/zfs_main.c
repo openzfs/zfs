@@ -2239,7 +2239,7 @@ zfs_do_upgrade(int argc, char **argv)
 	boolean_t showversions = B_FALSE;
 	int ret = 0;
 	upgrade_cbdata_t cb = { 0 };
-	signed char c;
+	int c;
 	int flags = ZFS_ITER_ARGS_CAN_BE_PATHS;
 
 	/* check options */
@@ -3933,7 +3933,7 @@ static int
 zfs_do_snapshot(int argc, char **argv)
 {
 	int ret = 0;
-	signed char c;
+	int c;
 	nvlist_t *props;
 	snap_cbdata_t sd = { 0 };
 	boolean_t multiple_snaps = B_FALSE;
