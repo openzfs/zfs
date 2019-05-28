@@ -1676,6 +1676,7 @@ out:
  *	IN:	dip	- inode of directory to remove entry from.
  *		name	- name of entry to remove.
  *		cr	- credentials of caller.
+ *		flags	- case flags.
  *
  *	RETURN:	0 if success
  *		error code if failure
@@ -1917,6 +1918,7 @@ out:
  *		dirname	- name of new directory.
  *		vap	- attributes of new directory.
  *		cr	- credentials of caller.
+ *		flags	- case flags.
  *		vsecp	- ACL to be set
  *
  *	OUT:	ipp	- inode of created directory.
@@ -2235,13 +2237,12 @@ out:
 }
 
 /*
- * Read as many directory entries as will fit into the provided
- * dirent buffer from the given directory cursor position.
+ * Read directory entries from the given directory cursor position and emit
+ * name and position for each entry.
  *
  *	IN:	ip	- inode of directory to read.
- *		dirent	- buffer for directory entries.
- *
- *	OUT:	dirent	- filler buffer of directory entries.
+ *		ctx	- directory entry context.
+ *		cr	- credentials of caller.
  *
  *	RETURN:	0 if success
  *		error code if failure
@@ -4006,12 +4007,13 @@ out:
  * Insert the indicated symbolic reference entry into the directory.
  *
  *	IN:	dip	- Directory to contain new symbolic link.
- *		link	- Name for new symlink entry.
+ *		name	- Name of directory entry in dip.
  *		vap	- Attributes of new entry.
- *		target	- Target path of new symlink.
- *
+ *		link	- Name for new symlink entry.
  *		cr	- credentials of caller.
  *		flags	- case flags
+ *
+ *	OUT:	ipp	- Inode for new symbolic link.
  *
  *	RETURN:	0 on success, error code on failure.
  *
@@ -4216,6 +4218,7 @@ zfs_readlink(struct inode *ip, uio_t *uio, cred_t *cr)
  *		sip	- inode of new entry.
  *		name	- name of new entry.
  *		cr	- credentials of caller.
+ *		flags	- case flags.
  *
  *	RETURN:	0 if success
  *		error code if failure
@@ -4526,8 +4529,10 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 		unlock_page(pp);
 		rangelock_exit(lr);
 
-		if (wbc->sync_mode != WB_SYNC_NONE)
-			wait_on_page_writeback(pp);
+		if (wbc->sync_mode != WB_SYNC_NONE) {
+			if (PageWriteback(pp))
+				wait_on_page_bit(pp, PG_writeback);
+		}
 
 		ZFS_EXIT(zfsvfs);
 		return (0);
@@ -4727,7 +4732,6 @@ zfs_inactive(struct inode *ip)
  *	IN:	ip	- inode seeking within
  *		ooff	- old file offset
  *		noffp	- pointer to new file offset
- *		ct	- caller context
  *
  *	RETURN:	0 if success
  *		EINVAL if new offset invalid
