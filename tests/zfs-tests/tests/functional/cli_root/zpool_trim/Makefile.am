@@ -2,7 +2,6 @@ pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/cli_root/zpool_trim
 dist_pkgdata_SCRIPTS = \
 	setup.ksh \
 	cleanup.ksh \
-	zpool_trim.kshlib \
 	zpool_trim_attach_detach_add_remove.ksh \
 	zpool_trim_import_export.ksh \
 	zpool_trim_multiple.ksh \
@@ -20,3 +19,6 @@ dist_pkgdata_SCRIPTS = \
 	zpool_trim_unsupported_vdevs.ksh \
 	zpool_trim_verify_checksums.ksh \
 	zpool_trim_verify_trimmed.ksh
+
+dist_pkgdata_DATA = \
+	zpool_trim.kshlib

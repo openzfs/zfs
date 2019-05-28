@@ -238,7 +238,7 @@ main(int argc, char *argv[])
 	struct drr_object_range *drror = &thedrr.drr_u.drr_object_range;
 	struct drr_redact *drrr = &thedrr.drr_u.drr_redact;
 	struct drr_checksum *drrc = &thedrr.drr_u.drr_checksum;
-	char c;
+	int c;
 	boolean_t verbose = B_FALSE;
 	boolean_t very_verbose = B_FALSE;
 	boolean_t first = B_TRUE;

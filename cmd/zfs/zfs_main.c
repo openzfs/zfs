@@ -2272,7 +2272,7 @@ zfs_do_upgrade(int argc, char **argv)
 	boolean_t showversions = B_FALSE;
 	int ret = 0;
 	upgrade_cbdata_t cb = { 0 };
-	signed char c;
+	int c;
 	int flags = ZFS_ITER_ARGS_CAN_BE_PATHS;
 
 	/* check options */
@@ -4033,7 +4033,7 @@ static int
 zfs_do_snapshot(int argc, char **argv)
 {
 	int ret = 0;
-	signed char c;
+	int c;
 	nvlist_t *props;
 	snap_cbdata_t sd = { 0 };
 	boolean_t multiple_snaps = B_FALSE;
@@ -6881,8 +6881,8 @@ unshare_unmount_compare(const void *larg, const void *rarg, void *unused)
 
 /*
  * Convenience routine used by zfs_do_umount() and manual_unmount().  Given an
- * absolute path, find the entry /proc/self/mounts, verify that its a
- * ZFS filesystems, and unmount it appropriately.
+ * absolute path, find the entry /proc/self/mounts, verify that it's a
+ * ZFS filesystem, and unmount it appropriately.
  */
 static int
 unshare_unmount_path(int op, char *path, int flags, boolean_t is_manual)
