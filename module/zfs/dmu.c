@@ -2373,39 +2373,14 @@ dmu_offset_next(objset_t *os, uint64_t object, boolean_t hole, uint64_t *off)
 		return (err);
 
 	/*
-	 * Check if there are dirty data blocks or frees which have not been
-	 * synced.  Dirty spill and bonus blocks which are external to the
-	 * object can ignored when reporting holes.
+	 * Check if dnode is dirty
 	 */
-	mutex_enter(&dn->dn_mtx);
 	for (i = 0; i < TXG_SIZE; i++) {
 		if (multilist_link_active(&dn->dn_dirty_link[i])) {
-
-			if (dn->dn_free_ranges[i] != NULL) {
-				clean = B_FALSE;
-				break;
-			}
-
-			list_t *list = &dn->dn_dirty_records[i];
-			dbuf_dirty_record_t *dr;
-
-			for (dr = list_head(list); dr != NULL;
-			    dr = list_next(list, dr)) {
-				dmu_buf_impl_t *db = dr->dr_dbuf;
-
-				if (db->db_blkid == DMU_SPILL_BLKID ||
-				    db->db_blkid == DMU_BONUS_BLKID)
-					continue;
-
-				clean = B_FALSE;
-				break;
-			}
-		}
-
-		if (clean == B_FALSE)
+			clean = B_FALSE;
 			break;
+		}
 	}
-	mutex_exit(&dn->dn_mtx);
 
 	/*
 	 * If compatibility option is on, sync any current changes before
