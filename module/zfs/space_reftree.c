@@ -23,7 +23,7 @@
  * Use is subject to license terms.
  */
 /*
- * Copyright (c) 2013, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2019 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -109,10 +109,13 @@ space_reftree_add_seg(avl_tree_t *t, uint64_t start, uint64_t end,
 void
 space_reftree_add_map(avl_tree_t *t, range_tree_t *rt, int64_t refcnt)
 {
-	range_seg_t *rs;
+	btree_index_t where;
 
-	for (rs = avl_first(&rt->rt_root); rs; rs = AVL_NEXT(&rt->rt_root, rs))
-		space_reftree_add_seg(t, rs->rs_start, rs->rs_end, refcnt);
+	for (range_seg_t *rs = btree_first(&rt->rt_root, &where); rs; rs =
+	    btree_next(&rt->rt_root, &where, &where)) {
+		space_reftree_add_seg(t, rs_get_start(rs, rt), rs_get_end(rs,
+		    rt),  refcnt);
+	}
 }
 
 /*

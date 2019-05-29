@@ -86,8 +86,8 @@ typedef void	vdev_remap_func_t(vdev_t *vd, uint64_t offset, uint64_t size,
  * Given a target vdev, translates the logical range "in" to the physical
  * range "res"
  */
-typedef void vdev_xlation_func_t(vdev_t *cvd, const range_seg_t *in,
-    range_seg_t *res);
+typedef void vdev_xlation_func_t(vdev_t *cvd, const range_seg64_t *in,
+    range_seg64_t *res);
 
 typedef const struct vdev_ops {
 	vdev_open_func_t		*vdev_op_open;
@@ -526,8 +526,8 @@ extern vdev_ops_t vdev_indirect_ops;
 /*
  * Common size functions
  */
-extern void vdev_default_xlate(vdev_t *vd, const range_seg_t *in,
-    range_seg_t *out);
+extern void vdev_default_xlate(vdev_t *vd, const range_seg64_t *in,
+    range_seg64_t *out);
 extern uint64_t vdev_default_asize(vdev_t *vd, uint64_t psize);
 extern uint64_t vdev_get_min_asize(vdev_t *vd);
 extern void vdev_set_min_asize(vdev_t *vd);

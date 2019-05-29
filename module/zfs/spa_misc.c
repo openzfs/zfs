@@ -58,6 +58,7 @@
 #include <sys/ddt.h>
 #include <sys/kstat.h>
 #include "zfs_prop.h"
+#include <sys/btree.h>
 #include <sys/zfeature.h>
 #include <sys/qat.h>
 
@@ -2318,8 +2319,8 @@ spa_init(int mode)
 	fm_init();
 	zfs_refcount_init();
 	unique_init();
-	range_tree_init();
-	metaslab_alloc_trace_init();
+	btree_init();
+	metaslab_stat_init();
 	ddt_init();
 	zio_init();
 	dmu_init();
@@ -2353,8 +2354,8 @@ spa_fini(void)
 	dmu_fini();
 	zio_fini();
 	ddt_fini();
-	metaslab_alloc_trace_fini();
-	range_tree_fini();
+	metaslab_stat_fini();
+	btree_fini();
 	unique_fini();
 	zfs_refcount_fini();
 	fm_fini();

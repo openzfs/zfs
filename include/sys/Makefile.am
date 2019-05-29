@@ -11,6 +11,7 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/bplist.h \
 	$(top_srcdir)/include/sys/bpobj.h \
 	$(top_srcdir)/include/sys/bptree.h \
+	$(top_srcdir)/include/sys/btree.h \
 	$(top_srcdir)/include/sys/bqueue.h \
 	$(top_srcdir)/include/sys/cityhash.h \
 	$(top_srcdir)/include/sys/dataset_kstats.h \

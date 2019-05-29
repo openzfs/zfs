@@ -103,6 +103,7 @@ extern uint64_t zfs_arc_max, zfs_arc_meta_limit;
 extern int zfs_vdev_async_read_max_active;
 extern boolean_t spa_load_verify_dryrun;
 extern int zfs_reconstruct_indirect_combinations_max;
+extern int btree_verify_intensity;
 
 static const char cmdname[] = "zdb";
 uint8_t dump_opt[256];
@@ -949,7 +950,7 @@ dump_metaslab_stats(metaslab_t *msp)
 {
 	char maxbuf[32];
 	range_tree_t *rt = msp->ms_allocatable;
-	avl_tree_t *t = &msp->ms_allocatable_by_size;
+	btree_t *t = &msp->ms_allocatable_by_size;
 	int free_pct = range_tree_space(rt) * 100 / msp->ms_size;
 
 	/* max sure nicenum has enough space */
@@ -958,7 +959,7 @@ dump_metaslab_stats(metaslab_t *msp)
 	zdb_nicenum(metaslab_largest_allocatable(msp), maxbuf, sizeof (maxbuf));
 
 	(void) printf("\t %25s %10lu   %7s  %6s   %4s %4d%%\n",
-	    "segments", avl_numnodes(t), "maxsize", maxbuf,
+	    "segments", btree_numnodes(t), "maxsize", maxbuf,
 	    "freepct", free_pct);
 	(void) printf("\tIn-memory histogram:\n");
 	dump_histogram(rt->rt_histogram, RANGE_TREE_HISTOGRAM_SIZE, 0);
@@ -4063,7 +4064,7 @@ zdb_claim_removing(spa_t *spa, zdb_cb_t *zcb)
 
 	ASSERT0(range_tree_space(svr->svr_allocd_segs));
 
-	range_tree_t *allocs = range_tree_create(NULL, NULL);
+	range_tree_t *allocs = range_tree_create(NULL, RANGE_SEG64, NULL, 0, 0);
 	for (uint64_t msi = 0; msi < vd->vdev_ms_count; msi++) {
 		metaslab_t *msp = vd->vdev_ms[msi];
 
@@ -6088,7 +6089,8 @@ dump_zpool(spa_t *spa)
 
 	if (dump_opt['d'] || dump_opt['i']) {
 		spa_feature_t f;
-		mos_refd_objs = range_tree_create(NULL, NULL);
+		mos_refd_objs = range_tree_create(NULL, RANGE_SEG64, NULL, 0,
+		    0);
 		dump_objset(dp->dp_meta_objset);
 
 		if (dump_opt['d'] >= 3) {
@@ -6642,6 +6644,13 @@ main(int argc, char **argv)
 	spa_config_path_env = getenv("SPA_CONFIG_PATH");
 	if (spa_config_path_env != NULL)
 		spa_config_path = spa_config_path_env;
+
+	/*
+	 * For performance reasons, we set this tunable down. We do so before
+	 * the arg parsing section so that the user can override this value if
+	 * they choose.
+	 */
+	btree_verify_intensity = 3;
 
 	while ((c = getopt(argc, argv,
 	    "AbcCdDeEFGhiI:klLmMo:Op:PqRsSt:uU:vVx:XY")) != -1) {
