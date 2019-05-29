@@ -182,7 +182,6 @@ extern int vn_space(vnode_t *vp, int cmd, struct flock *bfp, int flag,
 extern file_t *vn_getf(int fd);
 extern void vn_releasef(int fd);
 extern void vn_areleasef(int fd, uf_info_t *fip);
-extern int vn_set_pwd(const char *filename);
 
 int spl_vn_init(void);
 void spl_vn_fini(void);
