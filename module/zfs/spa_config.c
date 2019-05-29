@@ -93,8 +93,7 @@ spa_config_load(void)
 	 */
 	pathname = kmem_alloc(MAXPATHLEN, KM_SLEEP);
 
-	(void) snprintf(pathname, MAXPATHLEN, "%s%s",
-	    (rootdir != NULL) ? "./" : "", spa_config_path);
+	(void) snprintf(pathname, MAXPATHLEN, "%s", spa_config_path);
 
 	file = kobj_open_file(pathname);
 
