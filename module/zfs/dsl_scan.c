@@ -3025,10 +3025,8 @@ dsl_scan_async_block_should_pause(dsl_scan_t *scn)
 	if (zfs_recover)
 		return (B_FALSE);
 
-	if (zfs_async_block_max_blocks != 0 && 
-	    scn->scn_visited_this_txg >= zfs_async_block_max_blocks) {
+	if (scn->scn_visited_this_txg >= zfs_async_block_max_blocks)
 		return (B_TRUE);
-	}
 
 	elapsed_nanosecs = gethrtime() - scn->scn_sync_start_time;
 	return (elapsed_nanosecs / NANOSEC > zfs_txg_timeout ||
