@@ -5,7 +5,6 @@ DefaultDependencies=no
 After=systemd-udev-settle.service
 After=zfs-import.target
 After=systemd-remount-fs.service
-Before=local-fs.target
 
 [Service]
 Type=oneshot

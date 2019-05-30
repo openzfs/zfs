@@ -2,6 +2,7 @@
 Description=Import ZFS pools by device scanning
 Documentation=man:zpool(8)
 DefaultDependencies=no
+After=local-fs.target
 Requires=systemd-udev-settle.service
 After=systemd-udev-settle.service
 After=cryptsetup.target
