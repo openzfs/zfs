@@ -237,7 +237,7 @@ main(int argc, char *argv[])
 	struct drr_write_embedded *drrwe = &thedrr.drr_u.drr_write_embedded;
 	struct drr_object_range *drror = &thedrr.drr_u.drr_object_range;
 	struct drr_checksum *drrc = &thedrr.drr_u.drr_checksum;
-	char c;
+	int c;
 	boolean_t verbose = B_FALSE;
 	boolean_t very_verbose = B_FALSE;
 	boolean_t first = B_TRUE;

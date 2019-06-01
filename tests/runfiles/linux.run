@@ -635,7 +635,7 @@ tests = ['filesystem_count', 'filesystem_limit', 'snapshot_count',
 tags = ['functional', 'limits']
 
 [tests/functional/link_count]
-tests = ['link_count_001']
+tests = ['link_count_001', 'link_count_root_inode.ksh']
 tags = ['functional', 'link_count']
 
 [tests/functional/migration]

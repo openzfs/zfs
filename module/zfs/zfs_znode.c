@@ -651,12 +651,11 @@ static zfs_acl_phys_t acl_phys;
  *		cr	- credentials of caller
  *		flag	- flags:
  *			  IS_ROOT_NODE	- new object will be root
+ *			  IS_TMPFILE	- new object is of O_TMPFILE
  *			  IS_XATTR	- new object is an attribute
- *		bonuslen - length of bonus buffer
- *		setaclp  - File/Dir initial ACL
- *		fuidp	 - Tracks fuid allocation.
+ *		acl_ids	- ACL related attributes
  *
- *	OUT:	zpp	- allocated znode
+ *	OUT:	zpp	- allocated znode (set to dzp if IS_ROOT_NODE)
  *
  */
 void

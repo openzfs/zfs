@@ -478,7 +478,7 @@ differ(void *arg)
 	if (err)
 		return ((void *)-1);
 	if (di->zerr) {
-		ASSERT(di->zerr == EINVAL);
+		ASSERT(di->zerr == EPIPE);
 		(void) snprintf(di->errbuf, sizeof (di->errbuf),
 		    dgettext(TEXT_DOMAIN,
 		    "Internal error: bad data from diff IOCTL"));

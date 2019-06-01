@@ -30,6 +30,7 @@
  * Copyright (c) 2017 Datto Inc.
  * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
  * Copyright (c) 2017, Intel Corporation.
+ * Copyright (c) 2019, loli10K <ezomori.nozomu@gmail.com>
  */
 
 #include <assert.h>
@@ -384,11 +385,11 @@ get_usage(zpool_help_t idx)
 	case HELP_RESILVER:
 		return (gettext("\tresilver <pool> ...\n"));
 	case HELP_TRIM:
-		return (gettext("\ttrim [-dp] [-r <rate>] [-c | -s] <pool> "
+		return (gettext("\ttrim [-d] [-r <rate>] [-c | -s] <pool> "
 		    "[<device> ...]\n"));
 	case HELP_STATUS:
 		return (gettext("\tstatus [-c [script1,script2,...]] "
-		    "[-igLpPsvxD]  [-T d|u] [pool] ... \n"
+		    "[-igLpPstvxD]  [-T d|u] [pool] ... \n"
 		    "\t    [interval [count]]\n"));
 	case HELP_UPGRADE:
 		return (gettext("\tupgrade\n"
@@ -784,7 +785,7 @@ add_prop_list_default(const char *propname, char *propval, nvlist_t **props,
  *	-P	Display full path for vdev name.
  *
  * Adds the given vdevs to 'pool'.  As with create, the bulk of this work is
- * handled by get_vdev_spec(), which constructs the nvlist needed to pass to
+ * handled by make_root_vdev(), which constructs the nvlist needed to pass to
  * libzfs.
  */
 int
@@ -882,7 +883,7 @@ zpool_do_add(int argc, char **argv)
 		}
 	}
 
-	/* pass off to get_vdev_spec for processing */
+	/* pass off to make_root_vdev for processing */
 	nvroot = make_root_vdev(zhp, props, force, !force, B_FALSE, dryrun,
 	    argc, argv);
 	if (nvroot == NULL) {
@@ -972,7 +973,7 @@ zpool_do_remove(int argc, char **argv)
 	int i, ret = 0;
 	zpool_handle_t *zhp = NULL;
 	boolean_t stop = B_FALSE;
-	char c;
+	int c;
 	boolean_t noop = B_FALSE;
 	boolean_t parsable = B_FALSE;
 
@@ -1231,9 +1232,9 @@ errout:
  *	-O	Set fsproperty=value in the pool's root file system
  *
  * Creates the named pool according to the given vdev specification.  The
- * bulk of the vdev processing is done in get_vdev_spec() in zpool_vdev.c.  Once
- * we get the nvlist back from get_vdev_spec(), we either print out the contents
- * (if '-n' was specified), or pass it to libzfs to do the creation.
+ * bulk of the vdev processing is done in make_root_vdev() in zpool_vdev.c.
+ * Once we get the nvlist back from make_root_vdev(), we either print out the
+ * contents (if '-n' was specified), or pass it to libzfs to do the creation.
  */
 int
 zpool_do_create(int argc, char **argv)
@@ -1387,7 +1388,7 @@ zpool_do_create(int argc, char **argv)
 		goto errout;
 	}
 
-	/* pass off to get_vdev_spec for bulk processing */
+	/* pass off to make_root_vdev for bulk processing */
 	nvroot = make_root_vdev(NULL, props, force, !force, B_FALSE, dryrun,
 	    argc - 1, argv + 1);
 	if (nvroot == NULL)
