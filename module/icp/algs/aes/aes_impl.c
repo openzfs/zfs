@@ -311,16 +311,21 @@ aes_impl_init(void *arg)
 	}
 	aes_supp_impl_cnt = c;
 
-	/* set fastest implementation. assume hardware accelerated is fastest */
+	/*
+	 * Set the fastest implementation given the assumption that the
+	 * hardware accelerated version is the fastest.
+	 */
 #if defined(__x86_64)
 #if defined(HAVE_AES)
-	if (aes_aesni_impl.is_supported())
+	if (aes_aesni_impl.is_supported()) {
 		memcpy(&aes_fastest_impl, &aes_aesni_impl,
 		    sizeof (aes_fastest_impl));
-	else
+	} else
 #endif
+	{
 		memcpy(&aes_fastest_impl, &aes_x86_64_impl,
 		    sizeof (aes_fastest_impl));
+	}
 #else
 	memcpy(&aes_fastest_impl, &aes_generic_impl,
 	    sizeof (aes_fastest_impl));
