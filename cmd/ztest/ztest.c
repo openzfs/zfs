@@ -107,6 +107,7 @@
 #include <sys/vdev_impl.h>
 #include <sys/vdev_file.h>
 #include <sys/vdev_initialize.h>
+#include <sys/vdev_raidz.h>
 #include <sys/vdev_trim.h>
 #include <sys/spa_impl.h>
 #include <sys/metaslab_impl.h>
@@ -6933,6 +6934,8 @@ ztest_run(ztest_shared_t *zs)
 	VERIFY0(spa_open(ztest_opts.zo_pool, &spa, FTAG));
 	metaslab_preload_limit = ztest_random(20) + 1;
 	ztest_spa = spa;
+
+	VERIFY0(vdev_raidz_impl_set("cycle"));
 
 	dmu_objset_stats_t dds;
 	VERIFY0(ztest_dmu_objset_own(ztest_opts.zo_pool,

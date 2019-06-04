@@ -396,7 +396,7 @@ DEFINE_REC_METHODS(avx2);
 static boolean_t
 raidz_will_avx2_work(void)
 {
-	return (zfs_avx_available() && zfs_avx2_available());
+	return (kfpu_allowed() && zfs_avx_available() && zfs_avx2_available());
 }
 
 const raidz_impl_ops_t vdev_raidz_avx2_impl = {

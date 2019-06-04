@@ -206,9 +206,35 @@ aes_mod_init(void)
 {
 	int ret;
 
-	/* find fastest implementations and set any requested implementations */
-	aes_impl_init();
-	gcm_impl_init();
+#if defined(_KERNEL)
+	/*
+	 * Determine the fastest available implementation.  The benchmarks
+	 * are run in dedicated kernel threads to allow Linux 5.0+ kernels
+	 * to use SIMD operations.  If for some reason this isn't possible,
+	 * fallback to the generic implementations.  See the comment in
+	 * include/linux/simd_x86.h for additional details.  Additionally,
+	 * this has the benefit of allowing them to be run in parallel.
+	 */
+	taskqid_t aes_id = taskq_dispatch(system_taskq, aes_impl_init,
+	    NULL, TQ_SLEEP);
+	taskqid_t gcm_id = taskq_dispatch(system_taskq, gcm_impl_init,
+	    NULL, TQ_SLEEP);
+
+	if (aes_id != TASKQID_INVALID) {
+		taskq_wait_id(system_taskq, aes_id);
+	} else {
+		aes_impl_init(NULL);
+	}
+
+	if (gcm_id != TASKQID_INVALID) {
+		taskq_wait_id(system_taskq, gcm_id);
+	} else {
+		gcm_impl_init(NULL);
+	}
+#else
+	aes_impl_init(NULL);
+	gcm_impl_init(NULL);
+#endif
 
 	if ((ret = mod_install(&modlinkage)) != 0)
 		return (ret);
