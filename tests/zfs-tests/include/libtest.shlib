@@ -939,7 +939,6 @@ function set_partition
 		rm -f $format_file
 	fi
 
-	rm -f $format_file
 	if [[ $ret_val -ne 0 ]]; then
 		log_note "Unable to format $disk slice $slicenum to $size"
 		return 1
