@@ -1,0 +1,9 @@
+#!/bin/bash -eux
+
+case $1 in
+configure)
+	systemctl enable zfs-zed.service
+	;;
+esac
+
+exit 0

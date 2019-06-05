@@ -1,0 +1,14 @@
+#!/bin/bash -eux
+
+case $1 in
+upgrade | remove)
+	systemctl disable zfs-import-cache.service
+	systemctl disable zfs-import-scan.service
+	systemctl disable zfs-import.target
+	systemctl disable zfs-mount.service
+	systemctl disable zfs-share.service
+	systemctl disable zfs.target
+	;;
+esac
+
+exit 0
