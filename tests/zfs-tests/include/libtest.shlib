@@ -861,7 +861,8 @@ function zero_partitions #<whole_disk_name>
 # best to retire this interface and replace it with something more flexible.
 # At the moment a best effort is made.
 #
-function set_partition #<slice_num> <slice_start> <size_plus_units>  <whole_disk_name>
+# arguments: <slice_num> <slice_start> <size_plus_units>  <whole_disk_name>
+function set_partition
 {
 	typeset -i slicenum=$1
 	typeset start=$2
@@ -872,6 +873,7 @@ function set_partition #<slice_num> <slice_start> <size_plus_units>  <whole_disk
 		if [[ -z $size || -z $disk ]]; then
 			log_fail "The size or disk name is unspecified."
 		fi
+		[[ -n $DEV_DSKDIR ]] && disk=$DEV_DSKDIR/$disk
 		typeset size_mb=${size%%[mMgG]}
 
 		size_mb=${size_mb%%[mMgG][bB]}
@@ -881,10 +883,10 @@ function set_partition #<slice_num> <slice_start> <size_plus_units>  <whole_disk
 
 		# Create GPT partition table when setting slice 0 or
 		# when the device doesn't already contain a GPT label.
-		parted $DEV_DSKDIR/$disk -s -- print 1 >/dev/null
+		parted $disk -s -- print 1 >/dev/null
 		typeset ret_val=$?
 		if [[ $slicenum -eq 0 || $ret_val -ne 0 ]]; then
-			parted $DEV_DSKDIR/$disk -s -- mklabel gpt
+			parted $disk -s -- mklabel gpt
 			if [[ $? -ne 0 ]]; then
 				log_note "Failed to create GPT partition table on $disk"
 				return 1
@@ -899,20 +901,21 @@ function set_partition #<slice_num> <slice_start> <size_plus_units>  <whole_disk
 		# Determine the cylinder size for the device and using
 		# that calculate the end offset in cylinders.
 		typeset -i cly_size_kb=0
-		cly_size_kb=$(parted -m $DEV_DSKDIR/$disk -s -- \
+		cly_size_kb=$(parted -m $disk -s -- \
 			unit cyl print | head -3 | tail -1 | \
 			awk -F '[:k.]' '{print $4}')
 		((end = (size_mb * 1024 / cly_size_kb) + start))
 
-		parted $DEV_DSKDIR/$disk -s -- \
+		parted $disk -s -- \
 		    mkpart part$slicenum ${start}cyl ${end}cyl
-		if [[ $? -ne 0 ]]; then
+		typeset ret_val=$?
+		if [[ $ret_val -ne 0 ]]; then
 			log_note "Failed to create partition $slicenum on $disk"
 			return 1
 		fi
 
-		blockdev --rereadpt $DEV_DSKDIR/$disk 2>/dev/null
-		block_device_wait
+		blockdev --rereadpt $disk 2>/dev/null
+		block_device_wait $disk
 	else
 		if [[ -z $slicenum || -z $size || -z $disk ]]; then
 			log_fail "The slice, size or disk name is unspecified."
@@ -932,9 +935,10 @@ function set_partition #<slice_num> <slice_start> <size_plus_units>  <whole_disk
 		echo "q" >> $format_file
 
 		format -e -s -d $disk -f $format_file
+		typeset ret_val=$?
+		rm -f $format_file
 	fi
 
-	typeset ret_val=$?
 	rm -f $format_file
 	if [[ $ret_val -ne 0 ]]; then
 		log_note "Unable to format $disk slice $slicenum to $size"
