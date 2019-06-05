@@ -529,10 +529,11 @@ AC_DEFUN([ZFS_AC_KERNEL_CONFIG_TRIM_UNUSED_KSYMS], [
 		AC_MSG_RESULT([yes])
 	],[
 		AC_MSG_RESULT([no])
-		AC_MSG_ERROR([
+		AS_IF([test "x$enable_linux_builtin" != xyes], [
+			AC_MSG_ERROR([
 	*** This kernel has unused symbols trimming enabled, please disable.
 	*** Rebuild the kernel with CONFIG_TRIM_UNUSED_KSYMS=n set.])
-	])
+	])])
 ])
 
 dnl #
