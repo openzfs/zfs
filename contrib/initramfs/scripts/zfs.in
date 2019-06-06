@@ -878,7 +878,9 @@ mountroot()
 	pool="$("${ZPOOL}" get name,guid -o name,value -H | \
 	    awk -v pool="${ZFS_RPOOL}" '$2 == pool { print $1 }')"
 	if [ -n "$pool" ]; then
-		ZFS_BOOTFS="${pool}/${ZFS_BOOTFS#*/}"
+		# If $ZFS_BOOTFS contains guid, replace the guid portion with $pool
+		ZFS_BOOTFS=$(echo "$ZFS_BOOTFS" | \
+			sed -e "s/$("${ZPOOL}" get guid -o value "$pool" -H)/$pool/g")
 		ZFS_RPOOL="${pool}"
 	fi
 
