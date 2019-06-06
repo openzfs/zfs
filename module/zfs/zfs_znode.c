@@ -1253,7 +1253,7 @@ zfs_rezget(znode_t *zp)
 	ZFS_TIME_DECODE(&ZTOI(zp)->i_mtime, mtime);
 	ZFS_TIME_DECODE(&ZTOI(zp)->i_ctime, ctime);
 
-	if (gen != ZTOI(zp)->i_generation) {
+	if ((uint32_t)gen != ZTOI(zp)->i_generation) {
 		zfs_znode_dmu_fini(zp);
 		zfs_znode_hold_exit(zfsvfs, zh);
 		return (SET_ERROR(EIO));
