@@ -8760,7 +8760,7 @@ l2arc_apply_transforms(spa_t *spa, arc_buf_hdr_t *hdr, uint64_t asize,
 
 	/*
 	 * If this data simply needs its own buffer, we simply allocate it
-	 * and copy the data. This may be done to elimiate a depedency on a
+	 * and copy the data. This may be done to eliminate a dependency on a
 	 * shared buffer or to reallocate the buffer to match asize.
 	 */
 	if (HDR_HAS_RABD(hdr) && asize != psize) {
