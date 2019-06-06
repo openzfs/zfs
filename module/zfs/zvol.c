@@ -1876,6 +1876,10 @@ zvol_create_minor_impl(const char *name)
 #ifdef QUEUE_FLAG_ADD_RANDOM
 	blk_queue_flag_clear(QUEUE_FLAG_ADD_RANDOM, zv->zv_queue);
 #endif
+	/* This flag was introduced in kernel version 4.12. */
+#ifdef QUEUE_FLAG_SCSI_PASSTHROUGH
+	blk_queue_flag_set(QUEUE_FLAG_SCSI_PASSTHROUGH, zv->zv_queue);
+#endif
 
 	if (spa_writeable(dmu_objset_spa(os))) {
 		if (zil_replay_disable)
