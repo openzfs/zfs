@@ -103,12 +103,27 @@ int zfs_mg_noalloc_threshold = 0;
 
 /*
  * Metaslab groups are considered eligible for allocations if their
- * fragmenation metric (measured as a percentage) is less than or equal to
- * zfs_mg_fragmentation_threshold. If a metaslab group exceeds this threshold
- * then it will be skipped unless all metaslab groups within the metaslab
- * class have also crossed this threshold.
+ * fragmenation metric (measured as a percentage) is less than or
+ * equal to zfs_mg_fragmentation_threshold. If a metaslab group
+ * exceeds this threshold then it will be skipped unless all metaslab
+ * groups within the metaslab class have also crossed this threshold.
+ *
+ * This tunable was introduced to avoid edge cases where we continue
+ * allocating from very fragmented disks in our pool while other, less
+ * fragmented disks, exists. On the other hand, if all disks in the
+ * pool are uniformly approaching the threshold, the threshold can
+ * be a speed bump in performance, where we keep switching the disks
+ * that we allocate from (e.g. we allocate some segments from disk A
+ * making it bypassing the threshold while freeing segments from disk
+ * B getting its fragmentation below the threshold).
+ *
+ * Empirically, we've seen that our vdev selection for allocations is
+ * good enough that fragmentation increases uniformly across all vdevs
+ * the majority of the time. Thus we set the threshold percentage high
+ * enough to avoid hitting the speed bump on pools that are being pushed
+ * to the edge.
  */
-int zfs_mg_fragmentation_threshold = 85;
+int zfs_mg_fragmentation_threshold = 95;
 
 /*
  * Allow metaslabs to keep their active state as long as their fragmentation
