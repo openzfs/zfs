@@ -57,6 +57,7 @@ int metaslab_sort_by_flushed(const void *, const void *);
 uint64_t metaslab_unflushed_changes_memused(metaslab_t *);
 
 int metaslab_load(metaslab_t *);
+void metaslab_potentially_unload(metaslab_t *, uint64_t);
 void metaslab_unload(metaslab_t *);
 boolean_t metaslab_flush(metaslab_t *, dmu_tx_t *);
 
