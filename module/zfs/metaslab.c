@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2019 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
  */
@@ -2949,6 +2949,30 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 	dmu_tx_commit(tx);
 }
 
+void
+metaslab_potentially_unload(metaslab_t *msp, uint64_t txg)
+{
+	/*
+	 * If the metaslab is loaded and we've not tried to load or allocate
+	 * from it in 'metaslab_unload_delay' txgs, then unload it.
+	 */
+	if (msp->ms_loaded &&
+	    msp->ms_disabled == 0 &&
+	    msp->ms_selected_txg + metaslab_unload_delay < txg) {
+		for (int t = 1; t < TXG_CONCURRENT_STATES; t++) {
+			VERIFY0(range_tree_space(
+			    msp->ms_allocating[(txg + t) & TXG_MASK]));
+		}
+		if (msp->ms_allocator != -1) {
+			metaslab_passivate(msp, msp->ms_weight &
+			    ~METASLAB_ACTIVE_MASK);
+		}
+
+		if (!metaslab_debug_unload)
+			metaslab_unload(msp);
+	}
+}
+
 /*
  * Called after a transaction group has completely synced to mark
  * all of the metaslab's free space as usable.
@@ -3085,27 +3109,6 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 	 * its allocatable space.
 	 */
 	metaslab_recalculate_weight_and_sort(msp);
-
-	/*
-	 * If the metaslab is loaded and we've not tried to load or allocate
-	 * from it in 'metaslab_unload_delay' txgs, then unload it.
-	 */
-	if (msp->ms_loaded &&
-	    msp->ms_disabled == 0 &&
-	    msp->ms_selected_txg + metaslab_unload_delay < txg) {
-
-		for (int t = 1; t < TXG_CONCURRENT_STATES; t++) {
-			VERIFY0(range_tree_space(
-			    msp->ms_allocating[(txg + t) & TXG_MASK]));
-		}
-		if (msp->ms_allocator != -1) {
-			metaslab_passivate(msp, msp->ms_weight &
-			    ~METASLAB_ACTIVE_MASK);
-		}
-
-		if (!metaslab_debug_unload)
-			metaslab_unload(msp);
-	}
 
 	ASSERT0(range_tree_space(msp->ms_allocating[txg & TXG_MASK]));
 	ASSERT0(range_tree_space(msp->ms_freeing));
