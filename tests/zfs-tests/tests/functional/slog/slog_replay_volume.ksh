@@ -86,7 +86,7 @@ log_must zfs create -V 128M $TESTPOOL/$TESTVOL
 log_must zfs set compression=on $TESTPOOL/$TESTVOL
 log_must zfs set sync=always $TESTPOOL/$TESTVOL
 log_must mkdir -p $TESTDIR
-log_must block_device_wait
+block_device_wait
 echo "y" | newfs -t ext4 -v $VOLUME
 log_must mkdir -p $MNTPNT
 log_must mount -o discard $VOLUME $MNTPNT
@@ -149,7 +149,7 @@ log_must zpool export $TESTPOOL
 # `zpool import -f` because we can't write a frozen pool's labels!
 #
 log_must zpool import -f $TESTPOOL
-log_must block_device_wait
+block_device_wait
 log_must mount $VOLUME $MNTPNT
 
 #
