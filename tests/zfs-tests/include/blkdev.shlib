@@ -67,6 +67,9 @@ function scan_scsi_hosts
 # under test. To help debug this condition, a notice is given if settle takes
 # too long.
 #
+# Note: there is no meaningful return code if udevadm fails. Consumers
+# should not expect a return code (do not call as argument to log_must)
+#
 function block_device_wait
 {
 	if is_linux; then
