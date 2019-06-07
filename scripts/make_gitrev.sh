@@ -39,3 +39,7 @@ trap cleanup EXIT
 git rev-parse --git-dir > /dev/null 2>&1
 # Get the git current git revision
 ZFS_GIT_REV=$(git describe --always --long --dirty 2>/dev/null)
+# Check if header file already contain the exact string
+grep -sq "\"${ZFS_GIT_REV}\"" "$(dirname "$0")"/../include/zfs_gitrev.h &&
+	trap - EXIT
+exit 0
