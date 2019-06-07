@@ -3234,6 +3234,20 @@ vdev_sync_done(vdev_t *vd, uint64_t txg)
 	    != NULL)
 		metaslab_sync_done(msp, txg);
 
+	/*
+	 * Because this function is only called on dirty vdevs, it's possible
+	 * we won't consider all metaslabs for unloading on every
+	 * txg. However, unless the system is largely idle it is likely that
+	 * we will dirty all vdevs within a few txgs.
+	 */
+	for (int i = 0; i < vd->vdev_ms_count; i++) {
+		msp = vd->vdev_ms[i];
+		mutex_enter(&msp->ms_lock);
+		if (msp->ms_sm != NULL)
+			metaslab_potentially_unload(msp, txg);
+		mutex_exit(&msp->ms_lock);
+	}
+
 	if (reassess)
 		metaslab_sync_reassess(vd->vdev_mg);
 }
