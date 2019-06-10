@@ -5480,7 +5480,7 @@ static boolean_t
 arc_is_overflowing(void)
 {
 	/* Always allow at least one block of overflow */
-	uint64_t overflow = MAX(SPA_MAXBLOCKSIZE,
+	int64_t overflow = MAX(SPA_MAXBLOCKSIZE,
 	    arc_c >> zfs_arc_overflow_shift);
 
 	/*
@@ -5492,7 +5492,7 @@ arc_is_overflowing(void)
 	 * in the ARC. In practice, that's in the tens of MB, which is low
 	 * enough to be safe.
 	 */
-	return (aggsum_lower_bound(&arc_size) >= arc_c + overflow);
+	return (aggsum_lower_bound(&arc_size) >= (int64_t)arc_c + overflow);
 }
 
 static abd_t *
