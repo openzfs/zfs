@@ -158,9 +158,16 @@ recv_begin_check_existing_impl(dmu_recv_begin_arg_t *drba, dsl_dataset_t *ds,
 		} else {
 			/*
 			 * If we are not forcing, there must be no
-			 * changes since fromsnap.
+			 * changes since fromsnap. Raw sends have an
+			 * additional constraint that requires that
+			 * no "noop" snapshots exist between fromsnap
+			 * and tosnap for the IVset checking code to
+			 * work properly.
 			 */
-			if (dsl_dataset_modified_since_snap(ds, snap)) {
+			if (dsl_dataset_modified_since_snap(ds, snap) ||
+			    (raw &&
+			    dsl_dataset_phys(ds)->ds_prev_snap_obj !=
+			    snap->ds_object)) {
 				dsl_dataset_rele(snap, FTAG);
 				return (SET_ERROR(ETXTBSY));
 			}
