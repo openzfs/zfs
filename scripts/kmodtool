@@ -178,9 +178,9 @@ EOF
 	else
 	  cat <<EOF
 %post          -n kmod-${kmodname}-${kernel_uname_r}
-[[ "$(uname -r)" == "${kernel_uname_r}"  ]] && ${prefix}/sbin/depmod -a > /dev/null || :
+[[ "\$(uname -r)" == "${kernel_uname_r}"  ]] && ${prefix}/sbin/depmod -a > /dev/null || :
 %postun        -n kmod-${kmodname}-${kernel_uname_r}
-[[ "$(uname -r)" == "${kernel_uname_r}"  ]] && ${prefix}/sbin/depmod -a > /dev/null || :
+[[ "\$(uname -r)" == "${kernel_uname_r}"  ]] && ${prefix}/sbin/depmod -a > /dev/null || :
 
 EOF
 	fi
