@@ -28,6 +28,6 @@
 
 destroy_pool $POOL
 destroy_pool $POOL2
-echo "0" > /sys/module/zfs/parameters/zfs_allow_redacted_dataset_mount
+log_must set_tunable32 zfs_allow_redacted_dataset_mount 0
 
 log_pass

@@ -3387,7 +3387,7 @@ this will cause the terminal to interactively block after asking for the key.
 .It Fl v
 Report mount progress.
 .It Fl f
-Attempt to force mounting of all filesystems, even those that couldn't normally be mounted.
+Attempt to force mounting of all filesystems, even those that couldn't normally be mounted (e.g. redacted datasets).
 .El
 .It Xo
 .Nm
@@ -3849,9 +3849,9 @@ In this case, each block that was redacted in the original is still redacted
 redacted)).
 This use case will produce a new redacted snapshot.
 .sp
-3. To receive an incremental send from a redaction bookmark on the original
+3. To receive an incremental send from a redaction bookmark of the original
 snapshot that was created when redacting with respect to a subset of the set of
-snapshots the initial snapshot was created with respect to to
+snapshots the initial snapshot was created with respect to
 anything else.
 A send stream from such a redaction bookmark will contain all of the blocks
 necessary to fill in any redacted data, should it be needed, because the sending

@@ -4093,8 +4093,6 @@ usage:
 }
 
 
-#define	REDACT_OPT	1024
-
 /*
  * Send a backup stream to stdout.
  */
@@ -4113,7 +4111,7 @@ zfs_do_send(int argc, char **argv)
 
 	struct option long_options[] = {
 		{"replicate",	no_argument,		NULL, 'R'},
-		{"redact-bookmark",	required_argument, NULL, REDACT_OPT},
+		{"redact",	required_argument,	NULL, 'd'},
 		{"props",	no_argument,		NULL, 'p'},
 		{"parsable",	no_argument,		NULL, 'P'},
 		{"dedup",	no_argument,		NULL, 'D'},
@@ -4130,7 +4128,7 @@ zfs_do_send(int argc, char **argv)
 	};
 
 	/* check options */
-	while ((c = getopt_long(argc, argv, ":i:I:RDpvnPLeht:cwb", long_options,
+	while ((c = getopt_long(argc, argv, ":i:I:RDpvnPLeht:cwbd:", long_options,
 	    NULL)) != -1) {
 		switch (c) {
 		case 'i':
@@ -4147,7 +4145,7 @@ zfs_do_send(int argc, char **argv)
 		case 'R':
 			flags.replicate = B_TRUE;
 			break;
-		case REDACT_OPT:
+		case 'd':
 			redactbook = optarg;
 			break;
 		case 'p':

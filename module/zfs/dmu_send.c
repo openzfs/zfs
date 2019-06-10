@@ -1325,18 +1325,15 @@ send_range_after(const struct send_range *from, const struct send_range *to)
 		to_end_obj = to->end_blkid << DNODES_PER_BLOCK_SHIFT;
 	}
 
-	if (from_end_obj <= to_obj)
-		return (-1);
-	if (from_obj >= to_end_obj)
-		return (1);
-	if (from->type == OBJECT_RANGE && to->type != OBJECT_RANGE)
-		return (-1);
-	if (from->type != OBJECT_RANGE && to->type == OBJECT_RANGE)
-		return (1);
-	if (from->type == OBJECT && to->type != OBJECT)
-		return (-1);
-	if (from->type != OBJECT && to->type == OBJECT)
-		return (1);
+	int cmp = AVL_CMP(from_end_obj, to_end_obj);
+	if (likely(cmp))
+		return  (cmp);
+	cmp = AVL_CMP(to->type == OBJECT_RANGE, from->type == OBJECT_RANGE);
+	if (unlikely(cmp))
+		return (cmp);
+	cmp = AVL_CMP(to->type == OBJECT, from->type == OBJECT);
+	if (unlikely(cmp))
+		return (cmp);
 	if (from->end_blkid <= to->start_blkid)
 		return (-1);
 	if (from->start_blkid >= to->end_blkid)
@@ -1403,10 +1400,9 @@ send_range_start_compare(struct send_range *r1, struct send_range *r2)
 	uint64_t r1_l0equiv = r1->start_blkid;
 	uint64_t r2_objequiv = r2->object;
 	uint64_t r2_l0equiv = r2->start_blkid;
-	if (r1->eos_marker)
-		return (1);
-	if (r2->eos_marker)
-		return (-1);
+	int64_t cmp = AVL_CMP(r1->eos_marker, r2->eos_marker);
+	if (unlikely(cmp))
+		return (cmp);
 	if (r1->object == 0) {
 		r1_objequiv = r1->start_blkid * DNODES_PER_BLOCK;
 		r1_l0equiv = 0;
@@ -1416,23 +1412,17 @@ send_range_start_compare(struct send_range *r1, struct send_range *r2)
 		r2_l0equiv = 0;
 	}
 
-	if (r1_objequiv < r2_objequiv)
-		return (-1);
-	if (r1_objequiv > r2_objequiv)
-		return (1);
-	if (r1->type == OBJECT_RANGE && r2->type != OBJECT_RANGE)
-		return (-1);
-	if (r1->type != OBJECT_RANGE && r2->type == OBJECT_RANGE)
-		return (1);
-	if (r1->type == OBJECT && r2->type != OBJECT)
-		return (-1);
-	if (r1->type != OBJECT && r2->type == OBJECT)
-		return (1);
-	if (r1_l0equiv < r2_l0equiv)
-		return (-1);
-	if (r1_l0equiv > r2_l0equiv)
-		return (1);
-	return (0);
+	cmp = AVL_CMP(r1_objequiv, r2_objequiv);
+	if (likely(cmp))
+		return (cmp);
+	cmp = AVL_CMP(r2->type == OBJECT_RANGE, r1->type == OBJECT_RANGE);
+	if (unlikely(cmp))
+		return (cmp);
+	cmp = AVL_CMP(r2->type == OBJECT, r1->type == OBJECT);
+	if (unlikely(cmp))
+		return (cmp);
+
+	return (AVL_CMP(r1_l0equiv, r2_l0equiv));
 }
 
 enum q_idx {

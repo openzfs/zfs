@@ -380,10 +380,10 @@ dsl_bookmark_create_sync_impl(const char *bookmark, const char *snapshot,
 static void
 dsl_bookmark_create_sync(void *arg, dmu_tx_t *tx)
 {
-	dsl_pool_t *dp = dmu_tx_pool(tx);
 	dsl_bookmark_create_arg_t *dbca = arg;
 
-	ASSERTV(spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_BOOKMARKS));
+	ASSERT(spa_feature_is_enabled(dmu_tx_pool(tx)->dp_spa,
+	    SPA_FEATURE_BOOKMARKS));
 
 	for (nvpair_t *pair = nvlist_next_nvpair(dbca->dbca_bmarks, NULL);
 	    pair != NULL; pair = nvlist_next_nvpair(dbca->dbca_bmarks, pair)) {
@@ -595,24 +595,16 @@ dsl_bookmark_compare(const void *l, const void *r)
 	const dsl_bookmark_node_t *ldbn = l;
 	const dsl_bookmark_node_t *rdbn = r;
 
-	int64_t cmp = ldbn->dbn_phys.zbm_creation_txg -
-	    rdbn->dbn_phys.zbm_creation_txg;
-	if (cmp < 0)
-		return (-1);
-	else if (cmp > 0)
-		return (1);
-	cmp = (ldbn->dbn_phys.zbm_flags & ZBM_FLAG_HAS_FBN) -
-	    (rdbn->dbn_phys.zbm_flags & ZBM_FLAG_HAS_FBN);
-	if (cmp < 0)
-		return (-1);
-	else if (cmp > 0)
-		return (1);
+	int64_t cmp = AVL_CMP(ldbn->dbn_phys.zbm_creation_txg,
+	    rdbn->dbn_phys.zbm_creation_txg);
+	if (likely(cmp))
+		return (cmp);
+	cmp = AVL_CMP((ldbn->dbn_phys.zbm_flags & ZBM_FLAG_HAS_FBN),
+	    (rdbn->dbn_phys.zbm_flags & ZBM_FLAG_HAS_FBN));
+	if (likely(cmp))
+		return (cmp);
 	cmp = strcmp(ldbn->dbn_name, rdbn->dbn_name);
-	if (cmp < 0)
-		return (-1);
-	else if (cmp > 0)
-		return (1);
-	return (0);
+	return (AVL_ISIGN(cmp));
 }
 
 /*
@@ -1400,8 +1392,9 @@ redact_block_zb_compare(redact_block_phys_t *first,
 	if (first->rbp_object < second->zb_object ||
 	    (first->rbp_object == second->zb_object &&
 	    first->rbp_blkid + (redact_block_get_count(first) - 1) <
-	    second->zb_blkid))
+	    second->zb_blkid)) {
 		return (-1);
+	}
 
 	/*
 	 * If the bookmark is for a previous object, or the block in the
@@ -1410,8 +1403,9 @@ redact_block_zb_compare(redact_block_phys_t *first,
 	 */
 	if (first->rbp_object > second->zb_object ||
 	    (first->rbp_object == second->zb_object &&
-	    first->rbp_blkid > second->zb_blkid))
+	    first->rbp_blkid > second->zb_blkid)) {
 		return (1);
+	}
 
 	return (0);
 }

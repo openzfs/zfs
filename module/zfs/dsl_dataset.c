@@ -400,6 +400,8 @@ dsl_dataset_evict_async(void *dbu)
 		ds->ds_prev = NULL;
 	}
 
+	dsl_bookmark_fini_ds(ds);
+
 	bplist_destroy(&ds->ds_pending_deadlist);
 	if (dsl_deadlist_is_open(&ds->ds_deadlist))
 		dsl_deadlist_close(&ds->ds_deadlist);
