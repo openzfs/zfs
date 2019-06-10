@@ -2893,6 +2893,18 @@ Default value: \fB100\fR%.
 .sp
 .ne 2
 .na
+\fBzil_maxblocksize\fR (int)
+.ad
+.RS 12n
+This sets the maximum block size used by the ZIL.  On very fragmented pools,
+lowering this (typically to 36KB) can improve performance.
+.sp
+Default value: \fB131072\fR (128KB).
+.RE
+
+.sp
+.ne 2
+.na
 \fBzil_nocacheflush\fR (int)
 .ad
 .RS 12n
