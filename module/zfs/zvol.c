@@ -684,7 +684,7 @@ zvol_log_write(zvol_state_t *zv, dmu_tx_t *tx, uint64_t offset,
 		itx_wr_state_t wr_state = write_state;
 		ssize_t len = size;
 
-		if (wr_state == WR_COPIED && size > ZIL_MAX_COPIED_DATA)
+		if (wr_state == WR_COPIED && size > zil_max_copied_data(zilog))
 			wr_state = WR_NEED_COPY;
 		else if (wr_state == WR_INDIRECT)
 			len = MIN(blocksize - P2PHASE(offset, blocksize), size);
