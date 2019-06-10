@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -514,6 +514,9 @@ extern int	zil_bp_tree_add(zilog_t *zilog, const blkptr_t *bp);
 extern void	zil_set_sync(zilog_t *zilog, uint64_t syncval);
 
 extern void	zil_set_logbias(zilog_t *zilog, uint64_t slogval);
+
+extern uint64_t	zil_max_copied_data(zilog_t *zilog);
+extern uint64_t	zil_max_log_data(zilog_t *zilog);
 
 extern int zil_replay_disable;
 
