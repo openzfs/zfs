@@ -1325,10 +1325,11 @@ send_range_after(const struct send_range *from, const struct send_range *to)
 		to_end_obj = to->end_blkid << DNODES_PER_BLOCK_SHIFT;
 	}
 
-	int cmp = AVL_CMP(from_end_obj, to_end_obj);
-	if (likely(cmp))
-		return  (cmp);
-	cmp = AVL_CMP(to->type == OBJECT_RANGE, from->type == OBJECT_RANGE);
+	if (from_end_obj <= to_obj)
+		return (-1);
+	if (from_obj >= to_end_obj)
+		return (1);
+	int64_t cmp = AVL_CMP(to->type == OBJECT_RANGE, from->type == OBJECT_RANGE);
 	if (unlikely(cmp))
 		return (cmp);
 	cmp = AVL_CMP(to->type == OBJECT, from->type == OBJECT);

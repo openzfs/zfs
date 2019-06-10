@@ -3803,7 +3803,9 @@ Generate a redacted send stream.
 This send stream contains all blocks from the snapshot being sent that aren't
 included in the redaction list contained in the bookmark specified by the
 .Fl -redact
-flag.
+(or
+.Fl -d
+) flag.
 The resulting send stream is said to be redacted with respect to the snapshots
 the bookmark specified by the
 .Fl -redact No flag was created with.
@@ -3877,7 +3879,8 @@ These restrictions are detected and enforced by \fBzfs receive\fR; a
 redacted send stream will contain the list of snapshots that the stream is
 redacted with respsect to.
 These are stored with the redacted snapshot, and are used to detect and
-correctly handle the cases above.
+correctly handle the cases above.  Note that for technical reasons, raw sends
+and redacted sends cannot be combined at this time.
 .It Xo
 .Nm
 .Cm send

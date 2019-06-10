@@ -4259,6 +4259,12 @@ zfs_do_send(int argc, char **argv)
 		}
 	}
 
+	if (flags.raw && redactbook != NULL) {
+		(void) fprintf(stderr,
+		    gettext("Error: raw sends may not be redacted.\n"));
+		return (1);
+	}
+
 	if (!flags.dryrun && isatty(STDOUT_FILENO)) {
 		(void) fprintf(stderr,
 		    gettext("Error: Stream can not be written to a terminal.\n"
