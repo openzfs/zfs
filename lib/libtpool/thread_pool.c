@@ -134,7 +134,7 @@ tpool_worker(void *arg)
 
 	/*
 	 * This is the worker's main loop.
-	 * It will only be left if a timeout or an error has occured.
+	 * It will only be left if a timeout or an error has occurred.
 	 */
 	active.tpa_tid = pthread_self();
 	for (;;) {

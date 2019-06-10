@@ -435,7 +435,7 @@ static zcp_list_info_t zcp_system_props_list_info = {
 };
 
 /*
- * Get a list of all visble properties and their values for a given dataset.
+ * Get a list of all visible properties and their values for a given dataset.
  * Returned on the stack as a Lua table.
  */
 static int

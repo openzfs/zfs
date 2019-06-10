@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2015, 2018 by Delphix. All rights reserved.
  */
 
 
@@ -42,6 +42,7 @@
 #include <sys/mode.h>
 #include <sys/acl.h>
 #include <sys/dmu.h>
+#include <sys/dbuf.h>
 #include <sys/spa.h>
 #include <sys/zfs_fuid.h>
 #include <sys/dsl_dataset.h>
@@ -510,6 +511,7 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
     znode_t *zp, offset_t off, ssize_t resid, int ioflag,
     zil_callback_t callback, void *callback_data)
 {
+	dmu_buf_impl_t *db = (dmu_buf_impl_t *)sa_get_db(zp->z_sa_hdl);
 	uint32_t blocksize = zp->z_blksz;
 	itx_wr_state_t write_state;
 	uintptr_t fsync_cnt;
@@ -541,7 +543,14 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 		itx_wr_state_t wr_state = write_state;
 		ssize_t len = resid;
 
-		if (wr_state == WR_COPIED && resid > ZIL_MAX_COPIED_DATA)
+		/*
+		 * A WR_COPIED record must fit entirely in one log block.
+		 * Large writes can use WR_NEED_COPY, which the ZIL will
+		 * split into multiple records across several log blocks
+		 * if necessary.
+		 */
+		if (wr_state == WR_COPIED &&
+		    resid > zil_max_copied_data(zilog))
 			wr_state = WR_NEED_COPY;
 		else if (wr_state == WR_INDIRECT)
 			len = MIN(blocksize - P2PHASE(off, blocksize), resid);
@@ -549,13 +558,16 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 		itx = zil_itx_create(txtype, sizeof (*lr) +
 		    (wr_state == WR_COPIED ? len : 0));
 		lr = (lr_write_t *)&itx->itx_lr;
-		if (wr_state == WR_COPIED && dmu_read(ZTOZSB(zp)->z_os,
-		    zp->z_id, off, len, lr + 1, DMU_READ_NO_PREFETCH) != 0) {
+
+		DB_DNODE_ENTER(db);
+		if (wr_state == WR_COPIED && dmu_read_by_dnode(DB_DNODE(db),
+		    off, len, lr + 1, DMU_READ_NO_PREFETCH) != 0) {
 			zil_itx_destroy(itx);
 			itx = zil_itx_create(txtype, sizeof (*lr));
 			lr = (lr_write_t *)&itx->itx_lr;
 			wr_state = WR_NEED_COPY;
 		}
+		DB_DNODE_EXIT(db);
 
 		itx->itx_wr_state = wr_state;
 		lr->lr_foid = zp->z_id;

@@ -22,7 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
- * Copyright (c) 2012, Joyent, Inc. All rights reserved.
+ * Copyright Joyent, Inc.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  * Copyright (c) 2016, Intel Corporation.
  * Copyright 2016 Nexenta Systems, Inc.
@@ -425,7 +425,8 @@ typedef enum {
 extern char *zpool_vdev_name(libzfs_handle_t *, zpool_handle_t *, nvlist_t *,
     int name_flags);
 extern int zpool_upgrade(zpool_handle_t *, uint64_t);
-extern int zpool_get_history(zpool_handle_t *, nvlist_t **);
+extern int zpool_get_history(zpool_handle_t *, nvlist_t **, uint64_t *,
+    boolean_t *);
 extern int zpool_events_next(libzfs_handle_t *, nvlist_t **, int *, unsigned,
     int);
 extern int zpool_events_clear(libzfs_handle_t *, int *);
@@ -687,7 +688,8 @@ extern int zfs_hold(zfs_handle_t *, const char *, const char *,
 extern int zfs_hold_nvl(zfs_handle_t *, int, nvlist_t *);
 extern int zfs_release(zfs_handle_t *, const char *, const char *, boolean_t);
 extern int zfs_get_holds(zfs_handle_t *, nvlist_t **);
-extern uint64_t zvol_volsize_to_reservation(uint64_t, nvlist_t *);
+extern uint64_t zvol_volsize_to_reservation(zpool_handle_t *, uint64_t,
+    nvlist_t *);
 
 typedef int (*zfs_userspace_cb_t)(void *arg, const char *domain,
     uid_t rid, uint64_t space);

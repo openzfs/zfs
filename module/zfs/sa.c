@@ -83,7 +83,7 @@
  * Layouts are simply an array of the attributes and their
  * ordering i.e. [0, 1, 4, 5, 2]
  *
- * Each distinct layout is given a unique layout number and that is whats
+ * Each distinct layout is given a unique layout number and that is what's
  * stored in the header at the beginning of the SA data buffer.
  *
  * A layout only covers a single dbuf (bonus or spill).  If a set of
@@ -95,7 +95,7 @@
  * Adding a single attribute will cause the entire set of attributes to
  * be rewritten and could result in a new layout number being constructed
  * as part of the rewrite if no such layout exists for the new set of
- * attribues.  The new attribute will be appended to the end of the already
+ * attributes.  The new attribute will be appended to the end of the already
  * existing attributes.
  *
  * Both the attribute registration and attribute layout information are
@@ -1014,7 +1014,7 @@ sa_setup(objset_t *os, uint64_t sa_obj, sa_attr_reg_t *reg_attrs, int count,
 	}
 
 	sa = kmem_zalloc(sizeof (sa_os_t), KM_SLEEP);
-	mutex_init(&sa->sa_lock, NULL, MUTEX_DEFAULT, NULL);
+	mutex_init(&sa->sa_lock, NULL, MUTEX_NOLOCKDEP, NULL);
 	sa->sa_master_obj = sa_obj;
 
 	os->os_sa = sa;

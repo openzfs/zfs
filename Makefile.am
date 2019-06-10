@@ -25,11 +25,16 @@ EXTRA_DIST += META AUTHORS COPYRIGHT LICENSE NEWS NOTICE README.md
 EXTRA_DIST += CODE_OF_CONDUCT.md
 
 # Include all the extra licensing information for modules
-EXTRA_DIST += module/icp/algs/skein/THIRDPARTYLICENSE module/icp/algs/skein/THIRDPARTYLICENSE.descrip
-EXTRA_DIST += module/icp/asm-x86_64/aes/THIRDPARTYLICENSE.gladman module/icp/asm-x86_64/aes/THIRDPARTYLICENSE.gladman.descrip
-EXTRA_DIST += module/icp/asm-x86_64/aes/THIRDPARTYLICENSE.openssl module/icp/asm-x86_64/aes/THIRDPARTYLICENSE.openssl.descrip
-EXTRA_DIST += module/spl/THIRDPARTYLICENSE.gplv2 module/spl/THIRDPARTYLICENSE.gplv2.descrip
-EXTRA_DIST += module/zfs/THIRDPARTYLICENSE.cityhash module/zfs/THIRDPARTYLICENSE.cityhash.descrip
+EXTRA_DIST += module/icp/algs/skein/THIRDPARTYLICENSE
+EXTRA_DIST += module/icp/algs/skein/THIRDPARTYLICENSE.descrip
+EXTRA_DIST += module/icp/asm-x86_64/aes/THIRDPARTYLICENSE.gladman
+EXTRA_DIST += module/icp/asm-x86_64/aes/THIRDPARTYLICENSE.gladman.descrip
+EXTRA_DIST += module/icp/asm-x86_64/aes/THIRDPARTYLICENSE.openssl
+EXTRA_DIST += module/icp/asm-x86_64/aes/THIRDPARTYLICENSE.openssl.descrip
+EXTRA_DIST += module/spl/THIRDPARTYLICENSE.gplv2
+EXTRA_DIST += module/spl/THIRDPARTYLICENSE.gplv2.descrip
+EXTRA_DIST += module/zfs/THIRDPARTYLICENSE.cityhash
+EXTRA_DIST += module/zfs/THIRDPARTYLICENSE.cityhash.descrip
 
 @CODE_COVERAGE_RULES@
 
@@ -39,8 +44,9 @@ gitrev:
 
 BUILT_SOURCES = gitrev
 
+# Double-colon rules are allowed; there are multiple independent definitions.
 distclean-local::
-	-$(RM) -R autom4te*.cache
+	-$(RM) -R autom4te*.cache build
 	-find . \( -name SCCS -o -name BitKeeper -o -name .svn -o -name CVS \
 		-o -name .pc -o -name .hg -o -name .git \) -prune -o \
 		\( -name '*.orig' -o -name '*.rej' -o -name '*~' \
@@ -87,8 +93,8 @@ commitcheck:
 	fi
 
 cstyle:
-	@find ${top_srcdir} -name '*.[hc]' ! -name 'zfs_config.*' \
-		! -name '*.mod.c' -type f \
+	@find ${top_srcdir} -name build -prune -o -name '*.[hc]' \
+		! -name 'zfs_config.*' ! -name '*.mod.c' -type f \
 		-exec ${top_srcdir}/scripts/cstyle.pl -cpP {} \+
 
 shellcheck:

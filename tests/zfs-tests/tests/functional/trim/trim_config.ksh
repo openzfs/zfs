@@ -88,7 +88,7 @@ for type in "" "mirror" "raidz2"; do
 
 	# Fill the pool, verify the vdevs are no longer sparse.
 	file_write -o create -f /$TESTPOOL/file -b 1048576 -c $fill_mb -d R
-	verify_vdevs "-gt" "$VDEV_MAX_MB" $VDEVS
+	verify_vdevs "-ge" "$VDEV_MAX_MB" $VDEVS
 
 	# Remove the file, issue trim, verify the vdevs are now sparse.
 	log_must rm /$TESTPOOL/file

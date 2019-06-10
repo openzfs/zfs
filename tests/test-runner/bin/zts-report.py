@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 
 #
 # This file and its contents are supplied under the terms of the
@@ -160,17 +160,9 @@ summary = {
 # reasons listed above can be used.
 #
 known = {
-    'casenorm/sensitive_none_lookup': ['FAIL', '7633'],
-    'casenorm/sensitive_none_delete': ['FAIL', '7633'],
     'casenorm/sensitive_formd_lookup': ['FAIL', '7633'],
     'casenorm/sensitive_formd_delete': ['FAIL', '7633'],
-    'casenorm/insensitive_none_lookup': ['FAIL', '7633'],
-    'casenorm/insensitive_none_delete': ['FAIL', '7633'],
-    'casenorm/insensitive_formd_lookup': ['FAIL', '7633'],
-    'casenorm/insensitive_formd_delete': ['FAIL', '7633'],
-    'casenorm/mixed_none_lookup': ['FAIL', '7633'],
     'casenorm/mixed_none_lookup_ci': ['FAIL', '7633'],
-    'casenorm/mixed_none_delete': ['FAIL', '7633'],
     'casenorm/mixed_formd_lookup': ['FAIL', '7633'],
     'casenorm/mixed_formd_lookup_ci': ['FAIL', '7633'],
     'casenorm/mixed_formd_delete': ['FAIL', '7633'],

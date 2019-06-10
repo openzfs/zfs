@@ -32,6 +32,7 @@
 #include <sys/dsl_synctask.h>
 #include <sys/zap.h>
 #include <sys/dmu_tx.h>
+#include <sys/vdev_initialize.h>
 
 /*
  * Value that is written to disk during initialization.
@@ -415,7 +416,7 @@ vdev_initialize_load(vdev_t *vd)
  * Convert the logical range into a physical range and add it to our
  * avl tree.
  */
-void
+static void
 vdev_initialize_range_add(void *arg, uint64_t start, uint64_t size)
 {
 	vdev_t *vd = arg;
@@ -599,7 +600,7 @@ vdev_initialize_stop_wait(spa_t *spa, list_t *vd_list)
 }
 
 /*
- * Stop initializing a device, with the resultant initialing state being
+ * Stop initializing a device, with the resultant initializing state being
  * tgt_state.  For blocking behavior pass NULL for vd_list.  Otherwise, when
  * a list_t is provided the stopping vdev is inserted in to the list.  Callers
  * are then required to call vdev_initialize_stop_wait() to block for all the

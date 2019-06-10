@@ -30,12 +30,12 @@
 /*
  * Slab allocation interfaces.  The SPL slab differs from the standard
  * Linux SLAB or SLUB primarily in that each cache may be backed by slabs
- * allocated from the physical or virtal memory address space.  The virtual
+ * allocated from the physical or virtual memory address space.  The virtual
  * slabs allow for good behavior when allocation large objects of identical
  * size.  This slab implementation also supports both constructors and
  * destructors which the Linux slab does not.
  */
-enum {
+typedef enum kmc_bit {
 	KMC_BIT_NOTOUCH		= 0,	/* Don't update ages */
 	KMC_BIT_NODEBUG		= 1,	/* Default behavior */
 	KMC_BIT_NOMAGAZINE	= 2,	/* XXX: Unsupported */
@@ -45,7 +45,6 @@ enum {
 	KMC_BIT_VMEM		= 6,	/* Use vmem cache */
 	KMC_BIT_SLAB		= 7,	/* Use Linux slab cache */
 	KMC_BIT_OFFSLAB		= 8,	/* Objects not on slab */
-	KMC_BIT_NOEMERGENCY	= 9,	/* Disable emergency objects */
 	KMC_BIT_DEADLOCKED	= 14,	/* Deadlock detected */
 	KMC_BIT_GROWING		= 15,	/* Growing in progress */
 	KMC_BIT_REAPING		= 16,	/* Reaping in progress */
@@ -53,7 +52,7 @@ enum {
 	KMC_BIT_TOTAL		= 18,	/* Proc handler helper bit */
 	KMC_BIT_ALLOC		= 19,	/* Proc handler helper bit */
 	KMC_BIT_MAX		= 20,	/* Proc handler helper bit */
-};
+} kmc_bit_t;
 
 /* kmem move callback return values */
 typedef enum kmem_cbrc {
@@ -73,7 +72,6 @@ typedef enum kmem_cbrc {
 #define	KMC_VMEM		(1 << KMC_BIT_VMEM)
 #define	KMC_SLAB		(1 << KMC_BIT_SLAB)
 #define	KMC_OFFSLAB		(1 << KMC_BIT_OFFSLAB)
-#define	KMC_NOEMERGENCY		(1 << KMC_BIT_NOEMERGENCY)
 #define	KMC_DEADLOCKED		(1 << KMC_BIT_DEADLOCKED)
 #define	KMC_GROWING		(1 << KMC_BIT_GROWING)
 #define	KMC_REAPING		(1 << KMC_BIT_REAPING)

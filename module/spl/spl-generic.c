@@ -79,7 +79,7 @@ EXPORT_SYMBOL(p0);
  * to generate words larger than 128 bits will paradoxically be limited to
  * `2^128 - 1` possibilities. This is because we have a sequence of `2^128 - 1`
  * 128-bit words and selecting the first will implicitly select the second. If
- * a caller finds this behavior undesireable, random_get_bytes() should be used
+ * a caller finds this behavior undesirable, random_get_bytes() should be used
  * instead.
  *
  * XXX: Linux interrupt handlers that trigger within the critical section
@@ -207,7 +207,7 @@ nlz64(uint64_t x)
 
 /*
  * Newer kernels have a div_u64() function but we define our own
- * to simplify portibility between kernel versions.
+ * to simplify portability between kernel versions.
  */
 static inline uint64_t
 __div_u64(uint64_t u, uint32_t v)
@@ -273,7 +273,9 @@ int64_t
 __divdi3(int64_t u, int64_t v)
 {
 	int64_t q, t;
+	// cppcheck-suppress shiftTooManyBitsSigned
 	q = __udivdi3(abs64(u), abs64(v));
+	// cppcheck-suppress shiftTooManyBitsSigned
 	t = (u ^ v) >> 63;	// If u, v have different
 	return ((q ^ t) - t);	// signs, negate q.
 }
@@ -649,7 +651,7 @@ static void __init
 spl_random_init(void)
 {
 	uint64_t s[2];
-	int i;
+	int i = 0;
 
 	get_random_bytes(s, sizeof (s));
 

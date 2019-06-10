@@ -58,9 +58,9 @@ Then, enable the tracking ZEDLET:
 .RS 4
 ln -s "@zfsexecdir@/zed.d/history_event-zfs-list-cacher.sh" "@sysconfdir@/zfs/zed.d"
 
-systemctl enable zed.service
+systemctl enable zfs-zed.service
 
-systemctl restart zed.service
+systemctl restart zfs-zed.service
 .RE
 .PP
 Force the running of the ZEDLET by setting canmount=on for at least one dataset in the pool:

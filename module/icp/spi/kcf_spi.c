@@ -40,7 +40,7 @@
  * minalloc and maxalloc values to be used for taskq_create().
  */
 int crypto_taskq_threads = CRYPTO_TASKQ_THREADS;
-int crypto_taskq_minalloc = CYRPTO_TASKQ_MIN;
+int crypto_taskq_minalloc = CRYPTO_TASKQ_MIN;
 int crypto_taskq_maxalloc = CRYPTO_TASKQ_MAX;
 
 static void remove_provider(kcf_provider_desc_t *);

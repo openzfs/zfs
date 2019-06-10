@@ -26,6 +26,7 @@
  * Copyright 2016 Nexenta Systems, Inc.
  * Copyright (c) 2017, 2018 Lawrence Livermore National Security, LLC.
  * Copyright (c) 2015, 2017, Intel Corporation.
+ * Copyright (c) 2019 Datto Inc.
  */
 
 #include <stdio.h>
@@ -109,7 +110,7 @@ typedef void object_viewer_t(objset_t *, uint64_t, void *data, size_t size);
 
 uint64_t *zopt_object = NULL;
 static unsigned zopt_objects = 0;
-uint64_t max_inflight = 1000;
+uint64_t max_inflight_bytes = 256 * 1024 * 1024; /* 256MB */
 static int leaked_objects = 0;
 static range_tree_t *mos_refd_objs;
 
@@ -2408,7 +2409,7 @@ static const char *objset_types[DMU_OST_NUMTYPES] = {
 static void
 dump_dir(objset_t *os)
 {
-	dmu_objset_stats_t dds;
+	dmu_objset_stats_t dds = { 0 };
 	uint64_t object, object_count;
 	uint64_t refdbytes, usedobjs, scratch;
 	char numbuf[32];
@@ -3449,7 +3450,7 @@ zdb_blkptr_done(zio_t *zio)
 	abd_free(zio->io_abd);
 
 	mutex_enter(&spa->spa_scrub_lock);
-	spa->spa_load_verify_ios--;
+	spa->spa_load_verify_bytes -= BP_GET_PSIZE(bp);
 	cv_broadcast(&spa->spa_scrub_io_cv);
 
 	if (ioerr && !(zio->io_flags & ZIO_FLAG_SPECULATIVE)) {
@@ -3520,9 +3521,9 @@ zdb_blkptr_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 			flags |= ZIO_FLAG_SPECULATIVE;
 
 		mutex_enter(&spa->spa_scrub_lock);
-		while (spa->spa_load_verify_ios > max_inflight)
+		while (spa->spa_load_verify_bytes > max_inflight_bytes)
 			cv_wait(&spa->spa_scrub_io_cv, &spa->spa_scrub_lock);
-		spa->spa_load_verify_ios++;
+		spa->spa_load_verify_bytes += size;
 		mutex_exit(&spa->spa_scrub_lock);
 
 		zio_nowait(zio_read(NULL, spa, bp, abd, size,
@@ -4285,6 +4286,7 @@ dump_block_stats(spa_t *spa)
 			    ZIO_FLAG_GODFATHER);
 		}
 	}
+	ASSERT0(spa->spa_load_verify_bytes);
 
 	/*
 	 * Done after zio_wait() since zcb_haderrors is modified in
@@ -4778,7 +4780,7 @@ zdb_set_skip_mmp(char *target)
  * the name of the target pool.
  *
  * Note that the checkpointed state's pool name will be the name of
- * the original pool with the above suffix appened to it. In addition,
+ * the original pool with the above suffix appended to it. In addition,
  * if the target is not a pool name (e.g. a path to a dataset) then
  * the new_path parameter is populated with the updated path to
  * reflect the fact that we are looking into the checkpointed state.
@@ -5445,9 +5447,9 @@ dump_zpool(spa_t *spa)
 #define	ZDB_FLAG_BSWAP		0x0004
 #define	ZDB_FLAG_GBH		0x0008
 #define	ZDB_FLAG_INDIRECT	0x0010
-#define	ZDB_FLAG_PHYS		0x0020
-#define	ZDB_FLAG_RAW		0x0040
-#define	ZDB_FLAG_PRINT_BLKPTR	0x0080
+#define	ZDB_FLAG_RAW		0x0020
+#define	ZDB_FLAG_PRINT_BLKPTR	0x0040
+#define	ZDB_FLAG_VERBOSE	0x0080
 
 static int flagbits[256];
 
@@ -5578,11 +5580,30 @@ name:
 	return (NULL);
 }
 
+static boolean_t
+zdb_parse_block_sizes(char *sizes, uint64_t *lsize, uint64_t *psize)
+{
+	char *s0, *s1;
+
+	if (sizes == NULL)
+		return (B_FALSE);
+
+	s0 = strtok(sizes, "/");
+	if (s0 == NULL)
+		return (B_FALSE);
+	s1 = strtok(NULL, "/");
+	*lsize = strtoull(s0, NULL, 16);
+	*psize = s1 ? strtoull(s1, NULL, 16) : *lsize;
+	return (*lsize >= *psize && *psize > 0);
+}
+
+#define	ZIO_COMPRESS_MASK(alg)	(1ULL << (ZIO_COMPRESS_##alg))
+
 /*
  * Read a block from a pool and print it out.  The syntax of the
  * block descriptor is:
  *
- *	pool:vdev_specifier:offset:size[:flags]
+ *	pool:vdev_specifier:offset:[lsize/]psize[:flags]
  *
  *	pool           - The name of the pool you wish to read from
  *	vdev_specifier - Which vdev (see comment for zdb_vdev_lookup)
@@ -5590,15 +5611,14 @@ name:
  *	size           - Amount of data to read, in hex, in bytes
  *	flags          - A string of characters specifying options
  *		 b: Decode a blkptr at given offset within block
- *		*c: Calculate and display checksums
+ *		 c: Calculate and display checksums
  *		 d: Decompress data before dumping
  *		 e: Byteswap data before dumping
  *		 g: Display data as a gang block header
  *		 i: Display as an indirect block
- *		 p: Do I/O to physical offset
  *		 r: Dump raw data to stdout
+ *		 v: Verbose
  *
- *              * = not yet implemented
  */
 static void
 zdb_read_block(char *thing, spa_t *spa)
@@ -5606,13 +5626,12 @@ zdb_read_block(char *thing, spa_t *spa)
 	blkptr_t blk, *bp = &blk;
 	dva_t *dva = bp->blk_dva;
 	int flags = 0;
-	uint64_t offset = 0, size = 0, psize = 0, lsize = 0, blkptr_offset = 0;
+	uint64_t offset = 0, psize = 0, lsize = 0, blkptr_offset = 0;
 	zio_t *zio;
 	vdev_t *vd;
 	abd_t *pabd;
 	void *lbuf, *buf;
-	const char *s, *vdev;
-	char *p, *dup, *flagstr;
+	char *s, *p, *dup, *vdev, *flagstr, *sizes;
 	int i, error;
 	boolean_t borrowed = B_FALSE;
 
@@ -5621,18 +5640,14 @@ zdb_read_block(char *thing, spa_t *spa)
 	vdev = s ? s : "";
 	s = strtok(NULL, ":");
 	offset = strtoull(s ? s : "", NULL, 16);
+	sizes = strtok(NULL, ":");
 	s = strtok(NULL, ":");
-	size = strtoull(s ? s : "", NULL, 16);
-	s = strtok(NULL, ":");
-	if (s)
-		flagstr = strdup(s);
-	else
-		flagstr = strdup("");
+	flagstr = strdup(s ? s : "");
 
 	s = NULL;
-	if (size == 0)
-		s = "size must not be zero";
-	if (!IS_P2ALIGNED(size, DEV_BSIZE))
+	if (!zdb_parse_block_sizes(sizes, &lsize, &psize))
+		s = "invalid size(s)";
+	if (!IS_P2ALIGNED(psize, DEV_BSIZE) || !IS_P2ALIGNED(lsize, DEV_BSIZE))
 		s = "size must be a multiple of sector size";
 	if (!IS_P2ALIGNED(offset, DEV_BSIZE))
 		s = "offset must be a multiple of sector size";
@@ -5687,9 +5702,6 @@ zdb_read_block(char *thing, spa_t *spa)
 			(void) fprintf(stderr, "Found vdev type: %s\n",
 			    vd->vdev_ops->vdev_op_type);
 	}
-
-	psize = size;
-	lsize = size;
 
 	pabd = abd_alloc_for_io(SPA_MAXBLOCKSIZE, B_FALSE);
 	lbuf = umem_alloc(SPA_MAXBLOCKSIZE, UMEM_NOFAIL);
@@ -5747,30 +5759,41 @@ zdb_read_block(char *thing, spa_t *spa)
 		 * We don't know how the data was compressed, so just try
 		 * every decompress function at every inflated blocksize.
 		 */
-		enum zio_compress c;
 		void *lbuf2 = umem_alloc(SPA_MAXBLOCKSIZE, UMEM_NOFAIL);
+		int cfuncs[ZIO_COMPRESS_FUNCTIONS] = { 0 };
+		int *cfuncp = cfuncs;
+		uint64_t maxlsize = SPA_MAXBLOCKSIZE;
+		uint64_t mask = ZIO_COMPRESS_MASK(ON) | ZIO_COMPRESS_MASK(OFF) |
+		    ZIO_COMPRESS_MASK(INHERIT) | ZIO_COMPRESS_MASK(EMPTY) |
+		    (getenv("ZDB_NO_ZLE") ? ZIO_COMPRESS_MASK(ZLE) : 0);
+		*cfuncp++ = ZIO_COMPRESS_LZ4;
+		*cfuncp++ = ZIO_COMPRESS_LZJB;
+		mask |= ZIO_COMPRESS_MASK(LZ4) | ZIO_COMPRESS_MASK(LZJB);
+		for (int c = 0; c < ZIO_COMPRESS_FUNCTIONS; c++)
+			if (((1ULL << c) & mask) == 0)
+				*cfuncp++ = c;
 
 		/*
-		 * XXX - On the one hand, with SPA_MAXBLOCKSIZE at 16MB,
-		 * this could take a while and we should let the user know
+		 * On the one hand, with SPA_MAXBLOCKSIZE at 16MB, this
+		 * could take a while and we should let the user know
 		 * we are not stuck.  On the other hand, printing progress
-		 * info gets old after a while.  What to do?
+		 * info gets old after a while.  User can specify 'v' flag
+		 * to see the progression.
 		 */
-		for (lsize = psize + SPA_MINBLOCKSIZE;
-		    lsize <= SPA_MAXBLOCKSIZE; lsize += SPA_MINBLOCKSIZE) {
-			for (c = 0; c < ZIO_COMPRESS_FUNCTIONS; c++) {
-				/*
-				 * ZLE can easily decompress non zle stream.
-				 * So have an option to disable it.
-				 */
-				if (c == ZIO_COMPRESS_ZLE &&
-				    getenv("ZDB_NO_ZLE"))
-					continue;
-
-				(void) fprintf(stderr,
-				    "Trying %05llx -> %05llx (%s)\n",
-				    (u_longlong_t)psize, (u_longlong_t)lsize,
-				    zio_compress_table[c].ci_name);
+		if (lsize == psize)
+			lsize += SPA_MINBLOCKSIZE;
+		else
+			maxlsize = lsize;
+		for (; lsize <= maxlsize; lsize += SPA_MINBLOCKSIZE) {
+			for (cfuncp = cfuncs; *cfuncp; cfuncp++) {
+				if (flags & ZDB_FLAG_VERBOSE) {
+					(void) fprintf(stderr,
+					    "Trying %05llx -> %05llx (%s)\n",
+					    (u_longlong_t)psize,
+					    (u_longlong_t)lsize,
+					    zio_compress_table[*cfuncp].\
+					    ci_name);
+				}
 
 				/*
 				 * We randomize lbuf2, and decompress to both
@@ -5779,27 +5802,30 @@ zdb_read_block(char *thing, spa_t *spa)
 				 */
 				VERIFY0(random_get_pseudo_bytes(lbuf2, lsize));
 
-				if (zio_decompress_data(c, pabd,
+				if (zio_decompress_data(*cfuncp, pabd,
 				    lbuf, psize, lsize) == 0 &&
-				    zio_decompress_data(c, pabd,
+				    zio_decompress_data(*cfuncp, pabd,
 				    lbuf2, psize, lsize) == 0 &&
 				    bcmp(lbuf, lbuf2, lsize) == 0)
 					break;
 			}
-			if (c != ZIO_COMPRESS_FUNCTIONS)
+			if (*cfuncp != 0)
 				break;
 		}
 		umem_free(lbuf2, SPA_MAXBLOCKSIZE);
 
-		if (lsize > SPA_MAXBLOCKSIZE) {
+		if (lsize > maxlsize) {
 			(void) printf("Decompress of %s failed\n", thing);
 			goto out;
 		}
 		buf = lbuf;
-		size = lsize;
+		if (*cfuncp == ZIO_COMPRESS_ZLE) {
+			printf("\nZLE decompression was selected. If you "
+			    "suspect the results are wrong,\ntry avoiding ZLE "
+			    "by setting and exporting ZDB_NO_ZLE=\"true\"\n");
+		}
 	} else {
-		size = psize;
-		buf = abd_borrow_buf_copy(pabd, size);
+		buf = abd_borrow_buf_copy(pabd, lsize);
 		borrowed = B_TRUE;
 	}
 
@@ -5807,17 +5833,78 @@ zdb_read_block(char *thing, spa_t *spa)
 		zdb_print_blkptr((blkptr_t *)(void *)
 		    ((uintptr_t)buf + (uintptr_t)blkptr_offset), flags);
 	else if (flags & ZDB_FLAG_RAW)
-		zdb_dump_block_raw(buf, size, flags);
+		zdb_dump_block_raw(buf, lsize, flags);
 	else if (flags & ZDB_FLAG_INDIRECT)
-		zdb_dump_indirect((blkptr_t *)buf, size / sizeof (blkptr_t),
+		zdb_dump_indirect((blkptr_t *)buf, lsize / sizeof (blkptr_t),
 		    flags);
 	else if (flags & ZDB_FLAG_GBH)
 		zdb_dump_gbh(buf, flags);
 	else
-		zdb_dump_block(thing, buf, size, flags);
+		zdb_dump_block(thing, buf, lsize, flags);
+
+	/*
+	 * If :c was specified, iterate through the checksum table to
+	 * calculate and display each checksum for our specified
+	 * DVA and length.
+	 */
+	if ((flags & ZDB_FLAG_CHECKSUM) && !(flags & ZDB_FLAG_RAW) &&
+	    !(flags & ZDB_FLAG_GBH)) {
+		zio_t *czio, *cio;
+		(void) printf("\n");
+		for (enum zio_checksum ck = ZIO_CHECKSUM_LABEL;
+		    ck < ZIO_CHECKSUM_FUNCTIONS; ck++) {
+
+			if ((zio_checksum_table[ck].ci_flags &
+			    ZCHECKSUM_FLAG_EMBEDDED) ||
+			    ck == ZIO_CHECKSUM_NOPARITY) {
+				continue;
+			}
+			BP_SET_CHECKSUM(bp, ck);
+			spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
+			czio = zio_root(spa, NULL, NULL, ZIO_FLAG_CANFAIL);
+			czio->io_bp = bp;
+
+			if (vd == vd->vdev_top) {
+				cio = zio_read(czio, spa, bp, pabd, psize,
+				    NULL, NULL,
+				    ZIO_PRIORITY_SYNC_READ,
+				    ZIO_FLAG_CANFAIL | ZIO_FLAG_RAW |
+				    ZIO_FLAG_DONT_RETRY, NULL);
+				zio_nowait(cio);
+			} else {
+				zio_nowait(zio_vdev_child_io(czio, bp, vd,
+				    offset, pabd, psize, ZIO_TYPE_READ,
+				    ZIO_PRIORITY_SYNC_READ,
+				    ZIO_FLAG_DONT_CACHE |
+				    ZIO_FLAG_DONT_PROPAGATE |
+				    ZIO_FLAG_DONT_RETRY |
+				    ZIO_FLAG_CANFAIL | ZIO_FLAG_RAW |
+				    ZIO_FLAG_SPECULATIVE |
+				    ZIO_FLAG_OPTIONAL, NULL, NULL));
+			}
+			error = zio_wait(czio);
+			if (error == 0 || error == ECKSUM) {
+				zio_t *ck_zio = zio_root(spa, NULL, NULL, 0);
+				ck_zio->io_offset =
+				    DVA_GET_OFFSET(&bp->blk_dva[0]);
+				ck_zio->io_bp = bp;
+				zio_checksum_compute(ck_zio, ck, pabd, lsize);
+				printf("%12s\tcksum=%llx:%llx:%llx:%llx\n",
+				    zio_checksum_table[ck].ci_name,
+				    (u_longlong_t)bp->blk_cksum.zc_word[0],
+				    (u_longlong_t)bp->blk_cksum.zc_word[1],
+				    (u_longlong_t)bp->blk_cksum.zc_word[2],
+				    (u_longlong_t)bp->blk_cksum.zc_word[3]);
+				zio_wait(ck_zio);
+			} else {
+				printf("error %d reading block\n", error);
+			}
+			spa_config_exit(spa, SCL_STATE, FTAG);
+		}
+	}
 
 	if (borrowed)
-		abd_return_buf_copy(pabd, buf, size);
+		abd_return_buf_copy(pabd, buf, lsize);
 
 out:
 	abd_free(pabd);
@@ -5933,10 +6020,10 @@ main(int argc, char **argv)
 			break;
 		/* NB: Sort single match options below. */
 		case 'I':
-			max_inflight = strtoull(optarg, NULL, 0);
-			if (max_inflight == 0) {
+			max_inflight_bytes = strtoull(optarg, NULL, 0);
+			if (max_inflight_bytes == 0) {
 				(void) fprintf(stderr, "maximum number "
-				    "of inflight I/Os must be greater "
+				    "of inflight bytes must be greater "
 				    "than 0\n");
 				usage();
 			}
@@ -6232,8 +6319,8 @@ main(int argc, char **argv)
 		flagbits['e'] = ZDB_FLAG_BSWAP;
 		flagbits['g'] = ZDB_FLAG_GBH;
 		flagbits['i'] = ZDB_FLAG_INDIRECT;
-		flagbits['p'] = ZDB_FLAG_PHYS;
 		flagbits['r'] = ZDB_FLAG_RAW;
+		flagbits['v'] = ZDB_FLAG_VERBOSE;
 
 		for (int i = 0; i < argc; i++)
 			zdb_read_block(argv[i], spa);

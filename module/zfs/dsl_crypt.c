@@ -227,7 +227,7 @@ dsl_crypto_params_create_nvlist(dcp_cmd_t cmd, nvlist_t *props,
 		goto error;
 	}
 
-	/* if the user asked for the deault crypt, determine that now */
+	/* if the user asked for the default crypt, determine that now */
 	if (dcp->cp_crypt == ZIO_CRYPT_ON)
 		dcp->cp_crypt = ZIO_CRYPT_ON_VALUE;
 
@@ -1418,11 +1418,19 @@ error:
 	return (ret);
 }
 
-
+/*
+ * This function deals with the intricacies of updating wrapping
+ * key references and encryption roots recursively in the event
+ * of a call to 'zfs change-key' or 'zfs promote'. The 'skip'
+ * parameter should always be set to B_FALSE when called
+ * externally.
+ */
 static void
 spa_keystore_change_key_sync_impl(uint64_t rddobj, uint64_t ddobj,
-    uint64_t new_rddobj, dsl_wrapping_key_t *wkey, dmu_tx_t *tx)
+    uint64_t new_rddobj, dsl_wrapping_key_t *wkey, boolean_t skip,
+    dmu_tx_t *tx)
 {
+	int ret;
 	zap_cursor_t *zc;
 	zap_attribute_t *za;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
@@ -1435,18 +1443,21 @@ spa_keystore_change_key_sync_impl(uint64_t rddobj, uint64_t ddobj,
 	/* hold the dd */
 	VERIFY0(dsl_dir_hold_obj(dp, ddobj, NULL, FTAG, &dd));
 
-	/* ignore hidden dsl dirs */
+	/* ignore special dsl dirs */
 	if (dd->dd_myname[0] == '$' || dd->dd_myname[0] == '%') {
 		dsl_dir_rele(dd, FTAG);
 		return;
 	}
 
+	ret = dsl_dir_get_encryption_root_ddobj(dd, &curr_rddobj);
+	VERIFY(ret == 0 || ret == ENOENT);
+
 	/*
 	 * Stop recursing if this dsl dir didn't inherit from the root
 	 * or if this dd is a clone.
 	 */
-	VERIFY0(dsl_dir_get_encryption_root_ddobj(dd, &curr_rddobj));
-	if (curr_rddobj != rddobj || dsl_dir_is_clone(dd)) {
+	if (ret == ENOENT ||
+	    (!skip && (curr_rddobj != rddobj || dsl_dir_is_clone(dd)))) {
 		dsl_dir_rele(dd, FTAG);
 		return;
 	}
@@ -1454,19 +1465,23 @@ spa_keystore_change_key_sync_impl(uint64_t rddobj, uint64_t ddobj,
 	/*
 	 * If we don't have a wrapping key just update the dck to reflect the
 	 * new encryption root. Otherwise rewrap the entire dck and re-sync it
-	 * to disk.
+	 * to disk. If skip is set, we don't do any of this work.
 	 */
-	if (wkey == NULL) {
-		VERIFY0(zap_update(dp->dp_meta_objset, dd->dd_crypto_obj,
-		    DSL_CRYPTO_KEY_ROOT_DDOBJ, 8, 1, &new_rddobj, tx));
-	} else {
-		VERIFY0(spa_keystore_dsl_key_hold_dd(dp->dp_spa, dd,
-		    FTAG, &dck));
-		dsl_wrapping_key_hold(wkey, dck);
-		dsl_wrapping_key_rele(dck->dck_wkey, dck);
-		dck->dck_wkey = wkey;
-		dsl_crypto_key_sync(dck, tx);
-		spa_keystore_dsl_key_rele(dp->dp_spa, dck, FTAG);
+	if (!skip) {
+		if (wkey == NULL) {
+			VERIFY0(zap_update(dp->dp_meta_objset,
+			    dd->dd_crypto_obj,
+			    DSL_CRYPTO_KEY_ROOT_DDOBJ, 8, 1,
+			    &new_rddobj, tx));
+		} else {
+			VERIFY0(spa_keystore_dsl_key_hold_dd(dp->dp_spa, dd,
+			    FTAG, &dck));
+			dsl_wrapping_key_hold(wkey, dck);
+			dsl_wrapping_key_rele(dck->dck_wkey, dck);
+			dck->dck_wkey = wkey;
+			dsl_crypto_key_sync(dck, tx);
+			spa_keystore_dsl_key_rele(dp->dp_spa, dck, FTAG);
+		}
 	}
 
 	zc = kmem_alloc(sizeof (zap_cursor_t), KM_SLEEP);
@@ -1478,7 +1493,27 @@ spa_keystore_change_key_sync_impl(uint64_t rddobj, uint64_t ddobj,
 	    zap_cursor_retrieve(zc, za) == 0;
 	    zap_cursor_advance(zc)) {
 		spa_keystore_change_key_sync_impl(rddobj,
-		    za->za_first_integer, new_rddobj, wkey, tx);
+		    za->za_first_integer, new_rddobj, wkey, B_FALSE, tx);
+	}
+	zap_cursor_fini(zc);
+
+	/*
+	 * Recurse into all dsl dirs of clones. We utilize the skip parameter
+	 * here so that we don't attempt to process the clones directly. This
+	 * is because the clone and its origin share the same dck, which has
+	 * already been updated.
+	 */
+	for (zap_cursor_init(zc, dp->dp_meta_objset,
+	    dsl_dir_phys(dd)->dd_clones);
+	    zap_cursor_retrieve(zc, za) == 0;
+	    zap_cursor_advance(zc)) {
+		dsl_dataset_t *clone;
+
+		VERIFY0(dsl_dataset_hold_obj(dp, za->za_first_integer,
+		    FTAG, &clone));
+		spa_keystore_change_key_sync_impl(rddobj,
+		    clone->ds_dir->dd_object, new_rddobj, wkey, B_TRUE, tx);
+		dsl_dataset_rele(clone, FTAG);
 	}
 	zap_cursor_fini(zc);
 
@@ -1558,7 +1593,7 @@ spa_keystore_change_key_sync(void *arg, dmu_tx_t *tx)
 
 	/* recurse through all children and rewrap their keys */
 	spa_keystore_change_key_sync_impl(rddobj, ds->ds_dir->dd_object,
-	    new_rddobj, wkey, tx);
+	    new_rddobj, wkey, B_FALSE, tx);
 
 	/*
 	 * All references to the old wkey should be released now (if it
@@ -1596,7 +1631,7 @@ spa_keystore_change_key(const char *dsname, dsl_crypto_params_t *dcp)
 	/*
 	 * Perform the actual work in syncing context. The blocks modified
 	 * here could be calculated but it would require holding the pool
-	 * lock and tarversing all of the datasets that will have their keys
+	 * lock and traversing all of the datasets that will have their keys
 	 * changed.
 	 */
 	return (dsl_sync_task(dsname, spa_keystore_change_key_check,
@@ -1714,7 +1749,7 @@ dsl_dataset_promote_crypt_sync(dsl_dir_t *target, dsl_dir_t *origin,
 		return;
 
 	/*
-	 * If the target is being promoted to the encyrption root update the
+	 * If the target is being promoted to the encryption root update the
 	 * DSL Crypto Key and keylocation to reflect that. We also need to
 	 * update the DSL Crypto Keys of all children inheritting their
 	 * encryption root to point to the new target. Otherwise, the check
@@ -1736,7 +1771,7 @@ dsl_dataset_promote_crypt_sync(dsl_dir_t *target, dsl_dir_t *origin,
 
 	rw_enter(&dp->dp_spa->spa_keystore.sk_wkeys_lock, RW_WRITER);
 	spa_keystore_change_key_sync_impl(rddobj, origin->dd_object,
-	    target->dd_object, NULL, tx);
+	    target->dd_object, NULL, B_FALSE, tx);
 	rw_exit(&dp->dp_spa->spa_keystore.sk_wkeys_lock);
 
 	dsl_dataset_rele(targetds, FTAG);

@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 #
 # Copyright (c) 2008 Ben Rockwood <benr@cuddletech.com>,
 # Copyright (c) 2010 Martin Matuska <mm@FreeBSD.org>,
@@ -43,7 +43,7 @@ import subprocess
 import sys
 import time
 
-DECRIPTION = 'Print ARC and other statistics for ZFS on Linux'
+DESCRIPTION = 'Print ARC and other statistics for ZFS on Linux'
 INDENT = ' '*8
 LINE_LENGTH = 72
 PROC_PATH = '/proc/spl/kstat/zfs/'
@@ -65,7 +65,7 @@ SECTION_PATHS = {'arc': 'arcstats',
                  'zfetch': 'zfetchstats',
                  'zil': 'zil'}
 
-parser = argparse.ArgumentParser(description=DECRIPTION)
+parser = argparse.ArgumentParser(description=DESCRIPTION)
 parser.add_argument('-a', '--alternate', action='store_true', default=False,
                     help='use alternate formatting for tunables and SPL',
                     dest='alt')
@@ -284,7 +284,7 @@ def get_spl_tunables(PATH):
 
 
 def get_descriptions(request):
-    """Get the decriptions of the Solaris Porting Layer (SPL) or the
+    """Get the descriptions of the Solaris Porting Layer (SPL) or the
     tunables, return with minimal formatting.
     """
 
@@ -677,10 +677,10 @@ def section_l2arc(kstats_dict):
     prt_1('L2ARC breakdown:', f_hits(l2_access_total))
     prt_i2('Hit ratio:',
            f_perc(arc_stats['l2_hits'], l2_access_total),
-           f_bytes(arc_stats['l2_hits']))
+           f_hits(arc_stats['l2_hits']))
     prt_i2('Miss ratio:',
            f_perc(arc_stats['l2_misses'], l2_access_total),
-           f_bytes(arc_stats['l2_misses']))
+           f_hits(arc_stats['l2_misses']))
     prt_i1('Feeds:', f_hits(arc_stats['l2_feeds']))
 
     print()
@@ -708,7 +708,7 @@ def section_l2arc(kstats_dict):
 
 def section_spl(*_):
     """Print the SPL parameters, if requested with alternative format
-    and/or decriptions. This does not use kstats.
+    and/or descriptions. This does not use kstats.
     """
 
     spls = get_spl_tunables(SPL_PATH)
@@ -725,7 +725,7 @@ def section_spl(*_):
             try:
                 print(INDENT+'#', descriptions[key])
             except KeyError:
-                print(INDENT+'# (No decription found)')  # paranoid
+                print(INDENT+'# (No description found)')  # paranoid
 
         print(format_raw_line(key, value))
 
@@ -734,7 +734,7 @@ def section_spl(*_):
 
 def section_tunables(*_):
     """Print the tunables, if requested with alternative format and/or
-    decriptions. This does not use kstasts.
+    descriptions. This does not use kstasts.
     """
 
     tunables = get_spl_tunables(TUNABLES_PATH)
@@ -751,7 +751,7 @@ def section_tunables(*_):
             try:
                 print(INDENT+'#', descriptions[key])
             except KeyError:
-                print(INDENT+'# (No decription found)')  # paranoid
+                print(INDENT+'# (No description found)')  # paranoid
 
         print(format_raw_line(key, value))
 

@@ -42,7 +42,7 @@
  *  type is entry is called a 'key' entry and it is added to the hash during
  *  tsd_create().  It is used to store the address of the destructor function
  *  and it is used as an anchor point.  All tsd entries which use the same
- *  key will be linked to this entry.  This is used during tsd_destory() to
+ *  key will be linked to this entry.  This is used during tsd_destroy() to
  *  quickly call the destructor function for all tsd associated with the key.
  *  The 'key' entry may be looked up with tsd_hash_search() by passing the
  *  key you wish to lookup and DTOR_PID constant as the pid.
@@ -98,7 +98,7 @@ static tsd_hash_table_t *tsd_hash_table = NULL;
 static tsd_hash_entry_t *
 tsd_hash_search(tsd_hash_table_t *table, uint_t key, pid_t pid)
 {
-	struct hlist_node *node;
+	struct hlist_node *node = NULL;
 	tsd_hash_entry_t *entry;
 	tsd_hash_bin_t *bin;
 	ulong_t hash;
@@ -269,7 +269,7 @@ tsd_hash_add_key(tsd_hash_table_t *table, uint_t *keyp, dtor_func_t dtor)
  * @table: hash table
  * @pid: search pid
  *
- * For every process these is a single entry in the hash which is used
+ * For every process there is a single entry in the hash which is used
  * as anchor.  All other thread specific entries for this process are
  * linked to this anchor via the 'he_pid_list' list head.
  */

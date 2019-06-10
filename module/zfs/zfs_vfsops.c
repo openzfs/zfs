@@ -1476,7 +1476,7 @@ zfs_statvfs(struct dentry *dentry, struct kstatfs *statp)
 	 * "preferred" size.
 	 */
 
-	/* Round up so we never have a filesytem using 0 blocks. */
+	/* Round up so we never have a filesystem using 0 blocks. */
 	refdbytes = P2ROUNDUP(refdbytes, statp->f_bsize);
 	statp->f_blocks = (refdbytes + availbytes) >> bshift;
 	statp->f_bfree = availbytes >> bshift;
@@ -1785,8 +1785,17 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 	 * Evict cached data. We must write out any dirty data before
 	 * disowning the dataset.
 	 */
-	if (!zfs_is_readonly(zfsvfs))
+	objset_t *os = zfsvfs->z_os;
+	boolean_t os_dirty = B_FALSE;
+	for (int t = 0; t < TXG_SIZE; t++) {
+		if (dmu_objset_is_dirty(os, t)) {
+			os_dirty = B_TRUE;
+			break;
+		}
+	}
+	if (!zfs_is_readonly(zfsvfs) && os_dirty) {
 		txg_wait_synced(dmu_objset_pool(zfsvfs->z_os), 0);
+	}
 	dmu_objset_evict_dbufs(zfsvfs->z_os);
 
 	return (0);
@@ -2387,7 +2396,7 @@ zfs_get_zplprop(objset_t *os, zfs_prop_t prop, uint64_t *value)
 }
 
 /*
- * Return true if the coresponding vfs's unmounted flag is set.
+ * Return true if the corresponding vfs's unmounted flag is set.
  * Otherwise return false.
  * If this function returns true we know VFS unmount has been initiated.
  */

@@ -53,10 +53,6 @@
 %bcond_with    asan
 %bcond_with    systemd
 
-# Exclude test-runner.py from the rpmbuild shebang check to allow it to run
-# under Python 2 and 3.
-%global __brp_mangle_shebangs_exclude_from test-runner.py
-
 # Generic enable switch for systemd
 %if %{with systemd}
 %define _systemd 1
@@ -354,6 +350,14 @@ make %{?_smp_mflags}
 %{__rm} -rf $RPM_BUILD_ROOT
 make install DESTDIR=%{?buildroot}
 find %{?buildroot}%{_libdir} -name '*.la' -exec rm -f {} \;
+%if 0%{!?__brp_mangle_shebangs:1}
+find %{?buildroot}%{_bindir} \
+    \( -name arc_summary -or -name arcstat -or -name dbufstat \) \
+    -exec %{__sed} -i 's|^#!.*|#!%{__python}|' {} \;
+find %{?buildroot}%{_datadir} \
+    \( -name test-runner.py -or -name zts-report.py \) \
+    -exec %{__sed} -i 's|^#!.*|#!%{__python}|' {} \;
+%endif
 
 %post
 %if 0%{?_systemd}
@@ -433,6 +437,14 @@ systemctl --system daemon-reload >/dev/null || true
 %{_udevdir}/vdev_id
 %{_udevdir}/zvol_id
 %{_udevdir}/rules.d/*
+%if ! 0%{?_systemd} || 0%{?_initramfs}
+# Files needed for sysvinit and initramfs-tools
+%{_sysconfdir}/%{name}/zfs-functions
+%config(noreplace) %{_initconfdir}/zfs
+%else
+%exclude %{_sysconfdir}/%{name}/zfs-functions
+%exclude %{_initconfdir}/zfs
+%endif
 %if 0%{?_systemd}
 %{_unitdir}/*
 %{_presetdir}/*
@@ -440,9 +452,10 @@ systemctl --system daemon-reload >/dev/null || true
 %{_systemdgeneratordir}/*
 %else
 %config(noreplace) %{_sysconfdir}/init.d/*
-%config(noreplace) %{_initconfdir}/zfs
 %endif
-%config(noreplace) %{_sysconfdir}/%{name}
+%config(noreplace) %{_sysconfdir}/%{name}/zed.d/*
+%config(noreplace) %{_sysconfdir}/%{name}/zpool.d/*
+%config(noreplace) %{_sysconfdir}/%{name}/vdev_id.conf.*.example
 %attr(440, root, root) %config(noreplace) %{_sysconfdir}/sudoers.d/*
 
 %files -n libzpool2
@@ -458,8 +471,8 @@ systemctl --system daemon-reload >/dev/null || true
 %{_libdir}/libzfs*.so.*
 
 %files -n libzfs2-devel
-%{_datadir}/pkgconfig/libzfs.pc
-%{_datadir}/pkgconfig/libzfs_core.pc
+%{_datarootdir}/pkgconfig/libzfs.pc
+%{_datarootdir}/pkgconfig/libzfs_core.pc
 %{_libdir}/*.so
 %{_includedir}/*
 %doc AUTHORS COPYRIGHT LICENSE NOTICE README.md

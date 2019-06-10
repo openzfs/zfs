@@ -485,7 +485,7 @@ zfs_read(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 	/*
 	 * Lock the range against changes.
 	 */
-	locked_range_t *lr = rangelock_enter(&zp->z_rangelock,
+	locked_range_t *lr = zfs_rangelock_enter(&zp->z_rangelock,
 	    uio->uio_loffset, uio->uio_resid, RL_READER);
 
 	/*
@@ -558,7 +558,7 @@ zfs_read(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 	dataset_kstats_update_read_kstats(&zfsvfs->z_kstat, nread);
 	task_io_account_read(nread);
 out:
-	rangelock_exit(lr);
+	zfs_rangelock_exit(lr);
 
 	ZFS_EXIT(zfsvfs);
 	return (error);
@@ -672,7 +672,7 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 		 * Obtain an appending range lock to guarantee file append
 		 * semantics.  We reset the write offset once we have the lock.
 		 */
-		lr = rangelock_enter(&zp->z_rangelock, 0, n, RL_APPEND);
+		lr = zfs_rangelock_enter(&zp->z_rangelock, 0, n, RL_APPEND);
 		woff = lr->lr_offset;
 		if (lr->lr_length == UINT64_MAX) {
 			/*
@@ -689,11 +689,11 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 		 * this write, then this range lock will lock the entire file
 		 * so that we can re-write the block safely.
 		 */
-		lr = rangelock_enter(&zp->z_rangelock, woff, n, RL_WRITER);
+		lr = zfs_rangelock_enter(&zp->z_rangelock, woff, n, RL_WRITER);
 	}
 
 	if (woff >= limit) {
-		rangelock_exit(lr);
+		zfs_rangelock_exit(lr);
 		ZFS_EXIT(zfsvfs);
 		return (SET_ERROR(EFBIG));
 	}
@@ -811,7 +811,7 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 				new_blksz = MIN(end_size, max_blksz);
 			}
 			zfs_grow_blocksize(zp, new_blksz, tx);
-			rangelock_reduce(lr, woff, n);
+			zfs_rangelock_reduce(lr, woff, n);
 		}
 
 		/*
@@ -889,7 +889,7 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 		 * Clear Set-UID/Set-GID bits on successful write if not
 		 * privileged and at least one of the execute bits is set.
 		 *
-		 * It would be nice to to this after all writes have
+		 * It would be nice to do this after all writes have
 		 * been done, but that would still expose the ISUID/ISGID
 		 * to another app after the partial write is committed.
 		 *
@@ -950,7 +950,7 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 	}
 
 	zfs_inode_update(zp);
-	rangelock_exit(lr);
+	zfs_rangelock_exit(lr);
 
 	/*
 	 * If we're in replay mode, or we made no progress, return error.
@@ -1003,7 +1003,7 @@ zfs_get_done(zgd_t *zgd, int error)
 	if (zgd->zgd_db)
 		dmu_buf_rele(zgd->zgd_db, zgd);
 
-	rangelock_exit(zgd->zgd_lr);
+	zfs_rangelock_exit(zgd->zgd_lr);
 
 	/*
 	 * Release the vnode asynchronously as we currently have the
@@ -1064,7 +1064,7 @@ zfs_get_data(void *arg, lr_write_t *lr, char *buf, struct lwb *lwb, zio_t *zio)
 	 * we don't have to write the data twice.
 	 */
 	if (buf != NULL) { /* immediate write */
-		zgd->zgd_lr = rangelock_enter(&zp->z_rangelock,
+		zgd->zgd_lr = zfs_rangelock_enter(&zp->z_rangelock,
 		    offset, size, RL_READER);
 		/* test for truncation needs to be done while range locked */
 		if (offset >= zp->z_size) {
@@ -1086,12 +1086,12 @@ zfs_get_data(void *arg, lr_write_t *lr, char *buf, struct lwb *lwb, zio_t *zio)
 			size = zp->z_blksz;
 			blkoff = ISP2(size) ? P2PHASE(offset, size) : offset;
 			offset -= blkoff;
-			zgd->zgd_lr = rangelock_enter(&zp->z_rangelock,
+			zgd->zgd_lr = zfs_rangelock_enter(&zp->z_rangelock,
 			    offset, size, RL_READER);
 			if (zp->z_blksz == size)
 				break;
 			offset += blkoff;
-			rangelock_exit(zgd->zgd_lr);
+			zfs_rangelock_exit(zgd->zgd_lr);
 		}
 		/* test for truncation needs to be done while range locked */
 		if (lr->lr_offset >= zp->z_size)
@@ -1655,7 +1655,7 @@ top:
 		zfs_fuid_sync(zfsvfs, tx);
 
 	/* Add to unlinked set */
-	zp->z_unlinked = 1;
+	zp->z_unlinked = B_TRUE;
 	zfs_unlinked_add(zp, tx);
 	zfs_acl_ids_free(&acl_ids);
 	dmu_tx_commit(tx);
@@ -1854,7 +1854,7 @@ top:
 		if (xattr_obj_unlinked) {
 			ASSERT3U(ZTOI(xzp)->i_nlink, ==, 2);
 			mutex_enter(&xzp->z_lock);
-			xzp->z_unlinked = 1;
+			xzp->z_unlinked = B_TRUE;
 			clear_nlink(ZTOI(xzp));
 			links = 0;
 			error = sa_update(xzp->z_sa_hdl, SA_ZPL_LINKS(zfsvfs),
@@ -3407,7 +3407,7 @@ top:
 	}
 
 	if ((mask & ATTR_ATIME) || zp->z_atime_dirty) {
-		zp->z_atime_dirty = 0;
+		zp->z_atime_dirty = B_FALSE;
 		ZFS_TIME_ENCODE(&ip->i_atime, atime);
 		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_ATIME(zfsvfs), NULL,
 		    &atime, sizeof (atime));
@@ -4371,14 +4371,14 @@ top:
 	}
 	/* unmark z_unlinked so zfs_link_create will not reject */
 	if (is_tmpfile)
-		szp->z_unlinked = 0;
+		szp->z_unlinked = B_FALSE;
 	error = zfs_link_create(dl, szp, tx, 0);
 
 	if (error == 0) {
 		uint64_t txtype = TX_LINK;
 		/*
 		 * tmpfile is created to be in z_unlinkedobj, so remove it.
-		 * Also, we don't log in ZIL, be cause all previous file
+		 * Also, we don't log in ZIL, because all previous file
 		 * operation on the tmpfile are ignored by ZIL. Instead we
 		 * always wait for txg to sync to make sure all previous
 		 * operation are sync safe.
@@ -4393,7 +4393,7 @@ top:
 		}
 	} else if (is_tmpfile) {
 		/* restore z_unlinked since when linking failed */
-		szp->z_unlinked = 1;
+		szp->z_unlinked = B_TRUE;
 	}
 	txg = dmu_tx_get_txg(tx);
 	dmu_tx_commit(tx);
@@ -4517,14 +4517,14 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	redirty_page_for_writepage(wbc, pp);
 	unlock_page(pp);
 
-	locked_range_t *lr = rangelock_enter(&zp->z_rangelock,
+	locked_range_t *lr = zfs_rangelock_enter(&zp->z_rangelock,
 	    pgoff, pglen, RL_WRITER);
 	lock_page(pp);
 
 	/* Page mapping changed or it was no longer dirty, we're done */
 	if (unlikely((mapping != pp->mapping) || !PageDirty(pp))) {
 		unlock_page(pp);
-		rangelock_exit(lr);
+		zfs_rangelock_exit(lr);
 		ZFS_EXIT(zfsvfs);
 		return (0);
 	}
@@ -4532,7 +4532,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	/* Another process started write block if required */
 	if (PageWriteback(pp)) {
 		unlock_page(pp);
-		rangelock_exit(lr);
+		zfs_rangelock_exit(lr);
 
 		if (wbc->sync_mode != WB_SYNC_NONE) {
 			if (PageWriteback(pp))
@@ -4546,7 +4546,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	/* Clear the dirty flag the required locks are held */
 	if (!clear_page_dirty_for_io(pp)) {
 		unlock_page(pp);
-		rangelock_exit(lr);
+		zfs_rangelock_exit(lr);
 		ZFS_EXIT(zfsvfs);
 		return (0);
 	}
@@ -4573,7 +4573,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 		__set_page_dirty_nobuffers(pp);
 		ClearPageError(pp);
 		end_page_writeback(pp);
-		rangelock_exit(lr);
+		zfs_rangelock_exit(lr);
 		ZFS_EXIT(zfsvfs);
 		return (err);
 	}
@@ -4591,7 +4591,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	/* Preserve the mtime and ctime provided by the inode */
 	ZFS_TIME_ENCODE(&ip->i_mtime, mtime);
 	ZFS_TIME_ENCODE(&ip->i_ctime, ctime);
-	zp->z_atime_dirty = 0;
+	zp->z_atime_dirty = B_FALSE;
 	zp->z_seq++;
 
 	err = sa_bulk_update(zp->z_sa_hdl, bulk, cnt, tx);
@@ -4600,7 +4600,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	    zfs_putpage_commit_cb, pp);
 	dmu_tx_commit(tx);
 
-	rangelock_exit(lr);
+	zfs_rangelock_exit(lr);
 
 	if (wbc->sync_mode != WB_SYNC_NONE) {
 		/*
@@ -4638,14 +4638,14 @@ zfs_dirty_inode(struct inode *ip, int flags)
 
 #ifdef I_DIRTY_TIME
 	/*
-	 * This is the lazytime semantic indroduced in Linux 4.0
+	 * This is the lazytime semantic introduced in Linux 4.0
 	 * This flag will only be called from update_time when lazytime is set.
 	 * (Note, I_DIRTY_SYNC will also set if not lazytime)
 	 * Fortunately mtime and ctime are managed within ZFS itself, so we
 	 * only need to dirty atime.
 	 */
 	if (flags == I_DIRTY_TIME) {
-		zp->z_atime_dirty = 1;
+		zp->z_atime_dirty = B_TRUE;
 		goto out;
 	}
 #endif
@@ -4662,7 +4662,7 @@ zfs_dirty_inode(struct inode *ip, int flags)
 	}
 
 	mutex_enter(&zp->z_lock);
-	zp->z_atime_dirty = 0;
+	zp->z_atime_dirty = B_FALSE;
 
 	SA_ADD_BULK_ATTR(bulk, cnt, SA_ZPL_MODE(zfsvfs), NULL, &mode, 8);
 	SA_ADD_BULK_ATTR(bulk, cnt, SA_ZPL_ATIME(zfsvfs), NULL, &atime, 16);
@@ -4707,7 +4707,7 @@ zfs_inactive(struct inode *ip)
 		return;
 	}
 
-	if (zp->z_atime_dirty && zp->z_unlinked == 0) {
+	if (zp->z_atime_dirty && zp->z_unlinked == B_FALSE) {
 		dmu_tx_t *tx = dmu_tx_create(zfsvfs->z_os);
 
 		dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
@@ -4720,7 +4720,7 @@ zfs_inactive(struct inode *ip)
 			mutex_enter(&zp->z_lock);
 			(void) sa_update(zp->z_sa_hdl, SA_ZPL_ATIME(zfsvfs),
 			    (void *)&atime, sizeof (atime), tx);
-			zp->z_atime_dirty = 0;
+			zp->z_atime_dirty = B_FALSE;
 			mutex_exit(&zp->z_lock);
 			dmu_tx_commit(tx);
 		}

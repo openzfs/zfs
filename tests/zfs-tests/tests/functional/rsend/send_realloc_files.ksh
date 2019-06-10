@@ -15,6 +15,7 @@
 # Copyright (c) 2019 by Lawrence Livermore National Security, LLC.
 #
 
+. $STF_SUITE/include/properties.shlib
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/rsend/rsend.kshlib
 
@@ -25,7 +26,7 @@
 # Strategy:
 # 1. Create a pool containing an encrypted filesystem.
 # 2. Use 'zfs send -wp' to perform a raw send of the initial filesystem.
-# 3. Repeat the followings steps N times to verify raw incremental receives.
+# 3. Repeat the following steps N times to verify raw incremental receives.
 #   a) Randomly change several key dataset properties.
 #   b) Modify the contents of the filesystem such that dnode reallocation
 #      is likely during the 'zfs receive', and receive_object() exercises
@@ -71,7 +72,7 @@ for i in {1..$passes}; do
 	# Randomly modify several dataset properties in order to generate
 	# more interesting incremental send streams.
 	rand_set_prop $POOL/fs checksum "off" "fletcher4" "sha256"
-	rand_set_prop $POOL/fs compression "off" "lzjb" "gzip" "lz4"
+	rand_set_prop $POOL/fs compression "${compress_prop_vals[@]}"
 	rand_set_prop $POOL/fs recordsize "32K" "128K"
 	rand_set_prop $POOL/fs dnodesize "legacy" "auto" "4k"
 	rand_set_prop $POOL/fs xattr "on" "sa"

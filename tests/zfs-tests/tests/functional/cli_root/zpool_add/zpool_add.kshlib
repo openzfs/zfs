@@ -90,7 +90,7 @@ function find_mnttab_dev
 }
 
 #
-# Save the systme current dump device configuration
+# Save the system current dump device configuration
 #
 function save_dump_dev
 {

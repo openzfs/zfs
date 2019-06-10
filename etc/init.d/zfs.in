@@ -1,5 +1,11 @@
 # ZoL userland configuration.
 
+# NOTE: This file is intended for sysv init and initramfs.
+# Changing some of these settings may not make any difference on
+# systemd-based setup, e.g. setting ZFS_MOUNT=no will not prevent systemd
+# from launching zfs-mount.service during boot.
+# See: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=901436
+
 # To enable a boolean setting, set it to yes, on, true, or 1.
 # Anything else will be interpreted as unset.
 
@@ -90,6 +96,10 @@ MOUNT_EXTRA_OPTIONS=""
 # Build kernel modules with the --enable-debug switch?
 # Only applicable for Debian GNU/Linux {dkms,initramfs}.
 ZFS_DKMS_ENABLE_DEBUG='no'
+
+# Build kernel modules with the --enable-debuginfo switch?
+# Only applicable for Debian GNU/Linux {dkms,initramfs}.
+ZFS_DKMS_ENABLE_DEBUGINFO='no'
 
 # Keep debugging symbols in kernel modules?
 # Only applicable for Debian GNU/Linux {dkms,initramfs}.

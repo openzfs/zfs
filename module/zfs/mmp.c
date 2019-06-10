@@ -87,12 +87,12 @@
  *
  *    In this case, a weak guarantee is provided.  Since the host which last had
  *    the pool imported will suspend the pool if no mmp writes land within
- *    fail_intervals * multihost_interval ms, the absense of writes during that
+ *    fail_intervals * multihost_interval ms, the absence of writes during that
  *    time means either the pool is not imported, or it is imported but the pool
  *    is suspended and no further writes will occur.
  *
  *    Note that resuming the suspended pool on the remote host would invalidate
- *    this gurantee, and so it is not allowed.
+ *    this guarantee, and so it is not allowed.
  *
  *    The factor of 2 provides a conservative safety factor and derives from
  *    MMP_IMPORT_SAFETY_FACTOR;
@@ -672,7 +672,7 @@ mmp_thread(void *arg)
 
 		CALLB_CPR_SAFE_BEGIN(&cpr);
 		(void) cv_timedwait_sig_hires(&mmp->mmp_thread_cv,
-		    &mmp->mmp_thread_lock, next_time, USEC2NSEC(1),
+		    &mmp->mmp_thread_lock, next_time, USEC2NSEC(100),
 		    CALLOUT_FLAG_ABSOLUTE);
 		CALLB_CPR_SAFE_END(&cpr, &mmp->mmp_thread_lock);
 	}

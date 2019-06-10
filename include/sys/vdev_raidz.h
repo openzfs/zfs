@@ -51,7 +51,7 @@ int vdev_raidz_reconstruct(struct raidz_map *, const int *, int);
  */
 void vdev_raidz_math_init(void);
 void vdev_raidz_math_fini(void);
-struct raidz_impl_ops *vdev_raidz_math_get_ops(void);
+const struct raidz_impl_ops *vdev_raidz_math_get_ops(void);
 int vdev_raidz_math_generate(struct raidz_map *);
 int vdev_raidz_math_reconstruct(struct raidz_map *, const int *, const int *,
     const int);

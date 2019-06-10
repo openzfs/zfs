@@ -27,9 +27,10 @@
  *
  * Kernel fpu methods:
  *	kfpu_allowed()
- *	kfpu_initialize()
  *	kfpu_begin()
  *	kfpu_end()
+ *	kfpu_init()
+ *	kfpu_fini()
  */
 
 #ifndef _SIMD_AARCH64_H
@@ -43,20 +44,20 @@
 
 #if defined(_KERNEL)
 #include <asm/neon.h>
-#define	kfpu_begin()		\
-{					\
-	kernel_neon_begin();		\
-}
-#define	kfpu_end()			\
-{					\
-	kernel_neon_end();		\
-}
+#define	kfpu_allowed()		1
+#define	kfpu_begin()		kernel_neon_begin()
+#define	kfpu_end()		kernel_neon_end()
+#define	kfpu_init()		0
+#define	kfpu_fini()		((void) 0)
 #else
 /*
  * fpu dummy methods for userspace
  */
-#define	kfpu_begin() 	do {} while (0)
-#define	kfpu_end() 		do {} while (0)
+#define	kfpu_allowed()		1
+#define	kfpu_begin()		do {} while (0)
+#define	kfpu_end()		do {} while (0)
+#define	kfpu_init()		0
+#define	kfpu_fini()		((void) 0)
 #endif /* defined(_KERNEL) */
 
 #endif /* __aarch64__ */

@@ -185,7 +185,7 @@ MODULE_PARM_DESC(spl_kmem_cache_kmem_threads,
 
 struct list_head spl_kmem_cache_list;   /* List of caches */
 struct rw_semaphore spl_kmem_cache_sem; /* Cache list lock */
-taskq_t *spl_kmem_cache_taskq;		/* Task queue for ageing / reclaim */
+taskq_t *spl_kmem_cache_taskq;		/* Task queue for aging / reclaim */
 
 static void spl_cache_shrink(spl_kmem_cache_t *skc, void *obj);
 
@@ -312,7 +312,7 @@ static spl_kmem_slab_t *
 spl_slab_alloc(spl_kmem_cache_t *skc, int flags)
 {
 	spl_kmem_slab_t *sks;
-	spl_kmem_obj_t *sko, *n;
+	spl_kmem_obj_t *sko;
 	void *base, *obj;
 	uint32_t obj_size, offslab_size = 0;
 	int i,  rc = 0;
@@ -356,6 +356,7 @@ spl_slab_alloc(spl_kmem_cache_t *skc, int flags)
 
 out:
 	if (rc) {
+		spl_kmem_obj_t *n = NULL;
 		if (skc->skc_flags & KMC_OFFSLAB)
 			list_for_each_entry_safe(sko,
 			    n, &sks->sks_free_list, sko_list) {
@@ -405,8 +406,8 @@ spl_slab_free(spl_kmem_slab_t *sks,
 static void
 spl_slab_reclaim(spl_kmem_cache_t *skc)
 {
-	spl_kmem_slab_t *sks, *m;
-	spl_kmem_obj_t *sko, *n;
+	spl_kmem_slab_t *sks = NULL, *m = NULL;
+	spl_kmem_obj_t *sko = NULL, *n = NULL;
 	LIST_HEAD(sks_list);
 	LIST_HEAD(sko_list);
 	uint32_t size = 0;
@@ -802,7 +803,7 @@ spl_magazine_free(spl_kmem_magazine_t *skm)
 static int
 spl_magazine_create(spl_kmem_cache_t *skc)
 {
-	int i;
+	int i = 0;
 
 	if (skc->skc_flags & KMC_NOMAGAZINE)
 		return (0);
@@ -833,7 +834,7 @@ static void
 spl_magazine_destroy(spl_kmem_cache_t *skc)
 {
 	spl_kmem_magazine_t *skm;
-	int i;
+	int i = 0;
 
 	if (skc->skc_flags & KMC_NOMAGAZINE)
 		return;
@@ -862,11 +863,11 @@ spl_magazine_destroy(spl_kmem_cache_t *skc)
  *	KMC_VMEM        Force SPL vmem backed cache
  *	KMC_SLAB        Force Linux slab backed cache
  *	KMC_OFFSLAB	Locate objects off the slab
- *	KMC_NOTOUCH	unsupported
- *	KMC_NODEBUG	unsupported
- *	KMC_NOHASH      unsupported
- *	KMC_QCACHE	unsupported
- *	KMC_NOMAGAZINE	unsupported
+ *	KMC_NOTOUCH	Disable cache object aging (unsupported)
+ *	KMC_NODEBUG	Disable debugging (unsupported)
+ *	KMC_NOHASH      Disable hashing (unsupported)
+ *	KMC_QCACHE	Disable qcache (unsupported)
+ *	KMC_NOMAGAZINE	Enabled for kmem/vmem, Disabled for Linux slab
  */
 spl_kmem_cache_t *
 spl_kmem_cache_create(char *name, size_t size, size_t align,
@@ -995,7 +996,7 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 #if defined(SLAB_USERCOPY)
 		/*
 		 * Required for PAX-enabled kernels if the slab is to be
-		 * used for coping between user and kernel space.
+		 * used for copying between user and kernel space.
 		 */
 		slabflags |= SLAB_USERCOPY;
 #endif
@@ -1453,6 +1454,17 @@ spl_kmem_cache_alloc(spl_kmem_cache_t *skc, int flags)
 			obj = kmem_cache_alloc(slc, kmem_flags_convert(flags));
 		} while ((obj == NULL) && !(flags & KM_NOSLEEP));
 
+		if (obj != NULL) {
+			/*
+			 * Even though we leave everything up to the
+			 * underlying cache we still keep track of
+			 * how many objects we've allocated in it for
+			 * better debuggability.
+			 */
+			spin_lock(&skc->skc_lock);
+			skc->skc_obj_alloc++;
+			spin_unlock(&skc->skc_lock);
+		}
 		goto ret;
 	}
 
@@ -1526,6 +1538,9 @@ spl_kmem_cache_free(spl_kmem_cache_t *skc, void *obj)
 	 */
 	if (skc->skc_flags & KMC_SLAB) {
 		kmem_cache_free(skc->skc_linux_cache, obj);
+		spin_lock(&skc->skc_lock);
+		skc->skc_obj_alloc--;
+		spin_unlock(&skc->skc_lock);
 		return;
 	}
 
@@ -1603,7 +1618,7 @@ static spl_shrinker_t
 __spl_kmem_cache_generic_shrinker(struct shrinker *shrink,
     struct shrink_control *sc)
 {
-	spl_kmem_cache_t *skc;
+	spl_kmem_cache_t *skc = NULL;
 	int alloc = 0;
 
 	/*

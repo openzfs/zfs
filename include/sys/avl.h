@@ -97,7 +97,7 @@ extern "C" {
  *
  * 3. Use avl_destroy_nodes() to quickly process/free up any remaining nodes.
  *    Note that once you use avl_destroy_nodes(), you can no longer
- *    use any routine except avl_destroy_nodes() and avl_destoy().
+ *    use any routine except avl_destroy_nodes() and avl_destroy().
  *
  * 4. Use avl_destroy() to destroy the AVL tree itself.
  *
@@ -144,7 +144,7 @@ typedef uintptr_t avl_index_t;
  * user data structure which must contain a field of type avl_node_t.
  *
  * Also assume the user data structures looks like:
- *	stuct my_type {
+ *	struct my_type {
  *		...
  *		avl_node_t	my_link;
  *		...

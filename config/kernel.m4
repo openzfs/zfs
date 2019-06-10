@@ -2,111 +2,216 @@ dnl #
 dnl # Default ZFS kernel configuration
 dnl #
 AC_DEFUN([ZFS_AC_CONFIG_KERNEL], [
+	dnl # Setup the kernel build environment.
 	ZFS_AC_KERNEL
 	ZFS_AC_QAT
-	ZFS_AC_KERNEL_ACCESS_OK_TYPE
-	ZFS_AC_TEST_MODULE
+
+	dnl # Sanity checks for module building and CONFIG_* defines
+	ZFS_AC_KERNEL_TEST_MODULE
+	ZFS_AC_KERNEL_CONFIG_DEFINED
+
+	dnl # Sequential ZFS_LINUX_TRY_COMPILE tests
+	ZFS_AC_KERNEL_FPU_HEADER
+	ZFS_AC_KERNEL_WAIT_QUEUE_ENTRY_T
 	ZFS_AC_KERNEL_MISC_MINOR
+	ZFS_AC_KERNEL_DECLARE_EVENT_CLASS
+
+	dnl # Parallel ZFS_LINUX_TEST_SRC / ZFS_LINUX_TEST_RESULT tests
+	ZFS_AC_KERNEL_TEST_SRC
+	ZFS_AC_KERNEL_TEST_RESULT
+
+	AS_IF([test "$LINUX_OBJ" != "$LINUX"], [
+		KERNEL_MAKE="$KERNEL_MAKE O=$LINUX_OBJ"
+	])
+
+	AC_SUBST(KERNEL_MAKE)
+])
+
+dnl #
+dnl # Generate and compile all of the kernel API test cases to determine
+dnl # which interfaces are available.  By invoking the kernel build system
+dnl # only once the compilation can be done in parallel significantly
+dnl # speeding up the process.
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_TEST_SRC], [
+	ZFS_AC_KERNEL_SRC_OBJTOOL
+	ZFS_AC_KERNEL_SRC_GLOBAL_PAGE_STATE
+	ZFS_AC_KERNEL_SRC_ACCESS_OK_TYPE
+	ZFS_AC_KERNEL_SRC_CTL_NAME
+	ZFS_AC_KERNEL_SRC_PDE_DATA
+	ZFS_AC_KERNEL_SRC_FALLOCATE
+	ZFS_AC_KERNEL_SRC_2ARGS_ZLIB_DEFLATE_WORKSPACESIZE
+	ZFS_AC_KERNEL_SRC_RWSEM
+	ZFS_AC_KERNEL_SRC_SCHED
+	ZFS_AC_KERNEL_SRC_USLEEP_RANGE
+	ZFS_AC_KERNEL_SRC_KMEM_CACHE
+	ZFS_AC_KERNEL_SRC_WAIT
+	ZFS_AC_KERNEL_SRC_INODE_TIMES
+	ZFS_AC_KERNEL_SRC_INODE_LOCK
+	ZFS_AC_KERNEL_SRC_GROUP_INFO_GID
+	ZFS_AC_KERNEL_SRC_RW
+	ZFS_AC_KERNEL_SRC_TIMER_SETUP
+	ZFS_AC_KERNEL_SRC_CURRENT_BIO_TAIL
+	ZFS_AC_KERNEL_SRC_SUPER_USER_NS
+	ZFS_AC_KERNEL_SRC_SUBMIT_BIO
+	ZFS_AC_KERNEL_SRC_BLOCK_DEVICE_OPERATIONS
+	ZFS_AC_KERNEL_SRC_BLKDEV_GET_BY_PATH
+	ZFS_AC_KERNEL_SRC_BLKDEV_REREAD_PART
+	ZFS_AC_KERNEL_SRC_INVALIDATE_BDEV
+	ZFS_AC_KERNEL_SRC_LOOKUP_BDEV
+	ZFS_AC_KERNEL_SRC_BDEV_OPEN_EXCLUSIVE
+	ZFS_AC_KERNEL_SRC_BDEV_LOGICAL_BLOCK_SIZE
+	ZFS_AC_KERNEL_SRC_BDEV_PHYSICAL_BLOCK_SIZE
+	ZFS_AC_KERNEL_SRC_BIO_BVEC_ITER
+	ZFS_AC_KERNEL_SRC_BIO_FAILFAST
+	ZFS_AC_KERNEL_SRC_BIO_SET_DEV
+	ZFS_AC_KERNEL_SRC_BIO_OPS
+	ZFS_AC_KERNEL_SRC_BIO_END_IO_T_ARGS
+	ZFS_AC_KERNEL_SRC_BIO_BI_STATUS
+	ZFS_AC_KERNEL_SRC_BIO_RW_BARRIER
+	ZFS_AC_KERNEL_SRC_BIO_RW_DISCARD
+	ZFS_AC_KERNEL_SRC_BLK_QUEUE_BDI
+	ZFS_AC_KERNEL_SRC_BLK_QUEUE_DISCARD
+	ZFS_AC_KERNEL_SRC_BLK_QUEUE_SECURE_ERASE
+	ZFS_AC_KERNEL_SRC_BLK_QUEUE_FLAGS
+	ZFS_AC_KERNEL_SRC_BLK_QUEUE_FLUSH
+	ZFS_AC_KERNEL_SRC_BLK_QUEUE_MAX_HW_SECTORS
+	ZFS_AC_KERNEL_SRC_BLK_QUEUE_MAX_SEGMENTS
+	ZFS_AC_KERNEL_SRC_BLK_QUEUE_PLUG
+	ZFS_AC_KERNEL_SRC_GET_DISK_AND_MODULE
+	ZFS_AC_KERNEL_SRC_GET_DISK_RO
+	ZFS_AC_KERNEL_SRC_GENERIC_READLINK_GLOBAL
+	ZFS_AC_KERNEL_SRC_DISCARD_GRANULARITY
+	ZFS_AC_KERNEL_SRC_INODE_OWNER_OR_CAPABLE
+	ZFS_AC_KERNEL_SRC_XATTR
+	ZFS_AC_KERNEL_SRC_ACL
+	ZFS_AC_KERNEL_SRC_INODE_GETATTR
+	ZFS_AC_KERNEL_SRC_INODE_SET_FLAGS
+	ZFS_AC_KERNEL_SRC_INODE_SET_IVERSION
+	ZFS_AC_KERNEL_SRC_SHOW_OPTIONS
+	ZFS_AC_KERNEL_SRC_FILE_INODE
+	ZFS_AC_KERNEL_SRC_FILE_DENTRY
+	ZFS_AC_KERNEL_SRC_FSYNC
+	ZFS_AC_KERNEL_SRC_AIO_FSYNC
+	ZFS_AC_KERNEL_SRC_EVICT_INODE
+	ZFS_AC_KERNEL_SRC_DIRTY_INODE
+	ZFS_AC_KERNEL_SRC_SHRINKER
+	ZFS_AC_KERNEL_SRC_MKDIR_UMODE_T
+	ZFS_AC_KERNEL_SRC_LOOKUP_NAMEIDATA
+	ZFS_AC_KERNEL_SRC_CREATE_NAMEIDATA
+	ZFS_AC_KERNEL_SRC_GET_LINK
+	ZFS_AC_KERNEL_SRC_PUT_LINK
+	ZFS_AC_KERNEL_SRC_TMPFILE
+	ZFS_AC_KERNEL_SRC_TRUNCATE_RANGE
+	ZFS_AC_KERNEL_SRC_AUTOMOUNT
+	ZFS_AC_KERNEL_SRC_ENCODE_FH_WITH_INODE
+	ZFS_AC_KERNEL_SRC_COMMIT_METADATA
+	ZFS_AC_KERNEL_SRC_CLEAR_INODE
+	ZFS_AC_KERNEL_SRC_SETATTR_PREPARE
+	ZFS_AC_KERNEL_SRC_INSERT_INODE_LOCKED
+	ZFS_AC_KERNEL_SRC_DENTRY
+	ZFS_AC_KERNEL_SRC_TRUNCATE_SETSIZE
+	ZFS_AC_KERNEL_SRC_SECURITY_INODE
+	ZFS_AC_KERNEL_SRC_FST_MOUNT
+	ZFS_AC_KERNEL_SRC_BDI
+	ZFS_AC_KERNEL_SRC_SET_NLINK
+	ZFS_AC_KERNEL_SRC_SGET
+	ZFS_AC_KERNEL_SRC_LSEEK_EXECUTE
+	ZFS_AC_KERNEL_SRC_VFS_GETATTR
+	ZFS_AC_KERNEL_SRC_VFS_FSYNC_2ARGS
+	ZFS_AC_KERNEL_SRC_VFS_ITERATE
+	ZFS_AC_KERNEL_SRC_VFS_DIRECT_IO
+	ZFS_AC_KERNEL_SRC_VFS_RW_ITERATE
+	ZFS_AC_KERNEL_SRC_VFS_GENERIC_WRITE_CHECKS
+	ZFS_AC_KERNEL_SRC_KMAP_ATOMIC_ARGS
+	ZFS_AC_KERNEL_SRC_FOLLOW_DOWN_ONE
+	ZFS_AC_KERNEL_SRC_MAKE_REQUEST_FN
+	ZFS_AC_KERNEL_SRC_GENERIC_IO_ACCT
+	ZFS_AC_KERNEL_SRC_FPU
+	ZFS_AC_KERNEL_SRC_FMODE_T
+	ZFS_AC_KERNEL_SRC_KUIDGID_T
+	ZFS_AC_KERNEL_SRC_KUID_HELPERS
+	ZFS_AC_KERNEL_SRC_MODULE_PARAM_CALL_CONST
+	ZFS_AC_KERNEL_SRC_RENAME_WANTS_FLAGS
+	ZFS_AC_KERNEL_SRC_CURRENT_TIME
+	ZFS_AC_KERNEL_SRC_USERNS_CAPABILITIES
+	ZFS_AC_KERNEL_SRC_IN_COMPAT_SYSCALL
+	ZFS_AC_KERNEL_SRC_KTIME_GET_COARSE_REAL_TS64
+	ZFS_AC_KERNEL_SRC_TOTALRAM_PAGES_FUNC
+	ZFS_AC_KERNEL_SRC_TOTALHIGH_PAGES
+	ZFS_AC_KERNEL_SRC_KSTRTOUL
+
+	AC_MSG_CHECKING([for available kernel interfaces])
+	ZFS_LINUX_TEST_COMPILE_ALL([kabi])
+	AC_MSG_RESULT([done])
+])
+
+dnl #
+dnl # Check results of kernel interface tests.
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_TEST_RESULT], [
+	ZFS_AC_KERNEL_ACCESS_OK_TYPE
+	ZFS_AC_KERNEL_GLOBAL_PAGE_STATE
 	ZFS_AC_KERNEL_OBJTOOL
-	ZFS_AC_KERNEL_CONFIG
 	ZFS_AC_KERNEL_CTL_NAME
 	ZFS_AC_KERNEL_PDE_DATA
-	ZFS_AC_KERNEL_2ARGS_VFS_FSYNC
-	ZFS_AC_KERNEL_KUIDGID_T
 	ZFS_AC_KERNEL_FALLOCATE
 	ZFS_AC_KERNEL_2ARGS_ZLIB_DEFLATE_WORKSPACESIZE
-	ZFS_AC_KERNEL_RWSEM_SPINLOCK_IS_RAW
-	ZFS_AC_KERNEL_RWSEM_ACTIVITY
-	ZFS_AC_KERNEL_RWSEM_ATOMIC_LONG_COUNT
-	ZFS_AC_KERNEL_SCHED_RT_HEADER
-	ZFS_AC_KERNEL_SCHED_SIGNAL_HEADER
-	ZFS_AC_KERNEL_IO_SCHEDULE_TIMEOUT
-	ZFS_AC_KERNEL_4ARGS_VFS_GETATTR
-	ZFS_AC_KERNEL_3ARGS_VFS_GETATTR
-	ZFS_AC_KERNEL_2ARGS_VFS_GETATTR
+	ZFS_AC_KERNEL_RWSEM
+	ZFS_AC_KERNEL_SCHED
 	ZFS_AC_KERNEL_USLEEP_RANGE
-	ZFS_AC_KERNEL_KMEM_CACHE_ALLOCFLAGS
-	ZFS_AC_KERNEL_KMEM_CACHE_CREATE_USERCOPY
-	ZFS_AC_KERNEL_WAIT_ON_BIT
-	ZFS_AC_KERNEL_WAIT_QUEUE_ENTRY_T
-	ZFS_AC_KERNEL_WAIT_QUEUE_HEAD_ENTRY
+	ZFS_AC_KERNEL_KMEM_CACHE
+	ZFS_AC_KERNEL_WAIT
 	ZFS_AC_KERNEL_INODE_TIMES
 	ZFS_AC_KERNEL_INODE_LOCK
 	ZFS_AC_KERNEL_GROUP_INFO_GID
-	ZFS_AC_KERNEL_WRITE
-	ZFS_AC_KERNEL_READ
+	ZFS_AC_KERNEL_RW
 	ZFS_AC_KERNEL_TIMER_SETUP
-	ZFS_AC_KERNEL_DECLARE_EVENT_CLASS
 	ZFS_AC_KERNEL_CURRENT_BIO_TAIL
 	ZFS_AC_KERNEL_SUPER_USER_NS
 	ZFS_AC_KERNEL_SUBMIT_BIO
-	ZFS_AC_KERNEL_BLOCK_DEVICE_OPERATIONS_CHECK_EVENTS
-	ZFS_AC_KERNEL_BLOCK_DEVICE_OPERATIONS_RELEASE_VOID
-	ZFS_AC_KERNEL_TYPE_FMODE_T
+	ZFS_AC_KERNEL_BLOCK_DEVICE_OPERATIONS
 	ZFS_AC_KERNEL_BLKDEV_GET_BY_PATH
 	ZFS_AC_KERNEL_BLKDEV_REREAD_PART
-	ZFS_AC_KERNEL_OPEN_BDEV_EXCLUSIVE
+	ZFS_AC_KERNEL_INVALIDATE_BDEV
 	ZFS_AC_KERNEL_LOOKUP_BDEV
-	ZFS_AC_KERNEL_INVALIDATE_BDEV_ARGS
+	ZFS_AC_KERNEL_BDEV_OPEN_EXCLUSIVE
 	ZFS_AC_KERNEL_BDEV_LOGICAL_BLOCK_SIZE
 	ZFS_AC_KERNEL_BDEV_PHYSICAL_BLOCK_SIZE
 	ZFS_AC_KERNEL_BIO_BVEC_ITER
-	ZFS_AC_KERNEL_BIO_FAILFAST_DTD
+	ZFS_AC_KERNEL_BIO_FAILFAST
 	ZFS_AC_KERNEL_BIO_SET_DEV
-	ZFS_AC_KERNEL_REQ_FAILFAST_MASK
-	ZFS_AC_KERNEL_REQ_OP_DISCARD
-	ZFS_AC_KERNEL_REQ_OP_SECURE_ERASE
-	ZFS_AC_KERNEL_REQ_OP_FLUSH
-	ZFS_AC_KERNEL_BIO_BI_OPF
+	ZFS_AC_KERNEL_BIO_OPS
 	ZFS_AC_KERNEL_BIO_END_IO_T_ARGS
 	ZFS_AC_KERNEL_BIO_BI_STATUS
 	ZFS_AC_KERNEL_BIO_RW_BARRIER
 	ZFS_AC_KERNEL_BIO_RW_DISCARD
 	ZFS_AC_KERNEL_BLK_QUEUE_BDI
-	ZFS_AC_KERNEL_BLK_QUEUE_FLAG_CLEAR
-	ZFS_AC_KERNEL_BLK_QUEUE_FLAG_SET
+	ZFS_AC_KERNEL_BLK_QUEUE_DISCARD
+	ZFS_AC_KERNEL_BLK_QUEUE_SECURE_ERASE
+	ZFS_AC_KERNEL_BLK_QUEUE_FLAGS
 	ZFS_AC_KERNEL_BLK_QUEUE_FLUSH
 	ZFS_AC_KERNEL_BLK_QUEUE_MAX_HW_SECTORS
 	ZFS_AC_KERNEL_BLK_QUEUE_MAX_SEGMENTS
-	ZFS_AC_KERNEL_BLK_QUEUE_HAVE_BIO_RW_UNPLUG
-	ZFS_AC_KERNEL_BLK_QUEUE_HAVE_BLK_PLUG
+	ZFS_AC_KERNEL_BLK_QUEUE_PLUG
 	ZFS_AC_KERNEL_GET_DISK_AND_MODULE
 	ZFS_AC_KERNEL_GET_DISK_RO
-	ZFS_AC_KERNEL_HAVE_BIO_SET_OP_ATTRS
 	ZFS_AC_KERNEL_GENERIC_READLINK_GLOBAL
 	ZFS_AC_KERNEL_DISCARD_GRANULARITY
-	ZFS_AC_KERNEL_CONST_XATTR_HANDLER
-	ZFS_AC_KERNEL_XATTR_HANDLER_NAME
-	ZFS_AC_KERNEL_XATTR_HANDLER_GET
-	ZFS_AC_KERNEL_XATTR_HANDLER_SET
-	ZFS_AC_KERNEL_XATTR_HANDLER_LIST
 	ZFS_AC_KERNEL_INODE_OWNER_OR_CAPABLE
-	ZFS_AC_KERNEL_POSIX_ACL_FROM_XATTR_USERNS
-	ZFS_AC_KERNEL_POSIX_ACL_RELEASE
-	ZFS_AC_KERNEL_SET_CACHED_ACL_USABLE
-	ZFS_AC_KERNEL_POSIX_ACL_CHMOD
-	ZFS_AC_KERNEL_POSIX_ACL_EQUIV_MODE_WANTS_UMODE_T
-	ZFS_AC_KERNEL_POSIX_ACL_VALID_WITH_NS
-	ZFS_AC_KERNEL_INODE_OPERATIONS_PERMISSION
-	ZFS_AC_KERNEL_INODE_OPERATIONS_PERMISSION_WITH_NAMEIDATA
-	ZFS_AC_KERNEL_INODE_OPERATIONS_CHECK_ACL
-	ZFS_AC_KERNEL_INODE_OPERATIONS_CHECK_ACL_WITH_FLAGS
-	ZFS_AC_KERNEL_INODE_OPERATIONS_GET_ACL
-	ZFS_AC_KERNEL_INODE_OPERATIONS_SET_ACL
-	ZFS_AC_KERNEL_INODE_OPERATIONS_GETATTR
+	ZFS_AC_KERNEL_XATTR
+	ZFS_AC_KERNEL_ACL
+	ZFS_AC_KERNEL_INODE_GETATTR
 	ZFS_AC_KERNEL_INODE_SET_FLAGS
 	ZFS_AC_KERNEL_INODE_SET_IVERSION
-	ZFS_AC_KERNEL_GET_ACL_HANDLE_CACHE
 	ZFS_AC_KERNEL_SHOW_OPTIONS
 	ZFS_AC_KERNEL_FILE_INODE
 	ZFS_AC_KERNEL_FILE_DENTRY
 	ZFS_AC_KERNEL_FSYNC
-	ZFS_AC_KERNEL_EVICT_INODE
-	ZFS_AC_KERNEL_DIRTY_INODE_WITH_FLAGS
-	ZFS_AC_KERNEL_NR_CACHED_OBJECTS
-	ZFS_AC_KERNEL_FREE_CACHED_OBJECTS
-	ZFS_AC_KERNEL_FALLOCATE
 	ZFS_AC_KERNEL_AIO_FSYNC
+	ZFS_AC_KERNEL_EVICT_INODE
+	ZFS_AC_KERNEL_DIRTY_INODE
+	ZFS_AC_KERNEL_SHRINKER
 	ZFS_AC_KERNEL_MKDIR_UMODE_T
 	ZFS_AC_KERNEL_LOOKUP_NAMEIDATA
 	ZFS_AC_KERNEL_CREATE_NAMEIDATA
@@ -120,58 +225,37 @@ AC_DEFUN([ZFS_AC_CONFIG_KERNEL], [
 	ZFS_AC_KERNEL_CLEAR_INODE
 	ZFS_AC_KERNEL_SETATTR_PREPARE
 	ZFS_AC_KERNEL_INSERT_INODE_LOCKED
-	ZFS_AC_KERNEL_D_MAKE_ROOT
-	ZFS_AC_KERNEL_D_OBTAIN_ALIAS
-	ZFS_AC_KERNEL_D_PRUNE_ALIASES
-	ZFS_AC_KERNEL_D_SET_D_OP
-	ZFS_AC_KERNEL_D_REVALIDATE_NAMEIDATA
-	ZFS_AC_KERNEL_CONST_DENTRY_OPERATIONS
+	ZFS_AC_KERNEL_DENTRY
 	ZFS_AC_KERNEL_TRUNCATE_SETSIZE
-	ZFS_AC_KERNEL_6ARGS_SECURITY_INODE_INIT_SECURITY
-	ZFS_AC_KERNEL_CALLBACK_SECURITY_INODE_INIT_SECURITY
+	ZFS_AC_KERNEL_SECURITY_INODE
 	ZFS_AC_KERNEL_FST_MOUNT
-	ZFS_AC_KERNEL_SHRINK
-	ZFS_AC_KERNEL_SHRINK_CONTROL_HAS_NID
-	ZFS_AC_KERNEL_SHRINK_CONTROL_STRUCT
-	ZFS_AC_KERNEL_SHRINKER_CALLBACK
-	ZFS_AC_KERNEL_S_INSTANCES_LIST_HEAD
-	ZFS_AC_KERNEL_S_D_OP
 	ZFS_AC_KERNEL_BDI
 	ZFS_AC_KERNEL_SET_NLINK
-	ZFS_AC_KERNEL_ELEVATOR_CHANGE
-	ZFS_AC_KERNEL_5ARG_SGET
+	ZFS_AC_KERNEL_SGET
 	ZFS_AC_KERNEL_LSEEK_EXECUTE
+	ZFS_AC_KERNEL_VFS_GETATTR
+	ZFS_AC_KERNEL_VFS_FSYNC_2ARGS
 	ZFS_AC_KERNEL_VFS_ITERATE
-	ZFS_AC_KERNEL_VFS_RW_ITERATE
 	ZFS_AC_KERNEL_VFS_DIRECT_IO
-	ZFS_AC_KERNEL_GENERIC_WRITE_CHECKS
+	ZFS_AC_KERNEL_VFS_RW_ITERATE
+	ZFS_AC_KERNEL_VFS_GENERIC_WRITE_CHECKS
 	ZFS_AC_KERNEL_KMAP_ATOMIC_ARGS
 	ZFS_AC_KERNEL_FOLLOW_DOWN_ONE
 	ZFS_AC_KERNEL_MAKE_REQUEST_FN
-	ZFS_AC_KERNEL_GENERIC_IO_ACCT_3ARG
-	ZFS_AC_KERNEL_GENERIC_IO_ACCT_4ARG
+	ZFS_AC_KERNEL_GENERIC_IO_ACCT
 	ZFS_AC_KERNEL_FPU
+	ZFS_AC_KERNEL_FMODE_T
+	ZFS_AC_KERNEL_KUIDGID_T
 	ZFS_AC_KERNEL_KUID_HELPERS
 	ZFS_AC_KERNEL_MODULE_PARAM_CALL_CONST
 	ZFS_AC_KERNEL_RENAME_WANTS_FLAGS
-	ZFS_AC_KERNEL_HAVE_GENERIC_SETXATTR
 	ZFS_AC_KERNEL_CURRENT_TIME
-	ZFS_AC_KERNEL_GLOBAL_PAGE_STATE
-	ZFS_AC_KERNEL_ACL_HAS_REFCOUNT
 	ZFS_AC_KERNEL_USERNS_CAPABILITIES
 	ZFS_AC_KERNEL_IN_COMPAT_SYSCALL
 	ZFS_AC_KERNEL_KTIME_GET_COARSE_REAL_TS64
 	ZFS_AC_KERNEL_TOTALRAM_PAGES_FUNC
 	ZFS_AC_KERNEL_TOTALHIGH_PAGES
-	ZFS_AC_KERNEL_BLK_QUEUE_DISCARD
-	ZFS_AC_KERNEL_BLK_QUEUE_SECURE_ERASE
 	ZFS_AC_KERNEL_KSTRTOUL
-
-	AS_IF([test "$LINUX_OBJ" != "$LINUX"], [
-		KERNEL_MAKE="$KERNEL_MAKE O=$LINUX_OBJ"
-	])
-
-	AC_SUBST(KERNEL_MAKE)
 ])
 
 dnl #
@@ -190,9 +274,10 @@ AC_DEFUN([ZFS_AC_MODULE_SYMVERS], [
 		AS_IF([test ! -f "$LINUX_OBJ/$LINUX_SYMBOLS"], [
 			AC_MSG_ERROR([
 	*** Please make sure the kernel devel package for your distribution
-	*** is installed.  If you are building with a custom kernel, make sure the
-	*** kernel is configured, built, and the '--with-linux=PATH' configure
-	*** option refers to the location of the kernel source.])
+	*** is installed.  If you are building with a custom kernel, make sure
+	*** the kernel is configured, built, and the '--with-linux=PATH'
+	*** configure option refers to the location of the kernel source.
+			])
 		])
 	], [
 		LINUX_SYMBOLS=NONE
@@ -285,12 +370,16 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 
 		AS_IF([test -z "$kernsrcver"], [
 			AC_MSG_RESULT([Not found])
-			AC_MSG_ERROR([*** Cannot determine kernel version.])
+			AC_MSG_ERROR([
+	*** Cannot determine kernel version.
+			])
 		])
 	], [
 		AC_MSG_RESULT([Not found])
 		if test "x$enable_linux_builtin" != xyes; then
-			AC_MSG_ERROR([*** Cannot find UTS_RELEASE definition.])
+			AC_MSG_ERROR([
+	*** Cannot find UTS_RELEASE definition.
+			])
 		else
 			AC_MSG_ERROR([
 	*** Cannot find UTS_RELEASE definition.
@@ -312,24 +401,27 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 ])
 
 dnl #
-dnl # Detect the QAT module to be built against
-dnl # QAT provides hardware acceleration for data compression:
-dnl # 	https://01.org/intel-quickassist-technology
-dnl # * Download and install QAT driver from the above link
-dnl # * Start QAT driver in your system:
-dnl # 	service qat_service start
-dnl # * Enable QAT in ZFS, e.g.:
-dnl # 	./configure --with-qat=<qat-driver-path>/QAT1.6
-dnl #	make
-dnl # * Set GZIP compression in ZFS dataset:
-dnl # 	zfs set compression = gzip <dataset>
-dnl # Then the data written to this ZFS pool is compressed
-dnl # by QAT accelerator automatically, and de-compressed by
-dnl # QAT when read from the pool.
-dnl # * Get QAT hardware statistics by:
-dnl #	cat /proc/icp_dh895xcc_dev/qat
-dnl # * To disable QAT:
-dnl # 	insmod zfs.ko zfs_qat_disable=1
+dnl # Detect the QAT module to be built against, QAT provides hardware
+dnl # acceleration for data compression:
+dnl #
+dnl # https://01.org/intel-quickassist-technology
+dnl #
+dnl # 1) Download and install QAT driver from the above link
+dnl # 2) Start QAT driver in your system:
+dnl # 	 service qat_service start
+dnl # 3) Enable QAT in ZFS, e.g.:
+dnl # 	 ./configure --with-qat=<qat-driver-path>/QAT1.6
+dnl # 	 make
+dnl # 4) Set GZIP compression in ZFS dataset:
+dnl # 	 zfs set compression = gzip <dataset>
+dnl #
+dnl # Then the data written to this ZFS pool is compressed by QAT accelerator
+dnl # automatically, and de-compressed by QAT when read from the pool.
+dnl #
+dnl # 1) Get QAT hardware statistics with:
+dnl #	 cat /proc/icp_dh895xcc_dev/qat
+dnl # 2) To disable QAT:
+dnl # 	 insmod zfs.ko zfs_qat_disable=1
 dnl #
 AC_DEFUN([ZFS_AC_QAT], [
 	AC_ARG_WITH([qat],
@@ -350,11 +442,11 @@ AC_DEFUN([ZFS_AC_QAT], [
 		QAT_SRC="${qatsrc}/quickassist"
 		AS_IF([ test ! -e "$QAT_SRC/include/cpa.h"], [
 			AC_MSG_ERROR([
-		*** Please make sure the qat driver package is installed
-		*** and specify the location of the qat source with the
-		*** '--with-qat=PATH' option then try again. Failed to
-		*** find cpa.h in:
-		${QAT_SRC}/include])
+	*** Please make sure the qat driver package is installed
+	*** and specify the location of the qat source with the
+	*** '--with-qat=PATH' option then try again. Failed to
+	*** find cpa.h in:
+	${QAT_SRC}/include])
 		])
 	])
 
@@ -368,9 +460,9 @@ AC_DEFUN([ZFS_AC_QAT], [
 		QAT_OBJ=${qatbuild}
 		AS_IF([ ! test -e "$QAT_OBJ/icp_qa_al.ko" && ! test -e "$QAT_OBJ/qat_api.ko"], [
 			AC_MSG_ERROR([
-		*** Please make sure the qat driver is installed then try again.
-		*** Failed to find icp_qa_al.ko or qat_api.ko in:
-		$QAT_OBJ])
+	*** Please make sure the qat driver is installed then try again.
+	*** Failed to find icp_qa_al.ko or qat_api.ko in:
+	$QAT_OBJ])
 		])
 
 		AC_SUBST(QAT_SRC)
@@ -391,10 +483,10 @@ AC_DEFUN([ZFS_AC_QAT], [
 			AC_MSG_RESULT([$QAT_SYMBOLS])
 			AC_SUBST(QAT_SYMBOLS)
 		],[
-                       AC_MSG_ERROR([
-			*** Please make sure the qat driver is installed then try again.
-			*** Failed to find Module.symvers in:
-			$QAT_SYMBOLS])
+			AC_MSG_ERROR([
+	*** Please make sure the qat driver is installed then try again.
+	*** Failed to find Module.symvers in:
+	$QAT_SYMBOLS
 			])
 		])
 	])
@@ -403,14 +495,16 @@ AC_DEFUN([ZFS_AC_QAT], [
 dnl #
 dnl # Basic toolchain sanity check.
 dnl #
-AC_DEFUN([ZFS_AC_TEST_MODULE], [
+AC_DEFUN([ZFS_AC_KERNEL_TEST_MODULE], [
 	AC_MSG_CHECKING([whether modules can be built])
-	ZFS_LINUX_TRY_COMPILE([],[],[
+	ZFS_LINUX_TRY_COMPILE([], [], [
 		AC_MSG_RESULT([yes])
 	],[
 		AC_MSG_RESULT([no])
 		if test "x$enable_linux_builtin" != xyes; then
-			AC_MSG_ERROR([*** Unable to build an empty module.])
+			AC_MSG_ERROR([
+	*** Unable to build an empty module.
+			])
 		else
 			AC_MSG_ERROR([
 	*** Unable to build an empty module.
@@ -420,126 +514,11 @@ AC_DEFUN([ZFS_AC_TEST_MODULE], [
 ])
 
 dnl #
-dnl # Certain kernel build options are not supported.  These must be
-dnl # detected at configure time and cause a build failure.  Otherwise
-dnl # modules may be successfully built that behave incorrectly.
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_CONFIG], [
-	AS_IF([test "x$cross_compiling" != xyes], [
-		AC_RUN_IFELSE([
-			AC_LANG_PROGRAM([
-				#include "$LINUX/include/linux/license.h"
-			], [
-				return !license_is_gpl_compatible("$ZFS_META_LICENSE");
-			])
-		], [
-			AC_DEFINE([ZFS_IS_GPL_COMPATIBLE], [1],
-			    [Define to 1 if GPL-only symbols can be used])
-		], [
-		])
-	])
-
-	ZFS_AC_KERNEL_CONFIG_THREAD_SIZE
-	ZFS_AC_KERNEL_CONFIG_DEBUG_LOCK_ALLOC
-	ZFS_AC_KERNEL_CONFIG_TRIM_UNUSED_KSYMS
-	ZFS_AC_KERNEL_CONFIG_ZLIB_INFLATE
-	ZFS_AC_KERNEL_CONFIG_ZLIB_DEFLATE
-])
-
-dnl #
-dnl # Check configured THREAD_SIZE
-dnl #
-dnl # The stack size will vary by architecture, but as of Linux 3.15 on x86_64
-dnl # the default thread stack size was increased to 16K from 8K.  Therefore,
-dnl # on newer kernels and some architectures stack usage optimizations can be
-dnl # conditionally applied to improve performance without negatively impacting
-dnl # stability.
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_CONFIG_THREAD_SIZE], [
-	AC_MSG_CHECKING([whether kernel was built with 16K or larger stacks])
-	ZFS_LINUX_TRY_COMPILE([
-		#include <linux/module.h>
-	],[
-		#if (THREAD_SIZE < 16384)
-		#error "THREAD_SIZE is less than 16K"
-		#endif
-	],[
-		AC_MSG_RESULT([yes])
-		AC_DEFINE(HAVE_LARGE_STACKS, 1, [kernel has large stacks])
-	],[
-		AC_MSG_RESULT([no])
-	])
-])
-
-dnl #
-dnl # Check CONFIG_DEBUG_LOCK_ALLOC
-dnl #
-dnl # This is typically only set for debug kernels because it comes with
-dnl # a performance penalty.  However, when it is set it maps the non-GPL
-dnl # symbol mutex_lock() to the GPL-only mutex_lock_nested() symbol.
-dnl # This will cause a failure at link time which we'd rather know about
-dnl # at compile time.
-dnl #
-dnl # Since we plan to pursue making mutex_lock_nested() a non-GPL symbol
-dnl # with the upstream community we add a check to detect this case.
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_CONFIG_DEBUG_LOCK_ALLOC], [
-
-	ZFS_LINUX_CONFIG([DEBUG_LOCK_ALLOC], [
-		AC_MSG_CHECKING([whether mutex_lock() is GPL-only])
-		tmp_flags="$EXTRA_KCFLAGS"
-		ZFS_LINUX_TRY_COMPILE([
-			#include <linux/module.h>
-			#include <linux/mutex.h>
-
-			MODULE_LICENSE("$ZFS_META_LICENSE");
-		],[
-			struct mutex lock;
-
-			mutex_init(&lock);
-			mutex_lock(&lock);
-			mutex_unlock(&lock);
-		],[
-			AC_MSG_RESULT(no)
-		],[
-			AC_MSG_RESULT(yes)
-			AC_MSG_ERROR([
-	*** Kernel built with CONFIG_DEBUG_LOCK_ALLOC which is incompatible
-	*** with the CDDL license and will prevent the module linking stage
-	*** from succeeding.  You must rebuild your kernel without this
-	*** option enabled.])
-		])
-		EXTRA_KCFLAGS="$tmp_flags"
-	], [])
-])
-
-dnl #
-dnl # Check CONFIG_TRIM_UNUSED_KSYMS
-dnl #
-dnl # Verify the kernel has CONFIG_TRIM_UNUSED_KSYMS disabled.
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_CONFIG_TRIM_UNUSED_KSYMS], [
-	AC_MSG_CHECKING([whether CONFIG_TRIM_UNUSED_KSYM is disabled])
-	ZFS_LINUX_TRY_COMPILE([
-		#if defined(CONFIG_TRIM_UNUSED_KSYMS)
-		#error CONFIG_TRIM_UNUSED_KSYMS not defined
-		#endif
-	],[ ],[
-		AC_MSG_RESULT([yes])
-	],[
-		AC_MSG_RESULT([no])
-		AS_IF([test "x$enable_linux_builtin" != xyes], [
-			AC_MSG_ERROR([
-	*** This kernel has unused symbols trimming enabled, please disable.
-	*** Rebuild the kernel with CONFIG_TRIM_UNUSED_KSYMS=n set.])
-	])])
-])
-
-dnl #
 dnl # ZFS_LINUX_CONFTEST_H
 dnl #
 AC_DEFUN([ZFS_LINUX_CONFTEST_H], [
-cat - <<_ACEOF >conftest.h
+test -d build/$2 || mkdir -p build/$2
+cat - <<_ACEOF >build/$2/$2.h
 $1
 _ACEOF
 ])
@@ -548,79 +527,300 @@ dnl #
 dnl # ZFS_LINUX_CONFTEST_C
 dnl #
 AC_DEFUN([ZFS_LINUX_CONFTEST_C], [
-cat confdefs.h - <<_ACEOF >conftest.c
+test -d build/$2 || mkdir -p build/$2
+cat confdefs.h - <<_ACEOF >build/$2/$2.c
 $1
 _ACEOF
 ])
 
 dnl #
-dnl # ZFS_LANG_PROGRAM(C)([PROLOGUE], [BODY])
+dnl # ZFS_LINUX_CONFTEST_MAKEFILE
 dnl #
-m4_define([ZFS_LANG_PROGRAM], [
+dnl # $1 - test case name
+dnl # $2 - add to top-level Makefile
+dnl # $3 - additional build flags
+dnl #
+AC_DEFUN([ZFS_LINUX_CONFTEST_MAKEFILE], [
+	test -d build || mkdir -p build
+	test -d build/$1 || mkdir -p build/$1
+
+	file=build/$1/Makefile
+
+	dnl # Example command line to manually build source.
+	cat - <<_ACEOF >$file
+# Example command line to manually build source
+# make modules -C $LINUX_OBJ $ARCH_UM M=$PWD/build/$1
+
+ccflags-y := -Werror $FRAME_LARGER_THAN
+_ACEOF
+
+	dnl # Additional custom CFLAGS as requested.
+	m4_ifval($3, [echo "ccflags-y += $3" >>$file], [])
+
+	dnl # Test case source
+	echo "obj-m := $1.o" >>$file
+
+	AS_IF([test "x$2" = "xyes"], [echo "obj-m += $1/" >>build/Makefile], [])
+])
+
+dnl #
+dnl # ZFS_LINUX_TEST_PROGRAM(C)([PROLOGUE], [BODY])
+dnl #
+m4_define([ZFS_LINUX_TEST_PROGRAM], [
 $1
 int
 main (void)
 {
-dnl Do *not* indent the following line: there may be CPP directives.
-dnl Don't move the `;' right after for the same reason.
 $2
-  ;
-  return 0;
+	;
+	return 0;
 }
 ])
 
 dnl #
-dnl # ZFS_LINUX_COMPILE_IFELSE / like AC_COMPILE_IFELSE
+dnl # ZFS_LINUX_TEST_REMOVE
 dnl #
-AC_DEFUN([ZFS_LINUX_COMPILE_IFELSE], [
-	m4_ifvaln([$1], [ZFS_LINUX_CONFTEST_C([$1])])
-	m4_ifvaln([$6], [ZFS_LINUX_CONFTEST_H([$6])], [ZFS_LINUX_CONFTEST_H([])])
-	rm -Rf build && mkdir -p build && touch build/conftest.mod.c
-	echo "obj-m := conftest.o" >build/Makefile
-	modpost_flag=''
-	test "x$enable_linux_builtin" = xyes && modpost_flag='modpost=true' # fake modpost stage
-	AS_IF(
-		[AC_TRY_COMMAND(cp conftest.c conftest.h build && make [$2] -C $LINUX_OBJ EXTRA_CFLAGS="-Werror $FRAME_LARGER_THAN $EXTRA_KCFLAGS" $ARCH_UM M=$PWD/build $modpost_flag) >/dev/null && AC_TRY_COMMAND([$3])],
-		[$4],
-		[_AC_MSG_LOG_CONFTEST m4_ifvaln([$5],[$5])]
-	)
-	rm -Rf build
+dnl # Removes the specified test source and results.
+dnl #
+AC_DEFUN([ZFS_LINUX_TEST_REMOVE], [
+	test -d build/$1 && rm -Rf build/$1
+	test -f build/Makefile && sed '/$1/d' build/Makefile
 ])
 
 dnl #
-dnl # ZFS_LINUX_TRY_COMPILE like AC_TRY_COMPILE
+dnl # ZFS_LINUX_COMPILE
 dnl #
-AC_DEFUN([ZFS_LINUX_TRY_COMPILE],
-	[ZFS_LINUX_COMPILE_IFELSE(
-	[AC_LANG_SOURCE([ZFS_LANG_PROGRAM([[$1]], [[$2]])])],
-	[modules],
-	[test -s build/conftest.o],
-	[$3], [$4])
+dnl # $1 - build dir
+dnl # $2 - test command
+dnl # $3 - pass command
+dnl # $4 - fail command
+dnl # $5 - set KBUILD_MODPOST_NOFINAL='yes'
+dnl # $6 - set KBUILD_MODPOST_WARN='yes'
+dnl #
+dnl # Used internally by ZFS_LINUX_TEST_{COMPILE,MODPOST}
+dnl #
+AC_DEFUN([ZFS_LINUX_COMPILE], [
+	AC_TRY_COMMAND([
+	    KBUILD_MODPOST_NOFINAL="$5" KBUILD_MODPOST_WARN="$6"
+	    make modules -k -j$TEST_JOBS -C $LINUX_OBJ $ARCH_UM
+	    M=$PWD/$1 &>$1/build.log])
+	AS_IF([AC_TRY_COMMAND([$2])], [$3], [$4])
 ])
 
 dnl #
-dnl # ZFS_LINUX_CONFIG
+dnl # ZFS_LINUX_TEST_COMPILE
 dnl #
-AC_DEFUN([ZFS_LINUX_CONFIG],
-	[AC_MSG_CHECKING([whether kernel was built with CONFIG_$1])
-	ZFS_LINUX_TRY_COMPILE([
-		#include <linux/module.h>
+dnl # Perform a full compile excluding the final modpost phase.
+dnl #
+AC_DEFUN([ZFS_LINUX_TEST_COMPILE], [
+	ZFS_LINUX_COMPILE([$2], [test -f $2/build.log], [
+		mv $2/Makefile $2/Makefile.compile.$1
+		mv $2/build.log $2/build.log.$1
 	],[
-		#ifndef CONFIG_$1
-		#error CONFIG_$1 not #defined
-		#endif
+	        AC_MSG_ERROR([
+        *** Unable to compile test source to determine kernel interfaces.])
+	], [yes], [])
+])
+
+dnl #
+dnl # ZFS_LINUX_TEST_MODPOST
+dnl #
+dnl # Perform a full compile including the modpost phase.  This may
+dnl # be an incremental build if the objects have already been built.
+dnl #
+AC_DEFUN([ZFS_LINUX_TEST_MODPOST], [
+	ZFS_LINUX_COMPILE([$2], [test -f $2/build.log], [
+		mv $2/Makefile $2/Makefile.modpost.$1
+		cat $2/build.log >>build/build.log.$1
 	],[
-		AC_MSG_RESULT([yes])
-		$2
-	],[
-		AC_MSG_RESULT([no])
-		$3
+	        AC_MSG_ERROR([
+        *** Unable to modpost test source to determine kernel interfaces.])
+	], [], [yes])
+])
+
+dnl #
+dnl # Perform the compilation of the test cases in two phases.
+dnl #
+dnl # Phase 1) attempt to build the object files for all of the tests
+dnl #          defined by the ZFS_LINUX_TEST_SRC macro.  But do not
+dnl #          perform the final modpost stage.
+dnl #
+dnl # Phase 2) disable all tests which failed the initial compilation,
+dnl #          then invoke the final modpost step for the remaining tests.
+dnl #
+dnl # This allows us efficiently build the test cases in parallel while
+dnl # remaining resilient to build failures which are expected when
+dnl # detecting the available kernel interfaces.
+dnl #
+dnl # The maximum allowed parallelism can be controlled by setting the
+dnl # TEST_JOBS environment variable.  Otherwise, it default to $(nproc).
+dnl #
+AC_DEFUN([ZFS_LINUX_TEST_COMPILE_ALL], [
+	dnl # Phase 1 - Compilation only, final linking is skipped.
+	ZFS_LINUX_TEST_COMPILE([$1], [build])
+
+	dnl #
+	dnl # Phase 2 - When building external modules disable test cases
+	dnl # which failed to compile and invoke modpost to verify the
+	dnl # final linking.
+	dnl #
+	dnl # Test names suffixed with '_license' call modpost independently
+	dnl # to ensure that a single incompatibility does not result in the
+	dnl # modpost phase exiting early.  This check is not performed on
+	dnl # every symbol since the majority are compatible and doing so
+	dnl # would significantly slow down this phase.
+	dnl #
+	dnl # When configuring for builtin (--enable-linux-builtin)
+	dnl # fake the linking step artificially create the expected .ko
+	dnl # files for tests which did compile.  This is required for
+	dnl # kernels which do not have loadable module support or have
+	dnl # not yet been built.
+	dnl #
+	AS_IF([test "x$enable_linux_builtin" = "xno"], [
+		for dir in $(awk '/^obj-m/ { print [$]3 }' \
+		    build/Makefile.compile.$1); do
+			name=${dir%/}
+			AS_IF([test -f build/$name/$name.o], [
+				AS_IF([test "${name##*_}" = "license"], [
+					ZFS_LINUX_TEST_MODPOST([$1],
+					    [build/$name])
+					echo "obj-n += $dir" >>build/Makefile
+				], [
+					echo "obj-m += $dir" >>build/Makefile
+				])
+			], [
+				echo "obj-n += $dir" >>build/Makefile
+			])
+		done
+
+		ZFS_LINUX_TEST_MODPOST([$1], [build])
+	], [
+		for dir in $(awk '/^obj-m/ { print [$]3 }' \
+		    build/Makefile.compile.$1); do
+			name=${dir%/}
+			AS_IF([test -f build/$name/$name.o], [
+				touch build/$name/$name.ko
+			])
+		done
 	])
 ])
 
 dnl #
+dnl # ZFS_LINUX_TEST_SRC
+dnl #
+dnl # $1 - name
+dnl # $2 - global
+dnl # $3 - source
+dnl # $4 - extra cflags
+dnl # $5 - check license-compatibility
+dnl #
+dnl # N.B because all of the test cases are compiled in parallel they
+dnl # must never depend on the results of previous tests.  Each test
+dnl # needs to be entirely independent.
+dnl #
+AC_DEFUN([ZFS_LINUX_TEST_SRC], [
+	ZFS_LINUX_CONFTEST_C([ZFS_LINUX_TEST_PROGRAM([[$2]], [[$3]])], [$1])
+	ZFS_LINUX_CONFTEST_MAKEFILE([$1], [yes], [$4])
+
+	AS_IF([ test -n "$5" ], [
+		ZFS_LINUX_CONFTEST_C([ZFS_LINUX_TEST_PROGRAM([[
+			#include <linux/module.h>
+			MODULE_LICENSE("$5");
+			$2]], [[$3]])], [$1_license])
+		ZFS_LINUX_CONFTEST_MAKEFILE([$1_license], [yes], [$4])
+	])
+])
+
+dnl #
+dnl # ZFS_LINUX_TEST_RESULT
+dnl #
+dnl # $1 - name of a test source (ZFS_LINUX_TEST_SRC)
+dnl # $2 - run on success (valid .ko generated)
+dnl # $3 - run on failure (unable to compile)
+dnl #
+AC_DEFUN([ZFS_LINUX_TEST_RESULT], [
+	AS_IF([test -d build/$1], [
+		AS_IF([test -f build/$1/$1.ko], [$2], [$3])
+	], [
+		AC_MSG_ERROR([
+	*** No matching source for the "$1" test, check that
+	*** both the test source and result macros refer to the same name.
+		])
+	])
+])
+
+dnl #
+dnl # ZFS_LINUX_TEST_ERROR
+dnl #
+dnl # Generic error message which can be used when none of the expected
+dnl # kernel interfaces were detected.
+dnl #
+AC_DEFUN([ZFS_LINUX_TEST_ERROR], [
+	AC_MSG_ERROR([
+	*** None of the expected "$1" interfaces were detected.
+	*** This may be because your kernel version is newer than what is
+	*** supported, or you are using a patched custom kernel with
+	*** incompatible modifications.
+	***
+	*** ZFS Version: $ZFS_META_ALIAS
+	*** Compatible Kernels: $ZFS_META_KVER_MIN - $ZFS_META_KVER_MAX
+	])
+])
+
+dnl #
+dnl # ZFS_LINUX_TEST_RESULT_SYMBOL
+dnl #
+dnl # Like ZFS_LINUX_TEST_RESULT except ZFS_CHECK_SYMBOL_EXPORT is called to
+dnl # verify symbol exports, unless --enable-linux-builtin was provided to
+dnl # configure.
+dnl #
+AC_DEFUN([ZFS_LINUX_TEST_RESULT_SYMBOL], [
+	AS_IF([ ! test -f build/$1/$1.ko], [
+		$5
+	], [
+		AS_IF([test "x$enable_linux_builtin" != "xyes"], [
+			ZFS_CHECK_SYMBOL_EXPORT([$2], [$3], [$4], [$5])
+		], [
+			$4
+		])
+	])
+])
+
+dnl #
+dnl # ZFS_LINUX_COMPILE_IFELSE
+dnl #
+AC_DEFUN([ZFS_LINUX_COMPILE_IFELSE], [
+	ZFS_LINUX_TEST_REMOVE([conftest])
+
+	m4_ifvaln([$1], [ZFS_LINUX_CONFTEST_C([$1], [conftest])])
+	m4_ifvaln([$5], [ZFS_LINUX_CONFTEST_H([$5], [conftest])],
+	    [ZFS_LINUX_CONFTEST_H([], [conftest])])
+
+	ZFS_LINUX_CONFTEST_MAKEFILE([conftest], [no],
+	    [m4_ifvaln([$5], [-I$PWD/build/conftest], [])])
+	ZFS_LINUX_COMPILE([build/conftest], [$2], [$3], [$4], [], [])
+])
+
+dnl #
+dnl # ZFS_LINUX_TRY_COMPILE
+dnl #
+dnl # $1 - global
+dnl # $2 - source
+dnl # $3 - run on success (valid .ko generated)
+dnl # $4 - run on failure (unable to compile)
+dnl #
+AC_DEFUN([ZFS_LINUX_TRY_COMPILE], [
+	ZFS_LINUX_COMPILE_IFELSE(
+	    [ZFS_LINUX_TEST_PROGRAM([[$1]], [[$2]])],
+	    [test -f build/conftest/conftest.ko],
+	    [$3], [$4])
+])
+
+dnl #
 dnl # ZFS_CHECK_SYMBOL_EXPORT
-dnl # check symbol exported or not
+dnl #
+dnl # Check if a symbol is exported on not by consulting the symbols
+dnl # file, or optionally the source code.
 dnl #
 AC_DEFUN([ZFS_CHECK_SYMBOL_EXPORT], [
 	grep -q -E '[[[:space:]]]$1[[[:space:]]]' \
@@ -649,8 +849,10 @@ AC_DEFUN([ZFS_CHECK_SYMBOL_EXPORT], [
 
 dnl #
 dnl # ZFS_LINUX_TRY_COMPILE_SYMBOL
-dnl # like ZFS_LINUX_TRY_COMPILE, except ZFS_CHECK_SYMBOL_EXPORT
-dnl # is called if not compiling for builtin
+dnl #
+dnl # Like ZFS_LINUX_TRY_COMPILER except ZFS_CHECK_SYMBOL_EXPORT is called
+dnl # to verify symbol exports, unless --enable-linux-builtin was provided
+dnl # to configure.
 dnl #
 AC_DEFUN([ZFS_LINUX_TRY_COMPILE_SYMBOL], [
 	ZFS_LINUX_TRY_COMPILE([$1], [$2], [rc=0], [rc=1])
@@ -673,10 +875,9 @@ dnl # ZFS_LINUX_TRY_COMPILE_HEADER
 dnl # like ZFS_LINUX_TRY_COMPILE, except the contents conftest.h are
 dnl # provided via the fifth parameter
 dnl #
-AC_DEFUN([ZFS_LINUX_TRY_COMPILE_HEADER],
-	[ZFS_LINUX_COMPILE_IFELSE(
-	[AC_LANG_SOURCE([ZFS_LANG_PROGRAM([[$1]], [[$2]])])],
-	[modules],
-	[test -s build/conftest.o],
-	[$3], [$4], [$5])
+AC_DEFUN([ZFS_LINUX_TRY_COMPILE_HEADER], [
+	ZFS_LINUX_COMPILE_IFELSE(
+	    [ZFS_LINUX_TEST_PROGRAM([[$1]], [[$2]])],
+	    [test -f build/conftest/conftest.ko],
+	    [$3], [$4], [$5])
 ])

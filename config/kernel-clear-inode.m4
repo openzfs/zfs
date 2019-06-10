@@ -19,13 +19,18 @@ dnl # Therefore, to ensure we have the correct API we only allow the
 dnl # clear_inode() compatibility code to be defined iff the evict_inode()
 dnl # functionality is also detected.
 dnl #
-AC_DEFUN([ZFS_AC_KERNEL_CLEAR_INODE],
-	[AC_MSG_CHECKING([whether clear_inode() is available])
-	ZFS_LINUX_TRY_COMPILE_SYMBOL([
+AC_DEFUN([ZFS_AC_KERNEL_SRC_CLEAR_INODE], [
+	ZFS_LINUX_TEST_SRC([clear_inode], [
 		#include <linux/fs.h>
 	], [
 		clear_inode(NULL);
-	], [clear_inode], [fs/inode.c], [
+	])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_CLEAR_INODE], [
+	AC_MSG_CHECKING([whether clear_inode() is available])
+	ZFS_LINUX_TEST_RESULT_SYMBOL([clear_inode],
+	    [clear_inode], [fs/inode.c], [
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_CLEAR_INODE, 1, [clear_inode() is available])
 	], [

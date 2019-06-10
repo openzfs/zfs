@@ -121,6 +121,11 @@ int zfs_sync_pass_rewrite = 2; /* rewrite new bps starting in this pass */
  */
 #define	IO_IS_ALLOCATING(zio) ((zio)->io_orig_pipeline & ZIO_STAGE_DVA_ALLOCATE)
 
+/*
+ * Enable smaller cores by excluding metadata
+ * allocations as well.
+ */
+int zio_exclude_metadata = 0;
 int zio_requeue_io_start_cut_in_line = 1;
 
 #ifdef ZFS_DEBUG
@@ -153,7 +158,11 @@ zio_init(void)
 		size_t size = (c + 1) << SPA_MINBLOCKSHIFT;
 		size_t p2 = size;
 		size_t align = 0;
-		size_t cflags = (size > zio_buf_debug_limit) ? KMC_NODEBUG : 0;
+		size_t data_cflags, cflags;
+
+		data_cflags = KMC_NODEBUG;
+		cflags = (zio_exclude_metadata || size > zio_buf_debug_limit) ?
+		    KMC_NODEBUG : 0;
 
 #if defined(_ILP32) && defined(_KERNEL)
 		/*
@@ -201,7 +210,7 @@ zio_init(void)
 			(void) sprintf(name, "zio_data_buf_%lu", (ulong_t)size);
 			zio_data_buf_cache[c] = kmem_cache_create(name, size,
 			    align, NULL, NULL, NULL, NULL,
-			    data_alloc_arena, cflags);
+			    data_alloc_arena, data_cflags);
 		}
 	}
 
@@ -344,12 +353,6 @@ zio_push_transform(zio_t *zio, abd_t *data, uint64_t size, uint64_t bufsize,
     zio_transform_func_t *transform)
 {
 	zio_transform_t *zt = kmem_alloc(sizeof (zio_transform_t), KM_SLEEP);
-
-	/*
-	 * Ensure that anyone expecting this zio to contain a linear ABD isn't
-	 * going to get a nasty surprise when they try to access the data.
-	 */
-	IMPLY(abd_is_linear(zio->io_abd), abd_is_linear(data));
 
 	zt->zt_orig_abd = zio->io_abd;
 	zt->zt_orig_size = zio->io_size;
@@ -887,8 +890,8 @@ zio_root(spa_t *spa, zio_done_func_t *done, void *private, enum zio_flag flags)
 	return (zio_null(NULL, spa, NULL, done, private, flags));
 }
 
-void
-zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp)
+static void
+zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp, boolean_t config_held)
 {
 	if (!DMU_OT_IS_VALID(BP_GET_TYPE(bp))) {
 		zfs_panic_recover("blkptr at %p has invalid TYPE %llu",
@@ -914,7 +917,7 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp)
 	}
 
 	if (BP_IS_EMBEDDED(bp)) {
-		if (BPE_GET_ETYPE(bp) > NUM_BP_EMBEDDED_TYPES) {
+		if (BPE_GET_ETYPE(bp) >= NUM_BP_EMBEDDED_TYPES) {
 			zfs_panic_recover("blkptr at %p has invalid ETYPE %llu",
 			    bp, (longlong_t)BPE_GET_ETYPE(bp));
 		}
@@ -927,6 +930,10 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp)
 	if (!spa->spa_trust_config)
 		return;
 
+	if (!config_held)
+		spa_config_enter(spa, SCL_VDEV, bp, RW_READER);
+	else
+		ASSERT(spa_config_held(spa, SCL_VDEV, RW_WRITER));
 	/*
 	 * Pool-specific checks.
 	 *
@@ -975,6 +982,8 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp)
 			    bp, i, (longlong_t)offset);
 		}
 	}
+	if (!config_held)
+		spa_config_exit(spa, SCL_VDEV, bp);
 }
 
 boolean_t
@@ -1014,7 +1023,7 @@ zio_read(zio_t *pio, spa_t *spa, const blkptr_t *bp,
 {
 	zio_t *zio;
 
-	zfs_blkptr_verify(spa, bp);
+	zfs_blkptr_verify(spa, bp, flags & ZIO_FLAG_CONFIG_WRITER);
 
 	zio = zio_create(pio, spa, BP_PHYSICAL_BIRTH(bp), bp,
 	    data, size, size, done, private,
@@ -1107,7 +1116,7 @@ void
 zio_free(spa_t *spa, uint64_t txg, const blkptr_t *bp)
 {
 
-	zfs_blkptr_verify(spa, bp);
+	zfs_blkptr_verify(spa, bp, B_FALSE);
 
 	/*
 	 * The check for EMBEDDED is a performance optimization.  We
@@ -1172,7 +1181,7 @@ zio_claim(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 {
 	zio_t *zio;
 
-	zfs_blkptr_verify(spa, bp);
+	zfs_blkptr_verify(spa, bp, flags & ZIO_FLAG_CONFIG_WRITER);
 
 	if (BP_IS_EMBEDDED(bp))
 		return (zio_null(pio, spa, NULL, NULL, NULL, 0));

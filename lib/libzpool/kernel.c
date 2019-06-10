@@ -47,7 +47,6 @@
  * Emulation of kernel services in userland.
  */
 
-int aok;
 uint64_t physmem;
 vnode_t *rootdir = (vnode_t *)0xabcd1234;
 char hw_serial[HW_HOSTID_LEN];
@@ -337,6 +336,13 @@ cv_wait(kcondvar_t *cv, kmutex_t *mp)
 	memset(&mp->m_owner, 0, sizeof (pthread_t));
 	VERIFY0(pthread_cond_wait(cv, &mp->m_lock));
 	mp->m_owner = pthread_self();
+}
+
+int
+cv_wait_sig(kcondvar_t *cv, kmutex_t *mp)
+{
+	cv_wait(cv, mp);
+	return (1);
 }
 
 clock_t

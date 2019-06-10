@@ -660,15 +660,6 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 	VERIFY0(zio_wait(zio));
 
 	/*
-	 * We have written all of the accounted dirty data, so our
-	 * dp_space_towrite should now be zero.  However, some seldom-used
-	 * code paths do not adhere to this (e.g. dbuf_undirty(), also
-	 * rounding error in dbuf_write_physdone).
-	 * Shore up the accounting of any dirtied space now.
-	 */
-	dsl_pool_undirty_space(dp, dp->dp_dirty_pertxg[txg & TXG_MASK], txg);
-
-	/*
 	 * Update the long range free counter after
 	 * we're done syncing user data
 	 */
@@ -761,6 +752,21 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 	if (!multilist_is_empty(mos->os_dirty_dnodes[txg & TXG_MASK])) {
 		dsl_pool_sync_mos(dp, tx);
 	}
+
+	/*
+	 * We have written all of the accounted dirty data, so our
+	 * dp_space_towrite should now be zero. However, some seldom-used
+	 * code paths do not adhere to this (e.g. dbuf_undirty()). Shore up
+	 * the accounting of any dirtied space now.
+	 *
+	 * Note that, besides any dirty data from datasets, the amount of
+	 * dirty data in the MOS is also accounted by the pool. Therefore,
+	 * we want to do this cleanup after dsl_pool_sync_mos() so we don't
+	 * attempt to update the accounting for the same dirty data twice.
+	 * (i.e. at this point we only update the accounting for the space
+	 * that we know that we "leaked").
+	 */
+	dsl_pool_undirty_space(dp, dp->dp_dirty_pertxg[txg & TXG_MASK], txg);
 
 	/*
 	 * If we modify a dataset in the same txg that we want to destroy it,
@@ -889,14 +895,14 @@ dsl_pool_need_dirty_delay(dsl_pool_t *dp)
 	    zfs_dirty_data_max * zfs_delay_min_dirty_percent / 100;
 	uint64_t dirty_min_bytes =
 	    zfs_dirty_data_max * zfs_dirty_data_sync_percent / 100;
-	boolean_t rv;
+	uint64_t dirty;
 
 	mutex_enter(&dp->dp_lock);
-	if (dp->dp_dirty_total > dirty_min_bytes)
-		txg_kick(dp);
-	rv = (dp->dp_dirty_total > delay_min_bytes);
+	dirty = dp->dp_dirty_total;
 	mutex_exit(&dp->dp_lock);
-	return (rv);
+	if (dirty > dirty_min_bytes)
+		txg_kick(dp);
+	return (dirty > delay_min_bytes);
 }
 
 void

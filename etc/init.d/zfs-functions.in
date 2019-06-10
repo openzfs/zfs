@@ -72,7 +72,7 @@ elif type einfo > /dev/null 2>&1 ; then
 #	zfs_log_progress_msg() { echo -n "$1"; }
 	zfs_log_progress_msg() { echo -n; }
 else
-	# Unknown - simple substitues.
+	# Unknown - simple substitutes.
 	zfs_log_begin_msg() { echo -n "$1"; }
 	zfs_log_end_msg() {
 		ret=$1
@@ -283,7 +283,7 @@ checksystem()
 		# Called with zfs=(off|no|0) - bail because we don't
 		# want anything import, mounted or shared.
 		# HOWEVER, only do this if we're called at the boot up
-		# (from init), not if we're running interactivly (as in
+		# (from init), not if we're running interactively (as in
 		# from the shell - we know what we're doing).
 		[ -n "$init" ] && exit 3
 	fi
@@ -366,10 +366,13 @@ read_mtab()
 
 in_mtab()
 {
-	local fs="$(echo "$1" | sed 's,/,_,g')"
+	local mntpnt="$1"
+	# Remove 'unwanted' characters.
+	mntpnt=$(printf '%b\n' "$mntpnt" | sed -e 's,/,,g' \
+	    -e 's,-,,g' -e 's,\.,,g' -e 's, ,,g')   
 	local var
 
-	var="$(eval echo MTAB_$fs)"
+	var="$(eval echo MTAB_$mntpnt)"
 	[ "$(eval echo "$""$var")" != "" ]
 	return "$?"
 }

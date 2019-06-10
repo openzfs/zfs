@@ -53,7 +53,7 @@ verify_runnable "both"
 # run 'zfs destroy $opt <dataset>'. 3rd, check the system status.
 #
 # $1 option of 'zfs destroy'
-# $2 dataset will be destroied.
+# $2 dataset will be destroyed.
 #
 function test_n_check
 {

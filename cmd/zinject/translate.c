@@ -176,7 +176,7 @@ object_from_path(const char *dataset, uint64_t object, zinject_record_t *record)
 }
 
 /*
- * Intialize the range based on the type, level, and range given.
+ * Initialize the range based on the type, level, and range given.
  */
 static int
 initialize_range(err_type_t type, int level, char *range,
@@ -310,7 +310,7 @@ translate_record(err_type_t type, const char *object, const char *range,
 	ziprintf("raw object: %llu\n", record->zi_object);
 
 	/*
-	 * For the given object, intialize the range in bytes
+	 * For the given object, initialize the range in bytes
 	 */
 	if (initialize_range(type, level, (char *)range, record) != 0)
 		goto err;

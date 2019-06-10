@@ -363,7 +363,7 @@ load_zfeature(objset_t *mos, dsl_dataset_t *ds, spa_feature_t f)
 }
 
 /*
- * We have to release the fsid syncronously or we risk that a subsequent
+ * We have to release the fsid synchronously or we risk that a subsequent
  * mount of the same dataset will fail to unique_insert the fsid.  This
  * failure would manifest itself as the fsid of this dataset changing
  * between mounts which makes NFS clients quite unhappy.
@@ -2076,7 +2076,7 @@ get_clones_stat(dsl_dataset_t *ds, nvlist_t *nv)
 	 * We use nvlist_alloc() instead of fnvlist_alloc() because the
 	 * latter would allocate the list with NV_UNIQUE_NAME flag.
 	 * As a result, every time a clone name is appended to the list
-	 * it would be (linearly) searched for for a duplicate name.
+	 * it would be (linearly) searched for a duplicate name.
 	 * We already know that all clone names must be unique and we
 	 * want avoid the quadratic complexity of double-checking that
 	 * because we can have a large number of clones.
@@ -2404,7 +2404,7 @@ dsl_get_mountpoint(dsl_dataset_t *ds, const char *dsname, char *value,
 	int error;
 	dsl_pool_t *dp = ds->ds_dir->dd_pool;
 
-	/* Retrieve the mountpoint value stored in the zap opbject */
+	/* Retrieve the mountpoint value stored in the zap object */
 	error = dsl_prop_get_ds(ds, zfs_prop_to_name(ZFS_PROP_MOUNTPOINT), 1,
 	    ZAP_MAXVALUELEN, value, source);
 	if (error != 0) {
@@ -3635,7 +3635,7 @@ dsl_dataset_clone_swap_check_impl(dsl_dataset_t *clone,
 	 * The clone can't be too much over the head's refquota.
 	 *
 	 * To ensure that the entire refquota can be used, we allow one
-	 * transaction to exceed the the refquota.  Therefore, this check
+	 * transaction to exceed the refquota.  Therefore, this check
 	 * needs to also allow for the space referenced to be more than the
 	 * refquota.  The maximum amount of space that one transaction can use
 	 * on disk is DMU_MAX_ACCESS * spa_asize_inflation.  Allowing this

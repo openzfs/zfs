@@ -18,7 +18,7 @@
 . $STF_SUITE/tests/functional/cli_root/zpool_trim/zpool_trim.kshlib
 
 #
-# Get the actual on disk disk for the provided file.
+# Get the actual size on disk for the provided file.
 #
 function get_size_mb
 {

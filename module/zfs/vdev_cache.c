@@ -46,7 +46,7 @@
  * terribly wasteful of bandwidth.  A more intelligent version of the cache
  * could keep track of access patterns and not do read-ahead unless it sees
  * at least two temporally close I/Os to the same region.  Currently, only
- * metadata I/O is inflated.  A futher enhancement could take advantage of
+ * metadata I/O is inflated.  A further enhancement could take advantage of
  * more semantic information about the I/O.  And it could use something
  * faster than an AVL tree; that was chosen solely for convenience.
  *

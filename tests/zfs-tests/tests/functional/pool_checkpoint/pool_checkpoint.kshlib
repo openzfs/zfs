@@ -27,7 +27,7 @@
 # This is why these tests run directly on pools that use a
 # "real disk vdev" (meaning not a file based one). These tests
 # use the $TESTPOOL pool that is created on top of $TESTDISK.
-# This pool is refered to as the "test pool" and thus all
+# This pool is referred to as the "test pool" and thus all
 # the tests of this group use the testpool-related functions of
 # this file (not the nested_pools ones).
 #

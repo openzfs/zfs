@@ -328,6 +328,40 @@ Use \fB1\fR for yes (default) and \fB0\fR for no.
 .sp
 .ne 2
 .na
+\fBmetaslab_df_max_search\fR (int)
+.ad
+.RS 12n
+Maximum distance to search forward from the last offset. Without this limit,
+fragmented pools can see >100,000 iterations and metaslab_block_picker()
+becomes the performance limiting factor on high-performance storage.
+
+With the default setting of 16MB, we typically see less than 500 iterations,
+even with very fragmented, ashift=9 pools. The maximum number of iterations
+possible is: \fBmetaslab_df_max_search / (2 * (1<<ashift))\fR.
+With the default setting of 16MB this is 16*1024 (with ashift=9) or 2048
+(with ashift=12).
+.sp
+Default value: \fB16,777,216\fR (16MB)
+.RE
+
+.sp
+.ne 2
+.na
+\fBmetaslab_df_use_largest_segment\fR (int)
+.ad
+.RS 12n
+If we are not searching forward (due to metaslab_df_max_search,
+metaslab_df_free_pct, or metaslab_df_alloc_threshold), this tunable controls
+what segment is used.  If it is set, we will use the largest free segment. 
+If it is not set, we will use a segment of exactly the requested size (or
+larger).
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_vdev_default_ms_count\fR (int)
 .ad
 .RS 12n
@@ -471,13 +505,13 @@ Default value: \fB1\fR.
 .sp
 .ne 2
 .na
-\fBspa_load_verify_maxinflight\fR (int)
+\fBspa_load_verify_shift\fR (int)
 .ad
 .RS 12n
-Maximum concurrent I/Os during the traversal performed during an "extreme
-rewind" (\fB-X\fR) pool import.
+Sets the maximum number of bytes to consume during pool import to the log2
+fraction of the target arc size.
 .sp
-Default value: \fB10000\fR.
+Default value: \fB4\fR.
 .RE
 
 .sp
@@ -821,7 +855,7 @@ Default value: \fB0\fR.
 .ad
 .RS 12n
 Minimum time "prescient prefetched" blocks are locked in the ARC, specified
-in ms. These blocks are meant to be prefetched fairly aggresively ahead of
+in ms. These blocks are meant to be prefetched fairly aggressively ahead of
 the code that may use them. A value of \fB0\fR will default to 6000 ms.
 .sp
 Default value: \fB0\fR.
@@ -2357,7 +2391,7 @@ Default value: \fB20\fR which is 5% of RAM (1/20).
 .ad
 .RS 12n
 The fraction of the hard limit used to determined the soft limit for I/O sorting
-by the sequential scan algorithm. When we cross this limit from bellow no action
+by the sequential scan algorithm. When we cross this limit from below no action
 is taken. When we cross this limit from above it is because we are issuing
 verification I/O. In this case (unless the metadata scan is done) we stop
 issuing verification I/O and start scanning metadata again until we get to the
@@ -2767,18 +2801,6 @@ Default value: \fB32,768\fR.
 .sp
 .ne 2
 .na
-\fBzfs_vdev_scheduler\fR (charp)
-.ad
-.RS 12n
-Set the Linux I/O scheduler on whole disk vdevs to this scheduler. Valid options
-are noop, cfq, bfq & deadline
-.sp
-Default value: \fBnoop\fR.
-.RE
-
-.sp
-.ne 2
-.na
 \fBzfs_vdev_write_gap_limit\fR (int)
 .ad
 .RS 12n
@@ -2888,6 +2910,18 @@ This controls the number of threads used by the dp_zil_clean_taskq.  The default
 value of 100% will create a maximum of one thread per cpu.
 .sp
 Default value: \fB100\fR%.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzil_maxblocksize\fR (int)
+.ad
+.RS 12n
+This sets the maximum block size used by the ZIL.  On very fragmented pools,
+lowering this (typically to 36KB) can improve performance.
+.sp
+Default value: \fB131072\fR (128KB).
 .RE
 
 .sp

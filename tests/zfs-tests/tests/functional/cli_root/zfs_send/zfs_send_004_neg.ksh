@@ -65,7 +65,7 @@ snap2=$fs@snap2
 snap3=$fs@snap3
 
 set -A badargs \
-	"" "$TESTPOOL" "$TESTFS" "$fs" "$fs@nonexisten_snap" "?" \
+	"" "$TESTPOOL" "$TESTFS" "$fs" "$fs@nonexistent_snap" "?" \
 	"$snap1/blah" "$snap1@blah" "-i" "-x" "-i $fs" \
 	"-x $snap1 $snap2" "-i $snap1" \
 	"-i $snap2 $snap1" "$snap1 $snap2" "-i $snap1 $snap2 $snap3" \

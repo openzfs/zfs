@@ -438,7 +438,7 @@ check_disk(const char *path, blkid_cache cache, int force,
 	}
 
 	/*
-	 * Expected to fail for non-EFI labled disks.  Just check the device
+	 * Expected to fail for non-EFI labeled disks.  Just check the device
 	 * as given and do not attempt to detect and scan partitions.
 	 */
 	err = efi_alloc_and_read(fd, &vtoc);
@@ -829,7 +829,7 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 			rep.zprl_children = 1;
 			rep.zprl_parity = 0;
 		} else {
-			uint64_t vdev_size;
+			int64_t vdev_size;
 
 			/*
 			 * This is a mirror or RAID-Z vdev.  Go through and make
@@ -859,12 +859,12 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 			 */
 			type = NULL;
 			dontreport = 0;
-			vdev_size = -1ULL;
+			vdev_size = -1LL;
 			for (c = 0; c < children; c++) {
 				nvlist_t *cnv = child[c];
 				char *path;
 				struct stat64 statbuf;
-				uint64_t size = -1ULL;
+				int64_t size = -1LL;
 				char *childtype;
 				int fd, err;
 
@@ -955,7 +955,7 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 				 * (~16MB) then report an error.
 				 */
 				if (!dontreport &&
-				    (vdev_size != -1ULL &&
+				    (vdev_size != -1LL &&
 				    (labs(size - vdev_size) >
 				    ZPOOL_FUZZ))) {
 					if (ret != NULL)
@@ -1867,7 +1867,7 @@ make_root_vdev(zpool_handle_t *zhp, nvlist_t *props, int force, int check_rep,
 	}
 
 	/*
-	 * Validate each device to make sure that its not shared with another
+	 * Validate each device to make sure that it's not shared with another
 	 * subsystem.  We do this even if 'force' is set, because there are some
 	 * uses (such as a dedicated dump device) that even '-f' cannot
 	 * override.

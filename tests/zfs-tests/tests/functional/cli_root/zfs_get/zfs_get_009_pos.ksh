@@ -92,5 +92,16 @@ log_must eval "zfs get -H -t snapshot -o name creation $DEPTH_FS > $DEPTH_OUTPUT
 log_must eval "zfs get -H -t snapshot -d 1 -o name creation $DEPTH_FS > $EXPECT_OUTPUT"
 log_must diff $DEPTH_OUTPUT $EXPECT_OUTPUT
 
+# Ensure 'zfs get -t snap' works as a shorthand for 'zfs get -t snapshot'
+log_must eval "zfs get -H -t snap -d 1 -o name creation $DEPTH_FS > $DEPTH_OUTPUT"
+log_must eval "zfs get -H -t snapshot -d 1 -o name creation $DEPTH_FS > $EXPECT_OUTPUT"
+log_must diff $DEPTH_OUTPUT $EXPECT_OUTPUT
+
+# Ensure 'zfs get -t bookmark <dataset>' works as though -d 1 was specified
+log_must eval "zfs get -H -t bookmark -o name creation $DEPTH_FS > $DEPTH_OUTPUT"
+log_must eval "zfs get -H -t bookmark -d 1 -o name creation $DEPTH_FS > $EXPECT_OUTPUT"
+log_must diff $DEPTH_OUTPUT $EXPECT_OUTPUT
+
+
 log_pass "'zfs get -d <n>' should get expected output."
 

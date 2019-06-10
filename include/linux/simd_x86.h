@@ -27,9 +27,10 @@
  *
  * Kernel fpu methods:
  *	kfpu_allowed()
- *	kfpu_initialize()
  *	kfpu_begin()
  *	kfpu_end()
+ *	kfpu_init()
+ *	kfpu_fini()
  *
  * SIMD support:
  *
@@ -84,6 +85,15 @@
 
 #if defined(_KERNEL)
 
+/*
+ * Disable the WARN_ON_FPU() macro to prevent additional dependencies
+ * when providing the kfpu_* functions.  Relevant warnings are included
+ * as appropriate and are unconditionally enabled.
+ */
+#if defined(CONFIG_X86_DEBUG_FPU) && !defined(KERNEL_EXPORTS_X86_FPU)
+#undef CONFIG_X86_DEBUG_FPU
+#endif
+
 #if defined(HAVE_KERNEL_FPU_API_HEADER)
 #include <asm/fpu/api.h>
 #include <asm/fpu/internal.h>
@@ -92,33 +102,242 @@
 #include <asm/xcr.h>
 #endif
 
+/*
+ * The following cases are for kernels which export either the
+ * kernel_fpu_* or __kernel_fpu_* functions.
+ */
+#if defined(KERNEL_EXPORTS_X86_FPU)
+
+#define	kfpu_allowed()		1
+#define	kfpu_init()		0
+#define	kfpu_fini()		((void) 0)
+
 #if defined(HAVE_UNDERSCORE_KERNEL_FPU)
 #define	kfpu_begin()		\
-{							\
-	preempt_disable();		\
+{				\
+	preempt_disable();	\
 	__kernel_fpu_begin();	\
 }
-#define	kfpu_end()			\
-{							\
-	__kernel_fpu_end();		\
-	preempt_enable();		\
+#define	kfpu_end()		\
+{				\
+	__kernel_fpu_end();	\
+	preempt_enable();	\
 }
+
 #elif defined(HAVE_KERNEL_FPU)
-#define	kfpu_begin()	kernel_fpu_begin()
+#define	kfpu_begin()		kernel_fpu_begin()
 #define	kfpu_end()		kernel_fpu_end()
-#else
-/* Kernel doesn't export any kernel_fpu_* functions */
-#include <asm/fpu/internal.h>	/* For kernel xgetbv() */
-#define	kfpu_begin() 	panic("This code should never run")
-#define	kfpu_end() 	panic("This code should never run")
-#endif /* defined(HAVE_KERNEL_FPU) */
 
 #else
 /*
- * fpu dummy methods for userspace
+ * This case is unreachable.  When KERNEL_EXPORTS_X86_FPU is defined then
+ * either HAVE_UNDERSCORE_KERNEL_FPU or HAVE_KERNEL_FPU must be defined.
  */
-#define	kfpu_begin() 	do {} while (0)
-#define	kfpu_end() 		do {} while (0)
+#error "Unreachable kernel configuration"
+#endif
+
+#else /* defined(KERNEL_EXPORTS_X86_FPU) */
+
+/*
+ * When the kernel_fpu_* symbols are unavailable then provide our own
+ * versions which allow the FPU to be safely used.
+ */
+#if defined(HAVE_KERNEL_FPU_INTERNAL)
+
+#include <linux/mm.h>
+
+extern union fpregs_state **zfs_kfpu_fpregs;
+
+/*
+ * Initialize per-cpu variables to store FPU state.
+ */
+static inline void
+kfpu_fini(void)
+{
+	int cpu;
+
+	for_each_possible_cpu(cpu) {
+		if (zfs_kfpu_fpregs[cpu] != NULL) {
+			free_pages((unsigned long)zfs_kfpu_fpregs[cpu],
+			    get_order(sizeof (union fpregs_state)));
+		}
+	}
+
+	kfree(zfs_kfpu_fpregs);
+}
+
+static inline int
+kfpu_init(void)
+{
+	zfs_kfpu_fpregs = kzalloc(num_possible_cpus() *
+	    sizeof (union fpregs_state *), GFP_KERNEL);
+	if (zfs_kfpu_fpregs == NULL)
+		return (-ENOMEM);
+
+	/*
+	 * The fxsave and xsave operations require 16-/64-byte alignment of
+	 * the target memory. Since kmalloc() provides no alignment
+	 * guarantee instead use alloc_pages_node().
+	 */
+	unsigned int order = get_order(sizeof (union fpregs_state));
+	int cpu;
+
+	for_each_possible_cpu(cpu) {
+		struct page *page = alloc_pages_node(cpu_to_node(cpu),
+		    GFP_KERNEL | __GFP_ZERO, order);
+		if (page == NULL) {
+			kfpu_fini();
+			return (-ENOMEM);
+		}
+
+		zfs_kfpu_fpregs[cpu] = page_address(page);
+	}
+
+	return (0);
+}
+
+#define	kfpu_allowed()		1
+#define	ex_handler_fprestore	ex_handler_default
+
+/*
+ * FPU save and restore instructions.
+ */
+#define	__asm			__asm__ __volatile__
+#define	kfpu_fxsave(addr)	__asm("fxsave %0" : "=m" (*(addr)))
+#define	kfpu_fxsaveq(addr)	__asm("fxsaveq %0" : "=m" (*(addr)))
+#define	kfpu_fnsave(addr)	__asm("fnsave %0; fwait" : "=m" (*(addr)))
+#define	kfpu_fxrstor(addr)	__asm("fxrstor %0" : : "m" (*(addr)))
+#define	kfpu_fxrstorq(addr)	__asm("fxrstorq %0" : : "m" (*(addr)))
+#define	kfpu_frstor(addr)	__asm("frstor %0" : : "m" (*(addr)))
+#define	kfpu_fxsr_clean(rval)	__asm("fnclex; emms; fildl %P[addr]" \
+				    : : [addr] "m" (rval));
+
+static inline void
+kfpu_save_xsave(struct xregs_state *addr, uint64_t mask)
+{
+	uint32_t low, hi;
+	int err;
+
+	low = mask;
+	hi = mask >> 32;
+	XSTATE_XSAVE(addr, low, hi, err);
+	WARN_ON_ONCE(err);
+}
+
+static inline void
+kfpu_save_fxsr(struct fxregs_state *addr)
+{
+	if (IS_ENABLED(CONFIG_X86_32))
+		kfpu_fxsave(addr);
+	else
+		kfpu_fxsaveq(addr);
+}
+
+static inline void
+kfpu_save_fsave(struct fregs_state *addr)
+{
+	kfpu_fnsave(addr);
+}
+
+static inline void
+kfpu_begin(void)
+{
+	/*
+	 * Preemption and interrupts must be disabled for the critical
+	 * region where the FPU state is being modified.
+	 */
+	preempt_disable();
+	local_irq_disable();
+
+	/*
+	 * The current FPU registers need to be preserved by kfpu_begin()
+	 * and restored by kfpu_end().  They are stored in a dedicated
+	 * per-cpu variable, not in the task struct, this allows any user
+	 * FPU state to be correctly preserved and restored.
+	 */
+	union fpregs_state *state = zfs_kfpu_fpregs[smp_processor_id()];
+
+	if (static_cpu_has(X86_FEATURE_XSAVE)) {
+		kfpu_save_xsave(&state->xsave, ~0);
+	} else if (static_cpu_has(X86_FEATURE_FXSR)) {
+		kfpu_save_fxsr(&state->fxsave);
+	} else {
+		kfpu_save_fsave(&state->fsave);
+	}
+}
+
+static inline void
+kfpu_restore_xsave(struct xregs_state *addr, uint64_t mask)
+{
+	uint32_t low, hi;
+
+	low = mask;
+	hi = mask >> 32;
+	XSTATE_XRESTORE(addr, low, hi);
+}
+
+static inline void
+kfpu_restore_fxsr(struct fxregs_state *addr)
+{
+	/*
+	 * On AuthenticAMD K7 and K8 processors the fxrstor instruction only
+	 * restores the _x87 FOP, FIP, and FDP registers when an exception
+	 * is pending.  Clean the _x87 state to force the restore.
+	 */
+	if (unlikely(static_cpu_has_bug(X86_BUG_FXSAVE_LEAK)))
+		kfpu_fxsr_clean(addr);
+
+	if (IS_ENABLED(CONFIG_X86_32)) {
+		kfpu_fxrstor(addr);
+	} else {
+		kfpu_fxrstorq(addr);
+	}
+}
+
+static inline void
+kfpu_restore_fsave(struct fregs_state *addr)
+{
+	kfpu_frstor(addr);
+}
+
+static inline void
+kfpu_end(void)
+{
+	union fpregs_state *state = zfs_kfpu_fpregs[smp_processor_id()];
+
+	if (static_cpu_has(X86_FEATURE_XSAVE)) {
+		kfpu_restore_xsave(&state->xsave, ~0);
+	} else if (static_cpu_has(X86_FEATURE_FXSR)) {
+		kfpu_restore_fxsr(&state->fxsave);
+	} else {
+		kfpu_restore_fsave(&state->fsave);
+	}
+
+	local_irq_enable();
+	preempt_enable();
+}
+
+#else
+
+/*
+ * FPU support is unavailable.
+ */
+#define	kfpu_allowed()		0
+#define	kfpu_begin()		do {} while (0)
+#define	kfpu_end()		do {} while (0)
+#define	kfpu_init()		0
+#define	kfpu_fini()		((void) 0)
+
+#endif /* defined(HAVE_KERNEL_FPU_INTERNAL) */
+#endif /* defined(KERNEL_EXPORTS_X86_FPU) */
+
+#else /* defined(_KERNEL) */
+/*
+ * FPU dummy methods for user space.
+ */
+#define	kfpu_allowed()		1
+#define	kfpu_begin()		do {} while (0)
+#define	kfpu_end()		do {} while (0)
 #endif /* defined(_KERNEL) */
 
 /*
@@ -289,7 +508,6 @@ CPUID_FEATURE_CHECK(pclmulqdq, PCLMULQDQ);
 
 #endif /* !defined(_KERNEL) */
 
-
 /*
  * Detect register set support
  */
@@ -300,7 +518,7 @@ __simd_state_enabled(const uint64_t state)
 	uint64_t xcr0;
 
 #if defined(_KERNEL)
-#if defined(X86_FEATURE_OSXSAVE) && defined(KERNEL_EXPORTS_X86_FPU)
+#if defined(X86_FEATURE_OSXSAVE)
 	has_osxsave = !!boot_cpu_has(X86_FEATURE_OSXSAVE);
 #else
 	has_osxsave = B_FALSE;
@@ -330,11 +548,7 @@ static inline boolean_t
 zfs_sse_available(void)
 {
 #if defined(_KERNEL)
-#if defined(KERNEL_EXPORTS_X86_FPU)
 	return (!!boot_cpu_has(X86_FEATURE_XMM));
-#else
-	return (B_FALSE);
-#endif
 #elif !defined(_KERNEL)
 	return (__cpuid_has_sse());
 #endif
@@ -347,11 +561,7 @@ static inline boolean_t
 zfs_sse2_available(void)
 {
 #if defined(_KERNEL)
-#if defined(KERNEL_EXPORTS_X86_FPU)
 	return (!!boot_cpu_has(X86_FEATURE_XMM2));
-#else
-	return (B_FALSE);
-#endif
 #elif !defined(_KERNEL)
 	return (__cpuid_has_sse2());
 #endif
@@ -364,11 +574,7 @@ static inline boolean_t
 zfs_sse3_available(void)
 {
 #if defined(_KERNEL)
-#if defined(KERNEL_EXPORTS_X86_FPU)
 	return (!!boot_cpu_has(X86_FEATURE_XMM3));
-#else
-	return (B_FALSE);
-#endif
 #elif !defined(_KERNEL)
 	return (__cpuid_has_sse3());
 #endif
@@ -381,11 +587,7 @@ static inline boolean_t
 zfs_ssse3_available(void)
 {
 #if defined(_KERNEL)
-#if defined(KERNEL_EXPORTS_X86_FPU)
 	return (!!boot_cpu_has(X86_FEATURE_SSSE3));
-#else
-	return (B_FALSE);
-#endif
 #elif !defined(_KERNEL)
 	return (__cpuid_has_ssse3());
 #endif
@@ -398,11 +600,7 @@ static inline boolean_t
 zfs_sse4_1_available(void)
 {
 #if defined(_KERNEL)
-#if defined(KERNEL_EXPORTS_X86_FPU)
 	return (!!boot_cpu_has(X86_FEATURE_XMM4_1));
-#else
-	return (B_FALSE);
-#endif
 #elif !defined(_KERNEL)
 	return (__cpuid_has_sse4_1());
 #endif
@@ -415,11 +613,7 @@ static inline boolean_t
 zfs_sse4_2_available(void)
 {
 #if defined(_KERNEL)
-#if defined(KERNEL_EXPORTS_X86_FPU)
 	return (!!boot_cpu_has(X86_FEATURE_XMM4_2));
-#else
-	return (B_FALSE);
-#endif
 #elif !defined(_KERNEL)
 	return (__cpuid_has_sse4_2());
 #endif
@@ -433,11 +627,7 @@ zfs_avx_available(void)
 {
 	boolean_t has_avx;
 #if defined(_KERNEL)
-#if defined(KERNEL_EXPORTS_X86_FPU)
 	has_avx = !!boot_cpu_has(X86_FEATURE_AVX);
-#else
-	has_avx = B_FALSE;
-#endif
 #elif !defined(_KERNEL)
 	has_avx = __cpuid_has_avx();
 #endif
@@ -453,11 +643,7 @@ zfs_avx2_available(void)
 {
 	boolean_t has_avx2;
 #if defined(_KERNEL)
-#if defined(X86_FEATURE_AVX2) && defined(KERNEL_EXPORTS_X86_FPU)
 	has_avx2 = !!boot_cpu_has(X86_FEATURE_AVX2);
-#else
-	has_avx2 = B_FALSE;
-#endif
 #elif !defined(_KERNEL)
 	has_avx2 = __cpuid_has_avx2();
 #endif
@@ -472,7 +658,7 @@ static inline boolean_t
 zfs_bmi1_available(void)
 {
 #if defined(_KERNEL)
-#if defined(X86_FEATURE_BMI1) && defined(KERNEL_EXPORTS_X86_FPU)
+#if defined(X86_FEATURE_BMI1)
 	return (!!boot_cpu_has(X86_FEATURE_BMI1));
 #else
 	return (B_FALSE);
@@ -489,7 +675,7 @@ static inline boolean_t
 zfs_bmi2_available(void)
 {
 #if defined(_KERNEL)
-#if defined(X86_FEATURE_BMI2) && defined(KERNEL_EXPORTS_X86_FPU)
+#if defined(X86_FEATURE_BMI2)
 	return (!!boot_cpu_has(X86_FEATURE_BMI2));
 #else
 	return (B_FALSE);
@@ -506,7 +692,7 @@ static inline boolean_t
 zfs_aes_available(void)
 {
 #if defined(_KERNEL)
-#if defined(X86_FEATURE_AES) && defined(KERNEL_EXPORTS_X86_FPU)
+#if defined(X86_FEATURE_AES)
 	return (!!boot_cpu_has(X86_FEATURE_AES));
 #else
 	return (B_FALSE);
@@ -523,7 +709,7 @@ static inline boolean_t
 zfs_pclmulqdq_available(void)
 {
 #if defined(_KERNEL)
-#if defined(X86_FEATURE_PCLMULQDQ) && defined(KERNEL_EXPORTS_X86_FPU)
+#if defined(X86_FEATURE_PCLMULQDQ)
 	return (!!boot_cpu_has(X86_FEATURE_PCLMULQDQ));
 #else
 	return (B_FALSE);
@@ -557,7 +743,7 @@ zfs_avx512f_available(void)
 	boolean_t has_avx512 = B_FALSE;
 
 #if defined(_KERNEL)
-#if defined(X86_FEATURE_AVX512F) && defined(KERNEL_EXPORTS_X86_FPU)
+#if defined(X86_FEATURE_AVX512F)
 	has_avx512 = !!boot_cpu_has(X86_FEATURE_AVX512F);
 #else
 	has_avx512 = B_FALSE;
@@ -576,7 +762,7 @@ zfs_avx512cd_available(void)
 	boolean_t has_avx512 = B_FALSE;
 
 #if defined(_KERNEL)
-#if defined(X86_FEATURE_AVX512CD) && defined(KERNEL_EXPORTS_X86_FPU)
+#if defined(X86_FEATURE_AVX512CD)
 	has_avx512 = boot_cpu_has(X86_FEATURE_AVX512F) &&
 	    boot_cpu_has(X86_FEATURE_AVX512CD);
 #else
@@ -596,7 +782,7 @@ zfs_avx512er_available(void)
 	boolean_t has_avx512 = B_FALSE;
 
 #if defined(_KERNEL)
-#if defined(X86_FEATURE_AVX512ER) && defined(KERNEL_EXPORTS_X86_FPU)
+#if defined(X86_FEATURE_AVX512ER)
 	has_avx512 = boot_cpu_has(X86_FEATURE_AVX512F) &&
 	    boot_cpu_has(X86_FEATURE_AVX512ER);
 #else
@@ -616,7 +802,7 @@ zfs_avx512pf_available(void)
 	boolean_t has_avx512 = B_FALSE;
 
 #if defined(_KERNEL)
-#if defined(X86_FEATURE_AVX512PF) && defined(KERNEL_EXPORTS_X86_FPU)
+#if defined(X86_FEATURE_AVX512PF)
 	has_avx512 = boot_cpu_has(X86_FEATURE_AVX512F) &&
 	    boot_cpu_has(X86_FEATURE_AVX512PF);
 #else
@@ -636,7 +822,7 @@ zfs_avx512bw_available(void)
 	boolean_t has_avx512 = B_FALSE;
 
 #if defined(_KERNEL)
-#if defined(X86_FEATURE_AVX512BW) && defined(KERNEL_EXPORTS_X86_FPU)
+#if defined(X86_FEATURE_AVX512BW)
 	has_avx512 = boot_cpu_has(X86_FEATURE_AVX512F) &&
 	    boot_cpu_has(X86_FEATURE_AVX512BW);
 #else
@@ -656,7 +842,7 @@ zfs_avx512dq_available(void)
 	boolean_t has_avx512 = B_FALSE;
 
 #if defined(_KERNEL)
-#if defined(X86_FEATURE_AVX512DQ) && defined(KERNEL_EXPORTS_X86_FPU)
+#if defined(X86_FEATURE_AVX512DQ)
 	has_avx512 = boot_cpu_has(X86_FEATURE_AVX512F) &&
 	    boot_cpu_has(X86_FEATURE_AVX512DQ);
 #else
@@ -676,7 +862,7 @@ zfs_avx512vl_available(void)
 	boolean_t has_avx512 = B_FALSE;
 
 #if defined(_KERNEL)
-#if defined(X86_FEATURE_AVX512VL) && defined(KERNEL_EXPORTS_X86_FPU)
+#if defined(X86_FEATURE_AVX512VL)
 	has_avx512 = boot_cpu_has(X86_FEATURE_AVX512F) &&
 	    boot_cpu_has(X86_FEATURE_AVX512VL);
 #else
@@ -696,7 +882,7 @@ zfs_avx512ifma_available(void)
 	boolean_t has_avx512 = B_FALSE;
 
 #if defined(_KERNEL)
-#if defined(X86_FEATURE_AVX512IFMA) && defined(KERNEL_EXPORTS_X86_FPU)
+#if defined(X86_FEATURE_AVX512IFMA)
 	has_avx512 = boot_cpu_has(X86_FEATURE_AVX512F) &&
 	    boot_cpu_has(X86_FEATURE_AVX512IFMA);
 #else
@@ -716,7 +902,7 @@ zfs_avx512vbmi_available(void)
 	boolean_t has_avx512 = B_FALSE;
 
 #if defined(_KERNEL)
-#if defined(X86_FEATURE_AVX512VBMI) && defined(KERNEL_EXPORTS_X86_FPU)
+#if defined(X86_FEATURE_AVX512VBMI)
 	has_avx512 = boot_cpu_has(X86_FEATURE_AVX512F) &&
 	    boot_cpu_has(X86_FEATURE_AVX512VBMI);
 #else

@@ -42,6 +42,7 @@
 #include <sys/dktp/fdisk.h>
 #include <sys/efi_partition.h>
 #include <sys/byteorder.h>
+#include <sys/vdev_disk.h>
 #include <linux/fs.h>
 
 static struct uuid_to_ptag {
@@ -223,7 +224,7 @@ efi_get_info(int fd, struct dk_cinfo *dki_info)
 
 	/*
 	 * The simplest way to get the partition number under linux is
-	 * to parse it out of the /dev/<disk><parition> block device name.
+	 * to parse it out of the /dev/<disk><partition> block device name.
 	 * The kernel creates this using the partition number when it
 	 * populates /dev/ so it may be trusted.  The tricky bit here is
 	 * that the naming convention is based on the block device type.
@@ -398,10 +399,11 @@ efi_alloc_and_init(int fd, uint32_t nparts, struct dk_gpt **vtoc)
 	length = sizeof (struct dk_gpt) +
 	    sizeof (struct dk_part) * (nparts - 1);
 
-	if ((*vtoc = calloc(1, length)) == NULL)
+	vptr = calloc(1, length);
+	if (vptr == NULL)
 		return (-1);
 
-	vptr = *vtoc;
+	*vtoc = vptr;
 
 	vptr->efi_version = EFI_VERSION_CURRENT;
 	vptr->efi_lbasize = lbsize;
@@ -430,30 +432,32 @@ efi_alloc_and_read(int fd, struct dk_gpt **vtoc)
 	int			rval;
 	uint32_t		nparts;
 	int			length;
+	struct dk_gpt		*vptr;
 
 	/* figure out the number of entries that would fit into 16K */
 	nparts = EFI_MIN_ARRAY_SIZE / sizeof (efi_gpe_t);
 	length = (int) sizeof (struct dk_gpt) +
 	    (int) sizeof (struct dk_part) * (nparts - 1);
-	if ((*vtoc = calloc(1, length)) == NULL)
+	vptr = calloc(1, length);
+
+	if (vptr == NULL)
 		return (VT_ERROR);
 
-	(*vtoc)->efi_nparts = nparts;
-	rval = efi_read(fd, *vtoc);
+	vptr->efi_nparts = nparts;
+	rval = efi_read(fd, vptr);
 
-	if ((rval == VT_EINVAL) && (*vtoc)->efi_nparts > nparts) {
+	if ((rval == VT_EINVAL) && vptr->efi_nparts > nparts) {
 		void *tmp;
 		length = (int) sizeof (struct dk_gpt) +
-		    (int) sizeof (struct dk_part) *
-		    ((*vtoc)->efi_nparts - 1);
-		nparts = (*vtoc)->efi_nparts;
-		if ((tmp = realloc(*vtoc, length)) == NULL) {
-			free (*vtoc);
+		    (int) sizeof (struct dk_part) * (vptr->efi_nparts - 1);
+		nparts = vptr->efi_nparts;
+		if ((tmp = realloc(vptr, length)) == NULL) {
+			free(vptr);
 			*vtoc = NULL;
 			return (VT_ERROR);
 		} else {
-			*vtoc = tmp;
-			rval = efi_read(fd, *vtoc);
+			vptr = tmp;
+			rval = efi_read(fd, vptr);
 		}
 	}
 
@@ -462,8 +466,10 @@ efi_alloc_and_read(int fd, struct dk_gpt **vtoc)
 			(void) fprintf(stderr,
 			    "read of EFI table failed, rval=%d\n", rval);
 		}
-		free (*vtoc);
+		free(vptr);
 		*vtoc = NULL;
+	} else {
+		*vtoc = vptr;
 	}
 
 	return (rval);
@@ -1113,7 +1119,9 @@ efi_use_whole_disk(int fd)
 	int			i;
 	uint_t			resv_index = 0, data_index = 0;
 	diskaddr_t		resv_start = 0, data_start = 0;
-	diskaddr_t		difference;
+	diskaddr_t		data_size, limit, difference;
+	boolean_t		sync_needed = B_FALSE;
+	uint_t			nblocks;
 
 	rval = efi_alloc_and_read(fd, &efi_label);
 	if (rval < 0) {
@@ -1121,23 +1129,6 @@ efi_use_whole_disk(int fd)
 			efi_free(efi_label);
 		return (rval);
 	}
-
-	/*
-	 * If alter_lba is 1, we are using the backup label.
-	 * Since we can locate the backup label by disk capacity,
-	 * there must be no unallocated space.
-	 */
-	if ((efi_label->efi_altern_lba == 1) || (efi_label->efi_altern_lba
-	    >= efi_label->efi_last_lba)) {
-		if (efi_debug) {
-			(void) fprintf(stderr,
-			    "efi_use_whole_disk: requested space not found\n");
-		}
-		efi_free(efi_label);
-		return (VT_ENOSPC);
-	}
-
-	difference = efi_label->efi_last_lba - efi_label->efi_altern_lba;
 
 	/*
 	 * Find the last physically non-zero partition.
@@ -1151,10 +1142,68 @@ efi_use_whole_disk(int fd)
 	}
 
 	/*
+	 * Find the last physically non-zero partition before that.
+	 * This is the data partition.
+	 */
+	for (i = 0; i < resv_index; i ++) {
+		if (data_start < efi_label->efi_parts[i].p_start) {
+			data_start = efi_label->efi_parts[i].p_start;
+			data_index = i;
+		}
+	}
+	data_size = efi_label->efi_parts[data_index].p_size;
+
+	/*
+	 * See the "efi_alloc_and_init" function for more information
+	 * about where this "nblocks" value comes from.
+	 */
+	nblocks = efi_label->efi_first_u_lba - 1;
+
+	/*
+	 * Determine if the EFI label is out of sync. We check that:
+	 *
+	 * 1. the data partition ends at the limit we set, and
+	 * 2. the reserved partition starts at the limit we set.
+	 *
+	 * If either of these conditions is not met, then we need to
+	 * resync the EFI label.
+	 *
+	 * The limit is the last usable LBA, determined by the last LBA
+	 * and the first usable LBA fields on the EFI label of the disk
+	 * (see the lines directly above). Additionally, we factor in
+	 * EFI_MIN_RESV_SIZE (per its use in "zpool_label_disk") and
+	 * P2ALIGN it to ensure the partition boundaries are aligned
+	 * (for performance reasons). The alignment should match the
+	 * alignment used by the "zpool_label_disk" function.
+	 */
+	limit = P2ALIGN(efi_label->efi_last_lba - nblocks - EFI_MIN_RESV_SIZE,
+	    PARTITION_END_ALIGNMENT);
+	if (data_start + data_size != limit || resv_start != limit)
+		sync_needed = B_TRUE;
+
+	if (efi_debug && sync_needed)
+		(void) fprintf(stderr, "efi_use_whole_disk: sync needed\n");
+
+	/*
+	 * If alter_lba is 1, we are using the backup label.
+	 * Since we can locate the backup label by disk capacity,
+	 * there must be no unallocated space.
+	 */
+	if ((efi_label->efi_altern_lba == 1) || (efi_label->efi_altern_lba
+	    >= efi_label->efi_last_lba && !sync_needed)) {
+		if (efi_debug) {
+			(void) fprintf(stderr,
+			    "efi_use_whole_disk: requested space not found\n");
+		}
+		efi_free(efi_label);
+		return (VT_ENOSPC);
+	}
+
+	/*
 	 * Verify that we've found the reserved partition by checking
 	 * that it looks the way it did when we created it in zpool_label_disk.
 	 * If we've found the incorrect partition, then we know that this
-	 * device was reformatted and no longer is soley used by ZFS.
+	 * device was reformatted and no longer is solely used by ZFS.
 	 */
 	if ((efi_label->efi_parts[resv_index].p_size != EFI_MIN_RESV_SIZE) ||
 	    (efi_label->efi_parts[resv_index].p_tag != V_RESERVED) ||
@@ -1167,16 +1216,35 @@ efi_use_whole_disk(int fd)
 		return (VT_ENOSPC);
 	}
 
-	/*
-	 * Find the last physically non-zero partition before that.
-	 * This is the data partition.
-	 */
-	for (i = 0; i < resv_index; i ++) {
-		if (data_start < efi_label->efi_parts[i].p_start) {
-			data_start = efi_label->efi_parts[i].p_start;
-			data_index = i;
+	if (data_start + data_size != resv_start) {
+		if (efi_debug) {
+			(void) fprintf(stderr,
+			    "efi_use_whole_disk: "
+			    "data_start (%lli) + "
+			    "data_size (%lli) != "
+			    "resv_start (%lli)\n",
+			    data_start, data_size, resv_start);
 		}
+
+		return (VT_EINVAL);
 	}
+
+	if (limit < resv_start) {
+		if (efi_debug) {
+			(void) fprintf(stderr,
+			    "efi_use_whole_disk: "
+			    "limit (%lli) < resv_start (%lli)\n",
+			    limit, resv_start);
+		}
+
+		return (VT_EINVAL);
+	}
+
+	difference = limit - resv_start;
+
+	if (efi_debug)
+		(void) fprintf(stderr,
+		    "efi_use_whole_disk: difference is %lli\n", difference);
 
 	/*
 	 * Move the reserved partition. There is currently no data in
@@ -1185,7 +1253,7 @@ efi_use_whole_disk(int fd)
 	 */
 	efi_label->efi_parts[data_index].p_size += difference;
 	efi_label->efi_parts[resv_index].p_start += difference;
-	efi_label->efi_last_u_lba += difference;
+	efi_label->efi_last_u_lba = efi_label->efi_last_lba - nblocks;
 
 	rval = efi_write(fd, efi_label);
 	if (rval < 0) {
@@ -1201,7 +1269,6 @@ efi_use_whole_disk(int fd)
 	efi_free(efi_label);
 	return (0);
 }
-
 
 /*
  * write EFI label and backup label
@@ -1222,7 +1289,7 @@ efi_write(int fd, struct dk_gpt *vtoc)
 	if ((rval = efi_get_info(fd, &dki_info)) != 0)
 		return (rval);
 
-	/* check if we are dealing wih a metadevice */
+	/* check if we are dealing with a metadevice */
 	if ((strncmp(dki_info.dki_cname, "pseudo", 7) == 0) &&
 	    (strncmp(dki_info.dki_dname, "md", 3) == 0)) {
 		md_flag = 1;

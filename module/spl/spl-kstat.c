@@ -431,7 +431,7 @@ static struct seq_operations kstat_seq_ops = {
 static kstat_module_t *
 kstat_find_module(char *name)
 {
-	kstat_module_t *module;
+	kstat_module_t *module = NULL;
 
 	list_for_each_entry(module, &kstat_module_list, ksm_module_list) {
 		if (strncmp(name, module->ksm_name, KSTAT_STRLEN) == 0)
@@ -624,7 +624,7 @@ static int
 kstat_detect_collision(kstat_proc_entry_t *kpep)
 {
 	kstat_module_t *module;
-	kstat_proc_entry_t *tmp;
+	kstat_proc_entry_t *tmp = NULL;
 	char *parent;
 	char *cp;
 
@@ -659,7 +659,7 @@ kstat_proc_entry_install(kstat_proc_entry_t *kpep, mode_t mode,
     const struct file_operations *file_ops, void *data)
 {
 	kstat_module_t *module;
-	kstat_proc_entry_t *tmp;
+	kstat_proc_entry_t *tmp = NULL;
 
 	ASSERT(kpep);
 

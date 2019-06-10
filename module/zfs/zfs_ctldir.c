@@ -463,10 +463,14 @@ zfsctl_inode_alloc(zfsvfs_t *zfsvfs, uint64_t id,
 	ASSERT3P(zp->z_acl_cached, ==, NULL);
 	ASSERT3P(zp->z_xattr_cached, ==, NULL);
 	zp->z_id = id;
-	zp->z_unlinked = 0;
-	zp->z_atime_dirty = 0;
-	zp->z_zn_prefetch = 0;
-	zp->z_moved = 0;
+	zp->z_unlinked = B_FALSE;
+	zp->z_atime_dirty = B_FALSE;
+	zp->z_zn_prefetch = B_FALSE;
+	zp->z_moved = B_FALSE;
+	zp->z_is_sa = B_FALSE;
+	zp->z_is_mapped = B_FALSE;
+	zp->z_is_ctldir = B_TRUE;
+	zp->z_is_stale = B_FALSE;
 	zp->z_sa_hdl = NULL;
 	zp->z_blksz = 0;
 	zp->z_seq = 0;
@@ -475,10 +479,6 @@ zfsctl_inode_alloc(zfsvfs_t *zfsvfs, uint64_t id,
 	zp->z_pflags = 0;
 	zp->z_mode = 0;
 	zp->z_sync_cnt = 0;
-	zp->z_is_mapped = B_FALSE;
-	zp->z_is_ctldir = B_TRUE;
-	zp->z_is_sa = B_FALSE;
-	zp->z_is_stale = B_FALSE;
 	ip->i_generation = 0;
 	ip->i_ino = id;
 	ip->i_mode = (S_IFDIR | S_IRWXUGO);
@@ -596,7 +596,7 @@ zfsctl_root(znode_t *zp)
 
 /*
  * Generate a long fid to indicate a snapdir. We encode whether snapdir is
- * already monunted in gen field. We do this because nfsd lookup will not
+ * already mounted in gen field. We do this because nfsd lookup will not
  * trigger automount. Next time the nfsd does fh_to_dentry, we will notice
  * this and do automount and return ESTALE to force nfsd revalidate and follow
  * mount.
@@ -1053,7 +1053,8 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 	 * on mount.zfs(8).
 	 */
 	snprintf(full_path, MAXPATHLEN, "%s/.zfs/snapshot/%s",
-	    zfsvfs->z_vfs->vfs_mntpoint, dname(dentry));
+	    zfsvfs->z_vfs->vfs_mntpoint ? zfsvfs->z_vfs->vfs_mntpoint : "",
+	    dname(dentry));
 
 	/*
 	 * Multiple concurrent automounts of a snapshot are never allowed.

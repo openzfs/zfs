@@ -684,7 +684,7 @@ zvol_log_write(zvol_state_t *zv, dmu_tx_t *tx, uint64_t offset,
 		itx_wr_state_t wr_state = write_state;
 		ssize_t len = size;
 
-		if (wr_state == WR_COPIED && size > ZIL_MAX_COPIED_DATA)
+		if (wr_state == WR_COPIED && size > zil_max_copied_data(zilog))
 			wr_state = WR_NEED_COPY;
 		else if (wr_state == WR_INDIRECT)
 			len = MIN(blocksize - P2PHASE(offset, blocksize), size);
@@ -783,7 +783,7 @@ zvol_write(void *arg)
 		if (error)
 			break;
 	}
-	rangelock_exit(zvr->lr);
+	zfs_rangelock_exit(zvr->lr);
 
 	int64_t nwritten = start_resid - uio.uio_resid;
 	dataset_kstats_update_write_kstats(&zv->zv_kstat, nwritten);
@@ -878,7 +878,7 @@ zvol_discard(void *arg)
 		    ZVOL_OBJ, start, size);
 	}
 unlock:
-	rangelock_exit(zvr->lr);
+	zfs_rangelock_exit(zvr->lr);
 
 	if (error == 0 && sync)
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
@@ -924,7 +924,7 @@ zvol_read(void *arg)
 			break;
 		}
 	}
-	rangelock_exit(zvr->lr);
+	zfs_rangelock_exit(zvr->lr);
 
 	int64_t nread = start_resid - uio.uio_resid;
 	dataset_kstats_update_read_kstats(&zv->zv_kstat, nread);
@@ -944,7 +944,7 @@ zvol_get_done(zgd_t *zgd, int error)
 	if (zgd->zgd_db)
 		dmu_buf_rele(zgd->zgd_db, zgd);
 
-	rangelock_exit(zgd->zgd_lr);
+	zfs_rangelock_exit(zgd->zgd_lr);
 
 	kmem_free(zgd, sizeof (zgd_t));
 }
@@ -977,8 +977,8 @@ zvol_get_data(void *arg, lr_write_t *lr, char *buf, struct lwb *lwb, zio_t *zio)
 	 * we don't have to write the data twice.
 	 */
 	if (buf != NULL) { /* immediate write */
-		zgd->zgd_lr = rangelock_enter(&zv->zv_rangelock, offset, size,
-		    RL_READER);
+		zgd->zgd_lr = zfs_rangelock_enter(&zv->zv_rangelock, offset,
+		    size, RL_READER);
 		error = dmu_read_by_dnode(zv->zv_dn, offset, size, buf,
 		    DMU_READ_NO_PREFETCH);
 	} else { /* indirect write */
@@ -990,8 +990,8 @@ zvol_get_data(void *arg, lr_write_t *lr, char *buf, struct lwb *lwb, zio_t *zio)
 		 */
 		size = zv->zv_volblocksize;
 		offset = P2ALIGN_TYPED(offset, size, uint64_t);
-		zgd->zgd_lr = rangelock_enter(&zv->zv_rangelock, offset, size,
-		    RL_READER);
+		zgd->zgd_lr = zfs_rangelock_enter(&zv->zv_rangelock, offset,
+		    size, RL_READER);
 		error = dmu_buf_hold_by_dnode(zv->zv_dn, offset, zgd, &db,
 		    DMU_READ_NO_PREFETCH);
 		if (error == 0) {
@@ -1089,7 +1089,7 @@ zvol_request(struct request_queue *q, struct bio *bio)
 		 * are asynchronous, we take it here synchronously to make
 		 * sure overlapped I/Os are properly ordered.
 		 */
-		zvr->lr = rangelock_enter(&zv->zv_rangelock, offset, size,
+		zvr->lr = zfs_rangelock_enter(&zv->zv_rangelock, offset, size,
 		    RL_WRITER);
 		/*
 		 * Sync writes and discards execute zil_commit() which may need
@@ -1128,7 +1128,7 @@ zvol_request(struct request_queue *q, struct bio *bio)
 
 		rw_enter(&zv->zv_suspend_lock, RW_READER);
 
-		zvr->lr = rangelock_enter(&zv->zv_rangelock, offset, size,
+		zvr->lr = zfs_rangelock_enter(&zv->zv_rangelock, offset, size,
 		    RL_READER);
 		if (zvol_request_sync || taskq_dispatch(zvol_taskq,
 		    zvol_read, zvr, TQ_SLEEP) == TASKQID_INVALID)
@@ -1725,7 +1725,7 @@ zvol_alloc(dev_t dev, const char *name)
 	zv->zv_open_count = 0;
 	strlcpy(zv->zv_name, name, MAXNAMELEN);
 
-	rangelock_init(&zv->zv_rangelock, NULL, NULL);
+	zfs_rangelock_init(&zv->zv_rangelock, NULL, NULL);
 	rw_init(&zv->zv_suspend_lock, NULL, RW_DEFAULT, NULL);
 
 	zv->zv_disk->major = zvol_major;
@@ -1783,7 +1783,7 @@ zvol_free(void *arg)
 	ASSERT(zv->zv_disk->private_data == NULL);
 
 	rw_destroy(&zv->zv_suspend_lock);
-	rangelock_fini(&zv->zv_rangelock);
+	zfs_rangelock_fini(&zv->zv_rangelock);
 
 	del_gendisk(zv->zv_disk);
 	blk_cleanup_queue(zv->zv_queue);
@@ -1997,7 +1997,7 @@ zvol_create_snap_minor_cb(const char *dsname, void *arg)
 	/* at this point, the dsname should name a snapshot */
 	if (strchr(dsname, '@') == 0) {
 		dprintf("zvol_create_snap_minor_cb(): "
-		    "%s is not a shapshot name\n", dsname);
+		    "%s is not a snapshot name\n", dsname);
 	} else {
 		minors_job_t *job;
 		char *n = strdup(dsname);

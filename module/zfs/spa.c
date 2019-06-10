@@ -90,6 +90,7 @@
 #include <sys/fm/util.h>
 #include <sys/callb.h>
 #include <sys/zone.h>
+#include <sys/vmsystm.h>
 #endif	/* _KERNEL */
 
 #include "zfs_prop.h"
@@ -2106,16 +2107,16 @@ spa_load_verify_done(zio_t *zio)
 	}
 
 	mutex_enter(&spa->spa_scrub_lock);
-	spa->spa_load_verify_ios--;
+	spa->spa_load_verify_bytes -= BP_GET_PSIZE(bp);
 	cv_broadcast(&spa->spa_scrub_io_cv);
 	mutex_exit(&spa->spa_scrub_lock);
 }
 
 /*
- * Maximum number of concurrent scrub i/os to create while verifying
- * a pool while importing it.
+ * Maximum number of inflight bytes is the log2 fraction of the arc size.
+ * By default, we set it to 1/16th of the arc.
  */
-int spa_load_verify_maxinflight = 10000;
+int spa_load_verify_shift = 4;
 int spa_load_verify_metadata = B_TRUE;
 int spa_load_verify_data = B_TRUE;
 
@@ -2136,13 +2137,15 @@ spa_load_verify_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	if (!BP_IS_METADATA(bp) && !spa_load_verify_data)
 		return (0);
 
+	uint64_t maxinflight_bytes =
+	    arc_target_bytes() >> spa_load_verify_shift;
 	zio_t *rio = arg;
 	size_t size = BP_GET_PSIZE(bp);
 
 	mutex_enter(&spa->spa_scrub_lock);
-	while (spa->spa_load_verify_ios >= spa_load_verify_maxinflight)
+	while (spa->spa_load_verify_bytes >= maxinflight_bytes)
 		cv_wait(&spa->spa_scrub_io_cv, &spa->spa_scrub_lock);
-	spa->spa_load_verify_ios++;
+	spa->spa_load_verify_bytes += size;
 	mutex_exit(&spa->spa_scrub_lock);
 
 	zio_nowait(zio_read(rio, spa, bp, abd_alloc_for_io(size, B_FALSE), size,
@@ -2195,12 +2198,14 @@ spa_load_verify(spa_t *spa)
 			    "spa_load_verify_metadata=%u)",
 			    spa_load_verify_data, spa_load_verify_metadata);
 		}
+
 		error = traverse_pool(spa, spa->spa_verify_min_txg,
 		    TRAVERSE_PRE | TRAVERSE_PREFETCH_METADATA |
 		    TRAVERSE_NO_DECRYPT, spa_load_verify_cb, rio);
 	}
 
 	(void) zio_wait(rio);
+	ASSERT0(spa->spa_load_verify_bytes);
 
 	spa->spa_load_meta_errors = sle.sle_meta_count;
 	spa->spa_load_data_errors = sle.sle_data_count;
@@ -2562,7 +2567,7 @@ spa_activity_check_duration(spa_t *spa, uberblock_t *ub)
 
 	} else if (MMP_VALID(ub)) {
 		/*
-		 * zfs-0.7 compatability case
+		 * zfs-0.7 compatibility case
 		 */
 
 		import_delay = MAX(import_delay, (multihost_interval +
@@ -3857,7 +3862,7 @@ spa_ld_check_for_config_update(spa_t *spa, uint64_t config_cache_txg,
 			need_update = B_TRUE;
 
 	/*
-	 * Update the config cache asychronously in case we're the
+	 * Update the config cache asynchronously in case we're the
 	 * root pool, in which case the config cache isn't writable yet.
 	 */
 	if (need_update)
@@ -4170,7 +4175,7 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport)
 			return (error);
 
 		/*
-		 * Redo the loading process process again with the
+		 * Redo the loading process again with the
 		 * checkpointed uberblock.
 		 */
 		spa_ld_prepare_for_reload(spa);
@@ -5129,6 +5134,7 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	uint64_t version, obj;
 	boolean_t has_features;
 	boolean_t has_encryption;
+	boolean_t has_allocclass;
 	spa_feature_t feat;
 	char *feat_name;
 	char *poolname;
@@ -5173,6 +5179,7 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 
 	has_features = B_FALSE;
 	has_encryption = B_FALSE;
+	has_allocclass = B_FALSE;
 	for (nvpair_t *elem = nvlist_next_nvpair(props, NULL);
 	    elem != NULL; elem = nvlist_next_nvpair(props, elem)) {
 		if (zpool_prop_feature(nvpair_name(elem))) {
@@ -5182,6 +5189,8 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 			VERIFY0(zfeature_lookup_name(feat_name, &feat));
 			if (feat == SPA_FEATURE_ENCRYPTION)
 				has_encryption = B_TRUE;
+			if (feat == SPA_FEATURE_ALLOCATION_CLASSES)
+				has_allocclass = B_TRUE;
 		}
 	}
 
@@ -5194,6 +5203,12 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 			mutex_exit(&spa_namespace_lock);
 			return (error);
 		}
+	}
+	if (!has_allocclass && zfs_special_devs(nvroot)) {
+		spa_deactivate(spa);
+		spa_remove(spa);
+		mutex_exit(&spa_namespace_lock);
+		return (ENOTSUP);
 	}
 
 	if (has_features || nvlist_lookup_uint64(props,
@@ -7919,7 +7934,7 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 		case ZPOOL_PROP_READONLY:
 		case ZPOOL_PROP_CACHEFILE:
 			/*
-			 * 'readonly' and 'cachefile' are also non-persisitent
+			 * 'readonly' and 'cachefile' are also non-persistent
 			 * properties.
 			 */
 			break;
@@ -8730,7 +8745,7 @@ EXPORT_SYMBOL(spa_inject_delref);
 EXPORT_SYMBOL(spa_scan_stat_init);
 EXPORT_SYMBOL(spa_scan_get_stats);
 
-/* device maniion */
+/* device manipulation */
 EXPORT_SYMBOL(spa_vdev_add);
 EXPORT_SYMBOL(spa_vdev_attach);
 EXPORT_SYMBOL(spa_vdev_detach);
@@ -8769,9 +8784,11 @@ EXPORT_SYMBOL(spa_event_notify);
 #endif
 
 #if defined(_KERNEL)
-module_param(spa_load_verify_maxinflight, int, 0644);
-MODULE_PARM_DESC(spa_load_verify_maxinflight,
-	"Max concurrent traversal I/Os while verifying pool during import -X");
+/* BEGIN CSTYLED */
+module_param(spa_load_verify_shift, int, 0644);
+MODULE_PARM_DESC(spa_load_verify_shift, "log2(fraction of arc that can "
+	"be used by inflight I/Os when verifying pool during import");
+/* END CSTYLED */
 
 module_param(spa_load_verify_metadata, int, 0644);
 MODULE_PARM_DESC(spa_load_verify_metadata,

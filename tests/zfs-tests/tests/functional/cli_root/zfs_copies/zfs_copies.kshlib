@@ -50,19 +50,6 @@ function cmp_prop
 }
 
 #
-# Get the value of property used via zfs list
-# $1, the dataset name
-#
-function get_used_prop
-{
-	typeset ds=$1
-	typeset used
-
-	used=`zfs list -H -p -o used $ds`
-	echo $used
-}
-
-#
 # Check the used space is charged correctly
 # $1, the number of used space
 # $2, the expected common factor between the used space and the file space
@@ -85,64 +72,72 @@ function check_used
 
 #
 # test ncopies on volume
-# $1  test type zfs|ufs, default zfs
+# $1  test type zfs|ufs|ext2
 # $2  copies
-# $3  mntp for ufs test
+# $3  mntp for ufs|ext2 test
 function do_vol_test
 {
 	typeset type=$1
-	typeset copy=$2
+	typeset copies=$2
 	typeset mntp=$3
 
 	vol=$TESTPOOL/$TESTVOL1
 	vol_b_path=$ZVOL_DEVDIR/$TESTPOOL/$TESTVOL1
 	vol_r_path=$ZVOL_RDEVDIR/$TESTPOOL/$TESTVOL1
 
-	log_must zfs create -V $VOLSIZE -o copies=$copy $vol
+	log_must zfs create -V $VOLSIZE -o copies=$copies $vol
 	log_must zfs set refreservation=none $vol
 	block_device_wait
 
-	if [[ $type == "ufs" ]]; then
-		log_must echo y | newfs $vol_r_path >/dev/null 2>&1
-		log_must mount -F ufs -o rw $vol_b_path $mntp
-	elif [[ $type == "ext2" ]]; then
-		log_must echo y | newfs $vol_r_path >/dev/null 2>&1
+	case "$type" in
+	"ext2")
+		log_must eval "echo y | newfs $vol_r_path >/dev/null 2>&1"
 		log_must mount -o rw $vol_b_path $mntp
-	else
+		;;
+	"ufs")
+		if is_linux; then
+			log_unsupported "ufs test not implemented for linux"
+		fi
+		log_must eval "newfs $vol_r_path >/dev/null 2>&1"
+		log_must mount $vol_b_path $mntp
+		;;
+	"zfs")
 		log_must zpool create $TESTPOOL1 $vol_b_path
 		log_must zfs create $TESTPOOL1/$TESTFS1
-	fi
+		;;
+	*)
+		log_unsupported "$type test not implemented"
+		;;
+	esac
 
-	((nfilesize = copy * ${FILESIZE%m}))
-	pre_used=$(get_used_prop $vol)
+	((nfilesize = copies * ${FILESIZE%m}))
+	pre_used=$(get_prop used $vol)
 	((target_size = pre_used + nfilesize))
 
-	if [[ $type == "ufs" ]]; then
-		log_must mkfile $FILESIZE $mntp/$FILE
-	elif [[ $type == "ext2" ]]; then
-		log_must mkfile $FILESIZE $mntp/$FILE
-	else
+	if [[ $type == "zfs" ]]; then
 		log_must mkfile $FILESIZE /$TESTPOOL1/$TESTFS1/$FILE
+	else
+		log_must mkfile $FILESIZE $mntp/$FILE
 	fi
 
-	post_used=$(get_used_prop $vol)
-	while ((post_used < target_size)) ; do
+	post_used=$(get_prop used $vol)
+	((retries = 0))
+	while ((post_used < target_size && retries++ < 42)); do
 		sleep 1
-		post_used=$(get_used_prop $vol)
+		post_used=$(get_prop used $vol)
 	done
 
 	((used = post_used - pre_used))
 	if ((used < nfilesize)); then
 		log_fail "The space is not charged correctly while setting" \
-		    "copies as $copy"
+		    "copies as $copies ($used < $nfilesize)" \
+		    "pre=${pre_used} post=${post_used}"
 	fi
 
-	if [[ $type == "ufs" ]]; then
-		umount $mntp
-	elif [[ $type == "ext2" ]]; then
-		umount $mntp
-	else
+	if [[ $type == "zfs" ]]; then
 		log_must zpool destroy $TESTPOOL1
+	else
+		log_must umount $mntp
 	fi
 
 	log_must zfs destroy $vol

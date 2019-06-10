@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -80,7 +80,7 @@ typedef struct zil_header {
  * Log blocks are chained together. Originally they were chained at the
  * end of the block. For performance reasons the chain was moved to the
  * beginning of the block which allows writes for only the data being used.
- * The older position is supported for backwards compatability.
+ * The older position is supported for backwards compatibility.
  *
  * The zio_eck_t contains a zec_cksum which for the intent log is
  * the sequence number of this log block. A seq of 0 is invalid.
@@ -421,7 +421,7 @@ typedef struct zil_stats {
 
 	/*
 	 * Number of transactions (reads, writes, renames, etc.)
-	 * that have been commited.
+	 * that have been committed.
 	 */
 	kstat_named_t zil_itx_count;
 
@@ -514,6 +514,9 @@ extern int	zil_bp_tree_add(zilog_t *zilog, const blkptr_t *bp);
 extern void	zil_set_sync(zilog_t *zilog, uint64_t syncval);
 
 extern void	zil_set_logbias(zilog_t *zilog, uint64_t slogval);
+
+extern uint64_t	zil_max_copied_data(zilog_t *zilog);
+extern uint64_t	zil_max_log_data(zilog_t *zilog);
 
 extern int zil_replay_disable;
 

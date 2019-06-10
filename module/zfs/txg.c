@@ -644,8 +644,8 @@ txg_quiesce_thread(void *arg)
 
 /*
  * Delay this thread by delay nanoseconds if we are still in the open
- * transaction group and there is already a waiting txg quiesing or quiesced.
- * Abort the delay if this txg stalls or enters the quiesing state.
+ * transaction group and there is already a waiting txg quiescing or quiesced.
+ * Abort the delay if this txg stalls or enters the quiescing state.
  */
 void
 txg_delay(dsl_pool_t *dp, uint64_t txg, hrtime_t delay, hrtime_t resolution)
@@ -675,8 +675,8 @@ txg_delay(dsl_pool_t *dp, uint64_t txg, hrtime_t delay, hrtime_t resolution)
 	mutex_exit(&tx->tx_sync_lock);
 }
 
-void
-txg_wait_synced(dsl_pool_t *dp, uint64_t txg)
+static boolean_t
+txg_wait_synced_impl(dsl_pool_t *dp, uint64_t txg, boolean_t wait_sig)
 {
 	tx_state_t *tx = &dp->dp_tx;
 
@@ -695,9 +695,39 @@ txg_wait_synced(dsl_pool_t *dp, uint64_t txg)
 		    "tx_synced=%llu waiting=%llu dp=%p\n",
 		    tx->tx_synced_txg, tx->tx_sync_txg_waiting, dp);
 		cv_broadcast(&tx->tx_sync_more_cv);
-		cv_wait_io(&tx->tx_sync_done_cv, &tx->tx_sync_lock);
+		if (wait_sig) {
+			/*
+			 * Condition wait here but stop if the thread receives a
+			 * signal. The caller may call txg_wait_synced*() again
+			 * to resume waiting for this txg.
+			 */
+			if (cv_wait_io_sig(&tx->tx_sync_done_cv,
+			    &tx->tx_sync_lock) == 0) {
+				mutex_exit(&tx->tx_sync_lock);
+				return (B_TRUE);
+			}
+		} else {
+			cv_wait_io(&tx->tx_sync_done_cv, &tx->tx_sync_lock);
+		}
 	}
 	mutex_exit(&tx->tx_sync_lock);
+	return (B_FALSE);
+}
+
+void
+txg_wait_synced(dsl_pool_t *dp, uint64_t txg)
+{
+	VERIFY0(txg_wait_synced_impl(dp, txg, B_FALSE));
+}
+
+/*
+ * Similar to a txg_wait_synced but it can be interrupted from a signal.
+ * Returns B_TRUE if the thread was signaled while waiting.
+ */
+boolean_t
+txg_wait_synced_sig(dsl_pool_t *dp, uint64_t txg)
+{
+	return (txg_wait_synced_impl(dp, txg, B_TRUE));
 }
 
 /*
@@ -738,7 +768,7 @@ txg_wait_open(dsl_pool_t *dp, uint64_t txg, boolean_t should_quiesce)
 
 /*
  * If there isn't a txg syncing or in the pipeline, push another txg through
- * the pipeline by queiscing the open txg.
+ * the pipeline by quiescing the open txg.
  */
 void
 txg_kick(dsl_pool_t *dp)

@@ -159,7 +159,7 @@ Skein_256_Process_Block(Skein_256_Ctxt_t *ctx, const uint8_t *blkPtr,
 	ts[r + (R) + 2] = ts[r + (R) - 1];			\
 	Skein_Show_R_Ptr(BLK_BITS, &ctx->h, SKEIN_RND_KEY_INJECT, Xptr);
 
-		/* loop thru it */
+		/* loop through it */
 		for (r = 1; r < 2 * RCNT; r += 2 * SKEIN_UNROLL_256)
 #endif
 		{
@@ -385,7 +385,7 @@ Skein_512_Process_Block(Skein_512_Ctxt_t *ctx, const uint8_t *blkPtr,
 	ts[r + (R)+2] = ts[r + (R) - 1];				\
 	Skein_Show_R_Ptr(BLK_BITS, &ctx->h, SKEIN_RND_KEY_INJECT, Xptr);
 
-		/* loop thru it */
+		/* loop through it */
 		for (r = 1; r < 2 * RCNT; r += 2 * SKEIN_UNROLL_512)
 #endif				/* end of looped code definitions */
 		{
@@ -667,7 +667,7 @@ Skein1024_Process_Block(Skein1024_Ctxt_t *ctx, const uint8_t *blkPtr,
 	ts[r + (R) + 2] = ts[r + (R) - 1];				\
 	Skein_Show_R_Ptr(BLK_BITS, &ctx->h, SKEIN_RND_KEY_INJECT, Xptr);
 
-		/* loop thru it */
+		/* loop through it */
 		for (r = 1; r <= 2 * RCNT; r += 2 * SKEIN_UNROLL_1024)
 #endif
 		{

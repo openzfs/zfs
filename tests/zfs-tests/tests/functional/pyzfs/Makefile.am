@@ -7,7 +7,7 @@ EXTRA_DIST = \
 
 #
 # The pyzfs module is built either for Python 2 or Python 3.  In order
-# to properly test it the unit tests must be updated to the matching vesion.
+# to properly test it the unit tests must be updated to the matching version.
 #
 $(pkgpyzfs_SCRIPTS):%:%.in
 	-$(SED) -e 's,@PYTHON\@,$(PYTHON),g' \
