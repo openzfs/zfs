@@ -4099,7 +4099,9 @@ zbookmark_mem_compare(const void *a, const void *b)
 
 /*
  * Retrieve the persistent error log, uniquify the members, and return to the
- * caller.
+ * caller. Return nvlist_t is a list of corrupted objects. Each entity in
+ * nvlist_t contains four elements: dataset number, object number, an array of
+ * corrupted blockids and another array of corresponding level.
  */
 int
 zpool_get_errlog(zpool_handle_t *zhp, nvlist_t **nverrlistp)
@@ -4108,7 +4110,7 @@ zpool_get_errlog(zpool_handle_t *zhp, nvlist_t **nverrlistp)
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
 	uint64_t count;
 	zbookmark_phys_t *zb = NULL;
-	int i;
+	uint64_t i;
 
 	/*
 	 * Retrieve the raw error list from the kernel.  If the number of errors
@@ -4160,39 +4162,78 @@ zpool_get_errlog(zpool_handle_t *zhp, nvlist_t **nverrlistp)
 	verify(nvlist_alloc(nverrlistp, 0, KM_SLEEP) == 0);
 
 	/*
-	 * Fill in the nverrlistp with nvlist's of dataset and object numbers.
+	 * Fill in the nverrlistp with nvlist's of dataset number, object number
+	 * level position, and block id.
 	 */
+	nvlist_t *object_nv;
+	uint64_t *object_block_ids = zfs_alloc(zhp->zpool_hdl,
+	    count * sizeof (uint64_t));
+	int64_t *object_indirect_levels = zfs_alloc(zhp->zpool_hdl,
+	    count * sizeof (int64_t));
+	uint64_t object_errors = 0;
 	for (i = 0; i < count; i++) {
-		nvlist_t *nv;
+		if (i == 0 || zb[i - 1].zb_objset != zb[i].zb_objset ||
+		    zb[i - 1].zb_object != zb[i].zb_object) {
+			if (i != 0) {
+				if (nvlist_add_uint64_array(object_nv,
+				    ZPOOL_ERR_BLOCKID, object_block_ids,
+				    object_errors) != 0) {
+					goto nomem;
+				}
+				if (nvlist_add_int64_array(object_nv,
+				    ZPOOL_ERR_LEVEL, object_indirect_levels,
+				    object_errors) != 0) {
+					goto nomem;
+				}
+				if (nvlist_add_nvlist(*nverrlistp,
+				    ZPOOL_CONFIG_ERRLIST, object_nv) != 0) {
+					goto nomem;
+				}
+				nvlist_free(object_nv);
+				object_errors = 0;
+			}
 
-		/* ignoring zb_blkid and zb_level for now */
-		if (i > 0 && zb[i-1].zb_objset == zb[i].zb_objset &&
-		    zb[i-1].zb_object == zb[i].zb_object)
-			continue;
-
-		if (nvlist_alloc(&nv, NV_UNIQUE_NAME, KM_SLEEP) != 0)
-			goto nomem;
-		if (nvlist_add_uint64(nv, ZPOOL_ERR_DATASET,
-		    zb[i].zb_objset) != 0) {
-			nvlist_free(nv);
-			goto nomem;
+			if (nvlist_alloc(&object_nv, NV_UNIQUE_NAME,
+			    KM_SLEEP) != 0)
+				goto nomem;
+			if (nvlist_add_uint64(object_nv, ZPOOL_ERR_DATASET,
+			    zb[i].zb_objset) != 0) {
+				goto nomem;
+			}
+			if (nvlist_add_uint64(object_nv, ZPOOL_ERR_OBJECT,
+			    zb[i].zb_object) != 0) {
+				goto nomem;
+			}
 		}
-		if (nvlist_add_uint64(nv, ZPOOL_ERR_OBJECT,
-		    zb[i].zb_object) != 0) {
-			nvlist_free(nv);
-			goto nomem;
-		}
-		if (nvlist_add_nvlist(*nverrlistp, "ejk", nv) != 0) {
-			nvlist_free(nv);
-			goto nomem;
-		}
-		nvlist_free(nv);
+		object_block_ids[object_errors] = zb[i].zb_blkid;
+		object_indirect_levels[object_errors] = zb[i].zb_level;
+		object_errors++;
 	}
-
+	if (object_errors > 0) {
+		if (nvlist_add_uint64_array(object_nv, ZPOOL_ERR_BLOCKID,
+		    object_block_ids, object_errors) != 0) {
+			goto nomem;
+		}
+		if (nvlist_add_int64_array(object_nv, ZPOOL_ERR_LEVEL,
+		    object_indirect_levels, object_errors) != 0) {
+			goto nomem;
+		}
+		if (nvlist_add_nvlist(*nverrlistp, ZPOOL_CONFIG_ERRLIST,
+		    object_nv) != 0) {
+			goto nomem;
+		}
+		nvlist_free(object_nv);
+		object_errors = 0;
+	}
+	free(object_block_ids);
+	free(object_indirect_levels);
 	free((void *)(uintptr_t)zc.zc_nvlist_dst);
 	return (0);
 
 nomem:
+	nvlist_free(object_nv);
+	free(object_block_ids);
+	free(object_indirect_levels);
 	free((void *)(uintptr_t)zc.zc_nvlist_dst);
 	return (no_memory(zhp->zpool_hdl));
 }
@@ -4527,6 +4568,33 @@ zpool_obj_to_path(zpool_handle_t *zhp, uint64_t dsobj, uint64_t obj,
 		    (longlong_t)obj);
 	}
 	free(mntpnt);
+}
+
+/*
+ * Given an dataset object number, return data block and indirect block size.
+ */
+int
+zpool_get_block_size(zpool_handle_t *zhp, uint64_t dsobj, uint64_t obj,
+    uint64_t *data_blk_size, uint64_t *indrt_blk_size)
+{
+	zfs_cmd_t zc = {"\0"};
+	/* get the dataset's name */
+	zc.zc_obj = dsobj;
+	(void) strlcpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
+	int error = ioctl(zhp->zpool_hdl->libzfs_fd,
+	    ZFS_IOC_DSOBJ_TO_DSNAME, &zc);
+	if (error != 0) {
+		return (error);
+	}
+	/* get data block and indirect block size */
+	(void) strlcpy(zc.zc_name, zc.zc_value, sizeof (zc.zc_name));
+	zc.zc_obj = obj;
+	error = ioctl(zhp->zpool_hdl->libzfs_fd, ZFS_IOC_OBJ_TO_STATS, &zc);
+	if (error == 0) {
+		*data_blk_size = zc.zc_stat.zs_data_block_size;
+		*indrt_blk_size = zc.zc_stat.zs_indirect_block_size;
+	}
+	return (error);
 }
 
 /*

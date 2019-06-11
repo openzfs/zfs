@@ -2071,6 +2071,11 @@ zfs_obj_to_stats_impl(sa_handle_t *hdl, sa_attr_type_t *sa_table,
 	sa_bulk_attr_t bulk[4];
 	int count = 0;
 
+	dmu_object_info_t doi;
+	sa_object_info(hdl, &doi);
+	sb->zs_data_block_size = doi.doi_data_block_size;
+	sb->zs_indirect_block_size = doi.doi_metadata_block_size;
+
 	SA_ADD_BULK_ATTR(bulk, count, sa_table[ZPL_MODE], NULL,
 	    &sb->zs_mode, sizeof (sb->zs_mode));
 	SA_ADD_BULK_ATTR(bulk, count, sa_table[ZPL_GEN], NULL,

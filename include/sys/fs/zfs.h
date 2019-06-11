@@ -675,6 +675,7 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_VDEV_ENC_SYSFS_PATH	"vdev_enc_sysfs_path"
 
 #define	ZPOOL_CONFIG_WHOLE_DISK		"whole_disk"
+#define	ZPOOL_CONFIG_ERRLIST		"error_list"
 #define	ZPOOL_CONFIG_ERRCOUNT		"error_count"
 #define	ZPOOL_CONFIG_NOT_PRESENT	"not_present"
 #define	ZPOOL_CONFIG_SPARES		"spares"
@@ -1346,6 +1347,8 @@ typedef enum {
 #define	ZPOOL_ERR_LIST		"error list"
 #define	ZPOOL_ERR_DATASET	"dataset"
 #define	ZPOOL_ERR_OBJECT	"object"
+#define	ZPOOL_ERR_LEVEL		"level"
+#define	ZPOOL_ERR_BLOCKID	"block id"
 
 #define	HIS_MAX_RECORD_LEN	(MAXPATHLEN + MAXPATHLEN + 1)
 

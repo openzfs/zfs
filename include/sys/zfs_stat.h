@@ -44,6 +44,8 @@ typedef struct zfs_stat {
 	uint64_t	zs_mode;
 	uint64_t	zs_links;
 	uint64_t	zs_ctime[2];
+	uint64_t	zs_data_block_size;
+	uint64_t	zs_indirect_block_size;
 } zfs_stat_t;
 
 extern int zfs_obj_to_stats(objset_t *osp, uint64_t obj, zfs_stat_t *sb,
