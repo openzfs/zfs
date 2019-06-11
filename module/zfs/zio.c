@@ -345,12 +345,6 @@ zio_push_transform(zio_t *zio, abd_t *data, uint64_t size, uint64_t bufsize,
 {
 	zio_transform_t *zt = kmem_alloc(sizeof (zio_transform_t), KM_SLEEP);
 
-	/*
-	 * Ensure that anyone expecting this zio to contain a linear ABD isn't
-	 * going to get a nasty surprise when they try to access the data.
-	 */
-	IMPLY(abd_is_linear(zio->io_abd), abd_is_linear(data));
-
 	zt->zt_orig_abd = zio->io_abd;
 	zt->zt_orig_size = zio->io_size;
 	zt->zt_bufsize = bufsize;
