@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2014 by Chunwei Chen. All rights reserved.
- * Copyright (c) 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2016, 2019 by Delphix. All rights reserved.
  */
 
 #ifndef _ABD_H
@@ -44,7 +44,8 @@ typedef enum abd_flags {
 	ABD_FLAG_OWNER	= 1 << 1,	/* does it own its data buffers? */
 	ABD_FLAG_META	= 1 << 2,	/* does this represent FS metadata? */
 	ABD_FLAG_MULTI_ZONE  = 1 << 3,	/* pages split over memory zones */
-	ABD_FLAG_MULTI_CHUNK = 1 << 4	/* pages split over multiple chunks */
+	ABD_FLAG_MULTI_CHUNK = 1 << 4,	/* pages split over multiple chunks */
+	ABD_FLAG_LINEAR_PAGE = 1 << 5,	/* linear but allocd from page */
 } abd_flags_t;
 
 typedef struct abd {
@@ -60,6 +61,7 @@ typedef struct abd {
 		} abd_scatter;
 		struct abd_linear {
 			void		*abd_buf;
+			struct scatterlist *abd_sgl; /* for LINEAR_PAGE */
 		} abd_linear;
 	} abd_u;
 } abd_t;
@@ -73,6 +75,13 @@ static inline boolean_t
 abd_is_linear(abd_t *abd)
 {
 	return ((abd->abd_flags & ABD_FLAG_LINEAR) != 0 ? B_TRUE : B_FALSE);
+}
+
+static inline boolean_t
+abd_is_linear_page(abd_t *abd)
+{
+	return ((abd->abd_flags & ABD_FLAG_LINEAR_PAGE) != 0 ?
+	    B_TRUE : B_FALSE);
 }
 
 /*

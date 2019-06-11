@@ -2917,7 +2917,8 @@ arc_buf_alloc_impl(arc_buf_hdr_t *hdr, spa_t *spa, const zbookmark_phys_t *zb,
 	/*
 	 * If the hdr's data can be shared then we share the data buffer and
 	 * set the appropriate bit in the hdr's b_flags to indicate the hdr is
-	 * allocate a new buffer to store the buf's data.
+	 * sharing it's b_pabd with the arc_buf_t. Otherwise, we allocate a new
+	 * buffer to store the buf's data.
 	 *
 	 * There are two additional restrictions here because we're sharing
 	 * hdr -> buf instead of the usual buf -> hdr. First, the hdr can't be
@@ -2925,10 +2926,17 @@ arc_buf_alloc_impl(arc_buf_hdr_t *hdr, spa_t *spa, const zbookmark_phys_t *zb,
 	 * an arc_write() then the hdr's data buffer will be released when the
 	 * write completes, even though the L2ARC write might still be using it.
 	 * Second, the hdr's ABD must be linear so that the buf's user doesn't
-	 * need to be ABD-aware.
+	 * need to be ABD-aware.  It must be allocated via
+	 * zio_[data_]buf_alloc(), not as a page, because we need to be able
+	 * to abd_release_ownership_of_buf(), which isn't allowed on "linear
+	 * page" buffers because the ABD code needs to handle freeing them
+	 * specially.
 	 */
-	boolean_t can_share = arc_can_share(hdr, buf) && !HDR_L2_WRITING(hdr) &&
-	    hdr->b_l1hdr.b_pabd != NULL && abd_is_linear(hdr->b_l1hdr.b_pabd);
+	boolean_t can_share = arc_can_share(hdr, buf) &&
+	    !HDR_L2_WRITING(hdr) &&
+	    hdr->b_l1hdr.b_pabd != NULL &&
+	    abd_is_linear(hdr->b_l1hdr.b_pabd) &&
+	    !abd_is_linear_page(hdr->b_l1hdr.b_pabd);
 
 	/* Set up b_data and sharing */
 	if (can_share) {
@@ -3731,7 +3739,6 @@ arc_alloc_compressed_buf(spa_t *spa, void *tag, uint64_t psize, uint64_t lsize,
 		 * disk, it's easiest if we just set up sharing between the
 		 * buf and the hdr.
 		 */
-		ASSERT(!abd_is_linear(hdr->b_l1hdr.b_pabd));
 		arc_hdr_free_abd(hdr, B_FALSE);
 		arc_share_buf(hdr, buf);
 	}
