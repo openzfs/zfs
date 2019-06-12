@@ -81,6 +81,13 @@ int zfs_dmu_offset_next_sync = 0;
  */
 int zfs_object_remap_one_indirect_delay_ms = 0;
 
+/*
+ * Limit the amount we can prefetch with one call to this amount.  This
+ * helps to limit the amount of memory that can be used by prefetching.
+ * Larger objects should be prefetched a bit at a time.
+ */
+int dmu_prefetch_max = 8 * SPA_MAXBLOCKSIZE;
+
 const dmu_object_type_info_t dmu_ot[DMU_OT_NUMTYPES] = {
 	{DMU_BSWAP_UINT8,  TRUE,  FALSE, FALSE, "unallocated"		},
 	{DMU_BSWAP_ZAP,    TRUE,  TRUE,  FALSE, "object directory"	},
@@ -666,6 +673,11 @@ dmu_prefetch(objset_t *os, uint64_t object, int64_t level, uint64_t offset,
 		rw_exit(&dn->dn_struct_rwlock);
 		return;
 	}
+
+	/*
+	 * See comment before the definition of dmu_prefetch_max.
+	 */
+	len = MIN(len, dmu_prefetch_max);
 
 	/*
 	 * XXX - Note, if the dnode for the requested object is not
@@ -2628,6 +2640,10 @@ MODULE_PARM_DESC(zfs_per_txg_dirty_frees_percent,
 module_param(zfs_dmu_offset_next_sync, int, 0644);
 MODULE_PARM_DESC(zfs_dmu_offset_next_sync,
 	"Enable forcing txg sync to find holes");
+
+module_param(dmu_prefetch_max, int, 0644);
+MODULE_PARM_DESC(dmu_prefetch_max,
+	"Limit one prefetch call to this size");
 
 /* END CSTYLED */
 
