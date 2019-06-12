@@ -2470,6 +2470,76 @@ would normally be. Since compression is applied before encryption datasets may
 be vulnerable to a CRIME-like attack if applications accessing the data allow
 for it. Deduplication with encryption will leak information about which blocks
 are equivalent in a dataset and will incur an extra CPU cost per block written.
+.Ss Redaction
+ZFS has support for a limited version of data subsetting, in the form of
+redaction. Using the
+.Sy zfs redact
+command, a
+.Sy redaction bookmark
+can be created that stores a list of blocks containing sensitive information. When
+provided to
+.Sy zfs
+.Sy send ,
+this causes a
+.Sy redacted send
+to occur. Redacted sends omit the blocks containing sensitive information,
+replacing them with REDACT records. When these send streams are received, a
+.Sy redacted dataset
+is created. A redacted dataset cannot be mounted by default, since it is
+incomplete. It can be used to receive other send streams. In this way datasets
+can be used for data backup and replication, with all the benefits that zfs send
+and receive have to offer, while protecting sensitive information from being
+stored on less-trusted machines or services.
+.Pp
+For the purposes of redaction, there are two steps to the process. A redact
+step, and a send/receive step. First, a redaction bookmark is created. This is
+done by providing the
+.Sy zfs redact
+command with a parent snapshot, a bookmark to be created, and a number of
+redaction snapshots. These redaction snapshots must be descendants of the
+parent snapshot, and they should modify data that is considered sensitive in
+some way. Any blocks of data modified by all of the redaction snapshots will
+be listed in the redaction bookmark, because it represents the truly sensitive
+information. When it comes to the send step, the send process will not send
+the blocks listed in the redaction bookmark, instead replacing them with
+REDACT records. When received on the target system, this will create a
+redacted dataset, missing the data that corresponds to the blocks in the
+redaction bookmark on the sending system. The incremental send streams from
+the original parent to the redaction snapshots can then also be received on
+the target system, and this will produce a complete snapshot that can be used
+normally. Incrementals from one snapshot on the parent filesystem and another
+can also be done by sending from the redaction bookmark, rather than the
+snapshots themselves.
+.Pp
+In order to make the purpose of the feature more clear, an example is
+provided. Consider a zfs filesystem containing four files. These files
+represent information for an online shopping service. One file contains a list
+of usernames and passwords, another contains purchase histories, a third
+contains click tracking data, and a fourth contains user preferences.  The
+owner of this data wants to make it available for their development teams to
+test against, and their market research teams to do analysis on.  The
+development teams need information about user preferences and the click
+tracking data, while the market research teams need information about purchase
+histories and user preferences. Neither needs access to the usernames and
+passwords. However, because all of this data is stored in one ZFS filesystem,
+it must all be sent and received together. In addition, the owner of the data
+wants to take advantage of features like compression, checksumming, and
+snapshots, so they do want to continue to use ZFS to store and transmit their
+data.  Redaction can help them do so. First, they would make two clones of a
+snapshot of the data on the source. In one clone, they create the setup they
+want their market research team to see; they delete the usernames and
+passwords file, and overwrite the click tracking data with dummy
+information. In another, they create the setup they want the development teams
+to see, by replacing the passwords with fake information and replacing the
+purchase histories with randomly generated ones.  They would then create a
+redaction bookmark on the parent snapshot, using snapshots on the two clones
+as redaction snapshots. The parent can then be sent, redacted, to the target
+server where the research and development teams have access. Finally,
+incremental sends from the parent snapshot to each of the clones can be send
+to and received on the target server; these snapshots are identical to the
+ones on the source, and are ready to be used, while the parent snapshot on the
+target contains none of the username and password data present on the source,
+because it was removed by the redacted send operation.
 .Sh SUBCOMMANDS
 All subcommands that modify state are logged persistently to the pool in their
 original form.
