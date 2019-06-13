@@ -197,6 +197,16 @@ zfs_validate_name(libzfs_handle_t *hdl, const char *path, int type,
 				    "reserved disk name"));
 				break;
 
+			case NAME_ERR_SELF_REF:
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "self reference, '.' is found in name"));
+				break;
+
+			case NAME_ERR_PARENT_REF:
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "parent reference, '..' is found in name"));
+				break;
+
 			default:
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "(%d) not defined"), why);
