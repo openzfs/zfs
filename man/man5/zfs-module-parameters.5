@@ -2444,9 +2444,21 @@ Default value: \fB25\fR.
 \fBzfs_sync_pass_dont_compress\fR (int)
 .ad
 .RS 12n
-Don't compress starting in this pass
+Starting in this sync pass, we disable compression (including of metadata). 
+With the default setting, in practice, we don't have this many sync passes,
+so this has no effect.
 .sp
-Default value: \fB5\fR.
+The original intent was that disabling compression would help the sync passes
+to converge. However, in practice disabling compression increases the average
+number of sync passes, because when we turn compression off, a lot of block's
+size will change and thus we have to re-allocate (not overwrite) them. It
+also increases the number of 128KB allocations (e.g. for indirect blocks and
+spacemaps) because these will not be compressed. The 128K allocations are
+especially detrimental to performance on highly fragmented systems, which may
+have very few free segments of this size, and may need to load new metaslabs
+to satisfy 128K allocations.
+.sp
+Default value: \fB8\fR.
 .RE
 
 .sp

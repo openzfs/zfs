@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2019 by Delphix. All rights reserved.
  * Copyright (c) 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
  */
@@ -96,9 +96,23 @@ int zio_slow_io_ms = (30 * MILLISEC);
  *
  * The 'zfs_sync_pass_deferred_free' pass must be greater than 1 to ensure that
  * regular blocks are not deferred.
+ *
+ * Starting in sync pass 8 (zfs_sync_pass_dont_compress), we disable
+ * compression (including of metadata).  In practice, we don't have this
+ * many sync passes, so this has no effect.
+ *
+ * The original intent was that disabling compression would help the sync
+ * passes to converge. However, in practice disabling compression increases
+ * the average number of sync passes, because when we turn compression off, a
+ * lot of block's size will change and thus we have to re-allocate (not
+ * overwrite) them. It also increases the number of 128KB allocations (e.g.
+ * for indirect blocks and spacemaps) because these will not be compressed.
+ * The 128K allocations are especially detrimental to performance on highly
+ * fragmented systems, which may have very few free segments of this size,
+ * and may need to load new metaslabs to satisfy 128K allocations.
  */
 int zfs_sync_pass_deferred_free = 2; /* defer frees starting in this pass */
-int zfs_sync_pass_dont_compress = 5; /* don't compress starting in this pass */
+int zfs_sync_pass_dont_compress = 8; /* don't compress starting in this pass */
 int zfs_sync_pass_rewrite = 2; /* rewrite new bps starting in this pass */
 
 /*
