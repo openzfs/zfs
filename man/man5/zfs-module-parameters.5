@@ -328,6 +328,40 @@ Use \fB1\fR for yes (default) and \fB0\fR for no.
 .sp
 .ne 2
 .na
+\fBmetaslab_df_max_search\fR (int)
+.ad
+.RS 12n
+Maximum distance to search forward from the last offset. Without this limit,
+fragmented pools can see >100,000 iterations and metaslab_block_picker()
+becomes the performance limiting factor on high-performance storage.
+
+With the default setting of 16MB, we typically see less than 500 iterations,
+even with very fragmented, ashift=9 pools. The maximum number of iterations
+possible is: \fBmetaslab_df_max_search / (2 * (1<<ashift))\fR.
+With the default setting of 16MB this is 16*1024 (with ashift=9) or 2048
+(with ashift=12).
+.sp
+Default value: \fB16,777,216\fR (16MB)
+.RE
+
+.sp
+.ne 2
+.na
+\fBmetaslab_df_use_largest_segment\fR (int)
+.ad
+.RS 12n
+If we are not searching forward (due to metaslab_df_max_search,
+metaslab_df_free_pct, or metaslab_df_alloc_threshold), this tunable controls
+what segment is used.  If it is set, we will use the largest free segment. 
+If it is not set, we will use a segment of exactly the requested size (or
+larger).
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_vdev_default_ms_count\fR (int)
 .ad
 .RS 12n

@@ -160,6 +160,30 @@ uint64_t metaslab_df_alloc_threshold = SPA_OLD_MAXBLOCKSIZE;
 int metaslab_df_free_pct = 4;
 
 /*
+ * Maximum distance to search forward from the last offset. Without this
+ * limit, fragmented pools can see >100,000 iterations and
+ * metaslab_block_picker() becomes the performance limiting factor on
+ * high-performance storage.
+ *
+ * With the default setting of 16MB, we typically see less than 500
+ * iterations, even with very fragmented, ashift=9 pools. The maximum number
+ * of iterations possible is:
+ *     metaslab_df_max_search / (2 * (1<<ashift))
+ * With the default setting of 16MB this is 16*1024 (with ashift=9) or
+ * 2048 (with ashift=12).
+ */
+int metaslab_df_max_search = 16 * 1024 * 1024;
+
+/*
+ * If we are not searching forward (due to metaslab_df_max_search,
+ * metaslab_df_free_pct, or metaslab_df_alloc_threshold), this tunable
+ * controls what segment is used.  If it is set, we will use the largest free
+ * segment.  If it is not set, we will use a segment of exactly the requested
+ * size (or larger).
+ */
+int metaslab_df_use_largest_segment = B_FALSE;
+
+/*
  * Percentage of all cpus that can be used by the metaslab taskq.
  */
 int metaslab_load_pct = 50;
@@ -1200,8 +1224,7 @@ metaslab_block_find(avl_tree_t *t, uint64_t start, uint64_t size)
 	return (rs);
 }
 
-#if defined(WITH_FF_BLOCK_ALLOCATOR) || \
-    defined(WITH_DF_BLOCK_ALLOCATOR) || \
+#if defined(WITH_DF_BLOCK_ALLOCATOR) || \
     defined(WITH_CF_BLOCK_ALLOCATOR)
 /*
  * This is a helper function that can be used by the allocator to find
@@ -1210,13 +1233,16 @@ metaslab_block_find(avl_tree_t *t, uint64_t start, uint64_t size)
  */
 static uint64_t
 metaslab_block_picker(avl_tree_t *t, uint64_t *cursor, uint64_t size,
-    uint64_t align)
+    uint64_t max_search)
 {
 	range_seg_t *rs = metaslab_block_find(t, *cursor, size);
+	uint64_t first_found;
 
-	while (rs != NULL) {
-		uint64_t offset = P2ROUNDUP(rs->rs_start, align);
+	if (rs != NULL)
+		first_found = rs->rs_start;
 
+	while (rs != NULL && rs->rs_start - first_found <= max_search) {
+		uint64_t offset = rs->rs_start;
 		if (offset + size <= rs->rs_end) {
 			*cursor = offset + size;
 			return (offset);
@@ -1224,55 +1250,30 @@ metaslab_block_picker(avl_tree_t *t, uint64_t *cursor, uint64_t size,
 		rs = AVL_NEXT(t, rs);
 	}
 
-	/*
-	 * If we know we've searched the whole map (*cursor == 0), give up.
-	 * Otherwise, reset the cursor to the beginning and try again.
-	 */
-	if (*cursor == 0)
-		return (-1ULL);
-
 	*cursor = 0;
-	return (metaslab_block_picker(t, cursor, size, align));
+	return (-1ULL);
 }
-#endif /* WITH_FF/DF/CF_BLOCK_ALLOCATOR */
-
-#if defined(WITH_FF_BLOCK_ALLOCATOR)
-/*
- * ==========================================================================
- * The first-fit block allocator
- * ==========================================================================
- */
-static uint64_t
-metaslab_ff_alloc(metaslab_t *msp, uint64_t size)
-{
-	/*
-	 * Find the largest power of 2 block size that evenly divides the
-	 * requested size. This is used to try to allocate blocks with similar
-	 * alignment from the same area of the metaslab (i.e. same cursor
-	 * bucket) but it does not guarantee that other allocations sizes
-	 * may exist in the same region.
-	 */
-	uint64_t align = size & -size;
-	uint64_t *cursor = &msp->ms_lbas[highbit64(align) - 1];
-	avl_tree_t *t = &msp->ms_allocatable->rt_root;
-
-	return (metaslab_block_picker(t, cursor, size, align));
-}
-
-static metaslab_ops_t metaslab_ff_ops = {
-	metaslab_ff_alloc
-};
-
-metaslab_ops_t *zfs_metaslab_ops = &metaslab_ff_ops;
-#endif /* WITH_FF_BLOCK_ALLOCATOR */
+#endif /* WITH_DF/CF_BLOCK_ALLOCATOR */
 
 #if defined(WITH_DF_BLOCK_ALLOCATOR)
 /*
  * ==========================================================================
- * Dynamic block allocator -
- * Uses the first fit allocation scheme until space get low and then
- * adjusts to a best fit allocation method. Uses metaslab_df_alloc_threshold
- * and metaslab_df_free_pct to determine when to switch the allocation scheme.
+ * Dynamic Fit (df) block allocator
+ *
+ * Search for a free chunk of at least this size, starting from the last
+ * offset (for this alignment of block) looking for up to
+ * metaslab_df_max_search bytes (16MB).  If a large enough free chunk is not
+ * found within 16MB, then return a free chunk of exactly the requested size (or
+ * larger).
+ *
+ * If it seems like searching from the last offset will be unproductive, skip
+ * that and just return a free chunk of exactly the requested size (or larger).
+ * This is based on metaslab_df_alloc_threshold and metaslab_df_free_pct.  This
+ * mechanism is probably not very useful and may be removed in the future.
+ *
+ * The behavior when not searching can be changed to return the largest free
+ * chunk, instead of a free chunk of exactly the requested size, by setting
+ * metaslab_df_use_largest_segment.
  * ==========================================================================
  */
 static uint64_t
@@ -1288,28 +1289,42 @@ metaslab_df_alloc(metaslab_t *msp, uint64_t size)
 	uint64_t align = size & -size;
 	uint64_t *cursor = &msp->ms_lbas[highbit64(align) - 1];
 	range_tree_t *rt = msp->ms_allocatable;
-	avl_tree_t *t = &rt->rt_root;
-	uint64_t max_size = metaslab_block_maxsize(msp);
 	int free_pct = range_tree_space(rt) * 100 / msp->ms_size;
+	uint64_t offset;
 
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
-	ASSERT3U(avl_numnodes(t), ==,
+	ASSERT3U(avl_numnodes(&rt->rt_root), ==,
 	    avl_numnodes(&msp->ms_allocatable_by_size));
 
-	if (max_size < size)
-		return (-1ULL);
-
 	/*
-	 * If we're running low on space switch to using the size
-	 * sorted AVL tree (best-fit).
+	 * If we're running low on space, find a segment based on size,
+	 * rather than iterating based on offset.
 	 */
-	if (max_size < metaslab_df_alloc_threshold ||
+	if (metaslab_block_maxsize(msp) < metaslab_df_alloc_threshold ||
 	    free_pct < metaslab_df_free_pct) {
-		t = &msp->ms_allocatable_by_size;
-		*cursor = 0;
+		offset = -1;
+	} else {
+		offset = metaslab_block_picker(&rt->rt_root,
+		    cursor, size, metaslab_df_max_search);
 	}
 
-	return (metaslab_block_picker(t, cursor, size, 1ULL));
+	if (offset == -1) {
+		range_seg_t *rs;
+		if (metaslab_df_use_largest_segment) {
+			/* use largest free segment */
+			rs = avl_last(&msp->ms_allocatable_by_size);
+		} else {
+			/* use segment of this size, or next largest */
+			rs = metaslab_block_find(&msp->ms_allocatable_by_size,
+			    0, size);
+		}
+		if (rs != NULL && rs->rs_start + size <= rs->rs_end) {
+			offset = rs->rs_start;
+			*cursor = offset + size;
+		}
+	}
+
+	return (offset);
 }
 
 static metaslab_ops_t metaslab_df_ops = {
@@ -4823,6 +4838,14 @@ MODULE_PARM_DESC(zfs_metaslab_switch_threshold,
 module_param(metaslab_force_ganging, ulong, 0644);
 MODULE_PARM_DESC(metaslab_force_ganging,
 	"blocks larger than this size are forced to be gang blocks");
+
+module_param(metaslab_df_max_search, int, 0644);
+MODULE_PARM_DESC(metaslab_df_max_search,
+	"max distance (bytes) to search forward before using size tree");
+
+module_param(metaslab_df_use_largest_segment, int, 0644);
+MODULE_PARM_DESC(metaslab_df_use_largest_segment,
+	"when looking in size tree, use largest segment instead of exact fit");
 /* END CSTYLED */
 
 #endif
