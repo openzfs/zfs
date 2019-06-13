@@ -232,6 +232,27 @@ entity_namecheck(const char *path, namecheck_err_t *why, char *what)
 			}
 		}
 
+		if (*end == '\0' || *end == '/') {
+			int component_length = end - start;
+			/* Validate the contents of this component is not '.' */
+			if (component_length == 1) {
+				if (start[0] == '.') {
+					if (why)
+						*why = NAME_ERR_SELF_REF;
+					return (-1);
+				}
+			}
+
+			/* Validate the content of this component is not '..' */
+			if (component_length == 2) {
+				if (start[0] == '.' && start[1] == '.') {
+					if (why)
+						*why = NAME_ERR_PARENT_REF;
+					return (-1);
+				}
+			}
+		}
+
 		/* Snapshot or bookmark delimiter found */
 		if (*end == '@' || *end == '#') {
 			/* Multiple delimiters are not allowed */
