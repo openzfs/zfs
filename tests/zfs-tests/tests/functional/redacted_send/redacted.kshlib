@@ -189,6 +189,7 @@ function mount_redacted
 	log_must set_tunable32 zfs_allow_redacted_dataset_mount 1
 	zfs mount $flag -oro $ds || return 1
 	log_must set_tunable32 zfs_allow_redacted_dataset_mount 0
+	return 0
 }
 
 function unmount_redacted

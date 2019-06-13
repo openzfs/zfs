@@ -967,8 +967,8 @@ dmu_redact_snap(const char *snapname, nvlist_t *redactnvl,
 	for (pair = nvlist_next_nvpair(redactnvl, NULL); err == 0 &&
 	    pair != NULL; pair = nvlist_next_nvpair(redactnvl, pair)) {
 		const char *name = nvpair_name(pair);
-		err = dsl_dataset_hold_flags(dp, name, DS_HOLD_FLAG_DECRYPT, FTAG,
-		    redactsnaparr + numsnaps);
+		err = dsl_dataset_hold_flags(dp, name, DS_HOLD_FLAG_DECRYPT,
+		    FTAG, redactsnaparr + numsnaps);
 		if (err != 0)
 			break;
 		dsl_dataset_long_hold(redactsnaparr[numsnaps], FTAG);

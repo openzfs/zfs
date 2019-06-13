@@ -4128,8 +4128,8 @@ zfs_do_send(int argc, char **argv)
 	};
 
 	/* check options */
-	while ((c = getopt_long(argc, argv, ":i:I:RDpvnPLeht:cwbd:", long_options,
-	    NULL)) != -1) {
+	while ((c = getopt_long(argc, argv, ":i:I:RDpvnPLeht:cwbd:",
+	    long_options, NULL)) != -1) {
 		switch (c) {
 		case 'i':
 			if (fromname)
