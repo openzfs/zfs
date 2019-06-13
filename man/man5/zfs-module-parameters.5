@@ -2197,6 +2197,33 @@ Default value: \fB0\fR.
 .sp
 .ne 2
 .na
+\fBzfs_removal_suspend_progress\fR (int)
+.ad
+.RS 12n
+.sp
+This is used by the test suite so that it can ensure that certain actions
+happen while in the middle of a removal.
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_remove_max_segment\fR (int)
+.ad
+.RS 12n
+.sp
+The largest contiguous segment that we will attempt to allocate when removing
+a device.  This can be no larger than 16MB.  If there is a performance
+problem with attempting to allocate large blocks, consider decreasing this.
+.sp
+Default value: \fB16,777,216\fR (16MB).
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_resilver_min_time_ms\fR (int)
 .ad
 .RS 12n
