@@ -144,6 +144,10 @@ zfs_kobj_release(struct kobject *kobj)
 	zkobj->zko_attr_count = 0;
 }
 
+#ifndef sysfs_attr_init
+#define	sysfs_attr_init(attr) do {} while (0)
+#endif
+
 static void
 zfs_kobj_add_attr(zfs_mod_kobj_t *zkobj, int attr_num, const char *attr_name)
 {
@@ -154,6 +158,7 @@ zfs_kobj_add_attr(zfs_mod_kobj_t *zkobj, int attr_num, const char *attr_name)
 	zkobj->zko_attr_list[attr_num].name = attr_name;
 	zkobj->zko_attr_list[attr_num].mode = 0444;
 	zkobj->zko_default_attrs[attr_num] = &zkobj->zko_attr_list[attr_num];
+	sysfs_attr_init(&zkobj->zko_attr_list[attr_num]);
 }
 
 static int
