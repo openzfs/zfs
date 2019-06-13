@@ -328,6 +328,40 @@ Use \fB1\fR for yes (default) and \fB0\fR for no.
 .sp
 .ne 2
 .na
+\fBmetaslab_df_max_search\fR (int)
+.ad
+.RS 12n
+Maximum distance to search forward from the last offset. Without this limit,
+fragmented pools can see >100,000 iterations and metaslab_block_picker()
+becomes the performance limiting factor on high-performance storage.
+
+With the default setting of 16MB, we typically see less than 500 iterations,
+even with very fragmented, ashift=9 pools. The maximum number of iterations
+possible is: \fBmetaslab_df_max_search / (2 * (1<<ashift))\fR.
+With the default setting of 16MB this is 16*1024 (with ashift=9) or 2048
+(with ashift=12).
+.sp
+Default value: \fB16,777,216\fR (16MB)
+.RE
+
+.sp
+.ne 2
+.na
+\fBmetaslab_df_use_largest_segment\fR (int)
+.ad
+.RS 12n
+If we are not searching forward (due to metaslab_df_max_search,
+metaslab_df_free_pct, or metaslab_df_alloc_threshold), this tunable controls
+what segment is used.  If it is set, we will use the largest free segment. 
+If it is not set, we will use a segment of exactly the requested size (or
+larger).
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_vdev_default_ms_count\fR (int)
 .ad
 .RS 12n
@@ -2247,6 +2281,33 @@ Default value: \fB0\fR.
 .sp
 .ne 2
 .na
+\fBzfs_removal_suspend_progress\fR (int)
+.ad
+.RS 12n
+.sp
+This is used by the test suite so that it can ensure that certain actions
+happen while in the middle of a removal.
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_remove_max_segment\fR (int)
+.ad
+.RS 12n
+.sp
+The largest contiguous segment that we will attempt to allocate when removing
+a device.  This can be no larger than 16MB.  If there is a performance
+problem with attempting to allocate large blocks, consider decreasing this.
+.sp
+Default value: \fB16,777,216\fR (16MB).
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_resilver_min_time_ms\fR (int)
 .ad
 .RS 12n
@@ -2556,9 +2617,21 @@ Default value: \fB25\fR.
 \fBzfs_sync_pass_dont_compress\fR (int)
 .ad
 .RS 12n
-Don't compress starting in this pass
+Starting in this sync pass, we disable compression (including of metadata). 
+With the default setting, in practice, we don't have this many sync passes,
+so this has no effect.
 .sp
-Default value: \fB5\fR.
+The original intent was that disabling compression would help the sync passes
+to converge. However, in practice disabling compression increases the average
+number of sync passes, because when we turn compression off, a lot of block's
+size will change and thus we have to re-allocate (not overwrite) them. It
+also increases the number of 128KB allocations (e.g. for indirect blocks and
+spacemaps) because these will not be compressed. The 128K allocations are
+especially detrimental to performance on highly fragmented systems, which may
+have very few free segments of this size, and may need to load new metaslabs
+to satisfy 128K allocations.
+.sp
+Default value: \fB8\fR.
 .RE
 
 .sp
