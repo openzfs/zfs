@@ -43,6 +43,8 @@ typedef enum {
 	NAME_ERR_RESERVED,		/* entire name is reserved */
 	NAME_ERR_DISKLIKE,		/* reserved disk name (c[0-9].*) */
 	NAME_ERR_TOOLONG,		/* name is too long */
+	NAME_ERR_SELF_REF,		/* reserved self path name ('.') */
+	NAME_ERR_PARENT_REF,		/* reserved parent path name ('..') */
 	NAME_ERR_NO_AT,			/* permission set is missing '@' */
 } namecheck_err_t;
 
