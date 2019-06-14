@@ -339,6 +339,13 @@ cv_wait(kcondvar_t *cv, kmutex_t *mp)
 	mp->m_owner = pthread_self();
 }
 
+int
+cv_wait_sig(kcondvar_t *cv, kmutex_t *mp)
+{
+	cv_wait(cv, mp);
+	return (1);
+}
+
 clock_t
 cv_timedwait(kcondvar_t *cv, kmutex_t *mp, clock_t abstime)
 {

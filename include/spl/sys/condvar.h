@@ -54,7 +54,7 @@ extern void __cv_init(kcondvar_t *, char *, kcv_type_t, void *);
 extern void __cv_destroy(kcondvar_t *);
 extern void __cv_wait(kcondvar_t *, kmutex_t *);
 extern void __cv_wait_io(kcondvar_t *, kmutex_t *);
-extern void __cv_wait_sig(kcondvar_t *, kmutex_t *);
+extern int __cv_wait_sig(kcondvar_t *, kmutex_t *);
 extern clock_t __cv_timedwait(kcondvar_t *, kmutex_t *, clock_t);
 extern clock_t __cv_timedwait_io(kcondvar_t *, kmutex_t *, clock_t);
 extern clock_t __cv_timedwait_sig(kcondvar_t *, kmutex_t *, clock_t);

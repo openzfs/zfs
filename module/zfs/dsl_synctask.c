@@ -41,7 +41,7 @@ dsl_null_checkfunc(void *arg, dmu_tx_t *tx)
 
 static int
 dsl_sync_task_common(const char *pool, dsl_checkfunc_t *checkfunc,
-    dsl_syncfunc_t *syncfunc, void *arg,
+    dsl_syncfunc_t *syncfunc, dsl_sigfunc_t *sigfunc, void *arg,
     int blocks_modified, zfs_space_check_t space_check, boolean_t early)
 {
 	spa_t *spa;
@@ -85,6 +85,11 @@ top:
 
 	dmu_tx_commit(tx);
 
+	if (sigfunc != NULL && txg_wait_synced_sig(dp, dst.dst_txg)) {
+		/* current contract is to call func once */
+		sigfunc(arg, tx);
+		sigfunc = NULL;	/* in case of an EAGAIN retry */
+	}
 	txg_wait_synced(dp, dst.dst_txg);
 
 	if (dst.dst_error == EAGAIN) {
@@ -124,7 +129,7 @@ dsl_sync_task(const char *pool, dsl_checkfunc_t *checkfunc,
     dsl_syncfunc_t *syncfunc, void *arg,
     int blocks_modified, zfs_space_check_t space_check)
 {
-	return (dsl_sync_task_common(pool, checkfunc, syncfunc, arg,
+	return (dsl_sync_task_common(pool, checkfunc, syncfunc, NULL, arg,
 	    blocks_modified, space_check, B_FALSE));
 }
 
@@ -146,8 +151,21 @@ dsl_early_sync_task(const char *pool, dsl_checkfunc_t *checkfunc,
     dsl_syncfunc_t *syncfunc, void *arg,
     int blocks_modified, zfs_space_check_t space_check)
 {
-	return (dsl_sync_task_common(pool, checkfunc, syncfunc, arg,
+	return (dsl_sync_task_common(pool, checkfunc, syncfunc, NULL, arg,
 	    blocks_modified, space_check, B_TRUE));
+}
+
+/*
+ * A standard synctask that can be interrupted from a signal. The sigfunc
+ * is called once if a signal occurred while waiting for the task to sync.
+ */
+int
+dsl_sync_task_sig(const char *pool, dsl_checkfunc_t *checkfunc,
+    dsl_syncfunc_t *syncfunc, dsl_sigfunc_t *sigfunc, void *arg,
+    int blocks_modified, zfs_space_check_t space_check)
+{
+	return (dsl_sync_task_common(pool, checkfunc, syncfunc, sigfunc, arg,
+	    blocks_modified, space_check, B_FALSE));
 }
 
 static void
