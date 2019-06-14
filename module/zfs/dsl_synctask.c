@@ -88,7 +88,7 @@ top:
 	if (sigfunc != NULL && txg_wait_synced_sig(dp, dst.dst_txg)) {
 		/* current contract is to call func once */
 		sigfunc(arg, tx);
-		sigfunc = NULL;	/* in case of an EAGAIN retry */
+		sigfunc = NULL;	/* in case we're performing an EAGAIN retry */
 	}
 	txg_wait_synced(dp, dst.dst_txg);
 

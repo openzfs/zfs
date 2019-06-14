@@ -788,6 +788,7 @@ zcp_lua_counthook(lua_State *state, lua_Debug *ar)
 		ri->zri_canceled = B_TRUE;
 		(void) lua_pushstring(state, "Channel program was canceled.");
 		(void) lua_error(state);
+		/* Unreachable */
 	}
 
 	/*
@@ -800,6 +801,7 @@ zcp_lua_counthook(lua_State *state, lua_Debug *ar)
 		(void) lua_pushstring(state,
 		    "Channel program timed out.");
 		(void) lua_error(state);
+		/* Unreachable */
 	}
 }
 

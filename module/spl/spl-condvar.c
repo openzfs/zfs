@@ -151,6 +151,15 @@ __cv_wait_io(kcondvar_t *cvp, kmutex_t *mp)
 EXPORT_SYMBOL(__cv_wait_io);
 
 int
+__cv_wait_io_sig(kcondvar_t *cvp, kmutex_t *mp)
+{
+	cv_wait_common(cvp, mp, TASK_INTERRUPTIBLE, 1);
+
+	return (signal_pending(current) ? 0 : 1);
+}
+EXPORT_SYMBOL(__cv_wait_io_sig);
+
+int
 __cv_wait_sig(kcondvar_t *cvp, kmutex_t *mp)
 {
 	cv_wait_common(cvp, mp, TASK_INTERRUPTIBLE, 0);

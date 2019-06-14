@@ -701,7 +701,7 @@ txg_wait_synced_impl(dsl_pool_t *dp, uint64_t txg, boolean_t wait_sig)
 			 * signal. The caller may call txg_wait_synced*() again
 			 * to resume waiting for this txg.
 			 */
-			if (cv_wait_sig(&tx->tx_sync_done_cv,
+			if (cv_wait_io_sig(&tx->tx_sync_done_cv,
 			    &tx->tx_sync_lock) == 0) {
 				mutex_exit(&tx->tx_sync_lock);
 				return (B_TRUE);
