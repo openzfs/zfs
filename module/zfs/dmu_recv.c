@@ -1166,7 +1166,6 @@ dmu_recv_begin(char *tofs, char *tosnap, dmu_replay_record_t *drr_begin,
 		    dmu_recv_resume_begin_check, dmu_recv_resume_begin_sync,
 		    &drba, 5, ZFS_SPACE_CHECK_NORMAL);
 	} else {
-		int err;
 
 		/*
 		 * For non-raw, non-incremental, non-resuming receives the
@@ -1183,16 +1182,14 @@ dmu_recv_begin(char *tofs, char *tosnap, dmu_replay_record_t *drr_begin,
 		    origin == NULL && drc->drc_drrb->drr_fromguid == 0) {
 			err = dsl_crypto_params_create_nvlist(DCP_CMD_NONE,
 			    localprops, hidden_args, &drba.drba_dcp);
-			if (err != 0)
-				return (err);
 		}
 
-		err = dsl_sync_task(tofs,
-		    dmu_recv_begin_check, dmu_recv_begin_sync,
-		    &drba, 5, ZFS_SPACE_CHECK_NORMAL);
-		dsl_crypto_params_free(drba.drba_dcp, !!err);
-
-		return (err);
+		if (err == 0) {
+			err = dsl_sync_task(tofs,
+			    dmu_recv_begin_check, dmu_recv_begin_sync,
+			    &drba, 5, ZFS_SPACE_CHECK_NORMAL);
+			dsl_crypto_params_free(drba.drba_dcp, !!err);
+		}
 	}
 
 	if (err != 0) {

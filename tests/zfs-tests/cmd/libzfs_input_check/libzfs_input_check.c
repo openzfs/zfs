@@ -706,7 +706,7 @@ test_redact(const char *snapshot1, const char *snapshot2)
 	nvlist_free(snapnv);
 	nvlist_free(required);
 
-	strncpy(bookmark, snapshot1, sizeof (bookmark));
+	strncpy(bookmark, snapshot1, sizeof (bookmark) - 1);
 	*strchr(bookmark, '@') = '\0';
 	strncat(bookmark, "#testbookmark", sizeof (bookmark));
 	zfs_destroy(bookmark);
