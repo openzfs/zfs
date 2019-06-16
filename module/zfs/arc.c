@@ -1431,7 +1431,7 @@ retry:
 	 * should be using vmem_alloc() in the linux kernel
 	 */
 	buf_hash_table.ht_table =
-	    vmem_zalloc(hsize * sizeof (void*), KM_SLEEP);
+	    kvmem_zalloc(hsize * sizeof (void*), KM_SLEEP);
 #else
 	buf_hash_table.ht_table =
 	    kmem_zalloc(hsize * sizeof (void*), KM_NOSLEEP);

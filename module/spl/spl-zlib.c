@@ -202,7 +202,7 @@ spl_zlib_init(void)
 	zlib_workspace_cache = kmem_cache_create(
 	    "spl_zlib_workspace_cache",
 	    size, 0, NULL, NULL, NULL, NULL, NULL,
-	    KMC_VMEM | KMC_NOEMERGENCY);
+	    KMC_KVMEM | KMC_NOEMERGENCY);
 	if (!zlib_workspace_cache)
 		return (1);
 

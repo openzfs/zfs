@@ -810,7 +810,7 @@ retry:
 	 * Large allocations which do not require contiguous pages
 	 * should be using vmem_alloc() in the linux kernel
 	 */
-	h->hash_table = vmem_zalloc(hsize * sizeof (void *), KM_SLEEP);
+	h->hash_table = kvmem_zalloc(hsize * sizeof (void *), KM_SLEEP);
 #else
 	h->hash_table = kmem_zalloc(hsize * sizeof (void *), KM_NOSLEEP);
 #endif

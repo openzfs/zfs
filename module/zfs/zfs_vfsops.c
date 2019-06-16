@@ -1181,9 +1181,9 @@ zfsvfs_create_impl(zfsvfs_t **zfvp, zfsvfs_t *zfsvfs, objset_t *os)
 	int size = MIN(1 << (highbit64(zfs_object_mutex_size) - 1),
 	    ZFS_OBJ_MTX_MAX);
 	zfsvfs->z_hold_size = size;
-	zfsvfs->z_hold_trees = vmem_zalloc(sizeof (avl_tree_t) * size,
+	zfsvfs->z_hold_trees = kvmem_zalloc(sizeof (avl_tree_t) * size,
 	    KM_SLEEP);
-	zfsvfs->z_hold_locks = vmem_zalloc(sizeof (kmutex_t) * size, KM_SLEEP);
+	zfsvfs->z_hold_locks = kvmem_zalloc(sizeof (kmutex_t) * size, KM_SLEEP);
 	for (int i = 0; i != size; i++) {
 		avl_create(&zfsvfs->z_hold_trees[i], zfs_znode_hold_compare,
 		    sizeof (znode_hold_t), offsetof(znode_hold_t, zh_node));

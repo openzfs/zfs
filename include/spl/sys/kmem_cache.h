@@ -52,7 +52,8 @@ enum {
 	KMC_BIT_DESTROY		= 17,	/* Destroy in progress */
 	KMC_BIT_TOTAL		= 18,	/* Proc handler helper bit */
 	KMC_BIT_ALLOC		= 19,	/* Proc handler helper bit */
-	KMC_BIT_MAX		= 20,	/* Proc handler helper bit */
+	KMC_BIT_KVMEM		= 20,	/* Use kvmalloc linux allocator  */
+	KMC_BIT_MAX		= 21,	/* Proc handler helper bit */
 };
 
 /* kmem move callback return values */
@@ -71,6 +72,7 @@ typedef enum kmem_cbrc {
 #define	KMC_QCACHE		(1 << KMC_BIT_QCACHE)
 #define	KMC_KMEM		(1 << KMC_BIT_KMEM)
 #define	KMC_VMEM		(1 << KMC_BIT_VMEM)
+#define	KMC_KVMEM		(1 << KMC_BIT_KVMEM)
 #define	KMC_SLAB		(1 << KMC_BIT_SLAB)
 #define	KMC_OFFSLAB		(1 << KMC_BIT_OFFSLAB)
 #define	KMC_NOEMERGENCY		(1 << KMC_BIT_NOEMERGENCY)

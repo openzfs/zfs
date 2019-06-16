@@ -1290,7 +1290,7 @@ vdev_metaslab_init(vdev_t *vd, uint64_t txg)
 
 	ASSERT(oldc <= newc);
 
-	mspp = vmem_zalloc(newc * sizeof (*mspp), KM_SLEEP);
+	mspp = kvmem_zalloc(newc * sizeof (*mspp), KM_SLEEP);
 
 	if (expanding) {
 		bcopy(vd->vdev_ms, mspp, oldc * sizeof (*mspp));

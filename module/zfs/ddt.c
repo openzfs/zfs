@@ -681,7 +681,7 @@ void
 ddt_init(void)
 {
 	ddt_cache = kmem_cache_create("ddt_cache",
-	    sizeof (ddt_t), 0, NULL, NULL, NULL, NULL, NULL, 0);
+	    sizeof (ddt_t), 0, NULL, NULL, NULL, NULL, NULL, KMC_KVMEM);
 	ddt_entry_cache = kmem_cache_create("ddt_entry_cache",
 	    sizeof (ddt_entry_t), 0, NULL, NULL, NULL, NULL, NULL, 0);
 }

@@ -133,6 +133,40 @@ strfree(char *str)
 }
 EXPORT_SYMBOL(strfree);
 
+#ifndef __GFP_REPEAT
+#define		__GFP_REPEAT __GFP_RETRY_MAYFAIL
+#endif
+void *
+spl_kvmalloc(size_t size, gfp_t flags)
+{
+	gfp_t kmalloc_flags = flags;
+	void *ret;
+#ifdef HAVE_KVMALLOC
+	if ((flags & GFP_KERNEL) == GFP_KERNEL) {
+		return (kvmalloc(size, flags));
+	}
+#endif
+	if (size > PAGE_SIZE) {
+		kmalloc_flags |= __GFP_NOWARN;
+		if (!(kmalloc_flags & __GFP_REPEAT) ||
+		    (size <= PAGE_SIZE << PAGE_ALLOC_COSTLY_ORDER))
+			kmalloc_flags |= __GFP_NORETRY;
+	}
+	ret = kmalloc_node(size, kmalloc_flags, NUMA_NO_NODE);
+	if (ret || size <= PAGE_SIZE)
+		return (ret);
+	return (__vmalloc(size, flags | __GFP_HIGHMEM, PAGE_KERNEL));
+}
+
+void
+spl_kvfree(const void *addr)
+{
+	if (is_vmalloc_addr(addr))
+		vfree(addr);
+	else
+		kfree(addr);
+}
+
 /*
  * General purpose unified implementation of kmem_alloc(). It is an
  * amalgamation of Linux and Illumos allocator design. It should never be
@@ -144,7 +178,6 @@ inline void *
 spl_kmem_alloc_impl(size_t size, int flags, int node)
 {
 	gfp_t lflags = kmem_flags_convert(flags);
-	int use_vmem = 0;
 	void *ptr;
 
 	/*
@@ -153,7 +186,7 @@ spl_kmem_alloc_impl(size_t size, int flags, int node)
 	 * through the vmem_alloc()/vmem_zalloc() interfaces.
 	 */
 	if ((spl_kmem_alloc_warn > 0) && (size > spl_kmem_alloc_warn) &&
-	    !(flags & KM_VMEM)) {
+	    !(flags & KM_VMEM) && !(flags & KM_KVMEM)) {
 		printk(KERN_WARNING
 		    "Large kmem_alloc(%lu, 0x%x), please file an issue at:\n"
 		    "https://github.com/zfsonlinux/zfs/issues/new\n",
@@ -161,6 +194,9 @@ spl_kmem_alloc_impl(size_t size, int flags, int node)
 		dump_stack();
 	}
 
+	if (flags & KM_KVMEM) {
+		return (spl_kvmalloc(size, lflags));
+	}
 	/*
 	 * Use a loop because kmalloc_node() can fail when GFP_KERNEL is used
 	 * unlike kmem_alloc() with KM_SLEEP on Illumos.
@@ -178,27 +214,22 @@ spl_kmem_alloc_impl(size_t size, int flags, int node)
 		 * impact performance so frequently manipulating the virtual
 		 * address space is strongly discouraged.
 		 */
-		if ((size > spl_kmem_alloc_max) || use_vmem) {
+		if ((size > spl_kmem_alloc_max)) {
 			if (flags & KM_VMEM) {
-				ptr = __vmalloc(size, lflags, PAGE_KERNEL);
+				ptr = __vmalloc(size, lflags | __GFP_HIGHMEM,
+				    PAGE_KERNEL);
 			} else {
 				return (NULL);
 			}
 		} else {
-			ptr = kmalloc_node(size, lflags, node);
+			if (flags & KM_VMEM)
+				ptr = spl_kvmalloc(size, lflags);
+			else
+				ptr = kmalloc_node(size, lflags, node);
 		}
 
-		if (likely(ptr) || (flags & KM_NOSLEEP))
+		if (likely(ptr) || (flags & KM_NOSLEEP) || (flags & KM_ONCE))
 			return (ptr);
-
-		/*
-		 * For vmem_alloc() and vmem_zalloc() callers retry immediately
-		 * using __vmalloc() which is unlikely to fail.
-		 */
-		if ((flags & KM_VMEM) && (use_vmem == 0))  {
-			use_vmem = 1;
-			continue;
-		}
 
 		/*
 		 * Use cond_resched() instead of congestion_wait() to avoid
