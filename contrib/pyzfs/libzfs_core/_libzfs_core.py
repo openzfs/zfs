@@ -1563,22 +1563,6 @@ def lzc_promote(name):
 
 
 @_uncommitted()
-def lzc_remap(name):
-    '''
-    Remaps the ZFS dataset.
-
-    :param bytes name: the name of the dataset to remap.
-    :raises NameInvalid: if the dataset name is invalid.
-    :raises NameTooLong: if the dataset name is too long.
-    :raises DatasetNotFound: if the dataset does not exist.
-    :raises FeatureNotSupported: if the pool containing the dataset does not
-        have the *obsolete_counts* feature enabled.
-    '''
-    ret = _lib.lzc_remap(name)
-    errors.lzc_remap_translate_error(ret, name)
-
-
-@_uncommitted()
 def lzc_pool_checkpoint(name):
     '''
     Creates a checkpoint for the specified pool.
