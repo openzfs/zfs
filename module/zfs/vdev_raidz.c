@@ -2403,17 +2403,17 @@ vdev_raidz_xlate(vdev_t *cvd, const range_seg_t *in, range_seg_t *res)
 }
 
 vdev_ops_t vdev_raidz_ops = {
-	vdev_raidz_open,
-	vdev_raidz_close,
-	vdev_raidz_asize,
-	vdev_raidz_io_start,
-	vdev_raidz_io_done,
-	vdev_raidz_state_change,
-	vdev_raidz_need_resilver,
-	NULL,
-	NULL,
-	NULL,
-	vdev_raidz_xlate,
-	VDEV_TYPE_RAIDZ,	/* name of this vdev type */
-	B_FALSE			/* not a leaf vdev */
+	.vdev_op_open = vdev_raidz_open,
+	.vdev_op_close = vdev_raidz_close,
+	.vdev_op_asize = vdev_raidz_asize,
+	.vdev_op_io_start = vdev_raidz_io_start,
+	.vdev_op_io_done = vdev_raidz_io_done,
+	.vdev_op_state_change = vdev_raidz_state_change,
+	.vdev_op_need_resilver = vdev_raidz_need_resilver,
+	.vdev_op_hold = NULL,
+	.vdev_op_rele = NULL,
+	.vdev_op_remap = NULL,
+	.vdev_op_xlate = vdev_raidz_xlate,
+	.vdev_op_type = VDEV_TYPE_RAIDZ,	/* name of this vdev type */
+	.vdev_op_leaf = B_FALSE			/* not a leaf vdev */
 };
