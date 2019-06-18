@@ -3,7 +3,11 @@
 case $1 in
 configure)
 	systemctl enable zfs-import-cache.service
-	systemctl enable zfs-import-scan.service
+	# Explicitly disable the zfs-import-scan service as it
+	# can unexpectedly import pools that we either want to
+	# stay exported or we want to import with different
+	# arguments.
+	systemctl disable zfs-import-scan.service
 	systemctl enable zfs-import.target
 	systemctl enable zfs-mount.service
 	systemctl enable zfs-share.service
