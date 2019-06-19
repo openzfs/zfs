@@ -806,17 +806,7 @@ such that it is available even if the pool becomes faulted.
 An administrator can provide additional information about a pool using this
 property.
 .It Sy dedupditto Ns = Ns Ar number
-This property is deprecated.  In a future release, it will no longer have any
-effect.
-.Pp
-Threshold for the number of block ditto copies.
-If the reference count for a deduplicated block increases above this number, a
-new ditto copy of this block is automatically stored.
-The default setting is
-.Sy 0
-which causes no ditto copies to be created for deduplicated blocks.
-The minimum legal nonzero setting is
-.Sy 100 .
+This property is deprecated and no longer has any effect.
 .It Sy delegation Ns = Ns Sy on Ns | Ns Sy off
 Controls whether a non-privileged user is granted access based on the dataset
 permissions defined on the dataset.

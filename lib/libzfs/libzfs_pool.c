@@ -722,15 +722,8 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 			}
 			break;
 		case ZPOOL_PROP_DEDUPDITTO:
-			if (intval < ZIO_DEDUPDITTO_MIN && intval != 0) {
-				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "property '%s' value %d is invalid; only "
-				    "values of 0 or >= %" PRId32 " are allowed "
-				    "for this property."),
-				    propname, intval, ZIO_DEDUPDITTO_MIN);
-				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
-				goto error;
-			}
+			printf("Note: property '%s' no longer has "
+			    "any effect\n", propname);
 			break;
 
 		default:
