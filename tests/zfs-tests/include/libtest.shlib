@@ -3494,13 +3494,13 @@ function set_tunable_impl
 	Linux)
 		typeset zfs_tunables="/sys/module/$module/parameters"
 		[[ -w "$zfs_tunables/$tunable" ]] || return 1
-		echo -n "$value" > "$zfs_tunables/$tunable"
-		return "$?"
+		cat >"$zfs_tunables/$tunable" <<<"$value"
+		return $?
 		;;
 	SunOS)
 		[[ "$module" -eq "zfs" ]] || return 1
 		echo "${tunable}/${mdb_cmd}0t${value}" | mdb -kw
-		return "$?"
+		return $?
 		;;
 	esac
 }
@@ -3527,7 +3527,7 @@ function get_tunable_impl
 		typeset zfs_tunables="/sys/module/$module/parameters"
 		[[ -f "$zfs_tunables/$tunable" ]] || return 1
 		cat $zfs_tunables/$tunable
-		return "$?"
+		return $?
 		;;
 	SunOS)
 		[[ "$module" -eq "zfs" ]] || return 1
