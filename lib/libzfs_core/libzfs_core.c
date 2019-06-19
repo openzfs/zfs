@@ -52,7 +52,7 @@
  *
  *  - Thin Layer.  libzfs_core is a thin layer, marshaling arguments
  *  to/from the kernel ioctls.  There is generally a 1:1 correspondence
- *  between libzfs_core functions and ioctls to /dev/zfs.
+ *  between libzfs_core functions and ioctls to ZFS_DEV.
  *
  *  - Clear Atomicity.  Because libzfs_core functions are generally 1:1
  *  with kernel ioctls, and kernel ioctls are general atomic, each
@@ -135,7 +135,7 @@ libzfs_core_init(void)
 {
 	(void) pthread_mutex_lock(&g_lock);
 	if (g_refcount == 0) {
-		g_fd = open("/dev/zfs", O_RDWR);
+		g_fd = open(ZFS_DEV, O_RDWR);
 		if (g_fd < 0) {
 			(void) pthread_mutex_unlock(&g_lock);
 			return (errno);
@@ -499,7 +499,7 @@ lzc_sync(const char *pool_name, nvlist_t *innvl, nvlist_t **outnvl)
  * The snapshots must all be in the same pool.
  * The value is the name of the hold (string type).
  *
- * If cleanup_fd is not -1, it must be the result of open("/dev/zfs", O_EXCL).
+ * If cleanup_fd is not -1, it must be the result of open(ZFS_DEV, O_EXCL).
  * In this case, when the cleanup_fd is closed (including on process
  * termination), the holds will be released.  If the system is shut down
  * uncleanly, the holds will be released when the pool is next opened
