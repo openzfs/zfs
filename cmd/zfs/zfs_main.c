@@ -33,6 +33,7 @@
 
 #include <assert.h>
 #include <ctype.h>
+#include <sys/debug.h>
 #include <errno.h>
 #include <getopt.h>
 #include <libgen.h>
@@ -119,6 +120,7 @@ static int zfs_do_unload_key(int argc, char **argv);
 static int zfs_do_change_key(int argc, char **argv);
 static int zfs_do_project(int argc, char **argv);
 static int zfs_do_version(int argc, char **argv);
+static int zfs_do_redact(int argc, char **argv);
 
 /*
  * Enable a reasonable set of defaults for libumem debugging on DEBUG builds.
@@ -173,7 +175,8 @@ typedef enum {
 	HELP_LOAD_KEY,
 	HELP_UNLOAD_KEY,
 	HELP_CHANGE_KEY,
-	HELP_VERSION
+	HELP_VERSION,
+	HELP_REDACT,
 } zfs_help_t;
 
 typedef struct zfs_command {
@@ -238,6 +241,7 @@ static zfs_command_t command_table[] = {
 	{ "load-key",	zfs_do_load_key,	HELP_LOAD_KEY		},
 	{ "unload-key",	zfs_do_unload_key,	HELP_UNLOAD_KEY		},
 	{ "change-key",	zfs_do_change_key,	HELP_CHANGE_KEY		},
+	{ "redact",	zfs_do_redact,		HELP_REDACT		},
 };
 
 #define	NCOMMAND	(sizeof (command_table) / sizeof (command_table[0]))
@@ -279,7 +283,7 @@ get_usage(zfs_help_t idx)
 		    "[filesystem|volume|snapshot] ...\n"));
 	case HELP_MOUNT:
 		return (gettext("\tmount\n"
-		    "\tmount [-lvO] [-o opts] <-a | filesystem>\n"));
+		    "\tmount [-flvO] [-o opts] <-a | filesystem>\n"));
 	case HELP_PROMOTE:
 		return (gettext("\tpromote <clone-filesystem>\n"));
 	case HELP_RECEIVE:
@@ -302,6 +306,9 @@ get_usage(zfs_help_t idx)
 		    "<snapshot>\n"
 		    "\tsend [-nvPLecw] [-i snapshot|bookmark] "
 		    "<filesystem|volume|snapshot>\n"
+		    "[-i bookmark] <snapshot> <bookmark_name>\n"
+		    "\tsend [-DnPpvLecr] [-i bookmark|snapshot] "
+		    "--redact <bookmark> <snapshot>\n"
 		    "\tsend [-nvPe] -t <receive_resume_token>\n"));
 	case HELP_SET:
 		return (gettext("\tset <property=value> ... "
@@ -386,6 +393,9 @@ get_usage(zfs_help_t idx)
 		    "\tchange-key -i [-l] <filesystem|volume>\n"));
 	case HELP_VERSION:
 		return (gettext("\tversion\n"));
+	case HELP_REDACT:
+		return (gettext("\tredact <snapshot> <bookmark> "
+		    "<redaction_snapshot> ..."));
 	}
 
 	abort();
@@ -542,6 +552,8 @@ usage(boolean_t requested)
 		(void) fprintf(fp, "\t%-15s ", "projectobjquota@...");
 		(void) fprintf(fp, "YES       NO   <size> | none\n");
 		(void) fprintf(fp, "\t%-15s ", "written@<snap>");
+		(void) fprintf(fp, " NO       NO   <size>\n");
+		(void) fprintf(fp, "\t%-15s ", "written#<bookmark>");
 		(void) fprintf(fp, " NO       NO   <size>\n");
 
 		(void) fprintf(fp, gettext("\nSizes are specified in bytes "
@@ -1501,6 +1513,13 @@ zfs_do_destroy(int argc, char **argv)
 			return (-1);
 		}
 
+		/*
+		 * Unfortunately, zfs_bookmark() doesn't honor the
+		 * casesensitivity setting.  However, we can't simply
+		 * remove this check, because lzc_destroy_bookmarks()
+		 * ignores non-existent bookmarks, so this is necessary
+		 * to get a proper error message.
+		 */
 		if (!zfs_bookmark_exists(argv[0])) {
 			(void) fprintf(stderr, gettext("bookmark '%s' "
 			    "does not exist.\n"), argv[0]);
@@ -3595,6 +3614,73 @@ zfs_do_promote(int argc, char **argv)
 	return (ret);
 }
 
+static int
+zfs_do_redact(int argc, char **argv)
+{
+	char *snap = NULL;
+	char *bookname = NULL;
+	char **rsnaps = NULL;
+	int numrsnaps = 0;
+	argv++;
+	argc--;
+	if (argc < 3) {
+		(void) fprintf(stderr, gettext("too few arguments"));
+		usage(B_FALSE);
+	}
+
+	snap = argv[0];
+	bookname = argv[1];
+	rsnaps = argv + 2;
+	numrsnaps = argc - 2;
+
+	nvlist_t *rsnapnv = fnvlist_alloc();
+
+	for (int i = 0; i < numrsnaps; i++) {
+		fnvlist_add_boolean(rsnapnv, rsnaps[i]);
+	}
+
+	int err = lzc_redact(snap, bookname, rsnapnv);
+	fnvlist_free(rsnapnv);
+
+	switch (err) {
+	case 0:
+		break;
+	case ENOENT:
+		(void) fprintf(stderr,
+		    gettext("provided snapshot %s does not exist"), snap);
+		break;
+	case EEXIST:
+		(void) fprintf(stderr, gettext("specified redaction bookmark "
+		    "(%s) provided already exists"), bookname);
+		break;
+	case ENAMETOOLONG:
+		(void) fprintf(stderr, gettext("provided bookmark name cannot "
+		    "be used, final name would be too long"));
+		break;
+	case E2BIG:
+		(void) fprintf(stderr, gettext("too many redaction snapshots "
+		    "specified"));
+		break;
+	case EINVAL:
+		(void) fprintf(stderr, gettext("redaction snapshot must be "
+		    "descendent of snapshot being redacted"));
+		break;
+	case EALREADY:
+		(void) fprintf(stderr, gettext("attempted to redact redacted "
+		    "dataset or with respect to redacted dataset"));
+		break;
+	case ENOTSUP:
+		(void) fprintf(stderr, gettext("redaction bookmarks feature "
+		    "not enabled"));
+		break;
+	default:
+		(void) fprintf(stderr, gettext("internal error: %s"),
+		    strerror(errno));
+	}
+
+	return (err);
+}
+
 /*
  * zfs rollback [-rRf] <snapshot>
  *
@@ -4006,6 +4092,7 @@ usage:
 	return (-1);
 }
 
+
 /*
  * Send a backup stream to stdout.
  */
@@ -4020,10 +4107,11 @@ zfs_do_send(int argc, char **argv)
 	sendflags_t flags = { 0 };
 	int c, err;
 	nvlist_t *dbgnv = NULL;
-	boolean_t extraverbose = B_FALSE;
+	char *redactbook = NULL;
 
 	struct option long_options[] = {
 		{"replicate",	no_argument,		NULL, 'R'},
+		{"redact",	required_argument,	NULL, 'd'},
 		{"props",	no_argument,		NULL, 'p'},
 		{"parsable",	no_argument,		NULL, 'P'},
 		{"dedup",	no_argument,		NULL, 'D'},
@@ -4040,8 +4128,8 @@ zfs_do_send(int argc, char **argv)
 	};
 
 	/* check options */
-	while ((c = getopt_long(argc, argv, ":i:I:RDpvnPLeht:cwb", long_options,
-	    NULL)) != -1) {
+	while ((c = getopt_long(argc, argv, ":i:I:RDpvnPLeht:cwbd:",
+	    long_options, NULL)) != -1) {
 		switch (c) {
 		case 'i':
 			if (fromname)
@@ -4057,6 +4145,9 @@ zfs_do_send(int argc, char **argv)
 		case 'R':
 			flags.replicate = B_TRUE;
 			break;
+		case 'd':
+			redactbook = optarg;
+			break;
 		case 'p':
 			flags.props = B_TRUE;
 			break;
@@ -4068,12 +4159,9 @@ zfs_do_send(int argc, char **argv)
 			break;
 		case 'P':
 			flags.parsable = B_TRUE;
-			flags.verbose = B_TRUE;
 			break;
 		case 'v':
-			if (flags.verbose)
-				extraverbose = B_TRUE;
-			flags.verbose = B_TRUE;
+			flags.verbosity++;
 			flags.progress = B_TRUE;
 			break;
 		case 'D':
@@ -4141,19 +4229,22 @@ zfs_do_send(int argc, char **argv)
 		}
 	}
 
+	if (flags.parsable && flags.verbosity == 0)
+		flags.verbosity = 1;
+
 	argc -= optind;
 	argv += optind;
 
 	if (resume_token != NULL) {
 		if (fromname != NULL || flags.replicate || flags.props ||
-		    flags.backup || flags.dedup) {
+		    flags.backup || flags.dedup || flags.holds ||
+		    redactbook != NULL) {
 			(void) fprintf(stderr,
 			    gettext("invalid flags combined with -t\n"));
 			usage(B_FALSE);
 		}
-		if (argc != 0) {
-			(void) fprintf(stderr, gettext("no additional "
-			    "arguments are permitted with -t\n"));
+		if (argc > 0) {
+			(void) fprintf(stderr, gettext("too many arguments\n"));
 			usage(B_FALSE);
 		}
 	} else {
@@ -4166,6 +4257,12 @@ zfs_do_send(int argc, char **argv)
 			(void) fprintf(stderr, gettext("too many arguments\n"));
 			usage(B_FALSE);
 		}
+	}
+
+	if (flags.raw && redactbook != NULL) {
+		(void) fprintf(stderr,
+		    gettext("Error: raw sends may not be redacted.\n"));
+		return (1);
 	}
 
 	if (!flags.dryrun && isatty(STDOUT_FILENO)) {
@@ -4181,41 +4278,68 @@ zfs_do_send(int argc, char **argv)
 	}
 
 	/*
-	 * Special case sending a filesystem, or from a bookmark.
+	 * For everything except -R and -I, use the new, cleaner code path.
 	 */
-	if (strchr(argv[0], '@') == NULL ||
-	    (fromname && strchr(fromname, '#') != NULL)) {
+	if (!(flags.replicate || flags.doall)) {
 		char frombuf[ZFS_MAX_DATASET_NAME_LEN];
 
-		if (flags.replicate || flags.doall || flags.props ||
-		    flags.backup || flags.dedup || flags.holds ||
-		    (strchr(argv[0], '@') == NULL &&
-		    (flags.dryrun || flags.verbose || flags.progress))) {
-			(void) fprintf(stderr, gettext("Error: "
-			    "Unsupported flag with filesystem or bookmark.\n"));
-			return (1);
+		if (redactbook != NULL) {
+			if (strchr(argv[0], '@') == NULL) {
+				(void) fprintf(stderr, gettext("Error: Cannot "
+				    "do a redacted send to a filesystem.\n"));
+				return (1);
+			}
 		}
 
 		zhp = zfs_open(g_zfs, argv[0], ZFS_TYPE_DATASET);
 		if (zhp == NULL)
 			return (1);
 
+		if (fromname != NULL && (strchr(fromname, '#') == NULL &&
+		    strchr(fromname, '@') == NULL)) {
+			/*
+			 * Neither bookmark or snapshot was specified.  Print a
+			 * warning, and assume snapshot.
+			 */
+			(void) fprintf(stderr, "Warning: incremental source "
+			    "didn't specify type, assuming snapshot. Use '@' "
+			    "or '#' prefix to avoid ambiguity.\n");
+			(void) snprintf(frombuf, sizeof (frombuf), "@%s",
+			    fromname);
+			fromname = frombuf;
+		}
 		if (fromname != NULL &&
 		    (fromname[0] == '#' || fromname[0] == '@')) {
 			/*
 			 * Incremental source name begins with # or @.
 			 * Default to same fs as target.
 			 */
+			char tmpbuf[ZFS_MAX_DATASET_NAME_LEN];
+			(void) strlcpy(tmpbuf, fromname, sizeof (tmpbuf));
 			(void) strlcpy(frombuf, argv[0], sizeof (frombuf));
 			cp = strchr(frombuf, '@');
 			if (cp != NULL)
 				*cp = '\0';
-			(void) strlcat(frombuf, fromname, sizeof (frombuf));
+			(void) strlcat(frombuf, tmpbuf, sizeof (frombuf));
 			fromname = frombuf;
 		}
-		err = zfs_send_one(zhp, fromname, STDOUT_FILENO, flags);
+		err = zfs_send_one(zhp, fromname, STDOUT_FILENO, &flags,
+		    redactbook);
 		zfs_close(zhp);
 		return (err != 0);
+	}
+
+	if (fromname != NULL && strchr(fromname, '#')) {
+		(void) fprintf(stderr,
+		    gettext("Error: multiple snapshots cannot be "
+		    "sent from a bookmark.\n"));
+		return (1);
+	}
+
+	if (redactbook != NULL) {
+		(void) fprintf(stderr, gettext("Error: multiple snapshots "
+		    "cannot be sent redacted.\n"));
+		return (1);
 	}
 
 	cp = strchr(argv[0], '@');
@@ -4261,9 +4385,9 @@ zfs_do_send(int argc, char **argv)
 		flags.doall = B_TRUE;
 
 	err = zfs_send(zhp, fromname, toname, &flags, STDOUT_FILENO, NULL, 0,
-	    extraverbose ? &dbgnv : NULL);
+	    flags.verbosity >= 3 ? &dbgnv : NULL);
 
-	if (extraverbose && dbgnv != NULL) {
+	if (flags.verbosity >= 3 && dbgnv != NULL) {
 		/*
 		 * dump_nvlist prints to stdout, but that's been
 		 * redirected to a file.  Make it print to stderr
@@ -6379,6 +6503,17 @@ share_mount_one(zfs_handle_t *zhp, int op, int flags, char *protocol,
 		return (1);
 	}
 
+	if (zfs_prop_get_int(zhp, ZFS_PROP_REDACTED) && !(flags & MS_FORCE)) {
+		if (!explicit)
+			return (0);
+
+		(void) fprintf(stderr, gettext("cannot %s '%s': "
+		    "Dataset is not complete, was created by receiving "
+		    "a redacted zfs send stream.\n"), cmdname,
+		    zfs_get_name(zhp));
+		return (1);
+	}
+
 	/*
 	 * At this point, we have verified that the mountpoint and/or
 	 * shareopts are appropriate for auto management. If the
@@ -6537,7 +6672,7 @@ share_mount(int op, int argc, char **argv)
 	int flags = 0;
 
 	/* check options */
-	while ((c = getopt(argc, argv, op == OP_MOUNT ? ":alvo:O" : "al"))
+	while ((c = getopt(argc, argv, op == OP_MOUNT ? ":alvo:Of" : "al"))
 	    != -1) {
 		switch (c) {
 		case 'a':
@@ -6564,6 +6699,9 @@ share_mount(int op, int argc, char **argv)
 			break;
 		case 'O':
 			flags |= MS_OVERLAY;
+			break;
+		case 'f':
+			flags |= MS_FORCE;
 			break;
 		case ':':
 			(void) fprintf(stderr, gettext("missing argument for "

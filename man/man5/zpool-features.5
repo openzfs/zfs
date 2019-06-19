@@ -1,5 +1,5 @@
 '\" te
-.\" Copyright (c) 2013, 2017 by Delphix. All rights reserved.
+.\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
 .\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
 .\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
 .\" The contents of this file are subject to the terms of the Common Development
@@ -232,6 +232,27 @@ needed for other features in ZFS.
 
 This feature becomes \fBactive\fR when a v2 bookmark is created and will be
 returned to the \fBenabled\fR state when all v2 bookmarks are destroyed.
+.RE
+
+.sp
+.ne 2
+.na
+\fBbookmark_written\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.delphxi:bookmark_written
+READ\-ONLY COMPATIBLE	no
+DEPENDENCIES	bookmark, extensible_dataset, bookmark_v2
+.TE
+
+This feature enables additional bookmark accounting fields, enabling the
+written#<bookmark> prperty (space written since a bookmark) and estimates of
+send stream sizes for incrementals from bookmarks.
+
+This feature becomes \fBactive\fR when a bookmark is created and will be
+returned to the \fBenabled\fR state when all bookmarks with these fields are destroyed.
 .RE
 
 .sp
@@ -643,6 +664,46 @@ when remounted or when new file is created under that filesystem. The upgrade
 can also be triggered on filesystems via `zfs set version=current <pool/fs>`.
 The upgrade process runs in the background and may take a while to complete
 for the filesystems containing a large number of files.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBredaction_bookmarks\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.delphix:redaction_bookmarks
+READ\-ONLY COMPATIBLE	no
+DEPENDENCIES	bookmarks, extensible_dataset
+.TE
+
+This feature enables the use of the redacted zfs send.  Redacted \fBzfs send\fR
+creates redaction bookmarks, which store the list of blocks redacted by the
+send that created them.  For more information about redacted send,
+see \fBzfs\fR(8).
+
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBredacted_datasets\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.delphix:redacted_datasets
+READ\-ONLY COMPATIBLE	no
+DEPENDENCIES	extensible_dataset
+.TE
+
+This feature enables the receiving of redacted zfs send streams.  Redacted zfs
+send streams create redacted datasets when received.  These datasets are
+missing some of their blocks, and so cannot be safely mounted, and their
+contents cannot be safely read.  For more information about redacted receive,
+see \fBzfs\fR(8).
 .RE
 
 .sp

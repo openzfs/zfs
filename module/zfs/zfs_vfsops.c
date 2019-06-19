@@ -55,6 +55,7 @@
 #include <sys/sunddi.h>
 #include <sys/dmu_objset.h>
 #include <sys/spa_boot.h>
+#include <sys/objlist.h>
 #include <sys/zpl.h>
 #include <linux/vfs_compat.h>
 #include "zfs_comutil.h"
@@ -2205,11 +2206,14 @@ zfs_resume_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 	}
 
 bail:
+	if (err != 0)
+		zfsvfs->z_unmounted = B_TRUE;
+
 	/* release the VFS ops */
 	rw_exit(&zfsvfs->z_teardown_inactive_lock);
 	rrm_exit(&zfsvfs->z_teardown_lock, FTAG);
 
-	if (err) {
+	if (err != 0) {
 		/*
 		 * Since we couldn't setup the sa framework, try to force
 		 * unmount this file system.
@@ -2218,6 +2222,37 @@ bail:
 			(void) zfs_umount(zfsvfs->z_sb);
 	}
 	return (err);
+}
+
+/*
+ * Release VOPs and unmount a suspended filesystem.
+ */
+int
+zfs_end_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
+{
+	ASSERT(RRM_WRITE_HELD(&zfsvfs->z_teardown_lock));
+	ASSERT(RW_WRITE_HELD(&zfsvfs->z_teardown_inactive_lock));
+
+	/*
+	 * We already own this, so just hold and rele it to update the
+	 * objset_t, as the one we had before may have been evicted.
+	 */
+	objset_t *os;
+	VERIFY3P(ds->ds_owner, ==, zfsvfs);
+	VERIFY(dsl_dataset_long_held(ds));
+	VERIFY0(dmu_objset_from_ds(ds, &os));
+	zfsvfs->z_os = os;
+
+	/* release the VOPs */
+	rw_exit(&zfsvfs->z_teardown_inactive_lock);
+	rrm_exit(&zfsvfs->z_teardown_lock, FTAG);
+
+	/*
+	 * Try to force unmount this file system.
+	 */
+	(void) zfs_umount(zfsvfs->z_sb);
+	zfsvfs->z_unmounted = B_TRUE;
+	return (0);
 }
 
 int
@@ -2393,6 +2428,71 @@ zfs_get_vfs_flag_unmounted(objset_t *os)
 
 	return (unmounted);
 }
+
+struct objnode {
+	avl_node_t node;
+	uint64_t obj;
+};
+
+static int
+objnode_compare(const void *o1, const void *o2)
+{
+	const struct objnode *obj1 = o1;
+	const struct objnode *obj2 = o2;
+	if (obj1->obj < obj2->obj)
+		return (-1);
+	if (obj1->obj > obj2->obj)
+		return (1);
+	return (0);
+}
+
+objlist_t *
+zfs_get_deleteq(objset_t *os)
+{
+	objlist_t *deleteq_objlist = objlist_create();
+	uint64_t deleteq_obj;
+	zap_cursor_t zc;
+	zap_attribute_t za;
+	dmu_object_info_t doi;
+
+	ASSERT3U(os->os_phys->os_type, ==, DMU_OST_ZFS);
+	VERIFY0(dmu_object_info(os, MASTER_NODE_OBJ, &doi));
+	ASSERT3U(doi.doi_type, ==, DMU_OT_MASTER_NODE);
+
+	VERIFY0(zap_lookup(os, MASTER_NODE_OBJ,
+	    ZFS_UNLINKED_SET, sizeof (uint64_t), 1, &deleteq_obj));
+
+	/*
+	 * In order to insert objects into the objlist, they must be in sorted
+	 * order. We don't know what order we'll get them out of the ZAP in, so
+	 * we insert them into and remove them from an avl_tree_t to sort them.
+	 */
+	avl_tree_t at;
+	avl_create(&at, objnode_compare, sizeof (struct objnode),
+	    offsetof(struct objnode, node));
+
+	for (zap_cursor_init(&zc, os, deleteq_obj);
+	    zap_cursor_retrieve(&zc, &za) == 0; zap_cursor_advance(&zc)) {
+		struct objnode *obj = kmem_zalloc(sizeof (*obj), KM_SLEEP);
+		obj->obj = za.za_first_integer;
+		avl_add(&at, obj);
+	}
+	zap_cursor_fini(&zc);
+
+	struct objnode *next, *found = avl_first(&at);
+	while (found != NULL) {
+		next = AVL_NEXT(&at, found);
+		objlist_insert(deleteq_objlist, found->obj);
+		found = next;
+	}
+
+	void *cookie = NULL;
+	while ((found = avl_destroy_nodes(&at, &cookie)) != NULL)
+		kmem_free(found, sizeof (*found));
+	avl_destroy(&at);
+	return (deleteq_objlist);
+}
+
 
 void
 zfs_init(void)

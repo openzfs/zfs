@@ -236,6 +236,7 @@ main(int argc, char *argv[])
 	struct drr_spill *drrs = &thedrr.drr_u.drr_spill;
 	struct drr_write_embedded *drrwe = &thedrr.drr_u.drr_write_embedded;
 	struct drr_object_range *drror = &thedrr.drr_u.drr_object_range;
+	struct drr_redact *drrr = &thedrr.drr_u.drr_redact;
 	struct drr_checksum *drrc = &thedrr.drr_u.drr_checksum;
 	int c;
 	boolean_t verbose = B_FALSE;
@@ -709,6 +710,21 @@ main(int argc, char *argv[])
 				    salt,
 				    iv,
 				    mac);
+			}
+			break;
+		case DRR_REDACT:
+			if (do_byteswap) {
+				drrr->drr_object = BSWAP_64(drrr->drr_object);
+				drrr->drr_offset = BSWAP_64(drrr->drr_offset);
+				drrr->drr_length = BSWAP_64(drrr->drr_length);
+				drrr->drr_toguid = BSWAP_64(drrr->drr_toguid);
+			}
+			if (verbose) {
+				(void) printf("REDACT object = %llu offset = "
+				    "%llu length = %llu\n",
+				    (u_longlong_t)drrr->drr_object,
+				    (u_longlong_t)drrr->drr_offset,
+				    (u_longlong_t)drrr->drr_length);
 			}
 			break;
 		case DRR_NUMTYPES:
