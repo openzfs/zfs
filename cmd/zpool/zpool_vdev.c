@@ -433,6 +433,7 @@ check_disk(const char *path, blkid_cache cache, int force,
 		char *value = blkid_get_tag_value(cache, "TYPE", path);
 		(void) fprintf(stderr, gettext("%s is in use and contains "
 		    "a %s filesystem.\n"), path, value ? value : "unknown");
+		free(value);
 		return (-1);
 	}
 
