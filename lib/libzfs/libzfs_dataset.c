@@ -4632,16 +4632,9 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive,
 			    "with the new name"));
 			(void) zfs_error(hdl, EZFS_EXISTS, errbuf);
 		} else if (errno == EACCES) {
-			if (zfs_prop_get_int(zhp, ZFS_PROP_ENCRYPTION) ==
-			    ZIO_CRYPT_OFF) {
-				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "cannot rename an unencrypted dataset to "
-				    "be a decendent of an encrypted one"));
-			} else {
-				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "cannot move encryption child outside of "
-				    "its encryption root"));
-			}
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "cannot move encrypted child outside of "
+			    "its encryption root"));
 			(void) zfs_error(hdl, EZFS_CRYPTOFAILED, errbuf);
 		} else {
 			(void) zfs_standard_error(zhp->zfs_hdl, errno, errbuf);

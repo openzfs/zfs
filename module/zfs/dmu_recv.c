@@ -327,7 +327,7 @@ dmu_recv_begin_check(void *arg, dmu_tx_t *tx)
 		/* Open the parent of tofs */
 		ASSERT3U(strlen(tofs), <, sizeof (buf));
 		(void) strlcpy(buf, tofs, strrchr(tofs, '/') - tofs + 1);
-		error = dsl_dataset_hold_flags(dp, buf, dsflags, FTAG, &ds);
+		error = dsl_dataset_hold(dp, buf, FTAG, &ds);
 		if (error != 0)
 			return (error);
 
@@ -345,13 +345,13 @@ dmu_recv_begin_check(void *arg, dmu_tx_t *tx)
 			error = dmu_objset_create_crypt_check(ds->ds_dir,
 			    drba->drba_dcp, &will_encrypt);
 			if (error != 0) {
-				dsl_dataset_rele_flags(ds, dsflags, FTAG);
+				dsl_dataset_rele(ds, FTAG);
 				return (error);
 			}
 
 			if (will_encrypt &&
 			    (featureflags & DMU_BACKUP_FEATURE_EMBED_DATA)) {
-				dsl_dataset_rele_flags(ds, dsflags, FTAG);
+				dsl_dataset_rele(ds, FTAG);
 				return (SET_ERROR(EINVAL));
 			}
 		}
@@ -364,25 +364,25 @@ dmu_recv_begin_check(void *arg, dmu_tx_t *tx)
 		error = dsl_fs_ss_limit_check(ds->ds_dir, 1,
 		    ZFS_PROP_FILESYSTEM_LIMIT, NULL, drba->drba_cred);
 		if (error != 0) {
-			dsl_dataset_rele_flags(ds, dsflags, FTAG);
+			dsl_dataset_rele(ds, FTAG);
 			return (error);
 		}
 
 		error = dsl_fs_ss_limit_check(ds->ds_dir, 1,
 		    ZFS_PROP_SNAPSHOT_LIMIT, NULL, drba->drba_cred);
 		if (error != 0) {
-			dsl_dataset_rele_flags(ds, dsflags, FTAG);
+			dsl_dataset_rele(ds, FTAG);
 			return (error);
 		}
 
 		/* can't recv below anything but filesystems (eg. no ZVOLs) */
 		error = dmu_objset_from_ds(ds, &os);
 		if (error != 0) {
-			dsl_dataset_rele_flags(ds, dsflags, FTAG);
+			dsl_dataset_rele(ds, FTAG);
 			return (error);
 		}
 		if (dmu_objset_type(os) != DMU_OST_ZFS) {
-			dsl_dataset_rele_flags(ds, dsflags, FTAG);
+			dsl_dataset_rele(ds, FTAG);
 			return (SET_ERROR(ZFS_ERR_WRONG_PARENT));
 		}
 
@@ -392,31 +392,31 @@ dmu_recv_begin_check(void *arg, dmu_tx_t *tx)
 			error = dsl_dataset_hold_flags(dp, drba->drba_origin,
 			    dsflags, FTAG, &origin);
 			if (error != 0) {
-				dsl_dataset_rele_flags(ds, dsflags, FTAG);
+				dsl_dataset_rele(ds, FTAG);
 				return (error);
 			}
 			if (!origin->ds_is_snapshot) {
 				dsl_dataset_rele_flags(origin, dsflags, FTAG);
-				dsl_dataset_rele_flags(ds, dsflags, FTAG);
+				dsl_dataset_rele(ds, FTAG);
 				return (SET_ERROR(EINVAL));
 			}
 			if (dsl_dataset_phys(origin)->ds_guid != fromguid &&
 			    fromguid != 0) {
 				dsl_dataset_rele_flags(origin, dsflags, FTAG);
-				dsl_dataset_rele_flags(ds, dsflags, FTAG);
+				dsl_dataset_rele(ds, FTAG);
 				return (SET_ERROR(ENODEV));
 			}
 			if (origin->ds_dir->dd_crypto_obj != 0 &&
 			    (featureflags & DMU_BACKUP_FEATURE_EMBED_DATA)) {
 				dsl_dataset_rele_flags(origin, dsflags, FTAG);
-				dsl_dataset_rele_flags(ds, dsflags, FTAG);
+				dsl_dataset_rele(ds, FTAG);
 				return (SET_ERROR(EINVAL));
 			}
 			dsl_dataset_rele_flags(origin,
 			    dsflags, FTAG);
 		}
 
-		dsl_dataset_rele_flags(ds, dsflags, FTAG);
+		dsl_dataset_rele(ds, FTAG);
 		error = 0;
 	}
 	return (error);
