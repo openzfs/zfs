@@ -51,10 +51,10 @@
 # yes	unspec	0	1	no	no keyformat specified
 # yes	unspec	1	0	yes	new encryption root, crypt inherited
 # yes	unspec	1	1	yes	new encryption root, crypt inherited
-# yes	off	0	0	no	unencrypted child of encrypted parent
-# yes	off	0	1	no	unencrypted child of encrypted parent
-# yes	off	1	0	no	unencrypted child of encrypted parent
-# yes	off	1	1	no	unencrypted child of encrypted parent
+# yes	off	0	0	yes	unencrypted child of encrypted parent
+# yes	off	0	1	no	keylocation given, but crypt off
+# yes	off	1	0	no	keyformat given, but crypt off
+# yes	off	1	1	no	keyformat given, but crypt off
 # yes	on	0	0	yes	inherited encryption, local crypt
 # yes	on	0	1	no	no keyformat specified for new key
 # yes	on	1	0	yes	new encryption root
@@ -113,7 +113,9 @@ log_must eval "echo $PASSPHRASE | zfs create -o keyformat=passphrase" \
 log_must eval "echo $PASSPHRASE | zfs create -o keyformat=passphrase" \
 	"-o keylocation=prompt $TESTPOOL/$TESTFS2/c4"
 
-log_mustnot zfs create -o encryption=off $TESTPOOL/$TESTFS2/c5
+log_must zfs create -o encryption=off $TESTPOOL/$TESTFS2/c5
+log_must test "$(get_prop 'encryption' $TESTPOOL/$TESTFS2/c5)" == "off"
+
 log_mustnot zfs create -o encryption=off -o keylocation=prompt \
 	$TESTPOOL/$TESTFS2/c5
 log_mustnot zfs create -o encryption=off -o keyformat=passphrase \
@@ -122,13 +124,13 @@ log_mustnot zfs create -o encryption=off -o keyformat=passphrase \
 	-o keylocation=prompt $TESTPOOL/$TESTFS2/c5
 
 log_must eval "echo $PASSPHRASE | zfs create -o encryption=on" \
-	"$TESTPOOL/$TESTFS2/c5"
+	"$TESTPOOL/$TESTFS2/c6"
 log_mustnot zfs create -o encryption=on -o keylocation=prompt \
-	$TESTPOOL/$TESTFS2/c6
+	$TESTPOOL/$TESTFS2/c7
 log_must eval "echo $PASSPHRASE | zfs create -o encryption=on" \
-	"-o keyformat=passphrase $TESTPOOL/$TESTFS2/c6"
+	"-o keyformat=passphrase $TESTPOOL/$TESTFS2/c7"
 log_must eval "echo $PASSPHRASE | zfs create -o encryption=on" \
-	"-o keyformat=passphrase -o keylocation=prompt $TESTPOOL/$TESTFS2/c7"
+	"-o keyformat=passphrase -o keylocation=prompt $TESTPOOL/$TESTFS2/c8"
 
 log_pass "ZFS creates datasets only if they have a valid combination of" \
 	"encryption properties set."
