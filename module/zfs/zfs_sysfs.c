@@ -264,6 +264,7 @@ zprop_sysfs_show(const char *attr_name, const zprop_desc_t *property,
     char *buf, size_t buflen)
 {
 	const char *show_str;
+	char number[32];
 
 	/* For dataset properties list the dataset types that apply */
 	if (strcmp(attr_name, "datasets") == 0 &&
@@ -291,8 +292,6 @@ zprop_sysfs_show(const char *attr_name, const zprop_desc_t *property,
 	} else if (strcmp(attr_name, "values") == 0) {
 		show_str = property->pd_values ? property->pd_values : "";
 	} else if (strcmp(attr_name, "default") == 0) {
-		char number[32];
-
 		switch (property->pd_proptype) {
 		case PROP_TYPE_NUMBER:
 			(void) snprintf(number, sizeof (number), "%llu",
