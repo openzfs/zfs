@@ -3192,7 +3192,9 @@ zio_ddt_write(zio_t *zio)
 			BP_ZERO(bp);
 		} else {
 			zp->zp_dedup = B_FALSE;
+			BP_SET_DEDUP(bp, B_FALSE);
 		}
+		ASSERT(!BP_GET_DEDUP(bp));
 		zio->io_pipeline = ZIO_WRITE_PIPELINE;
 		ddt_exit(ddt);
 		return (zio);
