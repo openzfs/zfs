@@ -1842,19 +1842,19 @@ vdev_indirect_io_done(zio_t *zio)
 }
 
 vdev_ops_t vdev_indirect_ops = {
-	vdev_indirect_open,
-	vdev_indirect_close,
-	vdev_default_asize,
-	vdev_indirect_io_start,
-	vdev_indirect_io_done,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	vdev_indirect_remap,
-	NULL,
-	VDEV_TYPE_INDIRECT,	/* name of this vdev type */
-	B_FALSE			/* leaf vdev */
+	.vdev_op_open = vdev_indirect_open,
+	.vdev_op_close = vdev_indirect_close,
+	.vdev_op_asize = vdev_default_asize,
+	.vdev_op_io_start = vdev_indirect_io_start,
+	.vdev_op_io_done = vdev_indirect_io_done,
+	.vdev_op_state_change = NULL,
+	.vdev_op_need_resilver = NULL,
+	.vdev_op_hold = NULL,
+	.vdev_op_rele = NULL,
+	.vdev_op_remap = vdev_indirect_remap,
+	.vdev_op_xlate = NULL,
+	.vdev_op_type = VDEV_TYPE_INDIRECT,	/* name of this vdev type */
+	.vdev_op_leaf = B_FALSE			/* leaf vdev */
 };
 
 #if defined(_KERNEL)

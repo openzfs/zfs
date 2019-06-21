@@ -786,51 +786,51 @@ vdev_mirror_state_change(vdev_t *vd, int faulted, int degraded)
 }
 
 vdev_ops_t vdev_mirror_ops = {
-	vdev_mirror_open,
-	vdev_mirror_close,
-	vdev_default_asize,
-	vdev_mirror_io_start,
-	vdev_mirror_io_done,
-	vdev_mirror_state_change,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	vdev_default_xlate,
-	VDEV_TYPE_MIRROR,	/* name of this vdev type */
-	B_FALSE			/* not a leaf vdev */
+	.vdev_op_open = vdev_mirror_open,
+	.vdev_op_close = vdev_mirror_close,
+	.vdev_op_asize = vdev_default_asize,
+	.vdev_op_io_start = vdev_mirror_io_start,
+	.vdev_op_io_done = vdev_mirror_io_done,
+	.vdev_op_state_change = vdev_mirror_state_change,
+	.vdev_op_need_resilver = NULL,
+	.vdev_op_hold = NULL,
+	.vdev_op_rele = NULL,
+	.vdev_op_remap = NULL,
+	.vdev_op_xlate = vdev_default_xlate,
+	.vdev_op_type = VDEV_TYPE_MIRROR,	/* name of this vdev type */
+	.vdev_op_leaf = B_FALSE			/* not a leaf vdev */
 };
 
 vdev_ops_t vdev_replacing_ops = {
-	vdev_mirror_open,
-	vdev_mirror_close,
-	vdev_default_asize,
-	vdev_mirror_io_start,
-	vdev_mirror_io_done,
-	vdev_mirror_state_change,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	vdev_default_xlate,
-	VDEV_TYPE_REPLACING,	/* name of this vdev type */
-	B_FALSE			/* not a leaf vdev */
+	.vdev_op_open = vdev_mirror_open,
+	.vdev_op_close = vdev_mirror_close,
+	.vdev_op_asize = vdev_default_asize,
+	.vdev_op_io_start = vdev_mirror_io_start,
+	.vdev_op_io_done = vdev_mirror_io_done,
+	.vdev_op_state_change = vdev_mirror_state_change,
+	.vdev_op_need_resilver = NULL,
+	.vdev_op_hold = NULL,
+	.vdev_op_rele = NULL,
+	.vdev_op_remap = NULL,
+	.vdev_op_xlate = vdev_default_xlate,
+	.vdev_op_type = VDEV_TYPE_REPLACING,	/* name of this vdev type */
+	.vdev_op_leaf = B_FALSE			/* not a leaf vdev */
 };
 
 vdev_ops_t vdev_spare_ops = {
-	vdev_mirror_open,
-	vdev_mirror_close,
-	vdev_default_asize,
-	vdev_mirror_io_start,
-	vdev_mirror_io_done,
-	vdev_mirror_state_change,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	vdev_default_xlate,
-	VDEV_TYPE_SPARE,	/* name of this vdev type */
-	B_FALSE			/* not a leaf vdev */
+	.vdev_op_open = vdev_mirror_open,
+	.vdev_op_close = vdev_mirror_close,
+	.vdev_op_asize = vdev_default_asize,
+	.vdev_op_io_start = vdev_mirror_io_start,
+	.vdev_op_io_done = vdev_mirror_io_done,
+	.vdev_op_state_change = vdev_mirror_state_change,
+	.vdev_op_need_resilver = NULL,
+	.vdev_op_hold = NULL,
+	.vdev_op_rele = NULL,
+	.vdev_op_remap = NULL,
+	.vdev_op_xlate = vdev_default_xlate,
+	.vdev_op_type = VDEV_TYPE_SPARE,	/* name of this vdev type */
+	.vdev_op_leaf = B_FALSE			/* not a leaf vdev */
 };
 
 #if defined(_KERNEL)
