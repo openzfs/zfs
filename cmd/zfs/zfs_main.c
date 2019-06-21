@@ -306,8 +306,7 @@ get_usage(zfs_help_t idx)
 		    "<snapshot>\n"
 		    "\tsend [-nvPLecw] [-i snapshot|bookmark] "
 		    "<filesystem|volume|snapshot>\n"
-		    "[-i bookmark] <snapshot> <bookmark_name>\n"
-		    "\tsend [-DnPpvLecr] [-i bookmark|snapshot] "
+		    "\tsend [-DnPpvLec] [-i bookmark|snapshot] "
 		    "--redact <bookmark> <snapshot>\n"
 		    "\tsend [-nvPe] -t <receive_resume_token>\n"));
 	case HELP_SET:
