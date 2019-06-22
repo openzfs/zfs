@@ -754,7 +754,7 @@ function verify_stream_size
 	datasetexists $ds || log_fail "No such dataset: $ds"
 
 	typeset stream_size=$(cat $stream | zstreamdump | sed -n \
-	    's/	Total write size = \(.*\) (0x.*)/\1/p')
+	    's/	Total payload size = \(.*\) (0x.*)/\1/p')
 
 	typeset inc_size=0
 	if [[ -n $inc_src ]]; then
