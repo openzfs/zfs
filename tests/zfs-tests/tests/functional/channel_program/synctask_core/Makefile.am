@@ -27,7 +27,8 @@ dist_pkgdata_SCRIPTS = \
 	tst.snapshot_destroy.ksh \
 	tst.snapshot_neg.ksh \
 	tst.snapshot_recursive.ksh \
-	tst.snapshot_simple.ksh
+	tst.snapshot_simple.ksh \
+	tst.terminate_by_signal.ksh
 
 dist_pkgdata_DATA = \
 	tst.get_index_props.out \
