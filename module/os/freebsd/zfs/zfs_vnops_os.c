@@ -3415,13 +3415,16 @@ out:
 
 int
 zfs_rename(znode_t *sdzp, const char *sname, znode_t *tdzp, const char *tname,
-    cred_t *cr, int flags)
+    cred_t *cr, int flags, uint64_t rflags)
 {
 	struct componentname scn, tcn;
 	vnode_t *sdvp, *tdvp;
 	vnode_t *svp, *tvp;
 	int error;
 	svp = tvp = NULL;
+
+	if (rflags != 0)
+		return (SET_ERROR(EINVAL));
 
 	sdvp = ZTOV(sdzp);
 	tdvp = ZTOV(tdzp);

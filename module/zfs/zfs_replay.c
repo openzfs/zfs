@@ -643,18 +643,32 @@ zfs_replay_link(void *arg1, void *arg2, boolean_t byteswap)
 }
 
 static int
-zfs_replay_rename(void *arg1, void *arg2, boolean_t byteswap)
+do_zfs_replay_rename(void *arg1, void *arg2, boolean_t byteswap,
+    uint64_t rflags)
 {
 	zfsvfs_t *zfsvfs = arg1;
 	lr_rename_t *lr = arg2;
 	char *sname = (char *)(lr + 1);	/* sname and tname follow lr_rename_t */
 	char *tname = sname + strlen(sname) + 1;
 	znode_t *sdzp, *tdzp;
-	int error;
-	int vflg = 0;
+	int error, vflg = 0;
 
 	if (byteswap)
 		byteswap_uint64_array(lr, sizeof (*lr));
+
+	/* Only Linux currently supports RENAME_* flags. */
+#ifdef __linux__
+	VERIFY0(rflags & ~(RENAME_EXCHANGE | RENAME_WHITEOUT));
+
+	IMPLY(rflags & RENAME_EXCHANGE,
+	    spa_feature_is_active(zfsvfs->z_os->os_spa,
+	    SPA_FEATURE_RENAME_EXCHANGE));
+	IMPLY(rflags & RENAME_WHITEOUT,
+	    spa_feature_is_active(zfsvfs->z_os->os_spa,
+	    SPA_FEATURE_RENAME_WHITEOUT));
+#else
+	VERIFY0(rflags);
+#endif
 
 	if ((error = zfs_zget(zfsvfs, lr->lr_sdoid, &sdzp)) != 0)
 		return (error);
@@ -667,11 +681,37 @@ zfs_replay_rename(void *arg1, void *arg2, boolean_t byteswap)
 	if (lr->lr_common.lrc_txtype & TX_CI)
 		vflg |= FIGNORECASE;
 
-	error = zfs_rename(sdzp, sname, tdzp, tname, kcred, vflg);
+	error = zfs_rename(sdzp, sname, tdzp, tname, kcred, vflg, rflags);
 
 	zrele(tdzp);
 	zrele(sdzp);
 	return (error);
+}
+
+static int
+zfs_replay_rename(void *arg1, void *arg2, boolean_t byteswap)
+{
+	return (do_zfs_replay_rename(arg1, arg2, byteswap, 0));
+}
+
+static int
+zfs_replay_rename_exchange(void *arg1, void *arg2, boolean_t byteswap)
+{
+#ifdef __linux__
+	return (do_zfs_replay_rename(arg1, arg2, byteswap, RENAME_EXCHANGE));
+#else
+	return (SET_ERROR(ENOTSUP));
+#endif
+}
+
+static int
+zfs_replay_rename_whiteout(void *arg1, void *arg2, boolean_t byteswap)
+{
+#ifdef __linux__
+	return (do_zfs_replay_rename(arg1, arg2, byteswap, RENAME_WHITEOUT));
+#else
+	return (SET_ERROR(ENOTSUP));
+#endif
 }
 
 static int
@@ -1069,4 +1109,6 @@ zil_replay_func_t *const zfs_replay_vector[TX_MAX_TYPE] = {
 	zfs_replay_create_acl,	/* TX_MKDIR_ACL_ATTR */
 	zfs_replay_write2,	/* TX_WRITE2 */
 	zfs_replay_setsaxattr,	/* TX_SETSAXATTR */
+	zfs_replay_rename_exchange,	/* TX_RENAME_EXCHANGE */
+	zfs_replay_rename_whiteout,	/* TX_RENAME_WHITEOUT */
 };

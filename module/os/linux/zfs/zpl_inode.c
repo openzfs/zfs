@@ -474,24 +474,20 @@ static int
 #ifdef HAVE_IOPS_RENAME_USERNS
 zpl_rename2(struct user_namespace *user_ns, struct inode *sdip,
     struct dentry *sdentry, struct inode *tdip, struct dentry *tdentry,
-    unsigned int flags)
+    unsigned int rflags)
 #else
 zpl_rename2(struct inode *sdip, struct dentry *sdentry,
-    struct inode *tdip, struct dentry *tdentry, unsigned int flags)
+    struct inode *tdip, struct dentry *tdentry, unsigned int rflags)
 #endif
 {
 	cred_t *cr = CRED();
 	int error;
 	fstrans_cookie_t cookie;
 
-	/* We don't have renameat2(2) support */
-	if (flags)
-		return (-EINVAL);
-
 	crhold(cr);
 	cookie = spl_fstrans_mark();
 	error = -zfs_rename(ITOZ(sdip), dname(sdentry), ITOZ(tdip),
-	    dname(tdentry), cr, 0);
+			    dname(tdentry), cr, 0, rflags);
 	spl_fstrans_unmark(cookie);
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
@@ -499,7 +495,9 @@ zpl_rename2(struct inode *sdip, struct dentry *sdentry,
 	return (error);
 }
 
-#if !defined(HAVE_RENAME_WANTS_FLAGS) && !defined(HAVE_IOPS_RENAME_USERNS)
+#if !defined(HAVE_IOPS_RENAME_USERNS) && \
+	!defined(HAVE_RENAME_WANTS_FLAGS) && \
+	!defined(HAVE_RENAME2)
 static int
 zpl_rename(struct inode *sdip, struct dentry *sdentry,
     struct inode *tdip, struct dentry *tdentry)
@@ -764,7 +762,9 @@ const struct inode_operations zpl_dir_inode_operations = {
 	.mkdir		= zpl_mkdir,
 	.rmdir		= zpl_rmdir,
 	.mknod		= zpl_mknod,
-#if defined(HAVE_RENAME_WANTS_FLAGS) || defined(HAVE_IOPS_RENAME_USERNS)
+#ifdef HAVE_RENAME2
+	.rename2	= zpl_rename2,
+#elif defined(HAVE_RENAME_WANTS_FLAGS) || defined(HAVE_IOPS_RENAME_USERNS)
 	.rename		= zpl_rename2,
 #else
 	.rename		= zpl_rename,

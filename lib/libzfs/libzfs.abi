@@ -588,7 +588,7 @@
     <elf-symbol name='fletcher_4_superscalar_ops' size='64' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='libzfs_config_ops' size='16' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='sa_protocol_names' size='16' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='spa_feature_table' size='2072' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='spa_feature_table' size='2184' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfeature_checks_disable' size='4' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_deleg_perm_tab' size='512' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_history_event_names' size='328' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -4598,6 +4598,10 @@
     <pointer-type-def type-id='7a842a6b' size-in-bits='64' id='07ee4a58'/>
     <pointer-type-def type-id='8a70a786' size-in-bits='64' id='5507783b'/>
     <pointer-type-def type-id='b1e62775' size-in-bits='64' id='f095e320'/>
+    <function-decl name='libpc_error_description' mangled-name='libpc_error_description' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='libpc_error_description'>
+      <parameter type-id='5507783b' name='hdl'/>
+      <return type-id='80f4b756'/>
+    </function-decl>
     <function-decl name='zpool_read_label' mangled-name='zpool_read_label' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_read_label'>
       <parameter type-id='95e97e5e' name='fd'/>
       <parameter type-id='857bb57e' name='config'/>
@@ -4826,8 +4830,8 @@
     </function-decl>
   </abi-instr>
   <abi-instr address-size='64' path='module/zcommon/zfeature_common.c' language='LANG_C99'>
-    <array-type-def dimensions='1' type-id='83f29ca2' size-in-bits='16576' id='d95b2b0b'>
-      <subrange length='37' type-id='7359adad' id='aa6426fb'/>
+    <array-type-def dimensions='1' type-id='83f29ca2' size-in-bits='17472' id='dd432c71'>
+      <subrange length='39' type-id='7359adad' id='ae4a9561'/>
     </array-type-def>
     <enum-decl name='spa_feature' id='33ecb627'>
       <underlying-type type-id='9cac1fee'/>
@@ -4869,7 +4873,9 @@
       <enumerator name='SPA_FEATURE_ZILSAXATTR' value='34'/>
       <enumerator name='SPA_FEATURE_HEAD_ERRLOG' value='35'/>
       <enumerator name='SPA_FEATURE_BLAKE3' value='36'/>
-      <enumerator name='SPA_FEATURES' value='37'/>
+      <enumerator name='SPA_FEATURE_RENAME_EXCHANGE' value='37'/>
+      <enumerator name='SPA_FEATURE_RENAME_WHITEOUT' value='38'/>
+      <enumerator name='SPA_FEATURES' value='39'/>
     </enum-decl>
     <typedef-decl name='spa_feature_t' type-id='33ecb627' id='d6618c78'/>
     <enum-decl name='zfeature_flags' id='6db816a4'>
@@ -4927,7 +4933,7 @@
     <qualified-type-def type-id='3eee3342' const='yes' id='0c1d5bbb'/>
     <pointer-type-def type-id='0c1d5bbb' size-in-bits='64' id='a3372543'/>
     <pointer-type-def type-id='d6618c78' size-in-bits='64' id='a8425263'/>
-    <var-decl name='spa_feature_table' type-id='d95b2b0b' mangled-name='spa_feature_table' visibility='default' elf-symbol-id='spa_feature_table'/>
+    <var-decl name='spa_feature_table' type-id='dd432c71' mangled-name='spa_feature_table' visibility='default' elf-symbol-id='spa_feature_table'/>
     <var-decl name='zfeature_checks_disable' type-id='c19b74c3' mangled-name='zfeature_checks_disable' visibility='default' elf-symbol-id='zfeature_checks_disable'/>
     <function-decl name='zfeature_is_valid_guid' mangled-name='zfeature_is_valid_guid' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfeature_is_valid_guid'>
       <parameter type-id='80f4b756' name='name'/>

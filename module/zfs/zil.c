@@ -758,11 +758,9 @@ zil_commit_activate_saxattr_feature(zilog_t *zilog)
 	uint64_t txg = 0;
 	dmu_tx_t *tx = NULL;
 
-	if (spa_feature_is_enabled(zilog->zl_spa,
-	    SPA_FEATURE_ZILSAXATTR) &&
+	if (spa_feature_is_enabled(zilog->zl_spa, SPA_FEATURE_ZILSAXATTR) &&
 	    dmu_objset_type(zilog->zl_os) != DMU_OST_ZVOL &&
-	    !dsl_dataset_feature_is_active(ds,
-	    SPA_FEATURE_ZILSAXATTR)) {
+	    !dsl_dataset_feature_is_active(ds, SPA_FEATURE_ZILSAXATTR)) {
 		tx = dmu_tx_create(zilog->zl_os);
 		VERIFY0(dmu_tx_assign(tx, TXG_WAIT));
 		dsl_dataset_dirty(ds, tx);
@@ -3228,6 +3226,38 @@ zil_commit_impl(zilog_t *zilog, uint64_t foid)
 }
 
 /*
+ * Called as part of zil_sync once the replay succeeded successfully.
+ *
+ * For backwards-compatibility reasons, brand new TX_* records need to have a
+ * feature flag associated with them so that a system will not be confused when
+ * importing a pool with unknown TX_* types. These features are only activated
+ * while the ZIL contains a log entry containing the new TX_* type, and need to
+ * be deactivated when the ZIL has been applied and cleared (so that the pool
+ * can be imported onto other systems after a clean 'zfs export').
+ */
+static void
+zil_sync_deactivate_features(zilog_t *zilog, dmu_tx_t *tx)
+{
+	dsl_dataset_t *ds = dmu_objset_ds(zilog->zl_os);
+
+	/*
+	 * A destroyed ZIL chain can't contain any of the TX_* records which
+	 * are gated by these features. So, deactivate the features. They'll be
+	 * re-activated if the feature is needed again.
+	 */
+	spa_feature_t tx_features[] = {
+		SPA_FEATURE_ZILSAXATTR,
+		SPA_FEATURE_RENAME_EXCHANGE,
+		SPA_FEATURE_RENAME_WHITEOUT,
+	};
+	for (int i = 0; i < ARRAY_SIZE(tx_features); i++) {
+		spa_feature_t f = tx_features[i];
+		if (dsl_dataset_feature_is_active(ds, f))
+			dsl_dataset_deactivate_feature(ds, f, tx);
+	}
+}
+
+/*
  * Called in syncing context to free committed log blocks and update log header.
  */
 void
@@ -3260,7 +3290,6 @@ zil_sync(zilog_t *zilog, dmu_tx_t *tx)
 
 	if (zilog->zl_destroy_txg == txg) {
 		blkptr_t blk = zh->zh_log;
-		dsl_dataset_t *ds = dmu_objset_ds(zilog->zl_os);
 
 		ASSERT(list_head(&zilog->zl_lwb_list) == NULL);
 
@@ -3280,15 +3309,7 @@ zil_sync(zilog_t *zilog, dmu_tx_t *tx)
 			zil_init_log_chain(zilog, &blk);
 			zh->zh_log = blk;
 		} else {
-			/*
-			 * A destroyed ZIL chain can't contain any TX_SETSAXATTR
-			 * records. So, deactivate the feature for this dataset.
-			 * We activate it again when we start a new ZIL chain.
-			 */
-			if (dsl_dataset_feature_is_active(ds,
-			    SPA_FEATURE_ZILSAXATTR))
-				dsl_dataset_deactivate_feature(ds,
-				    SPA_FEATURE_ZILSAXATTR, tx);
+			zil_sync_deactivate_features(zilog, tx);
 		}
 	}
 

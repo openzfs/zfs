@@ -45,6 +45,7 @@
 #include <sys/spa.h>
 #include <sys/zfs_fuid.h>
 #include <sys/dsl_dataset.h>
+#include <sys/zfeature.h>
 
 /*
  * These zfs_log_* functions must be called within a dmu tx, in one
@@ -494,11 +495,8 @@ zfs_log_symlink(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 	zil_itx_assign(zilog, itx, tx);
 }
 
-/*
- * Handles TX_RENAME transactions.
- */
-void
-zfs_log_rename(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype, znode_t *sdzp,
+static void
+do_zfs_log_rename(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype, znode_t *sdzp,
     const char *sname, znode_t *tdzp, const char *dname, znode_t *szp)
 {
 	itx_t *itx;
@@ -518,6 +516,53 @@ zfs_log_rename(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype, znode_t *sdzp,
 	itx->itx_oid = szp->z_id;
 
 	zil_itx_assign(zilog, itx, tx);
+}
+
+/*
+ * Handles TX_RENAME transactions.
+ */
+void
+zfs_log_rename(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype, znode_t *sdzp,
+    const char *sname, znode_t *tdzp, const char *dname, znode_t *szp)
+{
+	txtype |= TX_RENAME;
+	do_zfs_log_rename(zilog, tx, txtype, sdzp, sname, tdzp, dname, szp);
+}
+
+/*
+ * Handles TX_RENAME_EXCHANGE transactions.
+ */
+void
+zfs_log_rename_exchange(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
+    znode_t *sdzp, const char *sname, znode_t *tdzp, const char *dname,
+    znode_t *szp)
+{
+	spa_t *spa = zilog->zl_spa;
+
+	/* zfs_rename must have already activated this feature. */
+	VERIFY(spa_feature_is_enabled(spa, SPA_FEATURE_RENAME_EXCHANGE));
+	VERIFY(spa_feature_is_active(spa, SPA_FEATURE_RENAME_EXCHANGE));
+
+	txtype |= TX_RENAME_EXCHANGE;
+	do_zfs_log_rename(zilog, tx, txtype, sdzp, sname, tdzp, dname, szp);
+}
+
+/*
+ * Handles TX_RENAME_WHITEOUT transactions.
+ */
+void
+zfs_log_rename_whiteout(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
+    znode_t *sdzp, const char *sname, znode_t *tdzp, const char *dname,
+    znode_t *szp)
+{
+	spa_t *spa = zilog->zl_spa;
+
+	/* zfs_rename must have already activated this feature. */
+	VERIFY(spa_feature_is_enabled(spa, SPA_FEATURE_RENAME_WHITEOUT));
+	VERIFY(spa_feature_is_active(spa, SPA_FEATURE_RENAME_WHITEOUT));
+
+	txtype |= TX_RENAME_WHITEOUT;
+	do_zfs_log_rename(zilog, tx, txtype, sdzp, sname, tdzp, dname, szp);
 }
 
 /*
