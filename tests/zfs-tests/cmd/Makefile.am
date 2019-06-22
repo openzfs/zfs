@@ -112,10 +112,10 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/edonr_test %D%/skein_test \
 %C%_edonr_test_LDADD = $(%C%_skein_test_LDADD)
 %C%_blake3_test_LDADD = $(%C%_skein_test_LDADD)
 
-
 if BUILD_LINUX
 scripts_zfs_tests_bin_PROGRAMS += %D%/getversion
 scripts_zfs_tests_bin_PROGRAMS += %D%/user_ns_exec
+scripts_zfs_tests_bin_PROGRAMS += %D%/renameat2
 scripts_zfs_tests_bin_PROGRAMS += %D%/xattrtest
 scripts_zfs_tests_bin_PROGRAMS += %D%/zed_fd_spill-zedlet
 scripts_zfs_tests_bin_PROGRAMS += %D%/idmap_util
@@ -126,7 +126,6 @@ dist_noinst_DATA += %D%/linux_dos_attributes/dos_attributes.h
 scripts_zfs_tests_bin_PROGRAMS  += %D%/read_dos_attributes %D%/write_dos_attributes
 %C%_read_dos_attributes_SOURCES  = %D%/linux_dos_attributes/read_dos_attributes.c
 %C%_write_dos_attributes_SOURCES = %D%/linux_dos_attributes/write_dos_attributes.c
-
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/randfree_file
 %C%_randfree_file_SOURCES       = %D%/file/randfree_file.c

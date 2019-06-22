@@ -61,7 +61,8 @@ extern int zfs_getattr_fast(struct user_namespace *, struct inode *ip,
 extern int zfs_setattr(znode_t *zp, vattr_t *vap, int flag, cred_t *cr,
     zuserns_t *mnt_ns);
 extern int zfs_rename(znode_t *sdzp, char *snm, znode_t *tdzp,
-    char *tnm, cred_t *cr, int flags, zuserns_t *mnt_ns);
+    char *tnm, cred_t *cr, int flags, uint64_t rflags, vattr_t *wo_vap,
+    zuserns_t *mnt_ns);
 extern int zfs_symlink(znode_t *dzp, char *name, vattr_t *vap,
     char *link, znode_t **zpp, cred_t *cr, int flags, zuserns_t *mnt_ns);
 extern int zfs_readlink(struct inode *ip, zfs_uio_t *uio, cred_t *cr);

@@ -27,6 +27,7 @@
 /randwritecomp
 /read_dos_attributes
 /readmmap
+/renameat2
 /rename_dir
 /rm_lnkcnt_zero_file
 /send_doall
