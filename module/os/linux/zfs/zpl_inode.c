@@ -397,13 +397,13 @@ zpl_rename2(struct inode *sdip, struct dentry *sdentry,
 	int error;
 	fstrans_cookie_t cookie;
 
-	/* We don't have renameat2(2) support */
-	if (flags)
+	if (flags & ~(RENAME_NOREPLACE | RENAME_EXCHANGE | RENAME_WHITEOUT))
 		return (-EINVAL);
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();
-	error = -zfs_rename(sdip, dname(sdentry), tdip, dname(tdentry), cr, 0);
+	error = -zfs_rename(sdip, dname(sdentry), tdip, dname(tdentry), cr,
+	    flags);
 	spl_fstrans_unmark(cookie);
 	crfree(cr);
 	ASSERT3S(error, <=, 0);

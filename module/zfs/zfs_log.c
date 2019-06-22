@@ -473,7 +473,9 @@ zfs_log_symlink(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 }
 
 /*
- * Handles TX_RENAME transactions.
+ * Handles TX_{RENAME,EXCHANGE,WHITEOUT} transactions. They all have the same
+ * underyling structure (lr_rename_t) but have different txtypes to indicate
+ * different renameat2(2) flags.
  */
 void
 zfs_log_rename(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,

@@ -623,7 +623,7 @@ zfs_replay_link(void *arg1, void *arg2, boolean_t byteswap)
 }
 
 static int
-zfs_replay_rename(void *arg1, void *arg2, boolean_t byteswap)
+_zfs_replay_renameat2(void *arg1, void *arg2, boolean_t byteswap, int vflg)
 {
 	zfsvfs_t *zfsvfs = arg1;
 	lr_rename_t *lr = arg2;
@@ -631,7 +631,6 @@ zfs_replay_rename(void *arg1, void *arg2, boolean_t byteswap)
 	char *tname = sname + strlen(sname) + 1;
 	znode_t *sdzp, *tdzp;
 	int error;
-	int vflg = 0;
 
 	if (byteswap)
 		byteswap_uint64_array(lr, sizeof (*lr));
@@ -653,6 +652,24 @@ zfs_replay_rename(void *arg1, void *arg2, boolean_t byteswap)
 	iput(ZTOI(sdzp));
 
 	return (error);
+}
+
+static int
+zfs_replay_rename(void *arg1, void *arg2, boolean_t byteswap)
+{
+	return (_zfs_replay_renameat2(arg1, arg2, byteswap, 0));
+}
+
+static int
+zfs_replay_exchange(void *arg1, void *arg2, boolean_t byteswap)
+{
+	return (_zfs_replay_renameat2(arg1, arg2, byteswap, RENAME_EXCHANGE));
+}
+
+static int
+zfs_replay_whiteout(void *arg1, void *arg2, boolean_t byteswap)
+{
+	return (_zfs_replay_renameat2(arg1, arg2, byteswap, RENAME_WHITEOUT));
 }
 
 static int
@@ -979,4 +996,6 @@ zil_replay_func_t *zfs_replay_vector[TX_MAX_TYPE] = {
 	zfs_replay_create,	/* TX_MKDIR_ATTR */
 	zfs_replay_create_acl,	/* TX_MKDIR_ACL_ATTR */
 	zfs_replay_write2,	/* TX_WRITE2 */
+	zfs_replay_exchange,	/* TX_EXCHANGE */
+	zfs_replay_whiteout,	/* TX_WHITEOUT */
 };

@@ -341,6 +341,19 @@ static inline void zfs_gid_write(struct inode *ip, gid_t gid)
 }
 
 /*
+ * 3.15 API change
+ */
+#ifndef RENAME_NOREPLACE
+#define	RENAME_NOREPLACE	(1 << 0) /* Don't overwrite target */
+#endif
+#ifndef RENAME_EXCHANGE
+#define	RENAME_EXCHANGE		(1 << 1) /* Exchange source and dest */
+#endif
+#ifndef RENAME_WHITEOUT
+#define	RENAME_WHITEOUT		(1 << 2) /* Whiteout source */
+#endif
+
+/*
  * 4.9 API change
  */
 #ifndef HAVE_SETATTR_PREPARE
