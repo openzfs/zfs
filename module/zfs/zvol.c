@@ -514,6 +514,8 @@ zil_replay_func_t *const zvol_replay_vector[TX_MAX_TYPE] = {
 	zvol_replay_err,	/* TX_MKDIR_ACL_ATTR */
 	zvol_replay_err,	/* TX_WRITE2 */
 	zvol_replay_err,	/* TX_SETSAXATTR */
+	zvol_replay_err,	/* TX_RENAME_EXCHANGE */
+	zvol_replay_err,	/* TX_RENAME_WHITEOUT */
 };
 
 /*

@@ -41,7 +41,8 @@ extern int zfs_rmdir(znode_t *dzp, const char *name, znode_t *cwd,
 extern int zfs_setattr(znode_t *zp, vattr_t *vap, int flag, cred_t *cr,
     zuserns_t *mnt_ns);
 extern int zfs_rename(znode_t *sdzp, const char *snm, znode_t *tdzp,
-    const char *tnm, cred_t *cr, int flags, zuserns_t *mnt_ns);
+    const char *tnm, cred_t *cr, int flags, uint64_t rflags, vattr_t *wo_vap,
+    zuserns_t *mnt_ns);
 extern int zfs_symlink(znode_t *dzp, const char *name, vattr_t *vap,
     const char *link, znode_t **zpp, cred_t *cr, int flags, zuserns_t *mnt_ns);
 extern int zfs_link(znode_t *tdzp, znode_t *sp,

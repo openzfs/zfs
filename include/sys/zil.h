@@ -164,7 +164,9 @@ typedef enum zil_create {
 #define	TX_MKDIR_ACL_ATTR	19	/* mkdir with ACL + attrs */
 #define	TX_WRITE2		20	/* dmu_sync EALREADY write */
 #define	TX_SETSAXATTR		21	/* Set sa xattrs on file */
-#define	TX_MAX_TYPE		22	/* Max transaction type */
+#define	TX_RENAME_EXCHANGE	22	/* Atomic swap via renameat2 */
+#define	TX_RENAME_WHITEOUT	23	/* Atomic whiteout via renameat2 */
+#define	TX_MAX_TYPE		24	/* Max transaction type */
 
 /*
  * The transactions for mkdir, symlink, remove, rmdir, link, and rename
@@ -316,6 +318,19 @@ typedef struct {
 	uint64_t	lr_tdoid;	/* obj id of target directory */
 	/* 2 strings: names of source and destination follow this */
 } lr_rename_t;
+
+typedef struct {
+	lr_rename_t	lr_rename;	/* common rename portion */
+	/* members related to the whiteout file (based on lr_create_t) */
+	uint64_t	lr_wfoid;	/* obj id of the new whiteout file */
+	uint64_t	lr_wmode;	/* mode of object */
+	uint64_t	lr_wuid;	/* uid of whiteout */
+	uint64_t	lr_wgid;	/* gid of whiteout */
+	uint64_t	lr_wgen;	/* generation (txg of creation) */
+	uint64_t	lr_wcrtime[2];	/* creation time */
+	uint64_t	lr_wrdev;	/* always makedev(0, 0) */
+	/* 2 strings: names of source and destination follow this */
+} lr_rename_whiteout_t;
 
 typedef struct {
 	lr_t		lr_common;	/* common portion of log record */

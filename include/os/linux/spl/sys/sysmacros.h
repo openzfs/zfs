@@ -120,6 +120,16 @@ extern uint32_t zone_get_hostid(void *zone);
 extern void spl_setup(void);
 extern void spl_cleanup(void);
 
+/*
+ * Only handles the first 4096 majors and first 256 minors. We don't have a
+ * libc for the kernel module so we define this inline.
+ */
+static inline dev_t
+makedev(unsigned int major, unsigned int minor)
+{
+	return ((major & 0xFFF) << 8) | (minor & 0xFF);
+}
+
 #define	highbit(x)		__fls(x)
 #define	lowbit(x)		__ffs(x)
 
