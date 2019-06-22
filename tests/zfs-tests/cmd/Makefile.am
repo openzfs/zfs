@@ -22,6 +22,7 @@ SUBDIRS = \
 	randfree_file \
 	randwritecomp \
 	readmmap \
+	renameat2 \
 	rename_dir \
 	rm_lnkcnt_zero_file \
 	threadsappend \
