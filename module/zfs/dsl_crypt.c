@@ -1676,11 +1676,15 @@ dsl_dataset_promote_crypt_check(dsl_dir_t *target, dsl_dir_t *origin)
 	 * Check that the parent of the target has the same encryption root.
 	 */
 	ret = dsl_dir_get_encryption_root_ddobj(origin->dd_parent, &op_rddobj);
-	if (ret != 0)
+	if (ret == ENOENT)
+		return (SET_ERROR(EACCES));
+	else if (ret != 0)
 		return (ret);
 
 	ret = dsl_dir_get_encryption_root_ddobj(target->dd_parent, &tp_rddobj);
-	if (ret != 0)
+	if (ret == ENOENT)
+		return (SET_ERROR(EACCES));
+	else if (ret != 0)
 		return (ret);
 
 	if (op_rddobj != tp_rddobj)
