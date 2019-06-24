@@ -1019,8 +1019,8 @@ lzc_receive_resumable(const char *snapname, nvlist_t *props, const char *origin,
  * other platforms.
  */
 int
-lzc_receive_resumable_illumos(const char *snapname, nvlist_t *props, const char *origin,
-    boolean_t force, boolean_t raw, int fd)
+lzc_receive_resumable_illumos(const char *snapname, nvlist_t *props,
+    const char *origin, boolean_t force, boolean_t raw, int fd)
 {
 	return (recv_impl(snapname, props, NULL, NULL, 0, origin, force,
 	    B_TRUE, raw, B_TRUE, fd, NULL, -1, NULL, NULL, NULL, NULL));
@@ -1046,7 +1046,8 @@ lzc_receive_with_header(const char *snapname, nvlist_t *props,
 		return (EINVAL);
 
 	return (recv_impl(snapname, props, NULL, NULL, 0, origin, force,
-	    resumable, raw, B_FALSE, fd, begin_record, -1, NULL, NULL, NULL, NULL));
+	    resumable, raw, B_FALSE, fd, begin_record, -1, NULL, NULL, NULL,
+	    NULL));
 }
 
 /*

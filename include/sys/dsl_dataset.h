@@ -324,12 +324,11 @@ int dsl_dataset_hold_flags(struct dsl_pool *dp, const char *name,
 boolean_t dsl_dataset_try_add_ref(struct dsl_pool *dp, dsl_dataset_t *ds,
     void *tag);
 int dsl_dataset_create_key_mapping(dsl_dataset_t *ds);
-int dsl_dataset_hold_obj(struct dsl_pool *dp, uint64_t dsobj, void *tag,
-    dsl_dataset_t **);
 int dsl_dataset_hold_obj_flags(struct dsl_pool *dp, uint64_t dsobj,
     ds_hold_flags_t flags, void *tag, dsl_dataset_t **);
 void dsl_dataset_remove_key_mapping(dsl_dataset_t *ds);
-void dsl_dataset_rele(dsl_dataset_t *ds, void *tag);
+int dsl_dataset_hold_obj(struct dsl_pool *dp, uint64_t dsobj,
+    void *tag, dsl_dataset_t **);
 void dsl_dataset_rele_flags(dsl_dataset_t *ds, ds_hold_flags_t flags,
     void *tag);
 void dsl_dataset_rele(dsl_dataset_t *ds, void *tag);

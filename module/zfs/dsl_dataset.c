@@ -429,6 +429,8 @@ dsl_dataset_evict_async(void *dbu)
 		ds->ds_prev = NULL;
 	}
 
+	dsl_bookmark_fini_ds(ds);
+
 	bplist_destroy(&ds->ds_pending_deadlist);
 	if (dsl_deadlist_is_open(&ds->ds_deadlist))
 		dsl_deadlist_close(&ds->ds_deadlist);
@@ -678,6 +680,11 @@ dsl_dataset_hold_obj(dsl_pool_t *dp, uint64_t dsobj, void *tag,
 			if (ds->ds_prev)
 				dsl_dataset_rele(ds->ds_prev, ds);
 			dsl_dir_rele(ds->ds_dir, ds);
+			for (spa_feature_t f = 0; f < SPA_FEATURES; f++) {
+				if (dsl_dataset_feature_is_active(ds, f))
+					unload_zfeature(ds, f);
+			}
+
 			list_destroy(&ds->ds_prop_cbs);
 			list_destroy(&ds->ds_sendstreams);
 			mutex_destroy(&ds->ds_lock);

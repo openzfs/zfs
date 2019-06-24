@@ -31,6 +31,7 @@
 
 #include <sys/inttypes.h>
 #include <sys/dsl_bookmark.h>
+#include <sys/dsl_dataset.h>
 #include <sys/spa.h>
 #include <sys/objlist.h>
 #include <sys/dsl_bookmark.h>
@@ -45,10 +46,10 @@ typedef struct dmu_recv_cookie {
 	const char *drc_tosnap;
 	boolean_t drc_newfs;
 	boolean_t drc_byteswap;
-	boolean_t drc_raw;
 	uint64_t drc_featureflags;
 	boolean_t drc_force;
 	boolean_t drc_resumable;
+	boolean_t drc_raw;
 	boolean_t drc_clone;
 	boolean_t drc_illumos;
 	boolean_t drc_spill;
@@ -79,10 +80,10 @@ typedef struct dmu_recv_cookie {
 	objlist_t *drc_ignore_objlist;
 } dmu_recv_cookie_t;
 
-int dmu_recv_begin(char *tofs, char *tosnap,
-    struct dmu_replay_record *drr_begin, boolean_t force, boolean_t resumable,
-    boolean_t illumos, nvlist_t *localprops, nvlist_t *hidden_args,
-    char *origin, dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp);
+int dmu_recv_begin(char *tofs, char *tosnap, dmu_replay_record_t *drr_begin,
+    boolean_t force, boolean_t resumable, boolean_t illumos, 
+    nvlist_t *localprops, nvlist_t *hidden_args, char *origin,
+    dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp);
 int dmu_recv_stream(dmu_recv_cookie_t *drc, int cleanup_fd,
     uint64_t *action_handlep, offset_t *voffp);
 int dmu_recv_end(dmu_recv_cookie_t *drc, void *owner);

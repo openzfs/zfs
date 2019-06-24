@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright (c) 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2017, 2018 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -148,7 +148,8 @@ record_merge_enqueue(bqueue_t *q, struct redact_record **build,
 	}
 	struct redact_record *curbuild = *build;
 	if ((curbuild->end_object == new->start_object &&
-	    curbuild->end_blkid + 1 == new->start_blkid) ||
+	    curbuild->end_blkid + 1 == new->start_blkid &&
+	    curbuild->end_blkid != UINT64_MAX) ||
 	    (curbuild->end_object + 1 == new->start_object &&
 	    curbuild->end_blkid == UINT64_MAX && new->start_blkid == 0)) {
 		curbuild->end_object = new->end_object;
@@ -192,6 +193,9 @@ redact_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 
 	if (rta->cancel)
 		return (SET_ERROR(EINTR));
+
+	if (rta->ignore_object == zb->zb_object)
+		return (0);
 
 	/*
 	 * If we're visiting a dnode, we need to handle the case where the
@@ -941,8 +945,10 @@ dmu_redact_snap(const char *snapname, nvlist_t *redactnvl,
 	if ((err = dsl_pool_hold(snapname, FTAG, &dp)) != 0)
 		return (err);
 
-	if ((err = dsl_dataset_hold(dp, snapname, FTAG, &ds)) != 0)
+	if ((err = dsl_dataset_hold_flags(dp, snapname, DS_HOLD_FLAG_DECRYPT,
+	    FTAG, &ds)) != 0) {
 		goto out;
+	}
 	dsl_dataset_long_hold(ds, FTAG);
 	if (!ds->ds_is_snapshot || dmu_objset_from_ds(ds, &os) != 0) {
 		err = EINVAL;
@@ -961,8 +967,8 @@ dmu_redact_snap(const char *snapname, nvlist_t *redactnvl,
 	for (pair = nvlist_next_nvpair(redactnvl, NULL); err == 0 &&
 	    pair != NULL; pair = nvlist_next_nvpair(redactnvl, pair)) {
 		const char *name = nvpair_name(pair);
-		err = dsl_dataset_hold(dp, name, FTAG,
-		    redactsnaparr + numsnaps);
+		err = dsl_dataset_hold_flags(dp, name, DS_HOLD_FLAG_DECRYPT,
+		    FTAG, redactsnaparr + numsnaps);
 		if (err != 0)
 			break;
 		dsl_dataset_long_hold(redactsnaparr[numsnaps], FTAG);
@@ -1087,7 +1093,8 @@ out:
 	}
 	for (int i = 0; i < numsnaps; i++) {
 		dsl_dataset_long_rele(redactsnaparr[i], FTAG);
-		dsl_dataset_rele(redactsnaparr[i], FTAG);
+		dsl_dataset_rele_flags(redactsnaparr[i], DS_HOLD_FLAG_DECRYPT,
+		    FTAG);
 	}
 
 	if (redactsnaparr != NULL) {
@@ -1098,7 +1105,7 @@ out:
 		dsl_pool_rele(dp, FTAG);
 	if (ds != NULL) {
 		dsl_dataset_long_rele(ds, FTAG);
-		dsl_dataset_rele(ds, FTAG);
+		dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
 	}
 	return (SET_ERROR(err));
 

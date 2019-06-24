@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <string.h>
 
 static int bsize = 0;
 static int count = 0;
@@ -147,10 +148,10 @@ main(int argc, char *argv[])
 	 * We use valloc because some character block devices expect a
 	 * page-aligned buffer.
 	 */
-	buf = valloc(bsize);
-	if (buf == NULL) {
+	int err = posix_memalign(&buf, 4096, bsize);
+	if (err != 0) {
 		(void) fprintf(stderr,
-		    "%s: %s\n", execname, "not enough memory");
+		    "%s: %s\n", execname, strerror(err));
 		exit(2);
 	}
 
@@ -204,6 +205,7 @@ main(int argc, char *argv[])
 			}
 		}
 	}
+	free(buf);
 
 	(void) close(ofd);
 	(void) close(ifd);

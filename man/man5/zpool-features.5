@@ -237,6 +237,27 @@ returned to the \fBenabled\fR state when all v2 bookmarks are destroyed.
 .sp
 .ne 2
 .na
+\fBbookmark_written\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.delphxi:bookmark_written
+READ\-ONLY COMPATIBLE	no
+DEPENDENCIES	bookmark, extensible_dataset, bookmark_v2
+.TE
+
+This feature enables additional bookmark accounting fields, enabling the
+written#<bookmark> prperty (space written since a bookmark) and estimates of
+send stream sizes for incrementals from bookmarks.
+
+This feature becomes \fBactive\fR when a bookmark is created and will be
+returned to the \fBenabled\fR state when all bookmarks with these fields are destroyed.
+.RE
+
+.sp
+.ne 2
+.na
 \fBdevice_removal\fR
 .ad
 .RS 4n
@@ -648,6 +669,46 @@ for the filesystems containing a large number of files.
 .sp
 .ne 2
 .na
+\fB\fBredaction_bookmarks\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.delphix:redaction_bookmarks
+READ\-ONLY COMPATIBLE	no
+DEPENDENCIES	bookmarks, extensible_dataset
+.TE
+
+This feature enables the use of the redacted zfs send.  Redacted \fBzfs send\fR
+creates redaction bookmarks, which store the list of blocks redacted by the
+send that created them.  For more information about redacted send,
+see \fBzfs\fR(8).
+
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBredacted_datasets\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.delphix:redacted_datasets
+READ\-ONLY COMPATIBLE	no
+DEPENDENCIES	extensible_dataset
+.TE
+
+This feature enables the receiving of redacted zfs send streams.  Redacted zfs
+send streams create redacted datasets when received.  These datasets are
+missing some of their blocks, and so cannot be safely mounted, and their
+contents cannot be safely read.  For more information about redacted receive,
+see \fBzfs\fR(8).
+.RE
+
+.sp
+.ne 2
+.na
 \fBresilver_defer\fR
 .ad
 .RS 4n
@@ -821,47 +882,6 @@ This feature becomes \fBactive\fR when the \fBzpool checkpoint\fR subcommand
 is used to checkpoint the pool.
 The feature will only return back to being \fBenabled\fR when the pool
 is rewound or the checkpoint has been discarded.
-.RE
-
-.sp
-.ne 2
-.na
-\fB\fBredaction_bookmarks\fR\fR
-.ad
-.RS 4n
-.TS
-l l .
-GUID	com.delphix:redaction_bookmarks
-READ\-ONLY COMPATIBLE	no
-DEPENDENCIES	bookmarks, extensible_dataset
-.TE
-
-This feature enables the use of the redacted zfs send.  Redacted zfs sends
-creates redaction bookmarks, which store the list of blocks redacted by the
-send that created them.  For more information about redacted send,
-see \fBzfs\fR(1M).
-
-.RE
-
-.sp
-.ne 2
-.na
-\fB\fBredacted_datasets\fR\fR
-.ad
-.RS 4n
-.TS
-l l .
-GUID	com.delphix:redacted_datasets
-READ\-ONLY COMPATIBLE	no
-DEPENDENCIES	extensible_dataset
-.TE
-
-This feature enables the receiving of redacted zfs send streams.  Redacted zfs
-send streams creates redacted datasets when received.  These datasets are
-missing some of their blocks, and so cannot be safely mounted, and their
-contents cannot be safely read.  For more information about redacted receive,
-see \fBzfs\fR(1M).
-
 .RE
 
 .sp

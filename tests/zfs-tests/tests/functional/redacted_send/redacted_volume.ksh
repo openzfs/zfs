@@ -1,4 +1,4 @@
-#!/usr/bin/ksh
+#!/bin/ksh
 
 #
 # This file and its contents are supplied under the terms of the
@@ -40,6 +40,7 @@ typeset clone_file="/dev/zvol/$clone"
 log_onexit redacted_cleanup $sendvol $recvvol
 
 log_must zfs create -b 8k -V 1g $sendvol
+sleep 10
 log_must zpool export $POOL
 log_must zpool import $POOL
 udevadm settle
@@ -57,7 +58,7 @@ log_must zfs snapshot $sendvol@snap
 log_must zfs clone $sendvol@snap $clone
 log_must zfs snapshot $clone@snap
 
-echo "1" > /sys/module/zfs/parameters/zfs_allow_redacted_dataset_mount
+log_must set_tunable32 zfs_allow_redacted_dataset_mount 1
 log_must zfs redact $sendvol@snap book1 $clone@snap
 log_must eval "zfs send --redact book1 $sendvol@snap >$stream"
 log_must eval "zfs recv $recvvol <$stream"

@@ -6340,9 +6340,9 @@ static const zfs_ioc_key_t zfs_keys_send_space[] = {
 	{"rawok",		DATA_TYPE_BOOLEAN,	ZK_OPTIONAL},
 	{"fd",			DATA_TYPE_INT32,	ZK_OPTIONAL},
 	{"redactbook",		DATA_TYPE_STRING,	ZK_OPTIONAL},
-	{"resumeobj",		DATA_TYPE_UINT64,	ZK_OPTIONAL},
-	{"resumeoff",		DATA_TYPE_UINT64,	ZK_OPTIONAL},
-	{"bytes",		DATA_TYPE_UINT64,	ZK_OPTIONAL},
+	{"resumeobj",			DATA_TYPE_UINT64,	ZK_OPTIONAL},
+	{"resumeoff",			DATA_TYPE_UINT64,	ZK_OPTIONAL},
+	{"bytes",			DATA_TYPE_UINT64,	ZK_OPTIONAL},
 };
 
 static int

@@ -48,7 +48,6 @@ struct drr_begin;
 struct avl_tree;
 struct dmu_replay_record;
 struct dmu_send_outparams;
-
 int
 dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
     boolean_t large_block_ok, boolean_t compressok, boolean_t rawok,

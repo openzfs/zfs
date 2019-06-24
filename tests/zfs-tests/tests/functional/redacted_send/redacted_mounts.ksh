@@ -1,4 +1,4 @@
-#!/usr/bin/ksh
+#!/bin/ksh
 
 #
 # This file and its contents are supplied under the terms of the
@@ -77,7 +77,7 @@ log_must zfs redact $sendvol@snap book2 $clonevol@snap
 log_must eval "zfs send --redact book2 $sendvol@snap >$stream"
 log_must eval "zfs receive $recvvol <$stream"
 [[ -b $recv_vol_file ]] && log_fail "Volume device file should not exist."
-echo "1" > /sys/module/zfs/parameters/zfs_allow_redacted_dataset_mount
+log_must set_tunable32 zfs_allow_redacted_dataset_mount 1
 log_must zpool export $POOL2
 log_must zpool import $POOL2
 udevadm settle

@@ -435,9 +435,9 @@ zpool_feature_init(void)
 
 	{
 	static const spa_feature_t redact_books_deps[] = {
+		SPA_FEATURE_BOOKMARK_V2,
 		SPA_FEATURE_EXTENSIBLE_DATASET,
 		SPA_FEATURE_BOOKMARKS,
-		SPA_FEATURE_BOOKMARK_V2,
 		SPA_FEATURE_NONE
 	};
 	zfeature_register(SPA_FEATURE_REDACTION_BOOKMARKS,
@@ -461,8 +461,8 @@ zpool_feature_init(void)
 
 	{
 	static const spa_feature_t bookmark_written_deps[] = {
-		SPA_FEATURE_EXTENSIBLE_DATASET,
 		SPA_FEATURE_BOOKMARK_V2,
+		SPA_FEATURE_EXTENSIBLE_DATASET,
 		SPA_FEATURE_BOOKMARKS,
 		SPA_FEATURE_NONE
 	};
