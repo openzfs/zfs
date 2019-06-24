@@ -21,10 +21,6 @@
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/removal/removal.kshlib
 
-if is_linux; then
-	log_unsupported "ZDB fails during concurrent pool activity."
-fi
-
 function reset
 {
 	log_must set_tunable64 zfs_condense_indirect_commit_entry_delay_ms 0
@@ -77,7 +73,14 @@ log_must zpool remove $TESTPOOL $REMOVEDISK
 log_must wait_for_removal $TESTPOOL
 log_mustnot vdevs_in_pool $TESTPOOL $REMOVEDISK
 
-log_must zfs remap $TESTPOOL/$TESTFS
+#
+# Touch one block under each L1 indirect block, so that the other data blocks
+# will be remapped to their concrete locations.  These parameters assume
+# recordsize=512, indirect block size of 128K (1024 block pointers per
+# indirect block), and file size of less than 20*1024 blocks (10MB).
+#
+log_must stride_dd -i /dev/urandom -o $TESTDIR/file -b 512 -c 20 -s 1024
+
 sync_pool $TESTPOOL
 sleep 5
 sync_pool $TESTPOOL

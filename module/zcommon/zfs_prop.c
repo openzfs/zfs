@@ -512,8 +512,6 @@ zfs_prop_init(void)
 	    ZFS_TYPE_DATASET | ZFS_TYPE_BOOKMARK, "<uint64>", "GUID");
 	zprop_register_number(ZFS_PROP_CREATETXG, "createtxg", 0, PROP_READONLY,
 	    ZFS_TYPE_DATASET | ZFS_TYPE_BOOKMARK, "<uint64>", "CREATETXG");
-	zprop_register_hidden(ZFS_PROP_REMAPTXG, "remaptxg", PROP_TYPE_NUMBER,
-	    PROP_READONLY, ZFS_TYPE_DATASET, "REMAPTXG");
 	zprop_register_number(ZFS_PROP_PBKDF2_ITERS, "pbkdf2iters",
 	    0, PROP_ONETIME_DEFAULT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
 	    "<iters>", "PBKDF2ITERS");
@@ -579,11 +577,15 @@ zfs_prop_init(void)
 	    PROP_READONLY, ZFS_TYPE_DATASET, "REDACTED");
 
 	/*
-	 * Property to be removed once libbe is integrated
+	 * Properties that are obsolete and not used.  These are retained so
+	 * that we don't have to change the values of the zfs_prop_t enum, or
+	 * have NULL pointers in the zfs_prop_table[].
 	 */
 	zprop_register_hidden(ZFS_PROP_PRIVATE, "priv_prop",
 	    PROP_TYPE_NUMBER, PROP_READONLY, ZFS_TYPE_FILESYSTEM,
 	    "PRIV_PROP");
+	zprop_register_hidden(ZFS_PROP_REMAPTXG, "remaptxg", PROP_TYPE_NUMBER,
+	    PROP_READONLY, ZFS_TYPE_DATASET, "REMAPTXG");
 
 	/* oddball properties */
 	zprop_register_impl(ZFS_PROP_CREATION, "creation", PROP_TYPE_NUMBER, 0,

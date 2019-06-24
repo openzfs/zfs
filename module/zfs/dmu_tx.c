@@ -317,23 +317,6 @@ dmu_tx_hold_write(dmu_tx_t *tx, uint64_t object, uint64_t off, int len)
 }
 
 void
-dmu_tx_hold_remap_l1indirect(dmu_tx_t *tx, uint64_t object)
-{
-	dmu_tx_hold_t *txh;
-
-	ASSERT(tx->tx_txg == 0);
-	txh = dmu_tx_hold_object_impl(tx, tx->tx_objset,
-	    object, THT_WRITE, 0, 0);
-	if (txh == NULL)
-		return;
-
-	dnode_t *dn = txh->txh_dnode;
-	(void) zfs_refcount_add_many(&txh->txh_space_towrite,
-	    1ULL << dn->dn_indblkshift, FTAG);
-	dmu_tx_count_dnode(txh);
-}
-
-void
 dmu_tx_hold_write_by_dnode(dmu_tx_t *tx, dnode_t *dn, uint64_t off, int len)
 {
 	dmu_tx_hold_t *txh;
