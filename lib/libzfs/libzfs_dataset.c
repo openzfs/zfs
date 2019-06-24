@@ -4117,6 +4117,16 @@ zfs_promote(zfs_handle_t *zhp)
 
 	if (ret != 0) {
 		switch (ret) {
+		case EACCES:
+			/*
+			 * Promoting encrypted dataset outside its
+			 * encryption root.
+			 */
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "cannot promote dataset outside its "
+			    "encryption root"));
+			return (zfs_error(hdl, EZFS_EXISTS, errbuf));
+
 		case EEXIST:
 			/* There is a conflicting snapshot name. */
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
