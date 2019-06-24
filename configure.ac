@@ -120,6 +120,7 @@ AC_CONFIG_FILES([
 	cmd/dbufstat/Makefile
 	cmd/arc_summary/Makefile
 	cmd/zed/Makefile
+	cmd/zed/zed.d/Makefile
 	cmd/raidz_test/Makefile
 	cmd/zgenhostid/Makefile
 	contrib/Makefile

@@ -52,7 +52,8 @@ distclean-local::
 		-type f -print | xargs $(RM)
 
 all-local:
-	-${top_srcdir}/scripts/zfs-tests.sh -c
+	-[ -x ${top_builddir}/scripts/zfs-tests.sh ] && \
+	    ${top_builddir}/scripts/zfs-tests.sh -c
 
 dist-hook: gitrev
 	cp ${top_srcdir}/include/zfs_gitrev.h $(distdir)/include; \
