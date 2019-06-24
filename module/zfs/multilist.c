@@ -363,6 +363,28 @@ multilist_sublist_remove(multilist_sublist_t *mls, void *obj)
 	list_remove(&mls->mls_list, obj);
 }
 
+int
+multilist_sublist_is_empty(multilist_sublist_t *mls)
+{
+	ASSERT(MUTEX_HELD(&mls->mls_lock));
+	return (list_is_empty(&mls->mls_list));
+}
+
+int
+multilist_sublist_is_empty_idx(multilist_t *ml, unsigned int sublist_idx)
+{
+	multilist_sublist_t *mls;
+	int empty;
+
+	ASSERT3U(sublist_idx, <, ml->ml_num_sublists);
+	mls = &ml->ml_sublists[sublist_idx];
+	ASSERT(!MUTEX_HELD(&mls->mls_lock));
+	mutex_enter(&mls->mls_lock);
+	empty = list_is_empty(&mls->mls_list);
+	mutex_exit(&mls->mls_lock);
+	return (empty);
+}
+
 void *
 multilist_sublist_head(multilist_sublist_t *mls)
 {
