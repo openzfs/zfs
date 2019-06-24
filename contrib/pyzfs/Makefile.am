@@ -24,7 +24,7 @@ all-local:
 # files are later created by manually loading the Python modules.
 #
 install-exec-local:
-	$(PYTHON) $(srcdir)/setup.py install \
+	$(PYTHON) $(builddir)/setup.py install \
 	--prefix $(prefix) \
 	--root $(DESTDIR)/ \
 	--install-lib $(pythonsitedir) \

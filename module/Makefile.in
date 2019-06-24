@@ -66,8 +66,9 @@ modules_uninstall:
 
 distdir:
 	list='$(subdir-m)'; for subdir in $$list; do \
-		(cd @top_srcdir@/module && find $$subdir -name '*.c' -o -name '*.h' -o -name '*.S' |\
-		xargs cp --parents -t $$distdir); \
+		(cd @top_srcdir@/module && find $$subdir \
+		-name '*.c' -o -name '*.h' -o -name '*.S' | \
+		xargs cp --parents -t @abs_top_builddir@/module/$$distdir); \
 	done
 
 distclean maintainer-clean: clean

@@ -9,4 +9,4 @@ Version: @VERSION@
 URL: http://zfsonlinux.org
 Requires: libzfs_core
 Cflags: -I${includedir}/libzfs -I${includedir}/libspl
-Libs: -L${libdir} -lzfs
+Libs: -L${libdir} -lzfs -lnvpair

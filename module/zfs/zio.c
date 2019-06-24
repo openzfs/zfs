@@ -3123,35 +3123,6 @@ zio_ddt_child_write_done(zio_t *zio)
 	ddt_exit(ddt);
 }
 
-static void
-zio_ddt_ditto_write_done(zio_t *zio)
-{
-	int p = DDT_PHYS_DITTO;
-	ASSERTV(zio_prop_t *zp = &zio->io_prop);
-	blkptr_t *bp = zio->io_bp;
-	ddt_t *ddt = ddt_select(zio->io_spa, bp);
-	ddt_entry_t *dde = zio->io_private;
-	ddt_phys_t *ddp = &dde->dde_phys[p];
-	ddt_key_t *ddk = &dde->dde_key;
-
-	ddt_enter(ddt);
-
-	ASSERT(ddp->ddp_refcnt == 0);
-	ASSERT(dde->dde_lead_zio[p] == zio);
-	dde->dde_lead_zio[p] = NULL;
-
-	if (zio->io_error == 0) {
-		ASSERT(ZIO_CHECKSUM_EQUAL(bp->blk_cksum, ddk->ddk_cksum));
-		ASSERT(zp->zp_copies < SPA_DVAS_PER_BP);
-		ASSERT(zp->zp_copies == BP_GET_NDVAS(bp) - BP_IS_GANG(bp));
-		if (ddp->ddp_phys_birth != 0)
-			ddt_phys_free(ddt, ddk, ddp, zio->io_txg);
-		ddt_phys_fill(ddp, bp);
-	}
-
-	ddt_exit(ddt);
-}
-
 static zio_t *
 zio_ddt_write(zio_t *zio)
 {
@@ -3160,9 +3131,7 @@ zio_ddt_write(zio_t *zio)
 	uint64_t txg = zio->io_txg;
 	zio_prop_t *zp = &zio->io_prop;
 	int p = zp->zp_copies;
-	int ditto_copies;
 	zio_t *cio = NULL;
-	zio_t *dio = NULL;
 	ddt_t *ddt = ddt_select(spa, bp);
 	ddt_entry_t *dde;
 	ddt_phys_t *ddp;
@@ -3191,45 +3160,12 @@ zio_ddt_write(zio_t *zio)
 			BP_ZERO(bp);
 		} else {
 			zp->zp_dedup = B_FALSE;
+			BP_SET_DEDUP(bp, B_FALSE);
 		}
+		ASSERT(!BP_GET_DEDUP(bp));
 		zio->io_pipeline = ZIO_WRITE_PIPELINE;
 		ddt_exit(ddt);
 		return (zio);
-	}
-
-	ditto_copies = ddt_ditto_copies_needed(ddt, dde, ddp);
-	ASSERT(ditto_copies < SPA_DVAS_PER_BP);
-
-	if (ditto_copies > ddt_ditto_copies_present(dde) &&
-	    dde->dde_lead_zio[DDT_PHYS_DITTO] == NULL) {
-		zio_prop_t czp = *zp;
-
-		czp.zp_copies = ditto_copies;
-
-		/*
-		 * If we arrived here with an override bp, we won't have run
-		 * the transform stack, so we won't have the data we need to
-		 * generate a child i/o.  So, toss the override bp and restart.
-		 * This is safe, because using the override bp is just an
-		 * optimization; and it's rare, so the cost doesn't matter.
-		 */
-		if (zio->io_bp_override) {
-			zio_pop_transforms(zio);
-			zio->io_stage = ZIO_STAGE_OPEN;
-			zio->io_pipeline = ZIO_WRITE_PIPELINE;
-			zio->io_bp_override = NULL;
-			BP_ZERO(bp);
-			ddt_exit(ddt);
-			return (zio);
-		}
-
-		dio = zio_write(zio, spa, txg, bp, zio->io_orig_abd,
-		    zio->io_orig_size, zio->io_orig_size, &czp, NULL, NULL,
-		    NULL, zio_ddt_ditto_write_done, dde, zio->io_priority,
-		    ZIO_DDT_CHILD_FLAGS(zio), &zio->io_bookmark);
-
-		zio_push_transform(dio, zio->io_abd, zio->io_size, 0, NULL);
-		dde->dde_lead_zio[DDT_PHYS_DITTO] = dio;
 	}
 
 	if (ddp->ddp_phys_birth != 0 || dde->dde_lead_zio[p] != NULL) {
@@ -3259,8 +3195,6 @@ zio_ddt_write(zio_t *zio)
 
 	if (cio)
 		zio_nowait(cio);
-	if (dio)
-		zio_nowait(dio);
 
 	return (zio);
 }

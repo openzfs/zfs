@@ -35,8 +35,12 @@ typedef struct zfs_bookmark_phys {
 	uint64_t zbm_guid;		/* guid of bookmarked dataset */
 	uint64_t zbm_creation_txg;	/* birth transaction group */
 	uint64_t zbm_creation_time;	/* bookmark creation time */
+
+	/* fields used for redacted send / recv */
 	uint64_t zbm_redaction_obj;	/* redaction list object */
 	uint64_t zbm_flags;		/* ZBM_FLAG_* */
+
+	/* fields used for bookmark written size */
 	uint64_t zbm_referenced_bytes_refd;
 	uint64_t zbm_compressed_bytes_refd;
 	uint64_t zbm_uncompressed_bytes_refd;

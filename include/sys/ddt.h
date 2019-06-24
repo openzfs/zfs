@@ -103,6 +103,10 @@ typedef struct ddt_phys {
 	uint64_t	ddp_phys_birth;
 } ddt_phys_t;
 
+/*
+ * Note, we no longer generate new DDT_PHYS_DITTO-type blocks.  However,
+ * we maintain the ability to free existing dedup-ditto blocks.
+ */
 enum ddt_phys_type {
 	DDT_PHYS_DITTO = 0,
 	DDT_PHYS_SINGLE = 1,
@@ -215,10 +219,6 @@ extern void ddt_get_dedup_stats(spa_t *spa, ddt_stat_t *dds_total);
 
 extern uint64_t ddt_get_dedup_dspace(spa_t *spa);
 extern uint64_t ddt_get_pool_dedup_ratio(spa_t *spa);
-
-extern int ddt_ditto_copies_needed(ddt_t *ddt, ddt_entry_t *dde,
-    ddt_phys_t *ddp_willref);
-extern int ddt_ditto_copies_present(ddt_entry_t *dde);
 
 extern size_t ddt_compress(void *src, uchar_t *dst, size_t s_len, size_t d_len);
 extern void ddt_decompress(uchar_t *src, void *dst, size_t s_len, size_t d_len);

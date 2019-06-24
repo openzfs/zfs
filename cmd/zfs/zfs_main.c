@@ -306,8 +306,7 @@ get_usage(zfs_help_t idx)
 		    "<snapshot>\n"
 		    "\tsend [-nvPLecw] [-i snapshot|bookmark] "
 		    "<filesystem|volume|snapshot>\n"
-		    "[-i bookmark] <snapshot> <bookmark_name>\n"
-		    "\tsend [-DnPpvLecr] [-i bookmark|snapshot] "
+		    "\tsend [-DnPpvLec] [-i bookmark|snapshot] "
 		    "--redact <bookmark> <snapshot>\n"
 		    "\tsend [-nvPe] -t <receive_resume_token>\n"));
 	case HELP_SET:
@@ -6594,8 +6593,25 @@ share_mount_one(zfs_handle_t *zhp, int op, int flags, char *protocol,
 			return (1);
 		}
 
-		if (zfs_mount(zhp, options, flags) != 0)
+		if (zfs_mount(zhp, options, flags) != 0) {
+			/*
+			 * Check if a mount sneaked in after we checked
+			 */
+			if (!explicit &&
+			    libzfs_errno(g_zfs) == EZFS_MOUNTFAILED) {
+				usleep(10 * MILLISEC);
+				libzfs_mnttab_cache(g_zfs, B_FALSE);
+
+				if (zfs_is_mounted(zhp, NULL)) {
+					(void) fprintf(stderr, gettext(
+					    "Ignoring previous 'already "
+					    "mounted' error for '%s'\n"),
+					    zfs_get_name(zhp));
+					return (0);
+				}
+			}
 			return (1);
+		}
 		break;
 	}
 

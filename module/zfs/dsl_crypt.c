@@ -1610,15 +1610,8 @@ dsl_dir_rename_crypt_check(dsl_dir_t *dd, dsl_dir_t *newparent)
 	int ret;
 	uint64_t curr_rddobj, parent_rddobj;
 
-	if (dd->dd_crypto_obj == 0) {
-		/* children of encrypted parents must be encrypted */
-		if (newparent->dd_crypto_obj != 0) {
-			ret = SET_ERROR(EACCES);
-			goto error;
-		}
-
+	if (dd->dd_crypto_obj == 0)
 		return (0);
-	}
 
 	ret = dsl_dir_get_encryption_root_ddobj(dd, &curr_rddobj);
 	if (ret != 0)
@@ -1748,34 +1741,6 @@ dsl_dataset_promote_crypt_sync(dsl_dir_t *target, dsl_dir_t *origin,
 }
 
 int
-dmu_objset_clone_crypt_check(dsl_dir_t *parentdd, dsl_dir_t *origindd)
-{
-	int ret;
-	uint64_t pcrypt, crypt;
-
-	/*
-	 * Check that we are not making an unencrypted child of an
-	 * encrypted parent.
-	 */
-	ret = dsl_dir_get_crypt(parentdd, &pcrypt);
-	if (ret != 0)
-		return (ret);
-
-	ret = dsl_dir_get_crypt(origindd, &crypt);
-	if (ret != 0)
-		return (ret);
-
-	ASSERT3U(pcrypt, !=, ZIO_CRYPT_INHERIT);
-	ASSERT3U(crypt, !=, ZIO_CRYPT_INHERIT);
-
-	if (crypt == ZIO_CRYPT_OFF && pcrypt != ZIO_CRYPT_OFF)
-		return (SET_ERROR(EINVAL));
-
-	return (0);
-}
-
-
-int
 dmu_objset_create_crypt_check(dsl_dir_t *parentdd, dsl_crypto_params_t *dcp,
     boolean_t *will_encrypt)
 {
@@ -1804,13 +1769,6 @@ dmu_objset_create_crypt_check(dsl_dir_t *parentdd, dsl_crypto_params_t *dcp,
 
 	ASSERT3U(pcrypt, !=, ZIO_CRYPT_INHERIT);
 	ASSERT3U(crypt, !=, ZIO_CRYPT_INHERIT);
-
-	/*
-	 * We can't create an unencrypted child of an encrypted parent
-	 * under any circumstances.
-	 */
-	if (crypt == ZIO_CRYPT_OFF && pcrypt != ZIO_CRYPT_OFF)
-		return (SET_ERROR(EINVAL));
 
 	/* check for valid dcp with no encryption (inherited or local) */
 	if (crypt == ZIO_CRYPT_OFF) {
