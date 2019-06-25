@@ -59,51 +59,51 @@ class VDevStat(object):
 
     def __str__(self):
         repr = (
-            "<VDevStat "
-            "timestamp=%s "
-            "state=%s "
-            "aux=%s "
-            "bytes_allocated=%s "
-            "bytes_total=%s "
-            "bytes_deflated=%s "
-            "read_errors=%s "
-            "write_errors=%s "
-            "checksum_errors=%s "
-            ">"
-            % (
-                self.timestamp,
-                VDEV_STATE(self.state),
-                VDEV_AUX_STATE(self.aux),
-                self.bytes_allocated,
-                self.bytes_total,
-                self.bytes_deflated,
-                self.read_errors,
-                self.write_errors,
-                self.checksum_errors,
-            )
+                "<VDevStat "
+                "timestamp=%s "
+                "state=%s "
+                "aux=%s "
+                "bytes_allocated=%s "
+                "bytes_total=%s "
+                "bytes_deflated=%s "
+                "read_errors=%s "
+                "write_errors=%s "
+                "checksum_errors=%s "
+                ">"
+                % (
+                    self.timestamp,
+                    VDEV_STATE(self.state),
+                    VDEV_AUX_STATE(self.aux),
+                    self.bytes_allocated,
+                    self.bytes_total,
+                    self.bytes_deflated,
+                    self.read_errors,
+                    self.write_errors,
+                    self.checksum_errors,
+                )
         )
         return repr
 
     def __init__(
-        self,
-        timestamp,
-        state,
-        aux,
-        bytes_allocated,
-        bytes_total,
-        bytes_deflated,
-        rsize,
-        esize,
-        ops,
-        rw_bytes,
-        read_errors,
-        write_errors,
-        checksum_errors,
-        initialize_errors,
-        self_healed,
-        scan_removing,
-        scan_processed,
-        fragmentation,
+            self,
+            timestamp,
+            state,
+            aux,
+            bytes_allocated,
+            bytes_total,
+            bytes_deflated,
+            rsize,
+            esize,
+            ops,
+            rw_bytes,
+            read_errors,
+            write_errors,
+            checksum_errors,
+            initialize_errors,
+            self_healed,
+            scan_removing,
+            scan_processed,
+            fragmentation,
     ):
         self.timestamp = timestamp
         self.state = state
@@ -174,48 +174,48 @@ class PoolScanStat(object):
     } pool_scan_stat_t;
     """
 
-    def __str__(self) -> str:
+    def __str__(self):
         ss = (
-            "<PoolScanStats "
-            "scan_state=%s "
-            "start_time=%s "
-            "end_time=%s "
-            "bytes_to_examine=%d "
-            "bytes_examined=%d "
-            "bytes_to_process=%d "
-            "bytes_processed=%d "
-            "scan_errors=%d "
-            ">"
-            % (
-                SCAN_STATE(self.scan_state),
-                self.start_time,
-                self.end_time,
-                self.bytes_to_examine,
-                self.bytes_examined,
-                self.bytes_to_process,
-                self.bytes_processed,
-                self.scan_errors,
-            )
+                "<PoolScanStats "
+                "scan_state=%s "
+                "start_time=%s "
+                "end_time=%s "
+                "bytes_to_examine=%d "
+                "bytes_examined=%d "
+                "bytes_to_process=%d "
+                "bytes_processed=%d "
+                "scan_errors=%d "
+                ">"
+                % (
+                    SCAN_STATE(self.scan_state),
+                    self.start_time,
+                    self.end_time,
+                    self.bytes_to_examine,
+                    self.bytes_examined,
+                    self.bytes_to_process,
+                    self.bytes_processed,
+                    self.scan_errors,
+                )
         )
         return ss
 
     def __init__(
-        self,
-        pool_scan_func,
-        scan_state,
-        start_time,
-        end_time,
-        bytes_to_examine,
-        bytes_examined,
-        bytes_to_process,
-        bytes_processed,
-        scan_errors,
-        bytes_examined_per_pass,
-        scan_pass_start_time,
-        scrub_pass_pause_time,
-        total_scrub_pause_time_elapsed,
-        bytes_issued_per_scan,
-        total_bytes_issued,
+            self,
+            pool_scan_func,
+            scan_state,
+            start_time,
+            end_time,
+            bytes_to_examine,
+            bytes_examined,
+            bytes_to_process,
+            bytes_processed,
+            scan_errors,
+            bytes_examined_per_pass,
+            scan_pass_start_time,
+            scrub_pass_pause_time,
+            total_scrub_pause_time_elapsed,
+            bytes_issued_per_scan,
+            total_bytes_issued,
     ):
         self.pool_scan_func = pool_scan_func
         self.scan_state = scan_state
@@ -276,26 +276,26 @@ class VDevTree(object):
 
     def __str__(self):
         repr = (
-            "<VDevTree "
-            "device_type=%s "
-            "name=%s "
-            "path=%s "
-            "devices=%s "
-            "spares=%s "
-            "caches=%s "
-            "vdev_stats=%s "
-            "pool_scan_stats=%s "
-            ">"
-            % (
-                self.device_type,
-                self.name,
-                self.path,
-                self.devices,
-                self.spares,
-                self.caches,
-                self.vdev_stats,
-                self.pool_scan_stats,
-            )
+                "<VDevTree "
+                "device_type=%s "
+                "name=%s "
+                "path=%s "
+                "devices=%s "
+                "spares=%s "
+                "caches=%s "
+                "vdev_stats=%s "
+                "pool_scan_stats=%s "
+                ">"
+                % (
+                    self.device_type,
+                    self.name,
+                    self.path,
+                    self.devices,
+                    self.spares,
+                    self.caches,
+                    self.vdev_stats,
+                    self.pool_scan_stats,
+                )
         )
         return repr
 
