@@ -72,7 +72,7 @@ def nvlist_in(props):
     nvlistp = _ffi.new("nvlist_t **")
     res = _lib.nvlist_alloc(nvlistp, 1, 0)  # UNIQUE_NAME == 1
     if res != 0:
-        raise MemoryError('nvlist_alloc failed')
+        raise MemoryError("nvlist_alloc failed")
     nvlist = _ffi.gc(nvlistp[0], _lib.nvlist_free)
     _dict_to_nvlist(props, nvlist)
     return nvlist
@@ -121,50 +121,101 @@ def packed_nvlist_out(packed_nvlist, packed_size):
     with nvlist_out(props) as nvp:
         ret = _lib.nvlist_unpack(packed_nvlist, packed_size, nvp, 0)
     if ret != 0:
-        raise MemoryError('nvlist_unpack failed')
+        raise MemoryError("nvlist_unpack failed")
     return props
 
 
-_TypeInfo = namedtuple('_TypeInfo', ['suffix', 'ctype', 'is_array', 'convert'])
+_TypeInfo = namedtuple("_TypeInfo", ["suffix", "ctype", "is_array", "convert"])
 
 
 def _type_info(typeid):
     return {
-        _lib.DATA_TYPE_BOOLEAN:         _TypeInfo(None, None, None, None),
-        _lib.DATA_TYPE_BOOLEAN_VALUE:   _TypeInfo("boolean_value", "boolean_t *", False, bool),  # noqa: E501
-        _lib.DATA_TYPE_BYTE:            _TypeInfo("byte", "uchar_t *", False, int),  # noqa: E501
-        _lib.DATA_TYPE_INT8:            _TypeInfo("int8", "int8_t *", False, int),  # noqa: E501
-        _lib.DATA_TYPE_UINT8:           _TypeInfo("uint8", "uint8_t *", False, int),  # noqa: E501
-        _lib.DATA_TYPE_INT16:           _TypeInfo("int16", "int16_t *", False, int),  # noqa: E501
-        _lib.DATA_TYPE_UINT16:          _TypeInfo("uint16", "uint16_t *", False, int),  # noqa: E501
-        _lib.DATA_TYPE_INT32:           _TypeInfo("int32", "int32_t *", False, int),  # noqa: E501
-        _lib.DATA_TYPE_UINT32:          _TypeInfo("uint32", "uint32_t *", False, int),  # noqa: E501
-        _lib.DATA_TYPE_INT64:           _TypeInfo("int64", "int64_t *", False, int),  # noqa: E501
-        _lib.DATA_TYPE_UINT64:          _TypeInfo("uint64", "uint64_t *", False, int),  # noqa: E501
-        _lib.DATA_TYPE_STRING:          _TypeInfo("string", "char **", False, _ffi.string),  # noqa: E501
-        _lib.DATA_TYPE_NVLIST:          _TypeInfo("nvlist", "nvlist_t **", False, lambda x: _nvlist_to_dict(x, {})),  # noqa: E501
-        _lib.DATA_TYPE_BOOLEAN_ARRAY:   _TypeInfo("boolean_array", "boolean_t **", True, bool),  # noqa: E501
+        _lib.DATA_TYPE_BOOLEAN: _TypeInfo(None, None, None, None),
+        _lib.DATA_TYPE_BOOLEAN_VALUE: _TypeInfo(
+            "boolean_value", "boolean_t *", False, bool
+        ),  # noqa: E501
+        _lib.DATA_TYPE_BYTE: _TypeInfo(
+            "byte", "uchar_t *", False, int
+        ),  # noqa: E501
+        _lib.DATA_TYPE_INT8: _TypeInfo(
+            "int8", "int8_t *", False, int
+        ),  # noqa: E501
+        _lib.DATA_TYPE_UINT8: _TypeInfo(
+            "uint8", "uint8_t *", False, int
+        ),  # noqa: E501
+        _lib.DATA_TYPE_INT16: _TypeInfo(
+            "int16", "int16_t *", False, int
+        ),  # noqa: E501
+        _lib.DATA_TYPE_UINT16: _TypeInfo(
+            "uint16", "uint16_t *", False, int
+        ),  # noqa: E501
+        _lib.DATA_TYPE_INT32: _TypeInfo(
+            "int32", "int32_t *", False, int
+        ),  # noqa: E501
+        _lib.DATA_TYPE_UINT32: _TypeInfo(
+            "uint32", "uint32_t *", False, int
+        ),  # noqa: E501
+        _lib.DATA_TYPE_INT64: _TypeInfo(
+            "int64", "int64_t *", False, int
+        ),  # noqa: E501
+        _lib.DATA_TYPE_UINT64: _TypeInfo(
+            "uint64", "uint64_t *", False, int
+        ),  # noqa: E501
+        _lib.DATA_TYPE_STRING: _TypeInfo(
+            "string", "char **", False, _ffi.string
+        ),  # noqa: E501
+        _lib.DATA_TYPE_NVLIST: _TypeInfo(
+            "nvlist", "nvlist_t **", False, lambda x: _nvlist_to_dict(x, {})
+        ),  # noqa: E501
+        _lib.DATA_TYPE_BOOLEAN_ARRAY: _TypeInfo(
+            "boolean_array", "boolean_t **", True, bool
+        ),  # noqa: E501
         # XXX use bytearray ?
-        _lib.DATA_TYPE_BYTE_ARRAY:      _TypeInfo("byte_array", "uchar_t **", True, int),  # noqa: E501
-        _lib.DATA_TYPE_INT8_ARRAY:      _TypeInfo("int8_array", "int8_t **", True, int),  # noqa: E501
-        _lib.DATA_TYPE_UINT8_ARRAY:     _TypeInfo("uint8_array", "uint8_t **", True, int),  # noqa: E501
-        _lib.DATA_TYPE_INT16_ARRAY:     _TypeInfo("int16_array", "int16_t **", True, int),  # noqa: E501
-        _lib.DATA_TYPE_UINT16_ARRAY:    _TypeInfo("uint16_array", "uint16_t **", True, int),  # noqa: E501
-        _lib.DATA_TYPE_INT32_ARRAY:     _TypeInfo("int32_array", "int32_t **", True, int),  # noqa: E501
-        _lib.DATA_TYPE_UINT32_ARRAY:    _TypeInfo("uint32_array", "uint32_t **", True, int),  # noqa: E501
-        _lib.DATA_TYPE_INT64_ARRAY:     _TypeInfo("int64_array", "int64_t **", True, int),  # noqa: E501
-        _lib.DATA_TYPE_UINT64_ARRAY:    _TypeInfo("uint64_array", "uint64_t **", True, int),  # noqa: E501
-        _lib.DATA_TYPE_STRING_ARRAY:    _TypeInfo("string_array", "char ***", True, _ffi.string),  # noqa: E501
-        _lib.DATA_TYPE_NVLIST_ARRAY:    _TypeInfo("nvlist_array", "nvlist_t ***", True, lambda x: _nvlist_to_dict(x, {})),  # noqa: E501
+        _lib.DATA_TYPE_BYTE_ARRAY: _TypeInfo(
+            "byte_array", "uchar_t **", True, int
+        ),  # noqa: E501
+        _lib.DATA_TYPE_INT8_ARRAY: _TypeInfo(
+            "int8_array", "int8_t **", True, int
+        ),  # noqa: E501
+        _lib.DATA_TYPE_UINT8_ARRAY: _TypeInfo(
+            "uint8_array", "uint8_t **", True, int
+        ),  # noqa: E501
+        _lib.DATA_TYPE_INT16_ARRAY: _TypeInfo(
+            "int16_array", "int16_t **", True, int
+        ),  # noqa: E501
+        _lib.DATA_TYPE_UINT16_ARRAY: _TypeInfo(
+            "uint16_array", "uint16_t **", True, int
+        ),  # noqa: E501
+        _lib.DATA_TYPE_INT32_ARRAY: _TypeInfo(
+            "int32_array", "int32_t **", True, int
+        ),  # noqa: E501
+        _lib.DATA_TYPE_UINT32_ARRAY: _TypeInfo(
+            "uint32_array", "uint32_t **", True, int
+        ),  # noqa: E501
+        _lib.DATA_TYPE_INT64_ARRAY: _TypeInfo(
+            "int64_array", "int64_t **", True, int
+        ),  # noqa: E501
+        _lib.DATA_TYPE_UINT64_ARRAY: _TypeInfo(
+            "uint64_array", "uint64_t **", True, int
+        ),  # noqa: E501
+        _lib.DATA_TYPE_STRING_ARRAY: _TypeInfo(
+            "string_array", "char ***", True, _ffi.string
+        ),  # noqa: E501
+        _lib.DATA_TYPE_NVLIST_ARRAY: _TypeInfo(
+            "nvlist_array",
+            "nvlist_t ***",
+            True,
+            lambda x: _nvlist_to_dict(x, {}),
+        ),  # noqa: E501
     }[typeid]
 
 
 # only integer properties need to be here
 _prop_name_to_type_str = {
-    b"rewind-request":   "uint32",
-    b"type":             "uint32",
-    b"N_MORE_ERRORS":    "int32",
-    b"pool_context":     "int32",
+    b"rewind-request": "uint32",
+    b"type": "uint32",
+    b"N_MORE_ERRORS": "int32",
+    b"pool_context": "int32",
 }
 
 
@@ -183,27 +234,31 @@ def _nvlist_add_array(nvlist, key, array):
         if is_integer and _is_integer(element):
             pass
         elif type(element) is not type(specimen):
-            raise TypeError('Array has elements of different types: ' +
-                            type(specimen).__name__ +
-                            ' and ' +
-                            type(element).__name__)
+            raise TypeError(
+                "Array has elements of different types: "
+                + type(specimen).__name__
+                + " and "
+                + type(element).__name__
+            )
         elif specimen_ctype is not None:
             ctype = _ffi.typeof(element)
             if ctype is not specimen_ctype:
-                raise TypeError('Array has elements of different C types: ' +
-                                _ffi.typeof(specimen).cname +
-                                ' and ' +
-                                _ffi.typeof(element).cname)
+                raise TypeError(
+                    "Array has elements of different C types: "
+                    + _ffi.typeof(specimen).cname
+                    + " and "
+                    + _ffi.typeof(element).cname
+                )
 
     if isinstance(specimen, dict):
         # NB: can't use automatic memory management via nvlist_in() here,
         # we have a loop, but 'with' would require recursion
         c_array = []
         for dictionary in array:
-            nvlistp = _ffi.new('nvlist_t **')
+            nvlistp = _ffi.new("nvlist_t **")
             res = _lib.nvlist_alloc(nvlistp, 1, 0)  # UNIQUE_NAME == 1
             if res != 0:
-                raise MemoryError('nvlist_alloc failed')
+                raise MemoryError("nvlist_alloc failed")
             nested_nvlist = _ffi.gc(nvlistp[0], _lib.nvlist_free)
             _dict_to_nvlist(dictionary, nested_nvlist)
             c_array.append(nested_nvlist)
@@ -211,7 +266,7 @@ def _nvlist_add_array(nvlist, key, array):
     elif isinstance(specimen, bytes):
         c_array = []
         for string in array:
-            c_array.append(_ffi.new('char[]', string))
+            c_array.append(_ffi.new("char[]", string))
         ret = _lib.nvlist_add_string_array(nvlist, key, c_array, len(c_array))
     elif isinstance(specimen, bool):
         ret = _lib.nvlist_add_boolean_array(nvlist, key, array, len(array))
@@ -219,15 +274,17 @@ def _nvlist_add_array(nvlist, key, array):
         suffix = _prop_name_to_type_str.get(key, "uint64")
         cfunc = getattr(_lib, "nvlist_add_%s_array" % (suffix,))
         ret = cfunc(nvlist, key, array, len(array))
-    elif isinstance(
-            specimen, _ffi.CData) and _ffi.typeof(specimen) in _type_to_suffix:
+    elif (
+        isinstance(specimen, _ffi.CData)
+        and _ffi.typeof(specimen) in _type_to_suffix
+    ):
         suffix = _type_to_suffix[_ffi.typeof(specimen)][True]
         cfunc = getattr(_lib, "nvlist_add_%s_array" % (suffix,))
         ret = cfunc(nvlist, key, array, len(array))
     else:
-        raise TypeError('Unsupported value type ' + type(specimen).__name__)
+        raise TypeError("Unsupported value type " + type(specimen).__name__)
     if ret != 0:
-        raise MemoryError('nvlist_add failed, err = %d' % ret)
+        raise MemoryError("nvlist_add failed, err = %d" % ret)
 
 
 def _nvlist_to_dict(nvlist, props):
@@ -245,7 +302,7 @@ def _nvlist_to_dict(nvlist, props):
             lenptr = _ffi.new("uint_t *")
             ret = cfunc(pair, valptr, lenptr)
             if ret != 0:
-                raise RuntimeError('nvpair_value failed')
+                raise RuntimeError("nvpair_value failed")
             length = int(lenptr[0])
             val = []
             for i in range(length):
@@ -257,7 +314,7 @@ def _nvlist_to_dict(nvlist, props):
                 valptr = _ffi.new(typeinfo.ctype)
                 ret = cfunc(pair, valptr)
                 if ret != 0:
-                    raise RuntimeError('nvpair_value failed')
+                    raise RuntimeError("nvpair_value failed")
                 val = typeinfo.convert(valptr[0])
         props[name] = val
         pair = _lib.nvlist_next_nvpair(nvlist, pair)
@@ -267,7 +324,7 @@ def _nvlist_to_dict(nvlist, props):
 def _dict_to_nvlist(props, nvlist):
     for k, v in props.items():
         if not isinstance(k, bytes):
-            raise TypeError('Unsupported key type ' + type(k).__name__)
+            raise TypeError("Unsupported key type " + type(k).__name__)
         ret = 0
         if isinstance(v, dict):
             ret = _lib.nvlist_add_nvlist(nvlist, k, nvlist_in(v))
@@ -288,9 +345,9 @@ def _dict_to_nvlist(props, nvlist):
             cfunc = getattr(_lib, "nvlist_add_%s" % (suffix,))
             ret = cfunc(nvlist, k, v)
         else:
-            raise TypeError('Unsupported value type ' + type(v).__name__)
+            raise TypeError("Unsupported value type " + type(v).__name__)
         if ret != 0:
-            raise MemoryError('nvlist_add failed')
+            raise MemoryError("nvlist_add failed")
 
 
 # vim: softtabstop=4 tabstop=4 expandtab shiftwidth=4

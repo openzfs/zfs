@@ -58,48 +58,53 @@ class VDevStat(object):
     """
 
     def __str__(self):
-        repr = ("<VDevStat "
-                "timestamp=%s "
-                "state=%s "
-                "aux=%s "
-                "bytes_allocated=%s "
-                "bytes_total=%s "
-                "bytes_deflated=%s "
-                "read_errors=%s "
-                "write_errors=%s "
-                "checksum_errors=%s "
-                ">" % (
-                    self.timestamp,
-                    VDEV_STATE(self.state),
-                    VDEV_AUX_STATE(self.aux),
-                    self.bytes_allocated,
-                    self.bytes_total,
-                    self.bytes_deflated,
-                    self.read_errors,
-                    self.write_errors,
-                    self.checksum_errors
-                ))
+        repr = (
+            "<VDevStat "
+            "timestamp=%s "
+            "state=%s "
+            "aux=%s "
+            "bytes_allocated=%s "
+            "bytes_total=%s "
+            "bytes_deflated=%s "
+            "read_errors=%s "
+            "write_errors=%s "
+            "checksum_errors=%s "
+            ">"
+            % (
+                self.timestamp,
+                VDEV_STATE(self.state),
+                VDEV_AUX_STATE(self.aux),
+                self.bytes_allocated,
+                self.bytes_total,
+                self.bytes_deflated,
+                self.read_errors,
+                self.write_errors,
+                self.checksum_errors,
+            )
+        )
         return repr
 
-    def __init__(self,
-                 timestamp,
-                 state,
-                 aux,
-                 bytes_allocated,
-                 bytes_total,
-                 bytes_deflated,
-                 rsize,
-                 esize,
-                 ops,
-                 rw_bytes,
-                 read_errors,
-                 write_errors,
-                 checksum_errors,
-                 initialize_errors,
-                 self_healed,
-                 scan_removing,
-                 scan_processed,
-                 fragmentation):
+    def __init__(
+        self,
+        timestamp,
+        state,
+        aux,
+        bytes_allocated,
+        bytes_total,
+        bytes_deflated,
+        rsize,
+        esize,
+        ops,
+        rw_bytes,
+        read_errors,
+        write_errors,
+        checksum_errors,
+        initialize_errors,
+        self_healed,
+        scan_removing,
+        scan_processed,
+        fragmentation,
+    ):
         self.timestamp = timestamp
         self.state = state
         self.aux = aux
@@ -139,7 +144,7 @@ class VDevStat(object):
             vdev_stats[24],
             vdev_stats[25],
             vdev_stats[26],
-            vdev_stats[27]
+            vdev_stats[27],
         )
 
 
@@ -170,42 +175,48 @@ class PoolScanStat(object):
     """
 
     def __str__(self) -> str:
-        ss = ("<PoolScanStats "
-              "scan_state=%s "
-              "start_time=%s "
-              "end_time=%s "
-              "bytes_to_examine=%d "
-              "bytes_examined=%d "
-              "bytes_to_process=%d "
-              "bytes_processed=%d "
-              "scan_errors=%d "
-              ">" % (
-                  SCAN_STATE(self.scan_state),
-                  self.start_time,
-                  self.end_time,
-                  self.bytes_to_examine,
-                  self.bytes_examined,
-                  self.bytes_to_process,
-                  self.bytes_processed,
-                  self.scan_errors))
+        ss = (
+            "<PoolScanStats "
+            "scan_state=%s "
+            "start_time=%s "
+            "end_time=%s "
+            "bytes_to_examine=%d "
+            "bytes_examined=%d "
+            "bytes_to_process=%d "
+            "bytes_processed=%d "
+            "scan_errors=%d "
+            ">"
+            % (
+                SCAN_STATE(self.scan_state),
+                self.start_time,
+                self.end_time,
+                self.bytes_to_examine,
+                self.bytes_examined,
+                self.bytes_to_process,
+                self.bytes_processed,
+                self.scan_errors,
+            )
+        )
         return ss
 
-    def __init__(self,
-                 pool_scan_func,
-                 scan_state,
-                 start_time,
-                 end_time,
-                 bytes_to_examine,
-                 bytes_examined,
-                 bytes_to_process,
-                 bytes_processed,
-                 scan_errors,
-                 bytes_examined_per_pass,
-                 scan_pass_start_time,
-                 scrub_pass_pause_time,
-                 total_scrub_pause_time_elapsed,
-                 bytes_issued_per_scan,
-                 total_bytes_issued):
+    def __init__(
+        self,
+        pool_scan_func,
+        scan_state,
+        start_time,
+        end_time,
+        bytes_to_examine,
+        bytes_examined,
+        bytes_to_process,
+        bytes_processed,
+        scan_errors,
+        bytes_examined_per_pass,
+        scan_pass_start_time,
+        scrub_pass_pause_time,
+        total_scrub_pause_time_elapsed,
+        bytes_issued_per_scan,
+        total_bytes_issued,
+    ):
         self.pool_scan_func = pool_scan_func
         self.scan_state = scan_state
         self.start_time = start_time
@@ -239,7 +250,7 @@ class PoolScanStat(object):
             ps_stats[11],
             ps_stats[12],
             ps_stats[13],
-            ps_stats[14]
+            ps_stats[14],
         )
 
 
@@ -249,10 +260,11 @@ class VDevTree(object):
     given to us by ZFS, as this class does not have all the properties that are present
     in the ZFS nvlist; instead it just contains the properties we require (for now).
     """
+
     device_type = ""
     devices = []
     spares = []
-    l2_cache = []
+    caches = []
     logs = None
     parity = 0
     name = ""
@@ -261,54 +273,68 @@ class VDevTree(object):
     pool_scan_stats = None
 
     def __str__(self):
-        repr = ("<VDevTree "
-                "device_type=%s "
-                "name=%s "
-                "path=%s "
-                "devices=%s "
-                "spares=%s "
-                "l2_caches=%s "
-                "vdev_stats=%s "
-                "pool_scan_stats=%s "
-                ">" % (
-                    self.device_type,
-                    self.name,
-                    self.path,
-                    self.devices,
-                    self.spares,
-                    self.l2_cache,
-                    self.vdev_stats,
-                    self.pool_scan_stats
-                ))
+        repr = (
+            "<VDevTree "
+            "device_type=%s "
+            "name=%s "
+            "path=%s "
+            "devices=%s "
+            "spares=%s "
+            "caches=%s "
+            "vdev_stats=%s "
+            "pool_scan_stats=%s "
+            ">"
+            % (
+                self.device_type,
+                self.name,
+                self.path,
+                self.devices,
+                self.spares,
+                self.caches,
+                self.vdev_stats,
+                self.pool_scan_stats,
+            )
+        )
         return repr
 
-    def __init__(self, device_type, name, path, devices, spares, l2_cache):
+    def __init__(self, device_type, name, path, devices, spares, caches):
         self.device_type = device_type
         self.name = name
         self.path = path
         self.devices = devices
         self.spares = spares
-        self.l2_cache = l2_cache
+        self.caches = caches
         pass
 
     @staticmethod
     def construct_from_vdev_tree(vdev_tree):
         device_tree = {}
-        keys = [('device_type', 'type'), ('name', 'name'), ('path', 'path')]
+        keys = [("device_type", "type"), ("name", "name"), ("path", "path")]
         for c_key, v_key in keys:
             if v_key in vdev_tree:
                 device_tree[c_key] = vdev_tree[v_key]
             else:
                 device_tree[c_key] = None
-        keys = [('devices', 'children'), ('spares', 'spares'), ('l2_cache', 'l2cache')]
+        keys = [
+            ("devices", "children"),
+            ("spares", "spares"),
+            ("caches", "l2cache"),
+        ]
         for c_key, v_key in keys:
             if v_key in vdev_tree:
-                device_tree[c_key] = [VDevTree.construct_from_vdev_tree(disk) for disk in vdev_tree[v_key]]
+                device_tree[c_key] = [
+                    VDevTree.construct_from_vdev_tree(disk)
+                    for disk in vdev_tree[v_key]
+                ]
             else:
                 device_tree[c_key] = []
         device_tree = VDevTree(**device_tree)
-        if 'vdev_stats' in vdev_tree:
-            device_tree.vdev_stats = VDevStat.construct_from_vdev_stats(vdev_stats=vdev_tree['vdev_stats'])
-        if 'scan_stats' in vdev_tree:
-            device_tree.pool_scan_stats = PoolScanStat.construct_from_pool_scan_stats(ps_stats=vdev_tree['scan_stats'])
+        if "vdev_stats" in vdev_tree:
+            device_tree.vdev_stats = VDevStat.construct_from_vdev_stats(
+                vdev_stats=vdev_tree["vdev_stats"]
+            )
+        if "scan_stats" in vdev_tree:
+            device_tree.pool_scan_stats = PoolScanStat.construct_from_pool_scan_stats(
+                ps_stats=vdev_tree["scan_stats"]
+            )
         return device_tree

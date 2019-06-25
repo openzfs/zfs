@@ -128,6 +128,7 @@ class ZPOOL_STATUS(Enum):
         ZPOOL_STATUS_OK
     } zpool_status_t;
     """
+
     ZPOOL_STATUS_CORRUPT_CACHE = 0
     ZPOOL_STATUS_MISSING_DEV_R = 1
     ZPOOL_STATUS_MISSING_DEV_NR = 2
@@ -166,6 +167,7 @@ class ZPOOL_ERRATA(Enum):
     the correct documentation.  New errata may only be appended to the list
     and must contain corresponding documentation at the above link.
     """
+
     ZPOOL_ERRATA_NONE = 0
     ZPOOL_ERRATA_ZOL_2094_SCRUB = 1
     ZPOOL_ERRATA_ZOL_2094_ASYNC_DESTROY = 2
@@ -174,20 +176,20 @@ class ZPOOL_ERRATA(Enum):
 
 
 class ZPROP_SOURCE(Enum):
-    ZPROP_SRC_NONE = 0x1,
-    ZPROP_SRC_DEFAULT = 0x2,
-    ZPROP_SRC_TEMPORARY = 0x4,
-    ZPROP_SRC_LOCAL = 0x8,
-    ZPROP_SRC_INHERITED = 0x10,
+    ZPROP_SRC_NONE = (0x1,)
+    ZPROP_SRC_DEFAULT = (0x2,)
+    ZPROP_SRC_TEMPORARY = (0x4,)
+    ZPROP_SRC_LOCAL = (0x8,)
+    ZPROP_SRC_INHERITED = (0x10,)
     ZPROP_SRC_RECEIVED = 0x20
 
 
 class ZFS_TYPE(Enum):
-    ZFS_TYPE_FILESYSTEM = (1 << 0)
-    ZFS_TYPE_SNAPSHOT = (1 << 1)
-    ZFS_TYPE_VOLUME = (1 << 2)
-    ZFS_TYPE_POOL = (1 << 3)
-    ZFS_TYPE_BOOKMARK = (1 << 4)
+    ZFS_TYPE_FILESYSTEM = 1 << 0
+    ZFS_TYPE_SNAPSHOT = 1 << 1
+    ZFS_TYPE_VOLUME = 1 << 2
+    ZFS_TYPE_POOL = 1 << 3
+    ZFS_TYPE_BOOKMARK = 1 << 4
 
 
 class ZFS_PROP(Enum):
@@ -454,6 +456,7 @@ class SCAN_STATE(Enum):
         DSS_NUM_STATES
     } dsl_scan_state_t;
     """
+
     NONE = 0
     SCANNING = 1
     FINISHED = 2
@@ -479,6 +482,7 @@ class VDEV_STATE(Enum):
         VDEV_STATE_HEALTHY	/* Presumed good			*/
     } vdev_state_t;
     """
+
     VDEV_STATE_UNKNOWN = 0
     VDEV_STATE_CLOSED = 1
     VDEV_STATE_OFFLINE = 2
@@ -519,6 +523,7 @@ class VDEV_AUX_STATE(Enum):
         VDEV_AUX_CHILDREN_OFFLINE, /* all children are offline		*/
     } vdev_aux_t;
     """
+
     VDEV_AUX_NONE = 0
     VDEV_AUX_OPEN_FAILED = 1
     VDEV_AUX_CORRUPT_DATA = 2
@@ -539,5 +544,6 @@ class VDEV_AUX_STATE(Enum):
     VDEV_AUX_EXTERNAL_PERSIST = 17
     VDEV_AUX_ACTIVE = 18
     VDEV_AUX_CHILDREN_OFFLINE = 19
+
 
 # vim: softtabstop=4 tabstop=4 expandtab shiftwidth=4

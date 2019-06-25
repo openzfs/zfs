@@ -27,13 +27,20 @@ import unittest
 
 from .._nvlist import nvlist_in, nvlist_out, _lib
 from ..ctypes import (
-    uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t,
-    uint64_t, int64_t, boolean_t, uchar_t
+    uint8_t,
+    int8_t,
+    uint16_t,
+    int16_t,
+    uint32_t,
+    int32_t,
+    uint64_t,
+    int64_t,
+    boolean_t,
+    uchar_t,
 )
 
 
 class TestNVList(unittest.TestCase):
-
     def _dict_to_nvlist_to_dict(self, props):
         res = {}
         nv_in = nvlist_in(props)
@@ -43,20 +50,21 @@ class TestNVList(unittest.TestCase):
 
     def _assertIntDictsEqual(self, dict1, dict2):
         self.assertEqual(
-            len(dict1), len(dict1),
-            b"resulting dictionary is of different size")
+            len(dict1), len(dict1), b"resulting dictionary is of different size"
+        )
         for key in dict1.keys():
             self.assertEqual(int(dict1[key]), int(dict2[key]))
 
     def _assertIntArrayDictsEqual(self, dict1, dict2):
         self.assertEqual(
-            len(dict1), len(dict1),
-            b"resulting dictionary is of different size")
+            len(dict1), len(dict1), b"resulting dictionary is of different size"
+        )
         for key in dict1.keys():
             val1 = dict1[key]
             val2 = dict2[key]
             self.assertEqual(
-                len(val1), len(val2), b"array values of different sizes")
+                len(val1), len(val2), b"array values of different sizes"
+            )
             for x, y in zip(val1, val2):
                 self.assertEqual(int(x), int(y))
 
@@ -475,8 +483,14 @@ class TestNVList(unittest.TestCase):
             self._dict_to_nvlist_to_dict(props)
 
     def test_explict_int64_array(self):
-        props = {b"key": [
-            int64_t(0), int64_t(1), int64_t(2 ** 63 - 1), int64_t(-(2 ** 63))]}
+        props = {
+            b"key": [
+                int64_t(0),
+                int64_t(1),
+                int64_t(2 ** 63 - 1),
+                int64_t(-(2 ** 63)),
+            ]
+        }
         res = self._dict_to_nvlist_to_dict(props)
         self._assertIntArrayDictsEqual(props, res)
 
@@ -491,8 +505,14 @@ class TestNVList(unittest.TestCase):
             self._dict_to_nvlist_to_dict(props)
 
     def test_explict_int32_array(self):
-        props = {b"key": [
-            int32_t(0), int32_t(1), int32_t(2 ** 31 - 1), int32_t(-(2 ** 31))]}
+        props = {
+            b"key": [
+                int32_t(0),
+                int32_t(1),
+                int32_t(2 ** 31 - 1),
+                int32_t(-(2 ** 31)),
+            ]
+        }
         res = self._dict_to_nvlist_to_dict(props)
         self._assertIntArrayDictsEqual(props, res)
 
@@ -507,8 +527,14 @@ class TestNVList(unittest.TestCase):
             self._dict_to_nvlist_to_dict(props)
 
     def test_explict_int16_array(self):
-        props = {b"key": [
-            int16_t(0), int16_t(1), int16_t(2 ** 15 - 1), int16_t(-(2 ** 15))]}
+        props = {
+            b"key": [
+                int16_t(0),
+                int16_t(1),
+                int16_t(2 ** 15 - 1),
+                int16_t(-(2 ** 15)),
+            ]
+        }
         res = self._dict_to_nvlist_to_dict(props)
         self._assertIntArrayDictsEqual(props, res)
 
@@ -523,8 +549,14 @@ class TestNVList(unittest.TestCase):
             self._dict_to_nvlist_to_dict(props)
 
     def test_explict_int8_array(self):
-        props = {b"key": [
-            int8_t(0), int8_t(1), int8_t(2 ** 7 - 1), int8_t(-(2 ** 7))]}
+        props = {
+            b"key": [
+                int8_t(0),
+                int8_t(1),
+                int8_t(2 ** 7 - 1),
+                int8_t(-(2 ** 7)),
+            ]
+        }
         res = self._dict_to_nvlist_to_dict(props)
         self._assertIntArrayDictsEqual(props, res)
 
@@ -595,39 +627,17 @@ class TestNVList(unittest.TestCase):
             b"key3": {
                 b"skey1": True,
                 b"skey2": None,
-                b"skey3": [
-                    True,
-                    False,
-                    True
-                ]
+                b"skey3": [True, False, True],
             },
-            b"key4": [
-                b"ab",
-                b"bc"
-            ],
-            b"key5": [
-                2 ** 64 - 1,
-                1,
-                2,
-                3
-            ],
+            b"key4": [b"ab", b"bc"],
+            b"key5": [2 ** 64 - 1, 1, 2, 3],
             b"key6": [
-                {
-                    b"skey71": b"a",
-                    b"skey72": b"b",
-                },
-                {
-                    b"skey71": b"c",
-                    b"skey72": b"d",
-                },
-                {
-                    b"skey71": b"e",
-                    b"skey72": b"f",
-                }
-
+                {b"skey71": b"a", b"skey72": b"b"},
+                {b"skey71": b"c", b"skey72": b"d"},
+                {b"skey71": b"e", b"skey72": b"f"},
             ],
             b"type": 2 ** 32 - 1,
-            b"pool_context": -(2 ** 31)
+            b"pool_context": -(2 ** 31),
         }
         res = self._dict_to_nvlist_to_dict(props)
         self.assertEqual(props, res)

@@ -24,17 +24,24 @@ class ZFSError(Exception):
 
     def __str__(self):
         if self.name is not None:
-            return "[Errno %d] %s: '%s'" % (
-                self.errno, self.message, self.name)
+            return "[Errno %d] %s: '%s'" % (self.errno, self.message, self.name)
         else:
             return "[Errno %d] %s" % (self.errno, self.message)
 
     def __repr__(self):
         return "%s(%r, %r)" % (
-            self.__class__.__name__, self.errno, self.message)
+            self.__class__.__name__,
+            self.errno,
+            self.message,
+        )
 
 
 class LibZfsInitError(ZFSError):
+    """
+    This error is usually raised if the ZFS driver is not found.
+    Usually, this occurs either because the ZFS modules are not installed.
+    """
+
     errno = -1
     message = "Failed to open a handle to the ZFS driver"
 

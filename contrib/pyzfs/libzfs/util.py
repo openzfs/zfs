@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
+
 def stringify_dict(d):
     ret = {}
     if isinstance(d, dict):

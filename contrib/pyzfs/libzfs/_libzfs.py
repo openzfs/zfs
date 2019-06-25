@@ -19,18 +19,18 @@ from __future__ import absolute_import, division, print_function
 import os
 from enum import Enum
 
-from .exceptions import *
-from .models import VDevStat, VDevTree
-from .util import *
+from . import exceptions
+from . import util
 from ._constants import ZPOOL_CONFIG, ZFS_USERSPACE_PROP
-from ._nvlist import nvlist_in, nvlist_out, _nvlist_to_dict
+from ._nvlist import nvlist_out, _nvlist_to_dict
 from .bindings.libnvpair import lib as libnvpair
-from .bindings.libzfs import lib as libzfs
 from .bindings.libzfs import ffi as _ffi
+from .bindings.libzfs import lib as libzfs
+from .models import VDevTree
 
 ENCODING = "utf-8"
-ZPOOL_ITERATOR_FUNC_TYPE = 'zpool_iter_f'
-ZFS_ITERATOR_FUNC_TYPE = 'zfs_iter_f'
+ZPOOL_ITERATOR_FUNC_TYPE = "zpool_iter_f"
+ZFS_ITERATOR_FUNC_TYPE = "zfs_iter_f"
 
 
 def _is_root():
@@ -48,7 +48,7 @@ def libzfs_init():
     """
     libzfs_handle = libzfs.libzfs_init()
     if libzfs_handle == _ffi.NULL:
-        raise LibZfsInitError()
+        raise exceptions.LibZfsInitError()
     return libzfs_handle
 
 
@@ -88,7 +88,7 @@ def zpool_open(libzfs_handle, pool_name):
     """
     zpool_handle = libzfs.zpool_open(libzfs_handle, pool_name)
     if zpool_handle == _ffi.NULL:
-        raise ZpoolOpenError(pool_name.decode(ENCODING))
+        raise exceptions.ZpoolOpenError(pool_name.decode(ENCODING))
     return zpool_handle
 
 
@@ -100,7 +100,7 @@ def zpool_open_canfail(libzfs_handle, pool_name):
     """
     zpool_handle = libzfs.zpool_open_canfail(libzfs_handle, pool_name)
     if zpool_handle == _ffi.NULL:
-        raise ZpoolOpenError(pool_name.decode(ENCODING))
+        raise exceptions.ZpoolOpenError(pool_name.decode(ENCODING))
     return zpool_handle
 
 
@@ -143,7 +143,7 @@ def zpool_get_features(zpool_handle):
     """
     output = libzfs.zpool_get_features(zpool_handle)
     if output == _ffi.NULL:
-        raise ZpoolConfigFeatureFetchError()
+        raise exceptions.ZpoolConfigFeatureFetchError()
     return _unsafe_unpack_nvlist(output)
 
 
@@ -195,7 +195,8 @@ def zpool_get_prop(zpool_handle, zpool_prop, zprop_source, literal):
     :param zpool_handle:
     :param zpool_prop:
     :param zprop_source:
-    :param literal: If True, then numbers are left as exact values, else they're converted to a human-readable form
+    :param literal: If True, then numbers are left as exact values,
+                    else they're converted to a human-readable form
     :return: str: Value of property requested
     """
     buf = _ffi.new("char []", 1024)
@@ -204,9 +205,10 @@ def zpool_get_prop(zpool_handle, zpool_prop, zprop_source, literal):
         zpool_prop = zpool_prop.value
     if isinstance(zprop_source, Enum):
         zprop_source = zprop_source.value
-    ret = libzfs.zpool_get_prop(zpool_handle, zpool_prop, buf, buflen, zprop_source, literal)
+    ret = libzfs.zpool_get_prop(zpool_handle, zpool_prop, buf, buflen,
+                                zprop_source, literal)
     if ret != 0:
-        raise ZpoolPropertyFetchError(zpool_prop.decode(ENCODING))
+        raise exceptions.ZpoolPropertyFetchError(zpool_prop.decode(ENCODING))
     return _ffi.string(buf)
 
 
@@ -256,11 +258,11 @@ def zpool_get_history(zpool_handle):
     :return: dict zpool_history
     """
     if not _is_root():
-        raise InsufficientPerms("<zpool_get_history>")
+        raise exceptions.InsufficientPerms("<zpool_get_history>")
     with nvlist_out({}) as cmd_history_nvlist:
         output = libzfs.zpool_get_history(zpool_handle, cmd_history_nvlist)
         if output != 0:
-            raise ZpoolHistoryFetchError()
+            raise exceptions.ZpoolHistoryFetchError()
         return _unsafe_unpack_nvlist(cmd_history_nvlist[0])
 
 
@@ -277,7 +279,7 @@ def zfs_open(libzfs_handle, pool_name, type_mask):
         type_mask = type_mask.value
     zfs_handle = libzfs.zfs_open(libzfs_handle, pool_name, type_mask)
     if zfs_handle == _ffi.NULL:
-        raise ZfsDatasetOpenError(pool_name.decode(ENCODING))
+        raise exceptions.ZfsDatasetOpenError(pool_name.decode(ENCODING))
     return zfs_handle
 
 
@@ -346,10 +348,18 @@ def zfs_prop_get(zfs_handle, zfs_prop, zprop_source, literal):
         zfs_prop = zfs_prop.value
     if isinstance(zprop_source, Enum):
         zprop_source = zprop_source.value
-    ret = libzfs.zfs_prop_get(zfs_handle, zfs_prop, prop_buf, prop_buf_len, zprop_source, stat_buf, stat_buf_len,
-                              literal)
+    ret = libzfs.zfs_prop_get(
+        zfs_handle,
+        zfs_prop,
+        prop_buf,
+        prop_buf_len,
+        zprop_source,
+        stat_buf,
+        stat_buf_len,
+        literal,
+    )
     if ret != 0:
-        raise ZfsPropertyFetchError(zfs_prop.decode(ENCODING))
+        raise exceptions.ZfsPropertyFetchError(zfs_prop.decode(ENCODING))
     return (_ffi.string(prop_buf), _ffi.string(stat_buf))
 
 
@@ -367,9 +377,10 @@ def zfs_prop_get_userquota(zfs_handle, user_name, prefix, literal):
     if isinstance(prefix, Enum):
         prefix = prefix.value
     prop_name = prefix + user_name
-    ret = libzfs.zfs_prop_get_userquota(zfs_handle, prop_name, prop_buf, prop_buf_len, literal)
+    ret = libzfs.zfs_prop_get_userquota(zfs_handle, prop_name, prop_buf,
+                                        prop_buf_len, literal)
     if ret != 0:
-        raise ZfsPropertyFetchError(prop_name.decode(ENCODING))
+        raise exceptions.ZfsPropertyFetchError(prop_name.decode(ENCODING))
     return _ffi.string(prop_buf)
 
 
@@ -404,6 +415,7 @@ def zfs_get_fsacl(zfs_handle):
 
 # END Dataset related functions
 
+
 def get_zfs_userspace_users(zfs_handle):
     """
     Returns all the uids + gids that have interacted with the dataset
@@ -412,11 +424,11 @@ def get_zfs_userspace_users(zfs_handle):
     :return int[]: Array of all the uids + gids
     """
     if not _is_root():
-        raise InsufficientPerms("<get_zfs_userspace_users>")
+        raise exceptions.InsufficientPerms("<get_zfs_userspace_users>")
 
     users = []
 
-    @_ffi.callback('zfs_userspace_cb_t')
+    @_ffi.callback("zfs_userspace_cb_t")
     def py_zfs_userspace_callback(arg, domain, rid, space):
         users.append(rid)
         return 0
@@ -424,9 +436,11 @@ def get_zfs_userspace_users(zfs_handle):
     # Don't really care what prop we use, as we will get all the values anyway
     zfs_userquota_prop = ZFS_USERSPACE_PROP.ZFS_PROP_USERUSED.value
 
-    out = libzfs.zfs_userspace(zfs_handle, zfs_userquota_prop, py_zfs_userspace_callback, _ffi.NULL)
+    out = libzfs.zfs_userspace(zfs_handle, zfs_userquota_prop,
+                               py_zfs_userspace_callback, _ffi.NULL)
     if out != 0:
-        raise ZfsDatasetUserspaceError(ZFS_USERSPACE_PROP(zfs_userquota_prop))
+        raise exceptions.ZfsDatasetUserspaceError(
+            ZFS_USERSPACE_PROP(zfs_userquota_prop))
     return users
 
 
@@ -441,8 +455,8 @@ def get_zpool_names(libzfs_handle):
 
     out = libzfs.zpool_iter(libzfs_handle, py_zpool_iter, _ffi.NULL)
     if out != 0:
-        raise ZpoolIterError()
-    return [coerce_to_compatible(name) for name in pool_names]
+        raise exceptions.ZpoolIterError()
+    return [util.coerce_to_compatible(name) for name in pool_names]
 
 
 def get_zfs_dataset_names(libzfs_handle):
@@ -462,25 +476,28 @@ def get_zfs_dataset_names(libzfs_handle):
 
     out = libzfs.zfs_iter_root(libzfs_handle, py_zfs_iter_root, _ffi.NULL)
     if out != 0:
-        raise ZfsDatasetIterError()
+        raise exceptions.ZfsDatasetIterError()
     for root_ds in root_dataset_handles:
-        out = libzfs.zfs_iter_filesystems(root_ds, py_zfs_iter_children, _ffi.NULL)
+        out = libzfs.zfs_iter_filesystems(root_ds, py_zfs_iter_children,
+                                          _ffi.NULL)
         if out != 0:
-            raise ZfsDatasetIterError()
-    return [coerce_to_compatible(name) for name in dataset_names]
+            raise exceptions.ZfsDatasetIterError()
+    return [util.coerce_to_compatible(name) for name in dataset_names]
 
 
 def construct_vdev_tree(zpool_handle):
     vdev_tree = {}
     config = libzfs.zpool_get_config(zpool_handle, _ffi.NULL)
     if config == _ffi.NULL:
-        raise ZpoolConfigFeatureFetchError("Failed to get config")
+        raise exceptions.ZpoolConfigFeatureFetchError("Failed to get config")
     with nvlist_out({}) as vdev_nvlist:
-        ret = libnvpair.nvlist_lookup_nvlist(config, ZPOOL_CONFIG.ZPOOL_CONFIG_VDEV_TREE.value, vdev_nvlist)
+        ret = libnvpair.nvlist_lookup_nvlist(
+            config, ZPOOL_CONFIG.ZPOOL_CONFIG_VDEV_TREE.value, vdev_nvlist)
         if ret != 0:
-            raise ZpoolConfigFeatureFetchError("Failed to get VDev list")
+            raise exceptions.ZpoolConfigFeatureFetchError(
+                "Failed to get VDev list")
         # vdev_nvlist is of type `nvlist_t **`
         # In order to access nvlist*, we need to deref the head of the nvlist**
-        vdev_tree = stringify_dict(_unsafe_unpack_nvlist(vdev_nvlist[0]))
+        vdev_tree = util.stringify_dict(_unsafe_unpack_nvlist(vdev_nvlist[0]))
         vdev_tree = VDevTree.construct_from_vdev_tree(vdev_tree)
     return vdev_tree
