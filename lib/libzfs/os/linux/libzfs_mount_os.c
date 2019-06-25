@@ -291,13 +291,132 @@ is_shared_impl(libzfs_handle_t *hdl, const char *mountpoint,
  * in the case of a mount failure we do not have the exact errno.  We must
  * make due with return value from the mount process.
  *
- * In the long term a shared library called libmount is under development
- * which provides a common API to address the locking and errno issues.
- * Once the standard mount utility has been updated to use this library
- * we can add an autoconf check to conditionally use it.
- *
- * http://www.kernel.org/pub/linux/utils/util-linux/libmount-docs/index.html
+ * If libmount exists, use libmount API rather than invoking external programs.
+ * libmount provides a common API to address the locking and errno issues.
+ * In modern distros, the system mount utilities are libmount based.
+ * https://www.kernel.org/pub/linux/utils/util-linux/
  */
+
+/*
+ * MNT_EX_* and related API didn't exist until util-linux v2.30 released in
+ * 2017, so libzfs only supports v2.30 or above.
+ */
+#ifdef HAVE_LIBMOUNT
+#include <libmount/libmount.h>
+#endif
+#if (((LIBMOUNT_MAJOR_VERSION == 2) && (LIBMOUNT_MINOR_VERSION >= 30)) || \
+	LIBMOUNT_MAJOR_VERSION > 2)
+static int
+xlate_excode_to_errno(int excode)
+{
+	/*
+	 * There is no MNT_EX_BUSY, i.e. difference in interpretation of errno
+	 * in comparison with invoking mount(8).
+	 */
+	switch (excode) {
+	case MNT_EX_SUCCESS:
+		return (0);
+	case MNT_EX_FILEIO:
+		return (EIO);
+	case MNT_EX_USER:
+		return (EINTR);
+	case MNT_EX_SOFTWARE:
+		return (EPIPE);
+	case MNT_EX_SYSERR:
+		return (EAGAIN);
+	case MNT_EX_USAGE:
+		return (EINVAL);
+	case MNT_EX_FAIL:
+	case MNT_EX_SOMEOK:
+	default:
+		return (ENXIO); /* Generic error */
+	}
+	return (ENXIO);
+}
+
+int
+do_mount(const char *src, const char *mntpt, char *opts, int flags)
+{
+	struct libmnt_context *cxt;
+	int rc;
+
+	mnt_init_debug(0);
+	cxt = mnt_new_context();
+	if (cxt == NULL)
+		return (ENOMEM);
+
+	if (mnt_context_is_restricted(cxt) != 0) {
+		mnt_free_context(cxt);
+		return (EPERM);
+	}
+	if (mnt_context_disable_canonicalize(cxt, B_TRUE) != 0) {
+		mnt_free_context(cxt);
+		return (EINVAL);
+	}
+	if (mnt_context_append_options(cxt, opts) != 0) {
+		mnt_free_context(cxt);
+		return (EINVAL);
+	}
+	if (mnt_context_set_fstype(cxt, MNTTYPE_ZFS) != 0) {
+		mnt_free_context(cxt);
+		return (EINVAL);
+	}
+	if (mnt_context_set_source(cxt, src) != 0) {
+		mnt_free_context(cxt);
+		return (EINVAL);
+	}
+	if (mnt_context_set_target(cxt, mntpt) != 0) {
+		mnt_free_context(cxt);
+		return (EINVAL);
+	}
+
+	rc = mnt_context_mount(cxt);
+	rc = mnt_context_get_excode(cxt, rc, NULL, 0);
+	mnt_free_context(cxt);
+
+	return (xlate_excode_to_errno(rc));
+}
+
+int
+do_unmount(const char *mntpt, int flags)
+{
+	struct libmnt_context *cxt;
+	int rc;
+
+	mnt_init_debug(0);
+	cxt = mnt_new_context();
+	if (cxt == NULL)
+		return (ENOMEM);
+
+	if (mnt_context_is_restricted(cxt) != 0) {
+		mnt_free_context(cxt);
+		return (EPERM);
+	}
+	if ((flags & MS_FORCE) && mnt_context_enable_force(cxt, B_TRUE) != 0) {
+		mnt_free_context(cxt);
+		return (EINVAL);
+	}
+	if ((flags & MS_DETACH) && mnt_context_enable_lazy(cxt, B_TRUE) != 0) {
+		mnt_free_context(cxt);
+		return (EINVAL);
+	}
+	if (mnt_context_set_fstype(cxt, MNTTYPE_ZFS) != 0) {
+		mnt_free_context(cxt);
+		return (EINVAL);
+	}
+	if (mnt_context_set_target(cxt, mntpt) != 0) {
+		mnt_free_context(cxt);
+		return (EINVAL);
+	}
+
+	rc = mnt_context_umount(cxt);
+	rc = mnt_context_get_excode(cxt, rc, NULL, 0);
+	mnt_free_context(cxt);
+
+	return (xlate_excode_to_errno(rc));
+}
+#else
+/* HAVE_LIBMOUNT undefined or unsupported util-linux version */
 int
 do_mount(const char *src, const char *mntpt, char *opts, int flags)
 {
@@ -359,6 +478,7 @@ do_unmount(const char *mntpt, int flags)
 
 	return (rc ? EINVAL : 0);
 }
+#endif
 
 int
 zfs_mount_delegation_check(void)

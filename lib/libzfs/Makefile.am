@@ -71,7 +71,7 @@ endif
 
 libzfs_la_LDFLAGS = -version-info 2:0:0
 
-libzfs_la_LIBADD += -lm $(LIBSSL)
+libzfs_la_LIBADD += -lm $(LIBSSL) $(LIBMOUNT)
 
 EXTRA_DIST = $(libzfs_pc_DATA) $(USER_C)
 
