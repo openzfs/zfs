@@ -3663,12 +3663,14 @@ metaslab_group_alloc_normal(metaslab_group_t *mg, zio_alloc_list_t *zal,
 		metaslab_active_mask_verify(msp);
 
 		/*
-		 * This code is commented out because of issues with
+		 * This code is disabled out because of issues with
 		 * tracepoints in non-gpl kernel modules.
+		 */
+#if 0
 		DTRACE_PROBE3(ms__activation__attempt,
 		    metaslab_t *, msp, uint64_t, activation_weight,
 		    boolean_t, was_active);
-		 */
+#endif
 
 		/*
 		 * Ensure that the metaslab we have selected is still
@@ -3802,11 +3804,13 @@ next:
 		ASSERT(msp->ms_loaded);
 
 		/*
-		 * This code is commented out because of issues with
+		 * This code is disabled out because of issues with
 		 * tracepoints in non-gpl kernel modules.
+		 */
+#if 0
 		DTRACE_PROBE2(ms__alloc__failure, metaslab_t *, msp,
 		    uint64_t, asize);
-		 */
+#endif
 
 		/*
 		 * We were unable to allocate from this metaslab so determine
