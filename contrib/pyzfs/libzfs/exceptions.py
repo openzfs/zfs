@@ -24,7 +24,9 @@ class ZFSError(Exception):
 
     def __str__(self):
         if self.name is not None:
-            return "[Errno %d] %s: '%s'" % (self.errno, self.message, self.name)
+            return "[Errno %d] %s: '%s'" % (self.errno,
+                                            self.message,
+                                            self.name)
         else:
             return "[Errno %d] %s" % (self.errno, self.message)
 
@@ -122,10 +124,13 @@ class NoEntryFoundError(ZFSError):
 
 class ZpoolHistoryFetchError(ZFSError):
     errno = errno.EFAULT
-    # Asking the user to run the command to find the reason why the history was not fetched is due to
-    # the fact that the zpool_get_history(...) command does not actually return the error code corresponding
+    # Asking the user to run the command to find the reason
+    # why the history was not fetched is due to
+    # the fact that the zpool_get_history(...) command
+    # does not actually return the error code corresponding
     # to a problem; instead if ALWAYS returns -1. Hence, this workaround.
-    message = "Could not fetch zpool history. Please use libzfs_error_description(<libzfs_handle>) to know why"
+    message = "Could not fetch zpool history." + \
+        "Please use libzfs_error_description(<libzfs_handle>) to know why"
 
 
 class InsufficientPerms(ZFSError):

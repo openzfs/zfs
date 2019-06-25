@@ -657,7 +657,8 @@ extern int zpool_vdev_remove(zpool_handle_t *, const char *);
 
 extern int zpool_vdev_remove_cancel(zpool_handle_t *);
 
-extern int zpool_vdev_indirect_size(zpool_handle_t *, const char *, uint64_t *);
+extern int zpool_vdev_indirect_size(zpool_handle_t *, const char *,
+                                    uint64_t *);
 
 extern int zpool_vdev_split(zpool_handle_t *, char *, nvlist_t **, nvlist_t *,
                             splitflags_t);
@@ -672,7 +673,8 @@ extern nvlist_t *zpool_find_vdev(zpool_handle_t *, const char *, boolean_t *,
                                  boolean_t *, boolean_t *);
 
 extern nvlist_t *zpool_find_vdev_by_physpath(zpool_handle_t *, const char *,
-                                             boolean_t *, boolean_t *, boolean_t *);
+                                             boolean_t *, boolean_t *,
+                                             boolean_t *);
 
 extern int zpool_label_disk(libzfs_handle_t *, zpool_handle_t *, char *);
 
@@ -705,7 +707,7 @@ typedef enum {
      * This must be kept in sync with the zfs_msgid_table in
      * lib/libzfs/libzfs_status.c.
      */
-            ZPOOL_STATUS_CORRUPT_CACHE,    /* corrupt /kernel/drv/zpool.cache */
+    ZPOOL_STATUS_CORRUPT_CACHE,    /* corrupt /kernel/drv/zpool.cache */
     ZPOOL_STATUS_MISSING_DEV_R,    /* missing device with replicas */
     ZPOOL_STATUS_MISSING_DEV_NR,    /* missing device with no replicas */
     ZPOOL_STATUS_CORRUPT_LABEL_R,    /* bad device label with replicas */
@@ -730,7 +732,7 @@ typedef enum {
      * pool has unsupported features but cannot be opened at all, its
      * status is ZPOOL_STATUS_UNSUP_FEAT_READ.
      */
-            ZPOOL_STATUS_UNSUP_FEAT_READ,    /* unsupported features for read */
+    ZPOOL_STATUS_UNSUP_FEAT_READ,    /* unsupported features for read */
     ZPOOL_STATUS_UNSUP_FEAT_WRITE,    /* unsupported features for write */
 
     /*
@@ -996,7 +998,8 @@ extern const char *zfs_prop_column_name(zfs_prop_t);
 extern boolean_t zfs_prop_align_right(zfs_prop_t);
 
 extern nvlist_t *zfs_valid_proplist(libzfs_handle_t *, zfs_type_t, nvlist_t *,
-                                    uint64_t, zfs_handle_t *, zpool_handle_t *, boolean_t, const char *);
+                                    uint64_t, zfs_handle_t *, zpool_handle_t *,
+                                     boolean_t, const char *);
 
 extern const char *zfs_prop_to_name(zfs_prop_t);
 
@@ -1017,7 +1020,8 @@ extern int zfs_prop_get_userquota_int(zfs_handle_t *zhp, const char *propname,
                                       uint64_t *propvalue);
 
 extern int zfs_prop_get_userquota(zfs_handle_t *zhp, const char *propname,
-                                  char *propbuf, int proplen, boolean_t literal);
+                                  char *propbuf, int proplen,
+                                  boolean_t literal);
 
 extern int zfs_prop_get_written_int(zfs_handle_t *zhp, const char *propname,
                                     uint64_t *propvalue);
@@ -1052,7 +1056,8 @@ extern nvlist_t *zfs_get_clones_nvl(zfs_handle_t *);
 extern int zfs_crypto_get_encryption_root(zfs_handle_t *, boolean_t *, char *);
 
 extern int zfs_crypto_create(libzfs_handle_t *, char *, nvlist_t *, nvlist_t *,
-                             boolean_t stdin_available, uint8_t **, uint32_t *);
+                             boolean_t stdin_available, uint8_t **,
+                             uint32_t *);
 
 extern int zfs_crypto_clone_check(libzfs_handle_t *, zfs_handle_t *, char *,
                                   nvlist_t *);
@@ -1135,7 +1140,8 @@ typedef struct zprop_get_cbdata {
 } zprop_get_cbdata_t;
 
 void zprop_print_one_property(const char *, zprop_get_cbdata_t *,
-                              const char *, const char *, zprop_source_t, const char *,
+                              const char *, const char *, zprop_source_t,
+                              const char *,
                               const char *);
 
 /*
@@ -1190,7 +1196,8 @@ extern int zfs_destroy_snaps_nvl(libzfs_handle_t *, nvlist_t *, boolean_t);
 
 extern int zfs_clone(zfs_handle_t *, const char *, nvlist_t *);
 
-extern int zfs_snapshot(libzfs_handle_t *, const char *, boolean_t, nvlist_t *);
+extern int zfs_snapshot(libzfs_handle_t *, const char *, boolean_t,
+nvlist_t *);
 
 extern int zfs_snapshot_nvl(libzfs_handle_t *hdl, nvlist_t *snaps,
                             nvlist_t *props);
@@ -1344,7 +1351,8 @@ extern void zfs_refresh_properties(zfs_handle_t *);
 
 extern int zfs_name_valid(const char *, zfs_type_t);
 
-extern zfs_handle_t *zfs_path_to_zhandle(libzfs_handle_t *, char *, zfs_type_t);
+extern zfs_handle_t *zfs_path_to_zhandle(libzfs_handle_t *, char *,
+                                        zfs_type_t);
 
 extern int zfs_parent_name(zfs_handle_t *, char *, size_t);
 
@@ -1429,7 +1437,8 @@ int libzfs_run_process_get_stdout(const char *path, char *argv[], char *env[],
                                   char **lines[], int *lines_cnt);
 
 int libzfs_run_process_get_stdout_nopath(const char *path, char *argv[],
-                                         char *env[], char **lines[], int *lines_cnt);
+                                         char *env[], char **lines[],
+                                         int *lines_cnt);
 
 void libzfs_free_str_array(char **strs, int count);
 

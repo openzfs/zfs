@@ -19,6 +19,7 @@ Important `libzfs` constants.
 """
 
 from __future__ import absolute_import, division, print_function
+
 from enum import Enum
 
 
@@ -70,8 +71,9 @@ class ZPOOL_STATUS(Enum):
      */
     typedef enum {
         /*
-         * The following correspond to faults as defined in the (fault.fs.zfs.*)
-         * event namespace.  Each is associated with a corresponding message ID.
+         * The following correspond to faults as defined in the
+         * (fault.fs.zfs.*) event namespace.
+         * Each is associated with a corresponding message ID.
          * This must be kept in sync with the zfs_msgid_table in
          * lib/libzfs/libzfs_status.c.
          */

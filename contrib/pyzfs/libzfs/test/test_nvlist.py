@@ -50,14 +50,18 @@ class TestNVList(unittest.TestCase):
 
     def _assertIntDictsEqual(self, dict1, dict2):
         self.assertEqual(
-            len(dict1), len(dict1), b"resulting dictionary is of different size"
+            len(dict1),
+            len(dict1),
+            b"resulting dictionary is of different size"
         )
         for key in dict1.keys():
             self.assertEqual(int(dict1[key]), int(dict2[key]))
 
     def _assertIntArrayDictsEqual(self, dict1, dict2):
         self.assertEqual(
-            len(dict1), len(dict1), b"resulting dictionary is of different size"
+            len(dict1),
+            len(dict1),
+            b"resulting dictionary is of different size"
         )
         for key in dict1.keys():
             val1 = dict1[key]

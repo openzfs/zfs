@@ -22,8 +22,8 @@ class VDevStat(object):
     From ```zfs.h```
     Virtual Device statistics
     typedef struct vdev_stat {
-        hrtime_t    vs_timestamp;       /* time since vdev load */
-        uint64_t    vs_state;       /* vdev state: belongs to vdev_state enum */
+        hrtime_t    vs_timestamp;   /* time since vdev load */
+        uint64_t    vs_state;       /* vdev state belongs to vdev_state enum */
         uint64_t    vs_aux;         /* see vdev_aux_t   */
         uint64_t    vs_alloc;       /* space allocated  */
         uint64_t    vs_space;       /* total capacity   */
@@ -256,9 +256,11 @@ class PoolScanStat(object):
 
 class VDevTree(object):
     """
-    We lose a fair bit of information when translating the vdev_tree information
-    given to us by ZFS, as this class does not have all the properties that are present
-    in the ZFS nvlist; instead it just contains the properties we require (for now).
+    We lose a fair bit of information when translating the
+    vdev_tree information  given to us by ZFS,
+    as this class does not have all the properties that are present
+    in the ZFS nvlist;
+    instead it just contains the properties we require (for now).
     """
 
     device_type = ""
@@ -334,7 +336,8 @@ class VDevTree(object):
                 vdev_stats=vdev_tree["vdev_stats"]
             )
         if "scan_stats" in vdev_tree:
-            device_tree.pool_scan_stats = PoolScanStat.construct_from_pool_scan_stats(
-                ps_stats=vdev_tree["scan_stats"]
-            )
+            device_tree.pool_scan_stats = \
+                PoolScanStat.construct_from_pool_scan_stats(
+                    ps_stats=vdev_tree["scan_stats"]
+                )
         return device_tree

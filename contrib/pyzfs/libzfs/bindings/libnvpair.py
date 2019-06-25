@@ -124,10 +124,12 @@ CDEF = """
     int nvpair_value_uint64_array(nvpair_t *, uint64_t **, uint_t *);
     int nvpair_value_string_array(nvpair_t *, char ***, uint_t *);
     int nvpair_value_nvlist_array(nvpair_t *, nvlist_t ***, uint_t *);
-    
-    int nvlist_lookup_uint64_array(nvlist_t *, const char *, uint64_t **, uint_t *);
+
+    int nvlist_lookup_uint64_array(nvlist_t *, const char *, uint64_t **,
+                                    uint_t *);
     int nvlist_lookup_nvlist(nvlist_t *, const char *, nvlist_t **);
-    int nvlist_lookup_nvlist_array(nvlist_t *, const char *, nvlist_t ***, uint_t *);
+    int nvlist_lookup_nvlist_array(nvlist_t *, const char *, nvlist_t ***,
+                                    uint_t *);
 """
 
 SOURCE = """

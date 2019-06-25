@@ -14,4 +14,8 @@
 # limitations under the License.
 #
 
-from .vdevtree import *
+from .vdevtree import VDevTree, VDevStat, PoolScanStat
+
+__all__ = [
+    "VDevTree", "VDevStat", "PoolScanStat"
+]

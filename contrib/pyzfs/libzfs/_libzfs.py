@@ -21,8 +21,8 @@ from enum import Enum
 
 from . import exceptions
 from . import util
-from ._constants import ZPOOL_CONFIG, ZFS_USERSPACE_PROP
-from ._nvlist import nvlist_out, _nvlist_to_dict
+from ._constants import ZFS_USERSPACE_PROP, ZPOOL_CONFIG
+from ._nvlist import _nvlist_to_dict, nvlist_out
 from .bindings.libnvpair import lib as libnvpair
 from .bindings.libzfs import ffi as _ffi
 from .bindings.libzfs import lib as libzfs
@@ -63,7 +63,8 @@ def libzfs_fini(libzfs_handle):
 
 def libzfs_errno(libzfs_handle):
     """
-    Returns the error number for the issue currently plaguing the current libzfs connection
+    Returns the error number for the issue currently plaguing
+    the current libzfs connection
     :param libzfs_handle:
     :return: int errno
     """
@@ -220,7 +221,8 @@ def zpool_get_status(zpool_handle, msgid=None, errata=None):
     :param msgid:
     :param errata:
     :returns status zpool_status_t: Status enum value
-    :returns zfs_msg_id str: Message id corresponding to zfs_msgid_table[] in libzfs/libzfs_status.c
+    :returns zfs_msg_id str: Message id corresponding to zfs_msgid_table[]
+    in libzfs/libzfs_status.c
     """
     zfs_msg_id = None
     if msgid is None:
@@ -336,7 +338,8 @@ def zfs_prop_get(zfs_handle, zfs_prop, zprop_source, literal):
     :param zfs_handle: dataset handle
     :param zfs_prop:
     :param zprop_source:
-    :param literal: If True, then numbers are left as exact values, else they're converted to a human-readable form
+    :param literal: If True, then numbers are left as exact values,
+                    else they're converted to a human-readable form
     :returns prop_buf str:
     :returns stat_buf str:
     """
@@ -369,7 +372,8 @@ def zfs_prop_get_userquota(zfs_handle, user_name, prefix, literal):
     :param zfs_handle:
     :param user_name:
     :param prefix: The userspace property we want
-    :param literal: If True, then numbers are left as exact values, else they're converted to a human-readable form
+    :param literal: If True, then numbers are left as exact values,
+                    else they're converted to a human-readable form
     :return: str
     """
     prop_buf = _ffi.new("char []", 1024)
