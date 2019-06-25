@@ -29,8 +29,8 @@ CDEF = """
 #define MAXPATHLEN 500
 #define    ZFS_MAXPROPLEN        64
 #define    ZPOOL_MAXPROPLEN    64
-#define	ZFS_MAX_DATASET_NAME_LEN 256
-#define	ZFSSHARE_MISS	0x01	/* Didn't find entry in cache */
+#define    ZFS_MAX_DATASET_NAME_LEN 256
+#define    ZFSSHARE_MISS    0x01    /* Didn't find entry in cache */
 
 // These #defines were originally strings.
 #define    ZFS_MOUNTPOINT_NONE        0
@@ -300,23 +300,23 @@ typedef enum {
  * if it represents a real type of a dataset that can be created from userland.
  */
 typedef enum dmu_objset_type {
-	DMU_OST_NONE,
-	DMU_OST_META,
-	DMU_OST_ZFS,
-	DMU_OST_ZVOL,
-	DMU_OST_OTHER,			/* For testing only! */
-	DMU_OST_ANY,			/* Be careful! */
-	DMU_OST_NUMTYPES
+    DMU_OST_NONE,
+    DMU_OST_META,
+    DMU_OST_ZFS,
+    DMU_OST_ZVOL,
+    DMU_OST_OTHER,            /* For testing only! */
+    DMU_OST_ANY,            /* Be careful! */
+    DMU_OST_NUMTYPES
 } dmu_objset_type_t;
 
 typedef struct dmu_objset_stats {
-	uint64_t dds_num_clones; /* number of clones of this */
-	uint64_t dds_creation_txg;
-	uint64_t dds_guid;
-	dmu_objset_type_t dds_type;
-	uint8_t dds_is_snapshot;
-	uint8_t dds_inconsistent;
-	char dds_origin[ZFS_MAX_DATASET_NAME_LEN];
+    uint64_t dds_num_clones; /* number of clones of this */
+    uint64_t dds_creation_txg;
+    uint64_t dds_guid;
+    dmu_objset_type_t dds_type;
+    uint8_t dds_is_snapshot;
+    uint8_t dds_inconsistent;
+    char dds_origin[ZFS_MAX_DATASET_NAME_LEN];
 } dmu_objset_stats_t;
 
 
@@ -463,61 +463,61 @@ typedef struct zfs_allow {
 } zfs_allow_t;
 
 struct libzfs_handle {
-	int libzfs_error;
-	int libzfs_fd;
-	FILE *libzfs_mnttab;
-	FILE *libzfs_sharetab;
-	zpool_handle_t *libzfs_pool_handles;
-	uu_avl_pool_t *libzfs_ns_avlpool;
-	uu_avl_t *libzfs_ns_avl;
-	uint64_t libzfs_ns_gen;
-	int libzfs_desc_active;
-	char libzfs_action[1024];
-	char libzfs_desc[1024];
-	int libzfs_printerr;
-	int libzfs_storeerr; /* stuff error messages into buffer */
-	void *libzfs_sharehdl; /* libshare handle */
-	uint_t libzfs_shareflags;
-	boolean_t libzfs_mnttab_enable;
-	/*
-	 * We need a lock to handle the case where parallel mount
-	 * threads are populating the mnttab cache simultaneously. The
-	 * lock only protects the integrity of the avl tree, and does
-	 * not protect the contents of the mnttab entries themselves.
-	 */
-	// pthread_mutex_t libzfs_mnttab_cache_lock;
-	avl_tree_t libzfs_mnttab_cache;
-	int libzfs_pool_iter;
-	char libzfs_chassis_id[256];
-	boolean_t libzfs_prop_debug;
+    int libzfs_error;
+    int libzfs_fd;
+    FILE *libzfs_mnttab;
+    FILE *libzfs_sharetab;
+    zpool_handle_t *libzfs_pool_handles;
+    uu_avl_pool_t *libzfs_ns_avlpool;
+    uu_avl_t *libzfs_ns_avl;
+    uint64_t libzfs_ns_gen;
+    int libzfs_desc_active;
+    char libzfs_action[1024];
+    char libzfs_desc[1024];
+    int libzfs_printerr;
+    int libzfs_storeerr; /* stuff error messages into buffer */
+    void *libzfs_sharehdl; /* libshare handle */
+    uint_t libzfs_shareflags;
+    boolean_t libzfs_mnttab_enable;
+    /*
+     * We need a lock to handle the case where parallel mount
+     * threads are populating the mnttab cache simultaneously. The
+     * lock only protects the integrity of the avl tree, and does
+     * not protect the contents of the mnttab entries themselves.
+     */
+    // pthread_mutex_t libzfs_mnttab_cache_lock;
+    avl_tree_t libzfs_mnttab_cache;
+    int libzfs_pool_iter;
+    char libzfs_chassis_id[256];
+    boolean_t libzfs_prop_debug;
 };
 
 struct zfs_handle {
-	libzfs_handle_t *zfs_hdl;
-	zpool_handle_t *zpool_hdl;
-	char zfs_name[ZFS_MAX_DATASET_NAME_LEN];
-	zfs_type_t zfs_type; /* type including snapshot */
-	zfs_type_t zfs_head_type; /* type excluding snapshot */
-	dmu_objset_stats_t zfs_dmustats;
-	nvlist_t *zfs_props;
-	nvlist_t *zfs_user_props;
-	nvlist_t *zfs_recvd_props;
-	boolean_t zfs_mntcheck;
-	char *zfs_mntopts;
-	uint8_t *zfs_props_table;
+    libzfs_handle_t *zfs_hdl;
+    zpool_handle_t *zpool_hdl;
+    char zfs_name[ZFS_MAX_DATASET_NAME_LEN];
+    zfs_type_t zfs_type; /* type including snapshot */
+    zfs_type_t zfs_head_type; /* type excluding snapshot */
+    dmu_objset_stats_t zfs_dmustats;
+    nvlist_t *zfs_props;
+    nvlist_t *zfs_user_props;
+    nvlist_t *zfs_recvd_props;
+    boolean_t zfs_mntcheck;
+    char *zfs_mntopts;
+    uint8_t *zfs_props_table;
 };
 
 
 struct zpool_handle {
-	libzfs_handle_t *zpool_hdl;
-	zpool_handle_t *zpool_next;
-	char zpool_name[ZFS_MAX_DATASET_NAME_LEN];
-	int zpool_state;
-	size_t zpool_config_size;
-	nvlist_t *zpool_config;
-	nvlist_t *zpool_old_config;
-	nvlist_t *zpool_props;
-	unsigned long long zpool_start_block;
+    libzfs_handle_t *zpool_hdl;
+    zpool_handle_t *zpool_next;
+    char zpool_name[ZFS_MAX_DATASET_NAME_LEN];
+    int zpool_state;
+    size_t zpool_config_size;
+    nvlist_t *zpool_config;
+    nvlist_t *zpool_old_config;
+    nvlist_t *zpool_props;
+    unsigned long long zpool_start_block;
 };
 
 ///////////////////////////////////////////////////////
@@ -588,8 +588,10 @@ extern void zpool_free_handles(libzfs_handle_t *);
 /*
  * Iterate over all active pools in the system.
  */
-typedef int (*zpool_iter_f) (zpool_handle_t *, void *);
+typedef int (*zpool_iter_f)(zpool_handle_t *, void *);
+
 extern int zpool_iter(libzfs_handle_t *, zpool_iter_f, void *);
+
 extern boolean_t zpool_skip_pool(const char *);
 
 /*
@@ -837,6 +839,7 @@ extern void zpool_explain_recover(libzfs_handle_t *, const char *, int,
 extern int zpool_checkpoint(zpool_handle_t *);
 
 extern int zpool_discard_checkpoint(zpool_handle_t *);
+
 /*
  * Basic handle manipulations.  These functions do not create or destroy the
  * underlying datasets, only the references to them.
@@ -1473,5 +1476,6 @@ extern int zpool_enable_datasets(zpool_handle_t *, const char *, int);
 extern int zpool_disable_datasets(zpool_handle_t *, boolean_t);
 
 extern int zfs_remap_indirects(libzfs_handle_t *hdl, const char *);
+
 
 """
