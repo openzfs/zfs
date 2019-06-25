@@ -66,8 +66,8 @@ dnode_increase_indirection(dnode_t *dn, dmu_tx_t *tx)
 	 * order is imposed by dbuf_read's steps of "grab the lock to protect
 	 * db_parent, get db_parent, hold db_parent's db_rwlock".
 	 */
-	dmu_buf_impl_t *children[3];
-	ASSERT3U(nblkptr, <=, 3);
+	dmu_buf_impl_t *children[DN_MAX_NBLKPTR];
+	ASSERT3U(nblkptr, <=, DN_MAX_NBLKPTR);
 	for (i = 0; i < nblkptr; i++) {
 		children[i] =
 		    dbuf_find(dn->dn_objset, dn->dn_object, old_toplvl, i);
@@ -87,8 +87,7 @@ dnode_increase_indirection(dnode_t *dn, dmu_tx_t *tx)
 
 	/* set dbuf's parent pointers to new indirect buf */
 	for (i = 0; i < nblkptr; i++) {
-		dmu_buf_impl_t *child =
-		    children[i];
+		dmu_buf_impl_t *child = children[i];
 
 		if (child == NULL)
 			continue;
