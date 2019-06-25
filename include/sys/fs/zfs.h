@@ -181,7 +181,7 @@ typedef enum {
 	ZFS_PROP_ENCRYPTION_ROOT,
 	ZFS_PROP_KEY_GUID,
 	ZFS_PROP_KEYSTATUS,
-	ZFS_PROP_REMAPTXG,		/* not exposed to the user */
+	ZFS_PROP_REMAPTXG,		/* obsolete - no longer used */
 	ZFS_PROP_SPECIAL_SMALL_BLOCKS,
 	ZFS_PROP_IVSET_GUID,		/* not exposed to the user */
 	ZFS_PROP_REDACTED,

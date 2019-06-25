@@ -214,10 +214,6 @@ tests = ['zfs_receive_001_pos', 'zfs_receive_002_pos', 'zfs_receive_003_pos',
     'zfs_receive_raw_incremental', 'zfs_receive_-e']
 tags = ['functional', 'cli_root', 'zfs_receive']
 
-[tests/functional/cli_root/zfs_remap]
-tests = ['zfs_remap_cliargs', 'zfs_remap_obsolete_counts']
-tags = ['functional', 'cli_root', 'zfs_remap']
-
 [tests/functional/cli_root/zfs_rename]
 tests = ['zfs_rename_001_pos', 'zfs_rename_002_pos', 'zfs_rename_003_pos',
     'zfs_rename_004_neg', 'zfs_rename_005_neg', 'zfs_rename_006_pos',
@@ -771,11 +767,11 @@ tags = ['functional', 'refreserv']
 pre =
 tests = ['removal_all_vdev', 'removal_check_space',
     'removal_condense_export', 'removal_multiple_indirection',
-    'removal_remap', 'removal_remap_deadlists',
+    'removal_remap_deadlists',
     'removal_resume_export', 'removal_sanity', 'removal_with_add',
     'removal_with_create_fs', 'removal_with_dedup',
     'removal_with_errors', 'removal_with_export',
-    'removal_with_ganging', 'removal_with_faulted', 'removal_with_remap',
+    'removal_with_ganging', 'removal_with_faulted',
     'removal_with_remove', 'removal_with_scrub', 'removal_with_send',
     'removal_with_send_recv', 'removal_with_snapshot',
     'removal_with_write', 'removal_with_zdb', 'remove_expanded',

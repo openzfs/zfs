@@ -410,9 +410,9 @@ _NOTE(CONSTCOND) } while (0)
 
 typedef enum bp_embedded_type {
 	BP_EMBEDDED_TYPE_DATA,
-	BP_EMBEDDED_TYPE_RESERVED, /* Reserved for an unintegrated feature. */
+	BP_EMBEDDED_TYPE_RESERVED, /* Reserved for Delphix byteswap feature. */
 	BP_EMBEDDED_TYPE_REDACTED,
-	NUM_BP_EMBEDDED_TYPES = BP_EMBEDDED_TYPE_RESERVED
+	NUM_BP_EMBEDDED_TYPES
 } bp_embedded_type_t;
 
 #define	BPE_NUM_WORDS 14

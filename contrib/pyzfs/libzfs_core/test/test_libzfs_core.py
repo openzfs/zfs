@@ -3632,31 +3632,6 @@ zfs.sync.snapshot('""" + pool + b"""@zcp')
             with self.assertRaises(lzc_exc.EncryptionKeyNotLoaded):
                 lzc.lzc_unload_key(fs)
 
-    def test_remap_missing_fs(self):
-        name = b"nonexistent"
-
-        with self.assertRaises(lzc_exc.DatasetNotFound):
-            lzc.lzc_remap(name)
-
-    def test_remap_invalid_fs(self):
-        ds = ZFSTest.pool.makeName(b"fs1")
-        snap = ds + b"@snap1"
-
-        lzc.lzc_snapshot([snap])
-        with self.assertRaises(lzc_exc.NameInvalid):
-            lzc.lzc_remap(snap)
-
-    def test_remap_too_long_fs_name(self):
-        name = ZFSTest.pool.makeTooLongName()
-
-        with self.assertRaises(lzc_exc.NameTooLong):
-            lzc.lzc_remap(name)
-
-    def test_remap(self):
-        name = ZFSTest.pool.makeName(b"fs1")
-
-        lzc.lzc_remap(name)
-
     def test_checkpoint(self):
         pool = ZFSTest.pool.getRoot().getName()
 

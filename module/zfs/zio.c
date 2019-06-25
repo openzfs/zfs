@@ -908,7 +908,7 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp)
 	}
 
 	if (BP_IS_EMBEDDED(bp)) {
-		if (BPE_GET_ETYPE(bp) > NUM_BP_EMBEDDED_TYPES) {
+		if (BPE_GET_ETYPE(bp) >= NUM_BP_EMBEDDED_TYPES) {
 			zfs_panic_recover("blkptr at %p has invalid ETYPE %llu",
 			    bp, (longlong_t)BPE_GET_ETYPE(bp));
 		}

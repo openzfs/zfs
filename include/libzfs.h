@@ -852,8 +852,6 @@ int zfs_smb_acl_rename(libzfs_handle_t *, char *, char *, char *, char *);
 extern int zpool_enable_datasets(zpool_handle_t *, const char *, int);
 extern int zpool_disable_datasets(zpool_handle_t *, boolean_t);
 
-extern int zfs_remap_indirects(libzfs_handle_t *hdl, const char *);
-
 extern int zfs_get_hole_count(const char *, uint64_t *, uint64_t *);
 
 #ifdef	__cplusplus

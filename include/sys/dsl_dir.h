@@ -51,7 +51,6 @@ struct zthr;
 #define	DD_FIELD_FILESYSTEM_COUNT	"com.joyent:filesystem_count"
 #define	DD_FIELD_SNAPSHOT_COUNT		"com.joyent:snapshot_count"
 #define	DD_FIELD_CRYPTO_KEY_OBJ		"com.datto:crypto_key_obj"
-#define	DD_FIELD_LAST_REMAP_TXG		"com.delphix:last_remap_txg"
 #define	DD_FIELD_LIVELIST		"com.delphix:livelist"
 
 
@@ -162,7 +161,6 @@ void dsl_dir_stats(dsl_dir_t *dd, nvlist_t *nv);
 uint64_t dsl_dir_space_available(dsl_dir_t *dd,
     dsl_dir_t *ancestor, int64_t delta, int ondiskonly);
 void dsl_dir_dirty(dsl_dir_t *dd, dmu_tx_t *tx);
-int dsl_dir_get_remaptxg(dsl_dir_t *dd, uint64_t *count);
 void dsl_dir_sync(dsl_dir_t *dd, dmu_tx_t *tx);
 int dsl_dir_tempreserve_space(dsl_dir_t *dd, uint64_t mem,
     uint64_t asize, boolean_t netfree, void **tr_cookiep, dmu_tx_t *tx);
@@ -180,7 +178,6 @@ int dsl_dir_activate_fs_ss_limit(const char *);
 int dsl_fs_ss_limit_check(dsl_dir_t *, uint64_t, zfs_prop_t, dsl_dir_t *,
     cred_t *);
 void dsl_fs_ss_count_adjust(dsl_dir_t *, int64_t, const char *, dmu_tx_t *);
-int dsl_dir_update_last_remap_txg(dsl_dir_t *, uint64_t);
 int dsl_dir_rename(const char *oldname, const char *newname);
 int dsl_dir_transfer_possible(dsl_dir_t *sdd, dsl_dir_t *tdd,
     uint64_t fs_cnt, uint64_t ss_cnt, uint64_t space, cred_t *);

@@ -186,7 +186,6 @@ known = {
     'inuse/inuse_007_pos': ['SKIP', na_reason],
     'privilege/setup': ['SKIP', na_reason],
     'refreserv/refreserv_004_pos': ['FAIL', known_reason],
-    'removal/removal_condense_export': ['SKIP', known_reason],
     'removal/removal_with_zdb': ['SKIP', known_reason],
     'rootpool/setup': ['SKIP', na_reason],
     'rsend/rsend_008_pos': ['SKIP', '6066'],

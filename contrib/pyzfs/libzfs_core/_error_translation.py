@@ -550,18 +550,6 @@ def lzc_channel_program_translate_error(ret, name, error):
     raise _generic_exception(ret, name, "Failed to execute channel program")
 
 
-def lzc_remap_translate_error(ret, name):
-    if ret == 0:
-        return
-    if ret == errno.ENOENT:
-        raise lzc_exc.DatasetNotFound(name)
-    if ret == errno.EINVAL:
-        _validate_fs_name(name)
-    if ret == errno.ENOTSUP:
-        return lzc_exc.FeatureNotSupported(name)
-    raise _generic_exception(ret, name, "Failed to remap dataset")
-
-
 def lzc_pool_checkpoint_translate_error(ret, name, discard=False):
     if ret == 0:
         return

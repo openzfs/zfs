@@ -93,14 +93,7 @@ for i in 1 2 3 4; do
 	log_must file_in_special_vdev $dataset $inum
 done
 
-#
-# remove a special allocation vdev and force a remapping
-# N.B. The 'zfs remap' command has been disabled and may be removed.
-#
-export ZFS_REMAP_ENABLED=YES
-
 log_must zpool remove $TESTPOOL $CLASS_DISK0
-log_must zfs remap $TESTPOOL/$TESTFS
 
 sleep 5
 log_must sync_pool $TESTPOOL

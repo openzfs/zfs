@@ -61,7 +61,6 @@ extern "C" {
 #define	ZFS_DELEG_PERM_RELEASE		"release"
 #define	ZFS_DELEG_PERM_DIFF		"diff"
 #define	ZFS_DELEG_PERM_BOOKMARK		"bookmark"
-#define	ZFS_DELEG_PERM_REMAP		"remap"
 #define	ZFS_DELEG_PERM_LOAD_KEY		"load-key"
 #define	ZFS_DELEG_PERM_CHANGE_KEY	"change-key"
 #define	ZFS_DELEG_PERM_PROJECTUSED	"projectused"

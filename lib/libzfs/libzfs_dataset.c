@@ -4160,6 +4160,16 @@ zfs_promote(zfs_handle_t *zhp)
 
 	if (ret != 0) {
 		switch (ret) {
+		case EACCES:
+			/*
+			 * Promoting encrypted dataset outside its
+			 * encryption root.
+			 */
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "cannot promote dataset outside its "
+			    "encryption root"));
+			return (zfs_error(hdl, EZFS_EXISTS, errbuf));
+
 		case EEXIST:
 			/* There is a conflicting snapshot name. */
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
@@ -4198,36 +4208,6 @@ zfs_snapshot_cb(zfs_handle_t *zhp, void *arg)
 	zfs_close(zhp);
 
 	return (rv);
-}
-
-int
-zfs_remap_indirects(libzfs_handle_t *hdl, const char *fs)
-{
-	int err;
-	char errbuf[1024];
-
-	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
-	    "cannot remap dataset '%s'"), fs);
-
-	err = lzc_remap(fs);
-
-	if (err != 0) {
-		switch (err) {
-		case ENOTSUP:
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "pool must be upgraded"));
-			(void) zfs_error(hdl, EZFS_BADVERSION, errbuf);
-			break;
-		case EINVAL:
-			(void) zfs_error(hdl, EZFS_BADTYPE, errbuf);
-			break;
-		default:
-			(void) zfs_standard_error(hdl, err, errbuf);
-			break;
-		}
-	}
-
-	return (err);
 }
 
 /*

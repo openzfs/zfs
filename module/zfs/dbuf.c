@@ -4476,60 +4476,6 @@ dbuf_remap_impl(dnode_t *dn, blkptr_t *bp, dmu_tx_t *tx)
 }
 
 /*
- * Returns true if a dbuf_remap would modify the dbuf. We do this by attempting
- * to remap a copy of every bp in the dbuf.
- */
-boolean_t
-dbuf_can_remap(const dmu_buf_impl_t *db)
-{
-	spa_t *spa = dmu_objset_spa(db->db_objset);
-	blkptr_t *bp = db->db.db_data;
-	boolean_t ret = B_FALSE;
-
-	ASSERT3U(db->db_level, >, 0);
-	ASSERT3S(db->db_state, ==, DB_CACHED);
-
-	ASSERT(spa_feature_is_active(spa, SPA_FEATURE_DEVICE_REMOVAL));
-
-	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
-	for (int i = 0; i < db->db.db_size >> SPA_BLKPTRSHIFT; i++) {
-		blkptr_t bp_copy = bp[i];
-		if (spa_remap_blkptr(spa, &bp_copy, NULL, NULL)) {
-			ret = B_TRUE;
-			break;
-		}
-	}
-	spa_config_exit(spa, SCL_VDEV, FTAG);
-
-	return (ret);
-}
-
-boolean_t
-dnode_needs_remap(const dnode_t *dn)
-{
-	spa_t *spa = dmu_objset_spa(dn->dn_objset);
-	boolean_t ret = B_FALSE;
-
-	if (dn->dn_phys->dn_nlevels == 0) {
-		return (B_FALSE);
-	}
-
-	ASSERT(spa_feature_is_active(spa, SPA_FEATURE_DEVICE_REMOVAL));
-
-	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
-	for (int j = 0; j < dn->dn_phys->dn_nblkptr; j++) {
-		blkptr_t bp_copy = dn->dn_phys->dn_blkptr[j];
-		if (spa_remap_blkptr(spa, &bp_copy, NULL, NULL)) {
-			ret = B_TRUE;
-			break;
-		}
-	}
-	spa_config_exit(spa, SCL_VDEV, FTAG);
-
-	return (ret);
-}
-
-/*
  * Remap any existing BP's to concrete vdevs, if possible.
  */
 static void
