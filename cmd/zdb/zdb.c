@@ -1939,7 +1939,7 @@ dump_bookmarks(objset_t *os, int verbosity)
 		char osname[ZFS_MAX_DATASET_NAME_LEN];
 		char buf[ZFS_MAX_DATASET_NAME_LEN];
 		dmu_objset_name(os, osname);
-		VERIFY0(snprintf(buf, sizeof (buf), "%s#%s", osname,
+		VERIFY3S(0, <=, snprintf(buf, sizeof (buf), "%s#%s", osname,
 		    attr.za_name));
 		(void) dump_bookmark(dp, buf, verbosity >= 5, verbosity >= 6);
 	}
