@@ -81,7 +81,7 @@ typedef struct dmu_recv_cookie {
 } dmu_recv_cookie_t;
 
 int dmu_recv_begin(char *tofs, char *tosnap, dmu_replay_record_t *drr_begin,
-    boolean_t force, boolean_t resumable, boolean_t illumos, 
+    boolean_t force, boolean_t resumable, boolean_t illumos,
     nvlist_t *localprops, nvlist_t *hidden_args, char *origin,
     dmu_recv_cookie_t *drc, vnode_t *vp, offset_t *voffp);
 int dmu_recv_stream(dmu_recv_cookie_t *drc, int cleanup_fd,
