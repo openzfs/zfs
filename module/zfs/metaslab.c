@@ -994,8 +994,10 @@ metaslab_group_remove(metaslab_group_t *mg, metaslab_t *msp)
 static void
 metaslab_group_sort_impl(metaslab_group_t *mg, metaslab_t *msp, uint64_t weight)
 {
+	ASSERT(MUTEX_HELD(&msp->ms_lock));
 	ASSERT(MUTEX_HELD(&mg->mg_lock));
 	ASSERT(msp->ms_group == mg);
+
 	avl_remove(&mg->mg_metaslab_tree, msp);
 	msp->ms_weight = weight;
 	avl_add(&mg->mg_metaslab_tree, msp);
@@ -1794,6 +1796,7 @@ metaslab_unload(metaslab_t *msp)
 	range_tree_vacate(msp->ms_allocatable, NULL, NULL);
 	msp->ms_loaded = B_FALSE;
 
+	msp->ms_activation_weight = 0;
 	msp->ms_weight &= ~METASLAB_ACTIVE_MASK;
 	msp->ms_max_size = 0;
 
@@ -2324,11 +2327,10 @@ metaslab_segment_weight(metaslab_t *msp)
 boolean_t
 metaslab_should_allocate(metaslab_t *msp, uint64_t asize)
 {
-	boolean_t should_allocate;
-
 	if (msp->ms_max_size != 0)
 		return (msp->ms_max_size >= asize);
 
+	boolean_t should_allocate;
 	if (!WEIGHT_IS_SPACEBASED(msp->ms_weight)) {
 		/*
 		 * The metaslab segment weight indicates segments in the
@@ -2342,6 +2344,7 @@ metaslab_should_allocate(metaslab_t *msp, uint64_t asize)
 		should_allocate = (asize <=
 		    (msp->ms_weight & ~METASLAB_WEIGHT_TYPE));
 	}
+
 	return (should_allocate);
 }
 static uint64_t
@@ -2389,6 +2392,8 @@ metaslab_weight(metaslab_t *msp)
 void
 metaslab_recalculate_weight_and_sort(metaslab_t *msp)
 {
+	ASSERT(MUTEX_HELD(&msp->ms_lock));
+
 	/* note: we preserve the mask (e.g. indication of primary, etc..) */
 	uint64_t was_active = msp->ms_weight & METASLAB_ACTIVE_MASK;
 	metaslab_group_sort(msp->ms_group, msp,
@@ -2399,16 +2404,18 @@ static int
 metaslab_activate_allocator(metaslab_group_t *mg, metaslab_t *msp,
     int allocator, uint64_t activation_weight)
 {
+	ASSERT(MUTEX_HELD(&msp->ms_lock));
+
 	/*
 	 * If we're activating for the claim code, we don't want to actually
 	 * set the metaslab up for a specific allocator.
 	 */
 	if (activation_weight == METASLAB_WEIGHT_CLAIM)
 		return (0);
+
 	metaslab_t **arr = (activation_weight == METASLAB_WEIGHT_PRIMARY ?
 	    mg->mg_primaries : mg->mg_secondaries);
 
-	ASSERT(MUTEX_HELD(&msp->ms_lock));
 	mutex_enter(&mg->mg_lock);
 	if (arr[allocator] != NULL) {
 		mutex_exit(&mg->mg_lock);
@@ -2429,28 +2436,65 @@ metaslab_activate(metaslab_t *msp, int allocator, uint64_t activation_weight)
 {
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
 
-	if ((msp->ms_weight & METASLAB_ACTIVE_MASK) == 0) {
-		int error = metaslab_load(msp);
-		if (error != 0) {
-			metaslab_group_sort(msp->ms_group, msp, 0);
-			return (error);
-		}
-		if ((msp->ms_weight & METASLAB_ACTIVE_MASK) != 0) {
-			/*
-			 * The metaslab was activated for another allocator
-			 * while we were waiting, we should reselect.
-			 */
-			return (SET_ERROR(EBUSY));
-		}
-		if ((error = metaslab_activate_allocator(msp->ms_group, msp,
-		    allocator, activation_weight)) != 0) {
-			return (error);
-		}
-
-		msp->ms_activation_weight = msp->ms_weight;
-		metaslab_group_sort(msp->ms_group, msp,
-		    msp->ms_weight | activation_weight);
+	/*
+	 * The current metaslab is already activated for us so there
+	 * is nothing to do. Already activated though, doesn't mean
+	 * that this metaslab is activated for our allocator nor our
+	 * requested activation weight. The metaslab could have started
+	 * as an active one for our allocator but changed allocators
+	 * while we were waiting to grab its ms_lock or we stole it
+	 * [see find_valid_metaslab()]. This means that there is a
+	 * possibility of passivating a metaslab of another allocator
+	 * or from a different activation mask, from this thread.
+	 */
+	if ((msp->ms_weight & METASLAB_ACTIVE_MASK) != 0) {
+		ASSERT(msp->ms_loaded);
+		return (0);
 	}
+
+	int error = metaslab_load(msp);
+	if (error != 0) {
+		metaslab_group_sort(msp->ms_group, msp, 0);
+		return (error);
+	}
+
+	/*
+	 * When entering metaslab_load() we may have dropped the
+	 * ms_lock because we were loading this metaslab, or we
+	 * were waiting for another thread to load it for us. In
+	 * that scenario, we recheck the weight of the metaslab
+	 * to see if it was activated by another thread.
+	 *
+	 * If the metaslab was activated for another allocator or
+	 * it was activated with a different activation weight (e.g.
+	 * we wanted to make it a primary but it was activated as
+	 * secondary) we return error (EBUSY).
+	 *
+	 * If the metaslab was activated for the same allocator
+	 * and requested activation mask, skip activating it.
+	 */
+	if ((msp->ms_weight & METASLAB_ACTIVE_MASK) != 0) {
+		if (msp->ms_allocator != allocator)
+			return (EBUSY);
+
+		if ((msp->ms_weight & activation_weight) == 0)
+			return (SET_ERROR(EBUSY));
+
+		EQUIV((activation_weight == METASLAB_WEIGHT_PRIMARY),
+		    msp->ms_primary);
+		return (0);
+	}
+
+	if ((error = metaslab_activate_allocator(msp->ms_group, msp,
+	    allocator, activation_weight)) != 0) {
+		return (error);
+	}
+
+	ASSERT0(msp->ms_activation_weight);
+	msp->ms_activation_weight = msp->ms_weight;
+	metaslab_group_sort(msp->ms_group, msp,
+	    msp->ms_weight | activation_weight);
+
 	ASSERT(msp->ms_loaded);
 	ASSERT(msp->ms_weight & METASLAB_ACTIVE_MASK);
 
@@ -2462,6 +2506,8 @@ metaslab_passivate_allocator(metaslab_group_t *mg, metaslab_t *msp,
     uint64_t weight)
 {
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
+	ASSERT(msp->ms_loaded);
+
 	if (msp->ms_weight & METASLAB_WEIGHT_CLAIM) {
 		metaslab_group_sort(mg, msp, weight);
 		return;
@@ -2469,15 +2515,16 @@ metaslab_passivate_allocator(metaslab_group_t *mg, metaslab_t *msp,
 
 	mutex_enter(&mg->mg_lock);
 	ASSERT3P(msp->ms_group, ==, mg);
+	ASSERT3S(0, <=, msp->ms_allocator);
+	ASSERT3U(msp->ms_allocator, <, mg->mg_allocators);
+
 	if (msp->ms_primary) {
-		ASSERT3U(0, <=, msp->ms_allocator);
-		ASSERT3U(msp->ms_allocator, <, mg->mg_allocators);
 		ASSERT3P(mg->mg_primaries[msp->ms_allocator], ==, msp);
 		ASSERT(msp->ms_weight & METASLAB_WEIGHT_PRIMARY);
 		mg->mg_primaries[msp->ms_allocator] = NULL;
 	} else {
-		ASSERT(msp->ms_weight & METASLAB_WEIGHT_SECONDARY);
 		ASSERT3P(mg->mg_secondaries[msp->ms_allocator], ==, msp);
+		ASSERT(msp->ms_weight & METASLAB_WEIGHT_SECONDARY);
 		mg->mg_secondaries[msp->ms_allocator] = NULL;
 	}
 	msp->ms_allocator = -1;
@@ -2500,9 +2547,10 @@ metaslab_passivate(metaslab_t *msp, uint64_t weight)
 	    range_tree_space(msp->ms_allocatable) == 0);
 	ASSERT0(weight & METASLAB_ACTIVE_MASK);
 
+	ASSERT(msp->ms_activation_weight != 0);
 	msp->ms_activation_weight = 0;
 	metaslab_passivate_allocator(msp->ms_group, msp, weight);
-	ASSERT((msp->ms_weight & METASLAB_ACTIVE_MASK) == 0);
+	ASSERT0(msp->ms_weight & METASLAB_ACTIVE_MASK);
 }
 
 /*
@@ -3489,6 +3537,41 @@ find_valid_metaslab(metaslab_group_t *mg, uint64_t activation_weight,
 	return (msp);
 }
 
+void
+metaslab_active_mask_verify(metaslab_t *msp)
+{
+	ASSERT(MUTEX_HELD(&msp->ms_lock));
+
+	if ((zfs_flags & ZFS_DEBUG_METASLAB_VERIFY) == 0)
+		return;
+
+	if ((msp->ms_weight & METASLAB_ACTIVE_MASK) == 0)
+		return;
+
+	if (msp->ms_weight & METASLAB_WEIGHT_PRIMARY) {
+		VERIFY0(msp->ms_weight & METASLAB_WEIGHT_SECONDARY);
+		VERIFY0(msp->ms_weight & METASLAB_WEIGHT_CLAIM);
+		VERIFY3S(msp->ms_allocator, !=, -1);
+		VERIFY(msp->ms_primary);
+		return;
+	}
+
+	if (msp->ms_weight & METASLAB_WEIGHT_SECONDARY) {
+		VERIFY0(msp->ms_weight & METASLAB_WEIGHT_PRIMARY);
+		VERIFY0(msp->ms_weight & METASLAB_WEIGHT_CLAIM);
+		VERIFY3S(msp->ms_allocator, !=, -1);
+		VERIFY(!msp->ms_primary);
+		return;
+	}
+
+	if (msp->ms_weight & METASLAB_WEIGHT_CLAIM) {
+		VERIFY0(msp->ms_weight & METASLAB_WEIGHT_PRIMARY);
+		VERIFY0(msp->ms_weight & METASLAB_WEIGHT_SECONDARY);
+		VERIFY3S(msp->ms_allocator, ==, -1);
+		return;
+	}
+}
+
 /* ARGSUSED */
 static uint64_t
 metaslab_group_alloc_normal(metaslab_group_t *mg, zio_alloc_list_t *zal,
@@ -3497,9 +3580,8 @@ metaslab_group_alloc_normal(metaslab_group_t *mg, zio_alloc_list_t *zal,
 {
 	metaslab_t *msp = NULL;
 	uint64_t offset = -1ULL;
-	uint64_t activation_weight;
 
-	activation_weight = METASLAB_WEIGHT_PRIMARY;
+	uint64_t activation_weight = METASLAB_WEIGHT_PRIMARY;
 	for (int i = 0; i < d; i++) {
 		if (activation_weight == METASLAB_WEIGHT_PRIMARY &&
 		    DVA_GET_VDEV(&dva[i]) == mg->mg_vd->vdev_id) {
@@ -3540,10 +3622,30 @@ metaslab_group_alloc_normal(metaslab_group_t *mg, zio_alloc_list_t *zal,
 		if (activation_weight == METASLAB_WEIGHT_PRIMARY &&
 		    mg->mg_primaries[allocator] != NULL) {
 			msp = mg->mg_primaries[allocator];
+
+			/*
+			 * Even though we don't hold the ms_lock for the
+			 * primary metaslab, those fields should not
+			 * change while we hold the mg_lock. Thus is is
+			 * safe to make assertions on them.
+			 */
+			ASSERT(msp->ms_primary);
+			ASSERT3S(msp->ms_allocator, ==, allocator);
+			ASSERT(msp->ms_loaded);
+
 			was_active = B_TRUE;
 		} else if (activation_weight == METASLAB_WEIGHT_SECONDARY &&
 		    mg->mg_secondaries[allocator] != NULL) {
 			msp = mg->mg_secondaries[allocator];
+
+			/*
+			 * See comment above about the similar assertions
+			 * for the primary metaslab.
+			 */
+			ASSERT(!msp->ms_primary);
+			ASSERT3S(msp->ms_allocator, ==, allocator);
+			ASSERT(msp->ms_loaded);
+
 			was_active = B_TRUE;
 		} else {
 			msp = find_valid_metaslab(mg, activation_weight, dva, d,
@@ -3556,8 +3658,20 @@ metaslab_group_alloc_normal(metaslab_group_t *mg, zio_alloc_list_t *zal,
 			kmem_free(search, sizeof (*search));
 			return (-1ULL);
 		}
-
 		mutex_enter(&msp->ms_lock);
+
+		metaslab_active_mask_verify(msp);
+
+		/*
+		 * This code is disabled out because of issues with
+		 * tracepoints in non-gpl kernel modules.
+		 */
+#if 0
+		DTRACE_PROBE3(ms__activation__attempt,
+		    metaslab_t *, msp, uint64_t, activation_weight,
+		    boolean_t, was_active);
+#endif
+
 		/*
 		 * Ensure that the metaslab we have selected is still
 		 * capable of handling our request. It's possible that
@@ -3567,44 +3681,80 @@ metaslab_group_alloc_normal(metaslab_group_t *mg, zio_alloc_list_t *zal,
 		 * a new metaslab.
 		 */
 		if (was_active && !(msp->ms_weight & METASLAB_ACTIVE_MASK)) {
+			ASSERT3S(msp->ms_allocator, ==, -1);
 			mutex_exit(&msp->ms_lock);
 			continue;
 		}
 
 		/*
-		 * If the metaslab is freshly activated for an allocator that
-		 * isn't the one we're allocating from, or if it's a primary and
-		 * we're seeking a secondary (or vice versa), we go back and
-		 * select a new metaslab.
+		 * If the metaslab was activated for another allocator
+		 * while we were waiting in the ms_lock above, or it's
+		 * a primary and we're seeking a secondary (or vice versa),
+		 * we go back and select a new metaslab.
 		 */
 		if (!was_active && (msp->ms_weight & METASLAB_ACTIVE_MASK) &&
 		    (msp->ms_allocator != -1) &&
 		    (msp->ms_allocator != allocator || ((activation_weight ==
 		    METASLAB_WEIGHT_PRIMARY) != msp->ms_primary))) {
+			ASSERT(msp->ms_loaded);
+			ASSERT((msp->ms_weight & METASLAB_WEIGHT_CLAIM) ||
+			    msp->ms_allocator != -1);
 			mutex_exit(&msp->ms_lock);
 			continue;
 		}
 
+		/*
+		 * This metaslab was used for claiming regions allocated
+		 * by the ZIL during pool import. Once these regions are
+		 * claimed we don't need to keep the CLAIM bit set
+		 * anymore. Passivate this metaslab to zero its activation
+		 * mask.
+		 */
 		if (msp->ms_weight & METASLAB_WEIGHT_CLAIM &&
 		    activation_weight != METASLAB_WEIGHT_CLAIM) {
+			ASSERT(msp->ms_loaded);
+			ASSERT3S(msp->ms_allocator, ==, -1);
 			metaslab_passivate(msp, msp->ms_weight &
 			    ~METASLAB_WEIGHT_CLAIM);
 			mutex_exit(&msp->ms_lock);
 			continue;
 		}
 
-		if (metaslab_activate(msp, allocator, activation_weight) != 0) {
+		msp->ms_selected_txg = txg;
+
+		int activation_error =
+		    metaslab_activate(msp, allocator, activation_weight);
+		metaslab_active_mask_verify(msp);
+
+		/*
+		 * If the metaslab was activated by another thread for
+		 * another allocator or activation_weight (EBUSY), or it
+		 * failed because another metaslab was assigned as primary
+		 * for this allocator (EEXIST) we continue using this
+		 * metaslab for our allocation, rather than going on to a
+		 * worse metaslab (we waited for that metaslab to be loaded
+		 * after all).
+		 *
+		 * If the activation failed due to an I/O error we skip to
+		 * the next metaslab.
+		 */
+		boolean_t activated;
+		if (activation_error == 0) {
+			activated = B_TRUE;
+		} else if (activation_error == EBUSY ||
+		    activation_error == EEXIST) {
+			activated = B_FALSE;
+		} else {
 			mutex_exit(&msp->ms_lock);
 			continue;
 		}
-
-		msp->ms_selected_txg = txg;
+		ASSERT(msp->ms_loaded);
 
 		/*
 		 * Now that we have the lock, recheck to see if we should
 		 * continue to use this metaslab for this allocation. The
-		 * the metaslab is now loaded so metaslab_should_allocate() can
-		 * accurately determine if the allocation attempt should
+		 * the metaslab is now loaded so metaslab_should_allocate()
+		 * can accurately determine if the allocation attempt should
 		 * proceed.
 		 */
 		if (!metaslab_should_allocate(msp, asize)) {
@@ -3614,10 +3764,9 @@ metaslab_group_alloc_normal(metaslab_group_t *mg, zio_alloc_list_t *zal,
 			goto next;
 		}
 
-
 		/*
-		 * If this metaslab is currently condensing then pick again as
-		 * we can't manipulate this metaslab until it's committed
+		 * If this metaslab is currently condensing then pick again
+		 * as we can't manipulate this metaslab until it's committed
 		 * to disk. If this metaslab is being initialized, we shouldn't
 		 * allocate from it since the allocated region might be
 		 * overwritten after allocation.
@@ -3625,15 +3774,19 @@ metaslab_group_alloc_normal(metaslab_group_t *mg, zio_alloc_list_t *zal,
 		if (msp->ms_condensing) {
 			metaslab_trace_add(zal, mg, msp, asize, d,
 			    TRACE_CONDENSING, allocator);
-			metaslab_passivate(msp, msp->ms_weight &
-			    ~METASLAB_ACTIVE_MASK);
+			if (activated) {
+				metaslab_passivate(msp, msp->ms_weight &
+				    ~METASLAB_ACTIVE_MASK);
+			}
 			mutex_exit(&msp->ms_lock);
 			continue;
 		} else if (msp->ms_disabled > 0) {
 			metaslab_trace_add(zal, mg, msp, asize, d,
 			    TRACE_DISABLED, allocator);
-			metaslab_passivate(msp, msp->ms_weight &
-			    ~METASLAB_ACTIVE_MASK);
+			if (activated) {
+				metaslab_passivate(msp, msp->ms_weight &
+				    ~METASLAB_ACTIVE_MASK);
+			}
 			mutex_exit(&msp->ms_lock);
 			continue;
 		}
@@ -3643,11 +3796,21 @@ metaslab_group_alloc_normal(metaslab_group_t *mg, zio_alloc_list_t *zal,
 
 		if (offset != -1ULL) {
 			/* Proactively passivate the metaslab, if needed */
-			metaslab_segment_may_passivate(msp);
+			if (activated)
+				metaslab_segment_may_passivate(msp);
 			break;
 		}
 next:
 		ASSERT(msp->ms_loaded);
+
+		/*
+		 * This code is disabled out because of issues with
+		 * tracepoints in non-gpl kernel modules.
+		 */
+#if 0
+		DTRACE_PROBE2(ms__alloc__failure, metaslab_t *, msp,
+		    uint64_t, asize);
+#endif
 
 		/*
 		 * We were unable to allocate from this metaslab so determine
@@ -3670,14 +3833,33 @@ next:
 		 * currently available for allocation and is accurate
 		 * even within a sync pass.
 		 */
+		uint64_t weight;
 		if (WEIGHT_IS_SPACEBASED(msp->ms_weight)) {
-			uint64_t weight = metaslab_block_maxsize(msp);
+			weight = metaslab_block_maxsize(msp);
 			WEIGHT_SET_SPACEBASED(weight);
+		} else {
+			weight = metaslab_weight_from_range_tree(msp);
+		}
+
+		if (activated) {
 			metaslab_passivate(msp, weight);
 		} else {
-			metaslab_passivate(msp,
-			    metaslab_weight_from_range_tree(msp));
+			/*
+			 * For the case where we use the metaslab that is
+			 * active for another allocator we want to make
+			 * sure that we retain the activation mask.
+			 *
+			 * Note that we could attempt to use something like
+			 * metaslab_recalculate_weight_and_sort() that
+			 * retains the activation mask here. That function
+			 * uses metaslab_weight() to set the weight though
+			 * which is not as accurate as the calculations
+			 * above.
+			 */
+			weight |= msp->ms_weight & METASLAB_ACTIVE_MASK;
+			metaslab_group_sort(mg, msp, weight);
 		}
+		metaslab_active_mask_verify(msp);
 
 		/*
 		 * We have just failed an allocation attempt, check
