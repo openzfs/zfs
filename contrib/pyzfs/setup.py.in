@@ -1,5 +1,6 @@
 #
 # Copyright 2015 ClusterHQ
+# Copyright 2019 Hudson River Trading LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,7 +21,7 @@ from setuptools import setup, find_packages
 setup(
     name="pyzfs",
     version="@VERSION@",
-    description="Wrapper for libzfs_core",
+    description="Wrapper for libzfs_core & libzfs",
     author="ClusterHQ",
     author_email="support@clusterhq.com",
     url="http://pyzfs.readthedocs.org",
@@ -43,6 +44,7 @@ setup(
         "ZFS",
         "OpenZFS",
         "libzfs_core",
+        "libzfs",
     ],
 
     packages=find_packages(),

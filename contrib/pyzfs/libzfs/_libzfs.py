@@ -43,8 +43,9 @@ def _unsafe_unpack_nvlist(nvlist):
 
 def libzfs_init():
     """
-    Returns a handle to libzfs
-    :return: libzfs_handle
+    Returns a handle to libzfs.
+
+    :rtype: libzfs_handle
     """
     libzfs_handle = libzfs.libzfs_init()
     if libzfs_handle == _ffi.NULL:
@@ -54,9 +55,10 @@ def libzfs_init():
 
 def libzfs_fini(libzfs_handle):
     """
-    Closes the libzfs handle
+    Closes the libzfs handle.
+
     :param libzfs_handle:
-    :return: void
+    :rtype: void
     """
     libzfs.libzfs_fini(libzfs_handle)
 
@@ -64,18 +66,21 @@ def libzfs_fini(libzfs_handle):
 def libzfs_errno(libzfs_handle):
     """
     Returns the error number for the issue currently plaguing
-    the current libzfs connection
-    :param libzfs_handle:
-    :return: int errno
+    the current libzfs connection.
+
+    :param libzfs_handle libzfs_handle:
+    :return: errno
+    :rtype: int
     """
     return libzfs.libzfs_errno(libzfs_handle)
 
 
 def libzfs_error_description(libzfs_handle):
     """
-    Returns a description of the most severe error affecting the ZFS artifact
-    :param libzfs_handle:
-    :return: str
+    Returns a description of the most severe error affecting the ZFS artifact.
+
+    :param libzfs_handle libzfs_handle:
+    :rtype: str
     """
     error_desc = libzfs.libzfs_error_description(libzfs_handle)
     return _ffi.string(error_desc)
@@ -84,8 +89,11 @@ def libzfs_error_description(libzfs_handle):
 def zpool_open(libzfs_handle, pool_name):
     """
     Returns a handle for the requested pool
-    Will not open a pool if it is in the FAULTED state
-    :returns zpool_handle
+    Will not open a pool if it is in the FAULTED state.
+
+    :rtype: zpool_handle
+
+    :raises ZpoolOpenError: if the zpool cannot be opened
     """
     zpool_handle = libzfs.zpool_open(libzfs_handle, pool_name)
     if zpool_handle == _ffi.NULL:
@@ -96,8 +104,10 @@ def zpool_open(libzfs_handle, pool_name):
 def zpool_open_canfail(libzfs_handle, pool_name):
     """
     Returns a handle for the requested pool, even if the pool is currently
-    in the FAULTED state
-    :returns zpool_handle
+    in the FAULTED state.
+
+    :rtype: zpool_handle
+    :raises ZpoolOpenError: if the zpool cannot be opened
     """
     zpool_handle = libzfs.zpool_open_canfail(libzfs_handle, pool_name)
     if zpool_handle == _ffi.NULL:
@@ -107,18 +117,21 @@ def zpool_open_canfail(libzfs_handle, pool_name):
 
 def zpool_close(zpool_handle):
     """
-    Closes a zpool handle
-    :param zpool_handle:
-    :return: void
+    Closes a zpool handle.
+
+    :param zpool_handle zpool_handle:
+    :rtype: void
     """
     libzfs.zpool_close(zpool_handle)
 
 
 def zpool_get_name(zpool_handle):
     """
-    Returns the canonical name for the given zpool handle
-    :param zpool_handle:
-    :return: zpool_name str
+    Returns the canonical name for the given zpool handle.
+
+    :param zpool_handle zpool_handle:
+    :return: name of the zpool
+    :rtype: str
     """
     pool_name = libzfs.zpool_get_name(zpool_handle)
     return _ffi.string(pool_name)
@@ -126,9 +139,11 @@ def zpool_get_name(zpool_handle):
 
 def zpool_get_config(zpool_handle):
     """
-    Returns the configuration for the given zpool
-    :param zpool_handle:
-    :return: dict: Current configuration of the Zpool
+    Returns the configuration for the given zpool.
+
+    :param zpool_handle zpool_handle:
+    :return: Current configuration of the Zpool
+    :rtype: dict
     """
     oldconfig = {}
     with nvlist_out(oldconfig) as props_nvlist:
@@ -138,9 +153,11 @@ def zpool_get_config(zpool_handle):
 
 def zpool_get_features(zpool_handle):
     """
-    Returns the features supported by the given zpool
-    :param zpool_handle:
-    :return: dict: Current features enabled in the Zpool
+    Returns the features supported by the given zpool.
+
+    :param zpool_handle zpool_handle:
+    :return: Current features enabled in the Zpool
+    :rtype: dict
     """
     output = libzfs.zpool_get_features(zpool_handle)
     if output == _ffi.NULL:
@@ -150,18 +167,20 @@ def zpool_get_features(zpool_handle):
 
 def zpool_get_state(zpool_handle):
     """
-    Returns the current state of the given zpool
-    :param zpool_handle:
-    :return: int
+    Returns the current state of the given zpool.
+
+    :param zpool_handle zpool_handle:
+    :rtype: int
     """
     return libzfs.zpool_get_state(zpool_handle)
 
 
 def zpool_get_state_str(zpool_handle):
     """
-    Returns the current state of the given pool as a string
-    :param zpool_handle:
-    :return: str
+    Returns the current state of the given pool as a string.
+
+    :param zpool_handle zpool_handle:
+    :rtype: str
     """
     state = libzfs.zpool_get_state_str(zpool_handle)
     return _ffi.string(state)
@@ -169,9 +188,10 @@ def zpool_get_state_str(zpool_handle):
 
 def zpool_prop_to_name(zpool_prop):
     """
-    Returns the canonical name for a property enum int
-    :param zpool_prop:
-    :return:
+    Returns the canonical name for a property enum int.
+
+    :param zpool_prop_t zpool_prop:
+    :rtype: str
     """
     if isinstance(zpool_prop, Enum):
         zpool_prop = zpool_prop.value
@@ -180,9 +200,11 @@ def zpool_prop_to_name(zpool_prop):
 
 def zpool_prop_values(zpool_prop):
     """
-    Returns the property's accepted values
-    :param zpool_prop:
-    :return: str: All the accepted values
+    Returns the property's accepted values.
+
+    :param zpool_prop_t zpool_prop:
+    :return: All the accepted values
+    :rtype: str
     """
     if isinstance(zpool_prop, Enum):
         zpool_prop = zpool_prop.value
@@ -192,13 +214,16 @@ def zpool_prop_values(zpool_prop):
 
 def zpool_get_prop(zpool_handle, zpool_prop, zprop_source, literal):
     """
-    Return the value of a property, for a zpool, as a byte string array
-    :param zpool_handle:
-    :param zpool_prop:
-    :param zprop_source:
-    :param literal: If True, then numbers are left as exact values,
+    Return the value of a property, for a zpool, as a byte string array.
+
+    :param zpool_handle zpool_handle:
+    :param zpool_prop_t zpool_prop:
+    :param zprop_source_t zprop_source:
+    :param bool literal: If True, then numbers are left as exact values,
                     else they're converted to a human-readable form
-    :return: str: Value of property requested
+    :return: Value of property requested
+    :rtype: str
+    :raises ZpoolPropertyFetchError: If the property cannot be found
     """
     buf = _ffi.new("char []", 1024)
     buflen = len(buf)
@@ -216,13 +241,14 @@ def zpool_get_prop(zpool_handle, zpool_prop, zprop_source, literal):
 def zpool_get_status(zpool_handle, msgid=None, errata=None):
     """
     Returns status code mapping to zpool_status_t
-    Only returns the most severe status of all conditions affecting a pool
-    :param zpool_handle: Zpool Handle
-    :param msgid:
-    :param errata:
-    :returns status zpool_status_t: Status enum value
-    :returns zfs_msg_id str: Message id corresponding to zfs_msgid_table[]
-    in libzfs/libzfs_status.c
+    Only returns the most severe status of all conditions affecting a pool.
+
+    :param zpool_handle zpool_handle: Zpool Handle
+    :param int msgid:
+    :param zpool_errata_t errata:
+    :returns: Status enum value
+    :returns: Message id corresponding to zfs_msgid_table[]
+                in libzfs/libzfs_status.c
     """
     zfs_msg_id = None
     if msgid is None:
@@ -241,9 +267,11 @@ def zpool_get_status(zpool_handle, msgid=None, errata=None):
 
 def zpool_get_errlog(zpool_handle):
     """
-    See function with the same name in libzfs_pool.c
-    :param zpool_handle:
-    :return: int
+    See function with the same name in libzfs_pool.c.
+
+    :param zpool_handle zpool_handle:
+    :rtype: int
+    :raises MemoryError: If the error log for the zpool could not be loaded
     """
     with nvlist_out({}) as props_nvlist:
         output = libzfs.zpool_get_errlog(zpool_handle, props_nvlist)
@@ -256,8 +284,10 @@ def zpool_get_history(zpool_handle):
     """
     Returns a list of all commands run on a zpool.
     Can fail due to permission issues.
-    :param zpool_handle:
-    :return: dict zpool_history
+
+    :param zpool_handle zpool_handle:
+    :return: zpool_history
+    :rtype: dict
     """
     if not _is_root():
         raise exceptions.InsufficientPerms("<zpool_get_history>")
@@ -271,11 +301,13 @@ def zpool_get_history(zpool_handle):
 # BEGIN Dataset related functions
 def zfs_open(libzfs_handle, pool_name, type_mask):
     """
-    Returns a handle to a ZFS dataset
-    :param libzfs_handle:
-    :param pool_name:
-    :param type_mask: of type zfs_type_t
-    :return: zfs_handle_t
+    Returns a handle to a ZFS dataset.
+
+    :param libzfs_handle libzfs_handle:
+    :param str pool_name:
+    :param zfs_type_t type_mask: of type zfs_type_t
+    :rtype: zfs_handle_t
+    :raises ZfsDatasetOpenError: If the dataset could not be opened
     """
     if isinstance(type_mask, Enum):
         type_mask = type_mask.value
@@ -287,27 +319,30 @@ def zfs_open(libzfs_handle, pool_name, type_mask):
 
 def zfs_close(zfs_handle):
     """
-    Closes the handle for a ZFS dataset
-    :param zfs_handle:
-    :return: void
+    Closes the handle for a ZFS dataset.
+
+    :param zfs_handle zfs_handle:
+    :rtype: void
     """
     libzfs.zfs_close(zfs_handle)
 
 
 def zfs_get_type(zfs_handle):
     """
-    Returns the type of the given ZFS dataset
-    :param zfs_handle:
-    :return: zfs_type_t
+    Returns the type of the given ZFS dataset.
+
+    :param zfs_handle zfs_handle:
+    :rtype: zfs_type_t
     """
     return libzfs.zfs_get_type(zfs_handle)
 
 
 def zfs_get_name(zfs_handle):
     """
-    Returns the canonical name of the given ZFS dataset
-    :param zfs_handle:
-    :return: str
+    Returns the canonical name of the given ZFS dataset.
+
+    :param zfs_handle zfs_handle:
+    :rtype: str
     """
     ds_name = libzfs.zfs_get_name(zfs_handle)
     return _ffi.string(ds_name)
@@ -315,18 +350,20 @@ def zfs_get_name(zfs_handle):
 
 def zfs_get_pool_handle(zfs_handle):
     """
-    Returns the zpool handle the ZFS dataset resides in
-    :param zfs_handle:
-    :return: zpool_handle
+    Returns the zpool handle the ZFS dataset resides in.
+
+    :param zfs_handle zfs_handle:
+    :rtype: zpool_handle
     """
     return libzfs.zfs_get_pool_handle(zfs_handle)
 
 
 def zfs_get_pool_name(zfs_handle):
     """
-    Returns the canonical name for the zpool the ZFS dataset resides in
-    :param zfs_handle:
-    :return: str
+    Returns the canonical name for the zpool the ZFS dataset resides in.
+
+    :param zfs_handle zfs_handle:
+    :rtype: str
     """
     pool_name = libzfs.zfs_get_pool_name(zfs_handle)
     return _ffi.string(pool_name)
@@ -334,14 +371,16 @@ def zfs_get_pool_name(zfs_handle):
 
 def zfs_prop_get(zfs_handle, zfs_prop, zprop_source, literal):
     """
-    Returns the value for a particular property of a ZFS dataset
-    :param zfs_handle: dataset handle
-    :param zfs_prop:
-    :param zprop_source:
-    :param literal: If True, then numbers are left as exact values,
+    Returns the value for a particular property of a ZFS dataset.
+
+    :param zfs_handle zfs_handle: dataset handle
+    :param zfs_prop_t zfs_prop:
+    :param zprop_source_t zprop_source:
+    :param bool literal: If True, then numbers are left as exact values,
                     else they're converted to a human-readable form
-    :returns prop_buf str:
-    :returns stat_buf str:
+    :return str: Value of the property
+    :return str: Value of the stat
+    :raises ZfsPropertyFetchError: If the property could not be retrieved
     """
     prop_buf = _ffi.new("char []", 1024)
     prop_buf_len = len(prop_buf)
@@ -368,13 +407,14 @@ def zfs_prop_get(zfs_handle, zfs_prop, zprop_source, literal):
 
 def zfs_prop_get_userquota(zfs_handle, user_name, prefix, literal):
     """
-    Get a userspace property for a particular user
-    :param zfs_handle:
-    :param user_name:
-    :param prefix: The userspace property we want
-    :param literal: If True, then numbers are left as exact values,
+    Get a userspace property for a particular user.
+
+    :param zfs_handle zfs_handle:
+    :param bytearray user_name:
+    :param bytearray prefix: The userspace property we want
+    :param bool literal: If True, then numbers are left as exact values,
                     else they're converted to a human-readable form
-    :return: str
+    :rtype: str
     """
     prop_buf = _ffi.new("char []", 1024)
     prop_buf_len = len(prop_buf)
@@ -390,9 +430,10 @@ def zfs_prop_get_userquota(zfs_handle, user_name, prefix, literal):
 
 def zfs_get_all_props(zfs_handle):
     """
-    Returns all the properties set for a ZFS dataset
-    :param zfs_handle:
-    :return: dict
+    Returns all the properties set for a ZFS dataset.
+
+    :param zfs_handle zfs_handle:
+    :rtype: dict
     """
     props_nvlist = libzfs.zfs_get_all_props(zfs_handle)
     return _unsafe_unpack_nvlist(props_nvlist)
@@ -400,9 +441,10 @@ def zfs_get_all_props(zfs_handle):
 
 def zfs_get_user_props(zfs_handle):
     """
-    Returns all the userspace properties for a ZFS dataset
-    :param zfs_handle:
-    :return: dict
+    Returns all the userspace properties for a ZFS dataset.
+
+    :param zfs_handle zfs_handle:
+    :rtype: dict
     """
     props_nvlist = libzfs.zfs_get_user_props(zfs_handle)
     return _unsafe_unpack_nvlist(props_nvlist)
@@ -422,10 +464,13 @@ def zfs_get_fsacl(zfs_handle):
 
 def get_zfs_userspace_users(zfs_handle):
     """
-    Returns all the uids + gids that have interacted with the dataset
-    Can fail due to permission issues
-    :param zfs_handle:
-    :return int[]: Array of all the uids + gids
+    Returns all the uids + gids that have interacted with the dataset.
+    Can fail due to permission issues.
+
+    :param zfs_handle zfs_handle:
+    :return: Array of all the uids + gids
+    :rtype: int[]
+    :raises ZfsDatasetUserspaceError: If the property could not be retrieved
     """
     if not _is_root():
         raise exceptions.InsufficientPerms("<get_zfs_userspace_users>")
@@ -449,6 +494,15 @@ def get_zfs_userspace_users(zfs_handle):
 
 
 def get_zpool_names(libzfs_handle):
+    """
+    Returns the names of all the pools associated with
+    the ZFS driver on the machine.
+
+    :param libzfs_handle libzfs_handle:
+    :return: Array of all the pool names
+    :rtype: str[]
+    :raises ZpoolIterError: If the pools could not be iterated over
+    """
     pool_names = []
 
     @_ffi.callback(ZPOOL_ITERATOR_FUNC_TYPE)
@@ -464,6 +518,15 @@ def get_zpool_names(libzfs_handle):
 
 
 def get_zfs_dataset_names(libzfs_handle):
+    """
+    Returns the names of all the datasets associated with
+    the ZFS driver on the machine.
+
+    :param libzfs_handle libzfs_handle:
+    :return: Array of all the datset names
+    :rtype: str[]
+    :raises ZfsDatasetIterError: If the datasets could not be iterated over
+    """
     root_dataset_handles = []
     dataset_names = []
 
@@ -490,6 +553,16 @@ def get_zfs_dataset_names(libzfs_handle):
 
 
 def construct_vdev_tree(zpool_handle):
+    """
+    Constructs a tree of the virtual devices associated with
+    a pool.
+
+    :param zpool_handle zpool_handle:
+    :return: The virtual device tree for the pool
+    :rtype: VDevTree
+    :raises ZpoolConfigFetchError: If the configuration or virtual devices
+                                for a pool could not retrieved
+    """
     vdev_tree = {}
     config = libzfs.zpool_get_config(zpool_handle, _ffi.NULL)
     if config == _ffi.NULL:

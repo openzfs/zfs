@@ -19,8 +19,10 @@ from .._constants import SCAN_STATE, VDEV_AUX_STATE, VDEV_STATE
 
 class VDevStat(object):
     """
-    From ```zfs.h```
+    From ``zfs.h``
     Virtual Device statistics
+    """
+    """
     typedef struct vdev_stat {
         hrtime_t    vs_timestamp;   /* time since vdev load */
         uint64_t    vs_state;       /* vdev state belongs to vdev_state enum */
@@ -150,8 +152,10 @@ class VDevStat(object):
 
 class PoolScanStat(object):
     """
-    From ```zfs.h```
+    From ``zfs.h``
     Pool scan statistics
+    """
+    """
     typedef struct pool_scan_stat {
         /* values stored on disk */
         uint64_t	pss_func;	/* pool_scan_func_t */
@@ -259,8 +263,7 @@ class VDevTree(object):
     We lose a fair bit of information when translating the
     vdev_tree information  given to us by ZFS,
     as this class does not have all the properties that are present
-    in the ZFS nvlist;
-    instead it just contains the properties we require (for now).
+    in the ZFS nvlist; instead it just contains the properties we require.
     """
 
     device_type = ""
@@ -328,7 +331,7 @@ class VDevTree(object):
                     VDevTree.construct_from_vdev_tree(disk)
                     for disk in vdev_tree[v_key]
                 ]
-            else:
+
                 device_tree[c_key] = []
         device_tree = VDevTree(**device_tree)
         if "vdev_stats" in vdev_tree:

@@ -28,6 +28,7 @@ Documentation for the libzfs_core
    :exclude-members: lzc_snap, lzc_recv, lzc_destroy_one,
        lzc_inherit, lzc_set_props, lzc_list
 
+
 Documentation for the libzfs_core exceptions
 ********************************************
 
@@ -39,6 +40,20 @@ Documentation for the miscellaneous types that correspond to specific width C ty
 ***********************************************************************************
 
 .. automodule:: libzfs_core.ctypes
+   :members:
+   :undoc-members:
+
+Documentation for the libzfs
+*********************************
+
+.. automodule:: libzfs
+   :members:
+
+
+Documentation for the libzfs exceptions
+********************************************
+
+.. automodule:: libzfs.exceptions
    :members:
    :undoc-members:
 

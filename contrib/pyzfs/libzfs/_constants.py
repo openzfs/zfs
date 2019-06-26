@@ -65,7 +65,9 @@ class ZPOOL_PROP(Enum):
 
 class ZPOOL_STATUS(Enum):
     """
-    From ```libzfs.h```
+    From ``libzfs.h``
+    """
+    """
     /*
      * Pool health statistics.
      */
@@ -163,7 +165,7 @@ class ZPOOL_STATUS(Enum):
 
 class ZPOOL_ERRATA(Enum):
     """
-    From ```zfs.h```
+    From ``zfs.h``
     Errata described by http://zfsonlinux.org/msg/ZFS-8000-ER.  The ordering
     of this enum must be maintained to ensure the errata identifiers map to
     the correct documentation.  New errata may only be appended to the list
@@ -449,7 +451,9 @@ class ZPOOL_CONFIG(Enum):
 
 class SCAN_STATE(Enum):
     """
-    From ```zfs.h```
+    From ``zfs.h``
+    """
+    """
     typedef enum dsl_scan_state {
         DSS_NONE,
         DSS_SCANNING,
@@ -468,7 +472,9 @@ class SCAN_STATE(Enum):
 
 class VDEV_STATE(Enum):
     """
-    From ```zfs.h```
+    From ``zfs.h``
+    """
+    """
     /*
      * vdev states are ordered from least to most healthy.
      * A vdev that's CANT_OPEN or below is considered unusable.
@@ -497,7 +503,9 @@ class VDEV_STATE(Enum):
 
 class VDEV_AUX_STATE(Enum):
     """
-    From ```zfs.h```
+    From ``zfs.h``
+    """
+    """
     /*
      * vdev aux states.  When a vdev is in the CANT_OPEN state, the aux field
      * of the vdev stats structure uses these constants to distinguish why.
@@ -546,6 +554,5 @@ class VDEV_AUX_STATE(Enum):
     VDEV_AUX_EXTERNAL_PERSIST = 17
     VDEV_AUX_ACTIVE = 18
     VDEV_AUX_CHILDREN_OFFLINE = 19
-
 
 # vim: softtabstop=4 tabstop=4 expandtab shiftwidth=4
