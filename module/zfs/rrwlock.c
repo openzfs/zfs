@@ -28,6 +28,7 @@
 
 #include <sys/refcount.h>
 #include <sys/rrwlock.h>
+#include <sys/trace_rrwlock.h>
 
 /*
  * This file contains the implementation of a re-entrant read

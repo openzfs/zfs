@@ -19,7 +19,8 @@
  * CDDL HEADER END
  */
 
-#if defined(_KERNEL) && defined(HAVE_DECLARE_EVENT_CLASS)
+#if defined(_KERNEL)
+#if defined(HAVE_DECLARE_EVENT_CLASS)
 
 #undef TRACE_SYSTEM
 #define	TRACE_SYSTEM zfs
@@ -218,4 +219,11 @@ DEFINE_ZIL_COMMIT_IO_ERROR_EVENT(zfs_zil__commit__io__error);
 #define	TRACE_INCLUDE_FILE trace_zil
 #include <trace/define_trace.h>
 
-#endif /* _KERNEL && HAVE_DECLARE_EVENT_CLASS */
+#else
+
+DEFINE_DTRACE_PROBE2(zil__process__commit__itx);
+DEFINE_DTRACE_PROBE2(zil__process__normal__itx);
+DEFINE_DTRACE_PROBE2(zil__commit__io__error);
+
+#endif /* HAVE_DECLARE_EVENT_CLASS */
+#endif /* _KERNEL */

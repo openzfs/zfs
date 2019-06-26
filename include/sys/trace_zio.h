@@ -21,7 +21,8 @@
 
 #include <sys/list.h>
 
-#if defined(_KERNEL) && defined(HAVE_DECLARE_EVENT_CLASS)
+#if defined(_KERNEL)
+#if defined(HAVE_DECLARE_EVENT_CLASS)
 
 #undef TRACE_SYSTEM
 #define	TRACE_SYSTEM zfs
@@ -86,4 +87,11 @@ TRACE_EVENT(zfs_zio__delay__skip,
 #define	TRACE_INCLUDE_FILE trace_zio
 #include <trace/define_trace.h>
 
-#endif /* _KERNEL && HAVE_DECLARE_EVENT_CLASS */
+#else
+
+DEFINE_DTRACE_PROBE2(zio__delay__miss);
+DEFINE_DTRACE_PROBE3(zio__delay__hit);
+DEFINE_DTRACE_PROBE1(zio__delay__skip);
+
+#endif /* HAVE_DECLARE_EVENT_CLASS */
+#endif /* _KERNEL */

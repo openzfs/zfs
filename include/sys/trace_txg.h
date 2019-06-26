@@ -19,7 +19,8 @@
  * CDDL HEADER END
  */
 
-#if defined(_KERNEL) && defined(HAVE_DECLARE_EVENT_CLASS)
+#if defined(_KERNEL)
+#if defined(HAVE_DECLARE_EVENT_CLASS)
 
 #undef TRACE_SYSTEM
 #define	TRACE_SYSTEM zfs
@@ -75,4 +76,14 @@ DEFINE_TXG_EVENT(zfs_txg__quiesced);
 #define	TRACE_INCLUDE_FILE trace_txg
 #include <trace/define_trace.h>
 
-#endif /* _KERNEL && HAVE_DECLARE_EVENT_CLASS */
+#else
+
+DEFINE_DTRACE_PROBE2(dsl_pool_sync__done);
+DEFINE_DTRACE_PROBE2(txg__quiescing);
+DEFINE_DTRACE_PROBE2(txg__opened);
+DEFINE_DTRACE_PROBE2(txg__syncing);
+DEFINE_DTRACE_PROBE2(txg__synced);
+DEFINE_DTRACE_PROBE2(txg__quiesced);
+
+#endif /* HAVE_DECLARE_EVENT_CLASS */
+#endif /* _KERNEL */
