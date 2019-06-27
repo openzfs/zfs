@@ -302,14 +302,23 @@ class VDevTree(object):
         )
         return repr
 
-    def __init__(self, device_type, name, path, devices, spares, caches):
+    def __init__(self, device_type="", name="", path="", devices=None, spares=None, caches=None):
         self.device_type = device_type
         self.name = name
         self.path = path
-        self.devices = devices
-        self.spares = spares
-        self.caches = caches
-        pass
+        if devices is None:
+            self.devices = []
+        else:
+            self.devices = devices
+        if spares is None:
+            self.spares = []
+        else:
+            self.spares = spares
+        if caches is None:
+            self.caches = []
+        else:
+            self.caches = caches
+        return
 
     @staticmethod
     def construct_from_vdev_tree(vdev_tree):
@@ -331,7 +340,7 @@ class VDevTree(object):
                     VDevTree.construct_from_vdev_tree(disk)
                     for disk in vdev_tree[v_key]
                 ]
-
+            else:
                 device_tree[c_key] = []
         device_tree = VDevTree(**device_tree)
         if "vdev_stats" in vdev_tree:
