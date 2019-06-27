@@ -40,7 +40,11 @@ from .bindings import libzfs_core
 from ._constants import (  # noqa: F401
     MAXNAMELEN,
     ZCP_DEFAULT_INSTRLIMIT,
-    ZCP_DEFAULT_MEMLIMIT
+    ZCP_DEFAULT_MEMLIMIT,
+    WRAPPING_KEY_LEN,
+    zfs_key_location,
+    zfs_keyformat,
+    zio_encrypt
 )
 from .ctypes import (
     int32_t,
