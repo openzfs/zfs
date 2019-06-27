@@ -18,7 +18,7 @@ pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/removal
 dist_pkgdata_SCRIPTS = \
 	cleanup.ksh removal_all_vdev.ksh removal_check_space.ksh \
 	removal_condense_export.ksh removal_multiple_indirection.ksh \
-	removal_remap_deadlists.ksh \
+	removal_nopwrite.ksh removal_remap_deadlists.ksh \
 	removal_reservation.ksh removal_resume_export.ksh \
 	removal_sanity.ksh removal_with_add.ksh removal_with_create_fs.ksh \
 	removal_with_dedup.ksh removal_with_errors.ksh \
