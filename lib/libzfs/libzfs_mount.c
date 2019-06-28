@@ -668,6 +668,7 @@ zfs_unmount(zfs_handle_t *zhp, const char *mountpoint, int flags)
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
 	struct mnttab entry;
 	char *mntpt = NULL;
+	boolean_t encroot, unmounted = B_FALSE;
 
 	/* check to see if we need to unmount the filesystem */
 	if (mountpoint != NULL || ((zfs_get_type(zhp) == ZFS_TYPE_FILESYSTEM) &&
@@ -696,8 +697,33 @@ zfs_unmount(zfs_handle_t *zhp, const char *mountpoint, int flags)
 			(void) zfs_shareall(zhp);
 			return (-1);
 		}
+
 		libzfs_mnttab_remove(hdl, zhp->zfs_name);
 		free(mntpt);
+		unmounted = B_TRUE;
+	}
+
+	/*
+	 * If the MS_CRYPT flag is provided we must ensure we attempt to
+	 * unload the dataset's key regardless of whether we did any work
+	 * to unmount it. We only do this for encryption roots.
+	 */
+	if ((flags & MS_CRYPT) != 0 &&
+	    zfs_prop_get_int(zhp, ZFS_PROP_ENCRYPTION) != ZIO_CRYPT_OFF) {
+		zfs_refresh_properties(zhp);
+
+		if (zfs_crypto_get_encryption_root(zhp, &encroot, NULL) != 0 &&
+		    unmounted) {
+			(void) zfs_mount(zhp, NULL, 0);
+			return (-1);
+		}
+
+		if (encroot && zfs_prop_get_int(zhp, ZFS_PROP_KEYSTATUS) ==
+		    ZFS_KEYSTATUS_AVAILABLE &&
+		    zfs_crypto_unload_key(zhp) != 0) {
+			(void) zfs_mount(zhp, NULL, 0);
+			return (-1);
+		}
 	}
 
 	return (0);
@@ -715,7 +741,7 @@ zfs_unmountall(zfs_handle_t *zhp, int flags)
 	int ret;
 
 	clp = changelist_gather(zhp, ZFS_PROP_MOUNTPOINT,
-	    CL_GATHER_ITER_MOUNTED, 0);
+	    CL_GATHER_ITER_MOUNTED, flags);
 	if (clp == NULL)
 		return (-1);
 
