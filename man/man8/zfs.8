@@ -182,7 +182,7 @@
 .Fl a | Ar filesystem
 .Nm
 .Cm unmount
-.Op Fl f
+.Op Fl fu
 .Fl a | Ar filesystem Ns | Ns Ar mountpoint
 .Nm
 .Cm share
@@ -3462,7 +3462,7 @@ Attempt to force mounting of all filesystems, even those that couldn't normally 
 .It Xo
 .Nm
 .Cm unmount
-.Op Fl f
+.Op Fl fu
 .Fl a | Ar filesystem Ns | Ns Ar mountpoint
 .Xc
 Unmounts currently mounted ZFS file systems.
@@ -3470,13 +3470,16 @@ Unmounts currently mounted ZFS file systems.
 .It Fl a
 Unmount all available ZFS file systems.
 Invoked automatically as part of the shutdown process.
+.It Fl f
+Forcefully unmount the file system, even if it is currently in use.
+.El
+.It Fl u
+Unload keys for any encryption roots unmounted by this command.
+.El
 .It Ar filesystem Ns | Ns Ar mountpoint
 Unmount the specified filesystem.
 The command can also be given a path to a ZFS file system mount point on the
 system.
-.It Fl f
-Forcefully unmount the file system, even if it is currently in use.
-.El
 .It Xo
 .Nm
 .Cm share
