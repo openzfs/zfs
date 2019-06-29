@@ -87,17 +87,28 @@
 %define __python_pkg_version      2
 %define __python_cffi_pkg         python-cffi
 %define __python_setuptools_pkg   python-setuptools
+%define __python_sitelib          %{python_sitelib}
 %else
 %define __python                  /usr/bin/python3
 %define __python_pkg_version      3
 %define __python_cffi_pkg         python3-cffi
 %define __python_setuptools_pkg   python3-setuptools
+%if 0%{?suse_version} >= 1500
+%define __python_sitelib          %{python3_sitelib}
+%else
+%define __python_sitelib          %{python_sitelib}
+%endif
 %endif
 %else
 %define __python                  %{__use_python}
 %define __python_pkg_version      %{__use_python_pkg_version}
 %define __python_cffi_pkg         python%{__python_pkg_version}-cffi
 %define __python_setuptools_pkg   python%{__python_pkg_version}-setuptools
+%if 0%{?suse_version} >= 1500
+%define __python_sitelib          %{python%{__python_pkg_version}_sitelib}
+%else
+%define __python_sitelib          %{python_sitelib}
+%endif
 %endif
 
 # By default python-pyzfs is enabled, with the exception of
@@ -474,8 +485,8 @@ systemctl --system daemon-reload >/dev/null || true
 %doc contrib/pyzfs/README
 %doc contrib/pyzfs/LICENSE
 %defattr(-,root,root,-)
-%{python_sitelib}/libzfs_core/*
-%{python_sitelib}/pyzfs*
+%{__python_sitelib}/libzfs_core/*
+%{__python_sitelib}/pyzfs*
 %endif
 
 %if 0%{?_initramfs}
