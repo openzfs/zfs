@@ -29,6 +29,7 @@
  * Copyright 2016 Nexenta Systems, Inc.
  * Copyright (c) 2019 Datto Inc.
  * Copyright (c) 2019, loli10K <ezomori.nozomu@gmail.com>
+ * Copyright 2019 Joyent, Inc.
  */
 
 #include <assert.h>
@@ -998,10 +999,11 @@ zfs_do_create(int argc, char **argv)
 			zpool_close(zpool_handle);
 			goto error;
 		}
-		zpool_close(zpool_handle);
 
-		volsize = zvol_volsize_to_reservation(volsize, real_props);
+		volsize = zvol_volsize_to_reservation(zpool_handle, volsize,
+		    real_props);
 		nvlist_free(real_props);
+		zpool_close(zpool_handle);
 
 		if (nvlist_lookup_string(props, zfs_prop_to_name(resv_prop),
 		    &strval) != 0) {
