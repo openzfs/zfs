@@ -755,7 +755,8 @@ tags = ['functional', 'refquota']
 
 [tests/functional/refreserv]
 tests = ['refreserv_001_pos', 'refreserv_002_pos', 'refreserv_003_pos',
-    'refreserv_004_pos', 'refreserv_005_pos']
+    'refreserv_004_pos', 'refreserv_005_pos', 'refreserv_multi_raidz',
+    'refreserv_raidz']
 tags = ['functional', 'refreserv']
 
 [tests/functional/removal]
