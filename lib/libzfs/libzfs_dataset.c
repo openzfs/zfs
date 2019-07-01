@@ -5458,10 +5458,10 @@ zfs_get_holds(zfs_handle_t *zhp, nvlist_t **nvl)
  */
 
 /*
- * Derived from function of same name in uts/common/fs/zfs/vdev_raidz.c.
- * Returns the amount of space (in bytes) that will be allocated for the
- * specified block size. Note that the "referenced" space accounted will be less
- * than this, but not necessarily equal to "blksize", due to RAIDZ deflation.
+ * Derived from function of same name in module/zfs/vdev_raidz.c.  Returns the
+ * amount of space (in bytes) that will be allocated for the specified block
+ * size. Note that the "referenced" space accounted will be less than this, but
+ * not necessarily equal to "blksize", due to RAIDZ deflation.
  */
 static uint64_t
 vdev_raidz_asize(uint64_t ndisks, uint64_t nparity, uint64_t ashift,

@@ -6,7 +6,9 @@ dist_pkgdata_SCRIPTS = \
 	refreserv_002_pos.ksh \
 	refreserv_003_pos.ksh \
 	refreserv_004_pos.ksh \
-	refreserv_005_pos.ksh
+	refreserv_005_pos.ksh \
+	refreserv_multi_raidz.ksh \
+	refreserv_raidz.ksh
 
 dist_pkgdata_DATA = \
 	refreserv.cfg
