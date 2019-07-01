@@ -254,9 +254,9 @@ get_usage(zfs_help_t idx)
 		return (gettext("\tclone [-p] [-o property=value] ... "
 		    "<snapshot> <filesystem|volume>\n"));
 	case HELP_CREATE:
-		return (gettext("\tcreate [-p] [-o property=value] ... "
+		return (gettext("\tcreate [-Pnpv] [-o property=value] ... "
 		    "<filesystem>\n"
-		    "\tcreate [-ps] [-b blocksize] [-o property=value] ... "
+		    "\tcreate [-Pnpsv] [-b blocksize] [-o property=value] ... "
 		    "-V <size> <volume>\n"));
 	case HELP_DESTROY:
 		return (gettext("\tdestroy [-fnpRrv] <filesystem|volume>\n"
@@ -867,8 +867,8 @@ usage:
 }
 
 /*
- * zfs create [-p] [-o prop=value] ... fs
- * zfs create [-ps] [-b blocksize] [-o prop=value] ... -V vol size
+ * zfs create [-Pnpv] [-o prop=value] ... fs
+ * zfs create [-Pnpsv] [-b blocksize] [-o prop=value] ... -V vol size
  *
  * Create a new dataset.  This command can be used to create filesystems
  * and volumes.  Snapshot creation is handled by 'zfs snapshot'.
@@ -880,16 +880,29 @@ usage:
  * SPA_VERSION_REFRESERVATION, we set a refreservation instead.
  *
  * The '-p' flag creates all the non-existing ancestors of the target first.
+ *
+ * The '-n' flag is no-op (dry run) mode.  This will perform a user-space sanity
+ * check of arguments and properties, but does not check for permissions,
+ * available space, etc.
+ *
+ * The '-v' flag is for verbose output.
+ *
+ * The '-P' flag is used for parseable output.  It implies '-v'.
  */
 static int
 zfs_do_create(int argc, char **argv)
 {
 	zfs_type_t type = ZFS_TYPE_FILESYSTEM;
+	zpool_handle_t *zpool_handle = NULL;
+	nvlist_t *real_props = NULL;
 	uint64_t volsize = 0;
 	int c;
 	boolean_t noreserve = B_FALSE;
 	boolean_t bflag = B_FALSE;
 	boolean_t parents = B_FALSE;
+	boolean_t dryrun = B_FALSE;
+	boolean_t verbose = B_FALSE;
+	boolean_t parseable = B_FALSE;
 	int ret = 1;
 	nvlist_t *props;
 	uint64_t intval;
@@ -898,7 +911,7 @@ zfs_do_create(int argc, char **argv)
 		nomem();
 
 	/* check options */
-	while ((c = getopt(argc, argv, ":V:b:so:p")) != -1) {
+	while ((c = getopt(argc, argv, ":PV:b:nso:pv")) != -1) {
 		switch (c) {
 		case 'V':
 			type = ZFS_TYPE_VOLUME;
@@ -913,6 +926,10 @@ zfs_do_create(int argc, char **argv)
 			    zfs_prop_to_name(ZFS_PROP_VOLSIZE), intval) != 0)
 				nomem();
 			volsize = intval;
+			break;
+		case 'P':
+			verbose = B_TRUE;
+			parseable = B_TRUE;
 			break;
 		case 'p':
 			parents = B_TRUE;
@@ -931,12 +948,18 @@ zfs_do_create(int argc, char **argv)
 			    intval) != 0)
 				nomem();
 			break;
+		case 'n':
+			dryrun = B_TRUE;
+			break;
 		case 'o':
 			if (!parseprop(props, optarg))
 				goto error;
 			break;
 		case 's':
 			noreserve = B_TRUE;
+			break;
+		case 'v':
+			verbose = B_TRUE;
 			break;
 		case ':':
 			(void) fprintf(stderr, gettext("missing size "
@@ -969,14 +992,9 @@ zfs_do_create(int argc, char **argv)
 		goto badusage;
 	}
 
-	if (type == ZFS_TYPE_VOLUME && !noreserve) {
-		zpool_handle_t *zpool_handle;
-		nvlist_t *real_props = NULL;
-		uint64_t spa_version;
+	if (dryrun || (type == ZFS_TYPE_VOLUME && !noreserve)) {
+		char msg[ZFS_MAX_DATASET_NAME_LEN * 2];
 		char *p;
-		zfs_prop_t resv_prop;
-		char *strval;
-		char msg[1024];
 
 		if ((p = strchr(argv[0], '/')) != NULL)
 			*p = '\0';
@@ -985,6 +1003,22 @@ zfs_do_create(int argc, char **argv)
 			*p = '/';
 		if (zpool_handle == NULL)
 			goto error;
+
+		(void) snprintf(msg, sizeof (msg),
+		    dryrun ? gettext("cannot verify '%s'") :
+		    gettext("cannot create '%s'"), argv[0]);
+		if (props && (real_props = zfs_valid_proplist(g_zfs, type,
+		    props, 0, NULL, zpool_handle, B_TRUE, msg)) == NULL) {
+			zpool_close(zpool_handle);
+			goto error;
+		}
+	}
+
+	if (type == ZFS_TYPE_VOLUME && !noreserve) {
+		uint64_t spa_version;
+		zfs_prop_t resv_prop;
+		char *strval;
+
 		spa_version = zpool_get_prop_int(zpool_handle,
 		    ZPOOL_PROP_VERSION, NULL);
 		if (spa_version >= SPA_VERSION_REFRESERVATION)
@@ -992,18 +1026,8 @@ zfs_do_create(int argc, char **argv)
 		else
 			resv_prop = ZFS_PROP_RESERVATION;
 
-		(void) snprintf(msg, sizeof (msg),
-		    gettext("cannot create '%s'"), argv[0]);
-		if (props && (real_props = zfs_valid_proplist(g_zfs, type,
-		    props, 0, NULL, zpool_handle, B_TRUE, msg)) == NULL) {
-			zpool_close(zpool_handle);
-			goto error;
-		}
-
 		volsize = zvol_volsize_to_reservation(zpool_handle, volsize,
 		    real_props);
-		nvlist_free(real_props);
-		zpool_close(zpool_handle);
 
 		if (nvlist_lookup_string(props, zfs_prop_to_name(resv_prop),
 		    &strval) != 0) {
@@ -1013,6 +1037,10 @@ zfs_do_create(int argc, char **argv)
 				nomem();
 			}
 		}
+	}
+	if (zpool_handle != NULL) {
+		zpool_close(zpool_handle);
+		nvlist_free(real_props);
 	}
 
 	if (parents && zfs_name_valid(argv[0], type)) {
@@ -1025,8 +1053,50 @@ zfs_do_create(int argc, char **argv)
 			ret = 0;
 			goto error;
 		}
-		if (zfs_create_ancestors(g_zfs, argv[0]) != 0)
-			goto error;
+		if (verbose) {
+			(void) printf(parseable ? "create_ancestors\t%s\n" :
+			    dryrun ?  "would create ancestors of %s\n" :
+			    "create ancestors of %s\n", argv[0]);
+		}
+		if (!dryrun) {
+			if (zfs_create_ancestors(g_zfs, argv[0]) != 0) {
+				goto error;
+			}
+		}
+	}
+
+	if (verbose) {
+		nvpair_t *nvp = NULL;
+		(void) printf(parseable ? "create\t%s\n" :
+		    dryrun ? "would create %s\n" : "create %s\n", argv[0]);
+		while ((nvp = nvlist_next_nvpair(props, nvp)) != NULL) {
+			uint64_t uval;
+			char *sval;
+
+			switch (nvpair_type(nvp)) {
+			case DATA_TYPE_UINT64:
+				VERIFY0(nvpair_value_uint64(nvp, &uval));
+				(void) printf(parseable ?
+				    "property\t%s\t%llu\n" : "\t%s=%llu\n",
+				    nvpair_name(nvp), (u_longlong_t)uval);
+				break;
+			case DATA_TYPE_STRING:
+				VERIFY0(nvpair_value_string(nvp, &sval));
+				(void) printf(parseable ?
+				    "property\t%s\t%s\n" : "\t%s=%s\n",
+				    nvpair_name(nvp), sval);
+				break;
+			default:
+				(void) fprintf(stderr, "property '%s' "
+				    "has illegal type %d\n",
+				    nvpair_name(nvp), nvpair_type(nvp));
+				abort();
+			}
+		}
+	}
+	if (dryrun) {
+		ret = 0;
+		goto error;
 	}
 
 	/* pass to libzfs */
