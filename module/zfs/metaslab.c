@@ -3747,8 +3747,8 @@ metaslab_group_alloc_normal(metaslab_group_t *mg, zio_alloc_list_t *zal,
 		 * worse metaslab (we waited for that metaslab to be loaded
 		 * after all).
 		 *
-		 * If the activation failed due to an I/O error we skip to
-		 * the next metaslab.
+		 * If the activation failed due to an I/O error or ENOSPC we
+		 * skip to the next metaslab.
 		 */
 		boolean_t activated;
 		if (activation_error == 0) {
