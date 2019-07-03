@@ -621,6 +621,7 @@ retry:
 	bio_offset = io_offset;
 	bio_size   = io_size;
 	for (i = 0; i <= dr->dr_bio_count; i++) {
+		unsigned int nr_iovecs;
 
 		/* Finished constructing bio's for given buffer */
 		if (bio_size <= 0)
@@ -638,10 +639,11 @@ retry:
 		}
 
 		/* bio_alloc() with __GFP_WAIT never returns NULL */
-		dr->dr_bio[i] = bio_alloc(GFP_NOIO,
-		    MIN(abd_nr_pages_off(zio->io_abd, bio_size, abd_offset),
-		    BIO_MAX_PAGES));
-		if (unlikely(dr->dr_bio[i] == NULL)) {
+		nr_iovecs = MIN(abd_nr_pages_off(zio->io_abd, bio_size,
+		    abd_offset), BIO_MAX_PAGES);
+		dr->dr_bio[i] = bio_alloc(GFP_NOIO, nr_iovecs);
+		if (unlikely(dr->dr_bio[i] == NULL ||
+		    (unsigned int)dr->dr_bio[i]->bi_max_vecs != nr_iovecs)) {
 			vdev_disk_dio_free(dr);
 			return (SET_ERROR(ENOMEM));
 		}
