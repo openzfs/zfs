@@ -30,6 +30,7 @@
  * Copyright (c) 2013 by Delphix. All rights reserved.
  * Copyright 2015, OmniTI Computer Consulting, Inc. All rights reserved.
  * Copyright (c) 2018 George Melikov. All Rights Reserved.
+ * Copyright (c) 2019 Datto, Inc. All rights reserved.
  */
 
 /*
@@ -1081,8 +1082,8 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 	error = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
 	if (error) {
 		if (!(error & MOUNT_BUSY << 8)) {
-			cmn_err(CE_WARN, "Unable to automount %s/%s: %d",
-			    full_path, full_name, error);
+			zfs_dbgmsg("Unable to automount %s error=%d",
+			    full_path, error);
 			error = SET_ERROR(EISDIR);
 		} else {
 			/*
