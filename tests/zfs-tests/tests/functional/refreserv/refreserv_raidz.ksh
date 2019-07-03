@@ -103,6 +103,7 @@ for parity in 1 2 3; do
 			vol=$TESTPOOL/$TESTVOL
 			log_must zfs create -V ${volsize}m \
 			    -o volblocksize=$vbs "$vol"
+			block_device_wait "/dev/zvol/$vol"
 			log_must dd if=/dev/zero of=/dev/zvol/$vol \
 			    bs=1024k count=$volsize
 			sync
