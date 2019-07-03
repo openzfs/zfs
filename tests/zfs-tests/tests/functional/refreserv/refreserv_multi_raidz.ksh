@@ -55,7 +55,7 @@ function cleanup
 log_assert "raidz refreservation=auto picks worst raidz vdev"
 log_onexit cleanup
 
-poolexists "$TESTPOOL" && log_must zpool destroy "$TESTPOOL"
+poolexists "$TESTPOOL" && log_must_busy zpool destroy "$TESTPOOL"
 
 # Testing tiny block sizes on ashift=12 pools causes so much size inflation
 # that small test disks may fill before creating small volumes.  However,
@@ -111,10 +111,10 @@ for parity in 1 2 3; do
 			log_must test -n "$refres"
 			sizes["$raid"]["$ndisks"]["$vbs"]=$refres
 
-			log_must zfs destroy "$vol"
+			log_must_busy zfs destroy "$vol"
 		done
 
-		log_must zpool destroy "$TESTPOOL"
+		log_must_busy zpool destroy "$TESTPOOL"
 	done
 done
 
