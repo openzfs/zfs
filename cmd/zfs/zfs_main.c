@@ -3634,7 +3634,7 @@ zfs_do_redact(int argc, char **argv)
 	argv++;
 	argc--;
 	if (argc < 3) {
-		(void) fprintf(stderr, gettext("too few arguments"));
+		(void) fprintf(stderr, gettext("too few arguments\n"));
 		usage(B_FALSE);
 	}
 
@@ -3657,34 +3657,34 @@ zfs_do_redact(int argc, char **argv)
 		break;
 	case ENOENT:
 		(void) fprintf(stderr,
-		    gettext("provided snapshot %s does not exist"), snap);
+		    gettext("provided snapshot %s does not exist\n"), snap);
 		break;
 	case EEXIST:
 		(void) fprintf(stderr, gettext("specified redaction bookmark "
-		    "(%s) provided already exists"), bookname);
+		    "(%s) provided already exists\n"), bookname);
 		break;
 	case ENAMETOOLONG:
 		(void) fprintf(stderr, gettext("provided bookmark name cannot "
-		    "be used, final name would be too long"));
+		    "be used, final name would be too long\n"));
 		break;
 	case E2BIG:
 		(void) fprintf(stderr, gettext("too many redaction snapshots "
-		    "specified"));
+		    "specified\n"));
 		break;
 	case EINVAL:
 		(void) fprintf(stderr, gettext("redaction snapshot must be "
-		    "descendent of snapshot being redacted"));
+		    "descendent of snapshot being redacted\n"));
 		break;
 	case EALREADY:
 		(void) fprintf(stderr, gettext("attempted to redact redacted "
-		    "dataset or with respect to redacted dataset"));
+		    "dataset or with respect to redacted dataset\n"));
 		break;
 	case ENOTSUP:
 		(void) fprintf(stderr, gettext("redaction bookmarks feature "
-		    "not enabled"));
+		    "not enabled\n"));
 		break;
 	default:
-		(void) fprintf(stderr, gettext("internal error: %s"),
+		(void) fprintf(stderr, gettext("internal error: %s\n"),
 		    strerror(errno));
 	}
 
