@@ -863,8 +863,9 @@ extern void spa_l2cache_drop(spa_t *spa);
 
 /* scanning */
 extern int spa_scan(spa_t *spa, pool_scan_func_t func);
-extern int spa_scan_stop(spa_t *spa);
-extern int spa_scrub_pause_resume(spa_t *spa, pool_scrub_cmd_t flag);
+extern int spa_scan_stop(spa_t *spa, pool_scan_func_t func);
+extern int spa_scrub_pause_resume(spa_t *spa, pool_scan_func_t func,
+    pool_scrub_cmd_t flag);
 
 /* spa syncing */
 extern void spa_sync(spa_t *spa, uint64_t txg); /* only for DMU use */
@@ -1175,6 +1176,7 @@ extern void zfs_post_remove(spa_t *spa, vdev_t *vd);
 extern void zfs_post_state_change(spa_t *spa, vdev_t *vd, uint64_t laststate);
 extern void zfs_post_autoreplace(spa_t *spa, vdev_t *vd);
 extern uint64_t spa_get_errlog_size(spa_t *spa);
+extern uint64_t spa_get_last_errlog_size(spa_t *spa);
 extern int spa_get_errlog(spa_t *spa, void *uaddr, size_t *count);
 extern void spa_errlog_rotate(spa_t *spa);
 extern void spa_errlog_drain(spa_t *spa);

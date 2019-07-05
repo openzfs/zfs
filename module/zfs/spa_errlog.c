@@ -128,6 +128,21 @@ spa_log_error(spa_t *spa, const zbookmark_phys_t *zb)
 	mutex_exit(&spa->spa_errlist_lock);
 }
 
+/* Return the number of errors in the error log */
+uint64_t
+spa_get_last_errlog_size(spa_t *spa)
+{
+	uint64_t total = 0, count;
+	mutex_enter(&spa->spa_errlog_lock);
+
+	if (spa->spa_errlog_last != 0 &&
+	    zap_count(spa->spa_meta_objset, spa->spa_errlog_last,
+	    &count) == 0)
+		total += count;
+	mutex_exit(&spa->spa_errlog_lock);
+	return (total);
+}
+
 /*
  * Return the number of errors currently in the error log.  This is actually the
  * sum of both the last log and the current log, since we don't know the union
@@ -306,17 +321,17 @@ sync_error_list(spa_t *spa, avl_tree_t *t, uint64_t *obj, dmu_tx_t *tx)
 
 	if (avl_numnodes(t) != 0) {
 		/* create log if necessary */
-		if (*obj == 0)
+		if (*obj == 0) {
 			*obj = zap_create(spa->spa_meta_objset,
 			    DMU_OT_ERROR_LOG, DMU_OT_NONE,
 			    0, tx);
+		}
 
 		/* add errors to the current log */
 		for (se = avl_first(t); se != NULL; se = AVL_NEXT(t, se)) {
 			char *name = se->se_name ? se->se_name : "";
 
 			bookmark_to_name(&se->se_bookmark, buf, sizeof (buf));
-
 			(void) zap_update(spa->spa_meta_objset,
 			    *obj, buf, 1, strlen(name) + 1, name, tx);
 		}
@@ -407,6 +422,7 @@ spa_errlog_sync(spa_t *spa, uint64_t txg)
 #if defined(_KERNEL)
 /* error handling */
 EXPORT_SYMBOL(spa_log_error);
+EXPORT_SYMBOL(spa_get_last_errlog_size);
 EXPORT_SYMBOL(spa_get_errlog_size);
 EXPORT_SYMBOL(spa_get_errlog);
 EXPORT_SYMBOL(spa_errlog_rotate);

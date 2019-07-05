@@ -1739,15 +1739,57 @@ zfs_ioc_pool_scan(zfs_cmd_t *zc)
 	if ((error = spa_open(zc->zc_name, &spa, FTAG)) != 0)
 		return (error);
 
-	if (zc->zc_flags == POOL_SCRUB_PAUSE)
-		error = spa_scrub_pause_resume(spa, POOL_SCRUB_PAUSE);
-	else if (zc->zc_cookie == POOL_SCAN_NONE)
-		error = spa_scan_stop(spa);
+	if (zc->zc_flags == POOL_SCRUB_PAUSE) {
+		error = spa_scrub_pause_resume(spa, zc->zc_cookie,
+		    POOL_SCRUB_PAUSE);
+	} else if (zc->zc_cookie == POOL_SCAN_NONE)
+		error = spa_scan_stop(spa, zc->zc_cookie);
 	else
 		error = spa_scan(spa, zc->zc_cookie);
 
 	spa_close(spa, FTAG);
 
+	return (error);
+}
+
+/*
+ * inputs:
+ * poolname             name of the pool
+ * scan_type            scan func (pool_scan_func_t)
+ * scan_command         scrub pause/resume flag (pool_scrub_cmd_t)
+ */
+static const zfs_ioc_key_t zfs_keys_pool_scrub[] = {
+	{"scan_type",		DATA_TYPE_UINT64,	0},
+	{"scan_command",	DATA_TYPE_UINT64,	0},
+};
+
+static int
+zfs_ioc_pool_scrub(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
+{
+	spa_t *spa;
+	int error;
+	pool_scan_func_t scan_type =
+	    (pool_scan_func_t)fnvlist_lookup_uint64(innvl, "scan_type");
+	pool_scrub_cmd_t scan_cmd =
+	    (pool_scrub_cmd_t)fnvlist_lookup_uint64(innvl, "scan_command");
+
+	if (scan_cmd >= POOL_SCRUB_FLAGS_END)
+		return (SET_ERROR(EINVAL));
+
+	if ((error = spa_open(poolname, &spa, FTAG)) != 0)
+		return (error);
+
+	if (scan_cmd == POOL_SCRUB_PAUSE) {
+		error = spa_scrub_pause_resume(spa, scan_type,
+		    POOL_SCRUB_PAUSE);
+	} else if (scan_cmd == POOL_ERRORSCRUB_STOP)
+		error = spa_scan_stop(spa, scan_type);
+	else if (scan_type == POOL_SCAN_NONE)
+		error = spa_scan_stop(spa, scan_type);
+	else
+		error = spa_scan(spa, scan_type);
+
+	spa_close(spa, FTAG);
 	return (error);
 }
 
@@ -6887,6 +6929,11 @@ zfs_ioctl_init(void)
 	    zfs_ioc_pool_trim, zfs_secpolicy_config, POOL_NAME,
 	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_TRUE, B_TRUE,
 	    zfs_keys_pool_trim, ARRAY_SIZE(zfs_keys_pool_trim));
+
+	zfs_ioctl_register("scrub", ZFS_IOC_POOL_SCRUB,
+	    zfs_ioc_pool_scrub, zfs_secpolicy_config, POOL_NAME,
+	    POOL_CHECK_NONE, B_TRUE, B_TRUE,
+	    zfs_keys_pool_scrub, ARRAY_SIZE(zfs_keys_pool_scrub));
 
 	/* IOCTLS that use the legacy function signature */
 

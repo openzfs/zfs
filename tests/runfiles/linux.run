@@ -447,7 +447,9 @@ tags = ['functional', 'cli_root', 'zpool_resilver']
 tests = ['zpool_scrub_001_neg', 'zpool_scrub_002_pos', 'zpool_scrub_003_pos',
     'zpool_scrub_004_pos', 'zpool_scrub_005_pos',
     'zpool_scrub_encrypted_unloaded', 'zpool_scrub_print_repairing',
-    'zpool_scrub_offline_device', 'zpool_scrub_multiple_copies']
+    'zpool_scrub_offline_device', 'zpool_scrub_multiple_copies',
+    'zpool_error_scrub_001_pos', 'zpool_error_scrub_002_pos',
+    'zpool_error_scrub_003_pos']
 tags = ['functional', 'cli_root', 'zpool_scrub']
 
 [tests/functional/cli_root/zpool_set]

@@ -62,6 +62,9 @@ cscope.*
 *.orig
 *.log
 venv
+# Ignore Eclipse files
+/.cproject
+/.project
 
 #
 # Module leftovers

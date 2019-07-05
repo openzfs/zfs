@@ -677,6 +677,16 @@ test_vdev_trim(const char *pool)
 	nvlist_free(required);
 }
 
+static void
+test_scrub(const char *pool)
+{
+	nvlist_t *required = fnvlist_alloc();
+	fnvlist_add_uint64(required, "scan_type", 1ULL << 30);
+	fnvlist_add_uint64(required, "scan_command", 1ULL << 31);
+	IOC_INPUT_TEST(ZFS_IOC_POOL_SCRUB, pool, required, NULL, EINVAL);
+	nvlist_free(required);
+}
+
 static int
 zfs_destroy(const char *dataset)
 {
@@ -804,6 +814,8 @@ zfs_ioc_input_tests(const char *pool)
 
 	test_vdev_initialize(pool);
 	test_vdev_trim(pool);
+
+	test_scrub(pool);
 
 	/*
 	 * cleanup
@@ -954,6 +966,7 @@ validate_ioc_values(void)
 	CHECK(ZFS_IOC_BASE + 80 == ZFS_IOC_POOL_TRIM);
 	CHECK(ZFS_IOC_BASE + 81 == ZFS_IOC_REDACT);
 	CHECK(ZFS_IOC_BASE + 82 == ZFS_IOC_GET_BOOKMARK_PROPS);
+	CHECK(ZFS_IOC_BASE + 83 == ZFS_IOC_POOL_SCRUB);
 	CHECK(LINUX_IOC_BASE + 1 == ZFS_IOC_EVENTS_NEXT);
 	CHECK(LINUX_IOC_BASE + 2 == ZFS_IOC_EVENTS_CLEAR);
 	CHECK(LINUX_IOC_BASE + 3 == ZFS_IOC_EVENTS_SEEK);

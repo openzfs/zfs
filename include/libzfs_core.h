@@ -130,6 +130,8 @@ int lzc_reopen(const char *, boolean_t);
 int lzc_pool_checkpoint(const char *);
 int lzc_pool_checkpoint_discard(const char *);
 
+int lzc_scrub(zfs_ioc_t, const char *, nvlist_t *, nvlist_t **);
+
 #ifdef	__cplusplus
 }
 #endif

@@ -166,6 +166,48 @@ libzfs_core_fini(void)
 	(void) pthread_mutex_unlock(&g_lock);
 }
 
+/*
+ * This is interface for scan/scrub to use new ioctl signature.
+ */
+int
+lzc_scrub(zfs_ioc_t ioc, const char *name,
+    nvlist_t *source, nvlist_t **resultp)
+{
+	zfs_cmd_t zc = {"\0"};
+	int error = 0;
+	char *packed = NULL;
+	size_t size = 0;
+
+	ASSERT3S(g_refcount, >, 0);
+	VERIFY3S(g_fd, !=, -1);
+
+	if (name != NULL)
+		(void) strlcpy(zc.zc_name, name, sizeof (zc.zc_name));
+
+	if (source != NULL) {
+		packed = fnvlist_pack(source, &size);
+		zc.zc_nvlist_src = (uint64_t)(uintptr_t)packed;
+		zc.zc_nvlist_src_size = size;
+	}
+
+	while (ioctl(g_fd, ioc, &zc) != 0) {
+		/*
+		 * If ioctl exited with ENOMEM, we retry the ioctl after
+		 * increasing the size of the destination nvlist.
+		 */
+		error = errno;
+		break;
+	}
+	if (zc.zc_nvlist_dst_filled) {
+		*resultp = fnvlist_unpack((void *)(uintptr_t)zc.zc_nvlist_dst,
+		    zc.zc_nvlist_dst_size);
+	}
+
+	fnvlist_pack_free(packed, size);
+	free((void *)(uintptr_t)zc.zc_nvlist_dst);
+	return (error);
+}
+
 static int
 lzc_ioctl(zfs_ioc_t ioc, const char *name,
     nvlist_t *source, nvlist_t **resultp)

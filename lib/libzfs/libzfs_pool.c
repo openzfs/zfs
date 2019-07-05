@@ -2316,48 +2316,85 @@ zpool_trim(zpool_handle_t *zhp, pool_trim_func_t cmd_type, nvlist_t *vds,
 int
 zpool_scan(zpool_handle_t *zhp, pool_scan_func_t func, pool_scrub_cmd_t cmd)
 {
-	zfs_cmd_t zc = {"\0"};
 	char msg[1024];
 	int err;
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
 
-	(void) strlcpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
-	zc.zc_cookie = func;
-	zc.zc_flags = cmd;
+	nvlist_t *args = fnvlist_alloc();
+	fnvlist_add_uint64(args, "scan_type", (uint64_t)func);
+	fnvlist_add_uint64(args, "scan_command", (uint64_t)cmd);
 
-	if (zfs_ioctl(hdl, ZFS_IOC_POOL_SCAN, &zc) == 0)
+	err = lzc_scrub(ZFS_IOC_POOL_SCRUB, zhp->zpool_name, args, NULL);
+	fnvlist_free(args);
+
+	if (err == 0) {
 		return (0);
+	}
 
-	err = errno;
-
-	/* ECANCELED on a scrub means we resumed a paused scrub */
-	if (err == ECANCELED && func == POOL_SCAN_SCRUB &&
-	    cmd == POOL_SCRUB_NORMAL)
+	/*
+	 * An ECANCELED on a scrub means one of the following:
+	 * 1. we resumed a paused scrub.
+	 * 2. we resumed a paused error scrub.
+	 * 3. Error scrub is not run because of no error log.
+	 */
+	if (err == ECANCELED && (func == POOL_SCAN_SCRUB ||
+	    func == POOL_ERRORSCRUB) && cmd == POOL_SCRUB_NORMAL)
 		return (0);
-
-	if (err == ENOENT && func != POOL_SCAN_NONE && cmd == POOL_SCRUB_NORMAL)
+	/*
+	 * The following cases have been handled here:
+	 * 1. Paused a scrub/error scrub if there is no in progross.
+	 */
+	if (err == ENOENT && func != POOL_SCAN_NONE && (cmd ==
+	    POOL_SCRUB_NORMAL || cmd != POOL_ERRORSCRUB_STOP)) {
 		return (0);
+	}
+
+	ASSERT3U(func, >, POOL_SCAN_NONE);
+	ASSERT3U(func, <, POOL_SCAN_FUNCS);
 
 	if (func == POOL_SCAN_SCRUB) {
 		if (cmd == POOL_SCRUB_PAUSE) {
 			(void) snprintf(msg, sizeof (msg), dgettext(TEXT_DOMAIN,
-			    "cannot pause scrubbing %s"), zc.zc_name);
+			    "cannot pause scrubbing %s"), zhp->zpool_name);
 		} else {
-			assert(cmd == POOL_SCRUB_NORMAL);
+			ASSERT3U(cmd, ==, POOL_SCRUB_NORMAL);
 			(void) snprintf(msg, sizeof (msg), dgettext(TEXT_DOMAIN,
-			    "cannot scrub %s"), zc.zc_name);
+			    "cannot scrub %s"), zhp->zpool_name);
+		}
+	} else if (func == POOL_ERRORSCRUB) {
+		if (cmd == POOL_SCRUB_PAUSE) {
+			(void) snprintf(msg, sizeof (msg), dgettext(TEXT_DOMAIN,
+			    "cannot pause error scrubbing %s"),
+			    zhp->zpool_name);
+		} else if (cmd == POOL_SCRUB_NORMAL) {
+			(void) snprintf(msg, sizeof (msg), dgettext(TEXT_DOMAIN,
+			    "cannot error scrub %s"), zhp->zpool_name);
+		} else {
+			ASSERT3U(cmd, ==, POOL_ERRORSCRUB_STOP);
+			(void) snprintf(msg, sizeof (msg),
+			    dgettext(TEXT_DOMAIN, "cannot cancel error "
+			    "scrubbing %s"), zhp->zpool_name);
 		}
 	} else if (func == POOL_SCAN_RESILVER) {
-		assert(cmd == POOL_SCRUB_NORMAL);
+		ASSERT3U(cmd, ==, POOL_SCRUB_NORMAL);
 		(void) snprintf(msg, sizeof (msg), dgettext(TEXT_DOMAIN,
-		    "cannot restart resilver on %s"), zc.zc_name);
+		    "cannot restart resilver on %s"), zhp->zpool_name);
 	} else if (func == POOL_SCAN_NONE) {
 		(void) snprintf(msg, sizeof (msg),
 		    dgettext(TEXT_DOMAIN, "cannot cancel scrubbing %s"),
-		    zc.zc_name);
-	} else {
-		assert(!"unexpected result");
+		    zhp->zpool_name);
 	}
+	/*
+	 * With EBUSY, five cases are possible:
+	 *
+	 * Currently State		Requested
+	 * 1. Normal Scrub Running	Normal Scrub or Error Scrub
+	 * 2. Normal Scrub Paused	Error Scrub
+	 * 3. Normal Scrub Paused 	Pause Normal Scrub
+	 * 4. Error Scrub Running	Normal Scrub or Error Scrub
+	 * 5. Error Scrub Paused	Pause Error Scrub
+	 * 6. Resilvering		Anything else
+	 */
 
 	if (err == EBUSY) {
 		nvlist_t *nvroot;
@@ -2368,16 +2405,51 @@ zpool_scan(zpool_handle_t *zhp, pool_scan_func_t func, pool_scrub_cmd_t cmd)
 		    ZPOOL_CONFIG_VDEV_TREE, &nvroot) == 0);
 		(void) nvlist_lookup_uint64_array(nvroot,
 		    ZPOOL_CONFIG_SCAN_STATS, (uint64_t **)&ps, &psc);
-		if (ps && ps->pss_func == POOL_SCAN_SCRUB) {
-			if (cmd == POOL_SCRUB_PAUSE)
-				return (zfs_error(hdl, EZFS_SCRUB_PAUSED, msg));
-			else
+
+		if (ps && ps->pss_func == POOL_SCAN_SCRUB &&
+		    ps->pss_state == DSS_SCANNING) {
+			if (ps->pss_pass_scrub_pause == 0) {
+				/* handles case 1 */
+				ASSERT3U(cmd, ==, POOL_SCRUB_NORMAL);
 				return (zfs_error(hdl, EZFS_SCRUBBING, msg));
+			} else {
+				if (func == POOL_ERRORSCRUB) {
+					/* handles case 2 */
+					ASSERT3U(cmd, ==, POOL_SCRUB_NORMAL);
+					return (zfs_error(hdl,
+					    EZFS_SCRUB_PAUSED_TO_CANCEL, msg));
+				} else {
+					/* handles case 3 */
+					ASSERT3U(func, ==, POOL_SCAN_SCRUB);
+					ASSERT3U(cmd, ==, POOL_SCRUB_PAUSE);
+					return (zfs_error(hdl,
+					    EZFS_SCRUB_PAUSED, msg));
+				}
+			}
+		} else if (ps && ps->pss_error_scrub_func == POOL_ERRORSCRUB &&
+		    ps->pss_error_scrub_state == DSS_ERRORSCRUBING) {
+
+			if (ps->pss_pass_error_scrub_pause == 0) {
+				/* handles case 4 */
+				ASSERT3U(cmd, ==, POOL_SCRUB_NORMAL);
+				return (zfs_error(hdl, EZFS_ERRORSCRUBBING,
+				    msg));
+			} else {
+				/* handles case 5 */
+				ASSERT3U(func, ==, POOL_ERRORSCRUB);
+				ASSERT3U(cmd, ==, POOL_SCRUB_PAUSE);
+				return (zfs_error(hdl, EZFS_ERRORSCRUB_PAUSED,
+				    msg));
+			}
+
 		} else {
+			/* handles case 6 */
 			return (zfs_error(hdl, EZFS_RESILVERING, msg));
 		}
-	} else if (err == ENOENT) {
+	} else if (err == ENOENT && func == POOL_SCAN_SCRUB) {
 		return (zfs_error(hdl, EZFS_NO_SCRUB, msg));
+	} else if (err == ENOENT && func == POOL_ERRORSCRUB) {
+		return (zfs_error(hdl, EZFS_NO_ERRORSCRUB, msg));
 	} else if (err == ENOTSUP && func == POOL_SCAN_RESILVER) {
 		return (zfs_error(hdl, EZFS_NO_RESILVER_DEFER, msg));
 	} else {

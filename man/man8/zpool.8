@@ -172,6 +172,7 @@
 .Nm
 .Cm scrub
 .Op Fl s | Fl p
+.Op Fl e
 .Ar pool Ns ...
 .Nm
 .Cm trim
@@ -2149,6 +2150,7 @@ The only property supported at the moment is
 .Nm
 .Cm scrub
 .Op Fl s | Fl p
+.Op Fl e
 .Ar pool Ns ...
 .Xc
 Begins a scrub or resumes a paused scrub.
@@ -2183,14 +2185,33 @@ resilver completes.
 Note that, due to changes in pool data on a live system, it is possible for
 scrubs to progress slightly beyond 100% completion. During this period, no
 completion time estimate will be provided.
+.Pp
+Flag
+.Fl e
+allows scrub only blocks in error log. Just like regular scrub,
+error scrub can also be paused, resumed and cancelled in the same way. Like
+regular scrubbing and resilvering, error scrubbing is also I/O-intensive
+operation. So you can't run error scrub with either regular scrubbing or
+resilvering being running. Additionally, you also can't run error scrub
+if regular scrub is in paused state either.
 .Bl -tag -width Ds
 .It Fl s
-Stop scrubbing.
+Stop scrubbing. If along with
+.Fl s,
+.Fl e
+is also passed. If any, error scrub would get stopped.
 .El
 .Bl -tag -width Ds
 .It Fl p
-Pause scrubbing.
-Scrub pause state and progress are periodically synced to disk.
+Pause scrubbing. If along with
+.Fl p,
+.Fl e
+is also passed. If any, scrub would get paused and can be resumed later
+on with
+.Fl e
+in
+.Nm zpool Cm scrub
+command. Scrub pause state and progress are periodically synced to disk.
 If the system is restarted or pool is exported during a paused scrub,
 even after import, scrub will remain paused until it is resumed.
 Once resumed the scrub will pick up from the place where it was last
@@ -2198,6 +2219,15 @@ checkpointed to disk.
 To resume a paused scrub issue
 .Nm zpool Cm scrub
 again.
+.El
+.Bl -tag -width Ds
+.It Fl e
+Only scrub blocks in the error log. Error blocks scrub can also be paused and
+cancelled with flag
+.Fl p
+and
+.Fl s
+respectively.
 .El
 .It Xo
 .Nm

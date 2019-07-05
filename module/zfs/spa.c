@@ -7749,23 +7749,24 @@ spa_vdev_setfru(spa_t *spa, uint64_t guid, const char *newfru)
  * ==========================================================================
  */
 int
-spa_scrub_pause_resume(spa_t *spa, pool_scrub_cmd_t cmd)
+spa_scrub_pause_resume(spa_t *spa, pool_scan_func_t func, pool_scrub_cmd_t cmd)
 {
 	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == 0);
 
 	if (dsl_scan_resilvering(spa->spa_dsl_pool))
 		return (SET_ERROR(EBUSY));
 
-	return (dsl_scrub_set_pause_resume(spa->spa_dsl_pool, cmd));
+	return (dsl_scrub_set_pause_resume(spa->spa_dsl_pool, cmd, func));
 }
 
 int
-spa_scan_stop(spa_t *spa)
+spa_scan_stop(spa_t *spa, pool_scan_func_t func)
 {
 	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == 0);
 	if (dsl_scan_resilvering(spa->spa_dsl_pool))
 		return (SET_ERROR(EBUSY));
-	return (dsl_scan_cancel(spa->spa_dsl_pool));
+
+	return (dsl_scan_cancel(spa->spa_dsl_pool, func));
 }
 
 int
@@ -8759,6 +8760,7 @@ spa_sync_iterate_to_convergence(spa_t *spa, dmu_tx_t *tx)
 
 		ddt_sync(spa, txg);
 		dsl_scan_sync(dp, tx);
+		dsl_errorscrub_sync(dp, tx);
 		svr_sync(spa, tx);
 		spa_sync_upgrades(spa, tx);
 
