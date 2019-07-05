@@ -2624,11 +2624,13 @@ dsl_dataset_crypt_stats(dsl_dataset_t *ds, nvlist_t *nv)
 	}
 
 	if (dsl_dir_get_encryption_root_ddobj(dd, &intval) == 0) {
-		VERIFY0(dsl_dir_hold_obj(dd->dd_pool, intval, NULL, FTAG,
-		    &enc_root));
-		dsl_dir_name(enc_root, buf);
-		dsl_dir_rele(enc_root, FTAG);
-		dsl_prop_nvlist_add_string(nv, ZFS_PROP_ENCRYPTION_ROOT, buf);
+		if (dsl_dir_hold_obj(dd->dd_pool, intval, NULL, FTAG,
+		    &enc_root) == 0) {
+			dsl_dir_name(enc_root, buf);
+			dsl_dir_rele(enc_root, FTAG);
+			dsl_prop_nvlist_add_string(nv,
+			    ZFS_PROP_ENCRYPTION_ROOT, buf);
+		}
 	}
 }
 
