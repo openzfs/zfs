@@ -4351,7 +4351,11 @@ zfs_do_send(int argc, char **argv)
 		return (1);
 	}
 
-	cp = strchr(argv[0], '@');
+	if ((cp = strchr(argv[0], '@')) == NULL) {
+		(void) fprintf(stderr, gettext("Error: "
+		    "Unsupported flag with filesystem or bookmark.\n"));
+		return (1);
+	}
 	*cp = '\0';
 	toname = cp + 1;
 	zhp = zfs_open(g_zfs, argv[0], ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME);
