@@ -19,7 +19,8 @@
  * CDDL HEADER END
  */
 
-#if defined(_KERNEL) && defined(HAVE_DECLARE_EVENT_CLASS)
+#if defined(_KERNEL)
+#if defined(HAVE_DECLARE_EVENT_CLASS)
 
 #undef TRACE_SYSTEM
 #define	TRACE_SYSTEM zfs
@@ -120,4 +121,9 @@ DEFINE_DNODE_MOVE_EVENT(zfs_dnode__move);
 #define	TRACE_INCLUDE_FILE trace_dnode
 #include <trace/define_trace.h>
 
-#endif /* _KERNEL && HAVE_DECLARE_EVENT_CLASS */
+#else
+
+DEFINE_DTRACE_PROBE3(dnode__move);
+
+#endif /* HAVE_DECLARE_EVENT_CLASS */
+#endif /* _KERNEL */

@@ -18,9 +18,10 @@
  *
  * CDDL HEADER END
  */
+
 /*
- * Each Linux tracepoints subsystem must define CREATE_TRACE_POINTS in one
- * (and only one) C file, so this dummy file exists for that purpose.
+ * Each DTRACE_PROBE must define its trace point in one (and only one)
+ * source file, so this dummy file exists for that purpose.
  */
 
 #include <sys/multilist.h>
@@ -45,6 +46,7 @@
 #include <sys/trace_dmu.h>
 #include <sys/trace_dnode.h>
 #include <sys/trace_multilist.h>
+#include <sys/trace_rrwlock.h>
 #include <sys/trace_txg.h>
 #include <sys/trace_vdev.h>
 #include <sys/trace_zil.h>
