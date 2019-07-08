@@ -19,7 +19,14 @@
  * CDDL HEADER END
  */
 
-#if defined(_KERNEL) && defined(HAVE_DECLARE_EVENT_CLASS)
+#if defined(_KERNEL)
+#if defined(HAVE_DECLARE_EVENT_CLASS)
+
+/*
+ * If tracepoints are available define dtrace_probe events for vdev
+ * related probes.  Definitions in usr/include/trace.h will map
+ * DTRACE_PROBE* calls to tracepoints.
+ */
 
 #undef TRACE_SYSTEM
 #define	TRACE_SYSTEM zfs
@@ -116,4 +123,18 @@ DEFINE_REMOVE_FREE_EVENT_TXG(zfs_remove__free__inflight);
 #define	TRACE_INCLUDE_FILE trace_vdev
 #include <trace/define_trace.h>
 
-#endif /* _KERNEL && HAVE_DECLARE_EVENT_CLASS */
+#else
+
+/*
+ * When tracepoints are not available, a DEFINE_DTRACE_PROBE* macro is
+ * needed for each DTRACE_PROBE.  These will be used to generate stub
+ * tracing functions and protoypes for those functions.  See
+ * include/sys/trace.h.
+ */
+
+DEFINE_DTRACE_PROBE3(remove__free__synced);
+DEFINE_DTRACE_PROBE3(remove__free__unvisited);
+DEFINE_DTRACE_PROBE4(remove__free__inflight);
+
+#endif /* HAVE_DECLARE_EVENT_CLASS */
+#endif /* _KERNEL */

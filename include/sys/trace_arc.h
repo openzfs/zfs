@@ -21,7 +21,8 @@
 
 #include <sys/list.h>
 
-#if defined(_KERNEL) && defined(HAVE_DECLARE_EVENT_CLASS)
+#if defined(_KERNEL)
+#if defined(HAVE_DECLARE_EVENT_CLASS)
 
 #undef TRACE_SYSTEM
 #define	TRACE_SYSTEM zfs
@@ -361,4 +362,22 @@ DEFINE_L2ARC_EVICT_EVENT(zfs_l2arc__evict);
 #define	TRACE_INCLUDE_FILE trace_arc
 #include <trace/define_trace.h>
 
-#endif /* _KERNEL && HAVE_DECLARE_EVENT_CLASS */
+#else
+
+DEFINE_DTRACE_PROBE1(arc__hit);
+DEFINE_DTRACE_PROBE1(arc__evict);
+DEFINE_DTRACE_PROBE1(arc__delete);
+DEFINE_DTRACE_PROBE1(new_state__mru);
+DEFINE_DTRACE_PROBE1(new_state__mfu);
+DEFINE_DTRACE_PROBE1(arc__async__upgrade__sync);
+DEFINE_DTRACE_PROBE1(arc__demand__hit__predictive__prefetch);
+DEFINE_DTRACE_PROBE1(l2arc__hit);
+DEFINE_DTRACE_PROBE1(l2arc__miss);
+DEFINE_DTRACE_PROBE2(l2arc__read);
+DEFINE_DTRACE_PROBE2(l2arc__write);
+DEFINE_DTRACE_PROBE2(l2arc__iodone);
+DEFINE_DTRACE_PROBE4(arc__miss);
+DEFINE_DTRACE_PROBE4(l2arc__evict);
+
+#endif /* HAVE_DECLARE_EVENT_CLASS */
+#endif /* _KERNEL */

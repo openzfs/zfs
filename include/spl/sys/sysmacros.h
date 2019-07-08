@@ -114,32 +114,6 @@
 #define	PAGESHIFT			PAGE_SHIFT
 #endif
 
-/* Dtrace probes do not exist in the linux kernel */
-#ifdef DTRACE_PROBE
-#undef  DTRACE_PROBE
-#endif  /* DTRACE_PROBE */
-#define	DTRACE_PROBE(a)					((void)0)
-
-#ifdef DTRACE_PROBE1
-#undef  DTRACE_PROBE1
-#endif  /* DTRACE_PROBE1 */
-#define	DTRACE_PROBE1(a, b, c)				((void)0)
-
-#ifdef DTRACE_PROBE2
-#undef  DTRACE_PROBE2
-#endif  /* DTRACE_PROBE2 */
-#define	DTRACE_PROBE2(a, b, c, d, e)			((void)0)
-
-#ifdef DTRACE_PROBE3
-#undef  DTRACE_PROBE3
-#endif  /* DTRACE_PROBE3 */
-#define	DTRACE_PROBE3(a, b, c, d, e, f, g)		((void)0)
-
-#ifdef DTRACE_PROBE4
-#undef  DTRACE_PROBE4
-#endif  /* DTRACE_PROBE4 */
-#define	DTRACE_PROBE4(a, b, c, d, e, f, g, h, i)	((void)0)
-
 /* Missing globals */
 extern char spl_gitrev[64];
 extern unsigned long spl_hostid;
