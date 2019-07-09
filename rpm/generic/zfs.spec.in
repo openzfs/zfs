@@ -100,7 +100,7 @@
 %define __python_setuptools_pkg   python%{__python_pkg_version}-setuptools
 %endif
 %define __py_major_version        %(%{__python} -c "import sys; print(str(sys.version_info[0]))")
-%if 0%{?__py_major} >= 3
+%if 0%{?__py_major_version} >= 3
 %define __python_sitelib          %(%{__python} -Ic "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
 %else
 %define __python_sitelib          %{python_sitelib}
