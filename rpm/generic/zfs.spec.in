@@ -99,6 +99,7 @@
 %define __python_cffi_pkg         python%{__python_pkg_version}-cffi
 %define __python_setuptools_pkg   python%{__python_pkg_version}-setuptools
 %endif
+%define __python_sitelib          %(%{__python} -Esc "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
 
 # By default python-pyzfs is enabled, with the exception of
 # RHEL 6 which by default uses Python 2.6 which is too old.
@@ -474,8 +475,8 @@ systemctl --system daemon-reload >/dev/null || true
 %doc contrib/pyzfs/README
 %doc contrib/pyzfs/LICENSE
 %defattr(-,root,root,-)
-%{python_sitelib}/libzfs_core/*
-%{python_sitelib}/pyzfs*
+%{__python_sitelib}/libzfs_core/*
+%{__python_sitelib}/pyzfs*
 %endif
 
 %if 0%{?_initramfs}
