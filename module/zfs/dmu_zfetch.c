@@ -196,6 +196,20 @@ dmu_zfetch_stream_create(zfetch_t *zf, uint64_t blkid)
 	list_insert_head(&zf->zf_stream, zs);
 }
 
+int dmu_zfetch_out_of_range = 0;
+
+/* Temporary debug function to run down a case where max_blks is negative */
+static inline void
+debug_max_blks_is_negative(char *constraint, uint64_t blkid, uint64_t nblks,
+	uint64_t orig_zs_blkid, uint64_t orig_zs_pf_blkid,
+	uint64_t orig_zs_ipf_blkid, int max_dist_blks) {
+	cmn_err(CE_WARN, "toss-4454 constraint %s: blkid %llu nblks %llu "
+	    "orig_zs_blkid %llu orig_zs_pf_blkid %llu orig_zs_ipf_blkid %llu ",
+	    blkid, nblks, orig_zs_blkid, orig_zs_pf_blkid, orig_zs_ipf_blkid,
+	    max_dist_blks);
+	dmu_zfetch_out_of_range = 1;
+}
+
 /*
  * This is the predictive prefetch entry point.  It associates dnode access
  * specified with blkid and nblks arguments with prefetch stream, predicts
@@ -285,6 +299,10 @@ retry:
 		return;
 	}
 
+	uint64_t orig_zs_blkid = zs->zs_blkid;
+	uint64_t orig_zs_pf_blkid = zs->zs_pf_blkid;
+	uint64_t orig_zs_ipf_blkid = zs->zs_ipf_blkid;
+
 	/*
 	 * This access was to a block that we issued a prefetch for on
 	 * behalf of this stream. Issue further prefetches for this stream.
@@ -312,7 +330,27 @@ retry:
 		 */
 		pf_ahead_blks = zs->zs_pf_blkid - blkid + nblks;
 		max_blks = max_dist_blks - (pf_start - end_of_access_blkid);
+
+		if (dmu_zfetch_out_of_range == 0 && max_blks < 0) {
+			debug_max_blks_is_negative("data:max_blks < 0", blkid, nblks,
+			    orig_zs_blkid, orig_zs_pf_blkid, orig_zs_ipf_blkid,
+			    max_dist_blks);
+		}
+
+		pf_ahead_blks = MAX(0, pf_ahead_blks);
+		max_blks = MAX(0, max_blks);
+
 		pf_nblks = MIN(pf_ahead_blks, max_blks);
+
+		/*
+		 * (zs->zs_pf_blkid - zs->zs_blkid) <= max_dist_blks
+		 */
+		if (dmu_zfetch_out_of_range == 0 &&
+		    (pf_start + pf_nblks - end_of_access_blkid) > max_dist_blks) {
+			debug_max_blks_is_negative("zs_pf_blkid >>> zs_blkid", blkid, nblks,
+			    orig_zs_blkid, orig_zs_pf_blkid, orig_zs_ipf_blkid,
+			    max_dist_blks);
+		}
 	} else {
 		pf_nblks = 0;
 	}
@@ -335,12 +373,34 @@ retry:
 	 */
 	pf_ahead_blks = zs->zs_ipf_blkid - blkid + nblks + pf_nblks;
 	max_blks = max_dist_blks - (ipf_start - end_of_access_blkid);
+
+	if (dmu_zfetch_out_of_range == 0 && max_blks < 0) {
+		debug_max_blks_is_negative("indirect:max_blks < 0", blkid, nblks,
+		    orig_zs_blkid, orig_zs_pf_blkid, orig_zs_ipf_blkid,
+		    max_dist_blks);
+	}
+
+	pf_ahead_blks = MAX(0, pf_ahead_blks);
+	max_blks = MAX(0, max_blks);
+
 	ipf_nblks = MIN(pf_ahead_blks, max_blks);
+
+	/*
+	 * (zs->zs_ipf_blkid - as->zs_blkid) <= max_dist_blks
+	 */
+	if (dmu_zfetch_out_of_range == 0 &&
+	    (ipf_start + ipf_nblks - end_of_access_blkid) > max_dist_blks) {
+		debug_max_blks_is_negative("zs_ipf_blkid >>> zs_blkid", blkid, nblks,
+		    orig_zs_blkid, orig_zs_pf_blkid, orig_zs_ipf_blkid,
+		    max_dist_blks);
+	}
+
 	zs->zs_ipf_blkid = ipf_start + ipf_nblks;
 
 	epbs = zf->zf_dnode->dn_indblkshift - SPA_BLKPTRSHIFT;
 	ipf_istart = P2ROUNDUP(ipf_start, 1 << epbs) >> epbs;
 	ipf_iend = P2ROUNDUP(zs->zs_ipf_blkid, 1 << epbs) >> epbs;
+	ipf_iend = MAX(ipf_istart, ipf_iend);
 
 	zs->zs_atime = gethrtime();
 	zs->zs_blkid = end_of_access_blkid;
