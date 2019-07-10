@@ -1336,12 +1336,14 @@ mountpoint_cmp(const void *arga, const void *argb)
 }
 
 /*
- * Return true if path2 is a child of path1.
+ * Return true if path2 is a child of path1 or path2 equals path1 or
+ * path1 is "/" (path2 is always a child of "/").
  */
 static boolean_t
 libzfs_path_contains(const char *path1, const char *path2)
 {
-	return (strstr(path2, path1) == path2 && path2[strlen(path1)] == '/');
+	return (strcmp(path1, path2) == 0 || strcmp(path1, "/") == 0 ||
+	    (strstr(path2, path1) == path2 && path2[strlen(path1)] == '/'));
 }
 
 /*
