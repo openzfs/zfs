@@ -198,12 +198,12 @@ function log_neg_expect
 	elif (( $status == 127 )); then
 		print -u2 $($out)
 		_printerror "$@" "unexpectedly exited $status (File not found)"
-	# bus error - core dump
-	elif (( $status == 138 )); then
+	# bus error - core dump (256+signal, SIGBUS=7)
+	elif (( $status == 263 )); then
 		print -u2 $($out)
 		_printerror "$@" "unexpectedly exited $status (Bus Error)"
-	# segmentation violation - core dump
-	elif (( $status == 139 )); then
+	# segmentation violation - core dump (256+signal, SIGSEGV=11)
+	elif (( $status == 267 )); then
 		print -u2 $($out)
 		_printerror "$@" "unexpectedly exited $status (SEGV)"
 	else
