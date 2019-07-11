@@ -43,7 +43,6 @@ function cleanup
 	# Reset tunable.
 	#
 	log_must set_tunable32 zfs_removal_suspend_progress 0
-	log_must set_tunable32 metaslab_unload_delay_ms 60000
 }
 log_onexit cleanup
 
@@ -66,9 +65,6 @@ log_must randwritecomp $SAMPLEFILE 12500
 # Add second device where all the data will be evacuated.
 #
 log_must zpool add -f $TESTPOOL $NOTREMOVEDISK
-
-# workaround for DLPX-63811
-log_must set_tunable32 metaslab_unload_delay_ms 0
 
 #
 # Start removal.

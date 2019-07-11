@@ -289,13 +289,6 @@ int zfs_metaslab_mem_limit = 25;
  */
 unsigned long zfs_metaslab_max_size_cache_sec = 3600; /* 1 hour */
 
-/*
- * Maximum percentage of memory to use on storing loaded metaslabs. If loading
- * a metaslab would take it over this percentage, the oldest selected metaslab
- * is automatically unloaded.
- */
-int zfs_metaslab_mem_limit = 75;
-
 static uint64_t metaslab_weight(metaslab_t *);
 static void metaslab_set_fragmentation(metaslab_t *);
 static void metaslab_free_impl(vdev_t *, uint64_t, uint64_t, boolean_t);
@@ -2589,7 +2582,6 @@ metaslab_space_weight(metaslab_t *msp)
 	uint64_t weight, space;
 
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
-	ASSERT(!vd->vdev_removing);
 
 	/*
 	 * The baseline weight is the metaslab's free space.
@@ -2847,13 +2839,6 @@ metaslab_weight(metaslab_t *msp)
 	uint64_t weight;
 
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
-
-	/*
-	 * If this vdev is in the process of being removed, there is nothing
-	 * for us to do here.
-	 */
-	if (vd->vdev_removing)
-		return (0);
 
 	metaslab_set_fragmentation(msp);
 
