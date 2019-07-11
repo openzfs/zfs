@@ -202,15 +202,16 @@ int metaslab_load_pct = 50;
  * last allocation from it.  A metaslab can't be unloaded until at least
  * metaslab_unload_delay TXG's and metaslab_unload_delay_ms milliseconds
  * have elapsed.  However, zfs_metaslab_mem_limit may cause it to be
- * unloaded sooner.
+ * unloaded sooner.  These settings are intended to be generous -- to keep
+ * metaslabs loaded for a long time, reducing the rate of metaslab loading.
  */
-int metaslab_unload_delay = TXG_SIZE * 2;
-int metaslab_unload_delay_ms = 60000; /* one minute */
+int metaslab_unload_delay = 32;
+int metaslab_unload_delay_ms = 10 * 60 * 1000; /* ten minutes */
 
 /*
  * Max number of metaslabs per group to preload.
  */
-int metaslab_preload_limit = SPA_DVAS_PER_BP;
+int metaslab_preload_limit = 10;
 
 /*
  * Enable/disable preloading of metaslab.
@@ -274,6 +275,13 @@ uint64_t metaslab_trace_max_entries = 5000;
  * simultaneously.
  */
 int max_disabled_ms = 3;
+
+/*
+ * Maximum percentage of memory to use on storing loaded metaslabs. If loading
+ * a metaslab would take it over this percentage, the oldest selected metaslab
+ * is automatically unloaded.
+ */
+int zfs_metaslab_mem_limit = 25;
 
 /*
  * Time (in seconds) to respect ms_max_size when the metaslab is not loaded.
