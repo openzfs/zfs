@@ -38,6 +38,7 @@ prefix=
 filterfile=
 target=
 buildroot=
+suse_kmp=0
 
 error_out()
 {
@@ -102,30 +103,38 @@ EOF
 
 print_akmodmeta ()
 {
+	local _pkg_name="kmod-${kmodname}"
+	if [[ ${suse_kmp} -ne 0 ]] ; then
+		_pkg_name="${kmodname}-kmp"
+	fi
 		cat <<EOF
-%package      -n kmod-${kmodname}
+%package      -n ${_pkg_name}
 Summary:         Metapackage which tracks in ${kmodname} kernel module for newest kernel${dashvariant}
 Group:           System Environment/Kernel
 
-Provides:        ${kmodname}-kmod = %{?epoch:%{epoch}:}%{version}-%{release}
-Provides:        kmod-${kmodname}-xen = %{?epoch:%{epoch}:}%{version}-%{release}
-Provides:        kmod-${kmodname}-smp = %{?epoch:%{epoch}:}%{version}-%{release}
-Provides:        kmod-${kmodname}-PAE = %{?epoch:%{epoch}:}%{version}-%{release}
+Provides:        ${_pkg_name} = %{?epoch:%{epoch}:}%{version}-%{release}
+Provides:        ${_pkg_name}-xen = %{?epoch:%{epoch}:}%{version}-%{release}
+Provides:        ${_pkg_name}-smp = %{?epoch:%{epoch}:}%{version}-%{release}
+Provides:        ${_pkg_name}-PAE = %{?epoch:%{epoch}:}%{version}-%{release}
 Requires:        akmod-${kmodname} = %{?epoch:%{epoch}:}%{version}-%{release}
 EOF
 
 	if [[ ${obsolete_name} ]]; then
-		echo "Provides:        kmod-${obsolete_name} = ${obsolete_version}"
-		echo "Obsoletes:       kmod-${obsolete_name} < ${obsolete_version}"
+		_obs_name="kmod-${obsolete_name}"
+		if [[ ${suse_kmp} -ne 0 ]] ; then
+			_obs_name="${obsolete_name}-kmp"
+		fi
+		echo "Provides:        ${_obs_name} = ${obsolete_version}"
+		echo "Obsoletes:       ${_obs_name} < ${obsolete_version}"
 	fi
 cat <<EOF
 
-%description  -n kmod-${kmodname}${dashvariant}
+%description  -n ${_pkg_name}${dashvariant}
 This is a meta-package without payload which sole purpose is to require the
 ${kmodname} kernel module(s) for the newest kernel${dashvariant},
 to make sure you get it together with a new kernel.
 
-%files        -n kmod-${kmodname}${dashvariant}
+%files        -n ${_pkg_name}${dashvariant}
 %defattr(644,root,root,755)
 EOF
 }
@@ -143,23 +152,31 @@ print_rpmtemplate_per_kmodpkg ()
 
 	local kernel_uname_r=${1}
 	local kernel_variant="${2:+-${2}}"
+	local _pkg_name="kmod-${kmodname}"
+	if [[ ${suse_kmp} -ne 0 ]] ; then
+		_pkg_name="${kmodname}-kmp"
+	fi
 
     # first part
 	cat <<EOF
-%package       -n kmod-${kmodname}-${kernel_uname_r}
+%package       -n ${_pkg_name}-${kernel_uname_r}
 Summary:          ${kmodname} kernel module(s) for ${kernel_uname_r}
 Group:            System Environment/Kernel
 Provides:         kernel-modules-for-kernel = ${kernel_uname_r}
-Provides:         kmod-${kmodname}-uname-r = ${kernel_uname_r}
-Provides:         ${kmodname}-kmod = %{?epoch:%{epoch}:}%{version}-%{release}
-Requires:         ${kmodname}-kmod-common >= %{?epoch:%{epoch}:}%{version}
+Provides:         ${_pkg_name}-uname-r = ${kernel_uname_r}
+Provides:         ${_pkg_name} = %{?epoch:%{epoch}:}%{version}-%{release}
+Requires:         ${_pkg_name}-common >= %{?epoch:%{epoch}:}%{version}
 Requires(post):   ${prefix}/sbin/depmod
 Requires(postun): ${prefix}/sbin/depmod
 EOF
 
 	if [[ ${obsolete_name} ]]; then
-		echo "Provides:        kmod-${obsolete_name}-${kernel_uname_r} = ${obsolete_version}"
-		echo "Obsoletes:       kmod-${obsolete_name}-${kernel_uname_r} < ${obsolete_version}"
+		local _obs_name="kmod-${obsolete_name}"
+		if [[ ${suse_kmp} -ne 0 ]] ; then
+			_obs_name="${obsolete_name}-kmp"
+		fi
+		echo "Provides:        ${_obs_name}-${kernel_uname_r} = ${obsolete_version}"
+		echo "Obsoletes:       ${_obs_name}-${kernel_uname_r} < ${obsolete_version}"
 	fi
 
 	# second part
@@ -169,17 +186,17 @@ Requires:         kernel-uname-r = ${kernel_uname_r}
 BuildRequires:	  kernel-devel-uname-r = ${kernel_uname_r}
 %{?KmodsRequires:Requires: %{KmodsRequires}-uname-r = ${kernel_uname_r}}
 %{?KmodsRequires:BuildRequires: %{KmodsRequires}-uname-r = ${kernel_uname_r}}
-%post          -n kmod-${kmodname}-${kernel_uname_r}
+%post          -n ${_pkg_name}-${kernel_uname_r}
 ${prefix}/sbin/depmod -aeF /boot/System.map-${kernel_uname_r} ${kernel_uname_r} > /dev/null || :
-%postun        -n kmod-${kmodname}-${kernel_uname_r}
+%postun        -n ${_pkg_name}-${kernel_uname_r}
 ${prefix}/sbin/depmod  -aF /boot/System.map-${kernel_uname_r} ${kernel_uname_r} &> /dev/null || :
 
 EOF
 	else
 	  cat <<EOF
-%post          -n kmod-${kmodname}-${kernel_uname_r}
+%post          -n ${_pkg_name}-${kernel_uname_r}
 [[ "\$(uname -r)" == "${kernel_uname_r}"  ]] && ${prefix}/sbin/depmod -a > /dev/null || :
-%postun        -n kmod-${kmodname}-${kernel_uname_r}
+%postun        -n ${_pkg_name}-${kernel_uname_r}
 [[ "\$(uname -r)" == "${kernel_uname_r}"  ]] && ${prefix}/sbin/depmod -a > /dev/null || :
 
 EOF
@@ -187,10 +204,10 @@ EOF
 
   # third part
 	cat <<EOF
-%description  -n kmod-${kmodname}-${kernel_uname_r}
+%description  -n ${_pkg_name}-${kernel_uname_r}
 This package provides the ${kmodname} kernel modules built for the Linux
 kernel ${kernel_uname_r} for the %{_target_cpu} family of processors.
-%files        -n kmod-${kmodname}-${kernel_uname_r}
+%files        -n ${_pkg_name}-${kernel_uname_r}
 %defattr(644,root,root,755)
 %dir $prefix/lib/modules/${kernel_uname_r}/extra
 ${prefix}/lib/modules/${kernel_uname_r}/extra/${kmodname}/
@@ -210,30 +227,38 @@ print_rpmtemplate_kmoddevelpkg ()
 	fi
 
 	local kernel_uname_r=${1}
+	local _pkg_name="kmod-${kmodname}"
+	if [[ ${suse_kmp} -ne 0 ]] ; then
+		_pkg_name="${kmodname}-kmp"
+	fi
 
 	cat <<EOF
-%package       -n kmod-${kmodname}-devel
+%package       -n ${_pkg_name}-devel
 Summary:          ${kmodname} kernel module(s) devel common
 Group:            System Environment/Kernel
 Provides:         ${kmodname}-devel-kmod = %{?epoch:%{epoch}:}%{version}-%{release}
 EOF
 
 	if [[ ! ${customkernel} ]] && [[ ! ${redhatkernel} ]]; then
-		echo "Requires:        kmod-${kmodname}-devel-${kernel_uname_r} >= %{?epoch:%{epoch}:}%{version}-%{release}"
+		echo "Requires:        ${_pkg_name}-devel-${kernel_uname_r} >= %{?epoch:%{epoch}:}%{version}-%{release}"
 	fi
 
 	if [[ ${obsolete_name} ]]; then
-		echo "Provides:        kmod-${obsolete_name}-devel = ${obsolete_version}"
-		echo "Obsoletes:       kmod-${obsolete_name}-devel < ${obsolete_version}"
+		local _obs_name="kmod-${obsolete_name}"
+		if [[ ${suse_kmp} -ne 0 ]] ; then
+			_obs_name="${obsolete_name}-kmp"
+		fi
+		echo "Provides:        ${_obs_name}-devel = ${obsolete_version}"
+		echo "Obsoletes:       ${_obs_name}-devel < ${obsolete_version}"
 	fi
 
 	cat <<EOF
-%description  -n kmod-${kmodname}-devel
+%description  -n ${_pkg_name}-devel
 This package provides the common header files to build kernel modules
 which depend on the ${kmodname} kernel module.  It may optionally require
 the ${kmodname}-devel-<kernel> objects for the newest kernel.
 
-%files        -n kmod-${kmodname}-devel
+%files        -n ${_pkg_name}-devel
 %defattr(644,root,root,755)
 %{_usrsrc}/${kmodname}-%{version}
 EOF
@@ -266,20 +291,28 @@ print_rpmtemplate_per_kmoddevelpkg ()
 
 	local kernel_uname_r=${1}
 	local kernel_variant="${2:+-${2}}"
+	local _pkg_name="kmod-${kmodname}"
+	if [[ ${suse_kmp} -ne 0 ]] ; then
+		_pkg_name="${kmodname}-kmp"
+	fi
 
 	# first part
 	cat <<EOF
-%package       -n kmod-${kmodname}-devel-${kernel_uname_r}
+%package       -n ${_pkg_name}-devel-${kernel_uname_r}
 Summary:          ${kmodname} kernel module(s) devel for ${kernel_uname_r}
 Group:            System Environment/Kernel
 Provides:         kernel-objects-for-kernel = ${kernel_uname_r}
 Provides:         ${kmodname}-devel-kmod = %{?epoch:%{epoch}:}%{version}-%{release}
-Provides:         kmod-${kmodname}-devel-uname-r = ${kernel_uname_r}
+Provides:         ${_pkg_name}-devel-uname-r = ${kernel_uname_r}
 EOF
 
 	if [[ ${obsolete_name} ]]; then
-		echo "Provides:        kmod-${obsolete_name}-devel-${kernel_uname_r} = ${obsolete_version}"
-		echo "Obsoletes:       kmod-${obsolete_name}-devel-${kernel_uname_r} < ${obsolete_version}"
+		local _obs_name="kmod-${obsolete_name}"
+		if [[ ${suse_kmp} -ne 0 ]] ; then
+			_obs_name="${obsolete_name}-kmp"
+		fi
+		echo "Provides:        ${_obs_name}-devel-${kernel_uname_r} = ${obsolete_version}"
+		echo "Obsoletes:       ${_obs_name}-devel-${kernel_uname_r} < ${obsolete_version}"
 	fi
 
 	# second part
@@ -294,11 +327,11 @@ EOF
 
 	# third part
 	cat <<EOF
-%description  -n kmod-${kmodname}-devel-${kernel_uname_r}
+%description  -n ${_pkg_name}-devel-${kernel_uname_r}
 This package provides objects and symbols required to build kernel modules
 which depend on the ${kmodname} kernel modules built for the Linux
 kernel ${kernel_uname_r} for the %{_target_cpu} family of processors.
-%files        -n kmod-${kmodname}-devel-${kernel_uname_r}
+%files        -n ${_pkg_name}-devel-${kernel_uname_r}
 %defattr(644,root,root,755)
 %{_usrsrc}/${kmodname}-%{version}/${kernel_uname_r}
 EOF
@@ -309,32 +342,40 @@ EOF
 
 print_rpmtemplate_kmodmetapkg ()
 {
-		local kernel_uname_r=${1}
-		local kernel_variant="${2:+-${2}}"
+	local kernel_uname_r=${1}
+	local kernel_variant="${2:+-${2}}"
+	local _pkg_name="kmod-${kmodname}"
+	if [[ ${suse_kmp} -ne 0 ]] ; then
+		_pkg_name="${kmodname}-kmp"
+	fi
 
-		cat <<EOF
-%package      -n kmod-${kmodname}${kernel_variant}
+	cat <<EOF
+%package      -n ${_pkg_name}${kernel_variant}
 Summary:         Metapackage which tracks in ${kmodname} kernel module for newest kernel${kernel_variant}
 Group:           System Environment/Kernel
 
 Provides:        ${kmodname}-kmod = %{?epoch:%{epoch}:}%{version}-%{release}
-Requires:        kmod-${kmodname}-${kernel_uname_r} >= %{?epoch:%{epoch}:}%{version}-%{release}
+Requires:        ${_pkg_name}-${kernel_uname_r} >= %{?epoch:%{epoch}:}%{version}-%{release}
 %{?KmodsMetaRequires:Requires: %{?KmodsMetaRequires}}
 EOF
 
-		if [[ ${obsolete_name} ]]; then
-			echo "Provides:        kmod-${obsolete_name}${kernel_variant} = ${obsolete_version}"
-			echo "Obsoletes:       kmod-${obsolete_name}${kernel_variant} < ${obsolete_version}"
+	if [[ ${obsolete_name} ]]; then
+		local _obs_name="kmod-${obsolete_name}"
+		if [[ ${suse_kmp} -ne 0 ]] ; then
+			_obs_name="${obsolete_name}-kmp"
 		fi
+		echo "Provides:        ${_obs_name}${kernel_variant} = ${obsolete_version}"
+		echo "Obsoletes:       ${_obs_name}${kernel_variant} < ${obsolete_version}"
+	fi
 
-		cat <<EOF
+	cat <<EOF
 
-%description  -n kmod-${kmodname}${kernel_variant}
+%description  -n ${_pkg_name}${kernel_variant}
 This is a meta-package without payload which sole purpose is to require the
 ${kmodname} kernel module(s) for the newest kernel${kernel_variant}.
 to make sure you get it together with a new kernel.
 
-%files        -n kmod-${kmodname}${kernel_variant}
+%files        -n ${_pkg_name}${kernel_variant}
 %defattr(644,root,root,755)
 
 
@@ -539,6 +580,12 @@ while [ "${1}" ] ; do
 			;;
 	esac
 done
+
+if [[ -f /etc/SUSE-brand ]] ; then
+	suse_kmp=1
+elif [[ -f /etc/SuSE-release ]] ; then
+	suse_kmp=1
+fi
 
 if [[ -e ./kmodtool-kernel-variants ]]; then
 	kernels_known_variants="$(cat ./kmodtool-kernel-variants)"

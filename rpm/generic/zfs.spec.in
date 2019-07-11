@@ -123,8 +123,13 @@ Requires:       libzpool2 = %{version}
 Requires:       libnvpair1 = %{version}
 Requires:       libuutil1 = %{version}
 Requires:       libzfs2 = %{version}
+%if 0%{?suse_version} >= 1
+Requires:       %{name}-kmp = %{version}
+Provides:       %{name}-kmp-common = %{version}
+%else
 Requires:       %{name}-kmod = %{version}
 Provides:       %{name}-kmod-common = %{version}
+%endif
 Obsoletes:      spl
 
 # zfs-fuse provides the same commands and man pages that ZoL does. Renaming
