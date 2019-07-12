@@ -119,9 +119,6 @@ rwsem_tryupgrade(struct rw_semaphore *rwsem)
 	if (__rwsem_tryupgrade(rwsem)) {
 		rwsem_release(&rwsem->dep_map, 1, _RET_IP_);
 		rwsem_acquire(&rwsem->dep_map, 0, 1, _RET_IP_);
-#ifdef CONFIG_RWSEM_SPIN_ON_OWNER
-		rwsem->owner = current;
-#endif
 		return (1);
 	}
 	return (0);
