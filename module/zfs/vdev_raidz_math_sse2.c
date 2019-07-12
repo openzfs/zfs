@@ -607,7 +607,7 @@ DEFINE_REC_METHODS(sse2);
 static boolean_t
 raidz_will_sse2_work(void)
 {
-	return (zfs_sse_available() && zfs_sse2_available());
+	return (kfpu_allowed() && zfs_sse_available() && zfs_sse2_available());
 }
 
 const raidz_impl_ops_t vdev_raidz_sse2_impl = {

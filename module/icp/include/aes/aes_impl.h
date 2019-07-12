@@ -198,12 +198,12 @@ extern const aes_impl_ops_t aes_aesni_impl;
 /*
  * Initializes fastest implementation
  */
-void aes_impl_init(void);
+void aes_impl_init(void *arg);
 
 /*
- * Get selected aes implementation
+ * Returns optimal allowed AES implementation
  */
-struct aes_impl_ops *aes_impl_get_ops(void);
+const struct aes_impl_ops *aes_impl_get_ops(void);
 
 #ifdef	__cplusplus
 }

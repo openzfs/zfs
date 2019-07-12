@@ -52,7 +52,7 @@ gcm_pclmulqdq_mul(uint64_t *x_in, uint64_t *y, uint64_t *res)
 static boolean_t
 gcm_pclmulqdq_will_work(void)
 {
-	return (zfs_pclmulqdq_available());
+	return (kfpu_allowed() && zfs_pclmulqdq_available());
 }
 
 const gcm_impl_ops_t gcm_pclmulqdq_impl = {
