@@ -71,9 +71,12 @@ pn_alloc(struct pathname *pnp)
 void
 pn_alloc_sz(struct pathname *pnp, size_t sz)
 {
-	pnp->pn_path = pnp->pn_buf = kmem_alloc(sz, KM_SLEEP);
-	pnp->pn_pathlen = 0;
+	pnp->pn_buf = kmem_alloc(sz, KM_SLEEP);
 	pnp->pn_bufsize = sz;
+#if 0 /* unused in ZoL */
+	pnp->pn_path = pnp->pn_buf;
+	pnp->pn_pathlen = 0;
+#endif
 }
 
 /*
@@ -84,6 +87,10 @@ pn_free(struct pathname *pnp)
 {
 	/* pn_bufsize is usually MAXPATHLEN, but may not be */
 	kmem_free(pnp->pn_buf, pnp->pn_bufsize);
-	pnp->pn_path = pnp->pn_buf = NULL;
-	pnp->pn_pathlen = pnp->pn_bufsize = 0;
+	pnp->pn_buf = NULL;
+	pnp->pn_bufsize = 0;
+#if 0 /* unused in ZoL */
+	pnp->pn_path = NULL;
+	pnp->pn_pathlen = 0;
+#endif
 }
