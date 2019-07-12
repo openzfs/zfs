@@ -752,7 +752,7 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 	ASSERT(!RW_LOCK_HELD(&odn->dn_struct_rwlock));
 	ASSERT(MUTEX_NOT_HELD(&odn->dn_mtx));
 	ASSERT(MUTEX_NOT_HELD(&odn->dn_dbufs_mtx));
-	ASSERT(!RW_LOCK_HELD(&odn->dn_zfetch.zf_rwlock));
+	ASSERT(!MUTEX_HELD(&odn->dn_zfetch.zf_lock));
 
 	/* Copy fields. */
 	ndn->dn_objset = odn->dn_objset;
