@@ -71,6 +71,7 @@ struct libzfs_handle {
 	char libzfs_chassis_id[256];
 	boolean_t libzfs_prop_debug;
 	regex_t libzfs_urire;
+	uint64_t libzfs_max_nvlist;
 };
 
 struct zfs_handle {
