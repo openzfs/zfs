@@ -2044,34 +2044,6 @@ zfs_ioc_vdev_setfru(zfs_cmd_t *zc)
 }
 
 static int
-get_prop_uint64(nvlist_t *nv, const char *prop, nvlist_t **nvp,
-    uint64_t *val)
-{
-	int err = 0;
-	nvlist_t *subnv;
-	nvpair_t *pair;
-	nvpair_t *propval;
-
-	if (nvlist_lookup_nvpair(nv, prop, &pair) != 0)
-		return (EINVAL);
-
-	/* decode the property value */
-	propval = pair;
-	if (nvpair_type(pair) == DATA_TYPE_NVLIST) {
-		subnv = fnvpair_value_nvlist(pair);
-		if (nvp != NULL)
-			*nvp = subnv;
-		if (nvlist_lookup_nvpair(subnv, ZPROP_VALUE, &propval) != 0)
-			err = EINVAL;
-	}
-	if (nvpair_type(propval) == DATA_TYPE_UINT64) {
-		*val = fnvpair_value_uint64(propval);
-	}
-
-	return (err);
-}
-
-static int
 zfs_ioc_objset_stats_impl(zfs_cmd_t *zc, objset_t *os)
 {
 	int error = 0;
@@ -4410,7 +4382,7 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 	const char *propname = nvpair_name(pair);
 	boolean_t issnap = (strchr(dsname, '@') != NULL);
 	zfs_prop_t prop = zfs_name_to_prop(propname);
-	uint64_t intval;
+	uint64_t intval, compval;
 	int err;
 
 	if (prop == ZPROP_INVAL) {
@@ -4492,19 +4464,20 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 		 * we'll catch them later.
 		 */
 		if (nvpair_value_uint64(pair, &intval) == 0) {
-			if (intval >= ZIO_COMPRESS_GZIP_1 &&
-			    intval <= ZIO_COMPRESS_GZIP_9 &&
+			compval = ZIO_COMPRESS_ALGO(intval);
+			if (compval >= ZIO_COMPRESS_GZIP_1 &&
+			    compval <= ZIO_COMPRESS_GZIP_9 &&
 			    zfs_earlier_version(dsname,
 			    SPA_VERSION_GZIP_COMPRESSION)) {
 				return (SET_ERROR(ENOTSUP));
 			}
 
-			if (intval == ZIO_COMPRESS_ZLE &&
+			if (compval == ZIO_COMPRESS_ZLE &&
 			    zfs_earlier_version(dsname,
 			    SPA_VERSION_ZLE_COMPRESSION))
 				return (SET_ERROR(ENOTSUP));
 
-			if (intval == ZIO_COMPRESS_LZ4) {
+			if (compval == ZIO_COMPRESS_LZ4) {
 				spa_t *spa;
 
 				if ((err = spa_open(dsname, &spa, FTAG)) != 0)
@@ -4512,6 +4485,20 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 
 				if (!spa_feature_is_enabled(spa,
 				    SPA_FEATURE_LZ4_COMPRESS)) {
+					spa_close(spa, FTAG);
+					return (SET_ERROR(ENOTSUP));
+				}
+				spa_close(spa, FTAG);
+			}
+
+			if (compval == ZIO_COMPRESS_ZSTD) {
+				spa_t *spa;
+
+				if ((err = spa_open(dsname, &spa, FTAG)) != 0)
+					return (err);
+
+				if (!spa_feature_is_enabled(spa,
+				    SPA_FEATURE_ZSTD_COMPRESS)) {
 					spa_close(spa, FTAG);
 					return (SET_ERROR(ENOTSUP));
 				}
@@ -4526,7 +4513,7 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 			 * implies a downrev pool version.
 			 */
 			if (zfs_is_bootfs(dsname) &&
-			    !BOOTFS_COMPRESS_VALID(intval)) {
+			    !BOOTFS_COMPRESS_VALID(compval)) {
 				return (SET_ERROR(ERANGE));
 			}
 		}

@@ -158,8 +158,16 @@ enum zio_encrypt {
 	(compress) == ZIO_COMPRESS_GZIP_8 ||		\
 	(compress) == ZIO_COMPRESS_GZIP_9 ||		\
 	(compress) == ZIO_COMPRESS_ZLE ||		\
+	(compress) == ZIO_COMPRESS_ZSTD ||		\
 	(compress) == ZIO_COMPRESS_ON ||		\
 	(compress) == ZIO_COMPRESS_OFF)
+
+#define	ZIO_COMPRESS_ALGO(x)	(x & SPA_COMPRESSMASK)
+#define	ZIO_COMPRESS_LEVEL(x)	((x & ~SPA_COMPRESSMASK) >> SPA_COMPRESSBITS)
+#define	ZIO_COMPRESS_RAW(type, level)	(type | ((level) << SPA_COMPRESSBITS))
+
+#define	ZIO_COMPLEVEL_ZSTD(level)	\
+	ZIO_COMPRESS_RAW(ZIO_COMPRESS_ZSTD, level)
 
 #define	ZIO_FAILURE_MODE_WAIT		0
 #define	ZIO_FAILURE_MODE_CONTINUE	1

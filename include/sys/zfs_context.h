@@ -400,6 +400,8 @@ void procfs_list_add(procfs_list_t *procfs_list, void *p);
 #define	KM_SLEEP		UMEM_NOFAIL
 #define	KM_PUSHPAGE		KM_SLEEP
 #define	KM_NOSLEEP		UMEM_DEFAULT
+/* supposed to zero the allocation, ignore for userspace */
+#define	KM_ZERO			0
 #define	KM_NORMALPRI		0	/* not needed with UMEM_DEFAULT */
 #define	KMC_NODEBUG		UMC_NODEBUG
 #define	KMC_KMEM		0x0
