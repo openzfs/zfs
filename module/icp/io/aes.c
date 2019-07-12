@@ -206,7 +206,7 @@ aes_mod_init(void)
 {
 	int ret;
 
-	/* find fastest implementations and set any requested implementations */
+	/* Determine the fastest available implementation. */
 	aes_impl_init();
 	gcm_impl_init();
 

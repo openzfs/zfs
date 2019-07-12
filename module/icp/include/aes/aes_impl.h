@@ -201,9 +201,9 @@ extern const aes_impl_ops_t aes_aesni_impl;
 void aes_impl_init(void);
 
 /*
- * Get selected aes implementation
+ * Returns optimal allowed AES implementation
  */
-struct aes_impl_ops *aes_impl_get_ops(void);
+const struct aes_impl_ops *aes_impl_get_ops(void);
 
 #ifdef	__cplusplus
 }

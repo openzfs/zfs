@@ -157,7 +157,7 @@ STACK_FRAME_NON_STANDARD(fletcher_4_avx512f_byteswap);
 static boolean_t
 fletcher_4_avx512f_valid(void)
 {
-	return (zfs_avx512f_available());
+	return (kfpu_allowed() && zfs_avx512f_available());
 }
 
 const fletcher_4_ops_t fletcher_4_avx512f_ops = {
