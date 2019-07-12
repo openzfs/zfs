@@ -196,10 +196,6 @@ RW_READ_HELD(krwlock_t *rwp)
 	downgrade_write(SEM(rwp));					\
 	spl_rw_lockdep_on_maybe(rwp);					\
 })
-
 /* END CSTYLED */
-
-int spl_rw_init(void);
-void spl_rw_fini(void);
 
 #endif /* _SPL_RWLOCK_H */
