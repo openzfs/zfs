@@ -29,43 +29,6 @@
 #include <linux/rwsem.h>
 #include <linux/sched.h>
 
-/* Linux kernel compatibility */
-#if defined(CONFIG_PREEMPT_RT_FULL)
-#define	SPL_RWSEM_SINGLE_READER_VALUE	(1)
-#define	SPL_RWSEM_SINGLE_WRITER_VALUE	(0)
-#elif defined(CONFIG_RWSEM_GENERIC_SPINLOCK)
-#define	SPL_RWSEM_SINGLE_READER_VALUE	(1)
-#define	SPL_RWSEM_SINGLE_WRITER_VALUE	(-1)
-#elif defined(RWSEM_ACTIVE_MASK)
-#define	SPL_RWSEM_SINGLE_READER_VALUE	(RWSEM_ACTIVE_READ_BIAS)
-#define	SPL_RWSEM_SINGLE_WRITER_VALUE	(RWSEM_ACTIVE_WRITE_BIAS)
-#endif
-
-/* Linux 3.16 changed activity to count for rwsem-spinlock */
-#if defined(CONFIG_PREEMPT_RT_FULL)
-#define	RWSEM_COUNT(sem)	sem->read_depth
-#elif defined(HAVE_RWSEM_ACTIVITY)
-#define	RWSEM_COUNT(sem)	sem->activity
-/* Linux 4.8 changed count to an atomic_long_t for !rwsem-spinlock */
-#elif defined(HAVE_RWSEM_ATOMIC_LONG_COUNT)
-#define	RWSEM_COUNT(sem)	atomic_long_read(&(sem)->count)
-#else
-#define	RWSEM_COUNT(sem)	sem->count
-#endif
-
-#if defined(RWSEM_SPINLOCK_IS_RAW)
-#define	spl_rwsem_lock_irqsave(lk, fl)		raw_spin_lock_irqsave(lk, fl)
-#define	spl_rwsem_unlock_irqrestore(lk, fl)	\
-    raw_spin_unlock_irqrestore(lk, fl)
-#define	spl_rwsem_trylock_irqsave(lk, fl)	raw_spin_trylock_irqsave(lk, fl)
-#else
-#define	spl_rwsem_lock_irqsave(lk, fl)		spin_lock_irqsave(lk, fl)
-#define	spl_rwsem_unlock_irqrestore(lk, fl)	spin_unlock_irqrestore(lk, fl)
-#define	spl_rwsem_trylock_irqsave(lk, fl)	spin_trylock_irqsave(lk, fl)
-#endif /* RWSEM_SPINLOCK_IS_RAW */
-
-#define	spl_rwsem_is_locked(rwsem)		rwsem_is_locked(rwsem)
-
 typedef enum {
 	RW_DRIVER	= 2,
 	RW_DEFAULT	= 4,
@@ -133,7 +96,7 @@ spl_rw_lockdep_on_maybe(krwlock_t *rwp)			\
 static inline int
 RW_LOCK_HELD(krwlock_t *rwp)
 {
-	return (spl_rwsem_is_locked(SEM(rwp)));
+	return (rwsem_is_locked(SEM(rwp)));
 }
 
 static inline int
@@ -169,6 +132,12 @@ RW_READ_HELD(krwlock_t *rwp)
  * The Linux rwsem implementation does not require a matching destroy.
  */
 #define	rw_destroy(rwp)		((void) 0)
+
+/*
+ * Upgrading a rwsem from a reader to a writer is not supported by the
+ * Linux kernel.  The lock must be dropped and reacquired as a writer.
+ */
+#define	rw_tryupgrade(rwp)	RW_WRITE_HELD(rwp)
 
 #define	rw_tryenter(rwp, rw)						\
 ({									\
@@ -228,24 +197,9 @@ RW_READ_HELD(krwlock_t *rwp)
 	spl_rw_lockdep_on_maybe(rwp);					\
 })
 
-#define	rw_tryupgrade(rwp)						\
-({									\
-	int _rc_ = 0;							\
-									\
-	if (RW_WRITE_HELD(rwp)) {					\
-		_rc_ = 1;						\
-	} else {							\
-		spl_rw_lockdep_off_maybe(rwp);				\
-		if ((_rc_ = rwsem_tryupgrade(SEM(rwp))))		\
-			spl_rw_set_owner(rwp);				\
-		spl_rw_lockdep_on_maybe(rwp);				\
-	}								\
-	_rc_;								\
-})
 /* END CSTYLED */
 
 int spl_rw_init(void);
 void spl_rw_fini(void);
-int rwsem_tryupgrade(struct rw_semaphore *rwsem);
 
 #endif /* _SPL_RWLOCK_H */
