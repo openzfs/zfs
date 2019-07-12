@@ -470,9 +470,8 @@ DEFINE_REC_METHODS(avx512f);
 static boolean_t
 raidz_will_avx512f_work(void)
 {
-	return (zfs_avx_available() &&
-	    zfs_avx2_available() &&
-	    zfs_avx512f_available());
+	return (kfpu_allowed() && zfs_avx_available() &&
+	    zfs_avx2_available() && zfs_avx512f_available());
 }
 
 const raidz_impl_ops_t vdev_raidz_avx512f_impl = {

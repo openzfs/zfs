@@ -549,12 +549,12 @@ zio_crypt_key_unwrap(crypto_key_t *cwkey, uint64_t crypt, uint64_t version,
     uint64_t guid, uint8_t *keydata, uint8_t *hmac_keydata, uint8_t *iv,
     uint8_t *mac, zio_crypt_key_t *key)
 {
-	int ret;
 	crypto_mechanism_t mech;
 	uio_t puio, cuio;
 	uint64_t aad[3];
 	iovec_t plain_iovecs[2], cipher_iovecs[3];
 	uint_t enc_len, keydata_len, aad_len;
+	int ret;
 
 	ASSERT3U(crypt, <, ZIO_CRYPT_FUNCTIONS);
 	ASSERT3U(cwkey->ck_format, ==, CRYPTO_KEY_RAW);

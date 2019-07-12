@@ -156,7 +156,7 @@ fletcher_4_avx2_byteswap(fletcher_4_ctx_t *ctx, const void *buf, uint64_t size)
 
 static boolean_t fletcher_4_avx2_valid(void)
 {
-	return (zfs_avx_available() && zfs_avx2_available());
+	return (kfpu_allowed() && zfs_avx_available() && zfs_avx2_available());
 }
 
 const fletcher_4_ops_t fletcher_4_avx2_ops = {

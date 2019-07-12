@@ -108,7 +108,7 @@ aes_aesni_decrypt(const uint32_t rk[], int Nr, const uint32_t ct[4],
 static boolean_t
 aes_aesni_will_work(void)
 {
-	return (zfs_aes_available());
+	return (kfpu_allowed() && zfs_aes_available());
 }
 
 const aes_impl_ops_t aes_aesni_impl = {
