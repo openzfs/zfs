@@ -694,51 +694,41 @@ spl_init(void)
 	if ((rc = spl_kvmem_init()))
 		goto out1;
 
-	if ((rc = spl_mutex_init()))
+	if ((rc = spl_tsd_init()))
 		goto out2;
 
-	if ((rc = spl_rw_init()))
+	if ((rc = spl_taskq_init()))
 		goto out3;
 
-	if ((rc = spl_tsd_init()))
+	if ((rc = spl_kmem_cache_init()))
 		goto out4;
 
-	if ((rc = spl_taskq_init()))
+	if ((rc = spl_vn_init()))
 		goto out5;
 
-	if ((rc = spl_kmem_cache_init()))
+	if ((rc = spl_proc_init()))
 		goto out6;
 
-	if ((rc = spl_vn_init()))
+	if ((rc = spl_kstat_init()))
 		goto out7;
 
-	if ((rc = spl_proc_init()))
-		goto out8;
-
-	if ((rc = spl_kstat_init()))
-		goto out9;
-
 	if ((rc = spl_zlib_init()))
-		goto out10;
+		goto out8;
 
 	return (rc);
 
-out10:
-	spl_kstat_fini();
-out9:
-	spl_proc_fini();
 out8:
-	spl_vn_fini();
+	spl_kstat_fini();
 out7:
-	spl_kmem_cache_fini();
+	spl_proc_fini();
 out6:
-	spl_taskq_fini();
+	spl_vn_fini();
 out5:
-	spl_tsd_fini();
+	spl_kmem_cache_fini();
 out4:
-	spl_rw_fini();
+	spl_taskq_fini();
 out3:
-	spl_mutex_fini();
+	spl_tsd_fini();
 out2:
 	spl_kvmem_fini();
 out1:
@@ -755,8 +745,6 @@ spl_fini(void)
 	spl_kmem_cache_fini();
 	spl_taskq_fini();
 	spl_tsd_fini();
-	spl_rw_fini();
-	spl_mutex_fini();
 	spl_kvmem_fini();
 }
 
