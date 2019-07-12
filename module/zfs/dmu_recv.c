@@ -2453,20 +2453,22 @@ receive_read_record(dmu_recv_cookie_t *drc)
 			    !!DRR_IS_RAW_BYTESWAPPED(drrw->drr_flags) ^
 			    drc->drc_byteswap;
 
+			/* XXX: Allan: need complevel */
 			abuf = arc_loan_raw_buf(dmu_objset_spa(drc->drc_os),
 			    drrw->drr_object, byteorder, drrw->drr_salt,
 			    drrw->drr_iv, drrw->drr_mac, drrw->drr_type,
 			    drrw->drr_compressed_size, drrw->drr_logical_size,
-			    drrw->drr_compressiontype);
+			    drrw->drr_compressiontype, 0);
 		} else if (DRR_WRITE_COMPRESSED(drrw)) {
 			ASSERT3U(drrw->drr_compressed_size, >, 0);
 			ASSERT3U(drrw->drr_logical_size, >=,
 			    drrw->drr_compressed_size);
 			ASSERT(!is_meta);
+			/* XXX: Allan: need complevel */
 			abuf = arc_loan_compressed_buf(
 			    dmu_objset_spa(drc->drc_os),
 			    drrw->drr_compressed_size, drrw->drr_logical_size,
-			    drrw->drr_compressiontype);
+			    drrw->drr_compressiontype, 0);
 		} else {
 			abuf = arc_loan_buf(dmu_objset_spa(drc->drc_os),
 			    is_meta, drrw->drr_logical_size);
@@ -2537,11 +2539,12 @@ receive_read_record(dmu_recv_cookie_t *drc)
 			    !!DRR_IS_RAW_BYTESWAPPED(drrs->drr_flags) ^
 			    drc->drc_byteswap;
 
+			/* XXX: Allan: need complevel */
 			abuf = arc_loan_raw_buf(dmu_objset_spa(drc->drc_os),
 			    drrs->drr_object, byteorder, drrs->drr_salt,
 			    drrs->drr_iv, drrs->drr_mac, drrs->drr_type,
 			    drrs->drr_compressed_size, drrs->drr_length,
-			    drrs->drr_compressiontype);
+			    drrs->drr_compressiontype, 0);
 		} else {
 			abuf = arc_loan_buf(dmu_objset_spa(drc->drc_os),
 			    DMU_OT_IS_METADATA(drrs->drr_type),

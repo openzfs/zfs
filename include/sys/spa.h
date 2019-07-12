@@ -120,6 +120,7 @@ struct dsl_crypto_params;
 
 #define	SPA_COMPRESSBITS	7
 #define	SPA_VDEVBITS		24
+#define	SPA_COMPRESSMASK	((1U << SPA_COMPRESSBITS) - 1)
 
 /*
  * All SPA data is represented by 128-bit data virtual addresses (DVAs).
