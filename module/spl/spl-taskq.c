@@ -28,6 +28,7 @@
 #include <sys/taskq.h>
 #include <sys/kmem.h>
 #include <sys/tsd.h>
+#include <linux/simd.h>
 
 int spl_taskq_thread_bind = 0;
 module_param(spl_taskq_thread_bind, int, 0644);
@@ -853,6 +854,7 @@ taskq_thread(void *args)
 	sigfillset(&blocked);
 	sigprocmask(SIG_BLOCK, &blocked, NULL);
 	flush_signals(current);
+	kfpu_initialize();
 
 	tsd_set(taskq_tsd, tq);
 	spin_lock_irqsave_nested(&tq->tq_lock, flags, tq->tq_lock_class);

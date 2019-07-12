@@ -61,12 +61,12 @@ extern const gcm_impl_ops_t gcm_pclmulqdq_impl;
 /*
  * Initializes fastest implementation
  */
-void gcm_impl_init(void);
+void gcm_impl_init(void *arg);
 
 /*
- * Get selected aes implementation
+ * Returns optimal allowed GCM implementation
  */
-struct gcm_impl_ops *gcm_impl_get_ops(void);
+const struct gcm_impl_ops *gcm_impl_get_ops(void);
 
 #ifdef	__cplusplus
 }

@@ -27,6 +27,7 @@
 #include <sys/thread.h>
 #include <sys/kmem.h>
 #include <sys/tsd.h>
+#include <linux/simd.h>
 
 /*
  * Thread interfaces
@@ -54,6 +55,7 @@ thread_generic_wrapper(void *arg)
 	args = tp->tp_args;
 	set_current_state(tp->tp_state);
 	set_user_nice((kthread_t *)current, PRIO_TO_NICE(tp->tp_pri));
+	kfpu_initialize();
 	kmem_free(tp->tp_name, tp->tp_name_size);
 	kmem_free(tp, sizeof (thread_priv_t));
 
