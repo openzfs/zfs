@@ -6,8 +6,14 @@
 # Build targets for RPM packages.
 ###############################################################################
 
+if SUSE
+_postfix_kmp=kmp
+else
+_postfix_kmp=kmod
+endif
+
 srpm-kmod:
-	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-kmod" \
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-$(_postfix_kmp)" \
 		def='${SRPM_DEFINE_COMMON} ${SRPM_DEFINE_KMOD}' srpm-common
 
 srpm-dkms:
@@ -22,7 +28,7 @@ srpm: srpm-kmod srpm-dkms srpm-utils
 srpms: srpm-kmod srpm-dkms srpm-utils
 
 rpm-kmod: srpm-kmod
-	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-kmod" \
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-$(_postfix_kmp)" \
 		def='${RPM_DEFINE_COMMON} ${RPM_DEFINE_KMOD}' rpm-common
 
 rpm-dkms: srpm-dkms

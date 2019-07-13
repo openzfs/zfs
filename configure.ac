@@ -34,6 +34,7 @@ AC_INIT(m4_esyscmd(grep ^Name: META | cut -d ':' -f 2 | tr -d ' \n'),
 	m4_esyscmd(grep ^Version: META | cut -d ':' -f 2 | tr -d ' \n'))
 AC_LANG(C)
 ZFS_AC_META
+AM_CONDITIONAL([SUSE],[test -f /etc/SUSE-brand -o -f /etc/SuSE-release])
 AC_CONFIG_AUX_DIR([config])
 AC_CONFIG_MACRO_DIR([config])
 AC_CANONICAL_SYSTEM
@@ -357,6 +358,7 @@ AC_CONFIG_FILES([
 	rpm/redhat/zfs-dkms.spec
 	rpm/generic/Makefile
 	rpm/generic/zfs.spec
+	rpm/generic/zfs-kmp.spec
 	rpm/generic/zfs-kmod.spec
 	rpm/generic/zfs-dkms.spec
 	zfs.release

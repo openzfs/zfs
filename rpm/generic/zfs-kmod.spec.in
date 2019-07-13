@@ -42,8 +42,11 @@
 %bcond_with     debug
 %bcond_with     debuginfo
 
-
+%if 0%{?suse_version} >= 1
+Name:           %{module}-kmp
+%else
 Name:           %{module}-kmod
+%endif
 
 Version:        @VERSION@
 Release:        @RELEASE@%{?dist}
