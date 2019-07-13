@@ -322,6 +322,116 @@ ${usr_lib_modules}/${kernel_uname_r}/extra/${kmodname}/
 EOF
 }
 
+print_rpmtemplate_kmoddevelpkg ()
+{
+	if [[ "${1}" == "--custom" ]]; then
+		shift
+		local customkernel=true
+	elif [[ "${1}" == "--redhat" ]]; then
+		shift
+		local redhatkernel=true
+	fi
+
+	local kernel_uname_r=${1}
+	kmod_kmp_package
+
+	cat <<EOF
+%package       -n ${kmod_pkg_name}-devel
+Summary:          ${kmodname} kernel module(s) devel common
+Group:            System Environment/Kernel
+Provides:         ${kmod_pkg_name}-devel = %{?epoch:%{epoch}:}%{version}-%{release}
+EOF
+
+	if [[ ! ${customkernel} ]] && [[ ! ${redhatkernel} ]]; then
+		echo "Requires:        ${kmod_pkg_name}-devel-${kernel_uname_r} >= %{?epoch:%{epoch}:}%{version}-%{release}"
+	fi
+
+	if [[ ${obsolete_name} ]]; then
+		echo "Provides:        ${kmod_obsolete}-devel = ${obsolete_version}"
+		echo "Obsoletes:       ${kmod_obsolete}-devel < ${obsolete_version}"
+	fi
+
+	cat <<EOF
+%description  -n ${kmod_pkg_name}-devel
+This package provides the common header files to build kernel modules
+which depend on the ${kmodname} kernel module.  It may optionally require
+the ${kmodname}-devel-<kernel> objects for the newest kernel.
+
+%files        -n ${kmod_pkg_name}-devel
+%defattr(644,root,root,755)
+%{_usrsrc}/${kmodname}-%{version}
+EOF
+	if [[ ${obsolete_name} ]]; then
+		echo "%{_usrsrc}/${obsolete_name}-%{version}"
+	fi
+
+	for kernel in ${1}; do
+		local kernel_uname_r=${kernel}
+		echo "%exclude %{_usrsrc}/${kmodname}-%{version}/${kernel_uname_r}"
+		if [[ ${obsolete_name} ]]; then
+			echo "%exclude %{_usrsrc}/${obsolete_name}-%{version}/${kernel_uname_r}"
+		fi
+	done
+
+	echo
+	echo
+}
+
+print_rpmtemplate_per_kmoddevelpkg ()
+{
+	if [[ "${1}" == "--custom" ]]; then
+		shift
+		local customkernel=true
+	elif [[ "${1}" == "--redhat" ]]; then
+		# this is needed for akmods
+		shift
+		local redhatkernel=true
+	fi
+
+	local kernel_uname_r=${1}
+	local kernel_variant="${2:+-${2}}"
+	kmod_kmp_package
+
+	# first part
+	cat <<EOF
+%package       -n ${kmod_pkg_name}-devel-${kernel_uname_r}
+Summary:          ${kmodname} kernel module(s) devel for ${kernel_uname_r}
+Group:            System Environment/Kernel
+Provides:         kernel-objects-for-kernel = ${kernel_uname_r}
+Provides:         ${kmod_pkg_name}-develss = %{?epoch:%{epoch}:}%{version}-%{release}
+Provides:         ${kmod_pkg_name}-devel-uname-r = ${kernel_uname_r}
+EOF
+
+	if [[ ${obsolete_name} ]]; then
+		echo "Provides:        ${kmod_obsolete}-devel-${kernel_uname_r} = ${obsolete_version}"
+		echo "Obsoletes:       ${kmod_obsolete}-devel-${kernel_uname_r} < ${obsolete_version}"
+	fi
+
+	# second part
+	if [[ ! "${customkernel}" ]]; then
+		cat <<EOF
+Requires:         kernel-devel-uname-r = ${kernel_uname_r}
+BuildRequires:    kernel-devel-uname-r = ${kernel_uname_r}
+%{?KmodsDevelRequires:Requires: %{KmodsDevelRequires}-uname-r = ${kernel_uname_r}}
+%{?KmodsDevelRequires:BuildRequires: %{KmodsDevelRequires}-uname-r = ${kernel_uname_r}}
+EOF
+	fi
+
+	# third part
+	cat <<EOF
+%description  -n ${kmod_pkg_name}-devel-${kernel_uname_r}
+This package provides objects and symbols required to build kernel modules
+which depend on the ${kmodname} kernel modules built for the Linux
+kernel ${kernel_uname_r} for the %{_target_cpu} family of processors.
+%files        -n ${kmod_pkg_name}-devel-${kernel_uname_r}
+%defattr(644,root,root,755)
+%{_usrsrc}/${kmodname}-%{version}/${kernel_uname_r}
+EOF
+	if [[ ${obsolete_name} ]]; then
+		echo "%{_usrsrc}/${obsolete_name}-%{version}/${kernel_uname_r}"
+	fi
+}
+
 print_rpmtemplate_kmodmetapkg ()
 {
 		local kernel_uname_r=${1}
@@ -367,12 +477,31 @@ print_customrpmtemplate ()
 			# parse kernel versions string and print template
 			local kernel_verrelarch=${kernel%%${kernels_known_variants}}
 			print_rpmtemplate_per_kmodpkg --redhat ${kernel} ${kernel##${kernel_verrelarch}}
+
+			# create development package
+			if [[ "${devel}" ]]; then
+				# create devel package including common headers
+				print_rpmtemplate_kmoddevelpkg --redhat ${kernel} ${kernel##${kernel_verrelarch}}
+
+				# create devel package
+				print_rpmtemplate_per_kmoddevelpkg --redhat ${kernel} ${kernel##${kernel_verrelarch}}
+			fi
+
 		elif [[ -e "${usr_lib_modules}"/"${kernel}"/build/Makefile ]] ; then
 			# likely a user-build-kernel with available buildfiles
 			# fixme: we should check if uname from Makefile is the same as ${kernel}
 
 			kernel_versions="${kernel_versions}${kernel}___${usr_lib_modules}/${kernel}/build/ "
 			print_rpmtemplate_per_kmodpkg --custom "${kernel}"
+
+			# create development package
+			if [[ "${devel}" ]]; then
+				# create devel package including common headers
+				print_rpmtemplate_kmoddevelpkg --custom "${kernel}"
+
+				# create devel package
+				print_rpmtemplate_per_kmoddevelpkg --custom "${kernel}"
+			fi
 		else
 			error_out 2 "Don't know how to handle ${kernel} -- ${usr_lib_modules}/${kernel}/build/Makefile not found"
 		fi
@@ -404,6 +533,14 @@ print_rpmtemplate ()
 
 		# create package
 		print_rpmtemplate_per_kmodpkg ${kernel} ${kernel##${kernel_verrelarch}}
+
+		if [[ "${devel}" ]]; then
+			# create devel package including common headers
+			print_rpmtemplate_kmoddevelpkg ${kernel} ${kernel##${kernel_verrelarch}}
+
+			# create devel package
+			print_rpmtemplate_per_kmoddevelpkg ${kernel} ${kernel##${kernel_verrelarch}}
+		fi
 	done
 }
 
@@ -422,6 +559,7 @@ myprog_help ()
 	echo " --filterfile <file>  -- filter the results with grep --file <file>"
 	echo " --for-kernels <list> -- created templates only for these kernels"
 	echo " --kmodname <file>    -- name of the kmod (required)"
+	echo " --devel              -- make kmod-devel package"
 	echo " --noakmod            -- no akmod package"
 	echo " --repo <name>        -- use buildsys-build-<name>-kerneldevpkgs"
 	echo " --target <arch>      -- target-arch (required)"
@@ -452,6 +590,10 @@ while [ "${1}" ] ; do
 				kmodname="${1%%-kmod}"
 			fi
 			shift
+			;;
+		--devel)
+			shift
+			devel="true"
 			;;
 		--repo)
 			shift
@@ -533,7 +675,8 @@ if [[ -e ./kmodtool-kernel-variants ]] ; then
 elif [[ -e /usr/share/kmodtool/kernel-variants ]] ; then
 	kernels_known_variants="$(cat /usr/share/kmodtool/kernel-variants)"
 else
-	error_out 2  "Could not find /usr/share/kmodtool/kernel-variants"
+	kernels_known_variants="@(smp?(-debug)|PAE?(-debug)|debug|kdump|xen|kirkwood|highbank|imx|omap|tegra)"
+#	error_out 2  "Could not find /usr/share/kmodtool/kernel-variants"
 fi
 
 # general sanity checks
