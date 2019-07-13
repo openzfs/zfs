@@ -38,6 +38,7 @@ kernel_versions_to_build_for=
 prefix=
 filterfile=
 target=
+suse_kmp=0
 
 error_out()
 {
@@ -59,9 +60,28 @@ print_rpmtemplate_header()
 	echo
 }
 
+kmod_kmp_package()
+{
+	# Fedora kmod naming convention
+	kmod_pkg_name="kmod-${kmodname}"
+	pkg_kmod_name="${kmodname}-kmod"
+	if [[ ${obsolete_name} ]] ; then
+		kmod_obsolete="kmod-${obsolete_name}"
+	fi
+	# SUSE kmp naming convention
+	if [[ ${suse_kmp} -ne 0 ]] ; then
+		kmod_pkg_name="${kmodname}-kmp"
+		pkg_kmod_name="${kmodname}-kmp"
+		if [[ ${obsolete_name} ]] ; then
+			kmod_obsolete="${obsolete_name}-kmp"
+		fi
+	fi
+}
+
 print_akmodtemplate ()
 {
 	echo
+	kmod_kmp_package
 	cat <<EOF
 
 %global akmod_install mkdir -p \$RPM_BUILD_ROOT/%{_usrsrc}/akmods/; \\\
@@ -69,7 +89,7 @@ rpmbuild --define "_sourcedir %{_sourcedir}" \\\
 --define "_srcrpmdir \$RPM_BUILD_ROOT/%{_usrsrc}/akmods/" \\\
 %{?dist:--define 'dist %{dist}}' \\\
 -bs --nodeps %{_specdir}/%{name}.spec ; \\\
-ln -s \$(ls \$RPM_BUILD_ROOT/%{_usrsrc}/akmods/) \$RPM_BUILD_ROOT/%{_usrsrc}/akmods/${kmodname}-kmod.latest
+ln -s \$(ls \$RPM_BUILD_ROOT/%{_usrsrc}/akmods/) \$RPM_BUILD_ROOT/%{_usrsrc}/akmods/${pkg_kmod_name}.latest
 
 %package       -n akmod-${kmodname}
 Summary:          Akmod package for ${kmodname} kernel module(s)
@@ -77,8 +97,8 @@ Requires:         kmodtool
 Requires:         akmods
 %{?AkmodsBuildRequires:Requires: %{AkmodsBuildRequires}}
 # same requires and provides as a kmods package would have
-Requires:         ${kmodname}-kmod-common >= %{?epoch:%{epoch}:}%{version}
-Provides:         ${kmodname}-kmod = %{?epoch:%{epoch}:}%{version}-%{release}
+Requires:         ${pkg_kmod_name}-common >= %{?epoch:%{epoch}:}%{version}
+Provides:         ${pkg_kmod_name} = %{?epoch:%{epoch}:}%{version}-%{release}
 EOF
 
 	if [[ ${obsolete_name} ]] ; then
@@ -95,7 +115,7 @@ This package provides the akmod package for the ${kmodname} kernel modules.
 nohup /usr/sbin/akmods --from-akmod-posttrans --akmod ${kmodname} &> /dev/null &
 
 %post     -n akmod-${kmodname}
-[ -x /usr/sbin/akmods-ostree-post ] && /usr/sbin/akmods-ostree-post ${kmodname} %{_usrsrc}/akmods/${kmodname}-kmod-%{version}-%{release}.src.rpm
+[ -x /usr/sbin/akmods-ostree-post ] && /usr/sbin/akmods-ostree-post ${kmodname} %{_usrsrc}/akmods/${pkg_kmod_name}-%{version}-%{release}.src.rpm
 
 %files         -n akmod-${kmodname}
 %defattr(-,root,root,-)
@@ -105,30 +125,31 @@ EOF
 
 print_akmodmeta ()
 {
+	kmod_kmp_package
 	cat <<EOF
 
-%package       -n kmod-${kmodname}
+%package       -n ${kmod_pkg_name}
 Summary:          Metapackage which tracks in ${kmodname} kernel module for newest kernel${dashvariant}
 
-Provides:         ${kmodname}-kmod = %{?epoch:%{epoch}:}%{version}-%{release}
-Provides:         kmod-${kmodname}-xen = %{?epoch:%{epoch}:}%{version}-%{release}
-Provides:         kmod-${kmodname}-smp = %{?epoch:%{epoch}:}%{version}-%{release}
-Provides:         kmod-${kmodname}-PAE = %{?epoch:%{epoch}:}%{version}-%{release}
+Provides:         ${pkg_kmod_name} = %{?epoch:%{epoch}:}%{version}-%{release}
+Provides:         ${kmod_pkg_name}-xen = %{?epoch:%{epoch}:}%{version}-%{release}
+Provides:         ${kmod_pkg_name}-smp = %{?epoch:%{epoch}:}%{version}-%{release}
+Provides:         ${kmod_pkg_name}-PAE = %{?epoch:%{epoch}:}%{version}-%{release}
 Requires:         akmod-${kmodname} = %{?epoch:%{epoch}:}%{version}-%{release}
 EOF
 
 	if [[ ${obsolete_name} ]] ; then
-		echo "Provides:         kmod-${obsolete_name} = ${obsolete_version}"
-		echo "Obsoletes:        kmod-${obsolete_name} < ${obsolete_version}"
+		echo "Provides:         ${kmod_obsolete} = ${obsolete_version}"
+		echo "Obsoletes:        ${kmod_obsolete} < ${obsolete_version}"
 	fi
 	cat <<EOF
 
-%description   -n kmod-${kmodname}${dashvariant}
+%description   -n ${kmod_pkg_name}${dashvariant}
 This is a meta-package without payload which sole purpose is to require the
 ${kmodname} kernel module(s) for the newest kernel${dashvariant},
 to make sure you get it together with a new kernel.
 
-%files         -n kmod-${kmodname}${dashvariant}
+%files         -n ${kmod_pkg_name}${dashvariant}
 %defattr(644,root,root,755)
 EOF
 }
@@ -155,25 +176,27 @@ print_rpmtemplate_per_kmodpkg ()
 		echo '%global  _prefix_usr      '/usr
 	fi
 
+	kmod_kmp_package
+
     # first part
 	cat <<EOF
 
 %if 0%{?rhel}
-%package       -n kmod-${kmodname}
+%package       -n ${kmod_pkg_name}
 Summary:          ${kmodname} kernel module(s) for ${kernel_uname_r_short}
 Provides:         kernel-modules = ${kernel_uname_r}
-Provides:         ${kmodname}-kmod = %{?epoch:%{epoch}:}%{version}-%{release}
-Requires:         ${kmodname}-kmod-common >= %{?epoch:%{epoch}:}%{version}
+Provides:         ${pkg_kmod_name} = %{?epoch:%{epoch}:}%{version}-%{release}
+Requires:         ${pkg_kmod_name}-common >= %{?epoch:%{epoch}:}%{version}
 Requires(post):   %{?_prefix_usr}/sbin/weak-modules
 Requires(post):   %{?_prefix_usr}/sbin/depmod
 Requires(postun): %{?_prefix_usr}/sbin/weak-modules
 Requires(postun): %{?_prefix_usr}/sbin/depmod
 %else
-%package       -n kmod-${kmodname}-${kernel_uname_r}
+%package       -n ${kmod_pkg_name}-${kernel_uname_r}
 Summary:          ${kmodname} kernel module(s) for ${kernel_uname_r}
 Provides:         kernel-modules-for-kernel = ${kernel_uname_r}
-Provides:         ${kmodname}-kmod = %{?epoch:%{epoch}:}%{version}-%{release}
-Requires:         ${kmodname}-kmod-common >= %{?epoch:%{epoch}:}%{version}
+Provides:         ${pkg_kmod_name} = %{?epoch:%{epoch}:}%{version}-%{release}
+Requires:         ${pkg_kmod_name}-common >= %{?epoch:%{epoch}:}%{version}
 Requires(post):   %{?_prefix_usr}/sbin/depmod
 Requires(postun): %{?_prefix_usr}/sbin/depmod
 %endif
@@ -181,8 +204,8 @@ EOF
 
 	if [[ ${obsolete_name} ]] ; then
 		echo
-		echo "Provides:         kmod-${obsolete_name}-${kernel_uname_r} = ${obsolete_version}"
-		echo "Obsoletes:        kmod-${obsolete_name}-${kernel_uname_r} < ${obsolete_version}"
+		echo "Provides:         ${kmod_obsolete}-${kernel_uname_r} = ${obsolete_version}"
+		echo "Obsoletes:        ${kmod_obsolete}-${kernel_uname_r} < ${obsolete_version}"
 	fi
 
 	# second part
@@ -217,28 +240,28 @@ Requires:         kernel >= ${kernel_uname_r_short}
 Requires:         kernel < ${kernel_uname_r_short_plus_one}
 BuildRequires:    kernel-devel = ${kernel_uname_r_wo_arch} redhat-rpm-config kernel-abi-whitelists
 
-%post          -n kmod-${kmodname}
+%post          -n ${kmod_pkg_name}
 %{_kmodtool_depmod_post}
 
 modules=( \$(find ${usr_lib_modules}/${kernel_uname_r}/extra/${kmodname}/ | grep -e '\.ko$') )
 printf '%s\n' "\${modules[@]}" | %{?_prefix_usr}/sbin/weak-modules --add-modules
 
-%preun         -n kmod-${kmodname}
-rpm -ql kmod-${kmodname}-%{version}-%{release}.$(arch) | grep -e '\.ko$' > /var/run/rpm-kmod-${kmodname}-modules
+%preun         -n ${kmod_pkg_name}
+rpm -ql ${kmod_pkg_name}-%{version}-%{release}.$(arch) | grep -e '\.ko$' > /var/run/rpm-${kmod_pkg_name}-modules
 
-%postun        -n kmod-${kmodname}
+%postun        -n ${kmod_pkg_name}
 %{_kmodtool_depmod_post}
 
-modules=( \$(cat /var/run/rpm-kmod-${kmodname}-modules) )
-rm /var/run/rpm-kmod-${kmodname}-modules
+modules=( \$(cat /var/run/rpm-${kmod_pkg_name}-modules) )
+rm /var/run/rpm-${kmod_pkg_name}-modules
 printf '%s\n' "\${modules[@]}" | %{?_prefix_usr}/sbin/weak-modules --remove-modules
 %else
 Requires:         kernel-uname-r = ${kernel_uname_r}
 BuildRequires:    kernel-devel-uname-r = ${kernel_uname_r}
 BuildRequires:    gcc
-%post          -n kmod-${kmodname}-${kernel_uname_r}
+%post          -n ${kmod_pkg_name}-${kernel_uname_r}
 %{_kmodtool_depmod_post}
-%postun        -n kmod-${kmodname}-${kernel_uname_r}
+%postun        -n ${kmod_pkg_name}-${kernel_uname_r}
 %{_kmodtool_depmod_post}
 %endif
 EOF
@@ -246,7 +269,7 @@ EOF
 		cat <<EOF
 
 %if 0%{?rhel}
-%post          -n kmod-${kmodname}
+%post          -n ${kmod_pkg_name}
 [[ "\$(uname -r)" == "${kernel_uname_r}"  ]] && %{?_prefix_usr}/sbin/depmod -a > /dev/null || :
 
 if [[ "\$(uname -r)" == "${kernel_uname_r}"  ]] ; then
@@ -254,23 +277,23 @@ if [[ "\$(uname -r)" == "${kernel_uname_r}"  ]] ; then
   printf '%s\n' "\${modules[@]}" | %{?_prefix_usr}/sbin/weak-modules --add-modules
 fi
 
-%preun         -n kmod-${kmodname}
+%preun         -n ${kmod_pkg_name}
 if [[ "\$(uname -r)" == "${kernel_uname_r}"  ]] ; then
-  rpm -ql kmod-${kmodname}-%{version}-%{release}.$(arch) | grep -e '\.ko$' > /var/run/rpm-kmod-${kmodname}-modules
+  rpm -ql ${kmod_pkg_name}-%{version}-%{release}.$(arch) | grep -e '\.ko$' > /var/run/rpm-${kmod_pkg_name}-modules
 fi
 
-%postun        -n kmod-${kmodname}
+%postun        -n ${kmod_pkg_name}
 [[ "\$(uname -r)" == "${kernel_uname_r}"  ]] && %{?_prefix_usr}/sbin/depmod -a > /dev/null || :
 
 if [[ "\$(uname -r)" == "${kernel_uname_r}"  ]] ; then
-  modules=( \$(cat /var/run/rpm-kmod-${kmodname}-modules) )
-  rm /var/run/rpm-kmod-${kmodname}-modules
+  modules=( \$(cat /var/run/rpm-${kmod_pkg_name}-modules) )
+  rm /var/run/rpm-${kmod_pkg_name}-modules
   printf '%s\n' "\${modules[@]}" | %{?_prefix_usr}/sbin/weak-modules --remove-modules
 fi
 %else
-%post          -n kmod-${kmodname}-${kernel_uname_r}
+%post          -n ${kmod_pkg_name}-${kernel_uname_r}
 [[ "\$(uname -r)" == "${kernel_uname_r}"  ]] && %{?_prefix_usr}/sbin/depmod -a > /dev/null || :
-%postun        -n kmod-${kmodname}-${kernel_uname_r}
+%postun        -n ${kmod_pkg_name}-${kernel_uname_r}
 [[ "\$(uname -r)" == "${kernel_uname_r}"  ]] && %{?_prefix_usr}/sbin/depmod -a > /dev/null || :
 %endif
 EOF
@@ -280,18 +303,18 @@ EOF
 	cat <<EOF
 
 %if 0%{?rhel}
-%description   -n kmod-${kmodname}
+%description   -n ${kmod_pkg_name}
 This package provides the ${kmodname} kernel modules built for the Linux
 kernel ${kernel_uname_r_short} for the %{_target_cpu} family of processors.
-%files         -n kmod-${kmodname}
+%files         -n ${kmod_pkg_name}
 %defattr(644,root,root,755)
 %dir ${usr_lib_modules}/${kernel_uname_r}/extra
 ${usr_lib_modules}/${kernel_uname_r}/extra/${kmodname}/
 %else
-%description   -n kmod-${kmodname}-${kernel_uname_r}
+%description   -n ${kmod_pkg_name}-${kernel_uname_r}
 This package provides the ${kmodname} kernel modules built for the Linux
 kernel ${kernel_uname_r} for the %{_target_cpu} family of processors.
-%files         -n kmod-${kmodname}-${kernel_uname_r}
+%files         -n ${kmod_pkg_name}-${kernel_uname_r}
 %defattr(644,root,root,755)
 %dir ${usr_lib_modules}/${kernel_uname_r}/extra
 ${usr_lib_modules}/${kernel_uname_r}/extra/${kmodname}/
@@ -303,29 +326,30 @@ print_rpmtemplate_kmodmetapkg ()
 {
 		local kernel_uname_r=${1}
 		local kernel_variant="${2:+-${2}}"
+		kmod_kmp_package
 
 		cat <<EOF
 
-%package       -n kmod-${kmodname}${kernel_variant}
+%package       -n ${kmod_pkg_name}${kernel_variant}
 Summary:          Metapackage which tracks in ${kmodname} kernel module for newest kernel${kernel_variant}
 
-Provides:         ${kmodname}-kmod = %{?epoch:%{epoch}:}%{version}-%{release}
-Requires:         kmod-${kmodname}-${kernel_uname_r} >= %{?epoch:%{epoch}:}%{version}-%{release}
+Provides:         ${pkg_kmod_name} = %{?epoch:%{epoch}:}%{version}-%{release}
+Requires:         ${kmod_pkg_name}-${kernel_uname_r} >= %{?epoch:%{epoch}:}%{version}-%{release}
 EOF
 
 		if [[ ${obsolete_name} ]] ; then
-			echo "Provides:         kmod-${obsolete_name}${kernel_variant} = ${obsolete_version}"
-			echo "Obsoletes:        kmod-${obsolete_name}${kernel_variant} < ${obsolete_version}"
+			echo "Provides:         ${kmod_obsolete}${kernel_variant} = ${obsolete_version}"
+			echo "Obsoletes:        ${kmod_obsolete}${kernel_variant} < ${obsolete_version}"
 		fi
 
 		cat <<EOF
 
-%description   -n kmod-${kmodname}${kernel_variant}
+%description   -n ${kmod_pkg_name}${kernel_variant}
 This is a meta-package without payload which sole purpose is to require the
 ${kmodname} kernel module(s) for the newest kernel${kernel_variant}.
 to make sure you get it together with a new kernel.
 
-%files         -n kmod-${kmodname}${kernel_variant}
+%files         -n ${kmod_pkg_name}${kernel_variant}
 %defattr(644,root,root,755)
 
 
@@ -383,6 +407,12 @@ print_rpmtemplate ()
 	done
 }
 
+if [[ -f /etc/SUSE-brand ]] ; then
+	suse_kmp=1
+elif [[ -f /etc/SuSE-release ]] ; then
+	suse_kmp=1
+fi
+
 myprog_help ()
 {
 	echo "Usage: $(basename ${0}) [OPTIONS]"
@@ -414,8 +444,13 @@ while [ "${1}" ] ; do
 			if [[ ! "${1}" ]] ; then
 				error_out 2 "Please provide the name of the kmod together with --kmodname" >&2
 			fi
-			# strip pending -kmod
-			kmodname="${1%%-kmod}"
+			if [[ ${suse_kmp} -ne 0 && "${1}" == *-kmp ]] ; then
+				# strip pending -kmp
+				kmodname="${1%%-kmp}"
+			else
+				# strip pending -kmod
+				kmodname="${1%%-kmod}"
+			fi
 			shift
 			;;
 		--repo)
