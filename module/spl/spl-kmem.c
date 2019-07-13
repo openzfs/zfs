@@ -180,7 +180,8 @@ spl_kmem_alloc_impl(size_t size, int flags, int node)
 		 */
 		if ((size > spl_kmem_alloc_max) || use_vmem) {
 			if (flags & KM_VMEM) {
-				ptr = __vmalloc(size, lflags, PAGE_KERNEL);
+				ptr = __vmalloc(size, lflags | __GFP_HIGHMEM,
+				    PAGE_KERNEL);
 			} else {
 				return (NULL);
 			}
