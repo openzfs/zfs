@@ -290,6 +290,14 @@ unsigned long zfs_min_metaslabs_to_flush = 1;
  */
 unsigned long zfs_max_log_walking = 5;
 
+/*
+ * This tunable exists solely for testing purposes. It ensures that the log
+ * spacemaps are not flushed and destroyed during export in order for the
+ * relevant log spacemap import code paths to be tested (effectively simulating
+ * a crash).
+ */
+int zfs_keep_log_spacemaps_at_export = 0;
+
 static uint64_t
 spa_estimate_incoming_log_blocks(spa_t *spa)
 {
@@ -1128,6 +1136,7 @@ out:
 	 * [1] recalculate their actual allocated space
 	 * [2] recalculate their weights
 	 * [3] sum up the memory usage of their unflushed range trees
+	 * [4] optionally load them, if debug_load is set
 	 *
 	 * Note that even in the case where we get here because of an
 	 * error (e.g. error != 0), we still want to update the fields
@@ -1151,6 +1160,10 @@ out:
 
 		spa->spa_unflushed_stats.sus_memused +=
 		    metaslab_unflushed_changes_memused(m);
+
+		if (metaslab_debug_load && m->ms_sm != NULL) {
+			VERIFY0(metaslab_load(m));
+		}
 		mutex_exit(&m->ms_lock);
 	}
 
@@ -1181,6 +1194,7 @@ spa_ld_unflushed_txgs(vdev_t *vd)
 
 	for (uint64_t m = 0; m < vd->vdev_ms_count; m++) {
 		metaslab_t *ms = vd->vdev_ms[m];
+		ASSERT(ms != NULL);
 
 		metaslab_unflushed_phys_t entry;
 		uint64_t entry_size = sizeof (entry);
@@ -1189,8 +1203,8 @@ spa_ld_unflushed_txgs(vdev_t *vd)
 		error = dmu_read(mos, object,
 		    entry_offset, entry_size, &entry, 0);
 		if (error != 0) {
-			spa_load_failed(spa, "spa_ld_unflushed_txgs():"
-			    " failed at dmu_read(obj=%llu) [error %d]",
+			spa_load_failed(spa, "spa_ld_unflushed_txgs(): "
+			    "failed at dmu_read(obj=%llu) [error %d]",
 			    (u_longlong_t)object, error);
 			return (error);
 		}
@@ -1243,16 +1257,24 @@ spa_ld_log_spacemaps(spa_t *spa)
 
 #if defined(_KERNEL)
 /* BEGIN CSTYLED */
-module_param(zfs_unflushed_max_mem_ppm, ulong, 0644);
-MODULE_PARM_DESC(zfs_unflushed_max_mem_ppm,
-    "Percentage of the overall system memory that ZFS allows to be "
-    "used for unflushed changes (value is calculated over 1000000 for "
-    "finer granularity");
+module_param(zfs_keep_log_spacemaps_at_export, int, 0644);
+MODULE_PARM_DESC(zfs_keep_log_spacemaps_at_export,
+    "Prevent the log spacemaps from being flushed and destroyed "
+    "during pool export/destroy");
 
-module_param(zfs_unflushed_max_mem_amt, ulong, 0644);
-MODULE_PARM_DESC(zfs_unflushed_max_mem_amt,
-    "Specific hard-limit in memory that ZFS allows to be used for "
-    "unflushed changes");
+module_param(zfs_max_logsm_summary_length, ulong, 0644);
+MODULE_PARM_DESC(zfs_max_logsm_summary_length,
+    "Maximum number of rows allowed in the summary of "
+    "the spacemap log");
+
+module_param(zfs_max_log_walking, ulong, 0644);
+MODULE_PARM_DESC(zfs_max_log_walking,
+    "The number of past TXGs that the flushing algorithm of the log "
+    "spacemap feature uses to estimate incoming log blocks");
+
+module_param(zfs_min_metaslabs_to_flush, ulong, 0644);
+MODULE_PARM_DESC(zfs_min_metaslabs_to_flush,
+    "Minimum number of metaslabs to flush per dirty TXG");
 
 module_param(zfs_unflushed_log_block_pct, ulong, 0644);
 MODULE_PARM_DESC(zfs_unflushed_log_block_pct,
@@ -1272,18 +1294,15 @@ MODULE_PARM_DESC(zfs_unflushed_log_block_min,
     "Lower-bound limit for the maximum amount of blocks in "
     "log spacemap.");
 
-module_param(zfs_max_logsm_summary_length, ulong, 0644);
-MODULE_PARM_DESC(zfs_max_logsm_summary_length,
-    "Maximum number of rows allowed in the summary of "
-    "the spacemap log");
+module_param(zfs_unflushed_max_mem_amt, ulong, 0644);
+MODULE_PARM_DESC(zfs_unflushed_max_mem_amt,
+    "Specific hard-limit in memory that ZFS allows to be used for "
+    "unflushed changes");
 
-module_param(zfs_min_metaslabs_to_flush, ulong, 0644);
-MODULE_PARM_DESC(zfs_min_metaslabs_to_flush,
-    "Minimum number of metaslabs to flush per dirty TXG");
-
-module_param(zfs_max_log_walking, ulong, 0644);
-MODULE_PARM_DESC(zfs_max_log_walking,
-    "The number of past TXGs that the flushing algorithm of the log "
-    "spacemap feature uses to estimate incoming log blocks");
+module_param(zfs_unflushed_max_mem_ppm, ulong, 0644);
+MODULE_PARM_DESC(zfs_unflushed_max_mem_ppm,
+    "Percentage of the overall system memory that ZFS allows to be "
+    "used for unflushed changes (value is calculated over 1000000 for "
+    "finer granularity");
 /* END CSTYLED */
 #endif

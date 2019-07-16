@@ -1447,69 +1447,6 @@ metaslab_flush_wait(metaslab_t *msp)
 		cv_wait(&msp->ms_flush_cv, &msp->ms_lock);
 }
 
-/*
- * This callback is used only for debug purposes and it assumes that
- * the entry that it is applied to is not obsolete for the metaslab given.
- */
-static int
-metaslab_load_unflushed_trees_cb(space_map_entry_t *sme, void *arg)
-{
-	metaslab_t *target_ms = arg;
-	vdev_t *target_vd = target_ms->ms_group->mg_vd;
-
-	uint64_t offset = sme->sme_offset;
-	uint64_t size = sme->sme_run;
-
-	if (target_vd->vdev_id != sme->sme_vdev)
-		return (0);
-
-	metaslab_t *ms =
-	    target_vd->vdev_ms[offset >> target_vd->vdev_ms_shift];
-	if (ms != target_ms)
-		return (0);
-
-	switch (sme->sme_type) {
-		case SM_ALLOC:
-			range_tree_remove_xor_add_segment(offset, offset + size,
-			    ms->ms_unflushed_frees, ms->ms_unflushed_allocs);
-			break;
-		case SM_FREE:
-			range_tree_remove_xor_add_segment(offset, offset + size,
-			    ms->ms_unflushed_allocs, ms->ms_unflushed_frees);
-			break;
-		default:
-			panic("invalid maptype_t");
-			break;
-	}
-	return (0);
-}
-
-/*
- * This function is used for verification only as it is very inefficient
- * (it goes to disk reading all the log space maps discarding most data read).
- */
-static void
-metaslab_load_unflushed_trees(metaslab_t *msp)
-{
-	spa_t *spa = msp->ms_group->mg_vd->vdev_spa;
-
-	/* this is a no-op when we don't have space map logs */
-	for (spa_log_sm_t *sls = avl_first(&spa->spa_sm_logs_by_txg);
-	    sls != NULL; sls = AVL_NEXT(&spa->spa_sm_logs_by_txg, sls)) {
-
-		/* skip logs irrelevant to this metaslab */
-		if (sls->sls_txg < metaslab_unflushed_txg(msp))
-			continue;
-
-		space_map_t *sm = NULL;
-		VERIFY0(space_map_open(&sm, spa_meta_objset(spa),
-		    sls->sls_sm_obj, 0, UINT64_MAX, SPA_MINBLOCKSHIFT));
-		VERIFY0(space_map_iterate(sm, space_map_length(sm),
-		    metaslab_load_unflushed_trees_cb, msp));
-		space_map_close(sm);
-	}
-}
-
 uint64_t
 metaslab_allocated_space(metaslab_t *msp)
 {
@@ -1577,107 +1514,6 @@ metaslab_verify_space(metaslab_t *msp, uint64_t txg)
 	    msp->ms_deferspace + range_tree_space(msp->ms_freed);
 
 	VERIFY3U(sm_free_space, ==, msp_free_space);
-}
-
-/*
- * Assert that the in-core state of the unflushed trees
- * matches the on-disk state.
- */
-static void
-metaslab_verify_unflushed_changes(metaslab_t *msp)
-{
-	ASSERT(MUTEX_HELD(&msp->ms_lock));
-
-	if ((zfs_flags & ZFS_DEBUG_METASLAB_VERIFY) == 0)
-		return;
-
-	/*
-	 * We can end up here from vdev_remove_complete(), in which case we
-	 * cannot do these assertions because we hold spa config locks and
-	 * thus we are not allowed to read from the DMU.
-	 *
-	 * We check if the metaslab group has been removed and if that's
-	 * the case we return immediately as that would mean that we are
-	 * here from the aforementioned code path.
-	 */
-	if (msp->ms_group == NULL)
-		return;
-
-	/*
-	 * If we came here from an error encountered while loading
-	 * the pool we shouldn't bother doing an on-disk to in-memory
-	 * verification.
-	 */
-	spa_t *spa = msp->ms_group->mg_vd->vdev_spa;
-	if (spa_load_state(spa) == SPA_LOAD_ERROR)
-		return;
-
-	/*
-	 * This verification checks that our in-memory state is consistent
-	 * with what's on disk. If the pool is read-only then there aren't
-	 * any changes and we just have the initially-loaded state.
-	 */
-	if (!spa_writeable(spa))
-		return;
-
-	range_tree_t *unflushed_allocs = msp->ms_unflushed_allocs;
-	range_tree_t *unflushed_frees = msp->ms_unflushed_frees;
-
-	msp->ms_unflushed_allocs = range_tree_create(NULL, NULL);
-	msp->ms_unflushed_frees = range_tree_create(NULL, NULL);
-
-	metaslab_load_unflushed_trees(msp);
-
-	if (range_tree_space(unflushed_allocs) !=
-	    range_tree_space(msp->ms_unflushed_allocs)) {
-		zfs_panic_recover("space inconsistency in unflushed allocs; "
-		    "rt from disk = %p - rt from memory = %p",
-		    (void *)msp->ms_unflushed_allocs, (void *)unflushed_allocs);
-	}
-	if (bcmp(&unflushed_allocs->rt_histogram,
-	    &msp->ms_unflushed_allocs->rt_histogram,
-	    sizeof (unflushed_allocs->rt_histogram)) != 0) {
-		zfs_panic_recover("histogram inconsistency in unflushed "
-		    "allocs; rt from disk = %p - rt from memory = %p",
-		    (void *)msp->ms_unflushed_allocs, (void *)unflushed_allocs);
-	}
-
-	if (range_tree_space(unflushed_frees) !=
-	    range_tree_space(msp->ms_unflushed_frees)) {
-		zfs_panic_recover("space inconsistency in unflushed frees; "
-		    "rt from disk = %p - rt from memory = %p",
-		    (void *)msp->ms_unflushed_frees, (void *)unflushed_frees);
-	}
-	if (bcmp(&unflushed_frees->rt_histogram,
-	    &msp->ms_unflushed_frees->rt_histogram,
-	    sizeof (unflushed_frees->rt_histogram)) != 0) {
-		zfs_panic_recover("histogram inconsistency in unflushed "
-		    "frees; rt from disk = %p - rt from memory = %p",
-		    (void *)msp->ms_unflushed_frees, (void *)unflushed_frees);
-	}
-
-	range_tree_walk(unflushed_allocs,
-	    (range_tree_func_t *)range_tree_verify_not_present,
-	    unflushed_frees);
-
-	range_tree_walk(msp->ms_unflushed_allocs, range_tree_remove,
-	    unflushed_allocs);
-	if (!range_tree_is_empty(unflushed_allocs)) {
-		zfs_panic_recover("segment inconsistency in unflushed allocs; "
-		    "rt from memory (%p) has extra segments",
-		    (void *)unflushed_allocs);
-	}
-
-	range_tree_walk(msp->ms_unflushed_frees, range_tree_remove,
-	    unflushed_frees);
-	if (!range_tree_is_empty(unflushed_frees)) {
-		zfs_panic_recover("segment inconsistency in unflushed frees; "
-		    "rt from memory (%p) has extra segments",
-		    (void *)unflushed_frees);
-	}
-
-	range_tree_destroy(unflushed_allocs);
-	range_tree_destroy(unflushed_frees);
 }
 
 static void
@@ -1803,7 +1639,15 @@ metaslab_verify_weight_and_frag(metaslab_t *msp)
 	if ((zfs_flags & ZFS_DEBUG_METASLAB_VERIFY) == 0)
 		return;
 
-	/* see comment in metaslab_verify_unflushed_changes() */
+	/*
+	 * We can end up here from vdev_remove_complete(), in which case we
+	 * cannot do these assertions because we hold spa config locks and
+	 * thus we are not allowed to read from the DMU.
+	 *
+	 * We check if the metaslab group has been removed and if that's
+	 * the case we return immediately as that would mean that we are
+	 * here from the aforementioned code path.
+	 */
 	if (msp->ms_group == NULL)
 		return;
 
@@ -2119,7 +1963,6 @@ metaslab_unload(metaslab_t *msp)
 {
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
 
-	metaslab_verify_unflushed_changes(msp);
 	metaslab_verify_weight_and_frag(msp);
 
 	range_tree_vacate(msp->ms_allocatable, NULL, NULL);
@@ -2233,17 +2076,6 @@ metaslab_init(metaslab_group_t *mg, uint64_t id, uint64_t object,
 		metaslab_sync_done(ms, 0);
 		metaslab_space_update(vd, mg->mg_class,
 		    metaslab_allocated_space(ms), 0, 0);
-	}
-
-	/*
-	 * If metaslab_debug_load is set and we're initializing a metaslab
-	 * that has an allocated space map object then load the space map
-	 * so that we can verify frees.
-	 */
-	if (metaslab_debug_load && ms->ms_sm != NULL) {
-		mutex_enter(&ms->ms_lock);
-		VERIFY0(metaslab_load(ms));
-		mutex_exit(&ms->ms_lock);
 	}
 
 	if (txg != 0) {

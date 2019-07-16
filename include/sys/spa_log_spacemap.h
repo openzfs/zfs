@@ -74,4 +74,6 @@ void spa_log_summary_decrement_blkcount(spa_t *, uint64_t);
 
 boolean_t spa_flush_all_logs_requested(spa_t *);
 
+extern int zfs_keep_log_spacemaps_at_export;
+
 #endif /* _SYS_SPA_LOG_SPACEMAP_H */

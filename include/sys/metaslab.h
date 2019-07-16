@@ -135,6 +135,8 @@ void metaslab_recalculate_weight_and_sort(metaslab_t *);
 void metaslab_disable(metaslab_t *);
 void metaslab_enable(metaslab_t *, boolean_t);
 
+extern int metaslab_debug_load;
+
 #ifdef	__cplusplus
 }
 #endif

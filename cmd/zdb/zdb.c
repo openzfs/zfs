@@ -1014,11 +1014,14 @@ static void
 print_vdev_metaslab_header(vdev_t *vd)
 {
 	vdev_alloc_bias_t alloc_bias = vd->vdev_alloc_bias;
-	const char *bias_str =
-	    (alloc_bias == VDEV_BIAS_LOG || vd->vdev_islog) ?
-	    VDEV_ALLOC_BIAS_LOG : (alloc_bias == VDEV_BIAS_SPECIAL) ?
-	    VDEV_ALLOC_BIAS_SPECIAL : (alloc_bias == VDEV_BIAS_DEDUP) ?
-	    VDEV_ALLOC_BIAS_DEDUP : vd->vdev_islog ? "log" : "";
+	const char *bias_str = "";
+	if (alloc_bias == VDEV_BIAS_LOG || vd->vdev_islog) {
+		bias_str = VDEV_ALLOC_BIAS_LOG;
+	} else if (alloc_bias == VDEV_BIAS_SPECIAL) {
+		bias_str = VDEV_ALLOC_BIAS_SPECIAL;
+	} else if (alloc_bias == VDEV_BIAS_DEDUP) {
+		bias_str = VDEV_ALLOC_BIAS_DEDUP;
+	}
 
 	uint64_t ms_flush_data_obj = 0;
 	if (vd->vdev_top_zap != 0) {

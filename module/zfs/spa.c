@@ -1477,18 +1477,10 @@ spa_should_flush_logs_on_unload(spa_t *spa)
 	if (spa_state(spa) != POOL_STATE_EXPORTED)
 		return (B_FALSE);
 
-#ifdef ZFS_DEBUG
-	/*
-	 * At this point we always want to flush as many metaslabs
-	 * as we can. That said though, for debug builds we try to
-	 * do this half the time, and not flush the other half
-	 * so the log space map loading paths in the next pool
-	 * import get exercised too.
-	 */
-	return (spa_get_random(2) == 0);
-#else
+	if (zfs_keep_log_spacemaps_at_export)
+		return (B_FALSE);
+
 	return (B_TRUE);
-#endif
 }
 
 /*
