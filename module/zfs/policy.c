@@ -209,7 +209,7 @@ secpolicy_vnode_setdac(const cred_t *cr, uid_t owner)
 int
 secpolicy_vnode_setid_retain(const cred_t *cr, boolean_t issuidroot)
 {
-	return (0);
+	return (priv_policy_user(cr, CAP_FSETID, B_FALSE, EPERM));
 }
 
 /*
