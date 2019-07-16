@@ -423,13 +423,11 @@ get_special_prop(lua_State *state, dsl_dataset_t *ds, const char *dsname,
 	case ZFS_PROP_RECEIVE_RESUME_TOKEN: {
 		char *token = get_receive_resume_stats_impl(ds);
 
-		VERIFY3U(strlcpy(strval, token, ZAP_MAXVALUELEN),
-		    <, ZAP_MAXVALUELEN);
+		(void) strlcpy(strval, token, ZAP_MAXVALUELEN);
 		if (strcmp(strval, "") == 0) {
 			char *childval = get_child_receive_stats(ds);
 
-			VERIFY3U(strlcpy(strval, childval, ZAP_MAXVALUELEN),
-			    <, ZAP_MAXVALUELEN);
+			(void) strlcpy(strval, childval, ZAP_MAXVALUELEN);
 			if (strcmp(strval, "") == 0)
 				error = ENOENT;
 
