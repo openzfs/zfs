@@ -1130,12 +1130,9 @@ zpl_init_acl(struct inode *ip, struct inode *dir)
 		return (0);
 
 	if (!S_ISLNK(ip->i_mode)) {
-		if (ITOZSB(ip)->z_acl_type == ZFS_ACLTYPE_POSIXACL) {
-			acl = zpl_get_acl(dir, ACL_TYPE_DEFAULT);
-			if (IS_ERR(acl))
-				return (PTR_ERR(acl));
-		}
-
+		acl = zpl_get_acl(dir, ACL_TYPE_DEFAULT);
+		if (IS_ERR(acl))
+			return (PTR_ERR(acl));
 		if (!acl) {
 			ip->i_mode &= ~current_umask();
 			ip->i_ctime = current_time(ip);
@@ -1144,7 +1141,7 @@ zpl_init_acl(struct inode *ip, struct inode *dir)
 		}
 	}
 
-	if ((ITOZSB(ip)->z_acl_type == ZFS_ACLTYPE_POSIXACL) && acl) {
+	if (acl) {
 		umode_t mode;
 
 		if (S_ISDIR(ip->i_mode)) {

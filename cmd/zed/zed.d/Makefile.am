@@ -38,6 +38,7 @@ $(nodist_zedexec_SCRIPTS): %: %.in
 zedconfdefaults = \
 	all-syslog.sh \
 	data-notify.sh \
+	history_event-zfs-list-cacher.sh \
 	resilver_finish-notify.sh \
 	scrub_finish-notify.sh \
 	statechange-led.sh \
