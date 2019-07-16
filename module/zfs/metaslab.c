@@ -2511,18 +2511,21 @@ metaslab_segment_weight(metaslab_t *msp)
 
 /*
  * Determine if we should attempt to allocate from this metaslab. If the
- * metaslab has a maximum size then we can quickly determine if the desired
- * allocation size can be satisfied. Otherwise, if we're using segment-based
- * weighting then we can determine the maximum allocation that this metaslab
- * can accommodate based on the index encoded in the weight. If we're using
- * space-based weights then rely on the entire weight (excluding the weight
- * type bit).
+ * metaslab is loaded, then we can determine if the desired allocation
+ * can be satisfied by looking at the size of the maximum free segment
+ * on that metaslab. Otherwise, we make our decision based on the metaslab's
+ * weight. For segment-based weighting we can determine the maximum
+ * allocation based on the index encoded in its value. For space-based
+ * weights we rely on the entire weight (excluding the weight-type bit).
  */
 boolean_t
 metaslab_should_allocate(metaslab_t *msp, uint64_t asize)
 {
-	if (msp->ms_max_size != 0)
+	if (msp->ms_loaded) {
 		return (msp->ms_max_size >= asize);
+	} else {
+		ASSERT0(msp->ms_max_size);
+	}
 
 	boolean_t should_allocate;
 	if (!WEIGHT_IS_SPACEBASED(msp->ms_weight)) {
