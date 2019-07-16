@@ -349,6 +349,19 @@ zpool_feature_init(void)
 	    ZFEATURE_TYPE_BOOLEAN, NULL);
 
 	{
+	static const spa_feature_t log_spacemap_deps[] = {
+		SPA_FEATURE_SPACEMAP_V2,
+		SPA_FEATURE_NONE
+	};
+	zfeature_register(SPA_FEATURE_LOG_SPACEMAP,
+	    "com.delphix:log_spacemap", "log_spacemap",
+	    "Log metaslab changes on a single spacemap and "
+	    "flush them periodically.",
+	    ZFEATURE_FLAG_READONLY_COMPAT, ZFEATURE_TYPE_BOOLEAN,
+	    log_spacemap_deps);
+	}
+
+	{
 	static const spa_feature_t large_blocks_deps[] = {
 		SPA_FEATURE_EXTENSIBLE_DATASET,
 		SPA_FEATURE_NONE
