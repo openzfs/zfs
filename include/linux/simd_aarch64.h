@@ -26,8 +26,10 @@
  * USER API:
  *
  * Kernel fpu methods:
- * 	kfpu_begin()
- * 	kfpu_end()
+ *	kfpu_allowed()
+ *	kfpu_initialize()
+ *	kfpu_begin()
+ *	kfpu_end()
  */
 
 #ifndef _SIMD_AARCH64_H

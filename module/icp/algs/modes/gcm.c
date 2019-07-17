@@ -646,7 +646,7 @@ const gcm_impl_ops_t *gcm_all_impl[] = {
 /* Indicate that benchmark has been completed */
 static boolean_t gcm_impl_initialized = B_FALSE;
 
-/* Select aes implementation */
+/* Select GCM implementation */
 #define	IMPL_FASTEST	(UINT32_MAX)
 #define	IMPL_CYCLE	(UINT32_MAX-1)
 
@@ -713,13 +713,15 @@ gcm_impl_init(void)
 
 	/* set fastest implementation. assume hardware accelerated is fastest */
 #if defined(__x86_64) && defined(HAVE_PCLMULQDQ)
-	if (gcm_pclmulqdq_impl.is_supported())
+	if (gcm_pclmulqdq_impl.is_supported()) {
 		memcpy(&gcm_fastest_impl, &gcm_pclmulqdq_impl,
 		    sizeof (gcm_fastest_impl));
-	else
+	} else
 #endif
+	{
 		memcpy(&gcm_fastest_impl, &gcm_generic_impl,
 		    sizeof (gcm_fastest_impl));
+	}
 
 	strcpy(gcm_fastest_impl.name, "fastest");
 
@@ -742,7 +744,7 @@ static const struct {
  * If we are called before init(), user preference will be saved in
  * user_sel_impl, and applied in later init() call. This occurs when module
  * parameter is specified on module load. Otherwise, directly update
- * icp_aes_impl.
+ * icp_gcm_impl.
  *
  * @val		Name of gcm implementation to use
  * @param	Unused.
