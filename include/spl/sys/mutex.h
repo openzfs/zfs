@@ -127,6 +127,8 @@ spl_mutex_lockdep_on_maybe(kmutex_t *mp)			\
 })
 /* END CSTYLED */
 
+#define	NESTED_SINGLE 1
+
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
 #define	mutex_enter_nested(mp, subclass)			\
 {								\
