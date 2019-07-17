@@ -82,6 +82,15 @@
 
 #if defined(_KERNEL)
 
+/*
+ * Disable the WARN_ON_FPU() macro to prevent additional dependencies
+ * when providing the kfpu_* functions.  Relevant warnings are included
+ * as appropriate and are unconditionally enabled.
+ */
+#if defined(CONFIG_X86_DEBUG_FPU) && !defined(KERNEL_EXPORTS_X86_FPU)
+#undef CONFIG_X86_DEBUG_FPU
+#endif
+
 #if defined(HAVE_KERNEL_FPU_API_HEADER)
 #include <asm/fpu/api.h>
 #include <asm/fpu/internal.h>
