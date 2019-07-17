@@ -458,10 +458,7 @@ tests = ['zpool_split_cliargs', 'zpool_split_devices',
 tags = ['functional', 'cli_root', 'zpool_split']
 
 [tests/functional/cli_root/zpool_status]
-tests = ['zpool_status_001_pos', 'zpool_status_002_pos','zpool_status_003_pos',
-    'zpool_status_-c_disable', 'zpool_status_-c_homedir',
-    'zpool_status_-c_searchpath']
-user =
+tests = ['zpool_status_001_pos', 'zpool_status_002_pos']
 tags = ['functional', 'cli_root', 'zpool_status']
 
 [tests/functional/cli_root/zpool_sync]
@@ -524,6 +521,12 @@ tags = ['functional', 'cli_user', 'zpool_iostat']
 tests = ['zpool_list_001_pos', 'zpool_list_002_neg']
 user =
 tags = ['functional', 'cli_user', 'zpool_list']
+
+[tests/functional/cli_user/zpool_status]
+tests = ['zpool_status_003_pos', 'zpool_status_-c_disable',
+    'zpool_status_-c_homedir', 'zpool_status_-c_searchpath']
+user =
+tags = ['functional', 'cli_user', 'zpool_status']
 
 [tests/functional/compression]
 tests = ['compress_001_pos', 'compress_002_pos', 'compress_003_pos',
