@@ -5074,13 +5074,14 @@ zfs_setsecattr(struct inode *ip, vsecattr_t *vsecp, int flag, cred_t *cr)
 
 #ifdef HAVE_UIO_ZEROCOPY
 /*
- * Tunable, both must be a power of 2.
- *
- * zcr_blksz_min: the smallest read we may consider to loan out an arcbuf
- * zcr_blksz_max: if set to less than the file block size, allow loaning out of
- *		an arcbuf for a partial block read
+ * The smallest read we may consider to loan out an arcbuf.
+ * This must be a power of 2.
  */
 int zcr_blksz_min = (1 << 10);	/* 1K */
+/*
+ * If set to less than the file block size, allow loaning out of an
+ * arcbuf for a partial block read.  This must be a power of 2.
+ */
 int zcr_blksz_max = (1 << 17);	/* 128K */
 
 /*ARGSUSED*/
