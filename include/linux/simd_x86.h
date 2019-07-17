@@ -26,8 +26,10 @@
  * USER API:
  *
  * Kernel fpu methods:
- * 	kfpu_begin()
- * 	kfpu_end()
+ *	kfpu_allowed()
+ *	kfpu_initialize()
+ *	kfpu_begin()
+ *	kfpu_end()
  *
  * SIMD support:
  *
@@ -37,31 +39,31 @@
  * all relevant feature test functions should be called.
  *
  * Supported features:
- * 	zfs_sse_available()
- * 	zfs_sse2_available()
- * 	zfs_sse3_available()
- * 	zfs_ssse3_available()
- * 	zfs_sse4_1_available()
- * 	zfs_sse4_2_available()
+ *	zfs_sse_available()
+ *	zfs_sse2_available()
+ *	zfs_sse3_available()
+ *	zfs_ssse3_available()
+ *	zfs_sse4_1_available()
+ *	zfs_sse4_2_available()
  *
- * 	zfs_avx_available()
- * 	zfs_avx2_available()
+ *	zfs_avx_available()
+ *	zfs_avx2_available()
  *
- * 	zfs_bmi1_available()
- * 	zfs_bmi2_available()
+ *	zfs_bmi1_available()
+ *	zfs_bmi2_available()
  *
- * 	zfs_avx512f_available()
- * 	zfs_avx512cd_available()
- * 	zfs_avx512er_available()
- * 	zfs_avx512pf_available()
- * 	zfs_avx512bw_available()
- * 	zfs_avx512dq_available()
- * 	zfs_avx512vl_available()
- * 	zfs_avx512ifma_available()
- * 	zfs_avx512vbmi_available()
+ *	zfs_avx512f_available()
+ *	zfs_avx512cd_available()
+ *	zfs_avx512er_available()
+ *	zfs_avx512pf_available()
+ *	zfs_avx512bw_available()
+ *	zfs_avx512dq_available()
+ *	zfs_avx512vl_available()
+ *	zfs_avx512ifma_available()
+ *	zfs_avx512vbmi_available()
  *
  * NOTE(AVX-512VL):	If using AVX-512 instructions with 128Bit registers
- * 			also add zfs_avx512vl_available() to feature check.
+ *			also add zfs_avx512vl_available() to feature check.
  */
 
 #ifndef _SIMD_X86_H
@@ -190,7 +192,7 @@ typedef struct cpuid_feature_desc {
  * Descriptions of supported instruction sets
  */
 static const cpuid_feature_desc_t cpuid_features[] = {
-	[SSE]		= {1U, 0U,	1U << 25, 	EDX	},
+	[SSE]		= {1U, 0U,	1U << 25,	EDX	},
 	[SSE2]		= {1U, 0U,	1U << 26,	EDX	},
 	[SSE3]		= {1U, 0U,	1U << 0,	ECX	},
 	[SSSE3]		= {1U, 0U,	1U << 9,	ECX	},
