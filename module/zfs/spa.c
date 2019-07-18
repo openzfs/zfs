@@ -5722,6 +5722,13 @@ spa_export_common(char *pool, int new_state, nvlist_t **oldconfig,
 		return (SET_ERROR(ENOENT));
 	}
 
+	if (spa->spa_is_exporting) {
+		/* the pool is being exported by another thread */
+		mutex_exit(&spa_namespace_lock);
+		return (SET_ERROR(ZFS_ERR_EXPORT_IN_PROGRESS));
+	}
+	spa->spa_is_exporting = B_TRUE;
+
 	/*
 	 * Put a hold on the pool, drop the namespace lock, stop async tasks,
 	 * reacquire the namespace lock, and see if we can export.
@@ -5757,6 +5764,7 @@ spa_export_common(char *pool, int new_state, nvlist_t **oldconfig,
 	    (spa->spa_inject_ref != 0 &&
 	    new_state != POOL_STATE_UNINITIALIZED)) {
 		spa_async_resume(spa);
+		spa->spa_is_exporting = B_FALSE;
 		mutex_exit(&spa_namespace_lock);
 		return (SET_ERROR(EBUSY));
 	}
@@ -5771,6 +5779,7 @@ spa_export_common(char *pool, int new_state, nvlist_t **oldconfig,
 		if (!force && new_state == POOL_STATE_EXPORTED &&
 		    spa_has_active_shared_spare(spa)) {
 			spa_async_resume(spa);
+			spa->spa_is_exporting = B_FALSE;
 			mutex_exit(&spa_namespace_lock);
 			return (SET_ERROR(EXDEV));
 		}
@@ -5822,9 +5831,16 @@ export_spa:
 		if (!hardforce)
 			spa_write_cachefile(spa, B_TRUE, B_TRUE);
 		spa_remove(spa);
+	} else {
+		/*
+		 * If spa_remove() is not called for this spa_t and
+		 * there is any possibility that it can be reused,
+		 * we make sure to reset the exporting flag.
+		 */
+		spa->spa_is_exporting = B_FALSE;
 	}
-	mutex_exit(&spa_namespace_lock);
 
+	mutex_exit(&spa_namespace_lock);
 	return (0);
 }
 

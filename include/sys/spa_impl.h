@@ -219,6 +219,7 @@ struct spa {
 	spa_taskqs_t	spa_zio_taskq[ZIO_TYPES][ZIO_TASKQ_TYPES];
 	dsl_pool_t	*spa_dsl_pool;
 	boolean_t	spa_is_initializing;	/* true while opening pool */
+	boolean_t	spa_is_exporting;	/* true while exporting pool */
 	metaslab_class_t *spa_normal_class;	/* normal data class */
 	metaslab_class_t *spa_log_class;	/* intent log data class */
 	metaslab_class_t *spa_special_class;	/* special allocation class */
