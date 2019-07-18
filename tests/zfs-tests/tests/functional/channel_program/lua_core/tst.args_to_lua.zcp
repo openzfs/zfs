@@ -19,7 +19,7 @@ arg = ...
 argv = arg["argv"]
 
 assert(#argv == 2)
-assert(argv[1] == "foo")
+assert(argv[1] == "-foo")
 assert(argv[2] == "bar")
 
 return

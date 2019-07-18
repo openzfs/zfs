@@ -7627,6 +7627,9 @@ zfs_do_channel_program(int argc, char **argv)
 	boolean_t sync_flag = B_TRUE, json_output = B_FALSE;
 	zpool_handle_t *zhp;
 
+	/* fix option scanning behavior so -args are passed to the channel program*/
+	putenv("POSIXLY_CORRECT=1");
+
 	/* check options */
 	while ((c = getopt(argc, argv, "nt:m:j")) != -1) {
 		switch (c) {

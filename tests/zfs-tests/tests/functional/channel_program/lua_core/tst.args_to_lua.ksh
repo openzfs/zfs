@@ -25,6 +25,6 @@ verify_runnable "global"
 
 log_assert "Passing arguments to lua programs should work correctly."
 
-log_must_program $TESTPOOL $ZCP_ROOT/lua_core/tst.args_to_lua.zcp foo bar
+log_must_program $TESTPOOL $ZCP_ROOT/lua_core/tst.args_to_lua.zcp -foo bar
 
 log_pass "Passing arguments to lua programs should work correctly."
