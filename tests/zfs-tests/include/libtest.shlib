@@ -3606,15 +3606,15 @@ function zed_start
 	# Verify the ZED is not already running.
 	pgrep -x zed > /dev/null
 	if (($? == 0)); then
-		log_fail "ZED already running"
+		log_note "ZED already running"
+	else
+		log_note "Starting ZED"
+		# run ZED in the background and redirect foreground logging
+		# output to $ZED_LOG.
+		log_must truncate -s 0 $ZED_DEBUG_LOG
+		log_must eval "zed -vF -d $ZEDLET_DIR -p $ZEDLET_DIR/zed.pid -P $PATH" \
+		    "-s $ZEDLET_DIR/state 2>$ZED_LOG &"
 	fi
-
-	log_note "Starting ZED"
-	# run ZED in the background and redirect foreground logging
-	# output to $ZED_LOG.
-	log_must truncate -s 0 $ZED_DEBUG_LOG
-	log_must eval "zed -vF -d $ZEDLET_DIR -p $ZEDLET_DIR/zed.pid -P $PATH" \
-	    "-s $ZEDLET_DIR/state 2>$ZED_LOG &"
 
 	return 0
 }
