@@ -55,7 +55,8 @@ typedef int (*nfs_shareopt_callback_t)(const char *opt, const char *value,
                                        void *cookie);
 
 typedef int (*nfs_host_callback_t)(const char *sharepath, const char *host,
-                                   const char *security, const char *access, void *cookie);
+                                   const char *security, const char *access,
+                                   void *cookie);
 
 /* List of hosts and their options */
 /* NOTE: share path is stored elsewhere */
@@ -70,7 +71,8 @@ typedef struct nfs_share_list_s {
 list_t all_nfs_shares_list;
 
 static int
-find_option(char *opt, const char *needle) {
+find_option(char *opt, const char *needle)
+{
     char *token, *dup;
 
     dup = strdup(opt);
@@ -92,7 +94,8 @@ find_option(char *opt, const char *needle) {
  */
 static int
 foreach_nfs_shareopt(const char *shareopts,
-                     nfs_shareopt_callback_t callback, void *cookie) {
+                     nfs_shareopt_callback_t callback, void *cookie)
+{
     char *shareopts_dup, *opt, *cur, *value;
     int was_nul, rc;
 
@@ -157,7 +160,8 @@ typedef struct nfs_host_cookie_s {
  * Converts a Solaris NFS host specification to its Linux equivalent.
  */
 static int
-get_linux_hostspec(const char *solaris_hostspec, char **plinux_hostspec) {
+get_linux_hostspec(const char *solaris_hostspec, char **plinux_hostspec)
+{
     /*
      * For now we just support CIDR masks (e.g. @192.168.0.0/16) and host
      * wildcards (e.g. *.example.org).
@@ -183,7 +187,8 @@ get_linux_hostspec(const char *solaris_hostspec, char **plinux_hostspec) {
  * Used internally by nfs_enable_share to enable sharing for a single host.
  */
 static int
-nfs_enable_share_one(const char *sharepath, const char *host, char *opts) {
+nfs_enable_share_one(const char *sharepath, const char *host, char *opts)
+{
     int rc;
     char *hostpath;
     char *argv[6];
@@ -217,7 +222,8 @@ nfs_enable_share_one(const char *sharepath, const char *host, char *opts) {
  * Adds a Linux share option to an array of NFS options.
  */
 static int
-add_linux_shareopt(char **plinux_opts, const char *key, const char *value) {
+add_linux_shareopt(char **plinux_opts, const char *key, const char *value)
+{
     size_t len = 0;
     char *new_linux_opts;
 
@@ -230,7 +236,7 @@ add_linux_shareopt(char **plinux_opts, const char *key, const char *value) {
     }
 
     new_linux_opts = realloc(*plinux_opts, len + 1 + strlen(key) +
-                                           (value ? 1 + strlen(value) : 0) + 1);
+                             (value ? 1 + strlen(value) : 0) + 1);
 
     if (new_linux_opts == NULL)
         return (SA_NO_MEMORY);
@@ -253,7 +259,8 @@ add_linux_shareopt(char **plinux_opts, const char *key, const char *value) {
 }
 
 static int
-update_host_list(void *cookie) {
+update_host_list(void *cookie)
+{
     char **plinux_opts = (char **) cookie;
     nfs_share_list_t *cur_share, *new_share;
 
@@ -264,7 +271,7 @@ update_host_list(void *cookie) {
 
     /* Create a new object list */
     new_share = (nfs_share_list_t *)
-            malloc(sizeof(nfs_share_list_t));
+                malloc(sizeof(nfs_share_list_t));
     if (new_share == NULL)
         return (SA_NO_MEMORY);
     list_link_init(&new_share->next);
@@ -291,7 +298,8 @@ update_host_list(void *cookie) {
  * in "cookie"..
  */
 static int
-get_linux_shareopts_cb(const char *key, const char *value, void *cookie) {
+get_linux_shareopts_cb(const char *key, const char *value, void *cookie)
+{
     char **plinux_opts = (char **) cookie;
     nfs_share_list_t *opts = NULL;
 
@@ -403,10 +411,11 @@ get_linux_shareopts_cb(const char *key, const char *value, void *cookie) {
  * converts them to a NULL-terminated array of Linux NFS options.
  */
 static int
-get_linux_shareopts(const char *shareopts, char **plinux_opts) {
+get_linux_shareopts(const char *shareopts, char **plinux_opts)
+{
     int rc;
 
-            assert(plinux_opts != NULL);
+    assert(plinux_opts != NULL);
 
     /* Create global list of share host(s) and options */
     list_create(&all_nfs_shares_list, sizeof(nfs_share_list_t),
@@ -422,9 +431,9 @@ get_linux_shareopts(const char *shareopts, char **plinux_opts) {
         (void) add_linux_shareopt(plinux_opts, "no_root_squash", NULL);
         (void) add_linux_shareopt(plinux_opts, "mountpoint", NULL);
 // TODO: Make sure a 'sharenfs=zzz' WITHOUT a 'rw[=@xxx]' or 'ro[=@xxx]' works
-//	} else if(strcmp(shareopts, "ro\0") != 0) {
-//		/* 'else' only: Doesn't work if there's a 'ro[=@xxx]' somewhere. */
-//		/* 'else if(strcmp(shareopts, "ro\0") == 0)': Doesn't work if there's ONLY a 'ro'. */
+//  } else if(strcmp(shareopts, "ro\0") != 0) {
+//      /* 'else' only: Doesn't work if there's a 'ro[=@xxx]' somewhere. */
+//      /* 'else if(strcmp(shareopts, "ro\0") == 0)': Doesn't work if there's ONLY a 'ro'. */
     }
     rc = foreach_nfs_shareopt(shareopts, get_linux_shareopts_cb,
                               plinux_opts);
@@ -443,7 +452,8 @@ get_linux_shareopts(const char *shareopts, char **plinux_opts) {
  * Enables NFS sharing for the specified share.
  */
 static int
-nfs_enable_share(sa_share_impl_t impl_share) {
+nfs_enable_share(sa_share_impl_t impl_share)
+{
     int rc = SA_OK;
     char *shareopts, *linux_opts;
     nfs_share_list_t *share;
@@ -480,7 +490,8 @@ nfs_enable_share(sa_share_impl_t impl_share) {
  * Used internally by nfs_disable_share to disable sharing for a single host.
  */
 static int
-nfs_disable_share_one(const char *sharepath, const char *host, char *opts) {
+nfs_disable_share_one(const char *sharepath, const char *host, char *opts)
+{
     int rc;
     char *hostpath;
     char *argv[4];
@@ -511,7 +522,8 @@ nfs_disable_share_one(const char *sharepath, const char *host, char *opts) {
  * Disables NFS sharing for the specified share.
  */
 static int
-nfs_disable_share(sa_share_impl_t impl_share) {
+nfs_disable_share(sa_share_impl_t impl_share)
+{
     int rc = SA_OK;
     char *shareopts, *linux_opts;
     nfs_share_list_t *share;
@@ -553,7 +565,8 @@ nfs_disable_share(sa_share_impl_t impl_share) {
  * Checks whether the specified NFS share options are syntactically correct.
  */
 static int
-nfs_validate_shareopts(const char *shareopts) {
+nfs_validate_shareopts(const char *shareopts)
+{
     char *linux_opts;
     int rc;
 
@@ -575,7 +588,8 @@ nfs_validate_shareopts(const char *shareopts) {
  * Checks whether a share is currently active.
  */
 static boolean_t
-nfs_is_share_active(sa_share_impl_t impl_share) {
+nfs_is_share_active(sa_share_impl_t impl_share)
+{
     int fd;
     char line[512];
     char *tab, *cur;
@@ -645,13 +659,14 @@ nfs_is_share_active(sa_share_impl_t impl_share) {
  */
 static int
 nfs_update_shareopts(sa_share_impl_t impl_share, const char *resource,
-                     const char *shareopts) {
+                     const char *shareopts)
+{
     char *shareopts_dup;
     boolean_t needs_reshare = B_FALSE;
     char *old_shareopts;
 
     FSINFO(impl_share, nfs_fstype)->active =
-            nfs_is_share_active(impl_share);
+        nfs_is_share_active(impl_share);
 
     old_shareopts = FSINFO(impl_share, nfs_fstype)->shareopts;
 
@@ -685,18 +700,19 @@ nfs_update_shareopts(sa_share_impl_t impl_share, const char *resource,
  * clean up shares that are about to be free()'d.
  */
 static void
-nfs_clear_shareopts(sa_share_impl_t impl_share) {
+nfs_clear_shareopts(sa_share_impl_t impl_share)
+{
     free(FSINFO(impl_share, nfs_fstype)->shareopts);
     FSINFO(impl_share, nfs_fstype)->shareopts = NULL;
 }
 
 static const sa_share_ops_t nfs_shareops = {
-        .enable_share = nfs_enable_share,
-        .disable_share = nfs_disable_share,
+    .enable_share = nfs_enable_share,
+    .disable_share = nfs_disable_share,
 
-        .validate_shareopts = nfs_validate_shareopts,
-        .update_shareopts = nfs_update_shareopts,
-        .clear_shareopts = nfs_clear_shareopts,
+    .validate_shareopts = nfs_validate_shareopts,
+    .update_shareopts = nfs_update_shareopts,
+    .clear_shareopts = nfs_clear_shareopts,
 };
 
 /*
@@ -712,7 +728,8 @@ static const sa_share_ops_t nfs_shareops = {
  *        there is no libshare_nfs_fini() function.
  */
 static int
-nfs_check_exportfs(void) {
+nfs_check_exportfs(void)
+{
     pid_t pid;
     int rc, status;
     static char nfs_exportfs_tempfile[] = "/tmp/exportfs.XXXXXX";
@@ -780,7 +797,8 @@ nfs_check_exportfs(void) {
  * Provides a convenient wrapper for determining nfs availability
  */
 static boolean_t
-nfs_available(void) {
+nfs_available(void)
+{
     if (nfs_exportfs_temp_fd == -1)
         (void) nfs_check_exportfs();
 
@@ -791,6 +809,7 @@ nfs_available(void) {
  * Initializes the NFS functionality of libshare.
  */
 void
-libshare_nfs_init(void) {
+libshare_nfs_init(void)
+{
     nfs_fstype = register_fstype("nfs", &nfs_shareops);
 }
