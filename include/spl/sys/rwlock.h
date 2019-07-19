@@ -29,43 +29,6 @@
 #include <linux/rwsem.h>
 #include <linux/sched.h>
 
-/* Linux kernel compatibility */
-#if defined(CONFIG_PREEMPT_RT_FULL)
-#define	SPL_RWSEM_SINGLE_READER_VALUE	(1)
-#define	SPL_RWSEM_SINGLE_WRITER_VALUE	(0)
-#elif defined(CONFIG_RWSEM_GENERIC_SPINLOCK)
-#define	SPL_RWSEM_SINGLE_READER_VALUE	(1)
-#define	SPL_RWSEM_SINGLE_WRITER_VALUE	(-1)
-#elif defined(RWSEM_ACTIVE_MASK)
-#define	SPL_RWSEM_SINGLE_READER_VALUE	(RWSEM_ACTIVE_READ_BIAS)
-#define	SPL_RWSEM_SINGLE_WRITER_VALUE	(RWSEM_ACTIVE_WRITE_BIAS)
-#endif
-
-/* Linux 3.16 changed activity to count for rwsem-spinlock */
-#if defined(CONFIG_PREEMPT_RT_FULL)
-#define	RWSEM_COUNT(sem)	sem->read_depth
-#elif defined(HAVE_RWSEM_ACTIVITY)
-#define	RWSEM_COUNT(sem)	sem->activity
-/* Linux 4.8 changed count to an atomic_long_t for !rwsem-spinlock */
-#elif defined(HAVE_RWSEM_ATOMIC_LONG_COUNT)
-#define	RWSEM_COUNT(sem)	atomic_long_read(&(sem)->count)
-#else
-#define	RWSEM_COUNT(sem)	sem->count
-#endif
-
-#if defined(RWSEM_SPINLOCK_IS_RAW)
-#define	spl_rwsem_lock_irqsave(lk, fl)		raw_spin_lock_irqsave(lk, fl)
-#define	spl_rwsem_unlock_irqrestore(lk, fl)	\
-    raw_spin_unlock_irqrestore(lk, fl)
-#define	spl_rwsem_trylock_irqsave(lk, fl)	raw_spin_trylock_irqsave(lk, fl)
-#else
-#define	spl_rwsem_lock_irqsave(lk, fl)		spin_lock_irqsave(lk, fl)
-#define	spl_rwsem_unlock_irqrestore(lk, fl)	spin_unlock_irqrestore(lk, fl)
-#define	spl_rwsem_trylock_irqsave(lk, fl)	spin_trylock_irqsave(lk, fl)
-#endif /* RWSEM_SPINLOCK_IS_RAW */
-
-#define	spl_rwsem_is_locked(rwsem)		rwsem_is_locked(rwsem)
-
 typedef enum {
 	RW_DRIVER	= 2,
 	RW_DEFAULT	= 4,
@@ -78,15 +41,9 @@ typedef enum {
 	RW_READER	= 2
 } krw_t;
 
-/*
- * If CONFIG_RWSEM_SPIN_ON_OWNER is defined, rw_semaphore will have an owner
- * field, so we don't need our own.
- */
 typedef struct {
 	struct rw_semaphore rw_rwlock;
-#ifndef CONFIG_RWSEM_SPIN_ON_OWNER
 	kthread_t *rw_owner;
-#endif
 #ifdef CONFIG_LOCKDEP
 	krw_type_t	rw_type;
 #endif /* CONFIG_LOCKDEP */
@@ -97,31 +54,19 @@ typedef struct {
 static inline void
 spl_rw_set_owner(krwlock_t *rwp)
 {
-/*
- * If CONFIG_RWSEM_SPIN_ON_OWNER is defined, down_write, up_write,
- * downgrade_write and __init_rwsem will set/clear owner for us.
- */
-#ifndef CONFIG_RWSEM_SPIN_ON_OWNER
 	rwp->rw_owner = current;
-#endif
 }
 
 static inline void
 spl_rw_clear_owner(krwlock_t *rwp)
 {
-#ifndef CONFIG_RWSEM_SPIN_ON_OWNER
 	rwp->rw_owner = NULL;
-#endif
 }
 
 static inline kthread_t *
 rw_owner(krwlock_t *rwp)
 {
-#ifdef CONFIG_RWSEM_SPIN_ON_OWNER
-	return (SEM(rwp)->owner);
-#else
 	return (rwp->rw_owner);
-#endif
 }
 
 #ifdef CONFIG_LOCKDEP
@@ -148,6 +93,11 @@ spl_rw_lockdep_on_maybe(krwlock_t *rwp)			\
 #define	spl_rw_lockdep_on_maybe(rwp)
 #endif /* CONFIG_LOCKDEP */
 
+static inline int
+RW_LOCK_HELD(krwlock_t *rwp)
+{
+	return (rwsem_is_locked(SEM(rwp)));
+}
 
 static inline int
 RW_WRITE_HELD(krwlock_t *rwp)
@@ -156,54 +106,9 @@ RW_WRITE_HELD(krwlock_t *rwp)
 }
 
 static inline int
-RW_LOCK_HELD(krwlock_t *rwp)
-{
-	return (spl_rwsem_is_locked(SEM(rwp)));
-}
-
-static inline int
 RW_READ_HELD(krwlock_t *rwp)
 {
-	if (!RW_LOCK_HELD(rwp))
-		return (0);
-
-	/*
-	 * rw_semaphore cheat sheet:
-	 *
-	 * < 3.16:
-	 * There's no rw_semaphore.owner, so use rwp.owner instead.
-	 * If rwp.owner == NULL then it's a reader
-	 *
-	 * 3.16 - 4.7:
-	 * rw_semaphore.owner added (https://lwn.net/Articles/596656/)
-	 * and CONFIG_RWSEM_SPIN_ON_OWNER introduced.
-	 * If rw_semaphore.owner == NULL then it's a reader
-	 *
-	 * 4.8 - 4.16.16:
-	 * RWSEM_READER_OWNED added as an internal #define.
-	 * (https://lore.kernel.org/patchwork/patch/678590/)
-	 * If rw_semaphore.owner == 1 then it's a reader
-	 *
-	 * 4.16.17 - 4.19:
-	 * RWSEM_OWNER_UNKNOWN introduced as ((struct task_struct *)-1L)
-	 * (https://do-db2.lkml.org/lkml/2018/5/15/985)
-	 * If rw_semaphore.owner == 1 then it's a reader.
-	 *
-	 * 4.20+:
-	 * RWSEM_OWNER_UNKNOWN changed to ((struct task_struct *)-2L)
-	 * (https://lkml.org/lkml/2018/9/6/986)
-	 * If rw_semaphore.owner & 1 then it's a reader, and also the reader's
-	 * task_struct may be embedded in rw_semaphore->owner.
-	 */
-#if	defined(CONFIG_RWSEM_SPIN_ON_OWNER) && defined(RWSEM_OWNER_UNKNOWN)
-	if (RWSEM_OWNER_UNKNOWN == (struct task_struct *)-2L) {
-		/* 4.20+ kernels with CONFIG_RWSEM_SPIN_ON_OWNER */
-		return ((unsigned long) SEM(rwp)->owner & 1);
-	}
-#endif
-
-	/* < 4.20 kernel or !CONFIG_RWSEM_SPIN_ON_OWNER */
-	return (rw_owner(rwp) == NULL || (unsigned long) rw_owner(rwp) == 1);
+	return (RW_LOCK_HELD(rwp) && rw_owner(rwp) == NULL);
 }
 
 /*
@@ -227,6 +132,12 @@ RW_READ_HELD(krwlock_t *rwp)
  * The Linux rwsem implementation does not require a matching destroy.
  */
 #define	rw_destroy(rwp)		((void) 0)
+
+/*
+ * Upgrading a rwsem from a reader to a writer is not supported by the
+ * Linux kernel.  The lock must be dropped and reacquired as a writer.
+ */
+#define	rw_tryupgrade(rwp)	RW_WRITE_HELD(rwp)
 
 #define	rw_tryenter(rwp, rw)						\
 ({									\
@@ -285,25 +196,6 @@ RW_READ_HELD(krwlock_t *rwp)
 	downgrade_write(SEM(rwp));					\
 	spl_rw_lockdep_on_maybe(rwp);					\
 })
-
-#define	rw_tryupgrade(rwp)						\
-({									\
-	int _rc_ = 0;							\
-									\
-	if (RW_WRITE_HELD(rwp)) {					\
-		_rc_ = 1;						\
-	} else {							\
-		spl_rw_lockdep_off_maybe(rwp);				\
-		if ((_rc_ = rwsem_tryupgrade(SEM(rwp))))		\
-			spl_rw_set_owner(rwp);				\
-		spl_rw_lockdep_on_maybe(rwp);				\
-	}								\
-	_rc_;								\
-})
 /* END CSTYLED */
-
-int spl_rw_init(void);
-void spl_rw_fini(void);
-int rwsem_tryupgrade(struct rw_semaphore *rwsem);
 
 #endif /* _SPL_RWLOCK_H */

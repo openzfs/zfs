@@ -595,8 +595,9 @@ fletcher_4_incremental_byteswap(void *buf, size_t size, void *data)
 }
 
 #if defined(_KERNEL)
-/* Fletcher 4 kstats */
-
+/*
+ * Fletcher 4 kstats
+ */
 static int
 fletcher_4_kstat_headers(char *buf, size_t size)
 {
@@ -672,7 +673,6 @@ fletcher_4_benchmark_impl(boolean_t native, char *data, uint64_t data_size)
 	uint64_t run_bw, run_time_ns, best_run = 0;
 	zio_cksum_t zc;
 	uint32_t i, l, sel_save = IMPL_READ(fletcher_4_impl_chosen);
-
 
 	fletcher_checksum_func_t *fletcher_4_test = native ?
 	    fletcher_4_native : fletcher_4_byteswap;

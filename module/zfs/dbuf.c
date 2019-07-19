@@ -2690,7 +2690,8 @@ dbuf_destroy(dmu_buf_impl_t *db)
 	if (db->db_blkid != DMU_BONUS_BLKID) {
 		boolean_t needlock = !MUTEX_HELD(&dn->dn_dbufs_mtx);
 		if (needlock)
-			mutex_enter(&dn->dn_dbufs_mtx);
+			mutex_enter_nested(&dn->dn_dbufs_mtx,
+			    NESTED_SINGLE);
 		avl_remove(&dn->dn_dbufs, db);
 		atomic_dec_32(&dn->dn_dbufs_count);
 		membar_producer();

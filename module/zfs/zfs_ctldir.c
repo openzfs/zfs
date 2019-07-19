@@ -192,7 +192,7 @@ static void
 zfsctl_snapshot_add(zfs_snapentry_t *se)
 {
 	ASSERT(RW_WRITE_HELD(&zfs_snapshot_lock));
-	zfs_refcount_add(&se->se_refcount, NULL);
+	zfsctl_snapshot_hold(se);
 	avl_add(&zfs_snapshots_by_name, se);
 	avl_add(&zfs_snapshots_by_objsetid, se);
 }
@@ -269,7 +269,7 @@ zfsctl_snapshot_find_by_name(char *snapname)
 	search.se_name = snapname;
 	se = avl_find(&zfs_snapshots_by_name, &search, NULL);
 	if (se)
-		zfs_refcount_add(&se->se_refcount, NULL);
+		zfsctl_snapshot_hold(se);
 
 	return (se);
 }
@@ -290,7 +290,7 @@ zfsctl_snapshot_find_by_objsetid(spa_t *spa, uint64_t objsetid)
 	search.se_objsetid = objsetid;
 	se = avl_find(&zfs_snapshots_by_objsetid, &search, NULL);
 	if (se)
-		zfs_refcount_add(&se->se_refcount, NULL);
+		zfsctl_snapshot_hold(se);
 
 	return (se);
 }

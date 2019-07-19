@@ -162,7 +162,7 @@ typedef enum aes_mech_type {
 #endif /* _AES_IMPL */
 
 /*
- * Methods used to define aes implementation
+ * Methods used to define AES implementation
  *
  * @aes_gen_f Key generation
  * @aes_enc_f Function encrypts one block

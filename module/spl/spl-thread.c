@@ -155,8 +155,9 @@ spl_kthread_create(int (*func)(void *), void *data, const char namefmt[], ...)
 			if (PTR_ERR(tsk) == -ENOMEM)
 				continue;
 			return (NULL);
-		} else
+		} else {
 			return (tsk);
+		}
 	} while (1);
 }
 EXPORT_SYMBOL(spl_kthread_create);
