@@ -563,17 +563,31 @@ function churn_files
 }
 
 #
-# Mess up file contents
+# Mess up a send file's contents
 #
-# $1 The file path
+# $1 The send file path
 #
-function mess_file
+function mess_send_file
 {
 	file=$1
 
 	filesize=$(stat_size $file)
 
 	offset=$(($RANDOM * $RANDOM % $filesize))
+
+	# The random offset might truncate the send stream to be
+	# smaller than the DRR_BEGIN record. If this happens, then
+	# the receiving system won't have enough info to create the
+	# partial dataset at all. We use zstreamdump to check for
+	# this and retry in this case.
+	nr_begins=$(head -c $offset $file | zstreamdump | \
+	    grep DRR_BEGIN | awk '{ print $5 }')
+	while [ "$nr_begins" -eq 0 ]; do
+		offset=$(($RANDOM * $RANDOM % $filesize))
+		nr_begins=$(head -c $offset $file | zstreamdump | \
+		    grep DRR_BEGIN | awk '{ print $5 }')
+	done
+
 	if (($RANDOM % 7 <= 1)); then
 		#
 		# We corrupt 2 bytes to minimize the chance that we
@@ -626,7 +640,7 @@ function resume_test
 	log_must eval "$sendcmd >/$streamfs/$stream_num"
 
 	for ((i=0; i<2; i=i+1)); do
-		mess_file /$streamfs/$stream_num
+		mess_send_file /$streamfs/$stream_num
 		log_mustnot zfs recv -suv $recvfs </$streamfs/$stream_num
 		stream_num=$((stream_num+1))
 

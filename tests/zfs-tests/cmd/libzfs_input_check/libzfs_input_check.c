@@ -508,6 +508,7 @@ test_send_new(const char *snapshot, int fd)
 	fnvlist_add_string(optional, "fromsnap", from);
 	fnvlist_add_uint64(optional, "resume_object", resumeobj);
 	fnvlist_add_uint64(optional, "resume_offset", offset);
+	fnvlist_add_boolean(optional, "savedok");
 #endif
 	IOC_INPUT_TEST(ZFS_IOC_SEND_NEW, snapshot, required, optional, 0);
 

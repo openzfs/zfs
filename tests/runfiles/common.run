@@ -786,7 +786,8 @@ tests = ['rsend_001_pos', 'rsend_002_pos', 'rsend_003_pos', 'rsend_004_pos',
     'send_encrypted_props', 'send_encrypted_truncated_files',
     'send_freeobjects', 'send_realloc_files',
     'send_realloc_encrypted_files', 'send_spill_block', 'send_holds',
-    'send_hole_birth', 'send_mixed_raw', 'send-wDR_encrypted_zvol']
+    'send_hole_birth', 'send_mixed_raw', 'send-wDR_encrypted_zvol',
+    'send_partial_dataset']
 tags = ['functional', 'rsend']
 
 [tests/functional/scrub_mirror]
