@@ -11,6 +11,7 @@ configure)
 	systemctl enable zfs-import.target
 	systemctl enable zfs-mount.service
 	systemctl enable zfs-share.service
+	systemctl enable zfs-volume-wait.service
 	systemctl enable zfs.target
 	;;
 esac

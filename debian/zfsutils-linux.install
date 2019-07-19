@@ -5,6 +5,8 @@ lib/systemd/system/zfs-import-scan.service
 lib/systemd/system/zfs-import-cache.service
 lib/systemd/system/zfs.target
 lib/systemd/system/zfs-import.target
+lib/systemd/system/zfs-volume-wait.service
+lib/systemd/system/zfs-volumes.target
 lib/systemd/system-preset/
 usr/lib/systemd/system-generators/zfs-mount-generator
 usr/lib/modules-load.d/ lib/
@@ -23,6 +25,7 @@ sbin/zdb
 sbin/zpool
 sbin/zfs
 usr/bin/zgenhostid
+usr/bin/zvol_wait
 usr/sbin/arc_summary
 usr/sbin/arcstat
 usr/sbin/dbufstat
