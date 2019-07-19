@@ -303,6 +303,8 @@ libzfs_error_description(libzfs_handle_t *hdl)
 	case EZFS_NO_RESILVER_DEFER:
 		return (dgettext(TEXT_DOMAIN, "this action requires the "
 		    "resilver_defer feature"));
+	case EZFS_EXPORT_IN_PROGRESS:
+		return (dgettext(TEXT_DOMAIN, "pool export in progress"));
 	case EZFS_UNKNOWN:
 		return (dgettext(TEXT_DOMAIN, "unknown error"));
 	default:
@@ -598,6 +600,9 @@ zpool_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 		break;
 	case ZFS_ERR_VDEV_TOO_BIG:
 		zfs_verror(hdl, EZFS_VDEV_TOO_BIG, fmt, ap);
+		break;
+	case ZFS_ERR_EXPORT_IN_PROGRESS:
+		zfs_verror(hdl, EZFS_EXPORT_IN_PROGRESS, fmt, ap);
 		break;
 	case ZFS_ERR_IOC_CMD_UNAVAIL:
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "the loaded zfs "

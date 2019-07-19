@@ -21,7 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2018, Joyent, Inc.
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2019 by Delphix. All rights reserved.
  * Copyright (c) 2014 by Saso Kiselkov. All rights reserved.
  * Copyright 2017 Nexenta Systems, Inc.  All rights reserved.
  */
@@ -5086,6 +5086,9 @@ arc_kmem_reap_soon(void)
 static boolean_t
 arc_adjust_cb_check(void *arg, zthr_t *zthr)
 {
+	if (!arc_initialized)
+		return (B_FALSE);
+
 	/*
 	 * This is necessary so that any changes which may have been made to
 	 * many of the zfs_arc_* module parameters will be propagated to
@@ -5173,6 +5176,9 @@ arc_adjust_cb(void *arg, zthr_t *zthr)
 static boolean_t
 arc_reap_cb_check(void *arg, zthr_t *zthr)
 {
+	if (!arc_initialized)
+		return (B_FALSE);
+
 	int64_t free_memory = arc_available_memory();
 
 	/*
@@ -7933,11 +7939,9 @@ arc_fini(void)
 
 	list_destroy(&arc_prune_list);
 	mutex_destroy(&arc_prune_mtx);
-	(void) zthr_cancel(arc_adjust_zthr);
-	zthr_destroy(arc_adjust_zthr);
 
+	(void) zthr_cancel(arc_adjust_zthr);
 	(void) zthr_cancel(arc_reap_zthr);
-	zthr_destroy(arc_reap_zthr);
 
 	mutex_destroy(&arc_adjust_lock);
 	cv_destroy(&arc_adjust_waiters_cv);
@@ -7949,6 +7953,14 @@ arc_fini(void)
 	 */
 	buf_fini();
 	arc_state_fini();
+
+	/*
+	 * We destroy the zthrs after all the ARC state has been
+	 * torn down to avoid the case of them receiving any
+	 * wakeup() signals after they are destroyed.
+	 */
+	zthr_destroy(arc_adjust_zthr);
+	zthr_destroy(arc_reap_zthr);
 
 	ASSERT0(arc_loaned_bytes);
 }

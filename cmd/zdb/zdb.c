@@ -1210,6 +1210,9 @@ dump_metaslabs(spa_t *spa)
 static void
 dump_log_spacemaps(spa_t *spa)
 {
+	if (!spa_feature_is_active(spa, SPA_FEATURE_LOG_SPACEMAP))
+		return;
+
 	(void) printf("\nLog Space Maps in Pool:\n");
 	for (spa_log_sm_t *sls = avl_first(&spa->spa_sm_logs_by_txg);
 	    sls; sls = AVL_NEXT(&spa->spa_sm_logs_by_txg, sls)) {
@@ -6034,6 +6037,9 @@ log_spacemap_obsolete_stats_cb(spa_t *spa, space_map_entry_t *sme,
 static void
 dump_log_spacemap_obsolete_stats(spa_t *spa)
 {
+	if (!spa_feature_is_active(spa, SPA_FEATURE_LOG_SPACEMAP))
+		return;
+
 	log_sm_obsolete_stats_arg_t lsos;
 	bzero(&lsos, sizeof (lsos));
 
