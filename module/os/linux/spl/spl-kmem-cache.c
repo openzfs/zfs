@@ -876,11 +876,11 @@ spl_magazine_destroy(spl_kmem_cache_t *skc)
  *	KMC_VMEM        Force SPL vmem backed cache
  *	KMC_SLAB        Force Linux slab backed cache
  *	KMC_OFFSLAB	Locate objects off the slab
- *	KMC_NOTOUCH	unsupported
- *	KMC_NODEBUG	unsupported
- *	KMC_NOHASH      unsupported
- *	KMC_QCACHE	unsupported
- *	KMC_NOMAGAZINE	unsupported
+ *	KMC_NOTOUCH	Disable cache object aging (unsupported)
+ *	KMC_NODEBUG	Disable debugging (unsupported)
+ *	KMC_NOHASH      Disable hashing (unsupported)
+ *	KMC_QCACHE	Disable qcache (unsupported)
+ *	KMC_NOMAGAZINE	Enabled for kmem/vmem, Disabled for Linux slab
  */
 spl_kmem_cache_t *
 spl_kmem_cache_create(char *name, size_t size, size_t align,
