@@ -203,7 +203,23 @@ kv_alloc(spl_kmem_cache_t *skc, int size, int flags)
 		ASSERT(ISP2(size));
 		ptr = (void *)__get_free_pages(lflags, get_order(size));
 	} else {
-		ptr = __vmalloc(size, lflags | __GFP_HIGHMEM, PAGE_KERNEL);
+		/*
+		 * GFP_KERNEL allocations can safely use kvmalloc which may
+		 * improve performance by avoiding a) high latency caused by
+		 * vmalloc's on-access allocation, b) performance loss due to
+		 * MMU memory address mapping and c) vmalloc locking overhead.
+		 * This has the side-effect that the slab statistics will
+		 * incorrectly report this as a vmem allocation, but that is
+		 * purely cosmetic.
+		 *
+		 * For non-GFP_KERNEL allocations we stick to __vmalloc.
+		 */
+		if ((lflags & GFP_KERNEL) == GFP_KERNEL) {
+			ptr = spl_kvmalloc(size, lflags);
+		} else {
+			ptr = __vmalloc(size, lflags | __GFP_HIGHMEM,
+			    PAGE_KERNEL);
+		}
 	}
 
 	/* Resulting allocated memory will be page aligned */
@@ -231,7 +247,7 @@ kv_free(spl_kmem_cache_t *skc, void *ptr, int size)
 		ASSERT(ISP2(size));
 		free_pages((unsigned long)ptr, get_order(size));
 	} else {
-		vfree(ptr);
+		spl_kmem_free_impl(ptr, size);
 	}
 }
 
