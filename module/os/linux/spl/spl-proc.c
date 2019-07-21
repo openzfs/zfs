@@ -662,6 +662,33 @@ static struct ctl_table spl_kmem_table[] = {
 		.mode		= 0444,
 		.proc_handler	= &proc_doslab,
 	},
+	{
+		.procname	= "slab_kvmem_total",
+		.data		= (void *)(KMC_KVMEM | KMC_TOTAL),
+		.maxlen		= sizeof (unsigned long),
+		.extra1		= &table_min,
+		.extra2		= &table_max,
+		.mode		= 0444,
+		.proc_handler	= &proc_doslab,
+	},
+	{
+		.procname	= "slab_kvmem_alloc",
+		.data		= (void *)(KMC_KVMEM | KMC_ALLOC),
+		.maxlen		= sizeof (unsigned long),
+		.extra1		= &table_min,
+		.extra2		= &table_max,
+		.mode		= 0444,
+		.proc_handler	= &proc_doslab,
+	},
+	{
+		.procname	= "slab_kvmem_max",
+		.data		= (void *)(KMC_KVMEM | KMC_MAX),
+		.maxlen		= sizeof (unsigned long),
+		.extra1		= &table_min,
+		.extra2		= &table_max,
+		.mode		= 0444,
+		.proc_handler	= &proc_doslab,
+	},
 	{},
 };
 
