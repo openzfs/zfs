@@ -276,7 +276,7 @@ int max_disabled_ms = 3;
  * Time (in seconds) to respect ms_max_size when the metaslab is not loaded.
  * To avoid 64-bit overflow, don't set above UINT32_MAX.
  */
-uint64_t max_size_cache_sec = 3600; /* 1 hour */
+unsigned long zfs_metaslab_max_size_cache_sec = 3600; /* 1 hour */
 
 static uint64_t metaslab_weight(metaslab_t *);
 static void metaslab_set_fragmentation(metaslab_t *);
@@ -2599,11 +2599,13 @@ metaslab_should_allocate(metaslab_t *msp, uint64_t asize, boolean_t try_hard)
 	/*
 	 * If the metaslab is loaded, ms_max_size is definitive and we can use
 	 * the fast check. If it's not, the ms_max_size is a lower bound (once
-	 * set), and we should use the fast check unless we're in try_hard.
+	 * set), and we should use the fast check as long as we're not in
+	 * try_hard and it's been less than zfs_metaslab_max_size_cache_sec
+	 * seconds since the metaslab was unloaded.
 	 */
 	if (msp->ms_loaded ||
-	    (msp->ms_max_size != 0 && !try_hard &&
-	    gethrtime() < msp->ms_unload_time + SEC2NSEC(max_size_cache_sec)))
+	    (msp->ms_max_size != 0 && !try_hard && gethrtime() <
+	    msp->ms_unload_time + SEC2NSEC(zfs_metaslab_max_size_cache_sec)))
 		return (msp->ms_max_size >= asize);
 
 	boolean_t should_allocate;
@@ -5696,6 +5698,10 @@ MODULE_PARM_DESC(metaslab_df_max_search,
 module_param(metaslab_df_use_largest_segment, int, 0644);
 MODULE_PARM_DESC(metaslab_df_use_largest_segment,
 	"when looking in size tree, use largest segment instead of exact fit");
+
+module_param(zfs_metaslab_max_size_cache_sec, ulong, 0644);
+MODULE_PARM_DESC(zfs_metaslab_max_size_cache_sec,
+	"how long to trust the cached max chunk size of a metaslab");
 /* END CSTYLED */
 
 #endif
