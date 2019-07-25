@@ -7110,7 +7110,8 @@ zfsdev_ioctl(struct file *filp, unsigned cmd, unsigned long arg)
 
 	zc = kmem_zalloc(sizeof (zfs_cmd_t), KM_SLEEP);
 
-	error = ddi_copyin((void *)arg, zc, sizeof (zfs_cmd_t), flag);
+	error = ddi_copyin((void *)(uintptr_t)arg, zc, sizeof (zfs_cmd_t),
+	    flag);
 	if (error != 0) {
 		error = SET_ERROR(EFAULT);
 		goto out;
@@ -7269,7 +7270,7 @@ zfsdev_ioctl(struct file *filp, unsigned cmd, unsigned long arg)
 
 out:
 	nvlist_free(innvl);
-	rc = ddi_copyout(zc, (void *)arg, sizeof (zfs_cmd_t), flag);
+	rc = ddi_copyout(zc, (void *)(uintptr_t)arg, sizeof (zfs_cmd_t), flag);
 	if (error == 0 && rc != 0)
 		error = SET_ERROR(EFAULT);
 	if (error == 0 && vec->zvec_allow_log) {
