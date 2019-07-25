@@ -56,7 +56,7 @@ typedef struct zstream {
 } zstream_t;
 
 typedef struct zfetch {
-	krwlock_t	zf_rwlock;	/* protects zfetch structure */
+	kmutex_t	zf_lock;	/* protects zfetch structure */
 	list_t		zf_stream;	/* list of zstream_t's */
 	struct dnode	*zf_dnode;	/* dnode that owns this zfetch */
 } zfetch_t;
