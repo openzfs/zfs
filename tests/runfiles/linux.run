@@ -856,6 +856,11 @@ tags = ['functional', 'snapused']
 tests = ['sparse_001_pos']
 tags = ['functional', 'sparse']
 
+[tests/functional/suid]
+tests = ['suid_write_to_suid', 'suid_write_to_sgid', 'suid_write_to_suid_sgid',
+    'suid_write_to_none']
+tags = ['functional', 'suid']
+
 [tests/functional/threadsappend]
 tests = ['threadsappend_001_pos']
 tags = ['functional', 'threadsappend']
