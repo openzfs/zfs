@@ -53,7 +53,6 @@ struct zthr;
 #define	DD_FIELD_CRYPTO_KEY_OBJ		"com.datto:crypto_key_obj"
 #define	DD_FIELD_LIVELIST		"com.delphix:livelist"
 
-
 typedef enum dd_used {
 	DD_USED_HEAD,
 	DD_USED_SNAP,

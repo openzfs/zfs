@@ -31,6 +31,8 @@
 function cleanup
 {
 	poolexists $TESTPOOL2 && zpool destroy $TESTPOOL2
+	[[ -f $VIRTUAL_DISK1 ]] && log_must rm $VIRTUAL_DISK1
+	[[ -f $VIRTUAL_DISK2 ]] && lot_must rm $VIRTUAL_DISK2
 }
 
 log_onexit cleanup

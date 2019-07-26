@@ -577,8 +577,8 @@ dump_bpobj(objset_t *os, uint64_t object, void *data, size_t size)
 			(void) printf("got error %u from dmu_read\n", err);
 			break;
 		}
-		boolean_t free = BP_GET_FREE(&bp);
-		snprintf_blkptr_compact(blkbuf, sizeof (blkbuf), &bp, free);
+		snprintf_blkptr_compact(blkbuf, sizeof (blkbuf), &bp,
+		    BP_GET_FREE(&bp));
 		(void) printf("\t%s\n", blkbuf);
 	}
 }
@@ -1515,7 +1515,7 @@ blkid2offset(const dnode_phys_t *dnp, const blkptr_t *bp,
 
 static void
 snprintf_blkptr_compact(char *blkbuf, size_t buflen, const blkptr_t *bp,
-    boolean_t free)
+    boolean_t bp_freed)
 {
 	const dva_t *dva = bp->blk_dva;
 	int ndvas = dump_opt['d'] > 5 ? BP_GET_NDVAS(bp) : 1;
@@ -1523,7 +1523,7 @@ snprintf_blkptr_compact(char *blkbuf, size_t buflen, const blkptr_t *bp,
 
 	if (dump_opt['b'] >= 6) {
 		snprintf_blkptr(blkbuf, buflen, bp);
-		if (free) {
+		if (bp_freed) {
 			(void) snprintf(blkbuf + strlen(blkbuf),
 			    buflen - strlen(blkbuf), " %s", "FREE");
 		}
@@ -1564,7 +1564,7 @@ snprintf_blkptr_compact(char *blkbuf, size_t buflen, const blkptr_t *bp,
 		    (u_longlong_t)BP_GET_FILL(bp),
 		    (u_longlong_t)bp->blk_birth,
 		    (u_longlong_t)BP_PHYSICAL_BIRTH(bp));
-		if (free)
+		if (bp_freed)
 			(void) snprintf(blkbuf + strlen(blkbuf),
 			    buflen - strlen(blkbuf), " %s", "FREE");
 	}
@@ -1829,12 +1829,12 @@ dump_bptree(objset_t *os, uint64_t obj, const char *name)
 
 /* ARGSUSED */
 static int
-dump_bpobj_cb(void *arg, const blkptr_t *bp, boolean_t free, dmu_tx_t *tx)
+dump_bpobj_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed, dmu_tx_t *tx)
 {
 	char blkbuf[BP_SPRINTF_LEN];
 
 	ASSERT(bp->blk_birth != 0);
-	snprintf_blkptr_compact(blkbuf, sizeof (blkbuf), bp, free);
+	snprintf_blkptr_compact(blkbuf, sizeof (blkbuf), bp, bp_freed);
 	(void) printf("\t%s\n", blkbuf);
 	return (0);
 }
@@ -1923,7 +1923,7 @@ dump_full_bpobj(bpobj_t *bpo, const char *name, int indent)
 
 
 	if (indent == 0) {
-		(void) bpobj_iterate_nofree(bpo, dump_bpobj_cb, NULL);
+		(void) bpobj_iterate_nofree(bpo, dump_bpobj_cb, NULL, NULL);
 		(void) printf("\n");
 	}
 }
@@ -3600,14 +3600,6 @@ dump_one_objset(const char *dsname, void *arg)
 			global_feature_count[SPA_FEATURE_BOOKMARK_WRITTEN]++;
 	}
 
-	for (dsl_bookmark_node_t *dbn =
-	    avl_first(&dmu_objset_ds(os)->ds_bookmarks); dbn != NULL;
-	    dbn = AVL_NEXT(&dmu_objset_ds(os)->ds_bookmarks, dbn)) {
-		if (dbn->dbn_phys.zbm_redaction_obj != 0)
-			global_feature_count[SPA_FEATURE_REDACTION_BOOKMARKS]++;
-		if (dbn->dbn_phys.zbm_flags & ZBM_FLAG_HAS_FBN)
-			global_feature_count[SPA_FEATURE_BOOKMARK_WRITTEN]++;
-	}
 	if (dsl_deadlist_is_open(&dmu_objset_ds(os)->ds_dir->dd_livelist) &&
 	    !dmu_objset_is_snapshot(os)) {
 		global_feature_count[SPA_FEATURE_LIVELIST]++;
@@ -4104,7 +4096,7 @@ zdb_claim_removing(spa_t *spa, zdb_cb_t *zcb)
 
 /* ARGSUSED */
 static int
-increment_indirect_mapping_cb(void *arg, const blkptr_t *bp, boolean_t free,
+increment_indirect_mapping_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed,
     dmu_tx_t *tx)
 {
 	zdb_cb_t *zcb = arg;
@@ -4112,7 +4104,7 @@ increment_indirect_mapping_cb(void *arg, const blkptr_t *bp, boolean_t free,
 	vdev_t *vd;
 	const dva_t *dva = &bp->blk_dva[0];
 
-	ASSERT(!free);
+	ASSERT(!bp_freed);
 	ASSERT(!dump_opt['L']);
 	ASSERT3U(BP_GET_NDVAS(bp), ==, 1);
 
@@ -4581,7 +4573,7 @@ zdb_leak_init(spa_t *spa, zdb_cb_t *zcb)
 		ASSERT(spa_feature_is_enabled(spa,
 		    SPA_FEATURE_DEVICE_REMOVAL));
 		(void) bpobj_iterate_nofree(&dp->dp_obsolete_bpobj,
-		    increment_indirect_mapping_cb, zcb);
+		    increment_indirect_mapping_cb, zcb, NULL);
 	}
 
 	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
@@ -4763,10 +4755,10 @@ iterate_deleted_livelists(spa_t *spa, ll_iter_t func, void *arg)
 }
 
 static int
-bpobj_count_block_cb(void *arg, const blkptr_t *bp, boolean_t free,
+bpobj_count_block_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed,
     dmu_tx_t *tx)
 {
-	ASSERT(!free);
+	ASSERT(!bp_freed);
 	return (count_block_cb(arg, bp, tx));
 }
 
@@ -4777,7 +4769,7 @@ livelist_entry_count_blocks_cb(void *args, dsl_deadlist_entry_t *dle)
 	bplist_t blks;
 	bplist_create(&blks);
 	/* determine which blocks have been alloc'd but not freed */
-	VERIFY0(dsl_process_sub_livelist(&dle->dle_bpobj, &blks, NULL));
+	VERIFY0(dsl_process_sub_livelist(&dle->dle_bpobj, &blks, NULL, NULL));
 	/* count those blocks */
 	(void) bplist_iterate(&blks, count_block_cb, zbc, NULL);
 	bplist_destroy(&blks);
@@ -4810,7 +4802,7 @@ dump_livelist_cb(dsl_deadlist_t *ll, void *arg)
 
 /*
  * Print out, register object references to, and increment feature counts for
- * livelists that have been destroy by the user but haven't yet been freed.
+ * livelists that have been destroyed by the user but haven't yet been freed.
  */
 static void
 deleted_livelists_dump_mos(spa_t *spa)
@@ -4864,11 +4856,11 @@ dump_block_stats(spa_t *spa)
 	 * If there's a deferred-free bplist, process that first.
 	 */
 	(void) bpobj_iterate_nofree(&spa->spa_deferred_bpobj,
-	    bpobj_count_block_cb, &zcb);
+	    bpobj_count_block_cb, &zcb, NULL);
 
 	if (spa_version(spa) >= SPA_VERSION_DEADLISTS) {
 		(void) bpobj_iterate_nofree(&spa->spa_dsl_pool->dp_free_bpobj,
-		    bpobj_count_block_cb, &zcb);
+		    bpobj_count_block_cb, &zcb, NULL);
 	}
 
 	zdb_claim_removing(spa, &zcb);

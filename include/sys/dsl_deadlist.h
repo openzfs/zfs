@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2018, 2019 by Delphix. All rights reserved.
  */
 
 #ifndef	_SYS_DSL_DEADLIST_H
@@ -105,7 +105,7 @@ void dsl_deadlist_move_bpobj(dsl_deadlist_t *dl, bpobj_t *bpo, uint64_t mintxg,
     dmu_tx_t *tx);
 boolean_t dsl_deadlist_is_open(dsl_deadlist_t *dl);
 int dsl_process_sub_livelist(bpobj_t *bpobj, struct bplist *to_free,
-    zthr_t *t);
+    zthr_t *t, uint64_t *size);
 void dsl_deadlist_clear_entry(dsl_deadlist_entry_t *dle, dsl_deadlist_t *dl,
     dmu_tx_t *tx);
 

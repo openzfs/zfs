@@ -122,15 +122,11 @@ parent_delta(dsl_dataset_t *ds, int64_t delta)
 void
 dsl_dataset_block_born(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx)
 {
-	int used = bp_get_dsize_sync(tx->tx_pool->dp_spa, bp);
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+	int used = bp_get_dsize_sync(spa, bp);
 	int compressed = BP_GET_PSIZE(bp);
 	int uncompressed = BP_GET_UCSIZE(bp);
-	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
 	int64_t delta;
-
-	used = bp_get_dsize_sync(tx->tx_pool->dp_spa, bp);
-	compressed = BP_GET_PSIZE(bp);
-	uncompressed = BP_GET_UCSIZE(bp);
 
 	dprintf_bp(bp, "ds=%p", ds);
 
@@ -1270,6 +1266,14 @@ dsl_dataset_create_sync(dsl_dir_t *pdd, const char *lastname,
 
 	ASSERT(dmu_tx_is_syncing(tx));
 	ASSERT(lastname[0] != '@');
+	/*
+	 * Filesystems will eventually have their origin set to dp_origin_snap,
+	 * but that's taken care of in dsl_dataset_create_sync_dd. When
+	 * creating a filesystem, this function is called with origin equal to
+	 * NULL.
+	 */
+	if (origin != NULL)
+		ASSERT3P(origin, !=, dp->dp_origin_snap);
 
 	ddobj = dsl_dir_create_sync(dp, pdd, lastname, tx);
 	VERIFY0(dsl_dir_hold_obj(dp, ddobj, lastname, FTAG, &dd));
@@ -1285,12 +1289,6 @@ dsl_dataset_create_sync(dsl_dir_t *pdd, const char *lastname,
 	 */
 	if (origin != NULL &&
 	    spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_LIVELIST)) {
-		/*
-		 * Livelists are not created for filesystems based on the
-		 * origin snap since they're not actually clones and
-		 * wouldn't benefit from using livelists.
-		 */
-		ASSERT3P(origin, !=, dp->dp_origin_snap);
 		objset_t *mos = dd->dd_pool->dp_meta_objset;
 		dsl_dir_zapify(dd, tx);
 		uint64_t obj = dsl_deadlist_alloc(mos, tx);
