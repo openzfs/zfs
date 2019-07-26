@@ -45,6 +45,9 @@
 #include <sys/dmu_impl.h>
 #include <sys/zvol.h>
 #include <sys/zcp.h>
+#include <sys/dsl_deadlist.h>
+#include <sys/zthr.h>
+#include <sys/spa_impl.h>
 
 int
 dsl_destroy_snapshot_check_impl(dsl_dataset_t *ds, boolean_t defer)
@@ -120,7 +123,7 @@ struct process_old_arg {
 };
 
 static int
-process_old_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
+process_old_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed, dmu_tx_t *tx)
 {
 	struct process_old_arg *poa = arg;
 	dsl_pool_t *dp = poa->ds->ds_dir->dd_pool;
@@ -128,7 +131,7 @@ process_old_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
 	ASSERT(!BP_IS_HOLE(bp));
 
 	if (bp->blk_birth <= dsl_dataset_phys(poa->ds)->ds_prev_snap_txg) {
-		dsl_deadlist_insert(&poa->ds->ds_deadlist, bp, tx);
+		dsl_deadlist_insert(&poa->ds->ds_deadlist, bp, bp_freed, tx);
 		if (poa->ds_prev && !poa->after_branch_point &&
 		    bp->blk_birth >
 		    dsl_dataset_phys(poa->ds_prev)->ds_prev_snap_txg) {
@@ -852,6 +855,127 @@ dsl_dir_destroy_sync(uint64_t ddobj, dmu_tx_t *tx)
 	dmu_object_free_zapified(mos, ddobj, tx);
 }
 
+static void
+dsl_clone_destroy_assert(dsl_dir_t *dd)
+{
+	uint64_t used, comp, uncomp;
+
+	ASSERT(dsl_dir_is_clone(dd));
+	dsl_deadlist_space(&dd->dd_livelist, &used, &comp, &uncomp);
+
+	ASSERT3U(dsl_dir_phys(dd)->dd_used_bytes, ==, used);
+	ASSERT3U(dsl_dir_phys(dd)->dd_compressed_bytes, ==, comp);
+	/*
+	 * Greater than because we do not track embedded block pointers in
+	 * the livelist
+	 */
+	ASSERT3U(dsl_dir_phys(dd)->dd_uncompressed_bytes, >=, uncomp);
+
+	ASSERT(list_is_empty(&dd->dd_pending_allocs.bpl_list));
+	ASSERT(list_is_empty(&dd->dd_pending_frees.bpl_list));
+}
+
+/*
+ * Start the delete process for a clone. Free its zil, verify the space usage
+ * and queue the blkptrs for deletion by adding the livelist to the pool-wide
+ * delete queue.
+ */
+static void
+dsl_async_clone_destroy(dsl_dataset_t *ds, dmu_tx_t *tx)
+{
+	uint64_t zap_obj, to_delete, used, comp, uncomp;
+	objset_t *os;
+	dsl_dir_t *dd = ds->ds_dir;
+	dsl_pool_t *dp = dmu_tx_pool(tx);
+	objset_t *mos = dp->dp_meta_objset;
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+	VERIFY0(dmu_objset_from_ds(ds, &os));
+
+	/* Check that the clone is in a correct state to be deleted */
+	dsl_clone_destroy_assert(dd);
+
+	/* Destroy the zil */
+	zil_destroy_sync(dmu_objset_zil(os), tx);
+
+	VERIFY0(zap_lookup(mos, dd->dd_object,
+	    DD_FIELD_LIVELIST, sizeof (uint64_t), 1, &to_delete));
+	/* Initialize deleted_clones entry to track livelists to cleanup */
+	int error = zap_lookup(mos, DMU_POOL_DIRECTORY_OBJECT,
+	    DMU_POOL_DELETED_CLONES, sizeof (uint64_t), 1, &zap_obj);
+	if (error == ENOENT) {
+		zap_obj = zap_create(mos, DMU_OTN_ZAP_METADATA,
+		    DMU_OT_NONE, 0, tx);
+		VERIFY0(zap_add(mos, DMU_POOL_DIRECTORY_OBJECT,
+		    DMU_POOL_DELETED_CLONES, sizeof (uint64_t), 1,
+		    &(zap_obj), tx));
+		spa->spa_livelists_to_delete = zap_obj;
+	} else if (error != 0) {
+		zfs_panic_recover("zfs: error %d was returned while looking "
+		    "up DMU_POOL_DELETED_CLONES in the zap");
+		return;
+	}
+	VERIFY0(zap_add_int(mos, zap_obj, to_delete, tx));
+
+	/* Clone is no longer using space, now tracked by dp_free_dir */
+	dsl_deadlist_space(&dd->dd_livelist, &used, &comp, &uncomp);
+	dsl_dir_diduse_space(dd, DD_USED_HEAD,
+	    -used, -comp, -dsl_dir_phys(dd)->dd_uncompressed_bytes,
+	    tx);
+	dsl_dir_diduse_space(dp->dp_free_dir, DD_USED_HEAD,
+	    used, comp, uncomp, tx);
+	dsl_dir_remove_livelist(dd, tx, B_FALSE);
+	zthr_wakeup(spa->spa_livelist_delete_zthr);
+}
+
+/*
+ * Move the bptree into the pool's list of trees to clean up, update space
+ * accounting information and destroy the zil.
+ */
+void
+dsl_async_dataset_destroy(dsl_dataset_t *ds, dmu_tx_t *tx)
+{
+	uint64_t used, comp, uncomp;
+	objset_t *os;
+
+	VERIFY0(dmu_objset_from_ds(ds, &os));
+	dsl_pool_t *dp = dmu_tx_pool(tx);
+	objset_t *mos = dp->dp_meta_objset;
+
+	zil_destroy_sync(dmu_objset_zil(os), tx);
+
+	if (!spa_feature_is_active(dp->dp_spa,
+	    SPA_FEATURE_ASYNC_DESTROY)) {
+		dsl_scan_t *scn = dp->dp_scan;
+		spa_feature_incr(dp->dp_spa, SPA_FEATURE_ASYNC_DESTROY,
+		    tx);
+		dp->dp_bptree_obj = bptree_alloc(mos, tx);
+		VERIFY0(zap_add(mos,
+		    DMU_POOL_DIRECTORY_OBJECT,
+		    DMU_POOL_BPTREE_OBJ, sizeof (uint64_t), 1,
+		    &dp->dp_bptree_obj, tx));
+		ASSERT(!scn->scn_async_destroying);
+		scn->scn_async_destroying = B_TRUE;
+	}
+
+	used = dsl_dir_phys(ds->ds_dir)->dd_used_bytes;
+	comp = dsl_dir_phys(ds->ds_dir)->dd_compressed_bytes;
+	uncomp = dsl_dir_phys(ds->ds_dir)->dd_uncompressed_bytes;
+
+	ASSERT(!DS_UNIQUE_IS_ACCURATE(ds) ||
+	    dsl_dataset_phys(ds)->ds_unique_bytes == used);
+
+	rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
+	bptree_add(mos, dp->dp_bptree_obj,
+	    &dsl_dataset_phys(ds)->ds_bp,
+	    dsl_dataset_phys(ds)->ds_prev_snap_txg,
+	    used, comp, uncomp, tx);
+	rrw_exit(&ds->ds_bp_rwlock, FTAG);
+	dsl_dir_diduse_space(ds->ds_dir, DD_USED_HEAD,
+	    -used, -comp, -uncomp, tx);
+	dsl_dir_diduse_space(dp->dp_free_dir, DD_USED_HEAD,
+	    used, comp, uncomp, tx);
+}
+
 void
 dsl_destroy_head_sync_impl(dsl_dataset_t *ds, dmu_tx_t *tx)
 {
@@ -911,7 +1035,7 @@ dsl_destroy_head_sync_impl(dsl_dataset_t *ds, dmu_tx_t *tx)
 	}
 
 	/*
-	 * Destroy the deadlist.  Unless it's a clone, the
+	 * Destroy the deadlist. Unless it's a clone, the
 	 * deadlist should be empty since the dataset has no snapshots.
 	 * (If it's a clone, it's safe to ignore the deadlist contents
 	 * since they are still referenced by the origin snapshot.)
@@ -924,51 +1048,18 @@ dsl_destroy_head_sync_impl(dsl_dataset_t *ds, dmu_tx_t *tx)
 	if (dsl_dataset_remap_deadlist_exists(ds))
 		dsl_dataset_destroy_remap_deadlist(ds, tx);
 
-	objset_t *os;
-	VERIFY0(dmu_objset_from_ds(ds, &os));
-
-	if (!spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_ASYNC_DESTROY)) {
-		old_synchronous_dataset_destroy(ds, tx);
+	/*
+	 * Each destroy is responsible for both destroying (enqueuing
+	 * to be destroyed) the blkptrs comprising the dataset as well as
+	 * those belonging to the zil.
+	 */
+	if (dsl_deadlist_is_open(&ds->ds_dir->dd_livelist)) {
+		dsl_async_clone_destroy(ds, tx);
+	} else if (spa_feature_is_enabled(dp->dp_spa,
+	    SPA_FEATURE_ASYNC_DESTROY)) {
+		dsl_async_dataset_destroy(ds, tx);
 	} else {
-		/*
-		 * Move the bptree into the pool's list of trees to
-		 * clean up and update space accounting information.
-		 */
-		uint64_t used, comp, uncomp;
-
-		zil_destroy_sync(dmu_objset_zil(os), tx);
-
-		if (!spa_feature_is_active(dp->dp_spa,
-		    SPA_FEATURE_ASYNC_DESTROY)) {
-			dsl_scan_t *scn = dp->dp_scan;
-			spa_feature_incr(dp->dp_spa, SPA_FEATURE_ASYNC_DESTROY,
-			    tx);
-			dp->dp_bptree_obj = bptree_alloc(mos, tx);
-			VERIFY0(zap_add(mos,
-			    DMU_POOL_DIRECTORY_OBJECT,
-			    DMU_POOL_BPTREE_OBJ, sizeof (uint64_t), 1,
-			    &dp->dp_bptree_obj, tx));
-			ASSERT(!scn->scn_async_destroying);
-			scn->scn_async_destroying = B_TRUE;
-		}
-
-		used = dsl_dir_phys(ds->ds_dir)->dd_used_bytes;
-		comp = dsl_dir_phys(ds->ds_dir)->dd_compressed_bytes;
-		uncomp = dsl_dir_phys(ds->ds_dir)->dd_uncompressed_bytes;
-
-		ASSERT(!DS_UNIQUE_IS_ACCURATE(ds) ||
-		    dsl_dataset_phys(ds)->ds_unique_bytes == used);
-
-		rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
-		bptree_add(mos, dp->dp_bptree_obj,
-		    &dsl_dataset_phys(ds)->ds_bp,
-		    dsl_dataset_phys(ds)->ds_prev_snap_txg,
-		    used, comp, uncomp, tx);
-		rrw_exit(&ds->ds_bp_rwlock, FTAG);
-		dsl_dir_diduse_space(ds->ds_dir, DD_USED_HEAD,
-		    -used, -comp, -uncomp, tx);
-		dsl_dir_diduse_space(dp->dp_free_dir, DD_USED_HEAD,
-		    used, comp, uncomp, tx);
+		old_synchronous_dataset_destroy(ds, tx);
 	}
 
 	if (ds->ds_prev != NULL) {

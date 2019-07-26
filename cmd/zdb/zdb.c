@@ -115,7 +115,8 @@ uint64_t max_inflight = 1000;
 static int leaked_objects = 0;
 static range_tree_t *mos_refd_objs;
 
-static void snprintf_blkptr_compact(char *, size_t, const blkptr_t *);
+static void snprintf_blkptr_compact(char *, size_t, const blkptr_t *,
+    boolean_t);
 static void mos_obj_refd(uint64_t);
 static void mos_obj_refd_multiple(uint64_t);
 
@@ -552,11 +553,15 @@ dump_bpobj(objset_t *os, uint64_t object, void *data, size_t size)
 		(void) printf("\t\tcomp = %s\n", comp);
 		(void) printf("\t\tuncomp = %s\n", uncomp);
 	}
-	if (size >= sizeof (*bpop)) {
+	if (size >= BPOBJ_SIZE_V2) {
 		(void) printf("\t\tsubobjs = %llu\n",
 		    (u_longlong_t)bpop->bpo_subobjs);
 		(void) printf("\t\tnum_subobjs = %llu\n",
 		    (u_longlong_t)bpop->bpo_num_subobjs);
+	}
+	if (size >= sizeof (*bpop)) {
+		(void) printf("\t\tnum_freed = %llu\n",
+		    (u_longlong_t)bpop->bpo_num_freed);
 	}
 
 	if (dump_opt['d'] < 5)
@@ -572,7 +577,8 @@ dump_bpobj(objset_t *os, uint64_t object, void *data, size_t size)
 			(void) printf("got error %u from dmu_read\n", err);
 			break;
 		}
-		snprintf_blkptr_compact(blkbuf, sizeof (blkbuf), &bp);
+		snprintf_blkptr_compact(blkbuf, sizeof (blkbuf), &bp,
+		    BP_GET_FREE(&bp));
 		(void) printf("\t%s\n", blkbuf);
 	}
 }
@@ -1508,7 +1514,8 @@ blkid2offset(const dnode_phys_t *dnp, const blkptr_t *bp,
 }
 
 static void
-snprintf_blkptr_compact(char *blkbuf, size_t buflen, const blkptr_t *bp)
+snprintf_blkptr_compact(char *blkbuf, size_t buflen, const blkptr_t *bp,
+    boolean_t bp_freed)
 {
 	const dva_t *dva = bp->blk_dva;
 	int ndvas = dump_opt['d'] > 5 ? BP_GET_NDVAS(bp) : 1;
@@ -1516,6 +1523,10 @@ snprintf_blkptr_compact(char *blkbuf, size_t buflen, const blkptr_t *bp)
 
 	if (dump_opt['b'] >= 6) {
 		snprintf_blkptr(blkbuf, buflen, bp);
+		if (bp_freed) {
+			(void) snprintf(blkbuf + strlen(blkbuf),
+			    buflen - strlen(blkbuf), " %s", "FREE");
+		}
 		return;
 	}
 
@@ -1553,6 +1564,9 @@ snprintf_blkptr_compact(char *blkbuf, size_t buflen, const blkptr_t *bp)
 		    (u_longlong_t)BP_GET_FILL(bp),
 		    (u_longlong_t)bp->blk_birth,
 		    (u_longlong_t)BP_PHYSICAL_BIRTH(bp));
+		if (bp_freed)
+			(void) snprintf(blkbuf + strlen(blkbuf),
+			    buflen - strlen(blkbuf), " %s", "FREE");
 	}
 }
 
@@ -1580,7 +1594,7 @@ print_indirect(blkptr_t *bp, const zbookmark_phys_t *zb,
 		}
 	}
 
-	snprintf_blkptr_compact(blkbuf, sizeof (blkbuf), bp);
+	snprintf_blkptr_compact(blkbuf, sizeof (blkbuf), bp, B_FALSE);
 	(void) printf("%s\n", blkbuf);
 }
 
@@ -1815,12 +1829,12 @@ dump_bptree(objset_t *os, uint64_t obj, const char *name)
 
 /* ARGSUSED */
 static int
-dump_bpobj_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
+dump_bpobj_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed, dmu_tx_t *tx)
 {
 	char blkbuf[BP_SPRINTF_LEN];
 
 	ASSERT(bp->blk_birth != 0);
-	snprintf_blkptr_compact(blkbuf, sizeof (blkbuf), bp);
+	snprintf_blkptr_compact(blkbuf, sizeof (blkbuf), bp, bp_freed);
 	(void) printf("\t%s\n", blkbuf);
 	return (0);
 }
@@ -1845,14 +1859,28 @@ dump_full_bpobj(bpobj_t *bpo, const char *name, int indent)
 	if (bpo->bpo_havesubobj && bpo->bpo_phys->bpo_subobjs != 0) {
 		zdb_nicenum(bpo->bpo_phys->bpo_comp, comp, sizeof (comp));
 		zdb_nicenum(bpo->bpo_phys->bpo_uncomp, uncomp, sizeof (uncomp));
-		(void) printf("    %*s: object %llu, %llu local blkptrs, "
-		    "%llu subobjs in object, %llu, %s (%s/%s comp)\n",
-		    indent * 8, name,
-		    (u_longlong_t)bpo->bpo_object,
-		    (u_longlong_t)bpo->bpo_phys->bpo_num_blkptrs,
-		    (u_longlong_t)bpo->bpo_phys->bpo_num_subobjs,
-		    (u_longlong_t)bpo->bpo_phys->bpo_subobjs,
-		    bytes, comp, uncomp);
+		if (bpo->bpo_havefreed) {
+			(void) printf("    %*s: object %llu, %llu local "
+			    "blkptrs, %llu freed, %llu subobjs in object %llu, "
+			    "%s (%s/%s comp)\n",
+			    indent * 8, name,
+			    (u_longlong_t)bpo->bpo_object,
+			    (u_longlong_t)bpo->bpo_phys->bpo_num_blkptrs,
+			    (u_longlong_t)bpo->bpo_phys->bpo_num_freed,
+			    (u_longlong_t)bpo->bpo_phys->bpo_num_subobjs,
+			    (u_longlong_t)bpo->bpo_phys->bpo_subobjs,
+			    bytes, comp, uncomp);
+		} else {
+			(void) printf("    %*s: object %llu, %llu local "
+			    "blkptrs, %llu subobjs in object %llu, "
+			    "%s (%s/%s comp)\n",
+			    indent * 8, name,
+			    (u_longlong_t)bpo->bpo_object,
+			    (u_longlong_t)bpo->bpo_phys->bpo_num_blkptrs,
+			    (u_longlong_t)bpo->bpo_phys->bpo_num_subobjs,
+			    (u_longlong_t)bpo->bpo_phys->bpo_subobjs,
+			    bytes, comp, uncomp);
+		}
 
 		for (i = 0; i < bpo->bpo_phys->bpo_num_subobjs; i++) {
 			uint64_t subobj;
@@ -1872,11 +1900,22 @@ dump_full_bpobj(bpobj_t *bpo, const char *name, int indent)
 			bpobj_close(&subbpo);
 		}
 	} else {
-		(void) printf("    %*s: object %llu, %llu blkptrs, %s\n",
-		    indent * 8, name,
-		    (u_longlong_t)bpo->bpo_object,
-		    (u_longlong_t)bpo->bpo_phys->bpo_num_blkptrs,
-		    bytes);
+		if (bpo->bpo_havefreed) {
+			(void) printf("    %*s: object %llu, %llu blkptrs, "
+			    "%llu freed, %s\n",
+			    indent * 8, name,
+			    (u_longlong_t)bpo->bpo_object,
+			    (u_longlong_t)bpo->bpo_phys->bpo_num_blkptrs,
+			    (u_longlong_t)bpo->bpo_phys->bpo_num_freed,
+			    bytes);
+		} else {
+			(void) printf("    %*s: object %llu, %llu blkptrs, "
+			    "%s\n",
+			    indent * 8, name,
+			    (u_longlong_t)bpo->bpo_object,
+			    (u_longlong_t)bpo->bpo_phys->bpo_num_blkptrs,
+			    bytes);
+		}
 	}
 
 	if (dump_opt['d'] < 5)
@@ -2038,36 +2077,59 @@ bpobj_count_refd(bpobj_t *bpo)
 	}
 }
 
-static void
-dump_deadlist(dsl_deadlist_t *dl)
+static int
+dsl_deadlist_entry_count_refd(void *arg, dsl_deadlist_entry_t *dle)
 {
-	dsl_deadlist_entry_t *dle;
-	uint64_t unused;
+	spa_t *spa = arg;
+	uint64_t empty_bpobj = spa->spa_dsl_pool->dp_empty_bpobj;
+	if (dle->dle_bpobj.bpo_object != empty_bpobj)
+		bpobj_count_refd(&dle->dle_bpobj);
+	return (0);
+}
+
+static int
+dsl_deadlist_entry_dump(void *arg, dsl_deadlist_entry_t *dle)
+{
+	ASSERT(arg == NULL);
+	if (dump_opt['d'] >= 5) {
+		char buf[128];
+		(void) snprintf(buf, sizeof (buf),
+		    "mintxg %llu -> obj %llu",
+		    (longlong_t)dle->dle_mintxg,
+		    (longlong_t)dle->dle_bpobj.bpo_object);
+
+		dump_full_bpobj(&dle->dle_bpobj, buf, 0);
+	} else {
+		(void) printf("mintxg %llu -> obj %llu\n",
+		    (longlong_t)dle->dle_mintxg,
+		    (longlong_t)dle->dle_bpobj.bpo_object);
+	}
+	return (0);
+}
+
+static void
+dump_blkptr_list(dsl_deadlist_t *dl, char *name)
+{
 	char bytes[32];
 	char comp[32];
 	char uncomp[32];
-	uint64_t empty_bpobj =
-	    dmu_objset_spa(dl->dl_os)->spa_dsl_pool->dp_empty_bpobj;
-
-	/* force the tree to be loaded */
-	dsl_deadlist_space_range(dl, 0, UINT64_MAX, &unused, &unused, &unused);
+	char entries[32];
+	spa_t *spa = dmu_objset_spa(dl->dl_os);
+	uint64_t empty_bpobj = spa->spa_dsl_pool->dp_empty_bpobj;
 
 	if (dl->dl_oldfmt) {
 		if (dl->dl_bpobj.bpo_object != empty_bpobj)
 			bpobj_count_refd(&dl->dl_bpobj);
 	} else {
 		mos_obj_refd(dl->dl_object);
-		for (dle = avl_first(&dl->dl_tree); dle;
-		    dle = AVL_NEXT(&dl->dl_tree, dle)) {
-			if (dle->dle_bpobj.bpo_object != empty_bpobj)
-				bpobj_count_refd(&dle->dle_bpobj);
-		}
+		dsl_deadlist_iterate(dl, dsl_deadlist_entry_count_refd, spa);
 	}
 
 	/* make sure nicenum has enough space */
 	CTASSERT(sizeof (bytes) >= NN_NUMBUF_SZ);
 	CTASSERT(sizeof (comp) >= NN_NUMBUF_SZ);
 	CTASSERT(sizeof (uncomp) >= NN_NUMBUF_SZ);
+	CTASSERT(sizeof (entries) >= NN_NUMBUF_SZ);
 
 	if (dump_opt['d'] < 3)
 		return;
@@ -2080,30 +2142,60 @@ dump_deadlist(dsl_deadlist_t *dl)
 	zdb_nicenum(dl->dl_phys->dl_used, bytes, sizeof (bytes));
 	zdb_nicenum(dl->dl_phys->dl_comp, comp, sizeof (comp));
 	zdb_nicenum(dl->dl_phys->dl_uncomp, uncomp, sizeof (uncomp));
-	(void) printf("\n    Deadlist: %s (%s/%s comp)\n",
-	    bytes, comp, uncomp);
+	zdb_nicenum(avl_numnodes(&dl->dl_tree), entries, sizeof (entries));
+	(void) printf("\n    %s: %s (%s/%s comp), %s entries\n",
+	    name, bytes, comp, uncomp, entries);
 
 	if (dump_opt['d'] < 4)
 		return;
 
 	(void) printf("\n");
 
-	for (dle = avl_first(&dl->dl_tree); dle;
-	    dle = AVL_NEXT(&dl->dl_tree, dle)) {
-		if (dump_opt['d'] >= 5) {
-			char buf[128];
-			(void) snprintf(buf, sizeof (buf),
-			    "mintxg %llu -> obj %llu",
-			    (longlong_t)dle->dle_mintxg,
-			    (longlong_t)dle->dle_bpobj.bpo_object);
+	dsl_deadlist_iterate(dl, dsl_deadlist_entry_dump, NULL);
+}
 
-			dump_full_bpobj(&dle->dle_bpobj, buf, 0);
-		} else {
-			(void) printf("mintxg %llu -> obj %llu\n",
-			    (longlong_t)dle->dle_mintxg,
-			    (longlong_t)dle->dle_bpobj.bpo_object);
-		}
+static int
+verify_dd_livelist(objset_t *os)
+{
+	uint64_t ll_used, used, ll_comp, comp, ll_uncomp, uncomp;
+	dsl_pool_t *dp = spa_get_dsl(os->os_spa);
+	dsl_dir_t  *dd = os->os_dsl_dataset->ds_dir;
+
+	ASSERT(!dmu_objset_is_snapshot(os));
+	if (!dsl_deadlist_is_open(&dd->dd_livelist))
+		return (0);
+	dsl_pool_config_enter(dp, FTAG);
+	dsl_deadlist_space(&dd->dd_livelist, &ll_used,
+	    &ll_comp, &ll_uncomp);
+
+	dsl_dataset_t *origin_ds;
+	ASSERT(dsl_pool_config_held(dp));
+	VERIFY0(dsl_dataset_hold_obj(dp,
+	    dsl_dir_phys(dd)->dd_origin_obj, FTAG, &origin_ds));
+	VERIFY0(dsl_dataset_space_written(origin_ds, os->os_dsl_dataset,
+	    &used, &comp, &uncomp));
+	dsl_dataset_rele(origin_ds, FTAG);
+	dsl_pool_config_exit(dp, FTAG);
+	/*
+	 *  It's possible that the dataset's uncomp space is larger than the
+	 *  livelist's because livelists do not track embedded block pointers
+	 */
+	if (used != ll_used || comp != ll_comp || uncomp < ll_uncomp) {
+		char nice_used[32], nice_comp[32], nice_uncomp[32];
+		(void) printf("Discrepancy in space accounting:\n");
+		zdb_nicenum(used, nice_used, sizeof (nice_used));
+		zdb_nicenum(comp, nice_comp, sizeof (nice_comp));
+		zdb_nicenum(uncomp, nice_uncomp, sizeof (nice_uncomp));
+		(void) printf("dir: used %s, comp %s, uncomp %s\n",
+		    nice_used, nice_comp, nice_uncomp);
+		zdb_nicenum(ll_used, nice_used, sizeof (nice_used));
+		zdb_nicenum(ll_comp, nice_comp, sizeof (nice_comp));
+		zdb_nicenum(ll_uncomp, nice_uncomp, sizeof (nice_uncomp));
+		(void) printf("livelist: used %s, comp %s, uncomp %s\n",
+		    nice_used, nice_comp, nice_uncomp);
+		return (1);
 	}
+	return (0);
 }
 
 static avl_tree_t idx_tree;
@@ -2643,7 +2735,7 @@ static const char *objset_types[DMU_OST_NUMTYPES] = {
 	"NONE", "META", "ZPL", "ZVOL", "OTHER", "ANY" };
 
 static void
-dump_dir(objset_t *os)
+dump_objset(objset_t *os)
 {
 	dmu_objset_stats_t dds;
 	uint64_t object, object_count;
@@ -2716,11 +2808,17 @@ dump_dir(objset_t *os)
 
 	if (dmu_objset_ds(os) != NULL) {
 		dsl_dataset_t *ds = dmu_objset_ds(os);
-		dump_deadlist(&ds->ds_deadlist);
+		dump_blkptr_list(&ds->ds_deadlist, "Deadlist");
+		if (dsl_deadlist_is_open(&ds->ds_dir->dd_livelist) &&
+		    !dmu_objset_is_snapshot(os)) {
+			dump_blkptr_list(&ds->ds_dir->dd_livelist, "Livelist");
+			if (verify_dd_livelist(os) != 0)
+				fatal("livelist is incorrect");
+		}
 
 		if (dsl_dataset_remap_deadlist_exists(ds)) {
 			(void) printf("ds_remap_deadlist:\n");
-			dump_deadlist(&ds->ds_remap_deadlist);
+			dump_blkptr_list(&ds->ds_remap_deadlist, "Deadlist");
 		}
 		count_ds_mos_objects(ds);
 	}
@@ -3470,7 +3568,7 @@ static uint64_t remap_deadlist_count = 0;
 
 /*ARGSUSED*/
 static int
-dump_one_dir(const char *dsname, void *arg)
+dump_one_objset(const char *dsname, void *arg)
 {
 	int error;
 	objset_t *os;
@@ -3502,7 +3600,12 @@ dump_one_dir(const char *dsname, void *arg)
 			global_feature_count[SPA_FEATURE_BOOKMARK_WRITTEN]++;
 	}
 
-	dump_dir(os);
+	if (dsl_deadlist_is_open(&dmu_objset_ds(os)->ds_dir->dd_livelist) &&
+	    !dmu_objset_is_snapshot(os)) {
+		global_feature_count[SPA_FEATURE_LIVELIST]++;
+	}
+
+	dump_objset(os);
 	close_objset(os, FTAG);
 	fuid_table_destroy();
 	return (0);
@@ -3993,13 +4096,15 @@ zdb_claim_removing(spa_t *spa, zdb_cb_t *zcb)
 
 /* ARGSUSED */
 static int
-increment_indirect_mapping_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
+increment_indirect_mapping_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed,
+    dmu_tx_t *tx)
 {
 	zdb_cb_t *zcb = arg;
 	spa_t *spa = zcb->zcb_spa;
 	vdev_t *vd;
 	const dva_t *dva = &bp->blk_dva[0];
 
+	ASSERT(!bp_freed);
 	ASSERT(!dump_opt['L']);
 	ASSERT3U(BP_GET_NDVAS(bp), ==, 1);
 
@@ -4617,6 +4722,101 @@ count_block_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
 	return (0);
 }
 
+/*
+ * Iterate over livelists which have been destroyed by the user but
+ * are still present in the MOS, waiting to be freed
+ */
+typedef void ll_iter_t(dsl_deadlist_t *ll, void *arg);
+
+static void
+iterate_deleted_livelists(spa_t *spa, ll_iter_t func, void *arg)
+{
+	objset_t *mos = spa->spa_meta_objset;
+	uint64_t zap_obj;
+	int err = zap_lookup(mos, DMU_POOL_DIRECTORY_OBJECT,
+	    DMU_POOL_DELETED_CLONES, sizeof (uint64_t), 1, &zap_obj);
+	if (err == ENOENT)
+		return;
+	ASSERT0(err);
+
+	zap_cursor_t zc;
+	zap_attribute_t attr;
+	dsl_deadlist_t ll;
+	/* NULL out os prior to dsl_deadlist_open in case it's garbage */
+	ll.dl_os = NULL;
+	for (zap_cursor_init(&zc, mos, zap_obj);
+	    zap_cursor_retrieve(&zc, &attr) == 0;
+	    (void) zap_cursor_advance(&zc)) {
+		dsl_deadlist_open(&ll, mos, attr.za_first_integer);
+		func(&ll, arg);
+		dsl_deadlist_close(&ll);
+	}
+	zap_cursor_fini(&zc);
+}
+
+static int
+bpobj_count_block_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed,
+    dmu_tx_t *tx)
+{
+	ASSERT(!bp_freed);
+	return (count_block_cb(arg, bp, tx));
+}
+
+static int
+livelist_entry_count_blocks_cb(void *args, dsl_deadlist_entry_t *dle)
+{
+	zdb_cb_t *zbc = args;
+	bplist_t blks;
+	bplist_create(&blks);
+	/* determine which blocks have been alloc'd but not freed */
+	VERIFY0(dsl_process_sub_livelist(&dle->dle_bpobj, &blks, NULL, NULL));
+	/* count those blocks */
+	(void) bplist_iterate(&blks, count_block_cb, zbc, NULL);
+	bplist_destroy(&blks);
+	return (0);
+}
+
+static void
+livelist_count_blocks(dsl_deadlist_t *ll, void *arg)
+{
+	dsl_deadlist_iterate(ll, livelist_entry_count_blocks_cb, arg);
+}
+
+/*
+ * Count the blocks in the livelists that have been destroyed by the user
+ * but haven't yet been freed.
+ */
+static void
+deleted_livelists_count_blocks(spa_t *spa, zdb_cb_t *zbc)
+{
+	iterate_deleted_livelists(spa, livelist_count_blocks, zbc);
+}
+
+static void
+dump_livelist_cb(dsl_deadlist_t *ll, void *arg)
+{
+	ASSERT3P(arg, ==, NULL);
+	global_feature_count[SPA_FEATURE_LIVELIST]++;
+	dump_blkptr_list(ll, "Deleted Livelist");
+}
+
+/*
+ * Print out, register object references to, and increment feature counts for
+ * livelists that have been destroyed by the user but haven't yet been freed.
+ */
+static void
+deleted_livelists_dump_mos(spa_t *spa)
+{
+	uint64_t zap_obj;
+	objset_t *mos = spa->spa_meta_objset;
+	int err = zap_lookup(mos, DMU_POOL_DIRECTORY_OBJECT,
+	    DMU_POOL_DELETED_CLONES, sizeof (uint64_t), 1, &zap_obj);
+	if (err == ENOENT)
+		return;
+	mos_obj_refd(zap_obj);
+	iterate_deleted_livelists(spa, dump_livelist_cb, NULL);
+}
+
 static int
 dump_block_stats(spa_t *spa)
 {
@@ -4656,11 +4856,11 @@ dump_block_stats(spa_t *spa)
 	 * If there's a deferred-free bplist, process that first.
 	 */
 	(void) bpobj_iterate_nofree(&spa->spa_deferred_bpobj,
-	    count_block_cb, &zcb, NULL);
+	    bpobj_count_block_cb, &zcb, NULL);
 
 	if (spa_version(spa) >= SPA_VERSION_DEADLISTS) {
 		(void) bpobj_iterate_nofree(&spa->spa_dsl_pool->dp_free_bpobj,
-		    count_block_cb, &zcb, NULL);
+		    bpobj_count_block_cb, &zcb, NULL);
 	}
 
 	zdb_claim_removing(spa, &zcb);
@@ -4670,6 +4870,8 @@ dump_block_stats(spa_t *spa)
 		    spa->spa_dsl_pool->dp_bptree_obj, B_FALSE, count_block_cb,
 		    &zcb, NULL));
 	}
+
+	deleted_livelists_count_blocks(spa, &zcb);
 
 	if (dump_opt['c'] > 1)
 		flags |= TRAVERSE_PREFETCH_DATA;
@@ -5706,6 +5908,7 @@ dump_mos_leaks(spa_t *spa)
 		mos_obj_refd(vim->vim_phys->vimp_counts_object);
 		vdev_indirect_mapping_close(vim);
 	}
+	deleted_livelists_dump_mos(spa);
 
 	if (dp->dp_origin_snap != NULL) {
 		dsl_dataset_t *ds;
@@ -5715,12 +5918,12 @@ dump_mos_leaks(spa_t *spa)
 		    dsl_dataset_phys(dp->dp_origin_snap)->ds_next_snap_obj,
 		    FTAG, &ds));
 		count_ds_mos_objects(ds);
-		dump_deadlist(&ds->ds_deadlist);
+		dump_blkptr_list(&ds->ds_deadlist, "Deadlist");
 		dsl_dataset_rele(ds, FTAG);
 		dsl_pool_config_exit(dp, FTAG);
 
 		count_ds_mos_objects(dp->dp_origin_snap);
-		dump_deadlist(&dp->dp_origin_snap->ds_deadlist);
+		dump_blkptr_list(&dp->dp_origin_snap->ds_deadlist, "Deadlist");
 	}
 	count_dir_mos_objects(dp->dp_mos_dir);
 	if (dp->dp_free_dir != NULL)
@@ -5885,7 +6088,7 @@ dump_zpool(spa_t *spa)
 	if (dump_opt['d'] || dump_opt['i']) {
 		spa_feature_t f;
 		mos_refd_objs = range_tree_create(NULL, NULL);
-		dump_dir(dp->dp_meta_objset);
+		dump_objset(dp->dp_meta_objset);
 
 		if (dump_opt['d'] >= 3) {
 			dsl_pool_t *dp = spa->spa_dsl_pool;
@@ -5915,8 +6118,9 @@ dump_zpool(spa_t *spa)
 			global_feature_count[f] = UINT64_MAX;
 		global_feature_count[SPA_FEATURE_REDACTION_BOOKMARKS] = 0;
 		global_feature_count[SPA_FEATURE_BOOKMARK_WRITTEN] = 0;
+		global_feature_count[SPA_FEATURE_LIVELIST] = 0;
 
-		(void) dmu_objset_find(spa_name(spa), dump_one_dir,
+		(void) dmu_objset_find(spa_name(spa), dump_one_objset,
 		    NULL, DS_FIND_SNAPSHOTS | DS_FIND_CHILDREN);
 
 		if (rc == 0 && !dump_opt['L'])
@@ -6777,9 +6981,9 @@ main(int argc, char **argv)
 			}
 		}
 		if (os != NULL) {
-			dump_dir(os);
+			dump_objset(os);
 		} else if (zopt_objects > 0 && !dump_opt['m']) {
-			dump_dir(spa->spa_meta_objset);
+			dump_objset(spa->spa_meta_objset);
 		} else {
 			dump_zpool(spa);
 		}

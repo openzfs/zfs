@@ -349,6 +349,18 @@ zpool_feature_init(void)
 	    ZFEATURE_TYPE_BOOLEAN, NULL);
 
 	{
+	static const spa_feature_t livelist_deps[] = {
+		SPA_FEATURE_EXTENSIBLE_DATASET,
+		SPA_FEATURE_NONE
+	};
+	zfeature_register(SPA_FEATURE_LIVELIST,
+	    "com.delphix:livelist", "livelist",
+	    "Improved clone deletion performance.",
+	    ZFEATURE_FLAG_READONLY_COMPAT, ZFEATURE_TYPE_BOOLEAN,
+	    livelist_deps);
+	}
+
+	{
 	static const spa_feature_t log_spacemap_deps[] = {
 		SPA_FEATURE_SPACEMAP_V2,
 		SPA_FEATURE_NONE

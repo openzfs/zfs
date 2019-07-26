@@ -49,6 +49,7 @@
 #include <sys/dsl_crypt.h>
 #include <sys/zfeature.h>
 #include <sys/zthr.h>
+#include <sys/dsl_deadlist.h>
 #include <zfeature_common.h>
 
 #ifdef	__cplusplus
@@ -316,6 +317,11 @@ struct spa {
 	spa_unflushed_stats_t	spa_unflushed_stats;
 	list_t		spa_log_summary;
 	uint64_t	spa_log_flushall_txg;
+
+	zthr_t		*spa_livelist_delete_zthr; /* deleting livelists */
+	zthr_t		*spa_livelist_condense_zthr; /* condensing livelists */
+	uint64_t	spa_livelists_to_delete; /* set of livelists to free */
+	livelist_condense_entry_t	spa_to_condense; /* next to condense */
 
 	char		*spa_root;		/* alternate root directory */
 	uint64_t	spa_ena;		/* spa-wide ereport ENA */

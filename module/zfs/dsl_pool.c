@@ -721,7 +721,8 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 	 * Now that the datasets have been completely synced, we can
 	 * clean up our in-memory structures accumulated while syncing:
 	 *
-	 *  - move dead blocks from the pending deadlist to the on-disk deadlist
+	 *  - move dead blocks from the pending deadlist and livelists
+	 *    to the on-disk versions
 	 *  - release hold from dsl_dataset_dirty()
 	 *  - release key mapping hold from dsl_dataset_dirty()
 	 */

@@ -383,6 +383,7 @@ typedef struct dmu_buf {
 #define	DMU_POOL_CONDENSING_INDIRECT	"com.delphix:condensing_indirect"
 #define	DMU_POOL_ZPOOL_CHECKPOINT	"com.delphix:zpool_checkpoint"
 #define	DMU_POOL_LOG_SPACEMAP_ZAP	"com.delphix:log_spacemap_zap"
+#define	DMU_POOL_DELETED_CLONES		"com.delphix:deleted_clones"
 
 /*
  * Allocate an object from this objset.  The range of object numbers
@@ -1003,6 +1004,7 @@ extern uint64_t dmu_objset_id(objset_t *os);
 extern uint64_t dmu_objset_dnodesize(objset_t *os);
 extern zfs_sync_type_t dmu_objset_syncprop(objset_t *os);
 extern zfs_logbias_op_t dmu_objset_logbias(objset_t *os);
+extern int dmu_objset_blksize(objset_t *os);
 extern int dmu_snapshot_list_next(objset_t *os, int namelen, char *name,
     uint64_t *id, uint64_t *offp, boolean_t *case_conflict);
 extern int dmu_snapshot_lookup(objset_t *os, const char *name, uint64_t *val);
