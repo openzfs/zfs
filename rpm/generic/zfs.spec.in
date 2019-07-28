@@ -433,6 +433,14 @@ systemctl --system daemon-reload >/dev/null || true
 %{_udevdir}/vdev_id
 %{_udevdir}/zvol_id
 %{_udevdir}/rules.d/*
+%if ! 0%{?_systemd} || 0%{?_initramfs}
+# Files needed for sysvinit and initramfs-tools
+%{_sysconfdir}/%{name}/zfs-functions
+%config(noreplace) %{_initconfdir}/zfs
+%else
+%exclude %{_sysconfdir}/%{name}/zfs-functions
+%exclude %{_initconfdir}/zfs
+%endif
 %if 0%{?_systemd}
 %{_unitdir}/*
 %{_presetdir}/*
@@ -440,9 +448,10 @@ systemctl --system daemon-reload >/dev/null || true
 %{_systemdgeneratordir}/*
 %else
 %config(noreplace) %{_sysconfdir}/init.d/*
-%config(noreplace) %{_initconfdir}/zfs
 %endif
-%config(noreplace) %{_sysconfdir}/%{name}
+%config(noreplace) %{_sysconfdir}/%{name}/zed.d/*
+%config(noreplace) %{_sysconfdir}/%{name}/zpool.d/*
+%config(noreplace) %{_sysconfdir}/%{name}/vdev_id.conf.*.example
 %attr(440, root, root) %config(noreplace) %{_sysconfdir}/sudoers.d/*
 
 %files -n libzpool2
