@@ -214,7 +214,7 @@ PKG_CONFIG=$_save_PKG_CONFIG[]dnl
 ])dnl PKG_CHECK_MODULES_STATIC
 
 
-dnl PKG_INSTALLDIR([DIRECTORY])
+dnl ZFS_AC_CONFIG_USER_PKGCONFIGDIR([DIRECTORY])
 dnl -------------------------
 dnl Since: 0.27
 dnl
@@ -223,39 +223,41 @@ dnl should install pkg-config .pc files. By default the directory is
 dnl $libdir/pkgconfig, but the default can be changed by passing
 dnl DIRECTORY. The user can override through the --with-pkgconfigdir
 dnl parameter.
-AC_DEFUN([PKG_INSTALLDIR],
-[m4_pushdef([pkg_default], [m4_default([$1], ['${libdir}/pkgconfig'])])
-m4_pushdef([pkg_description],
-    [pkg-config installation directory @<:@]pkg_default[@:>@])
-AC_ARG_WITH([pkgconfigdir],
-    [AS_HELP_STRING([--with-pkgconfigdir], pkg_description)],,
-    [with_pkgconfigdir=]pkg_default)
-AC_SUBST([pkgconfigdir], [$with_pkgconfigdir])
-m4_popdef([pkg_default])
-m4_popdef([pkg_description])
-])dnl PKG_INSTALLDIR
+AC_DEFUN([ZFS_AC_CONFIG_USER_PKGCONFIGDIR], [
+	AC_ARG_WITH(pkgconfigdir,
+		AC_HELP_STRING([--with-pkgconfigdir=DIR],
+		[pkg-config installation directory [[@<:@libdir@:>@/pkgconfig]]]),
+		[pkgconfigdir=$withval],
+		[pkgconfigdir="${libdir}/pkgconfig"])
+
+	DEFINE_ZFSEXECDIR='--define "_pkgconfigdir $(pkgconfigdir)"'
+
+	AC_SUBST(pkgconfigdir)
+	AC_SUBST(DEFINE_PKGCONFIGDIR)
+])dnl ZFS_AC_CONFIG_USER_PKGCONFIGDIR
 
 
-dnl PKG_NOARCH_INSTALLDIR([DIRECTORY])
+dnl ZFS_AC_CONFIG_USER_NOARCH_PKGCONFIGDIR([DIRECTORY])
 dnl --------------------------------
 dnl Since: 0.27
 dnl
 dnl Substitutes the variable noarch_pkgconfigdir as the location where a
 dnl module should install arch-independent pkg-config .pc files. By
-dnl default the directory is $datadir/pkgconfig, but the default can be
+dnl default the directory is $datarootdir/pkgconfig, but the default can be
 dnl changed by passing DIRECTORY. The user can override through the
 dnl --with-noarch-pkgconfigdir parameter.
-AC_DEFUN([PKG_NOARCH_INSTALLDIR],
-[m4_pushdef([pkg_default], [m4_default([$1], ['${datadir}/pkgconfig'])])
-m4_pushdef([pkg_description],
-    [pkg-config arch-independent installation directory @<:@]pkg_default[@:>@])
-AC_ARG_WITH([noarch-pkgconfigdir],
-    [AS_HELP_STRING([--with-noarch-pkgconfigdir], pkg_description)],,
-    [with_noarch_pkgconfigdir=]pkg_default)
-AC_SUBST([noarch_pkgconfigdir], [$with_noarch_pkgconfigdir])
-m4_popdef([pkg_default])
-m4_popdef([pkg_description])
-])dnl PKG_NOARCH_INSTALLDIR
+AC_DEFUN([ZFS_AC_CONFIG_USER_NOARCH_PKGCONFIGDIR], [
+	AC_ARG_WITH(noarch-pkgconfigdir,
+		AC_HELP_STRING([--with-noarch-pkgconfigdir=DIR],
+		[pkg-config arch-independent installation directory [[@<:@datarootdir@:>@/pkgconfig]]]),
+		[noarch_pkgconfigdir=$withval],
+		[noarch_pkgconfigdir="${datarootdir}/pkgconfig"])
+
+	DEFINE_ZFSEXECDIR='--define "_noarch_pkgconfigdir $(noarch_pkgconfigdir)"'
+
+	AC_SUBST(noarch_pkgconfigdir)
+	AC_SUBST(DEFINE_NOARCH_PKGCONFIGDIR)
+])dnl ZFS_AC_CONFIG_USER_NOARCH_PKGCONFIGDIR
 
 
 dnl PKG_CHECK_VAR(VARIABLE, MODULE, CONFIG-VARIABLE,

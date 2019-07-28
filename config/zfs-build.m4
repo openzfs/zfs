@@ -241,6 +241,28 @@ AC_DEFUN([ZFS_AC_RPM], [
 		AC_MSG_RESULT([$HAVE_RPMBUILD])
 	])
 
+	RPM_DEFINE_SYSDIRS='--define "_prefix $(prefix)"'
+	RPM_DEFINE_SYSDIRS+=' --define "_exec_prefix $(exec_prefix)"'
+	RPM_DEFINE_SYSDIRS+=' --define "_bindir $(bindir)"'
+	RPM_DEFINE_SYSDIRS+=' --define "_sbindir $(sbindir)"'
+	RPM_DEFINE_SYSDIRS+=' --define "_libexecdir $(libexecdir)"'
+	RPM_DEFINE_SYSDIRS+=' --define "_datarootdir $(datarootdir)"'
+	RPM_DEFINE_SYSDIRS+=' --define "_datadir $(datadir)"'
+	RPM_DEFINE_SYSDIRS+=' --define "_sysconfdir $(sysconfdir)"'
+	RPM_DEFINE_SYSDIRS+=' --define "_sharedstatedir $(sharedstatedir)"'
+	RPM_DEFINE_SYSDIRS+=' --define "_localstatedir $(localstatedir)"'
+	RPM_DEFINE_SYSDIRS+=' --define "_includedir $(includedir)"'
+	RPM_DEFINE_SYSDIRS+=' --define "_oldincludedir $(oldincludedir)"'
+	RPM_DEFINE_SYSDIRS+=' --define "_docdir $(docdir)"'
+	RPM_DEFINE_SYSDIRS+=' --define "_infodir $(infodir)"'
+	RPM_DEFINE_SYSDIRS+=' --define "_htmldir $(htmldir)"'
+	RPM_DEFINE_SYSDIRS+=' --define "_dvidir $(dvidir)"'
+	RPM_DEFINE_SYSDIRS+=' --define "_pdfdir $(pdfdir)"'
+	RPM_DEFINE_SYSDIRS+=' --define "_psdir $(psdir)"'
+	RPM_DEFINE_SYSDIRS+=' --define "_libdir $(libdir)"'
+	RPM_DEFINE_SYSDIRS+=' --define "_localedir $(localedir)"'
+	RPM_DEFINE_SYSDIRS+=' --define "_mandir $(mandir)"'
+
 	RPM_DEFINE_COMMON='--define "$(DEBUG_ZFS) 1"'
 	RPM_DEFINE_COMMON+=' --define "$(DEBUG_KMEM_ZFS) 1"'
 	RPM_DEFINE_COMMON+=' --define "$(DEBUG_KMEM_TRACKING_ZFS) 1"'
@@ -248,6 +270,11 @@ AC_DEFUN([ZFS_AC_RPM], [
 	RPM_DEFINE_COMMON+=' --define "$(ASAN_ZFS) 1"'
 
 	RPM_DEFINE_UTIL=' --define "_initconfdir $(DEFAULT_INITCONF_DIR)"'
+	RPM_DEFINE_UTIL+=' $(RPM_DEFINE_SYSDIRS)'
+	RPM_DEFINE_UTIL+=' $(DEFINE_ZFSEXECDIR)'
+	RPM_DEFINE_UTIL+=' $(DEFINE_MOUNTHELPERDIR)'
+	RPM_DEFINE_UTIL+=' $(DEFINE_PKGCONFIGDIR)'
+	RPM_DEFINE_UTIL+=' $(DEFINE_NOARCH_PKGCONFIGDIR)'
 
 	dnl # Make the next three RPM_DEFINE_UTIL additions conditional, since
 	dnl # their values may not be set when running:
@@ -317,6 +344,7 @@ AC_DEFUN([ZFS_AC_RPM], [
 	AC_SUBST(RPM_DEFINE_KMOD)
 	AC_SUBST(RPM_DEFINE_DKMS)
 	AC_SUBST(RPM_DEFINE_COMMON)
+	AC_SUBST(RPM_DEFINE_SYSDIRS)
 	AC_SUBST(SRPM_DEFINE_UTIL)
 	AC_SUBST(SRPM_DEFINE_KMOD)
 	AC_SUBST(SRPM_DEFINE_DKMS)

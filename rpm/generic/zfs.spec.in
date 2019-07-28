@@ -1,5 +1,14 @@
-%global _sbindir    /sbin
-%global _libdir     /%{_lib}
+%if %{undefined _sbindir}
+%global _sbindir /sbin
+%endif
+
+%if %{undefined _mounthelperdir}
+%global _mounthelperdir /sbin
+%endif
+
+%if %{undefined _libdir}
+%global _libdir /%{_lib}
+%endif
 
 # Set the default udev directory based on distribution.
 %if %{undefined _udevdir}
@@ -32,20 +41,28 @@
 %global _initconfdir /etc/sysconfig
 %endif
 
-%if %{undefined _unitdir}
-%global _unitdir %{_prefix}/lib/systemd/system
-%endif
-
-%if %{undefined _presetdir}
-%global _presetdir %{_prefix}/lib/systemd/system-preset
-%endif
-
 %if %{undefined _modulesloaddir}
 %global _modulesloaddir %{_prefix}/lib/modules-load.d
 %endif
 
+%if %{undefined _systemdunitdir}
+%global _systemdunitdir %{_prefix}/lib/systemd/system
+%endif
+
+%if %{undefined _systemdpresetdir}
+%global _systemdpresetdir %{_prefix}/lib/systemd/system-preset
+%endif
+
 %if %{undefined _systemdgeneratordir}
 %global _systemdgeneratordir %{_prefix}/lib/systemd/system-generators
+%endif
+
+%if %{undefined _pkgconfigdir}
+%global _pkgconfigdir %{_libdir}/pkgconfig
+%endif
+
+%if %{undefined _noarch_pkgconfigdir}
+%global _noarch_pkgconfigdir %{_datarootdir}/pkgconfig
 %endif
 
 %bcond_with    debug
@@ -321,7 +338,7 @@ image which is ZFS aware.
 %endif
 
 %if 0%{?_systemd}
-    %define systemd --enable-systemd --with-systemdunitdir=%{_unitdir} --with-systemdpresetdir=%{_presetdir} --with-systemdmodulesloaddir=%{_modulesloaddir} --with-systemdgeneratordir=%{_systemdgeneratordir} --disable-sysvinit
+    %define systemd --enable-systemd --with-systemdunitdir=%{_systemdunitdir} --with-systemdpresetdir=%{_systemdpresetdir} --with-systemdmodulesloaddir=%{_modulesloaddir} --with-systemdgeneratordir=%{_systemdgeneratordir} --disable-sysvinit
     %define systemd_svcs zfs-import-cache.service zfs-import-scan.service zfs-mount.service zfs-share.service zfs-zed.service zfs.target zfs-import.target zfs-volume-wait.service zfs-volumes.target
 %else
     %define systemd --enable-sysvinit --disable-systemd
@@ -333,10 +350,39 @@ image which is ZFS aware.
     %define pyzfs --disable-pyzfs
 %endif
 
+%if %{undefined _zfsexecdir}
+%define _zfsexecdir %{_libexecdir}/%{name}
+%endif
+
 %setup -q
 
 %build
 %configure \
+    --prefix=%{_prefix} \
+    --exec-prefix=%{_exec_prefix} \
+    --bindir=%{_bindir} \
+    --sbindir=%{_sbindir} \
+    --libexecdir=%{_libexecdir} \
+    --datarootdir=%{_datarootdir} \
+    --datadir=%{_datadir} \
+    --sysconfdir=%{_sysconfdir} \
+    --sharedstatedir=%{_sharedstatedir} \
+    --localstatedir=%{_localstatedir} \
+    --includedir=%{_includedir} \
+    --oldincludedir=%{_oldincludedir} \
+    --docdir=%{_docdir} \
+    --infodir=%{_infodir} \
+    --htmldir=%{_htmldir} \
+    --dvidir=%{_dvidir} \
+    --pdfdir=%{_pdfdir} \
+    --psdir=%{_psdir} \
+    --libdir=%{_libdir} \
+    --localedir=%{_localedir} \
+    --mandir=%{_mandir} \
+    --with-pkgconfigdir=%{_pkgconfigdir} \
+    --with-noarch-pkgconfigdir=%{_noarch_pkgconfigdir} \
+    --with-mounthelperdir=%{_mounthelperdir} \
+    --with-zfsexecdir=%{_zfsexecdir} \
     --with-config=user \
     --with-udevdir=%{_udevdir} \
     --with-udevruledir=%{_udevruledir} \
@@ -420,6 +466,7 @@ systemctl --system daemon-reload >/dev/null || true
 %{_bindir}/raidz_test
 %{_bindir}/zgenhostid
 %{_bindir}/zvol_wait
+%{_mounthelperdir}/mount.zfs
 # Optional Python 2/3 scripts
 %{_bindir}/arc_summary
 %{_bindir}/arcstat
@@ -429,7 +476,7 @@ systemctl --system daemon-reload >/dev/null || true
 %{_mandir}/man5/*
 %{_mandir}/man8/*
 # Configuration files and scripts
-%{_libexecdir}/%{name}
+%{_zfsexecdir}
 %{_udevdir}/vdev_id
 %{_udevdir}/zvol_id
 %{_udevdir}/rules.d/*
@@ -442,9 +489,9 @@ systemctl --system daemon-reload >/dev/null || true
 %exclude %{_initconfdir}/zfs
 %endif
 %if 0%{?_systemd}
-%{_unitdir}/*
-%{_presetdir}/*
 %{_modulesloaddir}/*
+%{_systemdunitdir}/*
+%{_systemdpresetdir}/*
 %{_systemdgeneratordir}/*
 %else
 %config(noreplace) %{_sysconfdir}/init.d/*
@@ -467,8 +514,8 @@ systemctl --system daemon-reload >/dev/null || true
 %{_libdir}/libzfs*.so.*
 
 %files -n libzfs2-devel
-%{_datarootdir}/pkgconfig/libzfs.pc
-%{_datarootdir}/pkgconfig/libzfs_core.pc
+%{_noarch_pkgconfigdir}/libzfs.pc
+%{_noarch_pkgconfigdir}/libzfs_core.pc
 %{_libdir}/*.so
 %{_includedir}/*
 %doc AUTHORS COPYRIGHT LICENSE NOTICE README.md

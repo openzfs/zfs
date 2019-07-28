@@ -5,5 +5,8 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_ZFSEXEC], [
 		[zfsexecdir=$withval],
 		[zfsexecdir="${libexecdir}/zfs"])
 
+	DEFINE_ZFSEXECDIR='--define "_zfsexecdir $(zfsexecdir)"'
+
 	AC_SUBST([zfsexecdir])
+	AC_SUBST(DEFINE_ZFSEXECDIR)
 ])
