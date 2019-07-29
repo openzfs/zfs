@@ -570,6 +570,28 @@ clones have been destroyed.
 .sp
 .ne 2
 .na
+\fBlog_spacemap\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.delphix:log_spacemap
+READ\-ONLY COMPATIBLE	yes
+DEPENDENCIES	com.delphix:spacemap_v2
+.TE
+
+This feature improves performance for heavily-fragmented pools,
+especially when workloads are heavy in random-writes. It does so by
+logging all the metaslab changes on a single spacemap every TXG
+instead of scattering multiple writes to all the metaslab spacemaps.
+
+This feature becomes \fBactive\fR as soon as it is enabled and will never
+return to being \fBenabled\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBlz4_compress\fR
 .ad
 .RS 4n
