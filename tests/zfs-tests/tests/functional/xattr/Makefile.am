@@ -1,5 +1,3 @@
-SUBDIRS = blockfiles
-
 pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/xattr
 dist_pkgdata_SCRIPTS = \
 	setup.ksh \
@@ -16,8 +14,7 @@ dist_pkgdata_SCRIPTS = \
 	xattr_010_neg.ksh \
 	xattr_011_pos.ksh \
 	xattr_012_pos.ksh \
-	xattr_013_pos.ksh \
-	xattr_zfs_zreget.ksh
+	xattr_013_pos.ksh
 
 dist_pkgdata_DATA = \
 	xattr_common.kshlib \

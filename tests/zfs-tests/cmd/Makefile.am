@@ -19,7 +19,6 @@ SUBDIRS = \
 	mmap_libaio \
 	mmapwrite \
 	nvlist_to_lua \
-	online_recv \
 	randfree_file \
 	randwritecomp \
 	readmmap \
