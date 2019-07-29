@@ -6,4 +6,5 @@ enable zfs-mount.service
 enable zfs-share.service
 enable zfs-zed.service
 enable zfs-volume-wait.service
+enable zfs-volumes.target
 enable zfs.target
