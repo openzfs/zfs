@@ -266,8 +266,8 @@ dsl_dir_hold_obj(dsl_pool_t *dp, uint64_t ddobj,
 				    sizeof (uint64_t), 1, &obj);
 				if (err == 0)
 					dsl_dir_livelist_open(dd, obj);
-				else
-					VERIFY3U(err, ==, ENOENT);
+				else if (err != ENOENT)
+					goto errout;
 			}
 		}
 
@@ -2221,9 +2221,10 @@ dsl_dir_remove_livelist(dsl_dir_t *dd, dmu_tx_t *tx, boolean_t total)
 	uint64_t obj;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	spa_t *spa = dp->dp_spa;
+	livelist_condense_entry_t to_condense = spa->spa_to_condense;
+
 	if (!dsl_deadlist_is_open(&dd->dd_livelist))
 		return;
-	livelist_condense_entry_t to_condense = spa->spa_to_condense;
 
 	/*
 	 * If the livelist being removed is set to be condensed, stop the
@@ -2236,7 +2237,7 @@ dsl_dir_remove_livelist(dsl_dir_t *dd, dmu_tx_t *tx, boolean_t total)
 			/*
 			 * We use zthr_wait_cycle_done instead of zthr_cancel
 			 * because we don't want to destroy the zthr, just have
-			 * it skip it's current task.
+			 * it skip its current task.
 			 */
 			spa->spa_to_condense.cancelled = B_TRUE;
 			zthr_wait_cycle_done(ll_condense_thread);
@@ -2267,12 +2268,15 @@ dsl_dir_remove_livelist(dsl_dir_t *dd, dmu_tx_t *tx, boolean_t total)
 	dsl_dir_livelist_close(dd);
 	int err = zap_lookup(dp->dp_meta_objset, dd->dd_object,
 	    DD_FIELD_LIVELIST, sizeof (uint64_t), 1, &obj);
-	ASSERT3U(err, !=, ENOENT);
-	VERIFY0(zap_remove(dp->dp_meta_objset, dd->dd_object,
-	    DD_FIELD_LIVELIST, tx));
-	if (total) {
-		dsl_deadlist_free(dp->dp_meta_objset, obj, tx);
-		spa_feature_decr(spa, SPA_FEATURE_LIVELIST, tx);
+	if (err == 0) {
+		VERIFY0(zap_remove(dp->dp_meta_objset, dd->dd_object,
+		    DD_FIELD_LIVELIST, tx));
+		if (total) {
+			dsl_deadlist_free(dp->dp_meta_objset, obj, tx);
+			spa_feature_decr(spa, SPA_FEATURE_LIVELIST, tx);
+		}
+	} else {
+		ASSERT3U(err, !=, ENOENT);
 	}
 }
 

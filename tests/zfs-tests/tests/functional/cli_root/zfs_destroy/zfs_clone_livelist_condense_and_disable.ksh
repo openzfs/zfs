@@ -62,31 +62,20 @@ function test_condense
 	# set a small percent shared threshold so the livelist is not disabled
 	set_tunable32 zfs_livelist_min_percent_shared 0xa
 	clone_dataset $TESTFS1 snap $TESTCLONE
+
 	# sync between each write to make sure a new entry is created
-	log_must mkfile 5m /$TESTPOOL/$TESTCLONE/$TESTFILE0
-	log_must zpool sync $TESTPOOL
-	log_must mkfile 5m /$TESTPOOL/$TESTCLONE/$TESTFILE1
-	log_must zpool sync $TESTPOOL
-	log_must mkfile 5m /$TESTPOOL/$TESTCLONE/$TESTFILE2
-	log_must zpool sync $TESTPOOL
-	log_must mkfile 5m /$TESTPOOL/$TESTCLONE/testfile3
-	log_must zpool sync $TESTPOOL
-	log_must mkfile 5m /$TESTPOOL/$TESTCLONE/testfile4
-	log_must zpool sync $TESTPOOL
+	for i in {0..4}; do
+	    log_must mkfile 5m /$TESTPOOL/$TESTCLONE/testfile$i
+	    log_must zpool sync $TESTPOOL
+	done
 
 	check_ll_len "5 entries" "Unexpected livelist size"
 
 	# sync between each write to allow for a condense of the previous entry
-	log_must mkfile 5m /$TESTPOOL/$TESTCLONE/$TESTFILE0
-	log_must zpool sync $TESTPOOL
-	log_must mkfile 5m /$TESTPOOL/$TESTCLONE/$TESTFILE1
-	log_must zpool sync $TESTPOOL
-	log_must mkfile 5m /$TESTPOOL/$TESTCLONE/$TESTFILE2
-	log_must zpool sync $TESTPOOL
-	log_must mkfile 5m /$TESTPOOL/$TESTCLONE/testfile3
-	log_must zpool sync $TESTPOOL
-	log_must mkfile 5m /$TESTPOOL/$TESTCLONE/testfile4
-	log_must zpool sync $TESTPOOL
+	for i in {0..4}; do
+	    log_must mkfile 5m /$TESTPOOL/$TESTCLONE/testfile$i
+	    log_must zpool sync $TESTPOOL
+	done
 
 	check_ll_len "6 entries" "Condense did not occur"
 

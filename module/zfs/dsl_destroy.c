@@ -123,7 +123,7 @@ struct process_old_arg {
 };
 
 static int
-process_old_cb(void *arg, const blkptr_t *bp, boolean_t free, dmu_tx_t *tx)
+process_old_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed, dmu_tx_t *tx)
 {
 	struct process_old_arg *poa = arg;
 	dsl_pool_t *dp = poa->ds->ds_dir->dd_pool;
@@ -131,7 +131,7 @@ process_old_cb(void *arg, const blkptr_t *bp, boolean_t free, dmu_tx_t *tx)
 	ASSERT(!BP_IS_HOLE(bp));
 
 	if (bp->blk_birth <= dsl_dataset_phys(poa->ds)->ds_prev_snap_txg) {
-		dsl_deadlist_insert(&poa->ds->ds_deadlist, bp, free, tx);
+		dsl_deadlist_insert(&poa->ds->ds_deadlist, bp, bp_freed, tx);
 		if (poa->ds_prev && !poa->after_branch_point &&
 		    bp->blk_birth >
 		    dsl_dataset_phys(poa->ds_prev)->ds_prev_snap_txg) {
@@ -876,7 +876,7 @@ dsl_clone_destroy_assert(dsl_dir_t *dd)
 }
 
 /*
- * Start the delete process for a clone. Free its zil, verify the space useage
+ * Start the delete process for a clone. Free its zil, verify the space usage
  * and queue the blkptrs for deletion by adding the livelist to the pool-wide
  * delete queue.
  */
@@ -909,8 +909,10 @@ dsl_async_clone_destroy(dsl_dataset_t *ds, dmu_tx_t *tx)
 		    DMU_POOL_DELETED_CLONES, sizeof (uint64_t), 1,
 		    &(zap_obj), tx));
 		spa->spa_livelists_to_delete = zap_obj;
-	} else {
-		ASSERT0(error);
+	} else if (error != 0) {
+		zfs_panic_recover("zfs: error %d was returned while looking "
+		    "up DMU_POOL_DELETED_CLONES in the zap");
+		return;
 	}
 	VERIFY0(zap_add_int(mos, zap_obj, to_delete, tx));
 
@@ -1047,8 +1049,8 @@ dsl_destroy_head_sync_impl(dsl_dataset_t *ds, dmu_tx_t *tx)
 		dsl_dataset_destroy_remap_deadlist(ds, tx);
 
 	/*
-	 * Each destroy is responsible for both destroying or (enqueuing
-	 * to be detroyed) the blkptrs comprising the dataset as well as those
+	 * Each destroy is responsible for both destroying (enqueuing
+	 * to be destroyed) the blkptrs comprising the dataset as well as
 	 * those belonging to the zil.
 	 */
 	if (dsl_deadlist_is_open(&ds->ds_dir->dd_livelist)) {

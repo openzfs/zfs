@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2019 by Delphix. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  */
 
@@ -55,33 +55,33 @@
  * Livelist Overview
  * ================
  *
- * Livelists use the same 'deadlist_t' struct as Deadlists and are also used
+ * Livelists use the same 'deadlist_t' struct as deadlists and are also used
  * to track blkptrs over the lifetime of a dataset. Livelists however, belong
  * to clones and track the blkptrs that are clone-specific (were born after
  * the clone's creation). The exception is embedded block pointers which are
- * not included in Livelists because they do not need to be freed.
+ * not included in livelists because they do not need to be freed.
  *
- * When it comes time to delete the clone, the Livelist provides a quick
- * reference as to what needs to be freed. For this reason, Livelists also track
+ * When it comes time to delete the clone, the livelist provides a quick
+ * reference as to what needs to be freed. For this reason, livelists also track
  * when clone-specific blkptrs are freed before deletion to prevent double
- * frees. Each blkptr in a Livelist is marked as a FREE or an ALLOC and the
+ * frees. Each blkptr in a livelist is marked as a FREE or an ALLOC and the
  * deletion algorithm iterates backwards over the livelist, matching
- * FREE/ALLOC pairs and then freeing those ALLOCs which remain. Livelists
+ * FREE/ALLOC pairs and then freeing those ALLOCs which remain. livelists
  * are also updated in the case when blkptrs are remapped: the old version
  * of the blkptr is cancelled out with a FREE and the new version is tracked
  * with an ALLOC.
  *
- * To bound the amount of memory required for deletion, Livelists over a
+ * To bound the amount of memory required for deletion, livelists over a
  * certain size are spread over multiple entries. Entries are grouped by
  * birth txg so we can be sure the ALLOC/FREE pair for a given blkptr will
- * be in the same entry. This allows us to delete Livelists incrementally
+ * be in the same entry. This allows us to delete livelists incrementally
  * over multiple syncs, one entry at a time.
  *
- * During the lifetime of the clone, Livelists can get extremely large.
+ * During the lifetime of the clone, livelists can get extremely large.
  * Their size is managed by periodic condensing (preemptively cancelling out
  * FREE/ALLOC pairs). Livelists are disabled when a clone is promoted or when
  * the shared space between the clone and its origin is so small that it
- * doesn't make sense to use Livelists anymore.
+ * doesn't make sense to use livelists anymore.
  */
 
 /*
@@ -97,7 +97,7 @@ unsigned long zfs_livelist_max_entries = 500000;
 
 /*
  * We can approximate how much of a performance gain a livelist will give us
- * based on the pecentage of blocks shared between the clone and its origin.
+ * based on the percentage of blocks shared between the clone and its origin.
  * 0 percent shared means that the clone has completely diverged and that the
  * old method is maximally effective: every read from the block tree will
  * result in lots of frees. Livelists give us gains when they track blocks
@@ -105,7 +105,7 @@ unsigned long zfs_livelist_max_entries = 500000;
  * result in a few frees. Once the clone has been overwritten enough,
  * writes are no longer sparse and we'll no longer get much of a benefit from
  * tracking them with a livelist. We chose a lower limit of 75 percent shared
- * (25 percent overwritten). This means that 1/4 of all blockpointers will be
+ * (25 percent overwritten). This means that 1/4 of all block pointers will be
  * freed (e.g. each read frees 256, out of a max of 1024) so we expect livelists
  * to make deletion 4x faster. Once the amount of shared space drops below this
  * threshold, the clone will revert to the old deletion method.
@@ -154,7 +154,9 @@ void
 dsl_deadlist_iterate(dsl_deadlist_t *dl, deadlist_iter_t func, void *args)
 {
 	dsl_deadlist_entry_t *dle;
+
 	ASSERT(dsl_deadlist_is_open(dl));
+
 	mutex_enter(&dl->dl_lock);
 	dsl_deadlist_load_tree(dl);
 	mutex_exit(&dl->dl_lock);
@@ -265,7 +267,7 @@ dsl_deadlist_free(objset_t *os, uint64_t dlobj, dmu_tx_t *tx)
 
 static void
 dle_enqueue(dsl_deadlist_t *dl, dsl_deadlist_entry_t *dle,
-    const blkptr_t *bp, boolean_t free, dmu_tx_t *tx)
+    const blkptr_t *bp, boolean_t bp_freed, dmu_tx_t *tx)
 {
 	ASSERT(MUTEX_HELD(&dl->dl_lock));
 	if (dle->dle_bpobj.bpo_object ==
@@ -277,7 +279,7 @@ dle_enqueue(dsl_deadlist_t *dl, dsl_deadlist_entry_t *dle,
 		VERIFY0(zap_update_int_key(dl->dl_os, dl->dl_object,
 		    dle->dle_mintxg, obj, tx));
 	}
-	bpobj_enqueue(&dle->dle_bpobj, bp, free, tx);
+	bpobj_enqueue(&dle->dle_bpobj, bp, bp_freed, tx);
 }
 
 static void
@@ -298,7 +300,7 @@ dle_enqueue_subobj(dsl_deadlist_t *dl, dsl_deadlist_entry_t *dle,
 }
 
 void
-dsl_deadlist_insert(dsl_deadlist_t *dl, const blkptr_t *bp, boolean_t free,
+dsl_deadlist_insert(dsl_deadlist_t *dl, const blkptr_t *bp, boolean_t bp_freed,
     dmu_tx_t *tx)
 {
 	dsl_deadlist_entry_t dle_tofind;
@@ -306,7 +308,7 @@ dsl_deadlist_insert(dsl_deadlist_t *dl, const blkptr_t *bp, boolean_t free,
 	avl_index_t where;
 
 	if (dl->dl_oldfmt) {
-		bpobj_enqueue(&dl->dl_bpobj, bp, free, tx);
+		bpobj_enqueue(&dl->dl_bpobj, bp, bp_freed, tx);
 		return;
 	}
 
@@ -315,7 +317,7 @@ dsl_deadlist_insert(dsl_deadlist_t *dl, const blkptr_t *bp, boolean_t free,
 
 	dmu_buf_will_dirty(dl->dl_dbuf, tx);
 
-	int sign = free ? -1 : +1;
+	int sign = bp_freed ? -1 : +1;
 	dl->dl_phys->dl_used +=
 	    sign * bp_get_dsize_sync(dmu_objset_spa(dl->dl_os), bp);
 	dl->dl_phys->dl_comp += sign * BP_GET_PSIZE(bp);
@@ -335,7 +337,7 @@ dsl_deadlist_insert(dsl_deadlist_t *dl, const blkptr_t *bp, boolean_t free,
 	}
 
 	ASSERT3P(dle, !=, NULL);
-	dle_enqueue(dl, dle, bp, free, tx);
+	dle_enqueue(dl, dle, bp, bp_freed, tx);
 	mutex_exit(&dl->dl_lock);
 }
 
@@ -676,11 +678,11 @@ dsl_deadlist_insert_bpobj(dsl_deadlist_t *dl, uint64_t obj, uint64_t birth,
 }
 
 static int
-dsl_deadlist_insert_cb(void *arg, const blkptr_t *bp, boolean_t free,
+dsl_deadlist_insert_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed,
     dmu_tx_t *tx)
 {
 	dsl_deadlist_t *dl = arg;
-	dsl_deadlist_insert(dl, bp, free, tx);
+	dsl_deadlist_insert(dl, bp, bp_freed, tx);
 	return (0);
 }
 
@@ -784,27 +786,18 @@ livelist_compare(const void *larg, const void *rarg)
 	const blkptr_t *r = ((livelist_entry_t *)rarg)->le_bp;
 
 	/* Sort them according to dva[0] */
-	uint64_t l_dva0_vdev, r_dva0_vdev;
-	l_dva0_vdev = DVA_GET_VDEV(&l->blk_dva[0]);
-	r_dva0_vdev = DVA_GET_VDEV(&r->blk_dva[0]);
-	if (l_dva0_vdev < r_dva0_vdev)
-		return (-1);
-	else if (l_dva0_vdev > r_dva0_vdev)
-		return (+1);
+	uint64_t l_dva0_vdev = DVA_GET_VDEV(&l->blk_dva[0]);
+	uint64_t r_dva0_vdev = DVA_GET_VDEV(&r->blk_dva[0]);
+
+	if (l_dva0_vdev != r_dva0_vdev)
+		return (AVL_CMP(l_dva0_vdev, r_dva0_vdev));
 
 	/* if vdevs are equal, sort by offsets. */
-	uint64_t l_dva0_offset;
-	uint64_t r_dva0_offset;
-	l_dva0_offset = DVA_GET_OFFSET(&l->blk_dva[0]);
-	r_dva0_offset = DVA_GET_OFFSET(&r->blk_dva[0]);
-	if (l_dva0_offset < r_dva0_offset) {
-		return (-1);
-	} else if (l_dva0_offset > r_dva0_offset) {
-		return (+1);
-	} else {
+	uint64_t l_dva0_offset = DVA_GET_OFFSET(&l->blk_dva[0]);
+	uint64_t r_dva0_offset = DVA_GET_OFFSET(&r->blk_dva[0]);
+	if (l_dva0_offset == r_dva0_offset)
 		ASSERT3U(l->blk_birth, ==, r->blk_birth);
-		return (0);
-	}
+	return (AVL_CMP(l_dva0_offset, r_dva0_offset));
 }
 
 struct livelist_iter_arg {
@@ -819,7 +812,7 @@ struct livelist_iter_arg {
  * corresponding FREE are stored in the supplied bplist.
  */
 static int
-dsl_livelist_iterate(void *arg, const blkptr_t *bp, boolean_t free,
+dsl_livelist_iterate(void *arg, const blkptr_t *bp, boolean_t bp_freed,
     dmu_tx_t *tx)
 {
 	struct livelist_iter_arg *lia = arg;
@@ -829,8 +822,8 @@ dsl_livelist_iterate(void *arg, const blkptr_t *bp, boolean_t free,
 	ASSERT(tx == NULL);
 
 	if ((t != NULL) && (zthr_has_waiters(t) || zthr_iscancelled(t)))
-		return (EINTR);
-	if (free) {
+		return (SET_ERROR(EINTR));
+	if (bp_freed) {
 		livelist_entry_t *node = kmem_alloc(sizeof (livelist_entry_t),
 		    KM_SLEEP);
 		blkptr_t *temp_bp = kmem_alloc(sizeof (blkptr_t), KM_SLEEP);
@@ -853,13 +846,13 @@ dsl_livelist_iterate(void *arg, const blkptr_t *bp, boolean_t free,
 }
 
 /*
- * Accepts a bpobj and an empty bplist. Will populate the bplist
- * with blkptrs that have an ALLOC entry but no FREE
+ * Accepts a bpobj and a bplist. Will insert into the bplist the blkptrs
+ * which have an ALLOC entry but no matching FREE
  */
 int
-dsl_process_sub_livelist(bpobj_t *bpobj, bplist_t *to_free, zthr_t *t)
+dsl_process_sub_livelist(bpobj_t *bpobj, bplist_t *to_free, zthr_t *t,
+    uint64_t *size)
 {
-	int err;
 	avl_tree_t avl;
 	avl_create(&avl, livelist_compare, sizeof (livelist_entry_t),
 	    offsetof(livelist_entry_t, le_node));
@@ -870,7 +863,7 @@ dsl_process_sub_livelist(bpobj_t *bpobj, bplist_t *to_free, zthr_t *t)
 	    .to_free = to_free,
 	    .t = t
 	};
-	err = bpobj_iterate_nofree(bpobj, dsl_livelist_iterate, &arg);
+	int err = bpobj_iterate_nofree(bpobj, dsl_livelist_iterate, &arg, size);
 
 	avl_destroy(&avl);
 	return (err);

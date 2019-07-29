@@ -3290,8 +3290,7 @@ dbuf_hold_impl_arg(struct dbuf_hold_arg *dh)
 	spa_t *spa = dh->dh_dn->dn_objset->os_spa;
 	dsl_pool_t *dp = spa->spa_dsl_pool;
 	if (dp != NULL) {
-		tx_state_t *tx = &dp->dp_tx;
-		ASSERT(!MUTEX_HELD(&tx->tx_sync_lock));
+		ASSERT(!MUTEX_HELD(&dp->dp_tx.tx_sync_lock));
 	}
 
 	/* dbuf_find() returns with db_mtx held */

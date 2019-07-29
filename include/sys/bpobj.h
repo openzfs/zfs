@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2015, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2015, 2019 by Delphix. All rights reserved.
  */
 
 #ifndef	_SYS_BPOBJ_H
@@ -69,7 +69,7 @@ typedef struct bpobj {
 	dmu_buf_t	*bpo_cached_dbuf;
 } bpobj_t;
 
-typedef int bpobj_itor_t(void *arg, const blkptr_t *bp, boolean_t free,
+typedef int bpobj_itor_t(void *arg, const blkptr_t *bp, boolean_t bp_freed,
     dmu_tx_t *tx);
 
 uint64_t bpobj_alloc(objset_t *mos, int blocksize, dmu_tx_t *tx);
@@ -82,12 +82,12 @@ void bpobj_close(bpobj_t *bpo);
 boolean_t bpobj_is_open(const bpobj_t *bpo);
 
 int bpobj_iterate(bpobj_t *bpo, bpobj_itor_t func, void *arg, dmu_tx_t *tx);
-int bpobj_iterate_nofree(bpobj_t *bpo, bpobj_itor_t func, void *);
+int bpobj_iterate_nofree(bpobj_t *bpo, bpobj_itor_t func, void *, uint64_t *);
 int livelist_bpobj_iterate_from_nofree(bpobj_t *bpo, bpobj_itor_t func,
     void *arg, int64_t start);
 
 void bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx);
-void bpobj_enqueue(bpobj_t *bpo, const blkptr_t *bp, boolean_t free,
+void bpobj_enqueue(bpobj_t *bpo, const blkptr_t *bp, boolean_t bp_freed,
     dmu_tx_t *tx);
 
 int bpobj_space(bpobj_t *bpo,
@@ -96,7 +96,7 @@ int bpobj_space_range(bpobj_t *bpo, uint64_t mintxg, uint64_t maxtxg,
     uint64_t *usedp, uint64_t *compp, uint64_t *uncompp);
 boolean_t bpobj_is_empty(bpobj_t *bpo);
 
-int bplist_append_cb(void *arg, const blkptr_t *bp, boolean_t free,
+int bplist_append_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed,
     dmu_tx_t *tx);
 
 #ifdef	__cplusplus

@@ -340,7 +340,7 @@ bpobj_iterate_blkptrs(bpobj_info_t *bpi, bpobj_itor_t func, void *arg,
  */
 static int
 bpobj_iterate_impl(bpobj_t *initial_bpo, bpobj_itor_t func, void *arg,
-    dmu_tx_t *tx, boolean_t free)
+    dmu_tx_t *tx, boolean_t free, uint64_t *bpobj_size)
 {
 	list_t stack;
 	bpobj_info_t *bpi;
@@ -353,6 +353,10 @@ bpobj_iterate_impl(bpobj_t *initial_bpo, bpobj_itor_t func, void *arg,
 	list_create(&stack, sizeof (bpobj_info_t),
 	    offsetof(bpobj_info_t, bpi_node));
 	mutex_enter(&initial_bpo->bpo_lock);
+
+	if (bpobj_size != NULL)
+		*bpobj_size = initial_bpo->bpo_phys->bpo_num_blkptrs;
+
 	list_insert_head(&stack, bpi_alloc(initial_bpo, NULL, 0));
 
 	while ((bpi = list_head(&stack)) != NULL) {
@@ -446,6 +450,7 @@ bpobj_iterate_impl(bpobj_t *initial_bpo, bpobj_itor_t func, void *arg,
 			 * We have unprocessed subobjs. Process the next one.
 			 */
 			ASSERT(bpo->bpo_havecomp);
+			ASSERT3P(bpobj_size, ==, NULL);
 
 			/* Add the last subobj to stack. */
 			int64_t i = bpi->bpi_unprocessed_subobjs - 1;
@@ -502,16 +507,28 @@ bpobj_iterate_impl(bpobj_t *initial_bpo, bpobj_itor_t func, void *arg,
 int
 bpobj_iterate(bpobj_t *bpo, bpobj_itor_t func, void *arg, dmu_tx_t *tx)
 {
-	return (bpobj_iterate_impl(bpo, func, arg, tx, B_TRUE));
+	return (bpobj_iterate_impl(bpo, func, arg, tx, B_TRUE, NULL));
 }
 
 /*
  * Iterate the entries.  If func returns nonzero, iteration will stop.
+ *
+ * If there are no subobjs:
+ *
+ * *bpobj_size can be used to return the number of block pointers in the
+ * bpobj.  Note that this may be different from the number of block pointers
+ * that are iterated over, if iteration is terminated early (e.g. by the func
+ * returning nonzero).
+ *
+ * If there are concurrent (or subsequent) modifications to the bpobj then the
+ * returned *bpobj_size can be passed as "start" to
+ * livelist_bpobj_iterate_from_nofree() to iterate the newly added entries.
  */
 int
-bpobj_iterate_nofree(bpobj_t *bpo, bpobj_itor_t func, void *arg)
+bpobj_iterate_nofree(bpobj_t *bpo, bpobj_itor_t func, void *arg,
+    uint64_t *bpobj_size)
 {
-	return (bpobj_iterate_impl(bpo, func, arg, NULL, B_FALSE));
+	return (bpobj_iterate_impl(bpo, func, arg, NULL, B_FALSE, bpobj_size));
 }
 
 /*
@@ -754,7 +771,8 @@ bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx)
 }
 
 void
-bpobj_enqueue(bpobj_t *bpo, const blkptr_t *bp, boolean_t free, dmu_tx_t *tx)
+bpobj_enqueue(bpobj_t *bpo, const blkptr_t *bp, boolean_t bp_freed,
+    dmu_tx_t *tx)
 {
 	blkptr_t stored_bp = *bp;
 	uint64_t offset;
@@ -786,7 +804,7 @@ bpobj_enqueue(bpobj_t *bpo, const blkptr_t *bp, boolean_t free, dmu_tx_t *tx)
 	}
 
 	stored_bp.blk_fill = 0;
-	BP_SET_FREE(&stored_bp, free);
+	BP_SET_FREE(&stored_bp, bp_freed);
 
 	mutex_enter(&bpo->bpo_lock);
 
@@ -809,14 +827,14 @@ bpobj_enqueue(bpobj_t *bpo, const blkptr_t *bp, boolean_t free, dmu_tx_t *tx)
 
 	dmu_buf_will_dirty(bpo->bpo_dbuf, tx);
 	bpo->bpo_phys->bpo_num_blkptrs++;
-	int sign = free ? -1 : +1;
+	int sign = bp_freed ? -1 : +1;
 	bpo->bpo_phys->bpo_bytes += sign *
 	    bp_get_dsize_sync(dmu_objset_spa(bpo->bpo_os), bp);
 	if (bpo->bpo_havecomp) {
 		bpo->bpo_phys->bpo_comp += sign * BP_GET_PSIZE(bp);
 		bpo->bpo_phys->bpo_uncomp += sign * BP_GET_UCSIZE(bp);
 	}
-	if (free) {
+	if (bp_freed) {
 		ASSERT(bpo->bpo_havefreed);
 		bpo->bpo_phys->bpo_num_freed++;
 	}
@@ -834,7 +852,7 @@ struct space_range_arg {
 
 /* ARGSUSED */
 static int
-space_range_cb(void *arg, const blkptr_t *bp, boolean_t free, dmu_tx_t *tx)
+space_range_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed, dmu_tx_t *tx)
 {
 	struct space_range_arg *sra = arg;
 
@@ -892,7 +910,7 @@ bpobj_space_range(bpobj_t *bpo, uint64_t mintxg, uint64_t maxtxg,
 	sra.mintxg = mintxg;
 	sra.maxtxg = maxtxg;
 
-	err = bpobj_iterate_nofree(bpo, space_range_cb, &sra);
+	err = bpobj_iterate_nofree(bpo, space_range_cb, &sra, NULL);
 	*usedp = sra.used;
 	*compp = sra.comp;
 	*uncompp = sra.uncomp;
@@ -906,7 +924,7 @@ bpobj_space_range(bpobj_t *bpo, uint64_t mintxg, uint64_t maxtxg,
  */
 /* ARGSUSED */
 int
-bplist_append_cb(void *arg, const blkptr_t *bp, boolean_t free,
+bplist_append_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed,
     dmu_tx_t *tx)
 {
 	bplist_t *bpl = arg;

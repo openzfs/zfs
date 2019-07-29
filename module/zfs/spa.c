@@ -1441,27 +1441,6 @@ spa_config_parse(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent,
 	return (0);
 }
 
-static void
-spa_destroy_aux_threads(spa_t *spa)
-{
-	if (spa->spa_condense_zthr != NULL) {
-		zthr_destroy(spa->spa_condense_zthr);
-		spa->spa_condense_zthr = NULL;
-	}
-	if (spa->spa_checkpoint_discard_zthr != NULL) {
-		zthr_destroy(spa->spa_checkpoint_discard_zthr);
-		spa->spa_checkpoint_discard_zthr = NULL;
-	}
-	if (spa->spa_livelist_delete_zthr != NULL) {
-		zthr_destroy(spa->spa_livelist_delete_zthr);
-		spa->spa_livelist_delete_zthr = NULL;
-	}
-	if (spa->spa_livelist_condense_zthr != NULL) {
-		zthr_destroy(spa->spa_livelist_condense_zthr);
-		spa->spa_livelist_condense_zthr = NULL;
-	}
-}
-
 static boolean_t
 spa_should_flush_logs_on_unload(spa_t *spa)
 {
@@ -1521,6 +1500,27 @@ spa_unload_log_sm_metadata(spa_t *spa)
 	spa->spa_unflushed_stats.sus_nblocks = 0;
 	spa->spa_unflushed_stats.sus_memused = 0;
 	spa->spa_unflushed_stats.sus_blocklimit = 0;
+}
+
+static void
+spa_destroy_aux_threads(spa_t *spa)
+{
+	if (spa->spa_condense_zthr != NULL) {
+		zthr_destroy(spa->spa_condense_zthr);
+		spa->spa_condense_zthr = NULL;
+	}
+	if (spa->spa_checkpoint_discard_zthr != NULL) {
+		zthr_destroy(spa->spa_checkpoint_discard_zthr);
+		spa->spa_checkpoint_discard_zthr = NULL;
+	}
+	if (spa->spa_livelist_delete_zthr != NULL) {
+		zthr_destroy(spa->spa_livelist_delete_zthr);
+		spa->spa_livelist_delete_zthr = NULL;
+	}
+	if (spa->spa_livelist_condense_zthr != NULL) {
+		zthr_destroy(spa->spa_livelist_condense_zthr);
+		spa->spa_livelist_condense_zthr = NULL;
+	}
 }
 
 /*
@@ -2474,8 +2474,7 @@ void
 spa_livelist_delete_cb(void *arg, zthr_t *z)
 {
 	spa_t *spa = arg;
-	int err;
-	uint64_t ll_obj, count;
+	uint64_t ll_obj = 0, count;
 	objset_t *mos = spa->spa_meta_objset;
 	uint64_t zap_obj = spa->spa_livelists_to_delete;
 	/*
@@ -2492,22 +2491,24 @@ spa_livelist_delete_cb(void *arg, zthr_t *z)
 		dle = dsl_deadlist_first(&ll);
 		ASSERT3P(dle, !=, NULL);
 		bplist_create(&to_free);
-		err = dsl_process_sub_livelist(&dle->dle_bpobj, &to_free, z);
-		if (err == EINTR)
-			goto out;
-		ASSERT(err == 0);
-		sublist_delete_arg_t sync_arg = {
-		    .spa = spa,
-		    .ll = &ll,
-		    .key = dle->dle_mintxg,
-		    .to_free = &to_free
-		};
-		zfs_dbgmsg("deleting sublist (id %llu) from"
-		    " livelist %llu, %d remaining",
-		    dle->dle_bpobj.bpo_object, ll_obj, count - 1);
-		VERIFY0(dsl_sync_task(spa_name(spa), NULL, sublist_delete_sync,
-		    &sync_arg, 0, ZFS_SPACE_CHECK_DESTROY));
-out:
+		int err = dsl_process_sub_livelist(&dle->dle_bpobj, &to_free,
+		    z, NULL);
+		if (err == 0) {
+			sublist_delete_arg_t sync_arg = {
+			    .spa = spa,
+			    .ll = &ll,
+			    .key = dle->dle_mintxg,
+			    .to_free = &to_free
+			};
+			zfs_dbgmsg("deleting sublist (id %llu) from"
+			    " livelist %llu, %d remaining",
+			    dle->dle_bpobj.bpo_object, ll_obj, count - 1);
+			VERIFY0(dsl_sync_task(spa_name(spa), NULL,
+			    sublist_delete_sync, &sync_arg, 0,
+			    ZFS_SPACE_CHECK_DESTROY));
+		} else {
+			ASSERT(err == EINTR);
+		}
 		bplist_clear(&to_free);
 		bplist_destroy(&to_free);
 		dsl_deadlist_close(&ll);
@@ -2537,12 +2538,12 @@ typedef struct livelist_new_arg {
 } livelist_new_arg_t;
 
 static int
-livelist_track_new_cb(void *arg, const blkptr_t *bp, boolean_t free,
+livelist_track_new_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed,
     dmu_tx_t *tx)
 {
 	ASSERT(tx == NULL);
 	livelist_new_arg_t *lna = arg;
-	if (free) {
+	if (bp_freed) {
 		bplist_append(lna->frees, bp);
 	} else {
 		bplist_append(lna->allocs, bp);
@@ -2581,7 +2582,7 @@ spa_livelist_condense_sync(void *arg, dmu_tx_t *tx)
 	 * running. Therefore, we need to check for new blkptrs in the two
 	 * entries being condensed and continue to track them in the livelist.
 	 * Because of the way we handle remapped blkptrs (see dbuf_remap_impl),
-	 * it's possible that they newly added blkptrs are FREEs or ALLOCs so
+	 * it's possible that the newly added blkptrs are FREEs or ALLOCs so
 	 * we need to sort them into two different bplists.
 	 */
 	uint64_t first_obj = first->dle_bpobj.bpo_object;
@@ -2636,18 +2637,35 @@ spa_livelist_condense_cb(void *arg, zthr_t *t)
 	    !(zthr_has_waiters(t) || zthr_iscancelled(t)))
 		delay(1);
 
-	int err;
 	spa_t *spa = arg;
 	dsl_deadlist_entry_t *first = spa->spa_to_condense.first;
 	dsl_deadlist_entry_t *next = spa->spa_to_condense.next;
-	uint64_t first_size = first->dle_bpobj.bpo_phys->bpo_num_blkptrs;
-	uint64_t next_size = next->dle_bpobj.bpo_phys->bpo_num_blkptrs;
+	uint64_t first_size, next_size;
 
 	livelist_condense_arg_t *lca =
 	    kmem_alloc(sizeof (livelist_condense_arg_t), KM_SLEEP);
 	bplist_create(&lca->to_keep);
-	err = dsl_process_sub_livelist(&first->dle_bpobj, &lca->to_keep, t);
-	err = dsl_process_sub_livelist(&next->dle_bpobj, &lca->to_keep, t);
+
+	/*
+	 * Process the livelists (matching FREEs and ALLOCs) in open context
+	 * so we have minimal work in syncing context to condense.
+	 *
+	 * We save bpobj sizes (first_size and next_size) to use later in
+	 * syncing context to determine if entries were added to these sublists
+	 * while in open context. This is possible because the clone is still
+	 * active and open for normal writes and we want to make sure the new,
+	 * unprocessed blockpointers are inserted into the livelist normally.
+	 *
+	 * Note that dsl_process_sub_livelist() both stores the size number of
+	 * blockpointers and iterates over them while the bpobj's lock held, so
+	 * the sizes returned to us are consistent which what was actually
+	 * processed.
+	 */
+	int err = dsl_process_sub_livelist(&first->dle_bpobj, &lca->to_keep, t,
+	    &first_size);
+	if (err == 0)
+		err = dsl_process_sub_livelist(&next->dle_bpobj, &lca->to_keep,
+		    t, &next_size);
 
 	if (err == 0) {
 		while (zfs_livelist_condense_sync_pause &&
@@ -2676,7 +2694,9 @@ spa_livelist_condense_cb(void *arg, zthr_t *t)
 	}
 	/*
 	 * Condensing can not continue: either it was externally stopped or
-	 * the pool has run out of space
+	 * we were unable to assign to a tx because the pool has run out of
+	 * space. In the second case, we'll just end up trying to condense
+	 * again in a later txg.
 	 */
 	ASSERT(err != 0);
 	bplist_clear(&lca->to_keep);
@@ -3995,11 +4015,8 @@ spa_ld_get_props(spa_t *spa)
 	 */
 	error = spa_dir_prop(spa, DMU_POOL_DELETED_CLONES,
 	    &spa->spa_livelists_to_delete, B_FALSE);
-	if (error == ENOENT) {
-		spa->spa_livelists_to_delete = 0;
-	} else if (error != 0) {
+	if (error != 0 && error != ENOENT)
 		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
-	}
 
 	/*
 	 * Load the history object.  If we have an older pool, this
@@ -8055,10 +8072,11 @@ spa_async_request(spa_t *spa, int task)
 
 
 static int
-bpobj_enqueue_cb(void *arg, const blkptr_t *bp, boolean_t free, dmu_tx_t *tx)
+bpobj_enqueue_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed,
+    dmu_tx_t *tx)
 {
 	bpobj_t *bpo = arg;
-	bpobj_enqueue(bpo, bp, free, tx);
+	bpobj_enqueue(bpo, bp, bp_freed, tx);
 	return (0);
 }
 
@@ -8085,10 +8103,10 @@ spa_free_sync_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
 }
 
 static int
-bpobj_spa_free_sync_cb(void *arg, const blkptr_t *bp, boolean_t free,
+bpobj_spa_free_sync_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed,
     dmu_tx_t *tx)
 {
-	ASSERT(!free);
+	ASSERT(!bp_freed);
 	return (spa_free_sync_cb(arg, bp, tx));
 }
 

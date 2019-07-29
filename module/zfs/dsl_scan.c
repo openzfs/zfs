@@ -3103,18 +3103,18 @@ dsl_scan_update_stats(dsl_scan_t *scn)
 }
 
 static int
-bpobj_dsl_scan_free_block_cb(void *arg, const blkptr_t *bp, boolean_t free,
+bpobj_dsl_scan_free_block_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed,
     dmu_tx_t *tx)
 {
-	ASSERT(!free);
+	ASSERT(!bp_freed);
 	return (dsl_scan_free_block_cb(arg, bp, tx));
 }
 
 static int
-dsl_scan_obsolete_block_cb(void *arg, const blkptr_t *bp, boolean_t free,
+dsl_scan_obsolete_block_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed,
     dmu_tx_t *tx)
 {
-	ASSERT(!free);
+	ASSERT(!bp_freed);
 	dsl_scan_t *scn = arg;
 	const dva_t *dva = &bp->blk_dva[0];
 
