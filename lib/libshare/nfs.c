@@ -62,8 +62,7 @@ typedef int (*nfs_host_callback_t)(const char *sharepath, const char *host,
 
 /* List of hosts and their options */
 /* NOTE: share path is stored elsewhere */
-typedef struct nfs_share_list_s
-{
+typedef struct nfs_share_list_s {
 	char host[255];
 	char opts[255];
 
@@ -97,7 +96,7 @@ find_option(char *opt, const char *needle)
  */
 static int
 foreach_nfs_shareopt(const char *shareopts,
-	nfs_shareopt_callback_t callback, void *cookie)
+    nfs_shareopt_callback_t callback, void *cookie)
 {
 	char *shareopts_dup, *opt, *cur, *value;
 	int was_nul, rc;
@@ -151,8 +150,7 @@ foreach_nfs_shareopt(const char *shareopts,
 	return (0);
 }
 
-typedef struct nfs_host_cookie_s
-{
+typedef struct nfs_host_cookie_s {
 	nfs_host_callback_t callback;
 	const char *sharepath;
 	void *cookie;
@@ -175,8 +173,7 @@ get_linux_hostspec(const char *solaris_hostspec, char **plinux_hostspec)
 		 * to skip the @ in this case
 		 */
 		*plinux_hostspec = strdup(solaris_hostspec + 1);
-	}
-	else {
+	} else {
 		*plinux_hostspec = strdup(solaris_hostspec);
 	}
 
@@ -200,7 +197,7 @@ nfs_enable_share_one(const char *sharepath, const char *host, char *opts)
 	/* exportfs -i -o sec=XX,rX,<opts> <host>:<sharepath> */
 
 	hostpath = malloc(strlen(host) + 1 +
-		strlen(sharepath) + 1);
+	    strlen(sharepath) + 1);
 	if (hostpath == NULL)
 		return (SA_NO_MEMORY);
 	sprintf(hostpath, "%s:%s", host, sharepath);
@@ -240,8 +237,8 @@ add_linux_shareopt(char **plinux_opts, const char *key, const char *value)
 	}
 
 	new_linux_opts = realloc(*plinux_opts, len + 1 + strlen(key) +
-		(value ? 1 + strlen(value) : 0)
-		+ 1);
+            (value ? 1 + strlen(value) : 0)
+	    + 1);
 
 	if (new_linux_opts == NULL)
 		return (SA_NO_MEMORY);
@@ -266,7 +263,7 @@ add_linux_shareopt(char **plinux_opts, const char *key, const char *value)
 static int
 update_host_list(void *cookie)
 {
-	char **plinux_opts = (char **) cookie;
+	char **plinux_opts = (char **)cookie;
 	nfs_share_list_t *cur_share, *new_share;
 
 	/* Get the last entry in the list. */
@@ -275,8 +272,7 @@ update_host_list(void *cookie)
 		return (SA_OK);
 
 	/* Create a new object list */
-	new_share = (nfs_share_list_t *)
-		malloc(sizeof(nfs_share_list_t));
+	new_share = (nfs_share_list_t *)malloc(sizeof (nfs_share_list_t));
 	if (new_share == NULL)
 		return (SA_NO_MEMORY);
 	list_link_init(&new_share->next);
@@ -305,18 +301,14 @@ update_host_list(void *cookie)
 static int
 get_linux_shareopts_cb(const char *key, const char *value, void *cookie)
 {
-	char **plinux_opts = (char **) cookie;
+	char **plinux_opts = (char **)cookie;
 	nfs_share_list_t *opts = NULL;
 
-#ifdef DEBUG
-	fprintf(stderr, "Before cb processing => key = %s, value = %s, plinux_opts = %s\n", key, value, *plinux_opts);
-#endif
-
 // TODO: Make sure that a 'sec=yyy' (or any other option) BEFORE a/any
-//		 'rw[=@xxx]' or 'ro[=@xxx]' works.
+//  'rw[=@xxx]' or 'ro[=@xxx]' works.
 	if (strcmp(key, "ro") == 0 || strcmp(key, "rw") == 0) {
 
-		opts = (nfs_share_list_t *) malloc(sizeof(nfs_share_list_t));
+		opts = (nfs_share_list_t *)malloc(sizeof (nfs_share_list_t));
 
 		if (opts == NULL)
 			return (SA_NO_MEMORY);
@@ -343,7 +335,7 @@ get_linux_shareopts_cb(const char *key, const char *value, void *cookie)
 		 * when we encounter a new host.
 		 */
 		(void) add_linux_shareopt(plinux_opts, "no_subtree_check",
-								  NULL);
+		    NULL);
 		(void) add_linux_shareopt(plinux_opts, "no_root_squash", NULL);
 		(void) add_linux_shareopt(plinux_opts, "mountpoint", NULL);
 
@@ -360,7 +352,7 @@ get_linux_shareopts_cb(const char *key, const char *value, void *cookie)
 			if (rc < 0)
 				return (rc);
 
-			strncpy(opts->host, host, sizeof(opts->host));
+			strncpy(opts->host, host, sizeof (opts->host));
 			opts->opts[0] = '\0';
 
 			/*
@@ -369,8 +361,7 @@ get_linux_shareopts_cb(const char *key, const char *value, void *cookie)
 			 * done with it.
 			 */
 			value = NULL;
-		}
-		else {
+		} else {
 			strcpy(opts->host, "*");
 			opts->opts[0] = '\0';
 		}
@@ -389,42 +380,39 @@ get_linux_shareopts_cb(const char *key, const char *value, void *cookie)
 		key = "subtree_check";
 
 	if (strcmp(key, "rw") != 0 &&
-		strcmp(key, "ro") != 0 &&
-		strcmp(key, "sec") != 0 &&
-		strcmp(key, "insecure") != 0 &&
-		strcmp(key, "secure") != 0 &&
-		strcmp(key, "async") != 0 &&
-		strcmp(key, "sync") != 0 &&
-		strcmp(key, "no_wdelay") != 0 &&
-		strcmp(key, "wdelay") != 0 &&
-		strcmp(key, "nohide") != 0 &&
-		strcmp(key, "hide") != 0 &&
-		strcmp(key, "crossmnt") != 0 &&
-		strcmp(key, "no_subtree_check") != 0 &&
-		strcmp(key, "subtree_check") != 0 &&
-		strcmp(key, "insecure_locks") != 0 &&
-		strcmp(key, "secure_locks") != 0 &&
-		strcmp(key, "no_auth_nlm") != 0 &&
-		strcmp(key, "auth_nlm") != 0 &&
-		strcmp(key, "no_acl") != 0 &&
-		strcmp(key, "mountpoint") != 0 &&
-		strcmp(key, "mp") != 0 &&
-		strcmp(key, "fsuid") != 0 &&
-		strcmp(key, "refer") != 0 &&
-		strcmp(key, "replicas") != 0 &&
-		strcmp(key, "root_squash") != 0 &&
-		strcmp(key, "no_root_squash") != 0 &&
-		strcmp(key, "all_squash") != 0 &&
-		strcmp(key, "no_all_squash") != 0 &&
-		strcmp(key, "fsid") != 0 &&
-		strcmp(key, "anonuid") != 0 &&
-		strcmp(key, "anongid") != 0) {
+	    strcmp(key, "ro") != 0 &&
+	    strcmp(key, "sec") != 0 &&
+	    strcmp(key, "insecure") != 0 &&
+	    strcmp(key, "secure") != 0 &&
+	    strcmp(key, "async") != 0 &&
+	    strcmp(key, "sync") != 0 &&
+	    strcmp(key, "no_wdelay") != 0 &&
+	    strcmp(key, "wdelay") != 0 &&
+	    strcmp(key, "nohide") != 0 &&
+	    strcmp(key, "hide") != 0 &&
+	    strcmp(key, "crossmnt") != 0 &&
+	    strcmp(key, "no_subtree_check") != 0 &&
+	    strcmp(key, "subtree_check") != 0 &&
+	    strcmp(key, "insecure_locks") != 0 &&
+	    strcmp(key, "secure_locks") != 0 &&
+	    strcmp(key, "no_auth_nlm") != 0 &&
+	    strcmp(key, "auth_nlm") != 0 &&
+	    strcmp(key, "no_acl") != 0 &&
+	    strcmp(key, "mountpoint") != 0 &&
+	    strcmp(key, "mp") != 0 &&
+	    strcmp(key, "fsuid") != 0 &&
+	    strcmp(key, "refer") != 0 &&
+	    strcmp(key, "replicas") != 0 &&
+	    strcmp(key, "root_squash") != 0 &&
+	    strcmp(key, "no_root_squash") != 0 &&
+	    strcmp(key, "all_squash") != 0 &&
+	    strcmp(key, "no_all_squash") != 0 &&
+	    strcmp(key, "fsid") != 0 &&
+	    strcmp(key, "anonuid") != 0 &&
+	    strcmp(key, "anongid") != 0) {
 		return (SA_SYNTAX_ERR);
 	}
 
-#ifdef DEBUG
-	fprintf(stderr, "After cb processing => key = %s, value = %s, plinux_opts = %s\n", key, value, *plinux_opts);
-#endif
 	(void) add_linux_shareopt(plinux_opts, key, value);
 
 	return (SA_OK);
@@ -439,17 +427,14 @@ get_linux_shareopts(const char *shareopts, char **plinux_opts)
 {
 	int rc;
 
-		assert(plinux_opts != NULL);
+	assert(plinux_opts != NULL);
 
 	/* Create global list of share host(s) and options */
-	list_create(&all_nfs_shares_list, sizeof(nfs_share_list_t),
-				offsetof(nfs_share_list_t, next));
+	list_create(&all_nfs_shares_list, sizeof (nfs_share_list_t),
+	    offsetof(nfs_share_list_t, next));
 
-#ifdef DEBUG
-	fprintf(stderr, "shareopts: %s, before nfs shareopts plinuxopts: %s\n", shareopts, *plinux_opts);
-#endif
 	rc = foreach_nfs_shareopt(shareopts, get_linux_shareopts_cb,
-							  plinux_opts);
+	    plinux_opts);
 
 	if (rc != SA_OK) {
 		free(*plinux_opts);
@@ -478,7 +463,7 @@ nfs_enable_share(sa_share_impl_t impl_share)
 	if (shareopts == NULL)
 		return (SA_OK);
 
-	linux_opts = calloc(sizeof(nfs_share_list_t), 1);
+	linux_opts = calloc(sizeof (nfs_share_list_t), 1);
 	if (!linux_opts)
 		return (SA_NO_MEMORY);
 
@@ -487,11 +472,11 @@ nfs_enable_share(sa_share_impl_t impl_share)
 		return (rc);
 
 	for (share = list_head(&all_nfs_shares_list);
-		 share != NULL;
-		 share = list_next(&all_nfs_shares_list, share)) {
+	    share != NULL;
+	    share = list_next(&all_nfs_shares_list, share)) {
 
 		rc = nfs_enable_share_one(impl_share->sharepath,
-								  share->host, share->opts);
+                    share->host, share->opts);
 	}
 
 	free(linux_opts);
@@ -553,7 +538,7 @@ nfs_disable_share(sa_share_impl_t impl_share)
 	if (shareopts == NULL)
 		return (SA_OK);
 
-	linux_opts = calloc(sizeof(nfs_share_list_t), 1);
+	linux_opts = calloc(sizeof (nfs_share_list_t), 1);
 	if (!linux_opts)
 		return (SA_NO_MEMORY);
 
@@ -562,11 +547,11 @@ nfs_disable_share(sa_share_impl_t impl_share)
 		return (rc);
 
 	for (share = list_head(&all_nfs_shares_list);
-		 share != NULL;
-		 share = list_next(&all_nfs_shares_list, share)) {
+	    share != NULL;
+	    share = list_next(&all_nfs_shares_list, share)) {
 
 		rc = nfs_disable_share_one(impl_share->sharepath,
-								   share->host, NULL);
+		    share->host, NULL);
 	}
 
 	free(linux_opts);
@@ -583,7 +568,7 @@ nfs_validate_shareopts(const char *shareopts)
 	char *linux_opts;
 	int rc;
 
-	linux_opts = calloc(sizeof(nfs_share_list_t), 1);
+	linux_opts = calloc(sizeof (nfs_share_list_t), 1);
 	if (!linux_opts)
 		return (SA_NO_MEMORY);
 
@@ -624,7 +609,7 @@ nfs_is_share_active(sa_share_impl_t impl_share)
 		return (B_FALSE);
 	}
 
-	while (fgets(line, sizeof(line), nfs_exportfs_temp_fp) != NULL) {
+	while (fgets(line, sizeof (line), nfs_exportfs_temp_fp) != NULL) {
 		/*
 		 * exportfs uses separate lines for the share path
 		 * and the export options when the share path is longer
@@ -639,8 +624,7 @@ nfs_is_share_active(sa_share_impl_t impl_share)
 		if (tab != NULL) {
 			*tab = '\0';
 			cur = tab - 1;
-		}
-		else {
+		} else {
 			/*
 			 * there's no tab character, which means the
 			 * NFS options are on a separate line; we just
@@ -673,14 +657,14 @@ nfs_is_share_active(sa_share_impl_t impl_share)
  */
 static int
 nfs_update_shareopts(sa_share_impl_t impl_share, const char *resource,
-	const char *shareopts)
+    const char *shareopts)
 {
 	char *shareopts_dup;
 	boolean_t needs_reshare = B_FALSE;
 	char *old_shareopts;
 
 	FSINFO(impl_share, nfs_fstype)->active =
-		nfs_is_share_active(impl_share);
+	    nfs_is_share_active(impl_share);
 
 	old_shareopts = FSINFO(impl_share, nfs_fstype)->shareopts;
 
@@ -688,7 +672,7 @@ nfs_update_shareopts(sa_share_impl_t impl_share, const char *resource,
 		shareopts = "rw,crossmnt";
 
 	if (FSINFO(impl_share, nfs_fstype)->active && old_shareopts != NULL &&
-		strcmp(old_shareopts, shareopts) != 0) {
+	    strcmp(old_shareopts, shareopts) != 0) {
 		needs_reshare = B_TRUE;
 		nfs_disable_share(impl_share);
 	}
@@ -736,10 +720,10 @@ static const sa_share_ops_t nfs_shareops = {
  * To update this temporary copy simply call this function again.
  *
  * TODO : Use /var/lib/nfs/etab instead of our private copy.
- *		  But must implement locking to prevent concurrent access.
+ *        But must implement locking to prevent concurrent access.
  *
  * TODO : The temporary file descriptor is never closed since
- *		  there is no libshare_nfs_fini() function.
+ *        there is no libshare_nfs_fini() function.
  */
 static int
 nfs_check_exportfs(void)
@@ -774,7 +758,7 @@ nfs_check_exportfs(void)
 
 	if (pid > 0) {
 		while ((rc = waitpid(pid, &status, 0)) <= 0 &&
-			errno == EINTR) {}
+		    errno == EINTR) {}
 
 		if (rc <= 0) {
 			(void) close(nfs_exportfs_temp_fd);
