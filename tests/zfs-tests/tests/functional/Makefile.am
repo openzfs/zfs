@@ -68,6 +68,7 @@ SUBDIRS = \
 	snapshot \
 	snapused \
 	sparse \
+	suid \
 	threadsappend \
 	tmpfile \
 	trim \

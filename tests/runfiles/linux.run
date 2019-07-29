@@ -857,6 +857,11 @@ tags = ['functional', 'snapused']
 tests = ['sparse_001_pos']
 tags = ['functional', 'sparse']
 
+[tests/functional/suid]
+tests = ['suid_write_to_suid', 'suid_write_to_sgid', 'suid_write_to_suid_sgid',
+    'suid_write_to_none']
+tags = ['functional', 'suid']
+
 [tests/functional/threadsappend]
 tests = ['threadsappend_001_pos']
 tags = ['functional', 'threadsappend']
@@ -908,7 +913,7 @@ tags = ['functional', 'write_dirs']
 tests = ['xattr_001_pos', 'xattr_002_neg', 'xattr_003_neg', 'xattr_004_pos',
     'xattr_005_pos', 'xattr_006_pos', 'xattr_007_neg', 'xattr_008_pos',
     'xattr_009_neg', 'xattr_010_neg', 'xattr_011_pos', 'xattr_012_pos',
-    'xattr_013_pos']
+    'xattr_013_pos', 'xattr_zfs_zreget']
 tags = ['functional', 'xattr']
 
 [tests/functional/zvol/zvol_ENOSPC]

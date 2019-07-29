@@ -184,6 +184,7 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/cmd/mmap_libaio/Makefile
 	tests/zfs-tests/cmd/mmapwrite/Makefile
 	tests/zfs-tests/cmd/nvlist_to_lua/Makefile
+	tests/zfs-tests/cmd/online_recv/Makefile
 	tests/zfs-tests/cmd/randfree_file/Makefile
 	tests/zfs-tests/cmd/randwritecomp/Makefile
 	tests/zfs-tests/cmd/readmmap/Makefile
@@ -332,6 +333,7 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/snapshot/Makefile
 	tests/zfs-tests/tests/functional/snapused/Makefile
 	tests/zfs-tests/tests/functional/sparse/Makefile
+	tests/zfs-tests/tests/functional/suid/Makefile
 	tests/zfs-tests/tests/functional/alloc_class/Makefile
 	tests/zfs-tests/tests/functional/threadsappend/Makefile
 	tests/zfs-tests/tests/functional/tmpfile/Makefile
@@ -343,6 +345,7 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/vdev_zaps/Makefile
 	tests/zfs-tests/tests/functional/write_dirs/Makefile
 	tests/zfs-tests/tests/functional/xattr/Makefile
+	tests/zfs-tests/tests/functional/xattr/blockfiles/Makefile
 	tests/zfs-tests/tests/functional/zvol/Makefile
 	tests/zfs-tests/tests/functional/zvol/zvol_cli/Makefile
 	tests/zfs-tests/tests/functional/zvol/zvol_ENOSPC/Makefile
