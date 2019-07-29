@@ -1639,7 +1639,15 @@ metaslab_verify_weight_and_frag(metaslab_t *msp)
 	if ((zfs_flags & ZFS_DEBUG_METASLAB_VERIFY) == 0)
 		return;
 
-	/* see comment in metaslab_verify_unflushed_changes() */
+	/*
+	 * We can end up here from vdev_remove_complete(), in which case we
+	 * cannot do these assertions because we hold spa config locks and
+	 * thus we are not allowed to read from the DMU.
+	 *
+	 * We check if the metaslab group has been removed and if that's
+	 * the case we return immediately as that would mean that we are
+	 * here from the aforementioned code path.
+	 */
 	if (msp->ms_group == NULL)
 		return;
 
