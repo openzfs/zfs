@@ -1,2 +1,2 @@
-SUBDIRS = bash_completion.d dracut initramfs pyzfs
-DIST_SUBDIRS = bash_completion.d dracut initramfs pyzfs
+SUBDIRS = bash_completion.d dracut initramfs pyzfs zcp
+DIST_SUBDIRS = bash_completion.d dracut initramfs pyzfs zcp
