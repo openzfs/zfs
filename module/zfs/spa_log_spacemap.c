@@ -989,7 +989,7 @@ spa_ld_log_sm_metadata(spa_t *spa)
 		/* the space map ZAP doesn't exist yet */
 		return (0);
 	} else if (error != 0) {
-		spa_load_failed(spa, "spa_ld_unflushed_txgs(): failed at "
+		spa_load_failed(spa, "spa_ld_log_sm_metadata(): failed at "
 		    "zap_lookup(DMU_POOL_DIRECTORY_OBJECT) [error %d]",
 		    error);
 		return (error);
@@ -998,19 +998,45 @@ spa_ld_log_sm_metadata(spa_t *spa)
 	zap_cursor_t zc;
 	zap_attribute_t za;
 	for (zap_cursor_init(&zc, spa_meta_objset(spa), spacemap_zap);
-	    zap_cursor_retrieve(&zc, &za) == 0; zap_cursor_advance(&zc)) {
+	    (error = zap_cursor_retrieve(&zc, &za)) == 0;
+	    zap_cursor_advance(&zc)) {
 		uint64_t log_txg = zfs_strtonum(za.za_name, NULL);
 		spa_log_sm_t *sls =
 		    spa_log_sm_alloc(za.za_first_integer, log_txg);
 		avl_add(&spa->spa_sm_logs_by_txg, sls);
 	}
 	zap_cursor_fini(&zc);
+	if (error != ENOENT) {
+		spa_load_failed(spa, "spa_ld_log_sm_metadata(): failed at "
+		    "zap_cursor_retrieve(spacemap_zap) [error %d]",
+		    error);
+		return (error);
+	}
 
 	for (metaslab_t *m = avl_first(&spa->spa_metaslabs_by_flushed);
 	    m; m = AVL_NEXT(&spa->spa_metaslabs_by_flushed, m)) {
 		spa_log_sm_t target = { .sls_txg = metaslab_unflushed_txg(m) };
 		spa_log_sm_t *sls = avl_find(&spa->spa_sm_logs_by_txg,
 		    &target, NULL);
+
+		/*
+		 * At this point if sls is zero it means that a bug occurred
+		 * in ZFS the last time the pool was open or earlier in the
+		 * import code path. In general, we would have placed a
+		 * VERIFY() here or in this case just let the kernel panic
+		 * with NULL pointer dereference when incrementing sls_mscount,
+		 * but since this is the import code path we can be a bit more
+		 * lenient. Thus, for DEBUG bits we always cause a panic, while
+		 * in production we log the error and just fail the import.
+		 */
+		ASSERT(sls != NULL);
+		if (sls == NULL) {
+			spa_load_failed(spa, "spa_ld_log_sm_metadata(): bug "
+			    "encountered: could not find log spacemap for "
+			    "TXG %ld [error %d]",
+			    metaslab_unflushed_txg(m), ENOENT);
+			return (ENOENT);
+		}
 		sls->sls_mscount++;
 	}
 
