@@ -1,4 +1,4 @@
-initrddir = $(datarootdir)/initramfs-tools
+initrddir = /usr/share/initramfs-tools
 
 initrd_SCRIPTS = \
 	conf.d/zfs conf-hooks.d/zfs hooks/zfs scripts/zfs scripts/local-top/zfs
