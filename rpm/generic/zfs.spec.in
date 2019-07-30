@@ -458,8 +458,8 @@ systemctl --system daemon-reload >/dev/null || true
 %{_libdir}/libzfs*.so.*
 
 %files -n libzfs2-devel
-%{_datadir}/pkgconfig/libzfs.pc
-%{_datadir}/pkgconfig/libzfs_core.pc
+%{_datarootdir}/pkgconfig/libzfs.pc
+%{_datarootdir}/pkgconfig/libzfs_core.pc
 %{_libdir}/*.so
 %{_includedir}/*
 %doc AUTHORS COPYRIGHT LICENSE NOTICE README.md
