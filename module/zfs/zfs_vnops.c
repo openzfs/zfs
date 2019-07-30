@@ -775,7 +775,11 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 		 */
 		dmu_tx_t *tx = dmu_tx_create(zfsvfs->z_os);
 		dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
-		dmu_tx_hold_write(tx, zp->z_id, woff, MIN(n, max_blksz));
+		dmu_buf_impl_t *db = (dmu_buf_impl_t *)sa_get_db(zp->z_sa_hdl);
+		DB_DNODE_ENTER(db);
+		dmu_tx_hold_write_by_dnode(tx, DB_DNODE(db), woff,
+		    MIN(n, max_blksz));
+		DB_DNODE_EXIT(db);
 		zfs_sa_upgrade_txholds(tx, zp);
 		error = dmu_tx_assign(tx, TXG_WAIT);
 		if (error) {
@@ -1048,7 +1052,7 @@ zfs_get_data(void *arg, lr_write_t *lr, char *buf, struct lwb *lwb, zio_t *zio)
 		return (SET_ERROR(ENOENT));
 	}
 
-	zgd = (zgd_t *)kmem_zalloc(sizeof (zgd_t), KM_SLEEP);
+	zgd = kmem_zalloc(sizeof (zgd_t), KM_SLEEP);
 	zgd->zgd_lwb = lwb;
 	zgd->zgd_private = zp;
 
