@@ -1338,7 +1338,10 @@ dmu_tx_hold_sa(dmu_tx_t *tx, sa_handle_t *hdl, boolean_t may_grow)
 
 	object = sa_handle_object(hdl);
 
-	dmu_tx_hold_bonus(tx, object);
+	dmu_buf_impl_t *db = (dmu_buf_impl_t *)hdl->sa_bonus;
+	DB_DNODE_ENTER(db);
+	dmu_tx_hold_bonus_by_dnode(tx, DB_DNODE(db));
+	DB_DNODE_EXIT(db);
 
 	if (tx->tx_objset->os_sa->sa_master_obj == 0)
 		return;
@@ -1360,7 +1363,6 @@ dmu_tx_hold_sa(dmu_tx_t *tx, sa_handle_t *hdl, boolean_t may_grow)
 		ASSERT(tx->tx_txg == 0);
 		dmu_tx_hold_spill(tx, object);
 	} else {
-		dmu_buf_impl_t *db = (dmu_buf_impl_t *)hdl->sa_bonus;
 		dnode_t *dn;
 
 		DB_DNODE_ENTER(db);

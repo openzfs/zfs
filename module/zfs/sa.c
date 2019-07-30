@@ -1380,7 +1380,7 @@ sa_handle_destroy(sa_handle_t *hdl)
 	dmu_buf_rele(hdl->sa_bonus, NULL);
 
 	if (hdl->sa_spill)
-		dmu_buf_rele((dmu_buf_t *)hdl->sa_spill, NULL);
+		dmu_buf_rele(hdl->sa_spill, NULL);
 	mutex_exit(&hdl->sa_lock);
 
 	kmem_cache_free(sa_cache, hdl);
@@ -2028,7 +2028,7 @@ sa_bulk_update_impl(sa_handle_t *hdl, sa_bulk_attr_t *bulk, int count,
 			hdl->sa_spill_tab = NULL;
 		}
 
-		dmu_buf_rele((dmu_buf_t *)hdl->sa_spill, NULL);
+		dmu_buf_rele(hdl->sa_spill, NULL);
 		hdl->sa_spill = NULL;
 	}
 
@@ -2131,13 +2131,13 @@ sa_remove(sa_handle_t *hdl, sa_attr_type_t attr, dmu_tx_t *tx)
 void
 sa_object_info(sa_handle_t *hdl, dmu_object_info_t *doi)
 {
-	dmu_object_info_from_db((dmu_buf_t *)hdl->sa_bonus, doi);
+	dmu_object_info_from_db(hdl->sa_bonus, doi);
 }
 
 void
 sa_object_size(sa_handle_t *hdl, uint32_t *blksize, u_longlong_t *nblocks)
 {
-	dmu_object_size_from_db((dmu_buf_t *)hdl->sa_bonus,
+	dmu_object_size_from_db(hdl->sa_bonus,
 	    blksize, nblocks);
 }
 
@@ -2150,7 +2150,7 @@ sa_set_userp(sa_handle_t *hdl, void *ptr)
 dmu_buf_t *
 sa_get_db(sa_handle_t *hdl)
 {
-	return ((dmu_buf_t *)hdl->sa_bonus);
+	return (hdl->sa_bonus);
 }
 
 void *
