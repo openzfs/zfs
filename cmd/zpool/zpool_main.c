@@ -7253,22 +7253,23 @@ print_error_log(zpool_handle_t *zhp)
 	elem = NULL;
 	while ((elem = nvlist_next_nvpair(nverrlist, elem)) != NULL) {
 		uint64_t data_block_size, indirect_block_size;
+		unsigned int error_count_blkids, error_count_levels;
+		uint64_t *block_ids;
+		int64_t *indirect_levels;
+
+		nvlist_t *object_nv = fnvpair_value_nvlist(elem);
+		uint64_t dsobj = fnvlist_lookup_uint64(object_nv,
+		    ZPOOL_ERR_DATASET);
+		uint64_t obj = fnvlist_lookup_uint64(object_nv,
+		    ZPOOL_ERR_OBJECT);
 		zpool_obj_to_path(zhp, dsobj, obj, pathname, len);
 
 		if (zpool_get_block_size(zhp, dsobj, obj, &data_block_size,
-		    &indirect_block_size) == 0) {
-
-			unsigned int error_count_blkids, error_count_levels;
-
-		    	nvlist_t *object_nv = fnvpair_value_nvlist(elem);
-			uint64_t dsobj = fnvlist_lookup_uint64(object_nv,
-			    ZPOOL_ERR_DATASET);
-			uint64_t obj = fnvlist_lookup_uint64(object_nv,
-			    ZPOOL_ERR_OBJECT);
-			uint64_t *block_ids = fnvlist_lookup_uint64_array(
-			    object_nv, ZPOOL_ERR_BLOCKID, &error_count_blkids);
-			int64_t *indirect_levels = fnvlist_lookup_int64_array(
-			    object_nv, ZPOOL_ERR_LEVEL, &error_count_levels);
+		    &indirect_block_size) == 0 && nvlist_lookup_uint64_array(
+		    object_nv, ZPOOL_ERR_BLOCKID, &block_ids,
+		    &error_count_blkids) == 0 && nvlist_lookup_int64_array(
+		    object_nv, ZPOOL_ERR_LEVEL, &indirect_levels,
+		    &error_count_levels) == 0) {
 
 			ASSERT(error_count_blkids == error_count_levels);
 

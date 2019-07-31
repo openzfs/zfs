@@ -4098,6 +4098,28 @@ zbookmark_mem_compare(const void *a, const void *b)
 }
 
 /*
+ * Either adds both the arrays in the nvlist or none.
+ */
+static void
+add_error_block_ids_and_levels(nvlist_t *object_nv, uint64_t *object_block_ids,
+    int64_t *object_indirect_levels, uint64_t object_errors)
+{
+	int err = nvlist_add_uint64_array(object_nv, ZPOOL_ERR_BLOCKID,
+	    object_block_ids, object_errors);
+
+	if (err != 0)
+		return;
+
+	err = nvlist_add_int64_array(object_nv, ZPOOL_ERR_LEVEL,
+	    object_indirect_levels, object_errors);
+
+	if (err != 0) {
+		nvlist_remove(object_nv, ZPOOL_ERR_BLOCKID,
+		    DATA_TYPE_UINT64_ARRAY);
+	}
+}
+
+/*
  * Retrieve the persistent error log, uniquify the members, and return to the
  * caller. Return nvlist_t is a list of corrupted objects. Each entity in
  * nvlist_t contains four elements: dataset number, object number, an array of
@@ -4166,29 +4188,32 @@ zpool_get_errlog(zpool_handle_t *zhp, nvlist_t **nverrlistp)
 	 * level position, and block id.
 	 */
 	nvlist_t *object_nv;
+	boolean_t mem_alloc_failed = B_FALSE;
+
 	uint64_t *object_block_ids = zfs_alloc(zhp->zpool_hdl,
 	    count * sizeof (uint64_t));
 	int64_t *object_indirect_levels = zfs_alloc(zhp->zpool_hdl,
 	    count * sizeof (int64_t));
+	if (object_block_ids == NULL || object_indirect_levels == NULL) {
+		mem_alloc_failed = B_TRUE;
+	}
 	uint64_t object_errors = 0;
 	for (i = 0; i < count; i++) {
 		if (i == 0 || zb[i - 1].zb_objset != zb[i].zb_objset ||
 		    zb[i - 1].zb_object != zb[i].zb_object) {
 			if (i != 0) {
-				if (nvlist_add_uint64_array(object_nv,
-				    ZPOOL_ERR_BLOCKID, object_block_ids,
-				    object_errors) != 0) {
-					goto nomem;
+				/* If no memory is available do not add this. */
+				if (!mem_alloc_failed) {
+					add_error_block_ids_and_levels(
+					    object_nv,
+					    object_block_ids,
+					    object_indirect_levels,
+					    object_errors);
 				}
-				if (nvlist_add_int64_array(object_nv,
-				    ZPOOL_ERR_LEVEL, object_indirect_levels,
-				    object_errors) != 0) {
-					goto nomem;
-				}
+
 				if (nvlist_add_nvlist(*nverrlistp,
-				    ZPOOL_CONFIG_ERRLIST, object_nv) != 0) {
+				    ZPOOL_CONFIG_ERRLIST, object_nv) != 0)
 					goto nomem;
-				}
 				nvlist_free(object_nv);
 				object_errors = 0;
 			}
@@ -4197,31 +4222,29 @@ zpool_get_errlog(zpool_handle_t *zhp, nvlist_t **nverrlistp)
 			    KM_SLEEP) != 0)
 				goto nomem;
 			if (nvlist_add_uint64(object_nv, ZPOOL_ERR_DATASET,
-			    zb[i].zb_objset) != 0) {
+			    zb[i].zb_objset) != 0)
 				goto nomem;
-			}
 			if (nvlist_add_uint64(object_nv, ZPOOL_ERR_OBJECT,
-			    zb[i].zb_object) != 0) {
+			    zb[i].zb_object) != 0)
 				goto nomem;
-			}
 		}
+		object_errors++;
+		if (mem_alloc_failed)
+			continue;
 		object_block_ids[object_errors] = zb[i].zb_blkid;
 		object_indirect_levels[object_errors] = zb[i].zb_level;
-		object_errors++;
 	}
 	if (object_errors > 0) {
-		if (nvlist_add_uint64_array(object_nv, ZPOOL_ERR_BLOCKID,
-		    object_block_ids, object_errors) != 0) {
-			goto nomem;
+		/* If no memory is available do not add this. */
+		if (!mem_alloc_failed) {
+			add_error_block_ids_and_levels(object_nv,
+			    object_block_ids, object_indirect_levels,
+			    object_errors);
 		}
-		if (nvlist_add_int64_array(object_nv, ZPOOL_ERR_LEVEL,
-		    object_indirect_levels, object_errors) != 0) {
-			goto nomem;
-		}
+
 		if (nvlist_add_nvlist(*nverrlistp, ZPOOL_CONFIG_ERRLIST,
-		    object_nv) != 0) {
+		    object_nv) != 0)
 			goto nomem;
-		}
 		nvlist_free(object_nv);
 		object_errors = 0;
 	}
