@@ -58,6 +58,7 @@
 #endif
 #include <stddef.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -1653,15 +1654,22 @@ zpool_open_func(void *arg)
 		char *devid = NULL;
 		rdsk_node_t *slice;
 		avl_index_t where;
+		char *env;
+		int timeout;
 		int error;
 
 		if (label_paths(rn->rn_hdl, rn->rn_config, &path, &devid))
 			return;
 
+		env = getenv("ZPOOL_IMPORT_UDEV_TIMEOUT_MS");
+
+		if ((env == NULL) || sscanf(env, "%d", &timeout) != 1)
+			timeout = DISK_LABEL_WAIT;
+
 		/*
 		 * Allow devlinks to stabilize so all paths are available.
 		 */
-		zpool_label_disk_wait(rn->rn_name, DISK_LABEL_WAIT);
+		zpool_label_disk_wait(rn->rn_name, timeout);
 
 		if (path != NULL) {
 			slice = zfs_alloc(hdl, sizeof (rdsk_node_t));
