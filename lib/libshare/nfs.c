@@ -237,7 +237,7 @@ add_linux_shareopt(char **plinux_opts, const char *key, const char *value)
 	}
 
 	new_linux_opts = realloc(*plinux_opts, len + 1 + strlen(key) +
-            (value ? 1 + strlen(value) : 0)
+	    (value ? 1 + strlen(value) : 0)
 	    + 1);
 
 	if (new_linux_opts == NULL)
@@ -476,7 +476,7 @@ nfs_enable_share(sa_share_impl_t impl_share)
 	    share = list_next(&all_nfs_shares_list, share)) {
 
 		rc = nfs_enable_share_one(impl_share->sharepath,
-                    share->host, share->opts);
+		    share->host, share->opts);
 	}
 
 	free(linux_opts);
