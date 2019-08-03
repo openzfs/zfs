@@ -2794,7 +2794,7 @@
   </abi-instr>
   <abi-instr address-size='64' path='assert.c' language='LANG_C99'>
     <function-decl name='libspl_set_assert_ok' mangled-name='libspl_set_assert_ok' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='libspl_set_assert_ok'>
-      <parameter type-id='f58c8277' name='val'/>
+      <parameter type-id='c19b74c3' name='val'/>
       <return type-id='48b5725f'/>
     </function-decl>
     <function-decl name='libspl_assertf' mangled-name='libspl_assertf' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='libspl_assertf'>

@@ -454,6 +454,13 @@ If we have less than this amount of free space,
 most ZPL operations (e.g. write, create) will return
 .Sy ENOSPC .
 .
+.It Sy spa_upgrade_errlog_limit Ns = Ns Sy 0 Pq uint
+Limits the number of on-disk error log entries that will be converted to the
+new format when enabling the
+.Sy head_errlog
+feature.
+The default is to convert all log entries.
+.
 .It Sy vdev_removal_max_span Ns = Ns Sy 32768 Ns B Po 32kB Pc Pq int
 During top-level vdev removal, chunks of data are copied from the vdev
 which may include free space in order to trade bandwidth for IOPS.
