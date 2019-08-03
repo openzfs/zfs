@@ -553,6 +553,13 @@ zpool_feature_init(void)
 	    "com.datto:resilver_defer", "resilver_defer",
 	    "Support for defering new resilvers when one is already running.",
 	    ZFEATURE_FLAG_READONLY_COMPAT, ZFEATURE_TYPE_BOOLEAN, NULL);
+
+	{
+	zfeature_register(SPA_FEATURE_HEAD_ERRLOG,
+	    "com.delphix:head_errlog", "head_errlog",
+	    "Improved zpool status command output.",
+	    ZFEATURE_FLAG_ACTIVATE_ON_ENABLE, ZFEATURE_TYPE_BOOLEAN, NULL);
+	}
 }
 
 #if defined(_KERNEL)

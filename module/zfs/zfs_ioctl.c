@@ -5432,7 +5432,7 @@ zfs_ioc_error_log(zfs_cmd_t *zc)
 {
 	spa_t *spa;
 	int error;
-	size_t count = (size_t)zc->zc_nvlist_dst_size;
+	uint64_t count = (uint64_t)zc->zc_nvlist_dst_size;
 
 	if ((error = spa_open(zc->zc_name, &spa, FTAG)) != 0)
 		return (error);
