@@ -525,6 +525,36 @@ range_tree_contains(range_tree_t *rt, uint64_t start, uint64_t size)
 }
 
 /*
+ * Returns the first subset of the given range which overlaps with the range
+ * tree. Returns true if there is a segment in the range, and false if there
+ * isn't.
+ */
+boolean_t
+range_tree_find_in(range_tree_t *rt, uint64_t start, uint64_t size,
+    uint64_t *ostart, uint64_t *osize)
+{
+	range_seg_t rsearch;
+	rsearch.rs_start = start;
+	rsearch.rs_end = start + 1;
+
+	avl_index_t where;
+	range_seg_t *rs = avl_find(&rt->rt_root, &rsearch, &where);
+	if (rs != NULL) {
+		*ostart = start;
+		*osize = MIN(size, rs->rs_end - start);
+		return (B_TRUE);
+	}
+
+	rs = avl_nearest(&rt->rt_root, where, AVL_AFTER);
+	if (rs == NULL || rs->rs_start > start + size)
+		return (B_FALSE);
+
+	*ostart = rs->rs_start;
+	*osize = MIN(start + size, rs->rs_end) - rs->rs_start;
+	return (B_TRUE);
+}
+
+/*
  * Ensure that this range is not in the tree, regardless of whether
  * it is currently in the tree.
  */
