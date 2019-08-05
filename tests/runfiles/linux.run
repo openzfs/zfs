@@ -761,7 +761,7 @@ tags = ['functional', 'refreserv']
 
 [tests/functional/removal]
 pre =
-tests = ['removal_all_vdev', 'removal_check_space',
+tests = ['removal_all_vdev', 'removal_cancel', 'removal_check_space',
     'removal_condense_export', 'removal_multiple_indirection',
     'removal_remap', 'removal_nopwrite', 'removal_remap_deadlists',
     'removal_resume_export', 'removal_sanity', 'removal_with_add',

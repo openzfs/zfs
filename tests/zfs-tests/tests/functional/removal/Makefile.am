@@ -10,14 +10,15 @@
 #
 
 #
-# Copyright (c) 2014, 2015 by Delphix. All rights reserved.
+# Copyright (c) 2014, 2019 by Delphix. All rights reserved.
 #
 
 pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/removal
 
 dist_pkgdata_SCRIPTS = \
-	cleanup.ksh removal_all_vdev.ksh removal_check_space.ksh \
-	removal_condense_export.ksh removal_multiple_indirection.ksh \
+	cleanup.ksh removal_all_vdev.ksh removal_cancel.ksh \
+	removal_check_space.ksh removal_condense_export.ksh \
+	removal_multiple_indirection.ksh \
 	removal_remap_deadlists.ksh removal_nopwrite.ksh removal_remap.ksh \
 	removal_reservation.ksh removal_resume_export.ksh \
 	removal_sanity.ksh removal_with_add.ksh removal_with_create_fs.ksh \
