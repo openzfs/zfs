@@ -89,6 +89,8 @@ range_tree_t *range_tree_create_impl(range_tree_ops_t *ops, void *arg,
 range_tree_t *range_tree_create(range_tree_ops_t *ops, void *arg);
 void range_tree_destroy(range_tree_t *rt);
 boolean_t range_tree_contains(range_tree_t *rt, uint64_t start, uint64_t size);
+boolean_t range_tree_find_in(range_tree_t *rt, uint64_t start, uint64_t size,
+    uint64_t *ostart, uint64_t *osize);
 void range_tree_verify_not_present(range_tree_t *rt,
     uint64_t start, uint64_t size);
 range_seg_t *range_tree_find(range_tree_t *rt, uint64_t start, uint64_t size);
