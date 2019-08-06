@@ -1000,6 +1000,21 @@ zfs_shareall(zfs_handle_t *zhp)
 	return (zfs_share_proto(zhp, share_all_proto));
 }
 
+int
+zfs_share_generate(zfs_handle_t *zhp)
+{
+	char mountpoint[ZFS_MAXPROPLEN];
+	char shareopts[ZFS_MAXPROPLEN];
+
+	if (!zfs_is_mountable(zhp, mountpoint, sizeof (mountpoint), NULL, 0))
+		return (0);
+
+	verify(zfs_prop_get(zhp, ZFS_PROP_SHARENFS, shareopts,
+	    sizeof (shareopts), NULL, NULL, 0, B_FALSE) == 0);
+
+	return (sa_generate_share(mountpoint, shareopts));
+}
+
 /*
  * Unshare a filesystem by mountpoint.
  */

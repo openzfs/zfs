@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2019 by Delphix. All rights reserved.
  * Copyright Joyent, Inc.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  * Copyright (c) 2016, Intel Corporation.
@@ -791,6 +791,7 @@ extern boolean_t zfs_is_shared_smb(zfs_handle_t *, char **);
 extern int zfs_share_nfs(zfs_handle_t *);
 extern int zfs_share_smb(zfs_handle_t *);
 extern int zfs_shareall(zfs_handle_t *);
+extern int zfs_share_generate(zfs_handle_t *);
 extern int zfs_unshare_nfs(zfs_handle_t *, const char *);
 extern int zfs_unshare_smb(zfs_handle_t *, const char *);
 extern int zfs_unshareall_nfs(zfs_handle_t *);

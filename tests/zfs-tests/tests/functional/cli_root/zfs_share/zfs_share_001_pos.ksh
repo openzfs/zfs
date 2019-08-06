@@ -26,7 +26,7 @@
 #
 
 #
-# Copyright (c) 2016 by Delphix. All rights reserved.
+# Copyright (c) 2016, 2019 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -71,6 +71,8 @@ function cleanup
 	if snapexists "$TESTPOOL/$TESTFS@snapshot"; then
 		log_must zfs destroy -f $TESTPOOL/$TESTFS@snapshot
 	fi
+
+	log_must zfs share -ag
 }
 
 
@@ -138,10 +140,21 @@ done
 #
 log_must zfs share -a
 
+#
+# We need to unset __ZFS_POOL_EXCLUDE so that we include all file systems
+# into the /etc/exports.d/zfs.exports file. We will restore the contents
+# of this file on cleanup.
+#
+unset __ZFS_POOL_EXCLUDE
+log_must zfs share -g
+
 i=0
 while (( i < ${#fs[*]} )); do
 	is_shared ${fs[i]} || \
 	    log_fail "File system ${fs[i]} is not shared (share -a)"
+
+	is_exported ${fs[i]} || \
+	    log_fail "File system ${fs[i]} is not exported (share -ag)"
 
 	((i = i + 2))
 done

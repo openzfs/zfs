@@ -22,6 +22,7 @@
 /*
  * Copyright (c) 2002, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011 Gunnar Beutner
+ * Copyright (c) 2018, 2019 by Delphix. All rights reserved.
  */
 
 #include <stdio.h>
@@ -454,7 +455,7 @@ process_share(sa_handle_impl_t impl_handle, sa_share_impl_t impl_share,
 			FSINFO(impl_share, fstype)->resource = resource_dup;
 
 			rc = fstype->ops->update_shareopts(impl_share,
-			    resource, options);
+			    resource, options, B_FALSE);
 
 			if (rc == SA_OK && from_sharetab)
 				FSINFO(impl_share, fstype)->active = B_TRUE;
@@ -618,6 +619,43 @@ sa_disable_share(sa_share_t share, char *protocol)
 
 	return (found_protocol ? ret : SA_INVALID_PROTOCOL);
 }
+
+int
+sa_generate_share(const char *mountpoint, const char *shareopts)
+{
+	int rc = SA_OK;
+
+	/*
+	 * Allocate a new share structure and populate the mountpoint and
+	 * shareopts within it. We use this structure as a tempoary placeholder
+	 * to allow for code reuse within the libshare and NFS code and
+	 * free the structure before returning.
+	 */
+	sa_share_impl_t impl_share = alloc_share(mountpoint);
+	if (impl_share == NULL)
+		return (SA_NO_MEMORY);
+
+	sa_fstype_t *fstype = fstypes;
+	while (fstype != NULL) {
+		if (strcmp(fstype->name, "nfs") == 0) {
+			rc = fstype->ops->update_shareopts(impl_share, NULL,
+			    shareopts, B_TRUE);
+			if (rc != SA_OK)
+				goto out;
+
+			rc = fstype->ops->generate_share(impl_share);
+			if (rc != SA_OK)
+				goto out;
+		}
+
+		fstype = fstype->next;
+	}
+
+out:
+	free_share(impl_share);
+	return (rc);
+}
+
 
 /*
  * sa_errorstr(err)

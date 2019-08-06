@@ -22,7 +22,7 @@
 #
 # Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
-# Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2019 by Delphix. All rights reserved.
 # Copyright (c) 2017 by Tim Chase. All rights reserved.
 # Copyright (c) 2017 by Nexenta Systems, Inc. All rights reserved.
 # Copyright (c) 2017 Lawrence Livermore National Security, LLC.
@@ -1313,6 +1313,36 @@ function is_shared
 	fi
 
 	is_shared_impl "$fs"
+}
+
+function is_exported
+{
+	typeset fs=$1
+	typeset mtpt
+
+	if is_linux; then
+		if [[ $fs != "/"* ]] ; then
+			if datasetnonexists "$fs" ; then
+				return 1
+			else
+				mtpt=$(get_prop mountpoint "$fs")
+				case $mtpt in
+					none|legacy|-) return 1
+						;;
+					*)	fs=$mtpt
+						;;
+				esac
+			fi
+		fi
+		for mtpt in `awk '{print $1}' /etc/exports.d/zfs.exports` ; do
+			if [[ $mtpt == $fs ]] ; then
+				return 0
+			fi
+		done
+
+		return 1
+	fi
+
 }
 
 #

@@ -23,6 +23,7 @@
  * Copyright (c) 2002, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011 Gunnar Beutner
  * Copyright (c) 2012 Cyril Plisko. All rights reserved.
+ * Copyright (c) 2019 by Delphix. All rights reserved.
  */
 
 #include <stdio.h>
@@ -30,11 +31,17 @@
 #include <strings.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <libgen.h>
 #include <libzfs.h>
 #include <libshare.h>
 #include "libshare_impl.h"
+
+#define	ZFS_EXPORTS			"/etc/exports.d/zfs.exports"
+#define	ZFS_EXPORTS_LOCK	"/etc/exports.d/zfs.exports.lck"
 
 static boolean_t nfs_available(void);
 
@@ -225,6 +232,137 @@ get_linux_hostspec(const char *solaris_hostspec, char **plinux_hostspec)
 	return (SA_OK);
 }
 
+static int exports_lock_fd = -1;
+
+int
+nfs_exports_lock(void)
+{
+	struct flock lock;
+	char *name = strdup(ZFS_EXPORTS);
+	if (name == NULL)
+		return (SA_NO_MEMORY);
+
+	verify(exports_lock_fd == -1);
+
+	char *dname = dirname(name);
+	if (mkdir(dname, 0755) < 0 && errno != EEXIST) {
+		fprintf(stderr, "failed to create %s: %s\n",
+		    dname, strerror(errno));
+		free(name);
+		return (errno);
+	}
+	free(name);
+
+	exports_lock_fd = open(ZFS_EXPORTS_LOCK, (O_RDWR | O_CREAT), 0600);
+	if (exports_lock_fd < 0) {
+		perror("failed to open exports lock");
+		return (errno);
+	}
+
+	lock.l_type = F_WRLCK;
+	lock.l_whence = SEEK_SET;
+	lock.l_start = 0;
+	lock.l_len = 0;
+	int rc = -1;
+	if ((rc = fcntl(exports_lock_fd, F_SETLKW, &lock)) < 0) {
+		perror("failed to lock exports");
+		close(exports_lock_fd);
+		return (errno);
+	}
+
+	if (access(ZFS_EXPORTS, F_OK) == 0) {
+		if (remove(ZFS_EXPORTS) == -1) {
+			perror("failed to remove ZFS_EXPORTS file");
+			close(exports_lock_fd);
+			return (errno);
+		}
+	}
+
+	int fd = creat(ZFS_EXPORTS, 0644);
+	if (fd == -1) {
+		perror("failed to create ZFS_EXPORTS file");
+		close(exports_lock_fd);
+		return (errno);
+	}
+	close(fd);
+	return (0);
+}
+
+int
+nfs_exports_unlock(void)
+{
+	struct flock lock;
+	int retval = -1;
+
+	if (exports_lock_fd < 0)
+		return (-1);
+	lock.l_type = F_UNLCK;
+	lock.l_whence = SEEK_SET;
+	lock.l_start = 0;
+	lock.l_len = 0;
+	if (fcntl(exports_lock_fd, F_SETLK, &lock) == 0)
+		retval = 0;
+	close(exports_lock_fd);
+	exports_lock_fd = -1;
+	return (retval);
+}
+
+/*
+ * This function populates an entry into /etc/exports.d/zfs.exports.
+ * This file is consumed by the linux nfs server so that zfs shares are
+ * automatically exported upon boot or whenever the nfs server restarts.
+ */
+static int
+nfs_exports_entry(const char *sharepath, const char *host,
+    const char *security, const char *access_opts, void *pcookie)
+{
+	int rc;
+	char *linuxhost;
+	const char *linux_opts = (const char *)pcookie;
+
+	verify(exports_lock_fd != -1);
+
+	int fd = open(ZFS_EXPORTS, O_RDWR | O_APPEND, 0644);
+	if (fd == -1) {
+		perror("failed to open exports file");
+		exit(1);
+	}
+
+	rc = get_linux_hostspec(host, &linuxhost);
+	if (rc < 0) {
+		close(fd);
+		exit(1);
+	}
+
+	if (linux_opts == NULL)
+		linux_opts = "";
+
+	const char *fmt = "%s %s(sec=%s,%s,%s)\n";
+	int bytes = snprintf(NULL, 0, fmt, sharepath,
+	    linuxhost, security, access_opts, linux_opts);
+	char *buffer = malloc(bytes + 1);
+	if (buffer == NULL) {
+		close(fd);
+		free(linuxhost);
+		exit(1);
+	}
+
+	sprintf(buffer, fmt, sharepath, linuxhost,
+	    security, access_opts, linux_opts);
+	free(linuxhost);
+
+	if (write(fd, buffer, strlen(buffer)) == -1) {
+		perror("failed to write exports file");
+		close(fd);
+		free(buffer);
+		exit(1);
+	}
+	fsync(fd);
+	close(fd);
+	free(buffer);
+	return (SA_OK);
+}
+
 /*
  * Used internally by nfs_enable_share to enable sharing for a single host.
  */
@@ -400,6 +538,26 @@ get_linux_shareopts(const char *shareopts, char **plinux_opts)
 		*plinux_opts = NULL;
 	}
 
+	return (rc);
+}
+
+static int
+nfs_generate_share(sa_share_impl_t impl_share)
+{
+	char *shareopts, *linux_opts;
+	int rc;
+
+	shareopts = FSINFO(impl_share, nfs_fstype)->shareopts;
+	if (shareopts == NULL)
+		return (SA_OK);
+
+	rc = get_linux_shareopts(shareopts, &linux_opts);
+	if (rc != SA_OK)
+		return (rc);
+
+	rc = foreach_nfs_host(impl_share, nfs_exports_entry, linux_opts);
+
+	free(linux_opts);
 	return (rc);
 }
 
@@ -590,7 +748,7 @@ nfs_is_share_active(sa_share_impl_t impl_share)
  */
 static int
 nfs_update_shareopts(sa_share_impl_t impl_share, const char *resource,
-    const char *shareopts)
+    const char *shareopts, boolean_t skip_reshare)
 {
 	char *shareopts_dup;
 	boolean_t needs_reshare = B_FALSE;
@@ -620,7 +778,7 @@ nfs_update_shareopts(sa_share_impl_t impl_share, const char *resource,
 
 	FSINFO(impl_share, nfs_fstype)->shareopts = shareopts_dup;
 
-	if (needs_reshare)
+	if (needs_reshare && !skip_reshare)
 		nfs_enable_share(impl_share);
 
 	return (SA_OK);
@@ -643,6 +801,7 @@ static const sa_share_ops_t nfs_shareops = {
 
 	.validate_shareopts = nfs_validate_shareopts,
 	.update_shareopts = nfs_update_shareopts,
+	.generate_share = nfs_generate_share,
 	.clear_shareopts = nfs_clear_shareopts,
 };
 

@@ -22,6 +22,7 @@
 /*
  * Copyright (c) 2002, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011 Gunnar Beutner
+ * Copyright (c) 2019 by Delphix. All rights reserved.
  */
 
 struct sa_handle_impl;
@@ -50,7 +51,9 @@ typedef struct sa_share_ops {
 	int (*disable_share)(sa_share_impl_t share);
 	int (*validate_shareopts)(const char *shareopts);
 	int (*update_shareopts)(sa_share_impl_t impl_share,
-	    const char *resource, const char *shareopts);
+	    const char *resource, const char *shareopts,
+		boolean_t skip_reshare);
+	int (*generate_share)(sa_share_impl_t share);
 	void (*clear_shareopts)(sa_share_impl_t impl_share);
 } sa_share_ops_t;
 
