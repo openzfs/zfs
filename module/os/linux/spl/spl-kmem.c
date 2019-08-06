@@ -137,6 +137,10 @@ EXPORT_SYMBOL(kmem_strfree);
 #ifndef __GFP_RETRY_MAYFAIL
 #define	__GFP_RETRY_MAYFAIL	__GFP_REPEAT
 #endif
+/* kernel compat for <4.4 */
+#ifndef __GFP_RECLAIM
+#define	__GFP_RECLAIM	__GFP_WAIT
+#endif
 
 void *
 spl_kvmalloc(size_t size, gfp_t lflags)
@@ -187,14 +191,15 @@ spl_kvmalloc(size_t size, gfp_t lflags)
 	 * We first try kmalloc - even for big sizes - and fall back to
 	 * __vmalloc if that fails.
 	 *
-	 * For non-GFP_KERNEL allocations we always stick to kmalloc_node,
-	 * and fail when kmalloc is not successful (returns NULL).
+	 * For non-__GFP-RECLAIM allocations we always stick to
+	 * kmalloc_node, and fail when kmalloc is not successful (returns
+	 * NULL).
 	 * We cannot fall back to __vmalloc in this case because __vmalloc
 	 * internally uses GPF_KERNEL allocations.
 	 */
 	void *ptr = kmalloc_node(size, kmalloc_lflags, NUMA_NO_NODE);
 	if (ptr || size <= PAGE_SIZE ||
-	    (lflags & GFP_KERNEL) != GFP_KERNEL) {
+	    (lflags & __GFP_RECLAIM) != __GFP_RECLAIM) {
 		return (ptr);
 	}
 
