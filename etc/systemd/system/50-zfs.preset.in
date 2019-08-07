@@ -4,6 +4,7 @@ disable zfs-import-scan.service
 enable zfs-import.target
 enable zfs-mount.service
 enable zfs-share.service
+enable zfs-share-cleanup.service
 enable zfs-zed.service
 enable zfs-volume-wait.service
 enable zfs-volumes.target

@@ -1,6 +1,7 @@
 ../tree/zfsutils-linux/* /
 lib/systemd/system/zfs-mount.service
 lib/systemd/system/zfs-share.service
+lib/systemd/system/zfs-share-cleanup.service
 lib/systemd/system/zfs-import-scan.service
 lib/systemd/system/zfs-import-cache.service
 lib/systemd/system/zfs.target

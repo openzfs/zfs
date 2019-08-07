@@ -1,0 +1,12 @@
+[Unit]
+Description=ZFS file system shares cleanup
+After=nfs-server.service
+PartOf=nfs-server.service nfs-kernel-server.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=-/bin/rm -f /etc/exports.d/zfs.exports
+
+[Install]
+WantedBy=zfs.target
