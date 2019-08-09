@@ -1971,6 +1971,18 @@ Default value: \fB16,045,690,984,833,335,022\fR (0xdeadbeefdeadbeee).
 .sp
 .ne 2
 .na
+\fBzfs_initialize_chunk_size\fR (ulong)
+.ad
+.RS 12n
+Size of writes used by \fBzpool initialize\fR.
+This option is used by the test suite to facilitate testing.
+.sp
+Default value: \fB1,048,576\fR
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_livelist_max_entries\fR (ulong)
 .ad
 .RS 12n

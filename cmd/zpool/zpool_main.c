@@ -43,10 +43,13 @@
 #include <libintl.h>
 #include <libuutil.h>
 #include <locale.h>
+#include <pthread.h>
+#include <semaphore.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <time.h>
 #include <unistd.h>
 #include <pwd.h>
 #include <zone.h>
@@ -118,6 +121,8 @@ static int zpool_do_sync(int, char **);
 
 static int zpool_do_version(int, char **);
 
+static int zpool_do_wait(int, char **);
+
 /*
  * These libumem hooks provide a reasonable set of defaults for the allocator's
  * debugging facilities.
@@ -168,7 +173,8 @@ typedef enum {
 	HELP_SYNC,
 	HELP_REGUID,
 	HELP_REOPEN,
-	HELP_VERSION
+	HELP_VERSION,
+	HELP_WAIT
 } zpool_help_t;
 
 
@@ -309,6 +315,8 @@ static zpool_command_t command_table[] = {
 	{ "get",	zpool_do_get,		HELP_GET		},
 	{ "set",	zpool_do_set,		HELP_SET		},
 	{ "sync",	zpool_do_sync,		HELP_SYNC		},
+	{ NULL },
+	{ "wait",	zpool_do_wait,		HELP_WAIT		},
 };
 
 #define	NCOMMAND	(ARRAY_SIZE(command_table))
@@ -328,7 +336,7 @@ get_usage(zpool_help_t idx)
 		return (gettext("\tadd [-fgLnP] [-o property=value] "
 		    "<pool> <vdev> ...\n"));
 	case HELP_ATTACH:
-		return (gettext("\tattach [-f] [-o property=value] "
+		return (gettext("\tattach [-fw] [-o property=value] "
 		    "<pool> <device> <new-device>\n"));
 	case HELP_CLEAR:
 		return (gettext("\tclear [-nF] <pool> [device]\n"));
@@ -337,7 +345,7 @@ get_usage(zpool_help_t idx)
 		    "\t    [-O file-system-property=value] ... \n"
 		    "\t    [-m mountpoint] [-R root] <pool> <vdev> ...\n"));
 	case HELP_CHECKPOINT:
-		return (gettext("\tcheckpoint [--discard] <pool> ...\n"));
+		return (gettext("\tcheckpoint [-d [-w]] <pool> ...\n"));
 	case HELP_DESTROY:
 		return (gettext("\tdestroy [-f] <pool>\n"));
 	case HELP_DETACH:
@@ -371,17 +379,17 @@ get_usage(zpool_help_t idx)
 	case HELP_ONLINE:
 		return (gettext("\tonline [-e] <pool> <device> ...\n"));
 	case HELP_REPLACE:
-		return (gettext("\treplace [-f] [-o property=value] "
+		return (gettext("\treplace [-fw] [-o property=value] "
 		    "<pool> <device> [new-device]\n"));
 	case HELP_REMOVE:
-		return (gettext("\tremove [-nps] <pool> <device> ...\n"));
+		return (gettext("\tremove [-npsw] <pool> <device> ...\n"));
 	case HELP_REOPEN:
 		return (gettext("\treopen [-n] <pool>\n"));
 	case HELP_INITIALIZE:
-		return (gettext("\tinitialize [-c | -s] <pool> "
+		return (gettext("\tinitialize [-c | -s] [-w] <pool> "
 		    "[<device> ...]\n"));
 	case HELP_SCRUB:
-		return (gettext("\tscrub [-s | -p] <pool> ...\n"));
+		return (gettext("\tscrub [-s | -p] [-w] <pool> ...\n"));
 	case HELP_RESILVER:
 		return (gettext("\tresilver <pool> ...\n"));
 	case HELP_TRIM:
@@ -412,6 +420,9 @@ get_usage(zpool_help_t idx)
 		return (gettext("\tsync [pool] ...\n"));
 	case HELP_VERSION:
 		return (gettext("\tversion\n"));
+	case HELP_WAIT:
+		return (gettext("\twait [-Hp] [-T d|u] [-t <activity>[,...]] "
+		    "<pool> [interval]\n"));
 	}
 
 	abort();
@@ -530,12 +541,13 @@ usage(boolean_t requested)
 }
 
 /*
- * zpool initialize [-c | -s] <pool> [<vdev> ...]
+ * zpool initialize [-c | -s] [-w] <pool> [<vdev> ...]
  * Initialize all unused blocks in the specified vdevs, or all vdevs in the pool
  * if none specified.
  *
  *	-c	Cancel. Ends active initializing.
  *	-s	Suspend. Initializing can then be restarted with no flags.
+ *	-w	Wait. Blocks until initializing has completed.
  */
 int
 zpool_do_initialize(int argc, char **argv)
@@ -545,15 +557,17 @@ zpool_do_initialize(int argc, char **argv)
 	zpool_handle_t *zhp;
 	nvlist_t *vdevs;
 	int err = 0;
+	boolean_t wait = B_FALSE;
 
 	struct option long_options[] = {
 		{"cancel",	no_argument,		NULL, 'c'},
 		{"suspend",	no_argument,		NULL, 's'},
+		{"wait",	no_argument,		NULL, 'w'},
 		{0, 0, 0, 0}
 	};
 
 	pool_initialize_func_t cmd_type = POOL_INITIALIZE_START;
-	while ((c = getopt_long(argc, argv, "cs", long_options, NULL)) != -1) {
+	while ((c = getopt_long(argc, argv, "csw", long_options, NULL)) != -1) {
 		switch (c) {
 		case 'c':
 			if (cmd_type != POOL_INITIALIZE_START &&
@@ -572,6 +586,9 @@ zpool_do_initialize(int argc, char **argv)
 				usage(B_FALSE);
 			}
 			cmd_type = POOL_INITIALIZE_SUSPEND;
+			break;
+		case 'w':
+			wait = B_TRUE;
 			break;
 		case '?':
 			if (optopt != 0) {
@@ -595,6 +612,14 @@ zpool_do_initialize(int argc, char **argv)
 		return (-1);
 	}
 
+	if (wait && (cmd_type != POOL_INITIALIZE_START)) {
+		(void) fprintf(stderr, gettext("-w cannot be used with -c or "
+		    "-s\n"));
+		usage(B_FALSE);
+	}
+
+
+
 	poolname = argv[0];
 	zhp = zpool_open(g_zfs, poolname);
 	if (zhp == NULL)
@@ -613,7 +638,10 @@ zpool_do_initialize(int argc, char **argv)
 		}
 	}
 
-	err = zpool_initialize(zhp, cmd_type, vdevs);
+	if (wait)
+		err = zpool_initialize_wait(zhp, cmd_type, vdevs);
+	else
+		err = zpool_initialize(zhp, cmd_type, vdevs);
 
 	fnvlist_free(vdevs);
 	zpool_close(zhp);
@@ -962,7 +990,7 @@ zpool_do_add(int argc, char **argv)
 }
 
 /*
- * zpool remove  <pool> <vdev> ...
+ * zpool remove [-npsw] <pool> <vdev> ...
  *
  * Removes the given vdev from the pool.
  */
@@ -976,9 +1004,10 @@ zpool_do_remove(int argc, char **argv)
 	int c;
 	boolean_t noop = B_FALSE;
 	boolean_t parsable = B_FALSE;
+	boolean_t wait = B_FALSE;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "nps")) != -1) {
+	while ((c = getopt(argc, argv, "npsw")) != -1) {
 		switch (c) {
 		case 'n':
 			noop = B_TRUE;
@@ -988,6 +1017,9 @@ zpool_do_remove(int argc, char **argv)
 			break;
 		case 's':
 			stop = B_TRUE;
+			break;
+		case 'w':
+			wait = B_TRUE;
 			break;
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
@@ -1022,6 +1054,11 @@ zpool_do_remove(int argc, char **argv)
 		}
 		if (zpool_vdev_remove_cancel(zhp) != 0)
 			ret = 1;
+		if (wait) {
+			(void) fprintf(stderr, gettext("invalid option "
+			    "combination: -w cannot be used with -s\n"));
+			usage(B_FALSE);
+		}
 	} else {
 		if (argc < 2) {
 			(void) fprintf(stderr, gettext("missing device\n"));
@@ -1053,6 +1090,9 @@ zpool_do_remove(int argc, char **argv)
 					ret = 1;
 			}
 		}
+
+		if (ret == 0 && wait)
+			ret = zpool_wait(zhp, ZPOOL_WAIT_REMOVE);
 	}
 	zpool_close(zhp);
 
@@ -2874,33 +2914,48 @@ name_or_guid_exists(zpool_handle_t *zhp, void *data)
  *       -d         Discard the checkpoint from a checkpointed
  *       --discard  pool.
  *
+ *       -w         Wait for the discarding a checkpoint to complete.
+ *       --wait
+ *
+ *
  * Checkpoints the specified pool, by taking a "snapshot" of its
  * current state. A pool can only have one checkpoint at a time.
  */
 int
 zpool_do_checkpoint(int argc, char **argv)
 {
-	boolean_t discard;
+	boolean_t discard, wait;
 	char *pool;
 	zpool_handle_t *zhp;
 	int c, err;
 
 	struct option long_options[] = {
 		{"discard", no_argument, NULL, 'd'},
+		{"wait", no_argument, NULL, 'w'},
 		{0, 0, 0, 0}
 	};
 
 	discard = B_FALSE;
-	while ((c = getopt_long(argc, argv, ":d", long_options, NULL)) != -1) {
+	wait = B_FALSE;
+	while ((c = getopt_long(argc, argv, ":dw", long_options, NULL)) != -1) {
 		switch (c) {
 		case 'd':
 			discard = B_TRUE;
+			break;
+		case 'w':
+			wait = B_TRUE;
 			break;
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
 			    optopt);
 			usage(B_FALSE);
 		}
+	}
+
+	if (wait && !discard) {
+		(void) fprintf(stderr, gettext("--wait only valid when "
+		    "--discard also specified\n"));
+		usage(B_FALSE);
 	}
 
 	argc -= optind;
@@ -2928,10 +2983,13 @@ zpool_do_checkpoint(int argc, char **argv)
 		return (1);
 	}
 
-	if (discard)
+	if (discard) {
 		err = (zpool_discard_checkpoint(zhp) != 0);
-	else
+		if (err == 0 && wait)
+			err = zpool_wait(zhp, ZPOOL_WAIT_CKPT_DISCARD);
+	} else {
 		err = (zpool_checkpoint(zhp) != 0);
+	}
 
 	zpool_close(zhp);
 
@@ -5943,6 +6001,7 @@ static int
 zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 {
 	boolean_t force = B_FALSE;
+	boolean_t wait = B_FALSE;
 	int c;
 	nvlist_t *nvroot;
 	char *poolname, *old_disk, *new_disk;
@@ -5952,7 +6011,7 @@ zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 	int ret;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "fo:")) != -1) {
+	while ((c = getopt(argc, argv, "fo:w")) != -1) {
 		switch (c) {
 		case 'f':
 			force = B_TRUE;
@@ -5969,6 +6028,9 @@ zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 			if ((strcmp(optarg, ZPOOL_CONFIG_ASHIFT) != 0) ||
 			    (add_prop_list(optarg, propval, &props, B_TRUE)))
 				usage(B_FALSE);
+			break;
+		case 'w':
+			wait = B_TRUE;
 			break;
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
@@ -6053,6 +6115,10 @@ zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 
 	ret = zpool_vdev_attach(zhp, old_disk, new_disk, nvroot, replacing);
 
+	if (ret == 0 && wait)
+		ret = zpool_wait(zhp,
+		    replacing ? ZPOOL_WAIT_REPLACE : ZPOOL_WAIT_RESILVER);
+
 	nvlist_free(props);
 	nvlist_free(nvroot);
 	zpool_close(zhp);
@@ -6061,9 +6127,11 @@ zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 }
 
 /*
- * zpool replace [-f] <pool> <device> <new_device>
+ * zpool replace [-fw] [-o property=value] <pool> <device> <new_device>
  *
  *	-f	Force attach, even if <new_device> appears to be in use.
+ *	-o	Set property=value.
+ *	-w	Wait for replacing to complete before returning
  *
  * Replace <device> with <new_device>.
  */
@@ -6075,10 +6143,11 @@ zpool_do_replace(int argc, char **argv)
 }
 
 /*
- * zpool attach [-f] [-o property=value] <pool> <device> <new_device>
+ * zpool attach [-fw] [-o property=value] <pool> <device> <new_device>
  *
  *	-f	Force attach, even if <new_device> appears to be in use.
  *	-o	Set property=value.
+ *	-w	Wait for resilvering to complete before returning
  *
  * Attach <new_device> to the mirror containing <device>.  If <device> is not
  * part of a mirror, then <device> will be transformed into a mirror of
@@ -6643,8 +6712,6 @@ zpool_do_reopen(int argc, char **argv)
 
 typedef struct scrub_cbdata {
 	int	cb_type;
-	int	cb_argc;
-	char	**cb_argv;
 	pool_scrub_cmd_t cb_scrub_cmd;
 } scrub_cbdata_t;
 
@@ -6701,29 +6768,42 @@ scrub_callback(zpool_handle_t *zhp, void *data)
 	return (err != 0);
 }
 
+static int
+wait_callback(zpool_handle_t *zhp, void *data)
+{
+	zpool_wait_activity_t *act = data;
+	return (zpool_wait(zhp, *act));
+}
+
 /*
- * zpool scrub [-s | -p] <pool> ...
+ * zpool scrub [-s | -p] [-w] <pool> ...
  *
  *	-s	Stop.  Stops any in-progress scrub.
  *	-p	Pause. Pause in-progress scrub.
+ *	-w	Wait.  Blocks until scrub has completed.
  */
 int
 zpool_do_scrub(int argc, char **argv)
 {
 	int c;
 	scrub_cbdata_t cb;
+	boolean_t wait = B_FALSE;
+	int error;
 
 	cb.cb_type = POOL_SCAN_SCRUB;
 	cb.cb_scrub_cmd = POOL_SCRUB_NORMAL;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "sp")) != -1) {
+	while ((c = getopt(argc, argv, "spw")) != -1) {
 		switch (c) {
 		case 's':
 			cb.cb_type = POOL_SCAN_NONE;
 			break;
 		case 'p':
 			cb.cb_scrub_cmd = POOL_SCRUB_PAUSE;
+			break;
+		case 'w':
+			wait = B_TRUE;
 			break;
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
@@ -6739,8 +6819,13 @@ zpool_do_scrub(int argc, char **argv)
 		usage(B_FALSE);
 	}
 
-	cb.cb_argc = argc;
-	cb.cb_argv = argv;
+	if (wait && (cb.cb_type == POOL_SCAN_NONE ||
+	    cb.cb_scrub_cmd == POOL_SCRUB_PAUSE)) {
+		(void) fprintf(stderr, gettext("invalid option combination: "
+		    "-w cannot be used with -p or -s\n"));
+		usage(B_FALSE);
+	}
+
 	argc -= optind;
 	argv += optind;
 
@@ -6749,7 +6834,15 @@ zpool_do_scrub(int argc, char **argv)
 		usage(B_FALSE);
 	}
 
-	return (for_each_pool(argc, argv, B_TRUE, NULL, scrub_callback, &cb));
+	error = for_each_pool(argc, argv, B_TRUE, NULL, scrub_callback, &cb);
+
+	if (wait && !error) {
+		zpool_wait_activity_t act = ZPOOL_WAIT_SCRUB;
+		error = for_each_pool(argc, argv, B_TRUE, NULL, wait_callback,
+		    &act);
+	}
+
+	return (error);
 }
 
 /*
@@ -6765,8 +6858,6 @@ zpool_do_resilver(int argc, char **argv)
 
 	cb.cb_type = POOL_SCAN_RESILVER;
 	cb.cb_scrub_cmd = POOL_SCRUB_NORMAL;
-	cb.cb_argc = argc;
-	cb.cb_argv = argv;
 
 	/* check options */
 	while ((c = getopt(argc, argv, "")) != -1) {
@@ -9212,6 +9303,368 @@ zpool_do_set(int argc, char **argv)
 
 	error = for_each_pool(argc - 2, argv + 2, B_TRUE, NULL,
 	    set_callback, &cb);
+
+	return (error);
+}
+/* Add up the total number of bytes left to initialize across all vdevs */
+static uint64_t
+vdev_initialize_remaining(nvlist_t *nv)
+{
+
+	uint64_t bytes_remaining;
+	nvlist_t **child;
+	uint_t c, children;
+	vdev_stat_t *vs;
+
+	verify(nvlist_lookup_uint64_array(nv, ZPOOL_CONFIG_VDEV_STATS,
+	    (uint64_t **)&vs, &c) == 0);
+
+	if (vs->vs_initialize_state == VDEV_INITIALIZE_ACTIVE)
+		bytes_remaining = vs->vs_initialize_bytes_est -
+		    vs->vs_initialize_bytes_done;
+	else
+		bytes_remaining = 0;
+
+	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
+	    &child, &children) != 0)
+		children = 0;
+
+	for (c = 0; c < children; c++)
+		bytes_remaining += vdev_initialize_remaining(child[c]);
+
+	return (bytes_remaining);
+}
+
+/* Whether any vdevs are 'spare' or 'replacing' vdevs */
+static boolean_t
+vdev_any_spare_replacing(nvlist_t *nv)
+{
+	nvlist_t **child;
+	uint_t c, children;
+	char *vdev_type;
+
+	(void) nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &vdev_type);
+
+	if (strcmp(vdev_type, VDEV_TYPE_REPLACING) == 0 ||
+	    strcmp(vdev_type, VDEV_TYPE_SPARE) == 0) {
+		return (B_TRUE);
+	}
+
+	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
+	    &child, &children) != 0)
+		children = 0;
+
+	for (c = 0; c < children; c++) {
+		if (vdev_any_spare_replacing(child[c]))
+			return (B_TRUE);
+	}
+
+	return (B_FALSE);
+}
+
+typedef struct wait_data {
+	char *wd_poolname;
+	boolean_t wd_scripted;
+	boolean_t wd_exact;
+	/* Which activities to wait for */
+	boolean_t wd_enabled[ZPOOL_WAIT_NUM_ACTIVITIES];
+	int wd_col_widths[ZPOOL_WAIT_NUM_ACTIVITIES];
+	float wd_interval;
+	sem_t wd_sem;
+} wait_data_t;
+
+/*
+ * Print to stdout a single line, containing one column for each activity that
+ * we are waiting for specifying how many bytes of work are left for that
+ * activity.
+ */
+static void
+print_wait_status_row(wait_data_t *wd, zpool_handle_t *zhp)
+{
+	nvlist_t *config, *nvroot;
+	uint_t c;
+	int i;
+	pool_checkpoint_stat_t *pcs = NULL;
+	pool_scan_stat_t *pss = NULL;
+	pool_removal_stat_t *prs = NULL;
+
+	/* Bytes of work remaining in each activity */
+	int64_t bytes_rem[ZPOOL_WAIT_NUM_ACTIVITIES] = {0};
+
+	bytes_rem[ZPOOL_WAIT_FREE] =
+	    zpool_get_prop_int(zhp, ZPOOL_PROP_FREEING, NULL);
+
+	config = zpool_get_config(zhp, NULL);
+	nvroot = fnvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE);
+
+	(void) nvlist_lookup_uint64_array(nvroot,
+	    ZPOOL_CONFIG_CHECKPOINT_STATS, (uint64_t **)&pcs, &c);
+	if (pcs != NULL && pcs->pcs_state == CS_CHECKPOINT_DISCARDING)
+		bytes_rem[ZPOOL_WAIT_CKPT_DISCARD] = pcs->pcs_space;
+
+	(void) nvlist_lookup_uint64_array(nvroot,
+	    ZPOOL_CONFIG_REMOVAL_STATS, (uint64_t **)&prs, &c);
+	if (prs != NULL && prs->prs_state == DSS_SCANNING)
+		bytes_rem[ZPOOL_WAIT_REMOVE] = prs->prs_to_copy -
+		    prs->prs_copied;
+
+	(void) nvlist_lookup_uint64_array(nvroot,
+	    ZPOOL_CONFIG_SCAN_STATS, (uint64_t **)&pss, &c);
+	if (pss != NULL && pss->pss_state == DSS_SCANNING &&
+	    pss->pss_pass_scrub_pause == 0) {
+		int64_t rem = pss->pss_to_examine - pss->pss_issued;
+		if (pss->pss_func == POOL_SCAN_SCRUB)
+			bytes_rem[ZPOOL_WAIT_SCRUB] = rem;
+		else
+			bytes_rem[ZPOOL_WAIT_RESILVER] = rem;
+	}
+
+	bytes_rem[ZPOOL_WAIT_INITIALIZE] = vdev_initialize_remaining(nvroot);
+
+	/*
+	 * A replace finishes after resilvering finishes, so the amount of work
+	 * left for a replace is the same as for resilvering.
+	 *
+	 * It isn't quite correct to say that if we have any 'spare' or
+	 * 'replacing' vdevs and a resilver is happening, then a replace is in
+	 * progress, like we do here. When a hot spare is used, the faulted vdev
+	 * is not removed after the hot spare is resilvered, so parent 'spare'
+	 * vdev is not removed either. So we could have a 'spare' vdev, but be
+	 * resilvering for a different reason. However, we use it as a heuristic
+	 * because we don't have access to the DTLs, which could tell us whether
+	 * or not we have really finished resilvering a hot spare.
+	 */
+	if (vdev_any_spare_replacing(nvroot))
+		bytes_rem[ZPOOL_WAIT_REPLACE] =  bytes_rem[ZPOOL_WAIT_RESILVER];
+
+	if (timestamp_fmt != NODATE)
+		print_timestamp(timestamp_fmt);
+
+	for (i = 0; i < ZPOOL_WAIT_NUM_ACTIVITIES; i++) {
+		char buf[64];
+		if (!wd->wd_enabled[i])
+			continue;
+
+		if (wd->wd_exact)
+			(void) snprintf(buf, sizeof (buf), "%" PRIi64,
+			    bytes_rem[i]);
+		else
+			zfs_nicenum(bytes_rem[i], buf, sizeof (buf));
+
+		if (wd->wd_scripted)
+			(void) printf(i == 0 ? "%s" : "\t%s", buf);
+		else
+			(void) printf(" %*s", wd->wd_col_widths[i] - 1, buf);
+	}
+	(void) printf("\n");
+	(void) fflush(stdout);
+}
+
+void *
+wait_status_thread(void *arg)
+{
+	int i;
+	wait_data_t *wd = (wait_data_t *)arg;
+	zpool_handle_t *zhp;
+
+	char *headers[] = {"DISCARD", "FREE", "INITIALIZE", "REPLACE",
+	    "REMOVE", "RESILVER", "SCRUB"};
+
+	/* Print header and calculate the width of each column */
+	for (i = 0; i < ZPOOL_WAIT_NUM_ACTIVITIES; i++) {
+		/*
+		 * Make sure we have enough space in the col for pretty-printed
+		 * numbers and for the column header, and then leave a couple
+		 * spaces between cols for readability.
+		 */
+		wd->wd_col_widths[i] = MAX(strlen(headers[i]), 6) + 2;
+
+		if (!wd->wd_scripted && wd->wd_enabled[i])
+			(void) printf("%*s", wd->wd_col_widths[i], headers[i]);
+	}
+	if (!wd->wd_scripted)
+		(void) printf("\n");
+
+	if ((zhp = zpool_open(g_zfs, wd->wd_poolname)) == NULL)
+		return (void *)(1);
+
+	for (;;) {
+		boolean_t missing;
+		struct timespec timeout;
+		(void) timespec_get(&timeout, TIME_UTC);
+
+		if (zpool_refresh_stats(zhp, &missing) != 0 || missing ||
+		    zpool_props_refresh(zhp) != 0) {
+			zpool_close(zhp);
+			return (void *)(uintptr_t)(missing ? 0 : 1);
+		}
+
+		print_wait_status_row(wd, zhp);
+
+		timeout.tv_sec += floor(wd->wd_interval);
+		long nanos = timeout.tv_nsec +
+		    (wd->wd_interval - floor(wd->wd_interval)) * NANOSEC;
+		if (nanos >= NANOSEC) {
+			timeout.tv_sec++;
+			timeout.tv_nsec = nanos - NANOSEC;
+		} else {
+			timeout.tv_nsec = nanos;
+		}
+
+		if (sem_timedwait(&wd->wd_sem, &timeout) == 0) {
+			break; /* signaled by main thread */
+		} else if (errno != ETIMEDOUT) {
+			(void) fprintf(stderr, gettext("sem_timedwait failed: "
+			    "%s\n"), strerror(errno));
+			zpool_close(zhp);
+			return (void *)(uintptr_t)(1);
+		}
+	}
+
+	zpool_close(zhp);
+	return (void *)(0);
+}
+
+int
+zpool_do_wait(int argc, char **argv)
+{
+	boolean_t verbose = B_FALSE;
+	char c;
+	char *value;
+	int i;
+	unsigned long count;
+	pthread_t status_thr;
+	int error = 0;
+	zpool_handle_t *zhp;
+
+	wait_data_t wd;
+	wd.wd_scripted = B_FALSE;
+	wd.wd_exact = B_FALSE;
+
+	(void) sem_init(&wd.wd_sem, 0, 0);
+
+	/* By default, wait for all types of activity. */
+	for (i = 0; i < ZPOOL_WAIT_NUM_ACTIVITIES; i++)
+		wd.wd_enabled[i] = B_TRUE;
+
+	while ((c = getopt(argc, argv, "HpT:t:")) != -1) {
+		switch (c) {
+		case 'H':
+			wd.wd_scripted = B_TRUE;
+			break;
+		case 'p':
+			wd.wd_exact = B_TRUE;
+			break;
+		case 'T':
+			get_timestamp_arg(*optarg);
+			break;
+		case 't':
+		{
+			static char *col_subopts[] = { "discard", "free",
+			    "initialize", "replace", "remove", "resilver",
+			    "scrub", NULL };
+
+			/* Reset activities array */
+			bzero(&wd.wd_enabled, sizeof (wd.wd_enabled));
+			while (*optarg != '\0') {
+				int activity = getsubopt(&optarg, col_subopts,
+				    &value);
+
+				if (activity < 0) {
+					(void) fprintf(stderr,
+					    gettext("invalid activity '%s'\n"),
+					    value);
+					usage(B_FALSE);
+				}
+
+				wd.wd_enabled[activity] = B_TRUE;
+			}
+			break;
+		}
+		case '?':
+			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
+			    optopt);
+			usage(B_FALSE);
+		}
+	}
+
+	argc -= optind;
+	argv += optind;
+
+	get_interval_count(&argc, argv, &wd.wd_interval, &count);
+	if (count != 0) {
+		/* This subcmd only accepts an interval, not a count */
+		(void) fprintf(stderr, gettext("too many arguments\n"));
+		usage(B_FALSE);
+	}
+
+	if (wd.wd_interval != 0)
+		verbose = B_TRUE;
+
+	if (argc < 1) {
+		(void) fprintf(stderr, gettext("missing 'pool' argument\n"));
+		usage(B_FALSE);
+	}
+	if (argc > 1) {
+		(void) fprintf(stderr, gettext("too many arguments\n"));
+		usage(B_FALSE);
+	}
+
+	wd.wd_poolname = argv[0];
+
+	if ((zhp = zpool_open(g_zfs, wd.wd_poolname)) == NULL)
+		return (1);
+
+	if (verbose) {
+		if (pthread_create(&status_thr, NULL, wait_status_thread, &wd)
+		    != 0) {
+			(void) fprintf(stderr, gettext("failed to create status"
+			    "thread: %s\n"), strerror(errno));
+			zpool_close(zhp);
+			return (1);
+		}
+	}
+
+	/*
+	 * Loop over all activities that we are supposed to wait for until none
+	 * of them are in progress. Note that this means we can end up waiting
+	 * for more activities to complete than just those that were in progress
+	 * when we began waiting; if an activity we are interested in begins
+	 * while we are waiting for another activity, we will wait for both to
+	 * complete before exiting.
+	 */
+	for (;;) {
+		boolean_t missing = B_FALSE;
+		boolean_t any_waited = B_FALSE;
+
+		for (i = 0; i < ZPOOL_WAIT_NUM_ACTIVITIES; i++) {
+			boolean_t waited;
+
+			if (!wd.wd_enabled[i])
+				continue;
+
+			error = zpool_wait_status(zhp, i, &missing, &waited);
+			if (error != 0 || missing)
+				break;
+
+			any_waited = (any_waited || waited);
+		}
+
+		if (error != 0 || missing || !any_waited)
+			break;
+	}
+
+	zpool_close(zhp);
+
+	if (verbose) {
+		uintptr_t status;
+		(void) sem_post(&wd.wd_sem);
+		(void) pthread_join(status_thr, (void *)&status);
+		if (status != 0)
+			error = status;
+	}
+
+	(void) sem_destroy(&wd.wd_sem);
 
 	return (error);
 }

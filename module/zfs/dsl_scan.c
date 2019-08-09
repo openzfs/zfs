@@ -898,6 +898,8 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 
 	scn->scn_phys.scn_state = complete ? DSS_FINISHED : DSS_CANCELED;
 
+	spa_notify_waiters(spa);
+
 	if (dsl_scan_restarting(scn, tx))
 		spa_history_log_internal(spa, "scan aborted, restarting", tx,
 		    "errors=%llu", spa_get_errlog_size(spa));
@@ -1036,6 +1038,7 @@ dsl_scrub_pause_resume_sync(void *arg, dmu_tx_t *tx)
 		scn->scn_phys_cached.scn_flags |= DSF_SCRUB_PAUSED;
 		dsl_scan_sync_state(scn, tx, SYNC_CACHED);
 		spa_event_notify(spa, NULL, NULL, ESC_ZFS_SCRUB_PAUSED);
+		spa_notify_waiters(spa);
 	} else {
 		ASSERT3U(*cmd, ==, POOL_SCRUB_NORMAL);
 		if (dsl_scan_is_paused_scrub(scn)) {
@@ -3358,6 +3361,8 @@ dsl_process_async_destroys(dsl_pool_t *dp, dmu_tx_t *tx)
 		ASSERT0(dsl_dir_phys(dp->dp_free_dir)->dd_compressed_bytes);
 		ASSERT0(dsl_dir_phys(dp->dp_free_dir)->dd_uncompressed_bytes);
 	}
+
+	spa_notify_waiters(spa);
 
 	EQUIV(bpobj_is_open(&dp->dp_obsolete_bpobj),
 	    0 == zap_contains(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,

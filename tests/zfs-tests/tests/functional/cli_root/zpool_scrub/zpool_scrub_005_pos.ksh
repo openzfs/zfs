@@ -48,18 +48,10 @@ log_assert "When scrubbing, detach device should not break system."
 
 log_must zpool scrub $TESTPOOL
 log_must zpool detach $TESTPOOL $DISK2
-log_must zpool attach $TESTPOOL $DISK1 $DISK2
-
-while ! is_pool_resilvered $TESTPOOL; do
-	sleep 1
-done
+log_must zpool attach -w $TESTPOOL $DISK1 $DISK2
 
 log_must zpool scrub $TESTPOOL
 log_must zpool detach $TESTPOOL $DISK1
-log_must zpool attach $TESTPOOL $DISK2 $DISK1
-
-while ! is_pool_resilvered $TESTPOOL; do
-	sleep 1
-done
+log_must zpool attach -w $TESTPOOL $DISK2 $DISK1
 
 log_pass "When scrubbing, detach device should not break system."
