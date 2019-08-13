@@ -1655,7 +1655,7 @@ top:
 		zfs_fuid_sync(zfsvfs, tx);
 
 	/* Add to unlinked set */
-	zp->z_unlinked = 1;
+	zp->z_unlinked = B_TRUE;
 	zfs_unlinked_add(zp, tx);
 	zfs_acl_ids_free(&acl_ids);
 	dmu_tx_commit(tx);
@@ -1854,7 +1854,7 @@ top:
 		if (xattr_obj_unlinked) {
 			ASSERT3U(ZTOI(xzp)->i_nlink, ==, 2);
 			mutex_enter(&xzp->z_lock);
-			xzp->z_unlinked = 1;
+			xzp->z_unlinked = B_TRUE;
 			clear_nlink(ZTOI(xzp));
 			links = 0;
 			error = sa_update(xzp->z_sa_hdl, SA_ZPL_LINKS(zfsvfs),
@@ -3407,7 +3407,7 @@ top:
 	}
 
 	if ((mask & ATTR_ATIME) || zp->z_atime_dirty) {
-		zp->z_atime_dirty = 0;
+		zp->z_atime_dirty = B_FALSE;
 		ZFS_TIME_ENCODE(&ip->i_atime, atime);
 		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_ATIME(zfsvfs), NULL,
 		    &atime, sizeof (atime));
@@ -4371,7 +4371,7 @@ top:
 	}
 	/* unmark z_unlinked so zfs_link_create will not reject */
 	if (is_tmpfile)
-		szp->z_unlinked = 0;
+		szp->z_unlinked = B_FALSE;
 	error = zfs_link_create(dl, szp, tx, 0);
 
 	if (error == 0) {
@@ -4393,7 +4393,7 @@ top:
 		}
 	} else if (is_tmpfile) {
 		/* restore z_unlinked since when linking failed */
-		szp->z_unlinked = 1;
+		szp->z_unlinked = B_TRUE;
 	}
 	txg = dmu_tx_get_txg(tx);
 	dmu_tx_commit(tx);
@@ -4591,7 +4591,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	/* Preserve the mtime and ctime provided by the inode */
 	ZFS_TIME_ENCODE(&ip->i_mtime, mtime);
 	ZFS_TIME_ENCODE(&ip->i_ctime, ctime);
-	zp->z_atime_dirty = 0;
+	zp->z_atime_dirty = B_FALSE;
 	zp->z_seq++;
 
 	err = sa_bulk_update(zp->z_sa_hdl, bulk, cnt, tx);
@@ -4645,7 +4645,7 @@ zfs_dirty_inode(struct inode *ip, int flags)
 	 * only need to dirty atime.
 	 */
 	if (flags == I_DIRTY_TIME) {
-		zp->z_atime_dirty = 1;
+		zp->z_atime_dirty = B_TRUE;
 		goto out;
 	}
 #endif
@@ -4662,7 +4662,7 @@ zfs_dirty_inode(struct inode *ip, int flags)
 	}
 
 	mutex_enter(&zp->z_lock);
-	zp->z_atime_dirty = 0;
+	zp->z_atime_dirty = B_FALSE;
 
 	SA_ADD_BULK_ATTR(bulk, cnt, SA_ZPL_MODE(zfsvfs), NULL, &mode, 8);
 	SA_ADD_BULK_ATTR(bulk, cnt, SA_ZPL_ATIME(zfsvfs), NULL, &atime, 16);
@@ -4707,7 +4707,7 @@ zfs_inactive(struct inode *ip)
 		return;
 	}
 
-	if (zp->z_atime_dirty && zp->z_unlinked == 0) {
+	if (zp->z_atime_dirty && zp->z_unlinked == B_FALSE) {
 		dmu_tx_t *tx = dmu_tx_create(zfsvfs->z_os);
 
 		dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
@@ -4720,7 +4720,7 @@ zfs_inactive(struct inode *ip)
 			mutex_enter(&zp->z_lock);
 			(void) sa_update(zp->z_sa_hdl, SA_ZPL_ATIME(zfsvfs),
 			    (void *)&atime, sizeof (atime), tx);
-			zp->z_atime_dirty = 0;
+			zp->z_atime_dirty = B_FALSE;
 			mutex_exit(&zp->z_lock);
 			dmu_tx_commit(tx);
 		}
