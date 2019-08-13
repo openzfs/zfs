@@ -192,10 +192,14 @@ typedef struct znode {
 	krwlock_t	z_name_lock;	/* "master" lock for dirent locks */
 	zfs_dirlock_t	*z_dirlocks;	/* directory entry lock list */
 	rangelock_t	z_rangelock;	/* file range locks */
-	uint8_t		z_unlinked;	/* file has been unlinked */
-	uint8_t		z_atime_dirty;	/* atime needs to be synced */
-	uint8_t		z_zn_prefetch;	/* Prefetch znodes? */
-	uint8_t		z_moved;	/* Has this znode been moved? */
+	boolean_t	z_unlinked;	/* file has been unlinked */
+	boolean_t	z_atime_dirty;	/* atime needs to be synced */
+	boolean_t	z_zn_prefetch;	/* Prefetch znodes? */
+	boolean_t	z_moved;	/* Has this znode been moved? */
+	boolean_t	z_is_sa;	/* are we native sa? */
+	boolean_t	z_is_mapped;	/* are we mmap'ed */
+	boolean_t	z_is_ctldir;	/* are we .zfs entry */
+	boolean_t	z_is_stale;	/* are we stale due to rollback? */
 	uint_t		z_blksz;	/* block size in bytes */
 	uint_t		z_seq;		/* modification sequence number */
 	uint64_t	z_mapcnt;	/* number of pages mapped to file */
@@ -212,10 +216,6 @@ typedef struct znode {
 	uint64_t	z_projid;	/* project ID */
 	list_node_t	z_link_node;	/* all znodes in fs link */
 	sa_handle_t	*z_sa_hdl;	/* handle to sa data */
-	boolean_t	z_is_sa;	/* are we native sa? */
-	boolean_t	z_is_mapped;	/* are we mmap'ed */
-	boolean_t	z_is_ctldir;	/* are we .zfs entry */
-	boolean_t	z_is_stale;	/* are we stale due to rollback? */
 	struct inode	z_inode;	/* generic vfs inode */
 } znode_t;
 
