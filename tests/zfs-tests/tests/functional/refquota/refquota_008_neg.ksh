@@ -39,14 +39,18 @@
 
 verify_runnable "both"
 
+oldvalue=$(get_tunable spa_asize_inflation)
 function cleanup
 {
+	set_tunable32 spa_asize_inflation $oldvalue
         log_must zfs destroy -rf $TESTPOOL/$TESTFS
         log_must zfs create $TESTPOOL/$TESTFS
         log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 }
 
 log_onexit cleanup
+
+set_tunable32 spa_asize_inflation 2
 
 TESTFILE='testfile'
 FS=$TESTPOOL/$TESTFS
@@ -56,11 +60,11 @@ log_must zfs create $FS/$TESTSUBFS2
 mntpnt1=$(get_prop mountpoint $FS/$TESTSUBFS1)
 mntpnt2=$(get_prop mountpoint $FS/$TESTSUBFS2)
 
-log_must mkfile 800M $mntpnt1/$TESTFILE
-log_must zfs snapshot $FS/$TESTSUBFS1@snap800m
+log_must mkfile 200M $mntpnt1/$TESTFILE
+log_must zfs snapshot $FS/$TESTSUBFS1@snap200m
 
 log_must zfs set refquota=10M $FS/$TESTSUBFS2
-log_mustnot eval "zfs send $FS/$TESTSUBFS1@snap800m |" \
+log_mustnot eval "zfs send $FS/$TESTSUBFS1@snap200m |" \
         "zfs receive -F $FS/$TESTSUBFS2"
 
 log_pass "ZFS receive does not override refquota"
