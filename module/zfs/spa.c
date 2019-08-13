@@ -90,6 +90,7 @@
 #include <sys/fm/util.h>
 #include <sys/callb.h>
 #include <sys/zone.h>
+#include <sys/vmsystm.h>
 #endif	/* _KERNEL */
 
 #include "zfs_prop.h"
@@ -2197,16 +2198,16 @@ spa_load_verify_done(zio_t *zio)
 	}
 
 	mutex_enter(&spa->spa_scrub_lock);
-	spa->spa_load_verify_ios--;
+	spa->spa_load_verify_bytes -= BP_GET_PSIZE(bp);
 	cv_broadcast(&spa->spa_scrub_io_cv);
 	mutex_exit(&spa->spa_scrub_lock);
 }
 
 /*
- * Maximum number of concurrent scrub i/os to create while verifying
- * a pool while importing it.
+ * Maximum number of inflight bytes is the log2 faction of the arc size.
+ * By default, we set it to 1/16th of the arc.
  */
-int spa_load_verify_maxinflight = 10000;
+int spa_load_verify_shift = 4;
 int spa_load_verify_metadata = B_TRUE;
 int spa_load_verify_data = B_TRUE;
 
@@ -2228,13 +2229,14 @@ spa_load_verify_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	if (!BP_IS_METADATA(bp) && !spa_load_verify_data)
 		return (0);
 
+	int maxinflight_bytes = arc_target_bytes() >> spa_load_verify_shift;
 	zio_t *rio = arg;
 	size_t size = BP_GET_PSIZE(bp);
 
 	mutex_enter(&spa->spa_scrub_lock);
-	while (spa->spa_load_verify_ios >= spa_load_verify_maxinflight)
+	while (spa->spa_load_verify_bytes >= maxinflight_bytes)
 		cv_wait(&spa->spa_scrub_io_cv, &spa->spa_scrub_lock);
-	spa->spa_load_verify_ios++;
+	spa->spa_load_verify_bytes += size;
 	mutex_exit(&spa->spa_scrub_lock);
 
 	zio_nowait(zio_read(rio, spa, bp, abd_alloc_for_io(size, B_FALSE), size,
@@ -2287,12 +2289,14 @@ spa_load_verify(spa_t *spa)
 			    "spa_load_verify_metadata=%u)",
 			    spa_load_verify_data, spa_load_verify_metadata);
 		}
+
 		error = traverse_pool(spa, spa->spa_verify_min_txg,
 		    TRAVERSE_PRE | TRAVERSE_PREFETCH_METADATA |
 		    TRAVERSE_NO_DECRYPT, spa_load_verify_cb, rio);
 	}
 
 	(void) zio_wait(rio);
+	ASSERT0(spa->spa_load_verify_bytes);
 
 	spa->spa_load_meta_errors = sle.sle_meta_count;
 	spa->spa_load_data_errors = sle.sle_data_count;
@@ -9309,9 +9313,11 @@ EXPORT_SYMBOL(spa_event_notify);
 #endif
 
 #if defined(_KERNEL)
-module_param(spa_load_verify_maxinflight, int, 0644);
-MODULE_PARM_DESC(spa_load_verify_maxinflight,
-	"Max concurrent traversal I/Os while verifying pool during import -X");
+/* BEGIN CSTYLED */
+module_param(spa_load_verify_shift, int, 0644);
+MODULE_PARM_DESC(spa_load_verify_shift, "log2(fraction of arc that can "
+	"be used by inflight I/Os when verifying pool during import");
+/* END CSTYLED */
 
 module_param(spa_load_verify_metadata, int, 0644);
 MODULE_PARM_DESC(spa_load_verify_metadata,

@@ -543,13 +543,13 @@ Default value: \fB1\fR.
 .sp
 .ne 2
 .na
-\fBspa_load_verify_maxinflight\fR (int)
+\fBspa_load_verify_shift\fR (int)
 .ad
 .RS 12n
-Maximum concurrent I/Os during the traversal performed during an "extreme
-rewind" (\fB-X\fR) pool import.
+Sets the maximum number of bytes to consume during pool import to the log2
+fraction of the target arc size.
 .sp
-Default value: \fB10000\fR.
+Default value: \fB4\fR.
 .RE
 
 .sp
