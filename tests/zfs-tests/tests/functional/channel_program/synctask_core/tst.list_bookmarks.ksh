@@ -101,7 +101,7 @@ EOF
 
 # Can't look in a different pool than the one specified on command line
 log_mustnot_program $TESTPOOL - <<-EOF
-	zfs.list.bookmarks("rpool")
+	zfs.list.bookmarks("testpool2")
 	return 0
 EOF
 

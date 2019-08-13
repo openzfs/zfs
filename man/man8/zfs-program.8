@@ -474,6 +474,13 @@ snapshot (string)
 .Bd -ragged -compact -offset "xxxx"
 Must be a valid snapshot.
 .Ed
+.It Em zfs.list.properties(dataset)
+An alias for zfs.list.user_properties (see relevant entry).
+.Pp
+dataset (string)
+.Bd -ragged -compact -offset "xxxx"
+Must be a valid filesystem, snapshot, or volume.
+.Ed
 .It Em zfs.list.user_properties(dataset)
 Iterate through all user properties for the given dataset. For each
 step of the iteration, output the property name, its value, and its source.

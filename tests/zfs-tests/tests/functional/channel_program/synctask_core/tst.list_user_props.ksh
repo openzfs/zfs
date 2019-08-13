@@ -20,6 +20,9 @@
 # DESCRIPTION:
 #       Listing zfs user properties should work correctly.
 #
+#       Note, that this file tests both zfs.list.user_properties
+#       and it's alias zfs.list.properties.
+#
 
 verify_runnable "global"
 
@@ -45,6 +48,14 @@ log_must_program $TESTPOOL - <<-EOF
 	assert(n == 0)
 	return 0
 EOF
+log_must_program $TESTPOOL - <<-EOF
+	n = 0
+	for p in zfs.list.properties("$TESTPOOL/$TESTFS") do
+		n = n + 1
+	end
+	assert(n == 0)
+	return 0
+EOF
 
 # Add a single user property
 log_must zfs set $TESTPROP="$TESTVAL" $TESTPOOL/$TESTFS
@@ -52,6 +63,16 @@ log_must zfs set $TESTPROP="$TESTVAL" $TESTPOOL/$TESTFS
 log_must_program $TESTPOOL - <<-EOF
 	n = 0
 	for p,v in zfs.list.user_properties("$TESTPOOL/$TESTFS") do
+		assert(p == "$TESTPROP")
+		assert(v == "$TESTVAL")
+		n = n + 1
+	end
+	assert(n == 1)
+	return 0
+EOF
+log_must_program $TESTPOOL - <<-EOF
+	n = 0
+	for p,v in zfs.list.properties("$TESTPOOL/$TESTFS") do
 		assert(p == "$TESTPROP")
 		assert(v == "$TESTVAL")
 		n = n + 1
@@ -81,6 +102,34 @@ log_must_program $TESTPOOL - <<-EOF
 	m["$TESTPROP4"] = "$TESTVAL4"
 	n = 0
 	for p,v in zfs.list.user_properties("$TESTPOOL/$TESTFS") do
+		assert(not a[p])
+		a[p] = true
+		assert(v == m[p])
+		n = n + 1
+	end
+	assert(n == 5)
+	assert(a["$TESTPROP"] and
+	    a["$TESTPROP1"] and
+	    a["$TESTPROP2"] and
+	    a["$TESTPROP3"] and
+	    a["$TESTPROP4"])
+	return 0
+EOF
+log_must_program $TESTPOOL - <<-EOF
+	a = {}
+	a["$TESTPROP"] = false
+	a["$TESTPROP1"] = false
+	a["$TESTPROP2"] = false
+	a["$TESTPROP3"] = false
+	a["$TESTPROP4"] = false
+	m = {}
+	m["$TESTPROP"] = "$TESTVAL"
+	m["$TESTPROP1"] = "$TESTVAL1"
+	m["$TESTPROP2"] = "$TESTVAL2"
+	m["$TESTPROP3"] = "$TESTVAL3"
+	m["$TESTPROP4"] = "$TESTVAL4"
+	n = 0
+	for p,v in zfs.list.properties("$TESTPOOL/$TESTFS") do
 		assert(not a[p])
 		a[p] = true
 		assert(v == m[p])

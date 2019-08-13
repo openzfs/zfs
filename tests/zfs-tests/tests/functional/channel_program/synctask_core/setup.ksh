@@ -18,4 +18,8 @@
 
 DISK=${DISKS%% *}
 
-default_setup ${DISK}
+TESTPOOLDISK=${DISKS%% *}
+TESTPOOL2DISK=${DISKS##* }
+
+default_setup ${TESTPOOLDISK}
+create_pool testpool2 ${TESTPOOL2DISK}

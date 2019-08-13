@@ -375,6 +375,28 @@ static zcp_list_info_t zcp_user_props_list_info = {
 	}
 };
 
+/*
+ * 'properties' was the initial name for 'user_properties' seen
+ * above. 'user_properties' is a better name as it distinguishes
+ * these properties from 'system_properties' which are different.
+ * In order to avoid breaking compatibility between different
+ * versions of ZFS, we declare 'properties' as an alias for
+ * 'user_properties'.
+ */
+static zcp_list_info_t zcp_props_list_info = {
+	.name = "properties",
+	.func = zcp_user_props_list,
+	.gc = zcp_user_props_list_gc,
+	.pargs = {
+	    { .za_name = "filesystem | snapshot | volume",
+	    .za_lua_type = LUA_TSTRING},
+	    {NULL, 0}
+	},
+	.kwargs = {
+	    {NULL, 0}
+	}
+};
+
 static int
 zcp_user_props_list(lua_State *state)
 {
@@ -693,6 +715,7 @@ zcp_load_list_lib(lua_State *state)
 		&zcp_children_list_info,
 		&zcp_snapshots_list_info,
 		&zcp_user_props_list_info,
+		&zcp_props_list_info,
 		&zcp_clones_list_info,
 		&zcp_system_props_list_info,
 		&zcp_bookmarks_list_info,
