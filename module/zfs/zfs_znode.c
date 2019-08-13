@@ -135,7 +135,7 @@ zfs_znode_cache_constructor(void *buf, void *arg, int kmflags)
 	zp->z_acl_cached = NULL;
 	zp->z_xattr_cached = NULL;
 	zp->z_xattr_parent = 0;
-	zp->z_moved = 0;
+	zp->z_moved = B_FALSE;
 	return (0);
 }
 
@@ -539,18 +539,18 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	ASSERT(zp->z_dirlocks == NULL);
 	ASSERT3P(zp->z_acl_cached, ==, NULL);
 	ASSERT3P(zp->z_xattr_cached, ==, NULL);
-	zp->z_moved = 0;
+	zp->z_unlinked = B_FALSE;
+	zp->z_atime_dirty = B_FALSE;
+	zp->z_moved = B_FALSE;
+	zp->z_is_mapped = B_FALSE;
+	zp->z_is_ctldir = B_FALSE;
+	zp->z_is_stale = B_FALSE;
 	zp->z_sa_hdl = NULL;
-	zp->z_unlinked = 0;
-	zp->z_atime_dirty = 0;
 	zp->z_mapcnt = 0;
 	zp->z_id = db->db_object;
 	zp->z_blksz = blksz;
 	zp->z_seq = 0x7A4653;
 	zp->z_sync_cnt = 0;
-	zp->z_is_mapped = B_FALSE;
-	zp->z_is_ctldir = B_FALSE;
-	zp->z_is_stale = B_FALSE;
 
 	zfs_znode_sa_init(zfsvfs, zp, db, obj_type, hdl);
 
@@ -1263,7 +1263,7 @@ zfs_rezget(znode_t *zp)
 	zfs_set_inode_flags(zp, ZTOI(zp));
 
 	zp->z_blksz = doi.doi_data_block_size;
-	zp->z_atime_dirty = 0;
+	zp->z_atime_dirty = B_FALSE;
 	zfs_inode_update(zp);
 
 	/*
@@ -1883,9 +1883,9 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 	vattr.va_gid = crgetgid(cr);
 
 	rootzp = kmem_cache_alloc(znode_cache, KM_SLEEP);
-	rootzp->z_moved = 0;
-	rootzp->z_unlinked = 0;
-	rootzp->z_atime_dirty = 0;
+	rootzp->z_unlinked = B_FALSE;
+	rootzp->z_atime_dirty = B_FALSE;
+	rootzp->z_moved = B_FALSE;
 	rootzp->z_is_sa = USE_SA(version, os);
 	rootzp->z_pflags = 0;
 
