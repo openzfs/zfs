@@ -881,8 +881,8 @@ zio_root(spa_t *spa, zio_done_func_t *done, void *private, enum zio_flag flags)
 	return (zio_null(NULL, spa, NULL, done, private, flags));
 }
 
-void
-zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp)
+static void
+zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp, boolean_t config_held)
 {
 	if (!DMU_OT_IS_VALID(BP_GET_TYPE(bp))) {
 		zfs_panic_recover("blkptr at %p has invalid TYPE %llu",
@@ -921,6 +921,10 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp)
 	if (!spa->spa_trust_config)
 		return;
 
+	if (!config_held)
+		spa_config_enter(spa, SCL_VDEV, bp, RW_READER);
+	else
+		ASSERT(spa_config_held(spa, SCL_VDEV, RW_WRITER));
 	/*
 	 * Pool-specific checks.
 	 *
@@ -969,6 +973,8 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp)
 			    bp, i, (longlong_t)offset);
 		}
 	}
+	if (!config_held)
+		spa_config_exit(spa, SCL_VDEV, bp);
 }
 
 boolean_t
@@ -1008,7 +1014,7 @@ zio_read(zio_t *pio, spa_t *spa, const blkptr_t *bp,
 {
 	zio_t *zio;
 
-	zfs_blkptr_verify(spa, bp);
+	zfs_blkptr_verify(spa, bp, flags & ZIO_FLAG_CONFIG_WRITER);
 
 	zio = zio_create(pio, spa, BP_PHYSICAL_BIRTH(bp), bp,
 	    data, size, size, done, private,
@@ -1101,7 +1107,7 @@ void
 zio_free(spa_t *spa, uint64_t txg, const blkptr_t *bp)
 {
 
-	zfs_blkptr_verify(spa, bp);
+	zfs_blkptr_verify(spa, bp, B_FALSE);
 
 	/*
 	 * The check for EMBEDDED is a performance optimization.  We
@@ -1171,7 +1177,7 @@ zio_claim(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 {
 	zio_t *zio;
 
-	zfs_blkptr_verify(spa, bp);
+	zfs_blkptr_verify(spa, bp, flags & ZIO_FLAG_CONFIG_WRITER);
 
 	if (BP_IS_EMBEDDED(bp))
 		return (zio_null(pio, spa, NULL, NULL, NULL, 0));
