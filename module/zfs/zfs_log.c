@@ -380,12 +380,14 @@ zfs_log_create(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 	zil_itx_assign(zilog, itx, tx);
 }
 
+void zil_remove_async(zilog_t *zilog, uint64_t oid);
+
 /*
  * Handles both TX_REMOVE and TX_RMDIR transactions.
  */
 void
 zfs_log_remove(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
-    znode_t *dzp, char *name, uint64_t foid)
+    znode_t *dzp, char *name, uint64_t foid, boolean_t unlinked)
 {
 	itx_t *itx;
 	lr_remove_t *lr;
@@ -401,6 +403,17 @@ zfs_log_remove(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 
 	itx->itx_oid = foid;
 
+	/*
+	 * Object ids can be re-instantiated in the next txg so
+	 * remove any async transactions to avoid future leaks.
+	 * This can happen if a fsync occurs on the re-instantiated
+	 * object for a WR_INDIRECT or WR_NEED_COPY write, which gets
+	 * the new file data and flushes a write record for the old object.
+	 */
+	if (unlinked) {
+		ASSERT((txtype & ~TX_CI) == TX_REMOVE);
+		zil_remove_async(zilog, foid);
+	}
 	zil_itx_assign(zilog, itx, tx);
 }
 
