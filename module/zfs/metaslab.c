@@ -294,7 +294,7 @@ static void metaslab_passivate(metaslab_t *msp, uint64_t weight);
 static uint64_t metaslab_weight_from_range_tree(metaslab_t *msp);
 static void metaslab_flush_update(metaslab_t *, dmu_tx_t *);
 static unsigned int metaslab_idx_func(multilist_t *, void *);
-static void metaslab_jettison(metaslab_t *, uint64_t);
+static void metaslab_evict(metaslab_t *, uint64_t);
 #ifdef _METASLAB_TRACING
 kmem_cache_t *metaslab_alloc_trace_cache;
 #endif
@@ -563,7 +563,7 @@ metaslab_class_evict_old(metaslab_class_t *mc, uint64_t txg)
 			mls = multilist_sublist_lock(ml, i);
 			metaslab_t *next_msp = multilist_sublist_next(mls, msp);
 			multilist_sublist_unlock(mls);
-			metaslab_jettison(msp, txg);
+			metaslab_evict(msp, txg);
 			mutex_exit(&msp->ms_lock);
 			msp = next_msp;
 		}
@@ -3811,7 +3811,7 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 }
 
 static void
-metaslab_jettison(metaslab_t *msp, uint64_t txg)
+metaslab_evict(metaslab_t *msp, uint64_t txg)
 {
 	if (!msp->ms_loaded || msp->ms_disabled != 0)
 		return;
