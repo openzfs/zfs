@@ -2088,7 +2088,7 @@ dsl_dataset_sync(dsl_dataset_t *ds, zio_t *zio, dmu_tx_t *tx)
  * snapshot (as opposed to those that are clone only) is below a certain
  * threshold
  */
-boolean_t
+static boolean_t
 dsl_livelist_should_disable(dsl_dataset_t *ds)
 {
 	uint64_t used, referenced;
