@@ -3785,6 +3785,46 @@ dbuf_sync_indirect(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 	zio_nowait(zio);
 }
 
+#ifdef ZFS_DEBUG
+/*
+ * Verify that the size of the data in our bonus buffer does not exceed
+ * its recorded size.
+ *
+ * The purpose of this verification is to catch any cases in development
+ * where the size of a phys structure (i.e space_map_phys_t) grows and,
+ * due to incorrect feature management, older pools expect to read more
+ * data even though they didn't actually write it to begin with.
+ *
+ * For a example, this would catch an error in the feature logic where we
+ * open an older pool and we expect to write the space map histogram of
+ * a space map with size SPACE_MAP_SIZE_V0.
+ */
+static void
+dbuf_sync_leaf_verify_bonus_dnode(dbuf_dirty_record_t *dr)
+{
+	dnode_t *dn = DB_DNODE(dr->dr_dbuf);
+
+	/*
+	 * Encrypted bonus buffers can have data past their bonuslen.
+	 * Skip the verification of these blocks.
+	 */
+	if (DMU_OT_IS_ENCRYPTED(dn->dn_bonustype))
+		return;
+
+	uint16_t bonuslen = dn->dn_phys->dn_bonuslen;
+	uint16_t maxbonuslen = DN_SLOTS_TO_BONUSLEN(dn->dn_num_slots);
+	ASSERT3U(bonuslen, <=, maxbonuslen);
+
+	arc_buf_t *datap = dr->dt.dl.dr_data;
+	char *datap_end = ((char *)datap) + bonuslen;
+	char *datap_max = ((char *)datap) + maxbonuslen;
+
+	/* ensure that everything is zero after our data */
+	for (; datap_end < datap_max; datap_end++)
+		ASSERT(*datap_end == 0);
+}
+#endif
+
 /*
  * dbuf_sync_leaf() is called recursively from dbuf_sync_list() so it is
  * critical the we not allow the compiler to inline this function in to
@@ -3860,6 +3900,10 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 		bcopy(*datap, DN_BONUS(dn->dn_phys),
 		    DN_MAX_BONUS_LEN(dn->dn_phys));
 		DB_DNODE_EXIT(db);
+
+#ifdef ZFS_DEBUG
+		dbuf_sync_leaf_verify_bonus_dnode(dr);
+#endif
 
 		if (*datap != db->db.db_data) {
 			int slots = DB_DNODE(db)->dn_num_slots;
