@@ -1826,9 +1826,11 @@ dbuf_new_size(dmu_buf_impl_t *db, int size, dmu_tx_t *tx)
 	db->db.db_size = size;
 
 	if (db->db_level == 0) {
-		ASSERT3U(db->db_last_dirty->dr_txg, ==, tx->tx_txg);
 		db->db_last_dirty->dt.dl.dr_data = buf;
 	}
+	ASSERT3U(db->db_last_dirty->dr_txg, ==, tx->tx_txg);
+	ASSERT3U(db->db_last_dirty->dr_accounted, ==, osize);
+	db->db_last_dirty->dr_accounted = size;
 	mutex_exit(&db->db_mtx);
 
 	dmu_objset_willuse_space(dn->dn_objset, size - osize, tx);
@@ -2041,7 +2043,7 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 		    sizeof (dbuf_dirty_record_t),
 		    offsetof(dbuf_dirty_record_t, dr_dirty_node));
 	}
-	if (db->db_blkid != DMU_BONUS_BLKID && os->os_dsl_dataset != NULL)
+	if (db->db_blkid != DMU_BONUS_BLKID)
 		dr->dr_accounted = db->db.db_size;
 	dr->dr_dbuf = db;
 	dr->dr_txg = tx->tx_txg;
@@ -4210,8 +4212,7 @@ dbuf_write_physdone(zio_t *zio, arc_buf_t *buf, void *arg)
 	/*
 	 * The callback will be called io_phys_children times.  Retire one
 	 * portion of our dirty space each time we are called.  Any rounding
-	 * error will be cleaned up by dsl_pool_sync()'s call to
-	 * dsl_pool_undirty_space().
+	 * error will be cleaned up by dbuf_write_done().
 	 */
 	delta = dr->dr_accounted / zio->io_phys_children;
 	dsl_pool_undirty_space(dp, delta, zio->io_txg);
@@ -4294,13 +4295,36 @@ dbuf_write_done(zio_t *zio, arc_buf_t *buf, void *vdb)
 		mutex_destroy(&dr->dt.di.dr_mtx);
 		list_destroy(&dr->dt.di.dr_children);
 	}
-	kmem_free(dr, sizeof (dbuf_dirty_record_t));
 
 	cv_broadcast(&db->db_changed);
 	ASSERT(db->db_dirtycnt > 0);
 	db->db_dirtycnt -= 1;
 	db->db_data_pending = NULL;
 	dbuf_rele_and_unlock(db, (void *)(uintptr_t)tx->tx_txg, B_FALSE);
+
+	/*
+	 * If we didn't do a physical write in this ZIO and we
+	 * still ended up here, it means that the space of the
+	 * dbuf that we just released (and undirtied) above hasn't
+	 * been marked as undirtied in the pool's accounting.
+	 *
+	 * Thus, we undirty that space in the pool's view of the
+	 * world here. For physical writes this type of update
+	 * happens in dbuf_write_physdone().
+	 *
+	 * If we did a physical write, cleanup any rounding errors
+	 * that came up due to writing multiple copies of a block
+	 * on disk [see dbuf_write_physdone()].
+	 */
+	if (zio->io_phys_children == 0) {
+		dsl_pool_undirty_space(dmu_objset_pool(os),
+		    dr->dr_accounted, zio->io_txg);
+	} else {
+		dsl_pool_undirty_space(dmu_objset_pool(os),
+		    dr->dr_accounted % zio->io_phys_children, zio->io_txg);
+	}
+
+	kmem_free(dr, sizeof (dbuf_dirty_record_t));
 }
 
 static void

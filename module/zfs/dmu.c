@@ -1098,6 +1098,9 @@ dmu_write(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 	dmu_buf_rele_array(dbp, numbufs, FTAG);
 }
 
+/*
+ * Note: Lustre is an external consumer of this interface.
+ */
 void
 dmu_write_by_dnode(dnode_t *dn, uint64_t offset, uint64_t size,
     const void *buf, dmu_tx_t *tx)
