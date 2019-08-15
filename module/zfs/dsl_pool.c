@@ -660,15 +660,6 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 	VERIFY0(zio_wait(zio));
 
 	/*
-	 * We have written all of the accounted dirty data, so our
-	 * dp_space_towrite should now be zero.  However, some seldom-used
-	 * code paths do not adhere to this (e.g. dbuf_undirty(), also
-	 * rounding error in dbuf_write_physdone).
-	 * Shore up the accounting of any dirtied space now.
-	 */
-	dsl_pool_undirty_space(dp, dp->dp_dirty_pertxg[txg & TXG_MASK], txg);
-
-	/*
 	 * Update the long range free counter after
 	 * we're done syncing user data
 	 */
@@ -762,6 +753,21 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 	if (dmu_objset_is_dirty(mos, txg)) {
 		dsl_pool_sync_mos(dp, tx);
 	}
+
+	/*
+	 * We have written all of the accounted dirty data, so our
+	 * dp_space_towrite should now be zero. However, some seldom-used
+	 * code paths do not adhere to this (e.g. dbuf_undirty()). Shore up
+	 * the accounting of any dirtied space now.
+	 *
+	 * Note that, besides any dirty data from datasets, the amount of
+	 * dirty data in the MOS is also accounted by the pool. Therefore,
+	 * we want to do this cleanup after dsl_pool_sync_mos() so we don't
+	 * attempt to update the accounting for the same dirty data twice.
+	 * (i.e. at this point we only update the accounting for the space
+	 * that we know that we "leaked").
+	 */
+	dsl_pool_undirty_space(dp, dp->dp_dirty_pertxg[txg & TXG_MASK], txg);
 
 	/*
 	 * If we modify a dataset in the same txg that we want to destroy it,

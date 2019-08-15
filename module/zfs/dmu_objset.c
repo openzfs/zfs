@@ -2908,9 +2908,17 @@ dmu_fsname(const char *snapname, char *buf)
 }
 
 /*
- * Call when we think we're going to write/free space in open context to track
- * the amount of dirty data in the open txg, which is also the amount
- * of memory that can not be evicted until this txg syncs.
+ * Call when we think we're going to write/free space in open context
+ * to track the amount of dirty data in the open txg, which is also the
+ * amount of memory that can not be evicted until this txg syncs.
+ *
+ * Note that there are two conditions where this can be called from
+ * syncing context:
+ *
+ * [1] When we just created the dataset, in which case we go on with
+ *     updating any accounting of dirty data as usual.
+ * [2] When we are dirtying MOS data, in which case we only update the
+ *     pool's accounting of dirty data.
  */
 void
 dmu_objset_willuse_space(objset_t *os, int64_t space, dmu_tx_t *tx)
@@ -2920,8 +2928,9 @@ dmu_objset_willuse_space(objset_t *os, int64_t space, dmu_tx_t *tx)
 
 	if (ds != NULL) {
 		dsl_dir_willuse_space(ds->ds_dir, aspace, tx);
-		dsl_pool_dirty_space(dmu_tx_pool(tx), space, tx);
 	}
+
+	dsl_pool_dirty_space(dmu_tx_pool(tx), space, tx);
 }
 
 #if defined(_KERNEL)
