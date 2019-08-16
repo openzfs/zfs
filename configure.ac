@@ -187,6 +187,7 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/Makefile
 	tests/zfs-tests/callbacks/Makefile
 	tests/zfs-tests/cmd/Makefile
+	tests/zfs-tests/cmd/btree_test/Makefile
 	tests/zfs-tests/cmd/chg_usr_exec/Makefile
 	tests/zfs-tests/cmd/devname2devid/Makefile
 	tests/zfs-tests/cmd/dir_rd_update/Makefile
@@ -222,6 +223,7 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/arc/Makefile
 	tests/zfs-tests/tests/functional/atime/Makefile
 	tests/zfs-tests/tests/functional/bootfs/Makefile
+	tests/zfs-tests/tests/functional/btree/Makefile
 	tests/zfs-tests/tests/functional/cache/Makefile
 	tests/zfs-tests/tests/functional/cachefile/Makefile
 	tests/zfs-tests/tests/functional/casenorm/Makefile

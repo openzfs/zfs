@@ -39,6 +39,12 @@ tests = ['bootfs_001_pos', 'bootfs_002_neg', 'bootfs_003_pos',
     'bootfs_008_pos']
 tags = ['functional', 'bootfs']
 
+[tests/functional/btree]
+tests = ['btree_positive', 'btree_negative']
+tags = ['functional', 'btree']
+pre =
+post =
+
 [tests/functional/cache]
 tests = ['cache_001_pos', 'cache_002_pos', 'cache_003_pos', 'cache_004_neg',
     'cache_005_neg', 'cache_006_pos', 'cache_007_neg', 'cache_008_neg',

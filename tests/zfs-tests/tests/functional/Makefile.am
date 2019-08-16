@@ -4,6 +4,7 @@ SUBDIRS = \
 	arc \
 	atime \
 	bootfs \
+	btree \
 	cache \
 	cachefile \
 	casenorm \
