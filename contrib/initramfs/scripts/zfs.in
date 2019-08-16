@@ -884,20 +884,27 @@ mountroot()
 		ZFS_RPOOL="${pool}"
 	fi
 
-	# Set elevator=noop on the root pool's vdevs' disks.  ZFS already
-	# does this for wholedisk vdevs (for all pools), so this is only
-	# important for partitions.
+	# Set the no-op scheduler on the disks containing the vdevs of
+	# the root pool. For single-queue devices, this scheduler is
+	# "noop", for multi-queue devices, it is "none".
+	# ZFS already does this for wholedisk vdevs (for all pools), so this
+	# is only important for partitions.
 	"${ZPOOL}" status -L "${ZFS_RPOOL}" 2> /dev/null |
 	    awk '/^\t / && !/(mirror|raidz)/ {
 	        dev=$1;
 	        sub(/[0-9]+$/, "", dev);
 	        print dev
 	    }' |
-	    while read i
+	while read -r i
 	do
-		if grep -sq noop /sys/block/$i/queue/scheduler
+		SCHEDULER=/sys/block/$i/queue/scheduler
+		if [ -e "${SCHEDULER}" ]
 		then
-			echo noop > "/sys/block/$i/queue/scheduler"
+			# Query to see what schedulers are available
+			case "$(cat "${SCHEDULER}")" in
+				*noop*) echo noop > "${SCHEDULER}" ;;
+				*none*) echo none > "${SCHEDULER}" ;;
+			esac
 		fi
 	done
 
