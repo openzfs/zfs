@@ -291,6 +291,7 @@ void arc_flush(spa_t *spa, boolean_t retry);
 void arc_tempreserve_clear(uint64_t reserve);
 int arc_tempreserve_space(spa_t *spa, uint64_t reserve, uint64_t txg);
 
+uint64_t arc_all_memory(void);
 uint64_t arc_target_bytes(void);
 void arc_init(void);
 void arc_fini(void);

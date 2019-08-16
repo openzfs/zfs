@@ -57,7 +57,6 @@ int metaslab_sort_by_flushed(const void *, const void *);
 uint64_t metaslab_unflushed_changes_memused(metaslab_t *);
 
 int metaslab_load(metaslab_t *);
-void metaslab_potentially_unload(metaslab_t *, uint64_t);
 void metaslab_unload(metaslab_t *);
 boolean_t metaslab_flush(metaslab_t *, dmu_tx_t *);
 
@@ -110,7 +109,7 @@ uint64_t metaslab_class_expandable_space(metaslab_class_t *);
 boolean_t metaslab_class_throttle_reserve(metaslab_class_t *, int, int,
     zio_t *, int);
 void metaslab_class_throttle_unreserve(metaslab_class_t *, int, int, zio_t *);
-
+void metaslab_class_evict_old(metaslab_class_t *, uint64_t);
 uint64_t metaslab_class_get_alloc(metaslab_class_t *);
 uint64_t metaslab_class_get_space(metaslab_class_t *);
 uint64_t metaslab_class_get_dspace(metaslab_class_t *);
@@ -133,7 +132,8 @@ void metaslab_group_alloc_decrement(spa_t *, uint64_t, void *, int, int,
 void metaslab_group_alloc_verify(spa_t *, const blkptr_t *, void *, int);
 void metaslab_recalculate_weight_and_sort(metaslab_t *);
 void metaslab_disable(metaslab_t *);
-void metaslab_enable(metaslab_t *, boolean_t);
+void metaslab_enable(metaslab_t *, boolean_t, boolean_t);
+void metaslab_set_selected_txg(metaslab_t *, uint64_t);
 
 extern int metaslab_debug_load;
 

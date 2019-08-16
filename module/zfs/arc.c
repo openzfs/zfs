@@ -1110,7 +1110,6 @@ static boolean_t arc_is_overflowing(void);
 static void arc_buf_watch(arc_buf_t *);
 static void arc_tuning_update(void);
 static void arc_prune_async(int64_t);
-static uint64_t arc_all_memory(void);
 
 static arc_buf_contents_t arc_buf_type(arc_buf_hdr_t *);
 static uint32_t arc_bufc_to_flags(arc_buf_contents_t);
@@ -4828,7 +4827,7 @@ arc_reduce_target_size(int64_t to_free)
  * Return maximum amount of memory that we could possibly use.  Reduced
  * to half of all memory in user space which is primarily used for testing.
  */
-static uint64_t
+uint64_t
 arc_all_memory(void)
 {
 #ifdef _KERNEL
