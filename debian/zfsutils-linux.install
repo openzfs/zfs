@@ -5,6 +5,7 @@ lib/systemd/system/zfs-share-cleanup.service
 lib/systemd/system/zfs-import-scan.service
 lib/systemd/system/zfs-import-cache.service
 lib/systemd/system/zfs.target
+lib/systemd/system/zfs-import.service
 lib/systemd/system/zfs-import.target
 lib/systemd/system/zfs-volume-wait.service
 lib/systemd/system/zfs-volumes.target

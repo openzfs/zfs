@@ -33,5 +33,9 @@ $(systemdunit_DATA) $(systemdpreset_DATA):%:%.in
 		-e 's,@sysconfdir\@,$(sysconfdir),g' \
 		$< >'$@'
 
+install-data-hook:
+	$(MKDIR_P) "$(DESTDIR)$(systemdunitdir)"
+	ln -s /dev/null "$(DESTDIR)$(systemdunitdir)/zfs-import.service"
+
 distclean-local::
 	-$(RM) $(systemdunit_DATA) $(systemdpreset_DATA)
