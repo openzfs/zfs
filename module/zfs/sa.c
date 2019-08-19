@@ -1014,7 +1014,7 @@ sa_setup(objset_t *os, uint64_t sa_obj, sa_attr_reg_t *reg_attrs, int count,
 	}
 
 	sa = kmem_zalloc(sizeof (sa_os_t), KM_SLEEP);
-	mutex_init(&sa->sa_lock, NULL, MUTEX_DEFAULT, NULL);
+	mutex_init(&sa->sa_lock, NULL, MUTEX_NOLOCKDEP, NULL);
 	sa->sa_master_obj = sa_obj;
 
 	os->os_sa = sa;
