@@ -63,3 +63,14 @@ cscope.*
 *.log
 venv
 
+#
+# Module leftovers
+#
+/module/avl/zavl.mod
+/module/icp/icp.mod
+/module/lua/zlua.mod
+/module/nvpair/znvpair.mod
+/module/spl/spl.mod
+/module/unicode/zunicode.mod
+/module/zcommon/zcommon.mod
+/module/zfs/zfs.mod
