@@ -46,28 +46,19 @@ do_depend()
 # Use the zpool cache file to import pools
 do_verbatim_import()
 {
-	if [ -f "$ZPOOL_CACHE" ]
-	then
-		zfs_action "Importing ZFS pool(s)" \
-			"$ZPOOL" import -c "$ZPOOL_CACHE" -N -a
-	fi
+	[ -f "${ZPOOL_CACHE}" ] && \
+	    zfs_action "Importing ZFS pool(s)" \
+	    "${ZPOOL}" import -c "${ZPOOL_CACHE}" -N -a
 }
 
-# Support function to get a list of all pools, separated with ';'
+# Support function to get a list of all pools, separated by ';'
 find_pools()
 {
-	local CMD="$*"
-	local pools
+	local cmd="$*"
 
-	pools=$($CMD 2> /dev/null | \
-		grep -E "pool:|^[a-zA-Z0-9]" | \
-		sed 's@.*: @@' | \
-		sort | \
-		while read pool; do \
-		    echo -n "$pool;"
-		done)
-
-	echo "${pools%%;}" # Return without the last ';'.
+	do_noerr ${cmd} | egrep "pool:|^[a-zA-Z0-9]" | \
+	    sed 's@.*: @@' | sort | \
+	    tr '\n' ';' | sed 's/;$//'
 }
 
 # Find and import all visible pools, even exported ones
@@ -261,47 +252,42 @@ do_import_all_visible()
 
 do_import()
 {
-	if check_boolean "$ZPOOL_IMPORT_ALL_VISIBLE"
-	then
-		do_import_all_visible
-	else
-		# This is the default option
-		do_verbatim_import
-	fi
+	check_boolean "${ZPOOL_IMPORT_ALL_VISIBLE}" && \
+	    do_import_all_visible || \
+	    do_verbatim_import  # This is the default option
 }
 
 # Output the status and list of pools
 do_status()
 {
 	check_module_loaded "zfs" || exit 0
-
-	"$ZPOOL" status && echo "" && "$ZPOOL" list
+	"${ZPOOL}" status && echo && "${ZPOOL}" list
 }
 
 do_start()
 {
-	if check_boolean "$VERBOSE_MOUNT"
-	then
+	check_boolean "${VERBOSE_MOUNT}" && \
 	    zfs_log_begin_msg "Checking if ZFS userspace tools present"
-	fi
 
 	if checksystem
 	then
-		check_boolean "$VERBOSE_MOUNT" && zfs_log_end_msg 0
-
-		check_boolean "$VERBOSE_MOUNT" && \
-			zfs_log_begin_msg "Loading kernel ZFS infrastructure"
+		check_boolean "${VERBOSE_MOUNT}" && \
+		    zfs_log_end_msg 0 && \
+		    zfs_log_begin_msg "Loading kernel ZFS infrastructure"
 
 		if ! load_module "zfs"
 		then
-			check_boolean "$VERBOSE_MOUNT" && zfs_log_end_msg 1
+			check_boolean "${VERBOSE_MOUNT}" && \
+			    zfs_log_end_msg 1
 			return 5
 		fi
-		check_boolean "$VERBOSE_MOUNT" && zfs_log_end_msg 0
+		check_boolean "${VERBOSE_MOUNT}" && \
+		    zfs_log_end_msg 0
 
-		do_import && udev_trigger # just to make sure we get zvols.
+		do_import && udev_trigger  # just to make sure we get zvols.
 
 		return 0
+
 	else
 		return 1
 	fi
@@ -311,7 +297,7 @@ do_start()
 
 if [ ! -e /sbin/openrc-run ]
 then
-	case "$1" in
+	case "${1}" in
 		start)
 			do_start
 			;;
@@ -325,8 +311,8 @@ then
 			# no-op
 			;;
 		*)
-			[ -n "$1" ] && echo "Error: Unknown command $1."
-			echo "Usage: $0 {start|status}"
+			[ -n "${1}" ] && echo "Error: Unknown command ${1}."
+			echo "Usage: ${0} {start|status}"
 			exit 3
 			;;
 	esac

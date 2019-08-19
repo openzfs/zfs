@@ -12,81 +12,6 @@
 
 PATH=/sbin:/bin:/usr/bin:/usr/sbin
 
-# Source function library
-if [ -f /etc/rc.d/init.d/functions ]; then
-	# RedHat and derivates
-	. /etc/rc.d/init.d/functions
-elif [ -L /etc/init.d/functions.sh ]; then
-	# Gentoo
-	. /etc/init.d/functions.sh
-elif [ -f /lib/lsb/init-functions ]; then
-	# LSB, Debian GNU/Linux and derivates
-	. /lib/lsb/init-functions
-fi
-
-# Of course the functions we need are called differently
-# on different distributions - it would be way too easy
-# otherwise!!
-if type log_failure_msg > /dev/null 2>&1 ; then
-	# LSB functions - fall through
-	zfs_log_begin_msg() { log_begin_msg "$1"; }
-	zfs_log_end_msg() { log_end_msg "$1"; }
-	zfs_log_failure_msg() { log_failure_msg "$1"; }
-	zfs_log_progress_msg() { log_progress_msg "$1"; }
-elif type success > /dev/null 2>&1 ; then
-	# Fedora/RedHat functions
-	zfs_set_ifs() {
-		# For some reason, the init function library have a problem
-		# with a changed IFS, so this function goes around that.
-		local tIFS="$1"
-		if [ -n "$tIFS" ]
-		then
-			TMP_IFS="$IFS"
-			IFS="$tIFS"
-		fi
-	}
-
-	zfs_log_begin_msg() { echo -n "$1 "; }
-	zfs_log_end_msg() {
-		zfs_set_ifs "$OLD_IFS"
-		if [ "$1" -eq 0 ]; then
-			success
-		else
-			failure
-		fi
-		echo
-		zfs_set_ifs "$TMP_IFS"
-	}
-	zfs_log_failure_msg() {
-		zfs_set_ifs "$OLD_IFS"
-		failure
-		echo
-		zfs_set_ifs "$TMP_IFS"
-	}
-	zfs_log_progress_msg() { echo -n $"$1"; }
-elif type einfo > /dev/null 2>&1 ; then
-	# Gentoo functions
-	zfs_log_begin_msg() { ebegin "$1"; }
-	zfs_log_end_msg() { eend "$1"; }
-	zfs_log_failure_msg() { eend "$1"; }
-#	zfs_log_progress_msg() { echo -n "$1"; }
-	zfs_log_progress_msg() { echo -n; }
-else
-	# Unknown - simple substitues.
-	zfs_log_begin_msg() { echo -n "$1"; }
-	zfs_log_end_msg() {
-		ret=$1
-		if [ "$ret" -ge 1 ]; then
-			echo " failed!"
-		else
-			echo " success"
-		fi
-		return "$ret"
-	}
-	zfs_log_failure_msg() { echo "$1"; }
-	zfs_log_progress_msg() { echo -n "$1"; }
-fi
-
 # Paths to what we need
 ZFS="@sbindir@/zfs"
 ZED="@sbindir@/zed"
@@ -106,22 +31,138 @@ fi
 
 # ----------------------------------------------------
 
+# Source function library
+if [ -f /etc/rc.d/init.d/functions ]; then
+	# RedHat and derivates
+	. /etc/rc.d/init.d/functions
+elif [ -f /etc/init.d/functions.sh ]; then
+	# Gentoo
+	. /etc/init.d/functions.sh
+elif [ -f /lib/lsb/init-functions ]; then
+	# LSB, Debian GNU/Linux and derivates
+	. /lib/lsb/init-functions
+fi
+
+# helpers
+do_noout() { "$@" >/dev/null; }
+do_noerr() { "$@" 2>/dev/null; }
+do_quiet() { "$@" >/dev/null 2>/dev/null; }
+
+# Of course the functions we need are called differently
+# on different distributions - it would be way too easy
+# otherwise!!
+if do_noout type log_failure_msg
+then
+	# LSB functions - fall through
+	zfs_log_begin_msg() { log_begin_msg "${1}"; }
+	zfs_log_end_msg() { log_end_msg "${1}"; }
+	zfs_log_failure_msg() { log_failure_msg "${1}"; }
+	zfs_log_progress_msg() { log_progress_msg "${1}"; }
+
+elif do_noout type success
+then
+	# Fedora/RedHat functions
+	zfs_set_ifs() {
+		# For some reason, the init function library have a problem
+		# with a changed IFS, so this function goes around that.
+		local tIFS="${1}"
+
+		if [ -n "${tIFS}" ]
+		then
+			TMP_IFS="${IFS}"
+			IFS="${tIFS}"
+		fi
+	}
+
+	zfs_log_begin_msg() { echo -n "${1} "; }
+	zfs_log_end_msg() {
+		zfs_set_ifs "${OLD_IFS}" # TODO: ?OLD_IFS???
+		[ "${1}" -eq 0 ] && success || failure
+		echo
+		zfs_set_ifs "${TMP_IFS}"
+	}
+	zfs_log_failure_msg() {
+		zfs_set_ifs "${OLD_IFS}"
+		failure
+		echo
+		zfs_set_ifs "${TMP_IFS}"
+	}
+	zfs_log_progress_msg() { echo -n $"${1}"; }  # TODO: does not work!?
+
+elif do_noout type einfo
+then
+	# Gentoo functions
+	zfs_log_begin_msg() { ebegin "${1}"; }
+	zfs_log_end_msg() { eend "${1}"; }
+	zfs_log_failure_msg() { eend "${1}"; }
+#	zfs_log_progress_msg() { echo -n "${1}"; }
+	zfs_log_progress_msg() { echo -n; }
+
+else
+	# Unknown - simple substitues.
+	zfs_log_begin_msg() { echo -n "${1}"; }
+	zfs_log_end_msg() {
+		local ret=${1}
+		[ "${ret}" -ge 1 ] && echo " failed!" || echo " success"
+		return "${ret}"
+	}
+	zfs_log_failure_msg() { echo "${1}"; }
+	zfs_log_progress_msg() { echo -n "${1}"; }
+fi
+
+# Helper for converting (fixing...) some specialities of (m|fs)tab for
+# regex matching.
+#
+# args:		-
+# pipe:		(part of) regex
+# output:	encoded regex
+# returns:	-
+#
+convert_tabregex()
+{
+ # normalize any possible form of space or \040
+ # normalize any possible form of \t or \011
+ # then map . to [^ ], but keep \.* etc.
+ sed -r 's/\0/\\0/g; s/ /\\\\\\040/g;
+   s/\t/\\\\\\011/g;
+   s/(^|[^\\])\./\1[^ ]/g'
+}
+
+# Simple argument parser
+#
+# args:		argument name (e.g. dev)
+#		arguments (e.g. "${args}" or "$@")
+# output:	argument value
+# returns:	-
+#
+parsearg()
+{
+	local argname="${1}"
+
+	while shift 2>/dev/null
+	do
+		[ "${1%%=*}" = "${argname}" ] && \
+		    /bin/echo "${1##*=}" && \
+		    break
+	done
+}
+
+# ----------------------------------------------------
+
 zfs_action()
 {
-	local MSG="$1";	shift
-	local CMD="$*"
+	local msg="${1}";	shift
+	local cmd="$*"
 	local ret
 
-	zfs_log_begin_msg "$MSG "
-	$CMD
+	zfs_log_begin_msg "${msg} "
+	${cmd}
 	ret=$?
-	if [ "$ret" -eq 0 ]; then
-		zfs_log_end_msg $ret
-	else
-		zfs_log_failure_msg $ret
-	fi
 
-	return $ret
+	[ "${ret}" -eq 0 ] && zfs_log_end_msg ${ret} || \
+	    zfs_log_failure_msg ${ret}
+
+	return ${ret}
 }
 
 # Returns
@@ -132,33 +173,38 @@ zfs_action()
 #
 zfs_daemon_start()
 {
-	local PIDFILE="$1";	shift
-	local DAEMON_BIN="$1";	shift
-	local DAEMON_ARGS="$*"
+	local pidfile="${1}";		shift
+	local daemon_bin="${1}";	shift
+	local daemon_args="$*"
 
-	if type start-stop-daemon > /dev/null 2>&1 ; then
+	if do_noout type start-stop-daemon
+	then
 		# LSB functions
-		start-stop-daemon --start --quiet --pidfile "$PIDFILE" \
-		    --exec "$DAEMON_BIN" --test > /dev/null || return 1
+		start-stop-daemon --quiet --start --test \
+		    --pidfile "${pidfile}" --exec "${daemon_bin}" || \
+		    return 1
 
-	        start-stop-daemon --start --quiet --exec "$DAEMON_BIN" -- \
-		    $DAEMON_ARGS || return 2
+		start-stop-daemon --quiet --start \
+		    --exec "${daemon_bin}" -- "${daemon_args}" || \
+		    return 2
 
 		# On Debian GNU/Linux, there's a 'sendsigs' script that will
 		# kill basically everything quite early and zed is stopped
 		# much later than that. We don't want zed to be among them,
 		# so add the zed pid to list of pids to ignore.
-		if [ -f "$PIDFILE" -a -d /run/sendsigs.omit.d ]
-		then
-			ln -sf "$PIDFILE" /run/sendsigs.omit.d/zed
-		fi
-	elif type daemon > /dev/null 2>&1 ; then
+		[ -f "${pidfile}" -a -d /run/sendsigs.omit.d ] && \
+		    ln -sf "${pidfile}" /run/sendsigs.omit.d/zed
+
+	elif do_noout type daemon
+	then
 	        # Fedora/RedHat functions
-		daemon --pidfile "$PIDFILE" "$DAEMON_BIN" $DAEMON_ARGS
-		return $?
+		daemon --pidfile "${pidfile}" "${daemon_bin}" \
+		    "${daemon_args}" || \
+		    return 3
+
 	else
 		# Unsupported
-		return 3
+		return 255
 	fi
 
 	return 0
@@ -172,120 +218,141 @@ zfs_daemon_start()
 #
 zfs_daemon_stop()
 {
-	local PIDFILE="$1"
-	local DAEMON_BIN="$2"
-	local DAEMON_NAME="$3"
+	local pidfile="${1}";		shift
+	local daemon_bin="${1}";	shift
+	local daemon_name="${1}"
 
-	if type start-stop-daemon > /dev/null 2>&1 ; then
+	if do_noout type start-stop-daemon; then
 		# LSB functions
-		start-stop-daemon --stop --quiet --retry=TERM/30/KILL/5 \
-		    --pidfile "$PIDFILE" --name "$DAEMON_NAME"
-		[ "$?" = 0 ] && rm -f "$PIDFILE"
+		start-stop-daemon --quiet --stop \
+		    --pidfile "${pidfile}" --name "${daemon_name}" \
+		    --retry=TERM/30/KILL/5
 
-		return $?
-	elif type killproc > /dev/null 2>&1 ; then
+	elif do_noout type killproc; then
 		# Fedora/RedHat functions
-		killproc -p "$PIDFILE" "$DAEMON_NAME"
-		[ "$?" = 0 ] && rm -f "$PIDFILE"
+		killproc -p "${pidfile}" "${daemon_name}"
 
-		return $?
 	else
 		# Unsupported
 		return 3
 	fi
 
-	return 0
+	return $?
 }
 
 # Returns status
 zfs_daemon_status()
 {
-	local PIDFILE="$1"
-	local DAEMON_BIN="$2"
-	local DAEMON_NAME="$3"
+	local pidfile="${1}";		shift
+	local daemon_bin="${1}";	shift
+	local daemon_name="${1}"
 
-	if type status_of_proc > /dev/null 2>&1 ; then
+	if do_noout type status_of_proc
+	then
 		# LSB functions
-		status_of_proc "$DAEMON_NAME" "$DAEMON_BIN"
-		return $?
-	elif type status > /dev/null 2>&1 ; then
+		status_of_proc "${daemon_name}" "${daemon_bin}"
+
+	elif do_noout type status
+	then
 		# Fedora/RedHat functions
-		status -p "$PIDFILE" "$DAEMON_NAME"
-		return $?
+		status -p "${pidfile}" "${daemon_name}"
+
 	else
 		# Unsupported
 		return 3
 	fi
 
-	return 0
+	return $?
 }
 
 zfs_daemon_reload()
 {
-	local PIDFILE="$1"
-	local DAEMON_NAME="$2"
+	local pidfile="${1}";	shift
+	local daemon_name="${1}"
 
-	if type start-stop-daemon > /dev/null 2>&1 ; then
+	if do_noout type start-stop-daemon
+	then
 		# LSB functions
-		start-stop-daemon --stop --signal 1 --quiet \
-		    --pidfile "$PIDFILE" --name "$DAEMON_NAME"
-		return $?
-	elif type killproc > /dev/null 2>&1 ; then
+		start-stop-daemon --quiet --stop --signal 1 \
+		    --pidfile "${pidfile}" --name "${daemon_name}"
+
+	elif do_noout type killproc
+	then
 		# Fedora/RedHat functions
-                killproc -p "$PIDFILE" "$DAEMON_NAME" -HUP
-		return $?
+                killproc -p "${pidfile}" "${daemon_name}" -HUP
+
 	else
 		# Unsupported
 		return 3
 	fi
 
-	return 0
+	return $?
 }
 
+# Test if a cmd is working
+# args:		cmd
+# output:	-
+# returns:	cmd return code
+test_zfs_cmd() {
+	local cmd=${1}
+
+	# Test if it works
+	# (will catch missing binary and missing/broken libs etc)
+	do_noout "${cmd}" -?
+
+	return $?
+}
+
+# Check if zfs is installed and working
+# args:		-
+# output:	-
+# returns:	0 or failed cmd number
 zfs_installed()
 {
-	if [ ! -x "$ZPOOL" ]; then
-		return 1
-	else
-		# Test if it works (will catch missing/broken libs etc)
-		"$ZPOOL" -? > /dev/null 2>&1
-		return $?
-	fi
-
-	if [ ! -x "$ZFS" ]; then
-		return 2
-	else
-		# Test if it works (will catch missing/broken libs etc)
-		"$ZFS" -? > /dev/null 2>&1
-		return $?
-	fi
+	test_zfs_cmd "${ZPOOL}" || return 1
+	test_zfs_cmd "${ZFS}" || return 2
 
 	return 0
 }
 
 # Trigger udev and wait for it to settle.
+#
+# args:		-
+# output:	-
+# returns:	return code of settle command
+#
 udev_trigger()
 {
-	if [ -x /sbin/udevadm ]; then
+	if [ -x /sbin/udevadm ]
+	then
 		/sbin/udevadm trigger --action=change --subsystem-match=block
 		/sbin/udevadm settle
-	elif [ -x /sbin/udevsettle ]; then
+
+	elif [ -x /sbin/udevsettle ]
+	then
 		/sbin/udevtrigger
 		/sbin/udevsettle
 	fi
+
+	return $?
 }
 
 # Do a lot of checks to make sure it's 'safe' to continue with the import.
+#
+# args:		-
+# output:	-
+# returns:	0 or error code, exits 3 if not called from init
+#
 checksystem()
 {
-	if grep -qiE '(^|[^\\](\\\\)* )zfs=(off|no|0)( |$)' /proc/cmdline;
+	if grep -qEi '(^|[^\\](\\\\)* )zfs=(off|no|0)( |$)' /proc/cmdline;
 	then
 		# Called with zfs=(off|no|0) - bail because we don't
 		# want anything import, mounted or shared.
 		# HOWEVER, only do this if we're called at the boot up
 		# (from init), not if we're running interactivly (as in
 		# from the shell - we know what we're doing).
-		[ -n "$init" ] && exit 3
+		[ -n "${init}" ] && exit 3
 	fi
 
 	# Check if ZFS is installed.
@@ -294,9 +361,9 @@ checksystem()
 	# Just make sure that /dev/zfs is created.
 	udev_trigger
 
-	if ! [ "$(uname -m)" = "x86_64" ]; then
-		echo "Warning: You're not running 64bit. Currently native zfs in";
-		echo "         Linux is only supported and tested on 64bit.";
+	if [ "$(uname -m)" != "x86_64" ]; then
+		echo "Warning: You're not running 64bit. Currently native zfs in" >&2
+		echo "         Linux is only supported and tested on 64bit."  >&2
 		# should we break here? People doing this should know what they
 		# do, thus i'm not breaking here.
 	fi
@@ -304,133 +371,196 @@ checksystem()
 	return 0
 }
 
+# Get the root pool from current mounts
+#
+# args:		-
+# output:	root pool name
+# returns:	-
+#
 get_root_pool()
 {
-	set -- $(mount | grep ' on / ')
-	[ "$5" = "zfs" ] && echo "${1%%/*}"
+	get_mtab_entry mntpt="/" type="zfs" | (
+	    IFS="\0" read -r dev _;
+	    echo "${dev%%/*}";
+	)
 }
 
-# Check if a variable is 'yes' (any case) or '1'
-# Returns TRUE if set.
+# Convert text variable to boolean
+#
+# args:		variable
+# output:	-
+# returns:	boolean
+#
 check_boolean()
 {
-	local var="$1"
+	local var="${1}"
 
-	echo "$var" | grep -Eiq "^yes$|^on$|^true$|^1$" && return 0 || return 1
-}
+	echo "${var}" | grep -qEi '^(yes|on|true|1)$'
 
-check_module_loaded()
-{
-	module="$1"
-
-	[ -r "/sys/module/${module}/version" ] && return 0 || return 1
-}
-
-load_module()
-{
-	module="$1"
-
-	# Load the zfs module stack
-	if ! check_module_loaded "$module"; then
-		if ! /sbin/modprobe "$module"; then
-			return 5
-		fi
-	fi
-	return 0
-}
-
-# first parameter is a regular expression that filters mtab
-read_mtab()
-{
-	local match="$1"
-	local fs mntpnt fstype opts rest TMPFILE
-
-	# Unset all MTAB_* variables
-	unset $(env | grep ^MTAB_ | sed 's,=.*,,')
-
-	while read -r fs mntpnt fstype opts rest; do
-		if echo "$fs $mntpnt $fstype $opts" | grep -qE "$match"; then
-			# * Fix problems (!?) in the mounts file. It will record
-			#   'rpool 1' as 'rpool\0401' instead of 'rpool\00401'
-			#   which seems to be the correct (at least as far as
-			#   'printf' is concerned).
-			# * We need to use the external echo, because the
-			#   internal one would interpret the backslash code
-			#   (incorrectly), giving us a  instead.
-			mntpnt=$(/bin/echo "$mntpnt" | sed "s,\\\0,\\\00,g")
-			fs=$(/bin/echo "$fs" | sed "s,\\\0,\\\00,")
-
-			# Remove 'unwanted' characters.
-			mntpnt=$(printf '%b\n' "$mntpnt" | sed -e 's,/,,g' \
-			    -e 's,-,,g' -e 's,\.,,g' -e 's, ,,g')
-			fs=$(printf '%b\n' "$fs")
-
-			# Set the variable.
-			eval export MTAB_$mntpnt=\"$fs\"
-		fi
-	done < /proc/self/mounts
-}
-
-in_mtab()
-{
-	local fs="$(echo "$1" | sed 's,/,_,g')"
-	local var
-
-	var="$(eval echo MTAB_$fs)"
-	[ "$(eval echo "$""$var")" != "" ]
-	return "$?"
-}
-
-# first parameter is a regular expression that filters fstab
-read_fstab()
-{
-	local match="$1"
-	local i var TMPFILE
-
-	# Unset all FSTAB_* variables
-	unset $(env | grep ^FSTAB_ | sed 's,=.*,,')
-
-	i=0
-	while read -r fs mntpnt fstype opts; do
-		echo "$fs" | egrep -qE '^#|^$' && continue
-		echo "$mntpnt" | egrep -qE '^none|^swap' && continue
-		echo "$fstype" | egrep -qE '^swap' && continue
-
-		if echo "$fs $mntpnt $fstype $opts" | grep -qE "$match"; then
-			eval export FSTAB_dev_$i="$fs"
-			fs=$(printf '%b\n' "$fs" | sed 's,/,_,g')
-			eval export FSTAB_$i="$mntpnt"
-
-			i=$((i + 1))
-		fi
-	done < /etc/fstab
-}
-
-in_fstab()
-{
-	local var
-
-	var="$(eval echo FSTAB_$1)"
-	[ "${var}" != "" ]
 	return $?
 }
 
+# Check if a module is currently loaded (or built-in)
+#
+# args:		module name
+# output:	-
+# returns:	boolean
+#
+check_module_loaded()
+{
+	local module="${1}"
+
+	[ -r "/sys/module/${module}/version" ]
+
+	return $?
+}
+
+# Load a module
+#
+# args:	module name
+# output:	-
+# returns:	0 or error code
+#
+load_module()
+{
+	local module="${1}"
+
+	# Load the zfs module stack
+	check_module_loaded "${module}" || \
+	    /sbin/modprobe "${module}" || \
+	    return 5
+
+    	return 0
+}
+
+# Filter tabfile by regexes
+# example 1:	filter_tabfile mntpt=".*/sd[abc].*" type="zfs" /dev/fstab
+# example 2:	filter_tabfile mntpt=/ type=zfs /dev/fstab
+# example 3 w/ space: filter_tabfile dev="pool 1"
+# example 4 w/ space: filter_tabfile dev="pool\0401"
+#
+# args:		tabfile (e.g. /etc/fstab, /etc/mtab, /proc/self/mounts)
+#		filter regexes in the form of '<filter>=<value>'
+#		    (valid filters are:	dev, mntpt, type, opts)
+# output:	matching entries (spaces translated to \0)
+# returns:	boolean
+#
+filter_tabfile()
+{
+	local tabfile="${1}"; shift
+
+	local dev="$(parsearg dev "$@")"
+	local mntpt="$(parsearg mntpt "$@")"
+	local type="$(parsearg type "$@")"
+	local opts="$(parsearg opts "$@")"
+
+	if [ "${dev}${mntpt}${type}${opts}" = "" ]
+	then
+		echo "Invalid filter: \'$*\'" >&2
+		return 1
+	fi
+
+	local lines="$( \
+	    grep -vE '^#' "${tabfile}" | \
+	    grep -Ei "^${dev:-[^ ]+} ${mntpt:-[^ ]+} ${type:-[^ ]+} ${opts:-[^ ]+}" | \
+	    sed 's/ /\x00/g; s/\\\040/ /g; s/\\\011/\t/g'
+	    )"
+
+	[ $(printf "%s" "${lines}" | wc -l) -gt 1 ] && \
+	    echo 'Warning: multiple matches; only first one returned.' >&2
+
+	printf "%s" "${lines}" | head -1
+
+	return 0
+}
+
+# Get entry from fstab
+#
+# args:		filter (see filter_tabfile())
+# output:	matching mtab entry
+# returns:	boolean
+#
+get_fstab_entry()
+{
+	filter_tabfile /etc/fstab "$@"
+
+	return $?
+}
+
+# Get entry from mtab
+#
+# args:		filter (see filter_tabfile())
+# output:	matching mtab entry
+# returns:	boolean
+#
+get_mtab_entry()
+{
+	filter_tabfile /proc/self/mounts "$@"
+
+	return $?
+}
+
+# Check for entry in tabfile (fstab, mtab)
+#
+# args:		filter (see filter_tabfile())
+#		    (backwards compatibility:	specify device only)
+# output:	-
+# returns:	boolean
+#
+in_tabfile()
+{
+	local tabfile="${1}";	shift
+	local compatfilter
+
+	# backwards compatibility
+	echo "$@" | grep -qEi '(dev|mntpt|type|opts)=' || \
+	    compatfilter="dev=${1}"
+
+    	do_quiet filter_tabfile "${tabfile}" "${compatfilter:-$@}"
+
+	return $?
+}
+
+# Check for device entry in fstab
+# args:		filter (see filter_tabfile())
+#		    (backwards compatibility:	specify device only)
+# output:	-
+# returns:	boolean
+#
+in_fstab()
+{
+
+    	in_tabfile /etc/fstab "$@"
+
+	return $?
+}
+
+# Check for device entry in mtab
+#
+# args:		filter (see filter_tabfile())
+#		    (backwards compatibility:	specify device only)
+# output:	-
+# returns:	boolean
+#
+in_mtab()
+{
+    	in_tabfile /proc/self/mounts "$@"
+
+	return $?
+}
+
+# Check if mountpoint is mounted
+# (kept as alias for bakwards compatibility)
+#
+# args:		mountpoint
+# output:	-
+# returns:	boolean
+#
 is_mounted()
 {
-	local mntpt="$1"
-	local line
+	local mntpt="${1}"
 
-	mount | \
-	    while read line; do
-		if echo "$line" | grep -q " on $mntpt "; then
-		    # returns:
-		    #   0 on unsuccessful match
-		    #   1 on a successful match
-		    return 1
-		fi
-	    done
+	in_mtab mntpt="${mntpt}"
 
-	# The negation will flip the subshell return result where the default
-	# return value is 0 when a match is not found.
-	return $(( !$? ))
+	return $?
 }
