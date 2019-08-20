@@ -851,8 +851,8 @@ zfs_ioc_input_tests(const char *pool)
 
 enum zfs_ioc_ref {
 	ZFS_IOC_BASE = ('Z' << 8),
-	LINUX_IOC_BASE = ('Z' << 8) + 0x80,
-	FREEBSD_IOC_BASE = ('Z' << 8) + 0xC0,
+	LINUX_IOC_BASE = ZFS_IOC_BASE + 0x80,
+	FREEBSD_IOC_BASE = ZFS_IOC_BASE + 0xC0,
 };
 
 /*
