@@ -366,10 +366,13 @@ read_mtab()
 
 in_mtab()
 {
-	local fs="$(echo "$1" | sed 's,/,_,g')"
+	local mntpnt="$1"
+	# Remove 'unwanted' characters.
+	mntpnt=$(printf '%b\n' "$mntpnt" | sed -e 's,/,,g' \
+	    -e 's,-,,g' -e 's,\.,,g' -e 's, ,,g')   
 	local var
 
-	var="$(eval echo MTAB_$fs)"
+	var="$(eval echo MTAB_$mntpnt)"
 	[ "$(eval echo "$""$var")" != "" ]
 	return "$?"
 }
