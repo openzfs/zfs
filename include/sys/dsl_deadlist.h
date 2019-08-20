@@ -48,8 +48,10 @@ typedef struct dsl_deadlist_phys {
 typedef struct dsl_deadlist {
 	objset_t *dl_os;
 	uint64_t dl_object;
-	avl_tree_t dl_tree;
+	avl_tree_t dl_tree; /* contains dsl_deadlist_entry_t */
+	avl_tree_t dl_cache; /* contains dsl_deadlist_cache_entry_t */
 	boolean_t dl_havetree;
+	boolean_t dl_havecache;
 	struct dmu_buf *dl_dbuf;
 	dsl_deadlist_phys_t *dl_phys;
 	kmutex_t dl_lock;
@@ -58,6 +60,15 @@ typedef struct dsl_deadlist {
 	bpobj_t dl_bpobj;
 	boolean_t dl_oldfmt;
 } dsl_deadlist_t;
+
+typedef struct dsl_deadlist_cache_entry {
+	avl_node_t dlce_node;
+	uint64_t dlce_mintxg;
+	uint64_t dlce_bpobj;
+	uint64_t dlce_bytes;
+	uint64_t dlce_comp;
+	uint64_t dlce_uncomp;
+} dsl_deadlist_cache_entry_t;
 
 typedef struct dsl_deadlist_entry {
 	avl_node_t dle_node;
@@ -108,6 +119,7 @@ int dsl_process_sub_livelist(bpobj_t *bpobj, struct bplist *to_free,
     zthr_t *t, uint64_t *size);
 void dsl_deadlist_clear_entry(dsl_deadlist_entry_t *dle, dsl_deadlist_t *dl,
     dmu_tx_t *tx);
+void dsl_deadlist_discard_tree(dsl_deadlist_t *dl);
 
 #ifdef	__cplusplus
 }

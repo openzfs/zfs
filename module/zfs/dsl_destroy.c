@@ -413,6 +413,13 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 		/* Merge our deadlist into next's and free it. */
 		dsl_deadlist_merge(&ds_next->ds_deadlist,
 		    dsl_dataset_phys(ds)->ds_deadlist_obj, tx);
+
+		/*
+		 * We are done with the deadlist tree (generated/used
+		 * by dsl_deadlist_move_bpobj() and dsl_deadlist_merge()).
+		 * Discard it to save memory.
+		 */
+		dsl_deadlist_discard_tree(&ds_next->ds_deadlist);
 	}
 
 	dsl_deadlist_close(&ds->ds_deadlist);
