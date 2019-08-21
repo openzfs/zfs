@@ -431,9 +431,12 @@ static int llex (LexState *ls, SemInfo *seminfo) {
         if (sep >= 0) {
           read_long_string(ls, seminfo, sep);
           return TK_STRING;
-        }
-        else if (sep == -1) return '[';
-        else lexerror(ls, "invalid long string delimiter", TK_STRING);
+        } else if (sep == -1) {
+		return '[';
+        } else {
+		lexerror(ls, "invalid long string delimiter", TK_STRING);
+		break;
+	}
       }
       case '=': {
         next(ls);
