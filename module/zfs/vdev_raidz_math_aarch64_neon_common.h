@@ -23,7 +23,7 @@
  */
 
 #include <sys/types.h>
-#include <linux/simd_aarch64.h>
+#include <sys/simd.h>
 
 #define	__asm __asm__ __volatile__
 

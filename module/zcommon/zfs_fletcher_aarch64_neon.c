@@ -43,7 +43,7 @@
 
 #if defined(__aarch64__)
 
-#include <linux/simd_aarch64.h>
+#include <sys/simd.h>
 #include <sys/spa_checksum.h>
 #include <sys/strings.h>
 #include <zfs_fletcher.h>

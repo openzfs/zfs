@@ -137,10 +137,10 @@
 #include <sys/sysmacros.h>
 #include <sys/byteorder.h>
 #include <sys/spa.h>
+#include <sys/simd.h>
 #include <sys/zio_checksum.h>
 #include <sys/zfs_context.h>
 #include <zfs_fletcher.h>
-#include <linux/simd.h>
 
 #define	FLETCHER_MIN_SIMD_SIZE	64
 
@@ -773,7 +773,7 @@ fletcher_4_init(void)
 	/*
 	 * For 5.0 and latter Linux kernels the fletcher 4 benchmarks are
 	 * run in a kernel threads.  This is needed to take advantage of the
-	 * SIMD functionality, see include/linux/simd_x86.h for details.
+	 * SIMD functionality, see linux/simd_x86.h for details.
 	 */
 	taskqid_t id = taskq_dispatch(system_taskq, fletcher_4_benchmark,
 	    NULL, TQ_SLEEP);

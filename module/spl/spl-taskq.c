@@ -28,7 +28,7 @@
 #include <sys/taskq.h>
 #include <sys/kmem.h>
 #include <sys/tsd.h>
-#include <linux/simd.h>
+#include <sys/simd.h>
 
 int spl_taskq_thread_bind = 0;
 module_param(spl_taskq_thread_bind, int, 0644);
