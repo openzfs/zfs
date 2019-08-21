@@ -128,7 +128,7 @@ log_must mkfile 20m /$TESTPOOL/$TESTFS1/atestfile
 log_must zfs snapshot $TESTPOOL/$TESTFS1@snap
 
 # set a small livelist entry size to more easily test multiple entry livelists
-set_tunable64 zfs_livelist_max_entries 0x14
+set_tunable64 zfs_livelist_max_entries 20
 
 test_one_empty
 test_one
