@@ -437,6 +437,7 @@ typedef enum kmem_cbrc {
 
 typedef uintptr_t taskqid_t;
 typedef void (task_func_t)(void *);
+typedef void (*taskq_callback_fn)(void *);
 
 typedef struct taskq_ent {
 	struct taskq_ent	*tqent_next;
@@ -463,6 +464,8 @@ typedef struct taskq {
 	int		tq_maxalloc_wait;
 	taskq_ent_t	*tq_freelist;
 	taskq_ent_t	tq_task;
+	taskq_callback_fn	tq_ctor;
+	taskq_callback_fn	tq_dtor;
 } taskq_t;
 
 #define	TQENT_FLAG_PREALLOC	0x1	/* taskq_dispatch_ent used */
@@ -484,9 +487,11 @@ extern taskq_t *system_taskq;
 extern taskq_t *system_delay_taskq;
 
 extern taskq_t	*taskq_create(const char *, int, pri_t, int, int, uint_t);
-#define	taskq_create_proc(a, b, c, d, e, p, f) \
-	    (taskq_create(a, b, c, d, e, f))
-#define	taskq_create_sysdc(a, b, d, e, p, dc, f) \
+extern taskq_t *taskq_create_with_callbacks(const char *, int, pri_t, int, int,
+    uint_t, taskq_callback_fn, taskq_callback_fn);
+#define	taskq_create_proc(a, b, c, d, e, p, f, g, h)	\
+	(taskq_create_with_callbacks(a, b, c, d, e, f, g, h))
+#define	taskq_create_sysdc(a, b, d, e, p, dc, f)	\
 	    (taskq_create(a, b, maxclsyspri, d, e, f))
 extern taskqid_t taskq_dispatch(taskq_t *, task_func_t, void *, uint_t);
 extern taskqid_t taskq_dispatch_delay(taskq_t *, task_func_t, void *, uint_t,
