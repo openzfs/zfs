@@ -66,6 +66,7 @@ function cleanup_fs
 
 log_assert "Replay of intent log succeeds."
 log_onexit cleanup_fs
+log_must setup
 
 #
 # 1. Create an empty file system (TESTFS)
