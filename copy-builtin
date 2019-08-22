@@ -12,12 +12,11 @@ usage()
 KERNEL_DIR="$(readlink --canonicalize-existing "$1")"
 
 MODULES=()
-MODULES+="spl"
-for MODULE_DIR in module/*
+for MODULE_DIR in module/* module/os/linux/*
 do
 	[ -d "$MODULE_DIR" ] || continue
-	[ "spl" = "${MODULE_DIR##*/}" ] && continue
-	MODULES+=("${MODULE_DIR##*/}")
+	[ "os" = "${MODULE_DIR#*/}" ] && continue
+	MODULES+=("${MODULE_DIR#*/}")
 done
 
 if ! [ -e 'zfs_config.h' ]
