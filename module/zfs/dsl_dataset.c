@@ -345,7 +345,7 @@ unload_zfeature(dsl_dataset_t *ds, spa_feature_t f)
 		break;
 	}
 	default:
-		panic("Invalid zfeature type!");
+		panic("Invalid zfeature type %d", spa_feature_table[f].fi_type);
 	}
 }
 
@@ -387,7 +387,7 @@ load_zfeature(objset_t *mos, dsl_dataset_t *ds, spa_feature_t f)
 		break;
 	}
 	default:
-		panic("Invalid zfeature type!");
+		panic("Invalid zfeature type %d", spa_feature_table[f].fi_type);
 	}
 	return (err);
 }

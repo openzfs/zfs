@@ -14,7 +14,7 @@
  */
 
 /*
- * Copyright (c) 2014, 2019 by Delphix. All rights reserved.
+ * Copyright (c) 2014, 2017 by Delphix. All rights reserved.
  * Copyright (c) 2019, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
  * Copyright (c) 2014, 2019 by Delphix. All rights reserved.
  */

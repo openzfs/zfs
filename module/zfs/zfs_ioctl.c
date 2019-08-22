@@ -7060,9 +7060,6 @@ zfs_check_input_nvpairs(nvlist_t *innvl, const zfs_ioc_vec_t *vec)
 		 * check pair against the documented names and type
 		 */
 		for (int k = 0; k < vec->zvec_nvl_key_count; k++) {
-			zfs_dbgmsg("IOCTL: name %s, key name %s",
-			    name,
-			    nvl_keys[k].zkey_name);
 			/* if not a wild card name, check for an exact match */
 			if ((nvl_keys[k].zkey_flags & ZK_WILDCARDLIST) == 0 &&
 			    strcmp(nvl_keys[k].zkey_name, name) != 0)

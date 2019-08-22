@@ -156,6 +156,7 @@ byteswap_record(dmu_replay_record_t *drr)
 		DO32(drr_object.drr_type);
 		DO32(drr_object.drr_bonustype);
 		DO32(drr_object.drr_blksz);
+		DO32(drr_object.drr_bonuslen);
 		DO32(drr_object.drr_raw_bonuslen);
 		DO64(drr_object.drr_toguid);
 		DO64(drr_object.drr_maxblkid);

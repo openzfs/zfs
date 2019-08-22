@@ -2924,8 +2924,6 @@ dbuf_create(dnode_t *dn, uint8_t level, uint64_t blkid,
 	return (db);
 }
 
-#define	DBUF_HOLD_IMPL_MAX_DEPTH	20
-
 /*
  * This function returns a block pointer and information about the object,
  * given a dnode and a block.  This is a publicly accessible version of
@@ -3229,6 +3227,8 @@ dbuf_prefetch(dnode_t *dn, int64_t level, uint64_t blkid, zio_priority_t prio,
 	 */
 	zio_nowait(pio);
 }
+
+#define	DBUF_HOLD_IMPL_MAX_DEPTH	20
 
 /*
  * Helper function for dbuf_hold_impl_arg() to copy a buffer. Handles

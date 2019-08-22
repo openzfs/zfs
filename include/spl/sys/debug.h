@@ -71,7 +71,7 @@ void spl_dumpstack(void);
 		    "VERIFY3(" #LEFT " "  #OP " "  #RIGHT ") "		\
 		    "failed (%d " #OP " %d)\n",				\
 		    (boolean_t) (_verify3_left),			\
-                    (boolean_t) (_verify3_right));			\
+		    (boolean_t) (_verify3_right));			\
 	} while (0)
 
 #define	VERIFY3S(LEFT, OP, RIGHT)	do {				\
@@ -129,7 +129,7 @@ void spl_dumpstack(void);
  */
 #ifdef NDEBUG
 
-#define ASSERT(x)		((void)0)
+#define	ASSERT(x)		((void)0)
 #define	ASSERTV(x)
 #define	ASSERT3B(x,y,z)		((void)0)
 #define	ASSERT3S(x,y,z)		((void)0)
