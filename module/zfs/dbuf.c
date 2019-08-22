@@ -173,6 +173,7 @@ static void dbuf_hold_arg_destroy(dbuf_hold_arg_t *dh);
 
 static boolean_t dbuf_undirty(dmu_buf_impl_t *db, dmu_tx_t *tx);
 static void dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx);
+static void dbuf_sync_leaf_verify_bonus_dnode(dbuf_dirty_record_t *dr);
 
 extern inline void dmu_buf_init_user(dmu_buf_user_t *dbu,
     dmu_buf_evict_func_t *evict_func_sync,
@@ -2239,6 +2240,31 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	return (dr);
 }
 
+static void
+dbuf_undirty_bonus(dbuf_dirty_record_t *dr)
+{
+	dmu_buf_impl_t *db = dr->dr_dbuf;
+	int max_bonuslen;
+	struct dnode *dn;
+
+	if (dr->dt.dl.dr_data != db->db.db_data) {
+		dn = DB_DNODE(db);
+		max_bonuslen = DN_SLOTS_TO_BONUSLEN(dn->dn_num_slots);
+		kmem_free(dr->dt.dl.dr_data, max_bonuslen);
+		arc_space_return(max_bonuslen, ARC_SPACE_BONUS);
+	}
+	db->db_data_pending = NULL;
+	dr = list_tail(&db->db_dirty_records);
+	list_remove(&db->db_dirty_records, dr);
+	if (dr->dr_dbuf->db_level != 0) {
+		mutex_destroy(&dr->dt.di.dr_mtx);
+		list_destroy(&dr->dt.di.dr_children);
+	}
+	kmem_free(dr, sizeof (dbuf_dirty_record_t));
+	ASSERT3U(db->db_dirtycnt, >, 0);
+	db->db_dirtycnt -= 1;
+}
+
 /*
  * Undirty a buffer in the transaction group referenced by the given
  * transaction.  Return whether this evicted the dbuf.
@@ -3843,6 +3869,34 @@ dbuf_check_blkptr(dnode_t *dn, dmu_buf_impl_t *db)
 	}
 }
 
+static void
+dbuf_sync_bonus(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
+{
+	dmu_buf_impl_t *db = dr->dr_dbuf;
+	void *data = dr->dt.dl.dr_data;
+	int slots;
+	dnode_t *dn;
+
+	ASSERT0(db->db_level);
+	ASSERT(MUTEX_HELD(&db->db_mtx));
+	ASSERT(DB_DNODE_HELD(db));
+	ASSERT(db->db_blkid == DMU_BONUS_BLKID);
+	ASSERT(data != NULL);
+
+	dn = DB_DNODE(db);
+	slots = dn->dn_num_slots;
+	ASSERT0(db->db_level);
+	ASSERT3U(DN_MAX_BONUS_LEN(dn->dn_phys), <=,
+	    DN_SLOTS_TO_BONUSLEN(dn->dn_phys->dn_extra_slots + 1));
+	bcopy(data, DN_BONUS(dn->dn_phys), DN_MAX_BONUS_LEN(dn->dn_phys));
+	DB_DNODE_EXIT(db);
+
+	dbuf_sync_leaf_verify_bonus_dnode(dr);
+
+	dbuf_undirty_bonus(dr);
+	dbuf_rele_and_unlock(db, (void *)(uintptr_t)tx->tx_txg, B_FALSE);
+}
+
 /*
  * When syncing out a blocks of dnodes, adjust the block to deal with
  * encryption.  Normally, we make sure the block is decrypted before writing
@@ -3975,6 +4029,11 @@ dbuf_sync_leaf_verify_bonus_dnode(dbuf_dirty_record_t *dr)
 	for (; datap_end < datap_max; datap_end++)
 		ASSERT(*datap_end == 0);
 }
+#else
+static void
+dbuf_sync_leaf_verify_bonus_dnode(dbuf_dirty_record_t *dr)
+{
+}
 #endif
 
 /*
@@ -4043,36 +4102,7 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 	 * be called).
 	 */
 	if (db->db_blkid == DMU_BONUS_BLKID) {
-		ASSERT(*datap != NULL);
-		ASSERT0(db->db_level);
-		ASSERT3U(DN_MAX_BONUS_LEN(dn->dn_phys), <=,
-		    DN_SLOTS_TO_BONUSLEN(dn->dn_phys->dn_extra_slots + 1));
-		bcopy(*datap, DN_BONUS(dn->dn_phys),
-		    DN_MAX_BONUS_LEN(dn->dn_phys));
-		DB_DNODE_EXIT(db);
-
-#ifdef ZFS_DEBUG
-		dbuf_sync_leaf_verify_bonus_dnode(dr);
-#endif
-
-		if (*datap != db->db.db_data) {
-			int slots = DB_DNODE(db)->dn_num_slots;
-			int bonuslen = DN_SLOTS_TO_BONUSLEN(slots);
-			kmem_free(*datap, bonuslen);
-			arc_space_return(bonuslen, ARC_SPACE_BONUS);
-		}
-		db->db_data_pending = NULL;
-		ASSERT(list_next(&db->db_dirty_records, dr) == NULL);
-		ASSERT(dr->dr_dbuf == db);
-		list_remove(&db->db_dirty_records, dr);
-		if (dr->dr_dbuf->db_level != 0) {
-			mutex_destroy(&dr->dt.di.dr_mtx);
-			list_destroy(&dr->dt.di.dr_children);
-		}
-		kmem_free(dr, sizeof (dbuf_dirty_record_t));
-		ASSERT(db->db_dirtycnt > 0);
-		db->db_dirtycnt -= 1;
-		dbuf_rele_and_unlock(db, (void *)(uintptr_t)txg, B_FALSE);
+		dbuf_sync_bonus(dr, tx);
 		return;
 	}
 
