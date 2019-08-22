@@ -607,6 +607,10 @@ tags = ['functional', 'history']
 tests = ['run_hkdf_test']
 tags = ['functional', 'hkdf']
 
+[tests/functional/holes]
+tests = ['holes_sanity']
+tags = ['functional', 'holes']
+
 [tests/functional/inheritance]
 tests = ['inherit_001_pos']
 pre =

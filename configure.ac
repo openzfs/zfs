@@ -175,11 +175,13 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/cmd/file_trunc/Makefile
 	tests/zfs-tests/cmd/file_write/Makefile
 	tests/zfs-tests/cmd/get_diff/Makefile
+	tests/zfs-tests/cmd/getholes/Makefile
 	tests/zfs-tests/cmd/largest_file/Makefile
 	tests/zfs-tests/cmd/libzfs_input_check/Makefile
 	tests/zfs-tests/cmd/mkbusy/Makefile
 	tests/zfs-tests/cmd/mkfile/Makefile
 	tests/zfs-tests/cmd/mkfiles/Makefile
+	tests/zfs-tests/cmd/mkholes/Makefile
 	tests/zfs-tests/cmd/mktree/Makefile
 	tests/zfs-tests/cmd/mmap_exec/Makefile
 	tests/zfs-tests/cmd/mmap_libaio/Makefile

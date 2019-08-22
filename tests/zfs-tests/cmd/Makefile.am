@@ -9,11 +9,13 @@ SUBDIRS = \
 	file_trunc \
 	file_write \
 	get_diff \
+	getholes \
 	largest_file \
 	libzfs_input_check \
 	mkbusy \
 	mkfile \
 	mkfiles \
+	mkholes \
 	mktree \
 	mmap_exec \
 	mmap_libaio \
