@@ -796,7 +796,7 @@ dsl_scan(dsl_pool_t *dp, pool_scan_func_t func)
 		    POOL_SCRUB_NORMAL);
 		if (err == 0) {
 			spa_event_notify(spa, NULL, NULL, ESC_ZFS_SCRUB_RESUME);
-			return (ECANCELED);
+			return (SET_ERROR(ECANCELED));
 		}
 
 		return (SET_ERROR(err));

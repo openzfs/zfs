@@ -147,6 +147,7 @@ DEFINE_DBUF_EVICT_ONE_EVENT(zfs_dbuf__evict__one);
 
 DEFINE_DTRACE_PROBE2(blocked__read);
 DEFINE_DTRACE_PROBE2(dbuf__evict__one);
+DEFINE_DTRACE_PROBE2(dbuf__state_change);
 
 #endif /* HAVE_DECLARE_EVENT_CLASS */
 #endif /* _KERNEL */
