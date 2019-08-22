@@ -398,7 +398,7 @@ the least recently used metaslab to prevent the system from clogging all of
 its memory with range trees. This tunable sets the percentage of total system
 memory that is the threshold.
 .sp
-Default value: \fB75 percent\fR
+Default value: \fB25 percent\fR
 .RE
 
 .sp
@@ -480,7 +480,7 @@ reduce unnecessary reloading. Note that both this many txgs and
 \fBmetaslab_unload_delay_ms\fR milliseconds must pass before unloading will
 occur.
 .sp
-Default value: \fB8\fR.
+Default value: \fB32\fR.
 .RE
 
 .sp
@@ -491,10 +491,10 @@ Default value: \fB8\fR.
 .RS 12n
 After a metaslab is used, we keep it loaded for this many milliseconds, to
 attempt to reduce unnecessary reloading. Note that both this many
-millisecondss and \fBmetaslab_unload_delay\fR txgs must pass before unloading
+milliseconds and \fBmetaslab_unload_delay\fR txgs must pass before unloading
 will occur.
 .sp
-Default value: \fB60000\fR (one minute).
+Default value: \fB60000\fR (ten minutes).
 .RE
 
 .sp

@@ -561,7 +561,7 @@ metaslab_class_evict_old(metaslab_class_t *mc, uint64_t txg)
 			if (txg >
 			    msp->ms_selected_txg + metaslab_unload_delay &&
 			    gethrtime() > msp->ms_selected_time +
-			    (uint64_t)metaslab_unload_delay_ms * 1000000ULL) {
+			    (uint64_t)MSEC2NSEC(metaslab_unload_delay_ms)) {
 				metaslab_evict(msp, txg);
 			} else {
 				/*
