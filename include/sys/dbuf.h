@@ -127,8 +127,8 @@ typedef struct dbuf_dirty_record {
 	/* pointer back to our dbuf */
 	struct dmu_buf_impl *dr_dbuf;
 
-	/* pointer to next dirty record */
-	struct dbuf_dirty_record *dr_next;
+	/* list link for dbuf dirty records */
+	list_node_t dr_dirty_record_link;
 
 	/* pointer to parent dirty record */
 	struct dbuf_dirty_record *dr_parent;
@@ -257,8 +257,8 @@ typedef struct dmu_buf_impl {
 	kcondvar_t db_changed;
 	dbuf_dirty_record_t *db_data_pending;
 
-	/* pointer to most recent dirty record for this buffer */
-	dbuf_dirty_record_t *db_last_dirty;
+	/* List of dirty records for the buffer sorted newest to oldest. */
+	list_t db_dirty_records;
 
 	/*
 	 * Our link on the owner dnodes's dn_dbufs list.
@@ -378,6 +378,44 @@ void dbuf_init(void);
 void dbuf_fini(void);
 
 boolean_t dbuf_is_metadata(dmu_buf_impl_t *db);
+
+static inline dbuf_dirty_record_t *
+dbuf_find_dirty_lte(dmu_buf_impl_t *db, uint64_t txg)
+{
+	dbuf_dirty_record_t *dr;
+
+	for (dr = list_head(&db->db_dirty_records);
+	    dr != NULL && dr->dr_txg > txg;
+	    dr = list_next(&db->db_dirty_records, dr))
+		;
+	return (dr);
+}
+
+static inline dbuf_dirty_record_t *
+dbuf_find_dirty_eq(dmu_buf_impl_t *db, uint64_t txg)
+{
+	dbuf_dirty_record_t *dr;
+
+	for (dr = list_head(&db->db_dirty_records);
+	    dr != NULL && dr->dr_txg > txg;
+	    dr = list_next(&db->db_dirty_records, dr))
+		;
+	if (dr && dr->dr_txg == txg)
+		return (dr);
+	return (NULL);
+}
+
+static inline dbuf_dirty_record_t *
+dbuf_find_dirty_lt(dmu_buf_impl_t *db, uint64_t txg)
+{
+	dbuf_dirty_record_t *dr;
+
+	for (dr = list_head(&db->db_dirty_records);
+	    dr != NULL && dr->dr_txg >= txg;
+	    dr = list_next(&db->db_dirty_records, dr))
+		;
+	return (dr);
+}
 
 #define	DBUF_GET_BUFC_TYPE(_db)	\
 	(dbuf_is_metadata(_db) ? ARC_BUFC_METADATA : ARC_BUFC_DATA)
