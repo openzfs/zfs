@@ -91,6 +91,10 @@ MOUNT_EXTRA_OPTIONS=""
 # Only applicable for Debian GNU/Linux {dkms,initramfs}.
 ZFS_DKMS_ENABLE_DEBUG='no'
 
+# Build kernel modules with the --enable-debuginfo switch?
+# Only applicable for Debian GNU/Linux {dkms,initramfs}.
+ZFS_DKMS_ENABLE_DEBUGINFO='no'
+
 # Keep debugging symbols in kernel modules?
 # Only applicable for Debian GNU/Linux {dkms,initramfs}.
 ZFS_DKMS_DISABLE_STRIP='no'
