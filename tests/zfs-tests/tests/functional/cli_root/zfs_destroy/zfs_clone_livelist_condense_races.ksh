@@ -98,7 +98,7 @@ log_must zpool sync $TESTPOOL
 log_must zfs snapshot $TESTPOOL/$TESTFS1@snap
 
 # Reduce livelist size to trigger condense more easily
-set_tunable64 zfs_livelist_max_entries 0x14
+set_tunable64 zfs_livelist_max_entries 20
 
 # Test cancellation path in the zthr
 set_tunable32 zfs_livelist_condense_zthr_pause 1
