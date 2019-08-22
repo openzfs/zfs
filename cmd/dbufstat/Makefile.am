@@ -8,6 +8,6 @@ dist_bin_SCRIPTS = dbufstat
 #
 if USING_PYTHON_2
 install-exec-hook:
-	sed --in-place 's|^#!/usr/bin/python3|#!/usr/bin/python2|' \
+	sed ${ac_inplace} -e 's|^#!/usr/bin/python3|#!/usr/bin/python2|' \
 	    $(DESTDIR)$(bindir)/dbufstat
 endif

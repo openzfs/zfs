@@ -62,7 +62,7 @@ all-local:
 
 dist-hook: gitrev
 	cp ${top_srcdir}/include/zfs_gitrev.h $(distdir)/include; \
-	sed -i 's/Release:[[:print:]]*/Release:      $(RELEASE)/' \
+	sed ${ac_inplace} -e 's/Release:[[:print:]]*/Release:      $(RELEASE)/' \
 		$(distdir)/META
 
 # For compatibility, create a matching spl-x.y.z directly which contains

@@ -9,7 +9,7 @@ dist_pkgdata_SCRIPTS = \
 #
 if USING_PYTHON_2
 install-data-hook:
-	sed --in-place 's|^#!/usr/bin/python3|#!/usr/bin/python2|' \
+	sed ${ac_inplace} -e 's|^#!/usr/bin/python3|#!/usr/bin/python2|' \
 	    $(DESTDIR)$(pkgdatadir)/test-runner.py \
 	    $(DESTDIR)$(pkgdatadir)/zts-report.py
 endif
