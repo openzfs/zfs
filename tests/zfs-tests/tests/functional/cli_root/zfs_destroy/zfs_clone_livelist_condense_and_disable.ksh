@@ -58,9 +58,9 @@ function test_condense
 {
 	# set the max livelist entries to a small value to more easily
 	# trigger a condense
-	set_tunable64 zfs_livelist_max_entries 0x14
+	set_tunable64 zfs_livelist_max_entries 20
 	# set a small percent shared threshold so the livelist is not disabled
-	set_tunable32 zfs_livelist_min_percent_shared 0xa
+	set_tunable32 zfs_livelist_min_percent_shared 10
 	clone_dataset $TESTFS1 snap $TESTCLONE
 
 	# sync between each write to make sure a new entry is created
@@ -86,7 +86,7 @@ function test_condense
 function test_deactivated
 {
 	# Threshold set to 50 percent
-	set_tunable32 zfs_livelist_min_percent_shared 0x32
+	set_tunable32 zfs_livelist_min_percent_shared 50
 	clone_dataset $TESTFS1 snap $TESTCLONE
 
 	log_must mkfile 5m /$TESTPOOL/$TESTCLONE/$TESTFILE0
@@ -97,7 +97,7 @@ function test_deactivated
 	log_must zfs destroy -R $TESTPOOL/$TESTCLONE
 
 	# Threshold set to 20 percent
-	set_tunable32 zfs_livelist_min_percent_shared 0x14
+	set_tunable32 zfs_livelist_min_percent_shared 20
 	clone_dataset $TESTFS1 snap $TESTCLONE
 
 	log_must mkfile 5m /$TESTPOOL/$TESTCLONE/$TESTFILE0

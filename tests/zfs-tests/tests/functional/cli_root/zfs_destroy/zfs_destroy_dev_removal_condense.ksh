@@ -45,7 +45,7 @@ function cleanup
 log_onexit cleanup
 
 ORIGINAL_MAX=$(get_tunable zfs_livelist_max_entries)
-set_tunable64 zfs_livelist_max_entries 0x14
+set_tunable64 zfs_livelist_max_entries 20
 
 VIRTUAL_DISK1=/var/tmp/disk1
 VIRTUAL_DISK2=/var/tmp/disk2
