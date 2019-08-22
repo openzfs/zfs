@@ -55,11 +55,12 @@ while [[ $i -lt "${#properties[@]}" ]]; do
 		log_fail "${properties[$i]} not seen in output"
 	fi
 
-	typeset v=$(grep "${properties[$i]}" /tmp/value.$$ | $AWK '{print $3}')
+	typeset v=$(grep "${properties[$i]}" /tmp/value.$$ | awk '{print $3}')
 
 	log_note "${properties[$i]} has a value of $v"
 
 	# Determine if this value is a valid number, result in return code
+	log_must test -n "$v"
 	expr $v + 0 >/dev/null 2>&1
 
 	# All properties must be positive integers in order to be
