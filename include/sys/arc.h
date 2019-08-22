@@ -157,7 +157,9 @@ typedef enum arc_flags
 	ARC_FLAG_COMPRESS_3		= 1 << 27,
 	ARC_FLAG_COMPRESS_4		= 1 << 28,
 	ARC_FLAG_COMPRESS_5		= 1 << 29,
-	ARC_FLAG_COMPRESS_6		= 1 << 30
+	ARC_FLAG_COMPRESS_6		= 1 << 30,
+	/**< cache lookup only */
+	ARC_FLAG_CACHED_ONLY		= 1 << 31
 
 } arc_flags_t;
 
@@ -268,6 +270,7 @@ void arc_release(arc_buf_t *buf, void *tag);
 int arc_released(arc_buf_t *buf);
 void arc_buf_sigsegv(int sig, siginfo_t *si, void *unused);
 void arc_buf_freeze(arc_buf_t *buf);
+boolean_t arc_buf_frozen(arc_buf_t *buf);
 void arc_buf_thaw(arc_buf_t *buf);
 #ifdef ZFS_DEBUG
 int arc_referenced(arc_buf_t *buf);

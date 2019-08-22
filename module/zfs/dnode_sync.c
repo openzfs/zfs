@@ -207,9 +207,7 @@ free_verify(dmu_buf_impl_t *db, uint64_t start, uint64_t end, dmu_tx_t *tx)
 			continue;
 		ASSERT(err == 0);
 		ASSERT(child->db_level == 0);
-		dr = child->db_last_dirty;
-		while (dr && dr->dr_txg > txg)
-			dr = dr->dr_next;
+		dr = dbuf_find_dirty_eq(child, txg);
 		ASSERT(dr == NULL || dr->dr_txg == txg);
 
 		/* data_old better be zeroed */
@@ -231,7 +229,7 @@ free_verify(dmu_buf_impl_t *db, uint64_t start, uint64_t end, dmu_tx_t *tx)
 		mutex_enter(&child->db_mtx);
 		buf = child->db.db_data;
 		if (buf != NULL && child->db_state != DB_FILL &&
-		    child->db_last_dirty == NULL) {
+		    list_is_empty(&child->db_dirty_records)) {
 			for (j = 0; j < child->db.db_size >> 3; j++) {
 				if (buf[j] != 0) {
 					panic("freed data not zero: "
@@ -541,8 +539,9 @@ dnode_undirty_dbufs(list_t *list)
 		mutex_enter(&db->db_mtx);
 		/* XXX - use dbuf_undirty()? */
 		list_remove(list, dr);
-		ASSERT(db->db_last_dirty == dr);
-		db->db_last_dirty = NULL;
+		ASSERT(list_head(&db->db_dirty_records) == dr);
+		list_remove_head(&db->db_dirty_records);
+		ASSERT(list_is_empty(&db->db_dirty_records));
 		db->db_dirtycnt -= 1;
 		if (db->db_level == 0) {
 			ASSERT(db->db_blkid == DMU_BONUS_BLKID ||

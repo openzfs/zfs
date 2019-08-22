@@ -543,10 +543,7 @@ dnode_destroy(dnode_t *dn)
 	dn->dn_dirty_txg = 0;
 
 	dn->dn_dirtyctx = 0;
-	if (dn->dn_dirtyctx_firstset != NULL) {
-		kmem_free(dn->dn_dirtyctx_firstset, 1);
-		dn->dn_dirtyctx_firstset = NULL;
-	}
+	dn->dn_dirtyctx_firstset = NULL;
 	if (dn->dn_bonus != NULL) {
 		mutex_enter(&dn->dn_bonus->db_mtx);
 		dbuf_destroy(dn->dn_bonus);
@@ -651,10 +648,7 @@ dnode_allocate(dnode_t *dn, dmu_object_type_t ot, int blocksize, int ibs,
 	dn->dn_dirtyctx = 0;
 
 	dn->dn_free_txg = 0;
-	if (dn->dn_dirtyctx_firstset) {
-		kmem_free(dn->dn_dirtyctx_firstset, 1);
-		dn->dn_dirtyctx_firstset = NULL;
-	}
+	dn->dn_dirtyctx_firstset = NULL;
 
 	dn->dn_allocated_txg = tx->tx_txg;
 	dn->dn_id_flags = 0;
@@ -1983,6 +1977,35 @@ dnode_dirty_l1range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid,
 }
 
 void
+dnode_set_dirtyctx(dnode_t *dn, dmu_tx_t *tx, void *tag)
+{
+	dsl_dataset_t *ds;
+
+	mutex_enter(&dn->dn_mtx);
+	/*
+	 * Don't set dirtyctx to SYNC if we're just modifying this as we
+	 * initialize the objset.
+	 */
+	if (dn->dn_dirtyctx == DN_UNDIRTIED) {
+		ds = dn->dn_objset->os_dsl_dataset;
+		if (ds != NULL) {
+			rrw_enter(&ds->ds_bp_rwlock, RW_READER, tag);
+		}
+		if (!BP_IS_HOLE(dn->dn_objset->os_rootbp)) {
+			if (dmu_tx_is_syncing(tx))
+				dn->dn_dirtyctx = DN_DIRTY_SYNC;
+			else
+				dn->dn_dirtyctx = DN_DIRTY_OPEN;
+			dn->dn_dirtyctx_firstset = tag;
+		}
+		if (ds != NULL) {
+			rrw_exit(&ds->ds_bp_rwlock, tag);
+		}
+	}
+	mutex_exit(&dn->dn_mtx);
+}
+
+void
 dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 {
 	dmu_buf_impl_t *db;
@@ -2049,7 +2072,7 @@ dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 			db_lock_type_t dblt = dmu_buf_lock_parent(db, RW_READER,
 			    FTAG);
 			/* don't dirty if it isn't on disk and isn't dirty */
-			dirty = db->db_last_dirty ||
+			dirty = !list_is_empty(&db->db_dirty_records) ||
 			    (db->db_blkptr && !BP_IS_HOLE(db->db_blkptr));
 			dmu_buf_unlock_parent(db, dblt, FTAG);
 			if (dirty) {
@@ -2092,7 +2115,7 @@ dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 			/* don't dirty if not on disk and not dirty */
 			db_lock_type_t type = dmu_buf_lock_parent(db, RW_READER,
 			    FTAG);
-			dirty = db->db_last_dirty ||
+			dirty = !list_is_empty(&db->db_dirty_records) ||
 			    (db->db_blkptr && !BP_IS_HOLE(db->db_blkptr));
 			dmu_buf_unlock_parent(db, type, FTAG);
 			if (dirty) {

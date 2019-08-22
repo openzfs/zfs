@@ -1754,6 +1754,13 @@ arc_bufc_to_flags(arc_buf_contents_t type)
 	return ((uint32_t)-1);
 }
 
+boolean_t
+arc_buf_frozen(arc_buf_t *buf)
+{
+
+	return (buf->b_hdr->b_l1hdr.b_freeze_cksum != NULL);
+}
+
 void
 arc_buf_thaw(arc_buf_t *buf)
 {
