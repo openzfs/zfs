@@ -2340,7 +2340,7 @@ zfs_ioc_snapshot_list_next(zfs_cmd_t *zc)
 
 	error = dmu_objset_hold(zc->zc_name, FTAG, &os);
 	if (error != 0) {
-		return (error == ENOENT ? ESRCH : error);
+		return (error == ENOENT ? SET_ERROR(ESRCH) : error);
 	}
 
 	/*
@@ -5519,9 +5519,10 @@ zfs_ioc_clear(zfs_cmd_t *zc)
 	} else {
 		vd = spa_lookup_by_guid(spa, zc->zc_guid, B_TRUE);
 		if (vd == NULL) {
-			(void) spa_vdev_state_exit(spa, NULL, ENODEV);
+			error = SET_ERROR(ENODEV);
+			(void) spa_vdev_state_exit(spa, NULL, error);
 			spa_close(spa, FTAG);
-			return (SET_ERROR(ENODEV));
+			return (error);
 		}
 	}
 

@@ -46,7 +46,7 @@ ddt_zap_create(objset_t *os, uint64_t *objectp, dmu_tx_t *tx, boolean_t prehash)
 	    ddt_zap_leaf_blockshift, ddt_zap_indirect_blockshift,
 	    DMU_OT_NONE, 0, tx);
 
-	return (*objectp == 0 ? ENOTSUP : 0);
+	return (*objectp == 0 ? SET_ERROR(ENOTSUP) : 0);
 }
 
 static int

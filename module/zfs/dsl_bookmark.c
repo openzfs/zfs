@@ -84,7 +84,7 @@ dsl_bookmark_lookup_impl(dsl_dataset_t *ds, const char *shortname,
 	    sizeof (*bmark_phys) / sizeof (uint64_t), bmark_phys, mt, NULL, 0,
 	    NULL);
 
-	return (err == ENOENT ? ESRCH : err);
+	return (err == ENOENT ? SET_ERROR(ESRCH) : err);
 }
 
 /*
