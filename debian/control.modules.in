@@ -48,3 +48,13 @@ Description: OpenZFS filesystem kernel modules for Linux (debian-installar versi
  This package contains the compiled kernel module for _KVERS_
  .
  This is a minimal package for use in debian-installer.
+
+Package: zfs-headers-_KVERS_
+Section: contrib/headers
+Provides: zfs-headers
+Architecture: linux-any
+Depends: zfs-modules-_KVERS_ (= ${binary:Version}),
+ ${misc:Depends}
+Description: OpenZFS kernel header files for compiling software
+ to function with OpenZFS kernel modules.
+

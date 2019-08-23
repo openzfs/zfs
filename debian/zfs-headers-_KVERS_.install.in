@@ -1,0 +1,2 @@
+include usr/src/zfs-_KVERS_/
+zfs_config.h usr/src/zfs-_KVERS_/

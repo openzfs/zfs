@@ -19,6 +19,7 @@ endif
 non_epoch_version=$(shell echo $(KVERS) | perl -pe 's/^\d+://')
 PACKAGE=zfs
 pmodules = $(PACKAGE)-modules-$(non_epoch_version)
+pheaders = $(PACKAGE)-headers-$(non_epoch_version)
 
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 
@@ -191,16 +192,16 @@ override_dh_binary-modules: override_dh_prep-deb-files override_dh_configure_mod
 
 	$(MAKE) -C $(CURDIR)/module modules
 
-	dh_install -p${pmodules}
-	dh_installdocs -p${pmodules}
-	dh_installchangelogs -p${pmodules}
-	dh_compress -p${pmodules}
-	dh_strip -p${pmodules}
-	dh_fixperms -p${pmodules}
-	dh_installdeb -p${pmodules}
-	dh_gencontrol -p${pmodules}
-	dh_md5sums -p${pmodules}
-	dh_builddeb -p${pmodules}
+	dh_install -p${pmodules} -p${pheaders}
+	dh_installdocs -p${pmodules} -p${pheaders}
+	dh_installchangelogs -p${pmodules} -p${pheaders}
+	dh_compress -p${pmodules} -p${pheaders}
+	dh_strip -p${pmodules} -p${pheaders}
+	dh_fixperms -p${pmodules} -p${pheaders}
+	dh_installdeb -p${pmodules} -p${pheaders}
+	dh_gencontrol -p${pmodules} -p${pheaders}
+	dh_md5sums -p${pmodules} -p${pheaders}
+	dh_builddeb -p${pmodules} -p${pheaders}
 
 debian-copyright:
 	cme update dpkg-copyright -file debian/copyright.cme
