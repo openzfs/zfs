@@ -289,8 +289,8 @@ int zfs_metaslab_mem_limit = 25;
  */
 unsigned long zfs_metaslab_max_size_cache_sec = 3600; /* 1 hour */
 
-static uint64_t metaslab_weight(metaslab_t *);
-static void metaslab_set_fragmentation(metaslab_t *);
+static uint64_t metaslab_weight(metaslab_t *, boolean_t);
+static void metaslab_set_fragmentation(metaslab_t *, boolean_t);
 static void metaslab_free_impl(vdev_t *, uint64_t, uint64_t, boolean_t);
 static void metaslab_check_free_impl(vdev_t *, uint64_t, uint64_t);
 
@@ -1845,13 +1845,19 @@ metaslab_verify_weight_and_frag(metaslab_t *msp)
 	msp->ms_fragmentation = 0;
 
 	/*
-	 * This function is used for verification purposes. Regardless of
-	 * whether metaslab_weight() thinks this metaslab should be active or
-	 * not, we want to ensure that the actual weight (and therefore the
-	 * value of ms_weight) would be the same if it was to be recalculated
-	 * at this point.
+	 * This function is used for verification purposes and thus should
+	 * not introduce any side-effects/mutations on the system's state.
+	 *
+	 * Regardless of whether metaslab_weight() thinks this metaslab
+	 * should be active or not, we want to ensure that the actual weight
+	 * (and therefore the value of ms_weight) would be the same if it
+	 * was to be recalculated at this point.
+	 *
+	 * In addition we set the nodirty flag so metaslab_weight() does
+	 * not dirty the metaslab for future TXGs (e.g. when trying to
+	 * force condensing to upgrade the metaslab spacemaps).
 	 */
-	msp->ms_weight = metaslab_weight(msp) | was_active;
+	msp->ms_weight = metaslab_weight(msp, B_TRUE) | was_active;
 
 	VERIFY3U(max_segsize, ==, msp->ms_max_size);
 
@@ -2335,7 +2341,7 @@ metaslab_init(metaslab_group_t *mg, uint64_t id, uint64_t object,
 	ms->ms_trim = range_tree_create(NULL, NULL);
 
 	metaslab_group_add(mg, ms);
-	metaslab_set_fragmentation(ms);
+	metaslab_set_fragmentation(ms, B_FALSE);
 
 	/*
 	 * If we're opening an existing pool (txg == 0) or creating
@@ -2497,7 +2503,7 @@ int zfs_frag_table[FRAGMENTATION_TABLE_SIZE] = {
  * value should be in the range [0, 100].
  */
 static void
-metaslab_set_fragmentation(metaslab_t *msp)
+metaslab_set_fragmentation(metaslab_t *msp, boolean_t nodirty)
 {
 	spa_t *spa = msp->ms_group->mg_vd->vdev_spa;
 	uint64_t fragmentation = 0;
@@ -2532,9 +2538,11 @@ metaslab_set_fragmentation(metaslab_t *msp)
 		 * be shutting down the pool. We don't want to dirty
 		 * any data past this point so skip setting the condense
 		 * flag. We can retry this action the next time the pool
-		 * is imported.
+		 * is imported. We also skip marking this metaslab for
+		 * condensing if the caller has explicitly set nodirty.
 		 */
-		if (spa_writeable(spa) && txg < spa_final_dirty_txg(spa)) {
+		if (!nodirty &&
+		    spa_writeable(spa) && txg < spa_final_dirty_txg(spa)) {
 			msp->ms_condense_wanted = B_TRUE;
 			vdev_dirty(vd, VDD_METASLAB, msp, txg + 1);
 			zfs_dbgmsg("txg %llu, requesting force condense: "
@@ -2831,8 +2839,9 @@ metaslab_should_allocate(metaslab_t *msp, uint64_t asize, boolean_t try_hard)
 
 	return (should_allocate);
 }
+
 static uint64_t
-metaslab_weight(metaslab_t *msp)
+metaslab_weight(metaslab_t *msp, boolean_t nodirty)
 {
 	vdev_t *vd = msp->ms_group->mg_vd;
 	spa_t *spa = vd->vdev_spa;
@@ -2840,7 +2849,7 @@ metaslab_weight(metaslab_t *msp)
 
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
 
-	metaslab_set_fragmentation(msp);
+	metaslab_set_fragmentation(msp, nodirty);
 
 	/*
 	 * Update the maximum size. If the metaslab is loaded, this will
@@ -2881,7 +2890,7 @@ metaslab_recalculate_weight_and_sort(metaslab_t *msp)
 	/* note: we preserve the mask (e.g. indication of primary, etc..) */
 	uint64_t was_active = msp->ms_weight & METASLAB_ACTIVE_MASK;
 	metaslab_group_sort(msp->ms_group, msp,
-	    metaslab_weight(msp) | was_active);
+	    metaslab_weight(msp, B_FALSE) | was_active);
 }
 
 static int
