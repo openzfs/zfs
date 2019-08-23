@@ -325,12 +325,24 @@ static void metaslab_evict(metaslab_t *, uint64_t);
 static void metaslab_rt_add(range_tree_t *rt, range_seg_t *rs, void *arg);
 #ifdef _METASLAB_TRACING
 kmem_cache_t *metaslab_alloc_trace_cache;
-kstat_t *metaslab_trace_ksp;
-kstat_named_t metaslab_trace_over_limit;
-kstat_t *metaslab_df_floor_ksp;
-kstat_named_t metaslab_df_find_under_floor;
-kstat_t *metaslab_reload_ksp;
-kstat_named_t metaslab_reload_tree;
+
+typedef struct metaslab_stats {
+	kstat_named_t metaslabstat_trace_over_limit;
+	kstat_named_t metaslabstat_df_find_under_floor;
+	kstat_named_t metaslabstat_reload_tree;
+} metaslab_stats_t;
+
+static metaslab_stats_t metaslab_stats = {
+	{ "trace_over_limit",		KSTAT_DATA_UINT64 },
+	{ "df_find_under_floor",	KSTAT_DATA_UINT64 },
+	{ "reload_tree",		KSTAT_DATA_UINT64 },
+};
+
+#define	METASLABSTAT_BUMP(stat) \
+	atomic_inc_64(&metaslab_stats.stat.value.ui64);
+
+
+kstat_t *metaslab_ksp;
 
 void
 metaslab_stat_init(void)
@@ -339,49 +351,23 @@ metaslab_stat_init(void)
 	metaslab_alloc_trace_cache = kmem_cache_create(
 	    "metaslab_alloc_trace_cache", sizeof (metaslab_alloc_trace_t),
 	    0, NULL, NULL, NULL, NULL, NULL, 0);
-	metaslab_trace_ksp = kstat_create("zfs", 0, "metaslab_trace_stats",
-	    "misc", KSTAT_TYPE_NAMED, 1, KSTAT_FLAG_VIRTUAL);
-	if (metaslab_trace_ksp != NULL) {
-		metaslab_trace_ksp->ks_data = &metaslab_trace_over_limit;
-		kstat_named_init(&metaslab_trace_over_limit,
-		    "metaslab_trace_over_limit", KSTAT_DATA_UINT64);
-		kstat_install(metaslab_trace_ksp);
-	}
-	metaslab_df_floor_ksp = kstat_create("zfs", 0,
-	    "metaslab_df_floor_stats", "misc", KSTAT_TYPE_NAMED, 1,
-	    KSTAT_FLAG_VIRTUAL);
-	if (metaslab_df_floor_ksp != NULL) {
-		metaslab_df_floor_ksp->ks_data = &metaslab_df_find_under_floor;
-		kstat_named_init(&metaslab_df_find_under_floor,
-		    "metaslab_df_find_under_floor", KSTAT_DATA_UINT64);
-		kstat_install(metaslab_df_floor_ksp);
-	}
-	metaslab_reload_ksp = kstat_create("zfs", 0,
-	    "metaslab_reload_stats", "misc", KSTAT_TYPE_NAMED, 1,
-	    KSTAT_FLAG_VIRTUAL);
-	if (metaslab_reload_ksp != NULL) {
-		metaslab_reload_ksp->ks_data = &metaslab_reload_tree;
-		kstat_named_init(&metaslab_reload_tree,
-		    "metaslab_reload_tree", KSTAT_DATA_UINT64);
-		kstat_install(metaslab_reload_ksp);
+	metaslab_ksp = kstat_create("zfs", 0, "metaslab_stats",
+	    "misc", KSTAT_TYPE_NAMED, sizeof (metaslab_stats) /
+	    sizeof (kstat_named_t), KSTAT_FLAG_VIRTUAL);
+	if (metaslab_ksp != NULL) {
+		metaslab_ksp->ks_data = &metaslab_stats;
+		kstat_install(metaslab_ksp);
 	}
 }
 
 void
 metaslab_stat_fini(void)
 {
-	if (metaslab_reload_ksp != NULL) {
-		kstat_delete(metaslab_reload_ksp);
-		metaslab_reload_ksp = NULL;
+	if (metaslab_ksp != NULL) {
+		kstat_delete(metaslab_ksp);
+		metaslab_ksp = NULL;
 	}
-	if (metaslab_df_floor_ksp != NULL) {
-		kstat_delete(metaslab_df_floor_ksp);
-		metaslab_df_floor_ksp = NULL;
-	}
-	if (metaslab_trace_ksp != NULL) {
-		kstat_delete(metaslab_trace_ksp);
-		metaslab_trace_ksp = NULL;
-	}
+
 	kmem_cache_destroy(metaslab_alloc_trace_cache);
 	metaslab_alloc_trace_cache = NULL;
 }
@@ -1372,7 +1358,7 @@ metaslab_size_tree_full_load(range_tree_t *rt)
 {
 	metaslab_rt_arg_t *mrap = rt->rt_arg;
 #ifdef _METASLAB_TRACING
-	atomic_inc_64(&metaslab_reload_tree.value.ui64);
+	METASLABSTAT_BUMP(metaslabstat_reload_tree);
 #endif
 	ASSERT0(btree_numnodes(mrap->mra_bt));
 	mrap->mra_floor_shift = 0;
@@ -1683,8 +1669,8 @@ metaslab_df_alloc(metaslab_t *msp, uint64_t size)
 #ifdef _METASLAB_TRACING
 			metaslab_rt_arg_t *mrap = msp->ms_allocatable->rt_arg;
 			if (size < (1 << mrap->mra_floor_shift)) {
-				atomic_inc_64(
-				    &metaslab_df_find_under_floor.value.ui64);
+				METASLABSTAT_BUMP(
+				    metaslabstat_df_find_under_floor);
 			}
 #endif
 			rs = metaslab_block_find(&msp->ms_allocatable_by_size,
@@ -4423,7 +4409,7 @@ metaslab_trace_add(zio_alloc_list_t *zal, metaslab_group_t *mg,
 #ifdef DEBUG
 		panic("too many entries in allocation list");
 #endif
-		atomic_inc_64(&metaslab_trace_over_limit.value.ui64);
+		METASLABSTAT_BUMP(metaslabstat_trace_over_limit);
 		zal->zal_size--;
 		mat_next = list_next(&zal->zal_list, list_head(&zal->zal_list));
 		list_remove(&zal->zal_list, mat_next);
