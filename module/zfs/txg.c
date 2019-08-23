@@ -219,10 +219,11 @@ txg_sync_start(dsl_pool_t *dp)
 	mutex_exit(&tx->tx_sync_lock);
 }
 
+#define	TXG_THREAD_MAXNAMELEN	(MAXNAMELEN + 1)
 static void
-txg_thread_enter(tx_state_t *tx, callb_cpr_t *cpr)
+txg_thread_enter(tx_state_t *tx, callb_cpr_t *cpr, char *thrname)
 {
-	CALLB_CPR_INIT(cpr, &tx->tx_sync_lock, callb_generic_cpr, FTAG);
+	CALLB_CPR_INIT(cpr, &tx->tx_sync_lock, callb_generic_cpr, thrname);
 	mutex_enter(&tx->tx_sync_lock);
 }
 
@@ -509,14 +510,16 @@ txg_has_quiesced_to_sync(dsl_pool_t *dp)
 static void
 txg_sync_thread(void *arg)
 {
+	char name[TXG_THREAD_MAXNAMELEN];
 	dsl_pool_t *dp = arg;
 	spa_t *spa = dp->dp_spa;
 	tx_state_t *tx = &dp->dp_tx;
 	callb_cpr_t cpr;
 	clock_t start, delta;
 
+	snprintf(name, TXG_THREAD_MAXNAMELEN, "txg_sync %s", spa_name(spa));
 	(void) spl_fstrans_mark();
-	txg_thread_enter(tx, &cpr);
+	txg_thread_enter(tx, &cpr, name);
 
 	start = delta = 0;
 	for (;;) {
@@ -596,11 +599,14 @@ txg_sync_thread(void *arg)
 static void
 txg_quiesce_thread(void *arg)
 {
+	char name[TXG_THREAD_MAXNAMELEN];
 	dsl_pool_t *dp = arg;
+	spa_t *spa = dp->dp_spa;
 	tx_state_t *tx = &dp->dp_tx;
 	callb_cpr_t cpr;
 
-	txg_thread_enter(tx, &cpr);
+	snprintf(name, TXG_THREAD_MAXNAMELEN, "txg_quiesce %s", spa_name(spa));
+	txg_thread_enter(tx, &cpr, name);
 
 	for (;;) {
 		uint64_t txg;
