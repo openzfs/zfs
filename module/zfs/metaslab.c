@@ -1820,6 +1820,20 @@ metaslab_verify_weight_and_frag(metaslab_t *msp)
 	if (!spa_writeable(msp->ms_group->mg_vd->vdev_spa))
 		return;
 
+	/*
+	 * This is a verification function and thus should not
+	 * introduce any side-effects/mutations on the system.
+	 * Unfortunately, calling metaslab_set_fragmentation()
+	 * through metaslab_weight() later in this codepath
+	 * can dirty an otherwise undirty metaslab and set
+	 * ms_condense_wanted if the metaslab's spacemap hasn't
+	 * been upgraded (e.g. after enabling SPACEMAP_HISTOGRAMS
+	 * in a old pool). To avoid mutating system state, we skip
+	 * those metaslabs.
+	 */
+	if (msp->ms_sm->sm_dbuf->db_size != sizeof (space_map_phys_t))
+		return;
+
 	/* some extra verification for in-core tree if you can */
 	if (msp->ms_loaded) {
 		range_tree_stat_verify(msp->ms_allocatable);
