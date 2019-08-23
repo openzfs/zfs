@@ -240,6 +240,7 @@ rs_set_fill_raw(range_seg_t *rs, range_tree_t *rt, uint64_t fill)
 	ASSERT3U(rt->rt_type, <=, RANGE_SEG_NUM_TYPES);
 	switch (rt->rt_type) {
 	case RANGE_SEG32:
+		/* fall through */
 	case RANGE_SEG64:
 		ASSERT3U(fill, ==, rs_get_end_raw(rs, rt) - rs_get_start_raw(rs,
 		    rt));

@@ -68,6 +68,8 @@ extern "C" {
 #define	BTREE_CORE_ELEMS	128
 #define	BTREE_LEAF_SIZE		4096
 
+extern kmem_cache_t *btree_leaf_cache;
+
 typedef struct btree_hdr {
 	struct btree_core	*bth_parent;
 	boolean_t		bth_core;

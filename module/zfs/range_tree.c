@@ -846,7 +846,7 @@ range_tree_remove_xor_add_segment(uint64_t start, uint64_t end,
 		/*
 		 * If we find something here, we only removed part of the
 		 * curr segment. Either there's some left at the end
-		 * because we're reached the end of the range we're removing,
+		 * because we've reached the end of the range we're removing,
 		 * or there's some left at the start because we started
 		 * partway through the range.  Either way, we continue with
 		 * the loop. If it's the former, we'll return at the start of

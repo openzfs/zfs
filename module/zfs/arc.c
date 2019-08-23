@@ -4759,7 +4759,6 @@ arc_kmem_reap_soon(void)
 	kmem_cache_t		*prev_data_cache = NULL;
 	extern kmem_cache_t	*zio_buf_cache[];
 	extern kmem_cache_t	*zio_data_buf_cache[];
-	extern kmem_cache_t	*btree_leaf_cache;
 
 #ifdef _KERNEL
 	if ((aggsum_compare(&arc_meta_used, arc_meta_limit) >= 0) &&

@@ -1371,11 +1371,10 @@ static void
 metaslab_size_tree_full_load(range_tree_t *rt)
 {
 	metaslab_rt_arg_t *mrap = rt->rt_arg;
-	btree_t *t = mrap->mra_bt;
 #ifdef _METASLAB_TRACING
 	atomic_inc_64(&metaslab_reload_tree.value.ui64);
 #endif
-	ASSERT0(btree_numnodes(t));
+	ASSERT0(btree_numnodes(mrap->mra_bt));
 	mrap->mra_floor_shift = 0;
 	struct mssa_arg arg = {0};
 	arg.rt = rt;
@@ -2156,7 +2155,6 @@ metaslab_potentially_evict(metaslab_class_t *mc)
 {
 #ifdef _KERNEL
 	uint64_t allmem = arc_all_memory();
-	extern kmem_cache_t *btree_leaf_cache;
 	uint64_t inuse = btree_leaf_cache->skc_obj_total;
 	uint64_t size =	btree_leaf_cache->skc_obj_size;
 	int tries = 0;
@@ -3563,7 +3561,7 @@ metaslab_condense(metaslab_t *msp, dmu_tx_t *tx)
 	 *    inexpensive operation since we expect these trees to have a
 	 *    small number of nodes.
 	 * 3] We vacate any unflushed allocs, since they are not frees we
-	 *    need to add to the condense tree.. Then we vacate any
+	 *    need to add to the condense tree. Then we vacate any
 	 *    unflushed frees as they should already be part of ms_allocatable.
 	 * 4] At this point, we would ideally like to add all segments
 	 *    in the ms_allocatable tree from the condense tree. This way

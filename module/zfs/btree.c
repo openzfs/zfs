@@ -25,7 +25,33 @@ kmem_cache_t *btree_leaf_cache;
 /*
  * Control the extent of the verification that occurs when btree_verify is
  * called. Primarily used for debugging when extending the btree logic and
- * functionality.
+ * functionality. As the intensity is increased, new verification steps are
+ * added. These steps are cumulative; intensity = 3 includes the intensity = 1
+ * and intensity = 2 steps as well.
+ *
+ * Intensity 1: Verify that the tree's height is consistent throughout.
+ * Intensity 2: Verify that a core node's children's parent pointers point
+ * to the core node.
+ * Intensity 3: Verify that the total number of elements in the tree matches the
+ * sum of the number of elements in each node. Also verifies that each node's
+ * count obeys the invariants (less than or equal to maximum value, greater than
+ * or equal to half the maximum).
+ * Intensity 4: Verify that each element compares less than the element
+ * immediately after it and greater than the one immediately before it using the
+ * comparator function. For core nodes, also checks that each element is greater
+ * than the last element in the first of the two nodes it separates, and less
+ * than the first element in the second of the two nodes.
+ * Intensity 5: Verifies, if ZFS_DEBUG is defined, that all unused memory inside
+ * of each node is poisoned appropriately. Note that poisoning always occurs if
+ * ZFS_DEBUG is set, so it is safe to set the intensity to 5 during normal
+ * operation.
+ * 
+ * Intensity 4 and 5 are particularly expensive to perform; the previous levels
+ * are a few memory operations per node, while these levels require multiple
+ * operations per element. In addition, when creating large btrees, these
+ * operations are called at every step, resulting in extremely sloww operation
+ * (while the asymptotic complexity of the other steps is the same, the
+ * importance of the constant factors cannot be denied).
  */
 #ifdef ZFS_DEBUG
 int btree_verify_intensity = 5;
@@ -33,17 +59,13 @@ int btree_verify_intensity = 5;
 int btree_verify_intensity = 0;
 #endif
 
-/*
- * Purely a convenience function, for simpler argument ordering and silencing
- * compiler warnings about return values. We would use bcopy, but the kernel
- * version doesn't handle overlapping src and dest.
- */
-static inline void
-bmov(const void *src, void *dest, size_t size)
-{
-	(void) memmove(dest, src, size);
-}
+#ifdef _ILP32
+#define BTREE_POISON 0xabadb10c
+#else
+#define BTREE_POISON 0xabadb10cdeadbeef
+#endif
 
+#ifdef ZFS_DEBUG
 static void
 btree_poison_node(btree_t *tree, btree_hdr_t *hdr)
 {
@@ -57,7 +79,7 @@ btree_poison_node(btree_t *tree, btree_hdr_t *hdr)
 		btree_core_t *node = (btree_core_t *)hdr;
 		for (int i = hdr->bth_count + 1; i <= BTREE_CORE_ELEMS; i++) {
 			node->btc_children[i] =
-			    (btree_hdr_t *)0xabadb10cdeadbeef;
+			    (btree_hdr_t *)BTREE_POISON;
 		}
 		(void) memset(node->btc_elems + hdr->bth_count * size, 0x0f,
 		    (BTREE_CORE_ELEMS - hdr->bth_count) * size);
@@ -75,10 +97,11 @@ btree_poison_node_at(btree_t *tree, btree_hdr_t *hdr, uint64_t offset)
 	} else {
 		btree_core_t *node = (btree_core_t *)hdr;
 		node->btc_children[offset + 1] =
-		    (btree_hdr_t *)0xabadb10cdeadbeef;
+		    (btree_hdr_t *)BTREE_POISON;
 		(void) memset(node->btc_elems + offset * size, 0x0f, size);
 	}
 }
+#endif
 
 static inline void
 btree_verify_poison_at(btree_t *tree, btree_hdr_t *hdr, uint64_t offset)
@@ -88,7 +111,7 @@ btree_verify_poison_at(btree_t *tree, btree_hdr_t *hdr, uint64_t offset)
 	uint8_t eval = 0x0f;
 	if (hdr->bth_core) {
 		btree_core_t *node = (btree_core_t *)hdr;
-		btree_hdr_t *cval = (btree_hdr_t *)0xabadb10cdeadbeef;
+		btree_hdr_t *cval = (btree_hdr_t *)BTREE_POISON;
 		VERIFY3P(node->btc_children[offset + 1], ==, cval);
 		for (int i = 0; i < size; i++)
 			VERIFY3U(node->btc_elems[offset * size + i], ==, eval);
@@ -119,10 +142,10 @@ btree_create(btree_t *tree, int (*compar) (const void *, const void *),
     size_t size)
 {
 	/*
-	 * We need a minimmum of 4 elements so that when we split a we always
-	 * have at least two elements in each node. This simplifies the logic
-	 * in btree_bulk_finish, since it means the last leaf will always have
-	 * a left sibling to share with (unless it's the root).
+	 * We need a minimmum of 4 elements so that when we split a node we
+	 * always have at least two elements in each node. This simplifies the
+	 * logic in btree_bulk_finish, since it means the last leaf will
+	 * always have a left sibling to share with (unless it's the root).
 	 */
 	ASSERT3U(size, <=, (BTREE_LEAF_SIZE - sizeof (btree_hdr_t)) / 4);
 
@@ -326,7 +349,7 @@ btree_insert_into_parent(btree_t *tree, btree_hdr_t *old_node,
 		old_node->bth_parent = new_node->bth_parent = new_root;
 		new_root->btc_children[0] = old_node;
 		new_root->btc_children[1] = new_node;
-		bmov(buf, new_root->btc_elems, size);
+		bcopy(buf, new_root->btc_elems, size);
 
 		tree->bt_height++;
 		tree->bt_root = new_root_hdr;
@@ -361,13 +384,13 @@ btree_insert_into_parent(btree_t *tree, btree_hdr_t *old_node,
 		/* Move the child pointers back one. */
 		btree_hdr_t **c_start = parent->btc_children + offset + 1;
 		uint64_t count = par_hdr->bth_count - offset;
-		bmov(c_start, c_start + 1, sizeof (*c_start) * count);
+		bcopy(c_start, c_start + 1, sizeof (*c_start) * count);
 		*c_start = new_node;
 
 		/* Move the elements back one. */
 		uint8_t *e_start = parent->btc_elems + offset * size;
-		bmov(e_start, e_start + size, count * size);
-		bmov(buf, e_start, size);
+		bcopy(e_start, e_start + size, count * size);
+		bcopy(buf, e_start, size);
 
 		par_hdr->bth_count++;
 		return;
@@ -416,16 +439,16 @@ btree_insert_into_parent(btree_t *tree, btree_hdr_t *old_node,
 		 */
 		uint64_t e_count = move_count;
 		uint8_t *e_start = parent->btc_elems + keep_count * size;
-		bmov(e_start, new_parent->btc_elems, e_count * size);
+		bcopy(e_start, new_parent->btc_elems, e_count * size);
 
 		uint64_t c_count = move_count + 1;
 		btree_hdr_t **c_start = parent->btc_children + keep_count;
-		bmov(c_start, new_parent->btc_children, c_count *
+		bcopy(c_start, new_parent->btc_children, c_count *
 		    sizeof (*c_start));
 
 		/* Store the new separator in a buffer. */
 		uint8_t *tmp_buf = kmem_alloc(size, KM_SLEEP);
-		bmov(parent->btc_elems + (keep_count - 1) * size, tmp_buf,
+		bcopy(parent->btc_elems + (keep_count - 1) * size, tmp_buf,
 		    size);
 
 		/*
@@ -434,25 +457,25 @@ btree_insert_into_parent(btree_t *tree, btree_hdr_t *old_node,
 		 */
 		e_start = parent->btc_elems + offset * size;
 		e_count = keep_count - 1 - offset;
-		bmov(e_start, e_start + size, e_count * size);
-		bmov(buf, e_start, size);
+		bcopy(e_start, e_start + size, e_count * size);
+		bcopy(buf, e_start, size);
 
 		c_start = parent->btc_children + (offset + 1);
 		c_count = keep_count - 1 - offset;
-		bmov(c_start, c_start + 1, c_count * sizeof (*c_start));
+		bcopy(c_start, c_start + 1, c_count * sizeof (*c_start));
 		*c_start = new_node;
 		ASSERT3P(*(c_start - 1), ==, old_node);
 
 		/*
 		 * Move the new separator to the existing buffer.
 		 */
-		bmov(tmp_buf, buf, size);
+		bcopy(tmp_buf, buf, size);
 		kmem_free(tmp_buf, size);
 	} else if (offset > keep_count) {
 		/* Store the new separator in a buffer. */
 		uint8_t *tmp_buf = kmem_alloc(size, KM_SLEEP);
 		uint8_t *e_start = parent->btc_elems + keep_count * size;
-		bmov(e_start, tmp_buf, size);
+		bcopy(e_start, tmp_buf, size);
 
 		/*
 		 * Of the elements and children in the back half, move those
@@ -461,16 +484,16 @@ btree_insert_into_parent(btree_t *tree, btree_hdr_t *old_node,
 		e_start += size;
 		uint8_t *e_out = new_parent->btc_elems;
 		uint64_t e_count = offset - keep_count - 1;
-		bmov(e_start, e_out, e_count * size);
+		bcopy(e_start, e_out, e_count * size);
 
 		btree_hdr_t **c_start = parent->btc_children + (keep_count + 1);
 		uint64_t c_count = offset - keep_count;
 		btree_hdr_t **c_out = new_parent->btc_children;
-		bmov(c_start, c_out, c_count * sizeof (*c_out));
+		bcopy(c_start, c_out, c_count * sizeof (*c_out));
 
 		/* Add the new value to the new leaf. */
 		e_out += e_count * size;
-		bmov(buf, e_out, size);
+		bcopy(buf, e_out, size);
 
 		c_out += c_count;
 		*c_out = new_node;
@@ -479,19 +502,19 @@ btree_insert_into_parent(btree_t *tree, btree_hdr_t *old_node,
 		/*
 		 * Move the new separator to the existing buffer.
 		 */
-		bmov(tmp_buf, buf, size);
+		bcopy(tmp_buf, buf, size);
 		kmem_free(tmp_buf, size);
 
 		/* Move the rest of the back half to the new leaf. */
 		e_out += size;
 		e_start += e_count * size;
 		e_count = BTREE_CORE_ELEMS - offset;
-		bmov(e_start, e_out, e_count * size);
+		bcopy(e_start, e_out, e_count * size);
 
 		c_out++;
 		c_start += c_count;
 		c_count = BTREE_CORE_ELEMS - offset;
-		bmov(c_start, c_out, c_count * sizeof (*c_out));
+		bcopy(c_start, c_out, c_count * sizeof (*c_out));
 	} else {
 		/*
 		 * The new value is the new separator, no change.
@@ -501,11 +524,11 @@ btree_insert_into_parent(btree_t *tree, btree_hdr_t *old_node,
 		 */
 		uint64_t e_count = move_count;
 		uint8_t *e_start = parent->btc_elems + keep_count * size;
-		bmov(e_start, new_parent->btc_elems, e_count * size);
+		bcopy(e_start, new_parent->btc_elems, e_count * size);
 
 		uint64_t c_count = move_count;
 		btree_hdr_t **c_start = parent->btc_children + keep_count + 1;
-		bmov(c_start, new_parent->btc_children + 1, c_count *
+		bcopy(c_start, new_parent->btc_children + 1, c_count *
 		    sizeof (*c_start));
 		new_parent->btc_children[0] = new_node;
 	}
@@ -549,8 +572,8 @@ btree_insert_into_leaf(btree_t *tree, btree_leaf_t *leaf, const void *value,
 			    leaf->btl_hdr.bth_count);
 		}
 		leaf->btl_hdr.bth_count++;
-		bmov(start, start + size, count * size);
-		bmov(value, start, size);
+		bcopy(start, start + size, count * size);
+		bcopy(value, start, size);
 		return;
 	}
 
@@ -598,10 +621,10 @@ btree_insert_into_leaf(btree_t *tree, btree_leaf_t *leaf, const void *value,
 		/* Copy the back part to the new leaf. */
 		start = leaf->btl_elems + keep_count * size;
 		count = move_count;
-		bmov(start, new_leaf->btl_elems, count * size);
+		bcopy(start, new_leaf->btl_elems, count * size);
 
 		/* Store the new separator in a buffer. */
-		bmov(leaf->btl_elems + (keep_count - 1) * size, buf,
+		bcopy(leaf->btl_elems + (keep_count - 1) * size, buf,
 		    size);
 
 		/*
@@ -610,36 +633,36 @@ btree_insert_into_leaf(btree_t *tree, btree_leaf_t *leaf, const void *value,
 		 */
 		start = leaf->btl_elems + idx * size;
 		count = (keep_count) - 1 - idx;
-		bmov(start, start + size, count * size);
-		bmov(value, start, size);
+		bcopy(start, start + size, count * size);
+		bcopy(value, start, size);
 	} else if (idx > keep_count) {
 		/* Store the new separator in a buffer. */
 		start = leaf->btl_elems + (keep_count) * size;
-		bmov(start, buf, size);
+		bcopy(start, buf, size);
 
 		/* Move the back part before idx to the new leaf. */
 		start += size;
 		uint8_t *out = new_leaf->btl_elems;
 		count = idx - keep_count - 1;
-		bmov(start, out, count * size);
+		bcopy(start, out, count * size);
 
 		/* Add the new value to the new leaf. */
 		out += count * size;
-		bmov(value, out, size);
+		bcopy(value, out, size);
 
 		/* Move the rest of the back part to the new leaf. */
 		out += size;
 		start += count * size;
 		count = capacity - idx;
-		bmov(start, out, count * size);
+		bcopy(start, out, count * size);
 	} else {
 		/* The new value is the new separator. */
-		bmov(value, buf, size);
+		bcopy(value, buf, size);
 
 		/* Copy the back part to the new leaf. */
 		start = leaf->btl_elems + keep_count * size;
 		count = move_count;
-		bmov(start, new_leaf->btl_elems, count * size);
+		bcopy(start, new_leaf->btl_elems, count * size);
 	}
 
 #ifdef ZFS_DEBUG
@@ -738,12 +761,12 @@ btree_bulk_finish(btree_t *tree)
 		uint8_t *start = leaf->btl_elems;
 		uint8_t *out = leaf->btl_elems + (move_count * size);
 		uint64_t count = hdr->bth_count;
-		bmov(start, out, count * size);
+		bcopy(start, out, count * size);
 
 		/* Next, move the separator from the common ancestor to leaf. */
 		uint8_t *separator = common->btc_elems + (common_idx * size);
 		out -= size;
-		bmov(separator, out, size);
+		bcopy(separator, out, size);
 		move_count--;
 
 		/*
@@ -753,14 +776,14 @@ btree_bulk_finish(btree_t *tree)
 		start = l_neighbor->btl_elems + (l_neighbor->btl_hdr.bth_count -
 		    move_count) * size;
 		out = leaf->btl_elems;
-		bmov(start, out, move_count * size);
+		bcopy(start, out, move_count * size);
 
 		/*
 		 * Finally, move the new last element in the left neighbor to
 		 * the separator.
 		 */
 		start -= size;
-		bmov(start, separator, size);
+		bcopy(start, separator, size);
 
 		/* Adjust the node's counts, and we're done. */
 		l_neighbor->btl_hdr.bth_count -= move_count + 1;
@@ -812,18 +835,18 @@ btree_bulk_finish(btree_t *tree)
 		uint8_t *e_start = cur->btc_elems;
 		uint8_t *e_out = cur->btc_elems + (move_count * size);
 		uint64_t e_count = hdr->bth_count;
-		bmov(e_start, e_out, e_count * size);
+		bcopy(e_start, e_out, e_count * size);
 
 		btree_hdr_t **c_start = cur->btc_children;
 		btree_hdr_t **c_out = cur->btc_children + move_count;
 		uint64_t c_count = hdr->bth_count + 1;
-		bmov(c_start, c_out, c_count * sizeof (btree_hdr_t *));
+		bcopy(c_start, c_out, c_count * sizeof (btree_hdr_t *));
 
 		/* Next, move the separator to the right node. */
 		uint8_t *separator = parent->btc_elems + ((parent_idx - 1) *
 		    size);
 		e_out -= size;
-		bmov(separator, e_out, size);
+		bcopy(separator, e_out, size);
 
 		/*
 		 * Now, move elements and children from the left node to the
@@ -834,20 +857,20 @@ btree_bulk_finish(btree_t *tree)
 		    (l_neighbor->btc_hdr.bth_count - move_count) * size;
 		e_out = cur->btc_elems;
 		e_count = move_count;
-		bmov(e_start, e_out, e_count * size);
+		bcopy(e_start, e_out, e_count * size);
 
 		c_start = l_neighbor->btc_children +
 		    (l_neighbor->btc_hdr.bth_count - move_count);
 		c_out = cur->btc_children;
 		c_count = move_count + 1;
-		bmov(c_start, c_out, c_count * sizeof (btree_hdr_t *));
+		bcopy(c_start, c_out, c_count * sizeof (btree_hdr_t *));
 
 		/*
 		 * Finally, move the last element in the left node to the
 		 * separator's position.
 		 */
 		e_start -= size;
-		bmov(e_start, separator, size);
+		bcopy(e_start, separator, size);
 
 		l_neighbor->btc_hdr.bth_count -= move_count + 1;
 		hdr->bth_count += move_count + 1;
@@ -934,8 +957,8 @@ btree_insert(btree_t *tree, const void *value, const btree_index_t *where)
 		btree_hdr_t *subtree = node->btc_children[off + 1];
 		size_t size = tree->bt_elem_size;
 		uint8_t *buf = kmem_alloc(size, KM_SLEEP);
-		bmov(node->btc_elems + off * size, buf, size);
-		bmov(value, node->btc_elems + off * size, size);
+		bcopy(node->btc_elems + off * size, buf, size);
+		bcopy(value, node->btc_elems + off * size, size);
 
 		/*
 		 * Find the first slot in the subtree to the right, insert
@@ -1243,12 +1266,12 @@ btree_remove_from_node(btree_t *tree, btree_core_t *node, btree_hdr_t *rm_hdr)
 		uint8_t *e_start = node->btc_elems + idx * size;
 		uint8_t *e_out = e_start - size;
 		uint64_t e_count = hdr->bth_count - idx + 1;
-		bmov(e_start, e_out, e_count * size);
+		bcopy(e_start, e_out, e_count * size);
 
 		btree_hdr_t **c_start = node->btc_children + idx + 1;
 		btree_hdr_t **c_out = c_start - 1;
 		uint64_t c_count = hdr->bth_count - idx + 1;
-		bmov(c_start, c_out, c_count * sizeof (*c_start));
+		bcopy(c_start, c_out, c_count * sizeof (*c_start));
 #ifdef ZFS_DEBUG
 		btree_poison_node_at(tree, hdr, hdr->bth_count);
 #endif
@@ -1287,12 +1310,12 @@ btree_remove_from_node(btree_t *tree, btree_core_t *node, btree_hdr_t *rm_hdr)
 		uint8_t *e_start = node->btc_elems;
 		uint8_t *e_out = node->btc_elems + size;
 		uint64_t e_count = idx - 1;
-		bmov(e_start, e_out, e_count * size);
+		bcopy(e_start, e_out, e_count * size);
 
 		btree_hdr_t **c_start = node->btc_children;
 		btree_hdr_t **c_out = c_start + 1;
 		uint64_t c_count = idx;
-		bmov(c_start, c_out, c_count * sizeof (*c_out));
+		bcopy(c_start, c_out, c_count * sizeof (*c_out));
 
 		/*
 		 * Move the separator between node and neighbor to the first
@@ -1300,18 +1323,18 @@ btree_remove_from_node(btree_t *tree, btree_core_t *node, btree_hdr_t *rm_hdr)
 		 */
 		uint8_t *separator = parent->btc_elems + (parent_idx - 1) *
 		    size;
-		bmov(separator, node->btc_elems, size);
+		bcopy(separator, node->btc_elems, size);
 
 		/* Move the last child of neighbor to our first child slot. */
 		btree_hdr_t **steal_child = neighbor->btc_children +
 		    l_hdr->bth_count;
-		bmov(steal_child, node->btc_children, sizeof (*steal_child));
+		bcopy(steal_child, node->btc_children, sizeof (*steal_child));
 		node->btc_children[0]->bth_parent = node;
 
 		/* Move the last element of neighbor to the separator spot. */
 		uint8_t *steal_elem = neighbor->btc_elems +
 		    (l_hdr->bth_count - 1) * size;
-		bmov(steal_elem, separator, size);
+		bcopy(steal_elem, separator, size);
 		l_hdr->bth_count--;
 		hdr->bth_count++;
 #ifdef ZFS_DEBUG
@@ -1334,32 +1357,32 @@ btree_remove_from_node(btree_t *tree, btree_core_t *node, btree_hdr_t *rm_hdr)
 		uint8_t *e_start = node->btc_elems + idx * size;
 		uint8_t *e_out = e_start - size;
 		uint64_t e_count = hdr->bth_count - idx + 1;
-		bmov(e_start, e_out, e_count * size);
+		bcopy(e_start, e_out, e_count * size);
 
 		btree_hdr_t **c_start = node->btc_children + idx + 1;
 		btree_hdr_t **c_out = c_start - 1;
 		uint64_t c_count = hdr->bth_count - idx + 1;
-		bmov(c_start, c_out, c_count * sizeof (*c_out));
+		bcopy(c_start, c_out, c_count * sizeof (*c_out));
 
 		/*
 		 * Move the separator between node and neighbor to the last
 		 * element spot in node.
 		 */
 		uint8_t *separator = parent->btc_elems + parent_idx * size;
-		bmov(separator, node->btc_elems + hdr->bth_count * size, size);
+		bcopy(separator, node->btc_elems + hdr->bth_count * size, size);
 
 		/*
 		 * Move the first child of neighbor to the last child spot in
 		 * node.
 		 */
 		btree_hdr_t **steal_child = neighbor->btc_children;
-		bmov(steal_child, node->btc_children + (hdr->bth_count + 1),
+		bcopy(steal_child, node->btc_children + (hdr->bth_count + 1),
 		    sizeof (*steal_child));
 		node->btc_children[hdr->bth_count + 1]->bth_parent = node;
 
 		/* Move the first element of neighbor to the separator spot. */
 		uint8_t *steal_elem = neighbor->btc_elems;
-		bmov(steal_elem, separator, size);
+		bcopy(steal_elem, separator, size);
 		r_hdr->bth_count--;
 		hdr->bth_count++;
 
@@ -1367,9 +1390,9 @@ btree_remove_from_node(btree_t *tree, btree_core_t *node, btree_hdr_t *rm_hdr)
 		 * Shift the elements and children of neighbor to cover the
 		 * stolen elements.
 		 */
-		bmov(neighbor->btc_elems + size, neighbor->btc_elems,
+		bcopy(neighbor->btc_elems + size, neighbor->btc_elems,
 		    r_hdr->bth_count * size);
-		bmov(neighbor->btc_children + 1, neighbor->btc_children,
+		bcopy(neighbor->btc_children + 1, neighbor->btc_children,
 		    (r_hdr->bth_count + 1) * sizeof (steal_child));
 #ifdef ZFS_DEBUG
 		btree_poison_node_at(tree, r_hdr, r_hdr->bth_count);
@@ -1403,30 +1426,30 @@ btree_remove_from_node(btree_t *tree, btree_core_t *node, btree_hdr_t *rm_hdr)
 		uint8_t *e_out = left->btc_elems + l_hdr->bth_count * size;
 		uint8_t *separator = parent->btc_elems + (parent_idx - 1) *
 		    size;
-		bmov(separator, e_out, size);
+		bcopy(separator, e_out, size);
 
 		/* Move all our elements into the left node. */
 		e_out += size;
 		uint8_t *e_start = node->btc_elems;
 		uint64_t e_count = idx - 1;
-		bmov(e_start, e_out, e_count * size);
+		bcopy(e_start, e_out, e_count * size);
 
 		e_out += e_count * size;
 		e_start += (e_count + 1) * size;
 		e_count = hdr->bth_count - idx + 1;
-		bmov(e_start, e_out, e_count * size);
+		bcopy(e_start, e_out, e_count * size);
 
 		/* Move all our children into the left node. */
 		btree_hdr_t **c_start = node->btc_children;
 		btree_hdr_t **c_out = left->btc_children +
 		    l_hdr->bth_count + 1;
 		uint64_t c_count = idx;
-		bmov(c_start, c_out, c_count * sizeof (*c_out));
+		bcopy(c_start, c_out, c_count * sizeof (*c_out));
 
 		c_out += c_count;
 		c_start += c_count + 1;
 		c_count = hdr->bth_count - idx + 1;
-		bmov(c_start, c_out, c_count * sizeof (*c_out));
+		bcopy(c_start, c_out, c_count * sizeof (*c_out));
 
 		/* Reparent all our children to point to the left node. */
 		btree_hdr_t **new_start = left->btc_children +
@@ -1458,12 +1481,12 @@ btree_remove_from_node(btree_t *tree, btree_core_t *node, btree_hdr_t *rm_hdr)
 		uint8_t *e_start = node->btc_elems + idx * size;
 		uint8_t *e_out = e_start - size;
 		uint64_t e_count = hdr->bth_count - idx + 1;
-		bmov(e_start, e_out, e_count * size);
+		bcopy(e_start, e_out, e_count * size);
 
 		btree_hdr_t **c_start = node->btc_children + idx + 1;
 		btree_hdr_t **c_out = c_start - 1;
 		uint64_t c_count = hdr->bth_count - idx + 1;
-		bmov(c_start, c_out, c_count * sizeof (*c_out));
+		bcopy(c_start, c_out, c_count * sizeof (*c_out));
 
 		/*
 		 * Move the separator to the first open spot in node's
@@ -1471,18 +1494,18 @@ btree_remove_from_node(btree_t *tree, btree_core_t *node, btree_hdr_t *rm_hdr)
 		 */
 		e_out += e_count * size;
 		uint8_t *separator = parent->btc_elems + parent_idx * size;
-		bmov(separator, e_out, size);
+		bcopy(separator, e_out, size);
 
 		/* Move the right node's elements and children to node. */
 		e_out += size;
 		e_start = right->btc_elems;
 		e_count = r_hdr->bth_count;
-		bmov(e_start, e_out, e_count * size);
+		bcopy(e_start, e_out, e_count * size);
 
 		c_out += c_count;
 		c_start = right->btc_children;
 		c_count = r_hdr->bth_count + 1;
-		bmov(c_start, c_out, c_count * sizeof (*c_out));
+		bcopy(c_start, c_out, c_count * sizeof (*c_out));
 
 		/* Reparent the right node's children to point to node. */
 		for (int i = 0; i < c_count; i++)
@@ -1543,7 +1566,7 @@ btree_remove_from(btree_t *tree, btree_index_t *where)
 		void *new_value = btree_last_helper(tree, left_subtree, where);
 		ASSERT3P(new_value, !=, NULL);
 
-		bmov(new_value, node->btc_elems + idx * size, size);
+		bcopy(new_value, node->btc_elems + idx * size, size);
 
 		hdr = where->bti_node;
 		idx = where->bti_offset;
@@ -1567,7 +1590,7 @@ btree_remove_from(btree_t *tree, btree_index_t *where)
 	 * the value and return.
 	 */
 	if (hdr->bth_count >= min_count || hdr->bth_parent == NULL) {
-		bmov(leaf->btl_elems + (idx + 1) * size, leaf->btl_elems +
+		bcopy(leaf->btl_elems + (idx + 1) * size, leaf->btl_elems +
 		    idx * size, (hdr->bth_count - idx) * size);
 		if (hdr->bth_parent == NULL) {
 			ASSERT0(tree->bt_height);
@@ -1612,16 +1635,16 @@ btree_remove_from(btree_t *tree, btree_index_t *where)
 		 * Move our elements back by one spot to make room for the
 		 * stolen element and overwrite the element being removed.
 		 */
-		bmov(leaf->btl_elems, leaf->btl_elems + size, idx * size);
+		bcopy(leaf->btl_elems, leaf->btl_elems + size, idx * size);
 		uint8_t *separator = parent->btc_elems + (parent_idx - 1) *
 		    size;
 		uint8_t *steal_elem = ((btree_leaf_t *)l_hdr)->btl_elems +
 		    (l_hdr->bth_count - 1) * size;
 		/* Move the separator to our first spot. */
-		bmov(separator, leaf->btl_elems, size);
+		bcopy(separator, leaf->btl_elems, size);
 
 		/* Move our neighbor's last element to the separator. */
-		bmov(steal_elem, separator, size);
+		bcopy(steal_elem, separator, size);
 
 		/* Update the bookkeeping. */
 		l_hdr->bth_count--;
@@ -1645,16 +1668,16 @@ btree_remove_from(btree_t *tree, btree_index_t *where)
 		 * by one spot to make room for the stolen element and
 		 * overwrite the element being removed.
 		 */
-		bmov(leaf->btl_elems + (idx + 1) * size, leaf->btl_elems +
+		bcopy(leaf->btl_elems + (idx + 1) * size, leaf->btl_elems +
 		    idx * size, (hdr->bth_count - idx) * size);
 
 		uint8_t *separator = parent->btc_elems + parent_idx * size;
 		uint8_t *steal_elem = ((btree_leaf_t *)r_hdr)->btl_elems;
 		/* Move the separator between us to our last spot. */
-		bmov(separator, leaf->btl_elems + hdr->bth_count * size, size);
+		bcopy(separator, leaf->btl_elems + hdr->bth_count * size, size);
 
 		/* Move our neighbor's first element to the separator. */
-		bmov(steal_elem, separator, size);
+		bcopy(steal_elem, separator, size);
 
 		/* Update the bookkeeping. */
 		r_hdr->bth_count--;
@@ -1664,7 +1687,7 @@ btree_remove_from(btree_t *tree, btree_index_t *where)
 		 * Move our neighbors elements forwards to overwrite the
 		 * stolen element.
 		 */
-		bmov(neighbor->btl_elems + size, neighbor->btl_elems,
+		bcopy(neighbor->btl_elems + size, neighbor->btl_elems,
 		    r_hdr->bth_count * size);
 #ifdef ZFS_DEBUG
 		btree_poison_node_at(tree, r_hdr, r_hdr->bth_count);
@@ -1702,18 +1725,18 @@ btree_remove_from(btree_t *tree, btree_index_t *where)
 		uint8_t *out = left->btl_elems + l_hdr->bth_count * size;
 		uint8_t *separator = parent->btc_elems + (parent_idx - 1) *
 		    size;
-		bmov(separator, out, size);
+		bcopy(separator, out, size);
 
 		/* Move our elements to the left neighbor. */
 		out += size;
 		uint8_t *start = leaf->btl_elems;
 		uint64_t count = idx;
-		bmov(start, out, count * size);
+		bcopy(start, out, count * size);
 
 		out += count * size;
 		start += (count + 1) * size;
 		count = hdr->bth_count - idx;
-		bmov(start, out, count * size);
+		bcopy(start, out, count * size);
 
 		/* Update the bookkeeping. */
 		l_hdr->bth_count += hdr->bth_count + 1;
@@ -1737,18 +1760,18 @@ btree_remove_from(btree_t *tree, btree_index_t *where)
 		uint8_t *start = leaf->btl_elems + (idx + 1) * size;
 		uint8_t *out = start - size;
 		uint64_t count = hdr->bth_count - idx;
-		bmov(start, out, count * size);
+		bcopy(start, out, count * size);
 
 		/* Move the separator to node's first open spot. */
 		out += count * size;
 		uint8_t *separator = parent->btc_elems + parent_idx * size;
-		bmov(separator, out, size);
+		bcopy(separator, out, size);
 
 		/* Move the right neighbor's elements to node. */
 		out += size;
 		start = right->btl_elems;
 		count = r_hdr->bth_count;
-		bmov(start, out, count * size);
+		bcopy(start, out, count * size);
 
 		/* Update the bookkeeping. */
 		hdr->bth_count += r_hdr->bth_count + 1;
@@ -2046,6 +2069,7 @@ btree_verify_order(btree_t *tree)
 	btree_verify_order_helper(tree, tree->bt_root);
 }
 
+#ifdef ZFS_DEBUG
 /* Check that all unused memory is poisoned correctly. */
 static void
 btree_verify_poison_helper(btree_t *tree, btree_hdr_t *hdr)
@@ -2068,7 +2092,7 @@ btree_verify_poison_helper(btree_t *tree, btree_hdr_t *hdr)
 
 		for (int i = hdr->bth_count + 1; i <= BTREE_CORE_ELEMS; i++) {
 			VERIFY3P(node->btc_children[i], ==,
-			    (btree_hdr_t *)0xabadb10cdeadbeef);
+			    (btree_hdr_t *)BTREE_POISON);
 		}
 
 		for (int i = 0; i <= hdr->bth_count; i++) {
@@ -2076,6 +2100,7 @@ btree_verify_poison_helper(btree_t *tree, btree_hdr_t *hdr)
 		}
 	}
 }
+#endif
 
 /* Check that unused memory in the tree is still poisoned. */
 static void
