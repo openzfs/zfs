@@ -44,6 +44,7 @@
 verify_runnable "global"
 
 log_assert "log device can survive when one of the pool device get corrupted."
+log_must setup
 
 for type in "mirror" "raidz" "raidz2"; do
 	for spare in "" "spare"; do

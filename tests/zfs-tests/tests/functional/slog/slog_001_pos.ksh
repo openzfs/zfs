@@ -45,6 +45,7 @@ verify_runnable "global"
 
 log_assert "Creating a pool with a log device succeeds."
 log_onexit cleanup
+log_must setup
 
 for type in "" "mirror" "raidz" "raidz2"
 do
