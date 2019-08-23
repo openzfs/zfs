@@ -14,8 +14,10 @@ $(hooks_SCRIPTS):%:%.in
 		-e 's,@mounthelperdir\@,$(mounthelperdir),g' \
 		$< >'$@'
 
+# Double-colon rules are allowed; there are multiple independent definitions.
 clean-local::
 	-$(RM) $(hooks_SCRIPTS)
 
+# Double-colon rules are allowed; there are multiple independent definitions.
 distclean-local::
 	-$(RM) $(hooks_SCRIPTS)
