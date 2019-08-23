@@ -215,7 +215,7 @@ EOF
     fi
     # Update the dependencies for the mount file to require the
     # key-loading unit.
-    wants="${wants},${keyloadunit}"
+    wants="${wants} ${keyloadunit}"
   fi
 
   # If the mountpoint has already been created, give it precedence.
