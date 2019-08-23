@@ -76,6 +76,7 @@ function cleanup_volume
 
 log_assert "Replay of intent log succeeds."
 log_onexit cleanup_volume
+log_must setup
 
 #
 # 1. Create an empty volume (TESTVOL), set sync=always, and format
