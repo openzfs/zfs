@@ -127,6 +127,8 @@ changelist_prefix(prop_changelist_t *clp)
 			 */
 			switch (clp->cl_prop) {
 			case ZFS_PROP_MOUNTPOINT:
+				if (clp->cl_gflags & CL_GATHER_DONT_UNMOUNT)
+					break;
 				if (zfs_unmount(cn->cn_handle, NULL,
 				    clp->cl_mflags) != 0) {
 					ret = -1;
@@ -179,7 +181,8 @@ changelist_postfix(prop_changelist_t *clp)
 	if ((cn = uu_avl_last(clp->cl_tree)) == NULL)
 		return (0);
 
-	if (clp->cl_prop == ZFS_PROP_MOUNTPOINT)
+	if (clp->cl_prop == ZFS_PROP_MOUNTPOINT &&
+	    !(clp->cl_gflags & CL_GATHER_DONT_UNMOUNT))
 		remove_mountpoint(cn->cn_handle);
 
 	/*
@@ -242,7 +245,8 @@ changelist_postfix(prop_changelist_t *clp)
 		needs_key = (zfs_prop_get_int(cn->cn_handle,
 		    ZFS_PROP_KEYSTATUS) == ZFS_KEYSTATUS_UNAVAILABLE);
 
-		mounted = zfs_is_mounted(cn->cn_handle, NULL);
+		mounted = (clp->cl_gflags & CL_GATHER_DONT_UNMOUNT) ||
+		    zfs_is_mounted(cn->cn_handle, NULL);
 
 		if (!mounted && !needs_key && (cn->cn_mounted ||
 		    ((sharenfs || sharesmb || clp->cl_waslegacy) &&

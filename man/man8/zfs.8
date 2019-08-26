@@ -94,6 +94,11 @@
 .Fl r
 .Ar snapshot Ar snapshot
 .Nm
+.Cm rename
+.Fl u
+.Op Fl p
+.Ar filesystem Ar filesystem
+.Nm
 .Cm list
 .Op Fl r Ns | Ns Fl d Ar depth
 .Op Fl Hp
@@ -2974,6 +2979,13 @@ subcommand can be used to rename any conflicting snapshots.
 .Ar filesystem Ns | Ns Ar volume
 .Ar filesystem Ns | Ns Ar volume
 .Xc
+.It Xo
+.Nm
+.Cm rename
+.Fl u
+.Op Fl p
+.Ar filesystem Ar filesystem
+.Xc
 Renames the given dataset.
 The new target can be located anywhere in the ZFS hierarchy, with the exception
 of snapshots.
@@ -2985,11 +2997,22 @@ unmounted and remounted at the new mount point.
 .Bl -tag -width "-a"
 .It Fl f
 Force unmount any filesystems that need to be unmounted in the process.
+This flag has no effect if used together with the
+.Fl u
+flag.
 .It Fl p
 Creates all the nonexistent parent datasets.
 Datasets created in this manner are automatically mounted according to the
 .Sy mountpoint
 property inherited from their parent.
+.It Fl u
+Do not remount file systems during rename. If a file system's
+.Sy mountpoint
+property is set to
+.Cm legacy
+or
+.Cm none ,
+file system is not unmounted even if this option is not given.
 .El
 .It Xo
 .Nm
