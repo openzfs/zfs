@@ -259,7 +259,7 @@ zcp_synctask_snapshot(lua_State *state, boolean_t sync, nvlist_t *err_details)
 	 * context.
 	 */
 	if (spa_version(ri->zri_pool->dp_spa) < SPA_VERSION_FAST_SNAP) {
-		return (ENOTSUP);
+		return (SET_ERROR(ENOTSUP));
 	}
 
 	/*
