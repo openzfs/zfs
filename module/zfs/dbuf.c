@@ -148,6 +148,11 @@ dbuf_stats_t dbuf_stats = {
 		continue;						\
 }
 
+static uint64_t dirty_writes_lost;
+
+#define	DEBUG_COUNTER_INC(x)
+#define	DEBUG_REFCOUNT_DEC(x)
+
 typedef struct dbuf_hold_arg {
 	/* Function arguments */
 	dnode_t *dh_dn;
@@ -175,6 +180,7 @@ static boolean_t dbuf_undirty(dmu_buf_impl_t *db, dmu_tx_t *tx);
 static void dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx);
 static void dbuf_sync_leaf_verify_bonus_dnode(dbuf_dirty_record_t *dr);
 static int dbuf_read_verify_dnode_crypt(dmu_buf_impl_t *db, uint32_t flags);
+static void dbuf_dirty_record_cleanup_ranges(dbuf_dirty_record_t *dr);
 
 extern inline void dmu_buf_init_user(dmu_buf_user_t *dbu,
     dmu_buf_evict_func_t *evict_func_sync,
@@ -1125,6 +1131,16 @@ dbuf_alloc_arcbuf(dmu_buf_impl_t *db)
 	return (buf);
 }
 
+static arc_buf_t *
+dbuf_clone_arcbuf(dmu_buf_impl_t *db)
+{
+	arc_buf_t *buf;
+
+	buf = dbuf_alloc_arcbuf(db);
+	bcopy(db->db.db_data, buf->b_data, db->db.db_size);
+	return (buf);
+}
+
 /*
  * Loan out an arc_buf for read.  Return the loaned arc_buf.
  */
@@ -1150,6 +1166,44 @@ dbuf_loan_arcbuf(dmu_buf_impl_t *db)
 		mutex_exit(&db->db_mtx);
 	}
 	return (abuf);
+}
+
+/*
+ * This function is used to lock the parent of the provided dbuf. This should be
+ * used when modifying or reading db_blkptr.
+ */
+db_lock_type_t
+dmu_buf_lock_parent(dmu_buf_impl_t *db, krw_t rw, void *tag)
+{
+	enum db_lock_type ret = DLT_NONE;
+	if (db->db_parent != NULL) {
+		rw_enter(&db->db_parent->db_rwlock, rw);
+		ret = DLT_PARENT;
+	} else if (dmu_objset_ds(db->db_objset) != NULL) {
+		rrw_enter(&dmu_objset_ds(db->db_objset)->ds_bp_rwlock, rw,
+		    tag);
+		ret = DLT_OBJSET;
+	}
+	/*
+	 * We only return a DLT_NONE lock when it's the top-most indirect block
+	 * of the meta-dnode of the MOS.
+	 */
+	return (ret);
+}
+
+/*
+ * We need to pass the lock type in because it's possible that the block will
+ * move from being the topmost indirect block in a dnode (and thus, have no
+ * parent) to not the top-most via an indirection increase. This would cause a
+ * panic if we didn't pass the lock type in.
+ */
+void
+dmu_buf_unlock_parent(dmu_buf_impl_t *db, db_lock_type_t type, void *tag)
+{
+	if (type == DLT_PARENT)
+		rw_exit(&db->db_parent->db_rwlock);
+	else if (type == DLT_OBJSET)
+		rrw_exit(&dmu_objset_ds(db->db_objset)->ds_bp_rwlock, tag);
 }
 
 /*
@@ -1198,78 +1252,373 @@ dbuf_whichblock(const dnode_t *dn, const int64_t level, const uint64_t offset)
 	}
 }
 
-/*
- * This function is used to lock the parent of the provided dbuf. This should be
- * used when modifying or reading db_blkptr.
+typedef struct dbuf_dirty_record_hole {
+	caddr_t src;
+	caddr_t dst;
+	int size;
+} dbuf_dirty_record_hole_t;
+
+typedef struct dbuf_dirty_record_hole_itr {
+	/* provided data */
+	arc_buf_t *src;
+	dbuf_dirty_leaf_record_t *dl;
+	/* calculated data */
+	dbuf_dirty_range_t *range;
+	/* One greater than the last valid offset in the dst buffer */
+	int max_offset;
+	int hole_start;
+	dbuf_dirty_record_hole_t hole;
+} dbuf_dirty_record_hole_itr_t;
+
+/**
+ * \brief Initialize a dirty record hole iterator.
+ *
+ * \param itr		Iterator context to initialize.
+ * \param dl		Dirty leaf to merge.
+ * \param src_buf	ARC buffer containing initial data.
  */
-db_lock_type_t
-dmu_buf_lock_parent(dmu_buf_impl_t *db, krw_t rw, void *tag)
+static inline void
+dbuf_dirty_record_hole_itr_init(dbuf_dirty_record_hole_itr_t *itr,
+    dbuf_dirty_leaf_record_t *dl, arc_buf_t *src_buf)
 {
-	enum db_lock_type ret = DLT_NONE;
-	if (db->db_parent != NULL) {
-		rw_enter(&db->db_parent->db_rwlock, rw);
-		ret = DLT_PARENT;
-	} else if (dmu_objset_ds(db->db_objset) != NULL) {
-		rrw_enter(&dmu_objset_ds(db->db_objset)->ds_bp_rwlock, rw,
-		    tag);
-		ret = DLT_OBJSET;
+	itr->src = src_buf;
+	itr->dl = dl;
+	itr->max_offset = MIN(arc_buf_size(src_buf), arc_buf_size(dl->dr_data));
+	itr->range = list_head(&dl->write_ranges);
+	ASSERT((zfs_flags & ZFS_DEBUG_MODIFY) == 0 ||
+	    !arc_buf_frozen(dl->dr_data));
+	itr->hole.src = NULL;
+	itr->hole.dst = NULL;
+	itr->hole.size = 0;
+	/* If no ranges exist, the dirty buffer is entirely valid. */
+	if (itr->range == NULL) {
+		/* Set to the end to return no holes */
+		itr->hole_start = itr->max_offset;
+	} else if (itr->range->start == 0) {
+		itr->hole_start = itr->range->size;
+		itr->range = list_next(&itr->dl->write_ranges, itr->range);
+	} else
+		itr->hole_start = 0;
+}
+
+/**
+ * \brief Iterate a dirty record, providing the next hole.
+ *
+ * \param itr	Dirty record hole iterator context.
+ *
+ * The hole returned provides direct pointers to the source, destination,
+ * and the target size.  A hole is a portion of the dirty record's ARC
+ * buffer that does not contain valid data and must be filled in using the
+ * initial ARC buffer, which should be entirely valid.
+ *
+ * \return NULL If there are no more holes.
+ */
+static inline dbuf_dirty_record_hole_t *
+dbuf_dirty_record_hole_itr_next(dbuf_dirty_record_hole_itr_t *itr)
+{
+
+	if (itr->hole_start >= itr->max_offset)
+		return (NULL);
+
+	itr->hole.src = (caddr_t)(itr->src->b_data) + itr->hole_start;
+	itr->hole.dst = (caddr_t)(itr->dl->dr_data->b_data) + itr->hole_start;
+	if (itr->range != NULL) {
+		itr->hole.size = MIN(itr->max_offset, itr->range->start) -
+		    itr->hole_start;
+		itr->hole_start = itr->range->end;
+		itr->range = list_next(&itr->dl->write_ranges, itr->range);
+	} else {
+		itr->hole.size = itr->max_offset - itr->hole_start;
+		itr->hole_start = itr->max_offset;
 	}
-	/*
-	 * We only return a DLT_NONE lock when it's the top-most indirect block
-	 * of the meta-dnode of the MOS.
-	 */
-	return (ret);
+	return (&itr->hole);
 }
 
 /*
- * We need to pass the lock type in because it's possible that the block will
- * move from being the topmost indirect block in a dnode (and thus, have no
- * parent) to not the top-most via an indirection increase. This would cause a
- * panic if we didn't pass the lock type in.
+ * Perform any dbuf arc buffer splits required to guarantee
+ * the syncer operates on a stable buffer.
+ *
+ * \param  db              The dbuf to potentially split.
+ * \param  syncer_dr       The dirty record being processed by the syncer.
+ * \param  deferred_split  True if this check is being performed after a
+ *                         resolving read.
+ *
+ * If the syncer's buffer is currently "in use" in the
+ * open transaction group (i.e., there are active holds
+ * and db_data still references it), then make a copy
+ * before we start the write, so that any modifications
+ * from the open txg will not leak into this write.
+ *
+ * \note  This copy does not need to be made for objects
+ *        only modified in the syncing context (e.g.
+ *        DNONE_DNODE blocks).
  */
-void
-dmu_buf_unlock_parent(dmu_buf_impl_t *db, db_lock_type_t type, void *tag)
+static void
+dbuf_syncer_split(dmu_buf_impl_t *db, dbuf_dirty_record_t *syncer_dr,
+    boolean_t deferred_split)
 {
-	if (type == DLT_PARENT)
-		rw_exit(&db->db_parent->db_rwlock);
-	else if (type == DLT_OBJSET)
-		rrw_exit(&dmu_objset_ds(db->db_objset)->ds_bp_rwlock, tag);
+	if (syncer_dr && (db->db_state & DB_NOFILL) == 0 &&
+	    zfs_refcount_count(&db->db_holds) > 1 &&
+	    syncer_dr->dt.dl.dr_override_state != DR_OVERRIDDEN &&
+	    syncer_dr->dt.dl.dr_data == db->db_buf) {
+		arc_buf_t *buf;
+
+		buf = dbuf_clone_arcbuf(db);
+		if (deferred_split) {
+			/*
+			 * In the case of a deferred split, the
+			 * syncer has already generated a zio that
+			 * references the syncer's arc buffer.
+			 * Replace the open txg buffer instead.
+			 * No activity in the open txg can be
+			 * occurring yet.  A reader is waiting
+			 * for the resolve to complete, and a
+			 * writer hasn't gotten around to creating
+			 * a dirty record.  Otherwise this dbuf
+			 * would already have been split.
+			 */
+			dbuf_set_data(db, buf);
+		} else {
+			/*
+			 * The syncer has yet to create a write
+			 * zio and since the dbuf may be in the
+			 * CACHED state, activity in the open
+			 * txg may be occurring.  Switch out
+			 * the syncer's dbuf, since it can tolerate
+			 * the change.
+			 */
+			syncer_dr->dt.dl.dr_data = buf;
+		}
+	}
+}
+
+/**
+ * \brief Merge write ranges for a dirty record.
+ *
+ * \param dl	Dirty leaf record to merge the old buffer to.
+ * \param buf	The old ARC buffer to use for missing data.
+ *
+ * This function performs an inverse merge.  The write ranges provided
+ * indicate valid data in the dirty leaf's buffer, which means the old
+ * buffer has to be copied over exclusive of those ranges.
+ */
+static void
+dbuf_merge_write_ranges(dbuf_dirty_leaf_record_t *dl, arc_buf_t *old_buf)
+{
+	dbuf_dirty_record_hole_itr_t itr;
+	dbuf_dirty_record_hole_t *hole;
+
+	ASSERT3P(dl, !=, NULL);
+	/* If there are no write ranges, we're done. */
+	if (list_is_empty(&dl->write_ranges))
+		return;
+	/* If there are write ranges, there must be an ARC buffer. */
+	ASSERT(dl->dr_data != NULL);
+
+	/*
+	 * We use an iterator here because it simplifies the logic
+	 * considerably for this function.
+	 */
+	dbuf_dirty_record_hole_itr_init(&itr, dl, old_buf);
+
+	while ((hole = dbuf_dirty_record_hole_itr_next(&itr)) != NULL)
+		memcpy(hole->dst, hole->src, hole->size);
+}
+
+/**
+ * \brief Resolve a dbuf using its ranges and the filled ARC buffer provided.
+ *
+ * \param db	Dbuf to resolve.
+ * \param buf	ARC buffer to use to resolve.
+ *
+ * This routine is called after a read completes.  The results of the read
+ * are stored in the ARC buffer.  It will then merge writes in the order
+ * that they occurred, cleaning up write ranges as it goes.
+ */
+static void
+dbuf_resolve_ranges(dmu_buf_impl_t *db, arc_buf_t *buf)
+{
+	dbuf_dirty_record_t *dr;
+	dbuf_dirty_leaf_record_t *dl;
+	arc_buf_t *old_buf;
+
+	/* No range data is kept for non data blocks. */
+	ASSERT3U(db->db_level, ==, 0);
+
+	/*
+	 * Start with the oldest dirty record, merging backwards.  For the
+	 * first dirty record, the provided ARC buffer is the "old" buffer.
+	 *
+	 * In turn, the older buffer is copied to the newer one, using an
+	 * inverse of the newer one's write ranges.
+	 */
+	dr = list_tail(&db->db_dirty_records);
+	old_buf = buf;
+	while (dr != NULL) {
+		dl = &dr->dt.dl;
+		ASSERT(dl->dr_data);
+		dbuf_merge_write_ranges(dl, old_buf);
+		/*
+		 * Now that we have updated the buffer, freeze it.  However,
+		 * if the FILL bit is set, someone else is actively
+		 * modifying the current buffer, and will be responsible for
+		 * freezing that buffer.
+		 */
+		if (dl->dr_data != db->db_buf || !(db->db_state & DB_FILL))
+			arc_buf_freeze(dl->dr_data);
+		dbuf_dirty_record_cleanup_ranges(dr);
+		old_buf = dl->dr_data;
+		dr = list_prev(&db->db_dirty_records, dr);
+	}
+
+	/*
+	 * Process any deferred syncer splits now that the buffer contents
+	 * are fully valid.
+	 */
+	dbuf_syncer_split(db, db->db_data_pending, /* deferred_split */B_TRUE);
+}
+
+#ifdef HAVE_BUF_SETS
+static void
+dbuf_process_buf_sets(dmu_buf_impl_t *db, boolean_t err)
+{
+	dmu_context_node_t *dcn, *next;
+
+	for (dcn = list_head(&db->db_dmu_buf_sets); dcn != NULL; dcn = next) {
+		next = list_next(&db->db_dmu_buf_sets, dcn);
+		dmu_buf_set_rele(dcn->buf_set, err);
+		dmu_context_node_remove(&db->db_dmu_buf_sets, dcn);
+	}
+}
+#define	DBUF_PROCESS_BUF_SETS(db, err) do {		\
+	if (!list_is_empty(&(db)->db_dmu_buf_sets))	\
+		dbuf_process_buf_sets(db, err);		\
+} while (0)
+#else
+#define	DBUF_PROCESS_BUF_SETS(db, err)
+#endif
+
+static void
+dbuf_read_complete(dmu_buf_impl_t *db, arc_buf_t *buf, boolean_t is_hole_read)
+{
+	dbuf_dirty_record_t *oldest_dr = list_tail(&db->db_dirty_records);
+
+	if (db->db_level == 0 && oldest_dr != NULL && !is_hole_read &&
+	    !list_is_empty(&oldest_dr->dt.dl.write_ranges)) {
+		/*
+		 * Fill any holes in the dbuf's dirty records with the
+		 * original block we read from disk.
+		 *
+		 * NOTE: A resolving read can be outstanding for older
+		 *	 TXGs at the same time a read completes to satisfy
+		 *	 a foreground reader or writer calling
+		 *	 dbuf_read_cached().  This only happens when the
+		 *	 dbuf has transitioned to DB_UNCACHED via
+		 *	 dbuf_free_range().  These foreground operations are
+		 *	 always satisfied via dbuf_read_hole(), which sets
+		 *	 is_hole_read to prevent foreground operations from
+		 *	 mistakenly filling holes in older TXGs.
+		 */
+		ASSERT(db->db_buf != buf);
+		ASSERT(db->db_state == DB_CACHED ||
+		    db->db_state == DB_UNCACHED ||
+		    db->db_state == DB_FILL ||
+		    (db->db_state & DB_READ));
+
+		/*
+		 * Fill any holes in the dbuf's dirty records
+		 * with the original block we read.
+		 */
+		dbuf_resolve_ranges(db, buf);
+
+		if (db->db_state == DB_READ) {
+			/*
+			 * The most recent version of this block
+			 * was waiting on this read.  Transition
+			 * to cached.
+			 */
+			ASSERT(db->db_buf != NULL);
+			DBUF_STATE_CHANGE(db, =, DB_CACHED,
+			    "resolve of records in READ state");
+		} else if (db->db_state & DB_READ) {
+			/*
+			 * Clear the READ bit; let fill_done transition us
+			 * to DB_CACHED.
+			 */
+			ASSERT(db->db_state & DB_FILL);
+			DBUF_STATE_CHANGE(db, &=, ~DB_READ,
+			    "resolve of records with READ state bit set");
+		}
+
+		/*
+		 * The provided buffer is no longer relevant to the
+		 * current transaction group.  Discard it.
+		 */
+		arc_release(buf, db);
+
+		if (oldest_dr->dr_zio) {
+			ASSERT(oldest_dr == db->db_data_pending);
+			zio_nowait(oldest_dr->dr_zio);
+			DEBUG_COUNTER_INC(syncer_deferred_write_zios);
+		}
+		DEBUG_COUNTER_INC(resolves_completed);
+	} else if (db->db_state == DB_READ) {
+		/*
+		 * Read with no dirty data.  Use the buffer we
+		 * read and transition to DB_CACHED.
+		 */
+		dbuf_set_data(db, buf);
+		DBUF_STATE_CHANGE(db, =, DB_CACHED,
+		    "read completed with no dirty records");
+	} else {
+		/*
+		 * The block was free'd or filled before this read could
+		 * complete.  Note that in this case, it satisfies the reader
+		 * since the frontend must already be populated.
+		 */
+		ASSERT(db->db_buf != NULL);
+		ASSERT(db->db_state == DB_CACHED ||
+		    db->db_state == DB_UNCACHED);
+		arc_release(buf, db);
+	}
+	DBUF_PROCESS_BUF_SETS(db, B_FALSE);
 }
 
 static void
-dbuf_read_done(zio_t *zio, const zbookmark_phys_t *zb, const blkptr_t *bp,
-    arc_buf_t *buf, void *vdb)
+dbuf_read_done(zio_t *zio, const zbookmark_phys_t *zb,
+    const blkptr_t *bp,	arc_buf_t *buf, void *vdb)
 {
 	dmu_buf_impl_t *db = vdb;
 
+	ASSERT(db->db_blkid != DMU_BONUS_BLKID);
 	mutex_enter(&db->db_mtx);
 	ASSERT3U(db->db_state, ==, DB_READ);
 	/*
 	 * All reads are synchronous, so we must have a hold on the dbuf
 	 */
 	ASSERT(zfs_refcount_count(&db->db_holds) > 0);
-	ASSERT(db->db_buf == NULL);
-	ASSERT(db->db.db_data == NULL);
-	if (buf == NULL) {
-		/* i/o error */
-		ASSERT(zio == NULL || zio->io_error != 0);
-		ASSERT(db->db_blkid != DMU_BONUS_BLKID);
-		ASSERT3P(db->db_buf, ==, NULL);
-		DBUF_STATE_CHANGE(db, =, DB_UNCACHED, "i/o error");
-	} else if (db->db_level == 0 && db->db_freed_in_flight) {
-		/* freed in flight */
-		ASSERT(zio == NULL || zio->io_error == 0);
-		arc_release(buf, db);
-		bzero(buf->b_data, db->db.db_size);
+	if (zio == NULL || zio->io_error == 0) {
+		dbuf_read_complete(db, buf, FALSE);
+	} else if (buf != NULL && db->db_dirtycnt > 0) {
+		/*
+		 * The failure of this read has already been
+		 * communicated to the user by the zio pipeline.
+		 * Limit our losses to just the data we can't
+		 * read by filling any holes in our dirty records
+		 * with zeros.
+		 */
+		bzero(buf->b_data, arc_buf_size(buf));
 		arc_buf_freeze(buf);
-		db->db_freed_in_flight = FALSE;
-		dbuf_set_data(db, buf);
-		DBUF_STATE_CHANGE(db, =, DB_CACHED, "freed in flight");
+		dbuf_read_complete(db, buf, FALSE);
+		/* XXX convert to counter */
+		atomic_add_64(&dirty_writes_lost, 1);
+		arc_buf_destroy(buf, db);
 	} else {
-		/* success */
-		ASSERT(zio == NULL || zio->io_error == 0);
-		dbuf_set_data(db, buf);
-		DBUF_STATE_CHANGE(db, =, DB_CACHED, "successful read");
+		ASSERT3P(db->db_buf, ==, NULL);
+		DBUF_STATE_CHANGE(db, =, DB_UNCACHED, "read failed");
+		DBUF_PROCESS_BUF_SETS(db, B_TRUE);
+		if (buf != NULL)
+			arc_buf_destroy(buf, db);
 	}
 	cv_broadcast(&db->db_changed);
 	dbuf_rele_and_unlock(db, NULL, B_FALSE);
@@ -2309,6 +2658,30 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	return (dr);
 }
 
+/*
+ * Cleanup a dirty record's write ranges as necessary.
+ *
+ * XXX: This should be replaced with a larger dbuf_dirty_record_destroy()
+ *      that cleans up an entire dirty record.
+ */
+static void
+dbuf_dirty_record_cleanup_ranges(dbuf_dirty_record_t *dr)
+{
+	dbuf_dirty_leaf_record_t *dl;
+	dbuf_dirty_range_t *range;
+
+	/* Write ranges do not apply to indirect blocks */
+	if (dr->dr_dbuf->db_level != 0)
+		return;
+
+	/* Remove any write range entries left behind. */
+	dl = &dr->dt.dl;
+	while ((range = list_remove_head(&dl->write_ranges)) != NULL) {
+		kmem_free(range, sizeof (dbuf_dirty_range_t));
+		DEBUG_REFCOUNT_DEC(dirty_ranges_in_flight);
+	}
+}
+
 static void
 dbuf_undirty_bonus(dbuf_dirty_record_t *dr)
 {
@@ -2555,8 +2928,9 @@ dmu_buf_set_crypt_params(dmu_buf_t *db_fake, boolean_t byteorder,
 static void
 dbuf_override_impl(dmu_buf_impl_t *db, const blkptr_t *bp, dmu_tx_t *tx)
 {
-	struct dirty_leaf *dl;
+
 	dbuf_dirty_record_t *dr;
+	dbuf_dirty_leaf_record_t *dl;
 
 	dr = list_head(&db->db_dirty_records);
 	ASSERT3U(dr->dr_txg, ==, tx->tx_txg);
@@ -2598,7 +2972,7 @@ dmu_buf_write_embedded(dmu_buf_t *dbuf, void *data,
     dmu_tx_t *tx)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)dbuf;
-	struct dirty_leaf *dl;
+	dbuf_dirty_leaf_record_t *dl;
 	dmu_object_type_t type;
 	dbuf_dirty_record_t *dr;
 

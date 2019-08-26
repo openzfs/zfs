@@ -590,7 +590,7 @@ line: while (<$filehandle>) {
 	    (/[^!<>=]=[^=\s]/ && !/[^!<>=]=$/)) {
 		# XXX - should only check this for C++ code
 		# XXX - there are probably other forms that should be allowed
-		if (!/\soperator=/ && !/,\s=/) {
+		if (!/\soperator=/ && !/,\s=/ && !/,\s&=/) {
 			err("missing space around assignment operator");
 		}
 	}
