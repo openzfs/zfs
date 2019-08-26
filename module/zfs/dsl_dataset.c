@@ -2280,7 +2280,7 @@ get_clones_stat_impl(dsl_dataset_t *ds, nvlist_t *val)
 		    &count));
 	}
 	if (count != dsl_dataset_phys(ds)->ds_num_children - 1) {
-		return (ENOENT);
+		return (SET_ERROR(ENOENT));
 	}
 	for (zap_cursor_init(&zc, mos,
 	    dsl_dataset_phys(ds)->ds_next_clones_obj);
@@ -2654,7 +2654,7 @@ dsl_get_prev_snap(dsl_dataset_t *ds, char *snap)
 		dsl_dataset_name(ds->ds_prev, snap);
 		return (0);
 	} else {
-		return (ENOENT);
+		return (SET_ERROR(ENOENT));
 	}
 }
 

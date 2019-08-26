@@ -206,7 +206,7 @@ get_dsl_dir_prop(dsl_dataset_t *ds, zfs_prop_t zfs_prop,
 		break;
 	default:
 		mutex_exit(&dd->dd_lock);
-		return (ENOENT);
+		return (SET_ERROR(ENOENT));
 	}
 	mutex_exit(&dd->dd_lock);
 	return (0);
@@ -742,7 +742,7 @@ zcp_get_userquota_prop(lua_State *state, dsl_pool_t *dp,
 
 	if ((value == 0) && ((type == ZFS_PROP_USERQUOTA) ||
 	    (type == ZFS_PROP_GROUPQUOTA)))
-		error = ENOENT;
+		error = SET_ERROR(ENOENT);
 	if (error != 0) {
 		return (zcp_handle_error(state, dataset_name,
 		    prop_name, error));

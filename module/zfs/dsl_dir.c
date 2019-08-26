@@ -1056,7 +1056,7 @@ dsl_dir_get_filesystem_count(dsl_dir_t *dd, uint64_t *count)
 		return (zap_lookup(os, dd->dd_object, DD_FIELD_FILESYSTEM_COUNT,
 		    sizeof (*count), 1, count));
 	} else {
-		return (ENOENT);
+		return (SET_ERROR(ENOENT));
 	}
 }
 
@@ -1068,7 +1068,7 @@ dsl_dir_get_snapshot_count(dsl_dir_t *dd, uint64_t *count)
 		return (zap_lookup(os, dd->dd_object, DD_FIELD_SNAPSHOT_COUNT,
 		    sizeof (*count), 1, count));
 	} else {
-		return (ENOENT);
+		return (SET_ERROR(ENOENT));
 	}
 }
 
@@ -1313,7 +1313,7 @@ top_of_function:
 
 		if (avail < quota) {
 			quota = avail;
-			retval = ENOSPC;
+			retval = SET_ERROR(ENOSPC);
 		}
 	}
 

@@ -211,7 +211,7 @@ spa_checkpoint_discard_sync_callback(space_map_entry_t *sme, void *arg)
 	uint64_t end = sme->sme_offset + sme->sme_run;
 
 	if (sdc->sdc_entry_limit == 0)
-		return (EINTR);
+		return (SET_ERROR(EINTR));
 
 	/*
 	 * Since the space map is not condensed, we know that

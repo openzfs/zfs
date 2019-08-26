@@ -467,7 +467,7 @@ zap_leaf_lookup_closest(zap_leaf_t *l,
 		}
 	}
 
-	return (bestcd == -1U ? ENOENT : 0);
+	return (bestcd == -1U ? SET_ERROR(ENOENT) : 0);
 }
 
 int
