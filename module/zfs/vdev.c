@@ -3263,7 +3263,7 @@ vdev_sync_done(vdev_t *vd, uint64_t txg)
 		metaslab_sync_done(msp, txg);
 
 	if (reassess)
-		metaslab_sync_reassess(vd->vdev_mg);
+		metaslab_sync_reassess(vd->vdev_mg, txg);
 }
 
 void

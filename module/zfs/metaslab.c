@@ -3987,7 +3987,7 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 }
 
 void
-metaslab_sync_reassess(metaslab_group_t *mg)
+metaslab_sync_reassess(metaslab_group_t *mg, uint64_t txg)
 {
 	spa_t *spa = mg->mg_class->mc_spa;
 
@@ -4001,8 +4001,13 @@ metaslab_sync_reassess(metaslab_group_t *mg)
 	 * is no longer active since we dirty metaslabs as we remove a
 	 * a device, thus potentially making the metaslab group eligible
 	 * for preloading.
+	 *
+	 * We also forbid preloading if the pool is at or beyond the final
+	 * dirty txg. If we don't, and the metaslab is dirtied after it is
+	 * loaded, we will be violating the "final dirty txg" invariant, which
+	 * will cause an assertion failure in metaslab_sync.
 	 */
-	if (mg->mg_activation_count > 0) {
+	if (mg->mg_activation_count > 0 && spa_final_dirty_txg(spa) < txg) {
 		metaslab_group_preload(mg);
 	}
 	spa_config_exit(spa, SCL_ALLOC, FTAG);
