@@ -16,5 +16,6 @@ $(udevrule_DATA):%:%.in
 		-e 's,@sysconfdir\@,$(sysconfdir),g' \
 		$< > '$@'
 
+# Double-colon rules are allowed; there are multiple independent definitions.
 distclean-local::
 	-$(RM) $(udevrule_DATA)

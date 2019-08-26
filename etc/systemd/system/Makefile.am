@@ -37,5 +37,6 @@ install-data-hook:
 	$(MKDIR_P) "$(DESTDIR)$(systemdunitdir)"
 	ln -sf /dev/null "$(DESTDIR)$(systemdunitdir)/zfs-import.service"
 
+# Double-colon rules are allowed; there are multiple independent definitions.
 distclean-local::
 	-$(RM) $(systemdunit_DATA) $(systemdpreset_DATA)

@@ -33,5 +33,6 @@ $(pkgdracut_SCRIPTS) $(pkgdracut_DATA) :%:%.in
 		-e 's,@mounthelperdir\@,$(mounthelperdir),g' \
 		$< >'$@'
 
+# Double-colon rules are allowed; there are multiple independent definitions.
 distclean-local::
 	-$(RM) $(pkgdracut_SCRIPTS) $(pkgdracut_DATA)

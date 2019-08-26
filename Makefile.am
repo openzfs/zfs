@@ -44,7 +44,8 @@ gitrev:
 
 BUILT_SOURCES = gitrev
 
-distclean-local:
+# Double-colon rules are allowed; there are multiple independent definitions.
+distclean-local::
 	-$(RM) -R autom4te*.cache
 	-find . \( -name SCCS -o -name BitKeeper -o -name .svn -o -name CVS \
 		-o -name .pc -o -name .hg -o -name .git \) -prune -o \
