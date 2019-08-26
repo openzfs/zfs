@@ -85,7 +85,7 @@ my $verbose = $opts{'v'};
 my $ignore_hdr_comment = $opts{'C'};
 my $check_posix_types = $opts{'P'};
 
-my $doxygen_comments = 0;
+my $doxygen_comments = 1;
 my $splint_comments = 0;
 
 if (defined($opts{'o'})) {
