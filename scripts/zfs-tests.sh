@@ -31,7 +31,7 @@ fi
 
 PROG=zfs-tests.sh
 VERBOSE="no"
-QUIET=
+QUIET=""
 CLEANUP="yes"
 CLEANUPALL="no"
 LOOPBACK="yes"
@@ -307,7 +307,7 @@ while getopts 'hvqxkfScn:d:s:r:?t:T:u:I:' OPTION; do
 		VERBOSE="yes"
 		;;
 	q)
-		QUIET="-q"
+		QUIET="yes"
 		;;
 	x)
 		CLEANUPALL="yes"
@@ -602,10 +602,17 @@ REPORT_FILE=$(mktemp -u -t zts-report.XXXX -p "$FILEDIR")
 #
 # Run all the tests as specified.
 #
-msg "${TEST_RUNNER} ${QUIET} -c ${RUNFILE} -T ${TAGS} -i ${STF_SUITE}" \
-    "-I ${ITERATIONS}"
-${TEST_RUNNER} ${QUIET} -c "${RUNFILE}" -T "${TAGS}" -i "${STF_SUITE}" \
-    -I "${ITERATIONS}" 2>&1 | tee "$RESULTS_FILE"
+msg "${TEST_RUNNER} ${QUIET:+-q}" \
+    "-c \"${RUNFILE}\"" \
+    "-T \"${TAGS}\"" \
+    "-i \"${STF_SUITE}\"" \
+    "-I \"${ITERATIONS}\""
+${TEST_RUNNER} ${QUIET:+-q} \
+    -c "${RUNFILE}" \
+    -T "${TAGS}" \
+    -i "${STF_SUITE}" \
+    -I "${ITERATIONS}" \
+    2>&1 | tee "$RESULTS_FILE"
 
 #
 # Analyze the results.
