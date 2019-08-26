@@ -118,6 +118,14 @@ DEFINE_EVENT(zfs_dbuf_class, name, \
 DEFINE_DBUF_EVENT(zfs_blocked__read);
 
 /* BEGIN CSTYLED */
+#define	DEFINE_DBUF_STATE_EVENT(name) \
+DEFINE_EVENT(zfs_dbuf_state_class, name, \
+	TP_PROTO(dmu_buf_impl_t *db, const char *why), \
+	TP_ARGS(db, why))
+/* END CSTYLED */
+DEFINE_DBUF_STATE_EVENT(zfs_dbuf__state_change);
+
+/* BEGIN CSTYLED */
 DECLARE_EVENT_CLASS(zfs_dbuf_evict_one_class,
 	TP_PROTO(dmu_buf_impl_t *db, multilist_sublist_t *mls),
 	TP_ARGS(db, mls),
@@ -147,6 +155,7 @@ DEFINE_DBUF_EVICT_ONE_EVENT(zfs_dbuf__evict__one);
 
 DEFINE_DTRACE_PROBE2(blocked__read);
 DEFINE_DTRACE_PROBE2(dbuf__evict__one);
+DEFINE_DTRACE_PROBE2(dbuf__state_change);
 
 #endif /* HAVE_DECLARE_EVENT_CLASS */
 #endif /* _KERNEL */
