@@ -1764,6 +1764,96 @@ dbuf_unoverride(dbuf_dirty_record_t *dr)
 }
 
 /*
+ * Disassociate the frontend for any older transaction groups of a
+ * dbuf that is inside a range being freed.  The primary purpose is to
+ * ensure that the state of any dirty records affected by the operation
+ * remain consistent.
+ */
+static void
+dbuf_free_range_disassociate_frontend(dmu_buf_impl_t *db, dnode_t *dn,
+    dmu_tx_t *tx)
+{
+	uint64_t txg = tx->tx_txg;
+	dbuf_dirty_record_t *dr = list_head(&db->db_dirty_records);
+
+	ASSERT(dr != NULL);
+
+	if (dr->dr_txg == txg) {
+		/*
+		 * This buffer is "in-use", re-adjust the file
+		 * size to reflect that this buffer may
+		 * contain new data when we sync.
+		 */
+		if (db->db_blkid != DMU_SPILL_BLKID &&
+		    db->db_blkid > dn->dn_maxblkid)
+			dn->dn_maxblkid = db->db_blkid;
+		dbuf_unoverride(dr);
+	} else {
+		/*
+		 * This dbuf is not dirty in the open context.
+		 * Either uncache it (if its not referenced in
+		 * the open context) or reset its contents to
+		 * empty.
+		 */
+		dbuf_fix_old_data(db, txg);
+	}
+}
+
+
+static boolean_t
+dbuf_free_range_already_freed(dmu_buf_impl_t *db)
+{
+	/* XXX add comment about why these are OK */
+	if (db->db_state == DB_UNCACHED || db->db_state == DB_NOFILL ||
+	    db->db_state == DB_EVICTING) {
+		ASSERT(db->db.db_data == NULL);
+		mutex_exit(&db->db_mtx);
+		return (B_TRUE);
+	}
+	return (B_FALSE);
+}
+
+static boolean_t
+dbuf_free_range_filler_will_free(dmu_buf_impl_t *db)
+{
+	if (db->db_state == DB_FILL || db->db_state == DB_READ) {
+		/*
+		 * If the buffer is currently being filled, then its
+		 * contents cannot be directly cleared.  Signal the filler
+		 * to have dbuf_fill_done perform the clear just before
+		 * transitioning the buffer to the CACHED state.
+		 */
+		db->db_freed_in_flight = TRUE;
+		mutex_exit(&db->db_mtx);
+		return (B_TRUE);
+	}
+	return (B_FALSE);
+}
+
+/*
+ * If a dbuf has no users, clear it.  Returns whether it was cleared.
+ */
+static boolean_t
+dbuf_clear_successful(dmu_buf_impl_t *db)
+{
+
+	if (zfs_refcount_count(&db->db_holds) != 0)
+		return (B_FALSE);
+
+	/* All consumers are finished, so evict the buffer */
+	ASSERT(db->db_buf != NULL);
+	dbuf_destroy(db);
+	return (B_TRUE);
+}
+
+/*
+ * Free a range of data blocks in a dnode.
+ *
+ * dn	Dnode which the range applies to.
+ * start	Starting block id of the range, inclusive.
+ * end	Ending block id of the range, inclusive.
+ * tx		Transaction to apply the free operation too.
+ *
  * Evict (if its unreferenced) or clear (if its referenced) any level-0
  * data blocks in the free range, so that any future readers will find
  * empty blocks.
@@ -1774,9 +1864,7 @@ dbuf_free_range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid,
 {
 	dmu_buf_impl_t *db_search;
 	dmu_buf_impl_t *db, *db_next;
-	uint64_t txg = tx->tx_txg;
 	avl_index_t where;
-	dbuf_dirty_record_t *dr;
 
 	if (end_blkid > dn->dn_maxblkid &&
 	    !(start_blkid == DMU_SPILL_BLKID || end_blkid == DMU_SPILL_BLKID))
@@ -1809,49 +1897,15 @@ dbuf_free_range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid,
 			/* mutex has been dropped and dbuf destroyed */
 			continue;
 		}
+		if (dbuf_free_range_already_freed(db) ||
+		    dbuf_free_range_filler_will_free(db) ||
+		    dbuf_clear_successful(db))
+			continue; /* db_mtx already exited */
 
-		if (db->db_state == DB_UNCACHED ||
-		    db->db_state == DB_NOFILL ||
-		    db->db_state == DB_EVICTING) {
-			ASSERT(db->db.db_data == NULL);
-			mutex_exit(&db->db_mtx);
-			continue;
-		}
-		if (db->db_state == DB_READ || db->db_state == DB_FILL) {
-			/* will be handled in dbuf_read_done or dbuf_rele */
-			db->db_freed_in_flight = TRUE;
-			mutex_exit(&db->db_mtx);
-			continue;
-		}
-		if (zfs_refcount_count(&db->db_holds) == 0) {
-			ASSERT(db->db_buf);
-			dbuf_destroy(db);
-			continue;
-		}
 		/* The dbuf is referenced */
+		if (!list_is_empty(&db->db_dirty_records))
+			dbuf_free_range_disassociate_frontend(db, dn, tx);
 
-		dr = list_head(&db->db_dirty_records);
-		if (dr != NULL) {
-			if (dr->dr_txg == txg) {
-				/*
-				 * This buffer is "in-use", re-adjust the file
-				 * size to reflect that this buffer may
-				 * contain new data when we sync.
-				 */
-				if (db->db_blkid != DMU_SPILL_BLKID &&
-				    db->db_blkid > dn->dn_maxblkid)
-					dn->dn_maxblkid = db->db_blkid;
-				dbuf_unoverride(dr);
-			} else {
-				/*
-				 * This dbuf is not dirty in the open context.
-				 * Either uncache it (if its not referenced in
-				 * the open context) or reset its contents to
-				 * empty.
-				 */
-				dbuf_fix_old_data(db, txg);
-			}
-		}
 		/* clear the contents if its cached */
 		if (db->db_state == DB_CACHED) {
 			ASSERT(db->db.db_data != NULL);
