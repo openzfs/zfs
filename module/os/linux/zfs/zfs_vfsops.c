@@ -990,7 +990,7 @@ zfs_check_global_label(const char *dsname, const char *hexsl)
 		if (dsl_prop_get_integer(dsname,
 		    zfs_prop_to_name(ZFS_PROP_READONLY), &rdonly, NULL))
 			return (SET_ERROR(EACCES));
-		return (rdonly ? 0 : EACCES);
+		return (rdonly ? 0 : SET_ERROR(EACCES));
 	}
 	return (SET_ERROR(EACCES));
 }
@@ -2047,6 +2047,8 @@ zfs_get_zplprop(objset_t *os, zfs_prop_t prop, uint64_t *value)
 	if (os != NULL) {
 		ASSERT3U(os->os_phys->os_type, ==, DMU_OST_ZFS);
 		error = zap_lookup(os, MASTER_NODE_OBJ, pname, 8, 1, value);
+	} else {
+		error = SET_ERROR(ENOENT);
 	}
 
 	if (error == ENOENT) {

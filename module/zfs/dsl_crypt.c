@@ -122,7 +122,7 @@ dsl_wrapping_key_create(uint8_t *wkeydata, zfs_keyformat_t keyformat,
 	/* allocate and initialize the underlying crypto key */
 	wkey->wk_key.ck_data = kmem_alloc(WRAPPING_KEY_LEN, KM_SLEEP);
 	if (!wkey->wk_key.ck_data) {
-		ret = ENOMEM;
+		ret = SET_ERROR(ENOMEM);
 		goto error;
 	}
 
