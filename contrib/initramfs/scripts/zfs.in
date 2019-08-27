@@ -401,13 +401,6 @@ mount_fs()
 	return 0
 }
 
-# Loads a key for a ZFS native crypted filesystem via STDIN.
-loadkey_stdin()
-{
-	read -r KEY
-	echo "$KEY" | $ZFS load-key "$1"
-}
-
 # Unlock a ZFS native crypted filesystem.
 decrypt_fs()
 {
@@ -426,7 +419,7 @@ decrypt_fs()
 			if [ -e /bin/plymouth ] && /bin/plymouth --ping 2>/dev/null; then
 				while [ $TRY_COUNT -gt 0 ]; do
 					plymouth ask-for-password --prompt "Encrypted ZFS password for ${ENCRYPTIONROOT}" | \
-						loadkey_stdin "${ENCRYPTIONROOT}" && break
+						$ZFS load-key "${ENCRYPTIONROOT}" && break
 					TRY_COUNT=$((TRY_COUNT - 1))
 				done
 
@@ -434,7 +427,7 @@ decrypt_fs()
 			elif [ -e /run/systemd/system ]; then
 				while [ $TRY_COUNT -gt 0 ]; do
 					systemd-ask-password "Encrypted ZFS password for ${ENCRYPTIONROOT}" --no-tty | \
-						loadkey_stdin "${ENCRYPTIONROOT}" && break
+						$ZFS load-key "${ENCRYPTIONROOT}" && break
 					TRY_COUNT=$((TRY_COUNT - 1))
 				done
 
