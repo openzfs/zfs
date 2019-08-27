@@ -1736,7 +1736,12 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 	 * will fail with EIO since we have z_teardown_lock for writer (only
 	 * relevant for forced unmount).
 	 *
-	 * Release all holds on dbufs.
+	 * Release all holds on dbufs. We also grab an extra reference to all
+	 * the remaining inodes so that the kernel does not attempt to free
+	 * any inodes of a suspended fs. This can cause deadlocks since the
+	 * zfs_resume_fs() process may involve starting threads, which might
+	 * attempt to free unreferenced inodes to free up memory for the new
+	 * thread.
 	 */
 	if (!unmounting) {
 		mutex_enter(&zfsvfs->z_znodes_lock);
@@ -1744,6 +1749,9 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 		    zp = list_next(&zfsvfs->z_all_znodes, zp)) {
 			if (zp->z_sa_hdl)
 				zfs_znode_dmu_fini(zp);
+			if (igrab(ZTOI(zp)) != NULL)
+				zp->z_suspended = B_TRUE;
+
 		}
 		mutex_exit(&zfsvfs->z_znodes_lock);
 	}
@@ -2191,6 +2199,12 @@ zfs_resume_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 		if (err2) {
 			remove_inode_hash(ZTOI(zp));
 			zp->z_is_stale = B_TRUE;
+		}
+
+		/* see comment in zfs_suspend_fs() */
+		if (zp->z_suspended) {
+			zfs_iput_async(ZTOI(zp));
+			zp->z_suspended = B_FALSE;
 		}
 	}
 	mutex_exit(&zfsvfs->z_znodes_lock);
