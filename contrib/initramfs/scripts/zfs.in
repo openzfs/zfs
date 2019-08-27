@@ -411,29 +411,29 @@ decrypt_fs()
 
 		# Determine dataset that holds key for root dataset
 		ENCRYPTIONROOT=$(${ZFS} get -H -o value encryptionroot "${fs}")
-		DECRYPT_CMD="${ZFS} load-key '${ENCRYPTIONROOT}'"
 
 		# If root dataset is encrypted...
 		if ! [ "${ENCRYPTIONROOT}" = "-" ]; then
-
+			TRY_COUNT=3
 			# Prompt with plymouth, if active
 			if [ -e /bin/plymouth ] && /bin/plymouth --ping 2>/dev/null; then
-				plymouth ask-for-password --prompt "Encrypted ZFS password for ${ENCRYPTIONROOT}" \
-					--number-of-tries="3" \
-					--command="${DECRYPT_CMD}"
+				while [ $TRY_COUNT -gt 0 ]; do
+					plymouth ask-for-password --prompt "Encrypted ZFS password for ${ENCRYPTIONROOT}" | \
+						$ZFS load-key "${ENCRYPTIONROOT}" && break
+					TRY_COUNT=$((TRY_COUNT - 1))
+				done
 
 			# Prompt with systemd, if active 
 			elif [ -e /run/systemd/system ]; then
-				TRY_COUNT=3
 				while [ $TRY_COUNT -gt 0 ]; do
 					systemd-ask-password "Encrypted ZFS password for ${ENCRYPTIONROOT}" --no-tty | \
-						${DECRYPT_CMD} && break
+						$ZFS load-key "${ENCRYPTIONROOT}" && break
 					TRY_COUNT=$((TRY_COUNT - 1))
 				done
 
 			# Prompt with ZFS tty, otherwise
 			else
-				eval "${DECRYPT_CMD}"
+				$ZFS load-key "${ENCRYPTIONROOT}"
 			fi
 		fi
 	fi
