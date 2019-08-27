@@ -45,11 +45,11 @@ kmem_cache_t *btree_leaf_cache;
  * of each node is poisoned appropriately. Note that poisoning always occurs if
  * ZFS_DEBUG is set, so it is safe to set the intensity to 5 during normal
  * operation.
- * 
+ *
  * Intensity 4 and 5 are particularly expensive to perform; the previous levels
  * are a few memory operations per node, while these levels require multiple
  * operations per element. In addition, when creating large btrees, these
- * operations are called at every step, resulting in extremely sloww operation
+ * operations are called at every step, resulting in extremely slow operation
  * (while the asymptotic complexity of the other steps is the same, the
  * importance of the constant factors cannot be denied).
  */
@@ -60,9 +60,9 @@ int btree_verify_intensity = 0;
 #endif
 
 #ifdef _ILP32
-#define BTREE_POISON 0xabadb10c
+#define	BTREE_POISON 0xabadb10c
 #else
-#define BTREE_POISON 0xabadb10cdeadbeef
+#define	BTREE_POISON 0xabadb10cdeadbeef
 #endif
 
 #ifdef ZFS_DEBUG
@@ -406,7 +406,7 @@ bt_shleft_at_leaf(btree_t *tree, btree_leaf_t *leaf, uint64_t idx,
 }
 
 static inline void
-bt_transfer_core(btree_t* tree, btree_core_t *source, uint64_t sidx,
+bt_transfer_core(btree_t *tree, btree_core_t *source, uint64_t sidx,
     uint64_t count, btree_core_t *dest, uint64_t didx, boolean_t trap)
 {
 	size_t size = tree->bt_elem_size;
@@ -423,7 +423,7 @@ bt_transfer_core(btree_t* tree, btree_core_t *source, uint64_t sidx,
 }
 
 static inline void
-bt_transfer_leaf(btree_t* tree, btree_leaf_t *source, uint64_t sidx,
+bt_transfer_leaf(btree_t *tree, btree_leaf_t *source, uint64_t sidx,
     uint64_t count, btree_leaf_t *dest, uint64_t didx)
 {
 	size_t size = tree->bt_elem_size;
@@ -572,7 +572,8 @@ btree_insert_into_parent(btree_t *tree, btree_hdr_t *old_node,
 		 * Copy the back part of the elements and children to the new
 		 * leaf.
 		 */
-		bt_transfer_core(tree, parent, keep_count, move_count, new_parent, 0, B_TRUE);
+		bt_transfer_core(tree, parent, keep_count, move_count,
+		    new_parent, 0, B_TRUE);
 
 		/* Store the new separator in a buffer. */
 		uint8_t *tmp_buf = kmem_alloc(size, KM_SLEEP);
@@ -583,7 +584,8 @@ btree_insert_into_parent(btree_t *tree, btree_hdr_t *old_node,
 		 * Shift the remaining elements and children in the front half
 		 * to handle the new value.
 		 */
-		bt_shright_at_core(tree, parent, offset, keep_count - 1 - offset, B_FALSE);
+		bt_shright_at_core(tree, parent, offset, keep_count - 1 -
+		    offset, B_FALSE);
 
 		uint8_t *e_start = parent->btc_elems + offset * size;
 		bcopy(buf, e_start, size);
@@ -930,7 +932,8 @@ btree_bulk_finish(btree_t *tree)
 			}
 		}
 		/* First, shift things in the right node back. */
-		bt_shift_at_core(tree, cur, 0, hdr->bth_count, move_count, B_TRUE, B_FALSE);
+		bt_shift_at_core(tree, cur, 0, hdr->bth_count, move_count,
+		    B_TRUE, B_FALSE);
 
 		/* Next, move the separator to the right node. */
 		uint8_t *separator = parent->btc_elems + ((parent_idx - 1) *
@@ -944,7 +947,8 @@ btree_bulk_finish(btree_t *tree)
 		 */
 		move_count--;
 		uint64_t move_idx = l_neighbor->btc_hdr.bth_count - move_count;
-		bt_transfer_core(tree, l_neighbor, move_idx, move_count, cur, 0, B_TRUE);
+		bt_transfer_core(tree, l_neighbor, move_idx, move_count, cur, 0,
+		    B_TRUE);
 
 		/*
 		 * Finally, move the last element in the left node to the
@@ -1485,8 +1489,8 @@ btree_remove_from_node(btree_t *tree, btree_core_t *node, btree_hdr_t *rm_hdr)
 		bcopy(separator, e_out, size);
 
 		/* Move all our elements and children into the left node. */
-		bt_transfer_core(tree, node, 0, idx - 1, left, l_hdr->bth_count +
-		    1, B_TRUE);
+		bt_transfer_core(tree, node, 0, idx - 1, left,
+		    l_hdr->bth_count + 1, B_TRUE);
 		bt_transfer_core(tree, node, idx, hdr->bth_count - idx + 1,
 		    left, l_hdr->bth_count + idx, B_FALSE);
 
