@@ -540,6 +540,7 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	ASSERT3P(zp->z_acl_cached, ==, NULL);
 	ASSERT3P(zp->z_xattr_cached, ==, NULL);
 	zp->z_moved = 0;
+	zp->z_suspended = B_FALSE;
 	zp->z_sa_hdl = NULL;
 	zp->z_unlinked = 0;
 	zp->z_atime_dirty = 0;
