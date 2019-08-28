@@ -24,7 +24,7 @@
 #
 # DESCRIPTION:
 #	'zfs destroy -R <snapshot>' can destroy all the child
-#	 snapshots and preserves all the nested datasetss.
+#	 snapshots and preserves all the nested datasets.
 #
 # STRATEGY:
 #	1. Create nested datasets in the storage pool.

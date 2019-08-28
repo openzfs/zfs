@@ -3499,7 +3499,7 @@ nvs_xdr_nvp_size(nvstream_t *nvs, nvpair_t *nvp, size_t *size)
  * the strings.  These pointers are not encoded into the packed xdr buffer.
  *
  * If the data is of type DATA_TYPE_STRING_ARRAY and all the strings are
- * of length 0, then each string is endcoded in xdr format as a single word.
+ * of length 0, then each string is encoded in xdr format as a single word.
  * Therefore when expanded to an nvpair there will be 2.25 word used for
  * each string.  (a int64_t allocated for pointer usage, and a single char
  * for the null termination.)

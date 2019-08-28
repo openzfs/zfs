@@ -667,7 +667,7 @@ dsl_destroy_snapshots_nvl(nvlist_t *snaps, boolean_t defer,
 
 	/*
 	 * lzc_destroy_snaps() is documented to fill the errlist with
-	 * int32 values, so we need to covert the int64 values that are
+	 * int32 values, so we need to convert the int64 values that are
 	 * returned from LUA.
 	 */
 	int rv = 0;

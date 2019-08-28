@@ -2204,7 +2204,7 @@ spa_load_verify_done(zio_t *zio)
 }
 
 /*
- * Maximum number of inflight bytes is the log2 faction of the arc size.
+ * Maximum number of inflight bytes is the log2 fraction of the arc size.
  * By default, we set it to 1/16th of the arc.
  */
 int spa_load_verify_shift = 4;

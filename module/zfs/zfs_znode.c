@@ -788,7 +788,7 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 	}
 
 	/*
-	 * No execs denied will be deterimed when zfs_mode_compute() is called.
+	 * No execs denied will be determined when zfs_mode_compute() is called.
 	 */
 	pflags |= acl_ids->z_aclp->z_hints &
 	    (ZFS_ACL_TRIVIAL|ZFS_INHERIT_ACE|ZFS_ACL_AUTO_INHERIT|

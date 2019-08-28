@@ -4638,7 +4638,7 @@ zfs_dirty_inode(struct inode *ip, int flags)
 
 #ifdef I_DIRTY_TIME
 	/*
-	 * This is the lazytime semantic indroduced in Linux 4.0
+	 * This is the lazytime semantic introduced in Linux 4.0
 	 * This flag will only be called from update_time when lazytime is set.
 	 * (Note, I_DIRTY_SYNC will also set if not lazytime)
 	 * Fortunately mtime and ctime are managed within ZFS itself, so we

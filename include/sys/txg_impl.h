@@ -43,7 +43,7 @@ extern "C" {
  * the number of active transaction holds (tc_count). As transactions
  * are assigned into a transaction group the appropriate tc_count is
  * incremented to indicate that there are pending changes that have yet
- * to quiesce. Consumers evenutally call txg_rele_to_sync() to decrement
+ * to quiesce. Consumers eventually call txg_rele_to_sync() to decrement
  * the tc_count. A transaction group is not considered quiesced until all
  * tx_cpu structures have reached a tc_count of zero.
  *

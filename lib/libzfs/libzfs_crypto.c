@@ -1321,7 +1321,7 @@ zfs_crypto_rewrap(zfs_handle_t *zhp, nvlist_t *raw_props, boolean_t inheritkey)
 
 		if (is_encroot) {
 			/*
-			 * If this is already an ecryption root, just keep
+			 * If this is already an encryption root, just keep
 			 * any properties not set by the user.
 			 */
 			if (keyformat == ZFS_KEYFORMAT_NONE) {

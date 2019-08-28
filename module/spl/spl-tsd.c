@@ -42,7 +42,7 @@
  *  type is entry is called a 'key' entry and it is added to the hash during
  *  tsd_create().  It is used to store the address of the destructor function
  *  and it is used as an anchor point.  All tsd entries which use the same
- *  key will be linked to this entry.  This is used during tsd_destory() to
+ *  key will be linked to this entry.  This is used during tsd_destroy() to
  *  quickly call the destructor function for all tsd associated with the key.
  *  The 'key' entry may be looked up with tsd_hash_search() by passing the
  *  key you wish to lookup and DTOR_PID constant as the pid.

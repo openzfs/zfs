@@ -369,7 +369,7 @@ error:
 /*
  * This function handles all encryption and decryption in zfs. When
  * encrypting it expects puio to reference the plaintext and cuio to
- * reference the cphertext. cuio must have enough space for the
+ * reference the cyphertext. cuio must have enough space for the
  * ciphertext + room for a MAC. datalen should be the length of the
  * plaintext / ciphertext alone.
  */

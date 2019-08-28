@@ -2336,7 +2336,7 @@ vdev_raidz_state_change(vdev_t *vd, int faulted, int degraded)
 /*
  * Determine if any portion of the provided block resides on a child vdev
  * with a dirty DTL and therefore needs to be resilvered.  The function
- * assumes that at least one DTL is dirty which imples that full stripe
+ * assumes that at least one DTL is dirty which implies that full stripe
  * width blocks must be resilvered.
  */
 static boolean_t

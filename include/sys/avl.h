@@ -97,7 +97,7 @@ extern "C" {
  *
  * 3. Use avl_destroy_nodes() to quickly process/free up any remaining nodes.
  *    Note that once you use avl_destroy_nodes(), you can no longer
- *    use any routine except avl_destroy_nodes() and avl_destoy().
+ *    use any routine except avl_destroy_nodes() and avl_destroy().
  *
  * 4. Use avl_destroy() to destroy the AVL tree itself.
  *
