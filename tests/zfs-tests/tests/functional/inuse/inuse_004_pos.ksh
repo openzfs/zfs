@@ -48,7 +48,7 @@ verify_runnable "global"
 function cleanup
 {
 	#
-	# Essentailly this is the default_cleanup routine but I cannot get it
+	# Essentially this is the default_cleanup routine but I cannot get it
 	# to work correctly.  So its reproduced below.  Still need to full
 	# understand why default_cleanup does not work correctly from here.
 	#

@@ -1034,7 +1034,7 @@ do_dump(dmu_send_cookie_t *dscp, struct send_range *range)
 		if (err != 0) {
 			if (zfs_send_corrupt_data &&
 			    !dscp->dsc_dso->dso_dryrun) {
-				/* Send a block filled with 0x"zfs badd bloc" */
+				/* Send a block filled with 0x"zfs badd block" */
 				abuf = arc_alloc_buf(spa, &abuf, ARC_BUFC_DATA,
 				    srdp->datablksz);
 				uint64_t *ptr;
@@ -2262,7 +2262,7 @@ setup_send_progress(struct dmu_send_params *dspp)
  *
  * The final case is a simple zfs full or incremental send.  The to_ds traversal
  * thread behaves the same as always. The redact list thread is never started.
- * The send merge thread takes all the blocks that the to_ds traveral thread
+ * The send merge thread takes all the blocks that the to_ds traversal thread
  * sends it, prefetches the data, and sends the blocks on to the main thread.
  * The main thread sends the data over the wire.
  *

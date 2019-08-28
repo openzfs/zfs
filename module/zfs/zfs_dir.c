@@ -55,7 +55,7 @@
 #include <sys/zfs_sa.h>
 
 /*
- * zfs_match_find() is used by zfs_dirent_lock() to peform zap lookups
+ * zfs_match_find() is used by zfs_dirent_lock() to perform zap lookups
  * of names after deciding which is the appropriate lookup interface.
  */
 static int

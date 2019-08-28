@@ -78,7 +78,7 @@ struct tx_cpu {
 
 /*
  * The tx_state structure maintains the state information about the different
- * stages of the pool's transcation groups. A per pool tx_state structure
+ * stages of the pool's transaction groups. A per pool tx_state structure
  * is used to track this information. The tx_state structure also points to
  * an array of tx_cpu structures (described above). Although the tx_sync_lock
  * is used to protect the members of this structure, it is not used to

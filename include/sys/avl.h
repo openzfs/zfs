@@ -144,7 +144,7 @@ typedef uintptr_t avl_index_t;
  * user data structure which must contain a field of type avl_node_t.
  *
  * Also assume the user data structures looks like:
- *	stuct my_type {
+ *	struct my_type {
  *		...
  *		avl_node_t	my_link;
  *		...

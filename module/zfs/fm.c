@@ -31,7 +31,7 @@
  * Name-Value Pair Lists
  *
  * The embodiment of an FMA protocol element (event, fmri or authority) is a
- * name-value pair list (nvlist_t).  FMA-specific nvlist construtor and
+ * name-value pair list (nvlist_t).  FMA-specific nvlist constructor and
  * destructor functions, fm_nvlist_create() and fm_nvlist_destroy(), are used
  * to create an nvpair list using custom allocators.  Callers may choose to
  * allocate either from the kernel memory allocator, or from a preallocated

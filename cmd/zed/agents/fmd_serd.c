@@ -281,7 +281,7 @@ fmd_serd_eng_empty(fmd_serd_eng_t *sgp)
 void
 fmd_serd_eng_reset(fmd_serd_eng_t *sgp)
 {
-	serd_log_msg("  SERD Engine: reseting %s", sgp->sg_name);
+	serd_log_msg("  SERD Engine: resetting %s", sgp->sg_name);
 
 	while (sgp->sg_count != 0)
 		fmd_serd_eng_discard(sgp, list_head(&sgp->sg_list));

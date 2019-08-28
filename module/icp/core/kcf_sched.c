@@ -1535,7 +1535,7 @@ kcf_misc_kstat_update(kstat_t *ksp, int rw)
 }
 
 /*
- * Allocate and initiatize a kcf_dual_req, used for saving the arguments of
+ * Allocate and initialize a kcf_dual_req, used for saving the arguments of
  * a dual operation or an atomic operation that has to be internally
  * simulated with multiple single steps.
  * crq determines the memory allocation flags.
@@ -1551,7 +1551,7 @@ kcf_alloc_req(crypto_call_req_t *crq)
 	if (kcr == NULL)
 		return (NULL);
 
-	/* Copy the whole crypto_call_req struct, as it isn't persistant */
+	/* Copy the whole crypto_call_req struct, as it isn't persistent */
 	if (crq != NULL)
 		kcr->kr_callreq = *crq;
 	else
@@ -1579,7 +1579,7 @@ kcf_next_req(void *next_req_arg, int status)
 	kcf_provider_desc_t *pd = NULL;
 	crypto_dual_data_t *ct = NULL;
 
-	/* Stop the processing if an error occured at this step */
+	/* Stop the processing if an error occurred at this step */
 	if (error != CRYPTO_SUCCESS) {
 out:
 		areq->an_reqarg = next_req->kr_callreq;

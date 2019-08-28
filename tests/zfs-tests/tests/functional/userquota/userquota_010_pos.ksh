@@ -33,7 +33,7 @@
 
 #
 # DESCRIPTION:
-#       Check userquota and groupquota be overwrited at same time
+#       Check userquota and groupquota be overwritten at same time
 #
 #
 # STRATEGY:

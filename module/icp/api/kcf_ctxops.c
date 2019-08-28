@@ -123,7 +123,7 @@ crypto_create_ctx_template(crypto_mechanism_t *mech, crypto_key_t *key,
  *		crypto_create_ctx_template()
  *
  * Description:
- *	Frees the inbedded crypto_spi_ctx_template_t, then the
+ *	Frees the embedded crypto_spi_ctx_template_t, then the
  *	kcf_ctx_template_t.
  *
  * Context:

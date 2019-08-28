@@ -79,7 +79,7 @@ extern void atomic_add_64(volatile uint64_t *, int64_t);
 #endif
 
 /*
- * Substract delta from target
+ * Subtract delta from target
  */
 extern void atomic_sub_8(volatile uint8_t *, int8_t);
 extern void atomic_sub_char(volatile uchar_t *, signed char);
@@ -173,7 +173,7 @@ extern uint64_t atomic_add_64_nv(volatile uint64_t *, int64_t);
 #endif
 
 /*
- * Substract delta from target
+ * Subtract delta from target
  */
 extern uint8_t atomic_sub_8_nv(volatile uint8_t *, int8_t);
 extern uchar_t atomic_sub_char_nv(volatile uchar_t *, signed char);

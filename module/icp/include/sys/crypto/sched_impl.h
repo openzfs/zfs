@@ -381,7 +381,7 @@ typedef struct kcf_pool {
 
 	/*
 	 * cv & lock for the condition where more threads need to be
-	 * created. kp_user_lock also protects the three fileds above.
+	 * created. kp_user_lock also protects the three fields above.
 	 */
 	kcondvar_t	kp_user_cv;		/* Creator cond. variable */
 	kmutex_t	kp_user_lock;		/* Creator lock */

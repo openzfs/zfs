@@ -1656,7 +1656,7 @@ zfs_add_synthetic_resv(zfs_handle_t *zhp, nvlist_t *nvl)
 
 /*
  * Helper for 'zfs {set|clone} refreservation=auto'.  Must be called after
- * zfs_valid_proplist(), as it is what sets the UINT64_MAX sentinal value.
+ * zfs_valid_proplist(), as it is what sets the UINT64_MAX sentinel value.
  * Return codes must match zfs_add_synthetic_resv().
  */
 static int

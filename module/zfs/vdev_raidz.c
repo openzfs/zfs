@@ -98,7 +98,7 @@
  *	R = 4^n-1 * D_0 + 4^n-2 * D_1 + ... + 4^1 * D_n-2 + 4^0 * D_n-1
  *	  = ((...((D_0) * 4 + D_1) * 4 + ...) * 4 + D_n-2) * 4 + D_n-1
  *
- * We chose 1, 2, and 4 as our generators because 1 corresponds to the trival
+ * We chose 1, 2, and 4 as our generators because 1 corresponds to the trivial
  * XOR operation, and 2 and 4 can be computed quickly and generate linearly-
  * independent coefficients. (There are no additional coefficients that have
  * this property which is why the uncorrected Plank method breaks down.)

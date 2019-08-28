@@ -95,7 +95,7 @@ do
 		log_must zpool create $opt $TESTPOOL ${pooltype[i]} \
 			$file.1 $file.2 $file.3
 		! poolexists $TESTPOOL && \
-			log_fail "Createing pool with $opt fails."
+			log_fail "Creating pool with $opt fails."
 		mpt=`zfs mount | egrep "^$TESTPOOL[^/]" | awk '{print $2}'`
 		(( ${#mpt} == 0 )) && \
 			log_fail "$TESTPOOL created with $opt is not mounted."

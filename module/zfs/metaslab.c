@@ -112,7 +112,7 @@ int zfs_mg_noalloc_threshold = 0;
 
 /*
  * Metaslab groups are considered eligible for allocations if their
- * fragmenation metric (measured as a percentage) is less than or
+ * fragmentation metric (measured as a percentage) is less than or
  * equal to zfs_mg_fragmentation_threshold. If a metaslab group
  * exceeds this threshold then it will be skipped unless all metaslab
  * groups within the metaslab class have also crossed this threshold.
@@ -1866,7 +1866,7 @@ metaslab_verify_weight_and_frag(metaslab_t *msp)
  * If we're over the zfs_metaslab_mem_limit, select the loaded metaslab from
  * this class that was used longest ago, and attempt to unload it.  We don't
  * want to spend too much time in this loop to prevent performance
- * degredation, and we expect that most of the time this operation will
+ * degradation, and we expect that most of the time this operation will
  * succeed. Between that and the normal unloading processing during txg sync,
  * we expect this to keep the metaslab memory usage under control.
  */
@@ -3059,7 +3059,7 @@ metaslab_passivate(metaslab_t *msp, uint64_t weight)
  * we either fail an allocation attempt (similar to space-based metaslabs)
  * or have exhausted the free space in zfs_metaslab_switch_threshold
  * buckets since the metaslab was activated. This function checks to see
- * if we've exhaused the zfs_metaslab_switch_threshold buckets in the
+ * if we've exhausted the zfs_metaslab_switch_threshold buckets in the
  * metaslab and passivates it proactively. This will allow us to select a
  * metaslab with a larger contiguous region, if any, remaining within this
  * metaslab group. If we're in sync pass > 1, then we continue using this
@@ -5677,7 +5677,7 @@ metaslab_check_free_impl(vdev_t *vd, uint64_t offset, uint64_t size)
 	 *
 	 * It would intuitively make sense to also check the current allocating
 	 * tree since metaslab_unalloc_dva() exists for extents that are
-	 * allocated and freed in the same sync pass withing the same txg.
+	 * allocated and freed in the same sync pass within the same txg.
 	 * Unfortunately there are places (e.g. the ZIL) where we allocate a
 	 * segment but then we free part of it within the same txg
 	 * [see zil_sync()]. Thus, we don't call range_tree_verify() in the

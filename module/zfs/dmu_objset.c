@@ -2648,7 +2648,7 @@ dmu_objset_find_dp_cb(void *arg)
 
 	/*
 	 * We need to get a pool_config_lock here, as there are several
-	 * asssert(pool_config_held) down the stack. Getting a lock via
+	 * assert(pool_config_held) down the stack. Getting a lock via
 	 * dsl_pool_config_enter is risky, as it might be stalled by a
 	 * pending writer. This would deadlock, as the write lock can
 	 * only be granted when our parent thread gives up the lock.

@@ -1872,7 +1872,7 @@ nvlist_lookup_pairs(nvlist_t *nvl, int flag, ...)
  * (given 'ret' is non-NULL). If 'sep' is specified then 'name' will penitrate
  * multiple levels of embedded nvlists, with 'sep' as the separator. As an
  * example, if sep is '.', name might look like: "a" or "a.b" or "a.c[3]" or
- * "a.d[3].e[1]".  This matches the C syntax for array embed (for convience,
+ * "a.d[3].e[1]".  This matches the C syntax for array embed (for convenience,
  * code also supports "a.d[3]e[1]" syntax).
  *
  * If 'ip' is non-NULL and the last name component is an array, return the
@@ -3105,7 +3105,7 @@ nvs_native(nvstream_t *nvs, nvlist_t *nvl, char *buf, size_t *buflen)
  *
  * An xdr packed nvlist is encoded as:
  *
- *  - encoding methode and host endian (4 bytes)
+ *  - encoding method and host endian (4 bytes)
  *  - nvl_version (4 bytes)
  *  - nvl_nvflag (4 bytes)
  *

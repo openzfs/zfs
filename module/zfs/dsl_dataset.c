@@ -393,7 +393,7 @@ load_zfeature(objset_t *mos, dsl_dataset_t *ds, spa_feature_t f)
 }
 
 /*
- * We have to release the fsid syncronously or we risk that a subsequent
+ * We have to release the fsid synchronously or we risk that a subsequent
  * mount of the same dataset will fail to unique_insert the fsid.  This
  * failure would manifest itself as the fsid of this dataset changing
  * between mounts which makes NFS clients quite unhappy.

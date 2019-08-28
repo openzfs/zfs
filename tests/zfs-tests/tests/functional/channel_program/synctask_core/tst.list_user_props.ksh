@@ -144,4 +144,4 @@ log_must_program $TESTPOOL - <<-EOF
 	return 0
 EOF
 
-log_pass "Listing zfs user properies should work correctly."
+log_pass "Listing zfs user properties should work correctly."

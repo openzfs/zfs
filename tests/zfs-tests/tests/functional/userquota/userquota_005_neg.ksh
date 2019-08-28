@@ -64,7 +64,7 @@ for user in "${no_users[@]}"; do
 	log_mustnot zfs set userquota@$user=100m $QFS
 done
 
-log_note "can set all numberic id even that id is not existed"
+log_note "can set all numeric id even that id is not existed"
 log_must zfs set userquota@12345678=100m $QFS
 log_mustnot zfs set userquota@12345678=100m $snap_fs
 

@@ -995,7 +995,7 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 #if defined(SLAB_USERCOPY)
 		/*
 		 * Required for PAX-enabled kernels if the slab is to be
-		 * used for coping between user and kernel space.
+		 * used for copying between user and kernel space.
 		 */
 		slabflags |= SLAB_USERCOPY;
 #endif

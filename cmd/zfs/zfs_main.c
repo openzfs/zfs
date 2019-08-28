@@ -7043,7 +7043,7 @@ unshare_unmount_path(int op, char *path, int flags, boolean_t is_manual)
 		    strcmp(smbshare_prop, "off") == 0) {
 			(void) fprintf(stderr, gettext("cannot unshare "
 			    "'%s': legacy share\n"), path);
-			(void) fprintf(stderr, gettext("use exportfs(8) "
+			(void) fprintf(stderr, gettext("use exports(8) "
 			    "or smbcontrol(1) to unshare this filesystem\n"));
 		} else if (!zfs_is_shared(zhp)) {
 			(void) fprintf(stderr, gettext("cannot unshare '%s': "

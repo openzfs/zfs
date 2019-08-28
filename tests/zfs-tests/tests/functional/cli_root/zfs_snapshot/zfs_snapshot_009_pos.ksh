@@ -22,7 +22,7 @@
 # 1. Create multiple datasets
 # 2. Create multiple snapshots with a list of valid and invalid
 #    snapshot names
-# 3. Verify the valid snpashot creation
+# 3. Verify the valid snapshot creation
 
 . $STF_SUITE/include/libtest.shlib
 
@@ -86,7 +86,7 @@ for i in 1 2 3; do
 	txg_tag=$(echo "$txg_group" | nawk -v j=$i 'FNR == j {print}')
 	[[ $txg_tag != $(echo "$txg_group" | \
 	    nawk -v j=$i 'FNR == j {print}') ]] \
-	    && log_fail "snapshots belong to differnt transaction groups"
+	    && log_fail "snapshots belong to different transaction groups"
 done
 log_note "verify snapshot contents"
 for ds in $datasets; do

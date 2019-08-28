@@ -93,7 +93,7 @@
  * will use the generic implementation.
  *
  * 7) Removing sha384 and sha512 code: The sha code was actually very
- * wasy to port. However, the generic sha384 and sha512 code actually
+ * ways to port. However, the generic sha384 and sha512 code actually
  * exceeds the stack size on arm and powerpc architectures. In an effort
  * to remove warnings, this code was removed.
  *

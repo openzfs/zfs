@@ -78,7 +78,7 @@ typedef struct zio_crypt_key {
 	/* buffer for hmac key */
 	uint8_t zk_hmac_keydata[SHA512_HMAC_KEYLEN];
 
-	/* buffer for currrent encryption key derived from master key */
+	/* buffer for current encryption key derived from master key */
 	uint8_t zk_current_keydata[MASTER_KEY_MAX_LEN];
 
 	/* current 64 bit salt for deriving an encryption key */
@@ -99,7 +99,7 @@ typedef struct zio_crypt_key {
 	/* template of hmac key for illumos crypto api */
 	crypto_ctx_template_t zk_hmac_tmpl;
 
-	/* lock for changing the salt and dependant values */
+	/* lock for changing the salt and dependent values */
 	krwlock_t zk_salt_lock;
 } zio_crypt_key_t;
 

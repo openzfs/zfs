@@ -69,7 +69,7 @@ AC_DEFUN([ZFS_AC_KERNEL_D_SET_D_OP],
 ])
 
 dnl #
-dnl # 2.6.38 API chage
+dnl # 2.6.38 API change
 dnl # Added sb->s_d_op default dentry_operations member
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_S_D_OP],

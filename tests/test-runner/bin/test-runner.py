@@ -716,7 +716,7 @@ class TestRun(object):
 
     def setup_logging(self, options):
         """
-        This funtion creates the output directory and gets a file object
+        This function creates the output directory and gets a file object
         for the logfile. This function must be called before write_log()
         can be used.
         """

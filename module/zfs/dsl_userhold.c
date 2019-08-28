@@ -558,7 +558,7 @@ dsl_dataset_user_release_sync(void *arg, dmu_tx_t *tx)
  * If tmpdp is not NULL the names for holds should be the dsobj's of snapshots,
  * otherwise they should be the names of shapshots.
  *
- * As a release may cause snapshots to be destroyed this trys to ensure they
+ * As a release may cause snapshots to be destroyed this tries to ensure they
  * aren't mounted.
  *
  * The release of non-existent holds are skipped.

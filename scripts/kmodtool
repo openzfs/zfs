@@ -397,7 +397,7 @@ print_rpmtemplate ()
 	# and print it and some other required stuff as macro
 	print_rpmtemplate_header
 
-	# now print the packages itselfs
+	# now print the packages itself
 	for kernel in ${kernel_versions_to_build_for} ; do
 
 		local kernel_verrelarch=${kernel%%${kernels_known_variants}}
@@ -489,7 +489,7 @@ while [ "${1}" ] ; do
 		--obsolete-name)
 			shift
 			if [[ ! "${1}" ]] ; then
-				error_out 2 "Please provide the name of the kmod to obsolte together with --obsolete-name" >&2
+				error_out 2 "Please provide the name of the kmod to obsolete together with --obsolete-name" >&2
 	 		fi
 			obsolete_name="${1}"
 			shift
@@ -497,7 +497,7 @@ while [ "${1}" ] ; do
 		--obsolete-version)
 			shift
 			if [[ ! "${1}" ]] ; then
-				error_out 2 "Please provide the version of the kmod to obsolte together with --obsolete-version" >&2
+				error_out 2 "Please provide the version of the kmod to obsolete together with --obsolete-version" >&2
 	 		fi
 			obsolete_version="${1}"
 			shift

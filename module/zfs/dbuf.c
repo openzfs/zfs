@@ -2337,7 +2337,7 @@ dmu_buf_will_dirty_impl(dmu_buf_t *db_fake, int flags, dmu_tx_t *tx)
 	ASSERT(!zfs_refcount_is_zero(&db->db_holds));
 
 	/*
-	 * Quick check for dirtyness.  For already dirty blocks, this
+	 * Quick check for dirtiness.  For already dirty blocks, this
 	 * reduces runtime of this function by >90%, and overall performance
 	 * by 50% for some workloads (e.g. file deletion with indirect blocks
 	 * cached).
@@ -3812,7 +3812,7 @@ dbuf_check_blkptr(dnode_t *dn, dmu_buf_impl_t *db)
 		/*
 		 * This buffer was allocated at a time when there was
 		 * no available blkptrs from the dnode, or it was
-		 * inappropriate to hook it in (i.e., nlevels mis-match).
+		 * inappropriate to hook it in (i.e., nlevels mismatch).
 		 */
 		ASSERT(db->db_blkid < dn->dn_phys->dn_nblkptr);
 		ASSERT(db->db_parent == NULL);

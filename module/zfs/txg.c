@@ -644,8 +644,8 @@ txg_quiesce_thread(void *arg)
 
 /*
  * Delay this thread by delay nanoseconds if we are still in the open
- * transaction group and there is already a waiting txg quiesing or quiesced.
- * Abort the delay if this txg stalls or enters the quiesing state.
+ * transaction group and there is already a waiting txg quiescing or quiesced.
+ * Abort the delay if this txg stalls or enters the quiescing state.
  */
 void
 txg_delay(dsl_pool_t *dp, uint64_t txg, hrtime_t delay, hrtime_t resolution)

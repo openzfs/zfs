@@ -223,7 +223,7 @@ vdev_default_xlate(vdev_t *vd, const range_seg_t *in, range_seg_t *res)
 }
 
 /*
- * Derive the enumerated alloction bias from string input.
+ * Derive the enumerated allocation bias from string input.
  * String origin is either the per-vdev zap or zpool(1M).
  */
 static vdev_alloc_bias_t
@@ -1321,7 +1321,7 @@ vdev_metaslab_init(vdev_t *vd, uint64_t txg)
 
 #ifndef _KERNEL
 		/*
-		 * To accomodate zdb_leak_init() fake indirect
+		 * To accommodate zdb_leak_init() fake indirect
 		 * metaslabs, we allocate a metaslab group for
 		 * indirect vdevs which normally don't have one.
 		 */

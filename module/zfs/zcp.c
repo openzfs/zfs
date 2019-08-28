@@ -66,7 +66,7 @@
  * consuming excessive system or running forever.  If one of these limits is
  * hit, the channel program will be stopped immediately and return from
  * zcp_eval() with an error code. No attempt will be made to roll back or undo
- * any changes made by the channel program before the error occured.
+ * any changes made by the channel program before the error occurred.
  * Consumers invoking zcp_eval() from elsewhere in the kernel may pass a time
  * limit of 0, disabling the time limit.
  *
@@ -77,7 +77,7 @@
  * In place of a return value, an error message will also be returned in the
  * 'result' nvlist containing information about the error. No attempt will be
  * made to roll back or undo any changes made by the channel program before the
- * error occured.
+ * error occurred.
  *
  * 3. If an error occurs inside a ZFS library call which returns an error code,
  * the error is returned to the Lua script to be handled as desired.
@@ -160,7 +160,7 @@ zcp_argerror(lua_State *state, int narg, const char *msg, ...)
  * of a function call.
  *
  * If an error occurs, the cleanup function will be invoked exactly once and
- * then unreigstered.
+ * then unregistered.
  *
  * Returns the registered cleanup handler so the caller can deregister it
  * if no error occurs.

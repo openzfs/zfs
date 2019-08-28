@@ -3030,7 +3030,7 @@ spa_activity_check_duration(spa_t *spa, uberblock_t *ub)
 
 	} else if (MMP_VALID(ub)) {
 		/*
-		 * zfs-0.7 compatability case
+		 * zfs-0.7 compatibility case
 		 */
 
 		import_delay = MAX(import_delay, (multihost_interval +
@@ -4339,7 +4339,7 @@ spa_ld_check_for_config_update(spa_t *spa, uint64_t config_cache_txg,
 			need_update = B_TRUE;
 
 	/*
-	 * Update the config cache asychronously in case we're the
+	 * Update the config cache asynchronously in case we're the
 	 * root pool, in which case the config cache isn't writable yet.
 	 */
 	if (need_update)

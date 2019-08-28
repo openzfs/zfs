@@ -79,7 +79,7 @@ EXPORT_SYMBOL(p0);
  * to generate words larger than 128 bits will paradoxically be limited to
  * `2^128 - 1` possibilities. This is because we have a sequence of `2^128 - 1`
  * 128-bit words and selecting the first will implicitly select the second. If
- * a caller finds this behavior undesireable, random_get_bytes() should be used
+ * a caller finds this behavior undesirable, random_get_bytes() should be used
  * instead.
  *
  * XXX: Linux interrupt handlers that trigger within the critical section
