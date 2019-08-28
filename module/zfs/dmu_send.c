@@ -1034,7 +1034,7 @@ do_dump(dmu_send_cookie_t *dscp, struct send_range *range)
 		if (err != 0) {
 			if (zfs_send_corrupt_data &&
 			    !dscp->dsc_dso->dso_dryrun) {
-				/* Send a block filled with 0x"zfs badd block" */
+				/* Send a block filled with 0x"zfs badd bloc" */
 				abuf = arc_alloc_buf(spa, &abuf, ARC_BUFC_DATA,
 				    srdp->datablksz);
 				uint64_t *ptr;
