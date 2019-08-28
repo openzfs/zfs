@@ -475,9 +475,10 @@ change_one(zfs_handle_t *zhp, void *data)
 	prop_changelist_t *clp = data;
 	char property[ZFS_MAXPROPLEN];
 	char where[64];
-	prop_changenode_t *cn;
+	prop_changenode_t *cn = NULL;
 	zprop_source_t sourcetype = ZPROP_SRC_NONE;
 	zprop_source_t share_sourcetype = ZPROP_SRC_NONE;
+	int ret = 0;
 
 	/*
 	 * We only want to unmount/unshare those filesystems that may inherit
@@ -493,8 +494,7 @@ change_one(zfs_handle_t *zhp, void *data)
 	    zfs_prop_get(zhp, clp->cl_prop, property,
 	    sizeof (property), &sourcetype, where, sizeof (where),
 	    B_FALSE) != 0) {
-		zfs_close(zhp);
-		return (0);
+		goto out;
 	}
 
 	/*
@@ -506,8 +506,7 @@ change_one(zfs_handle_t *zhp, void *data)
 	    zfs_prop_get(zhp, clp->cl_shareprop, property,
 	    sizeof (property), &share_sourcetype, where, sizeof (where),
 	    B_FALSE) != 0) {
-		zfs_close(zhp);
-		return (0);
+		goto out;
 	}
 
 	if (clp->cl_alldependents || clp->cl_allchildren ||
@@ -518,8 +517,8 @@ change_one(zfs_handle_t *zhp, void *data)
 	    share_sourcetype == ZPROP_SRC_INHERITED))) {
 		if ((cn = zfs_alloc(zfs_get_handle(zhp),
 		    sizeof (prop_changenode_t))) == NULL) {
-			zfs_close(zhp);
-			return (-1);
+			ret = -1;
+			goto out;
 		}
 
 		cn->cn_handle = zhp;
@@ -541,16 +540,23 @@ change_one(zfs_handle_t *zhp, void *data)
 			uu_avl_insert(clp->cl_tree, cn, idx);
 		} else {
 			free(cn);
-			zfs_close(zhp);
+			cn = NULL;
 		}
 
 		if (!clp->cl_alldependents)
-			return (zfs_iter_children(zhp, change_one, data));
-	} else {
-		zfs_close(zhp);
+			ret = zfs_iter_children(zhp, change_one, data);
+
+		/*
+		 * If we added the handle to the changelist, we will re-use it
+		 * later so return without closing it.
+		 */
+		if (cn != NULL)
+			return (ret);
 	}
 
-	return (0);
+out:
+	zfs_close(zhp);
+	return (ret);
 }
 
 static int
