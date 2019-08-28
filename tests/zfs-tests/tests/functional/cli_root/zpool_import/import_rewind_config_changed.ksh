@@ -115,7 +115,7 @@ function test_common
 	# further than the time that we took the checkpoint.
 	#
 	# Note that, ideally we would want to take a checkpoint
-	# right after we recond the txg we plan to rewind to.
+	# right after we record the txg we plan to rewind to.
 	# But since we can't attach, detach or remove devices
 	# while having a checkpoint, we take it after the
 	# operation that changes the config.

@@ -7097,7 +7097,7 @@ zfs_check_input_nvpairs(nvlist_t *innvl, const zfs_ioc_vec_t *vec)
 			continue;
 
 		if (nvl_keys[k].zkey_flags & ZK_WILDCARDLIST) {
-			/* at least one non-optionial key is expected here */
+			/* at least one non-optional key is expected here */
 			if (!required_keys_found)
 				return (SET_ERROR(ZFS_ERR_IOC_ARG_REQUIRED));
 			continue;

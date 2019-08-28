@@ -207,7 +207,7 @@ nlz64(uint64_t x)
 
 /*
  * Newer kernels have a div_u64() function but we define our own
- * to simplify portibility between kernel versions.
+ * to simplify portability between kernel versions.
  */
 static inline uint64_t
 __div_u64(uint64_t u, uint32_t v)

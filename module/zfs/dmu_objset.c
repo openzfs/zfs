@@ -1028,7 +1028,7 @@ dmu_objset_create_impl_dnstats(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 
 	/*
 	 * We don't want to have to increase the meta-dnode's nlevels
-	 * later, because then we could do it in quescing context while
+	 * later, because then we could do it in queiscing context while
 	 * we are also accessing it in open context.
 	 *
 	 * This precaution is not necessary for the MOS (ds == NULL),

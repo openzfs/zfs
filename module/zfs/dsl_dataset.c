@@ -2683,7 +2683,7 @@ dsl_get_mountpoint(dsl_dataset_t *ds, const char *dsname, char *value,
 	int error;
 	dsl_pool_t *dp = ds->ds_dir->dd_pool;
 
-	/* Retrieve the mountpoint value stored in the zap opbject */
+	/* Retrieve the mountpoint value stored in the zap object */
 	error = dsl_prop_get_ds(ds, zfs_prop_to_name(ZFS_PROP_MOUNTPOINT), 1,
 	    ZAP_MAXVALUELEN, value, source);
 	if (error != 0) {

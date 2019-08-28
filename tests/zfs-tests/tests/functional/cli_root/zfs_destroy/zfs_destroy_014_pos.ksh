@@ -57,7 +57,7 @@ for ds in $datasets; do
 	datasetexists $ds || log_fail "Create $ds dataset fail."
 done
 
-# create recursive nestedd snapshot
+# create recursive nested snapshot
 log_must zfs snapshot -r $TESTPOOL/$TESTFS1@snap
 for ds in $datasets; do
 	datasetexists $ds@snap || log_fail "Create $ds@snap snapshot fail."

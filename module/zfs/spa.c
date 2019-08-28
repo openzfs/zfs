@@ -8441,7 +8441,7 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 		case ZPOOL_PROP_READONLY:
 		case ZPOOL_PROP_CACHEFILE:
 			/*
-			 * 'readonly' and 'cachefile' are also non-persisitent
+			 * 'readonly' and 'cachefile' are also non-persistent
 			 * properties.
 			 */
 			break;
@@ -9278,7 +9278,7 @@ EXPORT_SYMBOL(spa_inject_delref);
 EXPORT_SYMBOL(spa_scan_stat_init);
 EXPORT_SYMBOL(spa_scan_get_stats);
 
-/* device maniion */
+/* device maniion (just to spot it) */
 EXPORT_SYMBOL(spa_vdev_add);
 EXPORT_SYMBOL(spa_vdev_attach);
 EXPORT_SYMBOL(spa_vdev_detach);

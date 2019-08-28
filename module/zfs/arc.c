@@ -62,7 +62,7 @@
  * elements of the cache are therefore exactly the same size.  So
  * when adjusting the cache size following a cache miss, its simply
  * a matter of choosing a single page to evict.  In our model, we
- * have variable sized cache blocks (rangeing from 512 bytes to
+ * have variable sized cache blocks (ranging from 512 bytes to
  * 128K bytes).  We therefore choose a set of blocks to evict to make
  * space for a cache miss that approximates as closely as possible
  * the space used by the new block.
@@ -6844,7 +6844,7 @@ arc_release(arc_buf_t *buf, void *tag)
 			VERIFY(!arc_buf_is_shared(lastbuf));
 
 			/*
-			 * First, sever the block sharing relationship between
+			 * First, serve the block sharing relationship between
 			 * buf and the arc_buf_hdr_t.
 			 */
 			arc_unshare_buf(hdr, buf);

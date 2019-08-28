@@ -300,7 +300,7 @@ def lzc_destroy_snaps(snaps, defer):
 
         Typical error is :exc:`SnapshotIsCloned` if `defer` is `False`.
         The snapshot names are validated quite loosely and invalid names are
-        typically ignored as nonexisiting snapshots.
+        typically ignored as nonexisting snapshots.
 
         A snapshot name referring to a filesystem that doesn't exist is
         ignored.
@@ -1182,7 +1182,7 @@ def receive_header(fd):
     # 'record'
     record = _ffi.new("dmu_replay_record_t *")
     _ffi.buffer(record)[:] = os.read(fd, _ffi.sizeof(record[0]))
-    # get drr_begin member and its representation as a Pythn dict
+    # get drr_begin member and its representation as a Python dict
     drr_begin = record.drr_u.drr_begin
     header = {}
     for field, descr in _ffi.typeof(drr_begin).fields:

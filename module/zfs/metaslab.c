@@ -1277,7 +1277,7 @@ metaslab_largest_unflushed_free(metaslab_t *msp)
 	 * deferred. Similar logic applies to the ms_freed tree. See
 	 * metaslab_load() for more details.
 	 *
-	 * There are two primary sources of innacuracy in this estimate. Both
+	 * There are two primary sources of inaccuracy in this estimate. Both
 	 * are tolerated for performance reasons. The first source is that we
 	 * only check the largest segment for overlaps. Smaller segments may
 	 * have more favorable overlaps with the other trees, resulting in

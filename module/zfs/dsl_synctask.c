@@ -143,7 +143,7 @@ dsl_sync_task(const char *pool, dsl_checkfunc_t *checkfunc,
  * For that reason, early synctasks can affect the process of writing dirty
  * changes to disk for the txg that they run and should be used with caution.
  * In addition, early synctasks should not dirty any metaslabs as this would
- * invalidate the precodition/invariant for subsequent early synctasks.
+ * invalidate the precondition/invariant for subsequent early synctasks.
  * [see dsl_pool_sync() and dsl_early_sync_task_verify()]
  */
 int

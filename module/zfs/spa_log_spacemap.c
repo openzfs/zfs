@@ -392,7 +392,7 @@ summary_entry_is_full(spa_t *spa, log_summary_entry_t *e)
  * Update the log summary information to reflect the fact that a metaslab
  * was flushed or destroyed (e.g due to device removal or pool export/destroy).
  *
- * We typically flush the oldest flushed metaslab so the first (and olderst)
+ * We typically flush the oldest flushed metaslab so the first (and oldest)
  * entry of the summary is updated. However if that metaslab is getting loaded
  * we may flush the second oldest one which may be part of an entry later in
  * the summary. Moreover, if we call into this function from metaslab_fini()

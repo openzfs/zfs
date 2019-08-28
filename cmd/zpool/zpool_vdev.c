@@ -438,7 +438,7 @@ check_disk(const char *path, blkid_cache cache, int force,
 	}
 
 	/*
-	 * Expected to fail for non-EFI labled disks.  Just check the device
+	 * Expected to fail for non-EFI labeled disks.  Just check the device
 	 * as given and do not attempt to detect and scan partitions.
 	 */
 	err = efi_alloc_and_read(fd, &vtoc);

@@ -56,7 +56,7 @@ typeset  userquota_props=(userquota@root groupquota@root userused@root \
 typeset val_props=("${v_props[@]}" "${userquota_props[@]}")
 set -f	# Force shell does not parse '?' and '*' as the wildcard
 typeset inval_opts=(P R h ? *)
-typeset inval_props=(Type 0 ? * -on --on readonl time USED RATIO MOUNTED)
+typeset inval_props=(Type 0 ? * -on --on readonly time USED RATIO MOUNTED)
 
 typeset dataset=($TESTPOOL/$TESTFS $TESTPOOL/$TESTCTR $TESTPOOL/$TESTVOL \
     $TESTPOOL/$TESTFS@$TESTSNAP $TESTPOOL/$TESTVOL@$TESTSNAP)
