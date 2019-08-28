@@ -68,6 +68,22 @@
 # channel 4            D
 
 # #
+# # Example vdev_id.conf - multipath / mixed
+# #
+#
+# multipath yes
+# slot mix
+#
+# #       PCI_ID  HBA PORT  CHANNEL NAME
+# channel 85:00.0 3         A
+# channel 85:00.0 2         B
+# channel 86:00.0 3         A
+# channel 86:00.0 2         B
+# channel af:00.0 0         C
+# channel af:00.0 1         C
+
+
+# #
 # # Example vdev_id.conf - multipath
 # #
 #
@@ -255,10 +271,22 @@ sas_handler() {
 		i=$(($i + 1))
 	done
 
+	# Add 'mix' slot type for environments where dm-multipath devices include end-devices connected via
+	# SAS expanders or direct connection to SAS HBA. A mixed connectivity environment such as
+	# pool disk contained in a SAS JBOD and spare drives or log devices directly connected in a
+	# server backplane without expanders in the I/O path.
+
 	SLOT=
 	case $BAY in
 	"bay")
 		SLOT=`cat $end_device_dir/bay_identifier 2>/dev/null`
+		;;
+	"mix")
+		if [[ `cat $end_device_dir/bay_identifier 2>/dev/null` ]] ; then
+			SLOT=`cat $end_device_dir/bay_identifier 2>/dev/null`
+		else
+			SLOT=`cat $end_device_dir/phy_identifier 2>/dev/null`
+		fi
 		;;
 	"phy")
 		SLOT=`cat $end_device_dir/phy_identifier 2>/dev/null`
