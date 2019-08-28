@@ -1451,7 +1451,7 @@ badlabel:
 					 * There was an error in parsing so
 					 * deal with it by issuing an error
 					 * message and leaving after
-					 * uninitializing the the libshare
+					 * uninitializing the libshare
 					 * interface.
 					 */
 					zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,

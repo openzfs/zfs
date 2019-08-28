@@ -307,7 +307,7 @@ class Cmd(object):
         This function is responsible for writing all output. This includes
         the console output, the logfile of all results (with timestamped
         merged stdout and stderr), and for each test, the unmodified
-        stdout/stderr/merged in it's own file.
+        stdout/stderr/merged in its own file.
         """
 
         logname = getpwuid(os.getuid()).pw_name

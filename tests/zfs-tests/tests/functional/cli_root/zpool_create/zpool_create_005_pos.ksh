@@ -105,12 +105,12 @@ do
 				from the output of zfs mount"
 		if [[ "$opt" == "-m $TESTDIR1" ]]; then
 			[[ ! -d $TESTDIR1 ]] && \
-				log_fail "$TESTDIR1 is not created auotmatically."
+				log_fail "$TESTDIR1 is not created automatically."
 			[[ "$mpt" != "$TESTDIR1" ]] && \
 				log_fail "$TESTPOOL is not mounted on $TESTDIR1."
 		elif [[ "$opt" == "-R $TESTDIR1" ]]; then
 			[[ ! -d $TESTDIR1/$TESTPOOL ]] && \
-				log_fail "$TESTDIR1/$TESTPOOL is not created auotmatically."
+				log_fail "$TESTDIR1/$TESTPOOL is not created automatically."
 			[[ "$mpt" != "$TESTDIR1/$TESTPOOL" ]] && \
 				log_fail "$TESTPOOL is not mounted on $TESTDIR1/$TESTPOOL."
 		else

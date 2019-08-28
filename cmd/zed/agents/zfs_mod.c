@@ -892,7 +892,7 @@ zfs_enum_pools(void *arg)
  *
  * sent messages from zevents or udev monitor
  *
- * For now, each agent has it's own libzfs instance
+ * For now, each agent has its own libzfs instance
  */
 int
 zfs_slm_init()

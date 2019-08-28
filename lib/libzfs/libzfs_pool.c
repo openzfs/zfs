@@ -4775,7 +4775,7 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 	if (rval) {
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "freshly written "
 		    "EFI label on '%s' is damaged.  Ensure\nthis device "
-		    "is not in in use, and is functioning properly: %d"),
+		    "is not in use, and is functioning properly: %d"),
 		    path, rval);
 		return (zfs_error(hdl, EZFS_LABELFAILED, errbuf));
 	}

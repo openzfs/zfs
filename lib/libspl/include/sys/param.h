@@ -37,7 +37,7 @@
  * with smaller units (fragments) only in the last direct block.
  * MAXBSIZE primarily determines the size of buffers in the buffer
  * pool. It may be made larger without any effect on existing
- * file systems; however making it smaller make make some file
+ * file systems; however making it smaller make some file
  * systems unmountable.
  *
  * Note that the blocked devices are assumed to have DEV_BSIZE

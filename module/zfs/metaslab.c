@@ -4286,7 +4286,7 @@ metaslab_block_alloc(metaslab_t *msp, uint64_t size, uint64_t txg)
  * have selected, we may not try the newly-activated metaslab, and instead
  * activate another metaslab.  This is not optimal, but generally does not cause
  * any problems (a possible exception being if every metaslab is completely full
- * except for the the newly-activated metaslab which we fail to examine).
+ * except for the newly-activated metaslab which we fail to examine).
  */
 static metaslab_t *
 find_valid_metaslab(metaslab_group_t *mg, uint64_t activation_weight,
@@ -4433,7 +4433,7 @@ metaslab_group_alloc_normal(metaslab_group_t *mg, zio_alloc_list_t *zal,
 			/*
 			 * Even though we don't hold the ms_lock for the
 			 * primary metaslab, those fields should not
-			 * change while we hold the mg_lock. Thus is is
+			 * change while we hold the mg_lock. Thus is
 			 * safe to make assertions on them.
 			 */
 			ASSERT(msp->ms_primary);
@@ -4871,7 +4871,7 @@ top:
 
 		/*
 		 * If we don't need to try hard, then require that the
-		 * block be on an different metaslab from any other DVAs
+		 * block be on a different metaslab from any other DVAs
 		 * in this BP (unique=true).  If we are trying hard, then
 		 * allow any metaslab to be used (unique=false).
 		 */

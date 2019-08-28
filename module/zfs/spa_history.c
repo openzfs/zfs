@@ -63,7 +63,7 @@
  * overwrite the original creation of the pool.  'sh_phys_max_off' is the
  * physical ending offset in bytes of the log.  This tells you the length of
  * the buffer. 'sh_eof' is the logical EOF (in bytes).  Whenever a record
- * is added, 'sh_eof' is incremented by the the size of the record.
+ * is added, 'sh_eof' is incremented by the size of the record.
  * 'sh_eof' is never decremented.  'sh_bof' is the logical BOF (in bytes).
  * This is where the consumer should start reading from after reading in
  * the 'zpool create' portion of the log.

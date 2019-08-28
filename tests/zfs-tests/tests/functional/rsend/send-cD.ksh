@@ -45,7 +45,7 @@ typeset inc=$BACKDIR/stream.inc
 log_must zfs create -o compress=lz4 $sendfs
 log_must zfs create -o compress=lz4 $recvfs
 typeset dir=$(get_prop mountpoint $sendfs)
-# Don't use write_compressible: we want compressible but undedupable data here.
+# Don't use write_compressible: we want compressible but undeduplicable data here.
 log_must eval "dd if=/dev/urandom bs=1024k count=4 | base64 >$dir/file"
 log_must zfs snapshot $sendfs@snap0
 log_must eval "zfs send -D -c $sendfs@snap0 >$stream0"

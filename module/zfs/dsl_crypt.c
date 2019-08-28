@@ -1596,7 +1596,7 @@ spa_keystore_change_key(const char *dsname, dsl_crypto_params_t *dcp)
 	/*
 	 * Perform the actual work in syncing context. The blocks modified
 	 * here could be calculated but it would require holding the pool
-	 * lock and tarversing all of the datasets that will have their keys
+	 * lock and traversing all of the datasets that will have their keys
 	 * changed.
 	 */
 	return (dsl_sync_task(dsname, spa_keystore_change_key_check,

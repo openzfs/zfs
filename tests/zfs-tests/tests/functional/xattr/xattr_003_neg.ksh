@@ -37,7 +37,7 @@
 # should fail.
 #
 # STRATEGY:
-#	1. Create a file, and set an with an xattr
+#	1. Create a file, and set a with an xattr
 #       2. Set the octal file permissions to 000 on the file.
 #	3. Check that we're unable to read the xattr as a non-root user
 #	4. Check that we're unable to write an xattr as a non-root user

@@ -242,7 +242,7 @@ get_key_material_raw(FILE *fd, const char *fsname, zfs_keyformat_t keyformat,
 
 out:
 	if (isatty(fileno(fd))) {
-		/* reset the teminal */
+		/* reset the terminal */
 		(void) tcsetattr(fileno(fd), TCSAFLUSH, &old_term);
 		(void) sigaction(SIGINT, &osigint, NULL);
 		(void) sigaction(SIGTSTP, &osigtstp, NULL);

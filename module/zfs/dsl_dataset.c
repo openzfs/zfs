@@ -65,7 +65,7 @@
 
 /*
  * The SPA supports block sizes up to 16MB.  However, very large blocks
- * can have an impact on i/o latency (e.g. tying up a spinning disk for
+ * can have an impact on i/o latency (e.g. trying up a spinning disk for
  * ~300ms), and also potentially on the memory allocator.  Therefore,
  * we do not allow the recordsize to be set larger than zfs_max_recordsize
  * (default 1MB).  Larger blocks can be created by changing this tunable,
@@ -2308,7 +2308,7 @@ get_clones_stat(dsl_dataset_t *ds, nvlist_t *nv)
 	 * We use nvlist_alloc() instead of fnvlist_alloc() because the
 	 * latter would allocate the list with NV_UNIQUE_NAME flag.
 	 * As a result, every time a clone name is appended to the list
-	 * it would be (linearly) searched for for a duplicate name.
+	 * it would be (linearly) searched for a duplicate name.
 	 * We already know that all clone names must be unique and we
 	 * want avoid the quadratic complexity of double-checking that
 	 * because we can have a large number of clones.
@@ -3961,7 +3961,7 @@ dsl_dataset_clone_swap_check_impl(dsl_dataset_t *clone,
 	 * The clone can't be too much over the head's refquota.
 	 *
 	 * To ensure that the entire refquota can be used, we allow one
-	 * transaction to exceed the the refquota.  Therefore, this check
+	 * transaction to exceed the refquota.  Therefore, this check
 	 * needs to also allow for the space referenced to be more than the
 	 * refquota.  The maximum amount of space that one transaction can use
 	 * on disk is DMU_MAX_ACCESS * spa_asize_inflation.  Allowing this

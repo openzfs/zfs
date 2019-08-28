@@ -63,7 +63,7 @@
  *
  * Returns:
  *	CRYPTO_SUCCESS when the context template is successfully created.
- *	CRYPTO_HOST_MEMEORY: mem alloc failure
+ *	CRYPTO_HOST_MEMORY: mem alloc failure
  *	CRYPTO_ARGUMENTS_BAD: NULL storage for the ctx template.
  *	RYPTO_MECHANISM_INVALID: invalid mechanism 'mech'.
  */

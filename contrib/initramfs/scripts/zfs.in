@@ -843,7 +843,7 @@ mountroot()
 		# Strip 'zfs:' and 'ZFS='.
 		ZFS_BOOTFS="${ROOT#*[:=]}"
 
-		# Stip everything after the first slash.
+		# Strip everything after the first slash.
 		ZFS_RPOOL="${ZFS_BOOTFS%%/*}"
 	fi
 

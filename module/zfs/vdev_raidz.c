@@ -447,7 +447,7 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t ashift, uint64_t dcols,
 	/*
 	 * If all data stored spans all columns, there's a danger that parity
 	 * will always be on the same device and, since parity isn't read
-	 * during normal operation, that that device's I/O bandwidth won't be
+	 * during normal operation, that device's I/O bandwidth won't be
 	 * used effectively. We therefore switch the parity every 1MB.
 	 *
 	 * ... at least that was, ostensibly, the theory. As a practical
@@ -2120,7 +2120,7 @@ vdev_raidz_io_done(zio_t *zio)
 	 *	3. perform combinatorial reconstruction
 	 *
 	 * Each phase is progressively both more expensive and less likely to
-	 * occur. If we encounter more errors than we can repair or all phases
+	 * occur. If we encounter more errors then we can repair or all phases
 	 * fail, we have no choice but to return an error.
 	 */
 

@@ -4652,7 +4652,7 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport)
 			return (error);
 
 		/*
-		 * Redo the loading process process again with the
+		 * Redo the loading process again with the
 		 * checkpointed uberblock.
 		 */
 		spa_ld_prepare_for_reload(spa);

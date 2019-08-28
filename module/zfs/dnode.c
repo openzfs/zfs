@@ -1762,7 +1762,7 @@ dnode_set_blksz(dnode_t *dn, uint64_t size, int ibs, dmu_tx_t *tx)
 		dn->dn_indblkshift = ibs;
 		dn->dn_next_indblkshift[tx->tx_txg&TXG_MASK] = ibs;
 	}
-	/* rele after we have fixed the blocksize in the dnode */
+	/* release after we have fixed the blocksize in the dnode */
 	if (db)
 		dbuf_rele(db, FTAG);
 

@@ -1867,7 +1867,7 @@ make_root_vdev(zpool_handle_t *zhp, nvlist_t *props, int force, int check_rep,
 	}
 
 	/*
-	 * Validate each device to make sure that its not shared with another
+	 * Validate each device to make sure that it's not shared with another
 	 * subsystem.  We do this even if 'force' is set, because there are some
 	 * uses (such as a dedicated dump device) that even '-f' cannot
 	 * override.

@@ -2106,7 +2106,7 @@ zfs_ioc_objset_stats_impl(zfs_cmd_t *zc, objset_t *os)
 		 * which we aren't supposed to do with a
 		 * DS_MODE_USER hold, because it could be
 		 * inconsistent.  So this is a bit of a workaround...
-		 * XXX reading with out owning
+		 * XXX reading without owning
 		 */
 		if (!zc->zc_objset_stats.dds_inconsistent &&
 		    dmu_objset_type(os) == DMU_OST_ZVOL) {

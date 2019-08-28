@@ -67,7 +67,7 @@
  *
  *  (1) They avoid use of kmem_*, preventing performance problems where running
  *      kmem_reap on very large memory systems never finishes and causes
- *      constant TLB shootdowns.
+ *      constant TLB shutdowns.
  *
  *  (2) Fragmentation is less of an issue since when we are at the limit of
  *      allocatable space, we won't have to search around for a long free

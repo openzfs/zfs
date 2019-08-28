@@ -269,7 +269,7 @@ tsd_hash_add_key(tsd_hash_table_t *table, uint_t *keyp, dtor_func_t dtor)
  * @table: hash table
  * @pid: search pid
  *
- * For every process these is a single entry in the hash which is used
+ * For every process there is a single entry in the hash which is used
  * as anchor.  All other thread specific entries for this process are
  * linked to this anchor via the 'he_pid_list' list head.
  */

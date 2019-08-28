@@ -180,7 +180,7 @@
 unsigned long zfs_log_sm_blksz = 1ULL << 17;
 
 /*
- * Percentage of the overall system’s memory that ZFS allows to be
+ * Percentage of the overall system's memory that ZFS allows to be
  * used for unflushed changes (e.g. the sum of size of all the nodes
  * in the unflushed trees).
  *
@@ -838,7 +838,7 @@ spa_flush_metaslabs(spa_t *spa, dmu_tx_t *tx)
 
 /*
  * Close the log space map for this TXG and update the block counts
- * for the the log's in-memory structure and the summary.
+ * for the log's in-memory structure and the summary.
  */
 void
 spa_sync_close_syncing_log_sm(spa_t *spa)

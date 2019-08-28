@@ -41,7 +41,7 @@
 # STRATEGY:
 # 1. delete all devices in the swap
 # 2. create a zpool
-# 3. Verify the creation is successed.
+# 3. Verify the creation is succeed.
 #
 
 verify_runnable "global"

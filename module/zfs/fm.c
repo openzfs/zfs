@@ -784,7 +784,7 @@ zfs_zevent_destroy(zfs_zevent_t *ze)
 #endif /* _KERNEL */
 
 /*
- * Wrapppers for FM nvlist allocators
+ * Wrappers for FM nvlist allocators
  */
 /* ARGSUSED */
 static void *

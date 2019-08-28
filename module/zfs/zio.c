@@ -4568,7 +4568,7 @@ zio_done(zio_t *zio)
 		/*
 		 * "The Godfather" I/O monitors its children but is
 		 * not a true parent to them. It will track them through
-		 * the pipeline but severs its ties whenever they get into
+		 * the pipeline but serves its ties whenever they get into
 		 * trouble (e.g. suspended). This allows "The Godfather"
 		 * I/O to return status without blocking.
 		 */

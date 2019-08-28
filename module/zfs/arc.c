@@ -262,7 +262,7 @@
  * The L1ARC has a slightly different system for storing encrypted data.
  * Raw (encrypted + possibly compressed) data has a few subtle differences from
  * data that is just compressed. The biggest difference is that it is not
- * possible to decrypt encrypted data (or visa versa) if the keys aren't loaded.
+ * possible to decrypt encrypted data (or vice-versa) if the keys aren't loaded.
  * The other difference is that encryption cannot be treated as a suggestion.
  * If a caller would prefer compressed data, but they actually wind up with
  * uncompressed data the worst thing that could happen is there might be a
@@ -2220,7 +2220,7 @@ arc_buf_fill(arc_buf_t *buf, spa_t *spa, const zbookmark_phys_t *zb,
 		if (arc_buf_is_shared(buf)) {
 			ASSERT(ARC_BUF_COMPRESSED(buf));
 
-			/* We need to give the buf it's own b_data */
+			/* We need to give the buf its own b_data */
 			buf->b_flags &= ~ARC_BUF_FLAG_SHARED;
 			buf->b_data =
 			    arc_get_data_buf(hdr, HDR_GET_LSIZE(hdr), buf);
@@ -3199,7 +3199,7 @@ arc_buf_remove(arc_buf_hdr_t *hdr, arc_buf_t *buf)
 }
 
 /*
- * Free up buf->b_data and pull the arc_buf_t off of the the arc_buf_hdr_t's
+ * Free up buf->b_data and pull the arc_buf_t off of the arc_buf_hdr_t's
  * list and free it.
  */
 static void
@@ -3658,7 +3658,7 @@ arc_hdr_realloc_crypt(arc_buf_hdr_t *hdr, boolean_t need_crypt)
 /*
  * This function is used by the send / receive code to convert a newly
  * allocated arc_buf_t to one that is suitable for a raw encrypted write. It
- * is also used to allow the root objset block to be uupdated without altering
+ * is also used to allow the root objset block to be updated without altering
  * its embedded MACs. Both block types will always be uncompressed so we do not
  * have to worry about compression type or psize.
  */

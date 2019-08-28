@@ -1467,7 +1467,7 @@ dsl_dir_tempreserve_clear(void *tr_cookie, dmu_tx_t *tx)
  * less than the amount specified.
  *
  * NOTE: The behavior of this function is identical to the Illumos / FreeBSD
- * version however it has been adjusted to use an iterative rather then
+ * version however it has been adjusted to use an iterative rather than
  * recursive algorithm to minimize stack usage.
  */
 void

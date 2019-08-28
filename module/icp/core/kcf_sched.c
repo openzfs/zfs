@@ -182,7 +182,7 @@ kcf_areqnode_alloc(kcf_provider_desc_t *pd, kcf_context_t *ictx,
  *	  reached, signal the creator thread for more threads.
  *
  * If the two conditions above are not met, we don't need to do
- * any thing. The request will be picked up by one of the
+ * anything. The request will be picked up by one of the
  * worker threads when it becomes available.
  */
 static int
@@ -1182,7 +1182,7 @@ kcf_aop_done(kcf_areq_node_t *areq, int error)
 
 	/*
 	 * Handle recoverable errors. This has to be done first
-	 * before doing any thing else in this routine so that
+	 * before doing anything else in this routine so that
 	 * we do not change the state of the request.
 	 */
 	if (error != CRYPTO_SUCCESS && IS_RECOVERABLE(error)) {
@@ -1432,7 +1432,7 @@ crypto_cancel_req(crypto_req_id_t id)
 			/*
 			 * There is no interface to remove an entry
 			 * once it is on the taskq. So, we do not do
-			 * any thing for a hardware provider.
+			 * anything for a hardware provider.
 			 */
 			break;
 		default:

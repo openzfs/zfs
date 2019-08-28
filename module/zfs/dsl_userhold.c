@@ -302,7 +302,7 @@ dsl_dataset_user_hold_sync(void *arg, dmu_tx_t *tx)
  * holds is nvl of snapname -> holdname
  * errlist will be filled in with snapname -> error
  *
- * The snaphosts must all be in the same pool.
+ * The snapshots must all be in the same pool.
  *
  * Holds for snapshots that don't exist will be skipped.
  *
@@ -556,7 +556,7 @@ dsl_dataset_user_release_sync(void *arg, dmu_tx_t *tx)
  * errlist will be filled in with snapname -> error
  *
  * If tmpdp is not NULL the names for holds should be the dsobj's of snapshots,
- * otherwise they should be the names of shapshots.
+ * otherwise they should be the names of snapshots.
  *
  * As a release may cause snapshots to be destroyed this tries to ensure they
  * aren't mounted.

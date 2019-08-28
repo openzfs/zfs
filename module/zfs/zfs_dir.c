@@ -232,7 +232,7 @@ zfs_dirent_lock(zfs_dirlock_t **dlpp, znode_t *dzp, char *name, znode_t **zpp,
 	/*
 	 * Wait until there are no locks on this name.
 	 *
-	 * Don't grab the the lock if it is already held. However, cannot
+	 * Don't grab the lock if it is already held. However, cannot
 	 * have both ZSHARED and ZHAVELOCK together.
 	 */
 	ASSERT(!(flag & ZSHARED) || !(flag & ZHAVELOCK));

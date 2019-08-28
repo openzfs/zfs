@@ -889,7 +889,7 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 		 * Clear Set-UID/Set-GID bits on successful write if not
 		 * privileged and at least one of the execute bits is set.
 		 *
-		 * It would be nice to to this after all writes have
+		 * It would be nice to do this after all writes have
 		 * been done, but that would still expose the ISUID/ISGID
 		 * to another app after the partial write is committed.
 		 *
@@ -4378,7 +4378,7 @@ top:
 		uint64_t txtype = TX_LINK;
 		/*
 		 * tmpfile is created to be in z_unlinkedobj, so remove it.
-		 * Also, we don't log in ZIL, be cause all previous file
+		 * Also, we don't log in ZIL, because all previous file
 		 * operation on the tmpfile are ignored by ZIL. Instead we
 		 * always wait for txg to sync to make sure all previous
 		 * operation are sync safe.
