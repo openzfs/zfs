@@ -31,7 +31,6 @@
 #include <linux/vmalloc.h>
 #include <linux/pagemap.h>
 #include <linux/completion.h>
-#include <linux/mod_compat.h>
 #include <sys/zfs_context.h>
 #include <sys/zio_crypt.h>
 #include "lac/cpa_cy_im.h"

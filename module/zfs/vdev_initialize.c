@@ -723,15 +723,13 @@ vdev_initialize_restart(vdev_t *vd)
 	}
 }
 
-#if defined(_KERNEL)
 EXPORT_SYMBOL(vdev_initialize);
 EXPORT_SYMBOL(vdev_initialize_stop);
 EXPORT_SYMBOL(vdev_initialize_stop_all);
 EXPORT_SYMBOL(vdev_initialize_stop_wait);
 EXPORT_SYMBOL(vdev_initialize_restart);
 
-/* CSTYLED */
-module_param(zfs_initialize_value, ulong, 0644);
-MODULE_PARM_DESC(zfs_initialize_value,
+/* BEGIN CSTYLED */
+ZFS_MODULE_PARAM(zfs, zfs_, initialize_value, ULONG, ZMOD_RW,
 	"Value written during zpool initialize");
-#endif
+/* END CSTYLED */

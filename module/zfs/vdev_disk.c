@@ -34,7 +34,6 @@
 #include <sys/abd.h>
 #include <sys/fs/zfs.h>
 #include <sys/zio.h>
-#include <linux/mod_compat.h>
 #include <linux/msdos_fs.h>
 #include <linux/vfs_compat.h>
 

@@ -3201,10 +3201,10 @@ dmu_objset_is_receiving(objset_t *os)
 	    os->os_dsl_dataset->ds_owner == dmu_recv_tag);
 }
 
-#if defined(_KERNEL)
-module_param(zfs_recv_queue_length, int, 0644);
-MODULE_PARM_DESC(zfs_recv_queue_length, "Maximum receive queue length");
+/* BEGIN CSTYLED */
+ZFS_MODULE_PARAM(zfs_recv, zfs_recv_, queue_length, INT, ZMOD_RW,
+	"Maximum receive queue length");
 
-module_param(zfs_recv_queue_ff, int, 0644);
-MODULE_PARM_DESC(zfs_recv_queue_ff, "Receive queue fill fraction");
-#endif
+ZFS_MODULE_PARAM(zfs_recv, zfs_recv_, queue_ff, INT, ZMOD_RW,
+	"Receive queue fill fraction");
+/* END CSTYLED */
