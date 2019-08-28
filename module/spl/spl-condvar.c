@@ -26,14 +26,44 @@
 
 #include <sys/condvar.h>
 #include <sys/time.h>
+#include <sys/sysmacros.h>
 #include <linux/hrtimer.h>
 #include <linux/compiler_compat.h>
+#include <linux/mod_compat.h>
 
 #include <linux/sched.h>
 
 #ifdef HAVE_SCHED_SIGNAL_HEADER
 #include <linux/sched/signal.h>
 #endif
+
+#define	MAX_HRTIMEOUT_SLACK_US	1000
+unsigned int spl_schedule_hrtimeout_slack_us = 0;
+
+static int
+param_set_hrtimeout_slack(const char *buf, zfs_kernel_param_t *kp)
+{
+	unsigned long val;
+	int error;
+
+	error = kstrtoul(buf, 0, &val);
+	if (error)
+		return (error);
+
+	if (val > MAX_HRTIMEOUT_SLACK_US)
+		return (-EINVAL);
+
+	error = param_set_uint(buf, kp);
+	if (error < 0)
+		return (error);
+
+	return (0);
+}
+
+module_param_call(spl_schedule_hrtimeout_slack_us, param_set_hrtimeout_slack,
+	param_get_uint, &spl_schedule_hrtimeout_slack_us, 0644);
+MODULE_PARM_DESC(spl_schedule_hrtimeout_slack_us,
+	"schedule_hrtimeout_range() delta/slack value in us, default(0)");
 
 void
 __cv_init(kcondvar_t *cvp, char *name, kcv_type_t type, void *arg)
@@ -304,12 +334,13 @@ EXPORT_SYMBOL(__cv_timedwait_sig);
  */
 static clock_t
 __cv_timedwait_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t expire_time,
-    int state)
+    hrtime_t res, int state)
 {
 	DEFINE_WAIT(wait);
 	kmutex_t *m;
 	hrtime_t time_left;
 	ktime_t ktime_left;
+	u64 slack = 0;
 
 	ASSERT(cvp);
 	ASSERT(mp);
@@ -336,13 +367,11 @@ __cv_timedwait_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t expire_time,
 	 * race where 'cvp->cv_waiters > 0' but the list is empty.
 	 */
 	mutex_exit(mp);
-	/*
-	 * Allow a 100 us range to give kernel an opportunity to coalesce
-	 * interrupts
-	 */
+
 	ktime_left = ktime_set(0, time_left);
-	schedule_hrtimeout_range(&ktime_left, 100 * NSEC_PER_USEC,
-	    HRTIMER_MODE_REL);
+	slack = MIN(MAX(res, spl_schedule_hrtimeout_slack_us * NSEC_PER_USEC),
+	    MAX_HRTIMEOUT_SLACK_US * NSEC_PER_USEC);
+	schedule_hrtimeout_range(&ktime_left, slack, HRTIMER_MODE_REL);
 
 	/* No more waiters a different mutex could be used */
 	if (atomic_dec_and_test(&cvp->cv_waiters)) {
@@ -369,19 +398,10 @@ static clock_t
 cv_timedwait_hires_common(kcondvar_t *cvp, kmutex_t *mp, hrtime_t tim,
     hrtime_t res, int flag, int state)
 {
-	if (res > 1) {
-		/*
-		 * Align expiration to the specified resolution.
-		 */
-		if (flag & CALLOUT_FLAG_ROUNDUP)
-			tim += res - 1;
-		tim = (tim / res) * res;
-	}
-
 	if (!(flag & CALLOUT_FLAG_ABSOLUTE))
 		tim += gethrtime();
 
-	return (__cv_timedwait_hires(cvp, mp, tim, state));
+	return (__cv_timedwait_hires(cvp, mp, tim, res, state));
 }
 
 clock_t
