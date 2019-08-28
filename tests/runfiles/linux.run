@@ -824,8 +824,8 @@ tags = ['functional', 'scrub_mirror']
 tests = ['slog_001_pos', 'slog_002_pos', 'slog_003_pos', 'slog_004_pos',
     'slog_005_pos', 'slog_006_pos', 'slog_007_pos', 'slog_008_neg',
     'slog_009_neg', 'slog_010_neg', 'slog_011_neg', 'slog_012_neg',
-    'slog_013_pos', 'slog_014_pos', 'slog_015_neg', 'slog_replay_fs',
-    'slog_replay_volume']
+    'slog_013_pos', 'slog_014_pos', 'slog_015_neg', 'slog_replay_fs_001',
+    'slog_replay_fs_002', 'slog_replay_volume']
 tags = ['functional', 'slog']
 
 [tests/functional/snapshot]
