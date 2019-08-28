@@ -46,6 +46,7 @@ extern "C" {
  */
 #define	DNODE_MUST_BE_ALLOCATED	1
 #define	DNODE_MUST_BE_FREE	2
+#define	DNODE_DRY_RUN		4
 
 /*
  * dnode_next_offset() flags.
@@ -415,6 +416,7 @@ int dnode_hold_impl(struct objset *dd, uint64_t object, int flag, int dn_slots,
 boolean_t dnode_add_ref(dnode_t *dn, void *ref);
 void dnode_rele(dnode_t *dn, void *ref);
 void dnode_rele_and_unlock(dnode_t *dn, void *tag, boolean_t evicting);
+int dnode_try_claim(objset_t *os, uint64_t object, int slots);
 void dnode_setdirty(dnode_t *dn, dmu_tx_t *tx);
 void dnode_sync(dnode_t *dn, dmu_tx_t *tx);
 void dnode_allocate(dnode_t *dn, dmu_object_type_t ot, int blocksize, int ibs,
@@ -532,11 +534,6 @@ typedef struct dnode_stats {
 	 * a range of dnode slots which would overflow the dnode_phys_t.
 	 */
 	kstat_named_t dnode_hold_free_overflow;
-	/*
-	 * Number of times a dnode_hold(...) was attempted on a dnode
-	 * which had already been unlinked in an earlier txg.
-	 */
-	kstat_named_t dnode_hold_free_txg;
 	/*
 	 * Number of times dnode_free_interior_slots() needed to retry
 	 * acquiring a slot zrl lock due to contention.
