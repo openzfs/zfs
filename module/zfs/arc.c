@@ -6844,7 +6844,7 @@ arc_release(arc_buf_t *buf, void *tag)
 			VERIFY(!arc_buf_is_shared(lastbuf));
 
 			/*
-			 * First, serve the block sharing relationship between
+			 * First, sever the block sharing relationship between
 			 * buf and the arc_buf_hdr_t.
 			 */
 			arc_unshare_buf(hdr, buf);
