@@ -548,7 +548,7 @@ dump_write(dmu_send_cookie_t *dscp, dmu_object_type_t type, uint64_t object,
 		/*
 		 * There's no pre-computed checksum for partial-block writes,
 		 * embedded BP's, or encrypted BP's that are being sent as
-		 * plaintext, so (like fletcher4-checkummed blocks) userland
+		 * plaintext, so (like fletcher4-checksummed blocks) userland
 		 * will have to compute a dedup-capable checksum itself.
 		 */
 		drrw->drr_checksumtype = ZIO_CHECKSUM_OFF;

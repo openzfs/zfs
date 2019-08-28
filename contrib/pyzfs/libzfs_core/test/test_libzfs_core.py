@@ -2160,7 +2160,7 @@ class ZFSTest(unittest.TestCase):
         with streams(srcfs, src1, src2) as (_, (full, incr)):
             lzc.lzc_receive(dst1, full.fileno())
             lzc.lzc_snapshot([dst_snap])
-            # becase cannot receive incremental and set origin on a non-clone
+            # because cannot receive incremental and set origin on a non-clone
             with self.assertRaises(lzc_exc.BadStream):
                 lzc.lzc_receive(dst2, incr.fileno(), origin=dst1)
 
@@ -2375,7 +2375,7 @@ class ZFSTest(unittest.TestCase):
                 for i in range(1024):
                     f.write(b'x' * 1024)
                 lzc.lzc_receive(dst, stream.fileno(), force=True)
-                # The temporary file dissappears and any access, even close(),
+                # The temporary file disappears and any access, even close(),
                 # results in EIO.
                 self.assertFalse(os.path.exists(f.name))
                 with self.assertRaises(IOError):
@@ -2462,7 +2462,7 @@ class ZFSTest(unittest.TestCase):
                 for i in range(1024):
                     f.write(b'x' * 1024)
                 lzc.lzc_receive(dst2, incr.fileno(), force=True)
-                # The temporary file dissappears and any access, even close(),
+                # The temporary file disappears and any access, even close(),
                 # results in EIO.
                 self.assertFalse(os.path.exists(f.name))
                 with self.assertRaises(IOError):

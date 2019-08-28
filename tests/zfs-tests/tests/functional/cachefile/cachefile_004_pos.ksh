@@ -38,7 +38,7 @@
 #	Verify set, export and destroy when cachefile is set on pool.
 #
 # STRATEGY:
-#	1. Create two pools with one same cahcefile1.
+#	1. Create two pools with one same cachefile1.
 #	2. Set cachefile of the two pools to another same cachefile2.
 #	3. Verify cachefile1 not exist.
 #	4. Export the two pools.

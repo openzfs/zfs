@@ -251,7 +251,7 @@ check_sector_size_database(char *path, int *sector_size)
 	io_hdr.dxferp = inq_buff;
 	io_hdr.cmdp = inq_cmd_blk;
 	io_hdr.sbp = sense_buffer;
-	io_hdr.timeout = 10;		/* 10 milliseconds is ample time */
+	io_hdr.timeout = 10;		/* 10 milliseconds is sample time */
 
 	if ((fd = open(path, O_RDONLY|O_DIRECT)) < 0)
 		return (B_FALSE);

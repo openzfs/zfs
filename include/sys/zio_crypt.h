@@ -55,7 +55,7 @@ typedef struct zio_crypt_info {
 	/* length of the encryption key */
 	size_t ci_keylen;
 
-	/* human-readable name of the encryption alforithm */
+	/* human-readable name of the encryption algorithm */
 	char *ci_name;
 } zio_crypt_info_t;
 

@@ -102,7 +102,7 @@ Usage: vdev_id [-h]
        vdev_id <-d device> [-c config_file] [-p phys_per_port]
                [-g sas_direct|sas_switch|scsi] [-m]
 
-  -c    specify name of alernate config file [default=$CONFIG]
+  -c    specify name of alternate config file [default=$CONFIG]
   -d    specify basename of device (i.e. sda)
   -e    Create enclose device symlinks only (/dev/by-enclosure)
   -g    Storage network topology [default="$TOPOLOGY"]
