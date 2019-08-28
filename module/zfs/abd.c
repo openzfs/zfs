@@ -245,6 +245,32 @@ abd_chunkcnt_for_bytes(size_t size)
 }
 
 #ifdef _KERNEL
+/*
+ * Mark zfs data pages so they can be excluded from kernel crash dumps
+ */
+#ifdef _LP64
+#define	ABD_FILE_CACHE_PAGE	0x2F5ABDF11ECAC4E
+
+static inline void
+abd_mark_zfs_page(struct page *page)
+{
+	get_page(page);
+	SetPagePrivate(page);
+	set_page_private(page, ABD_FILE_CACHE_PAGE);
+}
+
+static inline void
+abd_unmark_zfs_page(struct page *page)
+{
+	set_page_private(page, 0UL);
+	ClearPagePrivate(page);
+	put_page(page);
+}
+#else
+#define	abd_mark_zfs_page(page)
+#define	abd_unmark_zfs_page(page)
+#endif /* _LP64 */
+
 #ifndef CONFIG_HIGHMEM
 
 #ifndef __GFP_RECLAIM
@@ -318,6 +344,7 @@ abd_alloc_pages(abd_t *abd, size_t size)
 		size_t sg_size = MIN(PAGESIZE << compound_order(page),
 		    remaining_size);
 		sg_set_page(sg, page, sg_size, 0);
+		abd_mark_zfs_page(page);
 		remaining_size -= sg_size;
 
 		sg = sg_next(sg);
@@ -404,6 +431,7 @@ abd_alloc_pages(abd_t *abd, size_t size)
 
 		ABDSTAT_BUMP(abdstat_scatter_orders[0]);
 		sg_set_page(sg, page, PAGESIZE, 0);
+		abd_mark_zfs_page(page);
 	}
 
 	if (nr_pages > 1) {
@@ -430,6 +458,7 @@ abd_free_pages(abd_t *abd)
 
 	abd_for_each_sg(abd, sg, nr_pages, i) {
 		page = sg_page(sg);
+		abd_unmark_zfs_page(page);
 		order = compound_order(page);
 		__free_pages(page, order);
 		ASSERT3U(sg->length, <=, PAGE_SIZE << order);
