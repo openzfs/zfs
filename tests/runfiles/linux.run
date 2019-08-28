@@ -481,12 +481,14 @@ tests = ['zpool_trim_attach_detach_add_remove',
 tags = ['functional', 'zpool_trim']
 
 [tests/functional/cli_root/zpool_upgrade]
-tests = ['zpool_upgrade_001_pos', 'zpool_upgrade_002_pos',
-    'zpool_upgrade_003_pos', 'zpool_upgrade_004_pos',
+tests = ['zpool_upgrade_001_pos',
     'zpool_upgrade_005_neg', 'zpool_upgrade_006_neg',
-    'zpool_upgrade_007_pos', 'zpool_upgrade_008_pos',
     'zpool_upgrade_009_neg']
 tags = ['functional', 'cli_root', 'zpool_upgrade']
+
+# Disabled pending resolution of #9185 and #9186.
+# 'zpool_upgrade_002_pos', 'zpool_upgrade_003_pos', 'zpool_upgrade_004_pos',
+# 'zpool_upgrade_007_pos', 'zpool_upgrade_008_pos',
 
 [tests/functional/cli_user/misc]
 tests = ['zdb_001_neg', 'zfs_001_neg', 'zfs_allow_001_neg',
