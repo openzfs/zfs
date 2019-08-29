@@ -52,7 +52,7 @@ do
 	log_must zpool create $TESTPOOL $type $ZPOOL_DISKS \
 	    special $stype $sdisks
 
-	ac_value="$(zpool get all -H -o property,value | \
+	ac_value="$(zpool get -H -o property,value all | \
 	    egrep allocation_classes | nawk '{print $2}')"
 	if [ "$ac_value" = "active" ]; then
 		log_note "feature@allocation_classes is active"
