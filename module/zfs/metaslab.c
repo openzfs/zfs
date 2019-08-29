@@ -198,16 +198,20 @@ int metaslab_df_use_largest_segment = B_FALSE;
 int metaslab_load_pct = 50;
 
 /*
- * Determines how many txgs a metaslab may remain loaded without having any
- * allocations from it. As long as a metaslab continues to be used we will
- * keep it loaded.
+ * These tunables control how long a metaslab will remain loaded after the
+ * last allocation from it.  A metaslab can't be unloaded until at least
+ * metaslab_unload_delay TXG's and metaslab_unload_delay_ms milliseconds
+ * have elapsed.  However, zfs_metaslab_mem_limit may cause it to be
+ * unloaded sooner.  These settings are intended to be generous -- to keep
+ * metaslabs loaded for a long time, reducing the rate of metaslab loading.
  */
-int metaslab_unload_delay = TXG_SIZE * 2;
+int metaslab_unload_delay = 32;
+int metaslab_unload_delay_ms = 10 * 60 * 1000; /* ten minutes */
 
 /*
  * Max number of metaslabs per group to preload.
  */
-int metaslab_preload_limit = SPA_DVAS_PER_BP;
+int metaslab_preload_limit = 10;
 
 /*
  * Enable/disable preloading of metaslab.
@@ -273,17 +277,17 @@ uint64_t metaslab_trace_max_entries = 5000;
 int max_disabled_ms = 3;
 
 /*
- * Time (in seconds) to respect ms_max_size when the metaslab is not loaded.
- * To avoid 64-bit overflow, don't set above UINT32_MAX.
- */
-unsigned long zfs_metaslab_max_size_cache_sec = 3600; /* 1 hour */
-
-/*
  * Maximum percentage of memory to use on storing loaded metaslabs. If loading
  * a metaslab would take it over this percentage, the oldest selected metaslab
  * is automatically unloaded.
  */
-int zfs_metaslab_mem_limit = 75;
+int zfs_metaslab_mem_limit = 25;
+
+/*
+ * Time (in seconds) to respect ms_max_size when the metaslab is not loaded.
+ * To avoid 64-bit overflow, don't set above UINT32_MAX.
+ */
+unsigned long zfs_metaslab_max_size_cache_sec = 3600; /* 1 hour */
 
 static uint64_t metaslab_weight(metaslab_t *);
 static void metaslab_set_fragmentation(metaslab_t *);
@@ -539,15 +543,6 @@ metaslab_class_evict_old(metaslab_class_t *mc, uint64_t txg)
 		multilist_sublist_unlock(mls);
 		while (msp != NULL) {
 			mutex_enter(&msp->ms_lock);
-			/*
-			 * Once we've hit a metaslab selected too recently to
-			 * evict, we're done evicting for now.
-			 */
-			if (msp->ms_selected_txg + metaslab_unload_delay >=
-			    txg) {
-				mutex_exit(&msp->ms_lock);
-				break;
-			}
 
 			/*
 			 * If the metaslab has been removed from the list
@@ -563,7 +558,20 @@ metaslab_class_evict_old(metaslab_class_t *mc, uint64_t txg)
 			mls = multilist_sublist_lock(ml, i);
 			metaslab_t *next_msp = multilist_sublist_next(mls, msp);
 			multilist_sublist_unlock(mls);
-			metaslab_evict(msp, txg);
+			if (txg >
+			    msp->ms_selected_txg + metaslab_unload_delay &&
+			    gethrtime() > msp->ms_selected_time +
+			    (uint64_t)MSEC2NSEC(metaslab_unload_delay_ms)) {
+				metaslab_evict(msp, txg);
+			} else {
+				/*
+				 * Once we've hit a metaslab selected too
+				 * recently to evict, we're done evicting for
+				 * now.
+				 */
+				mutex_exit(&msp->ms_lock);
+				break;
+			}
 			mutex_exit(&msp->ms_lock);
 			msp = next_msp;
 		}
@@ -2248,6 +2256,7 @@ metaslab_set_selected_txg(metaslab_t *msp, uint64_t txg)
 	if (multilist_link_active(&msp->ms_class_txg_node))
 		multilist_sublist_remove(mls, msp);
 	msp->ms_selected_txg = txg;
+	msp->ms_selected_time = gethrtime();
 	multilist_sublist_insert_tail(mls, msp);
 	multilist_sublist_unlock(mls);
 }
@@ -2573,7 +2582,6 @@ metaslab_space_weight(metaslab_t *msp)
 	uint64_t weight, space;
 
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
-	ASSERT(!vd->vdev_removing);
 
 	/*
 	 * The baseline weight is the metaslab's free space.
@@ -2831,13 +2839,6 @@ metaslab_weight(metaslab_t *msp)
 	uint64_t weight;
 
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
-
-	/*
-	 * If this vdev is in the process of being removed, there is nothing
-	 * for us to do here.
-	 */
-	if (vd->vdev_removing)
-		return (0);
 
 	metaslab_set_fragmentation(msp);
 
@@ -5868,6 +5869,14 @@ MODULE_PARM_DESC(metaslab_debug_unload,
 module_param(metaslab_preload_enabled, int, 0644);
 MODULE_PARM_DESC(metaslab_preload_enabled,
 	"preload potential metaslabs during reassessment");
+
+module_param(metaslab_unload_delay, int, 0644);
+MODULE_PARM_DESC(metaslab_unload_delay,
+	"delay in txgs after metaslab was last used before unloading");
+
+module_param(metaslab_unload_delay_ms, int, 0644);
+MODULE_PARM_DESC(metaslab_unload_delay_ms,
+	"delay in milliseconds after metaslab was last used before unloading");
 
 module_param(zfs_mg_noalloc_threshold, int, 0644);
 MODULE_PARM_DESC(zfs_mg_noalloc_threshold,
