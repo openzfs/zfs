@@ -307,7 +307,7 @@ class Cmd(object):
         This function is responsible for writing all output. This includes
         the console output, the logfile of all results (with timestamped
         merged stdout and stderr), and for each test, the unmodified
-        stdout/stderr/merged in it's own file.
+        stdout/stderr/merged in its own file.
         """
 
         logname = getpwuid(os.getuid()).pw_name
@@ -716,7 +716,7 @@ class TestRun(object):
 
     def setup_logging(self, options):
         """
-        This funtion creates the output directory and gets a file object
+        This function creates the output directory and gets a file object
         for the logfile. This function must be called before write_log()
         can be used.
         """

@@ -51,7 +51,7 @@ configure option should be set. This will enable additional correctness
 checks and all the ASSERTs to help quickly catch potential issues.
 
 In addition, there are numerous utilities and debugging files which
-provide visibility in to the inner workings of ZFS.  The most useful
+provide visibility into the inner workings of ZFS.  The most useful
 of these tools are discussed in detail on the [debugging ZFS wiki
 page](https://github.com/zfsonlinux/zfs/wiki/Debugging).
 
