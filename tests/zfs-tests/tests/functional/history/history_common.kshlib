@@ -224,7 +224,7 @@ function verify_allow
 
 	#
 	# Here, we determine three things:
-	# - Whether we're operating on a set or an indivdual permission (which
+	# - Whether we're operating on a set or an individual permission (which
 	#   dictates the case of the first character in the code)
 	# - The name of the dataset we're operating on.
 	# - Whether the operation applies locally or to descendent datasets (or

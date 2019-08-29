@@ -38,7 +38,7 @@
 # STRATEGY:
 # 1. largest_file will write to a file and increase its size
 # to the maximum allowable.
-# 2. The last byte of the file should be accessbile without error.
+# 2. The last byte of the file should be accessible without error.
 # 3. Writing beyond the maximum file size generates an 'errno' of
 # EFBIG.
 #
