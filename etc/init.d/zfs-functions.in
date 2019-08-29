@@ -294,13 +294,6 @@ checksystem()
 	# Just make sure that /dev/zfs is created.
 	udev_trigger
 
-	if ! [ "$(uname -m)" = "x86_64" ]; then
-		echo "Warning: You're not running 64bit. Currently native zfs in";
-		echo "         Linux is only supported and tested on 64bit.";
-		# should we break here? People doing this should know what they
-		# do, thus i'm not breaking here.
-	fi
-
 	return 0
 }
 
