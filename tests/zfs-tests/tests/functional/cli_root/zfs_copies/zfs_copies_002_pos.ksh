@@ -92,7 +92,7 @@ for val in 1 2 3; do
 	check_used $used $val
 done
 
-log_note "Verify df(1M) can corectly display the space charged."
+log_note "Verify df(1M) can correctly display the space charged."
 for val in 1 2 3; do
 	used=`df -F zfs -k /$TESTPOOL/fs_$val/$FILE | grep $TESTPOOL/fs_$val \
 		| awk '{print $3}'`
