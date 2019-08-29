@@ -298,54 +298,80 @@ btree_find(btree_t *tree, const void *value, btree_index_t *where)
 
 /*
  * To explain the following functions, it is useful to understand the four
- * kinds of shifts used in btree operation. A shift has two fundamental
- * properties, each of which can be one of two values, making four shifts.
- * There is the direction of the shift (left or right) and the shape of the
- * shift (parallelogram or isoceles trapezoid (shortened to trapezoid
- * hereafter)). The shape distinction only applies to shifts of core nodes.
+ * kinds of shifts used in btree operation. First, a shift is a movement of
+ * elements within a node. It is used to create gaps for inserting new
+ * elements and children, or cover gaps created when things are removed. A
+ * shift has two fundamental properties, each of which can be one of two
+ * values, making four types of shifts.  There is the direction of the shift
+ * (left or right) and the shape of the shift (parallelogram or isoceles
+ * trapezoid (shortened to trapezoid hereafter)). The shape distinction only
+ * applies to shifts of core nodes.
  *
  * The names derive from the following imagining of the layout of a node:
  *
  *  Elements:       *   *   *   *   *   *   *   ...   *   *   *
- *
  *  Children:     *   *   *   *   *   *   *   *   ...   *   *   *
  *
  * This layout follows from the fact that the elements act as separators
  * between pairs of children, and that children root subtrees "below" the
- * current node. The distinction between a left and right shift is clear. A
- * parallelogram shift is a shift with the same number of elements and children
- * being moved, while a trapezoid shift is a shift that moves one more children
- * than elements.
+ * current node. A left and right shift are fairly self-explanatory; a left
+ * shift moves things to the left, while a right shift moves things to the
+ * right. A parallelogram shift is a shift with the same number of elements
+ * and children being moved, while a trapezoid shift is a shift that moves one
+ * more children than elements. An example follows:
  *
- * Note that a parellelogram shift is always shaped like a left-leaning
- * parallelogram; the starting index of the children being moved is always one
- * higher than the starting index of the elements being moved. No right-leaning
- * parallelogram shifts are needed to achieve any btree operations, so we ignore
- * them.
+ * A parallelogram shift could contain the following:
+ *      _______________
+ *      \*   *   *   * \ *   *   *   ...   *   *   *
+ *     * \ *   *   *   *\  *   *   *   ...   *   *   *
+ *        ---------------
+ * A trapezoid shift could contain the following:
+ *          ___________
+ *       * / *   *   * \ *   *   *   ...   *   *   *
+ *     *  / *  *   *   *\  *   *   *   ...   *   *   *
+ *        ---------------
+ * 
+ * Note that a parellelogram shift is always shaped like a "left-leaning"
+ * parallelogram, where the starting index of the children being moved is
+ * always one higher than the starting index of the elements being moved. No
+ * "right-leaning" parallelogram shifts are needed (shifts where the starting
+ * element index and starting child index being moved are the same) to achieve
+ * any btree operations, so we ignore them.
  */
 
+enum bt_shift_shape {
+	BSS_TRAPEZOID,
+	BSS_PARALLELOGRAM
+};
+
+enum bt_shift_direction {
+	BSD_LEFT,
+	BSD_RIGHT
+};
+
 /*
- * Shift elements and children in the provided core node by off spots.
- * The first element moved is idx, and count elements are moved. The
- * shape of the shift is determined by trap; true if the shift is a trapezoid,
- * false if it is a parallelogram. The direction is determined by left.
+ * Shift elements and children in the provided core node by off spots.  The
+ * first element moved is idx, and count elements are moved. The shape of the
+ * shift is determined by shape. The direction is determined by dir.
  */
 static inline void
-bt_shift_at_core(btree_t *tree, btree_core_t *node, uint64_t idx,
-    uint64_t count, uint64_t off, boolean_t trap, boolean_t left)
+bt_shift_core(btree_t *tree, btree_core_t *node, uint64_t idx,
+    uint64_t count, uint64_t off, enum bt_shift_shape shape,
+    enum bt_shift_direction dir)
 {
 	size_t size = tree->bt_elem_size;
 	ASSERT(node->btc_hdr.bth_core);
 
 	uint8_t *e_start = node->btc_elems + idx * size;
-	uint8_t *e_out = (left ? e_start - (off * size) : e_start + (off *
-	    size));
+	int sign = (dir == BSD_LEFT ? -1 : +1);
+	uint8_t *e_out = e_start + sign * off * size;
 	uint64_t e_count = count;
 	bcopy(e_start, e_out, e_count * size);
 
-	btree_hdr_t **c_start = node->btc_children + idx + (trap ? 0 : 1);
-	btree_hdr_t **c_out = (left ? c_start - off : c_start + off);
-	uint64_t c_count = count + (trap ? 1 : 0);
+	btree_hdr_t **c_start = node->btc_children + idx +
+	    (shape == BSS_TRAPEZOID ? 0 : 1);
+	btree_hdr_t **c_out = (dir == BSD_LEFT ? c_start - off : c_start + off);
+	uint64_t c_count = count + (shape == BSS_TRAPEZOID ? 1 : 0);
 	bcopy(c_start, c_out, c_count * sizeof (*c_start));
 }
 
@@ -356,10 +382,10 @@ bt_shift_at_core(btree_t *tree, btree_core_t *node, uint64_t idx,
  * false if it is a parallelogram.
  */
 static inline void
-bt_shleft_at_core(btree_t *tree, btree_core_t *node, uint64_t idx,
-    uint64_t count, boolean_t trap)
+bt_shift_core_left(btree_t *tree, btree_core_t *node, uint64_t idx,
+    uint64_t count, enum bt_shift_shape shape)
 {
-	bt_shift_at_core(tree, node, idx, count, 1, trap, B_TRUE);
+	bt_shift_core(tree, node, idx, count, 1, shape, BSD_LEFT);
 }
 
 /*
@@ -367,10 +393,10 @@ bt_shleft_at_core(btree_t *tree, btree_core_t *node, uint64_t idx,
  * Starts with elements[idx] and children[idx] and one more child than element.
  */
 static inline void
-bt_shright_at_core(btree_t *tree, btree_core_t *node, uint64_t idx,
-    uint64_t count, boolean_t trap)
+bt_shift_core_right(btree_t *tree, btree_core_t *node, uint64_t idx,
+    uint64_t count, enum bt_shift_shape shape)
 {
-	bt_shift_at_core(tree, node, idx, count, 1, trap, B_FALSE);
+	bt_shift_core(tree, node, idx, count, 1, shape, BSD_RIGHT);
 }
 
 /*
@@ -379,35 +405,40 @@ bt_shright_at_core(btree_t *tree, btree_core_t *node, uint64_t idx,
  * is determined by left.
  */
 static inline void
-bt_shift_at_leaf(btree_t *tree, btree_leaf_t *node, uint64_t idx,
-    uint64_t count, uint64_t off, boolean_t left)
+bt_shift_leaf(btree_t *tree, btree_leaf_t *node, uint64_t idx,
+    uint64_t count, uint64_t off, enum bt_shift_direction dir)
 {
 	size_t size = tree->bt_elem_size;
 	ASSERT(!node->btl_hdr.bth_core);
 
 	uint8_t *start = node->btl_elems + idx * size;
-	uint8_t *out = (left ? start - (off * size) : start + (off *
-	    size));
+	int sign = (dir == BSD_LEFT ? -1 : +1);
+	uint8_t *out = start + sign * off * size;
 	bcopy(start, out, count * size);
 }
 
 static inline void
-bt_shright_at_leaf(btree_t *tree, btree_leaf_t *leaf, uint64_t idx,
+bt_shift_leaf_right(btree_t *tree, btree_leaf_t *leaf, uint64_t idx,
     uint64_t count)
 {
-	bt_shift_at_leaf(tree, leaf, idx, count, 1, B_FALSE);
+	bt_shift_leaf(tree, leaf, idx, count, 1, BSD_RIGHT);
 }
 
 static inline void
-bt_shleft_at_leaf(btree_t *tree, btree_leaf_t *leaf, uint64_t idx,
+bt_shift_leaf_left(btree_t *tree, btree_leaf_t *leaf, uint64_t idx,
     uint64_t count)
 {
-	bt_shift_at_leaf(tree, leaf, idx, count, 1, B_TRUE);
+	bt_shift_leaf(tree, leaf, idx, count, 1, BSD_LEFT);
 }
 
+/*
+ * Move children and elements from one core node to another. The shape
+ * parameter behaves the same as it does in the shift logic.
+ */
 static inline void
 bt_transfer_core(btree_t *tree, btree_core_t *source, uint64_t sidx,
-    uint64_t count, btree_core_t *dest, uint64_t didx, boolean_t trap)
+    uint64_t count, btree_core_t *dest, uint64_t didx,
+    enum bt_shift_shape shape)
 {
 	size_t size = tree->bt_elem_size;
 	ASSERT(source->btc_hdr.bth_core);
@@ -416,9 +447,9 @@ bt_transfer_core(btree_t *tree, btree_core_t *source, uint64_t sidx,
 	bcopy(source->btc_elems + sidx * size, dest->btc_elems + didx * size,
 	    count * size);
 
-	uint64_t c_count = count + (trap ? 1 : 0);
-	bcopy(source->btc_children + sidx + (trap ? 0 : 1),
-	    dest->btc_children + didx + (trap ? 0 : 1),
+	uint64_t c_count = count + (shape == BSS_TRAPEZOID ? 1 : 0);
+	bcopy(source->btc_children + sidx + (shape == BSS_TRAPEZOID ? 0 : 1),
+	    dest->btc_children + didx + (shape == BSS_TRAPEZOID ? 0 : 1),
 	    c_count * sizeof (*source->btc_children));
 }
 
@@ -522,7 +553,8 @@ btree_insert_into_parent(btree_t *tree, btree_hdr_t *old_node,
 
 		/* Shift existing elements and children */
 		uint64_t count = par_hdr->bth_count - offset;
-		bt_shright_at_core(tree, parent, offset, count, B_FALSE);
+		bt_shift_core_right(tree, parent, offset, count,
+		    BSS_PARALLELOGRAM);
 
 		/* Insert new values */
 		parent->btc_children[offset + 1] = new_node;
@@ -573,7 +605,7 @@ btree_insert_into_parent(btree_t *tree, btree_hdr_t *old_node,
 		 * leaf.
 		 */
 		bt_transfer_core(tree, parent, keep_count, move_count,
-		    new_parent, 0, B_TRUE);
+		    new_parent, 0, BSS_TRAPEZOID);
 
 		/* Store the new separator in a buffer. */
 		uint8_t *tmp_buf = kmem_alloc(size, KM_SLEEP);
@@ -584,8 +616,8 @@ btree_insert_into_parent(btree_t *tree, btree_hdr_t *old_node,
 		 * Shift the remaining elements and children in the front half
 		 * to handle the new value.
 		 */
-		bt_shright_at_core(tree, parent, offset, keep_count - 1 -
-		    offset, B_FALSE);
+		bt_shift_core_right(tree, parent, offset, keep_count - 1 -
+		    offset, BSS_PARALLELOGRAM);
 
 		uint8_t *e_start = parent->btc_elems + offset * size;
 		bcopy(buf, e_start, size);
@@ -611,7 +643,7 @@ btree_insert_into_parent(btree_t *tree, btree_hdr_t *old_node,
 		 */
 		uint64_t e_count = offset - keep_count - 1;
 		bt_transfer_core(tree, parent, keep_count + 1,
-		    e_count, new_parent, 0, B_TRUE);
+		    e_count, new_parent, 0, BSS_TRAPEZOID);
 
 		/* Add the new value to the new leaf. */
 		uint8_t *e_out = new_parent->btc_elems + e_count * size;
@@ -630,7 +662,7 @@ btree_insert_into_parent(btree_t *tree, btree_hdr_t *old_node,
 		/* Move the rest of the back half to the new leaf. */
 		bt_transfer_core(tree, parent, keep_count + 2,
 		    BTREE_CORE_ELEMS - offset, new_parent, e_count + 1,
-		    B_FALSE);
+		    BSS_PARALLELOGRAM);
 	} else {
 		/*
 		 * The new value is the new separator, no change.
@@ -639,7 +671,7 @@ btree_insert_into_parent(btree_t *tree, btree_hdr_t *old_node,
 		 * leaf.
 		 */
 		bt_transfer_core(tree, parent, keep_count, move_count,
-		    new_parent, 0, B_FALSE);
+		    new_parent, 0, BSS_PARALLELOGRAM);
 		new_parent->btc_children[0] = new_node;
 	}
 #ifdef ZFS_DEBUG
@@ -682,7 +714,7 @@ btree_insert_into_leaf(btree_t *tree, btree_leaf_t *leaf, const void *value,
 			    leaf->btl_hdr.bth_count);
 		}
 		leaf->btl_hdr.bth_count++;
-		bt_shright_at_leaf(tree, leaf, idx, count);
+		bt_shift_leaf_right(tree, leaf, idx, count);
 		bcopy(value, start, size);
 		return;
 	}
@@ -740,7 +772,7 @@ btree_insert_into_leaf(btree_t *tree, btree_leaf_t *leaf, const void *value,
 		 * Shift the remaining elements in the front part to handle
 		 * the new value.
 		 */
-		bt_shright_at_leaf(tree, leaf, idx, keep_count - 1 - idx);
+		bt_shift_leaf_right(tree, leaf, idx, keep_count - 1 - idx);
 		bcopy(value, leaf->btl_elems + idx * size, size);
 	} else if (idx > keep_count) {
 		/* Store the new separator in a buffer. */
@@ -862,8 +894,8 @@ btree_bulk_finish(btree_t *tree)
 		}
 
 		/* First, shift elements in leaf back. */
-		bt_shift_at_leaf(tree, leaf, 0, hdr->bth_count, move_count,
-		    B_FALSE);
+		bt_shift_leaf(tree, leaf, 0, hdr->bth_count, move_count,
+		    BSD_RIGHT);
 
 		/* Next, move the separator from the common ancestor to leaf. */
 		uint8_t *separator = common->btc_elems + (common_idx * size);
@@ -932,8 +964,8 @@ btree_bulk_finish(btree_t *tree)
 			}
 		}
 		/* First, shift things in the right node back. */
-		bt_shift_at_core(tree, cur, 0, hdr->bth_count, move_count,
-		    B_TRUE, B_FALSE);
+		bt_shift_core(tree, cur, 0, hdr->bth_count, move_count,
+		    BSS_TRAPEZOID, BSD_RIGHT);
 
 		/* Next, move the separator to the right node. */
 		uint8_t *separator = parent->btc_elems + ((parent_idx - 1) *
@@ -948,7 +980,7 @@ btree_bulk_finish(btree_t *tree)
 		move_count--;
 		uint64_t move_idx = l_neighbor->btc_hdr.bth_count - move_count;
 		bt_transfer_core(tree, l_neighbor, move_idx, move_count, cur, 0,
-		    B_TRUE);
+		    BSS_TRAPEZOID);
 
 		/*
 		 * Finally, move the last element in the left node to the
@@ -1348,8 +1380,8 @@ btree_remove_from_node(btree_t *tree, btree_core_t *node, btree_hdr_t *rm_hdr)
 		 * Shift the element and children to the right of rm_hdr to
 		 * the left by one spot.
 		 */
-		bt_shleft_at_core(tree, node, idx, hdr->bth_count - idx + 1,
-		    B_FALSE);
+		bt_shift_core_left(tree, node, idx, hdr->bth_count - idx + 1,
+		    BSS_PARALLELOGRAM);
 #ifdef ZFS_DEBUG
 		btree_poison_node_at(tree, hdr, hdr->bth_count);
 #endif
@@ -1385,7 +1417,7 @@ btree_remove_from_node(btree_t *tree, btree_core_t *node, btree_hdr_t *rm_hdr)
 		 * Start by shifting the elements and children in the current
 		 * node to the right by one spot.
 		 */
-		bt_shright_at_core(tree, node, 0, idx - 1, B_TRUE);
+		bt_shift_core_right(tree, node, 0, idx - 1, BSS_TRAPEZOID);
 
 		/*
 		 * Move the separator between node and neighbor to the first
@@ -1424,8 +1456,8 @@ btree_remove_from_node(btree_t *tree, btree_core_t *node, btree_hdr_t *rm_hdr)
 		 * Shift elements in node left by one spot to overwrite rm_hdr
 		 * and the separator before it.
 		 */
-		bt_shleft_at_core(tree, node, idx, hdr->bth_count - idx + 1,
-		    B_FALSE);
+		bt_shift_core_left(tree, node, idx, hdr->bth_count - idx + 1,
+		    BSS_PARALLELOGRAM);
 
 		/*
 		 * Move the separator between node and neighbor to the last
@@ -1453,7 +1485,8 @@ btree_remove_from_node(btree_t *tree, btree_core_t *node, btree_hdr_t *rm_hdr)
 		 * Shift the elements and children of neighbor to cover the
 		 * stolen elements.
 		 */
-		bt_shleft_at_core(tree, neighbor, 1, r_hdr->bth_count, B_TRUE);
+		bt_shift_core_left(tree, neighbor, 1, r_hdr->bth_count,
+		    BSS_TRAPEZOID);
 #ifdef ZFS_DEBUG
 		btree_poison_node_at(tree, r_hdr, r_hdr->bth_count);
 #endif
@@ -1490,9 +1523,9 @@ btree_remove_from_node(btree_t *tree, btree_core_t *node, btree_hdr_t *rm_hdr)
 
 		/* Move all our elements and children into the left node. */
 		bt_transfer_core(tree, node, 0, idx - 1, left,
-		    l_hdr->bth_count + 1, B_TRUE);
+		    l_hdr->bth_count + 1, BSS_TRAPEZOID);
 		bt_transfer_core(tree, node, idx, hdr->bth_count - idx + 1,
-		    left, l_hdr->bth_count + idx, B_FALSE);
+		    left, l_hdr->bth_count + idx, BSS_PARALLELOGRAM);
 
 		/* Reparent all our children to point to the left node. */
 		btree_hdr_t **new_start = left->btc_children +
@@ -1523,8 +1556,8 @@ btree_remove_from_node(btree_t *tree, btree_core_t *node, btree_hdr_t *rm_hdr)
 		 * Overwrite rm_hdr and its separator by moving node's
 		 * elements and children forward.
 		 */
-		bt_shleft_at_core(tree, node, idx, hdr->bth_count - idx + 1,
-		    B_FALSE);
+		bt_shift_core_left(tree, node, idx, hdr->bth_count - idx + 1,
+		    BSS_PARALLELOGRAM);
 
 		/*
 		 * Move the separator to the first open spot in node's
@@ -1537,7 +1570,7 @@ btree_remove_from_node(btree_t *tree, btree_core_t *node, btree_hdr_t *rm_hdr)
 
 		/* Move the right node's elements and children to node. */
 		bt_transfer_core(tree, right, 0, r_hdr->bth_count, node,
-		    hdr->bth_count - idx + 1, B_TRUE);
+		    hdr->bth_count - idx + 1, BSS_TRAPEZOID);
 
 		/* Reparent the right node's children to point to node. */
 		for (int i =  hdr->bth_count - idx; i < r_hdr->bth_count + 1;
@@ -1626,7 +1659,7 @@ btree_remove_from(btree_t *tree, btree_index_t *where)
 	 * the value and return.
 	 */
 	if (hdr->bth_count >= min_count || hdr->bth_parent == NULL) {
-		bt_shleft_at_leaf(tree, leaf, idx + 1, hdr->bth_count - idx);
+		bt_shift_leaf_left(tree, leaf, idx + 1, hdr->bth_count - idx);
 		if (hdr->bth_parent == NULL) {
 			ASSERT0(tree->bt_height);
 			if (hdr->bth_count == 0) {
@@ -1670,7 +1703,7 @@ btree_remove_from(btree_t *tree, btree_index_t *where)
 		 * Move our elements back by one spot to make room for the
 		 * stolen element and overwrite the element being removed.
 		 */
-		bt_shright_at_leaf(tree, leaf, 0, idx);
+		bt_shift_leaf_right(tree, leaf, 0, idx);
 		uint8_t *separator = parent->btc_elems + (parent_idx - 1) *
 		    size;
 		uint8_t *steal_elem = ((btree_leaf_t *)l_hdr)->btl_elems +
@@ -1703,7 +1736,7 @@ btree_remove_from(btree_t *tree, btree_index_t *where)
 		 * by one spot to make room for the stolen element and
 		 * overwrite the element being removed.
 		 */
-		bt_shleft_at_leaf(tree, leaf, idx + 1, hdr->bth_count - idx);
+		bt_shift_leaf_left(tree, leaf, idx + 1, hdr->bth_count - idx);
 
 		uint8_t *separator = parent->btc_elems + parent_idx * size;
 		uint8_t *steal_elem = ((btree_leaf_t *)r_hdr)->btl_elems;
@@ -1721,7 +1754,7 @@ btree_remove_from(btree_t *tree, btree_index_t *where)
 		 * Move our neighbors elements forwards to overwrite the
 		 * stolen element.
 		 */
-		bt_shleft_at_leaf(tree, neighbor, 1, r_hdr->bth_count);
+		bt_shift_leaf_left(tree, neighbor, 1, r_hdr->bth_count);
 #ifdef ZFS_DEBUG
 		btree_poison_node_at(tree, r_hdr, r_hdr->bth_count);
 #endif
@@ -1785,7 +1818,7 @@ btree_remove_from(btree_t *tree, btree_index_t *where)
 		 * Move our elements left to overwrite the element being
 		 * removed.
 		 */
-		bt_shleft_at_leaf(tree, leaf, idx + 1, hdr->bth_count - idx);
+		bt_shift_leaf_left(tree, leaf, idx + 1, hdr->bth_count - idx);
 
 		/* Move the separator to node's first open spot. */
 		uint8_t *out = leaf->btl_elems + hdr->bth_count * size;
