@@ -128,7 +128,7 @@ mkdirp(const char *d, mode_t mode)
  *		   caller, or NULL is returned on error.
  *
  *		   The caller should handle error reporting based upon the
- *		   returned vlaue, and should free the returned value,
+ *		   returned value, and should free the returned value,
  *		   when appropriate.
  */
 
