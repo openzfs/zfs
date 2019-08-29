@@ -54,7 +54,7 @@
 #	3. Export the test pool.
 #	4. Move one or more device files to other directory
 #	5. Verify 'zpool import -d' with the new directory
-#	   will handle moved files successfullly.
+#	   will handle moved files successfully.
 #	   Using the various combinations.
 #		- Regular import
 #		- Alternate Root Specified

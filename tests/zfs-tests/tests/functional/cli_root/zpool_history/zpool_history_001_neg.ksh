@@ -38,7 +38,7 @@
 #
 # STRATEGY:
 #	1. Create pool, volume & snap
-#	2. Verify 'zpool history' can cope with incorret arguments.
+#	2. Verify 'zpool history' can cope with incorrect arguments.
 #
 
 verify_runnable "global"
