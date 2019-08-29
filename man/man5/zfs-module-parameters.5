@@ -398,7 +398,7 @@ the least recently used metaslab to prevent the system from clogging all of
 its memory with range trees. This tunable sets the percentage of total system
 memory that is the threshold.
 .sp
-Default value: \fB75 percent\fR
+Default value: \fB25 percent\fR
 .RE
 
 .sp
@@ -467,6 +467,34 @@ greater bandwidth as is typically the case on a modern constant
 angular velocity disk drive.
 .sp
 Use \fB1\fR for yes (default) and \fB0\fR for no.
+.RE
+
+.sp
+.ne 2
+.na
+\fBmetaslab_unload_delay\fR (int)
+.ad
+.RS 12n
+After a metaslab is used, we keep it loaded for this many txgs, to attempt to
+reduce unnecessary reloading. Note that both this many txgs and
+\fBmetaslab_unload_delay_ms\fR milliseconds must pass before unloading will
+occur.
+.sp
+Default value: \fB32\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBmetaslab_unload_delay_ms\fR (int)
+.ad
+.RS 12n
+After a metaslab is used, we keep it loaded for this many milliseconds, to
+attempt to reduce unnecessary reloading. Note that both this many
+milliseconds and \fBmetaslab_unload_delay\fR txgs must pass before unloading
+will occur.
+.sp
+Default value: \fB600000\fR (ten minutes).
 .RE
 
 .sp
