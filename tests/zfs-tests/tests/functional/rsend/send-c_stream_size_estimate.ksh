@@ -89,4 +89,4 @@ for compress in $compress_types; do
 	    "$vol_csize and $vol_refer differed by too much"
 done
 
-log_pass "The the stream size given by -P accounts for compressed send."
+log_pass "The stream size given by -P accounts for compressed send."
