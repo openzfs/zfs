@@ -953,61 +953,26 @@ function set_partition
 #
 function delete_partitions
 {
-	typeset -i j=1
+	typeset disk
 
-	if [[ -z $DISK_ARRAY_NUM ]]; then
-		DISK_ARRAY_NUM=$(echo ${DISKS} | nawk '{print NF}')
-	fi
 	if [[ -z $DISKSARRAY ]]; then
 		DISKSARRAY=$DISKS
 	fi
 
 	if is_linux; then
-		if (( $DISK_ARRAY_NUM == 1 )); then
-			while ((j < MAX_PARTITIONS)); do
-				parted $DEV_DSKDIR/$DISK -s rm $j \
-				    > /dev/null 2>&1
-				if (( $? == 1 )); then
-					lsblk | egrep ${DISK}${SLICE_PREFIX}${j} > /dev/null
-						if (( $? == 1 )); then
-							log_note "Partitions for $DISK should be deleted"
-						else
-							log_fail "Partition for ${DISK}${SLICE_PREFIX}${j} not deleted"
-						fi
-						return 0
+		typeset -i part
+		for disk in $DISKSARRAY; do
+			for (( part = 1; part < MAX_PARTITIONS; part++ )); do
+				typeset partition=${disk}${SLICE_PREFIX}${part}
+				parted $DEV_DSKDIR/$disk -s rm $part > /dev/null 2>&1
+				if lsblk | grep -qF ${partition}; then
+					log_fail "Partition ${partition} not deleted"
 				else
-					lsblk | egrep ${DISK}${SLICE_PREFIX}${j} > /dev/null
-						if (( $? == 0 )); then
-							log_fail "Partition for ${DISK}${SLICE_PREFIX}${j} not deleted"
-						fi
+					log_note "Partition ${partition} deleted"
 				fi
-				((j = j+1))
 			done
-		else
-			for disk in `echo $DISKSARRAY`; do
-				while ((j < MAX_PARTITIONS)); do
-					parted $DEV_DSKDIR/$disk -s rm $j > /dev/null 2>&1
-					if (( $? == 1 )); then
-						lsblk | egrep ${disk}${SLICE_PREFIX}${j} > /dev/null
-						if (( $? == 1 )); then
-							log_note "Partitions for $disk should be deleted"
-						else
-							log_fail "Partition for ${disk}${SLICE_PREFIX}${j} not deleted"
-						fi
-						j=7
-					else
-						lsblk | egrep ${disk}${SLICE_PREFIX}${j} > /dev/null
-						if (( $? == 0 )); then
-							log_fail "Partition for ${disk}${SLICE_PREFIX}${j} not deleted"
-						fi
-					fi
-					((j = j+1))
-				done
-				j=1
-			done
-		fi
+		done
 	fi
-	return 0
 }
 
 #
