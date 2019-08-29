@@ -4191,7 +4191,7 @@ vdev_space_update(vdev_t *vd, int64_t alloc_delta, int64_t defer_delta,
 	 * Apply the inverse of the psize-to-asize (ie. RAID-Z) space-expansion
 	 * factor.  We must calculate this here and not at the root vdev
 	 * because the root vdev's psize-to-asize is simply the max of its
-	 * children', thus not accurate enough for us.
+	 * children's, thus not accurate enough for us.
 	 */
 	dspace_delta = vdev_deflated_space(vd, space_delta);
 

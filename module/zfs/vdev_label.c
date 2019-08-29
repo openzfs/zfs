@@ -706,7 +706,7 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 
 /*
  * Generate a view of the top-level vdevs.  If we currently have holes
- * in the namespace, then generate an array which contains a list of holes
+ * in the namespace, then generate an array which contains a list of holey
  * vdevs.  Additionally, add the number of top-level children that currently
  * exist.
  */

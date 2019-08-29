@@ -65,7 +65,7 @@
 
 /*
  * The SPA supports block sizes up to 16MB.  However, very large blocks
- * can have an impact on i/o latency (e.g. trying up a spinning disk for
+ * can have an impact on i/o latency (e.g. tying up a spinning disk for
  * ~300ms), and also potentially on the memory allocator.  Therefore,
  * we do not allow the recordsize to be set larger than zfs_max_recordsize
  * (default 1MB).  Larger blocks can be created by changing this tunable,

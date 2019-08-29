@@ -2120,7 +2120,7 @@ vdev_raidz_io_done(zio_t *zio)
 	 *	3. perform combinatorial reconstruction
 	 *
 	 * Each phase is progressively both more expensive and less likely to
-	 * occur. If we encounter more errors then we can repair or all phases
+	 * occur. If we encounter more errors than we can repair or all phases
 	 * fail, we have no choice but to return an error.
 	 */
 
