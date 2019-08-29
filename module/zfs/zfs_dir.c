@@ -55,7 +55,7 @@
 #include <sys/zfs_sa.h>
 
 /*
- * zfs_match_find() is used by zfs_dirent_lock() to peform zap lookups
+ * zfs_match_find() is used by zfs_dirent_lock() to perform zap lookups
  * of names after deciding which is the appropriate lookup interface.
  */
 static int
@@ -232,7 +232,7 @@ zfs_dirent_lock(zfs_dirlock_t **dlpp, znode_t *dzp, char *name, znode_t **zpp,
 	/*
 	 * Wait until there are no locks on this name.
 	 *
-	 * Don't grab the the lock if it is already held. However, cannot
+	 * Don't grab the lock if it is already held. However, cannot
 	 * have both ZSHARED and ZHAVELOCK together.
 	 */
 	ASSERT(!(flag & ZSHARED) || !(flag & ZHAVELOCK));

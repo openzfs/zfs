@@ -223,7 +223,7 @@ vdev_default_xlate(vdev_t *vd, const range_seg_t *in, range_seg_t *res)
 }
 
 /*
- * Derive the enumerated alloction bias from string input.
+ * Derive the enumerated allocation bias from string input.
  * String origin is either the per-vdev zap or zpool(1M).
  */
 static vdev_alloc_bias_t
@@ -1321,7 +1321,7 @@ vdev_metaslab_init(vdev_t *vd, uint64_t txg)
 
 #ifndef _KERNEL
 		/*
-		 * To accomodate zdb_leak_init() fake indirect
+		 * To accommodate zdb_leak_init() fake indirect
 		 * metaslabs, we allocate a metaslab group for
 		 * indirect vdevs which normally don't have one.
 		 */
@@ -4191,7 +4191,7 @@ vdev_space_update(vdev_t *vd, int64_t alloc_delta, int64_t defer_delta,
 	 * Apply the inverse of the psize-to-asize (ie. RAID-Z) space-expansion
 	 * factor.  We must calculate this here and not at the root vdev
 	 * because the root vdev's psize-to-asize is simply the max of its
-	 * childrens', thus not accurate enough for us.
+	 * children's, thus not accurate enough for us.
 	 */
 	dspace_delta = vdev_deflated_space(vd, space_delta);
 

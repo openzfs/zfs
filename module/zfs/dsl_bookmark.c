@@ -88,7 +88,7 @@ dsl_bookmark_lookup_impl(dsl_dataset_t *ds, const char *shortname,
 }
 
 /*
- * If later_ds is non-NULL, this will return EXDEV if the the specified bookmark
+ * If later_ds is non-NULL, this will return EXDEV if the specified bookmark
  * does not represents an earlier point in later_ds's timeline.  However,
  * bmp will still be filled in if we return EXDEV.
  *

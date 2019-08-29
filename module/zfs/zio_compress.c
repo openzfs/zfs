@@ -155,7 +155,7 @@ zio_decompress_data(enum zio_compress c, abd_t *src, void *dst,
 	abd_return_buf(src, tmp, s_len);
 
 	/*
-	 * Decompression shouldn't fail, because we've already verifyied
+	 * Decompression shouldn't fail, because we've already verified
 	 * the checksum.  However, for extra protection (e.g. against bitflips
 	 * in non-ECC RAM), we handle this error (and test it).
 	 */

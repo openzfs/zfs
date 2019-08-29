@@ -308,7 +308,7 @@ zio_checksum_template_init(enum zio_checksum checksum, spa_t *spa)
 	mutex_exit(&spa->spa_cksum_tmpls_lock);
 }
 
-/* convenience function to update a checksum to accomodate an encryption MAC */
+/* convenience function to update a checksum to accommodate an encryption MAC */
 static void
 zio_checksum_handle_crypt(zio_cksum_t *cksum, zio_cksum_t *saved, boolean_t xor)
 {

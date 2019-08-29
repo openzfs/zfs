@@ -180,7 +180,7 @@
 unsigned long zfs_log_sm_blksz = 1ULL << 17;
 
 /*
- * Percentage of the overall system’s memory that ZFS allows to be
+ * Percentage of the overall system's memory that ZFS allows to be
  * used for unflushed changes (e.g. the sum of size of all the nodes
  * in the unflushed trees).
  *
@@ -392,7 +392,7 @@ summary_entry_is_full(spa_t *spa, log_summary_entry_t *e)
  * Update the log summary information to reflect the fact that a metaslab
  * was flushed or destroyed (e.g due to device removal or pool export/destroy).
  *
- * We typically flush the oldest flushed metaslab so the first (and olderst)
+ * We typically flush the oldest flushed metaslab so the first (and oldest)
  * entry of the summary is updated. However if that metaslab is getting loaded
  * we may flush the second oldest one which may be part of an entry later in
  * the summary. Moreover, if we call into this function from metaslab_fini()
@@ -838,7 +838,7 @@ spa_flush_metaslabs(spa_t *spa, dmu_tx_t *tx)
 
 /*
  * Close the log space map for this TXG and update the block counts
- * for the the log's in-memory structure and the summary.
+ * for the log's in-memory structure and the summary.
  */
 void
 spa_sync_close_syncing_log_sm(spa_t *spa)
