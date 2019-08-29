@@ -135,6 +135,7 @@ dataset_kstats_create(dataset_kstats_t *dk, objset_t *objset)
 	kstat->ks_data = dk_kstats;
 	kstat->ks_update = dataset_kstats_update;
 	kstat->ks_private = dk;
+	kstat->ks_data_size += ZFS_MAX_DATASET_NAME_LEN;
 
 	kstat_install(kstat);
 	dk->dk_kstats = kstat;
