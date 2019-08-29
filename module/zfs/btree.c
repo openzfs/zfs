@@ -660,7 +660,7 @@ btree_insert_into_parent(btree_t *tree, btree_hdr_t *old_node,
 		kmem_free(tmp_buf, size);
 
 		/* Move the rest of the back half to the new leaf. */
-		bt_transfer_core(tree, parent, keep_count + 2,
+		bt_transfer_core(tree, parent, offset,
 		    BTREE_CORE_ELEMS - offset, new_parent, e_count + 1,
 		    BSS_PARALLELOGRAM);
 	} else {
