@@ -80,7 +80,7 @@ typedef struct zil_header {
  * Log blocks are chained together. Originally they were chained at the
  * end of the block. For performance reasons the chain was moved to the
  * beginning of the block which allows writes for only the data being used.
- * The older position is supported for backwards compatability.
+ * The older position is supported for backwards compatibility.
  *
  * The zio_eck_t contains a zec_cksum which for the intent log is
  * the sequence number of this log block. A seq of 0 is invalid.
@@ -421,7 +421,7 @@ typedef struct zil_stats {
 
 	/*
 	 * Number of transactions (reads, writes, renames, etc.)
-	 * that have been commited.
+	 * that have been committed.
 	 */
 	kstat_named_t zil_itx_count;
 

@@ -51,7 +51,7 @@ typedef uint16_t	sa_attr_type_t;
 typedef struct sa_attr_reg {
 	char 			*sa_name;	/* attribute name */
 	uint16_t 		sa_length;
-	sa_bswap_type_t		sa_byteswap;	/* bswap functon enum */
+	sa_bswap_type_t		sa_byteswap;	/* bswap function enum */
 	sa_attr_type_t 		sa_attr; /* filled in during registration */
 } sa_attr_reg_t;
 
