@@ -61,7 +61,7 @@ log_must zfs snapshot $TESTPOOL2/$TESTFS@snap
 
 log_must zfs clone $TESTPOOL2/$TESTFS@snap $TESTPOOL2/$TESTCLONE
 
-# Create inital files and pause condense zthr on next execution
+# Create initial files and pause condense zthr on next execution
 log_must mkfile 10m /$TESTPOOL2/$TESTCLONE/A
 log_must mkfile 1m /$TESTPOOL2/$TESTCLONE/B
 log_must zpool sync $TESTPOOL2

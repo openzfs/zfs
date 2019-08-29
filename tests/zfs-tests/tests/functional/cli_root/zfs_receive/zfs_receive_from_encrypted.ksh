@@ -31,9 +31,9 @@
 # 4. Snapshot the encrypted dataset
 # 5. Attempt to receive the snapshot into an unencrypted child
 # 6. Verify encryption is not enabled
-# 7. Verify the cheksum of the file is the same as the original
+# 7. Verify the checksum of the file is the same as the original
 # 8. Attempt to receive the snapshot into an encrypted child
-# 9. Verify the cheksum of the file is the same as the original
+# 9. Verify the checksum of the file is the same as the original
 #
 
 verify_runnable "both"
