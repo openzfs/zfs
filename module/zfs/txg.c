@@ -768,7 +768,7 @@ txg_wait_open(dsl_pool_t *dp, uint64_t txg, boolean_t should_quiesce)
 
 /*
  * If there isn't a txg syncing or in the pipeline, push another txg through
- * the pipeline by queiscing the open txg.
+ * the pipeline by quiescing the open txg.
  */
 void
 txg_kick(dsl_pool_t *dp)
