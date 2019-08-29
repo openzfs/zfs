@@ -79,7 +79,7 @@ EXPORT_SYMBOL(p0);
  * to generate words larger than 128 bits will paradoxically be limited to
  * `2^128 - 1` possibilities. This is because we have a sequence of `2^128 - 1`
  * 128-bit words and selecting the first will implicitly select the second. If
- * a caller finds this behavior undesireable, random_get_bytes() should be used
+ * a caller finds this behavior undesirable, random_get_bytes() should be used
  * instead.
  *
  * XXX: Linux interrupt handlers that trigger within the critical section
@@ -207,7 +207,7 @@ nlz64(uint64_t x)
 
 /*
  * Newer kernels have a div_u64() function but we define our own
- * to simplify portibility between kernel versions.
+ * to simplify portability between kernel versions.
  */
 static inline uint64_t
 __div_u64(uint64_t u, uint32_t v)

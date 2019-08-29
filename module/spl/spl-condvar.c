@@ -411,8 +411,8 @@ __cv_signal(kcondvar_t *cvp)
 
 	/*
 	 * All waiters are added with WQ_FLAG_EXCLUSIVE so only one
-	 * waiter will be set runable with each call to wake_up().
-	 * Additionally wake_up() holds a spin_lock assoicated with
+	 * waiter will be set runnable with each call to wake_up().
+	 * Additionally wake_up() holds a spin_lock associated with
 	 * the wait queue to ensure we don't race waking up processes.
 	 */
 	if (atomic_read(&cvp->cv_waiters) > 0)

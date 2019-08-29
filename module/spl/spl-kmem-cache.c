@@ -185,7 +185,7 @@ MODULE_PARM_DESC(spl_kmem_cache_kmem_threads,
 
 struct list_head spl_kmem_cache_list;   /* List of caches */
 struct rw_semaphore spl_kmem_cache_sem; /* Cache list lock */
-taskq_t *spl_kmem_cache_taskq;		/* Task queue for ageing / reclaim */
+taskq_t *spl_kmem_cache_taskq;		/* Task queue for aging / reclaim */
 
 static void spl_cache_shrink(spl_kmem_cache_t *skc, void *obj);
 
@@ -995,7 +995,7 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 #if defined(SLAB_USERCOPY)
 		/*
 		 * Required for PAX-enabled kernels if the slab is to be
-		 * used for coping between user and kernel space.
+		 * used for copying between user and kernel space.
 		 */
 		slabflags |= SLAB_USERCOPY;
 #endif
