@@ -41,7 +41,7 @@
 #	3. Fill the filesystem with directories and files.
 #	4. Record all the files and directories checksum information.
 #	5. Damaged one of the virtual disk file.
-#	6. Verify the data is correct to prove raidz can withstand 1 devicd is
+#	6. Verify the data is correct to prove raidz can withstand 1 device is
 #	   failing.
 #
 
