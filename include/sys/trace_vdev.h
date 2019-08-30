@@ -128,7 +128,7 @@ DEFINE_REMOVE_FREE_EVENT_TXG(zfs_remove__free__inflight);
 /*
  * When tracepoints are not available, a DEFINE_DTRACE_PROBE* macro is
  * needed for each DTRACE_PROBE.  These will be used to generate stub
- * tracing functions and protoypes for those functions.  See
+ * tracing functions and prototypes for those functions.  See
  * include/sys/trace.h.
  */
 

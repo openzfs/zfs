@@ -187,7 +187,7 @@ typedef enum arc_buf_contents {
 } arc_buf_contents_t;
 
 /*
- * The following breakdows of arc_size exist for kstat only.
+ * The following breakdowns of arc_size exist for kstat only.
  */
 typedef enum arc_space_type {
 	ARC_SPACE_DATA,
