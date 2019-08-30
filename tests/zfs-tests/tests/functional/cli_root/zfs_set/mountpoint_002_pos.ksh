@@ -34,7 +34,7 @@
 
 #
 # DESCRIPTION:
-#	If ZFS is currently managing the file system but it is currently unmoutned,
+#	If ZFS is currently managing the file system but it is currently unmounted,
 #	and the mountpoint property is changed, the file system remains unmounted.
 #
 # STRATEGY:

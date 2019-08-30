@@ -31,11 +31,11 @@
 # 4. Attempt to receive a raw send stream as a child of an unencrypted dataset
 # 5. Verify the key is unavailable
 # 6. Attempt to load the key and mount the dataset
-# 7. Verify the cheksum of the file is the same as the original
+# 7. Verify the checksum of the file is the same as the original
 # 8. Attempt to receive a raw send stream as a child of an encrypted dataset
 # 9. Verify the key is unavailable
 # 10. Attempt to load the key and mount the dataset
-# 11. Verify the cheksum of the file is the same as the original
+# 11. Verify the checksum of the file is the same as the original
 #
 
 verify_runnable "both"

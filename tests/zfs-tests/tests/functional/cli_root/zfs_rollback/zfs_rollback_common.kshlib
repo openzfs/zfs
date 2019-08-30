@@ -147,7 +147,7 @@ function setup_clone_env
 }
 
 #
-# Clean up the test environmnet
+# Clean up the test environment
 #
 # $1 number of snapshot Note: Currently only support three snapshots.
 #
