@@ -216,7 +216,7 @@ AC_DEFUN([AC_LIB_LINKFLAGS_BODY],
     fi
 ])
   dnl Search the library and its dependencies in $additional_libdir and
-  dnl $LDFLAGS. Using breadth-first-seach.
+  dnl $LDFLAGS. Using breadth-first-search.
   LIB[]NAME=
   LTLIB[]NAME=
   INC[]NAME=

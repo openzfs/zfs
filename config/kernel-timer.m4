@@ -6,7 +6,7 @@ dnl # (older kernels).  Also sanity check the from_timer() and timer_setup()
 dnl # macros are available as well, since they will be used in the same newer
 dnl # kernels that support the new timer_list.func signature.
 dnl #
-dnl # Also check for the existance of flags in struct timer_list, they were
+dnl # Also check for the existence of flags in struct timer_list, they were
 dnl # added in 4.1-rc8 via 0eeda71bc30d.
 
 AC_DEFUN([ZFS_AC_KERNEL_TIMER_SETUP], [
