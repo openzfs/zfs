@@ -74,7 +74,7 @@ get_dataset_depth(const char *path)
 
 	/*
 	 * Keep track of nesting until you hit the end of the
-	 * path or found the snapshot/bookmark seperator.
+	 * path or found the snapshot/bookmark separator.
 	 */
 	for (int i = 0; loc[i] != '\0' &&
 	    loc[i] != '@' &&
