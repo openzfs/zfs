@@ -39,7 +39,7 @@ extern "C" {
  * Note that buffers can be in one of 6 states:
  *	ARC_anon	- anonymous (discussed below)
  *	ARC_mru		- recently used, currently cached
- *	ARC_mru_ghost	- recentely used, no longer in cache
+ *	ARC_mru_ghost	- recently used, no longer in cache
  *	ARC_mfu		- frequently used, currently cached
  *	ARC_mfu_ghost	- frequently used, no longer in cache
  *	ARC_l2c_only	- exists in L2ARC but not other states

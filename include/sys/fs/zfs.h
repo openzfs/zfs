@@ -954,7 +954,7 @@ typedef struct pool_scan_stat {
 	/* values not stored on disk */
 	uint64_t	pss_pass_exam; /* examined bytes per scan pass */
 	uint64_t	pss_pass_start;	/* start time of a scan pass */
-	uint64_t	pss_pass_scrub_pause; /* pause time of a scurb pass */
+	uint64_t	pss_pass_scrub_pause; /* pause time of a scrub pass */
 	/* cumulative time scrub spent paused, needed for rate calculation */
 	uint64_t	pss_pass_scrub_spent_paused;
 	uint64_t	pss_pass_issued; /* issued bytes per scan pass */
@@ -1028,7 +1028,7 @@ typedef struct vdev_stat {
 	uint64_t	vs_fragmentation;	/* device fragmentation */
 	uint64_t	vs_initialize_bytes_done; /* bytes initialized */
 	uint64_t	vs_initialize_bytes_est; /* total bytes to initialize */
-	uint64_t	vs_initialize_state;	/* vdev_initialzing_state_t */
+	uint64_t	vs_initialize_state;	/* vdev_initializing_state_t */
 	uint64_t	vs_initialize_action_time; /* time_t */
 	uint64_t	vs_checkpoint_space;    /* checkpoint-consumed space */
 	uint64_t	vs_resilver_deferred;	/* resilver deferred	*/

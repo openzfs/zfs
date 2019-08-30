@@ -62,7 +62,7 @@ struct znode_phys;
 /*
  * All ACEs have a common hdr.  For
  * owner@, group@, and everyone@ this is all
- * thats needed.
+ * that's needed.
  */
 typedef struct zfs_ace_hdr {
 	uint16_t z_type;

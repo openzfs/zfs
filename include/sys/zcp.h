@@ -149,7 +149,7 @@ typedef struct zcp_arg {
 	/*
 	 * The name of this argument. For keyword arguments this is the name
 	 * functions will use to set the argument. For positional arguments
-	 * the name has no programatic meaning, but will appear in error
+	 * the name has no programmatic meaning, but will appear in error
 	 * messages and help output.
 	 */
 	const char *za_name;
