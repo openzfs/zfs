@@ -156,7 +156,7 @@ zpool_name_to_prop(const char *propname)
 
 /*
  * Given a pool property ID, returns the corresponding name.
- * Assuming the pool propety ID is valid.
+ * Assuming the pool property ID is valid.
  */
 const char *
 zpool_prop_to_name(zpool_prop_t prop)
