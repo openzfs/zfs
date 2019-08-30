@@ -330,7 +330,7 @@ btree_find(btree_t *tree, const void *value, btree_index_t *where)
  *       * / *   *   * \ *   *   *   ...   *   *   *
  *     *  / *  *   *   *\  *   *   *   ...   *   *   *
  *        ---------------
- * 
+ *
  * Note that a parellelogram shift is always shaped like a "left-leaning"
  * parallelogram, where the starting index of the children being moved is
  * always one higher than the starting index of the elements being moved. No
