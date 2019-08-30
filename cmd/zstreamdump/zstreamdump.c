@@ -197,7 +197,7 @@ print_block(char *buf, int length)
 }
 
 /*
- * Print an array of bytes to stdout as hexidecimal characters. str must
+ * Print an array of bytes to stdout as hexadecimal characters. str must
  * have buf_len * 2 + 1 bytes of space.
  */
 static void

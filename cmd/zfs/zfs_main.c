@@ -7918,7 +7918,7 @@ zfs_do_change_key(int argc, char **argv)
  * 4) zfs project [-p id] [-r] [-s] <file|directory ...>
  *    Set project ID and/or inherit flag on the file(s) or directories.
  *    -p: Set the project ID as the given id.
- *    -r: Set on subdirectorie recursively. If not specify "-p" option,
+ *    -r: Set on subdirectories recursively. If not specify "-p" option,
  *	  it will use top-level directory's project ID as the given id,
  *	  then set both project ID and inherit flag on all descendants
  *	  of the top-level directory.

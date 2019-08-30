@@ -74,7 +74,7 @@
  *
  * To turn this into an overnight stress test, use -T to specify run time.
  *
- * You can ask more more vdevs [-v], datasets [-d], or threads [-t]
+ * You can ask more vdevs [-v], datasets [-d], or threads [-t]
  * to increase the pool capacity, fanout, and overall stress level.
  *
  * Use the -k option to set the desired frequency of kills.

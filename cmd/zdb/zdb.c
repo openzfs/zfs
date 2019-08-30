@@ -4779,7 +4779,7 @@ zdb_set_skip_mmp(char *target)
  * the name of the target pool.
  *
  * Note that the checkpointed state's pool name will be the name of
- * the original pool with the above suffix appened to it. In addition,
+ * the original pool with the above suffix appended to it. In addition,
  * if the target is not a pool name (e.g. a path to a dataset) then
  * the new_path parameter is populated with the updated path to
  * reflect the fact that we are looking into the checkpointed state.
