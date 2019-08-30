@@ -140,7 +140,7 @@ while (( i < ${#mntp_fs[*]} )); do
 	((i = i + 2))
 done
 
-log_note "Verify 'zfs unshare -a' succeds as root."
+log_note "Verify 'zfs unshare -a' succeeds as root."
 
 i=0
 typeset sharenfs_val
