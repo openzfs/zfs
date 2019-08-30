@@ -737,7 +737,7 @@ of a dataset is not transferred to other pools when the snapshot is copied
 with a send/receive operation.
 The
 .Sy objsetid
-can be reused (for a new datatset) after the dataset is deleted.
+can be reused (for a new dataset) after the dataset is deleted.
 .It Sy origin
 For cloned file systems or volumes, the snapshot from which the clone was
 created.
@@ -1396,7 +1396,7 @@ has the same effect as the setting
 .Pp
 If set to
 .Sy verify ,
-ZFS will do a byte-to-byte comparsion in case of two blocks having the same
+ZFS will do a byte-to-byte comparison in case of two blocks having the same
 signature to make sure the block contents are identical. Specifying
 .Sy verify
 is mandatory for the
@@ -2145,7 +2145,7 @@ Setting it to
 hides its partitions.
 Volumes with property set to
 .Sy none
-are not exposed outside ZFS, but can be snapshoted, cloned, replicated, etc,
+are not exposed outside ZFS, but can be snapshotted, cloned, replicated, etc,
 that can be suitable for backup purposes.
 Value
 .Sy default
@@ -3416,7 +3416,7 @@ for types.
 List project identifier (ID) and inherit flag of file(s) or directories.
 .Bl -tag -width "-d"
 .It Fl d
-Show the directory project ID and inherit flag, not its childrens. It will
+Show the directory project ID and inherit flag, not its children. It will
 overwrite the former specified
 .Fl r
 option.
@@ -3459,7 +3459,7 @@ option) value or the target directory's project ID.
 Print file name with a trailing NUL instead of newline (by default), like
 "find -print0".
 .It Fl d
-Check the directory project ID and inherit flag, not its childrens. It will
+Check the directory project ID and inherit flag, not its children. It will
 overwrite the former specified
 .Fl r
 option.
@@ -4022,7 +4022,7 @@ This will either produce a normal snapshot or a redacted one, depending on
 whether the new send stream is redacted.
 .sp
 4. To receive an incremental send from a redacted version of the initial
-snapshot that is redacted with respect to a subect of the set of snapshots the
+snapshot that is redacted with respect to a subject of the set of snapshots the
 initial snapshot was created with respect to.
 A send stream from a compatible redacted dataset will contain all of the blocks
 necessary to fill in any redacted data.
@@ -4037,7 +4037,7 @@ on whether the full send stream was redacted.
 .sp
 These restrictions are detected and enforced by \fBzfs receive\fR; a
 redacted send stream will contain the list of snapshots that the stream is
-redacted with respsect to.
+redacted with respect to.
 These are stored with the redacted snapshot, and are used to detect and
 correctly handle the cases above.  Note that for technical reasons, raw sends
 and redacted sends cannot be combined at this time.

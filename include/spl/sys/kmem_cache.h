@@ -30,7 +30,7 @@
 /*
  * Slab allocation interfaces.  The SPL slab differs from the standard
  * Linux SLAB or SLUB primarily in that each cache may be backed by slabs
- * allocated from the physical or virtal memory address space.  The virtual
+ * allocated from the physical or virtual memory address space.  The virtual
  * slabs allow for good behavior when allocation large objects of identical
  * size.  This slab implementation also supports both constructors and
  * destructors which the Linux slab does not.

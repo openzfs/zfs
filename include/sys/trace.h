@@ -43,7 +43,7 @@
  * the DEFINE_DTRACE_PROBE macros.
  *
  * When adding new DTRACE_PROBEs to zfs source, both a tracepoint event
- * class defintition and a DEFINE_DTRACE_PROBE definition are needed to
+ * class definition and a DEFINE_DTRACE_PROBE definition are needed to
  * avoid undefined function errors.
  */
 
