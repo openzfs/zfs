@@ -113,7 +113,7 @@ def packed_nvlist_out(packed_nvlist, packed_size):
 
     :param bytes packed_nvlist: packed nvlist_t.
     :param int packed_size: nvlist_t packed size.
-    :return: an `dict` of values representing the data containted by nvlist_t.
+    :return: an `dict` of values representing the data contained by nvlist_t.
     :rtype: dict
     """
     props = {}

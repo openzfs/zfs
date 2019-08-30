@@ -300,7 +300,7 @@ def lzc_destroy_snaps(snaps, defer):
 
         Typical error is :exc:`SnapshotIsCloned` if `defer` is `False`.
         The snapshot names are validated quite loosely and invalid names are
-        typically ignored as nonexisiting snapshots.
+        typically ignored as nonexisting snapshots.
 
         A snapshot name referring to a filesystem that doesn't exist is
         ignored.
@@ -470,7 +470,7 @@ def lzc_hold(holds, fd=None):
     Holds for snapshots which don't exist will be skipped and have an entry
     added to the return value, but will not cause an overall failure.
     No exceptions is raised if all holds, for snapshots that existed, were
-    succesfully created.
+    successfully created.
     Otherwise :exc:`.HoldFailure` exception is raised and no holds will be
     created.
     :attr:`.HoldFailure.errors` may contain a single element for an error that
@@ -654,7 +654,7 @@ def lzc_send_space(snapname, fromsnap=None, flags=None):
         should be done.
     :param fromsnap: the optional starting snapshot name.
         If not `None` then an incremental stream size is estimated, otherwise
-        a full stream is esimated.
+        a full stream is estimated.
     :type fromsnap: `bytes` or `None`
     :param flags: the flags that control what enhanced features can be used
         in the stream.
@@ -1178,11 +1178,11 @@ def receive_header(fd):
         the type of the dataset for which the stream has been created
         (volume, filesystem)
     '''
-    # read sizeof(dmu_replay_record_t) bytes directly into the memort backing
+    # read sizeof(dmu_replay_record_t) bytes directly into the memory backing
     # 'record'
     record = _ffi.new("dmu_replay_record_t *")
     _ffi.buffer(record)[:] = os.read(fd, _ffi.sizeof(record[0]))
-    # get drr_begin member and its representation as a Pythn dict
+    # get drr_begin member and its representation as a Python dict
     drr_begin = record.drr_u.drr_begin
     header = {}
     for field, descr in _ffi.typeof(drr_begin).fields:
@@ -1704,7 +1704,7 @@ def lzc_set_props(name, prop, val):
 # As the extended API is not committed yet, the names of the new interfaces
 # are not settled down yet.
 # It's not clear if atomically setting multiple properties is an achievable
-# goal and an interface acting on mutiple entities must do so atomically
+# goal and an interface acting on multiple entities must do so atomically
 # by convention.
 # Being able to set a single property at a time is sufficient for ClusterHQ.
 lzc_set_prop = lzc_set_props
@@ -1741,7 +1741,7 @@ def lzc_list(name, options):
         Absence of this option implies all types.
 
     The first of the returned file descriptors can be used to
-    read the listing in a binary encounded format.  The data is
+    read the listing in a binary encoded format.  The data is
     a series of variable sized records each starting with a fixed
     size header, the header is followed by a serialized ``nvlist``.
     Each record describes a single element and contains the element's

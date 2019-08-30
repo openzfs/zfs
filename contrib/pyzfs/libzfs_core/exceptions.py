@@ -77,7 +77,7 @@ class MultipleOperationsFailure(ZFSError):
             ZFSError.__str__(self), len(self.errors), self.suppressed_count)
 
     def __repr__(self):
-        return "%s(%r, %r, errors=%r, supressed=%r)" % (
+        return "%s(%r, %r, errors=%r, suppressed=%r)" % (
             self.__class__.__name__, self.errno, self.message, self.errors,
             self.suppressed_count)
 
@@ -372,7 +372,7 @@ class NoSpace(ZFSError):
 
 class QuotaExceeded(ZFSError):
     errno = errno.EDQUOT
-    message = "Quouta exceeded"
+    message = "Quota exceeded"
 
     def __init__(self, name):
         self.name = name

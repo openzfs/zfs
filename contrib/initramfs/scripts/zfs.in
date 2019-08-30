@@ -78,7 +78,7 @@ find_rootfs()
 {
 	local pool="$1"
 
-	# If 'POOL_IMPORTED' isn't set, no pool imported and therefor
+	# If 'POOL_IMPORTED' isn't set, no pool imported and therefore
 	# we won't be able to find a root fs.
 	[ -z "${POOL_IMPORTED}" ] && return 1
 
@@ -135,7 +135,7 @@ get_pools()
 	# Get the base list of available pools.
 	available_pools=$(find_pools "$ZPOOL" import)
 
-	# Just in case - seen it happen (that a pool isn't visable/found
+	# Just in case - seen it happen (that a pool isn't visible/found
 	# with a simple "zpool import" but only when using the "-d"
 	# option or setting ZPOOL_IMPORT_PATH).
 	if [ -d "/dev/disk/by-id" ]
@@ -401,7 +401,7 @@ mount_fs()
 	return 0
 }
 
-# Unlock a ZFS native crypted filesystem.
+# Unlock a ZFS native encrypted filesystem.
 decrypt_fs()
 {
 	local fs="$1"
@@ -606,7 +606,7 @@ setup_snapshot_booting()
 	if ! grep -qiE '(^|[^\\](\\\\)* )(rollback)=(on|yes|1)( |$)' /proc/cmdline
 	then
 		# If the destination dataset for the clone
-		# already exists, destroy it. Recursivly
+		# already exists, destroy it. Recursively
 		if [ $(get_fs_value "${rootfs}_${snapname}" type) ]; then
 			filesystems=$("${ZFS}" list -oname -tfilesystem -H \
 			    -r -Sname "${ZFS_BOOTFS}")
@@ -616,7 +616,7 @@ setup_snapshot_booting()
 		fi
 	fi
 
-	# Get all snapshots, recursivly (might need to clone /usr, /var etc
+	# Get all snapshots, recursively (might need to clone /usr, /var etc
 	# as well).
 	for s in $("${ZFS}" list -H -oname -tsnapshot -r "${rootfs}" | \
 	    grep "${snapname}")
@@ -843,7 +843,7 @@ mountroot()
 		# Strip 'zfs:' and 'ZFS='.
 		ZFS_BOOTFS="${ROOT#*[:=]}"
 
-		# Stip everything after the first slash.
+		# Strip everything after the first slash.
 		ZFS_RPOOL="${ZFS_BOOTFS%%/*}"
 	fi
 
