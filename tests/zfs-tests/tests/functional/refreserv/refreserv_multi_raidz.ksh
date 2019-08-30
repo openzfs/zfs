@@ -125,7 +125,7 @@ done
 log_note "sizes=$(print -C sizes)"
 
 #
-# Helper furnction for checking that refreservation is calculated properly in
+# Helper function for checking that refreservation is calculated properly in
 # multi-vdev pools.  "Properly" is defined as assuming that all vdevs are as
 # space inefficient as the worst one.
 #

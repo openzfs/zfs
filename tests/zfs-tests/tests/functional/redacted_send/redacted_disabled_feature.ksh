@@ -26,7 +26,7 @@
 # 1. Create a pool with all features disabled.
 # 2. Verify redacted send fails.
 # 3. Enable redaction_bookmarks and verify redacted sends works.
-# 4. Verify recepit of a redacted stream fails.
+# 4. Verify receipt of a redacted stream fails.
 # 5. Enable recacted_datasets and verify zfs receive works.
 #
 

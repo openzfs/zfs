@@ -65,7 +65,7 @@ log_must mount_redacted -f $recvfs
 #
 # We have temporarily disabled redaction blkptrs, so this will not
 # fail as was originally intended.  We should uncomment this line
-# when we reenable redaction blkptrs.
+# when we re-enable redaction blkptrs.
 #
 #log_mustnot dd if=$recv_mnt/f1 of=/dev/null bs=512 count=1
 log_must diff $send_mnt/f2 $recv_mnt/f2

@@ -28,7 +28,7 @@
 # 4. A file moved in the clone does not redact the file.
 # 5. A copied, then removed file in the clone redacts the whole file.
 # 6. Overwriting a file with identical contents redacts the file.
-# 7. A paritally modified block redacts the entire block.
+# 7. A partially modified block redacts the entire block.
 # 8. Only overlapping areas of modified ranges are redacted.
 # 9. Send from the root dataset of a pool work correctly.
 #
