@@ -4076,7 +4076,7 @@ sio_addr_compare(const void *x, const void *y)
 {
 	const scan_io_t *a = x, *b = y;
 
-	return (AVL_CMP(SIO_GET_OFFSET(a), SIO_GET_OFFSET(b)));
+	return (TREE_CMP(SIO_GET_OFFSET(a), SIO_GET_OFFSET(b)));
 }
 
 /* IO queues are created on demand when they are needed. */

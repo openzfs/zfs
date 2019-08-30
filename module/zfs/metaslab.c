@@ -689,13 +689,13 @@ metaslab_compare(const void *x1, const void *x2)
 	if (sort1 > sort2)
 		return (1);
 
-	int cmp = AVL_CMP(m2->ms_weight, m1->ms_weight);
+	int cmp = TREE_CMP(m2->ms_weight, m1->ms_weight);
 	if (likely(cmp))
 		return (cmp);
 
-	IMPLY(AVL_CMP(m1->ms_start, m2->ms_start) == 0, m1 == m2);
+	IMPLY(TREE_CMP(m1->ms_start, m2->ms_start) == 0, m1 == m2);
 
-	return (AVL_CMP(m1->ms_start, m2->ms_start));
+	return (TREE_CMP(m1->ms_start, m2->ms_start));
 }
 
 /*
@@ -792,17 +792,17 @@ metaslab_sort_by_flushed(const void *va, const void *vb)
 	const metaslab_t *a = va;
 	const metaslab_t *b = vb;
 
-	int cmp = AVL_CMP(a->ms_unflushed_txg, b->ms_unflushed_txg);
+	int cmp = TREE_CMP(a->ms_unflushed_txg, b->ms_unflushed_txg);
 	if (likely(cmp))
 		return (cmp);
 
 	uint64_t a_vdev_id = a->ms_group->mg_vd->vdev_id;
 	uint64_t b_vdev_id = b->ms_group->mg_vd->vdev_id;
-	cmp = AVL_CMP(a_vdev_id, b_vdev_id);
+	cmp = TREE_CMP(a_vdev_id, b_vdev_id);
 	if (cmp)
 		return (cmp);
 
-	return (AVL_CMP(a->ms_id, b->ms_id));
+	return (TREE_CMP(a->ms_id, b->ms_id));
 }
 
 metaslab_group_t *
@@ -1305,11 +1305,11 @@ metaslab_rangesize32_compare(const void *x1, const void *x2)
 	uint64_t rs_size1 = r1->rs_end - r1->rs_start;
 	uint64_t rs_size2 = r2->rs_end - r2->rs_start;
 
-	int cmp = AVL_CMP(rs_size1, rs_size2);
+	int cmp = TREE_CMP(rs_size1, rs_size2);
 	if (likely(cmp))
 		return (cmp);
 
-	return (AVL_CMP(r1->rs_start, r2->rs_start));
+	return (TREE_CMP(r1->rs_start, r2->rs_start));
 }
 
 /*
@@ -1325,11 +1325,11 @@ metaslab_rangesize64_compare(const void *x1, const void *x2)
 	uint64_t rs_size1 = r1->rs_end - r1->rs_start;
 	uint64_t rs_size2 = r2->rs_end - r2->rs_start;
 
-	int cmp = AVL_CMP(rs_size1, rs_size2);
+	int cmp = TREE_CMP(rs_size1, rs_size2);
 	if (likely(cmp))
 		return (cmp);
 
-	return (AVL_CMP(r1->rs_start, r2->rs_start));
+	return (TREE_CMP(r1->rs_start, r2->rs_start));
 }
 typedef struct metaslab_rt_arg {
 	btree_t *mra_bt;

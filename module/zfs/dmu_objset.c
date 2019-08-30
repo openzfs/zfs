@@ -1788,7 +1788,7 @@ userquota_compare(const void *l, const void *r)
 	 */
 	rv = strcmp(luqn->uqn_id, ruqn->uqn_id);
 
-	return (AVL_ISIGN(rv));
+	return (TREE_ISIGN(rv));
 }
 
 static void

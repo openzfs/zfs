@@ -57,11 +57,11 @@ space_reftree_compare(const void *x1, const void *x2)
 	const space_ref_t *sr1 = (const space_ref_t *)x1;
 	const space_ref_t *sr2 = (const space_ref_t *)x2;
 
-	int cmp = AVL_CMP(sr1->sr_offset, sr2->sr_offset);
+	int cmp = TREE_CMP(sr1->sr_offset, sr2->sr_offset);
 	if (likely(cmp))
 		return (cmp);
 
-	return (AVL_PCMP(sr1, sr2));
+	return (TREE_PCMP(sr1, sr2));
 }
 
 void

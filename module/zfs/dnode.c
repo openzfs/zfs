@@ -89,11 +89,11 @@ dbuf_compare(const void *x1, const void *x2)
 	const dmu_buf_impl_t *d1 = x1;
 	const dmu_buf_impl_t *d2 = x2;
 
-	int cmp = AVL_CMP(d1->db_level, d2->db_level);
+	int cmp = TREE_CMP(d1->db_level, d2->db_level);
 	if (likely(cmp))
 		return (cmp);
 
-	cmp = AVL_CMP(d1->db_blkid, d2->db_blkid);
+	cmp = TREE_CMP(d1->db_blkid, d2->db_blkid);
 	if (likely(cmp))
 		return (cmp);
 
@@ -105,7 +105,7 @@ dbuf_compare(const void *x1, const void *x2)
 		return (1);
 	}
 
-	return (AVL_PCMP(d1, d2));
+	return (TREE_PCMP(d1, d2));
 }
 
 /* ARGSUSED */

@@ -783,7 +783,7 @@ ddt_entry_compare(const void *x1, const void *x2)
 			break;
 	}
 
-	return (AVL_ISIGN(cmp));
+	return (TREE_ISIGN(cmp));
 }
 
 static ddt_t *

@@ -620,7 +620,7 @@ spa_log_sm_sort_by_txg(const void *va, const void *vb)
 	const spa_log_sm_t *a = va;
 	const spa_log_sm_t *b = vb;
 
-	return (AVL_CMP(a->sls_txg, b->sls_txg));
+	return (TREE_CMP(a->sls_txg, b->sls_txg));
 }
 
 /*
@@ -940,7 +940,7 @@ spa_aux_compare(const void *a, const void *b)
 	const spa_aux_t *sa = (const spa_aux_t *)a;
 	const spa_aux_t *sb = (const spa_aux_t *)b;
 
-	return (AVL_CMP(sa->aux_guid, sb->aux_guid));
+	return (TREE_CMP(sa->aux_guid, sb->aux_guid));
 }
 
 void
@@ -2271,7 +2271,7 @@ spa_name_compare(const void *a1, const void *a2)
 
 	s = strcmp(s1->spa_name, s2->spa_name);
 
-	return (AVL_ISIGN(s));
+	return (TREE_ISIGN(s));
 }
 
 void

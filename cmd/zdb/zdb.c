@@ -3142,7 +3142,7 @@ cksum_record_compare(const void *x1, const void *x2)
 	int difference;
 
 	for (int i = 0; i < arraysize; i++) {
-		difference = AVL_CMP(l->cksum.zc_word[i], r->cksum.zc_word[i]);
+		difference = TREE_CMP(l->cksum.zc_word[i], r->cksum.zc_word[i]);
 		if (difference)
 			break;
 	}

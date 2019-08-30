@@ -1329,11 +1329,11 @@ send_range_after(const struct send_range *from, const struct send_range *to)
 		return (-1);
 	if (from_obj >= to_end_obj)
 		return (1);
-	int64_t cmp = AVL_CMP(to->type == OBJECT_RANGE, from->type ==
+	int64_t cmp = TREE_CMP(to->type == OBJECT_RANGE, from->type ==
 	    OBJECT_RANGE);
 	if (unlikely(cmp))
 		return (cmp);
-	cmp = AVL_CMP(to->type == OBJECT, from->type == OBJECT);
+	cmp = TREE_CMP(to->type == OBJECT, from->type == OBJECT);
 	if (unlikely(cmp))
 		return (cmp);
 	if (from->end_blkid <= to->start_blkid)
@@ -1402,7 +1402,7 @@ send_range_start_compare(struct send_range *r1, struct send_range *r2)
 	uint64_t r1_l0equiv = r1->start_blkid;
 	uint64_t r2_objequiv = r2->object;
 	uint64_t r2_l0equiv = r2->start_blkid;
-	int64_t cmp = AVL_CMP(r1->eos_marker, r2->eos_marker);
+	int64_t cmp = TREE_CMP(r1->eos_marker, r2->eos_marker);
 	if (unlikely(cmp))
 		return (cmp);
 	if (r1->object == 0) {
@@ -1414,17 +1414,17 @@ send_range_start_compare(struct send_range *r1, struct send_range *r2)
 		r2_l0equiv = 0;
 	}
 
-	cmp = AVL_CMP(r1_objequiv, r2_objequiv);
+	cmp = TREE_CMP(r1_objequiv, r2_objequiv);
 	if (likely(cmp))
 		return (cmp);
-	cmp = AVL_CMP(r2->type == OBJECT_RANGE, r1->type == OBJECT_RANGE);
+	cmp = TREE_CMP(r2->type == OBJECT_RANGE, r1->type == OBJECT_RANGE);
 	if (unlikely(cmp))
 		return (cmp);
-	cmp = AVL_CMP(r2->type == OBJECT, r1->type == OBJECT);
+	cmp = TREE_CMP(r2->type == OBJECT, r1->type == OBJECT);
 	if (unlikely(cmp))
 		return (cmp);
 
-	return (AVL_CMP(r1_l0equiv, r2_l0equiv));
+	return (TREE_CMP(r1_l0equiv, r2_l0equiv));
 }
 
 enum q_idx {

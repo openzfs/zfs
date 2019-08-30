@@ -1197,12 +1197,12 @@ retry:
 static int
 vdev_uberblock_compare(const uberblock_t *ub1, const uberblock_t *ub2)
 {
-	int cmp = AVL_CMP(ub1->ub_txg, ub2->ub_txg);
+	int cmp = TREE_CMP(ub1->ub_txg, ub2->ub_txg);
 
 	if (likely(cmp))
 		return (cmp);
 
-	cmp = AVL_CMP(ub1->ub_timestamp, ub2->ub_timestamp);
+	cmp = TREE_CMP(ub1->ub_timestamp, ub2->ub_timestamp);
 	if (likely(cmp))
 		return (cmp);
 
@@ -1226,7 +1226,7 @@ vdev_uberblock_compare(const uberblock_t *ub1, const uberblock_t *ub2)
 	if (MMP_VALID(ub2) && MMP_SEQ_VALID(ub2))
 		seq2 = MMP_SEQ(ub2);
 
-	return (AVL_CMP(seq1, seq2));
+	return (TREE_CMP(seq1, seq2));
 }
 
 struct ubl_cbdata {
