@@ -2832,12 +2832,19 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 	/*
 	 * Normally, we don't want to process a metaslab if there are no
 	 * allocations or frees to perform. However, if the metaslab is being
-	 * forced to condense and it's loaded, we need to let it through.
+	 * forced to condense, it's loaded and we're not beyond the final
+	 * dirty txg, we need to let it through. Not condensing beyond the
+	 * final dirty txg prevents an issue where metaslabs that need to be
+	 * condensed but were loaded for other reasons could cause a panic
+	 * here. By only checking the txg in that branch of the conditional,
+	 * we preserve the utility of the VERIFY statements in all other
+	 * cases.
 	 */
 	if (range_tree_is_empty(alloctree) &&
 	    range_tree_is_empty(msp->ms_freeing) &&
 	    range_tree_is_empty(msp->ms_checkpointing) &&
-	    !(msp->ms_loaded && msp->ms_condense_wanted))
+	    !(msp->ms_loaded && msp->ms_condense_wanted &&
+	    txg <= spa_final_dirty_txg(spa)))
 		return;
 
 
