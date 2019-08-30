@@ -37,7 +37,7 @@
 # return an error.
 #
 # STRATEGY:
-# 1. Create an array containg each zpool sub-command name.
+# 1. Create an array containing each zpool sub-command name.
 # 2. For each element, execute the sub-command.
 # 3. Verify it returns an error.
 #

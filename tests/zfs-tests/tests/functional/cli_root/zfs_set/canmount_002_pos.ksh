@@ -40,7 +40,7 @@
 #
 # STRATEGY:
 # 1. Setup a pool and create fs, volume, snapshot clone within it.
-# 2. Set canmount=noauto for each dataset and check the retuen value
+# 2. Set canmount=noauto for each dataset and check the return value
 #    and check if it still can be mounted by mount -a.
 # 3. mount each dataset(except volume) to see if it can be mounted.
 #

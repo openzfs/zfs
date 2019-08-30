@@ -82,7 +82,7 @@ while (( i < ${#args[*]} )); do
 	((i = i + 1))
 done
 
-# Testing the invalid senario: the child volume already has an
+# Testing the invalid scenario: the child volume already has an
 # identical name snapshot, zfs snapshot -r should fail when
 # creating snapshot with -r for the parent
 log_must zfs destroy $TESTPOOL/$TESTCTR/$TESTFS1@$TESTSNAP
