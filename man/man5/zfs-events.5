@@ -557,7 +557,7 @@ How many write errors that have been detected on the vdev.
 \fBvdev_cksum_errors\fR
 .ad
 .RS 12n
-How many checkum errors that have been detected on the vdev.
+How many checksum errors that have been detected on the vdev.
 .RE
 
 .sp
@@ -858,7 +858,7 @@ such as IDE or parallel SCSI.
 .RS 12n
 If this field exists, it is an array of counters. Each entry counts bit clears
 in a particular bit of a big-endian uint64 type. The first entry counts bits
-clears of the the high-order bit of the first byte, the 9th byte, etc, and the
+clears of the high-order bit of the first byte, the 9th byte, etc, and the
 last entry counts clears of the low-order bit of the 8th byte, the 16th byte,
 etc. This information is useful for observing a stuck bit in a parallel data
 path, such as IDE or parallel SCSI.
