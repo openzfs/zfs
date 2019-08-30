@@ -159,7 +159,7 @@ avl_walk(avl_tree_t *tree, void	*oldnode, int left)
 		    node = node->avl_child[right])
 			;
 	/*
-	 * Otherwise, return thru left children as far as we can.
+	 * Otherwise, return through left children as far as we can.
 	 */
 	} else {
 		for (;;) {

@@ -48,7 +48,7 @@
  *	  The number returned need _not_ be between 0 and nchains.  The mod_hash
  *	  code will take care of doing that.  The second argument (after the
  *	  key) to the hashing function is a void * that represents
- *	  hash_alg_data-- this is provided so that the hashing algrorithm can
+ *	  hash_alg_data-- this is provided so that the hashing algorithm can
  *	  maintain some state across calls, or keep algorithm-specific
  *	  constants associated with the hash table.
  *
