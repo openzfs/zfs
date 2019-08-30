@@ -438,7 +438,7 @@ check_disk(const char *path, blkid_cache cache, int force,
 	}
 
 	/*
-	 * Expected to fail for non-EFI labled disks.  Just check the device
+	 * Expected to fail for non-EFI labeled disks.  Just check the device
 	 * as given and do not attempt to detect and scan partitions.
 	 */
 	err = efi_alloc_and_read(fd, &vtoc);
@@ -1867,7 +1867,7 @@ make_root_vdev(zpool_handle_t *zhp, nvlist_t *props, int force, int check_rep,
 	}
 
 	/*
-	 * Validate each device to make sure that its not shared with another
+	 * Validate each device to make sure that it's not shared with another
 	 * subsystem.  We do this even if 'force' is set, because there are some
 	 * uses (such as a dedicated dump device) that even '-f' cannot
 	 * override.
