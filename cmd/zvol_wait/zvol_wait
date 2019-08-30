@@ -25,11 +25,30 @@ filter_out_deleted_zvols() {
 }
 
 list_zvols() {
-	zfs list -t volume -H -o name,volmode | while read -r zvol_line; do
+	zfs list -t volume -H -o name,volmode,receive_resume_token |
+		while read -r zvol_line; do
 		name=$(echo "$zvol_line" | awk '{print $1}')
 		volmode=$(echo "$zvol_line" | awk '{print $2}')
+		token=$(echo "$zvol_line" | awk '{print $3}')
+		#
 		# /dev links are not created for zvols with volmode = "none".
-		[ "$volmode" = "none" ] || echo "$name"
+		#
+		[ "$volmode" = "none" ] && continue
+		#
+		# We also also ignore partially received zvols if it is
+		# not an incremental receive, as those won't even have a block
+		# device minor node created yet.
+		#
+		if [ "$token" != "-" ]; then
+			#
+			# Incremental receives create an invisible clone that
+			# is not automatically displayed by zfs list.
+			#
+			if ! zfs list "$name/%recv" >/dev/null 2>&1; then
+				continue
+			fi
+		fi
+		echo "$name"
 	done
 }
 
