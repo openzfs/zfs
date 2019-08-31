@@ -299,10 +299,10 @@ log_must eval "zfs receive -e -o copies=3 -x atime "\
 	"-o '$userprop:orig'='newval' $dest < $streamfile_repl"
 log_must datasetexists $dest/2/3/4
 log_must eval "check_prop_source $dest/2 copies 3 local"
-log_must eval "check_prop_inherit $dest/2/3/4 copies $dest/2"
+log_must eval "check_prop_inherit $dest/2/3/4 copies $dest/2/3"
 log_must eval "check_prop_source $dest/2/3/4 atime on default"
 log_must eval "check_prop_source $dest/2 '$userprop:orig' 'newval' local"
-log_must eval "check_prop_inherit $dest/2/3/4 '$userprop:orig' $dest/2"
+log_must eval "check_prop_inherit $dest/2/3/4 '$userprop:orig' $dest/2/3"
 log_must zfs destroy -r -f $dest
 # Verify 'zfs recv -d'
 log_must zfs create $dest
@@ -311,10 +311,10 @@ log_must eval "zfs receive -d -o copies=3 -x atime "\
 	"-o '$userprop:orig'='newval' $dest < $streamfile_repl"
 log_must datasetexists $dest/$fs/1/2/3/4
 log_must eval "check_prop_source $dest/$fs/1/2 copies 3 local"
-log_must eval "check_prop_inherit $dest/$fs/1/2/3/4 copies $dest/$fs/1/2"
+log_must eval "check_prop_inherit $dest/$fs/1/2/3/4 copies $dest/$fs/1/2/3"
 log_must eval "check_prop_source $dest/$fs/1/2/3/4 atime on default"
 log_must eval "check_prop_source $dest/$fs/1/2 '$userprop:orig' 'newval' local"
-log_must eval "check_prop_inherit $dest/$fs/1/2/3/4 '$userprop:orig' $dest/$fs/1/2"
+log_must eval "check_prop_inherit $dest/$fs/1/2/3/4 '$userprop:orig' $dest/$fs/1/2/3"
 # We don't need to cleanup here
 
 log_pass "ZFS receive property override and exclude options passed."
