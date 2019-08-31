@@ -133,7 +133,7 @@ COUNT=$( wc -l $output | awk '{print $1}' )
 
 if (( COUNT != OLDCOUNT )); then
 	cat $output
-	log_fail "Unexpect old-version filesystems print out."
+	log_fail "Unexpected old-version filesystems print out."
 fi
 
 log_pass "Executing 'zfs upgrade' command succeeds."

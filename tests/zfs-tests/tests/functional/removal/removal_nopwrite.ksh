@@ -64,7 +64,7 @@ log_mustnot vdevs_in_pool $TESTPOOL $REMOVEDISK
 #
 # Normally, we expect nopwrites to avoid allocating new blocks, but
 # after a device has been removed the DVAs will get remapped when
-# a L0's indirect bloock is written. This will negate the effects
+# a L0's indirect block is written. This will negate the effects
 # of nopwrite and should result in new allocations.
 #
 

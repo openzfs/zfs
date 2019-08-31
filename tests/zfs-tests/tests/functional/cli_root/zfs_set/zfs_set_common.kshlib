@@ -156,7 +156,7 @@ function random_string
 }
 
 #
-# Get vaild user defined property name
+# Get valid user defined property name
 #
 # $1 user defined property name length
 #
@@ -189,7 +189,7 @@ function valid_user_property
 }
 
 #
-# Get invaild user defined property name
+# Get invalid user defined property name
 #
 # $1 user defined property name length
 #
