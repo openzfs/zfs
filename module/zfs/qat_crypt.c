@@ -578,7 +578,7 @@ fail:
 }
 
 static int
-param_set_qat_encrypt(const char *val, struct kernel_param *kp)
+param_set_qat_encrypt(const char *val, zfs_kernel_param_t *kp)
 {
 	int ret;
 	int *pvalue = kp->arg;
@@ -600,7 +600,7 @@ param_set_qat_encrypt(const char *val, struct kernel_param *kp)
 }
 
 static int
-param_set_qat_checksum(const char *val, struct kernel_param *kp)
+param_set_qat_checksum(const char *val, zfs_kernel_param_t *kp)
 {
 	int ret;
 	int *pvalue = kp->arg;
