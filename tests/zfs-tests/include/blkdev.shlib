@@ -12,7 +12,7 @@
 #
 # Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
-# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2019 by Delphix. All rights reserved.
 # Copyright 2016 Nexenta Systems, Inc.
 # Copyright (c) 2016, 2017 by Intel Corporation. All rights reserved.
 # Copyright (c) 2017 Lawrence Livermore National Security, LLC.
@@ -464,4 +464,90 @@ function get_pool_devices #testpool #devdir
 		out=$(echo $out | sed -e "s|${devdir}/||g" | tr '\n' ' ')
 	fi
 	echo $out
+}
+
+#
+# Write to standard out giving the level, device name, offset and length
+# of all blocks in an input file. The offset and length are in units of
+# 512 byte blocks. In the case of mirrored vdevs, only the first
+# device is listed, as the levels, blocks and offsets will be the same
+# on other devices. Note that this function only works with mirrored
+# or non-redundant pools, not raidz.
+#
+# The output of this function can be used to introduce corruption at
+# varying levels of indirection.
+#
+function list_file_blocks # input_file
+{
+	typeset input_file=$1
+
+	[[ -f $input_file ]] || log_fail "Couldn't find $input_file"
+
+	typeset ds="$(zfs list -H -o name $input_file)"
+	typeset pool="${ds%%/*}"
+	typeset inum="$(stat -c '%i' $input_file)"
+
+	#
+	# Establish a mapping between vdev ids as shown in a DVA and the
+	# pathnames they correspond to in ${VDEV_MAP[]}.
+	#
+	eval $(zdb -C $pool | awk '
+		BEGIN {
+			printf("typeset VDEV_MAP\n");
+			looking = 0;
+		}
+		/^            children/ {
+			id = $1;
+			looking = 1;
+		}
+		/path: / && looking == 1 {
+			print id" "$2;
+			looking = 0;
+		}
+	' | sed -n 's/^children\[\([0-9]\)\]: \(.*\)$/VDEV_MAP[\1]=\2/p')
+
+	#
+	# The awk below parses the output of zdb, printing out the level
+	# of each block along with vdev id, offset and length. The last
+	# two are converted to decimal in the while loop. 4M is added to
+	# the offset to compensate for the first two labels and boot
+	# block. Lastly, the offset and length are printed in units of
+	# 512b blocks for ease of use with dd.
+	#
+	log_must zpool sync -f
+	typeset level path offset length
+	zdb -ddddd $ds $inum | awk -F: '
+		BEGIN { looking = 0 }
+		/^Indirect blocks:/ { looking = 1}
+		/^\t\tsegment / { looking = 0}
+		/L[0-8]/ && looking == 1 { print $0}
+	' | sed -n 's/^.*\(L[0-9]\) \([0-9]*\):\([0-9a-f]*\):\([0-9a-f]*\) .*$/\1 \2 \3 \4/p' | \
+	while read level path offset length; do
+		offset=$((16#$offset))  # Conversion from hex
+		length=$((16#$length))
+		offset="$(((offset + 4 * 1024 * 1024) / 512))"
+		length="$((length / 512))"
+		echo "$level ${VDEV_MAP[$path]} $offset $length"
+	done 2>/dev/null
+}
+
+function corrupt_blocks_at_level # input_file corrupt_level
+{
+	typeset input_file=$1
+	typeset corrupt_level="L${2:-0}"
+	typeset level path offset length
+
+	[[ -f $input_file ]] || log_fail "Couldn't find $input_file"
+
+
+	log_must list_file_blocks $input_file | \
+	    while read level path offset length; do
+		if [[ $level = $corrupt_level ]]; then
+			log_must dd if=/dev/urandom of=$path bs=512 \
+			    count=$length seek=$offset conv=notrunc
+		fi
+	    done
+
+	# This is necessary for pools made of loop devices.
+	sync
 }
