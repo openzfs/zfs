@@ -83,6 +83,60 @@ parser.add_argument('-s', '--section', dest='section', help=SECTION_HELP)
 ARGS = parser.parse_args()
 
 
+def get_params(basepath):
+    """Collect information on the Solaris Porting Layer (SPL) or the
+    tunables, depending on the PATH given. Does not check if PATH is
+    legal.
+    """
+    result = {}
+    for name in os.listdir(basepath):
+        path = os.path.join(basepath, name)
+        with open(path) as f:
+            value = f.read()
+            result[name] = value.strip()
+    return result
+
+
+def get_spl_params():
+    return get_params(SPL_PATH)
+
+
+def get_tunable_params():
+    return get_params(TUNABLES_PATH)
+
+
+def get_vdev_params():
+    return get_params(TUNABLES_PATH)
+
+
+def get_version_impl(request):
+    # The original arc_summary called /sbin/modinfo/{spl,zfs} to get
+    # the version information. We switch to /sys/module/{spl,zfs}/version
+    # to make sure we get what is really loaded in the kernel
+    command = ["cat", "/sys/module/{0}/version".format(request)]
+    req = request.upper()
+
+    # The recommended way to do this is with subprocess.run(). However,
+    # some installed versions of Python are < 3.5, so we offer them
+    # the option of doing it the old way (for now)
+    info = ''
+    if 'run' in dir(subprocess):
+        info = subprocess.run(command, stdout=subprocess.PIPE,
+                              universal_newlines=True)
+        version = info.stdout.strip()
+    else:
+        info = subprocess.check_output(command, universal_newlines=True)
+        version = info.strip()
+
+    return version
+
+
+def load_kstats(section):
+    path = os.path.join(PROC_PATH, section)
+    with open(path) as f:
+        return list(f)[2:] # Get rid of header
+
+
 def cleanup_line(single_line):
     """Format a raw line of data from /proc and isolate the name value
     part, returning a tuple with each. Currently, this gets rid of the
@@ -252,33 +306,10 @@ def get_kstats():
     """
 
     result = {}
-    secs = SECTION_PATHS.values()
 
-    for section in secs:
-
-        with open(PROC_PATH+section, 'r') as proc_location:
-            lines = [line for line in proc_location]
-
-        del lines[0:2]  # Get rid of header
-        result[section] = lines
-
-    return result
-
-
-def get_spl_tunables(PATH):
-    """Collect information on the Solaris Porting Layer (SPL) or the
-    tunables, depending on the PATH given. Does not check if PATH is
-    legal.
-    """
-
-    result = {}
-    parameters = os.listdir(PATH)
-
-    for name in parameters:
-
-        with open(PATH+name, 'r') as para_file:
-            value = para_file.read()
-            result[name] = value.strip()
+    for section in SECTION_PATHS.values():
+        if section not in result:
+            result[section] = load_kstats(section)
 
     return result
 
@@ -339,33 +370,14 @@ def get_descriptions(request):
 def get_version(request):
     """Get the version number of ZFS or SPL on this machine for header.
     Returns an error string, but does not raise an error, if we can't
-    get the ZFS/SPL version via modinfo.
+    get the ZFS/SPL version.
     """
 
     if request not in ('spl', 'zfs'):
         error_msg = '(ERROR: "{0}" requested)'.format(request)
         return error_msg
 
-    # The original arc_summary called /sbin/modinfo/{spl,zfs} to get
-    # the version information. We switch to /sys/module/{spl,zfs}/version
-    # to make sure we get what is really loaded in the kernel
-    command = ["cat", "/sys/module/{0}/version".format(request)]
-    req = request.upper()
-    version = "(Can't get {0} version)".format(req)
-
-    # The recommended way to do this is with subprocess.run(). However,
-    # some installed versions of Python are < 3.5, so we offer them
-    # the option of doing it the old way (for now)
-    info = ''
-    if 'run' in dir(subprocess):
-        info = subprocess.run(command, stdout=subprocess.PIPE,
-                              universal_newlines=True)
-        version = info.stdout.strip()
-    else:
-        info = subprocess.check_output(command, universal_newlines=True)
-        version = info.strip()
-
-    return version
+    return get_version_impl(request)
 
 
 def print_header():
@@ -711,7 +723,7 @@ def section_spl(*_):
     and/or descriptions. This does not use kstats.
     """
 
-    spls = get_spl_tunables(SPL_PATH)
+    spls = get_spl_params()
     keylist = sorted(spls.keys())
     print('Solaris Porting Layer (SPL):')
 
@@ -737,7 +749,7 @@ def section_tunables(*_):
     descriptions. This does not use kstasts.
     """
 
-    tunables = get_spl_tunables(TUNABLES_PATH)
+    tunables = get_tunable_params()
     keylist = sorted(tunables.keys())
     print('Tunables:')
 
@@ -765,7 +777,7 @@ def section_vdev(kstats_dict):
     # harmful. When this is the case, we just skip the whole entry. See
     # https://github.com/zfsonlinux/zfs/blob/master/module/zfs/vdev_cache.c
     # for details
-    tunables = get_spl_tunables(TUNABLES_PATH)
+    tunables = get_vdev_params()
 
     if tunables['zfs_vdev_cache_size'] == '0':
         print('VDEV cache disabled, skipping section\n')
