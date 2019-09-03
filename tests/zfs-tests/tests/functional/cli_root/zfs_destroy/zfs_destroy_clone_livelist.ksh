@@ -30,7 +30,7 @@
 #	  destroyed
 # 3. Multiple clones with empty livelists
 #	- same as 1. but with multiple clones
-# 4. Multuple clones with populated livelists
+# 4. Multiple clones with populated livelists
 #	- same as 2. but with multiple clones
 
 . $STF_SUITE/include/libtest.shlib

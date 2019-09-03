@@ -155,7 +155,7 @@ for orig_fs in $datasets ; do
 
 	log_must zfs destroy -Rf $rst_fs
 
-	log_note "Verfiying 'zfs receive -d <filesystem>' works."
+	log_note "Verifying 'zfs receive -d <filesystem>' works."
 
 	i=0
 	while (( i < ${#bkup[*]} )); do

@@ -29,7 +29,7 @@
 
 #
 # DESCRIPTION:
-# Verify remount functionality, expecially on readonly objects.
+# Verify remount functionality, especially on readonly objects.
 #
 # STRATEGY:
 # 1. Prepare a filesystem and a snapshot
