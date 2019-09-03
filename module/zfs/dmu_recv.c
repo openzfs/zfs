@@ -350,21 +350,25 @@ recv_begin_check_existing_impl(dmu_recv_begin_arg_t *drba, dsl_dataset_t *ds,
 	boolean_t raw = (featureflags & DMU_BACKUP_FEATURE_RAW) != 0;
 	boolean_t embed = (featureflags & DMU_BACKUP_FEATURE_EMBED_DATA) != 0;
 
-	/* temporary clone name must not exist */
+	/* Temporary clone name must not exist. */
 	error = zap_lookup(dp->dp_meta_objset,
 	    dsl_dir_phys(ds->ds_dir)->dd_child_dir_zapobj, recv_clone_name,
 	    8, 1, &val);
 	if (error != ENOENT)
 		return (error == 0 ? SET_ERROR(EBUSY) : error);
 
-	/* new snapshot name must not exist */
+	/* Resume state must not be set. */
+	if (dsl_dataset_has_resume_receive_state(ds))
+		return (SET_ERROR(EBUSY));
+
+	/* New snapshot name must not exist. */
 	error = zap_lookup(dp->dp_meta_objset,
 	    dsl_dataset_phys(ds)->ds_snapnames_zapobj,
 	    drba->drba_cookie->drc_tosnap, 8, 1, &val);
 	if (error != ENOENT)
 		return (error == 0 ? SET_ERROR(EEXIST) : error);
 
-	/* must not have children if receiving a ZVOL */
+	/* Must not have children if receiving a ZVOL. */
 	error = zap_count(dp->dp_meta_objset,
 	    dsl_dir_phys(ds->ds_dir)->dd_child_dir_zapobj, &children);
 	if (error != 0)
