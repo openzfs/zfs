@@ -869,7 +869,7 @@ function zero_partitions #<whole_disk_name>
 # Size should be specified with units as per
 # the `format` command requirements eg. 100mb 3gb
 #
-# NOTE: This entire interface is problematic for the Linux parted utilty
+# NOTE: This entire interface is problematic for the Linux parted utility
 # which requires the end of the partition to be specified.  It would be
 # best to retire this interface and replace it with something more flexible.
 # At the moment a best effort is made.
@@ -1072,7 +1072,7 @@ function partition_disk	#<slice_size> <whole_disk_name>	<total_slices>
 #	dirnum:	    the maximum number of subdirectories to use, -1 no limit
 #	filenum:    the maximum number of files per subdirectory
 #	bytes:	    number of bytes to write
-#	num_writes: numer of types to write out bytes
+#	num_writes: number of types to write out bytes
 #	data:	    the data that will be written
 #
 #	E.g.
@@ -2859,7 +2859,7 @@ function labelvtoc
 
 #
 # check if the system was installed as zfsroot or not
-# return: 0 ture, otherwise false
+# return: 0 if zfsroot, non-zero if not
 #
 function is_zfsroot
 {

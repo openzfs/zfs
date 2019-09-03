@@ -145,8 +145,8 @@ if is_global_zone; then
 	check_dataset datasetexists $CTR $VOL
 	check_dataset datasetnonexists $VOLSNAP $VOLCLONE
 
-	# Due to recusive destroy being a best-effort operation,
-	# all of the non-busy datasets bellow should be gone now.
+	# Due to recursive destroy being a best-effort operation,
+	# all of the non-busy datasets below should be gone now.
 	check_dataset datasetnonexists $FS $FSSNAP $FSCLONE
 fi
 

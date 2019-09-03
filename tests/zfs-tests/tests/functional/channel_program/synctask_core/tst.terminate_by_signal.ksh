@@ -90,7 +90,7 @@ snap_count=$(zfs list -t snapshot | grep $TESTPOOL | wc -l)
 log_note "$snap_count snapshots created by ZCP"
 
 if [ "$snap_count" -eq 0 ]; then
-	log_fail "Channel progam failed to run."
+	log_fail "Channel program failed to run."
 elif [ "$snap_count" -gt 50 ]; then
 	log_fail "Too many snapshots after a cancel ($snap_count)."
 else
