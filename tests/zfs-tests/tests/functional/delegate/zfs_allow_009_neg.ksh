@@ -36,7 +36,7 @@
 #	zfs allow can deal with invalid arguments.(Invalid options or combination)
 #
 # STRATEGY:
-#	1. Verify invalid argumets will cause error.
+#	1. Verify invalid arguments will cause error.
 #	2. Verify non-optional argument was missing will cause error.
 #	3. Verify invalid options cause error.
 #
