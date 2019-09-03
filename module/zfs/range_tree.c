@@ -788,11 +788,11 @@ rt_btree_vacate(range_tree_t *rt, void *arg)
 }
 
 range_tree_ops_t rt_btree_ops = {
-	rt_btree_create,
-	rt_btree_destroy,
-	rt_btree_add,
-	rt_btree_remove,
-	rt_btree_vacate
+	.rtop_create = rt_btree_create,
+	.rtop_destroy = rt_btree_destroy,
+	.rtop_add = rt_btree_add,
+	.rtop_remove = rt_btree_remove,
+	.rtop_vacate = rt_btree_vacate
 };
 
 /*

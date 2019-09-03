@@ -320,7 +320,7 @@ void rt_btree_destroy(range_tree_t *rt, void *arg);
 void rt_btree_add(range_tree_t *rt, range_seg_t *rs, void *arg);
 void rt_btree_remove(range_tree_t *rt, range_seg_t *rs, void *arg);
 void rt_btree_vacate(range_tree_t *rt, void *arg);
-extern struct range_tree_ops rt_btree_ops;
+extern range_tree_ops_t rt_btree_ops;
 
 #ifdef	__cplusplus
 }

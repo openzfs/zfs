@@ -1449,11 +1449,11 @@ metaslab_rt_vacate(range_tree_t *rt, void *arg)
 }
 
 static range_tree_ops_t metaslab_rt_ops = {
-	metaslab_rt_create,
-	metaslab_rt_destroy,
-	metaslab_rt_add,
-	metaslab_rt_remove,
-	metaslab_rt_vacate
+	.rtop_create = metaslab_rt_create,
+	.rtop_destroy = metaslab_rt_destroy,
+	.rtop_add = metaslab_rt_add,
+	.rtop_remove = metaslab_rt_remove,
+	.rtop_vacate = metaslab_rt_vacate
 };
 
 /*
