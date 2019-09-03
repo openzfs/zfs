@@ -822,7 +822,7 @@ recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
 	}
 
 	/*
-	 * All recives with a payload should use the new interface.
+	 * All receives with a payload should use the new interface.
 	 */
 	if (resumable || raw || illumos || wkeydata != NULL || payload) {
 		nvlist_t *outnvl = NULL;

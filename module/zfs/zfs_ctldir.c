@@ -596,7 +596,7 @@ zfsctl_root(znode_t *zp)
 
 /*
  * Generate a long fid to indicate a snapdir. We encode whether snapdir is
- * already monunted in gen field. We do this because nfsd lookup will not
+ * already mounted in gen field. We do this because nfsd lookup will not
  * trigger automount. Next time the nfsd does fh_to_dentry, we will notice
  * this and do automount and return ESTALE to force nfsd revalidate and follow
  * mount.

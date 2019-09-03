@@ -1999,7 +1999,7 @@ zvol_create_snap_minor_cb(const char *dsname, void *arg)
 	/* at this point, the dsname should name a snapshot */
 	if (strchr(dsname, '@') == 0) {
 		dprintf("zvol_create_snap_minor_cb(): "
-		    "%s is not a shapshot name\n", dsname);
+		    "%s is not a snapshot name\n", dsname);
 	} else {
 		minors_job_t *job;
 		char *n = strdup(dsname);

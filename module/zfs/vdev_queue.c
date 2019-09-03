@@ -893,7 +893,7 @@ vdev_queue_change_io_priority(zio_t *zio, zio_priority_t priority)
 	 * ZIO_PRIORITY_NOW is used by the vdev cache code and the aggregate zio
 	 * code to issue IOs without adding them to the vdev queue. In this
 	 * case, the zio is already going to be issued as quickly as possible
-	 * and so it doesn't need any reprioitization to help.
+	 * and so it doesn't need any reprioritization to help.
 	 */
 	if (zio->io_priority == ZIO_PRIORITY_NOW)
 		return;

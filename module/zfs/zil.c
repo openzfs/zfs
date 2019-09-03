@@ -58,7 +58,7 @@
  *
  * In the event of a crash or power loss, the itxs contained by each
  * dataset's on-disk ZIL will be replayed when that dataset is first
- * instantiated (e.g. if the dataset is a normal fileystem, when it is
+ * instantiated (e.g. if the dataset is a normal filesystem, when it is
  * first mounted).
  *
  * As hinted at above, there is one ZIL per dataset (both the in-memory
@@ -2002,7 +2002,7 @@ zil_itx_assign(zilog_t *zilog, itx_t *itx, dmu_tx_t *tx)
 /*
  * If there are any in-memory intent log transactions which have now been
  * synced then start up a taskq to free them. We should only do this after we
- * have written out the uberblocks (i.e. txg has been comitted) so that
+ * have written out the uberblocks (i.e. txg has been committed) so that
  * don't inadvertently clean out in-memory log records that would be required
  * by zil_commit().
  */

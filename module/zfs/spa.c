@@ -2204,7 +2204,7 @@ spa_load_verify_done(zio_t *zio)
 }
 
 /*
- * Maximum number of inflight bytes is the log2 faction of the arc size.
+ * Maximum number of inflight bytes is the log2 fraction of the arc size.
  * By default, we set it to 1/16th of the arc.
  */
 int spa_load_verify_shift = 4;
@@ -3030,7 +3030,7 @@ spa_activity_check_duration(spa_t *spa, uberblock_t *ub)
 
 	} else if (MMP_VALID(ub)) {
 		/*
-		 * zfs-0.7 compatability case
+		 * zfs-0.7 compatibility case
 		 */
 
 		import_delay = MAX(import_delay, (multihost_interval +
@@ -4339,7 +4339,7 @@ spa_ld_check_for_config_update(spa_t *spa, uint64_t config_cache_txg,
 			need_update = B_TRUE;
 
 	/*
-	 * Update the config cache asychronously in case we're the
+	 * Update the config cache asynchronously in case we're the
 	 * root pool, in which case the config cache isn't writable yet.
 	 */
 	if (need_update)
@@ -4652,7 +4652,7 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport)
 			return (error);
 
 		/*
-		 * Redo the loading process process again with the
+		 * Redo the loading process again with the
 		 * checkpointed uberblock.
 		 */
 		spa_ld_prepare_for_reload(spa);
@@ -8441,7 +8441,7 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 		case ZPOOL_PROP_READONLY:
 		case ZPOOL_PROP_CACHEFILE:
 			/*
-			 * 'readonly' and 'cachefile' are also non-persisitent
+			 * 'readonly' and 'cachefile' are also non-persistent
 			 * properties.
 			 */
 			break;
@@ -9311,7 +9311,7 @@ EXPORT_SYMBOL(spa_inject_delref);
 EXPORT_SYMBOL(spa_scan_stat_init);
 EXPORT_SYMBOL(spa_scan_get_stats);
 
-/* device maniion */
+/* device manipulation */
 EXPORT_SYMBOL(spa_vdev_add);
 EXPORT_SYMBOL(spa_vdev_attach);
 EXPORT_SYMBOL(spa_vdev_detach);

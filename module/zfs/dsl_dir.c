@@ -97,7 +97,7 @@
  * limit set. If there is a limit at any initialized level up the tree, the
  * check must pass or the creation will fail. Likewise, when a filesystem or
  * snapshot is destroyed, the counts are recursively adjusted all the way up
- * the initizized nodes in the tree. Renaming a filesystem into different point
+ * the initialized nodes in the tree. Renaming a filesystem into different point
  * in the tree will first validate, then update the counts on each branch up to
  * the common ancestor. A receive will also validate the counts and then update
  * them.
@@ -1467,7 +1467,7 @@ dsl_dir_tempreserve_clear(void *tr_cookie, dmu_tx_t *tx)
  * less than the amount specified.
  *
  * NOTE: The behavior of this function is identical to the Illumos / FreeBSD
- * version however it has been adjusted to use an iterative rather then
+ * version however it has been adjusted to use an iterative rather than
  * recursive algorithm to minimize stack usage.
  */
 void

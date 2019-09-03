@@ -4702,7 +4702,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 
 		/*
 		 * Raw sends can not be performed as an incremental on top
-		 * of existing unencryppted datasets. zfs recv -F cant be
+		 * of existing unencrypted datasets. zfs recv -F can't be
 		 * used to blow away an existing encrypted filesystem. This
 		 * is because it would require the dsl dir to point to the
 		 * new key (or lack of a key) and the old key at the same

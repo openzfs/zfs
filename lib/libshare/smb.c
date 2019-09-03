@@ -30,7 +30,7 @@
  *
  * TESTING
  * Make sure that samba listens to 'localhost' (127.0.0.1) and that the options
- * 'usershare max shares' and 'usershare owner only' have been rewied/set
+ * 'usershare max shares' and 'usershare owner only' have been reviewed/set
  * accordingly (see zfs(8) for information).
  *
  * Once configuration in samba have been done, test that this

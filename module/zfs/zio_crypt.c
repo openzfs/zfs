@@ -369,7 +369,7 @@ error:
 /*
  * This function handles all encryption and decryption in zfs. When
  * encrypting it expects puio to reference the plaintext and cuio to
- * reference the cphertext. cuio must have enough space for the
+ * reference the ciphertext. cuio must have enough space for the
  * ciphertext + room for a MAC. datalen should be the length of the
  * plaintext / ciphertext alone.
  */
@@ -934,7 +934,7 @@ zio_crypt_bp_zero_nonportable_blkprop(blkptr_t *bp, uint64_t version)
 
 	/*
 	 * At L0 we want to verify these fields to ensure that data blocks
-	 * can not be reinterpretted. For instance, we do not want an attacker
+	 * can not be reinterpreted. For instance, we do not want an attacker
 	 * to trick us into returning raw lz4 compressed data to the user
 	 * by modifying the compression bits. At higher levels, we cannot
 	 * enforce this policy since raw sends do not convey any information

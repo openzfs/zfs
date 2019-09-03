@@ -1912,7 +1912,7 @@ dsl_scan_visitbp(blkptr_t *bp, const zbookmark_phys_t *zb,
 
 	/*
 	 * This debugging is commented out to conserve stack space.  This
-	 * function is called recursively and the debugging addes several
+	 * function is called recursively and the debugging adds several
 	 * bytes to the stack for each call.  It can be commented back in
 	 * if required to debug an issue in dsl_scan_visitbp().
 	 *
@@ -3373,7 +3373,7 @@ dsl_process_async_destroys(dsl_pool_t *dp, dmu_tx_t *tx)
 /*
  * This is the primary entry point for scans that is called from syncing
  * context. Scans must happen entirely during syncing context so that we
- * cna guarantee that blocks we are currently scanning will not change out
+ * can guarantee that blocks we are currently scanning will not change out
  * from under us. While a scan is active, this function controls how quickly
  * transaction groups proceed, instead of the normal handling provided by
  * txg_sync_thread().
@@ -3977,7 +3977,7 @@ scan_exec_io(dsl_pool_t *dp, const blkptr_t *bp, int zio_flags,
  * As can be seen, at fill_ratio=3, the algorithm is slightly biased towards
  * extents that are more completely filled (in a 3:2 ratio) vs just larger.
  * Note that as an optimization, we replace multiplication and division by
- * 100 with bitshifting by 7 (which effecitvely multiplies and divides by 128).
+ * 100 with bitshifting by 7 (which effectively multiplies and divides by 128).
  */
 static int
 ext_size_compare(const void *x, const void *y)
