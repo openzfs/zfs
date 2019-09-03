@@ -114,7 +114,7 @@ availspace=$(get_prop available $TESTPOOL)
 typeset -i i=0
 
 # make sure 'availspace' is larger then twice of FILESIZE to create a new pool.
-# If any, we only totally create 3 pools for multple datasets testing to limit
+# If any, we only totally create 3 pools for multiple datasets testing to limit
 # testing time
 while (( availspace > DFILESIZE )) && (( i < 3 )) ; do
 	(( i += 1 ))
