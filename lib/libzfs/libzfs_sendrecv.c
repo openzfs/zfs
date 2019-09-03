@@ -3992,11 +3992,18 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		}
 	} else {
 		/*
-		 * if the fs does not exist, look for it based on the
-		 * fromsnap GUID
+		 * If the fs does not exist, look for it based on the
+		 * fromsnap GUID.
 		 */
-		(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
-		    "cannot receive incremental stream"));
+		if (resuming) {
+			(void) snprintf(errbuf, sizeof (errbuf),
+			    dgettext(TEXT_DOMAIN,
+			    "cannot receive resume stream"));
+		} else {
+			(void) snprintf(errbuf, sizeof (errbuf),
+			    dgettext(TEXT_DOMAIN,
+			    "cannot receive incremental stream"));
+		}
 
 		(void) strcpy(name, destsnap);
 		*strchr(name, '@') = '\0';
