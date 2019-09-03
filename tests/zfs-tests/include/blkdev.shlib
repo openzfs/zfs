@@ -131,7 +131,7 @@ function is_loop_device #disk
 }
 
 #
-# Check if the given device is a multipath device and if there is a sybolic
+# Check if the given device is a multipath device and if there is a symbolic
 # link to a device mapper and to a disk
 # Currently no support for dm devices alone without multipath
 #
