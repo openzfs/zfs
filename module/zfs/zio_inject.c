@@ -113,7 +113,7 @@ freq_triggered(uint32_t frequency)
 		return (B_TRUE);
 
 	/*
-	 * Note: we still handle legacy (unscaled) frequecy values
+	 * Note: we still handle legacy (unscaled) frequency values
 	 */
 	uint32_t maximum = (frequency <= 100) ? 100 : ZI_PERCENTAGE_MAX;
 

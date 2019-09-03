@@ -98,7 +98,7 @@
  *	R = 4^n-1 * D_0 + 4^n-2 * D_1 + ... + 4^1 * D_n-2 + 4^0 * D_n-1
  *	  = ((...((D_0) * 4 + D_1) * 4 + ...) * 4 + D_n-2) * 4 + D_n-1
  *
- * We chose 1, 2, and 4 as our generators because 1 corresponds to the trival
+ * We chose 1, 2, and 4 as our generators because 1 corresponds to the trivial
  * XOR operation, and 2 and 4 can be computed quickly and generate linearly-
  * independent coefficients. (There are no additional coefficients that have
  * this property which is why the uncorrected Plank method breaks down.)
@@ -447,7 +447,7 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t ashift, uint64_t dcols,
 	/*
 	 * If all data stored spans all columns, there's a danger that parity
 	 * will always be on the same device and, since parity isn't read
-	 * during normal operation, that that device's I/O bandwidth won't be
+	 * during normal operation, that device's I/O bandwidth won't be
 	 * used effectively. We therefore switch the parity every 1MB.
 	 *
 	 * ... at least that was, ostensibly, the theory. As a practical
@@ -2336,7 +2336,7 @@ vdev_raidz_state_change(vdev_t *vd, int faulted, int degraded)
 /*
  * Determine if any portion of the provided block resides on a child vdev
  * with a dirty DTL and therefore needs to be resilvered.  The function
- * assumes that at least one DTL is dirty which imples that full stripe
+ * assumes that at least one DTL is dirty which implies that full stripe
  * width blocks must be resilvered.
  */
 static boolean_t

@@ -223,7 +223,7 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data)
 	 * can only read from blocks that we carefully ensure are on
 	 * concrete vdevs (or previously-loaded indirect vdevs).  So we
 	 * can't allow the predictive prefetcher to attempt reads of other
-	 * blocks (e.g. of the MOS's dnode obejct).
+	 * blocks (e.g. of the MOS's dnode object).
 	 */
 	if (!spa_indirect_vdevs_loaded(spa))
 		return;

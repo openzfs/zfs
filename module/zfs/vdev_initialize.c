@@ -599,7 +599,7 @@ vdev_initialize_stop_wait(spa_t *spa, list_t *vd_list)
 }
 
 /*
- * Stop initializing a device, with the resultant initialing state being
+ * Stop initializing a device, with the resultant initializing state being
  * tgt_state.  For blocking behavior pass NULL for vd_list.  Otherwise, when
  * a list_t is provided the stopping vdev is inserted in to the list.  Callers
  * are then required to call vdev_initialize_stop_wait() to block for all the
