@@ -24,8 +24,8 @@
 # STRATEGY:
 # 1. Create the pool with log device.
 # 2. Try clearing the label on data and log devices.
-# 3. Add auxilary (cache/spare) vdevs.
-# 4. Try clearing the label on auxilary vdevs.
+# 3. Add auxiliary (cache/spare) vdevs.
+# 4. Try clearing the label on auxiliary vdevs.
 # 5. Check that zpool labelclear will return non-zero and
 #    labels are intact.
 
