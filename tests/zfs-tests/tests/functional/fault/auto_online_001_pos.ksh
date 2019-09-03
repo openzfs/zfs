@@ -129,7 +129,7 @@ do
 	typeset -i timeout=0
 	while true; do
 		if ((timeout == $MAXTIMEOUT)); then
-			log_fail "Timeout occured"
+			log_fail "Timeout occurred"
 		fi
 		((timeout++))
 

@@ -83,7 +83,7 @@ for arch in "i386" "sparc"; do
 	TZ=$TIMEZONE zpool history $migratedpoolname | grep -v "^$" \
 	    >$migrated_cmds_f
 	RET=$?
-	(( $RET != 0 )) && log_fail "zpool histroy $migratedpoolname fails."
+	(( $RET != 0 )) && log_fail "zpool history $migratedpoolname fails."
 
 	# The migrated history file should differ with original history file on
 	# two commands -- 'export' and 'import', which are included in migrated
