@@ -547,7 +547,7 @@ qat_compress(qat_compress_dir_t dir, char *src, int src_len,
 }
 
 static int
-param_set_qat_compress(const char *val, struct kernel_param *kp)
+param_set_qat_compress(const char *val, zfs_kernel_param_t *kp)
 {
 	int ret;
 	int *pvalue = kp->arg;
