@@ -618,8 +618,6 @@ zpool_do_initialize(int argc, char **argv)
 		usage(B_FALSE);
 	}
 
-
-
 	poolname = argv[0];
 	zhp = zpool_open(g_zfs, poolname);
 	if (zhp == NULL)
@@ -2914,9 +2912,8 @@ name_or_guid_exists(zpool_handle_t *zhp, void *data)
  *       -d         Discard the checkpoint from a checkpointed
  *       --discard  pool.
  *
- *       -w         Wait for the discarding a checkpoint to complete.
+ *       -w         Wait for discarding a checkpoint to complete.
  *       --wait
- *
  *
  * Checkpoints the specified pool, by taking a "snapshot" of its
  * current state. A pool can only have one checkpoint at a time.
@@ -4966,6 +4963,24 @@ fsleep(float sec)
 }
 
 /*
+ * Terminal height, in rows. Returns -1 if stdout is not connected to a TTY or
+ * if we were unable to determine its size.
+ */
+static int
+terminal_height(void)
+{
+	struct winsize win;
+
+	if (isatty(STDOUT_FILENO) == 0)
+		return (-1);
+
+	if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &win) != -1 && win.ws_row > 0)
+		return (win.ws_row);
+
+	return (-1);
+}
+
+/*
  * Run one of the zpool status/iostat -c scripts with the help (-h) option and
  * print the result.
  *
@@ -5105,7 +5120,6 @@ zpool_do_iostat(int argc, char **argv)
 	int npools;
 	float interval = 0;
 	unsigned long count = 0;
-	struct winsize win;
 	int winheight = 24;
 	zpool_list_t *list;
 	boolean_t verbose = B_FALSE;
@@ -5393,25 +5407,19 @@ zpool_do_iostat(int argc, char **argv)
 				cb.vcdl = NULL;
 			}
 
-			/*
-			 * Are we connected to TTY? If not, headers_once
-			 * should be true, to avoid breaking scripts.
-			 */
-			if (isatty(fileno(stdout)) == 0)
-				headers_once = B_TRUE;
 
 			/*
 			 * Check terminal size so we can print headers
 			 * even when terminal window has its height
 			 * changed.
 			 */
-			if (headers_once == B_FALSE) {
-				if (ioctl(1, TIOCGWINSZ, &win) != -1 &&
-				    win.ws_row > 0)
-					winheight = win.ws_row;
-				else
-					headers_once = B_TRUE;
-			}
+			winheight = terminal_height();
+			/*
+			 * Are we connected to TTY? If not, headers_once
+			 * should be true, to avoid breaking scripts.
+			 */
+			if (winheight < 0)
+				headers_once = B_TRUE;
 
 			/*
 			 * If it's the first time and we're not skipping it,
@@ -9310,7 +9318,6 @@ zpool_do_set(int argc, char **argv)
 static uint64_t
 vdev_initialize_remaining(nvlist_t *nv)
 {
-
 	uint64_t bytes_remaining;
 	nvlist_t **child;
 	uint_t c, children;
@@ -9366,9 +9373,9 @@ typedef struct wait_data {
 	char *wd_poolname;
 	boolean_t wd_scripted;
 	boolean_t wd_exact;
+	boolean_t wd_headers_once;
 	/* Which activities to wait for */
 	boolean_t wd_enabled[ZPOOL_WAIT_NUM_ACTIVITIES];
-	int wd_col_widths[ZPOOL_WAIT_NUM_ACTIVITIES];
 	float wd_interval;
 	sem_t wd_sem;
 } wait_data_t;
@@ -9379,7 +9386,7 @@ typedef struct wait_data {
  * activity.
  */
 static void
-print_wait_status_row(wait_data_t *wd, zpool_handle_t *zhp)
+print_wait_status_row(wait_data_t *wd, zpool_handle_t *zhp, int row)
 {
 	nvlist_t *config, *nvroot;
 	uint_t c;
@@ -9387,6 +9394,31 @@ print_wait_status_row(wait_data_t *wd, zpool_handle_t *zhp)
 	pool_checkpoint_stat_t *pcs = NULL;
 	pool_scan_stat_t *pss = NULL;
 	pool_removal_stat_t *prs = NULL;
+	char *headers[] = {"DISCARD", "FREE", "INITIALIZE", "REPLACE",
+	    "REMOVE", "RESILVER", "SCRUB"};
+	int col_widths[ZPOOL_WAIT_NUM_ACTIVITIES];
+
+	/* Calculate the width of each column */
+	for (i = 0; i < ZPOOL_WAIT_NUM_ACTIVITIES; i++) {
+		/*
+		 * Make sure we have enough space in the col for pretty-printed
+		 * numbers and for the column header, and then leave a couple
+		 * spaces between cols for readability.
+		 */
+		col_widths[i] = MAX(strlen(headers[i]), 6) + 2;
+	}
+
+	/* Print header if appropriate */
+	int term_height = terminal_height();
+	boolean_t reprint_header = (!wd->wd_headers_once && term_height > 0 &&
+	    row % (term_height-1) == 0);
+	if (!wd->wd_scripted && (row == 0 || reprint_header)) {
+		for (i = 0; i < ZPOOL_WAIT_NUM_ACTIVITIES; i++) {
+			if (wd->wd_enabled[i])
+				(void) printf("%*s", col_widths[i], headers[i]);
+		}
+		(void) printf("\n");
+	}
 
 	/* Bytes of work remaining in each activity */
 	int64_t bytes_rem[ZPOOL_WAIT_NUM_ACTIVITIES] = {0};
@@ -9454,7 +9486,7 @@ print_wait_status_row(wait_data_t *wd, zpool_handle_t *zhp)
 		if (wd->wd_scripted)
 			(void) printf(i == 0 ? "%s" : "\t%s", buf);
 		else
-			(void) printf(" %*s", wd->wd_col_widths[i] - 1, buf);
+			(void) printf(" %*s", col_widths[i] - 1, buf);
 	}
 	(void) printf("\n");
 	(void) fflush(stdout);
@@ -9463,35 +9495,16 @@ print_wait_status_row(wait_data_t *wd, zpool_handle_t *zhp)
 void *
 wait_status_thread(void *arg)
 {
-	int i;
 	wait_data_t *wd = (wait_data_t *)arg;
 	zpool_handle_t *zhp;
-
-	char *headers[] = {"DISCARD", "FREE", "INITIALIZE", "REPLACE",
-	    "REMOVE", "RESILVER", "SCRUB"};
-
-	/* Print header and calculate the width of each column */
-	for (i = 0; i < ZPOOL_WAIT_NUM_ACTIVITIES; i++) {
-		/*
-		 * Make sure we have enough space in the col for pretty-printed
-		 * numbers and for the column header, and then leave a couple
-		 * spaces between cols for readability.
-		 */
-		wd->wd_col_widths[i] = MAX(strlen(headers[i]), 6) + 2;
-
-		if (!wd->wd_scripted && wd->wd_enabled[i])
-			(void) printf("%*s", wd->wd_col_widths[i], headers[i]);
-	}
-	if (!wd->wd_scripted)
-		(void) printf("\n");
 
 	if ((zhp = zpool_open(g_zfs, wd->wd_poolname)) == NULL)
 		return (void *)(1);
 
-	for (;;) {
+	for (int row = 0; ; row++) {
 		boolean_t missing;
 		struct timespec timeout;
-		(void) timespec_get(&timeout, TIME_UTC);
+		(void) clock_gettime(CLOCK_REALTIME, &timeout);
 
 		if (zpool_refresh_stats(zhp, &missing) != 0 || missing ||
 		    zpool_props_refresh(zhp) != 0) {
@@ -9499,7 +9512,7 @@ wait_status_thread(void *arg)
 			return (void *)(uintptr_t)(missing ? 0 : 1);
 		}
 
-		print_wait_status_row(wd, zhp);
+		print_wait_status_row(wd, zhp, row);
 
 		timeout.tv_sec += floor(wd->wd_interval);
 		long nanos = timeout.tv_nsec +
@@ -9540,6 +9553,7 @@ zpool_do_wait(int argc, char **argv)
 	wait_data_t wd;
 	wd.wd_scripted = B_FALSE;
 	wd.wd_exact = B_FALSE;
+	wd.wd_headers_once = B_FALSE;
 
 	(void) sem_init(&wd.wd_sem, 0, 0);
 
@@ -9551,6 +9565,9 @@ zpool_do_wait(int argc, char **argv)
 		switch (c) {
 		case 'H':
 			wd.wd_scripted = B_TRUE;
+			break;
+		case 'n':
+			wd.wd_headers_once = B_TRUE;
 			break;
 		case 'p':
 			wd.wd_exact = B_TRUE;
@@ -9616,6 +9633,11 @@ zpool_do_wait(int argc, char **argv)
 		return (1);
 
 	if (verbose) {
+		/*
+		 * We use a separate thread for printing status updates because
+		 * the main thread will call lzc_wait(), which blocks as long
+		 * as an activity is in progress, which can be a long time.
+		 */
 		if (pthread_create(&status_thr, NULL, wait_status_thread, &wd)
 		    != 0) {
 			(void) fprintf(stderr, gettext("failed to create status"
