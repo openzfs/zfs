@@ -38,7 +38,7 @@
 # STRATEGY:
 #	1. Separately promote pool clone, filesystem clone and volume clone.
 #	2. Recursively backup all the POOL and restore in POOL2
-#	3. Verify all the datesets and property be properly received.
+#	3. Verify all the datasets and properties were properly received.
 #
 
 verify_runnable "both"
