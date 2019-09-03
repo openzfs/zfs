@@ -1793,7 +1793,7 @@ zpool_find_import_scan_path(libpc_handle_t *hdl, pthread_mutex_t *lock,
 	char *dpath, *name;
 
 	/*
-	 * Seperate the directory part and last part of the
+	 * Separate the directory part and last part of the
 	 * path. We do this so that we can get the realpath of
 	 * the directory. We don't get the realpath on the
 	 * whole path because if it's a symlink, we want the
@@ -2080,8 +2080,8 @@ zpool_find_import_impl(libpc_handle_t *hdl, importargs_t *iarg)
 	tpool_destroy(t);
 
 	/*
-	 * Process the cache filtering out any entries which are not
-	 * for the specificed pool then adding matching label configs.
+	 * Process the cache, filtering out any entries which are not
+	 * for the specified pool then adding matching label configs.
 	 */
 	cookie = NULL;
 	while ((slice = avl_destroy_nodes(cache, &cookie)) != NULL) {
