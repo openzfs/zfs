@@ -70,7 +70,7 @@ static int
 priv_policy_user(const cred_t *cr, int capability, boolean_t all, int err)
 {
 	/*
-	 * All priv_policy_user checks are preceeded by kuid/kgid_has_mapping()
+	 * All priv_policy_user checks are preceded by kuid/kgid_has_mapping()
 	 * checks. If we cannot do them, we shouldn't be using ns_capable()
 	 * since we don't know whether the affected files are valid in our
 	 * namespace. Note that kuid_has_mapping() came after cred->user_ns, so

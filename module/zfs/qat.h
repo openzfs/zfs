@@ -80,7 +80,7 @@ typedef struct qat_stats {
 	 * Number of fails in the QAT compression / decompression engine.
 	 * Note: when a QAT error happens, it doesn't necessarily indicate a
 	 * critical hardware issue. Sometimes it is because the output buffer
-	 * is not big enough. The compression job will be transfered to the
+	 * is not big enough. The compression job will be transferred to the
 	 * gzip software implementation so the functionality of ZFS is not
 	 * impacted.
 	 */
@@ -113,7 +113,7 @@ typedef struct qat_stats {
 	/*
 	 * Number of fails in the QAT encryption / decryption engine.
 	 * Note: when a QAT error happens, it doesn't necessarily indicate a
-	 * critical hardware issue. The encryption job will be transfered
+	 * critical hardware issue. The encryption job will be transferred
 	 * to the software implementation so the functionality of ZFS is
 	 * not impacted.
 	 */
@@ -130,7 +130,7 @@ typedef struct qat_stats {
 	/*
 	 * Number of fails in the QAT checksum engine.
 	 * Note: when a QAT error happens, it doesn't necessarily indicate a
-	 * critical hardware issue. The checksum job will be transfered to the
+	 * critical hardware issue. The checksum job will be transferred to the
 	 * software implementation so the functionality of ZFS is not impacted.
 	 */
 	kstat_named_t cksum_fails;

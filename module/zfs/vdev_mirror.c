@@ -485,7 +485,7 @@ vdev_mirror_preferred_child_randomize(zio_t *zio)
 
 /*
  * Try to find a vdev whose DTL doesn't contain the block we want to read
- * prefering vdevs based on determined load.
+ * preferring vdevs based on determined load.
  *
  * Try to find a child whose DTL doesn't contain the block we want to read.
  * If we can't, try the read on any vdev we haven't already tried.

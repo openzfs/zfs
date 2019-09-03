@@ -2111,7 +2111,7 @@ zfs_ioc_objset_stats_impl(zfs_cmd_t *zc, objset_t *os)
 		 * which we aren't supposed to do with a
 		 * DS_MODE_USER hold, because it could be
 		 * inconsistent.  So this is a bit of a workaround...
-		 * XXX reading with out owning
+		 * XXX reading without owning
 		 */
 		if (!zc->zc_objset_stats.dds_inconsistent &&
 		    dmu_objset_type(os) == DMU_OST_ZVOL) {
@@ -6877,7 +6877,7 @@ zfs_check_input_nvpairs(nvlist_t *innvl, const zfs_ioc_vec_t *vec)
 			continue;
 
 		if (nvl_keys[k].zkey_flags & ZK_WILDCARDLIST) {
-			/* at least one non-optionial key is expected here */
+			/* at least one non-optional key is expected here */
 			if (!required_keys_found)
 				return (SET_ERROR(ZFS_ERR_IOC_ARG_REQUIRED));
 			continue;

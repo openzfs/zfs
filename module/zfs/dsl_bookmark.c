@@ -84,7 +84,7 @@ dsl_dataset_bmark_lookup(dsl_dataset_t *ds, const char *shortname,
 }
 
 /*
- * If later_ds is non-NULL, this will return EXDEV if the the specified bookmark
+ * If later_ds is non-NULL, this will return EXDEV if the specified bookmark
  * does not represents an earlier point in later_ds's timeline.
  *
  * Returns ENOENT if the dataset containing the bookmark does not exist.

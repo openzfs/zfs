@@ -810,7 +810,7 @@ zfs_acl_xform(znode_t *zp, zfs_acl_t *aclp, cred_t *cr)
 	 * for zfs_copy_ace_2_fuid().
 	 *
 	 * We only convert an ACL once, so this won't happen
-	 * everytime.
+	 * every time.
 	 */
 	oldaclp = kmem_alloc(sizeof (zfs_oldace_t) * aclp->z_acl_count,
 	    KM_SLEEP);
