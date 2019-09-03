@@ -2137,7 +2137,8 @@ spa_load_verify_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	if (!BP_IS_METADATA(bp) && !spa_load_verify_data)
 		return (0);
 
-	int maxinflight_bytes = arc_target_bytes() >> spa_load_verify_shift;
+	uint64_t maxinflight_bytes =
+	    arc_target_bytes() >> spa_load_verify_shift;
 	zio_t *rio = arg;
 	size_t size = BP_GET_PSIZE(bp);
 
