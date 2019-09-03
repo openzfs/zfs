@@ -66,11 +66,11 @@ UBER_CHANGES=$(count_mmp_writes $TESTPOOL 10)
 log_note "Uberblock changed $UBER_CHANGES times"
 
 if [ $UBER_CHANGES -lt $MIN_UB_WRITES ]; then
-	log_fail "Fewer uberblock writes occured than expected ($EXPECTED)"
+	log_fail "Fewer uberblock writes occurred than expected ($EXPECTED)"
 fi
 
 if [ $UBER_CHANGES -gt $MAX_UB_WRITES ]; then
-	log_fail "More uberblock writes occured than expected ($EXPECTED)"
+	log_fail "More uberblock writes occurred than expected ($EXPECTED)"
 fi
 
 log_must set_tunable64 zfs_multihost_interval $MMP_INTERVAL_MIN

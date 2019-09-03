@@ -80,7 +80,7 @@ dumpdev=`dumpadm | grep "Dump device" | awk '{print $3}'`
 [[ -z "$dumpdev" ]] && log_untested "No dump device has been configured"
 
 [[ "$dumpdev" != "$diskslice" ]] && \
-    log_untested "Dump device has not been been configured to $diskslice"
+    log_untested "Dump device has not been configured to $diskslice"
 
 log_note "Attempt to zpool the dump device"
 unset NOINUSE_CHECK

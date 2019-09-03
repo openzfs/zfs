@@ -43,7 +43,7 @@
  *    is hold) occurred, zfs_dirty_inode open a txg failed, and wait previous
  *    txg "n" completed.
  * 3. context #1 call uiomove to write, however page fault is occurred in
- *    uiomove, which means it need mm_sem, but mm_sem is hold by
+ *    uiomove, which means it needs mm_sem, but mm_sem is hold by
  *    context #2, so it stuck and can't complete, then txg "n" will not
  *    complete.
  *

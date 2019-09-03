@@ -45,7 +45,7 @@
 #	  setuid		setuid/nosetuid
 #
 # STRATEGY:
-#	1. Create filesystem and get origianl property value.
+#	1. Create filesystem and get original property value.
 #	2. Using 'zfs mount -o' to set filesystem property.
 #	3. Verify the property was set temporarily.
 #	4. Verify it will not affect the property that is stored on disk.

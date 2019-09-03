@@ -34,7 +34,7 @@
 
 # This setup script is moderately complex, as it creates scenarios for all
 # of the tests included in this directory. Usually we'd want each test case
-# to setup/teardown it's own configuration, but this would be time consuming
+# to setup/teardown its own configuration, but this would be time consuming
 # given the nature of these tests. However, as a side-effect, one test
 # leaving the system in an unknown state could impact other test cases.
 

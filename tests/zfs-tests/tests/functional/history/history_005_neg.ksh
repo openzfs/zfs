@@ -42,9 +42,9 @@
 #		zpool iostat
 #
 # STRATEGY:
-#	1. Create a test pool.
+#	1. Create a test pool
 #	2. Separately invoke zpool list|status|iostat
-#	3. Verify they was not recored in pool history.
+#	3. Verify they were not recorded in pool history
 #
 
 verify_runnable "global"

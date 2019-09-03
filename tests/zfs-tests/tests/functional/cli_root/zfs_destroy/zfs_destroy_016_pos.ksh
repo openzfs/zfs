@@ -157,7 +157,7 @@ verify_snapshots 1
 
 snaps="1 2 3 4 5"
 setup_snapshots
-log_note "Snapshot destory with hold"
+log_note "Snapshot destroy with hold"
 range="1 2 3 4 5"
 for i in 1 2 3 4 5; do
 	log_must zfs hold keep $TESTPOOL/$TESTFS1@snap$i

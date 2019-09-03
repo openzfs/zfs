@@ -36,8 +36,8 @@
 # 'zfs inherit' should return an error with bad parameters in one command.
 #
 # STRATEGY:
-# 1. Set an array of bad options and invlid properties to 'zfs inherit'
-# 2. Execute 'zfs inherit' with bad options and passing invlid properties
+# 1. Set an array of bad options and invalid properties to 'zfs inherit'
+# 2. Execute 'zfs inherit' with bad options and passing invalid properties
 # 3. Verify an error is returned.
 #
 

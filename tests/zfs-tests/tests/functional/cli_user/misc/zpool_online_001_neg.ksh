@@ -49,7 +49,7 @@ function check_for_online
 		 | grep ONLINE )
 	if [ -n "$RESULT" ]
 	then
-		log_fail "A disk was brough online!"
+		log_fail "A disk was brought online!"
 	fi
 }
 
