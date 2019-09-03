@@ -62,7 +62,7 @@ for prj in "${no_prjs[@]}"; do
 	log_mustnot zfs set projectquota@$prj=100m $QFS
 done
 
-log_note "can set all numberic id even that id is not existed"
+log_note "can set all numeric id even if that id does not exist"
 log_must zfs set projectquota@12345678=100m $QFS
 
 set -A sizes "100mfsd" "m0.12m" "GGM" "-1234-m" "123m-m"
