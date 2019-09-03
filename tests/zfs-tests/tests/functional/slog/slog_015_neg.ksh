@@ -26,7 +26,7 @@
 #	3. Concurrently do the following:
 #	   3.1. Perform 8K sync writes
 #	   3.2. Perform log offline/online commands
-#	4. Loop to test with growing "zfs_commit_timout_pct" values.
+#	4. Loop to test with growing "zfs_commit_timeout_pct" values.
 #
 
 verify_runnable "global"

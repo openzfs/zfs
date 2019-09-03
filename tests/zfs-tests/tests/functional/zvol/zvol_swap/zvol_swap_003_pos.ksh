@@ -40,7 +40,7 @@
 #
 # STRATEGY:
 # 1. Modify /etc/vfstab to add the test zvol as swap device.
-# 2. Use /sbin/swapadd to add zvol as swap device throuth /etc/vfstab
+# 2. Use /sbin/swapadd to add zvol as swap device through /etc/vfstab
 # 3. Create a file under /tmp and verify the file
 #
 
