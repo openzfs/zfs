@@ -827,11 +827,11 @@ enum zfs_ioc_ref {
 boolean_t
 validate_ioc_values(void)
 {
-	boolean_t result = TRUE;
+	boolean_t result = B_TRUE;
 
 #define	CHECK(expr) do { \
 	if (!(expr)) { \
-		result = FALSE; \
+		result = B_FALSE; \
 		fprintf(stderr, "(%s) === FALSE\n", #expr); \
 	} \
 } while (0)
