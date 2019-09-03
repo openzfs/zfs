@@ -56,7 +56,7 @@ function setup_testenv #[dtst]
 	if ! datasetexists $FS; then
 		log_must zfs create $FS
 	fi
-	# Volume test is only availible on globle zone
+	# Volume test is only available on global zone
 	if ! datasetexists $VOL && is_global_zone; then
 		log_must zfs create -V $VOLSIZE $VOL
 		block_device_wait
@@ -127,7 +127,7 @@ function check_dataset
 	shift
 
 	for dtst in "$@"; do
-		# Volume and related stuff are unvailable in local zone
+		# Volume and related stuff are unavailable in local zone
 		if ! is_global_zone; then
 			if [[ $dtst == $VOL || $dtst == $VOLSNAP || \
 				$dtst == $VOLCLONE ]]
@@ -140,7 +140,7 @@ function check_dataset
 
 	if (( ${#newlist} != 0 )); then
 		# Run each item in $newlist individually so on failure, the
-		# probelmatic dataset is listed in the logs.
+		# problematic dataset is listed in the logs.
 		for i in $newlist; do
 			log_must $funname $i
 		done

@@ -72,4 +72,4 @@ else
 fi
 cd $curpath
 
-log_pass "zfs mount fails with mounted filesystem or busy moutpoint as expected."
+log_pass "zfs mount fails with mounted filesystem or busy mountpoint as expected."
