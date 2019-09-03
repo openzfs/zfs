@@ -112,7 +112,7 @@ int zfs_mg_noalloc_threshold = 0;
 
 /*
  * Metaslab groups are considered eligible for allocations if their
- * fragmenation metric (measured as a percentage) is less than or
+ * fragmentation metric (measured as a percentage) is less than or
  * equal to zfs_mg_fragmentation_threshold. If a metaslab group
  * exceeds this threshold then it will be skipped unless all metaslab
  * groups within the metaslab class have also crossed this threshold.
@@ -1285,7 +1285,7 @@ metaslab_largest_unflushed_free(metaslab_t *msp)
 	 * deferred. Similar logic applies to the ms_freed tree. See
 	 * metaslab_load() for more details.
 	 *
-	 * There are two primary sources of innacuracy in this estimate. Both
+	 * There are two primary sources of inaccuracy in this estimate. Both
 	 * are tolerated for performance reasons. The first source is that we
 	 * only check the largest segment for overlaps. Smaller segments may
 	 * have more favorable overlaps with the other trees, resulting in
@@ -1874,7 +1874,7 @@ metaslab_verify_weight_and_frag(metaslab_t *msp)
  * If we're over the zfs_metaslab_mem_limit, select the loaded metaslab from
  * this class that was used longest ago, and attempt to unload it.  We don't
  * want to spend too much time in this loop to prevent performance
- * degredation, and we expect that most of the time this operation will
+ * degradation, and we expect that most of the time this operation will
  * succeed. Between that and the normal unloading processing during txg sync,
  * we expect this to keep the metaslab memory usage under control.
  */
@@ -3060,7 +3060,7 @@ metaslab_passivate(metaslab_t *msp, uint64_t weight)
  * we either fail an allocation attempt (similar to space-based metaslabs)
  * or have exhausted the free space in zfs_metaslab_switch_threshold
  * buckets since the metaslab was activated. This function checks to see
- * if we've exhaused the zfs_metaslab_switch_threshold buckets in the
+ * if we've exhausted the zfs_metaslab_switch_threshold buckets in the
  * metaslab and passivates it proactively. This will allow us to select a
  * metaslab with a larger contiguous region, if any, remaining within this
  * metaslab group. If we're in sync pass > 1, then we continue using this
@@ -4294,7 +4294,7 @@ metaslab_block_alloc(metaslab_t *msp, uint64_t size, uint64_t txg)
  * have selected, we may not try the newly-activated metaslab, and instead
  * activate another metaslab.  This is not optimal, but generally does not cause
  * any problems (a possible exception being if every metaslab is completely full
- * except for the the newly-activated metaslab which we fail to examine).
+ * except for the newly-activated metaslab which we fail to examine).
  */
 static metaslab_t *
 find_valid_metaslab(metaslab_group_t *mg, uint64_t activation_weight,
@@ -4441,7 +4441,7 @@ metaslab_group_alloc_normal(metaslab_group_t *mg, zio_alloc_list_t *zal,
 			/*
 			 * Even though we don't hold the ms_lock for the
 			 * primary metaslab, those fields should not
-			 * change while we hold the mg_lock. Thus is is
+			 * change while we hold the mg_lock. Thus it is
 			 * safe to make assertions on them.
 			 */
 			ASSERT(msp->ms_primary);
@@ -4879,7 +4879,7 @@ top:
 
 		/*
 		 * If we don't need to try hard, then require that the
-		 * block be on an different metaslab from any other DVAs
+		 * block be on a different metaslab from any other DVAs
 		 * in this BP (unique=true).  If we are trying hard, then
 		 * allow any metaslab to be used (unique=false).
 		 */
@@ -5685,7 +5685,7 @@ metaslab_check_free_impl(vdev_t *vd, uint64_t offset, uint64_t size)
 	 *
 	 * It would intuitively make sense to also check the current allocating
 	 * tree since metaslab_unalloc_dva() exists for extents that are
-	 * allocated and freed in the same sync pass withing the same txg.
+	 * allocated and freed in the same sync pass within the same txg.
 	 * Unfortunately there are places (e.g. the ZIL) where we allocate a
 	 * segment but then we free part of it within the same txg
 	 * [see zil_sync()]. Thus, we don't call range_tree_verify() in the

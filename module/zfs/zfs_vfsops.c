@@ -1477,7 +1477,7 @@ zfs_statvfs(struct dentry *dentry, struct kstatfs *statp)
 	 * "preferred" size.
 	 */
 
-	/* Round up so we never have a filesytem using 0 blocks. */
+	/* Round up so we never have a filesystem using 0 blocks. */
 	refdbytes = P2ROUNDUP(refdbytes, statp->f_bsize);
 	statp->f_blocks = (refdbytes + availbytes) >> bshift;
 	statp->f_bfree = availbytes >> bshift;
@@ -2431,7 +2431,7 @@ zfs_get_zplprop(objset_t *os, zfs_prop_t prop, uint64_t *value)
 }
 
 /*
- * Return true if the coresponding vfs's unmounted flag is set.
+ * Return true if the corresponding vfs's unmounted flag is set.
  * Otherwise return false.
  * If this function returns true we know VFS unmount has been initiated.
  */

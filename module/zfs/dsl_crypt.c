@@ -227,7 +227,7 @@ dsl_crypto_params_create_nvlist(dcp_cmd_t cmd, nvlist_t *props,
 		goto error;
 	}
 
-	/* if the user asked for the deault crypt, determine that now */
+	/* if the user asked for the default crypt, determine that now */
 	if (dcp->cp_crypt == ZIO_CRYPT_ON)
 		dcp->cp_crypt = ZIO_CRYPT_ON_VALUE;
 
@@ -1596,7 +1596,7 @@ spa_keystore_change_key(const char *dsname, dsl_crypto_params_t *dcp)
 	/*
 	 * Perform the actual work in syncing context. The blocks modified
 	 * here could be calculated but it would require holding the pool
-	 * lock and tarversing all of the datasets that will have their keys
+	 * lock and traversing all of the datasets that will have their keys
 	 * changed.
 	 */
 	return (dsl_sync_task(dsname, spa_keystore_change_key_check,
@@ -1714,7 +1714,7 @@ dsl_dataset_promote_crypt_sync(dsl_dir_t *target, dsl_dir_t *origin,
 		return;
 
 	/*
-	 * If the target is being promoted to the encyrption root update the
+	 * If the target is being promoted to the encryption root update the
 	 * DSL Crypto Key and keylocation to reflect that. We also need to
 	 * update the DSL Crypto Keys of all children inheritting their
 	 * encryption root to point to the new target. Otherwise, the check

@@ -62,7 +62,7 @@
  * elements of the cache are therefore exactly the same size.  So
  * when adjusting the cache size following a cache miss, its simply
  * a matter of choosing a single page to evict.  In our model, we
- * have variable sized cache blocks (rangeing from 512 bytes to
+ * have variable sized cache blocks (ranging from 512 bytes to
  * 128K bytes).  We therefore choose a set of blocks to evict to make
  * space for a cache miss that approximates as closely as possible
  * the space used by the new block.
@@ -262,7 +262,7 @@
  * The L1ARC has a slightly different system for storing encrypted data.
  * Raw (encrypted + possibly compressed) data has a few subtle differences from
  * data that is just compressed. The biggest difference is that it is not
- * possible to decrypt encrypted data (or visa versa) if the keys aren't loaded.
+ * possible to decrypt encrypted data (or vice-versa) if the keys aren't loaded.
  * The other difference is that encryption cannot be treated as a suggestion.
  * If a caller would prefer compressed data, but they actually wind up with
  * uncompressed data the worst thing that could happen is there might be a
@@ -2151,7 +2151,7 @@ arc_buf_fill(arc_buf_t *buf, spa_t *spa, const zbookmark_phys_t *zb,
 	}
 
 	/*
-	 * Adjust encrypted and authenticated headers to accomodate
+	 * Adjust encrypted and authenticated headers to accommodate
 	 * the request if needed. Dnode blocks (ARC_FILL_IN_PLACE) are
 	 * allowed to fail decryption due to keys not being loaded
 	 * without being marked as an IO error.
@@ -2220,7 +2220,7 @@ arc_buf_fill(arc_buf_t *buf, spa_t *spa, const zbookmark_phys_t *zb,
 		if (arc_buf_is_shared(buf)) {
 			ASSERT(ARC_BUF_COMPRESSED(buf));
 
-			/* We need to give the buf it's own b_data */
+			/* We need to give the buf its own b_data */
 			buf->b_flags &= ~ARC_BUF_FLAG_SHARED;
 			buf->b_data =
 			    arc_get_data_buf(hdr, HDR_GET_LSIZE(hdr), buf);
@@ -2836,7 +2836,7 @@ arc_can_share(arc_buf_hdr_t *hdr, arc_buf_t *buf)
 	 * sufficient to make this guarantee, however it's possible
 	 * (specifically in the rare L2ARC write race mentioned in
 	 * arc_buf_alloc_impl()) there will be an existing uncompressed buf that
-	 * is sharable, but wasn't at the time of its allocation. Rather than
+	 * is shareable, but wasn't at the time of its allocation. Rather than
 	 * allow a new shared uncompressed buf to be created and then shuffle
 	 * the list around to make it the last element, this simply disallows
 	 * sharing if the new buf isn't the first to be added.
@@ -2895,7 +2895,7 @@ arc_buf_alloc_impl(arc_buf_hdr_t *hdr, spa_t *spa, const zbookmark_phys_t *zb,
 
 	/*
 	 * Only honor requests for compressed bufs if the hdr is actually
-	 * compressed. This must be overriden if the buffer is encrypted since
+	 * compressed. This must be overridden if the buffer is encrypted since
 	 * encrypted buffers cannot be decompressed.
 	 */
 	if (encrypted) {
@@ -3199,7 +3199,7 @@ arc_buf_remove(arc_buf_hdr_t *hdr, arc_buf_t *buf)
 }
 
 /*
- * Free up buf->b_data and pull the arc_buf_t off of the the arc_buf_hdr_t's
+ * Free up buf->b_data and pull the arc_buf_t off of the arc_buf_hdr_t's
  * list and free it.
  */
 static void
@@ -3658,7 +3658,7 @@ arc_hdr_realloc_crypt(arc_buf_hdr_t *hdr, boolean_t need_crypt)
 /*
  * This function is used by the send / receive code to convert a newly
  * allocated arc_buf_t to one that is suitable for a raw encrypted write. It
- * is also used to allow the root objset block to be uupdated without altering
+ * is also used to allow the root objset block to be updated without altering
  * its embedded MACs. Both block types will always be uncompressed so we do not
  * have to worry about compression type or psize.
  */
@@ -6189,7 +6189,7 @@ top:
 
 	/*
 	 * Determine if we have an L1 cache hit or a cache miss. For simplicity
-	 * we maintain encrypted data seperately from compressed / uncompressed
+	 * we maintain encrypted data separately from compressed / uncompressed
 	 * data. If the user is requesting raw encrypted data and we don't have
 	 * that in the header we will read from disk to guarantee that we can
 	 * get it even if the encryption keys aren't loaded.

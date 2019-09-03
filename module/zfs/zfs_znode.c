@@ -788,7 +788,7 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 	}
 
 	/*
-	 * No execs denied will be deterimed when zfs_mode_compute() is called.
+	 * No execs denied will be determined when zfs_mode_compute() is called.
 	 */
 	pflags |= acl_ids->z_aclp->z_hints &
 	    (ZFS_ACL_TRIVIAL|ZFS_INHERIT_ACE|ZFS_ACL_AUTO_INHERIT|
@@ -1271,7 +1271,7 @@ zfs_rezget(znode_t *zp)
 	 * If the file has zero links, then it has been unlinked on the send
 	 * side and it must be in the received unlinked set.
 	 * We call zfs_znode_dmu_fini() now to prevent any accesses to the
-	 * stale data and to prevent automatical removal of the file in
+	 * stale data and to prevent automatic removal of the file in
 	 * zfs_zinactive().  The file will be removed either when it is removed
 	 * on the send side and the next incremental stream is received or
 	 * when the unlinked set gets processed.

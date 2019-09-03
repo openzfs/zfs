@@ -102,7 +102,7 @@
  *   Once the synctask is done and the discarding zthr is awake, we discard
  *   the checkpointed data over multiple TXGs by having the zthr prefetching
  *   entries from vdev_checkpoint_sm and then starting a synctask that places
- *   them as free blocks in to their respective ms_allocatable and ms_sm
+ *   them as free blocks into their respective ms_allocatable and ms_sm
  *   structures.
  *   [see spa_checkpoint_discard_thread()]
  *
