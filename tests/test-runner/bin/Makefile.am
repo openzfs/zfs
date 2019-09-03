@@ -3,7 +3,7 @@ dist_pkgdata_SCRIPTS = \
 	test-runner.py \
 	zts-report.py
 #
-# These scripts are compatibile with both Python 2.6 and 3.4.  As such the
+# These scripts are compatible with both Python 2.6 and 3.4.  As such the
 # python 3 shebang can be replaced at install time when targeting a python
 # 2 system.  This allows us to maintain a single version of the source.
 #
