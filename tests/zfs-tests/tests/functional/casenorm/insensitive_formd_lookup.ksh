@@ -19,7 +19,7 @@
 
 # DESCRIPTION:
 # For the filesystem with casesensitivity=insensitive, normalization=formD,
-# check that lookup succeds using any name form.
+# check that lookup succeeds using any name form.
 #
 # STRATEGY:
 # For each c/n name form:

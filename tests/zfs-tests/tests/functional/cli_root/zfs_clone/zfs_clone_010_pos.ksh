@@ -150,7 +150,7 @@ log_note "Verify zfs clone property for multiple clones"
 names=$(zfs list -rt all -o name $TESTPOOL)
 log_must verify_clones 3 0
 
-log_note "verfify clone property for clone deletion"
+log_note "verify clone property for clone deletion"
 i=1
 for ds in $datasets; do
 	log_must zfs destroy $ds/$TESTCLONE.$i

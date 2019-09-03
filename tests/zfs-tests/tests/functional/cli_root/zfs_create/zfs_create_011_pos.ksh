@@ -33,7 +33,7 @@
 
 #
 # DESCRIPTION:
-# 'zfs create -p'  should work as expecteed
+# 'zfs create -p'  should work as expected
 #
 # STRATEGY:
 # 1. To create $newdataset with -p option, first make sure the upper level
