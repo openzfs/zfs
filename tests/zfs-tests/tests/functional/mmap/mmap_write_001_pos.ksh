@@ -33,7 +33,7 @@
 
 #
 # DESCRIPTION:
-# Writing to a file and mmaping that file at the
+# Writing to a file and mmapping that file at the
 # same time does not result in a deadlock.
 #
 # STRATEGY:
