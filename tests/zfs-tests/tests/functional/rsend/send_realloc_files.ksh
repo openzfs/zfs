@@ -25,7 +25,7 @@
 # Strategy:
 # 1. Create a pool containing an encrypted filesystem.
 # 2. Use 'zfs send -wp' to perform a raw send of the initial filesystem.
-# 3. Repeat the followings steps N times to verify raw incremental receives.
+# 3. Repeat the following steps N times to verify raw incremental receives.
 #   a) Randomly change several key dataset properties.
 #   b) Modify the contents of the filesystem such that dnode reallocation
 #      is likely during the 'zfs receive', and receive_object() exercises
