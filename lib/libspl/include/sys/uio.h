@@ -75,7 +75,7 @@ typedef enum xuio_type {
 
 typedef struct uioa_page_s {		/* locked uio_iov state */
 	int	uioa_pfncnt;		/* count of pfn_t(s) in *uioa_ppp */
-	void	**uioa_ppp;		/* page_t or pfn_t arrary */
+	void	**uioa_ppp;		/* page_t or pfn_t array */
 	caddr_t	uioa_base;		/* address base */
 	size_t	uioa_len;		/* span length */
 } uioa_page_t;

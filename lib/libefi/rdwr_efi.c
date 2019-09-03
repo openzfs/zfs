@@ -224,7 +224,7 @@ efi_get_info(int fd, struct dk_cinfo *dki_info)
 
 	/*
 	 * The simplest way to get the partition number under linux is
-	 * to parse it out of the /dev/<disk><parition> block device name.
+	 * to parse it out of the /dev/<disk><partition> block device name.
 	 * The kernel creates this using the partition number when it
 	 * populates /dev/ so it may be trusted.  The tricky bit here is
 	 * that the naming convention is based on the block device type.
@@ -1198,7 +1198,7 @@ efi_use_whole_disk(int fd)
 	 * Verify that we've found the reserved partition by checking
 	 * that it looks the way it did when we created it in zpool_label_disk.
 	 * If we've found the incorrect partition, then we know that this
-	 * device was reformatted and no longer is soley used by ZFS.
+	 * device was reformatted and no longer is solely used by ZFS.
 	 */
 	if ((efi_label->efi_parts[resv_index].p_size != EFI_MIN_RESV_SIZE) ||
 	    (efi_label->efi_parts[resv_index].p_tag != V_RESERVED) ||
@@ -1284,7 +1284,7 @@ efi_write(int fd, struct dk_gpt *vtoc)
 	if ((rval = efi_get_info(fd, &dki_info)) != 0)
 		return (rval);
 
-	/* check if we are dealing wih a metadevice */
+	/* check if we are dealing with a metadevice */
 	if ((strncmp(dki_info.dki_cname, "pseudo", 7) == 0) &&
 	    (strncmp(dki_info.dki_dname, "md", 3) == 0)) {
 		md_flag = 1;

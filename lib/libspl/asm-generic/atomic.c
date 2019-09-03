@@ -37,7 +37,7 @@
 pthread_mutex_t atomic_lock = PTHREAD_MUTEX_INITIALIZER;
 
 /*
- * Theses are the void returning variants
+ * These are the void returning variants
  */
 /* BEGIN CSTYLED */
 #define	ATOMIC_INC(name, type) \
