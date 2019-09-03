@@ -135,7 +135,7 @@ else
 fi
 
 log_note "Checking mv"
-# mv doesn't have any flags to preserve/ommit xattrs - they're
+# mv doesn't have any flags to preserve/omit xattrs - they're
 # always moved.
 log_must touch $TESTDIR/mvfile.$$
 create_xattr $TESTDIR/mvfile.$$ passwd /etc/passwd
