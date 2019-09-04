@@ -6121,9 +6121,8 @@ zpool_do_detach(int argc, char **argv)
 	int ret;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "f")) != -1) {
+	while ((c = getopt(argc, argv, "")) != -1) {
 		switch (c) {
-		case 'f':
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
 			    optopt);
@@ -6352,12 +6351,11 @@ zpool_do_online(int argc, char **argv)
 	int flags = 0;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "et")) != -1) {
+	while ((c = getopt(argc, argv, "e")) != -1) {
 		switch (c) {
 		case 'e':
 			flags |= ZFS_ONLINE_EXPAND;
 			break;
-		case 't':
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
 			    optopt);
