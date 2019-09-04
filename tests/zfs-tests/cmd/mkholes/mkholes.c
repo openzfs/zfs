@@ -40,7 +40,8 @@ typedef struct segment {
 } seg_t;
 
 static int
-no_memory(void) {
+no_memory(void)
+{
 	(void) fprintf(stderr, "malloc failed\n");
 	exit(255);
 	return (0);
@@ -170,8 +171,8 @@ main(int argc, char *argv[])
 				}
 
 			}
-			if (fallocate(fd, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE,
-			    off, len) < 0) {
+			if (fallocate(fd, FALLOC_FL_PUNCH_HOLE |
+			    FALLOC_FL_KEEP_SIZE, off, len) < 0) {
 				perror("punch hole failed");
 				exit(1);
 			}
