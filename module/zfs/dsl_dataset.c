@@ -4872,20 +4872,19 @@ dsl_dataset_activate_redaction(dsl_dataset_t *ds, uint64_t *redact_snaps,
 	ds->ds_feature[SPA_FEATURE_REDACTED_DATASETS] = ftuaa;
 }
 
-
-#if defined(_KERNEL)
+/* BEGIN CSTYLED */
 #if defined(_LP64)
-module_param(zfs_max_recordsize, int, 0644);
-MODULE_PARM_DESC(zfs_max_recordsize, "Max allowed record size");
+#define	RECORDSIZE_PERM ZMOD_RW
 #else
 /* Limited to 1M on 32-bit platforms due to lack of virtual address space */
-module_param(zfs_max_recordsize, int, 0444);
-MODULE_PARM_DESC(zfs_max_recordsize, "Max allowed record size");
+#define	RECORDSIZE_PERM ZMOD_RD
 #endif
+ZFS_MODULE_PARAM(zfs, zfs_, max_recordsize, INT, RECORDSIZE_PERM,
+	"Max allowed record size");
 
-module_param(zfs_allow_redacted_dataset_mount, int, 0644);
-MODULE_PARM_DESC(zfs_allow_redacted_dataset_mount,
+ZFS_MODULE_PARAM(zfs, zfs_, allow_redacted_dataset_mount, INT, ZMOD_RW,
 	"Allow mounting of redacted datasets");
+/* END CSTYLED */
 
 EXPORT_SYMBOL(dsl_dataset_hold);
 EXPORT_SYMBOL(dsl_dataset_hold_flags);
@@ -4923,4 +4922,3 @@ EXPORT_SYMBOL(dsl_dsobj_to_dsname);
 EXPORT_SYMBOL(dsl_dataset_check_quota);
 EXPORT_SYMBOL(dsl_dataset_clone_swap_check_impl);
 EXPORT_SYMBOL(dsl_dataset_clone_swap_sync_impl);
-#endif

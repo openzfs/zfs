@@ -36,4 +36,77 @@ typedef const struct kernel_param zfs_kernel_param_t;
 typedef struct kernel_param zfs_kernel_param_t;
 #endif
 
+#define	ZMOD_RW 0644
+#define	ZMOD_RD 0444
+
+/* BEGIN CSTYLED */
+#define	INT int
+#define	UINT uint
+#define	ULONG ulong
+#define	LONG long
+#define	STRING charp
+/* END CSTYLED */
+
+enum scope_prefix_types {
+	zfs,
+	zfs_arc,
+	zfs_condense,
+	zfs_dbuf,
+	zfs_dbuf_cache,
+	zfs_l2arc,
+	zfs_livelist,
+	zfs_livelist_condense,
+	zfs_lua,
+	zfs_metaslab,
+	zfs_mg,
+	zfs_multihost,
+	zfs_prefetch,
+	zfs_reconstruct,
+	zfs_recv,
+	zfs_send,
+	zfs_spa,
+	zfs_trim,
+	zfs_vdev,
+	zfs_vdev_cache,
+	zfs_vdev_mirror,
+	zfs_zio,
+	zfs_zil,
+};
+
+/*
+ * Declare a module parameter / sysctl node
+ *
+ * scope_prefix the part of the the sysctl / sysfs tree the node resides under
+ *   (currently a no-op on Linux)
+ * name_prefix the part of the variable name that will be excluded from the
+ *   exported names on platforms with a hierarchical namespace
+ * name the part of the variable that will be exposed on platforms with a
+ *    hierarchical namespace, or as name_prefix ## name on Linux
+ * type the variable type
+ * perm the permissions (read/write or read only)
+ * desc a brief description of the option
+ *
+ * Examples:
+ * ZFS_MODULE_PARAM(zfs_vdev_mirror, zfs_vdev_mirror_, rotating_inc, UINT,
+ *	 ZMOD_RW, "Rotating media load increment for non-seeking I/O's");
+ * on FreeBSD:
+ *   vfs.zfs.vdev.mirror.rotating_inc
+ * on Linux:
+ *   zfs_vdev_mirror_rotating_inc
+ *
+ * *ZFS_MODULE_PARAM(zfs, , dmu_prefetch_max, UINT, ZMOD_RW,
+ *	"Limit one prefetch call to this size");
+ * on FreeBSD:
+ *   vfs.zfs.dmu_prefetch_max
+ * on Linux:
+ *   dmu_prefetch_max
+ */
+/* BEGIN CSTYLED */
+#define	ZFS_MODULE_PARAM(scope_prefix, name_prefix, name, type, perm, desc) \
+	CTASSERT_GLOBAL((sizeof (scope_prefix) == sizeof (enum scope_prefix_types))); \
+	module_param(name_prefix ## name, type, perm); \
+	MODULE_PARM_DESC(name_prefix ## name, desc)
+/* END CSTYLED */
+
+
 #endif	/* _MOD_COMPAT_H */

@@ -366,22 +366,19 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data,
 	ZFETCHSTAT_BUMP(zfetchstat_hits);
 }
 
-#if defined(_KERNEL)
 /* BEGIN CSTYLED */
-module_param(zfs_prefetch_disable, int, 0644);
-MODULE_PARM_DESC(zfs_prefetch_disable, "Disable all ZFS prefetching");
+ZFS_MODULE_PARAM(zfs_prefetch, zfs_prefetch_, disable, INT, ZMOD_RW,
+	"Disable all ZFS prefetching");
 
-module_param(zfetch_max_streams, uint, 0644);
-MODULE_PARM_DESC(zfetch_max_streams, "Max number of streams per zfetch");
+ZFS_MODULE_PARAM(zfs_prefetch, zfetch_, max_streams, UINT, ZMOD_RW,
+	"Max number of streams per zfetch");
 
-module_param(zfetch_min_sec_reap, uint, 0644);
-MODULE_PARM_DESC(zfetch_min_sec_reap, "Min time before stream reclaim");
+ZFS_MODULE_PARAM(zfs_prefetch, zfetch_, min_sec_reap, UINT, ZMOD_RW,
+	"Min time before stream reclaim");
 
-module_param(zfetch_max_distance, uint, 0644);
-MODULE_PARM_DESC(zfetch_max_distance,
+ZFS_MODULE_PARAM(zfs_prefetch, zfetch_, max_distance, UINT, ZMOD_RW,
 	"Max bytes to prefetch per stream (default 8MB)");
 
-module_param(zfetch_array_rd_sz, ulong, 0644);
-MODULE_PARM_DESC(zfetch_array_rd_sz, "Number of bytes in a array_read");
+ZFS_MODULE_PARAM(zfs_prefetch, zfetch_, array_rd_sz, ULONG, ZMOD_RW,
+	"Number of bytes in a array_read");
 /* END CSTYLED */
-#endif

@@ -1425,7 +1425,6 @@ vdev_autotrim_restart(spa_t *spa)
 		vdev_autotrim(spa);
 }
 
-#if defined(_KERNEL)
 EXPORT_SYMBOL(vdev_trim);
 EXPORT_SYMBOL(vdev_trim_stop);
 EXPORT_SYMBOL(vdev_trim_stop_all);
@@ -1437,24 +1436,18 @@ EXPORT_SYMBOL(vdev_autotrim_stop_wait);
 EXPORT_SYMBOL(vdev_autotrim_restart);
 
 /* BEGIN CSTYLED */
-module_param(zfs_trim_extent_bytes_max, uint, 0644);
-MODULE_PARM_DESC(zfs_trim_extent_bytes_max,
+ZFS_MODULE_PARAM(zfs_trim, zfs_trim_, extent_bytes_max, UINT, ZMOD_RW,
     "Max size of TRIM commands, larger will be split");
 
-module_param(zfs_trim_extent_bytes_min, uint, 0644);
-MODULE_PARM_DESC(zfs_trim_extent_bytes_min,
+ZFS_MODULE_PARAM(zfs_trim, zfs_trim_, extent_bytes_min, UINT, ZMOD_RW,
     "Min size of TRIM commands, smaller will be skipped");
 
-module_param(zfs_trim_metaslab_skip, uint, 0644);
-MODULE_PARM_DESC(zfs_trim_metaslab_skip,
+ZFS_MODULE_PARAM(zfs_trim, zfs_trim_, metaslab_skip, UINT, ZMOD_RW,
     "Skip metaslabs which have never been initialized");
 
-module_param(zfs_trim_txg_batch, uint, 0644);
-MODULE_PARM_DESC(zfs_trim_txg_batch,
+ZFS_MODULE_PARAM(zfs_trim, zfs_trim_, txg_batch, UINT, ZMOD_RW,
     "Min number of txgs to aggregate frees before issuing TRIM");
 
-module_param(zfs_trim_queue_limit, uint, 0644);
-MODULE_PARM_DESC(zfs_trim_queue_limit,
+ZFS_MODULE_PARAM(zfs_trim, zfs_trim_, queue_limit, UINT, ZMOD_RW,
     "Max queued TRIMs outstanding per leaf vdev");
 /* END CSTYLED */
-#endif

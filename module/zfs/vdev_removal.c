@@ -2289,22 +2289,17 @@ spa_removal_get_stats(spa_t *spa, pool_removal_stat_t *prs)
 	return (0);
 }
 
-#if defined(_KERNEL)
-module_param(zfs_removal_ignore_errors, int, 0644);
-MODULE_PARM_DESC(zfs_removal_ignore_errors,
+/* BEGIN CSTYLED */
+ZFS_MODULE_PARAM(zfs_vdev, zfs_, removal_ignore_errors, INT, ZMOD_RW,
 	"Ignore hard IO errors when removing device");
 
-module_param(zfs_remove_max_segment, int, 0644);
-MODULE_PARM_DESC(zfs_remove_max_segment,
+ZFS_MODULE_PARAM(zfs_vdev, zfs_, remove_max_segment, INT, ZMOD_RW,
 	"Largest contiguous segment to allocate when removing device");
 
-module_param(vdev_removal_max_span, int, 0644);
-MODULE_PARM_DESC(vdev_removal_max_span,
+ZFS_MODULE_PARAM(zfs_vdev, vdev_, removal_max_span, INT, ZMOD_RW,
 	"Largest span of free chunks a remap segment can span");
 
-/* BEGIN CSTYLED */
-module_param(zfs_removal_suspend_progress, int, 0644);
-MODULE_PARM_DESC(zfs_removal_suspend_progress,
+ZFS_MODULE_PARAM(zfs_vdev, zfs_, removal_suspend_progress, INT, ZMOD_RW,
 	"Pause device removal after this many bytes are copied "
 	"(debug use only - causes removal to hang)");
 /* END CSTYLED */
@@ -2318,4 +2313,3 @@ EXPORT_SYMBOL(spa_vdev_remove);
 EXPORT_SYMBOL(spa_vdev_remove_cancel);
 EXPORT_SYMBOL(spa_vdev_remove_suspend);
 EXPORT_SYMBOL(svr_sync);
-#endif

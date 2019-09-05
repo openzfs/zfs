@@ -717,7 +717,6 @@ mmp_signal_all_threads(void)
 }
 
 #if defined(_KERNEL)
-#include <linux/mod_compat.h>
 
 static int
 param_set_multihost_interval(const char *val, zfs_kernel_param_t *kp)
@@ -734,18 +733,19 @@ param_set_multihost_interval(const char *val, zfs_kernel_param_t *kp)
 	return (ret);
 }
 
-/* BEGIN CSTYLED */
-module_param(zfs_multihost_fail_intervals, uint, 0644);
-MODULE_PARM_DESC(zfs_multihost_fail_intervals,
-	"Max allowed period without a successful mmp write");
+#endif
 
+/* BEGIN CSTYLED */
+#if defined(_KERNEL)
 module_param_call(zfs_multihost_interval, param_set_multihost_interval,
     param_get_ulong, &zfs_multihost_interval, 0644);
 MODULE_PARM_DESC(zfs_multihost_interval,
 	"Milliseconds between mmp writes to each leaf");
+#endif
 
-module_param(zfs_multihost_import_intervals, uint, 0644);
-MODULE_PARM_DESC(zfs_multihost_import_intervals,
+ZFS_MODULE_PARAM(zfs_multihost, zfs_multihost_, fail_intervals, UINT, ZMOD_RW,
+	"Max allowed period without a successful mmp write");
+
+ZFS_MODULE_PARAM(zfs_multihost, zfs_multihost_, import_intervals, UINT, ZMOD_RW,
 	"Number of zfs_multihost_interval periods to wait for activity");
 /* END CSTYLED */
-#endif
