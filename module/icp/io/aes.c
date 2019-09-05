@@ -212,8 +212,8 @@ aes_mod_init(void)
 	 * are run in dedicated kernel threads to allow Linux 5.0+ kernels
 	 * to use SIMD operations.  If for some reason this isn't possible,
 	 * fallback to the generic implementations.  See the comment in
-	 * include/linux/simd_x86.h for additional details.  Additionally,
-	 * this has the benefit of allowing them to be run in parallel.
+	 * linux/simd_x86.h for additional details.  Additionally, this has
+	 * the benefit of allowing them to be run in parallel.
 	 */
 	taskqid_t aes_id = taskq_dispatch(system_taskq, aes_impl_init,
 	    NULL, TQ_SLEEP);

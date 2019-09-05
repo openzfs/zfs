@@ -26,7 +26,7 @@
 #if defined(__x86_64) && defined(HAVE_AVX2)
 
 #include <sys/types.h>
-#include <linux/simd_x86.h>
+#include <sys/simd.h>
 
 #define	__asm __asm__ __volatile__
 

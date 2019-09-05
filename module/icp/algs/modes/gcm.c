@@ -28,8 +28,8 @@
 #include <sys/crypto/icp.h>
 #include <sys/crypto/impl.h>
 #include <sys/byteorder.h>
+#include <sys/simd.h>
 #include <modes/gcm_impl.h>
-#include <linux/simd.h>
 
 #define	GHASH(c, d, t, o) \
 	xor_block((uint8_t *)(d), (uint8_t *)(c)->gcm_ghash); \

@@ -79,10 +79,10 @@ function write_some_data
 
 #
 # Create/overwrite a few datasets with files.
-# Apply md5sum on all the files and store checksums in a file.
+# Checksum all the files and store digests in a file.
 #
 # newdata: overwrite existing files if false.
-# md5file: file where to store md5sums
+# md5file: file where to store md5 digests
 # datasetname: base name for datasets
 #
 function _generate_data_common
@@ -102,7 +102,10 @@ function _generate_data_common
 		for j in {1..$files}; do
 			typeset file="/$pool/$datasetname$i/file$j"
 			dd if=/dev/urandom of=$file bs=128k count=$blocks > /dev/null
-			[[ -n $md5file ]] && md5sum $file >> $md5file
+			if [[ -n $md5file ]]; then
+				typeset cksum=$(md5digest $file)
+				echo $cksum $file >> $md5file
+			fi
 		done
 		( $newdata ) && sync_pool "$pool"
 	done
@@ -140,8 +143,15 @@ function verify_data_md5sums
 		return 1
 	fi
 
-	md5sum -c --quiet $md5file
-	return $?
+	cat $md5file | \
+	while read digest file; do
+		typeset digest1=$(md5digest $file)
+		if [[ "$digest1" != "$digest" ]]; then
+			return 1
+		fi
+	done
+
+	return 0
 }
 
 #

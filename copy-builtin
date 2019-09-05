@@ -62,7 +62,9 @@ EOF
 {
 	cat <<-"EOF"
 	ZFS_MODULE_CFLAGS  = -I$(srctree)/include/zfs
-	ZFS_MODULE_CFLAGS += -I$(srctree)/include/zfs/spl
+	ZFS_MODULE_CFLAGS += -I$(srctree)/include/zfs/os/linux/spl
+	ZFS_MODULE_CFLAGS += -I$(srctree)/include/zfs/os/linux/zfs
+	ZFS_MODULE_CFLAGS += -I$(srctree)/include/zfs/os/linux/kernel
 	ZFS_MODULE_CFLAGS += -include $(srctree)/include/zfs/zfs_config.h
 	ZFS_MODULE_CFLAGS += -std=gnu99 -Wno-declaration-after-statement
 	ZFS_MODULE_CPPFLAGS  = -D_KERNEL

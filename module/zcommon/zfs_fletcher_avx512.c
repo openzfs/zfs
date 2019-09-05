@@ -24,11 +24,11 @@
 
 #if defined(__x86_64) && defined(HAVE_AVX512F)
 
-#include <linux/simd_x86.h>
 #include <sys/byteorder.h>
 #include <sys/frame.h>
 #include <sys/spa_checksum.h>
 #include <sys/strings.h>
+#include <sys/simd.h>
 #include <zfs_fletcher.h>
 
 #define	__asm __asm__ __volatile__

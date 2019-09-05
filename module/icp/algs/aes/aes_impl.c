@@ -25,9 +25,9 @@
 #include <sys/zfs_context.h>
 #include <sys/crypto/icp.h>
 #include <sys/crypto/spi.h>
+#include <sys/simd.h>
 #include <modes/modes.h>
 #include <aes/aes_impl.h>
-#include <linux/simd.h>
 
 /*
  * Initialize AES encryption and decryption key schedules.

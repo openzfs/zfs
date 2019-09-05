@@ -29,7 +29,7 @@
 #include <sys/zfs_debug.h>
 #include <sys/vdev_raidz.h>
 #include <sys/vdev_raidz_impl.h>
-#include <linux/simd.h>
+#include <sys/simd.h>
 
 extern boolean_t raidz_will_scalar_work(void);
 
