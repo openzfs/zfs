@@ -80,7 +80,7 @@ typeset mntp=/mnt
 typeset TMP_FILE=$mntp/tmpfile.$$
 
 create_pool $TESTPOOL $pool_dev
-log_must zfs create -V 100m $vol_name
+log_must zfs create -V 75m $vol_name
 block_device_wait
 log_must echo "y" | newfs ${ZVOL_DEVDIR}/$vol_name > /dev/null 2>&1
 log_must mount ${ZVOL_DEVDIR}/$vol_name $mntp

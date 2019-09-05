@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2019 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  * Copyright (c) 2014 Integros [integros.com]
@@ -2975,18 +2975,44 @@ ztest_vdev_add_remove(ztest_ds_t *zd, uint64_t id)
 	/*
 	 * If we have slogs then remove them 1/4 of the time.
 	 */
-	if (spa_has_slogs(spa) && ztest_random(4) == 0) {
-		metaslab_group_t *mg;
+	if (spa_has_log_device(spa) && ztest_random(4) == 0) {
+		metaslab_group_t *rotor, *mg;
+		boolean_t slog_found = B_FALSE;
 
-		/*
-		 * find the first real slog in log allocation class
-		 */
-		mg =  spa_log_class(spa)->mc_rotor;
-		while (!mg->mg_vd->vdev_islog)
-			mg = mg->mg_next;
+		mg = rotor = spa_log_class(spa)->mc_rotor;
+		do {
+			if (mg == NULL) {
+				/*
+				 * When we are in the middle of removing a
+				 * log device, the spa may still "have log
+				 * devices" (i.e. spa_log_devices > 0) but
+				 * have no groups in the log class.  See
+				 * spa_vdev_remove_log().
+				 */
+				break;
+			}
+			/*
+			 * Even though we have log devices, we may find
+			 * normal vdevs in the log class because they have
+			 * embedded slog metaslabs.  This can happen because
+			 * we don't disable embedded slog metaslabs when
+			 * adding a log device (after the pool is opened).
+			 */
+			if (mg->mg_vd->vdev_islog) {
+				slog_found = B_TRUE;
+				break;
+			}
+		} while ((mg = mg->mg_next) != rotor);
+
+		if (!slog_found) {
+			spa_config_exit(spa, SCL_VDEV, FTAG);
+			mutex_exit(&ztest_vdev_lock);
+			return;
+		}
+		ASSERT(mg->mg_vd->vdev_islog);
 
 		guid = mg->mg_vd->vdev_guid;
-
+		zfs_dbgmsg("removing (%llu) vd %p", guid, mg->mg_vd);
 		spa_config_exit(spa, SCL_VDEV, FTAG);
 
 		/*
@@ -3010,7 +3036,7 @@ ztest_vdev_add_remove(ztest_ds_t *zd, uint64_t id)
 		case ZFS_ERR_DISCARDING_CHECKPOINT:
 			break;
 		default:
-			fatal(0, "spa_vdev_remove() = %d", error);
+			fatal(0, "spa_vdev_remove(%llu) = %d", guid, error);
 		}
 	} else {
 		spa_config_exit(spa, SCL_VDEV, FTAG);

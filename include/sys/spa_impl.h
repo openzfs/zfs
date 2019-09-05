@@ -224,6 +224,7 @@ struct spa {
 	boolean_t	spa_is_exporting;	/* true while exporting pool */
 	metaslab_class_t *spa_normal_class;	/* normal data class */
 	metaslab_class_t *spa_log_class;	/* intent log data class */
+	int		spa_log_devices;	/* number of log devices */
 	metaslab_class_t *spa_special_class;	/* special allocation class */
 	metaslab_class_t *spa_dedup_class;	/* dedup allocation class */
 	uint64_t	spa_first_txg;		/* first txg after spa_open() */

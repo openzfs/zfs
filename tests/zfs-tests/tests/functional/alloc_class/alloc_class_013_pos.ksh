@@ -40,7 +40,7 @@ log_must display_status "$TESTPOOL"
 # Generate some dedup data in the dedup class before removal
 #
 
-log_must zfs create -o dedup=on -V 2G $TESTPOOL/$TESTVOL
+log_must zfs create -o dedup=on -V 1G $TESTPOOL/$TESTVOL
 
 log_must echo y | newfs $ZVOL_DEVDIR/$TESTPOOL/$TESTVOL >/dev/null 2>&1
 

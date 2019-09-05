@@ -945,6 +945,20 @@ Default value: \fB0\fR.
 .sp
 .ne 2
 .na
+\fBzfs_max_embedded_slogs\fR (int)
+.ad
+.RS 12n
+If there are no dedicated log devices (slogs), each vdev will "donate" a
+metaslab to be used by the ZIL.  These are called "embedded slog
+metaslabs".  This parameter limits the number of vdevs that will have
+log metaslabs.  If set to 0, there will be no embedded log metaslabs.
+.sp
+Default value: \fBINT_MAX\fR
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_max_missing_tvds\fR (int)
 .ad
 .RS 12n

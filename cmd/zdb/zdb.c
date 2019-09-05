@@ -4492,6 +4492,7 @@ zdb_leak_init_prepare_indirect_vdevs(spa_t *spa, zdb_cb_t *zcb)
 		 * metaslabs.  We want to set them up for
 		 * zio_claim().
 		 */
+		vdev_metaslab_group_create(vd);
 		VERIFY0(vdev_metaslab_init(vd, 0));
 
 		vdev_indirect_mapping_t *vim = vd->vdev_indirect_mapping;
@@ -4663,7 +4664,6 @@ zdb_leak_fini(spa_t *spa, zdb_cb_t *zcb)
 	vdev_t *rvd = spa->spa_root_vdev;
 	for (unsigned c = 0; c < rvd->vdev_children; c++) {
 		vdev_t *vd = rvd->vdev_child[c];
-		ASSERTV(metaslab_group_t *mg = vd->vdev_mg);
 
 		if (zcb->zcb_vd_obsolete_counts[c] != NULL) {
 			leaks |= zdb_check_for_obsolete_leaks(vd, zcb);
@@ -4671,7 +4671,12 @@ zdb_leak_fini(spa_t *spa, zdb_cb_t *zcb)
 
 		for (uint64_t m = 0; m < vd->vdev_ms_count; m++) {
 			metaslab_t *msp = vd->vdev_ms[m];
-			ASSERT3P(mg, ==, msp->ms_group);
+			if (!vd->vdev_islog &&
+			    msp->ms_group->mg_class == spa_log_class(spa)) {
+				ASSERT3P(msp->ms_group, ==, vd->vdev_log_mg);
+			} else {
+				ASSERT3P(msp->ms_group, ==, vd->vdev_mg);
+			}
 
 			/*
 			 * ms_allocatable has been overloaded

@@ -671,7 +671,7 @@ zvol_log_write(zvol_state_t *zv, dmu_tx_t *tx, uint64_t offset,
 
 	if (zilog->zl_logbias == ZFS_LOGBIAS_THROUGHPUT)
 		write_state = WR_INDIRECT;
-	else if (!spa_has_slogs(zilog->zl_spa) &&
+	else if (!spa_has_log_device(zilog->zl_spa) &&
 	    size >= blocksize && blocksize > zvol_immediate_write_sz)
 		write_state = WR_INDIRECT;
 	else if (sync)

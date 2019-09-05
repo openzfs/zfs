@@ -2657,10 +2657,9 @@ zio_write_gang_done(zio_t *zio)
 }
 
 static zio_t *
-zio_write_gang_block(zio_t *pio)
+zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 {
 	spa_t *spa = pio->io_spa;
-	metaslab_class_t *mc = spa_normal_class(spa);
 	blkptr_t *bp = pio->io_bp;
 	zio_t *gio = pio->io_gang_leader;
 	zio_t *zio;
@@ -3377,6 +3376,12 @@ zio_dva_allocate(zio_t *zio)
 		zio->io_metaslab_class = mc;
 	}
 
+	/*
+	 * Try allocating the block in the usual metaslab class.
+	 * If that's full, allocate it in the normal class.
+	 * If that's full, allocate it in slog space,
+	 * and if all are full, allocate as a gang block.
+	 */
 	error = metaslab_alloc(spa, mc, zio->io_size, bp,
 	    zio->io_prop.zp_copies, zio->io_txg, NULL, flags,
 	    &zio->io_alloc_list, zio, zio->io_allocator);
@@ -3404,18 +3409,44 @@ zio_dva_allocate(zio_t *zio)
 			mc = spa_normal_class(spa);
 		}
 		zio->io_metaslab_class = mc;
+		if (zfs_flags & ZFS_DEBUG_METASLAB_ALLOC) {
+			zfs_dbgmsg("%s: metaslab allocation failure, "
+			    "trying normal class: zio %px, size %llu, error %d",
+			    spa_name(spa), zio, zio->io_size, error);
+		}
 
 		error = metaslab_alloc(spa, mc, zio->io_size, bp,
 		    zio->io_prop.zp_copies, zio->io_txg, NULL, flags,
 		    &zio->io_alloc_list, zio, zio->io_allocator);
 	}
 
+	if (error == ENOSPC && !spa_has_log_device(spa) &&
+	    mc != spa_log_class(spa)) {
+		if (zfs_flags & ZFS_DEBUG_METASLAB_ALLOC) {
+			zfs_dbgmsg("%s: metaslab allocation failure, "
+			    "trying log class: zio %px, size %llu, error %d",
+			    spa_name(spa), zio, zio->io_size, error);
+		}
+		error = metaslab_alloc(spa, spa_log_class(spa),
+		    zio->io_size, bp, zio->io_prop.zp_copies,
+		    zio->io_txg, NULL, flags,
+		    &zio->io_alloc_list, zio, zio->io_allocator);
+	}
+	if (error == ENOSPC && zio->io_size > SPA_MINBLOCKSIZE) {
+		if (zfs_flags & ZFS_DEBUG_METASLAB_ALLOC) {
+			zfs_dbgmsg("%s: metaslab allocation failure, "
+			    "trying ganging: zio %px, size %llu, error %d",
+			    spa_name(spa), zio, zio->io_size, error);
+		}
+		return (zio_write_gang_block(zio, mc));
+	}
 	if (error != 0) {
-		zfs_dbgmsg("%s: metaslab allocation failure: zio %px, "
-		    "size %llu, error %d", spa_name(spa), zio, zio->io_size,
-		    error);
-		if (error == ENOSPC && zio->io_size > SPA_MINBLOCKSIZE)
-			return (zio_write_gang_block(zio));
+		if (error != ENOSPC ||
+		    (zfs_flags & ZFS_DEBUG_METASLAB_ALLOC)) {
+			zfs_dbgmsg("%s: metaslab allocation failure: zio %px, "
+			    "size %llu, error %d",
+			    spa_name(spa), zio, zio->io_size, error);
+		}
 		zio->io_error = error;
 	}
 
@@ -3497,7 +3528,7 @@ zio_alloc_zil(spa_t *spa, objset_t *os, uint64_t txg, blkptr_t *new_bp,
 	    cityhash4(0, 0, 0, os->os_dsl_dataset->ds_object) %
 	    spa->spa_alloc_count);
 	if (error == 0) {
-		*slog = TRUE;
+		*slog = spa_has_log_device(spa);
 	} else {
 		error = metaslab_alloc(spa, spa_normal_class(spa), size,
 		    new_bp, 1, txg, NULL, METASLAB_FASTWRITE,

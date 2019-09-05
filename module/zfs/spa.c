@@ -1200,6 +1200,7 @@ spa_activate(spa_t *spa, int mode)
 
 	spa->spa_normal_class = metaslab_class_create(spa, zfs_metaslab_ops);
 	spa->spa_log_class = metaslab_class_create(spa, zfs_metaslab_ops);
+	spa->spa_log_devices = 0;
 	spa->spa_special_class = metaslab_class_create(spa, zfs_metaslab_ops);
 	spa->spa_dedup_class = metaslab_class_create(spa, zfs_metaslab_ops);
 
@@ -2095,6 +2096,9 @@ spa_check_logs(spa_t *spa)
 	return (rv);
 }
 
+/*
+ * Passivate any log vdevs (note, does not apply to embedded log metaslabs).
+ */
 static boolean_t
 spa_passivate_log(spa_t *spa)
 {
@@ -2103,15 +2107,12 @@ spa_passivate_log(spa_t *spa)
 
 	ASSERT(spa_config_held(spa, SCL_ALLOC, RW_WRITER));
 
-	if (!spa_has_slogs(spa))
-		return (B_FALSE);
-
 	for (int c = 0; c < rvd->vdev_children; c++) {
 		vdev_t *tvd = rvd->vdev_child[c];
-		metaslab_group_t *mg = tvd->vdev_mg;
 
 		if (tvd->vdev_islog) {
-			metaslab_group_passivate(mg);
+			ASSERT3P(tvd->vdev_log_mg, ==, NULL);
+			metaslab_group_passivate(tvd->vdev_mg);
 			slog_found = B_TRUE;
 		}
 	}
@@ -2119,6 +2120,9 @@ spa_passivate_log(spa_t *spa)
 	return (slog_found);
 }
 
+/*
+ * Activate any log vdevs (note, does not apply to embedded log metaslabs).
+ */
 static void
 spa_activate_log(spa_t *spa)
 {
@@ -2128,10 +2132,11 @@ spa_activate_log(spa_t *spa)
 
 	for (int c = 0; c < rvd->vdev_children; c++) {
 		vdev_t *tvd = rvd->vdev_child[c];
-		metaslab_group_t *mg = tvd->vdev_mg;
 
-		if (tvd->vdev_islog)
-			metaslab_group_activate(mg);
+		if (tvd->vdev_islog) {
+			ASSERT3P(tvd->vdev_log_mg, ==, NULL);
+			metaslab_group_activate(tvd->vdev_mg);
+		}
 	}
 }
 

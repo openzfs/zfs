@@ -242,6 +242,7 @@ struct vdev {
 	uint64_t	vdev_ms_shift;	/* metaslab size shift		*/
 	uint64_t	vdev_ms_count;	/* number of metaslabs		*/
 	metaslab_group_t *vdev_mg;	/* metaslab group		*/
+	metaslab_group_t *vdev_log_mg;	/* embedded slog metaslab group	*/
 	metaslab_t	**vdev_ms;	/* metaslab array		*/
 	uint64_t	vdev_pending_fastwrite; /* allocated fastwrites */
 	txg_list_t	vdev_ms_list;	/* per-txg dirty metaslab lists	*/

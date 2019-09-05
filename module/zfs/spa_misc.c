@@ -1014,10 +1014,10 @@ spa_aux_activate(vdev_t *vd, avl_tree_t *avl)
 /*
  * Spares are tracked globally due to the following constraints:
  *
- * 	- A spare may be part of multiple pools.
- * 	- A spare may be added to a pool even if it's actively in use within
+ *	- A spare may be part of multiple pools.
+ *	- A spare may be added to a pool even if it's actively in use within
  *	  another pool.
- * 	- A spare in use in any pool can only be the source of a replacement if
+ *	- A spare in use in any pool can only be the source of a replacement if
  *	  the target is a spare in the same pool.
  *
  * We keep track of all spares on the system through the use of a reference
@@ -2365,14 +2365,14 @@ spa_fini(void)
 }
 
 /*
- * Return whether this pool has slogs. No locking needed.
+ * Return whether this pool has a dedicated slog device. No locking needed.
  * It's not a problem if the wrong answer is returned as it's only for
- * performance and not correctness
+ * performance and not correctness.
  */
 boolean_t
-spa_has_slogs(spa_t *spa)
+spa_has_log_device(spa_t *spa)
 {
-	return (spa->spa_log_class->mc_rotor != NULL);
+	return (spa->spa_log_devices > 0);
 }
 
 spa_log_state_t
@@ -2873,7 +2873,7 @@ EXPORT_SYMBOL(spa_has_spare);
 EXPORT_SYMBOL(dva_get_dsize_sync);
 EXPORT_SYMBOL(bp_get_dsize_sync);
 EXPORT_SYMBOL(bp_get_dsize);
-EXPORT_SYMBOL(spa_has_slogs);
+EXPORT_SYMBOL(spa_has_log_device);
 EXPORT_SYMBOL(spa_is_root);
 EXPORT_SYMBOL(spa_writeable);
 EXPORT_SYMBOL(spa_mode);

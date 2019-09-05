@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2019 by Delphix. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
  */
 
@@ -32,6 +32,7 @@
 #include <sys/zio.h>
 #include <sys/dmu.h>
 #include <sys/space_map.h>
+#include <sys/metaslab.h>
 #include <sys/fs/zfs.h>
 
 #ifdef	__cplusplus
@@ -92,6 +93,7 @@ extern void vdev_rele(vdev_t *);
 extern int vdev_metaslab_init(vdev_t *vd, uint64_t txg);
 extern void vdev_metaslab_fini(vdev_t *vd);
 extern void vdev_metaslab_set_size(vdev_t *);
+extern void vdev_metaslab_group_create(vdev_t *vd);
 extern void vdev_expand(vdev_t *vd, uint64_t txg);
 extern void vdev_split(vdev_t *vd);
 extern void vdev_deadman(vdev_t *vd, char *tag);
@@ -99,6 +101,9 @@ extern void vdev_xlate(vdev_t *vd, const range_seg_t *logical_rs,
     range_seg_t *physical_rs);
 
 extern void vdev_get_stats_ex(vdev_t *vd, vdev_stat_t *vs, vdev_stat_ex_t *vsx);
+
+extern metaslab_group_t *vdev_get_mg(vdev_t *vd, metaslab_class_t *mc);
+
 extern void vdev_get_stats(vdev_t *vd, vdev_stat_t *vs);
 extern void vdev_clear_stats(vdev_t *vd);
 extern void vdev_stat_update(zio_t *zio, uint64_t psize);
