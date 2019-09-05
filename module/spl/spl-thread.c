@@ -27,7 +27,7 @@
 #include <sys/thread.h>
 #include <sys/kmem.h>
 #include <sys/tsd.h>
-#include <linux/simd.h>
+#include <sys/simd.h>
 
 /*
  * Thread interfaces

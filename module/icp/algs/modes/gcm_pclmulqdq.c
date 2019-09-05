@@ -24,11 +24,11 @@
 
 #if defined(__x86_64) && defined(HAVE_PCLMULQDQ)
 
-#include <linux/simd_x86.h>
+#include <sys/types.h>
+#include <sys/simd.h>
 
 /* These functions are used to execute pclmulqdq based assembly methods */
 extern void gcm_mul_pclmulqdq(uint64_t *, uint64_t *, uint64_t *);
-
 
 #include <modes/gcm_impl.h>
 

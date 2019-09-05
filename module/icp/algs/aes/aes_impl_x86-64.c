@@ -24,7 +24,7 @@
 
 #if defined(__x86_64)
 
-#include <linux/simd_x86.h>
+#include <sys/simd.h>
 
 /* These functions are used to execute amd64 instructions for AMD or Intel: */
 extern int rijndael_key_setup_enc_amd64(uint32_t rk[],

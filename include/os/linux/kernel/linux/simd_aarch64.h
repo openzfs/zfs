@@ -19,23 +19,34 @@
  * CDDL HEADER END
  */
 /*
- * Copyright (C) 2019 Lawrence Livermore National Security, LLC.
+ * Copyright (C) 2016 Romain Dolbeau <romain@dolbeau.org>.
  */
 
-#ifndef _SIMD_H
-#define	_SIMD_H
+/*
+ * USER API:
+ *
+ * Kernel fpu methods:
+ *	kfpu_allowed()
+ *	kfpu_initialize()
+ *	kfpu_begin()
+ *	kfpu_end()
+ */
 
-#if defined(__x86)
-#include <linux/simd_x86.h>
+#ifndef _LINUX_SIMD_AARCH64_H
+#define	_LINUX_SIMD_AARCH64_H
 
-#elif defined(__aarch64__)
-#include <linux/simd_aarch64.h>
-#else
+#include <sys/isa_defs.h>
+
+#if defined(__aarch64__)
+
+#include <sys/types.h>
+#include <asm/neon.h>
 
 #define	kfpu_allowed()		1
 #define	kfpu_initialize(tsk)	do {} while (0)
-#define	kfpu_begin()		do {} while (0)
-#define	kfpu_end()		do {} while (0)
+#define	kfpu_begin()		kernel_neon_begin()
+#define	kfpu_end()		kernel_neon_end()
 
-#endif
-#endif /* _SIMD_H */
+#endif /* __aarch64__ */
+
+#endif /* _LINUX_SIMD_AARCH64_H */
