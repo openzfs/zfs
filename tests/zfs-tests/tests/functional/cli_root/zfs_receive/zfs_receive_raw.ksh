@@ -36,6 +36,7 @@
 # 9. Verify the key is unavailable
 # 10. Attempt to load the key and mount the dataset
 # 11. Verify the checksum of the file is the same as the original
+# 12. Verify 'zfs receive -n' works with the raw stream
 #
 
 verify_runnable "both"
@@ -87,5 +88,7 @@ log_must eval "echo $passphrase | zfs mount -l $TESTPOOL/$TESTFS1/c1"
 typeset cksum2=$(md5digest /$TESTPOOL/$TESTFS1/c1/$TESTFILE0)
 [[ "$cksum2" == "$checksum" ]] || \
 	log_fail "Checksums differ ($cksum2 != $checksum)"
+
+log_must eval "zfs send -w $snap | zfs receive -n $TESTPOOL/$TESTFS3"
 
 log_pass "ZFS can receive streams from raw sends"
