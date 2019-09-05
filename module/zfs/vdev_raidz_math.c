@@ -640,7 +640,6 @@ vdev_raidz_impl_set(const char *val)
 }
 
 #if defined(_KERNEL)
-#include <linux/mod_compat.h>
 
 static int
 zfs_vdev_raidz_impl_set(const char *val, zfs_kernel_param_t *kp)

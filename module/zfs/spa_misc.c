@@ -2710,8 +2710,6 @@ spa_suspend_async_destroy(spa_t *spa)
 
 #if defined(_KERNEL)
 
-#include <linux/mod_compat.h>
-
 static int
 param_set_deadman_failmode(const char *val, zfs_kernel_param_t *kp)
 {
@@ -2799,6 +2797,8 @@ param_set_slop_shift(const char *buf, zfs_kernel_param_t *kp)
 
 	return (0);
 }
+
+#endif
 
 /* Namespace manipulation */
 EXPORT_SYMBOL(spa_lookup);
@@ -2888,17 +2888,31 @@ EXPORT_SYMBOL(spa_suspend_async_destroy);
 EXPORT_SYMBOL(spa_has_checkpoint);
 EXPORT_SYMBOL(spa_top_vdevs_spacemap_addressable);
 
-/* BEGIN CSTYLED */
-module_param(zfs_flags, uint, 0644);
-MODULE_PARM_DESC(zfs_flags, "Set additional debugging flags");
+ZFS_MODULE_PARAM(zfs, zfs_, flags, UINT, ZMOD_RW,
+	"Set additional debugging flags");
 
-module_param(zfs_recover, int, 0644);
-MODULE_PARM_DESC(zfs_recover, "Set to attempt to recover from fatal errors");
+ZFS_MODULE_PARAM(zfs, zfs_, recover, INT, ZMOD_RW,
+	"Set to attempt to recover from fatal errors");
 
-module_param(zfs_free_leak_on_eio, int, 0644);
-MODULE_PARM_DESC(zfs_free_leak_on_eio,
+ZFS_MODULE_PARAM(zfs, zfs_, free_leak_on_eio, INT, ZMOD_RW,
 	"Set to ignore IO errors during free and permanently leak the space");
 
+ZFS_MODULE_PARAM(zfs, zfs_, deadman_checktime_ms, ULONG, ZMOD_RW,
+	"Dead I/O check interval in milliseconds");
+
+ZFS_MODULE_PARAM(zfs, zfs_, deadman_enabled, INT, ZMOD_RW,
+	"Enable deadman timer");
+
+ZFS_MODULE_PARAM(zfs_spa, spa_, asize_inflation, INT, ZMOD_RW,
+	"SPA size estimate multiplication factor");
+
+ZFS_MODULE_PARAM(zfs, zfs_, ddt_data_is_special, INT, ZMOD_RW,
+	"Place DDT data into the special class");
+
+ZFS_MODULE_PARAM(zfs, zfs_, user_indirect_is_special, INT, ZMOD_RW,
+	"Place user data indirect blocks into the special class");
+
+#ifdef _KERNEL
 module_param_call(zfs_deadman_synctime_ms, param_set_deadman_synctime,
     param_get_ulong, &zfs_deadman_synctime_ms, 0644);
 MODULE_PARM_DESC(zfs_deadman_synctime_ms,
@@ -2909,36 +2923,17 @@ module_param_call(zfs_deadman_ziotime_ms, param_set_deadman_ziotime,
 MODULE_PARM_DESC(zfs_deadman_ziotime_ms,
 	"IO expiration time in milliseconds");
 
-module_param(zfs_deadman_checktime_ms, ulong, 0644);
-MODULE_PARM_DESC(zfs_deadman_checktime_ms,
-	"Dead I/O check interval in milliseconds");
-
-module_param(zfs_deadman_enabled, int, 0644);
-MODULE_PARM_DESC(zfs_deadman_enabled, "Enable deadman timer");
-
-module_param_call(zfs_deadman_failmode, param_set_deadman_failmode,
-    param_get_charp, &zfs_deadman_failmode, 0644);
-MODULE_PARM_DESC(zfs_deadman_failmode, "Failmode for deadman timer");
-
-module_param(spa_asize_inflation, int, 0644);
-MODULE_PARM_DESC(spa_asize_inflation,
-	"SPA size estimate multiplication factor");
-
 module_param_call(spa_slop_shift, param_set_slop_shift, param_get_int,
-    &spa_slop_shift, 0644);
+	&spa_slop_shift, 0644);
 MODULE_PARM_DESC(spa_slop_shift, "Reserved free space in pool");
 
-module_param(zfs_ddt_data_is_special, int, 0644);
-MODULE_PARM_DESC(zfs_ddt_data_is_special,
-	"Place DDT data into the special class");
+module_param_call(zfs_deadman_failmode, param_set_deadman_failmode,
+	param_get_charp, &zfs_deadman_failmode, 0644);
+MODULE_PARM_DESC(zfs_deadman_failmode, "Failmode for deadman timer");
+#endif
 
-module_param(zfs_user_indirect_is_special, int, 0644);
-MODULE_PARM_DESC(zfs_user_indirect_is_special,
-	"Place user data indirect blocks into the special class");
-
-module_param(zfs_special_class_metadata_reserve_pct, int, 0644);
-MODULE_PARM_DESC(zfs_special_class_metadata_reserve_pct,
+/* BEGIN CSTYLED */
+ZFS_MODULE_PARAM(zfs, zfs_, special_class_metadata_reserve_pct, INT, ZMOD_RW,
 	"Small file blocks in special vdevs depends on this much "
 	"free space available");
 /* END CSTYLED */
-#endif

@@ -1379,11 +1379,7 @@ fzap_get_stats(zap_t *zap, zap_stats_t *zs)
 	}
 }
 
-#if defined(_KERNEL)
 /* BEGIN CSTYLED */
-module_param(zap_iterate_prefetch, int, 0644);
-MODULE_PARM_DESC(zap_iterate_prefetch,
+ZFS_MODULE_PARAM(zfs, , zap_iterate_prefetch, INT, ZMOD_RW,
 	"When iterating ZAP object, prefetch it");
-
 /* END CSTYLED */
-#endif

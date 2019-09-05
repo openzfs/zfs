@@ -1038,7 +1038,6 @@ txg_list_next(txg_list_t *tl, void *p, uint64_t txg)
 	return (tn == NULL ? NULL : (char *)tn - tl->tl_offset);
 }
 
-#if defined(_KERNEL)
 EXPORT_SYMBOL(txg_init);
 EXPORT_SYMBOL(txg_fini);
 EXPORT_SYMBOL(txg_sync_start);
@@ -1054,6 +1053,7 @@ EXPORT_SYMBOL(txg_wait_callbacks);
 EXPORT_SYMBOL(txg_stalled);
 EXPORT_SYMBOL(txg_sync_waiting);
 
-module_param(zfs_txg_timeout, int, 0644);
-MODULE_PARM_DESC(zfs_txg_timeout, "Max seconds worth of delta per txg");
-#endif
+/* BEGIN CSTYLED */
+ZFS_MODULE_PARAM(zfs, zfs_, txg_timeout, INT, ZMOD_RW,
+	"Max seconds worth of delta per txg");
+/* END CSTYLED */

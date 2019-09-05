@@ -24,7 +24,6 @@
 #include <linux/vmalloc.h>
 #include <linux/pagemap.h>
 #include <linux/completion.h>
-#include <linux/mod_compat.h>
 #include <sys/zfs_context.h>
 #include <sys/byteorder.h>
 #include <sys/zio.h>

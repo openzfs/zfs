@@ -4891,7 +4891,6 @@ vdev_xlate(vdev_t *vd, const range_seg_t *logical_rs, range_seg_t *physical_rs)
 	physical_rs->rs_end = intermediate.rs_end;
 }
 
-#if defined(_KERNEL)
 EXPORT_SYMBOL(vdev_fault);
 EXPORT_SYMBOL(vdev_degrade);
 EXPORT_SYMBOL(vdev_online);
@@ -4899,45 +4898,35 @@ EXPORT_SYMBOL(vdev_offline);
 EXPORT_SYMBOL(vdev_clear);
 
 /* BEGIN CSTYLED */
-module_param(zfs_vdev_default_ms_count, int, 0644);
-MODULE_PARM_DESC(zfs_vdev_default_ms_count,
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, default_ms_count, INT, ZMOD_RW,
 	"Target number of metaslabs per top-level vdev");
 
-module_param(zfs_vdev_default_ms_shift, int, 0644);
-MODULE_PARM_DESC(zfs_vdev_default_ms_shift,
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, default_ms_shift, INT, ZMOD_RW,
 	"Default limit for metaslab size");
 
-module_param(zfs_vdev_min_ms_count, int, 0644);
-MODULE_PARM_DESC(zfs_vdev_min_ms_count,
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, min_ms_count, INT, ZMOD_RW,
 	"Minimum number of metaslabs per top-level vdev");
 
-module_param(zfs_vdev_ms_count_limit, int, 0644);
-MODULE_PARM_DESC(zfs_vdev_ms_count_limit,
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, ms_count_limit, INT, ZMOD_RW,
 	"Practical upper limit of total metaslabs per top-level vdev");
 
-module_param(zfs_slow_io_events_per_second, uint, 0644);
-MODULE_PARM_DESC(zfs_slow_io_events_per_second,
+ZFS_MODULE_PARAM(zfs, zfs_, slow_io_events_per_second, UINT, ZMOD_RW,
 	"Rate limit slow IO (delay) events to this many per second");
 
-module_param(zfs_checksum_events_per_second, uint, 0644);
-MODULE_PARM_DESC(zfs_checksum_events_per_second, "Rate limit checksum events "
-	"to this many checksum errors per second (do not set below zed"
-	"threshold).");
+ZFS_MODULE_PARAM(zfs, zfs_, checksum_events_per_second, UINT, ZMOD_RW,
+	"Rate limit checksum events to this many checksum errors per second "
+	"(do not set below zed threshold).");
 
-module_param(zfs_scan_ignore_errors, int, 0644);
-MODULE_PARM_DESC(zfs_scan_ignore_errors,
+ZFS_MODULE_PARAM(zfs, zfs_, scan_ignore_errors, INT, ZMOD_RW,
 	"Ignore errors during resilver/scrub");
 
-module_param(vdev_validate_skip, int, 0644);
-MODULE_PARM_DESC(vdev_validate_skip,
+ZFS_MODULE_PARAM(zfs_vdev, vdev_, validate_skip, INT, ZMOD_RW,
 	"Bypass vdev_validate()");
 
-module_param(zfs_nocacheflush, int, 0644);
-MODULE_PARM_DESC(zfs_nocacheflush, "Disable cache flushes");
+ZFS_MODULE_PARAM(zfs, zfs_, nocacheflush, INT, ZMOD_RW,
+	"Disable cache flushes");
 
-module_param(zfs_max_embedded_slogs, int, 0644);
-MODULE_PARM_DESC(zfs_max_embedded_slogs,
+ZFS_MODULE_PARAM(zfs, zfs_, max_embedded_slogs, INT, ZMOD_RW,
 	"Maximum number of vdevs that each contribute one metaslab for "
 	"log blocks");
 /* END CSTYLED */
-#endif

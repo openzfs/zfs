@@ -624,15 +624,12 @@ spa_checkpoint_discard(const char *pool)
 	    ZFS_SPACE_CHECK_DISCARD_CHECKPOINT));
 }
 
-#if defined(_KERNEL)
 EXPORT_SYMBOL(spa_checkpoint_get_stats);
 EXPORT_SYMBOL(spa_checkpoint_discard_thread);
 EXPORT_SYMBOL(spa_checkpoint_discard_thread_check);
 
 /* BEGIN CSTYLED */
-module_param(zfs_spa_discard_memory_limit, ulong, 0644);
-MODULE_PARM_DESC(zfs_spa_discard_memory_limit,
-    "Maximum memory for prefetching checkpoint space "
-    "map per top-level vdev while discarding checkpoint");
+ZFS_MODULE_PARAM(zfs_spa, zfs_spa_, discard_memory_limit, ULONG, ZMOD_RW,
+	"Limit for memory used in prefetching the checkpoint space map done "
+	"on each vdev while discarding the checkpoint");
 /* END CSTYLED */
-#endif

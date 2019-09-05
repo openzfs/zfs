@@ -1434,14 +1434,10 @@ zcp_parse_args(lua_State *state, const char *fname, const zcp_arg_t *pargs,
 	}
 }
 
-#if defined(_KERNEL)
 /* BEGIN CSTYLED */
-module_param(zfs_lua_max_instrlimit, ulong, 0644);
-MODULE_PARM_DESC(zfs_lua_max_instrlimit,
+ZFS_MODULE_PARAM(zfs_lua, zfs_lua_, max_instrlimit, ULONG, ZMOD_RW,
 	"Max instruction limit that can be specified for a channel program");
 
-module_param(zfs_lua_max_memlimit, ulong, 0644);
-MODULE_PARM_DESC(zfs_lua_max_memlimit,
+ZFS_MODULE_PARAM(zfs_lua, zfs_lua_, max_memlimit, ULONG, ZMOD_RW,
 	"Max memory limit that can be specified for a channel program");
 /* END CSTYLED */
-#endif

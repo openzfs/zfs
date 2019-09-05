@@ -4205,74 +4205,62 @@ dsl_scan_freed(spa_t *spa, const blkptr_t *bp)
 		dsl_scan_freed_dva(spa, bp, i);
 }
 
-#if defined(_KERNEL)
-/* CSTYLED */
-module_param(zfs_scan_vdev_limit, ulong, 0644);
-MODULE_PARM_DESC(zfs_scan_vdev_limit,
+/* BEGIN CSTYLED */
+ZFS_MODULE_PARAM(zfs, zfs_, scan_vdev_limit, ULONG, ZMOD_RW,
 	"Max bytes in flight per leaf vdev for scrubs and resilvers");
 
-module_param(zfs_scrub_min_time_ms, int, 0644);
-MODULE_PARM_DESC(zfs_scrub_min_time_ms, "Min millisecs to scrub per txg");
+ZFS_MODULE_PARAM(zfs, zfs_, scrub_min_time_ms, INT, ZMOD_RW,
+	"Min millisecs to scrub per txg");
 
-module_param(zfs_obsolete_min_time_ms, int, 0644);
-MODULE_PARM_DESC(zfs_obsolete_min_time_ms, "Min millisecs to obsolete per txg");
+ZFS_MODULE_PARAM(zfs, zfs_, obsolete_min_time_ms, INT, ZMOD_RW,
+	"Min millisecs to obsolete per txg");
 
-module_param(zfs_free_min_time_ms, int, 0644);
-MODULE_PARM_DESC(zfs_free_min_time_ms, "Min millisecs to free per txg");
+ZFS_MODULE_PARAM(zfs, zfs_, free_min_time_ms, INT, ZMOD_RW,
+	"Min millisecs to free per txg");
 
-module_param(zfs_resilver_min_time_ms, int, 0644);
-MODULE_PARM_DESC(zfs_resilver_min_time_ms, "Min millisecs to resilver per txg");
+ZFS_MODULE_PARAM(zfs, zfs_, resilver_min_time_ms, INT, ZMOD_RW,
+	"Min millisecs to resilver per txg");
 
-module_param(zfs_scan_suspend_progress, int, 0644);
-MODULE_PARM_DESC(zfs_scan_suspend_progress,
+ZFS_MODULE_PARAM(zfs, zfs_, scan_suspend_progress, INT, ZMOD_RW,
 	"Set to prevent scans from progressing");
 
-module_param(zfs_no_scrub_io, int, 0644);
-MODULE_PARM_DESC(zfs_no_scrub_io, "Set to disable scrub I/O");
+ZFS_MODULE_PARAM(zfs, zfs_, no_scrub_io, INT, ZMOD_RW,
+	"Set to disable scrub I/O");
 
-module_param(zfs_no_scrub_prefetch, int, 0644);
-MODULE_PARM_DESC(zfs_no_scrub_prefetch, "Set to disable scrub prefetching");
+ZFS_MODULE_PARAM(zfs, zfs_, no_scrub_prefetch, INT, ZMOD_RW,
+	"Set to disable scrub prefetching");
 
-/* CSTYLED */
-module_param(zfs_async_block_max_blocks, ulong, 0644);
-MODULE_PARM_DESC(zfs_async_block_max_blocks,
+ZFS_MODULE_PARAM(zfs, zfs_, async_block_max_blocks, ULONG, ZMOD_RW,
 	"Max number of blocks freed in one txg");
 
-module_param(zfs_free_bpobj_enabled, int, 0644);
-MODULE_PARM_DESC(zfs_free_bpobj_enabled, "Enable processing of the free_bpobj");
+ZFS_MODULE_PARAM(zfs, zfs_, free_bpobj_enabled, INT, ZMOD_RW,
+	"Enable processing of the free_bpobj");
 
-module_param(zfs_scan_mem_lim_fact, int, 0644);
-MODULE_PARM_DESC(zfs_scan_mem_lim_fact, "Fraction of RAM for scan hard limit");
+ZFS_MODULE_PARAM(zfs, zfs_, scan_mem_lim_fact, INT, ZMOD_RW,
+	"Fraction of RAM for scan hard limit");
 
-module_param(zfs_scan_issue_strategy, int, 0644);
-MODULE_PARM_DESC(zfs_scan_issue_strategy,
-	"IO issuing strategy during scrubbing. 0 = default, 1 = LBA, 2 = size");
+ZFS_MODULE_PARAM(zfs, zfs_, scan_issue_strategy, INT, ZMOD_RW,
+	"IO issuing strategy during scrubbing. "
+	"0 = default, 1 = LBA, 2 = size");
 
-module_param(zfs_scan_legacy, int, 0644);
-MODULE_PARM_DESC(zfs_scan_legacy, "Scrub using legacy non-sequential method");
+ZFS_MODULE_PARAM(zfs, zfs_, scan_legacy, INT, ZMOD_RW,
+	"Scrub using legacy non-sequential method");
 
-module_param(zfs_scan_checkpoint_intval, int, 0644);
-MODULE_PARM_DESC(zfs_scan_checkpoint_intval,
+ZFS_MODULE_PARAM(zfs, zfs_, scan_checkpoint_intval, INT, ZMOD_RW,
 	"Scan progress on-disk checkpointing interval");
 
-/* CSTYLED */
-module_param(zfs_scan_max_ext_gap, ulong, 0644);
-MODULE_PARM_DESC(zfs_scan_max_ext_gap,
+ZFS_MODULE_PARAM(zfs, zfs_, scan_max_ext_gap, ULONG, ZMOD_RW,
 	"Max gap in bytes between sequential scrub / resilver I/Os");
 
-module_param(zfs_scan_mem_lim_soft_fact, int, 0644);
-MODULE_PARM_DESC(zfs_scan_mem_lim_soft_fact,
+ZFS_MODULE_PARAM(zfs, zfs_, scan_mem_lim_soft_fact, INT, ZMOD_RW,
 	"Fraction of hard limit used as soft limit");
 
-module_param(zfs_scan_strict_mem_lim, int, 0644);
-MODULE_PARM_DESC(zfs_scan_strict_mem_lim,
+ZFS_MODULE_PARAM(zfs, zfs_, scan_strict_mem_lim, INT, ZMOD_RW,
 	"Tunable to attempt to reduce lock contention");
 
-module_param(zfs_scan_fill_weight, int, 0644);
-MODULE_PARM_DESC(zfs_scan_fill_weight,
+ZFS_MODULE_PARAM(zfs, zfs_, scan_fill_weight, INT, ZMOD_RW,
 	"Tunable to adjust bias towards more filled segments during scans");
 
-module_param(zfs_resilver_disable_defer, int, 0644);
-MODULE_PARM_DESC(zfs_resilver_disable_defer,
+ZFS_MODULE_PARAM(zfs, zfs_, resilver_disable_defer, INT, ZMOD_RW,
 	"Process all resilvers immediately");
-#endif
+/* END CSTYLED */

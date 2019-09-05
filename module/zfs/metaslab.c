@@ -5888,83 +5888,64 @@ metaslab_unflushed_txg(metaslab_t *ms)
 	return (ms->ms_unflushed_txg);
 }
 
-#if defined(_KERNEL)
+ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, aliquot, ULONG, ZMOD_RW,
+	"Allocation granularity (a.k.a. stripe size)");
+
+ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, debug_load, INT, ZMOD_RW,
+	"Load all metaslabs when pool is first opened");
+
+ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, debug_unload, INT, ZMOD_RW,
+	"Prevent metaslabs from being unloaded");
+
+ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, preload_enabled, INT, ZMOD_RW,
+	"Preload potential metaslabs during reassessment");
+
+ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, unload_delay, INT, ZMOD_RW,
+	"Delay in txgs after metaslab was last used before unloading");
+
+ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, unload_delay_ms, INT, ZMOD_RW,
+	"Delay in milliseconds after metaslab was last used before unloading");
+
 /* BEGIN CSTYLED */
-module_param(metaslab_aliquot, ulong, 0644);
-MODULE_PARM_DESC(metaslab_aliquot,
-	"allocation granularity (a.k.a. stripe size)");
+ZFS_MODULE_PARAM(zfs_mg, zfs_mg_, noalloc_threshold, INT, ZMOD_RW,
+	"Percentage of metaslab group size that should be free to make it "
+	"eligible for allocation");
 
-module_param(metaslab_debug_load, int, 0644);
-MODULE_PARM_DESC(metaslab_debug_load,
-	"load all metaslabs when pool is first opened");
+ZFS_MODULE_PARAM(zfs_mg, zfs_mg_, fragmentation_threshold, INT, ZMOD_RW,
+	"Percentage of metaslab group size that should be considered eligible "
+	"for allocations unless all metaslab groups within the metaslab class "
+	"have also crossed this threshold");
 
-module_param(metaslab_debug_unload, int, 0644);
-MODULE_PARM_DESC(metaslab_debug_unload,
-	"prevent metaslabs from being unloaded");
+ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, fragmentation_threshold, INT,
+	 ZMOD_RW, "Fragmentation for metaslab to allow allocation");
 
-module_param(metaslab_preload_enabled, int, 0644);
-MODULE_PARM_DESC(metaslab_preload_enabled,
-	"preload potential metaslabs during reassessment");
-
-module_param(metaslab_unload_delay, int, 0644);
-MODULE_PARM_DESC(metaslab_unload_delay,
-	"delay in txgs after metaslab was last used before unloading");
-
-module_param(metaslab_unload_delay_ms, int, 0644);
-MODULE_PARM_DESC(metaslab_unload_delay_ms,
-	"delay in milliseconds after metaslab was last used before unloading");
-
-module_param(zfs_mg_noalloc_threshold, int, 0644);
-MODULE_PARM_DESC(zfs_mg_noalloc_threshold,
-	"percentage of free space for metaslab group to allow allocation");
-
-module_param(zfs_mg_fragmentation_threshold, int, 0644);
-MODULE_PARM_DESC(zfs_mg_fragmentation_threshold,
-	"fragmentation for metaslab group to allow allocation");
-
-module_param(zfs_metaslab_fragmentation_threshold, int, 0644);
-MODULE_PARM_DESC(zfs_metaslab_fragmentation_threshold,
-	"fragmentation for metaslab to allow allocation");
-
-module_param(metaslab_fragmentation_factor_enabled, int, 0644);
-MODULE_PARM_DESC(metaslab_fragmentation_factor_enabled,
-	"use the fragmentation metric to prefer less fragmented metaslabs");
-
-module_param(metaslab_lba_weighting_enabled, int, 0644);
-MODULE_PARM_DESC(metaslab_lba_weighting_enabled,
-	"prefer metaslabs with lower LBAs");
-
-module_param(metaslab_bias_enabled, int, 0644);
-MODULE_PARM_DESC(metaslab_bias_enabled,
-	"enable metaslab group biasing");
-
-module_param(zfs_metaslab_segment_weight_enabled, int, 0644);
-MODULE_PARM_DESC(zfs_metaslab_segment_weight_enabled,
-	"enable segment-based metaslab selection");
-
-module_param(zfs_metaslab_switch_threshold, int, 0644);
-MODULE_PARM_DESC(zfs_metaslab_switch_threshold,
-	"segment-based metaslab selection maximum buckets before switching");
-
-module_param(metaslab_force_ganging, ulong, 0644);
-MODULE_PARM_DESC(metaslab_force_ganging,
-	"blocks larger than this size are forced to be gang blocks");
-
-module_param(metaslab_df_max_search, int, 0644);
-MODULE_PARM_DESC(metaslab_df_max_search,
-	"max distance (bytes) to search forward before using size tree");
-
-module_param(metaslab_df_use_largest_segment, int, 0644);
-MODULE_PARM_DESC(metaslab_df_use_largest_segment,
-	"when looking in size tree, use largest segment instead of exact fit");
-
-module_param(zfs_metaslab_max_size_cache_sec, ulong, 0644);
-MODULE_PARM_DESC(zfs_metaslab_max_size_cache_sec,
-	"how long to trust the cached max chunk size of a metaslab");
-
-module_param(zfs_metaslab_mem_limit, int, 0644);
-MODULE_PARM_DESC(zfs_metaslab_mem_limit,
-	"percentage of memory that can be used to store metaslab range trees");
+ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, fragmentation_factor_enabled, INT, ZMOD_RW,
+	"Use the fragmentation metric to prefer less fragmented metaslabs");
 /* END CSTYLED */
 
-#endif
+ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, lba_weighting_enabled, INT, ZMOD_RW,
+	"Prefer metaslabs with lower LBAs");
+
+ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, bias_enabled, INT, ZMOD_RW,
+	"Enable metaslab group biasing");
+
+ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, segment_weight_enabled, INT,
+	ZMOD_RW, "Enable segment-based metaslab selection");
+
+ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, switch_threshold, INT, ZMOD_RW,
+	"Segment-based metaslab selection maximum buckets before switching");
+
+ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, force_ganging, ULONG, ZMOD_RW,
+	"Blocks larger than this size are forced to be gang blocks");
+
+ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, df_max_search, INT, ZMOD_RW,
+	"Max distance (bytes) to search forward before using size tree");
+
+ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, df_use_largest_segment, INT, ZMOD_RW,
+	"When looking in size tree, use largest segment instead of exact fit");
+
+ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, max_size_cache_sec, ULONG,
+	ZMOD_RW, "How long to trust the cached max chunk size of a metaslab");
+
+ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, mem_limit, INT, ZMOD_RW,
+	"Percentage of memory that can be used to store metaslab range trees");
