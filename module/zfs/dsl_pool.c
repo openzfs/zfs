@@ -48,7 +48,7 @@
 #include <sys/zfeature.h>
 #include <sys/zil_impl.h>
 #include <sys/dsl_userhold.h>
-#include <sys/trace_txg.h>
+#include <sys/trace_defs.h>
 #include <sys/mmp.h>
 
 /*

@@ -44,7 +44,7 @@
 #include <sys/zfeature.h>
 #include <sys/blkptr.h>
 #include <sys/range_tree.h>
-#include <sys/trace_dbuf.h>
+#include <sys/trace_defs.h>
 #include <sys/callb.h>
 #include <sys/abd.h>
 #include <sys/vdev.h>
