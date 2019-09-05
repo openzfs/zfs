@@ -3562,3 +3562,25 @@ function mdb_ctf_set_int
 
 	return 0
 }
+
+#
+# Compute MD5 digest for given file or stdin if no file given.
+# Note: file path must not contain spaces
+#
+function md5digest
+{
+	typeset file=$1
+
+	md5sum -b $file | awk '{ print $1 }'
+}
+
+#
+# Compute SHA256 digest for given file or stdin if no file given.
+# Note: file path must not contain spaces
+#
+function sha256digest
+{
+	typeset file=$1
+
+	sha256sum -b $file | awk '{ print $1 }'
+}

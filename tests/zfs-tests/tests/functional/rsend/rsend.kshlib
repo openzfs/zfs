@@ -158,14 +158,9 @@ function cmp_md5s {
 	typeset file1=$1
 	typeset file2=$2
 
-	eval md5sum $file1 | awk '{ print $1 }'	> $BACKDIR/md5_file1
-	eval md5sum $file2 | awk '{ print $1 }'	> $BACKDIR/md5_file2
-	diff $BACKDIR/md5_file1 $BACKDIR/md5_file2
-	typeset -i ret=$?
-
-	rm -f $BACKDIR/md5_file1 $BACKDIR/md5_file2
-
-	return $ret
+	typeset sum1=$(md5digest $file1)
+	typeset sum2=$(md5digest $file2)
+	test "$sum1" = "$sum2"
 }
 
 #
