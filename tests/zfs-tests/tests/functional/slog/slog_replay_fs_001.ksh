@@ -58,14 +58,8 @@
 
 verify_runnable "global"
 
-function cleanup_fs
-{
-	rm -f $TESTDIR/checksum
-	cleanup
-}
-
 log_assert "Replay of intent log succeeds."
-log_onexit cleanup_fs
+log_onexit cleanup
 log_must setup
 
 #
@@ -115,7 +109,7 @@ log_must rmdir /$TESTPOOL/$TESTFS/dir_to_delete
 # Create a simple validation payload
 log_must mkdir -p $TESTDIR
 log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/payload bs=1k count=8
-log_must eval "sha256sum -b /$TESTPOOL/$TESTFS/payload >$TESTDIR/checksum"
+typeset checksum=$(sha256digest /$TESTPOOL/$TESTFS/payload)
 
 # TX_WRITE (small file with ordering)
 log_must mkfile 1k /$TESTPOOL/$TESTFS/small_file
@@ -210,6 +204,8 @@ log_note "Verify working set diff:"
 log_must diff -r /$TESTPOOL/$TESTFS $TESTDIR/copy
 
 log_note "Verify file checksum:"
-log_must sha256sum -c $TESTDIR/checksum
+typeset checksum1=$(sha256digest /$TESTPOOL/$TESTFS/payload)
+[[ "$checksum1" == "$checksum" ]] || \
+    log_fail "checksum mismatch ($checksum1 != $checksum)"
 
 log_pass "Replay of intent log succeeds."
