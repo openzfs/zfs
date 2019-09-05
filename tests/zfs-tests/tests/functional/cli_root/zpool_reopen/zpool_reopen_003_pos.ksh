@@ -42,7 +42,6 @@ verify_runnable "global"
 function cleanup
 {
 	log_must zinject -c all
-	rm -f $TESTFILE_MD5 2>/dev/null
 	# bring back removed disk online for further tests
 	insert_disk $REMOVED_DISK $scsi_host
 	poolexists $TESTPOOL && destroy_pool $TESTPOOL
@@ -64,9 +63,8 @@ log_must check_state $TESTPOOL "$REMOVED_DISK_ID" "unavail"
 
 # 3. Write a test file to the pool and calculate its checksum.
 TESTFILE=/$TESTPOOL/data
-TESTFILE_MD5=$(mktemp --tmpdir=/var/tmp)
 log_must generate_random_file /$TESTPOOL/data $LARGE_FILE_SIZE
-log_must md5sum $TESTFILE > $TESTFILE_MD5
+TESTFILE_MD5=$(md5digest $TESTFILE)
 
 # 4. Execute scrub.
 # add delay to I/O requests for remaining disk in pool
@@ -90,12 +88,13 @@ log_must is_scan_restarted $TESTPOOL
 
 # 8. Put another device offline and check if the test file checksum is correct.
 log_must zpool offline $TESTPOOL $DISK2
-log_must md5sum -c $TESTFILE_MD5
+CHECK_MD5=$(md5digest $TESTFILE)
+[[ $CHECK_MD5 == $TESTFILE_MD5 ]] || \
+    log_fail "Checksums differ ($CHECK_MD5 != $TESTFILE_MD5)"
 log_must zpool online $TESTPOOL $DISK2
 sleep 1
 
 # clean up
-rm -f $TESTFILE_MD5 2>/dev/null
 log_must zpool destroy $TESTPOOL
 
 log_pass "Zpool reopen test successful"
