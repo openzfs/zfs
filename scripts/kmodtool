@@ -144,6 +144,12 @@ print_rpmtemplate_per_kmodpkg ()
 	local kernel_uname_r=${1}
 	local kernel_variant="${2:+-${2}}"
 
+	# With RHEL 8, depmod moved from /sbin to /usr/sbin
+	local depmod_path=/sbin/depmod
+	if [ ! -f ${depmod_path} ]; then
+		depmod_path=/usr/sbin/depmod
+	fi
+
     # first part
 	cat <<EOF
 %package       -n kmod-${kmodname}-${kernel_uname_r}
@@ -153,8 +159,8 @@ Provides:         kernel-modules-for-kernel = ${kernel_uname_r}
 Provides:         kmod-${kmodname}-uname-r = ${kernel_uname_r}
 Provides:         ${kmodname}-kmod = %{?epoch:%{epoch}:}%{version}-%{release}
 Requires:         ${kmodname}-kmod-common >= %{?epoch:%{epoch}:}%{version}
-Requires(post):   ${prefix}/sbin/depmod
-Requires(postun): ${prefix}/sbin/depmod
+Requires(post):   ${prefix}${depmod_path}
+Requires(postun): ${prefix}${depmod_path}
 EOF
 
 	if [[ ${obsolete_name} ]]; then
