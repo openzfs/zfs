@@ -139,12 +139,16 @@ AC_CONFIG_FILES([
 	module/Makefile
 	module/avl/Makefile
 	module/nvpair/Makefile
+	module/os/Makefile
+	module/os/linux/Makefile
+	module/os/linux/spl/Makefile
+	module/os/linux/zfs/Makefile
+	module/spl/Makefile
 	module/unicode/Makefile
 	module/zcommon/Makefile
 	module/zfs/Makefile
 	module/lua/Makefile
 	module/icp/Makefile
-	module/spl/Makefile
 	include/Makefile
 	include/os/Makefile
 	include/os/linux/Makefile

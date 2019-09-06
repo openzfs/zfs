@@ -26,7 +26,7 @@
 #include <sys/zil.h>
 #include <sys/sha2.h>
 #include <sys/hkdf.h>
-#include "qat.h"
+#include <sys/qat.h>
 
 /*
  * This file is responsible for handling all of the details of generating

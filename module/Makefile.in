@@ -3,9 +3,11 @@ obj-m += icp/
 obj-m += lua/
 obj-m += nvpair/
 obj-m += spl/
+obj-m += os/linux/spl/
 obj-m += unicode/
 obj-m += zcommon/
 obj-m += zfs/
+obj-m += os/linux/zfs/
 
 INSTALL_MOD_DIR ?= extra
 
@@ -16,7 +18,6 @@ ZFS_MODULE_CFLAGS += -I@abs_top_srcdir@/include/os/linux/kernel
 ZFS_MODULE_CFLAGS += -I@abs_top_srcdir@/include/os/linux/spl
 ZFS_MODULE_CFLAGS += -I@abs_top_srcdir@/include/os/linux/zfs
 ZFS_MODULE_CFLAGS += -I@abs_top_srcdir@/include
-
 ZFS_MODULE_CPPFLAGS += -D_KERNEL
 ZFS_MODULE_CPPFLAGS += @KERNEL_DEBUG_CPPFLAGS@
 
@@ -27,25 +28,38 @@ export ZFS_MODULE_CFLAGS ZFS_MODULE_CPPFLAGS
 
 SUBDIR_TARGETS = icp lua
 
-modules:
+all: modules
+distclean maintainer-clean: clean
+install: modules_install
+uninstall: modules_uninstall
+check:
+
+modules-Linux:
 	list='$(SUBDIR_TARGETS)'; for targetdir in $$list; do \
 		$(MAKE) -C $$targetdir; \
 	done
-	$(MAKE) -C @LINUX_OBJ@ M=`pwd` @KERNEL_MAKE@ CONFIG_ZFS=m $@
+	$(MAKE) -C @LINUX_OBJ@ M=`pwd` @KERNEL_MAKE@ CONFIG_ZFS=m modules
 
-clean:
+modules-unknown:
+	@true
+
+modules: modules-@ac_system@
+
+clean-Linux:
 	@# Only cleanup the kernel build directories when CONFIG_KERNEL
 	@# is defined.  This indicates that kernel modules should be built.
-@CONFIG_KERNEL_TRUE@	$(MAKE) -C @LINUX_OBJ@ M=`pwd` @KERNEL_MAKE@ $@
+@CONFIG_KERNEL_TRUE@	$(MAKE) -C @LINUX_OBJ@ M=`pwd` @KERNEL_MAKE@ clean
 
 	if [ -f @LINUX_SYMBOLS@ ]; then $(RM) @LINUX_SYMBOLS@; fi
 	if [ -f Module.markers ]; then $(RM) Module.markers; fi
 
 	find . -name '*.ur-safe' -type f -print | xargs $(RM)
 
-modules_install:
+clean: clean-@ac_system@
+
+modules_install-Linux:
 	@# Install the kernel modules
-	$(MAKE) -C @LINUX_OBJ@ M=`pwd` $@ \
+	$(MAKE) -C @LINUX_OBJ@ M=`pwd` modules_install \
 		INSTALL_MOD_PATH=$(DESTDIR)$(INSTALL_MOD_PATH) \
 		INSTALL_MOD_DIR=$(INSTALL_MOD_DIR) \
 		KERNELRELEASE=@LINUX_VERSION@
@@ -59,12 +73,43 @@ modules_install:
 		depmod -ae -F $$sysmap @LINUX_VERSION@; \
 	fi
 
-modules_uninstall:
+CTAGS: ctags
+ctags-am: $(TAGS_DEPENDENCIES) $(am__tagged_files)
+	$(am__define_uniq_tagged_files); \
+	test -z "$(CTAGS_ARGS)$$unique" \
+	  || $(CTAGS) $(CTAGSFLAGS) $(AM_CTAGSFLAGS) $(CTAGS_ARGS) \
+	     $$unique
+
+GTAGS:
+	here=`$(am__cd) $(top_builddir) && pwd` \
+	  && $(am__cd) $(top_srcdir) \
+	  && gtags -i $(GTAGS_ARGS) "$$here"
+cscopelist: cscopelist-recursive
+
+cscopelist-am: $(am__tagged_files)
+	list='$(am__tagged_files)'; \
+	case "$(srcdir)" in \
+	  [\\/]* | ?:[\\/]*) sdir="$(srcdir)" ;; \
+	  *) sdir=$(subdir)/$(srcdir) ;; \
+	esac; \
+	for i in $$list; do \
+	  if test -f "$$i"; then \
+	    echo "$(subdir)/$$i"; \
+	  else \
+	    echo "$$sdir/$$i"; \
+	  fi; \
+	done >> $(top_builddir)/cscope.files
+
+modules_install: modules_install-@ac_system@
+
+modules_uninstall-Linux:
 	@# Uninstall the kernel modules
 	kmoddir=$(DESTDIR)$(INSTALL_MOD_PATH)/lib/modules/@LINUX_VERSION@
 	list='$(obj-m)'; for objdir in $$list; do \
 		$(RM) -R $$kmoddir/$(INSTALL_MOD_DIR)/$$objdir; \
 	done
+
+modules_uninstall: modules_uninstall-@ac_system@
 
 distdir:
 	list='$(obj-m)'; for objdir in $$list; do \
@@ -72,9 +117,3 @@ distdir:
 		-name '*.c' -o -name '*.h' -o -name '*.S' | \
 		xargs cp --parents -t @abs_top_builddir@/module/$$distdir); \
 	done
-
-distclean maintainer-clean: clean
-install: modules_install
-uninstall: modules_uninstall
-all: modules
-check:

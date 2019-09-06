@@ -59,7 +59,7 @@
 #include <sys/kstat.h>
 #include "zfs_prop.h"
 #include <sys/zfeature.h>
-#include "qat.h"
+#include <sys/qat.h>
 
 /*
  * SPA locking
