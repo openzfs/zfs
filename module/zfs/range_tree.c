@@ -569,7 +569,7 @@ range_tree_find_impl(range_tree_t *rt, uint64_t start, uint64_t size)
 	return (zfs_btree_find(&rt->rt_root, &rsearch, NULL));
 }
 
-static range_seg_t *
+range_seg_t *
 range_tree_find(range_tree_t *rt, uint64_t start, uint64_t size)
 {
 	if (rt->rt_type == RANGE_SEG64)
@@ -693,8 +693,8 @@ void
 range_tree_walk(range_tree_t *rt, range_tree_func_t *func, void *arg)
 {
 	zfs_btree_index_t where;
-	for (range_seg_t *rs = zfs_btree_first(&rt->rt_root, &where); rs != NULL;
-	    rs = zfs_btree_next(&rt->rt_root, &where, &where)) {
+	for (range_seg_t *rs = zfs_btree_first(&rt->rt_root, &where);
+	    rs != NULL; rs = zfs_btree_next(&rt->rt_root, &where, &where)) {
 		func(arg, rs_get_start(rs, rt), rs_get_end(rs, rt) -
 		    rs_get_start(rs, rt));
 	}

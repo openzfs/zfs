@@ -973,7 +973,8 @@ spa_vdev_copy_segment(vdev_t *vd, range_tree_t *segs,
 		rs_set_start(&search, segs, start + maxalloc);
 		rs_set_end(&search, segs, start + maxalloc);
 		(void) zfs_btree_find(&segs->rt_root, &search, &where);
-		range_seg_t *rs = zfs_btree_prev(&segs->rt_root, &where, &where);
+		range_seg_t *rs = zfs_btree_prev(&segs->rt_root, &where,
+		    &where);
 		if (rs != NULL) {
 			size = rs_get_end(rs, segs) - start;
 		} else {

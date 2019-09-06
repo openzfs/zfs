@@ -1498,7 +1498,8 @@ metaslab_largest_unflushed_free(metaslab_t *msp)
 
 	if (zfs_btree_numnodes(&msp->ms_unflushed_frees_by_size) == 0)
 		metaslab_size_tree_full_load(msp->ms_unflushed_frees);
-	range_seg_t *rs = zfs_btree_last(&msp->ms_unflushed_frees_by_size, NULL);
+	range_seg_t *rs = zfs_btree_last(&msp->ms_unflushed_frees_by_size,
+	    NULL);
 	if (rs == NULL)
 		return (0);
 
@@ -1550,8 +1551,8 @@ metaslab_largest_unflushed_free(metaslab_t *msp)
 }
 
 static range_seg_t *
-metaslab_block_find(zfs_btree_t *t, range_tree_t *rt, uint64_t start, uint64_t size,
-    zfs_btree_index_t *where)
+metaslab_block_find(zfs_btree_t *t, range_tree_t *rt, uint64_t start,
+    uint64_t size, zfs_btree_index_t *where)
 {
 	range_seg_t *rs;
 	range_seg_max_t rsearch;

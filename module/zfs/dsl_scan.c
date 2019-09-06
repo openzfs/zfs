@@ -2915,6 +2915,7 @@ static range_seg_t *
 scan_io_queue_fetch_ext(dsl_scan_io_queue_t *queue)
 {
 	dsl_scan_t *scn = queue->q_scn;
+	range_tree_t *rt = queue->q_exts_by_addr;
 
 	ASSERT(MUTEX_HELD(&queue->q_vd->vdev_scan_io_queue_lock));
 	ASSERT(scn->scn_is_sorted);
@@ -2922,9 +2923,14 @@ scan_io_queue_fetch_ext(dsl_scan_io_queue_t *queue)
 	/* handle tunable overrides */
 	if (scn->scn_checkpointing || scn->scn_clearing) {
 		if (zfs_scan_issue_strategy == 1) {
-			return (range_tree_first(queue->q_exts_by_addr));
+			return (range_tree_first(rt));
 		} else if (zfs_scan_issue_strategy == 2) {
-			return (zfs_btree_first(&queue->q_exts_by_size, NULL));
+			range_seg_t *size_rs =
+			    zfs_btree_first(&queue->q_exts_by_size, NULL);
+			range_seg_t *addr_rs = range_tree_find(rt,
+			    rs_get_start(rt, size_rs), rs_get_end(rt, size_rs));
+			ASSERT3P(addr_rs, !=, NULL);
+			return (addr_rs);
 		}
 	}
 
@@ -2938,9 +2944,14 @@ scan_io_queue_fetch_ext(dsl_scan_io_queue_t *queue)
 	 * In this case, we instead switch to issuing extents in LBA order.
 	 */
 	if (scn->scn_checkpointing) {
-		return (range_tree_first(queue->q_exts_by_addr));
+		return (range_tree_first(rt));
 	} else if (scn->scn_clearing) {
-		return (zfs_btree_first(&queue->q_exts_by_size, NULL));
+		range_seg_t *size_rs = zfs_btree_first(&queue->q_exts_by_size,
+		    NULL);
+		range_seg_t *addr_rs = range_tree_find(rt,
+		    rs_get_start(rt, size_rs), rs_get_end(rt, size_rs));
+		ASSERT3P(addr_rs, !=, NULL);
+		return (addr_rs);
 	} else {
 		return (NULL);
 	}

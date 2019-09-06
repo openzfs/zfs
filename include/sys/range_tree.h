@@ -53,7 +53,7 @@ typedef enum range_seg_type {
  * must provide external locking if required.
  */
 typedef struct range_tree {
-	zfs_btree_t		rt_root;	/* offset-ordered segment b-tree */
+	zfs_btree_t	rt_root;	/* offset-ordered segment b-tree */
 	uint64_t	rt_space;	/* sum of all segments in the map */
 	range_seg_type_t rt_type;	/* type of range_seg_t in use */
 	/*
@@ -285,6 +285,7 @@ range_tree_t *range_tree_create(range_tree_ops_t *ops, range_seg_type_t type,
     void *arg, uint64_t start, uint64_t shift);
 void range_tree_destroy(range_tree_t *rt);
 boolean_t range_tree_contains(range_tree_t *rt, uint64_t start, uint64_t size);
+range_seg_t *range_tree_find(range_tree_t *rt, uint64_t start, uint64_t size);
 boolean_t range_tree_find_in(range_tree_t *rt, uint64_t start, uint64_t size,
     uint64_t *ostart, uint64_t *osize);
 void range_tree_verify_not_present(range_tree_t *rt,

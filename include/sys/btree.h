@@ -125,7 +125,8 @@ void zfs_btree_fini(void);
  *          -1 for <, 0 for ==, and +1 for >
  * size   - the value of sizeof(struct my_type)
  */
-void zfs_btree_create(zfs_btree_t *, int (*) (const void *, const void *), size_t);
+void zfs_btree_create(zfs_btree_t *, int (*) (const void *, const void *),
+    size_t);
 
 /*
  * Find a node with a matching value in the tree. Returns the matching node
@@ -133,7 +134,8 @@ void zfs_btree_create(zfs_btree_t *, int (*) (const void *, const void *), size_
  * "where" for use with zfs_btree_insert() or zfs_btree_nearest().
  *
  * node   - node that has the value being looked for
- * where  - position for use with zfs_btree_nearest() or zfs_btree_insert(), may be NULL
+ * where  - position for use with zfs_btree_nearest() or zfs_btree_insert(),
+ *          may be NULL
  */
 void *zfs_btree_find(zfs_btree_t *, const void *, zfs_btree_index_t *);
 
@@ -155,8 +157,10 @@ void *zfs_btree_last(zfs_btree_t *, zfs_btree_index_t *);
 /*
  * Return the next or previous valued node in the tree.
  */
-void *zfs_btree_next(zfs_btree_t *, const zfs_btree_index_t *, zfs_btree_index_t *);
-void *zfs_btree_prev(zfs_btree_t *, const zfs_btree_index_t *, zfs_btree_index_t *);
+void *zfs_btree_next(zfs_btree_t *, const zfs_btree_index_t *,
+    zfs_btree_index_t *);
+void *zfs_btree_prev(zfs_btree_t *, const zfs_btree_index_t *,
+    zfs_btree_index_t *);
 
 /*
  * Get a value from a tree and an index.
@@ -192,10 +196,11 @@ ulong_t zfs_btree_numnodes(zfs_btree_t *);
  * removed from the tree and may be free()'d. Returns NULL when the tree is
  * empty.
  *
- * Once you call zfs_btree_destroy_nodes(), you can only continuing calling it and
- * finally zfs_btree_destroy(). No other B-Tree routines will be valid.
+ * Once you call zfs_btree_destroy_nodes(), you can only continuing calling it
+ * and finally zfs_btree_destroy(). No other B-Tree routines will be valid.
  *
- * cookie - an index used to save state between calls to zfs_btree_destroy_nodes()
+ * cookie - an index used to save state between calls to
+ * zfs_btree_destroy_nodes()
  *
  * EXAMPLE:
  *	zfs_btree_t *tree;
