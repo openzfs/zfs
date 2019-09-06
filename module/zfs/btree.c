@@ -65,10 +65,10 @@ int btree_verify_intensity = 0;
 #define	BTREE_POISON 0xabadb10cdeadbeef
 #endif
 
-#ifdef ZFS_DEBUG
 static void
 btree_poison_node(btree_t *tree, btree_hdr_t *hdr)
 {
+#ifdef ZFS_DEBUG
 	size_t size = tree->bt_elem_size;
 	if (!hdr->bth_core) {
 		btree_leaf_t *leaf = (btree_leaf_t *)hdr;
@@ -84,11 +84,13 @@ btree_poison_node(btree_t *tree, btree_hdr_t *hdr)
 		(void) memset(node->btc_elems + hdr->bth_count * size, 0x0f,
 		    (BTREE_CORE_ELEMS - hdr->bth_count) * size);
 	}
+#endif
 }
 
 static inline void
 btree_poison_node_at(btree_t *tree, btree_hdr_t *hdr, uint64_t offset)
 {
+#ifdef ZFS_DEBUG
 	size_t size = tree->bt_elem_size;
 	ASSERT3U(offset, >=, hdr->bth_count);
 	if (!hdr->bth_core) {
@@ -100,8 +102,8 @@ btree_poison_node_at(btree_t *tree, btree_hdr_t *hdr, uint64_t offset)
 		    (btree_hdr_t *)BTREE_POISON;
 		(void) memset(node->btc_elems + offset * size, 0x0f, size);
 	}
-}
 #endif
+}
 
 static inline void
 btree_verify_poison_at(btree_t *tree, btree_hdr_t *hdr, uint64_t offset)
@@ -522,9 +524,7 @@ btree_insert_into_parent(btree_t *tree, btree_hdr_t *old_node,
 
 		tree->bt_height++;
 		tree->bt_root = new_root_hdr;
-#ifdef ZFS_DEBUG
 		btree_poison_node(tree, new_root_hdr);
-#endif
 		return;
 	}
 
@@ -589,9 +589,8 @@ btree_insert_into_parent(btree_t *tree, btree_hdr_t *old_node,
 	new_par_hdr->bth_parent = par_hdr->bth_parent;
 	new_par_hdr->bth_core = B_TRUE;
 	new_par_hdr->bth_count = move_count;
-#ifdef ZFS_DEBUG
 	btree_poison_node(tree, new_par_hdr);
-#endif
+
 	par_hdr->bth_count = keep_count;
 
 	/*
@@ -674,9 +673,7 @@ btree_insert_into_parent(btree_t *tree, btree_hdr_t *old_node,
 		    new_parent, 0, BSS_PARALLELOGRAM);
 		new_parent->btc_children[0] = new_node;
 	}
-#ifdef ZFS_DEBUG
 	btree_poison_node(tree, par_hdr);
-#endif
 
 	for (int i = 0; i <= new_parent->btc_hdr.bth_count; i++)
 		new_parent->btc_children[i]->bth_parent = new_parent;
@@ -690,7 +687,6 @@ btree_insert_into_parent(btree_t *tree, btree_hdr_t *old_node,
 	 */
 	btree_insert_into_parent(tree, &parent->btc_hdr, &new_parent->btc_hdr,
 	    buf);
-
 }
 
 /* Helper function for inserting a new value into leaf at the given index. */
@@ -743,9 +739,8 @@ btree_insert_into_leaf(btree_t *tree, btree_leaf_t *leaf, const void *value,
 	new_hdr->bth_parent = leaf->btl_hdr.bth_parent;
 	new_hdr->bth_core = B_FALSE;
 	new_hdr->bth_count = move_count;
-#ifdef ZFS_DEBUG
 	btree_poison_node(tree, new_hdr);
-#endif
+
 	leaf->btl_hdr.bth_count = keep_count;
 
 	if (tree->bt_bulk != NULL && leaf == tree->bt_bulk)
@@ -800,9 +795,8 @@ btree_insert_into_leaf(btree_t *tree, btree_leaf_t *leaf, const void *value,
 		    0);
 	}
 
-#ifdef ZFS_DEBUG
 	btree_poison_node(tree, &leaf->btl_hdr);
-#endif
+
 	/*
 	 * Now that the node is split, we need to insert the new node into its
 	 * parent. This may cause further splitting, bur only of core nodes.
@@ -834,7 +828,7 @@ btree_find_parent_idx(btree_t *tree, btree_hdr_t *hdr)
  * Take the b-tree out of bulk insert mode. During bulk-insert mode, some
  * nodes may violate the invariant that non-root nodes must be at least half
  * full. All nodes violating this invariant should be the last node in their
- * particular level. To correct the invariant, we steal values from their left
+ * particular level. To correct the invariant, we take values from their left
  * neighbor until they are half full. They must have a left neighbor at their
  * level because the last node at a level is not the first node unless it's
  * the root.
@@ -860,7 +854,7 @@ btree_bulk_finish(btree_t *tree)
 		return;
 	}
 
-	/* First, steal elements to rebalance the leaf node. */
+	/* First, take elements to rebalance the leaf node. */
 	if (hdr->bth_count < capacity / 2) {
 		/*
 		 * First, find the left neighbor. The simplest way to do this
@@ -923,9 +917,7 @@ btree_bulk_finish(btree_t *tree)
 
 		ASSERT3U(l_hdr->bth_count, >=, capacity / 2);
 		ASSERT3U(hdr->bth_count, >=, capacity / 2);
-#ifdef ZFS_DEBUG
 		btree_poison_node(tree, l_hdr);
-#endif
 	}
 
 	/*
@@ -947,7 +939,7 @@ btree_bulk_finish(btree_t *tree)
 		/*
 		 * Because the smallest number of nodes we can move when
 		 * splitting is 2, we never need to worry about not having a
-		 * left sibling.
+		 * left sibling (a sibling is a neighbor with the same parent).
 		 */
 		uint64_t parent_idx = btree_find_parent_idx(tree, hdr);
 		ASSERT3U(parent_idx, >, 0);
@@ -995,9 +987,8 @@ btree_bulk_finish(btree_t *tree)
 		ASSERT3U(l_neighbor->btc_hdr.bth_count, >=, capacity / 2);
 		ASSERT3U(hdr->bth_count, >=, capacity / 2);
 
-#ifdef ZFS_DEBUG
 		btree_poison_node(tree, &l_neighbor->btc_hdr);
-#endif
+
 		for (int i = 0; i <= hdr->bth_count; i++)
 			cur->btc_children[i]->bth_parent = cur;
 	}
@@ -1043,9 +1034,8 @@ btree_insert(btree_t *tree, const void *value, const btree_index_t *where)
 		hdr->bth_parent = NULL;
 		hdr->bth_core = B_FALSE;
 		hdr->bth_count = 0;
-#ifdef ZFS_DEBUG
 		btree_poison_node(tree, hdr);
-#endif
+
 		btree_insert_into_leaf(tree, leaf, value, 0);
 		tree->bt_bulk = leaf;
 	} else if (!where->bti_node->bth_core) {
@@ -1104,7 +1094,6 @@ btree_first(btree_t *tree, btree_index_t *where)
 		return (NULL);
 	}
 	return (btree_first_helper(tree->bt_root, where));
-
 }
 
 /*
@@ -1248,11 +1237,11 @@ btree_prev(btree_t *tree, const btree_index_t *idx, btree_index_t *out_idx)
 		/*
 		 * When finding the previous element of an element in a leaf,
 		 * there are two cases. If the element isn't the first one in
-		 * the leaf, in which case we just return the next element in
+		 * the leaf, in which case we just return the previous element in
 		 * the leaf. Otherwise, we need to traverse up our parents
 		 * until we find one where our previous ancestor isn't the
-		 * first child. Once we do, the next element is the separator
-		 * before our previous ancestor.
+		 * first child. Once we do, the previous element is the separator
+		 * after our previous ancestor.
 		 */
 		btree_leaf_t *leaf = (btree_leaf_t *)idx->bti_node;
 		if (offset != 0) {
@@ -1286,7 +1275,7 @@ btree_prev(btree_t *tree, const btree_index_t *idx, btree_index_t *out_idx)
 
 	/*
 	 * The previous element from one in a core node is the last element in
-	 * the subtree just to the lefet of the separator.
+	 * the subtree just to the left of the separator.
 	 */
 	ASSERT(idx->bti_node->bth_core);
 	btree_core_t *node = (btree_core_t *)idx->bti_node;
@@ -1297,7 +1286,7 @@ btree_prev(btree_t *tree, const btree_index_t *idx, btree_index_t *out_idx)
 /*
  * Get the value at the provided index in the tree.
  *
- * Note that the value returned from this function can be mutataed, but only
+ * Note that the value returned from this function can be mutated, but only
  * if it will not change the ordering of the element with respect to any other
  * elements that could be in the tree.
  */
@@ -1382,16 +1371,14 @@ btree_remove_from_node(btree_t *tree, btree_core_t *node, btree_hdr_t *rm_hdr)
 		 */
 		bt_shift_core_left(tree, node, idx, hdr->bth_count - idx + 1,
 		    BSS_PARALLELOGRAM);
-#ifdef ZFS_DEBUG
 		btree_poison_node_at(tree, hdr, hdr->bth_count);
-#endif
 		return;
 	}
 
 	ASSERT3U(hdr->bth_count, ==, min_count - 1);
 
 	/*
-	 * Now we try to steal a node from a neighbor. We check left, then
+	 * Now we try to take a node from a neighbor. We check left, then
 	 * right. If the neighbor exists and has more than the minimum number
 	 * of elements, we move the separator betweeen us and them to our
 	 * node, move their closest element (last for left, first for right)
@@ -1399,9 +1386,10 @@ btree_remove_from_node(btree_t *tree, btree_core_t *node, btree_hdr_t *rm_hdr)
 	 * the way we need to collapse the gap made by idx, and (for our right
 	 * neighbor) the gap made by removing their first element and child.
 	 *
-	 * Note: this logic currently doesn't support stealing from a neighbor
-	 * that isn't a sibling. This isn't critical functionality, but may be
-	 * worth implementing in the future for completeness' sake.
+	 * Note: this logic currently doesn't support taking from a neighbor
+	 * that isn't a sibling (i.e. a neighbor with a different
+	 * parent). This isn't critical functionality, but may be worth
+	 * implementing in the future for completeness' sake.
 	 */
 	btree_core_t *parent = hdr->bth_parent;
 	uint64_t parent_idx = btree_find_parent_idx(tree, hdr);
@@ -1409,7 +1397,7 @@ btree_remove_from_node(btree_t *tree, btree_core_t *node, btree_hdr_t *rm_hdr)
 	btree_hdr_t *l_hdr = (parent_idx == 0 ? NULL :
 	    parent->btc_children[parent_idx - 1]);
 	if (l_hdr != NULL && l_hdr->bth_count > min_count) {
-		/* We can steal a node from the left neighbor. */
+		/* We can take a node from the left neighbor. */
 		ASSERT(l_hdr->bth_core);
 		btree_core_t *neighbor = (btree_core_t *)l_hdr;
 
@@ -1428,27 +1416,25 @@ btree_remove_from_node(btree_t *tree, btree_core_t *node, btree_hdr_t *rm_hdr)
 		bcopy(separator, node->btc_elems, size);
 
 		/* Move the last child of neighbor to our first child slot. */
-		btree_hdr_t **steal_child = neighbor->btc_children +
+		btree_hdr_t **take_child = neighbor->btc_children +
 		    l_hdr->bth_count;
-		bcopy(steal_child, node->btc_children, sizeof (*steal_child));
+		bcopy(take_child, node->btc_children, sizeof (*take_child));
 		node->btc_children[0]->bth_parent = node;
 
 		/* Move the last element of neighbor to the separator spot. */
-		uint8_t *steal_elem = neighbor->btc_elems +
+		uint8_t *take_elem = neighbor->btc_elems +
 		    (l_hdr->bth_count - 1) * size;
-		bcopy(steal_elem, separator, size);
+		bcopy(take_elem, separator, size);
 		l_hdr->bth_count--;
 		hdr->bth_count++;
-#ifdef ZFS_DEBUG
 		btree_poison_node_at(tree, l_hdr, l_hdr->bth_count);
-#endif
 		return;
 	}
 
 	btree_hdr_t *r_hdr = (parent_idx == parent->btc_hdr.bth_count ?
 	    NULL : parent->btc_children[parent_idx + 1]);
 	if (r_hdr != NULL && r_hdr->bth_count > min_count) {
-		/* We can steal a node from the right neighbor. */
+		/* We can take a node from the right neighbor. */
 		ASSERT(r_hdr->bth_core);
 		btree_core_t *neighbor = (btree_core_t *)r_hdr;
 
@@ -1470,14 +1456,14 @@ btree_remove_from_node(btree_t *tree, btree_core_t *node, btree_hdr_t *rm_hdr)
 		 * Move the first child of neighbor to the last child spot in
 		 * node.
 		 */
-		btree_hdr_t **steal_child = neighbor->btc_children;
-		bcopy(steal_child, node->btc_children + (hdr->bth_count + 1),
-		    sizeof (*steal_child));
+		btree_hdr_t **take_child = neighbor->btc_children;
+		bcopy(take_child, node->btc_children + (hdr->bth_count + 1),
+		    sizeof (*take_child));
 		node->btc_children[hdr->bth_count + 1]->bth_parent = node;
 
 		/* Move the first element of neighbor to the separator spot. */
-		uint8_t *steal_elem = neighbor->btc_elems;
-		bcopy(steal_elem, separator, size);
+		uint8_t *take_elem = neighbor->btc_elems;
+		bcopy(take_elem, separator, size);
 		r_hdr->bth_count--;
 		hdr->bth_count++;
 
@@ -1487,9 +1473,7 @@ btree_remove_from_node(btree_t *tree, btree_core_t *node, btree_hdr_t *rm_hdr)
 		 */
 		bt_shift_core_left(tree, neighbor, 1, r_hdr->bth_count,
 		    BSS_TRAPEZOID);
-#ifdef ZFS_DEBUG
 		btree_poison_node_at(tree, r_hdr, r_hdr->bth_count);
-#endif
 		return;
 	}
 
@@ -1668,17 +1652,15 @@ btree_remove_from(btree_t *tree, btree_index_t *where)
 				btree_node_destroy(tree, &leaf->btl_hdr);
 			}
 		}
-#ifdef ZFS_DEBUG
 		if (tree->bt_root != NULL)
 			btree_poison_node_at(tree, hdr, hdr->bth_count);
-#endif
 		btree_verify(tree);
 		return;
 	}
 	ASSERT3U(hdr->bth_count, ==, min_count - 1);
 
 	/*
-	 * Now we try to steal a node from a sibling. We check left, then
+	 * Now we try to take a node from a sibling. We check left, then
 	 * right. If they exist and have more than the minimum number of
 	 * elements, we move the separator betweeen us and them to our node
 	 * and move their closest element (last for left, first for right) to
@@ -1686,7 +1668,7 @@ btree_remove_from(btree_t *tree, btree_index_t *where)
 	 * idx, and (for our right neighbor) the gap made by removing their
 	 * first element.
 	 *
-	 * Note: this logic currently doesn't support stealing from a neighbor
+	 * Note: this logic currently doesn't support taking from a neighbor
 	 * that isn't a sibling. This isn't critical functionality, but may be
 	 * worth implementing in the future for completeness' sake.
 	 */
@@ -1696,7 +1678,7 @@ btree_remove_from(btree_t *tree, btree_index_t *where)
 	btree_hdr_t *l_hdr = (parent_idx == 0 ? NULL :
 	    parent->btc_children[parent_idx - 1]);
 	if (l_hdr != NULL && l_hdr->bth_count > min_count) {
-		/* We can steal a node from the left neighbor. */
+		/* We can take a node from the left neighbor. */
 		ASSERT(!l_hdr->bth_core);
 
 		/*
@@ -1706,20 +1688,19 @@ btree_remove_from(btree_t *tree, btree_index_t *where)
 		bt_shift_leaf_right(tree, leaf, 0, idx);
 		uint8_t *separator = parent->btc_elems + (parent_idx - 1) *
 		    size;
-		uint8_t *steal_elem = ((btree_leaf_t *)l_hdr)->btl_elems +
+		uint8_t *take_elem = ((btree_leaf_t *)l_hdr)->btl_elems +
 		    (l_hdr->bth_count - 1) * size;
 		/* Move the separator to our first spot. */
 		bcopy(separator, leaf->btl_elems, size);
 
 		/* Move our neighbor's last element to the separator. */
-		bcopy(steal_elem, separator, size);
+		bcopy(take_elem, separator, size);
 
 		/* Update the bookkeeping. */
 		l_hdr->bth_count--;
 		hdr->bth_count++;
-#ifdef ZFS_DEBUG
 		btree_poison_node_at(tree, l_hdr, l_hdr->bth_count);
-#endif
+
 		btree_verify(tree);
 		return;
 	}
@@ -1727,7 +1708,7 @@ btree_remove_from(btree_t *tree, btree_index_t *where)
 	btree_hdr_t *r_hdr = (parent_idx == parent->btc_hdr.bth_count ?
 	    NULL : parent->btc_children[parent_idx + 1]);
 	if (r_hdr != NULL && r_hdr->bth_count > min_count) {
-		/* We can steal a node from the right neighbor. */
+		/* We can take a node from the right neighbor. */
 		ASSERT(!r_hdr->bth_core);
 		btree_leaf_t *neighbor = (btree_leaf_t *)r_hdr;
 
@@ -1739,12 +1720,12 @@ btree_remove_from(btree_t *tree, btree_index_t *where)
 		bt_shift_leaf_left(tree, leaf, idx + 1, hdr->bth_count - idx);
 
 		uint8_t *separator = parent->btc_elems + parent_idx * size;
-		uint8_t *steal_elem = ((btree_leaf_t *)r_hdr)->btl_elems;
+		uint8_t *take_elem = ((btree_leaf_t *)r_hdr)->btl_elems;
 		/* Move the separator between us to our last spot. */
 		bcopy(separator, leaf->btl_elems + hdr->bth_count * size, size);
 
 		/* Move our neighbor's first element to the separator. */
-		bcopy(steal_elem, separator, size);
+		bcopy(take_elem, separator, size);
 
 		/* Update the bookkeeping. */
 		r_hdr->bth_count--;
@@ -1755,9 +1736,7 @@ btree_remove_from(btree_t *tree, btree_index_t *where)
 		 * stolen element.
 		 */
 		bt_shift_leaf_left(tree, neighbor, 1, r_hdr->bth_count);
-#ifdef ZFS_DEBUG
 		btree_poison_node_at(tree, r_hdr, r_hdr->bth_count);
-#endif
 		btree_verify(tree);
 		return;
 	}
