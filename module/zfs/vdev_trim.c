@@ -523,8 +523,8 @@ static int
 vdev_trim_ranges(trim_args_t *ta)
 {
 	vdev_t *vd = ta->trim_vdev;
-	btree_t *t = &ta->trim_tree->rt_root;
-	btree_index_t idx;
+	zfs_btree_t *t = &ta->trim_tree->rt_root;
+	zfs_btree_index_t idx;
 	uint64_t extent_bytes_max = ta->trim_extent_bytes_max;
 	uint64_t extent_bytes_min = ta->trim_extent_bytes_min;
 	spa_t *spa = vd->vdev_spa;
@@ -532,8 +532,8 @@ vdev_trim_ranges(trim_args_t *ta)
 	ta->trim_start_time = gethrtime();
 	ta->trim_bytes_done = 0;
 
-	for (range_seg_t *rs = btree_first(t, &idx); rs != NULL;
-	    rs = btree_next(t, &idx, &idx)) {
+	for (range_seg_t *rs = zfs_btree_first(t, &idx); rs != NULL;
+	    rs = zfs_btree_next(t, &idx, &idx)) {
 		uint64_t size = rs_get_end(rs, ta->trim_tree) - rs_get_start(rs,
 		    ta->trim_tree);
 
@@ -614,10 +614,10 @@ vdev_trim_calculate_progress(vdev_t *vd)
 		VERIFY0(metaslab_load(msp));
 
 		range_tree_t *rt = msp->ms_allocatable;
-		btree_t *bt = &rt->rt_root;
-		btree_index_t idx;
-		for (range_seg_t *rs = btree_first(bt, &idx);
-		    rs != NULL; rs = btree_next(bt, &idx, &idx)) {
+		zfs_btree_t *bt = &rt->rt_root;
+		zfs_btree_index_t idx;
+		for (range_seg_t *rs = zfs_btree_first(bt, &idx);
+		    rs != NULL; rs = zfs_btree_next(bt, &idx, &idx)) {
 			logical_rs.rs_start = rs_get_start(rs, rt);
 			logical_rs.rs_end = rs_get_end(rs, rt);
 			vdev_xlate(vd, &logical_rs, &physical_rs);

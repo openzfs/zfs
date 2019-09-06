@@ -4795,7 +4795,7 @@ arc_kmem_reap_soon(void)
 	kmem_cache_reap_now(buf_cache);
 	kmem_cache_reap_now(hdr_full_cache);
 	kmem_cache_reap_now(hdr_l2only_cache);
-	kmem_cache_reap_now(btree_leaf_cache);
+	kmem_cache_reap_now(zfs_btree_leaf_cache);
 
 	if (zio_arena != NULL) {
 		/*

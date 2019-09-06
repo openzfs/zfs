@@ -509,8 +509,8 @@ struct metaslab {
 	 * only difference is that the ms_allocatable_by_size is ordered by
 	 * segment sizes.
 	 */
-	btree_t		ms_allocatable_by_size;
-	btree_t		ms_unflushed_frees_by_size;
+	zfs_btree_t		ms_allocatable_by_size;
+	zfs_btree_t		ms_unflushed_frees_by_size;
 	uint64_t	ms_lbas[MAX_LBAS];
 
 	metaslab_group_t *ms_group;	/* metaslab group		*/

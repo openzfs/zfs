@@ -279,7 +279,7 @@ struct dsl_scan_io_queue {
 
 	/* trees used for sorting I/Os and extents of I/Os */
 	range_tree_t	*q_exts_by_addr;
-	btree_t		q_exts_by_size;
+	zfs_btree_t		q_exts_by_size;
 	avl_tree_t	q_sios_by_addr;
 	uint64_t	q_sio_memused;
 
@@ -646,7 +646,7 @@ dsl_scan_sync_state(dsl_scan_t *scn, dmu_tx_t *tx, state_sync_type_t sync_type)
 
 			mutex_enter(&vd->vdev_scan_io_queue_lock);
 			ASSERT3P(avl_first(&q->q_sios_by_addr), ==, NULL);
-			ASSERT3P(btree_first(&q->q_exts_by_size, NULL), ==,
+			ASSERT3P(zfs_btree_first(&q->q_exts_by_size, NULL), ==,
 			    NULL);
 			ASSERT3P(range_tree_first(q->q_exts_by_addr), ==, NULL);
 			mutex_exit(&vd->vdev_scan_io_queue_lock);
@@ -1243,7 +1243,7 @@ dsl_scan_should_clear(dsl_scan_t *scn)
 		queue = tvd->vdev_scan_io_queue;
 		if (queue != NULL) {
 			/* # extents in exts_by_size = # in exts_by_addr */
-			mused += btree_numnodes(&queue->q_exts_by_size) *
+			mused += zfs_btree_numnodes(&queue->q_exts_by_size) *
 			    sizeof (range_seg_t) + queue->q_sio_memused;
 		}
 		mutex_exit(&tvd->vdev_scan_io_queue_lock);
@@ -2924,7 +2924,7 @@ scan_io_queue_fetch_ext(dsl_scan_io_queue_t *queue)
 		if (zfs_scan_issue_strategy == 1) {
 			return (range_tree_first(queue->q_exts_by_addr));
 		} else if (zfs_scan_issue_strategy == 2) {
-			return (btree_first(&queue->q_exts_by_size, NULL));
+			return (zfs_btree_first(&queue->q_exts_by_size, NULL));
 		}
 	}
 
@@ -2940,7 +2940,7 @@ scan_io_queue_fetch_ext(dsl_scan_io_queue_t *queue)
 	if (scn->scn_checkpointing) {
 		return (range_tree_first(queue->q_exts_by_addr));
 	} else if (scn->scn_clearing) {
-		return (btree_first(&queue->q_exts_by_size, NULL));
+		return (zfs_btree_first(&queue->q_exts_by_size, NULL));
 	} else {
 		return (NULL);
 	}

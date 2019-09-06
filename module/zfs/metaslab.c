@@ -1332,7 +1332,7 @@ metaslab_rangesize64_compare(const void *x1, const void *x2)
 	return (TREE_CMP(r1->rs_start, r2->rs_start));
 }
 typedef struct metaslab_rt_arg {
-	btree_t *mra_bt;
+	zfs_btree_t *mra_bt;
 	uint32_t mra_floor_shift;
 } metaslab_rt_arg_t;
 
@@ -1360,7 +1360,7 @@ metaslab_size_tree_full_load(range_tree_t *rt)
 #ifdef _METASLAB_TRACING
 	METASLABSTAT_BUMP(metaslabstat_reload_tree);
 #endif
-	ASSERT0(btree_numnodes(mrap->mra_bt));
+	ASSERT0(zfs_btree_numnodes(mrap->mra_bt));
 	mrap->mra_floor_shift = 0;
 	struct mssa_arg arg = {0};
 	arg.rt = rt;
@@ -1377,7 +1377,7 @@ static void
 metaslab_rt_create(range_tree_t *rt, void *arg)
 {
 	metaslab_rt_arg_t *mrap = arg;
-	btree_t *size_tree = mrap->mra_bt;
+	zfs_btree_t *size_tree = mrap->mra_bt;
 
 	size_t size;
 	int (*compare) (const void *, const void *);
@@ -1393,7 +1393,7 @@ metaslab_rt_create(range_tree_t *rt, void *arg)
 	default:
 		panic("Invalid range seg type %d", rt->rt_type);
 	}
-	btree_create(size_tree, compare, size);
+	zfs_btree_create(size_tree, compare, size);
 	mrap->mra_floor_shift = metaslab_by_size_min_shift;
 }
 
@@ -1402,9 +1402,9 @@ static void
 metaslab_rt_destroy(range_tree_t *rt, void *arg)
 {
 	metaslab_rt_arg_t *mrap = arg;
-	btree_t *size_tree = mrap->mra_bt;
+	zfs_btree_t *size_tree = mrap->mra_bt;
 
-	btree_destroy(size_tree);
+	zfs_btree_destroy(size_tree);
 	kmem_free(mrap, sizeof (*mrap));
 }
 
@@ -1413,13 +1413,13 @@ static void
 metaslab_rt_add(range_tree_t *rt, range_seg_t *rs, void *arg)
 {
 	metaslab_rt_arg_t *mrap = arg;
-	btree_t *size_tree = mrap->mra_bt;
+	zfs_btree_t *size_tree = mrap->mra_bt;
 
 	if (rs_get_end(rs, rt) - rs_get_start(rs, rt) <
 	    (1 << mrap->mra_floor_shift))
 		return;
 
-	btree_add(size_tree, rs);
+	zfs_btree_add(size_tree, rs);
 }
 
 /* ARGSUSED */
@@ -1427,13 +1427,13 @@ static void
 metaslab_rt_remove(range_tree_t *rt, range_seg_t *rs, void *arg)
 {
 	metaslab_rt_arg_t *mrap = arg;
-	btree_t *size_tree = mrap->mra_bt;
+	zfs_btree_t *size_tree = mrap->mra_bt;
 
 	if (rs_get_end(rs, rt) - rs_get_start(rs, rt) < (1 <<
 	    mrap->mra_floor_shift))
 		return;
 
-	btree_remove(size_tree, rs);
+	zfs_btree_remove(size_tree, rs);
 }
 
 /* ARGSUSED */
@@ -1441,9 +1441,9 @@ static void
 metaslab_rt_vacate(range_tree_t *rt, void *arg)
 {
 	metaslab_rt_arg_t *mrap = arg;
-	btree_t *size_tree = mrap->mra_bt;
-	btree_clear(size_tree);
-	btree_destroy(size_tree);
+	zfs_btree_t *size_tree = mrap->mra_bt;
+	zfs_btree_clear(size_tree);
+	zfs_btree_destroy(size_tree);
 
 	metaslab_rt_create(rt, arg);
 }
@@ -1468,15 +1468,15 @@ static range_tree_ops_t metaslab_rt_ops = {
 uint64_t
 metaslab_largest_allocatable(metaslab_t *msp)
 {
-	btree_t *t = &msp->ms_allocatable_by_size;
+	zfs_btree_t *t = &msp->ms_allocatable_by_size;
 	range_seg_t *rs;
 
 	if (t == NULL)
 		return (0);
-	if (btree_numnodes(t) == 0)
+	if (zfs_btree_numnodes(t) == 0)
 		metaslab_size_tree_full_load(msp->ms_allocatable);
 
-	rs = btree_last(t, NULL);
+	rs = zfs_btree_last(t, NULL);
 	if (rs == NULL)
 		return (0);
 
@@ -1496,9 +1496,9 @@ metaslab_largest_unflushed_free(metaslab_t *msp)
 	if (msp->ms_unflushed_frees == NULL)
 		return (0);
 
-	if (btree_numnodes(&msp->ms_unflushed_frees_by_size) == 0)
+	if (zfs_btree_numnodes(&msp->ms_unflushed_frees_by_size) == 0)
 		metaslab_size_tree_full_load(msp->ms_unflushed_frees);
-	range_seg_t *rs = btree_last(&msp->ms_unflushed_frees_by_size, NULL);
+	range_seg_t *rs = zfs_btree_last(&msp->ms_unflushed_frees_by_size, NULL);
 	if (rs == NULL)
 		return (0);
 
@@ -1550,8 +1550,8 @@ metaslab_largest_unflushed_free(metaslab_t *msp)
 }
 
 static range_seg_t *
-metaslab_block_find(btree_t *t, range_tree_t *rt, uint64_t start, uint64_t size,
-    btree_index_t *where)
+metaslab_block_find(zfs_btree_t *t, range_tree_t *rt, uint64_t start, uint64_t size,
+    zfs_btree_index_t *where)
 {
 	range_seg_t *rs;
 	range_seg_max_t rsearch;
@@ -1559,9 +1559,9 @@ metaslab_block_find(btree_t *t, range_tree_t *rt, uint64_t start, uint64_t size,
 	rs_set_start(&rsearch, rt, start);
 	rs_set_end(&rsearch, rt, start + size);
 
-	rs = btree_find(t, &rsearch, where);
+	rs = zfs_btree_find(t, &rsearch, where);
 	if (rs == NULL) {
-		rs = btree_next(t, where, where);
+		rs = zfs_btree_next(t, where, where);
 	}
 
 	return (rs);
@@ -1580,8 +1580,8 @@ metaslab_block_picker(range_tree_t *rt, uint64_t *cursor, uint64_t size,
 {
 	if (*cursor == 0)
 		*cursor = rt->rt_start;
-	btree_t *bt = &rt->rt_root;
-	btree_index_t where;
+	zfs_btree_t *bt = &rt->rt_root;
+	zfs_btree_index_t where;
 	range_seg_t *rs = metaslab_block_find(bt, rt, *cursor, size, &where);
 	uint64_t first_found;
 	int count_searched = 0;
@@ -1596,7 +1596,7 @@ metaslab_block_picker(range_tree_t *rt, uint64_t *cursor, uint64_t size,
 			*cursor = offset + size;
 			return (offset);
 		}
-		rs = btree_next(bt, &where, &where);
+		rs = zfs_btree_next(bt, &where, &where);
 		count_searched++;
 	}
 
@@ -1658,13 +1658,13 @@ metaslab_df_alloc(metaslab_t *msp, uint64_t size)
 
 	if (offset == -1) {
 		range_seg_t *rs;
-		if (btree_numnodes(&msp->ms_allocatable_by_size) == 0)
+		if (zfs_btree_numnodes(&msp->ms_allocatable_by_size) == 0)
 			metaslab_size_tree_full_load(msp->ms_allocatable);
 		if (metaslab_df_use_largest_segment) {
 			/* use largest free segment */
-			rs = btree_last(&msp->ms_allocatable_by_size, NULL);
+			rs = zfs_btree_last(&msp->ms_allocatable_by_size, NULL);
 		} else {
-			btree_index_t where;
+			zfs_btree_index_t where;
 			/* use segment of this size, or next largest */
 #ifdef _METASLAB_TRACING
 			metaslab_rt_arg_t *mrap = msp->ms_allocatable->rt_arg;
@@ -1707,7 +1707,7 @@ static uint64_t
 metaslab_cf_alloc(metaslab_t *msp, uint64_t size)
 {
 	range_tree_t *rt = msp->ms_allocatable;
-	btree_t *t = &msp->ms_allocatable_by_size;
+	zfs_btree_t *t = &msp->ms_allocatable_by_size;
 	uint64_t *cursor = &msp->ms_lbas[0];
 	uint64_t *cursor_end = &msp->ms_lbas[1];
 	uint64_t offset = 0;
@@ -1719,9 +1719,9 @@ metaslab_cf_alloc(metaslab_t *msp, uint64_t size)
 	if ((*cursor + size) > *cursor_end) {
 		range_seg_t *rs;
 
-		if (btree_numnodes(t) == 0)
+		if (zfs_btree_numnodes(t) == 0)
 			metaslab_size_tree_full_load(msp->ms_allocatable);
-		rs = btree_last(t, NULL);
+		rs = zfs_btree_last(t, NULL);
 		if (rs == NULL || (rs_get_end(rs, rt) - rs_get_start(rs, rt)) <
 		    size)
 			return (-1ULL);
@@ -1762,9 +1762,9 @@ uint64_t metaslab_ndf_clump_shift = 4;
 static uint64_t
 metaslab_ndf_alloc(metaslab_t *msp, uint64_t size)
 {
-	btree_t *t = &msp->ms_allocatable->rt_root;
+	zfs_btree_t *t = &msp->ms_allocatable->rt_root;
 	range_tree_t *rt = msp->ms_allocatable;
-	btree_index_t where;
+	zfs_btree_index_t where;
 	range_seg_t *rs;
 	range_seg_max_t rsearch;
 	uint64_t hbit = highbit64(size);
@@ -1779,7 +1779,7 @@ metaslab_ndf_alloc(metaslab_t *msp, uint64_t size)
 	rs_set_start(&rsearch, rt, *cursor);
 	rs_set_end(&rsearch, rt, *cursor + size);
 
-	rs = btree_find(t, &rsearch, &where);
+	rs = zfs_btree_find(t, &rsearch, &where);
 	if (rs == NULL || (rs_get_end(rs, rt) - rs_get_start(rs, rt)) < size) {
 		t = &msp->ms_allocatable_by_size;
 
@@ -1787,9 +1787,9 @@ metaslab_ndf_alloc(metaslab_t *msp, uint64_t size)
 		rs_set_end(&rsearch, rt, MIN(max_size, 1ULL << (hbit +
 		    metaslab_ndf_clump_shift)));
 
-		rs = btree_find(t, &rsearch, &where);
+		rs = zfs_btree_find(t, &rsearch, &where);
 		if (rs == NULL)
-			rs = btree_next(t, &where, &where);
+			rs = zfs_btree_next(t, &where, &where);
 		ASSERT(rs != NULL);
 	}
 
@@ -2141,8 +2141,8 @@ metaslab_potentially_evict(metaslab_class_t *mc)
 {
 #ifdef _KERNEL
 	uint64_t allmem = arc_all_memory();
-	uint64_t inuse = btree_leaf_cache->skc_obj_total;
-	uint64_t size =	btree_leaf_cache->skc_obj_size;
+	uint64_t inuse = zfs_btree_leaf_cache->skc_obj_total;
+	uint64_t size =	zfs_btree_leaf_cache->skc_obj_size;
 	int tries = 0;
 	for (; allmem * zfs_metaslab_mem_limit / 100 < inuse * size &&
 	    tries < multilist_get_num_sublists(mc->mc_metaslab_txg_list) * 2;
@@ -2179,7 +2179,7 @@ metaslab_potentially_evict(metaslab_class_t *mc)
 			 */
 			if (msp->ms_loading) {
 				msp = next_msp;
-				inuse = btree_leaf_cache->skc_obj_total;
+				inuse = zfs_btree_leaf_cache->skc_obj_total;
 				continue;
 			}
 			/*
@@ -2201,7 +2201,7 @@ metaslab_potentially_evict(metaslab_class_t *mc)
 			}
 			mutex_exit(&msp->ms_lock);
 			msp = next_msp;
-			inuse = btree_leaf_cache->skc_obj_total;
+			inuse = zfs_btree_leaf_cache->skc_obj_total;
 		}
 	}
 #endif

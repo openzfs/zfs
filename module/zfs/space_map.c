@@ -674,10 +674,10 @@ space_map_write_impl(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
 
 	dmu_buf_will_dirty(db, tx);
 
-	btree_t *t = &rt->rt_root;
-	btree_index_t where;
-	for (range_seg_t *rs = btree_first(t, &where); rs != NULL;
-	    rs = btree_next(t, &where, &where)) {
+	zfs_btree_t *t = &rt->rt_root;
+	zfs_btree_index_t where;
+	for (range_seg_t *rs = zfs_btree_first(t, &where); rs != NULL;
+	    rs = zfs_btree_next(t, &where, &where)) {
 		uint64_t offset = (rs_get_start(rs, rt) - sm->sm_start) >>
 		    sm->sm_shift;
 		uint64_t length = (rs_get_end(rs, rt) - rs_get_start(rs, rt)) >>
@@ -754,7 +754,7 @@ space_map_write(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
 	else
 		sm->sm_phys->smp_alloc -= range_tree_space(rt);
 
-	uint64_t nodes = btree_numnodes(&rt->rt_root);
+	uint64_t nodes = zfs_btree_numnodes(&rt->rt_root);
 	uint64_t rt_space = range_tree_space(rt);
 
 	space_map_write_impl(sm, rt, maptype, vdev_id, tx);
@@ -763,7 +763,7 @@ space_map_write(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
 	 * Ensure that the space_map's accounting wasn't changed
 	 * while we were in the middle of writing it out.
 	 */
-	VERIFY3U(nodes, ==, btree_numnodes(&rt->rt_root));
+	VERIFY3U(nodes, ==, zfs_btree_numnodes(&rt->rt_root));
 	VERIFY3U(range_tree_space(rt), ==, rt_space);
 }
 

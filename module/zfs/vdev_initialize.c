@@ -292,11 +292,11 @@ static int
 vdev_initialize_ranges(vdev_t *vd, abd_t *data)
 {
 	range_tree_t *rt = vd->vdev_initialize_tree;
-	btree_t *bt = &rt->rt_root;
-	btree_index_t where;
+	zfs_btree_t *bt = &rt->rt_root;
+	zfs_btree_index_t where;
 
-	for (range_seg_t *rs = btree_first(bt, &where); rs != NULL;
-	    rs = btree_next(bt, &where, &where)) {
+	for (range_seg_t *rs = zfs_btree_first(bt, &where); rs != NULL;
+	    rs = zfs_btree_next(bt, &where, &where)) {
 		uint64_t size = rs_get_end(rs, rt) - rs_get_start(rs, rt);
 
 		/* Split range into legally-sized physical chunks */
@@ -367,11 +367,11 @@ vdev_initialize_calculate_progress(vdev_t *vd)
 		 */
 		VERIFY0(metaslab_load(msp));
 
-		btree_index_t where;
+		zfs_btree_index_t where;
 		range_tree_t *rt = msp->ms_allocatable;
 		for (range_seg_t *rs =
-		    btree_first(&rt->rt_root, &where); rs;
-		    rs = btree_next(&rt->rt_root, &where,
+		    zfs_btree_first(&rt->rt_root, &where); rs;
+		    rs = zfs_btree_next(&rt->rt_root, &where,
 		    &where)) {
 			logical_rs.rs_start = rs_get_start(rs, rt);
 			logical_rs.rs_end = rs_get_end(rs, rt);

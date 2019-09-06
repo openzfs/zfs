@@ -99,12 +99,12 @@ void
 range_tree_stat_verify(range_tree_t *rt)
 {
 	range_seg_t *rs;
-	btree_index_t where;
+	zfs_btree_index_t where;
 	uint64_t hist[RANGE_TREE_HISTOGRAM_SIZE] = { 0 };
 	int i;
 
-	for (rs = btree_first(&rt->rt_root, &where); rs != NULL;
-	    rs = btree_next(&rt->rt_root, &where, &where)) {
+	for (rs = zfs_btree_first(&rt->rt_root, &where); rs != NULL;
+	    rs = zfs_btree_next(&rt->rt_root, &where, &where)) {
 		uint64_t size = rs_get_end(rs, rt) - rs_get_start(rs, rt);
 		int idx	= highbit64(size) - 1;
 
@@ -188,7 +188,7 @@ range_tree_seg_gap_compare(const void *x1, const void *x2)
 range_tree_t *
 range_tree_create_impl(range_tree_ops_t *ops, range_seg_type_t type, void *arg,
     uint64_t start, uint64_t shift,
-    int (*btree_compare) (const void *, const void *),
+    int (*zfs_btree_compare) (const void *, const void *),
     uint64_t gap)
 {
 	range_tree_t *rt = kmem_zalloc(sizeof (range_tree_t), KM_SLEEP);
@@ -213,7 +213,7 @@ range_tree_create_impl(range_tree_ops_t *ops, range_seg_type_t type, void *arg,
 	default:
 		panic("Invalid range seg type %d", type);
 	}
-	btree_create(&rt->rt_root, compare, size);
+	zfs_btree_create(&rt->rt_root, compare, size);
 
 	rt->rt_ops = ops;
 	rt->rt_gap = gap;
@@ -221,7 +221,7 @@ range_tree_create_impl(range_tree_ops_t *ops, range_seg_type_t type, void *arg,
 	rt->rt_type = type;
 	rt->rt_start = start;
 	rt->rt_shift = shift;
-	rt->rt_btree_compare = btree_compare;
+	rt->rt_btree_compare = zfs_btree_compare;
 
 	if (rt->rt_ops != NULL && rt->rt_ops->rtop_create != NULL)
 		rt->rt_ops->rtop_create(rt, rt->rt_arg);
@@ -244,7 +244,7 @@ range_tree_destroy(range_tree_t *rt)
 	if (rt->rt_ops != NULL && rt->rt_ops->rtop_destroy != NULL)
 		rt->rt_ops->rtop_destroy(rt, rt->rt_arg);
 
-	btree_destroy(&rt->rt_root);
+	zfs_btree_destroy(&rt->rt_root);
 	kmem_free(rt, sizeof (*rt));
 }
 
@@ -266,7 +266,7 @@ static void
 range_tree_add_impl(void *arg, uint64_t start, uint64_t size, uint64_t fill)
 {
 	range_tree_t *rt = arg;
-	btree_index_t where;
+	zfs_btree_index_t where;
 	range_seg_t *rs_before, *rs_after, *rs;
 	range_seg_max_t tmp, rsearch;
 	uint64_t end = start + size, gap = rt->rt_gap;
@@ -279,7 +279,7 @@ range_tree_add_impl(void *arg, uint64_t start, uint64_t size, uint64_t fill)
 
 	rs_set_start(&rsearch, rt, start);
 	rs_set_end(&rsearch, rt, end);
-	rs = btree_find(&rt->rt_root, &rsearch, &where);
+	rs = zfs_btree_find(&rt->rt_root, &rsearch, &where);
 
 	/*
 	 * If this is a gap-supporting range tree, it is possible that we
@@ -299,7 +299,7 @@ range_tree_add_impl(void *arg, uint64_t start, uint64_t size, uint64_t fill)
 			return;
 		}
 
-		btree_remove(&rt->rt_root, rs);
+		zfs_btree_remove(&rt->rt_root, rs);
 		if (rt->rt_ops != NULL && rt->rt_ops->rtop_remove != NULL)
 			rt->rt_ops->rtop_remove(rt, rs, rt->rt_arg);
 
@@ -322,9 +322,9 @@ range_tree_add_impl(void *arg, uint64_t start, uint64_t size, uint64_t fill)
 	 * If gap != 0, we might need to merge with our neighbors even if we
 	 * aren't directly touching.
 	 */
-	btree_index_t where_before, where_after;
-	rs_before = btree_prev(&rt->rt_root, &where, &where_before);
-	rs_after = btree_next(&rt->rt_root, &where, &where_after);
+	zfs_btree_index_t where_before, where_after;
+	rs_before = zfs_btree_prev(&rt->rt_root, &where, &where_before);
+	rs_after = zfs_btree_next(&rt->rt_root, &where, &where_after);
 
 	merge_before = (rs_before != NULL && rs_get_end(rs_before, rt) >=
 	    start - gap);
@@ -349,13 +349,13 @@ range_tree_add_impl(void *arg, uint64_t start, uint64_t size, uint64_t fill)
 		uint64_t before_start = rs_get_start_raw(rs_before, rt);
 		uint64_t before_fill = rs_get_fill(rs_before, rt);
 		uint64_t after_fill = rs_get_fill(rs_after, rt);
-		btree_remove_from(&rt->rt_root, &where_before);
+		zfs_btree_remove_from(&rt->rt_root, &where_before);
 
 		/*
 		 * We have to re-find the node because our old reference is
 		 * invalid as soon as we do any mutating btree operations.
 		 */
-		rs_after = btree_find(&rt->rt_root, &tmp, &where_after);
+		rs_after = zfs_btree_find(&rt->rt_root, &tmp, &where_after);
 		rs_set_start_raw(rs_after, rt, before_start);
 		rs_set_fill(rs_after, rt, after_fill + before_fill + fill);
 		rs = rs_after;
@@ -385,7 +385,7 @@ range_tree_add_impl(void *arg, uint64_t start, uint64_t size, uint64_t fill)
 		rs_set_start(rs, rt, start);
 		rs_set_end(rs, rt, end);
 		rs_set_fill(rs, rt, fill);
-		btree_insert(&rt->rt_root, rs, &where);
+		zfs_btree_insert(&rt->rt_root, rs, &where);
 	}
 
 	if (gap != 0) {
@@ -413,7 +413,7 @@ static void
 range_tree_remove_impl(range_tree_t *rt, uint64_t start, uint64_t size,
     boolean_t do_fill)
 {
-	btree_index_t where;
+	zfs_btree_index_t where;
 	range_seg_t *rs;
 	range_seg_max_t rsearch, rs_tmp;
 	uint64_t end = start + size;
@@ -426,7 +426,7 @@ range_tree_remove_impl(range_tree_t *rt, uint64_t start, uint64_t size,
 
 	rs_set_start(&rsearch, rt, start);
 	rs_set_end(&rsearch, rt, end);
-	rs = btree_find(&rt->rt_root, &rsearch, &where);
+	rs = zfs_btree_find(&rt->rt_root, &rsearch, &where);
 
 	/* Make sure we completely overlap with someone */
 	if (rs == NULL) {
@@ -487,10 +487,10 @@ range_tree_remove_impl(range_tree_t *rt, uint64_t start, uint64_t size,
 		rs_set_end(rs, rt, start);
 
 		rs_copy(rs, &rs_tmp, rt);
-		if (btree_next(&rt->rt_root, &where, &where) != NULL)
-			btree_insert(&rt->rt_root, &newseg, &where);
+		if (zfs_btree_next(&rt->rt_root, &where, &where) != NULL)
+			zfs_btree_insert(&rt->rt_root, &newseg, &where);
 		else
-			btree_add(&rt->rt_root, &newseg);
+			zfs_btree_add(&rt->rt_root, &newseg);
 
 		if (rt->rt_ops != NULL && rt->rt_ops->rtop_add != NULL)
 			rt->rt_ops->rtop_add(rt, &newseg, rt->rt_arg);
@@ -503,7 +503,7 @@ range_tree_remove_impl(range_tree_t *rt, uint64_t start, uint64_t size,
 		rs_set_start(rs, rt, end);
 		rs_copy(rs, &rs_tmp, rt);
 	} else {
-		btree_remove_from(&rt->rt_root, &where);
+		zfs_btree_remove_from(&rt->rt_root, &where);
 		rs = NULL;
 	}
 
@@ -566,7 +566,7 @@ range_tree_find_impl(range_tree_t *rt, uint64_t start, uint64_t size)
 
 	rs_set_start(&rsearch, rt, start);
 	rs_set_end(&rsearch, rt, end);
-	return (btree_find(&rt->rt_root, &rsearch, NULL));
+	return (zfs_btree_find(&rt->rt_root, &rsearch, NULL));
 }
 
 static range_seg_t *
@@ -613,15 +613,15 @@ range_tree_find_in(range_tree_t *rt, uint64_t start, uint64_t size,
 	rs_set_start(&rsearch, rt, start);
 	rs_set_end_raw(&rsearch, rt, rs_get_start_raw(&rsearch, rt) + 1);
 
-	btree_index_t where;
-	range_seg_t *rs = btree_find(&rt->rt_root, &rsearch, &where);
+	zfs_btree_index_t where;
+	range_seg_t *rs = zfs_btree_find(&rt->rt_root, &rsearch, &where);
 	if (rs != NULL) {
 		*ostart = start;
 		*osize = MIN(size, rs_get_end(rs, rt) - start);
 		return (B_TRUE);
 	}
 
-	rs = btree_next(&rt->rt_root, &where, &where);
+	rs = zfs_btree_next(&rt->rt_root, &where, &where);
 	if (rs == NULL || rs_get_start(rs, rt) > start + size)
 		return (B_FALSE);
 
@@ -659,7 +659,7 @@ range_tree_swap(range_tree_t **rtsrc, range_tree_t **rtdst)
 	range_tree_t *rt;
 
 	ASSERT0(range_tree_space(*rtdst));
-	ASSERT0(btree_numnodes(&(*rtdst)->rt_root));
+	ASSERT0(zfs_btree_numnodes(&(*rtdst)->rt_root));
 
 	rt = *rtsrc;
 	*rtsrc = *rtdst;
@@ -674,15 +674,15 @@ range_tree_vacate(range_tree_t *rt, range_tree_func_t *func, void *arg)
 
 	if (func != NULL) {
 		range_seg_t *rs;
-		btree_index_t *cookie = NULL;
+		zfs_btree_index_t *cookie = NULL;
 
-		while ((rs = btree_destroy_nodes(&rt->rt_root, &cookie)) !=
+		while ((rs = zfs_btree_destroy_nodes(&rt->rt_root, &cookie)) !=
 		    NULL) {
 			func(arg, rs_get_start(rs, rt), rs_get_end(rs, rt) -
 			    rs_get_start(rs, rt));
 		}
 	} else {
-		btree_clear(&rt->rt_root);
+		zfs_btree_clear(&rt->rt_root);
 	}
 
 	bzero(rt->rt_histogram, sizeof (rt->rt_histogram));
@@ -692,9 +692,9 @@ range_tree_vacate(range_tree_t *rt, range_tree_func_t *func, void *arg)
 void
 range_tree_walk(range_tree_t *rt, range_tree_func_t *func, void *arg)
 {
-	btree_index_t where;
-	for (range_seg_t *rs = btree_first(&rt->rt_root, &where); rs != NULL;
-	    rs = btree_next(&rt->rt_root, &where, &where)) {
+	zfs_btree_index_t where;
+	for (range_seg_t *rs = zfs_btree_first(&rt->rt_root, &where); rs != NULL;
+	    rs = zfs_btree_next(&rt->rt_root, &where, &where)) {
 		func(arg, rs_get_start(rs, rt), rs_get_end(rs, rt) -
 		    rs_get_start(rs, rt));
 	}
@@ -703,7 +703,7 @@ range_tree_walk(range_tree_t *rt, range_tree_func_t *func, void *arg)
 range_seg_t *
 range_tree_first(range_tree_t *rt)
 {
-	return (btree_first(&rt->rt_root, NULL));
+	return (zfs_btree_first(&rt->rt_root, NULL));
 }
 
 uint64_t
@@ -715,7 +715,7 @@ range_tree_space(range_tree_t *rt)
 uint64_t
 range_tree_numsegs(range_tree_t *rt)
 {
-	return ((rt == NULL) ? 0 : btree_numnodes(&rt->rt_root));
+	return ((rt == NULL) ? 0 : zfs_btree_numnodes(&rt->rt_root));
 }
 
 boolean_t
@@ -729,7 +729,7 @@ range_tree_is_empty(range_tree_t *rt)
 void
 rt_btree_create(range_tree_t *rt, void *arg)
 {
-	btree_t *size_tree = arg;
+	zfs_btree_t *size_tree = arg;
 
 	size_t size;
 	switch (rt->rt_type) {
@@ -745,44 +745,44 @@ rt_btree_create(range_tree_t *rt, void *arg)
 	default:
 		panic("Invalid range seg type %d", rt->rt_type);
 	}
-	btree_create(size_tree, rt->rt_btree_compare, size);
+	zfs_btree_create(size_tree, rt->rt_btree_compare, size);
 }
 
 /* ARGSUSED */
 void
 rt_btree_destroy(range_tree_t *rt, void *arg)
 {
-	btree_t *size_tree = arg;
-	ASSERT0(btree_numnodes(size_tree));
+	zfs_btree_t *size_tree = arg;
+	ASSERT0(zfs_btree_numnodes(size_tree));
 
-	btree_destroy(size_tree);
+	zfs_btree_destroy(size_tree);
 }
 
 /* ARGSUSED */
 void
 rt_btree_add(range_tree_t *rt, range_seg_t *rs, void *arg)
 {
-	btree_t *size_tree = arg;
+	zfs_btree_t *size_tree = arg;
 
-	btree_add(size_tree, rs);
+	zfs_btree_add(size_tree, rs);
 }
 
 /* ARGSUSED */
 void
 rt_btree_remove(range_tree_t *rt, range_seg_t *rs, void *arg)
 {
-	btree_t *size_tree = arg;
+	zfs_btree_t *size_tree = arg;
 
-	btree_remove(size_tree, rs);
+	zfs_btree_remove(size_tree, rs);
 }
 
 /* ARGSUSED */
 void
 rt_btree_vacate(range_tree_t *rt, void *arg)
 {
-	btree_t *size_tree = arg;
-	btree_clear(size_tree);
-	btree_destroy(size_tree);
+	zfs_btree_t *size_tree = arg;
+	zfs_btree_clear(size_tree);
+	zfs_btree_destroy(size_tree);
 
 	rt_btree_create(rt, arg);
 }
@@ -803,17 +803,17 @@ void
 range_tree_remove_xor_add_segment(uint64_t start, uint64_t end,
     range_tree_t *removefrom, range_tree_t *addto)
 {
-	btree_index_t where;
+	zfs_btree_index_t where;
 	range_seg_max_t starting_rs;
 	rs_set_start(&starting_rs, removefrom, start);
 	rs_set_end_raw(&starting_rs, removefrom, rs_get_start_raw(&starting_rs,
 	    removefrom) + 1);
 
-	range_seg_t *curr = btree_find(&removefrom->rt_root,
+	range_seg_t *curr = zfs_btree_find(&removefrom->rt_root,
 	    &starting_rs, &where);
 
 	if (curr == NULL)
-		curr = btree_next(&removefrom->rt_root, &where, &where);
+		curr = zfs_btree_next(&removefrom->rt_root, &where, &where);
 
 	range_seg_t *next;
 	for (; curr != NULL; curr = next) {
@@ -842,7 +842,7 @@ range_tree_remove_xor_add_segment(uint64_t start, uint64_t end,
 			range_tree_add(addto, start, overlap_start - start);
 
 		start = overlap_end;
-		next = btree_find(&removefrom->rt_root, &rs, &where);
+		next = zfs_btree_find(&removefrom->rt_root, &rs, &where);
 		/*
 		 * If we find something here, we only removed part of the
 		 * curr segment. Either there's some left at the end
@@ -858,7 +858,7 @@ range_tree_remove_xor_add_segment(uint64_t start, uint64_t end,
 			    removefrom));
 		}
 
-		next = btree_next(&removefrom->rt_root, &where, &where);
+		next = zfs_btree_next(&removefrom->rt_root, &where, &where);
 	}
 	VERIFY3P(curr, ==, NULL);
 
@@ -878,9 +878,9 @@ void
 range_tree_remove_xor_add(range_tree_t *rt, range_tree_t *removefrom,
     range_tree_t *addto)
 {
-	btree_index_t where;
-	for (range_seg_t *rs = btree_first(&rt->rt_root, &where); rs;
-	    rs = btree_next(&rt->rt_root, &where, &where)) {
+	zfs_btree_index_t where;
+	for (range_seg_t *rs = zfs_btree_first(&rt->rt_root, &where); rs;
+	    rs = zfs_btree_next(&rt->rt_root, &where, &where)) {
 		range_tree_remove_xor_add_segment(rs_get_start(rs, rt),
 		    rs_get_end(rs, rt), removefrom, addto);
 	}
@@ -889,14 +889,14 @@ range_tree_remove_xor_add(range_tree_t *rt, range_tree_t *removefrom,
 uint64_t
 range_tree_min(range_tree_t *rt)
 {
-	range_seg_t *rs = btree_first(&rt->rt_root, NULL);
+	range_seg_t *rs = zfs_btree_first(&rt->rt_root, NULL);
 	return (rs != NULL ? rs_get_start(rs, rt) : 0);
 }
 
 uint64_t
 range_tree_max(range_tree_t *rt)
 {
-	range_seg_t *rs = btree_last(&rt->rt_root, NULL);
+	range_seg_t *rs = zfs_btree_last(&rt->rt_root, NULL);
 	return (rs != NULL ? rs_get_end(rs, rt) : 0);
 }
 

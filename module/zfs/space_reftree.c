@@ -109,10 +109,10 @@ space_reftree_add_seg(avl_tree_t *t, uint64_t start, uint64_t end,
 void
 space_reftree_add_map(avl_tree_t *t, range_tree_t *rt, int64_t refcnt)
 {
-	btree_index_t where;
+	zfs_btree_index_t where;
 
-	for (range_seg_t *rs = btree_first(&rt->rt_root, &where); rs; rs =
-	    btree_next(&rt->rt_root, &where, &where)) {
+	for (range_seg_t *rs = zfs_btree_first(&rt->rt_root, &where); rs; rs =
+	    zfs_btree_next(&rt->rt_root, &where, &where)) {
 		space_reftree_add_seg(t, rs_get_start(rs, rt), rs_get_end(rs,
 		    rt),  refcnt);
 	}

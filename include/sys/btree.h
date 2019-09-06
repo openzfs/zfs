@@ -39,7 +39,7 @@ extern "C" {
  * The major drawback of the B-Tree is that any returned elements or indexes
  * are only valid until a side-effectful operation occurs, since these can
  * result in reallocation or relocation of data. Side effectful operations are
- * defined as insertion, removal, and btree_destroy_nodes.
+ * defined as insertion, removal, and zfs_btree_destroy_nodes.
  *
  * The B-Tree has two types of nodes: core nodes, and leaf nodes. Core
  * nodes have an array of children pointing to other nodes, and an array of
@@ -68,54 +68,54 @@ extern "C" {
 #define	BTREE_CORE_ELEMS	128
 #define	BTREE_LEAF_SIZE		4096
 
-extern kmem_cache_t *btree_leaf_cache;
+extern kmem_cache_t *zfs_btree_leaf_cache;
 
-typedef struct btree_hdr {
-	struct btree_core	*bth_parent;
+typedef struct zfs_btree_hdr {
+	struct zfs_btree_core	*bth_parent;
 	boolean_t		bth_core;
 	/*
 	 * For both leaf and core nodes, represents the number of elements in
 	 * the node. For core nodes, they will have bth_count + 1 children.
 	 */
 	uint32_t		bth_count;
-} btree_hdr_t;
+} zfs_btree_hdr_t;
 
-typedef struct btree_core {
-	btree_hdr_t	btc_hdr;
-	btree_hdr_t	*btc_children[BTREE_CORE_ELEMS + 1];
+typedef struct zfs_btree_core {
+	zfs_btree_hdr_t	btc_hdr;
+	zfs_btree_hdr_t	*btc_children[BTREE_CORE_ELEMS + 1];
 	uint8_t		btc_elems[];
-} btree_core_t;
+} zfs_btree_core_t;
 
-typedef struct btree_leaf {
-	btree_hdr_t	btl_hdr;
+typedef struct zfs_btree_leaf {
+	zfs_btree_hdr_t	btl_hdr;
 	uint8_t		btl_elems[];
-} btree_leaf_t;
+} zfs_btree_leaf_t;
 
-typedef struct btree_index {
-	btree_hdr_t	*bti_node;
+typedef struct zfs_btree_index {
+	zfs_btree_hdr_t	*bti_node;
 	uint64_t	bti_offset;
 	/*
 	 * True if the location is before the list offset, false if it's at
 	 * the listed offset.
 	 */
 	boolean_t	bti_before;
-} btree_index_t;
+} zfs_btree_index_t;
 
 typedef struct btree {
-	btree_hdr_t	*bt_root;
-	int64_t		bt_height;
-	size_t		bt_elem_size;
-	uint64_t	bt_num_elems;
-	uint64_t	bt_num_nodes;
-	btree_leaf_t	*bt_bulk; // non-null if bulk loading
+	zfs_btree_hdr_t		*bt_root;
+	int64_t			bt_height;
+	size_t			bt_elem_size;
+	uint64_t		bt_num_elems;
+	uint64_t		bt_num_nodes;
+	zfs_btree_leaf_t	*bt_bulk; // non-null if bulk loading
 	int (*bt_compar) (const void *, const void *);
-} btree_t;
+} zfs_btree_t;
 
 /*
  * Allocate and deallocate caches for btree nodes.
  */
-void btree_init(void);
-void btree_fini(void);
+void zfs_btree_init(void);
+void zfs_btree_fini(void);
 
 /*
  * Initialize an B-Tree. Arguments are:
@@ -125,66 +125,66 @@ void btree_fini(void);
  *          -1 for <, 0 for ==, and +1 for >
  * size   - the value of sizeof(struct my_type)
  */
-void btree_create(btree_t *, int (*) (const void *, const void *), size_t);
+void zfs_btree_create(zfs_btree_t *, int (*) (const void *, const void *), size_t);
 
 /*
  * Find a node with a matching value in the tree. Returns the matching node
  * found. If not found, it returns NULL and then if "where" is not NULL it sets
- * "where" for use with btree_insert() or btree_nearest().
+ * "where" for use with zfs_btree_insert() or zfs_btree_nearest().
  *
  * node   - node that has the value being looked for
- * where  - position for use with btree_nearest() or btree_insert(), may be NULL
+ * where  - position for use with zfs_btree_nearest() or zfs_btree_insert(), may be NULL
  */
-void *btree_find(btree_t *, const void *, btree_index_t *);
+void *zfs_btree_find(zfs_btree_t *, const void *, zfs_btree_index_t *);
 
 /*
  * Insert a node into the tree.
  *
  * node   - the node to insert
- * where  - position as returned from btree_find()
+ * where  - position as returned from zfs_btree_find()
  */
-void btree_insert(btree_t *, const void *, const btree_index_t *);
+void zfs_btree_insert(zfs_btree_t *, const void *, const zfs_btree_index_t *);
 
 /*
  * Return the first or last valued node in the tree. Will return NULL
  * if the tree is empty.
  */
-void *btree_first(btree_t *, btree_index_t *);
-void *btree_last(btree_t *, btree_index_t *);
+void *zfs_btree_first(zfs_btree_t *, zfs_btree_index_t *);
+void *zfs_btree_last(zfs_btree_t *, zfs_btree_index_t *);
 
 /*
  * Return the next or previous valued node in the tree.
  */
-void *btree_next(btree_t *, const btree_index_t *, btree_index_t *);
-void *btree_prev(btree_t *, const btree_index_t *, btree_index_t *);
+void *zfs_btree_next(zfs_btree_t *, const zfs_btree_index_t *, zfs_btree_index_t *);
+void *zfs_btree_prev(zfs_btree_t *, const zfs_btree_index_t *, zfs_btree_index_t *);
 
 /*
  * Get a value from a tree and an index.
  */
-void *btree_get(btree_t *, btree_index_t *);
+void *zfs_btree_get(zfs_btree_t *, zfs_btree_index_t *);
 
 /*
  * Add a single value to the tree. The value must not compare equal to any
  * other node already in the tree.
  */
-void btree_add(btree_t *, const void *);
+void zfs_btree_add(zfs_btree_t *, const void *);
 
 /*
  * Remove a single value from the tree.  The value must be in the tree. The
  * pointer passed in may be a pointer into a tree-controlled buffer, but it
  * need not be.
  */
-void btree_remove(btree_t *, const void *);
+void zfs_btree_remove(zfs_btree_t *, const void *);
 
 /*
  * Remove the value at the given location from the tree.
  */
-void btree_remove_from(btree_t *, btree_index_t *);
+void zfs_btree_remove_from(zfs_btree_t *, zfs_btree_index_t *);
 
 /*
  * Return the number of nodes in the tree
  */
-ulong_t btree_numnodes(btree_t *);
+ulong_t zfs_btree_numnodes(zfs_btree_t *);
 
 /*
  * Used to destroy any remaining nodes in a tree. The cookie argument should
@@ -192,39 +192,39 @@ ulong_t btree_numnodes(btree_t *);
  * removed from the tree and may be free()'d. Returns NULL when the tree is
  * empty.
  *
- * Once you call btree_destroy_nodes(), you can only continuing calling it and
- * finally btree_destroy(). No other B-Tree routines will be valid.
+ * Once you call zfs_btree_destroy_nodes(), you can only continuing calling it and
+ * finally zfs_btree_destroy(). No other B-Tree routines will be valid.
  *
- * cookie - an index used to save state between calls to btree_destroy_nodes()
+ * cookie - an index used to save state between calls to zfs_btree_destroy_nodes()
  *
  * EXAMPLE:
- *	btree_t *tree;
+ *	zfs_btree_t *tree;
  *	struct my_data *node;
- *	btree_index_t *cookie;
+ *	zfs_btree_index_t *cookie;
  *
  *	cookie = NULL;
- *	while ((node = btree_destroy_nodes(tree, &cookie)) != NULL)
+ *	while ((node = zfs_btree_destroy_nodes(tree, &cookie)) != NULL)
  *		data_destroy(node);
- *	btree_destroy(tree);
+ *	zfs_btree_destroy(tree);
  */
-void *btree_destroy_nodes(btree_t *, btree_index_t **);
+void *zfs_btree_destroy_nodes(zfs_btree_t *, zfs_btree_index_t **);
 
 /*
  * Destroys all nodes in the tree quickly. This doesn't give the caller an
  * opportunity to iterate over each node and do its own cleanup; for that, use
- * btree_destroy_nodes().
+ * zfs_btree_destroy_nodes().
  */
-void btree_clear(btree_t *);
+void zfs_btree_clear(zfs_btree_t *);
 
 /*
  * Final destroy of an B-Tree. Arguments are:
  *
  * tree   - the empty tree to destroy
  */
-void btree_destroy(btree_t *tree);
+void zfs_btree_destroy(zfs_btree_t *tree);
 
 /* Runs a variety of self-checks on the btree to verify integrity. */
-void btree_verify(btree_t *tree);
+void zfs_btree_verify(zfs_btree_t *tree);
 
 #ifdef	__cplusplus
 }

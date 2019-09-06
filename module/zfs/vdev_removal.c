@@ -969,11 +969,11 @@ spa_vdev_copy_segment(vdev_t *vd, range_tree_t *segs,
 		 * additional split blocks.
 		 */
 		range_seg_max_t search;
-		btree_index_t where;
+		zfs_btree_index_t where;
 		rs_set_start(&search, segs, start + maxalloc);
 		rs_set_end(&search, segs, start + maxalloc);
-		(void) btree_find(&segs->rt_root, &search, &where);
-		range_seg_t *rs = btree_prev(&segs->rt_root, &where, &where);
+		(void) zfs_btree_find(&segs->rt_root, &search, &where);
+		range_seg_t *rs = zfs_btree_prev(&segs->rt_root, &where, &where);
 		if (rs != NULL) {
 			size = rs_get_end(rs, segs) - start;
 		} else {
@@ -1011,11 +1011,11 @@ spa_vdev_copy_segment(vdev_t *vd, range_tree_t *segs,
 	range_tree_t *obsolete_segs = range_tree_create(NULL, RANGE_SEG64, NULL,
 	    0, 0);
 
-	btree_index_t where;
-	range_seg_t *rs = btree_first(&segs->rt_root, &where);
+	zfs_btree_index_t where;
+	range_seg_t *rs = zfs_btree_first(&segs->rt_root, &where);
 	ASSERT3U(rs_get_start(rs, segs), ==, start);
 	uint64_t prev_seg_end = rs_get_end(rs, segs);
-	while ((rs = btree_next(&segs->rt_root, &where, &where)) != NULL) {
+	while ((rs = zfs_btree_next(&segs->rt_root, &where, &where)) != NULL) {
 		if (rs_get_start(rs, segs) >= start + size) {
 			break;
 		} else {
@@ -1484,7 +1484,7 @@ spa_vdev_remove_thread(void *arg)
 
 		vca.vca_msp = msp;
 		zfs_dbgmsg("copying %llu segments for metaslab %llu",
-		    btree_numnodes(&svr->svr_allocd_segs->rt_root),
+		    zfs_btree_numnodes(&svr->svr_allocd_segs->rt_root),
 		    msp->ms_id);
 
 		while (!svr->svr_thread_exit &&

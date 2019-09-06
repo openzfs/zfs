@@ -2319,7 +2319,7 @@ spa_init(int mode)
 	fm_init();
 	zfs_refcount_init();
 	unique_init();
-	btree_init();
+	zfs_btree_init();
 	metaslab_stat_init();
 	ddt_init();
 	zio_init();
@@ -2355,7 +2355,7 @@ spa_fini(void)
 	zio_fini();
 	ddt_fini();
 	metaslab_stat_fini();
-	btree_fini();
+	zfs_btree_fini();
 	unique_fini();
 	zfs_refcount_fini();
 	fm_fini();
