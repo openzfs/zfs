@@ -30,7 +30,7 @@
 #include <sys/zio.h>
 #include <sys/sha2.h>
 #include <sys/abd.h>
-#include "qat.h"
+#include <sys/qat.h>
 
 static int
 sha_incremental(void *buf, size_t size, void *arg)
