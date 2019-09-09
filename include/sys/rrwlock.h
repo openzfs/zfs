@@ -39,6 +39,8 @@ extern "C" {
 #include <sys/zfs_context.h>
 #include <sys/refcount.h>
 
+extern uint_t rrw_tsd_key;
+
 /*
  * A reader-writer lock implementation that allows re-entrant reads, but
  * still gives writers priority on "new" reads.

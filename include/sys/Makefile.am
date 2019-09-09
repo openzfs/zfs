@@ -124,6 +124,7 @@ COMMON_H = \
 
 KERNEL_H = \
 	$(top_srcdir)/include/sys/zfs_ioctl.h \
+	$(top_srcdir)/include/sys/zfs_ioctl_impl.h \
 	$(top_srcdir)/include/sys/zfs_onexit.h \
 	$(top_srcdir)/include/sys/zvol.h \
 	$(top_srcdir)/include/sys/zvol_impl.h
