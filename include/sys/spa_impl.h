@@ -412,6 +412,7 @@ struct spa {
 	mmp_thread_t	spa_mmp;		/* multihost mmp thread */
 	list_t		spa_leaf_list;		/* list of leaf vdevs */
 	uint64_t	spa_leaf_list_gen;	/* track leaf_list changes */
+	uint32_t	spa_hostid;		/* cached system hostid */
 
 	/*
 	 * spa_refcount & spa_config_lock must be the last elements
