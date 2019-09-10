@@ -22,13 +22,9 @@
 /*
  * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
- */
-/*
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
- */
-
-/*
  * Copyright (c) 2013, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2019 by George Melikov. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -42,6 +38,11 @@
  * an undetected memory error.
  */
 unsigned long zio_decompress_fail_fraction = 0;
+
+/*
+ * Common disk sector size.
+ */
+short COMMON_SECTOR_SIZE = 4096;
 
 /*
  * Compression vectors.
@@ -120,14 +121,15 @@ zio_compress_data(enum zio_compress c, abd_t *src, void *dst, size_t s_len)
 	if (c == ZIO_COMPRESS_EMPTY)
 		return (s_len);
 
-	/* Compress at least 12.5% */
-	d_len = s_len - (s_len >> 3);
+	/* Don't compress if it's less than common sector size */
+	d_len = MAX(0, s_len - COMMON_SECTOR_SIZE);
 
 	/* No compression algorithms can read from ABDs directly */
 	void *tmp = abd_borrow_buf_copy(src, s_len);
 	c_len = ci->ci_compress(tmp, dst, s_len, d_len, ci->ci_level);
 	abd_return_buf(src, tmp, s_len);
 
+	/* block with recordsize <= COMMON_SECTOR_SIZE will always be raw */
 	if (c_len > d_len)
 		return (s_len);
 
