@@ -22,15 +22,11 @@
 /*
  * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
- */
-/*
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
- */
-
-/*
  * Copyright (c) 2013, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2019, 2024, Klara, Inc.
  * Copyright (c) 2019, Allan Jude
+ * Copyright (c) 2021, 2024 by George Melikov. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -129,9 +125,9 @@ zio_compress_select(spa_t *spa, enum zio_compress child,
 
 size_t
 zio_compress_data(enum zio_compress c, abd_t *src, abd_t **dst, size_t s_len,
-    uint8_t level)
+    size_t d_len, uint8_t level)
 {
-	size_t c_len, d_len;
+	size_t c_len;
 	uint8_t complevel;
 	zio_compress_info_t *ci = &zio_compress_table[c];
 
@@ -156,15 +152,11 @@ zio_compress_data(enum zio_compress c, abd_t *src, abd_t **dst, size_t s_len,
 	if (*dst == NULL)
 		*dst = abd_alloc_sametype(src, s_len);
 
-	/* Compress at least 12.5%, but limit to the size of the dest abd. */
-	d_len = MIN(s_len - (s_len >> 3), abd_get_size(*dst));
-
 	c_len = ci->ci_compress(src, *dst, s_len, d_len, complevel);
 
 	if (c_len > d_len)
 		return (s_len);
 
-	ASSERT3U(c_len, <=, d_len);
 	return (c_len);
 }
 

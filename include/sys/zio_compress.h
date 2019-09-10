@@ -25,6 +25,7 @@
  * Copyright (c) 2019, 2024, Klara, Inc.
  * Use is subject to license terms.
  * Copyright (c) 2015, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2021, 2024 by George Melikov. All rights reserved.
  */
 
 #ifndef _SYS_ZIO_COMPRESS_H
@@ -174,7 +175,7 @@ extern int zfs_lz4_decompress(abd_t *src, abd_t *dst, size_t s_len,
  * Compress and decompress data if necessary.
  */
 extern size_t zio_compress_data(enum zio_compress c, abd_t *src, abd_t **dst,
-    size_t s_len, uint8_t level);
+    size_t s_len, size_t d_len, uint8_t level);
 extern int zio_decompress_data(enum zio_compress c, abd_t *src, abd_t *abd,
     size_t s_len, size_t d_len, uint8_t *level);
 extern int zio_compress_to_feature(enum zio_compress comp);

@@ -288,7 +288,8 @@ zstream_do_recompress(int argc, char *argv[])
 				abd_t *pabd =
 				    abd_get_from_buf_struct(&abd, buf, bufsz);
 				size_t csize = zio_compress_data(ctype, &dabd,
-				    &pabd, drrw->drr_logical_size, level);
+				    &pabd, drrw->drr_logical_size,
+				    drrw->drr_logical_size, level);
 				size_t rounded =
 				    P2ROUNDUP(csize, SPA_MINBLOCKSIZE);
 				if (rounded >= drrw->drr_logical_size) {
