@@ -25,6 +25,8 @@
 #include <sys/zio.h>
 #include <sys/zil.h>
 #include <sys/sha2.h>
+#include <sys/simd.h>
+#include <sys/spa_impl.h>
 #include <sys/hkdf.h>
 #include <sys/qat.h>
 
@@ -374,7 +376,7 @@ error:
  * plaintext / ciphertext alone.
  */
 static int
-zio_do_crypt_uio(boolean_t encrypt, uint64_t crypt, crypto_key_t *key,
+zio_do_crypt_uio_impl(boolean_t encrypt, uint64_t crypt, crypto_key_t *key,
     crypto_ctx_template_t tmpl, uint8_t *ivbuf, uint_t datalen,
     uio_t *puio, uio_t *cuio, uint8_t *authbuf, uint_t auth_len)
 {
@@ -474,9 +476,75 @@ error:
 	return (ret);
 }
 
+typedef struct crypt_uio_arg {
+	boolean_t cu_encrypt;
+	uint64_t cu_crypt;
+	crypto_key_t *cu_key;
+	crypto_ctx_template_t cu_tmpl;
+	uint8_t *cu_ivbuf;
+	uint_t cu_datalen;
+	uio_t *cu_puio;
+	uio_t *cu_cuio;
+	uint8_t *cu_authbuf;
+	uint_t cu_auth_len;
+	int cu_error;
+} crypt_uio_arg_t;
+
+static void
+zio_do_crypt_uio_func(void *arg)
+{
+	crypt_uio_arg_t *cu = (crypt_uio_arg_t *)arg;
+
+	cu->cu_error = zio_do_crypt_uio_impl(cu->cu_encrypt, cu->cu_crypt,
+	    cu->cu_key, cu->cu_tmpl, cu->cu_ivbuf, cu->cu_datalen,
+	    cu->cu_puio, cu->cu_cuio, cu->cu_authbuf, cu->cu_auth_len);
+}
+
+static int
+zio_do_crypt_uio(spa_t *spa, boolean_t encrypt, uint64_t crypt,
+    crypto_key_t *key, crypto_ctx_template_t tmpl, uint8_t *ivbuf,
+    uint_t datalen, uio_t *puio, uio_t *cuio, uint8_t *authbuf,
+    uint_t auth_len)
+{
+	int error;
+
+	/*
+	 * Dispatch to the I/O pipeline as required by the context in order
+	 * to take advantage of the SIMD optimization when available.
+	 */
+	if (kfpu_allowed()) {
+		error = zio_do_crypt_uio_impl(encrypt, crypt, key, tmpl,
+		    ivbuf, datalen, puio, cuio, authbuf, auth_len);
+	} else {
+		crypt_uio_arg_t *cu;
+
+		cu = kmem_alloc(sizeof (*cu), KM_SLEEP);
+		cu->cu_encrypt = encrypt;
+		cu->cu_crypt = crypt;
+		cu->cu_key = key;
+		cu->cu_tmpl = tmpl;
+		cu->cu_ivbuf = ivbuf;
+		cu->cu_datalen = datalen;
+		cu->cu_puio = puio;
+		cu->cu_cuio = cuio;
+		cu->cu_authbuf = authbuf;
+		cu->cu_auth_len = auth_len;
+		cu->cu_error = 0;
+
+		spa_taskq_dispatch_sync(spa,
+		    encrypt ? ZIO_TYPE_WRITE : ZIO_TYPE_READ,
+		    ZIO_TASKQ_ISSUE, zio_do_crypt_uio_func, cu, TQ_SLEEP);
+
+		error = cu->cu_error;
+		kmem_free(cu, sizeof (*cu));
+	}
+
+	return (error);
+}
+
 int
-zio_crypt_key_wrap(crypto_key_t *cwkey, zio_crypt_key_t *key, uint8_t *iv,
-    uint8_t *mac, uint8_t *keydata_out, uint8_t *hmac_keydata_out)
+zio_crypt_key_wrap(spa_t *spa, crypto_key_t *cwkey, zio_crypt_key_t *key,
+    uint8_t *iv, uint8_t *mac, uint8_t *keydata_out, uint8_t *hmac_keydata_out)
 {
 	int ret;
 	uio_t puio, cuio;
@@ -533,7 +601,7 @@ zio_crypt_key_wrap(crypto_key_t *cwkey, zio_crypt_key_t *key, uint8_t *iv,
 	cuio.uio_segflg = UIO_SYSSPACE;
 
 	/* encrypt the keys and store the resulting ciphertext and mac */
-	ret = zio_do_crypt_uio(B_TRUE, crypt, cwkey, NULL, iv, enc_len,
+	ret = zio_do_crypt_uio(spa, B_TRUE, crypt, cwkey, NULL, iv, enc_len,
 	    &puio, &cuio, (uint8_t *)aad, aad_len);
 	if (ret != 0)
 		goto error;
@@ -544,17 +612,38 @@ error:
 	return (ret);
 }
 
-int
-zio_crypt_key_unwrap(crypto_key_t *cwkey, uint64_t crypt, uint64_t version,
-    uint64_t guid, uint8_t *keydata, uint8_t *hmac_keydata, uint8_t *iv,
-    uint8_t *mac, zio_crypt_key_t *key)
+static void
+zio_crypt_create_ctx_templates(void *arg)
 {
-	int ret;
+	zio_crypt_key_t *key = (zio_crypt_key_t *)arg;
 	crypto_mechanism_t mech;
+	int ret;
+
+	mech.cm_type = crypto_mech2id(
+	    zio_crypt_table[key->zk_crypt].ci_mechname);
+
+	ret = crypto_create_ctx_template(&mech, &key->zk_current_key,
+	    &key->zk_current_tmpl, KM_SLEEP);
+	if (ret != CRYPTO_SUCCESS)
+		key->zk_current_tmpl = NULL;
+
+	mech.cm_type = crypto_mech2id(SUN_CKM_SHA512_HMAC);
+	ret = crypto_create_ctx_template(&mech, &key->zk_hmac_key,
+	    &key->zk_hmac_tmpl, KM_SLEEP);
+	if (ret != CRYPTO_SUCCESS)
+		key->zk_hmac_tmpl = NULL;
+}
+
+int
+zio_crypt_key_unwrap(spa_t *spa, crypto_key_t *cwkey, uint64_t crypt,
+    uint64_t version, uint64_t guid, uint8_t *keydata, uint8_t *hmac_keydata,
+    uint8_t *iv, uint8_t *mac, zio_crypt_key_t *key)
+{
 	uio_t puio, cuio;
 	uint64_t aad[3];
 	iovec_t plain_iovecs[2], cipher_iovecs[3];
 	uint_t enc_len, keydata_len, aad_len;
+	int ret;
 
 	ASSERT3U(crypt, <, ZIO_CRYPT_FUNCTIONS);
 	ASSERT3U(cwkey->ck_format, ==, CRYPTO_KEY_RAW);
@@ -596,7 +685,7 @@ zio_crypt_key_unwrap(crypto_key_t *cwkey, uint64_t crypt, uint64_t version,
 	cuio.uio_segflg = UIO_SYSSPACE;
 
 	/* decrypt the keys and store the result in the output buffers */
-	ret = zio_do_crypt_uio(B_FALSE, crypt, cwkey, NULL, iv, enc_len,
+	ret = zio_do_crypt_uio(spa, B_FALSE, crypt, cwkey, NULL, iv, enc_len,
 	    &puio, &cuio, (uint8_t *)aad, aad_len);
 	if (ret != 0)
 		goto error;
@@ -622,26 +711,17 @@ zio_crypt_key_unwrap(crypto_key_t *cwkey, uint64_t crypt, uint64_t version,
 	key->zk_hmac_key.ck_data = key->zk_hmac_keydata;
 	key->zk_hmac_key.ck_length = CRYPTO_BYTES2BITS(SHA512_HMAC_KEYLEN);
 
-	/*
-	 * Initialize the crypto templates. It's ok if this fails because
-	 * this is just an optimization.
-	 */
-	mech.cm_type = crypto_mech2id(zio_crypt_table[crypt].ci_mechname);
-	ret = crypto_create_ctx_template(&mech, &key->zk_current_key,
-	    &key->zk_current_tmpl, KM_SLEEP);
-	if (ret != CRYPTO_SUCCESS)
-		key->zk_current_tmpl = NULL;
-
-	mech.cm_type = crypto_mech2id(SUN_CKM_SHA512_HMAC);
-	ret = crypto_create_ctx_template(&mech, &key->zk_hmac_key,
-	    &key->zk_hmac_tmpl, KM_SLEEP);
-	if (ret != CRYPTO_SUCCESS)
-		key->zk_hmac_tmpl = NULL;
-
 	key->zk_crypt = crypt;
 	key->zk_version = version;
 	key->zk_guid = guid;
 	key->zk_salt_count = 0;
+
+	/*
+	 * Initialize the crypto templates in the context they will be
+	 * primarily used. It's ok if this fails, it's just an optimization.
+	 */
+	spa_taskq_dispatch_sync(spa, ZIO_TYPE_READ, ZIO_TASKQ_ISSUE,
+	    zio_crypt_create_ctx_templates, key, TQ_SLEEP);
 
 	return (0);
 
@@ -1861,7 +1941,7 @@ error:
  * Primary encryption / decryption entrypoint for zio data.
  */
 int
-zio_do_crypt_data(boolean_t encrypt, zio_crypt_key_t *key,
+zio_do_crypt_data(spa_t *spa, boolean_t encrypt, zio_crypt_key_t *key,
     dmu_object_type_t ot, boolean_t byteswap, uint8_t *salt, uint8_t *iv,
     uint8_t *mac, uint_t datalen, uint8_t *plainbuf, uint8_t *cipherbuf,
     boolean_t *no_crypt)
@@ -1948,8 +2028,8 @@ zio_do_crypt_data(boolean_t encrypt, zio_crypt_key_t *key,
 		goto error;
 
 	/* perform the encryption / decryption in software */
-	ret = zio_do_crypt_uio(encrypt, key->zk_crypt, ckey, tmpl, iv, enc_len,
-	    &puio, &cuio, authbuf, auth_len);
+	ret = zio_do_crypt_uio(spa, encrypt, key->zk_crypt, ckey, tmpl, iv,
+	    enc_len, &puio, &cuio, authbuf, auth_len);
 	if (ret != 0)
 		goto error;
 
@@ -1985,9 +2065,10 @@ error:
  * linear buffers.
  */
 int
-zio_do_crypt_abd(boolean_t encrypt, zio_crypt_key_t *key, dmu_object_type_t ot,
-    boolean_t byteswap, uint8_t *salt, uint8_t *iv, uint8_t *mac,
-    uint_t datalen, abd_t *pabd, abd_t *cabd, boolean_t *no_crypt)
+zio_do_crypt_abd(spa_t *spa, boolean_t encrypt, zio_crypt_key_t *key,
+    dmu_object_type_t ot, boolean_t byteswap, uint8_t *salt, uint8_t *iv,
+    uint8_t *mac, uint_t datalen, abd_t *pabd, abd_t *cabd,
+    boolean_t *no_crypt)
 {
 	int ret;
 	void *ptmp, *ctmp;
@@ -2000,7 +2081,7 @@ zio_do_crypt_abd(boolean_t encrypt, zio_crypt_key_t *key, dmu_object_type_t ot,
 		ctmp = abd_borrow_buf_copy(cabd, datalen);
 	}
 
-	ret = zio_do_crypt_data(encrypt, key, ot, byteswap, salt, iv, mac,
+	ret = zio_do_crypt_data(spa, encrypt, key, ot, byteswap, salt, iv, mac,
 	    datalen, ptmp, ctmp, no_crypt);
 	if (ret != 0)
 		goto error;

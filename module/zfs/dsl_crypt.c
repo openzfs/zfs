@@ -601,8 +601,8 @@ dsl_crypto_key_open(objset_t *mos, dsl_wrapping_key_t *wkey,
 	 * Unwrap the keys. If there is an error return EACCES to indicate
 	 * an authentication failure.
 	 */
-	ret = zio_crypt_key_unwrap(&wkey->wk_key, crypt, version, guid,
-	    raw_keydata, raw_hmac_keydata, iv, mac, &dck->dck_key);
+	ret = zio_crypt_key_unwrap(mos->os_spa, &wkey->wk_key, crypt, version,
+	    guid, raw_keydata, raw_hmac_keydata, iv, mac, &dck->dck_key);
 	if (ret != 0) {
 		ret = SET_ERROR(EACCES);
 		goto error;
@@ -1221,6 +1221,7 @@ dsl_crypto_key_sync(dsl_crypto_key_t *dck, dmu_tx_t *tx)
 {
 	zio_crypt_key_t *key = &dck->dck_key;
 	dsl_wrapping_key_t *wkey = dck->dck_wkey;
+	objset_t *mos = tx->tx_pool->dp_meta_objset;
 	uint8_t keydata[MASTER_KEY_MAX_LEN];
 	uint8_t hmac_keydata[SHA512_HMAC_KEYLEN];
 	uint8_t iv[WRAPPING_IV_LEN];
@@ -1230,14 +1231,13 @@ dsl_crypto_key_sync(dsl_crypto_key_t *dck, dmu_tx_t *tx)
 	ASSERT3U(key->zk_crypt, <, ZIO_CRYPT_FUNCTIONS);
 
 	/* encrypt and store the keys along with the IV and MAC */
-	VERIFY0(zio_crypt_key_wrap(&dck->dck_wkey->wk_key, key, iv, mac,
-	    keydata, hmac_keydata));
+	VERIFY0(zio_crypt_key_wrap(mos->os_spa, &dck->dck_wkey->wk_key, key,
+	    iv, mac, keydata, hmac_keydata));
 
 	/* update the ZAP with the obtained values */
-	dsl_crypto_key_sync_impl(tx->tx_pool->dp_meta_objset, dck->dck_obj,
-	    key->zk_crypt, wkey->wk_ddobj, key->zk_guid, iv, mac, keydata,
-	    hmac_keydata, wkey->wk_keyformat, wkey->wk_salt, wkey->wk_iters,
-	    tx);
+	dsl_crypto_key_sync_impl(mos, dck->dck_obj, key->zk_crypt,
+	    wkey->wk_ddobj, key->zk_guid, iv, mac, keydata, hmac_keydata,
+	    wkey->wk_keyformat, wkey->wk_salt, wkey->wk_iters, tx);
 }
 
 typedef struct spa_keystore_change_key_args {
@@ -2815,8 +2815,8 @@ spa_do_crypt_abd(boolean_t encrypt, spa_t *spa, const zbookmark_phys_t *zb,
 	}
 
 	/* call lower level function to perform encryption / decryption */
-	ret = zio_do_crypt_data(encrypt, &dck->dck_key, ot, bswap, salt, iv,
-	    mac, datalen, plainbuf, cipherbuf, no_crypt);
+	ret = zio_do_crypt_data(spa, encrypt, &dck->dck_key, ot, bswap, salt,
+	    iv, mac, datalen, plainbuf, cipherbuf, no_crypt);
 
 	/*
 	 * Handle injected decryption faults. Unfortunately, we cannot inject
