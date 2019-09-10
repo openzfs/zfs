@@ -107,11 +107,11 @@ void zio_crypt_key_destroy(zio_crypt_key_t *key);
 int zio_crypt_key_init(uint64_t crypt, zio_crypt_key_t *key);
 int zio_crypt_key_get_salt(zio_crypt_key_t *key, uint8_t *salt_out);
 
-int zio_crypt_key_wrap(crypto_key_t *cwkey, zio_crypt_key_t *key, uint8_t *iv,
-    uint8_t *mac, uint8_t *keydata_out, uint8_t *hmac_keydata_out);
-int zio_crypt_key_unwrap(crypto_key_t *cwkey, uint64_t crypt, uint64_t version,
-    uint64_t guid, uint8_t *keydata, uint8_t *hmac_keydata, uint8_t *iv,
-    uint8_t *mac, zio_crypt_key_t *key);
+int zio_crypt_key_wrap(spa_t *spa, crypto_key_t *cwkey, zio_crypt_key_t *key,
+    uint8_t *iv, uint8_t *mac, uint8_t *keydata_out, uint8_t *hmac_keydata_out);
+int zio_crypt_key_unwrap(spa_t *spa, crypto_key_t *cwkey, uint64_t crypt,
+    uint64_t version, uint64_t guid, uint8_t *keydata, uint8_t *hmac_keydata,
+    uint8_t *iv, uint8_t *mac, zio_crypt_key_t *key);
 int zio_crypt_generate_iv(uint8_t *ivbuf);
 int zio_crypt_generate_iv_salt_dedup(zio_crypt_key_t *key, uint8_t *data,
     uint_t datalen, uint8_t *ivbuf, uint8_t *salt);
@@ -132,11 +132,11 @@ int zio_crypt_do_hmac(zio_crypt_key_t *key, uint8_t *data, uint_t datalen,
     uint8_t *digestbuf, uint_t digestlen);
 int zio_crypt_do_objset_hmacs(zio_crypt_key_t *key, void *data, uint_t datalen,
     boolean_t byteswap, uint8_t *portable_mac, uint8_t *local_mac);
-int zio_do_crypt_data(boolean_t encrypt, zio_crypt_key_t *key,
+int zio_do_crypt_data(spa_t *spa, boolean_t encrypt, zio_crypt_key_t *key,
     dmu_object_type_t ot, boolean_t byteswap, uint8_t *salt, uint8_t *iv,
     uint8_t *mac, uint_t datalen, uint8_t *plainbuf, uint8_t *cipherbuf,
     boolean_t *no_crypt);
-int zio_do_crypt_abd(boolean_t encrypt, zio_crypt_key_t *key,
+int zio_do_crypt_abd(spa_t *spa, boolean_t encrypt, zio_crypt_key_t *key,
     dmu_object_type_t ot, boolean_t byteswap, uint8_t *salt, uint8_t *iv,
     uint8_t *mac, uint_t datalen, abd_t *pabd, abd_t *cabd,
     boolean_t *no_crypt);

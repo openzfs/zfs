@@ -8828,7 +8828,7 @@ l2arc_apply_transforms(spa_t *spa, arc_buf_hdr_t *hdr, uint64_t asize,
 		if (ret != 0)
 			goto error;
 
-		ret = zio_do_crypt_abd(B_TRUE, &dck->dck_key,
+		ret = zio_do_crypt_abd(spa, B_TRUE, &dck->dck_key,
 		    hdr->b_crypt_hdr.b_ot, bswap, hdr->b_crypt_hdr.b_salt,
 		    hdr->b_crypt_hdr.b_iv, mac, psize, to_write, eabd,
 		    &no_crypt);
