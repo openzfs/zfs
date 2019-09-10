@@ -740,6 +740,9 @@ typedef struct recvflags {
 
 	/* skip receive of snapshot holds */
 	boolean_t skipholds;
+
+	/* mount the filesystem unless nomount is specified */
+	boolean_t domount;
 } recvflags_t;
 
 extern int zfs_receive(libzfs_handle_t *, const char *, nvlist_t *,
