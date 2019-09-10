@@ -917,14 +917,24 @@ zeroes (the NUL byte).
 When a zero-filled block is detected, it is stored as
 a hole and not compressed using the indicated compression algorithm.
 .Pp
-Any block being compressed must be no larger than 7/8 of its original size
-after compression, otherwise the compression will not be considered worthwhile
-and the block saved uncompressed.
-Note that when the logical block is less than
-8 times the disk sector size this effectively reduces the necessary compression
-ratio; for example, 8 KiB blocks on disks with 4 KiB disk sectors must compress
-to 1/2
-or less of their original size.
+All blocks are allocated as a whole number of sectors
+.Pq chunks of 2^ Ns Sy ashift No bytes , e.g . Sy 512B No or Sy 4KB .
+Compression may result in a non-sector-aligned size, which will be rounded up
+to a whole number of sectors.
+If compression saves less than one whole sector,
+the block will be stored uncompressed.
+Therefore, blocks whose logical size is a small number of sectors will
+experience less compression
+(e.g. for
+.Sy recordsize Ns = Ns Sy 16K
+with
+.Sy 4K
+sectors, which have 4 sectors per block,
+compression needs to save at least 25% to actually save space on disk).
+.Pp
+There is
+.Sy 12.5%
+default compression threshold in addition to sector rounding.
 .It Xo
 .Sy context Ns = Ns Sy none Ns | Ns
 .Ar SELinux-User : Ns Ar SELinux-Role : Ns Ar SELinux-Type : Ns Ar Sensitivity-Level
