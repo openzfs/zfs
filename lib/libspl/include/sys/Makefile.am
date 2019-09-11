@@ -43,6 +43,7 @@ libspl_HEADERS = \
 	$(top_srcdir)/lib/libspl/include/sys/sysmacros.h \
 	$(top_srcdir)/lib/libspl/include/sys/systeminfo.h \
 	$(top_srcdir)/lib/libspl/include/sys/time.h \
+	$(top_srcdir)/lib/libspl/include/sys/trace_defs.h \
 	$(top_srcdir)/lib/libspl/include/sys/types32.h \
 	$(top_srcdir)/lib/libspl/include/sys/types.h \
 	$(top_srcdir)/lib/libspl/include/sys/tzfile.h \

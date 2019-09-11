@@ -39,7 +39,7 @@
  * function calls.
  */
 #include <sys/zrlock.h>
-#include <sys/trace_zrlock.h>
+#include <sys/trace_defs.h>
 
 /*
  * A ZRL can be locked only while there are zero references, so ZRL_LOCKED is

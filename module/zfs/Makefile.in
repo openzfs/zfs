@@ -80,7 +80,6 @@ $(MODULE)-objs += spa_log_spacemap.o
 $(MODULE)-objs += spa_misc.o
 $(MODULE)-objs += space_map.o
 $(MODULE)-objs += space_reftree.o
-$(MODULE)-objs += trace.o
 $(MODULE)-objs += txg.o
 $(MODULE)-objs += uberblock.o
 $(MODULE)-objs += unique.o
