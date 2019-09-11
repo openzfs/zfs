@@ -32,6 +32,8 @@
 #include <sys/dmu_tx.h>
 #ifdef _KERNEL
 #include <sys/zfs_vfsops.h>
+#include <sys/zap.h>
+#include <sys/zfs_znode.h>
 #endif
 
 /*
@@ -160,6 +162,72 @@ record_merge_enqueue(bqueue_t *q, struct redact_record **build,
 		*build = new;
 	}
 }
+#ifdef _KERNEL
+struct objnode {
+	avl_node_t node;
+	uint64_t obj;
+};
+
+static int
+objnode_compare(const void *o1, const void *o2)
+{
+	const struct objnode *obj1 = o1;
+	const struct objnode *obj2 = o2;
+	if (obj1->obj < obj2->obj)
+		return (-1);
+	if (obj1->obj > obj2->obj)
+		return (1);
+	return (0);
+}
+
+
+static objlist_t *
+zfs_get_deleteq(objset_t *os)
+{
+	objlist_t *deleteq_objlist = objlist_create();
+	uint64_t deleteq_obj;
+	zap_cursor_t zc;
+	zap_attribute_t za;
+	dmu_object_info_t doi;
+
+	ASSERT3U(os->os_phys->os_type, ==, DMU_OST_ZFS);
+	VERIFY0(dmu_object_info(os, MASTER_NODE_OBJ, &doi));
+	ASSERT3U(doi.doi_type, ==, DMU_OT_MASTER_NODE);
+
+	VERIFY0(zap_lookup(os, MASTER_NODE_OBJ,
+	    ZFS_UNLINKED_SET, sizeof (uint64_t), 1, &deleteq_obj));
+
+	/*
+	 * In order to insert objects into the objlist, they must be in sorted
+	 * order. We don't know what order we'll get them out of the ZAP in, so
+	 * we insert them into and remove them from an avl_tree_t to sort them.
+	 */
+	avl_tree_t at;
+	avl_create(&at, objnode_compare, sizeof (struct objnode),
+	    offsetof(struct objnode, node));
+
+	for (zap_cursor_init(&zc, os, deleteq_obj);
+	    zap_cursor_retrieve(&zc, &za) == 0; zap_cursor_advance(&zc)) {
+		struct objnode *obj = kmem_zalloc(sizeof (*obj), KM_SLEEP);
+		obj->obj = za.za_first_integer;
+		avl_add(&at, obj);
+	}
+	zap_cursor_fini(&zc);
+
+	struct objnode *next, *found = avl_first(&at);
+	while (found != NULL) {
+		next = AVL_NEXT(&at, found);
+		objlist_insert(deleteq_objlist, found->obj);
+		found = next;
+	}
+
+	void *cookie = NULL;
+	while ((found = avl_destroy_nodes(&at, &cookie)) != NULL)
+		kmem_free(found, sizeof (*found));
+	avl_destroy(&at);
+	return (deleteq_objlist);
+}
+#endif
 
 /*
  * This is the callback function to traverse_dataset for the redaction threads
@@ -491,7 +559,7 @@ redaction_list_update_sync(void *arg, dmu_tx_t *tx)
 	rl->rl_phys->rlp_last_blkid = furthest_visited->rbp_blkid;
 }
 
-void
+static void
 commit_rl_updates(objset_t *os, struct merge_data *md, uint64_t object,
     uint64_t blkid)
 {
