@@ -144,7 +144,13 @@ print_rpmtemplate_per_kmodpkg ()
 	local kernel_uname_r=${1}
 	local kernel_variant="${2:+-${2}}"
 
-    # first part
+	# Detect depmod install location
+	local depmod_path=/sbin/depmod
+	if [ ! -f ${depmod_path} ]; then
+		depmod_path=/usr/sbin/depmod
+	fi
+
+	# first part
 	cat <<EOF
 %package       -n kmod-${kmodname}-${kernel_uname_r}
 Summary:          ${kmodname} kernel module(s) for ${kernel_uname_r}
@@ -153,8 +159,14 @@ Provides:         kernel-modules-for-kernel = ${kernel_uname_r}
 Provides:         kmod-${kmodname}-uname-r = ${kernel_uname_r}
 Provides:         ${kmodname}-kmod = %{?epoch:%{epoch}:}%{version}-%{release}
 Requires:         ${kmodname}-kmod-common >= %{?epoch:%{epoch}:}%{version}
-Requires(post):   ${prefix}/sbin/depmod
-Requires(postun): ${prefix}/sbin/depmod
+
+%if 0%{?rhel} == 6 || 0%{?centos} == 6
+Requires(post):   module-init-tools
+Requires(postun): module-init-tools
+%else
+Requires(post):   kmod
+Requires(postun): kmod
+%endif
 EOF
 
 	if [[ ${obsolete_name} ]]; then
@@ -170,17 +182,17 @@ BuildRequires:	  kernel-devel-uname-r = ${kernel_uname_r}
 %{?KmodsRequires:Requires: %{KmodsRequires}-uname-r = ${kernel_uname_r}}
 %{?KmodsRequires:BuildRequires: %{KmodsRequires}-uname-r = ${kernel_uname_r}}
 %post          -n kmod-${kmodname}-${kernel_uname_r}
-${prefix}/sbin/depmod -aeF /boot/System.map-${kernel_uname_r} ${kernel_uname_r} > /dev/null || :
+${prefix}${depmod_path} -aeF /boot/System.map-${kernel_uname_r} ${kernel_uname_r} > /dev/null || :
 %postun        -n kmod-${kmodname}-${kernel_uname_r}
-${prefix}/sbin/depmod  -aF /boot/System.map-${kernel_uname_r} ${kernel_uname_r} &> /dev/null || :
+${prefix}${depmod_path} -aF /boot/System.map-${kernel_uname_r} ${kernel_uname_r} &> /dev/null || :
 
 EOF
 	else
 	  cat <<EOF
 %post          -n kmod-${kmodname}-${kernel_uname_r}
-[[ "\$(uname -r)" == "${kernel_uname_r}"  ]] && ${prefix}/sbin/depmod -a > /dev/null || :
+[[ "\$(uname -r)" == "${kernel_uname_r}"  ]] && ${prefix}${depmod_path} -a > /dev/null || :
 %postun        -n kmod-${kmodname}-${kernel_uname_r}
-[[ "\$(uname -r)" == "${kernel_uname_r}"  ]] && ${prefix}/sbin/depmod -a > /dev/null || :
+[[ "\$(uname -r)" == "${kernel_uname_r}"  ]] && ${prefix}${depmod_path} -a > /dev/null || :
 
 EOF
 	fi
