@@ -12,9 +12,16 @@ usage()
 KERNEL_DIR="$(readlink --canonicalize-existing "$1")"
 
 MODULES=()
+
+# When integrated in to a monolithic kernel the spl module must appear
+# first.  This ensures its module initialization function is run before
+# any of the other module initialization functions which depend on it.
+MODULES+="spl"
+
 for MODULE_DIR in module/* module/os/linux/*
 do
 	[ -d "$MODULE_DIR" ] || continue
+	[ "spl" = "${MODULE_DIR##*/}" ] && continue
 	[ "os" = "${MODULE_DIR#*/}" ] && continue
 	MODULES+=("${MODULE_DIR#*/}")
 done
