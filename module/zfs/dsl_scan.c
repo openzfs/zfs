@@ -759,7 +759,8 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 
 	spa_history_log_internal(spa, "scan setup", tx,
 	    "func=%u mintxg=%llu maxtxg=%llu",
-	    *funcp, scn->scn_phys.scn_min_txg, scn->scn_phys.scn_max_txg);
+	    *funcp, (u_longlong_t)scn->scn_phys.scn_min_txg,
+	    (u_longlong_t)scn->scn_phys.scn_max_txg);
 }
 
 /*
@@ -900,13 +901,13 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 
 	if (dsl_scan_restarting(scn, tx))
 		spa_history_log_internal(spa, "scan aborted, restarting", tx,
-		    "errors=%llu", spa_get_errlog_size(spa));
+		    "errors=%llu", (u_longlong_t)spa_get_errlog_size(spa));
 	else if (!complete)
 		spa_history_log_internal(spa, "scan cancelled", tx,
-		    "errors=%llu", spa_get_errlog_size(spa));
+		    "errors=%llu", (u_longlong_t)spa_get_errlog_size(spa));
 	else
 		spa_history_log_internal(spa, "scan done", tx,
-		    "errors=%llu", spa_get_errlog_size(spa));
+		    "errors=%llu", (u_longlong_t)spa_get_errlog_size(spa));
 
 	if (DSL_SCAN_IS_SCRUB_RESILVER(scn)) {
 		spa->spa_scrub_started = B_FALSE;
@@ -957,7 +958,8 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 		if (resilver_needed) {
 			spa_history_log_internal(spa,
 			    "starting deferred resilver", tx,
-			    "errors=%llu", spa_get_errlog_size(spa));
+			    "errors=%llu",
+			    (u_longlong_t)spa_get_errlog_size(spa));
 			spa_async_request(spa, SPA_ASYNC_RESILVER);
 		}
 	}
