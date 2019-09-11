@@ -31,7 +31,7 @@ function cleanup {
 	poolexists $TESTPOOL && destroy_pool $TESTPOOL
 }
 
-typeset -r TIMEOUT_SECS=1.0
+typeset -r TIMEOUT_SECS=1
 
 log_onexit cleanup
 log_must zpool create $TESTPOOL $DISK1
