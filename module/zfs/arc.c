@@ -302,7 +302,7 @@
 #include <sys/zthr.h>
 #include <zfs_fletcher.h>
 #include <sys/arc_impl.h>
-#include <sys/trace_arc.h>
+#include <sys/trace_defs.h>
 #include <sys/aggsum.h>
 #include <sys/cityhash.h>
 

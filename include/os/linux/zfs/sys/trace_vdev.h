@@ -24,8 +24,8 @@
 
 /*
  * If tracepoints are available define dtrace_probe events for vdev
- * related probes.  Definitions in usr/include/trace.h will map
- * DTRACE_PROBE* calls to tracepoints.
+ * related probes.  Definitions in include/os/linux/spl/sys/trace.h
+ * will map DTRACE_PROBE* calls to tracepoints.
  */
 
 #undef TRACE_SYSTEM
@@ -129,7 +129,7 @@ DEFINE_REMOVE_FREE_EVENT_TXG(zfs_remove__free__inflight);
  * When tracepoints are not available, a DEFINE_DTRACE_PROBE* macro is
  * needed for each DTRACE_PROBE.  These will be used to generate stub
  * tracing functions and prototypes for those functions.  See
- * include/sys/trace.h.
+ * include/os/linux/spl/sys/trace.h.
  */
 
 DEFINE_DTRACE_PROBE3(remove__free__synced);
