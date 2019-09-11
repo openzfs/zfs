@@ -301,10 +301,23 @@ spa_prop_get_config(spa_t *spa, nvlist_t **nvp)
 		alloc = metaslab_class_get_alloc(mc);
 		alloc += metaslab_class_get_alloc(spa_special_class(spa));
 		alloc += metaslab_class_get_alloc(spa_dedup_class(spa));
+		/*
+		 * The embedded log metaslabs are included in the reported
+		 * space, since they can be used for normal allocations as
+		 * well (if necessary).  If there is a dedicated log device,
+		 * then there won't be any embedded log metaslabs, and
+		 * the log device can't be used for normal allocations, so
+		 * we exclude its space.
+		 */
+		if (!spa_has_log_device(spa))
+			alloc += metaslab_class_get_alloc(spa_log_class(spa));
 
 		size = metaslab_class_get_space(mc);
 		size += metaslab_class_get_space(spa_special_class(spa));
 		size += metaslab_class_get_space(spa_dedup_class(spa));
+		/* See above comment on log space. */
+		if (!spa_has_log_device(spa))
+			size += metaslab_class_get_space(spa_log_class(spa));
 
 		spa_prop_add_list(*nvp, ZPOOL_PROP_NAME, spa_name(spa), 0, src);
 		spa_prop_add_list(*nvp, ZPOOL_PROP_SIZE, NULL, size, src);
