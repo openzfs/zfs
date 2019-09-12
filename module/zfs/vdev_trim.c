@@ -522,11 +522,9 @@ vdev_trim_range(trim_args_t *ta, uint64_t start, uint64_t size)
 static int
 vdev_trim_ranges(trim_args_t *ta)
 {
-	vdev_t *vd = ta->trim_vdev;
 	avl_tree_t *rt = &ta->trim_tree->rt_root;
 	uint64_t extent_bytes_max = ta->trim_extent_bytes_max;
 	uint64_t extent_bytes_min = ta->trim_extent_bytes_min;
-	spa_t *spa = vd->vdev_spa;
 
 	ta->trim_start_time = gethrtime();
 	ta->trim_bytes_done = 0;
