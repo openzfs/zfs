@@ -36,7 +36,7 @@
 #include <sys/zio_crypt.h>
 #include "lac/cpa_cy_im.h"
 #include "lac/cpa_cy_common.h"
-#include "qat.h"
+#include <sys/qat.h>
 
 /*
  * Max instances in a QAT device, each instance is a channel to submit
@@ -415,6 +415,9 @@ qat_crypt(qat_encrypt_dir_t dir, uint8_t *src_buf, uint8_t *dst_buf,
 	op_data.messageLenToCipherInBytes = enc_len;
 	op_data.ivLenInBytes = ZIO_DATA_IV_LEN;
 	bcopy(iv_buf, op_data.pIv, ZIO_DATA_IV_LEN);
+	/* if dir is QAT_DECRYPT, copy digest_buf to pDigestResult */
+	if (dir == QAT_DECRYPT)
+		bcopy(digest_buf, op_data.pDigestResult, ZIO_DATA_MAC_LEN);
 
 	cb.verify_result = CPA_FALSE;
 	init_completion(&cb.complete);
@@ -423,23 +426,21 @@ qat_crypt(qat_encrypt_dir_t dir, uint8_t *src_buf, uint8_t *dst_buf,
 	if (status != CPA_STATUS_SUCCESS)
 		goto fail;
 
-	if (!wait_for_completion_interruptible_timeout(&cb.complete,
-	    QAT_TIMEOUT_MS)) {
-		status = CPA_STATUS_FAIL;
-		goto fail;
-	}
+	/* we now wait until the completion of the operation. */
+	wait_for_completion(&cb.complete);
 
 	if (cb.verify_result == CPA_FALSE) {
 		status = CPA_STATUS_FAIL;
 		goto fail;
 	}
 
-	/* save digest result to digest_buf */
-	bcopy(op_data.pDigestResult, digest_buf, ZIO_DATA_MAC_LEN);
-	if (dir == QAT_ENCRYPT)
+	if (dir == QAT_ENCRYPT) {
+		/* if dir is QAT_ENCRYPT, save pDigestResult to digest_buf */
+		bcopy(op_data.pDigestResult, digest_buf, ZIO_DATA_MAC_LEN);
 		QAT_STAT_INCR(encrypt_total_out_bytes, enc_len);
-	else
+	} else {
 		QAT_STAT_INCR(decrypt_total_out_bytes, enc_len);
+	}
 
 fail:
 	if (status != CPA_STATUS_SUCCESS)
@@ -549,11 +550,9 @@ qat_checksum(uint64_t cksum, uint8_t *buf, uint64_t size, zio_cksum_t *zcp)
 	if (status != CPA_STATUS_SUCCESS)
 		goto fail;
 
-	if (!wait_for_completion_interruptible_timeout(&cb.complete,
-	    QAT_TIMEOUT_MS)) {
-		status = CPA_STATUS_FAIL;
-		goto fail;
-	}
+	/* we now wait until the completion of the operation. */
+	wait_for_completion(&cb.complete);
+
 	if (cb.verify_result == CPA_FALSE) {
 		status = CPA_STATUS_FAIL;
 		goto fail;
