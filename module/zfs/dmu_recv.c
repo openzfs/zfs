@@ -915,7 +915,7 @@ dmu_recv_begin_sync(void *arg, dmu_tx_t *tx)
 
 	drba->drba_cookie->drc_ds = newds;
 
-	spa_history_log_internal_ds(newds, "receive", tx, "");
+	spa_history_log_internal_ds(newds, "receive", tx, " ");
 }
 
 static int
@@ -1093,7 +1093,7 @@ dmu_recv_resume_begin_sync(void *arg, dmu_tx_t *tx)
 
 	drba->drba_cookie->drc_ds = ds;
 
-	spa_history_log_internal_ds(ds, "resume receive", tx, "");
+	spa_history_log_internal_ds(ds, "resume receive", tx, " ");
 }
 
 /*

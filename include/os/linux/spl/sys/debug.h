@@ -50,6 +50,8 @@
 /*
  * Common DEBUG functionality.
  */
+#define	__printflike(a, b)	__printf(a, b)
+
 int spl_panic(const char *file, const char *func, int line,
     const char *fmt, ...);
 void spl_dumpstack(void);

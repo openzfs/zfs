@@ -41,11 +41,6 @@ typedef enum qat_encrypt_dir {
 #include "lac/cpa_cy_sym.h"
 
 /*
- * Timeout - no response from hardware after 0.5 seconds
- */
-#define	QAT_TIMEOUT_MS		500
-
-/*
  * The minimal and maximal buffer size which are not restricted
  * in the QAT hardware, but with the input buffer size between 4KB
  * and 128KB the hardware can provide the optimal performance.

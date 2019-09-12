@@ -900,7 +900,7 @@ spa_change_guid_sync(void *arg, dmu_tx_t *tx)
 	spa_config_exit(spa, SCL_STATE, FTAG);
 
 	spa_history_log_internal(spa, "guid change", tx, "old=%llu new=%llu",
-	    oldguid, *newguid);
+	    (u_longlong_t)oldguid, (u_longlong_t)*newguid);
 }
 
 /*
@@ -7916,7 +7916,8 @@ spa_async_thread(void *arg)
 		if (new_space != old_space) {
 			spa_history_log_internal(spa, "vdev online", NULL,
 			    "pool '%s' size: %llu(+%llu)",
-			    spa_name(spa), new_space, new_space - old_space);
+			    spa_name(spa), (u_longlong_t)new_space,
+			    (u_longlong_t)(new_space - old_space));
 		}
 	}
 
@@ -8406,7 +8407,8 @@ spa_sync_version(void *arg, dmu_tx_t *tx)
 
 	spa->spa_uberblock.ub_version = version;
 	vdev_config_dirty(spa->spa_root_vdev);
-	spa_history_log_internal(spa, "set", tx, "version=%lld", version);
+	spa_history_log_internal(spa, "set", tx, "version=%lld",
+	    (longlong_t)version);
 }
 
 /*
@@ -8520,7 +8522,8 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 				    spa->spa_pool_props_object, propname,
 				    8, 1, &intval, tx));
 				spa_history_log_internal(spa, "set", tx,
-				    "%s=%lld", nvpair_name(elem), intval);
+				    "%s=%lld", nvpair_name(elem),
+				    (longlong_t)intval);
 			} else {
 				ASSERT(0); /* not allowed */
 			}

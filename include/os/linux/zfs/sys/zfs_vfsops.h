@@ -216,7 +216,6 @@ extern int zfsvfs_create(const char *name, boolean_t readony, zfsvfs_t **zfvp);
 extern int zfsvfs_create_impl(zfsvfs_t **zfvp, zfsvfs_t *zfsvfs, objset_t *os);
 extern void zfsvfs_free(zfsvfs_t *zfsvfs);
 extern int zfs_check_global_label(const char *dsname, const char *hexsl);
-extern objlist_t *zfs_get_deleteq(objset_t *os);
 
 extern boolean_t zfs_is_readonly(zfsvfs_t *zfsvfs);
 extern int zfs_domount(struct super_block *sb, zfs_mnt_t *zm, int silent);
