@@ -53,10 +53,6 @@
 %bcond_with    asan
 %bcond_with    systemd
 
-# Exclude test-runner.py from the rpmbuild shebang check to allow it to run
-# under Python 2 and 3.
-%global __brp_mangle_shebangs_exclude_from test-runner.py
-
 # Generic enable switch for systemd
 %if %{with systemd}
 %define _systemd 1
@@ -354,6 +350,14 @@ make %{?_smp_mflags}
 %{__rm} -rf $RPM_BUILD_ROOT
 make install DESTDIR=%{?buildroot}
 find %{?buildroot}%{_libdir} -name '*.la' -exec rm -f {} \;
+%if 0%{!?__brp_mangle_shebangs:1}
+find %{?buildroot}%{_bindir} \
+    \( -name arc_summary -or -name arcstat -or -name dbufstat \) \
+    -exec %{__sed} -i 's|^#!.*|#!%{__python}|' {} \;
+find %{?buildroot}%{_datadir} \
+    \( -name test-runner.py -or -name zts-report.py \) \
+    -exec %{__sed} -i 's|^#!.*|#!%{__python}|' {} \;
+%endif
 
 %post
 %if 0%{?_systemd}
