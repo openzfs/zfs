@@ -197,7 +197,7 @@ dsl_dataset_user_hold_sync_one_impl(nvlist_t *tmpholds, dsl_dataset_t *ds,
 
 	spa_history_log_internal_ds(ds, "hold", tx,
 	    "tag=%s temp=%d refs=%llu",
-	    htag, minor != 0, ds->ds_userrefs);
+	    htag, minor != 0, (u_longlong_t)ds->ds_userrefs);
 }
 
 typedef struct zfs_hold_cleanup_arg {

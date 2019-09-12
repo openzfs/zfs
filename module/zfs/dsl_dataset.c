@@ -1843,7 +1843,7 @@ dsl_dataset_snapshot_sync_impl(dsl_dataset_t *ds, const char *snapname,
 
 	dsl_dir_snap_cmtime_update(ds->ds_dir);
 
-	spa_history_log_internal_ds(ds->ds_prev, "snapshot", tx, "");
+	spa_history_log_internal_ds(ds->ds_prev, "snapshot", tx, " ");
 }
 
 void
@@ -3722,7 +3722,7 @@ dsl_dataset_promote_sync(void *arg, dmu_tx_t *tx)
 	dsl_dir_remove_livelist(origin_ds->ds_dir, tx, B_TRUE);
 
 	/* log history record */
-	spa_history_log_internal_ds(hds, "promote", tx, "");
+	spa_history_log_internal_ds(hds, "promote", tx, " ");
 
 	dsl_dir_rele(odd, FTAG);
 	promote_rele(ddpa, FTAG);

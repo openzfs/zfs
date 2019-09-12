@@ -524,7 +524,7 @@ spa_checkpoint_sync(void *arg, dmu_tx_t *tx)
 	spa_feature_incr(spa, SPA_FEATURE_POOL_CHECKPOINT, tx);
 
 	spa_history_log_internal(spa, "spa checkpoint", tx,
-	    "checkpointed uberblock txg=%llu", checkpoint.ub_txg);
+	    "checkpointed uberblock txg=%llu", (u_longlong_t)checkpoint.ub_txg);
 }
 
 /*
