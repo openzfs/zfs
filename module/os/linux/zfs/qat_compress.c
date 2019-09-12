@@ -27,7 +27,7 @@
 #include <sys/zfs_context.h>
 #include <sys/byteorder.h>
 #include <sys/zio.h>
-#include "qat.h"
+#include <sys/qat.h>
 
 /*
  * Max instances in a QAT device, each instance is a channel to submit
@@ -403,11 +403,7 @@ qat_compress_impl(qat_compress_dir_t dir, char *src, int src_len,
 		}
 
 		/* we now wait until the completion of the operation. */
-		if (!wait_for_completion_interruptible_timeout(&complete,
-		    QAT_TIMEOUT_MS)) {
-			status = CPA_STATUS_FAIL;
-			goto fail;
-		}
+		wait_for_completion(&complete);
 
 		if (dc_results.status != CPA_STATUS_SUCCESS) {
 			status = CPA_STATUS_FAIL;
@@ -462,11 +458,7 @@ qat_compress_impl(qat_compress_dir_t dir, char *src, int src_len,
 		}
 
 		/* we now wait until the completion of the operation. */
-		if (!wait_for_completion_interruptible_timeout(&complete,
-		    QAT_TIMEOUT_MS)) {
-			status = CPA_STATUS_FAIL;
-			goto fail;
-		}
+		wait_for_completion(&complete);
 
 		if (dc_results.status != CPA_STATUS_SUCCESS) {
 			status = CPA_STATUS_FAIL;
