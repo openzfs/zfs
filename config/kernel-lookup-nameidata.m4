@@ -1,9 +1,8 @@
 dnl #
 dnl # 3.6 API change
 dnl #
-AC_DEFUN([ZFS_AC_KERNEL_LOOKUP_NAMEIDATA], [
-	AC_MSG_CHECKING([whether iops->lookup() passes nameidata])
-	ZFS_LINUX_TRY_COMPILE([
+AC_DEFUN([ZFS_AC_KERNEL_SRC_LOOKUP_NAMEIDATA], [
+	ZFS_LINUX_TEST_SRC([lookup_nameidata], [
 		#include <linux/fs.h>
 		#include <linux/sched.h>
 
@@ -15,11 +14,15 @@ AC_DEFUN([ZFS_AC_KERNEL_LOOKUP_NAMEIDATA], [
 		    __attribute__ ((unused)) = {
 			.lookup	= inode_lookup,
 		};
-	],[
-	],[
+	],[])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_LOOKUP_NAMEIDATA], [
+	AC_MSG_CHECKING([whether iops->lookup() passes nameidata])
+	ZFS_LINUX_TEST_RESULT([lookup_nameidata], [
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_LOOKUP_NAMEIDATA, 1,
-		          [iops->lookup() passes nameidata])
+		    [iops->lookup() passes nameidata])
 	],[
 		AC_MSG_RESULT(no)
 	])

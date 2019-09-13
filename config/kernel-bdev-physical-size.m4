@@ -19,21 +19,22 @@ dnl #
 dnl # Unfortunately, this interface isn't entirely reliable because
 dnl # drives are sometimes known to misreport this value.
 dnl #
-AC_DEFUN([ZFS_AC_KERNEL_BDEV_PHYSICAL_BLOCK_SIZE], [
-	AC_MSG_CHECKING([whether bdev_physical_block_size() is available])
-	tmp_flags="$EXTRA_KCFLAGS"
-	EXTRA_KCFLAGS="${NO_UNUSED_BUT_SET_VARIABLE}"
-	ZFS_LINUX_TRY_COMPILE([
+AC_DEFUN([ZFS_AC_KERNEL_SRC_BDEV_PHYSICAL_BLOCK_SIZE], [
+	ZFS_LINUX_TEST_SRC([bdev_physical_block_size], [
 		#include <linux/blkdev.h>
 	],[
 		struct block_device *bdev = NULL;
 		bdev_physical_block_size(bdev);
-	],[
+	], [$NO_UNUSED_BUT_SET_VARIABLE])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_BDEV_PHYSICAL_BLOCK_SIZE], [
+	AC_MSG_CHECKING([whether bdev_physical_block_size() is available])
+	ZFS_LINUX_TEST_RESULT([bdev_physical_block_size], [
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_BDEV_PHYSICAL_BLOCK_SIZE, 1,
-		          [bdev_physical_block_size() is available])
+		    [bdev_physical_block_size() is available])
 	],[
 		AC_MSG_RESULT(no)
 	])
-	EXTRA_KCFLAGS="$tmp_flags"
 ])

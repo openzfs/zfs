@@ -18,8 +18,11 @@ dnl #
 dnl # Pre-4.2:	Use kernel_fpu_{begin,end}()
 dnl #		HAVE_KERNEL_FPU & KERNEL_EXPORTS_X86_FPU
 dnl #
-AC_DEFUN([ZFS_AC_KERNEL_FPU], [
-	AC_MSG_CHECKING([which kernel_fpu header to use])
+dnl # N.B. The header check is performed before all other checks since it
+dnl # depends on HAVE_KERNEL_FPU_API_HEADER being set in confdefs.h.
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_FPU_HEADER], [
+	AC_MSG_CHECKING([whether fpu headers are available])
 	ZFS_LINUX_TRY_COMPILE([
 		#include <linux/module.h>
 		#include <asm/fpu/api.h>
@@ -31,66 +34,88 @@ AC_DEFUN([ZFS_AC_KERNEL_FPU], [
 	],[
 		AC_MSG_RESULT(i387.h & xcr.h)
 	])
+])
 
-	AC_MSG_CHECKING([which kernel_fpu function to use])
-	ZFS_LINUX_TRY_COMPILE_SYMBOL([
-		#include <linux/module.h>
+AC_DEFUN([ZFS_AC_KERNEL_SRC_FPU], [
+	ZFS_LINUX_TEST_SRC([kernel_fpu], [
 		#ifdef HAVE_KERNEL_FPU_API_HEADER
 		#include <asm/fpu/api.h>
 		#else
 		#include <asm/i387.h>
 		#include <asm/xcr.h>
 		#endif
-		MODULE_LICENSE("$ZFS_META_LICENSE");
-	],[
+	], [
 		kernel_fpu_begin();
 		kernel_fpu_end();
-	], [kernel_fpu_begin], [arch/x86/kernel/fpu/core.c], [
+	], [], [$ZFS_META_LICENSE])
+
+	ZFS_LINUX_TEST_SRC([__kernel_fpu], [
+		#ifdef HAVE_KERNEL_FPU_API_HEADER
+		#include <asm/fpu/api.h>
+		#else
+		#include <asm/i387.h>
+		#include <asm/xcr.h>
+		#endif
+	], [
+		__kernel_fpu_begin();
+		__kernel_fpu_end();
+	], [], [$ZFS_META_LICENSE])
+
+	ZFS_LINUX_TEST_SRC([fpu_initialized], [
+		#include <linux/module.h>
+		#include <linux/sched.h>
+	],[
+		struct fpu *fpu = &current->thread.fpu;
+		if (fpu->initialized) { return (0); };
+	])
+
+	ZFS_LINUX_TEST_SRC([tif_need_fpu_load], [
+		#include <linux/module.h>
+		#include <asm/thread_info.h>
+
+		#if !defined(TIF_NEED_FPU_LOAD)
+		#error "TIF_NEED_FPU_LOAD undefined"
+		#endif
+	],[])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_FPU], [
+	dnl #
+	dnl # Legacy kernel
+	dnl #
+	AC_MSG_CHECKING([whether kernel fpu is available])
+	ZFS_LINUX_TEST_RESULT_SYMBOL([kernel_fpu_license],
+	    [kernel_fpu_begin], [arch/x86/kernel/fpu/core.c], [
 		AC_MSG_RESULT(kernel_fpu_*)
 		AC_DEFINE(HAVE_KERNEL_FPU, 1,
 		    [kernel has kernel_fpu_* functions])
 		AC_DEFINE(KERNEL_EXPORTS_X86_FPU, 1,
 		    [kernel exports FPU functions])
 	],[
-		ZFS_LINUX_TRY_COMPILE_SYMBOL([
-			#include <linux/module.h>
-			#ifdef HAVE_KERNEL_FPU_API_HEADER
-			#include <asm/fpu/api.h>
-			#else
-			#include <asm/i387.h>
-			#include <asm/xcr.h>
-			#endif
-			MODULE_LICENSE("$ZFS_META_LICENSE");
-		],[
-			__kernel_fpu_begin();
-			__kernel_fpu_end();
-		], [__kernel_fpu_begin], [arch/x86/kernel/fpu/core.c arch/x86/kernel/i387.c], [
+		dnl #
+		dnl # Linux 4.2 kernel
+		dnl #
+		ZFS_LINUX_TEST_RESULT_SYMBOL([__kernel_fpu_license],
+		    [__kernel_fpu_begin],
+		    [arch/x86/kernel/fpu/core.c arch/x86/kernel/i387.c], [
 			AC_MSG_RESULT(__kernel_fpu_*)
 			AC_DEFINE(HAVE_UNDERSCORE_KERNEL_FPU, 1,
 			    [kernel has __kernel_fpu_* functions])
 			AC_DEFINE(KERNEL_EXPORTS_X86_FPU, 1,
 			    [kernel exports FPU functions])
 		],[
-			ZFS_LINUX_TRY_COMPILE([
-				#include <linux/module.h>
-				#include <linux/sched.h>
-			],[
-				struct fpu *fpu = &current->thread.fpu;
-				if (fpu->initialized) { return (0); };
-			],[
+			dnl #
+			dnl # Linux 5.0 kernel
+			dnl #
+			ZFS_LINUX_TEST_RESULT([fpu_initialized], [
 				AC_MSG_RESULT(fpu.initialized)
 				AC_DEFINE(HAVE_KERNEL_FPU_INITIALIZED, 1,
 				    [kernel fpu.initialized exists])
 			],[
-				ZFS_LINUX_TRY_COMPILE([
-					#include <linux/module.h>
-					#include <asm/thread_info.h>
-
-					#if !defined(TIF_NEED_FPU_LOAD)
-					#error "TIF_NEED_FPU_LOAD undefined"
-					#endif
-				],[
-				],[
+				dnl #
+				dnl # Linux 5.2 kernel
+				dnl #
+				ZFS_LINUX_TEST_RESULT([tif_need_fpu_load], [
 					AC_MSG_RESULT(TIF_NEED_FPU_LOAD)
 					AC_DEFINE(
 					    HAVE_KERNEL_TIF_NEED_FPU_LOAD, 1,

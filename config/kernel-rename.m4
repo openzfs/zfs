@@ -3,9 +3,8 @@ dnl # 4.9 API change,
 dnl # iops->rename2() merged into iops->rename(), and iops->rename() now wants
 dnl # flags.
 dnl #
-AC_DEFUN([ZFS_AC_KERNEL_RENAME_WANTS_FLAGS], [
-	AC_MSG_CHECKING([whether iops->rename() wants flags])
-	ZFS_LINUX_TRY_COMPILE([
+AC_DEFUN([ZFS_AC_KERNEL_SRC_RENAME_WANTS_FLAGS], [
+	ZFS_LINUX_TEST_SRC([inode_operations_rename], [
 		#include <linux/fs.h>
 		int rename_fn(struct inode *sip, struct dentry *sdp,
 			struct inode *tip, struct dentry *tdp,
@@ -15,10 +14,15 @@ AC_DEFUN([ZFS_AC_KERNEL_RENAME_WANTS_FLAGS], [
 		    iops __attribute__ ((unused)) = {
 			.rename = rename_fn,
 		};
-	],[
-	],[
+	],[])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_RENAME_WANTS_FLAGS], [
+	AC_MSG_CHECKING([whether iops->rename() wants flags])
+	ZFS_LINUX_TEST_RESULT([inode_operations_rename], [
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_RENAME_WANTS_FLAGS, 1, [iops->rename() wants flags])
+		AC_DEFINE(HAVE_RENAME_WANTS_FLAGS, 1,
+		    [iops->rename() wants flags])
 	],[
 		AC_MSG_RESULT(no)
 	])
