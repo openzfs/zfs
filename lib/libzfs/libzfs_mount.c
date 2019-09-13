@@ -83,6 +83,7 @@
 #include <sys/dsl_crypt.h>
 
 #include <libzfs.h>
+#include <libzutil.h>
 
 #include "libzfs_impl.h"
 #include <thread_pool.h>
@@ -340,85 +341,6 @@ zfs_is_mountable(zfs_handle_t *zhp, char *buf, size_t buflen,
 		*source = sourcetype;
 
 	return (B_TRUE);
-}
-
-/*
- * The filesystem is mounted by invoking the system mount utility rather
- * than by the system call mount(2).  This ensures that the /etc/mtab
- * file is correctly locked for the update.  Performing our own locking
- * and /etc/mtab update requires making an unsafe assumption about how
- * the mount utility performs its locking.  Unfortunately, this also means
- * in the case of a mount failure we do not have the exact errno.  We must
- * make due with return value from the mount process.
- *
- * In the long term a shared library called libmount is under development
- * which provides a common API to address the locking and errno issues.
- * Once the standard mount utility has been updated to use this library
- * we can add an autoconf check to conditionally use it.
- *
- * http://www.kernel.org/pub/linux/utils/util-linux/libmount-docs/index.html
- */
-
-static int
-do_mount(const char *src, const char *mntpt, char *opts)
-{
-	char *argv[9] = {
-	    "/bin/mount",
-	    "--no-canonicalize",
-	    "-t", MNTTYPE_ZFS,
-	    "-o", opts,
-	    (char *)src,
-	    (char *)mntpt,
-	    (char *)NULL };
-	int rc;
-
-	/* Return only the most critical mount error */
-	rc = libzfs_run_process(argv[0], argv, STDOUT_VERBOSE|STDERR_VERBOSE);
-	if (rc) {
-		if (rc & MOUNT_FILEIO)
-			return (EIO);
-		if (rc & MOUNT_USER)
-			return (EINTR);
-		if (rc & MOUNT_SOFTWARE)
-			return (EPIPE);
-		if (rc & MOUNT_BUSY)
-			return (EBUSY);
-		if (rc & MOUNT_SYSERR)
-			return (EAGAIN);
-		if (rc & MOUNT_USAGE)
-			return (EINVAL);
-
-		return (ENXIO); /* Generic error */
-	}
-
-	return (0);
-}
-
-static int
-do_unmount(const char *mntpt, int flags)
-{
-	char force_opt[] = "-f";
-	char lazy_opt[] = "-l";
-	char *argv[7] = {
-	    "/bin/umount",
-	    "-t", MNTTYPE_ZFS,
-	    NULL, NULL, NULL, NULL };
-	int rc, count = 3;
-
-	if (flags & MS_FORCE) {
-		argv[count] = force_opt;
-		count++;
-	}
-
-	if (flags & MS_DETACH) {
-		argv[count] = lazy_opt;
-		count++;
-	}
-
-	argv[count] = (char *)mntpt;
-	rc = libzfs_run_process(argv[0], argv, STDOUT_VERBOSE|STDERR_VERBOSE);
-
-	return (rc ? EINVAL : 0);
 }
 
 static int

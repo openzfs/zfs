@@ -13,7 +13,17 @@ USER_C = \
 	zutil_device_path.c \
 	zutil_import.c \
 	zutil_nicenum.c \
+	zutil_other.c \
 	zutil_pool.c
+
+if BUILD_LINUX
+USER_C += \
+	os/linux/zutil_getmntany.c \
+	os/linux/zutil_import_os.c \
+	os/linux/zutil_mount.c \
+	os/linux/zutil_sendrecv.c \
+	os/linux/zutil_util_os.c
+endif
 
 nodist_libzutil_la_SOURCES = $(USER_C)
 

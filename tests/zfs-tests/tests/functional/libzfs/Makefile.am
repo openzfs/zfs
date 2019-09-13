@@ -14,7 +14,8 @@ DEFAULT_INCLUDES += \
 	-I$(top_srcdir)/lib/libspl/include
 
 many_fds_LDADD = \
-	$(top_builddir)/lib/libzfs/libzfs.la
+	$(top_builddir)/lib/libzfs/libzfs.la \
+	$(top_builddir)/lib/libzutil/libzutil.la
 
 pkgexec_PROGRAMS = many_fds
 many_fds_SOURCES = many_fds.c

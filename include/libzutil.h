@@ -149,6 +149,28 @@ extern void zpool_dump_ddt(const ddt_stat_t *, const ddt_histogram_t *);
 extern int zpool_history_unpack(char *, uint64_t, uint64_t *, nvlist_t ***,
     uint_t *);
 
+struct libpc_handle;
+typedef struct libpc_handle libpc_handle_t;
+
+extern int zutil_error(libpc_handle_t *hdl, const char *error, const char *msg);
+extern void zutil_error_aux(libpc_handle_t *hdl, const char *fmt, ...);
+extern int zutil_no_memory(libpc_handle_t *hdl);
+extern void * zutil_alloc(libpc_handle_t *hdl, size_t size);
+extern char *zutil_strdup(libpc_handle_t *hdl, const char *str);
+extern int zutil_pool_active(libpc_handle_t *hdl, const char *name,
+    uint64_t guid, boolean_t *isactive);
+extern nvlist_t *zutil_refresh_config(libpc_handle_t *hdl, nvlist_t *tryconfig);
+extern int zutil_error_fmt(libpc_handle_t *hdl, const char *error,
+    const char *fmt, ...);
+
+extern int do_mount(const char *src, const char *mntpt, char *opts);
+extern int do_unmount(const char *mntpt, int flags);
+extern int zutil_set_pipe_max(int fd);
+extern int zutil_module_loaded(const char *module);
+extern int zutil_load_module(const char *module);
+extern int zutil_can_user_mount(void);
+extern nvlist_t *zpool_find_import_impl(libpc_handle_t *hdl,
+    importargs_t *iarg);
 #ifdef	__cplusplus
 }
 #endif

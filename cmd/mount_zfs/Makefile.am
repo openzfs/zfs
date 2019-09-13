@@ -18,4 +18,5 @@ mount_zfs_SOURCES = \
 
 mount_zfs_LDADD = \
 	$(top_builddir)/lib/libnvpair/libnvpair.la \
-	$(top_builddir)/lib/libzfs/libzfs.la
+	$(top_builddir)/lib/libzfs/libzfs.la \
+	$(top_builddir)/lib/libzutil/libzutil.la
