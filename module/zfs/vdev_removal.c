@@ -697,6 +697,7 @@ spa_finish_removal(spa_t *spa, dsl_scan_state_t state, dmu_tx_t *tx)
 	spa_vdev_removal_destroy(svr);
 
 	spa_sync_removing_state(spa, tx);
+	spa_notify_waiters(spa);
 
 	vdev_config_dirty(spa->spa_root_vdev);
 }

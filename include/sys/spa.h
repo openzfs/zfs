@@ -1204,6 +1204,14 @@ extern void spa_configfile_set(spa_t *, nvlist_t *, boolean_t);
 extern void spa_event_notify(spa_t *spa, vdev_t *vdev, nvlist_t *hist_nvl,
     const char *name);
 
+/* waiting for pool activities to complete */
+extern int spa_wait(const char *pool, zpool_wait_activity_t activity,
+    boolean_t *waited);
+extern int spa_wait_tag(const char *name, zpool_wait_activity_t activity,
+    uint64_t tag, boolean_t *waited);
+extern void spa_notify_waiters(spa_t *spa);
+extern void spa_wake_waiters(spa_t *spa);
+
 #ifdef ZFS_DEBUG
 #define	dprintf_bp(bp, fmt, ...) do {				\
 	if (zfs_flags & ZFS_DEBUG_DPRINTF) {			\

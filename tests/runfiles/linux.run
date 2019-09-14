@@ -488,6 +488,19 @@ tests = ['zpool_upgrade_001_pos', 'zpool_upgrade_002_pos',
     'zpool_upgrade_009_neg']
 tags = ['functional', 'cli_root', 'zpool_upgrade']
 
+[tests/functional/cli_root/zpool_wait]
+tests = ['zpool_wait_discard', 'zpool_wait_freeing',
+    'zpool_wait_initialize_basic', 'zpool_wait_initialize_cancel',
+    'zpool_wait_initialize_flag', 'zpool_wait_multiple',
+    'zpool_wait_no_activity', 'zpool_wait_remove', 'zpool_wait_remove_cancel',
+    'zpool_wait_usage']
+tags = ['functional', 'cli_root', 'zpool_wait']
+
+[tests/functional/cli_root/zpool_wait/scan]
+tests = ['zpool_wait_replace_cancel', 'zpool_wait_resilver', 'zpool_wait_scrub_cancel',
+    'zpool_wait_replace', 'zpool_wait_scrub_basic', 'zpool_wait_scrub_flag']
+tags = ['functional', 'cli_root', 'zpool_wait']
+
 [tests/functional/cli_user/misc]
 tests = ['zdb_001_neg', 'zfs_001_neg', 'zfs_allow_001_neg',
     'zfs_clone_001_neg', 'zfs_create_001_neg', 'zfs_destroy_001_neg',
@@ -503,7 +516,7 @@ tests = ['zdb_001_neg', 'zfs_001_neg', 'zfs_allow_001_neg',
     'zpool_offline_001_neg', 'zpool_online_001_neg', 'zpool_remove_001_neg',
     'zpool_replace_001_neg', 'zpool_scrub_001_neg', 'zpool_set_001_neg',
     'zpool_status_001_neg', 'zpool_upgrade_001_neg', 'arcstat_001_pos',
-    'arc_summary_001_pos', 'arc_summary_002_neg']
+    'arc_summary_001_pos', 'arc_summary_002_neg', 'zpool_wait_privilege']
 user =
 tags = ['functional', 'cli_user', 'misc']
 

@@ -85,6 +85,7 @@ extern void vdev_indirect_mark_obsolete(vdev_t *vd, uint64_t offset,
     uint64_t size);
 extern void spa_vdev_indirect_mark_obsolete(spa_t *spa, uint64_t vdev,
     uint64_t offset, uint64_t size, dmu_tx_t *tx);
+extern boolean_t vdev_replace_in_progress(vdev_t *vdev);
 
 extern void vdev_hold(vdev_t *);
 extern void vdev_rele(vdev_t *);

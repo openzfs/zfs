@@ -1541,6 +1541,8 @@ spa_unload(spa_t *spa)
 	spa_import_progress_remove(spa_guid(spa));
 	spa_load_note(spa, "UNLOADING");
 
+	spa_wake_waiters(spa);
+
 	/*
 	 * If the log space map feature is enabled and the pool is getting
 	 * exported (but not destroyed), we want to spend some time flushing
@@ -2470,6 +2472,7 @@ livelist_delete_sync(void *arg, dmu_tx_t *tx)
 		    DMU_POOL_DELETED_CLONES, tx));
 		VERIFY0(zap_destroy(mos, zap_obj, tx));
 		spa->spa_livelists_to_delete = 0;
+		spa_notify_waiters(spa);
 	}
 }
 
@@ -6947,6 +6950,7 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 	vdev_dirty(tvd, VDD_DTL, vd, txg);
 
 	spa_event_notify(spa, vd, NULL, ESC_ZFS_VDEV_REMOVE);
+	spa_notify_waiters(spa);
 
 	/* hang on to the spa before we release the lock */
 	spa_open_ref(spa, FTAG);
@@ -9226,6 +9230,279 @@ spa_total_metaslabs(spa_t *spa)
 		m += vd->vdev_ms_count;
 	}
 	return (m);
+}
+
+/*
+ * Notify any waiting threads that some activity has switched from being in-
+ * progress to not-in-progress so that the thread can wake up and determine
+ * whether it is finished waiting.
+ */
+void
+spa_notify_waiters(spa_t *spa)
+{
+	/*
+	 * Acquiring spa_activities_lock here prevents the cv_broadcast from
+	 * happening between the waiting thread's check and cv_wait.
+	 */
+	mutex_enter(&spa->spa_activities_lock);
+	cv_broadcast(&spa->spa_activities_cv);
+	mutex_exit(&spa->spa_activities_lock);
+}
+
+/*
+ * Notify any waiting threads that the pool is exporting, and then block until
+ * they are finished using the spa_t.
+ */
+void
+spa_wake_waiters(spa_t *spa)
+{
+	mutex_enter(&spa->spa_activities_lock);
+	spa->spa_waiters_cancel = B_TRUE;
+	cv_broadcast(&spa->spa_activities_cv);
+	while (spa->spa_waiters != 0)
+		cv_wait(&spa->spa_waiters_cv, &spa->spa_activities_lock);
+	spa->spa_waiters_cancel = B_FALSE;
+	mutex_exit(&spa->spa_activities_lock);
+}
+
+/* Whether the vdev or any of its descendants is initializing. */
+static boolean_t
+spa_vdev_initializing_impl(vdev_t *vd)
+{
+	spa_t *spa = vd->vdev_spa;
+	boolean_t initializing;
+
+	ASSERT(spa_config_held(spa, SCL_CONFIG | SCL_STATE, RW_READER));
+	ASSERT(MUTEX_HELD(&spa->spa_activities_lock));
+
+	mutex_exit(&spa->spa_activities_lock);
+	mutex_enter(&vd->vdev_initialize_lock);
+	mutex_enter(&spa->spa_activities_lock);
+
+	initializing = (vd->vdev_initialize_state == VDEV_INITIALIZE_ACTIVE);
+	mutex_exit(&vd->vdev_initialize_lock);
+
+	if (initializing)
+		return (B_TRUE);
+
+	for (int i = 0; i < vd->vdev_children; i++) {
+		if (spa_vdev_initializing_impl(vd->vdev_child[i]))
+			return (B_TRUE);
+	}
+
+	return (B_FALSE);
+}
+
+/*
+ * If use_guid is true, this checks whether the vdev specified by guid is
+ * being initialized. Otherwise, it checks whether any vdev in the pool is being
+ * initialized. The caller must hold the config lock and spa_activities_lock.
+ */
+static int
+spa_vdev_initializing(spa_t *spa, boolean_t use_guid, uint64_t guid,
+    boolean_t *in_progress)
+{
+	mutex_exit(&spa->spa_activities_lock);
+	spa_config_enter(spa, SCL_CONFIG | SCL_STATE, FTAG, RW_READER);
+	mutex_enter(&spa->spa_activities_lock);
+
+	vdev_t *vd;
+	if (use_guid) {
+		vd = spa_lookup_by_guid(spa, guid, B_FALSE);
+		if (vd == NULL || !vd->vdev_ops->vdev_op_leaf) {
+			spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);
+			return (EINVAL);
+		}
+	} else {
+		vd = spa->spa_root_vdev;
+	}
+
+	*in_progress = spa_vdev_initializing_impl(vd);
+
+	spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);
+	return (0);
+}
+
+/*
+ * Locking for waiting threads
+ * ---------------------------
+ *
+ * Waiting threads need a way to check whether a given activity is in progress,
+ * and then, if it is, wait for it to complete. Each activity will have some
+ * in-memory representation of the relevant on-disk state which can be used to
+ * determine whether or not the activity is in progress. The in-memory state and
+ * the locking used to protect it will be different for each activity, and may
+ * not be suitable for use with a cvar (e.g., some state is protected by the
+ * config lock). To allow waiting threads to wait without any races, another
+ * lock, spa_activities_lock, is used.
+ *
+ * When the state is checked, both the activity-specific lock (if there is one)
+ * and spa_activities_lock are held. In some cases, the activity-specific lock
+ * is acquired explicitly (e.g. the config lock). In others, the locking is
+ * internal to some check (e.g. bpobj_is_empty). After checking, the waiting
+ * thread releases the activity-specific lock and, if the activity is in
+ * progress, then cv_waits using spa_activities_lock.
+ *
+ * The waiting thread is woken when another thread, one completing some
+ * activity, updates the state of the activity and then calls
+ * spa_notify_waiters, which will cv_broadcast. This 'completing' thread only
+ * needs to hold its activity-specific lock when updating the state, and this
+ * lock can (but doesn't have to) be dropped before calling spa_notify_waiters.
+ *
+ * Because spa_notify_waiters acquires spa_activities_lock before broadcasting,
+ * and because it is held when the waiting thread checks the state of the
+ * activity, it can never be the case that the completing thread both updates
+ * the activity state and cv_broadcasts in between the waiting thread's check
+ * and cv_wait. Thus, a waiting thread can never miss a wakeup.
+ *
+ * In order to prevent deadlock, when the waiting thread does its check, in some
+ * cases it will temporarily drop spa_activities_lock in order to acquire the
+ * activity-specific lock. The order in which spa_activities_lock and the
+ * activity specific lock are acquired in the waiting thread is determined by
+ * the order in which they are acquired in the completing thread; if the
+ * completing thread calls spa_notify_waiters with the activity-specific lock
+ * held, then the waiting thread must also acquire the activity-specific lock
+ * first.
+ */
+
+static int
+spa_activity_in_progress(spa_t *spa, zpool_wait_activity_t activity,
+    boolean_t use_tag, uint64_t tag, boolean_t *in_progress)
+{
+	int error = 0;
+
+	ASSERT(MUTEX_HELD(&spa->spa_activities_lock));
+
+	switch (activity) {
+	case ZPOOL_WAIT_CKPT_DISCARD:
+		*in_progress =
+		    (spa_feature_is_active(spa, SPA_FEATURE_POOL_CHECKPOINT) &&
+		    zap_contains(spa_meta_objset(spa),
+		    DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_ZPOOL_CHECKPOINT) ==
+		    ENOENT);
+		break;
+	case ZPOOL_WAIT_FREE:
+		*in_progress = ((spa_version(spa) >= SPA_VERSION_DEADLISTS &&
+		    !bpobj_is_empty(&spa->spa_dsl_pool->dp_free_bpobj)) ||
+		    spa_feature_is_active(spa, SPA_FEATURE_ASYNC_DESTROY) ||
+		    spa_livelist_delete_check(spa));
+		break;
+	case ZPOOL_WAIT_INITIALIZE:
+		error = spa_vdev_initializing(spa, use_tag, tag, in_progress);
+		break;
+	case ZPOOL_WAIT_REPLACE:
+		mutex_exit(&spa->spa_activities_lock);
+		spa_config_enter(spa, SCL_CONFIG | SCL_STATE, FTAG, RW_READER);
+		mutex_enter(&spa->spa_activities_lock);
+
+		*in_progress = vdev_replace_in_progress(spa->spa_root_vdev);
+		spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);
+		break;
+	case ZPOOL_WAIT_REMOVE:
+		*in_progress = (spa->spa_removing_phys.sr_state ==
+		    DSS_SCANNING);
+		break;
+	case ZPOOL_WAIT_RESILVER:
+	case ZPOOL_WAIT_SCRUB:
+	{
+		boolean_t scanning, paused, is_scrub;
+		dsl_scan_t *scn =  spa->spa_dsl_pool->dp_scan;
+
+		is_scrub = (scn->scn_phys.scn_func == POOL_SCAN_SCRUB);
+		scanning = (scn->scn_phys.scn_state == DSS_SCANNING);
+		paused = dsl_scan_is_paused_scrub(scn);
+		*in_progress = (scanning && !paused &&
+		    is_scrub == (activity == ZPOOL_WAIT_SCRUB));
+		break;
+	}
+	default:
+		panic("unrecognized value for activity %d", activity);
+	}
+
+	return (error);
+}
+
+static int
+spa_wait_common(const char *pool, zpool_wait_activity_t activity,
+    boolean_t use_tag, uint64_t tag, boolean_t *waited)
+{
+	/*
+	 * The tag is used to distinguish between instances of an activity.
+	 * 'initialize' is the only activity that we use this for. The other
+	 * activities can only have a single instance in progress in a pool at
+	 * one time, making the tag unnecessary.
+	 *
+	 * There can be multiple devices being replaced at once, but since they
+	 * all finish once resilvering finishes, we don't bother keeping track
+	 * of them individually, we just wait for them all to finish.
+	 */
+	if (use_tag && activity != ZPOOL_WAIT_INITIALIZE)
+		return (EINVAL);
+
+	if (activity < 0 || activity >= ZPOOL_WAIT_NUM_ACTIVITIES)
+		return (EINVAL);
+
+	spa_t *spa;
+	int error = spa_open(pool, &spa, FTAG);
+	if (error != 0)
+		return (error);
+
+	/*
+	 * Increment the spa's waiter count so that we can call spa_close and
+	 * still ensure that the spa_t doesn't get freed before this thread is
+	 * finished with it when the pool is exported. We want to call spa_close
+	 * before we start waiting because otherwise the additional ref would
+	 * prevent the pool from being exported or destroyed throughout the
+	 * potentially long wait.
+	 */
+	mutex_enter(&spa->spa_activities_lock);
+	spa->spa_waiters++;
+	spa_close(spa, FTAG);
+
+	*waited = B_FALSE;
+	for (;;) {
+		boolean_t in_progress;
+		error = spa_activity_in_progress(spa, activity, use_tag, tag,
+		    &in_progress);
+
+		if (!in_progress || spa->spa_waiters_cancel || error)
+			break;
+
+		*waited = B_TRUE;
+
+		if (cv_wait_sig(&spa->spa_activities_cv,
+		    &spa->spa_activities_lock) == 0) {
+			error = EINTR;
+			break;
+		}
+	}
+
+	spa->spa_waiters--;
+	cv_signal(&spa->spa_waiters_cv);
+	mutex_exit(&spa->spa_activities_lock);
+
+	return (error);
+}
+
+/*
+ * Wait for a particular instance of the specified activity to complete, where
+ * the instance is identified by 'tag'
+ */
+int
+spa_wait_tag(const char *pool, zpool_wait_activity_t activity, uint64_t tag,
+    boolean_t *waited)
+{
+	return (spa_wait_common(pool, activity, B_TRUE, tag, waited));
+}
+
+/*
+ * Wait for all instances of the specified activity complete
+ */
+int
+spa_wait(const char *pool, zpool_wait_activity_t activity, boolean_t *waited)
+{
+
+	return (spa_wait_common(pool, activity, B_FALSE, 0, waited));
 }
 
 sysevent_t *

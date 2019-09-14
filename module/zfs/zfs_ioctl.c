@@ -4070,6 +4070,56 @@ zfs_ioc_pool_trim(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 }
 
 /*
+ * This ioctl waits for activity of a particular type to complete. If there is
+ * no activity of that type in progress, it returns immediately, and the
+ * returned value "waited" is false. If there is activity in progress, and no
+ * tag is passed in, the ioctl blocks until all activity of that type is
+ * complete, and then returns with "waited" set to true.
+ *
+ * If a tag is provided, it identifies a particular instance of an activity to
+ * wait for. Currently, this is only valid for use with 'initialize', because
+ * that is the only activity for which there can be multiple instances running
+ * concurrently. In the case of 'initialize', the tag corresponds to the guid of
+ * the vdev on which to wait.
+ *
+ * If a thread waiting in the ioctl receives a signal, the call will return
+ * immediately, and the return value will be EINTR.
+ *
+ * innvl: {
+ *     "wait_activity" -> int32_t
+ *     (optional) "wait_tag" -> uint64_t
+ * }
+ *
+ * outnvl: "waited" -> boolean_t
+ */
+static const zfs_ioc_key_t zfs_keys_pool_wait[] = {
+	{ZPOOL_WAIT_ACTIVITY,	DATA_TYPE_INT32,		0},
+	{ZPOOL_WAIT_TAG,	DATA_TYPE_UINT64,		ZK_OPTIONAL},
+};
+
+static int
+zfs_ioc_wait(const char *name, nvlist_t *innvl, nvlist_t *outnvl)
+{
+	int32_t activity;
+	uint64_t tag;
+	boolean_t waited;
+	int error;
+
+	if (nvlist_lookup_int32(innvl, ZPOOL_WAIT_ACTIVITY, &activity) != 0)
+		return (EINVAL);
+
+	if (nvlist_lookup_uint64(innvl, ZPOOL_WAIT_TAG, &tag) == 0)
+		error = spa_wait_tag(name, activity, tag, &waited);
+	else
+		error = spa_wait(name, activity, &waited);
+
+	if (error == 0)
+		fnvlist_add_boolean_value(outnvl, ZPOOL_WAIT_WAITED, waited);
+
+	return (error);
+}
+
+/*
  * fsname is name of dataset to rollback (to most recent snapshot)
  *
  * innvl may contain name of expected target snapshot
@@ -6893,6 +6943,11 @@ zfs_ioctl_init(void)
 	    zfs_ioc_pool_trim, zfs_secpolicy_config, POOL_NAME,
 	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_TRUE, B_TRUE,
 	    zfs_keys_pool_trim, ARRAY_SIZE(zfs_keys_pool_trim));
+
+	zfs_ioctl_register("wait", ZFS_IOC_WAIT,
+	    zfs_ioc_wait, zfs_secpolicy_none, POOL_NAME,
+	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_FALSE, B_FALSE,
+	    zfs_keys_pool_wait, ARRAY_SIZE(zfs_keys_pool_wait));
 
 	/* IOCTLS that use the legacy function signature */
 

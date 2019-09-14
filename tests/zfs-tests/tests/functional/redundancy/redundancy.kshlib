@@ -229,14 +229,7 @@ function replace_missing_devs
 		log_must gnudd if=/dev/zero of=$vdev \
 		    bs=1024k count=$(($MINDEVSIZE / (1024 * 1024))) \
 		    oflag=fdatasync
-		log_must zpool replace -f $pool $vdev $vdev
-		while true; do
-			if ! is_pool_resilvered $pool ; then
-				log_must sleep 2
-			else
-				break
-			fi
-		done
+		log_must zpool replace -wf $pool $vdev $vdev
 	done
 }
 

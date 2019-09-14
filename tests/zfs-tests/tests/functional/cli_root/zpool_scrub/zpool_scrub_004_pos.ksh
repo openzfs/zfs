@@ -73,8 +73,6 @@ log_must is_pool_resilvering $TESTPOOL
 log_mustnot zpool scrub $TESTPOOL
 
 log_must set_tunable32 zfs_scan_suspend_progress 0
-while ! is_pool_resilvered $TESTPOOL; do
-	sleep 1
-done
+log_must zpool wait -t resilver $TESTPOOL
 
 log_pass "Resilver prevent scrub from starting until the resilver completes"
