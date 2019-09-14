@@ -219,7 +219,7 @@ vdev_elevator_switch(vdev_t *v, char *elevator)
 	char *envp[] = { NULL };
 
 	argv[2] = kmem_asprintf(SET_SCHEDULER_CMD, device, elevator);
-	error = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
+	error = call_usermodehelper(argv[0], argv, envp, UMH_NO_WAIT);
 	strfree(argv[2]);
 #endif /* HAVE_ELEVATOR_CHANGE */
 	if (error) {

@@ -132,6 +132,9 @@ int lzc_reopen(const char *, boolean_t);
 int lzc_pool_checkpoint(const char *);
 int lzc_pool_checkpoint_discard(const char *);
 
+int lzc_wait(const char *, zpool_wait_activity_t, boolean_t *);
+int lzc_wait_tag(const char *, zpool_wait_activity_t, uint64_t, boolean_t *);
+
 #ifdef	__cplusplus
 }
 #endif

@@ -281,6 +281,8 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/cli_root/zpool_trim/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zpool_upgrade/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zpool_upgrade/blockfiles/Makefile
+	tests/zfs-tests/tests/functional/cli_root/zpool_wait/Makefile
+	tests/zfs-tests/tests/functional/cli_root/zpool_wait/scan/Makefile
 	tests/zfs-tests/tests/functional/cli_user/Makefile
 	tests/zfs-tests/tests/functional/cli_user/misc/Makefile
 	tests/zfs-tests/tests/functional/cli_user/zfs_list/Makefile

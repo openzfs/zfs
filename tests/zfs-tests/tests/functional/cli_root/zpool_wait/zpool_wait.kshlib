@@ -1,0 +1,124 @@
+#!/bin/ksh
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+
+#
+# Copyright (c) 2018 by Delphix. All rights reserved.
+#
+
+typeset -a disk_array=($(find_disks $DISKS))
+
+typeset -r DISK1=${disk_array[0]}
+typeset -r DISK2=${disk_array[1]}
+typeset -r DISK3=${disk_array[2]}
+
+#
+# When the condition it is waiting for becomes true, 'zpool wait' should return
+# promptly. We want to enforce this, but any check will be racey because it will
+# take some small but indeterminate amount of time for the waiting thread to be
+# woken up and for the process to exit.
+#
+# To deal with this, we provide a grace period after the condition becomes true
+# during which 'zpool wait' can exit. If it hasn't exited by the time the grace
+# period expires we assume something is wrong and fail the test. While there is
+# no value that can really be correct, the idea is we choose something large
+# enough that it shouldn't cause issues in practice.
+#
+typeset -r WAIT_EXIT_GRACE=2.0
+
+function add_io_delay # pool
+{
+	for disk in $(get_disklist $1); do
+		log_must zinject -d $disk -D20:1 $1
+	done
+}
+
+function remove_io_delay
+{
+	log_must zinject -c all
+}
+
+function proc_exists # pid
+{
+	ps -p $1 >/dev/null
+}
+
+function proc_must_exist # pid
+{
+	proc_exists $1 || log_fail "zpool process exited too soon"
+}
+
+function proc_must_not_exist # pid
+{
+	proc_exists $1 && log_fail "zpool process took too long to exit"
+}
+
+function get_time
+{
+	date +'%H:%M:%S'
+}
+
+function kill_if_running
+{
+	typeset pid=$1
+	[[ $pid ]] && proc_exists $pid && log_must kill -s TERM $pid
+}
+
+# Log a command and then start it running in the background
+function log_bkgrnd
+{
+	log_note "$(get_time) Starting cmd in background '$@'"
+	"$@" &
+}
+
+# Check that a background process has completed and exited with a status of 0
+function bkgrnd_proc_succeeded
+{
+	typeset pid=$1
+
+	log_must sleep $WAIT_EXIT_GRACE
+
+	proc_must_not_exist $pid
+	wait $pid || log_fail "zpool process exited with status $?"
+	log_note "$(get_time) wait completed successfully"
+}
+
+#
+# Check that 'zpool wait' returns reasonably promptly after the condition
+# waited for becomes true, and not before.
+#
+function check_while_waiting
+{
+	# The pid of the waiting process
+	typeset wait_proc_pid=$1
+	# A check that should be true while the activity is in progress
+	typeset activity_check=$2
+
+	log_note "$(get_time) waiting for process $wait_proc_pid using" \
+	    "activity check '$activity_check'"
+	while proc_exists $wait_proc_pid && eval "$activity_check"; do
+		log_must sleep .5
+	done
+
+	#
+	# If the activity being waited on is still in progress, then zpool wait
+	# exited too soon.
+	#
+	log_mustnot eval "$activity_check"
+
+	bkgrnd_proc_succeeded $wait_proc_pid
+}
+
+# Whether any vdev in the given pool is initializing
+function is_vdev_initializing # pool
+{
+	zpool status -i "$1" | grep 'initialized, started' >/dev/null
+}

@@ -64,9 +64,7 @@ function wait_for_removing_cancel
 {
 	typeset pool=$1
 
-	while is_pool_removing $pool; do
-		sleep 1
-	done
+	log_must zpool wait -t remove $pool
 
 	#
 	# The pool state changes before the TXG finishes syncing; wait for

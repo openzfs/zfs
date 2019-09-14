@@ -155,21 +155,12 @@ function check_livelist_exists
 		log_fail "zdb could not find Livelist"
 }
 
-# Wait for the deferred destroy livelists to be removed
-function wait_for_deferred_destroy
-{
-	sync
-	deleted=$(zdb -vvvvv $TESTPOOL | grep "Deleted Livelist")
-	while [[ "$deleted" != "" ]]; do
-		deleted=$(zdb -vvvvv $TESTPOOL | grep "Deleted Livelist")
-	done
-}
-
 # Check that a livelist has been removed, waiting for deferred destroy entries
 # to be cleared from zdb.
 function check_livelist_gone
 {
-	wait_for_deferred_destroy
+	log_must zpool wait -t free $TESTPOOL
+	zpool sync
 	zdb -vvvvv $TESTPOOL | grep "Livelist" && \
 		log_fail "zdb found Livelist after the clone is deleted."
 }

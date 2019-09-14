@@ -191,6 +191,7 @@ spa_checkpoint_discard_complete_sync(void *arg, dmu_tx_t *tx)
 	spa->spa_checkpoint_info.sci_timestamp = 0;
 
 	spa_feature_decr(spa, SPA_FEATURE_POOL_CHECKPOINT, tx);
+	spa_notify_waiters(spa);
 
 	spa_history_log_internal(spa, "spa discard checkpoint", tx,
 	    "finished discarding checkpointed state from the pool");

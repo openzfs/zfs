@@ -2160,7 +2160,7 @@ function check_pool_status # pool token keyword <verbose>
 }
 
 #
-# These 6 following functions are instance of check_pool_status()
+# The following functions are instance of check_pool_status()
 #	is_pool_resilvering - to check if the pool is resilver in progress
 #	is_pool_resilvered - to check if the pool is resilver completed
 #	is_pool_scrubbing - to check if the pool is scrub in progress
@@ -2169,6 +2169,7 @@ function check_pool_status # pool token keyword <verbose>
 #	is_pool_scrub_paused - to check if the pool has scrub paused
 #	is_pool_removing - to check if the pool is removing a vdev
 #	is_pool_removed - to check if the pool is remove completed
+#	is_pool_discarding - to check if the pool has checkpoint being discarded
 #
 function is_pool_resilvering #pool <verbose>
 {
@@ -2215,6 +2216,12 @@ function is_pool_removing #pool
 function is_pool_removed #pool
 {
 	check_pool_status "$1" "remove" "completed on"
+	return $?
+}
+
+function is_pool_discarding #pool
+{
+	check_pool_status "$1" "checkpoint" "discarding"
 	return $?
 }
 
