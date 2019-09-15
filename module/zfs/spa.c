@@ -9465,7 +9465,7 @@ spa_wait_common(const char *pool, zpool_wait_activity_t activity,
 		error = spa_activity_in_progress(spa, activity, use_tag, tag,
 		    &in_progress);
 
-		if (!in_progress || spa->spa_waiters_cancel || error)
+		if (error || !in_progress || spa->spa_waiters_cancel)
 			break;
 
 		*waited = B_TRUE;
