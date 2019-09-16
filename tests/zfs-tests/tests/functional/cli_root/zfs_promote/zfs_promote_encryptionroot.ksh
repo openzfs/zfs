@@ -29,11 +29,12 @@
 # 1. Create an encrypted dataset
 # 2. Clone the encryption root
 # 3. Clone the clone
-# 4. Verify the encryption root of all three datasets is the origin
+# 4. Add children to each of these three datasets
+# 4. Verify the encryption root of all datasets is the origin
 # 5. Promote the clone of the clone
-# 6. Verify the encryption root of all three datasets is still the origin
-# 7. Promote the clone of the original encryption root
-# 8. Verify the encryption root of all three datasets is the promoted dataset
+# 6. Verify the encryption root of all datasets is still the origin
+# 7. Promote the dataset again, so it is now the encryption root
+# 8. Verify the encryption root of all datasets is the promoted dataset
 #
 
 verify_runnable "both"
@@ -62,19 +63,31 @@ log_must zfs snap $snaproot
 log_must zfs clone $snaproot $TESTPOOL/clone1
 log_must zfs snap $snapclone
 log_must zfs clone $snapclone $TESTPOOL/clone2
+log_must zfs create $TESTPOOL/$TESTFS1/child0
+log_must zfs create $TESTPOOL/clone1/child1
+log_must zfs create $TESTPOOL/clone2/child2
 
 log_must verify_encryption_root $TESTPOOL/$TESTFS1 $TESTPOOL/$TESTFS1
 log_must verify_encryption_root $TESTPOOL/clone1 $TESTPOOL/$TESTFS1
 log_must verify_encryption_root $TESTPOOL/clone2 $TESTPOOL/$TESTFS1
+log_must verify_encryption_root $TESTPOOL/$TESTFS1/child0 $TESTPOOL/$TESTFS1
+log_must verify_encryption_root $TESTPOOL/clone1/child1 $TESTPOOL/$TESTFS1
+log_must verify_encryption_root $TESTPOOL/clone2/child2 $TESTPOOL/$TESTFS1
 
 log_must zfs promote $TESTPOOL/clone2
 log_must verify_encryption_root $TESTPOOL/$TESTFS1 $TESTPOOL/$TESTFS1
 log_must verify_encryption_root $TESTPOOL/clone1 $TESTPOOL/$TESTFS1
 log_must verify_encryption_root $TESTPOOL/clone2 $TESTPOOL/$TESTFS1
+log_must verify_encryption_root $TESTPOOL/$TESTFS1/child0 $TESTPOOL/$TESTFS1
+log_must verify_encryption_root $TESTPOOL/clone1/child1 $TESTPOOL/$TESTFS1
+log_must verify_encryption_root $TESTPOOL/clone2/child2 $TESTPOOL/$TESTFS1
 
 log_must zfs promote $TESTPOOL/clone2
 log_must verify_encryption_root $TESTPOOL/$TESTFS1 $TESTPOOL/clone2
 log_must verify_encryption_root $TESTPOOL/clone1 $TESTPOOL/clone2
 log_must verify_encryption_root $TESTPOOL/clone2 $TESTPOOL/clone2
+log_must verify_encryption_root $TESTPOOL/$TESTFS1/child0 $TESTPOOL/clone2
+log_must verify_encryption_root $TESTPOOL/clone1/child1 $TESTPOOL/clone2
+log_must verify_encryption_root $TESTPOOL/clone2/child2 $TESTPOOL/clone2
 
 log_pass "ZFS promotes clones of an encryption root"
