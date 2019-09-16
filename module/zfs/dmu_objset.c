@@ -1195,6 +1195,12 @@ dmu_objset_upgrade_stop(objset_t *os)
 	}
 }
 
+static multilist_node_t *
+multilist_d2l(multilist_t *ml, void *obj)
+{
+	return ((multilist_node_t *)((char *)obj + ml->ml_offset));
+}
+
 static void
 dmu_objset_sync_dnodes(multilist_sublist_t *list, dmu_tx_t *tx)
 {
@@ -1223,8 +1229,19 @@ dmu_objset_sync_dnodes(multilist_sublist_t *list, dmu_tx_t *tx)
 		 */
 		multilist_t *newlist = dn->dn_objset->os_synced_dnodes;
 		if (newlist != NULL) {
-			(void) dnode_add_ref(dn, newlist);
-			multilist_insert(newlist, dn);
+			int index;
+			index = newlist->ml_index_func(newlist, dn);
+			multilist_sublist_t *list =
+				multilist_sublist_lock(newlist, index);
+
+			if (multilist_link_active(multilist_d2l(newlist, dn))) {
+				printk(KERN_WARNING "dmu_objset_sync_dnodes: already in list: dn=%px, newlist=%px, dn->dn_objset=%px\n",
+					dn, newlist, dn->dn_objset);
+			} else {
+				(void) dnode_add_ref(dn, newlist);
+				multilist_insert(newlist, dn);
+			}
+			multilist_sublist_unlock(list);
 		} else {
 			mutex_enter(&dn->dn_mtx);
 			if (dn->dn_dirty_txg == tx->tx_txg)
