@@ -22,6 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2019 by Delphix. All rights reserved.
+ * Copyright (c) 2019, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -1972,6 +1973,9 @@ spa_vdev_remove_top_check(vdev_t *vd)
 	spa_t *spa = vd->vdev_spa;
 
 	if (vd != vd->vdev_top)
+		return (SET_ERROR(ENOTSUP));
+
+	if (!vdev_is_concrete(vd))
 		return (SET_ERROR(ENOTSUP));
 
 	if (!spa_feature_is_enabled(spa, SPA_FEATURE_DEVICE_REMOVAL))
