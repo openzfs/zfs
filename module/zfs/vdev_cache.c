@@ -111,7 +111,7 @@ vdev_cache_offset_compare(const void *a1, const void *a2)
 	const vdev_cache_entry_t *ve1 = (const vdev_cache_entry_t *)a1;
 	const vdev_cache_entry_t *ve2 = (const vdev_cache_entry_t *)a2;
 
-	return (AVL_CMP(ve1->ve_offset, ve2->ve_offset));
+	return (TREE_CMP(ve1->ve_offset, ve2->ve_offset));
 }
 
 static int
@@ -120,7 +120,7 @@ vdev_cache_lastused_compare(const void *a1, const void *a2)
 	const vdev_cache_entry_t *ve1 = (const vdev_cache_entry_t *)a1;
 	const vdev_cache_entry_t *ve2 = (const vdev_cache_entry_t *)a2;
 
-	int cmp = AVL_CMP(ve1->ve_lastused, ve2->ve_lastused);
+	int cmp = TREE_CMP(ve1->ve_lastused, ve2->ve_lastused);
 	if (likely(cmp))
 		return (cmp);
 

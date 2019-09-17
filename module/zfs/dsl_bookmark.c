@@ -595,16 +595,16 @@ dsl_bookmark_compare(const void *l, const void *r)
 	const dsl_bookmark_node_t *ldbn = l;
 	const dsl_bookmark_node_t *rdbn = r;
 
-	int64_t cmp = AVL_CMP(ldbn->dbn_phys.zbm_creation_txg,
+	int64_t cmp = TREE_CMP(ldbn->dbn_phys.zbm_creation_txg,
 	    rdbn->dbn_phys.zbm_creation_txg);
 	if (likely(cmp))
 		return (cmp);
-	cmp = AVL_CMP((ldbn->dbn_phys.zbm_flags & ZBM_FLAG_HAS_FBN),
+	cmp = TREE_CMP((ldbn->dbn_phys.zbm_flags & ZBM_FLAG_HAS_FBN),
 	    (rdbn->dbn_phys.zbm_flags & ZBM_FLAG_HAS_FBN));
 	if (likely(cmp))
 		return (cmp);
 	cmp = strcmp(ldbn->dbn_name, rdbn->dbn_name);
-	return (AVL_ISIGN(cmp));
+	return (TREE_ISIGN(cmp));
 }
 
 /*

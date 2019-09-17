@@ -1209,7 +1209,7 @@ guid_compare(const void *arg1, const void *arg2)
 	const guid_map_entry_t *gmep1 = (const guid_map_entry_t *)arg1;
 	const guid_map_entry_t *gmep2 = (const guid_map_entry_t *)arg2;
 
-	return (AVL_CMP(gmep1->guid, gmep2->guid));
+	return (TREE_CMP(gmep1->guid, gmep2->guid));
 }
 
 static void

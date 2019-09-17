@@ -280,11 +280,11 @@ mze_compare(const void *arg1, const void *arg2)
 	const mzap_ent_t *mze1 = arg1;
 	const mzap_ent_t *mze2 = arg2;
 
-	int cmp = AVL_CMP(mze1->mze_hash, mze2->mze_hash);
+	int cmp = TREE_CMP(mze1->mze_hash, mze2->mze_hash);
 	if (likely(cmp))
 		return (cmp);
 
-	return (AVL_CMP(mze1->mze_cd, mze2->mze_cd));
+	return (TREE_CMP(mze1->mze_cd, mze2->mze_cd));
 }
 
 static void

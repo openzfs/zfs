@@ -109,7 +109,7 @@ rangelock_compare(const void *arg1, const void *arg2)
 	const locked_range_t *rl1 = (const locked_range_t *)arg1;
 	const locked_range_t *rl2 = (const locked_range_t *)arg2;
 
-	return (AVL_CMP(rl1->lr_offset, rl2->lr_offset));
+	return (TREE_CMP(rl1->lr_offset, rl2->lr_offset));
 }
 
 /*

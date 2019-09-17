@@ -73,7 +73,7 @@ idx_compare(const void *arg1, const void *arg2)
 	const fuid_domain_t *node1 = (const fuid_domain_t *)arg1;
 	const fuid_domain_t *node2 = (const fuid_domain_t *)arg2;
 
-	return (AVL_CMP(node1->f_idx, node2->f_idx));
+	return (TREE_CMP(node1->f_idx, node2->f_idx));
 }
 
 /*
@@ -88,7 +88,7 @@ domain_compare(const void *arg1, const void *arg2)
 
 	val = strcmp(node1->f_ksid->kd_name, node2->f_ksid->kd_name);
 
-	return (AVL_ISIGN(val));
+	return (TREE_ISIGN(val));
 }
 
 void

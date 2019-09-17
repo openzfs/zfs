@@ -58,6 +58,7 @@
 #include <sys/ddt.h>
 #include <sys/kstat.h>
 #include "zfs_prop.h"
+#include <sys/btree.h>
 #include <sys/zfeature.h>
 #include <sys/qat.h>
 
@@ -619,7 +620,7 @@ spa_log_sm_sort_by_txg(const void *va, const void *vb)
 	const spa_log_sm_t *a = va;
 	const spa_log_sm_t *b = vb;
 
-	return (AVL_CMP(a->sls_txg, b->sls_txg));
+	return (TREE_CMP(a->sls_txg, b->sls_txg));
 }
 
 /*
@@ -939,7 +940,7 @@ spa_aux_compare(const void *a, const void *b)
 	const spa_aux_t *sa = (const spa_aux_t *)a;
 	const spa_aux_t *sb = (const spa_aux_t *)b;
 
-	return (AVL_CMP(sa->aux_guid, sb->aux_guid));
+	return (TREE_CMP(sa->aux_guid, sb->aux_guid));
 }
 
 void
@@ -2270,7 +2271,7 @@ spa_name_compare(const void *a1, const void *a2)
 
 	s = strcmp(s1->spa_name, s2->spa_name);
 
-	return (AVL_ISIGN(s));
+	return (TREE_ISIGN(s));
 }
 
 void
@@ -2318,8 +2319,8 @@ spa_init(int mode)
 	fm_init();
 	zfs_refcount_init();
 	unique_init();
-	range_tree_init();
-	metaslab_alloc_trace_init();
+	zfs_btree_init();
+	metaslab_stat_init();
 	ddt_init();
 	zio_init();
 	dmu_init();
@@ -2353,8 +2354,8 @@ spa_fini(void)
 	dmu_fini();
 	zio_fini();
 	ddt_fini();
-	metaslab_alloc_trace_fini();
-	range_tree_fini();
+	metaslab_stat_fini();
+	zfs_btree_fini();
 	unique_fini();
 	zfs_refcount_fini();
 	fm_fini();

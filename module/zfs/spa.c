@@ -952,7 +952,7 @@ spa_error_entry_compare(const void *a, const void *b)
 	ret = memcmp(&sa->se_bookmark, &sb->se_bookmark,
 	    sizeof (zbookmark_phys_t));
 
-	return (AVL_ISIGN(ret));
+	return (TREE_ISIGN(ret));
 }
 
 /*

@@ -23,6 +23,7 @@ $(MODULE)-objs += bplist.o
 $(MODULE)-objs += bpobj.o
 $(MODULE)-objs += bptree.o
 $(MODULE)-objs += bqueue.o
+$(MODULE)-objs += btree.o
 $(MODULE)-objs += cityhash.o
 $(MODULE)-objs += dataset_kstats.o
 $(MODULE)-objs += dbuf.o

@@ -1475,11 +1475,11 @@ slice_cache_compare(const void *arg1, const void *arg2)
 	uint64_t guid2 = ((rdsk_node_t *)arg2)->rn_vdev_guid;
 	int rv;
 
-	rv = AVL_ISIGN(strcmp(nm1, nm2));
+	rv = TREE_ISIGN(strcmp(nm1, nm2));
 	if (rv)
 		return (rv);
 
-	return (AVL_CMP(guid1, guid2));
+	return (TREE_CMP(guid1, guid2));
 }
 
 static boolean_t

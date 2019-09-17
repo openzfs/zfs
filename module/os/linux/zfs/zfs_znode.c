@@ -247,7 +247,7 @@ zfs_znode_hold_compare(const void *a, const void *b)
 	const znode_hold_t *zh_a = (const znode_hold_t *)a;
 	const znode_hold_t *zh_b = (const znode_hold_t *)b;
 
-	return (AVL_CMP(zh_a->zh_obj, zh_b->zh_obj));
+	return (TREE_CMP(zh_a->zh_obj, zh_b->zh_obj));
 }
 
 boolean_t

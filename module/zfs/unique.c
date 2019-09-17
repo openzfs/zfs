@@ -45,7 +45,7 @@ unique_compare(const void *a, const void *b)
 	const unique_t *una = (const unique_t *)a;
 	const unique_t *unb = (const unique_t *)b;
 
-	return (AVL_CMP(una->un_value, unb->un_value));
+	return (TREE_CMP(una->un_value, unb->un_value));
 }
 
 void

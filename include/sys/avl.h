@@ -108,9 +108,9 @@ extern "C" {
 /*
  * AVL comparator helpers
  */
-#define	AVL_ISIGN(a)	(((a) > 0) - ((a) < 0))
-#define	AVL_CMP(a, b)	(((a) > (b)) - ((a) < (b)))
-#define	AVL_PCMP(a, b)	\
+#define	TREE_ISIGN(a)	(((a) > 0) - ((a) < 0))
+#define	TREE_CMP(a, b)	(((a) > (b)) - ((a) < (b)))
+#define	TREE_PCMP(a, b)	\
 	(((uintptr_t)(a) > (uintptr_t)(b)) - ((uintptr_t)(a) < (uintptr_t)(b)))
 
 /*
