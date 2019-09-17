@@ -2175,9 +2175,9 @@ ds_clone_swapped_bookmark(dsl_dataset_t *ds1, dsl_dataset_t *ds2,
 }
 
 /*
- * Called when a parent dataset and its clone are swapped. If we were
+ * Called when an origin dataset and its clone are swapped.  If we were
  * currently traversing the dataset, we need to switch to traversing the
- * newly promoted parent.
+ * newly promoted clone.
  */
 void
 dsl_scan_ds_clone_swapped(dsl_dataset_t *ds1, dsl_dataset_t *ds2, dmu_tx_t *tx)
@@ -2210,7 +2210,13 @@ dsl_scan_ds_clone_swapped(dsl_dataset_t *ds1, dsl_dataset_t *ds2, dmu_tx_t *tx)
 	}
 
 	if (ds1_queued && ds2_queued) {
-		/* Nothing to do if both are queued (or both are not queued). */
+		/*
+		 * If both are queued, we don't need to do anything.
+		 * The swapping code below would not handle this case correctly,
+		 * since we can't insert ds2 if it is already there. That's
+		 * because scan_ds_queue_insert() prohibits a duplicate insert
+		 * and panics.
+		 */
 	} else if (ds1_queued) {
 		scan_ds_queue_remove(scn, ds1->ds_object);
 		scan_ds_queue_insert(scn, ds2->ds_object, mintxg1);
@@ -2221,6 +2227,10 @@ dsl_scan_ds_clone_swapped(dsl_dataset_t *ds1, dsl_dataset_t *ds2, dmu_tx_t *tx)
 
 	/*
 	 * Handle the on-disk scan queue.
+	 * The on-disk state is an out-of-date version of the in-memory state,
+	 * so the in-memory and on-disk values for ds1_queued and ds2_queued may
+	 * be different. Therefore we need to apply the swap logic to the
+	 * on-disk state independently of the in-memory state.
 	 */
 	ds1_queued = zap_lookup_int_key(dp->dp_meta_objset,
 	    scn->scn_phys.scn_queue_obj, ds1->ds_object, &mintxg1) == 0;
@@ -2238,7 +2248,12 @@ dsl_scan_ds_clone_swapped(dsl_dataset_t *ds1, dsl_dataset_t *ds2, dmu_tx_t *tx)
 	}
 
 	if (ds1_queued && ds2_queued) {
-		/* Nothing to do if both are queued (or both are not queued). */
+		/*
+		 * If both are queued, we don't need to do anything.
+		 * Alternatively, we could check for EEXIST from
+		 * zap_add_int_key() and back out to the original state, but
+		 * that would be more work than checking for this case upfront.
+		 */
 	} else if (ds1_queued) {
 		VERIFY3S(0, ==, zap_remove_int(dp->dp_meta_objset,
 		    scn->scn_phys.scn_queue_obj, ds1->ds_object, tx));
