@@ -1776,8 +1776,18 @@ spa_get_checkpoint_space(spa_t *spa)
 void
 spa_update_dspace(spa_t *spa)
 {
-	spa->spa_dspace = metaslab_class_get_dspace(spa_normal_class(spa)) +
-	    ddt_get_dedup_dspace(spa);
+	uint64_t dspace = metaslab_class_get_dspace(spa_normal_class(spa));
+	dspace += ddt_get_dedup_dspace(spa);
+
+	/*
+	 * If there are no log devices, the log space comes from the embedded
+	 * log metaslabs.  This space can be shared with normal allocations,
+	 * so we include it in the available space. See also the comment in
+	 * spa_prop_get_config.
+	 */
+	if (!spa_has_log_device(spa))
+		dspace += metaslab_class_get_dspace(spa_log_class(spa));
+
 	if (spa->spa_vdev_removal != NULL) {
 		/*
 		 * We can't allocate from the removing device, so
@@ -1795,10 +1805,11 @@ spa_update_dspace(spa_t *spa)
 		spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
 		vdev_t *vd =
 		    vdev_lookup_top(spa, spa->spa_vdev_removal->svr_vdev_id);
-		spa->spa_dspace -= spa_deflate(spa) ?
+		dspace -= spa_deflate(spa) ?
 		    vd->vdev_stat.vs_dspace : vd->vdev_stat.vs_space;
 		spa_config_exit(spa, SCL_VDEV, FTAG);
 	}
+	spa->spa_dspace = dspace;
 }
 
 /*
