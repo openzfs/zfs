@@ -763,7 +763,7 @@ main(int argc, char **argv)
 	uint32_t dvas = 0;
 
 	if ((g_zfs = libzfs_init()) == NULL) {
-		(void) fprintf(stderr, "%s", libzfs_error_init(errno));
+		(void) fprintf(stderr, "%s\n", libzfs_error_init(errno));
 		return (1);
 	}
 
