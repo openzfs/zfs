@@ -9,10 +9,6 @@ AM_CFLAGS += $(FRAME_LARGER_THAN)
 # Unconditionally enable ASSERTs
 AM_CPPFLAGS += -DDEBUG -UNDEBUG
 
-DEFAULT_INCLUDES += \
-	-I$(top_srcdir)/include \
-	-I$(top_srcdir)/lib/libspl/include
-
 sbin_PROGRAMS = ztest
 
 ztest_SOURCES = \

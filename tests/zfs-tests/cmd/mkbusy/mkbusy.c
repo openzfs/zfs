@@ -30,8 +30,6 @@
 #include <errno.h>
 #include <string.h>
 
-typedef enum boolean { B_FALSE, B_TRUE } boolean_t;
-
 static void
 usage(char *progname)
 {

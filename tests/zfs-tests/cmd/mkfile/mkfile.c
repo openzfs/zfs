@@ -35,16 +35,12 @@
 #include <libintl.h>
 #include <errno.h>
 
-#define	MIN(a, b)	((a) < (b) ? (a) : (b))
-
-#define	BLOCK_SIZE	512		/* bytes */
+#define	BLOCKSIZE	512		/* bytes */
 #define	KILOBYTE	1024
 #define	MEGABYTE	(KILOBYTE * KILOBYTE)
 #define	GIGABYTE	(KILOBYTE * MEGABYTE)
 
 #define	FILE_MODE	(S_ISVTX + S_IRUSR + S_IWUSR)
-
-typedef long long	offset_t;
 
 static void usage(void);
 
@@ -95,7 +91,7 @@ main(int argc, char **argv)
 			break;
 		case 'b':
 		case 'B':
-			mult = BLOCK_SIZE;
+			mult = BLOCKSIZE;
 			break;
 		case 'm':
 		case 'M':

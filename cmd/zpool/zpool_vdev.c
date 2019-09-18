@@ -64,7 +64,6 @@
 
 #include <assert.h>
 #include <ctype.h>
-#include <devid.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <libintl.h>

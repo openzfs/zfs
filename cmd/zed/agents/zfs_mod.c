@@ -69,7 +69,6 @@
  */
 
 #include <ctype.h>
-#include <devid.h>
 #include <fcntl.h>
 #include <libnvpair.h>
 #include <libzfs.h>

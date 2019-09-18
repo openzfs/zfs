@@ -39,9 +39,8 @@
 #include <sys/time.h>
 #define	_SHA2_IMPL
 #include <sys/sha2.h>
+#include <sys/stdtypes.h>
 #define NOTE(x)
-typedef enum boolean { B_FALSE, B_TRUE } boolean_t;
-typedef	unsigned long long	u_longlong_t;
 
 
 /*

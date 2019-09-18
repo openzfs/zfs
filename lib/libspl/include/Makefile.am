@@ -1,10 +1,9 @@
-SUBDIRS = ia32 rpc sys util
+SUBDIRS = ia32 rpc sys util os
 
 libspldir = $(includedir)/libspl
 libspl_HEADERS = \
 	$(top_srcdir)/lib/libspl/include/assert.h \
 	$(top_srcdir)/lib/libspl/include/atomic.h \
-	$(top_srcdir)/lib/libspl/include/devid.h \
 	$(top_srcdir)/lib/libspl/include/libdevinfo.h \
 	$(top_srcdir)/lib/libspl/include/libgen.h \
 	$(top_srcdir)/lib/libspl/include/libshare.h \
