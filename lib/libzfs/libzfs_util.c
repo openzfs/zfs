@@ -69,21 +69,21 @@ libzfs_error_init(int error)
 	case ENXIO:
 		return (dgettext(TEXT_DOMAIN, "The ZFS modules are not "
 		    "loaded.\nTry running '/sbin/modprobe zfs' as root "
-		    "to load them.\n"));
+		    "to load them."));
 	case ENOENT:
 		return (dgettext(TEXT_DOMAIN, "/dev/zfs and /proc/self/mounts "
 		    "are required.\nTry running 'udevadm trigger' and 'mount "
-		    "-t proc proc /proc' as root.\n"));
+		    "-t proc proc /proc' as root."));
 	case ENOEXEC:
 		return (dgettext(TEXT_DOMAIN, "The ZFS modules cannot be "
 		    "auto-loaded.\nTry running '/sbin/modprobe zfs' as "
-		    "root to manually load them.\n"));
+		    "root to manually load them."));
 	case EACCES:
 		return (dgettext(TEXT_DOMAIN, "Permission denied the "
-		    "ZFS utilities must be run as root.\n"));
+		    "ZFS utilities must be run as root."));
 	default:
 		return (dgettext(TEXT_DOMAIN, "Failed to initialize the "
-		    "libzfs library.\n"));
+		    "libzfs library."));
 	}
 }
 
