@@ -148,29 +148,6 @@ dbuf_stats_t dbuf_stats = {
 		continue;						\
 }
 
-typedef struct dbuf_hold_arg {
-	/* Function arguments */
-	dnode_t *dh_dn;
-	uint8_t dh_level;
-	uint64_t dh_blkid;
-	boolean_t dh_fail_sparse;
-	boolean_t dh_fail_uncached;
-	void *dh_tag;
-	dmu_buf_impl_t **dh_dbp;
-	/* Local variables */
-	dmu_buf_impl_t *dh_db;
-	dmu_buf_impl_t *dh_parent;
-	blkptr_t *dh_bp;
-	int dh_err;
-	dbuf_dirty_record_t *dh_dr;
-} dbuf_hold_arg_t;
-
-static dbuf_hold_arg_t *dbuf_hold_arg_create(dnode_t *dn, uint8_t level,
-	uint64_t blkid, boolean_t fail_sparse, boolean_t fail_uncached,
-	void *tag, dmu_buf_impl_t **dbp);
-static int dbuf_hold_impl_arg(dbuf_hold_arg_t *dh);
-static void dbuf_hold_arg_destroy(dbuf_hold_arg_t *dh);
-
 static boolean_t dbuf_undirty(dmu_buf_impl_t *db, dmu_tx_t *tx);
 static void dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx);
 
@@ -2805,10 +2782,10 @@ dbuf_findbp(dnode_t *dn, int level, uint64_t blkid, int fail_sparse,
 	} else if (level < nlevels-1) {
 		/* this block is referenced from an indirect block */
 		int err;
-		dbuf_hold_arg_t *dh = dbuf_hold_arg_create(dn, level + 1,
+
+		err = dbuf_hold_impl(dn, level + 1,
 		    blkid >> epbs, fail_sparse, FALSE, NULL, parentp);
-		err = dbuf_hold_impl_arg(dh);
-		dbuf_hold_arg_destroy(dh);
+
 		if (err)
 			return (err);
 		err = dbuf_read(*parentp, NULL,
@@ -3228,24 +3205,19 @@ dbuf_prefetch(dnode_t *dn, int64_t level, uint64_t blkid, zio_priority_t prio,
 	zio_nowait(pio);
 }
 
-#define	DBUF_HOLD_IMPL_MAX_DEPTH	20
-
 /*
- * Helper function for dbuf_hold_impl_arg() to copy a buffer. Handles
+ * Helper function for dbuf_hold_impl() to copy a buffer. Handles
  * the case of encrypted, compressed and uncompressed buffers by
  * allocating the new buffer, respectively, with arc_alloc_raw_buf(),
  * arc_alloc_compressed_buf() or arc_alloc_buf().*
  *
- * NOTE: Declared noinline to avoid stack bloat in dbuf_hold_impl_arg().
+ * NOTE: Declared noinline to avoid stack bloat in dbuf_hold_impl().
  */
 noinline static void
-dbuf_hold_copy(struct dbuf_hold_arg *dh)
+dbuf_hold_copy(dnode_t *dn, dmu_buf_impl_t *db)
 {
-	dnode_t *dn = dh->dh_dn;
-	dmu_buf_impl_t *db = dh->dh_db;
-	dbuf_dirty_record_t *dr = dh->dh_dr;
+	dbuf_dirty_record_t *dr = db->db_data_pending;
 	arc_buf_t *data = dr->dt.dl.dr_data;
-
 	enum zio_compress compress_type = arc_get_compression(data);
 
 	if (arc_is_encrypted(data)) {
@@ -3277,168 +3249,111 @@ dbuf_hold_copy(struct dbuf_hold_arg *dh)
  * Returns with db_holds incremented, and db_mtx not held.
  * Note: dn_struct_rwlock must be held.
  */
-static int
-dbuf_hold_impl_arg(struct dbuf_hold_arg *dh)
+int
+dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
+    boolean_t fail_sparse, boolean_t fail_uncached,
+    void *tag, dmu_buf_impl_t **dbp)
 {
-	dh->dh_parent = NULL;
-
-	ASSERT(dh->dh_blkid != DMU_BONUS_BLKID);
-	ASSERT(RW_LOCK_HELD(&dh->dh_dn->dn_struct_rwlock));
-	ASSERT3U(dh->dh_dn->dn_nlevels, >, dh->dh_level);
-
-	*(dh->dh_dbp) = NULL;
+	dmu_buf_impl_t *db, *parent = NULL;
 
 	/* If the pool has been created, verify the tx_sync_lock is not held */
-	spa_t *spa = dh->dh_dn->dn_objset->os_spa;
+	spa_t *spa = dn->dn_objset->os_spa;
 	dsl_pool_t *dp = spa->spa_dsl_pool;
 	if (dp != NULL) {
 		ASSERT(!MUTEX_HELD(&dp->dp_tx.tx_sync_lock));
 	}
 
+	ASSERT(blkid != DMU_BONUS_BLKID);
+	ASSERT(RW_LOCK_HELD(&dn->dn_struct_rwlock));
+	ASSERT3U(dn->dn_nlevels, >, level);
+
+	*dbp = NULL;
+
 	/* dbuf_find() returns with db_mtx held */
-	dh->dh_db = dbuf_find(dh->dh_dn->dn_objset, dh->dh_dn->dn_object,
-	    dh->dh_level, dh->dh_blkid);
+	db = dbuf_find(dn->dn_objset, dn->dn_object, level, blkid);
 
-	if (dh->dh_db == NULL) {
-		dh->dh_bp = NULL;
+	if (db == NULL) {
+		blkptr_t *bp = NULL;
+		int err;
 
-		if (dh->dh_fail_uncached)
+		if (fail_uncached)
 			return (SET_ERROR(ENOENT));
 
-		ASSERT3P(dh->dh_parent, ==, NULL);
-		dh->dh_err = dbuf_findbp(dh->dh_dn, dh->dh_level, dh->dh_blkid,
-		    dh->dh_fail_sparse, &dh->dh_parent, &dh->dh_bp);
-		if (dh->dh_fail_sparse) {
-			if (dh->dh_err == 0 &&
-			    dh->dh_bp && BP_IS_HOLE(dh->dh_bp))
-				dh->dh_err = SET_ERROR(ENOENT);
-			if (dh->dh_err) {
-				if (dh->dh_parent)
-					dbuf_rele(dh->dh_parent, NULL);
-				return (dh->dh_err);
+		ASSERT3P(parent, ==, NULL);
+		err = dbuf_findbp(dn, level, blkid, fail_sparse, &parent, &bp);
+		if (fail_sparse) {
+			if (err == 0 && bp && BP_IS_HOLE(bp))
+				err = SET_ERROR(ENOENT);
+			if (err) {
+				if (parent)
+					dbuf_rele(parent, NULL);
+				return (err);
 			}
 		}
-		if (dh->dh_err && dh->dh_err != ENOENT)
-			return (dh->dh_err);
-		dh->dh_db = dbuf_create(dh->dh_dn, dh->dh_level, dh->dh_blkid,
-		    dh->dh_parent, dh->dh_bp);
+		if (err && err != ENOENT)
+			return (err);
+		db = dbuf_create(dn, level, blkid, parent, bp);
 	}
 
-	if (dh->dh_fail_uncached && dh->dh_db->db_state != DB_CACHED) {
-		mutex_exit(&dh->dh_db->db_mtx);
+	if (fail_uncached && db->db_state != DB_CACHED) {
+		mutex_exit(&db->db_mtx);
 		return (SET_ERROR(ENOENT));
 	}
 
-	if (dh->dh_db->db_buf != NULL) {
-		arc_buf_access(dh->dh_db->db_buf);
-		ASSERT3P(dh->dh_db->db.db_data, ==, dh->dh_db->db_buf->b_data);
+	if (db->db_buf != NULL) {
+		arc_buf_access(db->db_buf);
+		ASSERT3P(db->db.db_data, ==, db->db_buf->b_data);
 	}
 
-	ASSERT(dh->dh_db->db_buf == NULL || arc_referenced(dh->dh_db->db_buf));
+	ASSERT(db->db_buf == NULL || arc_referenced(db->db_buf));
 
 	/*
 	 * If this buffer is currently syncing out, and we are
 	 * still referencing it from db_data, we need to make a copy
 	 * of it in case we decide we want to dirty it again in this txg.
 	 */
-	if (dh->dh_db->db_level == 0 &&
-	    dh->dh_db->db_blkid != DMU_BONUS_BLKID &&
-	    dh->dh_dn->dn_object != DMU_META_DNODE_OBJECT &&
-	    dh->dh_db->db_state == DB_CACHED && dh->dh_db->db_data_pending) {
-		dh->dh_dr = dh->dh_db->db_data_pending;
-		if (dh->dh_dr->dt.dl.dr_data == dh->dh_db->db_buf)
-			dbuf_hold_copy(dh);
+	if (db->db_level == 0 && db->db_blkid != DMU_BONUS_BLKID &&
+	    dn->dn_object != DMU_META_DNODE_OBJECT &&
+	    db->db_state == DB_CACHED && db->db_data_pending) {
+		dbuf_dirty_record_t *dr = db->db_data_pending;
+		if (dr->dt.dl.dr_data == db->db_buf)
+			dbuf_hold_copy(dn, db);
 	}
 
-	if (multilist_link_active(&dh->dh_db->db_cache_link)) {
-		ASSERT(zfs_refcount_is_zero(&dh->dh_db->db_holds));
-		ASSERT(dh->dh_db->db_caching_status == DB_DBUF_CACHE ||
-		    dh->dh_db->db_caching_status == DB_DBUF_METADATA_CACHE);
+	if (multilist_link_active(&db->db_cache_link)) {
+		ASSERT(zfs_refcount_is_zero(&db->db_holds));
+		ASSERT(db->db_caching_status == DB_DBUF_CACHE ||
+		    db->db_caching_status == DB_DBUF_METADATA_CACHE);
 
-		multilist_remove(
-		    dbuf_caches[dh->dh_db->db_caching_status].cache,
-		    dh->dh_db);
+		multilist_remove(dbuf_caches[db->db_caching_status].cache, db);
 		(void) zfs_refcount_remove_many(
-		    &dbuf_caches[dh->dh_db->db_caching_status].size,
-		    dh->dh_db->db.db_size, dh->dh_db);
+		    &dbuf_caches[db->db_caching_status].size,
+		    db->db.db_size, db);
 
-		if (dh->dh_db->db_caching_status == DB_DBUF_METADATA_CACHE) {
+		if (db->db_caching_status == DB_DBUF_METADATA_CACHE) {
 			DBUF_STAT_BUMPDOWN(metadata_cache_count);
 		} else {
-			DBUF_STAT_BUMPDOWN(cache_levels[dh->dh_db->db_level]);
+			DBUF_STAT_BUMPDOWN(cache_levels[db->db_level]);
 			DBUF_STAT_BUMPDOWN(cache_count);
-			DBUF_STAT_DECR(cache_levels_bytes[dh->dh_db->db_level],
-			    dh->dh_db->db.db_size);
+			DBUF_STAT_DECR(cache_levels_bytes[db->db_level],
+			    db->db.db_size);
 		}
-		dh->dh_db->db_caching_status = DB_NO_CACHE;
+		db->db_caching_status = DB_NO_CACHE;
 	}
-	(void) zfs_refcount_add(&dh->dh_db->db_holds, dh->dh_tag);
-	DBUF_VERIFY(dh->dh_db);
-	mutex_exit(&dh->dh_db->db_mtx);
+	(void) zfs_refcount_add(&db->db_holds, tag);
+	DBUF_VERIFY(db);
+	mutex_exit(&db->db_mtx);
 
 	/* NOTE: we can't rele the parent until after we drop the db_mtx */
-	if (dh->dh_parent)
-		dbuf_rele(dh->dh_parent, NULL);
+	if (parent)
+		dbuf_rele(parent, NULL);
 
-	ASSERT3P(DB_DNODE(dh->dh_db), ==, dh->dh_dn);
-	ASSERT3U(dh->dh_db->db_blkid, ==, dh->dh_blkid);
-	ASSERT3U(dh->dh_db->db_level, ==, dh->dh_level);
-	*(dh->dh_dbp) = dh->dh_db;
+	ASSERT3P(DB_DNODE(db), ==, dn);
+	ASSERT3U(db->db_blkid, ==, blkid);
+	ASSERT3U(db->db_level, ==, level);
+	*dbp = db;
 
 	return (0);
-}
-
-/*
- * dbuf_hold_impl_arg() is called recursively, via dbuf_findbp().  There can
- * be as many recursive calls as there are levels of on-disk indirect blocks,
- * but typically only 0-2 recursive calls.  To minimize the stack frame size,
- * the recursive function's arguments and "local variables" are allocated on
- * the heap as the dbuf_hold_arg_t.
- */
-int
-dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
-    boolean_t fail_sparse, boolean_t fail_uncached,
-    void *tag, dmu_buf_impl_t **dbp)
-{
-	dbuf_hold_arg_t *dh = dbuf_hold_arg_create(dn, level, blkid,
-	    fail_sparse, fail_uncached, tag, dbp);
-
-	int error = dbuf_hold_impl_arg(dh);
-
-	dbuf_hold_arg_destroy(dh);
-
-	return (error);
-}
-
-static dbuf_hold_arg_t *
-dbuf_hold_arg_create(dnode_t *dn, uint8_t level, uint64_t blkid,
-    boolean_t fail_sparse, boolean_t fail_uncached,
-    void *tag, dmu_buf_impl_t **dbp)
-{
-	dbuf_hold_arg_t *dh = kmem_alloc(sizeof (*dh), KM_SLEEP);
-	dh->dh_dn = dn;
-	dh->dh_level = level;
-	dh->dh_blkid = blkid;
-
-	dh->dh_fail_sparse = fail_sparse;
-	dh->dh_fail_uncached = fail_uncached;
-
-	dh->dh_tag = tag;
-	dh->dh_dbp = dbp;
-
-	dh->dh_db = NULL;
-	dh->dh_parent = NULL;
-	dh->dh_bp = NULL;
-	dh->dh_err = 0;
-	dh->dh_dr = NULL;
-
-	return (dh);
-}
-
-static void
-dbuf_hold_arg_destroy(dbuf_hold_arg_t *dh)
-{
-	kmem_free(dh, sizeof (*dh));
 }
 
 dmu_buf_impl_t *
