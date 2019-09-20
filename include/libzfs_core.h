@@ -21,9 +21,9 @@
 
 /*
  * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
- * Copyright (c) 2017 Datto Inc.
  * Copyright 2017 RackTop Systems.
  * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+ * Copyright (c) 2019 Datto Inc.
  */
 
 #ifndef	_LIBZFS_CORE_H
@@ -102,8 +102,12 @@ int lzc_receive_one(const char *, nvlist_t *, const char *, boolean_t,
     boolean_t, boolean_t, int, const struct dmu_replay_record *, int,
     uint64_t *, uint64_t *, uint64_t *, nvlist_t **);
 int lzc_receive_with_cmdprops(const char *, nvlist_t *, nvlist_t *,
-    uint8_t *, uint_t, const char *, boolean_t, boolean_t, boolean_t, int,
-    const struct dmu_replay_record *, int, uint64_t *, uint64_t *,
+    uint8_t *, uint_t, const char *, boolean_t, boolean_t, boolean_t,
+    int, const struct dmu_replay_record *, int, uint64_t *, uint64_t *,
+    uint64_t *, nvlist_t **);
+int lzc_receive_with_heal(const char *, nvlist_t *, nvlist_t *,
+    uint8_t *, uint_t, const char *, boolean_t, boolean_t, boolean_t, boolean_t,
+    int, const struct dmu_replay_record *, int, uint64_t *, uint64_t *,
     uint64_t *, nvlist_t **);
 int lzc_send_space(const char *, const char *, enum lzc_send_flags, uint64_t *);
 int lzc_send_space_resume_redacted(const char *, const char *,

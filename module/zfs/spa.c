@@ -29,9 +29,9 @@
  * Copyright 2016 Toomas Soome <tsoome@me.com>
  * Copyright (c) 2016 Actifio, Inc. All rights reserved.
  * Copyright 2018 Joyent, Inc.
- * Copyright (c) 2017 Datto Inc.
  * Copyright 2017 Joyent, Inc.
  * Copyright (c) 2017, Intel Corporation.
+ * Copyright (c) 2019 Datto Inc.
  */
 
 /*
@@ -1264,6 +1264,9 @@ spa_activate(spa_t *spa, int mode)
 	avl_create(&spa->spa_errlist_last,
 	    spa_error_entry_compare, sizeof (spa_error_entry_t),
 	    offsetof(spa_error_entry_t, se_avl));
+	avl_create(&spa->spa_errlist_healed,
+	    spa_error_entry_compare, sizeof (spa_error_entry_t),
+	    offsetof(spa_error_entry_t, se_avl));
 
 	spa_keystore_init(&spa->spa_keystore);
 
@@ -1369,6 +1372,7 @@ spa_deactivate(spa_t *spa)
 	spa_errlog_drain(spa);
 	avl_destroy(&spa->spa_errlist_scrub);
 	avl_destroy(&spa->spa_errlist_last);
+	avl_destroy(&spa->spa_errlist_healed);
 
 	spa_keystore_fini(&spa->spa_keystore);
 

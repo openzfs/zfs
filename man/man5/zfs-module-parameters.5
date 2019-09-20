@@ -2849,6 +2849,19 @@ Default value: \fB0\fR.
 .sp
 .ne 2
 .na
+\fBzfs_recv_best_effort_corrective\fR (int)
+.ad
+.RS 12n
+When this variable is set to non-zero a corrective receive will not stop healing
+and will continue going through the provided stream if a healing error is
+encountered.
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_sync_pass_deferred_free\fR (int)
 .ad
 .RS 12n

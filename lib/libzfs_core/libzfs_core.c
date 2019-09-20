@@ -22,9 +22,9 @@
 /*
  * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
- * Copyright (c) 2017 Datto Inc.
  * Copyright 2017 RackTop Systems.
  * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+ * Copyright (c) 2019 Datto Inc.
  */
 
 /*
@@ -778,7 +778,7 @@ recv_read(int fd, void *buf, int ilen)
 static int
 recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
     uint8_t *wkeydata, uint_t wkeylen, const char *origin, boolean_t force,
-    boolean_t resumable, boolean_t raw, int input_fd,
+    boolean_t heal, boolean_t resumable, boolean_t raw, int input_fd,
     const dmu_replay_record_t *begin_record, int cleanup_fd,
     uint64_t *read_bytes, uint64_t *errflags, uint64_t *action_handle,
     nvlist_t **errors)
@@ -824,7 +824,7 @@ recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
 	/*
 	 * All receives with a payload should use the new interface.
 	 */
-	if (resumable || raw || wkeydata != NULL || payload) {
+	if (resumable || heal || raw || wkeydata != NULL || payload) {
 		nvlist_t *outnvl = NULL;
 		nvlist_t *innvl = fnvlist_alloc();
 
@@ -863,6 +863,9 @@ recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
 
 		if (resumable)
 			fnvlist_add_boolean(innvl, "resumable");
+
+		if (heal)
+			fnvlist_add_boolean(innvl, "heal");
 
 		if (cleanup_fd >= 0)
 			fnvlist_add_int32(innvl, "cleanup_fd", cleanup_fd);
@@ -982,7 +985,7 @@ lzc_receive(const char *snapname, nvlist_t *props, const char *origin,
     boolean_t force, boolean_t raw, int fd)
 {
 	return (recv_impl(snapname, props, NULL, NULL, 0, origin, force,
-	    B_FALSE, raw, fd, NULL, -1, NULL, NULL, NULL, NULL));
+	    B_FALSE, B_FALSE, raw, fd, NULL, -1, NULL, NULL, NULL, NULL));
 }
 
 /*
@@ -996,7 +999,7 @@ lzc_receive_resumable(const char *snapname, nvlist_t *props, const char *origin,
     boolean_t force, boolean_t raw, int fd)
 {
 	return (recv_impl(snapname, props, NULL, NULL, 0, origin, force,
-	    B_TRUE, raw, fd, NULL, -1, NULL, NULL, NULL, NULL));
+	    B_FALSE, B_TRUE, raw, fd, NULL, -1, NULL, NULL, NULL, NULL));
 }
 
 /*
@@ -1019,7 +1022,8 @@ lzc_receive_with_header(const char *snapname, nvlist_t *props,
 		return (EINVAL);
 
 	return (recv_impl(snapname, props, NULL, NULL, 0, origin, force,
-	    resumable, raw, fd, begin_record, -1, NULL, NULL, NULL, NULL));
+	    B_FALSE, resumable, raw, fd, begin_record, -1, NULL, NULL, NULL,
+	    NULL));
 }
 
 /*
@@ -1049,8 +1053,8 @@ int lzc_receive_one(const char *snapname, nvlist_t *props,
     nvlist_t **errors)
 {
 	return (recv_impl(snapname, props, NULL, NULL, 0, origin, force,
-	    resumable, raw, input_fd, begin_record, cleanup_fd, read_bytes,
-	    errflags, action_handle, errors));
+	    B_FALSE, resumable, raw, input_fd, begin_record, cleanup_fd,
+	    read_bytes, errflags, action_handle, errors));
 }
 
 /*
@@ -1063,13 +1067,32 @@ int lzc_receive_one(const char *snapname, nvlist_t *props,
  */
 int lzc_receive_with_cmdprops(const char *snapname, nvlist_t *props,
     nvlist_t *cmdprops, uint8_t *wkeydata, uint_t wkeylen, const char *origin,
-    boolean_t force, boolean_t resumable, boolean_t raw, int input_fd,
-    const dmu_replay_record_t *begin_record, int cleanup_fd,
+    boolean_t force, boolean_t resumable, boolean_t raw,
+    int input_fd, const dmu_replay_record_t *begin_record, int cleanup_fd,
     uint64_t *read_bytes, uint64_t *errflags, uint64_t *action_handle,
     nvlist_t **errors)
 {
 	return (recv_impl(snapname, props, cmdprops, wkeydata, wkeylen, origin,
-	    force, resumable, raw, input_fd, begin_record, cleanup_fd,
+	    force, B_FALSE, resumable, raw, input_fd, begin_record, cleanup_fd,
+	    read_bytes, errflags, action_handle, errors));
+}
+
+/*
+ * Like lzc_receive_with_cmdprops, but allows the caller to pass an additional
+ * 'heal' argument.
+ *
+ * The heal arguments tells us to heal the provided snapshot using the provided
+ * send stream
+ */
+int lzc_receive_with_heal(const char *snapname, nvlist_t *props,
+    nvlist_t *cmdprops, uint8_t *wkeydata, uint_t wkeylen, const char *origin,
+    boolean_t force, boolean_t heal, boolean_t resumable, boolean_t raw,
+    int input_fd, const dmu_replay_record_t *begin_record, int cleanup_fd,
+    uint64_t *read_bytes, uint64_t *errflags, uint64_t *action_handle,
+    nvlist_t **errors)
+{
+	return (recv_impl(snapname, props, cmdprops, wkeydata, wkeylen, origin,
+	    force, heal, resumable, raw, input_fd, begin_record, cleanup_fd,
 	    read_bytes, errflags, action_handle, errors));
 }
 

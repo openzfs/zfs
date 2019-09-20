@@ -4487,7 +4487,7 @@ zfs_do_receive(int argc, char **argv)
 		nomem();
 
 	/* check options */
-	while ((c = getopt(argc, argv, ":o:x:dehnuvFsA")) != -1) {
+	while ((c = getopt(argc, argv, ":o:x:dehnuvFsAc")) != -1) {
 		switch (c) {
 		case 'o':
 			if (!parseprop(props, optarg)) {
@@ -4539,6 +4539,9 @@ zfs_do_receive(int argc, char **argv)
 			break;
 		case 'A':
 			abort_resumable = B_TRUE;
+			break;
+		case 'c':
+			flags.heal = B_TRUE;
 			break;
 		case ':':
 			(void) fprintf(stderr, gettext("missing argument for "

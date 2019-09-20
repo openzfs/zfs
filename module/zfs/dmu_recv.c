@@ -25,6 +25,7 @@
  * Copyright (c) 2014, Joyent, Inc. All rights reserved.
  * Copyright 2014 HybridCluster. All rights reserved.
  * Copyright (c) 2018, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
+ * Copyright (c) 2019 Datto Inc.
  */
 
 #include <sys/dmu.h>
@@ -64,6 +65,7 @@
 
 int zfs_recv_queue_length = SPA_MAXBLOCKSIZE;
 int zfs_recv_queue_ff = 20;
+int zfs_recv_best_effort_corrective = 0;
 
 static char *dmu_recv_tag = "dmu_recv_tag";
 const char *recv_clone_name = "%recv";
@@ -102,6 +104,7 @@ struct receive_writer_arg {
 	/* A map from guid to dataset to help handle dedup'd streams. */
 	avl_tree_t *guid_to_ds_map;
 	boolean_t resumable;
+	boolean_t heal;
 	boolean_t raw;   /* DMU_BACKUP_FEATURE_RAW set */
 	boolean_t spill; /* DRR_FLAG_SPILL_BLOCK set */
 	uint64_t last_object;
@@ -117,6 +120,7 @@ struct receive_writer_arg {
 	uint8_t or_iv[ZIO_DATA_IV_LEN];
 	uint8_t or_mac[ZIO_DATA_MAC_LEN];
 	boolean_t or_byteorder;
+	zio_t *heal_pio;
 };
 
 typedef struct guid_map_entry {
@@ -342,9 +346,10 @@ static int
 recv_begin_check_existing_impl(dmu_recv_begin_arg_t *drba, dsl_dataset_t *ds,
     uint64_t fromguid, uint64_t featureflags)
 {
-	uint64_t val;
+	uint64_t snapobj;
 	uint64_t children;
 	int error;
+	dsl_dataset_t *snap;
 	dsl_pool_t *dp = ds->ds_dir->dd_pool;
 	boolean_t encrypted = ds->ds_dir->dd_crypto_obj != 0;
 	boolean_t raw = (featureflags & DMU_BACKUP_FEATURE_RAW) != 0;
@@ -353,7 +358,7 @@ recv_begin_check_existing_impl(dmu_recv_begin_arg_t *drba, dsl_dataset_t *ds,
 	/* Temporary clone name must not exist. */
 	error = zap_lookup(dp->dp_meta_objset,
 	    dsl_dir_phys(ds->ds_dir)->dd_child_dir_zapobj, recv_clone_name,
-	    8, 1, &val);
+	    8, 1, &snapobj);
 	if (error != ENOENT)
 		return (error == 0 ? SET_ERROR(EBUSY) : error);
 
@@ -361,12 +366,16 @@ recv_begin_check_existing_impl(dmu_recv_begin_arg_t *drba, dsl_dataset_t *ds,
 	if (dsl_dataset_has_resume_receive_state(ds))
 		return (SET_ERROR(EBUSY));
 
-	/* New snapshot name must not exist. */
+	/* New snapshot name must not exist if we're not healing it */
 	error = zap_lookup(dp->dp_meta_objset,
 	    dsl_dataset_phys(ds)->ds_snapnames_zapobj,
-	    drba->drba_cookie->drc_tosnap, 8, 1, &val);
-	if (error != ENOENT)
+	    drba->drba_cookie->drc_tosnap, 8, 1, &snapobj);
+	if (drba->drba_cookie->drc_heal) {
+		if (error != 0)
+			return (error);
+	} else if (error != ENOENT) {
 		return (error == 0 ? SET_ERROR(EEXIST) : error);
+	}
 
 	/* Must not have children if receiving a ZVOL. */
 	error = zap_count(dp->dp_meta_objset,
@@ -391,8 +400,31 @@ recv_begin_check_existing_impl(dmu_recv_begin_arg_t *drba, dsl_dataset_t *ds,
 	if (error != 0)
 		return (error);
 
-	if (fromguid != 0) {
-		dsl_dataset_t *snap;
+	if (drba->drba_cookie->drc_heal) {
+		struct drr_begin *drrb = drba->drba_cookie->drc_drrb;
+		if (raw) {
+			//FIXME
+			// encryption must match
+			// compression must match
+			dsl_dataset_rele(snap, FTAG);
+			return (SET_ERROR(EINVAL));
+		}
+		/*
+		 * Healing can only be done if the send stream is for the same
+		 * snapshot as the one we are trying to heal.
+		 */
+		error = dsl_dataset_hold_obj(dp, snapobj, FTAG, &snap);
+		if (error == 0 &&
+		    drrb->drr_toguid != dsl_dataset_phys(snap)->ds_guid) {
+			dsl_dataset_rele(snap, FTAG);
+			return (SET_ERROR(EINVAL));
+		} else if (error != 0) {
+			dsl_dataset_rele(snap, FTAG);
+			return (SET_ERROR(error));
+		}
+		dsl_dataset_rele(snap, FTAG);
+	} else if (fromguid != 0) {
+		/* Sanity check the incremental recv */
 		uint64_t obj = dsl_dataset_phys(ds)->ds_prev_snap_obj;
 
 		/* Can't perform a raw receive on top of a non-raw receive */
@@ -452,7 +484,7 @@ recv_begin_check_existing_impl(dmu_recv_begin_arg_t *drba, dsl_dataset_t *ds,
 
 		dsl_dataset_rele(snap, FTAG);
 	} else {
-		/* if full, then must be forced */
+		/* If full and not healing then must be forced */
 		if (!drba->drba_cookie->drc_force)
 			return (SET_ERROR(EEXIST));
 
@@ -780,7 +812,7 @@ dmu_recv_begin_sync(void *arg, dmu_tx_t *tx)
 
 	error = dsl_dataset_hold_flags(dp, tofs, dsflags, FTAG, &ds);
 	if (error == 0) {
-		/* create temporary clone */
+		/* Create temporary clone */
 		dsl_dataset_t *snap = NULL;
 
 		if (drba->drba_cookie->drc_fromsnapobj != 0) {
@@ -788,8 +820,15 @@ dmu_recv_begin_sync(void *arg, dmu_tx_t *tx)
 			    drba->drba_cookie->drc_fromsnapobj, FTAG, &snap));
 			ASSERT3P(dcp, ==, NULL);
 		}
-		dsobj = dsl_dataset_create_sync(ds->ds_dir, recv_clone_name,
-		    snap, crflags, drba->drba_cred, dcp, tx);
+		if (drc->drc_heal) {
+			/* When healing we want to use the provided snapshot */
+			VERIFY0(dsl_dataset_snap_lookup(ds, drc->drc_tosnap,
+			    &dsobj));
+		} else {
+			dsobj = dsl_dataset_create_sync(ds->ds_dir,
+			    recv_clone_name, snap, crflags, drba->drba_cred,
+			    dcp, tx);
+		}
 		if (drba->drba_cookie->drc_fromsnapobj != 0)
 			dsl_dataset_rele(snap, FTAG);
 		dsl_dataset_rele_flags(ds, dsflags, FTAG);
@@ -907,7 +946,8 @@ dmu_recv_begin_sync(void *arg, dmu_tx_t *tx)
 	 */
 	rrw_enter(&newds->ds_bp_rwlock, RW_READER, FTAG);
 	if (BP_IS_HOLE(dsl_dataset_get_blkptr(newds)) &&
-	    (featureflags & DMU_BACKUP_FEATURE_RAW) == 0) {
+	    (featureflags & DMU_BACKUP_FEATURE_RAW) == 0 &&
+	    !drc->drc_heal) {
 		(void) dmu_objset_create_impl(dp->dp_spa,
 		    newds, dsl_dataset_get_blkptr(newds), drrb->drr_type, tx);
 	}
@@ -1102,7 +1142,7 @@ dmu_recv_resume_begin_sync(void *arg, dmu_tx_t *tx)
  */
 int
 dmu_recv_begin(char *tofs, char *tosnap, dmu_replay_record_t *drr_begin,
-    boolean_t force, boolean_t resumable, nvlist_t *localprops,
+    boolean_t force, boolean_t heal, boolean_t resumable, nvlist_t *localprops,
     nvlist_t *hidden_args, char *origin, dmu_recv_cookie_t *drc, vnode_t *vp,
     offset_t *voffp)
 {
@@ -1115,6 +1155,7 @@ dmu_recv_begin(char *tofs, char *tosnap, dmu_replay_record_t *drr_begin,
 	drc->drc_tosnap = tosnap;
 	drc->drc_tofs = tofs;
 	drc->drc_force = force;
+	drc->drc_heal = heal;
 	drc->drc_resumable = resumable;
 	drc->drc_cred = CRED();
 	drc->drc_clone = (origin != NULL);
@@ -1200,6 +1241,146 @@ dmu_recv_begin(char *tofs, char *tosnap, dmu_replay_record_t *drr_begin,
 		kmem_free(drc->drc_next_rrd, sizeof (*drc->drc_next_rrd));
 		nvlist_free(drc->drc_begin_nvl);
 	}
+	return (err);
+}
+
+/*
+ * Holds data need for corrective recv callback
+ */
+typedef struct cr_cb_data {
+	uint64_t size;
+	zbookmark_phys_t zb;
+	spa_t *spa;
+} cr_cb_data_t;
+
+static void
+corrective_read_done(zio_t *zio)
+{
+	cr_cb_data_t *data = zio->io_private;
+	/* Corruption corrected; update error log if needed */
+	if (zio->io_error == 0)
+		spa_remove_error(data->spa, &data->zb);
+	kmem_free(data, sizeof (cr_cb_data_t));
+	abd_free(zio->io_abd);
+}
+
+/*
+static void
+corrective_write_done(zio_t *zio)
+{
+	enum zio_flag flags = ZIO_FLAG_SPECULATIVE |
+	    ZIO_FLAG_DONT_CACHE | ZIO_FLAG_DONT_RETRY | ZIO_FLAG_CANFAIL;
+	cr_cb_data_t *data = zio->io_private;
+	if (zio->io_error == 0) {
+		// Test if healing worked by re-reading the bp
+		zio_nowait(zio_read(NULL, data->spa, zio->io_bp,
+		    abd_alloc_for_io(data->size, B_FALSE), data->size,
+		    corrective_read_done, data, ZIO_PRIORITY_ASYNC_READ, flags,
+		    NULL));
+	}
+	abd_release_ownership_of_buf(zio->io_abd);
+	abd_put(zio->io_abd);
+}
+*/
+
+/*
+ * zio_rewrite the data pointed to by bp with the data from the arc buf.
+ */
+static int
+do_corrective_recv(objset_t *os, uint64_t obj, arc_buf_t *arc_buf,
+    uint64_t lsize, blkptr_t *bp, uint64_t blkid, uint64_t offset, zio_t *pio)
+{
+	int err;
+	uint64_t size;
+	abd_t *abd;
+	zio_t *io;
+	enum zio_flag flags = ZIO_FLAG_SPECULATIVE |
+	    ZIO_FLAG_DONT_CACHE | ZIO_FLAG_DONT_RETRY | ZIO_FLAG_CANFAIL;
+	zio_cksum_t bp_cksum = bp->blk_cksum;
+
+	if (BP_USES_CRYPT(bp)) {
+		;//FIXME must be raw send or have keys loaded
+	}
+
+	/* Get the good data from the recv record */
+	abd = abd_get_from_buf(arc_buf->b_data, arc_buf_size(arc_buf));
+	abd_take_ownership_of_buf(abd, B_FALSE);
+
+	if (arc_get_compression(arc_buf) != BP_GET_COMPRESS(bp)) {
+		/*
+		 * The compression in the stream doesn't match what we had
+		 * on disk; we need to re-compress the buf into the
+		 * compression type that was written to disk previously.
+		 */
+		abd_t *decompressed_abd;
+		char *buf = NULL;
+		/* Decompress the stream data */
+		err = zio_decompress_data(arc_get_compression(arc_buf),
+		    abd, buf, arc_buf_size(arc_buf), lsize);
+		if (err != 0) {
+			kmem_free(buf, lsize);
+			abd_release_ownership_of_buf(abd);
+			abd_put(abd);
+			return (err);
+		}
+
+		decompressed_abd = abd_get_from_buf(buf, lsize);
+		abd_take_ownership_of_buf(decompressed_abd, B_FALSE);
+		/* Recompress the stream data */
+		size = zio_compress_data(BP_GET_COMPRESS(bp),
+		    decompressed_abd, buf, lsize);
+
+		/* Swap in the newly compressed data into the abd */
+		abd_release_ownership_of_buf(decompressed_abd);
+		abd_put(decompressed_abd);
+		abd_release_ownership_of_buf(abd);
+		abd_put(abd);
+		abd = abd_get_from_buf(buf, size);
+		abd_take_ownership_of_buf(abd, B_FALSE);
+		kmem_free(buf, lsize); // FIXME abd still using buf?
+	} else {
+		size = arc_buf_size(arc_buf);
+	}
+
+	io = zio_rewrite(NULL, os->os_spa, 0, bp, abd,
+	    size, NULL, NULL, ZIO_PRIORITY_SYNC_WRITE, flags, NULL);
+
+	/* compute new bp checksum value and make sure it matches the old one */
+	zio_checksum_compute(io, BP_GET_CHECKSUM(bp), abd, size);
+	if (size != BP_GET_PSIZE(bp) ||
+	    !ZIO_CHECKSUM_EQUAL(bp_cksum, io->io_bp->blk_cksum)) {
+		abd_release_ownership_of_buf(abd);
+		abd_put(abd);
+
+		if (zfs_recv_best_effort_corrective != 0) {
+			dmu_return_arcbuf(arc_buf);
+			return (0);
+		}
+		return (SET_ERROR(ECKSUM));
+	}
+
+	/* Correct the corruption in place */
+	err = zio_wait(io);
+	if (err == 0) {
+		cr_cb_data_t *cb_data =
+		    kmem_alloc(sizeof (cr_cb_data_t), KM_SLEEP);
+		cb_data->spa = os->os_spa;
+		cb_data->size = size;
+		SET_BOOKMARK(&cb_data->zb, dmu_objset_id(os), obj, 0, blkid);
+		/* Test if healing worked by re-reading the bp */
+		zio_nowait(zio_read(pio, os->os_spa, bp,
+		    abd_alloc_for_io(size, B_FALSE), size, corrective_read_done,
+		    cb_data, ZIO_PRIORITY_ASYNC_READ, flags, NULL));
+	} else if (zfs_recv_best_effort_corrective != 0) {
+		err = 0;
+	}
+
+	abd_release_ownership_of_buf(abd);
+	abd_put(abd);
+
+	if (err == 0)
+		dmu_return_arcbuf(arc_buf);
+
 	return (err);
 }
 
@@ -1722,6 +1903,40 @@ receive_write(struct receive_writer_arg *rwa, struct drr_write *drrw,
 	if (dmu_object_info(rwa->os, drrw->drr_object, NULL) != 0)
 		return (SET_ERROR(EINVAL));
 
+	if (rwa->heal) {
+		uint64_t blkid;
+		blkptr_t *bp;
+		dmu_buf_t *dbp;
+		dnode_t *dn;
+		char *buf = kmem_alloc(drrw->drr_logical_size, KM_SLEEP);
+		if (buf == NULL)
+			return (SET_ERROR(ENOMEM));
+
+		/* Try to read the object to see if it needs healing */
+		err = dmu_read(rwa->os, drrw->drr_object, drrw->drr_offset,
+		    drrw->drr_logical_size, buf, DMU_READ_PREFETCH);
+		kmem_free(buf, drrw->drr_logical_size);
+		if (err != ECKSUM) {
+			if (err == 0)
+				dmu_return_arcbuf(abuf);
+			return (0); /* EIO etc ignored, we only heal ECKSUMs */
+		}
+		err = dmu_buf_hold_noread(rwa->os, drrw->drr_object,
+		    drrw->drr_offset, FTAG, &dbp);
+		if (err != 0)
+			return (SET_ERROR(err));
+
+		/* Get the block pointer for the corrupted block */
+		dn = dmu_buf_dnode_enter(dbp);
+		bp = dmu_buf_get_blkptr(dbp);
+		blkid = dbuf_whichblock(dn, 0, drrw->drr_offset);
+		dmu_buf_dnode_exit(dbp);
+		dmu_buf_rele(dbp, FTAG);
+		return (do_corrective_recv(rwa->os, drrw->drr_object, abuf,
+		    drrw->drr_logical_size, bp, blkid, drrw->drr_offset,
+		    rwa->heal_pio));
+	}
+
 	tx = dmu_tx_create(rwa->os);
 	dmu_tx_hold_write(tx, drrw->drr_object,
 	    drrw->drr_offset, drrw->drr_logical_size);
@@ -1920,8 +2135,24 @@ receive_spill(struct receive_writer_arg *rwa, struct drr_spill *drrs,
 	VERIFY0(dmu_bonus_hold(rwa->os, drrs->drr_object, FTAG, &db));
 	if ((err = dmu_spill_hold_by_bonus(db, DMU_READ_NO_DECRYPT, FTAG,
 	    &db_spill)) != 0) {
+		if (rwa->heal && err == ECKSUM) {
+			/* Get the block pointer to the corrupted spill block */
+			blkptr_t *bp;
+			dnode_t *dn = dmu_buf_dnode_enter(db);
+			bp = DN_SPILL_BLKPTR(dn->dn_phys);
+			dmu_buf_dnode_exit(db);
+			dmu_buf_rele(db, FTAG);
+			return (do_corrective_recv(rwa->os, drrs->drr_object,
+			    abuf, drrs->drr_length, bp, 0, 0, rwa->heal_pio));
+		}
 		dmu_buf_rele(db, FTAG);
 		return (err);
+	} else if (rwa->heal) {
+		/* no corruption found */
+		dmu_buf_rele(db, FTAG);
+		dmu_buf_rele(db_spill, FTAG);
+		dmu_return_arcbuf(abuf);
+		return (0);
 	}
 
 	tx = dmu_tx_create(rwa->os);
@@ -2077,7 +2308,8 @@ dmu_recv_cleanup_ds(dmu_recv_cookie_t *drc)
 		rrw_exit(&ds->ds_bp_rwlock, FTAG);
 		dsl_dataset_name(ds, name);
 		dsl_dataset_disown(ds, dsflags, dmu_recv_tag);
-		(void) dsl_destroy_head(name);
+		if (!drc->drc_heal)
+			(void) dsl_destroy_head(name);
 	}
 }
 
@@ -2476,6 +2708,19 @@ receive_process_record(struct receive_writer_arg *rwa,
 	ASSERT3U(rrd->bytes_read, >=, rwa->bytes_read);
 	rwa->bytes_read = rrd->bytes_read;
 
+	/* We can only heal write and spill records; other ones get ignored */
+	if (rwa->heal &&
+	    (rrd->header.drr_type != DRR_WRITE &&
+	    rrd->header.drr_type != DRR_SPILL)) {
+		if (rrd->arc_buf != NULL)
+			dmu_return_arcbuf(rrd->arc_buf);
+		else if (rrd->payload != NULL)
+			kmem_free(rrd->payload, rrd->payload_size);
+		rrd->arc_buf = NULL;
+		rrd->payload = NULL;
+		return (0);
+	}
+
 	switch (rrd->header.drr_type) {
 	case DRR_OBJECT:
 	{
@@ -2589,6 +2834,7 @@ receive_writer_thread(void *arg)
 		kmem_free(rrd, sizeof (*rrd));
 	}
 	kmem_free(rrd, sizeof (*rrd));
+	zio_wait(rwa->heal_pio);
 	mutex_enter(&rwa->mutex);
 	rwa->done = B_TRUE;
 	cv_signal(&rwa->cv);
@@ -2746,10 +2992,13 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, int cleanup_fd,
 	mutex_init(&rwa->mutex, NULL, MUTEX_DEFAULT, NULL);
 	rwa->os = drc->drc_os;
 	rwa->byteswap = drc->drc_byteswap;
+	rwa->heal = drc->drc_heal;
 	rwa->resumable = drc->drc_resumable;
 	rwa->raw = drc->drc_raw;
 	rwa->spill = drc->drc_spill;
 	rwa->os->os_raw_receive = drc->drc_raw;
+	rwa->heal_pio = zio_root(drc->drc_os->os_spa, NULL, NULL,
+	    ZIO_FLAG_GODFATHER);
 
 	(void) thread_create(NULL, 0, receive_writer_thread, rwa, 0, curproc,
 	    TS_RUN, minclsyspri);
@@ -2879,7 +3128,9 @@ dmu_recv_end_check(void *arg, dmu_tx_t *tx)
 
 	ASSERT3P(drc->drc_ds->ds_owner, ==, dmu_recv_tag);
 
-	if (!drc->drc_newfs) {
+	if (drc->drc_heal) {
+		error = 0;
+	} else if (!drc->drc_newfs) {
 		dsl_dataset_t *origin_head;
 
 		error = dsl_dataset_hold(dp, drc->drc_tofs, FTAG, &origin_head);
@@ -2958,7 +3209,9 @@ dmu_recv_end_sync(void *arg, dmu_tx_t *tx)
 	    tx, "snap=%s", drc->drc_tosnap);
 	drc->drc_ds->ds_objset->os_raw_receive = B_FALSE;
 
-	if (!drc->drc_newfs) {
+	if (drc->drc_heal) {
+		spa_errlog_sync(dp->dp_spa, dmu_tx_get_txg(tx));
+	} else if (!drc->drc_newfs) {
 		dsl_dataset_t *origin_head;
 
 		VERIFY0(dsl_dataset_hold(dp, drc->drc_tofs, FTAG,
@@ -3207,4 +3460,7 @@ ZFS_MODULE_PARAM(zfs_recv, zfs_recv_, queue_length, INT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_recv, zfs_recv_, queue_ff, INT, ZMOD_RW,
 	"Receive queue fill fraction");
+
+ZFS_MODULE_PARAM(zfs_recv, zfs_recv_, best_effort_corrective, INT, ZMOD_RW,
+	"Ignore errors during corrective receive");
 /* END CSTYLED */

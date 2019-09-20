@@ -817,6 +817,29 @@ send_iterate_prop(zfs_handle_t *zhp, boolean_t received_only, nvlist_t *nv)
 }
 
 /*
+ * returns snapshot guid
+ * and returns 0 if the snapshot does not exist
+ */
+static uint64_t
+get_snap_guid(libzfs_handle_t *hdl, const char *fs, const char *snap)
+{
+	char name[MAXPATHLEN + 1];
+	uint64_t guid = 0;
+
+	if (fs == NULL || fs[0] == '\0' || snap == NULL || snap[0] == '\0')
+		return (guid);
+
+	(void) snprintf(name, sizeof (name), "%s@%s", fs, snap);
+	zfs_handle_t *zhp = zfs_open(hdl, name, ZFS_TYPE_SNAPSHOT);
+	if (zhp != NULL) {
+		guid = zfs_prop_get_int(zhp, ZFS_PROP_GUID);
+		zfs_close(zhp);
+	}
+
+	return (guid);
+}
+
+/*
  * returns snapshot creation txg
  * and returns 0 if the snapshot does not exist
  */
@@ -4650,9 +4673,34 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	redacted = DMU_GET_FEATUREFLAGS(drrb->drr_versioninfo) &
 	    DMU_BACKUP_FEATURE_REDACTED;
 
-	if (zfs_dataset_exists(hdl, name, ZFS_TYPE_DATASET)) {
+	if (flags->heal) {
+		if (flags->isprefix || flags->istail || flags->force ||
+		    flags->canmountoff || flags->resumable || flags->nomount ||
+		    flags->skipholds) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "corrective recv can not be used when combined with"
+			    " this flag"));
+			err = zfs_error(hdl, EZFS_INVALIDNAME, errbuf);
+			goto out;
+		}
+		uint64_t guid =
+		    get_snap_guid(hdl, name, strchr(destsnap, '@') + 1);
+		if (guid == 0) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "corrective recv must specify an existing snapshot"
+			    " to heal"));
+			err = zfs_error(hdl, EZFS_INVALIDNAME, errbuf);
+			goto out;
+		} else if (guid != drrb->drr_toguid) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "local snapshot doesn't match the snapshot"
+			    " in the provided stream"));
+			err = zfs_error(hdl, EZFS_WRONG_PARENT, errbuf);
+			goto out;
+		}
+	} else if (zfs_dataset_exists(hdl, name, ZFS_TYPE_DATASET)) {
 		zfs_cmd_t zc = {"\0"};
-		zfs_handle_t *zhp;
+		zfs_handle_t *zhp = NULL;
 		boolean_t encrypted;
 
 		(void) strcpy(zc.zc_name, name);
@@ -4845,8 +4893,9 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	}
 
 	if (flags->verbose) {
-		(void) printf("%s %s stream of %s into %s\n",
+		(void) printf("%s %s%s stream of %s into %s\n",
 		    flags->dryrun ? "would receive" : "receiving",
+		    flags->heal ? " corrective" : "",
 		    drrb->drr_fromguid ? "incremental" : "full",
 		    drrb->drr_toname, destsnap);
 		(void) fflush(stdout);
@@ -4907,10 +4956,18 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		    zfs_prop_to_name(ZFS_PROP_ENCRYPTION), ZIO_CRYPT_OFF);
 	}
 
-	err = ioctl_err = lzc_receive_with_cmdprops(destsnap, rcvprops,
-	    oxprops, wkeydata, wkeylen, origin, flags->force, flags->resumable,
-	    raw, infd, drr_noswap, cleanup_fd, &read_bytes, &errflags,
-	    action_handlep, &prop_errors);
+	if (flags->heal) {
+		err = ioctl_err = lzc_receive_with_heal(destsnap, rcvprops,
+		    oxprops, wkeydata, wkeylen, origin, flags->force,
+		    flags->heal, flags->resumable, raw, infd, drr_noswap,
+		    cleanup_fd, &read_bytes, &errflags, action_handlep,
+		    &prop_errors);
+	} else {
+		err = ioctl_err = lzc_receive_with_cmdprops(destsnap, rcvprops,
+		    oxprops, wkeydata, wkeylen, origin, flags->force,
+		    flags->resumable, raw, infd, drr_noswap, cleanup_fd,
+		    &read_bytes, &errflags, action_handlep, &prop_errors);
+	}
 	ioctl_errno = ioctl_err;
 	prop_errflags = errflags;
 

@@ -4726,9 +4726,9 @@ static boolean_t zfs_ioc_recv_inject_err;
 static int
 zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin, nvlist_t *recvprops,
     nvlist_t *localprops, nvlist_t *hidden_args, boolean_t force,
-    boolean_t resumable, int input_fd, dmu_replay_record_t *begin_record,
-    int cleanup_fd, uint64_t *read_bytes, uint64_t *errflags,
-    uint64_t *action_handle, nvlist_t **errors)
+    boolean_t heal, boolean_t resumable, int input_fd,
+    dmu_replay_record_t *begin_record, int cleanup_fd, uint64_t *read_bytes,
+    uint64_t *errflags, uint64_t *action_handle, nvlist_t **errors)
 {
 	dmu_recv_cookie_t drc;
 	int error = 0;
@@ -4751,7 +4751,7 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin, nvlist_t *recvprops,
 		return (SET_ERROR(EBADF));
 
 	off = input_fp->f_offset;
-	error = dmu_recv_begin(tofs, tosnap, begin_record, force,
+	error = dmu_recv_begin(tofs, tosnap, begin_record, force, heal,
 	    resumable, localprops, hidden_args, origin, &drc, input_fp->f_vnode,
 	    &off);
 	if (error != 0)
@@ -5100,7 +5100,7 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 	begin_record.drr_u.drr_begin = zc->zc_begin_record;
 
 	error = zfs_ioc_recv_impl(tofs, tosnap, origin, recvdprops, localprops,
-	    NULL, zc->zc_guid, B_FALSE, zc->zc_cookie, &begin_record,
+	    NULL, zc->zc_guid, B_FALSE, B_FALSE, zc->zc_cookie, &begin_record,
 	    zc->zc_cleanup_fd, &zc->zc_cookie, &zc->zc_obj,
 	    &zc->zc_action_handle, &errors);
 	nvlist_free(recvdprops);
@@ -5135,6 +5135,7 @@ zfs_ioc_recv(zfs_cmd_t *zc)
  *     "input_fd" -> file descriptor to read stream from (int32)
  *     (optional) "force" -> force flag (value ignored)
  *     (optional) "resumable" -> resumable flag (value ignored)
+ *     (optional) "heal" -> use send stream to heal data corruption
  *     (optional) "cleanup_fd" -> cleanup-on-exit file descriptor
  *     (optional) "action_handle" -> handle for this guid/ds mapping
  *     (optional) "hidden_args" -> { "wkeydata" -> value }
@@ -5155,6 +5156,7 @@ static const zfs_ioc_key_t zfs_keys_recv_new[] = {
 	{"begin_record",	DATA_TYPE_BYTE_ARRAY,	0},
 	{"input_fd",		DATA_TYPE_INT32,	0},
 	{"force",		DATA_TYPE_BOOLEAN,	ZK_OPTIONAL},
+	{"heal",		DATA_TYPE_BOOLEAN,	ZK_OPTIONAL},
 	{"resumable",		DATA_TYPE_BOOLEAN,	ZK_OPTIONAL},
 	{"cleanup_fd",		DATA_TYPE_INT32,	ZK_OPTIONAL},
 	{"action_handle",	DATA_TYPE_UINT64,	ZK_OPTIONAL},
@@ -5175,6 +5177,7 @@ zfs_ioc_recv_new(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 	char *tosnap;
 	char tofs[ZFS_MAX_DATASET_NAME_LEN];
 	boolean_t force;
+	boolean_t heal;
 	boolean_t resumable;
 	uint64_t action_handle = 0;
 	uint64_t read_bytes = 0;
@@ -5206,6 +5209,7 @@ zfs_ioc_recv_new(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 	input_fd = fnvlist_lookup_int32(innvl, "input_fd");
 
 	force = nvlist_exists(innvl, "force");
+	heal = nvlist_exists(innvl, "heal");
 	resumable = nvlist_exists(innvl, "resumable");
 
 	error = nvlist_lookup_int32(innvl, "cleanup_fd", &cleanup_fd);
@@ -5230,8 +5234,8 @@ zfs_ioc_recv_new(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 		return (error);
 
 	error = zfs_ioc_recv_impl(tofs, tosnap, origin, recvprops, localprops,
-	    hidden_args, force, resumable, input_fd, begin_record, cleanup_fd,
-	    &read_bytes, &errflags, &action_handle, &errors);
+	    hidden_args, force, heal, resumable, input_fd, begin_record,
+	    cleanup_fd, &read_bytes, &errflags, &action_handle, &errors);
 
 	fnvlist_add_uint64(outnvl, "read_bytes", read_bytes);
 	fnvlist_add_uint64(outnvl, "error_flags", errflags);

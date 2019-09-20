@@ -747,6 +747,9 @@ typedef struct recvflags {
 
 	/* skip receive of snapshot holds */
 	boolean_t skipholds;
+
+	/* use this recv to check (and heal if needed) an existing snapshot */
+	boolean_t heal;
 } recvflags_t;
 
 extern int zfs_receive(libzfs_handle_t *, const char *, nvlist_t *,
