@@ -1,4 +1,4 @@
-scriptsdir = /usr/share/initramfs-tools/scripts
+scriptsdir = $(datarootdir)/initramfs-tools/scripts
 
 scripts_DATA = \
 	zfs

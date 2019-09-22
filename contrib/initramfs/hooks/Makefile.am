@@ -1,4 +1,4 @@
-hooksdir = /usr/share/initramfs-tools/hooks
+hooksdir = $(datarootdir)/initramfs-tools/hooks
 
 hooks_SCRIPTS = \
 	zfs
