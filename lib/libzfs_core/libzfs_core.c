@@ -1389,6 +1389,24 @@ lzc_pool_checkpoint_discard(const char *pool)
 }
 
 /*
+ * Load the DDT table for the specified pool.
+ */
+int
+lzc_pool_ddtload(const char *pool)
+{
+	int error;
+	nvlist_t *result = NULL;
+	nvlist_t *args = fnvlist_alloc();
+
+	error = lzc_ioctl(ZFS_IOC_POOL_DDTLOAD, pool, args, &result);
+
+	fnvlist_free(args);
+	fnvlist_free(result);
+
+	return (error);
+}
+
+/*
  * Executes a read-only channel program.
  *
  * A read-only channel program works programmatically the same way as a

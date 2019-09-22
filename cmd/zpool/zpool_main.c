@@ -84,6 +84,7 @@ static int zpool_do_remove(int, char **);
 static int zpool_do_labelclear(int, char **);
 
 static int zpool_do_checkpoint(int, char **);
+static int zpool_do_ddtload(int, char **);
 
 static int zpool_do_list(int, char **);
 static int zpool_do_iostat(int, char **);
@@ -148,6 +149,7 @@ typedef enum {
 	HELP_CLEAR,
 	HELP_CREATE,
 	HELP_CHECKPOINT,
+	HELP_DDTLOAD,
 	HELP_DESTROY,
 	HELP_DETACH,
 	HELP_EXPORT,
@@ -284,6 +286,7 @@ static zpool_command_t command_table[] = {
 	{ "labelclear",	zpool_do_labelclear,	HELP_LABELCLEAR		},
 	{ NULL },
 	{ "checkpoint",	zpool_do_checkpoint,	HELP_CHECKPOINT		},
+	{ "ddtload",	zpool_do_ddtload,	HELP_DDTLOAD		},
 	{ NULL },
 	{ "list",	zpool_do_list,		HELP_LIST		},
 	{ "iostat",	zpool_do_iostat,	HELP_IOSTAT		},
@@ -346,6 +349,8 @@ get_usage(zpool_help_t idx)
 		    "\t    [-m mountpoint] [-R root] <pool> <vdev> ...\n"));
 	case HELP_CHECKPOINT:
 		return (gettext("\tcheckpoint [-d [-w]] <pool> ...\n"));
+	case HELP_DDTLOAD:
+		return (gettext("\tddtload <pool>\n"));
 	case HELP_DESTROY:
 		return (gettext("\tdestroy [-f] <pool>\n"));
 	case HELP_DETACH:
@@ -3059,6 +3064,46 @@ zpool_do_checkpoint(int argc, char **argv)
 }
 
 #define	CHECKPOINT_OPT	1024
+
+/*
+ * zpool ddtload <pool>
+ *
+ * Loads the DDT table of the specified pool.
+ */
+int
+zpool_do_ddtload(int argc, char **argv)
+{
+	char *pool;
+	zpool_handle_t *zhp;
+	int err;
+
+	argc--;
+	argv++;
+	if (argc < 1) {
+		(void) fprintf(stderr, gettext("missing pool argument\n"));
+		usage(B_FALSE);
+	}
+	if (argc > 1) {
+		(void) fprintf(stderr, gettext("too many arguments\n"));
+		usage(B_FALSE);
+	}
+
+	pool = argv[0];
+
+	if ((zhp = zpool_open(g_zfs, pool)) == NULL) {
+		/* As a special case, check for use of '/' in the name */
+		if (strchr(pool, '/') != NULL) {
+			(void) fprintf(stderr, gettext("'zpool ddtload' "
+			    "doesn't work on datasets.\n"));
+		}
+		return (1);
+	}
+
+	err = zpool_ddtload(zhp);
+	zpool_close(zhp);
+
+	return (err);
+}
 
 /*
  * zpool import [-d dir] [-D]

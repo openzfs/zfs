@@ -167,6 +167,7 @@ typedef struct ddt_ops {
 	int (*ddt_op_create)(objset_t *os, uint64_t *object, dmu_tx_t *tx,
 	    boolean_t prehash);
 	int (*ddt_op_destroy)(objset_t *os, uint64_t object, dmu_tx_t *tx);
+	void (*ddt_op_loadall)(objset_t *os, uint64_t object);
 	int (*ddt_op_lookup)(objset_t *os, uint64_t object, ddt_entry_t *dde);
 	void (*ddt_op_prefetch)(objset_t *os, uint64_t object,
 	    ddt_entry_t *dde);
@@ -229,6 +230,7 @@ extern void ddt_exit(ddt_t *ddt);
 extern void ddt_init(void);
 extern void ddt_fini(void);
 extern ddt_entry_t *ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t add);
+extern void ddt_loadall(ddt_t *ddt);
 extern void ddt_prefetch(spa_t *spa, const blkptr_t *bp);
 extern void ddt_remove(ddt_t *ddt, ddt_entry_t *dde);
 

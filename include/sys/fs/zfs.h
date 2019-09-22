@@ -1282,6 +1282,7 @@ typedef enum zfs_ioc {
 	ZFS_IOC_REDACT,				/* 0x5a51 */
 	ZFS_IOC_GET_BOOKMARK_PROPS,		/* 0x5a52 */
 	ZFS_IOC_WAIT,				/* 0x5a53 */
+	ZFS_IOC_POOL_DDTLOAD,			/* 0x5a54 */
 
 	/*
 	 * Per-platform (Optional) - 6/128 numbers reserved.

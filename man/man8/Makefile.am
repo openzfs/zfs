@@ -51,6 +51,7 @@ dist_man_MANS = \
 	zpool-checkpoint.8 \
 	zpool-clear.8 \
 	zpool-create.8 \
+	zpool-ddtload.8 \
 	zpool-destroy.8 \
 	zpool-detach.8 \
 	zpool-events.8 \

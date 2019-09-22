@@ -1458,6 +1458,27 @@ zpool_discard_checkpoint(zpool_handle_t *zhp)
 }
 
 /*
+ * Load the DDT table for the given pool.
+ */
+int
+zpool_ddtload(zpool_handle_t *zhp)
+{
+	libzfs_handle_t *hdl = zhp->zpool_hdl;
+	char msg[1024];
+	int error;
+
+	error = lzc_pool_ddtload(zhp->zpool_name);
+	if (error != 0) {
+		(void) snprintf(msg, sizeof (msg), dgettext(TEXT_DOMAIN,
+		    "cannot load DDT in '%s'"), zhp->zpool_name);
+		(void) zpool_standard_error(hdl, error, msg);
+		return (-1);
+	}
+
+	return (0);
+}
+
+/*
  * Add the given vdevs to the pool.  The caller must have already performed the
  * necessary verification to ensure that the vdev specification is well-formed.
  */

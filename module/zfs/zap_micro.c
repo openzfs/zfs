@@ -1045,6 +1045,22 @@ zap_prefetch(objset_t *os, uint64_t zapobj, const char *name)
 }
 
 int
+zap_prefetch_object(objset_t *os, uint64_t zapobj)
+{
+	int error;
+	dmu_object_info_t doi;
+
+	error = dmu_object_info(os, zapobj, &doi);
+	if (error == 0 && DMU_OT_BYTESWAP(doi.doi_type) != DMU_BSWAP_ZAP)
+		error = SET_ERROR(EINVAL);
+	if (error == 0) {
+		dmu_prefetch(os, zapobj, /*level*/ 0, /*offset*/ 0,
+		    doi.doi_max_offset, ZIO_PRIORITY_SYNC_READ);
+	}
+	return (error);
+}
+
+int
 zap_lookup_by_dnode(dnode_t *dn, const char *name,
     uint64_t integer_size, uint64_t num_integers, void *buf)
 {
@@ -1665,6 +1681,7 @@ EXPORT_SYMBOL(zap_lookup_uint64);
 EXPORT_SYMBOL(zap_contains);
 EXPORT_SYMBOL(zap_prefetch);
 EXPORT_SYMBOL(zap_prefetch_uint64);
+EXPORT_SYMBOL(zap_prefetch_object);
 EXPORT_SYMBOL(zap_add);
 EXPORT_SYMBOL(zap_add_by_dnode);
 EXPORT_SYMBOL(zap_add_uint64);

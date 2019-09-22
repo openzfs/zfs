@@ -170,6 +170,15 @@ ddt_object_sync(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
 	ddo->ddo_mspace = doi.doi_fill_count * doi.doi_data_block_size;
 }
 
+static void
+ddt_object_loadall(ddt_t *ddt, enum ddt_type type, enum ddt_class class)
+{
+	if (ddt_object_exists(ddt, type, class)) {
+		ddt_ops[type]->ddt_op_loadall(ddt->ddt_os,
+		    ddt->ddt_object[type][class]);
+	}
+}
+
 static int
 ddt_object_lookup(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
     ddt_entry_t *dde)
@@ -670,6 +679,24 @@ ddt_remove(ddt_t *ddt, ddt_entry_t *dde)
 
 	avl_remove(&ddt->ddt_tree, dde);
 	ddt_free(dde);
+}
+
+void
+ddt_loadall(ddt_t *ddt)
+{
+	enum ddt_type type;
+	enum ddt_class class;
+
+	/*
+	 * Load all DDT entries for each type/class combination.  This is
+	 * intended to perform a prefetch on all such blocks.  For the same
+	 * reason that ddt_prefetch isn't locked, this is also not locked.
+	 */
+	for (type  = 0; type < DDT_TYPES; type++) {
+		for (class = 0; class < DDT_CLASSES; class++) {
+			ddt_object_loadall(ddt, type, class);
+		}
+	}
 }
 
 ddt_entry_t *

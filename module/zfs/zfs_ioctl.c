@@ -3819,6 +3819,34 @@ zfs_ioc_pool_discard_checkpoint(const char *poolname, nvlist_t *innvl,
 }
 
 /*
+ * innvl: unused
+ * outnvl: empty
+ */
+static const zfs_ioc_key_t zfs_keys_pool_ddtload[] = {
+	/* no nvl keys */
+};
+
+/* ARGSUSED */
+static int
+zfs_ioc_pool_ddtload(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
+{
+	int error;
+	spa_t *spa;
+
+	error = spa_open(poolname, &spa, FTAG);
+	if (error != 0)
+		return (error);
+
+	for (enum zio_checksum c = 0; c < ZIO_CHECKSUM_FUNCTIONS; c++) {
+		ddt_loadall(spa->spa_ddt[c]);
+	}
+
+	spa_close(spa, FTAG);
+
+	return (error);
+}
+
+/*
  * inputs:
  * zc_name		name of dataset to destroy
  * zc_defer_destroy	mark for deferred destroy
@@ -6904,6 +6932,12 @@ zfs_ioctl_init(void)
 	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_TRUE, B_TRUE,
 	    zfs_keys_pool_discard_checkpoint,
 	    ARRAY_SIZE(zfs_keys_pool_discard_checkpoint));
+
+	zfs_ioctl_register("zpool_ddtload",
+	    ZFS_IOC_POOL_DDTLOAD, zfs_ioc_pool_ddtload,
+	    zfs_secpolicy_config, POOL_NAME,
+	    POOL_CHECK_SUSPENDED, B_TRUE, B_TRUE,
+	    zfs_keys_pool_ddtload, ARRAY_SIZE(zfs_keys_pool_ddtload));
 
 	zfs_ioctl_register("initialize", ZFS_IOC_POOL_INITIALIZE,
 	    zfs_ioc_pool_initialize, zfs_secpolicy_config, POOL_NAME,
