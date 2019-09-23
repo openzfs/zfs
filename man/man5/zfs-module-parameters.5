@@ -3188,8 +3188,10 @@ Default value: \fB32,768\fR.
 \fBzfs_vdev_scheduler\fR (charp)
 .ad
 .RS 12n
-Set the Linux I/O scheduler on whole disk vdevs to this scheduler. Valid options
-are noop, cfq, bfq & deadline
+Set the Linux I/O scheduler on whole disk vdevs to this scheduler.  This
+option has been deprecated and will be removed in a future release.  The
+standard \fB/sys/block/<block>/queue/scheduler\fR interface should be used
+to set a block device scheduler.
 .sp
 Default value: \fBnoop\fR.
 .RE
