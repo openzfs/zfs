@@ -2927,8 +2927,10 @@ scan_io_queue_fetch_ext(dsl_scan_io_queue_t *queue)
 		} else if (zfs_scan_issue_strategy == 2) {
 			range_seg_t *size_rs =
 			    zfs_btree_first(&queue->q_exts_by_size, NULL);
-			range_seg_t *addr_rs = range_tree_find(rt,
-			    rs_get_start(rt, size_rs), rs_get_end(rt, size_rs));
+			uint64_t start = rs_get_start(size_rs, rt);
+			uint64_t size = rs_get_end(size_rs, rt) - start;
+			range_seg_t *addr_rs = range_tree_find(rt, start,
+			    size);
 			ASSERT3P(addr_rs, !=, NULL);
 			return (addr_rs);
 		}
@@ -2948,8 +2950,9 @@ scan_io_queue_fetch_ext(dsl_scan_io_queue_t *queue)
 	} else if (scn->scn_clearing) {
 		range_seg_t *size_rs = zfs_btree_first(&queue->q_exts_by_size,
 		    NULL);
-		range_seg_t *addr_rs = range_tree_find(rt,
-		    rs_get_start(rt, size_rs), rs_get_end(rt, size_rs));
+		uint64_t start = rs_get_start(size_rs, rt);
+		uint64_t size = rs_get_end(size_rs, rt) - start;
+		range_seg_t *addr_rs = range_tree_find(rt, start, size);
 		ASSERT3P(addr_rs, !=, NULL);
 		return (addr_rs);
 	} else {

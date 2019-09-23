@@ -918,7 +918,7 @@ zfs_btree_bulk_finish(zfs_btree_t *tree)
 		uint64_t parent_idx = zfs_btree_find_parent_idx(tree, hdr);
 		ASSERT3U(parent_idx, >, 0);
 		zfs_btree_core_t *l_neighbor =
-		    (zfs_btree_core_t *)parent->btc_children[ parent_idx - 1];
+		    (zfs_btree_core_t *)parent->btc_children[parent_idx - 1];
 		uint64_t move_count = (capacity / 2) - hdr->bth_count;
 		ASSERT3U(l_neighbor->btc_hdr.bth_count - move_count, >=,
 		    capacity / 2);
@@ -926,7 +926,7 @@ zfs_btree_bulk_finish(zfs_btree_t *tree)
 		if (zfs_btree_verify_intensity >= 5) {
 			for (int i = 0; i < move_count; i++) {
 				zfs_btree_verify_poison_at(tree, hdr,
-				    leaf->btl_hdr.bth_count + i);
+				    hdr->bth_count + i);
 			}
 		}
 		/* First, shift things in the right node back. */
@@ -1503,11 +1503,7 @@ zfs_btree_remove_from_node(zfs_btree_t *tree, zfs_btree_core_t *node,
 	bt_transfer_core(tree, rm, 0, new_rm_hdr->bth_count, keep,
 	    keep_hdr->bth_count, BSS_TRAPEZOID);
 
-	/* Reparent all our children to point to the left node. */
-	zfs_btree_hdr_t **new_start = keep->btc_children +
-	    keep_hdr->bth_count;
-	for (int i = 0; i < new_rm_hdr->bth_count + 1; i++)
-		new_start[i]->bth_parent = keep;
+	uint64_t old_count = keep_hdr->bth_count;
 
 	/* Update bookkeeping */
 	keep_hdr->bth_count += new_rm_hdr->bth_count;
@@ -1521,6 +1517,12 @@ zfs_btree_remove_from_node(zfs_btree_t *tree, zfs_btree_core_t *node,
 	bt_shift_core_left(tree, keep, new_idx, keep_hdr->bth_count - new_idx,
 	    BSS_PARALLELOGRAM);
 	keep_hdr->bth_count--;
+
+	/* Reparent all our children to point to the left node. */
+	zfs_btree_hdr_t **new_start = keep->btc_children +
+	    old_count - 1;
+	for (int i = 0; i < new_rm_hdr->bth_count + 1; i++)
+		new_start[i]->bth_parent = keep;
 	for (int i = 0; i <= keep_hdr->bth_count; i++) {
 		ASSERT3P(keep->btc_children[i]->bth_parent, ==, keep);
 		ASSERT3P(keep->btc_children[i], !=, rm_hdr);
