@@ -23,6 +23,7 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_TOOLCHAIN_SIMD], [
 			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_AVX512VL
 			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_AES
 			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_PCLMULQDQ
+			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_MOVBE
 			;;
 	esac
 ])
@@ -397,6 +398,26 @@ AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_PCLMULQDQ], [
 	]])], [
 		AC_MSG_RESULT([yes])
 		AC_DEFINE([HAVE_PCLMULQDQ], 1, [Define if host toolchain supports PCLMULQDQ])
+	], [
+		AC_MSG_RESULT([no])
+	])
+])
+
+dnl #
+dnl # ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_MOVBE
+dnl #
+AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_MOVBE], [
+	AC_MSG_CHECKING([whether host toolchain supports MOVBE])
+
+	AC_LINK_IFELSE([AC_LANG_SOURCE([
+	[
+		void main()
+		{
+			__asm__ __volatile__("movbe 0(%eax), %eax");
+		}
+	]])], [
+		AC_MSG_RESULT([yes])
+		AC_DEFINE([HAVE_MOVBE], 1, [Define if host toolchain supports MOVBE])
 	], [
 		AC_MSG_RESULT([no])
 	])
