@@ -494,6 +494,31 @@ zfs_btree_first_helper(zfs_btree_hdr_t *hdr, zfs_btree_index_t *where)
 	return (&leaf->btl_elems[0]);
 }
 
+/* Insert an element and a child into a core node at the given offset. */
+static void
+zfs_btree_insert_core_impl(zfs_btree_t *tree, zfs_btree_core_t *parent,
+    uint64_t offset, zfs_btree_hdr_t *new_node, void *buf)
+{
+	uint64_t size = tree->bt_elem_size;
+	zfs_btree_hdr_t *par_hdr = &parent->btc_hdr;
+	ASSERT3P(par_hdr, ==, new_node->bth_parent);
+	ASSERT3U(par_hdr->bth_count, <, BTREE_CORE_ELEMS);
+
+	if (zfs_btree_verify_intensity >= 5) {
+		zfs_btree_verify_poison_at(tree, par_hdr,
+		    par_hdr->bth_count);
+	}
+	/* Shift existing elements and children */
+	uint64_t count = par_hdr->bth_count - offset;
+	bt_shift_core_right(tree, parent, offset, count,
+	    BSS_PARALLELOGRAM);
+
+	/* Insert new values */
+	parent->btc_children[offset + 1] = new_node;
+	bcopy(buf, parent->btc_elems + offset * size, size);
+	par_hdr->bth_count++;
+}
+
 /*
  * Insert new_node into the parent of old_node directly after old_node, with
  * buf as the dividing element between the two.
@@ -551,20 +576,7 @@ zfs_btree_insert_into_parent(zfs_btree_t *tree, zfs_btree_hdr_t *old_node,
 	 * and return.
 	 */
 	if (par_hdr->bth_count != BTREE_CORE_ELEMS) {
-		if (zfs_btree_verify_intensity >= 5) {
-			zfs_btree_verify_poison_at(tree, par_hdr,
-			    par_hdr->bth_count);
-		}
-
-		/* Shift existing elements and children */
-		uint64_t count = par_hdr->bth_count - offset;
-		bt_shift_core_right(tree, parent, offset, count,
-		    BSS_PARALLELOGRAM);
-
-		/* Insert new values */
-		parent->btc_children[offset + 1] = new_node;
-		bcopy(buf, parent->btc_elems + offset * size, size);
-		par_hdr->bth_count++;
+		zfs_btree_insert_core_impl(tree, parent, offset, new_node, buf);
 		return;
 	}
 
@@ -582,10 +594,13 @@ zfs_btree_insert_into_parent(zfs_btree_t *tree, zfs_btree_hdr_t *old_node,
 	 * instead move only about a quarter of the elements (and children) to
 	 * the new node. Since the average state after a long time is a 3/4
 	 * full node, shortcutting directly to that state improves efficiency.
+	 *
+	 * We do this in two stages: first we split into two nodes, and then we
+	 * reuse our existing logic to insert the new element and child.
 	 */
-	uint64_t move_count = MAX(BTREE_CORE_ELEMS / (tree->bt_bulk == NULL ?
-	    2 : 4), 2);
-	uint64_t keep_count = BTREE_CORE_ELEMS - move_count;
+	uint64_t move_count = MAX((BTREE_CORE_ELEMS / (tree->bt_bulk == NULL ?
+	    2 : 4)) - 1, 2);
+	uint64_t keep_count = BTREE_CORE_ELEMS - move_count - 1;
 	ASSERT3U(BTREE_CORE_ELEMS - move_count, >=, 2);
 	tree->bt_num_nodes++;
 	zfs_btree_core_t *new_parent = kmem_alloc(sizeof (zfs_btree_core_t) +
@@ -598,87 +613,47 @@ zfs_btree_insert_into_parent(zfs_btree_t *tree, zfs_btree_hdr_t *old_node,
 
 	par_hdr->bth_count = keep_count;
 
-	/*
-	 * The three cases to consider are that the element in buf should be
-	 * in the existing node (with lower values), the new node (with higher
-	 * values), or that it should separate the two nodes.
-	 */
+	bt_transfer_core(tree, parent, keep_count + 1, move_count, new_parent,
+	    0, BSS_TRAPEZOID);
+
+	/* Store the new separator in a buffer. */
+	uint8_t *tmp_buf = kmem_alloc(size, KM_SLEEP);
+	bcopy(parent->btc_elems + keep_count * size, tmp_buf,
+	    size);
+	zfs_btree_poison_node(tree, par_hdr);
+
 	if (offset < keep_count) {
-		/*
-		 * Copy the back part of the elements and children to the new
-		 * leaf.
-		 */
-		bt_transfer_core(tree, parent, keep_count, move_count,
-		    new_parent, 0, BSS_TRAPEZOID);
-
-		/* Store the new separator in a buffer. */
-		uint8_t *tmp_buf = kmem_alloc(size, KM_SLEEP);
-		bcopy(parent->btc_elems + (keep_count - 1) * size, tmp_buf,
-		    size);
-
-		/*
-		 * Shift the remaining elements and children in the front half
-		 * to handle the new value.
-		 */
-		bt_shift_core_right(tree, parent, offset, keep_count - 1 -
-		    offset, BSS_PARALLELOGRAM);
-
-		uint8_t *e_start = parent->btc_elems + offset * size;
-		bcopy(buf, e_start, size);
-
-		zfs_btree_hdr_t **c_start = parent->btc_children + (offset + 1);
-		*c_start = new_node;
-		ASSERT3P(*(c_start - 1), ==, old_node);
+		/* Insert the new node into the left half */
+		zfs_btree_insert_core_impl(tree, parent, offset, new_node,
+		    buf);
 
 		/*
 		 * Move the new separator to the existing buffer.
 		 */
 		bcopy(tmp_buf, buf, size);
-		kmem_free(tmp_buf, size);
 	} else if (offset > keep_count) {
-		/* Store the new separator in a buffer. */
-		uint8_t *tmp_buf = kmem_alloc(size, KM_SLEEP);
-		uint8_t *e_start = parent->btc_elems + keep_count * size;
-		bcopy(e_start, tmp_buf, size);
-
-		/*
-		 * Of the elements and children in the back half, move those
-		 * before offset to the new leaf.
-		 */
-		uint64_t e_count = offset - keep_count - 1;
-		bt_transfer_core(tree, parent, keep_count + 1,
-		    e_count, new_parent, 0, BSS_TRAPEZOID);
-
-		/* Add the new value to the new leaf. */
-		uint8_t *e_out = new_parent->btc_elems + e_count * size;
-		bcopy(buf, e_out, size);
-
-		zfs_btree_hdr_t **c_out = new_parent->btc_children + e_count +
-		    1;
-		*c_out = new_node;
-		ASSERT3P(*(c_out - 1), ==, old_node);
+		/* Insert the new node into the right half */
+		new_node->bth_parent = new_parent;
+		zfs_btree_insert_core_impl(tree, new_parent,
+		    offset - keep_count - 1, new_node, buf);
 
 		/*
 		 * Move the new separator to the existing buffer.
 		 */
 		bcopy(tmp_buf, buf, size);
-		kmem_free(tmp_buf, size);
-
-		/* Move the rest of the back half to the new leaf. */
-		bt_transfer_core(tree, parent, offset,
-		    BTREE_CORE_ELEMS - offset, new_parent, e_count + 1,
-		    BSS_PARALLELOGRAM);
 	} else {
 		/*
-		 * The new value is the new separator, no change.
-		 *
-		 * Copy the back part of the elements and children to the new
-		 * leaf.
+		 * Move the new separator into the right half, and replace it
+		 * with buf. We also need to shift back the elements in the
+		 * right half to accomodate new_node.
 		 */
-		bt_transfer_core(tree, parent, keep_count, move_count,
-		    new_parent, 0, BSS_PARALLELOGRAM);
+		bt_shift_core_right(tree, new_parent, 0, move_count,
+		    BSS_TRAPEZOID);
 		new_parent->btc_children[0] = new_node;
+		bcopy(tmp_buf, new_parent->btc_elems, size);
+		new_par_hdr->bth_count++;
 	}
+	kmem_free(tmp_buf, size);
 	zfs_btree_poison_node(tree, par_hdr);
 
 	for (int i = 0; i <= new_parent->btc_hdr.bth_count; i++)
@@ -695,14 +670,35 @@ zfs_btree_insert_into_parent(zfs_btree_t *tree, zfs_btree_hdr_t *old_node,
 	    &new_parent->btc_hdr, buf);
 }
 
+/* Insert an element into a leaf node at the given offset. */
+static void
+zfs_btree_insert_leaf_impl(zfs_btree_t *tree, zfs_btree_leaf_t *leaf,
+    uint64_t idx, const void *value)
+{
+	uint64_t size = tree->bt_elem_size;
+	uint8_t *start = leaf->btl_elems + (idx * size);
+	zfs_btree_hdr_t *hdr = &leaf->btl_hdr;
+	ASSERTV(uint64_t capacity = P2ALIGN((BTREE_LEAF_SIZE -
+	    sizeof (zfs_btree_hdr_t)) / size, 2));
+	uint64_t count = leaf->btl_hdr.bth_count - idx;
+	ASSERT3U(leaf->btl_hdr.bth_count, <, capacity);
+
+	if (zfs_btree_verify_intensity >= 5) {
+		zfs_btree_verify_poison_at(tree, &leaf->btl_hdr,
+		    leaf->btl_hdr.bth_count);
+	}
+
+	bt_shift_leaf_right(tree, leaf, idx, count);
+	bcopy(value, start, size);
+	hdr->bth_count++;
+}
+
 /* Helper function for inserting a new value into leaf at the given index. */
 static void
 zfs_btree_insert_into_leaf(zfs_btree_t *tree, zfs_btree_leaf_t *leaf,
     const void *value, uint64_t idx)
 {
 	uint64_t size = tree->bt_elem_size;
-	uint8_t *start = leaf->btl_elems + (idx * size);
-	uint64_t count = leaf->btl_hdr.bth_count - idx;
 	uint64_t capacity = P2ALIGN((BTREE_LEAF_SIZE -
 	    sizeof (zfs_btree_hdr_t)) / size, 2);
 
@@ -711,13 +707,7 @@ zfs_btree_insert_into_leaf(zfs_btree_t *tree, zfs_btree_leaf_t *leaf,
 	 * value.
 	 */
 	if (leaf->btl_hdr.bth_count != capacity) {
-		if (zfs_btree_verify_intensity >= 5) {
-			zfs_btree_verify_poison_at(tree, &leaf->btl_hdr,
-			    leaf->btl_hdr.bth_count);
-		}
-		leaf->btl_hdr.bth_count++;
-		bt_shift_leaf_right(tree, leaf, idx, count);
-		bcopy(value, start, size);
+		zfs_btree_insert_leaf_impl(tree, leaf, idx, value);
 		return;
 	}
 
@@ -735,9 +725,9 @@ zfs_btree_insert_into_leaf(zfs_btree_t *tree, zfs_btree_leaf_t *leaf,
 	 * In either case, we're left with one extra element. The leftover
 	 * element will become the new dividing element between the two nodes.
 	 */
-	uint64_t move_count = MAX(capacity / (tree->bt_bulk == NULL ? 2 : 4),
-	    2);
-	uint64_t keep_count = capacity - move_count;
+	uint64_t move_count = MAX(capacity / (tree->bt_bulk == NULL ? 2 : 4) -
+	    1, 2);
+	uint64_t keep_count = capacity - move_count - 1;
 	ASSERT3U(capacity - move_count, >=, 2);
 	tree->bt_num_nodes++;
 	zfs_btree_leaf_t *new_leaf = kmem_cache_alloc(zfs_btree_leaf_cache,
@@ -753,56 +743,32 @@ zfs_btree_insert_into_leaf(zfs_btree_t *tree, zfs_btree_leaf_t *leaf,
 	if (tree->bt_bulk != NULL && leaf == tree->bt_bulk)
 		tree->bt_bulk = new_leaf;
 
+	/* Copy the back part to the new leaf. */
+	bt_transfer_leaf(tree, leaf, keep_count + 1, move_count, new_leaf,
+	    0);
+
 	/* We store the new separator in a buffer we control for simplicity. */
 	uint8_t *buf = kmem_alloc(size, KM_SLEEP);
-
-	/*
-	 * The three cases to consider are that value should be in the new
-	 * first node, the new second node, or that it should separate the two
-	 * nodes.
-	 */
-	if (idx < keep_count) {
-		/* Copy the back part to the new leaf. */
-		bt_transfer_leaf(tree, leaf, keep_count, move_count, new_leaf,
-		    0);
-
-		/* Store the new separator in a buffer. */
-		bcopy(leaf->btl_elems + (keep_count - 1) * size, buf,
-		    size);
-
-		/*
-		 * Shift the remaining elements in the front part to handle
-		 * the new value.
-		 */
-		bt_shift_leaf_right(tree, leaf, idx, keep_count - 1 - idx);
-		bcopy(value, leaf->btl_elems + idx * size, size);
-	} else if (idx > keep_count) {
-		/* Store the new separator in a buffer. */
-		start = leaf->btl_elems + (keep_count) * size;
-		bcopy(start, buf, size);
-
-		/* Move the back part before idx to the new leaf. */
-		bt_transfer_leaf(tree, leaf, keep_count + 1,
-		    idx - keep_count - 1, new_leaf, 0);
-
-		/* Add the new value to the new leaf. */
-		uint8_t *out = new_leaf->btl_elems + (idx - keep_count - 1) *
-		    size;
-		bcopy(value, out, size);
-
-		/* Move the rest of the back part to the new leaf. */
-		bt_transfer_leaf(tree, leaf, idx, capacity - idx, new_leaf,
-		    idx - keep_count);
-	} else {
-		/* The new value is the new separator. */
-		bcopy(value, buf, size);
-
-		/* Copy the back part to the new leaf. */
-		bt_transfer_leaf(tree, leaf, keep_count, move_count, new_leaf,
-		    0);
-	}
-
+	bcopy(leaf->btl_elems + (keep_count * size), buf, size);
 	zfs_btree_poison_node(tree, &leaf->btl_hdr);
+
+	if (idx < keep_count) {
+		/* Insert into the existing leaf. */
+		zfs_btree_insert_leaf_impl(tree, leaf, idx, value);
+	} else if (idx > keep_count) {
+		/* Insert into the new leaf. */
+		zfs_btree_insert_leaf_impl(tree, new_leaf, idx - keep_count -
+		    1, value);
+	} else {
+		/*
+		 * Shift the elements in the new leaf to make room for the
+		 * separator, and use the new value as the new separator.
+		 */
+		bt_shift_leaf_right(tree, new_leaf, 0, move_count);
+		bcopy(buf, new_leaf->btl_elems, size);
+		bcopy(value, buf, size);
+		new_hdr->bth_count++;
+	}
 
 	/*
 	 * Now that the node is split, we need to insert the new node into its
@@ -1348,7 +1314,7 @@ zfs_btree_remove_from_node(zfs_btree_t *tree, zfs_btree_core_t *node,
     zfs_btree_hdr_t *rm_hdr)
 {
 	size_t size = tree->bt_elem_size;
-	uint64_t min_count = BTREE_CORE_ELEMS / 2;
+	uint64_t min_count = (BTREE_CORE_ELEMS / 2) - 1;
 	zfs_btree_hdr_t *hdr = &node->btc_hdr;
 	/*
 	 * If the node is the root node and rm_hdr is one of two children,
@@ -1371,25 +1337,25 @@ zfs_btree_remove_from_node(zfs_btree_t *tree, zfs_btree_core_t *node,
 			break;
 	}
 	ASSERT3U(idx, <=, hdr->bth_count);
-	hdr->bth_count--;
 
 	/*
 	 * If the node is the root or it has more than the minimum number of
 	 * children, just remove the child and separator, and return.
 	 */
 	if (hdr->bth_parent == NULL ||
-	    hdr->bth_count >= min_count) {
+	    hdr->bth_count > min_count) {
 		/*
 		 * Shift the element and children to the right of rm_hdr to
 		 * the left by one spot.
 		 */
-		bt_shift_core_left(tree, node, idx, hdr->bth_count - idx + 1,
+		bt_shift_core_left(tree, node, idx, hdr->bth_count - idx,
 		    BSS_PARALLELOGRAM);
+		hdr->bth_count--;
 		zfs_btree_poison_node_at(tree, hdr, hdr->bth_count);
 		return;
 	}
 
-	ASSERT3U(hdr->bth_count, ==, min_count - 1);
+	ASSERT3U(hdr->bth_count, ==, min_count);
 
 	/*
 	 * Now we try to take a node from a neighbor. We check left, then
@@ -1440,7 +1406,6 @@ zfs_btree_remove_from_node(zfs_btree_t *tree, zfs_btree_core_t *node,
 		    (l_hdr->bth_count - 1) * size;
 		bcopy(take_elem, separator, size);
 		l_hdr->bth_count--;
-		hdr->bth_count++;
 		zfs_btree_poison_node_at(tree, l_hdr, l_hdr->bth_count);
 		return;
 	}
@@ -1456,7 +1421,7 @@ zfs_btree_remove_from_node(zfs_btree_t *tree, zfs_btree_core_t *node,
 		 * Shift elements in node left by one spot to overwrite rm_hdr
 		 * and the separator before it.
 		 */
-		bt_shift_core_left(tree, node, idx, hdr->bth_count - idx + 1,
+		bt_shift_core_left(tree, node, idx, hdr->bth_count - idx,
 		    BSS_PARALLELOGRAM);
 
 		/*
@@ -1464,22 +1429,22 @@ zfs_btree_remove_from_node(zfs_btree_t *tree, zfs_btree_core_t *node,
 		 * element spot in node.
 		 */
 		uint8_t *separator = parent->btc_elems + parent_idx * size;
-		bcopy(separator, node->btc_elems + hdr->bth_count * size, size);
+		bcopy(separator, node->btc_elems + (hdr->bth_count - 1) * size,
+		    size);
 
 		/*
 		 * Move the first child of neighbor to the last child spot in
 		 * node.
 		 */
 		zfs_btree_hdr_t **take_child = neighbor->btc_children;
-		bcopy(take_child, node->btc_children + (hdr->bth_count + 1),
+		bcopy(take_child, node->btc_children + hdr->bth_count,
 		    sizeof (*take_child));
-		node->btc_children[hdr->bth_count + 1]->bth_parent = node;
+		node->btc_children[hdr->bth_count]->bth_parent = node;
 
 		/* Move the first element of neighbor to the separator spot. */
 		uint8_t *take_elem = neighbor->btc_elems;
 		bcopy(take_elem, separator, size);
 		r_hdr->bth_count--;
-		hdr->bth_count++;
 
 		/*
 		 * Shift the elements and children of neighbor to cover the
@@ -1496,96 +1461,71 @@ zfs_btree_remove_from_node(zfs_btree_t *tree, zfs_btree_core_t *node,
 	 * need to merge with one of them. We prefer the left one,
 	 * arabitrarily. Move the separator into the leftmost merging node
 	 * (which may be us or the left neighbor), and then move the right
-	 * merging node's elements (skipping or overwriting idx, which we're
-	 * deleting). Once that's done, go into the parent and delete the
-	 * right merging node and the separator. This may cause further
+	 * merging node's elements. Once that's done, we go back and delete
+	 * the element we're removing. Finally, go into the parent and delete
+	 * the right merging node and the separator. This may cause further
 	 * merging.
 	 */
-	zfs_btree_hdr_t *new_rm_hdr;
-
+	zfs_btree_hdr_t *new_rm_hdr, *keep_hdr;
+	uint64_t new_idx = idx;
 	if (l_hdr != NULL) {
-		ASSERT(l_hdr->bth_core);
-		zfs_btree_core_t *left = (zfs_btree_core_t *)l_hdr;
-
-		if (zfs_btree_verify_intensity >= 5) {
-			for (int i = 0; i < hdr->bth_count + 1; i++) {
-				zfs_btree_verify_poison_at(tree, l_hdr,
-				    l_hdr->bth_count + i);
-			}
-		}
-		/* Move the separator into the left node. */
-		uint8_t *e_out = left->btc_elems + l_hdr->bth_count * size;
-		uint8_t *separator = parent->btc_elems + (parent_idx - 1) *
-		    size;
-		bcopy(separator, e_out, size);
-
-		/* Move all our elements and children into the left node. */
-		bt_transfer_core(tree, node, 0, idx - 1, left,
-		    l_hdr->bth_count + 1, BSS_TRAPEZOID);
-		bt_transfer_core(tree, node, idx, hdr->bth_count - idx + 1,
-		    left, l_hdr->bth_count + idx, BSS_PARALLELOGRAM);
-
-		/* Reparent all our children to point to the left node. */
-		zfs_btree_hdr_t **new_start = left->btc_children +
-		    l_hdr->bth_count + 1;
-		for (int i = 0; i < hdr->bth_count + 1; i++)
-			new_start[i]->bth_parent = left;
-
-		/* Update bookkeeping */
-		l_hdr->bth_count += hdr->bth_count + 1;
-		for (int i = 0; i <= l_hdr->bth_count; i++) {
-			ASSERT3P(left->btc_children[i]->bth_parent, ==, left);
-			ASSERT3P(left->btc_children[i], !=, rm_hdr);
-		}
-		ASSERT3U(l_hdr->bth_count, ==, BTREE_CORE_ELEMS);
+		keep_hdr = l_hdr;
 		new_rm_hdr = hdr;
+		new_idx += keep_hdr->bth_count + 1;
 	} else {
 		ASSERT3P(r_hdr, !=, NULL);
-		ASSERT(r_hdr->bth_core);
-		zfs_btree_core_t *right = (zfs_btree_core_t *)r_hdr;
-
-		if (zfs_btree_verify_intensity >= 5) {
-			for (int i = 0; i < r_hdr->bth_count; i++) {
-				zfs_btree_verify_poison_at(tree, hdr,
-				    hdr->bth_count + i + 1);
-			}
-		}
-		/*
-		 * Overwrite rm_hdr and its separator by moving node's
-		 * elements and children forward.
-		 */
-		bt_shift_core_left(tree, node, idx, hdr->bth_count - idx + 1,
-		    BSS_PARALLELOGRAM);
-
-		/*
-		 * Move the separator to the first open spot in node's
-		 * elements.
-		 */
-		uint8_t *e_out = node->btc_elems + (hdr->bth_count - idx) *
-		    size;
-		uint8_t *separator = parent->btc_elems + parent_idx * size;
-		bcopy(separator, e_out, size);
-
-		/* Move the right node's elements and children to node. */
-		bt_transfer_core(tree, right, 0, r_hdr->bth_count, node,
-		    hdr->bth_count - idx + 1, BSS_TRAPEZOID);
-
-		/* Reparent the right node's children to point to node. */
-		for (int i =  hdr->bth_count - idx; i < r_hdr->bth_count + 1;
-		    i++) {
-			node->btc_children[i]->bth_parent = node;
-		}
-
-		/* Update bookkeeping. */
-		hdr->bth_count += r_hdr->bth_count + 1;
-		for (int i = 0; i <= hdr->bth_count; i++) {
-			ASSERT3P(node->btc_children[i]->bth_parent, ==, node);
-			ASSERT3P(node->btc_children[i], !=, rm_hdr);
-		}
-
-		ASSERT3U(hdr->bth_count, ==, BTREE_CORE_ELEMS);
+		keep_hdr = hdr;
 		new_rm_hdr = r_hdr;
+		parent_idx++;
 	}
+
+	ASSERT(keep_hdr->bth_core);
+	ASSERT(new_rm_hdr->bth_core);
+
+	zfs_btree_core_t *keep = (zfs_btree_core_t *)keep_hdr;
+	zfs_btree_core_t *rm = (zfs_btree_core_t *)new_rm_hdr;
+
+	if (zfs_btree_verify_intensity >= 5) {
+		for (int i = 0; i < new_rm_hdr->bth_count + 1; i++) {
+			zfs_btree_verify_poison_at(tree, keep_hdr,
+			    keep_hdr->bth_count + i);
+		}
+	}
+
+	/* Move the separator into the left node. */
+	uint8_t *e_out = keep->btc_elems + keep_hdr->bth_count * size;
+	uint8_t *separator = parent->btc_elems + (parent_idx - 1) *
+	    size;
+	bcopy(separator, e_out, size);
+	keep_hdr->bth_count++;
+
+	/* Move all our elements and children into the left node. */
+	bt_transfer_core(tree, rm, 0, new_rm_hdr->bth_count, keep,
+	    keep_hdr->bth_count, BSS_TRAPEZOID);
+
+	/* Reparent all our children to point to the left node. */
+	zfs_btree_hdr_t **new_start = keep->btc_children +
+	    keep_hdr->bth_count;
+	for (int i = 0; i < new_rm_hdr->bth_count + 1; i++)
+		new_start[i]->bth_parent = keep;
+
+	/* Update bookkeeping */
+	keep_hdr->bth_count += new_rm_hdr->bth_count;
+	ASSERT3U(keep_hdr->bth_count, ==, (min_count * 2) + 1);
+
+	/*
+	 * Shift the element and children to the right of rm_hdr to
+	 * the left by one spot.
+	 */
+	ASSERT3P(keep->btc_children[new_idx], ==, rm_hdr);
+	bt_shift_core_left(tree, keep, new_idx, keep_hdr->bth_count - new_idx,
+	    BSS_PARALLELOGRAM);
+	keep_hdr->bth_count--;
+	for (int i = 0; i <= keep_hdr->bth_count; i++) {
+		ASSERT3P(keep->btc_children[i]->bth_parent, ==, keep);
+		ASSERT3P(keep->btc_children[i], !=, rm_hdr);
+	}
+	zfs_btree_poison_node_at(tree, keep_hdr, keep_hdr->bth_count);
 
 	new_rm_hdr->bth_count = 0;
 	zfs_btree_node_destroy(tree, new_rm_hdr);
@@ -1649,15 +1589,15 @@ zfs_btree_remove_from(zfs_btree_t *tree, zfs_btree_index_t *where)
 	ASSERT(!hdr->bth_core);
 	zfs_btree_leaf_t *leaf = (zfs_btree_leaf_t *)hdr;
 	ASSERT3U(hdr->bth_count, >, 0);
-	hdr->bth_count--;
 
-	uint64_t min_count = capacity / 2;
+	uint64_t min_count = (capacity / 2) - 1;
 
 	/*
 	 * If we're over the minimum size or this is the root, just overwrite
 	 * the value and return.
 	 */
-	if (hdr->bth_count >= min_count || hdr->bth_parent == NULL) {
+	if (hdr->bth_count > min_count || hdr->bth_parent == NULL) {
+		hdr->bth_count--;
 		bt_shift_leaf_left(tree, leaf, idx + 1, hdr->bth_count - idx);
 		if (hdr->bth_parent == NULL) {
 			ASSERT0(tree->bt_height);
@@ -1672,7 +1612,7 @@ zfs_btree_remove_from(zfs_btree_t *tree, zfs_btree_index_t *where)
 		zfs_btree_verify(tree);
 		return;
 	}
-	ASSERT3U(hdr->bth_count, ==, min_count - 1);
+	ASSERT3U(hdr->bth_count, ==, min_count);
 
 	/*
 	 * Now we try to take a node from a sibling. We check left, then
@@ -1713,7 +1653,6 @@ zfs_btree_remove_from(zfs_btree_t *tree, zfs_btree_index_t *where)
 
 		/* Update the bookkeeping. */
 		l_hdr->bth_count--;
-		hdr->bth_count++;
 		zfs_btree_poison_node_at(tree, l_hdr, l_hdr->bth_count);
 
 		zfs_btree_verify(tree);
@@ -1732,19 +1671,20 @@ zfs_btree_remove_from(zfs_btree_t *tree, zfs_btree_index_t *where)
 		 * by one spot to make room for the stolen element and
 		 * overwrite the element being removed.
 		 */
-		bt_shift_leaf_left(tree, leaf, idx + 1, hdr->bth_count - idx);
+		bt_shift_leaf_left(tree, leaf, idx + 1, hdr->bth_count - idx -
+		    1);
 
 		uint8_t *separator = parent->btc_elems + parent_idx * size;
 		uint8_t *take_elem = ((zfs_btree_leaf_t *)r_hdr)->btl_elems;
 		/* Move the separator between us to our last spot. */
-		bcopy(separator, leaf->btl_elems + hdr->bth_count * size, size);
+		bcopy(separator, leaf->btl_elems + (hdr->bth_count - 1) * size,
+		    size);
 
 		/* Move our neighbor's first element to the separator. */
 		bcopy(take_elem, separator, size);
 
 		/* Update the bookkeeping. */
 		r_hdr->bth_count--;
-		hdr->bth_count++;
 
 		/*
 		 * Move our neighbors elements forwards to overwrite the
@@ -1761,73 +1701,62 @@ zfs_btree_remove_from(zfs_btree_t *tree, zfs_btree_index_t *where)
 	 * need to merge with one of them. We prefer the left one,
 	 * arabitrarily. Move the separator into the leftmost merging node
 	 * (which may be us or the left neighbor), and then move the right
-	 * merging node's elements (skipping or overwriting idx, which we're
-	 * deleting). Once that's done, go into the parent and delete the
-	 * right merging node and the separator. This may cause further
+	 * merging node's elements. Once that's done, we go back and delete
+	 * the element we're removing. Finally, go into the parent and delete
+	 * the right merging node and the separator. This may cause further
 	 * merging.
 	 */
-	zfs_btree_hdr_t *rm_hdr;
-
+	zfs_btree_hdr_t *rm_hdr, *keep_hdr;
+	uint64_t new_idx = idx;
 	if (l_hdr != NULL) {
-		ASSERT(!l_hdr->bth_core);
-		zfs_btree_leaf_t *left = (zfs_btree_leaf_t *)l_hdr;
-
-		if (zfs_btree_verify_intensity >= 5) {
-			for (int i = 0; i < hdr->bth_count + 1; i++) {
-				zfs_btree_verify_poison_at(tree, l_hdr,
-				    l_hdr->bth_count + i);
-			}
-		}
-		/*
-		 * Move the separator into the first open spot in the left
-		 * neighbor.
-		 */
-		uint8_t *out = left->btl_elems + l_hdr->bth_count * size;
-		uint8_t *separator = parent->btc_elems + (parent_idx - 1) *
-		    size;
-		bcopy(separator, out, size);
-
-		/* Move our elements to the left neighbor. */
-		bt_transfer_leaf(tree, leaf, 0, idx, left, l_hdr->bth_count +
-		    1);
-		bt_transfer_leaf(tree, leaf, idx + 1, hdr->bth_count - idx,
-		    left, l_hdr->bth_count + 1 + idx);
-
-		/* Update the bookkeeping. */
-		l_hdr->bth_count += hdr->bth_count + 1;
-		ASSERT3U(l_hdr->bth_count, ==, min_count * 2);
+		keep_hdr = l_hdr;
 		rm_hdr = hdr;
+		new_idx += keep_hdr->bth_count + 1; // 449
 	} else {
 		ASSERT3P(r_hdr, !=, NULL);
-		ASSERT(!r_hdr->bth_core);
-		if (zfs_btree_verify_intensity >= 5) {
-			for (int i = 0; i < r_hdr->bth_count; i++) {
-				zfs_btree_verify_poison_at(tree, hdr,
-				    hdr->bth_count + i + 1);
-			}
-		}
-		zfs_btree_leaf_t *right = (zfs_btree_leaf_t *)r_hdr;
-
-		/*
-		 * Move our elements left to overwrite the element being
-		 * removed.
-		 */
-		bt_shift_leaf_left(tree, leaf, idx + 1, hdr->bth_count - idx);
-
-		/* Move the separator to node's first open spot. */
-		uint8_t *out = leaf->btl_elems + hdr->bth_count * size;
-		uint8_t *separator = parent->btc_elems + parent_idx * size;
-		bcopy(separator, out, size);
-
-		/* Move the right neighbor's elements to node. */
-		bt_transfer_leaf(tree, right, 0, r_hdr->bth_count, leaf,
-		    hdr->bth_count + 1);
-
-		/* Update the bookkeeping. */
-		hdr->bth_count += r_hdr->bth_count + 1;
-		ASSERT3U(hdr->bth_count, ==, min_count * 2);
+		keep_hdr = hdr;
 		rm_hdr = r_hdr;
+		parent_idx++;
 	}
+
+	ASSERT(!keep_hdr->bth_core);
+	ASSERT(!rm_hdr->bth_core);
+	ASSERT3U(keep_hdr->bth_count, ==, min_count);
+	ASSERT3U(rm_hdr->bth_count, ==, min_count);
+
+	zfs_btree_leaf_t *keep = (zfs_btree_leaf_t *)keep_hdr;
+	zfs_btree_leaf_t *rm = (zfs_btree_leaf_t *)rm_hdr;
+
+	if (zfs_btree_verify_intensity >= 5) {
+		for (int i = 0; i < rm_hdr->bth_count + 1; i++) {
+			zfs_btree_verify_poison_at(tree, keep_hdr,
+			    keep_hdr->bth_count + i);
+		}
+	}
+	/*
+	 * Move the separator into the first open spot in the left
+	 * neighbor.
+	 */
+	uint8_t *out = keep->btl_elems + keep_hdr->bth_count * size;
+	uint8_t *separator = parent->btc_elems + (parent_idx - 1) *
+	    size;
+	bcopy(separator, out, size);
+	keep_hdr->bth_count++;
+
+	/* Move our elements to the left neighbor. */
+	bt_transfer_leaf(tree, rm, 0, rm_hdr->bth_count, keep,
+	    keep_hdr->bth_count);
+
+	/* Update the bookkeeping. */
+	keep_hdr->bth_count += rm_hdr->bth_count;
+	ASSERT3U(keep_hdr->bth_count, ==, min_count * 2 + 1);
+
+	/* Remove the value from the node */
+	keep_hdr->bth_count--;
+	bt_shift_leaf_left(tree, keep, new_idx + 1, keep_hdr->bth_count -
+	    new_idx);
+	zfs_btree_poison_node_at(tree, keep_hdr, keep_hdr->bth_count);
+
 	rm_hdr->bth_count = 0;
 	zfs_btree_node_destroy(tree, rm_hdr);
 	/* Remove the emptied node from the parent. */
@@ -1964,7 +1893,7 @@ zfs_btree_verify_counts_helper(zfs_btree_t *tree, zfs_btree_hdr_t *hdr)
 		if (tree->bt_root != hdr && hdr != &tree->bt_bulk->btl_hdr) {
 			uint64_t capacity = P2ALIGN((BTREE_LEAF_SIZE -
 			    sizeof (zfs_btree_hdr_t)) / tree->bt_elem_size, 2);
-			VERIFY3U(hdr->bth_count, >=, capacity / 2);
+			VERIFY3U(hdr->bth_count, >=, (capacity / 2) - 1);
 		}
 
 		return (hdr->bth_count);
@@ -1973,7 +1902,7 @@ zfs_btree_verify_counts_helper(zfs_btree_t *tree, zfs_btree_hdr_t *hdr)
 		zfs_btree_core_t *node = (zfs_btree_core_t *)hdr;
 		uint64_t ret = hdr->bth_count;
 		if (tree->bt_root != hdr && tree->bt_bulk == NULL)
-			VERIFY3P(hdr->bth_count, >=, BTREE_CORE_ELEMS / 2);
+			VERIFY3P(hdr->bth_count, >=, BTREE_CORE_ELEMS / 2 - 1);
 		for (int i = 0; i <= hdr->bth_count; i++) {
 			ret += zfs_btree_verify_counts_helper(tree,
 			    node->btc_children[i]);
@@ -2077,7 +2006,7 @@ zfs_btree_verify_order_helper(zfs_btree_t *tree, zfs_btree_hdr_t *hdr)
 		if (tree->bt_compar(node->btc_elems + i * size,
 		    left_child_last) != 1) {
 			panic("btree: compar returned %d (expected 1) at "
-			    "%p %d: compar(%p,  %p)", tree->bt_compar(
+			    "%px %d: compar(%px,  %px)", tree->bt_compar(
 			    node->btc_elems + i * size, left_child_last),
 			    (void *)node, i, (void *)(node->btc_elems + i *
 			    size), (void *)left_child_last);
@@ -2097,7 +2026,7 @@ zfs_btree_verify_order_helper(zfs_btree_t *tree, zfs_btree_hdr_t *hdr)
 		if (tree->bt_compar(node->btc_elems + i * size,
 		    right_child_first) != -1) {
 			panic("btree: compar returned %d (expected -1) at "
-			    "%p %d: compar(%p,  %p)", tree->bt_compar(
+			    "%px %d: compar(%px,  %px)", tree->bt_compar(
 			    node->btc_elems + i * size, right_child_first),
 			    (void *)node, i, (void *)(node->btc_elems + i *
 			    size), (void *)right_child_first);
