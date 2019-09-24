@@ -457,7 +457,7 @@ dnode_sync_free_range(void *arg, uint64_t blkid, uint64_t nblks)
 void
 dnode_evict_dbufs(dnode_t *dn)
 {
-	dmu_buf_impl_t *db_marker;
+	dmu_buf_impl_t *db_marker, *insert_point;
 	dmu_buf_impl_t *db, *db_next;
 
 	db_marker = kmem_alloc(sizeof (dmu_buf_impl_t), KM_SLEEP);
@@ -474,12 +474,30 @@ dnode_evict_dbufs(dnode_t *dn)
 		mutex_enter(&db->db_mtx);
 		if (db->db_state != DB_EVICTING &&
 		    zfs_refcount_is_zero(&db->db_holds)) {
+			/*
+			 * It is rare but if dn_dbufs has a dbuf with
+			 * this same bookmark but having db_state of
+			 * DB_EVICTING, we won't be able to insert
+			 * the db_marker.  Work backward to find the correct
+			 * insertion point.
+			 */
 			db_marker->db_level = db->db_level;
 			db_marker->db_blkid = db->db_blkid;
 			db_marker->db_state = DB_SEARCH;
-			avl_insert_here(&dn->dn_dbufs, db_marker, db,
-			    AVL_BEFORE);
-
+			insert_point = AVL_PREV(&dn->dn_dbufs, db);
+			while (insert_point != NULL &&
+			    insert_point->db_level == db->db_level &&
+			    insert_point->db_blkid == db->db_blkid) {
+				insert_point = AVL_PREV(&dn->dn_dbufs,
+				    insert_point);
+			}
+			if (insert_point == NULL) {
+				avl_insert_here(&dn->dn_dbufs, db_marker,
+				    avl_first(&dn->dn_dbufs), AVL_BEFORE);
+			} else {
+				avl_insert_here(&dn->dn_dbufs, db_marker,
+				    insert_point, AVL_AFTER);
+			}
 			/*
 			 * We need to use the "marker" dbuf rather than
 			 * simply getting the next dbuf, because

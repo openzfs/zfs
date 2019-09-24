@@ -22,7 +22,8 @@ dist_pkgdata_SCRIPTS = \
 	snapshot_014_pos.ksh \
 	snapshot_015_pos.ksh \
 	snapshot_016_pos.ksh \
-	snapshot_017_pos.ksh
+	snapshot_017_pos.ksh \
+	snapshot_fail_existing.ksh
 
 dist_pkgdata_DATA = \
 	snapshot.cfg

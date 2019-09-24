@@ -188,6 +188,9 @@ typedef struct dsl_dataset {
 	uint64_t ds_bookmarks_obj;  /* DMU_OTN_ZAP_METADATA */
 	avl_tree_t ds_bookmarks; /* dsl_bookmark_node_t */
 
+	/* used in snapshot check function */
+	list_node_t ds_check;
+
 	/* has internal locking: */
 	dsl_deadlist_t ds_deadlist;
 	bplist_t ds_pending_deadlist;
@@ -446,6 +449,8 @@ void dsl_dataset_clone_swap_sync_impl(dsl_dataset_t *clone,
     dsl_dataset_t *origin_head, dmu_tx_t *tx);
 int dsl_dataset_snapshot_check_impl(dsl_dataset_t *ds, const char *snapname,
     dmu_tx_t *tx, boolean_t recv, uint64_t cnt, cred_t *cr);
+int dsl_dataset_snapshot_reserve_space(dsl_dataset_t *ds, dmu_tx_t *tx);
+
 void dsl_dataset_snapshot_sync_impl(dsl_dataset_t *ds, const char *snapname,
     dmu_tx_t *tx);
 
