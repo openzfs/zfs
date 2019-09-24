@@ -916,6 +916,15 @@ libzfs_load_module(const char *module)
 	int load = 0, fd;
 	hrtime_t start;
 
+	/*
+	 * If inside a container, set the timeout to zero (LP: #1760173),
+	 * however, this can be over-ridden by ZFS_MODULE_TIMEOUT just
+	 * in case the user explicitly wants to set the timeout for some
+	 * reason just for backward compatibilty
+	 */
+	if (access("/run/systemd/container", R_OK) == 0)
+		timeout = 0;
+
 	/* Optionally request module loading */
 	if (!libzfs_module_loaded(module)) {
 		load_str = getenv("ZFS_MODULE_LOADING");
@@ -1134,7 +1143,7 @@ int
 zcmd_alloc_dst_nvlist(libzfs_handle_t *hdl, zfs_cmd_t *zc, size_t len)
 {
 	if (len == 0)
-		len = 16 * 1024;
+		len = 256 * 1024;
 	zc->zc_nvlist_dst_size = len;
 	zc->zc_nvlist_dst =
 	    (uint64_t)(uintptr_t)zfs_alloc(hdl, zc->zc_nvlist_dst_size);

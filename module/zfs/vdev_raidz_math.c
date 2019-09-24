@@ -27,9 +27,9 @@
 #include <sys/zio.h>
 #include <sys/debug.h>
 #include <sys/zfs_debug.h>
-
 #include <sys/vdev_raidz.h>
 #include <sys/vdev_raidz_impl.h>
+#include <linux/simd.h>
 
 extern boolean_t raidz_will_scalar_work(void);
 
@@ -87,6 +87,7 @@ static uint32_t user_sel_impl = IMPL_FASTEST;
 static size_t raidz_supp_impl_cnt = 0;
 static raidz_impl_ops_t *raidz_supp_impl[ARRAY_SIZE(raidz_all_maths)];
 
+#if defined(_KERNEL)
 /*
  * kstats values for supported implementations
  * Values represent per disk throughput of 8 disk+parity raidz vdev [B/s]
@@ -95,14 +96,19 @@ static raidz_impl_kstat_t raidz_impl_kstats[ARRAY_SIZE(raidz_all_maths) + 1];
 
 /* kstat for benchmarked implementations */
 static kstat_t *raidz_math_kstat = NULL;
+#endif
 
 /*
- * Selects the raidz operation for raidz_map
- * If rm_ops is set to NULL original raidz implementation will be used
+ * Returns the RAIDZ operations for raidz_map() parity calculations.   When
+ * a SIMD implementation is not allowed in the current context, then fallback
+ * to the fastest generic implementation.
  */
-raidz_impl_ops_t *
-vdev_raidz_math_get_ops()
+const raidz_impl_ops_t *
+vdev_raidz_math_get_ops(void)
 {
+	if (!kfpu_allowed())
+		return (&vdev_raidz_scalar_impl);
+
 	raidz_impl_ops_t *ops = NULL;
 	const uint32_t impl = RAIDZ_IMPL_READ(zfs_vdev_raidz_impl);
 
@@ -111,18 +117,14 @@ vdev_raidz_math_get_ops()
 		ASSERT(raidz_math_initialized);
 		ops = &vdev_raidz_fastest_impl;
 		break;
-#if !defined(_KERNEL)
 	case IMPL_CYCLE:
-	{
+		/* Cycle through all supported implementations */
 		ASSERT(raidz_math_initialized);
 		ASSERT3U(raidz_supp_impl_cnt, >, 0);
-		/* Cycle through all supported implementations */
 		static size_t cycle_impl_idx = 0;
 		size_t idx = (++cycle_impl_idx) % raidz_supp_impl_cnt;
 		ops = raidz_supp_impl[idx];
-	}
-	break;
-#endif
+		break;
 	case IMPL_ORIGINAL:
 		ops = (raidz_impl_ops_t *)&vdev_raidz_original_impl;
 		break;
@@ -272,6 +274,8 @@ const char *raidz_rec_name[] = {
 	"rec_p", "rec_q", "rec_r",
 	"rec_pq", "rec_pr", "rec_qr", "rec_pqr"
 };
+
+#if defined(_KERNEL)
 
 #define	RAIDZ_KSTAT_LINE_LEN	(17 + 10*12 + 1)
 
@@ -435,21 +439,21 @@ benchmark_raidz_impl(raidz_map_t *bench_rm, const int fn, benchmark_fn bench_fn)
 		}
 	}
 }
+#endif
 
-void
-vdev_raidz_math_init(void)
+/*
+ * Initialize and benchmark all supported implementations.
+ */
+static void
+benchmark_raidz(void *arg)
 {
 	raidz_impl_ops_t *curr_impl;
-	zio_t *bench_zio = NULL;
-	raidz_map_t *bench_rm = NULL;
-	uint64_t bench_parity;
-	int i, c, fn;
+	int i, c;
 
-	/* move supported impl into raidz_supp_impl */
+	/* Move supported impl into raidz_supp_impl */
 	for (i = 0, c = 0; i < ARRAY_SIZE(raidz_all_maths); i++) {
 		curr_impl = (raidz_impl_ops_t *)raidz_all_maths[i];
 
-		/* initialize impl */
 		if (curr_impl->init)
 			curr_impl->init();
 
@@ -459,18 +463,10 @@ vdev_raidz_math_init(void)
 	membar_producer();		/* complete raidz_supp_impl[] init */
 	raidz_supp_impl_cnt = c;	/* number of supported impl */
 
-#if !defined(_KERNEL)
-	/* Skip benchmarking and use last implementation as fastest */
-	memcpy(&vdev_raidz_fastest_impl, raidz_supp_impl[raidz_supp_impl_cnt-1],
-	    sizeof (vdev_raidz_fastest_impl));
-	strcpy(vdev_raidz_fastest_impl.name, "fastest");
-
-	raidz_math_initialized = B_TRUE;
-
-	/* Use 'cycle' math selection method for userspace */
-	VERIFY0(vdev_raidz_impl_set("cycle"));
-	return;
-#endif
+#if defined(_KERNEL)
+	zio_t *bench_zio = NULL;
+	raidz_map_t *bench_rm = NULL;
+	uint64_t bench_parity;
 
 	/* Fake an zio and run the benchmark on a warmed up buffer */
 	bench_zio = kmem_zalloc(sizeof (zio_t), KM_SLEEP);
@@ -480,7 +476,7 @@ vdev_raidz_math_init(void)
 	memset(abd_to_buf(bench_zio->io_abd), 0xAA, BENCH_ZIO_SIZE);
 
 	/* Benchmark parity generation methods */
-	for (fn = 0; fn < RAIDZ_GEN_NUM; fn++) {
+	for (int fn = 0; fn < RAIDZ_GEN_NUM; fn++) {
 		bench_parity = fn + 1;
 		/* New raidz_map is needed for each generate_p/q/r */
 		bench_rm = vdev_raidz_map_alloc(bench_zio, SPA_MINBLOCKSHIFT,
@@ -495,7 +491,7 @@ vdev_raidz_math_init(void)
 	bench_rm = vdev_raidz_map_alloc(bench_zio, SPA_MINBLOCKSHIFT,
 	    BENCH_COLS, PARITY_PQR);
 
-	for (fn = 0; fn < RAIDZ_REC_NUM; fn++)
+	for (int fn = 0; fn < RAIDZ_REC_NUM; fn++)
 		benchmark_raidz_impl(bench_rm, fn, benchmark_rec_impl);
 
 	vdev_raidz_map_free(bench_rm);
@@ -503,11 +499,39 @@ vdev_raidz_math_init(void)
 	/* cleanup the bench zio */
 	abd_free(bench_zio->io_abd);
 	kmem_free(bench_zio, sizeof (zio_t));
+#else
+	/*
+	 * Skip the benchmark in user space to avoid impacting libzpool
+	 * consumers (zdb, zhack, zinject, ztest).  The last implementation
+	 * is assumed to be the fastest and used by default.
+	 */
+	memcpy(&vdev_raidz_fastest_impl,
+	    raidz_supp_impl[raidz_supp_impl_cnt - 1],
+	    sizeof (vdev_raidz_fastest_impl));
+	strcpy(vdev_raidz_fastest_impl.name, "fastest");
+#endif /* _KERNEL */
+}
 
-	/* install kstats for all impl */
+void
+vdev_raidz_math_init(void)
+{
+#if defined(_KERNEL)
+	/*
+	 * For 5.0 and latter Linux kernels the fletcher 4 benchmarks are
+	 * run in a kernel threads.  This is needed to take advantage of the
+	 * SIMD functionality, see include/linux/simd_x86.h for details.
+	 */
+	taskqid_t id = taskq_dispatch(system_taskq, benchmark_raidz,
+	    NULL, TQ_SLEEP);
+	if (id != TASKQID_INVALID) {
+		taskq_wait_id(system_taskq, id);
+	} else {
+		benchmark_raidz(NULL);
+	}
+
+	/* Install kstats for all implementations */
 	raidz_math_kstat = kstat_create("zfs", 0, "vdev_raidz_bench", "misc",
 	    KSTAT_TYPE_RAW, 0, KSTAT_FLAG_VIRTUAL);
-
 	if (raidz_math_kstat != NULL) {
 		raidz_math_kstat->ks_data = NULL;
 		raidz_math_kstat->ks_ndata = UINT32_MAX;
@@ -517,6 +541,9 @@ vdev_raidz_math_init(void)
 		    raidz_math_kstat_addr);
 		kstat_install(raidz_math_kstat);
 	}
+#else
+	benchmark_raidz(NULL);
+#endif
 
 	/* Finish initialization */
 	atomic_swap_32(&zfs_vdev_raidz_impl, user_sel_impl);
@@ -527,15 +554,15 @@ void
 vdev_raidz_math_fini(void)
 {
 	raidz_impl_ops_t const *curr_impl;
-	int i;
 
+#if defined(_KERNEL)
 	if (raidz_math_kstat != NULL) {
 		kstat_delete(raidz_math_kstat);
 		raidz_math_kstat = NULL;
 	}
+#endif
 
-	/* fini impl */
-	for (i = 0; i < ARRAY_SIZE(raidz_all_maths); i++) {
+	for (int i = 0; i < ARRAY_SIZE(raidz_all_maths); i++) {
 		curr_impl = raidz_all_maths[i];
 		if (curr_impl->fini)
 			curr_impl->fini();
@@ -546,9 +573,7 @@ static const struct {
 	char *name;
 	uint32_t sel;
 } math_impl_opts[] = {
-#if !defined(_KERNEL)
 		{ "cycle",	IMPL_CYCLE },
-#endif
 		{ "fastest",	IMPL_FASTEST },
 		{ "original",	IMPL_ORIGINAL },
 		{ "scalar",	IMPL_SCALAR }
