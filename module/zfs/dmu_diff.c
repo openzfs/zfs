@@ -21,6 +21,7 @@
 /*
  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2019, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
  */
 
 #include <sys/dmu.h>
@@ -130,7 +131,7 @@ diff_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 		dnode_phys_t *blk;
 		arc_buf_t *abuf;
 		arc_flags_t aflags = ARC_FLAG_WAIT;
-		int blksz = BP_GET_LSIZE(bp);
+		int epb = BP_GET_LSIZE(bp) >> DNODE_SHIFT;
 		int zio_flags = ZIO_FLAG_CANFAIL;
 		int i;
 
@@ -142,7 +143,7 @@ diff_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 			return (SET_ERROR(EIO));
 
 		blk = abuf->b_data;
-		for (i = 0; i < blksz >> DNODE_SHIFT; i++) {
+		for (i = 0; i < epb; i += blk[i].dn_extra_slots + 1) {
 			uint64_t dnobj = (zb->zb_blkid <<
 			    (DNODE_BLOCK_SHIFT - DNODE_SHIFT)) + i;
 			err = report_dnode(da, dnobj, blk+i);
