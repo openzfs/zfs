@@ -1,4 +1,4 @@
-confddir = /usr/share/initramfs-tools/conf.d
+confddir =  $(initramfsdir)/conf.d
 
 dist_confd_DATA = \
 	zfs

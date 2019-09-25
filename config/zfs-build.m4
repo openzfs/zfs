@@ -597,16 +597,6 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 	esac
 	AC_MSG_RESULT([$initconfdir])
 	AC_SUBST(initconfdir)
-
-	AC_MSG_CHECKING([whether initramfs-tools is available])
-	if test -d /usr/share/initramfs-tools ; then
-		RPM_DEFINE_INITRAMFS='--define "_initramfs 1"'
-		AC_MSG_RESULT([yes])
-	else
-		RPM_DEFINE_INITRAMFS=''
-		AC_MSG_RESULT([no])
-	fi
-	AC_SUBST(RPM_DEFINE_INITRAMFS)
 ])
 
 dnl #

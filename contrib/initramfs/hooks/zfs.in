@@ -8,7 +8,7 @@ if [ "$1" = "prereqs" ]; then
 	exit
 fi
 
-. /usr/share/initramfs-tools/hook-functions
+. @initramfsdir@/hook-functions
 
 for req in "@sbindir@/zpool" "@sbindir@/zfs" "@mounthelperdir@/mount.zfs"; do
 	copy_exec "$req" || {

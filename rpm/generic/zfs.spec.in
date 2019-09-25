@@ -52,11 +52,16 @@
 %global _pkgconfigdir %{_prefix}/%{_lib}/pkgconfig
 %endif
 
+%if %{undefined _initramfsdir}
+%global _initramfsdir %{_prefix}/share/initramfs-tools
+%endif
+
 %bcond_with    debug
 %bcond_with    debuginfo
 %bcond_with    asan
 %bcond_with    systemd
 %bcond_with    pam
+%bcond_with    initramfs
 
 # Generic enable switch for systemd
 %if %{with systemd}
@@ -326,7 +331,7 @@ BuildRequires:  libffi-devel
 This package provides a python wrapper for the libzfs_core C library.
 %endif
 
-%if 0%{?_initramfs}
+%if %{with initramfs}
 %package initramfs
 Summary:        Initramfs module
 Group:          System Environment/Kernel
@@ -377,6 +382,12 @@ image which is ZFS aware.
     %define pam --disable-pam
 %endif
 
+%if %{with initramfs}
+    %define initramfs --enable-initramfs
+%else
+    %define initramfs --disable-initramfs
+%endif
+
 %setup -q
 
 %build
@@ -387,6 +398,7 @@ image which is ZFS aware.
     --with-dracutdir=%{_dracutdir} \
     --with-pamconfigsdir=%{_datadir}/pam-configs \
     --with-pammoduledir=%{_libdir}/security \
+    --with-initramfsdir=%{_initramfsdir} \
     --with-python=%{__python} \
     --with-pkgconfigdir=%{_pkgconfigdir} \
     --disable-static \
@@ -395,6 +407,7 @@ image which is ZFS aware.
     %{asan} \
     %{systemd} \
     %{pam} \
+    %{initramfs} \
     %{pyzfs}
 make %{?_smp_mflags}
 
@@ -492,7 +505,7 @@ systemctl --system daemon-reload >/dev/null || true
 %{_udevdir}/zvol_id
 %{_udevdir}/rules.d/*
 %{_datadir}/%{name}/compatibility.d
-%if ! 0%{?_systemd} || 0%{?_initramfs}
+%if ! 0%{?_systemd} || %{with initramfs}
 # Files needed for sysvinit and initramfs-tools
 %{_sysconfdir}/%{name}/zfs-functions
 %config(noreplace) %{_initconfdir}/zfs
@@ -556,12 +569,9 @@ systemctl --system daemon-reload >/dev/null || true
 %{__python_sitelib}/pyzfs*
 %endif
 
-%if 0%{?_initramfs}
+
+%if %{with initramfs}
 %files initramfs
 %doc contrib/initramfs/README.initramfs.markdown
-/usr/share/initramfs-tools/*
-%else
-# Since we're not building the initramfs package,
-# ignore those files.
-%exclude /usr/share/initramfs-tools
+%{_initramfsdir}/*
 %endif

@@ -1,7 +1,6 @@
 include $(top_srcdir)/config/Shellcheck.am
 
-initrddir = /usr/share/initramfs-tools
-
+initrddir = $(initramfsdir)
 dist_initrd_SCRIPTS = \
        zfsunlock
 

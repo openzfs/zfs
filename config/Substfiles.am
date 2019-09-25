@@ -6,6 +6,7 @@ subst_sed_cmd = \
 	-e 's|@runstatedir[@]|$(runstatedir)|g' \
 	-e 's|@initconfdir[@]|$(initconfdir)|g' \
 	-e 's|@initdir[@]|$(initdir)|g' \
+	-e 's|@initramfsdir[@]|$(initramfsdir)|g' \
 	-e 's|@mounthelperdir[@]|$(mounthelperdir)|g' \
 	-e 's|@systemdgeneratordir[@]|$(systemdgeneratordir)|g' \
 	-e 's|@systemdunitdir[@]|$(systemdunitdir)|g' \

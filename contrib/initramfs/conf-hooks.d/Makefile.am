@@ -1,4 +1,4 @@
-confhooksddir = /usr/share/initramfs-tools/conf-hooks.d
+confhooksddir = $(initramfsdir)/conf-hooks.d
 
 dist_confhooksd_DATA = \
 	zfs

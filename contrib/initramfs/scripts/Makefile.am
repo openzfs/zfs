@@ -1,6 +1,6 @@
 include $(top_srcdir)/config/Shellcheck.am
 
-scriptsdir = /usr/share/initramfs-tools/scripts
+scriptsdir = $(initramfsdir)/scripts
 
 dist_scripts_SCRIPTS = \
 	zfs
