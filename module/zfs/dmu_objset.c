@@ -2856,7 +2856,7 @@ dmu_objset_find_impl(spa_t *spa, const char *name,
  * See comment above dmu_objset_find_impl().
  */
 int
-dmu_objset_find(char *name, int func(const char *, void *), void *arg,
+dmu_objset_find(const char *name, int func(const char *, void *), void *arg,
     int flags)
 {
 	spa_t *spa;
