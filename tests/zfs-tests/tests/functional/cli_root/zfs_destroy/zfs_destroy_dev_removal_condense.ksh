@@ -39,7 +39,7 @@ function cleanup
 	# reset livelist max size
 	set_tunable64 zfs_livelist_max_entries $ORIGINAL_MAX
 	[[ -f $VIRTUAL_DISK1 ]] && log_must rm $VIRTUAL_DISK1
-	[[ -f $VIRTUAL_DISK2 ]] && lot_must rm $VIRTUAL_DISK2
+	[[ -f $VIRTUAL_DISK2 ]] && log_must rm $VIRTUAL_DISK2
 }
 
 log_onexit cleanup
