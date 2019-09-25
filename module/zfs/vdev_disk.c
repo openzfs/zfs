@@ -931,7 +931,14 @@ param_set_vdev_scheduler(const char *val, zfs_kernel_param_t *kp)
 		mutex_exit(&spa_namespace_lock);
 	}
 
-	return (param_set_charp(val, kp));
+
+	int error = param_set_charp(val, kp);
+	if (error == 0) {
+		printk(KERN_INFO "The 'zfs_vdev_scheduler' module option "
+		    "will be removed in a future release.\n");
+	}
+
+	return (error);
 }
 
 vdev_ops_t vdev_disk_ops = {
