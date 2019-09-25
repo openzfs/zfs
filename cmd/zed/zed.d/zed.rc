@@ -77,7 +77,7 @@
 ##
 # Slack Webhook URL.
 # This allows posting to the given channel and includes an access token.
-#   <https://api.slack.com/incoming-webhooks
+#   <https://api.slack.com/incoming-webhooks>
 # Disabled by default; uncomment to enable.
 #
 #ZED_SLACK_WEBHOOK_URL=""
