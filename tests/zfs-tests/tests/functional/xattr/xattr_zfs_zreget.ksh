@@ -74,5 +74,5 @@ log_must sync
 log_must zfs rollback txg-number-pool/fs1@snap2
 
 log_must stat /txg-number-pool/fs1
-
+check_mem_leaks
 log_pass "suspend/resume works with large generation number"
