@@ -365,7 +365,7 @@ __zpl_xattr_get(struct inode *ip, const char *name, void *value, size_t size,
 out:
 	if (error == -ENOENT)
 		error = -ENODATA;
-
+	zfs_dbgmsg("__zpl_xattr_get returning %d", error);
 	return (error);
 }
 
@@ -395,8 +395,10 @@ __zpl_xattr_where(struct inode *ip, const char *name, int *where, cred_t *cr)
 	error = zpl_xattr_get_dir(ip, name, NULL, 0, cr);
 	if (error >= 0)
 		*where |= XATTR_IN_DIR;
-	else if (error != -ENOENT)
+	else if (error != -ENOENT) {
+		zfs_dbgmsg("__zpl_xattr_where (1) returning %d", error);
 		return (error);
+	}
 
 	if (*where == (XATTR_IN_SA|XATTR_IN_DIR))
 		cmn_err(CE_WARN, "ZFS: inode %p has xattr \"%s\""
@@ -405,6 +407,9 @@ __zpl_xattr_where(struct inode *ip, const char *name, int *where, cred_t *cr)
 		error = -ENODATA;
 	else
 		error = 0;
+	if (error != 0)
+		zfs_dbgmsg("__zpl_xattr_where (2) returning %d", error);
+
 	return (error);
 }
 
@@ -427,6 +432,9 @@ zpl_xattr_get(struct inode *ip, const char *name, void *value, size_t size)
 	ZPL_EXIT(zfsvfs);
 	spl_fstrans_unmark(cookie);
 	crfree(cr);
+
+	if (error != 0)
+		zfs_dbgmsg("zpl_xattr_get returning error %d", error);
 
 	return (error);
 }
