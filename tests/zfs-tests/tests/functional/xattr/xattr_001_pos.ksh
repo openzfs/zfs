@@ -66,4 +66,6 @@ for arg in ${args[*]}; do
 	delete_xattr $TESTDIR/myfile.$$ passwd
 done
 
+check_mem_leaks
+
 log_pass "Create/read/write of xattrs works"

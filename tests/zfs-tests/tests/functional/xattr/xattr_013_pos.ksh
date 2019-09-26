@@ -100,5 +100,5 @@ else
 	log_mustnot eval "runat $TESTDIR/new.$$ cat passwd > /dev/null 2>&1"
 fi
 create_xattr $TESTDIR/new.$$ passwd /etc/passwd
-
+check_mem_leaks
 log_pass "The noxattr mount option functions as expected"

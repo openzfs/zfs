@@ -59,5 +59,5 @@ log_must zfs snapshot $TESTPOOL/$TESTFS@snap
 
 # check for the xattr on the snapshot
 verify_xattr $TESTDIR/.zfs/snapshot/snap/myfile.$$ passwd /etc/passwd
-
+check_mem_leaks
 log_pass "read xattr on a snapshot"

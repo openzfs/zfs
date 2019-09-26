@@ -60,3 +60,6 @@ for arg in ${args[*]}; do
 
 	log_pass "A read of a non-existent xattr fails"
 done
+
+check_mem_leaks
+

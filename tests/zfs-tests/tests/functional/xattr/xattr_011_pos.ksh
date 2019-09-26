@@ -234,5 +234,5 @@ else
 	log_mustnot eval "runat $TESTDIR/tar.$$ cat passwd > /dev/null 2>&1"
 	log_must rm $TESTDIR/tar.$$ $TESTDIR/noxattr.tar $TESTDIR/xattr.tar
 fi
-
+check_mem_leaks
 log_assert "Basic applications work with xattrs: cpio cp find mv pax tar"

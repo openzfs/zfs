@@ -80,5 +80,5 @@ fi
 
 # verify we can't list ../
 log_mustnot eval "runat $TESTDIR/myfile.$$ ls ../ > /dev/null 2>&1"
-
+check_mem_leaks
 log_pass "special . and .. dirs work as expected for xattrs"

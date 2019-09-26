@@ -74,5 +74,5 @@ delete_xattr $TESTDIR/myfile.$$ passwd
 # verify it's still there on the clone
 verify_xattr $TESTDIR/clone/myfile.$$ passwd /etc/passwd
 delete_xattr $TESTDIR/clone/myfile.$$ passwd
-
+check_mem_leaks
 log_pass "read/write/create/delete xattr on a clone filesystem"

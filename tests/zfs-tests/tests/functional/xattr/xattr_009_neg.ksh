@@ -62,5 +62,5 @@ log_mustnot runat $TESTDIR/myfile.$$ ln -s /etc/passwd foo
 
 # Try to create a hard link from the xattr namespace to the default namespace
 log_mustnot runat $TESTDIR/myfile.$$ ln /etc/passwd foo
-
+check_mem_leaks
 log_pass "links between xattr and normal file namespace fail"

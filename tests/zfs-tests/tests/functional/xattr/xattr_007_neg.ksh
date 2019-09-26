@@ -86,5 +86,5 @@ else
 fi
 
 log_must diff $TEST_BASE_DIR/output.$$ $TEST_BASE_DIR/expected_output.$$
-
+check_mem_leaks
 log_pass "create/write xattr on a snapshot fails"

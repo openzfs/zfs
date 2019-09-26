@@ -106,4 +106,6 @@ NEW_FS_SIZE=$(zfs get -p -H -o value used $TESTPOOL/$TESTFS)
     log_fail "The new filesystem size $NEW_FS_SIZE was less \
     than or equal to the old filesystem size $FS_SIZE."
 
+check_mem_leaks
+
 log_pass "xattr file sizes count towards normal disk usage"

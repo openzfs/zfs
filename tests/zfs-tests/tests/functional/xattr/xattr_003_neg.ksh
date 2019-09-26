@@ -73,4 +73,6 @@ else
 	log_mustnot su $ZFS_USER -c "runat $TESTDIR/myfile.$$ cp /etc/passwd ."
 fi
 
+check_mem_leaks
+
 log_pass "read/write xattr on a file with no permissions fails"

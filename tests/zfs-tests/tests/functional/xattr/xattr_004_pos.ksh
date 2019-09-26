@@ -117,5 +117,5 @@ else
 
 	log_must umount /tmp/$NEWFS_DEFAULT_FS.$$
 fi
-
+check_mem_leaks
 log_pass "Files from $NEWFS_DEFAULT_FS,tmpfs with xattrs copied to zfs retain xattr info."
