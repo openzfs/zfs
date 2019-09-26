@@ -3369,19 +3369,12 @@ created_before(libzfs_handle_t *hdl, avl_tree_t *avl,
  * sent datasets to their final locations in the dataset hierarchy.
  */
 static int
-recv_fix_encryption_hierarchy(libzfs_handle_t *hdl, const char *destname,
+recv_fix_encryption_hierarchy(libzfs_handle_t *hdl, const char *top_zfs,
     nvlist_t *stream_nv, avl_tree_t *stream_avl)
 {
 	int err;
 	nvpair_t *fselem = NULL;
 	nvlist_t *stream_fss;
-	char *cp;
-	char top_zfs[ZFS_MAX_DATASET_NAME_LEN];
-
-	(void) strcpy(top_zfs, destname);
-	cp = strrchr(top_zfs, '@');
-	if (cp != NULL)
-		*cp = '\0';
 
 	VERIFY(0 == nvlist_lookup_nvlist(stream_nv, "fss", &stream_fss));
 
@@ -3408,7 +3401,7 @@ recv_fix_encryption_hierarchy(libzfs_handle_t *hdl, const char *destname,
 			uint64_t guid;
 
 			VERIFY(0 == nvpair_value_uint64(snapel, &guid));
-			err = guid_to_name(hdl, destname, guid, B_FALSE,
+			err = guid_to_name(hdl, top_zfs, guid, B_FALSE,
 			    fsname);
 			if (err == 0)
 				break;
@@ -4009,8 +4002,8 @@ zfs_receive_package(libzfs_handle_t *hdl, int fd, const char *destname,
 		    stream_nv, stream_avl, NULL);
 	}
 
-	if (raw && softerr == 0) {
-		softerr = recv_fix_encryption_hierarchy(hdl, destname,
+	if (raw && softerr == 0 && *top_zfs != NULL) {
+		softerr = recv_fix_encryption_hierarchy(hdl, *top_zfs,
 		    stream_nv, stream_avl);
 	}
 
@@ -4872,8 +4865,17 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		goto out;
 	}
 
-	if (top_zfs && (*top_zfs == NULL || strcmp(*top_zfs, name) == 0))
+	/*
+	 * If this is the top-level dataset, record it so we can use it
+	 * for recursive operations later.
+	 */
+	if (top_zfs != NULL &&
+	    (*top_zfs == NULL || strcmp(*top_zfs, name) == 0)) {
 		toplevel = B_TRUE;
+		if (*top_zfs == NULL)
+			*top_zfs = zfs_strdup(hdl, name);
+	}
+
 	if (drrb->drr_type == DMU_OST_ZVOL) {
 		type = ZFS_TYPE_VOLUME;
 	} else if (drrb->drr_type == DMU_OST_ZFS) {
@@ -5127,34 +5129,14 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	 * children of the target filesystem if we did a replication
 	 * receive (indicated by stream_avl being non-NULL).
 	 */
-	cp = strchr(destsnap, '@');
-	if (cp && (ioctl_err == 0 || !newfs) && !redacted) {
-		zfs_handle_t *h;
-
-		*cp = '\0';
-		h = zfs_open(hdl, destsnap,
-		    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME);
-		if (h != NULL) {
-			if (h->zfs_type == ZFS_TYPE_VOLUME) {
-				*cp = '@';
-			} else if (newfs || stream_avl) {
-				/*
-				 * Track the first/top of hierarchy fs,
-				 * for mounting and sharing later.
-				 */
-				if (top_zfs && *top_zfs == NULL)
-					*top_zfs = zfs_strdup(hdl, destsnap);
-			}
-			zfs_close(h);
-		}
-		*cp = '@';
-	}
-
 	if (clp) {
 		if (!flags->nomount)
 			err |= changelist_postfix(clp);
 		changelist_free(clp);
 	}
+
+	if ((newfs || stream_avl) && type == ZFS_TYPE_FILESYSTEM && !redacted)
+		flags->domount = B_TRUE;
 
 	if (prop_errflags & ZPROP_ERR_NOCLEAR) {
 		(void) fprintf(stderr, dgettext(TEXT_DOMAIN, "Warning: "
@@ -5454,24 +5436,38 @@ zfs_receive(libzfs_handle_t *hdl, const char *tosnap, nvlist_t *props,
 
 	VERIFY(0 == close(cleanup_fd));
 
-	if (err == 0 && !flags->nomount && top_zfs) {
+	if (err == 0 && !flags->nomount && flags->domount && top_zfs) {
 		zfs_handle_t *zhp = NULL;
 		prop_changelist_t *clp = NULL;
 
-		zhp = zfs_open(hdl, top_zfs, ZFS_TYPE_FILESYSTEM);
-		if (zhp != NULL) {
+		zhp = zfs_open(hdl, top_zfs,
+		    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME);
+		if (zhp == NULL) {
+			err = -1;
+			goto out;
+		} else {
+			if (zhp->zfs_type == ZFS_TYPE_VOLUME) {
+				zfs_close(zhp);
+				goto out;
+			}
+
 			clp = changelist_gather(zhp, ZFS_PROP_MOUNTPOINT,
 			    CL_GATHER_MOUNT_ALWAYS, 0);
 			zfs_close(zhp);
-			if (clp != NULL) {
-				/* mount and share received datasets */
-				err = changelist_postfix(clp);
-				changelist_free(clp);
+			if (clp == NULL) {
+				err = -1;
+				goto out;
 			}
+
+			/* mount and share received datasets */
+			err = changelist_postfix(clp);
+			changelist_free(clp);
+			if (err != 0)
+				err = -1;
 		}
-		if (zhp == NULL || clp == NULL || err)
-			err = -1;
 	}
+
+out:
 	if (top_zfs)
 		free(top_zfs);
 
