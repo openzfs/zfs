@@ -2479,7 +2479,7 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 		++holdseq;
 		(void) snprintf(sdd.holdtag, sizeof (sdd.holdtag),
 		    ".send-%d-%llu", getpid(), (u_longlong_t)holdseq);
-		sdd.cleanup_fd = open(ZFS_DEV, O_RDWR);
+		sdd.cleanup_fd = open(ZFS_DEV, O_RDWR|O_EXCL);
 		if (sdd.cleanup_fd < 0) {
 			err = errno;
 			goto stderr_out;
@@ -5390,37 +5390,12 @@ zfs_receive(libzfs_handle_t *hdl, const char *tosnap, nvlist_t *props,
 		return (-2);
 	}
 
-#ifdef __linux__
-#ifndef F_SETPIPE_SZ
-#define	F_SETPIPE_SZ (F_SETLEASE + 7)
-#endif /* F_SETPIPE_SZ */
-
-#ifndef F_GETPIPE_SZ
-#define	F_GETPIPE_SZ (F_GETLEASE + 7)
-#endif /* F_GETPIPE_SZ */
-
 	/*
 	 * It is not uncommon for gigabytes to be processed in zfs receive.
-	 * Speculatively increase the buffer size via Linux-specific fcntl()
-	 * call.
+	 * Speculatively increase the buffer size if supported by the platform.
 	 */
-	if (S_ISFIFO(sb.st_mode)) {
-		FILE *procf = fopen("/proc/sys/fs/pipe-max-size", "r");
-
-		if (procf != NULL) {
-			unsigned long max_psize;
-			long cur_psize;
-			if (fscanf(procf, "%lu", &max_psize) > 0) {
-				cur_psize = fcntl(infd, F_GETPIPE_SZ);
-				if (cur_psize > 0 &&
-				    max_psize > (unsigned long) cur_psize)
-					(void) fcntl(infd, F_SETPIPE_SZ,
-					    max_psize);
-			}
-			fclose(procf);
-		}
-	}
-#endif /* __linux__ */
+	if (S_ISFIFO(sb.st_mode))
+		libzfs_set_pipe_max(infd);
 
 	if (props) {
 		err = nvlist_lookup_string(props, "origin", &originsnap);
@@ -5428,7 +5403,7 @@ zfs_receive(libzfs_handle_t *hdl, const char *tosnap, nvlist_t *props,
 			return (err);
 	}
 
-	cleanup_fd = open(ZFS_DEV, O_RDWR);
+	cleanup_fd = open(ZFS_DEV, O_RDWR|O_EXCL);
 	VERIFY(cleanup_fd >= 0);
 
 	err = zfs_receive_impl(hdl, tosnap, originsnap, flags, infd, NULL, NULL,
