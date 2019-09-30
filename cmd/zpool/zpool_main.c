@@ -9767,7 +9767,7 @@ main(int argc, char **argv)
 		return (zpool_do_version(argc, argv));
 
 	if ((g_zfs = libzfs_init()) == NULL) {
-		(void) fprintf(stderr, "%s", libzfs_error_init(errno));
+		(void) fprintf(stderr, "%s\n", libzfs_error_init(errno));
 		return (1);
 	}
 
