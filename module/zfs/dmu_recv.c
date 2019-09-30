@@ -1103,7 +1103,7 @@ dmu_recv_resume_begin_sync(void *arg, dmu_tx_t *tx)
 int
 dmu_recv_begin(char *tofs, char *tosnap, dmu_replay_record_t *drr_begin,
     boolean_t force, boolean_t resumable, nvlist_t *localprops,
-    nvlist_t *hidden_args, char *origin, dmu_recv_cookie_t *drc, vnode_t *vp,
+    nvlist_t *hidden_args, char *origin, dmu_recv_cookie_t *drc, file_t *fp,
     offset_t *voffp)
 {
 	dmu_recv_begin_arg_t drba = { 0 };
@@ -1131,7 +1131,7 @@ dmu_recv_begin(char *tofs, char *tosnap, dmu_replay_record_t *drr_begin,
 		return (SET_ERROR(EINVAL));
 	}
 
-	drc->drc_vp = vp;
+	drc->drc_fp = fp;
 	drc->drc_voff = *voffp;
 	drc->drc_featureflags =
 	    DMU_GET_FEATUREFLAGS(drc->drc_drrb->drr_versioninfo);
@@ -1249,11 +1249,8 @@ receive_read(dmu_recv_cookie_t *drc, int len, void *buf)
 	while (done < len) {
 		ssize_t resid;
 
-		drc->drc_err = vn_rdwr(UIO_READ, drc->drc_vp,
-		    (char *)buf + done, len - done,
-		    drc->drc_voff, UIO_SYSSPACE, FAPPEND,
-		    RLIM64_INFINITY, CRED(), &resid);
-
+		drc->drc_err = dmu_restore_bytes(drc, (char *)buf + done,
+		    len - done, &resid);
 		if (resid == len - done) {
 			/*
 			 * Note: ECKSUM indicates that the receive

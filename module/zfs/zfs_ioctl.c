@@ -4728,7 +4728,7 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin, nvlist_t *recvprops,
 
 	off = input_fp->f_offset;
 	error = dmu_recv_begin(tofs, tosnap, begin_record, force,
-	    resumable, localprops, hidden_args, origin, &drc, input_fp->f_vnode,
+	    resumable, localprops, hidden_args, origin, &drc, input_fp,
 	    &off);
 	if (error != 0)
 		goto out;
@@ -5222,8 +5222,8 @@ zfs_ioc_recv_new(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 }
 
 typedef struct dump_bytes_io {
-	vnode_t		*dbi_vp;
-	void		*dbi_buf;
+	file_t		*dbi_fp;
+	caddr_t		dbi_buf;
 	int		dbi_len;
 	int		dbi_err;
 } dump_bytes_io_t;
@@ -5234,9 +5234,8 @@ dump_bytes_cb(void *arg)
 	dump_bytes_io_t *dbi = (dump_bytes_io_t *)arg;
 	ssize_t resid; /* have to get resid to get detailed errno */
 
-	dbi->dbi_err = vn_rdwr(UIO_WRITE, dbi->dbi_vp,
-	    (caddr_t)dbi->dbi_buf, dbi->dbi_len,
-	    0, UIO_SYSSPACE, FAPPEND, RLIM64_INFINITY, CRED(), &resid);
+	dbi->dbi_err = \
+	    dmu_send_write(dbi->dbi_fp, dbi->dbi_buf, dbi->dbi_len, &resid);
 }
 
 static int
@@ -5244,7 +5243,7 @@ dump_bytes(objset_t *os, void *buf, int len, void *arg)
 {
 	dump_bytes_io_t dbi;
 
-	dbi.dbi_vp = arg;
+	dbi.dbi_fp = arg;
 	dbi.dbi_buf = buf;
 	dbi.dbi_len = len;
 
@@ -5354,7 +5353,7 @@ zfs_ioc_send(zfs_cmd_t *zc)
 		off = fp->f_offset;
 		dmu_send_outparams_t out = {0};
 		out.dso_outfunc = dump_bytes;
-		out.dso_arg = fp->f_vnode;
+		out.dso_arg = fp;
 		out.dso_dryrun = B_FALSE;
 		error = dmu_send_obj(zc->zc_name, zc->zc_sendobj,
 		    zc->zc_fromobj, embedok, large_block_ok, compressok, rawok,
@@ -5935,7 +5934,7 @@ zfs_ioc_diff(zfs_cmd_t *zc)
 
 	off = fp->f_offset;
 
-	error = dmu_diff(zc->zc_name, zc->zc_value, fp->f_vnode, &off);
+	error = dmu_diff(zc->zc_name, zc->zc_value, fp, &off);
 
 	if (VOP_SEEK(fp->f_vnode, fp->f_offset, &off, NULL) == 0)
 		fp->f_offset = off;
@@ -6308,7 +6307,7 @@ zfs_ioc_send_new(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 	off = fp->f_offset;
 	dmu_send_outparams_t out = {0};
 	out.dso_outfunc = dump_bytes;
-	out.dso_arg = fp->f_vnode;
+	out.dso_arg = fp;
 	out.dso_dryrun = B_FALSE;
 	error = dmu_send(snapname, fromname, embedok, largeblockok, compressok,
 	    rawok, resumeobj, resumeoff, redactbook, fd, &off, &out);

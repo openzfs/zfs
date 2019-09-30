@@ -251,6 +251,15 @@ typedef struct dmu_sendstatus {
 	uint64_t dss_blocks; /* blocks visited during the sending process */
 } dmu_sendstatus_t;
 
+typedef struct dmu_diffarg {
+	file_t *da_fp;		/* file to which we are reporting */
+	offset_t *da_offp;
+	int da_err;			/* error that stopped diff search */
+	dmu_diff_record_t da_ddr;
+} dmu_diffarg_t;
+
+int dmu_send_write(file_t *fp, char *buf, int len, ssize_t *resid);
+int dmu_write_record(dmu_diffarg_t *da);
 void dmu_object_zapify(objset_t *, uint64_t, dmu_object_type_t, dmu_tx_t *);
 void dmu_object_free_zapified(objset_t *, uint64_t, dmu_tx_t *);
 int dmu_buf_hold_noread(objset_t *, uint64_t, uint64_t,

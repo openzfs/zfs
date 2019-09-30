@@ -528,6 +528,10 @@ typedef struct vnode {
 	int		v_dump_fd;
 } vnode_t;
 
+typedef struct file {
+	vnode_t *f_vnode;
+} file_t;
+
 extern char *vn_dumpdir;
 #define	AV_SCANSTAMP_SZ	32		/* length of anti-virus scanstamp */
 
