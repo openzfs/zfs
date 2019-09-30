@@ -35,7 +35,7 @@ kmem_cache_t *zfs_btree_leaf_cache;
  * Intensity 3: Verify that the total number of elements in the tree matches the
  * sum of the number of elements in each node. Also verifies that each node's
  * count obeys the invariants (less than or equal to maximum value, greater than
- * or equal to half the maximum).
+ * or equal to half the maximum minus one).
  * Intensity 4: Verify that each element compares less than the element
  * immediately after it and greater than the one immediately before it using the
  * comparator function. For core nodes, also checks that each element is greater
@@ -53,11 +53,7 @@ kmem_cache_t *zfs_btree_leaf_cache;
  * (while the asymptotic complexity of the other steps is the same, the
  * importance of the constant factors cannot be denied).
  */
-#ifdef ZFS_DEBUG
-int zfs_btree_verify_intensity = 5;
-#else
 int zfs_btree_verify_intensity = 0;
-#endif
 
 #ifdef _ILP32
 #define	BTREE_POISON 0xabadb10c
