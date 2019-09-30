@@ -23,9 +23,24 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
+#include <ctype.h>
 #include <math.h>
 #include <stdio.h>
 #include <libzutil.h>
+
+/*
+ * Return B_TRUE if "str" is a number string, B_FALSE otherwise.
+ * Works for integer and floating point numbers.
+ */
+boolean_t
+zfs_isnumber(const char *str)
+{
+	for (; *str; str++)
+		if (!(isdigit(*str) || (*str == '.')))
+			return (B_FALSE);
+
+	return (B_TRUE);
+}
 
 /*
  * Convert a number to an appropriately human-readable output.

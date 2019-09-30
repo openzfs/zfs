@@ -117,6 +117,8 @@ extern boolean_t is_mpath_whole_disk(const char *);
 #define	is_mpath_whole_disk(path) (B_FALSE)
 #endif
 
+extern boolean_t zfs_isnumber(const char *);
+
 /*
  * Formats for iostat numbers.  Examples: "12K", "30ms", "4B", "2321234", "-".
  *

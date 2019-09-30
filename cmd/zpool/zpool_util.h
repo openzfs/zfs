@@ -42,7 +42,6 @@ void *safe_malloc(size_t);
 void zpool_no_memory(void);
 uint_t num_logs(nvlist_t *nv);
 uint64_t array64_max(uint64_t array[], unsigned int len);
-int isnumber(char *str);
 int highbit64(uint64_t i);
 int lowbit64(uint64_t i);
 
@@ -124,6 +123,12 @@ vdev_cmd_data_list_t *all_pools_for_each_vdev_run(int argc, char **argv,
     int cb_name_flags);
 
 void free_vdev_cmd_data_list(vdev_cmd_data_list_t *vcdl);
+
+int check_device(const char *path, boolean_t force,
+    boolean_t isspare, boolean_t iswholedisk);
+boolean_t check_sector_size_database(char *path, int *sector_size);
+void vdev_error(const char *fmt, ...);
+int check_file(const char *file, boolean_t force, boolean_t isspare);
 
 #ifdef	__cplusplus
 }
