@@ -38,7 +38,6 @@
 #include <sys/file.h>
 #include <sys/kmem.h>
 #include <sys/errno.h>
-#include <sys/mode.h>
 #include <sys/atomic.h>
 #include <sys/zfs_dir.h>
 #include <sys/zfs_acl.h>

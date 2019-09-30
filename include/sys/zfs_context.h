@@ -42,7 +42,6 @@
 #include <sys/vmem.h>
 #include <sys/taskq.h>
 #include <sys/param.h>
-#include <sys/kobj.h>
 #include <sys/disp.h>
 #include <sys/debug.h>
 #include <sys/random.h>
@@ -515,16 +514,6 @@ extern void	system_taskq_fini(void);
 #define	XVA_MAPSIZE	3
 #define	XVA_MAGIC	0x78766174
 
-/*
- * vnodes
- */
-typedef struct vnode {
-	uint64_t	v_size;
-	int		v_fd;
-	char		*v_path;
-	int		v_dump_fd;
-} vnode_t;
-
 extern char *vn_dumpdir;
 #define	AV_SCANSTAMP_SZ	32		/* length of anti-virus scanstamp */
 
@@ -593,40 +582,7 @@ typedef struct vsecattr {
 #define	CRCREAT		0
 
 #define	F_FREESP	11
-
-extern int fop_getattr(vnode_t *vp, vattr_t *vap);
-
-#define	VOP_CLOSE(vp, f, c, o, cr, ct)	vn_close(vp)
-#define	VOP_PUTPAGE(vp, of, sz, fl, cr, ct)	0
-#define	VOP_GETATTR(vp, vap, fl, cr, ct)  fop_getattr((vp), (vap));
-
-#define	VOP_FSYNC(vp, f, cr, ct)	fsync((vp)->v_fd)
-
-#if defined(FALLOC_FL_PUNCH_HOLE) && defined(FALLOC_FL_KEEP_SIZE)
-#define	VOP_SPACE(vp, cmd, flck, fl, off, cr, ct) \
-	fallocate((vp)->v_fd, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, \
-	    (flck)->l_start, (flck)->l_len)
-#else
-#define	VOP_SPACE(vp, cmd, flck, fl, off, cr, ct) (0)
-#endif
-
-#define	VN_RELE(vp)	vn_close(vp)
-
-extern int vn_open(char *path, int x1, int oflags, int mode, vnode_t **vpp,
-    int x2, int x3);
-extern int vn_openat(char *path, int x1, int oflags, int mode, vnode_t **vpp,
-    int x2, int x3, vnode_t *vp, int fd);
-extern int vn_rdwr(int uio, vnode_t *vp, void *addr, ssize_t len,
-    offset_t offset, int x1, int x2, rlim64_t x3, void *x4, ssize_t *residp);
-extern void vn_close(vnode_t *vp);
-
-#define	vn_remove(path, x1, x2)		remove(path)
-#define	vn_rename(from, to, seg)	rename((from), (to))
-#define	vn_is_readonly(vp)		B_FALSE
-
-extern vnode_t *rootdir;
-
-#include <sys/file.h>		/* for FREAD, FWRITE, etc */
+#define	FIGNORECASE	0x80000 /* request case-insensitive lookups */
 
 /*
  * Random stuff
@@ -681,7 +637,7 @@ extern int lowbit64(uint64_t i);
 extern int random_get_bytes(uint8_t *ptr, size_t len);
 extern int random_get_pseudo_bytes(uint8_t *ptr, size_t len);
 
-extern void kernel_init(int);
+extern void kernel_init(int mode);
 extern void kernel_fini(void);
 extern void random_init(void);
 extern void random_fini(void);
@@ -758,11 +714,6 @@ typedef struct ace_object {
 #define	ACE_SYSTEM_AUDIT_OBJECT_ACE_TYPE	0x07
 #define	ACE_SYSTEM_ALARM_OBJECT_ACE_TYPE	0x08
 
-extern struct _buf *kobj_open_file(char *name);
-extern int kobj_read_file(struct _buf *file, char *buf, unsigned size,
-    unsigned off);
-extern void kobj_close_file(struct _buf *file);
-extern int kobj_get_filesize(struct _buf *file, uint64_t *size);
 extern int zfs_secpolicy_snapshot_perms(const char *name, cred_t *cr);
 extern int zfs_secpolicy_rename_perms(const char *from, const char *to,
     cred_t *cr);

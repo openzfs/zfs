@@ -35,6 +35,9 @@
 #include <sys/abd.h>
 #include <sys/fcntl.h>
 #include <sys/vnode.h>
+#include <sys/zfs_file.h>
+
+#include <linux/falloc.h>
 
 /*
  * Virtual device vector for files.
@@ -54,13 +57,29 @@ vdev_file_rele(vdev_t *vd)
 	ASSERT(vd->vdev_path != NULL);
 }
 
+static mode_t
+vdev_file_open_mode(spa_mode_t spa_mode)
+{
+	mode_t mode = 0;
+
+	if ((spa_mode & SPA_MODE_READ) && (spa_mode & SPA_MODE_WRITE)) {
+		mode = O_RDWR;
+	} else if (spa_mode & SPA_MODE_READ) {
+		mode = O_RDONLY;
+	} else if (spa_mode & SPA_MODE_WRITE) {
+		mode = O_WRONLY;
+	}
+
+	return (mode | O_LARGEFILE);
+}
+
 static int
 vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
     uint64_t *ashift)
 {
 	vdev_file_t *vf;
-	vnode_t *vp;
-	vattr_t vattr;
+	zfs_file_t *fp;
+	zfs_file_attr_t zfa;
 	int error;
 
 	/*
@@ -108,38 +127,38 @@ vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	 * to local zone users, so the underlying devices should be as well.
 	 */
 	ASSERT(vd->vdev_path != NULL && vd->vdev_path[0] == '/');
-	error = vn_openat(vd->vdev_path + 1, UIO_SYSSPACE,
-	    spa_mode(vd->vdev_spa) | FOFFMAX, 0, &vp, 0, 0, rootdir, -1);
 
+	error = zfs_file_open(vd->vdev_path,
+	    vdev_file_open_mode(spa_mode(vd->vdev_spa)), 0, &fp);
 	if (error) {
 		vd->vdev_stat.vs_aux = VDEV_AUX_OPEN_FAILED;
 		return (error);
 	}
 
-	vf->vf_vnode = vp;
+	vf->vf_file = fp;
 
 #ifdef _KERNEL
 	/*
 	 * Make sure it's a regular file.
 	 */
-	if (vp->v_type != VREG) {
+	if (zfs_file_getattr(fp, &zfa)) {
+		return (SET_ERROR(ENODEV));
+	}
+	if (!S_ISREG(zfa.zfa_mode)) {
 		vd->vdev_stat.vs_aux = VDEV_AUX_OPEN_FAILED;
 		return (SET_ERROR(ENODEV));
 	}
 #endif
 
 skip_open:
-	/*
-	 * Determine the physical size of the file.
-	 */
-	vattr.va_mask = AT_SIZE;
-	error = VOP_GETATTR(vf->vf_vnode, &vattr, 0, kcred, NULL);
+
+	error =  zfs_file_getattr(vf->vf_file, &zfa);
 	if (error) {
 		vd->vdev_stat.vs_aux = VDEV_AUX_OPEN_FAILED;
 		return (error);
 	}
 
-	*max_psize = *psize = vattr.va_size;
+	*max_psize = *psize = zfa.zfa_size;
 	*ashift = SPA_MINBLOCKSHIFT;
 
 	return (0);
@@ -153,10 +172,8 @@ vdev_file_close(vdev_t *vd)
 	if (vd->vdev_reopening || vf == NULL)
 		return;
 
-	if (vf->vf_vnode != NULL) {
-		(void) VOP_PUTPAGE(vf->vf_vnode, 0, 0, B_INVAL, kcred, NULL);
-		(void) VOP_CLOSE(vf->vf_vnode, spa_mode(vd->vdev_spa), 1, 0,
-		    kcred, NULL);
+	if (vf->vf_file != NULL) {
+		(void) zfs_file_close(vf->vf_file);
 	}
 
 	vd->vdev_delayed_close = B_FALSE;
@@ -172,21 +189,24 @@ vdev_file_io_strategy(void *arg)
 	vdev_file_t *vf = vd->vdev_tsd;
 	ssize_t resid;
 	void *buf;
+	loff_t off;
+	ssize_t size;
+	int err;
 
-	if (zio->io_type == ZIO_TYPE_READ)
+	off = zio->io_offset;
+	size = zio->io_size;
+	resid = 0;
+
+	if (zio->io_type == ZIO_TYPE_READ) {
 		buf = abd_borrow_buf(zio->io_abd, zio->io_size);
-	else
+		err = zfs_file_pread(vf->vf_file, buf, size, off, &resid);
+		abd_return_buf_copy(zio->io_abd, buf, size);
+	} else {
 		buf = abd_borrow_buf_copy(zio->io_abd, zio->io_size);
-
-	zio->io_error = vn_rdwr(zio->io_type == ZIO_TYPE_READ ?
-	    UIO_READ : UIO_WRITE, vf->vf_vnode, buf, zio->io_size,
-	    zio->io_offset, UIO_SYSSPACE, 0, RLIM64_INFINITY, kcred, &resid);
-
-	if (zio->io_type == ZIO_TYPE_READ)
-		abd_return_buf_copy(zio->io_abd, buf, zio->io_size);
-	else
-		abd_return_buf(zio->io_abd, buf, zio->io_size);
-
+		err = zfs_file_pwrite(vf->vf_file, buf, size, off, &resid);
+		abd_return_buf(zio->io_abd, buf, size);
+	}
+	zio->io_error = err;
 	if (resid != 0 && zio->io_error == 0)
 		zio->io_error = SET_ERROR(ENOSPC);
 
@@ -199,7 +219,7 @@ vdev_file_io_fsync(void *arg)
 	zio_t *zio = (zio_t *)arg;
 	vdev_file_t *vf = zio->io_vd->vdev_tsd;
 
-	zio->io_error = VOP_FSYNC(vf->vf_vnode, FSYNC | FDSYNC, kcred, NULL);
+	zio->io_error = zfs_file_fsync(vf->vf_file, O_SYNC | O_DSYNC);
 
 	zio_interrupt(zio);
 }
@@ -238,8 +258,8 @@ vdev_file_io_start(zio_t *zio)
 				return;
 			}
 
-			zio->io_error = VOP_FSYNC(vf->vf_vnode, FSYNC | FDSYNC,
-			    kcred, NULL);
+			zio->io_error = zfs_file_fsync(vf->vf_file,
+			    O_SYNC | O_DSYNC);
 			break;
 		default:
 			zio->io_error = SET_ERROR(ENOTSUP);
@@ -248,18 +268,12 @@ vdev_file_io_start(zio_t *zio)
 		zio_execute(zio);
 		return;
 	} else if (zio->io_type == ZIO_TYPE_TRIM) {
-		struct flock flck;
+		int mode;
 
 		ASSERT3U(zio->io_size, !=, 0);
-		bzero(&flck, sizeof (flck));
-		flck.l_type = F_FREESP;
-		flck.l_start = zio->io_offset;
-		flck.l_len = zio->io_size;
-		flck.l_whence = SEEK_SET;
-
-		zio->io_error = VOP_SPACE(vf->vf_vnode, F_FREESP, &flck,
-		    0, 0, kcred, NULL);
-
+		mode = FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE;
+		zio->io_error = zfs_file_fallocate(vf->vf_file,
+		    mode, zio->io_offset, zio->io_size);
 		zio_execute(zio);
 		return;
 	}

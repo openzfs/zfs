@@ -932,7 +932,7 @@ vdev_inuse(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason,
 	 */
 	if (state != POOL_STATE_SPARE && state != POOL_STATE_L2CACHE &&
 	    (spa = spa_by_guid(pool_guid, device_guid)) != NULL &&
-	    spa_mode(spa) == FREAD)
+	    spa_mode(spa) == SPA_MODE_READ)
 		state = POOL_STATE_ACTIVE;
 
 	/*

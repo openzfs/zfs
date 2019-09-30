@@ -6781,7 +6781,7 @@ main(int argc, char **argv)
 	 */
 	spa_load_verify_dryrun = B_TRUE;
 
-	kernel_init(FREAD);
+	kernel_init(SPA_MODE_READ);
 
 	if (dump_all)
 		verbose = MAX(verbose, 1);

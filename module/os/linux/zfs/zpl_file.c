@@ -190,19 +190,19 @@ zfs_io_flags(struct kiocb *kiocb)
 
 #if defined(IOCB_DSYNC)
 	if (kiocb->ki_flags & IOCB_DSYNC)
-		flags |= FDSYNC;
+		flags |= O_DSYNC;
 #endif
 #if defined(IOCB_SYNC)
 	if (kiocb->ki_flags & IOCB_SYNC)
-		flags |= FSYNC;
+		flags |= O_SYNC;
 #endif
 #if defined(IOCB_APPEND)
 	if (kiocb->ki_flags & IOCB_APPEND)
-		flags |= FAPPEND;
+		flags |= O_APPEND;
 #endif
 #if defined(IOCB_DIRECT)
 	if (kiocb->ki_flags & IOCB_DIRECT)
-		flags |= FDIRECT;
+		flags |= O_DIRECT;
 #endif
 	return (flags);
 }
@@ -728,16 +728,14 @@ zpl_writepage(struct page *pp, struct writeback_control *wbc)
 static long
 zpl_fallocate_common(struct inode *ip, int mode, loff_t offset, loff_t len)
 {
-	int error = -EOPNOTSUPP;
-
-#if defined(FALLOC_FL_PUNCH_HOLE) && defined(FALLOC_FL_KEEP_SIZE)
 	cred_t *cr = CRED();
 	flock64_t bf;
 	loff_t olen;
 	fstrans_cookie_t cookie;
+	int error;
 
 	if (mode != (FALLOC_FL_KEEP_SIZE | FALLOC_FL_PUNCH_HOLE))
-		return (error);
+		return (-EOPNOTSUPP);
 
 	if (offset < 0 || len <= 0)
 		return (-EINVAL);
@@ -759,14 +757,12 @@ zpl_fallocate_common(struct inode *ip, int mode, loff_t offset, loff_t len)
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();
-	error = -zfs_space(ip, F_FREESP, &bf, FWRITE, offset, cr);
+	error = -zfs_space(ip, F_FREESP, &bf, O_RDWR, offset, cr);
 	spl_fstrans_unmark(cookie);
 	spl_inode_unlock(ip);
 
 	crfree(cr);
-#endif /* defined(FALLOC_FL_PUNCH_HOLE) && defined(FALLOC_FL_KEEP_SIZE) */
 
-	ASSERT3S(error, <=, 0);
 	return (error);
 }
 

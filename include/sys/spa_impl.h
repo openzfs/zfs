@@ -362,7 +362,7 @@ struct spa {
 	uint8_t		spa_claiming;		/* pool is doing zil_claim() */
 	boolean_t	spa_is_root;		/* pool is root */
 	int		spa_minref;		/* num refs when first opened */
-	int		spa_mode;		/* FREAD | FWRITE */
+	spa_mode_t	spa_mode;		/* SPA_MODE_{READ|WRITE} */
 	spa_log_state_t spa_log_state;		/* log state */
 	uint64_t	spa_autoexpand;		/* lun expansion on/off */
 	ddt_t		*spa_ddt[ZIO_CHECKSUM_FUNCTIONS]; /* in-core DDTs */

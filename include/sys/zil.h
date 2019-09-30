@@ -373,7 +373,7 @@ typedef struct {
  *	- the write occupies only one block
  * WR_COPIED:
  *    If we know we'll immediately be committing the
- *    transaction (FSYNC or FDSYNC), then we allocate a larger
+ *    transaction (O_SYNC or O_DSYNC), then we allocate a larger
  *    log record here for the data and copy the data in.
  * WR_NEED_COPY:
  *    Otherwise we don't allocate a buffer, and *if* we need to

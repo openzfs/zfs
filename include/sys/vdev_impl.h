@@ -220,8 +220,6 @@ struct vdev {
 	vdev_ops_t	*vdev_ops;	/* vdev operations		*/
 	spa_t		*vdev_spa;	/* spa for this vdev		*/
 	void		*vdev_tsd;	/* type-specific data		*/
-	vnode_t		*vdev_name_vp;	/* vnode for pathname		*/
-	vnode_t		*vdev_devid_vp;	/* vnode for devid		*/
 	vdev_t		*vdev_top;	/* top-level vdev		*/
 	vdev_t		*vdev_parent;	/* parent vdev			*/
 	vdev_t		**vdev_child;	/* array of children		*/

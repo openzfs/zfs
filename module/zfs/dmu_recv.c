@@ -61,6 +61,7 @@
 #ifdef _KERNEL
 #include <sys/zfs_vfsops.h>
 #endif
+#include <sys/zfs_file.h>
 
 int zfs_recv_queue_length = SPA_MAXBLOCKSIZE;
 int zfs_recv_queue_ff = 20;
@@ -1103,8 +1104,8 @@ dmu_recv_resume_begin_sync(void *arg, dmu_tx_t *tx)
 int
 dmu_recv_begin(char *tofs, char *tosnap, dmu_replay_record_t *drr_begin,
     boolean_t force, boolean_t resumable, nvlist_t *localprops,
-    nvlist_t *hidden_args, char *origin, dmu_recv_cookie_t *drc, vnode_t *vp,
-    offset_t *voffp)
+    nvlist_t *hidden_args, char *origin, dmu_recv_cookie_t *drc,
+    zfs_file_t *fp, offset_t *voffp)
 {
 	dmu_recv_begin_arg_t drba = { 0 };
 	int err;
@@ -1131,7 +1132,7 @@ dmu_recv_begin(char *tofs, char *tosnap, dmu_replay_record_t *drr_begin,
 		return (SET_ERROR(EINVAL));
 	}
 
-	drc->drc_vp = vp;
+	drc->drc_fp = fp;
 	drc->drc_voff = *voffp;
 	drc->drc_featureflags =
 	    DMU_GET_FEATUREFLAGS(drc->drc_drrb->drr_versioninfo);
@@ -1248,12 +1249,11 @@ receive_read(dmu_recv_cookie_t *drc, int len, void *buf)
 
 	while (done < len) {
 		ssize_t resid;
+		zfs_file_t *fp;
 
-		drc->drc_err = vn_rdwr(UIO_READ, drc->drc_vp,
-		    (char *)buf + done, len - done,
-		    drc->drc_voff, UIO_SYSSPACE, FAPPEND,
-		    RLIM64_INFINITY, CRED(), &resid);
-
+		fp = drc->drc_fp;
+		drc->drc_err = zfs_file_read(fp, (char *)buf + done,
+		    len - done, &resid);
 		if (resid == len - done) {
 			/*
 			 * Note: ECKSUM indicates that the receive

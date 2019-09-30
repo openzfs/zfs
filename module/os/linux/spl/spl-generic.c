@@ -27,7 +27,6 @@
 #include <sys/sysmacros.h>
 #include <sys/systeminfo.h>
 #include <sys/vmsystm.h>
-#include <sys/kobj.h>
 #include <sys/kmem.h>
 #include <sys/kmem_cache.h>
 #include <sys/vmem.h>
@@ -47,6 +46,8 @@
 #include <linux/kmod.h>
 #include "zfs_gitrev.h"
 #include <linux/mod_compat.h>
+#include <sys/cred.h>
+#include <sys/vnode.h>
 
 char spl_gitrev[64] = ZFS_META_GITREV;
 
@@ -520,6 +521,48 @@ ddi_copyout(const void *from, void *to, size_t len, int flags)
 }
 EXPORT_SYMBOL(ddi_copyout);
 
+static ssize_t
+spl_kernel_read(struct file *file, void *buf, size_t count, loff_t *pos)
+{
+#if defined(HAVE_KERNEL_READ_PPOS)
+	return (kernel_read(file, buf, count, pos));
+#else
+	mm_segment_t saved_fs;
+	ssize_t ret;
+
+	saved_fs = get_fs();
+	set_fs(KERNEL_DS);
+
+	ret = vfs_read(file, (void __user *)buf, count, pos);
+
+	set_fs(saved_fs);
+
+	return (ret);
+#endif
+}
+
+int
+spl_getattr(struct file *filp, struct kstat *stat)
+{
+	int rc;
+
+	ASSERT(filp);
+	ASSERT(stat);
+
+#if defined(HAVE_4ARGS_VFS_GETATTR)
+	rc = vfs_getattr(&filp->f_path, stat, STATX_BASIC_STATS,
+	    AT_STATX_SYNC_AS_STAT);
+#elif defined(HAVE_2ARGS_VFS_GETATTR)
+	rc = vfs_getattr(&filp->f_path, stat);
+#else
+	rc = vfs_getattr(filp->f_path.mnt, filp->f_dentry, stat);
+#endif
+	if (rc)
+		return (-rc);
+
+	return (0);
+}
+
 /*
  * Read the unique system identifier from the /etc/hostid file.
  *
@@ -563,38 +606,42 @@ static int
 hostid_read(uint32_t *hostid)
 {
 	uint64_t size;
-	struct _buf *file;
 	uint32_t value = 0;
 	int error;
+	loff_t off;
+	struct file *filp;
+	struct kstat stat;
 
-	file = kobj_open_file(spl_hostid_path);
-	if (file == (struct _buf *)-1)
+	filp = filp_open(spl_hostid_path, 0, 0);
+
+	if (IS_ERR(filp))
 		return (ENOENT);
 
-	error = kobj_get_filesize(file, &size);
+	error = spl_getattr(filp, &stat);
 	if (error) {
-		kobj_close_file(file);
+		filp_close(filp, 0);
 		return (error);
 	}
-
+	size = stat.size;
 	if (size < sizeof (HW_HOSTID_MASK)) {
-		kobj_close_file(file);
+		filp_close(filp, 0);
 		return (EINVAL);
 	}
 
+	off = 0;
 	/*
 	 * Read directly into the variable like eglibc does.
 	 * Short reads are okay; native behavior is preserved.
 	 */
-	error = kobj_read_file(file, (char *)&value, sizeof (value), 0);
+	error = spl_kernel_read(filp, &value, sizeof (value), &off);
 	if (error < 0) {
-		kobj_close_file(file);
+		filp_close(filp, 0);
 		return (EIO);
 	}
 
 	/* Mask down to 32 bits like coreutils does. */
 	*hostid = (value & HW_HOSTID_MASK);
-	kobj_close_file(file);
+	filp_close(filp, 0);
 
 	return (0);
 }
@@ -704,26 +751,21 @@ spl_init(void)
 	if ((rc = spl_kmem_cache_init()))
 		goto out4;
 
-	if ((rc = spl_vn_init()))
+	if ((rc = spl_proc_init()))
 		goto out5;
 
-	if ((rc = spl_proc_init()))
+	if ((rc = spl_kstat_init()))
 		goto out6;
 
-	if ((rc = spl_kstat_init()))
-		goto out7;
-
 	if ((rc = spl_zlib_init()))
-		goto out8;
+		goto out7;
 
 	return (rc);
 
-out8:
-	spl_kstat_fini();
 out7:
-	spl_proc_fini();
+	spl_kstat_fini();
 out6:
-	spl_vn_fini();
+	spl_proc_fini();
 out5:
 	spl_kmem_cache_fini();
 out4:
@@ -742,7 +784,6 @@ spl_fini(void)
 	spl_zlib_fini();
 	spl_kstat_fini();
 	spl_proc_fini();
-	spl_vn_fini();
 	spl_kmem_cache_fini();
 	spl_taskq_fini();
 	spl_tsd_fini();

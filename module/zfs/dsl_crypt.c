@@ -921,7 +921,7 @@ spa_keystore_unload_wkey(const char *dsname)
 	 * Wait for any outstanding txg IO to complete, releasing any
 	 * remaining references on the wkey.
 	 */
-	if (spa_mode(spa) != FREAD)
+	if (spa_mode(spa) != SPA_MODE_READ)
 		txg_wait_synced(spa->spa_dsl_pool, 0);
 
 	spa_close(spa, FTAG);
