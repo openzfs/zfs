@@ -322,13 +322,13 @@ zfs_log_create(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 	/* Store dnode slot count in 8 bits above object id. */
 	LR_FOID_SET_SLOTS(lr->lr_foid, zp->z_dnodesize >> DNODE_SHIFT);
 	lr->lr_mode = zp->z_mode;
-	if (!IS_EPHEMERAL(KUID_TO_SUID(ZTOI(zp)->i_uid))) {
-		lr->lr_uid = (uint64_t)KUID_TO_SUID(ZTOI(zp)->i_uid);
+	if (!IS_EPHEMERAL(KUID_TO_SUID(ZTOUID(zp)))) {
+		lr->lr_uid = (uint64_t)KUID_TO_SUID(ZTOUID(zp));
 	} else {
 		lr->lr_uid = fuidp->z_fuid_owner;
 	}
-	if (!IS_EPHEMERAL(KGID_TO_SGID(ZTOI(zp)->i_gid))) {
-		lr->lr_gid = (uint64_t)KGID_TO_SGID(ZTOI(zp)->i_gid);
+	if (!IS_EPHEMERAL(KGID_TO_SGID(ZTOGID(zp)))) {
+		lr->lr_gid = (uint64_t)KGID_TO_SGID(ZTOGID(zp));
 	} else {
 		lr->lr_gid = fuidp->z_fuid_group;
 	}
@@ -460,8 +460,8 @@ zfs_log_symlink(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 	lr = (lr_create_t *)&itx->itx_lr;
 	lr->lr_doid = dzp->z_id;
 	lr->lr_foid = zp->z_id;
-	lr->lr_uid = KUID_TO_SUID(ZTOI(zp)->i_uid);
-	lr->lr_gid = KGID_TO_SGID(ZTOI(zp)->i_gid);
+	lr->lr_uid = KUID_TO_SUID(ZTOUID(zp));
+	lr->lr_gid = KGID_TO_SGID(ZTOGID(zp));
 	lr->lr_mode = zp->z_mode;
 	(void) sa_lookup(zp->z_sa_hdl, SA_ZPL_GEN(ZTOZSB(zp)), &lr->lr_gen,
 	    sizeof (uint64_t));
