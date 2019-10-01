@@ -99,7 +99,6 @@ unsigned int zvol_request_sync = 0;
 unsigned int zvol_prefetch_bytes = (128 * 1024);
 unsigned long zvol_max_discard_blocks = 16384;
 unsigned int zvol_volmode = ZFS_VOLMODE_GEOM;
-int zvol_fake_phys_block_size = 1;
 
 static taskq_t *zvol_taskq;
 static krwlock_t zvol_state_lock;
@@ -1865,8 +1864,7 @@ zvol_create_minor_impl(const char *name)
 	blk_queue_max_hw_sectors(zv->zv_queue, (DMU_MAX_ACCESS / 4) >> 9);
 	blk_queue_max_segments(zv->zv_queue, UINT16_MAX);
 	blk_queue_max_segment_size(zv->zv_queue, UINT_MAX);
-	blk_queue_physical_block_size(zv->zv_queue,
-	    (zvol_fake_phys_block_size ? 512 : zv->zv_volblocksize));
+	blk_queue_physical_block_size(zv->zv_queue, zv->zv_volblocksize);
 	blk_queue_io_opt(zv->zv_queue, zv->zv_volblocksize);
 	blk_queue_max_discard_sectors(zv->zv_queue,
 	    (zvol_max_discard_blocks * zv->zv_volblocksize) >> 9);
