@@ -37,7 +37,8 @@ CLEANUPALL="no"
 LOOPBACK="yes"
 STACK_TRACER="no"
 FILESIZE="4G"
-RUNFILE=${RUNFILE:-"linux.run"}
+DEFAULT_RUNFILES="common.run,$(uname | tr '[:upper:]' '[:lower:]').run"
+RUNFILES=${RUNFILES:-$DEFAULT_RUNFILES}
 FILEDIR=${FILEDIR:-/var/tmp}
 DISKS=${DISKS:-""}
 SINGLETEST=()
@@ -259,7 +260,7 @@ constrain_path() {
 usage() {
 cat << EOF
 USAGE:
-$0 [hvqxkfS] [-s SIZE] [-r RUNFILE] [-t PATH] [-u USER]
+$0 [hvqxkfS] [-s SIZE] [-r RUNFILES] [-t PATH] [-u USER]
 
 DESCRIPTION:
 	ZFS Test Suite launch script
@@ -277,7 +278,7 @@ OPTIONS:
 	-I NUM      Number of iterations
 	-d DIR      Use DIR for files and loopback devices
 	-s SIZE     Use vdevs of SIZE (default: 4G)
-	-r RUNFILE  Run tests in RUNFILE (default: linux.run)
+	-r RUNFILES Run tests in RUNFILES (default: ${DEFAULT_RUNFILES})
 	-t PATH     Run single test at PATH relative to test suite
 	-T TAGS     Comma separated list of tags (default: 'functional')
 	-u USER     Run single test as USER (default: root)
@@ -344,7 +345,7 @@ while getopts 'hvqxkfScn:d:s:r:?t:T:u:I:' OPTION; do
 		FILESIZE="$OPTARG"
 		;;
 	r)
-		RUNFILE="$OPTARG"
+		RUNFILES="$OPTARG"
 		;;
 	t)
 		if [ ${#SINGLETEST[@]} -ne 0 ]; then
@@ -375,14 +376,14 @@ if [ ${#SINGLETEST[@]} -ne 0 ]; then
 		fail "-t and -T are mutually exclusive."
 	fi
 	RUNFILE_DIR="/var/tmp"
-	RUNFILE="zfs-tests.$$.run"
+	RUNFILES="zfs-tests.$$.run"
 	SINGLEQUIET="False"
 
 	if [ -n "$QUIET" ]; then
 		SINGLEQUIET="True"
 	fi
 
-	cat >$RUNFILE_DIR/$RUNFILE << EOF
+	cat >$RUNFILE_DIR/$RUNFILES << EOF
 [DEFAULT]
 pre =
 quiet = $SINGLEQUIET
@@ -408,7 +409,7 @@ EOF
 			CLEANUPSCRIPT="cleanup"
 		fi
 
-		cat >>$RUNFILE_DIR/$RUNFILE << EOF
+		cat >>$RUNFILE_DIR/$RUNFILES << EOF
 
 [$SINGLETESTDIR]
 tests = ['$SINGLETESTFILE']
@@ -425,17 +426,24 @@ fi
 TAGS=${TAGS:='functional'}
 
 #
-# Attempt to locate the runfile describing the test workload.
+# Attempt to locate the runfiles describing the test workload.
 #
-if [ -n "$RUNFILE" ]; then
-	SAVED_RUNFILE="$RUNFILE"
-	RUNFILE=$(find_runfile "$RUNFILE")
-	[ -z "$RUNFILE" ] && fail "Cannot find runfile: $SAVED_RUNFILE"
-fi
+R=""
+IFS=,
+for RUNFILE in $RUNFILES; do
+	if [ -n "$RUNFILE" ]; then
+		SAVED_RUNFILE="$RUNFILE"
+		RUNFILE=$(find_runfile "$RUNFILE")
+		[ -z "$RUNFILE" ] && fail "Cannot find runfile: $SAVED_RUNFILE"
+		R+="${R:+,}${RUNFILE}"
+	fi
 
-if [ ! -r "$RUNFILE" ]; then
-	fail "Cannot read runfile: $RUNFILE"
-fi
+	if [ ! -r "$RUNFILE" ]; then
+		fail "Cannot read runfile: $RUNFILE"
+	fi
+done
+unset IFS
+RUNFILES=$R
 
 #
 # This script should not be run as root.  Instead the test user, which may
@@ -507,7 +515,7 @@ __ZFS_POOL_EXCLUDE="$(echo "$KEEP" | sed ':a;N;s/\n/ /g;ba')"
 
 msg
 msg "--- Configuration ---"
-msg "Runfile:         $RUNFILE"
+msg "Runfiles:        $RUNFILES"
 msg "STF_TOOLS:       $STF_TOOLS"
 msg "STF_SUITE:       $STF_SUITE"
 msg "STF_PATH:        $STF_PATH"
@@ -603,12 +611,12 @@ REPORT_FILE=$(mktemp -u -t zts-report.XXXX -p "$FILEDIR")
 # Run all the tests as specified.
 #
 msg "${TEST_RUNNER} ${QUIET:+-q}" \
-    "-c \"${RUNFILE}\"" \
+    "-c \"${RUNFILES}\"" \
     "-T \"${TAGS}\"" \
     "-i \"${STF_SUITE}\"" \
     "-I \"${ITERATIONS}\""
 ${TEST_RUNNER} ${QUIET:+-q} \
-    -c "${RUNFILE}" \
+    -c "${RUNFILES}" \
     -T "${TAGS}" \
     -i "${STF_SUITE}" \
     -I "${ITERATIONS}" \
@@ -630,7 +638,7 @@ fi
 rm -f "$RESULTS_FILE" "$REPORT_FILE"
 
 if [ ${#SINGLETEST[@]} -ne 0 ]; then
-	rm -f "$RUNFILE" &>/dev/null
+	rm -f "$RUNFILES" &>/dev/null
 fi
 
 exit ${RESULT}
