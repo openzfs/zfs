@@ -1,9 +1,8 @@
 dnl #
 dnl # 3.6 API change
 dnl #
-AC_DEFUN([ZFS_AC_KERNEL_CREATE_NAMEIDATA], [
-	AC_MSG_CHECKING([whether iops->create() passes nameidata])
-	ZFS_LINUX_TRY_COMPILE([
+AC_DEFUN([ZFS_AC_KERNEL_SRC_CREATE_NAMEIDATA], [
+	ZFS_LINUX_TEST_SRC([create_nameidata], [
 		#include <linux/fs.h>
 		#include <linux/sched.h>
 
@@ -19,11 +18,15 @@ AC_DEFUN([ZFS_AC_KERNEL_CREATE_NAMEIDATA], [
 		    iops __attribute__ ((unused)) = {
 			.create		= inode_create,
 		};
-	],[
-	],[
+	],[])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_CREATE_NAMEIDATA], [
+	AC_MSG_CHECKING([whether iops->create() passes nameidata])
+	ZFS_LINUX_TEST_RESULT([create_nameidata], [
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_CREATE_NAMEIDATA, 1,
-		          [iops->create() passes nameidata])
+		    [iops->create() passes nameidata])
 	],[
 		AC_MSG_RESULT(no)
 	])

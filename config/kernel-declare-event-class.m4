@@ -2,13 +2,10 @@ dnl #
 dnl # Ensure the DECLARE_EVENT_CLASS macro is available to non-GPL modules.
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_DECLARE_EVENT_CLASS], [
-	tmp_flags="$EXTRA_KCFLAGS"
-	EXTRA_KCFLAGS="-I\$(src)"
-
 	AC_MSG_CHECKING([whether DECLARE_EVENT_CLASS() is available])
 	ZFS_LINUX_TRY_COMPILE_HEADER([
 		#include <linux/module.h>
-		MODULE_LICENSE(ZFS_META_LICENSE);
+		MODULE_LICENSE("$ZFS_META_LICENSE");
 
 		#define CREATE_TRACE_POINTS
 		#include "conftest.h"
@@ -18,7 +15,7 @@ AC_DEFUN([ZFS_AC_KERNEL_DECLARE_EVENT_CLASS], [
 	],[
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_DECLARE_EVENT_CLASS, 1,
-		          [DECLARE_EVENT_CLASS() is available])
+		    [DECLARE_EVENT_CLASS() is available])
 	],[
 		AC_MSG_RESULT(no)
 	],[
@@ -55,5 +52,4 @@ AC_DEFUN([ZFS_AC_KERNEL_DECLARE_EVENT_CLASS], [
 		#define TRACE_INCLUDE_FILE conftest
 		#include <trace/define_trace.h>
 	])
-	EXTRA_KCFLAGS="$tmp_flags"
 ])

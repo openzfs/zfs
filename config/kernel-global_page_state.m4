@@ -4,16 +4,21 @@ dnl #
 dnl # 75ef71840539 mm, vmstat: add infrastructure for per-node vmstats
 dnl # 599d0c954f91 mm, vmscan: move LRU lists to node
 dnl #
-AC_DEFUN([ZFS_AC_KERNEL_GLOBAL_NODE_PAGE_STATE], [
-	AC_MSG_CHECKING([whether global_node_page_state() exists])
-	ZFS_LINUX_TRY_COMPILE([
+AC_DEFUN([ZFS_AC_KERNEL_SRC_GLOBAL_NODE_PAGE_STATE], [
+	ZFS_LINUX_TEST_SRC([global_node_page_state], [
 		#include <linux/mm.h>
 		#include <linux/vmstat.h>
 	],[
 		(void) global_node_page_state(0);
-	],[
+	])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_GLOBAL_NODE_PAGE_STATE], [
+	AC_MSG_CHECKING([whether global_node_page_state() exists])
+	ZFS_LINUX_TEST_RESULT([global_node_page_state], [
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(ZFS_GLOBAL_NODE_PAGE_STATE, 1, [global_node_page_state() exists])
+		AC_DEFINE(ZFS_GLOBAL_NODE_PAGE_STATE, 1,
+		    [global_node_page_state() exists])
 	],[
 		AC_MSG_RESULT(no)
 	])
@@ -24,16 +29,21 @@ dnl # 4.14 API change
 dnl #
 dnl # c41f012ade0b mm: rename global_page_state to global_zone_page_state
 dnl #
-AC_DEFUN([ZFS_AC_KERNEL_GLOBAL_ZONE_PAGE_STATE], [
-	AC_MSG_CHECKING([whether global_zone_page_state() exists])
-	ZFS_LINUX_TRY_COMPILE([
+AC_DEFUN([ZFS_AC_KERNEL_SRC_GLOBAL_ZONE_PAGE_STATE], [
+	ZFS_LINUX_TEST_SRC([global_zone_page_state], [
 		#include <linux/mm.h>
 		#include <linux/vmstat.h>
 	],[
 		(void) global_zone_page_state(0);
-	],[
+	])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_GLOBAL_ZONE_PAGE_STATE], [
+	AC_MSG_CHECKING([whether global_zone_page_state() exists])
+	ZFS_LINUX_TEST_RESULT([global_zone_page_state], [
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(ZFS_GLOBAL_ZONE_PAGE_STATE, 1, [global_zone_page_state() exists])
+		AC_DEFINE(ZFS_GLOBAL_ZONE_PAGE_STATE, 1,
+		    [global_zone_page_state() exists])
 	],[
 		AC_MSG_RESULT(no)
 	])
@@ -44,9 +54,11 @@ dnl # Create a define and autoconf variable for an enum member
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_ENUM_MEMBER], [
 	AC_MSG_CHECKING([whether enum $2 contains $1])
-	AS_IF([AC_TRY_COMMAND("${srcdir}/scripts/enum-extract.pl" "$2" "$3" | egrep -qx $1)],[
+	AS_IF([AC_TRY_COMMAND(
+	    "${srcdir}/scripts/enum-extract.pl" "$2" "$3" | egrep -qx $1)],[
 		AC_MSG_RESULT([yes])
-		AC_DEFINE(m4_join([_], [ZFS_ENUM], m4_toupper($2), $1), 1, [enum $2 contains $1])
+		AC_DEFINE(m4_join([_], [ZFS_ENUM], m4_toupper($2), $1), 1,
+		    [enum $2 contains $1])
 		m4_join([_], [ZFS_ENUM], m4_toupper($2), $1)=1
 	],[
 		AC_MSG_RESULT([no])
@@ -59,8 +71,7 @@ dnl #
 AC_DEFUN([ZFS_AC_KERNEL_GLOBAL_PAGE_STATE_ENUM_ERROR],[
 	AC_MSG_RESULT(no)
 	AC_MSG_RESULT([$1 in either node_stat_item or zone_stat_item: $2])
-	AC_MSG_RESULT([configure needs updating, see: config/kernel-global_page_state.m4])
-	AC_MSG_FAILURE([SHUT 'ER DOWN CLANCY, SHE'S PUMPIN' MUD!])
+	ZFS_LINUX_TEST_ERROR([global page state])
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_GLOBAL_PAGE_STATE_ENUM_CHECK], [
@@ -75,10 +86,10 @@ AC_DEFUN([ZFS_AC_KERNEL_GLOBAL_PAGE_STATE_ENUM_CHECK], [
 ])
 
 dnl #
-dnl # Ensure the config tests are finding one and only one of each enum of interest
+dnl # Ensure the config tests are finding one and only one of each enum.
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_GLOBAL_ZONE_PAGE_STATE_SANITY], [
-	AC_MSG_CHECKING([global_page_state enums are sane])
+	AC_MSG_CHECKING([whether global_page_state enums are sane])
 
 	ZFS_AC_KERNEL_GLOBAL_PAGE_STATE_ENUM_CHECK([NR_FILE_PAGES])
 	ZFS_AC_KERNEL_GLOBAL_PAGE_STATE_ENUM_CHECK([NR_INACTIVE_ANON])
@@ -88,6 +99,11 @@ AC_DEFUN([ZFS_AC_KERNEL_GLOBAL_ZONE_PAGE_STATE_SANITY], [
 	AC_MSG_RESULT(yes)
 ])
 
+AC_DEFUN([ZFS_AC_KERNEL_SRC_GLOBAL_PAGE_STATE], [
+	ZFS_AC_KERNEL_SRC_GLOBAL_NODE_PAGE_STATE
+	ZFS_AC_KERNEL_SRC_GLOBAL_ZONE_PAGE_STATE
+])
+
 dnl #
 dnl # enum members in which we're interested
 dnl #
@@ -95,15 +111,23 @@ AC_DEFUN([ZFS_AC_KERNEL_GLOBAL_PAGE_STATE], [
 	ZFS_AC_KERNEL_GLOBAL_NODE_PAGE_STATE
 	ZFS_AC_KERNEL_GLOBAL_ZONE_PAGE_STATE
 
-	ZFS_AC_KERNEL_ENUM_MEMBER([NR_FILE_PAGES],		[node_stat_item], [$LINUX/include/linux/mmzone.h])
-	ZFS_AC_KERNEL_ENUM_MEMBER([NR_INACTIVE_ANON],		[node_stat_item], [$LINUX/include/linux/mmzone.h])
-	ZFS_AC_KERNEL_ENUM_MEMBER([NR_INACTIVE_FILE],		[node_stat_item], [$LINUX/include/linux/mmzone.h])
-	ZFS_AC_KERNEL_ENUM_MEMBER([NR_SLAB_RECLAIMABLE],	[node_stat_item], [$LINUX/include/linux/mmzone.h])
+	ZFS_AC_KERNEL_ENUM_MEMBER([NR_FILE_PAGES],
+	    [node_stat_item], [$LINUX/include/linux/mmzone.h])
+	ZFS_AC_KERNEL_ENUM_MEMBER([NR_INACTIVE_ANON],
+	    [node_stat_item], [$LINUX/include/linux/mmzone.h])
+	ZFS_AC_KERNEL_ENUM_MEMBER([NR_INACTIVE_FILE],
+	    [node_stat_item], [$LINUX/include/linux/mmzone.h])
+	ZFS_AC_KERNEL_ENUM_MEMBER([NR_SLAB_RECLAIMABLE],
+	    [node_stat_item], [$LINUX/include/linux/mmzone.h])
 
-	ZFS_AC_KERNEL_ENUM_MEMBER([NR_FILE_PAGES],		[zone_stat_item], [$LINUX/include/linux/mmzone.h])
-	ZFS_AC_KERNEL_ENUM_MEMBER([NR_INACTIVE_ANON],		[zone_stat_item], [$LINUX/include/linux/mmzone.h])
-	ZFS_AC_KERNEL_ENUM_MEMBER([NR_INACTIVE_FILE],		[zone_stat_item], [$LINUX/include/linux/mmzone.h])
-	ZFS_AC_KERNEL_ENUM_MEMBER([NR_SLAB_RECLAIMABLE],	[zone_stat_item], [$LINUX/include/linux/mmzone.h])
+	ZFS_AC_KERNEL_ENUM_MEMBER([NR_FILE_PAGES],
+	    [zone_stat_item], [$LINUX/include/linux/mmzone.h])
+	ZFS_AC_KERNEL_ENUM_MEMBER([NR_INACTIVE_ANON],
+	    [zone_stat_item], [$LINUX/include/linux/mmzone.h])
+	ZFS_AC_KERNEL_ENUM_MEMBER([NR_INACTIVE_FILE],
+	    [zone_stat_item], [$LINUX/include/linux/mmzone.h])
+	ZFS_AC_KERNEL_ENUM_MEMBER([NR_SLAB_RECLAIMABLE],
+	    [zone_stat_item], [$LINUX/include/linux/mmzone.h])
 
 	ZFS_AC_KERNEL_GLOBAL_ZONE_PAGE_STATE_SANITY
 ])
