@@ -55,7 +55,7 @@ BUILT_SOURCES = gitrev
 
 # Double-colon rules are allowed; there are multiple independent definitions.
 distclean-local::
-	-$(RM) -R autom4te*.cache
+	-$(RM) -R autom4te*.cache build
 	-find . \( -name SCCS -o -name BitKeeper -o -name .svn -o -name CVS \
 		-o -name .pc -o -name .hg -o -name .git \) -prune -o \
 		\( -name '*.orig' -o -name '*.rej' -o -name '*~' \
@@ -104,8 +104,8 @@ commitcheck:
 	fi
 
 cstyle:
-	@find ${top_srcdir} -name '*.[hc]' ! -name 'zfs_config.*' \
-		! -name '*.mod.c' -type f \
+	@find ${top_srcdir} -name build -prune -o -name '*.[hc]' \
+		! -name 'zfs_config.*' ! -name '*.mod.c' -type f \
 		-exec ${top_srcdir}/scripts/cstyle.pl -cpP {} \+
 
 filter_executable = -exec test -x '{}' \; -print
