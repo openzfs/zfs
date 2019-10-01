@@ -166,6 +166,17 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS], [
 ])
 
 AC_DEFUN([ZFS_AC_CONFIG], [
+
+        dnl # Remove the previous build test directory.
+        rm -Rf build
+
+	AC_ARG_VAR([TEST_JOBS],
+	    [simultaneous jobs during configure (defaults to $(nproc))])
+	if test "x$ac_cv_env_TEST_JOBS_set" != "xset"; then
+		TEST_JOBS=$(nproc)
+	fi
+	AC_SUBST(TEST_JOBS)
+
 	ZFS_CONFIG=all
 	AC_ARG_WITH([config],
 		AS_HELP_STRING([--with-config=CONFIG],

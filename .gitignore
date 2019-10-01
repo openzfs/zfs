@@ -36,6 +36,7 @@ Makefile.in
 # Top level generated files specific to this top level dir
 #
 /bin
+/build
 /configure
 /config.log
 /config.status
