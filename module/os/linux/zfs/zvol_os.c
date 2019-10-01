@@ -43,6 +43,7 @@ unsigned int zvol_request_sync = 0;
 unsigned int zvol_prefetch_bytes = (128 * 1024);
 unsigned long zvol_max_discard_blocks = 16384;
 unsigned int zvol_threads = 32;
+int zvol_fake_phys_block_size = 1;
 
 struct zvol_state_os {
 	struct gendisk		*zvo_disk;	/* generic disk */
@@ -941,7 +942,7 @@ zvol_create_minor(const char *name)
 	blk_queue_max_segments(zv->zv_zso->zvo_queue, UINT16_MAX);
 	blk_queue_max_segment_size(zv->zv_zso->zvo_queue, UINT_MAX);
 	blk_queue_physical_block_size(zv->zv_zso->zvo_queue,
-	    zv->zv_volblocksize);
+	    (zvol_fake_phys_block_size ? 512 : zv->zv_volblocksize));
 	blk_queue_io_opt(zv->zv_zso->zvo_queue, zv->zv_volblocksize);
 	blk_queue_max_discard_sectors(zv->zv_zso->zvo_queue,
 	    (zvol_max_discard_blocks * zv->zv_volblocksize) >> 9);
