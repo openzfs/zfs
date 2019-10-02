@@ -382,9 +382,9 @@ zfs_fuid_find_by_idx(zfsvfs_t *zfsvfs, uint32_t idx)
 void
 zfs_fuid_map_ids(znode_t *zp, cred_t *cr, uid_t *uidp, uid_t *gidp)
 {
-	*uidp = zfs_fuid_map_id(ZTOZSB(zp), KUID_TO_SUID(ZTOI(zp)->i_uid),
+	*uidp = zfs_fuid_map_id(ZTOZSB(zp), KUID_TO_SUID(ZTOUID(zp)),
 	    cr, ZFS_OWNER);
-	*gidp = zfs_fuid_map_id(ZTOZSB(zp), KGID_TO_SGID(ZTOI(zp)->i_gid),
+	*gidp = zfs_fuid_map_id(ZTOZSB(zp), KGID_TO_SGID(ZTOGID(zp)),
 	    cr, ZFS_GROUP);
 }
 
