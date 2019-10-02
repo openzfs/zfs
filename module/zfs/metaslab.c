@@ -2142,8 +2142,8 @@ metaslab_potentially_evict(metaslab_class_t *mc)
 {
 #ifdef _KERNEL
 	uint64_t allmem = arc_all_memory();
-	uint64_t inuse = zfs_btree_leaf_cache->skc_obj_total;
-	uint64_t size =	zfs_btree_leaf_cache->skc_obj_size;
+	uint64_t inuse = spl_kmem_cache_inuse(zfs_btree_leaf_cache);
+	uint64_t size =	spl_kmem_cache_entry_size(zfs_btree_leaf_cache);
 	int tries = 0;
 	for (; allmem * zfs_metaslab_mem_limit / 100 < inuse * size &&
 	    tries < multilist_get_num_sublists(mc->mc_metaslab_txg_list) * 2;
@@ -2180,7 +2180,8 @@ metaslab_potentially_evict(metaslab_class_t *mc)
 			 */
 			if (msp->ms_loading) {
 				msp = next_msp;
-				inuse = zfs_btree_leaf_cache->skc_obj_total;
+				inuse =
+				    spl_kmem_cache_inuse(zfs_btree_leaf_cache);
 				continue;
 			}
 			/*
@@ -2202,7 +2203,7 @@ metaslab_potentially_evict(metaslab_class_t *mc)
 			}
 			mutex_exit(&msp->ms_lock);
 			msp = next_msp;
-			inuse = zfs_btree_leaf_cache->skc_obj_total;
+			inuse = spl_kmem_cache_inuse(zfs_btree_leaf_cache);
 		}
 	}
 #endif
