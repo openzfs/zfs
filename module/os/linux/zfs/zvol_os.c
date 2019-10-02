@@ -43,6 +43,11 @@ unsigned int zvol_request_sync = 0;
 unsigned int zvol_prefetch_bytes = (128 * 1024);
 unsigned long zvol_max_discard_blocks = 16384;
 unsigned int zvol_threads = 32;
+
+/*
+ * This flag is specific to the Delphix product.  It always exports a phys
+ * block size of 512 bytes regardless of the volblocksize.
+ */
 int zvol_fake_phys_block_size = 1;
 
 struct zvol_state_os {
