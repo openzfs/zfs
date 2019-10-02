@@ -57,6 +57,7 @@ zfs_refcount_fini(void)
 void
 zfs_refcount_create(zfs_refcount_t *rc)
 {
+	bzero(rc, sizeof (*rc));
 	mutex_init(&rc->rc_mtx, NULL, MUTEX_DEFAULT, NULL);
 	list_create(&rc->rc_list, sizeof (reference_t),
 	    offsetof(reference_t, ref_link));
