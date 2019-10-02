@@ -533,6 +533,81 @@ unregister:
 	return (error);
 }
 
+/*
+ * Takes a dataset, a property, a value and that value's setpoint as
+ * found in the ZAP. Checks if the property has been changed in the vfs.
+ * If so, val and setpoint will be overwritten with updated content.
+ * Otherwise, they are left unchanged.
+ */
+int
+zfs_get_temporary_prop(dsl_dataset_t *ds, zfs_prop_t zfs_prop, uint64_t *val,
+    char *setpoint)
+{
+	int error;
+	zfsvfs_t *zfvp;
+	vfs_t *vfsp;
+	objset_t *os;
+	uint64_t tmp = *val;
+
+	error = dmu_objset_from_ds(ds, &os);
+	if (error != 0)
+		return (error);
+
+	if (dmu_objset_type(os) != DMU_OST_ZFS)
+		return (EINVAL);
+
+	mutex_enter(&os->os_user_ptr_lock);
+	zfvp = dmu_objset_get_user(os);
+	mutex_exit(&os->os_user_ptr_lock);
+	if (zfvp == NULL)
+		return (ESRCH);
+
+	vfsp = zfvp->z_vfs;
+
+	switch (zfs_prop) {
+	case ZFS_PROP_ATIME:
+		if (vfsp->vfs_do_atime)
+			tmp = vfsp->vfs_atime;
+		break;
+	case ZFS_PROP_RELATIME:
+		if (vfsp->vfs_do_relatime)
+			tmp = vfsp->vfs_relatime;
+		break;
+	case ZFS_PROP_DEVICES:
+		if (vfsp->vfs_do_devices)
+			tmp = vfsp->vfs_devices;
+		break;
+	case ZFS_PROP_EXEC:
+		if (vfsp->vfs_do_exec)
+			tmp = vfsp->vfs_exec;
+		break;
+	case ZFS_PROP_SETUID:
+		if (vfsp->vfs_do_setuid)
+			tmp = vfsp->vfs_setuid;
+		break;
+	case ZFS_PROP_READONLY:
+		if (vfsp->vfs_do_readonly)
+			tmp = vfsp->vfs_readonly;
+		break;
+	case ZFS_PROP_XATTR:
+		if (vfsp->vfs_do_xattr)
+			tmp = vfsp->vfs_xattr;
+		break;
+	case ZFS_PROP_NBMAND:
+		if (vfsp->vfs_do_nbmand)
+			tmp = vfsp->vfs_nbmand;
+		break;
+	default:
+		return (ENOENT);
+	}
+
+	if (tmp != *val) {
+		(void) strcpy(setpoint, "temporary");
+		*val = tmp;
+	}
+	return (0);
+}
+
 static int
 zfs_space_delta_cb(dmu_object_type_t bonustype, void *data,
     uint64_t *userp, uint64_t *groupp, uint64_t *projectp)
