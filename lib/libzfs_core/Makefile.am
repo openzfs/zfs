@@ -1,9 +1,5 @@
 include $(top_srcdir)/config/Rules.am
 
-DEFAULT_INCLUDES += \
-	-I$(top_srcdir)/include \
-	-I$(top_srcdir)/lib/libspl/include
-
 lib_LTLIBRARIES = libzfs_core.la
 
 USER_C = \

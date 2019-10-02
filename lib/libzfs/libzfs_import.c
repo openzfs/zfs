@@ -26,7 +26,6 @@
  * Copyright (c) 2016, Intel Corporation.
  */
 
-#include <devid.h>
 #include <errno.h>
 #include <libintl.h>
 #include <libgen.h>

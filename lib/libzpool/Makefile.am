@@ -15,10 +15,6 @@ AM_CFLAGS += $(FRAME_LARGER_THAN)
 
 AM_CFLAGS += -DLIB_ZPOOL_BUILD
 
-DEFAULT_INCLUDES += \
-	-I$(top_srcdir)/include \
-	-I$(top_srcdir)/lib/libspl/include
-
 lib_LTLIBRARIES = libzpool.la
 
 USER_C = \

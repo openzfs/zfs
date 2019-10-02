@@ -31,7 +31,6 @@
  */
 
 #include <errno.h>
-#include <devid.h>
 #include <libintl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -3884,86 +3883,6 @@ zpool_sync_one(zpool_handle_t *zhp, void *data)
 	return (0);
 }
 
-#if defined(__sun__) || defined(__sun)
-/*
- * Convert from a devid string to a path.
- */
-static char *
-devid_to_path(char *devid_str)
-{
-	ddi_devid_t devid;
-	char *minor;
-	char *path;
-	devid_nmlist_t *list = NULL;
-	int ret;
-
-	if (devid_str_decode(devid_str, &devid, &minor) != 0)
-		return (NULL);
-
-	ret = devid_deviceid_to_nmlist("/dev", devid, minor, &list);
-
-	devid_str_free(minor);
-	devid_free(devid);
-
-	if (ret != 0)
-		return (NULL);
-
-	/*
-	 * In a case the strdup() fails, we will just return NULL below.
-	 */
-	path = strdup(list[0].devname);
-
-	devid_free_nmlist(list);
-
-	return (path);
-}
-
-/*
- * Convert from a path to a devid string.
- */
-static char *
-path_to_devid(const char *path)
-{
-	int fd;
-	ddi_devid_t devid;
-	char *minor, *ret;
-
-	if ((fd = open(path, O_RDONLY)) < 0)
-		return (NULL);
-
-	minor = NULL;
-	ret = NULL;
-	if (devid_get(fd, &devid) == 0) {
-		if (devid_get_minor_name(fd, &minor) == 0)
-			ret = devid_str_encode(devid, minor);
-		if (minor != NULL)
-			devid_str_free(minor);
-		devid_free(devid);
-	}
-	(void) close(fd);
-
-	return (ret);
-}
-
-/*
- * Issue the necessary ioctl() to update the stored path value for the vdev.  We
- * ignore any failure here, since a common case is for an unprivileged user to
- * type 'zpool status', and we'll display the correct information anyway.
- */
-static void
-set_path(zpool_handle_t *zhp, nvlist_t *nv, const char *path)
-{
-	zfs_cmd_t zc = {"\0"};
-
-	(void) strncpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
-	(void) strncpy(zc.zc_value, path, sizeof (zc.zc_value));
-	verify(nvlist_lookup_uint64(nv, ZPOOL_CONFIG_GUID,
-	    &zc.zc_guid) == 0);
-
-	(void) ioctl(zhp->zpool_hdl->libzfs_fd, ZFS_IOC_VDEV_SETPATH, &zc);
-}
-#endif /* sun */
-
 #define	PATH_BUF_LEN	64
 
 /*
@@ -4019,54 +3938,6 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 		(void) snprintf(buf, sizeof (buf), "%llu", (u_longlong_t)value);
 		path = buf;
 	} else if (nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path) == 0) {
-#if defined(__sun__) || defined(__sun)
-		/*
-		 * Live VDEV path updates to a kernel VDEV during a
-		 * zpool_vdev_name lookup are not supported on Linux.
-		 */
-		char *devid;
-		vdev_stat_t *vs;
-		uint_t vsc;
-
-		/*
-		 * If the device is dead (faulted, offline, etc) then don't
-		 * bother opening it.  Otherwise we may be forcing the user to
-		 * open a misbehaving device, which can have undesirable
-		 * effects.
-		 */
-		if ((nvlist_lookup_uint64_array(nv, ZPOOL_CONFIG_VDEV_STATS,
-		    (uint64_t **)&vs, &vsc) != 0 ||
-		    vs->vs_state >= VDEV_STATE_DEGRADED) &&
-		    zhp != NULL &&
-		    nvlist_lookup_string(nv, ZPOOL_CONFIG_DEVID, &devid) == 0) {
-			/*
-			 * Determine if the current path is correct.
-			 */
-			char *newdevid = path_to_devid(path);
-
-			if (newdevid == NULL ||
-			    strcmp(devid, newdevid) != 0) {
-				char *newpath;
-
-				if ((newpath = devid_to_path(devid)) != NULL) {
-					/*
-					 * Update the path appropriately.
-					 */
-					set_path(zhp, nv, newpath);
-					if (nvlist_add_string(nv,
-					    ZPOOL_CONFIG_PATH, newpath) == 0)
-						verify(nvlist_lookup_string(nv,
-						    ZPOOL_CONFIG_PATH,
-						    &path) == 0);
-					free(newpath);
-				}
-			}
-
-			if (newdevid)
-				devid_str_free(newdevid);
-		}
-#endif /* sun */
-
 		if (name_flags & VDEV_NAME_FOLLOW_LINKS) {
 			char *rp = realpath(path, NULL);
 			if (rp) {

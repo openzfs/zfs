@@ -11,11 +11,6 @@ AM_CFLAGS += $(NO_UNUSED_BUT_SET_VARIABLE)
 libzfs_pcdir = $(datarootdir)/pkgconfig
 libzfs_pc_DATA = libzfs.pc libzfs_core.pc
 
-DEFAULT_INCLUDES += \
-	-I$(top_srcdir)/include \
-	-I$(top_srcdir)/module/icp/include \
-	-I$(top_srcdir)/lib/libspl/include
-
 lib_LTLIBRARIES = libzfs.la
 
 USER_C = \

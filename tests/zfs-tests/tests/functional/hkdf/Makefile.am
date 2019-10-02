@@ -1,7 +1,5 @@
 include $(top_srcdir)/config/Rules.am
 
-AM_CPPFLAGS += -I$(top_srcdir)/include
-AM_CPPFLAGS += -I$(top_srcdir)/lib/libspl/include
 LDADD = $(top_builddir)/lib/libzpool/libzpool.la
 
 AUTOMAKE_OPTIONS = subdir-objects
