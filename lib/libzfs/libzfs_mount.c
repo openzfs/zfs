@@ -94,7 +94,6 @@
 static int mount_tp_nthr = 512;	/* tpool threads for multi-threaded mounting */
 
 static void zfs_mount_task(void *);
-static int zfs_share_proto(zfs_handle_t *, zfs_share_proto_t *);
 zfs_share_type_t zfs_is_shared_proto(zfs_handle_t *, char **,
     zfs_share_proto_t);
 
@@ -102,13 +101,6 @@ zfs_share_type_t zfs_is_shared_proto(zfs_handle_t *, char **,
  * The share protocols table must be in the same order as the zfs_share_proto_t
  * enum in libzfs_impl.h
  */
-typedef struct {
-	zfs_prop_t p_prop;
-	char *p_name;
-	int p_share_err;
-	int p_unshare_err;
-} proto_table_t;
-
 proto_table_t proto_table[PROTO_END] = {
 	{ZFS_PROP_SHARENFS, "nfs", EZFS_SHARENFSFAILED, EZFS_UNSHARENFSFAILED},
 	{ZFS_PROP_SHARESMB, "smb", EZFS_SHARESMBFAILED, EZFS_UNSHARESMBFAILED},
@@ -129,60 +121,7 @@ zfs_share_proto_t share_all_proto[] = {
 	PROTO_END
 };
 
-/*
- * Search the sharetab for the given mountpoint and protocol, returning
- * a zfs_share_type_t value.
- */
-static zfs_share_type_t
-is_shared(libzfs_handle_t *hdl, const char *mountpoint, zfs_share_proto_t proto)
-{
-	char buf[MAXPATHLEN], *tab;
-	char *ptr;
 
-	if (hdl->libzfs_sharetab == NULL)
-		return (SHARED_NOT_SHARED);
-
-	/* Reopen ZFS_SHARETAB to prevent reading stale data from open file */
-	if (freopen(ZFS_SHARETAB, "r", hdl->libzfs_sharetab) == NULL)
-		return (SHARED_NOT_SHARED);
-
-	(void) fseek(hdl->libzfs_sharetab, 0, SEEK_SET);
-
-	while (fgets(buf, sizeof (buf), hdl->libzfs_sharetab) != NULL) {
-
-		/* the mountpoint is the first entry on each line */
-		if ((tab = strchr(buf, '\t')) == NULL)
-			continue;
-
-		*tab = '\0';
-		if (strcmp(buf, mountpoint) == 0) {
-			/*
-			 * the protocol field is the third field
-			 * skip over second field
-			 */
-			ptr = ++tab;
-			if ((tab = strchr(ptr, '\t')) == NULL)
-				continue;
-			ptr = ++tab;
-			if ((tab = strchr(ptr, '\t')) == NULL)
-				continue;
-			*tab = '\0';
-			if (strcmp(ptr,
-			    proto_table[proto].p_name) == 0) {
-				switch (proto) {
-				case PROTO_NFS:
-					return (SHARED_NFS);
-				case PROTO_SMB:
-					return (SHARED_SMB);
-				default:
-					return (0);
-				}
-			}
-		}
-	}
-
-	return (SHARED_NOT_SHARED);
-}
 
 static boolean_t
 dir_is_empty_stat(const char *dirname)
@@ -304,7 +243,7 @@ zfs_is_mounted(zfs_handle_t *zhp, char **where)
  * Returns true if the given dataset is mountable, false otherwise.  Returns the
  * mountpoint in 'buf'.
  */
-static boolean_t
+boolean_t
 zfs_is_mountable(zfs_handle_t *zhp, char *buf, size_t buflen,
     zprop_source_t *source, int flags)
 {
@@ -323,10 +262,6 @@ zfs_is_mountable(zfs_handle_t *zhp, char *buf, size_t buflen,
 		return (B_FALSE);
 
 	if (zfs_prop_get_int(zhp, ZFS_PROP_CANMOUNT) == ZFS_CANMOUNT_OFF)
-		return (B_FALSE);
-
-	if (zfs_prop_get_int(zhp, ZFS_PROP_ZONED) &&
-	    getzoneid() == GLOBAL_ZONEID)
 		return (B_FALSE);
 
 	if (zfs_prop_get_int(zhp, ZFS_PROP_ZONED) &&
@@ -358,68 +293,6 @@ zfs_is_mountable(zfs_handle_t *zhp, char *buf, size_t buflen,
  *
  * http://www.kernel.org/pub/linux/utils/util-linux/libmount-docs/index.html
  */
-
-static int
-do_mount(const char *src, const char *mntpt, char *opts)
-{
-	char *argv[9] = {
-	    "/bin/mount",
-	    "--no-canonicalize",
-	    "-t", MNTTYPE_ZFS,
-	    "-o", opts,
-	    (char *)src,
-	    (char *)mntpt,
-	    (char *)NULL };
-	int rc;
-
-	/* Return only the most critical mount error */
-	rc = libzfs_run_process(argv[0], argv, STDOUT_VERBOSE|STDERR_VERBOSE);
-	if (rc) {
-		if (rc & MOUNT_FILEIO)
-			return (EIO);
-		if (rc & MOUNT_USER)
-			return (EINTR);
-		if (rc & MOUNT_SOFTWARE)
-			return (EPIPE);
-		if (rc & MOUNT_BUSY)
-			return (EBUSY);
-		if (rc & MOUNT_SYSERR)
-			return (EAGAIN);
-		if (rc & MOUNT_USAGE)
-			return (EINVAL);
-
-		return (ENXIO); /* Generic error */
-	}
-
-	return (0);
-}
-
-static int
-do_unmount(const char *mntpt, int flags)
-{
-	char force_opt[] = "-f";
-	char lazy_opt[] = "-l";
-	char *argv[7] = {
-	    "/bin/umount",
-	    "-t", MNTTYPE_ZFS,
-	    NULL, NULL, NULL, NULL };
-	int rc, count = 3;
-
-	if (flags & MS_FORCE) {
-		argv[count] = force_opt;
-		count++;
-	}
-
-	if (flags & MS_DETACH) {
-		argv[count] = lazy_opt;
-		count++;
-	}
-
-	argv[count] = (char *)mntpt;
-	rc = libzfs_run_process(argv[0], argv, STDOUT_VERBOSE|STDERR_VERBOSE);
-
-	return (rc ? EINVAL : 0);
-}
 
 static int
 zfs_add_option(zfs_handle_t *zhp, char *options, int len,
@@ -503,9 +376,8 @@ zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
 		(void) strlcat(mntopts, "," MNTOPT_RO, sizeof (mntopts));
 
 	if (!zfs_is_mountable(zhp, mountpoint, sizeof (mountpoint), NULL,
-	    flags)) {
+	    flags))
 		return (0);
-	}
 
 	/*
 	 * Append default mount options which apply to the mount point.
@@ -599,7 +471,7 @@ zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
 	}
 
 	/* perform the mount */
-	rc = do_mount(zfs_get_name(zhp), mountpoint, mntopts);
+	rc = do_mount(zfs_get_name(zhp), mountpoint, mntopts, flags);
 	if (rc) {
 		/*
 		 * Generic errors are nasty, but there are just way too many
@@ -793,7 +665,7 @@ zfs_is_shared_proto(zfs_handle_t *zhp, char **where, zfs_share_proto_t proto)
 	if (!zfs_is_mounted(zhp, &mountpoint))
 		return (SHARED_NOT_SHARED);
 
-	if ((rc = is_shared(zhp->zfs_hdl, mountpoint, proto))
+	if ((rc = is_shared_impl(zhp->zfs_hdl, mountpoint, proto))
 	    != SHARED_NOT_SHARED) {
 		if (where != NULL)
 			*where = mountpoint;
@@ -818,44 +690,6 @@ zfs_is_shared_smb(zfs_handle_t *zhp, char **where)
 {
 	return (zfs_is_shared_proto(zhp, where,
 	    PROTO_SMB) != SHARED_NOT_SHARED);
-}
-
-/*
- * zfs_init_libshare(zhandle, service)
- *
- * Initialize the libshare API if it hasn't already been initialized.
- * In all cases it returns 0 if it succeeded and an error if not. The
- * service value is which part(s) of the API to initialize and is a
- * direct map to the libshare sa_init(service) interface.
- */
-int
-zfs_init_libshare(libzfs_handle_t *zhandle, int service)
-{
-	int ret = SA_OK;
-
-	if (ret == SA_OK && zhandle->libzfs_shareflags & ZFSSHARE_MISS) {
-		/*
-		 * We had a cache miss. Most likely it is a new ZFS
-		 * dataset that was just created. We want to make sure
-		 * so check timestamps to see if a different process
-		 * has updated any of the configuration. If there was
-		 * some non-ZFS change, we need to re-initialize the
-		 * internal cache.
-		 */
-		zhandle->libzfs_shareflags &= ~ZFSSHARE_MISS;
-		if (sa_needs_refresh(zhandle->libzfs_sharehdl)) {
-			zfs_uninit_libshare(zhandle);
-			zhandle->libzfs_sharehdl = sa_init(service);
-		}
-	}
-
-	if (ret == SA_OK && zhandle && zhandle->libzfs_sharehdl == NULL)
-		zhandle->libzfs_sharehdl = sa_init(service);
-
-	if (ret == SA_OK && zhandle->libzfs_sharehdl == NULL)
-		ret = SA_NO_MEMORY;
-
-	return (ret);
 }
 
 /*
@@ -886,102 +720,6 @@ zfs_parse_options(char *options, zfs_share_proto_t proto)
 	    proto_table[proto].p_name));
 }
 
-/*
- * Share the given filesystem according to the options in the specified
- * protocol specific properties (sharenfs, sharesmb).  We rely
- * on "libshare" to do the dirty work for us.
- */
-static int
-zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
-{
-	char mountpoint[ZFS_MAXPROPLEN];
-	char shareopts[ZFS_MAXPROPLEN];
-	char sourcestr[ZFS_MAXPROPLEN];
-	libzfs_handle_t *hdl = zhp->zfs_hdl;
-	sa_share_t share;
-	zfs_share_proto_t *curr_proto;
-	zprop_source_t sourcetype;
-	int ret;
-
-	if (!zfs_is_mountable(zhp, mountpoint, sizeof (mountpoint), NULL, 0))
-		return (0);
-
-	for (curr_proto = proto; *curr_proto != PROTO_END; curr_proto++) {
-		/*
-		 * Return success if there are no share options.
-		 */
-		if (zfs_prop_get(zhp, proto_table[*curr_proto].p_prop,
-		    shareopts, sizeof (shareopts), &sourcetype, sourcestr,
-		    ZFS_MAXPROPLEN, B_FALSE) != 0 ||
-		    strcmp(shareopts, "off") == 0)
-			continue;
-
-		ret = zfs_init_libshare(hdl, SA_INIT_SHARE_API);
-		if (ret != SA_OK) {
-			(void) zfs_error_fmt(hdl, EZFS_SHARENFSFAILED,
-			    dgettext(TEXT_DOMAIN, "cannot share '%s': %s"),
-			    zfs_get_name(zhp), sa_errorstr(ret));
-			return (-1);
-		}
-
-		/*
-		 * If the 'zoned' property is set, then zfs_is_mountable()
-		 * will have already bailed out if we are in the global zone.
-		 * But local zones cannot be NFS servers, so we ignore it for
-		 * local zones as well.
-		 */
-		if (zfs_prop_get_int(zhp, ZFS_PROP_ZONED))
-			continue;
-
-		share = sa_find_share(hdl->libzfs_sharehdl, mountpoint);
-		if (share == NULL) {
-			/*
-			 * This may be a new file system that was just
-			 * created so isn't in the internal cache
-			 * (second time through). Rather than
-			 * reloading the entire configuration, we can
-			 * assume ZFS has done the checking and it is
-			 * safe to add this to the internal
-			 * configuration.
-			 */
-			if (sa_zfs_process_share(hdl->libzfs_sharehdl,
-			    NULL, NULL, mountpoint,
-			    proto_table[*curr_proto].p_name, sourcetype,
-			    shareopts, sourcestr, zhp->zfs_name) != SA_OK) {
-				(void) zfs_error_fmt(hdl,
-				    proto_table[*curr_proto].p_share_err,
-				    dgettext(TEXT_DOMAIN, "cannot share '%s'"),
-				    zfs_get_name(zhp));
-				return (-1);
-			}
-			hdl->libzfs_shareflags |= ZFSSHARE_MISS;
-			share = sa_find_share(hdl->libzfs_sharehdl,
-			    mountpoint);
-		}
-		if (share != NULL) {
-			int err;
-			err = sa_enable_share(share,
-			    proto_table[*curr_proto].p_name);
-			if (err != SA_OK) {
-				(void) zfs_error_fmt(hdl,
-				    proto_table[*curr_proto].p_share_err,
-				    dgettext(TEXT_DOMAIN, "cannot share '%s'"),
-				    zfs_get_name(zhp));
-				return (-1);
-			}
-		} else {
-			(void) zfs_error_fmt(hdl,
-			    proto_table[*curr_proto].p_share_err,
-			    dgettext(TEXT_DOMAIN, "cannot share '%s'"),
-			    zfs_get_name(zhp));
-			return (-1);
-		}
-
-	}
-	return (0);
-}
-
-
 int
 zfs_share_nfs(zfs_handle_t *zhp)
 {
@@ -998,50 +736,6 @@ int
 zfs_shareall(zfs_handle_t *zhp)
 {
 	return (zfs_share_proto(zhp, share_all_proto));
-}
-
-/*
- * Unshare a filesystem by mountpoint.
- */
-static int
-unshare_one(libzfs_handle_t *hdl, const char *name, const char *mountpoint,
-    zfs_share_proto_t proto)
-{
-	sa_share_t share;
-	int err;
-	char *mntpt;
-	/*
-	 * Mountpoint could get trashed if libshare calls getmntany
-	 * which it does during API initialization, so strdup the
-	 * value.
-	 */
-	mntpt = zfs_strdup(hdl, mountpoint);
-
-	/* make sure libshare initialized */
-	if ((err = zfs_init_libshare(hdl, SA_INIT_SHARE_API)) != SA_OK) {
-		free(mntpt);	/* don't need the copy anymore */
-		return (zfs_error_fmt(hdl, proto_table[proto].p_unshare_err,
-		    dgettext(TEXT_DOMAIN, "cannot unshare '%s': %s"),
-		    name, sa_errorstr(err)));
-	}
-
-	share = sa_find_share(hdl->libzfs_sharehdl, mntpt);
-	free(mntpt);	/* don't need the copy anymore */
-
-	if (share != NULL) {
-		err = sa_disable_share(share, proto_table[proto].p_name);
-		if (err != SA_OK) {
-			return (zfs_error_fmt(hdl,
-			    proto_table[proto].p_unshare_err,
-			    dgettext(TEXT_DOMAIN, "cannot unshare '%s': %s"),
-			    name, sa_errorstr(err)));
-		}
-	} else {
-		return (zfs_error_fmt(hdl, proto_table[proto].p_unshare_err,
-		    dgettext(TEXT_DOMAIN, "cannot unshare '%s': not found"),
-		    name));
-	}
-	return (0);
 }
 
 /*
@@ -1069,7 +763,7 @@ zfs_unshare_proto(zfs_handle_t *zhp, const char *mountpoint,
 		for (curr_proto = proto; *curr_proto != PROTO_END;
 		    curr_proto++) {
 
-			if (is_shared(hdl, mntpt, *curr_proto) &&
+			if (is_shared_impl(hdl, mntpt, *curr_proto) &&
 			    unshare_one(hdl, zhp->zfs_name,
 			    mntpt, *curr_proto) != 0) {
 				if (mntpt != NULL)
@@ -1170,7 +864,8 @@ remove_mountpoint(zfs_handle_t *zhp)
 	char mountpoint[ZFS_MAXPROPLEN];
 	zprop_source_t source;
 
-	if (!zfs_is_mountable(zhp, mountpoint, sizeof (mountpoint), &source, 0))
+	if (!zfs_is_mountable(zhp, mountpoint, sizeof (mountpoint),
+	    &source, 0))
 		return;
 
 	if (source == ZPROP_SRC_DEFAULT ||
@@ -1738,7 +1433,7 @@ zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force)
 		zfs_share_proto_t *curr_proto;
 		for (curr_proto = share_all_proto; *curr_proto != PROTO_END;
 		    curr_proto++) {
-			if (is_shared(hdl, mountpoints[i], *curr_proto) &&
+			if (is_shared_impl(hdl, mountpoints[i], *curr_proto) &&
 			    unshare_one(hdl, mountpoints[i],
 			    mountpoints[i], *curr_proto) != 0)
 				goto out;
