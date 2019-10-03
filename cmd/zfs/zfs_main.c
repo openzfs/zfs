@@ -7018,18 +7018,6 @@ unshare_unmount_path(int op, char *path, int flags, boolean_t is_manual)
 	const char *cmdname = (op == OP_SHARE) ? "unshare" : "unmount";
 	ino_t path_inode;
 
-	/*
-	 * Search for the path in /proc/self/mounts. Rather than looking for the
-	 * specific path, which can be fooled by non-standard paths (i.e. ".."
-	 * or "//"), we stat() the path and search for the corresponding
-	 * (major,minor) device pair.
-	 */
-	if (stat64(path, &statbuf) != 0) {
-		(void) fprintf(stderr, gettext("cannot %s '%s': %s\n"),
-		    cmdname, path, strerror(errno));
-		return (1);
-	}
-	path_inode = statbuf.st_ino;
 
 	/*
 	 * Search for the given (major,minor) pair in the mount table.
@@ -7039,12 +7027,7 @@ unshare_unmount_path(int op, char *path, int flags, boolean_t is_manual)
 	if (freopen(MNTTAB, "r", mnttab_file) == NULL)
 		return (ENOENT);
 
-	while ((ret = getextmntent(mnttab_file, &entry, 0)) == 0) {
-		if (entry.mnt_major == major(statbuf.st_dev) &&
-		    entry.mnt_minor == minor(statbuf.st_dev))
-			break;
-	}
-	if (ret != 0) {
+	if (getextmntent(path, &entry, &statbuf) != 0) {
 		if (op == OP_SHARE) {
 			(void) fprintf(stderr, gettext("cannot %s '%s': not "
 			    "currently mounted\n"), cmdname, path);
@@ -7057,6 +7040,7 @@ unshare_unmount_path(int op, char *path, int flags, boolean_t is_manual)
 			    strerror(errno));
 		return (ret != 0);
 	}
+	path_inode = statbuf.st_ino;
 
 	if (strcmp(entry.mnt_fstype, MNTTYPE_ZFS) != 0) {
 		(void) fprintf(stderr, gettext("cannot %s '%s': not a ZFS "

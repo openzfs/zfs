@@ -47,7 +47,6 @@
  */
 
 #include <ctype.h>
-#include <devid.h>
 #include <dirent.h>
 #include <errno.h>
 #include <libintl.h>

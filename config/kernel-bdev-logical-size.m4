@@ -5,21 +5,22 @@ dnl # it has been true for a while that there was no strict 1:1 mapping
 dnl # between physical sector size and logical block size this change makes
 dnl # it explicit.
 dnl #
-AC_DEFUN([ZFS_AC_KERNEL_BDEV_LOGICAL_BLOCK_SIZE], [
-	AC_MSG_CHECKING([whether bdev_logical_block_size() is available])
-	tmp_flags="$EXTRA_KCFLAGS"
-	EXTRA_KCFLAGS="${NO_UNUSED_BUT_SET_VARIABLE}"
-	ZFS_LINUX_TRY_COMPILE([
+AC_DEFUN([ZFS_AC_KERNEL_SRC_BDEV_LOGICAL_BLOCK_SIZE], [
+	ZFS_LINUX_TEST_SRC([bdev_logical_block_size], [
 		#include <linux/blkdev.h>
 	],[
 		struct block_device *bdev = NULL;
 		bdev_logical_block_size(bdev);
-	],[
+	], [$NO_UNUSED_BUT_SET_VARIABLE])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_BDEV_LOGICAL_BLOCK_SIZE], [
+	AC_MSG_CHECKING([whether bdev_logical_block_size() is available])
+	ZFS_LINUX_TEST_RESULT([bdev_logical_block_size], [
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_BDEV_LOGICAL_BLOCK_SIZE, 1,
-		          [bdev_logical_block_size() is available])
+		    [bdev_logical_block_size() is available])
 	],[
 		AC_MSG_RESULT(no)
 	])
-	EXTRA_KCFLAGS="$tmp_flags"
 ])

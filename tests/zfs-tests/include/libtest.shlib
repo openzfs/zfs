@@ -2405,7 +2405,7 @@ function del_user #<logname> <basedir>
 	fi
 
 	if id $user > /dev/null 2>&1; then
-		log_must_retry "currently used" 5 userdel $user
+		log_must_retry "currently used" 6 userdel $user
 	fi
 
 	[[ -d $basedir/$user ]] && rm -fr $basedir/$user

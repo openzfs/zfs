@@ -851,6 +851,11 @@ out_kmem:
  * At this time, the structure is not opened by anyone, is taken off
  * the zvol_state_list, and has its private data set to NULL.
  * The zvol_state_lock is dropped.
+ *
+ * This function may take many milliseconds to complete (e.g. we've seen
+ * it take over 256ms), due to the calls to "blk_cleanup_queue" and
+ * "del_gendisk". Thus, consumers need to be careful to account for this
+ * latency when calling this function.
  */
 static void
 zvol_free(zvol_state_t *zv)
@@ -1094,6 +1099,14 @@ void
 zvol_fini(void)
 {
 	zvol_remove_minors_impl(NULL);
+
+	/*
+	 * The call to "zvol_remove_minors_impl" may dispatch entries to
+	 * the system_taskq, but it doesn't wait for those entires to
+	 * complete before it returns. Thus, we must wait for all of the
+	 * removals to finish, before we can continue.
+	 */
+	taskq_wait_outstanding(system_taskq, 0);
 
 	zvol_fini_impl();
 	blk_unregister_region(MKDEV(zvol_major, 0), 1UL << MINORBITS);

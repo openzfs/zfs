@@ -86,6 +86,9 @@ AC_CONFIG_FILES([
 	lib/libspl/include/Makefile
 	lib/libspl/include/ia32/Makefile
 	lib/libspl/include/ia32/sys/Makefile
+	lib/libspl/include/os/Makefile
+	lib/libspl/include/os/linux/Makefile
+	lib/libspl/include/os/linux/sys/Makefile
 	lib/libspl/include/rpc/Makefile
 	lib/libspl/include/sys/Makefile
 	lib/libspl/include/sys/dktp/Makefile

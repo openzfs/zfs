@@ -258,7 +258,15 @@ zfs_inherit_projid(znode_t *dzp)
 #define	ZTOZSB(znode)	((zfsvfs_t *)(ZTOI(znode)->i_sb->s_fs_info))
 #define	ITOZSB(inode)	((zfsvfs_t *)((inode)->i_sb->s_fs_info))
 
-#define	S_ISDEV(mode)	(S_ISCHR(mode) || S_ISBLK(mode) || S_ISFIFO(mode))
+#define	ZTOTYPE(zp)	(ZTOI(zp)->i_mode)
+#define	ZTOGID(zp) (ZTOI(zp)->i_gid)
+#define	ZTOUID(zp) (ZTOI(zp)->i_uid)
+#define	ZTONLNK(zp) (ZTOI(zp)->i_nlink)
+
+#define	Z_ISBLK(type) S_ISBLK(type)
+#define	Z_ISCHR(type) S_ISCHR(type)
+#define	Z_ISLNK(type) S_ISLNK(type)
+#define	S_ISDEV(type)	(S_ISCHR(type) || S_ISBLK(type) || S_ISFIFO(type))
 
 /* Called on entry to each ZFS inode and vfs operation. */
 #define	ZFS_ENTER_ERROR(zfsvfs, error)				\

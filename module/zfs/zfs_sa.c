@@ -300,7 +300,7 @@ zfs_sa_upgrade(sa_handle_t *hdl, dmu_tx_t *tx)
 	 * and ready the ACL would require special "locked"
 	 * interfaces that would be messy
 	 */
-	if (zp->z_acl_cached == NULL || S_ISLNK(ZTOI(zp)->i_mode))
+	if (zp->z_acl_cached == NULL || Z_ISLNK(ZTOTYPE(zp)))
 		return;
 
 	/*
@@ -369,13 +369,13 @@ zfs_sa_upgrade(sa_handle_t *hdl, dmu_tx_t *tx)
 	    &ctime, 16);
 	SA_ADD_BULK_ATTR(sa_attrs, count, SA_ZPL_CRTIME(zfsvfs), NULL,
 	    &crtime, 16);
-	links = ZTOI(zp)->i_nlink;
+	links = ZTONLNK(zp);
 	SA_ADD_BULK_ATTR(sa_attrs, count, SA_ZPL_LINKS(zfsvfs), NULL,
 	    &links, 8);
 	if (dmu_objset_projectquota_enabled(hdl->sa_os))
 		SA_ADD_BULK_ATTR(sa_attrs, count, SA_ZPL_PROJID(zfsvfs), NULL,
 		    &zp->z_projid, 8);
-	if (S_ISBLK(ZTOI(zp)->i_mode) || S_ISCHR(ZTOI(zp)->i_mode))
+	if (Z_ISBLK(ZTOTYPE(zp)) || Z_ISCHR(ZTOTYPE(zp)))
 		SA_ADD_BULK_ATTR(sa_attrs, count, SA_ZPL_RDEV(zfsvfs), NULL,
 		    &rdev, 8);
 	SA_ADD_BULK_ATTR(sa_attrs, count, SA_ZPL_DACL_COUNT(zfsvfs), NULL,

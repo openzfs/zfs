@@ -8,10 +8,6 @@ VPATH = \
 # and required CFLAGS for libtirpc
 AM_CFLAGS += $(FRAME_LARGER_THAN) $(LIBTIRPC_CFLAGS)
 
-DEFAULT_INCLUDES += \
-	-I$(top_srcdir)/include \
-	-I$(top_srcdir)/lib/libspl/include
-
 lib_LTLIBRARIES = libnvpair.la
 
 USER_C = \

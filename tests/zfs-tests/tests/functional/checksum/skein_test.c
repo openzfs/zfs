@@ -37,10 +37,8 @@
 #include <strings.h>
 #include <stdio.h>
 #include <sys/time.h>
+#include <sys/stdtypes.h>
 #define NOTE(x)
-
-typedef	enum boolean { B_FALSE, B_TRUE } boolean_t;
-typedef	unsigned long long	u_longlong_t;
 
 /*
  * Skein test suite using values from the Skein V1.3 specification found at:

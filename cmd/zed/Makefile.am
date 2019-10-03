@@ -1,10 +1,6 @@
-SUBDIRS = zed.d
-
 include $(top_srcdir)/config/Rules.am
 
-DEFAULT_INCLUDES += \
-	-I$(top_srcdir)/include \
-	-I$(top_srcdir)/lib/libspl/include
+SUBDIRS = zed.d
 
 sbin_PROGRAMS = zed
 

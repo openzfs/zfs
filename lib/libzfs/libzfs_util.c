@@ -1095,7 +1095,6 @@ zfs_path_to_zhandle(libzfs_handle_t *hdl, char *path, zfs_type_t argtype)
 {
 	struct stat64 statbuf;
 	struct extmnttab entry;
-	int ret;
 
 	if (path[0] != '/' && strncmp(path, "./", strlen("./")) != 0) {
 		/*
@@ -1104,24 +1103,12 @@ zfs_path_to_zhandle(libzfs_handle_t *hdl, char *path, zfs_type_t argtype)
 		return (zfs_open(hdl, path, argtype));
 	}
 
-	if (stat64(path, &statbuf) != 0) {
-		(void) fprintf(stderr, "%s: %s\n", path, strerror(errno));
-		return (NULL);
-	}
-
 	/* Reopen MNTTAB to prevent reading stale data from open file */
 	if (freopen(MNTTAB, "r", hdl->libzfs_mnttab) == NULL)
 		return (NULL);
 
-	while ((ret = getextmntent(hdl->libzfs_mnttab, &entry, 0)) == 0) {
-		if (makedevice(entry.mnt_major, entry.mnt_minor) ==
-		    statbuf.st_dev) {
-			break;
-		}
-	}
-	if (ret != 0) {
+	if (getextmntent(path, &entry, &statbuf) != 0)
 		return (NULL);
-	}
 
 	if (strcmp(entry.mnt_fstype, MNTTYPE_ZFS) != 0) {
 		(void) fprintf(stderr, gettext("'%s': not a ZFS filesystem\n"),

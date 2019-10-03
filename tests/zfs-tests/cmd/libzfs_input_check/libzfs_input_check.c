@@ -272,13 +272,13 @@ test_pool_sync(const char *pool)
 static void
 test_pool_reopen(const char *pool)
 {
-	nvlist_t *required = fnvlist_alloc();
+	nvlist_t *optional = fnvlist_alloc();
 
-	fnvlist_add_boolean_value(required, "scrub_restart", B_FALSE);
+	fnvlist_add_boolean_value(optional, "scrub_restart", B_FALSE);
 
-	IOC_INPUT_TEST(ZFS_IOC_POOL_REOPEN, pool, required, NULL, 0);
+	IOC_INPUT_TEST(ZFS_IOC_POOL_REOPEN, pool, NULL, optional, 0);
 
-	nvlist_free(required);
+	nvlist_free(optional);
 }
 
 static void
