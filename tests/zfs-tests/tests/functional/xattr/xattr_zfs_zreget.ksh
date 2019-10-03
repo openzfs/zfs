@@ -19,6 +19,7 @@
 #
 
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/xattr/xattr_common.kshlib
 
 #
 # DESCRIPTION:
