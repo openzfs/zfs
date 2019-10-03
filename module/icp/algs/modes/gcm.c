@@ -703,9 +703,8 @@ gcm_impl_get_ops()
 /*
  * Initialize all supported implementations.
  */
-/* ARGSUSED */
 void
-gcm_impl_init(void *arg)
+gcm_impl_init(void)
 {
 	gcm_impl_ops_t *curr_impl;
 	int i, c;

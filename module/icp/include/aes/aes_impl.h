@@ -198,7 +198,7 @@ extern const aes_impl_ops_t aes_aesni_impl;
 /*
  * Initializes fastest implementation
  */
-void aes_impl_init(void *arg);
+void aes_impl_init(void);
 
 /*
  * Returns optimal allowed AES implementation

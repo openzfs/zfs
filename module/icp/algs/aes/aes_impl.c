@@ -295,9 +295,8 @@ aes_impl_get_ops(void)
 /*
  * Initialize all supported implementations.
  */
-/* ARGSUSED */
 void
-aes_impl_init(void *arg)
+aes_impl_init(void)
 {
 	aes_impl_ops_t *curr_impl;
 	int i, c;
