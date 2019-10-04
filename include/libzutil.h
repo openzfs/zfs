@@ -79,15 +79,10 @@ extern const char * const * zpool_default_search_paths(size_t *count);
 extern int zpool_read_label(int, nvlist_t **, int *);
 extern int zpool_label_disk_wait(const char *, int);
 
-#ifdef HAVE_LIBUDEV
 struct udev_device;
 
 extern int zfs_device_get_devid(struct udev_device *, char *, size_t);
 extern int zfs_device_get_physical(struct udev_device *, char *, size_t);
-#else
-#define	zfs_device_get_devid(dev, bufptr, buflen)	(ENODATA)
-#define	zfs_device_get_physical(dev, bufptr, buflen)	(ENODATA)
-#endif
 
 extern void update_vdev_config_dev_strs(nvlist_t *);
 
@@ -106,16 +101,12 @@ extern char *zfs_strip_partition_path(char *);
 
 extern int zfs_strcmp_pathname(const char *, const char *, int);
 
-extern int zfs_dev_is_dm(const char *);
-extern int zfs_dev_is_whole_disk(const char *);
+extern boolean_t zfs_dev_is_dm(const char *);
+extern boolean_t zfs_dev_is_whole_disk(const char *);
 extern char *zfs_get_underlying_path(const char *);
 extern char *zfs_get_enclosure_sysfs_path(const char *);
 
-#ifdef HAVE_LIBUDEV
 extern boolean_t is_mpath_whole_disk(const char *);
-#else
-#define	is_mpath_whole_disk(path) (B_FALSE)
-#endif
 
 extern boolean_t zfs_isnumber(const char *);
 

@@ -48,7 +48,6 @@
 #include "libzfs_impl.h"
 
 #define	ZDIFF_SNAPDIR		"/.zfs/snapshot/"
-#define	ZDIFF_SHARESDIR		"/.zfs/shares/"
 #define	ZDIFF_PREFIX		"zfs-diff-%d"
 
 #define	ZDIFF_ADDED	'+'
@@ -56,26 +55,6 @@
 #define	ZDIFF_REMOVED	'-'
 #define	ZDIFF_RENAMED	'R'
 
-typedef struct differ_info {
-	zfs_handle_t *zhp;
-	char *fromsnap;
-	char *frommnt;
-	char *tosnap;
-	char *tomnt;
-	char *ds;
-	char *dsmnt;
-	char *tmpsnap;
-	char errbuf[1024];
-	boolean_t isclone;
-	boolean_t scripted;
-	boolean_t classify;
-	boolean_t timestamped;
-	uint64_t shares;
-	int zerr;
-	int cleanupfd;
-	int outputfd;
-	int datafd;
-} differ_info_t;
 
 /*
  * Given a {dsname, object id}, get the object path
@@ -488,25 +467,6 @@ differ(void *arg)
 }
 
 static int
-find_shares_object(differ_info_t *di)
-{
-	char fullpath[MAXPATHLEN];
-	struct stat64 sb = { 0 };
-
-	(void) strlcpy(fullpath, di->dsmnt, MAXPATHLEN);
-	(void) strlcat(fullpath, ZDIFF_SHARESDIR, MAXPATHLEN);
-
-	if (stat64(fullpath, &sb) != 0) {
-		(void) snprintf(di->errbuf, sizeof (di->errbuf),
-		    dgettext(TEXT_DOMAIN, "Cannot stat %s"), fullpath);
-		return (zfs_error(di->zhp->zfs_hdl, EZFS_DIFF, di->errbuf));
-	}
-
-	di->shares = (uint64_t)sb.st_ino;
-	return (0);
-}
-
-static int
 make_temp_snapshot(differ_info_t *di)
 {
 	libzfs_handle_t *hdl = di->zhp->zfs_hdl;
@@ -737,7 +697,7 @@ setup_differ_info(zfs_handle_t *zhp, const char *fromsnap,
 {
 	di->zhp = zhp;
 
-	di->cleanupfd = open(ZFS_DEV, O_RDWR);
+	di->cleanupfd = open(ZFS_DEV, O_RDWR|O_EXCL);
 	VERIFY(di->cleanupfd >= 0);
 
 	if (get_snapshot_names(di, fromsnap, tosnap) != 0)

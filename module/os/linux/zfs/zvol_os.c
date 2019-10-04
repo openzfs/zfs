@@ -148,7 +148,7 @@ zvol_write(void *arg)
 		if (error)
 			break;
 	}
-	rangelock_exit(zvr->lr);
+	zfs_rangelock_exit(zvr->lr);
 
 	int64_t nwritten = start_resid - uio.uio_resid;
 	dataset_kstats_update_write_kstats(&zv->zv_zso->zvo_kstat, nwritten);
@@ -219,7 +219,7 @@ zvol_discard(void *arg)
 		    ZVOL_OBJ, start, size);
 	}
 unlock:
-	rangelock_exit(zvr->lr);
+	zfs_rangelock_exit(zvr->lr);
 
 	if (error == 0 && sync)
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
@@ -265,7 +265,7 @@ zvol_read(void *arg)
 			break;
 		}
 	}
-	rangelock_exit(zvr->lr);
+	zfs_rangelock_exit(zvr->lr);
 
 	int64_t nread = start_resid - uio.uio_resid;
 	dataset_kstats_update_read_kstats(&zv->zv_zso->zvo_kstat, nread);
@@ -350,7 +350,7 @@ zvol_request(struct request_queue *q, struct bio *bio)
 		 * are asynchronous, we take it here synchronously to make
 		 * sure overlapped I/Os are properly ordered.
 		 */
-		zvr->lr = rangelock_enter(&zv->zv_rangelock, offset, size,
+		zvr->lr = zfs_rangelock_enter(&zv->zv_rangelock, offset, size,
 		    RL_WRITER);
 		/*
 		 * Sync writes and discards execute zil_commit() which may need
@@ -389,7 +389,7 @@ zvol_request(struct request_queue *q, struct bio *bio)
 
 		rw_enter(&zv->zv_suspend_lock, RW_READER);
 
-		zvr->lr = rangelock_enter(&zv->zv_rangelock, offset, size,
+		zvr->lr = zfs_rangelock_enter(&zv->zv_rangelock, offset, size,
 		    RL_READER);
 		if (zvol_request_sync || taskq_dispatch(zvol_taskq,
 		    zvol_read, zvr, TQ_SLEEP) == TASKQID_INVALID)
@@ -805,7 +805,7 @@ zvol_alloc(dev_t dev, const char *name)
 	zv->zv_open_count = 0;
 	strlcpy(zv->zv_name, name, MAXNAMELEN);
 
-	rangelock_init(&zv->zv_rangelock, NULL, NULL);
+	zfs_rangelock_init(&zv->zv_rangelock, NULL, NULL);
 	rw_init(&zv->zv_suspend_lock, NULL, RW_DEFAULT, NULL);
 
 	zv->zv_zso->zvo_disk->major = zvol_major;
@@ -867,7 +867,7 @@ zvol_free(zvol_state_t *zv)
 	ASSERT(zv->zv_zso->zvo_disk->private_data == NULL);
 
 	rw_destroy(&zv->zv_suspend_lock);
-	rangelock_fini(&zv->zv_rangelock);
+	zfs_rangelock_fini(&zv->zv_rangelock);
 
 	del_gendisk(zv->zv_zso->zvo_disk);
 	blk_cleanup_queue(zv->zv_zso->zvo_queue);
