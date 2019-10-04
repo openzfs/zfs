@@ -1053,7 +1053,8 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 	 * on mount.zfs(8).
 	 */
 	snprintf(full_path, MAXPATHLEN, "%s/.zfs/snapshot/%s",
-	    zfsvfs->z_vfs->vfs_mntpoint, dname(dentry));
+	    zfsvfs->z_vfs->vfs_mntpoint ? zfsvfs->z_vfs->vfs_mntpoint : "",
+	    dname(dentry));
 
 	/*
 	 * Multiple concurrent automounts of a snapshot are never allowed.
