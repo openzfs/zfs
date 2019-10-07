@@ -140,9 +140,9 @@ function check_mem_leaks {
 	log_note "Checking for leaks $KMEMLEAK_FILE"
 	if $(test -e "$KMEMLEAK_FILE"); then
 	    # Scan must be run twice to ensure all leaks are detected.
-	    sh -c "echo scan >$KMEMLEAK_FILE"
-	    sh -c "echo scan >$KMEMLEAK_FILE"
-	    cat $KMEMLEAK_FILE >$KMEMLEAK_LOG
+	    sudo sh -c "echo scan >$KMEMLEAK_FILE"
+	    sudo sh -c "echo scan >$KMEMLEAK_FILE"
+	    sudo cat $KMEMLEAK_FILE >$KMEMLEAK_LOG
 
 	    if [ -s "$KMEMLEAK_LOG" ]; then
 	        echo "Kmemleak detected see $KMEMLEAK_LOG"

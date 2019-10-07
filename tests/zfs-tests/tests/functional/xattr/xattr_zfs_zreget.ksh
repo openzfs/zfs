@@ -46,6 +46,7 @@ function cleanup
 {
 	log_must zpool destroy -f txg-number-pool
 	log_must rm $TEST_BASE_DIR/zfs-txg-number.dat
+	check_mem_leaks
 }
 
 
