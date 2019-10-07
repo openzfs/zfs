@@ -1494,7 +1494,7 @@ zfs_btree_remove_from_node(zfs_btree_t *tree, zfs_btree_core_t *node,
 	/*
 	 * In this case, neither of our neighbors can spare an element, so we
 	 * need to merge with one of them. We prefer the left one,
-	 * arabitrarily. Move the separator into the leftmost merging node
+	 * arbitrarily. Move the separator into the leftmost merging node
 	 * (which may be us or the left neighbor), and then move the right
 	 * merging node's elements (skipping or overwriting idx, which we're
 	 * deleting). Once that's done, go into the parent and delete the
@@ -1561,19 +1561,18 @@ zfs_btree_remove_from_node(zfs_btree_t *tree, zfs_btree_core_t *node,
 		 * Move the separator to the first open spot in node's
 		 * elements.
 		 */
-		uint8_t *e_out = node->btc_elems + (hdr->bth_count - idx) *
-		    size;
+		uint8_t *e_out = node->btc_elems + hdr->bth_count * size;
 		uint8_t *separator = parent->btc_elems + parent_idx * size;
 		bcopy(separator, e_out, size);
 
 		/* Move the right node's elements and children to node. */
 		bt_transfer_core(tree, right, 0, r_hdr->bth_count, node,
-		    hdr->bth_count - idx + 1, BSS_TRAPEZOID);
+		    hdr->bth_count + 1, BSS_TRAPEZOID);
 
 		/* Reparent the right node's children to point to node. */
-		for (int i =  hdr->bth_count - idx; i < r_hdr->bth_count + 1;
-		    i++) {
-			node->btc_children[i]->bth_parent = node;
+		for (int i = 0; i < r_hdr->bth_count + 1; i++) {
+			node->btc_children[i + hdr->bth_count +
+			    1]->bth_parent = node;
 		}
 
 		/* Update bookkeeping. */
