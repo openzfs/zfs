@@ -68,7 +68,7 @@ distdir:
 	list='$(obj-m)'; for objdir in $$list; do \
 		(cd @top_srcdir@/module && find $$objdir \
 		-name '*.c' -o -name '*.h' -o -name '*.S' | \
-		xargs cp --parents -t @abs_top_builddir@/module/$$distdir); \
+		xargs -r cp --parents -t @abs_top_builddir@/module/$$distdir); \
 	done
 
 distclean maintainer-clean: clean
