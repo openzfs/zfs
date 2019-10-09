@@ -2925,13 +2925,23 @@ scan_io_queue_fetch_ext(dsl_scan_io_queue_t *queue)
 		if (zfs_scan_issue_strategy == 1) {
 			return (range_tree_first(rt));
 		} else if (zfs_scan_issue_strategy == 2) {
+			/*
+			 * We need to get the original entry in the by_addr
+			 * tree so we can modify it.
+			 */
 			range_seg_t *size_rs =
 			    zfs_btree_first(&queue->q_exts_by_size, NULL);
+			if (size_rs == NULL)
+				return (NULL);
 			uint64_t start = rs_get_start(size_rs, rt);
 			uint64_t size = rs_get_end(size_rs, rt) - start;
 			range_seg_t *addr_rs = range_tree_find(rt, start,
 			    size);
 			ASSERT3P(addr_rs, !=, NULL);
+			ASSERT3U(rs_get_start(size_rs, rt), ==,
+			    rs_get_start(addr_rs, rt));
+			ASSERT3U(rs_get_end(size_rs, rt), ==,
+			    rs_get_end(addr_rs, rt));
 			return (addr_rs);
 		}
 	}
@@ -2948,12 +2958,21 @@ scan_io_queue_fetch_ext(dsl_scan_io_queue_t *queue)
 	if (scn->scn_checkpointing) {
 		return (range_tree_first(rt));
 	} else if (scn->scn_clearing) {
+		/*
+		 * We need to get the original entry in the by_addr
+		 * tree so we can modify it.
+		 */
 		range_seg_t *size_rs = zfs_btree_first(&queue->q_exts_by_size,
 		    NULL);
+		if (size_rs == NULL)
+			return (NULL);
 		uint64_t start = rs_get_start(size_rs, rt);
 		uint64_t size = rs_get_end(size_rs, rt) - start;
 		range_seg_t *addr_rs = range_tree_find(rt, start, size);
 		ASSERT3P(addr_rs, !=, NULL);
+		ASSERT3U(rs_get_start(size_rs, rt), ==, rs_get_start(addr_rs,
+		    rt));
+		ASSERT3U(rs_get_end(size_rs, rt), ==, rs_get_end(addr_rs, rt));
 		return (addr_rs);
 	} else {
 		return (NULL);

@@ -349,7 +349,7 @@ range_tree_add_impl(void *arg, uint64_t start, uint64_t size, uint64_t fill)
 		uint64_t before_start = rs_get_start_raw(rs_before, rt);
 		uint64_t before_fill = rs_get_fill(rs_before, rt);
 		uint64_t after_fill = rs_get_fill(rs_after, rt);
-		zfs_btree_remove_from(&rt->rt_root, &where_before);
+		zfs_btree_remove_idx(&rt->rt_root, &where_before);
 
 		/*
 		 * We have to re-find the node because our old reference is
@@ -385,7 +385,7 @@ range_tree_add_impl(void *arg, uint64_t start, uint64_t size, uint64_t fill)
 		rs_set_start(rs, rt, start);
 		rs_set_end(rs, rt, end);
 		rs_set_fill(rs, rt, fill);
-		zfs_btree_insert(&rt->rt_root, rs, &where);
+		zfs_btree_add_idx(&rt->rt_root, rs, &where);
 	}
 
 	if (gap != 0) {
@@ -488,7 +488,7 @@ range_tree_remove_impl(range_tree_t *rt, uint64_t start, uint64_t size,
 
 		rs_copy(rs, &rs_tmp, rt);
 		if (zfs_btree_next(&rt->rt_root, &where, &where) != NULL)
-			zfs_btree_insert(&rt->rt_root, &newseg, &where);
+			zfs_btree_add_idx(&rt->rt_root, &newseg, &where);
 		else
 			zfs_btree_add(&rt->rt_root, &newseg);
 
@@ -503,7 +503,7 @@ range_tree_remove_impl(range_tree_t *rt, uint64_t start, uint64_t size,
 		rs_set_start(rs, rt, end);
 		rs_copy(rs, &rs_tmp, rt);
 	} else {
-		zfs_btree_remove_from(&rt->rt_root, &where);
+		zfs_btree_remove_idx(&rt->rt_root, &where);
 		rs = NULL;
 	}
 
