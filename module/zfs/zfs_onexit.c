@@ -112,39 +112,6 @@ zfs_onexit_minor_to_state(minor_t minor, zfs_onexit_t **zo)
 }
 
 /*
- * Consumers might need to operate by minor number instead of fd, since
- * they might be running in another thread (e.g. txg_sync_thread). Callers
- * of this function must call zfs_onexit_fd_rele() when they're finished
- * using the minor number.
- */
-int
-zfs_onexit_fd_hold(int fd, minor_t *minorp)
-{
-	file_t *fp;
-	zfs_onexit_t *zo;
-	int error;
-
-	fp = getf(fd);
-	if (fp == NULL)
-		return (SET_ERROR(EBADF));
-
-	error = zfsdev_getminor(fp->f_file, minorp);
-	if (error == 0)
-		error = zfs_onexit_minor_to_state(*minorp, &zo);
-
-	if (error)
-		zfs_onexit_fd_rele(fd);
-
-	return (error);
-}
-
-void
-zfs_onexit_fd_rele(int fd)
-{
-	releasef(fd);
-}
-
-/*
  * Add a callback to be invoked when the calling process exits.
  */
 int
