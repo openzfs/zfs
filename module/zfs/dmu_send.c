@@ -955,14 +955,14 @@ do_dump(dmu_send_cookie_t *dscp, struct send_range *range)
 			zb.zb_level = 0;
 			zb.zb_blkid = range->start_blkid;
 
-			if (!dscp->dsc_dso->dso_dryrun && arc_read(NULL, spa,
-			    bp, arc_getbuf_func, &abuf, ZIO_PRIORITY_ASYNC_READ,
-			    zioflags, &aflags, &zb) != 0)
-				return (SET_ERROR(EIO));
-
-			err = dump_spill(dscp, bp, zb.zb_object, abuf->b_data);
-			arc_buf_destroy(abuf, &abuf);
-			return (err);
+			if (!dscp->dsc_dso->dso_dryrun) {
+				if (arc_read(NULL, spa, bp, arc_getbuf_func, &abuf,
+				    ZIO_PRIORITY_ASYNC_READ, zioflags, &aflags, &zb) != 0)
+					return (SET_ERROR(EIO));
+				err = dump_spill(dscp, bp, zb.zb_object, abuf->b_data);
+				arc_buf_destroy(abuf, &abuf);
+				return (err);
+			}
 		}
 		if (send_do_embed(dscp, bp)) {
 			err = dump_write_embedded(dscp, range->object,
