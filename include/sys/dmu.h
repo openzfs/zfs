@@ -564,7 +564,9 @@ int dmu_buf_hold(objset_t *os, uint64_t object, uint64_t offset,
     void *tag, dmu_buf_t **, int flags);
 int dmu_buf_hold_by_dnode(dnode_t *dn, uint64_t offset,
     void *tag, dmu_buf_t **dbp, int flags);
-
+int dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset,
+    uint64_t length, boolean_t read, void *tag, int *numbufsp,
+    dmu_buf_t ***dbpp, uint32_t flags);
 /*
  * Add a reference to a dmu buffer that has already been held via
  * dmu_buf_hold() in the current context.
