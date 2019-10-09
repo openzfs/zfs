@@ -155,9 +155,10 @@ class Output(object):
 class Cmd(object):
     verified_users = []
 
-    def __init__(self, pathname, outputdir=None, timeout=None, user=None,
-                 tags=None):
+    def __init__(self, pathname, identifier=None, outputdir=None,
+                 timeout=None, user=None, tags=None):
         self.pathname = pathname
+        self.identifier = identifier
         self.outputdir = outputdir or 'BASEDIR'
         """
         The timeout for tests is measured in wall-clock time
@@ -172,8 +173,10 @@ class Cmd(object):
             self.timeout = 60
 
     def __str__(self):
-        return "Pathname: %s\nOutputdir: %s\nTimeout: %d\nUser: %s\n" % \
-            (self.pathname, self.outputdir, self.timeout, self.user)
+        return "Pathname: %s\nIdentifier: %s\nOutputdir: %s\nTimeout: %d\n" \
+               "User: %s\n" % \
+               (self.pathname, self.identifier, self.outputdir, self.timeout,
+                self.user)
 
     def kill_cmd(self, proc, keyboard_interrupt=False):
         """
@@ -315,7 +318,10 @@ class Cmd(object):
         if self.reran is True:
             rer = ' (RERAN)'
         user = ' (run as %s)' % (self.user if len(self.user) else logname)
-        msga = 'Test: %s%s ' % (self.pathname, user)
+        if self.identifier:
+            msga = 'Test (%s): %s%s ' % (self.identifier, self.pathname, user)
+        else:
+            msga = 'Test: %s%s ' % (self.pathname, user)
         msgb = '[%s] [%s]%s\n' % (self.result.runtime, self.result.result, rer)
         pad = ' ' * (80 - (len(msga) + len(msgb)))
         result_line = msga + pad + msgb
@@ -357,10 +363,10 @@ class Test(Cmd):
     props = ['outputdir', 'timeout', 'user', 'pre', 'pre_user', 'post',
              'post_user', 'tags']
 
-    def __init__(self, pathname, outputdir=None, timeout=None, user=None,
-                 pre=None, pre_user=None, post=None, post_user=None,
-                 tags=None):
-        super(Test, self).__init__(pathname, outputdir, timeout, user)
+    def __init__(self, pathname,
+                 pre=None, pre_user=None, post=None, post_user=None, tags=None,
+                 **kwargs):
+        super(Test, self).__init__(pathname, **kwargs)
         self.pre = pre or ''
         self.pre_user = pre_user or ''
         self.post = post or ''
@@ -373,10 +379,10 @@ class Test(Cmd):
             pre_user = ' (as %s)' % (self.pre_user)
         if len(self.post_user):
             post_user = ' (as %s)' % (self.post_user)
-        return "Pathname: %s\nOutputdir: %s\nTimeout: %d\nPre: %s%s\nPost: " \
-               "%s%s\nUser: %s\nTags: %s\n" % \
-               (self.pathname, self.outputdir, self.timeout, self.pre,
-                pre_user, self.post, post_user, self.user, self.tags)
+        return "Pathname: %s\nIdentifier: %s\nOutputdir: %s\nTimeout: %d\n" \
+               "Pre: %s%s\nPost: %s%s\nUser: %s\nTags: %s\n" % \
+               (self.pathname, self.identifier, self.outputdir, self.timeout,
+                self.pre, pre_user, self.post, post_user, self.user, self.tags)
 
     def verify(self):
         """
@@ -406,13 +412,14 @@ class Test(Cmd):
         doesn't pass, skip this Test. Run the post script regardless.
         """
         odir = os.path.join(self.outputdir, os.path.basename(self.pre))
-        pretest = Cmd(self.pre, outputdir=odir, timeout=self.timeout,
-                      user=self.pre_user)
-        test = Cmd(self.pathname, outputdir=self.outputdir,
-                   timeout=self.timeout, user=self.user)
+        pretest = Cmd(self.pre, identifier=self.identifier, outputdir=odir,
+                      timeout=self.timeout, user=self.pre_user)
+        test = Cmd(self.pathname, identifier=self.identifier,
+                   outputdir=self.outputdir, timeout=self.timeout,
+                   user=self.user)
         odir = os.path.join(self.outputdir, os.path.basename(self.post))
-        posttest = Cmd(self.post, outputdir=odir, timeout=self.timeout,
-                       user=self.post_user)
+        posttest = Cmd(self.post, identifier=self.identifier, outputdir=odir,
+                       timeout=self.timeout, user=self.post_user)
 
         cont = True
         if len(pretest.pathname):
@@ -435,11 +442,8 @@ class Test(Cmd):
 class TestGroup(Test):
     props = Test.props + ['tests']
 
-    def __init__(self, pathname, outputdir=None, timeout=None, user=None,
-                 pre=None, pre_user=None, post=None, post_user=None,
-                 tests=None, tags=None):
-        super(TestGroup, self).__init__(pathname, outputdir, timeout, user,
-                                        pre, pre_user, post, post_user, tags)
+    def __init__(self, pathname, tests=None, **kwargs):
+        super(TestGroup, self).__init__(pathname, **kwargs)
         self.tests = tests or []
 
     def __str__(self):
@@ -448,10 +452,11 @@ class TestGroup(Test):
             pre_user = ' (as %s)' % (self.pre_user)
         if len(self.post_user):
             post_user = ' (as %s)' % (self.post_user)
-        return "Pathname: %s\nOutputdir: %s\nTests: %s\nTimeout: %s\n" \
-               "Pre: %s%s\nPost: %s%s\nUser: %s\nTags: %s\n" % \
-               (self.pathname, self.outputdir, self.tests, self.timeout,
-                self.pre, pre_user, self.post, post_user, self.user, self.tags)
+        return "Pathname: %s\nIdentifier: %s\nOutputdir: %s\nTests: %s\n" \
+               "Timeout: %s\nPre: %s%s\nPost: %s%s\nUser: %s\nTags: %s\n" % \
+               (self.pathname, self.identifier, self.outputdir, self.tests,
+                self.timeout, self.pre, pre_user, self.post, post_user,
+                self.user, self.tags)
 
     def verify(self):
         """
@@ -510,10 +515,10 @@ class TestGroup(Test):
 
         odir = os.path.join(self.outputdir, os.path.basename(self.pre))
         pretest = Cmd(self.pre, outputdir=odir, timeout=self.timeout,
-                      user=self.pre_user)
+                      user=self.pre_user, identifier=self.identifier)
         odir = os.path.join(self.outputdir, os.path.basename(self.post))
         posttest = Cmd(self.post, outputdir=odir, timeout=self.timeout,
-                       user=self.post_user)
+                       user=self.post_user, identifier=self.identifier)
 
         cont = True
         if len(pretest.pathname):
@@ -524,7 +529,8 @@ class TestGroup(Test):
         for fname in self.tests:
             test = Cmd(os.path.join(self.pathname, fname),
                        outputdir=os.path.join(self.outputdir, fname),
-                       timeout=self.timeout, user=self.user)
+                       timeout=self.timeout, user=self.user,
+                       identifier=self.identifier)
             if cont:
                 test.run(options.dryrun)
             else:
@@ -605,7 +611,7 @@ class TestRun(object):
 
     def read(self, options):
         """
-        Read in the specified runfile, and apply the TestRun properties
+        Read in the specified runfiles, and apply the TestRun properties
         listed in the 'DEFAULT' section to our TestRun. Then read each
         section, and apply the appropriate properties to the Test or
         TestGroup. Properties from individual sections override those set
@@ -613,8 +619,11 @@ class TestRun(object):
         verification, add it to the TestRun.
         """
         config = configparser.RawConfigParser()
-        if not len(config.read(options.runfile)):
-            fail("Coulnd't read config file %s" % options.runfile)
+        parsed = config.read(options.runfiles)
+        failed = options.runfiles - set(parsed)
+        if len(failed):
+            files = ' '.join(sorted(failed))
+            fail("Couldn't read config files: %s" % files)
 
         for opt in TestRun.props:
             if config.has_option('DEFAULT', opt):
@@ -623,14 +632,18 @@ class TestRun(object):
 
         for section in config.sections():
             if 'tests' in config.options(section):
-                if os.path.isdir(section):
-                    pathname = section
-                elif os.path.isdir(os.path.join(options.testdir, section)):
-                    pathname = os.path.join(options.testdir, section)
+                parts = section.split(':', 1)
+                sectiondir = parts[0]
+                identifier = parts[1] if len(parts) == 2 else None
+                if os.path.isdir(sectiondir):
+                    pathname = sectiondir
+                elif os.path.isdir(os.path.join(options.testdir, sectiondir)):
+                    pathname = os.path.join(options.testdir, sectiondir)
                 else:
-                    pathname = section
+                    pathname = sectiondir
 
-                testgroup = TestGroup(os.path.abspath(pathname))
+                testgroup = TestGroup(os.path.abspath(pathname),
+                                      identifier=identifier)
                 for prop in TestGroup.props:
                     for sect in ['DEFAULT', section]:
                         if config.has_option(sect, prop):
@@ -873,32 +886,34 @@ def fail(retstr, ret=1):
 
 
 def options_cb(option, opt_str, value, parser):
-    path_options = ['runfile', 'outputdir', 'template', 'testdir']
+    path_options = ['outputdir', 'template', 'testdir']
 
-    if option.dest == 'runfile' and '-w' in parser.rargs or \
+    if option.dest == 'runfiles' and '-w' in parser.rargs or \
             option.dest == 'template' and '-c' in parser.rargs:
         fail('-c and -w are mutually exclusive.')
 
     if opt_str in parser.rargs:
         fail('%s may only be specified once.' % opt_str)
 
-    if option.dest == 'runfile':
+    if option.dest == 'runfiles':
         parser.values.cmd = 'rdconfig'
+        value = set(os.path.abspath(p) for p in value.split(','))
     if option.dest == 'template':
         parser.values.cmd = 'wrconfig'
     if option.dest == 'tags':
         value = [x.strip() for x in value.split(',')]
 
-    setattr(parser.values, option.dest, value)
     if option.dest in path_options:
         setattr(parser.values, option.dest, os.path.abspath(value))
+    else:
+        setattr(parser.values, option.dest, value)
 
 
 def parse_args():
     parser = OptionParser()
     parser.add_option('-c', action='callback', callback=options_cb,
-                      type='string', dest='runfile', metavar='runfile',
-                      help='Specify tests to run via config file.')
+                      type='string', dest='runfiles', metavar='runfiles',
+                      help='Specify tests to run via config files.')
     parser.add_option('-d', action='store_true', default=False, dest='dryrun',
                       help='Dry run. Print tests, but take no other action.')
     parser.add_option('-g', action='store_true', default=False,
@@ -940,10 +955,10 @@ def parse_args():
                       help='Number of times to run the test run.')
     (options, pathnames) = parser.parse_args()
 
-    if not options.runfile and not options.template:
+    if not options.runfiles and not options.template:
         options.cmd = 'runtests'
 
-    if options.runfile and len(pathnames):
+    if options.runfiles and len(pathnames):
         fail('Extraneous arguments.')
 
     options.pathnames = [os.path.abspath(path) for path in pathnames]
