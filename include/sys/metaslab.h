@@ -95,8 +95,8 @@ void metaslab_check_free(spa_t *, const blkptr_t *);
 void metaslab_fastwrite_mark(spa_t *, const blkptr_t *);
 void metaslab_fastwrite_unmark(spa_t *, const blkptr_t *);
 
-void metaslab_alloc_trace_init(void);
-void metaslab_alloc_trace_fini(void);
+void metaslab_stat_init(void);
+void metaslab_stat_fini(void);
 void metaslab_trace_init(zio_alloc_list_t *);
 void metaslab_trace_fini(zio_alloc_list_t *);
 

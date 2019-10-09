@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2019 by Delphix. All rights reserved.
  * Copyright (c) 2016 Gvozden Nešković. All rights reserved.
  */
 
@@ -1638,7 +1638,7 @@ vdev_raidz_io_verify(zio_t *zio, raidz_map_t *rm, int col)
 	vdev_t *vd = zio->io_vd;
 	vdev_t *tvd = vd->vdev_top;
 
-	range_seg_t logical_rs, physical_rs;
+	range_seg64_t logical_rs, physical_rs;
 	logical_rs.rs_start = zio->io_offset;
 	logical_rs.rs_end = logical_rs.rs_start +
 	    vdev_raidz_asize(zio->io_vd, zio->io_size);
@@ -2372,7 +2372,7 @@ vdev_raidz_need_resilver(vdev_t *vd, uint64_t offset, size_t psize)
 }
 
 static void
-vdev_raidz_xlate(vdev_t *cvd, const range_seg_t *in, range_seg_t *res)
+vdev_raidz_xlate(vdev_t *cvd, const range_seg64_t *in, range_seg64_t *res)
 {
 	vdev_t *raidvd = cvd->vdev_parent;
 	ASSERT(raidvd->vdev_ops == &vdev_raidz_ops);

@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2019 by Delphix. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  */
 
@@ -89,11 +89,11 @@ dbuf_compare(const void *x1, const void *x2)
 	const dmu_buf_impl_t *d1 = x1;
 	const dmu_buf_impl_t *d2 = x2;
 
-	int cmp = AVL_CMP(d1->db_level, d2->db_level);
+	int cmp = TREE_CMP(d1->db_level, d2->db_level);
 	if (likely(cmp))
 		return (cmp);
 
-	cmp = AVL_CMP(d1->db_blkid, d2->db_blkid);
+	cmp = TREE_CMP(d1->db_blkid, d2->db_blkid);
 	if (likely(cmp))
 		return (cmp);
 
@@ -105,7 +105,7 @@ dbuf_compare(const void *x1, const void *x2)
 		return (1);
 	}
 
-	return (AVL_PCMP(d1, d2));
+	return (TREE_PCMP(d1, d2));
 }
 
 /* ARGSUSED */
@@ -2218,7 +2218,8 @@ done:
 	{
 	int txgoff = tx->tx_txg & TXG_MASK;
 	if (dn->dn_free_ranges[txgoff] == NULL) {
-		dn->dn_free_ranges[txgoff] = range_tree_create(NULL, NULL);
+		dn->dn_free_ranges[txgoff] = range_tree_create(NULL,
+		    RANGE_SEG64, NULL, 0, 0);
 	}
 	range_tree_clear(dn->dn_free_ranges[txgoff], blkid, nblks);
 	range_tree_add(dn->dn_free_ranges[txgoff], blkid, nblks);

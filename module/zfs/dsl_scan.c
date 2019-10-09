@@ -279,7 +279,7 @@ struct dsl_scan_io_queue {
 
 	/* trees used for sorting I/Os and extents of I/Os */
 	range_tree_t	*q_exts_by_addr;
-	avl_tree_t	q_exts_by_size;
+	zfs_btree_t		q_exts_by_size;
 	avl_tree_t	q_sios_by_addr;
 	uint64_t	q_sio_memused;
 
@@ -646,7 +646,8 @@ dsl_scan_sync_state(dsl_scan_t *scn, dmu_tx_t *tx, state_sync_type_t sync_type)
 
 			mutex_enter(&vd->vdev_scan_io_queue_lock);
 			ASSERT3P(avl_first(&q->q_sios_by_addr), ==, NULL);
-			ASSERT3P(avl_first(&q->q_exts_by_size), ==, NULL);
+			ASSERT3P(zfs_btree_first(&q->q_exts_by_size, NULL), ==,
+			    NULL);
 			ASSERT3P(range_tree_first(q->q_exts_by_addr), ==, NULL);
 			mutex_exit(&vd->vdev_scan_io_queue_lock);
 		}
@@ -1242,7 +1243,7 @@ dsl_scan_should_clear(dsl_scan_t *scn)
 		queue = tvd->vdev_scan_io_queue;
 		if (queue != NULL) {
 			/* # extents in exts_by_size = # in exts_by_addr */
-			mused += avl_numnodes(&queue->q_exts_by_size) *
+			mused += zfs_btree_numnodes(&queue->q_exts_by_size) *
 			    sizeof (range_seg_t) + queue->q_sio_memused;
 		}
 		mutex_exit(&tvd->vdev_scan_io_queue_lock);
@@ -2847,7 +2848,7 @@ scan_io_queue_gather(dsl_scan_io_queue_t *queue, range_seg_t *rs, list_t *list)
 
 	srch_sio = sio_alloc(1);
 	srch_sio->sio_nr_dvas = 1;
-	SIO_SET_OFFSET(srch_sio, rs->rs_start);
+	SIO_SET_OFFSET(srch_sio, rs_get_start(rs, queue->q_exts_by_addr));
 
 	/*
 	 * The exact start of the extent might not contain any matching zios,
@@ -2859,10 +2860,12 @@ scan_io_queue_gather(dsl_scan_io_queue_t *queue, range_seg_t *rs, list_t *list)
 	if (sio == NULL)
 		sio = avl_nearest(&queue->q_sios_by_addr, idx, AVL_AFTER);
 
-	while (sio != NULL &&
-	    SIO_GET_OFFSET(sio) < rs->rs_end && num_sios <= 32) {
-		ASSERT3U(SIO_GET_OFFSET(sio), >=, rs->rs_start);
-		ASSERT3U(SIO_GET_END_OFFSET(sio), <=, rs->rs_end);
+	while (sio != NULL && SIO_GET_OFFSET(sio) < rs_get_end(rs,
+	    queue->q_exts_by_addr) && num_sios <= 32) {
+		ASSERT3U(SIO_GET_OFFSET(sio), >=, rs_get_start(rs,
+		    queue->q_exts_by_addr));
+		ASSERT3U(SIO_GET_END_OFFSET(sio), <=, rs_get_end(rs,
+		    queue->q_exts_by_addr));
 
 		next_sio = AVL_NEXT(&queue->q_sios_by_addr, sio);
 		avl_remove(&queue->q_sios_by_addr, sio);
@@ -2880,16 +2883,19 @@ scan_io_queue_gather(dsl_scan_io_queue_t *queue, range_seg_t *rs, list_t *list)
 	 * in the segment we update it to reflect the work we were able to
 	 * complete. Otherwise, we remove it from the range tree entirely.
 	 */
-	if (sio != NULL && SIO_GET_OFFSET(sio) < rs->rs_end) {
+	if (sio != NULL && SIO_GET_OFFSET(sio) < rs_get_end(rs,
+	    queue->q_exts_by_addr)) {
 		range_tree_adjust_fill(queue->q_exts_by_addr, rs,
 		    -bytes_issued);
 		range_tree_resize_segment(queue->q_exts_by_addr, rs,
-		    SIO_GET_OFFSET(sio), rs->rs_end - SIO_GET_OFFSET(sio));
+		    SIO_GET_OFFSET(sio), rs_get_end(rs,
+		    queue->q_exts_by_addr) - SIO_GET_OFFSET(sio));
 
 		return (B_TRUE);
 	} else {
-		range_tree_remove(queue->q_exts_by_addr, rs->rs_start,
-		    rs->rs_end - rs->rs_start);
+		uint64_t rstart = rs_get_start(rs, queue->q_exts_by_addr);
+		uint64_t rend = rs_get_end(rs, queue->q_exts_by_addr);
+		range_tree_remove(queue->q_exts_by_addr, rstart, rend - rstart);
 		return (B_FALSE);
 	}
 }
@@ -2909,6 +2915,7 @@ static range_seg_t *
 scan_io_queue_fetch_ext(dsl_scan_io_queue_t *queue)
 {
 	dsl_scan_t *scn = queue->q_scn;
+	range_tree_t *rt = queue->q_exts_by_addr;
 
 	ASSERT(MUTEX_HELD(&queue->q_vd->vdev_scan_io_queue_lock));
 	ASSERT(scn->scn_is_sorted);
@@ -2916,9 +2923,16 @@ scan_io_queue_fetch_ext(dsl_scan_io_queue_t *queue)
 	/* handle tunable overrides */
 	if (scn->scn_checkpointing || scn->scn_clearing) {
 		if (zfs_scan_issue_strategy == 1) {
-			return (range_tree_first(queue->q_exts_by_addr));
+			return (range_tree_first(rt));
 		} else if (zfs_scan_issue_strategy == 2) {
-			return (avl_first(&queue->q_exts_by_size));
+			range_seg_t *size_rs =
+			    zfs_btree_first(&queue->q_exts_by_size, NULL);
+			uint64_t start = rs_get_start(size_rs, rt);
+			uint64_t size = rs_get_end(size_rs, rt) - start;
+			range_seg_t *addr_rs = range_tree_find(rt, start,
+			    size);
+			ASSERT3P(addr_rs, !=, NULL);
+			return (addr_rs);
 		}
 	}
 
@@ -2932,9 +2946,15 @@ scan_io_queue_fetch_ext(dsl_scan_io_queue_t *queue)
 	 * In this case, we instead switch to issuing extents in LBA order.
 	 */
 	if (scn->scn_checkpointing) {
-		return (range_tree_first(queue->q_exts_by_addr));
+		return (range_tree_first(rt));
 	} else if (scn->scn_clearing) {
-		return (avl_first(&queue->q_exts_by_size));
+		range_seg_t *size_rs = zfs_btree_first(&queue->q_exts_by_size,
+		    NULL);
+		uint64_t start = rs_get_start(size_rs, rt);
+		uint64_t size = rs_get_end(size_rs, rt) - start;
+		range_seg_t *addr_rs = range_tree_find(rt, start, size);
+		ASSERT3P(addr_rs, !=, NULL);
+		return (addr_rs);
 	} else {
 		return (NULL);
 	}
@@ -4038,9 +4058,10 @@ scan_exec_io(dsl_pool_t *dp, const blkptr_t *bp, int zio_flags,
 static int
 ext_size_compare(const void *x, const void *y)
 {
-	const range_seg_t *rsa = x, *rsb = y;
-	uint64_t sa = rsa->rs_end - rsa->rs_start,
-	    sb = rsb->rs_end - rsb->rs_start;
+	const range_seg_gap_t *rsa = x, *rsb = y;
+
+	uint64_t sa = rsa->rs_end - rsa->rs_start;
+	uint64_t sb = rsb->rs_end - rsb->rs_start;
 	uint64_t score_a, score_b;
 
 	score_a = rsa->rs_fill + ((((rsa->rs_fill << 7) / sa) *
@@ -4069,7 +4090,7 @@ sio_addr_compare(const void *x, const void *y)
 {
 	const scan_io_t *a = x, *b = y;
 
-	return (AVL_CMP(SIO_GET_OFFSET(a), SIO_GET_OFFSET(b)));
+	return (TREE_CMP(SIO_GET_OFFSET(a), SIO_GET_OFFSET(b)));
 }
 
 /* IO queues are created on demand when they are needed. */
@@ -4083,8 +4104,8 @@ scan_io_queue_create(vdev_t *vd)
 	q->q_vd = vd;
 	q->q_sio_memused = 0;
 	cv_init(&q->q_zio_cv, NULL, CV_DEFAULT, NULL);
-	q->q_exts_by_addr = range_tree_create_impl(&rt_avl_ops,
-	    &q->q_exts_by_size, ext_size_compare, zfs_scan_max_ext_gap);
+	q->q_exts_by_addr = range_tree_create_impl(&rt_btree_ops, RANGE_SEG_GAP,
+	    &q->q_exts_by_size, 0, 0, ext_size_compare, zfs_scan_max_ext_gap);
 	avl_create(&q->q_sios_by_addr, sio_addr_compare,
 	    sizeof (scan_io_t), offsetof(scan_io_t, sio_nodes.sio_addr_node));
 

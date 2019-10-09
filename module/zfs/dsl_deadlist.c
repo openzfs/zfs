@@ -118,7 +118,7 @@ dsl_deadlist_compare(const void *arg1, const void *arg2)
 	const dsl_deadlist_entry_t *dle1 = arg1;
 	const dsl_deadlist_entry_t *dle2 = arg2;
 
-	return (AVL_CMP(dle1->dle_mintxg, dle2->dle_mintxg));
+	return (TREE_CMP(dle1->dle_mintxg, dle2->dle_mintxg));
 }
 
 static int
@@ -127,7 +127,7 @@ dsl_deadlist_cache_compare(const void *arg1, const void *arg2)
 	const dsl_deadlist_cache_entry_t *dlce1 = arg1;
 	const dsl_deadlist_cache_entry_t *dlce2 = arg2;
 
-	return (AVL_CMP(dlce1->dlce_mintxg, dlce2->dlce_mintxg));
+	return (TREE_CMP(dlce1->dlce_mintxg, dlce2->dlce_mintxg));
 }
 
 static void
@@ -917,14 +917,14 @@ livelist_compare(const void *larg, const void *rarg)
 	uint64_t r_dva0_vdev = DVA_GET_VDEV(&r->blk_dva[0]);
 
 	if (l_dva0_vdev != r_dva0_vdev)
-		return (AVL_CMP(l_dva0_vdev, r_dva0_vdev));
+		return (TREE_CMP(l_dva0_vdev, r_dva0_vdev));
 
 	/* if vdevs are equal, sort by offsets. */
 	uint64_t l_dva0_offset = DVA_GET_OFFSET(&l->blk_dva[0]);
 	uint64_t r_dva0_offset = DVA_GET_OFFSET(&r->blk_dva[0]);
 	if (l_dva0_offset == r_dva0_offset)
 		ASSERT3U(l->blk_birth, ==, r->blk_birth);
-	return (AVL_CMP(l_dva0_offset, r_dva0_offset));
+	return (TREE_CMP(l_dva0_offset, r_dva0_offset));
 }
 
 struct livelist_iter_arg {

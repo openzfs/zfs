@@ -252,7 +252,7 @@ layout_num_compare(const void *arg1, const void *arg2)
 	const sa_lot_t *node1 = (const sa_lot_t *)arg1;
 	const sa_lot_t *node2 = (const sa_lot_t *)arg2;
 
-	return (AVL_CMP(node1->lot_num, node2->lot_num));
+	return (TREE_CMP(node1->lot_num, node2->lot_num));
 }
 
 static int
@@ -261,11 +261,11 @@ layout_hash_compare(const void *arg1, const void *arg2)
 	const sa_lot_t *node1 = (const sa_lot_t *)arg1;
 	const sa_lot_t *node2 = (const sa_lot_t *)arg2;
 
-	int cmp = AVL_CMP(node1->lot_hash, node2->lot_hash);
+	int cmp = TREE_CMP(node1->lot_hash, node2->lot_hash);
 	if (likely(cmp))
 		return (cmp);
 
-	return (AVL_CMP(node1->lot_instance, node2->lot_instance));
+	return (TREE_CMP(node1->lot_instance, node2->lot_instance));
 }
 
 boolean_t
