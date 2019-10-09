@@ -138,7 +138,7 @@ spa_read_history_init(spa_t *spa)
 	    spa_read_history_clear,
 	    offsetof(spa_read_history_t, srh_node));
 
-	strfree(module);
+	kmem_strfree(module);
 }
 
 static void
@@ -309,7 +309,7 @@ spa_txg_history_init(spa_t *spa)
 	    spa_txg_history_clear,
 	    offsetof(spa_txg_history_t, sth_node));
 
-	strfree(module);
+	kmem_strfree(module);
 }
 
 static void
@@ -529,7 +529,7 @@ spa_tx_assign_init(spa_t *spa)
 		ksp->ks_update = spa_tx_assign_update;
 		kstat_install(ksp);
 	}
-	strfree(name);
+	kmem_strfree(name);
 }
 
 static void
@@ -592,7 +592,7 @@ spa_io_history_init(spa_t *spa)
 		ksp->ks_update = spa_io_history_update;
 		kstat_install(ksp);
 	}
-	strfree(name);
+	kmem_strfree(name);
 }
 
 static void
@@ -675,7 +675,7 @@ spa_mmp_history_truncate(spa_history_list_t *shl, unsigned int size)
 	while (shl->size > size) {
 		smh = list_remove_head(&shl->procfs_list.pl_list);
 		if (smh->vdev_path)
-			strfree(smh->vdev_path);
+			kmem_strfree(smh->vdev_path);
 		kmem_free(smh, sizeof (spa_mmp_history_t));
 		shl->size--;
 	}
@@ -715,7 +715,7 @@ spa_mmp_history_init(spa_t *spa)
 	    spa_mmp_history_clear,
 	    offsetof(spa_mmp_history_t, smh_node));
 
-	strfree(module);
+	kmem_strfree(module);
 }
 
 static void
@@ -814,7 +814,7 @@ spa_mmp_history_add(spa_t *spa, uint64_t txg, uint64_t timestamp,
 	if (vd) {
 		smh->vdev_guid = vd->vdev_guid;
 		if (vd->vdev_path)
-			smh->vdev_path = strdup(vd->vdev_path);
+			smh->vdev_path = kmem_strdup(vd->vdev_path);
 	}
 	smh->vdev_label = label;
 	smh->mmp_node_id = mmp_node_id;
@@ -876,7 +876,7 @@ spa_state_init(spa_t *spa)
 		kstat_install(ksp);
 	}
 
-	strfree(name);
+	kmem_strfree(name);
 }
 
 static void
@@ -973,7 +973,7 @@ spa_iostats_init(spa_t *spa)
 		kstat_install(ksp);
 	}
 
-	strfree(name);
+	kmem_strfree(name);
 }
 
 static void

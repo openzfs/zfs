@@ -406,7 +406,7 @@ dsl_dataset_user_release_check_one(dsl_dataset_user_release_arg_t *ddura,
 				    snapname, holdname);
 				fnvlist_add_int32(ddura->ddura_errlist, errtag,
 				    ENOENT);
-				strfree(errtag);
+				kmem_strfree(errtag);
 			}
 			continue;
 		}

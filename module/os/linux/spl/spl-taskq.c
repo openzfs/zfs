@@ -1038,7 +1038,7 @@ taskq_create(const char *name, int nthreads, pri_t pri,
 	spin_lock_init(&tq->tq_lock);
 	INIT_LIST_HEAD(&tq->tq_thread_list);
 	INIT_LIST_HEAD(&tq->tq_active_list);
-	tq->tq_name = strdup(name);
+	tq->tq_name = kmem_strdup(name);
 	tq->tq_nactive = 0;
 	tq->tq_nthreads = 0;
 	tq->tq_nspawn = 0;
@@ -1178,7 +1178,7 @@ taskq_destroy(taskq_t *tq)
 
 	spin_unlock_irqrestore(&tq->tq_lock, flags);
 
-	strfree(tq->tq_name);
+	kmem_strfree(tq->tq_name);
 	kmem_free(tq, sizeof (taskq_t));
 }
 EXPORT_SYMBOL(taskq_destroy);
