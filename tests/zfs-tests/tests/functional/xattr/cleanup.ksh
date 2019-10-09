@@ -41,4 +41,5 @@ then
     svcadm enable svc:/network/nis/client:default
 fi
 
+log_fail "dump logs on xattr tests cleanup"
 default_cleanup
