@@ -91,7 +91,7 @@ The following zfs-tests.sh options are supported:
 
     -s SIZE     Use vdevs of SIZE (default: 4G)
 
-    -r RUNFILE  Run tests in RUNFILE (default: linux.run)
+    -r RUNFILES Run tests in RUNFILES (default: common.run,linux.run)
 
     -t PATH     Run single test at PATH relative to test suite
 
