@@ -802,7 +802,7 @@ vdev_geom_open_by_path(vdev_t *vd, int check_guid)
 
 static int
 vdev_geom_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
-    uint64_t *logical_ashift)
+    uint64_t *logical_ashift, uint64_t *physical_ashift)
 {
 	struct g_provider *pp;
 	struct g_consumer *cp;
@@ -949,11 +949,12 @@ skip_open:
 	 * transfer size.
 	 */
 	*logical_ashift = highbit(MAX(pp->sectorsize, SPA_MINBLOCKSIZE)) - 1;
-#ifdef notyet
-	if (pp->stripesize > (1 << *logical_ashift) && ISP2(pp->stripesize) &&
-	    pp->stripesize <= (1 << ASHIFT_MAX) && pp->stripeoffset == 0)
+	*physical_ashift = 0;
+	if (pp->stripesize && pp->stripesize > (1 << *logical_ashift) &&
+	    ISP2(pp->stripesize) && pp->stripesize <= (1 << ASHIFT_MAX) &&
+	    pp->stripeoffset == 0)
 		*physical_ashift = highbit(pp->stripesize) - 1;
-#endif
+
 	/*
 	 * Clear the nowritecache settings, so that on a vdev_reopen()
 	 * we will try again.

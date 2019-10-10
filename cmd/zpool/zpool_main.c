@@ -2082,7 +2082,7 @@ print_status_config(zpool_handle_t *zhp, status_cbdata_t *cb, const char *name,
     nvlist_t *nv, int depth, boolean_t isspare, vdev_rebuild_stat_t *vrs)
 {
 	nvlist_t **child, *root;
-	uint_t c, i, children;
+	uint_t c, i, vsc, children;
 	pool_scan_stat_t *ps = NULL;
 	vdev_stat_t *vs;
 	char rbuf[6], wbuf[6], cbuf[6];
@@ -2099,7 +2099,7 @@ print_status_config(zpool_handle_t *zhp, status_cbdata_t *cb, const char *name,
 		children = 0;
 
 	verify(nvlist_lookup_uint64_array(nv, ZPOOL_CONFIG_VDEV_STATS,
-	    (uint64_t **)&vs, &c) == 0);
+	    (uint64_t **)&vs, &vsc) == 0);
 
 	verify(nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &type) == 0);
 
@@ -2197,6 +2197,10 @@ print_status_config(zpool_handle_t *zhp, status_cbdata_t *cb, const char *name,
 
 		case VDEV_AUX_UNSUP_FEAT:
 			(void) printf(gettext("unsupported feature(s)"));
+			break;
+
+		case VDEV_AUX_ASHIFT_TOO_BIG:
+			(void) printf(gettext("unsupported minimum blocksize"));
 			break;
 
 		case VDEV_AUX_SPARED:
@@ -8103,6 +8107,15 @@ status_callback(zpool_handle_t *zhp, void *data)
 		    "device(s) and run 'zpool online',\n"
 		    "\tor ignore the intent log records by running "
 		    "'zpool clear'.\n"));
+		break;
+
+	case ZPOOL_STATUS_NON_NATIVE_ASHIFT:
+		(void) printf(gettext("status: One or more devices are "
+		    "configured to use a non-native block size.\n"
+		    "\tExpect reduced performance.\n"));
+		(void) printf(gettext("action: Replace affected devices with "
+		    "devices that support the\n\tconfigured block size, or "
+		    "migrate data to a properly configured\n\tpool.\n"));
 		break;
 
 	case ZPOOL_STATUS_HOSTID_MISMATCH:
