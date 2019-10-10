@@ -257,6 +257,20 @@ spl_obj_size(spl_kmem_cache_t *skc)
 	    P2ROUNDUP_TYPED(sizeof (spl_kmem_obj_t), align, uint32_t));
 }
 
+uint64_t
+spl_kmem_cache_inuse(kmem_cache_t *cache)
+{
+	return (cache->skc_obj_total);
+}
+EXPORT_SYMBOL(spl_kmem_cache_inuse);
+
+uint64_t
+spl_kmem_cache_entry_size(kmem_cache_t *cache)
+{
+	return (cache->skc_obj_size);
+}
+EXPORT_SYMBOL(spl_kmem_cache_entry_size);
+
 /*
  * Lookup the spl_kmem_object_t for an object given that object.
  */

@@ -218,6 +218,8 @@ extern void spl_kmem_cache_free(spl_kmem_cache_t *skc, void *obj);
 extern void spl_kmem_cache_set_allocflags(spl_kmem_cache_t *skc, gfp_t flags);
 extern void spl_kmem_cache_reap_now(spl_kmem_cache_t *skc, int count);
 extern void spl_kmem_reap(void);
+extern uint64_t spl_kmem_cache_inuse(kmem_cache_t *cache);
+extern uint64_t spl_kmem_cache_entry_size(kmem_cache_t *cache);
 
 #define	kmem_cache_create(name, size, align, ctor, dtor, rclm, priv, vmp, fl) \
     spl_kmem_cache_create(name, size, align, ctor, dtor, rclm, priv, vmp, fl)
