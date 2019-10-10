@@ -220,7 +220,7 @@ vdev_elevator_switch(vdev_t *v, char *elevator)
 
 	argv[2] = kmem_asprintf(SET_SCHEDULER_CMD, device, elevator);
 	error = call_usermodehelper(argv[0], argv, envp, UMH_NO_WAIT);
-	strfree(argv[2]);
+	kmem_strfree(argv[2]);
 #endif /* HAVE_ELEVATOR_CHANGE */
 	if (error) {
 		zfs_dbgmsg("Unable to set \"%s\" scheduler for %s (%s): %d",

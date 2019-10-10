@@ -1404,7 +1404,7 @@ dmu_objset_snapshot_one(const char *fsname, const char *snapname)
 	nvlist_t *snaps = fnvlist_alloc();
 
 	fnvlist_add_boolean(snaps, longsnap);
-	strfree(longsnap);
+	kmem_strfree(longsnap);
 	err = dsl_dataset_snapshot(snaps, NULL, NULL);
 	fnvlist_free(snaps);
 	return (err);
@@ -2795,7 +2795,7 @@ dmu_objset_find_impl(spa_t *spa, const char *name,
 			err = dmu_objset_find_impl(spa, child,
 			    func, arg, flags);
 			dsl_pool_config_enter(dp, FTAG);
-			strfree(child);
+			kmem_strfree(child);
 			if (err != 0)
 				break;
 		}
@@ -2833,7 +2833,7 @@ dmu_objset_find_impl(spa_t *spa, const char *name,
 				dsl_pool_config_exit(dp, FTAG);
 				err = func(child, arg);
 				dsl_pool_config_enter(dp, FTAG);
-				strfree(child);
+				kmem_strfree(child);
 				if (err != 0)
 					break;
 			}

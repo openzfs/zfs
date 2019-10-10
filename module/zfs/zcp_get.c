@@ -431,9 +431,9 @@ get_special_prop(lua_State *state, dsl_dataset_t *ds, const char *dsname,
 			if (strcmp(strval, "") == 0)
 				error = ENOENT;
 
-			strfree(childval);
+			kmem_strfree(childval);
 		}
-		strfree(token);
+		kmem_strfree(token);
 		break;
 	}
 	case ZFS_PROP_VOLSIZE:
@@ -661,7 +661,7 @@ get_userquota_prop(const char *prop_name)
  * prop type as well as the numeric group/user ids based on the string
  * following the '@' in the property name. On success, returns 0. On failure,
  * returns a non-zero error.
- * 'domain' must be free'd by caller using strfree()
+ * 'domain' must be free'd by caller using kmem_strfree()
  */
 static int
 parse_userquota_prop(const char *prop_name, zfs_userquota_prop_t *type,
@@ -688,7 +688,7 @@ parse_userquota_prop(const char *prop_name, zfs_userquota_prop_t *type,
 
 		(void) ddi_strtoll(cp, &end, 10, (longlong_t *)rid);
 		if (*end != '\0') {
-			strfree(domain_val);
+			kmem_strfree(domain_val);
 			return (EINVAL);
 		}
 	} else {
@@ -736,7 +736,7 @@ zcp_get_userquota_prop(lua_State *state, dsl_pool_t *dp,
 			}
 		}
 		if (domain != NULL)
-			strfree(domain);
+			kmem_strfree(domain);
 	}
 	dsl_dataset_rele(ds, FTAG);
 

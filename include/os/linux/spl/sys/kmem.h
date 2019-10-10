@@ -32,8 +32,8 @@
 extern int kmem_debugging(void);
 extern char *kmem_vasprintf(const char *fmt, va_list ap);
 extern char *kmem_asprintf(const char *fmt, ...);
-extern char *strdup(const char *str);
-extern void strfree(char *str);
+extern char *kmem_strdup(const char *str);
+extern void kmem_strfree(char *str);
 
 /*
  * Memory allocation interfaces

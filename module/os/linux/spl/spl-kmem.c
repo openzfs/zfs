@@ -120,18 +120,18 @@ __strdup(const char *str, int flags)
 }
 
 char *
-strdup(const char *str)
+kmem_strdup(const char *str)
 {
 	return (__strdup(str, KM_SLEEP));
 }
-EXPORT_SYMBOL(strdup);
+EXPORT_SYMBOL(kmem_strdup);
 
 void
-strfree(char *str)
+kmem_strfree(char *str)
 {
 	kfree(str);
 }
-EXPORT_SYMBOL(strfree);
+EXPORT_SYMBOL(kmem_strfree);
 
 /*
  * General purpose unified implementation of kmem_alloc(). It is an

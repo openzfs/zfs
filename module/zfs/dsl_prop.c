@@ -150,8 +150,8 @@ dsl_prop_get_dd(dsl_dir_t *dd, const char *propname,
 	if (err == ENOENT)
 		err = dodefault(prop, intsz, numints, buf);
 
-	strfree(inheritstr);
-	strfree(recvdstr);
+	kmem_strfree(inheritstr);
+	kmem_strfree(recvdstr);
 
 	return (err);
 }
@@ -190,7 +190,7 @@ dsl_prop_get_ds(dsl_dataset_t *ds, const char *propname,
 			char *inheritstr = kmem_asprintf("%s%s", propname,
 			    ZPROP_INHERIT_SUFFIX);
 			err = zap_contains(mos, zapobj, inheritstr);
-			strfree(inheritstr);
+			kmem_strfree(inheritstr);
 			if (err != 0 && err != ENOENT)
 				return (err);
 		}
@@ -201,7 +201,7 @@ dsl_prop_get_ds(dsl_dataset_t *ds, const char *propname,
 			    ZPROP_RECVD_SUFFIX);
 			err = zap_lookup(mos, zapobj, recvdstr,
 			    intsz, numints, buf);
-			strfree(recvdstr);
+			kmem_strfree(recvdstr);
 			if (err != ENOENT) {
 				if (setpoint != NULL && err == 0)
 					(void) strcpy(setpoint,
@@ -424,7 +424,7 @@ dsl_prop_predict(dsl_dir_t *dd, const char *propname,
 		panic("unexpected property source: %d", source);
 	}
 
-	strfree(recvdstr);
+	kmem_strfree(recvdstr);
 
 	if (err == ENOENT)
 		return (0);
@@ -752,8 +752,8 @@ dsl_prop_set_sync_impl(dsl_dataset_t *ds, const char *propname,
 		cmn_err(CE_PANIC, "unexpected property source: %d", source);
 	}
 
-	strfree(inheritstr);
-	strfree(recvdstr);
+	kmem_strfree(inheritstr);
+	kmem_strfree(recvdstr);
 
 	if (isint) {
 		VERIFY0(dsl_prop_get_int_ds(ds, propname, &intval));
@@ -1020,7 +1020,7 @@ dsl_prop_get_all_impl(objset_t *mos, uint64_t propobj,
 				valstr = kmem_asprintf("%s%s", propname,
 				    ZPROP_INHERIT_SUFFIX);
 				err = zap_contains(mos, propobj, valstr);
-				strfree(valstr);
+				kmem_strfree(valstr);
 				if (err == 0)
 					continue;
 				if (err != ENOENT)

@@ -111,7 +111,7 @@ zfsvfs_vfs_free(vfs_t *vfsp)
 {
 	if (vfsp != NULL) {
 		if (vfsp->vfs_mntpoint != NULL)
-			strfree(vfsp->vfs_mntpoint);
+			kmem_strfree(vfsp->vfs_mntpoint);
 
 		kmem_free(vfsp, sizeof (vfs_t));
 	}
@@ -222,7 +222,7 @@ zfsvfs_parse_options(char *mntopts, vfs_t **vfsp)
 		char *tmp_mntopts, *p, *t;
 		int token;
 
-		tmp_mntopts = t = strdup(mntopts);
+		tmp_mntopts = t = kmem_strdup(mntopts);
 		if (tmp_mntopts == NULL)
 			return (SET_ERROR(ENOMEM));
 
@@ -234,13 +234,13 @@ zfsvfs_parse_options(char *mntopts, vfs_t **vfsp)
 			token = match_token(p, zpl_tokens, args);
 			error = zfsvfs_parse_option(p, token, args, tmp_vfsp);
 			if (error) {
-				strfree(tmp_mntopts);
+				kmem_strfree(tmp_mntopts);
 				zfsvfs_vfs_free(tmp_vfsp);
 				return (error);
 			}
 		}
 
-		strfree(tmp_mntopts);
+		kmem_strfree(tmp_mntopts);
 	}
 
 	*vfsp = tmp_vfsp;

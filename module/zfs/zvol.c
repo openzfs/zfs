@@ -1009,7 +1009,7 @@ zvol_create_snap_minor_cb(const char *dsname, void *arg)
 		    "%s is not a snapshot name\n", dsname);
 	} else {
 		minors_job_t *job;
-		char *n = strdup(dsname);
+		char *n = kmem_strdup(dsname);
 		if (n == NULL)
 			return (0);
 
@@ -1051,7 +1051,7 @@ zvol_create_minors_cb(const char *dsname, void *arg)
 	 */
 	if (strchr(dsname, '@') == 0) {
 		minors_job_t *job;
-		char *n = strdup(dsname);
+		char *n = kmem_strdup(dsname);
 		if (n == NULL)
 			return (0);
 
@@ -1152,7 +1152,7 @@ zvol_create_minors_impl(const char *name)
 		list_remove(&minors_list, job);
 		if (!job->error)
 			ops->zv_create_minor(job->name);
-		strfree(job->name);
+		kmem_strfree(job->name);
 		kmem_free(job, sizeof (minors_job_t));
 	}
 
@@ -1305,7 +1305,7 @@ zvol_rename_minors_impl(const char *oldname, const char *newname)
 			    zv->zv_name[oldnamelen],
 			    zv->zv_name + oldnamelen + 1);
 			ops->zv_rename_minor(zv, name);
-			strfree(name);
+			kmem_strfree(name);
 		}
 
 		mutex_exit(&zv->zv_state_lock);

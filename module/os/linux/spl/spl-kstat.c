@@ -631,7 +631,7 @@ kstat_detect_collision(kstat_proc_entry_t *kpep)
 	parent = kmem_asprintf("%s", kpep->kpe_module);
 
 	if ((cp = strrchr(parent, '/')) == NULL) {
-		strfree(parent);
+		kmem_strfree(parent);
 		return (0);
 	}
 
@@ -639,13 +639,13 @@ kstat_detect_collision(kstat_proc_entry_t *kpep)
 	if ((module = kstat_find_module(parent)) != NULL) {
 		list_for_each_entry(tmp, &module->ksm_kstat_list, kpe_list) {
 			if (strncmp(tmp->kpe_name, cp+1, KSTAT_STRLEN) == 0) {
-				strfree(parent);
+				kmem_strfree(parent);
 				return (EEXIST);
 			}
 		}
 	}
 
-	strfree(parent);
+	kmem_strfree(parent);
 	return (0);
 }
 
