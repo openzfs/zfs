@@ -5134,6 +5134,7 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	uint64_t version, obj;
 	boolean_t has_features;
 	boolean_t has_encryption;
+	boolean_t has_allocclass;
 	spa_feature_t feat;
 	char *feat_name;
 	char *poolname;
@@ -5178,6 +5179,7 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 
 	has_features = B_FALSE;
 	has_encryption = B_FALSE;
+	has_allocclass = B_FALSE;
 	for (nvpair_t *elem = nvlist_next_nvpair(props, NULL);
 	    elem != NULL; elem = nvlist_next_nvpair(props, elem)) {
 		if (zpool_prop_feature(nvpair_name(elem))) {
@@ -5187,6 +5189,8 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 			VERIFY0(zfeature_lookup_name(feat_name, &feat));
 			if (feat == SPA_FEATURE_ENCRYPTION)
 				has_encryption = B_TRUE;
+			if (feat == SPA_FEATURE_ALLOCATION_CLASSES)
+				has_allocclass = B_TRUE;
 		}
 	}
 
@@ -5199,6 +5203,12 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 			mutex_exit(&spa_namespace_lock);
 			return (error);
 		}
+	}
+	if (!has_allocclass && zfs_special_devs(nvroot)) {
+		spa_deactivate(spa);
+		spa_remove(spa);
+		mutex_exit(&spa_namespace_lock);
+		return (ENOTSUP);
 	}
 
 	if (has_features || nvlist_lookup_uint64(props,
