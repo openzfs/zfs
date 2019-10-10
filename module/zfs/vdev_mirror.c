@@ -358,7 +358,7 @@ vdev_mirror_map_init(zio_t *zio)
 
 static int
 vdev_mirror_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
-    uint64_t *ashift)
+    uint64_t *ashift, uint64_t *pshift)
 {
 	int numerrors = 0;
 	int lasterror = 0;
@@ -382,6 +382,7 @@ vdev_mirror_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 		*asize = MIN(*asize - 1, cvd->vdev_asize - 1) + 1;
 		*max_asize = MIN(*max_asize - 1, cvd->vdev_max_asize - 1) + 1;
 		*ashift = MAX(*ashift, cvd->vdev_ashift);
+		*pshift = MAX(*pshift, vd->vdev_physical_ashift);
 	}
 
 	if (numerrors == vd->vdev_children) {

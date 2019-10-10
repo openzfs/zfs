@@ -56,7 +56,7 @@ vdev_file_rele(vdev_t *vd)
 
 static int
 vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
-    uint64_t *ashift)
+    uint64_t *ashift, uint64_t *pshift)
 {
 	vdev_file_t *vf;
 	vnode_t *vp;

@@ -587,8 +587,10 @@ spa_config_update(spa_t *spa, int what)
 			    (tvd->vdev_islog && tvd->vdev_removing))
 				continue;
 
-			if (tvd->vdev_ms_array == 0)
+			if (tvd->vdev_ms_array == 0) {
+				vdev_ashift_optimize(tvd);
 				vdev_metaslab_set_size(tvd);
+			}
 			vdev_expand(tvd, txg);
 		}
 	}

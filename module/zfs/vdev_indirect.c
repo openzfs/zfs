@@ -950,11 +950,12 @@ vdev_indirect_close(vdev_t *vd)
 /* ARGSUSED */
 static int
 vdev_indirect_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
-    uint64_t *ashift)
+    uint64_t *ashift, uint64_t *pshift)
 {
 	*psize = *max_psize = vd->vdev_asize +
 	    VDEV_LABEL_START_SIZE + VDEV_LABEL_END_SIZE;
 	*ashift = vd->vdev_ashift;
+	*pshift = vd->vdev_physical_ashift;
 	return (0);
 }
 
