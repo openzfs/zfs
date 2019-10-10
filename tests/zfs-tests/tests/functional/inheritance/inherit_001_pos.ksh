@@ -401,18 +401,17 @@ set -A local_val "off" "on" "off" \
 #
 # Add system specific values
 #
-
-if ! is_linux; then
+if is_linux; then
+	prop+=("acltype" "")
+	def_val+=("off")
+	local_val+=("off")
+else
 	prop+=("aclmode" "" \
 		"mountpoint" "")
 	def_val+=("discard" \
 		"")
 	local_val+=("groupmask" \
 		"$TESTDIR")
-else
-	prop+=("acltype" "")
-	def_val+=("off")
-	local_val+=("off")
 fi
 
 
