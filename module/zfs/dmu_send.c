@@ -302,7 +302,7 @@ dump_record(dmu_send_cookie_t *dscp, void *payload, int payload_len)
 	if (payload_len != 0) {
 		*dscp->dsc_off += payload_len;
 		/*
-		 * payload is null when dso->ryrun == B_TRUE (i.e. when we're
+		 * payload is null when dso_dryrun == B_TRUE (i.e. when we're
 		 * doing a send size calculation)
 		 */
 		if (payload != NULL) {
