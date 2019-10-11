@@ -70,8 +70,8 @@ if [[ ! -d $mntp ]]; then
 	mkdir -p $mntp
 fi
 
-for val in 1 2 3; do
-	do_vol_test $NEWFS_DEFAULT_FS $val $mntp
+for copies in 1 2 3; do
+	do_vol_test $NEWFS_DEFAULT_FS $copies $mntp
 done
 
 log_pass "The volume space used by multiple copies is charged correctly as expected. "
