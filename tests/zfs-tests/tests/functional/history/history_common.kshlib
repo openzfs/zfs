@@ -110,7 +110,7 @@ function verify_long
 	fi
 
 	typeset suffix=""
-	if [ is_linux ]; then
+	if is_linux; then
 		suffix=":linux"
 	fi
 
