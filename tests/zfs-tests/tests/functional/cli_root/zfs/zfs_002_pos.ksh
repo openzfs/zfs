@@ -62,7 +62,7 @@ log_assert "With ZFS_ABORT set, all zfs commands can abort and generate a " \
     "core file."
 log_onexit cleanup
 
-#preparation work for testing
+# Preparation work for testing
 corepath=$TESTDIR/core
 if [[ -d $corepath ]]; then
 	rm -rf $corepath
