@@ -1244,7 +1244,7 @@ dsl_scan_should_clear(dsl_scan_t *scn)
 		if (queue != NULL) {
 			/* # extents in exts_by_size = # in exts_by_addr */
 			mused += zfs_btree_numnodes(&queue->q_exts_by_size) *
-			    sizeof (range_seg_t) + queue->q_sio_memused;
+			    sizeof (range_seg_gap_t) + queue->q_sio_memused;
 		}
 		mutex_exit(&tvd->vdev_scan_io_queue_lock);
 	}
