@@ -2435,7 +2435,7 @@ get_receive_resume_stats_impl(dsl_dataset_t *ds)
 		kmem_free(compressed, packed_size);
 		return (propval);
 	}
-	return (strdup(""));
+	return (kmem_strdup(""));
 }
 
 /*
@@ -2458,7 +2458,7 @@ get_child_receive_stats(dsl_dataset_t *ds)
 		dsl_dataset_rele(recv_ds, FTAG);
 		return (propval);
 	}
-	return (strdup(""));
+	return (kmem_strdup(""));
 }
 
 static void
@@ -2474,9 +2474,9 @@ get_receive_resume_stats(dsl_dataset_t *ds, nvlist_t *nv)
 			dsl_prop_nvlist_add_string(nv,
 			    ZFS_PROP_RECEIVE_RESUME_TOKEN, childval);
 		}
-		strfree(childval);
+		kmem_strfree(childval);
 	}
-	strfree(propval);
+	kmem_strfree(propval);
 }
 
 uint64_t

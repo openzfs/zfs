@@ -533,7 +533,7 @@ log_internal(nvlist_t *nvl, const char *operation, spa_t *spa,
 
 	msg = kmem_vasprintf(fmt, adx);
 	fnvlist_add_string(nvl, ZPOOL_HIST_INT_STR, msg);
-	strfree(msg);
+	kmem_strfree(msg);
 
 	fnvlist_add_string(nvl, ZPOOL_HIST_INT_NAME, operation);
 	fnvlist_add_uint64(nvl, ZPOOL_HIST_TXG, tx->tx_txg);

@@ -2813,6 +2813,12 @@ Similar to the
 option in
 .Nm zpool import .
 .El
+.Bl -tag -width "ZPOOL_IMPORT_UDEV_TIMEOUT_MS"
+.It Ev ZPOOL_IMPORT_UDEV_TIMEOUT_MS
+The maximum time in milliseconds that
+.Nm zpool import
+will wait for an expected device to be available.
+.El
 .Bl -tag -width "ZPOOL_VDEV_NAME_GUID"
 .It Ev ZPOOL_VDEV_NAME_GUID
 Cause

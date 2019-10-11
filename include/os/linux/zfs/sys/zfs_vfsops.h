@@ -224,6 +224,8 @@ extern int zfs_statvfs(struct dentry *dentry, struct kstatfs *statp);
 extern int zfs_vget(struct super_block *sb, struct inode **ipp, fid_t *fidp);
 extern int zfs_prune(struct super_block *sb, unsigned long nr_to_scan,
     int *objects);
+extern int zfs_get_temporary_prop(dsl_dataset_t *ds, zfs_prop_t zfs_prop,
+    uint64_t *val, char *setpoint);
 
 #ifdef	__cplusplus
 }

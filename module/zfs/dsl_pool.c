@@ -1226,7 +1226,7 @@ dsl_pool_user_hold_rele_impl(dsl_pool_t *dp, uint64_t dsobj,
 		error = zap_add(mos, zapobj, name, 8, 1, &now, tx);
 	else
 		error = zap_remove(mos, zapobj, name, tx);
-	strfree(name);
+	kmem_strfree(name);
 
 	return (error);
 }

@@ -111,7 +111,7 @@ zfsvfs_vfs_free(vfs_t *vfsp)
 {
 	if (vfsp != NULL) {
 		if (vfsp->vfs_mntpoint != NULL)
-			strfree(vfsp->vfs_mntpoint);
+			kmem_strfree(vfsp->vfs_mntpoint);
 
 		kmem_free(vfsp, sizeof (vfs_t));
 	}
@@ -222,7 +222,7 @@ zfsvfs_parse_options(char *mntopts, vfs_t **vfsp)
 		char *tmp_mntopts, *p, *t;
 		int token;
 
-		tmp_mntopts = t = strdup(mntopts);
+		tmp_mntopts = t = kmem_strdup(mntopts);
 		if (tmp_mntopts == NULL)
 			return (SET_ERROR(ENOMEM));
 
@@ -234,13 +234,13 @@ zfsvfs_parse_options(char *mntopts, vfs_t **vfsp)
 			token = match_token(p, zpl_tokens, args);
 			error = zfsvfs_parse_option(p, token, args, tmp_vfsp);
 			if (error) {
-				strfree(tmp_mntopts);
+				kmem_strfree(tmp_mntopts);
 				zfsvfs_vfs_free(tmp_vfsp);
 				return (error);
 			}
 		}
 
-		strfree(tmp_mntopts);
+		kmem_strfree(tmp_mntopts);
 	}
 
 	*vfsp = tmp_vfsp;
@@ -531,6 +531,81 @@ zfs_register_callbacks(vfs_t *vfsp)
 unregister:
 	dsl_prop_unregister_all(ds, zfsvfs);
 	return (error);
+}
+
+/*
+ * Takes a dataset, a property, a value and that value's setpoint as
+ * found in the ZAP. Checks if the property has been changed in the vfs.
+ * If so, val and setpoint will be overwritten with updated content.
+ * Otherwise, they are left unchanged.
+ */
+int
+zfs_get_temporary_prop(dsl_dataset_t *ds, zfs_prop_t zfs_prop, uint64_t *val,
+    char *setpoint)
+{
+	int error;
+	zfsvfs_t *zfvp;
+	vfs_t *vfsp;
+	objset_t *os;
+	uint64_t tmp = *val;
+
+	error = dmu_objset_from_ds(ds, &os);
+	if (error != 0)
+		return (error);
+
+	if (dmu_objset_type(os) != DMU_OST_ZFS)
+		return (EINVAL);
+
+	mutex_enter(&os->os_user_ptr_lock);
+	zfvp = dmu_objset_get_user(os);
+	mutex_exit(&os->os_user_ptr_lock);
+	if (zfvp == NULL)
+		return (ESRCH);
+
+	vfsp = zfvp->z_vfs;
+
+	switch (zfs_prop) {
+	case ZFS_PROP_ATIME:
+		if (vfsp->vfs_do_atime)
+			tmp = vfsp->vfs_atime;
+		break;
+	case ZFS_PROP_RELATIME:
+		if (vfsp->vfs_do_relatime)
+			tmp = vfsp->vfs_relatime;
+		break;
+	case ZFS_PROP_DEVICES:
+		if (vfsp->vfs_do_devices)
+			tmp = vfsp->vfs_devices;
+		break;
+	case ZFS_PROP_EXEC:
+		if (vfsp->vfs_do_exec)
+			tmp = vfsp->vfs_exec;
+		break;
+	case ZFS_PROP_SETUID:
+		if (vfsp->vfs_do_setuid)
+			tmp = vfsp->vfs_setuid;
+		break;
+	case ZFS_PROP_READONLY:
+		if (vfsp->vfs_do_readonly)
+			tmp = vfsp->vfs_readonly;
+		break;
+	case ZFS_PROP_XATTR:
+		if (vfsp->vfs_do_xattr)
+			tmp = vfsp->vfs_xattr;
+		break;
+	case ZFS_PROP_NBMAND:
+		if (vfsp->vfs_do_nbmand)
+			tmp = vfsp->vfs_nbmand;
+		break;
+	default:
+		return (ENOENT);
+	}
+
+	if (tmp != *val) {
+		(void) strcpy(setpoint, "temporary");
+		*val = tmp;
+	}
+	return (0);
 }
 
 static int

@@ -489,7 +489,7 @@ dmu_spill_hold_by_bonus(dmu_buf_t *bonus, uint32_t flags, void *tag,
  * and can induce severe lock contention when writing to several files
  * whose dnodes are in the same block.
  */
-static int
+int
 dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
     boolean_t read, void *tag, int *numbufsp, dmu_buf_t ***dbpp, uint32_t flags)
 {
