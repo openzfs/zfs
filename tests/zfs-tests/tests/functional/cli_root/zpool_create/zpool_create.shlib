@@ -45,7 +45,7 @@ function create_pool_test
 	typeset vdevs
 	eval "typeset -a diskarray=($3)"
 
-	for vdevs in "${diskarray[@]}";do
+	for vdevs in "${diskarray[@]}"; do
 		create_pool $pool $keywd $vdevs
 		log_must poolexists $pool
 		destroy_pool $pool

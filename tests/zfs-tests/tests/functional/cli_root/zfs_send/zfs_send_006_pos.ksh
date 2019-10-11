@@ -55,7 +55,7 @@ function get_estimate_size
 	typeset snapshot=$1
 	typeset option=$2
 	typeset base_snapshot=${3:-""}
-	if [[ -z $3 ]];then
+	if [[ -z $3 ]]; then
 		typeset total_size=$(zfs send $option $snapshot 2>&1 | tail -1)
 	else
 		typeset total_size=$(zfs send $option $base_snapshot $snapshot \
