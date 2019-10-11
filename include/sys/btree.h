@@ -131,10 +131,10 @@ void zfs_btree_create(zfs_btree_t *, int (*) (const void *, const void *),
 /*
  * Find a node with a matching value in the tree. Returns the matching node
  * found. If not found, it returns NULL and then if "where" is not NULL it sets
- * "where" for use with zfs_btree_insert() or zfs_btree_nearest().
+ * "where" for use with zfs_btree_add_idx() or zfs_btree_nearest().
  *
  * node   - node that has the value being looked for
- * where  - position for use with zfs_btree_nearest() or zfs_btree_insert(),
+ * where  - position for use with zfs_btree_nearest() or zfs_btree_add_idx(),
  *          may be NULL
  */
 void *zfs_btree_find(zfs_btree_t *, const void *, zfs_btree_index_t *);
@@ -145,17 +145,20 @@ void *zfs_btree_find(zfs_btree_t *, const void *, zfs_btree_index_t *);
  * node   - the node to insert
  * where  - position as returned from zfs_btree_find()
  */
-void zfs_btree_insert(zfs_btree_t *, const void *, const zfs_btree_index_t *);
+void zfs_btree_add_idx(zfs_btree_t *, const void *, const zfs_btree_index_t *);
 
 /*
- * Return the first or last valued node in the tree. Will return NULL
- * if the tree is empty.
+ * Return the first or last valued node in the tree. Will return NULL if the
+ * tree is empty. The index can be NULL if the location of the first or last
+ * element isn't required.
  */
 void *zfs_btree_first(zfs_btree_t *, zfs_btree_index_t *);
 void *zfs_btree_last(zfs_btree_t *, zfs_btree_index_t *);
 
 /*
- * Return the next or previous valued node in the tree.
+ * Return the next or previous valued node in the tree. The second index can
+ * safely be NULL, if the location of the next or previous value isn't
+ * required.
  */
 void *zfs_btree_next(zfs_btree_t *, const zfs_btree_index_t *,
     zfs_btree_index_t *);
@@ -169,7 +172,9 @@ void *zfs_btree_get(zfs_btree_t *, zfs_btree_index_t *);
 
 /*
  * Add a single value to the tree. The value must not compare equal to any
- * other node already in the tree.
+ * other node already in the tree. Note that the value will be copied out, not
+ * inserted directly. It is safe to free or destroy the value once this
+ * function returns.
  */
 void zfs_btree_add(zfs_btree_t *, const void *);
 
@@ -183,7 +188,7 @@ void zfs_btree_remove(zfs_btree_t *, const void *);
 /*
  * Remove the value at the given location from the tree.
  */
-void zfs_btree_remove_from(zfs_btree_t *, zfs_btree_index_t *);
+void zfs_btree_remove_idx(zfs_btree_t *, zfs_btree_index_t *);
 
 /*
  * Return the number of nodes in the tree

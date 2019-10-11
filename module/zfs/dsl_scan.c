@@ -2931,6 +2931,8 @@ scan_io_queue_fetch_ext(dsl_scan_io_queue_t *queue)
 			 */
 			range_seg_t *size_rs =
 			    zfs_btree_first(&queue->q_exts_by_size, NULL);
+			if (size_rs == NULL)
+				return (NULL);
 			uint64_t start = rs_get_start(size_rs, rt);
 			uint64_t size = rs_get_end(size_rs, rt) - start;
 			range_seg_t *addr_rs = range_tree_find(rt, start,
@@ -2962,6 +2964,8 @@ scan_io_queue_fetch_ext(dsl_scan_io_queue_t *queue)
 		 */
 		range_seg_t *size_rs = zfs_btree_first(&queue->q_exts_by_size,
 		    NULL);
+		if (size_rs == NULL)
+			return (NULL);
 		uint64_t start = rs_get_start(size_rs, rt);
 		uint64_t size = rs_get_end(size_rs, rt) - start;
 		range_seg_t *addr_rs = range_tree_find(rt, start, size);

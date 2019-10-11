@@ -41,14 +41,14 @@ DISK=${DISKS%% *}
 
 verify_runnable "both"
 
-log_must zpool create $TESTPOOL mirror ${DISKS}
+default_mirror_setup_noexit $DISKS
 
 function cleanup
 {
 	log_must zinject -c all
 	log_must set_tunable64 zio_slow_io_ms $OLD_SLOW_IO
 	log_must set_tunable64 zfs_slow_io_events_per_second $OLD_SLOW_IO_EVENTS
-	log_must destroy_pool $TESTPOOL
+	default_cleanup_noexit
 }
 
 log_onexit cleanup
