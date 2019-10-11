@@ -896,7 +896,6 @@ zio_abd_checksum_func_t fletcher_4_abd_ops = {
 
 
 #if defined(_KERNEL)
-#include <linux/mod_compat.h>
 
 static int
 fletcher_4_param_get(char *buffer, zfs_kernel_param_t *unused)
