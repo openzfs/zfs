@@ -10,6 +10,7 @@ endif
 ccflags-y += -I@abs_top_srcdir@/module/os/linux/zfs
 
 $(MODULE)-objs += ../os/linux/zfs/abd.o
+$(MODULE)-objs += ../os/linux/zfs/mmp_os.o
 $(MODULE)-objs += ../os/linux/zfs/policy.o
 $(MODULE)-objs += ../os/linux/zfs/trace.o
 $(MODULE)-objs += ../os/linux/zfs/qat.o
