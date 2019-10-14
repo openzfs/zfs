@@ -207,6 +207,7 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/cmd/randfree_file/Makefile
 	tests/zfs-tests/cmd/randwritecomp/Makefile
 	tests/zfs-tests/cmd/readmmap/Makefile
+	tests/zfs-tests/cmd/renameat2/Makefile
 	tests/zfs-tests/cmd/rename_dir/Makefile
 	tests/zfs-tests/cmd/rm_lnkcnt_zero_file/Makefile
 	tests/zfs-tests/cmd/stride_dd/Makefile
@@ -346,6 +347,7 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/refquota/Makefile
 	tests/zfs-tests/tests/functional/refreserv/Makefile
 	tests/zfs-tests/tests/functional/removal/Makefile
+	tests/zfs-tests/tests/functional/renameat2/Makefile
 	tests/zfs-tests/tests/functional/rename_dirs/Makefile
 	tests/zfs-tests/tests/functional/replacement/Makefile
 	tests/zfs-tests/tests/functional/reservation/Makefile

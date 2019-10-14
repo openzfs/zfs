@@ -78,6 +78,11 @@ python_reason = 'Python v3.5 or newer required'
 python_deps_reason = 'Python modules missing: python-cffi'
 
 #
+# Some tests require that the kernel supports renameat2 syscall.
+#
+renameat2_reason = 'Kernel renameat2 support required'
+
+#
 # Some tests require the O_TMPFILE flag which was first introduced in the
 # 3.11 kernel.
 #
@@ -250,6 +255,7 @@ maybe = {
     'no_space/enospc_002_pos': ['FAIL', enospc_reason],
     'projectquota/setup': ['SKIP', exec_reason],
     'redundancy/redundancy_004_neg': ['FAIL', '7290'],
+    'renameat2/setup': ['SKIP', renameat2_reason],
     'reservation/reservation_008_pos': ['FAIL', '7741'],
     'reservation/reservation_018_pos': ['FAIL', '5642'],
     'rsend/rsend_019_pos': ['FAIL', '6086'],

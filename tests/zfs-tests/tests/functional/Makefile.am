@@ -58,6 +58,7 @@ SUBDIRS = \
 	refquota \
 	refreserv \
 	removal \
+	renameat2 \
 	rename_dirs \
 	replacement \
 	reservation \

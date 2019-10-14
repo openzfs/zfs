@@ -105,6 +105,10 @@ tests = ['projectid_001_pos', 'projectid_002_pos', 'projectid_003_pos',
     'projecttree_001_pos', 'projecttree_002_pos', 'projecttree_003_neg']
 tags = ['functional', 'projectquota']
 
+[tests/functional/renameat2:Linux]
+tests = ['renameat2_noreplace', 'renameat2_exchange', 'renameat2_whiteout']
+tags = ['functional', 'renameat2']
+
 [tests/functional/rsend:Linux]
 tests = ['send_realloc_dnode_size', 'send_encrypted_files']
 tags = ['functional', 'rsend']

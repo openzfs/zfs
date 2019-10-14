@@ -163,6 +163,22 @@ log_must ln /$TESTPOOL/$TESTFS/link_and_unlink \
    /$TESTPOOL/$TESTFS/link_and_unlink.link
 log_must rm /$TESTPOOL/$TESTFS/link_and_unlink.link
 
+# We can't test TX_EXCHANGE or TX_WHITEOUT without renameat2(2) support.
+if ! is_linux ; then
+	log_note "renameat2 is linux-only"
+elif ! renameat2 -C ; then
+	log_note "renameat2 not supported on this (pre-3.15) linux kernel"
+else
+	# TX_EXCHANGE
+	log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/xchg-a bs=1k count=1
+	log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/xchg-b bs=1k count=1
+	log_must renameat2 -x /$TESTPOOL/$TESTFS/xchg-{a,b}
+
+	# TX_WHITEOUT
+	log_must mkfile 1k /$TESTPOOL/$TESTFS/whiteout
+	log_must renameat2 -w /$TESTPOOL/$TESTFS/whiteout{,-moved}
+fi
+
 #
 # 4. Copy TESTFS to temporary location (TESTDIR/copy)
 #
