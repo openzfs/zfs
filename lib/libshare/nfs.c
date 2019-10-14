@@ -387,9 +387,10 @@ get_linux_shareopts(const char *shareopts, char **plinux_opts)
 
 	*plinux_opts = NULL;
 
-	/* default options for Solaris shares */
+	/* no_subtree_check - Default as of nfs-utils v1.1.0 */
 	(void) add_linux_shareopt(plinux_opts, "no_subtree_check", NULL);
-	(void) add_linux_shareopt(plinux_opts, "no_root_squash", NULL);
+
+	/* mountpoint - Restrict exports to ZFS mountpoints */
 	(void) add_linux_shareopt(plinux_opts, "mountpoint", NULL);
 
 	rc = foreach_nfs_shareopt(shareopts, get_linux_shareopts_cb,
