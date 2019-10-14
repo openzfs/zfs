@@ -938,7 +938,7 @@ dsl_async_clone_destroy(dsl_dataset_t *ds, dmu_tx_t *tx)
  * Move the bptree into the pool's list of trees to clean up, update space
  * accounting information and destroy the zil.
  */
-void
+static void
 dsl_async_dataset_destroy(dsl_dataset_t *ds, dmu_tx_t *tx)
 {
 	uint64_t used, comp, uncomp;

@@ -59,7 +59,7 @@ int zfs_btree_verify_intensity = 0;
  * A convenience function to silence warnings from memmove's return value and
  * change argument order to src, dest.
  */
-void
+static void
 bmov(const void *src, void *dest, size_t size)
 {
 	(void) memmove(dest, src, size);
