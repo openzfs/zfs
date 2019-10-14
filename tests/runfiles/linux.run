@@ -157,6 +157,10 @@ tags = ['functional', 'projectquota']
 tests = ['read_dos_attrs_001', 'write_dos_attrs_001']
 tags = ['functional', 'dos_attributes']
 
+[tests/functional/renameat2:Linux]
+tests = ['renameat2_noreplace', 'renameat2_exchange', 'renameat2_whiteout']
+tags = ['functional', 'renameat2']
+
 [tests/functional/rsend:Linux]
 tests = ['send_realloc_dnode_size', 'send_encrypted_files']
 tags = ['functional', 'rsend']
