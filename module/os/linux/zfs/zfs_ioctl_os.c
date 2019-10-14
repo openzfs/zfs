@@ -175,14 +175,18 @@ zfsdev_ioctl(struct file *filp, unsigned cmd, unsigned long arg)
 }
 
 int
-zfsdev_getminor(struct file *filp, minor_t *minorp)
+zfsdev_getminor(int fd, minor_t *minorp)
 {
 	zfsdev_state_t *zs, *fpd;
+	file_t *fp;
 
-	ASSERT(filp != NULL);
 	ASSERT(!MUTEX_HELD(&zfsdev_state_lock));
+	fp = getf(fd);
 
-	fpd = filp->private_data;
+	if (fp == NULL)
+		return (SET_ERROR(EBADF));
+
+	fpd = fp->f_file->private_data;
 	if (fpd == NULL)
 		return (SET_ERROR(EBADF));
 

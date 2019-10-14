@@ -40,15 +40,10 @@
 int
 zfs_onexit_fd_hold(int fd, minor_t *minorp)
 {
-	file_t *fp;
 	zfs_onexit_t *zo = NULL;
 	int error;
 
-	fp = getf(fd);
-	if (fp == NULL)
-		return (SET_ERROR(EBADF));
-
-	error = zfsdev_getminor(fp->f_file, minorp);
+	error = zfsdev_getminor(fd, minorp);
 	if (error) {
 		zfs_onexit_fd_rele(fd);
 		return (error);
