@@ -446,7 +446,6 @@ dnode_create(objset_t *os, dnode_phys_t *dnp, dmu_buf_impl_t *db,
 	dnode_t *dn;
 
 	dn = kmem_cache_alloc(dnode_cache, KM_SLEEP);
-	ASSERT(!POINTER_IS_VALID(dn->dn_objset));
 	dn->dn_moved = 0;
 
 	/*
@@ -523,7 +522,6 @@ dnode_destroy(dnode_t *dn)
 	ASSERT((dn->dn_id_flags & DN_ID_NEW_EXIST) == 0);
 
 	mutex_enter(&os->os_lock);
-	POINTER_INVALIDATE(&dn->dn_objset);
 	if (!DMU_OBJECT_IS_SPECIAL(dn->dn_object)) {
 		list_remove(&os->os_dnodes, dn);
 		complete_os_eviction =
@@ -853,12 +851,6 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 	dmu_zfetch_fini(&odn->dn_zfetch);
 
 	/*
-	 * Set the low bit of the objset pointer to ensure that dnode_move()
-	 * recognizes the dnode as invalid in any subsequent callback.
-	 */
-	POINTER_INVALIDATE(&odn->dn_objset);
-
-	/*
 	 * Satisfy the destructor.
 	 */
 	for (i = 0; i < TXG_SIZE; i++) {
@@ -917,11 +909,6 @@ dnode_move(void *buf, void *newbuf, size_t size, void *arg)
 	 * function.
 	 */
 	os = odn->dn_objset;
-	if (!POINTER_IS_VALID(os)) {
-		DNODE_STAT_BUMP(dnode_move_invalid);
-		return (KMEM_CBRC_DONT_KNOW);
-	}
-
 	/*
 	 * Ensure that the objset does not go away during the move.
 	 */
