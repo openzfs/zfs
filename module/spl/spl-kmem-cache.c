@@ -1453,6 +1453,17 @@ spl_kmem_cache_alloc(spl_kmem_cache_t *skc, int flags)
 			obj = kmem_cache_alloc(slc, kmem_flags_convert(flags));
 		} while ((obj == NULL) && !(flags & KM_NOSLEEP));
 
+		if (obj != NULL) {
+			/*
+			 * Even though we leave everything up to the
+			 * underlying cache we still keep track of
+			 * how many objects we've allocated in it for
+			 * better debuggability.
+			 */
+			spin_lock(&skc->skc_lock);
+			skc->skc_obj_alloc++;
+			spin_unlock(&skc->skc_lock);
+		}
 		goto ret;
 	}
 
@@ -1526,6 +1537,9 @@ spl_kmem_cache_free(spl_kmem_cache_t *skc, void *obj)
 	 */
 	if (skc->skc_flags & KMC_SLAB) {
 		kmem_cache_free(skc->skc_linux_cache, obj);
+		spin_lock(&skc->skc_lock);
+		skc->skc_obj_alloc--;
+		spin_unlock(&skc->skc_lock);
 		return;
 	}
 
