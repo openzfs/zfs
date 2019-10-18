@@ -137,6 +137,10 @@ extern int zfs_vdev_async_write_active_min_dirty_percent;
  */
 int zfs_scan_strict_mem_lim = B_FALSE;
 
+unsigned int zfs_resilver_delay = 2; /* number of ms to delay resilver */
+unsigned int zfs_scrub_delay = 4;	/* number of ms to delay scrub */
+unsigned int zfs_scan_idle = 50;	/* idle window in ms */
+
 /*
  * Maximum number of parallelly executed bytes per leaf vdev. We attempt
  * to strike a balance here between keeping the vdev queues full of I/Os
@@ -4018,6 +4022,8 @@ scan_exec_io(dsl_pool_t *dp, const blkptr_t *bp, int zio_flags,
 	dsl_scan_t *scn = dp->dp_scan;
 	size_t size = BP_GET_PSIZE(bp);
 	abd_t *data = abd_alloc_for_io(size, B_FALSE);
+	unsigned int scan_delay = 0;
+	hrtime_t now;
 
 	ASSERT3U(scn->scn_maxinflight_bytes, >, 0);
 
@@ -4035,6 +4041,18 @@ scan_exec_io(dsl_pool_t *dp, const blkptr_t *bp, int zio_flags,
 			cv_wait(&queue->q_zio_cv, q_lock);
 		queue->q_inflight_bytes += BP_GET_PSIZE(bp);
 		mutex_exit(q_lock);
+	}
+
+	if (zio_flags & ZIO_FLAG_RESILVER)
+		scan_delay = zfs_resilver_delay;
+	else {
+		ASSERT(zio_flags & ZIO_FLAG_SCRUB);
+		scan_delay = zfs_scrub_delay;
+	}
+	if (scan_delay) {
+		now = NSEC2MSEC(gethrtime());
+		if (now - spa->spa_last_io <= zfs_scan_idle)
+			zfs_sleep_until(now + MSEC2NSEC(scan_delay));
 	}
 
 	count_block(scn, dp->dp_blkstats, bp);
