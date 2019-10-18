@@ -6,7 +6,7 @@ PartOf=nfs-server.service nfs-kernel-server.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=-/bin/rm -f /etc/exports.d/zfs.exports
+ExecStart=-/usr/lib/zfs-linux/share-cleanup
 
 [Install]
 WantedBy=zfs.target

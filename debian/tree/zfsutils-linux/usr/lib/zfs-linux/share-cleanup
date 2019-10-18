@@ -1,0 +1,49 @@
+#!/bin/bash -u
+
+#
+# Copyright (c) 2019 by Delphix. All rights reserved.
+#
+
+#
+# Cleanup the ZFS exports
+#
+# The zfs-share service generates 'zfs.exports' which is consumed by the
+# nfs-server service in ExecStartPre. To catch any zfs shares that were
+# enabled since the zfs-share service started, we must re-generate the
+# 'zfs.exports' file and check for any changes. If there is a delta, we
+# run 'exportfs -r' to export the new additions.
+#
+
+function die() {
+	echo "$(basename $0): $1" >&2
+	# always remove the zfs.exports file
+	if [[ -f "$ZFS_EXPORTS" ]]; then
+		/bin/rm -f "$ZFS_EXPORTS"
+	fi
+	exit 1
+}
+
+ZFS_EXPORTS=/etc/exports.d/zfs.exports
+ZFS_EXPORTS_BAK=${ZFS_EXPORTS}.bak
+
+if [[ -f "$ZFS_EXPORTS" ]]; then
+	# save the zfs-share service generated copy
+	/bin/mv -f "$ZFS_EXPORTS" "$ZFS_EXPORTS_BAK" || die "rename failed"
+
+	# generate a new zfs.exports
+	/sbin/zfs share -g || die "failed to generate zfs exports"
+
+	cmp --silent "$ZFS_EXPORTS" "$ZFS_EXPORTS_BAK"
+	ret=$?
+
+	/bin/rm -f "$ZFS_EXPORTS_BAK"
+
+	# if the zfs.exports content has changed then re-export
+	if [[ $ret -eq 1 ]]; then
+		/usr/sbin/exportfs -r || die "re-exporting failed"
+	fi
+
+	/bin/rm -f "$ZFS_EXPORTS"
+fi
+
+exit 0
