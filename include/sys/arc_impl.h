@@ -30,6 +30,8 @@
 
 #include <sys/arc.h>
 #include <sys/zio_crypt.h>
+#include <sys/zthr.h>
+#include <sys/aggsum.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -553,6 +555,62 @@ typedef struct arc_stats {
 	kstat_named_t arcstat_sys_free;
 	kstat_named_t arcstat_raw_size;
 } arc_stats_t;
+
+typedef enum free_memory_reason_t {
+	FMR_UNKNOWN,
+	FMR_NEEDFREE,
+	FMR_LOTSFREE,
+	FMR_SWAPFS_MINFREE,
+	FMR_PAGES_PP_MAXIMUM,
+	FMR_HEAP_ARENA,
+	FMR_ZIO_ARENA,
+} free_memory_reason_t;
+
+#define	ARCSTAT(stat)	(arc_stats.stat.value.ui64)
+
+#define	ARCSTAT_INCR(stat, val) \
+	atomic_add_64(&arc_stats.stat.value.ui64, (val))
+
+#define	ARCSTAT_BUMP(stat)	ARCSTAT_INCR(stat, 1)
+#define	ARCSTAT_BUMPDOWN(stat)	ARCSTAT_INCR(stat, -1)
+
+#define	arc_no_grow	ARCSTAT(arcstat_no_grow) /* do not grow cache size */
+#define	arc_p		ARCSTAT(arcstat_p)	/* target size of MRU */
+#define	arc_c		ARCSTAT(arcstat_c)	/* target size of cache */
+#define	arc_c_min	ARCSTAT(arcstat_c_min)	/* min target cache size */
+#define	arc_c_max	ARCSTAT(arcstat_c_max)	/* max target cache size */
+#define	arc_sys_free	ARCSTAT(arcstat_sys_free) /* target system free bytes */
+#define	arc_need_free	ARCSTAT(arcstat_need_free) /* bytes to be freed */
+
+extern int arc_zio_arena_free_shift;
+extern taskq_t *arc_prune_taskq;
+extern arc_stats_t arc_stats;
+extern hrtime_t arc_growtime;
+extern boolean_t arc_warm;
+extern int arc_grow_retry;
+extern int arc_shrink_shift;
+extern zthr_t		*arc_adjust_zthr;
+extern kmutex_t		arc_adjust_lock;
+extern kcondvar_t	arc_adjust_waiters_cv;
+extern boolean_t	arc_adjust_needed;
+extern kmutex_t arc_prune_mtx;
+extern list_t arc_prune_list;
+extern aggsum_t arc_size;
+extern arc_state_t	*arc_mfu;
+extern arc_state_t	*arc_mru;
+extern uint_t zfs_arc_pc_percent;
+extern int arc_lotsfree_percent;
+
+extern void arc_reduce_target_size(int64_t to_free);
+extern boolean_t arc_reclaim_needed(void);
+extern void arc_kmem_reap_soon(void);
+
+extern void arc_lowmem_init(void);
+extern void arc_lowmem_fini(void);
+extern void arc_prune_async(int64_t);
+extern int arc_memory_throttle(spa_t *spa, uint64_t reserve, uint64_t txg);
+extern uint64_t arc_free_memory(void);
+extern int64_t arc_available_memory(void);
 
 #ifdef __cplusplus
 }
