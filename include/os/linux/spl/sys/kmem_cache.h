@@ -35,7 +35,7 @@
  * size.  This slab implementation also supports both constructors and
  * destructors which the Linux slab does not.
  */
-enum {
+typedef enum kmc_bit {
 	KMC_BIT_NOTOUCH		= 0,	/* Don't update ages */
 	KMC_BIT_NODEBUG		= 1,	/* Default behavior */
 	KMC_BIT_NOMAGAZINE	= 2,	/* XXX: Unsupported */
@@ -52,7 +52,7 @@ enum {
 	KMC_BIT_TOTAL		= 18,	/* Proc handler helper bit */
 	KMC_BIT_ALLOC		= 19,	/* Proc handler helper bit */
 	KMC_BIT_MAX		= 20,	/* Proc handler helper bit */
-};
+} kmc_bit_t;
 
 /* kmem move callback return values */
 typedef enum kmem_cbrc {
