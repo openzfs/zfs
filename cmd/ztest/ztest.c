@@ -4992,7 +4992,6 @@ ztest_write_external_compressed(ztest_ds_t *zd, uint64_t id)
 	int unequal_bytes;
 	dmu_buf_t **dbp;
 	enum zio_compress *comp;
-	dnode_t *dn;
 
 	unequal_bytes = 0;
 
