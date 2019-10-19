@@ -1590,6 +1590,12 @@ spa_activate_allocation_classes(spa_t *spa, dmu_tx_t *tx)
  * ==========================================================================
  */
 
+int
+spa_get_min_ashift(spa_t *spa)
+{
+	return (spa->spa_min_ashift);
+}
+
 boolean_t
 spa_shutting_down(spa_t *spa)
 {

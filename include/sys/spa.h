@@ -995,6 +995,7 @@ extern void spa_claim_notify(zio_t *zio);
 extern void spa_deadman(void *);
 
 /* Accessor functions */
+extern int spa_get_min_ashift(spa_t *spa);
 extern boolean_t spa_shutting_down(spa_t *spa);
 extern struct dsl_pool *spa_get_dsl(spa_t *spa);
 extern boolean_t spa_is_initializing(spa_t *spa);

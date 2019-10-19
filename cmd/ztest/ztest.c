@@ -89,6 +89,8 @@
  */
 
 #include <sys/zfs_context.h>
+#include <sys/multilist.h>
+#include <sys/arc_impl.h>
 #include <sys/spa.h>
 #include <sys/dmu.h>
 #include <sys/txg.h>
@@ -379,6 +381,7 @@ ztest_func_t ztest_trim;
 ztest_func_t ztest_fletcher;
 ztest_func_t ztest_fletcher_incr;
 ztest_func_t ztest_verify_dnode_bt;
+ztest_func_t ztest_write_external_compressed;
 
 uint64_t zopt_always = 0ULL * NANOSEC;		/* all the time */
 uint64_t zopt_incessant = 1ULL * NANOSEC / 10;	/* every 1/10 second */
@@ -432,6 +435,7 @@ ztest_info_t ztest_info[] = {
 	ZTI_INIT(ztest_fletcher, 1, &zopt_rarely),
 	ZTI_INIT(ztest_fletcher_incr, 1, &zopt_rarely),
 	ZTI_INIT(ztest_verify_dnode_bt, 1, &zopt_sometimes),
+	ZTI_INIT(ztest_write_external_compressed, 1, &zopt_always),
 };
 
 #define	ZTEST_FUNCS	(sizeof (ztest_info) / sizeof (ztest_info_t))
@@ -4889,6 +4893,135 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 	umem_free(bigbuf, bigsize);
 	umem_free(bigbuf_arcbufs, 2 * s * sizeof (arc_buf_t *));
 	umem_free(od, size);
+}
+
+void
+ztest_write_external_compressed(ztest_ds_t *zd, uint64_t id)
+{
+	int od_size;
+	ztest_od_t *od;
+	uint64_t txg;
+
+	objset_t *os = zd->zd_os;
+	od_size = sizeof (ztest_od_t);
+	od = umem_alloc(od_size, UMEM_NOFAIL);
+	uint64_t blk_psize, lsize, numbufs_written, blk_lsize;
+	/*
+	 * To compare written and read data, we create a buffer so that we can
+	 * compare the data later.
+	 */
+	void *data_uncomp;
+	void *data;
+	dmu_buf_t *db;
+	dmu_tx_t *tx;
+	arc_buf_t *abuf;
+
+	zfs_compressed_arc_enabled = B_TRUE;
+
+	numbufs_written = 10;
+	blk_lsize = 1ULL << 19;
+	lsize = blk_lsize * numbufs_written;
+
+	/* As in zio_compress_data: At least 12.5% compression  */
+	blk_psize = blk_lsize - (blk_lsize >> 3);
+
+	data_uncomp = umem_zalloc(lsize, UMEM_NOFAIL);
+	data = umem_zalloc(blk_lsize, UMEM_NOFAIL);
+
+	ztest_od_init(od, id, FTAG, 0, DMU_OT_UINT64_OTHER, blk_lsize, 0, 0);
+
+	/*
+	 * Fill buffer with pattern. This pattern will be chacked later to
+	 * verify that the write and read was succesfull.
+	 */
+	char *pattern = "moin";
+	for (int i = 0; i < blk_lsize; i += 5) {
+		memcpy(data_uncomp + i, pattern, 4);
+
+		/*
+		 * Also add some "random" data so that the compressed data is
+		 * not only a few bytes large
+		 */
+		char c = ((char)(i % 73)+65);
+		((char *)data_uncomp)[i + 4] = c;
+	}
+	blk_psize = lz4_compress_zfs(data_uncomp, data, blk_lsize, blk_psize,
+	    0);
+	umem_free(data_uncomp, blk_psize);
+
+	if (ztest_object_init(zd, od, od_size, B_FALSE) != 0) {
+		umem_free(od, od_size);
+		return;
+	}
+
+	VERIFY3U(0, ==, dmu_bonus_hold_compressed(os, od->od_object, FTAG,
+	    &db));
+
+	for (int off = 0; off < lsize; off += blk_lsize) {
+		abuf = dmu_request_compressed_arcbuf(db, blk_psize, blk_lsize,
+		    ZIO_COMPRESS_LZ4);
+		bcopy(data, abuf->b_data, blk_psize);
+
+		tx = dmu_tx_create(os);
+
+		txg = ztest_tx_assign(tx, TXG_WAIT, FTAG);
+		if (txg == 0) {
+			umem_free(od, od_size);
+			umem_free(data, blk_lsize);
+			dmu_buf_rele(db, FTAG);
+			return;
+		}
+
+		dmu_tx_hold_write_db(tx, od->od_object, DB_RF_NO_DECOMPRESS |
+		    DB_RF_NOPREFETCH, off, blk_psize);
+
+		dmu_assign_arcbuf(db, off, abuf, tx);
+
+		dmu_tx_commit(tx);
+
+		txg_wait_synced(dmu_objset_pool(os), txg);
+		dmu_buf_rele(db, FTAG);
+	}
+
+	db = NULL;
+
+	/*
+	 * Read the data and compare the content
+	 */
+	int numbufs;
+	int unequal_bytes;
+	dmu_buf_t **dbp;
+	enum zio_compress *comp;
+	dnode_t *dn;
+
+	unequal_bytes = 0;
+
+	VERIFY3U(0, ==, dmu_bonus_hold_compressed(os, od->od_object, FTAG,
+	    &db));
+	dmu_buf_hold_array_by_bonus_compressed(db, 0, blk_lsize, B_TRUE, FTAG,
+	    &numbufs, &dbp, &comp);
+
+	dmu_buf_impl_t *dbimpl;
+	void *buf;
+	for (int i = 0; i < numbufs; i++) {
+		unequal_bytes = 0;
+		dbimpl = (dmu_buf_impl_t *)dbp[i];
+		buf = dbimpl->db_buf->b_data;
+
+		for (int j = 0; j < blk_psize; j++) {
+			int unequal = ((uint8_t *)data)[j] !=
+			    ((uint8_t *)buf)[j];
+			unequal_bytes += unequal;
+		}
+
+		VERIFY(unequal_bytes == 0);
+	}
+
+	dmu_buf_rele(db, FTAG);
+	dmu_buf_rele_array(dbp, numbufs, FTAG);
+
+	umem_free(od, od_size);
+	umem_free(data, blk_lsize);
 }
 
 /* ARGSUSED */

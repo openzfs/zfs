@@ -143,15 +143,15 @@ dmu_tx_hold_dnode_impl(dmu_tx_t *tx, dnode_t *dn, enum dmu_tx_hold_type type,
 }
 
 static dmu_tx_hold_t *
-dmu_tx_hold_object_impl(dmu_tx_t *tx, objset_t *os, uint64_t object,
-    enum dmu_tx_hold_type type, uint64_t arg1, uint64_t arg2)
+dmu_tx_hold_object_db_impl(dmu_tx_t *tx, objset_t *os, uint64_t object,
+    int dbflag, enum dmu_tx_hold_type type, uint64_t arg1, uint64_t arg2)
 {
 	dnode_t *dn = NULL;
 	dmu_tx_hold_t *txh;
 	int err;
 
 	if (object != DMU_NEW_OBJECT) {
-		err = dnode_hold(os, object, FTAG, &dn);
+		err = dnode_hold_db(os, object, dbflag, FTAG, &dn);
 		if (err != 0) {
 			tx->tx_err = err;
 			return (NULL);
@@ -161,6 +161,14 @@ dmu_tx_hold_object_impl(dmu_tx_t *tx, objset_t *os, uint64_t object,
 	if (dn != NULL)
 		dnode_rele(dn, FTAG);
 	return (txh);
+}
+
+static dmu_tx_hold_t *
+dmu_tx_hold_object_impl(dmu_tx_t *tx, objset_t *os, uint64_t object,
+    enum dmu_tx_hold_type type, uint64_t arg1, uint64_t arg2)
+{
+	return (dmu_tx_hold_object_db_impl(tx, os, object, 0, type, arg1,
+	    arg2));
 }
 
 void
@@ -209,11 +217,12 @@ dmu_tx_check_ioerr(zio_t *zio, dnode_t *dn, int level, uint64_t blkid)
 	dmu_buf_impl_t *db;
 
 	rw_enter(&dn->dn_struct_rwlock, RW_READER);
-	db = dbuf_hold_level(dn, level, blkid, FTAG);
+	db = dbuf_hold_db(dn, level, blkid, DB_RF_NO_DECOMPRESS, FTAG);
 	rw_exit(&dn->dn_struct_rwlock);
 	if (db == NULL)
 		return (SET_ERROR(EIO));
-	err = dbuf_read(db, zio, DB_RF_CANFAIL | DB_RF_NOPREFETCH);
+	err = dbuf_read(db, zio, DB_RF_CANFAIL | DB_RF_NOPREFETCH |
+	    DB_RF_NO_DECOMPRESS);
 	dbuf_rele(db, FTAG);
 	return (err);
 }
@@ -310,6 +319,24 @@ dmu_tx_hold_write(dmu_tx_t *tx, uint64_t object, uint64_t off, int len)
 
 	txh = dmu_tx_hold_object_impl(tx, tx->tx_objset,
 	    object, THT_WRITE, off, len);
+	if (txh != NULL) {
+		dmu_tx_count_write(txh, off, len);
+		dmu_tx_count_dnode(txh);
+	}
+}
+
+void
+dmu_tx_hold_write_db(dmu_tx_t *tx, uint64_t object, int dbflag, uint64_t off,
+    int len)
+{
+	dmu_tx_hold_t *txh;
+
+	ASSERT0(tx->tx_txg);
+	ASSERT3U(len, <=, DMU_MAX_ACCESS);
+	ASSERT(len == 0 || UINT64_MAX - off >= len - 1);
+
+	txh = dmu_tx_hold_object_db_impl(tx, tx->tx_objset,
+	    object, dbflag, THT_WRITE, off, len);
 	if (txh != NULL) {
 		dmu_tx_count_write(txh, off, len);
 		dmu_tx_count_dnode(txh);
