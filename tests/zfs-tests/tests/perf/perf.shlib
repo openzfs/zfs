@@ -373,6 +373,23 @@ function get_directory
 	echo $directory
 }
 
+function get_min_arc_size
+{
+	if is_linux; then
+		typeset -l min_arc_size=`awk '$1 == "c_min" { print $3 }' \
+		    /proc/spl/kstat/zfs/arcstats`
+	else
+		typeset -l min_arc_size=$(dtrace -qn 'BEGIN {
+		    printf("%u\n", `arc_stats.arcstat_c_min.value.ui64);
+		    exit(0);
+		}')
+	fi
+
+	[[ $? -eq 0 ]] || log_fail "get_min_arc_size failed"
+
+	echo $min_arc_size
+}
+
 function get_max_arc_size
 {
 	if is_linux; then

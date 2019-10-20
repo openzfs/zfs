@@ -24,6 +24,7 @@
  * Copyright (c) 2011, 2019 by Delphix. All rights reserved.
  * Copyright (c) 2014 by Saso Kiselkov. All rights reserved.
  * Copyright 2017 Nexenta Systems, Inc.  All rights reserved.
+ * Copyright (c) 2019, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
  */
 
 /*
@@ -814,7 +815,6 @@ static void arc_hdr_alloc_abd(arc_buf_hdr_t *, boolean_t);
 static void arc_access(arc_buf_hdr_t *, kmutex_t *);
 static boolean_t arc_is_overflowing(void);
 static void arc_buf_watch(arc_buf_t *);
-static void arc_tuning_update(void);
 
 static arc_buf_contents_t arc_buf_type(arc_buf_hdr_t *);
 static uint32_t arc_bufc_to_flags(arc_buf_contents_t);
@@ -6873,10 +6873,12 @@ arc_state_multilist_index_func(multilist_t *ml, void *obj)
 
 /*
  * Called during module initialization and periodically thereafter to
- * apply reasonable changes to the exposed performance tunings.  Non-zero
- * zfs_* values which differ from the currently set values will be applied.
+ * apply reasonable changes to the exposed performance tunings.  Can also be
+ * called explicitly by param_set_arc_*() functions when ARC tunables are
+ * updated manually.  Non-zero zfs_* values which differ from the currently set
+ * values will be applied.
  */
-static void
+void
 arc_tuning_update(void)
 {
 	uint64_t allmem = arc_all_memory();
@@ -8694,20 +8696,21 @@ EXPORT_SYMBOL(arc_add_prune_callback);
 EXPORT_SYMBOL(arc_remove_prune_callback);
 
 /* BEGIN CSTYLED */
-ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, min, ULONG, ZMOD_RW,
-	"Min arc size");
+ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, min, param_set_arc_long,
+	param_get_long, ZMOD_RW, "Min arc size");
 
-ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, max, ULONG, ZMOD_RW,
-	"Max arc size");
+ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, max, param_set_arc_long,
+	param_get_long, ZMOD_RW, "Max arc size");
 
-ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, meta_limit, ULONG, ZMOD_RW,
-	"Metadata limit for arc size");
+ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, meta_limit, param_set_arc_long,
+	param_get_long, ZMOD_RW, "Metadata limit for arc size");
 
-ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, meta_limit_percent, ULONG, ZMOD_RW,
+ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, meta_limit_percent,
+	param_set_arc_long, param_get_long, ZMOD_RW,
 	"Percent of arc size for arc meta limit");
 
-ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, meta_min, ULONG, ZMOD_RW,
-	"Min arc metadata");
+ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, meta_min, param_set_arc_long,
+	param_get_long, ZMOD_RW, "Min arc metadata");
 
 ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, meta_prune, INT, ZMOD_RW,
 	"Meta objects to scan for prune");
@@ -8718,20 +8721,20 @@ ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, meta_adjust_restarts, INT, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, meta_strategy, INT, ZMOD_RW,
 	"Meta reclaim strategy");
 
-ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, grow_retry, INT, ZMOD_RW,
-	"Seconds before growing arc size");
+ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, grow_retry, param_set_arc_int,
+	param_get_int, ZMOD_RW, "Seconds before growing arc size");
 
 ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, p_dampener_disable, INT, ZMOD_RW,
 	"Disable arc_p adapt dampener");
 
-ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, shrink_shift, INT, ZMOD_RW,
-	"log2(fraction of arc to reclaim)");
+ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, shrink_shift, param_set_arc_int,
+	param_get_int, ZMOD_RW, "log2(fraction of arc to reclaim)");
 
 ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, pc_percent, UINT, ZMOD_RW,
 	"Percent of pagecache to reclaim arc to");
 
-ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, p_min_shift, INT, ZMOD_RW,
-	"arc_c shift to calc min/max arc_p");
+ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, p_min_shift, param_set_arc_int,
+	param_get_int, ZMOD_RW, "arc_c shift to calc min/max arc_p");
 
 ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, average_blocksize, INT, ZMOD_RD,
 	"Target average block size");
@@ -8739,10 +8742,11 @@ ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, average_blocksize, INT, ZMOD_RD,
 ZFS_MODULE_PARAM(zfs, zfs_, compressed_arc_enabled, INT, ZMOD_RW,
 	"Disable compressed arc buffers");
 
-ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, min_prefetch_ms, INT, ZMOD_RW,
-	"Min life of prefetch block in ms");
+ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, min_prefetch_ms, param_set_arc_int,
+	param_get_int, ZMOD_RW, "Min life of prefetch block in ms");
 
-ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, min_prescient_prefetch_ms, INT, ZMOD_RW,
+ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, min_prescient_prefetch_ms,
+	param_set_arc_int, param_get_int, ZMOD_RW,
 	"Min life of prescient prefetched block in ms");
 
 ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, write_max, ULONG, ZMOD_RW,
@@ -8772,16 +8776,17 @@ ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, feed_again, INT, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, norw, INT, ZMOD_RW,
 	"No reads during writes");
 
-ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, lotsfree_percent, INT, ZMOD_RW,
-	"System free memory I/O throttle in bytes");
+ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, lotsfree_percent, param_set_arc_int,
+	param_get_int, ZMOD_RW, "System free memory I/O throttle in bytes");
 
-ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, sys_free, ULONG, ZMOD_RW,
-	"System free memory target size in bytes");
+ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, sys_free, param_set_arc_long,
+	param_get_long, ZMOD_RW, "System free memory target size in bytes");
 
-ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, dnode_limit, ULONG, ZMOD_RW,
-	"Minimum bytes of dnodes in arc");
+ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, dnode_limit, param_set_arc_long,
+	param_get_long, ZMOD_RW, "Minimum bytes of dnodes in arc");
 
-ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, dnode_limit_percent, ULONG, ZMOD_RW,
+ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, dnode_limit_percent,
+	param_set_arc_long, param_get_long, ZMOD_RW,
 	"Percent of ARC meta buffers for dnodes");
 
 ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, dnode_reduce_percent, ULONG, ZMOD_RW,
