@@ -121,7 +121,6 @@
 #include <sys/dsl_userhold.h>
 #include <sys/abd.h>
 #include <stdio.h>
-#include <stdio_ext.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>
