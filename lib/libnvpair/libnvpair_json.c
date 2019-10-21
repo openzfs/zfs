@@ -303,7 +303,7 @@ nvlist_print_json(FILE *fp, nvlist_t *nvl)
 			for (i = 0; i < valsz; i++) {
 				if (i > 0)
 					FPRINTF(fp, ",");
-				FPRINTF(fp, "%hd", val[i]);
+				FPRINTF(fp, "%hhd", val[i]);
 			}
 			FPRINTF(fp, "]");
 			break;
