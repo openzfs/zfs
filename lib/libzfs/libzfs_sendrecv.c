@@ -1525,7 +1525,7 @@ dump_filesystem(zfs_handle_t *zhp, void *arg)
 
 	(void) snprintf(zc.zc_name, sizeof (zc.zc_name), "%s@%s",
 	    zhp->zfs_name, sdd->tosnap);
-	if (ioctl(zhp->zfs_hdl->libzfs_fd, ZFS_IOC_OBJSET_STATS, &zc) != 0) {
+	if (zfs_ioctl(zhp->zfs_hdl, ZFS_IOC_OBJSET_STATS, &zc) != 0) {
 		(void) fprintf(stderr, dgettext(TEXT_DOMAIN,
 		    "WARNING: could not send %s@%s: does not exist\n"),
 		    zhp->zfs_name, sdd->tosnap);
@@ -1543,7 +1543,7 @@ dump_filesystem(zfs_handle_t *zhp, void *arg)
 		 */
 		(void) snprintf(zc.zc_name, sizeof (zc.zc_name), "%s@%s",
 		    zhp->zfs_name, sdd->fromsnap);
-		if (ioctl(zhp->zfs_hdl->libzfs_fd,
+		if (zfs_ioctl(zhp->zfs_hdl,
 		    ZFS_IOC_OBJSET_STATS, &zc) != 0) {
 			missingfrom = B_TRUE;
 		}
@@ -4667,7 +4667,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 				err = zfs_error(hdl, EZFS_EXISTS, errbuf);
 				goto out;
 			}
-			if (ioctl(hdl->libzfs_fd, ZFS_IOC_SNAPSHOT_LIST_NEXT,
+			if (zfs_ioctl(hdl, ZFS_IOC_SNAPSHOT_LIST_NEXT,
 			    &zc) == 0) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "destination has snapshots (eg. %s)\n"
@@ -4685,7 +4685,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 				goto out;
 			}
 			if (is_volume &&
-			    ioctl(hdl->libzfs_fd, ZFS_IOC_DATASET_LIST_NEXT,
+			    zfs_ioctl(hdl, ZFS_IOC_DATASET_LIST_NEXT,
 			    &zc) == 0) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "destination has children (eg. %s)\n"
