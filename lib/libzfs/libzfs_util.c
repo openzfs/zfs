@@ -748,7 +748,7 @@ libzfs_run_process_impl(const char *path, char *argv[], char *env[], int flags,
 	 * reading stdout.
 	 */
 	if ((lines != NULL) && pipe(link) == -1)
-		return (-ESTRPIPE);
+		return (-EPIPE);
 
 	pid = vfork();
 	if (pid == 0) {
