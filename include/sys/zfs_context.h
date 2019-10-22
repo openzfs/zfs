@@ -52,7 +52,6 @@
 #include <sys/uio_impl.h>
 #include <sys/time.h>
 #include <sys/zone.h>
-#include <sys/sdt.h>
 #include <sys/kstat.h>
 #include <sys/zfs_debug.h>
 #include <sys/sysevent.h>
@@ -66,6 +65,7 @@
 #include <linux/dcache_compat.h>
 #include <linux/utsname_compat.h>
 #include <linux/mod_compat.h>
+#include <sys/sysmacros.h>
 
 #else /* _KERNEL */
 
@@ -108,7 +108,6 @@
 #include <sys/list.h>
 #include <sys/uio.h>
 #include <sys/zfs_debug.h>
-#include <sys/sdt.h>
 #include <sys/kstat.h>
 #include <sys/u8_textprep.h>
 #include <sys/sysevent.h>
@@ -116,6 +115,7 @@
 #include <sys/sunddi.h>
 #include <sys/debug.h>
 #include <sys/utsname.h>
+#include <sys/trace_defs.h>
 
 /*
  * Stack
@@ -173,33 +173,27 @@ extern int aok;
 #ifdef DTRACE_PROBE
 #undef	DTRACE_PROBE
 #endif	/* DTRACE_PROBE */
-#define	DTRACE_PROBE(a) \
-	ZFS_PROBE0(#a)
+#define	DTRACE_PROBE(a)
 
 #ifdef DTRACE_PROBE1
 #undef	DTRACE_PROBE1
 #endif	/* DTRACE_PROBE1 */
-#define	DTRACE_PROBE1(a, b, c) \
-	ZFS_PROBE1(#a, (unsigned long)c)
+#define	DTRACE_PROBE1(a, b, c)
 
 #ifdef DTRACE_PROBE2
 #undef	DTRACE_PROBE2
 #endif	/* DTRACE_PROBE2 */
-#define	DTRACE_PROBE2(a, b, c, d, e) \
-	ZFS_PROBE2(#a, (unsigned long)c, (unsigned long)e)
+#define	DTRACE_PROBE2(a, b, c, d, e)
 
 #ifdef DTRACE_PROBE3
 #undef	DTRACE_PROBE3
 #endif	/* DTRACE_PROBE3 */
-#define	DTRACE_PROBE3(a, b, c, d, e, f, g) \
-	ZFS_PROBE3(#a, (unsigned long)c, (unsigned long)e, (unsigned long)g)
+#define	DTRACE_PROBE3(a, b, c, d, e, f, g)
 
 #ifdef DTRACE_PROBE4
 #undef	DTRACE_PROBE4
 #endif	/* DTRACE_PROBE4 */
-#define	DTRACE_PROBE4(a, b, c, d, e, f, g, h, i) \
-	ZFS_PROBE4(#a, (unsigned long)c, (unsigned long)e, (unsigned long)g, \
-	(unsigned long)i)
+#define	DTRACE_PROBE4(a, b, c, d, e, f, g, h, i)
 
 /*
  * Tunables.
