@@ -31,5 +31,16 @@
  */
 #ifndef _LIBSPL_SYS_ERRNO_H
 #define	_LIBSPL_SYS_ERRNO_H
+
 #include <errno.h>
+/*
+ * We'll take the unused errnos, 'EBADE' and 'EBADR' (from the Convergent
+ * graveyard) to indicate checksum errors and fragmentation.
+ */
+#define	ECKSUM	EBADE
+#define	EFRAGS	EBADR
+
+/* Similar for ENOACTIVE */
+#define	ENOTACTIVE	ENOANO
+
 #endif /* _LIBSPL_SYS_ERRNO_H */
