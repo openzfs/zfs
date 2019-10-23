@@ -5,4 +5,4 @@ if USING_PYTHON
 SUBDIRS += arcstat arc_summary dbufstat
 endif
 
-SUBDIRS += mount_zfs zed zvol_id zvol_wait
+SUBDIRS += mount_zfs zed zvol_id zvol_wait zfs_ids_to_path

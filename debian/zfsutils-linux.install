@@ -24,6 +24,7 @@ sbin/zstreamdump
 sbin/zinject
 sbin/zhack
 sbin/zdb
+sbin/zfs_ids_to_path
 sbin/zpool
 sbin/zfs
 usr/bin/zgenhostid
