@@ -924,6 +924,7 @@ do_dump(dmu_send_cookie_t *dscp, struct send_range *range)
 		blkptr_t *bp = &srdp->bp;
 		spa_t *spa =
 		    dmu_objset_spa(dscp->dsc_os);
+		arc_buf_t *abuf = NULL;
 
 		ASSERT3U(srdp->datablksz, ==, BP_GET_LSIZE(bp));
 		ASSERT3U(range->start_blkid + 1, ==, range->end_blkid);
@@ -936,7 +937,6 @@ do_dump(dmu_send_cookie_t *dscp, struct send_range *range)
 				zioflags |= ZIO_FLAG_RAW;
 			}
 
-			arc_buf_t *abuf;
 			zbookmark_phys_t zb;
 			ASSERT3U(range->start_blkid, ==, DMU_SPILL_BLKID);
 			zb.zb_objset = dmu_objset_id(dscp->dsc_os);
@@ -949,8 +949,10 @@ do_dump(dmu_send_cookie_t *dscp, struct send_range *range)
 			    zioflags, &aflags, &zb) != 0)
 				return (SET_ERROR(EIO));
 
-			err = dump_spill(dscp, bp, zb.zb_object, abuf->b_data);
-			arc_buf_destroy(abuf, &abuf);
+			err = dump_spill(dscp, bp, zb.zb_object,
+			    (abuf == NULL ? NULL : abuf->b_data));
+			if (abuf != NULL)
+				arc_buf_destroy(abuf, &abuf);
 			return (err);
 		}
 		if (send_do_embed(dscp, bp)) {
@@ -965,7 +967,6 @@ do_dump(dmu_send_cookie_t *dscp, struct send_range *range)
 		    dscp->dsc_resume_offset));
 		/* it's a level-0 block of a regular object */
 		arc_flags_t aflags = ARC_FLAG_WAIT;
-		arc_buf_t *abuf = NULL;
 		uint64_t offset;
 
 		/*
