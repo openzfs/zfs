@@ -101,6 +101,10 @@ tags = ['functional', 'rsend']
 tests = ['snapshot_015_pos', 'snapshot_016_pos']
 tags = ['functional', 'snapshot']
 
+[tests/functional/tmpfile:Linux]
+tests = ['tmpfile_001_pos', 'tmpfile_002_pos', 'tmpfile_003_pos']
+tags = ['functional', 'tmpfile']
+
 [tests/functional/upgrade:Linux]
 tests = ['upgrade_projectquota_001_pos']
 tags = ['functional', 'upgrade']
