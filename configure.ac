@@ -86,6 +86,7 @@ AC_CONFIG_FILES([
 	cmd/zvol_wait/Makefile
 	contrib/Makefile
 	contrib/bash_completion.d/Makefile
+	contrib/bpftrace/Makefile
 	contrib/dracut/02zfsexpandknowledge/Makefile
 	contrib/dracut/90zfs/Makefile
 	contrib/dracut/Makefile
