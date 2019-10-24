@@ -19,7 +19,7 @@ dist_pkgdata_SCRIPTS = \
 	zfs_mount_all_mountpoints.ksh \
 	zfs_mount_encrypted.ksh \
 	zfs_mount_remount.ksh \
-	zfs_mount_test_race.sh \
+	zfs_mount_test_race.ksh \
 	zfs_multi_mount.ksh
 
 dist_pkgdata_DATA = \
