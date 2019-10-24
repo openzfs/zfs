@@ -61,7 +61,7 @@ extern const gcm_impl_ops_t gcm_pclmulqdq_impl;
 /*
  * Initializes fastest implementation
  */
-void gcm_impl_init(void *arg);
+void gcm_impl_init(void);
 
 /*
  * Returns optimal allowed GCM implementation
