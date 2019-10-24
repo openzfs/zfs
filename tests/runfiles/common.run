@@ -254,8 +254,8 @@ tests = ['zfs_snapshot_001_neg', 'zfs_snapshot_002_neg',
 tags = ['functional', 'cli_root', 'zfs_snapshot']
 
 [tests/functional/cli_root/zfs_sysfs]
-tests = ['zfeature_set_unsupported.ksh', 'zfs_get_unsupported',
-    'zfs_set_unsupported', 'zfs_sysfs_live.ksh', 'zpool_get_unsupported',
+tests = ['zfeature_set_unsupported', 'zfs_get_unsupported',
+    'zfs_set_unsupported', 'zfs_sysfs_live', 'zpool_get_unsupported',
     'zpool_set_unsupported']
 tags = ['functional', 'cli_root', 'zfs_sysfs']
 
@@ -617,7 +617,7 @@ tests = ['filesystem_count', 'filesystem_limit', 'snapshot_count',
 tags = ['functional', 'limits']
 
 [tests/functional/link_count]
-tests = ['link_count_001', 'link_count_root_inode.ksh']
+tests = ['link_count_001', 'link_count_root_inode']
 tags = ['functional', 'link_count']
 
 [tests/functional/migration]
