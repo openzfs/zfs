@@ -70,7 +70,6 @@ SUBDIRS = \
 	sparse \
 	suid \
 	threadsappend \
-	tmpfile \
 	trim \
 	truncate \
 	upgrade \
@@ -80,3 +79,8 @@ SUBDIRS = \
 	write_dirs \
 	xattr \
 	zvol
+
+if BUILD_LINUX
+SUBDIRS += \
+	tmpfile
+endif
