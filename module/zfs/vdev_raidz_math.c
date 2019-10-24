@@ -445,7 +445,7 @@ benchmark_raidz_impl(raidz_map_t *bench_rm, const int fn, benchmark_fn bench_fn)
  * Initialize and benchmark all supported implementations.
  */
 static void
-benchmark_raidz(void *arg)
+benchmark_raidz(void)
 {
 	raidz_impl_ops_t *curr_impl;
 	int i, c;
@@ -515,20 +515,10 @@ benchmark_raidz(void *arg)
 void
 vdev_raidz_math_init(void)
 {
-#if defined(_KERNEL)
-	/*
-	 * For 5.0 and latter Linux kernels the fletcher 4 benchmarks are
-	 * run in a kernel threads.  This is needed to take advantage of the
-	 * SIMD functionality, see include/linux/simd_x86.h for details.
-	 */
-	taskqid_t id = taskq_dispatch(system_taskq, benchmark_raidz,
-	    NULL, TQ_SLEEP);
-	if (id != TASKQID_INVALID) {
-		taskq_wait_id(system_taskq, id);
-	} else {
-		benchmark_raidz(NULL);
-	}
+	/* Determine the fastest available implementation. */
+	benchmark_raidz();
 
+#if defined(_KERNEL)
 	/* Install kstats for all implementations */
 	raidz_math_kstat = kstat_create("zfs", 0, "vdev_raidz_bench", "misc",
 	    KSTAT_TYPE_RAW, 0, KSTAT_FLAG_VIRTUAL);
@@ -541,8 +531,6 @@ vdev_raidz_math_init(void)
 		    raidz_math_kstat_addr);
 		kstat_install(raidz_math_kstat);
 	}
-#else
-	benchmark_raidz(NULL);
 #endif
 
 	/* Finish initialization */

@@ -726,7 +726,7 @@ fletcher_4_benchmark_impl(boolean_t native, char *data, uint64_t data_size)
  * Initialize and benchmark all supported implementations.
  */
 static void
-fletcher_4_benchmark(void *arg)
+fletcher_4_benchmark(void)
 {
 	fletcher_4_ops_t *curr_impl;
 	int i, c;
@@ -769,20 +769,10 @@ fletcher_4_benchmark(void *arg)
 void
 fletcher_4_init(void)
 {
-#if defined(_KERNEL)
-	/*
-	 * For 5.0 and latter Linux kernels the fletcher 4 benchmarks are
-	 * run in a kernel threads.  This is needed to take advantage of the
-	 * SIMD functionality, see linux/simd_x86.h for details.
-	 */
-	taskqid_t id = taskq_dispatch(system_taskq, fletcher_4_benchmark,
-	    NULL, TQ_SLEEP);
-	if (id != TASKQID_INVALID) {
-		taskq_wait_id(system_taskq, id);
-	} else {
-		fletcher_4_benchmark(NULL);
-	}
+	/* Determine the fastest available implementation. */
+	fletcher_4_benchmark();
 
+#if defined(_KERNEL)
 	/* Install kstats for all implementations */
 	fletcher_4_kstat = kstat_create("zfs", 0, "fletcher_4_bench", "misc",
 	    KSTAT_TYPE_RAW, 0, KSTAT_FLAG_VIRTUAL);
@@ -795,8 +785,6 @@ fletcher_4_init(void)
 		    fletcher_4_kstat_addr);
 		kstat_install(fletcher_4_kstat);
 	}
-#else
-	fletcher_4_benchmark(NULL);
 #endif
 
 	/* Finish initialization */
