@@ -28,6 +28,7 @@
 #include <sys/taskq.h>
 #include <sys/kmem.h>
 #include <sys/tsd.h>
+#include <sys/trace_spl.h>
 
 int spl_taskq_thread_bind = 0;
 module_param(spl_taskq_thread_bind, int, 0644);
@@ -223,6 +224,8 @@ task_expire_impl(taskq_ent_t *t)
 	}
 
 	t->tqent_birth = jiffies;
+	DTRACE_PROBE1(taskq_ent__birth, taskq_ent_t *, t);
+
 	/*
 	 * The priority list must be maintained in strict task id order
 	 * from lowest to highest for lowest_id to be easily calculable.
@@ -593,7 +596,9 @@ taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t flags)
 	t->tqent_taskq = tq;
 	t->tqent_timer.function = NULL;
 	t->tqent_timer.expires = 0;
+
 	t->tqent_birth = jiffies;
+	DTRACE_PROBE1(taskq_ent__birth, taskq_ent_t *, t);
 
 	ASSERT(!(t->tqent_flags & TQENT_FLAG_PREALLOC));
 
@@ -706,7 +711,9 @@ taskq_dispatch_ent(taskq_t *tq, task_func_t func, void *arg, uint_t flags,
 	t->tqent_func = func;
 	t->tqent_arg = arg;
 	t->tqent_taskq = tq;
+
 	t->tqent_birth = jiffies;
+	DTRACE_PROBE1(taskq_ent__birth, taskq_ent_t *, t);
 
 	spin_unlock(&t->tqent_lock);
 
@@ -906,15 +913,15 @@ taskq_thread(void *args)
 			 * tqent_flags here.
 			 *
 			 * Also use an on stack taskq_ent_t for tqt_task
-			 * assignment in this case. We only populate the two
-			 * fields used by the only user in taskq proc file.
+			 * assignment in this case; we want to make sure
+			 * to duplicate all fields, so the values are
+			 * correct when it's accessed via DTRACE_PROBE*.
 			 */
 			tqt->tqt_id = t->tqent_id;
 			tqt->tqt_flags = t->tqent_flags;
 
 			if (t->tqent_flags & TQENT_FLAG_PREALLOC) {
-				dup_task.tqent_func = t->tqent_func;
-				dup_task.tqent_arg = t->tqent_arg;
+				dup_task = *t;
 				t = &dup_task;
 			}
 			tqt->tqt_task = t;
@@ -923,8 +930,12 @@ taskq_thread(void *args)
 			tq->tq_nactive++;
 			spin_unlock_irqrestore(&tq->tq_lock, flags);
 
+			DTRACE_PROBE1(taskq_ent__start, taskq_ent_t *, t);
+
 			/* Perform the requested task */
 			t->tqent_func(t->tqent_arg);
+
+			DTRACE_PROBE1(taskq_ent__finish, taskq_ent_t *, t);
 
 			spin_lock_irqsave_nested(&tq->tq_lock, flags,
 			    tq->tq_lock_class);
