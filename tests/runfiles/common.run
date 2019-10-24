@@ -836,10 +836,6 @@ tags = ['functional', 'suid']
 tests = ['threadsappend_001_pos']
 tags = ['functional', 'threadsappend']
 
-[tests/functional/tmpfile]
-tests = ['tmpfile_001_pos', 'tmpfile_002_pos', 'tmpfile_003_pos']
-tags = ['functional', 'tmpfile']
-
 [tests/functional/trim]
 tests = ['autotrim_integrity', 'autotrim_config', 'autotrim_trim_integrity',
     'trim_integrity', 'trim_config']
