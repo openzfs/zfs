@@ -103,6 +103,7 @@ extern int zfs_strcmp_pathname(const char *, const char *, int);
 
 extern boolean_t zfs_dev_is_dm(const char *);
 extern boolean_t zfs_dev_is_whole_disk(const char *);
+extern int zfs_dev_flush(int);
 extern char *zfs_get_underlying_path(const char *);
 extern char *zfs_get_enclosure_sysfs_path(const char *);
 

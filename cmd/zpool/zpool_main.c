@@ -1178,7 +1178,7 @@ zpool_do_labelclear(int argc, char **argv)
 	 * fatal when the device does not support BLKFLSBUF as would be the
 	 * case for a file vdev.
 	 */
-	if ((ioctl(fd, BLKFLSBUF) != 0) && (errno != ENOTTY))
+	if ((zfs_dev_flush(fd) != 0) && (errno != ENOTTY))
 		(void) fprintf(stderr, gettext("failed to invalidate "
 		    "cache for %s: %s\n"), vdev, strerror(errno));
 

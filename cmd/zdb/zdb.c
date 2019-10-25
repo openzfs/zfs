@@ -3444,7 +3444,7 @@ dump_label(const char *dev)
 		exit(1);
 	}
 
-	if (S_ISBLK(statbuf.st_mode) && ioctl(fd, BLKFLSBUF) != 0)
+	if (S_ISBLK(statbuf.st_mode) && zfs_dev_flush(fd) != 0)
 		(void) printf("failed to invalidate cache '%s' : %s\n", path,
 		    strerror(errno));
 
