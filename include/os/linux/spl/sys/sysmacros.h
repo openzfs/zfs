@@ -191,6 +191,9 @@ extern void spl_cleanup(void);
 #define	P2SAMEHIGHBIT_TYPED(x, y, type) \
 	(((type)(x) ^ (type)(y)) < ((type)(x) & (type)(y)))
 
+#define	SET_ERROR(err) \
+	(__set_error(__FILE__, __func__, __LINE__, err), err)
+
 #if defined(_KERNEL) && !defined(_KMEMUSER) && !defined(offsetof)
 
 /* avoid any possibility of clashing with <stddef.h> version */

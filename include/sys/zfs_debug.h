@@ -57,6 +57,7 @@ extern int zfs_dbgmsg_enable;
 #define	ZFS_DEBUG_TRIM			(1 << 11)
 #define	ZFS_DEBUG_LOG_SPACEMAP		(1 << 12)
 
+extern void __set_error(const char *file, const char *func, int line, int err);
 extern void __zfs_dbgmsg(char *buf);
 extern void __dprintf(boolean_t dprint, const char *file, const char *func,
     int line, const char *fmt, ...);
