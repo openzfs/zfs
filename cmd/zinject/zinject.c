@@ -340,7 +340,7 @@ iter_handlers(int (*func)(int, const char *, zinject_record_t *, void *),
 	zfs_cmd_t zc = {"\0"};
 	int ret;
 
-	while (ioctl(zfs_fd, ZFS_IOC_INJECT_LIST_NEXT, &zc) == 0)
+	while (zfs_ioctl(g_zfs, ZFS_IOC_INJECT_LIST_NEXT, &zc) == 0)
 		if ((ret = func((int)zc.zc_guid, zc.zc_name,
 		    &zc.zc_inject_record, data)) != 0)
 			return (ret);
@@ -508,7 +508,7 @@ cancel_one_handler(int id, const char *pool, zinject_record_t *record,
 
 	zc.zc_guid = (uint64_t)id;
 
-	if (ioctl(zfs_fd, ZFS_IOC_CLEAR_FAULT, &zc) != 0) {
+	if (zfs_ioctl(g_zfs, ZFS_IOC_CLEAR_FAULT, &zc) != 0) {
 		(void) fprintf(stderr, "failed to remove handler %d: %s\n",
 		    id, strerror(errno));
 		return (1);
@@ -541,7 +541,7 @@ cancel_handler(int id)
 
 	zc.zc_guid = (uint64_t)id;
 
-	if (ioctl(zfs_fd, ZFS_IOC_CLEAR_FAULT, &zc) != 0) {
+	if (zfs_ioctl(g_zfs, ZFS_IOC_CLEAR_FAULT, &zc) != 0) {
 		(void) fprintf(stderr, "failed to remove handler %d: %s\n",
 		    id, strerror(errno));
 		return (1);
@@ -565,7 +565,7 @@ register_handler(const char *pool, int flags, zinject_record_t *record,
 	zc.zc_inject_record = *record;
 	zc.zc_guid = flags;
 
-	if (ioctl(zfs_fd, ZFS_IOC_INJECT_FAULT, &zc) != 0) {
+	if (zfs_ioctl(g_zfs, ZFS_IOC_INJECT_FAULT, &zc) != 0) {
 		(void) fprintf(stderr, "failed to add handler: %s\n",
 		    errno == EDOM ? "block level exceeds max level of object" :
 		    strerror(errno));
@@ -625,7 +625,7 @@ perform_action(const char *pool, zinject_record_t *record, int cmd)
 	zc.zc_guid = record->zi_guid;
 	zc.zc_cookie = cmd;
 
-	if (ioctl(zfs_fd, ZFS_IOC_VDEV_SET_STATE, &zc) == 0)
+	if (zfs_ioctl(g_zfs, ZFS_IOC_VDEV_SET_STATE, &zc) == 0)
 		return (0);
 
 	return (1);
