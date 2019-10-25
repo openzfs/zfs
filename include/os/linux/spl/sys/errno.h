@@ -44,4 +44,14 @@
 
 #define	ENOTSUP		EOPNOTSUPP
 
+/*
+ * We'll take the unused errnos, 'EBADE' and 'EBADR' (from the Convergent
+ * graveyard) to indicate checksum errors and fragmentation.
+ */
+#define	ECKSUM	EBADE
+#define	EFRAGS	EBADR
+
+/* Similar for ENOACTIVE */
+#define	ENOTACTIVE	ENOANO
+
 #endif	/* _SYS_ERRNO_H */

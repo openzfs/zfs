@@ -36,7 +36,6 @@
 #include <sys/kmem.h>
 #include <sys/cmn_err.h>
 #include <sys/errno.h>
-#include <sys/sdt.h>
 #include <sys/fs/zfs.h>
 #include <sys/mode.h>
 #include <sys/policy.h>
