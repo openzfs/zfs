@@ -253,12 +253,6 @@ tests = ['zfs_snapshot_001_neg', 'zfs_snapshot_002_neg',
     'zfs_snapshot_009_pos']
 tags = ['functional', 'cli_root', 'zfs_snapshot']
 
-[tests/functional/cli_root/zfs_sysfs]
-tests = ['zfeature_set_unsupported', 'zfs_get_unsupported',
-    'zfs_set_unsupported', 'zfs_sysfs_live', 'zpool_get_unsupported',
-    'zpool_set_unsupported']
-tags = ['functional', 'cli_root', 'zfs_sysfs']
-
 [tests/functional/cli_root/zfs_unload-key]
 tests = ['zfs_unload-key', 'zfs_unload-key_all', 'zfs_unload-key_recursive']
 tags = ['functional', 'cli_root', 'zfs_unload-key']
@@ -690,11 +684,6 @@ tags = ['functional', 'poolversion']
 [tests/functional/privilege]
 tests = ['privilege_001_pos', 'privilege_002_pos']
 tags = ['functional', 'privilege']
-
-[tests/functional/procfs]
-tests = ['procfs_list_basic', 'procfs_list_concurrent_readers',
-    'procfs_list_stale_read', 'pool_state']
-tags = ['functional', 'procfs']
 
 [tests/functional/pyzfs]
 tests = ['pyzfs_unittest']
