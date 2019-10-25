@@ -1713,6 +1713,16 @@ zvol_init_impl(void)
 void
 zvol_fini_impl(void)
 {
+	zvol_remove_minors_impl(NULL);
+
+	/*
+	 * The call to "zvol_remove_minors_impl" may dispatch entries to
+	 * the system_taskq, but it doesn't wait for those entires to
+	 * complete before it returns. Thus, we must wait for all of the
+	 * removals to finish, before we can continue.
+	 */
+	taskq_wait_outstanding(system_taskq, 0);
+
 	kmem_free(zvol_htable, ZVOL_HT_SIZE * sizeof (struct hlist_head));
 	list_destroy(&zvol_state_list);
 	rw_destroy(&zvol_state_lock);
