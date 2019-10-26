@@ -44,6 +44,12 @@ tags = ['functional', 'cli_root', 'zfs']
 tests = ['zfs_mount_006_pos', 'zfs_mount_008_pos', 'zfs_multi_mount']
 tags = ['functional', 'cli_root', 'zfs_mount']
 
+[tests/functional/cli_root/zfs_sysfs:Linux]
+tests = ['zfeature_set_unsupported', 'zfs_get_unsupported',
+    'zfs_set_unsupported', 'zfs_sysfs_live', 'zpool_get_unsupported',
+    'zpool_set_unsupported']
+tags = ['functional', 'cli_root', 'zfs_sysfs']
+
 [tests/functional/cli_root/zpool_events:Linux]
 tests = ['zpool_events_clear', 'zpool_events_cliargs', 'zpool_events_follow',
     'zpool_events_poolname', 'zpool_events_errors']
@@ -82,6 +88,11 @@ tags = ['functional', 'io']
 [tests/functional/mmap:Linux]
 tests = ['mmap_libaio_001_pos']
 tags = ['functional', 'mmap']
+
+[tests/functional/procfs:Linux]
+tests = ['procfs_list_basic', 'procfs_list_concurrent_readers',
+    'procfs_list_stale_read', 'pool_state']
+tags = ['functional', 'procfs']
 
 [tests/functional/projectquota:Linux]
 tests = ['projectid_001_pos', 'projectid_002_pos', 'projectid_003_pos',
