@@ -357,6 +357,34 @@ arc_lowmem_fini(void)
 {
 	spl_unregister_shrinker(&arc_shrinker);
 }
+
+int
+param_set_arc_long(const char *buf, zfs_kernel_param_t *kp)
+{
+	int error;
+
+	error = param_set_long(buf, kp);
+	if (error < 0)
+		return (SET_ERROR(error));
+
+	arc_tuning_update();
+
+	return (0);
+}
+
+int
+param_set_arc_int(const char *buf, zfs_kernel_param_t *kp)
+{
+	int error;
+
+	error = param_set_int(buf, kp);
+	if (error < 0)
+		return (SET_ERROR(error));
+
+	arc_tuning_update();
+
+	return (0);
+}
 #else /* _KERNEL */
 int64_t
 arc_available_memory(void)
