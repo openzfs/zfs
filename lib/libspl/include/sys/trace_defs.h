@@ -1,7 +1,7 @@
 /* Here to keep the libspl build happy */
 
 #ifndef _LIBSPL_ZFS_TRACE_H
-#define	_LIBSPL__ZFS_TRACE_H
+#define	_LIBSPL_ZFS_TRACE_H
 
 /*
  * The set-error SDT probe is extra static, in that we declare its fake
