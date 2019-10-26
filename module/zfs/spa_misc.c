@@ -26,6 +26,7 @@
  * Copyright 2013 Saso Kiselkov. All rights reserved.
  * Copyright (c) 2017 Datto Inc.
  * Copyright (c) 2017, Intel Corporation.
+ * Copyright (c) 2019, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -2931,9 +2932,8 @@ module_param_call(zfs_deadman_ziotime_ms, param_set_deadman_ziotime,
 MODULE_PARM_DESC(zfs_deadman_ziotime_ms,
 	"IO expiration time in milliseconds");
 
-module_param_call(spa_slop_shift, param_set_slop_shift, param_get_int,
-	&spa_slop_shift, 0644);
-MODULE_PARM_DESC(spa_slop_shift, "Reserved free space in pool");
+ZFS_MODULE_PARAM_CALL(zfs_spa, spa_, slop_shift, param_set_slop_shift,
+	param_get_int, ZMOD_RW, "Reserved free space in pool");
 
 module_param_call(zfs_deadman_failmode, param_set_deadman_failmode,
 	param_get_charp, &zfs_deadman_failmode, 0644);
