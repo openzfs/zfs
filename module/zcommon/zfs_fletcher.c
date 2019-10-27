@@ -184,6 +184,9 @@ static const fletcher_4_ops_t *fletcher_4_impls[] = {
 #if defined(__x86_64) && defined(HAVE_AVX512F)
 	&fletcher_4_avx512f_ops,
 #endif
+#if defined(__x86_64) && defined(HAVE_AVX512BW)
+	&fletcher_4_avx512bw_ops,
+#endif
 #if defined(__aarch64__)
 	&fletcher_4_aarch64_neon_ops,
 #endif
