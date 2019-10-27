@@ -152,6 +152,9 @@ extern const raidz_impl_ops_t vdev_raidz_avx512bw_impl;
 extern const raidz_impl_ops_t vdev_raidz_aarch64_neon_impl;
 extern const raidz_impl_ops_t vdev_raidz_aarch64_neonx2_impl;
 #endif
+#if defined(__powerpc__)
+extern const raidz_impl_ops_t vdev_raidz_powerpc_altivec_impl;
+#endif
 
 /*
  * Commonly used raidz_map helpers

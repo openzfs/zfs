@@ -10,6 +10,7 @@ KERNEL_H = \
 	$(top_srcdir)/include/os/linux/kernel/linux/simd.h \
 	$(top_srcdir)/include/os/linux/kernel/linux/simd_x86.h \
 	$(top_srcdir)/include/os/linux/kernel/linux/simd_aarch64.h \
+	$(top_srcdir)/include/os/linux/kernel/linux/simd_powerpc.h \
 	$(top_srcdir)/include/os/linux/kernel/linux/mod_compat.h \
 	$(top_srcdir)/include/os/linux/kernel/linux/page_compat.h \
 	$(top_srcdir)/include/os/linux/kernel/linux/compiler_compat.h
