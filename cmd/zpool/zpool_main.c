@@ -8419,24 +8419,12 @@ typedef struct hist_cbdata {
 	boolean_t internal;
 } hist_cbdata_t;
 
-/*
- * Print out the command history for a specific pool.
- */
-static int
-get_history_one(zpool_handle_t *zhp, void *data)
+static void
+print_history_records(nvlist_t *nvhis, hist_cbdata_t *cb)
 {
-	nvlist_t *nvhis;
 	nvlist_t **records;
 	uint_t numrecords;
-	int ret, i;
-	hist_cbdata_t *cb = (hist_cbdata_t *)data;
-
-	cb->first = B_FALSE;
-
-	(void) printf(gettext("History for '%s':\n"), zpool_get_name(zhp));
-
-	if ((ret = zpool_get_history(zhp, &nvhis)) != 0)
-		return (ret);
+	int i;
 
 	verify(nvlist_lookup_nvlist_array(nvhis, ZPOOL_HIST_RECORD,
 	    &records, &numrecords) == 0);
@@ -8540,8 +8528,32 @@ get_history_one(zpool_handle_t *zhp, void *data)
 		(void) printf("]");
 		(void) printf("\n");
 	}
+}
+
+/*
+ * Print out the command history for a specific pool.
+ */
+static int
+get_history_one(zpool_handle_t *zhp, void *data)
+{
+	nvlist_t *nvhis;
+	int ret;
+	hist_cbdata_t *cb = (hist_cbdata_t *)data;
+	uint64_t off = 0;
+	boolean_t eof = B_FALSE;
+
+	cb->first = B_FALSE;
+
+	(void) printf(gettext("History for '%s':\n"), zpool_get_name(zhp));
+
+	while (!eof) {
+		if ((ret = zpool_get_history(zhp, &nvhis, &off, &eof)) != 0)
+			return (ret);
+
+		print_history_records(nvhis, cb);
+		nvlist_free(nvhis);
+	}
 	(void) printf("\n");
-	nvlist_free(nvhis);
 
 	return (ret);
 }

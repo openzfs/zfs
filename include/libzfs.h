@@ -425,7 +425,8 @@ typedef enum {
 extern char *zpool_vdev_name(libzfs_handle_t *, zpool_handle_t *, nvlist_t *,
     int name_flags);
 extern int zpool_upgrade(zpool_handle_t *, uint64_t);
-extern int zpool_get_history(zpool_handle_t *, nvlist_t **);
+extern int zpool_get_history(zpool_handle_t *, nvlist_t **, uint64_t *,
+    boolean_t *);
 extern int zpool_events_next(libzfs_handle_t *, nvlist_t **, int *, unsigned,
     int);
 extern int zpool_events_clear(libzfs_handle_t *, int *);
