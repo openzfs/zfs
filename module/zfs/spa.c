@@ -1406,7 +1406,7 @@ spa_deactivate(spa_t *spa)
  * in the CLOSED state.  This will prep the pool before open/creation/import.
  * All vdev validation is done by the vdev_alloc() routine.
  */
-static int
+int
 spa_config_parse(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent,
     uint_t id, int atype)
 {
@@ -6081,9 +6081,9 @@ spa_import(char *pool, nvlist_t *config, nvlist_t *props, uint64_t flags)
 
 	spa_event_notify(spa, NULL, NULL, ESC_ZFS_POOL_IMPORT);
 
-	zvol_create_minors(spa, pool, B_TRUE);
-
 	mutex_exit(&spa_namespace_lock);
+
+	zvol_create_minors(spa, pool, B_TRUE);
 
 	return (0);
 }
