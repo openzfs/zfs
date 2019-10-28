@@ -92,6 +92,12 @@ is_watchdog_dev(char *dev)
 	return (B_FALSE);
 }
 
+int
+zfs_dev_flush(int fd)
+{
+	return (ioctl(fd, BLKFLSBUF));
+}
+
 void
 zpool_open_func(void *arg)
 {

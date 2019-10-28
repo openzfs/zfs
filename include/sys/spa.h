@@ -845,6 +845,9 @@ extern void spa_config_set(spa_t *spa, nvlist_t *config);
 extern nvlist_t *spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg,
     int getstats);
 extern void spa_config_update(spa_t *spa, int what);
+extern int spa_config_parse(spa_t *spa, vdev_t **vdp, nvlist_t *nv,
+    vdev_t *parent, uint_t id, int atype);
+
 
 /*
  * Miscellaneous SPA routines in spa_misc.c
