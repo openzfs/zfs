@@ -4425,15 +4425,22 @@ vdev_set_state(vdev_t *vd, boolean_t isopen, vdev_state_t state, vdev_aux_t aux)
 	if (state == vd->vdev_state) {
 		/*
 		 * Since vdev_offline() code path is already in an offline
-		 * state we can miss a statechange event to OFFLINE. Check
-		 * the previous state to catch this condition.
+		 * state, we can miss a statechange event to OFFLINE. We can
+		 * also miss a statechange event to ONLINE when a drive is
+		 * replaced. Check the previous state to catch either
+		 * condition.
 		 */
 		if (vd->vdev_ops->vdev_op_leaf &&
 		    (state == VDEV_STATE_OFFLINE) &&
 		    (vd->vdev_prevstate >= VDEV_STATE_FAULTED)) {
 			/* post an offline state change */
 			zfs_post_state_change(spa, vd, vd->vdev_prevstate);
+		} else if (state == VDEV_STATE_ONLINE &&
+		    vd->vdev_prevstate == VDEV_STATE_UNKNOWN) {
+			/* post an online state change */
+			zfs_post_state_change(spa, vd, vd->vdev_prevstate);
 		}
+
 		vd->vdev_stat.vs_aux = aux;
 		return;
 	}

@@ -121,6 +121,7 @@ run_and_verify -p "$MPOOL" -d 10 \
     -e "sysevent.fs.zfs.vdev_attach" \
     -e "sysevent.fs.zfs.resilver_start" \
     -e "sysevent.fs.zfs.resilver_finish" \
+    -e "resource.fs.zfs.statechange" \
     -e "sysevent.fs.zfs.vdev_remove" \
     -e "sysevent.fs.zfs.history_event" \
     -e "sysevent.fs.zfs.config_sync" \
