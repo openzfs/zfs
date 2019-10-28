@@ -191,6 +191,7 @@ override_dh_binary-modules: override_dh_prep-deb-files override_dh_configure_mod
 	dh_prep
 
 	$(MAKE) -C $(CURDIR)/module modules
+	$(MAKE) -C $(CURDIR)/include install DESTDIR='$(CURDIR)/debian/tmp' VERSION=build
 
 	dh_install -p${pmodules} -p${pheaders}
 	dh_installdocs -p${pmodules} -p${pheaders}
