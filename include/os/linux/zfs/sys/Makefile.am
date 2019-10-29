@@ -1,5 +1,6 @@
 KERNEL_H = \
 	$(top_srcdir)/include/os/linux/zfs/sys/policy.h \
+	$(top_srcdir)/include/os/linux/zfs/sys/sha2.h \
 	$(top_srcdir)/include/os/linux/zfs/sys/trace_acl.h \
 	$(top_srcdir)/include/os/linux/zfs/sys/trace_arc.h \
 	$(top_srcdir)/include/os/linux/zfs/sys/trace_common.h \
