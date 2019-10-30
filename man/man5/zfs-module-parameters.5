@@ -1507,7 +1507,7 @@ Default value: \fB20\fR% of \fBzfs_dirty_data_max\fR.
 Select a fletcher 4 implementation.
 .sp
 Supported selectors are: \fBfastest\fR, \fBscalar\fR, \fBsse2\fR, \fBssse3\fR,
-\fBavx2\fR, \fBavx512f\fR, and \fBaarch64_neon\fR.
+\fBavx2\fR, \fBavx512f\fR, \fBavx512bw\fR, and \fBaarch64_neon\fR.
 All of the selectors except \fBfastest\fR and \fBscalar\fR require instruction
 set extensions to be available and will only appear if ZFS detects that they are
 present at runtime. If multiple implementations of fletcher 4 are available,

@@ -171,4 +171,53 @@ const fletcher_4_ops_t fletcher_4_avx512f_ops = {
 	.name = "avx512f"
 };
 
+#if defined(HAVE_AVX512BW)
+static void
+fletcher_4_avx512bw_byteswap(fletcher_4_ctx_t *ctx, const void *buf,
+    uint64_t size)
+{
+	static const zfs_fletcher_avx512_t mask = {
+		.v = { 0xFFFFFFFF00010203, 0xFFFFFFFF08090A0B,
+		0xFFFFFFFF00010203, 0xFFFFFFFF08090A0B,
+		0xFFFFFFFF00010203, 0xFFFFFFFF08090A0B,
+		0xFFFFFFFF00010203, 0xFFFFFFFF08090A0B }
+	};
+	const uint32_t *ip = buf;
+	const uint32_t *ipend = (uint32_t *)((uint8_t *)ip + size);
+
+	kfpu_begin();
+
+	FLETCHER_4_AVX512_RESTORE_CTX(ctx);
+
+	__asm("vmovdqu64 %0, %%zmm5" :: "m" (mask));
+
+	for (; ip < ipend; ip += 8) {
+		__asm("vpmovzxdq %0, %%zmm4"::"m" (*ip));
+
+		__asm("vpshufb %zmm5, %zmm4, %zmm4");
+
+		__asm("vpaddq %zmm4, %zmm0, %zmm0");
+		__asm("vpaddq %zmm0, %zmm1, %zmm1");
+		__asm("vpaddq %zmm1, %zmm2, %zmm2");
+		__asm("vpaddq %zmm2, %zmm3, %zmm3");
+	}
+
+	FLETCHER_4_AVX512_SAVE_CTX(ctx)
+
+	kfpu_end();
+}
+STACK_FRAME_NON_STANDARD(fletcher_4_avx512bw_byteswap);
+
+const fletcher_4_ops_t fletcher_4_avx512bw_ops = {
+	.init_native = fletcher_4_avx512f_init,
+	.fini_native = fletcher_4_avx512f_fini,
+	.compute_native = fletcher_4_avx512f_native,
+	.init_byteswap = fletcher_4_avx512f_init,
+	.fini_byteswap = fletcher_4_avx512f_fini,
+	.compute_byteswap = fletcher_4_avx512bw_byteswap,
+	.valid = fletcher_4_avx512f_valid,
+	.name = "avx512bw"
+};
+#endif
+
 #endif /* defined(__x86_64) && defined(HAVE_AVX512F) */
