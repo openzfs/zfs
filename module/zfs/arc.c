@@ -7121,19 +7121,22 @@ arc_init(void)
 	arc_lowmem_init();
 #endif
 
-	/* Set max to 1/2 of all memory */
-	arc_c_max = allmem / 2;
-
-#ifdef	_KERNEL
 	/* Set min cache to 1/32 of all memory, or 32MB, whichever is more */
 	arc_c_min = MAX(allmem / 32, 2ULL << SPA_MAXBLOCKSHIFT);
-#else
+	/* set max to 3/4 of all memory, or all but 1GB, whichever is more */
+	if (allmem >= 1 << 30)
+		arc_c_max = allmem - (1 << 30);
+	else
+		arc_c_max = arc_c_min;
+	arc_c_max = MAX(allmem * 3 / 4, arc_c_max);
+
 	/*
 	 * In userland, there's only the memory pressure that we artificially
 	 * create (see arc_available_memory()).  Don't let arc_c get too
 	 * small, because it can cause transactions to be larger than
 	 * arc_c, causing arc_tempreserve_space() to fail.
 	 */
+#ifndef _KERNEL
 	arc_c_min = MAX(arc_c_max / 2, 2ULL << SPA_MAXBLOCKSHIFT);
 #endif
 
