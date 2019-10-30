@@ -11,7 +11,7 @@
 # nfs-server service in ExecStartPre. To catch any zfs shares that were
 # enabled since the zfs-share service started, we must re-generate the
 # 'zfs.exports' file and check for any changes. If there is a delta, we
-# run 'exportfs -r' to export the new additions.
+# run 'exportfs -a' to export the new additions.
 #
 
 function die() {
@@ -25,6 +25,7 @@ function die() {
 
 ZFS_EXPORTS=/etc/exports.d/zfs.exports
 ZFS_EXPORTS_BAK=${ZFS_EXPORTS}.bak
+changes=0
 
 if [[ -f "$ZFS_EXPORTS" ]]; then
 	# save the zfs-share service generated copy
@@ -34,16 +35,26 @@ if [[ -f "$ZFS_EXPORTS" ]]; then
 	/sbin/zfs share -g || die "failed to generate zfs exports"
 
 	cmp --silent "$ZFS_EXPORTS" "$ZFS_EXPORTS_BAK"
-	ret=$?
+	changes=$?
 
 	/bin/rm -f "$ZFS_EXPORTS_BAK"
 
-	# if the zfs.exports content has changed then re-export
-	if [[ $ret -eq 1 ]]; then
-		/usr/sbin/exportfs -r || die "re-exporting failed"
+	[[ $changes -eq 2 ]] && die "compare failed"
+else
+	# generate a new zfs.exports
+	/sbin/zfs share -g || die "failed to generate zfs exports"
+	if [[ -f "$ZFS_EXPORTS" ]]; then
+		changes=1
 	fi
-
-	/bin/rm -f "$ZFS_EXPORTS"
 fi
+
+# if the zfs.exports content has changed then re-export
+if [[ $changes -eq 1 ]]; then
+	shares=$(wc -l < $ZFS_EXPORTS)
+	echo re-exporting, zfs shares exported: $shares
+	/usr/sbin/exportfs -a || die "re-exporting failed"
+fi
+
+/bin/rm -f "$ZFS_EXPORTS"
 
 exit 0
