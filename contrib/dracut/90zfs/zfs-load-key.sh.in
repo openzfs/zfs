@@ -30,7 +30,7 @@ if [ "${root}" = "zfs:AUTO" ] ; then
     BOOTFS="$(zpool list -H -o bootfs | awk '$1 != "-" {print; exit}')"
 else
     BOOTFS="${root##zfs:}"
-    BOOTFS="${root##ZFS=}"
+    BOOTFS="${BOOTFS##ZFS=}"
 fi
 
 # if pool encryption is active and the zfs command understands '-o encryption'
