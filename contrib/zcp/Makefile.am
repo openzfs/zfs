@@ -1,1 +1,1 @@
-+EXTRA_DIST = autosnap.lua
+EXTRA_DIST = autosnap.lua
