@@ -116,7 +116,7 @@
 #include <sys/sunddi.h>
 #include <sys/debug.h>
 #include <sys/utsname.h>
-#include <sys/trace_defs.h>
+#include <sys/trace_zfs.h>
 
 /*
  * Stack

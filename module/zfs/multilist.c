@@ -18,7 +18,7 @@
 
 #include <sys/zfs_context.h>
 #include <sys/multilist.h>
-#include <sys/trace_defs.h>
+#include <sys/trace_zfs.h>
 
 /* needed for spa_get_random() */
 #include <sys/spa.h>

@@ -38,6 +38,7 @@
 #include <sys/trace.h>
 #include <sys/trace_acl.h>
 #include <sys/trace_arc.h>
+#include <sys/trace_dbgmsg.h>
 #include <sys/trace_dbuf.h>
 #include <sys/trace_dmu.h>
 #include <sys/trace_dnode.h>

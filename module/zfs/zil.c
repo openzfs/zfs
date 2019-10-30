@@ -41,7 +41,7 @@
 #include <sys/dmu_tx.h>
 #include <sys/dsl_pool.h>
 #include <sys/metaslab.h>
-#include <sys/trace_defs.h>
+#include <sys/trace_zfs.h>
 #include <sys/abd.h>
 
 /*

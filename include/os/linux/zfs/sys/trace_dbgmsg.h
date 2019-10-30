@@ -22,10 +22,16 @@
 #if defined(_KERNEL)
 #if defined(HAVE_DECLARE_EVENT_CLASS)
 
-/* Do not include this file directly. Please use <sys/trace.h> instead. */
-#ifndef _SYS_TRACE_DBGMSG_INDIRECT
-#error "trace_dbgmsg.h included directly"
-#endif
+#undef TRACE_SYSTEM
+#define	TRACE_SYSTEM zfs
+
+#undef TRACE_SYSTEM_VAR
+#define	TRACE_SYSTEM_VAR zfs_dbgmsg
+
+#if !defined(_TRACE_DBGMSG_H) || defined(TRACE_HEADER_MULTI_READ)
+#define	_TRACE_DBGMSG_H
+
+#include <linux/tracepoint.h>
 
 /*
  * This file defines tracepoint events for use by the dbgmsg(),
@@ -66,6 +72,14 @@ DEFINE_EVENT(zfs_dprintf_class, name, \
 	TP_ARGS(msg))
 /* END CSTYLED */
 DEFINE_DPRINTF_EVENT(zfs_zfs__dprintf);
+
+#endif /* _TRACE_DBGMSG_H */
+
+#undef TRACE_INCLUDE_PATH
+#undef TRACE_INCLUDE_FILE
+#define	TRACE_INCLUDE_PATH sys
+#define	TRACE_INCLUDE_FILE trace_dbgmsg
+#include <trace/define_trace.h>
 
 #else
 

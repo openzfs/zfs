@@ -59,14 +59,6 @@
 #include <sys/types.h>
 
 /*
- * The sys/trace_dbgmsg.h header defines tracepoint events for
- * dprintf(), dbgmsg(), and SET_ERROR().
- */
-#define	_SYS_TRACE_DBGMSG_INDIRECT
-#include <sys/trace_dbgmsg.h>
-#undef _SYS_TRACE_DBGMSG_INDIRECT
-
-/*
  * DTRACE_PROBE with 0 arguments is not currently available with
  *  tracepoint events
  */
@@ -174,14 +166,5 @@ EXPORT_SYMBOL(trace_zfs_##name)
 #define	DEFINE_DTRACE_PROBE4(name)	PROTO_DTRACE_PROBE4(name)
 
 #endif /* CREATE_TRACE_POINTS */
-
-/*
- * The sys/trace_dbgmsg.h header defines tracepoint events for
- * dprintf(), dbgmsg(), and SET_ERROR().
- */
-#define	_SYS_TRACE_DBGMSG_INDIRECT
-#include <sys/trace_dbgmsg.h>
-#undef _SYS_TRACE_DBGMSG_INDIRECT
-
 #endif /* HAVE_DECLARE_EVENT_CLASS */
 #endif /* _KERNEL */
