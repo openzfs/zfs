@@ -1045,7 +1045,7 @@ typedef struct zgd {
 	struct lwb	*zgd_lwb;
 	struct blkptr	*zgd_bp;
 	dmu_buf_t	*zgd_db;
-	struct locked_range *zgd_lr;
+	struct zfs_locked_range *zgd_lr;
 	void		*zgd_private;
 } zgd_t;
 

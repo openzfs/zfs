@@ -90,7 +90,7 @@ int zfs_unlink_suspend_progress = 0;
  * called with the rangelock_t's rl_lock held, which avoids races.
  */
 static void
-zfs_rangelock_cb(locked_range_t *new, void *arg)
+zfs_rangelock_cb(zfs_locked_range_t *new, void *arg)
 {
 	znode_t *zp = arg;
 
@@ -1468,7 +1468,7 @@ zfs_extend(znode_t *zp, uint64_t end)
 {
 	zfsvfs_t *zfsvfs = ZTOZSB(zp);
 	dmu_tx_t *tx;
-	locked_range_t *lr;
+	zfs_locked_range_t *lr;
 	uint64_t newblksz;
 	int error;
 
@@ -1586,7 +1586,7 @@ static int
 zfs_free_range(znode_t *zp, uint64_t off, uint64_t len)
 {
 	zfsvfs_t *zfsvfs = ZTOZSB(zp);
-	locked_range_t *lr;
+	zfs_locked_range_t *lr;
 	int error;
 
 	/*
@@ -1666,7 +1666,7 @@ zfs_trunc(znode_t *zp, uint64_t end)
 {
 	zfsvfs_t *zfsvfs = ZTOZSB(zp);
 	dmu_tx_t *tx;
-	locked_range_t *lr;
+	zfs_locked_range_t *lr;
 	int error;
 	sa_bulk_attr_t bulk[2];
 	int count = 0;
