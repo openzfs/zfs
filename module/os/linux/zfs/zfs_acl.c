@@ -2159,8 +2159,8 @@ static int
 zfs_zaccess_dataset_check(znode_t *zp, uint32_t v4_mode)
 {
 	if ((v4_mode & WRITE_MASK) && (zfs_is_readonly(ZTOZSB(zp))) &&
-	    (!S_ISDEV(ZTOI(zp)->i_mode) ||
-	    (S_ISDEV(ZTOI(zp)->i_mode) && (v4_mode & WRITE_MASK_ATTRS)))) {
+	    (!Z_ISDEV(ZTOI(zp)->i_mode) ||
+	    (Z_ISDEV(ZTOI(zp)->i_mode) && (v4_mode & WRITE_MASK_ATTRS)))) {
 		return (SET_ERROR(EROFS));
 	}
 
