@@ -44,6 +44,7 @@ KERNEL_H = \
 	$(top_srcdir)/include/os/linux/spl/sys/time.h \
 	$(top_srcdir)/include/os/linux/spl/sys/timer.h \
 	$(top_srcdir)/include/os/linux/spl/sys/trace.h \
+	$(top_srcdir)/include/os/linux/spl/sys/trace_spl.h \
 	$(top_srcdir)/include/os/linux/spl/sys/tsd.h \
 	$(top_srcdir)/include/os/linux/spl/sys/types32.h \
 	$(top_srcdir)/include/os/linux/spl/sys/types.h \

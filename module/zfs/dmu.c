@@ -49,7 +49,7 @@
 #include <sys/sa.h>
 #include <sys/zfeature.h>
 #include <sys/abd.h>
-#include <sys/trace_defs.h>
+#include <sys/trace_zfs.h>
 #include <sys/zfs_rlock.h>
 #ifdef _KERNEL
 #include <sys/vmsystm.h>

@@ -3,7 +3,7 @@ KERNEL_H = \
 	$(top_srcdir)/include/os/linux/zfs/sys/trace_acl.h \
 	$(top_srcdir)/include/os/linux/zfs/sys/trace_arc.h \
 	$(top_srcdir)/include/os/linux/zfs/sys/trace_common.h \
-	$(top_srcdir)/include/os/linux/zfs/sys/trace_defs.h \
+	$(top_srcdir)/include/os/linux/zfs/sys/trace_zfs.h \
 	$(top_srcdir)/include/os/linux/zfs/sys/trace_dbgmsg.h \
 	$(top_srcdir)/include/os/linux/zfs/sys/trace_dbuf.h \
 	$(top_srcdir)/include/os/linux/zfs/sys/trace_dmu.h \

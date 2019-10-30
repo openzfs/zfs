@@ -37,7 +37,7 @@
 #include <sys/zio.h>
 #include <sys/dmu_zfetch.h>
 #include <sys/range_tree.h>
-#include <sys/trace_defs.h>
+#include <sys/trace_zfs.h>
 #include <sys/zfs_project.h>
 
 dnode_stats_t dnode_stats = {
