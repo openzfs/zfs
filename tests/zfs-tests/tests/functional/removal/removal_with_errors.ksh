@@ -83,8 +83,11 @@ FILE_CONTENTS="Leeloo Dallas mul-ti-pass."
 
 echo $FILE_CONTENTS  >$TESTDIR/$TESTFILE0
 log_must [ "x$(<$TESTDIR/$TESTFILE0)" = "x$FILE_CONTENTS" ]
-log_must file_write -o create -f $TESTDIR/$TESTFILE1 -b $((2**20)) -c $((2**7))
-sync_pool $TESTPOOL
+log_must file_write -o create -f $TESTDIR/$TESTFILE1 -b $((2**20)) -c $((2**8))
+
+# Flush the ARC to minimize cache effects.
+log_must zpool export $TESTPOOL
+log_must zpool import -d $TMPDIR $TESTPOOL
 
 # Verify that unexpected read errors automatically cancel the removal.
 log_must zinject -d $DISK0 -e io -T all -f 100 $TESTPOOL
@@ -92,6 +95,10 @@ log_must zpool remove $TESTPOOL mirror-0
 log_must wait_for_removing_cancel $TESTPOOL
 log_must vdevs_in_pool $TESTPOOL mirror-0
 log_must zinject -c all
+
+# Flush the ARC to minimize cache effects.
+log_must zpool export $TESTPOOL
+log_must zpool import -d $TMPDIR $TESTPOOL
 
 # Verify that unexpected write errors automatically cancel the removal.
 log_must zinject -d $DISK3 -e io -T all -f 100 $TESTPOOL
