@@ -29,7 +29,7 @@
  * Copyright 2016 Toomas Soome <tsoome@me.com>
  * Copyright (c) 2016 Actifio, Inc. All rights reserved.
  * Copyright 2018 Joyent, Inc.
- * Copyright (c) 2017 Datto Inc.
+ * Copyright (c) 2017, 2019, Datto Inc. All rights reserved.
  * Copyright 2017 Joyent, Inc.
  * Copyright (c) 2017, Intel Corporation.
  */
@@ -6718,9 +6718,9 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 	 */
 	if (dsl_scan_resilvering(spa_get_dsl(spa)) &&
 	    spa_feature_is_enabled(spa, SPA_FEATURE_RESILVER_DEFER))
-		vdev_set_deferred_resilver(spa, newvd);
+		vdev_defer_resilver(newvd);
 	else
-		dsl_resilver_restart(spa->spa_dsl_pool, dtl_max_txg);
+		dsl_scan_restart_resilver(spa->spa_dsl_pool, dtl_max_txg);
 
 	if (spa->spa_bootfs)
 		spa_event_notify(spa, newvd, NULL, ESC_ZFS_BOOTFS_VDEV_ATTACH);
@@ -7957,7 +7957,7 @@ spa_async_thread(void *arg)
 	if (tasks & SPA_ASYNC_RESILVER &&
 	    (!dsl_scan_resilvering(dp) ||
 	    !spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_RESILVER_DEFER)))
-		dsl_resilver_restart(dp, 0);
+		dsl_scan_restart_resilver(dp, 0);
 
 	if (tasks & SPA_ASYNC_INITIALIZE_RESTART) {
 		mutex_enter(&spa_namespace_lock);
@@ -8086,6 +8086,12 @@ spa_async_request(spa_t *spa, int task)
 	mutex_enter(&spa->spa_async_lock);
 	spa->spa_async_tasks |= task;
 	mutex_exit(&spa->spa_async_lock);
+}
+
+int
+spa_async_tasks(spa_t *spa)
+{
+	return (spa->spa_async_tasks);
 }
 
 /*
