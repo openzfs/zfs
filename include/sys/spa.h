@@ -1171,6 +1171,11 @@ extern int spa_wait_tag(const char *name, zpool_wait_activity_t activity,
 extern void spa_notify_waiters(spa_t *spa);
 extern void spa_wake_waiters(spa_t *spa);
 
+/* module param call functions */
+int param_set_deadman_ziotime(const char *val, zfs_kernel_param_t *kp);
+int param_set_deadman_synctime(const char *val, zfs_kernel_param_t *kp);
+int param_set_slop_shift(const char *buf, zfs_kernel_param_t *kp);
+
 #ifdef ZFS_DEBUG
 #define	dprintf_bp(bp, fmt, ...) do {				\
 	if (zfs_flags & ZFS_DEBUG_DPRINTF) {			\
