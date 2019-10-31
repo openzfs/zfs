@@ -43,6 +43,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#ifdef HAVE_BSD_FETCH
+#include <dlfcn.h>
+typedef void (*free_url_t)(void *);
+typedef void *(*parse_url_t)(const char *);
+#endif
 #endif
 
 static zprop_desc_t zfs_prop_table[ZFS_NUM_PROPS];
@@ -159,6 +164,14 @@ zfs_prop_init(void)
 		{ "disabled",	ZFS_ACLTYPE_OFF },
 		{ "noacl",	ZFS_ACLTYPE_OFF },
 		{ "posixacl",	ZFS_ACLTYPE_POSIXACL },
+		{ NULL }
+	};
+
+	static zprop_index_t acl_mode_table[] = {
+		{ "discard",	ZFS_ACL_DISCARD },
+		{ "groupmask",	ZFS_ACL_GROUPMASK },
+		{ "passthrough", ZFS_ACL_PASSTHROUGH },
+		{ "restricted",	ZFS_ACL_RESTRICTED },
 		{ NULL }
 	};
 
@@ -317,6 +330,10 @@ zfs_prop_init(void)
 	zprop_register_index(ZFS_PROP_ACLTYPE, "acltype", ZFS_ACLTYPE_OFF,
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT,
 	    "noacl | posixacl", "ACLTYPE", acltype_table);
+	zprop_register_index(ZFS_PROP_ACLMODE, "aclmode", ZFS_ACL_DISCARD,
+	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM,
+	    "discard | groupmask | passthrough | restricted", "ACLMODE",
+	    acl_mode_table);
 	zprop_register_index(ZFS_PROP_ACLINHERIT, "aclinherit",
 	    ZFS_ACL_RESTRICTED, PROP_INHERIT, ZFS_TYPE_FILESYSTEM,
 	    "discard | noallow | restricted | passthrough | passthrough-x",
@@ -363,8 +380,13 @@ zfs_prop_init(void)
 	zprop_register_index(ZFS_PROP_READONLY, "readonly", 0, PROP_INHERIT,
 	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME, "on | off", "RDONLY",
 	    boolean_table);
+#ifdef __FreeBSD__
+	zprop_register_index(ZFS_PROP_ZONED, "jailed", 0, PROP_INHERIT,
+	    ZFS_TYPE_FILESYSTEM, "on | off", "JAILED", boolean_table);
+#else
 	zprop_register_index(ZFS_PROP_ZONED, "zoned", 0, PROP_INHERIT,
 	    ZFS_TYPE_FILESYSTEM, "on | off", "ZONED", boolean_table);
+#endif
 	zprop_register_index(ZFS_PROP_VSCAN, "vscan", 0, PROP_INHERIT,
 	    ZFS_TYPE_FILESYSTEM, "on | off", "VSCAN", boolean_table);
 	zprop_register_index(ZFS_PROP_NBMAND, "nbmand", 0, PROP_INHERIT,
@@ -576,6 +598,7 @@ zfs_prop_init(void)
 	zprop_register_hidden(ZFS_PROP_REDACTED, "redacted", PROP_TYPE_NUMBER,
 	    PROP_READONLY, ZFS_TYPE_DATASET, "REDACTED");
 
+#ifdef __linux__
 	/*
 	 * Properties that are obsolete and not used.  These are retained so
 	 * that we don't have to change the values of the zfs_prop_t enum, or
@@ -587,6 +610,7 @@ zfs_prop_init(void)
 	zprop_register_hidden(ZFS_PROP_REMAPTXG, "remaptxg", PROP_TYPE_NUMBER,
 	    PROP_READONLY, ZFS_TYPE_DATASET, "REMAPTXG");
 
+#endif
 	/* oddball properties */
 	zprop_register_impl(ZFS_PROP_CREATION, "creation", PROP_TYPE_NUMBER, 0,
 	    NULL, PROP_READONLY, ZFS_TYPE_DATASET | ZFS_TYPE_BOOKMARK,
@@ -807,10 +831,38 @@ zfs_prop_encryption_key_param(zfs_prop_t prop)
 boolean_t
 zfs_prop_valid_keylocation(const char *str, boolean_t encrypted)
 {
+#if !defined(_KERNEL) && defined(HAVE_BSD_FETCH)
+	void *libfetch;
+#endif
 	if (strcmp("none", str) == 0)
 		return (!encrypted);
 	else if (strcmp("prompt", str) == 0)
 		return (B_TRUE);
+#if !defined(_KERNEL) && defined(HAVE_BSD_FETCH)
+	else if ((libfetch = dlopen("libfetch.so", RTLD_LAZY)) != NULL) {
+		parse_url_t parse_url = NULL;
+		free_url_t free_url = NULL;
+		void *url = NULL;
+
+		parse_url = (parse_url_t)dlfunc(libfetch, "fetchParseURL");
+		if (parse_url != NULL) {
+			free_url = (free_url_t)dlfunc(libfetch,
+			    "fetchFreeURL");
+			if (free_url != NULL) {
+				url = (*parse_url)(str);
+				if (url != NULL)
+					(*free_url)(url);
+				dlclose(libfetch);
+				return (url != NULL);
+			}
+		}
+		dlclose(libfetch);
+		return (B_FALSE);
+	}
+#elif defined(_KERNEL) && defined(__FreeBSD__)
+	else if (strlen(str) > 0)
+		return (B_TRUE);
+#endif
 	else if (strlen(str) > 8 && strncmp("file:///", str, 8) == 0)
 		return (B_TRUE);
 
@@ -865,7 +917,6 @@ zfs_prop_align_right(zfs_prop_t prop)
 #endif
 
 #if defined(_KERNEL)
-
 #include <sys/simd.h>
 
 #if defined(HAVE_KERNEL_FPU_INTERNAL)
@@ -873,7 +924,10 @@ union fpregs_state **zfs_kfpu_fpregs;
 EXPORT_SYMBOL(zfs_kfpu_fpregs);
 #endif /* HAVE_KERNEL_FPU_INTERNAL */
 
-static int __init
+int zcommon_init(void);
+void zcommon_fini(void);
+
+int __init
 zcommon_init(void)
 {
 	int error = kfpu_init();
@@ -885,13 +939,14 @@ zcommon_init(void)
 	return (0);
 }
 
-static void __exit
+void __exit
 zcommon_fini(void)
 {
 	fletcher_4_fini();
 	kfpu_fini();
 }
 
+#if defined(__linux__)
 module_init(zcommon_init);
 module_exit(zcommon_fini);
 
@@ -925,4 +980,6 @@ EXPORT_SYMBOL(zfs_prop_string_to_index);
 EXPORT_SYMBOL(zfs_prop_valid_for_type);
 EXPORT_SYMBOL(zfs_prop_written);
 
-#endif
+#endif /* __linux__ */
+
+#endif /* _KERNEL */

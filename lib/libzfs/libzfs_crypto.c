@@ -29,6 +29,12 @@
 #include "libzfs_impl.h"
 #include "zfeature_common.h"
 
+#if !defined(_KERNEL) && defined(HAVE_BSD_FETCH)
+#include <dlfcn.h>
+typedef void (*free_url_t)(void *);
+typedef void *(*parse_url_t)(const char *);
+#endif
+
 /*
  * User keys are used to decrypt the master encryption keys of a dataset. This
  * indirection allows a user to change his / her access key without having to
@@ -88,8 +94,33 @@ pkcs11_get_urandom(uint8_t *buf, size_t bytes)
 static zfs_keylocation_t
 zfs_prop_parse_keylocation(const char *str)
 {
+#ifdef HAVE_BSD_FETCH
+	void *libfetch = NULL;
+#endif
 	if (strcmp("prompt", str) == 0)
 		return (ZFS_KEYLOCATION_PROMPT);
+#ifdef HAVE_BSD_FETCH
+	else if ((libfetch = dlopen("libfetch.so", RTLD_LAZY)) != NULL) {
+		parse_url_t parse_url = NULL;
+		free_url_t free_url = NULL;
+		void *url = NULL;
+
+		parse_url = (parse_url_t)dlfunc(libfetch, "fetchParseURL");
+		if (parse_url != NULL) {
+			free_url = (free_url_t)dlfunc(libfetch,
+			    "fetchFreeURL");
+			if (free_url != NULL) {
+				url = (*parse_url)(str);
+				if (url != NULL)
+					(*free_url)(url);
+				dlclose(libfetch);
+				if (url != NULL)
+					return (ZFS_KEYLOCATION_URI);
+			}
+		}
+		dlclose(libfetch);
+	}
+#endif /* HAVE_BSD_FETCH */
 	else if (strlen(str) > 8 && strncmp("file:///", str, 8) == 0)
 		return (ZFS_KEYLOCATION_URI);
 
@@ -257,7 +288,49 @@ out:
 	}
 
 	return (ret);
+}
 
+/*
+ * Open a URI for reading key material.
+ */
+static int
+uri_open(libzfs_handle_t *hdl, char *keylocation, FILE **fd_out)
+{
+	int ret = 0;
+	FILE *fd = NULL;
+#ifdef HAVE_BSD_FETCH
+	void *libfetch;
+	FILE *(*get_url)(char *, char *);
+	char *last_err_string;
+
+	libfetch = dlopen("libfetch.so", RTLD_LAZY);
+	if (libfetch != NULL) {
+		get_url = (void *)dlfunc(libfetch, "fetchGetURL");
+		last_err_string = (char *)dlsym(libfetch, "fetchLastErrString");
+		if (get_url != NULL && last_err_string != NULL) {
+			fd = (*get_url)(keylocation, "");
+			if (fd == NULL) {
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "libfetch: %s"), last_err_string);
+			}
+		} else {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "dynamic linker: %s"), dlerror());
+		}
+		dlclose(libfetch);
+	}
+	if (fd == NULL)
+#endif /* HAVE_BSD_FETCH */
+	fd = fopen(&keylocation[7], "r");
+	if (fd == NULL) {
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "Failed to open key material file"));
+		ret = errno;
+		errno = 0;
+	}
+
+	*fd_out = fd;
+	return (ret);
 }
 
 /*
@@ -298,14 +371,9 @@ get_key_material(libzfs_handle_t *hdl, boolean_t do_verify, boolean_t newkey,
 		}
 		break;
 	case ZFS_KEYLOCATION_URI:
-		fd = fopen(&keylocation[7], "r");
-		if (!fd) {
-			ret = errno;
-			errno = 0;
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "Failed to open key material file"));
+		ret = uri_open(hdl, keylocation, &fd);
+		if (ret != 0)
 			goto error;
-		}
 		break;
 	default:
 		ret = EINVAL;
