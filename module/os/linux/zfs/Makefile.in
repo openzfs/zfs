@@ -17,6 +17,7 @@ $(MODULE)-objs += ../os/linux/zfs/trace.o
 $(MODULE)-objs += ../os/linux/zfs/qat.o
 $(MODULE)-objs += ../os/linux/zfs/qat_compress.o
 $(MODULE)-objs += ../os/linux/zfs/qat_crypt.o
+$(MODULE)-objs += ../os/linux/zfs/spa_misc_os.o
 $(MODULE)-objs += ../os/linux/zfs/spa_stats.o
 $(MODULE)-objs += ../os/linux/zfs/vdev_disk.o
 $(MODULE)-objs += ../os/linux/zfs/vdev_file.o

@@ -2733,69 +2733,6 @@ param_set_deadman_failmode(const char *val, zfs_kernel_param_t *kp)
 
 	return (param_set_charp(val, kp));
 }
-
-static int
-param_set_deadman_ziotime(const char *val, zfs_kernel_param_t *kp)
-{
-	spa_t *spa = NULL;
-	int error;
-
-	error = param_set_ulong(val, kp);
-	if (error < 0)
-		return (SET_ERROR(error));
-
-	if (spa_mode_global != 0) {
-		mutex_enter(&spa_namespace_lock);
-		while ((spa = spa_next(spa)) != NULL)
-			spa->spa_deadman_ziotime =
-			    MSEC2NSEC(zfs_deadman_ziotime_ms);
-		mutex_exit(&spa_namespace_lock);
-	}
-
-	return (0);
-}
-
-static int
-param_set_deadman_synctime(const char *val, zfs_kernel_param_t *kp)
-{
-	spa_t *spa = NULL;
-	int error;
-
-	error = param_set_ulong(val, kp);
-	if (error < 0)
-		return (SET_ERROR(error));
-
-	if (spa_mode_global != 0) {
-		mutex_enter(&spa_namespace_lock);
-		while ((spa = spa_next(spa)) != NULL)
-			spa->spa_deadman_synctime =
-			    MSEC2NSEC(zfs_deadman_synctime_ms);
-		mutex_exit(&spa_namespace_lock);
-	}
-
-	return (0);
-}
-
-static int
-param_set_slop_shift(const char *buf, zfs_kernel_param_t *kp)
-{
-	unsigned long val;
-	int error;
-
-	error = kstrtoul(buf, 0, &val);
-	if (error)
-		return (SET_ERROR(error));
-
-	if (val < 1 || val > 31)
-		return (SET_ERROR(-EINVAL));
-
-	error = param_set_int(buf, kp);
-	if (error < 0)
-		return (SET_ERROR(error));
-
-	return (0);
-}
-
 #endif
 
 /* Namespace manipulation */
@@ -2911,26 +2848,24 @@ ZFS_MODULE_PARAM(zfs, zfs_, user_indirect_is_special, INT, ZMOD_RW,
 	"Place user data indirect blocks into the special class");
 
 #ifdef _KERNEL
-module_param_call(zfs_deadman_synctime_ms, param_set_deadman_synctime,
-    param_get_ulong, &zfs_deadman_synctime_ms, 0644);
-MODULE_PARM_DESC(zfs_deadman_synctime_ms,
-	"Pool sync expiration time in milliseconds");
-
-module_param_call(zfs_deadman_ziotime_ms, param_set_deadman_ziotime,
-    param_get_ulong, &zfs_deadman_ziotime_ms, 0644);
-MODULE_PARM_DESC(zfs_deadman_ziotime_ms,
-	"IO expiration time in milliseconds");
-
-ZFS_MODULE_PARAM_CALL(zfs_spa, spa_, slop_shift, param_set_slop_shift,
-	param_get_int, ZMOD_RW, "Reserved free space in pool");
-
 module_param_call(zfs_deadman_failmode, param_set_deadman_failmode,
 	param_get_charp, &zfs_deadman_failmode, 0644);
 MODULE_PARM_DESC(zfs_deadman_failmode, "Failmode for deadman timer");
 #endif
 
 /* BEGIN CSTYLED */
+ZFS_MODULE_PARAM_CALL(zfs_deadman, zfs_deadman_, synctime_ms,
+	param_set_deadman_synctime, param_get_ulong, ZMOD_RW,
+	"Pool sync expiration time in milliseconds");
+
+ZFS_MODULE_PARAM_CALL(zfs_deadman, zfs_deadman_, ziotime_ms,
+	param_set_deadman_ziotime, param_get_ulong, ZMOD_RW,
+	"IO expiration time in milliseconds");
+
 ZFS_MODULE_PARAM(zfs, zfs_, special_class_metadata_reserve_pct, INT, ZMOD_RW,
 	"Small file blocks in special vdevs depends on this much "
 	"free space available");
 /* END CSTYLED */
+
+ZFS_MODULE_PARAM_CALL(spa, spa_, slop_shift, param_set_slop_shift,
+	param_get_int, ZMOD_RW, "Reserved free space in pool");
