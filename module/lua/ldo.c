@@ -63,6 +63,8 @@
 #define JMP_BUF_CNT	12
 #elif defined(__s390x__)
 #define JMP_BUF_CNT	18
+#elif defined(__riscv)
+#define JMP_BUF_CNT     64
 #else
 #define	JMP_BUF_CNT	1
 #endif
