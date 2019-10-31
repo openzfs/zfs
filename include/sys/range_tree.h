@@ -168,7 +168,7 @@ rs_get_fill_raw(const range_seg_t *rs, const range_tree_t *rt)
 		return (r64->rs_end - r64->rs_start);
 	}
 	case RANGE_SEG_GAP:
-		return (((range_seg_gap_t *)rs)->rs_fill);
+		return (((const range_seg_gap_t *)rs)->rs_fill);
 	default:
 		VERIFY(0);
 		return (0);
