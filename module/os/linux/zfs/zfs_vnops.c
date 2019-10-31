@@ -3252,7 +3252,8 @@ top:
 		uint64_t acl_obj;
 		new_mode = (pmode & S_IFMT) | (vap->va_mode & ~S_IFMT);
 
-		zfs_acl_chmod_setattr(zp, &aclp, new_mode);
+		if ((err = zfs_acl_chmod_setattr(zp, &aclp, new_mode)))
+			goto out;
 
 		mutex_enter(&zp->z_lock);
 		if (!zp->z_is_sa && ((acl_obj = zfs_external_acl(zp)) != 0)) {
