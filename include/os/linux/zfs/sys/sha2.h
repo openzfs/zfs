@@ -27,11 +27,7 @@
 #ifndef _SYS_SHA2_H
 #define	_SYS_SHA2_H
 
-#ifdef  _KERNEL
 #include <sys/types.h>		/* for uint_* */
-#else
-#include <stdint.h>
-#endif
 
 #ifdef	__cplusplus
 extern "C" {
