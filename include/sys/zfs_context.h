@@ -64,7 +64,7 @@
 #include <sys/procfs_list.h>
 #include <linux/dcache_compat.h>
 #include <linux/utsname_compat.h>
-#include <linux/mod_compat.h>
+#include <sys/mod.h>
 #include <sys/sysmacros.h>
 
 #else /* _KERNEL */
@@ -106,6 +106,7 @@
 #include <sys/resource.h>
 #include <sys/byteorder.h>
 #include <sys/list.h>
+#include <sys/mod.h>
 #include <sys/uio.h>
 #include <sys/zfs_debug.h>
 #include <sys/kstat.h>
@@ -205,11 +206,6 @@ typedef struct zfs_kernel_param {
 #define	ZFS_MODULE_PARAM(scope_prefix, name_prefix, name, type, perm, desc)
 #define	ZFS_MODULE_PARAM_CALL(scope_prefix, name_prefix, name, setfunc, \
 	getfunc, perm, desc)
-
-/*
- * Exported symbols
- */
-#define	EXPORT_SYMBOL(x)
 
 /*
  * Threads.

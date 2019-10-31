@@ -895,10 +895,12 @@ zcommon_fini(void)
 module_init(zcommon_init);
 module_exit(zcommon_fini);
 
-MODULE_DESCRIPTION("Generic ZFS support");
-MODULE_AUTHOR(ZFS_META_AUTHOR);
-MODULE_LICENSE(ZFS_META_LICENSE);
-MODULE_VERSION(ZFS_META_VERSION "-" ZFS_META_RELEASE);
+#endif
+
+ZFS_MODULE_DESCRIPTION("Generic ZFS support");
+ZFS_MODULE_AUTHOR(ZFS_META_AUTHOR);
+ZFS_MODULE_LICENSE(ZFS_META_LICENSE);
+ZFS_MODULE_VERSION(ZFS_META_VERSION "-" ZFS_META_RELEASE);
 
 /* zfs dataset property functions */
 EXPORT_SYMBOL(zfs_userquota_prop_prefixes);
@@ -924,5 +926,3 @@ EXPORT_SYMBOL(zfs_prop_index_to_string);
 EXPORT_SYMBOL(zfs_prop_string_to_index);
 EXPORT_SYMBOL(zfs_prop_valid_for_type);
 EXPORT_SYMBOL(zfs_prop_written);
-
-#endif

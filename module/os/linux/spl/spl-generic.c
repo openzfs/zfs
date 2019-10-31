@@ -46,6 +46,7 @@
 #include <sys/strings.h>
 #include <linux/kmod.h>
 #include "zfs_gitrev.h"
+#include <linux/mod_compat.h>
 
 char spl_gitrev[64] = ZFS_META_GITREV;
 
@@ -751,7 +752,7 @@ spl_fini(void)
 module_init(spl_init);
 module_exit(spl_fini);
 
-MODULE_DESCRIPTION("Solaris Porting Layer");
-MODULE_AUTHOR(ZFS_META_AUTHOR);
-MODULE_LICENSE("GPL");
-MODULE_VERSION(ZFS_META_VERSION "-" ZFS_META_RELEASE);
+ZFS_MODULE_DESCRIPTION("Solaris Porting Layer");
+ZFS_MODULE_AUTHOR(ZFS_META_AUTHOR);
+ZFS_MODULE_LICENSE("GPL");
+ZFS_MODULE_VERSION(ZFS_META_VERSION "-" ZFS_META_RELEASE);
