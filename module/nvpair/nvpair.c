@@ -32,6 +32,7 @@
 #include <sys/types.h>
 #include <sys/strings.h>
 #include <rpc/xdr.h>
+#include <sys/mod.h>
 
 #if defined(_KERNEL)
 #include <sys/sunddi.h>
@@ -3601,11 +3602,12 @@ nvpair_fini(void)
 
 module_init(nvpair_init);
 module_exit(nvpair_fini);
+#endif
 
-MODULE_DESCRIPTION("Generic name/value pair implementation");
-MODULE_AUTHOR(ZFS_META_AUTHOR);
-MODULE_LICENSE(ZFS_META_LICENSE);
-MODULE_VERSION(ZFS_META_VERSION "-" ZFS_META_RELEASE);
+ZFS_MODULE_DESCRIPTION("Generic name/value pair implementation");
+ZFS_MODULE_AUTHOR(ZFS_META_AUTHOR);
+ZFS_MODULE_LICENSE(ZFS_META_LICENSE);
+ZFS_MODULE_VERSION(ZFS_META_VERSION "-" ZFS_META_RELEASE);
 
 EXPORT_SYMBOL(nv_alloc_init);
 EXPORT_SYMBOL(nv_alloc_reset);
@@ -3720,5 +3722,3 @@ EXPORT_SYMBOL(nvpair_value_uint64_array);
 EXPORT_SYMBOL(nvpair_value_string_array);
 EXPORT_SYMBOL(nvpair_value_nvlist_array);
 EXPORT_SYMBOL(nvpair_value_hrtime);
-
-#endif

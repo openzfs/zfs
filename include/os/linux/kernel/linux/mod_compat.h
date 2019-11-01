@@ -139,4 +139,9 @@ enum scope_prefix_types {
 	MODULE_PARM_DESC(name_prefix ## name, desc)
 /* END CSTYLED */
 
+#define	ZFS_MODULE_DESCRIPTION(s) MODULE_DESCRIPTION(s)
+#define	ZFS_MODULE_AUTHOR(s) MODULE_AUTHOR(s)
+#define	ZFS_MODULE_LICENSE(s) MODULE_LICENSE(s)
+#define	ZFS_MODULE_VERSION(s) MODULE_VERSION(s)
+
 #endif	/* _MOD_COMPAT_H */
