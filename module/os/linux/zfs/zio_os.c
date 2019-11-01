@@ -29,7 +29,7 @@
 #include <sys/zio.h>
 #include <sys/zio_impl.h>
 #include <sys/time.h>
-#include <sys/trace_defs.h>
+#include <sys/trace_zfs.h>
 
 void
 zio_delay_interrupt(zio_t *zio)

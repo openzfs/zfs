@@ -33,7 +33,7 @@
 #include <sys/dsl_scan.h>
 #include <sys/zil.h>
 #include <sys/callb.h>
-#include <sys/trace_defs.h>
+#include <sys/trace_zfs.h>
 
 /*
  * ZFS Transaction Groups

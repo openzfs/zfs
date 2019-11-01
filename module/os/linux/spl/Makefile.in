@@ -11,6 +11,7 @@ $(MODULE)-objs += ../os/linux/spl/spl-proc.o
 $(MODULE)-objs += ../os/linux/spl/spl-procfs-list.o
 $(MODULE)-objs += ../os/linux/spl/spl-taskq.o
 $(MODULE)-objs += ../os/linux/spl/spl-thread.o
+$(MODULE)-objs += ../os/linux/spl/spl-trace.o
 $(MODULE)-objs += ../os/linux/spl/spl-tsd.o
 $(MODULE)-objs += ../os/linux/spl/spl-vmem.o
 $(MODULE)-objs += ../os/linux/spl/spl-vnode.o

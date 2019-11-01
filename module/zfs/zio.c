@@ -44,7 +44,7 @@
 #include <sys/dsl_scan.h>
 #include <sys/metaslab_impl.h>
 #include <sys/time.h>
-#include <sys/trace_defs.h>
+#include <sys/trace_zfs.h>
 #include <sys/abd.h>
 #include <sys/dsl_crypt.h>
 #include <sys/cityhash.h>

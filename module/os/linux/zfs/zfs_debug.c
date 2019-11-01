@@ -24,6 +24,7 @@
  */
 
 #include <sys/zfs_context.h>
+#include <sys/trace_zfs.h>
 
 typedef struct zfs_dbgmsg {
 	procfs_list_node_t	zdm_node;
