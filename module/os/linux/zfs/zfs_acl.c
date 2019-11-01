@@ -1570,7 +1570,7 @@ zfs_acl_chmod(zfsvfs_t *zfsvfs, uint64_t mode, zfs_acl_t *aclp)
 	list_insert_tail(&aclp->z_acl, newnode);
 }
 
-void
+int
 zfs_acl_chmod_setattr(znode_t *zp, zfs_acl_t **aclp, uint64_t mode)
 {
 	mutex_enter(&zp->z_acl_lock);
@@ -1581,6 +1581,8 @@ zfs_acl_chmod_setattr(znode_t *zp, zfs_acl_t **aclp, uint64_t mode)
 	mutex_exit(&zp->z_lock);
 	mutex_exit(&zp->z_acl_lock);
 	ASSERT(*aclp);
+
+	return (0);
 }
 
 /*

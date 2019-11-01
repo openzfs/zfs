@@ -220,7 +220,7 @@ int zfs_fastaccesschk_execute(struct znode *, cred_t *);
 extern int zfs_zaccess_rwx(struct znode *, mode_t, int, cred_t *);
 extern int zfs_zaccess_unix(struct znode *, mode_t, cred_t *);
 extern int zfs_acl_access(struct znode *, int, cred_t *);
-void zfs_acl_chmod_setattr(struct znode *, zfs_acl_t **, uint64_t);
+int zfs_acl_chmod_setattr(struct znode *, zfs_acl_t **, uint64_t);
 int zfs_zaccess_delete(struct znode *, struct znode *, cred_t *);
 int zfs_zaccess_rename(struct znode *, struct znode *,
     struct znode *, struct znode *, cred_t *cr);
