@@ -159,8 +159,6 @@
 libzfs_handle_t *g_zfs;
 int zfs_fd;
 
-#define	ECKSUM	EBADE
-
 static const char *errtable[TYPE_INVAL] = {
 	"data",
 	"dnode",

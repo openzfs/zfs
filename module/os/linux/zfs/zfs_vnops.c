@@ -485,7 +485,7 @@ zfs_read(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 	/*
 	 * Lock the range against changes.
 	 */
-	locked_range_t *lr = zfs_rangelock_enter(&zp->z_rangelock,
+	zfs_locked_range_t *lr = zfs_rangelock_enter(&zp->z_rangelock,
 	    uio->uio_loffset, uio->uio_resid, RL_READER);
 
 	/*
@@ -666,7 +666,7 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 	/*
 	 * If in append mode, set the io offset pointer to eof.
 	 */
-	locked_range_t *lr;
+	zfs_locked_range_t *lr;
 	if (ioflag & FAPPEND) {
 		/*
 		 * Obtain an appending range lock to guarantee file append
@@ -3252,7 +3252,8 @@ top:
 		uint64_t acl_obj;
 		new_mode = (pmode & S_IFMT) | (vap->va_mode & ~S_IFMT);
 
-		zfs_acl_chmod_setattr(zp, &aclp, new_mode);
+		if ((err = zfs_acl_chmod_setattr(zp, &aclp, new_mode)))
+			goto out;
 
 		mutex_enter(&zp->z_lock);
 		if (!zp->z_is_sa && ((acl_obj = zfs_external_acl(zp)) != 0)) {
@@ -4517,7 +4518,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 	redirty_page_for_writepage(wbc, pp);
 	unlock_page(pp);
 
-	locked_range_t *lr = zfs_rangelock_enter(&zp->z_rangelock,
+	zfs_locked_range_t *lr = zfs_rangelock_enter(&zp->z_rangelock,
 	    pgoff, pglen, RL_WRITER);
 	lock_page(pp);
 

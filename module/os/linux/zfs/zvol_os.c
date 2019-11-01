@@ -63,7 +63,7 @@ static struct ida zvol_ida;
 typedef struct zv_request {
 	zvol_state_t	*zv;
 	struct bio	*bio;
-	locked_range_t	*lr;
+	zfs_locked_range_t	*lr;
 } zv_request_t;
 
 /*
