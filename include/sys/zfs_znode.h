@@ -191,7 +191,7 @@ typedef struct znode {
 	krwlock_t	z_parent_lock;	/* parent lock for directories */
 	krwlock_t	z_name_lock;	/* "master" lock for dirent locks */
 	zfs_dirlock_t	*z_dirlocks;	/* directory entry lock list */
-	rangelock_t	z_rangelock;	/* file range locks */
+	zfs_rangelock_t	z_rangelock;	/* file range locks */
 	boolean_t	z_unlinked;	/* file has been unlinked */
 	boolean_t	z_atime_dirty;	/* atime needs to be synced */
 	boolean_t	z_zn_prefetch;	/* Prefetch znodes? */

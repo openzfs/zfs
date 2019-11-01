@@ -122,7 +122,7 @@ struct zvol_state {
 	uint32_t		zv_open_count;	/* open counts */
 	uint32_t		zv_changed;	/* disk changed */
 	zilog_t			*zv_zilog;	/* ZIL handle */
-	rangelock_t		zv_rangelock;	/* for range locking */
+	zfs_rangelock_t		zv_rangelock;	/* for range locking */
 	dnode_t			*zv_dn;		/* dnode hold */
 	dev_t			zv_dev;		/* device id */
 	struct gendisk		*zv_disk;	/* generic disk */
@@ -720,7 +720,7 @@ zvol_log_write(zvol_state_t *zv, dmu_tx_t *tx, uint64_t offset,
 typedef struct zv_request {
 	zvol_state_t	*zv;
 	struct bio	*bio;
-	locked_range_t	*lr;
+	zfs_locked_range_t	*lr;
 } zv_request_t;
 
 static void
