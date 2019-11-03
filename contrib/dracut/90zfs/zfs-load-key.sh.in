@@ -38,6 +38,9 @@ if [ "$(zpool list -H -o feature@encryption $(echo "${BOOTFS}" | awk -F\/ '{prin
     # if the root dataset has encryption enabled
     ENCRYPTIONROOT=$(zfs get -H -o value encryptionroot "${BOOTFS}")
     if ! [ "${ENCRYPTIONROOT}" = "-" ]; then
+        KEYSTATUS="$(zfs get -H -o value keystatus "${ENCRYPTIONROOT}")"
+        # continue only if the key needs to be loaded
+        [ "$KEYSTATUS" = "unavailable" ] || exit 0
         # decrypt them
         TRY_COUNT=5
         while [ $TRY_COUNT -gt 0 ]; do

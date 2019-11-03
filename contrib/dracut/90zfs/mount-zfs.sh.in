@@ -62,11 +62,15 @@ if import_pool "${ZFS_POOL}" ; then
 		# if the root dataset has encryption enabled
 		ENCRYPTIONROOT="$(zfs get -H -o value encryptionroot "${ZFS_DATASET}")"
 		if ! [ "${ENCRYPTIONROOT}" = "-" ]; then
-			# decrypt them
-			ask_for_password \
-				--tries 5 \
-				--prompt "Encrypted ZFS password for ${ENCRYPTIONROOT}: " \
-				--cmd "zfs load-key '${ENCRYPTIONROOT}'"
+			KEYSTATUS="$(zfs get -H -o value keystatus "${ENCRYPTIONROOT}")"
+			# if the key needs to be loaded
+			if [ "$KEYSTATUS" = "unavailable" ]; then
+				# decrypt them
+				ask_for_password \
+					--tries 5 \
+					--prompt "Encrypted ZFS password for ${ENCRYPTIONROOT}: " \
+					--cmd "zfs load-key '${ENCRYPTIONROOT}'"
+			fi
 		fi
 	fi
 	# Let us tell the initrd to run on shutdown.
