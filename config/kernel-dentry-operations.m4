@@ -150,29 +150,6 @@ AC_DEFUN([ZFS_AC_KERNEL_CONST_DENTRY_OPERATIONS], [
 	])
 ])
 
-dnl #
-dnl # 2.6.38 API change
-dnl # Added sb->s_d_op default dentry_operations member
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_S_D_OP], [
-	ZFS_LINUX_TEST_SRC([super_block_s_d_op], [
-		#include <linux/fs.h>
-	],[
-		struct super_block sb __attribute__ ((unused));
-		sb.s_d_op = NULL;
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_S_D_OP], [
-	AC_MSG_CHECKING([whether super_block has s_d_op])
-	ZFS_LINUX_TEST_RESULT([super_block_s_d_op], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_S_D_OP, 1, [struct super_block has s_d_op])
-	], [
-		AC_MSG_RESULT(no)
-	])
-])
-
 AC_DEFUN([ZFS_AC_KERNEL_SRC_DENTRY], [
         ZFS_AC_KERNEL_SRC_D_MAKE_ROOT
         ZFS_AC_KERNEL_SRC_D_OBTAIN_ALIAS
@@ -180,7 +157,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_DENTRY], [
         ZFS_AC_KERNEL_SRC_D_SET_D_OP
         ZFS_AC_KERNEL_SRC_D_REVALIDATE_NAMEIDATA
         ZFS_AC_KERNEL_SRC_CONST_DENTRY_OPERATIONS
-        ZFS_AC_KERNEL_SRC_S_D_OP
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_DENTRY], [
@@ -190,5 +166,4 @@ AC_DEFUN([ZFS_AC_KERNEL_DENTRY], [
         ZFS_AC_KERNEL_D_SET_D_OP
         ZFS_AC_KERNEL_D_REVALIDATE_NAMEIDATA
         ZFS_AC_KERNEL_CONST_DENTRY_OPERATIONS
-        ZFS_AC_KERNEL_S_D_OP
 ])

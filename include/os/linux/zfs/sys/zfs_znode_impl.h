@@ -84,6 +84,7 @@ do {								\
 /* Must be called before exiting the operation. */
 #define	ZFS_EXIT(zfsvfs)					\
 do {								\
+	zfs_exit_fs(zfsvfs);					\
 	rrm_exit(&(zfsvfs)->z_teardown_lock, FTAG);		\
 } while (0)
 #define	ZPL_EXIT(zfsvfs)	ZFS_EXIT(zfsvfs)

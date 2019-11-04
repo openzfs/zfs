@@ -70,9 +70,6 @@ zpl_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
 
 	spin_lock(&dentry->d_lock);
 	dentry->d_time = jiffies;
-#ifndef HAVE_S_D_OP
-	d_set_d_op(dentry, &zpl_dentry_operations);
-#endif /* HAVE_S_D_OP */
 	spin_unlock(&dentry->d_lock);
 
 	if (error) {
@@ -655,59 +652,6 @@ zpl_fallocate(struct inode *ip, int mode, loff_t offset, loff_t len)
 }
 #endif /* HAVE_INODE_FALLOCATE */
 
-static int
-#ifdef HAVE_D_REVALIDATE_NAMEIDATA
-zpl_revalidate(struct dentry *dentry, struct nameidata *nd)
-{
-	unsigned int flags = (nd ? nd->flags : 0);
-#else
-zpl_revalidate(struct dentry *dentry, unsigned int flags)
-{
-#endif /* HAVE_D_REVALIDATE_NAMEIDATA */
-	/* CSTYLED */
-	zfsvfs_t *zfsvfs = dentry->d_sb->s_fs_info;
-	int error;
-
-	if (flags & LOOKUP_RCU)
-		return (-ECHILD);
-
-	/*
-	 * Automounted snapshots rely on periodic dentry revalidation
-	 * to defer snapshots from being automatically unmounted.
-	 */
-	if (zfsvfs->z_issnap) {
-		if (time_after(jiffies, zfsvfs->z_snap_defer_time +
-		    MAX(zfs_expire_snapshot * HZ / 2, HZ))) {
-			zfsvfs->z_snap_defer_time = jiffies;
-			zfsctl_snapshot_unmount_delay(zfsvfs->z_os->os_spa,
-			    dmu_objset_id(zfsvfs->z_os), zfs_expire_snapshot);
-		}
-	}
-
-	/*
-	 * After a rollback negative dentries created before the rollback
-	 * time must be invalidated.  Otherwise they can obscure files which
-	 * are only present in the rolled back dataset.
-	 */
-	if (dentry->d_inode == NULL) {
-		spin_lock(&dentry->d_lock);
-		error = time_before(dentry->d_time, zfsvfs->z_rollback_time);
-		spin_unlock(&dentry->d_lock);
-
-		if (error)
-			return (0);
-	}
-
-	/*
-	 * The dentry may reference a stale inode if a mounted file system
-	 * was rolled back to a point in time where the object didn't exist.
-	 */
-	if (dentry->d_inode && ITOZ(dentry->d_inode)->z_is_stale)
-		return (0);
-
-	return (1);
-}
-
 const struct inode_operations zpl_inode_operations = {
 	.setattr	= zpl_setattr,
 	.getattr	= zpl_getattr,
@@ -819,8 +763,4 @@ const struct inode_operations zpl_special_inode_operations = {
 	.permission	= zpl_permission,
 #endif /* HAVE_GET_ACL | HAVE_CHECK_ACL | HAVE_PERMISSION */
 #endif /* CONFIG_FS_POSIX_ACL */
-};
-
-dentry_operations_t zpl_dentry_operations = {
-	.d_revalidate	= zpl_revalidate,
 };
