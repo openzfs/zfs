@@ -473,9 +473,7 @@ zfs_log_symlink(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 }
 
 /*
- * Handles TX_{RENAME,EXCHANGE,WHITEOUT} transactions. They all have the same
- * underyling structure (lr_rename_t) but have different txtypes to indicate
- * different renameat2(2) flags.
+ * Handles TX_RENAME transactions.
  */
 void
 zfs_log_rename(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
@@ -489,6 +487,7 @@ zfs_log_rename(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 	if (zil_replaying(zilog, tx))
 		return;
 
+	txtype |= TX_RENAME;
 	itx = zil_itx_create(txtype, sizeof (*lr) + snamesize + dnamesize);
 	lr = (lr_rename_t *)&itx->itx_lr;
 	lr->lr_sdoid = sdzp->z_id;
@@ -498,6 +497,102 @@ zfs_log_rename(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 	itx->itx_oid = szp->z_id;
 
 	zil_itx_assign(zilog, itx, tx);
+}
+
+/*
+ * At the moment, only Linux supports the renameat2 variant of renameat, which
+ * adds three new flags of interest for us:
+ *
+ *     RENAME_NOREPLACE: if the target name at the moment of the call exists,
+ *                       don't rewrite it and return error
+ *     RENAME_EXCHANGE: atomically swap the two names on the filesystem
+ *     RENAME_WHITEOUT: creates a whiteout inode in place of renamed file as
+ *                      an atomic operation
+ *
+ * Ideally, these operations should be represented as new ZFS Intent Log
+ * txtypes, which would mandate a new ZFS feature flag due to the on-disk
+ * format change.  One would then use spa_feature_incr/decr functions to
+ * indicate that the on-disk log contains these new txtypes.  However, these
+ * functions are only supposed to be called from the txg syncing context.
+ *
+ * This means that we would need to force out an in-progress txg to disk and
+ * start a new one before writing any ZIL records.  This would ensure that
+ * previous versions of ZFS which do not support these log txtypes would
+ * never encounter them during ZIL replay.  Doing this would hurt performance.
+ *
+ * Alternatively, we could just activate the feature on a pool when these
+ * renameat2 flags get first used and leave it at that.  This would render
+ * the pool read-only importable on implementations without the new feature
+ * flag, even when no new txtypes were present on-disk.  This could be almost
+ * all of the time, so it'd be a shame to render the pool read-only on
+ * non-Linux platforms.
+ *
+ * Instead, we choose to rely on the fact that the ZIL is replayed in single-
+ * threaded mode before the dataset is mounted.  This means we can represent
+ * the otherwise atomic operations as a series of plain good old txtypes
+ * known to all current OpenZFS implementations. To do that, we use the
+ * following functions (at least until more platforms implement renameat2).
+ *
+ *     zfs_log_rename_exchange
+ *     zfs_log_rename_whiteout
+ */
+
+void
+zfs_log_rename_exchange(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
+    znode_t *sdzp, char *sname, znode_t *tdzp, char *dname, znode_t *szp)
+{
+	zfs_dirlock_t *tmpdl;
+	znode_t *tmpzp = NULL;
+	char *tmpname;
+	int retries = 0;
+	int pos = 0;
+	int error;
+
+	tmpname = kmem_alloc(MAXPATHLEN, KM_SLEEP);
+
+	/*
+	 * To represent atomic rename with old non-atomic operations, we need
+	 * a temporary new name; so we try picking a name until we succeed,
+	 * then we get a dirent lock for that temp name until the final itx
+	 * gets queued
+	 */
+retry:
+	retries++;
+	pos = snprintf(tmpname, MAXPATHLEN, "%s.zfs_renameat2_emul_", dname);
+
+	for (int i = 0; i < 16; i++) {
+		int r = 0xFF;
+		random_get_pseudo_bytes((void *)&r, 1);
+		pos += snprintf(tmpname+pos, MAXPATHLEN, "%02x", r);
+	}
+
+	error = zfs_dirent_lock(&tmpdl, tdzp, tmpname,
+	    &tmpzp, ZNEW, NULL, NULL);
+
+	VERIFY3U(retries, <, 10);
+	if (error)
+		goto retry;
+
+	/* dst -> tmp */
+	zfs_log_rename(zilog, tx, txtype, tdzp, dname, tdzp, tmpname, szp);
+	/* src -> dst */
+	zfs_log_rename(zilog, tx, txtype, sdzp, sname, tdzp, dname, szp);
+	/* tmp -> src */
+	zfs_log_rename(zilog, tx, txtype, tdzp, tmpname, sdzp, sname, szp);
+
+	zfs_dirent_unlock(tmpdl);
+	kmem_free(tmpname, MAXPATHLEN);
+}
+
+/* See comment above zfs_log_rename_exchange */
+void
+zfs_log_rename_whiteout(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
+    znode_t *sdzp, char *sname, znode_t *tdzp, char *dname, znode_t *szp,
+    znode_t *wzp, vsecattr_t *vsecp, zfs_fuid_info_t *fuidp, vattr_t *vap)
+{
+	zfs_log_rename(zilog, tx, txtype, sdzp, sname, tdzp, dname, szp);
+	txtype |= TX_CREATE;
+	zfs_log_create(zilog, tx, txtype, sdzp, wzp, sname, vsecp, fuidp, vap);
 }
 
 /*

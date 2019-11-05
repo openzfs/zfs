@@ -411,7 +411,7 @@ zpl_rename2(struct inode *sdip, struct dentry *sdentry,
 	return (error);
 }
 
-#ifndef HAVE_RENAME_WANTS_FLAGS
+#if !defined(HAVE_RENAME_WANTS_FLAGS) && !defined(HAVE_RENAME2)
 static int
 zpl_rename(struct inode *sdip, struct dentry *sdentry,
     struct inode *tdip, struct dentry *tdentry)
@@ -670,7 +670,9 @@ const struct inode_operations zpl_dir_inode_operations = {
 	.mkdir		= zpl_mkdir,
 	.rmdir		= zpl_rmdir,
 	.mknod		= zpl_mknod,
-#ifdef HAVE_RENAME_WANTS_FLAGS
+#ifdef HAVE_RENAME2
+	.rename2	= zpl_rename2,
+#elif defined(HAVE_RENAME_WANTS_FLAGS)
 	.rename		= zpl_rename2,
 #else
 	.rename		= zpl_rename,

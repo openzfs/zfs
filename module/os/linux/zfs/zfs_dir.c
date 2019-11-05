@@ -1014,7 +1014,8 @@ zfs_link_destroy(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag,
 		}
 
 		/* The only error is !zfs_dirempty() and we checked earlier. */
-		ASSERT3U(zfs_drop_nlink_locked(zp, tx, &unlinked), ==, 0);
+		error = zfs_drop_nlink_locked(zp, tx, &unlinked);
+		ASSERT3U(error, ==, 0);
 		mutex_exit(&zp->z_lock);
 	} else {
 		error = zfs_dropname(dl, zp, dzp, tx, flag);

@@ -3669,23 +3669,17 @@ zfs_rename(struct inode *sdip, char *snm, struct inode *tdip, char *tnm,
 	int		error = 0;
 	int		zflg = 0;
 	boolean_t	waited = B_FALSE;
-	uint64_t	txtype;
 	/* Needed for whiteout inode creation. */
 	vattr_t		wo_vap;
 	uint64_t	wo_projid;
 	boolean_t	fuid_dirtied;
 	zfs_acl_ids_t	acl_ids;
 	boolean_t	have_acl = B_FALSE;
+	znode_t		*wzp = NULL;
+
 
 	if (snm == NULL || tnm == NULL)
 		return (SET_ERROR(EINVAL));
-
-	if (flags & RENAME_EXCHANGE)
-		txtype = TX_EXCHANGE;
-	else if (flags & RENAME_WHITEOUT)
-		txtype = TX_WHITEOUT;
-	else
-		txtype = TX_RENAME;
 
 	ZFS_ENTER(zfsvfs);
 	zilog = zfsvfs->z_log;
@@ -3885,7 +3879,7 @@ top:
 		/*
 		 * Source and target must be the same type (unless exchanging).
 		 */
-		if (txtype != TX_EXCHANGE) {
+		if (!(flags & RENAME_EXCHANGE)) {
 			boolean_t s_is_dir = S_ISDIR(ZTOI(szp)->i_mode) != 0;
 			boolean_t t_is_dir = S_ISDIR(ZTOI(tzp)->i_mode) != 0;
 
@@ -3903,15 +3897,14 @@ top:
 			error = 0;
 			goto out;
 		}
-	}
-	/* Target must exist for RENAME_EXCHANGE. */
-	if (!tzp && txtype == TX_EXCHANGE) {
+	} else if (flags & RENAME_EXCHANGE) {
+		/* Target must exist for RENAME_EXCHANGE. */
 		error = SET_ERROR(ENOENT);
 		goto out;
 	}
 
 	/* Set up inode creation for RENAME_WHITEOUT. */
-	if (txtype == TX_WHITEOUT) {
+	if (flags & RENAME_WHITEOUT) {
 		error = zfs_zaccess(sdzp, ACE_ADD_FILE, 0, B_FALSE, cr);
 		if (error)
 			goto out;
@@ -3935,7 +3928,7 @@ top:
 	tx = dmu_tx_create(zfsvfs->z_os);
 	dmu_tx_hold_sa(tx, szp->z_sa_hdl, B_FALSE);
 	dmu_tx_hold_sa(tx, sdzp->z_sa_hdl, B_FALSE);
-	dmu_tx_hold_zap(tx, sdzp->z_id, txtype == TX_EXCHANGE, snm);
+	dmu_tx_hold_zap(tx, sdzp->z_id, !!(flags & RENAME_EXCHANGE), snm);
 	dmu_tx_hold_zap(tx, tdzp->z_id, TRUE, tnm);
 	if (sdzp != tdzp) {
 		dmu_tx_hold_sa(tx, tdzp->z_sa_hdl, B_FALSE);
@@ -3945,7 +3938,7 @@ top:
 		dmu_tx_hold_sa(tx, tzp->z_sa_hdl, B_FALSE);
 		zfs_sa_upgrade_txholds(tx, tzp);
 	}
-	if (txtype == TX_WHITEOUT) {
+	if (flags & RENAME_WHITEOUT) {
 		dmu_tx_hold_sa_create(tx, acl_ids.z_aclp->z_acl_bytes +
 		    ZFS_SA_BASE_ATTR_SIZE);
 
@@ -3998,7 +3991,7 @@ top:
 
 	error = sa_update(szp->z_sa_hdl, SA_ZPL_FLAGS(zfsvfs),
 	    (void *)&szp->z_pflags, sizeof (uint64_t), tx);
-	ASSERT0(error);
+	VERIFY0(error);
 
 	error = zfs_link_destroy(sdl, szp, tx, ZRENAMING, NULL);
 	if (error)
@@ -4010,7 +4003,7 @@ top:
 	if (tzp) {
 		int tzflg = zflg;
 
-		if (txtype == TX_EXCHANGE) {
+		if (flags & RENAME_EXCHANGE) {
 			/* This inode will be re-linked soon. */
 			tzflg |= ZRENAMING;
 
@@ -4044,50 +4037,56 @@ top:
 		goto commit_link_tzp;
 	}
 
-	switch (txtype) {
-		case TX_EXCHANGE:
-			error = zfs_link_create(sdl, tzp, tx, ZRENAMING);
-			/*
-			 * The same argument as zfs_link_create() failing for
-			 * szp applies here, since the source directory must
-			 * have had an entry we are replacing.
-			 */
-			ASSERT3U(error, ==, 0);
-			if (error)
-				goto commit_unlink_td_szp;
-			break;
-		case TX_WHITEOUT: {
-			znode_t		*wzp;
-
-			zfs_mknode(sdzp, &wo_vap, tx, cr, 0, &wzp, &acl_ids);
-			error = zfs_link_create(sdl, wzp, tx, ZNEW);
-			if (error) {
-				zfs_znode_delete(wzp, tx);
-				remove_inode_hash(ZTOI(wzp));
-				goto commit_unlink_td_szp;
-			}
-			/* No need to zfs_log_create_txtype here. */
+	if (flags & RENAME_EXCHANGE) {
+		error = zfs_link_create(sdl, tzp, tx, ZRENAMING);
+		/*
+		 * The same argument as zfs_link_create() failing for
+		 * szp applies here, since the source directory must
+		 * have had an entry we are replacing.
+		 */
+		ASSERT3U(error, ==, 0);
+		if (error)
+			goto commit_unlink_td_szp;
+	} else if (flags & RENAME_WHITEOUT) {
+		zfs_mknode(sdzp, &wo_vap, tx, cr, 0, &wzp, &acl_ids);
+		error = zfs_link_create(sdl, wzp, tx, ZNEW);
+		if (error) {
+			zfs_znode_delete(wzp, tx);
+			remove_inode_hash(ZTOI(wzp));
+			goto commit_unlink_td_szp;
 		}
+		/* No need to zfs_log_create_txtype here. */
 	}
 
 	if (fuid_dirtied)
 		zfs_fuid_sync(zfsvfs, tx);
 
-	zfs_log_rename(zilog, tx, txtype |
-	    (flags & FIGNORECASE ? TX_CI : 0), sdzp,
-	    sdl->dl_name, tdzp, tdl->dl_name, szp);
+	if (flags & RENAME_EXCHANGE) {
+		zfs_log_rename_exchange(zilog, tx,
+		    (flags & FIGNORECASE ? TX_CI : 0), sdzp,
+		    sdl->dl_name, tdzp, tdl->dl_name, szp);
+	} else if (flags & RENAME_WHITEOUT) {
+		vsecattr_t vsecp;
+
+		vsecp.vsa_mask |= VSA_ACE_ALLTYPES;
+		error = zfs_getacl(szp, &vsecp, B_TRUE, cr);
+		VERIFY0(error);
+
+		zfs_log_rename_whiteout(zilog, tx,
+		    (flags & FIGNORECASE ? TX_CI : 0), sdzp,
+		    sdl->dl_name, tdzp, tdl->dl_name, szp, wzp,
+		    &vsecp, acl_ids.z_fuidp, &wo_vap);
+	} else {
+		zfs_log_rename(zilog, tx,
+		    (flags & FIGNORECASE ? TX_CI : 0), sdzp,
+		    sdl->dl_name, tdzp, tdl->dl_name, szp);
+	}
 
 commit:
 	dmu_tx_commit(tx);
 out:
 	if (have_acl)
 		zfs_acl_ids_free(&acl_ids);
-
-	if (zl != NULL)
-		zfs_rename_unlock(&zl);
-
-	zfs_dirent_unlock(sdl);
-	zfs_dirent_unlock(tdl);
 
 	zfs_inode_update(sdzp);
 	if (sdzp == tdzp)
@@ -4098,10 +4097,20 @@ out:
 
 	zfs_inode_update(szp);
 	iput(ZTOI(szp));
+	if (wzp) {
+		zfs_inode_update(wzp);
+		iput(ZTOI(wzp));
+	}
 	if (tzp) {
 		zfs_inode_update(tzp);
 		iput(ZTOI(tzp));
 	}
+
+	if (zl != NULL)
+		zfs_rename_unlock(&zl);
+
+	zfs_dirent_unlock(sdl);
+	zfs_dirent_unlock(tdl);
 
 	if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		zil_commit(zilog, 0);
