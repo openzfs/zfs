@@ -5344,7 +5344,7 @@ zfs_fiemap_assemble(struct inode *ip, zfs_fiemap_t *fm)
 	 * convenient way to determine the range of TXGs to check.
 	 */
 	zfs_locked_range_t *lr = zfs_rangelock_enter(&zp->z_rangelock, 0,
-				UINT64_MAX, RL_READER);
+	    UINT64_MAX, RL_READER);
 	open_txg = txg_hold_open(spa_get_dsl(spa), &th);
 	syncing_txg = dirty_txg = spa_syncing_txg(spa);
 
@@ -5622,7 +5622,8 @@ zfs_fiemap_create(uint64_t start, uint64_t len, uint64_t flags, uint64_t max)
 		    offsetof(struct zfs_fiemap_entry, fe_node));
 	}
 
-	fm->fm_dirty_tree = range_tree_create(NULL, RANGE_SEG64, NULL, start, 0);
+	fm->fm_dirty_tree = range_tree_create(NULL, RANGE_SEG64, NULL,
+	    start, 0);
 	fm->fm_free_tree = range_tree_create(NULL, RANGE_SEG64, NULL, start, 0);
 
 	return (fm);
