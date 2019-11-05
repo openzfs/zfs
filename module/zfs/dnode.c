@@ -2011,6 +2011,7 @@ dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 {
 	dmu_buf_impl_t *db;
 	uint64_t blkoff, blkid, nblks;
+	uint64_ ooff = off, olen = len;
 	int blksz, blkshift, head, tail;
 	int trunc = FALSE;
 	int epbs;
@@ -2220,8 +2221,8 @@ done:
 		dn->dn_free_ranges[txgoff] = range_tree_create(NULL,
 		    RANGE_SEG64, NULL, 0, 0);
 	}
-	range_tree_clear(dn->dn_free_ranges[txgoff], blkid, nblks);
-	range_tree_add(dn->dn_free_ranges[txgoff], blkid, nblks);
+	range_tree_clear(dn->dn_free_ranges[txgoff], ooff, olen);
+	range_tree_add(dn->dn_free_ranges[txgoff], ooff, olen);
 	}
 	dprintf_dnode(dn, "blkid=%llu nblks=%llu txg=%llu\n",
 	    blkid, nblks, tx->tx_txg);
