@@ -269,7 +269,7 @@ fiemap_verify_extents(fiemap_args_t *fa, verify_tree_type_t type)
 	boolean_t is_hole = (type == VERIFY_HOLE_TREE);
 	int error = 0;
 
-	rt = range_tree_create(NULL, NULL);
+	rt = range_tree_create(NULL, RANGE_SEG64, NULL, 0, 0);
 	if (rt == NULL)
 		return (ENOMEM);
 
@@ -316,9 +316,10 @@ fiemap_verify_extents(fiemap_args_t *fa, verify_tree_type_t type)
 		for (int i = 0; i < fa->fa_fiemap->fm_mapped_extents; i++) {
 			ext = &fa->fa_fiemap->fm_extents[i];
 
-			if (!(ext->fe_flags & FIEMAP_EXTENT_UNWRITTEN))
+			if (!(ext->fe_flags & FIEMAP_EXTENT_UNWRITTEN)) {
 				fiemap_verify_extent_dec(&ht, ext->fe_logical,
 				    ext->fe_length);
+			}
 		}
 
 		space_reftree_generate_map(&ht, rt, 1);
@@ -500,7 +501,7 @@ fiemap_verify_device(fiemap_args_t *fa)
 static int
 fiemap_verify_size(fiemap_args_t *fa)
 {
-	range_tree_t *rt = range_tree_create(NULL, NULL);
+	range_tree_t *rt = range_tree_create(NULL, RANGE_SEG64, NULL, 0, 0);
 	int error = 0;
 
 	for (int i = 0; i < fa->fa_fiemap->fm_mapped_extents; i++) {
@@ -583,7 +584,7 @@ fiemap_init(fiemap_args_t *fa)
 {
 	memset(fa, 0, sizeof (fiemap_args_t));
 
-	range_tree_init();
+	zfs_btree_init();
 	space_reftree_create(&fa->fa_verify_trees[VERIFY_DATA_TREE]);
 	space_reftree_create(&fa->fa_verify_trees[VERIFY_HOLE_TREE]);
 }
@@ -596,7 +597,7 @@ fiemap_fini(fiemap_args_t *fa)
 
 	space_reftree_destroy(&fa->fa_verify_trees[VERIFY_DATA_TREE]);
 	space_reftree_destroy(&fa->fa_verify_trees[VERIFY_HOLE_TREE]);
-	range_tree_fini();
+	zfs_btree_fini();
 }
 
 static int

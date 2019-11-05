@@ -314,14 +314,8 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/features/Makefile
 	tests/zfs-tests/tests/functional/features/async_destroy/Makefile
 	tests/zfs-tests/tests/functional/features/large_dnode/Makefile
-<<<<<<< HEAD
-	tests/zfs-tests/tests/functional/grow/Makefile
-=======
-	tests/zfs-tests/tests/functional/features/Makefile
 	tests/zfs-tests/tests/functional/fiemap/Makefile
-	tests/zfs-tests/tests/functional/grow_pool/Makefile
-	tests/zfs-tests/tests/functional/grow_replicas/Makefile
->>>>>>> Add FIEMAP support
+	tests/zfs-tests/tests/functional/grow/Makefile
 	tests/zfs-tests/tests/functional/history/Makefile
 	tests/zfs-tests/tests/functional/hkdf/Makefile
 	tests/zfs-tests/tests/functional/inheritance/Makefile

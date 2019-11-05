@@ -23,10 +23,8 @@ SUBDIRS = \
 	exec \
 	fault \
 	features \
-	grow \
-	grow_pool \
-	grow_replicas \
 	fiemap \
+	grow \
 	history \
 	hkdf \
 	inheritance \

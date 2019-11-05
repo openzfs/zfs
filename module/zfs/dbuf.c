@@ -4773,6 +4773,7 @@ dbuf_generate_dirty_maps(dnode_t *dn, range_tree_t *dirty_tree,
 		uint64_t start, length;
 		range_tree_t *rt;
 		range_seg_t *rs;
+		zfs_btree_index_t where;
 
 		txg_verify(spa, i);
 		txgoff = i & TXG_MASK;
@@ -4782,11 +4783,11 @@ dbuf_generate_dirty_maps(dnode_t *dn, range_tree_t *dirty_tree,
 
 		rt = dn->dn_free_ranges[txgoff];
 		if (rt != NULL) {
-			for (rs = avl_first(&rt->rt_root); rs != NULL;
-			    rs = AVL_NEXT(&rt->rt_root, rs)) {
-				start = rs->rs_start * blksz;
-				length = (rs->rs_end - rs->rs_start) * blksz;
-
+			for (rs = zfs_btree_first(&rt->rt_root, &where);
+			    rs != NULL;
+			    rs = zfs_btree_next(&rt->rt_root, &where, &where)) {
+				start = rs_get_start(rs, rt);
+				length = (rs_get_end(rs, rt) - start);
 				range_tree_add(free_tree, start, length);
 				range_tree_clear(dirty_tree, start, length);
 			}

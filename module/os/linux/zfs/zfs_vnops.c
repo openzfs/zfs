@@ -5343,7 +5343,8 @@ zfs_fiemap_assemble(struct inode *ip, zfs_fiemap_t *fm)
 	 * and dirty blocks.  This isn't strictly necessary but it is a
 	 * convenient way to determine the range of TXGs to check.
 	 */
-	rl_t *rl = zfs_range_lock(&zp->z_range_lock, 0, UINT64_MAX, RL_READER);
+	zfs_locked_range_t *lr = zfs_rangelock_enter(&zp->z_rangelock, 0,
+				UINT64_MAX, RL_READER);
 	open_txg = txg_hold_open(spa_get_dsl(spa), &th);
 	syncing_txg = dirty_txg = spa_syncing_txg(spa);
 
@@ -5431,7 +5432,7 @@ zfs_fiemap_assemble(struct inode *ip, zfs_fiemap_t *fm)
 
 	txg_rele_to_quiesce(&th);
 	txg_rele_to_sync(&th);
-	zfs_range_unlock(rl);
+	zfs_rangelock_exit(lr);
 
 	dnode_rele(dn, FTAG);
 	ZFS_EXIT(zfsvfs);
@@ -5594,7 +5595,7 @@ zfs_fiemap_compare(const void *x1, const void *x2)
 	const zfs_fiemap_entry_t *fe1 = (const zfs_fiemap_entry_t *)x1;
 	const zfs_fiemap_entry_t *fe2 = (const zfs_fiemap_entry_t *)x2;
 
-	return (AVL_CMP(fe1->fe_logical_start, fe2->fe_logical_start));
+	return (TREE_CMP(fe1->fe_logical_start, fe2->fe_logical_start));
 }
 
 /*
@@ -5621,8 +5622,8 @@ zfs_fiemap_create(uint64_t start, uint64_t len, uint64_t flags, uint64_t max)
 		    offsetof(struct zfs_fiemap_entry, fe_node));
 	}
 
-	fm->fm_dirty_tree = range_tree_create(NULL, NULL);
-	fm->fm_free_tree = range_tree_create(NULL, NULL);
+	fm->fm_dirty_tree = range_tree_create(NULL, RANGE_SEG64, NULL, start, 0);
+	fm->fm_free_tree = range_tree_create(NULL, RANGE_SEG64, NULL, start, 0);
 
 	return (fm);
 }
