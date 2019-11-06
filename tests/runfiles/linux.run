@@ -90,6 +90,10 @@ tags = ['functional', 'io']
 tests = ['mmap_libaio_001_pos']
 tags = ['functional', 'mmap']
 
+[tests/functional/overlayfs:Linux]
+tests = ['overlayfs_basic', 'overlayfs_layered']
+tags = ['functional', 'overlayfs']
+
 [tests/functional/procfs:Linux]
 tests = ['procfs_list_basic', 'procfs_list_concurrent_readers',
     'procfs_list_stale_read', 'pool_state']
