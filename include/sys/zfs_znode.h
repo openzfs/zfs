@@ -27,18 +27,6 @@
 #ifndef	_SYS_FS_ZFS_ZNODE_H
 #define	_SYS_FS_ZFS_ZNODE_H
 
-#ifdef _KERNEL
-#include <sys/isa_defs.h>
-#include <sys/types32.h>
-#include <sys/list.h>
-#include <sys/dmu.h>
-#include <sys/sa.h>
-#include <sys/zfs_vfsops.h>
-#include <sys/rrwlock.h>
-#include <sys/zfs_sa.h>
-#include <sys/zfs_stat.h>
-#include <sys/zfs_rlock.h>
-#endif
 #include <sys/zfs_acl.h>
 #include <sys/zil.h>
 #include <sys/zfs_project.h>
@@ -169,12 +157,16 @@ extern "C" {
 #define	ZFS_DIRENT_TYPE(de) BF64_GET(de, 60, 4)
 #define	ZFS_DIRENT_OBJ(de) BF64_GET(de, 0, 48)
 
+extern int zfs_obj_to_path(objset_t *osp, uint64_t obj, char *buf, int len);
+
+#ifdef _KERNEL
+#include <sys/zfs_znode_impl.h>
+
 /*
  * Directory entry locks control access to directory entries.
  * They are used to protect creates, deletes, and renames.
  * Each directory znode has a mutex and a list of locked names.
  */
-#ifdef _KERNEL
 typedef struct zfs_dirlock {
 	char		*dl_name;	/* directory entry being locked */
 	uint32_t	dl_sharecnt;	/* 0 if exclusive, > 0 if shared */
@@ -217,7 +209,12 @@ typedef struct znode {
 	uint64_t	z_projid;	/* project ID */
 	list_node_t	z_link_node;	/* all znodes in fs link */
 	sa_handle_t	*z_sa_hdl;	/* handle to sa data */
-	struct inode	z_inode;	/* generic vfs inode */
+
+	/*
+	 * Platform specific field, defined by each platform and only
+	 * accessable from platform specific code.
+	 */
+	ZNODE_OS_FIELDS;
 } znode_t;
 
 typedef struct znode_hold {
@@ -233,110 +230,6 @@ zfs_inherit_projid(znode_t *dzp)
 	return ((dzp->z_pflags & ZFS_PROJINHERIT) ? dzp->z_projid :
 	    ZFS_DEFAULT_PROJID);
 }
-
-/*
- * Range locking rules
- * --------------------
- * 1. When truncating a file (zfs_create, zfs_setattr, zfs_space) the whole
- *    file range needs to be locked as RL_WRITER. Only then can the pages be
- *    freed etc and zp_size reset. zp_size must be set within range lock.
- * 2. For writes and punching holes (zfs_write & zfs_space) just the range
- *    being written or freed needs to be locked as RL_WRITER.
- *    Multiple writes at the end of the file must coordinate zp_size updates
- *    to ensure data isn't lost. A compare and swap loop is currently used
- *    to ensure the file size is at least the offset last written.
- * 3. For reads (zfs_read, zfs_get_data & zfs_putapage) just the range being
- *    read needs to be locked as RL_READER. A check against zp_size can then
- *    be made for reading beyond end of file.
- */
-
-/*
- * Convert between znode pointers and inode pointers
- */
-#define	ZTOI(znode)	(&((znode)->z_inode))
-#define	ITOZ(inode)	(container_of((inode), znode_t, z_inode))
-#define	ZTOZSB(znode)	((zfsvfs_t *)(ZTOI(znode)->i_sb->s_fs_info))
-#define	ITOZSB(inode)	((zfsvfs_t *)((inode)->i_sb->s_fs_info))
-
-#define	ZTOTYPE(zp)	(ZTOI(zp)->i_mode)
-#define	ZTOGID(zp) (ZTOI(zp)->i_gid)
-#define	ZTOUID(zp) (ZTOI(zp)->i_uid)
-#define	ZTONLNK(zp) (ZTOI(zp)->i_nlink)
-
-#define	Z_ISBLK(type) S_ISBLK(type)
-#define	Z_ISCHR(type) S_ISCHR(type)
-#define	Z_ISLNK(type) S_ISLNK(type)
-#define	S_ISDEV(type)	(S_ISCHR(type) || S_ISBLK(type) || S_ISFIFO(type))
-
-/* Called on entry to each ZFS inode and vfs operation. */
-#define	ZFS_ENTER_ERROR(zfsvfs, error)				\
-do {								\
-	rrm_enter_read(&(zfsvfs)->z_teardown_lock, FTAG);	\
-	if ((zfsvfs)->z_unmounted) {				\
-		ZFS_EXIT(zfsvfs);				\
-		return (error);					\
-	}							\
-} while (0)
-#define	ZFS_ENTER(zfsvfs)	ZFS_ENTER_ERROR(zfsvfs, EIO)
-#define	ZPL_ENTER(zfsvfs)	ZFS_ENTER_ERROR(zfsvfs, -EIO)
-
-/* Must be called before exiting the operation. */
-#define	ZFS_EXIT(zfsvfs)					\
-do {								\
-	rrm_exit(&(zfsvfs)->z_teardown_lock, FTAG);		\
-} while (0)
-#define	ZPL_EXIT(zfsvfs)	ZFS_EXIT(zfsvfs)
-
-/* Verifies the znode is valid. */
-#define	ZFS_VERIFY_ZP_ERROR(zp, error)				\
-do {								\
-	if ((zp)->z_sa_hdl == NULL) {				\
-		ZFS_EXIT(ZTOZSB(zp));				\
-		return (error);					\
-	}							\
-} while (0)
-#define	ZFS_VERIFY_ZP(zp)	ZFS_VERIFY_ZP_ERROR(zp, EIO)
-#define	ZPL_VERIFY_ZP(zp)	ZFS_VERIFY_ZP_ERROR(zp, -EIO)
-
-/*
- * Macros for dealing with dmu_buf_hold
- */
-#define	ZFS_OBJ_MTX_SZ		64
-#define	ZFS_OBJ_MTX_MAX		(1024 * 1024)
-#define	ZFS_OBJ_HASH(zfsvfs, obj)	((obj) & ((zfsvfs->z_hold_size) - 1))
-
-extern unsigned int zfs_object_mutex_size;
-
-/*
- * Encode ZFS stored time values from a struct timespec / struct timespec64.
- */
-#define	ZFS_TIME_ENCODE(tp, stmp)		\
-do {						\
-	(stmp)[0] = (uint64_t)(tp)->tv_sec;	\
-	(stmp)[1] = (uint64_t)(tp)->tv_nsec;	\
-} while (0)
-
-#if defined(HAVE_INODE_TIMESPEC64_TIMES)
-/*
- * Decode ZFS stored time values to a struct timespec64
- * 4.18 and newer kernels.
- */
-#define	ZFS_TIME_DECODE(tp, stmp)		\
-do {						\
-	(tp)->tv_sec = (time64_t)(stmp)[0];	\
-	(tp)->tv_nsec = (long)(stmp)[1];	\
-} while (0)
-#else
-/*
- * Decode ZFS stored time values to a struct timespec
- * 4.17 and older kernels.
- */
-#define	ZFS_TIME_DECODE(tp, stmp)		\
-do {						\
-	(tp)->tv_sec = (time_t)(stmp)[0];	\
-	(tp)->tv_nsec = (long)(stmp)[1];	\
-} while (0)
-#endif /* HAVE_INODE_TIMESPEC64_TIMES */
 
 /*
  * Timestamp defines
@@ -362,17 +255,11 @@ extern void	zfs_zinactive(znode_t *);
 extern void	zfs_znode_delete(znode_t *, dmu_tx_t *);
 extern void	zfs_remove_op_tables(void);
 extern int	zfs_create_op_tables(void);
-extern int	zfs_sync(struct super_block *, int, cred_t *);
 extern dev_t	zfs_cmpldev(uint64_t);
 extern int	zfs_get_zplprop(objset_t *os, zfs_prop_t prop, uint64_t *value);
 extern int	zfs_get_stats(objset_t *os, nvlist_t *nv);
 extern boolean_t zfs_get_vfs_flag_unmounted(objset_t *os);
 extern void	zfs_znode_dmu_fini(znode_t *);
-extern int	zfs_inode_alloc(struct super_block *, struct inode **ip);
-extern void	zfs_inode_destroy(struct inode *);
-extern void	zfs_inode_update(znode_t *);
-extern void	zfs_mark_inode_dirty(struct inode *);
-extern boolean_t zfs_relatime_need_update(const struct inode *);
 
 extern void zfs_log_create(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
     znode_t *dzp, znode_t *zp, char *name, vsecattr_t *, zfs_fuid_info_t *,
@@ -400,19 +287,7 @@ extern void zfs_log_acl(zilog_t *zilog, dmu_tx_t *tx, znode_t *zp,
 extern void zfs_xvattr_set(znode_t *zp, xvattr_t *xvap, dmu_tx_t *tx);
 extern void zfs_upgrade(zfsvfs_t *zfsvfs, dmu_tx_t *tx);
 
-#if defined(HAVE_UIO_RW)
-extern caddr_t zfs_map_page(page_t *, enum seg_rw);
-extern void zfs_unmap_page(page_t *, caddr_t);
-#endif /* HAVE_UIO_RW */
-
-extern zil_get_data_t zfs_get_data;
-extern zil_replay_func_t *zfs_replay_vector[TX_MAX_TYPE];
-extern int zfsfstype;
-
-#endif /* _KERNEL */
-
-extern int zfs_obj_to_path(objset_t *osp, uint64_t obj, char *buf, int len);
-
+#endif
 #ifdef	__cplusplus
 }
 #endif
