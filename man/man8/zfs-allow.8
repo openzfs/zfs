@@ -1,0 +1,372 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\"
+.\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
+.\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
+.\" Copyright (c) 2011, 2019 by Delphix. All rights reserved.
+.\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
+.\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
+.\" Copyright (c) 2014 by Adam Stevko. All rights reserved.
+.\" Copyright (c) 2014 Integros [integros.com]
+.\" Copyright 2019 Richard Laager. All rights reserved.
+.\" Copyright 2018 Nexenta Systems, Inc.
+.\" Copyright 2019 Joyent, Inc.
+.\"
+.Dd June 30, 2019
+.Dt ZFS-ALLOW 8
+.Os
+.Sh NAME
+.Nm zfs Ns Pf - Cm allow
+.Nd Delegates ZFS administration permission for the file systems to non-privileged users.
+.Sh SYNOPSIS
+.Nm
+.Cm allow
+.Op Fl dglu
+.Ar user Ns | Ns Ar group Ns Oo , Ns Ar user Ns | Ns Ar group Oc Ns ...
+.Ar perm Ns | Ns @ Ns Ar setname Ns Oo , Ns Ar perm Ns | Ns @ Ns
+.Ar setname Oc Ns ...
+.Ar filesystem Ns | Ns Ar volume
+.Nm
+.Cm allow
+.Op Fl dl
+.Fl e Ns | Ns Sy everyone
+.Ar perm Ns | Ns @ Ns Ar setname Ns Oo , Ns Ar perm Ns | Ns @ Ns
+.Ar setname Oc Ns ...
+.Ar filesystem Ns | Ns Ar volume
+.Nm
+.Cm allow
+.Fl c
+.Ar perm Ns | Ns @ Ns Ar setname Ns Oo , Ns Ar perm Ns | Ns @ Ns
+.Ar setname Oc Ns ...
+.Ar filesystem Ns | Ns Ar volume
+.Nm
+.Cm allow
+.Fl s No @ Ns Ar setname
+.Ar perm Ns | Ns @ Ns Ar setname Ns Oo , Ns Ar perm Ns | Ns @ Ns
+.Ar setname Oc Ns ...
+.Ar filesystem Ns | Ns Ar volume
+.Nm
+.Cm unallow
+.Op Fl dglru
+.Ar user Ns | Ns Ar group Ns Oo , Ns Ar user Ns | Ns Ar group Oc Ns ...
+.Oo Ar perm Ns | Ns @ Ns Ar setname Ns Oo , Ns Ar perm Ns | Ns @ Ns
+.Ar setname Oc Ns ... Oc
+.Ar filesystem Ns | Ns Ar volume
+.Nm
+.Cm unallow
+.Op Fl dlr
+.Fl e Ns | Ns Sy everyone
+.Oo Ar perm Ns | Ns @ Ns Ar setname Ns Oo , Ns Ar perm Ns | Ns @ Ns
+.Ar setname Oc Ns ... Oc
+.Ar filesystem Ns | Ns Ar volume
+.Nm
+.Cm unallow
+.Op Fl r
+.Fl c
+.Oo Ar perm Ns | Ns @ Ns Ar setname Ns Oo , Ns Ar perm Ns | Ns @ Ns
+.Ar setname Oc Ns ... Oc
+.Ar filesystem Ns | Ns Ar volume
+.Nm
+.Cm unallow
+.Op Fl r
+.Fl s No @ Ns Ar setname
+.Oo Ar perm Ns | Ns @ Ns Ar setname Ns Oo , Ns Ar perm Ns | Ns @ Ns
+.Ar setname Oc Ns ... Oc
+.Ar filesystem Ns | Ns Ar volume
+.Sh DESCRIPTION
+.Bl -tag -width ""
+.It Xo
+.Nm
+.Cm allow
+.Ar filesystem Ns | Ns Ar volume
+.Xc
+Displays permissions that have been delegated on the specified filesystem or
+volume.
+See the other forms of
+.Nm zfs Cm allow
+for more information.
+.Pp
+Delegations are supported under Linux with the exception of
+.Sy mount ,
+.Sy unmount ,
+.Sy mountpoint ,
+.Sy canmount ,
+.Sy rename ,
+and
+.Sy share .
+These permissions cannot be delegated because the Linux
+.Xr mount 8
+command restricts modifications of the global namespace to the root user.
+.It Xo
+.Nm
+.Cm allow
+.Op Fl dglu
+.Ar user Ns | Ns Ar group Ns Oo , Ns Ar user Ns | Ns Ar group Oc Ns ...
+.Ar perm Ns | Ns @ Ns Ar setname Ns Oo , Ns Ar perm Ns | Ns @ Ns
+.Ar setname Oc Ns ...
+.Ar filesystem Ns | Ns Ar volume
+.Xc
+.It Xo
+.Nm
+.Cm allow
+.Op Fl dl
+.Fl e Ns | Ns Sy everyone
+.Ar perm Ns | Ns @ Ns Ar setname Ns Oo , Ns Ar perm Ns | Ns @ Ns
+.Ar setname Oc Ns ...
+.Ar filesystem Ns | Ns Ar volume
+.Xc
+Delegates ZFS administration permission for the file systems to non-privileged
+users.
+.Bl -tag -width "-d"
+.It Fl d
+Allow only for the descendent file systems.
+.It Fl e Ns | Ns Sy everyone
+Specifies that the permissions be delegated to everyone.
+.It Fl g Ar group Ns Oo , Ns Ar group Oc Ns ...
+Explicitly specify that permissions are delegated to the group.
+.It Fl l
+Allow
+.Qq locally
+only for the specified file system.
+.It Fl u Ar user Ns Oo , Ns Ar user Oc Ns ...
+Explicitly specify that permissions are delegated to the user.
+.It Ar user Ns | Ns Ar group Ns Oo , Ns Ar user Ns | Ns Ar group Oc Ns ...
+Specifies to whom the permissions are delegated.
+Multiple entities can be specified as a comma-separated list.
+If neither of the
+.Fl gu
+options are specified, then the argument is interpreted preferentially as the
+keyword
+.Sy everyone ,
+then as a user name, and lastly as a group name.
+To specify a user or group named
+.Qq everyone ,
+use the
+.Fl g
+or
+.Fl u
+options.
+To specify a group with the same name as a user, use the
+.Fl g
+options.
+.It Xo
+.Ar perm Ns | Ns @ Ns Ar setname Ns Oo , Ns Ar perm Ns | Ns @ Ns
+.Ar setname Oc Ns ...
+.Xc
+The permissions to delegate.
+Multiple permissions may be specified as a comma-separated list.
+Permission names are the same as ZFS subcommand and property names.
+See the property list below.
+Property set names, which begin with
+.Sy @ ,
+may be specified.
+See the
+.Fl s
+form below for details.
+.El
+.Pp
+If neither of the
+.Fl dl
+options are specified, or both are, then the permissions are allowed for the
+file system or volume, and all of its descendents.
+.Pp
+Permissions are generally the ability to use a ZFS subcommand or change a ZFS
+property.
+The following permissions are available:
+.Bd -literal
+NAME             TYPE           NOTES
+allow            subcommand     Must also have the permission that is
+                                being allowed
+clone            subcommand     Must also have the 'create' ability and
+                                'mount' ability in the origin file system
+create           subcommand     Must also have the 'mount' ability.
+                                Must also have the 'refreservation' ability to
+                                create a non-sparse volume.
+destroy          subcommand     Must also have the 'mount' ability
+diff             subcommand     Allows lookup of paths within a dataset
+                                given an object number, and the ability
+                                to create snapshots necessary to
+                                'zfs diff'.
+load-key         subcommand     Allows loading and unloading of encryption key
+                                (see 'zfs load-key' and 'zfs unload-key').
+change-key       subcommand     Allows changing an encryption key via
+                                'zfs change-key'.
+mount            subcommand     Allows mount/umount of ZFS datasets
+promote          subcommand     Must also have the 'mount' and 'promote'
+                                ability in the origin file system
+receive          subcommand     Must also have the 'mount' and 'create'
+                                ability
+rename           subcommand     Must also have the 'mount' and 'create'
+                                ability in the new parent
+rollback         subcommand     Must also have the 'mount' ability
+send             subcommand
+share            subcommand     Allows sharing file systems over NFS
+                                or SMB protocols
+snapshot         subcommand     Must also have the 'mount' ability
+
+groupquota       other          Allows accessing any groupquota@...
+                                property
+groupused        other          Allows reading any groupused@... property
+userprop         other          Allows changing any user property
+userquota        other          Allows accessing any userquota@...
+                                property
+userused         other          Allows reading any userused@... property
+projectobjquota  other          Allows accessing any projectobjquota@...
+                                property
+projectquota     other          Allows accessing any projectquota@... property
+projectobjused   other          Allows reading any projectobjused@... property
+projectused      other          Allows reading any projectused@... property
+
+aclinherit       property
+acltype          property
+atime            property
+canmount         property
+casesensitivity  property
+checksum         property
+compression      property
+copies           property
+devices          property
+exec             property
+filesystem_limit property
+mountpoint       property
+nbmand           property
+normalization    property
+primarycache     property
+quota            property
+readonly         property
+recordsize       property
+refquota         property
+refreservation   property
+reservation      property
+secondarycache   property
+setuid           property
+sharenfs         property
+sharesmb         property
+snapdir          property
+snapshot_limit   property
+utf8only         property
+version          property
+volblocksize     property
+volsize          property
+vscan            property
+xattr            property
+zoned            property
+.Ed
+.It Xo
+.Nm
+.Cm allow
+.Fl c
+.Ar perm Ns | Ns @ Ns Ar setname Ns Oo , Ns Ar perm Ns | Ns @ Ns
+.Ar setname Oc Ns ...
+.Ar filesystem Ns | Ns Ar volume
+.Xc
+Sets
+.Qq create time
+permissions.
+These permissions are granted
+.Pq locally
+to the creator of any newly-created descendent file system.
+.It Xo
+.Nm
+.Cm allow
+.Fl s No @ Ns Ar setname
+.Ar perm Ns | Ns @ Ns Ar setname Ns Oo , Ns Ar perm Ns | Ns @ Ns
+.Ar setname Oc Ns ...
+.Ar filesystem Ns | Ns Ar volume
+.Xc
+Defines or adds permissions to a permission set.
+The set can be used by other
+.Nm zfs Cm allow
+commands for the specified file system and its descendents.
+Sets are evaluated dynamically, so changes to a set are immediately reflected.
+Permission sets follow the same naming restrictions as ZFS file systems, but the
+name must begin with
+.Sy @ ,
+and can be no more than 64 characters long.
+.It Xo
+.Nm
+.Cm unallow
+.Op Fl dglru
+.Ar user Ns | Ns Ar group Ns Oo , Ns Ar user Ns | Ns Ar group Oc Ns ...
+.Oo Ar perm Ns | Ns @ Ns Ar setname Ns Oo , Ns Ar perm Ns | Ns @ Ns
+.Ar setname Oc Ns ... Oc
+.Ar filesystem Ns | Ns Ar volume
+.Xc
+.It Xo
+.Nm
+.Cm unallow
+.Op Fl dlr
+.Fl e Ns | Ns Sy everyone
+.Oo Ar perm Ns | Ns @ Ns Ar setname Ns Oo , Ns Ar perm Ns | Ns @ Ns
+.Ar setname Oc Ns ... Oc
+.Ar filesystem Ns | Ns Ar volume
+.Xc
+.It Xo
+.Nm
+.Cm unallow
+.Op Fl r
+.Fl c
+.Oo Ar perm Ns | Ns @ Ns Ar setname Ns Oo , Ns Ar perm Ns | Ns @ Ns
+.Ar setname Oc Ns ... Oc
+.Ar filesystem Ns | Ns Ar volume
+.Xc
+Removes permissions that were granted with the
+.Nm zfs Cm allow
+command.
+No permissions are explicitly denied, so other permissions granted are still in
+effect.
+For example, if the permission is granted by an ancestor.
+If no permissions are specified, then all permissions for the specified
+.Ar user ,
+.Ar group ,
+or
+.Sy everyone
+are removed.
+Specifying
+.Sy everyone
+.Po or using the
+.Fl e
+option
+.Pc
+only removes the permissions that were granted to everyone, not all permissions
+for every user and group.
+See the
+.Nm zfs Cm allow
+command for a description of the
+.Fl ldugec
+options.
+.Bl -tag -width "-r"
+.It Fl r
+Recursively remove the permissions from this file system and all descendents.
+.El
+.It Xo
+.Nm
+.Cm unallow
+.Op Fl r
+.Fl s No @ Ns Ar setname
+.Oo Ar perm Ns | Ns @ Ns Ar setname Ns Oo , Ns Ar perm Ns | Ns @ Ns
+.Ar setname Oc Ns ... Oc
+.Ar filesystem Ns | Ns Ar volume
+.Xc
+Removes permissions from a permission set.
+If no permissions are specified, then all permissions are removed, thus removing
+the set entirely.
+.El

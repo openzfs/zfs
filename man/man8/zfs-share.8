@@ -1,0 +1,84 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\"
+.\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
+.\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
+.\" Copyright (c) 2011, 2019 by Delphix. All rights reserved.
+.\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
+.\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
+.\" Copyright (c) 2014 by Adam Stevko. All rights reserved.
+.\" Copyright (c) 2014 Integros [integros.com]
+.\" Copyright 2019 Richard Laager. All rights reserved.
+.\" Copyright 2018 Nexenta Systems, Inc.
+.\" Copyright 2019 Joyent, Inc.
+.\"
+.Dd June 30, 2019
+.Dt ZFS-SHARE 8
+.Os
+.Sh NAME
+.Nm zfs Ns Pf - Cm share
+.Nd Shares and unshares available ZFS filesystems.
+.Sh SYNOPSIS
+.Nm
+.Cm share
+.Fl a | Ar filesystem
+.Nm
+.Cm unshare
+.Fl a | Ar filesystem Ns | Ns Ar mountpoint
+.Sh DESCRIPTION
+.Bl -tag -width ""
+.It Xo
+.Nm
+.Cm share
+.Fl a | Ar filesystem
+.Xc
+Shares available ZFS file systems.
+.Bl -tag -width "-a"
+.It Fl a
+Share all available ZFS file systems.
+Invoked automatically as part of the boot process.
+.It Ar filesystem
+Share the specified filesystem according to the
+.Sy sharenfs
+and
+.Sy sharesmb
+properties.
+File systems are shared when the
+.Sy sharenfs
+or
+.Sy sharesmb
+property is set.
+.El
+.It Xo
+.Nm
+.Cm unshare
+.Fl a | Ar filesystem Ns | Ns Ar mountpoint
+.Xc
+Unshares currently shared ZFS file systems.
+.Bl -tag -width "-a"
+.It Fl a
+Unshare all available ZFS file systems.
+Invoked automatically as part of the shutdown process.
+.It Ar filesystem Ns | Ns Ar mountpoint
+Unshare the specified filesystem.
+The command can also be given a path to a ZFS file system shared on the system.
+.El
+.El

@@ -1,0 +1,153 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\"
+.\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
+.\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
+.\" Copyright (c) 2011, 2019 by Delphix. All rights reserved.
+.\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
+.\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
+.\" Copyright (c) 2014 by Adam Stevko. All rights reserved.
+.\" Copyright (c) 2014 Integros [integros.com]
+.\" Copyright 2019 Richard Laager. All rights reserved.
+.\" Copyright 2018 Nexenta Systems, Inc.
+.\" Copyright 2019 Joyent, Inc.
+.\"
+.Dd June 30, 2019
+.Dt ZFS-PROJECT 8
+.Os
+.Sh NAME
+.Nm zfs Ns Pf - Cm project
+.Nd List, set, or clear project ID and/or inherit flag on the file(s) or directories.
+.Sh SYNOPSIS
+.Nm
+.Cm project
+.Oo Fl d Ns | Ns Fl r Ns Oc
+.Ar file Ns | Ns Ar directory Ns ...
+.Nm
+.Cm project
+.Fl C
+.Oo Fl kr Ns Oc
+.Ar file Ns | Ns Ar directory Ns ...
+.Nm
+.Cm project
+.Fl c
+.Oo Fl 0 Ns Oc
+.Oo Fl d Ns | Ns Fl r Ns Oc
+.Op Fl p Ar id
+.Ar file Ns | Ns Ar directory Ns ...
+.Nm
+.Cm project
+.Op Fl p Ar id
+.Oo Fl rs Ns Oc
+.Ar file Ns | Ns Ar directory Ns ...
+.Sh DESCRIPTION
+.Bl -tag -width ""
+.It Xo
+.Nm
+.Cm project
+.Oo Fl d Ns | Ns Fl r Ns Oc
+.Ar file Ns | Ns Ar directory Ns ...
+.Xc
+List project identifier (ID) and inherit flag of file(s) or directories.
+.Bl -tag -width "-d"
+.It Fl d
+Show the directory project ID and inherit flag, not its children. It will
+overwrite the former specified
+.Fl r
+option.
+.It Fl r
+Show on subdirectories recursively. It will overwrite the former specified
+.Fl d
+option.
+.El
+.It Xo
+.Nm
+.Cm project
+.Fl C
+.Oo Fl kr Ns Oc
+.Ar file Ns | Ns Ar directory Ns ...
+.Xc
+Clear project inherit flag and/or ID on the file(s) or directories.
+.Bl -tag -width "-k"
+.It Fl k
+Keep the project ID unchanged. If not specified, the project ID will be reset
+as zero.
+.It Fl r
+Clear on subdirectories recursively.
+.El
+.It Xo
+.Nm
+.Cm project
+.Fl c
+.Oo Fl 0 Ns Oc
+.Oo Fl d Ns | Ns Fl r Ns Oc
+.Op Fl p Ar id
+.Ar file Ns | Ns Ar directory Ns ...
+.Xc
+Check project ID and inherit flag on the file(s) or directories, report the
+entries without project inherit flag or with different project IDs from the
+specified (via
+.Fl p
+option) value or the target directory's project ID.
+.Bl -tag -width "-0"
+.It Fl 0
+Print file name with a trailing NUL instead of newline (by default), like
+"find -print0".
+.It Fl d
+Check the directory project ID and inherit flag, not its children. It will
+overwrite the former specified
+.Fl r
+option.
+.It Fl p
+Specify the referenced ID for comparing with the target file(s) or directories'
+project IDs. If not specified, the target (top) directory's project ID will be
+used as the referenced one.
+.It Fl r
+Check on subdirectories recursively. It will overwrite the former specified
+.Fl d
+option.
+.El
+.It Xo
+.Nm
+.Cm project
+.Op Fl p Ar id
+.Oo Fl rs Ns Oc
+.Ar file Ns | Ns Ar directory Ns ...
+.Xc
+Set project ID and/or inherit flag on the file(s) or directories.
+.Bl -tag -width "-p"
+.It Fl p
+Set the file(s)' or directories' project ID with the given value.
+.It Fl r
+Set on subdirectories recursively.
+.It Fl s
+Set project inherit flag on the given file(s) or directories. It is usually used
+for setup tree quota on the directory target with
+.Fl r
+option specified together. When setup tree quota, by default the directory's
+project ID will be set to all its descendants unless you specify the project
+ID via
+.Fl p
+option explicitly.
+.El
+.El
+.Sh SEE ALSO
+.Xr zfs-projectspace 8
