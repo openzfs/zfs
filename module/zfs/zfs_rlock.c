@@ -38,6 +38,20 @@
  *	rangelock_reduce(lr, off, len); // optional
  *	rangelock_exit(lr);
  *
+ * Range locking rules
+ * --------------------
+ * 1. When truncating a file (zfs_create, zfs_setattr, zfs_space) the whole
+ *    file range needs to be locked as RL_WRITER. Only then can the pages be
+ *    freed etc and zp_size reset. zp_size must be set within range lock.
+ * 2. For writes and punching holes (zfs_write & zfs_space) just the range
+ *    being written or freed needs to be locked as RL_WRITER.
+ *    Multiple writes at the end of the file must coordinate zp_size updates
+ *    to ensure data isn't lost. A compare and swap loop is currently used
+ *    to ensure the file size is at least the offset last written.
+ * 3. For reads (zfs_read, zfs_get_data & zfs_putapage) just the range being
+ *    read needs to be locked as RL_READER. A check against zp_size can then
+ *    be made for reading beyond end of file.
+ *
  * AVL tree
  * --------
  * An AVL tree is used to maintain the state of the existing ranges
@@ -98,6 +112,7 @@
 
 #include <sys/zfs_context.h>
 #include <sys/zfs_rlock.h>
+
 
 /*
  * AVL comparison function used to order range locks
