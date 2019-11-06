@@ -1,5 +1,11 @@
 # ZoL userland configuration.
 
+# NOTE: This file is intended for sysv init and initramfs.
+# Changing some of these settings may not make any difference on
+# systemd-based setup, e.g. setting ZFS_MOUNT=no will not prevent systemd
+# from launching zfs-mount.service during boot.
+# See: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=901436
+
 # To enable a boolean setting, set it to yes, on, true, or 1.
 # Anything else will be interpreted as unset.
 
