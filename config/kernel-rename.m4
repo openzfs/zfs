@@ -37,6 +37,24 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_RENAME], [
 	],[])
 
 	dnl #
+	dnl # EL7 compatibility
+	dnl #
+	dnl # EL7 has backported renameat2 support, but it's done by defining a
+	dnl # separate iops wrapper structure that takes the .renameat2 function.
+	dnl #
+	ZFS_LINUX_TEST_SRC([dir_inode_operations_wrapper_rename2], [
+		#include <linux/fs.h>
+		int rename2_fn(struct inode *sip, struct dentry *sdp,
+			struct inode *tip, struct dentry *tdp,
+			unsigned int flags) { return 0; }
+
+		static const struct inode_operations_wrapper
+		    iops __attribute__ ((unused)) = {
+			.rename2 = rename2_fn,
+		};
+	],[])
+
+	dnl #
 	dnl # 5.12 API change,
 	dnl #
 	dnl # Linux 5.12 introduced passing struct user_namespace* as the first
@@ -78,6 +96,15 @@ AC_DEFUN([ZFS_AC_KERNEL_RENAME], [
 					[iops->rename() wants flags])
 			],[
 				AC_MSG_RESULT(no)
+
+				AC_MSG_CHECKING([whether struct inode_operations_wrapper takes .rename2()])
+				ZFS_LINUX_TEST_RESULT([dir_inode_operations_wrapper_rename2], [
+					AC_MSG_RESULT(yes)
+					AC_DEFINE(HAVE_RENAME2_OPERATIONS_WRAPPER, 1,
+						[struct inode_operations_wrapper takes .rename2()])
+				],[
+					AC_MSG_RESULT(no)
+				])
 			])
 		])
 	])
