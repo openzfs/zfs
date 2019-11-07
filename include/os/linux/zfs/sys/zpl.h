@@ -42,7 +42,11 @@ extern void zpl_vap_init(vattr_t *vap, struct inode *dir,
     umode_t mode, cred_t *cr);
 
 extern const struct inode_operations zpl_inode_operations;
+#ifdef HAVE_RENAME2_OPERATIONS_WRAPPER
+extern const struct inode_operations_wrapper zpl_dir_inode_operations;
+#else
 extern const struct inode_operations zpl_dir_inode_operations;
+#endif
 extern const struct inode_operations zpl_symlink_inode_operations;
 extern const struct inode_operations zpl_special_inode_operations;
 #if 0

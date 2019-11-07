@@ -661,7 +661,12 @@ const struct inode_operations zpl_inode_operations = {
 #endif /* CONFIG_FS_POSIX_ACL */
 };
 
+#ifdef HAVE_RENAME2_OPERATIONS_WRAPPER
+const struct inode_operations_wrapper zpl_dir_inode_operations = {
+	.ops = {
+#else
 const struct inode_operations zpl_dir_inode_operations = {
+#endif
 	.create		= zpl_create,
 	.lookup		= zpl_lookup,
 	.link		= zpl_link,
@@ -694,6 +699,10 @@ const struct inode_operations zpl_dir_inode_operations = {
 #endif /* HAVE_SET_ACL */
 	.get_acl	= zpl_get_acl,
 #endif /* CONFIG_FS_POSIX_ACL */
+#ifdef HAVE_RENAME2_OPERATIONS_WRAPPER
+	},
+	.rename2	= zpl_rename2,
+#endif
 };
 
 const struct inode_operations zpl_symlink_inode_operations = {

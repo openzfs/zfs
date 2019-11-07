@@ -409,7 +409,12 @@ zfs_inode_set_ops(zfsvfs_t *zfsvfs, struct inode *ip)
 		break;
 
 	case S_IFDIR:
+#ifdef HAVE_RENAME2_OPERATIONS_WRAPPER
+		ip->i_flags |= S_IOPS_WRAPPER;
+		ip->i_op = &zpl_dir_inode_operations.ops;
+#else
 		ip->i_op = &zpl_dir_inode_operations;
+#endif
 		ip->i_fop = &zpl_dir_file_operations;
 		ITOZ(ip)->z_zn_prefetch = B_TRUE;
 		break;
