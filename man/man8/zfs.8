@@ -213,6 +213,8 @@ Sets the property or list of properties to the given value(s) for each dataset.
 .It Xr zfs-inherit 8
 Clears the specified property, causing it to be inherited from an ancestor,
 restored to default if no ancestor has the property set, or with the
+.Fl S
+option reverted to the received value if one exists.
 .El
 .Ss Quotas
 .Bl -tag -width ""
@@ -225,8 +227,6 @@ Displays space consumed by, and quotas on, each user, group, or project
 in the specified filesystem or snapshot.
 .It Xr zfs-project 8
 List, set, or clear project ID and/or inherit flag on the file(s) or directories.
-.Fl S
-option reverted to the received value if one exists.
 .El
 .Ss Mountpoints
 .Bl -tag -width ""
