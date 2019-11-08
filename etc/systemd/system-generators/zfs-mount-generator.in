@@ -182,6 +182,8 @@ process_line() {
         keyloadcmd="@sbindir@/zfs load-key '${dataset}'"
       elif [ "${p_keyloc}" = "prompt" ] ; then
         keyloadcmd="sh -c 'set -eu;"\
+"keystatus=\"\$\$(@sbindir@/zfs get -H -o value keystatus \"${dataset}\")\";"\
+"[ \"\$\$keystatus\" = \"unavailable\" ] || exit 0;"\
 "count=0;"\
 "while [ \$\$count -lt 3 ];do"\
 "  systemd-ask-password --id=\"zfs:${dataset}\""\
