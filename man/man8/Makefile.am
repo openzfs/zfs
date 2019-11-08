@@ -8,6 +8,39 @@ dist_man_MANS = \
 	zgenhostid.8 \
 	zinject.8 \
 	zpool.8 \
+	zpoolconcepts.8 \
+	zpoolprops.8 \
+	zpool-add.8 \
+	zpool-attach.8 \
+	zpool-checkpoint.8 \
+	zpool-clear.8 \
+	zpool-create.8 \
+	zpool-destroy.8 \
+	zpool-detach.8 \
+	zpool-events.8 \
+	zpool-export.8 \
+	zpool-get.8 \
+	zpool-history.8 \
+	zpool-import.8 \
+	zpool-initialize.8 \
+	zpool-iostat.8 \
+	zpool-labelclear.8 \
+	zpool-list.8 \
+	zpool-offline.8 \
+	zpool-online.8 \
+	zpool-reguid.8 \
+	zpool-remove.8 \
+	zpool-reopen.8 \
+	zpool-replace.8 \
+	zpool-resilver.8 \
+	zpool-scrub.8 \
+	zpool-set.8 \
+	zpool-split.8 \
+	zpool-status.8 \
+	zpool-sync.8 \
+	zpool-trim.8 \
+	zpool-upgrade.8 \
+	zpool-wait.8 \
 	zstreamdump.8
 
 nodist_man_MANS = \
