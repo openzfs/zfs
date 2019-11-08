@@ -3911,8 +3911,7 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 		 */
 		if ((strcmp(type, VDEV_TYPE_DISK) == 0) &&
 		    !(name_flags & VDEV_NAME_PATH)) {
-			path = strrchr(path, '/');
-			path++;
+			path = zfs_strip_path(path);
 		}
 
 		/*
