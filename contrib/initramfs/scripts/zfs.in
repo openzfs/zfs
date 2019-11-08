@@ -414,6 +414,9 @@ decrypt_fs()
 
 		# If root dataset is encrypted...
 		if ! [ "${ENCRYPTIONROOT}" = "-" ]; then
+			KEYSTATUS="$(${ZFS} get -H -o value keystatus "${ENCRYPTIONROOT}")"
+			# Continue only if the key needs to be loaded
+			[ "$KEYSTATUS" = "unavailable" ] || return 0
 			TRY_COUNT=3
 			# Prompt with plymouth, if active
 			if [ -e /bin/plymouth ] && /bin/plymouth --ping 2>/dev/null; then
