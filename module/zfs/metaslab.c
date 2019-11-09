@@ -2533,7 +2533,7 @@ metaslab_unload(metaslab_t *msp)
  * the vdev_ms_shift - the vdev_ashift is less than 32, we can store
  * the ranges using two uint32_ts, rather than two uint64_ts.
  */
-static range_seg_type_t
+range_seg_type_t
 metaslab_calculate_range_tree_type(vdev_t *vdev, metaslab_t *msp,
     uint64_t *start, uint64_t *shift)
 {
