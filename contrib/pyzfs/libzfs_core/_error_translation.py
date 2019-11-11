@@ -39,7 +39,8 @@ from ._constants import (
     ZFS_ERR_NO_CHECKPOINT,
     ZFS_ERR_DEVRM_IN_PROGRESS,
     ZFS_ERR_VDEV_TOO_BIG,
-    ZFS_ERR_WRONG_PARENT
+    ZFS_ERR_WRONG_PARENT,
+    zfs_errno
 )
 
 
@@ -147,21 +148,36 @@ def lzc_destroy_snaps_translate_errors(ret, errlist, snaps, defer):
 
 
 def lzc_bookmark_translate_errors(ret, errlist, bookmarks):
+
     if ret == 0:
         return
 
     def _map(ret, name):
+        source = bookmarks[name]
         if ret == errno.EINVAL:
             if name:
-                snap = bookmarks[name]
                 pool_names = map(_pool_name, bookmarks.keys())
-                if not _is_valid_bmark_name(name):
-                    return lzc_exc.BookmarkNameInvalid(name)
-                elif not _is_valid_snap_name(snap):
-                    return lzc_exc.SnapshotNameInvalid(snap)
-                elif _fs_name(name) != _fs_name(snap):
-                    return lzc_exc.BookmarkMismatch(name)
-                elif any(x != _pool_name(name) for x in pool_names):
+
+                # use _validate* functions for MAXNAMELEN check
+                try:
+                    _validate_bmark_name(name)
+                except lzc_exc.ZFSError as e:
+                    return e
+
+                try:
+                    _validate_snap_name(source)
+                    source_is_snap = True
+                except lzc_exc.ZFSError:
+                    source_is_snap = False
+                try:
+                    _validate_bmark_name(source)
+                    source_is_bmark = True
+                except lzc_exc.ZFSError:
+                    source_is_bmark = False
+                if not source_is_snap and not source_is_bmark:
+                    return lzc_exc.BookmarkSourceInvalid(source)
+
+                if any(x != _pool_name(name) for x in pool_names):
                     return lzc_exc.PoolsDiffer(name)
             else:
                 invalid_names = [
@@ -174,6 +190,8 @@ def lzc_bookmark_translate_errors(ret, errlist, bookmarks):
             return lzc_exc.SnapshotNotFound(name)
         if ret == errno.ENOTSUP:
             return lzc_exc.BookmarkNotSupported(name)
+        if ret == zfs_errno.ZFS_ERR_BOOKMARK_SOURCE_NOT_ANCESTOR:
+            return lzc_exc.BookmarkMismatch(source)
         return _generic_exception(ret, name, "Failed to create bookmark")
 
     _handle_err_list(

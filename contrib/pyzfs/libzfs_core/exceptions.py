@@ -227,7 +227,15 @@ class BookmarkNotFound(ZFSError):
 
 class BookmarkMismatch(ZFSError):
     errno = errno.EINVAL
-    message = "Bookmark is not in snapshot's filesystem"
+    message = "source is not an ancestor of the new bookmark's dataset"
+
+    def __init__(self, name):
+        self.name = name
+
+
+class BookmarkSourceInvalid(ZFSError):
+    errno = errno.EINVAL
+    message = "Bookmark source is not a valid snapshot or existing bookmark"
 
     def __init__(self, name):
         self.name = name

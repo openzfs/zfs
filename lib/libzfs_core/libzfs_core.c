@@ -25,6 +25,7 @@
  * Copyright (c) 2017 Datto Inc.
  * Copyright 2017 RackTop Systems.
  * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+ * Copyright (c) 2019, 2020 by Christian Schwarz. All rights reserved.
  */
 
 /*
@@ -1127,11 +1128,13 @@ lzc_rollback_to(const char *fsname, const char *snapname)
 }
 
 /*
- * Creates bookmarks.
+ * Creates new bookmarks from existing snapshot or bookmark.
  *
- * The bookmarks nvlist maps from name of the bookmark (e.g. "pool/fs#bmark") to
- * the name of the snapshot (e.g. "pool/fs@snap").  All the bookmarks and
- * snapshots must be in the same pool.
+ * The bookmarks nvlist maps from the full name of the new bookmark to
+ * the full name of the source snapshot or bookmark.
+ * All the bookmarks and snapshots must be in the same pool.
+ * The new bookmarks names must be unique.
+ * => see function dsl_bookmark_create_nvl_validate
  *
  * The returned results nvlist will have an entry for each bookmark that failed.
  * The value will be the (int32) error code.
@@ -1146,7 +1149,7 @@ lzc_bookmark(nvlist_t *bookmarks, nvlist_t **errlist)
 	int error;
 	char pool[ZFS_MAX_DATASET_NAME_LEN];
 
-	/* determine the pool name */
+	/* determine pool name from first bookmark */
 	elem = nvlist_next_nvpair(bookmarks, NULL);
 	if (elem == NULL)
 		return (0);
