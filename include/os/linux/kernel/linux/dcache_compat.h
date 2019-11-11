@@ -41,24 +41,7 @@
  * the dentry structure.  To handle this we define an appropriate
  * dentry_operations_t typedef which can be used.
  */
-#ifdef HAVE_CONST_DENTRY_OPERATIONS
 typedef const struct dentry_operations	dentry_operations_t;
-#else
-typedef struct dentry_operations	dentry_operations_t;
-#endif
-
-/*
- * 2.6.38 API change,
- * Added d_set_d_op() helper function which sets some flags in
- * dentry->d_flags based on which operations are defined.
- */
-#ifndef HAVE_D_SET_D_OP
-static inline void
-d_set_d_op(struct dentry *dentry, dentry_operations_t *op)
-{
-	dentry->d_op = op;
-}
-#endif /* HAVE_D_SET_D_OP */
 
 /*
  * 2.6.38 API addition,
@@ -72,12 +55,10 @@ d_set_d_op(struct dentry *dentry, dentry_operations_t *op)
 static inline void
 d_clear_d_op(struct dentry *dentry)
 {
-#ifdef HAVE_D_SET_D_OP
 	dentry->d_op = NULL;
 	dentry->d_flags &= ~(
 	    DCACHE_OP_HASH | DCACHE_OP_COMPARE |
 	    DCACHE_OP_REVALIDATE | DCACHE_OP_DELETE);
-#endif /* HAVE_D_SET_D_OP */
 }
 
 #endif /* _ZFS_DCACHE_H */

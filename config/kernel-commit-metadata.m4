@@ -18,9 +18,7 @@ AC_DEFUN([ZFS_AC_KERNEL_COMMIT_METADATA], [
 	AC_MSG_CHECKING([whether eops->commit_metadata() exists])
 	ZFS_LINUX_TEST_RESULT([export_operations_commit_metadata], [
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_COMMIT_METADATA, 1,
-		    [eops->commit_metadata() exists])
 	],[
-		AC_MSG_RESULT(no)
+		ZFS_LINUX_TEST_ERROR([eops->commit_metadata()])
 	])
 ])

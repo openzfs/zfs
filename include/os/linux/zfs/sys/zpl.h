@@ -39,7 +39,7 @@
 
 /* zpl_inode.c */
 extern void zpl_vap_init(vattr_t *vap, struct inode *dir,
-    zpl_umode_t mode, cred_t *cr);
+    umode_t mode, cred_t *cr);
 
 extern const struct inode_operations zpl_inode_operations;
 extern const struct inode_operations zpl_dir_inode_operations;
@@ -53,10 +53,6 @@ extern ssize_t zpl_read_common(struct inode *ip, const char *buf,
 extern ssize_t zpl_write_common(struct inode *ip, const char *buf,
     size_t len, loff_t *ppos, uio_seg_t segment, int flags,
     cred_t *cr);
-#if defined(HAVE_FILE_FALLOCATE) || defined(HAVE_INODE_FALLOCATE)
-extern long zpl_fallocate_common(struct inode *ip, int mode,
-    loff_t offset, loff_t len);
-#endif /* defined(HAVE_FILE_FALLOCATE) || defined(HAVE_INODE_FALLOCATE) */
 
 extern const struct address_space_operations zpl_address_space_operations;
 extern const struct file_operations zpl_file_operations;
@@ -74,20 +70,10 @@ extern ssize_t zpl_xattr_list(struct dentry *dentry, char *buf, size_t size);
 extern int zpl_xattr_security_init(struct inode *ip, struct inode *dip,
     const struct qstr *qstr);
 #if defined(CONFIG_FS_POSIX_ACL)
+#if defined(HAVE_SET_ACL)
 extern int zpl_set_acl(struct inode *ip, struct posix_acl *acl, int type);
+#endif /* HAVE_SET_ACL */
 extern struct posix_acl *zpl_get_acl(struct inode *ip, int type);
-#if !defined(HAVE_GET_ACL)
-#if defined(HAVE_CHECK_ACL_WITH_FLAGS)
-extern int zpl_check_acl(struct inode *inode, int mask, unsigned int flags);
-#elif defined(HAVE_CHECK_ACL)
-extern int zpl_check_acl(struct inode *inode, int mask);
-#elif defined(HAVE_PERMISSION_WITH_NAMEIDATA)
-extern int zpl_permission(struct inode *ip, int mask, struct nameidata *nd);
-#elif defined(HAVE_PERMISSION)
-extern int zpl_permission(struct inode *ip, int mask);
-#endif /*  HAVE_CHECK_ACL | HAVE_PERMISSION */
-#endif /* HAVE_GET_ACL */
-
 extern int zpl_init_acl(struct inode *ip, struct inode *dir);
 extern int zpl_chmod_acl(struct inode *ip);
 #else
@@ -112,11 +98,7 @@ extern const struct inode_operations zpl_ops_root;
 
 extern const struct file_operations zpl_fops_snapdir;
 extern const struct inode_operations zpl_ops_snapdir;
-#ifdef HAVE_AUTOMOUNT
 extern const struct dentry_operations zpl_dops_snapdirs;
-#else
-extern const struct inode_operations zpl_ops_snapdirs;
-#endif /* HAVE_AUTOMOUNT */
 
 extern const struct file_operations zpl_fops_shares;
 extern const struct inode_operations zpl_ops_shares;

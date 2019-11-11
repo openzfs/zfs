@@ -14,8 +14,7 @@ AC_DEFUN([ZFS_AC_KERNEL_VFS_FSYNC_2ARGS], [
 	AC_MSG_CHECKING([whether vfs_fsync() wants 2 args])
 	ZFS_LINUX_TEST_RESULT([vfs_fsync_2args], [
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_2ARGS_VFS_FSYNC, 1, [vfs_fsync() wants 2 args])
 	],[
-		AC_MSG_RESULT(no)
+		ZFS_LINUX_TEST_ERROR([vfs_fsync()])
 	])
 ])

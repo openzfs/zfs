@@ -1106,7 +1106,7 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 	 */
 	spath = *path;
 	path_get(&spath);
-	if (zpl_follow_down_one(&spath)) {
+	if (follow_down_one(&spath)) {
 		snap_zfsvfs = ITOZSB(spath.dentry->d_inode);
 		snap_zfsvfs->z_parent = zfsvfs;
 		dentry = spath.dentry;

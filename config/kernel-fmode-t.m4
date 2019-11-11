@@ -14,8 +14,7 @@ AC_DEFUN([ZFS_AC_KERNEL_FMODE_T], [
 	AC_MSG_CHECKING([whether kernel defines fmode_t])
 	ZFS_LINUX_TEST_RESULT([type_fmode_t], [
 		AC_MSG_RESULT([yes])
-		AC_DEFINE(HAVE_FMODE_T, 1, [kernel defines fmode_t])
 	],[
-		AC_MSG_RESULT([no])
+		ZFS_LINUX_TEST_ERROR([type_fmode_t])
 	])
 ])

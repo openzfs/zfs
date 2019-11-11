@@ -35,24 +35,7 @@
  * appropriate xattr_handler_t typedef which can be used.  This was
  * the preferred solution because it keeps the code clean and readable.
  */
-#ifdef HAVE_CONST_XATTR_HANDLER
 typedef const struct xattr_handler	xattr_handler_t;
-#else
-typedef struct xattr_handler		xattr_handler_t;
-#endif
-
-/*
- * 3.7 API change,
- * Preferred XATTR_NAME_* definitions introduced, these are mapped to
- * the previous definitions for older kernels.
- */
-#ifndef XATTR_NAME_POSIX_ACL_DEFAULT
-#define	XATTR_NAME_POSIX_ACL_DEFAULT	POSIX_ACL_XATTR_DEFAULT
-#endif
-
-#ifndef XATTR_NAME_POSIX_ACL_ACCESS
-#define	XATTR_NAME_POSIX_ACL_ACCESS	POSIX_ACL_XATTR_ACCESS
-#endif
 
 /*
  * 4.5 API change,
@@ -88,17 +71,8 @@ fn(const struct xattr_handler *handler, struct dentry *dentry,		\
 	return (__ ## fn(dentry->d_inode,				\
 	    list, list_size, name, name_len));				\
 }
-/*
- * 2.6.32 API
- */
-#elif defined(HAVE_XATTR_LIST_INODE)
-#define	ZPL_XATTR_LIST_WRAPPER(fn)					\
-static size_t								\
-fn(struct inode *ip, char *list, size_t list_size,			\
-    const char *name, size_t name_len)					\
-{									\
-	return (__ ## fn(ip, list, list_size, name, name_len));		\
-}
+#else
+#error "Unsupported kernel"
 #endif
 
 /*
@@ -141,16 +115,8 @@ fn(struct dentry *dentry, const char *name, void *buffer, size_t size,	\
 {									\
 	return (__ ## fn(dentry->d_inode, name, buffer, size));		\
 }
-/*
- * 2.6.32 API
- */
-#elif defined(HAVE_XATTR_GET_INODE)
-#define	ZPL_XATTR_GET_WRAPPER(fn)					\
-static int								\
-fn(struct inode *ip, const char *name, void *buffer, size_t size)	\
-{									\
-	return (__ ## fn(ip, name, buffer, size));			\
-}
+#else
+#error "Unsupported kernel"
 #endif
 
 /*
@@ -194,33 +160,15 @@ fn(struct dentry *dentry, const char *name, const void *buffer,		\
 {									\
 	return (__ ## fn(dentry->d_inode, name, buffer, size, flags));	\
 }
-/*
- * 2.6.32 API
- */
-#elif defined(HAVE_XATTR_SET_INODE)
-#define	ZPL_XATTR_SET_WRAPPER(fn)					\
-static int								\
-fn(struct inode *ip, const char *name, const void *buffer,		\
-    size_t size, int flags)						\
-{									\
-	return (__ ## fn(ip, name, buffer, size, flags));		\
-}
-#endif
-
-#ifdef HAVE_6ARGS_SECURITY_INODE_INIT_SECURITY
-#define	zpl_security_inode_init_security(ip, dip, qstr, nm, val, len)	\
-	security_inode_init_security(ip, dip, qstr, nm, val, len)
 #else
-#define	zpl_security_inode_init_security(ip, dip, qstr, nm, val, len)	\
-	security_inode_init_security(ip, dip, nm, val, len)
-#endif /* HAVE_6ARGS_SECURITY_INODE_INIT_SECURITY */
+#error "Unsupported kernel"
+#endif
 
 /*
  * Linux 3.7 API change. posix_acl_{from,to}_xattr gained the user_ns
  * parameter.  All callers are expected to pass the &init_user_ns which
  * is available through the init credential (kcred).
  */
-#ifdef HAVE_POSIX_ACL_FROM_XATTR_USERNS
 static inline struct posix_acl *
 zpl_acl_from_xattr(const void *value, int size)
 {
@@ -232,20 +180,5 @@ zpl_acl_to_xattr(struct posix_acl *acl, void *value, int size)
 {
 	return (posix_acl_to_xattr(kcred->user_ns, acl, value, size));
 }
-
-#else
-
-static inline struct posix_acl *
-zpl_acl_from_xattr(const void *value, int size)
-{
-	return (posix_acl_from_xattr(value, size));
-}
-
-static inline int
-zpl_acl_to_xattr(struct posix_acl *acl, void *value, int size)
-{
-	return (posix_acl_to_xattr(acl, value, size));
-}
-#endif /* HAVE_POSIX_ACL_FROM_XATTR_USERNS */
 
 #endif /* _ZFS_XATTR_H */

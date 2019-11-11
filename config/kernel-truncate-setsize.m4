@@ -15,9 +15,7 @@ AC_DEFUN([ZFS_AC_KERNEL_TRUNCATE_SETSIZE], [
 	ZFS_LINUX_TEST_RESULT_SYMBOL([truncate_setsize],
 	    [truncate_setsize], [mm/truncate.c], [
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_TRUNCATE_SETSIZE, 1,
-		    [truncate_setsize() is available])
 	], [
-		AC_MSG_RESULT(no)
+		ZFS_LINUX_TEST_ERROR([truncate_setsize])
 	])
 ])

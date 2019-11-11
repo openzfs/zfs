@@ -66,11 +66,10 @@ AC_DEFUN([ZFS_AC_KERNEL_SET_CACHED_ACL_USABLE], [
 
 dnl #
 dnl # 3.1 API change,
-dnl # posix_acl_chmod_masq() is not exported anymore and posix_acl_chmod()
-dnl # was introduced to replace it.
+dnl # posix_acl_chmod() was added as the preferred interface.
 dnl #
 dnl # 3.14 API change,
-dnl # posix_acl_chmod() is changed to __posix_acl_chmod()
+dnl # posix_acl_chmod() was changed to __posix_acl_chmod()
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_POSIX_ACL_CHMOD], [
 	ZFS_LINUX_TEST_SRC([posix_acl_chmod], [
@@ -89,14 +88,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_POSIX_ACL_CHMOD], [
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_POSIX_ACL_CHMOD], [
-	AC_MSG_CHECKING([whether posix_acl_chmod exists])
-	ZFS_LINUX_TEST_RESULT([posix_acl_chmod], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_POSIX_ACL_CHMOD, 1, [posix_acl_chmod() exists])
-	],[
-		AC_MSG_RESULT(no)
-	])
-
 	AC_MSG_CHECKING([whether __posix_acl_chmod exists])
 	ZFS_LINUX_TEST_RESULT([__posix_acl_chmod], [
 		AC_MSG_RESULT(yes)
@@ -104,12 +95,21 @@ AC_DEFUN([ZFS_AC_KERNEL_POSIX_ACL_CHMOD], [
 		    [__posix_acl_chmod() exists])
 	],[
 		AC_MSG_RESULT(no)
+
+		AC_MSG_CHECKING([whether posix_acl_chmod exists])
+		ZFS_LINUX_TEST_RESULT([posix_acl_chmod], [
+			AC_MSG_RESULT(yes)
+			AC_DEFINE(HAVE_POSIX_ACL_CHMOD, 1,
+			    [posix_acl_chmod() exists])
+		],[
+			ZFS_LINUX_TEST_ERROR([posix_acl_chmod()])
+		])
 	])
 ])
 
 dnl #
 dnl # 3.1 API change,
-dnl # posix_acl_equiv_mode now wants an umode_t* instead of a mode_t*
+dnl # posix_acl_equiv_mode now wants an umode_t instead of a mode_t
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_POSIX_ACL_EQUIV_MODE_WANTS_UMODE_T], [
 	ZFS_LINUX_TEST_SRC([posix_acl_equiv_mode], [
@@ -117,7 +117,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_POSIX_ACL_EQUIV_MODE_WANTS_UMODE_T], [
 		#include <linux/posix_acl.h>
 	],[
 		umode_t tmp;
-		posix_acl_equiv_mode(NULL,&tmp);
+		posix_acl_equiv_mode(NULL, &tmp);
 	])
 ])
 
@@ -125,10 +125,8 @@ AC_DEFUN([ZFS_AC_KERNEL_POSIX_ACL_EQUIV_MODE_WANTS_UMODE_T], [
 	AC_MSG_CHECKING([whether posix_acl_equiv_mode() wants umode_t])
 	ZFS_LINUX_TEST_RESULT([posix_acl_equiv_mode], [
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_POSIX_ACL_EQUIV_MODE_UMODE_T, 1,
-		    [posix_acl_equiv_mode wants umode_t*])
 	],[
-		AC_MSG_RESULT(no)
+		ZFS_LINUX_TEST_ERROR([posix_acl_equiv_mode()])
 	])
 ])
 
@@ -161,123 +159,6 @@ AC_DEFUN([ZFS_AC_KERNEL_POSIX_ACL_VALID_WITH_NS], [
 ])
 
 dnl #
-dnl # 2.6.27 API change,
-dnl # Check if inode_operations contains the function permission
-dnl # and expects the nameidata structure to have been removed.
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_INODE_OPERATIONS_PERMISSION], [
-	ZFS_LINUX_TEST_SRC([inode_operations_permission], [
-		#include <linux/fs.h>
-
-		int permission_fn(struct inode *inode, int mask) { return 0; }
-
-		static const struct inode_operations
-		    iops __attribute__ ((unused)) = {
-			.permission = permission_fn,
-		};
-	],[])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_INODE_OPERATIONS_PERMISSION], [
-	AC_MSG_CHECKING([whether iops->permission() exists])
-	ZFS_LINUX_TEST_RESULT([inode_operations_permission], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_PERMISSION, 1, [iops->permission() exists])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.26 API change,
-dnl # Check if inode_operations contains the function permission
-dnl # and expects the nameidata structure to be passed.
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_INODE_OPERATIONS_PERMISSION_WITH_NAMEIDATA], [
-	ZFS_LINUX_TEST_SRC([inode_operations_permission_with_nameidata], [
-		#include <linux/fs.h>
-		#include <linux/sched.h>
-
-		int permission_fn(struct inode *inode, int mask,
-		    struct nameidata *nd) { return 0; }
-
-		static const struct inode_operations
-		    iops __attribute__ ((unused)) = {
-			.permission = permission_fn,
-		};
-	],[])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_INODE_OPERATIONS_PERMISSION_WITH_NAMEIDATA], [
-	AC_MSG_CHECKING([whether iops->permission() wants nameidata])
-	ZFS_LINUX_TEST_RESULT([inode_operations_permission_with_nameidata], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_PERMISSION, 1, [iops->permission() exists])
-		AC_DEFINE(HAVE_PERMISSION_WITH_NAMEIDATA, 1,
-		    [iops->permission() with nameidata exists])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.32 API change,
-dnl # Check if inode_operations contains the function check_acl
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_INODE_OPERATIONS_CHECK_ACL], [
-	ZFS_LINUX_TEST_SRC([inode_operations_check_acl], [
-		#include <linux/fs.h>
-
-		int check_acl_fn(struct inode *inode, int mask) { return 0; }
-
-		static const struct inode_operations
-		    iops __attribute__ ((unused)) = {
-			.check_acl = check_acl_fn,
-		};
-	],[])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_INODE_OPERATIONS_CHECK_ACL], [
-	AC_MSG_CHECKING([whether iops->check_acl() exists])
-	ZFS_LINUX_TEST_RESULT([inode_operations_check_acl], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_CHECK_ACL, 1, [iops->check_acl() exists])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.38 API change,
-dnl # The function check_acl gained a new parameter: flags
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_INODE_OPERATIONS_CHECK_ACL_WITH_FLAGS], [
-	ZFS_LINUX_TEST_SRC([inode_operations_check_acl_with_flags], [
-		#include <linux/fs.h>
-
-		int check_acl_fn(struct inode *inode, int mask,
-		    unsigned int flags) { return 0; }
-
-		static const struct inode_operations
-		    iops __attribute__ ((unused)) = {
-			.check_acl = check_acl_fn,
-		};
-	],[])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_INODE_OPERATIONS_CHECK_ACL_WITH_FLAGS], [
-	AC_MSG_CHECKING([whether iops->check_acl() wants flags])
-	ZFS_LINUX_TEST_RESULT([inode_operations_check_acl_with_flags], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_CHECK_ACL, 1, [iops->check_acl() exists])
-		AC_DEFINE(HAVE_CHECK_ACL_WITH_FLAGS, 1,
-		    [iops->check_acl() wants flags])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
 dnl # 3.1 API change,
 dnl # Check if inode_operations contains the function get_acl
 dnl #
@@ -299,9 +180,8 @@ AC_DEFUN([ZFS_AC_KERNEL_INODE_OPERATIONS_GET_ACL], [
 	AC_MSG_CHECKING([whether iops->get_acl() exists])
 	ZFS_LINUX_TEST_RESULT([inode_operations_get_acl], [
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_GET_ACL, 1, [iops->get_acl() exists])
 	],[
-		AC_MSG_RESULT(no)
+		ZFS_LINUX_TEST_ERROR([iops->get_acl()])
 	])
 ])
 
@@ -390,10 +270,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_ACL], [
 	ZFS_AC_KERNEL_SRC_POSIX_ACL_CHMOD
 	ZFS_AC_KERNEL_SRC_POSIX_ACL_EQUIV_MODE_WANTS_UMODE_T
 	ZFS_AC_KERNEL_SRC_POSIX_ACL_VALID_WITH_NS
-	ZFS_AC_KERNEL_SRC_INODE_OPERATIONS_PERMISSION
-	ZFS_AC_KERNEL_SRC_INODE_OPERATIONS_PERMISSION_WITH_NAMEIDATA
-	ZFS_AC_KERNEL_SRC_INODE_OPERATIONS_CHECK_ACL
-	ZFS_AC_KERNEL_SRC_INODE_OPERATIONS_CHECK_ACL_WITH_FLAGS
 	ZFS_AC_KERNEL_SRC_INODE_OPERATIONS_GET_ACL
 	ZFS_AC_KERNEL_SRC_INODE_OPERATIONS_SET_ACL
 	ZFS_AC_KERNEL_SRC_GET_ACL_HANDLE_CACHE
@@ -406,10 +282,6 @@ AC_DEFUN([ZFS_AC_KERNEL_ACL], [
 	ZFS_AC_KERNEL_POSIX_ACL_CHMOD
 	ZFS_AC_KERNEL_POSIX_ACL_EQUIV_MODE_WANTS_UMODE_T
 	ZFS_AC_KERNEL_POSIX_ACL_VALID_WITH_NS
-	ZFS_AC_KERNEL_INODE_OPERATIONS_PERMISSION
-	ZFS_AC_KERNEL_INODE_OPERATIONS_PERMISSION_WITH_NAMEIDATA
-	ZFS_AC_KERNEL_INODE_OPERATIONS_CHECK_ACL
-	ZFS_AC_KERNEL_INODE_OPERATIONS_CHECK_ACL_WITH_FLAGS
 	ZFS_AC_KERNEL_INODE_OPERATIONS_GET_ACL
 	ZFS_AC_KERNEL_INODE_OPERATIONS_SET_ACL
 	ZFS_AC_KERNEL_GET_ACL_HANDLE_CACHE

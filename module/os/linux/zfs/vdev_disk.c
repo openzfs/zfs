@@ -54,8 +54,6 @@ typedef struct dio_request {
 	struct bio		*dr_bio[0];	/* Attached bio's */
 } dio_request_t;
 
-
-#if defined(HAVE_OPEN_BDEV_EXCLUSIVE) || defined(HAVE_BLKDEV_GET_BY_PATH)
 static fmode_t
 vdev_bdev_mode(int smode)
 {
@@ -71,20 +69,6 @@ vdev_bdev_mode(int smode)
 
 	return (mode);
 }
-#else
-static int
-vdev_bdev_mode(int smode)
-{
-	int mode = 0;
-
-	ASSERT3S(smode & (FREAD | FWRITE), !=, 0);
-
-	if ((smode & FREAD) && !(smode & FWRITE))
-		mode = SB_RDONLY;
-
-	return (mode);
-}
-#endif /* HAVE_OPEN_BDEV_EXCLUSIVE */
 
 /*
  * Returns the usable capacity (in bytes) for the partition or disk.
@@ -267,14 +251,15 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 				reread_part = B_TRUE;
 			}
 
-			vdev_bdev_close(bdev, mode);
+			blkdev_put(bdev, mode | FMODE_EXCL);
 		}
 
 		if (reread_part) {
-			bdev = vdev_bdev_open(disk_name, mode, zfs_vdev_holder);
+			bdev = blkdev_get_by_path(disk_name, mode | FMODE_EXCL,
+			    zfs_vdev_holder);
 			if (!IS_ERR(bdev)) {
 				int error = vdev_bdev_reread_part(bdev);
-				vdev_bdev_close(bdev, mode);
+				blkdev_put(bdev, mode | FMODE_EXCL);
 				if (error == 0)
 					bdev_retry_count = 100;
 			}
@@ -311,7 +296,8 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 	 */
 	bdev = ERR_PTR(-ENXIO);
 	while (IS_ERR(bdev) && count < bdev_retry_count) {
-		bdev = vdev_bdev_open(v->vdev_path, mode, zfs_vdev_holder);
+		bdev = blkdev_get_by_path(v->vdev_path, mode | FMODE_EXCL,
+		    zfs_vdev_holder);
 		if (unlikely(PTR_ERR(bdev) == -ENOENT)) {
 			schedule_timeout(MSEC_TO_TICK(10));
 			count++;
@@ -336,7 +322,7 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 	struct request_queue *q = bdev_get_queue(vd->vd_bdev);
 
 	/*  Determine the physical block size */
-	block_size = vdev_bdev_block_size(vd->vd_bdev);
+	block_size = bdev_physical_block_size(vd->vd_bdev);
 
 	/* Clear the nowritecache bit, causes vdev_reopen() to try again. */
 	v->vdev_nowritecache = B_FALSE;
@@ -374,8 +360,8 @@ vdev_disk_close(vdev_t *v)
 		return;
 
 	if (vd->vd_bdev != NULL) {
-		vdev_bdev_close(vd->vd_bdev,
-		    vdev_bdev_mode(spa_mode(v->vdev_spa)));
+		blkdev_put(vd->vd_bdev,
+		    vdev_bdev_mode(spa_mode(v->vdev_spa)) | FMODE_EXCL);
 	}
 
 	rw_destroy(&vd->vd_lock);
@@ -563,17 +549,10 @@ bio_set_dev(struct bio *bio, struct block_device *bdev)
 static inline void
 vdev_submit_bio(struct bio *bio)
 {
-#ifdef HAVE_CURRENT_BIO_TAIL
-	struct bio **bio_tail = current->bio_tail;
-	current->bio_tail = NULL;
-	vdev_submit_bio_impl(bio);
-	current->bio_tail = bio_tail;
-#else
 	struct bio_list *bio_list = current->bio_list;
 	current->bio_list = NULL;
 	vdev_submit_bio_impl(bio);
 	current->bio_list = bio_list;
-#endif
 }
 
 static int
@@ -585,9 +564,8 @@ __vdev_disk_physio(struct block_device *bdev, zio_t *zio,
 	uint64_t bio_offset;
 	int bio_size, bio_count = 16;
 	int i = 0, error = 0;
-#if defined(HAVE_BLK_QUEUE_HAVE_BLK_PLUG)
 	struct blk_plug plug;
-#endif
+
 	/*
 	 * Accessing outside the block device is never allowed.
 	 */
@@ -666,20 +644,16 @@ retry:
 	/* Extra reference to protect dio_request during vdev_submit_bio */
 	vdev_disk_dio_get(dr);
 
-#if defined(HAVE_BLK_QUEUE_HAVE_BLK_PLUG)
 	if (dr->dr_bio_count > 1)
 		blk_start_plug(&plug);
-#endif
 
 	/* Submit all bio's associated with this dio */
 	for (i = 0; i < dr->dr_bio_count; i++)
 		if (dr->dr_bio[i])
 			vdev_submit_bio(dr->dr_bio[i]);
 
-#if defined(HAVE_BLK_QUEUE_HAVE_BLK_PLUG)
 	if (dr->dr_bio_count > 1)
 		blk_finish_plug(&plug);
-#endif
 
 	(void) vdev_disk_dio_put(dr);
 
@@ -736,7 +710,7 @@ vdev_disk_io_start(zio_t *zio)
 	vdev_t *v = zio->io_vd;
 	vdev_disk_t *vd = v->vdev_tsd;
 	unsigned long trim_flags = 0;
-	int rw, flags, error;
+	int rw, error;
 
 	/*
 	 * If the vdev is closed, it's likely in the REMOVED or FAULTED state.
@@ -801,24 +775,10 @@ vdev_disk_io_start(zio_t *zio)
 		return;
 	case ZIO_TYPE_WRITE:
 		rw = WRITE;
-#if defined(HAVE_BLK_QUEUE_HAVE_BIO_RW_UNPLUG)
-		flags = (1 << BIO_RW_UNPLUG);
-#elif defined(REQ_UNPLUG)
-		flags = REQ_UNPLUG;
-#else
-		flags = 0;
-#endif
 		break;
 
 	case ZIO_TYPE_READ:
 		rw = READ;
-#if defined(HAVE_BLK_QUEUE_HAVE_BIO_RW_UNPLUG)
-		flags = (1 << BIO_RW_UNPLUG);
-#elif defined(REQ_UNPLUG)
-		flags = REQ_UNPLUG;
-#else
-		flags = 0;
-#endif
 		break;
 
 	case ZIO_TYPE_TRIM:
@@ -843,7 +803,7 @@ vdev_disk_io_start(zio_t *zio)
 
 	zio->io_target_timestamp = zio_handle_io_delay(zio);
 	error = __vdev_disk_physio(vd->vd_bdev, zio,
-	    zio->io_size, zio->io_offset, rw, flags);
+	    zio->io_size, zio->io_offset, rw, 0);
 	rw_exit(&vd->vd_lock);
 
 	if (error) {
@@ -866,7 +826,7 @@ vdev_disk_io_done(zio_t *zio)
 		vdev_disk_t *vd = v->vdev_tsd;
 
 		if (check_disk_change(vd->vd_bdev)) {
-			vdev_bdev_invalidate(vd->vd_bdev);
+			invalidate_bdev(vd->vd_bdev);
 			v->vdev_remove_wanted = B_TRUE;
 			spa_async_request(zio->io_spa, SPA_ASYNC_REMOVE);
 		}

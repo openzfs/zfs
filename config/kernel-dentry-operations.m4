@@ -38,10 +38,8 @@ AC_DEFUN([ZFS_AC_KERNEL_D_OBTAIN_ALIAS], [
 	ZFS_LINUX_TEST_RESULT_SYMBOL([d_obtain_alias],
 	    [d_obtain_alias], [fs/dcache.c], [
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_D_OBTAIN_ALIAS, 1,
-		          [d_obtain_alias() is available])
 	], [
-		AC_MSG_RESULT(no)
+		ZFS_LINUX_TEST_ERROR([d_obtain_alias()])
 	])
 ])
 
@@ -66,7 +64,7 @@ AC_DEFUN([ZFS_AC_KERNEL_D_PRUNE_ALIASES], [
 		AC_DEFINE(HAVE_D_PRUNE_ALIASES, 1,
 		    [d_prune_aliases() is available])
 	], [
-		AC_MSG_RESULT(no)
+		ZFS_LINUX_TEST_ERROR([d_prune_aliases()])
 	])
 ])
 
@@ -87,9 +85,8 @@ AC_DEFUN([ZFS_AC_KERNEL_D_SET_D_OP], [
 	ZFS_LINUX_TEST_RESULT_SYMBOL([d_set_d_op],
 	    [d_set_d_op], [fs/dcache.c], [
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_D_SET_D_OP, 1, [d_set_d_op() is available])
 	], [
-		AC_MSG_RESULT(no)
+		ZFS_LINUX_TEST_ERROR([d_set_d_op])
 	])
 ])
 
@@ -146,7 +143,7 @@ AC_DEFUN([ZFS_AC_KERNEL_CONST_DENTRY_OPERATIONS], [
 		AC_DEFINE(HAVE_CONST_DENTRY_OPERATIONS, 1,
 		    [dentry uses const struct dentry_operations])
 	],[
-		AC_MSG_RESULT(no)
+		ZFS_LINUX_TEST_ERROR([const dentry_operations])
 	])
 ])
 

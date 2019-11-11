@@ -35,11 +35,7 @@
 
 
 static struct dentry *
-#ifdef HAVE_LOOKUP_NAMEIDATA
-zpl_lookup(struct inode *dir, struct dentry *dentry, struct nameidata *nd)
-#else
 zpl_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
-#endif
 {
 	cred_t *cr = CRED();
 	struct inode *ip;
@@ -113,7 +109,7 @@ zpl_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
 }
 
 void
-zpl_vap_init(vattr_t *vap, struct inode *dir, zpl_umode_t mode, cred_t *cr)
+zpl_vap_init(vattr_t *vap, struct inode *dir, umode_t mode, cred_t *cr)
 {
 	vap->va_mask = ATTR_MODE;
 	vap->va_mode = mode;
@@ -129,13 +125,7 @@ zpl_vap_init(vattr_t *vap, struct inode *dir, zpl_umode_t mode, cred_t *cr)
 }
 
 static int
-#ifdef HAVE_CREATE_NAMEIDATA
-zpl_create(struct inode *dir, struct dentry *dentry, zpl_umode_t mode,
-    struct nameidata *nd)
-#else
-zpl_create(struct inode *dir, struct dentry *dentry, zpl_umode_t mode,
-    bool flag)
-#endif
+zpl_create(struct inode *dir, struct dentry *dentry, umode_t mode, bool flag)
 {
 	cred_t *cr = CRED();
 	struct inode *ip;
@@ -169,7 +159,7 @@ zpl_create(struct inode *dir, struct dentry *dentry, zpl_umode_t mode,
 }
 
 static int
-zpl_mknod(struct inode *dir, struct dentry *dentry, zpl_umode_t mode,
+zpl_mknod(struct inode *dir, struct dentry *dentry, umode_t mode,
     dev_t rdev)
 {
 	cred_t *cr = CRED();
@@ -213,7 +203,7 @@ zpl_mknod(struct inode *dir, struct dentry *dentry, zpl_umode_t mode,
 
 #ifdef HAVE_TMPFILE
 static int
-zpl_tmpfile(struct inode *dir, struct dentry *dentry, zpl_umode_t mode)
+zpl_tmpfile(struct inode *dir, struct dentry *dentry, umode_t mode)
 {
 	cred_t *cr = CRED();
 	struct inode *ip;
@@ -277,7 +267,7 @@ zpl_unlink(struct inode *dir, struct dentry *dentry)
 }
 
 static int
-zpl_mkdir(struct inode *dir, struct dentry *dentry, zpl_umode_t mode)
+zpl_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
 {
 	cred_t *cr = CRED();
 	vattr_t *vap;
@@ -612,46 +602,6 @@ out:
 	return (error);
 }
 
-#ifdef HAVE_INODE_TRUNCATE_RANGE
-static void
-zpl_truncate_range(struct inode *ip, loff_t start, loff_t end)
-{
-	cred_t *cr = CRED();
-	flock64_t bf;
-	fstrans_cookie_t cookie;
-
-	ASSERT3S(start, <=, end);
-
-	/*
-	 * zfs_freesp() will interpret (len == 0) as meaning "truncate until
-	 * the end of the file". We don't want that.
-	 */
-	if (start == end)
-		return;
-
-	crhold(cr);
-
-	bf.l_type = F_WRLCK;
-	bf.l_whence = SEEK_SET;
-	bf.l_start = start;
-	bf.l_len = end - start;
-	bf.l_pid = 0;
-	cookie = spl_fstrans_mark();
-	zfs_space(ip, F_FREESP, &bf, FWRITE, start, cr);
-	spl_fstrans_unmark(cookie);
-
-	crfree(cr);
-}
-#endif /* HAVE_INODE_TRUNCATE_RANGE */
-
-#ifdef HAVE_INODE_FALLOCATE
-static long
-zpl_fallocate(struct inode *ip, int mode, loff_t offset, loff_t len)
-{
-	return (zpl_fallocate_common(ip, mode, offset, len));
-}
-#endif /* HAVE_INODE_FALLOCATE */
-
 const struct inode_operations zpl_inode_operations = {
 	.setattr	= zpl_setattr,
 	.getattr	= zpl_getattr,
@@ -661,23 +611,11 @@ const struct inode_operations zpl_inode_operations = {
 	.removexattr	= generic_removexattr,
 #endif
 	.listxattr	= zpl_xattr_list,
-#ifdef HAVE_INODE_TRUNCATE_RANGE
-	.truncate_range = zpl_truncate_range,
-#endif /* HAVE_INODE_TRUNCATE_RANGE */
-#ifdef HAVE_INODE_FALLOCATE
-	.fallocate	= zpl_fallocate,
-#endif /* HAVE_INODE_FALLOCATE */
 #if defined(CONFIG_FS_POSIX_ACL)
 #if defined(HAVE_SET_ACL)
 	.set_acl	= zpl_set_acl,
-#endif
-#if defined(HAVE_GET_ACL)
+#endif /* HAVE_SET_ACL */
 	.get_acl	= zpl_get_acl,
-#elif defined(HAVE_CHECK_ACL)
-	.check_acl	= zpl_check_acl,
-#elif defined(HAVE_PERMISSION)
-	.permission	= zpl_permission,
-#endif /* HAVE_GET_ACL | HAVE_CHECK_ACL | HAVE_PERMISSION */
 #endif /* CONFIG_FS_POSIX_ACL */
 };
 
@@ -709,14 +647,8 @@ const struct inode_operations zpl_dir_inode_operations = {
 #if defined(CONFIG_FS_POSIX_ACL)
 #if defined(HAVE_SET_ACL)
 	.set_acl	= zpl_set_acl,
-#endif
-#if defined(HAVE_GET_ACL)
+#endif /* HAVE_SET_ACL */
 	.get_acl	= zpl_get_acl,
-#elif defined(HAVE_CHECK_ACL)
-	.check_acl	= zpl_check_acl,
-#elif defined(HAVE_PERMISSION)
-	.permission	= zpl_permission,
-#endif /* HAVE_GET_ACL | HAVE_CHECK_ACL | HAVE_PERMISSION */
 #endif /* CONFIG_FS_POSIX_ACL */
 };
 
@@ -754,13 +686,7 @@ const struct inode_operations zpl_special_inode_operations = {
 #if defined(CONFIG_FS_POSIX_ACL)
 #if defined(HAVE_SET_ACL)
 	.set_acl	= zpl_set_acl,
-#endif
-#if defined(HAVE_GET_ACL)
+#endif /* HAVE_SET_ACL */
 	.get_acl	= zpl_get_acl,
-#elif defined(HAVE_CHECK_ACL)
-	.check_acl	= zpl_check_acl,
-#elif defined(HAVE_PERMISSION)
-	.permission	= zpl_permission,
-#endif /* HAVE_GET_ACL | HAVE_CHECK_ACL | HAVE_PERMISSION */
 #endif /* CONFIG_FS_POSIX_ACL */
 };

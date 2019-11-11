@@ -19,10 +19,8 @@ AC_DEFUN([ZFS_AC_KERNEL_BLOCK_DEVICE_OPERATIONS_CHECK_EVENTS], [
 	AC_MSG_CHECKING([whether bops->check_events() exists])
 	ZFS_LINUX_TEST_RESULT([block_device_operations_check_events], [
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_BLOCK_DEVICE_OPERATIONS_CHECK_EVENTS, 1,
-		    [bops->check_events() exists])
 	],[
-		AC_MSG_RESULT(no)
+		ZFS_LINUX_TEST_ERROR([bops->check_events()])
 	])
 ])
 
@@ -49,10 +47,8 @@ AC_DEFUN([ZFS_AC_KERNEL_BLOCK_DEVICE_OPERATIONS_RELEASE_VOID], [
 	AC_MSG_CHECKING([whether bops->release() is void])
 	ZFS_LINUX_TEST_RESULT([block_device_operations_release_void], [
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_BLOCK_DEVICE_OPERATIONS_RELEASE_VOID, 1,
-		          [bops->release() returns void])
 	],[
-		AC_MSG_RESULT(no)
+		ZFS_LINUX_TEST_ERROR([bops->release()])
 	])
 ])
 

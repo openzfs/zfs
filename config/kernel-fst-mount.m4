@@ -24,8 +24,7 @@ AC_DEFUN([ZFS_AC_KERNEL_FST_MOUNT], [
         AC_MSG_CHECKING([whether fst->mount() exists])
         ZFS_LINUX_TEST_RESULT([file_system_type_mount], [
                 AC_MSG_RESULT(yes)
-                AC_DEFINE(HAVE_FST_MOUNT, 1, [fst->mount() exists])
         ],[
-                AC_MSG_RESULT(no)
+		ZFS_LINUX_TEST_ERROR([fst->mount()])
         ])
 ])

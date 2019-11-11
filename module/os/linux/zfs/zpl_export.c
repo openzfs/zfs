@@ -65,25 +65,6 @@ zpl_encode_fh(struct dentry *dentry, __u32 *fh, int *max_len, int connectable)
 }
 
 static struct dentry *
-zpl_dentry_obtain_alias(struct inode *ip)
-{
-	struct dentry *result;
-
-#ifdef HAVE_D_OBTAIN_ALIAS
-	result = d_obtain_alias(ip);
-#else
-	result = d_alloc_anon(ip);
-
-	if (result == NULL) {
-		iput(ip);
-		result = ERR_PTR(-ENOMEM);
-	}
-#endif /* HAVE_D_OBTAIN_ALIAS */
-
-	return (result);
-}
-
-static struct dentry *
 zpl_fh_to_dentry(struct super_block *sb, struct fid *fh,
     int fh_len, int fh_type)
 {
@@ -121,7 +102,7 @@ zpl_fh_to_dentry(struct super_block *sb, struct fid *fh,
 
 	ASSERT((ip != NULL) && !IS_ERR(ip));
 
-	return (zpl_dentry_obtain_alias(ip));
+	return (d_obtain_alias(ip));
 }
 
 static struct dentry *
@@ -142,10 +123,9 @@ zpl_get_parent(struct dentry *child)
 	if (error)
 		return (ERR_PTR(error));
 
-	return (zpl_dentry_obtain_alias(ip));
+	return (d_obtain_alias(ip));
 }
 
-#ifdef HAVE_COMMIT_METADATA
 static int
 zpl_commit_metadata(struct inode *inode)
 {
@@ -165,13 +145,10 @@ zpl_commit_metadata(struct inode *inode)
 
 	return (error);
 }
-#endif /* HAVE_COMMIT_METADATA */
 
 const struct export_operations zpl_export_operations = {
 	.encode_fh		= zpl_encode_fh,
 	.fh_to_dentry		= zpl_fh_to_dentry,
 	.get_parent		= zpl_get_parent,
-#ifdef HAVE_COMMIT_METADATA
 	.commit_metadata	= zpl_commit_metadata,
-#endif /* HAVE_COMMIT_METADATA */
 };

@@ -19,8 +19,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SGET], [
 	AC_MSG_CHECKING([whether sget() wants 5 args])
 	ZFS_LINUX_TEST_RESULT([sget_5args], [
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_5ARG_SGET, 1, [sget() wants 5 args])
 	],[
-		AC_MSG_RESULT(no)
+		ZFS_LINUX_TEST_ERROR([sget()])
 	])
 ])
