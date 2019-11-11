@@ -97,7 +97,7 @@ extern int zfs_append_partition(char *path, size_t max_len);
 extern int zfs_resolve_shortname(const char *name, char *path, size_t pathlen);
 
 extern char *zfs_strip_partition(char *);
-extern char *zfs_strip_partition_path(char *);
+extern char *zfs_strip_path(char *);
 
 extern int zfs_strcmp_pathname(const char *, const char *, int);
 
