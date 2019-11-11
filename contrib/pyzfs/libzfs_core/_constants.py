@@ -22,9 +22,13 @@ from __future__ import absolute_import, division, print_function
 
 
 # https://stackoverflow.com/a/1695250
-def enum(*sequential, **named):
-    enums = dict(((b, a) for a, b in enumerate(sequential)), **named)
+def enum_with_offset(offset, sequential, named):
+    enums = dict(((b, a + offset) for a, b in enumerate(sequential)), **named)
     return type('Enum', (), enums)
+
+
+def enum(*sequential, **named):
+    return enum_with_offset(0, sequential, named)
 
 
 #: Maximum length of any ZFS name.
@@ -60,12 +64,34 @@ zio_encrypt = enum(
     'ZIO_CRYPT_AES_256_GCM'
 )
 # ZFS-specific error codes
-ZFS_ERR_CHECKPOINT_EXISTS = 1024
-ZFS_ERR_DISCARDING_CHECKPOINT = 1025
-ZFS_ERR_NO_CHECKPOINT = 1026
-ZFS_ERR_DEVRM_IN_PROGRESS = 1027
-ZFS_ERR_VDEV_TOO_BIG = 1028
-ZFS_ERR_WRONG_PARENT = 1033
+zfs_errno = enum_with_offset(1024, [
+        'ZFS_ERR_CHECKPOINT_EXISTS',
+        'ZFS_ERR_DISCARDING_CHECKPOINT',
+        'ZFS_ERR_NO_CHECKPOINT',
+        'ZFS_ERR_DEVRM_IN_PROGRESS',
+        'ZFS_ERR_VDEV_TOO_BIG',
+        'ZFS_ERR_IOC_CMD_UNAVAIL',
+        'ZFS_ERR_IOC_ARG_UNAVAIL',
+        'ZFS_ERR_IOC_ARG_REQUIRED',
+        'ZFS_ERR_IOC_ARG_BADTYPE',
+        'ZFS_ERR_WRONG_PARENT',
+        'ZFS_ERR_FROM_IVSET_GUID_MISSING',
+        'ZFS_ERR_FROM_IVSET_GUID_MISMATCH',
+        'ZFS_ERR_SPILL_BLOCK_FLAG_MISSING',
+        'ZFS_ERR_UNKNOWN_SEND_STREAM_FEATURE',
+        'ZFS_ERR_EXPORT_IN_PROGRESS',
+        'ZFS_ERR_BOOKMARK_SOURCE_NOT_ANCESTOR',
+    ],
+    {}
+)
+# compat before we used the enum helper for these values
+ZFS_ERR_CHECKPOINT_EXISTS = zfs_errno.ZFS_ERR_CHECKPOINT_EXISTS
+assert(ZFS_ERR_CHECKPOINT_EXISTS == 1024)
+ZFS_ERR_DISCARDING_CHECKPOINT = zfs_errno.ZFS_ERR_DISCARDING_CHECKPOINT
+ZFS_ERR_NO_CHECKPOINT = zfs_errno.ZFS_ERR_NO_CHECKPOINT
+ZFS_ERR_DEVRM_IN_PROGRESS = zfs_errno.ZFS_ERR_DEVRM_IN_PROGRESS
+ZFS_ERR_VDEV_TOO_BIG = zfs_errno.ZFS_ERR_VDEV_TOO_BIG
+ZFS_ERR_WRONG_PARENT = zfs_errno.ZFS_ERR_WRONG_PARENT
 
 
 # vim: softtabstop=4 tabstop=4 expandtab shiftwidth=4
