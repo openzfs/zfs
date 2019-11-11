@@ -54,6 +54,7 @@ import copy
 from decimal import Decimal
 from signal import signal, SIGINT, SIGWINCH, SIG_DFL
 
+
 cols = {
     # HDR:        [Size, Scale, Description]
     "time":       [8, -1, "Time"],
@@ -118,6 +119,26 @@ out = None
 kstat = None
 
 
+if sys.platform.startswith('linux'):
+    def kstat_update():
+        global kstat
+
+        k = [line.strip() for line in open('/proc/spl/kstat/zfs/arcstats')]
+
+        if not k:
+            sys.exit(1)
+
+        del k[0:2]
+        kstat = {}
+
+        for s in k:
+            if not s:
+                continue
+
+            name, unused, value = s.split()
+            kstat[name] = Decimal(value)
+
+
 def detailed_usage():
     sys.stderr.write("%s\n" % cmd)
     sys.stderr.write("Field definitions are as follows:\n")
@@ -146,25 +167,6 @@ def usage():
     sys.stderr.write("\n")
 
     sys.exit(1)
-
-
-def kstat_update():
-    global kstat
-
-    k = [line.strip() for line in open('/proc/spl/kstat/zfs/arcstats')]
-
-    if not k:
-        sys.exit(1)
-
-    del k[0:2]
-    kstat = {}
-
-    for s in k:
-        if not s:
-            continue
-
-        name, unused, value = s.split()
-        kstat[name] = Decimal(value)
 
 
 def snap_stats():
