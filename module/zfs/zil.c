@@ -1414,11 +1414,17 @@ zil_lwb_write_open(zilog_t *zilog, lwb_t *lwb)
  * aligned to 4KB) actually gets written. However, we can't always just
  * allocate SPA_OLD_MAXBLOCKSIZE as the slog space could be exhausted.
  */
-uint64_t zil_block_buckets[] = {
-    4096,		/* non TX_WRITE */
-    8192+4096,		/* data base */
-    32*1024 + 4096, 	/* NFS writes */
-    UINT64_MAX
+struct {
+	uint64_t	limit;
+	uint64_t	blksz;
+} zil_block_buckets[] = {
+	{ 4096,		4096 },			/* non TX_WRITE */
+	{ 8192 + 4096,	8192 + 4096 },		/* database */
+	{ 32768 + 4096,	32768 + 4096 },		/* NFS writes */
+	{ 65536 + 4096,	65536 + 4096 },		/* 64KB writes */
+	{ 131072,	131072 },		/* < 128KB writes */
+	{ 131072 +4096,	65536 + 4096 },		/* 128KB writes */
+	{ UINT64_MAX,	SPA_OLD_MAXBLOCKSIZE},	/* > 128KB writes */
 };
 
 /*
@@ -1502,9 +1508,9 @@ zil_lwb_write_issue(zilog_t *zilog, lwb_t *lwb)
 	 * pool log space.
 	 */
 	zil_blksz = zilog->zl_cur_used + sizeof (zil_chain_t);
-	for (i = 0; zil_blksz > zil_block_buckets[i]; i++)
+	for (i = 0; zil_blksz > zil_block_buckets[i].limit; i++)
 		continue;
-	zil_blksz = MIN(zil_block_buckets[i], zilog->zl_max_block_size);
+	zil_blksz = MIN(zil_block_buckets[i].blksz, zilog->zl_max_block_size);
 	zilog->zl_prev_blks[zilog->zl_prev_rotor] = zil_blksz;
 	for (i = 0; i < ZIL_PREV_BLKS; i++)
 		zil_blksz = MAX(zil_blksz, zilog->zl_prev_blks[i]);
