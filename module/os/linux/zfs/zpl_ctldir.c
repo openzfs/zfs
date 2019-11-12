@@ -114,11 +114,7 @@ zpl_root_getattr_impl(const struct path *path, struct kstat *stat,
 ZPL_GETATTR_WRAPPER(zpl_root_getattr);
 
 static struct dentry *
-#ifdef HAVE_LOOKUP_NAMEIDATA
-zpl_root_lookup(struct inode *dip, struct dentry *dentry, struct nameidata *nd)
-#else
 zpl_root_lookup(struct inode *dip, struct dentry *dentry, unsigned int flags)
-#endif
 {
 	cred_t *cr = CRED();
 	struct inode *ip;
@@ -160,7 +156,6 @@ const struct inode_operations zpl_ops_root = {
 	.getattr	= zpl_root_getattr,
 };
 
-#ifdef HAVE_AUTOMOUNT
 static struct vfsmount *
 zpl_snapdir_automount(struct path *path)
 {
@@ -179,7 +174,6 @@ zpl_snapdir_automount(struct path *path)
 	 */
 	return (NULL);
 }
-#endif /* HAVE_AUTOMOUNT */
 
 /*
  * Negative dentries must always be revalidated so newly created snapshots
@@ -206,21 +200,13 @@ dentry_operations_t zpl_dops_snapdirs = {
  * name space.  While it might be possible to add compatibility
  * code to accomplish this it would require considerable care.
  */
-#ifdef HAVE_AUTOMOUNT
 	.d_automount	= zpl_snapdir_automount,
-#endif /* HAVE_AUTOMOUNT */
 	.d_revalidate	= zpl_snapdir_revalidate,
 };
 
 static struct dentry *
-#ifdef HAVE_LOOKUP_NAMEIDATA
-zpl_snapdir_lookup(struct inode *dip, struct dentry *dentry,
-    struct nameidata *nd)
-#else
 zpl_snapdir_lookup(struct inode *dip, struct dentry *dentry,
     unsigned int flags)
-#endif
-
 {
 	fstrans_cookie_t cookie;
 	cred_t *cr = CRED();
@@ -241,9 +227,7 @@ zpl_snapdir_lookup(struct inode *dip, struct dentry *dentry,
 	ASSERT(error == 0 || ip == NULL);
 	d_clear_d_op(dentry);
 	d_set_d_op(dentry, &zpl_dops_snapdirs);
-#ifdef HAVE_AUTOMOUNT
 	dentry->d_flags |= DCACHE_NEED_AUTOMOUNT;
-#endif
 
 	return (d_splice_alias(ip, dentry));
 }
@@ -348,7 +332,7 @@ zpl_snapdir_rmdir(struct inode *dip, struct dentry *dentry)
 }
 
 static int
-zpl_snapdir_mkdir(struct inode *dip, struct dentry *dentry, zpl_umode_t mode)
+zpl_snapdir_mkdir(struct inode *dip, struct dentry *dentry, umode_t mode)
 {
 	cred_t *cr = CRED();
 	vattr_t *vap;
@@ -433,13 +417,8 @@ const struct inode_operations zpl_ops_snapdir = {
 };
 
 static struct dentry *
-#ifdef HAVE_LOOKUP_NAMEIDATA
-zpl_shares_lookup(struct inode *dip, struct dentry *dentry,
-    struct nameidata *nd)
-#else
 zpl_shares_lookup(struct inode *dip, struct dentry *dentry,
     unsigned int flags)
-#endif
 {
 	fstrans_cookie_t cookie;
 	cred_t *cr = CRED();

@@ -1043,20 +1043,6 @@ abd_release_ownership_of_buf(abd_t *abd)
 	ABDSTAT_INCR(abdstat_linear_data_size, -(int)abd->abd_size);
 }
 
-#ifndef HAVE_1ARG_KMAP_ATOMIC
-#define	NR_KM_TYPE (6)
-#ifdef _KERNEL
-int km_table[NR_KM_TYPE] = {
-	KM_USER0,
-	KM_USER1,
-	KM_BIO_SRC_IRQ,
-	KM_BIO_DST_IRQ,
-	KM_PTE0,
-	KM_PTE1,
-};
-#endif
-#endif
-
 struct abd_iter {
 	/* public interface */
 	void		*iter_mapaddr;	/* addr corresponding to iter_pos */
@@ -1068,9 +1054,6 @@ struct abd_iter {
 	size_t		iter_offset;	/* offset in current sg/abd_buf, */
 					/* abd_offset included */
 	struct scatterlist *iter_sg;	/* current sg */
-#ifndef HAVE_1ARG_KMAP_ATOMIC
-	int		iter_km;	/* KM_* for kmap_atomic */
-#endif
 };
 
 /*
@@ -1091,10 +1074,6 @@ abd_iter_init(struct abd_iter *aiter, abd_t *abd, int km_type)
 		aiter->iter_offset = ABD_SCATTER(abd).abd_offset;
 		aiter->iter_sg = ABD_SCATTER(abd).abd_sgl;
 	}
-#ifndef HAVE_1ARG_KMAP_ATOMIC
-	ASSERT3U(km_type, <, NR_KM_TYPE);
-	aiter->iter_km = km_type;
-#endif
 }
 
 /*

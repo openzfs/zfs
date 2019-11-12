@@ -15,9 +15,7 @@ AC_DEFUN([ZFS_AC_KERNEL_DISCARD_GRANULARITY], [
 	AC_MSG_CHECKING([whether ql->discard_granularity is available])
 	ZFS_LINUX_TEST_RESULT([discard_granularity], [
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_DISCARD_GRANULARITY, 1,
-		    [ql->discard_granularity is available])
 	],[
-		AC_MSG_RESULT(no)
+		ZFS_LINUX_TEST_ERROR([ql->discard_granularity])
 	])
 ])

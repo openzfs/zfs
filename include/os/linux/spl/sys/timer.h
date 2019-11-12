@@ -53,20 +53,6 @@
 
 #define	delay(ticks)			schedule_timeout_uninterruptible(ticks)
 
-/* usleep_range() introduced in 2.6.36 */
-#ifndef HAVE_USLEEP_RANGE
-static inline void
-usleep_range(unsigned long min, unsigned long max)
-{
-	unsigned int min_ms = min / USEC_PER_MSEC;
-
-	if (min >= MAX_UDELAY_MS)
-		msleep(min_ms);
-	else
-		udelay(min);
-}
-#endif /* HAVE_USLEEP_RANGE */
-
 #define	SEC_TO_TICK(sec)		((sec) * HZ)
 #define	MSEC_TO_TICK(ms)		msecs_to_jiffies(ms)
 #define	USEC_TO_TICK(us)		usecs_to_jiffies(us)

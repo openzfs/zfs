@@ -48,17 +48,8 @@ spl_filp_fallocate(struct file *fp, int mode, loff_t offset, loff_t len)
 {
 	int error = -EOPNOTSUPP;
 
-#ifdef HAVE_FILE_FALLOCATE
 	if (fp->f_op->fallocate)
 		error = fp->f_op->fallocate(fp, mode, offset, len);
-#else
-#ifdef HAVE_INODE_FALLOCATE
-	if (fp->f_dentry && fp->f_dentry->d_inode &&
-	    fp->f_dentry->d_inode->i_op->fallocate)
-		error = fp->f_dentry->d_inode->i_op->fallocate(
-		    fp->f_dentry->d_inode, mode, offset, len);
-#endif /* HAVE_INODE_FALLOCATE */
-#endif /* HAVE_FILE_FALLOCATE */
 
 	return (error);
 }
@@ -66,11 +57,7 @@ spl_filp_fallocate(struct file *fp, int mode, loff_t offset, loff_t len)
 static int
 spl_filp_fsync(struct file *fp, int sync)
 {
-#ifdef HAVE_2ARGS_VFS_FSYNC
 	return (vfs_fsync(fp, sync));
-#else
-	return (vfs_fsync(fp, (fp)->f_dentry, sync));
-#endif /* HAVE_2ARGS_VFS_FSYNC */
 }
 
 static ssize_t
@@ -456,31 +443,6 @@ int vn_space(vnode_t *vp, int cmd, struct flock *bfp, int flag,
 	if (error == 0)
 		return (0);
 #endif
-
-#ifdef HAVE_INODE_TRUNCATE_RANGE
-	if (vp->v_file->f_dentry && vp->v_file->f_dentry->d_inode &&
-	    vp->v_file->f_dentry->d_inode->i_op &&
-	    vp->v_file->f_dentry->d_inode->i_op->truncate_range) {
-		off_t end = bfp->l_start + bfp->l_len;
-		/*
-		 * Judging from the code in shmem_truncate_range(),
-		 * it seems the kernel expects the end offset to be
-		 * inclusive and aligned to the end of a page.
-		 */
-		if (end % PAGE_SIZE != 0) {
-			end &= ~(off_t)(PAGE_SIZE - 1);
-			if (end <= bfp->l_start)
-				return (0);
-		}
-		--end;
-
-		vp->v_file->f_dentry->d_inode->i_op->truncate_range(
-		    vp->v_file->f_dentry->d_inode, bfp->l_start, end);
-
-		return (0);
-	}
-#endif
-
 	return (error);
 }
 EXPORT_SYMBOL(vn_space);

@@ -50,7 +50,7 @@ priv_policy_ns(const cred_t *cr, int capability, boolean_t all, int err,
 	if (cr != CRED() && (cr != kcred))
 		return (err);
 
-#if defined(CONFIG_USER_NS) && defined(HAVE_NS_CAPABLE)
+#if defined(CONFIG_USER_NS)
 	if (!(ns ? ns_capable(ns, capability) : capable(capability)))
 #else
 	if (!capable(capability))
@@ -73,10 +73,9 @@ priv_policy_user(const cred_t *cr, int capability, boolean_t all, int err)
 	 * All priv_policy_user checks are preceded by kuid/kgid_has_mapping()
 	 * checks. If we cannot do them, we shouldn't be using ns_capable()
 	 * since we don't know whether the affected files are valid in our
-	 * namespace. Note that kuid_has_mapping() came after cred->user_ns, so
-	 * we shouldn't need to re-check for HAVE_CRED_USER_NS
+	 * namespace.
 	 */
-#if defined(CONFIG_USER_NS) && defined(HAVE_KUID_HAS_MAPPING)
+#if defined(CONFIG_USER_NS)
 	return (priv_policy_ns(cr, capability, all, err, cr->user_ns));
 #else
 	return (priv_policy_ns(cr, capability, all, err, NULL));
@@ -127,10 +126,10 @@ secpolicy_vnode_any_access(const cred_t *cr, struct inode *ip, uid_t owner)
 	if (crgetfsuid(cr) == owner)
 		return (0);
 
-	if (zpl_inode_owner_or_capable(ip))
+	if (inode_owner_or_capable(ip))
 		return (0);
 
-#if defined(CONFIG_USER_NS) && defined(HAVE_KUID_HAS_MAPPING)
+#if defined(CONFIG_USER_NS)
 	if (!kuid_has_mapping(cr->user_ns, SUID_TO_KUID(owner)))
 		return (EPERM);
 #endif
@@ -153,7 +152,7 @@ secpolicy_vnode_chown(const cred_t *cr, uid_t owner)
 	if (crgetfsuid(cr) == owner)
 		return (0);
 
-#if defined(CONFIG_USER_NS) && defined(HAVE_KUID_HAS_MAPPING)
+#if defined(CONFIG_USER_NS)
 	if (!kuid_has_mapping(cr->user_ns, SUID_TO_KUID(owner)))
 		return (EPERM);
 #endif
@@ -190,7 +189,7 @@ secpolicy_vnode_setdac(const cred_t *cr, uid_t owner)
 	if (crgetfsuid(cr) == owner)
 		return (0);
 
-#if defined(CONFIG_USER_NS) && defined(HAVE_KUID_HAS_MAPPING)
+#if defined(CONFIG_USER_NS)
 	if (!kuid_has_mapping(cr->user_ns, SUID_TO_KUID(owner)))
 		return (EPERM);
 #endif
@@ -218,7 +217,7 @@ secpolicy_vnode_setid_retain(const cred_t *cr, boolean_t issuidroot)
 int
 secpolicy_vnode_setids_setgids(const cred_t *cr, gid_t gid)
 {
-#if defined(CONFIG_USER_NS) && defined(HAVE_KUID_HAS_MAPPING)
+#if defined(CONFIG_USER_NS)
 	if (!kgid_has_mapping(cr->user_ns, SGID_TO_KGID(gid)))
 		return (EPERM);
 #endif
@@ -269,7 +268,7 @@ secpolicy_vnode_setid_modify(const cred_t *cr, uid_t owner)
 	if (crgetfsuid(cr) == owner)
 		return (0);
 
-#if defined(CONFIG_USER_NS) && defined(HAVE_KUID_HAS_MAPPING)
+#if defined(CONFIG_USER_NS)
 	if (!kuid_has_mapping(cr->user_ns, SUID_TO_KUID(owner)))
 		return (EPERM);
 #endif

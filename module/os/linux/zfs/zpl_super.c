@@ -81,18 +81,6 @@ zpl_dirty_inode(struct inode *ip)
  * unhashed and has no links the default policy is to evict it
  * immediately.
  *
- * Prior to 2.6.36 this eviction was accomplished by the vfs calling
- * ->delete_inode().  It was ->delete_inode()'s responsibility to
- * truncate the inode pages and call clear_inode().  The call to
- * clear_inode() synchronously invalidates all the buffers and
- * calls ->clear_inode().  It was ->clear_inode()'s responsibility
- * to cleanup and filesystem specific data before freeing the inode.
- *
- * This elaborate mechanism was replaced by ->evict_inode() which
- * does the job of both ->delete_inode() and ->clear_inode().  It
- * will be called exactly once, and when it returns the inode must
- * be in a state where it can simply be freed.i
- *
  * The ->evict_inode() callback must minimally truncate the inode pages,
  * and call clear_inode().  For 2.6.35 and later kernels this will
  * simply update the inode state, with the sync occurring before the
@@ -102,7 +90,6 @@ zpl_dirty_inode(struct inode *ip)
  * any remaining inode specific data via zfs_inactive().
  * remaining filesystem specific data.
  */
-#ifdef HAVE_EVICT_INODE
 static void
 zpl_evict_inode(struct inode *ip)
 {
@@ -114,32 +101,6 @@ zpl_evict_inode(struct inode *ip)
 	zfs_inactive(ip);
 	spl_fstrans_unmark(cookie);
 }
-
-#else
-
-static void
-zpl_drop_inode(struct inode *ip)
-{
-	generic_delete_inode(ip);
-}
-
-static void
-zpl_clear_inode(struct inode *ip)
-{
-	fstrans_cookie_t cookie;
-
-	cookie = spl_fstrans_mark();
-	zfs_inactive(ip);
-	spl_fstrans_unmark(cookie);
-}
-
-static void
-zpl_inode_delete(struct inode *ip)
-{
-	truncate_setsize(ip, 0);
-	clear_inode(ip);
-}
-#endif /* HAVE_EVICT_INODE */
 
 static void
 zpl_put_super(struct super_block *sb)
@@ -241,19 +202,11 @@ __zpl_show_options(struct seq_file *seq, zfsvfs_t *zfsvfs)
 	return (0);
 }
 
-#ifdef HAVE_SHOW_OPTIONS_WITH_DENTRY
 static int
 zpl_show_options(struct seq_file *seq, struct dentry *root)
 {
 	return (__zpl_show_options(seq, root->d_sb->s_fs_info));
 }
-#else
-static int
-zpl_show_options(struct seq_file *seq, struct vfsmount *vfsp)
-{
-	return (__zpl_show_options(seq, vfsp->mnt_sb->s_fs_info));
-}
-#endif /* HAVE_SHOW_OPTIONS_WITH_DENTRY */
 
 static int
 zpl_fill_super(struct super_block *sb, void *data, int silent)
@@ -301,7 +254,7 @@ zpl_mount_impl(struct file_system_type *fs_type, int flags, zfs_mnt_t *zm)
 	 * this can prevent the pool sync and cause a deadlock.
 	 */
 	dsl_pool_rele(dmu_objset_pool(os), FTAG);
-	s = zpl_sget(fs_type, zpl_test_super, set_anon_super, flags, os);
+	s = sget(fs_type, zpl_test_super, set_anon_super, flags, os);
 	dsl_dataset_rele(dmu_objset_ds(os), FTAG);
 
 	if (IS_ERR(s))
@@ -322,7 +275,6 @@ zpl_mount_impl(struct file_system_type *fs_type, int flags, zfs_mnt_t *zm)
 	return (s);
 }
 
-#ifdef HAVE_FST_MOUNT
 static struct dentry *
 zpl_mount(struct file_system_type *fs_type, int flags,
     const char *osname, void *data)
@@ -335,32 +287,12 @@ zpl_mount(struct file_system_type *fs_type, int flags,
 
 	return (dget(sb->s_root));
 }
-#else
-static int
-zpl_get_sb(struct file_system_type *fs_type, int flags,
-    const char *osname, void *data, struct vfsmount *mnt)
-{
-	zfs_mnt_t zm = { .mnt_osname = osname, .mnt_data = data };
-
-	struct super_block *sb = zpl_mount_impl(fs_type, flags, &zm);
-	if (IS_ERR(sb))
-		return (PTR_ERR(sb));
-
-	(void) simple_set_mnt(mnt, sb);
-
-	return (0);
-}
-#endif /* HAVE_FST_MOUNT */
 
 static void
 zpl_kill_sb(struct super_block *sb)
 {
 	zfs_preumount(sb);
 	kill_anon_super(sb);
-
-#ifdef HAVE_S_INSTANCES_LIST_HEAD
-	sb->s_instances.next = &(zpl_fs_type.fs_supers);
-#endif /* HAVE_S_INSTANCES_LIST_HEAD */
 }
 
 void
@@ -372,55 +304,23 @@ zpl_prune_sb(int64_t nr_to_scan, void *arg)
 	(void) -zfs_prune(sb, nr_to_scan, &objects);
 }
 
-#ifdef HAVE_NR_CACHED_OBJECTS
-static int
-zpl_nr_cached_objects(struct super_block *sb)
-{
-	return (0);
-}
-#endif /* HAVE_NR_CACHED_OBJECTS */
-
-#ifdef HAVE_FREE_CACHED_OBJECTS
-static void
-zpl_free_cached_objects(struct super_block *sb, int nr_to_scan)
-{
-	/* noop */
-}
-#endif /* HAVE_FREE_CACHED_OBJECTS */
-
 const struct super_operations zpl_super_operations = {
 	.alloc_inode		= zpl_inode_alloc,
 	.destroy_inode		= zpl_inode_destroy,
 	.dirty_inode		= zpl_dirty_inode,
 	.write_inode		= NULL,
-#ifdef HAVE_EVICT_INODE
 	.evict_inode		= zpl_evict_inode,
-#else
-	.drop_inode		= zpl_drop_inode,
-	.clear_inode		= zpl_clear_inode,
-	.delete_inode		= zpl_inode_delete,
-#endif /* HAVE_EVICT_INODE */
 	.put_super		= zpl_put_super,
 	.sync_fs		= zpl_sync_fs,
 	.statfs			= zpl_statfs,
 	.remount_fs		= zpl_remount_fs,
 	.show_options		= zpl_show_options,
 	.show_stats		= NULL,
-#ifdef HAVE_NR_CACHED_OBJECTS
-	.nr_cached_objects	= zpl_nr_cached_objects,
-#endif /* HAVE_NR_CACHED_OBJECTS */
-#ifdef HAVE_FREE_CACHED_OBJECTS
-	.free_cached_objects	= zpl_free_cached_objects,
-#endif /* HAVE_FREE_CACHED_OBJECTS */
 };
 
 struct file_system_type zpl_fs_type = {
 	.owner			= THIS_MODULE,
 	.name			= ZFS_DRIVER,
-#ifdef HAVE_FST_MOUNT
 	.mount			= zpl_mount,
-#else
-	.get_sb			= zpl_get_sb,
-#endif /* HAVE_FST_MOUNT */
 	.kill_sb		= zpl_kill_sb,
 };

@@ -19,6 +19,6 @@ AC_DEFUN([ZFS_AC_KERNEL_EVICT_INODE], [
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_EVICT_INODE, 1, [sops->evict_inode() exists])
 	],[
-		AC_MSG_RESULT(no)
+		ZFS_LINUX_TEST_ERROR([evict_inode])
 	])
 ])

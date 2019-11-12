@@ -601,9 +601,7 @@ extern int fop_getattr(vnode_t *vp, vattr_t *vap);
 
 #define	VOP_FSYNC(vp, f, cr, ct)	fsync((vp)->v_fd)
 
-#if defined(HAVE_FILE_FALLOCATE) && \
-	defined(FALLOC_FL_PUNCH_HOLE) && \
-	defined(FALLOC_FL_KEEP_SIZE)
+#if defined(FALLOC_FL_PUNCH_HOLE) && defined(FALLOC_FL_KEEP_SIZE)
 #define	VOP_SPACE(vp, cmd, flck, fl, off, cr, ct) \
 	fallocate((vp)->v_fd, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, \
 	    (flck)->l_start, (flck)->l_len)

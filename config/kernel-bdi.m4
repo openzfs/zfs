@@ -72,11 +72,7 @@ AC_DEFUN([ZFS_AC_KERNEL_BDI], [
 				AC_DEFINE(HAVE_3ARGS_BDI_SETUP_AND_REGISTER, 1,
 				    [bdi_setup_and_register() wants 3 args])
 			], [
-				dnl #
-				dnl # 2.6.32 - 2.6.33, bdi_setup_and_register()
-				dnl # is not exported.
-				dnl #
-				AC_MSG_RESULT(no)
+				ZFS_LINUX_TEST_ERROR([bdi_setup])
 			])
 		])
 	])

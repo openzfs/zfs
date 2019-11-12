@@ -33,43 +33,6 @@
 #include <linux/compat.h>
 
 /*
- * 2.6.28 API change,
- * Added insert_inode_locked() helper function, prior to this most callers
- * used insert_inode_hash().  The older method doesn't check for collisions
- * in the inode_hashtable but it still acceptable for use.
- */
-#ifndef HAVE_INSERT_INODE_LOCKED
-static inline int
-insert_inode_locked(struct inode *ip)
-{
-	insert_inode_hash(ip);
-	return (0);
-}
-#endif /* HAVE_INSERT_INODE_LOCKED */
-
-/*
- * 2.6.35 API change,
- * Add truncate_setsize() if it is not exported by the Linux kernel.
- *
- * Truncate the inode and pages associated with the inode. The pages are
- * unmapped and removed from cache.
- */
-#ifndef HAVE_TRUNCATE_SETSIZE
-static inline void
-truncate_setsize(struct inode *ip, loff_t new)
-{
-	struct address_space *mapping = ip->i_mapping;
-
-	i_size_write(ip, new);
-
-	unmap_mapping_range(mapping, new + PAGE_SIZE - 1, 0, 1);
-	truncate_inode_pages(mapping, new);
-	unmap_mapping_range(mapping, new + PAGE_SIZE - 1, 0, 1);
-}
-#endif /* HAVE_TRUNCATE_SETSIZE */
-
-/*
- * 2.6.32 - 2.6.33, bdi_setup_and_register() is not available.
  * 2.6.34 - 3.19, bdi_setup_and_register() takes 3 arguments.
  * 4.0 - 4.11, bdi_setup_and_register() takes 2 arguments.
  * 4.12 - x.y, super_setup_bdi_name() new interface.
@@ -142,45 +105,7 @@ zpl_bdi_destroy(struct super_block *sb)
 	sb->s_bdi = NULL;
 }
 #else
-extern atomic_long_t zfs_bdi_seq;
-
-static inline int
-zpl_bdi_setup(struct super_block *sb, char *name)
-{
-	struct backing_dev_info *bdi;
-	int error;
-
-	bdi = kmem_zalloc(sizeof (struct backing_dev_info), KM_SLEEP);
-	bdi->name = name;
-	bdi->capabilities = BDI_CAP_MAP_COPY;
-
-	error = bdi_init(bdi);
-	if (error) {
-		kmem_free(bdi, sizeof (struct backing_dev_info));
-		return (error);
-	}
-
-	error = bdi_register(bdi, NULL, "%.28s-%ld", name,
-	    atomic_long_inc_return(&zfs_bdi_seq));
-	if (error) {
-		bdi_destroy(bdi);
-		kmem_free(bdi, sizeof (struct backing_dev_info));
-		return (error);
-	}
-
-	sb->s_bdi = bdi;
-
-	return (0);
-}
-static inline void
-zpl_bdi_destroy(struct super_block *sb)
-{
-	struct backing_dev_info *bdi = sb->s_bdi;
-
-	bdi_destroy(bdi);
-	kmem_free(bdi, sizeof (struct backing_dev_info));
-	sb->s_bdi = NULL;
-}
+#error "Unsupported kernel"
 #endif
 
 /*
@@ -212,41 +137,6 @@ zpl_bdi_destroy(struct super_block *sb)
 #endif
 
 /*
- * 2.6.38 API change,
- * LOOKUP_RCU flag introduced to distinguish rcu-walk from ref-walk cases.
- */
-#ifndef LOOKUP_RCU
-#define	LOOKUP_RCU	0x0
-#endif /* LOOKUP_RCU */
-
-/*
- * 3.2-rc1 API change,
- * Add set_nlink() if it is not exported by the Linux kernel.
- *
- * i_nlink is read-only in Linux 3.2, but it can be set directly in
- * earlier kernels.
- */
-#ifndef HAVE_SET_NLINK
-static inline void
-set_nlink(struct inode *inode, unsigned int nlink)
-{
-	inode->i_nlink = nlink;
-}
-#endif /* HAVE_SET_NLINK */
-
-/*
- * 3.3 API change,
- * The VFS .create, .mkdir and .mknod callbacks were updated to take a
- * umode_t type rather than an int.  To cleanly handle both definitions
- * the zpl_umode_t type is introduced and set accordingly.
- */
-#ifdef HAVE_MKDIR_UMODE_T
-typedef	umode_t		zpl_umode_t;
-#else
-typedef	int		zpl_umode_t;
-#endif
-
-/*
  * 3.5 API change,
  * The clear_inode() function replaces end_writeback() and introduces an
  * ordering change regarding when the inode_sync_wait() occurs.  See the
@@ -255,16 +145,6 @@ typedef	int		zpl_umode_t;
 #if defined(HAVE_EVICT_INODE) && !defined(HAVE_CLEAR_INODE)
 #define	clear_inode(ip)		end_writeback(ip)
 #endif /* HAVE_EVICT_INODE && !HAVE_CLEAR_INODE */
-
-/*
- * 3.6 API change,
- * The sget() helper function now takes the mount flags as an argument.
- */
-#ifdef HAVE_5ARG_SGET
-#define	zpl_sget(type, cmp, set, fl, mtd)	sget(type, cmp, set, fl, mtd)
-#else
-#define	zpl_sget(type, cmp, set, fl, mtd)	sget(type, cmp, set, mtd)
-#endif /* HAVE_5ARG_SGET */
 
 #if defined(SEEK_HOLE) && defined(SEEK_DATA) && !defined(HAVE_LSEEK_EXECUTE)
 static inline loff_t
@@ -361,64 +241,21 @@ zpl_forget_cached_acl(struct inode *ip, int type)
 }
 #endif /* HAVE_SET_CACHED_ACL_USABLE */
 
+/*
+ * 3.1 API change,
+ * posix_acl_chmod() was added as the preferred interface.
+ *
+ * 3.14 API change,
+ * posix_acl_chmod() was changed to __posix_acl_chmod()
+ */
 #ifndef HAVE___POSIX_ACL_CHMOD
 #ifdef HAVE_POSIX_ACL_CHMOD
 #define	__posix_acl_chmod(acl, gfp, mode)	posix_acl_chmod(acl, gfp, mode)
 #define	__posix_acl_create(acl, gfp, mode)	posix_acl_create(acl, gfp, mode)
 #else
-static inline int
-__posix_acl_chmod(struct posix_acl **acl, int flags, umode_t umode)
-{
-	struct posix_acl *oldacl = *acl;
-	mode_t mode = umode;
-	int error;
-
-	*acl = posix_acl_clone(*acl, flags);
-	zpl_posix_acl_release(oldacl);
-
-	if (!(*acl))
-		return (-ENOMEM);
-
-	error = posix_acl_chmod_masq(*acl, mode);
-	if (error) {
-		zpl_posix_acl_release(*acl);
-		*acl = NULL;
-	}
-
-	return (error);
-}
-
-static inline int
-__posix_acl_create(struct posix_acl **acl, int flags, umode_t *umodep)
-{
-	struct posix_acl *oldacl = *acl;
-	mode_t mode = *umodep;
-	int error;
-
-	*acl = posix_acl_clone(*acl, flags);
-	zpl_posix_acl_release(oldacl);
-
-	if (!(*acl))
-		return (-ENOMEM);
-
-	error = posix_acl_create_masq(*acl, &mode);
-	*umodep = mode;
-
-	if (error < 0) {
-		zpl_posix_acl_release(*acl);
-		*acl = NULL;
-	}
-
-	return (error);
-}
+#error "Unsupported kernel"
 #endif /* HAVE_POSIX_ACL_CHMOD */
 #endif /* HAVE___POSIX_ACL_CHMOD */
-
-#ifdef HAVE_POSIX_ACL_EQUIV_MODE_UMODE_T
-typedef umode_t zpl_equivmode_t;
-#else
-typedef mode_t zpl_equivmode_t;
-#endif /* HAVE_POSIX_ACL_EQUIV_MODE_UMODE_T */
 
 /*
  * 4.8 API change,
@@ -432,16 +269,6 @@ typedef mode_t zpl_equivmode_t;
 #endif
 
 #endif /* CONFIG_FS_POSIX_ACL */
-
-/*
- * 2.6.38 API change,
- * The is_owner_or_cap() function was renamed to inode_owner_or_capable().
- */
-#ifdef HAVE_INODE_OWNER_OR_CAPABLE
-#define	zpl_inode_owner_or_capable(ip)		inode_owner_or_capable(ip)
-#else
-#define	zpl_inode_owner_or_capable(ip)		is_owner_or_cap(ip)
-#endif /* HAVE_INODE_OWNER_OR_CAPABLE */
 
 /*
  * 3.19 API change
@@ -467,7 +294,6 @@ static inline struct dentry *file_dentry(const struct file *f)
 }
 #endif /* HAVE_FILE_DENTRY */
 
-#ifdef HAVE_KUID_HELPERS
 static inline uid_t zfs_uid_read_impl(struct inode *ip)
 {
 #ifdef HAVE_SUPER_USER_NS
@@ -513,39 +339,6 @@ static inline void zfs_gid_write(struct inode *ip, gid_t gid)
 	ip->i_gid = make_kgid(kcred->user_ns, gid);
 #endif
 }
-
-#else
-static inline uid_t zfs_uid_read(struct inode *ip)
-{
-	return (ip->i_uid);
-}
-
-static inline gid_t zfs_gid_read(struct inode *ip)
-{
-	return (ip->i_gid);
-}
-
-static inline void zfs_uid_write(struct inode *ip, uid_t uid)
-{
-	ip->i_uid = uid;
-}
-
-static inline void zfs_gid_write(struct inode *ip, gid_t gid)
-{
-	ip->i_gid = gid;
-}
-#endif
-
-/*
- * 2.6.38 API change
- */
-#ifdef HAVE_FOLLOW_DOWN_ONE
-#define	zpl_follow_down_one(path)		follow_down_one(path)
-#define	zpl_follow_up(path)			follow_up(path)
-#else
-#define	zpl_follow_down_one(path)		follow_down(path)
-#define	zpl_follow_up(path)			follow_up(path)
-#endif
 
 /*
  * 4.9 API change

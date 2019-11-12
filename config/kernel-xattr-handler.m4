@@ -28,10 +28,8 @@ AC_DEFUN([ZFS_AC_KERNEL_CONST_XATTR_HANDLER], [
 	AC_MSG_CHECKING([whether super_block uses const struct xattr_handler])
 	ZFS_LINUX_TEST_RESULT([const_xattr_handler], [
 		AC_MSG_RESULT([yes])
-		AC_DEFINE(HAVE_CONST_XATTR_HANDLER, 1,
-		    [super_block uses const struct xattr_handler])
 	],[
-		AC_MSG_RESULT([no])
+		ZFS_LINUX_TEST_ERROR([const xattr_handler])
 	])
 ])
 
@@ -102,17 +100,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_XATTR_HANDLER_GET], [
 			.get = get,
 		};
 	],[])
-
-	ZFS_LINUX_TEST_SRC([xattr_handler_get_inode], [
-		#include <linux/xattr.h>
-
-		int get(struct inode *ip, const char *name,
-		    void *buffer, size_t size) { return 0; }
-		static const struct xattr_handler
-		    xops __attribute__ ((unused)) = {
-			.get = get,
-		};
-	],[])
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_GET], [
@@ -155,20 +142,7 @@ AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_GET], [
 				AC_DEFINE(HAVE_XATTR_GET_DENTRY, 1,
 				    [xattr_handler->get() wants dentry])
 			],[
-				dnl #
-				dnl # Legacy 2.6.32 API
-				dnl #
-				AC_MSG_RESULT(no)
-				AC_MSG_CHECKING(
-				    [whether xattr_handler->get() wants inode])
-				ZFS_LINUX_TEST_RESULT(
-				    [xattr_handler_get_inode], [
-					AC_MSG_RESULT(yes)
-					AC_DEFINE(HAVE_XATTR_GET_INODE, 1,
-					    [xattr_handler->get() wants inode])
-				],[
-					ZFS_LINUX_TEST_ERROR([xattr get()])
-				])
+				ZFS_LINUX_TEST_ERROR([xattr get()])
 			])
 		])
 	])
@@ -216,18 +190,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_XATTR_HANDLER_SET], [
 			.set = set,
 		};
 	],[])
-
-	ZFS_LINUX_TEST_SRC([xattr_handler_set_inode], [
-		#include <linux/xattr.h>
-
-		int set(struct inode *ip, const char *name,
-		    const void *buffer, size_t size, int flags)
-		    { return 0; }
-		static const struct xattr_handler
-		    xops __attribute__ ((unused)) = {
-			.set = set,
-		};
-	],[])
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_SET], [
@@ -270,20 +232,7 @@ AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_SET], [
 				AC_DEFINE(HAVE_XATTR_SET_DENTRY, 1,
 				    [xattr_handler->set() wants dentry])
 			],[
-				dnl #
-				dnl # Legacy 2.6.32 API
-				dnl #
-				AC_MSG_RESULT(no)
-				AC_MSG_CHECKING(
-				    [whether xattr_handler->set() wants inode])
-				ZFS_LINUX_TEST_RESULT(
-				    [xattr_handler_set_inode], [
-					AC_MSG_RESULT(yes)
-					AC_DEFINE(HAVE_XATTR_SET_INODE, 1,
-					    [xattr_handler->set() wants inode])
-				],[
-					ZFS_LINUX_TEST_ERROR([xattr set()])
-				])
+				ZFS_LINUX_TEST_ERROR([xattr set()])
 			])
 		])
 	])
@@ -322,18 +271,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_XATTR_HANDLER_LIST], [
 		    char *list, size_t list_size,
 		    const char *name, size_t name_len,
 		    int handler_flags) { return 0; }
-		static const struct xattr_handler
-		    xops __attribute__ ((unused)) = {
-			.list = list,
-		};
-	],[])
-
-	ZFS_LINUX_TEST_SRC([xattr_handler_list_inode], [
-		#include <linux/xattr.h>
-
-		size_t list(struct inode *ip, char *lst,
-		    size_t list_size, const char *name,
-		    size_t name_len) { return 0; }
 		static const struct xattr_handler
 		    xops __attribute__ ((unused)) = {
 			.list = list,
@@ -379,20 +316,7 @@ AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_LIST], [
 				AC_DEFINE(HAVE_XATTR_LIST_DENTRY, 1,
 				    [xattr_handler->list() wants dentry])
 			],[
-				dnl #
-				dnl # Legacy 2.6.32 API
-				dnl #
-				AC_MSG_RESULT(no)
-				AC_MSG_CHECKING(
-				    [whether xattr_handler->list() wants inode])
-				ZFS_LINUX_TEST_RESULT(
-				    [xattr_handler_list_inode], [
-					AC_MSG_RESULT(yes)
-					AC_DEFINE(HAVE_XATTR_LIST_INODE, 1,
-					    [xattr_handler->list() wants inode])
-				],[
-					ZFS_LINUX_TEST_ERROR([xattr list()])
-				])
+				ZFS_LINUX_TEST_ERROR([xattr list()])
 			])
 		])
 	])
@@ -420,7 +344,7 @@ AC_DEFUN([ZFS_AC_KERNEL_POSIX_ACL_FROM_XATTR_USERNS], [
 		AC_DEFINE(HAVE_POSIX_ACL_FROM_XATTR_USERNS, 1,
 		    [posix_acl_from_xattr() needs user_ns])
 	],[
-		AC_MSG_RESULT(no)
+		ZFS_LINUX_TEST_ERROR([posix_acl_from_xattr()])
 	])
 ])
 

@@ -19,9 +19,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SHOW_OPTIONS], [
 	AC_MSG_CHECKING([whether sops->show_options() wants dentry])
 	ZFS_LINUX_TEST_RESULT([super_operations_show_options], [
 		AC_MSG_RESULT([yes])
-		AC_DEFINE(HAVE_SHOW_OPTIONS_WITH_DENTRY, 1,
-		    [sops->show_options() with dentry])
 	],[
-		AC_MSG_RESULT([no])
+		ZFS_LINUX_TEST_ERROR([sops->show_options()])
 	])
 ])

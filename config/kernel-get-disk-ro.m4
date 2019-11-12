@@ -14,8 +14,7 @@ AC_DEFUN([ZFS_AC_KERNEL_GET_DISK_RO], [
 	AC_MSG_CHECKING([whether get_disk_ro() is available])
 	ZFS_LINUX_TEST_RESULT([get_disk_ro], [
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_GET_DISK_RO, 1, [blk_disk_ro() is available])
 	],[
-		AC_MSG_RESULT(no)
+		ZFS_LINUX_TEST_ERROR([get_disk_ro()])
 	])
 ])

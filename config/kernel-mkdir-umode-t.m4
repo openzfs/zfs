@@ -27,6 +27,6 @@ AC_DEFUN([ZFS_AC_KERNEL_MKDIR_UMODE_T], [
 		AC_DEFINE(HAVE_MKDIR_UMODE_T, 1,
 		    [iops->create()/mkdir()/mknod() take umode_t])
 	],[
-		AC_MSG_RESULT(no)
+		ZFS_LINUX_TEST_ERROR([mkdir()])
 	])
 ])

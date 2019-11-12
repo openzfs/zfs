@@ -398,9 +398,7 @@ zvol_request(struct request_queue *q, struct bio *bio)
 
 out:
 	spl_fstrans_unmark(cookie);
-#ifdef HAVE_MAKE_REQUEST_FN_RET_INT
-	return (0);
-#elif defined(HAVE_MAKE_REQUEST_FN_RET_QC)
+#if defined(HAVE_MAKE_REQUEST_FN_RET_QC)
 	return (BLK_QC_T_NONE);
 #endif
 }
@@ -486,11 +484,7 @@ out_mutex:
 	return (SET_ERROR(error));
 }
 
-#ifdef HAVE_BLOCK_DEVICE_OPERATIONS_RELEASE_VOID
 static void
-#else
-static int
-#endif
 zvol_release(struct gendisk *disk, fmode_t mode)
 {
 	zvol_state_t *zv;
@@ -533,10 +527,6 @@ zvol_release(struct gendisk *disk, fmode_t mode)
 
 	if (drop_suspend)
 		rw_exit(&zv->zv_suspend_lock);
-
-#ifndef HAVE_BLOCK_DEVICE_OPERATIONS_RELEASE_VOID
-	return (0);
-#endif
 }
 
 static int
@@ -585,10 +575,6 @@ zvol_compat_ioctl(struct block_device *bdev, fmode_t mode,
 #define	zvol_compat_ioctl	NULL
 #endif
 
-/*
- * Linux 2.6.38 preferred interface.
- */
-#ifdef HAVE_BLOCK_DEVICE_OPERATIONS_CHECK_EVENTS
 static unsigned int
 zvol_check_events(struct gendisk *disk, unsigned int clearing)
 {
@@ -608,27 +594,6 @@ zvol_check_events(struct gendisk *disk, unsigned int clearing)
 
 	return (mask);
 }
-#else
-static int
-zvol_media_changed(struct gendisk *disk)
-{
-	int changed = 0;
-
-	rw_enter(&zvol_state_lock, RW_READER);
-
-	zvol_state_t *zv = disk->private_data;
-	if (zv != NULL) {
-		mutex_enter(&zv->zv_state_lock);
-		changed = zv->zv_changed;
-		zv->zv_changed = 0;
-		mutex_exit(&zv->zv_state_lock);
-	}
-
-	rw_exit(&zvol_state_lock);
-
-	return (changed);
-}
-#endif
 
 static int
 zvol_revalidate_disk(struct gendisk *disk)
@@ -747,11 +712,7 @@ static struct block_device_operations zvol_ops = {
 	.release		= zvol_release,
 	.ioctl			= zvol_ioctl,
 	.compat_ioctl		= zvol_compat_ioctl,
-#ifdef HAVE_BLOCK_DEVICE_OPERATIONS_CHECK_EVENTS
 	.check_events		= zvol_check_events,
-#else
-	.media_changed		= zvol_media_changed,
-#endif
 	.revalidate_disk	= zvol_revalidate_disk,
 	.getgeo			= zvol_getgeo,
 	.owner			= THIS_MODULE,
@@ -809,9 +770,7 @@ zvol_alloc(dev_t dev, const char *name)
 	rw_init(&zv->zv_suspend_lock, NULL, RW_DEFAULT, NULL);
 
 	zv->zv_zso->zvo_disk->major = zvol_major;
-#ifdef HAVE_BLOCK_DEVICE_OPERATIONS_CHECK_EVENTS
 	zv->zv_zso->zvo_disk->events = DISK_EVENT_MEDIA_CHANGE;
-#endif
 
 	if (volmode == ZFS_VOLMODE_DEV) {
 		/*
