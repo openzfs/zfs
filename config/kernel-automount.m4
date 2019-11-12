@@ -12,15 +12,14 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_AUTOMOUNT], [
 		struct dentry_operations dops __attribute__ ((unused)) = {
 			.d_automount = d_automount,
 		};
-	],[])
+	])
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_AUTOMOUNT], [
 	AC_MSG_CHECKING([whether dops->d_automount() exists])
 	ZFS_LINUX_TEST_RESULT([dentry_operations_d_automount], [
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_AUTOMOUNT, 1, [dops->automount() exists])
 	],[
-		AC_MSG_RESULT(no)
+		ZFS_LINUX_TEST_ERROR([dops->d_automount()])
 	])
 ])

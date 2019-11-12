@@ -27,11 +27,7 @@
 #include <sys/cred.h>
 
 static int
-#ifdef HAVE_KUIDGID_T
 cr_groups_search(const struct group_info *group_info, kgid_t grp)
-#else
-cr_groups_search(const struct group_info *group_info, gid_t grp)
-#endif
 {
 	unsigned int left, right, mid;
 	int cmp;

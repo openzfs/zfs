@@ -16,9 +16,7 @@ AC_DEFUN([ZFS_AC_KERNEL_FOLLOW_DOWN_ONE], [
 	AC_MSG_CHECKING([whether follow_down_one() is available])
 	ZFS_LINUX_TEST_RESULT([follow_down_one], [
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_FOLLOW_DOWN_ONE, 1,
-		    [follow_down_one() is available])
 	],[
-		AC_MSG_RESULT(no)
+		ZFS_LINUX_TEST_ERROR([follow_down_one()])
 	])
 ])

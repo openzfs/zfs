@@ -1,8 +1,6 @@
 dnl #
 dnl # 2.6.39 API change
-dnl #
-dnl # If kstrtoul() doesn't exist, fallback to use strict_strtoul() which has
-dnl # existed since 2.6.25.
+dnl # Added kstrtoul()
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_KSTRTOUL], [
 	ZFS_LINUX_TEST_SRC([kstrtoul], [
@@ -18,6 +16,6 @@ AC_DEFUN([ZFS_AC_KERNEL_KSTRTOUL], [
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_KSTRTOUL, 1, [kstrtoul() exists])
 	],[
-		AC_MSG_RESULT(no)
+		ZFS_LINUX_TEST_ERROR([kstrtoul()])
 	])
 ])

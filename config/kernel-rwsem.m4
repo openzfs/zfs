@@ -19,10 +19,8 @@ AC_DEFUN([ZFS_AC_KERNEL_RWSEM_SPINLOCK_IS_RAW], [
 	AC_MSG_CHECKING([whether struct rw_semaphore member wait_lock is raw])
 	ZFS_LINUX_TEST_RESULT([rwsem_spinlock_is_raw], [
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(RWSEM_SPINLOCK_IS_RAW, 1,
-		    [struct rw_semaphore member wait_lock is raw_spinlock_t])
 	],[
-		AC_MSG_RESULT(no)
+		ZFS_LINUX_TEST_ERROR([rwsem_spinlock_is_raw])
 	])
 ])
 

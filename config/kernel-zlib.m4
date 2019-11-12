@@ -21,6 +21,6 @@ AC_DEFUN([ZFS_AC_KERNEL_2ARGS_ZLIB_DEFLATE_WORKSPACESIZE], [
 		AC_DEFINE(HAVE_2ARGS_ZLIB_DEFLATE_WORKSPACESIZE, 1,
 		    [zlib_deflate_workspacesize() wants 2 args])
 	],[
-		AC_MSG_RESULT(no)
+		ZFS_LINUX_TEST_ERROR([zlib_deflate_workspacesize()])
 	])
 ])

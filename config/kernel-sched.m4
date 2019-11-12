@@ -14,10 +14,9 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_SCHED_RT_HEADER], [
 AC_DEFUN([ZFS_AC_KERNEL_SCHED_RT_HEADER], [
 	AC_MSG_CHECKING([whether header linux/sched/rt.h exists])
 	ZFS_LINUX_TEST_RESULT([sched_rt_header], [
-		AC_DEFINE(HAVE_SCHED_RT_HEADER, 1, [linux/sched/rt.h exists])
 		AC_MSG_RESULT(yes)
 	],[
-		AC_MSG_RESULT(no)
+		ZFS_LINUX_TEST_ERROR([sched_rt_header])
 	])
 ])
 

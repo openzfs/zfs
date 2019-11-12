@@ -16,9 +16,7 @@ AC_DEFUN([ZFS_AC_KERNEL_KMAP_ATOMIC_ARGS], [
 	AC_MSG_CHECKING([whether kmap_atomic wants 1 args])
 	ZFS_LINUX_TEST_RESULT([kmap_atomic], [
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_1ARG_KMAP_ATOMIC, 1,
-		    [kmap_atomic wants 1 args])
 	],[
-		AC_MSG_RESULT(no)
+		ZFS_LINUX_TEST_ERROR([kmap_atomic()])
 	])
 ])

@@ -59,14 +59,6 @@
 #include <sys/types.h>
 #include <linux/zlib.h>
 
-#ifdef HAVE_2ARGS_ZLIB_DEFLATE_WORKSPACESIZE
-#define	spl_zlib_deflate_workspacesize(wb, ml) \
-	zlib_deflate_workspacesize(wb, ml)
-#else
-#define	spl_zlib_deflate_workspacesize(wb, ml) \
-	zlib_deflate_workspacesize()
-#endif /* HAVE_2ARGS_ZLIB_DEFLATE_WORKSPACESIZE */
-
 extern int z_compress_level(void *dest, size_t *destLen, const void *source,
     size_t sourceLen, int level);
 extern int z_uncompress(void *dest, size_t *destLen, const void *source,

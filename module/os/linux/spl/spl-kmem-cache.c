@@ -1030,11 +1030,6 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 			goto out;
 		}
 
-#if defined(HAVE_KMEM_CACHE_ALLOCFLAGS)
-		skc->skc_linux_cache->allocflags |= __GFP_COMP;
-#elif defined(HAVE_KMEM_CACHE_GFPFLAGS)
-		skc->skc_linux_cache->gfpflags |= __GFP_COMP;
-#endif
 		skc->skc_flags |= KMC_NOMAGAZINE;
 	}
 

@@ -712,9 +712,6 @@ static struct ctl_table spl_dir[] = {
 
 static struct ctl_table spl_root[] = {
 	{
-#ifdef HAVE_CTL_NAME
-	.ctl_name = CTL_KERN,
-#endif
 	.procname = "kernel",
 	.mode = 0555,
 	.child = spl_dir,
