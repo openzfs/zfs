@@ -1,0 +1,272 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\"
+.\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
+.\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
+.\" Copyright (c) 2011, 2019 by Delphix. All rights reserved.
+.\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
+.\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
+.\" Copyright (c) 2014 by Adam Stevko. All rights reserved.
+.\" Copyright (c) 2014 Integros [integros.com]
+.\" Copyright 2019 Richard Laager. All rights reserved.
+.\" Copyright 2018 Nexenta Systems, Inc.
+.\" Copyright 2019 Joyent, Inc.
+.\"
+.Dd June 30, 2019
+.Dt ZFS-LOAD-KEY 8
+.Os Linux
+.Sh NAME
+.Nm zfs Ns Pf - Cm load-key
+.Nd Load, unload, or change the encryption key used to access a dataset.
+.Sh SYNOPSIS
+.Nm
+.Cm load-key
+.Op Fl nr
+.Op Fl L Ar keylocation
+.Fl a | Ar filesystem
+.Nm
+.Cm unload-key
+.Op Fl r
+.Fl a | Ar filesystem
+.Nm
+.Cm change-key
+.Op Fl l
+.Op Fl o Ar keylocation Ns = Ns Ar value
+.Op Fl o Ar keyformat Ns = Ns Ar value
+.Op Fl o Ar pbkdf2iters Ns = Ns Ar value
+.Ar filesystem
+.Nm
+.Cm change-key
+.Fl i
+.Op Fl l
+.Ar filesystem
+.Sh DESCRIPTION
+.Bl -tag -width ""
+.It Xo
+.Nm
+.Cm load-key
+.Op Fl nr
+.Op Fl L Ar keylocation
+.Fl a | Ar filesystem
+.Xc
+Load the key for
+.Ar filesystem ,
+allowing it and all children that inherit the
+.Sy keylocation
+property to be accessed. The key will be expected in the format specified by the
+.Sy keyformat
+and location specified by the
+.Sy keylocation
+property. Note that if the
+.Sy keylocation
+is set to
+.Sy prompt
+the terminal will interactively wait for the key to be entered. Loading a key
+will not automatically mount the dataset. If that functionality is desired,
+.Nm zfs Cm mount Sy -l
+will ask for the key and mount the dataset
+.Po
+see
+.Xr zfs-mount 8
+.Pc .
+Once the key is loaded the
+.Sy keystatus
+property will become
+.Sy available .
+.Bl -tag -width "-r"
+.It Fl r
+Recursively loads the keys for the specified filesystem and all descendent
+encryption roots.
+.It Fl a
+Loads the keys for all encryption roots in all imported pools.
+.It Fl n
+Do a dry-run
+.Pq Qq No-op
+load-key. This will cause zfs to simply check that the
+provided key is correct. This command may be run even if the key is already
+loaded.
+.It Fl L Ar keylocation
+Use
+.Ar keylocation
+instead of the
+.Sy keylocation
+property. This will not change the value of the property on the dataset. Note
+that if used with either
+.Fl r
+or
+.Fl a ,
+.Ar keylocation
+may only be given as
+.Sy prompt .
+.El
+.It Xo
+.Nm
+.Cm unload-key
+.Op Fl r
+.Fl a | Ar filesystem
+.Xc
+Unloads a key from ZFS, removing the ability to access the dataset and all of
+its children that inherit the
+.Sy keylocation
+property. This requires that the dataset is not currently open or mounted. Once
+the key is unloaded the
+.Sy keystatus
+property will become
+.Sy unavailable .
+.Bl -tag -width "-r"
+.It Fl r
+Recursively unloads the keys for the specified filesystem and all descendent
+encryption roots.
+.It Fl a
+Unloads the keys for all encryption roots in all imported pools.
+.El
+.It Xo
+.Nm
+.Cm change-key
+.Op Fl l
+.Op Fl o Ar keylocation Ns = Ns Ar value
+.Op Fl o Ar keyformat Ns = Ns Ar value
+.Op Fl o Ar pbkdf2iters Ns = Ns Ar value
+.Ar filesystem
+.Xc
+.It Xo
+.Nm
+.Cm change-key
+.Fl i
+.Op Fl l
+.Ar filesystem
+.Xc
+Allows a user to change the encryption key used to access a dataset. This
+command requires that the existing key for the dataset is already loaded into
+ZFS. This command may also be used to change the
+.Sy keylocation ,
+.Sy keyformat ,
+and
+.Sy pbkdf2iters
+properties as needed. If the dataset was not previously an encryption root it
+will become one. Alternatively, the
+.Fl i
+flag may be provided to cause an encryption root to inherit the parent's key
+instead.
+.Bl -tag -width "-r"
+.It Fl l
+Ensures the key is loaded before attempting to change the key. This is
+effectively equivalent to
+.Qq Nm zfs Cm load-key Ar filesystem ; Nm zfs Cm change-key Ar filesystem
+.It Fl o Ar property Ns = Ns Ar value
+Allows the user to set encryption key properties (
+.Sy keyformat ,
+.Sy keylocation ,
+and
+.Sy pbkdf2iters
+) while changing the key. This is the only way to alter
+.Sy keyformat
+and
+.Sy pbkdf2iters
+after the dataset has been created.
+.It Fl i
+Indicates that zfs should make
+.Ar filesystem
+inherit the key of its parent. Note that this command can only be run on an
+encryption root that has an encrypted parent.
+.El
+.El
+.Ss Encryption
+Enabling the
+.Sy encryption
+feature allows for the creation of encrypted filesystems and volumes.  ZFS
+will encrypt file and zvol data, file attributes, ACLs, permission bits,
+directory listings, FUID mappings, and
+.Sy userused
+/
+.Sy groupused
+data.  ZFS will not encrypt metadata related to the pool structure, including
+dataset and snapshot names, dataset hierarchy, properties, file size, file
+holes, and deduplication tables (though the deduplicated data itself is
+encrypted).
+.Pp
+Key rotation is managed by ZFS.  Changing the user's key (e.g. a passphrase)
+does not require re-encrypting the entire dataset.  Datasets can be scrubbed,
+resilvered, renamed, and deleted without the encryption keys being loaded (see the
+.Nm zfs Cm load-key
+subcommand for more info on key loading).
+.Pp
+Creating an encrypted dataset requires specifying the
+.Sy encryption
+and
+.Sy keyformat
+properties at creation time, along with an optional
+.Sy keylocation
+and
+.Sy pbkdf2iters .
+After entering an encryption key, the
+created dataset will become an encryption root. Any descendant datasets will
+inherit their encryption key from the encryption root by default, meaning that
+loading, unloading, or changing the key for the encryption root will implicitly
+do the same for all inheriting datasets. If this inheritance is not desired,
+simply supply a
+.Sy keyformat
+when creating the child dataset or use
+.Nm zfs Cm change-key
+to break an existing relationship, creating a new encryption root on the child.
+Note that the child's
+.Sy keyformat
+may match that of the parent while still creating a new encryption root, and
+that changing the
+.Sy encryption
+property alone does not create a new encryption root; this would simply use a
+different cipher suite with the same key as its encryption root. The one
+exception is that clones will always use their origin's encryption key.
+As a result of this exception, some encryption-related properties (namely
+.Sy keystatus ,
+.Sy keyformat ,
+.Sy keylocation ,
+and
+.Sy pbkdf2iters )
+do not inherit like other ZFS properties and instead use the value determined
+by their encryption root. Encryption root inheritance can be tracked via the
+read-only
+.Sy encryptionroot
+property.
+.Pp
+Encryption changes the behavior of a few ZFS
+operations. Encryption is applied after compression so compression ratios are
+preserved. Normally checksums in ZFS are 256 bits long, but for encrypted data
+the checksum is 128 bits of the user-chosen checksum and 128 bits of MAC from
+the encryption suite, which provides additional protection against maliciously
+altered data. Deduplication is still possible with encryption enabled but for
+security, datasets will only dedup against themselves, their snapshots, and
+their clones.
+.Pp
+There are a few limitations on encrypted datasets. Encrypted data cannot be
+embedded via the
+.Sy embedded_data
+feature. Encrypted datasets may not have
+.Sy copies Ns = Ns Em 3
+since the implementation stores some encryption metadata where the third copy
+would normally be. Since compression is applied before encryption datasets may
+be vulnerable to a CRIME-like attack if applications accessing the data allow
+for it. Deduplication with encryption will leak information about which blocks
+are equivalent in a dataset and will incur an extra CPU cost per block written.
+.Sh SEE ALSO
+.Xr zfs-create 8 ,
+.Xr zfs-set 8 ,
+.Xr zfsprops 8
