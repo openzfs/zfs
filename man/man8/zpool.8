@@ -121,10 +121,7 @@ or removes the specified device from the pool.
 .It Xr zpool-replace 8
 Replaces an existing device (which may be faulted) with a new one.
 .It Xr zpool-split 8
-Splits devices off
-.Ar pool
-creating
-.Ar newpool .
+Creates a new pool by splitting all mirrors in an existing pool (which decreases its redundancy).
 .El
 .Ss Properties
 Available pool properties listed in the
