@@ -237,7 +237,7 @@ pool_active(void *unused, const char *name, uint64_t guid,
 	zcp->zc_nvlist_src = (uint64_t)(uintptr_t)packed;
 	zcp->zc_nvlist_src_size = size;
 
-	ret = ioctl(fd, ZFS_IOC_POOL_SYNC, zcp);
+	ret = zfs_ioctl_fd(fd, ZFS_IOC_POOL_SYNC, zcp);
 
 	fnvlist_pack_free(packed, size);
 	free((void *)(uintptr_t)zcp->zc_nvlist_dst);

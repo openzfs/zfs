@@ -143,6 +143,9 @@ extern void zpool_dump_ddt(const ddt_stat_t *, const ddt_histogram_t *);
 extern int zpool_history_unpack(char *, uint64_t, uint64_t *, nvlist_t ***,
     uint_t *);
 
+struct zfs_cmd;
+int zfs_ioctl_fd(int fd, unsigned long request, struct zfs_cmd *zc);
+
 #ifdef	__cplusplus
 }
 #endif
