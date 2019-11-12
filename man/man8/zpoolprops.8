@@ -225,6 +225,28 @@ Autoreplace and autoonline require the ZFS Event Daemon be configured and
 running.  See the
 .Xr zed 8
 man page for more details.
+.It Sy autotrim Ns = Ns Sy on Ns | Ns Sy off
+When set to
+.Sy on
+space which has been recently freed, and is no longer allocated by the pool,
+will be periodically trimmed.  This allows block device vdevs which support
+BLKDISCARD, such as SSDs, or file vdevs on which the underlying file system
+supports hole-punching, to reclaim unused blocks.  The default setting for
+this property is
+.Sy off .
+.Pp
+Automatic TRIM does not immediately reclaim blocks after a free. Instead,
+it will optimistically delay allowing smaller ranges to be aggregated in to
+a few larger ones.  These can then be issued more efficiently to the storage.
+.Pp
+Be aware that automatic trimming of recently freed data blocks can put
+significant stress on the underlying storage devices.  This will vary
+depending of how well the specific device handles these commands.  For
+lower end devices it is often possible to achieve most of the benefits
+of automatic trimming by running an on-demand (manual) TRIM periodically
+using the
+.Nm zpool Cm trim
+command.
 .It Sy bootfs Ns = Ns Sy (unset) Ns | Ns Ar pool Ns / Ns Ar dataset
 Identifies the default bootable dataset for the root pool. This property is
 expected to be set mainly by the installation and upgrade programs.
@@ -285,28 +307,6 @@ Any write requests that have yet to be committed to disk would be blocked.
 .It Sy panic
 Prints out a message to the console and generates a system crash dump.
 .El
-.It Sy autotrim Ns = Ns Sy on Ns | Ns Sy off
-When set to
-.Sy on
-space which has been recently freed, and is no longer allocated by the pool,
-will be periodically trimmed.  This allows block device vdevs which support
-BLKDISCARD, such as SSDs, or file vdevs on which the underlying file system
-supports hole-punching, to reclaim unused blocks.  The default setting for
-this property is
-.Sy off .
-.Pp
-Automatic TRIM does not immediately reclaim blocks after a free. Instead,
-it will optimistically delay allowing smaller ranges to be aggregated in to
-a few larger ones.  These can then be issued more efficiently to the storage.
-.Pp
-Be aware that automatic trimming of recently freed data blocks can put
-significant stress on the underlying storage devices.  This will vary
-depending of how well the specific device handles these commands.  For
-lower end devices it is often possible to achieve most of the benefits
-of automatic trimming by running an on-demand (manual) TRIM periodically
-using the
-.Nm zpool Cm trim
-command.
 .It Sy feature@ Ns Ar feature_name Ns = Ns Sy enabled
 The value of this property is the current state of
 .Ar feature_name .
