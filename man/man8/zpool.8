@@ -109,13 +109,9 @@ Removes ZFS label information from the specified
 .Xr zpool-attach 8 /
 .Xr zpool-detach 8
 .Xc
-Attaches
-.Ar new_device
-to the existing
-.Ar device , or
-detaches
-.Ar device
-from a mirror.
+Increases or decreases redundancy by
+.Cm attach Ns -ing or
+.Cm detach Ns -ing a device on an existing vdev (virtual device).
 .It Xo
 .Xr zpool-add 8 /
 .Xr zpool-remove 8
