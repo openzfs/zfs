@@ -734,8 +734,6 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 			break;
 
 		default:
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "property '%s'(%d) not defined"), propname, prop);
 			break;
 		}
 	}
