@@ -1,0 +1,105 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\"
+.\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
+.\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+.\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
+.\" Copyright (c) 2017 Datto Inc.
+.\" Copyright (c) 2018 George Melikov. All Rights Reserved.
+.\" Copyright 2017 Nexenta Systems, Inc.
+.\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+.\"
+.Dd August 9, 2019
+.Dt ZPOOL-SCRUB 8
+.Os Linux
+.Sh NAME
+.Nm zpool Ns Pf - Cm scrub
+.Nd Begin a scrub or resume a paused scrub of a ZFS storage pool
+.Sh SYNOPSIS
+.Nm
+.Cm scrub
+.Op Fl s | Fl p
+.Op Fl w
+.Ar pool Ns ...
+.Sh DESCRIPTION
+.Bl -tag -width Ds
+.It Xo
+.Nm
+.Cm scrub
+.Op Fl s | Fl p
+.Op Fl w
+.Ar pool Ns ...
+.Xc
+Begins a scrub or resumes a paused scrub.
+The scrub examines all data in the specified pools to verify that it checksums
+correctly.
+For replicated
+.Pq mirror or raidz
+devices, ZFS automatically repairs any damage discovered during the scrub.
+The
+.Nm zpool Cm status
+command reports the progress of the scrub and summarizes the results of the
+scrub upon completion.
+.Pp
+Scrubbing and resilvering are very similar operations.
+The difference is that resilvering only examines data that ZFS knows to be out
+of date
+.Po
+for example, when attaching a new device to a mirror or replacing an existing
+device
+.Pc ,
+whereas scrubbing examines all data to discover silent errors due to hardware
+faults or disk failure.
+.Pp
+Because scrubbing and resilvering are I/O-intensive operations, ZFS only allows
+one at a time.
+If a scrub is paused, the
+.Nm zpool Cm scrub
+resumes it.
+If a resilver is in progress, ZFS does not allow a scrub to be started until the
+resilver completes.
+.Pp
+Note that, due to changes in pool data on a live system, it is possible for
+scrubs to progress slightly beyond 100% completion. During this period, no
+completion time estimate will be provided.
+.Bl -tag -width Ds
+.It Fl s
+Stop scrubbing.
+.El
+.Bl -tag -width Ds
+.It Fl p
+Pause scrubbing.
+Scrub pause state and progress are periodically synced to disk.
+If the system is restarted or pool is exported during a paused scrub,
+even after import, scrub will remain paused until it is resumed.
+Once resumed the scrub will pick up from the place where it was last
+checkpointed to disk.
+To resume a paused scrub issue
+.Nm zpool Cm scrub
+again.
+.It Fl w
+Wait until scrub has completed before returning.
+.El
+.El
+.Sh SEE ALSO
+.Xr zpool-iostat 8 ,
+.Xr zpool-resilver 8 ,
+.Xr zpool-status 8

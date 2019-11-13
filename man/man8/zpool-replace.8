@@ -1,0 +1,97 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\"
+.\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
+.\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+.\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
+.\" Copyright (c) 2017 Datto Inc.
+.\" Copyright (c) 2018 George Melikov. All Rights Reserved.
+.\" Copyright 2017 Nexenta Systems, Inc.
+.\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+.\"
+.Dd August 9, 2019
+.Dt ZPOOL-REPLACE 8
+.Os Linux
+.Sh NAME
+.Nm zpool Ns Pf - Cm replace
+.Nd Replace one device with another in a ZFS storage pool
+.Sh SYNOPSIS
+.Nm
+.Cm replace
+.Op Fl fw
+.Oo Fl o Ar property Ns = Ns Ar value Oc
+.Ar pool Ar device Op Ar new_device
+.Sh DESCRIPTION
+.Bl -tag -width Ds
+.It Xo
+.Nm
+.Cm replace
+.Op Fl fw
+.Op Fl o Ar property Ns = Ns Ar value
+.Ar pool Ar device Op Ar new_device
+.Xc
+Replaces
+.Ar old_device
+with
+.Ar new_device .
+This is equivalent to attaching
+.Ar new_device ,
+waiting for it to resilver, and then detaching
+.Ar old_device .
+.Pp
+The size of
+.Ar new_device
+must be greater than or equal to the minimum size of all the devices in a mirror
+or raidz configuration.
+.Pp
+.Ar new_device
+is required if the pool is not redundant.
+If
+.Ar new_device
+is not specified, it defaults to
+.Ar old_device .
+This form of replacement is useful after an existing disk has failed and has
+been physically replaced.
+In this case, the new disk may have the same
+.Pa /dev
+path as the old device, even though it is actually a different disk.
+ZFS recognizes this.
+.Bl -tag -width Ds
+.It Fl f
+Forces use of
+.Ar new_device ,
+even if it appears to be in use.
+Not all devices can be overridden in this manner.
+.It Fl o Ar property Ns = Ns Ar value
+Sets the given pool properties. See the
+.Xr zpoolprops
+manual page for a list of valid properties that can be set.
+The only property supported at the moment is
+.Sy ashift .
+.It Fl w
+Waits until the replacement has completed before returning.
+.El
+.El
+.Sh SEE ALSO
+.Xr zpool-detach 8 ,
+.Xr zpool-initialize 8 ,
+.Xr zpool-online 8 ,
+.Xr zpool-resilver 8
