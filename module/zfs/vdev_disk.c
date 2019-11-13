@@ -545,7 +545,7 @@ vdev_bio_associate_blkg(struct bio *bio)
 	ASSERT3P(q, !=, NULL);
 	ASSERT3P(bio->bi_blkg, ==, NULL);
 
-	if (blkg_tryget(q->root_blkg))
+	if (q->root_blkg && blkg_tryget(q->root_blkg))
 		bio->bi_blkg = q->root_blkg;
 }
 #define	bio_associate_blkg vdev_bio_associate_blkg
