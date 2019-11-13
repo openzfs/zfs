@@ -258,3 +258,4 @@ Developed at Lawrence Livermore National Laboratory (LLNL\-CODE\-403049).
 .SH SEE ALSO
 .BR zfs (8),
 .BR zpool (8)
+.BR zpool-events (8)

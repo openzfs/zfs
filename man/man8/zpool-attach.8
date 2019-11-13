@@ -1,0 +1,96 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\"
+.\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
+.\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+.\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
+.\" Copyright (c) 2017 Datto Inc.
+.\" Copyright (c) 2018 George Melikov. All Rights Reserved.
+.\" Copyright 2017 Nexenta Systems, Inc.
+.\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+.\"
+.Dd August 9, 2019
+.Dt ZPOOL-ATTACH 8
+.Os Linux
+.Sh NAME
+.Nm zpool Ns Pf - Cm attach
+.Nd Attach a new device to an existing ZFS virtual device (vdev).
+.Sh SYNOPSIS
+.Nm
+.Cm attach
+.Op Fl fw
+.Oo Fl o Ar property Ns = Ns Ar value Oc
+.Ar pool device new_device
+.Sh DESCRIPTION
+.Bl -tag -width Ds
+.It Xo
+.Nm
+.Cm attach
+.Op Fl fw
+.Oo Fl o Ar property Ns = Ns Ar value Oc
+.Ar pool device new_device
+.Xc
+Attaches
+.Ar new_device
+to the existing
+.Ar device .
+The existing device cannot be part of a raidz configuration.
+If
+.Ar device
+is not currently part of a mirrored configuration,
+.Ar device
+automatically transforms into a two-way mirror of
+.Ar device
+and
+.Ar new_device .
+If
+.Ar device
+is part of a two-way mirror, attaching
+.Ar new_device
+creates a three-way mirror, and so on.
+In either case,
+.Ar new_device
+begins to resilver immediately.
+.Bl -tag -width Ds
+.It Fl f
+Forces use of
+.Ar new_device ,
+even if it appears to be in use.
+Not all devices can be overridden in this manner.
+.It Fl w
+Waits until
+.Ar new_device
+has finished resilvering before returning.
+.It Fl o Ar property Ns = Ns Ar value
+Sets the given pool properties. See the
+.Xr zpoolprops 8
+manual page for a list of valid properties that can be set. The only property
+supported at the moment is ashift.
+.El
+.El
+.Sh SEE ALSO
+.Xr zpool-detach 8 ,
+.Xr zpool-add 8 ,
+.Xr zpool-import 8 ,
+.Xr zpool-initialize 8 ,
+.Xr zpool-online 8 ,
+.Xr zpool-replace 8 ,
+.Xr zpool-resilver 8
