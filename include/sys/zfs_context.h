@@ -406,6 +406,7 @@ void procfs_list_add(procfs_list_t *procfs_list, void *p);
 #define	KMC_NODEBUG		UMC_NODEBUG
 #define	KMC_KMEM		0x0
 #define	KMC_VMEM		0x0
+#define	KMC_KVMEM		0x0
 #define	kmem_alloc(_s, _f)	umem_alloc(_s, _f)
 #define	kmem_zalloc(_s, _f)	umem_zalloc(_s, _f)
 #define	kmem_free(_b, _s)	umem_free(_b, _s)
