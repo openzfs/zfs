@@ -74,7 +74,7 @@ int zfs_autoimport_disable = 1;
  * only populates the namespace.
  */
 void
-spa_config_load(void)
+spa_config_load(boolean_t boot)
 {
 	void *buf = NULL;
 	nvlist_t *nvlist, *child;
@@ -86,7 +86,7 @@ spa_config_load(void)
 	int err;
 
 #ifdef _KERNEL
-	if (zfs_autoimport_disable)
+	if (boot == B_FALSE && zfs_autoimport_disable)
 		return;
 #endif
 

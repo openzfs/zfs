@@ -2278,7 +2278,7 @@ spa_name_compare(const void *a1, const void *a2)
 void
 spa_boot_init(void)
 {
-	spa_config_load();
+	spa_config_load(B_TRUE);
 }
 
 void
@@ -2333,7 +2333,7 @@ spa_init(spa_mode_t mode)
 	zfs_prop_init();
 	zpool_prop_init();
 	zpool_feature_init();
-	spa_config_load();
+	spa_config_load(B_FALSE);
 	l2arc_start();
 	scan_init();
 	qat_init();
