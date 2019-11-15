@@ -147,12 +147,20 @@ zio_decompress_data_buf(enum zio_compress c, void *src, void *dst,
 }
 
 int
-zio_decompress_data(enum zio_compress c, abd_t *src, void *dst,
+zio_decompress_data_impl(enum zio_compress c, abd_t *src, void *dst,
     size_t s_len, size_t d_len)
 {
 	void *tmp = abd_borrow_buf_copy(src, s_len);
 	int ret = zio_decompress_data_buf(c, tmp, dst, s_len, d_len);
 	abd_return_buf(src, tmp, s_len);
+	return (ret);
+}
+
+int
+zio_decompress_data(enum zio_compress c, abd_t *src, void *dst,
+    size_t s_len, size_t d_len)
+{
+	int ret = zio_decompress_data_impl(c, src, dst, s_len, d_len);
 
 	/*
 	 * Decompression shouldn't fail, because we've already verified

@@ -63,7 +63,7 @@
 .Op Fl A
 .Op Fl e Oo Fl V Oc Op Fl p Ar path ...
 .Op Fl U Ar cache
-.Ar poolname vdev Ns \&: Ns Ar offset Ns \&: Ns Ar size Ns Op : Ns Ar flags
+.Ar poolname vdev Ns \&: Ns Ar offset Ns \&: Ns Ar [<lsize>/]<psize> Ns Op : Ns Ar flags
 .Nm
 .Fl S
 .Op Fl AP
@@ -97,6 +97,11 @@ characters, it is interpreted as a pool name.
 The root dataset can be specified as
 .Ar pool Ns /
 .Pq pool name followed by a slash .
+As a special case, the 
+.Ar dataset 
+argument may contain the keyword
+.Qq Sy dataset
+followed by the numeric id of the dataset.
 .Pp
 When operating on an imported and active pool it is possible, though unlikely,
 that zdb may interpret inconsistent pool data and behave erratically.
@@ -228,7 +233,7 @@ This option can be combined with
 .Fl v
 for increasing verbosity.
 .It Xo
-.Fl R Ar poolname vdev Ns \&: Ns Ar offset Ns \&: Ns Ar size Ns Op : Ns Ar flags
+.Fl R Ar poolname vdev Ns \&: Ns Ar offset Ns \&: Ns Ar [<lsize>/]<psize> Ns Op : Ns Ar flags
 .Xc
 Read and display a block from the specified device.
 By default the block is displayed as a hex dump, but see the description of the
@@ -240,15 +245,17 @@ The block is specified in terms of a colon-separated tuple
 .Pq an integer vdev identifier
 .Ar offset
 .Pq the offset within the vdev
-.Ar size
-.Pq the size of the block to read
-and, optionally,
+.Ar lsize/psize
+.Pq the physical size, or logical size / physical size
+of the block to read and, optionally,
 .Ar flags
 .Pq a set of flags, described below .
 .Pp
 .Bl -tag -compact -width "b offset"
 .It Sy b Ar offset
 Print block pointer
+.It Sy c
+Calculate and display checksums
 .It Sy d
 Decompress the block. Set environment variable
 .Nm ZDB_NO_ZLE
@@ -261,6 +268,8 @@ Dump gang block header
 Dump indirect block
 .It Sy r
 Dump raw uninterpreted block data
+.It Sy v
+Verbose output for guessing compression algorithm
 .El
 .It Fl s
 Report statistics on

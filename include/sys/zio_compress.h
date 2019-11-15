@@ -115,6 +115,8 @@ extern int zio_decompress_data(enum zio_compress c, abd_t *src, void *dst,
     size_t s_len, size_t d_len);
 extern int zio_decompress_data_buf(enum zio_compress c, void *src, void *dst,
     size_t s_len, size_t d_len);
+extern int zio_decompress_data_impl(enum zio_compress c, abd_t *src, void *dst,
+    size_t s_len, size_t d_len);
 
 #ifdef	__cplusplus
 }
