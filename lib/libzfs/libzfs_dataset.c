@@ -119,8 +119,7 @@ zfs_validate_name(libzfs_handle_t *hdl, const char *path, int type,
 	if (type == ZFS_TYPE_SNAPSHOT && strchr(path, '@') == NULL) {
 		if (hdl != NULL)
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "missing '@' delimiter in snapshot name, "
-			    "did you mean to use -r?"));
+			    "missing '@' delimiter in snapshot name"));
 		return (0);
 	}
 
@@ -134,8 +133,7 @@ zfs_validate_name(libzfs_handle_t *hdl, const char *path, int type,
 	if (type == ZFS_TYPE_BOOKMARK && strchr(path, '#') == NULL) {
 		if (hdl != NULL)
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "missing '#' delimiter in bookmark name, "
-			    "did you mean to use -r?"));
+			    "missing '#' delimiter in bookmark name"));
 		return (0);
 	}
 
