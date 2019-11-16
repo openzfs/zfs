@@ -1,3 +1,7 @@
 [submodule "scripts/zfs-images"]
 	path = scripts/zfs-images
 	url = https://github.com/zfsonlinux/zfs-images
+[submodule "man/build/jinja2"]
+	path = man/build/jinja2
+	url = https://github.com/pallets/jinja.git
+	branch = 2.10.x

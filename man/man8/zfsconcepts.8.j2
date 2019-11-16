@@ -32,7 +32,7 @@
 .\"
 .Dd June 30, 2019
 .Dt ZFSCONCEPTS 8
-.Os Linux
+.Os {{ uname }}
 .Sh NAME
 .Nm zfsconcepts
 .Nd An overview of ZFS concepts.
@@ -172,6 +172,37 @@ option
 .Pp
 will ensure that the zfs-import completes before systemd attempts mounting
 the filesystem. See systemd.mount(5) for details.
+.\" % if SYSTEM_FREEBSD:
+.Ss Jails
+.No A Tn ZFS
+dataset can be attached to a jail by using the
+.Qq Nm Cm jail
+subcommand. You cannot attach a dataset to one jail and the children of the
+same dataset to another jail. You can also not attach the root file system
+of the jail or any dataset which needs to be mounted before the zfs rc script
+is run inside the jail, as it would be attached unmounted until it is
+mounted from the rc script inside the jail. To allow management of the
+dataset from within a jail, the
+.Sy jailed
+property has to be set and the jail needs access to the
+.Pa /dev/zfs
+device. The
+.Sy quota
+property cannot be changed from within a jail. See
+.Xr jail 8
+for information on how to allow mounting
+.Tn ZFS
+datasets from within a jail.
+.Pp
+.No A Tn ZFS
+dataset can be detached from a jail using the
+.Qq Nm Cm unjail
+subcommand.
+.Pp
+After a dataset is attached to a jail and the jailed property is set, a jailed
+file system cannot be mounted outside the jail, since the jail administrator
+might have set the mount point to an unacceptable value.
+.\" % endif
 .Ss Deduplication
 Deduplication is the process for removing redundant data at the block level,
 reducing the total amount of data stored. If a file system has the

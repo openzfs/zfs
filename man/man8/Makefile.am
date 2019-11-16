@@ -4,7 +4,6 @@ dist_man_MANS = \
 	vdev_id.8 \
 	zdb.8 \
 	zfs.8 \
-	zfsconcepts.8 \
 	zfsprops.8 \
 	zfs-allow.8 \
 	zfs-bookmark.8 \
@@ -77,15 +76,27 @@ dist_man_MANS = \
 	zpool-wait.8 \
 	zstreamdump.8
 
-nodist_man_MANS = \
+nodist_sed_MANS = \
 	zed.8 \
 	zfs-mount-generator.8
 
+nodist_j2_MANS = \
+	zfsconcepts.8
+
+nodist_man_MANS = \
+	$(nodist_sed_MANS) \
+	$(nodist_j2_MANS)
+
 EXTRA_DIST = \
 	zed.8.in \
-	zfs-mount-generator.8.in
+	zfs-mount-generator.8.in \
+	zfsconcepts.8.j2
 
-$(nodist_man_MANS): %: %.in
+$(nodist_j2_MANS): %: %.j2
+	../build/build-manpages.py -c '../../zfs_config.h' \
+		-o $@ $<
+
+$(nodist_sed_MANS): %: %.in
 	-$(SED) -e 's,@zfsexecdir\@,$(zfsexecdir),g' \
 		-e 's,@runstatedir\@,$(runstatedir),g' \
 		-e 's,@sysconfdir\@,$(sysconfdir),g' \
