@@ -48,10 +48,6 @@
 
 verify_runnable "both"
 
-if is_linux; then
-	log_unsupported "Test case is known to fail on Linux"
-fi
-
 function cleanup
 {
 	typeset snap=""
@@ -61,18 +57,16 @@ function cleanup
 	log_must zfs mount -a
 	unset __ZFS_POOL_RESTRICT
 
-	for snap in "$SNAPPOOL.1" "$SNAPPOOL"
-	do
-		snapexists $snap
-		[[ $? -eq 0 ]] && \
-			log_must zfs destroy $snap
+	for snap in "$SNAPPOOL.1" "$SNAPPOOL"; do
+		if snapexists $snap; then
+			destroy_snapshot $snap
+		fi
 	done
 
-	for fs in "$TESTPOOL/$TESTFILE/$TESTFILE.1" "$TESTPOOL/$TESTFILE"
-	do
-		datasetexists $fs
-		[[ $? -eq 0 ]] && \
-			log_must zfs destroy -r $fs
+	for fs in "$TESTPOOL/$TESTFILE/$TESTFILE.1" "$TESTPOOL/$TESTFILE"; do
+		if datasetexists $fs; then
+			destroy_dataset $fs -r
+		fi
 	done
 
 	[[ -e /$TESTPOOL ]] && \
@@ -106,5 +100,12 @@ unset __ZFS_POOL_RESTRICT
 log_must touch /$TESTPOOL/$TESTFILE/$TESTFILE.1
 
 log_must zfs rollback $SNAPPOOL.1
+
+#
+# Workaround for issue #6143.  Issuing a `df` seems to properly force any
+# negative dcache entries to be invalidated preventing subsequent failures
+# when accessing the mount point.  Additional investigation required.
+#
+log_must df
 
 log_pass "Rollbacks succeed when nested file systems are present."
