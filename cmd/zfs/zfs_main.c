@@ -1980,7 +1980,7 @@ zfs_do_get(int argc, char **argv)
 			flags &= ~ZFS_ITER_PROP_LISTSNAPS;
 			while (*optarg != '\0') {
 				static char *type_subopts[] = { "filesystem",
-				    "volume", "snapshot", "bookmark",
+				    "volume", "snapshot", "snap", "bookmark",
 				    "all", NULL };
 
 				switch (getsubopt(&optarg, type_subopts,
@@ -1992,12 +1992,13 @@ zfs_do_get(int argc, char **argv)
 					types |= ZFS_TYPE_VOLUME;
 					break;
 				case 2:
+				case 3:
 					types |= ZFS_TYPE_SNAPSHOT;
 					break;
-				case 3:
+				case 4:
 					types |= ZFS_TYPE_BOOKMARK;
 					break;
-				case 4:
+				case 5:
 					types = ZFS_TYPE_DATASET |
 					    ZFS_TYPE_BOOKMARK;
 					break;
@@ -2030,11 +2031,11 @@ zfs_do_get(int argc, char **argv)
 	fields = argv[0];
 
 	/*
-	 * Handle users who want to get all snapshots of the current
-	 * dataset (ex. 'zfs get -t snapshot refer <dataset>').
+	 * Handle users who want to get all snapshots or bookmarks
+	 * of a dataset (ex. 'zfs get -t snapshot refer <dataset>').
 	 */
-	if (types == ZFS_TYPE_SNAPSHOT && argc > 1 &&
-	    (flags & ZFS_ITER_RECURSE) == 0 && limit == 0) {
+	if ((types == ZFS_TYPE_SNAPSHOT || types == ZFS_TYPE_BOOKMARK) &&
+	    argc > 1 && (flags & ZFS_ITER_RECURSE) == 0 && limit == 0) {
 		flags |= (ZFS_ITER_DEPTH_LIMIT | ZFS_ITER_RECURSE);
 		limit = 1;
 	}
@@ -3534,11 +3535,11 @@ zfs_do_list(int argc, char **argv)
 		types &= ~ZFS_TYPE_SNAPSHOT;
 
 	/*
-	 * Handle users who want to list all snapshots of the current
-	 * dataset (ex. 'zfs list -t snapshot <dataset>').
+	 * Handle users who want to list all snapshots or bookmarks
+	 * of the current dataset (ex. 'zfs list -t snapshot <dataset>').
 	 */
-	if (types == ZFS_TYPE_SNAPSHOT && argc > 0 &&
-	    (flags & ZFS_ITER_RECURSE) == 0 && limit == 0) {
+	if ((types == ZFS_TYPE_SNAPSHOT || types == ZFS_TYPE_BOOKMARK) &&
+	    argc > 0 && (flags & ZFS_ITER_RECURSE) == 0 && limit == 0) {
 		flags |= (ZFS_ITER_DEPTH_LIMIT | ZFS_ITER_RECURSE);
 		limit = 1;
 	}
