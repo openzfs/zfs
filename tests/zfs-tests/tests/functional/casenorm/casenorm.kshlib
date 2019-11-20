@@ -65,14 +65,22 @@ function lookup_file
 {
 	typeset name=$1
 
-	zlook -l $TESTDIR $name >/dev/null 2>&1
+	if is_linux; then
+		test -f "${TESTDIR}/${name}" >/dev/null 2>&1
+	else
+		zlook -l $TESTDIR $name >/dev/null 2>&1
+	fi
 }
 
 function lookup_file_ci
 {
 	typeset name=$1
 
-	zlook -il $TESTDIR $name >/dev/null 2>&1
+	if is_linux; then
+		test -f "${TESTDIR}/${name}" >/dev/null 2>&1
+	else
+		zlook -il $TESTDIR $name >/dev/null 2>&1
+	fi
 }
 
 function lookup_any
