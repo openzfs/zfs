@@ -32,7 +32,6 @@
 #include <sys/vfs.h>
 #include <sys/vnode.h>
 #include <sys/file.h>
-#include <sys/mode.h>
 #include <sys/kmem.h>
 #include <sys/uio.h>
 #include <sys/pathname.h>

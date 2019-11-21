@@ -757,7 +757,7 @@ main(int argc, char **argv)
 
 	process_options(argc, argv);
 
-	kernel_init(FREAD);
+	kernel_init(SPA_MODE_READ);
 
 	/* setup random data because rand() is not reentrant */
 	rand_data = (int *)umem_alloc(SPA_MAXBLOCKSIZE, UMEM_NOFAIL);

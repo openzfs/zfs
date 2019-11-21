@@ -51,7 +51,7 @@ int secpolicy_zfs(const cred_t *);
 void secpolicy_setid_clear(vattr_t *, cred_t *);
 int secpolicy_setid_setsticky_clear(struct inode *, vattr_t *,
     const vattr_t *, cred_t *);
-int secpolicy_xvattr(xvattr_t *, uid_t, cred_t *, vtype_t);
+int secpolicy_xvattr(xvattr_t *, uid_t, cred_t *, mode_t);
 int secpolicy_vnode_setattr(cred_t *, struct inode *, struct vattr *,
     const struct vattr *, int, int (void *, int, cred_t *), void *);
 int secpolicy_basic_link(const cred_t *);

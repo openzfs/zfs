@@ -324,7 +324,7 @@ secpolicy_setid_setsticky_clear(struct inode *ip, vattr_t *vap,
  * Check privileges for setting xvattr attributes
  */
 int
-secpolicy_xvattr(xvattr_t *xvap, uid_t owner, cred_t *cr, vtype_t vtype)
+secpolicy_xvattr(xvattr_t *xvap, uid_t owner, cred_t *cr, mode_t type)
 {
 	return (secpolicy_vnode_chown(cr, owner));
 }

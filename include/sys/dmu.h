@@ -49,6 +49,7 @@
 #include <sys/zio_compress.h>
 #include <sys/zio_priority.h>
 #include <sys/uio.h>
+#include <sys/zfs_file.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -1071,7 +1072,7 @@ void dmu_traverse_objset(objset_t *os, uint64_t txg_start,
     dmu_traverse_cb_t cb, void *arg);
 
 int dmu_diff(const char *tosnap_name, const char *fromsnap_name,
-    struct vnode *vp, offset_t *offp);
+    zfs_file_t *fp, offset_t *offp);
 
 /* CRC64 table */
 #define	ZFS_CRC64_POLY	0xC96C5795D7870F42ULL	/* ECMA-182, reflected form */

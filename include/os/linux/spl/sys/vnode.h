@@ -51,22 +51,7 @@
 #define	O_DSYNC		O_SYNC
 #endif
 
-#define	FREAD		1
-#define	FWRITE		2
-#define	FCREAT		O_CREAT
-#define	FTRUNC		O_TRUNC
-#define	FOFFMAX		O_LARGEFILE
-#define	FSYNC		O_SYNC
-#define	FDSYNC		O_DSYNC
-#define	FEXCL		O_EXCL
-#define	FDIRECT		O_DIRECT
-#define	FAPPEND		O_APPEND
-
-#define	FNODSYNC	0x10000 /* fsync pseudo flag */
-#define	FNOFOLLOW	0x20000 /* don't follow symlinks */
-
 #define	F_FREESP	11 	/* Free file space */
-
 
 /*
  * The vnode AT_ flags are mapped to the Linux ATTR_* flags.
@@ -102,23 +87,7 @@
 #define	CREATE_XATTR_DIR	0x04
 #define	ATTR_NOACLCHECK		0x20
 
-typedef enum vtype {
-	VNON		= 0,
-	VREG		= 1,
-	VDIR		= 2,
-	VBLK		= 3,
-	VCHR		= 4,
-	VLNK		= 5,
-	VFIFO		= 6,
-	VDOOR		= 7,
-	VPROC		= 8,
-	VSOCK		= 9,
-	VPORT		= 10,
-	VBAD		= 11
-} vtype_t;
-
 typedef struct vattr {
-	enum vtype	va_type;	/* vnode type */
 	uint32_t	va_mask;	/* attribute bit-mask */
 	ushort_t	va_mode;	/* acc mode */
 	uid_t		va_uid;		/* owner uid */
@@ -133,70 +102,6 @@ typedef struct vattr {
 	dev_t		va_rdev;	/* dev */
 	uint64_t	va_nblocks;	/* space used */
 	uint32_t	va_blksize;	/* block size */
-	uint32_t	va_seq;		/* sequence */
 	struct dentry	*va_dentry;	/* dentry to wire */
 } vattr_t;
-
-typedef struct vnode {
-	struct file	*v_file;
-	kmutex_t	v_lock;		/* protects vnode fields */
-	uint_t		v_flag;		/* vnode flags (see below) */
-	uint_t		v_count;	/* reference count */
-	void		*v_data;	/* private data for fs */
-	struct vfs	*v_vfsp;	/* ptr to containing VFS */
-	struct stdata	*v_stream;	/* associated stream */
-	enum vtype	v_type;		/* vnode type */
-	dev_t		v_rdev;		/* device (VCHR, VBLK) */
-	gfp_t		v_gfp_mask;	/* original mapping gfp mask */
-} vnode_t;
-
-typedef struct vn_file {
-	int		f_fd;		/* linux fd for lookup */
-	struct task_struct *f_task;	/* linux task this fd belongs to */
-	struct file	*f_file;	/* linux file struct */
-	atomic_t	f_ref;		/* ref count */
-	kmutex_t	f_lock;		/* struct lock */
-	loff_t		f_offset;	/* offset */
-	vnode_t		*f_vnode;	/* vnode */
-	struct list_head f_list;	/* list referenced file_t's */
-} file_t;
-
-extern vnode_t *vn_alloc(int flag);
-void vn_free(vnode_t *vp);
-extern vtype_t vn_mode_to_vtype(mode_t);
-extern mode_t vn_vtype_to_mode(vtype_t);
-extern int vn_open(const char *path, uio_seg_t seg, int flags, int mode,
-    vnode_t **vpp, int x1, void *x2);
-extern int vn_openat(const char *path, uio_seg_t seg, int flags, int mode,
-    vnode_t **vpp, int x1, void *x2, vnode_t *vp, int fd);
-extern int vn_rdwr(uio_rw_t uio, vnode_t *vp, void *addr, ssize_t len,
-    offset_t off, uio_seg_t seg, int x1, rlim64_t x2,
-    void *x3, ssize_t *residp);
-extern int vn_close(vnode_t *vp, int flags, int x1, int x2, void *x3, void *x4);
-extern int vn_seek(vnode_t *vp, offset_t o, offset_t *op, void *ct);
-
-extern int vn_getattr(vnode_t *vp, vattr_t *vap, int flags, void *x3, void *x4);
-extern int vn_fsync(vnode_t *vp, int flags, void *x3, void *x4);
-extern int vn_space(vnode_t *vp, int cmd, struct flock *bfp, int flag,
-    offset_t offset, void *x6, void *x7);
-extern file_t *vn_getf(int fd);
-extern void vn_releasef(int fd);
-extern void vn_areleasef(int fd, uf_info_t *fip);
-
-int spl_vn_init(void);
-void spl_vn_fini(void);
-
-#define	VOP_CLOSE				vn_close
-#define	VOP_SEEK				vn_seek
-#define	VOP_GETATTR				vn_getattr
-#define	VOP_FSYNC				vn_fsync
-#define	VOP_SPACE				vn_space
-#define	VOP_PUTPAGE(vp, o, s, f, x1, x2)	((void)0)
-#define	vn_is_readonly(vp)			0
-#define	getf					vn_getf
-#define	releasef				vn_releasef
-#define	areleasef				vn_areleasef
-
-extern vnode_t *rootdir;
-
 #endif /* SPL_VNODE_H */

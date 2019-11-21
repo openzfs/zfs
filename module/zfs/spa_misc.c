@@ -242,7 +242,7 @@ static kmutex_t spa_l2cache_lock;
 static avl_tree_t spa_l2cache_avl;
 
 kmem_cache_t *spa_buffer_pool;
-int spa_mode_global;
+spa_mode_t spa_mode_global = SPA_MODE_UNINIT;
 
 #ifdef ZFS_DEBUG
 /*
@@ -2282,7 +2282,7 @@ spa_boot_init(void)
 }
 
 void
-spa_init(int mode)
+spa_init(spa_mode_t mode)
 {
 	mutex_init(&spa_namespace_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&spa_spare_lock, NULL, MUTEX_DEFAULT, NULL);
@@ -2301,7 +2301,7 @@ spa_init(int mode)
 	spa_mode_global = mode;
 
 #ifndef _KERNEL
-	if (spa_mode_global != FREAD && dprintf_find_string("watch")) {
+	if (spa_mode_global != SPA_MODE_READ && dprintf_find_string("watch")) {
 		struct sigaction sa;
 
 		sa.sa_flags = SA_SIGINFO;
@@ -2406,7 +2406,7 @@ spa_is_root(spa_t *spa)
 boolean_t
 spa_writeable(spa_t *spa)
 {
-	return (!!(spa->spa_mode & FWRITE) && spa->spa_trust_config);
+	return (!!(spa->spa_mode & SPA_MODE_WRITE) && spa->spa_trust_config);
 }
 
 /*
@@ -2420,7 +2420,7 @@ spa_has_pending_synctask(spa_t *spa)
 	    !txg_all_lists_empty(&spa->spa_dsl_pool->dp_early_sync_tasks));
 }
 
-int
+spa_mode_t
 spa_mode(spa_t *spa)
 {
 	return (spa->spa_mode);
@@ -2670,7 +2670,7 @@ boolean_t
 spa_importing_readonly_checkpoint(spa_t *spa)
 {
 	return ((spa->spa_import_flags & ZFS_IMPORT_CHECKPOINT) &&
-	    spa->spa_mode == FREAD);
+	    spa->spa_mode == SPA_MODE_READ);
 }
 
 uint64_t
@@ -2724,7 +2724,7 @@ param_set_deadman_failmode(const char *val, zfs_kernel_param_t *kp)
 	    strcmp(val, "panic"))
 		return (SET_ERROR(-EINVAL));
 
-	if (spa_mode_global != 0) {
+	if (spa_mode_global != SPA_MODE_UNINIT) {
 		mutex_enter(&spa_namespace_lock);
 		while ((spa = spa_next(spa)) != NULL)
 			spa_set_deadman_failmode(spa, val);

@@ -62,7 +62,7 @@ typedef struct dmu_recv_cookie {
 	nvlist_t *drc_begin_nvl;
 
 	objset_t *drc_os;
-	vnode_t *drc_vp; /* The vnode to read the stream from */
+	zfs_file_t *drc_fp; /* The file to read the stream from */
 	uint64_t drc_voff; /* The current offset in the stream */
 	uint64_t drc_bytes_read;
 	/*
@@ -82,7 +82,7 @@ typedef struct dmu_recv_cookie {
 int dmu_recv_begin(char *tofs, char *tosnap, dmu_replay_record_t *drr_begin,
     boolean_t force, boolean_t resumable, nvlist_t *localprops,
     nvlist_t *hidden_args, char *origin, dmu_recv_cookie_t *drc,
-    vnode_t *vp, offset_t *voffp);
+    zfs_file_t *fp, offset_t *voffp);
 int dmu_recv_stream(dmu_recv_cookie_t *drc, int cleanup_fd,
     uint64_t *action_handlep, offset_t *voffp);
 int dmu_recv_end(dmu_recv_cookie_t *drc, void *owner);
