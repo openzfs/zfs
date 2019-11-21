@@ -6549,9 +6549,20 @@ share_mount_one(zfs_handle_t *zhp, int op, int flags, char *protocol,
 		    "'canmount' property is set to 'off'\n"), cmdname,
 		    zfs_get_name(zhp));
 		return (1);
-	} else if (canmount == ZFS_CANMOUNT_NOAUTO && !explicit) {
-		return (0);
+	} else if (canmount == ZFS_CANMOUNT_NOAUTO) {
+		/*
+		 * Skip this request when noauto is set and we wanted all
+		 * mounts|shares (i.e. -a) or we're not generating exports
+		 */
+		if (!explicit && !generate)
+			return (0);
 	}
+
+	/*
+	 * When generating shares and the filesystem isn't mounted then skip it
+	 */
+	if (generate && !zfs_is_mounted(zhp, NULL))
+		return (0);
 
 	/*
 	 * If this filesystem is encrypted and does not have
