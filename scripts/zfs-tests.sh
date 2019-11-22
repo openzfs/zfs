@@ -71,6 +71,15 @@ fail() {
 }
 
 #
+# Log a message, cleanup, and return 77 to indicate to `make check` the
+# test script could not be run and was instead skipped.
+#
+skip() {
+	cleanup
+	exit 77
+}
+
+#
 # Attempt to remove loopback devices and files which where created earlier
 # by this script to run the test framework.  The '-k' option may be passed
 # to the script to suppress cleanup for debugging purposes.
@@ -455,7 +464,7 @@ if [ "$(id -u)" = "0" ]; then
 fi
 
 if [ "$(sudo whoami)" != "root" ]; then
-	fail "Passwordless sudo access required."
+	skip "Passwordless sudo access required."
 fi
 
 #
@@ -464,19 +473,50 @@ fi
 constrain_path
 
 #
-# Check if ksh exists
-#
-[ -e "$STF_PATH/ksh" ] || fail "This test suite requires ksh."
-[ -e "$STF_SUITE/include/default.cfg" ] || fail \
-    "Missing $STF_SUITE/include/default.cfg file."
-
-#
 # Verify the ZFS module stack is loaded.
 #
-if [ "$STACK_TRACER" = "yes" ]; then
-	sudo "${ZFS_SH}" -S &>/dev/null
-else
-	sudo "${ZFS_SH}" &>/dev/null
+if [ ! -r /sys/module/zfs/version ]; then
+	echo "The ZFS kernel modules must be loaded."
+	echo "Use 'sudo $ZFS_SH' to load them."
+	skip
+fi
+
+#
+# Verify required support utilities are installed.  This is currently
+# non-fatal but missing utilities may result in test failures.
+#
+if [ -n "$STF_MISSING_BIN" ]; then
+	echo "Warning: The following required utilities are not installed."
+	echo "This may result in individual test failures.  The missing"
+	echo "utilities should be installed using your package manager."
+	echo
+	echo "$STF_MISSING_BIN"
+	echo
+fi
+
+#
+# Verify the ZFS helper utilities are installed when running in-tree.
+#
+if [ "$INTREE" = "yes" ]; then
+	if ! $ZFS_HELPERS_SH -c; then
+		echo "The ZFS helper utilities are not installed."
+		echo "Use 'sudo $ZFS_HELPERS_SH -iv' to create symlinks."
+		skip
+	fi
+fi
+
+#
+# Check if ksh exists.
+#
+if [ ! -e "$STF_PATH/ksh" ]; then
+	fail "This test suite requires ksh."
+fi
+
+#
+# Check if the default.cfg file exists
+#
+if [ ! -e "$STF_SUITE/include/default.cfg" ]; then
+	fail "Missing $STF_SUITE/include/default.cfg file."
 fi
 
 #
@@ -484,6 +524,15 @@ fi
 #
 if [ "$CLEANUPALL" = "yes" ]; then
 	cleanup_all
+fi
+
+#
+# Verify there are no testpools imported from a previously failed run.
+#
+if sudo "$ZPOOL" list -H -o name | grep -q testpool; then
+	echo "There is a pool named 'testpool' imported on this system. This"
+	echo "pool is most likely left over from a previous failed test run."
+	skip
 fi
 
 #

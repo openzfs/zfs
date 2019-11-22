@@ -29,6 +29,7 @@ PROG=zfs-helpers.sh
 DRYRUN="no"
 INSTALL="no"
 REMOVE="no"
+CHECK="no"
 VERBOSE="no"
 
 fail() {
@@ -45,14 +46,15 @@ msg() {
 usage() {
 cat << EOF
 USAGE:
-$0 [dhirv]
+$0 [dhcirv]
 
 DESCRIPTION:
-	Install/remove the ZFS helper utilities.
+	Check/install/remove the ZFS helper utilities.
 
 OPTIONS:
 	-d      Dry run
 	-h      Show this message
+	-c      Check the helper utilities (default)
 	-i      Install the helper utilities
 	-r      Remove the helper utilities
 	-v      Verbose
@@ -63,7 +65,7 @@ $0 -r
 EOF
 }
 
-while getopts 'hdirv' OPTION; do
+while getopts 'hdcirv' OPTION; do
 	case $OPTION in
 	h)
 		usage
@@ -77,6 +79,9 @@ while getopts 'hdirv' OPTION; do
 		;;
 	r)
 		REMOVE="yes"
+		;;
+	c)
+		CHECK="yes"
 		;;
 	v)
 		VERBOSE="yes"
@@ -93,11 +98,13 @@ if [ "$INSTALL" = "yes" ] && [ "$REMOVE" = "yes" ]; then
 fi
 
 if [ "$INSTALL" = "no" ] && [ "$REMOVE" = "no" ]; then
-	fail "Either -i or -r must be specified"
+	CHECK="yes"
 fi
 
 if [ "$(id -u)" != "0" ]; then
-	fail "Must run as root"
+	if [ "$INSTALL" = "yes" ] || [ "$REMOVE" = "yes" ]; then
+		fail "Must run as root"
+	fi
 fi
 
 if [ "$INTREE" != "yes" ]; then
@@ -149,7 +156,30 @@ remove() {
 	fi
 }
 
-if [ "${INSTALL}" = "yes" ]; then
+check() {
+	file=$1
+
+	if [ -e "$file" ]; then
+		msg "Found file: $file"
+	else
+		msg "Missing file: $file"
+		exit 1
+	fi
+}
+
+if [ "$CHECK" = "yes" ]; then
+	check "$INSTALL_MOUNT_HELPER_DIR/mount.zfs"
+	check "$INSTALL_MOUNT_HELPER_DIR/fsck.zfs"
+	check "$INSTALL_UDEV_DIR/zvol_id"
+	check "$INSTALL_UDEV_DIR/vdev_id"
+	check "$INSTALL_UDEV_RULE_DIR/60-zvol.rules"
+	check "$INSTALL_UDEV_RULE_DIR/69-vdev.rules"
+	check "$INSTALL_UDEV_RULE_DIR/90-zfs.rules"
+	check "$INSTALL_SYSCONF_DIR/zfs/zpool.d"
+	check "$INSTALL_PYTHON_DIR/libzfs_core"
+	check "/lib/libzfs_core.so"
+	check "/lib/libnvpair.so"
+elif [ "$INSTALL" = "yes" ]; then
 	install "$CMD_DIR/mount_zfs/mount.zfs" \
 	    "$INSTALL_MOUNT_HELPER_DIR/mount.zfs"
 	install "$CMD_DIR/fsck_zfs/fsck.zfs" \
@@ -176,7 +206,7 @@ if [ "${INSTALL}" = "yes" ]; then
 	install "$(find "$LIB_DIR/libnvpair" -type f -name 'libnvpair.so*')" \
 	    "/lib/libnvpair.so"
 	ldconfig
-else
+elif [ "$REMOVE" = "yes" ]; then
 	remove "$INSTALL_MOUNT_HELPER_DIR/mount.zfs"
 	remove "$INSTALL_MOUNT_HELPER_DIR/fsck.zfs"
 	remove "$INSTALL_UDEV_DIR/zvol_id"
@@ -189,6 +219,9 @@ else
 	remove "/lib/libzfs_core.so"
 	remove "/lib/libnvpair.so"
 	ldconfig
+else
+	echo "Unknown command"
+	exit 1
 fi
 
 exit 0

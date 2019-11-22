@@ -12,6 +12,7 @@ export ZFS=${ZFS:-$SBIN_DIR/zfs}
 export ZPOOL=${ZPOOL:-$SBIN_DIR/zpool}
 export ZTEST=${ZTEST:-$SBIN_DIR/ztest}
 export ZFS_SH=${ZFS_SH:-$SCRIPT_DIR/zfs.sh}
+export ZFS_HELPERS_SH=${ZFS_HELPERS_SH:-$SCRIPT_DIR/zfs-helpers.sh}
 
 # Test Suite
 export RUNFILE_DIR=${RUNFILE_DIR:-$ZTS_DIR/runfiles}
