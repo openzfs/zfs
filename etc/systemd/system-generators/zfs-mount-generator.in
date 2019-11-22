@@ -78,7 +78,7 @@ process_line() {
   if [ "${p_canmount}" = "off" ] ; then
     return
   elif [ "${p_canmount}" = "noauto" ] ; then
-    # Don't let a noauto marked mountpoint block an "auto" market mountpoint
+    # Don't let a noauto marked mountpoint block an "auto" marked mountpoint
     return
   elif [ "${p_canmount}" = "on" ] ; then
     : # This is OK
