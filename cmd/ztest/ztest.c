@@ -5852,8 +5852,8 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 			    (long long)vd0->vdev_id, (int)maxfaults);
 
 			if (vf != NULL && ztest_random(3) == 0) {
-				(void) close(vf->vf_vnode->v_fd);
-				vf->vf_vnode->v_fd = -1;
+				(void) close(vf->vf_file->f_fd);
+				vf->vf_file->f_fd = -1;
 			} else if (ztest_random(2) == 0) {
 				vd0->vdev_cant_read = B_TRUE;
 			} else {
@@ -6959,7 +6959,7 @@ ztest_run(ztest_shared_t *zs)
 	/*
 	 * Open our pool.
 	 */
-	kernel_init(FREAD | FWRITE);
+	kernel_init(SPA_MODE_READ | SPA_MODE_WRITE);
 	VERIFY0(spa_open(ztest_opts.zo_pool, &spa, FTAG));
 	metaslab_preload_limit = ztest_random(20) + 1;
 	ztest_spa = spa;
@@ -7148,7 +7148,7 @@ ztest_freeze(void)
 	if (ztest_opts.zo_verbose >= 3)
 		(void) printf("testing spa_freeze()...\n");
 
-	kernel_init(FREAD | FWRITE);
+	kernel_init(SPA_MODE_READ | SPA_MODE_WRITE);
 	VERIFY3U(0, ==, spa_open(ztest_opts.zo_pool, &spa, FTAG));
 	VERIFY3U(0, ==, ztest_dataset_open(0));
 	ztest_spa = spa;
@@ -7215,7 +7215,7 @@ ztest_freeze(void)
 	/*
 	 * Open and close the pool and dataset to induce log replay.
 	 */
-	kernel_init(FREAD | FWRITE);
+	kernel_init(SPA_MODE_READ | SPA_MODE_WRITE);
 	VERIFY3U(0, ==, spa_open(ztest_opts.zo_pool, &spa, FTAG));
 	ASSERT(spa_freeze_txg(spa) == UINT64_MAX);
 	VERIFY3U(0, ==, ztest_dataset_open(0));
@@ -7288,7 +7288,7 @@ ztest_import(ztest_shared_t *zs)
 	mutex_init(&ztest_checkpoint_lock, NULL, MUTEX_DEFAULT, NULL);
 	VERIFY0(pthread_rwlock_init(&ztest_name_lock, NULL));
 
-	kernel_init(FREAD | FWRITE);
+	kernel_init(SPA_MODE_READ | SPA_MODE_WRITE);
 
 	searchdirs[0] = ztest_opts.zo_dir;
 	args.paths = nsearch;
@@ -7334,7 +7334,7 @@ ztest_init(ztest_shared_t *zs)
 	mutex_init(&ztest_checkpoint_lock, NULL, MUTEX_DEFAULT, NULL);
 	VERIFY0(pthread_rwlock_init(&ztest_name_lock, NULL));
 
-	kernel_init(FREAD | FWRITE);
+	kernel_init(SPA_MODE_READ | SPA_MODE_WRITE);
 
 	/*
 	 * Create the storage pool.

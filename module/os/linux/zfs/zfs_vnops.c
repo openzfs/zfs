@@ -59,7 +59,6 @@
 #include <sys/policy.h>
 #include <sys/sunddi.h>
 #include <sys/sid.h>
-#include <sys/mode.h>
 #include <sys/zfs_ctldir.h>
 #include <sys/zfs_fuid.h>
 #include <sys/zfs_sa.h>
@@ -423,7 +422,7 @@ unsigned long zfs_delete_blocks = DMU_MAX_DELETEBLKCNT;
  *	IN:	ip	- inode of file to be read from.
  *		uio	- structure supplying read location, range info,
  *			  and return buffer.
- *		ioflag	- FSYNC flags; used to provide FRSYNC semantics.
+ *		ioflag	- O_SYNC flags; used to provide FRSYNC semantics.
  *			  O_DIRECT flag; used to bypass page cache.
  *		cr	- credentials of caller.
  *
@@ -473,7 +472,7 @@ zfs_read(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 	 * Only do this for non-snapshots.
 	 *
 	 * Some platforms do not support FRSYNC and instead map it
-	 * to FSYNC, which results in unnecessary calls to zil_commit. We
+	 * to O_SYNC, which results in unnecessary calls to zil_commit. We
 	 * only honor FRSYNC requests on platforms which support it.
 	 */
 	frsync = !!(ioflag & FRSYNC);
@@ -570,7 +569,7 @@ out:
  *	IN:	ip	- inode of file to be written to.
  *		uio	- structure supplying write location, range info,
  *			  and data buffer.
- *		ioflag	- FAPPEND flag set if in append mode.
+ *		ioflag	- O_APPEND flag set if in append mode.
  *			  O_DIRECT flag; used to bypass page cache.
  *		cr	- credentials of caller.
  *
@@ -629,7 +628,7 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 	 * If immutable or not appending then return EPERM
 	 */
 	if ((zp->z_pflags & (ZFS_IMMUTABLE | ZFS_READONLY)) ||
-	    ((zp->z_pflags & ZFS_APPENDONLY) && !(ioflag & FAPPEND) &&
+	    ((zp->z_pflags & ZFS_APPENDONLY) && !(ioflag & O_APPEND) &&
 	    (uio->uio_loffset < zp->z_size))) {
 		ZFS_EXIT(zfsvfs);
 		return (SET_ERROR(EPERM));
@@ -638,7 +637,7 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 	/*
 	 * Validate file offset
 	 */
-	offset_t woff = ioflag & FAPPEND ? zp->z_size : uio->uio_loffset;
+	offset_t woff = ioflag & O_APPEND ? zp->z_size : uio->uio_loffset;
 	if (woff < 0) {
 		ZFS_EXIT(zfsvfs);
 		return (SET_ERROR(EINVAL));
@@ -667,7 +666,7 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 	 * If in append mode, set the io offset pointer to eof.
 	 */
 	zfs_locked_range_t *lr;
-	if (ioflag & FAPPEND) {
+	if (ioflag & O_APPEND) {
 		/*
 		 * Obtain an appending range lock to guarantee file append
 		 * semantics.  We reset the write offset once we have the lock.
@@ -961,7 +960,7 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 		return (error);
 	}
 
-	if (ioflag & (FSYNC | FDSYNC) ||
+	if (ioflag & (O_SYNC | O_DSYNC) ||
 	    zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		zil_commit(zilog, zp->z_id);
 
@@ -1486,7 +1485,7 @@ top:
 		zfs_acl_ids_free(&acl_ids);
 		dmu_tx_commit(tx);
 	} else {
-		int aflags = (flag & FAPPEND) ? V_APPEND : 0;
+		int aflags = (flag & O_APPEND) ? V_APPEND : 0;
 
 		if (have_acl)
 			zfs_acl_ids_free(&acl_ids);
@@ -2486,7 +2485,6 @@ zfs_getattr(struct inode *ip, vattr_t *vap, int flags, cred_t *cr)
 	 */
 
 	mutex_enter(&zp->z_lock);
-	vap->va_type = vn_mode_to_vtype(zp->z_mode);
 	vap->va_mode = zp->z_mode;
 	vap->va_fsid = ZTOI(zp)->i_sb->s_dev;
 	vap->va_nodeid = zp->z_id;
@@ -2497,7 +2495,6 @@ zfs_getattr(struct inode *ip, vattr_t *vap, int flags, cred_t *cr)
 	vap->va_nlink = MIN(links, ZFS_LINK_MAX);
 	vap->va_size = i_size_read(ip);
 	vap->va_rdev = ip->i_rdev;
-	vap->va_seq = ip->i_generation;
 
 	/*
 	 * Add in any requested optional attributes and the create time.

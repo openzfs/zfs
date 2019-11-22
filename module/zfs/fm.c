@@ -67,7 +67,6 @@
 #include <sys/atomic.h>
 #include <sys/condvar.h>
 #include <sys/console.h>
-#include <sys/kobj.h>
 #include <sys/time.h>
 #include <sys/zfs_ioctl.h>
 
@@ -597,7 +596,7 @@ zfs_zevent_fd_hold(int fd, minor_t *minorp, zfs_zevent_t **ze)
 void
 zfs_zevent_fd_rele(int fd)
 {
-	releasef(fd);
+	zfs_file_put(fd);
 }
 
 /*

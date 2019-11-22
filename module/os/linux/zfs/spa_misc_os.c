@@ -52,7 +52,7 @@ param_set_deadman_ziotime(const char *val, zfs_kernel_param_t *kp)
 	if (error < 0)
 		return (SET_ERROR(error));
 
-	if (spa_mode_global != 0) {
+	if (spa_mode_global != SPA_MODE_UNINIT) {
 		mutex_enter(&spa_namespace_lock);
 		while ((spa = spa_next(spa)) != NULL)
 			spa->spa_deadman_ziotime =
@@ -73,7 +73,7 @@ param_set_deadman_synctime(const char *val, zfs_kernel_param_t *kp)
 	if (error < 0)
 		return (SET_ERROR(error));
 
-	if (spa_mode_global != 0) {
+	if (spa_mode_global != SPA_MODE_UNINIT) {
 		mutex_enter(&spa_namespace_lock);
 		while ((spa = spa_next(spa)) != NULL)
 			spa->spa_deadman_synctime =

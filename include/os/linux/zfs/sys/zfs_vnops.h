@@ -32,6 +32,7 @@
 #include <sys/fcntl.h>
 #include <sys/pathname.h>
 #include <sys/zpl.h>
+#include <sys/zfs_file.h>
 
 #ifdef	__cplusplus
 extern "C" {

@@ -37,7 +37,6 @@
 #include <sys/cmn_err.h>
 #include <sys/errno.h>
 #include <sys/fs/zfs.h>
-#include <sys/mode.h>
 #include <sys/policy.h>
 #include <sys/zfs_znode.h>
 #include <sys/zfs_fuid.h>

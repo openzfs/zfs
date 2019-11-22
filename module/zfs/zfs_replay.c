@@ -43,7 +43,6 @@
 #include <sys/zil.h>
 #include <sys/byteorder.h>
 #include <sys/stat.h>
-#include <sys/mode.h>
 #include <sys/acl.h>
 #include <sys/atomic.h>
 #include <sys/cred.h>
@@ -61,7 +60,6 @@ zfs_init_vattr(vattr_t *vap, uint64_t mask, uint64_t mode,
 {
 	bzero(vap, sizeof (*vap));
 	vap->va_mask = (uint_t)mask;
-	vap->va_type = IFTOVT(mode);
 	vap->va_mode = mode;
 	vap->va_uid = (uid_t)(IS_EPHEMERAL(uid)) ? -1 : uid;
 	vap->va_gid = (gid_t)(IS_EPHEMERAL(gid)) ? -1 : gid;
@@ -796,7 +794,7 @@ zfs_replay_truncate(void *arg1, void *arg2, boolean_t byteswap)
 	fl.l_start = lr->lr_offset;
 	fl.l_len = lr->lr_length;
 
-	error = zfs_space(ZTOI(zp), F_FREESP, &fl, FWRITE | FOFFMAX,
+	error = zfs_space(ZTOI(zp), F_FREESP, &fl, O_RDWR | O_LARGEFILE,
 	    lr->lr_offset, kcred);
 
 	iput(ZTOI(zp));

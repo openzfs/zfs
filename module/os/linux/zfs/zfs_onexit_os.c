@@ -60,5 +60,5 @@ zfs_onexit_fd_hold(int fd, minor_t *minorp)
 void
 zfs_onexit_fd_rele(int fd)
 {
-	releasef(fd);
+	zfs_file_put(fd);
 }
