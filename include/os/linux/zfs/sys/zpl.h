@@ -45,7 +45,9 @@ extern const struct inode_operations zpl_inode_operations;
 extern const struct inode_operations zpl_dir_inode_operations;
 extern const struct inode_operations zpl_symlink_inode_operations;
 extern const struct inode_operations zpl_special_inode_operations;
+#if 0
 extern dentry_operations_t zpl_dentry_operations;
+#endif
 
 /* zpl_file.c */
 extern ssize_t zpl_read_common(struct inode *ip, const char *buf,
