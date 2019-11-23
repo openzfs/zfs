@@ -4403,6 +4403,12 @@ zfs_do_send(int argc, char **argv)
 				    "do a redacted send to a filesystem.\n"));
 				return (1);
 			}
+			if (strchr(redactbook, '#') != NULL) {
+				(void) fprintf(stderr, gettext("Error: "
+				    "redaction bookmark argument must "
+				    "not contain '#'\n"));
+				return (1);
+			}
 		}
 
 		zhp = zfs_open(g_zfs, argv[0], ZFS_TYPE_DATASET);
