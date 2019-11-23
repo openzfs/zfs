@@ -181,7 +181,7 @@ process_line() {
         pathdep="RequiresMountsFor='${p_keyloc#file://}'"
         keyloadcmd="@sbindir@/zfs load-key '${dataset}'"
       elif [ "${p_keyloc}" = "prompt" ] ; then
-        keyloadcmd="sh -c 'set -eu;"\
+        keyloadcmd="/bin/sh -c 'set -eu;"\
 "keystatus=\"\$\$(@sbindir@/zfs get -H -o value keystatus \"${dataset}\")\";"\
 "[ \"\$\$keystatus\" = \"unavailable\" ] || exit 0;"\
 "count=0;"\
