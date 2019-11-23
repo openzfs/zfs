@@ -500,6 +500,7 @@ struct zio {
 	zio_gang_node_t	*io_gang_tree;
 	void		*io_executor;
 	void		*io_waiter;
+	void		*io_bio;
 	kmutex_t	io_lock;
 	kcondvar_t	io_cv;
 	int		io_allocator;

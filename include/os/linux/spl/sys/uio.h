@@ -26,8 +26,12 @@
 #ifndef _SPL_UIO_H
 #define	_SPL_UIO_H
 
+#include <sys/debug.h>
 #include <linux/uio.h>
 #include <linux/blkdev.h>
+#include <linux/blkdev_compat.h>
+#include <linux/mm.h>
+#include <linux/bio.h>
 #include <asm/uaccess.h>
 #include <sys/types.h>
 
