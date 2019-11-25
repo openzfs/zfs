@@ -169,9 +169,25 @@ static long
 zfsdev_ioctl(struct file *filp, unsigned cmd, unsigned long arg)
 {
 	uint_t vecnum;
+	zfs_cmd_t *zc;
+	int error, rc;
 
 	vecnum = cmd - ZFS_IOC_FIRST;
-	return (zfsdev_ioctl_common(vecnum, arg));
+
+	zc = kmem_zalloc(sizeof (zfs_cmd_t), KM_SLEEP);
+
+	if (ddi_copyin((void *)(uintptr_t)arg, zc, sizeof (zfs_cmd_t), 0)) {
+		error = -SET_ERROR(EFAULT);
+		goto out;
+	}
+	error = -zfsdev_ioctl_common(vecnum, zc);
+	rc = ddi_copyout(zc, (void *)(uintptr_t)arg, sizeof (zfs_cmd_t), 0);
+	if (error == 0 && rc != 0)
+		error = -SET_ERROR(EFAULT);
+out:
+	kmem_free(zc, sizeof (zfs_cmd_t));
+	return (error);
+
 }
 
 int

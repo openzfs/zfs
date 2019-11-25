@@ -7215,18 +7215,19 @@ zfsdev_minor_alloc(void)
 }
 
 long
-zfsdev_ioctl_common(uint_t vecnum, unsigned long arg)
+zfsdev_ioctl_common(uint_t vecnum, zfs_cmd_t *zc)
 {
-	zfs_cmd_t *zc;
-	int error, cmd, rc, flag = 0;
+	int error, cmd, flag = 0;
 	const zfs_ioc_vec_t *vec;
 	char *saved_poolname = NULL;
 	nvlist_t *innvl = NULL;
 	fstrans_cookie_t cookie;
 
 	cmd = vecnum;
+	error = 0;
 	if (vecnum >= sizeof (zfs_ioc_vec) / sizeof (zfs_ioc_vec[0]))
-		return (-SET_ERROR(ZFS_ERR_IOC_CMD_UNAVAIL));
+		return (SET_ERROR(ZFS_ERR_IOC_CMD_UNAVAIL));
+
 	vec = &zfs_ioc_vec[vecnum];
 
 	/*
@@ -7234,16 +7235,7 @@ zfsdev_ioctl_common(uint_t vecnum, unsigned long arg)
 	 * a normal or legacy handler are registered.
 	 */
 	if (vec->zvec_func == NULL && vec->zvec_legacy_func == NULL)
-		return (-SET_ERROR(ZFS_ERR_IOC_CMD_UNAVAIL));
-
-	zc = kmem_zalloc(sizeof (zfs_cmd_t), KM_SLEEP);
-
-	error = ddi_copyin((void *)(uintptr_t)arg, zc, sizeof (zfs_cmd_t),
-	    flag);
-	if (error != 0) {
-		error = SET_ERROR(EFAULT);
-		goto out;
-	}
+		return (SET_ERROR(ZFS_ERR_IOC_CMD_UNAVAIL));
 
 	zc->zc_iflags = flag & FKIOCTL;
 	if (zc->zc_nvlist_src_size > MAX_NVLIST_SRC_SIZE) {
@@ -7406,9 +7398,6 @@ zfsdev_ioctl_common(uint_t vecnum, unsigned long arg)
 
 out:
 	nvlist_free(innvl);
-	rc = ddi_copyout(zc, (void *)(uintptr_t)arg, sizeof (zfs_cmd_t), flag);
-	if (error == 0 && rc != 0)
-		error = SET_ERROR(EFAULT);
 	if (error == 0 && vec->zvec_allow_log) {
 		char *s = tsd_get(zfs_allow_log_key);
 		if (s != NULL)
@@ -7418,9 +7407,7 @@ out:
 		if (saved_poolname != NULL)
 			kmem_strfree(saved_poolname);
 	}
-
-	kmem_free(zc, sizeof (zfs_cmd_t));
-	return (-error);
+	return (error);
 }
 
 int
