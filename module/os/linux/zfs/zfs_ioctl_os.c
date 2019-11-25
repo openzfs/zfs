@@ -99,7 +99,6 @@ zfsdev_state_init(struct file *filp)
 		newzs = B_TRUE;
 	}
 
-	zs->zs_file = filp;
 	filp->private_data = zs;
 
 	zfs_onexit_init((zfs_onexit_t **)&zs->zs_onexit);
