@@ -3746,8 +3746,13 @@ zfs_do_redact(int argc, char **argv)
 		    "specified\n"));
 		break;
 	case EINVAL:
-		(void) fprintf(stderr, gettext("redaction snapshot must be "
-		    "descendent of snapshot being redacted\n"));
+		if (strchr(bookname, '#') != NULL)
+			(void) fprintf(stderr, gettext(
+			    "redaction bookmark name must not contain '#'\n"));
+		else
+			(void) fprintf(stderr, gettext(
+			    "redaction snapshot must be descendent of "
+			    "snapshot being redacted\n"));
 		break;
 	case EALREADY:
 		(void) fprintf(stderr, gettext("attempted to redact redacted "
@@ -3756,6 +3761,10 @@ zfs_do_redact(int argc, char **argv)
 	case ENOTSUP:
 		(void) fprintf(stderr, gettext("redaction bookmarks feature "
 		    "not enabled\n"));
+		break;
+	case EXDEV:
+		(void) fprintf(stderr, gettext("potentially invalid redaction "
+		    "snapshot; full dataset names required\n"));
 		break;
 	default:
 		(void) fprintf(stderr, gettext("internal error: %s\n"),
