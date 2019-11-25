@@ -167,6 +167,9 @@ static int
 dsl_bookmark_create_check(void *arg, dmu_tx_t *tx)
 {
 	dsl_bookmark_create_arg_t *dbca = arg;
+	ASSERT3P(dbca, !=, NULL);
+	ASSERT3P(dbca->dbca_bmarks, !=, NULL);
+
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	int rv = 0;
 
@@ -187,9 +190,10 @@ dsl_bookmark_create_check(void *arg, dmu_tx_t *tx)
 			dsl_dataset_rele(snapds, FTAG);
 		}
 		if (error != 0) {
-			fnvlist_add_int32(dbca->dbca_errors,
-			    nvpair_name(pair), error);
 			rv = error;
+			if (dbca->dbca_errors != NULL)
+				fnvlist_add_int32(dbca->dbca_errors,
+				    nvpair_name(pair), error);
 		}
 	}
 
