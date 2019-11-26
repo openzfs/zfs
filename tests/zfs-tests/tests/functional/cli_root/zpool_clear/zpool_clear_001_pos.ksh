@@ -175,7 +175,7 @@ function do_testing #<clear type> <vdevs>
 	esac
 	dd if=/dev/zero of=$fbase.$i seek=512 bs=1024 count=$wcount conv=notrunc \
 			> /dev/null 2>&1
-	log_must sync
+	log_must zpool sync
 	log_must zpool scrub -w $TESTPOOL1
 
 	check_err $TESTPOOL1 && \
@@ -192,6 +192,7 @@ function do_testing #<clear type> <vdevs>
 		    log_fail "'zpool clear' fails to clear error for pool $TESTPOOL1."
 	fi
 
+	log_must zpool wait -t scrub $TESTPOOL1
 	log_must zpool destroy $TESTPOOL1
 }
 

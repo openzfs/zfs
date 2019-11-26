@@ -83,6 +83,9 @@ for type in "mirror" "raidz" "raidz2"; do
 		fi
 
 		log_must zpool online $TESTPOOL $VDIR/a
+		log_must zpool sync $TESTPOOL
+		log_must zpool wait -t resilver $TESTPOOL
+		log_must zpool wait -t scrub $TESTPOOL
 		log_must zpool destroy -f $TESTPOOL
 	done
 done
