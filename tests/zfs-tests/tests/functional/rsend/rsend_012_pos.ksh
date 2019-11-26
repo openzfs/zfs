@@ -138,9 +138,7 @@ done
 
 for vol in "$POOL/vol" "$POOL/$FS/vol" ; do
 	rand_set_prop $vol checksum "on" "off" "fletcher2" "fletcher4" "sha256"
-	rand_set_prop $vol compression "on" "off" "lzjb" "gzip" \
-		"gzip-1" "gzip-2" "gzip-3" "gzip-4" "gzip-5" "gzip-6"   \
-		"gzip-7" "gzip-8" "gzip-9"
+	rand_set_prop $vol compression "off" "lzjb" "gzip" "lz4"
 	rand_set_prop $vol readonly "on" "off"
 	rand_set_prop $vol copies "1" "2" "3"
 	rand_set_prop $vol user:prop "aaa" "bbb" "23421" "()-+?"

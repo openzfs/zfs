@@ -37,7 +37,7 @@ log_onexit cleanup_pool $POOL2
 typeset sendfs=$POOL2/$FS
 typeset megs=128
 
-for prop in $(get_rand_compress_any 6); do
+for prop in 'off' 'lzjb' 'gzip' 'zle' 'lz4'; do
 	for compressible in 'yes' 'no'; do
 		log_must zfs create -o compress=$prop $sendfs
 
