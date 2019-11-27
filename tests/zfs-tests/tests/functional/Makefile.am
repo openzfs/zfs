@@ -59,6 +59,7 @@ SUBDIRS = \
 	rename_dirs \
 	replacement \
 	reservation \
+	resilver \
 	rootpool \
 	rsend \
 	scrub_mirror \
