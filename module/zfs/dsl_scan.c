@@ -22,7 +22,7 @@
  * Copyright (c) 2008, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
  * Copyright 2016 Gary Mills
- * Copyright (c) 2017 Datto Inc.
+ * Copyright (c) 2017, 2019, Datto Inc. All rights reserved.
  * Copyright 2019 Joyent, Inc.
  */
 
@@ -592,6 +592,13 @@ dsl_scan_restarting(dsl_scan_t *scn, dmu_tx_t *tx)
 }
 
 boolean_t
+dsl_scan_resilver_scheduled(dsl_pool_t *dp)
+{
+	return ((dp->dp_scan && dp->dp_scan->scn_restart_txg != 0) ||
+	    (spa_async_tasks(dp->dp_spa) & SPA_ASYNC_RESILVER));
+}
+
+boolean_t
 dsl_scan_scrubbing(const dsl_pool_t *dp)
 {
 	dsl_scan_phys_t *scn_phys = &dp->dp_scan->scn_phys;
@@ -788,7 +795,7 @@ dsl_scan(dsl_pool_t *dp, pool_scan_func_t func)
 	(void) spa_vdev_state_exit(spa, NULL, 0);
 
 	if (func == POOL_SCAN_RESILVER) {
-		dsl_resilver_restart(spa->spa_dsl_pool, 0);
+		dsl_scan_restart_resilver(spa->spa_dsl_pool, 0);
 		return (0);
 	}
 
@@ -806,41 +813,6 @@ dsl_scan(dsl_pool_t *dp, pool_scan_func_t func)
 
 	return (dsl_sync_task(spa_name(spa), dsl_scan_setup_check,
 	    dsl_scan_setup_sync, &func, 0, ZFS_SPACE_CHECK_EXTRA_RESERVED));
-}
-
-/*
- * Sets the resilver defer flag to B_FALSE on all leaf devs under vd. Returns
- * B_TRUE if we have devices that need to be resilvered and are available to
- * accept resilver I/Os.
- */
-static boolean_t
-dsl_scan_clear_deferred(vdev_t *vd, dmu_tx_t *tx)
-{
-	boolean_t resilver_needed = B_FALSE;
-	spa_t *spa = vd->vdev_spa;
-
-	for (int c = 0; c < vd->vdev_children; c++) {
-		resilver_needed |=
-		    dsl_scan_clear_deferred(vd->vdev_child[c], tx);
-	}
-
-	if (vd == spa->spa_root_vdev &&
-	    spa_feature_is_active(spa, SPA_FEATURE_RESILVER_DEFER)) {
-		spa_feature_decr(spa, SPA_FEATURE_RESILVER_DEFER, tx);
-		vdev_config_dirty(vd);
-		spa->spa_resilver_deferred = B_FALSE;
-		return (resilver_needed);
-	}
-
-	if (!vdev_is_concrete(vd) || vd->vdev_aux ||
-	    !vd->vdev_ops->vdev_op_leaf)
-		return (resilver_needed);
-
-	if (vd->vdev_resilver_deferred)
-		vd->vdev_resilver_deferred = B_FALSE;
-
-	return (!vdev_is_dead(vd) && !vd->vdev_offline &&
-	    vdev_resilver_needed(vd, NULL, NULL));
 }
 
 /* ARGSUSED */
@@ -947,25 +919,21 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 		spa_async_request(spa, SPA_ASYNC_RESILVER_DONE);
 
 		/*
-		 * Clear any deferred_resilver flags in the config.
+		 * Clear any resilver_deferred flags in the config.
 		 * If there are drives that need resilvering, kick
 		 * off an asynchronous request to start resilver.
-		 * dsl_scan_clear_deferred() may update the config
+		 * vdev_clear_resilver_deferred() may update the config
 		 * before the resilver can restart. In the event of
 		 * a crash during this period, the spa loading code
 		 * will find the drives that need to be resilvered
-		 * when the machine reboots and start the resilver then.
+		 * and start the resilver then.
 		 */
-		if (spa_feature_is_enabled(spa, SPA_FEATURE_RESILVER_DEFER)) {
-			boolean_t resilver_needed =
-			    dsl_scan_clear_deferred(spa->spa_root_vdev, tx);
-			if (resilver_needed) {
-				spa_history_log_internal(spa,
-				    "starting deferred resilver", tx,
-				    "errors=%llu",
-				    (u_longlong_t)spa_get_errlog_size(spa));
-				spa_async_request(spa, SPA_ASYNC_RESILVER);
-			}
+		if (spa_feature_is_enabled(spa, SPA_FEATURE_RESILVER_DEFER) &&
+		    vdev_clear_resilver_deferred(spa->spa_root_vdev, tx)) {
+			spa_history_log_internal(spa,
+			    "starting deferred resilver", tx, "errors=%llu",
+			    (u_longlong_t)spa_get_errlog_size(spa));
+			spa_async_request(spa, SPA_ASYNC_RESILVER);
 		}
 	}
 
@@ -1076,7 +1044,7 @@ dsl_scrub_set_pause_resume(const dsl_pool_t *dp, pool_scrub_cmd_t cmd)
 
 /* start a new scan, or restart an existing one. */
 void
-dsl_resilver_restart(dsl_pool_t *dp, uint64_t txg)
+dsl_scan_restart_resilver(dsl_pool_t *dp, uint64_t txg)
 {
 	if (txg == 0) {
 		dmu_tx_t *tx;
@@ -4299,6 +4267,36 @@ dsl_scan_freed(spa_t *spa, const blkptr_t *bp)
 
 	for (int i = 0; i < BP_GET_NDVAS(bp); i++)
 		dsl_scan_freed_dva(spa, bp, i);
+}
+
+/*
+ * Check if a vdev needs resilvering (non-empty DTL), if so, and resilver has
+ * not started, start it. Otherwise, only restart if max txg in DTL range is
+ * greater than the max txg in the current scan. If the DTL max is less than
+ * the scan max, then the vdev has not missed any new data since the resilver
+ * started, so a restart is not needed.
+ */
+void
+dsl_scan_assess_vdev(dsl_pool_t *dp, vdev_t *vd)
+{
+	uint64_t min, max;
+
+	if (!vdev_resilver_needed(vd, &min, &max))
+		return;
+
+	if (!dsl_scan_resilvering(dp)) {
+		spa_async_request(dp->dp_spa, SPA_ASYNC_RESILVER);
+		return;
+	}
+
+	if (max <= dp->dp_scan->scn_phys.scn_max_txg)
+		return;
+
+	/* restart is needed, check if it can be deferred */
+	if (spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_RESILVER_DEFER))
+		vdev_defer_resilver(vd);
+	else
+		spa_async_request(dp->dp_spa, SPA_ASYNC_RESILVER);
 }
 
 /* BEGIN CSTYLED */

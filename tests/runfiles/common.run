@@ -95,7 +95,7 @@ tags = ['functional', 'clean_mirror']
 
 [tests/functional/cli_root/zdb]
 tests = ['zdb_001_neg', 'zdb_002_pos', 'zdb_003_pos', 'zdb_004_pos',
-    'zdb_005_pos', 'zdb_006_pos']
+    'zdb_005_pos', 'zdb_006_pos', 'zdb_checksum']
 pre =
 post =
 tags = ['functional', 'cli_root', 'zdb']
@@ -760,6 +760,10 @@ tests = ['reservation_001_pos', 'reservation_002_pos', 'reservation_003_pos',
     'reservation_019_pos', 'reservation_020_pos', 'reservation_021_neg',
     'reservation_022_pos']
 tags = ['functional', 'reservation']
+
+[tests/functional/resilver]
+tests = ['resilver_restart_001']
+tags = ['functional', 'resilver']
 
 [tests/functional/rootpool]
 tests = ['rootpool_002_neg', 'rootpool_003_neg', 'rootpool_007_pos']
