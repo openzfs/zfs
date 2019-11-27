@@ -26,6 +26,7 @@
  * Copyright 2016 Nexenta Systems, Inc.
  * Copyright (c) 2017, 2018 Lawrence Livermore National Security, LLC.
  * Copyright (c) 2015, 2017, Intel Corporation.
+ * Copyright (c) 2019 Datto Inc.
  */
 
 #include <stdio.h>
@@ -6340,7 +6341,7 @@ name:
  *	size           - Amount of data to read, in hex, in bytes
  *	flags          - A string of characters specifying options
  *		 b: Decode a blkptr at given offset within block
- *		*c: Calculate and display checksums
+ *		 c: Calculate and display checksums
  *		 d: Decompress data before dumping
  *		 e: Byteswap data before dumping
  *		 g: Display data as a gang block header
@@ -6348,7 +6349,6 @@ name:
  *		 p: Do I/O to physical offset
  *		 r: Dump raw data to stdout
  *
- *              * = not yet implemented
  */
 static void
 zdb_read_block(char *thing, spa_t *spa)
@@ -6565,6 +6565,62 @@ zdb_read_block(char *thing, spa_t *spa)
 		zdb_dump_gbh(buf, flags);
 	else
 		zdb_dump_block(thing, buf, size, flags);
+
+	/*
+	 * If :c was specified, iterate through the checksum table to
+	 * calculate and display each checksum for our specified
+	 * DVA and length.
+	 */
+	if ((flags & ZDB_FLAG_CHECKSUM) && !(flags & ZDB_FLAG_RAW) &&
+	    !(flags & ZDB_FLAG_GBH)) {
+		zio_t *czio, *cio;
+		(void) printf("\n");
+		for (enum zio_checksum ck = ZIO_CHECKSUM_LABEL;
+		    ck < ZIO_CHECKSUM_FUNCTIONS; ck++) {
+
+			if ((zio_checksum_table[ck].ci_flags &
+			    ZCHECKSUM_FLAG_EMBEDDED) ||
+			    ck == ZIO_CHECKSUM_NOPARITY) {
+				continue;
+			}
+			BP_SET_CHECKSUM(bp, ck);
+			spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
+			czio = zio_root(spa, NULL, NULL, ZIO_FLAG_CANFAIL);
+			czio->io_bp = bp;
+
+			if (vd == vd->vdev_top) {
+				cio = zio_read(czio, spa, bp, pabd, psize,
+				    NULL, NULL,
+				    ZIO_PRIORITY_SYNC_READ,
+				    ZIO_FLAG_CANFAIL | ZIO_FLAG_RAW |
+				    ZIO_FLAG_DONT_RETRY, NULL);
+				zio_nowait(cio);
+			} else {
+				zio_nowait(zio_vdev_child_io(czio, bp, vd,
+				    offset, pabd, psize, ZIO_TYPE_READ,
+				    ZIO_PRIORITY_SYNC_READ,
+				    ZIO_FLAG_DONT_CACHE |
+				    ZIO_FLAG_DONT_PROPAGATE |
+				    ZIO_FLAG_DONT_RETRY |
+				    ZIO_FLAG_CANFAIL | ZIO_FLAG_RAW |
+				    ZIO_FLAG_SPECULATIVE |
+				    ZIO_FLAG_OPTIONAL, NULL, NULL));
+			}
+			error = zio_wait(czio);
+			if (error == 0 || error == ECKSUM) {
+				zio_checksum_compute(czio, ck, pabd, lsize);
+				printf("%12s\tcksum=%llx:%llx:%llx:%llx\n",
+				    zio_checksum_table[ck].ci_name,
+				    (u_longlong_t)bp->blk_cksum.zc_word[0],
+				    (u_longlong_t)bp->blk_cksum.zc_word[1],
+				    (u_longlong_t)bp->blk_cksum.zc_word[2],
+				    (u_longlong_t)bp->blk_cksum.zc_word[3]);
+			} else {
+				printf("error %d reading block\n", error);
+			}
+			spa_config_exit(spa, SCL_STATE, FTAG);
+		}
+	}
 
 	if (borrowed)
 		abd_return_buf_copy(pabd, buf, size);
