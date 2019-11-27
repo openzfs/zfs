@@ -639,14 +639,6 @@ blk_queue_discard_secure(struct request_queue *q)
 }
 
 /*
- * Default Linux IO Scheduler,
- * Setting the scheduler to noop will allow the Linux IO scheduler to
- * still perform front and back merging, while leaving the request
- * ordering and prioritization to the ZFS IO scheduler.
- */
-#define	VDEV_SCHEDULER			"noop"
-
-/*
  * A common holder for vdev_bdev_open() is used to relax the exclusive open
  * semantics slightly.  Internal vdev disk callers may pass VDEV_HOLDER to
  * allow them to open the device multiple times.  Other kernel callers and
