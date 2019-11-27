@@ -26,7 +26,7 @@
  * Copyright 2013 Saso Kiselkov. All rights reserved.
  * Copyright (c) 2014 Integros [integros.com]
  * Copyright 2017 Joyent, Inc.
- * Copyright (c) 2017 Datto Inc.
+ * Copyright (c) 2017, 2019, Datto Inc. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
  */
 
@@ -768,6 +768,7 @@ extern void spa_async_request(spa_t *spa, int flag);
 extern void spa_async_unrequest(spa_t *spa, int flag);
 extern void spa_async_suspend(spa_t *spa);
 extern void spa_async_resume(spa_t *spa);
+extern int spa_async_tasks(spa_t *spa);
 extern spa_t *spa_inject_addref(char *pool);
 extern void spa_inject_delref(spa_t *spa);
 extern void spa_scan_stat_init(spa_t *spa);
