@@ -29,11 +29,7 @@
 #include <sys/isa_defs.h>
 #include <sys/debug.h>
 #include <sys/refcount.h>
-#ifdef _KERNEL
-#include <linux/mm.h>
-#include <linux/bio.h>
 #include <sys/uio.h>
-#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -56,8 +52,13 @@ typedef struct abd {
 	union {
 		struct abd_scatter {
 			uint_t		abd_offset;
+#if defined(__FreeBSD__) && defined(_KERNEL)
+			uint_t  abd_chunk_size;
+			void    *abd_chunks[];
+#else
 			uint_t		abd_nents;
 			struct scatterlist *abd_sgl;
+#endif
 		} abd_scatter;
 		struct abd_linear {
 			void		*abd_buf;
