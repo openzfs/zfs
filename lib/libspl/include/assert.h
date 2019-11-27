@@ -33,11 +33,18 @@
 #include <stdlib.h>
 #include <stdarg.h>
 
+#ifndef _KERNEL
+int aok;
+#endif
+
 static inline int
 libspl_assert(const char *buf, const char *file, const char *func, int line)
 {
 	fprintf(stderr, "%s\n", buf);
 	fprintf(stderr, "ASSERT at %s:%d:%s()", file, line, func);
+	if (aok) {
+		return (0);
+	}
 	abort();
 }
 
@@ -52,6 +59,9 @@ libspl_assertf(const char *file, const char *func, int line, char *format, ...)
 	fprintf(stderr, "\n");
 	fprintf(stderr, "ASSERT at %s:%d:%s()", file, line, func);
 	va_end(args);
+	if (aok) {
+		return;
+	}
 	abort();
 }
 
