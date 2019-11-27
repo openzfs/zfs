@@ -38,7 +38,6 @@
 #include <linux/msdos_fs.h>
 #include <linux/vfs_compat.h>
 
-char *zfs_vdev_scheduler = VDEV_SCHEDULER;
 static void *zfs_vdev_holder = VDEV_HOLDER;
 
 /* size of the "reserved" partition, in blocks */
@@ -158,75 +157,6 @@ vdev_disk_error(zio_t *zio)
 	    zio->io_vd->vdev_path, zio->io_error, zio->io_type,
 	    (u_longlong_t)zio->io_offset, (u_longlong_t)zio->io_size,
 	    zio->io_flags);
-}
-
-/*
- * Use the Linux 'noop' elevator for zfs managed block devices.  This
- * strikes the ideal balance by allowing the zfs elevator to do all
- * request ordering and prioritization.  While allowing the Linux
- * elevator to do the maximum front/back merging allowed by the
- * physical device.  This yields the largest possible requests for
- * the device with the lowest total overhead.
- */
-static void
-vdev_elevator_switch(vdev_t *v, char *elevator)
-{
-	vdev_disk_t *vd = v->vdev_tsd;
-	struct request_queue *q;
-	char *device;
-	int error;
-
-	for (int c = 0; c < v->vdev_children; c++)
-		vdev_elevator_switch(v->vdev_child[c], elevator);
-
-	if (!v->vdev_ops->vdev_op_leaf || vd->vd_bdev == NULL)
-		return;
-
-	q = bdev_get_queue(vd->vd_bdev);
-	device = vd->vd_bdev->bd_disk->disk_name;
-
-	/*
-	 * Skip devices which are not whole disks (partitions).
-	 * Device-mapper devices are excepted since they may be whole
-	 * disks despite the vdev_wholedisk flag, in which case we can
-	 * and should switch the elevator. If the device-mapper device
-	 * does not have an elevator (i.e. dm-raid, dm-crypt, etc.) the
-	 * "Skip devices without schedulers" check below will fail.
-	 */
-	if (!v->vdev_wholedisk && strncmp(device, "dm-", 3) != 0)
-		return;
-
-	/* Leave existing scheduler when set to "none" */
-	if ((strncmp(elevator, "none", 4) == 0) && (strlen(elevator) == 4))
-		return;
-
-	/*
-	 * The elevator_change() function was available in kernels from
-	 * 2.6.36 to 4.11.  When not available fall back to using the user
-	 * mode helper functionality to set the elevator via sysfs.  This
-	 * requires /bin/echo and sysfs to be mounted which may not be true
-	 * early in the boot process.
-	 */
-#ifdef HAVE_ELEVATOR_CHANGE
-	error = elevator_change(q, elevator);
-#else
-#define	SET_SCHEDULER_CMD \
-	"exec 0</dev/null " \
-	"     1>/sys/block/%s/queue/scheduler " \
-	"     2>/dev/null; " \
-	"echo %s"
-
-	char *argv[] = { "/bin/sh", "-c", NULL, NULL };
-	char *envp[] = { NULL };
-
-	argv[2] = kmem_asprintf(SET_SCHEDULER_CMD, device, elevator);
-	error = call_usermodehelper(argv[0], argv, envp, UMH_NO_WAIT);
-	strfree(argv[2]);
-#endif /* HAVE_ELEVATOR_CHANGE */
-	if (error) {
-		zfs_dbgmsg("Unable to set \"%s\" scheduler for %s (%s): %d",
-		    elevator, v->vdev_path, device, error);
-	}
 }
 
 static int
@@ -359,9 +289,6 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 
 	/* Based on the minimum sector size set the block size */
 	*ashift = highbit64(MAX(block_size, SPA_MINBLOCKSIZE)) - 1;
-
-	/* Try to set the io scheduler elevator algorithm */
-	(void) vdev_elevator_switch(v, zfs_vdev_scheduler);
 
 	return (0);
 }
@@ -903,44 +830,6 @@ vdev_disk_rele(vdev_t *vd)
 	/* XXX: Implement me as a vnode rele for the device */
 }
 
-static int
-param_set_vdev_scheduler(const char *val, zfs_kernel_param_t *kp)
-{
-	spa_t *spa = NULL;
-	char *p;
-
-	if (val == NULL)
-		return (SET_ERROR(-EINVAL));
-
-	if ((p = strchr(val, '\n')) != NULL)
-		*p = '\0';
-
-	if (spa_mode_global != 0) {
-		mutex_enter(&spa_namespace_lock);
-		while ((spa = spa_next(spa)) != NULL) {
-			if (spa_state(spa) != POOL_STATE_ACTIVE ||
-			    !spa_writeable(spa) || spa_suspended(spa))
-				continue;
-
-			spa_open_ref(spa, FTAG);
-			mutex_exit(&spa_namespace_lock);
-			vdev_elevator_switch(spa->spa_root_vdev, (char *)val);
-			mutex_enter(&spa_namespace_lock);
-			spa_close(spa, FTAG);
-		}
-		mutex_exit(&spa_namespace_lock);
-	}
-
-
-	int error = param_set_charp(val, kp);
-	if (error == 0) {
-		printk(KERN_INFO "The 'zfs_vdev_scheduler' module option "
-		    "will be removed in a future release.\n");
-	}
-
-	return (error);
-}
-
 vdev_ops_t vdev_disk_ops = {
 	.vdev_op_open = vdev_disk_open,
 	.vdev_op_close = vdev_disk_close,
@@ -957,6 +846,25 @@ vdev_ops_t vdev_disk_ops = {
 	.vdev_op_leaf = B_TRUE			/* leaf vdev */
 };
 
+/*
+ * The zfs_vdev_scheduler module option has been deprecated. Setting this
+ * value no longer has any effect.  It has not yet been entirely removed
+ * to allow the module to be loaded if this option is specified in the
+ * /etc/modprobe.d/zfs.conf file.  The following warning will be logged.
+ */
+static int
+param_set_vdev_scheduler(const char *val, zfs_kernel_param_t *kp)
+{
+	int error = param_set_charp(val, kp);
+	if (error == 0) {
+		printk(KERN_INFO "The 'zfs_vdev_scheduler' module option "
+		    "is not supported.\n");
+	}
+
+	return (error);
+}
+
+char *zfs_vdev_scheduler = "unused";
 module_param_call(zfs_vdev_scheduler, param_set_vdev_scheduler,
     param_get_charp, &zfs_vdev_scheduler, 0644);
 MODULE_PARM_DESC(zfs_vdev_scheduler, "I/O scheduler");
