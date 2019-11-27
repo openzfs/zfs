@@ -1054,8 +1054,8 @@ zap_prefetch_object(objset_t *os, uint64_t zapobj)
 	if (error == 0 && DMU_OT_BYTESWAP(doi.doi_type) != DMU_BSWAP_ZAP)
 		error = SET_ERROR(EINVAL);
 	if (error == 0) {
-		dmu_prefetch(os, zapobj, /*level*/ 0, /*offset*/ 0,
-		    doi.doi_max_offset, ZIO_PRIORITY_SYNC_READ);
+		dmu_prefetch_wait(os, zapobj, 0, doi.doi_max_offset,
+		    DMU_READ_PREFETCH);
 	}
 	return (error);
 }

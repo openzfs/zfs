@@ -886,6 +886,8 @@ extern int zfs_max_recordsize;
  */
 void dmu_prefetch(objset_t *os, uint64_t object, int64_t level, uint64_t offset,
 	uint64_t len, enum zio_priority pri);
+int dmu_prefetch_wait(objset_t *os, uint64_t object, uint64_t offset,
+    uint64_t size, uint32_t flags);
 
 typedef struct dmu_object_info {
 	/* All sizes are in bytes unless otherwise indicated. */

@@ -706,6 +706,41 @@ dmu_prefetch(objset_t *os, uint64_t object, int64_t level, uint64_t offset,
 	dnode_rele(dn, FTAG);
 }
 
+int
+dmu_prefetch_wait(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
+    uint32_t flags)
+{
+	dnode_t *dn;
+	dmu_buf_t **dbp;
+	int numbufs, err = 0;
+	uint64_t maxread = MIN(zfetch_array_rd_sz, DMU_MAX_ACCESS / 2);
+
+	err = dnode_hold(os, object, FTAG, &dn);
+	if (err != 0)
+		return (err);
+
+	while (size > 0) {
+		uint64_t mylen = MIN(size, maxread);
+
+		/*
+		 * NB: we could do this block-at-a-time, but it's nice
+		 * to be reading in parallel.
+		 */
+		err = dmu_buf_hold_array_by_dnode(dn, offset, mylen,
+		    TRUE, FTAG, &numbufs, &dbp, flags);
+		if (err)
+			break;
+
+		dmu_buf_rele_array(dbp, numbufs, FTAG);
+
+		offset += mylen;
+		size -= mylen;
+	}
+
+	dnode_rele(dn, FTAG);
+	return (err);
+}
+
 /*
  * Get the next "chunk" of file data to free.  We traverse the file from
  * the end so that the file gets shorter over time (if we crashes in the
