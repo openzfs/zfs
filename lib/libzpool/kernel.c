@@ -47,7 +47,6 @@
  * Emulation of kernel services in userland.
  */
 
-int aok;
 uint64_t physmem;
 char hw_serial[HW_HOSTID_LEN];
 struct utsname hw_utsname;
