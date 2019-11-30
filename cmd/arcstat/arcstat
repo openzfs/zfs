@@ -119,7 +119,29 @@ out = None
 kstat = None
 
 
-if sys.platform.startswith('linux'):
+if sys.platform.startswith('freebsd'):
+    # Requires py27-sysctl on FreeBSD
+    import sysctl
+
+    def kstat_update():
+        global kstat
+
+        k = sysctl.filter('kstat.zfs.misc.arcstats')
+
+        if not k:
+            sys.exit(1)
+
+        kstat = {}
+
+        for s in k:
+            if not s:
+                continue
+
+            name, value = s.name, s.value
+            # Trims 'kstat.zfs.misc.arcstats' from the name
+            kstat[name[24:]] = Decimal(value)
+
+elif sys.platform.startswith('linux'):
     def kstat_update():
         global kstat
 

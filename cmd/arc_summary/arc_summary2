@@ -55,7 +55,20 @@ from subprocess import Popen, PIPE
 from decimal import Decimal as D
 
 
-if sys.platform.startswith('linux'):
+if sys.platform.startswith('freebsd'):
+    # Requires py27-sysctl on FreeBSD
+    import sysctl
+
+    def load_kstats(namespace):
+        """Collect information on a specific subsystem of the ARC"""
+
+        base = 'kstat.zfs.misc.%s.' % namespace
+        return [(kstat.name, D(kstat.value)) for kstat in sysctl.filter(base)]
+
+    def load_tunables():
+        return dict((ctl.name, ctl.value) for ctl in sysctl.filter('vfs.zfs'))
+
+elif sys.platform.startswith('linux'):
 
     def load_kstats(namespace):
         """Collect information on a specific subsystem of the ARC"""

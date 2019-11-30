@@ -80,10 +80,42 @@ parser.add_argument('-s', '--section', dest='section', help=SECTION_HELP)
 ARGS = parser.parse_args()
 
 
-if sys.platform.startswith('linux'):
-    KSTAT_PATH = '/proc/spl/kstat/zfs/'
-    SPL_PATH = '/sys/module/spl/parameters/'
-    TUNABLES_PATH = '/sys/module/zfs/parameters/'
+if sys.platform.startswith('freebsd'):
+    # Requires py36-sysctl on FreeBSD
+    import sysctl
+
+    VDEV_CACHE_SIZE = 'vdev.cache_size'
+
+    def load_kstats(section):
+        base = 'kstat.zfs.misc.{section}.'.format(section=section)
+        # base is removed from the name
+        fmt = lambda kstat: '{name} : {value}'.format(name=kstat.name[len(base):],
+                                                      value=kstat.value)
+        return [fmt(kstat) for kstat in sysctl.filter(base)]
+
+    def get_params(base):
+        cut = 8 # = len('vfs.zfs.')
+        return {ctl.name[cut:]: str(ctl.value) for ctl in sysctl.filter(base)}
+
+    def get_tunable_params():
+        return get_params('vfs.zfs')
+
+    def get_vdev_params():
+        return get_params('vfs.zfs.vdev')
+
+    def get_version_impl(request):
+        # FreeBSD reports versions for zpl and spa instead of zfs and spl.
+        name = {'zfs': 'zpl',
+                'spl': 'spa'}[request]
+        mib = 'vfs.zfs.version.{}'.format(name)
+        version = sysctl.filter(mib)[0].value
+        return '{} version {}'.format(name, version)
+
+elif sys.platform.startswith('linux'):
+    KSTAT_PATH = '/proc/spl/kstat/zfs'
+    SPL_PATH = '/sys/module/spl/parameters'
+    TUNABLES_PATH = '/sys/module/zfs/parameters'
+
     VDEV_CACHE_SIZE = 'zfs_vdev_cache_size'
 
     def load_kstats(section):
@@ -719,6 +751,10 @@ def section_spl(*_):
     """Print the SPL parameters, if requested with alternative format
     and/or descriptions. This does not use kstats.
     """
+
+    if sys.platform.startswith('freebsd'):
+        # No SPL support in FreeBSD
+        return
 
     spls = get_spl_params()
     keylist = sorted(spls.keys())
