@@ -493,6 +493,7 @@ typedef struct zfs_cmd {
 	uint64_t	zc_fromobj;
 	uint64_t	zc_createtxg;
 	zfs_stat_t	zc_stat;
+	uint64_t	zc_zoneid;
 } zfs_cmd_t;
 
 typedef struct zfs_useracct {
@@ -539,7 +540,6 @@ enum zfsdev_state_type {
  */
 typedef struct zfsdev_state {
 	struct zfsdev_state	*zs_next;	/* next zfsdev_state_t link */
-	struct file		*zs_file;	/* associated file struct */
 	minor_t			zs_minor;	/* made up minor number */
 	void			*zs_onexit;	/* onexit data */
 	void			*zs_zevent;	/* zevent data */
