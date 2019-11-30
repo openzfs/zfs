@@ -36,9 +36,9 @@
 #include <sys/fcntl.h>
 #include <sys/vnode.h>
 #include <sys/zfs_file.h>
-
+#ifdef _KERNEL
 #include <linux/falloc.h>
-
+#endif
 /*
  * Virtual device vector for files.
  */
@@ -268,10 +268,12 @@ vdev_file_io_start(zio_t *zio)
 		zio_execute(zio);
 		return;
 	} else if (zio->io_type == ZIO_TYPE_TRIM) {
-		int mode;
+		int mode = 0;
 
 		ASSERT3U(zio->io_size, !=, 0);
+#ifdef __linux__
 		mode = FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE;
+#endif
 		zio->io_error = zfs_file_fallocate(vf->vf_file,
 		    mode, zio->io_offset, zio->io_size);
 		zio_execute(zio);
