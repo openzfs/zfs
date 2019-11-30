@@ -18,14 +18,17 @@
  *
  * CDDL HEADER END
  */
+
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
- * Copyright (c) 2014, Joyent, Inc. All rights reserved.
- * Copyright 2014 HybridCluster. All rights reserved.
- * Copyright 2016 RackTop Systems.
- * Copyright (c) 2016 Actifio, Inc. All rights reserved.
+ * Copyright (c) 2011, Nexenta Systems, Inc. All rights reserved.
+ * Copyright (c) 2011, 2018, Delphix. All rights reserved.
+ * Copyright (c) 2014, Joyent Inc. All rights reserved.
+ * Copyright (c) 2014, HybridCluster. All rights reserved.
+ * Copyright (c) 2016, RackTop Systems. All rights reserved.
+ * Copyright (c) 2016, Actifio Inc. All rights reserved.
+ * Copyright (c) 2019, Klara Inc. All rights reserved.
+ * Use is subject to license terms.
  */
 
 #include <sys/dmu.h>
