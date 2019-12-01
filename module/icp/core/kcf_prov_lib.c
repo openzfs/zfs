@@ -207,9 +207,12 @@ crypto_update_uio(void *ctx, crypto_data_t *input, crypto_data_t *output,
 		cur_len = MIN(uiop->uio_iov[vec_idx].iov_len -
 		    offset, length);
 
-		(cipher)(ctx, uiop->uio_iov[vec_idx].iov_base + offset,
+		int rv = (cipher)(ctx, uiop->uio_iov[vec_idx].iov_base + offset,
 		    cur_len, (input == output) ? NULL : output);
 
+		if (rv != CRYPTO_SUCCESS) {
+			return (rv);
+		}
 		length -= cur_len;
 		vec_idx++;
 		offset = 0;
