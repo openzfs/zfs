@@ -329,6 +329,7 @@ struct zbookmark_phys {
 typedef struct zio_prop {
 	enum zio_checksum	zp_checksum;
 	enum zio_compress	zp_compress;
+	uint8_t			zp_complevel;
 	dmu_object_type_t	zp_type;
 	uint8_t			zp_level;
 	uint8_t			zp_copies;
@@ -621,6 +622,8 @@ extern enum zio_checksum zio_checksum_dedup_select(spa_t *spa,
     enum zio_checksum child, enum zio_checksum parent);
 extern enum zio_compress zio_compress_select(spa_t *spa,
     enum zio_compress child, enum zio_compress parent);
+extern uint8_t zio_complevel_select(spa_t *spa, enum zio_compress compress,
+    uint8_t child, uint8_t parent);
 
 extern void zio_suspend(spa_t *spa, zio_t *zio, zio_suspend_reason_t);
 extern int zio_resume(spa_t *spa);

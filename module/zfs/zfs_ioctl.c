@@ -2042,6 +2042,34 @@ zfs_ioc_vdev_setfru(zfs_cmd_t *zc)
 }
 
 static int
+get_prop_uint64(nvlist_t *nv, const char *prop, nvlist_t **nvp,
+    uint64_t *val)
+{
+	int err = 0;
+	nvlist_t *subnv;
+	nvpair_t *pair;
+	nvpair_t *propval;
+
+	if (nvlist_lookup_nvpair(nv, prop, &pair) != 0)
+		return (EINVAL);
+
+	/* decode the property value */
+	propval = pair;
+	if (nvpair_type(pair) == DATA_TYPE_NVLIST) {
+		subnv = fnvpair_value_nvlist(pair);
+		if (nvp != NULL)
+			*nvp = subnv;
+		if (nvlist_lookup_nvpair(subnv, ZPROP_VALUE, &propval) != 0)
+			err = EINVAL;
+	}
+	if (nvpair_type(propval) == DATA_TYPE_UINT64) {
+		*val = fnvpair_value_uint64(propval);
+	}
+
+	return (err);
+}
+
+static int
 zfs_ioc_objset_stats_impl(zfs_cmd_t *zc, objset_t *os)
 {
 	int error = 0;

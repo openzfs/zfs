@@ -54,12 +54,24 @@ enum zio_compress {
 	ZIO_COMPRESS_FUNCTIONS
 };
 
+#define	ZIO_COMPLEVEL_INHERIT	0
+#define	ZIO_COMPLEVEL_DEFAULT	255
+
+/* Forward Declaration to avoid visibility problems */
+struct zio_prop;
+
 /* Common signature for all zio compress functions. */
 typedef size_t zio_compress_func_t(void *src, void *dst,
     size_t s_len, size_t d_len, int);
 /* Common signature for all zio decompress functions. */
 typedef int zio_decompress_func_t(void *src, void *dst,
     size_t s_len, size_t d_len, int);
+/* Common signature for all zio decompress and get level functions. */
+typedef int zio_decompresslevel_func_t(void *src, void *dst,
+    size_t s_len, size_t d_len, uint8_t *level);
+/* Common signature for all zio get-compression-level functions. */
+typedef int zio_getlevel_func_t(void *src, size_t s_len, uint8_t *level);
+
 
 /*
  * Common signature for all zio decompress functions using an ABD as input.
@@ -76,6 +88,7 @@ typedef const struct zio_compress_info {
 	int				ci_level;
 	zio_compress_func_t		*ci_compress;
 	zio_decompress_func_t		*ci_decompress;
+	zio_decompresslevel_func_t	*ci_decompress_level;
 } zio_compress_info_t;
 
 extern zio_compress_info_t zio_compress_table[ZIO_COMPRESS_FUNCTIONS];
@@ -110,11 +123,12 @@ extern int lz4_decompress_zfs(void *src, void *dst, size_t s_len, size_t d_len,
  * Compress and decompress data if necessary.
  */
 extern size_t zio_compress_data(enum zio_compress c, abd_t *src, void *dst,
-    size_t s_len);
+    size_t s_len, uint8_t level);
 extern int zio_decompress_data(enum zio_compress c, abd_t *src, void *dst,
-    size_t s_len, size_t d_len);
+    size_t s_len, size_t d_len, uint8_t *level);
 extern int zio_decompress_data_buf(enum zio_compress c, void *src, void *dst,
-    size_t s_len, size_t d_len);
+    size_t s_len, size_t d_len, uint8_t *level);
+extern int zio_compress_to_feature(enum zio_compress comp);
 
 #ifdef	__cplusplus
 }
