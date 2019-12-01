@@ -925,5 +925,37 @@ is used to checkpoint the pool.
 The feature will only return back to being \fBenabled\fR when the pool
 is rewound or the checkpoint has been discarded.
 
+.sp
+.ne 2
+.na
+\fBzstd_compress\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	org.freebsd:zstd_compress
+READ\-ONLY COMPATIBLE	no
+DEPENDENCIES	none
+.TE
+
+\fBzstd\fR is a high-performance compression algorithm that features a
+combination of high compression ratios and high speed.
+Compared to \fBgzip\fR, \fBzstd\fR offers slighty better compression at much
+higher speeds.
+Compared to \fBlz4\fR, \fBzstd\fR offers much better compression while being
+only modestly slower.
+Typically, \fBzstd\fR compression speed ranges from 250 - 500
+megabytes/second/thread, and decompression speed is over 1
+gigabyte/second/thread.
+Booting off of \fBzstd\fR-compressed root pools is not yet supported.
+
+When the \fBzstd\fR feature is set to \fBenabled\fR, the administrator can turn
+on \fBzstd\fR compression of any dataset by running
+`zfs set compress=zstd <pool/fs>`.
+This feature becomes \fBactive\fR once a \fBcompress\fR property has been set to
+\fBzstd\fR, and will return to being \fBenabled\fR once all filesystems that
+have ever had their compress property set to \fBzstd\fR are destroyed.
+.RE
+
 .SH "SEE ALSO"
 zpool(8)

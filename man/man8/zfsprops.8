@@ -713,7 +713,8 @@ for more information on these algorithms.
 Changing this property affects only newly-written data.
 .It Xo
 .Sy compression Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Sy gzip Ns | Ns
-.Sy gzip- Ns Em N Ns | Ns Sy lz4 Ns | Ns Sy lzjb Ns | Ns Sy zle
+.Sy gzip- Ns Em N Ns | Ns Sy lz4 Ns | Ns Sy lzjb Ns | Ns Sy zle Ns | Ns Sy zstd Ns | Ns
+.Sy zstd- Ns Em N Ns | Ns Sy zstd-fast- Ns Em N
 .Xc
 Controls the compression algorithm used for this dataset.
 .Pp
@@ -778,6 +779,35 @@ is equivalent to
 .Sy gzip-6
 .Po which is also the default for
 .Xr gzip 1
+.Pc .
+.Pp
+The
+.Sy zstd
+compression using the zstd algorithm ,
+You can specify the
+.Sy zstd
+level by using the value
+.Sy zstd- Ns Em N ,
+where
+.Em N
+is an integer from 1
+.Pq fastest
+to 19
+.Pq best compression ratio .
+.Sy zstd
+You can also specify a negative 
+.Sy zstd
+level by using the value
+.Sy zstd- Ns Em N ,
+where
+.Em N
+is an integer from 100
+.Pq fastest
+to 1
+.Pq best compression ratio .
+.Sy zstd
+is equivalent to
+.Sy zstd-3
 .Pc .
 .Pp
 The
