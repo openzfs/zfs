@@ -1,0 +1,66 @@
+# Object files
+*.o
+*.ko
+*.dSYM
+
+# Libraries
+*.lib
+*.a
+
+# Shared objects (inc. Windows DLLs)
+*.dll
+*.so
+*.so.*
+*.dylib
+
+# Executables
+/zstd
+zstdmt
+*.exe
+*.out
+*.app
+
+# Test artefacts
+tmp*
+dictionary.
+dictionary
+NUL
+
+# Build artefacts
+projects/
+bin/
+.buckd/
+buck-out/
+
+# Other files
+.directory
+_codelite/
+_zstdbench/
+.clang_complete
+*.idea
+*.swp
+.DS_Store
+googletest/
+*.d
+*.vscode
+
+# Files we don't need in ZFS:
+.buckconfig
+.buckversion
+.circleci/
+.cirrus.yml
+.travis.yml
+CHANGELOG
+CODE_OF_CONDUCT.md
+CONTRIBUTING.md
+Makefile
+README.md
+TESTING.md
+appveyor.yml
+build/
+contrib/
+doc/
+examples/
+programs/
+tests/
+zlibWrapper/

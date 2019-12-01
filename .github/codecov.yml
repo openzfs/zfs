@@ -20,3 +20,6 @@ comment:
   layout: "reach, diff, flags, footer"
   behavior: once		# update if exists; post new; skip if deleted
   require_changes: yes		# only post when coverage changes
+
+ignore:
+  - "contrib/zstd"		# Dependencies don't need coverage testing

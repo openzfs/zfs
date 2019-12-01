@@ -1,0 +1,13 @@
+# make install artefact
+libzstd.pc
+libzstd-nomt
+
+# Files we don't need in ZFS:
+BUCK
+Makefile
+README.md
+deprecated/
+dictBuilder/
+dll/
+legacy/
+libzstd.pc.in
