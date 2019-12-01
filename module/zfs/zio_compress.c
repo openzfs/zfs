@@ -64,6 +64,8 @@ zio_compress_info_t zio_compress_table[ZIO_COMPRESS_FUNCTIONS] = {
 	{"zle",		64,	zle_compress,	zle_decompress, NULL, NULL},
 	{"lz4",		0,	lz4_compress_zfs, lz4_decompress_zfs,
 	    NULL, NULL},
+	{"zstd",	ZIO_ZSTD_LEVEL_DEFAULT,	zstd_compress,	zstd_decompress,
+	    zstd_decompress_level, zstd_get_level},
 };
 
 uint8_t
@@ -140,6 +142,19 @@ zio_compress_data(enum zio_compress c, abd_t *src, void *dst, size_t s_len,
 	d_len = s_len - (s_len >> 3);
 
 	complevel = ci->ci_level;
+
+	if (c == ZIO_COMPRESS_ZSTD) {
+		/* If we don't know the level, we can't compress it */
+		if (level == ZIO_ZSTDLVL_INHERIT)
+			return (s_len);
+
+		if (level == ZIO_COMPLEVEL_DEFAULT)
+			complevel = ZIO_ZSTD_LEVEL_DEFAULT;
+		else
+			complevel = level;
+
+		ASSERT3U(complevel, !=, ZIO_COMPLEVEL_INHERIT);
+	}
 
 	/* No compression algorithms can read from ABDs directly */
 	void *tmp = abd_borrow_buf_copy(src, s_len);

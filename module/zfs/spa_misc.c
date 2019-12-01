@@ -2324,6 +2324,9 @@ spa_init(spa_mode_t mode)
 	metaslab_stat_init();
 	ddt_init();
 	zio_init();
+#ifndef _KERNEL
+	zstd_init();
+#endif
 	dmu_init();
 	zil_init();
 	vdev_cache_stat_init();
@@ -2353,6 +2356,9 @@ spa_fini(void)
 	vdev_raidz_math_fini();
 	zil_fini();
 	dmu_fini();
+#ifndef _KERNEL
+	zstd_fini();
+#endif
 	zio_fini();
 	ddt_fini();
 	metaslab_stat_fini();

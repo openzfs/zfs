@@ -5,6 +5,10 @@ VPATH = \
 	$(top_srcdir)/module/zcommon \
 	$(top_srcdir)/module/lua \
 	$(top_srcdir)/module/os/linux/zfs \
+	$(top_srcdir)/contrib/zstd/zstd-1.4.4/lib/common \
+	$(top_srcdir)/contrib/zstd/zstd-1.4.4/lib/compress \
+	$(top_srcdir)/contrib/zstd/zstd-1.4.4/lib/decompress \
+	$(top_srcdir)/module/zstd \
 	$(top_srcdir)/lib/libzpool
 
 # Suppress unused but set variable warnings often due to ASSERTs
@@ -13,7 +17,15 @@ AM_CFLAGS += $(NO_UNUSED_BUT_SET_VARIABLE)
 # Includes kernel code generate warnings for large stack frames
 AM_CFLAGS += $(FRAME_LARGER_THAN)
 
-AM_CFLAGS += -DLIB_ZPOOL_BUILD
+AM_CFLAGS += -DLIB_ZPOOL_BUILD -Wframe-larger-than=20480
+
+DEFAULT_INCLUDES += \
+	-I$(top_srcdir)/include \
+	-I$(top_srcdir)/lib/libspl/include \
+	-I$(top_srcdir)/contrib/zstd/zstd-1.4.4/lib \
+	-I$(top_srcdir)/contrib/zstd/zstd-1.4.4/lib/common \
+	-I$(top_srcdir)/contrib/zstd/zstd-1.4.4/lib/compress \
+	-I$(top_srcdir)/contrib/zstd/zstd-1.4.4/lib/decompress
 
 lib_LTLIBRARIES = libzpool.la
 
@@ -161,6 +173,29 @@ KERNEL_C = \
 	zrlock.c \
 	zthr.c
 
+ZSTD_C = \
+	zstd_common.c \
+	fse_decompress.c \
+	entropy_common.c \
+	xxhash.c \
+	hist.c \
+	error_private.c \
+	zstd_compress.c \
+	zstd_compress_literals.c \
+	zstd_compress_sequences.c \
+	fse_compress.c \
+	huf_compress.c \
+	zstd_double_fast.c \
+	zstd_fast.c \
+	zstd_lazy.c \
+	zstd_ldm.c \
+	zstd_opt.c \
+	zstd_ddict.c \
+	zstd_decompress.c \
+	zstd_decompress_block.c \
+	huf_decompress.c \
+	zstd.c
+
 LUA_C = \
 	lapi.c \
 	lauxlib.c \
@@ -190,7 +225,8 @@ LUA_C = \
 nodist_libzpool_la_SOURCES = \
 	$(USER_C) \
 	$(KERNEL_C) \
-	$(LUA_C)
+	$(LUA_C) \
+	$(ZSTD_C)
 
 libzpool_la_LIBADD = \
 	$(top_builddir)/lib/libicp/libicp.la \

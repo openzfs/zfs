@@ -105,7 +105,7 @@ typedef enum drr_headertype {
 #define	DMU_BACKUP_FEATURE_COMPRESSED		(1 << 22)
 #define	DMU_BACKUP_FEATURE_LARGE_DNODE		(1 << 23)
 #define	DMU_BACKUP_FEATURE_RAW			(1 << 24)
-/* flag #25 is reserved for the ZSTD compression feature */
+#define	DMU_BACKUP_FEATURE_ZSTD			(1 << 25)
 #define	DMU_BACKUP_FEATURE_HOLDS		(1 << 26)
 
 /*
@@ -117,7 +117,7 @@ typedef enum drr_headertype {
     DMU_BACKUP_FEATURE_RESUMING | DMU_BACKUP_FEATURE_LARGE_BLOCKS | \
     DMU_BACKUP_FEATURE_COMPRESSED | DMU_BACKUP_FEATURE_LARGE_DNODE | \
     DMU_BACKUP_FEATURE_RAW | DMU_BACKUP_FEATURE_HOLDS | \
-	DMU_BACKUP_FEATURE_REDACTED)
+    DMU_BACKUP_FEATURE_REDACTED | DMU_BACKUP_FEATURE_ZSTD)
 
 /* Are all features in the given flag word currently supported? */
 #define	DMU_STREAM_SUPPORTED(x)	(!((x) & ~DMU_BACKUP_FEATURE_MASK))
