@@ -6888,9 +6888,9 @@ zdb_decompress_block(abd_t *pabd, void *buf, void *lbuf, uint64_t lsize,
 			VERIFY0(random_get_pseudo_bytes(lbuf2, lsize));
 
 			if (zio_decompress_data(*cfuncp, pabd,
-			    lbuf, psize, lsize) == 0 &&
+			    lbuf, psize, lsize, NULL) == 0 &&
 			    zio_decompress_data(*cfuncp, pabd,
-			    lbuf2, psize, lsize) == 0 &&
+			    lbuf2, psize, lsize, NULL) == 0 &&
 			    bcmp(lbuf, lbuf2, lsize) == 0)
 				break;
 		}

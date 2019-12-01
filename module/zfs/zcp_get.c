@@ -230,6 +230,7 @@ get_special_prop(lua_State *state, dsl_dataset_t *ds, const char *dsname,
 	char setpoint[ZFS_MAX_DATASET_NAME_LEN] =
 	    "Internal error - setpoint not determined";
 	zfs_type_t ds_type;
+	const char *prop_name = zfs_prop_to_name(zfs_prop);
 	zprop_type_t prop_type = zfs_prop_get_type(zfs_prop);
 	(void) get_objset_type(ds, &ds_type);
 
@@ -407,7 +408,19 @@ get_special_prop(lua_State *state, dsl_dataset_t *ds, const char *dsname,
 		nvlist_free(nvl);
 		break;
 	}
+	case ZFS_PROP_COMPRESSION:
+		uint64_t levelval;
+		const char *complevel_name =
+		    zfs_prop_to_name(ZFS_PROP_COMPRESS_LEVEL);
 
+		error = dsl_prop_get_ds(ds, complevel_name,
+		    sizeof (levelval), 1, &levelval, setpoint);
+		if (error == 0) {
+			if (levelval == ZIO_COMPLEVEL_DEFAULT)
+				break;
+			numval |= levelval << SPA_COMPRESSBITS;
+		}
+		break;
 	default:
 		/* Did not match these props, check in the dsl_dir */
 		error = get_dsl_dir_prop(ds, zfs_prop, &numval);
