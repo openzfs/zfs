@@ -2096,6 +2096,28 @@ zfs_ioc_objset_stats_impl(zfs_cmd_t *zc, objset_t *os)
 			}
 			VERIFY0(error);
 		}
+		/*
+		 * ZSTD stores the compression level in a separate hidden
+		 * property to avoid using up a large number of bits in the
+		 * on-disk compression algorithm enum. We need to swap things
+		 * back around when the property is read.
+		 */
+		nvlist_t *cnv;
+		uint64_t compval, levelval;
+
+		if (get_prop_uint64(nv, "compression", &cnv, &compval) != 0)
+			compval = ZIO_COMPRESS_INHERIT;
+
+		if (error == 0 && compval == ZIO_COMPRESS_ZSTD &&
+		    get_prop_uint64(nv, "compress_level", NULL,
+		    &levelval) == 0) {
+			if (levelval == ZIO_COMPLEVEL_DEFAULT)
+				levelval = 0;
+			fnvlist_remove(cnv, ZPROP_VALUE);
+			fnvlist_add_uint64(cnv, ZPROP_VALUE,
+			    compval | (levelval << SPA_COMPRESSBITS));
+		}
+
 		if (error == 0)
 			error = put_nvlist(zc, nv);
 		nvlist_free(nv);
@@ -2538,6 +2560,32 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 		}
 		break;
 	}
+	case ZFS_PROP_COMPRESSION:
+		/* Special handling is only required for ZSTD */
+		if ((intval & SPA_COMPRESSMASK) != ZIO_COMPRESS_ZSTD) {
+			err = -1;
+			break;
+		}
+		/*
+		 * Store the ZSTD compression level separate from the compress
+		 * property in its own hidden property.
+		 */
+		uint64_t levelval;
+
+		if (intval == ZIO_COMPRESS_ZSTD) {
+			levelval = ZIO_COMPLEVEL_DEFAULT;
+		} else {
+			levelval = (intval & ~SPA_COMPRESSMASK)
+			    >> SPA_COMPRESSBITS;
+		}
+		err = dsl_prop_set_int(dsname, "compress_level", source,
+		    levelval);
+		if (err == 0) {
+			/* Store the compression algorithm normally */
+			err = dsl_prop_set_int(dsname, propname, source,
+			    intval & SPA_COMPRESSMASK);
+		}
+		break;
 	default:
 		err = -1;
 	}
@@ -4386,6 +4434,20 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 
 				if (!spa_feature_is_enabled(spa,
 				    SPA_FEATURE_LZ4_COMPRESS)) {
+					spa_close(spa, FTAG);
+					return (SET_ERROR(ENOTSUP));
+				}
+				spa_close(spa, FTAG);
+			}
+
+			if (intval == ZIO_COMPRESS_ZSTD) {
+				spa_t *spa;
+
+				if ((err = spa_open(dsname, &spa, FTAG)) != 0)
+					return (err);
+
+				if (!spa_feature_is_enabled(spa,
+				    SPA_FEATURE_ZSTD_COMPRESS)) {
 					spa_close(spa, FTAG);
 					return (SET_ERROR(ENOTSUP));
 				}

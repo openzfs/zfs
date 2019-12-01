@@ -126,6 +126,99 @@ zfs_prop_init(void)
 		{ "gzip-9",	ZIO_COMPRESS_GZIP_9 },
 		{ "zle",	ZIO_COMPRESS_ZLE },
 		{ "lz4",	ZIO_COMPRESS_LZ4 },
+		{ "zstd",	ZIO_COMPRESS_ZSTD },
+		{ "zstd-fast",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_FAST_1 << SPA_COMPRESSBITS) },
+		/*
+		 * ZSTD 1-19 are synthetic. We store the compression level in a
+		 * separate hidden property to avoid wasting a large amount of
+		 * space in the ZIO_COMPRESS enum. We do not need to know the
+		 * compression level at decompress time, so it does not need
+		 * to be stored on disk in the block pointer.
+		 */
+		{ "zstd-1",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_1 << SPA_COMPRESSBITS) },
+		{ "zstd-2",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_2 << SPA_COMPRESSBITS) },
+		{ "zstd-3",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_3 << SPA_COMPRESSBITS) },
+		{ "zstd-4",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_4 << SPA_COMPRESSBITS) },
+		{ "zstd-5",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_5 << SPA_COMPRESSBITS) },
+		{ "zstd-6",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_6 << SPA_COMPRESSBITS) },
+		{ "zstd-7",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_7 << SPA_COMPRESSBITS) },
+		{ "zstd-8",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_8 << SPA_COMPRESSBITS) },
+		{ "zstd-9",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_9 << SPA_COMPRESSBITS) },
+		{ "zstd-10",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_10 << SPA_COMPRESSBITS) },
+		{ "zstd-11",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_11 << SPA_COMPRESSBITS) },
+		{ "zstd-12",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_12 << SPA_COMPRESSBITS) },
+		{ "zstd-13",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_13 << SPA_COMPRESSBITS) },
+		{ "zstd-14",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_14 << SPA_COMPRESSBITS) },
+		{ "zstd-15",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_15 << SPA_COMPRESSBITS) },
+		{ "zstd-16",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_16 << SPA_COMPRESSBITS) },
+		{ "zstd-17",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_17 << SPA_COMPRESSBITS) },
+		{ "zstd-18",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_18 << SPA_COMPRESSBITS) },
+		{ "zstd-19",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_19 << SPA_COMPRESSBITS) },
+		/*
+		 * The ZSTD-Fast levels are also synthetic.
+		 */
+		{ "zstd-fast-1",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_FAST_1 << SPA_COMPRESSBITS) },
+		{ "zstd-fast-2",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_FAST_2 << SPA_COMPRESSBITS) },
+		{ "zstd-fast-3",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_FAST_3 << SPA_COMPRESSBITS) },
+		{ "zstd-fast-4",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_FAST_4 << SPA_COMPRESSBITS) },
+		{ "zstd-fast-5",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_FAST_5 << SPA_COMPRESSBITS) },
+		{ "zstd-fast-6",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_FAST_6 << SPA_COMPRESSBITS) },
+		{ "zstd-fast-7",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_FAST_7 << SPA_COMPRESSBITS) },
+		{ "zstd-fast-8",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_FAST_8 << SPA_COMPRESSBITS) },
+		{ "zstd-fast-9",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_FAST_9 << SPA_COMPRESSBITS) },
+		{ "zstd-fast-10",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_FAST_10 << SPA_COMPRESSBITS) },
+		{ "zstd-fast-20",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_FAST_20 << SPA_COMPRESSBITS) },
+		{ "zstd-fast-30",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_FAST_30 << SPA_COMPRESSBITS) },
+		{ "zstd-fast-40",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_FAST_40 << SPA_COMPRESSBITS) },
+		{ "zstd-fast-50",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_FAST_50 << SPA_COMPRESSBITS) },
+		{ "zstd-fast-60",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_FAST_60 << SPA_COMPRESSBITS) },
+		{ "zstd-fast-70",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_FAST_70 << SPA_COMPRESSBITS) },
+		{ "zstd-fast-80",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_FAST_80 << SPA_COMPRESSBITS) },
+		{ "zstd-fast-90",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_FAST_90 << SPA_COMPRESSBITS) },
+		{ "zstd-fast-100",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_FAST_100 << SPA_COMPRESSBITS) },
+		{ "zstd-fast-500",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_FAST_500 << SPA_COMPRESSBITS) },
+		{ "zstd-fast-1000",	ZIO_COMPRESS_ZSTD |
+		    (ZIO_ZSTDLVL_FAST_1000 << SPA_COMPRESSBITS) },
 		{ NULL }
 	};
 
@@ -323,8 +416,10 @@ zfs_prop_init(void)
 	zprop_register_index(ZFS_PROP_COMPRESSION, "compression",
 	    ZIO_COMPRESS_DEFAULT, PROP_INHERIT,
 	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
-	    "on | off | lzjb | gzip | gzip-[1-9] | zle | lz4", "COMPRESS",
-	    compress_table);
+	    "on | off | lzjb | gzip | gzip-[1-9] | zle | lz4 | "
+	    "zstd | zstd-[1-19] | "
+	    "zstd-fast-[1-10,20,30,40,50,60,70,80,90,100,500,1000]",
+	    "COMPRESS", compress_table);
 	zprop_register_index(ZFS_PROP_SNAPDIR, "snapdir", ZFS_SNAPDIR_HIDDEN,
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM,
 	    "hidden | visible", "SNAPDIR", snapdir_table);

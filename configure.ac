@@ -173,6 +173,7 @@ AC_CONFIG_FILES([
 	module/unicode/Makefile
 	module/zcommon/Makefile
 	module/zfs/Makefile
+	module/zstd/Makefile
 	rpm/Makefile
 	rpm/generic/Makefile
 	rpm/generic/zfs-dkms.spec

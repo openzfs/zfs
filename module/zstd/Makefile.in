@@ -1,0 +1,57 @@
+src = @abs_top_srcdir@/module/zstd
+obj = @abs_builddir@
+
+MODULE := zzstd
+
+obj-$(CONFIG_ZFS) := $(MODULE).o
+
+ZFS_MODULE_CFLAGS += -I@abs_top_srcdir@/contrib/zstd
+ZFS_MODULE_CFLAGS += -I@abs_top_srcdir@/contrib/zstd/common
+ZFS_MODULE_CFLAGS += -I@abs_top_srcdir@/contrib/zstd/compress
+ZFS_MODULE_CFLAGS += -I@abs_top_srcdir@/contrib/zstd/decompress
+ZFS_MODULE_CFLAGS += -I@abs_top_srcdir@/include/sys/zstd
+
+asflags-y += $(ZFS_MODULE_CFLAGS)
+ccflags-y += $(ZFS_MODULE_CFLAGS) $(ZFS_MODULE_CPPFLAGS)
+
+# Suppress unused but set variable warnings often due to ASSERTs
+ccflags-y += $(NO_UNUSED_BUT_SET_VARIABLE)
+
+# Zstd uses -O3 by default, so we should follow
+ccflags-y += -O3
+
+# Quiet warnings about frame size due to unused code in unmodified zstd lib
+ccflags-y += -Wframe-larger-than=20480
+
+# Reset the frame-size for the module code
+CFLAGS_zstd.o	:= -Wframe-larger-than=4096
+
+# -fno-tree-vectorize gets set for gcc in zstd/common/compiler.h
+# Set it for other compilers, too.
+CFLAGS_zstd_decompress_block.o := -fno-tree-vectorize
+
+# Path to the zstd library.
+# This needs to be overridden for in-kernel compilation.
+ZSTD_PATH ?= ../../contrib/zstd
+
+$(MODULE)-objs += zstd.o
+$(MODULE)-objs += $(ZSTD_PATH)/common/zstd_common.o
+$(MODULE)-objs += $(ZSTD_PATH)/common/fse_decompress.o
+$(MODULE)-objs += $(ZSTD_PATH)/common/entropy_common.o
+$(MODULE)-objs += $(ZSTD_PATH)/common/error_private.o
+$(MODULE)-objs += $(ZSTD_PATH)/common/xxhash.o
+$(MODULE)-objs += $(ZSTD_PATH)/compress/zstd_compress.o
+$(MODULE)-objs += $(ZSTD_PATH)/compress/zstd_compress_literals.o
+$(MODULE)-objs += $(ZSTD_PATH)/compress/zstd_compress_sequences.o
+$(MODULE)-objs += $(ZSTD_PATH)/compress/fse_compress.o
+$(MODULE)-objs += $(ZSTD_PATH)/compress/hist.o
+$(MODULE)-objs += $(ZSTD_PATH)/compress/huf_compress.o
+$(MODULE)-objs += $(ZSTD_PATH)/compress/zstd_double_fast.o
+$(MODULE)-objs += $(ZSTD_PATH)/compress/zstd_fast.o
+$(MODULE)-objs += $(ZSTD_PATH)/compress/zstd_lazy.o
+$(MODULE)-objs += $(ZSTD_PATH)/compress/zstd_ldm.o
+$(MODULE)-objs += $(ZSTD_PATH)/compress/zstd_opt.o
+$(MODULE)-objs += $(ZSTD_PATH)/decompress/zstd_ddict.o
+$(MODULE)-objs += $(ZSTD_PATH)/decompress/zstd_decompress.o
+$(MODULE)-objs += $(ZSTD_PATH)/decompress/zstd_decompress_block.o
+$(MODULE)-objs += $(ZSTD_PATH)/decompress/huf_decompress.o
