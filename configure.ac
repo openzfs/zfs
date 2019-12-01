@@ -126,6 +126,7 @@ AC_CONFIG_FILES([
 	include/sys/fs/Makefile
 	include/sys/lua/Makefile
 	include/sys/sysevent/Makefile
+	include/sys/zstd/Makefile
 	lib/Makefile
 	lib/libavl/Makefile
 	lib/libefi/Makefile
