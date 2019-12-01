@@ -98,6 +98,10 @@ AC_CONFIG_FILES([
 	contrib/pyzfs/Makefile
 	contrib/pyzfs/setup.py
 	contrib/zcp/Makefile
+	contrib/zstd/Makefile
+	contrib/zstd/common/Makefile
+	contrib/zstd/compress/Makefile
+	contrib/zstd/decompress/Makefile
 	etc/Makefile
 	etc/default/Makefile
 	etc/init.d/Makefile
