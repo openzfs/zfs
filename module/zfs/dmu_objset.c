@@ -21,18 +21,20 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
- * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
- * Copyright (c) 2013, Joyent, Inc. All rights reserved.
- * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
- * Copyright (c) 2015, STRATO AG, Inc. All rights reserved.
- * Copyright (c) 2016 Actifio, Inc. All rights reserved.
- * Copyright 2017 Nexenta Systems, Inc.
- * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+ * Copyright (c) 2010, Robert Milkowski. All rights reserved.
+ * Copyright (c) 2012, 2018, Delphix. All rights reserved.
+ * Copyright (c) 2013, Saso Kiselkov. All rights reserved.
+ * Copyright (c) 2013, Joyent Inc. All rights reserved.
+ * Copyright (c) 2014, Spectra Logic Corporation. All rights reserved.
+ * Copyright (c) 2015, STRATO AG. All rights reserved.
+ * Copyright (c) 2016, Actifio Inc. All rights reserved.
+ * Copyright (c) 2017, Nexenta Systems Inc. All Rights Reserved.
+ * Copyright (c) 2017, Open-E Inc. All Rights Reserved.
  * Copyright (c) 2018, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
+ * Copyright (c) 2019, Klara Inc. All rights reserved.
+ * Copyright (c) 2019, Allan Jude. All rights reserved.
+ * Use is subject to license terms.
  */
-
-/* Portions Copyright 2010 Robert Milkowski */
 
 #include <sys/zfeature.h>
 #include <sys/cred.h>

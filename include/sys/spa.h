@@ -18,16 +18,20 @@
  *
  * CDDL HEADER END
  */
+
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2019 by Delphix. All rights reserved.
- * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
- * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
- * Copyright 2013 Saso Kiselkov. All rights reserved.
- * Copyright (c) 2014 Integros [integros.com]
- * Copyright 2017 Joyent, Inc.
- * Copyright (c) 2017, 2019, Datto Inc. All rights reserved.
- * Copyright (c) 2017, Intel Corporation.
+ * Copyright (c) 2011, 2019, Delphix. All rights reserved.
+ * Copyright (c) 2011, Nexenta Systems Inc. All rights reserved.
+ * Copyright (c) 2014, Spectra Logic Corporation. All rights reserved.
+ * Copyright (c) 2013, Saso Kiselkov. All rights reserved.
+ * Copyright (c) 2014, Integros. All rights reserved.
+ * Copyright (c) 2017, Joyent, Inc. All rights reserved.
+ * Copyright (c) 2017, Datto Inc. All rights reserved.
+ * Copyright (c) 2017, Intel Corporation. All rights reserved.
+ * Copyright (c) 2019, Allan Jude. All rights reserved.
+ * Copyright (c) 2019, Klara Inc. All rights reserved.
+ * Use is subject to license terms.
  */
 
 #ifndef _SYS_SPA_H

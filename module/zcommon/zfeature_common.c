@@ -20,11 +20,14 @@
  */
 
 /*
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
- * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
- * Copyright (c) 2013, Joyent, Inc. All rights reserved.
- * Copyright (c) 2014, Nexenta Systems, Inc. All rights reserved.
- * Copyright (c) 2017, Intel Corporation.
+ * Copyright (c) 2011, 2018, Delphix. All rights reserved.
+ * Copyright (c) 2013, Saso Kiselkov. All rights reserved.
+ * Copyright (c) 2013, Joyent Inc. All rights reserved.
+ * Copyright (c) 2014, Nexenta Systems Inc. All rights reserved.
+ * Copyright (c) 2017, Intel Corporation. All rights reserved.
+ * Copyright (c) 2019, Klara Inc. All rights reserved.
+ * Copyright (c) 2019, Allan Jude. All rights reserved.
+ * Use is subject to license terms.
  */
 
 #ifndef _KERNEL
