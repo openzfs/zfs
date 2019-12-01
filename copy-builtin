@@ -41,6 +41,8 @@ scripts/make_gitrev.sh || true
 rm -rf "$KERNEL_DIR/include/zfs" "$KERNEL_DIR/fs/zfs"
 cp --recursive include "$KERNEL_DIR/include/zfs"
 cp --recursive module "$KERNEL_DIR/fs/zfs"
+mkdir "$KERNEL_DIR/fs/zfs/contrib"
+cp --recursive contrib/zstd "$KERNEL_DIR/fs/zfs/contrib"
 cp zfs_config.h "$KERNEL_DIR/include/zfs/"
 
 for MODULE in "${MODULES[@]}"
@@ -72,10 +74,16 @@ EOF
 	ZFS_MODULE_CFLAGS += -I$(srctree)/include/zfs/os/linux/zfs
 	ZFS_MODULE_CFLAGS += -I$(srctree)/include/zfs/os/linux/kernel
 	ZFS_MODULE_CFLAGS += -include $(srctree)/include/zfs/zfs_config.h
+	ZFS_MODULE_CFLAGS += -I$(srctree)/fs/zfs/contrib/zstd
+	ZFS_MODULE_CFLAGS += -I$(srctree)/fs/zfs/contrib/zstd/common
+	ZFS_MODULE_CFLAGS += -I$(srctree)/fs/zfs/contrib/zstd/compress
+	ZFS_MODULE_CFLAGS += -I$(srctree)/fs/zfs/contrib/zstd/decompress
+	ZFS_MODULE_CFLAGS += -I$(srctree)/include/zfs/sys/zstd
 	ZFS_MODULE_CFLAGS += -std=gnu99 -Wno-declaration-after-statement
 	ZFS_MODULE_CPPFLAGS  = -D_KERNEL
 	ZFS_MODULE_CPPFLAGS += -UDEBUG -DNDEBUG
-	export ZFS_MODULE_CFLAGS ZFS_MODULE_CPPFLAGS
+	ZSTD_PATH = ../contrib/zstd
+	export ZFS_MODULE_CFLAGS ZFS_MODULE_CPPFLAGS ZSTD_PATH
 
 	obj-$(CONFIG_ZFS) :=
 	EOF

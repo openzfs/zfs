@@ -8,6 +8,7 @@ obj-m += unicode/
 obj-m += zcommon/
 obj-m += zfs/
 obj-m += os/linux/zfs/
+obj-m += zstd/
 
 INSTALL_MOD_DIR ?= extra
 
@@ -18,6 +19,7 @@ ZFS_MODULE_CFLAGS += -I@abs_top_srcdir@/include/os/linux/kernel
 ZFS_MODULE_CFLAGS += -I@abs_top_srcdir@/include/os/linux/spl
 ZFS_MODULE_CFLAGS += -I@abs_top_srcdir@/include/os/linux/zfs
 ZFS_MODULE_CFLAGS += -I@abs_top_srcdir@/include
+
 ZFS_MODULE_CPPFLAGS += -D_KERNEL
 ZFS_MODULE_CPPFLAGS += @KERNEL_DEBUG_CPPFLAGS@
 
