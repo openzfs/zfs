@@ -6530,9 +6530,9 @@ zdb_read_block(char *thing, spa_t *spa)
 				VERIFY0(random_get_pseudo_bytes(lbuf2, lsize));
 
 				if (zio_decompress_data(c, pabd,
-				    lbuf, psize, lsize) == 0 &&
+				    lbuf, psize, lsize, NULL) == 0 &&
 				    zio_decompress_data(c, pabd,
-				    lbuf2, psize, lsize) == 0 &&
+				    lbuf2, psize, lsize, NULL) == 0 &&
 				    bcmp(lbuf, lbuf2, lsize) == 0)
 					break;
 			}
