@@ -2541,9 +2541,9 @@ function get_compress_opts
 			gzip-6 gzip-7 gzip-8 gzip-9"
 
 	if [[ $1 == "zfs_compress" ]] ; then
-		COMPRESS_OPTS="on lzjb"
+		COMPRESS_OPTS="on lzjb zstd"
 	elif [[ $1 == "zfs_set" ]] ; then
-		COMPRESS_OPTS="on off lzjb"
+		COMPRESS_OPTS="on off lzjb zstd"
 	fi
 	typeset valid_opts="$COMPRESS_OPTS"
 	zfs get 2>&1 | grep gzip >/dev/null 2>&1

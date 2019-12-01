@@ -28,7 +28,7 @@
 #
 
 verify_runnable "both"
-typeset compress_types="off gzip lz4"
+typeset compress_types="off gzip lz4 zstd"
 typeset send_ds="$POOL2/testfs"
 typeset send_vol="$POOL2/vol"
 typeset send_voldev="$ZVOL_DEVDIR/$POOL2/vol"

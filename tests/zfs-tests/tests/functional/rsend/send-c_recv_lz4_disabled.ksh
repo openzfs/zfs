@@ -34,7 +34,7 @@ verify_runnable "both"
 
 log_assert "Verify compressed streams are rejected if incompatible."
 
-typeset compress_types="off gzip lz4"
+typeset compress_types="off gzip lz4 zstd"
 typeset send_ds=$POOL2/testds
 typeset recv_ds=$POOL3/testds
 

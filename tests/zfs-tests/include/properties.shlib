@@ -14,7 +14,8 @@
 #
 
 typeset -a compress_prop_vals=('on' 'off' 'lzjb' 'gzip' 'gzip-1' 'gzip-2'
-    'gzip-3' 'gzip-4' 'gzip-5' 'gzip-6' 'gzip-7' 'gzip-8' 'gzip-9' 'zle' 'lz4')
+    'gzip-3' 'gzip-4' 'gzip-5' 'gzip-6' 'gzip-7' 'gzip-8' 'gzip-9' 'zle'
+    'lz4' 'zstd')
 typeset -a checksum_prop_vals=('on' 'off' 'fletcher2' 'fletcher4' 'sha256'
     'noparity' 'sha512' 'skein' 'edonr')
 typeset -a recsize_prop_vals=('512' '1024' '2048' '4096' '8192' '16384'
