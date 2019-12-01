@@ -21,13 +21,16 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
- * Copyright (c) 2014, Joyent, Inc. All rights reserved.
- * Copyright (c) 2014 RackTop Systems.
- * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
- * Copyright (c) 2016 Actifio, Inc. All rights reserved.
- * Copyright 2016, OmniTI Computer Consulting, Inc. All rights reserved.
- * Copyright 2017 Nexenta Systems, Inc.
+ * Copyright (c) 2011, 2018, Delphix. All rights reserved.
+ * Copyright (c) 2014, Joyent Inc. All rights reserved.
+ * Copyright (c) 2014, RackTop Systems. All rights reserved.
+ * Copyright (c) 2014, Spectra Logic Corporation. All rights reserved.
+ * Copyright (c) 2016, Actifio Inc. All rights reserved.
+ * Copyright (c) 2016, OmniTI Computer Consulting Inc. All rights reserved.
+ * Copyright (c) 2017, Nexenta Systems Inc. All rights reserved.
+ * Copyright (c) 2019, Klara Inc. All rights reserved.
+ * Copyright (c) 2019, Allan Jude. All rights reserved.
+ * Use is subject to license terms.
  */
 
 #include <sys/dmu_objset.h>

@@ -18,11 +18,15 @@
  *
  * CDDL HEADER END
  */
+
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2019 by Delphix. All rights reserved.
- * Copyright (c) 2011 Nexenta Systems, Inc. All rights reserved.
- * Copyright (c) 2017, Intel Corporation.
+ * Copyright (c) 2011, 2019, Delphix. All rights reserved.
+ * Copyright (c) 2011, Nexenta Systems Inc. All rights reserved.
+ * Copyright (c) 2017, Intel Corporation. All rights reserved.
+ * Copyright (c) 2019, Klara Inc. All rights reserved.
+ * Copyright (c) 2019, Allan Jude. All rights reserved.
+ * Use is subject to license terms.
  */
 
 #include <sys/sysmacros.h>

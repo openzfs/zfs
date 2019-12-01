@@ -19,23 +19,22 @@
 .\" CDDL HEADER END
 .\"
 .\"
-.\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
-.\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
-.\" Copyright (c) 2011, 2019 by Delphix. All rights reserved.
-.\" Copyright (c) 2011, Pawel Jakub Dawidek <pjd@FreeBSD.org>
-.\" Copyright (c) 2012, Glen Barber <gjb@FreeBSD.org>
-.\" Copyright (c) 2012, Bryan Drewery <bdrewery@FreeBSD.org>
-.\" Copyright (c) 2013, Steven Hartland <smh@FreeBSD.org>
-.\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
-.\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
-.\" Copyright (c) 2014 by Adam Stevko. All rights reserved.
-.\" Copyright (c) 2014 Integros [integros.com]
-.\" Copyright (c) 2016 Nexenta Systems, Inc. All Rights Reserved.
-.\" Copyright (c) 2014, Xin LI <delphij@FreeBSD.org>
-.\" Copyright (c) 2014-2015, The FreeBSD Foundation, All Rights Reserved.
-.\" Copyright 2019 Richard Laager. All rights reserved.
-.\" Copyright 2018 Nexenta Systems, Inc.
-.\" Copyright 2019 Joyent, Inc.
+.\" Copyright (c) 2009, Sun Microsystems, Inc. All Rights Reserved.
+.\" Copyright (c) 2011, Joshua M. Clulow. All Rights Reserved.
+.\" Copyright (c) 2011, 2019, Delphix. All rights reserved.
+.\" Copyright (c) 2011, Pawel Jakub Dawidek. All rights reserved.
+.\" Copyright (c) 2012, Glen Barber. All rights reserved.
+.\" Copyright (c) 2012, Bryan Drewery. All rights reserved.
+.\" Copyright (c) 2013, Steven Hartland. All rights reserved.
+.\" Copyright (c) 2013, Saso Kiselkov. All rights reserved.
+.\" Copyright (c) 2014, 2019, Joyent, Inc. All rights reserved.
+.\" Copyright (c) 2014, Adam Stevko. All rights reserved.
+.\" Copyright (c) 2014, Integros. All rights reserved.
+.\" Copyright (c) 2014, Xin LI. All rights reserved.
+.\" Copyright (c) 2014-2015, The FreeBSD Foundation. All Rights Reserved.
+.\" Copyright (c) 2016, 2018, Nexenta Systems, Inc. All rights reserved.
+.\" Copyright (c) 2019, Richard Laager. All rights reserved.
+.\" Copyright (c) 2019, Kjeld Schouten-Lebbing. All rights reserved.
 .\"
 .Dd June 30, 2019
 .Dt ZFSPROPS 8
@@ -723,7 +722,8 @@ for more information on these algorithms.
 Changing this property affects only newly-written data.
 .It Xo
 .Sy compression Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Sy gzip Ns | Ns
-.Sy gzip- Ns Em N Ns | Ns Sy lz4 Ns | Ns Sy lzjb Ns | Ns Sy zle
+.Sy gzip- Ns Em N Ns | Ns Sy lz4 Ns | Ns Sy lzjb Ns | Ns Sy zle Ns | Ns Sy zstd Ns | Ns
+.Sy zstd- Ns Em N Ns | Ns Sy zstd-fast- Ns Em N
 .Xc
 Controls the compression algorithm used for this dataset.
 .Pp
@@ -788,6 +788,35 @@ is equivalent to
 .Sy gzip-6
 .Po which is also the default for
 .Xr gzip 1
+.Pc .
+.Pp
+The
+.Sy zstd
+compression using the zstd algorithm ,
+You can specify the
+.Sy zstd
+level by using the value
+.Sy zstd- Ns Em N ,
+where
+.Em N
+is an integer from 1
+.Pq fastest
+to 19
+.Pq best compression ratio .
+.Sy zstd
+You can also specify a negative
+.Sy zstd
+level by using the value
+.Sy zstd- Ns Em N ,
+where
+.Em N
+is an integer from 100
+.Pq fastest
+to 1
+.Pq best compression ratio .
+.Sy zstd
+is equivalent to
+.Sy zstd-3
 .Pc .
 .Pp
 The

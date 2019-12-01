@@ -20,15 +20,12 @@
  */
 
 /*
- * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright (c) 2009, Sun Microsystems Inc. All rights reserved.
+ * Copyright (c) 2013, Saso Kiselkov. All rights reserved.
+ * Copyright (c) 2013, 2018, Delphix. All rights reserved.
+ * Copyright (c) 2019, Klara Inc. All rights reserved.
+ * Copyright (c) 2019, Allan Jude. All rights reserved.
  * Use is subject to license terms.
- */
-/*
- * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
- */
-
-/*
- * Copyright (c) 2013, 2018 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
