@@ -104,7 +104,8 @@ commitcheck:
 	fi
 
 cstyle:
-	@find ${top_srcdir} -name build -prune -o -name '*.[hc]' \
+	@find ${top_srcdir} \( -name build -o -path ./contrib/zstd \) -prune \
+		-o -name '*.[hc]' \
 		! -name 'zfs_config.*' ! -name '*.mod.c' -type f \
 		-exec ${top_srcdir}/scripts/cstyle.pl -cpP {} \+
 

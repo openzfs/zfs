@@ -205,6 +205,7 @@ code-coverage-clean:
 # Add any folders you want to ignore here
 CODE_COVERAGE_IGNORE_PATTERN ?= "/tmp/*"    # Build-in tmp folder ignore.
 CODE_COVERAGE_IGNORE_PATTERN += "*/tests/*" # Tests don't have to cover themselves
+CODE_COVERAGE_IGNORE_PATTERN += "*/contrib/zstd/*" # Skip unmodified imported zstd
 
 # Optional variables
 CODE_COVERAGE_DIRECTORY ?= $(top_builddir)
