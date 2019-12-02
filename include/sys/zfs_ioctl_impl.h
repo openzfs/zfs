@@ -84,7 +84,7 @@ void zfs_ioctl_init_os(void);
 
 int zfs_vfs_ref(zfsvfs_t **);
 
-long zfsdev_ioctl_common(uint_t, unsigned long);
+long zfsdev_ioctl_common(uint_t, zfs_cmd_t *);
 int zfsdev_attach(void);
 void zfsdev_detach(void);
 int zfs_kmod_init(void);
