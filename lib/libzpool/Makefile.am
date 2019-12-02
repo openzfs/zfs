@@ -25,7 +25,8 @@ DEFAULT_INCLUDES += \
 	-I$(top_srcdir)/contrib/zstd/zstd-1.4.4/lib \
 	-I$(top_srcdir)/contrib/zstd/zstd-1.4.4/lib/common \
 	-I$(top_srcdir)/contrib/zstd/zstd-1.4.4/lib/compress \
-	-I$(top_srcdir)/contrib/zstd/zstd-1.4.4/lib/decompress
+	-I$(top_srcdir)/contrib/zstd/zstd-1.4.4/lib/decompress \
+	-I$(top_srcdir)/lib/libspl/include/sys/zstd
 
 lib_LTLIBRARIES = libzpool.la
 

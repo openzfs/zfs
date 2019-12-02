@@ -5,6 +5,7 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/zstd/stdio.h \
 	$(top_srcdir)/include/sys/zstd/stdlib.h \
 	$(top_srcdir)/include/sys/zstd/string.h \
+	$(top_srcdir)/include/sys/zstd/zstd.h \
 	$(top_srcdir)/include/sys/zstd/zstd_kfreebsd.c \
 	$(top_srcdir)/include/sys/zstd/zstd_kfreebsd.h \
 	$(top_srcdir)/include/sys/zstd/zstd_kmalloc.c

@@ -40,7 +40,7 @@
 
 
 /* For BSD compatibility */
-#define __unused	__attribute__((unused))
+#define	__unused	__attribute__((unused))
 
 /* For userspace we disable error debugging */
 #if !defined(_KERNEL)
@@ -49,8 +49,8 @@
 
 /* User space / kernel emulation compatibility */
 #if !defined(_KERNEL)
-#define __init
-#define __exit
+#define	__init
+#define	__exit
 #endif
 
 /* These enums are index references to zstd_cache_config */
