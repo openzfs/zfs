@@ -32,6 +32,7 @@
 #include <sys/zfeature.h>
 #include <sys/zio.h>
 #include <sys/zio_compress.h>
+#include <sys/zstd/zstd.h>
 
 /*
  * If nonzero, every 1/X decompression attempts will fail, simulating

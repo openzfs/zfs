@@ -42,6 +42,7 @@
 #include <sys/systeminfo.h>
 #include <zfs_fletcher.h>
 #include <sys/crypto/icp.h>
+#include <sys/zstd/zstd.h>
 
 /*
  * Emulation of kernel services in userland.
@@ -837,8 +838,8 @@ kernel_init(int mode)
 	icp_init();
 
 	spa_init((spa_mode_t)mode);
-
 	fletcher_4_init();
+	zstd_init();
 
 	tsd_create(&rrw_tsd_key, rrw_tsd_destroy);
 }
@@ -846,6 +847,7 @@ kernel_init(int mode)
 void
 kernel_fini(void)
 {
+	zstd_fini();
 	fletcher_4_fini();
 	spa_fini();
 
