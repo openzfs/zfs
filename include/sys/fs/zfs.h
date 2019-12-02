@@ -1190,9 +1190,13 @@ typedef enum {
  */
 typedef enum zfs_ioc {
 	/*
-	 * illumos - 81/128 numbers reserved.
+	 * Core features - 81/128 numbers reserved.
 	 */
+#ifdef __FreeBSD__
+	ZFS_IOC_FIRST =	0,
+#else
 	ZFS_IOC_FIRST =	('Z' << 8),
+#endif
 	ZFS_IOC = ZFS_IOC_FIRST,
 	ZFS_IOC_POOL_CREATE = ZFS_IOC_FIRST,	/* 0x5a00 */
 	ZFS_IOC_POOL_DESTROY,			/* 0x5a01 */
@@ -1280,18 +1284,15 @@ typedef enum zfs_ioc {
 	ZFS_IOC_WAIT,				/* 0x5a53 */
 
 	/*
-	 * Linux - 3/64 numbers reserved.
+	 * Per-platform (Optional) - 6/128 numbers reserved.
 	 */
-	ZFS_IOC_LINUX = ('Z' << 8) + 0x80,
-	ZFS_IOC_EVENTS_NEXT,			/* 0x5a81 */
-	ZFS_IOC_EVENTS_CLEAR,			/* 0x5a82 */
-	ZFS_IOC_EVENTS_SEEK,			/* 0x5a83 */
-
-	/*
-	 * FreeBSD - 1/64 numbers reserved.
-	 */
-	ZFS_IOC_FREEBSD = ('Z' << 8) + 0xC0,
-
+	ZFS_IOC_PLATFORM = ZFS_IOC_FIRST + 0x80,
+	ZFS_IOC_EVENTS_NEXT,			/* 0x81 (Linux) */
+	ZFS_IOC_EVENTS_CLEAR,			/* 0x82 (Linux) */
+	ZFS_IOC_EVENTS_SEEK,			/* 0x83 (Linux) */
+	ZFS_IOC_NEXTBOOT,			/* 0x84 (FreeBSD) */
+	ZFS_IOC_JAIL,				/* 0x85 (FreeBSD) */
+	ZFS_IOC_UNJAIL,				/* 0x86 (FreeBSD) */
 	ZFS_IOC_LAST
 } zfs_ioc_t;
 
