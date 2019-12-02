@@ -84,8 +84,7 @@ tests = ['tst.destroy_fs', 'tst.destroy_snap', 'tst.get_count_and_limit',
 tags = ['functional', 'channel_program', 'synctask_core']
 
 [tests/functional/checksum]
-tests = ['run_edonr_test', 'run_sha2_test', 'run_skein_test',
-    'filetest_001_pos']
+tests = ['run_sha2_test', 'run_skein_test', 'filetest_001_pos']
 tags = ['functional', 'checksum']
 
 [tests/functional/clean_mirror]
