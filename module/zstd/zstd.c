@@ -651,8 +651,7 @@ module_init(zstd_init);
 module_exit(zstd_fini);
 
 ZFS_MODULE_DESCRIPTION("ZSTD Compression for ZFS");
-ZFS_MODULE_AUTHOR(ZFS_META_AUTHOR);
-ZFS_MODULE_LICENSE(ZFS_META_LICENSE);
+ZFS_MODULE_LICENSE("Dual BSD/GPL");
 ZFS_MODULE_VERSION("1.4.4");
 
 EXPORT_SYMBOL(zstd_compress);
