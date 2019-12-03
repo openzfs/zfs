@@ -108,7 +108,6 @@ static struct zstd_fallback_mem zstd_dctx_fallback;
 static struct zstd_pool *zstd_mempool_cctx;
 static struct zstd_pool *zstd_mempool_dctx;
 
-
 /*
  * Try to get a cached allocated buffer from memory pool or allocate a new one
  * if neccessary. If a object is older than 2 minutes and does not fit the
@@ -129,6 +128,9 @@ zstd_mempool_alloc(struct zstd_pool *zstd_mempool, size_t size)
 	void *mem = NULL;
 	struct zstd_pool *pool;
 	struct zstd_kmem *z;
+
+	if (!zstd_mempool)
+		return (NULL);
 
 	/* Seek for preallocated memory slot and free obsolete slots */
 	for (i = 0; i < ZSTD_POOL_MAX; i++) {
@@ -627,6 +629,9 @@ zstd_mempool_deinit(void)
 	    ZSTD_POOL_MAX * sizeof (struct zstd_pool));
 	kmem_free(zstd_mempool_cctx,
 	    ZSTD_POOL_MAX * sizeof (struct zstd_pool));
+
+	zstd_mempool_dctx = NULL;
+	zstd_mempool_cctx = NULL;
 }
 
 int __init
