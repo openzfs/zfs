@@ -21,7 +21,7 @@ ccflags-y += -Wframe-larger-than=20480 -O3
 
 $(MODULE)-objs += zstd.o
 
-ZSTD_PATH ?= $(top_srcdir)/contrib/zstd
+ZSTD_PATH ?= ../../contrib/zstd
 
 $(MODULE)-objs += $(ZSTD_PATH)/zstd-1.4.4/lib/common/zstd_common.o
 $(MODULE)-objs += $(ZSTD_PATH)/zstd-1.4.4/lib/common/fse_decompress.o
