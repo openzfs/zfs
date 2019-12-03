@@ -6613,13 +6613,18 @@ zdb_read_block(char *thing, spa_t *spa)
 			}
 			error = zio_wait(czio);
 			if (error == 0 || error == ECKSUM) {
-				zio_checksum_compute(czio, ck, pabd, lsize);
+				zio_t *ck_zio = zio_root(spa, NULL, NULL, 0);
+				ck_zio->io_offset =
+				    DVA_GET_OFFSET(&bp->blk_dva[0]);
+				ck_zio->io_bp = bp;
+				zio_checksum_compute(ck_zio, ck, pabd, lsize);
 				printf("%12s\tcksum=%llx:%llx:%llx:%llx\n",
 				    zio_checksum_table[ck].ci_name,
 				    (u_longlong_t)bp->blk_cksum.zc_word[0],
 				    (u_longlong_t)bp->blk_cksum.zc_word[1],
 				    (u_longlong_t)bp->blk_cksum.zc_word[2],
 				    (u_longlong_t)bp->blk_cksum.zc_word[3]);
+				zio_wait(ck_zio);
 			} else {
 				printf("error %d reading block\n", error);
 			}
