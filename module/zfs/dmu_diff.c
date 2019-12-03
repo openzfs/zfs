@@ -50,7 +50,7 @@ typedef struct dmu_diffarg {
 	dmu_diff_record_t da_ddr;
 } dmu_diffarg_t;
 
-int
+static int
 write_record(dmu_diffarg_t *da)
 {
 	zfs_file_t *fp;
