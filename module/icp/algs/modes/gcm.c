@@ -300,11 +300,13 @@ gcm_mode_decrypt_contiguous_blocks(gcm_ctx_t *ctx, char *data, size_t length,
 	if (length > 0) {
 		new_len = ctx->gcm_pt_buf_len + length;
 		new = vmem_alloc(new_len, ctx->gcm_kmflag);
+		if (new == NULL) {
+			vmem_free(ctx->gcm_pt_buf, ctx->gcm_pt_buf_len);
+			ctx->gcm_pt_buf = NULL;
+			return (CRYPTO_HOST_MEMORY);
+		}
 		bcopy(ctx->gcm_pt_buf, new, ctx->gcm_pt_buf_len);
 		vmem_free(ctx->gcm_pt_buf, ctx->gcm_pt_buf_len);
-		if (new == NULL)
-			return (CRYPTO_HOST_MEMORY);
-
 		ctx->gcm_pt_buf = new;
 		ctx->gcm_pt_buf_len = new_len;
 		bcopy(data, &ctx->gcm_pt_buf[ctx->gcm_processed_data_len],
