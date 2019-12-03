@@ -507,6 +507,9 @@ extern nvlist_t *zfs_get_user_props(zfs_handle_t *);
 extern nvlist_t *zfs_get_recvd_props(zfs_handle_t *);
 extern nvlist_t *zfs_get_clones_nvl(zfs_handle_t *);
 
+extern int zfs_wait_status(zfs_handle_t *, zfs_wait_activity_t,
+    boolean_t *, boolean_t *);
+
 /*
  * zfs encryption management
  */

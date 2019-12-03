@@ -288,6 +288,10 @@ tests = ['zfs_upgrade_001_pos', 'zfs_upgrade_002_pos', 'zfs_upgrade_003_pos',
     'zfs_upgrade_007_neg']
 tags = ['functional', 'cli_root', 'zfs_upgrade']
 
+[tests/functional/cli_root/zfs_wait]
+tests = ['zfs_wait_deleteq']
+tags = ['functional', 'cli_root', 'zfs_wait']
+
 [tests/functional/cli_root/zpool]
 tests = ['zpool_001_neg', 'zpool_002_pos', 'zpool_003_pos', 'zpool_colors']
 tags = ['functional', 'cli_root', 'zpool']
