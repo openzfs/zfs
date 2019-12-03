@@ -7,4 +7,5 @@ libspl_HEADERS = \
 	$(top_srcdir)/lib/libspl/include/os/linux/sys/param.h \
 	$(top_srcdir)/lib/libspl/include/os/linux/sys/stat.h \
 	$(top_srcdir)/lib/libspl/include/os/linux/sys/sysmacros.h \
-	$(top_srcdir)/lib/libspl/include/os/linux/sys/uio.h
+	$(top_srcdir)/lib/libspl/include/os/linux/sys/uio.h \
+	$(top_srcdir)/lib/libspl/include/os/linux/sys/zfs_context_os.h

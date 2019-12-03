@@ -16,6 +16,7 @@ KERNEL_H = \
 	$(top_srcdir)/include/os/linux/zfs/sys/trace_zil.h \
 	$(top_srcdir)/include/os/linux/zfs/sys/trace_zio.h \
 	$(top_srcdir)/include/os/linux/zfs/sys/trace_zrlock.h \
+	$(top_srcdir)/include/os/linux/zfs/sys/zfs_context_os.h \
 	$(top_srcdir)/include/os/linux/zfs/sys/zfs_ctldir.h \
 	$(top_srcdir)/include/os/linux/zfs/sys/zfs_dir.h \
 	$(top_srcdir)/include/os/linux/zfs/sys/zfs_vfsops.h \
