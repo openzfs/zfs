@@ -51,7 +51,6 @@
 #include <sys/abd.h>
 #include <sys/dsl_crypt.h>
 #include <sys/cityhash.h>
-#include <sys/zstd/zstd.h>
 
 /*
  * ==========================================================================
@@ -222,9 +221,6 @@ zio_init(void)
 	zio_inject_init();
 
 	lz4_init();
-#if !defined(_KERNEL)
-	zstd_init();
-#endif
 }
 
 void
@@ -268,9 +264,6 @@ zio_fini(void)
 
 	zio_inject_fini();
 
-#if !defined(_KERNEL)
-	zstd_fini();
-#endif
 	lz4_fini();
 }
 
