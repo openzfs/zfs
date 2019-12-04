@@ -677,10 +677,10 @@ def section_l2arc(kstats_dict):
     prt_1('L2ARC breakdown:', f_hits(l2_access_total))
     prt_i2('Hit ratio:',
            f_perc(arc_stats['l2_hits'], l2_access_total),
-           f_bytes(arc_stats['l2_hits']))
+           f_hits(arc_stats['l2_hits']))
     prt_i2('Miss ratio:',
            f_perc(arc_stats['l2_misses'], l2_access_total),
-           f_bytes(arc_stats['l2_misses']))
+           f_hits(arc_stats['l2_misses']))
     prt_i1('Feeds:', f_hits(arc_stats['l2_feeds']))
 
     print()
