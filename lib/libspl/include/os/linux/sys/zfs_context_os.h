@@ -19,12 +19,7 @@
  *
  * CDDL HEADER END
  */
-/*
- * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
- */
 
-#ifndef _LIBSPL_SYS_BITMAP_H
-#define	_LIBSPL_SYS_BITMAP_H
-
+#ifndef ZFS_CONTEXT_OS_H
+#define	ZFS_CONTEXT_OS_H
 #endif
