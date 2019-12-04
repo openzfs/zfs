@@ -12,11 +12,12 @@
 #
 
 #
-# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016, Delphix. All rights reserved.
+# Copyright (c) 2019, Kjeld Schouten-Lebbing. All Rights Reserved.
 #
 
-. $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/include/properties.shlib
+. $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/nopwrite/nopwrite.shlib
 
 #
@@ -51,8 +52,8 @@ log_must zfs set checksum=sha256 $origin
 dd if=/dev/urandom of=$TESTDIR/file bs=1024k count=$MEGS conv=notrunc \
     >/dev/null 2>&1 || log_fail "initial dd failed."
 
-# Verify nop_write for 4 random compression algorithms
-for i in $(get_rand_compress 4); do
+# Verify nop_write for all compression algorithms except "off"
+for i in "${compress_prop_vals[@]:1}"; do
 	zfs snapshot $origin@a || log_fail "zfs snap failed"
 	log_must zfs clone -o compress=$i $origin@a $origin/clone
 	dd if=/$TESTDIR/file of=/$TESTDIR/clone/file bs=1024k count=$MEGS \

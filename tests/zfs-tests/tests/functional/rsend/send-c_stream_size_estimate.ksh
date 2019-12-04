@@ -12,10 +12,11 @@
 #
 
 #
-# Copyright (c) 2015 by Delphix. All rights reserved.
+# Copyright (c) 2015, Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/rsend/rsend.kshlib
+. $STF_SUITE/include/properties.shlib
 
 #
 # Description:
@@ -28,7 +29,6 @@
 #
 
 verify_runnable "both"
-typeset compress_types="off gzip lz4"
 typeset send_ds="$POOL2/testfs"
 typeset send_vol="$POOL2/vol"
 typeset send_voldev="$ZVOL_DEVDIR/$POOL2/vol"
@@ -55,7 +55,7 @@ log_onexit cleanup_pool $POOL2
 
 write_compressible $BACKDIR ${megs}m
 
-for compress in $compress_types; do
+for compress in "${compress_prop_vals[@]}"; do
 	datasetexists $send_ds && log_must_busy zfs destroy -r $send_ds
 	datasetexists $send_vol && log_must_busy zfs destroy -r $send_vol
 	log_must zfs create -o compress=$compress $send_ds

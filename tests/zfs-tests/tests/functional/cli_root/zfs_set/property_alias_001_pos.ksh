@@ -21,14 +21,12 @@
 #
 
 #
-# Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
+# Copyright (c) 2009, Sun Microsystems Inc. All rights reserved.
+# Copyright (c) 2016, 2017, Delphix. All rights reserved.
 # Use is subject to license terms.
 #
 
-#
-# Copyright (c) 2016, 2017 by Delphix. All rights reserved.
-#
-
+. $STF_SUITE/include/properties.shlib
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zfs_set/zfs_set_common.kshlib
 
@@ -106,7 +104,7 @@ for ds in $pool $fs $vol; do
 			done
 			;;
 		compression|compress )
-			for val in $(get_compress_opts zfs_set); do
+			for val in "${compress_prop_vals[@]}"; do
 				set_and_check $ds ${rw_prop[i]} $val ${chk_prop[i]}
 			done
 			;;

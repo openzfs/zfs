@@ -10,11 +10,10 @@
 #
 
 #
-# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016, Delphix. All rights reserved.
 #
 
-typeset -a compress_prop_vals=('on' 'off' 'lzjb' 'gzip' 'gzip-1' 'gzip-2'
-    'gzip-3' 'gzip-4' 'gzip-5' 'gzip-6' 'gzip-7' 'gzip-8' 'gzip-9' 'zle' 'lz4')
+typeset -a compress_prop_vals=('off' 'lzjb' 'lz4' 'gzip' 'zle')
 typeset -a checksum_prop_vals=('on' 'off' 'fletcher2' 'fletcher4' 'sha256'
     'noparity' 'sha512' 'skein' 'edonr')
 typeset -a recsize_prop_vals=('512' '1024' '2048' '4096' '8192' '16384'
@@ -56,16 +55,6 @@ function get_rand_prop
 		retstr="${prop_array[$i]} $retstr"
 	done
 	echo $retstr
-}
-
-function get_rand_compress
-{
-	get_rand_prop compress_prop_vals $1 2
-}
-
-function get_rand_compress_any
-{
-	get_rand_prop compress_prop_vals $1 0
 }
 
 function get_rand_checksum
