@@ -3607,7 +3607,7 @@ ztest_device_removal(ztest_ds_t *zd, uint64_t id)
 vdev_t *
 grow_vdev(vdev_t *vd, void *arg)
 {
-	ASSERTV(spa_t *spa = vd->vdev_spa);
+	spa_t *spa __maybe_unused = vd->vdev_spa;
 	size_t *newsize = arg;
 	size_t fsize;
 	int fd;

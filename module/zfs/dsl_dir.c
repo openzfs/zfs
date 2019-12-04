@@ -141,7 +141,7 @@ dsl_dir_evict_async(void *dbu)
 {
 	dsl_dir_t *dd = dbu;
 	int t;
-	ASSERTV(dsl_pool_t *dp = dd->dd_pool);
+	dsl_pool_t *dp __maybe_unused = dd->dd_pool;
 
 	dd->dd_dbuf = NULL;
 

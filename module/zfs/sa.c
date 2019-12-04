@@ -1237,7 +1237,7 @@ sa_byteswap(sa_handle_t *hdl, sa_buf_type_t buftype)
 	dmu_buf_impl_t *db;
 	int num_lengths = 1;
 	int i;
-	ASSERTV(sa_os_t *sa = hdl->sa_os->os_sa);
+	sa_os_t *sa __maybe_unused = hdl->sa_os->os_sa;
 
 	ASSERT(MUTEX_HELD(&sa->sa_lock));
 	if (sa_hdr_phys->sa_magic == SA_MAGIC)
@@ -1344,7 +1344,7 @@ sa_idx_tab_rele(objset_t *os, void *arg)
 static void
 sa_idx_tab_hold(objset_t *os, sa_idx_tab_t *idx_tab)
 {
-	ASSERTV(sa_os_t *sa = os->os_sa);
+	sa_os_t *sa __maybe_unused = os->os_sa;
 
 	ASSERT(MUTEX_HELD(&sa->sa_lock));
 	(void) zfs_refcount_add(&idx_tab->sa_refcount, NULL);

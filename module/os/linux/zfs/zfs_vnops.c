@@ -706,9 +706,9 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 	uint64_t end_size = MAX(zp->z_size, woff + n);
 	zilog_t *zilog = zfsvfs->z_log;
 #ifdef HAVE_UIO_ZEROCOPY
-	int		i_iov = 0;
-	const iovec_t	*iovp = uio->uio_iov;
-	ASSERTV(int	iovcnt = uio->uio_iovcnt);
+	int i_iov = 0;
+	const iovec_t *iovp = uio->uio_iov;
+	int iovcnt __maybe_unused = uio->uio_iovcnt;
 #endif
 
 

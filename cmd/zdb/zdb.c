@@ -4664,7 +4664,7 @@ zdb_leak_fini(spa_t *spa, zdb_cb_t *zcb)
 	vdev_t *rvd = spa->spa_root_vdev;
 	for (unsigned c = 0; c < rvd->vdev_children; c++) {
 		vdev_t *vd = rvd->vdev_child[c];
-		ASSERTV(metaslab_group_t *mg = vd->vdev_mg);
+		metaslab_group_t *mg __maybe_unused = vd->vdev_mg;
 
 		if (zcb->zcb_vd_obsolete_counts[c] != NULL) {
 			leaks |= zdb_check_for_obsolete_leaks(vd, zcb);
