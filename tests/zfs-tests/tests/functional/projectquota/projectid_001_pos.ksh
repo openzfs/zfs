@@ -38,8 +38,8 @@
 #
 #
 # STRATEGY:
-#	1. Create a regular file and a directroy.
-#	2. Set project ID on both directroy and regular file.
+#	1. Create a regular file and a directory.
+#	2. Set project ID on both directory and regular file.
 #	3. New created subdir or regular file should inherit its parent's
 #	   project ID if its parent has project inherit flag.
 #	4. New created subdir should inherit its parent project's inherit flag.
@@ -53,6 +53,16 @@ function cleanup
 
 if ! lsattr -pd > /dev/null 2>&1; then
 	log_unsupported "Current e2fsprogs does not support set/show project ID"
+fi
+
+#
+# e2fsprogs-1.44.4 incorrectly reports verity 'V' bit when the project 'P'
+# bit is set.  Skip this test when 1.44.4 is installed to prevent failures.
+#
+# https://github.com/tytso/e2fsprogs/commit/7e5a95e3d
+#
+if lsattr -V 2>&1 | grep "lsattr 1.44.4"; then
+	log_unsupported "Current e2fsprogs incorrectly reports 'V' verity bit"
 fi
 
 log_onexit cleanup

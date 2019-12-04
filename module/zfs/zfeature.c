@@ -41,9 +41,9 @@
  * spa_version() number.
  *
  * Each new on-disk format change will be given a uniquely identifying string
- * guid rather than a version number. This avoids the problem of different
+ * GUID rather than a version number. This avoids the problem of different
  * organizations creating new on-disk formats with the same version number. To
- * keep feature guids unique they should consist of the reverse dns name of the
+ * keep feature GUIDs unique they should consist of the reverse dns name of the
  * organization which implemented the feature and a short name for the feature,
  * separated by a colon (e.g. com.delphix:async_destroy).
  *
@@ -95,11 +95,11 @@
  * These objects are linked to by the following names in the pool directory
  * object:
  *
- * 1) features_for_read: feature guid -> reference count
+ * 1) features_for_read: feature GUID -> reference count
  *    Features needed to open the pool for reading.
- * 2) features_for_write: feature guid -> reference count
+ * 2) features_for_write: feature GUID -> reference count
  *    Features needed to open the pool for writing.
- * 3) feature_descriptions: feature guid -> descriptive string
+ * 3) feature_descriptions: feature GUID -> descriptive string
  *    A human readable string.
  *
  * All enabled features appear in either features_for_read or
@@ -376,6 +376,19 @@ feature_enable_sync(spa_t *spa, zfeature_info_t *feature, dmu_tx_t *tx)
 		    spa->spa_feat_enabled_txg_obj, feature->fi_guid,
 		    sizeof (uint64_t), 1, &enabling_txg, tx));
 	}
+
+	/*
+	 * Errata #4 is mostly a problem with encrypted datasets, but it
+	 * is also a problem where the old encryption feature did not
+	 * depend on the bookmark_v2 feature. If the pool does not have
+	 * any encrypted datasets we can resolve this issue simply by
+	 * enabling this dependency.
+	 */
+	if (spa->spa_errata == ZPOOL_ERRATA_ZOL_8308_ENCRYPTION &&
+	    spa_feature_is_enabled(spa, SPA_FEATURE_ENCRYPTION) &&
+	    !spa_feature_is_active(spa, SPA_FEATURE_ENCRYPTION) &&
+	    feature->fi_feature == SPA_FEATURE_BOOKMARK_V2)
+		spa->spa_errata = 0;
 }
 
 static void

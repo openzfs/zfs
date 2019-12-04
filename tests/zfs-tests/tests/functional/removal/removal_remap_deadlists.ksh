@@ -42,7 +42,14 @@ fi
 log_mustnot vdevs_in_pool $TESTPOOL $REMOVEDISK
 log_must zdb -cd $TESTPOOL
 
-log_must zfs remap $TESTPOOL/$TESTFS
+#
+# Touch one block under each L1 indirect block, so that the other data blocks
+# will be remapped to their concrete locations.  These parameters assume
+# recordsize=128K, indirect block size of 128K (1024 block pointers per
+# indirect block), and file size of less than 3*1024 blocks (384MB).
+#
+log_must stride_dd -i /dev/urandom -o $TESTDIR/file -b 131072 -c 3 -s 1024
+
 log_must zdb -cd $TESTPOOL
 
 log_must zfs snapshot $TESTPOOL/$TESTFS@snap-post3

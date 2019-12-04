@@ -7,8 +7,7 @@ VPATH = \
 SUBDIRS = include $(TARGET_ASM_DIR)
 DIST_SUBDIRS = include asm-generic asm-i386 asm-x86_64
 
-DEFAULT_INCLUDES += \
-	-I$(top_srcdir)/lib/libspl/include
+AM_CFLAGS += $(LIBTIRPC_CFLAGS)
 
 AM_CCASFLAGS = \
 	$(CFLAGS)
@@ -16,9 +15,6 @@ AM_CCASFLAGS = \
 noinst_LTLIBRARIES = libspl.la
 
 USER_C = \
-	getexecname.c \
-	gethostid.c \
-	getmntany.c \
 	list.c \
 	mkdirp.c \
 	page.c \
@@ -29,12 +25,19 @@ USER_C = \
 	include/sys/list.h \
 	include/sys/list_impl.h
 
+if BUILD_LINUX
+USER_C += \
+	os/linux/getexecname.c \
+	os/linux/gethostid.c \
+	os/linux/getmntany.c
+endif
+
 USER_ASM = atomic.S
 
 nodist_libspl_la_SOURCES = \
 	$(USER_C) \
 	$(USER_ASM)
 
-libspl_la_LIBADD = -lrt
+libspl_la_LIBADD = -lrt $(LIBTIRPC_LIBS)
 
 EXTRA_DIST = $(USER_C)

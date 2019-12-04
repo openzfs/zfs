@@ -6,3 +6,4 @@ zfs-generator.sh
 zfs-lib.sh
 zfs-load-key.sh
 zfs-needshutdown.sh
+zfs-env-bootfs.service

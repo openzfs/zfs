@@ -20,6 +20,11 @@
 # CDDL HEADER END
 #
 
+#
+# Copyright (c) 2016 by Lawrence Livermore National Security, LLC.
+# Use is subject to license terms.
+#
+
 . $STF_SUITE/include/libtest.shlib
 
 default_cleanup

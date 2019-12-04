@@ -47,6 +47,7 @@ Format:
 - a value can be a list of dictionaries that adhere to this format
 - all elements of a list value must be of the same type
 """
+from __future__ import absolute_import, division, print_function
 
 import numbers
 from collections import namedtuple
@@ -112,7 +113,7 @@ def packed_nvlist_out(packed_nvlist, packed_size):
 
     :param bytes packed_nvlist: packed nvlist_t.
     :param int packed_size: nvlist_t packed size.
-    :return: an `dict` of values representing the data containted by nvlist_t.
+    :return: an `dict` of values representing the data contained by nvlist_t.
     :rtype: dict
     """
     props = {}
@@ -159,10 +160,10 @@ def _type_info(typeid):
 
 # only integer properties need to be here
 _prop_name_to_type_str = {
-    "rewind-request":   "uint32",
-    "type":             "uint32",
-    "N_MORE_ERRORS":    "int32",
-    "pool_context":     "int32",
+    b"rewind-request":   "uint32",
+    b"type":             "uint32",
+    b"N_MORE_ERRORS":    "int32",
+    b"pool_context":     "int32",
 }
 
 

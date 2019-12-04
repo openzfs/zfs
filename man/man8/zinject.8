@@ -85,13 +85,13 @@ Simulate a hardware failure that fails to honor a cache flush.
 .B "zinject \-p \fIfunction\fB \fIpool\fB
 Panic inside the specified function.
 .TP
-.B "zinject \-t data [\-e \fIdevice_error\fB] [\-f \fIfrequency\fB] [\-l \fIlevel\fB] [\-r \fIrange\fB] [\-amq] \fIpath\fB"
+.B "zinject \-t data [\-C \fIdvas\fB] [\-e \fIdevice_error\fB] [\-f \fIfrequency\fB] [\-l \fIlevel\fB] [\-r \fIrange\fB] [\-amq] \fIpath\fB"
 Force an error into the contents of a file.
 .TP
-.B "zinject \-t dnode [\-e \fIdevice_error\fB] [\-f \fIfrequency\fB] [\-l \fIlevel\fB] [\-amq] \fIpath\fB"
+.B "zinject \-t dnode [\-C \fIdvas\fB] [\-e \fIdevice_error\fB] [\-f \fIfrequency\fB] [\-l \fIlevel\fB] [\-amq] \fIpath\fB"
 Force an error into the metadnode for a file or directory.
 .TP
-.B "zinject \-t \fImos_type\fB [\-e \fIdevice_error\fB] [\-f \fIfrequency\fB] [\-l \fIlevel\fB] [\-r \fIrange\fB] [\-amqu] \fIpool\fB"
+.B "zinject \-t \fImos_type\fB [\-C \fIdvas\fB] [\-e \fIdevice_error\fB] [\-f \fIfrequency\fB] [\-l \fIlevel\fB] [\-r \fIrange\fB] [\-amqu] \fIpool\fB"
 Force an error into the MOS of a pool.
 .SH OPTIONS
 .TP
@@ -101,6 +101,14 @@ Flush the ARC before injection.
 .BI "\-b" " objset:object:level:start:end"
 Force an error into the pool at this bookmark tuple. Each number is
 in hexadecimal, and only one block can be specified.
+.TP
+.BI "\-C" " dvas"
+Inject the given error only into specific DVAs. The mask should be
+specified as a list of 0-indexed DVAs separated by commas (ex. '0,2'). This
+option is not applicable to logical data errors such as
+.BR "decompress"
+and
+.BR "decrypt" .
 .TP
 .BI "\-d" " vdev"
 A vdev specified by path or GUID.

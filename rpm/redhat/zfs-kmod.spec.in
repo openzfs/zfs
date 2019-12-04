@@ -41,6 +41,7 @@ This package contains the ZFS kernel modules.
 %package -n kmod-%{kmod_name}-devel
 Summary:        ZFS kernel module(s) devel common
 Group:          System Environment/Kernel
+Provides:       kmod-spl-devel = %{version}
 
 %description -n  kmod-%{kmod_name}-devel
 This package provides the header files and objects to build kernel modules.

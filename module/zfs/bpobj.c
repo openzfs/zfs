@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2017 Datto Inc.
  */
 
@@ -83,6 +83,9 @@ bpobj_alloc(objset_t *os, int blocksize, dmu_tx_t *tx)
 		size = BPOBJ_SIZE_V0;
 	else if (spa_version(dmu_objset_spa(os)) < SPA_VERSION_DEADLISTS)
 		size = BPOBJ_SIZE_V1;
+	else if (!spa_feature_is_active(dmu_objset_spa(os),
+	    SPA_FEATURE_LIVELIST))
+		size = BPOBJ_SIZE_V2;
 	else
 		size = sizeof (bpobj_phys_t);
 
@@ -171,6 +174,7 @@ bpobj_open(bpobj_t *bpo, objset_t *os, uint64_t object)
 	bpo->bpo_epb = doi.doi_data_block_size >> SPA_BLKPTRSHIFT;
 	bpo->bpo_havecomp = (doi.doi_bonus_size > BPOBJ_SIZE_V0);
 	bpo->bpo_havesubobj = (doi.doi_bonus_size > BPOBJ_SIZE_V1);
+	bpo->bpo_havefreed = (doi.doi_bonus_size > BPOBJ_SIZE_V2);
 	bpo->bpo_phys = bpo->bpo_dbuf->db_data;
 	return (0);
 }
@@ -199,42 +203,96 @@ bpobj_close(bpobj_t *bpo)
 	mutex_destroy(&bpo->bpo_lock);
 }
 
-boolean_t
-bpobj_is_empty(bpobj_t *bpo)
+static boolean_t
+bpobj_is_empty_impl(bpobj_t *bpo)
 {
+	ASSERT(MUTEX_HELD(&bpo->bpo_lock));
 	return (bpo->bpo_phys->bpo_num_blkptrs == 0 &&
 	    (!bpo->bpo_havesubobj || bpo->bpo_phys->bpo_num_subobjs == 0));
 }
 
-static int
-bpobj_iterate_impl(bpobj_t *bpo, bpobj_itor_t func, void *arg, dmu_tx_t *tx,
-    boolean_t free)
+boolean_t
+bpobj_is_empty(bpobj_t *bpo)
 {
-	dmu_object_info_t doi;
-	int epb;
-	int64_t i;
-	int err = 0;
-	dmu_buf_t *dbuf = NULL;
-
-	ASSERT(bpobj_is_open(bpo));
 	mutex_enter(&bpo->bpo_lock);
+	boolean_t is_empty = bpobj_is_empty_impl(bpo);
+	mutex_exit(&bpo->bpo_lock);
+	return (is_empty);
+}
 
-	if (free)
-		dmu_buf_will_dirty(bpo->bpo_dbuf, tx);
+/*
+ * A recursive iteration of the bpobjs would be nice here but we run the risk
+ * of overflowing function stack space.  Instead, find each subobj and add it
+ * to the head of our list so it can be scanned for subjobjs.  Like a
+ * recursive implementation, the "deepest" subobjs will be freed first.
+ * When a subobj is found to have no additional subojs, free it.
+ */
+typedef struct bpobj_info {
+	bpobj_t *bpi_bpo;
+	/*
+	 * This object is a subobj of bpi_parent,
+	 * at bpi_index in its subobj array.
+	 */
+	struct bpobj_info *bpi_parent;
+	uint64_t bpi_index;
+	/* How many of our subobj's are left to process. */
+	uint64_t bpi_unprocessed_subobjs;
+	/* True after having visited this bpo's directly referenced BPs. */
+	boolean_t bpi_visited;
+	list_node_t bpi_node;
+} bpobj_info_t;
 
-	for (i = bpo->bpo_phys->bpo_num_blkptrs - 1; i >= 0; i--) {
-		blkptr_t *bparray;
-		blkptr_t *bp;
-		uint64_t offset, blkoff;
+static bpobj_info_t *
+bpi_alloc(bpobj_t *bpo, bpobj_info_t *parent, uint64_t index)
+{
+	bpobj_info_t *bpi = kmem_zalloc(sizeof (bpobj_info_t), KM_SLEEP);
+	bpi->bpi_bpo = bpo;
+	bpi->bpi_parent = parent;
+	bpi->bpi_index = index;
+	if (bpo->bpo_havesubobj && bpo->bpo_phys->bpo_subobjs != 0) {
+		bpi->bpi_unprocessed_subobjs = bpo->bpo_phys->bpo_num_subobjs;
+	}
+	return (bpi);
+}
 
-		offset = i * sizeof (blkptr_t);
-		blkoff = P2PHASE(i, bpo->bpo_epb);
+/*
+ * Update bpobj and all of its parents with new space accounting.
+ */
+static void
+propagate_space_reduction(bpobj_info_t *bpi, int64_t freed,
+    int64_t comp_freed, int64_t uncomp_freed, dmu_tx_t *tx)
+{
+
+	for (; bpi != NULL; bpi = bpi->bpi_parent) {
+		bpobj_t *p = bpi->bpi_bpo;
+		ASSERT(dmu_buf_is_dirty(p->bpo_dbuf, tx));
+		p->bpo_phys->bpo_bytes -= freed;
+		ASSERT3S(p->bpo_phys->bpo_bytes, >=, 0);
+		if (p->bpo_havecomp) {
+			p->bpo_phys->bpo_comp -= comp_freed;
+			p->bpo_phys->bpo_uncomp -= uncomp_freed;
+		}
+	}
+}
+
+static int
+bpobj_iterate_blkptrs(bpobj_info_t *bpi, bpobj_itor_t func, void *arg,
+    int64_t start, dmu_tx_t *tx, boolean_t free)
+{
+	int err = 0;
+	int64_t freed = 0, comp_freed = 0, uncomp_freed = 0;
+	dmu_buf_t *dbuf = NULL;
+	bpobj_t *bpo = bpi->bpi_bpo;
+
+	for (int64_t i = bpo->bpo_phys->bpo_num_blkptrs - 1; i >= start; i--) {
+		uint64_t offset = i * sizeof (blkptr_t);
+		uint64_t blkoff = P2PHASE(i, bpo->bpo_epb);
 
 		if (dbuf == NULL || dbuf->db_offset > offset) {
 			if (dbuf)
 				dmu_buf_rele(dbuf, FTAG);
-			err = dmu_buf_hold(bpo->bpo_os, bpo->bpo_object, offset,
-			    FTAG, &dbuf, 0);
+			err = dmu_buf_hold(bpo->bpo_os, bpo->bpo_object,
+			    offset, FTAG, &dbuf, 0);
 			if (err)
 				break;
 		}
@@ -242,119 +300,213 @@ bpobj_iterate_impl(bpobj_t *bpo, bpobj_itor_t func, void *arg, dmu_tx_t *tx,
 		ASSERT3U(offset, >=, dbuf->db_offset);
 		ASSERT3U(offset, <, dbuf->db_offset + dbuf->db_size);
 
-		bparray = dbuf->db_data;
-		bp = &bparray[blkoff];
-		err = func(arg, bp, tx);
+		blkptr_t *bparray = dbuf->db_data;
+		blkptr_t *bp = &bparray[blkoff];
+
+		boolean_t bp_freed = BP_GET_FREE(bp);
+		err = func(arg, bp, bp_freed, tx);
 		if (err)
 			break;
+
 		if (free) {
-			bpo->bpo_phys->bpo_bytes -=
-			    bp_get_dsize_sync(dmu_objset_spa(bpo->bpo_os), bp);
-			ASSERT3S(bpo->bpo_phys->bpo_bytes, >=, 0);
-			if (bpo->bpo_havecomp) {
-				bpo->bpo_phys->bpo_comp -= BP_GET_PSIZE(bp);
-				bpo->bpo_phys->bpo_uncomp -= BP_GET_UCSIZE(bp);
-			}
+			int sign = bp_freed ? -1 : +1;
+			spa_t *spa = dmu_objset_spa(bpo->bpo_os);
+			freed += sign * bp_get_dsize_sync(spa, bp);
+			comp_freed += sign * BP_GET_PSIZE(bp);
+			uncomp_freed += sign * BP_GET_UCSIZE(bp);
+			ASSERT(dmu_buf_is_dirty(bpo->bpo_dbuf, tx));
 			bpo->bpo_phys->bpo_num_blkptrs--;
 			ASSERT3S(bpo->bpo_phys->bpo_num_blkptrs, >=, 0);
-		}
-	}
-	if (dbuf) {
-		dmu_buf_rele(dbuf, FTAG);
-		dbuf = NULL;
-	}
-	if (free) {
-		VERIFY3U(0, ==, dmu_free_range(bpo->bpo_os, bpo->bpo_object,
-		    (i + 1) * sizeof (blkptr_t), DMU_OBJECT_END, tx));
-	}
-	if (err || !bpo->bpo_havesubobj || bpo->bpo_phys->bpo_subobjs == 0)
-		goto out;
-
-	ASSERT(bpo->bpo_havecomp);
-	err = dmu_object_info(bpo->bpo_os, bpo->bpo_phys->bpo_subobjs, &doi);
-	if (err) {
-		mutex_exit(&bpo->bpo_lock);
-		return (err);
-	}
-	ASSERT3U(doi.doi_type, ==, DMU_OT_BPOBJ_SUBOBJ);
-	epb = doi.doi_data_block_size / sizeof (uint64_t);
-
-	for (i = bpo->bpo_phys->bpo_num_subobjs - 1; i >= 0; i--) {
-		uint64_t *objarray;
-		uint64_t offset, blkoff;
-		bpobj_t sublist;
-		uint64_t used_before, comp_before, uncomp_before;
-		uint64_t used_after, comp_after, uncomp_after;
-
-		offset = i * sizeof (uint64_t);
-		blkoff = P2PHASE(i, epb);
-
-		if (dbuf == NULL || dbuf->db_offset > offset) {
-			if (dbuf)
-				dmu_buf_rele(dbuf, FTAG);
-			err = dmu_buf_hold(bpo->bpo_os,
-			    bpo->bpo_phys->bpo_subobjs, offset, FTAG, &dbuf, 0);
-			if (err)
-				break;
-		}
-
-		ASSERT3U(offset, >=, dbuf->db_offset);
-		ASSERT3U(offset, <, dbuf->db_offset + dbuf->db_size);
-
-		objarray = dbuf->db_data;
-		err = bpobj_open(&sublist, bpo->bpo_os, objarray[blkoff]);
-		if (err)
-			break;
-		if (free) {
-			err = bpobj_space(&sublist,
-			    &used_before, &comp_before, &uncomp_before);
-			if (err != 0) {
-				bpobj_close(&sublist);
-				break;
+			if (bp_freed) {
+				ASSERT(bpo->bpo_havefreed);
+				bpo->bpo_phys->bpo_num_freed--;
+				ASSERT3S(bpo->bpo_phys->bpo_num_freed, >=, 0);
 			}
 		}
-		err = bpobj_iterate_impl(&sublist, func, arg, tx, free);
-		if (free) {
-			VERIFY3U(0, ==, bpobj_space(&sublist,
-			    &used_after, &comp_after, &uncomp_after));
-			bpo->bpo_phys->bpo_bytes -= used_before - used_after;
-			ASSERT3S(bpo->bpo_phys->bpo_bytes, >=, 0);
-			bpo->bpo_phys->bpo_comp -= comp_before - comp_after;
-			bpo->bpo_phys->bpo_uncomp -=
-			    uncomp_before - uncomp_after;
-		}
-
-		bpobj_close(&sublist);
-		if (err)
-			break;
-		if (free) {
-			err = dmu_object_free(bpo->bpo_os,
-			    objarray[blkoff], tx);
-			if (err)
-				break;
-			bpo->bpo_phys->bpo_num_subobjs--;
-			ASSERT3S(bpo->bpo_phys->bpo_num_subobjs, >=, 0);
-		}
+	}
+	if (free) {
+		propagate_space_reduction(bpi, freed, comp_freed,
+		    uncomp_freed, tx);
+		VERIFY0(dmu_free_range(bpo->bpo_os,
+		    bpo->bpo_object,
+		    bpo->bpo_phys->bpo_num_blkptrs * sizeof (blkptr_t),
+		    DMU_OBJECT_END, tx));
 	}
 	if (dbuf) {
 		dmu_buf_rele(dbuf, FTAG);
 		dbuf = NULL;
 	}
-	if (free) {
-		VERIFY3U(0, ==, dmu_free_range(bpo->bpo_os,
-		    bpo->bpo_phys->bpo_subobjs,
-		    (i + 1) * sizeof (uint64_t), DMU_OBJECT_END, tx));
+	return (err);
+}
+
+/*
+ * Given an initial bpo, start by freeing the BPs that are directly referenced
+ * by that bpo. If the bpo has subobjs, read in its last subobj and push the
+ * subobj to our stack. By popping items off our stack, eventually we will
+ * encounter a bpo that has no subobjs.  We can free its bpobj_info_t, and if
+ * requested also free the now-empty bpo from disk and decrement
+ * its parent's subobj count. We continue popping each subobj from our stack,
+ * visiting its last subobj until they too have no more subobjs, and so on.
+ */
+static int
+bpobj_iterate_impl(bpobj_t *initial_bpo, bpobj_itor_t func, void *arg,
+    dmu_tx_t *tx, boolean_t free, uint64_t *bpobj_size)
+{
+	list_t stack;
+	bpobj_info_t *bpi;
+	int err = 0;
+
+	/*
+	 * Create a "stack" for us to work with without worrying about
+	 * stack overflows. Initialize it with the initial_bpo.
+	 */
+	list_create(&stack, sizeof (bpobj_info_t),
+	    offsetof(bpobj_info_t, bpi_node));
+	mutex_enter(&initial_bpo->bpo_lock);
+
+	if (bpobj_size != NULL)
+		*bpobj_size = initial_bpo->bpo_phys->bpo_num_blkptrs;
+
+	list_insert_head(&stack, bpi_alloc(initial_bpo, NULL, 0));
+
+	while ((bpi = list_head(&stack)) != NULL) {
+		bpobj_t *bpo = bpi->bpi_bpo;
+
+		ASSERT3P(bpo, !=, NULL);
+		ASSERT(MUTEX_HELD(&bpo->bpo_lock));
+		ASSERT(bpobj_is_open(bpo));
+
+		if (free)
+			dmu_buf_will_dirty(bpo->bpo_dbuf, tx);
+
+		if (bpi->bpi_visited == B_FALSE) {
+			err = bpobj_iterate_blkptrs(bpi, func, arg, 0, tx,
+			    free);
+			bpi->bpi_visited = B_TRUE;
+			if (err != 0)
+				break;
+		}
+		/*
+		 * We've finished with this bpo's directly-referenced BP's and
+		 * it has no more unprocessed subobjs. We can free its
+		 * bpobj_info_t (unless it is the topmost, initial_bpo).
+		 * If we are freeing from disk, we can also do that.
+		 */
+		if (bpi->bpi_unprocessed_subobjs == 0) {
+			/*
+			 * If there are no entries, there should
+			 * be no bytes.
+			 */
+			if (bpobj_is_empty_impl(bpo)) {
+				ASSERT0(bpo->bpo_phys->bpo_bytes);
+				ASSERT0(bpo->bpo_phys->bpo_comp);
+				ASSERT0(bpo->bpo_phys->bpo_uncomp);
+			}
+
+			/* The initial_bpo has no parent and is not closed. */
+			if (bpi->bpi_parent != NULL) {
+				if (free) {
+					bpobj_t *p = bpi->bpi_parent->bpi_bpo;
+
+					ASSERT0(bpo->bpo_phys->bpo_num_blkptrs);
+					ASSERT3U(p->bpo_phys->bpo_num_subobjs,
+					    >, 0);
+					ASSERT3U(bpi->bpi_index, ==,
+					    p->bpo_phys->bpo_num_subobjs - 1);
+					ASSERT(dmu_buf_is_dirty(bpo->bpo_dbuf,
+					    tx));
+
+					p->bpo_phys->bpo_num_subobjs--;
+
+					VERIFY0(dmu_free_range(p->bpo_os,
+					    p->bpo_phys->bpo_subobjs,
+					    bpi->bpi_index * sizeof (uint64_t),
+					    sizeof (uint64_t), tx));
+
+					/* eliminate the empty subobj list */
+					if (bpo->bpo_havesubobj &&
+					    bpo->bpo_phys->bpo_subobjs != 0) {
+						ASSERT0(bpo->bpo_phys->
+						    bpo_num_subobjs);
+						err = dmu_object_free(
+						    bpo->bpo_os,
+						    bpo->bpo_phys->bpo_subobjs,
+						    tx);
+						if (err)
+							break;
+						bpo->bpo_phys->bpo_subobjs = 0;
+					}
+					err = dmu_object_free(p->bpo_os,
+					    bpo->bpo_object, tx);
+					if (err)
+						break;
+				}
+
+				mutex_exit(&bpo->bpo_lock);
+				bpobj_close(bpo);
+				kmem_free(bpo, sizeof (bpobj_t));
+			} else {
+				mutex_exit(&bpo->bpo_lock);
+			}
+
+			/*
+			 * Finished processing this bpo. Unlock, and free
+			 * our "stack" info.
+			 */
+			list_remove_head(&stack);
+			kmem_free(bpi, sizeof (bpobj_info_t));
+		} else {
+			/*
+			 * We have unprocessed subobjs. Process the next one.
+			 */
+			ASSERT(bpo->bpo_havecomp);
+			ASSERT3P(bpobj_size, ==, NULL);
+
+			/* Add the last subobj to stack. */
+			int64_t i = bpi->bpi_unprocessed_subobjs - 1;
+			uint64_t offset = i * sizeof (uint64_t);
+
+			uint64_t obj_from_sublist;
+			err = dmu_read(bpo->bpo_os, bpo->bpo_phys->bpo_subobjs,
+			    offset, sizeof (uint64_t), &obj_from_sublist,
+			    DMU_READ_PREFETCH);
+			if (err)
+				break;
+			bpobj_t *sublist = kmem_alloc(sizeof (bpobj_t),
+			    KM_SLEEP);
+
+			err = bpobj_open(sublist, bpo->bpo_os,
+			    obj_from_sublist);
+			if (err)
+				break;
+
+			list_insert_head(&stack, bpi_alloc(sublist, bpi, i));
+			mutex_enter(&sublist->bpo_lock);
+			bpi->bpi_unprocessed_subobjs--;
+		}
+	}
+	/*
+	 * Cleanup anything left on the "stack" after we left the loop.
+	 * Every bpo on the stack is locked so we must remember to undo
+	 * that now (in LIFO order).
+	 */
+	while ((bpi = list_remove_head(&stack)) != NULL) {
+		bpobj_t *bpo = bpi->bpi_bpo;
+		ASSERT(err != 0);
+		ASSERT3P(bpo, !=, NULL);
+
+		mutex_exit(&bpo->bpo_lock);
+
+		/* do not free the initial_bpo */
+		if (bpi->bpi_parent != NULL) {
+			bpobj_close(bpi->bpi_bpo);
+			kmem_free(bpi->bpi_bpo, sizeof (bpobj_t));
+		}
+		kmem_free(bpi, sizeof (bpobj_info_t));
 	}
 
-out:
-	/* If there are no entries, there should be no bytes. */
-	if (bpobj_is_empty(bpo)) {
-		ASSERT0(bpo->bpo_phys->bpo_bytes);
-		ASSERT0(bpo->bpo_phys->bpo_comp);
-		ASSERT0(bpo->bpo_phys->bpo_uncomp);
-	}
+	list_destroy(&stack);
 
-	mutex_exit(&bpo->bpo_lock);
 	return (err);
 }
 
@@ -365,16 +517,45 @@ out:
 int
 bpobj_iterate(bpobj_t *bpo, bpobj_itor_t func, void *arg, dmu_tx_t *tx)
 {
-	return (bpobj_iterate_impl(bpo, func, arg, tx, B_TRUE));
+	return (bpobj_iterate_impl(bpo, func, arg, tx, B_TRUE, NULL));
 }
 
 /*
  * Iterate the entries.  If func returns nonzero, iteration will stop.
+ *
+ * If there are no subobjs:
+ *
+ * *bpobj_size can be used to return the number of block pointers in the
+ * bpobj.  Note that this may be different from the number of block pointers
+ * that are iterated over, if iteration is terminated early (e.g. by the func
+ * returning nonzero).
+ *
+ * If there are concurrent (or subsequent) modifications to the bpobj then the
+ * returned *bpobj_size can be passed as "start" to
+ * livelist_bpobj_iterate_from_nofree() to iterate the newly added entries.
  */
 int
-bpobj_iterate_nofree(bpobj_t *bpo, bpobj_itor_t func, void *arg, dmu_tx_t *tx)
+bpobj_iterate_nofree(bpobj_t *bpo, bpobj_itor_t func, void *arg,
+    uint64_t *bpobj_size)
 {
-	return (bpobj_iterate_impl(bpo, func, arg, tx, B_FALSE));
+	return (bpobj_iterate_impl(bpo, func, arg, NULL, B_FALSE, bpobj_size));
+}
+
+/*
+ * Iterate over the blkptrs in the bpobj beginning at index start. If func
+ * returns nonzero, iteration will stop. This is a livelist specific function
+ * since it assumes that there are no subobjs present.
+ */
+int
+livelist_bpobj_iterate_from_nofree(bpobj_t *bpo, bpobj_itor_t func, void *arg,
+    int64_t start)
+{
+	if (bpo->bpo_havesubobj)
+		VERIFY0(bpo->bpo_phys->bpo_subobjs);
+	bpobj_info_t *bpi = bpi_alloc(bpo, NULL, 0);
+	int err = bpobj_iterate_blkptrs(bpi, func, arg, start, NULL, B_FALSE);
+	kmem_free(bpi, sizeof (bpobj_info_t));
+	return (err);
 }
 
 /*
@@ -600,7 +781,8 @@ bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx)
 }
 
 void
-bpobj_enqueue(bpobj_t *bpo, const blkptr_t *bp, dmu_tx_t *tx)
+bpobj_enqueue(bpobj_t *bpo, const blkptr_t *bp, boolean_t bp_freed,
+    dmu_tx_t *tx)
 {
 	blkptr_t stored_bp = *bp;
 	uint64_t offset;
@@ -631,8 +813,8 @@ bpobj_enqueue(bpobj_t *bpo, const blkptr_t *bp, dmu_tx_t *tx)
 		bzero(&stored_bp.blk_cksum, sizeof (stored_bp.blk_cksum));
 	}
 
-	/* We never need the fill count. */
 	stored_bp.blk_fill = 0;
+	BP_SET_FREE(&stored_bp, bp_freed);
 
 	mutex_enter(&bpo->bpo_lock);
 
@@ -655,11 +837,16 @@ bpobj_enqueue(bpobj_t *bpo, const blkptr_t *bp, dmu_tx_t *tx)
 
 	dmu_buf_will_dirty(bpo->bpo_dbuf, tx);
 	bpo->bpo_phys->bpo_num_blkptrs++;
-	bpo->bpo_phys->bpo_bytes +=
+	int sign = bp_freed ? -1 : +1;
+	bpo->bpo_phys->bpo_bytes += sign *
 	    bp_get_dsize_sync(dmu_objset_spa(bpo->bpo_os), bp);
 	if (bpo->bpo_havecomp) {
-		bpo->bpo_phys->bpo_comp += BP_GET_PSIZE(bp);
-		bpo->bpo_phys->bpo_uncomp += BP_GET_UCSIZE(bp);
+		bpo->bpo_phys->bpo_comp += sign * BP_GET_PSIZE(bp);
+		bpo->bpo_phys->bpo_uncomp += sign * BP_GET_UCSIZE(bp);
+	}
+	if (bp_freed) {
+		ASSERT(bpo->bpo_havefreed);
+		bpo->bpo_phys->bpo_num_freed++;
 	}
 	mutex_exit(&bpo->bpo_lock);
 }
@@ -675,7 +862,7 @@ struct space_range_arg {
 
 /* ARGSUSED */
 static int
-space_range_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
+space_range_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed, dmu_tx_t *tx)
 {
 	struct space_range_arg *sra = arg;
 
@@ -738,4 +925,19 @@ bpobj_space_range(bpobj_t *bpo, uint64_t mintxg, uint64_t maxtxg,
 	*compp = sra.comp;
 	*uncompp = sra.uncomp;
 	return (err);
+}
+
+/*
+ * A bpobj_itor_t to append blkptrs to a bplist. Note that while blkptrs in a
+ * bpobj are designated as free or allocated that information is not preserved
+ * in bplists.
+ */
+/* ARGSUSED */
+int
+bplist_append_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed,
+    dmu_tx_t *tx)
+{
+	bplist_t *bpl = arg;
+	bplist_append(bpl, bp);
+	return (0);
 }

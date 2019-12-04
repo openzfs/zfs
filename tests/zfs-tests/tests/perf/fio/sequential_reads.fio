@@ -26,6 +26,7 @@ runtime=${RUNTIME}
 bs=${BLOCKSIZE}
 ioengine=psync
 sync=${SYNC_TYPE}
+direct=${DIRECT}
 numjobs=${NUMJOBS}
 
 [job]

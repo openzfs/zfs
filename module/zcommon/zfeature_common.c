@@ -163,25 +163,49 @@ deps_contains_feature(const spa_feature_t *deps, const spa_feature_t feature)
 static boolean_t
 zfs_mod_supported_impl(const char *scope, const char *name, const char *sysfs)
 {
-	struct stat64 statbuf;
-	char *path;
 	boolean_t supported = B_FALSE;
-	int len;
+	char *path;
 
-	len = asprintf(&path, "%s/%s/%s", sysfs, scope, name);
-
+	int len = asprintf(&path, "%s%s%s%s%s", sysfs,
+	    scope == NULL ? "" : "/", scope == NULL ? "" : scope,
+	    name == NULL ? "" : "/", name == NULL ? "" : name);
 	if (len > 0) {
+		struct stat64 statbuf;
 		supported = !!(stat64(path, &statbuf) == 0);
 		free(path);
 	}
+
 	return (supported);
 }
 
 boolean_t
 zfs_mod_supported(const char *scope, const char *name)
 {
-	return (zfs_mod_supported_impl(scope, name, ZFS_SYSFS_DIR) ||
+	boolean_t supported;
+
+	/*
+	 * Check both the primary and alternate sysfs locations to determine
+	 * if the required functionality is supported.
+	 */
+	supported = (zfs_mod_supported_impl(scope, name, ZFS_SYSFS_DIR) ||
 	    zfs_mod_supported_impl(scope, name, ZFS_SYSFS_ALT_DIR));
+
+	/*
+	 * For backwards compatibility with kernel modules that predate
+	 * supported feature/property checking.  Report the feature/property
+	 * as supported if the kernel module is loaded but the requested
+	 * scope directory does not exist.
+	 */
+	if (supported == B_FALSE) {
+		struct stat64 statbuf;
+		if ((stat64(ZFS_SYSFS_DIR, &statbuf) == 0) &&
+		    !zfs_mod_supported_impl(scope, NULL, ZFS_SYSFS_DIR) &&
+		    !zfs_mod_supported_impl(scope, NULL, ZFS_SYSFS_ALT_DIR)) {
+			supported = B_TRUE;
+		}
+	}
+
+	return (supported);
 }
 #endif
 
@@ -325,6 +349,31 @@ zpool_feature_init(void)
 	    ZFEATURE_TYPE_BOOLEAN, NULL);
 
 	{
+	static const spa_feature_t livelist_deps[] = {
+		SPA_FEATURE_EXTENSIBLE_DATASET,
+		SPA_FEATURE_NONE
+	};
+	zfeature_register(SPA_FEATURE_LIVELIST,
+	    "com.delphix:livelist", "livelist",
+	    "Improved clone deletion performance.",
+	    ZFEATURE_FLAG_READONLY_COMPAT, ZFEATURE_TYPE_BOOLEAN,
+	    livelist_deps);
+	}
+
+	{
+	static const spa_feature_t log_spacemap_deps[] = {
+		SPA_FEATURE_SPACEMAP_V2,
+		SPA_FEATURE_NONE
+	};
+	zfeature_register(SPA_FEATURE_LOG_SPACEMAP,
+	    "com.delphix:log_spacemap", "log_spacemap",
+	    "Log metaslab changes on a single spacemap and "
+	    "flush them periodically.",
+	    ZFEATURE_FLAG_READONLY_COMPAT, ZFEATURE_TYPE_BOOLEAN,
+	    log_spacemap_deps);
+	}
+
+	{
 	static const spa_feature_t large_blocks_deps[] = {
 		SPA_FEATURE_EXTENSIBLE_DATASET,
 		SPA_FEATURE_NONE
@@ -384,6 +433,47 @@ zpool_feature_init(void)
 	    edonr_deps);
 	}
 
+	{
+	static const spa_feature_t redact_books_deps[] = {
+		SPA_FEATURE_BOOKMARK_V2,
+		SPA_FEATURE_EXTENSIBLE_DATASET,
+		SPA_FEATURE_BOOKMARKS,
+		SPA_FEATURE_NONE
+	};
+	zfeature_register(SPA_FEATURE_REDACTION_BOOKMARKS,
+	    "com.delphix:redaction_bookmarks", "redaction_bookmarks",
+	    "Support for bookmarks which store redaction lists for zfs "
+	    "redacted send/recv.", 0, ZFEATURE_TYPE_BOOLEAN,
+	    redact_books_deps);
+	}
+
+	{
+	static const spa_feature_t redact_datasets_deps[] = {
+		SPA_FEATURE_EXTENSIBLE_DATASET,
+		SPA_FEATURE_NONE
+	};
+	zfeature_register(SPA_FEATURE_REDACTED_DATASETS,
+	    "com.delphix:redacted_datasets", "redacted_datasets", "Support for "
+	    "redacted datasets, produced by receiving a redacted zfs send "
+	    "stream.", ZFEATURE_FLAG_PER_DATASET, ZFEATURE_TYPE_UINT64_ARRAY,
+	    redact_datasets_deps);
+	}
+
+	{
+	static const spa_feature_t bookmark_written_deps[] = {
+		SPA_FEATURE_BOOKMARK_V2,
+		SPA_FEATURE_EXTENSIBLE_DATASET,
+		SPA_FEATURE_BOOKMARKS,
+		SPA_FEATURE_NONE
+	};
+	zfeature_register(SPA_FEATURE_BOOKMARK_WRITTEN,
+	    "com.delphix:bookmark_written", "bookmark_written",
+	    "Additional accounting, enabling the written#<bookmark> property"
+	    "(space written since a bookmark), and estimates of send stream "
+	    "sizes for incrementals from bookmarks.",
+	    0, ZFEATURE_TYPE_BOOLEAN, bookmark_written_deps);
+	}
+
 	zfeature_register(SPA_FEATURE_DEVICE_REMOVAL,
 	    "com.delphix:device_removal", "device_removal",
 	    "Top-level vdevs can be removed, reducing logical pool size.",
@@ -416,8 +506,21 @@ zpool_feature_init(void)
 	}
 
 	{
+	static const spa_feature_t bookmark_v2_deps[] = {
+		SPA_FEATURE_EXTENSIBLE_DATASET,
+		SPA_FEATURE_BOOKMARKS,
+		SPA_FEATURE_NONE
+	};
+	zfeature_register(SPA_FEATURE_BOOKMARK_V2,
+	    "com.datto:bookmark_v2", "bookmark_v2",
+	    "Support for larger bookmarks",
+	    0, ZFEATURE_TYPE_BOOLEAN, bookmark_v2_deps);
+	}
+
+	{
 	static const spa_feature_t encryption_deps[] = {
 		SPA_FEATURE_EXTENSIBLE_DATASET,
+		SPA_FEATURE_BOOKMARK_V2,
 		SPA_FEATURE_NONE
 	};
 	zfeature_register(SPA_FEATURE_ENCRYPTION,
@@ -448,7 +551,7 @@ zpool_feature_init(void)
 
 	zfeature_register(SPA_FEATURE_RESILVER_DEFER,
 	    "com.datto:resilver_defer", "resilver_defer",
-	    "Support for defering new resilvers when one is already running.",
+	    "Support for deferring new resilvers when one is already running.",
 	    ZFEATURE_FLAG_READONLY_COMPAT, ZFEATURE_TYPE_BOOLEAN, NULL);
 }
 

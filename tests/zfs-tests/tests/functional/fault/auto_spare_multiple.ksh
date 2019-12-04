@@ -116,7 +116,7 @@ for type in "mirror" "raidz" "raidz2" "raidz3"; do
 done
 
 # Rinse and repeat, this time faulting both devices at the same time
-# NOTE: "raidz" is exluded since it cannot survive 2 faulted devices
+# NOTE: "raidz" is excluded since it cannot survive 2 faulted devices
 # NOTE: "mirror" is a 4-way mirror here and should survive this test
 for type in "mirror" "raidz2" "raidz3"; do
 	# 1. Create a pool with two hot spares

@@ -150,7 +150,7 @@ function do_testing #<clear type> <vdevs>
 
 	#
 	# Make errors to the testing pool by overwrite the vdev device with
-	# /usr/bin/dd command. We do not want to have a full overwrite. That
+	# dd command. We do not want to have a full overwrite. That
 	# may cause the system panic. So, we should skip the vdev label space.
 	#
 	(( i = $RANDOM % 3 ))
@@ -176,11 +176,7 @@ function do_testing #<clear type> <vdevs>
 	dd if=/dev/zero of=$fbase.$i seek=512 bs=1024 count=$wcount conv=notrunc \
 			> /dev/null 2>&1
 	log_must sync
-	log_must zpool scrub $TESTPOOL1
-	# Wait for the completion of scrub operation
-	while is_pool_scrubbing $TESTPOOL1; do
-		sleep 1
-	done
+	log_must zpool scrub -w $TESTPOOL1
 
 	check_err $TESTPOOL1 && \
 		log_fail "No error generated."

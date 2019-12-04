@@ -76,6 +76,7 @@ function cleanup_volume
 
 log_assert "Replay of intent log succeeds."
 log_onexit cleanup_volume
+log_must setup
 
 #
 # 1. Create an empty volume (TESTVOL), set sync=always, and format
@@ -86,7 +87,7 @@ log_must zfs create -V 128M $TESTPOOL/$TESTVOL
 log_must zfs set compression=on $TESTPOOL/$TESTVOL
 log_must zfs set sync=always $TESTPOOL/$TESTVOL
 log_must mkdir -p $TESTDIR
-log_must block_device_wait
+block_device_wait
 echo "y" | newfs -t ext4 -v $VOLUME
 log_must mkdir -p $MNTPNT
 log_must mount -o discard $VOLUME $MNTPNT
@@ -127,7 +128,7 @@ fi
 #
 # 4. Generate checksums for all ext4 files.
 #
-log_must sha256sum -b $MNTPNT/* >$TESTDIR/checksum
+typeset checksum=$(cat $MNTPNT/* | sha256digest)
 
 #
 # 5. Unmount filesystem and export the pool
@@ -149,7 +150,7 @@ log_must zpool export $TESTPOOL
 # `zpool import -f` because we can't write a frozen pool's labels!
 #
 log_must zpool import -f $TESTPOOL
-log_must block_device_wait
+block_device_wait
 log_must mount $VOLUME $MNTPNT
 
 #
@@ -159,6 +160,8 @@ log_note "Verify current block usage:"
 log_must zdb -bcv $TESTPOOL
 
 log_note "Verify checksums"
-log_must sha256sum -c $TESTDIR/checksum
+typeset checksum1=$(cat $MNTPNT/* | sha256digest)
+[[ "$checksum1" == "$checksum" ]] || \
+    log_fail "checksum mismatch ($checksum1 != $checksum)"
 
 log_pass "Replay of intent log succeeds."

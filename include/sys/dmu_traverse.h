@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  */
 
 #ifndef	_SYS_DMU_TRAVERSE_H
@@ -70,6 +70,20 @@ int traverse_dataset_destroyed(spa_t *spa, blkptr_t *blkptr,
     blkptr_cb_t func, void *arg);
 int traverse_pool(spa_t *spa,
     uint64_t txg_start, int flags, blkptr_cb_t func, void *arg);
+
+/*
+ * Note that this calculation cannot overflow with the current maximum indirect
+ * block size (128k).  If that maximum is increased to 1M, however, this
+ * calculation can overflow, and handling would need to be added to ensure
+ * continued correctness.
+ */
+static inline uint64_t
+bp_span_in_blocks(uint8_t indblkshift, uint64_t level)
+{
+	unsigned int shift = level * (indblkshift - SPA_BLKPTRSHIFT);
+	ASSERT3U(shift, <, 64);
+	return (1ULL << shift);
+}
 
 #ifdef	__cplusplus
 }

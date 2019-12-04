@@ -4,16 +4,18 @@
 #
 
 # This hook installs udev rules for ZoL.
-PREREQ="zdev"
+PREREQ="udev"
 
 # These prerequisites are provided by the zfsutils package. The zdb utility is
 # not strictly required, but it can be useful at the initramfs recovery prompt.
 COPY_EXEC_LIST="@sbindir@/zdb @sbindir@/zpool @sbindir@/zfs"
 COPY_EXEC_LIST="$COPY_EXEC_LIST @mounthelperdir@/mount.zfs @udevdir@/vdev_id"
+COPY_EXEC_LIST="$COPY_EXEC_LIST @udevdir@/zvol_id"
 COPY_FILE_LIST="/etc/hostid @sysconfdir@/zfs/zpool.cache"
-COPY_FILE_LIST="$COPY_FILE_LIST @sysconfdir@/default/zfs"
+COPY_FILE_LIST="$COPY_FILE_LIST @DEFAULT_INITCONF_DIR@/zfs"
 COPY_FILE_LIST="$COPY_FILE_LIST @sysconfdir@/zfs/zfs-functions"
 COPY_FILE_LIST="$COPY_FILE_LIST @sysconfdir@/zfs/vdev_id.conf"
+COPY_FILE_LIST="$COPY_FILE_LIST @udevruledir@/60-zvol.rules"
 COPY_FILE_LIST="$COPY_FILE_LIST @udevruledir@/69-vdev.rules"
 
 # These prerequisites are provided by the base system.

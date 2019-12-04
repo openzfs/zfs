@@ -18,7 +18,7 @@
 
 #include <sys/zfs_context.h>
 #include <sys/multilist.h>
-#include <sys/trace_multilist.h>
+#include <sys/trace_zfs.h>
 
 /* needed for spa_get_random() */
 #include <sys/spa.h>
@@ -363,6 +363,28 @@ multilist_sublist_remove(multilist_sublist_t *mls, void *obj)
 	list_remove(&mls->mls_list, obj);
 }
 
+int
+multilist_sublist_is_empty(multilist_sublist_t *mls)
+{
+	ASSERT(MUTEX_HELD(&mls->mls_lock));
+	return (list_is_empty(&mls->mls_list));
+}
+
+int
+multilist_sublist_is_empty_idx(multilist_t *ml, unsigned int sublist_idx)
+{
+	multilist_sublist_t *mls;
+	int empty;
+
+	ASSERT3U(sublist_idx, <, ml->ml_num_sublists);
+	mls = &ml->ml_sublists[sublist_idx];
+	ASSERT(!MUTEX_HELD(&mls->mls_lock));
+	mutex_enter(&mls->mls_lock);
+	empty = list_is_empty(&mls->mls_list);
+	mutex_exit(&mls->mls_lock);
+	return (empty);
+}
+
 void *
 multilist_sublist_head(multilist_sublist_t *mls)
 {
@@ -403,13 +425,7 @@ multilist_link_active(multilist_node_t *link)
 	return (list_link_active(link));
 }
 
-#if defined(_KERNEL)
-
 /* BEGIN CSTYLED */
-
-module_param(zfs_multilist_num_sublists, int, 0644);
-MODULE_PARM_DESC(zfs_multilist_num_sublists,
+ZFS_MODULE_PARAM(zfs, zfs_, multilist_num_sublists, INT, ZMOD_RW,
 	"Number of sublists used in each multilist");
-
 /* END CSTYLED */
-#endif

@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  * Copyright 2017 Nexenta Systems, Inc.
  */
 
@@ -131,6 +131,11 @@ uint64_t zap_create_flags_dnsize(objset_t *os, int normflags,
     zap_flags_t flags, dmu_object_type_t ot, int leaf_blockshift,
     int indirect_blockshift, dmu_object_type_t bonustype, int bonuslen,
     int dnodesize, dmu_tx_t *tx);
+uint64_t zap_create_hold(objset_t *os, int normflags, zap_flags_t flags,
+    dmu_object_type_t ot, int leaf_blockshift, int indirect_blockshift,
+    dmu_object_type_t bonustype, int bonuslen, int dnodesize,
+    dnode_t **allocated_dnode, void *tag, dmu_tx_t *tx);
+
 uint64_t zap_create_link(objset_t *os, dmu_object_type_t ot,
     uint64_t parent_obj, const char *name, dmu_tx_t *tx);
 uint64_t zap_create_link_dnsize(objset_t *os, dmu_object_type_t ot,
@@ -139,8 +144,8 @@ uint64_t zap_create_link_dnsize(objset_t *os, dmu_object_type_t ot,
 /*
  * Initialize an already-allocated object.
  */
-void mzap_create_impl(objset_t *os, uint64_t obj, int normflags,
-    zap_flags_t flags, dmu_tx_t *tx);
+void mzap_create_impl(dnode_t *dn, int normflags, zap_flags_t flags,
+    dmu_tx_t *tx);
 
 /*
  * Create a new zapobj with no attributes from the given (unallocated)
@@ -345,6 +350,7 @@ typedef struct zap_cursor {
 	uint64_t zc_serialized;
 	uint64_t zc_hash;
 	uint32_t zc_cd;
+	boolean_t zc_prefetch;
 } zap_cursor_t;
 
 typedef struct {
@@ -370,7 +376,9 @@ typedef struct {
  * Initialize a zap cursor, pointing to the "first" attribute of the
  * zapobj.  You must _fini the cursor when you are done with it.
  */
-void zap_cursor_init(zap_cursor_t *zc, objset_t *ds, uint64_t zapobj);
+void zap_cursor_init(zap_cursor_t *zc, objset_t *os, uint64_t zapobj);
+void zap_cursor_init_noprefetch(zap_cursor_t *zc, objset_t *os,
+    uint64_t zapobj);
 void zap_cursor_fini(zap_cursor_t *zc);
 
 /*

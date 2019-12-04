@@ -7,7 +7,9 @@ systemdunit_DATA = \
 	zfs-import-scan.service \
 	zfs-mount.service \
 	zfs-share.service \
+	zfs-volume-wait.service \
 	zfs-import.target \
+	zfs-volumes.target \
 	zfs.target
 
 EXTRA_DIST = \
@@ -17,6 +19,8 @@ EXTRA_DIST = \
 	$(top_srcdir)/etc/systemd/system/zfs-mount.service.in \
 	$(top_srcdir)/etc/systemd/system/zfs-share.service.in \
 	$(top_srcdir)/etc/systemd/system/zfs-import.target.in \
+	$(top_srcdir)/etc/systemd/system/zfs-volume-wait.service.in \
+	$(top_srcdir)/etc/systemd/system/zfs-volumes.target.in \
 	$(top_srcdir)/etc/systemd/system/zfs.target.in \
 	$(top_srcdir)/etc/systemd/system/50-zfs.preset.in
 
@@ -27,5 +31,10 @@ $(systemdunit_DATA) $(systemdpreset_DATA):%:%.in
 		-e 's,@sysconfdir\@,$(sysconfdir),g' \
 		$< >'$@'
 
+install-data-hook:
+	$(MKDIR_P) "$(DESTDIR)$(systemdunitdir)"
+	ln -sf /dev/null "$(DESTDIR)$(systemdunitdir)/zfs-import.service"
+
+# Double-colon rules are allowed; there are multiple independent definitions.
 distclean-local::
 	-$(RM) $(systemdunit_DATA) $(systemdpreset_DATA)

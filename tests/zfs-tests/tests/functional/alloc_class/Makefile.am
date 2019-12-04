@@ -1,7 +1,5 @@
 pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/alloc_class
 dist_pkgdata_SCRIPTS = \
-	alloc_class.cfg \
-	alloc_class.kshlib \
 	setup.ksh \
 	cleanup.ksh \
 	alloc_class_001_pos.ksh \
@@ -17,3 +15,7 @@ dist_pkgdata_SCRIPTS = \
 	alloc_class_011_neg.ksh \
 	alloc_class_012_pos.ksh \
 	alloc_class_013_pos.ksh
+
+dist_pkgdata_DATA = \
+	alloc_class.cfg \
+	alloc_class.kshlib

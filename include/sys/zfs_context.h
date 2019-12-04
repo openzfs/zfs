@@ -21,7 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
- * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  */
 
@@ -29,7 +29,6 @@
 #define	_SYS_ZFS_CONTEXT_H
 
 #ifdef __KERNEL__
-
 #include <sys/note.h>
 #include <sys/types.h>
 #include <sys/atomic.h>
@@ -42,17 +41,14 @@
 #include <sys/vmem.h>
 #include <sys/taskq.h>
 #include <sys/param.h>
-#include <sys/kobj.h>
 #include <sys/disp.h>
 #include <sys/debug.h>
 #include <sys/random.h>
 #include <sys/strings.h>
 #include <sys/byteorder.h>
 #include <sys/list.h>
-#include <sys/uio_impl.h>
 #include <sys/time.h>
 #include <sys/zone.h>
-#include <sys/sdt.h>
 #include <sys/kstat.h>
 #include <sys/zfs_debug.h>
 #include <sys/sysevent.h>
@@ -63,9 +59,8 @@
 #include <sys/disp.h>
 #include <sys/trace.h>
 #include <sys/procfs_list.h>
-#include <linux/dcache_compat.h>
-#include <linux/utsname_compat.h>
-
+#include <sys/mod.h>
+#include <sys/zfs_context_os.h>
 #else /* _KERNEL */
 
 #define	_SYS_MUTEX_H
@@ -88,7 +83,6 @@
 #include <pthread.h>
 #include <setjmp.h>
 #include <assert.h>
-#include <alloca.h>
 #include <umem.h>
 #include <limits.h>
 #include <atomic.h>
@@ -101,13 +95,12 @@
 #include <sys/types.h>
 #include <sys/cred.h>
 #include <sys/sysmacros.h>
-#include <sys/bitmap.h>
 #include <sys/resource.h>
 #include <sys/byteorder.h>
 #include <sys/list.h>
+#include <sys/mod.h>
 #include <sys/uio.h>
 #include <sys/zfs_debug.h>
-#include <sys/sdt.h>
 #include <sys/kstat.h>
 #include <sys/u8_textprep.h>
 #include <sys/sysevent.h>
@@ -115,6 +108,9 @@
 #include <sys/sunddi.h>
 #include <sys/debug.h>
 #include <sys/utsname.h>
+#include <sys/trace_zfs.h>
+
+#include <sys/zfs_context_os.h>
 
 /*
  * Stack
@@ -122,6 +118,7 @@
 
 #define	noinline	__attribute__((noinline))
 #define	likely(x)	__builtin_expect((x), 1)
+#define	unlikely(x)	__builtin_expect((x), 0)
 
 /*
  * Debugging
@@ -171,33 +168,38 @@ extern int aok;
 #ifdef DTRACE_PROBE
 #undef	DTRACE_PROBE
 #endif	/* DTRACE_PROBE */
-#define	DTRACE_PROBE(a) \
-	ZFS_PROBE0(#a)
+#define	DTRACE_PROBE(a)
 
 #ifdef DTRACE_PROBE1
 #undef	DTRACE_PROBE1
 #endif	/* DTRACE_PROBE1 */
-#define	DTRACE_PROBE1(a, b, c) \
-	ZFS_PROBE1(#a, (unsigned long)c)
+#define	DTRACE_PROBE1(a, b, c)
 
 #ifdef DTRACE_PROBE2
 #undef	DTRACE_PROBE2
 #endif	/* DTRACE_PROBE2 */
-#define	DTRACE_PROBE2(a, b, c, d, e) \
-	ZFS_PROBE2(#a, (unsigned long)c, (unsigned long)e)
+#define	DTRACE_PROBE2(a, b, c, d, e)
 
 #ifdef DTRACE_PROBE3
 #undef	DTRACE_PROBE3
 #endif	/* DTRACE_PROBE3 */
-#define	DTRACE_PROBE3(a, b, c, d, e, f, g) \
-	ZFS_PROBE3(#a, (unsigned long)c, (unsigned long)e, (unsigned long)g)
+#define	DTRACE_PROBE3(a, b, c, d, e, f, g)
 
 #ifdef DTRACE_PROBE4
 #undef	DTRACE_PROBE4
 #endif	/* DTRACE_PROBE4 */
-#define	DTRACE_PROBE4(a, b, c, d, e, f, g, h, i) \
-	ZFS_PROBE4(#a, (unsigned long)c, (unsigned long)e, (unsigned long)g, \
-	(unsigned long)i)
+#define	DTRACE_PROBE4(a, b, c, d, e, f, g, h, i)
+
+/*
+ * Tunables.
+ */
+typedef struct zfs_kernel_param {
+	const char *name;	/* unused stub */
+} zfs_kernel_param_t;
+
+#define	ZFS_MODULE_PARAM(scope_prefix, name_prefix, name, type, perm, desc)
+#define	ZFS_MODULE_PARAM_CALL(scope_prefix, name_prefix, name, setfunc, \
+	getfunc, perm, desc)
 
 /*
  * Threads.
@@ -236,6 +238,7 @@ extern kthread_t *zk_thread_create(void (*func)(void *), void *arg,
 
 #define	kpreempt_disable()	((void)0)
 #define	kpreempt_enable()	((void)0)
+#define	cond_resched()		sched_yield()
 
 /*
  * Mutexes
@@ -256,6 +259,8 @@ extern void mutex_enter(kmutex_t *mp);
 extern void mutex_exit(kmutex_t *mp);
 extern int mutex_tryenter(kmutex_t *mp);
 
+#define	NESTED_SINGLE 1
+#define	mutex_enter_nested(mp, class) mutex_enter(mp)
 /*
  * RW locks
  */
@@ -304,6 +309,7 @@ typedef pthread_cond_t		kcondvar_t;
 extern void cv_init(kcondvar_t *cv, char *name, int type, void *arg);
 extern void cv_destroy(kcondvar_t *cv);
 extern void cv_wait(kcondvar_t *cv, kmutex_t *mp);
+extern int cv_wait_sig(kcondvar_t *cv, kmutex_t *mp);
 extern clock_t cv_timedwait(kcondvar_t *cv, kmutex_t *mp, clock_t abstime);
 extern clock_t cv_timedwait_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t tim,
     hrtime_t res, int flag);
@@ -312,8 +318,8 @@ extern void cv_broadcast(kcondvar_t *cv);
 
 #define	cv_timedwait_io(cv, mp, at)		cv_timedwait(cv, mp, at)
 #define	cv_timedwait_sig(cv, mp, at)		cv_timedwait(cv, mp, at)
-#define	cv_wait_sig(cv, mp)			cv_wait(cv, mp)
 #define	cv_wait_io(cv, mp)			cv_wait(cv, mp)
+#define	cv_wait_io_sig(cv, mp)			cv_wait_sig(cv, mp)
 #define	cv_timedwait_sig_hires(cv, mp, t, r, f) \
 	cv_timedwait_hires(cv, mp, t, r, f)
 
@@ -322,15 +328,7 @@ extern void cv_broadcast(kcondvar_t *cv);
  */
 #define	tsd_get(k) pthread_getspecific(k)
 #define	tsd_set(k, v) pthread_setspecific(k, v)
-#define	tsd_create(kp, d) pthread_key_create(kp, d)
-#define	tsd_destroy(kp) /* nothing */
-
-/*
- * Thread-specific data
- */
-#define	tsd_get(k) pthread_getspecific(k)
-#define	tsd_set(k, v) pthread_setspecific(k, v)
-#define	tsd_create(kp, d) pthread_key_create(kp, d)
+#define	tsd_create(kp, d) pthread_key_create((pthread_key_t *)kp, d)
 #define	tsd_destroy(kp) /* nothing */
 
 /*
@@ -374,6 +372,7 @@ typedef struct procfs_list_node {
 
 void procfs_list_install(const char *module,
     const char *name,
+    mode_t mode,
     procfs_list_t *procfs_list,
     int (*show)(struct seq_file *f, void *p),
     int (*show_header)(struct seq_file *f),
@@ -393,6 +392,7 @@ void procfs_list_add(procfs_list_t *procfs_list, void *p);
 #define	KMC_NODEBUG		UMC_NODEBUG
 #define	KMC_KMEM		0x0
 #define	KMC_VMEM		0x0
+#define	KMC_KVMEM		0x0
 #define	kmem_alloc(_s, _f)	umem_alloc(_s, _f)
 #define	kmem_zalloc(_s, _f)	umem_zalloc(_s, _f)
 #define	kmem_free(_b, _s)	umem_free(_b, _s)
@@ -501,16 +501,6 @@ extern void	system_taskq_fini(void);
 #define	XVA_MAPSIZE	3
 #define	XVA_MAGIC	0x78766174
 
-/*
- * vnodes
- */
-typedef struct vnode {
-	uint64_t	v_size;
-	int		v_fd;
-	char		*v_path;
-	int		v_dump_fd;
-} vnode_t;
-
 extern char *vn_dumpdir;
 #define	AV_SCANSTAMP_SZ	32		/* length of anti-virus scanstamp */
 
@@ -559,7 +549,6 @@ typedef struct vsecattr {
 	size_t		vsa_aclentsz;	/* ACE size in bytes of vsa_aclentp */
 } vsecattr_t;
 
-#define	AT_TYPE		0x00001
 #define	AT_MODE		0x00002
 #define	AT_UID		0x00004
 #define	AT_GID		0x00008
@@ -578,31 +567,8 @@ typedef struct vsecattr {
 
 #define	CRCREAT		0
 
-extern int fop_getattr(vnode_t *vp, vattr_t *vap);
-
-#define	VOP_CLOSE(vp, f, c, o, cr, ct)	vn_close(vp)
-#define	VOP_PUTPAGE(vp, of, sz, fl, cr, ct)	0
-#define	VOP_GETATTR(vp, vap, fl, cr, ct)  fop_getattr((vp), (vap));
-
-#define	VOP_FSYNC(vp, f, cr, ct)	fsync((vp)->v_fd)
-
-#define	VN_RELE(vp)	vn_close(vp)
-
-extern int vn_open(char *path, int x1, int oflags, int mode, vnode_t **vpp,
-    int x2, int x3);
-extern int vn_openat(char *path, int x1, int oflags, int mode, vnode_t **vpp,
-    int x2, int x3, vnode_t *vp, int fd);
-extern int vn_rdwr(int uio, vnode_t *vp, void *addr, ssize_t len,
-    offset_t offset, int x1, int x2, rlim64_t x3, void *x4, ssize_t *residp);
-extern void vn_close(vnode_t *vp);
-
-#define	vn_remove(path, x1, x2)		remove(path)
-#define	vn_rename(from, to, seg)	rename((from), (to))
-#define	vn_is_readonly(vp)		B_FALSE
-
-extern vnode_t *rootdir;
-
-#include <sys/file.h>		/* for FREAD, FWRITE, etc */
+#define	F_FREESP	11
+#define	FIGNORECASE	0x80000 /* request case-insensitive lookups */
 
 /*
  * Random stuff
@@ -657,7 +623,7 @@ extern int lowbit64(uint64_t i);
 extern int random_get_bytes(uint8_t *ptr, size_t len);
 extern int random_get_pseudo_bytes(uint8_t *ptr, size_t len);
 
-extern void kernel_init(int);
+extern void kernel_init(int mode);
 extern void kernel_fini(void);
 extern void random_init(void);
 extern void random_fini(void);
@@ -693,7 +659,8 @@ extern uint32_t zone_get_hostid(void *zonep);
 
 extern char *kmem_vasprintf(const char *fmt, va_list adx);
 extern char *kmem_asprintf(const char *fmt, ...);
-#define	strfree(str) kmem_free((str), strlen(str) + 1)
+#define	kmem_strfree(str) kmem_free((str), strlen(str) + 1)
+#define	kmem_strdup(s)  strdup(s)
 
 /*
  * Hostname information
@@ -733,11 +700,6 @@ typedef struct ace_object {
 #define	ACE_SYSTEM_AUDIT_OBJECT_ACE_TYPE	0x07
 #define	ACE_SYSTEM_ALARM_OBJECT_ACE_TYPE	0x08
 
-extern struct _buf *kobj_open_file(char *name);
-extern int kobj_read_file(struct _buf *file, char *buf, unsigned size,
-    unsigned off);
-extern void kobj_close_file(struct _buf *file);
-extern int kobj_get_filesize(struct _buf *file, uint64_t *size);
 extern int zfs_secpolicy_snapshot_perms(const char *name, cred_t *cr);
 extern int zfs_secpolicy_rename_perms(const char *from, const char *to,
     cred_t *cr);

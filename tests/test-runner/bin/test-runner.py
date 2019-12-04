@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 
 #
 # This file and its contents are supplied under the terms of the
@@ -12,8 +12,10 @@
 #
 
 #
-# Copyright (c) 2012, 2015 by Delphix. All rights reserved.
-# Copyright (c) 2017 Datto Inc.
+# Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+# Copyright (c) 2019 Datto Inc.
+#
+# This script must remain compatible with Python 2.6+ and Python 3.4+.
 #
 
 # some python 2.7 system don't have a configparser shim
@@ -23,7 +25,9 @@ except ImportError:
     import ConfigParser as configparser
 
 import os
-import logging
+import sys
+import ctypes
+
 from datetime import datetime
 from optparse import OptionParser
 from pwd import getpwnam
@@ -31,8 +35,6 @@ from pwd import getpwuid
 from select import select
 from subprocess import PIPE
 from subprocess import Popen
-from sys import argv
-from sys import maxsize
 from threading import Timer
 from time import time
 
@@ -41,11 +43,38 @@ TESTDIR = '/usr/share/zfs/'
 KILL = 'kill'
 TRUE = 'true'
 SUDO = 'sudo'
+LOG_FILE = 'LOG_FILE'
+LOG_OUT = 'LOG_OUT'
+LOG_ERR = 'LOG_ERR'
+LOG_FILE_OBJ = None
+
+# some python 2.7 system don't have a concept of monotonic time
+CLOCK_MONOTONIC_RAW = 4  # see <linux/time.h>
+
+
+class timespec(ctypes.Structure):
+    _fields_ = [
+        ('tv_sec', ctypes.c_long),
+        ('tv_nsec', ctypes.c_long)
+    ]
+
+
+librt = ctypes.CDLL('librt.so.1', use_errno=True)
+clock_gettime = librt.clock_gettime
+clock_gettime.argtypes = [ctypes.c_int, ctypes.POINTER(timespec)]
+
+
+def monotonic_time():
+    t = timespec()
+    if clock_gettime(CLOCK_MONOTONIC_RAW, ctypes.pointer(t)) != 0:
+        errno_ = ctypes.get_errno()
+        raise OSError(errno_, os.strerror(errno_))
+    return t.tv_sec + t.tv_nsec * 1e-9
 
 
 class Result(object):
     total = 0
-    runresults = {'PASS': 0, 'FAIL': 0, 'SKIP': 0, 'KILLED': 0}
+    runresults = {'PASS': 0, 'FAIL': 0, 'SKIP': 0, 'KILLED': 0, 'RERAN': 0}
 
     def __init__(self):
         self.starttime = None
@@ -55,24 +84,26 @@ class Result(object):
         self.stderr = []
         self.result = ''
 
-    def done(self, proc, killed):
+    def done(self, proc, killed, reran):
         """
         Finalize the results of this Cmd.
         """
         Result.total += 1
-        m, s = divmod(time() - self.starttime, 60)
+        m, s = divmod(monotonic_time() - self.starttime, 60)
         self.runtime = '%02d:%02d' % (m, s)
         self.returncode = proc.returncode
+        if reran is True:
+            Result.runresults['RERAN'] += 1
         if killed:
             self.result = 'KILLED'
             Result.runresults['KILLED'] += 1
-        elif self.returncode is 0:
+        elif self.returncode == 0:
             self.result = 'PASS'
             Result.runresults['PASS'] += 1
-        elif self.returncode is 4:
+        elif self.returncode == 4:
             self.result = 'SKIP'
             Result.runresults['SKIP'] += 1
-        elif self.returncode is not 0:
+        elif self.returncode != 0:
             self.result = 'FAIL'
             Result.runresults['FAIL'] += 1
 
@@ -84,7 +115,7 @@ class Output(object):
     """
     def __init__(self, stream):
         self.stream = stream
-        self._buf = ''
+        self._buf = b''
         self.lines = []
 
     def fileno(self):
@@ -109,38 +140,45 @@ class Output(object):
         buf = os.read(fd, 4096)
         if not buf:
             return None
-        if '\n' not in buf:
+        if b'\n' not in buf:
             self._buf += buf
             return []
 
         buf = self._buf + buf
-        tmp, rest = buf.rsplit('\n', 1)
+        tmp, rest = buf.rsplit(b'\n', 1)
         self._buf = rest
         now = datetime.now()
-        rows = tmp.split('\n')
+        rows = tmp.split(b'\n')
         self.lines += [(now, r) for r in rows]
 
 
 class Cmd(object):
     verified_users = []
 
-    def __init__(self, pathname, outputdir=None, timeout=None, user=None,
-                 tags=None):
+    def __init__(self, pathname, identifier=None, outputdir=None,
+                 timeout=None, user=None, tags=None):
         self.pathname = pathname
+        self.identifier = identifier
         self.outputdir = outputdir or 'BASEDIR'
+        """
+        The timeout for tests is measured in wall-clock time
+        """
         self.timeout = timeout
         self.user = user or ''
         self.killed = False
+        self.reran = None
         self.result = Result()
 
         if self.timeout is None:
             self.timeout = 60
 
     def __str__(self):
-        return "Pathname: %s\nOutputdir: %s\nTimeout: %d\nUser: %s\n" % \
-            (self.pathname, self.outputdir, self.timeout, self.user)
+        return "Pathname: %s\nIdentifier: %s\nOutputdir: %s\nTimeout: %d\n" \
+               "User: %s\n" % \
+               (self.pathname, self.identifier, self.outputdir, self.timeout,
+                self.user)
 
-    def kill_cmd(self, proc):
+    def kill_cmd(self, proc, keyboard_interrupt=False):
         """
         Kill a running command due to timeout, or ^C from the keyboard. If
         sudo is required, this user was verified previously.
@@ -158,6 +196,20 @@ class Cmd(object):
             kp.wait()
         except Exception:
             pass
+
+        """
+        If this is not a user-initiated kill and the test has not been
+        reran before we consider if the test needs to be reran:
+        If the test has spent some time hibernating and didn't run the whole
+        length of time before being timed out we will rerun the test.
+        """
+        if keyboard_interrupt is False and self.reran is None:
+            runtime = monotonic_time() - self.result.starttime
+            if int(self.timeout) > runtime:
+                self.killed = False
+                self.reran = False
+                self.run(False)
+                self.reran = True
 
     def update_cmd_privs(self, cmd, user):
         """
@@ -202,13 +254,13 @@ class Cmd(object):
 
         return out.lines, err.lines
 
-    def run(self, options):
+    def run(self, dryrun):
         """
         This is the main function that runs each individual test.
         Determine whether or not the command requires sudo, and modify it
         if needed. Run the command, and update the result object.
         """
-        if options.dryrun is True:
+        if dryrun is True:
             print(self)
             return
 
@@ -221,23 +273,24 @@ class Cmd(object):
         except OSError as e:
             fail('%s' % e)
 
-        self.result.starttime = time()
+        self.result.starttime = monotonic_time()
         proc = Popen(privcmd, stdout=PIPE, stderr=PIPE)
         # Allow a special timeout value of 0 to mean infinity
         if int(self.timeout) == 0:
-            self.timeout = maxsize
+            self.timeout = sys.maxsize
         t = Timer(int(self.timeout), self.kill_cmd, [proc])
 
         try:
             t.start()
             self.result.stdout, self.result.stderr = self.collect_output(proc)
         except KeyboardInterrupt:
-            self.kill_cmd(proc)
+            self.kill_cmd(proc, True)
             fail('\nRun terminated at user request.')
         finally:
             t.cancel()
 
-        self.result.done(proc, self.killed)
+        if self.reran is not False:
+            self.result.done(proc, self.killed, self.reran)
 
     def skip(self):
         """
@@ -247,65 +300,73 @@ class Cmd(object):
         Result.total += 1
         Result.runresults['SKIP'] += 1
         self.result.stdout = self.result.stderr = []
-        self.result.starttime = time()
-        m, s = divmod(time() - self.result.starttime, 60)
+        self.result.starttime = monotonic_time()
+        m, s = divmod(monotonic_time() - self.result.starttime, 60)
         self.result.runtime = '%02d:%02d' % (m, s)
         self.result.result = 'SKIP'
 
-    def log(self, logger, options):
+    def log(self, options):
         """
         This function is responsible for writing all output. This includes
         the console output, the logfile of all results (with timestamped
         merged stdout and stderr), and for each test, the unmodified
-        stdout/stderr/merged in it's own file.
+        stdout/stderr/merged in its own file.
         """
-        if logger is None:
-            return
 
         logname = getpwuid(os.getuid()).pw_name
+        rer = ''
+        if self.reran is True:
+            rer = ' (RERAN)'
         user = ' (run as %s)' % (self.user if len(self.user) else logname)
-        msga = 'Test: %s%s ' % (self.pathname, user)
-        msgb = '[%s] [%s]' % (self.result.runtime, self.result.result)
-        pad = ' ' * (80 - (len(msga) + len(msgb)))
-
-        # If -q is specified, only print a line for tests that didn't pass.
-        # This means passing tests need to be logged as DEBUG, or the one
-        # line summary will only be printed in the logfile for failures.
-        if not options.quiet:
-            logger.info('%s%s%s' % (msga, pad, msgb))
-        elif self.result.result is not 'PASS':
-            logger.info('%s%s%s' % (msga, pad, msgb))
+        if self.identifier:
+            msga = 'Test (%s): %s%s ' % (self.identifier, self.pathname, user)
         else:
-            logger.debug('%s%s%s' % (msga, pad, msgb))
+            msga = 'Test: %s%s ' % (self.pathname, user)
+        msgb = '[%s] [%s]%s\n' % (self.result.runtime, self.result.result, rer)
+        pad = ' ' * (80 - (len(msga) + len(msgb)))
+        result_line = msga + pad + msgb
+
+        # The result line is always written to the log file. If -q was
+        # specified only failures are written to the console, otherwise
+        # the result line is written to the console.
+        write_log(bytearray(result_line, encoding='utf-8'), LOG_FILE)
+        if not options.quiet:
+            write_log(result_line, LOG_OUT)
+        elif options.quiet and self.result.result != 'PASS':
+            write_log(result_line, LOG_OUT)
 
         lines = sorted(self.result.stdout + self.result.stderr,
                        key=lambda x: x[0])
 
+        # Write timestamped output (stdout and stderr) to the logfile
         for dt, line in lines:
-            logger.debug('%s %s' % (dt.strftime("%H:%M:%S.%f ")[:11], line))
+            timestamp = bytearray(dt.strftime("%H:%M:%S.%f ")[:11],
+                                  encoding='utf-8')
+            write_log(b'%s %s\n' % (timestamp, line), LOG_FILE)
 
+        # Write the separate stdout/stderr/merged files, if the data exists
         if len(self.result.stdout):
-            with open(os.path.join(self.outputdir, 'stdout'), 'w') as out:
+            with open(os.path.join(self.outputdir, 'stdout'), 'wb') as out:
                 for _, line in self.result.stdout:
-                    os.write(out.fileno(), '%s\n' % line)
+                    os.write(out.fileno(), b'%s\n' % line)
         if len(self.result.stderr):
-            with open(os.path.join(self.outputdir, 'stderr'), 'w') as err:
+            with open(os.path.join(self.outputdir, 'stderr'), 'wb') as err:
                 for _, line in self.result.stderr:
-                    os.write(err.fileno(), '%s\n' % line)
+                    os.write(err.fileno(), b'%s\n' % line)
         if len(self.result.stdout) and len(self.result.stderr):
-            with open(os.path.join(self.outputdir, 'merged'), 'w') as merged:
+            with open(os.path.join(self.outputdir, 'merged'), 'wb') as merged:
                 for _, line in lines:
-                    os.write(merged.fileno(), '%s\n' % line)
+                    os.write(merged.fileno(), b'%s\n' % line)
 
 
 class Test(Cmd):
     props = ['outputdir', 'timeout', 'user', 'pre', 'pre_user', 'post',
              'post_user', 'tags']
 
-    def __init__(self, pathname, outputdir=None, timeout=None, user=None,
-                 pre=None, pre_user=None, post=None, post_user=None,
-                 tags=None):
-        super(Test, self).__init__(pathname, outputdir, timeout, user)
+    def __init__(self, pathname,
+                 pre=None, pre_user=None, post=None, post_user=None, tags=None,
+                 **kwargs):
+        super(Test, self).__init__(pathname, **kwargs)
         self.pre = pre or ''
         self.pre_user = pre_user or ''
         self.post = post or ''
@@ -318,12 +379,12 @@ class Test(Cmd):
             pre_user = ' (as %s)' % (self.pre_user)
         if len(self.post_user):
             post_user = ' (as %s)' % (self.post_user)
-        return "Pathname: %s\nOutputdir: %s\nTimeout: %d\nPre: %s%s\nPost: " \
-               "%s%s\nUser: %s\nTags: %s\n" % \
-               (self.pathname, self.outputdir, self.timeout, self.pre,
-                pre_user, self.post, post_user, self.user, self.tags)
+        return "Pathname: %s\nIdentifier: %s\nOutputdir: %s\nTimeout: %d\n" \
+               "Pre: %s%s\nPost: %s%s\nUser: %s\nTags: %s\n" % \
+               (self.pathname, self.identifier, self.outputdir, self.timeout,
+                self.pre, pre_user, self.post, post_user, self.user, self.tags)
 
-    def verify(self, logger):
+    def verify(self):
         """
         Check the pre/post scripts, user and Test. Omit the Test from this
         run if there are any problems.
@@ -333,58 +394,56 @@ class Test(Cmd):
 
         for f in [f for f in files if len(f)]:
             if not verify_file(f):
-                logger.info("Warning: Test '%s' not added to this run because"
-                            " it failed verification." % f)
+                write_log("Warning: Test '%s' not added to this run because"
+                          " it failed verification.\n" % f, LOG_ERR)
                 return False
 
         for user in [user for user in users if len(user)]:
-            if not verify_user(user, logger):
-                logger.info("Not adding Test '%s' to this run." %
-                            self.pathname)
+            if not verify_user(user):
+                write_log("Not adding Test '%s' to this run.\n" %
+                          self.pathname, LOG_ERR)
                 return False
 
         return True
 
-    def run(self, logger, options):
+    def run(self, options):
         """
         Create Cmd instances for the pre/post scripts. If the pre script
         doesn't pass, skip this Test. Run the post script regardless.
         """
         odir = os.path.join(self.outputdir, os.path.basename(self.pre))
-        pretest = Cmd(self.pre, outputdir=odir, timeout=self.timeout,
-                      user=self.pre_user)
-        test = Cmd(self.pathname, outputdir=self.outputdir,
-                   timeout=self.timeout, user=self.user)
+        pretest = Cmd(self.pre, identifier=self.identifier, outputdir=odir,
+                      timeout=self.timeout, user=self.pre_user)
+        test = Cmd(self.pathname, identifier=self.identifier,
+                   outputdir=self.outputdir, timeout=self.timeout,
+                   user=self.user)
         odir = os.path.join(self.outputdir, os.path.basename(self.post))
-        posttest = Cmd(self.post, outputdir=odir, timeout=self.timeout,
-                       user=self.post_user)
+        posttest = Cmd(self.post, identifier=self.identifier, outputdir=odir,
+                       timeout=self.timeout, user=self.post_user)
 
         cont = True
         if len(pretest.pathname):
-            pretest.run(options)
-            cont = pretest.result.result is 'PASS'
-            pretest.log(logger, options)
+            pretest.run(options.dryrun)
+            cont = pretest.result.result == 'PASS'
+            pretest.log(options)
 
         if cont:
-            test.run(options)
+            test.run(options.dryrun)
         else:
             test.skip()
 
-        test.log(logger, options)
+        test.log(options)
 
         if len(posttest.pathname):
-            posttest.run(options)
-            posttest.log(logger, options)
+            posttest.run(options.dryrun)
+            posttest.log(options)
 
 
 class TestGroup(Test):
     props = Test.props + ['tests']
 
-    def __init__(self, pathname, outputdir=None, timeout=None, user=None,
-                 pre=None, pre_user=None, post=None, post_user=None,
-                 tests=None, tags=None):
-        super(TestGroup, self).__init__(pathname, outputdir, timeout, user,
-                                        pre, pre_user, post, post_user, tags)
+    def __init__(self, pathname, tests=None, **kwargs):
+        super(TestGroup, self).__init__(pathname, **kwargs)
         self.tests = tests or []
 
     def __str__(self):
@@ -393,12 +452,13 @@ class TestGroup(Test):
             pre_user = ' (as %s)' % (self.pre_user)
         if len(self.post_user):
             post_user = ' (as %s)' % (self.post_user)
-        return "Pathname: %s\nOutputdir: %s\nTests: %s\nTimeout: %s\n" \
-               "Pre: %s%s\nPost: %s%s\nUser: %s\nTags: %s\n" % \
-               (self.pathname, self.outputdir, self.tests, self.timeout,
-                self.pre, pre_user, self.post, post_user, self.user, self.tags)
+        return "Pathname: %s\nIdentifier: %s\nOutputdir: %s\nTests: %s\n" \
+               "Timeout: %s\nPre: %s%s\nPost: %s%s\nUser: %s\nTags: %s\n" % \
+               (self.pathname, self.identifier, self.outputdir, self.tests,
+                self.timeout, self.pre, pre_user, self.post, post_user,
+                self.user, self.tags)
 
-    def verify(self, logger):
+    def verify(self):
         """
         Check the pre/post scripts, user and tests in this TestGroup. Omit
         the TestGroup entirely, or simply delete the relevant tests in the
@@ -416,34 +476,34 @@ class TestGroup(Test):
 
         for f in [f for f in auxfiles if len(f)]:
             if self.pathname != os.path.dirname(f):
-                logger.info("Warning: TestGroup '%s' not added to this run. "
-                            "Auxiliary script '%s' exists in a different "
-                            "directory." % (self.pathname, f))
+                write_log("Warning: TestGroup '%s' not added to this run. "
+                          "Auxiliary script '%s' exists in a different "
+                          "directory.\n" % (self.pathname, f), LOG_ERR)
                 return False
 
             if not verify_file(f):
-                logger.info("Warning: TestGroup '%s' not added to this run. "
-                            "Auxiliary script '%s' failed verification." %
-                            (self.pathname, f))
+                write_log("Warning: TestGroup '%s' not added to this run. "
+                          "Auxiliary script '%s' failed verification.\n" %
+                          (self.pathname, f), LOG_ERR)
                 return False
 
         for user in [user for user in users if len(user)]:
-            if not verify_user(user, logger):
-                logger.info("Not adding TestGroup '%s' to this run." %
-                            self.pathname)
+            if not verify_user(user):
+                write_log("Not adding TestGroup '%s' to this run.\n" %
+                          self.pathname, LOG_ERR)
                 return False
 
         # If one of the tests is invalid, delete it, log it, and drive on.
         for test in self.tests:
             if not verify_file(os.path.join(self.pathname, test)):
                 del self.tests[self.tests.index(test)]
-                logger.info("Warning: Test '%s' removed from TestGroup '%s' "
-                            "because it failed verification." %
-                            (test, self.pathname))
+                write_log("Warning: Test '%s' removed from TestGroup '%s' "
+                          "because it failed verification.\n" %
+                          (test, self.pathname), LOG_ERR)
 
-        return len(self.tests) is not 0
+        return len(self.tests) != 0
 
-    def run(self, logger, options):
+    def run(self, options):
         """
         Create Cmd instances for the pre/post scripts. If the pre script
         doesn't pass, skip all the tests in this TestGroup. Run the post
@@ -455,31 +515,32 @@ class TestGroup(Test):
 
         odir = os.path.join(self.outputdir, os.path.basename(self.pre))
         pretest = Cmd(self.pre, outputdir=odir, timeout=self.timeout,
-                      user=self.pre_user)
+                      user=self.pre_user, identifier=self.identifier)
         odir = os.path.join(self.outputdir, os.path.basename(self.post))
         posttest = Cmd(self.post, outputdir=odir, timeout=self.timeout,
-                       user=self.post_user)
+                       user=self.post_user, identifier=self.identifier)
 
         cont = True
         if len(pretest.pathname):
-            pretest.run(options)
-            cont = pretest.result.result is 'PASS'
-            pretest.log(logger, options)
+            pretest.run(options.dryrun)
+            cont = pretest.result.result == 'PASS'
+            pretest.log(options)
 
         for fname in self.tests:
             test = Cmd(os.path.join(self.pathname, fname),
                        outputdir=os.path.join(self.outputdir, fname),
-                       timeout=self.timeout, user=self.user)
+                       timeout=self.timeout, user=self.user,
+                       identifier=self.identifier)
             if cont:
-                test.run(options)
+                test.run(options.dryrun)
             else:
                 test.skip()
 
-            test.log(logger, options)
+            test.log(options)
 
         if len(posttest.pathname):
-            posttest.run(options)
-            posttest.log(logger, options)
+            posttest.run(options.dryrun)
+            posttest.log(options)
 
 
 class TestRun(object):
@@ -491,7 +552,7 @@ class TestRun(object):
         self.starttime = time()
         self.timestamp = datetime.now().strftime('%Y%m%dT%H%M%S')
         self.outputdir = os.path.join(options.outputdir, self.timestamp)
-        self.logger = self.setup_logging(options)
+        self.setup_logging(options)
         self.defaults = [
             ('outputdir', BASEDIR),
             ('quiet', False),
@@ -524,7 +585,7 @@ class TestRun(object):
         for prop in Test.props:
             setattr(test, prop, getattr(options, prop))
 
-        if test.verify(self.logger):
+        if test.verify():
             self.tests[pathname] = test
 
     def addtestgroup(self, dirname, filenames, options):
@@ -546,11 +607,11 @@ class TestRun(object):
             self.testgroups[dirname] = testgroup
             self.testgroups[dirname].tests = sorted(filenames)
 
-            testgroup.verify(self.logger)
+            testgroup.verify()
 
-    def read(self, logger, options):
+    def read(self, options):
         """
-        Read in the specified runfile, and apply the TestRun properties
+        Read in the specified runfiles, and apply the TestRun properties
         listed in the 'DEFAULT' section to our TestRun. Then read each
         section, and apply the appropriate properties to the Test or
         TestGroup. Properties from individual sections override those set
@@ -558,8 +619,11 @@ class TestRun(object):
         verification, add it to the TestRun.
         """
         config = configparser.RawConfigParser()
-        if not len(config.read(options.runfile)):
-            fail("Coulnd't read config file %s" % options.runfile)
+        parsed = config.read(options.runfiles)
+        failed = options.runfiles - set(parsed)
+        if len(failed):
+            files = ' '.join(sorted(failed))
+            fail("Couldn't read config files: %s" % files)
 
         for opt in TestRun.props:
             if config.has_option('DEFAULT', opt):
@@ -568,18 +632,22 @@ class TestRun(object):
 
         for section in config.sections():
             if 'tests' in config.options(section):
-                if os.path.isdir(section):
-                    pathname = section
-                elif os.path.isdir(os.path.join(options.testdir, section)):
-                    pathname = os.path.join(options.testdir, section)
+                parts = section.split(':', 1)
+                sectiondir = parts[0]
+                identifier = parts[1] if len(parts) == 2 else None
+                if os.path.isdir(sectiondir):
+                    pathname = sectiondir
+                elif os.path.isdir(os.path.join(options.testdir, sectiondir)):
+                    pathname = os.path.join(options.testdir, sectiondir)
                 else:
-                    pathname = section
+                    pathname = sectiondir
 
-                testgroup = TestGroup(os.path.abspath(pathname))
+                testgroup = TestGroup(os.path.abspath(pathname),
+                                      identifier=identifier)
                 for prop in TestGroup.props:
                     for sect in ['DEFAULT', section]:
                         if config.has_option(sect, prop):
-                            if prop is "tags":
+                            if prop == "tags":
                                 setattr(testgroup, prop,
                                         eval(config.get(sect, prop)))
                             else:
@@ -589,7 +657,7 @@ class TestRun(object):
                 # Repopulate tests using eval to convert the string to a list
                 testgroup.tests = eval(config.get(section, 'tests'))
 
-                if testgroup.verify(logger):
+                if testgroup.verify():
                     self.testgroups[section] = testgroup
             else:
                 test = Test(section)
@@ -598,7 +666,7 @@ class TestRun(object):
                         if config.has_option(sect, prop):
                             setattr(test, prop, config.get(sect, prop))
 
-                if test.verify(logger):
+                if test.verify():
                     self.tests[section] = test
 
     def write(self, options):
@@ -661,42 +729,23 @@ class TestRun(object):
 
     def setup_logging(self, options):
         """
-        Two loggers are set up here. The first is for the logfile which
-        will contain one line summarizing the test, including the test
-        name, result, and running time. This logger will also capture the
-        timestamped combined stdout and stderr of each run. The second
-        logger is optional console output, which will contain only the one
-        line summary. The loggers are initialized at two different levels
-        to facilitate segregating the output.
+        This function creates the output directory and gets a file object
+        for the logfile. This function must be called before write_log()
+        can be used.
         """
         if options.dryrun is True:
             return
 
-        testlogger = logging.getLogger(__name__)
-        testlogger.setLevel(logging.DEBUG)
-
-        if options.cmd is not 'wrconfig':
+        global LOG_FILE_OBJ
+        if options.cmd != 'wrconfig':
             try:
                 old = os.umask(0)
                 os.makedirs(self.outputdir, mode=0o777)
                 os.umask(old)
+                filename = os.path.join(self.outputdir, 'log')
+                LOG_FILE_OBJ = open(filename, buffering=0, mode='wb')
             except OSError as e:
                 fail('%s' % e)
-            filename = os.path.join(self.outputdir, 'log')
-
-            logfile = logging.FileHandler(filename)
-            logfile.setLevel(logging.DEBUG)
-            logfilefmt = logging.Formatter('%(message)s')
-            logfile.setFormatter(logfilefmt)
-            testlogger.addHandler(logfile)
-
-        cons = logging.StreamHandler()
-        cons.setLevel(logging.INFO)
-        consfmt = logging.Formatter('%(message)s')
-        cons.setFormatter(consfmt)
-        testlogger.addHandler(cons)
-
-        return testlogger
 
     def run(self, options):
         """
@@ -713,23 +762,23 @@ class TestRun(object):
         if not os.path.exists(logsymlink):
             os.symlink(self.outputdir, logsymlink)
         else:
-            print('Could not make a symlink to directory %s' % (
-                self.outputdir))
+            write_log('Could not make a symlink to directory %s\n' %
+                      self.outputdir, LOG_ERR)
         iteration = 0
         while iteration < options.iterations:
             for test in sorted(self.tests.keys()):
-                self.tests[test].run(self.logger, options)
+                self.tests[test].run(options)
             for testgroup in sorted(self.testgroups.keys()):
-                self.testgroups[testgroup].run(self.logger, options)
+                self.testgroups[testgroup].run(options)
             iteration += 1
 
     def summary(self):
-        if Result.total is 0:
+        if Result.total == 0:
             return 2
 
         print('\nResults Summary')
         for key in list(Result.runresults.keys()):
-            if Result.runresults[key] is not 0:
+            if Result.runresults[key] != 0:
                 print('%s\t% 4d' % (key, Result.runresults[key]))
 
         m, s = divmod(time() - self.starttime, 60)
@@ -745,7 +794,27 @@ class TestRun(object):
         if Result.runresults['KILLED'] > 0:
             return 1
 
+        if Result.runresults['RERAN'] > 0:
+            return 3
+
         return 0
+
+
+def write_log(msg, target):
+    """
+    Write the provided message to standard out, standard error or
+    the logfile. If specifying LOG_FILE, then `msg` must be a bytes
+    like object. This way we can still handle output from tests that
+    may be in unexpected encodings.
+    """
+    if target == LOG_OUT:
+        os.write(sys.stdout.fileno(), bytearray(msg, encoding='utf-8'))
+    elif target == LOG_ERR:
+        os.write(sys.stderr.fileno(), bytearray(msg, encoding='utf-8'))
+    elif target == LOG_FILE:
+        os.write(LOG_FILE_OBJ.fileno(), msg)
+    else:
+        fail('log_msg called with unknown target "%s"' % target)
 
 
 def verify_file(pathname):
@@ -763,7 +832,7 @@ def verify_file(pathname):
     return False
 
 
-def verify_user(user, logger):
+def verify_user(user):
     """
     Verify that the specified user exists on this system, and can execute
     sudo without being prompted for a password.
@@ -776,13 +845,15 @@ def verify_user(user, logger):
     try:
         getpwnam(user)
     except KeyError:
-        logger.info("Warning: user '%s' does not exist.", user)
+        write_log("Warning: user '%s' does not exist.\n" % user,
+                  LOG_ERR)
         return False
 
     p = Popen(testcmd)
     p.wait()
-    if p.returncode is not 0:
-        logger.info("Warning: user '%s' cannot use passwordless sudo.", user)
+    if p.returncode != 0:
+        write_log("Warning: user '%s' cannot use passwordless sudo.\n" % user,
+                  LOG_ERR)
         return False
     else:
         Cmd.verified_users.append(user)
@@ -810,37 +881,39 @@ def find_tests(testrun, options):
 
 
 def fail(retstr, ret=1):
-    print('%s: %s' % (argv[0], retstr))
+    print('%s: %s' % (sys.argv[0], retstr))
     exit(ret)
 
 
 def options_cb(option, opt_str, value, parser):
-    path_options = ['runfile', 'outputdir', 'template', 'testdir']
+    path_options = ['outputdir', 'template', 'testdir']
 
-    if option.dest is 'runfile' and '-w' in parser.rargs or \
-            option.dest is 'template' and '-c' in parser.rargs:
+    if option.dest == 'runfiles' and '-w' in parser.rargs or \
+            option.dest == 'template' and '-c' in parser.rargs:
         fail('-c and -w are mutually exclusive.')
 
     if opt_str in parser.rargs:
         fail('%s may only be specified once.' % opt_str)
 
-    if option.dest is 'runfile':
+    if option.dest == 'runfiles':
         parser.values.cmd = 'rdconfig'
-    if option.dest is 'template':
+        value = set(os.path.abspath(p) for p in value.split(','))
+    if option.dest == 'template':
         parser.values.cmd = 'wrconfig'
-    if option.dest is 'tags':
+    if option.dest == 'tags':
         value = [x.strip() for x in value.split(',')]
 
-    setattr(parser.values, option.dest, value)
     if option.dest in path_options:
         setattr(parser.values, option.dest, os.path.abspath(value))
+    else:
+        setattr(parser.values, option.dest, value)
 
 
 def parse_args():
     parser = OptionParser()
     parser.add_option('-c', action='callback', callback=options_cb,
-                      type='string', dest='runfile', metavar='runfile',
-                      help='Specify tests to run via config file.')
+                      type='string', dest='runfiles', metavar='runfiles',
+                      help='Specify tests to run via config files.')
     parser.add_option('-d', action='store_true', default=False, dest='dryrun',
                       help='Dry run. Print tests, but take no other action.')
     parser.add_option('-g', action='store_true', default=False,
@@ -882,10 +955,10 @@ def parse_args():
                       help='Number of times to run the test run.')
     (options, pathnames) = parser.parse_args()
 
-    if not options.runfile and not options.template:
+    if not options.runfiles and not options.template:
         options.cmd = 'runtests'
 
-    if options.runfile and len(pathnames):
+    if options.runfiles and len(pathnames):
         fail('Extraneous arguments.')
 
     options.pathnames = [os.path.abspath(path) for path in pathnames]
@@ -897,11 +970,11 @@ def main():
     options = parse_args()
     testrun = TestRun(options)
 
-    if options.cmd is 'runtests':
+    if options.cmd == 'runtests':
         find_tests(testrun, options)
-    elif options.cmd is 'rdconfig':
-        testrun.read(testrun.logger, options)
-    elif options.cmd is 'wrconfig':
+    elif options.cmd == 'rdconfig':
+        testrun.read(options)
+    elif options.cmd == 'wrconfig':
         find_tests(testrun, options)
         testrun.write(options)
         exit(0)

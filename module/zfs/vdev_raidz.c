@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2019 by Delphix. All rights reserved.
  * Copyright (c) 2016 Gvozden Nešković. All rights reserved.
  */
 
@@ -35,6 +35,10 @@
 #include <sys/fm/fs/zfs.h>
 #include <sys/vdev_raidz.h>
 #include <sys/vdev_raidz_impl.h>
+
+#ifdef ZFS_DEBUG
+#include <sys/vdev.h>	/* For vdev_xlate() in vdev_raidz_io_verify() */
+#endif
 
 /*
  * Virtual device vector for RAID-Z.
@@ -94,7 +98,7 @@
  *	R = 4^n-1 * D_0 + 4^n-2 * D_1 + ... + 4^1 * D_n-2 + 4^0 * D_n-1
  *	  = ((...((D_0) * 4 + D_1) * 4 + ...) * 4 + D_n-2) * 4 + D_n-1
  *
- * We chose 1, 2, and 4 as our generators because 1 corresponds to the trival
+ * We chose 1, 2, and 4 as our generators because 1 corresponds to the trivial
  * XOR operation, and 2 and 4 can be computed quickly and generate linearly-
  * independent coefficients. (There are no additional coefficients that have
  * this property which is why the uncorrected Plank method breaks down.)
@@ -443,7 +447,7 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t ashift, uint64_t dcols,
 	/*
 	 * If all data stored spans all columns, there's a danger that parity
 	 * will always be on the same device and, since parity isn't read
-	 * during normal operation, that that device's I/O bandwidth won't be
+	 * during normal operation, that device's I/O bandwidth won't be
 	 * used effectively. We therefore switch the parity every 1MB.
 	 *
 	 * ... at least that was, ostensibly, the theory. As a practical
@@ -1627,6 +1631,39 @@ vdev_raidz_child_done(zio_t *zio)
 	rc->rc_skipped = 0;
 }
 
+static void
+vdev_raidz_io_verify(zio_t *zio, raidz_map_t *rm, int col)
+{
+#ifdef ZFS_DEBUG
+	vdev_t *vd = zio->io_vd;
+	vdev_t *tvd = vd->vdev_top;
+
+	range_seg64_t logical_rs, physical_rs;
+	logical_rs.rs_start = zio->io_offset;
+	logical_rs.rs_end = logical_rs.rs_start +
+	    vdev_raidz_asize(zio->io_vd, zio->io_size);
+
+	raidz_col_t *rc = &rm->rm_col[col];
+	vdev_t *cvd = vd->vdev_child[rc->rc_devidx];
+
+	vdev_xlate(cvd, &logical_rs, &physical_rs);
+	ASSERT3U(rc->rc_offset, ==, physical_rs.rs_start);
+	ASSERT3U(rc->rc_offset, <, physical_rs.rs_end);
+	/*
+	 * It would be nice to assert that rs_end is equal
+	 * to rc_offset + rc_size but there might be an
+	 * optional I/O at the end that is not accounted in
+	 * rc_size.
+	 */
+	if (physical_rs.rs_end > rc->rc_offset + rc->rc_size) {
+		ASSERT3U(physical_rs.rs_end, ==, rc->rc_offset +
+		    rc->rc_size + (1 << tvd->vdev_ashift));
+	} else {
+		ASSERT3U(physical_rs.rs_end, ==, rc->rc_offset + rc->rc_size);
+	}
+#endif
+}
+
 /*
  * Start an IO operation on a RAIDZ VDev
  *
@@ -1665,6 +1702,12 @@ vdev_raidz_io_start(zio_t *zio)
 		for (c = 0; c < rm->rm_cols; c++) {
 			rc = &rm->rm_col[c];
 			cvd = vd->vdev_child[rc->rc_devidx];
+
+			/*
+			 * Verify physical to logical translation.
+			 */
+			vdev_raidz_io_verify(zio, rm, c);
+
 			zio_nowait(zio_vdev_child_io(zio, NULL, cvd,
 			    rc->rc_offset, rc->rc_abd, rc->rc_size,
 			    zio->io_type, zio->io_priority, 0,
@@ -2231,16 +2274,21 @@ vdev_raidz_io_done(zio_t *zio)
 
 		if (!(zio->io_flags & ZIO_FLAG_SPECULATIVE)) {
 			for (c = 0; c < rm->rm_cols; c++) {
+				vdev_t *cvd;
 				rc = &rm->rm_col[c];
+				cvd = vd->vdev_child[rc->rc_devidx];
 				if (rc->rc_error == 0) {
 					zio_bad_cksum_t zbc;
 					zbc.zbc_has_cksum = 0;
 					zbc.zbc_injected =
 					    rm->rm_ecksuminjected;
 
+					mutex_enter(&cvd->vdev_stat_lock);
+					cvd->vdev_stat.vs_checksum_errors++;
+					mutex_exit(&cvd->vdev_stat_lock);
+
 					zfs_ereport_start_checksum(
-					    zio->io_spa,
-					    vd->vdev_child[rc->rc_devidx],
+					    zio->io_spa, cvd,
 					    &zio->io_bookmark, zio,
 					    rc->rc_offset, rc->rc_size,
 					    (void *)(uintptr_t)c, &zbc);
@@ -2288,7 +2336,7 @@ vdev_raidz_state_change(vdev_t *vd, int faulted, int degraded)
 /*
  * Determine if any portion of the provided block resides on a child vdev
  * with a dirty DTL and therefore needs to be resilvered.  The function
- * assumes that at least one DTL is dirty which imples that full stripe
+ * assumes that at least one DTL is dirty which implies that full stripe
  * width blocks must be resilvered.
  */
 static boolean_t
@@ -2323,17 +2371,49 @@ vdev_raidz_need_resilver(vdev_t *vd, uint64_t offset, size_t psize)
 	return (B_FALSE);
 }
 
+static void
+vdev_raidz_xlate(vdev_t *cvd, const range_seg64_t *in, range_seg64_t *res)
+{
+	vdev_t *raidvd = cvd->vdev_parent;
+	ASSERT(raidvd->vdev_ops == &vdev_raidz_ops);
+
+	uint64_t width = raidvd->vdev_children;
+	uint64_t tgt_col = cvd->vdev_id;
+	uint64_t ashift = raidvd->vdev_top->vdev_ashift;
+
+	/* make sure the offsets are block-aligned */
+	ASSERT0(in->rs_start % (1 << ashift));
+	ASSERT0(in->rs_end % (1 << ashift));
+	uint64_t b_start = in->rs_start >> ashift;
+	uint64_t b_end = in->rs_end >> ashift;
+
+	uint64_t start_row = 0;
+	if (b_start > tgt_col) /* avoid underflow */
+		start_row = ((b_start - tgt_col - 1) / width) + 1;
+
+	uint64_t end_row = 0;
+	if (b_end > tgt_col)
+		end_row = ((b_end - tgt_col - 1) / width) + 1;
+
+	res->rs_start = start_row << ashift;
+	res->rs_end = end_row << ashift;
+
+	ASSERT3U(res->rs_start, <=, in->rs_start);
+	ASSERT3U(res->rs_end - res->rs_start, <=, in->rs_end - in->rs_start);
+}
+
 vdev_ops_t vdev_raidz_ops = {
-	vdev_raidz_open,
-	vdev_raidz_close,
-	vdev_raidz_asize,
-	vdev_raidz_io_start,
-	vdev_raidz_io_done,
-	vdev_raidz_state_change,
-	vdev_raidz_need_resilver,
-	NULL,
-	NULL,
-	NULL,
-	VDEV_TYPE_RAIDZ,	/* name of this vdev type */
-	B_FALSE			/* not a leaf vdev */
+	.vdev_op_open = vdev_raidz_open,
+	.vdev_op_close = vdev_raidz_close,
+	.vdev_op_asize = vdev_raidz_asize,
+	.vdev_op_io_start = vdev_raidz_io_start,
+	.vdev_op_io_done = vdev_raidz_io_done,
+	.vdev_op_state_change = vdev_raidz_state_change,
+	.vdev_op_need_resilver = vdev_raidz_need_resilver,
+	.vdev_op_hold = NULL,
+	.vdev_op_rele = NULL,
+	.vdev_op_remap = NULL,
+	.vdev_op_xlate = vdev_raidz_xlate,
+	.vdev_op_type = VDEV_TYPE_RAIDZ,	/* name of this vdev type */
+	.vdev_op_leaf = B_FALSE			/* not a leaf vdev */
 };

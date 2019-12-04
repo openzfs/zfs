@@ -26,6 +26,7 @@ corresponding interface functions.
 
 The parameters and exceptions are documented in the `libzfs_core` interfaces.
 """
+from __future__ import absolute_import, division, print_function
 
 import errno
 import re
@@ -37,7 +38,8 @@ from ._constants import (
     ZFS_ERR_DISCARDING_CHECKPOINT,
     ZFS_ERR_NO_CHECKPOINT,
     ZFS_ERR_DEVRM_IN_PROGRESS,
-    ZFS_ERR_VDEV_TOO_BIG
+    ZFS_ERR_VDEV_TOO_BIG,
+    ZFS_ERR_WRONG_PARENT
 )
 
 
@@ -45,13 +47,14 @@ def lzc_create_translate_error(ret, name, ds_type, props):
     if ret == 0:
         return
     if ret == errno.EINVAL:
-        # XXX: should raise lzc_exc.WrongParent if parent is ZVOL
         _validate_fs_name(name)
         raise lzc_exc.PropertyInvalid(name)
     if ret == errno.EEXIST:
         raise lzc_exc.FilesystemExists(name)
     if ret == errno.ENOENT:
         raise lzc_exc.ParentNotFound(name)
+    if ret == ZFS_ERR_WRONG_PARENT:
+        raise lzc_exc.WrongParent(_fs_name(name))
     raise _generic_exception(ret, name, "Failed to create filesystem")
 
 
@@ -102,8 +105,9 @@ def lzc_snapshot_translate_errors(ret, errlist, snaps, props):
 
     def _map(ret, name):
         if ret == errno.EXDEV:
-            pool_names = map(_pool_name, snaps)
-            same_pool = all(x == pool_names[0] for x in pool_names)
+            pool_names = iter(map(_pool_name, snaps))
+            pool_name = next(pool_names, None)
+            same_pool = all(x == pool_name for x in pool_names)
             if same_pool:
                 return lzc_exc.DuplicateSnapshots(name)
             else:
@@ -270,7 +274,8 @@ def lzc_hold_translate_errors(ret, errlist, holds, fd):
 def lzc_release_translate_errors(ret, errlist, holds):
     if ret == 0:
         return
-    for _, hold_list in holds.iteritems():
+    for snap in holds:
+        hold_list = holds[snap]
         if not isinstance(hold_list, list):
             raise lzc_exc.TypeError('holds must be in a list')
 
@@ -441,6 +446,8 @@ def lzc_receive_translate_errors(
         raise lzc_exc.SuspendedPool(_pool_name(snapname))
     if ret == errno.EBADE:  # ECKSUM
         raise lzc_exc.BadStream()
+    if ret == ZFS_ERR_WRONG_PARENT:
+        raise lzc_exc.WrongParent(_fs_name(snapname))
 
     raise lzc_exc.StreamIOError(ret)
 
@@ -543,18 +550,6 @@ def lzc_channel_program_translate_error(ret, name, error):
     raise _generic_exception(ret, name, "Failed to execute channel program")
 
 
-def lzc_remap_translate_error(ret, name):
-    if ret == 0:
-        return
-    if ret == errno.ENOENT:
-        raise lzc_exc.DatasetNotFound(name)
-    if ret == errno.EINVAL:
-        _validate_fs_name(name)
-    if ret == errno.ENOTSUP:
-        return lzc_exc.FeatureNotSupported(name)
-    raise _generic_exception(ret, name, "Failed to remap dataset")
-
-
 def lzc_pool_checkpoint_translate_error(ret, name, discard=False):
     if ret == 0:
         return
@@ -593,6 +588,8 @@ def lzc_rename_translate_error(ret, source, target):
         raise lzc_exc.FilesystemExists(target)
     if ret == errno.ENOENT:
         raise lzc_exc.FilesystemNotFound(source)
+    if ret == ZFS_ERR_WRONG_PARENT:
+        raise lzc_exc.WrongParent(target)
     raise _generic_exception(ret, source, "Failed to rename dataset")
 
 
@@ -705,15 +702,17 @@ def _handle_err_list(ret, errlist, names, exception, mapper):
 
     if len(errlist) == 0:
         suppressed_count = 0
+        names = list(zip(names, range(2)))
         if len(names) == 1:
-            name = names[0]
+            name, _ = names[0]
         else:
             name = None
         errors = [mapper(ret, name)]
     else:
         errors = []
         suppressed_count = errlist.pop('N_MORE_ERRORS', 0)
-        for name, err in errlist.iteritems():
+        for name in errlist:
+            err = errlist[name]
             errors.append(mapper(err, name))
 
     raise exception(errors, suppressed_count)
@@ -727,7 +726,7 @@ def _pool_name(name):
     '@' separates a snapshot name from the rest of the dataset name.
     '#' separates a bookmark name from the rest of the dataset name.
     '''
-    return re.split('[/@#]', name, 1)[0]
+    return re.split(b'[/@#]', name, 1)[0]
 
 
 def _fs_name(name):
@@ -737,26 +736,26 @@ def _fs_name(name):
     '@' separates a snapshot name from the rest of the dataset name.
     '#' separates a bookmark name from the rest of the dataset name.
     '''
-    return re.split('[@#]', name, 1)[0]
+    return re.split(b'[@#]', name, 1)[0]
 
 
 def _is_valid_name_component(component):
-    allowed = string.ascii_letters + string.digits + '-_.: '
-    return component and all(x in allowed for x in component)
+    allowed = string.ascii_letters + string.digits + u'-_.: '
+    return component and all(x in allowed.encode() for x in component)
 
 
 def _is_valid_fs_name(name):
-    return name and all(_is_valid_name_component(c) for c in name.split('/'))
+    return name and all(_is_valid_name_component(c) for c in name.split(b'/'))
 
 
 def _is_valid_snap_name(name):
-    parts = name.split('@')
+    parts = name.split(b'@')
     return (len(parts) == 2 and _is_valid_fs_name(parts[0]) and
             _is_valid_name_component(parts[1]))
 
 
 def _is_valid_bmark_name(name):
-    parts = name.split('#')
+    parts = name.split(b'#')
     return (len(parts) == 2 and _is_valid_fs_name(parts[0]) and
             _is_valid_name_component(parts[1]))
 

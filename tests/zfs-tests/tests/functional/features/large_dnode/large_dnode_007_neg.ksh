@@ -21,6 +21,11 @@
 #
 
 #
+# Copyright (c) 2016 by Lawrence Livermore National Security, LLC.
+# Use is subject to license terms.
+#
+
+#
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #

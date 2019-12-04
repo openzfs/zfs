@@ -560,6 +560,7 @@ vdev_indirect_mapping_load_obsolete_spacemap(vdev_indirect_mapping_t *vim,
 	losma.losma_counts = counts;
 	losma.losma_vim = vim;
 	VERIFY0(space_map_iterate(obsolete_space_sm,
+	    space_map_length(obsolete_space_sm),
 	    load_obsolete_sm_callback, &losma));
 }
 

@@ -42,15 +42,15 @@ log_must zfs snapshot $sendfs@full
 
 log_must eval "zfs send -c $sendfs@full >$BACKDIR/full"
 log_must stream_has_features $BACKDIR/full lz4 compressed
-cat $BACKDIR/full | zstreamdump -v | parse_dump > $BACKDIR/dump.out
+cat $BACKDIR/full | zstreamdump -v > $BACKDIR/dump.out
 
-lsize=$(awk '/^WRITE [^0]/ {lsize += $4} END {printf("%d", lsize)}' \
+lsize=$(awk '/^WRITE [^0]/ {lsize += $24} END {printf("%d", lsize)}' \
     $BACKDIR/dump.out)
 lsize_prop=$(get_prop logicalused $sendfs)
 within_percent $lsize $lsize_prop 90 || log_fail \
     "$lsize and $lsize_prop differed by too much"
 
-csize=$(awk '/^WRITE [^0]/ {csize += $5} END {printf("%d", csize)}' \
+csize=$(awk '/^WRITE [^0]/ {csize += $27} END {printf("%d", csize)}' \
     $BACKDIR/dump.out)
 csize_prop=$(get_prop used $sendfs)
 within_percent $csize $csize_prop 90 || log_fail \

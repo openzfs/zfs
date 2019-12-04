@@ -65,7 +65,6 @@ done
 for opt in ${opts[@]}; do
 	log_mustnot eval "zfs send -b$opt $SENDFS > /dev/null"
 	log_mustnot eval "zfs send -b$opt $SENDFS#bm > /dev/null"
-	log_mustnot eval "zfs send -b$opt -i $SENDFS#bm $SENDFS@s2 > /dev/null"
 done
 
 # Do 3..6 in a loop to verify various combination of "zfs send" options

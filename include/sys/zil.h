@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -80,7 +80,7 @@ typedef struct zil_header {
  * Log blocks are chained together. Originally they were chained at the
  * end of the block. For performance reasons the chain was moved to the
  * beginning of the block which allows writes for only the data being used.
- * The older position is supported for backwards compatability.
+ * The older position is supported for backwards compatibility.
  *
  * The zio_eck_t contains a zec_cksum which for the intent log is
  * the sequence number of this log block. A seq of 0 is invalid.
@@ -373,7 +373,7 @@ typedef struct {
  *	- the write occupies only one block
  * WR_COPIED:
  *    If we know we'll immediately be committing the
- *    transaction (FSYNC or FDSYNC), then we allocate a larger
+ *    transaction (O_SYNC or O_DSYNC), then we allocate a larger
  *    log record here for the data and copy the data in.
  * WR_NEED_COPY:
  *    Otherwise we don't allocate a buffer, and *if* we need to
@@ -421,7 +421,7 @@ typedef struct zil_stats {
 
 	/*
 	 * Number of transactions (reads, writes, renames, etc.)
-	 * that have been commited.
+	 * that have been committed.
 	 */
 	kstat_named_t zil_itx_count;
 
@@ -493,6 +493,7 @@ extern itx_t	*zil_itx_create(uint64_t txtype, size_t lrsize);
 extern void	zil_itx_destroy(itx_t *itx);
 extern void	zil_itx_assign(zilog_t *zilog, itx_t *itx, dmu_tx_t *tx);
 
+extern void	zil_async_to_sync(zilog_t *zilog, uint64_t oid);
 extern void	zil_commit(zilog_t *zilog, uint64_t oid);
 extern void	zil_commit_impl(zilog_t *zilog, uint64_t oid);
 
@@ -514,6 +515,9 @@ extern int	zil_bp_tree_add(zilog_t *zilog, const blkptr_t *bp);
 extern void	zil_set_sync(zilog_t *zilog, uint64_t syncval);
 
 extern void	zil_set_logbias(zilog_t *zilog, uint64_t slogval);
+
+extern uint64_t	zil_max_copied_data(zilog_t *zilog);
+extern uint64_t	zil_max_log_data(zilog_t *zilog);
 
 extern int zil_replay_disable;
 

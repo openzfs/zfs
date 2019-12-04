@@ -8,6 +8,7 @@ SUBDIRS = \
 	file_check \
 	file_trunc \
 	file_write \
+	get_diff \
 	largest_file \
 	libzfs_input_check \
 	mkbusy \
@@ -24,4 +25,5 @@ SUBDIRS = \
 	rename_dir \
 	rm_lnkcnt_zero_file \
 	threadsappend \
-	xattrtest
+	xattrtest \
+	stride_dd

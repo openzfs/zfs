@@ -21,6 +21,7 @@
 
 /*
  * Copyright (c) 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2018 Datto Inc.
  */
 
 #ifndef _SYS_DATASET_KSTATS_H
@@ -35,6 +36,8 @@ typedef struct dataset_aggsum_stats_t {
 	aggsum_t das_nwritten;
 	aggsum_t das_reads;
 	aggsum_t das_nread;
+	aggsum_t das_nunlinks;
+	aggsum_t das_nunlinked;
 } dataset_aggsum_stats_t;
 
 typedef struct dataset_kstat_values {
@@ -43,6 +46,16 @@ typedef struct dataset_kstat_values {
 	kstat_named_t dkv_nwritten;
 	kstat_named_t dkv_reads;
 	kstat_named_t dkv_nread;
+	/*
+	 * nunlinks is initialized to the unlinked set size on mount and
+	 * is incremented whenever a new entry is added to the unlinked set
+	 */
+	kstat_named_t dkv_nunlinks;
+	/*
+	 * nunlinked is initialized to zero on mount and is incremented when an
+	 * entry is removed from the unlinked set
+	 */
+	kstat_named_t dkv_nunlinked;
 } dataset_kstat_values_t;
 
 typedef struct dataset_kstats {
@@ -55,5 +68,8 @@ void dataset_kstats_destroy(dataset_kstats_t *);
 
 void dataset_kstats_update_write_kstats(dataset_kstats_t *, int64_t);
 void dataset_kstats_update_read_kstats(dataset_kstats_t *, int64_t);
+
+void dataset_kstats_update_nunlinks_kstat(dataset_kstats_t *, int64_t);
+void dataset_kstats_update_nunlinked_kstat(dataset_kstats_t *, int64_t);
 
 #endif /* _SYS_DATASET_KSTATS_H */

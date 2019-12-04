@@ -78,7 +78,7 @@ The following zfs-tests.sh options are supported:
                 when test-runner exists.  This is useful when the results of
                 a specific test need to be preserved for further analysis.
 
-    -f          Use sparse files directly instread of loopback devices for
+    -f          Use sparse files directly instead of loopback devices for
                 the testing.  When running in this mode certain tests will
                 be skipped which depend on real block devices.
 
@@ -91,7 +91,7 @@ The following zfs-tests.sh options are supported:
 
     -s SIZE     Use vdevs of SIZE (default: 4G)
 
-    -r RUNFILE  Run tests in RUNFILE (default: linux.run)
+    -r RUNFILES Run tests in RUNFILES (default: common.run,linux.run)
 
     -t PATH     Run single test at PATH relative to test suite
 

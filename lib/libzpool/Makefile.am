@@ -4,6 +4,7 @@ VPATH = \
 	$(top_srcdir)/module/zfs \
 	$(top_srcdir)/module/zcommon \
 	$(top_srcdir)/module/lua \
+	$(top_srcdir)/module/os/linux/zfs \
 	$(top_srcdir)/lib/libzpool
 
 # Suppress unused but set variable warnings often due to ASSERTs
@@ -13,10 +14,6 @@ AM_CFLAGS += $(NO_UNUSED_BUT_SET_VARIABLE)
 AM_CFLAGS += $(FRAME_LARGER_THAN)
 
 AM_CFLAGS += -DLIB_ZPOOL_BUILD
-
-DEFAULT_INCLUDES += \
-	-I$(top_srcdir)/include \
-	-I$(top_srcdir)/lib/libspl/include
 
 lib_LTLIBRARIES = libzpool.la
 
@@ -44,10 +41,12 @@ KERNEL_C = \
 	abd.c \
 	aggsum.c \
 	arc.c \
+	arc_os.c \
 	blkptr.c \
 	bplist.c \
 	bpobj.c \
 	bptree.c \
+	btree.c \
 	bqueue.c \
 	cityhash.c \
 	dbuf.c \
@@ -59,6 +58,7 @@ KERNEL_C = \
 	dmu_object.c \
 	dmu_objset.c \
 	dmu_recv.c \
+	dmu_redact.c \
 	dmu_send.c \
 	dmu_traverse.c \
 	dmu_tx.c \
@@ -86,6 +86,7 @@ KERNEL_C = \
 	metaslab.c \
 	mmp.c \
 	multilist.c \
+	objlist.c \
 	pathname.c \
 	range_tree.c \
 	refcount.c \
@@ -99,6 +100,7 @@ KERNEL_C = \
 	spa_config.c \
 	spa_errlog.c \
 	spa_history.c \
+	spa_log_spacemap.c \
 	spa_misc.c \
 	spa_stats.c \
 	space_map.c \
@@ -113,6 +115,7 @@ KERNEL_C = \
 	vdev_indirect_births.c \
 	vdev_indirect.c \
 	vdev_indirect_mapping.c \
+	vdev_initialize.c \
 	vdev_label.c \
 	vdev_mirror.c \
 	vdev_missing.c \
@@ -129,6 +132,7 @@ KERNEL_C = \
 	vdev_raidz_math_ssse3.c \
 	vdev_removal.c \
 	vdev_root.c \
+	vdev_trim.c \
 	zap.c \
 	zap_leaf.c \
 	zap_micro.c \
@@ -148,6 +152,7 @@ KERNEL_C = \
 	zfs_rlock.c \
 	zil.c \
 	zio.c \
+	zio_os.c \
 	zio_checksum.c \
 	zio_compress.c \
 	zio_crypt.c \

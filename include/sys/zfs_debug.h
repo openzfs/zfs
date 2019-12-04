@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2019 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_ZFS_DEBUG_H
@@ -54,10 +54,29 @@ extern int zfs_dbgmsg_enable;
 #define	ZFS_DEBUG_METASLAB_VERIFY	(1 << 8)
 #define	ZFS_DEBUG_SET_ERROR		(1 << 9)
 #define	ZFS_DEBUG_INDIRECT_REMAP	(1 << 10)
+#define	ZFS_DEBUG_TRIM			(1 << 11)
+#define	ZFS_DEBUG_LOG_SPACEMAP		(1 << 12)
 
+extern void __set_error(const char *file, const char *func, int line, int err);
 extern void __zfs_dbgmsg(char *buf);
 extern void __dprintf(boolean_t dprint, const char *file, const char *func,
     int line, const char *fmt, ...);
+
+/*
+ * Some general principles for using zfs_dbgmsg():
+ * 1. We don't want to pollute the log with typically-irrelevant messages,
+ *    so don't print too many messages in the "normal" code path - O(1)
+ *    per txg.
+ * 2. We want to know for sure what happened, so make the message specific
+ *    (e.g. *which* thing am I operating on).
+ * 3. Do print a message when something unusual or unexpected happens
+ *    (e.g. error cases).
+ * 4. Print a message when making user-initiated on-disk changes.
+ *
+ * Note that besides principle 1, another reason that we don't want to
+ * use zfs_dbgmsg in high-frequency routines is the potential impact
+ * that it can have on performance.
+ */
 #define	zfs_dbgmsg(...) \
 	if (zfs_dbgmsg_enable) \
 		__dprintf(B_FALSE, __FILE__, __func__, __LINE__, __VA_ARGS__)

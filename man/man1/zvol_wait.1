@@ -1,0 +1,21 @@
+.Dd July 5, 2019
+.Dt ZVOL_WAIT 1 SMM
+.Os Linux
+.Sh NAME
+.Nm zvol_wait
+.Nd Wait for ZFS volume links in
+.Em /dev
+to be created.
+.Sh SYNOPSIS
+.Nm
+.Sh DESCRIPTION
+When a ZFS pool is imported, ZFS will register each ZFS volume
+(zvol) as a disk device with the system. As the disks are registered,
+.Xr \fBudev 7\fR
+will asynchronously create symlinks under
+.Em /dev/zvol
+using the zvol's name.
+.Nm
+will wait for all those symlinks to be created before returning.
+.Sh SEE ALSO
+.Xr \fBudev 7\fR

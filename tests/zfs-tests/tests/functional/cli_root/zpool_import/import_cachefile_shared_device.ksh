@@ -50,7 +50,7 @@ function dev_checksum
 
 	log_note "Compute checksum of '$dev'"
 
-	checksum=$(md5sum $dev)
+	checksum=$(md5digest $dev)
 	if [[ $? -ne 0 ]]; then
 		log_fail "Failed to compute checksum of '$dev'"
 		return 1

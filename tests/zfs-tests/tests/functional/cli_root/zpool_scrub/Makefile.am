@@ -9,7 +9,8 @@ dist_pkgdata_SCRIPTS = \
 	zpool_scrub_005_pos.ksh \
 	zpool_scrub_encrypted_unloaded.ksh \
 	zpool_scrub_offline_device.ksh \
-	zpool_scrub_print_repairing.ksh
+	zpool_scrub_print_repairing.ksh \
+	zpool_scrub_multiple_copies.ksh
 
 dist_pkgdata_DATA = \
 	zpool_scrub.cfg

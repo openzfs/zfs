@@ -34,10 +34,6 @@
 #include <time.h>
 #include <stdint.h>
 
-typedef unsigned char	uchar_t;
-typedef long long	longlong_t;
-typedef longlong_t	offset_t;
-
 static unsigned char bigbuffer[BIGBUFFERSIZE];
 
 /*

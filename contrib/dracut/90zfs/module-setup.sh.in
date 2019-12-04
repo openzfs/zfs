@@ -98,6 +98,9 @@ install() {
 				type mark_hostonly >/dev/null 2>&1 && mark_hostonly @systemdunitdir@/zfs-import-$_item.service
 			fi
 		done
+		inst "${moddir}"/zfs-env-bootfs.service "${systemdsystemunitdir}"/zfs-env-bootfs.service
+		ln -s ../zfs-env-bootfs.service "${initdir}/${systemdsystemunitdir}/zfs-import.target.wants"/zfs-env-bootfs.service
+		type mark_hostonly >/dev/null 2>&1 && mark_hostonly @systemdunitdir@/zfs-env-bootfs.service
 		dracut_install systemd-ask-password
 		dracut_install systemd-tty-ask-password-agent
 		mkdir -p "${initdir}/$systemdsystemunitdir/initrd.target.wants"

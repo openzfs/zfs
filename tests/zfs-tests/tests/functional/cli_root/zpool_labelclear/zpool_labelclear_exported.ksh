@@ -26,8 +26,8 @@
 # 2. Export the pool.
 # 3. Check that zpool labelclear returns non-zero when trying to
 #    clear the label on ACTIVE vdevs, and succeeds with -f.
-# 4. Add auxilary vdevs (cache/spare).
-# 5. Check that zpool labelclear succeeds on auxilary vdevs of
+# 4. Add auxiliary vdevs (cache/spare).
+# 5. Check that zpool labelclear succeeds on auxiliary vdevs of
 #    exported pool.
 
 verify_runnable "global"
@@ -44,7 +44,7 @@ log_assert "zpool labelclear will fail on ACTIVE vdevs of exported pool and" \
 for vdevtype in "" "cache" "spare"; do
 	# Create simple pool, skip any mounts
 	log_must zpool create -O mountpoint=none -f $TESTPOOL $disk1 log $disk2
-	# Add auxilary vdevs (cache/spare)
+	# Add auxiliary vdevs (cache/spare)
 	if [[ -n $vdevtype ]]; then
 		log_must zpool add $TESTPOOL $vdevtype $disk3
 	fi
@@ -52,21 +52,21 @@ for vdevtype in "" "cache" "spare"; do
 	log_must zpool export $TESTPOOL
 
 	# Check that labelclear will fail without -f
-	log_mustnot $LABELCLEAR $disk1
-	log_must $LABELREAD $disk1
-	log_mustnot $LABELCLEAR $disk2
-	log_must $LABELREAD $disk2
+	log_mustnot zpool labelclear $disk1
+	log_must zdb -lq $disk1
+	log_mustnot zpool labelclear $disk2
+	log_must zdb -lq $disk2
 
 	# Check that labelclear will succeed with -f
-	log_must $LABELCLEAR -f $disk1
-	log_mustnot $LABELREAD $disk1
-	log_must $LABELCLEAR -f $disk2
-	log_mustnot $LABELREAD $disk2
+	log_must zpool labelclear -f $disk1
+	log_mustnot zdb -lq $disk1
+	log_must zpool labelclear -f $disk2
+	log_mustnot zdb -lq $disk2
 
-	# Check that labelclear on auxilary vdevs will succeed
+	# Check that labelclear on auxiliary vdevs will succeed
 	if [[ -n $vdevtype ]]; then
-		log_must $LABELCLEAR $disk3
-		log_mustnot $LABELREAD $disk3
+		log_must zpool labelclear $disk3
+		log_mustnot zdb -lq $disk3
 	fi
 done
 

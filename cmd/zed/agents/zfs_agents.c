@@ -116,7 +116,8 @@ zfs_agent_iter_vdev(zpool_handle_t *zhp, nvlist_t *nvl, void *arg)
 	/*
 	 * On a devid match, grab the vdev guid and expansion time, if any.
 	 */
-	if ((nvlist_lookup_string(nvl, ZPOOL_CONFIG_DEVID, &path) == 0) &&
+	if (gsp->gs_devid != NULL &&
+	    (nvlist_lookup_string(nvl, ZPOOL_CONFIG_DEVID, &path) == 0) &&
 	    (strcmp(gsp->gs_devid, path) == 0)) {
 		(void) nvlist_lookup_uint64(nvl, ZPOOL_CONFIG_GUID,
 		    &gsp->gs_vdev_guid);

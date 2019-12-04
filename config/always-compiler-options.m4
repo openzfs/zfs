@@ -139,3 +139,24 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_NO_UNUSED_BUT_SET_VARIABLE], [
 	CFLAGS="$saved_flags"
 	AC_SUBST([NO_UNUSED_BUT_SET_VARIABLE])
 ])
+
+dnl #
+dnl # Check if gcc supports -fno-omit-frame-pointer option.
+dnl #
+AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_NO_OMIT_FRAME_POINTER], [
+	AC_MSG_CHECKING([whether $CC supports -fno-omit-frame-pointer])
+
+	saved_flags="$CFLAGS"
+	CFLAGS="$CFLAGS -fno-omit-frame-pointer"
+
+	AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [])], [
+		NO_OMIT_FRAME_POINTER=-fno-omit-frame-pointer
+		AC_MSG_RESULT([yes])
+	], [
+		NO_OMIT_FRAME_POINTER=
+		AC_MSG_RESULT([no])
+	])
+
+	CFLAGS="$saved_flags"
+	AC_SUBST([NO_OMIT_FRAME_POINTER])
+])

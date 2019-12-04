@@ -9,5 +9,6 @@ $(modulesload_DATA):%:%.in
 		-e '' \
 		$< >'$@'
 
+# Double-colon rules are allowed; there are multiple independent definitions.
 distclean-local::
 	-$(RM) $(modulesload_DATA)

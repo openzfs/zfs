@@ -28,7 +28,8 @@
 #if defined(__x86_64) && defined(HAVE_AVX512F)
 
 #include <sys/types.h>
-#include <linux/simd_x86.h>
+#include <sys/simd.h>
+#include <sys/debug.h>
 
 #define	__asm __asm__ __volatile__
 
@@ -194,6 +195,8 @@ typedef struct v {
 		    "vpternlogd $0x6c,%zmm29, %zmm26, %" VR0(r) "\n"	\
 		    "vpternlogd $0x6c,%zmm29, %zmm25, %" VR1(r));	\
 		break;							\
+	default:							\
+		VERIFY(0);						\
 	}								\
 }
 
@@ -370,6 +373,9 @@ gf_x2_mul_fns[256] = {
 		COPY(R_23(r), _mul_x2_in);				\
 		gf_x2_mul_fns[c]();					\
 		COPY(_mul_x2_acc, R_23(r));				\
+		break;							\
+	default:							\
+		VERIFY(0);						\
 	}								\
 }
 
@@ -470,9 +476,8 @@ DEFINE_REC_METHODS(avx512f);
 static boolean_t
 raidz_will_avx512f_work(void)
 {
-	return (zfs_avx_available() &&
-	    zfs_avx2_available() &&
-	    zfs_avx512f_available());
+	return (kfpu_allowed() && zfs_avx_available() &&
+	    zfs_avx2_available() && zfs_avx512f_available());
 }
 
 const raidz_impl_ops_t vdev_raidz_avx512f_impl = {

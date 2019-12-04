@@ -37,7 +37,7 @@ set -A depth_options  "d 0" "d 1" "d 2" "d 4" "d 32"
 set -A depth_array  0 1 2 4 32
 
 #
-# Setup multiple depths datasets, including fs, volume and snapshot.
+# Setup multiple depths datasets, including fs, volumes, snapshots and bookmarks.
 #
 function depth_fs_setup
 {
@@ -65,6 +65,7 @@ function depth_fs_setup
 					log_must zfs create -V 8M $fs/vol_"$j"_depth"$i"
 				fi
 				log_must zfs snapshot $fs@snap_"$j"_depth"$i"
+				log_must zfs bookmark $fs@snap_"$j"_depth"$i" '#bookmark'_"$j"_depth"$i"
 				(( j=j+1 ))
 			done
 		done

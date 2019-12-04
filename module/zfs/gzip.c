@@ -29,7 +29,7 @@
 #include <sys/debug.h>
 #include <sys/types.h>
 #include <sys/strings.h>
-#include "qat.h"
+#include <sys/qat.h>
 
 #ifdef _KERNEL
 

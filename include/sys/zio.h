@@ -102,7 +102,6 @@ enum zio_checksum {
 #define	ZIO_CHECKSUM_VERIFY	(1 << 8)
 
 #define	ZIO_DEDUPCHECKSUM	ZIO_CHECKSUM_SHA256
-#define	ZIO_DEDUPDITTO_MIN	100
 
 /* supported encryption algorithms */
 enum zio_encrypt {
@@ -266,16 +265,6 @@ enum zio_wait_type {
 	ZIO_WAIT_TYPES
 };
 
-/*
- * We'll take the unused errnos, 'EBADE' and 'EBADR' (from the Convergent
- * graveyard) to indicate checksum errors and fragmentation.
- */
-#define	ECKSUM	EBADE
-#define	EFRAGS	EBADR
-
-/* Similar for ENOACTIVE */
-#define	ENOTACTIVE	ENOANO
-
 typedef void zio_done_func_t(zio_t *zio);
 
 extern int zio_dva_throttle_enabled;
@@ -416,6 +405,14 @@ typedef zio_t *zio_pipe_stage_t(zio_t *zio);
 #define	ZIO_REEXECUTE_NOW	0x01
 #define	ZIO_REEXECUTE_SUSPEND	0x02
 
+/*
+ * The io_trim flags are used to specify the type of TRIM to perform.  They
+ * only apply to ZIO_TYPE_TRIM zios are distinct from io_flags.
+ */
+enum trim_flag {
+	ZIO_TRIM_SECURE		= 1 << 0,
+};
+
 typedef struct zio_alloc_list {
 	list_t  zal_list;
 	uint64_t zal_size;
@@ -434,6 +431,7 @@ struct zio {
 	zio_prop_t	io_prop;
 	zio_type_t	io_type;
 	enum zio_child	io_child_type;
+	enum trim_flag	io_trim_flags;
 	int		io_cmd;
 	zio_priority_t	io_priority;
 	uint8_t		io_reexecute;
@@ -502,6 +500,7 @@ struct zio {
 	zio_gang_node_t	*io_gang_tree;
 	void		*io_executor;
 	void		*io_waiter;
+	void		*io_bio;
 	kmutex_t	io_lock;
 	kcondvar_t	io_cv;
 	int		io_allocator;
@@ -548,6 +547,10 @@ extern zio_t *zio_claim(zio_t *pio, spa_t *spa, uint64_t txg,
 
 extern zio_t *zio_ioctl(zio_t *pio, spa_t *spa, vdev_t *vd, int cmd,
     zio_done_func_t *done, void *private, enum zio_flag flags);
+
+extern zio_t *zio_trim(zio_t *pio, vdev_t *vd, uint64_t offset, uint64_t size,
+    zio_done_func_t *done, void *private, zio_priority_t priority,
+    enum zio_flag flags, enum trim_flag trim_flags);
 
 extern zio_t *zio_read_phys(zio_t *pio, vdev_t *vd, uint64_t offset,
     uint64_t size, struct abd *data, int checksum,

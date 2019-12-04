@@ -2,6 +2,7 @@ dnl #
 dnl # Default ZFS user configuration
 dnl #
 AC_DEFUN([ZFS_AC_CONFIG_USER], [
+	ZFS_AC_CONFIG_USER_GETTEXT
 	ZFS_AC_CONFIG_USER_MOUNT_HELPER
 	ZFS_AC_CONFIG_USER_UDEV
 	ZFS_AC_CONFIG_USER_SYSTEMD
@@ -26,7 +27,7 @@ AC_DEFUN([ZFS_AC_CONFIG_USER], [
 
 dnl #
 dnl # Setup the environment for the ZFS Test Suite.  Currently only
-dnl # Linux sytle systems are supported but this infrastructure can
+dnl # Linux style systems are supported but this infrastructure can
 dnl # be extended to support other platforms if needed.
 dnl #
 AC_DEFUN([ZFS_AC_TEST_FRAMEWORK], [

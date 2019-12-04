@@ -28,13 +28,15 @@
 # STRATEGY:
 # 1. Create an encrypted dataset
 # 2. Create an encrypted child dataset
-# 3. Attempt to change the key without any flags
-# 4. Attempt to change the key specifying keylocation
-# 5. Attempt to change the key specifying keyformat
-# 6. Verify the new encryption root can unload and load its key
-# 7. Recreate the child dataset
-# 8. Attempt to change the key specifying both the keylocation and keyformat
-# 9. Verify the new encryption root can unload and load its key
+# 3. Create an unencrypted child dataset
+# 4. Attempt to change the key without any flags
+# 5. Attempt to change the key specifying keylocation
+# 6. Attempt to change the key specifying keyformat
+# 7. Verify the new encryption root can unload and load its key
+# 8. Recreate the child dataset
+# 9. Attempt to change the key specifying both the keylocation and keyformat
+# 10. Verify the new encryption root can unload and load its key
+# 11. Verify the unencrytped child is still accessible normally
 #
 
 verify_runnable "both"
@@ -53,6 +55,7 @@ log_assert "'zfs change-key' should promote an encrypted child to an" \
 log_must eval "echo $PASSPHRASE1 | zfs create -o encryption=on" \
 	"-o keyformat=passphrase -o keylocation=prompt $TESTPOOL/$TESTFS1"
 log_must zfs create $TESTPOOL/$TESTFS1/child
+log_must zfs create -o encryption=off $TESTPOOL/$TESTFS1/child2
 
 log_mustnot eval "echo $PASSPHRASE2 | zfs change-key" \
 	"$TESTPOOL/$TESTFS1/child"
@@ -82,5 +85,7 @@ log_must key_unavailable $TESTPOOL/$TESTFS1/child
 
 log_must eval "echo $PASSPHRASE2 | zfs load-key $TESTPOOL/$TESTFS1/child"
 log_must key_available $TESTPOOL/$TESTFS1/child
+log_must zfs unmount $TESTPOOL/$TESTFS1/child2
+log_must zfs mount $TESTPOOL/$TESTFS1/child2
 
 log_pass "'zfs change-key' promotes an encrypted child to an encryption root"

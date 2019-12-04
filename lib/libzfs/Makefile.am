@@ -11,11 +11,6 @@ AM_CFLAGS += $(NO_UNUSED_BUT_SET_VARIABLE)
 libzfs_pcdir = $(datarootdir)/pkgconfig
 libzfs_pc_DATA = libzfs.pc libzfs_core.pc
 
-DEFAULT_INCLUDES += \
-	-I$(top_srcdir)/include \
-	-I$(top_srcdir)/module/icp/include \
-	-I$(top_srcdir)/lib/libspl/include
-
 lib_LTLIBRARIES = libzfs.la
 
 USER_C = \
@@ -31,6 +26,15 @@ USER_C = \
 	libzfs_sendrecv.c \
 	libzfs_status.c \
 	libzfs_util.c
+
+if BUILD_LINUX
+USER_C += \
+	os/linux/libzfs_mount_os.c \
+	os/linux/libzfs_pool_os.c \
+	os/linux/libzfs_sendrecv_os.c \
+	os/linux/libzfs_util_os.c
+endif
+
 
 KERNEL_C = \
 	algs/sha2/sha2.c \
@@ -56,12 +60,20 @@ nodist_libzfs_la_SOURCES = \
 
 libzfs_la_LIBADD = \
 	$(top_builddir)/lib/libnvpair/libnvpair.la \
-	$(top_builddir)/lib/libshare/libshare.la \
 	$(top_builddir)/lib/libuutil/libuutil.la \
 	$(top_builddir)/lib/libzfs_core/libzfs_core.la \
 	$(top_builddir)/lib/libzutil/libzutil.la
 
-libzfs_la_LIBADD += -lm $(LIBSSL)
+if BUILD_LINUX
+libzfs_la_LIBADD += \
+	$(top_builddir)/lib/libshare/libshare.la
+endif
+
 libzfs_la_LDFLAGS = -version-info 2:0:0
 
+libzfs_la_LIBADD += -lm $(LIBSSL)
+
 EXTRA_DIST = $(libzfs_pc_DATA) $(USER_C)
+
+# Licensing data
+EXTRA_DIST += THIRDPARTYLICENSE.openssl THIRDPARTYLICENSE.openssl.descrip

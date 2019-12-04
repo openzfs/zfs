@@ -1,0 +1,1 @@
+subdirs-m = spl zfs

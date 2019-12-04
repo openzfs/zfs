@@ -62,7 +62,7 @@ log_must eval "echo 'password' > $keyfile"
 
 log_must zfs create -o dedup=on -o encryption=on -o keyformat=passphrase \
 	-o keylocation=file://$keyfile -V 128M $TESTPOOL/$TESTVOL
-log_must block_device_wait
+block_device_wait
 
 log_must eval "echo 'y' | newfs -t ext4 -v $zdev"
 log_must mkdir -p $mntpnt
@@ -82,12 +82,12 @@ done
 log_must eval "zfs send -wDR $TESTPOOL/$TESTVOL@snap$snap_count > $sendfile"
 log_must eval "zfs recv $TESTPOOL/recv < $sendfile"
 log_must zfs load-key $TESTPOOL/recv
-log_must block_device_wait
+block_device_wait
 
 log_must mount $recvdev $recvmnt
 
-md5_1=$(cat $mntpnt/* | md5sum | awk '{print $1}')
-md5_2=$(cat $recvmnt/* | md5sum | awk '{print $1}')
+md5_1=$(cat $mntpnt/* | md5digest)
+md5_2=$(cat $recvmnt/* | md5digest)
 [[ "$md5_1" == "$md5_2" ]] || log_fail "md5 mismatch: $md5_1 != $md5_2"
 
 log_pass "zfs can receive raw, recursive, and deduplicated send streams"

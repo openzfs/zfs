@@ -5,6 +5,7 @@
 *.dwo
 .*.cmd
 .*.d
+*.mod
 
 /.cache.mk
 /.tmp_versions

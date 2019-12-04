@@ -53,16 +53,6 @@
 %bcond_with    asan
 %bcond_with    systemd
 
-# Python permits the !/usr/bin/python shebang for scripts that are cross
-# compatible between python2 and python3, but Fedora 28 does not.  Fedora
-# wants us to choose python3 for cross-compatible scripts.  Since we want
-# to support python2 and python3 users, exclude our scripts from Fedora 28's
-# RPM build check, so that we don't get a bunch of build warnings.
-#
-# Details: https://github.com/zfsonlinux/zfs/issues/7360
-#
-%global __brp_mangle_shebangs_exclude_from arc_summary.py|arcstat.py|dbufstat.py|test-runner.py|zts-report.py
-
 # Generic enable switch for systemd
 %if %{with systemd}
 %define _systemd 1
@@ -83,6 +73,36 @@
 # has the proper macros
 %if 0%{?suse_version} >= 1310
 %define _systemd 1
+%endif
+
+# When not specified default to distribution provided version.  This
+# is normally Python 3, but for RHEL <= 7 only Python 2 is provided.
+%if %{undefined __use_python}
+%if 0%{?rhel} && 0%{?rhel} <= 7
+%define __python                  /usr/bin/python2
+%define __python_pkg_version      2
+%define __python_cffi_pkg         python-cffi
+%define __python_setuptools_pkg   python-setuptools
+%else
+%define __python                  /usr/bin/python3
+%define __python_pkg_version      3
+%define __python_cffi_pkg         python3-cffi
+%define __python_setuptools_pkg   python3-setuptools
+%endif
+%else
+%define __python                  %{__use_python}
+%define __python_pkg_version      %{__use_python_pkg_version}
+%define __python_cffi_pkg         python%{__python_pkg_version}-cffi
+%define __python_setuptools_pkg   python%{__python_pkg_version}-setuptools
+%endif
+%define __python_sitelib          %(%{__python} -Esc "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
+
+# By default python-pyzfs is enabled, with the exception of
+# RHEL 6 which by default uses Python 2.6 which is too old.
+%if 0%{?rhel} == 6
+%bcond_with    pyzfs
+%else
+%bcond_without pyzfs
 %endif
 
 Name:           @PACKAGE@
@@ -115,7 +135,7 @@ BuildRequires:  libblkid-devel
 BuildRequires:  libudev-devel
 BuildRequires:  libattr-devel
 BuildRequires:  openssl-devel
-%if 0%{?fedora} >= 28
+%if 0%{?fedora} >= 28 || 0%{?rhel} >= 8 || 0%{?centos} >= 8
 BuildRequires:  libtirpc-devel
 %endif
 Requires:       openssl
@@ -135,7 +155,7 @@ Requires:  util-linux
 Requires:  sysstat
 
 %description
-This package contains the ZFS command line utilities.
+This package contains the core ZFS command line utilities.
 
 %package -n libzpool2
 Summary:        Native ZFS pool library for Linux
@@ -219,6 +239,7 @@ Requires:       acl
 Requires:       sudo
 Requires:       sysstat
 Requires:       libaio
+Requires:       python%{__python_pkg_version}
 %if 0%{?rhel}%{?fedora}%{?suse_version}
 BuildRequires:  libaio-devel
 %endif
@@ -231,7 +252,8 @@ validating the file system.
 %package dracut
 Summary:        Dracut module
 Group:          System Environment/Kernel
-Requires:       %{name}%{?_isa} = %{version}-%{release}
+BuildArch:	noarch
+Requires:       %{name} >= %{version}
 Requires:       dracut
 Requires:       /usr/bin/awk
 Requires:       grep
@@ -240,23 +262,25 @@ Requires:       grep
 This package contains a dracut module used to construct an initramfs
 image which is ZFS aware.
 
-%if 0%{?_pyzfs}
-%package -n pyzfs
-Summary:        Python wrapper for libzfs_core
+%if %{with pyzfs}
+%package -n python%{__python_pkg_version}-pyzfs
+Summary:        Python %{python_version} wrapper for libzfs_core
 Group:          Development/Languages/Python
 License:        Apache-2.0
 BuildArch:      noarch
 Requires:       libzfs2 = %{version}
 Requires:       libnvpair1 = %{version}
 Requires:       libffi
-Requires:       python >= 2.7
-Requires:       python-cffi
+Requires:       python%{__python_pkg_version}
+Requires:       %{__python_cffi_pkg}
 %if 0%{?rhel}%{?fedora}%{?suse_version}
-BuildRequires:  python-devel
+BuildRequires:  python%{__python_pkg_version}-devel
+BuildRequires:  %{__python_cffi_pkg}
+BuildRequires:  %{__python_setuptools_pkg}
 BuildRequires:  libffi-devel
 %endif
 
-%description -n pyzfs
+%description -n python%{__python_pkg_version}-pyzfs
 This package provides a python wrapper for the libzfs_core C library.
 %endif
 
@@ -294,9 +318,15 @@ image which is ZFS aware.
 
 %if 0%{?_systemd}
     %define systemd --enable-systemd --with-systemdunitdir=%{_unitdir} --with-systemdpresetdir=%{_presetdir} --with-systemdmodulesloaddir=%{_modulesloaddir} --with-systemdgeneratordir=%{_systemdgeneratordir} --disable-sysvinit
-    %define systemd_svcs zfs-import-cache.service zfs-import-scan.service zfs-mount.service zfs-share.service zfs-zed.service zfs.target zfs-import.target
+    %define systemd_svcs zfs-import-cache.service zfs-import-scan.service zfs-mount.service zfs-share.service zfs-zed.service zfs.target zfs-import.target zfs-volume-wait.service zfs-volumes.target
 %else
     %define systemd --enable-sysvinit --disable-systemd
+%endif
+
+%if %{with pyzfs}
+    %define pyzfs --enable-pyzfs
+%else
+    %define pyzfs --disable-pyzfs
 %endif
 
 %setup -q
@@ -307,17 +337,27 @@ image which is ZFS aware.
     --with-udevdir=%{_udevdir} \
     --with-udevruledir=%{_udevruledir} \
     --with-dracutdir=%{_dracutdir} \
+    --with-python=%{__python} \
     --disable-static \
     %{debug} \
     %{debuginfo} \
     %{asan} \
-    %{systemd}
+    %{systemd}\
+    %{pyzfs}
 make %{?_smp_mflags}
 
 %install
 %{__rm} -rf $RPM_BUILD_ROOT
 make install DESTDIR=%{?buildroot}
 find %{?buildroot}%{_libdir} -name '*.la' -exec rm -f {} \;
+%if 0%{!?__brp_mangle_shebangs:1}
+find %{?buildroot}%{_bindir} \
+    \( -name arc_summary -or -name arcstat -or -name dbufstat \) \
+    -exec %{__sed} -i 's|^#!.*|#!%{__python}|' {} \;
+find %{?buildroot}%{_datadir} \
+    \( -name test-runner.py -or -name zts-report.py \) \
+    -exec %{__sed} -i 's|^#!.*|#!%{__python}|' {} \;
+%endif
 
 %post
 %if 0%{?_systemd}
@@ -379,15 +419,32 @@ systemctl --system daemon-reload >/dev/null || true
 %endif
 
 %files
+# Core utilities
 %{_sbindir}/*
-%{_bindir}/*
-%{_libexecdir}/%{name}
+%{_bindir}/raidz_test
+%{_bindir}/zgenhostid
+%{_bindir}/zvol_wait
+# Optional Python 2/3 scripts
+%{_bindir}/arc_summary
+%{_bindir}/arcstat
+%{_bindir}/dbufstat
+# Man pages
 %{_mandir}/man1/*
 %{_mandir}/man5/*
 %{_mandir}/man8/*
+# Configuration files and scripts
+%{_libexecdir}/%{name}
 %{_udevdir}/vdev_id
 %{_udevdir}/zvol_id
 %{_udevdir}/rules.d/*
+%if ! 0%{?_systemd} || 0%{?_initramfs}
+# Files needed for sysvinit and initramfs-tools
+%{_sysconfdir}/%{name}/zfs-functions
+%config(noreplace) %{_initconfdir}/zfs
+%else
+%exclude %{_sysconfdir}/%{name}/zfs-functions
+%exclude %{_initconfdir}/zfs
+%endif
 %if 0%{?_systemd}
 %{_unitdir}/*
 %{_presetdir}/*
@@ -395,9 +452,10 @@ systemctl --system daemon-reload >/dev/null || true
 %{_systemdgeneratordir}/*
 %else
 %config(noreplace) %{_sysconfdir}/init.d/*
-%config(noreplace) %{_initconfdir}/zfs
 %endif
-%config(noreplace) %{_sysconfdir}/%{name}
+%config(noreplace) %{_sysconfdir}/%{name}/zed.d/*
+%config(noreplace) %{_sysconfdir}/%{name}/zpool.d/*
+%config(noreplace) %{_sysconfdir}/%{name}/vdev_id.conf.*.example
 %attr(440, root, root) %config(noreplace) %{_sysconfdir}/sudoers.d/*
 
 %files -n libzpool2
@@ -413,8 +471,8 @@ systemctl --system daemon-reload >/dev/null || true
 %{_libdir}/libzfs*.so.*
 
 %files -n libzfs2-devel
-%{_datadir}/pkgconfig/libzfs.pc
-%{_datadir}/pkgconfig/libzfs_core.pc
+%{_datarootdir}/pkgconfig/libzfs.pc
+%{_datarootdir}/pkgconfig/libzfs_core.pc
 %{_libdir}/*.so
 %{_includedir}/*
 %doc AUTHORS COPYRIGHT LICENSE NOTICE README.md
@@ -426,13 +484,13 @@ systemctl --system daemon-reload >/dev/null || true
 %doc contrib/dracut/README.dracut.markdown
 %{_dracutdir}/modules.d/*
 
-%if 0%{?_pyzfs}
-%files -n pyzfs
+%if %{with pyzfs}
+%files -n python%{__python_pkg_version}-pyzfs
 %doc contrib/pyzfs/README
 %doc contrib/pyzfs/LICENSE
 %defattr(-,root,root,-)
-%{python_sitelib}/libzfs_core/*
-%{python_sitelib}/pyzfs*
+%{__python_sitelib}/libzfs_core/*
+%{__python_sitelib}/pyzfs*
 %endif
 
 %if 0%{?_initramfs}

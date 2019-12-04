@@ -26,6 +26,7 @@ increased convenience.  Output parameters are not used and return values
 are directly returned.  Error conditions are signalled by exceptions
 rather than by integer error codes.
 """
+from __future__ import absolute_import, division, print_function
 
 import errno
 import functools
@@ -112,7 +113,7 @@ def lzc_create(name, ds_type='zfs', props=None, key=None):
     if props is None:
         props = {}
     if key is None:
-        key = bytes("")
+        key = b""
     else:
         key = bytes(key)
     if ds_type == 'zfs':
@@ -299,7 +300,7 @@ def lzc_destroy_snaps(snaps, defer):
 
         Typical error is :exc:`SnapshotIsCloned` if `defer` is `False`.
         The snapshot names are validated quite loosely and invalid names are
-        typically ignored as nonexisiting snapshots.
+        typically ignored as nonexisting snapshots.
 
         A snapshot name referring to a filesystem that doesn't exist is
         ignored.
@@ -469,7 +470,7 @@ def lzc_hold(holds, fd=None):
     Holds for snapshots which don't exist will be skipped and have an entry
     added to the return value, but will not cause an overall failure.
     No exceptions is raised if all holds, for snapshots that existed, were
-    succesfully created.
+    successfully created.
     Otherwise :exc:`.HoldFailure` exception is raised and no holds will be
     created.
     :attr:`.HoldFailure.errors` may contain a single element for an error that
@@ -485,8 +486,8 @@ def lzc_hold(holds, fd=None):
     errors.lzc_hold_translate_errors(ret, errlist, holds, fd)
     # If there is no error (no exception raised by _handleErrList), but errlist
     # is not empty, then it contains missing snapshots.
-    assert all(x == errno.ENOENT for x in errlist.itervalues())
-    return errlist.keys()
+    assert all(errlist[x] == errno.ENOENT for x in errlist)
+    return list(errlist.keys())
 
 
 def lzc_release(holds):
@@ -521,7 +522,8 @@ def lzc_release(holds):
     '''
     errlist = {}
     holds_dict = {}
-    for snap, hold_list in holds.iteritems():
+    for snap in holds:
+        hold_list = holds[snap]
         if not isinstance(hold_list, list):
             raise TypeError('holds must be in a list')
         holds_dict[snap] = {hold: None for hold in hold_list}
@@ -531,8 +533,8 @@ def lzc_release(holds):
     errors.lzc_release_translate_errors(ret, errlist, holds)
     # If there is no error (no exception raised by _handleErrList), but errlist
     # is not empty, then it contains missing snapshots and tags.
-    assert all(x == errno.ENOENT for x in errlist.itervalues())
-    return errlist.keys()
+    assert all(errlist[x] == errno.ENOENT for x in errlist)
+    return list(errlist.keys())
 
 
 def lzc_get_holds(snapname):
@@ -652,7 +654,7 @@ def lzc_send_space(snapname, fromsnap=None, flags=None):
         should be done.
     :param fromsnap: the optional starting snapshot name.
         If not `None` then an incremental stream size is estimated, otherwise
-        a full stream is esimated.
+        a full stream is estimated.
     :type fromsnap: `bytes` or `None`
     :param flags: the flags that control what enhanced features can be used
         in the stream.
@@ -752,6 +754,8 @@ def lzc_receive(snapname, fd, force=False, raw=False, origin=None, props=None):
         supported on this side.
     :raises NameInvalid: if the name of either snapshot is invalid.
     :raises NameTooLong: if the name of either snapshot is too long.
+    :raises WrongParent: if the parent dataset of the received destination is
+        not a filesystem (e.g. ZVOL)
 
     .. note::
         The ``origin`` is ignored if the actual stream is an incremental stream
@@ -846,7 +850,7 @@ def lzc_change_key(fsname, crypt_cmd, props=None, key=None):
     if props is None:
         props = {}
     if key is None:
-        key = bytes("")
+        key = b""
     else:
         key = bytes(key)
     cmd = {
@@ -929,13 +933,13 @@ def lzc_channel_program(
         error.
     '''
     output = {}
-    params_nv = nvlist_in({"argv": params})
+    params_nv = nvlist_in({b"argv": params})
     with nvlist_out(output) as outnvl:
         ret = _lib.lzc_channel_program(
             poolname, program, instrlimit, memlimit, params_nv, outnvl)
     errors.lzc_channel_program_translate_error(
-        ret, poolname, output.get("error"))
-    return output.get("return")
+        ret, poolname, output.get(b"error"))
+    return output.get(b"return")
 
 
 def lzc_channel_program_nosync(
@@ -974,13 +978,13 @@ def lzc_channel_program_nosync(
         error.
     '''
     output = {}
-    params_nv = nvlist_in({"argv": params})
+    params_nv = nvlist_in({b"argv": params})
     with nvlist_out(output) as outnvl:
         ret = _lib.lzc_channel_program_nosync(
             poolname, program, instrlimit, memlimit, params_nv, outnvl)
     errors.lzc_channel_program_translate_error(
-        ret, poolname, output.get("error"))
-    return output.get("return")
+        ret, poolname, output.get(b"error"))
+    return output.get(b"return")
 
 
 def lzc_receive_resumable(
@@ -1174,11 +1178,11 @@ def receive_header(fd):
         the type of the dataset for which the stream has been created
         (volume, filesystem)
     '''
-    # read sizeof(dmu_replay_record_t) bytes directly into the memort backing
+    # read sizeof(dmu_replay_record_t) bytes directly into the memory backing
     # 'record'
     record = _ffi.new("dmu_replay_record_t *")
     _ffi.buffer(record)[:] = os.read(fd, _ffi.sizeof(record[0]))
-    # get drr_begin member and its representation as a Pythn dict
+    # get drr_begin member and its representation as a Python dict
     drr_begin = record.drr_u.drr_begin
     header = {}
     for field, descr in _ffi.typeof(drr_begin).fields:
@@ -1404,7 +1408,7 @@ def lzc_receive_with_cmdprops(
     if cmdprops is None:
         cmdprops = {}
     if key is None:
-        key = bytes("")
+        key = b""
     else:
         key = bytes(key)
 
@@ -1509,7 +1513,7 @@ def lzc_sync(poolname, force=False):
         `innvl` has been replaced by the `force` boolean and `outnvl` has been
         conveniently removed since it's not used.
     '''
-    innvl = nvlist_in({"force": force})
+    innvl = nvlist_in({b"force": force})
     with nvlist_out({}) as outnvl:
         ret = _lib.lzc_sync(poolname, innvl, outnvl)
     errors.lzc_sync_translate_error(ret, poolname)
@@ -1559,22 +1563,6 @@ def lzc_promote(name):
 
 
 @_uncommitted()
-def lzc_remap(name):
-    '''
-    Remaps the ZFS dataset.
-
-    :param bytes name: the name of the dataset to remap.
-    :raises NameInvalid: if the dataset name is invalid.
-    :raises NameTooLong: if the dataset name is too long.
-    :raises DatasetNotFound: if the dataset does not exist.
-    :raises FeatureNotSupported: if the pool containing the dataset does not
-        have the *obsolete_counts* feature enabled.
-    '''
-    ret = _lib.lzc_remap(name)
-    errors.lzc_remap_translate_error(ret, name)
-
-
-@_uncommitted()
 def lzc_pool_checkpoint(name):
     '''
     Creates a checkpoint for the specified pool.
@@ -1619,6 +1607,8 @@ def lzc_rename(source, target):
     :raises FilesystemNotFound: if the target's parent does not exist.
     :raises FilesystemExists: if the target already exists.
     :raises PoolsDiffer: if the source and target belong to different pools.
+    :raises WrongParent: if the "new" parent dataset is not a filesystem
+        (e.g. ZVOL)
     '''
     ret = _lib.lzc_rename(source, target)
     errors.lzc_rename_translate_error(ret, source, target)
@@ -1698,7 +1688,7 @@ def lzc_set_props(name, prop, val):
 # As the extended API is not committed yet, the names of the new interfaces
 # are not settled down yet.
 # It's not clear if atomically setting multiple properties is an achievable
-# goal and an interface acting on mutiple entities must do so atomically
+# goal and an interface acting on multiple entities must do so atomically
 # by convention.
 # Being able to set a single property at a time is sufficient for ClusterHQ.
 lzc_set_prop = lzc_set_props
@@ -1735,7 +1725,7 @@ def lzc_list(name, options):
         Absence of this option implies all types.
 
     The first of the returned file descriptors can be used to
-    read the listing in a binary encounded format.  The data is
+    read the listing in a binary encoded format.  The data is
     a series of variable sized records each starting with a fixed
     size header, the header is followed by a serialized ``nvlist``.
     Each record describes a single element and contains the element's
@@ -1873,9 +1863,9 @@ def lzc_get_props(name):
         mountpoint_val = '/' + name
     else:
         mountpoint_val = None
-    result = {k: v['value'] for k, v in result.iteritems()}
+    result = {k: result[k]['value'] for k in result}
     if 'clones' in result:
-        result['clones'] = result['clones'].keys()
+        result['clones'] = list(result['clones'].keys())
     if mountpoint_val is not None:
         result['mountpoint'] = mountpoint_val
     return result

@@ -1,8 +1,6 @@
 include $(top_srcdir)/config/Rules.am
 
-DEFAULT_INCLUDES += \
-	-I$(top_srcdir)/include \
-	-I$(top_srcdir)/lib/libspl/include
+DEFAULT_INCLUDES += -I.
 
 sbin_PROGRAMS = zpool
 
@@ -12,6 +10,10 @@ zpool_SOURCES = \
 	zpool_util.c \
 	zpool_util.h \
 	zpool_vdev.c
+
+if BUILD_LINUX
+zpool_SOURCES += os/linux/zpool_vdev_os.c
+endif
 
 zpool_LDADD = \
 	$(top_builddir)/lib/libnvpair/libnvpair.la \

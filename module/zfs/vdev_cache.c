@@ -46,7 +46,7 @@
  * terribly wasteful of bandwidth.  A more intelligent version of the cache
  * could keep track of access patterns and not do read-ahead unless it sees
  * at least two temporally close I/Os to the same region.  Currently, only
- * metadata I/O is inflated.  A futher enhancement could take advantage of
+ * metadata I/O is inflated.  A further enhancement could take advantage of
  * more semantic information about the I/O.  And it could use something
  * faster than an AVL tree; that was chosen solely for convenience.
  *
@@ -111,7 +111,7 @@ vdev_cache_offset_compare(const void *a1, const void *a2)
 	const vdev_cache_entry_t *ve1 = (const vdev_cache_entry_t *)a1;
 	const vdev_cache_entry_t *ve2 = (const vdev_cache_entry_t *)a2;
 
-	return (AVL_CMP(ve1->ve_offset, ve2->ve_offset));
+	return (TREE_CMP(ve1->ve_offset, ve2->ve_offset));
 }
 
 static int
@@ -120,7 +120,7 @@ vdev_cache_lastused_compare(const void *a1, const void *a2)
 	const vdev_cache_entry_t *ve1 = (const vdev_cache_entry_t *)a1;
 	const vdev_cache_entry_t *ve2 = (const vdev_cache_entry_t *)a2;
 
-	int cmp = AVL_CMP(ve1->ve_lastused, ve2->ve_lastused);
+	int cmp = TREE_CMP(ve1->ve_lastused, ve2->ve_lastused);
 	if (likely(cmp))
 		return (cmp);
 
@@ -425,13 +425,13 @@ vdev_cache_stat_fini(void)
 	}
 }
 
-#if defined(_KERNEL)
-module_param(zfs_vdev_cache_max, int, 0644);
-MODULE_PARM_DESC(zfs_vdev_cache_max, "Inflate reads small than max");
+/* BEGIN CSTYLED */
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, cache_max, INT, ZMOD_RW,
+	"Inflate reads small than max");
 
-module_param(zfs_vdev_cache_size, int, 0444);
-MODULE_PARM_DESC(zfs_vdev_cache_size, "Total size of the per-disk cache");
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, cache_size, INT, ZMOD_RD,
+	"Total size of the per-disk cache");
 
-module_param(zfs_vdev_cache_bshift, int, 0644);
-MODULE_PARM_DESC(zfs_vdev_cache_bshift, "Shift size to inflate reads too");
-#endif
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, cache_bshift, INT, ZMOD_RW,
+	"Shift size to inflate reads too");
+/* END CSTYLED */

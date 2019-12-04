@@ -37,7 +37,7 @@ const char *active_test;
 /*
  * Tracks which zfs_ioc_t commands were tested
  */
-boolean_t ioc_tested[256];
+boolean_t ioc_tested[ZFS_IOC_LAST - ZFS_IOC_FIRST];
 
 /*
  * Legacy ioctls that are skipped (for now)
@@ -169,7 +169,7 @@ lzc_ioctl_run(zfs_ioc_t ioc, const char *name, nvlist_t *innvl, int expected)
 }
 
 /*
- * Test each ioc for the folowing ioctl input errors:
+ * Test each ioc for the following ioctl input errors:
  *   ZFS_ERR_IOC_ARG_UNAVAIL	an input argument is not supported by kernel
  *   ZFS_ERR_IOC_ARG_REQUIRED	a required input argument is missing
  *   ZFS_ERR_IOC_ARG_BADTYPE	an input argument has an invalid type
@@ -272,13 +272,13 @@ test_pool_sync(const char *pool)
 static void
 test_pool_reopen(const char *pool)
 {
-	nvlist_t *required = fnvlist_alloc();
+	nvlist_t *optional = fnvlist_alloc();
 
-	fnvlist_add_boolean_value(required, "scrub_restart", B_FALSE);
+	fnvlist_add_boolean_value(optional, "scrub_restart", B_FALSE);
 
-	IOC_INPUT_TEST(ZFS_IOC_POOL_REOPEN, pool, required, NULL, 0);
+	IOC_INPUT_TEST(ZFS_IOC_POOL_REOPEN, pool, NULL, optional, 0);
 
-	nvlist_free(required);
+	nvlist_free(optional);
 }
 
 static void
@@ -642,6 +642,41 @@ test_unload_key(const char *dataset)
 	IOC_INPUT_TEST(ZFS_IOC_UNLOAD_KEY, dataset, NULL, NULL, EACCES);
 }
 
+static void
+test_vdev_initialize(const char *pool)
+{
+	nvlist_t *required = fnvlist_alloc();
+	nvlist_t *vdev_guids = fnvlist_alloc();
+
+	fnvlist_add_uint64(vdev_guids, "path", 0xdeadbeefdeadbeef);
+	fnvlist_add_uint64(required, ZPOOL_INITIALIZE_COMMAND,
+	    POOL_INITIALIZE_START);
+	fnvlist_add_nvlist(required, ZPOOL_INITIALIZE_VDEVS, vdev_guids);
+
+	IOC_INPUT_TEST(ZFS_IOC_POOL_INITIALIZE, pool, required, NULL, EINVAL);
+	nvlist_free(vdev_guids);
+	nvlist_free(required);
+}
+
+static void
+test_vdev_trim(const char *pool)
+{
+	nvlist_t *required = fnvlist_alloc();
+	nvlist_t *optional = fnvlist_alloc();
+	nvlist_t *vdev_guids = fnvlist_alloc();
+
+	fnvlist_add_uint64(vdev_guids, "path", 0xdeadbeefdeadbeef);
+	fnvlist_add_uint64(required, ZPOOL_TRIM_COMMAND, POOL_TRIM_START);
+	fnvlist_add_nvlist(required, ZPOOL_TRIM_VDEVS, vdev_guids);
+	fnvlist_add_uint64(optional, ZPOOL_TRIM_RATE, 1ULL << 30);
+	fnvlist_add_boolean_value(optional, ZPOOL_TRIM_SECURE, B_TRUE);
+
+	IOC_INPUT_TEST(ZFS_IOC_POOL_TRIM, pool, required, optional, EINVAL);
+	nvlist_free(vdev_guids);
+	nvlist_free(optional);
+	nvlist_free(required);
+}
+
 static int
 zfs_destroy(const char *dataset)
 {
@@ -656,6 +691,50 @@ zfs_destroy(const char *dataset)
 }
 
 static void
+test_redact(const char *snapshot1, const char *snapshot2)
+{
+	nvlist_t *required = fnvlist_alloc();
+	nvlist_t *snapnv = fnvlist_alloc();
+	char bookmark[MAXNAMELEN + 32];
+
+	fnvlist_add_string(required, "bookname", "testbookmark");
+	fnvlist_add_boolean(snapnv, snapshot2);
+	fnvlist_add_nvlist(required, "snapnv", snapnv);
+
+	IOC_INPUT_TEST(ZFS_IOC_REDACT, snapshot1, required, NULL, 0);
+
+	nvlist_free(snapnv);
+	nvlist_free(required);
+
+	strlcpy(bookmark, snapshot1, sizeof (bookmark));
+	*strchr(bookmark, '@') = '\0';
+	strlcat(bookmark, "#testbookmark", sizeof (bookmark) -
+	    strlen(bookmark));
+	zfs_destroy(bookmark);
+}
+
+static void
+test_get_bookmark_props(const char *bookmark)
+{
+	IOC_INPUT_TEST(ZFS_IOC_GET_BOOKMARK_PROPS, bookmark, NULL, NULL, 0);
+}
+
+static void
+test_wait(const char *pool)
+{
+	nvlist_t *required = fnvlist_alloc();
+	nvlist_t *optional = fnvlist_alloc();
+
+	fnvlist_add_int32(required, "wait_activity", 2);
+	fnvlist_add_uint64(optional, "wait_tag", 0xdeadbeefdeadbeef);
+
+	IOC_INPUT_TEST(ZFS_IOC_WAIT, pool, required, optional, EINVAL);
+
+	nvlist_free(required);
+	nvlist_free(optional);
+}
+
+static void
 zfs_ioc_input_tests(const char *pool)
 {
 	char filepath[] = "/tmp/ioc_test_file_XXXXXX";
@@ -665,6 +744,7 @@ zfs_ioc_input_tests(const char *pool)
 	char bookmark[ZFS_MAX_DATASET_NAME_LEN + 32];
 	char backup[ZFS_MAX_DATASET_NAME_LEN];
 	char clone[ZFS_MAX_DATASET_NAME_LEN];
+	char clonesnap[ZFS_MAX_DATASET_NAME_LEN + 32];
 	int tmpfd, err;
 
 	/*
@@ -675,6 +755,7 @@ zfs_ioc_input_tests(const char *pool)
 	(void) snprintf(snapshot, sizeof (snapshot), "%s@snapshot", dataset);
 	(void) snprintf(bookmark, sizeof (bookmark), "%s#bookmark", dataset);
 	(void) snprintf(clone, sizeof (clone), "%s/test-fs-clone", pool);
+	(void) snprintf(clonesnap, sizeof (clonesnap), "%s@snap", clone);
 	(void) snprintf(backup, sizeof (backup), "%s/backup", pool);
 
 	err = lzc_create(dataset, DMU_OST_ZFS, NULL, NULL, 0);
@@ -712,6 +793,7 @@ zfs_ioc_input_tests(const char *pool)
 
 	test_bookmark(pool, snapshot, bookmark);
 	test_get_bookmarks(dataset);
+	test_get_bookmark_props(bookmark);
 	test_destroy_bookmarks(pool, bookmark);
 
 	test_hold(pool, snapshot);
@@ -719,6 +801,9 @@ zfs_ioc_input_tests(const char *pool)
 	test_release(pool, snapshot);
 
 	test_clone(snapshot, clone);
+	test_snapshot(pool, clonesnap);
+	test_redact(snapshot, clonesnap);
+	zfs_destroy(clonesnap);
 	zfs_destroy(clone);
 
 	test_rollback(dataset, snapshot);
@@ -731,6 +816,11 @@ zfs_ioc_input_tests(const char *pool)
 	test_load_key(dataset);
 	test_change_key(dataset);
 	test_unload_key(dataset);
+
+	test_vdev_initialize(pool);
+	test_vdev_trim(pool);
+
+	test_wait(pool);
 
 	/*
 	 * cleanup
@@ -778,8 +868,8 @@ zfs_ioc_input_tests(const char *pool)
 
 enum zfs_ioc_ref {
 	ZFS_IOC_BASE = ('Z' << 8),
-	LINUX_IOC_BASE = ('Z' << 8) + 0x80,
-	FREEBSD_IOC_BASE = ('Z' << 8) + 0xC0,
+	LINUX_IOC_BASE = ZFS_IOC_BASE + 0x80,
+	FREEBSD_IOC_BASE = ZFS_IOC_BASE + 0xC0,
 };
 
 /*
@@ -789,89 +879,106 @@ enum zfs_ioc_ref {
 boolean_t
 validate_ioc_values(void)
 {
-	return (
-	    ZFS_IOC_BASE + 0 == ZFS_IOC_POOL_CREATE &&
-	    ZFS_IOC_BASE + 1 == ZFS_IOC_POOL_DESTROY &&
-	    ZFS_IOC_BASE + 2 == ZFS_IOC_POOL_IMPORT &&
-	    ZFS_IOC_BASE + 3 == ZFS_IOC_POOL_EXPORT &&
-	    ZFS_IOC_BASE + 4 == ZFS_IOC_POOL_CONFIGS &&
-	    ZFS_IOC_BASE + 5 == ZFS_IOC_POOL_STATS &&
-	    ZFS_IOC_BASE + 6 == ZFS_IOC_POOL_TRYIMPORT &&
-	    ZFS_IOC_BASE + 7 == ZFS_IOC_POOL_SCAN &&
-	    ZFS_IOC_BASE + 8 == ZFS_IOC_POOL_FREEZE &&
-	    ZFS_IOC_BASE + 9 == ZFS_IOC_POOL_UPGRADE &&
-	    ZFS_IOC_BASE + 10 == ZFS_IOC_POOL_GET_HISTORY &&
-	    ZFS_IOC_BASE + 11 == ZFS_IOC_VDEV_ADD &&
-	    ZFS_IOC_BASE + 12 == ZFS_IOC_VDEV_REMOVE &&
-	    ZFS_IOC_BASE + 13 == ZFS_IOC_VDEV_SET_STATE &&
-	    ZFS_IOC_BASE + 14 == ZFS_IOC_VDEV_ATTACH &&
-	    ZFS_IOC_BASE + 15 == ZFS_IOC_VDEV_DETACH &&
-	    ZFS_IOC_BASE + 16 == ZFS_IOC_VDEV_SETPATH &&
-	    ZFS_IOC_BASE + 17 == ZFS_IOC_VDEV_SETFRU &&
-	    ZFS_IOC_BASE + 18 == ZFS_IOC_OBJSET_STATS &&
-	    ZFS_IOC_BASE + 19 == ZFS_IOC_OBJSET_ZPLPROPS &&
-	    ZFS_IOC_BASE + 20 == ZFS_IOC_DATASET_LIST_NEXT &&
-	    ZFS_IOC_BASE + 21 == ZFS_IOC_SNAPSHOT_LIST_NEXT &&
-	    ZFS_IOC_BASE + 22 == ZFS_IOC_SET_PROP &&
-	    ZFS_IOC_BASE + 23 == ZFS_IOC_CREATE &&
-	    ZFS_IOC_BASE + 24 == ZFS_IOC_DESTROY &&
-	    ZFS_IOC_BASE + 25 == ZFS_IOC_ROLLBACK &&
-	    ZFS_IOC_BASE + 26 == ZFS_IOC_RENAME &&
-	    ZFS_IOC_BASE + 27 == ZFS_IOC_RECV &&
-	    ZFS_IOC_BASE + 28 == ZFS_IOC_SEND &&
-	    ZFS_IOC_BASE + 29 == ZFS_IOC_INJECT_FAULT &&
-	    ZFS_IOC_BASE + 30 == ZFS_IOC_CLEAR_FAULT &&
-	    ZFS_IOC_BASE + 31 == ZFS_IOC_INJECT_LIST_NEXT &&
-	    ZFS_IOC_BASE + 32 == ZFS_IOC_ERROR_LOG &&
-	    ZFS_IOC_BASE + 33 == ZFS_IOC_CLEAR &&
-	    ZFS_IOC_BASE + 34 == ZFS_IOC_PROMOTE &&
-	    ZFS_IOC_BASE + 35 == ZFS_IOC_SNAPSHOT &&
-	    ZFS_IOC_BASE + 36 == ZFS_IOC_DSOBJ_TO_DSNAME &&
-	    ZFS_IOC_BASE + 37 == ZFS_IOC_OBJ_TO_PATH &&
-	    ZFS_IOC_BASE + 38 == ZFS_IOC_POOL_SET_PROPS &&
-	    ZFS_IOC_BASE + 39 == ZFS_IOC_POOL_GET_PROPS &&
-	    ZFS_IOC_BASE + 40 == ZFS_IOC_SET_FSACL &&
-	    ZFS_IOC_BASE + 41 == ZFS_IOC_GET_FSACL &&
-	    ZFS_IOC_BASE + 42 == ZFS_IOC_SHARE &&
-	    ZFS_IOC_BASE + 43 == ZFS_IOC_INHERIT_PROP &&
-	    ZFS_IOC_BASE + 44 == ZFS_IOC_SMB_ACL &&
-	    ZFS_IOC_BASE + 45 == ZFS_IOC_USERSPACE_ONE &&
-	    ZFS_IOC_BASE + 46 == ZFS_IOC_USERSPACE_MANY &&
-	    ZFS_IOC_BASE + 47 == ZFS_IOC_USERSPACE_UPGRADE &&
-	    ZFS_IOC_BASE + 48 == ZFS_IOC_HOLD &&
-	    ZFS_IOC_BASE + 49 == ZFS_IOC_RELEASE &&
-	    ZFS_IOC_BASE + 50 == ZFS_IOC_GET_HOLDS &&
-	    ZFS_IOC_BASE + 51 == ZFS_IOC_OBJSET_RECVD_PROPS &&
-	    ZFS_IOC_BASE + 52 == ZFS_IOC_VDEV_SPLIT &&
-	    ZFS_IOC_BASE + 53 == ZFS_IOC_NEXT_OBJ &&
-	    ZFS_IOC_BASE + 54 == ZFS_IOC_DIFF &&
-	    ZFS_IOC_BASE + 55 == ZFS_IOC_TMP_SNAPSHOT &&
-	    ZFS_IOC_BASE + 56 == ZFS_IOC_OBJ_TO_STATS &&
-	    ZFS_IOC_BASE + 57 == ZFS_IOC_SPACE_WRITTEN &&
-	    ZFS_IOC_BASE + 58 == ZFS_IOC_SPACE_SNAPS &&
-	    ZFS_IOC_BASE + 59 == ZFS_IOC_DESTROY_SNAPS &&
-	    ZFS_IOC_BASE + 60 == ZFS_IOC_POOL_REGUID &&
-	    ZFS_IOC_BASE + 61 == ZFS_IOC_POOL_REOPEN &&
-	    ZFS_IOC_BASE + 62 == ZFS_IOC_SEND_PROGRESS &&
-	    ZFS_IOC_BASE + 63 == ZFS_IOC_LOG_HISTORY &&
-	    ZFS_IOC_BASE + 64 == ZFS_IOC_SEND_NEW &&
-	    ZFS_IOC_BASE + 65 == ZFS_IOC_SEND_SPACE &&
-	    ZFS_IOC_BASE + 66 == ZFS_IOC_CLONE &&
-	    ZFS_IOC_BASE + 67 == ZFS_IOC_BOOKMARK &&
-	    ZFS_IOC_BASE + 68 == ZFS_IOC_GET_BOOKMARKS &&
-	    ZFS_IOC_BASE + 69 == ZFS_IOC_DESTROY_BOOKMARKS &&
-	    ZFS_IOC_BASE + 70 == ZFS_IOC_CHANNEL_PROGRAM &&
-	    ZFS_IOC_BASE + 71 == ZFS_IOC_RECV_NEW &&
-	    ZFS_IOC_BASE + 72 == ZFS_IOC_POOL_SYNC &&
-	    ZFS_IOC_BASE + 73 == ZFS_IOC_LOAD_KEY &&
-	    ZFS_IOC_BASE + 74 == ZFS_IOC_UNLOAD_KEY &&
-	    ZFS_IOC_BASE + 75 == ZFS_IOC_CHANGE_KEY &&
-	    ZFS_IOC_BASE + 76 == ZFS_IOC_REMAP &&
-	    ZFS_IOC_BASE + 77 == ZFS_IOC_POOL_CHECKPOINT &&
-	    ZFS_IOC_BASE + 78 == ZFS_IOC_POOL_DISCARD_CHECKPOINT &&
-	    LINUX_IOC_BASE + 1 == ZFS_IOC_EVENTS_NEXT &&
-	    LINUX_IOC_BASE + 2 == ZFS_IOC_EVENTS_CLEAR &&
-	    LINUX_IOC_BASE + 3 == ZFS_IOC_EVENTS_SEEK);
+	boolean_t result = B_TRUE;
+
+#define	CHECK(expr) do { \
+	if (!(expr)) { \
+		result = B_FALSE; \
+		fprintf(stderr, "(%s) === FALSE\n", #expr); \
+	} \
+} while (0)
+
+	CHECK(ZFS_IOC_BASE + 0 == ZFS_IOC_POOL_CREATE);
+	CHECK(ZFS_IOC_BASE + 1 == ZFS_IOC_POOL_DESTROY);
+	CHECK(ZFS_IOC_BASE + 2 == ZFS_IOC_POOL_IMPORT);
+	CHECK(ZFS_IOC_BASE + 3 == ZFS_IOC_POOL_EXPORT);
+	CHECK(ZFS_IOC_BASE + 4 == ZFS_IOC_POOL_CONFIGS);
+	CHECK(ZFS_IOC_BASE + 5 == ZFS_IOC_POOL_STATS);
+	CHECK(ZFS_IOC_BASE + 6 == ZFS_IOC_POOL_TRYIMPORT);
+	CHECK(ZFS_IOC_BASE + 7 == ZFS_IOC_POOL_SCAN);
+	CHECK(ZFS_IOC_BASE + 8 == ZFS_IOC_POOL_FREEZE);
+	CHECK(ZFS_IOC_BASE + 9 == ZFS_IOC_POOL_UPGRADE);
+	CHECK(ZFS_IOC_BASE + 10 == ZFS_IOC_POOL_GET_HISTORY);
+	CHECK(ZFS_IOC_BASE + 11 == ZFS_IOC_VDEV_ADD);
+	CHECK(ZFS_IOC_BASE + 12 == ZFS_IOC_VDEV_REMOVE);
+	CHECK(ZFS_IOC_BASE + 13 == ZFS_IOC_VDEV_SET_STATE);
+	CHECK(ZFS_IOC_BASE + 14 == ZFS_IOC_VDEV_ATTACH);
+	CHECK(ZFS_IOC_BASE + 15 == ZFS_IOC_VDEV_DETACH);
+	CHECK(ZFS_IOC_BASE + 16 == ZFS_IOC_VDEV_SETPATH);
+	CHECK(ZFS_IOC_BASE + 17 == ZFS_IOC_VDEV_SETFRU);
+	CHECK(ZFS_IOC_BASE + 18 == ZFS_IOC_OBJSET_STATS);
+	CHECK(ZFS_IOC_BASE + 19 == ZFS_IOC_OBJSET_ZPLPROPS);
+	CHECK(ZFS_IOC_BASE + 20 == ZFS_IOC_DATASET_LIST_NEXT);
+	CHECK(ZFS_IOC_BASE + 21 == ZFS_IOC_SNAPSHOT_LIST_NEXT);
+	CHECK(ZFS_IOC_BASE + 22 == ZFS_IOC_SET_PROP);
+	CHECK(ZFS_IOC_BASE + 23 == ZFS_IOC_CREATE);
+	CHECK(ZFS_IOC_BASE + 24 == ZFS_IOC_DESTROY);
+	CHECK(ZFS_IOC_BASE + 25 == ZFS_IOC_ROLLBACK);
+	CHECK(ZFS_IOC_BASE + 26 == ZFS_IOC_RENAME);
+	CHECK(ZFS_IOC_BASE + 27 == ZFS_IOC_RECV);
+	CHECK(ZFS_IOC_BASE + 28 == ZFS_IOC_SEND);
+	CHECK(ZFS_IOC_BASE + 29 == ZFS_IOC_INJECT_FAULT);
+	CHECK(ZFS_IOC_BASE + 30 == ZFS_IOC_CLEAR_FAULT);
+	CHECK(ZFS_IOC_BASE + 31 == ZFS_IOC_INJECT_LIST_NEXT);
+	CHECK(ZFS_IOC_BASE + 32 == ZFS_IOC_ERROR_LOG);
+	CHECK(ZFS_IOC_BASE + 33 == ZFS_IOC_CLEAR);
+	CHECK(ZFS_IOC_BASE + 34 == ZFS_IOC_PROMOTE);
+	CHECK(ZFS_IOC_BASE + 35 == ZFS_IOC_SNAPSHOT);
+	CHECK(ZFS_IOC_BASE + 36 == ZFS_IOC_DSOBJ_TO_DSNAME);
+	CHECK(ZFS_IOC_BASE + 37 == ZFS_IOC_OBJ_TO_PATH);
+	CHECK(ZFS_IOC_BASE + 38 == ZFS_IOC_POOL_SET_PROPS);
+	CHECK(ZFS_IOC_BASE + 39 == ZFS_IOC_POOL_GET_PROPS);
+	CHECK(ZFS_IOC_BASE + 40 == ZFS_IOC_SET_FSACL);
+	CHECK(ZFS_IOC_BASE + 41 == ZFS_IOC_GET_FSACL);
+	CHECK(ZFS_IOC_BASE + 42 == ZFS_IOC_SHARE);
+	CHECK(ZFS_IOC_BASE + 43 == ZFS_IOC_INHERIT_PROP);
+	CHECK(ZFS_IOC_BASE + 44 == ZFS_IOC_SMB_ACL);
+	CHECK(ZFS_IOC_BASE + 45 == ZFS_IOC_USERSPACE_ONE);
+	CHECK(ZFS_IOC_BASE + 46 == ZFS_IOC_USERSPACE_MANY);
+	CHECK(ZFS_IOC_BASE + 47 == ZFS_IOC_USERSPACE_UPGRADE);
+	CHECK(ZFS_IOC_BASE + 48 == ZFS_IOC_HOLD);
+	CHECK(ZFS_IOC_BASE + 49 == ZFS_IOC_RELEASE);
+	CHECK(ZFS_IOC_BASE + 50 == ZFS_IOC_GET_HOLDS);
+	CHECK(ZFS_IOC_BASE + 51 == ZFS_IOC_OBJSET_RECVD_PROPS);
+	CHECK(ZFS_IOC_BASE + 52 == ZFS_IOC_VDEV_SPLIT);
+	CHECK(ZFS_IOC_BASE + 53 == ZFS_IOC_NEXT_OBJ);
+	CHECK(ZFS_IOC_BASE + 54 == ZFS_IOC_DIFF);
+	CHECK(ZFS_IOC_BASE + 55 == ZFS_IOC_TMP_SNAPSHOT);
+	CHECK(ZFS_IOC_BASE + 56 == ZFS_IOC_OBJ_TO_STATS);
+	CHECK(ZFS_IOC_BASE + 57 == ZFS_IOC_SPACE_WRITTEN);
+	CHECK(ZFS_IOC_BASE + 58 == ZFS_IOC_SPACE_SNAPS);
+	CHECK(ZFS_IOC_BASE + 59 == ZFS_IOC_DESTROY_SNAPS);
+	CHECK(ZFS_IOC_BASE + 60 == ZFS_IOC_POOL_REGUID);
+	CHECK(ZFS_IOC_BASE + 61 == ZFS_IOC_POOL_REOPEN);
+	CHECK(ZFS_IOC_BASE + 62 == ZFS_IOC_SEND_PROGRESS);
+	CHECK(ZFS_IOC_BASE + 63 == ZFS_IOC_LOG_HISTORY);
+	CHECK(ZFS_IOC_BASE + 64 == ZFS_IOC_SEND_NEW);
+	CHECK(ZFS_IOC_BASE + 65 == ZFS_IOC_SEND_SPACE);
+	CHECK(ZFS_IOC_BASE + 66 == ZFS_IOC_CLONE);
+	CHECK(ZFS_IOC_BASE + 67 == ZFS_IOC_BOOKMARK);
+	CHECK(ZFS_IOC_BASE + 68 == ZFS_IOC_GET_BOOKMARKS);
+	CHECK(ZFS_IOC_BASE + 69 == ZFS_IOC_DESTROY_BOOKMARKS);
+	CHECK(ZFS_IOC_BASE + 70 == ZFS_IOC_RECV_NEW);
+	CHECK(ZFS_IOC_BASE + 71 == ZFS_IOC_POOL_SYNC);
+	CHECK(ZFS_IOC_BASE + 72 == ZFS_IOC_CHANNEL_PROGRAM);
+	CHECK(ZFS_IOC_BASE + 73 == ZFS_IOC_LOAD_KEY);
+	CHECK(ZFS_IOC_BASE + 74 == ZFS_IOC_UNLOAD_KEY);
+	CHECK(ZFS_IOC_BASE + 75 == ZFS_IOC_CHANGE_KEY);
+	CHECK(ZFS_IOC_BASE + 76 == ZFS_IOC_REMAP);
+	CHECK(ZFS_IOC_BASE + 77 == ZFS_IOC_POOL_CHECKPOINT);
+	CHECK(ZFS_IOC_BASE + 78 == ZFS_IOC_POOL_DISCARD_CHECKPOINT);
+	CHECK(ZFS_IOC_BASE + 79 == ZFS_IOC_POOL_INITIALIZE);
+	CHECK(ZFS_IOC_BASE + 80 == ZFS_IOC_POOL_TRIM);
+	CHECK(ZFS_IOC_BASE + 81 == ZFS_IOC_REDACT);
+	CHECK(ZFS_IOC_BASE + 82 == ZFS_IOC_GET_BOOKMARK_PROPS);
+	CHECK(ZFS_IOC_BASE + 83 == ZFS_IOC_WAIT);
+	CHECK(LINUX_IOC_BASE + 1 == ZFS_IOC_EVENTS_NEXT);
+	CHECK(LINUX_IOC_BASE + 2 == ZFS_IOC_EVENTS_CLEAR);
+	CHECK(LINUX_IOC_BASE + 3 == ZFS_IOC_EVENTS_SEEK);
+
+#undef CHECK
+
+	return (result);
 }
 
 int

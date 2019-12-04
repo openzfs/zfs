@@ -83,6 +83,7 @@ dsl_dataset_user_hold_check(void *arg, dmu_tx_t *tx)
 {
 	dsl_dataset_user_hold_arg_t *dduha = arg;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
+	nvlist_t *tmp_holds;
 
 	if (spa_version(dp->dp_spa) < SPA_VERSION_USERREFS)
 		return (SET_ERROR(ENOTSUP));
@@ -90,6 +91,26 @@ dsl_dataset_user_hold_check(void *arg, dmu_tx_t *tx)
 	if (!dmu_tx_is_syncing(tx))
 		return (0);
 
+	/*
+	 * Ensure the list has no duplicates by copying name/values from
+	 * non-unique dduha_holds to unique tmp_holds, and comparing counts.
+	 */
+	tmp_holds = fnvlist_alloc();
+	for (nvpair_t *pair = nvlist_next_nvpair(dduha->dduha_holds, NULL);
+	    pair != NULL; pair = nvlist_next_nvpair(dduha->dduha_holds, pair)) {
+		size_t len = strlen(nvpair_name(pair)) +
+		    strlen(fnvpair_value_string(pair));
+		char *nameval = kmem_zalloc(len + 2, KM_SLEEP);
+		(void) strcpy(nameval, nvpair_name(pair));
+		(void) strcat(nameval, "@");
+		(void) strcat(nameval, fnvpair_value_string(pair));
+		fnvlist_add_string(tmp_holds, nameval, "");
+		kmem_free(nameval, len + 2);
+	}
+	size_t tmp_count = fnvlist_num_pairs(tmp_holds);
+	fnvlist_free(tmp_holds);
+	if (tmp_count != fnvlist_num_pairs(dduha->dduha_holds))
+		return (SET_ERROR(EEXIST));
 	for (nvpair_t *pair = nvlist_next_nvpair(dduha->dduha_holds, NULL);
 	    pair != NULL; pair = nvlist_next_nvpair(dduha->dduha_holds, pair)) {
 		dsl_dataset_t *ds;
@@ -176,7 +197,7 @@ dsl_dataset_user_hold_sync_one_impl(nvlist_t *tmpholds, dsl_dataset_t *ds,
 
 	spa_history_log_internal_ds(ds, "hold", tx,
 	    "tag=%s temp=%d refs=%llu",
-	    htag, minor != 0, ds->ds_userrefs);
+	    htag, minor != 0, (u_longlong_t)ds->ds_userrefs);
 }
 
 typedef struct zfs_hold_cleanup_arg {
@@ -281,7 +302,7 @@ dsl_dataset_user_hold_sync(void *arg, dmu_tx_t *tx)
  * holds is nvl of snapname -> holdname
  * errlist will be filled in with snapname -> error
  *
- * The snaphosts must all be in the same pool.
+ * The snapshots must all be in the same pool.
  *
  * Holds for snapshots that don't exist will be skipped.
  *
@@ -312,7 +333,8 @@ dsl_dataset_user_hold(nvlist_t *holds, minor_t cleanup_minor, nvlist_t *errlist)
 		return (0);
 
 	dduha.dduha_holds = holds;
-	dduha.dduha_chkholds = fnvlist_alloc();
+	/* chkholds can have non-unique name */
+	VERIFY(0 == nvlist_alloc(&dduha.dduha_chkholds, 0, KM_SLEEP));
 	dduha.dduha_errlist = errlist;
 	dduha.dduha_minor = cleanup_minor;
 
@@ -384,7 +406,7 @@ dsl_dataset_user_release_check_one(dsl_dataset_user_release_arg_t *ddura,
 				    snapname, holdname);
 				fnvlist_add_int32(ddura->ddura_errlist, errtag,
 				    ENOENT);
-				strfree(errtag);
+				kmem_strfree(errtag);
 			}
 			continue;
 		}
@@ -534,9 +556,9 @@ dsl_dataset_user_release_sync(void *arg, dmu_tx_t *tx)
  * errlist will be filled in with snapname -> error
  *
  * If tmpdp is not NULL the names for holds should be the dsobj's of snapshots,
- * otherwise they should be the names of shapshots.
+ * otherwise they should be the names of snapshots.
  *
- * As a release may cause snapshots to be destroyed this trys to ensure they
+ * As a release may cause snapshots to be destroyed this tries to ensure they
  * aren't mounted.
  *
  * The release of non-existent holds are skipped.

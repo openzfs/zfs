@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2019 by Delphix. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright 2016 Nexenta Systems, Inc.  All rights reserved.
@@ -42,14 +42,13 @@
 #include <sys/fs/zfs.h>
 #include <sys/zfs_znode.h>
 #include <sys/spa_impl.h>
-#include <sys/dsl_deadlist.h>
 #include <sys/vdev_impl.h>
 #include <sys/metaslab_impl.h>
 #include <sys/bptree.h>
 #include <sys/zfeature.h>
 #include <sys/zil_impl.h>
 #include <sys/dsl_userhold.h>
-#include <sys/trace_txg.h>
+#include <sys/trace_zfs.h>
 #include <sys/mmp.h>
 
 /*
@@ -223,6 +222,9 @@ dsl_pool_open_impl(spa_t *spa, uint64_t txg)
 
 	dp->dp_iput_taskq = taskq_create("z_iput", max_ncpus, defclsyspri,
 	    max_ncpus * 8, INT_MAX, TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
+	dp->dp_unlinked_drain_taskq = taskq_create("z_unlinked_drain",
+	    max_ncpus, defclsyspri, max_ncpus, INT_MAX,
+	    TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
 
 	return (dp);
 }
@@ -413,6 +415,7 @@ dsl_pool_close(dsl_pool_t *dp)
 	rrw_destroy(&dp->dp_config_rwlock);
 	mutex_destroy(&dp->dp_lock);
 	cv_destroy(&dp->dp_spaceavail_cv);
+	taskq_destroy(dp->dp_unlinked_drain_taskq);
 	taskq_destroy(dp->dp_iput_taskq);
 	if (dp->dp_blkstats != NULL) {
 		mutex_destroy(&dp->dp_blkstats->zab_lock);
@@ -457,6 +460,11 @@ dsl_pool_create(spa_t *spa, nvlist_t *zplprops, dsl_crypto_params_t *dcp,
 	int err;
 	dsl_pool_t *dp = dsl_pool_open_impl(spa, txg);
 	dmu_tx_t *tx = dmu_tx_create_assigned(dp, txg);
+#ifdef _KERNEL
+	objset_t *os;
+#else
+	objset_t *os __attribute__((unused));
+#endif
 	dsl_dataset_t *ds;
 	uint64_t obj;
 
@@ -520,15 +528,12 @@ dsl_pool_create(spa_t *spa, nvlist_t *zplprops, dsl_crypto_params_t *dcp,
 	/* create the root objset */
 	VERIFY0(dsl_dataset_hold_obj_flags(dp, obj,
 	    DS_HOLD_FLAG_DECRYPT, FTAG, &ds));
+	rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
+	os = dmu_objset_create_impl(dp->dp_spa, ds,
+	    dsl_dataset_get_blkptr(ds), DMU_OST_ZFS, tx);
+	rrw_exit(&ds->ds_bp_rwlock, FTAG);
 #ifdef _KERNEL
-	{
-		objset_t *os;
-		rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
-		os = dmu_objset_create_impl(dp->dp_spa, ds,
-		    dsl_dataset_get_blkptr(ds), DMU_OST_ZFS, tx);
-		rrw_exit(&ds->ds_bp_rwlock, FTAG);
-		zfs_create_fs(os, kcred, zplprops, tx);
-	}
+	zfs_create_fs(os, kcred, zplprops, tx);
 #endif
 	dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
 
@@ -654,15 +659,6 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 	VERIFY0(zio_wait(zio));
 
 	/*
-	 * We have written all of the accounted dirty data, so our
-	 * dp_space_towrite should now be zero.  However, some seldom-used
-	 * code paths do not adhere to this (e.g. dbuf_undirty(), also
-	 * rounding error in dbuf_write_physdone).
-	 * Shore up the accounting of any dirtied space now.
-	 */
-	dsl_pool_undirty_space(dp, dp->dp_dirty_pertxg[txg & TXG_MASK], txg);
-
-	/*
 	 * Update the long range free counter after
 	 * we're done syncing user data
 	 */
@@ -716,7 +712,8 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 	 * Now that the datasets have been completely synced, we can
 	 * clean up our in-memory structures accumulated while syncing:
 	 *
-	 *  - move dead blocks from the pending deadlist to the on-disk deadlist
+	 *  - move dead blocks from the pending deadlist and livelists
+	 *    to the on-disk versions
 	 *  - release hold from dsl_dataset_dirty()
 	 *  - release key mapping hold from dsl_dataset_dirty()
 	 */
@@ -752,9 +749,24 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 		dp->dp_mos_uncompressed_delta = 0;
 	}
 
-	if (!multilist_is_empty(mos->os_dirty_dnodes[txg & TXG_MASK])) {
+	if (dmu_objset_is_dirty(mos, txg)) {
 		dsl_pool_sync_mos(dp, tx);
 	}
+
+	/*
+	 * We have written all of the accounted dirty data, so our
+	 * dp_space_towrite should now be zero. However, some seldom-used
+	 * code paths do not adhere to this (e.g. dbuf_undirty()). Shore up
+	 * the accounting of any dirtied space now.
+	 *
+	 * Note that, besides any dirty data from datasets, the amount of
+	 * dirty data in the MOS is also accounted by the pool. Therefore,
+	 * we want to do this cleanup after dsl_pool_sync_mos() so we don't
+	 * attempt to update the accounting for the same dirty data twice.
+	 * (i.e. at this point we only update the accounting for the space
+	 * that we know that we "leaked").
+	 */
+	dsl_pool_undirty_space(dp, dp->dp_dirty_pertxg[txg & TXG_MASK], txg);
 
 	/*
 	 * If we modify a dataset in the same txg that we want to destroy it,
@@ -883,14 +895,14 @@ dsl_pool_need_dirty_delay(dsl_pool_t *dp)
 	    zfs_dirty_data_max * zfs_delay_min_dirty_percent / 100;
 	uint64_t dirty_min_bytes =
 	    zfs_dirty_data_max * zfs_dirty_data_sync_percent / 100;
-	boolean_t rv;
+	uint64_t dirty;
 
 	mutex_enter(&dp->dp_lock);
-	if (dp->dp_dirty_total > dirty_min_bytes)
-		txg_kick(dp);
-	rv = (dp->dp_dirty_total > delay_min_bytes);
+	dirty = dp->dp_dirty_total;
 	mutex_exit(&dp->dp_lock);
-	return (rv);
+	if (dirty > dirty_min_bytes)
+		txg_kick(dp);
+	return (dirty > delay_min_bytes);
 }
 
 void
@@ -1095,6 +1107,12 @@ dsl_pool_iput_taskq(dsl_pool_t *dp)
 	return (dp->dp_iput_taskq);
 }
 
+taskq_t *
+dsl_pool_unlinked_drain_taskq(dsl_pool_t *dp)
+{
+	return (dp->dp_unlinked_drain_taskq);
+}
+
 /*
  * Walk through the pool-wide zap object of temporary snapshot user holds
  * and release them.
@@ -1182,7 +1200,7 @@ dsl_pool_user_hold_rele_impl(dsl_pool_t *dp, uint64_t dsobj,
 		error = zap_add(mos, zapobj, name, 8, 1, &now, tx);
 	else
 		error = zap_remove(mos, zapobj, name, tx);
-	strfree(name);
+	kmem_strfree(name);
 
 	return (error);
 }
@@ -1324,53 +1342,43 @@ dsl_pool_config_held_writer(dsl_pool_t *dp)
 	return (RRW_WRITE_HELD(&dp->dp_config_rwlock));
 }
 
-#if defined(_KERNEL)
 EXPORT_SYMBOL(dsl_pool_config_enter);
 EXPORT_SYMBOL(dsl_pool_config_exit);
 
 /* BEGIN CSTYLED */
 /* zfs_dirty_data_max_percent only applied at module load in arc_init(). */
-module_param(zfs_dirty_data_max_percent, int, 0444);
-MODULE_PARM_DESC(zfs_dirty_data_max_percent, "percent of ram can be dirty");
+ZFS_MODULE_PARAM(zfs, zfs_, dirty_data_max_percent, INT, ZMOD_RD,
+	"Max percent of RAM allowed to be dirty");
 
 /* zfs_dirty_data_max_max_percent only applied at module load in arc_init(). */
-module_param(zfs_dirty_data_max_max_percent, int, 0444);
-MODULE_PARM_DESC(zfs_dirty_data_max_max_percent,
+ZFS_MODULE_PARAM(zfs, zfs_, dirty_data_max_max_percent, INT, ZMOD_RD,
 	"zfs_dirty_data_max upper bound as % of RAM");
 
-module_param(zfs_delay_min_dirty_percent, int, 0644);
-MODULE_PARM_DESC(zfs_delay_min_dirty_percent, "transaction delay threshold");
+ZFS_MODULE_PARAM(zfs, zfs_, delay_min_dirty_percent, INT, ZMOD_RW,
+	"Transaction delay threshold");
 
-module_param(zfs_dirty_data_max, ulong, 0644);
-MODULE_PARM_DESC(zfs_dirty_data_max, "determines the dirty space limit");
+ZFS_MODULE_PARAM(zfs, zfs_, dirty_data_max, ULONG, ZMOD_RW,
+	"Determines the dirty space limit");
 
 /* zfs_dirty_data_max_max only applied at module load in arc_init(). */
-module_param(zfs_dirty_data_max_max, ulong, 0444);
-MODULE_PARM_DESC(zfs_dirty_data_max_max,
+ZFS_MODULE_PARAM(zfs, zfs_, dirty_data_max_max, ULONG, ZMOD_RD,
 	"zfs_dirty_data_max upper bound in bytes");
 
-module_param(zfs_dirty_data_sync_percent, int, 0644);
-MODULE_PARM_DESC(zfs_dirty_data_sync_percent,
-	"dirty data txg sync threshold as a percentage of zfs_dirty_data_max");
+ZFS_MODULE_PARAM(zfs, zfs_, dirty_data_sync_percent, INT, ZMOD_RW,
+	"Dirty data txg sync threshold as a percentage of zfs_dirty_data_max");
 
-module_param(zfs_delay_scale, ulong, 0644);
-MODULE_PARM_DESC(zfs_delay_scale, "how quickly delay approaches infinity");
+ZFS_MODULE_PARAM(zfs, zfs_, delay_scale, ULONG, ZMOD_RW,
+	"How quickly delay approaches infinity");
 
-module_param(zfs_sync_taskq_batch_pct, int, 0644);
-MODULE_PARM_DESC(zfs_sync_taskq_batch_pct,
-	"max percent of CPUs that are used to sync dirty data");
+ZFS_MODULE_PARAM(zfs, zfs_, sync_taskq_batch_pct, INT, ZMOD_RW,
+	"Max percent of CPUs that are used to sync dirty data");
 
-module_param(zfs_zil_clean_taskq_nthr_pct, int, 0644);
-MODULE_PARM_DESC(zfs_zil_clean_taskq_nthr_pct,
-	"max percent of CPUs that are used per dp_sync_taskq");
+ZFS_MODULE_PARAM(zfs_zil, zfs_zil_, clean_taskq_nthr_pct, INT, ZMOD_RW,
+	"Max percent of CPUs that are used per dp_sync_taskq");
 
-module_param(zfs_zil_clean_taskq_minalloc, int, 0644);
-MODULE_PARM_DESC(zfs_zil_clean_taskq_minalloc,
-	"number of taskq entries that are pre-populated");
+ZFS_MODULE_PARAM(zfs_zil, zfs_zil_, clean_taskq_minalloc, INT, ZMOD_RW,
+	"Number of taskq entries that are pre-populated");
 
-module_param(zfs_zil_clean_taskq_maxalloc, int, 0644);
-MODULE_PARM_DESC(zfs_zil_clean_taskq_maxalloc,
-	"max number of taskq entries that are cached");
-
+ZFS_MODULE_PARAM(zfs_zil, zfs_zil_, clean_taskq_maxalloc, INT, ZMOD_RW,
+	"Max number of taskq entries that are cached");
 /* END CSTYLED */
-#endif

@@ -50,7 +50,7 @@
 #   CODE_COVERAGE_LIBS is preferred for clarity; CODE_COVERAGE_LDFLAGS is
 #   deprecated. They have the same value.
 #
-#   This code was derived from Makefile.decl in GLib, originally licenced
+#   This code was derived from Makefile.decl in GLib, originally licensed
 #   under LGPLv2.1+.
 #
 # LICENSE

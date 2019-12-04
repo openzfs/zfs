@@ -13,8 +13,10 @@ dist_pkgdata_SCRIPTS = \
 	tst.get_type.ksh \
 	tst.get_userquota.ksh \
 	tst.get_written.ksh \
+	tst.list_bookmarks.ksh \
 	tst.list_children.ksh \
 	tst.list_clones.ksh \
+	tst.list_holds.ksh \
 	tst.list_snapshots.ksh \
 	tst.list_system_props.ksh \
 	tst.list_user_props.ksh \
@@ -27,7 +29,8 @@ dist_pkgdata_SCRIPTS = \
 	tst.snapshot_destroy.ksh \
 	tst.snapshot_neg.ksh \
 	tst.snapshot_recursive.ksh \
-	tst.snapshot_simple.ksh
+	tst.snapshot_simple.ksh \
+	tst.terminate_by_signal.ksh
 
 dist_pkgdata_DATA = \
 	tst.get_index_props.out \

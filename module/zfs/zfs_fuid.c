@@ -73,7 +73,7 @@ idx_compare(const void *arg1, const void *arg2)
 	const fuid_domain_t *node1 = (const fuid_domain_t *)arg1;
 	const fuid_domain_t *node2 = (const fuid_domain_t *)arg2;
 
-	return (AVL_CMP(node1->f_idx, node2->f_idx));
+	return (TREE_CMP(node1->f_idx, node2->f_idx));
 }
 
 /*
@@ -88,7 +88,7 @@ domain_compare(const void *arg1, const void *arg2)
 
 	val = strcmp(node1->f_ksid->kd_name, node2->f_ksid->kd_name);
 
-	return (AVL_ISIGN(val));
+	return (TREE_ISIGN(val));
 }
 
 void
@@ -382,9 +382,9 @@ zfs_fuid_find_by_idx(zfsvfs_t *zfsvfs, uint32_t idx)
 void
 zfs_fuid_map_ids(znode_t *zp, cred_t *cr, uid_t *uidp, uid_t *gidp)
 {
-	*uidp = zfs_fuid_map_id(ZTOZSB(zp), KUID_TO_SUID(ZTOI(zp)->i_uid),
+	*uidp = zfs_fuid_map_id(ZTOZSB(zp), KUID_TO_SUID(ZTOUID(zp)),
 	    cr, ZFS_OWNER);
-	*gidp = zfs_fuid_map_id(ZTOZSB(zp), KGID_TO_SGID(ZTOI(zp)->i_gid),
+	*gidp = zfs_fuid_map_id(ZTOZSB(zp), KGID_TO_SGID(ZTOGID(zp)),
 	    cr, ZFS_GROUP);
 }
 

@@ -126,7 +126,7 @@ typedef struct raidz_map {
 	uintptr_t rm_reports;		/* # of referencing checksum reports */
 	uint8_t	rm_freed;		/* map no longer has referencing ZIO */
 	uint8_t	rm_ecksuminjected;	/* checksum error was injected */
-	raidz_impl_ops_t *rm_ops;	/* RAIDZ math operations */
+	const raidz_impl_ops_t *rm_ops;	/* RAIDZ math operations */
 	raidz_col_t rm_col[1];		/* Flexible array of I/O columns */
 } raidz_map_t;
 
@@ -158,7 +158,7 @@ extern const raidz_impl_ops_t vdev_raidz_aarch64_neonx2_impl;
  *
  * raidz_parity		Returns parity of the RAIDZ block
  * raidz_ncols		Returns number of columns the block spans
- * raidz_nbigcols	Returns number of big columns columns
+ * raidz_nbigcols	Returns number of big columns
  * raidz_col_p		Returns pointer to a column
  * raidz_col_size	Returns size of a column
  * raidz_big_size	Returns size of big columns

@@ -87,7 +87,7 @@ extern "C" {
  *
  * NOP Write:
  * The NOP write feature is performed by the ZIO_STAGE_NOP_WRITE stage
- * and is added to an existing write pipeline if a crypographically
+ * and is added to an existing write pipeline if a cryptographically
  * secure checksum (i.e. SHA256) is enabled and compression is turned on.
  * The NOP write stage will compare the checksums of the current data
  * on-disk (level-0 blocks only) and the data that is currently being written.
@@ -249,6 +249,11 @@ enum zio_stage {
 	(ZIO_INTERLOCK_STAGES |			\
 	ZIO_STAGE_VDEV_IO_START |		\
 	ZIO_STAGE_VDEV_IO_ASSESS)
+
+#define	ZIO_TRIM_PIPELINE			\
+	(ZIO_INTERLOCK_STAGES |			\
+	ZIO_STAGE_ISSUE_ASYNC |			\
+	ZIO_VDEV_IO_STAGES)
 
 #define	ZIO_BLOCKING_STAGES			\
 	(ZIO_STAGE_DVA_ALLOCATE |		\

@@ -45,6 +45,7 @@
 # N	1	1	no	keyformat given, but crypt off
 # Y	0	0	no	no keyformat specified for new key
 # Y	0	1	no	no keyformat specified for new key
+# Y	1	1	no	unsupported combination of non-encryption props
 # Y	1	0	yes	new encryption root
 # Y	1	1	yes	new encryption root
 #
@@ -82,6 +83,10 @@ log_mustnot zpool create -O encryption=off -O keyformat=passphrase \
 log_mustnot zpool create -O encryption=on $TESTPOOL $DISKS
 log_mustnot zpool create -O encryption=on -O keylocation=prompt \
 	$TESTPOOL $DISKS
+
+log_mustnot eval "echo $PASSPHRASE | zpool create -O encryption=on" \
+	"-O keyformat=passphrase -O keylocation=prompt" \
+	"-o feature@lz4_compress=disabled -O compression=lz4 $TESTPOOL $DISKS"
 
 log_must eval "echo $PASSPHRASE | zpool create -O encryption=on" \
 	"-O keyformat=passphrase $TESTPOOL $DISKS"

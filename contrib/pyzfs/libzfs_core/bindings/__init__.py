@@ -19,6 +19,7 @@ The package that contains a module per each C library that
 `libzfs_core` uses.  The modules expose CFFI objects required
 to make calls to functions in the libraries.
 """
+from __future__ import absolute_import, division, print_function
 
 import threading
 import importlib
@@ -47,7 +48,7 @@ def _setup_cffi():
     ffi = FFI()
 
     for module_name in MODULES:
-        module = importlib.import_module("." + module_name, __package__)
+        module = importlib.import_module("." + module_name, __name__)
         ffi.cdef(module.CDEF)
         lib = LazyLibrary(ffi, module.LIBRARY)
         setattr(module, "ffi", ffi)

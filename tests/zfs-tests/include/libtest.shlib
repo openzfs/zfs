@@ -20,13 +20,14 @@
 #
 
 #
-# Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
+# Copyright (c) 2009, Sun Microsystems Inc. All rights reserved.
+# Copyright (c) 2012, 2018, Delphix. All rights reserved.
+# Copyright (c) 2017, Tim Chase. All rights reserved.
+# Copyright (c) 2017, Nexenta Systems Inc. All rights reserved.
+# Copyright (c) 2017, Lawrence Livermore National Security LLC.
+# Copyright (c) 2017, Datto Inc. All rights reserved.
+# Copyright (c) 2017, Open-E Inc. All rights reserved.
 # Use is subject to license terms.
-# Copyright (c) 2012, 2017 by Delphix. All rights reserved.
-# Copyright 2016 Nexenta Systems, Inc.
-# Copyright (c) 2017 Lawrence Livermore National Security, LLC.
-# Copyright (c) 2017 Datto Inc.
-# Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 #
 
 . ${STF_TOOLS}/include/logapi.shlib
@@ -212,6 +213,13 @@ function default_setup
 	log_pass
 }
 
+function default_setup_no_mountpoint
+{
+	default_setup_noexit "$1" "$2" "$3" "yes"
+
+	log_pass
+}
+
 #
 # Given a list of disks, setup storage pools and datasets.
 #
@@ -220,6 +228,7 @@ function default_setup_noexit
 	typeset disklist=$1
 	typeset container=$2
 	typeset volume=$3
+	typeset no_mountpoint=$4
 	log_note begin default_setup_noexit
 
 	if is_global_zone; then
@@ -236,7 +245,9 @@ function default_setup_noexit
 	mkdir -p $TESTDIR || log_unresolved Could not create $TESTDIR
 
 	log_must zfs create $TESTPOOL/$TESTFS
-	log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
+	if [[ -z $no_mountpoint ]]; then
+		log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
+	fi
 
 	if [[ -n $container ]]; then
 		rm -rf $TESTDIR1  || \
@@ -247,8 +258,10 @@ function default_setup_noexit
 		log_must zfs create $TESTPOOL/$TESTCTR
 		log_must zfs set canmount=off $TESTPOOL/$TESTCTR
 		log_must zfs create $TESTPOOL/$TESTCTR/$TESTFS1
-		log_must zfs set mountpoint=$TESTDIR1 \
-		    $TESTPOOL/$TESTCTR/$TESTFS1
+		if [[ -z $no_mountpoint ]]; then
+			log_must zfs set mountpoint=$TESTDIR1 \
+			    $TESTPOOL/$TESTCTR/$TESTFS1
+		fi
 	fi
 
 	if [[ -n $volume ]]; then
@@ -391,7 +404,8 @@ function create_recv_clone
 	log_must eval "zfs send $snap | zfs recv -u $recvfs"
 	log_must mkfile 1m "$mountpoint/data"
 	log_must zfs snapshot $incr
-	log_must eval "zfs send -i $snap $incr | dd bs=10K count=1 > $sendfile"
+	log_must eval "zfs send -i $snap $incr | dd bs=10K count=1 \
+	    iflag=fullblock > $sendfile"
 	log_mustnot eval "zfs recv -su $recvfs < $sendfile"
 	destroy_dataset "$sendfs" "-r"
 	log_must rm -f "$sendfile"
@@ -727,6 +741,18 @@ function bkmarkexists
 }
 
 #
+# Return 0 if a hold exists; $? otherwise
+#
+# $1 - hold tag
+# $2 - snapshot name
+#
+function holdexists
+{
+	zfs holds "$2" | awk '{ print $2 }' | grep "$1" > /dev/null 2>&1
+	return $?
+}
+
+#
 # Set a property to a certain value on a dataset.
 # Sets a property of the dataset to the value as passed in.
 # @param:
@@ -842,12 +868,13 @@ function zero_partitions #<whole_disk_name>
 # Size should be specified with units as per
 # the `format` command requirements eg. 100mb 3gb
 #
-# NOTE: This entire interface is problematic for the Linux parted utilty
+# NOTE: This entire interface is problematic for the Linux parted utility
 # which requires the end of the partition to be specified.  It would be
 # best to retire this interface and replace it with something more flexible.
 # At the moment a best effort is made.
 #
-function set_partition #<slice_num> <slice_start> <size_plus_units>  <whole_disk_name>
+# arguments: <slice_num> <slice_start> <size_plus_units>  <whole_disk_name>
+function set_partition
 {
 	typeset -i slicenum=$1
 	typeset start=$2
@@ -858,6 +885,7 @@ function set_partition #<slice_num> <slice_start> <size_plus_units>  <whole_disk
 		if [[ -z $size || -z $disk ]]; then
 			log_fail "The size or disk name is unspecified."
 		fi
+		[[ -n $DEV_DSKDIR ]] && disk=$DEV_DSKDIR/$disk
 		typeset size_mb=${size%%[mMgG]}
 
 		size_mb=${size_mb%%[mMgG][bB]}
@@ -867,10 +895,10 @@ function set_partition #<slice_num> <slice_start> <size_plus_units>  <whole_disk
 
 		# Create GPT partition table when setting slice 0 or
 		# when the device doesn't already contain a GPT label.
-		parted $DEV_DSKDIR/$disk -s -- print 1 >/dev/null
+		parted $disk -s -- print 1 >/dev/null
 		typeset ret_val=$?
 		if [[ $slicenum -eq 0 || $ret_val -ne 0 ]]; then
-			parted $DEV_DSKDIR/$disk -s -- mklabel gpt
+			parted $disk -s -- mklabel gpt
 			if [[ $? -ne 0 ]]; then
 				log_note "Failed to create GPT partition table on $disk"
 				return 1
@@ -885,20 +913,21 @@ function set_partition #<slice_num> <slice_start> <size_plus_units>  <whole_disk
 		# Determine the cylinder size for the device and using
 		# that calculate the end offset in cylinders.
 		typeset -i cly_size_kb=0
-		cly_size_kb=$(parted -m $DEV_DSKDIR/$disk -s -- \
+		cly_size_kb=$(parted -m $disk -s -- \
 			unit cyl print | head -3 | tail -1 | \
 			awk -F '[:k.]' '{print $4}')
 		((end = (size_mb * 1024 / cly_size_kb) + start))
 
-		parted $DEV_DSKDIR/$disk -s -- \
+		parted $disk -s -- \
 		    mkpart part$slicenum ${start}cyl ${end}cyl
-		if [[ $? -ne 0 ]]; then
+		typeset ret_val=$?
+		if [[ $ret_val -ne 0 ]]; then
 			log_note "Failed to create partition $slicenum on $disk"
 			return 1
 		fi
 
-		blockdev --rereadpt $DEV_DSKDIR/$disk 2>/dev/null
-		block_device_wait
+		blockdev --rereadpt $disk 2>/dev/null
+		block_device_wait $disk
 	else
 		if [[ -z $slicenum || -z $size || -z $disk ]]; then
 			log_fail "The slice, size or disk name is unspecified."
@@ -918,10 +947,10 @@ function set_partition #<slice_num> <slice_start> <size_plus_units>  <whole_disk
 		echo "q" >> $format_file
 
 		format -e -s -d $disk -f $format_file
+		typeset ret_val=$?
+		rm -f $format_file
 	fi
 
-	typeset ret_val=$?
-	rm -f $format_file
 	if [[ $ret_val -ne 0 ]]; then
 		log_note "Unable to format $disk slice $slicenum to $size"
 		return 1
@@ -936,61 +965,26 @@ function set_partition #<slice_num> <slice_start> <size_plus_units>  <whole_disk
 #
 function delete_partitions
 {
-	typeset -i j=1
+	typeset disk
 
-	if [[ -z $DISK_ARRAY_NUM ]]; then
-		DISK_ARRAY_NUM=$(echo ${DISKS} | nawk '{print NF}')
-	fi
 	if [[ -z $DISKSARRAY ]]; then
 		DISKSARRAY=$DISKS
 	fi
 
 	if is_linux; then
-		if (( $DISK_ARRAY_NUM == 1 )); then
-			while ((j < MAX_PARTITIONS)); do
-				parted $DEV_DSKDIR/$DISK -s rm $j \
-				    > /dev/null 2>&1
-				if (( $? == 1 )); then
-					lsblk | egrep ${DISK}${SLICE_PREFIX}${j} > /dev/null
-						if (( $? == 1 )); then
-							log_note "Partitions for $DISK should be deleted"
-						else
-							log_fail "Partition for ${DISK}${SLICE_PREFIX}${j} not deleted"
-						fi
-						return 0
+		typeset -i part
+		for disk in $DISKSARRAY; do
+			for (( part = 1; part < MAX_PARTITIONS; part++ )); do
+				typeset partition=${disk}${SLICE_PREFIX}${part}
+				parted $DEV_DSKDIR/$disk -s rm $part > /dev/null 2>&1
+				if lsblk | grep -qF ${partition}; then
+					log_fail "Partition ${partition} not deleted"
 				else
-					lsblk | egrep ${DISK}${SLICE_PREFIX}${j} > /dev/null
-						if (( $? == 0 )); then
-							log_fail "Partition for ${DISK}${SLICE_PREFIX}${j} not deleted"
-						fi
+					log_note "Partition ${partition} deleted"
 				fi
-				((j = j+1))
 			done
-		else
-			for disk in `echo $DISKSARRAY`; do
-				while ((j < MAX_PARTITIONS)); do
-					parted $DEV_DSKDIR/$disk -s rm $j > /dev/null 2>&1
-					if (( $? == 1 )); then
-						lsblk | egrep ${disk}${SLICE_PREFIX}${j} > /dev/null
-						if (( $? == 1 )); then
-							log_note "Partitions for $disk should be deleted"
-						else
-							log_fail "Partition for ${disk}${SLICE_PREFIX}${j} not deleted"
-						fi
-						j=7
-					else
-						lsblk | egrep ${disk}${SLICE_PREFIX}${j} > /dev/null
-						if (( $? == 0 )); then
-							log_fail "Partition for ${disk}${SLICE_PREFIX}${j} not deleted"
-						fi
-					fi
-					((j = j+1))
-				done
-				j=1
-			done
-		fi
+		done
 	fi
-	return 0
 }
 
 #
@@ -1077,7 +1071,7 @@ function partition_disk	#<slice_size> <whole_disk_name>	<total_slices>
 #	dirnum:	    the maximum number of subdirectories to use, -1 no limit
 #	filenum:    the maximum number of files per subdirectory
 #	bytes:	    number of bytes to write
-#	num_writes: numer of types to write out bytes
+#	num_writes: number of types to write out bytes
 #	data:	    the data that will be written
 #
 #	E.g.
@@ -1092,14 +1086,14 @@ function fill_fs # destdir dirnum filenum bytes num_writes data
 	typeset -i filenum=${3:-50}
 	typeset -i bytes=${4:-8192}
 	typeset -i num_writes=${5:-10240}
-	typeset -i data=${6:-0}
+	typeset data=${6:-0}
 
 	typeset -i odirnum=1
 	typeset -i idirnum=0
 	typeset -i fn=0
 	typeset -i retval=0
 
-	log_must mkdir -p $destdir/$idirnum
+	mkdir -p $destdir/$idirnum
 	while (($odirnum > 0)); do
 		if ((dirnum >= 0 && idirnum >= dirnum)); then
 			odirnum=0
@@ -1115,7 +1109,7 @@ function fill_fs # destdir dirnum filenum bytes num_writes data
 		if (($fn >= $filenum)); then
 			fn=0
 			((idirnum = idirnum + 1))
-			log_must mkdir -p $destdir/$idirnum
+			mkdir -p $destdir/$idirnum
 		else
 			((fn = fn + 1))
 		fi
@@ -1957,7 +1951,7 @@ function get_disklist # pool
 
 	disklist=$(zpool iostat -v $1 | nawk '(NR >4) {print $1}' | \
 	    grep -v "\-\-\-\-\-" | \
-	    egrep -v -e "^(mirror|raidz1|raidz2|spare|log|cache)$")
+	    egrep -v -e "^(mirror|raidz[1-3]|spare|log|cache|special|dedup)$")
 
 	echo $disklist
 }
@@ -2135,7 +2129,7 @@ function check_pool_status # pool token keyword <verbose>
 }
 
 #
-# These 6 following functions are instance of check_pool_status()
+# The following functions are instance of check_pool_status()
 #	is_pool_resilvering - to check if the pool is resilver in progress
 #	is_pool_resilvered - to check if the pool is resilver completed
 #	is_pool_scrubbing - to check if the pool is scrub in progress
@@ -2144,6 +2138,7 @@ function check_pool_status # pool token keyword <verbose>
 #	is_pool_scrub_paused - to check if the pool has scrub paused
 #	is_pool_removing - to check if the pool is removing a vdev
 #	is_pool_removed - to check if the pool is remove completed
+#	is_pool_discarding - to check if the pool has checkpoint being discarded
 #
 function is_pool_resilvering #pool <verbose>
 {
@@ -2190,6 +2185,12 @@ function is_pool_removing #pool
 function is_pool_removed #pool
 {
 	check_pool_status "$1" "remove" "completed on"
+	return $?
+}
+
+function is_pool_discarding #pool
+{
+	check_pool_status "$1" "checkpoint" "discarding"
 	return $?
 }
 
@@ -2373,7 +2374,7 @@ function del_user #<logname> <basedir>
 	fi
 
 	if id $user > /dev/null 2>&1; then
-		log_must_retry "currently used" 5 userdel $user
+		log_must_retry "currently used" 6 userdel $user
 	fi
 
 	[[ -d $basedir/$user ]] && rm -fr $basedir/$user
@@ -2529,29 +2530,6 @@ function safe_to_destroy_pool { # $1 the pool name
 }
 
 #
-# Get the available ZFS compression options
-# $1 option type zfs_set|zfs_compress
-#
-function get_compress_opts
-{
-	typeset COMPRESS_OPTS
-	typeset GZIP_OPTS="gzip gzip-1 gzip-2 gzip-3 gzip-4 gzip-5 \
-			gzip-6 gzip-7 gzip-8 gzip-9"
-
-	if [[ $1 == "zfs_compress" ]] ; then
-		COMPRESS_OPTS="on lzjb"
-	elif [[ $1 == "zfs_set" ]] ; then
-		COMPRESS_OPTS="on off lzjb"
-	fi
-	typeset valid_opts="$COMPRESS_OPTS"
-	zfs get 2>&1 | grep gzip >/dev/null 2>&1
-	if [[ $? -eq 0 ]]; then
-		valid_opts="$valid_opts $GZIP_OPTS"
-	fi
-	echo "$valid_opts"
-}
-
-#
 # Verify zfs operation with -p option work as expected
 # $1 operation, value could be create, clone or rename
 # $2 dataset type, value could be fs or vol
@@ -2592,7 +2570,6 @@ function verify_opt_p_ops
 					"when ops is $ops."
 			fi
 			log_must datasetexists $dataset
-			log_mustnot snapexists $dataset
 			;;
 		*)
 			log_fail "$ops is not supported."
@@ -2865,7 +2842,7 @@ function labelvtoc
 
 #
 # check if the system was installed as zfsroot or not
-# return: 0 ture, otherwise false
+# return: 0 if zfsroot, non-zero if not
 #
 function is_zfsroot
 {
@@ -3478,13 +3455,13 @@ function set_tunable_impl
 	Linux)
 		typeset zfs_tunables="/sys/module/$module/parameters"
 		[[ -w "$zfs_tunables/$tunable" ]] || return 1
-		echo -n "$value" > "$zfs_tunables/$tunable"
-		return "$?"
+		cat >"$zfs_tunables/$tunable" <<<"$value"
+		return $?
 		;;
 	SunOS)
 		[[ "$module" -eq "zfs" ]] || return 1
 		echo "${tunable}/${mdb_cmd}0t${value}" | mdb -kw
-		return "$?"
+		return $?
 		;;
 	esac
 }
@@ -3511,7 +3488,7 @@ function get_tunable_impl
 		typeset zfs_tunables="/sys/module/$module/parameters"
 		[[ -f "$zfs_tunables/$tunable" ]] || return 1
 		cat $zfs_tunables/$tunable
-		return "$?"
+		return $?
 		;;
 	SunOS)
 		[[ "$module" -eq "zfs" ]] || return 1
@@ -3580,4 +3557,26 @@ function mdb_ctf_set_int
 	fi
 
 	return 0
+}
+
+#
+# Compute MD5 digest for given file or stdin if no file given.
+# Note: file path must not contain spaces
+#
+function md5digest
+{
+	typeset file=$1
+
+	md5sum -b $file | awk '{ print $1 }'
+}
+
+#
+# Compute SHA256 digest for given file or stdin if no file given.
+# Note: file path must not contain spaces
+#
+function sha256digest
+{
+	typeset file=$1
+
+	sha256sum -b $file | awk '{ print $1 }'
 }

@@ -82,7 +82,7 @@ typedef struct kstat {
 	void		*ks_data;	/* kstat type-specific data */
 	uint_t		ks_ndata;	/* # of type-specific data records */
 	size_t		ks_data_size;	/* total size of kstat data section */
-	hrtime_t	ks_snaptime;	/* time of last data shapshot */
+	hrtime_t	ks_snaptime;	/* time of last data snapshot */
 	/*
 	 * Fields relevant to kernel only
 	 */

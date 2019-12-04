@@ -39,40 +39,40 @@ typedef enum {
 	RL_READER,
 	RL_WRITER,
 	RL_APPEND
-} rangelock_type_t;
+} zfs_rangelock_type_t;
 
-struct locked_range;
+struct zfs_locked_range;
 
-typedef void (rangelock_cb_t)(struct locked_range *, void *);
+typedef void (zfs_rangelock_cb_t)(struct zfs_locked_range *, void *);
 
-typedef struct rangelock {
+typedef struct zfs_rangelock {
 	avl_tree_t rl_tree; /* contains locked_range_t */
 	kmutex_t rl_lock;
-	rangelock_cb_t *rl_cb;
+	zfs_rangelock_cb_t *rl_cb;
 	void *rl_arg;
-} rangelock_t;
+} zfs_rangelock_t;
 
-typedef struct locked_range {
-	rangelock_t *lr_rangelock; /* rangelock that this lock applies to */
+typedef struct zfs_locked_range {
+	zfs_rangelock_t *lr_rangelock; /* rangelock that this lock applies to */
 	avl_node_t lr_node;	/* avl node link */
 	uint64_t lr_offset;	/* file range offset */
 	uint64_t lr_length;	/* file range length */
 	uint_t lr_count;	/* range reference count in tree */
-	rangelock_type_t lr_type; /* range type */
+	zfs_rangelock_type_t lr_type; /* range type */
 	kcondvar_t lr_write_cv;	/* cv for waiting writers */
 	kcondvar_t lr_read_cv;	/* cv for waiting readers */
 	uint8_t lr_proxy;	/* acting for original range */
 	uint8_t lr_write_wanted; /* writer wants to lock this range */
 	uint8_t lr_read_wanted;	/* reader wants to lock this range */
-} locked_range_t;
+} zfs_locked_range_t;
 
-void rangelock_init(rangelock_t *, rangelock_cb_t *, void *);
-void rangelock_fini(rangelock_t *);
+void zfs_rangelock_init(zfs_rangelock_t *, zfs_rangelock_cb_t *, void *);
+void zfs_rangelock_fini(zfs_rangelock_t *);
 
-locked_range_t *rangelock_enter(rangelock_t *,
-    uint64_t, uint64_t, rangelock_type_t);
-void rangelock_exit(locked_range_t *);
-void rangelock_reduce(locked_range_t *, uint64_t, uint64_t);
+zfs_locked_range_t *zfs_rangelock_enter(zfs_rangelock_t *,
+    uint64_t, uint64_t, zfs_rangelock_type_t);
+void zfs_rangelock_exit(zfs_locked_range_t *);
+void zfs_rangelock_reduce(zfs_locked_range_t *, uint64_t, uint64_t);
 
 #ifdef	__cplusplus
 }

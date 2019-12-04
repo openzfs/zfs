@@ -74,7 +74,7 @@ get_dataset_depth(const char *path)
 
 	/*
 	 * Keep track of nesting until you hit the end of the
-	 * path or found the snapshot/bookmark seperator.
+	 * path or found the snapshot/bookmark separator.
 	 */
 	for (int i = 0; loc[i] != '\0' &&
 	    loc[i] != '@' &&
@@ -229,6 +229,27 @@ entity_namecheck(const char *path, namecheck_err_t *why, char *what)
 					*what = *loc;
 				}
 				return (-1);
+			}
+		}
+
+		if (*end == '\0' || *end == '/') {
+			int component_length = end - start;
+			/* Validate the contents of this component is not '.' */
+			if (component_length == 1) {
+				if (start[0] == '.') {
+					if (why)
+						*why = NAME_ERR_SELF_REF;
+					return (-1);
+				}
+			}
+
+			/* Validate the content of this component is not '..' */
+			if (component_length == 2) {
+				if (start[0] == '.' && start[1] == '.') {
+					if (why)
+						*why = NAME_ERR_PARENT_REF;
+					return (-1);
+				}
 			}
 		}
 
@@ -396,7 +417,7 @@ pool_namecheck(const char *pool, namecheck_err_t *why, char *what)
 	return (0);
 }
 
-#if defined(_KERNEL)
+EXPORT_SYMBOL(entity_namecheck);
 EXPORT_SYMBOL(pool_namecheck);
 EXPORT_SYMBOL(dataset_namecheck);
 EXPORT_SYMBOL(zfs_component_namecheck);
@@ -404,6 +425,5 @@ EXPORT_SYMBOL(dataset_nestcheck);
 EXPORT_SYMBOL(get_dataset_depth);
 EXPORT_SYMBOL(zfs_max_dataset_nesting);
 
-module_param(zfs_max_dataset_nesting, int, 0644);
-MODULE_PARM_DESC(zfs_max_dataset_nesting, "Maximum depth of nested datasets");
-#endif
+ZFS_MODULE_PARAM(zfs, zfs_, max_dataset_nesting, INT, ZMOD_RW,
+	"Limit to the amount of nesting a path can have. Defaults to 50.");

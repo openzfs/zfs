@@ -24,7 +24,7 @@
  */
 
 /*
- * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2019 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_SPACE_MAP_H
@@ -55,16 +55,28 @@ extern "C" {
  * for backward compatibility.
  */
 typedef struct space_map_phys {
-	uint64_t	smp_object;	/* on-disk space map object */
-	uint64_t	smp_objsize;	/* size of the object */
-	int64_t		smp_alloc;	/* space allocated from the map */
-	uint64_t	smp_pad[5];	/* reserved */
+	/* object number: not needed but kept for backwards compatibility */
+	uint64_t	smp_object;
+
+	/* length of the object in bytes */
+	uint64_t	smp_length;
+
+	/* space allocated from the map */
+	int64_t		smp_alloc;
+
+	/* reserved */
+	uint64_t	smp_pad[5];
 
 	/*
 	 * The smp_histogram maintains a histogram of free regions. Each
 	 * bucket, smp_histogram[i], contains the number of free regions
 	 * whose size is:
 	 * 2^(i+sm_shift) <= size of free region in bytes < 2^(i+sm_shift+1)
+	 *
+	 * Note that, if log space map feature is enabled, histograms of
+	 * space maps that belong to metaslabs will take into account any
+	 * unflushed changes for their metaslabs, even though the actual
+	 * space map doesn't have entries for these changes.
 	 */
 	uint64_t	smp_histogram[SPACE_MAP_HISTOGRAM_SIZE];
 } space_map_phys_t;
@@ -81,8 +93,6 @@ typedef struct space_map {
 	uint64_t	sm_start;	/* start of map */
 	uint64_t	sm_size;	/* size of map */
 	uint8_t		sm_shift;	/* unit shift */
-	uint64_t	sm_length;	/* synced length */
-	int64_t		sm_alloc;	/* synced space allocated */
 	objset_t	*sm_os;		/* objset for this map */
 	uint64_t	sm_object;	/* object id for this map */
 	uint32_t	sm_blksz;	/* block size for space map */
@@ -189,19 +199,23 @@ boolean_t sm_entry_is_double_word(uint64_t e);
 typedef int (*sm_cb_t)(space_map_entry_t *sme, void *arg);
 
 int space_map_load(space_map_t *sm, range_tree_t *rt, maptype_t maptype);
-int space_map_iterate(space_map_t *sm, sm_cb_t callback, void *arg);
+int space_map_load_length(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
+    uint64_t length);
+int space_map_iterate(space_map_t *sm, uint64_t length,
+    sm_cb_t callback, void *arg);
 int space_map_incremental_destroy(space_map_t *sm, sm_cb_t callback, void *arg,
     dmu_tx_t *tx);
 
+boolean_t space_map_histogram_verify(space_map_t *sm, range_tree_t *rt);
 void space_map_histogram_clear(space_map_t *sm);
 void space_map_histogram_add(space_map_t *sm, range_tree_t *rt,
     dmu_tx_t *tx);
 
-void space_map_update(space_map_t *sm);
-
 uint64_t space_map_object(space_map_t *sm);
-uint64_t space_map_allocated(space_map_t *sm);
+int64_t space_map_allocated(space_map_t *sm);
 uint64_t space_map_length(space_map_t *sm);
+uint64_t space_map_entries(space_map_t *sm, range_tree_t *rt);
+uint64_t space_map_nblocks(space_map_t *sm);
 
 void space_map_write(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
     uint64_t vdev_id, dmu_tx_t *tx);
@@ -215,8 +229,6 @@ void space_map_free_obj(objset_t *os, uint64_t smobj, dmu_tx_t *tx);
 int space_map_open(space_map_t **smp, objset_t *os, uint64_t object,
     uint64_t start, uint64_t size, uint8_t shift);
 void space_map_close(space_map_t *sm);
-
-int64_t space_map_alloc_delta(space_map_t *sm);
 
 #ifdef	__cplusplus
 }

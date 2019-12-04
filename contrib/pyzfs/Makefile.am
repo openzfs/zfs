@@ -1,4 +1,4 @@
-EXTRA_DIST = libzfs_core setup.py README LICENSE docs
+EXTRA_DIST = libzfs_core setup.py.in README LICENSE docs
 
 if PYZFS_ENABLED
 all:
@@ -24,10 +24,10 @@ all-local:
 # files are later created by manually loading the Python modules.
 #
 install-exec-local:
-	$(PYTHON) $(srcdir)/setup.py install \
+	$(PYTHON) $(builddir)/setup.py install \
 	--prefix $(prefix) \
 	--root $(DESTDIR)/ \
-	--install-lib $(pythondir) \
+	--install-lib $(pythonsitedir) \
 	--single-version-externally-managed \
 	--verbose
 

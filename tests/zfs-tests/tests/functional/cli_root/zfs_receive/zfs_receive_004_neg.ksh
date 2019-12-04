@@ -36,7 +36,7 @@
 #	Verify 'zfs receive' fails with malformed parameters.
 #
 # STRATEGY:
-#	1. Denfine malformed parameters array
+#	1. Define malformed parameters array
 #	2. Feed the malformed parameters to 'zfs receive'
 #	3. Verify the command should be failed
 #

@@ -37,6 +37,7 @@ struct dsl_pool;
 
 typedef int (dsl_checkfunc_t)(void *, dmu_tx_t *);
 typedef void (dsl_syncfunc_t)(void *, dmu_tx_t *);
+typedef void (dsl_sigfunc_t)(void *, dmu_tx_t *);
 
 typedef enum zfs_space_check {
 	/*
@@ -116,6 +117,8 @@ int dsl_early_sync_task(const char *, dsl_checkfunc_t *,
     dsl_syncfunc_t *, void *, int, zfs_space_check_t);
 void dsl_early_sync_task_nowait(struct dsl_pool *, dsl_syncfunc_t *,
     void *, int, zfs_space_check_t, dmu_tx_t *);
+int dsl_sync_task_sig(const char *, dsl_checkfunc_t *, dsl_syncfunc_t *,
+    dsl_sigfunc_t *, void *, int, zfs_space_check_t);
 
 #ifdef	__cplusplus
 }

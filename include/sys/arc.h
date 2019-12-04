@@ -187,7 +187,7 @@ typedef enum arc_buf_contents {
 } arc_buf_contents_t;
 
 /*
- * The following breakdows of arc_size exist for kstat only.
+ * The following breakdowns of arc_size exist for kstat only.
  */
 typedef enum arc_space_type {
 	ARC_SPACE_DATA,
@@ -291,6 +291,7 @@ void arc_flush(spa_t *spa, boolean_t retry);
 void arc_tempreserve_clear(uint64_t reserve);
 int arc_tempreserve_space(spa_t *spa, uint64_t reserve, uint64_t txg);
 
+uint64_t arc_all_memory(void);
 uint64_t arc_target_bytes(void);
 void arc_init(void);
 void arc_fini(void);

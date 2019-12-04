@@ -3,11 +3,21 @@
 # should include these rules and override or extend them as needed.
 #
 
-DEFAULT_INCLUDES = -include ${top_builddir}/zfs_config.h
+DEFAULT_INCLUDES = \
+	-include ${top_builddir}/zfs_config.h \
+	-I$(top_srcdir)/include \
+	-I$(top_srcdir)/module/icp/include \
+	-I$(top_srcdir)/lib/libspl/include
+
+if BUILD_LINUX
+DEFAULT_INCLUDES += \
+	-I$(top_srcdir)/lib/libspl/include/os/linux
+endif
 
 AM_LIBTOOLFLAGS = --silent
 
 AM_CFLAGS  = -std=gnu99 -Wall -Wstrict-prototypes -fno-strict-aliasing
+AM_CFLAGS += $(NO_OMIT_FRAME_POINTER)
 AM_CFLAGS += $(DEBUG_CFLAGS)
 AM_CFLAGS += $(ASAN_CFLAGS)
 AM_CFLAGS += $(CODE_COVERAGE_CFLAGS)

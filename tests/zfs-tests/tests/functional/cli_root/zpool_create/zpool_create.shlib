@@ -45,7 +45,7 @@ function create_pool_test
 	typeset vdevs
 	eval "typeset -a diskarray=($3)"
 
-	for vdevs in "${diskarray[@]}";do
+	for vdevs in "${diskarray[@]}"; do
 		create_pool $pool $keywd $vdevs
 		log_must poolexists $pool
 		destroy_pool $pool
@@ -146,7 +146,7 @@ function find_vfstab_dev
 }
 
 #
-# Save the systme current dump device configuration
+# Save the system current dump device configuration
 #
 function save_dump_dev
 {

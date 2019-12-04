@@ -49,6 +49,7 @@
 #include <sys/zio_compress.h>
 #include <sys/zio_priority.h>
 #include <sys/uio.h>
+#include <sys/zfs_file.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -337,12 +338,11 @@ int dsl_destroy_snapshots_nvl(struct nvlist *snaps, boolean_t defer,
     struct nvlist *errlist);
 int dmu_objset_snapshot_one(const char *fsname, const char *snapname);
 int dmu_objset_snapshot_tmp(const char *, const char *, int);
-int dmu_objset_find(char *name, int func(const char *, void *), void *arg,
+int dmu_objset_find(const char *name, int func(const char *, void *), void *arg,
     int flags);
 void dmu_objset_byteswap(void *buf, size_t size);
 int dsl_dataset_rename_snapshot(const char *fsname,
     const char *oldsnapname, const char *newsnapname, boolean_t recursive);
-int dmu_objset_remap_indirects(const char *fsname);
 
 typedef struct dmu_buf {
 	uint64_t db_object;		/* object that this buffer is part of */
@@ -383,6 +383,8 @@ typedef struct dmu_buf {
 #define	DMU_POOL_OBSOLETE_BPOBJ		"com.delphix:obsolete_bpobj"
 #define	DMU_POOL_CONDENSING_INDIRECT	"com.delphix:condensing_indirect"
 #define	DMU_POOL_ZPOOL_CHECKPOINT	"com.delphix:zpool_checkpoint"
+#define	DMU_POOL_LOG_SPACEMAP_ZAP	"com.delphix:log_spacemap_zap"
+#define	DMU_POOL_DELETED_CLONES		"com.delphix:deleted_clones"
 
 /*
  * Allocate an object from this objset.  The range of object numbers
@@ -407,6 +409,10 @@ uint64_t dmu_object_alloc_ibs(objset_t *os, dmu_object_type_t ot, int blocksize,
 uint64_t dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot,
     int blocksize, dmu_object_type_t bonus_type, int bonus_len,
     int dnodesize, dmu_tx_t *tx);
+uint64_t dmu_object_alloc_hold(objset_t *os, dmu_object_type_t ot,
+    int blocksize, int indirect_blockshift, dmu_object_type_t bonustype,
+    int bonuslen, int dnodesize, dnode_t **allocated_dnode, void *tag,
+    dmu_tx_t *tx);
 int dmu_object_claim(objset_t *os, uint64_t object, dmu_object_type_t ot,
     int blocksize, dmu_object_type_t bonus_type, int bonus_len, dmu_tx_t *tx);
 int dmu_object_claim_dnsize(objset_t *os, uint64_t object, dmu_object_type_t ot,
@@ -416,7 +422,8 @@ int dmu_object_reclaim(objset_t *os, uint64_t object, dmu_object_type_t ot,
     int blocksize, dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *txp);
 int dmu_object_reclaim_dnsize(objset_t *os, uint64_t object,
     dmu_object_type_t ot, int blocksize, dmu_object_type_t bonustype,
-    int bonuslen, int dnodesize, dmu_tx_t *txp);
+    int bonuslen, int dnodesize, boolean_t keep_spill, dmu_tx_t *tx);
+int dmu_object_rm_spill(objset_t *os, uint64_t object, dmu_tx_t *tx);
 
 /*
  * Free an object from this objset.
@@ -460,7 +467,7 @@ int dmu_object_set_nlevels(objset_t *os, uint64_t object, int nlevels,
 /*
  * Set the data blocksize for an object.
  *
- * The object cannot have any blocks allcated beyond the first.  If
+ * The object cannot have any blocks allocated beyond the first.  If
  * the first block is allocated already, the new size must be greater
  * than the current block size.  If these conditions are not met,
  * ENOTSUP will be returned.
@@ -473,7 +480,8 @@ int dmu_object_set_blocksize(objset_t *os, uint64_t object, uint64_t size,
 
 /*
  * Manually set the maxblkid on a dnode. This will adjust nlevels accordingly
- * to accommodate the change.
+ * to accommodate the change. When calling this function, the caller must
+ * ensure that the object's nlevels can sufficiently support the new maxblkid.
  */
 int dmu_object_set_maxblkid(objset_t *os, uint64_t object, uint64_t maxblkid,
     dmu_tx_t *tx);
@@ -492,12 +500,11 @@ void dmu_object_set_checksum(objset_t *os, uint64_t object, uint8_t checksum,
 void dmu_object_set_compress(objset_t *os, uint64_t object, uint8_t compress,
     dmu_tx_t *tx);
 
-
-int dmu_object_remap_indirects(objset_t *os, uint64_t object, uint64_t txg);
-
 void dmu_write_embedded(objset_t *os, uint64_t object, uint64_t offset,
     void *data, uint8_t etype, uint8_t comp, int uncompressed_size,
     int compressed_size, int byteorder, dmu_tx_t *tx);
+void dmu_redact(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
+    dmu_tx_t *tx);
 
 /*
  * Decide how to write a block: checksum, compression, number of copies, etc.
@@ -521,9 +528,9 @@ void dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp,
  *
  * Returns ENOENT, EIO, or 0.
  */
-int dmu_bonus_hold_impl(objset_t *os, uint64_t object, void *tag,
-    uint32_t flags, dmu_buf_t **dbp);
-int dmu_bonus_hold(objset_t *os, uint64_t object, void *tag, dmu_buf_t **);
+int dmu_bonus_hold(objset_t *os, uint64_t object, void *tag, dmu_buf_t **dbp);
+int dmu_bonus_hold_by_dnode(dnode_t *dn, void *tag, dmu_buf_t **dbp,
+    uint32_t flags);
 int dmu_bonus_max(void);
 int dmu_set_bonus(dmu_buf_t *, int, dmu_tx_t *);
 int dmu_set_bonustype(dmu_buf_t *, dmu_object_type_t, dmu_tx_t *);
@@ -558,7 +565,9 @@ int dmu_buf_hold(objset_t *os, uint64_t object, uint64_t offset,
     void *tag, dmu_buf_t **, int flags);
 int dmu_buf_hold_by_dnode(dnode_t *dn, uint64_t offset,
     void *tag, dmu_buf_t **dbp, int flags);
-
+int dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset,
+    uint64_t length, boolean_t read, void *tag, int *numbufsp,
+    dmu_buf_t ***dbpp, uint32_t flags);
 /*
  * Add a reference to a dmu buffer that has already been held via
  * dmu_buf_hold() in the current context.
@@ -736,6 +745,7 @@ struct blkptr *dmu_buf_get_blkptr(dmu_buf_t *db);
  * (ie. you've called dmu_tx_hold_object(tx, db->db_object)).
  */
 void dmu_buf_will_dirty(dmu_buf_t *db, dmu_tx_t *tx);
+boolean_t dmu_buf_is_dirty(dmu_buf_t *db, dmu_tx_t *tx);
 void dmu_buf_set_crypt_params(dmu_buf_t *db_fake, boolean_t byteorder,
     const uint8_t *salt, const uint8_t *iv, const uint8_t *mac, dmu_tx_t *tx);
 
@@ -768,7 +778,6 @@ void dmu_tx_hold_free(dmu_tx_t *tx, uint64_t object, uint64_t off,
     uint64_t len);
 void dmu_tx_hold_free_by_dnode(dmu_tx_t *tx, dnode_t *dn, uint64_t off,
     uint64_t len);
-void dmu_tx_hold_remap_l1indirect(dmu_tx_t *tx, uint64_t object);
 void dmu_tx_hold_zap(dmu_tx_t *tx, uint64_t object, int add, const char *name);
 void dmu_tx_hold_zap_by_dnode(dmu_tx_t *tx, dnode_t *dn, int add,
     const char *name);
@@ -838,7 +847,6 @@ void dmu_write_by_dnode(dnode_t *dn, uint64_t offset, uint64_t size,
 void dmu_prealloc(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 	dmu_tx_t *tx);
 #ifdef _KERNEL
-#include <linux/blkdev_compat.h>
 int dmu_read_uio(objset_t *os, uint64_t object, struct uio *uio, uint64_t size);
 int dmu_read_uio_dbuf(dmu_buf_t *zdb, struct uio *uio, uint64_t size);
 int dmu_read_uio_dnode(dnode_t *dn, struct uio *uio, uint64_t size);
@@ -851,9 +859,9 @@ int dmu_write_uio_dnode(dnode_t *dn, struct uio *uio, uint64_t size,
 #endif
 struct arc_buf *dmu_request_arcbuf(dmu_buf_t *handle, int size);
 void dmu_return_arcbuf(struct arc_buf *buf);
-void dmu_assign_arcbuf_by_dnode(dnode_t *dn, uint64_t offset,
+int dmu_assign_arcbuf_by_dnode(dnode_t *dn, uint64_t offset,
     struct arc_buf *buf, dmu_tx_t *tx);
-void dmu_assign_arcbuf_by_dbuf(dmu_buf_t *handle, uint64_t offset,
+int dmu_assign_arcbuf_by_dbuf(dmu_buf_t *handle, uint64_t offset,
     struct arc_buf *buf, dmu_tx_t *tx);
 #define	dmu_assign_arcbuf	dmu_assign_arcbuf_by_dbuf
 void dmu_copy_from_buf(objset_t *os, uint64_t object, uint64_t offset,
@@ -944,6 +952,7 @@ typedef struct dmu_objset_stats {
 	dmu_objset_type_t dds_type;
 	uint8_t dds_is_snapshot;
 	uint8_t dds_inconsistent;
+	uint8_t dds_redacted;
 	char dds_origin[ZFS_MAX_DATASET_NAME_LEN];
 } dmu_objset_stats_t;
 
@@ -997,6 +1006,7 @@ extern uint64_t dmu_objset_id(objset_t *os);
 extern uint64_t dmu_objset_dnodesize(objset_t *os);
 extern zfs_sync_type_t dmu_objset_syncprop(objset_t *os);
 extern zfs_logbias_op_t dmu_objset_logbias(objset_t *os);
+extern int dmu_objset_blksize(objset_t *os);
 extern int dmu_snapshot_list_next(objset_t *os, int namelen, char *name,
     uint64_t *id, uint64_t *offp, boolean_t *case_conflict);
 extern int dmu_snapshot_lookup(objset_t *os, const char *name, uint64_t *val);
@@ -1035,7 +1045,7 @@ typedef struct zgd {
 	struct lwb	*zgd_lwb;
 	struct blkptr	*zgd_bp;
 	dmu_buf_t	*zgd_db;
-	struct locked_range *zgd_lr;
+	struct zfs_locked_range *zgd_lr;
 	void		*zgd_private;
 } zgd_t;
 
@@ -1061,7 +1071,7 @@ void dmu_traverse_objset(objset_t *os, uint64_t txg_start,
     dmu_traverse_cb_t cb, void *arg);
 
 int dmu_diff(const char *tosnap_name, const char *fromsnap_name,
-    struct vnode *vp, offset_t *offp);
+    zfs_file_t *fp, offset_t *offp);
 
 /* CRC64 table */
 #define	ZFS_CRC64_POLY	0xC96C5795D7870F42ULL	/* ECMA-182, reflected form */

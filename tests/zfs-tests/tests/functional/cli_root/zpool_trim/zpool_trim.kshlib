@@ -1,0 +1,43 @@
+#
+# CDDL HEADER START
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright (c) 2016 by Delphix. All rights reserved.
+# Copyright (c) 2019 by Lawrence Livermore National Security, LLC.
+#
+
+function trim_prog_line # pool disk
+{
+	typeset pool="$1"
+	typeset disk="$2"
+	zpool status -t "$pool" | grep "$disk" | grep "[[:digit:]]* trimmed"
+}
+
+function trim_progress # pool disk
+{
+	trim_prog_line "$1" "$2" | sed 's/.*(\([0-9]\{1,\}\)% trimmed.*/\1/g'
+}
+
+function cleanup
+{
+	if poolexists $TESTPOOL; then
+		destroy_pool $TESTPOOL
+	fi
+
+	if poolexists $TESTPOOL1; then
+		destroy_pool $TESTPOOL1
+	fi
+}
+log_onexit cleanup

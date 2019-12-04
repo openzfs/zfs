@@ -29,6 +29,9 @@
 
 #include <sys/zfs_context.h>
 #include <sys/spa.h>
+#include <sys/spa_impl.h>
+#include <sys/dsl_pool.h>
+#include <sys/dsl_scan.h>
 #include <sys/vdev_impl.h>
 #include <sys/zio.h>
 #include <sys/abd.h>
@@ -111,7 +114,7 @@ typedef struct mirror_map {
 	int		*mm_preferred;
 	int		mm_preferred_cnt;
 	int		mm_children;
-	boolean_t	mm_replacing;
+	boolean_t	mm_resilvering;
 	boolean_t	mm_root;
 	mirror_child_t	mm_child[];
 } mirror_map_t;
@@ -145,13 +148,13 @@ vdev_mirror_map_size(int children)
 }
 
 static inline mirror_map_t *
-vdev_mirror_map_alloc(int children, boolean_t replacing, boolean_t root)
+vdev_mirror_map_alloc(int children, boolean_t resilvering, boolean_t root)
 {
 	mirror_map_t *mm;
 
 	mm = kmem_zalloc(vdev_mirror_map_size(children), KM_SLEEP);
 	mm->mm_children = children;
-	mm->mm_replacing = replacing;
+	mm->mm_resilvering = resilvering;
 	mm->mm_root = root;
 	mm->mm_preferred = (int *)((uintptr_t)mm +
 	    offsetof(mirror_map_t, mm_child[children]));
@@ -251,9 +254,32 @@ vdev_mirror_map_init(zio_t *zio)
 	if (vd == NULL) {
 		dva_t *dva = zio->io_bp->blk_dva;
 		spa_t *spa = zio->io_spa;
+		dsl_scan_t *scn = spa->spa_dsl_pool->dp_scan;
 		dva_t dva_copy[SPA_DVAS_PER_BP];
 
-		c = BP_GET_NDVAS(zio->io_bp);
+		/*
+		 * The sequential scrub code sorts and issues all DVAs
+		 * of a bp separately. Each of these IOs includes all
+		 * original DVA copies so that repairs can be performed
+		 * in the event of an error, but we only actually want
+		 * to check the first DVA since the others will be
+		 * checked by their respective sorted IOs. Only if we
+		 * hit an error will we try all DVAs upon retrying.
+		 *
+		 * Note: This check is safe even if the user switches
+		 * from a legacy scrub to a sequential one in the middle
+		 * of processing, since scn_is_sorted isn't updated until
+		 * all outstanding IOs from the previous scrub pass
+		 * complete.
+		 */
+		if ((zio->io_flags & ZIO_FLAG_SCRUB) &&
+		    !(zio->io_flags & ZIO_FLAG_IO_RETRY) &&
+		    dsl_scan_scrubbing(spa->spa_dsl_pool) &&
+		    scn->scn_is_sorted) {
+			c = 1;
+		} else {
+			c = BP_GET_NDVAS(zio->io_bp);
+		}
 
 		/*
 		 * If we do not trust the pool config, some DVAs might be
@@ -285,9 +311,39 @@ vdev_mirror_map_init(zio_t *zio)
 			mc->mc_offset = DVA_GET_OFFSET(&dva[c]);
 		}
 	} else {
-		mm = vdev_mirror_map_alloc(vd->vdev_children,
-		    (vd->vdev_ops == &vdev_replacing_ops ||
-		    vd->vdev_ops == &vdev_spare_ops), B_FALSE);
+		/*
+		 * If we are resilvering, then we should handle scrub reads
+		 * differently; we shouldn't issue them to the resilvering
+		 * device because it might not have those blocks.
+		 *
+		 * We are resilvering iff:
+		 * 1) We are a replacing vdev (ie our name is "replacing-1" or
+		 *    "spare-1" or something like that), and
+		 * 2) The pool is currently being resilvered.
+		 *
+		 * We cannot simply check vd->vdev_resilver_txg, because it's
+		 * not set in this path.
+		 *
+		 * Nor can we just check our vdev_ops; there are cases (such as
+		 * when a user types "zpool replace pool odev spare_dev" and
+		 * spare_dev is in the spare list, or when a spare device is
+		 * automatically used to replace a DEGRADED device) when
+		 * resilvering is complete but both the original vdev and the
+		 * spare vdev remain in the pool.  That behavior is intentional.
+		 * It helps implement the policy that a spare should be
+		 * automatically removed from the pool after the user replaces
+		 * the device that originally failed.
+		 *
+		 * If a spa load is in progress, then spa_dsl_pool may be
+		 * uninitialized.  But we shouldn't be resilvering during a spa
+		 * load anyway.
+		 */
+		boolean_t replacing = (vd->vdev_ops == &vdev_replacing_ops ||
+		    vd->vdev_ops == &vdev_spare_ops) &&
+		    spa_load_state(vd->vdev_spa) == SPA_LOAD_NONE &&
+		    dsl_scan_resilvering(vd->vdev_spa->spa_dsl_pool);
+		mm = vdev_mirror_map_alloc(vd->vdev_children, replacing,
+		    B_FALSE);
 		for (c = 0; c < mm->mm_children; c++) {
 			mc = &mm->mm_child[c];
 			mc->mc_vd = vd->vdev_child[c];
@@ -429,7 +485,7 @@ vdev_mirror_preferred_child_randomize(zio_t *zio)
 
 /*
  * Try to find a vdev whose DTL doesn't contain the block we want to read
- * prefering vdevs based on determined load.
+ * preferring vdevs based on determined load.
  *
  * Try to find a child whose DTL doesn't contain the block we want to read.
  * If we can't, try the read on any vdev we haven't already tried.
@@ -521,7 +577,7 @@ vdev_mirror_io_start(zio_t *zio)
 
 	if (zio->io_type == ZIO_TYPE_READ) {
 		if (zio->io_bp != NULL &&
-		    (zio->io_flags & ZIO_FLAG_SCRUB) && !mm->mm_replacing) {
+		    (zio->io_flags & ZIO_FLAG_SCRUB) && !mm->mm_resilvering) {
 			/*
 			 * For scrubbing reads (if we can verify the
 			 * checksum here, as indicated by io_bp being
@@ -663,7 +719,7 @@ vdev_mirror_io_done(zio_t *zio)
 	if (good_copies && spa_writeable(zio->io_spa) &&
 	    (unexpected_errors ||
 	    (zio->io_flags & ZIO_FLAG_RESILVER) ||
-	    ((zio->io_flags & ZIO_FLAG_SCRUB) && mm->mm_replacing))) {
+	    ((zio->io_flags & ZIO_FLAG_SCRUB) && mm->mm_resilvering))) {
 		/*
 		 * Use the good data we have in hand to repair damaged children.
 		 */
@@ -730,72 +786,67 @@ vdev_mirror_state_change(vdev_t *vd, int faulted, int degraded)
 }
 
 vdev_ops_t vdev_mirror_ops = {
-	vdev_mirror_open,
-	vdev_mirror_close,
-	vdev_default_asize,
-	vdev_mirror_io_start,
-	vdev_mirror_io_done,
-	vdev_mirror_state_change,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	VDEV_TYPE_MIRROR,	/* name of this vdev type */
-	B_FALSE			/* not a leaf vdev */
+	.vdev_op_open = vdev_mirror_open,
+	.vdev_op_close = vdev_mirror_close,
+	.vdev_op_asize = vdev_default_asize,
+	.vdev_op_io_start = vdev_mirror_io_start,
+	.vdev_op_io_done = vdev_mirror_io_done,
+	.vdev_op_state_change = vdev_mirror_state_change,
+	.vdev_op_need_resilver = NULL,
+	.vdev_op_hold = NULL,
+	.vdev_op_rele = NULL,
+	.vdev_op_remap = NULL,
+	.vdev_op_xlate = vdev_default_xlate,
+	.vdev_op_type = VDEV_TYPE_MIRROR,	/* name of this vdev type */
+	.vdev_op_leaf = B_FALSE			/* not a leaf vdev */
 };
 
 vdev_ops_t vdev_replacing_ops = {
-	vdev_mirror_open,
-	vdev_mirror_close,
-	vdev_default_asize,
-	vdev_mirror_io_start,
-	vdev_mirror_io_done,
-	vdev_mirror_state_change,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	VDEV_TYPE_REPLACING,	/* name of this vdev type */
-	B_FALSE			/* not a leaf vdev */
+	.vdev_op_open = vdev_mirror_open,
+	.vdev_op_close = vdev_mirror_close,
+	.vdev_op_asize = vdev_default_asize,
+	.vdev_op_io_start = vdev_mirror_io_start,
+	.vdev_op_io_done = vdev_mirror_io_done,
+	.vdev_op_state_change = vdev_mirror_state_change,
+	.vdev_op_need_resilver = NULL,
+	.vdev_op_hold = NULL,
+	.vdev_op_rele = NULL,
+	.vdev_op_remap = NULL,
+	.vdev_op_xlate = vdev_default_xlate,
+	.vdev_op_type = VDEV_TYPE_REPLACING,	/* name of this vdev type */
+	.vdev_op_leaf = B_FALSE			/* not a leaf vdev */
 };
 
 vdev_ops_t vdev_spare_ops = {
-	vdev_mirror_open,
-	vdev_mirror_close,
-	vdev_default_asize,
-	vdev_mirror_io_start,
-	vdev_mirror_io_done,
-	vdev_mirror_state_change,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	VDEV_TYPE_SPARE,	/* name of this vdev type */
-	B_FALSE			/* not a leaf vdev */
+	.vdev_op_open = vdev_mirror_open,
+	.vdev_op_close = vdev_mirror_close,
+	.vdev_op_asize = vdev_default_asize,
+	.vdev_op_io_start = vdev_mirror_io_start,
+	.vdev_op_io_done = vdev_mirror_io_done,
+	.vdev_op_state_change = vdev_mirror_state_change,
+	.vdev_op_need_resilver = NULL,
+	.vdev_op_hold = NULL,
+	.vdev_op_rele = NULL,
+	.vdev_op_remap = NULL,
+	.vdev_op_xlate = vdev_default_xlate,
+	.vdev_op_type = VDEV_TYPE_SPARE,	/* name of this vdev type */
+	.vdev_op_leaf = B_FALSE			/* not a leaf vdev */
 };
 
-#if defined(_KERNEL)
 /* BEGIN CSTYLED */
-module_param(zfs_vdev_mirror_rotating_inc, int, 0644);
-MODULE_PARM_DESC(zfs_vdev_mirror_rotating_inc,
+ZFS_MODULE_PARAM(zfs_vdev_mirror, zfs_vdev_mirror_, rotating_inc, INT, ZMOD_RW,
 	"Rotating media load increment for non-seeking I/O's");
 
-module_param(zfs_vdev_mirror_rotating_seek_inc, int, 0644);
-MODULE_PARM_DESC(zfs_vdev_mirror_rotating_seek_inc,
+ZFS_MODULE_PARAM(zfs_vdev_mirror, zfs_vdev_mirror_, rotating_seek_inc, INT, ZMOD_RW,
 	"Rotating media load increment for seeking I/O's");
 
-module_param(zfs_vdev_mirror_rotating_seek_offset, int, 0644);
+ZFS_MODULE_PARAM(zfs_vdev_mirror, zfs_vdev_mirror_, rotating_seek_offset, INT, ZMOD_RW,
+	"Offset in bytes from the last I/O which triggers "
+	"a reduced rotating media seek increment");
 
-MODULE_PARM_DESC(zfs_vdev_mirror_rotating_seek_offset,
-	"Offset in bytes from the last I/O which "
-	"triggers a reduced rotating media seek increment");
-
-module_param(zfs_vdev_mirror_non_rotating_inc, int, 0644);
-MODULE_PARM_DESC(zfs_vdev_mirror_non_rotating_inc,
+ZFS_MODULE_PARAM(zfs_vdev_mirror, zfs_vdev_mirror_, non_rotating_inc, INT, ZMOD_RW,
 	"Non-rotating media load increment for non-seeking I/O's");
 
-module_param(zfs_vdev_mirror_non_rotating_seek_inc, int, 0644);
-MODULE_PARM_DESC(zfs_vdev_mirror_non_rotating_seek_inc,
+ZFS_MODULE_PARAM(zfs_vdev_mirror, zfs_vdev_mirror_, non_rotating_seek_inc, INT, ZMOD_RW,
 	"Non-rotating media load increment for seeking I/O's");
 /* END CSTYLED */
-#endif

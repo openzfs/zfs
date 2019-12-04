@@ -15,8 +15,10 @@ $(pkgdracut_SCRIPTS):%:%.in
 		-e 's,@sysconfdir\@,$(sysconfdir),g' \
 		$< >'$@'
 
+# Double-colon rules are allowed; there are multiple independent definitions.
 clean-local::
 	-$(RM) $(pkgdracut_SCRIPTS)
 
+# Double-colon rules are allowed; there are multiple independent definitions.
 distclean-local::
 	-$(RM) $(pkgdracut_SCRIPTS)

@@ -22,7 +22,11 @@
 
 #include <sys/dmu.h>
 #include <sys/refcount.h>
+#if defined(__FreeBSD__) && defined(_KERNEL)
+#include <sys/freebsd_crypto.h>
+#else
 #include <sys/crypto/api.h>
+#endif /* __FreeBSD__ */
 #include <sys/nvpair.h>
 #include <sys/avl.h>
 #include <sys/zio.h>
@@ -47,15 +51,22 @@ typedef enum zio_crypt_type {
 /* table of supported crypto algorithms, modes and keylengths. */
 typedef struct zio_crypt_info {
 	/* mechanism name, needed by ICP */
+#if defined(__FreeBSD__) && defined(_KERNEL)
+	/*
+	 * I've deliberately used a different name here, to catch
+	 * ICP-using code.
+	 */
+	const char	*ci_algname;
+#else
 	crypto_mech_name_t ci_mechname;
-
+#endif
 	/* cipher mode type (GCM, CCM) */
 	zio_crypt_type_t ci_crypt_type;
 
 	/* length of the encryption key */
 	size_t ci_keylen;
 
-	/* human-readable name of the encryption alforithm */
+	/* human-readable name of the encryption algorithm */
 	char *ci_name;
 } zio_crypt_info_t;
 
@@ -78,7 +89,7 @@ typedef struct zio_crypt_key {
 	/* buffer for hmac key */
 	uint8_t zk_hmac_keydata[SHA512_HMAC_KEYLEN];
 
-	/* buffer for currrent encryption key derived from master key */
+	/* buffer for current encryption key derived from master key */
 	uint8_t zk_current_keydata[MASTER_KEY_MAX_LEN];
 
 	/* current 64 bit salt for deriving an encryption key */
@@ -90,8 +101,13 @@ typedef struct zio_crypt_key {
 	/* illumos crypto api current encryption key */
 	crypto_key_t zk_current_key;
 
+#if defined(__FreeBSD__) && defined(_KERNEL)
+	/* Session for current encrpytion key.  Must always be set */
+	freebsd_crypt_session_t	zk_session;
+#else
 	/* template of current encryption key for illumos crypto api */
 	crypto_ctx_template_t zk_current_tmpl;
+#endif
 
 	/* illumos crypto api current hmac key */
 	crypto_key_t zk_hmac_key;
@@ -99,7 +115,7 @@ typedef struct zio_crypt_key {
 	/* template of hmac key for illumos crypto api */
 	crypto_ctx_template_t zk_hmac_tmpl;
 
-	/* lock for changing the salt and dependant values */
+	/* lock for changing the salt and dependent values */
 	krwlock_t zk_salt_lock;
 } zio_crypt_key_t;
 

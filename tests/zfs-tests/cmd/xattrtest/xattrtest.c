@@ -144,11 +144,6 @@ parse_args(int argc, char **argv)
 			break;
 		case 'y':
 			verify = 1;
-			if (phase != PHASE_ALL) {
-				fprintf(stderr,
-				    "Error: -y and -o are incompatible.\n");
-				rc = 1;
-			}
 			break;
 		case 'n':
 			nth = strtol(optarg, NULL, 0);
@@ -199,11 +194,6 @@ parse_args(int argc, char **argv)
 				fprintf(stderr, "Error: the -o value must be "
 				    "greater than %d and less than %d\n",
 				    PHASE_ALL, PHASE_INVAL);
-				rc = 1;
-			}
-			if (verify == 1) {
-				fprintf(stderr,
-				    "Error: -y and -o are incompatible.\n");
 				rc = 1;
 			}
 			break;

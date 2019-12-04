@@ -17,3 +17,4 @@
 . $STF_SUITE/include/libtest.shlib
 
 default_cleanup
+destroy_pool testpool2

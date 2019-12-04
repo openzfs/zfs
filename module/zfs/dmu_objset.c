@@ -29,6 +29,7 @@
  * Copyright (c) 2016 Actifio, Inc. All rights reserved.
  * Copyright 2017 Nexenta Systems, Inc.
  * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+ * Copyright (c) 2018, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -411,6 +412,7 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 	int i, err;
 
 	ASSERT(ds == NULL || MUTEX_HELD(&ds->ds_opening_lock));
+	ASSERT(!BP_IS_REDACTED(bp));
 
 	/*
 	 * The $ORIGIN dataset (if it exists) doesn't have an associated
@@ -1026,7 +1028,7 @@ dmu_objset_create_impl_dnstats(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 
 	/*
 	 * We don't want to have to increase the meta-dnode's nlevels
-	 * later, because then we could do it in quescing context while
+	 * later, because then we could do it in quiescing context while
 	 * we are also accessing it in open context.
 	 *
 	 * This precaution is not necessary for the MOS (ds == NULL),
@@ -1118,6 +1120,8 @@ dmu_objset_create_check(void *arg, dmu_tx_t *tx)
 	dmu_objset_create_arg_t *doca = arg;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	dsl_dir_t *pdd;
+	dsl_dataset_t *parentds;
+	objset_t *parentos;
 	const char *tail;
 	int error;
 
@@ -1146,7 +1150,30 @@ dmu_objset_create_check(void *arg, dmu_tx_t *tx)
 
 	error = dsl_fs_ss_limit_check(pdd, 1, ZFS_PROP_FILESYSTEM_LIMIT, NULL,
 	    doca->doca_cred);
+	if (error != 0) {
+		dsl_dir_rele(pdd, FTAG);
+		return (error);
+	}
 
+	/* can't create below anything but filesystems (eg. no ZVOLs) */
+	error = dsl_dataset_hold_obj(pdd->dd_pool,
+	    dsl_dir_phys(pdd)->dd_head_dataset_obj, FTAG, &parentds);
+	if (error != 0) {
+		dsl_dir_rele(pdd, FTAG);
+		return (error);
+	}
+	error = dmu_objset_from_ds(parentds, &parentos);
+	if (error != 0) {
+		dsl_dataset_rele(parentds, FTAG);
+		dsl_dir_rele(pdd, FTAG);
+		return (error);
+	}
+	if (dmu_objset_type(parentos) != DMU_OST_ZFS) {
+		dsl_dataset_rele(parentds, FTAG);
+		dsl_dir_rele(pdd, FTAG);
+		return (SET_ERROR(ZFS_ERR_WRONG_PARENT));
+	}
+	dsl_dataset_rele(parentds, FTAG);
 	dsl_dir_rele(pdd, FTAG);
 
 	return (error);
@@ -1235,7 +1262,7 @@ dmu_objset_create_sync(void *arg, dmu_tx_t *tx)
 		mutex_exit(&ds->ds_lock);
 	}
 
-	spa_history_log_internal_ds(ds, "create", tx, "");
+	spa_history_log_internal_ds(ds, "create", tx, " ");
 	zvol_create_minors(spa, doca->doca_name, B_TRUE);
 
 	dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
@@ -1322,13 +1349,6 @@ dmu_objset_clone_check(void *arg, dmu_tx_t *tx)
 		return (SET_ERROR(EINVAL));
 	}
 
-	error = dmu_objset_clone_crypt_check(pdd, origin->ds_dir);
-	if (error != 0) {
-		dsl_dataset_rele(origin, FTAG);
-		dsl_dir_rele(pdd, FTAG);
-		return (error);
-	}
-
 	dsl_dataset_rele(origin, FTAG);
 	dsl_dir_rele(pdd, FTAG);
 
@@ -1355,7 +1375,7 @@ dmu_objset_clone_sync(void *arg, dmu_tx_t *tx)
 	VERIFY0(dsl_dataset_hold_obj(pdd->dd_pool, obj, FTAG, &ds));
 	dsl_dataset_name(origin, namebuf);
 	spa_history_log_internal_ds(ds, "clone", tx,
-	    "origin=%s (%llu)", namebuf, origin->ds_object);
+	    "origin=%s (%llu)", namebuf, (u_longlong_t)origin->ds_object);
 	zvol_create_minors(dp->dp_spa, doca->doca_clone, B_TRUE);
 	dsl_dataset_rele(ds, FTAG);
 	dsl_dataset_rele(origin, FTAG);
@@ -1376,101 +1396,6 @@ dmu_objset_clone(const char *clone, const char *origin)
 	    6, ZFS_SPACE_CHECK_NORMAL));
 }
 
-static int
-dmu_objset_remap_indirects_impl(objset_t *os, uint64_t last_removed_txg)
-{
-	int error = 0;
-	uint64_t object = 0;
-	while ((error = dmu_object_next(os, &object, B_FALSE, 0)) == 0) {
-		error = dmu_object_remap_indirects(os, object,
-		    last_removed_txg);
-		/*
-		 * If the ZPL removed the object before we managed to dnode_hold
-		 * it, we would get an ENOENT. If the ZPL declares its intent
-		 * to remove the object (dnode_free) before we manage to
-		 * dnode_hold it, we would get an EEXIST. In either case, we
-		 * want to continue remapping the other objects in the objset;
-		 * in all other cases, we want to break early.
-		 */
-		if (error != 0 && error != ENOENT && error != EEXIST) {
-			break;
-		}
-	}
-	if (error == ESRCH) {
-		error = 0;
-	}
-	return (error);
-}
-
-int
-dmu_objset_remap_indirects(const char *fsname)
-{
-	int error = 0;
-	objset_t *os = NULL;
-	uint64_t last_removed_txg;
-	uint64_t remap_start_txg;
-	dsl_dir_t *dd;
-
-	error = dmu_objset_hold(fsname, FTAG, &os);
-	if (error != 0) {
-		return (error);
-	}
-	dd = dmu_objset_ds(os)->ds_dir;
-
-	if (!spa_feature_is_enabled(dmu_objset_spa(os),
-	    SPA_FEATURE_OBSOLETE_COUNTS)) {
-		dmu_objset_rele(os, FTAG);
-		return (SET_ERROR(ENOTSUP));
-	}
-
-	if (dsl_dataset_is_snapshot(dmu_objset_ds(os))) {
-		dmu_objset_rele(os, FTAG);
-		return (SET_ERROR(EINVAL));
-	}
-
-	/*
-	 * If there has not been a removal, we're done.
-	 */
-	last_removed_txg = spa_get_last_removal_txg(dmu_objset_spa(os));
-	if (last_removed_txg == -1ULL) {
-		dmu_objset_rele(os, FTAG);
-		return (0);
-	}
-
-	/*
-	 * If we have remapped since the last removal, we're done.
-	 */
-	if (dsl_dir_is_zapified(dd)) {
-		uint64_t last_remap_txg;
-		if (zap_lookup(spa_meta_objset(dmu_objset_spa(os)),
-		    dd->dd_object, DD_FIELD_LAST_REMAP_TXG,
-		    sizeof (last_remap_txg), 1, &last_remap_txg) == 0 &&
-		    last_remap_txg > last_removed_txg) {
-			dmu_objset_rele(os, FTAG);
-			return (0);
-		}
-	}
-
-	dsl_dataset_long_hold(dmu_objset_ds(os), FTAG);
-	dsl_pool_rele(dmu_objset_pool(os), FTAG);
-
-	remap_start_txg = spa_last_synced_txg(dmu_objset_spa(os));
-	error = dmu_objset_remap_indirects_impl(os, last_removed_txg);
-	if (error == 0) {
-		/*
-		 * We update the last_remap_txg to be the start txg so that
-		 * we can guarantee that every block older than last_remap_txg
-		 * that can be remapped has been remapped.
-		 */
-		error = dsl_dir_update_last_remap_txg(dd, remap_start_txg);
-	}
-
-	dsl_dataset_long_rele(dmu_objset_ds(os), FTAG);
-	dsl_dataset_rele(dmu_objset_ds(os), FTAG);
-
-	return (error);
-}
-
 int
 dmu_objset_snapshot_one(const char *fsname, const char *snapname)
 {
@@ -1479,7 +1404,7 @@ dmu_objset_snapshot_one(const char *fsname, const char *snapname)
 	nvlist_t *snaps = fnvlist_alloc();
 
 	fnvlist_add_boolean(snaps, longsnap);
-	strfree(longsnap);
+	kmem_strfree(longsnap);
 	err = dsl_dataset_snapshot(snaps, NULL, NULL);
 	fnvlist_free(snaps);
 	return (err);
@@ -1558,7 +1483,7 @@ dmu_objset_sync_dnodes(multilist_sublist_t *list, dmu_tx_t *tx)
 		ASSERT(dn->dn_dbuf->db_data_pending);
 		/*
 		 * Initialize dn_zio outside dnode_sync() because the
-		 * meta-dnode needs to set it ouside dnode_sync().
+		 * meta-dnode needs to set it outside dnode_sync().
 		 */
 		dn->dn_zio = dn->dn_dbuf->db_data_pending->dr_zio;
 		ASSERT(dn->dn_zio);
@@ -1673,6 +1598,8 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 	zio_t *zio;
 	list_t *list;
 	dbuf_dirty_record_t *dr;
+	int num_sublists;
+	multilist_t *ml;
 	blkptr_t *blkptr_copy = kmem_alloc(sizeof (*os->os_rootbp), KM_SLEEP);
 	*blkptr_copy = *os->os_rootbp;
 
@@ -1761,10 +1688,13 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 		}
 	}
 
-	for (int i = 0;
-	    i < multilist_get_num_sublists(os->os_dirty_dnodes[txgoff]); i++) {
+	ml = os->os_dirty_dnodes[txgoff];
+	num_sublists = multilist_get_num_sublists(ml);
+	for (int i = 0; i < num_sublists; i++) {
+		if (multilist_sublist_is_empty_idx(ml, i))
+			continue;
 		sync_dnodes_arg_t *sda = kmem_alloc(sizeof (*sda), KM_SLEEP);
-		sda->sda_list = os->os_dirty_dnodes[txgoff];
+		sda->sda_list = ml;
 		sda->sda_sublist_idx = i;
 		sda->sda_tx = tx;
 		(void) taskq_dispatch(dmu_objset_pool(os)->dp_sync_taskq,
@@ -1858,7 +1788,7 @@ userquota_compare(const void *l, const void *r)
 	 */
 	rv = strcmp(luqn->uqn_id, ruqn->uqn_id);
 
-	return (AVL_ISIGN(rv));
+	return (TREE_ISIGN(rv));
 }
 
 static void
@@ -2067,6 +1997,8 @@ userquota_updates_task(void *arg)
 void
 dmu_objset_do_userquota_updates(objset_t *os, dmu_tx_t *tx)
 {
+	int num_sublists;
+
 	if (!dmu_objset_userused_enabled(os))
 		return;
 
@@ -2099,8 +2031,10 @@ dmu_objset_do_userquota_updates(objset_t *os, dmu_tx_t *tx)
 		    DMU_OT_USERGROUP_USED, DMU_OT_NONE, 0, tx));
 	}
 
-	for (int i = 0;
-	    i < multilist_get_num_sublists(os->os_synced_dnodes); i++) {
+	num_sublists = multilist_get_num_sublists(os->os_synced_dnodes);
+	for (int i = 0; i < num_sublists; i++) {
+		if (multilist_sublist_is_empty_idx(os->os_synced_dnodes, i))
+			continue;
 		userquota_updates_arg_t *uua =
 		    kmem_alloc(sizeof (*uua), KM_SLEEP);
 		uua->uua_os = os;
@@ -2407,7 +2341,8 @@ dmu_objset_userobjspace_upgradable(objset_t *os)
 	return (dmu_objset_type(os) == DMU_OST_ZFS &&
 	    !dmu_objset_is_snapshot(os) &&
 	    dmu_objset_userobjused_enabled(os) &&
-	    !dmu_objset_userobjspace_present(os));
+	    !dmu_objset_userobjspace_present(os) &&
+	    spa_writeable(dmu_objset_spa(os)));
 }
 
 boolean_t
@@ -2416,7 +2351,8 @@ dmu_objset_projectquota_upgradable(objset_t *os)
 	return (dmu_objset_type(os) == DMU_OST_ZFS &&
 	    !dmu_objset_is_snapshot(os) &&
 	    dmu_objset_projectquota_enabled(os) &&
-	    !dmu_objset_projectquota_present(os));
+	    !dmu_objset_projectquota_present(os) &&
+	    spa_writeable(dmu_objset_spa(os)));
 }
 
 void
@@ -2712,7 +2648,7 @@ dmu_objset_find_dp_cb(void *arg)
 
 	/*
 	 * We need to get a pool_config_lock here, as there are several
-	 * asssert(pool_config_held) down the stack. Getting a lock via
+	 * assert(pool_config_held) down the stack. Getting a lock via
 	 * dsl_pool_config_enter is risky, as it might be stalled by a
 	 * pending writer. This would deadlock, as the write lock can
 	 * only be granted when our parent thread gives up the lock.
@@ -2859,7 +2795,7 @@ dmu_objset_find_impl(spa_t *spa, const char *name,
 			err = dmu_objset_find_impl(spa, child,
 			    func, arg, flags);
 			dsl_pool_config_enter(dp, FTAG);
-			strfree(child);
+			kmem_strfree(child);
 			if (err != 0)
 				break;
 		}
@@ -2897,7 +2833,7 @@ dmu_objset_find_impl(spa_t *spa, const char *name,
 				dsl_pool_config_exit(dp, FTAG);
 				err = func(child, arg);
 				dsl_pool_config_enter(dp, FTAG);
-				strfree(child);
+				kmem_strfree(child);
 				if (err != 0)
 					break;
 			}
@@ -2920,7 +2856,7 @@ dmu_objset_find_impl(spa_t *spa, const char *name,
  * See comment above dmu_objset_find_impl().
  */
 int
-dmu_objset_find(char *name, int func(const char *, void *), void *arg,
+dmu_objset_find(const char *name, int func(const char *, void *), void *arg,
     int flags)
 {
 	spa_t *spa;
@@ -2972,9 +2908,17 @@ dmu_fsname(const char *snapname, char *buf)
 }
 
 /*
- * Call when we think we're going to write/free space in open context to track
- * the amount of dirty data in the open txg, which is also the amount
- * of memory that can not be evicted until this txg syncs.
+ * Call when we think we're going to write/free space in open context
+ * to track the amount of dirty data in the open txg, which is also the
+ * amount of memory that can not be evicted until this txg syncs.
+ *
+ * Note that there are two conditions where this can be called from
+ * syncing context:
+ *
+ * [1] When we just created the dataset, in which case we go on with
+ *     updating any accounting of dirty data as usual.
+ * [2] When we are dirtying MOS data, in which case we only update the
+ *     pool's accounting of dirty data.
  */
 void
 dmu_objset_willuse_space(objset_t *os, int64_t space, dmu_tx_t *tx)
@@ -2984,8 +2928,9 @@ dmu_objset_willuse_space(objset_t *os, int64_t space, dmu_tx_t *tx)
 
 	if (ds != NULL) {
 		dsl_dir_willuse_space(ds->ds_dir, aspace, tx);
-		dsl_pool_dirty_space(dmu_tx_pool(tx), space, tx);
 	}
+
+	dsl_pool_dirty_space(dmu_tx_pool(tx), space, tx);
 }
 
 #if defined(_KERNEL)

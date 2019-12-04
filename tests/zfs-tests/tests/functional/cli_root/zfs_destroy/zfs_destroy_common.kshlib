@@ -25,7 +25,7 @@
 #
 
 #
-# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2018 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -56,7 +56,7 @@ function setup_testenv #[dtst]
 	if ! datasetexists $FS; then
 		log_must zfs create $FS
 	fi
-	# Volume test is only availible on globle zone
+	# Volume test is only available on global zone
 	if ! datasetexists $VOL && is_global_zone; then
 		log_must zfs create -V $VOLSIZE $VOL
 		block_device_wait
@@ -127,7 +127,7 @@ function check_dataset
 	shift
 
 	for dtst in "$@"; do
-		# Volume and related stuff are unvailable in local zone
+		# Volume and related stuff are unavailable in local zone
 		if ! is_global_zone; then
 			if [[ $dtst == $VOL || $dtst == $VOLSNAP || \
 				$dtst == $VOLCLONE ]]
@@ -140,9 +140,40 @@ function check_dataset
 
 	if (( ${#newlist} != 0 )); then
 		# Run each item in $newlist individually so on failure, the
-		# probelmatic dataset is listed in the logs.
+		# problematic dataset is listed in the logs.
 		for i in $newlist; do
 			log_must $funname $i
 		done
 	fi
+}
+
+# Use zdb to see if a livelist exists for a given clone
+# $1   clone name
+function check_livelist_exists
+{
+	zdb -vvvvv $TESTPOOL/$1 | grep "Livelist" || \
+		log_fail "zdb could not find Livelist"
+}
+
+# Check that a livelist has been removed, waiting for deferred destroy entries
+# to be cleared from zdb.
+function check_livelist_gone
+{
+	log_must zpool wait -t free $TESTPOOL
+	zpool sync
+	zdb -vvvvv $TESTPOOL | grep "Livelist" && \
+		log_fail "zdb found Livelist after the clone is deleted."
+}
+
+# Create a clone in the testpool based on $TESTFS@snap. Verify that the clone
+# was created and that it includes a livelist
+# $1    fs name
+# $2    snap name
+# $3    clone name
+function clone_dataset
+{
+	log_must zfs clone $TESTPOOL/$1@$2 $TESTPOOL/$3
+	datasetexists $TESTPOOL/$3 || \
+		log_fail "zfs clone $TESTPOOL/$3 fail."
+	check_livelist_exists $3
 }

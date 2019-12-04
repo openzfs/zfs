@@ -69,7 +69,7 @@ if [ "$1" = "-h" ] ; then
         exit
 fi
 
-smartctl_path=$(which smartctl)
+smartctl_path=$(command -v smartctl)
 
 if [ -b "$VDEV_UPATH" ] && [ -x "$smartctl_path" ] || [ -n "$samples" ] ; then
 	if [ -n "$samples" ] ; then
@@ -228,7 +228,7 @@ smart_test)
 esac
 
 with_vals=$(echo "$out" | grep -E "$scripts")
-if [ ! -z "$with_vals" ]; then
+if [ -n "$with_vals" ]; then
 	echo "$with_vals"
 	without_vals=$(echo "$scripts" | tr "|" "\n" |
 		grep -v -E "$(echo "$with_vals" |
@@ -237,6 +237,6 @@ else
 	without_vals=$(echo "$scripts" | tr "|" "\n" | awk '{print $0"="}')
 fi
 
-if [ ! -z "$without_vals" ]; then
+if [ -n "$without_vals" ]; then
 	echo "$without_vals"
 fi

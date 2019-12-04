@@ -20,7 +20,7 @@
 #
 # Exit codes:
 #   0: enclosure led successfully set
-#   1: enclosure leds not not available
+#   1: enclosure leds not available
 #   2: enclosure leds administratively disabled
 #   3: The led sysfs path passed from ZFS does not exist
 #   4: $ZPOOL not set
@@ -68,7 +68,7 @@ check_and_set_led()
 	# timeout.
 	for _ in $(seq 1 5); do
 		# We want to check the current state first, since writing to the
-		# 'fault' entry always always causes a SES command, even if the
+		# 'fault' entry always causes a SES command, even if the
 		# current state is already what you want.
 		current=$(cat "${file}")
 
@@ -165,7 +165,7 @@ process_pool()
 	fi
 }
 
-if [ ! -z "$ZEVENT_VDEV_ENC_SYSFS_PATH" ] && [ ! -z "$ZEVENT_VDEV_STATE_STR" ] ; then
+if [ -n "$ZEVENT_VDEV_ENC_SYSFS_PATH" ] && [ -n "$ZEVENT_VDEV_STATE_STR" ] ; then
 	# Got a statechange for an individual VDEV
 	val=$(state_to_val "$ZEVENT_VDEV_STATE_STR")
 	vdev=$(basename "$ZEVENT_VDEV_PATH")

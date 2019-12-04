@@ -25,11 +25,12 @@
 #
 
 #
-# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2018 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/include/math.shlib
+. $STF_SUITE/tests/functional/cli_root/zfs_set/zfs_set_common.kshlib
 . $STF_SUITE/tests/functional/rsend/rsend.cfg
 
 #
@@ -157,14 +158,9 @@ function cmp_md5s {
 	typeset file1=$1
 	typeset file2=$2
 
-	eval md5sum $file1 | awk '{ print $1 }'	> $BACKDIR/md5_file1
-	eval md5sum $file2 | awk '{ print $1 }'	> $BACKDIR/md5_file2
-	diff $BACKDIR/md5_file1 $BACKDIR/md5_file2
-	typeset -i ret=$?
-
-	rm -f $BACKDIR/md5_file1 $BACKDIR/md5_file2
-
-	return $ret
+	typeset sum1=$(md5digest $file1)
+	typeset sum2=$(md5digest $file2)
+	test "$sum1" = "$sum2"
 }
 
 #
@@ -342,7 +338,7 @@ function getds_with_suffix
 }
 
 #
-# Output inherited properties whitch is edited for file system
+# Output inherited properties which is edited for file system
 #
 function fs_inherit_prop
 {
@@ -458,6 +454,115 @@ function rm_files
 }
 
 #
+# Simulate a random set of operations which could be reasonably expected
+# to occur on an average filesystem.
+#
+# $1 Number of files to modify
+# $2 Maximum file size
+# $3 File system to modify the file on
+# $4 Enabled xattrs (optional)
+#
+function churn_files
+{
+	nfiles=$1
+	maxsize=$2
+	fs=$3
+	xattrs=${4:-1}
+
+	#
+	# Remove roughly half of the files in order to make it more
+	# likely that a dnode will be reallocated.
+	#
+	for ((i=0; i<$nfiles; i=i+1)); do
+		file_name="/$fs/file-$i"
+
+		if [[ -e $file_name ]]; then
+			if [ $((RANDOM % 2)) -eq 0 ]; then
+				rm $file_name || \
+				    log_fail "Failed to remove $file_name"
+			fi
+		fi
+	done
+
+	#
+	# Remount the filesystem to simulate normal usage.  This resets
+	# the last allocated object id allowing for new objects to be
+	# reallocated in the locations of previously freed objects.
+	#
+	log_must zfs unmount $fs
+	log_must zfs mount $fs
+
+	for i in {0..$nfiles}; do
+		file_name="/$fs/file-$i"
+		file_size=$((($RANDOM * $RANDOM % ($maxsize - 1)) + 1))
+
+		#
+		# When the file exists modify it in one of five ways to
+		# simulate normal usage:
+		# - (20%) Remove and set and extended attribute on the file
+		# - (20%) Overwrite the existing file
+		# - (20%) Truncate the existing file to a random length
+		# - (20%) Truncate the existing file to zero length
+		# - (20%) Remove the file
+		#
+		# Otherwise create the missing file.  20% of the created
+		# files will be small and use embedded block pointers, the
+		# remainder with have random sizes up to the maximum size.
+		# Three extended attributes are attached to all of the files.
+		#
+		if [[ -e $file_name ]]; then
+			value=$((RANDOM % 5))
+			if [ $value -eq 0 -a $xattrs -ne 0 ]; then
+				attrname="testattr$((RANDOM % 3))"
+				attrlen="$(((RANDOM % 1000) + 1))"
+				attrvalue="$(random_string VALID_NAME_CHAR \
+				    $attrlen)"
+				attr -qr $attrname $file_name || \
+				    log_fail "Failed to remove $attrname"
+				attr -qs $attrname \
+				    -V "$attrvalue" $file_name || \
+				    log_fail "Failed to set $attrname"
+			elif [ $value -eq 1 ]; then
+				dd if=/dev/urandom of=$file_name \
+				    bs=$file_size count=1 >/dev/null 2>&1 || \
+				    log_fail "Failed to overwrite $file_name"
+			elif [ $value -eq 2 ]; then
+				truncate -s $file_size $file_name || \
+				    log_fail "Failed to truncate $file_name"
+			elif [ $value -eq 3 ]; then
+				truncate -s 0 $file_name || \
+				    log_fail "Failed to truncate $file_name"
+			else
+				rm $file_name || \
+				    log_fail "Failed to remove $file_name"
+			fi
+		else
+			if [ $((RANDOM % 5)) -eq 0 ]; then
+				file_size=$((($RANDOM % 64) + 1))
+			fi
+
+			dd if=/dev/urandom of=$file_name \
+			    bs=$file_size count=1 >/dev/null 2>&1 || \
+			    log_fail "Failed to create $file_name"
+
+			if [ $xattrs -ne 0 ]; then
+				for j in {0..2}; do
+					attrname="testattr$j"
+					attrlen="$(((RANDOM % 1000) + 1))"
+					attrvalue="$(random_string \
+					    VALID_NAME_CHAR $attrlen)"
+					attr -qs $attrname \
+					    -V "$attrvalue" $file_name || \
+					    log_fail "Failed to set $attrname"
+				done
+			fi
+		fi
+	done
+
+	return 0
+}
+
+#
 # Mess up file contents
 #
 # $1 The file path
@@ -525,7 +630,7 @@ function resume_test
 		stream_num=$((stream_num+1))
 
 		token=$(zfs get -Hp -o value receive_resume_token $recvfs)
-		log_must eval "zfs send -v -t $token >/$streamfs/$stream_num"
+		log_must eval "zfs send -t $token  >/$streamfs/$stream_num"
 		[[ -f /$streamfs/$stream_num ]] || \
 		    log_fail "NO FILE /$streamfs/$stream_num"
 	done
@@ -620,27 +725,6 @@ function stream_has_features
 }
 
 #
-# Parse zstreamdump -v output.  The output varies for each kind of record:
-# BEGIN records are simply output as "BEGIN"
-# END records are output as "END"
-# OBJECT records become "OBJECT <object num>"
-# FREEOBJECTS records become "FREEOBJECTS <startobj> <numobjs>"
-# FREE records become "<record type> <start> <length>"
-# WRITE records become:
-# "<record type> <compression type> <start> <logical size> <compressed size>
-#  <data size>"
-#
-function parse_dump
-{
-	sed '/^WRITE/{N;s/\n/ /;}' | grep "^[A-Z]" | awk '{
-	    if ($1 == "BEGIN" || $1 == "END") print $1
-	    if ($1 == "OBJECT") print $1" "$4
-	    if ($1 == "FREEOBJECTS") print $1" "$4" "$7
-	    if ($1 == "FREE") print $1" "$7" "$10
-	    if ($1 == "WRITE") print $1" "$15" "$21" "$24" "$27" "$30}'
-}
-
-#
 # Given a send stream, verify that the size of the stream matches what's
 # expected based on the source or target dataset. If the stream is an
 # incremental stream, subtract the size of the source snapshot before
@@ -665,7 +749,7 @@ function verify_stream_size
 	datasetexists $ds || log_fail "No such dataset: $ds"
 
 	typeset stream_size=$(cat $stream | zstreamdump | sed -n \
-	    's/	Total write size = \(.*\) (0x.*)/\1/p')
+	    's/	Total payload size = \(.*\) (0x.*)/\1/p')
 
 	typeset inc_size=0
 	if [[ -n $inc_src ]]; then
@@ -697,4 +781,24 @@ function resume_cleanup
 	datasetexists $streamfs && log_must_busy zfs destroy -r $streamfs
 	cleanup_pool $POOL2
 	rm -f /$sendpool/initial.zsend /$sendpool/incremental.zsend
+}
+
+# Randomly set the property to one of the enumerated values.
+function rand_set_prop
+{
+	typeset dtst=$1
+	typeset prop=$2
+	shift 2
+	typeset value=$(random_get $@)
+
+	log_must eval "zfs set $prop='$value' $dtst"
+}
+
+# Generate a recursive checksum of a filesystem which includes the file
+# contents and any associated xattrs.
+function recursive_cksum
+{
+	find $1 -type f -exec sh -c 'sha256sum {}; getfattr \
+	    --absolute-names --only-values -d {} | sha256sum' \; | \
+	    sort -k 2 | awk '{ print $1 }' | sha256sum
 }

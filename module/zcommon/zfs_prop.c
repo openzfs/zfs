@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  * Copyright 2016, Joyent, Inc.
  */
@@ -458,6 +458,10 @@ zfs_prop_init(void)
 	zprop_register_string(ZFS_PROP_KEYLOCATION, "keylocation",
 	    "none", PROP_DEFAULT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
 	    "prompt | <file URI>", "KEYLOCATION");
+	zprop_register_string(ZFS_PROP_REDACT_SNAPS,
+	    "redact_snaps", NULL, PROP_READONLY,
+	    ZFS_TYPE_DATASET | ZFS_TYPE_BOOKMARK, "<snapshot>[,...]",
+	    "RSNAPS");
 
 	/* readonly number properties */
 	zprop_register_number(ZFS_PROP_USED, "used", 0, PROP_READONLY,
@@ -465,9 +469,10 @@ zfs_prop_init(void)
 	zprop_register_number(ZFS_PROP_AVAILABLE, "available", 0, PROP_READONLY,
 	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME, "<size>", "AVAIL");
 	zprop_register_number(ZFS_PROP_REFERENCED, "referenced", 0,
-	    PROP_READONLY, ZFS_TYPE_DATASET, "<size>", "REFER");
+	    PROP_READONLY, ZFS_TYPE_DATASET | ZFS_TYPE_BOOKMARK, "<size>",
+	    "REFER");
 	zprop_register_number(ZFS_PROP_COMPRESSRATIO, "compressratio", 0,
-	    PROP_READONLY, ZFS_TYPE_DATASET,
+	    PROP_READONLY, ZFS_TYPE_DATASET | ZFS_TYPE_BOOKMARK,
 	    "<1.00x or higher if compressed>", "RATIO");
 	zprop_register_number(ZFS_PROP_REFRATIO, "refcompressratio", 0,
 	    PROP_READONLY, ZFS_TYPE_DATASET,
@@ -495,7 +500,8 @@ zfs_prop_init(void)
 	    PROP_READONLY, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME, "<size>",
 	    "LUSED");
 	zprop_register_number(ZFS_PROP_LOGICALREFERENCED, "logicalreferenced",
-	    0, PROP_READONLY, ZFS_TYPE_DATASET, "<size>", "LREFER");
+	    0, PROP_READONLY, ZFS_TYPE_DATASET | ZFS_TYPE_BOOKMARK, "<size>",
+	    "LREFER");
 	zprop_register_number(ZFS_PROP_FILESYSTEM_COUNT, "filesystem_count",
 	    UINT64_MAX, PROP_READONLY, ZFS_TYPE_FILESYSTEM,
 	    "<count>", "FSCOUNT");
@@ -506,8 +512,6 @@ zfs_prop_init(void)
 	    ZFS_TYPE_DATASET | ZFS_TYPE_BOOKMARK, "<uint64>", "GUID");
 	zprop_register_number(ZFS_PROP_CREATETXG, "createtxg", 0, PROP_READONLY,
 	    ZFS_TYPE_DATASET | ZFS_TYPE_BOOKMARK, "<uint64>", "CREATETXG");
-	zprop_register_hidden(ZFS_PROP_REMAPTXG, "remaptxg", PROP_TYPE_NUMBER,
-	    PROP_READONLY, ZFS_TYPE_DATASET, "REMAPTXG");
 	zprop_register_number(ZFS_PROP_PBKDF2_ITERS, "pbkdf2iters",
 	    0, PROP_ONETIME_DEFAULT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
 	    "<iters>", "PBKDF2ITERS");
@@ -540,7 +544,7 @@ zfs_prop_init(void)
 	    ZFS_TYPE_FILESYSTEM, "512 to 1M, power of 2", "RECSIZE");
 	zprop_register_number(ZFS_PROP_SPECIAL_SMALL_BLOCKS,
 	    "special_small_blocks", 0, PROP_INHERIT, ZFS_TYPE_FILESYSTEM,
-	    "zero or 512 to 128K, power of 2", "SPECIAL_SMALL_BLOCKS");
+	    "zero or 512 to 1M, power of 2", "SPECIAL_SMALL_BLOCKS");
 
 	/* hidden properties */
 	zprop_register_hidden(ZFS_PROP_NUMCLONES, "numclones", PROP_TYPE_NUMBER,
@@ -559,6 +563,9 @@ zfs_prop_init(void)
 	    PROP_READONLY, ZFS_TYPE_DATASET, "UNIQUE");
 	zprop_register_hidden(ZFS_PROP_INCONSISTENT, "inconsistent",
 	    PROP_TYPE_NUMBER, PROP_READONLY, ZFS_TYPE_DATASET, "INCONSISTENT");
+	zprop_register_hidden(ZFS_PROP_IVSET_GUID, "ivsetguid",
+	    PROP_TYPE_NUMBER, PROP_READONLY,
+	    ZFS_TYPE_DATASET | ZFS_TYPE_BOOKMARK, "IVSETGUID");
 	zprop_register_hidden(ZFS_PROP_PREV_SNAP, "prevsnap", PROP_TYPE_STRING,
 	    PROP_READONLY, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME, "PREVSNAP");
 	zprop_register_hidden(ZFS_PROP_PBKDF2_SALT, "pbkdf2salt",
@@ -566,13 +573,19 @@ zfs_prop_init(void)
 	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME, "PBKDF2SALT");
 	zprop_register_hidden(ZFS_PROP_KEY_GUID, "keyguid", PROP_TYPE_NUMBER,
 	    PROP_READONLY, ZFS_TYPE_DATASET, "KEYGUID");
+	zprop_register_hidden(ZFS_PROP_REDACTED, "redacted", PROP_TYPE_NUMBER,
+	    PROP_READONLY, ZFS_TYPE_DATASET, "REDACTED");
 
 	/*
-	 * Property to be removed once libbe is integrated
+	 * Properties that are obsolete and not used.  These are retained so
+	 * that we don't have to change the values of the zfs_prop_t enum, or
+	 * have NULL pointers in the zfs_prop_table[].
 	 */
 	zprop_register_hidden(ZFS_PROP_PRIVATE, "priv_prop",
 	    PROP_TYPE_NUMBER, PROP_READONLY, ZFS_TYPE_FILESYSTEM,
 	    "PRIV_PROP");
+	zprop_register_hidden(ZFS_PROP_REMAPTXG, "remaptxg", PROP_TYPE_NUMBER,
+	    PROP_READONLY, ZFS_TYPE_DATASET, "REMAPTXG");
 
 	/* oddball properties */
 	zprop_register_impl(ZFS_PROP_CREATION, "creation", PROP_TYPE_NUMBER, 0,
@@ -665,8 +678,10 @@ zfs_prop_userquota(const char *name)
 boolean_t
 zfs_prop_written(const char *name)
 {
-	static const char *prefix = "written@";
-	return (strncmp(name, prefix, strlen(prefix)) == 0);
+	static const char *prop_prefix = "written@";
+	static const char *book_prefix = "written#";
+	return (strncmp(name, prop_prefix, strlen(prop_prefix)) == 0 ||
+	    strncmp(name, book_prefix, strlen(book_prefix)) == 0);
 }
 
 /*
@@ -850,10 +865,23 @@ zfs_prop_align_right(zfs_prop_t prop)
 #endif
 
 #if defined(_KERNEL)
+
+#include <sys/simd.h>
+
+#if defined(HAVE_KERNEL_FPU_INTERNAL)
+union fpregs_state **zfs_kfpu_fpregs;
+EXPORT_SYMBOL(zfs_kfpu_fpregs);
+#endif /* HAVE_KERNEL_FPU_INTERNAL */
+
 static int __init
 zcommon_init(void)
 {
+	int error = kfpu_init();
+	if (error)
+		return (error);
+
 	fletcher_4_init();
+
 	return (0);
 }
 
@@ -861,15 +889,18 @@ static void __exit
 zcommon_fini(void)
 {
 	fletcher_4_fini();
+	kfpu_fini();
 }
 
 module_init(zcommon_init);
 module_exit(zcommon_fini);
 
-MODULE_DESCRIPTION("Generic ZFS support");
-MODULE_AUTHOR(ZFS_META_AUTHOR);
-MODULE_LICENSE(ZFS_META_LICENSE);
-MODULE_VERSION(ZFS_META_VERSION "-" ZFS_META_RELEASE);
+#endif
+
+ZFS_MODULE_DESCRIPTION("Generic ZFS support");
+ZFS_MODULE_AUTHOR(ZFS_META_AUTHOR);
+ZFS_MODULE_LICENSE(ZFS_META_LICENSE);
+ZFS_MODULE_VERSION(ZFS_META_VERSION "-" ZFS_META_RELEASE);
 
 /* zfs dataset property functions */
 EXPORT_SYMBOL(zfs_userquota_prop_prefixes);
@@ -895,5 +926,3 @@ EXPORT_SYMBOL(zfs_prop_index_to_string);
 EXPORT_SYMBOL(zfs_prop_string_to_index);
 EXPORT_SYMBOL(zfs_prop_valid_for_type);
 EXPORT_SYMBOL(zfs_prop_written);
-
-#endif

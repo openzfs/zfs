@@ -105,7 +105,7 @@ show_vdev_stats(const char *desc, const char *ctype, nvlist_t *nv, int indent)
 		    vs->vs_space ? 6 : 0, vs->vs_space ? avail : "",
 		    rops, wops, rbytes, wbytes, rerr, werr, cerr);
 	}
-	free(v0);
+	umem_free(v0, sizeof (*v0));
 
 	if (nvlist_lookup_nvlist_array(nv, ctype, &child, &children) != 0)
 		return;
@@ -124,7 +124,7 @@ show_vdev_stats(const char *desc, const char *ctype, nvlist_t *nv, int indent)
 		if (nvlist_lookup_uint64(cnv, ZPOOL_CONFIG_NPARITY, &np) == 0)
 			tname[strlen(tname)] = '0' + np;
 		show_vdev_stats(tname, ctype, cnv, indent + 2);
-		free(tname);
+		umem_free(tname, len);
 	}
 }
 
@@ -223,7 +223,7 @@ pool_active(void *unused, const char *name, uint64_t guid,
 	 * Use ZFS_IOC_POOL_SYNC to confirm if a pool is active
 	 */
 
-	fd = open("/dev/zfs", O_RDWR);
+	fd = open(ZFS_DEV, O_RDWR);
 	if (fd < 0)
 		return (-1);
 
@@ -237,7 +237,7 @@ pool_active(void *unused, const char *name, uint64_t guid,
 	zcp->zc_nvlist_src = (uint64_t)(uintptr_t)packed;
 	zcp->zc_nvlist_src_size = size;
 
-	ret = ioctl(fd, ZFS_IOC_POOL_SYNC, zcp);
+	ret = zfs_ioctl_fd(fd, ZFS_IOC_POOL_SYNC, zcp);
 
 	fnvlist_pack_free(packed, size);
 	free((void *)(uintptr_t)zcp->zc_nvlist_dst);

@@ -31,7 +31,7 @@
  * Name-Value Pair Lists
  *
  * The embodiment of an FMA protocol element (event, fmri or authority) is a
- * name-value pair list (nvlist_t).  FMA-specific nvlist construtor and
+ * name-value pair list (nvlist_t).  FMA-specific nvlist constructor and
  * destructor functions, fm_nvlist_create() and fm_nvlist_destroy(), are used
  * to create an nvpair list using custom allocators.  Callers may choose to
  * allocate either from the kernel memory allocator, or from a preallocated
@@ -67,7 +67,6 @@
 #include <sys/atomic.h>
 #include <sys/condvar.h>
 #include <sys/console.h>
-#include <sys/kobj.h>
 #include <sys/time.h>
 #include <sys/zfs_ioctl.h>
 
@@ -582,14 +581,9 @@ zfs_zevent_minor_to_state(minor_t minor, zfs_zevent_t **ze)
 int
 zfs_zevent_fd_hold(int fd, minor_t *minorp, zfs_zevent_t **ze)
 {
-	file_t *fp;
 	int error;
 
-	fp = getf(fd);
-	if (fp == NULL)
-		return (SET_ERROR(EBADF));
-
-	error = zfsdev_getminor(fp->f_file, minorp);
+	error = zfsdev_getminor(fd, minorp);
 	if (error == 0)
 		error = zfs_zevent_minor_to_state(*minorp, ze);
 
@@ -602,7 +596,7 @@ zfs_zevent_fd_hold(int fd, minor_t *minorp, zfs_zevent_t **ze)
 void
 zfs_zevent_fd_rele(int fd)
 {
-	releasef(fd);
+	zfs_file_put(fd);
 }
 
 /*
@@ -683,8 +677,7 @@ zfs_zevent_wait(zfs_zevent_t *ze)
 			break;
 		}
 
-		error = cv_timedwait_sig(&zevent_cv, &zevent_lock,
-		    ddi_get_lbolt() + MSEC_TO_TICK(10));
+		error = cv_wait_sig(&zevent_cv, &zevent_lock);
 		if (signal_pending(current)) {
 			error = SET_ERROR(EINTR);
 			break;
@@ -785,7 +778,7 @@ zfs_zevent_destroy(zfs_zevent_t *ze)
 #endif /* _KERNEL */
 
 /*
- * Wrapppers for FM nvlist allocators
+ * Wrappers for FM nvlist allocators
  */
 /* ARGSUSED */
 static void *

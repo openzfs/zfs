@@ -83,7 +83,7 @@ log_must mkfile 1M $mntpnt/$TESTFILE2
 log_mustnot ls $testfile
 log_must ls $mntpnt/$TESTFILE1 $mntpnt/$TESTFILE2
 
-# Verify $TESTFILE2 was created in $fs1, rather then $fs
+# Verify $TESTFILE2 was created in $fs1, rather than $fs
 log_must zfs unmount $fs1
 log_must zfs set mountpoint=$mntpnt1 $fs1
 log_must zfs mount $fs1

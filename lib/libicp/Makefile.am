@@ -7,11 +7,6 @@ VPATH = \
 # Includes kernel code, generate warnings for large stack frames
 AM_CFLAGS += $(FRAME_LARGER_THAN)
 
-DEFAULT_INCLUDES += \
-	-I$(top_srcdir)/include \
-	-I$(top_srcdir)/module/icp/include \
-	-I$(top_srcdir)/lib/libspl/include
-
 noinst_LTLIBRARIES = libicp.la
 
 if TARGET_ASM_X86_64

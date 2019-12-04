@@ -28,6 +28,7 @@
 #include <sys/crypto/icp.h>
 #include <sys/crypto/impl.h>
 #include <sys/byteorder.h>
+#include <sys/simd.h>
 #include <modes/gcm_impl.h>
 
 #define	GHASH(c, d, t, o) \
@@ -46,7 +47,7 @@ gcm_mode_encrypt_contiguous_blocks(gcm_ctx_t *ctx, char *data, size_t length,
     void (*copy_block)(uint8_t *, uint8_t *),
     void (*xor_block)(uint8_t *, uint8_t *))
 {
-	gcm_impl_ops_t *gops;
+	const gcm_impl_ops_t *gops;
 	size_t remainder = length;
 	size_t need = 0;
 	uint8_t *datap = (uint8_t *)data;
@@ -168,7 +169,7 @@ gcm_encrypt_final(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size,
     void (*copy_block)(uint8_t *, uint8_t *),
     void (*xor_block)(uint8_t *, uint8_t *))
 {
-	gcm_impl_ops_t *gops;
+	const gcm_impl_ops_t *gops;
 	uint64_t counter_mask = ntohll(0x00000000ffffffffULL);
 	uint8_t *ghash, *macp = NULL;
 	int i, rv;
@@ -299,11 +300,13 @@ gcm_mode_decrypt_contiguous_blocks(gcm_ctx_t *ctx, char *data, size_t length,
 	if (length > 0) {
 		new_len = ctx->gcm_pt_buf_len + length;
 		new = vmem_alloc(new_len, ctx->gcm_kmflag);
+		if (new == NULL) {
+			vmem_free(ctx->gcm_pt_buf, ctx->gcm_pt_buf_len);
+			ctx->gcm_pt_buf = NULL;
+			return (CRYPTO_HOST_MEMORY);
+		}
 		bcopy(ctx->gcm_pt_buf, new, ctx->gcm_pt_buf_len);
 		vmem_free(ctx->gcm_pt_buf, ctx->gcm_pt_buf_len);
-		if (new == NULL)
-			return (CRYPTO_HOST_MEMORY);
-
 		ctx->gcm_pt_buf = new;
 		ctx->gcm_pt_buf_len = new_len;
 		bcopy(data, &ctx->gcm_pt_buf[ctx->gcm_processed_data_len],
@@ -320,7 +323,7 @@ gcm_decrypt_final(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size,
     int (*encrypt_block)(const void *, const uint8_t *, uint8_t *),
     void (*xor_block)(uint8_t *, uint8_t *))
 {
-	gcm_impl_ops_t *gops;
+	const gcm_impl_ops_t *gops;
 	size_t pt_len;
 	size_t remainder;
 	uint8_t *ghash;
@@ -427,7 +430,7 @@ gcm_format_initial_blocks(uchar_t *iv, ulong_t iv_len,
     void (*copy_block)(uint8_t *, uint8_t *),
     void (*xor_block)(uint8_t *, uint8_t *))
 {
-	gcm_impl_ops_t *gops;
+	const gcm_impl_ops_t *gops;
 	uint8_t *cb;
 	ulong_t remainder = iv_len;
 	ulong_t processed = 0;
@@ -481,7 +484,7 @@ gcm_init(gcm_ctx_t *ctx, unsigned char *iv, size_t iv_len,
     void (*copy_block)(uint8_t *, uint8_t *),
     void (*xor_block)(uint8_t *, uint8_t *))
 {
-	gcm_impl_ops_t *gops;
+	const gcm_impl_ops_t *gops;
 	uint8_t *ghash, *datap, *authp;
 	size_t remainder, processed;
 
@@ -646,7 +649,7 @@ const gcm_impl_ops_t *gcm_all_impl[] = {
 /* Indicate that benchmark has been completed */
 static boolean_t gcm_impl_initialized = B_FALSE;
 
-/* Select aes implementation */
+/* Select GCM implementation */
 #define	IMPL_FASTEST	(UINT32_MAX)
 #define	IMPL_CYCLE	(UINT32_MAX-1)
 
@@ -660,12 +663,17 @@ static size_t gcm_supp_impl_cnt = 0;
 static gcm_impl_ops_t *gcm_supp_impl[ARRAY_SIZE(gcm_all_impl)];
 
 /*
- * Selects the gcm operation
+ * Returns the GCM operations for encrypt/decrypt/key setup.  When a
+ * SIMD implementation is not allowed in the current context, then
+ * fallback to the fastest generic implementation.
  */
-gcm_impl_ops_t *
+const gcm_impl_ops_t *
 gcm_impl_get_ops()
 {
-	gcm_impl_ops_t *ops = NULL;
+	if (!kfpu_allowed())
+		return (&gcm_generic_impl);
+
+	const gcm_impl_ops_t *ops = NULL;
 	const uint32_t impl = GCM_IMPL_READ(icp_gcm_impl);
 
 	switch (impl) {
@@ -674,15 +682,13 @@ gcm_impl_get_ops()
 		ops = &gcm_fastest_impl;
 		break;
 	case IMPL_CYCLE:
-	{
+		/* Cycle through supported implementations */
 		ASSERT(gcm_impl_initialized);
 		ASSERT3U(gcm_supp_impl_cnt, >, 0);
-		/* Cycle through supported implementations */
 		static size_t cycle_impl_idx = 0;
 		size_t idx = (++cycle_impl_idx) % gcm_supp_impl_cnt;
 		ops = gcm_supp_impl[idx];
-	}
-	break;
+		break;
 	default:
 		ASSERT3U(impl, <, gcm_supp_impl_cnt);
 		ASSERT3U(gcm_supp_impl_cnt, >, 0);
@@ -696,13 +702,16 @@ gcm_impl_get_ops()
 	return (ops);
 }
 
+/*
+ * Initialize all supported implementations.
+ */
 void
 gcm_impl_init(void)
 {
 	gcm_impl_ops_t *curr_impl;
 	int i, c;
 
-	/* move supported impl into aes_supp_impls */
+	/* Move supported implementations into gcm_supp_impls */
 	for (i = 0, c = 0; i < ARRAY_SIZE(gcm_all_impl); i++) {
 		curr_impl = (gcm_impl_ops_t *)gcm_all_impl[i];
 
@@ -711,15 +720,20 @@ gcm_impl_init(void)
 	}
 	gcm_supp_impl_cnt = c;
 
-	/* set fastest implementation. assume hardware accelerated is fastest */
+	/*
+	 * Set the fastest implementation given the assumption that the
+	 * hardware accelerated version is the fastest.
+	 */
 #if defined(__x86_64) && defined(HAVE_PCLMULQDQ)
-	if (gcm_pclmulqdq_impl.is_supported())
+	if (gcm_pclmulqdq_impl.is_supported()) {
 		memcpy(&gcm_fastest_impl, &gcm_pclmulqdq_impl,
 		    sizeof (gcm_fastest_impl));
-	else
+	} else
 #endif
+	{
 		memcpy(&gcm_fastest_impl, &gcm_generic_impl,
 		    sizeof (gcm_fastest_impl));
+	}
 
 	strcpy(gcm_fastest_impl.name, "fastest");
 
@@ -742,7 +756,7 @@ static const struct {
  * If we are called before init(), user preference will be saved in
  * user_sel_impl, and applied in later init() call. This occurs when module
  * parameter is specified on module load. Otherwise, directly update
- * icp_aes_impl.
+ * icp_gcm_impl.
  *
  * @val		Name of gcm implementation to use
  * @param	Unused.
@@ -797,7 +811,6 @@ gcm_impl_set(const char *val)
 }
 
 #if defined(_KERNEL)
-#include <linux/mod_compat.h>
 
 static int
 icp_gcm_impl_set(const char *val, zfs_kernel_param_t *kp)

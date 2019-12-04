@@ -22,8 +22,9 @@ dist_pkgdata_SCRIPTS = \
 	rsend_022_pos.ksh \
 	rsend_024_pos.ksh \
 	send_encrypted_files.ksh \
-	send_encrypted_heirarchy.ksh \
+	send_encrypted_hierarchy.ksh \
 	send_encrypted_props.ksh \
+	send_encrypted_truncated_files.ksh \
 	send-cD.ksh \
 	send-c_embedded_blocks.ksh \
 	send-c_incremental.ksh \
@@ -41,7 +42,12 @@ dist_pkgdata_SCRIPTS = \
 	send-cpL_varied_recsize.ksh \
 	send_freeobjects.ksh \
 	send_realloc_dnode_size.ksh \
+	send_realloc_files.ksh \
+	send_realloc_encrypted_files.ksh \
+	send_spill_block.ksh \
+	send_holds.ksh \
 	send_hole_birth.ksh \
+	send_mixed_raw.ksh \
 	send-wDR_encrypted_zvol.ksh
 
 dist_pkgdata_DATA = \

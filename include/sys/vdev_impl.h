@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2019 by Delphix. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
  */
 
@@ -82,6 +82,12 @@ typedef void	vdev_remap_cb_t(uint64_t inner_offset, vdev_t *vd,
     uint64_t offset, uint64_t size, void *arg);
 typedef void	vdev_remap_func_t(vdev_t *vd, uint64_t offset, uint64_t size,
     vdev_remap_cb_t callback, void *arg);
+/*
+ * Given a target vdev, translates the logical range "in" to the physical
+ * range "res"
+ */
+typedef void vdev_xlation_func_t(vdev_t *cvd, const range_seg64_t *in,
+    range_seg64_t *res);
 
 typedef const struct vdev_ops {
 	vdev_open_func_t		*vdev_op_open;
@@ -94,6 +100,11 @@ typedef const struct vdev_ops {
 	vdev_hold_func_t		*vdev_op_hold;
 	vdev_rele_func_t		*vdev_op_rele;
 	vdev_remap_func_t		*vdev_op_remap;
+	/*
+	 * For translating ranges from non-leaf vdevs (e.g. raidz) to leaves.
+	 * Used when initializing vdevs. Isn't used by leaf ops.
+	 */
+	vdev_xlation_func_t		*vdev_op_xlate;
 	char				vdev_op_type[16];
 	boolean_t			vdev_op_leaf;
 } vdev_ops_t;
@@ -134,6 +145,7 @@ struct vdev_queue {
 	avl_tree_t	vq_active_tree;
 	avl_tree_t	vq_read_offset_tree;
 	avl_tree_t	vq_write_offset_tree;
+	avl_tree_t	vq_trim_offset_tree;
 	uint64_t	vq_last_offset;
 	hrtime_t	vq_io_complete_ts; /* time last i/o completed */
 	hrtime_t	vq_io_delta_ts;
@@ -208,8 +220,6 @@ struct vdev {
 	vdev_ops_t	*vdev_ops;	/* vdev operations		*/
 	spa_t		*vdev_spa;	/* spa for this vdev		*/
 	void		*vdev_tsd;	/* type-specific data		*/
-	vnode_t		*vdev_name_vp;	/* vnode for pathname		*/
-	vnode_t		*vdev_devid_vp;	/* vnode for devid		*/
 	vdev_t		*vdev_top;	/* top-level vdev		*/
 	vdev_t		*vdev_parent;	/* parent vdev			*/
 	vdev_t		**vdev_child;	/* array of children		*/
@@ -243,12 +253,55 @@ struct vdev {
 	uint64_t	vdev_islog;	/* is an intent log device	*/
 	uint64_t	vdev_removing;	/* device is being removed?	*/
 	boolean_t	vdev_ishole;	/* is a hole in the namespace	*/
-	kmutex_t	vdev_queue_lock; /* protects vdev_queue_depth	*/
 	uint64_t	vdev_top_zap;
 	vdev_alloc_bias_t vdev_alloc_bias; /* metaslab allocation bias	*/
 
 	/* pool checkpoint related */
 	space_map_t	*vdev_checkpoint_sm;	/* contains reserved blocks */
+
+	/* Initialize related */
+	boolean_t	vdev_initialize_exit_wanted;
+	vdev_initializing_state_t	vdev_initialize_state;
+	list_node_t	vdev_initialize_node;
+	kthread_t	*vdev_initialize_thread;
+	/* Protects vdev_initialize_thread and vdev_initialize_state. */
+	kmutex_t	vdev_initialize_lock;
+	kcondvar_t	vdev_initialize_cv;
+	uint64_t	vdev_initialize_offset[TXG_SIZE];
+	uint64_t	vdev_initialize_last_offset;
+	range_tree_t	*vdev_initialize_tree;	/* valid while initializing */
+	uint64_t	vdev_initialize_bytes_est;
+	uint64_t	vdev_initialize_bytes_done;
+	time_t		vdev_initialize_action_time;	/* start and end time */
+
+	/* TRIM related */
+	boolean_t	vdev_trim_exit_wanted;
+	boolean_t	vdev_autotrim_exit_wanted;
+	vdev_trim_state_t	vdev_trim_state;
+	list_node_t	vdev_trim_node;
+	kmutex_t	vdev_autotrim_lock;
+	kcondvar_t	vdev_autotrim_cv;
+	kthread_t	*vdev_autotrim_thread;
+	/* Protects vdev_trim_thread and vdev_trim_state. */
+	kmutex_t	vdev_trim_lock;
+	kcondvar_t	vdev_trim_cv;
+	kthread_t	*vdev_trim_thread;
+	uint64_t	vdev_trim_offset[TXG_SIZE];
+	uint64_t	vdev_trim_last_offset;
+	uint64_t	vdev_trim_bytes_est;
+	uint64_t	vdev_trim_bytes_done;
+	uint64_t	vdev_trim_rate;		/* requested rate (bytes/sec) */
+	uint64_t	vdev_trim_partial;	/* requested partial TRIM */
+	uint64_t	vdev_trim_secure;	/* requested secure TRIM */
+	time_t		vdev_trim_action_time;	/* start and end time */
+
+	/* for limiting outstanding I/Os (initialize and TRIM) */
+	kmutex_t	vdev_initialize_io_lock;
+	kcondvar_t	vdev_initialize_io_cv;
+	uint64_t	vdev_initialize_inflight;
+	kmutex_t	vdev_trim_io_lock;
+	kcondvar_t	vdev_trim_io_cv;
+	uint64_t	vdev_trim_inflight[2];
 
 	/*
 	 * Values stored in the config for an indirect or removing vdev.
@@ -285,16 +338,6 @@ struct vdev {
 	space_map_t	*vdev_obsolete_sm;
 
 	/*
-	 * The queue depth parameters determine how many async writes are
-	 * still pending (i.e. allocated but not yet issued to disk) per
-	 * top-level (vdev_async_write_queue_depth) and the maximum allowed
-	 * (vdev_max_async_write_queue_depth). These values only apply to
-	 * top-level vdevs.
-	 */
-	uint64_t	vdev_async_write_queue_depth;
-	uint64_t	vdev_max_async_write_queue_depth;
-
-	/*
 	 * Protects the vdev_scan_io_queue field itself as well as the
 	 * structure's contents (when present).
 	 */
@@ -324,6 +367,8 @@ struct vdev {
 	uint64_t	vdev_not_present; /* not present during import	*/
 	uint64_t	vdev_unspare;	/* unspare when resilvering done */
 	boolean_t	vdev_nowritecache; /* true if flushwritecache failed */
+	boolean_t	vdev_has_trim;	/* TRIM is supported		*/
+	boolean_t	vdev_has_securetrim; /* secure TRIM is supported */
 	boolean_t	vdev_checkremove; /* temporary online test	*/
 	boolean_t	vdev_forcefault; /* force online fault		*/
 	boolean_t	vdev_splitting;	/* split or repair in progress  */
@@ -345,6 +390,7 @@ struct vdev {
 	hrtime_t	vdev_mmp_pending; /* 0 if write finished	*/
 	uint64_t	vdev_mmp_kstat_id;	/* to find kstat entry */
 	uint64_t	vdev_expansion_time;	/* vdev's last expansion time */
+	list_node_t	vdev_leaf_node;		/* leaf vdev list */
 
 	/*
 	 * For DTrace to work in userland (libzpool) context, these fields must
@@ -478,6 +524,8 @@ extern vdev_ops_t vdev_indirect_ops;
 /*
  * Common size functions
  */
+extern void vdev_default_xlate(vdev_t *vd, const range_seg64_t *in,
+    range_seg64_t *out);
 extern uint64_t vdev_default_asize(vdev_t *vd, uint64_t psize);
 extern uint64_t vdev_get_min_asize(vdev_t *vd);
 extern void vdev_set_min_asize(vdev_t *vd);
@@ -485,7 +533,7 @@ extern void vdev_set_min_asize(vdev_t *vd);
 /*
  * Global variables
  */
-extern int vdev_standard_sm_blksz;
+extern int zfs_vdev_standard_sm_blksz;
 /* zdb uses this tunable, so it must be declared here to make lint happy. */
 extern int zfs_vdev_cache_size;
 

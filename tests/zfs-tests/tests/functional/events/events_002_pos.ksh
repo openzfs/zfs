@@ -81,9 +81,7 @@ log_must truncate -s 0 $ZED_DEBUG_LOG
 # 4. Generate additional events.
 log_must zpool offline $MPOOL $VDEV1
 log_must zpool online $MPOOL $VDEV1
-while ! is_pool_resilvered $MPOOL; do
-	sleep 1
-done
+log_must zpool wait -t resilver $MPOOL
 
 log_must zpool scrub $MPOOL
 

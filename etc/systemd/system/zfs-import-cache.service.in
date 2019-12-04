@@ -13,7 +13,6 @@ ConditionPathExists=@sysconfdir@/zfs/zpool.cache
 Type=oneshot
 RemainAfterExit=yes
 ExecStart=@sbindir@/zpool import -c @sysconfdir@/zfs/zpool.cache -aN
-ExecStartPost=/bin/bash -c "/bin/systemctl set-environment BOOTFS=$(@sbindir@/zpool list -H -o bootfs | /bin/awk '$1 != \"-\" {print; exit}')"
 
 [Install]
 WantedBy=zfs-import.target
