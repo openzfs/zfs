@@ -421,6 +421,8 @@ zpool_feature_init(void)
 	    skein_deps);
 	}
 
+#if !defined(__FreeBSD__)
+
 	{
 	static const spa_feature_t edonr_deps[] = {
 		SPA_FEATURE_EXTENSIBLE_DATASET,
@@ -432,6 +434,7 @@ zpool_feature_init(void)
 	    ZFEATURE_FLAG_PER_DATASET, ZFEATURE_TYPE_BOOLEAN,
 	    edonr_deps);
 	}
+#endif
 
 	{
 	static const spa_feature_t redact_books_deps[] = {
