@@ -217,8 +217,11 @@ zfs_mod_supported_feature(const char *name)
 	 * libzpool, always supports all the features. libzfs needs to
 	 * query the running module, via sysfs, to determine which
 	 * features are supported.
+	 *
+	 * The equivalent _can_ be done on FreeBSD by way of the sysctl
+	 * tree, but this has not been done yet.
 	 */
-#if defined(_KERNEL) || defined(LIB_ZPOOL_BUILD)
+#if defined(_KERNEL) || defined(LIB_ZPOOL_BUILD) || defined(__FreeBSD__)
 	return (B_TRUE);
 #else
 	return (zfs_mod_supported(ZFS_SYSFS_POOL_FEATURES, name));
