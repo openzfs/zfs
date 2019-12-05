@@ -29,7 +29,6 @@
 #define	_SYS_ZFS_CONTEXT_H
 
 #ifdef __KERNEL__
-
 #include <sys/note.h>
 #include <sys/types.h>
 #include <sys/atomic.h>
@@ -48,7 +47,6 @@
 #include <sys/strings.h>
 #include <sys/byteorder.h>
 #include <sys/list.h>
-#include <sys/uio_impl.h>
 #include <sys/time.h>
 #include <sys/zone.h>
 #include <sys/kstat.h>
@@ -61,11 +59,8 @@
 #include <sys/disp.h>
 #include <sys/trace.h>
 #include <sys/procfs_list.h>
-#include <linux/dcache_compat.h>
-#include <linux/utsname_compat.h>
 #include <sys/mod.h>
-#include <sys/sysmacros.h>
-
+#include <sys/zfs_context_os.h>
 #else /* _KERNEL */
 
 #define	_SYS_MUTEX_H
@@ -88,7 +83,6 @@
 #include <pthread.h>
 #include <setjmp.h>
 #include <assert.h>
-#include <alloca.h>
 #include <umem.h>
 #include <limits.h>
 #include <atomic.h>
@@ -101,7 +95,6 @@
 #include <sys/types.h>
 #include <sys/cred.h>
 #include <sys/sysmacros.h>
-#include <sys/bitmap.h>
 #include <sys/resource.h>
 #include <sys/byteorder.h>
 #include <sys/list.h>
@@ -116,6 +109,8 @@
 #include <sys/debug.h>
 #include <sys/utsname.h>
 #include <sys/trace_zfs.h>
+
+#include <sys/zfs_context_os.h>
 
 /*
  * Stack
@@ -333,15 +328,7 @@ extern void cv_broadcast(kcondvar_t *cv);
  */
 #define	tsd_get(k) pthread_getspecific(k)
 #define	tsd_set(k, v) pthread_setspecific(k, v)
-#define	tsd_create(kp, d) pthread_key_create(kp, d)
-#define	tsd_destroy(kp) /* nothing */
-
-/*
- * Thread-specific data
- */
-#define	tsd_get(k) pthread_getspecific(k)
-#define	tsd_set(k, v) pthread_setspecific(k, v)
-#define	tsd_create(kp, d) pthread_key_create(kp, d)
+#define	tsd_create(kp, d) pthread_key_create((pthread_key_t *)kp, d)
 #define	tsd_destroy(kp) /* nothing */
 
 /*
@@ -562,7 +549,6 @@ typedef struct vsecattr {
 	size_t		vsa_aclentsz;	/* ACE size in bytes of vsa_aclentp */
 } vsecattr_t;
 
-#define	AT_TYPE		0x00001
 #define	AT_MODE		0x00002
 #define	AT_UID		0x00004
 #define	AT_GID		0x00008

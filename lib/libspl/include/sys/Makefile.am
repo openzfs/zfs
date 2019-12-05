@@ -4,7 +4,6 @@ libspldir = $(includedir)/libspl/sys
 libspl_HEADERS = \
 	$(top_srcdir)/lib/libspl/include/sys/acl.h \
 	$(top_srcdir)/lib/libspl/include/sys/acl_impl.h \
-	$(top_srcdir)/lib/libspl/include/sys/bitmap.h \
 	$(top_srcdir)/lib/libspl/include/sys/callb.h \
 	$(top_srcdir)/lib/libspl/include/sys/cmn_err.h \
 	$(top_srcdir)/lib/libspl/include/sys/cred.h \

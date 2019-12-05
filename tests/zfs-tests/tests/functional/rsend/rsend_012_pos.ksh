@@ -21,14 +21,13 @@
 #
 
 #
-# Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
+# Copyright (c) 2009, Sun Microsystems Inc. All rights reserved.
+# Copyright (c) 2013, 2016, Delphix. All rights reserved.
 # Use is subject to license terms.
 #
 
 #
-# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
-#
-
+. $STF_SUITE/include/properties.shlib
 . $STF_SUITE/tests/functional/rsend/rsend.kshlib
 
 #
@@ -121,9 +120,7 @@ for fs in "$POOL" "$POOL/pclone" "$POOL/$FS" "$POOL/$FS/fs1" \
 	rand_set_prop $fs acltype "off" "noacl" "posixacl"
 	rand_set_prop $fs atime "on" "off"
 	rand_set_prop $fs checksum "on" "off" "fletcher2" "fletcher4" "sha256"
-	rand_set_prop $fs compression "on" "off" "lzjb" "gzip" \
-		"gzip-1" "gzip-2" "gzip-3" "gzip-4" "gzip-5" "gzip-6"   \
-		"gzip-7" "gzip-8" "gzip-9"
+	rand_set_prop $fs compression "${compress_prop_vals[@]}"
 	rand_set_prop $fs copies "1" "2" "3"
 	rand_set_prop $fs devices "on" "off"
 	rand_set_prop $fs exec "on" "off"
@@ -138,9 +135,7 @@ done
 
 for vol in "$POOL/vol" "$POOL/$FS/vol" ; do
 	rand_set_prop $vol checksum "on" "off" "fletcher2" "fletcher4" "sha256"
-	rand_set_prop $vol compression "on" "off" "lzjb" "gzip" \
-		"gzip-1" "gzip-2" "gzip-3" "gzip-4" "gzip-5" "gzip-6"   \
-		"gzip-7" "gzip-8" "gzip-9"
+	rand_set_prop $vol compression "${compress_prop_vals[@]}"
 	rand_set_prop $vol readonly "on" "off"
 	rand_set_prop $vol copies "1" "2" "3"
 	rand_set_prop $vol user:prop "aaa" "bbb" "23421" "()-+?"

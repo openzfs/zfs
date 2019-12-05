@@ -12,9 +12,11 @@
 #
 
 #
-# Copyright (c) 2019 by Lawrence Livermore National Security, LLC.
+# Copyright (c) 2019, Lawrence Livermore National Security LLC.
+# Use is subject to license terms.
 #
 
+. $STF_SUITE/include/properties.shlib
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/rsend/rsend.kshlib
 
@@ -78,7 +80,7 @@ for i in {1..$passes}; do
 	# Randomly modify several dataset properties in order to generate
 	# more interesting incremental send streams.
 	rand_set_prop $POOL/fs checksum "off" "fletcher4" "sha256"
-	rand_set_prop $POOL/fs compression "off" "lzjb" "gzip" "lz4"
+	rand_set_prop $POOL/fs compression "${compress_prop_vals[@]}"
 	rand_set_prop $POOL/fs recordsize "32K" "128K"
 	rand_set_prop $POOL/fs dnodesize "legacy" "auto" "4k"
 	rand_set_prop $POOL/fs xattr "on" "sa"

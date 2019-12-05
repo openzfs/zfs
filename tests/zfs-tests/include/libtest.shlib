@@ -20,14 +20,13 @@
 #
 
 #
-# Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
-# Use is subject to license terms.
-# Copyright (c) 2012, 2019 by Delphix. All rights reserved.
-# Copyright (c) 2017 by Tim Chase. All rights reserved.
-# Copyright (c) 2017 by Nexenta Systems, Inc. All rights reserved.
-# Copyright (c) 2017 Lawrence Livermore National Security, LLC.
-# Copyright (c) 2017 Datto Inc.
-# Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+# Copyright (c) 2009, Sun Microsystems Inc. All rights reserved.
+# Copyright (c) 2012, 2018, Delphix. All rights reserved.
+# Copyright (c) 2017, Tim Chase. All rights reserved.
+# Copyright (c) 2017, Nexenta Systems Inc. All rights reserved.
+# Copyright (c) 2017, Lawrence Livermore National Security LLC.
+# Copyright (c) 2017, Datto Inc. All rights reserved.
+# Copyright (c) 2017, Open-E Inc. All rights reserved.
 # Use is subject to license terms.
 #
 
@@ -2558,29 +2557,6 @@ function safe_to_destroy_pool { # $1 the pool name
 		log_note "Warning: it is not safe to destroy $1!"
 		return 1
 	fi
-}
-
-#
-# Get the available ZFS compression options
-# $1 option type zfs_set|zfs_compress
-#
-function get_compress_opts
-{
-	typeset COMPRESS_OPTS
-	typeset GZIP_OPTS="gzip gzip-1 gzip-2 gzip-3 gzip-4 gzip-5 \
-			gzip-6 gzip-7 gzip-8 gzip-9"
-
-	if [[ $1 == "zfs_compress" ]] ; then
-		COMPRESS_OPTS="on lzjb"
-	elif [[ $1 == "zfs_set" ]] ; then
-		COMPRESS_OPTS="on off lzjb"
-	fi
-	typeset valid_opts="$COMPRESS_OPTS"
-	zfs get 2>&1 | grep gzip >/dev/null 2>&1
-	if [[ $? -eq 0 ]]; then
-		valid_opts="$valid_opts $GZIP_OPTS"
-	fi
-	echo "$valid_opts"
 }
 
 #

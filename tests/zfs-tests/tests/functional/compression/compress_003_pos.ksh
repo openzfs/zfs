@@ -21,14 +21,14 @@
 #
 
 #
-# Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+# Copyright (c) 2007, Sun Microsystems Inc. All rights reserved.
+# Copyright (c) 2013, 2016, Delphix. All rights reserved.
+# Copyright (c) 2019, Kjeld Schouten-Lebbing. All rights reserved.
 # Use is subject to license terms.
 #
 
-#
-# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
-#
 
+. $STF_SUITE/include/properties.shlib
 . $STF_SUITE/include/libtest.shlib
 
 #
@@ -62,7 +62,7 @@ typeset -i offset=0
 
 for propname in "compression" "compress"
 do
-	for value in $(get_compress_opts zfs_compress)
+	for value in "${compress_prop_vals[@]:1}"
 	do
 		log_must zfs set $propname=$value $fs
 		if [[ $value == "gzip-6" ]]; then
