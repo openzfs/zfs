@@ -45,7 +45,8 @@ extern const struct inode_operations zpl_inode_operations;
 extern const struct inode_operations zpl_dir_inode_operations;
 extern const struct inode_operations zpl_symlink_inode_operations;
 extern const struct inode_operations zpl_special_inode_operations;
-extern dentry_operations_t zpl_dentry_operations;
+
+/* zpl_file.c */
 extern const struct address_space_operations zpl_address_space_operations;
 extern const struct file_operations zpl_file_operations;
 extern const struct file_operations zpl_dir_file_operations;

@@ -698,46 +698,6 @@ out:
 	return (error);
 }
 
-static int
-#ifdef HAVE_D_REVALIDATE_NAMEIDATA
-zpl_revalidate(struct dentry *dentry, struct nameidata *nd)
-{
-	unsigned int flags = (nd ? nd->flags : 0);
-#else
-zpl_revalidate(struct dentry *dentry, unsigned int flags)
-{
-#endif /* HAVE_D_REVALIDATE_NAMEIDATA */
-	/* CSTYLED */
-	zfsvfs_t *zfsvfs = dentry->d_sb->s_fs_info;
-	int error;
-
-	if (flags & LOOKUP_RCU)
-		return (-ECHILD);
-
-	/*
-	 * After a rollback negative dentries created before the rollback
-	 * time must be invalidated.  Otherwise they can obscure files which
-	 * are only present in the rolled back dataset.
-	 */
-	if (dentry->d_inode == NULL) {
-		spin_lock(&dentry->d_lock);
-		error = time_before(dentry->d_time, zfsvfs->z_rollback_time);
-		spin_unlock(&dentry->d_lock);
-
-		if (error)
-			return (0);
-	}
-
-	/*
-	 * The dentry may reference a stale inode if a mounted file system
-	 * was rolled back to a point in time where the object didn't exist.
-	 */
-	if (dentry->d_inode && ITOZ(dentry->d_inode)->z_is_stale)
-		return (0);
-
-	return (1);
-}
-
 const struct inode_operations zpl_inode_operations = {
 	.setattr	= zpl_setattr,
 	.getattr	= zpl_getattr,
@@ -825,8 +785,4 @@ const struct inode_operations zpl_special_inode_operations = {
 #endif /* HAVE_SET_ACL */
 	.get_acl	= zpl_get_acl,
 #endif /* CONFIG_FS_POSIX_ACL */
-};
-
-dentry_operations_t zpl_dentry_operations = {
-	.d_revalidate	= zpl_revalidate,
 };

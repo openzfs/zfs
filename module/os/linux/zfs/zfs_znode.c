@@ -544,7 +544,6 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	zp->z_atime_dirty = B_FALSE;
 	zp->z_is_mapped = B_FALSE;
 	zp->z_is_ctldir = B_FALSE;
-	zp->z_is_stale = B_FALSE;
 	zp->z_suspended = B_FALSE;
 	zp->z_sa_hdl = NULL;
 	zp->z_mapcnt = 0;
