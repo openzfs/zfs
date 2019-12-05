@@ -1080,7 +1080,7 @@ hdr_full_crypt_dest(void *vbuf, void *unused)
 static void
 hdr_l2only_dest(void *vbuf, void *unused)
 {
-	ASSERTV(arc_buf_hdr_t *hdr = vbuf);
+	arc_buf_hdr_t *hdr __maybe_unused = vbuf;
 
 	ASSERT(HDR_EMPTY(hdr));
 	arc_space_return(HDR_L2ONLY_SIZE, ARC_SPACE_L2HDRS);

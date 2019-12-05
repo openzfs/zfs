@@ -813,7 +813,7 @@ txg_sync_waiting(dsl_pool_t *dp)
 void
 txg_verify(spa_t *spa, uint64_t txg)
 {
-	ASSERTV(dsl_pool_t *dp = spa_get_dsl(spa));
+	dsl_pool_t *dp __maybe_unused = spa_get_dsl(spa);
 	if (txg <= TXG_INITIAL || txg == ZILTEST_TXG)
 		return;
 	ASSERT3U(txg, <=, dp->dp_tx.tx_open_txg);
