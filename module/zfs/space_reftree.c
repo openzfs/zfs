@@ -150,3 +150,32 @@ space_reftree_generate_map(avl_tree_t *t, range_tree_t *rt, int64_t minref)
 	ASSERT(refcnt == 0);
 	ASSERT(start == -1ULL);
 }
+
+/*
+ * Determines if a reference tree is empty.  The tree is considered empty
+ * if expanding all the ranges would result in an empty range tree.
+ */
+boolean_t
+space_reftree_is_empty(avl_tree_t *t)
+{
+	uint64_t start = -1ULL;
+	int64_t refcnt = 0;
+	space_ref_t *sr;
+
+	for (sr = avl_first(t); sr != NULL; sr = AVL_NEXT(t, sr)) {
+		refcnt += sr->sr_refcnt;
+		if (refcnt == 0) {
+			if (start != sr->sr_offset)
+				return (B_FALSE);
+
+			start = -1ULL;
+		} else {
+			if (start == -1ULL)
+				start = sr->sr_offset;
+			else if (start != sr->sr_offset)
+				return (B_FALSE);
+		}
+	}
+
+	return (B_TRUE);
+}

@@ -40,11 +40,14 @@
 #include <strings.h>
 #include <unistd.h>
 #include <math.h>
+#include <sys/fiemap.h>
 #include <sys/stat.h>
 #include <sys/mnttab.h>
 #include <sys/mntent.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <linux/fiemap.h>
+#include <linux/fs.h>
 
 #include <libzfs.h>
 #include <libzfs_core.h>
@@ -1883,6 +1886,81 @@ zfs_version_print(void)
 
 	(void) printf("%s\n", zver_userland);
 	(void) printf("zfs-kmod-%s\n", zver_kernel);
+	return (0);
+}
+
+/*
+ * zfs_get_hole_count() retrieves the number of holes (blocks which are
+ * zero-filled) in the specified file using the FS_IOC_FIEMAP ioctl.  It
+ * also optionally fetches the block size when bs is non-NULL.  With hole
+ * count and block size the full space consumed by the holes of a file can
+ * be calculated.
+ *
+ * On success, zero is returned, the count argument is set to the number of
+ * unallocated blocks (holes), and the bs argument is set to the block size
+ * (if it is not NULL). On error, a non-zero errno is returned and the values
+ * in count and bs are undefined.
+ */
+int
+zfs_get_hole_count(const char *path, uint64_t *count, uint64_t *bs)
+{
+	struct fiemap *fiemap;
+	struct stat64 ss;
+	uint64_t fill;
+	int fd, error;
+
+	fd = open(path, O_RDONLY);
+	if (fd == -1)
+		return (errno);
+
+	fiemap = calloc(1, sizeof (struct fiemap));
+	if (fiemap == NULL) {
+		error = errno;
+		(void) close(fd);
+		return (error);
+	}
+
+	fiemap->fm_start = 0;
+	fiemap->fm_length = FIEMAP_MAX_OFFSET;
+	fiemap->fm_flags = FIEMAP_FLAG_NOMERGE;
+	fiemap->fm_extent_count = 0;
+	fiemap->fm_mapped_extents = 0;
+
+	error = ioctl(fd, FS_IOC_FIEMAP, fiemap);
+	if (error < 0) {
+		error = errno;
+		free(fiemap);
+		(void) close(fd);
+		return (error);
+	}
+
+	fill = fiemap->fm_mapped_extents;
+	free(fiemap);
+
+	if (fstat64(fd, &ss) == -1) {
+		error = errno;
+		(void) close(fd);
+		return (error);
+	}
+
+	if (ss.st_blksize == 0) {
+		(void) close(fd);
+		return (EINVAL);
+	}
+
+	/*
+	 * The number of blocks times the block size may exceed the file size
+	 * when there are pending dirty blocks which have not be written.
+	 */
+	*count = (ss.st_size + ss.st_blksize - 1) / ss.st_blksize - fill;
+	if ((longlong_t)*count < 0)
+		*count = 0;
+
+	if (bs != NULL)
+		*bs = ss.st_blksize;
+
+	if (close(fd) == -1)
+		return (errno);
 
 	return (0);
 }

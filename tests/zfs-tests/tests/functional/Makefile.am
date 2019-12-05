@@ -23,6 +23,7 @@ SUBDIRS = \
 	exec \
 	fault \
 	features \
+	fiemap \
 	grow \
 	history \
 	hkdf \
