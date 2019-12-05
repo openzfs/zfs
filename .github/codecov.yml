@@ -16,8 +16,9 @@ coverage:
     patch:
       default:
         threshold: 1%		# allow 1% coverage variance
+
 ignore:
-  - "tests/zfs-tests/**/*"		# Don't need Tests to cover themselves
+  - "tests/**/*"		# Don't need Tests to cover themselves
   - "tests/zfs-tests/cmd/libzfs_input_check/libzfs_input_check.c"		# Don't need Tests to cover themselves
 
 comment:
