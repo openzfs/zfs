@@ -176,6 +176,13 @@ zfs_prop_init(void)
 		{ NULL }
 	};
 
+	static zprop_index_t acl_mode_table[] = {
+		{ "discard",	ZFS_ACL_DISCARD },
+		{ "groupmask",	ZFS_ACL_GROUPMASK },
+		{ "passthrough", ZFS_ACL_PASSTHROUGH },
+		{ NULL }
+	};
+
 	static zprop_index_t acl_inherit_table[] = {
 		{ "discard",	ZFS_ACL_DISCARD },
 		{ "noallow",	ZFS_ACL_NOALLOW },
@@ -338,16 +345,13 @@ zfs_prop_init(void)
 	zprop_register_index(ZFS_PROP_SNAPDEV, "snapdev", ZFS_SNAPDEV_HIDDEN,
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
 	    "hidden | visible", "SNAPDEV", snapdev_table);
-#ifdef __FreeBSD__
 	zprop_register_index(ZFS_PROP_ACLMODE, "aclmode", ZFS_ACL_DISCARD,
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM,
 	    "discard | groupmask | passthrough | restricted", "ACLMODE",
 	    acl_mode_table);
-#else
 	zprop_register_index(ZFS_PROP_ACLTYPE, "acltype", ZFS_ACLTYPE_OFF,
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT,
 	    "noacl | posixacl", "ACLTYPE", acltype_table);
-#endif
 	zprop_register_index(ZFS_PROP_ACLINHERIT, "aclinherit",
 	    ZFS_ACL_RESTRICTED, PROP_INHERIT, ZFS_TYPE_FILESYSTEM,
 	    "discard | noallow | restricted | passthrough | passthrough-x",
@@ -622,11 +626,6 @@ zfs_prop_init(void)
 	    ZFS_ACLTYPE_OFF, NULL, PROP_INHERIT,
 	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT,
 	    "noacl | posixacl", "ACLTYPE", B_FALSE, B_FALSE, acltype_table);
-#else
-	zprop_register_impl(ZFS_PROP_ACLMODE, "aclmode", PROP_TYPE_INDEX,
-	    ZFS_ACL_DISCARD, NULL, PROP_INHERIT, ZFS_TYPE_FILESYSTEM,
-	    "discard | groupmask | passthrough | restricted", "ACLMODE",
-	    B_FALSE, B_FALSE, acl_mode_table);
 #endif
 	zprop_register_hidden(ZFS_PROP_REMAPTXG, "remaptxg", PROP_TYPE_NUMBER,
 	    PROP_READONLY, ZFS_TYPE_DATASET, "REMAPTXG");
