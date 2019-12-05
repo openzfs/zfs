@@ -176,13 +176,6 @@ zfs_prop_init(void)
 		{ NULL }
 	};
 
-	static zprop_index_t acl_mode_table[] = {
-		{ "discard",	ZFS_ACL_DISCARD },
-		{ "groupmask",	ZFS_ACL_GROUPMASK },
-		{ "passthrough", ZFS_ACL_PASSTHROUGH },
-		{ NULL }
-	};
-
 	static zprop_index_t acl_inherit_table[] = {
 		{ "discard",	ZFS_ACL_DISCARD },
 		{ "noallow",	ZFS_ACL_NOALLOW },
@@ -349,9 +342,11 @@ zfs_prop_init(void)
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM,
 	    "discard | groupmask | passthrough | restricted", "ACLMODE",
 	    acl_mode_table);
+#ifndef __FreeBSD__
 	zprop_register_index(ZFS_PROP_ACLTYPE, "acltype", ZFS_ACLTYPE_OFF,
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT,
 	    "noacl | posixacl", "ACLTYPE", acltype_table);
+#endif
 	zprop_register_index(ZFS_PROP_ACLINHERIT, "aclinherit",
 	    ZFS_ACL_RESTRICTED, PROP_INHERIT, ZFS_TYPE_FILESYSTEM,
 	    "discard | noallow | restricted | passthrough | passthrough-x",
