@@ -17,10 +17,10 @@ coverage:
       default:
         threshold: 1%		# allow 1% coverage variance
 
-ignore:
-  - "tests/**/*"		# Don't need Tests to cover themselves
-  - "/tests/**/*"		# Syntax test
-  - "tests/zfs-tests/cmd/libzfs_input_check/libzfs_input_check.c"		# Don't need Tests to cover themselves
+    ignore:
+      - tests/**/*		# Don't need Tests to cover themselves
+
+
 
 comment:
   layout: "reach, diff, flags, footer"
