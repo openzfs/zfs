@@ -122,6 +122,7 @@ AC_CONFIG_FILES([
 	include/sys/fs/Makefile
 	include/sys/lua/Makefile
 	include/sys/sysevent/Makefile
+	include/sys/zstd/Makefile
 	lib/Makefile
 	lib/libavl/Makefile
 	lib/libefi/Makefile
@@ -160,6 +161,7 @@ AC_CONFIG_FILES([
 	module/icp/Makefile
 	module/lua/Makefile
 	module/nvpair/Makefile
+	module/zstd/Makefile
 	module/os/Makefile
 	module/os/linux/Makefile
 	module/os/linux/spl/Makefile

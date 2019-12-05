@@ -2317,6 +2317,9 @@ spa_init(spa_mode_t mode)
 	}
 #endif
 
+#ifndef _KERNEL
+	zstd_init();
+#endif
 	fm_init();
 	zfs_refcount_init();
 	unique_init();
@@ -2372,6 +2375,9 @@ spa_fini(void)
 	mutex_destroy(&spa_namespace_lock);
 	mutex_destroy(&spa_spare_lock);
 	mutex_destroy(&spa_l2cache_lock);
+#ifndef _KERNEL
+	zstd_fini();
+#endif
 }
 
 /*

@@ -73,9 +73,9 @@ extern "C" {
  * the supported transformations:
  *
  * Compression:
- * ZFS supports three different flavors of compression -- gzip, lzjb, and
- * zle. Compression occurs as part of the write pipeline and is performed
- * in the ZIO_STAGE_WRITE_BP_INIT stage.
+ * ZFS supports five different flavors of compression -- gzip, lzjb, lz4, zle,
+ * and zstd. Compression occurs as part of the write pipeline and is
+ * performed in the ZIO_STAGE_WRITE_BP_INIT stage.
  *
  * Dedup:
  * Dedup reads are handled by the ZIO_STAGE_DDT_READ_START and

@@ -1932,6 +1932,7 @@ setup_featureflags(struct dmu_send_params *dspp, objset_t *os,
 	/* raw send implies compressok */
 	if (dspp->compressok || dspp->rawok)
 		*featureflags |= DMU_BACKUP_FEATURE_COMPRESSED;
+
 	if (dspp->rawok && os->os_encrypted)
 		*featureflags |= DMU_BACKUP_FEATURE_RAW;
 
@@ -1940,6 +1941,14 @@ setup_featureflags(struct dmu_send_params *dspp, objset_t *os,
 	    DMU_BACKUP_FEATURE_RAW)) != 0 &&
 	    spa_feature_is_active(dp->dp_spa, SPA_FEATURE_LZ4_COMPRESS)) {
 		*featureflags |= DMU_BACKUP_FEATURE_LZ4;
+	}
+
+	/* XXX: Allan: should be able to use embedok without implying ZSTD */
+	if ((*featureflags &
+	    (DMU_BACKUP_FEATURE_EMBED_DATA | DMU_BACKUP_FEATURE_COMPRESSED |
+	    DMU_BACKUP_FEATURE_RAW)) != 0 &&
+	    dsl_dataset_feature_is_active(to_ds, SPA_FEATURE_ZSTD_COMPRESS)) {
+		*featureflags |= DMU_BACKUP_FEATURE_ZSTD;
 	}
 
 	if (dspp->resumeobj != 0 || dspp->resumeoff != 0) {

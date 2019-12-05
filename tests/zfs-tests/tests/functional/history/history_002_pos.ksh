@@ -86,6 +86,9 @@ props=(
 	canmount	off		canmount	on
 	xattr		on		xattr		off
 	compression	gzip		compression	gzip-$((RANDOM%9 + 1))
+	compression	zstd 		compression	zstd-$((RANDOM%9 + 1))
+	compression	zstd-fast	
+	compression	zstd-fast-$((RANDOM%9 + 1))
 	copies		$((RANDOM%3 + 1))
 )
 else

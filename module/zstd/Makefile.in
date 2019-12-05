@@ -1,0 +1,36 @@
+src = @abs_top_srcdir@/module/zstd
+obj = @abs_builddir@
+
+MODULE := zzstd
+
+obj-$(CONFIG_ZFS) := $(MODULE).o
+
+asflags-y += $(ZFS_MODULE_CFLAGS)
+ccflags-y := $(ZFS_MODULE_CFLAGS) $(ZFS_MODULE_CPPFLAGS)
+
+# Suppress unused but set variable warnings often due to ASSERTs
+ccflags-y += $(NO_UNUSED_BUT_SET_VARIABLE)
+ccflags-y += -Wframe-larger-than=2048 -O3
+
+$(MODULE)-objs += zstd.o
+$(MODULE)-objs += zstd_common.o
+$(MODULE)-objs += fse_decompress.o
+$(MODULE)-objs += entropy_common.o
+$(MODULE)-objs += xxhash.o
+$(MODULE)-objs += hist.o
+$(MODULE)-objs += zstd_compress.o
+$(MODULE)-objs += zstd_compress_literals.o
+$(MODULE)-objs += zstd_compress_sequences.o
+$(MODULE)-objs += fse_compress.o
+$(MODULE)-objs += huf_compress.o
+$(MODULE)-objs += zstd_double_fast.o
+$(MODULE)-objs += zstd_fast.o
+$(MODULE)-objs += zstd_lazy.o
+$(MODULE)-objs += zstd_ldm.o
+$(MODULE)-objs += zstd_opt.o
+$(MODULE)-objs += zstd_ddict.o
+$(MODULE)-objs += zstd_decompress.o
+$(MODULE)-objs += zstd_decompress_block.o
+$(MODULE)-objs += huf_decompress.o
+
+CFLAGS_zstd_decompress_block.o	:= -fno-tree-vectorize

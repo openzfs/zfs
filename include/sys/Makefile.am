@@ -1,4 +1,4 @@
-SUBDIRS = fm fs crypto lua sysevent
+SUBDIRS = fm fs crypto lua sysevent zstd
 
 COMMON_H = \
 	$(top_srcdir)/include/sys/abd.h \
