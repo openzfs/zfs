@@ -61,4 +61,25 @@ d_clear_d_op(struct dentry *dentry)
 	    DCACHE_OP_REVALIDATE | DCACHE_OP_DELETE);
 }
 
+/*
+ * Walk and invalidate all dentry aliases of an inode
+ * unless it's a mountpoint
+ */
+static inline void
+zpl_d_drop_aliases(struct inode *inode)
+{
+	struct dentry *dentry;
+	spin_lock(&inode->i_lock);
+#ifdef HAVE_DENTRY_D_U_ALIASES
+	hlist_for_each_entry(dentry, &inode->i_dentry, d_u.d_alias) {
+#else
+	hlist_for_each_entry(dentry, &inode->i_dentry, d_alias) {
+#endif
+		if (!IS_ROOT(dentry) && !d_mountpoint(dentry) &&
+		    (dentry->d_inode == inode)) {
+			d_drop(dentry);
+		}
+	}
+	spin_unlock(&inode->i_lock);
+}
 #endif /* _ZFS_DCACHE_H */

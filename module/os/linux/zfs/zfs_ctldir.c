@@ -487,7 +487,6 @@ zfsctl_inode_alloc(zfsvfs_t *zfsvfs, uint64_t id,
 	zp->z_is_sa = B_FALSE;
 	zp->z_is_mapped = B_FALSE;
 	zp->z_is_ctldir = B_TRUE;
-	zp->z_is_stale = B_FALSE;
 	zp->z_sa_hdl = NULL;
 	zp->z_blksz = 0;
 	zp->z_seq = 0;
