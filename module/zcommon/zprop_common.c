@@ -73,8 +73,11 @@ zfs_mod_supported_prop(const char *name, zfs_type_t type)
  * The zfs module spa_feature_table[], whether in-kernel or in libzpool,
  * always supports all the properties. libzfs needs to query the running
  * module, via sysfs, to determine which properties are supported.
+ *
+ * The equivalent _can_ be done on FreeBSD by way of the sysctl
+ * tree, but this has not been done yet.
  */
-#if defined(_KERNEL) || defined(LIB_ZPOOL_BUILD)
+#if defined(_KERNEL) || defined(LIB_ZPOOL_BUILD) || defined(__FreeBSD__)
 	return (B_TRUE);
 #else
 	return (zfs_mod_supported(type == ZFS_TYPE_POOL ?
