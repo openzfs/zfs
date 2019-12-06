@@ -48,7 +48,6 @@
 #include <sys/abd.h>
 #include <sys/dsl_crypt.h>
 #include <sys/cityhash.h>
-#include <sys/compress_auto.h>
 #include <sys/compress_adaptive.h>
 
 /*
