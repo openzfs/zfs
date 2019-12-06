@@ -36,6 +36,7 @@
 
 #include <sys/time.h>
 #include <sys/zio_priority.h>
+#include <sys/zfs_context_os.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -814,12 +815,6 @@ typedef struct zpool_load_policy {
  * is not enabled.
  */
 #define	ZFS_FRAG_INVALID	UINT64_MAX
-
-/*
- * The location of the pool configuration repository, shared between kernel and
- * userland.
- */
-#define	ZPOOL_CACHE		"/etc/zfs/zpool.cache"
 
 /*
  * vdev states are ordered from least to most healthy.

@@ -27,4 +27,10 @@
 #include <linux/dcache_compat.h>
 #include <linux/utsname_compat.h>
 
+/*
+ * The location of the pool configuration repository, shared between kernel and
+ * userland.
+ */
+#define	ZPOOL_CACHE		"/etc/zfs/zpool.cache"
+
 #endif

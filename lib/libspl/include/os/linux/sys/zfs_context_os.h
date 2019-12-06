@@ -22,4 +22,11 @@
 
 #ifndef ZFS_CONTEXT_OS_H
 #define	ZFS_CONTEXT_OS_H
+
+/*
+ * The location of the pool configuration repository, shared between kernel and
+ * userland.
+ */
+#define	ZPOOL_CACHE		"/etc/zfs/zpool.cache"
+
 #endif
