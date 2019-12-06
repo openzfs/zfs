@@ -22,6 +22,7 @@
 #include <string.h>
 #include <strings.h>
 #include <libzfs_core.h>
+#include <libzutil.h>
 
 #include <sys/nvpair.h>
 #include <sys/zfs_ioctl.h>
@@ -99,10 +100,12 @@ static unsigned ioc_skip[] = {
 	ZFS_IOC_SPACE_WRITTEN,
 	ZFS_IOC_POOL_REGUID,
 	ZFS_IOC_SEND_PROGRESS,
-
 	ZFS_IOC_EVENTS_NEXT,
 	ZFS_IOC_EVENTS_CLEAR,
 	ZFS_IOC_EVENTS_SEEK,
+	ZFS_IOC_NEXTBOOT,
+	ZFS_IOC_JAIL,
+	ZFS_IOC_UNJAIL,
 };
 
 
@@ -154,7 +157,7 @@ lzc_ioctl_run(zfs_ioc_t ioc, const char *name, nvlist_t *innvl, int expected)
 	zc.zc_nvlist_dst_size = MAX(size * 2, 128 * 1024);
 	zc.zc_nvlist_dst = (uint64_t)(uintptr_t)malloc(zc.zc_nvlist_dst_size);
 
-	if (ioctl(zfs_fd, ioc, &zc) != 0)
+	if (zfs_ioctl_fd(zfs_fd, ioc, &zc) != 0)
 		error = errno;
 
 	if (error != expected) {
@@ -685,7 +688,7 @@ zfs_destroy(const char *dataset)
 
 	(void) strlcpy(zc.zc_name, dataset, sizeof (zc.zc_name));
 	zc.zc_name[sizeof (zc.zc_name) - 1] = '\0';
-	err = ioctl(zfs_fd, ZFS_IOC_DESTROY, &zc);
+	err = zfs_ioctl_fd(zfs_fd, ZFS_IOC_DESTROY, &zc);
 
 	return (err == 0 ? 0 : errno);
 }
@@ -858,7 +861,7 @@ zfs_ioc_input_tests(const char *pool)
 		if (ioc_tested[cmd])
 			continue;
 
-		if (ioctl(zfs_fd, ioc, &zc) != 0 &&
+		if (zfs_ioctl_fd(zfs_fd, ioc, &zc) != 0 &&
 		    errno != ZFS_ERR_IOC_CMD_UNAVAIL) {
 			(void) fprintf(stderr, "cmd %d is missing a test case "
 			    "(%d)\n", cmd, errno);
@@ -867,9 +870,12 @@ zfs_ioc_input_tests(const char *pool)
 }
 
 enum zfs_ioc_ref {
+#ifdef __FreeBSD__
+	ZFS_IOC_BASE = 0,
+#else
 	ZFS_IOC_BASE = ('Z' << 8),
-	LINUX_IOC_BASE = ZFS_IOC_BASE + 0x80,
-	FREEBSD_IOC_BASE = ZFS_IOC_BASE + 0xC0,
+#endif
+	ZFS_IOC_PLATFORM_BASE = ZFS_IOC_BASE + 0x80,
 };
 
 /*
@@ -972,9 +978,12 @@ validate_ioc_values(void)
 	CHECK(ZFS_IOC_BASE + 81 == ZFS_IOC_REDACT);
 	CHECK(ZFS_IOC_BASE + 82 == ZFS_IOC_GET_BOOKMARK_PROPS);
 	CHECK(ZFS_IOC_BASE + 83 == ZFS_IOC_WAIT);
-	CHECK(LINUX_IOC_BASE + 1 == ZFS_IOC_EVENTS_NEXT);
-	CHECK(LINUX_IOC_BASE + 2 == ZFS_IOC_EVENTS_CLEAR);
-	CHECK(LINUX_IOC_BASE + 3 == ZFS_IOC_EVENTS_SEEK);
+	CHECK(ZFS_IOC_PLATFORM_BASE + 1 == ZFS_IOC_EVENTS_NEXT);
+	CHECK(ZFS_IOC_PLATFORM_BASE + 2 == ZFS_IOC_EVENTS_CLEAR);
+	CHECK(ZFS_IOC_PLATFORM_BASE + 3 == ZFS_IOC_EVENTS_SEEK);
+	CHECK(ZFS_IOC_PLATFORM_BASE + 4 == ZFS_IOC_NEXTBOOT);
+	CHECK(ZFS_IOC_PLATFORM_BASE + 5 == ZFS_IOC_JAIL);
+	CHECK(ZFS_IOC_PLATFORM_BASE + 6 == ZFS_IOC_UNJAIL);
 
 #undef CHECK
 

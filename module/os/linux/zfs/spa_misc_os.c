@@ -42,6 +42,19 @@
 #include <sys/kstat.h>
 #include "zfs_prop.h"
 
+
+int
+param_set_deadman_failmode(const char *val, zfs_kernel_param_t *kp)
+{
+	int error;
+
+	error = -param_set_deadman_failmode_common(val);
+	if (error == 0)
+		error = param_set_charp(val, kp);
+
+	return (error);
+}
+
 int
 param_set_deadman_ziotime(const char *val, zfs_kernel_param_t *kp)
 {

@@ -339,7 +339,7 @@ zio_handle_label_injection(zio_t *zio, int error)
 static int
 zio_inject_bitflip_cb(void *data, size_t len, void *private)
 {
-	ASSERTV(zio_t *zio = private);
+	zio_t *zio __maybe_unused = private;
 	uint8_t *buffer = data;
 	uint_t byte = spa_get_random(len);
 

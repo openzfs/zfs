@@ -1366,7 +1366,7 @@ dsl_dataset_remove_from_next_clones(dsl_dataset_t *ds, uint64_t obj,
     dmu_tx_t *tx)
 {
 	objset_t *mos = ds->ds_dir->dd_pool->dp_meta_objset;
-	ASSERTV(uint64_t count);
+	uint64_t count __maybe_unused;
 	int err;
 
 	ASSERT(dsl_dataset_phys(ds)->ds_num_children >= 2);
@@ -1674,8 +1674,8 @@ dsl_dataset_snapshot_sync_impl(dsl_dataset_t *ds, const char *snapname,
 	dsl_dataset_phys_t *dsphys;
 	uint64_t dsobj, crtxg;
 	objset_t *mos = dp->dp_meta_objset;
-	ASSERTV(static zil_header_t zero_zil);
-	ASSERTV(objset_t *os);
+	static zil_header_t zero_zil __maybe_unused;
+	objset_t *os __maybe_unused;
 
 	ASSERT(RRW_WRITE_HELD(&dp->dp_config_rwlock));
 
@@ -2843,7 +2843,7 @@ dsl_dataset_stats(dsl_dataset_t *ds, nvlist_t *nv)
 void
 dsl_dataset_fast_stat(dsl_dataset_t *ds, dmu_objset_stats_t *stat)
 {
-	ASSERTV(dsl_pool_t *dp = ds->ds_dir->dd_pool);
+	dsl_pool_t *dp __maybe_unused = ds->ds_dir->dd_pool;
 	ASSERT(dsl_pool_config_held(dp));
 
 	stat->dds_creation_txg = dsl_get_creationtxg(ds);
@@ -2899,7 +2899,7 @@ dsl_dataset_space(dsl_dataset_t *ds,
 boolean_t
 dsl_dataset_modified_since_snap(dsl_dataset_t *ds, dsl_dataset_t *snap)
 {
-	ASSERTV(dsl_pool_t *dp = ds->ds_dir->dd_pool);
+	dsl_pool_t *dp __maybe_unused = ds->ds_dir->dd_pool;
 	uint64_t birth;
 
 	ASSERT(dsl_pool_config_held(dp));

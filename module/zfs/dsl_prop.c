@@ -283,7 +283,7 @@ dsl_prop_register(dsl_dataset_t *ds, const char *propname,
 	dsl_prop_record_t *pr;
 	dsl_prop_cb_record_t *cbr;
 	int err;
-	ASSERTV(dsl_pool_t *dp = dd->dd_pool);
+	dsl_pool_t *dp __maybe_unused = dd->dd_pool;
 
 	ASSERT(dsl_pool_config_held(dp));
 

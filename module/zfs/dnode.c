@@ -74,7 +74,7 @@ dnode_stats_t dnode_stats = {
 static kstat_t *dnode_ksp;
 static kmem_cache_t *dnode_cache;
 
-ASSERTV(static dnode_phys_t dnode_phys_zero);
+static dnode_phys_t dnode_phys_zero __maybe_unused;
 
 int zfs_default_bs = SPA_MINBLOCKSHIFT;
 int zfs_default_ibs = DN_MAX_INDBLKSHIFT;

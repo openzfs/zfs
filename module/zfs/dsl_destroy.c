@@ -540,7 +540,7 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 	spa_prop_clear_bootfs(dp->dp_spa, ds->ds_object, tx);
 
 	if (dsl_dataset_phys(ds)->ds_next_clones_obj != 0) {
-		ASSERTV(uint64_t count);
+		uint64_t count __maybe_unused;
 		ASSERT0(zap_count(mos,
 		    dsl_dataset_phys(ds)->ds_next_clones_obj, &count) &&
 		    count == 0);

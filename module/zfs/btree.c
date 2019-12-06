@@ -688,8 +688,8 @@ zfs_btree_insert_leaf_impl(zfs_btree_t *tree, zfs_btree_leaf_t *leaf,
 	uint64_t size = tree->bt_elem_size;
 	uint8_t *start = leaf->btl_elems + (idx * size);
 	zfs_btree_hdr_t *hdr = &leaf->btl_hdr;
-	ASSERTV(uint64_t capacity = P2ALIGN((BTREE_LEAF_SIZE -
-	    sizeof (zfs_btree_hdr_t)) / size, 2));
+	uint64_t capacity __maybe_unused = P2ALIGN((BTREE_LEAF_SIZE -
+	    sizeof (zfs_btree_hdr_t)) / size, 2);
 	uint64_t count = leaf->btl_hdr.bth_count - idx;
 	ASSERT3U(leaf->btl_hdr.bth_count, <, capacity);
 

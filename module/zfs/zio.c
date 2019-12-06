@@ -2550,7 +2550,7 @@ zio_write_gang_member_ready(zio_t *zio)
 	dva_t *cdva = zio->io_bp->blk_dva;
 	dva_t *pdva = pio->io_bp->blk_dva;
 	uint64_t asize;
-	ASSERTV(zio_t *gio = zio->io_gang_leader);
+	zio_t *gio __maybe_unused = zio->io_gang_leader;
 
 	if (BP_IS_HOLE(zio->io_bp))
 		return;
@@ -4215,7 +4215,7 @@ zio_ready(zio_t *zio)
 static void
 zio_dva_throttle_done(zio_t *zio)
 {
-	ASSERTV(zio_t *lio = zio->io_logical);
+	zio_t *lio __maybe_unused = zio->io_logical;
 	zio_t *pio = zio_unique_parent(zio);
 	vdev_t *vd = zio->io_vd;
 	int flags = METASLAB_ASYNC_ALLOC;

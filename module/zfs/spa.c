@@ -860,7 +860,7 @@ spa_prop_clear_bootfs(spa_t *spa, uint64_t dsobj, dmu_tx_t *tx)
 static int
 spa_change_guid_check(void *arg, dmu_tx_t *tx)
 {
-	ASSERTV(uint64_t *newguid = arg);
+	uint64_t *newguid __maybe_unused = arg;
 	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
 	vdev_t *rvd = spa->spa_root_vdev;
 	uint64_t vdev_state;
@@ -6548,7 +6548,7 @@ int
 spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 {
 	uint64_t txg, dtl_max_txg;
-	ASSERTV(vdev_t *rvd = spa->spa_root_vdev);
+	vdev_t *rvd __maybe_unused = spa->spa_root_vdev;
 	vdev_t *oldvd, *newvd, *newrootvd, *pvd, *tvd;
 	vdev_ops_t *pvops;
 	char *oldvdpath, *newvdpath;
@@ -6773,7 +6773,7 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 {
 	uint64_t txg;
 	int error;
-	ASSERTV(vdev_t *rvd = spa->spa_root_vdev);
+	vdev_t *rvd __maybe_unused = spa->spa_root_vdev;
 	vdev_t *vd, *pvd, *cvd, *tvd;
 	boolean_t unspare = B_FALSE;
 	uint64_t unspare_guid = 0;
@@ -8691,8 +8691,8 @@ spa_sync_upgrades(spa_t *spa, dmu_tx_t *tx)
 static void
 vdev_indirect_state_sync_verify(vdev_t *vd)
 {
-	ASSERTV(vdev_indirect_mapping_t *vim = vd->vdev_indirect_mapping);
-	ASSERTV(vdev_indirect_births_t *vib = vd->vdev_indirect_births);
+	vdev_indirect_mapping_t *vim __maybe_unused = vd->vdev_indirect_mapping;
+	vdev_indirect_births_t *vib __maybe_unused = vd->vdev_indirect_births;
 
 	if (vd->vdev_ops == &vdev_indirect_ops) {
 		ASSERT(vim != NULL);

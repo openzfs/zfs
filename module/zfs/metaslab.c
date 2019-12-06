@@ -3374,7 +3374,7 @@ metaslab_passivate_allocator(metaslab_group_t *mg, metaslab_t *msp,
 static void
 metaslab_passivate(metaslab_t *msp, uint64_t weight)
 {
-	ASSERTV(uint64_t size = weight & ~METASLAB_WEIGHT_TYPE);
+	uint64_t size __maybe_unused = weight & ~METASLAB_WEIGHT_TYPE;
 
 	/*
 	 * If size < SPA_MINBLOCKSIZE, then we will not allocate from
@@ -5979,7 +5979,7 @@ static void
 metaslab_check_free_impl(vdev_t *vd, uint64_t offset, uint64_t size)
 {
 	metaslab_t *msp;
-	ASSERTV(spa_t *spa = vd->vdev_spa);
+	spa_t *spa __maybe_unused = vd->vdev_spa;
 
 	if ((zfs_flags & ZFS_DEBUG_ZIO_FREE) == 0)
 		return;

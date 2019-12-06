@@ -986,8 +986,8 @@ dbuf_verify(dmu_buf_impl_t *db)
 				    &dn->dn_phys->dn_blkptr[db->db_blkid]);
 		} else {
 			/* db is pointed to by an indirect block */
-			ASSERTV(int epb = db->db_parent->db.db_size >>
-			    SPA_BLKPTRSHIFT);
+			int epb __maybe_unused = db->db_parent->db.db_size >>
+			    SPA_BLKPTRSHIFT;
 			ASSERT3U(db->db_parent->db_level, ==, db->db_level+1);
 			ASSERT3U(db->db_parent->db.db_object, ==,
 			    db->db.db_object);
@@ -1881,7 +1881,7 @@ dbuf_new_size(dmu_buf_impl_t *db, int size, dmu_tx_t *tx)
 void
 dbuf_release_bp(dmu_buf_impl_t *db)
 {
-	ASSERTV(objset_t *os = db->db_objset);
+	objset_t *os __maybe_unused = db->db_objset;
 
 	ASSERT(dsl_pool_sync_context(dmu_objset_pool(os)));
 	ASSERT(arc_released(os->os_phys_buf) ||
@@ -4345,8 +4345,8 @@ dbuf_write_done(zio_t *zio, arc_buf_t *buf, void *vdb)
 		ASSERT(list_head(&dr->dt.di.dr_children) == NULL);
 		ASSERT3U(db->db.db_size, ==, 1 << dn->dn_phys->dn_indblkshift);
 		if (!BP_IS_HOLE(db->db_blkptr)) {
-			ASSERTV(int epbs = dn->dn_phys->dn_indblkshift -
-			    SPA_BLKPTRSHIFT);
+			int epbs __maybe_unused = dn->dn_phys->dn_indblkshift -
+			    SPA_BLKPTRSHIFT;
 			ASSERT3U(db->db_blkid, <=,
 			    dn->dn_phys->dn_maxblkid >> (db->db_level * epbs));
 			ASSERT3U(BP_GET_LSIZE(db->db_blkptr), ==,

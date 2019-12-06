@@ -1768,7 +1768,7 @@ dmu_sync_late_arrival_done(zio_t *zio)
 		zil_lwb_add_block(zgd->zgd_lwb, zgd->zgd_bp);
 
 		if (!BP_IS_HOLE(bp)) {
-			ASSERTV(blkptr_t *bp_orig = &zio->io_bp_orig);
+			blkptr_t *bp_orig __maybe_unused = &zio->io_bp_orig;
 			ASSERT(!(zio->io_flags & ZIO_FLAG_NOPWRITE));
 			ASSERT(BP_IS_HOLE(bp_orig) || !BP_EQUAL(bp, bp_orig));
 			ASSERT(zio->io_bp->blk_birth == zio->io_txg);

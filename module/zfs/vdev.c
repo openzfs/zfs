@@ -2314,7 +2314,7 @@ void
 vdev_close(vdev_t *vd)
 {
 	vdev_t *pvd = vd->vdev_parent;
-	ASSERTV(spa_t *spa = vd->vdev_spa);
+	spa_t *spa __maybe_unused = vd->vdev_spa;
 
 	ASSERT(spa_config_held(spa, SCL_STATE_ALL, RW_WRITER) == SCL_STATE_ALL);
 
