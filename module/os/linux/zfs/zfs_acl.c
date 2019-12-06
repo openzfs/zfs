@@ -20,8 +20,8 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright 2014 Nexenta Systems, Inc.  All rights reserved.
  */
 
 
@@ -2681,47 +2681,30 @@ zfs_zaccess_unix(znode_t *zp, mode_t mode, cred_t *cr)
 	return (zfs_zaccess(zp, v4_mode, 0, B_FALSE, cr));
 }
 
-static int
-zfs_delete_final_check(znode_t *zp, znode_t *dzp,
-    mode_t available_perms, cred_t *cr)
-{
-	int error;
-	uid_t downer;
-
-	downer = zfs_fuid_map_id(ZTOZSB(dzp), KUID_TO_SUID(ZTOI(dzp)->i_uid),
-	    cr, ZFS_OWNER);
-
-	error = secpolicy_vnode_access2(cr, ZTOI(dzp),
-	    downer, available_perms, S_IWUSR|S_IXUSR);
-
-	if (error == 0)
-		error = zfs_sticky_remove_access(dzp, zp, cr);
-
-	return (error);
-}
+/* See zfs_zaccess_delete() */
+int zfs_write_implies_delete_child = 1;
 
 /*
- * Determine whether Access should be granted/deny, without
- * consulting least priv subsystem.
+ * Determine whether delete access should be granted.
  *
  * The following chart is the recommended NFSv4 enforcement for
  * ability to delete an object.
  *
  *      -------------------------------------------------------
- *      |   Parent Dir  |           Target Object Permissions |
+ *      |   Parent Dir  |      Target Object Permissions      |
  *      |  permissions  |                                     |
  *      -------------------------------------------------------
  *      |               | ACL Allows | ACL Denies| Delete     |
  *      |               |  Delete    |  Delete   | unspecified|
  *      -------------------------------------------------------
- *      |  ACL Allows   | Permit     | Permit    | Permit     |
- *      |  DELETE_CHILD |                                     |
+ *      |  ACL Allows   | Permit     | Permit *  | Permit     |
+ *      |  DELETE_CHILD |            |           |            |
  *      -------------------------------------------------------
- *      |  ACL Denies   | Permit     | Deny      | Deny       |
+ *      |  ACL Denies   | Permit *   | Deny      | Deny       |
  *      |  DELETE_CHILD |            |           |            |
  *      -------------------------------------------------------
  *      | ACL specifies |            |           |            |
- *      | only allow    | Permit     | Permit    | Permit     |
+ *      | only allow    | Permit     | Permit *  | Permit     |
  *      | write and     |            |           |            |
  *      | execute       |            |           |            |
  *      -------------------------------------------------------
@@ -2731,91 +2714,175 @@ zfs_delete_final_check(znode_t *zp, znode_t *dzp,
  *      -------------------------------------------------------
  *         ^
  *         |
- *         No search privilege, can't even look up file?
+ *         Re. execute permission on the directory:  if that's missing,
+ *	   the vnode lookup of the target will fail before we get here.
  *
+ * Re [*] in the table above:  We are intentionally disregarding the
+ * NFSv4 committee recommendation for these three cells of the matrix
+ * because that recommendation conflicts with the behavior expected
+ * by Windows clients for ACL evaluation.  See acl.h for notes on
+ * which ACE_... flags should be checked for which operations.
+ * Specifically, the NFSv4 committee recommendation is in conflict
+ * with the Windows interpretation of DENY ACEs, where DENY ACEs
+ * should take precedence ahead of ALLOW ACEs.
+ *
+ * This implementation takes a conservative approach by checking for
+ * DENY ACEs on both the target object and it's container; checking
+ * the ACE_DELETE on the target object, and ACE_DELETE_CHILD on the
+ * container.  If a DENY ACE is found for either of those, delete
+ * access is denied.  (Note that DENY ACEs are very rare.)
+ *
+ * Note that after these changes, entire the second row and the
+ * entire middle column of the table above change to Deny.
+ * Accordingly, the logic here is somewhat simplified.
+ *
+ * First check for DENY ACEs that apply.
+ * If either target or container has a deny, EACCES.
+ *
+ * Delete access can then be summarized as follows:
+ * 1: The object to be deleted grants ACE_DELETE, or
+ * 2: The containing directory grants ACE_DELETE_CHILD.
+ * In a Windows system, that would be the end of the story.
+ * In this system, (2) has some complications...
+ * 2a: "sticky" bit on a directory adds restrictions, and
+ * 2b: existing ACEs from previous versions of ZFS may
+ * not carry ACE_DELETE_CHILD where they should, so we
+ * also allow delete when ACE_WRITE_DATA is granted.
+ *
+ * Note: 2b is technically a work-around for a prior bug,
+ * which hopefully can go away some day.  For those who
+ * no longer need the work around, and for testing, this
+ * work-around is made conditional via the tunable:
+ * zfs_write_implies_delete_child
  */
 int
 zfs_zaccess_delete(znode_t *dzp, znode_t *zp, cred_t *cr)
 {
+	uint32_t wanted_dirperms;
 	uint32_t dzp_working_mode = 0;
 	uint32_t zp_working_mode = 0;
 	int dzp_error, zp_error;
-	mode_t available_perms;
-	boolean_t dzpcheck_privs = B_TRUE;
-	boolean_t zpcheck_privs = B_TRUE;
-
-	/*
-	 * We want specific DELETE permissions to
-	 * take precedence over WRITE/EXECUTE.  We don't
-	 * want an ACL such as this to mess us up.
-	 * user:joe:write_data:deny,user:joe:delete:allow
-	 *
-	 * However, deny permissions may ultimately be overridden
-	 * by secpolicy_vnode_access().
-	 *
-	 * We will ask for all of the necessary permissions and then
-	 * look at the working modes from the directory and target object
-	 * to determine what was found.
-	 */
+	boolean_t dzpcheck_privs;
+	boolean_t zpcheck_privs;
 
 	if (zp->z_pflags & (ZFS_IMMUTABLE | ZFS_NOUNLINK))
 		return (SET_ERROR(EPERM));
 
 	/*
-	 * First row
-	 * If the directory permissions allow the delete, we are done.
-	 */
-	if ((dzp_error = zfs_zaccess_common(dzp, ACE_DELETE_CHILD,
-	    &dzp_working_mode, &dzpcheck_privs, B_FALSE, cr)) == 0)
-		return (0);
-
-	/*
-	 * If target object has delete permission then we are done
-	 */
-	if ((zp_error = zfs_zaccess_common(zp, ACE_DELETE, &zp_working_mode,
-	    &zpcheck_privs, B_FALSE, cr)) == 0)
-		return (0);
-
-	ASSERT(dzp_error && zp_error);
-
-	if (!dzpcheck_privs)
-		return (dzp_error);
-	if (!zpcheck_privs)
-		return (zp_error);
-
-	/*
-	 * Second row
+	 * Case 1:
+	 * If target object grants ACE_DELETE then we are done.  This is
+	 * indicated by a return value of 0.  For this case we don't worry
+	 * about the sticky bit because sticky only applies to the parent
+	 * directory and this is the child access result.
 	 *
-	 * If directory returns EACCES then delete_child was denied
-	 * due to deny delete_child.  In this case send the request through
-	 * secpolicy_vnode_remove().  We don't use zfs_delete_final_check()
-	 * since that *could* allow the delete based on write/execute permission
-	 * and we want delete permissions to override write/execute.
+	 * If we encounter a DENY ACE here, we're also done (EACCES).
+	 * Note that if we hit a DENY ACE here (on the target) it should
+	 * take precedence over a DENY ACE on the container, so that when
+	 * we have more complete auditing support we will be able to
+	 * report an access failure against the specific target.
+	 * (This is part of why we're checking the target first.)
 	 */
-
-	if (dzp_error == EACCES)
+	zp_error = zfs_zaccess_common(zp, ACE_DELETE, &zp_working_mode,
+	    &zpcheck_privs, B_FALSE, cr);
+	if (zp_error == EACCES) {
+		/* We hit a DENY ACE. */
+		if (!zpcheck_privs)
+			return (SET_ERROR(zp_error));
 		return (secpolicy_vnode_remove(cr));
 
-	/*
-	 * Third Row
-	 * only need to see if we have write/execute on directory.
-	 */
+	}
+	if (zp_error == 0)
+		return (0);
 
-	dzp_error = zfs_zaccess_common(dzp, ACE_EXECUTE|ACE_WRITE_DATA,
+	/*
+	 * Case 2:
+	 * If the containing directory grants ACE_DELETE_CHILD,
+	 * or we're in backward compatibility mode and the
+	 * containing directory has ACE_WRITE_DATA, allow.
+	 * Case 2b is handled with wanted_dirperms.
+	 */
+	wanted_dirperms = ACE_DELETE_CHILD;
+	if (zfs_write_implies_delete_child)
+		wanted_dirperms |= ACE_WRITE_DATA;
+	dzp_error = zfs_zaccess_common(dzp, wanted_dirperms,
 	    &dzp_working_mode, &dzpcheck_privs, B_FALSE, cr);
-
-	if (dzp_error != 0 && !dzpcheck_privs)
-		return (dzp_error);
+	if (dzp_error == EACCES) {
+		/* We hit a DENY ACE. */
+		if (!dzpcheck_privs)
+			return (SET_ERROR(dzp_error));
+		return (secpolicy_vnode_remove(cr));
+	}
 
 	/*
-	 * Fourth row
+	 * Cases 2a, 2b (continued)
+	 *
+	 * Note: dzp_working_mode now contains any permissions
+	 * that were NOT granted.  Therefore, if any of the
+	 * wanted_dirperms WERE granted, we will have:
+	 *   dzp_working_mode != wanted_dirperms
+	 * We're really asking if ANY of those permissions
+	 * were granted, and if so, grant delete access.
 	 */
+	if (dzp_working_mode != wanted_dirperms)
+		dzp_error = 0;
 
-	available_perms = (dzp_working_mode & ACE_WRITE_DATA) ? 0 : S_IWUSR;
-	available_perms |= (dzp_working_mode & ACE_EXECUTE) ? 0 : S_IXUSR;
+	/*
+	 * dzp_error is 0 if the container granted us permissions to "modify".
+	 * If we do not have permission via one or more ACEs, our current
+	 * privileges may still permit us to modify the container.
+	 *
+	 * dzpcheck_privs is false when i.e. the FS is read-only.
+	 * Otherwise, do privilege checks for the container.
+	 */
+	if (dzp_error != 0 && dzpcheck_privs) {
+		uid_t owner;
 
-	return (zfs_delete_final_check(zp, dzp, available_perms, cr));
+		/*
+		 * The secpolicy call needs the requested access and
+		 * the current access mode of the container, but it
+		 * only knows about Unix-style modes (VEXEC, VWRITE),
+		 * so this must condense the fine-grained ACE bits into
+		 * Unix modes.
+		 *
+		 * The VEXEC flag is easy, because we know that has
+		 * always been checked before we get here (during the
+		 * lookup of the target vnode).  The container has not
+		 * granted us permissions to "modify", so we do not set
+		 * the VWRITE flag in the current access mode.
+		 */
+		owner = zfs_fuid_map_id(ZTOZSB(dzp),
+		    KUID_TO_SUID(ZTOI(dzp)->i_uid), cr, ZFS_OWNER);
+		dzp_error = secpolicy_vnode_access2(cr, ZTOI(dzp),
+		    owner, S_IXUSR, S_IWUSR|S_IXUSR);
+	}
+	if (dzp_error != 0) {
+		/*
+		 * Note: We may have dzp_error = -1 here (from
+		 * zfs_zacess_common).  Don't return that.
+		 */
+		return (SET_ERROR(EACCES));
+	}
 
+
+	/*
+	 * At this point, we know that the directory permissions allow
+	 * us to modify, but we still need to check for the additional
+	 * restrictions that apply when the "sticky bit" is set.
+	 *
+	 * Yes, zfs_sticky_remove_access() also checks this bit, but
+	 * checking it here and skipping the call below is nice when
+	 * you're watching all of this with dtrace.
+	 */
+	if ((dzp->z_mode & S_ISVTX) == 0)
+		return (0);
+
+	/*
+	 * zfs_sticky_remove_access will succeed if:
+	 * 1. The sticky bit is absent.
+	 * 2. We pass the sticky bit restrictions.
+	 * 3. We have privileges that always allow file removal.
+	 */
+	return (zfs_sticky_remove_access(dzp, zp, cr));
 }
 
 int
