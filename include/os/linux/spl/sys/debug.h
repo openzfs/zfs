@@ -30,7 +30,6 @@
  *
  * PANIC()	- Panic the node and print message.
  * ASSERT()	- Assert X is true, if not panic.
- * ASSERTV()	- Wraps a variable declaration which is only used by ASSERT().
  * ASSERT3B()	- Assert boolean X OP Y is true, if not panic.
  * ASSERT3S()	- Assert signed X OP Y is true, if not panic.
  * ASSERT3U()	- Assert unsigned X OP Y is true, if not panic.
