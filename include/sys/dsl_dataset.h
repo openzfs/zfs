@@ -487,10 +487,14 @@ void dsl_dataset_activate_redaction(dsl_dataset_t *ds, uint64_t *redact_snaps,
 
 int dsl_dataset_activate_compress_adaptive(const char *ddname);
 
-void dsl_dataset_activate_feature(uint64_t dsobj,
-    spa_feature_t f, dmu_tx_t *tx);
-void dsl_dataset_deactivate_feature(uint64_t dsobj,
-    spa_feature_t f, dmu_tx_t *tx);
+void dsl_dataset_activate_feature(uint64_t dsobj, spa_feature_t f, void *arg,
+    dmu_tx_t *tx);
+void dsl_dataset_deactivate_feature(dsl_dataset_t *ds, spa_feature_t f, 
+    dmu_tx_t *tx);
+boolean_t dsl_dataset_feature_is_active(dsl_dataset_t *ds, spa_feature_t f);
+boolean_t dsl_dataset_get_uint64_array_feature(dsl_dataset_t *ds,
+    spa_feature_t f, uint64_t *outlength, uint64_t **outp);
+
 
 
 #ifdef ZFS_DEBUG
