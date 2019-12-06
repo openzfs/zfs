@@ -484,7 +484,7 @@ boolean_t dsl_dataset_get_uint64_array_feature(dsl_dataset_t *ds,
 void dsl_dataset_activate_redaction(dsl_dataset_t *ds, uint64_t *redact_snaps,
     uint64_t num_redact_snaps, dmu_tx_t *tx);
 
-int dsl_dataset_activate_compress_auto(const char *ddname);
+
 int dsl_dataset_activate_compress_adaptive(const char *ddname);
 
 void dsl_dataset_activate_feature(uint64_t dsobj,

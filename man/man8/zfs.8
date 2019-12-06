@@ -197,64 +197,6 @@ Creates a bookmark of the given snapshot.
 Bookmarks mark the point in time when the snapshot was created, and can be used
 as the incremental source for a
 .Nm zfs Cm send
-.Sy compression Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Sy adaptive Ns | Ns Sy gzip Ns | Ns
-.Sy gzip- Ns Em N Ns | Ns Sy lz4 Ns | Ns Sy lzjb Ns | Ns Sy zle
-Controls the compression algorithm used for this dataset.
-.Pp
-Setting compression to
-.Sy on
-indicates that the current default compression algorithm should be used.
-The default balances compression and decompression speed, with compression ratio
-and is expected to work well on a wide variety of workloads.
-Unlike all other settings for this property,
-.Sy on
-does not select a fixed compression type.
-As new compression algorithms are added to ZFS and enabled on a pool, the
-default compression algorithm may change.
-The current default compression algorithm is either
-.Sy lzjb
-or, if the
-.Sy lz4_compress
-feature is enabled,
-.Sy lz4 .
-.Pp
-If compression is set to
-.Sy adaptive
-the optimal compression algorithm out of lz4 and gzip-[1-9] will be choosen based on system load and write performance of the pool's devices, to maintain optimal write speed. To use this compression mode, the
-.Sy compress_adaptive
-feature flag needs to be enabled. See
-.Xr zpool-features 5
-for details on ZFS feature flags and the
-.Sy compress_adaptive
-feature.
-.Pp
-The
-.Sy lz4
-compression algorithm is a high-performance replacement for the
-.Sy lzjb
-algorithm.
-It features significantly faster compression and decompression, as well as a
-moderately higher compression ratio than
-.Sy lzjb ,
-but can only be used on pools with the
-.Sy lz4_compress
-feature set to
-.Sy enabled .
-See
-.Xr zpool-features 5
-for details on ZFS feature flags and the
-.Sy lz4_compress
-feature.
-.Pp
-The
-.Sy lzjb
-compression algorithm is optimized for performance while providing decent data
-compression.
-.Pp
-The
-.Sy gzip
-compression algorithm uses the same compression as the
-.Xr gzip 1
 command.
 .It Xr zfs-redact 8
 Generate a new redaction bookmark.

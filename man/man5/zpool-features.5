@@ -641,16 +641,12 @@ giving approximately 10% better compression ratio.
 
 When the \fBlz4_compress\fR feature is set to \fBenabled\fR, the
 administrator can turn on \fBlz4\fR compression on any dataset on the
-pool using the \fBzfs\fR(8) command. Please note that doing so will
+pool using the zfs(8) command. Please note that doing so will
 immediately activate the \fBlz4_compress\fR feature on the underlying
-pool using the \fBzfs\fR(1M) command. Also, all newly written metadata
+pool using the zfs(8) command. Also, all newly written metadata
 will be compressed with \fBlz4\fR algorithm. Since this feature is not
 read-only compatible, this operation will render the pool unimportable
-on systems without support for the \fBlz4_compress\fR feature. Booting
-off of \fBlz4\fR-compressed root pools is supported.
-
-This feature becomes \fBactive\fR as soon as it is enabled and will
-never return to being \fBenabled\fR.
+on systems without support for the \fBlz4_compress\fR feature.
 
 Booting off of \fBlz4\fR-compressed root pools is supported.
 

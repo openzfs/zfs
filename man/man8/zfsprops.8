@@ -715,7 +715,7 @@ for more information on these algorithms.
 .Pp
 Changing this property affects only newly-written data.
 .It Xo
-.Sy compression Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Sy gzip Ns | Ns
+.Sy compression Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Sy adaptive Ns | Ns Sy gzip Ns | Ns
 .Sy gzip- Ns Em N Ns | Ns Sy lz4 Ns | Ns Sy lzjb Ns | Ns Sy zle
 .Xc
 Controls the compression algorithm used for this dataset.
@@ -731,6 +731,17 @@ does not select a fixed compression type.
 As new compression algorithms are added to ZFS and enabled on a pool, the
 default compression algorithm may change.
 The current default compression algorithm is either
+.Pp
+If compression is set to
+.Sy adaptive
+the optimal compression algorithm out of lz4 and gzip-[1-9] will be choosen based on system load and write performance of the pool's devices, to maintain optimal write speed. To use this compression mode, the
+.Sy compress_adaptive
+feature flag needs to be enabled. See
+.Xr zpool-features 5
+for details on ZFS feature flags and the
+.Sy compress_adaptive
+feature.
+.Pp
 .Sy lzjb
 or, if the
 .Sy lz4_compress
