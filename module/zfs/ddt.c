@@ -427,7 +427,7 @@ ddt_stat_add(ddt_stat_t *dst, const ddt_stat_t *src, uint64_t neg)
 		*d++ += (*s++ ^ neg) - neg;
 }
 
-static void
+void
 ddt_stat_update(ddt_t *ddt, ddt_entry_t *dde, uint64_t neg)
 {
 	ddt_stat_t dds;
@@ -491,12 +491,27 @@ ddt_get_dedup_object_stats(spa_t *spa, ddt_object_t *ddo_total)
 		}
 	}
 
+	spa->spa_dedup_table_size = ddo_total->ddo_dspace;
+	spa->spa_dedup_table_count = ddo_total->ddo_count;
+
 	/* ... and compute the averages. */
 	if (ddo_total->ddo_count != 0) {
 		ddo_total->ddo_dspace /= ddo_total->ddo_count;
 		ddo_total->ddo_mspace /= ddo_total->ddo_count;
 	}
 }
+
+uint64_t
+ddt_get_ddt_dsize(spa_t *spa)
+{
+	ddt_object_t ddo_total;
+
+	if (spa->spa_dedup_table_size == ~0ULL)
+		ddt_get_dedup_object_stats(spa, &ddo_total);
+
+	return (spa->spa_dedup_table_size);
+}
+
 
 void
 ddt_get_dedup_histogram(spa_t *spa, ddt_histogram_t *ddh)
@@ -687,8 +702,6 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t add)
 
 	dde = avl_find(&ddt->ddt_tree, &dde_search, &where);
 	if (dde == NULL) {
-		if (!add)
-			return (NULL);
 		dde = ddt_alloc(&dde_search.dde_key);
 		avl_insert(&ddt->ddt_tree, dde, where);
 	}
@@ -719,6 +732,13 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t add)
 
 	ddt_enter(ddt);
 
+	if (error == ENOENT && add == B_FALSE) {
+		avl_remove(&ddt->ddt_tree, dde);
+		dde->dde_loading = B_FALSE;
+		ddt_free(dde);
+		return (NULL);
+	}
+
 	ASSERT(dde->dde_loaded == B_FALSE);
 	ASSERT(dde->dde_loading == B_TRUE);
 
@@ -727,7 +747,11 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t add)
 	dde->dde_loaded = B_TRUE;
 	dde->dde_loading = B_FALSE;
 
-	if (error == 0)
+	/*
+	 * If we found it, but we didn't want to add it, we don't
+	 * need to update the stats yet.
+	 */
+	if (error == 0 && add == B_TRUE)
 		ddt_stat_update(ddt, dde, -1ULL);
 
 	cv_broadcast(&dde->dde_cv);
@@ -856,8 +880,11 @@ ddt_load(spa_t *spa)
 		 */
 		bcopy(ddt->ddt_histogram, &ddt->ddt_histogram_cache,
 		    sizeof (ddt->ddt_histogram));
-		spa->spa_dedup_dspace = ~0ULL;
 	}
+	spa->spa_dedup_dspace = ~0ULL;
+	spa->spa_dedup_table_size = ~0ULL;
+	spa->spa_dedup_table_count = ~0ULL;
+	spa->spa_ddt_pending = 0;
 
 	return (0);
 }
@@ -1118,6 +1145,9 @@ ddt_sync_table(ddt_t *ddt, dmu_tx_t *tx, uint64_t txg)
 	bcopy(ddt->ddt_histogram, &ddt->ddt_histogram_cache,
 	    sizeof (ddt->ddt_histogram));
 	spa->spa_dedup_dspace = ~0ULL;
+	spa->spa_dedup_table_size = ~0ULL;
+	spa->spa_dedup_table_count = ~0ULL;
+	spa->spa_ddt_pending = 0;
 }
 
 void
@@ -1185,6 +1215,47 @@ ddt_walk(spa_t *spa, ddt_bookmark_t *ddb, ddt_entry_t *dde)
 	} while (++ddb->ddb_class < DDT_CLASSES);
 
 	return (SET_ERROR(ENOENT));
+}
+
+static size_t
+ddt_entry_size(spa_t *spa)
+{
+	/*
+	 * This may be over-complicated:  some experimentation
+	 * gave me a size of *just* under 500 bytes for an on-disk
+	 * DDT (ZAP) entry, for a non-trivial DDT, so I round up to 512
+	 * for a default value.  But checking the spa for the
+	 * average size (with some bounds checks) may not be all
+	 * that beneficial over just the plain size.
+	 */
+
+	uint64_t avg;
+	if (spa->spa_dedup_table_count == 0 ||
+	    spa->spa_dedup_table_size == 0 ||
+	    spa->spa_dedup_table_count == ~0ULL ||
+	    spa->spa_dedup_table_size == ~0ULL)
+		return (512);
+	avg = spa->spa_dedup_table_size / spa->spa_dedup_table_count;
+	if (avg == 0)
+		return (512);
+	return (MIN(512, avg));
+}
+
+/*
+ * Check the DDT quota (if one exists)
+ */
+boolean_t
+ddt_check_overquota(spa_t *spa)
+{
+	uint64_t estimated_size;
+
+	if (spa->spa_dedup_table_quota == 0)
+		return (B_FALSE);
+	estimated_size = (spa->spa_ddt_pending + spa->spa_dedup_table_count);
+	estimated_size *= ddt_entry_size(spa);
+	if (estimated_size > spa->spa_dedup_table_quota)
+		return (B_TRUE);
+	return (B_FALSE);
 }
 
 /* BEGIN CSTYLED */

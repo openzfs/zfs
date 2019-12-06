@@ -110,6 +110,10 @@ not persist across imports/exports) and never changes while the pool is loaded
 operation takes place).
 .It Sy size
 Total size of the storage pool.
+.It Sy dedup_table_size
+Total on-disk size of the deduplication table (if any).
+.It Sy dedup_table_entries
+Number of entries in the deduplication table (if any).
 .It Sy unsupported@ Ns Em feature_guid
 Information about unsupported features that are enabled on the pool.
 See
@@ -280,6 +284,18 @@ A text string consisting of printable ASCII characters that will be stored
 such that it is available even if the pool becomes faulted.
 An administrator can provide additional information about a pool using this
 property.
+.It Sy dedup_table_quota Ns = Ns Ar number
+This property sets a limit on the on-disk size of the pool's dedup table.
+Entries will not be added to the dedup table once this size is reached;
+if a dedup table already exists, and is larger than this size, they
+will not be removed as part of setting this property.
+Existing entries will still have their reference counts updated.
+The actual size limit of the table may be above or below the quota,
+depending on the actual on-disk size of the entries (which may be
+approximated for purposes of calculating the quota).  That is, setting a
+quota size of 1M may result in the maximum size being slightly below,
+or slightly above, that value.
+Set to 0 to disable.
 .It Sy dedupditto Ns = Ns Ar number
 This property is deprecated and no longer has any effect.
 .It Sy delegation Ns = Ns Sy on Ns | Ns Sy off

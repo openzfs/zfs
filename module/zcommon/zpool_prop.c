@@ -100,12 +100,21 @@ zpool_prop_init(void)
 	zprop_register_number(ZPOOL_PROP_DEDUPRATIO, "dedupratio", 0,
 	    PROP_READONLY, ZFS_TYPE_POOL, "<1.00x or higher if deduped>",
 	    "DEDUP");
+	zprop_register_number(ZPOOL_PROP_DEDUP_TABLE_SIZE, "dedup_table_size",
+	    0, PROP_READONLY, ZFS_TYPE_POOL, "<size>", "DDTSIZE");
+
+	zprop_register_number(ZPOOL_PROP_DEDUP_TABLE_ENTRIES,
+	    "dedup_table_entries", 0, PROP_READONLY, ZFS_TYPE_POOL, "<count>",
+	    "DDTENTRIES");
 
 	/* default number properties */
 	zprop_register_number(ZPOOL_PROP_VERSION, "version", SPA_VERSION,
 	    PROP_DEFAULT, ZFS_TYPE_POOL, "<version>", "VERSION");
 	zprop_register_number(ZPOOL_PROP_ASHIFT, "ashift", 0, PROP_DEFAULT,
 	    ZFS_TYPE_POOL, "<ashift, 9-16, or 0=default>", "ASHIFT");
+	zprop_register_number(ZPOOL_PROP_DEDUP_TABLE_QUOTA,
+	    "dedup_table_quota", 0, PROP_DEFAULT, ZFS_TYPE_POOL,
+	    "<size>", "DDTQUOTA");
 
 	/* default index (boolean) properties */
 	zprop_register_index(ZPOOL_PROP_DELEGATION, "delegation", 1,
