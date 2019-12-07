@@ -51,7 +51,12 @@ function cleanup
 
 log_onexit cleanup
 
-set -A props "atime" "readonly" "setuid" "zoned"
+set -A props "atime" "readonly" "setuid"
+if is_freebsd; then
+	props+=("jailed")
+else
+	props+=("zoned")
+fi
 set -A values "on" "off"
 
 if is_global_zone ; then

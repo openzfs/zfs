@@ -137,8 +137,17 @@ main(int argc, char **argv)
 			argv++;
 			argc--;
 			continue;
-		}
-		if (lseek(fd, (off_t)size-1, SEEK_SET) < 0) {
+		} else if (fchown(fd, getuid(), getgid()) < 0) {
+			saverr = errno;
+			(void) fprintf(stderr, gettext(
+			    "Could not set owner/group of %s: %s\n"),
+			    argv[1], strerror(saverr));
+			(void) close(fd);
+			errors++;
+			argv++;
+			argc--;
+			continue;
+		} else if (lseek(fd, (off_t)size-1, SEEK_SET) < 0) {
 			saverr = errno;
 			(void) fprintf(stderr, gettext(
 			    "Could not seek to offset %ld in %s: %s\n"),

@@ -33,6 +33,8 @@
 # BLOCK_SIZE, QUOTA_VALUE and TOLERANCE set in quota.cfg
 if is_linux; then
 	readonly EDQUOT=122
+elif is_freebsd; then
+	readonly EDQUOT=69
 else
 	readonly EDQUOT=49
 fi

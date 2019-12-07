@@ -40,7 +40,7 @@ function find_vfstab_dev
 	typeset vfstabdevs=""
 	typeset line
 
-	if is_linux; then
+	if is_freebsd || is_linux; then
 		vfstab="/etc/fstab"
 		tmpfile="$TEST_BASE_DIR/fstab.tmp"
 	else
@@ -69,7 +69,12 @@ function find_mnttab_dev
 	typeset mnttabdevs=""
 	typeset line
 
-	if is_linux; then
+	if is_freebsd; then
+		# FreeBSD doesn't have a mnttab file.
+		mount -p | awk -v dir="^${DEV_DSKDIR}" \
+		    '$1 ~ dir { print $1 }' | xargs
+		return 0
+	elif is_linux; then
 		typeset mnttab="/etc/mtab"
 		typeset tmpfile="$TEST_BASE_DIR/mtab.tmp"
 	else
@@ -97,7 +102,9 @@ function save_dump_dev
 
 	typeset dumpdev
 
-	if is_linux; then
+	if is_freebsd; then
+		dumpdev=$(dumpon -l)
+	elif is_linux; then
 		dumpdev=""
 	else
 		typeset fnd="Dump device"

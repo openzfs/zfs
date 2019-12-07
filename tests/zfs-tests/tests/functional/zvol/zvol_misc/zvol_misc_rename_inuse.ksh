@@ -55,7 +55,7 @@ log_must zfs create -V $VOLSIZE "$ZVOL"
 
 # 2. Create a filesystem on the ZVOL device and mount it
 udev_wait
-log_must eval "echo y | newfs $ZDEV >/dev/null 2>&1"
+log_must eval "new_fs $ZDEV >/dev/null 2>&1"
 log_must mkdir "$MNTPFS"
 log_must mount "$ZDEV" "$MNTPFS"
 

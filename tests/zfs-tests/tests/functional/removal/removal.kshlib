@@ -97,7 +97,7 @@ function random_write # file write_size
 {
 	typeset file=$1
 	typeset block_size=$2
-	typeset file_size=$(stat -c%s $file 2>/dev/null)
+	typeset file_size=$(stat_size $file 2>/dev/null)
 	typeset nblocks=$((file_size / block_size))
 
 	[[ -w $file ]] || return 1

@@ -51,7 +51,7 @@ log_onexit cleanup
 
 log_assert "ENOSPC is returned on pools with large physical block size"
 
-log_must zpool create $TESTPOOL1 -o ashift=13 $DISK_LARGE
+log_must zpool create -o ashift=13 $TESTPOOL1 $DISK_LARGE
 log_must zfs set mountpoint=$TESTDIR $TESTPOOL1
 log_must zfs set compression=off $TESTPOOL1
 log_must zfs set recordsize=512 $TESTPOOL1

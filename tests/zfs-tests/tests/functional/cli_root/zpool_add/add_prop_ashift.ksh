@@ -77,7 +77,7 @@ do
 	for cmdval in ${ashifts[@]}
 	do
 		log_must zpool create -o ashift=$ashift $TESTPOOL $disk1
-		log_must zpool add $TESTPOOL -o ashift=$cmdval $disk2
+		log_must zpool add -o ashift=$cmdval $TESTPOOL $disk2
 		verify_ashift $disk2 $cmdval
 		if [[ $? -ne 0 ]]
 		then

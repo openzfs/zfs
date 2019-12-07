@@ -79,6 +79,8 @@ function block_device_wait
 		typeset local elapsed=$((SECONDS - start))
 		[[ $elapsed > 60 ]] && \
 		    log_note udevadm settle time too long: $elapsed
+	elif is_freebsd; then
+		sleep 3
 	fi
 }
 
@@ -93,6 +95,9 @@ function is_physical_device #device
 	if is_linux; then
 		[[ -b "$DEV_DSKDIR/$device" ]] && \
 		[[ -f /sys/module/loop/parameters/max_part ]]
+		return $?
+	elif is_freebsd; then
+		echo $device | grep -q -e '^a?da[0-9]*$' -e '^md[0-9]*$' > /dev/null 2>&1
 		return $?
 	else
 		echo $device | egrep "^c[0-F]+([td][0-F]+)+$" > /dev/null 2>&1
@@ -131,9 +136,16 @@ function is_loop_device #disk
 }
 
 #
+# Linux:
 # Check if the given device is a multipath device and if there is a symbolic
 # link to a device mapper and to a disk
 # Currently no support for dm devices alone without multipath
+#
+# FreeBSD:
+# Check if the given device is a gmultipath device.
+#
+# Others:
+# No multipath detection.
 #
 function is_mpath_device #disk
 {
@@ -149,6 +161,10 @@ function is_mpath_device #disk
 		else
 			return $?
 		fi
+	elif is_freebsd; then
+		test -b $DEV_MPATHDIR/$disk
+	else
+		false
 	fi
 }
 
@@ -178,6 +194,9 @@ function set_slice_prefix
 			fi
 			(( i = i + 1))
 		done
+	elif is_freebsd; then
+		export SLICE_PREFIX="p"
+		return 0
 	fi
 }
 
@@ -218,7 +237,7 @@ function get_device_dir #device
 {
 	typeset device=$1
 
-	if ! $(is_physical_device $device) ; then
+	if ! is_freebsd && ! $(is_physical_device $device) ; then
 		if [[ $device != "/" ]]; then
 			device=${device%/*}
 		fi
@@ -459,7 +478,7 @@ function get_pool_devices #testpool #devdir
 	typeset devdir=$2
 	typeset out=""
 
-	if is_linux; then
+	if is_linux || is_freebsd; then
 		out=$(zpool status -P $testpool |grep ${devdir} | awk '{print $1}')
 		out=$(echo $out | sed -e "s|${devdir}/||g" | tr '\n' ' ')
 	fi

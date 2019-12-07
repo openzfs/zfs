@@ -34,7 +34,7 @@ log_must zfs snapshot $TESTPOOL/$TESTFS@snap-pre2
 log_must dd if=/dev/zero of=$TESTDIR/file bs=1024k count=100 \
     conv=notrunc seek=200
 
-if is_linux; then
+if is_linux || is_freebsd; then
 	log_must attempt_during_removal $TESTPOOL $REMOVEDISK zdb -cd $TESTPOOL
 else
 	log_must attempt_during_removal $TESTPOOL $REMOVEDISK
