@@ -1092,7 +1092,7 @@ dsl_dataset_activate_feature(uint64_t dsobj, spa_feature_t f, void *arg,
 	}
 }
 
-void
+static void
 dsl_dataset_deactivate_feature_impl(dsl_dataset_t *ds, spa_feature_t f,
     dmu_tx_t *tx)
 {
