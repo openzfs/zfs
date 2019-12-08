@@ -122,6 +122,11 @@ static int zfs_do_project(int argc, char **argv);
 static int zfs_do_version(int argc, char **argv);
 static int zfs_do_redact(int argc, char **argv);
 
+#ifdef __FreeBSD__
+static int zfs_do_jail(int argc, char **argv);
+static int zfs_do_unjail(int argc, char **argv);
+#endif
+
 /*
  * Enable a reasonable set of defaults for libumem debugging on DEBUG builds.
  */
@@ -176,6 +181,8 @@ typedef enum {
 	HELP_CHANGE_KEY,
 	HELP_VERSION,
 	HELP_REDACT,
+	HELP_JAIL,
+	HELP_UNJAIL
 } zfs_help_t;
 
 typedef struct zfs_command {
@@ -240,6 +247,11 @@ static zfs_command_t command_table[] = {
 	{ "unload-key",	zfs_do_unload_key,	HELP_UNLOAD_KEY		},
 	{ "change-key",	zfs_do_change_key,	HELP_CHANGE_KEY		},
 	{ "redact",	zfs_do_redact,		HELP_REDACT		},
+
+#ifdef __FreeBSD__
+	{ "jail",	zfs_do_jail,		HELP_JAIL		},
+	{ "unjail",	zfs_do_unjail,		HELP_UNJAIL		},
+#endif
 };
 
 #define	NCOMMAND	(sizeof (command_table) / sizeof (command_table[0]))
@@ -391,6 +403,10 @@ get_usage(zfs_help_t idx)
 	case HELP_REDACT:
 		return (gettext("\tredact <snapshot> <bookmark> "
 		    "<redaction_snapshot> ..."));
+	case HELP_JAIL:
+		return (gettext("\tjail <jailid|jailname> <filesystem>\n"));
+	case HELP_UNJAIL:
+		return (gettext("\tunjail <jailid|jailname> <filesystem>\n"));
 	}
 
 	abort();
@@ -734,7 +750,7 @@ zfs_mount_and_share(libzfs_handle_t *hdl, const char *dataset, zfs_type_t type)
 	 */
 	if (zfs_prop_valid_for_type(ZFS_PROP_CANMOUNT, type, B_FALSE) &&
 	    zfs_prop_get_int(zhp, ZFS_PROP_CANMOUNT) == ZFS_CANMOUNT_ON) {
-		if (geteuid() != 0) {
+		if (zfs_mount_delegation_check()) {
 			(void) fprintf(stderr, gettext("filesystem "
 			    "successfully created, but it may only be "
 			    "mounted by root\n"));
@@ -6970,7 +6986,6 @@ unshare_unmount_path(int op, char *path, int flags, boolean_t is_manual)
 	const char *cmdname = (op == OP_SHARE) ? "unshare" : "unmount";
 	ino_t path_inode;
 
-
 	/*
 	 * Search for the given (major,minor) pair in the mount table.
 	 */
@@ -7233,8 +7248,12 @@ unshare_unmount(int op, int argc, char **argv)
 			nomem();
 
 		while ((node = uu_avl_walk_next(walk)) != NULL) {
-			uu_avl_remove(tree, node);
+			const char *mntarg = NULL;
 
+			uu_avl_remove(tree, node);
+#ifndef __FreeBSD__
+			mntarg = node->un_zhp->zfs_name;
+#endif
 			switch (op) {
 			case OP_SHARE:
 				if (zfs_unshareall_bytype(node->un_zhp,
@@ -7244,7 +7263,7 @@ unshare_unmount(int op, int argc, char **argv)
 
 			case OP_MOUNT:
 				if (zfs_unmount(node->un_zhp,
-				    node->un_zhp->zfs_name, flags) != 0)
+				    mntarg, flags) != 0)
 					ret = 1;
 				break;
 			}
@@ -8350,3 +8369,67 @@ main(int argc, char **argv)
 
 	return (ret);
 }
+
+#ifdef __FreeBSD__
+#include <sys/jail.h>
+#include <jail.h>
+/*
+ * Attach/detach the given dataset to/from the given jail
+ */
+/* ARGSUSED */
+static int
+zfs_do_jail_impl(int argc, char **argv, boolean_t attach)
+{
+	zfs_handle_t *zhp;
+	int jailid, ret;
+
+	/* check number of arguments */
+	if (argc < 3) {
+		(void) fprintf(stderr, gettext("missing argument(s)\n"));
+		usage(B_FALSE);
+	}
+	if (argc > 3) {
+		(void) fprintf(stderr, gettext("too many arguments\n"));
+		usage(B_FALSE);
+	}
+
+	jailid = jail_getid(argv[1]);
+	if (jailid < 0) {
+		(void) fprintf(stderr, gettext("invalid jail id or name\n"));
+		usage(B_FALSE);
+	}
+
+	zhp = zfs_open(g_zfs, argv[2], ZFS_TYPE_FILESYSTEM);
+	if (zhp == NULL)
+		return (1);
+
+	ret = (zfs_jail(zhp, jailid, attach) != 0);
+
+	zfs_close(zhp);
+	return (ret);
+}
+
+/*
+ * zfs jail jailid filesystem
+ *
+ * Attach the given dataset to the given jail
+ */
+/* ARGSUSED */
+static int
+zfs_do_jail(int argc, char **argv)
+{
+	return (zfs_do_jail_impl(argc, argv, B_TRUE));
+}
+
+/*
+ * zfs unjail jailid filesystem
+ *
+ * Detach the given dataset from the given jail
+ */
+/* ARGSUSED */
+static int
+zfs_do_unjail(int argc, char **argv)
+{
+	return (zfs_do_jail_impl(argc, argv, B_FALSE));
+}
+#endif

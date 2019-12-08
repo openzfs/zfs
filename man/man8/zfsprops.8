@@ -22,10 +22,17 @@
 .\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
 .\" Copyright (c) 2011, 2019 by Delphix. All rights reserved.
+.\" Copyright (c) 2011, Pawel Jakub Dawidek <pjd@FreeBSD.org>
+.\" Copyright (c) 2012, Glen Barber <gjb@FreeBSD.org>
+.\" Copyright (c) 2012, Bryan Drewery <bdrewery@FreeBSD.org>
+.\" Copyright (c) 2013, Steven Hartland <smh@FreeBSD.org>
 .\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
 .\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
 .\" Copyright (c) 2014 by Adam Stevko. All rights reserved.
 .\" Copyright (c) 2014 Integros [integros.com]
+.\" Copyright (c) 2016 Nexenta Systems, Inc. All Rights Reserved.
+.\" Copyright (c) 2014, Xin LI <delphij@FreeBSD.org>
+.\" Copyright (c) 2014-2015, The FreeBSD Foundation, All Rights Reserved.
 .\" Copyright 2019 Richard Laager. All rights reserved.
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
@@ -1709,9 +1716,17 @@ are equivalent to the
 and
 .Sy noxattr
 mount options.
+.It Sy jailed Ns = Ns Cm off | on
+Controls whether the dataset is managed from a jail. See the
+.Qq Sx Jails
+section in
+.Xr zfs 8
+for more information. Jails are a FreeBSD feature and are not relevant on
+other platforms. The default value is
+.Cm off .
 .It Sy zoned Ns = Ns Sy on Ns | Ns Sy off
 Controls whether the dataset is managed from a non-global zone. Zones are a
-Solaris feature and are not relevant on Linux. The default value is
+Solaris feature and are not relevant on other platforms. The default value is
 .Sy off .
 .El
 .Pp
