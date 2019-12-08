@@ -24,3 +24,6 @@ comment:
 
 ignore:
   - "tests/**/*"		# Don't need Tests to cover  themselves
+  - "./tests/**/*"		# Don't need Tests to cover  themselves
+  - "../tests/**/*"		# Don't need Tests to cover  themselves
+  - "/var/lib/buildbot/slaves/zfs/Ubuntu_17_04_x86_64_Coverage__TEST_/build/zfs/tests/**/*"
