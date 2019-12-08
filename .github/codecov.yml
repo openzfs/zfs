@@ -23,4 +23,4 @@ comment:
   require_changes: yes		# only post when coverage changes
 
 ignore:
-  - "./tests/*/**"		# Don't need Tests to cover  themselves
+  - "tests/**/*"		# Don't need Tests to cover  themselves
