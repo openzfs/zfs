@@ -229,6 +229,10 @@ zfs_log_fuid_domains(zfs_fuid_info_t *fuidp, void *start)
 static int
 zfs_xattr_owner_unlinked(znode_t *zp)
 {
+#ifdef __FreeBSD__
+	/* We don't support this type of XATTR yet so just ignore */
+	return (0);
+#else
 	int unlinked = 0;
 	znode_t *dzp;
 	igrab(ZTOI(zp));
@@ -248,6 +252,7 @@ zfs_xattr_owner_unlinked(znode_t *zp)
 	}
 	iput(ZTOI(zp));
 	return (unlinked);
+#endif
 }
 
 /*
