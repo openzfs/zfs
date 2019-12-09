@@ -414,6 +414,26 @@ decrypt_fs()
 			[ "$KEYSTATUS" = "unavailable" ] || return 0
 			TRY_COUNT=3
 
+			# Attempt to use TPM to auto-unlock
+			tpmindex="$(get_fs_value "$ENCRYPTIONROOT" org.zfsonlinux.tpm2:index)"
+			tpmpcrs="$(get_fs_value "$ENCRYPTIONROOT" org.zfsonlinux.tpm2:pcrs)"
+			if ! [ "$tpmindex" = "-" ] ; then
+				rootguid="$(get_fs_value "$ENCRYPTIONROOT" guid)"
+				tpm2_startauthsession --policy --session=s.dat
+				tpm2_policypassword -Q --session=s.dat
+				tpm2_policypcr -Q --pcr-list="$tpmpcrs" --session=s.dat
+				tpm2_nvread "$tpmindex" --auth=session:s.dat+"$rootguid" | tr -d '\0' \
+					| eval $ZFS load-key "${ENCRYPTIONROOT}"
+				if [ $? = 0 ]; then
+					#Lock the index from further reading until reboot
+					tpm2_startauthsession --policy --session=s.dat
+					tpm2_policypassword -Q --session=s.dat
+					tpm2_policypcr -Q --pcr-list="$tpmpcrs" --session=s.dat
+					tpm2_nvreadlock  "$tpmindex" --auth=session:s.dat+"$rootguid" >> /dev/null
+					return 0
+				fi
+			fi
+
 			# If key is stored in a file, do not prompt
 			if ! [ "${KEYLOCATION}" = "prompt" ]; then
 				$ZFS load-key "${ENCRYPTIONROOT}"

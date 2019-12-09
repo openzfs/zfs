@@ -71,6 +71,7 @@ AC_CONFIG_FILES([
 	cmd/fsck_zfs/Makefile
 	cmd/mount_zfs/Makefile
 	cmd/raidz_test/Makefile
+	cmd/tpm2_autounlock/Makefile
 	cmd/vdev_id/Makefile
 	cmd/zdb/Makefile
 	cmd/zed/Makefile
