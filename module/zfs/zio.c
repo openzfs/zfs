@@ -121,6 +121,11 @@ int zfs_sync_pass_rewrite = 2; /* rewrite new bps starting in this pass */
  */
 #define	IO_IS_ALLOCATING(zio) ((zio)->io_orig_pipeline & ZIO_STAGE_DVA_ALLOCATE)
 
+/*
+ * Enable smaller cores by excluding metadata
+ * allocations as well.
+ */
+int zio_exclude_metadata = 0;
 int zio_requeue_io_start_cut_in_line = 1;
 
 #ifdef ZFS_DEBUG
@@ -153,7 +158,11 @@ zio_init(void)
 		size_t size = (c + 1) << SPA_MINBLOCKSHIFT;
 		size_t p2 = size;
 		size_t align = 0;
-		size_t cflags = (size > zio_buf_debug_limit) ? KMC_NODEBUG : 0;
+		size_t data_cflags, cflags;
+
+		data_cflags = KMC_NODEBUG;
+		cflags = (zio_exclude_metadata || size > zio_buf_debug_limit) ?
+		    KMC_NODEBUG : 0;
 
 #if defined(_ILP32) && defined(_KERNEL)
 		/*
@@ -201,7 +210,7 @@ zio_init(void)
 			(void) sprintf(name, "zio_data_buf_%lu", (ulong_t)size);
 			zio_data_buf_cache[c] = kmem_cache_create(name, size,
 			    align, NULL, NULL, NULL, NULL,
-			    data_alloc_arena, cflags);
+			    data_alloc_arena, data_cflags);
 		}
 	}
 
