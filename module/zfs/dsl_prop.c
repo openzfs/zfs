@@ -649,7 +649,7 @@ dsl_prop_set_sync_impl(dsl_dataset_t *ds, const char *propname,
     dmu_tx_t *tx)
 {
 	objset_t *mos = ds->ds_dir->dd_pool->dp_meta_objset;
-	uint64_t zapobj, intval, dummy;
+	uint64_t zapobj, intval, dummy, count;
 	int isint;
 	char valbuf[32];
 	const char *valstr = NULL;
@@ -663,7 +663,8 @@ dsl_prop_set_sync_impl(dsl_dataset_t *ds, const char *propname,
 
 	if (ds->ds_is_snapshot) {
 		ASSERT(version >= SPA_VERSION_SNAP_PROPS);
-		if (dsl_dataset_phys(ds)->ds_props_obj == 0) {
+		if (dsl_dataset_phys(ds)->ds_props_obj == 0 &&
+		    (source & ZPROP_SRC_NONE) == 0) {
 			dmu_buf_will_dirty(ds->ds_dbuf, tx);
 			dsl_dataset_phys(ds)->ds_props_obj =
 			    zap_create(mos,
@@ -673,6 +674,10 @@ dsl_prop_set_sync_impl(dsl_dataset_t *ds, const char *propname,
 	} else {
 		zapobj = dsl_dir_phys(ds->ds_dir)->dd_props_zapobj;
 	}
+
+	/* If we are removing objects from a non-existent ZAP just return */
+	if (zapobj == 0)
+		return;
 
 	if (version < SPA_VERSION_RECVD_PROPS) {
 		if (source & ZPROP_SRC_NONE)
@@ -754,6 +759,18 @@ dsl_prop_set_sync_impl(dsl_dataset_t *ds, const char *propname,
 
 	kmem_strfree(inheritstr);
 	kmem_strfree(recvdstr);
+
+	/*
+	 * If we are left with an empty snap zap we can destroy it.
+	 * This will prevent unnecessary calls to zap_lookup() in
+	 * the "zfs list" and "zfs get" code paths.
+	 */
+	if (ds->ds_is_snapshot &&
+	    zap_count(mos, zapobj, &count) == 0 && count == 0) {
+		dmu_buf_will_dirty(ds->ds_dbuf, tx);
+		dsl_dataset_phys(ds)->ds_props_obj = 0;
+		zap_destroy(mos, zapobj, tx);
+	}
 
 	if (isint) {
 		VERIFY0(dsl_prop_get_int_ds(ds, propname, &intval));
