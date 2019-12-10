@@ -19,8 +19,12 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
+ *
+ * Copyright 2014 Garrett D'Amore <garrett@damore.org>
+ * Copyright 2014 Nexenta Systems, Inc.  All rights reserved.
+ * Copyright 2017 RackTop Systems.
  */
 
 #ifndef _SYS_ACL_H
@@ -74,37 +78,55 @@ typedef struct acl_info acl_t;
 
 /*
  * The following are defined for ace_t.
+ *
+ * Note, these are intentionally the same as the Windows
+ * "File Access Rights Constants" you can find on MSDN.
+ * (See also: "Standard Access Rights" on MSDN).
+ *
+ * The equivalent Windows names for these are just like
+ * those show below, with FILE_ in place of ACE_, except
+ * as noted below.  Also note that Windows uses a special
+ * privilege: BYPASS_TRAVERSE_CHECKING, normally granted
+ * to everyone, that causes the absence of ACE_TRAVERSE
+ * to be ignored.
  */
-#define	ACE_READ_DATA		0x00000001
-#define	ACE_LIST_DIRECTORY	0x00000001
-#define	ACE_WRITE_DATA		0x00000002
-#define	ACE_ADD_FILE		0x00000002
-#define	ACE_APPEND_DATA		0x00000004
-#define	ACE_ADD_SUBDIRECTORY	0x00000004
-#define	ACE_READ_NAMED_ATTRS	0x00000008
-#define	ACE_WRITE_NAMED_ATTRS	0x00000010
-#define	ACE_EXECUTE		0x00000020
-#define	ACE_DELETE_CHILD	0x00000040
-#define	ACE_READ_ATTRIBUTES	0x00000080
-#define	ACE_WRITE_ATTRIBUTES	0x00000100
-#define	ACE_DELETE		0x00010000
-#define	ACE_READ_ACL		0x00020000
-#define	ACE_WRITE_ACL		0x00040000
-#define	ACE_WRITE_OWNER		0x00080000
-#define	ACE_SYNCHRONIZE		0x00100000
+#define	ACE_READ_DATA		0x00000001	/* file: read data */
+#define	ACE_LIST_DIRECTORY	0x00000001	/* dir: list files */
+#define	ACE_WRITE_DATA		0x00000002	/* file: write data */
+#define	ACE_ADD_FILE		0x00000002	/* dir: create file */
+#define	ACE_APPEND_DATA		0x00000004	/* file: append data */
+#define	ACE_ADD_SUBDIRECTORY	0x00000004	/* dir: create subdir */
+#define	ACE_READ_NAMED_ATTRS	0x00000008	/* FILE_READ_EA */
+#define	ACE_WRITE_NAMED_ATTRS	0x00000010	/* FILE_WRITE_EA */
+#define	ACE_EXECUTE		0x00000020	/* file: execute */
+#define	ACE_TRAVERSE		0x00000020	/* dir: lookup name */
+#define	ACE_DELETE_CHILD	0x00000040	/* dir: unlink child */
+#define	ACE_READ_ATTRIBUTES	0x00000080	/* (all) stat, etc. */
+#define	ACE_WRITE_ATTRIBUTES	0x00000100	/* (all) utimes, etc. */
+#define	ACE_DELETE		0x00010000	/* (all) unlink self */
+#define	ACE_READ_ACL		0x00020000	/* (all) getsecattr */
+#define	ACE_WRITE_ACL		0x00040000	/* (all) setsecattr */
+#define	ACE_WRITE_OWNER		0x00080000	/* (all) chown */
+#define	ACE_SYNCHRONIZE		0x00100000	/* (all) see MSDN */
 
-#define	ACE_FILE_INHERIT_ACE		0x0001
-#define	ACE_DIRECTORY_INHERIT_ACE	0x0002
-#define	ACE_NO_PROPAGATE_INHERIT_ACE	0x0004
-#define	ACE_INHERIT_ONLY_ACE		0x0008
+/*
+ * Some of the following are the same as Windows uses. (but NOT ALL!)
+ * See the "ACE_HEADER" structure description on MSDN for details.
+ * Comments show relations to the MSDN names.
+ */
+#define	ACE_FILE_INHERIT_ACE		0x0001	/* = OBJECT_INHERIT_ACE */
+#define	ACE_DIRECTORY_INHERIT_ACE	0x0002	/* = CONTAINER_INHERIT_ACE */
+#define	ACE_NO_PROPAGATE_INHERIT_ACE	0x0004	/* = NO_PROPAGATE_INHERIT_ACE */
+#define	ACE_INHERIT_ONLY_ACE		0x0008	/* = INHERIT_ONLY_ACE */
 #define	ACE_SUCCESSFUL_ACCESS_ACE_FLAG	0x0010
 #define	ACE_FAILED_ACCESS_ACE_FLAG	0x0020
 #define	ACE_IDENTIFIER_GROUP		0x0040
-#define	ACE_INHERITED_ACE		0x0080
+#define	ACE_INHERITED_ACE		0x0080	/* INHERITED_ACE, 0x10 on NT */
 #define	ACE_OWNER			0x1000
 #define	ACE_GROUP			0x2000
 #define	ACE_EVERYONE			0x4000
 
+/* These four are the same as Windows, but with an ACE_ prefix added. */
 #define	ACE_ACCESS_ALLOWED_ACE_TYPE	0x0000
 #define	ACE_ACCESS_DENIED_ACE_TYPE	0x0001
 #define	ACE_SYSTEM_AUDIT_ACE_TYPE	0x0002
@@ -116,10 +138,9 @@ typedef struct acl_info acl_t;
 #define	ACL_FLAGS_ALL			(ACL_AUTO_INHERIT|ACL_PROTECTED| \
     ACL_DEFAULTED)
 
-#ifdef _KERNEL
-
 /*
  * These are only applicable in a CIFS context.
+ * Here again, same as Windows, but with an ACE_ prefix added.
  */
 #define	ACE_ACCESS_ALLOWED_COMPOUND_ACE_TYPE		0x04
 #define	ACE_ACCESS_ALLOWED_OBJECT_ACE_TYPE		0x05
@@ -137,6 +158,8 @@ typedef struct acl_info acl_t;
 
 #define	ACE_ALL_TYPES	0x001F
 
+#if defined(_KERNEL)
+
 typedef struct ace_object {
 	uid_t		a_who;		/* uid or gid */
 	uint32_t	a_access_mask;	/* read,write,... */
@@ -153,6 +176,21 @@ typedef struct ace_object {
     ACE_WRITE_NAMED_ATTRS|ACE_EXECUTE|ACE_DELETE_CHILD|ACE_READ_ATTRIBUTES| \
     ACE_WRITE_ATTRIBUTES|ACE_DELETE|ACE_READ_ACL|ACE_WRITE_ACL| \
     ACE_WRITE_OWNER|ACE_SYNCHRONIZE)
+
+#define	ACE_ALL_WRITE_PERMS (ACE_WRITE_DATA|ACE_APPEND_DATA| \
+    ACE_WRITE_ATTRIBUTES|ACE_WRITE_NAMED_ATTRS|ACE_WRITE_ACL| \
+    ACE_WRITE_OWNER|ACE_DELETE|ACE_DELETE_CHILD)
+
+#define	ACE_READ_PERMS	(ACE_READ_DATA|ACE_READ_ACL|ACE_READ_ATTRIBUTES| \
+    ACE_READ_NAMED_ATTRS)
+
+#define	ACE_WRITE_PERMS	(ACE_WRITE_DATA|ACE_APPEND_DATA|ACE_WRITE_ATTRIBUTES| \
+    ACE_WRITE_NAMED_ATTRS)
+
+#define	ACE_MODIFY_PERMS (ACE_READ_DATA|ACE_LIST_DIRECTORY|ACE_WRITE_DATA| \
+    ACE_ADD_FILE|ACE_APPEND_DATA|ACE_ADD_SUBDIRECTORY|ACE_READ_NAMED_ATTRS| \
+    ACE_WRITE_NAMED_ATTRS|ACE_EXECUTE|ACE_DELETE_CHILD|ACE_READ_ATTRIBUTES| \
+    ACE_WRITE_ATTRIBUTES|ACE_DELETE|ACE_READ_ACL|ACE_SYNCHRONIZE)
 
 /*
  * The following flags are supported by both NFSv4 ACLs and ace_t.
@@ -217,6 +255,7 @@ typedef struct ace_object {
 #define	ACL_APPEND_ID	0x1 	/* append uid/gid to user/group entries */
 #define	ACL_COMPACT_FMT	0x2 	/* build ACL in ls -V format */
 #define	ACL_NORESOLVE	0x4	/* don't do name service lookups */
+#define	ACL_SID_FMT	0x8	/* use usersid/groupsid when appropriate */
 
 /*
  * Legacy aclcheck errors for aclent_t ACLs
@@ -272,13 +311,8 @@ extern int cmp2acls(void *, void *);
 
 #endif	/* !defined(_KERNEL) */
 
-#if defined(__STDC__)
 extern int acl(const char *path, int cmd, int cnt, void *buf);
 extern int facl(int fd, int cmd, int cnt, void *buf);
-#else	/* !__STDC__ */
-extern int acl();
-extern int facl();
-#endif	/* defined(__STDC__) */
 
 #ifdef	__cplusplus
 }

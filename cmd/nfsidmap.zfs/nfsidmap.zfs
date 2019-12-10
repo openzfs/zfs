@@ -1,0 +1,4 @@
+#!/bin/sh
+
+mount --bind /etc/idmapd-zfs.conf /etc/idmapd.conf
+/usr/sbin/nfsidmap "$@"

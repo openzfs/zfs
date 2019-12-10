@@ -214,6 +214,82 @@ AC_DEFUN([ZFS_AC_KERNEL_INODE_OPERATIONS_SET_ACL], [
 ])
 
 dnl #
+dnl # 3.17 API change,
+dnl # check whether generic_key_instantiate() exists
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_SRC_GENERIC_KEY_INSTANTIATE], [
+	ZFS_LINUX_TEST_SRC([generic_key_instantiate], [
+		#include <linux/key-type.h>
+	],[
+		struct key_type k;
+
+		k.instantiate = generic_key_instantiate;
+	])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_GENERIC_KEY_INSTANTIATE], [
+	AC_MSG_CHECKING([whether generic_key_instantiate() exists])
+	ZFS_LINUX_TEST_RESULT([generic_key_instantiate], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_KERNEL_GENERIC_KEY_INSTANTIATE, 1,
+		    [generic_key_instantiate() exists])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
+dnl # 3.17 API change,
+dnl # check whether KEY_FLAG_ROOT_CAN_INVAL exists
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_SRC_KEY_FLAG_ROOT_CAN_INVAL_EXISTS], [
+	ZFS_LINUX_TEST_SRC([KEY_FLAG_ROOT_CAN_INVAL], [
+		#include <linux/key.h>
+	],[
+		unsigned long addr;
+
+		set_bit(KEY_FLAG_ROOT_CAN_INVAL, &addr);
+	])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_KEY_FLAG_ROOT_CAN_INVAL_EXISTS], [
+	AC_MSG_CHECKING([whether HAVE_KEY_FLAG_ROOT_CAN_INVAL exists])
+	ZFS_LINUX_TEST_RESULT([KEY_FLAG_ROOT_CAN_INVAL], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_KERNEL_KEY_FLAG_ROOT_CAN_INVAL, 1,
+		    [HAVE_KEY_FLAG_ROOT_CAN_INVAL exists])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
+dnl # 4.4 API change,
+dnl # check whether user_key_payload() exists
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_SRC_USER_KEY_PAYLOAD], [
+	ZFS_LINUX_TEST_SRC([user_key_payload], [
+		#include <keys/user-type.h>
+	],[
+		const struct user_key_payload *ukp;
+		const struct key *k = NULL;
+
+		ukp = user_key_payload(k);
+	])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_USER_KEY_PAYLOAD], [
+	AC_MSG_CHECKING([whether user_key_payload() exists])
+	ZFS_LINUX_TEST_RESULT([user_key_payload], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_KERNEL_USER_KEY_PAYLOAD, 1,
+		    [user_key_payload() exists])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
 dnl # 4.7 API change,
 dnl # The kernel get_acl will now check cache before calling i_op->get_acl and
 dnl # do set_cached_acl after that, so i_op->get_acl don't need to do that
@@ -234,6 +310,86 @@ AC_DEFUN([ZFS_AC_KERNEL_GET_ACL_HANDLE_CACHE], [
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_KERNEL_GET_ACL_HANDLE_CACHE, 1,
 		    [uncached_acl_sentinel() exists])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
+dnl # 4.7 API change,
+dnl # keyring_alloc() takes 8 args instead of 7
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_SRC_KEYRING_ALLOC_8_ARGS], [
+	ZFS_LINUX_TEST_SRC([keyring_alloc_8_args], [
+		#include <linux/cred.h>
+		#include <linux/key.h>
+	],[
+		struct key *k;
+		struct cred c;
+
+		k = keyring_alloc("", GLOBAL_ROOT_UID, GLOBAL_ROOT_GID, &c, 0,
+		    0, NULL, NULL);
+	])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_KEYRING_ALLOC_8_ARGS], [
+	AC_MSG_CHECKING([whether keyring_alloc() takes 8 args])
+	ZFS_LINUX_TEST_RESULT([keyring_alloc_8_args], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_KERNEL_KEYRING_ALLOC_WITH_8_ARGS, 1,
+		    [keyring_alloc() takes 8 args])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
+dnl # 4.11 API change,
+dnl # check whether user_key_payload_rcu() exists
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_SRC_USER_KEY_PAYLOAD_RCU], [
+	ZFS_LINUX_TEST_SRC([user_key_payload_rcu], [
+		#include <keys/user-type.h>
+	],[
+		const struct user_key_payload *ukp;
+		const struct key *k = NULL;
+
+		ukp = user_key_payload_rcu(k);
+	])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_USER_KEY_PAYLOAD_RCU], [
+	AC_MSG_CHECKING([whether user_key_payload_rcu() exists])
+	ZFS_LINUX_TEST_RESULT([user_key_payload_rcu], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_KERNEL_USER_KEY_PAYLOAD_RCU, 1,
+		    [user_key_payload_rcu() exists])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
+dnl # 4.13.10 API change,
+dnl # check whether key_is_positive() exists
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_SRC_KEY_IS_POSITIVE], [
+	ZFS_LINUX_TEST_SRC([key_is_positive], [
+		#include <linux/key.h>
+	],[
+		struct key *k = NULL;
+		bool v;
+
+		v = key_is_positive(k);
+	])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_KEY_IS_POSITIVE], [
+	AC_MSG_CHECKING([whether key_is_positive() exists])
+	ZFS_LINUX_TEST_RESULT([key_is_positive], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_KERNEL_KEY_IS_POSITIVE, 1,
+		    [key_is_positive() exists])
 	],[
 		AC_MSG_RESULT(no)
 	])
@@ -272,7 +428,13 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_ACL], [
 	ZFS_AC_KERNEL_SRC_POSIX_ACL_VALID_WITH_NS
 	ZFS_AC_KERNEL_SRC_INODE_OPERATIONS_GET_ACL
 	ZFS_AC_KERNEL_SRC_INODE_OPERATIONS_SET_ACL
+	ZFS_AC_KERNEL_SRC_GENERIC_KEY_INSTANTIATE
+	ZFS_AC_KERNEL_SRC_KEY_FLAG_ROOT_CAN_INVAL_EXISTS
+	ZFS_AC_KERNEL_SRC_USER_KEY_PAYLOAD
 	ZFS_AC_KERNEL_SRC_GET_ACL_HANDLE_CACHE
+	ZFS_AC_KERNEL_SRC_KEYRING_ALLOC_8_ARGS
+	ZFS_AC_KERNEL_SRC_USER_KEY_PAYLOAD_RCU
+	ZFS_AC_KERNEL_SRC_KEY_IS_POSITIVE
 	ZFS_AC_KERNEL_SRC_ACL_HAS_REFCOUNT
 ])
 
@@ -284,6 +446,12 @@ AC_DEFUN([ZFS_AC_KERNEL_ACL], [
 	ZFS_AC_KERNEL_POSIX_ACL_VALID_WITH_NS
 	ZFS_AC_KERNEL_INODE_OPERATIONS_GET_ACL
 	ZFS_AC_KERNEL_INODE_OPERATIONS_SET_ACL
+	ZFS_AC_KERNEL_GENERIC_KEY_INSTANTIATE
+	ZFS_AC_KERNEL_KEY_FLAG_ROOT_CAN_INVAL_EXISTS
+	ZFS_AC_KERNEL_USER_KEY_PAYLOAD
 	ZFS_AC_KERNEL_GET_ACL_HANDLE_CACHE
+	ZFS_AC_KERNEL_KEYRING_ALLOC_8_ARGS
+	ZFS_AC_KERNEL_USER_KEY_PAYLOAD_RCU
+	ZFS_AC_KERNEL_KEY_IS_POSITIVE
 	ZFS_AC_KERNEL_ACL_HAS_REFCOUNT
 ])

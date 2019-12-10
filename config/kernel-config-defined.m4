@@ -24,6 +24,7 @@ AC_DEFUN([ZFS_AC_KERNEL_CONFIG_DEFINED], [
 	ZFS_AC_KERNEL_SRC_CONFIG_TRIM_UNUSED_KSYMS
 	ZFS_AC_KERNEL_SRC_CONFIG_ZLIB_INFLATE
 	ZFS_AC_KERNEL_SRC_CONFIG_ZLIB_DEFLATE
+	ZFS_AC_KERNEL_SRC_ZFS_NFS4_ACL
 
 	AC_MSG_CHECKING([for kernel config option compatibility])
 	ZFS_LINUX_TEST_COMPILE_ALL([config])
@@ -34,6 +35,7 @@ AC_DEFUN([ZFS_AC_KERNEL_CONFIG_DEFINED], [
 	ZFS_AC_KERNEL_CONFIG_TRIM_UNUSED_KSYMS
 	ZFS_AC_KERNEL_CONFIG_ZLIB_INFLATE
 	ZFS_AC_KERNEL_CONFIG_ZLIB_DEFLATE
+	ZFS_AC_KERNEL_ZFS_NFS4_ACL
 ])
 
 dnl #
@@ -181,3 +183,36 @@ AC_DEFUN([ZFS_AC_KERNEL_CONFIG_ZLIB_DEFLATE], [
 	*** Rebuild the kernel with CONFIG_ZLIB_DEFLATE=y|m set.])
 	])
 ])
+
+dnl #
+dnl # Check if ZFS_NFS4_ACL should be defined
+dnl #
+dnl # This requires CONFIG_KEYS to be enabled and
+dnl # CONFIG_PREEMPT_RCU to be disabled. The key subsystem is used
+dnl # to map between uid/gid values and user/group names, and
+dnl # if CONFIG_PREEMPT_RCU compiling will result in the error:
+dnl #
+dnl # FATAL: modpost: GPL-incompatible module zfs.ko uses GPL-only symbol
+dnl #     __rcu_read_lock'
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_SRC_ZFS_NFS4_ACL], [
+	ZFS_LINUX_TEST_SRC([zfs_nfs4_acl], [
+		#if !defined(CONFIG_KEYS)
+		#error CONFIG_KEYS required for ZFS ACL support
+		#endif
+		#if defined(CONFIG_PREEMPT_RCU)
+		#error CONFIG_PREEMPT_RCU not compatible with ZFS ACL support
+		#endif
+	],[])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_ZFS_NFS4_ACL], [
+	AC_MSG_CHECKING([whether kernel options for ZFS ACLs are set])
+	ZFS_LINUX_TEST_RESULT([zfs_nfs4_acl], [
+		AC_MSG_RESULT([yes])
+		AC_DEFINE(ZFS_NFS4_ACL, 1, [kernel options for ZFS ACLs are set])
+	],[
+		AC_MSG_RESULT([no])
+	])
+])
+

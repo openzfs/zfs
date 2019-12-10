@@ -106,11 +106,6 @@ SYSCTL_INT(_vfs_zfs_version, OID_AUTO, ioctl, CTLFLAG_RD, &zfs_version_ioctl,
 
 static struct cdev *zfsdev;
 
-extern void zfs_init(void);
-extern void zfs_fini(void);
-extern void zfs_ioctl_init(void);
-
-
 static struct root_hold_token *zfs_root_token;
 
 extern uint_t rrw_tsd_key;

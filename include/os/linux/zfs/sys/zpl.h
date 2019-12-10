@@ -90,6 +90,9 @@ zpl_chmod_acl(struct inode *ip)
 	return (0);
 }
 #endif /* CONFIG_FS_POSIX_ACL */
+#if defined(ZFS_NFS4_ACL)
+extern int zpl_permission(struct inode *ip, int mask);
+#endif /* ZFS_NFS4_ACL */
 
 extern xattr_handler_t *zpl_xattr_handlers[];
 

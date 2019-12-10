@@ -2165,7 +2165,7 @@ zfs_vnodes_adjust_back(void)
 #endif
 }
 
-void
+int
 zfs_init(void)
 {
 
@@ -2191,6 +2191,8 @@ zfs_init(void)
 	dmu_objset_register_type(DMU_OST_ZFS, zfs_space_delta_cb);
 
 	zfsvfs_taskq = taskq_create("zfsvfs", 1, minclsyspri, 0, 0, 0);
+
+	return (0);
 }
 
 void

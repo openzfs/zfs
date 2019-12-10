@@ -26,6 +26,10 @@
 #ifndef _ZFS_XATTR_H
 #define	_ZFS_XATTR_H
 
+#include <linux/key.h>
+#include <linux/keyctl.h>
+#include <linux/key-type.h>
+#include <keys/user-type.h>
 #include <linux/posix_acl_xattr.h>
 
 /*
@@ -162,6 +166,19 @@ fn(struct dentry *dentry, const char *name, const void *buffer,		\
 }
 #else
 #error "Unsupported kernel"
+#endif
+
+/*
+ * Linux 4.4 and 4.11 API changes; rcu_dereference_key became
+ * user_key_payload in 4.4 and then changed to user_key_payload_rcu
+ * in 4.11.
+ */
+#if defined(HAVE_KERNEL_USER_KEY_PAYLOAD)
+#define	zpl_user_key_payload_rcu(k) user_key_payload(k)
+#elif defined(HAVE_KERNEL_USER_KEY_PAYLOAD_RCU)
+#define	zpl_user_key_payload_rcu(k) user_key_payload_rcu(k)
+#else
+#define	zpl_user_key_payload_rcu(k) rcu_dereference_key(k)
 #endif
 
 /*
