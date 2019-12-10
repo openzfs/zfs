@@ -70,8 +70,11 @@ static const ZSTD_customMem zstd_dctx_malloc = {
 
 enum zstd_kmem_type {
 	ZSTD_KMEM_UNKNOWN = 0,
+	/* allocation type using kmem_vmalloc */
 	ZSTD_KMEM_DEFAULT,
+	/* pool based allocation using mempool_alloc */
 	ZSTD_KMEM_POOL,
+	/* reserved fallback memory for decompression only */
 	ZSTD_KMEM_DCTX,
 	ZSTD_KMEM_COUNT,
 };
@@ -253,14 +256,12 @@ zstd_mempool_alloc(struct zstd_pool *zstd_mempool, size_t size)
 }
 
 /*
- * mark object as released by releasing the barrier
- * mutex and clear the buffer
+ * mark object as released by releasing the barrier mutex
  */
 void
 zstd_mempool_free(struct zstd_kmem *z)
 {
-	struct zstd_pool *pool = z->pool;
-	mutex_exit(&pool->barrier);
+	mutex_exit(&z->pool->barrier);
 }
 
 struct levelmap {
@@ -311,6 +312,9 @@ static struct levelmap fastlevels[] = {
 	{-1000, ZIO_ZSTDLVL_FAST_1000},
 };
 
+/*
+ * convert internal stored zfs level enum to zstd level
+ */
 static enum zio_zstd_levels
 zstd_cookie_to_enum(int32_t level)
 {
@@ -326,6 +330,9 @@ zstd_cookie_to_enum(int32_t level)
 	return (ZIO_ZSTD_LEVEL_DEFAULT);
 }
 
+/*
+ * convert zstd_level to internal stored zfs level
+ */
 static int32_t
 zstd_enum_to_cookie(enum zio_zstd_levels elevel)
 {
@@ -343,8 +350,11 @@ zstd_enum_to_cookie(enum zio_zstd_levels elevel)
 	return (3);
 }
 
+/*
+ * compress block using zstd 
+ */
 size_t
-zstd_compress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
+zstd_compress(void *s_start, void *d_start, size_t s_len, size_t d_len, int level)
 {
 	size_t c_len;
 	uint32_t bufsiz;
@@ -352,7 +362,7 @@ zstd_compress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
 	char *dest = d_start;
 	ZSTD_CCtx *cctx;
 
-	levelcookie = zstd_enum_to_cookie(n);
+	levelcookie = zstd_enum_to_cookie(level);
 	ASSERT3U(d_len, >=, sizeof (bufsiz));
 	ASSERT3U(d_len, <=, s_len);
 	ASSERT3U(levelcookie, !=, 0);
@@ -405,6 +415,9 @@ zstd_compress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
 	return (c_len + sizeof (bufsiz) + sizeof (levelcookie));
 }
 
+/*
+ * returns level stored in trailing memory area of compressed block
+ */
 int
 zstd_get_level(void *s_start, size_t s_len, uint8_t *level)
 {
