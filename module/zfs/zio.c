@@ -550,29 +550,6 @@ error:
 	}
 }
 
-#if 0
-static void
-zio_getcomplevel(zio_t *zio, abd_t *data, uint64_t size)
-{
-	if (zio->io_error == 0) {
-		void *tmp = abd_borrow_buf_copy(data, size);
-		int ret;
-
-		ret = zio_decompress_getcomplevel(BP_GET_COMPRESS(zio->io_bp),
-		    tmp, size, &zio->io_prop.zp_complevel);
-
-		abd_return_buf(data, tmp, size);
-
-		/* Not having a getcomplevel function is non-fatal */
-		if (ret == EOPNOTSUPP)
-			return;
-
-		if (ret != 0)
-			zio->io_error = SET_ERROR(EIO);
-	}
-}
-#endif
-
 /*
  * ==========================================================================
  * I/O parent/child relationships and pipeline interlocks
