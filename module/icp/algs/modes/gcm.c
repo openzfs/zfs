@@ -67,7 +67,9 @@ gcm_mode_encrypt_contiguous_blocks(gcm_ctx_t *ctx, char *data, size_t length,
 		    (uint8_t *)ctx->gcm_remainder + ctx->gcm_remainder_len,
 		    length);
 		ctx->gcm_remainder_len += length;
-		ctx->gcm_copy_to = datap;
+		if (ctx->gcm_copy_to == NULL) {
+			ctx->gcm_copy_to = datap;
+		}
 		return (CRYPTO_SUCCESS);
 	}
 

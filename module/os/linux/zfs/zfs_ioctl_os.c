@@ -65,6 +65,12 @@
 #include <linux/miscdevice.h>
 #include <linux/slab.h>
 
+boolean_t
+zfs_vfs_held(zfsvfs_t *zfsvfs)
+{
+	return (zfsvfs->z_sb != NULL);
+}
+
 int
 zfs_vfs_ref(zfsvfs_t **zfvp)
 {
@@ -73,6 +79,12 @@ zfs_vfs_ref(zfsvfs_t **zfvp)
 		return (SET_ERROR(ESRCH));
 	}
 	return (0);
+}
+
+void
+zfs_vfs_rele(zfsvfs_t *zfsvfs)
+{
+	deactivate_super(zfsvfs->z_sb);
 }
 
 static int
