@@ -45,14 +45,16 @@
 
 function cleanup
 {
-	echo $ORIG_RESILVER_MIN_TIME > $ZFS_PARAMS/zfs_resilver_min_time_ms
-	echo $ORIG_SCAN_SUSPEND_PROGRESS > $ZFS_PARAMS/zfs_scan_suspend_progress
+	log_must set_tunable32 zfs_resilver_min_time_ms $ORIG_RESILVER_MIN_TIME
+	log_must set_tunable32 zfs_scan_suspend_progress \
+	    $ORIG_SCAN_SUSPEND_PROGRESS
+	log_must set_tunable32 zfs_zevent_len_max $ORIG_ZFS_ZEVENT_LEN_MAX
 	log_must zinject -c all
 	destroy_pool $TESTPOOL
 	rm -f ${VDEV_FILES[@]} $SPARE_VDEV_FILE
 }
 
-# Count resilver events in zpool and number of deferred rsilvers on vdevs
+# count resilver events in zpool and number of deferred rsilvers on vdevs
 function verify_restarts # <msg> <cnt> <defer>
 {
 	msg=$1
@@ -85,9 +87,9 @@ function verify_restarts # <msg> <cnt> <defer>
 
 log_assert "Check for unnecessary resilver restarts"
 
-ZFS_PARAMS=/sys/module/zfs/parameters
-ORIG_RESILVER_MIN_TIME=$(cat $ZFS_PARAMS/zfs_resilver_min_time_ms)
-ORIG_SCAN_SUSPEND_PROGRESS=$(cat $ZFS_PARAMS/zfs_scan_suspend_progress)
+ORIG_RESILVER_MIN_TIME=$(get_tunable zfs_resilver_min_time_ms)
+ORIG_SCAN_SUSPEND_PROGRESS=$(get_tunable zfs_scan_suspend_progress)
+ORIG_ZFS_ZEVENT_LEN_MAX=$(get_tunable zfs_zevent_len_max)
 
 set -A RESTARTS -- '1' '2' '2' '2'
 set -A VDEVS -- '' '' '' ''
@@ -98,12 +100,15 @@ VDEV_REPLACE="${VDEV_FILES[1]} $SPARE_VDEV_FILE"
 
 log_onexit cleanup
 
+# ensure that enough events will be saved
+log_must set_tunable32 zfs_zevent_len_max 512
+
 log_must truncate -s $VDEV_FILE_SIZE ${VDEV_FILES[@]} $SPARE_VDEV_FILE
 
 log_must zpool create -f -o feature@resilver_defer=disabled $TESTPOOL \
     raidz ${VDEV_FILES[@]}
 
-# Create 4 filesystems
+# create 4 filesystems
 for fs in fs{0..3}
 do
 	log_must zfs create -o primarycache=none -o recordsize=1k $TESTPOOL/$fs
@@ -118,7 +123,7 @@ do
 done
 wait
 
-# Test without and with deferred resilve feature enabled
+# test without and with deferred resilve feature enabled
 for test in "without" "with"
 do
 	log_note "Testing $test deferred resilvers"
@@ -135,11 +140,11 @@ do
 	log_must zpool events -c
 
 	# limit scanning time
-	echo 50 > $ZFS_PARAMS/zfs_resilver_min_time_ms
+	log_must set_tunable32 zfs_resilver_min_time_ms 50
 
 	# initiate a resilver and suspend the scan as soon as possible
 	log_must zpool replace $TESTPOOL $VDEV_REPLACE
-	echo 1 > $ZFS_PARAMS/zfs_scan_suspend_progress
+	log_must set_tunable32 zfs_scan_suspend_progress 1
 
 	# there should only be 1 resilver start
 	verify_restarts '' "${RESTARTS[0]}" "${VDEVS[0]}"
@@ -163,8 +168,8 @@ do
 	verify_restarts ' after zinject' "${RESTARTS[2]}" "${VDEVS[2]}"
 
 	# unsuspend resilver
-	echo 0 > $ZFS_PARAMS/zfs_scan_suspend_progress
-	echo 3000 > $ZFS_PARAMS/zfs_resilver_min_time_ms
+	log_must set_tunable32 zfs_scan_suspend_progress 0
+	log_must set_tunable32 zfs_resilver_min_time_ms 3000
 
 	# wait for resilver to finish
 	for iter in {0..59}
@@ -176,6 +181,7 @@ do
 	    log_fail "resilver timed out"
 
 	# wait for a few txg's to see if a resilver happens
+	log_must zpool sync $TESTPOOL
 	log_must zpool sync $TESTPOOL
 
 	# there should now be 2 resilver starts
