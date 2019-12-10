@@ -86,7 +86,7 @@
  *      must be checked with ZFS_VERIFY_ZP(zp).  Both of these macros
  *      can return EIO from the calling function.
  *
- *  (2)	iput() should always be the last thing except for zil_commit()
+ *  (2)	zrele() should always be the last thing except for zil_commit()
  *	(if necessary) and ZFS_EXIT(). This is for 3 reasons:
  *	First, if it's the last reference, the vnode/znode
  *	can be freed, so the zp may point to freed memory.  Second, the last
@@ -94,7 +94,7 @@
  *	pushing cached pages (which acquires range locks) and syncing out
  *	cached atime changes.  Third, zfs_zinactive() may require a new tx,
  *	which could deadlock the system if you were already holding one.
- *	If you must call iput() within a tx then use zfs_iput_async().
+ *	If you must call zrele() within a tx then use zfs_zrele_async().
  *
  *  (3)	All range locks must be grabbed before calling dmu_tx_assign(),
  *	as they can span dmu_tx_assign() calls.
@@ -148,7 +148,7 @@
  *	if (error) {
  *		rw_exit(...);		// drop locks
  *		zfs_dirent_unlock(dl);	// unlock directory entry
- *		iput(...);		// release held vnodes
+ *		zrele(...);		// release held znodes
  *		if (error == ERESTART) {
  *			waited = B_TRUE;
  *			dmu_tx_wait(tx);
@@ -165,7 +165,7 @@
  *	dmu_tx_commit(tx);		// commit DMU tx -- error or not
  *	rw_exit(...);			// drop locks
  *	zfs_dirent_unlock(dl);		// unlock directory entry
- *	iput(...);			// release held vnodes
+ *	zrele(...);			// release held znodes
  *	zil_commit(zilog, foid);	// synchronous when necessary
  *	ZFS_EXIT(zfsvfs);		// finished in zfs
  *	return (error);			// done, report error
@@ -979,18 +979,19 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
  * in a deadlock if iput_final() re-enters the filesystem code.
  */
 void
-zfs_iput_async(struct inode *ip)
+zfs_zrele_async(znode_t *zp)
 {
+	struct inode *ip = ZTOI(zp);
 	objset_t *os = ITOZSB(ip)->z_os;
 
 	ASSERT(atomic_read(&ip->i_count) > 0);
 	ASSERT(os != NULL);
 
 	if (atomic_read(&ip->i_count) == 1)
-		VERIFY(taskq_dispatch(dsl_pool_iput_taskq(dmu_objset_pool(os)),
+		VERIFY(taskq_dispatch(dsl_pool_zrele_taskq(dmu_objset_pool(os)),
 		    (task_func_t *)iput, ip, TQ_SLEEP) != TASKQID_INVALID);
 	else
-		iput(ip);
+		zrele(zp);
 }
 
 /* ARGSUSED */
@@ -1008,7 +1009,7 @@ zfs_get_done(zgd_t *zgd, int error)
 	 * Release the vnode asynchronously as we currently have the
 	 * txg stopped from syncing.
 	 */
-	zfs_iput_async(ZTOI(zp));
+	zfs_zrele_async(zp);
 
 	kmem_free(zgd, sizeof (zgd_t));
 }
@@ -1047,7 +1048,7 @@ zfs_get_data(void *arg, lr_write_t *lr, char *buf, struct lwb *lwb, zio_t *zio)
 		 * Release the vnode asynchronously as we currently have the
 		 * txg stopped from syncing.
 		 */
-		zfs_iput_async(ZTOI(zp));
+		zfs_zrele_async(zp);
 		return (SET_ERROR(ENOENT));
 	}
 
@@ -1171,14 +1172,14 @@ zfs_access(struct inode *ip, int mode, int flag, cred_t *cr)
  * Lookup an entry in a directory, or an extended attribute directory.
  * If it exists, return a held inode reference for it.
  *
- *	IN:	dip	- inode of directory to search.
+ *	IN:	zdp	- znode of directory to search.
  *		nm	- name of entry to lookup.
  *		flags	- LOOKUP_XATTR set if looking for an attribute.
  *		cr	- credentials of caller.
  *		direntflags - directory lookup flags
  *		realpnp - returned pathname.
  *
- *	OUT:	ipp	- inode of located entry, NULL if not found.
+ *	OUT:	zpp	- znode of located entry, NULL if not found.
  *
  *	RETURN:	0 on success, error code on failure.
  *
@@ -1187,11 +1188,10 @@ zfs_access(struct inode *ip, int mode, int flag, cred_t *cr)
  */
 /* ARGSUSED */
 int
-zfs_lookup(struct inode *dip, char *nm, struct inode **ipp, int flags,
+zfs_lookup(znode_t *zdp, char *nm, znode_t **zpp, int flags,
     cred_t *cr, int *direntflags, pathname_t *realpnp)
 {
-	znode_t *zdp = ITOZ(dip);
-	zfsvfs_t *zfsvfs = ITOZSB(dip);
+	zfsvfs_t *zfsvfs = ZTOZSB(zdp);
 	int error = 0;
 
 	/*
@@ -1205,7 +1205,7 @@ zfs_lookup(struct inode *dip, char *nm, struct inode **ipp, int flags,
 	 */
 	if (!(flags & (LOOKUP_XATTR | FIGNORECASE))) {
 
-		if (!S_ISDIR(dip->i_mode)) {
+		if (!S_ISDIR(ZTOI(zdp)->i_mode)) {
 			return (SET_ERROR(ENOTDIR));
 		} else if (zdp->z_sa_hdl == NULL) {
 			return (SET_ERROR(EIO));
@@ -1214,8 +1214,8 @@ zfs_lookup(struct inode *dip, char *nm, struct inode **ipp, int flags,
 		if (nm[0] == 0 || (nm[0] == '.' && nm[1] == '\0')) {
 			error = zfs_fastaccesschk_execute(zdp, cr);
 			if (!error) {
-				*ipp = dip;
-				igrab(*ipp);
+				*zpp = zdp;
+				zhold(*zpp);
 				return (0);
 			}
 			return (error);
@@ -1225,7 +1225,7 @@ zfs_lookup(struct inode *dip, char *nm, struct inode **ipp, int flags,
 	ZFS_ENTER(zfsvfs);
 	ZFS_VERIFY_ZP(zdp);
 
-	*ipp = NULL;
+	*zpp = NULL;
 
 	if (flags & LOOKUP_XATTR) {
 		/*
@@ -1237,7 +1237,7 @@ zfs_lookup(struct inode *dip, char *nm, struct inode **ipp, int flags,
 			return (SET_ERROR(EINVAL));
 		}
 
-		if ((error = zfs_get_xattrdir(zdp, ipp, cr, flags))) {
+		if ((error = zfs_get_xattrdir(zdp, zpp, cr, flags))) {
 			ZFS_EXIT(zfsvfs);
 			return (error);
 		}
@@ -1246,17 +1246,17 @@ zfs_lookup(struct inode *dip, char *nm, struct inode **ipp, int flags,
 		 * Do we have permission to get into attribute directory?
 		 */
 
-		if ((error = zfs_zaccess(ITOZ(*ipp), ACE_EXECUTE, 0,
+		if ((error = zfs_zaccess(*zpp, ACE_EXECUTE, 0,
 		    B_FALSE, cr))) {
-			iput(*ipp);
-			*ipp = NULL;
+			zrele(*zpp);
+			*zpp = NULL;
 		}
 
 		ZFS_EXIT(zfsvfs);
 		return (error);
 	}
 
-	if (!S_ISDIR(dip->i_mode)) {
+	if (!S_ISDIR(ZTOI(zdp)->i_mode)) {
 		ZFS_EXIT(zfsvfs);
 		return (SET_ERROR(ENOTDIR));
 	}
@@ -1276,9 +1276,9 @@ zfs_lookup(struct inode *dip, char *nm, struct inode **ipp, int flags,
 		return (SET_ERROR(EILSEQ));
 	}
 
-	error = zfs_dirlook(zdp, nm, ipp, flags, direntflags, realpnp);
-	if ((error == 0) && (*ipp))
-		zfs_inode_update(ITOZ(*ipp));
+	error = zfs_dirlook(zdp, nm, zpp, flags, direntflags, realpnp);
+	if ((error == 0) && (*zpp))
+		zfs_inode_update(*zpp);
 
 	ZFS_EXIT(zfsvfs);
 	return (error);
@@ -1289,7 +1289,7 @@ zfs_lookup(struct inode *dip, char *nm, struct inode **ipp, int flags,
  * already exists, truncate the file if permissible, else return
  * an error.  Return the ip of the created or trunc'd file.
  *
- *	IN:	dip	- inode of directory to put new file entry in.
+ *	IN:	dzp	- znode of directory to put new file entry in.
  *		name	- name of new file entry.
  *		vap	- attributes of new file.
  *		excl	- flag indicating exclusive or non-exclusive mode.
@@ -1298,22 +1298,22 @@ zfs_lookup(struct inode *dip, char *nm, struct inode **ipp, int flags,
  *		flag	- file flag.
  *		vsecp	- ACL to be set
  *
- *	OUT:	ipp	- inode of created or trunc'd entry.
+ *	OUT:	zpp	- znode of created or trunc'd entry.
  *
  *	RETURN:	0 on success, error code on failure.
  *
  * Timestamps:
- *	dip - ctime|mtime updated if new entry created
- *	 ip - ctime|mtime always, atime if new
+ *	dzp - ctime|mtime updated if new entry created
+ *	 zp - ctime|mtime always, atime if new
  */
 
 /* ARGSUSED */
 int
-zfs_create(struct inode *dip, char *name, vattr_t *vap, int excl,
-    int mode, struct inode **ipp, cred_t *cr, int flag, vsecattr_t *vsecp)
+zfs_create(znode_t *dzp, char *name, vattr_t *vap, int excl,
+    int mode, znode_t **zpp, cred_t *cr, int flag, vsecattr_t *vsecp)
 {
-	znode_t		*zp, *dzp = ITOZ(dip);
-	zfsvfs_t	*zfsvfs = ITOZSB(dip);
+	znode_t		*zp;
+	zfsvfs_t	*zfsvfs = ZTOZSB(dzp);
 	zilog_t		*zilog;
 	objset_t	*os;
 	zfs_dirlock_t	*dl;
@@ -1361,12 +1361,12 @@ zfs_create(struct inode *dip, char *name, vattr_t *vap, int excl,
 	}
 
 top:
-	*ipp = NULL;
+	*zpp = NULL;
 	if (*name == '\0') {
 		/*
 		 * Null component name refers to the directory itself.
 		 */
-		igrab(dip);
+		zhold(dzp);
 		zp = dzp;
 		dl = NULL;
 		error = 0;
@@ -1539,11 +1539,11 @@ out:
 
 	if (error) {
 		if (zp)
-			iput(ZTOI(zp));
+			zrele(zp);
 	} else {
 		zfs_inode_update(dzp);
 		zfs_inode_update(zp);
-		*ipp = ZTOI(zp);
+		*zpp = zp;
 	}
 
 	if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
@@ -1662,7 +1662,7 @@ out:
 
 	if (error) {
 		if (zp)
-			iput(ZTOI(zp));
+			zrele(zp);
 	} else {
 		zfs_inode_update(dzp);
 		zfs_inode_update(zp);
@@ -1676,7 +1676,7 @@ out:
 /*
  * Remove an entry from a directory.
  *
- *	IN:	dip	- inode of directory to remove entry from.
+ *	IN:	dzp	- znode of directory to remove entry from.
  *		name	- name of entry to remove.
  *		cr	- credentials of caller.
  *		flags	- case flags.
@@ -1685,7 +1685,7 @@ out:
  *		error code if failure
  *
  * Timestamps:
- *	dip - ctime|mtime
+ *	dzp - ctime|mtime
  *	 ip - ctime (if nlink > 0)
  */
 
@@ -1693,12 +1693,11 @@ uint64_t null_xattr = 0;
 
 /*ARGSUSED*/
 int
-zfs_remove(struct inode *dip, char *name, cred_t *cr, int flags)
+zfs_remove(znode_t *dzp, char *name, cred_t *cr, int flags)
 {
-	znode_t		*zp, *dzp = ITOZ(dip);
+	znode_t		*zp;
 	znode_t		*xzp;
-	struct inode	*ip;
-	zfsvfs_t	*zfsvfs = ITOZSB(dip);
+	zfsvfs_t	*zfsvfs = ZTOZSB(dzp);
 	zilog_t		*zilog;
 	uint64_t	acl_obj, xattr_obj;
 	uint64_t	xattr_obj_unlinked = 0;
@@ -1742,8 +1741,6 @@ top:
 		return (error);
 	}
 
-	ip = ZTOI(zp);
-
 	if ((error = zfs_zaccess_delete(dzp, zp, cr))) {
 		goto out;
 	}
@@ -1751,13 +1748,14 @@ top:
 	/*
 	 * Need to use rmdir for removing directories.
 	 */
-	if (S_ISDIR(ip->i_mode)) {
+	if (S_ISDIR(ZTOI(zp)->i_mode)) {
 		error = SET_ERROR(EPERM);
 		goto out;
 	}
 
 	mutex_enter(&zp->z_lock);
-	may_delete_now = atomic_read(&ip->i_count) == 1 && !(zp->z_is_mapped);
+	may_delete_now = atomic_read(&ZTOI(zp)->i_count) == 1 &&
+	    !(zp->z_is_mapped);
 	mutex_exit(&zp->z_lock);
 
 	/*
@@ -1809,17 +1807,17 @@ top:
 			waited = B_TRUE;
 			dmu_tx_wait(tx);
 			dmu_tx_abort(tx);
-			iput(ip);
+			zrele(zp);
 			if (xzp)
-				iput(ZTOI(xzp));
+				zrele(xzp);
 			goto top;
 		}
 		if (realnmp)
 			pn_free(realnmp);
 		dmu_tx_abort(tx);
-		iput(ip);
+		zrele(zp);
 		if (xzp)
-			iput(ZTOI(xzp));
+			zrele(xzp);
 		ZFS_EXIT(zfsvfs);
 		return (error);
 	}
@@ -1844,9 +1842,9 @@ top:
 		(void) sa_lookup(zp->z_sa_hdl, SA_ZPL_XATTR(zfsvfs),
 		    &xattr_obj_unlinked, sizeof (xattr_obj_unlinked));
 		delete_now = may_delete_now && !toobig &&
-		    atomic_read(&ip->i_count) == 1 && !(zp->z_is_mapped) &&
-		    xattr_obj == xattr_obj_unlinked && zfs_external_acl(zp) ==
-		    acl_obj;
+		    atomic_read(&ZTOI(zp)->i_count) == 1 &&
+		    !(zp->z_is_mapped) && xattr_obj == xattr_obj_unlinked &&
+		    zfs_external_acl(zp) == acl_obj;
 	}
 
 	if (delete_now) {
@@ -1897,13 +1895,13 @@ out:
 	zfs_inode_update(zp);
 
 	if (delete_now)
-		iput(ip);
+		zrele(zp);
 	else
-		zfs_iput_async(ip);
+		zfs_zrele_async(zp);
 
 	if (xzp) {
 		zfs_inode_update(xzp);
-		zfs_iput_async(ZTOI(xzp));
+		zfs_zrele_async(xzp);
 	}
 
 	if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
@@ -1914,32 +1912,32 @@ out:
 }
 
 /*
- * Create a new directory and insert it into dip using the name
+ * Create a new directory and insert it into dzp using the name
  * provided.  Return a pointer to the inserted directory.
  *
- *	IN:	dip	- inode of directory to add subdir to.
+ *	IN:	dzp	- znode of directory to add subdir to.
  *		dirname	- name of new directory.
  *		vap	- attributes of new directory.
  *		cr	- credentials of caller.
  *		flags	- case flags.
  *		vsecp	- ACL to be set
  *
- *	OUT:	ipp	- inode of created directory.
+ *	OUT:	zpp	- znode of created directory.
  *
  *	RETURN:	0 if success
  *		error code if failure
  *
  * Timestamps:
- *	dip - ctime|mtime updated
- *	ipp - ctime|mtime|atime updated
+ *	dzp - ctime|mtime updated
+ *	zpp - ctime|mtime|atime updated
  */
 /*ARGSUSED*/
 int
-zfs_mkdir(struct inode *dip, char *dirname, vattr_t *vap, struct inode **ipp,
+zfs_mkdir(znode_t *dzp, char *dirname, vattr_t *vap, znode_t **zpp,
     cred_t *cr, int flags, vsecattr_t *vsecp)
 {
-	znode_t		*zp, *dzp = ITOZ(dip);
-	zfsvfs_t	*zfsvfs = ITOZSB(dip);
+	znode_t		*zp;
+	zfsvfs_t	*zfsvfs = ZTOZSB(dzp);
 	zilog_t		*zilog;
 	zfs_dirlock_t	*dl;
 	uint64_t	txtype;
@@ -2005,7 +2003,7 @@ zfs_mkdir(struct inode *dip, char *dirname, vattr_t *vap, struct inode **ipp,
 	 * to fail.
 	 */
 top:
-	*ipp = NULL;
+	*zpp = NULL;
 
 	if ((error = zfs_dirent_lock(&dl, dzp, dirname, &zp, zf,
 	    NULL, NULL))) {
@@ -2078,7 +2076,7 @@ top:
 	if (fuid_dirtied)
 		zfs_fuid_sync(zfsvfs, tx);
 
-	*ipp = ZTOI(zp);
+	*zpp = zp;
 
 	txtype = zfs_log_create_txtype(Z_DIR, vsecp, vap);
 	if (flags & FIGNORECASE)
@@ -2097,7 +2095,7 @@ out:
 		zil_commit(zilog, 0);
 
 	if (error != 0) {
-		iput(ZTOI(zp));
+		zrele(zp);
 	} else {
 		zfs_inode_update(dzp);
 		zfs_inode_update(zp);
@@ -2111,7 +2109,7 @@ out:
  * directory is the same as the subdir to be removed, the
  * remove will fail.
  *
- *	IN:	dip	- inode of directory to remove from.
+ *	IN:	dzp	- znode of directory to remove from.
  *		name	- name of directory to be removed.
  *		cwd	- inode of current working directory.
  *		cr	- credentials of caller.
@@ -2120,17 +2118,15 @@ out:
  *	RETURN:	0 on success, error code on failure.
  *
  * Timestamps:
- *	dip - ctime|mtime updated
+ *	dzp - ctime|mtime updated
  */
 /*ARGSUSED*/
 int
-zfs_rmdir(struct inode *dip, char *name, struct inode *cwd, cred_t *cr,
+zfs_rmdir(znode_t *dzp, char *name, znode_t *cwd, cred_t *cr,
     int flags)
 {
-	znode_t		*dzp = ITOZ(dip);
 	znode_t		*zp;
-	struct inode	*ip;
-	zfsvfs_t	*zfsvfs = ITOZSB(dip);
+	zfsvfs_t	*zfsvfs = ZTOZSB(dzp);
 	zilog_t		*zilog;
 	zfs_dirlock_t	*dl;
 	dmu_tx_t	*tx;
@@ -2159,18 +2155,16 @@ top:
 		return (error);
 	}
 
-	ip = ZTOI(zp);
-
 	if ((error = zfs_zaccess_delete(dzp, zp, cr))) {
 		goto out;
 	}
 
-	if (!S_ISDIR(ip->i_mode)) {
+	if (!S_ISDIR(ZTOI(zp)->i_mode)) {
 		error = SET_ERROR(ENOTDIR);
 		goto out;
 	}
 
-	if (ip == cwd) {
+	if (zp == cwd) {
 		error = SET_ERROR(EINVAL);
 		goto out;
 	}
@@ -2203,11 +2197,11 @@ top:
 			waited = B_TRUE;
 			dmu_tx_wait(tx);
 			dmu_tx_abort(tx);
-			iput(ip);
+			zrele(zp);
 			goto top;
 		}
 		dmu_tx_abort(tx);
-		iput(ip);
+		zrele(zp);
 		ZFS_EXIT(zfsvfs);
 		return (error);
 	}
@@ -2231,7 +2225,7 @@ out:
 
 	zfs_inode_update(dzp);
 	zfs_inode_update(zp);
-	iput(ip);
+	zrele(zp);
 
 	if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		zil_commit(zilog, 0);
@@ -2403,10 +2397,9 @@ out:
 ulong_t zfs_fsync_sync_cnt = 4;
 
 int
-zfs_fsync(struct inode *ip, int syncflag, cred_t *cr)
+zfs_fsync(znode_t *zp, int syncflag, cred_t *cr)
 {
-	znode_t	*zp = ITOZ(ip);
-	zfsvfs_t *zfsvfs = ITOZSB(ip);
+	zfsvfs_t *zfsvfs = ZTOZSB(zp);
 
 	(void) tsd_set(zfs_fsyncer_key, (void *)zfs_fsync_sync_cnt);
 
@@ -2711,7 +2704,7 @@ zfs_setattr_dir(znode_t *dzp)
 {
 	struct inode	*dxip = ZTOI(dzp);
 	struct inode	*xip = NULL;
-	zfsvfs_t	*zfsvfs = ITOZSB(dxip);
+	zfsvfs_t	*zfsvfs = ZTOZSB(dzp);
 	objset_t	*os = zfsvfs->z_os;
 	zap_cursor_t	zc;
 	zap_attribute_t	zap;
@@ -2796,9 +2789,9 @@ zfs_setattr_dir(znode_t *dzp)
 			break;
 
 next:
-		if (xip) {
-			iput(xip);
-			xip = NULL;
+		if (zp) {
+			zrele(zp);
+			zp = NULL;
 			zfs_dirent_unlock(dl);
 		}
 		zap_cursor_advance(&zc);
@@ -2806,8 +2799,8 @@ next:
 
 	if (tx)
 		dmu_tx_abort(tx);
-	if (xip) {
-		iput(xip);
+	if (zp) {
+		zrele(zp);
 		zfs_dirent_unlock(dl);
 	}
 	zap_cursor_fini(&zc);
@@ -2819,7 +2812,7 @@ next:
  * Set the file attributes to the values contained in the
  * vattr structure.
  *
- *	IN:	ip	- inode of file to be modified.
+ *	IN:	zp	- znode of file to be modified.
  *		vap	- new attribute values.
  *			  If ATTR_XVATTR set, then optional attrs are being set
  *		flags	- ATTR_UTIME set if non-default time values provided.
@@ -2834,10 +2827,10 @@ next:
  */
 /* ARGSUSED */
 int
-zfs_setattr(struct inode *ip, vattr_t *vap, int flags, cred_t *cr)
+zfs_setattr(znode_t *zp, vattr_t *vap, int flags, cred_t *cr)
 {
-	znode_t		*zp = ITOZ(ip);
-	zfsvfs_t	*zfsvfs = ITOZSB(ip);
+	struct inode	*ip;
+	zfsvfs_t	*zfsvfs = ZTOZSB(zp);
 	objset_t	*os = zfsvfs->z_os;
 	zilog_t		*zilog;
 	dmu_tx_t	*tx;
@@ -2869,6 +2862,7 @@ zfs_setattr(struct inode *ip, vattr_t *vap, int flags, cred_t *cr)
 
 	ZFS_ENTER(zfsvfs);
 	ZFS_VERIFY_ZP(zp);
+	ip = ZTOI(zp);
 
 	/*
 	 * If this is a xvattr_t, then get a pointer to the structure of
@@ -3215,7 +3209,7 @@ top:
 			    zfs_id_overquota(zfsvfs, DMU_USERUSED_OBJECT,
 			    new_kuid)) {
 				if (attrzp)
-					iput(ZTOI(attrzp));
+					zrele(attrzp);
 				err = SET_ERROR(EDQUOT);
 				goto out2;
 			}
@@ -3228,7 +3222,7 @@ top:
 			    zfs_id_overquota(zfsvfs, DMU_GROUPUSED_OBJECT,
 			    new_kgid)) {
 				if (attrzp)
-					iput(ZTOI(attrzp));
+					zrele(attrzp);
 				err = SET_ERROR(EDQUOT);
 				goto out2;
 			}
@@ -3237,7 +3231,7 @@ top:
 		if (projid != ZFS_INVALID_PROJID &&
 		    zfs_id_overquota(zfsvfs, DMU_PROJECTUSED_OBJECT, projid)) {
 			if (attrzp)
-				iput(ZTOI(attrzp));
+				zrele(attrzp);
 			err = EDQUOT;
 			goto out2;
 		}
@@ -3514,7 +3508,7 @@ out:
 	if (err) {
 		dmu_tx_abort(tx);
 		if (attrzp)
-			iput(ZTOI(attrzp));
+			zrele(attrzp);
 		if (err == ERESTART)
 			goto top;
 	} else {
@@ -3524,7 +3518,7 @@ out:
 		if (attrzp) {
 			if (err2 == 0 && handle_eadir)
 				err2 = zfs_setattr_dir(attrzp);
-			iput(ZTOI(attrzp));
+			zrele(attrzp);
 		}
 		zfs_inode_update(zp);
 	}
@@ -3557,7 +3551,7 @@ zfs_rename_unlock(zfs_zlock_t **zlpp)
 
 	while ((zl = *zlpp) != NULL) {
 		if (zl->zl_znode != NULL)
-			zfs_iput_async(ZTOI(zl->zl_znode));
+			zfs_zrele_async(zl->zl_znode);
 		rw_exit(zl->zl_rwlock);
 		*zlpp = zl->zl_next;
 		kmem_free(zl, sizeof (*zl));
@@ -3642,9 +3636,9 @@ zfs_rename_lock(znode_t *szp, znode_t *tdzp, znode_t *sdzp, zfs_zlock_t **zlpp)
  * Move an entry from the provided source directory to the target
  * directory.  Change the entry name as indicated.
  *
- *	IN:	sdip	- Source directory containing the "old entry".
+ *	IN:	sdzp	- Source directory containing the "old entry".
  *		snm	- Old entry name.
- *		tdip	- Target directory to contain the "new entry".
+ *		tdzp	- Target directory to contain the "new entry".
  *		tnm	- New entry name.
  *		cr	- credentials of caller.
  *		flags	- case flags
@@ -3652,16 +3646,15 @@ zfs_rename_lock(znode_t *szp, znode_t *tdzp, znode_t *sdzp, zfs_zlock_t **zlpp)
  *	RETURN:	0 on success, error code on failure.
  *
  * Timestamps:
- *	sdip,tdip - ctime|mtime updated
+ *	sdzp,tdzp - ctime|mtime updated
  */
 /*ARGSUSED*/
 int
-zfs_rename(struct inode *sdip, char *snm, struct inode *tdip, char *tnm,
+zfs_rename(znode_t *sdzp, char *snm, znode_t *tdzp, char *tnm,
     cred_t *cr, int flags)
 {
-	znode_t		*tdzp, *szp, *tzp;
-	znode_t		*sdzp = ITOZ(sdip);
-	zfsvfs_t	*zfsvfs = ITOZSB(sdip);
+	znode_t		*szp, *tzp;
+	zfsvfs_t	*zfsvfs = ZTOZSB(sdzp);
 	zilog_t		*zilog;
 	zfs_dirlock_t	*sdl, *tdl;
 	dmu_tx_t	*tx;
@@ -3678,14 +3671,14 @@ zfs_rename(struct inode *sdip, char *snm, struct inode *tdip, char *tnm,
 	ZFS_VERIFY_ZP(sdzp);
 	zilog = zfsvfs->z_log;
 
-	tdzp = ITOZ(tdip);
 	ZFS_VERIFY_ZP(tdzp);
 
 	/*
 	 * We check i_sb because snapshots and the ctldir must have different
 	 * super blocks.
 	 */
-	if (tdip->i_sb != sdip->i_sb || zfsctl_is_node(tdip)) {
+	if (ZTOI(tdzp)->i_sb != ZTOI(sdzp)->i_sb ||
+	    zfsctl_is_node(ZTOI(tdzp))) {
 		ZFS_EXIT(zfsvfs);
 		return (SET_ERROR(EXDEV));
 	}
@@ -3804,7 +3797,7 @@ top:
 		if (!terr) {
 			zfs_dirent_unlock(tdl);
 			if (tzp)
-				iput(ZTOI(tzp));
+				zrele(tzp);
 		}
 
 		if (sdzp == tdzp)
@@ -3817,7 +3810,7 @@ top:
 	}
 	if (terr) {
 		zfs_dirent_unlock(sdl);
-		iput(ZTOI(szp));
+		zrele(szp);
 
 		if (sdzp == tdzp)
 			rw_exit(&sdzp->z_name_lock);
@@ -3919,15 +3912,15 @@ top:
 			waited = B_TRUE;
 			dmu_tx_wait(tx);
 			dmu_tx_abort(tx);
-			iput(ZTOI(szp));
+			zrele(szp);
 			if (tzp)
-				iput(ZTOI(tzp));
+				zrele(tzp);
 			goto top;
 		}
 		dmu_tx_abort(tx);
-		iput(ZTOI(szp));
+		zrele(szp);
 		if (tzp)
-			iput(ZTOI(tzp));
+			zrele(tzp);
 		ZFS_EXIT(zfsvfs);
 		return (error);
 	}
@@ -3993,10 +3986,10 @@ out:
 		zfs_inode_update(tdzp);
 
 	zfs_inode_update(szp);
-	iput(ZTOI(szp));
+	zrele(szp);
 	if (tzp) {
 		zfs_inode_update(tzp);
-		iput(ZTOI(tzp));
+		zrele(tzp);
 	}
 
 	if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
@@ -4009,14 +4002,14 @@ out:
 /*
  * Insert the indicated symbolic reference entry into the directory.
  *
- *	IN:	dip	- Directory to contain new symbolic link.
+ *	IN:	dzp	- Directory to contain new symbolic link.
  *		name	- Name of directory entry in dip.
  *		vap	- Attributes of new entry.
  *		link	- Name for new symlink entry.
  *		cr	- credentials of caller.
  *		flags	- case flags
  *
- *	OUT:	ipp	- Inode for new symbolic link.
+ *	OUT:	zpp	- Znode for new symbolic link.
  *
  *	RETURN:	0 on success, error code on failure.
  *
@@ -4025,13 +4018,13 @@ out:
  */
 /*ARGSUSED*/
 int
-zfs_symlink(struct inode *dip, char *name, vattr_t *vap, char *link,
-    struct inode **ipp, cred_t *cr, int flags)
+zfs_symlink(znode_t *dzp, char *name, vattr_t *vap, char *link,
+    znode_t **zpp, cred_t *cr, int flags)
 {
-	znode_t		*zp, *dzp = ITOZ(dip);
+	znode_t		*zp;
 	zfs_dirlock_t	*dl;
 	dmu_tx_t	*tx;
-	zfsvfs_t	*zfsvfs = ITOZSB(dip);
+	zfsvfs_t	*zfsvfs = ZTOZSB(dzp);
 	zilog_t		*zilog;
 	uint64_t	len = strlen(link);
 	int		error;
@@ -4069,7 +4062,7 @@ zfs_symlink(struct inode *dip, char *name, vattr_t *vap, char *link,
 		return (error);
 	}
 top:
-	*ipp = NULL;
+	*zpp = NULL;
 
 	/*
 	 * Attempt to lock directory; fail if entry already exists.
@@ -4165,12 +4158,12 @@ top:
 	zfs_dirent_unlock(dl);
 
 	if (error == 0) {
-		*ipp = ZTOI(zp);
+		*zpp = zp;
 
 		if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 			zil_commit(zilog, 0);
 	} else {
-		iput(ZTOI(zp));
+		zrele(zp);
 	}
 
 	ZFS_EXIT(zfsvfs);
@@ -4215,10 +4208,10 @@ zfs_readlink(struct inode *ip, uio_t *uio, cred_t *cr)
 }
 
 /*
- * Insert a new entry into directory tdip referencing sip.
+ * Insert a new entry into directory tdzp referencing szp.
  *
- *	IN:	tdip	- Directory to contain new entry.
- *		sip	- inode of new entry.
+ *	IN:	tdzp	- Directory to contain new entry.
+ *		szp	- znode of new entry.
  *		name	- name of new entry.
  *		cr	- credentials of caller.
  *		flags	- case flags.
@@ -4227,17 +4220,17 @@ zfs_readlink(struct inode *ip, uio_t *uio, cred_t *cr)
  *		error code if failure
  *
  * Timestamps:
- *	tdip - ctime|mtime updated
- *	 sip - ctime updated
+ *	tdzp - ctime|mtime updated
+ *	 szp - ctime updated
  */
 /* ARGSUSED */
 int
-zfs_link(struct inode *tdip, struct inode *sip, char *name, cred_t *cr,
+zfs_link(znode_t *tdzp, znode_t *szp, char *name, cred_t *cr,
     int flags)
 {
-	znode_t		*dzp = ITOZ(tdip);
-	znode_t		*tzp, *szp;
-	zfsvfs_t	*zfsvfs = ITOZSB(tdip);
+	struct inode *sip = ZTOI(szp);
+	znode_t		*tzp;
+	zfsvfs_t	*zfsvfs = ZTOZSB(tdzp);
 	zilog_t		*zilog;
 	zfs_dirlock_t	*dl;
 	dmu_tx_t	*tx;
@@ -4251,13 +4244,13 @@ zfs_link(struct inode *tdip, struct inode *sip, char *name, cred_t *cr,
 #ifdef HAVE_TMPFILE
 	is_tmpfile = (sip->i_nlink == 0 && (sip->i_state & I_LINKABLE));
 #endif
-	ASSERT(S_ISDIR(tdip->i_mode));
+	ASSERT(S_ISDIR(ZTOI(tdzp)->i_mode));
 
 	if (name == NULL)
 		return (SET_ERROR(EINVAL));
 
 	ZFS_ENTER(zfsvfs);
-	ZFS_VERIFY_ZP(dzp);
+	ZFS_VERIFY_ZP(tdzp);
 	zilog = zfsvfs->z_log;
 
 	/*
@@ -4269,7 +4262,6 @@ zfs_link(struct inode *tdip, struct inode *sip, char *name, cred_t *cr,
 		return (SET_ERROR(EPERM));
 	}
 
-	szp = ITOZ(sip);
 	ZFS_VERIFY_ZP(szp);
 
 	/*
@@ -4279,7 +4271,8 @@ zfs_link(struct inode *tdip, struct inode *sip, char *name, cred_t *cr,
 	 * such case, we only allow hard link creation in our tree when the
 	 * project IDs are the same.
 	 */
-	if (dzp->z_pflags & ZFS_PROJINHERIT && dzp->z_projid != szp->z_projid) {
+	if (tdzp->z_pflags & ZFS_PROJINHERIT &&
+	    tdzp->z_projid != szp->z_projid) {
 		ZFS_EXIT(zfsvfs);
 		return (SET_ERROR(EXDEV));
 	}
@@ -4288,7 +4281,7 @@ zfs_link(struct inode *tdip, struct inode *sip, char *name, cred_t *cr,
 	 * We check i_sb because snapshots and the ctldir must have different
 	 * super blocks.
 	 */
-	if (sip->i_sb != tdip->i_sb || zfsctl_is_node(sip)) {
+	if (sip->i_sb != ZTOI(tdzp)->i_sb || zfsctl_is_node(sip)) {
 		ZFS_EXIT(zfsvfs);
 		return (SET_ERROR(EXDEV));
 	}
@@ -4319,7 +4312,7 @@ zfs_link(struct inode *tdip, struct inode *sip, char *name, cred_t *cr,
 	 * into "normal" file space in order to circumvent restrictions
 	 * imposed in attribute space.
 	 */
-	if ((szp->z_pflags & ZFS_XATTR) != (dzp->z_pflags & ZFS_XATTR)) {
+	if ((szp->z_pflags & ZFS_XATTR) != (tdzp->z_pflags & ZFS_XATTR)) {
 		ZFS_EXIT(zfsvfs);
 		return (SET_ERROR(EINVAL));
 	}
@@ -4331,7 +4324,7 @@ zfs_link(struct inode *tdip, struct inode *sip, char *name, cred_t *cr,
 		return (SET_ERROR(EPERM));
 	}
 
-	if ((error = zfs_zaccess(dzp, ACE_ADD_FILE, 0, B_FALSE, cr))) {
+	if ((error = zfs_zaccess(tdzp, ACE_ADD_FILE, 0, B_FALSE, cr))) {
 		ZFS_EXIT(zfsvfs);
 		return (error);
 	}
@@ -4340,7 +4333,7 @@ top:
 	/*
 	 * Attempt to lock directory; fail if entry already exists.
 	 */
-	error = zfs_dirent_lock(&dl, dzp, name, &tzp, zf, NULL, NULL);
+	error = zfs_dirent_lock(&dl, tdzp, name, &tzp, zf, NULL, NULL);
 	if (error) {
 		ZFS_EXIT(zfsvfs);
 		return (error);
@@ -4348,12 +4341,12 @@ top:
 
 	tx = dmu_tx_create(zfsvfs->z_os);
 	dmu_tx_hold_sa(tx, szp->z_sa_hdl, B_FALSE);
-	dmu_tx_hold_zap(tx, dzp->z_id, TRUE, name);
+	dmu_tx_hold_zap(tx, tdzp->z_id, TRUE, name);
 	if (is_tmpfile)
 		dmu_tx_hold_zap(tx, zfsvfs->z_unlinkedobj, FALSE, NULL);
 
 	zfs_sa_upgrade_txholds(tx, szp);
-	zfs_sa_upgrade_txholds(tx, dzp);
+	zfs_sa_upgrade_txholds(tx, tdzp);
 	error = dmu_tx_assign(tx, (waited ? TXG_NOTHROTTLE : 0) | TXG_NOWAIT);
 	if (error) {
 		zfs_dirent_unlock(dl);
@@ -4387,7 +4380,7 @@ top:
 		} else {
 			if (flags & FIGNORECASE)
 				txtype |= TX_CI;
-			zfs_log_link(zilog, tx, txtype, dzp, szp, name);
+			zfs_log_link(zilog, tx, txtype, tdzp, szp, name);
 		}
 	} else if (is_tmpfile) {
 		/* restore z_unlinked since when linking failed */
@@ -4404,7 +4397,7 @@ top:
 	if (is_tmpfile)
 		txg_wait_synced(dmu_objset_pool(zfsvfs->z_os), txg);
 
-	zfs_inode_update(dzp);
+	zfs_inode_update(tdzp);
 	zfs_inode_update(szp);
 	ZFS_EXIT(zfsvfs);
 	return (error);
@@ -4925,7 +4918,7 @@ convoff(struct inode *ip, flock64_t *lckdat, int  whence, offset_t offset)
  * misnamed, as its functionality includes the ability to allocate as
  * well as free space.
  *
- *	IN:	ip	- inode of file to free data in.
+ *	IN:	zp	- znode of file to free data in.
  *		cmd	- action to take (only F_FREESP supported).
  *		bfp	- section of file to free/alloc.
  *		flag	- current file open mode flags.
@@ -4935,15 +4928,14 @@ convoff(struct inode *ip, flock64_t *lckdat, int  whence, offset_t offset)
  *	RETURN:	0 on success, error code on failure.
  *
  * Timestamps:
- *	ip - ctime|mtime updated
+ *	zp - ctime|mtime updated
  */
 /* ARGSUSED */
 int
-zfs_space(struct inode *ip, int cmd, flock64_t *bfp, int flag,
+zfs_space(znode_t *zp, int cmd, flock64_t *bfp, int flag,
     offset_t offset, cred_t *cr)
 {
-	znode_t		*zp = ITOZ(ip);
-	zfsvfs_t	*zfsvfs = ITOZSB(ip);
+	zfsvfs_t	*zfsvfs = ZTOZSB(zp);
 	uint64_t	off, len;
 	int		error;
 
@@ -4964,7 +4956,7 @@ zfs_space(struct inode *ip, int cmd, flock64_t *bfp, int flag,
 		return (SET_ERROR(EROFS));
 	}
 
-	if ((error = convoff(ip, bfp, SEEK_SET, offset))) {
+	if ((error = convoff(ZTOI(zp), bfp, SEEK_SET, offset))) {
 		ZFS_EXIT(zfsvfs);
 		return (error);
 	}
@@ -5055,10 +5047,9 @@ zfs_getsecattr(struct inode *ip, vsecattr_t *vsecp, int flag, cred_t *cr)
 
 /*ARGSUSED*/
 int
-zfs_setsecattr(struct inode *ip, vsecattr_t *vsecp, int flag, cred_t *cr)
+zfs_setsecattr(znode_t *zp, vsecattr_t *vsecp, int flag, cred_t *cr)
 {
-	znode_t *zp = ITOZ(ip);
-	zfsvfs_t *zfsvfs = ITOZSB(ip);
+	zfsvfs_t *zfsvfs = ZTOZSB(zp);
 	int error;
 	boolean_t skipaclchk = (flag & ATTR_NOACLCHECK) ? B_TRUE : B_FALSE;
 	zilog_t	*zilog = zfsvfs->z_log;

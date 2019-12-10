@@ -220,7 +220,7 @@ dsl_pool_open_impl(spa_t *spa, uint64_t txg)
 	mutex_init(&dp->dp_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&dp->dp_spaceavail_cv, NULL, CV_DEFAULT, NULL);
 
-	dp->dp_iput_taskq = taskq_create("z_iput", max_ncpus, defclsyspri,
+	dp->dp_zrele_taskq = taskq_create("z_zrele", max_ncpus, defclsyspri,
 	    max_ncpus * 8, INT_MAX, TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
 	dp->dp_unlinked_drain_taskq = taskq_create("z_unlinked_drain",
 	    max_ncpus, defclsyspri, max_ncpus, INT_MAX,
@@ -416,7 +416,7 @@ dsl_pool_close(dsl_pool_t *dp)
 	mutex_destroy(&dp->dp_lock);
 	cv_destroy(&dp->dp_spaceavail_cv);
 	taskq_destroy(dp->dp_unlinked_drain_taskq);
-	taskq_destroy(dp->dp_iput_taskq);
+	taskq_destroy(dp->dp_zrele_taskq);
 	if (dp->dp_blkstats != NULL) {
 		mutex_destroy(&dp->dp_blkstats->zab_lock);
 		vmem_free(dp->dp_blkstats, sizeof (zfs_all_blkstats_t));
@@ -1102,9 +1102,9 @@ dsl_pool_create_origin(dsl_pool_t *dp, dmu_tx_t *tx)
 }
 
 taskq_t *
-dsl_pool_iput_taskq(dsl_pool_t *dp)
+dsl_pool_zrele_taskq(dsl_pool_t *dp)
 {
-	return (dp->dp_iput_taskq);
+	return (dp->dp_zrele_taskq);
 }
 
 taskq_t *

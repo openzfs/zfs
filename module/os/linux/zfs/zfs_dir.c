@@ -377,17 +377,18 @@ zfs_dirent_unlock(zfs_dirlock_t *dl)
  *	special pseudo-directory.
  */
 int
-zfs_dirlook(znode_t *dzp, char *name, struct inode **ipp, int flags,
+zfs_dirlook(znode_t *dzp, char *name, znode_t **zpp, int flags,
     int *deflg, pathname_t *rpnp)
 {
 	zfs_dirlock_t *dl;
 	znode_t *zp;
+	struct inode *ip;
 	int error = 0;
 	uint64_t parent;
 
 	if (name[0] == 0 || (name[0] == '.' && name[1] == 0)) {
-		*ipp = ZTOI(dzp);
-		igrab(*ipp);
+		*zpp = dzp;
+		zhold(*zpp);
 	} else if (name[0] == '.' && name[1] == '.' && name[2] == 0) {
 		zfsvfs_t *zfsvfs = ZTOZSB(dzp);
 
@@ -401,16 +402,18 @@ zfs_dirlook(znode_t *dzp, char *name, struct inode **ipp, int flags,
 
 		if (parent == dzp->z_id && zfsvfs->z_parent != zfsvfs) {
 			error = zfsctl_root_lookup(zfsvfs->z_parent->z_ctldir,
-			    "snapshot", ipp, 0, kcred, NULL, NULL);
+			    "snapshot", &ip, 0, kcred, NULL, NULL);
+			*zpp = ITOZ(ip);
 			return (error);
 		}
 		rw_enter(&dzp->z_parent_lock, RW_READER);
 		error = zfs_zget(zfsvfs, parent, &zp);
 		if (error == 0)
-			*ipp = ZTOI(zp);
+			*zpp = zp;
 		rw_exit(&dzp->z_parent_lock);
 	} else if (zfs_has_ctldir(dzp) && strcmp(name, ZFS_CTLDIR_NAME) == 0) {
-		*ipp = zfsctl_root(dzp);
+		ip = zfsctl_root(dzp);
+		*zpp = ITOZ(ip);
 	} else {
 		int zf;
 
@@ -420,7 +423,7 @@ zfs_dirlook(znode_t *dzp, char *name, struct inode **ipp, int flags,
 
 		error = zfs_dirent_lock(&dl, dzp, name, &zp, zf, deflg, rpnp);
 		if (error == 0) {
-			*ipp = ZTOI(zp);
+			*zpp = zp;
 			zfs_dirent_unlock(dl);
 			dzp->z_zn_prefetch = B_TRUE; /* enable prefetching */
 		}
@@ -513,13 +516,13 @@ zfs_unlinked_drain_task(void *arg)
 		zp->z_unlinked = B_TRUE;
 
 		/*
-		 * iput() is Linux's equivalent to illumos' VN_RELE(). It will
-		 * decrement the inode's ref count and may cause the inode to be
-		 * synchronously freed. We interrupt freeing of this inode, by
-		 * checking the return value of dmu_objset_zfs_unmounting() in
-		 * dmu_free_long_range(), when an unmount is requested.
+		 * zrele() decrements the znode's ref count and may cause
+		 * it to be synchronously freed. We interrupt freeing
+		 * of this znode by checking the return value of
+		 * dmu_objset_zfs_unmounting() in dmu_free_long_range()
+		 * when an unmount is requested.
 		 */
-		iput(ZTOI(zp));
+		zrele(zp);
 		ASSERT3B(zfsvfs->z_unmounted, ==, B_FALSE);
 	}
 	zap_cursor_fini(&zc);
@@ -615,7 +618,7 @@ zfs_purgedir(znode_t *dzp)
 		error = dmu_tx_assign(tx, TXG_WAIT);
 		if (error) {
 			dmu_tx_abort(tx);
-			zfs_iput_async(ZTOI(xzp));
+			zfs_zrele_async(xzp);
 			skipped += 1;
 			continue;
 		}
@@ -628,7 +631,7 @@ zfs_purgedir(znode_t *dzp)
 			skipped += 1;
 		dmu_tx_commit(tx);
 
-		zfs_iput_async(ZTOI(xzp));
+		zfs_zrele_async(xzp);
 	}
 	zap_cursor_fini(&zc);
 	if (error != ENOENT)
@@ -747,7 +750,7 @@ zfs_rmnode(znode_t *zp)
 	dmu_tx_commit(tx);
 out:
 	if (xzp)
-		zfs_iput_async(ZTOI(xzp));
+		zfs_zrele_async(xzp);
 }
 
 static uint64_t
@@ -1031,7 +1034,7 @@ zfs_dirempty(znode_t *dzp)
 }
 
 int
-zfs_make_xattrdir(znode_t *zp, vattr_t *vap, struct inode **xipp, cred_t *cr)
+zfs_make_xattrdir(znode_t *zp, vattr_t *vap, znode_t **xzpp, cred_t *cr)
 {
 	zfsvfs_t *zfsvfs = ZTOZSB(zp);
 	znode_t *xzp;
@@ -1043,7 +1046,7 @@ zfs_make_xattrdir(znode_t *zp, vattr_t *vap, struct inode **xipp, cred_t *cr)
 	uint64_t parent;
 #endif
 
-	*xipp = NULL;
+	*xzpp = NULL;
 
 	if ((error = zfs_zaccess(zp, ACE_WRITE_NAMED_ATTRS, 0, B_FALSE, cr)))
 		return (error);
@@ -1091,7 +1094,7 @@ zfs_make_xattrdir(znode_t *zp, vattr_t *vap, struct inode **xipp, cred_t *cr)
 	zfs_acl_ids_free(&acl_ids);
 	dmu_tx_commit(tx);
 
-	*xipp = ZTOI(xzp);
+	*xzpp = xzp;
 
 	return (0);
 }
@@ -1110,7 +1113,7 @@ zfs_make_xattrdir(znode_t *zp, vattr_t *vap, struct inode **xipp, cred_t *cr)
  *		error number on failure
  */
 int
-zfs_get_xattrdir(znode_t *zp, struct inode **xipp, cred_t *cr, int flags)
+zfs_get_xattrdir(znode_t *zp, znode_t **xzpp, cred_t *cr, int flags)
 {
 	zfsvfs_t	*zfsvfs = ZTOZSB(zp);
 	znode_t		*xzp;
@@ -1123,7 +1126,7 @@ top:
 		return (error);
 
 	if (xzp != NULL) {
-		*xipp = ZTOI(xzp);
+		*xzpp = xzp;
 		zfs_dirent_unlock(dl);
 		return (0);
 	}
@@ -1153,7 +1156,7 @@ top:
 	zfs_fuid_map_ids(zp, cr, &va.va_uid, &va.va_gid);
 
 	va.va_dentry = NULL;
-	error = zfs_make_xattrdir(zp, &va, xipp, cr);
+	error = zfs_make_xattrdir(zp, &va, xzpp, cr);
 	zfs_dirent_unlock(dl);
 
 	if (error == ERESTART) {

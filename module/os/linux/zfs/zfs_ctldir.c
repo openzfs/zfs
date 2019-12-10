@@ -1185,7 +1185,7 @@ zfsctl_shares_lookup(struct inode *dip, char *name, struct inode **ipp,
     int flags, cred_t *cr, int *direntflags, pathname_t *realpnp)
 {
 	zfsvfs_t *zfsvfs = ITOZSB(dip);
-	struct inode *ip;
+	znode_t *zp;
 	znode_t *dzp;
 	int error;
 
@@ -1197,8 +1197,8 @@ zfsctl_shares_lookup(struct inode *dip, char *name, struct inode **ipp,
 	}
 
 	if ((error = zfs_zget(zfsvfs, zfsvfs->z_shares_dir, &dzp)) == 0) {
-		error = zfs_lookup(ZTOI(dzp), name, &ip, 0, cr, NULL, NULL);
-		iput(ZTOI(dzp));
+		error = zfs_lookup(dzp, name, &zp, 0, cr, NULL, NULL);
+		zrele(dzp);
 	}
 
 	ZFS_EXIT(zfsvfs);
