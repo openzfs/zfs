@@ -225,8 +225,6 @@ zstd_mempool_alloc(struct zstd_pool *zstd_mempool, size_t size)
 					pool->size = size;
 					mem->kmem_type = ZSTD_KMEM_POOL;
 					mem->kmem_size = size;
-				} else {
-					mutex_exit(&pool->barrier);
 				}
 			}
 			if (size <= pool->size) {
