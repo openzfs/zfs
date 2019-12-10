@@ -159,7 +159,6 @@ zio_decompress_data(enum zio_compress c, abd_t *src, void *dst,
 	 * the checksum.  However, for extra protection (e.g. against bitflips
 	 * in non-ECC RAM), we handle this error (and test it).
 	 */
-	ASSERT0(ret);
 	if (zio_decompress_fail_fraction != 0 &&
 	    spa_get_random(zio_decompress_fail_fraction) == 0)
 		ret = SET_ERROR(EINVAL);
