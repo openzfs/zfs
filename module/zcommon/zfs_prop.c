@@ -379,8 +379,13 @@ zfs_prop_init(void)
 	zprop_register_index(ZFS_PROP_READONLY, "readonly", 0, PROP_INHERIT,
 	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME, "on | off", "RDONLY",
 	    boolean_table);
+#ifdef __FreeBSD__
+	zprop_register_index(ZFS_PROP_ZONED, "jailed", 0, PROP_INHERIT,
+	    ZFS_TYPE_FILESYSTEM, "on | off", "JAILED", boolean_table);
+#else
 	zprop_register_index(ZFS_PROP_ZONED, "zoned", 0, PROP_INHERIT,
 	    ZFS_TYPE_FILESYSTEM, "on | off", "ZONED", boolean_table);
+#endif
 	zprop_register_index(ZFS_PROP_VSCAN, "vscan", 0, PROP_INHERIT,
 	    ZFS_TYPE_FILESYSTEM, "on | off", "VSCAN", boolean_table);
 	zprop_register_index(ZFS_PROP_NBMAND, "nbmand", 0, PROP_INHERIT,
