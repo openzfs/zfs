@@ -255,6 +255,37 @@ vdev_queue_timestamp_compare(const void *x1, const void *x2)
 	if (likely(cmp))
 		return (cmp);
 
+	cmp = TREE_CMP(z1->io_offset, z2->io_offset);
+
+	if (likely(cmp))
+		return (cmp);
+
+	return (TREE_PCMP(z1, z2));
+}
+
+/*
+ * Contain elevator sorting within 4 second time intervals.
+ * Between intervals sort by time to avoid unbound starvation.
+ */
+#define	TS_OFF			32	/* ~4 seconds. */
+#define	TS_CMP(a, b)						\
+    TREE_CMP((a)->io_timestamp >> TS_OFF, (b)->io_timestamp >> TS_OFF)
+int
+vdev_queue_tsoff_compare(const void *x1, const void *x2)
+{
+	const zio_t *z1 = (const zio_t *)x1;
+	const zio_t *z2 = (const zio_t *)x2;
+
+	int cmp = TS_CMP(z1, z2);
+
+	if (cmp)
+		return (cmp);
+
+	cmp = TREE_CMP(z1->io_offset, z2->io_offset);
+
+	if (likely(cmp))
+		return (cmp);
+
 	return (TREE_PCMP(z1, z2));
 }
 
@@ -404,7 +435,7 @@ vdev_queue_init(vdev_t *vd)
 	vq->vq_vdev = vd;
 	taskq_init_ent(&vd->vdev_queue.vq_io_search.io_tqent);
 
-	avl_create(&vq->vq_active_tree, vdev_queue_offset_compare,
+	avl_create(&vq->vq_active_tree, vdev_queue_timestamp_compare,
 	    sizeof (zio_t), offsetof(struct zio, io_queue_node));
 	avl_create(vdev_queue_type_tree(vq, ZIO_TYPE_READ),
 	    vdev_queue_offset_compare, sizeof (zio_t),
@@ -429,7 +460,7 @@ vdev_queue_init(vdev_t *vd)
 		    p == ZIO_PRIORITY_TRIM) {
 			compfn = vdev_queue_timestamp_compare;
 		} else {
-			compfn = vdev_queue_offset_compare;
+			compfn = vdev_queue_tsoff_compare;
 		}
 		avl_create(vdev_queue_class_tree(vq, p), compfn,
 		    sizeof (zio_t), offsetof(struct zio, io_queue_node));
@@ -765,12 +796,15 @@ again:
 	 * For FIFO queues (sync/trim), issue the i/o with the lowest timestamp.
 	 */
 	tree = vdev_queue_class_tree(vq, p);
-	vq->vq_io_search.io_timestamp = 0;
-	vq->vq_io_search.io_offset = vq->vq_last_offset - 1;
-	VERIFY3P(avl_find(tree, &vq->vq_io_search, &idx), ==, NULL);
-	zio = avl_nearest(tree, idx, AVL_AFTER);
-	if (zio == NULL)
-		zio = avl_first(tree);
+	zio = avl_first(tree);
+	if (tree->avl_compar == vdev_queue_tsoff_compare) {
+		vq->vq_io_search.io_timestamp = zio->io_timestamp;
+		vq->vq_io_search.io_offset = vq->vq_last_offset - 1;
+		VERIFY3P(avl_find(tree, &vq->vq_io_search, &idx), ==, NULL);
+		aio = avl_nearest(tree, idx, AVL_AFTER);
+		if (aio != NULL && TS_CMP(aio, zio) == 0)
+			zio = aio;
+	}
 	ASSERT3U(zio->io_priority, ==, p);
 
 	aio = vdev_queue_aggregate(vq, zio);
