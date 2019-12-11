@@ -69,6 +69,9 @@ extern "C" {
 #define	Z_ISLNK(type) S_ISLNK(type)
 #define	Z_ISDEV(type)	(S_ISCHR(type) || S_ISBLK(type) || S_ISFIFO(type))
 
+#define	zhold(zp)	igrab(ZTOI((zp)))
+#define	zrele(zp)	iput(ZTOI((zp)))
+
 /* Called on entry to each ZFS inode and vfs operation. */
 #define	ZFS_ENTER_ERROR(zfsvfs, error)				\
 do {								\

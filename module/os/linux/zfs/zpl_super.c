@@ -23,9 +23,9 @@
  */
 
 
+#include <sys/zfs_znode.h>
 #include <sys/zfs_vfsops.h>
 #include <sys/zfs_vnops.h>
-#include <sys/zfs_znode.h>
 #include <sys/zfs_ctldir.h>
 #include <sys/zpl.h>
 

@@ -1658,7 +1658,7 @@ zfs_prune_aliases(zfsvfs_t *zfsvfs, unsigned long nr_to_scan)
 		if (atomic_read(&ZTOI(zp)->i_count) == 1)
 			objects++;
 
-		iput(ZTOI(zp));
+		zrele(zp);
 	}
 
 	kmem_free(zp_array, max_array * sizeof (znode_t *));
@@ -1742,7 +1742,7 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 
 	/*
 	 * If someone has not already unmounted this file system,
-	 * drain the iput_taskq to ensure all active references to the
+	 * drain the zrele_taskq to ensure all active references to the
 	 * zfsvfs_t have been handled only then can it be safely destroyed.
 	 */
 	if (zfsvfs->z_os) {
@@ -1761,7 +1761,7 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 		 */
 		int round = 0;
 		while (zfsvfs->z_nr_znodes > 0) {
-			taskq_wait_outstanding(dsl_pool_iput_taskq(
+			taskq_wait_outstanding(dsl_pool_zrele_taskq(
 			    dmu_objset_pool(zfsvfs->z_os)), 0);
 			if (++round > 1 && !unmounting)
 				break;
@@ -2008,10 +2008,10 @@ zfs_preumount(struct super_block *sb)
 		zfs_unlinked_drain_stop_wait(zfsvfs);
 		zfsctl_destroy(sb->s_fs_info);
 		/*
-		 * Wait for iput_async before entering evict_inodes in
+		 * Wait for zrele_async before entering evict_inodes in
 		 * generic_shutdown_super. The reason we must finish before
 		 * evict_inodes is when lazytime is on, or when zfs_purgedir
-		 * calls zfs_zget, iput would bump i_count from 0 to 1. This
+		 * calls zfs_zget, zrele would bump i_count from 0 to 1. This
 		 * would race with the i_count check in evict_inodes. This means
 		 * it could destroy the inode while we are still using it.
 		 *
@@ -2019,12 +2019,12 @@ zfs_preumount(struct super_block *sb)
 		 * may add xattr entries in zfs_purgedir, so in the second pass
 		 * we wait for them. We don't use taskq_wait here because it is
 		 * a pool wide taskq. Other mounted filesystems can constantly
-		 * do iput_async and there's no guarantee when taskq will be
+		 * do zrele_async and there's no guarantee when taskq will be
 		 * empty.
 		 */
-		taskq_wait_outstanding(dsl_pool_iput_taskq(
+		taskq_wait_outstanding(dsl_pool_zrele_taskq(
 		    dmu_objset_pool(zfsvfs->z_os)), 0);
-		taskq_wait_outstanding(dsl_pool_iput_taskq(
+		taskq_wait_outstanding(dsl_pool_zrele_taskq(
 		    dmu_objset_pool(zfsvfs->z_os)), 0);
 	}
 }
@@ -2180,7 +2180,7 @@ zfs_vget(struct super_block *sb, struct inode **ipp, fid_t *fidp)
 
 	/* Don't export xattr stuff */
 	if (zp->z_pflags & ZFS_XATTR) {
-		iput(ZTOI(zp));
+		zrele(zp);
 		ZFS_EXIT(zfsvfs);
 		return (SET_ERROR(ENOENT));
 	}
@@ -2195,7 +2195,7 @@ zfs_vget(struct super_block *sb, struct inode **ipp, fid_t *fidp)
 	if (zp->z_unlinked || zp_gen != fid_gen) {
 		dprintf("znode gen (%llu) != fid gen (%llu)\n", zp_gen,
 		    fid_gen);
-		iput(ZTOI(zp));
+		zrele(zp);
 		ZFS_EXIT(zfsvfs);
 		return (SET_ERROR(ENOENT));
 	}
@@ -2281,7 +2281,7 @@ zfs_resume_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 
 		/* see comment in zfs_suspend_fs() */
 		if (zp->z_suspended) {
-			zfs_iput_async(ZTOI(zp));
+			zfs_zrele_async(zp);
 			zp->z_suspended = B_FALSE;
 		}
 	}
