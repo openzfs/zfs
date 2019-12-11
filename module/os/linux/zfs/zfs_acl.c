@@ -42,6 +42,7 @@
 #include <sys/zfs_fuid.h>
 #include <sys/zfs_acl.h>
 #include <sys/zfs_dir.h>
+#include <sys/zfs_quota.h>
 #include <sys/zfs_vfsops.h>
 #include <sys/dmu.h>
 #include <sys/dnode.h>

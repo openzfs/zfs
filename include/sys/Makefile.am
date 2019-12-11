@@ -107,6 +107,7 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/zfs_file.h \
 	$(top_srcdir)/include/sys/zfs_fuid.h \
 	$(top_srcdir)/include/sys/zfs_project.h \
+	$(top_srcdir)/include/sys/zfs_quota.h \
 	$(top_srcdir)/include/sys/zfs_ratelimit.h \
 	$(top_srcdir)/include/sys/zfs_rlock.h \
 	$(top_srcdir)/include/sys/zfs_sa.h \

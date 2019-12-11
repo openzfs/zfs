@@ -61,6 +61,7 @@
 #include <sys/sid.h>
 #include <sys/zfs_ctldir.h>
 #include <sys/zfs_fuid.h>
+#include <sys/zfs_quota.h>
 #include <sys/zfs_sa.h>
 #include <sys/zfs_vnops.h>
 #include <sys/zfs_rlock.h>
