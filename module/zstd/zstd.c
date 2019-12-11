@@ -42,9 +42,6 @@
 #include <sys/zstd/zstd_errors.h>
 #include <sys/zstd/error_private.h>
 
-/* for BSD compat */
-#define	__unused			__attribute__((unused))
-
 /* for userspace compile, we disable error debugging */
 #ifndef _KERNEL
 #define	printk(fmt, ...)
@@ -476,7 +473,7 @@ zstd_decompress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
  * allocator for zstd compression context using mempool_allocator
  */
 extern void *
-zstd_alloc(void *opaque __unused, size_t size)
+zstd_alloc(void *opaque __maybe_unused, size_t size)
 {
 	size_t nbytes = sizeof (struct zstd_kmem) + size;
 	struct zstd_kmem *z = NULL;
@@ -495,7 +492,7 @@ zstd_alloc(void *opaque __unused, size_t size)
  * fallback to reserved memory if allocation fails
  */
 extern void *
-zstd_dctx_alloc(void *opaque __unused, size_t size)
+zstd_dctx_alloc(void *opaque __maybe_unused, size_t size)
 {
 	size_t nbytes = sizeof (struct zstd_kmem) + size;
 	struct zstd_kmem *z = NULL;
@@ -536,7 +533,7 @@ zstd_dctx_alloc(void *opaque __unused, size_t size)
  * free allocated memory by its specific type
  */
 extern void
-zstd_free(void *opaque __unused, void *ptr)
+zstd_free(void *opaque __maybe_unused, void *ptr)
 {
 	struct zstd_kmem *z = ptr - sizeof (struct zstd_kmem);
 	enum zstd_kmem_type type;
