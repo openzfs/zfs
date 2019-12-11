@@ -160,6 +160,8 @@ dsl_dir_evict_async(void *dbu)
 		dsl_dir_livelist_close(dd);
 
 	dsl_prop_fini(dd);
+	cv_destroy(&dd->dd_activity_cv);
+	mutex_destroy(&dd->dd_activity_lock);
 	mutex_destroy(&dd->dd_lock);
 	kmem_free(dd, sizeof (dsl_dir_t));
 }
@@ -314,6 +316,8 @@ errout:
 	if (dsl_deadlist_is_open(&dd->dd_livelist))
 		dsl_dir_livelist_close(dd);
 	dsl_prop_fini(dd);
+	cv_destroy(&dd->dd_activity_cv);
+	mutex_destroy(&dd->dd_activity_lock);
 	mutex_destroy(&dd->dd_lock);
 	kmem_free(dd, sizeof (dsl_dir_t));
 	dmu_buf_rele(dbuf, tag);
@@ -2287,41 +2291,31 @@ dsl_dir_remove_livelist(dsl_dir_t *dd, dmu_tx_t *tx, boolean_t total)
 }
 
 static int
-dsl_dir_activity_in_progress(dsl_dir_t *dd, zfs_wait_activity_t activity,
-    boolean_t *in_progress)
+dsl_dir_activity_in_progress(dsl_dir_t *dd, dsl_dataset_t *ds,
+    zfs_wait_activity_t activity, boolean_t *in_progress)
 {
 	int error = 0;
-	zfs_dbgmsg("progress %px %d", dd, activity);
 
 	ASSERT(MUTEX_HELD(&dd->dd_activity_lock));
 
 	switch (activity) {
 	case ZFS_WAIT_DELETEQ: {
-		dsl_dataset_t *ds;
-		error = dsl_dataset_hold_obj(dd->dd_pool,
-		    dsl_dir_phys(dd)->dd_head_dataset_obj, FTAG, &ds);
-		if (error != 0)
-			break;
 		objset_t *os;
 		error = dmu_objset_from_ds(ds, &os);
 		if (error != 0)
 			break;
 
 		uint64_t count, unlinked_obj;
-		zfs_dbgmsg("os %px", os);
 		error = zap_lookup(os, MASTER_NODE_OBJ, ZFS_UNLINKED_SET, 8, 1,
 		    &unlinked_obj);
 		if (error != 0) {
 			dsl_dataset_rele(ds, FTAG);
 			break;
 		}
-		zfs_dbgmsg("obj %ld", unlinked_obj);
 		error = zap_count(os, unlinked_obj, &count);
 
 		if (error == 0)
 			*in_progress = (count != 0);
-
-		dsl_dataset_rele(ds, FTAG);
 		break;
 	}
 	default:
@@ -2332,14 +2326,14 @@ dsl_dir_activity_in_progress(dsl_dir_t *dd, zfs_wait_activity_t activity,
 }
 
 int
-dsl_dir_wait(dsl_dir_t *dd, zfs_wait_activity_t activity, boolean_t *waited)
+dsl_dir_wait(dsl_dir_t *dd, dsl_dataset_t *ds, zfs_wait_activity_t activity,
+    boolean_t *waited)
 {
 	int error = 0;
 	boolean_t in_progress;
-	zfs_dbgmsg("waiting %px %d", dd, activity);
 	mutex_enter(&dd->dd_activity_lock);
 	for (;;) {
-		error = dsl_dir_activity_in_progress(dd, activity,
+		error = dsl_dir_activity_in_progress(dd, ds, activity,
 		    &in_progress);
 		if (error != 0 || !in_progress)
 			break;
@@ -2347,7 +2341,7 @@ dsl_dir_wait(dsl_dir_t *dd, zfs_wait_activity_t activity, boolean_t *waited)
 		*waited = B_TRUE;
 
 		if (cv_wait_sig(&dd->dd_activity_cv, &dd->dd_activity_lock) ==
-		    0) {
+		    0 || dd->dd_activity_cancelled) {
 			error = EINTR;
 			break;
 		}

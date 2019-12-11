@@ -61,3 +61,11 @@ along with what each one waits for:
 .Bd -literal
         deleteq       The filesystem's internal delete queue to empty
 .Ed
+.Pp
+Note that the internal delete queue does not finish draining until
+all large files have had time to be fully destroyed and all open file
+handles to unlinked files are closed.
+.El
+.El
+.Sh SEE ALSO
+.Xr lsof  8

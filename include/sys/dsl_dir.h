@@ -120,8 +120,10 @@ struct dsl_dir {
 	dsl_deadlist_t dd_livelist;
 	bplist_t dd_pending_frees;
 	bplist_t dd_pending_allocs;
+
 	kmutex_t dd_activity_lock;
 	kcondvar_t dd_activity_cv;
+	boolean_t dd_activity_cancelled;
 
 	/* protected by dd_lock; keep at end of struct for better locality */
 	char dd_myname[ZFS_MAX_DATASET_NAME_LEN];
@@ -194,7 +196,7 @@ boolean_t dsl_dir_is_zapified(dsl_dir_t *dd);
 void dsl_dir_livelist_open(dsl_dir_t *dd, uint64_t obj);
 void dsl_dir_livelist_close(dsl_dir_t *dd);
 void dsl_dir_remove_livelist(dsl_dir_t *dd, dmu_tx_t *tx, boolean_t total);
-int dsl_dir_wait(dsl_dir_t *dd, zfs_wait_activity_t activity,
+int dsl_dir_wait(dsl_dir_t *dd, dsl_dataset_t *ds, zfs_wait_activity_t activity,
     boolean_t *waited);
 
 /* internal reserved dir name */

@@ -4100,6 +4100,7 @@ zfs_ioc_wait_fs(const char *name, nvlist_t *innvl, nvlist_t *outnvl)
 	int error;
 	dsl_pool_t *dp;
 	dsl_dir_t *dd;
+	dsl_dataset_t *ds;
 
 	if (nvlist_lookup_int32(innvl, ZFS_WAIT_ACTIVITY, &activity) != 0)
 		return (EINVAL);
@@ -4111,9 +4112,20 @@ zfs_ioc_wait_fs(const char *name, nvlist_t *innvl, nvlist_t *outnvl)
 		return (error);
 	}
 
-	error = dsl_dir_wait(dd, activity, &waited);
-	dsl_dir_rele(dd, FTAG);
+	if ((error = dsl_dataset_hold_obj(dd->dd_pool,
+	    dsl_dir_phys(dd)->dd_head_dataset_obj, FTAG, &ds)) != 0) {
+		dsl_pool_rele(dp, FTAG);
+		dsl_dir_rele(dd, FTAG);
+		return (error);
+	}
+	dsl_dataset_long_hold(ds, FTAG);
 	dsl_pool_rele(dp, FTAG);
+
+	error = dsl_dir_wait(dd, ds, activity, &waited);
+
+	dsl_dataset_long_rele(ds, FTAG);
+	dsl_dataset_rele(ds, FTAG);
+	dsl_dir_rele(dd, FTAG);
 
 	if (error == 0)
 		fnvlist_add_boolean_value(outnvl, ZFS_WAIT_WAITED, waited);
