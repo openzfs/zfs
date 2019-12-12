@@ -22,5 +22,6 @@ comment:
   behavior: once		# update if exists; post new; skip if deleted
   require_changes: yes		# only post when coverage changes
 
-ignore:
-  - "tests/**/*"		# Don't need Tests to cover themselves
+ignore: 
+  - ""
+  - "tests2/**/*"	# Don't need Tests to cover themselves
