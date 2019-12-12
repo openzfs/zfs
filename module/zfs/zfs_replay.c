@@ -63,7 +63,7 @@ zfs_init_vattr(vattr_t *vap, uint64_t mask, uint64_t mode,
 	vap->va_mode = mode;
 	vap->va_uid = (uid_t)(IS_EPHEMERAL(uid)) ? -1 : uid;
 	vap->va_gid = (gid_t)(IS_EPHEMERAL(gid)) ? -1 : gid;
-	vap->va_rdev = rdev;
+	vap->va_rdev = zfs_cmpldev(rdev);
 	vap->va_nodeid = nodeid;
 }
 
@@ -493,6 +493,9 @@ zfs_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 		    lr->lr_uid, lr->lr_gid);
 	}
 
+#ifdef __FreeBSD__
+	vn_lock(ZTOV(dzp), LK_EXCLUSIVE | LK_RETRY);
+#endif
 	switch (txtype) {
 	case TX_CREATE_ATTR:
 		lrattr = (lr_attr_t *)(caddr_t)(lr + 1);
@@ -543,6 +546,9 @@ zfs_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 		error = SET_ERROR(ENOTSUP);
 	}
 
+#ifdef __FreeBSD__
+	VOP_UNLOCK(ZTOV(dzp), 0);
+#endif
 out:
 	if (error == 0 && zp != NULL)
 		zrele(zp);
@@ -574,6 +580,9 @@ zfs_replay_remove(void *arg1, void *arg2, boolean_t byteswap)
 	if (lr->lr_common.lrc_txtype & TX_CI)
 		vflg |= FIGNORECASE;
 
+#ifdef __FreeBSD__
+	vn_lock(ZTOV(dzp), LK_EXCLUSIVE | LK_RETRY);
+#endif
 	switch ((int)lr->lr_common.lrc_txtype) {
 	case TX_REMOVE:
 		error = zfs_remove(dzp, name, kcred, vflg);
@@ -585,6 +594,9 @@ zfs_replay_remove(void *arg1, void *arg2, boolean_t byteswap)
 		error = SET_ERROR(ENOTSUP);
 	}
 
+#ifdef __FreeBSD__
+	VOP_UNLOCK(ZTOV(dzp), 0);
+#endif
 	zrele(dzp);
 
 	return (error);
@@ -614,8 +626,15 @@ zfs_replay_link(void *arg1, void *arg2, boolean_t byteswap)
 	if (lr->lr_common.lrc_txtype & TX_CI)
 		vflg |= FIGNORECASE;
 
+#ifdef __FreeBSD__
+	vn_lock(ZTOV(dzp), LK_EXCLUSIVE | LK_RETRY);
+	vn_lock(ZTOV(zp), LK_EXCLUSIVE | LK_RETRY);
+#endif
 	error = zfs_link(dzp, zp, name, kcred, vflg);
-
+#ifdef __FreeBSD__
+	VOP_UNLOCK(ZTOV(zp), 0);
+	VOP_UNLOCK(ZTOV(dzp), 0);
+#endif
 	zrele(zp);
 	zrele(dzp);
 
@@ -662,7 +681,7 @@ zfs_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 	lr_write_t *lr = arg2;
 	char *data = (char *)(lr + 1);	/* data follows lr_write_t */
 	znode_t	*zp;
-	int error, written;
+	int error;
 	uint64_t eod, offset, length;
 
 	if (byteswap)
@@ -706,14 +725,7 @@ zfs_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 		if (zp->z_size < eod)
 			zfsvfs->z_replay_eof = eod;
 	}
-
-	written = zpl_write_common(ZTOI(zp), data, length, &offset,
-	    UIO_SYSSPACE, 0, kcred);
-	if (written < 0)
-		error = -written;
-	else if (written < length)
-		error = SET_ERROR(EIO); /* short write */
-
+	error = zfs_write_simple(zp, data, length, offset, NULL);
 	zrele(zp);
 	zfsvfs->z_replay_eof = 0;	/* safety */
 
