@@ -553,8 +553,7 @@ gcm_init_ctx(gcm_ctx_t *gcm_ctx, char *param, size_t block_size,
 		rv = CRYPTO_SUCCESS;
 		gcm_ctx->gcm_flags |= GCM_MODE;
 	} else {
-		rv = CRYPTO_MECHANISM_PARAM_INVALID;
-		goto out;
+		return (CRYPTO_MECHANISM_PARAM_INVALID);
 	}
 
 	if (gcm_init(gcm_ctx, gcm_param->pIv, gcm_param->ulIvLen,
@@ -562,7 +561,7 @@ gcm_init_ctx(gcm_ctx_t *gcm_ctx, char *param, size_t block_size,
 	    encrypt_block, copy_block, xor_block) != 0) {
 		rv = CRYPTO_MECHANISM_PARAM_INVALID;
 	}
-out:
+
 	return (rv);
 }
 
@@ -588,8 +587,7 @@ gmac_init_ctx(gcm_ctx_t *gcm_ctx, char *param, size_t block_size,
 		rv = CRYPTO_SUCCESS;
 		gcm_ctx->gcm_flags |= GMAC_MODE;
 	} else {
-		rv = CRYPTO_MECHANISM_PARAM_INVALID;
-		goto out;
+		return (CRYPTO_MECHANISM_PARAM_INVALID);
 	}
 
 	if (gcm_init(gcm_ctx, gmac_param->pIv, AES_GMAC_IV_LEN,
@@ -597,7 +595,7 @@ gmac_init_ctx(gcm_ctx_t *gcm_ctx, char *param, size_t block_size,
 	    encrypt_block, copy_block, xor_block) != 0) {
 		rv = CRYPTO_MECHANISM_PARAM_INVALID;
 	}
-out:
+
 	return (rv);
 }
 
