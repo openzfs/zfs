@@ -860,7 +860,8 @@ tests = ['threadsappend_001_pos']
 tags = ['functional', 'threadsappend']
 
 [tests/functional/tmpfile]
-tests = ['tmpfile_001_pos', 'tmpfile_002_pos', 'tmpfile_003_pos']
+tests = ['tmpfile_001_pos', 'tmpfile_002_pos', 'tmpfile_003_pos',
+    'tmpfile_stat_mode']
 tags = ['functional', 'tmpfile']
 
 [tests/functional/trim]
