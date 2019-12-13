@@ -974,6 +974,42 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 }
 
 /*
+ * Write the bytes to a file.
+ *
+ *	IN:	zp	- znode of file to be written to
+ *		data	- bytes to write
+ *		len	- number of bytes to write
+ *		pos	- offset to start writing at
+ *
+ *	OUT:	resid	- remaining bytes to write
+ *
+ *	RETURN:	0 if success
+ *		positive error code if failure
+ *
+ * Timestamps:
+ *	zp - ctime|mtime updated if byte count > 0
+ */
+int
+zfs_write_simple(znode_t *zp, const void *data, size_t len,
+    loff_t pos, size_t *resid)
+{
+	ssize_t written;
+	int error = 0;
+
+	written = zpl_write_common(ZTOI(zp), data, len, &pos,
+	    UIO_SYSSPACE, 0, kcred);
+	if (written < 0) {
+		error = -written;
+	} else if (resid == NULL) {
+		if (written < len)
+			error = SET_ERROR(EIO); /* short write */
+	} else {
+		*resid = len - written;
+	}
+	return (error);
+}
+
+/*
  * Drop a reference on the passed inode asynchronously. This ensures
  * that the caller will never drop the last reference on an inode in
  * the current context. Doing so while holding open a tx could result
