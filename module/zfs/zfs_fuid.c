@@ -772,4 +772,24 @@ zfs_fuid_txhold(zfsvfs_t *zfsvfs, dmu_tx_t *tx)
 		    FUID_SIZE_ESTIMATE(zfsvfs));
 	}
 }
+
+/*
+ * buf must be big enough (eg, 32 bytes)
+ */
+int
+zfs_id_to_fuidstr(zfsvfs_t *zfsvfs, const char *domain, uid_t rid,
+    char *buf, boolean_t addok)
+{
+	uint64_t fuid;
+	int domainid = 0;
+
+	if (domain && domain[0]) {
+		domainid = zfs_fuid_find_by_domain(zfsvfs, domain, NULL, addok);
+		if (domainid == -1)
+			return (SET_ERROR(ENOENT));
+	}
+	fuid = FUID_ENCODE(domainid, rid);
+	(void) sprintf(buf, "%llx", (longlong_t)fuid);
+	return (0);
+}
 #endif

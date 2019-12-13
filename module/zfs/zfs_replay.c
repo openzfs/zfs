@@ -63,7 +63,7 @@ zfs_init_vattr(vattr_t *vap, uint64_t mask, uint64_t mode,
 	vap->va_mode = mode;
 	vap->va_uid = (uid_t)(IS_EPHEMERAL(uid)) ? -1 : uid;
 	vap->va_gid = (gid_t)(IS_EPHEMERAL(gid)) ? -1 : gid;
-	vap->va_rdev = rdev;
+	vap->va_rdev = zfs_cmpldev(rdev);
 	vap->va_nodeid = nodeid;
 }
 
@@ -280,7 +280,7 @@ zfs_replay_create_acl(void *arg1, void *arg2, boolean_t byteswap)
 	char *name = NULL;		/* location determined later */
 	lr_create_t *lr = (lr_create_t *)lracl;
 	znode_t *dzp;
-	struct inode *ip = NULL;
+	znode_t *zp;
 	xvattr_t xva;
 	int vflg = 0;
 	vsecattr_t vsec = { 0 };
@@ -371,8 +371,8 @@ zfs_replay_create_acl(void *arg1, void *arg2, boolean_t byteswap)
 			    lr->lr_uid, lr->lr_gid);
 		}
 
-		error = zfs_create(ZTOI(dzp), name, &xva.xva_vattr,
-		    0, 0, &ip, kcred, vflg, &vsec);
+		error = zfs_create(dzp, name, &xva.xva_vattr,
+		    0, 0, &zp, kcred, vflg, &vsec);
 		break;
 	case TX_MKDIR_ACL:
 		aclstart = (caddr_t)(lracl + 1);
@@ -401,18 +401,18 @@ zfs_replay_create_acl(void *arg1, void *arg2, boolean_t byteswap)
 			    (void *)&name, lracl->lr_fuidcnt, lracl->lr_domcnt,
 			    lr->lr_uid, lr->lr_gid);
 		}
-		error = zfs_mkdir(ZTOI(dzp), name, &xva.xva_vattr,
-		    &ip, kcred, vflg, &vsec);
+		error = zfs_mkdir(dzp, name, &xva.xva_vattr,
+		    &zp, kcred, vflg, &vsec);
 		break;
 	default:
 		error = SET_ERROR(ENOTSUP);
 	}
 
 bail:
-	if (error == 0 && ip != NULL)
-		iput(ip);
+	if (error == 0 && zp != NULL)
+		zrele(zp);
 
-	iput(ZTOI(dzp));
+	zrele(dzp);
 
 	if (zfsvfs->z_fuid_replay)
 		zfs_fuid_info_free(zfsvfs->z_fuid_replay);
@@ -429,7 +429,7 @@ zfs_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 	char *name = NULL;		/* location determined later */
 	char *link;			/* symlink content follows name */
 	znode_t *dzp;
-	struct inode *ip = NULL;
+	znode_t *zp = NULL;
 	xvattr_t xva;
 	int vflg = 0;
 	size_t lrsize = sizeof (lr_create_t);
@@ -493,6 +493,9 @@ zfs_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 		    lr->lr_uid, lr->lr_gid);
 	}
 
+#ifdef __FreeBSD__
+	vn_lock(ZTOV(dzp), LK_EXCLUSIVE | LK_RETRY);
+#endif
 	switch (txtype) {
 	case TX_CREATE_ATTR:
 		lrattr = (lr_attr_t *)(caddr_t)(lr + 1);
@@ -509,8 +512,8 @@ zfs_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 		if (name == NULL)
 			name = (char *)start;
 
-		error = zfs_create(ZTOI(dzp), name, &xva.xva_vattr,
-		    0, 0, &ip, kcred, vflg, NULL);
+		error = zfs_create(dzp, name, &xva.xva_vattr,
+		    0, 0, &zp, kcred, vflg, NULL);
 		break;
 	case TX_MKDIR_ATTR:
 		lrattr = (lr_attr_t *)(caddr_t)(lr + 1);
@@ -527,27 +530,30 @@ zfs_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 		if (name == NULL)
 			name = (char *)(lr + 1);
 
-		error = zfs_mkdir(ZTOI(dzp), name, &xva.xva_vattr,
-		    &ip, kcred, vflg, NULL);
+		error = zfs_mkdir(dzp, name, &xva.xva_vattr,
+		    &zp, kcred, vflg, NULL);
 		break;
 	case TX_MKXATTR:
-		error = zfs_make_xattrdir(dzp, &xva.xva_vattr, &ip, kcred);
+		error = zfs_make_xattrdir(dzp, &xva.xva_vattr, &zp, kcred);
 		break;
 	case TX_SYMLINK:
 		name = (char *)(lr + 1);
 		link = name + strlen(name) + 1;
-		error = zfs_symlink(ZTOI(dzp), name, &xva.xva_vattr,
-		    link, &ip, kcred, vflg);
+		error = zfs_symlink(dzp, name, &xva.xva_vattr,
+		    link, &zp, kcred, vflg);
 		break;
 	default:
 		error = SET_ERROR(ENOTSUP);
 	}
 
+#ifdef __FreeBSD__
+	VOP_UNLOCK(ZTOV(dzp), 0);
+#endif
 out:
-	if (error == 0 && ip != NULL)
-		iput(ip);
+	if (error == 0 && zp != NULL)
+		zrele(zp);
 
-	iput(ZTOI(dzp));
+	zrele(dzp);
 
 	if (zfsvfs->z_fuid_replay)
 		zfs_fuid_info_free(zfsvfs->z_fuid_replay);
@@ -574,18 +580,24 @@ zfs_replay_remove(void *arg1, void *arg2, boolean_t byteswap)
 	if (lr->lr_common.lrc_txtype & TX_CI)
 		vflg |= FIGNORECASE;
 
+#ifdef __FreeBSD__
+	vn_lock(ZTOV(dzp), LK_EXCLUSIVE | LK_RETRY);
+#endif
 	switch ((int)lr->lr_common.lrc_txtype) {
 	case TX_REMOVE:
-		error = zfs_remove(ZTOI(dzp), name, kcred, vflg);
+		error = zfs_remove(dzp, name, kcred, vflg);
 		break;
 	case TX_RMDIR:
-		error = zfs_rmdir(ZTOI(dzp), name, NULL, kcred, vflg);
+		error = zfs_rmdir(dzp, name, NULL, kcred, vflg);
 		break;
 	default:
 		error = SET_ERROR(ENOTSUP);
 	}
 
-	iput(ZTOI(dzp));
+#ifdef __FreeBSD__
+	VOP_UNLOCK(ZTOV(dzp), 0);
+#endif
+	zrele(dzp);
 
 	return (error);
 }
@@ -607,17 +619,24 @@ zfs_replay_link(void *arg1, void *arg2, boolean_t byteswap)
 		return (error);
 
 	if ((error = zfs_zget(zfsvfs, lr->lr_link_obj, &zp)) != 0) {
-		iput(ZTOI(dzp));
+		zrele(dzp);
 		return (error);
 	}
 
 	if (lr->lr_common.lrc_txtype & TX_CI)
 		vflg |= FIGNORECASE;
 
-	error = zfs_link(ZTOI(dzp), ZTOI(zp), name, kcred, vflg);
-
-	iput(ZTOI(zp));
-	iput(ZTOI(dzp));
+#ifdef __FreeBSD__
+	vn_lock(ZTOV(dzp), LK_EXCLUSIVE | LK_RETRY);
+	vn_lock(ZTOV(zp), LK_EXCLUSIVE | LK_RETRY);
+#endif
+	error = zfs_link(dzp, zp, name, kcred, vflg);
+#ifdef __FreeBSD__
+	VOP_UNLOCK(ZTOV(zp), 0);
+	VOP_UNLOCK(ZTOV(dzp), 0);
+#endif
+	zrele(zp);
+	zrele(dzp);
 
 	return (error);
 }
@@ -640,17 +659,17 @@ zfs_replay_rename(void *arg1, void *arg2, boolean_t byteswap)
 		return (error);
 
 	if ((error = zfs_zget(zfsvfs, lr->lr_tdoid, &tdzp)) != 0) {
-		iput(ZTOI(sdzp));
+		zrele(sdzp);
 		return (error);
 	}
 
 	if (lr->lr_common.lrc_txtype & TX_CI)
 		vflg |= FIGNORECASE;
 
-	error = zfs_rename(ZTOI(sdzp), sname, ZTOI(tdzp), tname, kcred, vflg);
+	error = zfs_rename(sdzp, sname, tdzp, tname, kcred, vflg);
 
-	iput(ZTOI(tdzp));
-	iput(ZTOI(sdzp));
+	zrele(tdzp);
+	zrele(sdzp);
 
 	return (error);
 }
@@ -662,7 +681,7 @@ zfs_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 	lr_write_t *lr = arg2;
 	char *data = (char *)(lr + 1);	/* data follows lr_write_t */
 	znode_t	*zp;
-	int error, written;
+	int error;
 	uint64_t eod, offset, length;
 
 	if (byteswap)
@@ -706,15 +725,8 @@ zfs_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 		if (zp->z_size < eod)
 			zfsvfs->z_replay_eof = eod;
 	}
-
-	written = zpl_write_common(ZTOI(zp), data, length, &offset,
-	    UIO_SYSSPACE, 0, kcred);
-	if (written < 0)
-		error = -written;
-	else if (written < length)
-		error = SET_ERROR(EIO); /* short write */
-
-	iput(ZTOI(zp));
+	error = zfs_write_simple(zp, data, length, offset, NULL);
+	zrele(zp);
 	zfsvfs->z_replay_eof = 0;	/* safety */
 
 	return (error);
@@ -750,7 +762,7 @@ top:
 		dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
 		error = dmu_tx_assign(tx, TXG_WAIT);
 		if (error) {
-			iput(ZTOI(zp));
+			zrele(zp);
 			if (error == ERESTART) {
 				dmu_tx_wait(tx);
 				dmu_tx_abort(tx);
@@ -768,7 +780,7 @@ top:
 		dmu_tx_commit(tx);
 	}
 
-	iput(ZTOI(zp));
+	zrele(zp);
 
 	return (error);
 }
@@ -794,10 +806,10 @@ zfs_replay_truncate(void *arg1, void *arg2, boolean_t byteswap)
 	fl.l_start = lr->lr_offset;
 	fl.l_len = lr->lr_length;
 
-	error = zfs_space(ZTOI(zp), F_FREESP, &fl, O_RDWR | O_LARGEFILE,
+	error = zfs_space(zp, F_FREESP, &fl, O_RDWR | O_LARGEFILE,
 	    lr->lr_offset, kcred);
 
-	iput(ZTOI(zp));
+	zrele(zp);
 
 	return (error);
 }
@@ -849,11 +861,11 @@ zfs_replay_setattr(void *arg1, void *arg2, boolean_t byteswap)
 	zfsvfs->z_fuid_replay = zfs_replay_fuid_domain(start, &start,
 	    lr->lr_uid, lr->lr_gid);
 
-	error = zfs_setattr(ZTOI(zp), vap, 0, kcred);
+	error = zfs_setattr(zp, vap, 0, kcred);
 
 	zfs_fuid_info_free(zfsvfs->z_fuid_replay);
 	zfsvfs->z_fuid_replay = NULL;
-	iput(ZTOI(zp));
+	zrele(zp);
 
 	return (error);
 }
@@ -883,9 +895,9 @@ zfs_replay_acl_v0(void *arg1, void *arg2, boolean_t byteswap)
 	vsa.vsa_aclflags = 0;
 	vsa.vsa_aclentp = ace;
 
-	error = zfs_setsecattr(ZTOI(zp), &vsa, 0, kcred);
+	error = zfs_setsecattr(zp, &vsa, 0, kcred);
 
-	iput(ZTOI(zp));
+	zrele(zp);
 
 	return (error);
 }
@@ -943,13 +955,13 @@ zfs_replay_acl(void *arg1, void *arg2, boolean_t byteswap)
 		    lr->lr_fuidcnt, lr->lr_domcnt, 0, 0);
 	}
 
-	error = zfs_setsecattr(ZTOI(zp), &vsa, 0, kcred);
+	error = zfs_setsecattr(zp, &vsa, 0, kcred);
 
 	if (zfsvfs->z_fuid_replay)
 		zfs_fuid_info_free(zfsvfs->z_fuid_replay);
 
 	zfsvfs->z_fuid_replay = NULL;
-	iput(ZTOI(zp));
+	zrele(zp);
 
 	return (error);
 }

@@ -198,18 +198,6 @@ extern int zfs_suspend_fs(zfsvfs_t *zfsvfs);
 extern int zfs_resume_fs(zfsvfs_t *zfsvfs, struct dsl_dataset *ds);
 extern int zfs_end_fs(zfsvfs_t *zfsvfs, struct dsl_dataset *ds);
 extern void zfs_exit_fs(zfsvfs_t *zfsvfs);
-extern int zfs_userspace_one(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
-    const char *domain, uint64_t rid, uint64_t *valuep);
-extern int zfs_userspace_many(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
-    uint64_t *cookiep, void *vbuf, uint64_t *bufsizep);
-extern int zfs_set_userquota(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
-    const char *domain, uint64_t rid, uint64_t quota);
-extern boolean_t zfs_id_overblockquota(zfsvfs_t *zfsvfs, uint64_t usedobj,
-    uint64_t id);
-extern boolean_t zfs_id_overobjquota(zfsvfs_t *zfsvfs, uint64_t usedobj,
-    uint64_t id);
-extern boolean_t zfs_id_overquota(zfsvfs_t *zfsvfs, uint64_t usedobj,
-    uint64_t id);
 extern int zfs_set_version(zfsvfs_t *zfsvfs, uint64_t newvers);
 extern int zfsvfs_create(const char *name, boolean_t readony, zfsvfs_t **zfvp);
 extern int zfsvfs_create_impl(zfsvfs_t **zfvp, zfsvfs_t *zfsvfs, objset_t *os);

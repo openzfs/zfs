@@ -29,9 +29,9 @@
 #endif
 #include <sys/file.h>
 #include <sys/dmu_objset.h>
+#include <sys/zfs_znode.h>
 #include <sys/zfs_vfsops.h>
 #include <sys/zfs_vnops.h>
-#include <sys/zfs_znode.h>
 #include <sys/zfs_project.h>
 
 
@@ -125,7 +125,7 @@ zpl_fsync(struct file *filp, int datasync)
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();
-	error = -zfs_fsync(inode, datasync, cr);
+	error = -zfs_fsync(ITOZ(inode), datasync, cr);
 	spl_fstrans_unmark(cookie);
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
@@ -163,7 +163,7 @@ zpl_fsync(struct file *filp, loff_t start, loff_t end, int datasync)
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();
-	error = -zfs_fsync(inode, datasync, cr);
+	error = -zfs_fsync(ITOZ(inode), datasync, cr);
 	spl_fstrans_unmark(cookie);
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
@@ -757,7 +757,7 @@ zpl_fallocate_common(struct inode *ip, int mode, loff_t offset, loff_t len)
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();
-	error = -zfs_space(ip, F_FREESP, &bf, O_RDWR, offset, cr);
+	error = -zfs_space(ITOZ(ip), F_FREESP, &bf, O_RDWR, offset, cr);
 	spl_fstrans_unmark(cookie);
 	spl_inode_unlock(ip);
 
@@ -886,7 +886,7 @@ zpl_ioctl_setflags(struct file *filp, void __user *arg)
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();
-	err = -zfs_setattr(ip, (vattr_t *)&xva, 0, cr);
+	err = -zfs_setattr(ITOZ(ip), (vattr_t *)&xva, 0, cr);
 	spl_fstrans_unmark(cookie);
 	crfree(cr);
 
@@ -934,7 +934,7 @@ zpl_ioctl_setxattr(struct file *filp, void __user *arg)
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();
-	err = -zfs_setattr(ip, (vattr_t *)&xva, 0, cr);
+	err = -zfs_setattr(ITOZ(ip), (vattr_t *)&xva, 0, cr);
 	spl_fstrans_unmark(cookie);
 	crfree(cr);
 

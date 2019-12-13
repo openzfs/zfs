@@ -116,6 +116,7 @@ $(MODULE)-objs += zfs_fuid.o
 $(MODULE)-objs += zfs_ioctl.o
 $(MODULE)-objs += zfs_log.o
 $(MODULE)-objs += zfs_onexit.o
+$(MODULE)-objs += zfs_quota.o
 $(MODULE)-objs += zfs_ratelimit.o
 $(MODULE)-objs += zfs_replay.o
 $(MODULE)-objs += zfs_rlock.o

@@ -361,7 +361,7 @@ do_unmount(const char *mntpt, int flags)
 }
 
 int
-zfs_can_user_mount(void)
+zfs_mount_delegation_check(void)
 {
-	return (geteuid() == 0);
+	return ((geteuid() != 0) ? EACCES : 0);
 }

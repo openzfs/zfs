@@ -49,6 +49,7 @@ usr/share/man/man8/zfs-get.8
 usr/share/man/man8/zfs-groupspace.8
 usr/share/man/man8/zfs-hold.8
 usr/share/man/man8/zfs-inherit.8
+usr/share/man/man8/zfs-jail.8
 usr/share/man/man8/zfs-list.8
 usr/share/man/man8/zfs-load-key.8
 usr/share/man/man8/zfs-mount.8
@@ -66,6 +67,7 @@ usr/share/man/man8/zfs-set.8
 usr/share/man/man8/zfs-share.8
 usr/share/man/man8/zfs-snapshot.8
 usr/share/man/man8/zfs-unallow.8
+usr/share/man/man8/zfs-unjail.8
 usr/share/man/man8/zfs-unload-key.8
 usr/share/man/man8/zfs-unmount.8
 usr/share/man/man8/zfs-upgrade.8

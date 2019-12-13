@@ -231,7 +231,8 @@ zfs_xattr_owner_unlinked(znode_t *zp)
 {
 	int unlinked = 0;
 	znode_t *dzp;
-	igrab(ZTOI(zp));
+
+	zhold(zp);
 	/*
 	 * if zp is XATTR node, keep walking up via z_xattr_parent until we
 	 * get the owner
@@ -242,11 +243,11 @@ zfs_xattr_owner_unlinked(znode_t *zp)
 			unlinked = 1;
 			break;
 		}
-		iput(ZTOI(zp));
+		zrele(zp);
 		zp = dzp;
 		unlinked = zp->z_unlinked;
 	}
-	iput(ZTOI(zp));
+	zrele(zp);
 	return (unlinked);
 }
 

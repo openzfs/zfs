@@ -77,9 +77,9 @@
  * largely avoids the issue except in the overflow case.
  */
 
+#include <sys/zfs_znode.h>
 #include <sys/zfs_vfsops.h>
 #include <sys/zfs_vnops.h>
-#include <sys/zfs_znode.h>
 #include <sys/zap.h>
 #include <sys/vfs.h>
 #include <sys/zpl.h>
@@ -184,10 +184,12 @@ zpl_xattr_list_dir(xattr_filldir_t *xf, cred_t *cr)
 {
 	struct inode *ip = xf->dentry->d_inode;
 	struct inode *dxip = NULL;
+	znode_t *dxzp;
 	int error;
 
 	/* Lookup the xattr directory */
-	error = -zfs_lookup(ip, NULL, &dxip, LOOKUP_XATTR, cr, NULL, NULL);
+	error = -zfs_lookup(ITOZ(ip), NULL, &dxzp, LOOKUP_XATTR,
+	    cr, NULL, NULL);
 	if (error) {
 		if (error == -ENOENT)
 			error = 0;
@@ -195,6 +197,7 @@ zpl_xattr_list_dir(xattr_filldir_t *xf, cred_t *cr)
 		return (error);
 	}
 
+	dxip = ZTOI(dxzp);
 	error = zpl_xattr_readdir(dxip, xf);
 	iput(dxip);
 
@@ -271,21 +274,24 @@ static int
 zpl_xattr_get_dir(struct inode *ip, const char *name, void *value,
     size_t size, cred_t *cr)
 {
-	struct inode *dxip = NULL;
 	struct inode *xip = NULL;
+	znode_t *dxzp = NULL;
+	znode_t *xzp = NULL;
 	loff_t pos = 0;
 	int error;
 
 	/* Lookup the xattr directory */
-	error = -zfs_lookup(ip, NULL, &dxip, LOOKUP_XATTR, cr, NULL, NULL);
+	error = -zfs_lookup(ITOZ(ip), NULL, &dxzp, LOOKUP_XATTR,
+	    cr, NULL, NULL);
 	if (error)
 		goto out;
 
 	/* Lookup a specific xattr name in the directory */
-	error = -zfs_lookup(dxip, (char *)name, &xip, 0, cr, NULL, NULL);
+	error = -zfs_lookup(dxzp, (char *)name, &xzp, 0, cr, NULL, NULL);
 	if (error)
 		goto out;
 
+	xip = ZTOI(xzp);
 	if (!size) {
 		error = i_size_read(xip);
 		goto out;
@@ -298,11 +304,11 @@ zpl_xattr_get_dir(struct inode *ip, const char *name, void *value,
 
 	error = zpl_read_common(xip, value, size, &pos, UIO_SYSSPACE, 0, cr);
 out:
-	if (xip)
-		iput(xip);
+	if (xzp)
+		zrele(xzp);
 
-	if (dxip)
-		iput(dxip);
+	if (dxzp)
+		zrele(dxzp);
 
 	return (error);
 }
@@ -432,8 +438,8 @@ static int
 zpl_xattr_set_dir(struct inode *ip, const char *name, const void *value,
     size_t size, int flags, cred_t *cr)
 {
-	struct inode *dxip = NULL;
-	struct inode *xip = NULL;
+	znode_t *dxzp = NULL;
+	znode_t *xzp = NULL;
 	vattr_t *vap = NULL;
 	ssize_t wrote;
 	int lookup_flags, error;
@@ -450,12 +456,13 @@ zpl_xattr_set_dir(struct inode *ip, const char *name, const void *value,
 	if (value != NULL)
 		lookup_flags |= CREATE_XATTR_DIR;
 
-	error = -zfs_lookup(ip, NULL, &dxip, lookup_flags, cr, NULL, NULL);
+	error = -zfs_lookup(ITOZ(ip), NULL, &dxzp, lookup_flags,
+	    cr, NULL, NULL);
 	if (error)
 		goto out;
 
 	/* Lookup a specific xattr name in the directory */
-	error = -zfs_lookup(dxip, (char *)name, &xip, 0, cr, NULL, NULL);
+	error = -zfs_lookup(dxzp, (char *)name, &xzp, 0, cr, NULL, NULL);
 	if (error && (error != -ENOENT))
 		goto out;
 
@@ -463,33 +470,34 @@ zpl_xattr_set_dir(struct inode *ip, const char *name, const void *value,
 
 	/* Remove a specific name xattr when value is set to NULL. */
 	if (value == NULL) {
-		if (xip)
-			error = -zfs_remove(dxip, (char *)name, cr, 0);
+		if (xzp)
+			error = -zfs_remove(dxzp, (char *)name, cr, 0);
 
 		goto out;
 	}
 
 	/* Lookup failed create a new xattr. */
-	if (xip == NULL) {
+	if (xzp == NULL) {
 		vap = kmem_zalloc(sizeof (vattr_t), KM_SLEEP);
 		vap->va_mode = xattr_mode;
 		vap->va_mask = ATTR_MODE;
 		vap->va_uid = crgetfsuid(cr);
 		vap->va_gid = crgetfsgid(cr);
 
-		error = -zfs_create(dxip, (char *)name, vap, 0, 0644, &xip,
+		error = -zfs_create(dxzp, (char *)name, vap, 0, 0644, &xzp,
 		    cr, 0, NULL);
 		if (error)
 			goto out;
 	}
 
-	ASSERT(xip != NULL);
+	ASSERT(xzp != NULL);
 
-	error = -zfs_freesp(ITOZ(xip), 0, 0, xattr_mode, TRUE);
+	error = -zfs_freesp(xzp, 0, 0, xattr_mode, TRUE);
 	if (error)
 		goto out;
 
-	wrote = zpl_write_common(xip, value, size, &pos, UIO_SYSSPACE, 0, cr);
+	wrote = zpl_write_common(ZTOI(xzp), value, size, &pos,
+	    UIO_SYSSPACE, 0, cr);
 	if (wrote < 0)
 		error = wrote;
 
@@ -503,11 +511,11 @@ out:
 	if (vap)
 		kmem_free(vap, sizeof (vattr_t));
 
-	if (xip)
-		iput(xip);
+	if (xzp)
+		zrele(xzp);
 
-	if (dxip)
-		iput(dxip);
+	if (dxzp)
+		zrele(dxzp);
 
 	if (error == -ENOENT)
 		error = -ENODATA;

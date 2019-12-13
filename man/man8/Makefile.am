@@ -17,6 +17,7 @@ dist_man_MANS = \
 	zfs-groupspace.8 \
 	zfs-hold.8 \
 	zfs-inherit.8 \
+	zfs-jail.8 \
 	zfs-list.8 \
 	zfs-load-key.8 \
 	zfs-mount.8 \
@@ -35,6 +36,7 @@ dist_man_MANS = \
 	zfs-share.8 \
 	zfs-snapshot.8 \
 	zfs-unallow.8 \
+	zfs-unjail.8 \
 	zfs-unload-key.8 \
 	zfs-unmount.8 \
 	zfs-upgrade.8 \
