@@ -230,7 +230,7 @@ code_coverage_v_lcov_cap_0 = @echo "  LCOV   --capture"\
  $(CODE_COVERAGE_OUTPUT_FILE);
 code_coverage_v_lcov_ign = $(code_coverage_v_lcov_ign_$(V))
 code_coverage_v_lcov_ign_ = $(code_coverage_v_lcov_ign_$(AM_DEFAULT_VERBOSITY))
-code_coverage_v_lcov_ign_0 = @echo "  LCOV   --remove /tmp/*"\
+code_coverage_v_lcov_ign_0 = @echo "  LCOV   --remove /tmp/* /tests/*"\
  $(CODE_COVERAGE_IGNORE_PATTERN);
 code_coverage_v_genhtml = $(code_coverage_v_genhtml_$(V))
 code_coverage_v_genhtml_ = $(code_coverage_v_genhtml_$(AM_DEFAULT_VERBOSITY))
