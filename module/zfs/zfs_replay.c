@@ -49,6 +49,16 @@
 #include <sys/zpl.h>
 
 /*
+ * NB: FreeBSD expects to be able to do vnode locking in lookup and
+ * hold the locks across all subsequent VOPs until vput is called.
+ * This means that its zfs vnops routines can't do any internal locking.
+ * In order to have the same contract as the Linux vnops there would
+ * needed to be duplicate locked vnops. If the vnops were used more widely
+ * in common code this would likely be preferable. However, currently
+ * this is the only file where this is the case.
+ */
+
+/*
  * Functions to replay ZFS intent log (ZIL) records
  * The functions are called through a function vector (zfs_replay_vector)
  * which is indexed by the transaction type.
