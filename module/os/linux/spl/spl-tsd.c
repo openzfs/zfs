@@ -98,7 +98,7 @@ static tsd_hash_table_t *tsd_hash_table = NULL;
 static tsd_hash_entry_t *
 tsd_hash_search(tsd_hash_table_t *table, uint_t key, pid_t pid)
 {
-	struct hlist_node *node;
+	struct hlist_node *node = NULL;
 	tsd_hash_entry_t *entry;
 	tsd_hash_bin_t *bin;
 	ulong_t hash;
