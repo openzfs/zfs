@@ -303,7 +303,7 @@ kmem_del_init(spinlock_t *lock, struct hlist_head *table,
     int bits, const void *addr)
 {
 	struct hlist_head *head;
-	struct hlist_node *node;
+	struct hlist_node *node = NULL;
 	struct kmem_debug *p;
 	unsigned long flags;
 
@@ -500,7 +500,7 @@ static void
 spl_kmem_fini_tracking(struct list_head *list, spinlock_t *lock)
 {
 	unsigned long flags;
-	kmem_debug_t *kd;
+	kmem_debug_t *kd = NULL;
 	char str[17];
 
 	spin_lock_irqsave(lock, flags);

@@ -649,7 +649,7 @@ static void __init
 spl_random_init(void)
 {
 	uint64_t s[2];
-	int i;
+	int i = 0;
 
 	get_random_bytes(s, sizeof (s));
 
