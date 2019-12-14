@@ -735,6 +735,11 @@ dmu_prefetch_wait(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 
 		offset += mylen;
 		size -= mylen;
+
+		if (issig(JUSTLOOKING) && issig(FORREAL)) {
+			err = SET_ERROR(EINTR);
+			break;
+		}
 	}
 
 	dnode_rele(dn, FTAG);
