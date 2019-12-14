@@ -1042,6 +1042,38 @@ dsl_redaction_list_hold_obj(dsl_pool_t *dp, uint64_t rlobj, void *tag,
 }
 
 /*
+ * Update the ZAP entry for this bookmark with dbn_phys.  This is only for
+ * use with HAS_FBN bookmarks.
+ */
+static void
+dsl_bookmark_update_entry(uint64_t bmobj, dsl_bookmark_node_t *dbn,
+    dmu_tx_t *tx)
+{
+	dsl_pool_t *dp = dmu_tx_pool(tx);
+	uint64_t int_size, num_ints;
+
+	ASSERT(dbn->dbn_phys.zbm_flags & ZBM_FLAG_HAS_FBN);
+
+	/*
+	 * Maintain the existing ZAP entry length.  Entries from the
+	 * illumos-based Delphix product have one less word (omitting
+	 * zbm_ivset_guid).  This ensures that we can bring this pool back
+	 * to the illumos-based product, as long as no new bookmarks have
+	 * been created.  We take advantage of this during the migration
+	 * process (from illumos to linux).  This code can be removed
+	 * once migration from illumos is no longer supported.
+	 */
+	VERIFY0(zap_length(dp->dp_meta_objset, bmobj, dbn->dbn_name,
+	    &int_size, &num_ints));
+	ASSERT3U(int_size, ==, sizeof (uint64_t));
+	VERIFY3U(num_ints, >=, (BOOKMARK_PHYS_SIZE_V2 / int_size) - 1);
+
+	VERIFY0(zap_update(dp->dp_meta_objset, bmobj,
+	    dbn->dbn_name, int_size, num_ints,
+	    &dbn->dbn_phys, tx));
+}
+
+/*
  * Snapshot ds is being destroyed.
  *
  * Adjust the "freed_before_next" of any bookmarks between this snap
@@ -1114,10 +1146,7 @@ dsl_bookmark_ds_destroyed(dsl_dataset_t *ds, dmu_tx_t *tx)
 		    compressed;
 		dbn->dbn_phys.zbm_uncompressed_freed_before_next_snap +=
 		    uncompressed;
-		VERIFY0(zap_update(dp->dp_meta_objset, head->ds_bookmarks_obj,
-		    dbn->dbn_name, sizeof (uint64_t),
-		    sizeof (zfs_bookmark_phys_t) / sizeof (uint64_t),
-		    &dbn->dbn_phys, tx));
+		dsl_bookmark_update_entry(head->ds_bookmarks_obj, dbn, tx);
 	}
 	dsl_dataset_rele(next, FTAG);
 
@@ -1139,10 +1168,7 @@ dsl_bookmark_ds_destroyed(dsl_dataset_t *ds, dmu_tx_t *tx)
 		}
 		ASSERT(dbn->dbn_phys.zbm_flags & ZBM_FLAG_SNAPSHOT_EXISTS);
 		dbn->dbn_phys.zbm_flags &= ~ZBM_FLAG_SNAPSHOT_EXISTS;
-		VERIFY0(zap_update(dp->dp_meta_objset, head->ds_bookmarks_obj,
-		    dbn->dbn_name, sizeof (uint64_t),
-		    sizeof (zfs_bookmark_phys_t) / sizeof (uint64_t),
-		    &dbn->dbn_phys, tx));
+		dsl_bookmark_update_entry(head->ds_bookmarks_obj, dbn, tx);
 		rv = B_TRUE;
 	}
 	dsl_dataset_rele(head, FTAG);
@@ -1194,8 +1220,6 @@ void
 dsl_bookmark_next_changed(dsl_dataset_t *head, dsl_dataset_t *origin,
     dmu_tx_t *tx)
 {
-	dsl_pool_t *dp = dmu_tx_pool(tx);
-
 	/*
 	 * Find the first bookmark that HAS_FBN at the origin snapshot.
 	 */
@@ -1243,10 +1267,7 @@ dsl_bookmark_next_changed(dsl_dataset_t *head, dsl_dataset_t *origin,
 		dsl_bookmark_set_phys(&dbn->dbn_phys, origin);
 		dbn->dbn_phys.zbm_redaction_obj = redaction_obj;
 
-		VERIFY0(zap_update(dp->dp_meta_objset, head->ds_bookmarks_obj,
-		    dbn->dbn_name, sizeof (uint64_t),
-		    sizeof (zfs_bookmark_phys_t) / sizeof (uint64_t),
-		    &dbn->dbn_phys, tx));
+		dsl_bookmark_update_entry(head->ds_bookmarks_obj, dbn, tx);
 	}
 }
 
@@ -1297,8 +1318,6 @@ dsl_bookmark_block_killed(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx)
 void
 dsl_bookmark_sync_done(dsl_dataset_t *ds, dmu_tx_t *tx)
 {
-	dsl_pool_t *dp = dmu_tx_pool(tx);
-
 	if (dsl_dataset_is_snapshot(ds))
 		return;
 
@@ -1318,11 +1337,8 @@ dsl_bookmark_sync_done(dsl_dataset_t *ds, dmu_tx_t *tx)
 			 * we can always use the current bookmark struct size.
 			 */
 			ASSERT(dbn->dbn_phys.zbm_flags & ZBM_FLAG_HAS_FBN);
-			VERIFY0(zap_update(dp->dp_meta_objset,
-			    ds->ds_bookmarks_obj,
-			    dbn->dbn_name, sizeof (uint64_t),
-			    sizeof (zfs_bookmark_phys_t) / sizeof (uint64_t),
-			    &dbn->dbn_phys, tx));
+			dsl_bookmark_update_entry(ds->ds_bookmarks_obj,
+			    dbn, tx);
 			dbn->dbn_dirty = B_FALSE;
 		}
 	}
