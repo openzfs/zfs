@@ -219,7 +219,7 @@ CODE_COVERAGE_GENHTML_OPTIONS_DEFAULT ?=\
 $(if $(CODE_COVERAGE_BRANCH_COVERAGE),\
 --rc genhtml_branch_coverage=$(CODE_COVERAGE_BRANCH_COVERAGE))
 CODE_COVERAGE_GENHTML_OPTIONS ?= $(CODE_COVERAGE_GENHTML_OPTIONS_DEFAULT)
-CODE_COVERAGE_IGNORE_PATTERN ?=
+CODE_COVERAGE_IGNORE_PATTERN ?= '/tests/*'
 
 GITIGNOREFILES ?=
 GITIGNOREFILES += $(CODE_COVERAGE_OUTPUT_FILE) $(CODE_COVERAGE_OUTPUT_DIRECTORY)
@@ -230,7 +230,7 @@ code_coverage_v_lcov_cap_0 = @echo "  LCOV   --capture"\
  $(CODE_COVERAGE_OUTPUT_FILE);
 code_coverage_v_lcov_ign = $(code_coverage_v_lcov_ign_$(V))
 code_coverage_v_lcov_ign_ = $(code_coverage_v_lcov_ign_$(AM_DEFAULT_VERBOSITY))
-code_coverage_v_lcov_ign_0 = @echo "  LCOV   --remove /tmp/* /tests/*"\
+code_coverage_v_lcov_ign_0 = @echo "  LCOV   --remove /tmp/*"\
  $(CODE_COVERAGE_IGNORE_PATTERN);
 code_coverage_v_genhtml = $(code_coverage_v_genhtml_$(V))
 code_coverage_v_genhtml_ = $(code_coverage_v_genhtml_$(AM_DEFAULT_VERBOSITY))
