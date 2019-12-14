@@ -50,7 +50,7 @@ EXPORT_SYMBOL(zio_arena);
 size_t
 vmem_size(vmem_t *vmp, int typemask)
 {
-	spl_kmem_cache_t *skc;
+	spl_kmem_cache_t *skc = NULL;
 	size_t alloc = VMEM_FLOOR_SIZE;
 
 	if ((typemask & VMEM_ALLOC) && (typemask & VMEM_FREE))
