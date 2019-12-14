@@ -220,6 +220,7 @@ extern void ddt_get_dedup_stats(spa_t *spa, ddt_stat_t *dds_total);
 
 extern uint64_t ddt_get_dedup_dspace(spa_t *spa);
 extern uint64_t ddt_get_pool_dedup_ratio(spa_t *spa);
+extern uint64_t ddt_get_pool_dedup_cached(spa_t *spa);
 
 extern size_t ddt_compress(void *src, uchar_t *dst, size_t s_len, size_t d_len);
 extern void ddt_decompress(uchar_t *src, void *dst, size_t s_len, size_t d_len);

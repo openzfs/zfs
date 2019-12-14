@@ -101,6 +101,8 @@ struct zpool_handle {
 	zpool_handle_t *zpool_next;
 	char zpool_name[ZFS_MAX_DATASET_NAME_LEN];
 	int zpool_state;
+	unsigned int zpool_n_propnames;
+	char *zpool_propnames[4];
 	size_t zpool_config_size;
 	nvlist_t *zpool_config;
 	nvlist_t *zpool_old_config;

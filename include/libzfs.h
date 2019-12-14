@@ -403,6 +403,7 @@ extern nvlist_t *zpool_get_config(zpool_handle_t *, nvlist_t **);
 extern nvlist_t *zpool_get_features(zpool_handle_t *);
 extern int zpool_refresh_stats(zpool_handle_t *, boolean_t *);
 extern int zpool_get_errlog(zpool_handle_t *, nvlist_t **);
+extern void zpool_add_propname(zpool_handle_t *, char *);
 
 /*
  * Import and export functions

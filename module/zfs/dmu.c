@@ -1570,6 +1570,70 @@ dmu_write_uio(objset_t *os, uint64_t object, uio_t *uio, uint64_t size,
 }
 #endif /* _KERNEL */
 
+static void
+dbuf_cached_bps(spa_t *spa, blkptr_t *bps, uint8_t nbps,
+    uint64_t *l1sz, uint64_t *l2sz)
+{
+	int cached_flags;
+
+	if (bps == NULL)
+		return;
+
+	for (size_t blk_off = 0; blk_off < nbps; blk_off++) {
+		blkptr_t *bp = &bps[blk_off];
+
+		if (BP_IS_HOLE(bp))
+			continue;
+
+		cached_flags = arc_cached(spa, bp);
+		if (cached_flags == 0)
+			continue;
+
+		uint64_t *u64p = (cached_flags & ARC_CACHED_IN_L2) ? l2sz : l1sz;
+		*u64p += BP_GET_LSIZE(bp);
+	}
+}
+
+/*
+ * Estimate DMU object cached size.
+ */
+void
+dmu_object_cached_size(objset_t *os, uint64_t object,
+    uint64_t *l1sz, uint64_t *l2sz)
+{
+	dnode_t *dn;
+
+	*l1sz = *l2sz = 0;
+
+	if (dnode_hold(os, object, FTAG, &dn) != 0)
+		return;
+
+	/*
+	 * Hold all valid L1 blocks, asking ARC the status of each BP
+	 * contained in each such L1 block.
+	 */
+	uint8_t nbps = bp_span_in_blocks(dn->dn_indblkshift, 1);
+	int epbs = dn->dn_indblkshift - SPA_BLKPTRSHIFT;
+	for (uint64_t indblkid = 0;
+	    indblkid <= (dn->dn_maxblkid >> epbs) + 1;
+	    indblkid++) {
+		dmu_buf_impl_t *db = NULL;
+		int err = dbuf_hold_impl(dn, 1, indblkid, B_TRUE, B_FALSE,
+		    FTAG, &db);
+		if (err != 0)
+			continue;
+
+		err = dbuf_read(db, NULL, DB_RF_CANFAIL);
+		if (err == 0) {
+			dbuf_cached_bps(dmu_objset_spa(os), db->db.db_data,
+			    nbps, l1sz, l2sz);
+		}
+		dbuf_rele(db, FTAG);
+	}
+
+	dnode_rele(dn, FTAG);
+}
+
 /*
  * Allocate a loaned anonymous arc buffer.
  */

@@ -286,6 +286,12 @@ zio_t *arc_write(zio_t *pio, spa_t *spa, uint64_t txg,
 arc_prune_t *arc_add_prune_callback(arc_prune_func_t *func, void *private);
 void arc_remove_prune_callback(arc_prune_t *p);
 void arc_freed(spa_t *spa, const blkptr_t *bp);
+int arc_cached(spa_t *spa, const blkptr_t *bp);
+#define	ARC_CACHED_EMBEDDED	(1U << 0)
+#define	ARC_CACHED_IN_L1	(1U << 1)
+#define	ARC_CACHED_IN_MRU	(1U << 2)
+#define	ARC_CACHED_IN_MFU	(1U << 3)
+#define	ARC_CACHED_IN_L2	(1U << 4)
 
 void arc_flush(spa_t *spa, boolean_t retry);
 void arc_tempreserve_clear(uint64_t reserve);

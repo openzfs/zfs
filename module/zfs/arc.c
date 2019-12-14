@@ -5500,6 +5500,43 @@ arc_read_done(zio_t *zio)
 }
 
 /*
+ * Lookup the block at the specified DVA (in bp), and return the manner in
+ * which the block is cached.  A zero return indicates not cached.
+ */
+int
+arc_cached(spa_t *spa, const blkptr_t *bp)
+{
+	arc_buf_hdr_t *hdr = NULL;
+	kmutex_t *hash_lock = NULL;
+	uint64_t guid = spa_load_guid(spa);
+	int flags = 0;
+
+	if (BP_IS_EMBEDDED(bp))
+		return (ARC_CACHED_EMBEDDED);
+
+	hdr = buf_hash_find(guid, bp, &hash_lock);
+	if (hdr == NULL)
+		return (0);
+
+	if (HDR_HAS_L1HDR(hdr)) {
+		arc_state_t *state = hdr->b_l1hdr.b_state;
+		if (state == arc_mru || state == arc_mru_ghost)
+			flags |= ARC_CACHED_IN_MRU;
+		else if (state == arc_mfu || state == arc_mfu_ghost)
+			flags |= ARC_CACHED_IN_MFU;
+		else if (state == arc_l2c_only)
+			flags |= ARC_CACHED_IN_L2;
+		else
+			flags |= ARC_CACHED_IN_L1;
+	} else if (HDR_HAS_L2HDR(hdr)) {
+		flags |= ARC_CACHED_IN_L2;
+	}
+	mutex_exit(hash_lock);
+
+	return (flags);
+}
+
+/*
  * "Read" the block at the specified DVA (in bp) via the
  * cache.  If the block is found in the cache, invoke the provided
  * callback immediately and return.  Note that the `zio' parameter

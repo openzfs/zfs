@@ -5740,6 +5740,7 @@ print_one_column(zpool_prop_t prop, uint64_t value, const char *str,
 	case ZPOOL_PROP_EXPANDSZ:
 	case ZPOOL_PROP_CHECKPOINT:
 	case ZPOOL_PROP_DEDUPRATIO:
+	case ZPOOL_PROP_DEDUPCACHED:
 		if (value == 0)
 			(void) strlcpy(propval, "-", sizeof (propval));
 		else
@@ -7517,13 +7518,14 @@ print_l2cache(zpool_handle_t *zhp, status_cbdata_t *cb, nvlist_t **l2cache,
 }
 
 static void
-print_dedup_stats(nvlist_t *config)
+print_dedup_stats(zpool_handle_t *zhp, nvlist_t *config)
 {
 	ddt_histogram_t *ddh;
 	ddt_stat_t *dds;
 	ddt_object_t *ddo;
 	uint_t c;
-	char dspace[6], mspace[6];
+	char dspace[6], mspace[6], cspace[6];
+	uint64_t cspace_prop;
 
 	/*
 	 * If the pool was faulted then we may not have been able to
@@ -7534,6 +7536,9 @@ print_dedup_stats(nvlist_t *config)
 	    (uint64_t **)&ddo, &c) != 0)
 		return;
 
+	cspace_prop = zpool_get_prop_int(zhp, ZPOOL_PROP_DEDUPCACHED, NULL);
+	zfs_nicebytes(cspace_prop, cspace, sizeof (cspace));
+
 	(void) printf("\n");
 	(void) printf(gettext(" dedup: "));
 	if (ddo->ddo_count == 0) {
@@ -7543,10 +7548,11 @@ print_dedup_stats(nvlist_t *config)
 
 	zfs_nicebytes(ddo->ddo_dspace, dspace, sizeof (dspace));
 	zfs_nicebytes(ddo->ddo_mspace, mspace, sizeof (mspace));
-	(void) printf("DDT entries %llu, size %s on disk, %s in core\n",
+	(void) printf("DDT entries %llu, size %s on disk, %s in core (%s cached)\n",
 	    (u_longlong_t)ddo->ddo_count,
 	    dspace,
-	    mspace);
+	    mspace,
+	    cspace);
 
 	verify(nvlist_lookup_uint64_array(config, ZPOOL_CONFIG_DDT_STATS,
 	    (uint64_t **)&dds, &c) == 0);
@@ -7581,6 +7587,10 @@ status_callback(zpool_handle_t *zhp, void *data)
 	const char *health;
 	uint_t c;
 	vdev_stat_t *vs;
+
+	/* If dedup stats were requested, also fetch dedupcached. */
+	if (cbp->cb_dedup_stats)
+		zpool_add_propname(zhp, "dedupcached");
 
 	config = zpool_get_config(zhp, NULL);
 	reason = zpool_get_status(zhp, &msgid, &errata);
@@ -8024,7 +8034,7 @@ status_callback(zpool_handle_t *zhp, void *data)
 		}
 
 		if (cbp->cb_dedup_stats)
-			print_dedup_stats(config);
+			print_dedup_stats(zhp, config);
 	} else {
 		(void) printf(gettext("config: The configuration cannot be "
 		    "determined.\n"));

@@ -282,6 +282,52 @@ spa_prop_add_list(nvlist_t *nvl, zpool_prop_t prop, char *strval,
 	nvlist_free(propval);
 }
 
+static int
+spa_prop_add(spa_t *spa, const char *propname, nvlist_t *outnvl)
+{
+	zpool_prop_t prop = zpool_name_to_prop(propname);
+	zprop_source_t src = ZPROP_SRC_NONE;
+	uint64_t intval;
+
+	switch (prop) {
+	case ZPOOL_PROP_DEDUPCACHED:
+		intval = ddt_get_pool_dedup_cached(spa);
+		break;
+	default:
+		return (SET_ERROR(EINVAL));
+	}
+
+	spa_prop_add_list(outnvl, prop, NULL, intval, src);
+
+	return (0);
+}
+
+int
+spa_prop_get_nvlist(spa_t *spa, char **props, unsigned int n_props,
+    nvlist_t **outnvl)
+{
+	int err;
+
+	if (props == NULL)
+		return (0);
+
+	if (*outnvl == NULL) {
+		err = nvlist_alloc(outnvl, NV_UNIQUE_NAME, KM_SLEEP);
+		if (err)
+			return (err);
+	}
+
+	mutex_enter(&spa->spa_props_lock);
+
+	for (unsigned int i = 0; i < n_props && err == 0; i++) {
+		err = spa_prop_add(spa, props[i], *outnvl);
+	}
+
+	mutex_exit(&spa->spa_props_lock);
+
+	return (err);
+}
+
 /*
  * Get property values from the spa configuration.
  */
@@ -415,9 +461,11 @@ spa_prop_get(spa_t *spa, nvlist_t **nvp)
 	zap_attribute_t za;
 	int err;
 
-	err = nvlist_alloc(nvp, NV_UNIQUE_NAME, KM_SLEEP);
-	if (err)
-		return (err);
+	if (*nvp == NULL) {
+		err = nvlist_alloc(nvp, NV_UNIQUE_NAME, KM_SLEEP);
+		if (err)
+			return (err);
+	}
 
 	mutex_enter(&spa->spa_props_lock);
 

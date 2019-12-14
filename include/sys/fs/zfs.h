@@ -246,6 +246,7 @@ typedef enum {
 	ZPOOL_PROP_CHECKPOINT,
 	ZPOOL_PROP_LOAD_GUID,
 	ZPOOL_PROP_AUTOTRIM,
+	ZPOOL_PROP_DEDUPCACHED,
 	ZPOOL_NUM_PROPS
 } zpool_prop_t;
 
@@ -1389,6 +1390,12 @@ typedef enum {
  * history log.
  */
 #define	ZPOOL_HIDDEN_ARGS	"hidden_args"
+
+/*
+ * The following are names used when invoking ZFS_IOC_POOL_GET_PROPS.
+ */
+#define	ZPOOL_GET_PROPS_NAMES		"get_props_names"
+#define	ZPOOL_GET_PROPS_EXCLUSIVE	"get_props_exclusive"
 
 /*
  * The following are names used when invoking ZFS_IOC_POOL_INITIALIZE.

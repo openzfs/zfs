@@ -73,6 +73,14 @@ zpool_get_all_props(zpool_handle_t *zhp)
 
 	(void) strlcpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
 
+	if (zhp->zpool_n_propnames > 0) {
+		nvlist_t *innvl = fnvlist_alloc();
+		fnvlist_add_string_array(innvl, ZPOOL_GET_PROPS_NAMES,
+		    zhp->zpool_propnames, zhp->zpool_n_propnames);
+		if (zcmd_write_src_nvlist(hdl, &zc, innvl) != 0)
+			return (-1);
+	}
+
 	if (zcmd_alloc_dst_nvlist(hdl, &zc, 0) != 0)
 		return (-1);
 
@@ -3975,6 +3983,15 @@ static int
 zbookmark_mem_compare(const void *a, const void *b)
 {
 	return (memcmp(a, b, sizeof (zbookmark_phys_t)));
+}
+
+void
+zpool_add_propname(zpool_handle_t *zhp, char *propname)
+{
+
+	assert(zhp->zpool_n_propnames < ZHP_MAX_PROPNAMES);
+	zhp->zpool_propnames[zhp->zpool_n_propnames] = propname;
+	zhp->zpool_n_propnames++;
 }
 
 /*
