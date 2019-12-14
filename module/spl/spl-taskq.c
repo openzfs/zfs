@@ -82,7 +82,7 @@ task_km_flags(uint_t flags)
 static int
 taskq_find_by_name(const char *name)
 {
-	struct list_head *tql;
+	struct list_head *tql = NULL;
 	taskq_t *tq;
 
 	list_for_each_prev(tql, &tq_list) {
@@ -211,7 +211,7 @@ task_expire_impl(taskq_ent_t *t)
 {
 	taskq_ent_t *w;
 	taskq_t *tq = t->tqent_taskq;
-	struct list_head *l;
+	struct list_head *l = NULL;
 	unsigned long flags;
 
 	spin_lock_irqsave_nested(&tq->tq_lock, flags, tq->tq_lock_class);
@@ -298,7 +298,7 @@ static void
 taskq_insert_in_order(taskq_t *tq, taskq_thread_t *tqt)
 {
 	taskq_thread_t *w;
-	struct list_head *l;
+	struct list_head *l = NULL;
 
 	ASSERT(tq);
 	ASSERT(tqt);
@@ -321,7 +321,7 @@ taskq_insert_in_order(taskq_t *tq, taskq_thread_t *tqt)
 static taskq_ent_t *
 taskq_find_list(taskq_t *tq, struct list_head *lh, taskqid_t id)
 {
-	struct list_head *l;
+	struct list_head *l = NULL;
 	taskq_ent_t *t;
 
 	list_for_each(l, lh) {
@@ -347,7 +347,7 @@ static taskq_ent_t *
 taskq_find(taskq_t *tq, taskqid_t id)
 {
 	taskq_thread_t *tqt;
-	struct list_head *l;
+	struct list_head *l = NULL;
 	taskq_ent_t *t;
 
 	t = taskq_find_list(tq, &tq->tq_delay_list, id);
@@ -1198,7 +1198,7 @@ param_set_taskq_kick(const char *val, struct kernel_param *kp)
 #endif
 {
 	int ret;
-	taskq_t *tq;
+	taskq_t *tq = NULL;
 	taskq_ent_t *t;
 	unsigned long flags;
 

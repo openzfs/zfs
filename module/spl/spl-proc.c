@@ -144,7 +144,7 @@ proc_doslab(struct ctl_table *table, int write,
 	int rc = 0;
 	unsigned long min = 0, max = ~0, val = 0, mask;
 	spl_ctl_table dummy = *table;
-	spl_kmem_cache_t *skc;
+	spl_kmem_cache_t *skc = NULL;
 
 	dummy.data = &val;
 	dummy.proc_handler = &proc_dointvec;
@@ -249,7 +249,7 @@ static int
 taskq_seq_show_impl(struct seq_file *f, void *p, boolean_t allflag)
 {
 	taskq_t *tq = p;
-	taskq_thread_t *tqt;
+	taskq_thread_t *tqt = NULL;
 	spl_wait_queue_entry_t *wq;
 	struct task_struct *tsk;
 	taskq_ent_t *tqe;
