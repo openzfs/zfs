@@ -399,10 +399,11 @@ efi_alloc_and_init(int fd, uint32_t nparts, struct dk_gpt **vtoc)
 	length = sizeof (struct dk_gpt) +
 	    sizeof (struct dk_part) * (nparts - 1);
 
-	if ((*vtoc = calloc(1, length)) == NULL)
+	vptr = calloc(1, length);
+	if (vptr == NULL)
 		return (-1);
 
-	vptr = *vtoc;
+	*vtoc = vptr;
 
 	vptr->efi_version = EFI_VERSION_CURRENT;
 	vptr->efi_lbasize = lbsize;
@@ -431,30 +432,32 @@ efi_alloc_and_read(int fd, struct dk_gpt **vtoc)
 	int			rval;
 	uint32_t		nparts;
 	int			length;
+	struct dk_gpt		*vptr;
 
 	/* figure out the number of entries that would fit into 16K */
 	nparts = EFI_MIN_ARRAY_SIZE / sizeof (efi_gpe_t);
 	length = (int) sizeof (struct dk_gpt) +
 	    (int) sizeof (struct dk_part) * (nparts - 1);
-	if ((*vtoc = calloc(1, length)) == NULL)
+	vptr = calloc(1, length);
+
+	if (vptr == NULL)
 		return (VT_ERROR);
 
-	(*vtoc)->efi_nparts = nparts;
-	rval = efi_read(fd, *vtoc);
+	vptr->efi_nparts = nparts;
+	rval = efi_read(fd, vptr);
 
-	if ((rval == VT_EINVAL) && (*vtoc)->efi_nparts > nparts) {
+	if ((rval == VT_EINVAL) && vptr->efi_nparts > nparts) {
 		void *tmp;
 		length = (int) sizeof (struct dk_gpt) +
-		    (int) sizeof (struct dk_part) *
-		    ((*vtoc)->efi_nparts - 1);
-		nparts = (*vtoc)->efi_nparts;
-		if ((tmp = realloc(*vtoc, length)) == NULL) {
-			free (*vtoc);
+		    (int) sizeof (struct dk_part) * (vptr->efi_nparts - 1);
+		nparts = vptr->efi_nparts;
+		if ((tmp = realloc(vptr, length)) == NULL) {
+			free(vptr);
 			*vtoc = NULL;
 			return (VT_ERROR);
 		} else {
-			*vtoc = tmp;
-			rval = efi_read(fd, *vtoc);
+			vptr = tmp;
+			rval = efi_read(fd, vptr);
 		}
 	}
 
@@ -463,8 +466,10 @@ efi_alloc_and_read(int fd, struct dk_gpt **vtoc)
 			(void) fprintf(stderr,
 			    "read of EFI table failed, rval=%d\n", rval);
 		}
-		free (*vtoc);
+		free(vptr);
 		*vtoc = NULL;
+	} else {
+		*vtoc = vptr;
 	}
 
 	return (rval);
