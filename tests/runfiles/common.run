@@ -100,7 +100,8 @@ tags = ['functional', 'clean_mirror']
 
 [tests/functional/cli_root/zdb]
 tests = ['zdb_001_neg', 'zdb_002_pos', 'zdb_003_pos', 'zdb_004_pos',
-    'zdb_005_pos', 'zdb_006_pos', 'zdb_checksum', 'zdb_decompress']
+    'zdb_005_pos', 'zdb_006_pos', 'zdb_checksum', 'zdb_decompress',
+    'zdb_objset_id']
 pre =
 post =
 tags = ['functional', 'cli_root', 'zdb']

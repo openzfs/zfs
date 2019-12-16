@@ -7,4 +7,5 @@ dist_pkgdata_SCRIPTS = \
 	zdb_005_pos.ksh \
 	zdb_006_pos.ksh \
 	zdb_checksum.ksh \
-	zdb_decompress.ksh
+	zdb_decompress.ksh \
+	zdb_objset_id.ksh
