@@ -232,7 +232,13 @@ zfs_xattr_owner_unlinked(znode_t *zp)
 	int unlinked = 0;
 	znode_t *dzp;
 
+	/*
+	 * zrele drops the vnode lock which violates the VOP locking contract
+	 * on FreeBSD. See comment at the top of zfs_replay.c for more detail.
+	 */
+#ifndef __FreeBSD__
 	zhold(zp);
+#endif
 	/*
 	 * if zp is XATTR node, keep walking up via z_xattr_parent until we
 	 * get the owner
@@ -247,7 +253,9 @@ zfs_xattr_owner_unlinked(znode_t *zp)
 		zp = dzp;
 		unlinked = zp->z_unlinked;
 	}
+#ifndef __FreeBSD__
 	zrele(zp);
+#endif
 	return (unlinked);
 }
 
