@@ -436,7 +436,11 @@ decrypt_fs()
 
 			# Prompt with ZFS tty, otherwise
 			else
+				# Setting "printk" temporarily to "7" will allow prompt even if kernel option "quiet"
+				storeprintk="$(awk '{print $1}' /proc/sys/kernel/printk)"
+				echo 7 > /proc/sys/kernel/printk
 				$ZFS load-key "${ENCRYPTIONROOT}"
+				echo "$storeprintk" > /proc/sys/kernel/printk
 			fi
 		fi
 	fi
