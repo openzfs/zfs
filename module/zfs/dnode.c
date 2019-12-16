@@ -1561,6 +1561,7 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 	dnode_slots_rele(dnc, idx, slots);
 
 	DNODE_VERIFY(dn);
+	ASSERT3P(dnp, !=, NULL);
 	ASSERT3P(dn->dn_dbuf, ==, db);
 	ASSERT3U(dn->dn_object, ==, object);
 	dbuf_rele(db, FTAG);
