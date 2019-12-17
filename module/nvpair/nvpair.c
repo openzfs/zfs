@@ -2559,7 +2559,7 @@ nvlist_common(nvlist_t *nvl, char *buf, size_t *buflen, int encoding,
 #else
 	int host_endian = 0;
 #endif	/* _LITTLE_ENDIAN */
-	nvs_header_t *nvh = (void *)buf;
+	nvs_header_t *nvh;
 
 	if (buflen == NULL || nvl == NULL ||
 	    (nvs.nvs_priv = (nvpriv_t *)(uintptr_t)nvl->nvl_priv) == NULL)
@@ -2578,6 +2578,7 @@ nvlist_common(nvlist_t *nvl, char *buf, size_t *buflen, int encoding,
 		if (buf == NULL || *buflen < sizeof (nvs_header_t))
 			return (EINVAL);
 
+		nvh = (void *)buf;
 		nvh->nvh_encoding = encoding;
 		nvh->nvh_endian = nvl_endian = host_endian;
 		nvh->nvh_reserved1 = 0;
@@ -2589,6 +2590,7 @@ nvlist_common(nvlist_t *nvl, char *buf, size_t *buflen, int encoding,
 			return (EINVAL);
 
 		/* get method of encoding from first byte */
+		nvh = (void *)buf;
 		encoding = nvh->nvh_encoding;
 		nvl_endian = nvh->nvh_endian;
 		break;
