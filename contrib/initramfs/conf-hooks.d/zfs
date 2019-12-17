@@ -1,6 +1,13 @@
 # Force the inclusion of Busybox in the initramfs.
 BUSYBOX=y
 
+# Setup the keyboard mapping so passphrases can be entered correctly.
+KEYMAP=y
+
+# Require the plymouth script to guarantee working video for the passphrase
+# prompting.
+FRAMEBUFFER=y
+
 # Workaround for https://bugs.launchpad.net/ubuntu/+source/initramfs-tools/+bug/1661629
 #
 # When building an initrd with MODULES=dep, which ubuntu tries to do when
