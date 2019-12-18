@@ -22,5 +22,4 @@ comment:
   behavior: once		# update if exists; post new; skip if deleted
   require_changes: yes		# only post when coverage changes
 
-ignore:
-  - "tests/**/*"		# Don't need Tests to cover themselves
+# ignore: Please place any ignores in config/ax_code_coverage.m4 instead

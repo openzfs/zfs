@@ -73,7 +73,7 @@ for arch in "i386" "sparc"; do
 	cat $orig_cmds_f | grep -v "^$" > $orig_cmds_f1
 
 	log_must cp $tst_dir/${arch}.migratedpool.DAT.Z $import_dir
-	log_must uncompress $import_dir/${arch}.migratedpool.DAT.Z
+	log_must uncompress -f $import_dir/${arch}.migratedpool.DAT.Z
 
 	# destroy the pool with same name, so that import operation succeeds.
 	poolexists $migratedpoolname && \

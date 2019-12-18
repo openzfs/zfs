@@ -410,11 +410,11 @@ decrypt_fs()
 	if [ "$(zpool list -H -o feature@encryption $(echo "${fs}" | awk -F\/ '{print $1}'))" = 'active' ]; then
 
 		# Determine dataset that holds key for root dataset
-		ENCRYPTIONROOT=$(${ZFS} get -H -o value encryptionroot "${fs}")
+		ENCRYPTIONROOT="$(get_fs_value "${fs}" encryptionroot)"
 
 		# If root dataset is encrypted...
 		if ! [ "${ENCRYPTIONROOT}" = "-" ]; then
-			KEYSTATUS="$(${ZFS} get -H -o value keystatus "${ENCRYPTIONROOT}")"
+			KEYSTATUS="$(get_fs_value "${ENCRYPTIONROOT}" keystatus)"
 			# Continue only if the key needs to be loaded
 			[ "$KEYSTATUS" = "unavailable" ] || return 0
 			TRY_COUNT=3
@@ -436,7 +436,11 @@ decrypt_fs()
 
 			# Prompt with ZFS tty, otherwise
 			else
+				# Setting "printk" temporarily to "7" will allow prompt even if kernel option "quiet"
+				storeprintk="$(awk '{print $1}' /proc/sys/kernel/printk)"
+				echo 7 > /proc/sys/kernel/printk
 				$ZFS load-key "${ENCRYPTIONROOT}"
+				echo "$storeprintk" > /proc/sys/kernel/printk
 			fi
 		fi
 	fi

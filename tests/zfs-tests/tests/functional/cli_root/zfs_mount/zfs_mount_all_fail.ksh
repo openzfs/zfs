@@ -30,7 +30,8 @@
 #       1. Create zfs filesystems
 #       2. Unmount a leaf filesystem
 #       3. Create a file in the above filesystem's mountpoint
-#       4. Verify that 'zfs mount -a' fails to mount the above
+#       4. Verify that 'zfs mount -a' fails to mount the above if on Linux
+#          or succeeds if on FreeBSD
 #       5. Verify that all other filesystems were mounted
 #
 
@@ -82,15 +83,22 @@ done
 # Create a stray file in one filesystem's mountpoint
 touch $path/0/strayfile
 
-# Verify that zfs mount -a fails
+# Verify that zfs mount -a fails on Linux or succeeds on FreeBSD
 export __ZFS_POOL_RESTRICT="$TESTPOOL"
-log_mustnot zfs $mountall
+if is_linux; then
+	log_mustnot zfs $mountall
+	log_mustnot mounted "$TESTPOOL/0"
+	typeset behaved="failed"
+else
+	log_must zfs $mountall
+	log_must mounted "$TESTPOOL/0"
+	typeset behaved="succeeded"
+fi
 unset __ZFS_POOL_RESTRICT
 
-# All filesystems except for "0" should be mounted
-log_mustnot mounted "$TESTPOOL/0"
+# All other filesystems should be mounted
 for ((i=1; i<$fscount; i++)); do
 	log_must mounted "$TESTPOOL/$i"
 done
 
-log_pass "'zfs $mountall' failed as expected."
+log_pass "'zfs $mountall' $behaved as expected."

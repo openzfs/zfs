@@ -133,7 +133,7 @@ done
 
 # Testing legacy mounted filesystem
 log_must zfs set mountpoint=legacy $fs1
-if is_linux; then
+if is_linux || is_freebsd; then
 	log_must mount -t zfs $fs1 /tmp/$dir
 else
 	log_must mount -F zfs $fs1 /tmp/$dir

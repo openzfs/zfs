@@ -571,7 +571,8 @@ function mess_file
 {
 	file=$1
 
-	filesize=$(stat -c '%s' $file)
+	filesize=$(stat_size $file)
+
 	offset=$(($RANDOM * $RANDOM % $filesize))
 	if (($RANDOM % 7 <= 1)); then
 		#
@@ -795,10 +796,20 @@ function rand_set_prop
 }
 
 # Generate a recursive checksum of a filesystem which includes the file
-# contents and any associated xattrs.
+# contents and any associated extended attributes.
 function recursive_cksum
 {
-	find $1 -type f -exec sh -c 'sha256sum {}; getfattr \
-	    --absolute-names --only-values -d {} | sha256sum' \; | \
-	    sort -k 2 | awk '{ print $1 }' | sha256sum
+	case "$(uname)" in
+	FreeBSD)
+		find $1 -type f -exec sh -c 'sha256 -q {}; lsextattr -q \
+		    system {} | sha256 -q; lsextattr -q user {} | sha256 -q' \
+		    \; | sort | sha256 -q
+		;;
+	*)
+		find $1 -type f -exec sh -c 'sha256sum {}; getfattr \
+		    --absolute-names --only-values -d {} | sha256sum' \; | \
+		    sort -k 2 | awk '{ print $1 }' | sha256sum | \
+		    awk '{ print $1 }'
+		;;
+	esac
 }

@@ -114,11 +114,23 @@ function safe_dumpadm
 		set_dumpsize $volume
 		log_must dumpadm -d $device
 	else
-		log_must swapadd
-		if ! is_swap_inuse $device ; then
-			log_must swap -a $device
+		if is_freebsd; then
+			log_must swapon
+		else
+			log_must swapadd
 		fi
-		log_must dumpadm -d swap
+		if ! is_swap_inuse $device ; then
+			if is_freebsd; then
+				log_must swapctl -a $device
+			else
+				log_must swap -a $device
+			fi
+		fi
+		if is_freebsd; then
+			log_must dumpon $device
+		else
+			log_must dumpadm -d swap
+		fi
 	fi
 }
 

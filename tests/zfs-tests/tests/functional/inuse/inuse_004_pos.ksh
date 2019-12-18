@@ -72,6 +72,9 @@ function mini_format
 	if is_linux; then
 		parted $disk -s -- mklabel gpt
 		typeset -i retval=$?
+	elif is_freebsd; then
+		gpart create -s gpt $disk
+		typeset -i retval=$?
 	else
 		typeset format_file=$TEST_BASE_DIR/format_in.$$.1
 		echo "partition" > $format_file

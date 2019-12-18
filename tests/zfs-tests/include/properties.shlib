@@ -80,8 +80,13 @@ function get_rand_large_recsize
 #
 # Functions to toggle on/off properties
 #
-typeset -a binary_props=('atime' 'devices' 'exec' 'readonly' 'setuid' 'xattr'
-    'zoned')
+typeset -a binary_props=('atime' 'devices' 'exec' 'readonly' 'setuid' 'xattr')
+
+if is_freebsd; then
+	binary_props+=('jailed')
+else
+	binary_props+=('zoned')
+fi
 
 if is_linux; then
 	# Only older kernels support non-blocking mandatory locks

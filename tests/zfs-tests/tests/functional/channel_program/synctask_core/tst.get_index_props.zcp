@@ -16,6 +16,7 @@
 arg = ...
 fs = arg["argv"][1]
 snap = arg["argv"][2]
+os = arg["argv"][3]
 
 props = {}
 
@@ -26,7 +27,11 @@ props['checksum']           = {{'on',        'default'}, {nil,         nil}}
 props['dedup']              = {{'off',       'default'}, {nil,         nil}}
 props['compression']        = {{'off',       'default'}, {nil,         nil}}
 props['snapdir']            = {{'hidden',    'default'}, {nil,         nil}}
-props['acltype']            = {{'off',       'default'}, {'off', 'default'}}
+if os == "Linux" then
+	props['acltype']    = {{'off',       'default'}, {'off', 'default'}}
+elseif os == "FreeBSD" then
+	props['aclmode']    = {{'discard',   'default'}, {'discard', 'default'}}
+end
 props['aclinherit']         = {{'restricted','default'}, {nil,         nil}}
 props['copies']             = {{'1',         'default'}, {nil,         nil}}
 props['primarycache']       = {{'all',       'default'}, {'all', 'default'}}
@@ -37,7 +42,11 @@ props['devices']            = {{'on',        'default'}, {'on',  'default'}}
 props['exec']               = {{'on',        'default'}, {'on',  'default'}}
 props['setuid']             = {{'on',        'default'}, {'on',  'default'}}
 props['readonly']           = {{'off',       'default'}, {nil,         nil}}
-props['zoned']              = {{'off',       'default'}, {nil,         nil}}
+if os == "FreeBSD" then
+	props['jailed']     = {{'off',       'default'}, {nil,         nil}}
+else
+	props['zoned']      = {{'off',       'default'}, {nil,         nil}}
+end
 props['vscan']              = {{'off',       'default'}, {nil,         nil}}
 props['nbmand']             = {{'off',       'default'}, {'off', 'default'}}
 props['version']            = {{'5',               nil}, {'5',         nil}}

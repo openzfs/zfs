@@ -109,8 +109,8 @@ for i in {1..31} {97..256}; do
 	    "File f$i did not match in the send and recv datasets."
 done
 for i in {32..96}; do
-	file_size=$(stat -c %s $send_mnt/manyrm/f$i)
-	redacted_size=$(stat -c %s $recv_mnt/f$i)
+	file_size=$(stat_size $send_mnt/manyrm/f$i)
+	redacted_size=$(stat_size $recv_mnt/f$i)
 	[[ $file_size -eq $redacted_size ]] || log_fail \
 	    "File f$i has size $file_size and redacted size $redacted_size"
 done

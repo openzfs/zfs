@@ -61,7 +61,17 @@ set -A args "$SNAPFS" "$SNAPDIR" "$TESTPOOL/$TESTCLONE" "$TESTDIR.0" \
 
 function setup_all
 {
+	if is_freebsd; then
+		# Pool creation on zvols is forbidden by default.
+		# Save and the current setting.
+		typeset _saved=$(get_tunable vol.recursive)
+		log_must set_tunable64 vol.recursive 1
+	fi
 	create_pool $TESTPOOL1 ${ZVOL_DEVDIR}/$TESTPOOL/$TESTVOL
+	if is_freebsd; then
+		# Restore the previous setting.
+		log_must set_tunable64 vol.recursive $_saved
+	fi
 	log_must zfs create $TESTPOOL1/$TESTFS
 	log_must zfs set mountpoint=$TESTDIR2 $TESTPOOL1/$TESTFS
 
