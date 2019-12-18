@@ -51,6 +51,7 @@ export KMOD_ZCOMMON=@abs_top_builddir@/module/zcommon/zcommon.ko
 export KMOD_ZLUA=@abs_top_builddir@/module/lua/zlua.ko
 export KMOD_ICP=@abs_top_builddir@/module/icp/icp.ko
 export KMOD_ZFS=@abs_top_builddir@/module/zfs/zfs.ko
+export KMOD_FREEBSD=@abs_top_builddir@/module/openzfs.ko
 endef
 
 export EXTRA_ENVIRONMENT
