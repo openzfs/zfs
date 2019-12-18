@@ -479,10 +479,8 @@ typedef struct v {
 		/* upper part */					\
 		"and v14.16b," VR0(r) ".16b,v15.16b\n"			\
 		"and v13.16b," VR1(r) ".16b,v15.16b\n"			\
-		"sshr " VR0(r) ".8h," VR0(r) ".8h,#4\n"			\
-		"sshr " VR1(r) ".8h," VR1(r) ".8h,#4\n"			\
-		"and " VR0(r) ".16b," VR0(r) ".16b,v15.16b\n"		\
-		"and " VR1(r) ".16b," VR1(r) ".16b,v15.16b\n"		\
+		"ushr " VR0(r) ".16b," VR0(r) ".16b,#4\n"		\
+		"ushr " VR1(r) ".16b," VR1(r) ".16b,#4\n"		\
 									\
 		"tbl v12.16b,{v10.16b}," VR0(r) ".16b\n"		\
 		"tbl v10.16b,{v10.16b}," VR1(r) ".16b\n"		\
