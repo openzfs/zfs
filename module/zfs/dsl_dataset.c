@@ -3077,7 +3077,7 @@ dsl_dataset_rename_snapshot(const char *fsname,
 static int
 dsl_dataset_handoff_check(dsl_dataset_t *ds, void *owner, dmu_tx_t *tx)
 {
-	boolean_t held;
+	boolean_t held = B_FALSE;
 
 	if (!dmu_tx_is_syncing(tx))
 		return (0);
@@ -3087,7 +3087,11 @@ dsl_dataset_handoff_check(dsl_dataset_t *ds, void *owner, dmu_tx_t *tx)
 		dsl_dataset_long_rele(ds, owner);
 	}
 
-	held = dsl_dataset_long_held(ds);
+	dsl_dir_t *dd = ds->ds_dir;
+	mutex_enter(&dd->dd_activity_lock);
+	if (zfs_refcount_count(&ds->ds_longholds) != dd->dd_activity_count)
+		held = B_TRUE;
+	mutex_exit(&dd->dd_activity_lock);
 
 	if (owner != NULL)
 		dsl_dataset_long_hold(ds, owner);
@@ -3236,6 +3240,8 @@ dsl_dataset_rollback_sync(void *arg, dmu_tx_t *tx)
 	char namebuf[ZFS_MAX_DATASET_NAME_LEN];
 
 	VERIFY0(dsl_dataset_hold(dp, ddra->ddra_fsname, FTAG, &ds));
+
+	dsl_dir_cancel_waiters(ds->ds_dir);
 
 	dsl_dataset_name(ds->ds_prev, namebuf);
 	fnvlist_add_string(ddra->ddra_result, "target", namebuf);
@@ -4035,6 +4041,8 @@ dsl_dataset_clone_swap_sync_impl(dsl_dataset_t *clone,
 	    dsl_dataset_phys(clone)->ds_unique_bytes <= origin_head->ds_quota +
 	    DMU_MAX_ACCESS * spa_asize_inflation);
 	ASSERT3P(clone->ds_prev, ==, origin_head->ds_prev);
+
+	dsl_dir_cancel_waiters(origin_head->ds_dir);
 
 	/*
 	 * Swap per-dataset feature flags.

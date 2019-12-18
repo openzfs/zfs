@@ -51,6 +51,9 @@
 #include <sys/zthr.h>
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"
+#ifdef _KERNEL
+#include <sys/zfs_vfsops.h>
+#endif
 
 /*
  * Filesystem and Snapshot Limits
@@ -2305,6 +2308,33 @@ dsl_dir_activity_in_progress(dsl_dir_t *dd, dsl_dataset_t *ds,
 		if (error != 0)
 			break;
 
+#ifdef _KERNEL
+		if (dmu_objset_type(os) != DMU_OST_ZFS ||
+		    zfs_get_vfs_flag_unmounted(os)) {
+			*in_progress = B_FALSE;
+			return (0);
+		}
+#else
+		if (dmu_objset_type(os) != DMU_OST_ZFS) {
+			*in_progress = B_FALSE;
+			return (0);
+		}
+#endif
+
+		uint64_t readonly = B_FALSE;
+		dsl_pool_config_enter(dd->dd_pool, FTAG);
+		error = dsl_prop_get_dd(dd, zfs_prop_to_name(ZFS_PROP_READONLY),
+		    sizeof (readonly), 1, &readonly, NULL, B_FALSE);
+		dsl_pool_config_exit(dd->dd_pool, FTAG);
+
+		if (error != 0)
+			break;
+
+		if (readonly) {
+			*in_progress = B_FALSE;
+			return (0);
+		}
+
 		uint64_t count, unlinked_obj;
 		error = zap_lookup(os, MASTER_NODE_OBJ, ZFS_UNLINKED_SET, 8, 1,
 		    &unlinked_obj);
@@ -2331,7 +2361,6 @@ dsl_dir_wait(dsl_dir_t *dd, dsl_dataset_t *ds, zfs_wait_activity_t activity,
 {
 	int error = 0;
 	boolean_t in_progress;
-	mutex_enter(&dd->dd_activity_lock);
 	for (;;) {
 		error = dsl_dir_activity_in_progress(dd, ds, activity,
 		    &in_progress);
@@ -2346,11 +2375,22 @@ dsl_dir_wait(dsl_dir_t *dd, dsl_dataset_t *ds, zfs_wait_activity_t activity,
 			break;
 		}
 	}
-	mutex_exit(&dd->dd_activity_lock);
 	return (error);
+}
+
+void
+dsl_dir_cancel_waiters(dsl_dir_t *dd)
+{
+	mutex_enter(&dd->dd_activity_lock);
+	dd->dd_activity_cancelled = B_TRUE;
+	cv_broadcast(&dd->dd_activity_cv);
+	while (dd->dd_activity_count > 0)
+		cv_wait(&dd->dd_activity_cv, &dd->dd_activity_lock);
+	mutex_exit(&dd->dd_activity_lock);
 }
 
 #if defined(_KERNEL)
 EXPORT_SYMBOL(dsl_dir_set_quota);
 EXPORT_SYMBOL(dsl_dir_set_reservation);
+EXPORT_SYMBOL(dsl_dir_cancel_waiters);
 #endif

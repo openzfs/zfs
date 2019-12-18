@@ -763,8 +763,14 @@ dsl_destroy_head_check_impl(dsl_dataset_t *ds, int expected_holds)
 	if (ds->ds_is_snapshot)
 		return (SET_ERROR(EINVAL));
 
-	if (zfs_refcount_count(&ds->ds_longholds) != expected_holds)
+	dsl_dir_t *dd = ds->ds_dir;
+	mutex_enter(&dd->dd_activity_lock);
+	if (zfs_refcount_count(&ds->ds_longholds) != expected_holds +
+	    dd->dd_activity_count) {
+		mutex_exit(&dd->dd_activity_lock);
 		return (SET_ERROR(EBUSY));
+	}
+	mutex_exit(&dd->dd_activity_lock);
 
 	mos = ds->ds_dir->dd_pool->dp_meta_objset;
 
@@ -1001,6 +1007,8 @@ dsl_destroy_head_sync_impl(dsl_dataset_t *ds, dmu_tx_t *tx)
 
 	/* We need to log before removing it from the namespace. */
 	spa_history_log_internal_ds(ds, "destroy", tx, " ");
+
+	dsl_dir_cancel_waiters(ds->ds_dir);
 
 	rmorigin = (dsl_dir_is_clone(ds->ds_dir) &&
 	    DS_IS_DEFER_DESTROY(ds->ds_prev) &&

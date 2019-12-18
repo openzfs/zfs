@@ -4104,6 +4104,10 @@ zfs_ioc_wait_fs(const char *name, nvlist_t *innvl, nvlist_t *outnvl)
 
 	if (nvlist_lookup_int32(innvl, ZFS_WAIT_ACTIVITY, &activity) != 0)
 		return (EINVAL);
+
+	if (activity >= ZFS_WAIT_NUM_ACTIVITIES || activity < 0)
+		return (EINVAL);
+
 	if ((error = dsl_pool_hold(name, FTAG, &dp)) != 0)
 		return (error);
 
@@ -4118,12 +4122,20 @@ zfs_ioc_wait_fs(const char *name, nvlist_t *innvl, nvlist_t *outnvl)
 		dsl_dir_rele(dd, FTAG);
 		return (error);
 	}
+	mutex_enter(&dd->dd_activity_lock);
+	dd->dd_activity_count++;
+
 	dsl_dataset_long_hold(ds, FTAG);
 	dsl_pool_rele(dp, FTAG);
 
 	error = dsl_dir_wait(dd, ds, activity, &waited);
 
 	dsl_dataset_long_rele(ds, FTAG);
+	dd->dd_activity_count--;
+	if (dd->dd_activity_count == 0)
+		cv_signal(&dd->dd_activity_cv);
+	mutex_exit(&dd->dd_activity_lock);
+
 	dsl_dataset_rele(ds, FTAG);
 	dsl_dir_rele(dd, FTAG);
 
