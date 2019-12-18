@@ -410,11 +410,11 @@ decrypt_fs()
 	if [ "$(zpool list -H -o feature@encryption $(echo "${fs}" | awk -F\/ '{print $1}'))" = 'active' ]; then
 
 		# Determine dataset that holds key for root dataset
-		ENCRYPTIONROOT=$(${ZFS} get -H -o value encryptionroot "${fs}")
+		ENCRYPTIONROOT="$(get_fs_value "${fs}" encryptionroot)"
 
 		# If root dataset is encrypted...
 		if ! [ "${ENCRYPTIONROOT}" = "-" ]; then
-			KEYSTATUS="$(${ZFS} get -H -o value keystatus "${ENCRYPTIONROOT}")"
+			KEYSTATUS="$(get_fs_value "${ENCRYPTIONROOT}" keystatus)"
 			# Continue only if the key needs to be loaded
 			[ "$KEYSTATUS" = "unavailable" ] || return 0
 			TRY_COUNT=3
