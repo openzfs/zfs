@@ -1886,3 +1886,95 @@ zfs_version_print(void)
 
 	return (0);
 }
+
+/*
+ * Return 1 if the user requested ANSI color output, and our terminal supports
+ * it.  Return 0 for no color.
+ */
+static int
+use_color(void)
+{
+	static int use_color = -1;
+	char *term;
+
+	/*
+	 * Optimization:
+	 *
+	 * For each zpool invocation, we do a single check to see if we should
+	 * be using color or not, and cache that value for the lifetime of the
+	 * the zpool command.  That makes it cheap to call use_color() when
+	 * we're printing with color.  We assume that the settings are not going
+	 * to change during the invocation of a zpool command (the user isn't
+	 * going to change the ZFS_COLOR value while zpool is running, for
+	 * example).
+	 */
+	if (use_color != -1) {
+		/*
+		 * We've already figured out if we should be using color or
+		 * not.  Return the cached value.
+		 */
+		return (use_color);
+	}
+
+	term = getenv("TERM");
+	/*
+	 * The user sets the ZFS_COLOR env var set to enable zpool ANSI color
+	 * output.  However if NO_COLOR is set (https://no-color.org/) then
+	 * don't use it.  Also, don't use color if terminal doesn't support
+	 * it.
+	 */
+	if (libzfs_envvar_is_set("ZFS_COLOR") &&
+	    !libzfs_envvar_is_set("NO_COLOR") &&
+	    isatty(STDOUT_FILENO) && term && strcmp("dumb", term) != 0 &&
+	    strcmp("unknown", term) != 0) {
+		/* Color supported */
+		use_color = 1;
+	} else {
+		use_color = 0;
+	}
+
+	return (use_color);
+}
+
+/*
+ * color_start() and color_end() are used for when you want to colorize a block
+ * of text.  For example:
+ *
+ * color_start(ANSI_RED_FG)
+ * printf("hello");
+ * printf("world");
+ * color_end();
+ */
+void
+color_start(char *color)
+{
+	if (use_color())
+		printf("%s", color);
+}
+
+void
+color_end(void)
+{
+	if (use_color())
+		printf(ANSI_RESET);
+}
+
+/* printf() with a color.  If color is NULL, then do a normal printf. */
+int
+printf_color(char *color, char *format, ...)
+{
+	va_list aptr;
+	int rc;
+
+	if (color)
+		color_start(color);
+
+	va_start(aptr, format);
+	rc = vprintf(format, aptr);
+	va_end(aptr);
+
+	if (color)
+		color_end();
+
+	return (rc);
+}
