@@ -45,8 +45,8 @@
 
 verify_runnable "global"
 
-if is_linux; then
-	log_unsupported "swaplow + swaplen unsupported Linux options"
+if is_linux || is_freebsd; then
+	log_unsupported "swaplow + swaplen unsupported Linux/FreeBSD options"
 fi
 
 function cleanup

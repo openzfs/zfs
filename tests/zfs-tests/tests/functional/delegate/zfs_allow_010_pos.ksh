@@ -87,6 +87,47 @@ set -A perms	create		true		false	\
 		promote		true		true	\
 		xattr		true		false	\
 		receive		true		false
+
+elif is_freebsd; then
+#				Results in	Results in
+#		Permission	Filesystem	Volume
+#
+# Removed for FreeBSD
+# - zoned	- zones are not supported
+# - sharenfs	- sharing requires superuser privileges
+# - share	- sharing requires superuser privileges
+# - xattr	- Not supported on FreeBSD
+#
+set -A perms	create		true		false	\
+		snapshot	true		true	\
+		mount		true		false	\
+		send		true		true	\
+		allow		true		true	\
+		quota		true		false	\
+		reservation	true		true	\
+		dnodesize	true		false	\
+		recordsize	true		false	\
+		mountpoint	true		false	\
+		checksum	true		true	\
+		compression	true		true	\
+		canmount	true		false	\
+		atime		true		false	\
+		devices		true		false	\
+		exec		true		false	\
+		volsize		false		true	\
+		setuid		true		false	\
+		readonly	true		true	\
+		snapdir		true		false	\
+		userprop	true		true	\
+		aclmode		true		false	\
+		aclinherit	true		false	\
+		rollback	true		true	\
+		clone		true		true	\
+		rename		true		true	\
+		promote		true		true	\
+		receive		true		false   \
+		destroy		true		true
+
 else
 
 set -A perms	create		true		false	\

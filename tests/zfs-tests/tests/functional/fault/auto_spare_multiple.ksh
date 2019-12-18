@@ -53,8 +53,11 @@ function cleanup
 log_assert "ZED should be able to handle multiple faulted devices"
 log_onexit cleanup
 
-# Clear events from previous runs
-zed_events_drain
+# Events not supported on FreeBSD
+if ! is_freebsd; then
+	# Clear events from previous runs
+	zed_events_drain
+fi
 
 FAULT_DEV1="$TEST_BASE_DIR/fault-dev1"
 FAULT_DEV2="$TEST_BASE_DIR/fault-dev2"

@@ -50,8 +50,11 @@ log_assert "Testing automated auto-spare FMA test"
 
 log_onexit cleanup
 
-# Clear events from previous runs
-zed_events_drain
+# Events not supported on FreeBSD
+if ! is_freebsd; then
+	# Clear events from previous runs
+	zed_events_drain
+fi
 
 TESTFILE="/$TESTPOOL/$TESTFS/testfile"
 

@@ -47,7 +47,7 @@ done
 
 typeset -i i=0
 while (( i <= $GROUP_NUM )); do
-	if ! is_linux; then
+	if ! is_linux && ! is_freebsd; then
 		if (( i == 2 )); then
 			(( i = i + 1 ))
 			continue

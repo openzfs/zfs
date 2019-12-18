@@ -46,7 +46,7 @@
 
 verify_runnable "global"
 
-if is_linux; then
+if is_linux || is_freebsd; then
 	log_unsupported "Modifies global non-ZFS system config"
 fi
 

@@ -61,10 +61,11 @@ verify_runnable "global"
 
 VOLUME=$ZVOL_DEVDIR/$TESTPOOL/$TESTVOL
 MNTPNT=$TESTDIR/$TESTVOL
+FSTYPE=none
 
 function cleanup_volume
 {
-	if ismounted $MNTPNT ext4; then
+	if ismounted $MNTPNT $FSTYPE; then
 		log_must umount $MNTPNT
 		rmdir $MNTPNT
 	fi
@@ -88,10 +89,19 @@ log_must zfs set compression=on $TESTPOOL/$TESTVOL
 log_must zfs set sync=always $TESTPOOL/$TESTVOL
 log_must mkdir -p $TESTDIR
 block_device_wait
-echo "y" | newfs -t ext4 -v $VOLUME
-log_must mkdir -p $MNTPNT
-log_must mount -o discard $VOLUME $MNTPNT
-log_must rmdir $MNTPNT/lost+found
+if is_linux; then
+	# ext4 only on Linux
+	log_must new_fs -t ext4 -v $VOLUME
+	log_must mkdir -p $MNTPNT
+	log_must mount -o discard $VOLUME $MNTPNT
+	FSTYPE=ext4
+	log_must rmdir $MNTPNT/lost+found
+else
+	log_must new_fs $VOLUME
+	log_must mkdir -p $MNTPNT
+	log_must mount $VOLUME $MNTPNT
+	FSTYPE=$NEWFS_DEFAULT_FS
+fi
 log_must zpool sync
 
 #
@@ -116,13 +126,15 @@ log_must dd if=/dev/urandom of=$MNTPNT/throughput-128k bs=128k count=1
 log_must dd if=/dev/urandom of=$MNTPNT/holes bs=128k count=8
 log_must dd if=/dev/zero of=$MNTPNT/holes bs=128k count=2 seek=2 conv=notrunc
 
-# TX_TRUNCATE
-if fallocate --punch-hole 2>&1 | grep -q "unrecognized option"; then
-	log_note "fallocate(1) does not support --punch-hole"
-else
-	log_must dd if=/dev/urandom of=$MNTPNT/discard bs=128k count=16
-	log_must fallocate --punch-hole -l 128K -o 512K $MNTPNT/discard
-	log_must fallocate --punch-hole -l 512K -o 1M $MNTPNT/discard
+if is_linux; then
+	# TX_TRUNCATE
+	if fallocate --punch-hole 2>&1 | grep -q "unrecognized option"; then
+		log_note "fallocate(1) does not support --punch-hole"
+	else
+		log_must dd if=/dev/urandom of=$MNTPNT/discard bs=128k count=16
+		log_must fallocate --punch-hole -l 128K -o 512K $MNTPNT/discard
+		log_must fallocate --punch-hole -l 512K -o 1M $MNTPNT/discard
+	fi
 fi
 
 #

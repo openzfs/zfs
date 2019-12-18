@@ -51,6 +51,7 @@ zfs snapshot $origin@a || log_fail "zfs snap failed"
 log_must zfs clone $origin@a $clone
 log_must zfs set compress=on $clone
 log_must zfs set checksum=sha256 $clone
+block_device_wait
 dd if=$vol of=$volclone bs=8192 count=4096 conv=notrunc >/dev/null 2>&1 || \
     log_fail "dd into $clone failed."
 log_must verify_nopwrite $origin $origin@a $clone

@@ -18,7 +18,12 @@
 
 #
 # DESCRIPTION:
-# Verify that zfs mount should fail with a non-empty directory
+#  Linux:
+#   Verify that zfs mount fails with a non-empty directory
+#  FreeSD:
+#   Verify that zfs mount succeeds with a non-empty directory
+#
+
 #
 # STRATEGY:
 # 1. Unmount the dataset
@@ -34,7 +39,13 @@
 
 verify_runnable "both"
 
-log_assert "zfs mount fails with non-empty directory"
+if is_linux; then
+	behaves="fails"
+else
+	behaves="succeeds"
+fi
+
+log_assert "zfs mount $behaves with non-empty directory"
 
 fs=$TESTPOOL/$TESTFS
 
@@ -44,7 +55,12 @@ log_must zfs set mountpoint=$TESTDIR $fs
 log_must zfs mount $fs
 log_must zfs umount $fs
 log_must touch $TESTDIR/testfile.$$
-log_mustnot zfs mount $fs
+if is_linux; then
+	log_mustnot zfs mount $fs
+else
+	log_must zfs mount $fs
+	log_must zfs umount $fs
+fi
 log_must rm -rf $TESTDIR
 
-log_pass "zfs mount fails non-empty directory as expected."
+log_pass "zfs mount $behaves with non-empty directory as expected."

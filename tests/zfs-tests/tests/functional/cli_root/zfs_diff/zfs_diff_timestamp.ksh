@@ -84,7 +84,11 @@ do
 		continue;
 	fi
 
-	filetime="$(stat -c '%Z' $file)"
+	if is_freebsd; then
+		filetime="$(stat -f "%c" $file)"
+	else
+		filetime="$(stat -c '%Z' $file)"
+	fi
 	if [[ "$filetime" != "$ctime" ]]; then
 		log_fail "Unexpected ctime for file $file ($filetime != $ctime)"
 	else

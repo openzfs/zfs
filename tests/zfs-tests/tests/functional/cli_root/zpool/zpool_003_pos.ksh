@@ -65,6 +65,10 @@ if is_linux; then
 	echo "core" >/proc/sys/kernel/core_pattern
 	echo 0 >/proc/sys/kernel/core_uses_pid
 	export ASAN_OPTIONS="abort_on_error=1:disable_coredump=0"
+elif is_freebsd; then
+	ulimit -c unlimited
+	log_must sysctl kern.corefile=$corepath/core.zpool
+	export ASAN_OPTIONS="abort_on_error=1:disable_coredump=0"
 fi
 
 ZFS_ABORT=1; export ZFS_ABORT

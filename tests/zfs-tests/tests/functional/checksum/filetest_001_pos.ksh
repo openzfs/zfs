@@ -75,6 +75,11 @@ firstvdev=${array[0]}
 typeset -i i=1
 while [[ $i -lt ${#CHECKSUM_TYPES[*]} ]]; do
 	type=${CHECKSUM_TYPES[i]}
+	# edonr not supported on FreeBSD
+	if is_freebsd && [[ "$type" == "edonr" ]] ; then
+		(( i = i + 1 ))
+		continue
+	fi
 	log_must zfs set checksum=$type $TESTPOOL
 	log_must file_write -o overwrite -f $TESTDIR/test_$type \
 	    -b $WRITESZ -c 5 -d R
@@ -96,6 +101,11 @@ log_assert "Test corrupting the files and seeing checksum errors"
 typeset -i j=1
 while [[ $j -lt ${#CHECKSUM_TYPES[*]} ]]; do
 	type=${CHECKSUM_TYPES[$j]}
+	# edonr not supported on FreeBSD
+	if is_freebsd && [[ "$type" == "edonr" ]] ; then
+		(( j = j + 1 ))
+		continue
+	fi
 	log_must zfs set checksum=$type $TESTPOOL
 	log_must file_write -o overwrite -f $TESTDIR/test_$type \
 	    -b $WRITESZ -c 5 -d R

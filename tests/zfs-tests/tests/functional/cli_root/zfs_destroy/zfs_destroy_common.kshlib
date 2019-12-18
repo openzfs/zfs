@@ -61,12 +61,7 @@ function setup_testenv #[dtst]
 		log_must zfs create -V $VOLSIZE $VOL
 		block_device_wait
 
-		echo "y" | newfs $ZVOL_DEVDIR/$VOL > /dev/null 2>&1
-		if (( $? == 0 )); then
-			log_note "SUCCESS: newfs $ZVOL_DEVDIR/$VOL>/dev/null"
-		else
-			log_fail "newfs $ZVOL_DEVDIR/$VOL > /dev/null"
-		fi
+		log_must new_fs $ZVOL_DEVDIR/$VOL
 
 		if [[ ! -d $TESTDIR1 ]]; then
 			log_must mkdir $TESTDIR1

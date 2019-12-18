@@ -56,7 +56,11 @@ function cleanup
 		destroy_pool "$TESTPOOL1"
 
 	if [[ -n $saved_dump_dev ]]; then
-		log_must eval "dumpadm -u -d $saved_dump_dev > /dev/null"
+		if is_freebsd; then
+			log_must eval "dumpon $saved_dump_dev > /dev/null"
+		else
+			log_must eval "dumpadm -u -d $saved_dump_dev > /dev/null"
+		fi
 	fi
 
 	partition_cleanup
@@ -87,8 +91,12 @@ else
 fi
 
 if ! is_linux; then
-	log_must echo "y" | newfs ${DEV_DSKDIR}/$dump_dev > /dev/null 2>&1
-	log_must dumpadm -u -d ${DEV_DSKDIR}/$dump_dev > /dev/null
+	log_must eval "new_fs ${DEV_DSKDIR}/$dump_dev > /dev/null 2>&1"
+	if is_freebsd; then
+		log_must eval "dumpon ${DEV_DSKDIR}/$dump_dev > /dev/null"
+	else
+		log_must eval "dumpadm -u -d ${DEV_DSKDIR}/$dump_dev > /dev/null"
+	fi
 	log_mustnot zpool add -f "$TESTPOOL" $dump_dev
 fi
 

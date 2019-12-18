@@ -143,7 +143,7 @@ export SPA_MINDEVSIZE=$((64 * 1024 * 1024))
 # For iscsi target support
 export ISCSITGTFILE=/tmp/iscsitgt_file
 export ISCSITGT_FMRI=svc:/system/iscsitgt:default
-if ! is_linux; then
+if ! is_linux && ! is_freebsd; then
 export AUTO_SNAP=$(svcs -a | grep auto-snapshot | grep online | awk \
     '{print $3}')
 fi
@@ -184,6 +184,20 @@ if is_linux; then
 
 
 	NEWFS_DEFAULT_FS="ext2"
+elif is_freebsd; then
+	unpack_opts="xv"
+	pack_opts="cf"
+	verbose="v"
+	unpack_preserve="xpf"
+	pack_preserve="cpf"
+
+	ZVOL_DEVDIR="/dev/zvol"
+	ZVOL_RDEVDIR="/dev/zvol"
+	DEV_DSKDIR="/dev"
+	DEV_RDSKDIR="/dev"
+	DEV_MPATHDIR="/dev/multipath"
+
+	NEWFS_DEFAULT_FS="ufs"
 else
 	unpack_opts="xv"
 	pack_opts="cf"

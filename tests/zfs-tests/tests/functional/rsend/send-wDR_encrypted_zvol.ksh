@@ -64,7 +64,12 @@ log_must zfs create -o dedup=on -o encryption=on -o keyformat=passphrase \
 	-o keylocation=file://$keyfile -V 128M $TESTPOOL/$TESTVOL
 block_device_wait
 
-log_must eval "echo 'y' | newfs -t ext4 -v $zdev"
+if is_linux; then
+	# ext4 only supported on Linux
+	log_must new_fs -t ext4 $zdev
+else
+	log_must new_fs $zdev
+fi
 log_must mkdir -p $mntpnt
 log_must mkdir -p $recvmnt
 log_must mount $zdev $mntpnt

@@ -60,7 +60,7 @@ log_onexit cleanup
 # Create a ufs|ext file system that we can work in
 log_must zfs create -V128m $TESTPOOL/$TESTFS/zvol
 block_device_wait
-log_must eval "echo y | newfs $ZVOL_DEVDIR/$TESTPOOL/$TESTFS/zvol > /dev/null 2>&1"
+log_must eval "new_fs $ZVOL_DEVDIR/$TESTPOOL/$TESTFS/zvol > /dev/null 2>&1"
 
 log_must mkdir /tmp/$NEWFS_DEFAULT_FS.$$
 if is_linux; then
