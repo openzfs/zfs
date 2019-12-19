@@ -202,7 +202,7 @@ function create_dev_file_illumos
 	return 0
 }
 
-create_dev_file_linux
+function create_dev_file_linux
 {
 	typeset filetype=$1
 	typeset filename=$2
