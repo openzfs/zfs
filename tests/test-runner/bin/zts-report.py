@@ -287,7 +287,8 @@ def process_results(pathname):
 
     prefix = '/zfs-tests/tests/functional/'
     pattern = \
-        r'^Test:\s*\S*%s(\S+)\s*\(run as (\S+)\)\s*\[(\S+)\]\s*\[(\S+)\]' \
+        r'^Test(?:\s+\(\S+\))?:' + \
+        r'\s*\S*%s(\S+)\s*\(run as (\S+)\)\s*\[(\S+)\]\s*\[(\S+)\]' \
         % prefix
     pattern_log = r'^\s*Log directory:\s*(\S*)'
 
