@@ -2303,29 +2303,21 @@ dsl_dir_activity_in_progress(dsl_dir_t *dd, dsl_dataset_t *ds,
 
 	switch (activity) {
 	case ZFS_WAIT_DELETEQ: {
+#ifdef _KERNEL
 		objset_t *os;
 		error = dmu_objset_from_ds(ds, &os);
 		if (error != 0)
 			break;
 
-#ifdef _KERNEL
 		if (dmu_objset_type(os) != DMU_OST_ZFS ||
 		    zfs_get_vfs_flag_unmounted(os)) {
 			*in_progress = B_FALSE;
 			return (0);
 		}
-#else
-		if (dmu_objset_type(os) != DMU_OST_ZFS) {
-			*in_progress = B_FALSE;
-			return (0);
-		}
-#endif
 
 		uint64_t readonly = B_FALSE;
-		dsl_pool_config_enter(dd->dd_pool, FTAG);
-		error = dsl_prop_get_dd(dd, zfs_prop_to_name(ZFS_PROP_READONLY),
-		    sizeof (readonly), 1, &readonly, NULL, B_FALSE);
-		dsl_pool_config_exit(dd->dd_pool, FTAG);
+		error = zfs_get_temporary_prop(ds, ZFS_PROP_READONLY, &readonly,
+		    NULL);
 
 		if (error != 0)
 			break;
@@ -2347,6 +2339,14 @@ dsl_dir_activity_in_progress(dsl_dir_t *dd, dsl_dataset_t *ds,
 		if (error == 0)
 			*in_progress = (count != 0);
 		break;
+#else
+		/*
+		 * The delete queue is ZPL specific, and libzpool doesn't have
+		 * it. It doesn't make sense to wait for it.
+		 */
+		*in_progress = B_FALSE;
+		break;
+#endif
 	}
 	default:
 		panic("unrecognized value for activity %d", activity);
