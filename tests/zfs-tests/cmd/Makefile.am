@@ -1,6 +1,7 @@
 EXTRA_DIST = file_common.h
 
 SUBDIRS = \
+	btree_test \
 	chg_usr_exec \
 	devname2devid \
 	dir_rd_update \
