@@ -48,7 +48,7 @@ function cleanup
 function count_snap_cmds
 {
 	typeset expected_count=$1
-	count=$(grep "command: zfs snapshot $FS@testsnapshot" | wc -l)
+	count=$(grep -E "command: (lt-)?zfs snapshot $FS@testsnapshot" | wc -l)
 	log_must eval "[[ $count -eq $expected_count ]]"
 }
 
