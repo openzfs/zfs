@@ -885,15 +885,13 @@ ccm_init_ctx(ccm_ctx_t *ccm_ctx, char *param, int kmflag,
 
 		ccm_ctx->ccm_flags |= CCM_MODE;
 	} else {
-		rv = CRYPTO_MECHANISM_PARAM_INVALID;
-		goto out;
+		return (CRYPTO_MECHANISM_PARAM_INVALID);
 	}
 
 	if (ccm_init(ccm_ctx, ccm_param->nonce, ccm_param->ulNonceSize,
 	    ccm_param->authData, ccm_param->ulAuthDataSize, block_size,
 	    encrypt_block, xor_block) != 0) {
-		rv = CRYPTO_MECHANISM_PARAM_INVALID;
-		goto out;
+		return (CRYPTO_MECHANISM_PARAM_INVALID);
 	}
 	if (!is_encrypt_init) {
 		/* allocate buffer for storing decrypted plaintext */
@@ -903,7 +901,6 @@ ccm_init_ctx(ccm_ctx_t *ccm_ctx, char *param, int kmflag,
 			rv = CRYPTO_HOST_MEMORY;
 		}
 	}
-out:
 	return (rv);
 }
 

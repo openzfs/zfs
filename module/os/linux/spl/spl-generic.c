@@ -275,7 +275,9 @@ int64_t
 __divdi3(int64_t u, int64_t v)
 {
 	int64_t q, t;
+	// cppcheck-suppress shiftTooManyBitsSigned
 	q = __udivdi3(abs64(u), abs64(v));
+	// cppcheck-suppress shiftTooManyBitsSigned
 	t = (u ^ v) >> 63;	// If u, v have different
 	return ((q ^ t) - t);	// signs, negate q.
 }
@@ -697,7 +699,7 @@ static void __init
 spl_random_init(void)
 {
 	uint64_t s[2];
-	int i;
+	int i = 0;
 
 	get_random_bytes(s, sizeof (s));
 

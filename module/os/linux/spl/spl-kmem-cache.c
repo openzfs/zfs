@@ -344,7 +344,7 @@ static spl_kmem_slab_t *
 spl_slab_alloc(spl_kmem_cache_t *skc, int flags)
 {
 	spl_kmem_slab_t *sks;
-	spl_kmem_obj_t *sko, *n;
+	spl_kmem_obj_t *sko;
 	void *base, *obj;
 	uint32_t obj_size, offslab_size = 0;
 	int i,  rc = 0;
@@ -388,6 +388,7 @@ spl_slab_alloc(spl_kmem_cache_t *skc, int flags)
 
 out:
 	if (rc) {
+		spl_kmem_obj_t *n = NULL;
 		if (skc->skc_flags & KMC_OFFSLAB)
 			list_for_each_entry_safe(sko,
 			    n, &sks->sks_free_list, sko_list) {
@@ -437,8 +438,8 @@ spl_slab_free(spl_kmem_slab_t *sks,
 static void
 spl_slab_reclaim(spl_kmem_cache_t *skc)
 {
-	spl_kmem_slab_t *sks, *m;
-	spl_kmem_obj_t *sko, *n;
+	spl_kmem_slab_t *sks = NULL, *m = NULL;
+	spl_kmem_obj_t *sko = NULL, *n = NULL;
 	LIST_HEAD(sks_list);
 	LIST_HEAD(sko_list);
 	uint32_t size = 0;
@@ -834,7 +835,7 @@ spl_magazine_free(spl_kmem_magazine_t *skm)
 static int
 spl_magazine_create(spl_kmem_cache_t *skc)
 {
-	int i;
+	int i = 0;
 
 	if (skc->skc_flags & KMC_NOMAGAZINE)
 		return (0);
@@ -865,7 +866,7 @@ static void
 spl_magazine_destroy(spl_kmem_cache_t *skc)
 {
 	spl_kmem_magazine_t *skm;
-	int i;
+	int i = 0;
 
 	if (skc->skc_flags & KMC_NOMAGAZINE)
 		return;
@@ -1644,7 +1645,7 @@ static spl_shrinker_t
 __spl_kmem_cache_generic_shrinker(struct shrinker *shrink,
     struct shrink_control *sc)
 {
-	spl_kmem_cache_t *skc;
+	spl_kmem_cache_t *skc = NULL;
 	int alloc = 0;
 
 	/*
