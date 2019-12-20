@@ -842,7 +842,7 @@ zvol_free(zvol_state_t *zv)
  * device is live and ready for use.
  */
 static int
-zvol_create_minor(const char *name)
+zvol_os_create_minor(const char *name)
 {
 	zvol_state_t *zv;
 	objset_t *os;
@@ -967,7 +967,7 @@ out_doi:
 		ida_simple_remove(&zvol_ida, idx);
 	}
 
-	return (SET_ERROR(error));
+	return (error);
 }
 
 static void
@@ -1014,7 +1014,7 @@ zvol_set_capacity_impl(zvol_state_t *zv, uint64_t capacity)
 const static zvol_platform_ops_t zvol_linux_ops = {
 	.zv_free = zvol_free,
 	.zv_rename_minor = zvol_rename_minor,
-	.zv_create_minor = zvol_create_minor,
+	.zv_create_minor = zvol_os_create_minor,
 	.zv_update_volsize = zvol_update_volsize,
 	.zv_clear_private = zvol_clear_private,
 	.zv_is_zvol = zvol_is_zvol_impl,

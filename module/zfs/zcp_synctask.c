@@ -276,6 +276,16 @@ zcp_synctask_snapshot(lua_State *state, boolean_t sync, nvlist_t *err_details)
 	err = zcp_sync_task(state, dsl_dataset_snapshot_check,
 	    dsl_dataset_snapshot_sync, &ddsa, sync, dsname);
 
+	if (err == 0) {
+		/*
+		 * We may need to create a new device minor node for this
+		 * dataset (if it is a zvol and the "snapdev" property is set).
+		 * Save it in the nvlist so that it can be processed in open
+		 * context.
+		 */
+		fnvlist_add_boolean(ri->zri_new_zvols, dsname);
+	}
+
 	zcp_deregister_cleanup(state, zch);
 	fnvlist_free(ddsa.ddsa_snaps);
 
