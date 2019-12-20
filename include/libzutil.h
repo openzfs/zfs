@@ -146,6 +146,18 @@ extern int zpool_history_unpack(char *, uint64_t, uint64_t *, nvlist_t ***,
 struct zfs_cmd;
 int zfs_ioctl_fd(int fd, unsigned long request, struct zfs_cmd *zc);
 
+/*
+ * List of colors to use
+ */
+#define	ANSI_RED	"\033[0;31m"
+#define	ANSI_YELLOW	"\033[0;33m"
+#define	ANSI_RESET	"\033[0m"
+#define	ANSI_BOLD	"\033[1m"
+
+void color_start(char *color);
+void color_end(void);
+int printf_color(char *color, char *format, ...);
+
 #ifdef	__cplusplus
 }
 #endif

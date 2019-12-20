@@ -3916,3 +3916,18 @@ function stat_size #<path>
 		;;
 	esac
 }
+
+# Run a command as if it was being run in a TTY.
+#
+# Usage:
+#
+#    faketty command
+#
+function faketty
+{
+    if is_freebsd; then
+        script -q /dev/null "$@"
+    else
+        script --return --quiet -c "$*" /dev/null
+    fi
+}
