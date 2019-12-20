@@ -282,7 +282,7 @@ tests = ['zfs_upgrade_001_pos', 'zfs_upgrade_002_pos', 'zfs_upgrade_003_pos',
 tags = ['functional', 'cli_root', 'zfs_upgrade']
 
 [tests/functional/cli_root/zpool]
-tests = ['zpool_001_neg', 'zpool_002_pos', 'zpool_003_pos']
+tests = ['zpool_001_neg', 'zpool_002_pos', 'zpool_003_pos', 'zpool_colors']
 tags = ['functional', 'cli_root', 'zpool']
 
 [tests/functional/cli_root/zpool_add]

@@ -2041,6 +2041,28 @@ print_status_trim(vdev_stat_t *vs, boolean_t verbose)
 }
 
 /*
+ * Return the color associated with a health string.  This includes returning
+ * NULL for no color change.
+ */
+static char *
+health_str_to_color(const char *health)
+{
+	if (strcmp(health, gettext("FAULTED")) == 0 ||
+	    strcmp(health, gettext("SUSPENDED")) == 0 ||
+	    strcmp(health, gettext("UNAVAIL")) == 0) {
+		return (ANSI_RED);
+	}
+
+	if (strcmp(health, gettext("OFFLINE")) == 0 ||
+	    strcmp(health, gettext("DEGRADED")) == 0 ||
+	    strcmp(health, gettext("REMOVED")) == 0) {
+		return (ANSI_YELLOW);
+	}
+
+	return (NULL);
+}
+
+/*
  * Print out configuration state as requested by status_callback.
  */
 static void
@@ -2058,6 +2080,7 @@ print_status_config(zpool_handle_t *zhp, status_cbdata_t *cb, const char *name,
 	const char *state;
 	char *type;
 	char *path = NULL;
+	char *rcolor = NULL, *wcolor = NULL, *ccolor = NULL;
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
 	    &child, &children) != 0)
@@ -2072,34 +2095,54 @@ print_status_config(zpool_handle_t *zhp, status_cbdata_t *cb, const char *name,
 		return;
 
 	state = zpool_state_to_name(vs->vs_state, vs->vs_aux);
+
 	if (isspare) {
 		/*
 		 * For hot spares, we use the terms 'INUSE' and 'AVAILABLE' for
 		 * online drives.
 		 */
 		if (vs->vs_aux == VDEV_AUX_SPARED)
-			state = "INUSE";
+			state = gettext("INUSE");
 		else if (vs->vs_state == VDEV_STATE_HEALTHY)
-			state = "AVAIL";
+			state = gettext("AVAIL");
 	}
 
-	(void) printf("\t%*s%-*s  %-8s", depth, "", cb->cb_namewidth - depth,
+	printf_color(health_str_to_color(state),
+	    "\t%*s%-*s  %-8s", depth, "", cb->cb_namewidth - depth,
 	    name, state);
 
 	if (!isspare) {
+		if (vs->vs_read_errors)
+			rcolor = ANSI_RED;
+
+		if (vs->vs_write_errors)
+			wcolor = ANSI_RED;
+
+		if (vs->vs_checksum_errors)
+			ccolor = ANSI_RED;
+
 		if (cb->cb_literal) {
-			printf(" %5llu %5llu %5llu",
-			    (u_longlong_t)vs->vs_read_errors,
-			    (u_longlong_t)vs->vs_write_errors,
+			printf(" ");
+			printf_color(rcolor, "%5llu",
+			    (u_longlong_t)vs->vs_read_errors);
+			printf(" ");
+			printf_color(wcolor, "%5llu",
+			    (u_longlong_t)vs->vs_write_errors);
+			printf(" ");
+			printf_color(ccolor, "%5llu",
 			    (u_longlong_t)vs->vs_checksum_errors);
 		} else {
 			zfs_nicenum(vs->vs_read_errors, rbuf, sizeof (rbuf));
 			zfs_nicenum(vs->vs_write_errors, wbuf, sizeof (wbuf));
 			zfs_nicenum(vs->vs_checksum_errors, cbuf,
 			    sizeof (cbuf));
-			printf(" %5s %5s %5s", rbuf, wbuf, cbuf);
+			printf(" ");
+			printf_color(rcolor, "%5s", rbuf);
+			printf(" ");
+			printf_color(wcolor, "%5s", wbuf);
+			printf(" ");
+			printf_color(ccolor, "%5s", cbuf);
 		}
-
 		if (cb->cb_print_slow_ios) {
 			if (children == 0)  {
 				/* Only leafs vdevs have slow IOs */
@@ -2114,16 +2157,15 @@ print_status_config(zpool_handle_t *zhp, status_cbdata_t *cb, const char *name,
 			else
 				printf(" %5s", rbuf);
 		}
-
 	}
 
 	if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_NOT_PRESENT,
 	    &notpresent) == 0) {
 		verify(nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path) == 0);
-		(void) printf("  was %s", path);
+		(void) printf("  %s %s", gettext("was"), path);
 	} else if (vs->vs_aux != 0) {
 		(void) printf("  ");
-
+		color_start(ANSI_RED);
 		switch (vs->vs_aux) {
 		case VDEV_AUX_OPEN_FAILED:
 			(void) printf(gettext("cannot open"));
@@ -2195,6 +2237,7 @@ print_status_config(zpool_handle_t *zhp, status_cbdata_t *cb, const char *name,
 			(void) printf(gettext("corrupted data"));
 			break;
 		}
+		color_end();
 	}
 
 	/* The root vdev has the scrub/resilver stats */
@@ -2469,14 +2512,16 @@ show_import(nvlist_t *config)
 	case ZPOOL_STATUS_MISSING_DEV_R:
 	case ZPOOL_STATUS_MISSING_DEV_NR:
 	case ZPOOL_STATUS_BAD_GUID_SUM:
-		(void) printf(gettext(" status: One or more devices are "
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("One or more devices are "
 		    "missing from the system.\n"));
 		break;
 
 	case ZPOOL_STATUS_CORRUPT_LABEL_R:
 	case ZPOOL_STATUS_CORRUPT_LABEL_NR:
-		(void) printf(gettext(" status: One or more devices contains "
-		    "corrupted data.\n"));
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("One or more devices contains"
+		    " corrupted data.\n"));
 		break;
 
 	case ZPOOL_STATUS_CORRUPT_DATA:
@@ -2485,78 +2530,96 @@ show_import(nvlist_t *config)
 		break;
 
 	case ZPOOL_STATUS_OFFLINE_DEV:
-		(void) printf(gettext(" status: One or more devices "
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("One or more devices "
 		    "are offlined.\n"));
 		break;
 
 	case ZPOOL_STATUS_CORRUPT_POOL:
-		(void) printf(gettext(" status: The pool metadata is "
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("The pool metadata is "
 		    "corrupted.\n"));
 		break;
 
 	case ZPOOL_STATUS_VERSION_OLDER:
-		(void) printf(gettext(" status: The pool is formatted using a "
-		    "legacy on-disk version.\n"));
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("The pool is formatted using "
+		    "a legacy on-disk version.\n"));
 		break;
 
 	case ZPOOL_STATUS_VERSION_NEWER:
-		(void) printf(gettext(" status: The pool is formatted using an "
-		    "incompatible version.\n"));
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("The pool is formatted using "
+		    "an incompatible version.\n"));
 		break;
 
 	case ZPOOL_STATUS_FEAT_DISABLED:
-		(void) printf(gettext(" status: Some supported features are "
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("Some supported features are "
 		    "not enabled on the pool.\n"));
 		break;
 
 	case ZPOOL_STATUS_UNSUP_FEAT_READ:
-		(void) printf(gettext("status: The pool uses the following "
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("The pool uses the following "
 		    "feature(s) not supported on this system:\n"));
+		color_start(ANSI_YELLOW);
 		zpool_print_unsup_feat(config);
+		color_end();
 		break;
 
 	case ZPOOL_STATUS_UNSUP_FEAT_WRITE:
-		(void) printf(gettext("status: The pool can only be accessed "
-		    "in read-only mode on this system. It\n\tcannot be "
-		    "accessed in read-write mode because it uses the "
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("The pool can only be "
+		    "accessed in read-only mode on this system. It\n\tcannot be"
+		    " accessed in read-write mode because it uses the "
 		    "following\n\tfeature(s) not supported on this system:\n"));
+		color_start(ANSI_YELLOW);
 		zpool_print_unsup_feat(config);
+		color_end();
 		break;
 
 	case ZPOOL_STATUS_HOSTID_ACTIVE:
-		(void) printf(gettext(" status: The pool is currently "
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("The pool is currently "
 		    "imported by another system.\n"));
 		break;
 
 	case ZPOOL_STATUS_HOSTID_REQUIRED:
-		(void) printf(gettext(" status: The pool has the "
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("The pool has the "
 		    "multihost property on.  It cannot\n\tbe safely imported "
 		    "when the system hostid is not set.\n"));
 		break;
 
 	case ZPOOL_STATUS_HOSTID_MISMATCH:
-		(void) printf(gettext(" status: The pool was last accessed by "
-		    "another system.\n"));
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("The pool was last accessed "
+		    "by another system.\n"));
 		break;
 
 	case ZPOOL_STATUS_FAULTED_DEV_R:
 	case ZPOOL_STATUS_FAULTED_DEV_NR:
-		(void) printf(gettext(" status: One or more devices are "
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("One or more devices are "
 		    "faulted.\n"));
 		break;
 
 	case ZPOOL_STATUS_BAD_LOG:
-		(void) printf(gettext(" status: An intent log record cannot be "
-		    "read.\n"));
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("An intent log record cannot "
+		    "be read.\n"));
 		break;
 
 	case ZPOOL_STATUS_RESILVERING:
-		(void) printf(gettext(" status: One or more devices were being "
-		    "resilvered.\n"));
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("One or more devices were "
+		    "being resilvered.\n"));
 		break;
 
 	case ZPOOL_STATUS_ERRATA:
-		(void) printf(gettext(" status: Errata #%d detected.\n"),
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("Errata #%d detected.\n"),
 		    errata);
 		break;
 
@@ -2651,13 +2714,15 @@ show_import(nvlist_t *config)
 			    "backup.\n"));
 			break;
 		case ZPOOL_STATUS_UNSUP_FEAT_READ:
-			(void) printf(gettext("action: The pool cannot be "
+			printf_color(ANSI_BOLD, gettext("action: "));
+			printf_color(ANSI_YELLOW, gettext("The pool cannot be "
 			    "imported. Access the pool on a system that "
 			    "supports\n\tthe required feature(s), or recreate "
 			    "the pool from backup.\n"));
 			break;
 		case ZPOOL_STATUS_UNSUP_FEAT_WRITE:
-			(void) printf(gettext("action: The pool cannot be "
+			printf_color(ANSI_BOLD, gettext("action: "));
+			printf_color(ANSI_YELLOW, gettext("The pool cannot be "
 			    "imported in read-write mode. Import the pool "
 			    "with\n"
 			    "\t\"-o readonly=on\", access the pool on a system "
@@ -3730,7 +3795,7 @@ print_cmd_columns(vdev_cmd_data_list_t *vcdl, int use_dashes)
 			for (j = 0; j < vcdl->uniq_cols_width[i]; j++)
 				printf("-");
 		} else {
-			printf("%*s", vcdl->uniq_cols_width[i],
+			printf_color(ANSI_BOLD, "%*s", vcdl->uniq_cols_width[i],
 			    vcdl->uniq_cols[i]);
 		}
 	}
@@ -7034,7 +7099,9 @@ print_scan_status(pool_scan_stat_t *ps)
 	char processed_buf[7], scanned_buf[7], issued_buf[7], total_buf[7];
 	char srate_buf[7], irate_buf[7];
 
-	(void) printf(gettext("  scan: "));
+	printf("  ");
+	printf_color(ANSI_BOLD, gettext("scan:"));
+	printf(" ");
 
 	/* If there's never been a scan, there's not much to say. */
 	if (ps == NULL || ps->pss_func == POOL_SCAN_NONE ||
@@ -7513,38 +7580,52 @@ status_callback(zpool_handle_t *zhp, void *data)
 
 	health = zpool_get_state_str(zhp);
 
-	(void) printf(gettext("  pool: %s\n"), zpool_get_name(zhp));
-	(void) printf(gettext(" state: %s\n"), health);
+	printf("  ");
+	printf_color(ANSI_BOLD, gettext("pool:"));
+	printf(" %s\n", zpool_get_name(zhp));
+	printf(" ");
+	printf_color(ANSI_BOLD, gettext("state: "));
+
+	printf_color(health_str_to_color(health), "%s", health);
+
+	printf("\n");
 
 	switch (reason) {
 	case ZPOOL_STATUS_MISSING_DEV_R:
-		(void) printf(gettext("status: One or more devices could not "
-		    "be opened.  Sufficient replicas exist for\n\tthe pool to "
-		    "continue functioning in a degraded state.\n"));
-		(void) printf(gettext("action: Attach the missing device and "
-		    "online it using 'zpool online'.\n"));
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("One or more devices could "
+		    "not be opened.  Sufficient replicas exist for\n\tthe pool "
+		    "to continue functioning in a degraded state.\n"));
+		printf_color(ANSI_BOLD, gettext("action: "));
+		printf_color(ANSI_YELLOW, gettext("Attach the missing device "
+		    "and online it using 'zpool online'.\n"));
 		break;
 
 	case ZPOOL_STATUS_MISSING_DEV_NR:
-		(void) printf(gettext("status: One or more devices could not "
-		    "be opened.  There are insufficient\n\treplicas for the "
-		    "pool to continue functioning.\n"));
-		(void) printf(gettext("action: Attach the missing device and "
-		    "online it using 'zpool online'.\n"));
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("One or more devices could "
+		    "not be opened.  There are insufficient\n\treplicas for the"
+		    " pool to continue functioning.\n"));
+		printf_color(ANSI_BOLD, gettext("action: "));
+		printf_color(ANSI_YELLOW, gettext("Attach the missing device "
+		    "and online it using 'zpool online'.\n"));
 		break;
 
 	case ZPOOL_STATUS_CORRUPT_LABEL_R:
-		(void) printf(gettext("status: One or more devices could not "
-		    "be used because the label is missing or\n\tinvalid.  "
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("One or more devices could "
+		    "not be used because the label is missing or\n\tinvalid.  "
 		    "Sufficient replicas exist for the pool to continue\n\t"
 		    "functioning in a degraded state.\n"));
-		(void) printf(gettext("action: Replace the device using "
+		printf_color(ANSI_BOLD, gettext("action: "));
+		printf_color(ANSI_YELLOW, gettext("Replace the device using "
 		    "'zpool replace'.\n"));
 		break;
 
 	case ZPOOL_STATUS_CORRUPT_LABEL_NR:
-		(void) printf(gettext("status: One or more devices could not "
-		    "be used because the label is missing \n\tor invalid.  "
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("One or more devices could "
+		    "not be used because the label is missing \n\tor invalid.  "
 		    "There are insufficient replicas for the pool to "
 		    "continue\n\tfunctioning.\n"));
 		zpool_explain_recover(zpool_get_handle(zhp),
@@ -7552,175 +7633,209 @@ status_callback(zpool_handle_t *zhp, void *data)
 		break;
 
 	case ZPOOL_STATUS_FAILING_DEV:
-		(void) printf(gettext("status: One or more devices has "
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("One or more devices has "
 		    "experienced an unrecoverable error.  An\n\tattempt was "
 		    "made to correct the error.  Applications are "
 		    "unaffected.\n"));
-		(void) printf(gettext("action: Determine if the device needs "
-		    "to be replaced, and clear the errors\n\tusing "
-		    "'zpool clear' or replace the device with 'zpool "
+		printf_color(ANSI_BOLD, gettext("action: "));
+			printf_color(ANSI_YELLOW, gettext("Determine if the "
+		    "device needs to be replaced, and clear the errors\n\tusing"
+		    " 'zpool clear' or replace the device with 'zpool "
 		    "replace'.\n"));
 		break;
 
 	case ZPOOL_STATUS_OFFLINE_DEV:
-		(void) printf(gettext("status: One or more devices has "
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("One or more devices has "
 		    "been taken offline by the administrator.\n\tSufficient "
 		    "replicas exist for the pool to continue functioning in "
 		    "a\n\tdegraded state.\n"));
-		(void) printf(gettext("action: Online the device using "
-		    "'zpool online' or replace the device with\n\t'zpool "
+		printf_color(ANSI_BOLD, gettext("action: "));
+		printf_color(ANSI_YELLOW, gettext("Online the device "
+		    "using 'zpool online' or replace the device with\n\t'zpool "
 		    "replace'.\n"));
 		break;
 
 	case ZPOOL_STATUS_REMOVED_DEV:
-		(void) printf(gettext("status: One or more devices has "
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("One or more devices has "
 		    "been removed by the administrator.\n\tSufficient "
 		    "replicas exist for the pool to continue functioning in "
 		    "a\n\tdegraded state.\n"));
-		(void) printf(gettext("action: Online the device using "
-		    "'zpool online' or replace the device with\n\t'zpool "
+		printf_color(ANSI_BOLD, gettext("action: "));
+		printf_color(ANSI_YELLOW, gettext("Online the device "
+		    "using zpool online' or replace the device with\n\t'zpool "
 		    "replace'.\n"));
 		break;
 
 	case ZPOOL_STATUS_RESILVERING:
-		(void) printf(gettext("status: One or more devices is "
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("One or more devices is "
 		    "currently being resilvered.  The pool will\n\tcontinue "
 		    "to function, possibly in a degraded state.\n"));
-		(void) printf(gettext("action: Wait for the resilver to "
+		printf_color(ANSI_BOLD, gettext("action: "));
+		printf_color(ANSI_YELLOW, gettext("Wait for the resilver to "
 		    "complete.\n"));
 		break;
 
 	case ZPOOL_STATUS_CORRUPT_DATA:
-		(void) printf(gettext("status: One or more devices has "
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("One or more devices has "
 		    "experienced an error resulting in data\n\tcorruption.  "
 		    "Applications may be affected.\n"));
-		(void) printf(gettext("action: Restore the file in question "
-		    "if possible.  Otherwise restore the\n\tentire pool from "
+		printf_color(ANSI_BOLD, gettext("action: "));
+		printf_color(ANSI_YELLOW, gettext("Restore the file in question"
+		    " if possible.  Otherwise restore the\n\tentire pool from "
 		    "backup.\n"));
 		break;
 
 	case ZPOOL_STATUS_CORRUPT_POOL:
-		(void) printf(gettext("status: The pool metadata is corrupted "
-		    "and the pool cannot be opened.\n"));
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("The pool metadata is "
+		    "corrupted and the pool cannot be opened.\n"));
 		zpool_explain_recover(zpool_get_handle(zhp),
 		    zpool_get_name(zhp), reason, config);
 		break;
 
 	case ZPOOL_STATUS_VERSION_OLDER:
-		(void) printf(gettext("status: The pool is formatted using a "
-		    "legacy on-disk format.  The pool can\n\tstill be used, "
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("The pool is formatted using "
+		    "a legacy on-disk format.  The pool can\n\tstill be used, "
 		    "but some features are unavailable.\n"));
-		(void) printf(gettext("action: Upgrade the pool using 'zpool "
-		    "upgrade'.  Once this is done, the\n\tpool will no longer "
-		    "be accessible on software that does not support\n\t"
+		printf_color(ANSI_BOLD, gettext("action: "));
+		printf_color(ANSI_YELLOW, gettext("Upgrade the pool using "
+		    "'zpool upgrade'.  Once this is done, the\n\tpool will no "
+		    "longer be accessible on software that does not support\n\t"
 		    "feature flags.\n"));
 		break;
 
 	case ZPOOL_STATUS_VERSION_NEWER:
-		(void) printf(gettext("status: The pool has been upgraded to a "
-		    "newer, incompatible on-disk version.\n\tThe pool cannot "
-		    "be accessed on this system.\n"));
-		(void) printf(gettext("action: Access the pool from a system "
-		    "running more recent software, or\n\trestore the pool from "
-		    "backup.\n"));
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("The pool has been upgraded "
+		    "to a newer, incompatible on-disk version.\n\tThe pool "
+		    "cannot be accessed on this system.\n"));
+		printf_color(ANSI_BOLD, gettext("action: "));
+		printf_color(ANSI_YELLOW, gettext("Access the pool from a "
+		    "system running more recent software, or\n\trestore the "
+		    "pool from backup.\n"));
 		break;
 
 	case ZPOOL_STATUS_FEAT_DISABLED:
-		(void) printf(gettext("status: Some supported features are not "
-		    "enabled on the pool. The pool can\n\tstill be used, but "
-		    "some features are unavailable.\n"));
-		(void) printf(gettext("action: Enable all features using "
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("Some supported features are "
+		    "not enabled on the pool. The pool can\n\tstill be used, "
+		    "but some features are unavailable.\n"));
+		printf_color(ANSI_BOLD, gettext("action: "));
+		printf_color(ANSI_YELLOW, gettext("Enable all features using "
 		    "'zpool upgrade'. Once this is done,\n\tthe pool may no "
 		    "longer be accessible by software that does not support\n\t"
 		    "the features. See zpool-features(5) for details.\n"));
 		break;
 
 	case ZPOOL_STATUS_UNSUP_FEAT_READ:
-		(void) printf(gettext("status: The pool cannot be accessed on "
-		    "this system because it uses the\n\tfollowing feature(s) "
-		    "not supported on this system:\n"));
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("The pool cannot be accessed "
+		    "on this system because it uses the\n\tfollowing feature(s)"
+		    " not supported on this system:\n"));
 		zpool_print_unsup_feat(config);
 		(void) printf("\n");
-		(void) printf(gettext("action: Access the pool from a system "
-		    "that supports the required feature(s),\n\tor restore the "
-		    "pool from backup.\n"));
+		printf_color(ANSI_BOLD, gettext("action: "));
+		printf_color(ANSI_YELLOW, gettext("Access the pool from a "
+		    "system that supports the required feature(s),\n\tor "
+		    "restore the pool from backup.\n"));
 		break;
 
 	case ZPOOL_STATUS_UNSUP_FEAT_WRITE:
-		(void) printf(gettext("status: The pool can only be accessed "
-		    "in read-only mode on this system. It\n\tcannot be "
-		    "accessed in read-write mode because it uses the "
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("The pool can only be "
+		    "accessed in read-only mode on this system. It\n\tcannot be"
+		    " accessed in read-write mode because it uses the "
 		    "following\n\tfeature(s) not supported on this system:\n"));
 		zpool_print_unsup_feat(config);
 		(void) printf("\n");
-		(void) printf(gettext("action: The pool cannot be accessed in "
-		    "read-write mode. Import the pool with\n"
+		printf_color(ANSI_BOLD, gettext("action: "));
+		printf_color(ANSI_YELLOW, gettext("The pool cannot be accessed "
+		    "in read-write mode. Import the pool with\n"
 		    "\t\"-o readonly=on\", access the pool from a system that "
 		    "supports the\n\trequired feature(s), or restore the "
 		    "pool from backup.\n"));
 		break;
 
 	case ZPOOL_STATUS_FAULTED_DEV_R:
-		(void) printf(gettext("status: One or more devices are "
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("One or more devices are "
 		    "faulted in response to persistent errors.\n\tSufficient "
 		    "replicas exist for the pool to continue functioning "
 		    "in a\n\tdegraded state.\n"));
-		(void) printf(gettext("action: Replace the faulted device, "
+		printf_color(ANSI_BOLD, gettext("action: "));
+		printf_color(ANSI_YELLOW, gettext("Replace the faulted device, "
 		    "or use 'zpool clear' to mark the device\n\trepaired.\n"));
 		break;
 
 	case ZPOOL_STATUS_FAULTED_DEV_NR:
-		(void) printf(gettext("status: One or more devices are "
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("One or more devices are "
 		    "faulted in response to persistent errors.  There are "
 		    "insufficient replicas for the pool to\n\tcontinue "
 		    "functioning.\n"));
-		(void) printf(gettext("action: Destroy and re-create the pool "
-		    "from a backup source.  Manually marking the device\n"
+		printf_color(ANSI_BOLD, gettext("action: "));
+		printf_color(ANSI_YELLOW, gettext("Destroy and re-create the "
+		    "pool from a backup source.  Manually marking the device\n"
 		    "\trepaired using 'zpool clear' may allow some data "
 		    "to be recovered.\n"));
 		break;
 
 	case ZPOOL_STATUS_IO_FAILURE_MMP:
-		(void) printf(gettext("status: The pool is suspended because "
-		    "multihost writes failed or were delayed;\n\tanother "
-		    "system could import the pool undetected.\n"));
-		(void) printf(gettext("action: Make sure the pool's devices "
-		    "are connected, then reboot your system and\n\timport the "
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("The pool is suspended "
+		    "because multihost writes failed or were delayed;\n\t"
+		    "another system could import the pool undetected.\n"));
+		printf_color(ANSI_BOLD, gettext("action: "));
+		printf_color(ANSI_YELLOW, gettext("Make sure the pool's devices"
+		    " are connected, then reboot your system and\n\timport the "
 		    "pool.\n"));
 		break;
 
 	case ZPOOL_STATUS_IO_FAILURE_WAIT:
 	case ZPOOL_STATUS_IO_FAILURE_CONTINUE:
-		(void) printf(gettext("status: One or more devices are "
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("One or more devices are "
 		    "faulted in response to IO failures.\n"));
-		(void) printf(gettext("action: Make sure the affected devices "
-		    "are connected, then run 'zpool clear'.\n"));
+		printf_color(ANSI_BOLD, gettext("action: "));
+		printf_color(ANSI_YELLOW, gettext("Make sure the affected "
+		    "devices are connected, then run 'zpool clear'.\n"));
 		break;
 
 	case ZPOOL_STATUS_BAD_LOG:
-		(void) printf(gettext("status: An intent log record "
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("An intent log record "
 		    "could not be read.\n"
 		    "\tWaiting for administrator intervention to fix the "
 		    "faulted pool.\n"));
-		(void) printf(gettext("action: Either restore the affected "
+		printf_color(ANSI_BOLD, gettext("action: "));
+		printf_color(ANSI_YELLOW, gettext("Either restore the affected "
 		    "device(s) and run 'zpool online',\n"
 		    "\tor ignore the intent log records by running "
 		    "'zpool clear'.\n"));
 		break;
 
 	case ZPOOL_STATUS_HOSTID_MISMATCH:
-		(void) printf(gettext("status: Mismatch between pool hostid "
-		    "and system hostid on imported pool.\n\tThis pool was "
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("Mismatch between pool hostid"
+		    " and system hostid on imported pool.\n\tThis pool was "
 		    "previously imported into a system with a different "
 		    "hostid,\n\tand then was verbatim imported into this "
 		    "system.\n"));
-		(void) printf(gettext("action: Export this pool on all systems "
-		    "on which it is imported.\n"
+		printf_color(ANSI_BOLD, gettext("action: "));
+		printf_color(ANSI_YELLOW, gettext("Export this pool on all "
+		    "systems on which it is imported.\n"
 		    "\tThen import it to correct the mismatch.\n"));
 		break;
 
 	case ZPOOL_STATUS_ERRATA:
-		(void) printf(gettext("status: Errata #%d detected.\n"),
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("Errata #%d detected.\n"),
 		    errata);
 
 		switch (errata) {
@@ -7728,16 +7843,18 @@ status_callback(zpool_handle_t *zhp, void *data)
 			break;
 
 		case ZPOOL_ERRATA_ZOL_2094_SCRUB:
-			(void) printf(gettext("action: To correct the issue "
-			    "run 'zpool scrub'.\n"));
+			printf_color(ANSI_BOLD, gettext("action: "));
+			printf_color(ANSI_YELLOW, gettext("To correct the issue"
+			    " run 'zpool scrub'.\n"));
 			break;
 
 		case ZPOOL_ERRATA_ZOL_6845_ENCRYPTION:
 			(void) printf(gettext("\tExisting encrypted datasets "
 			    "contain an on-disk incompatibility\n\twhich "
 			    "needs to be corrected.\n"));
-			(void) printf(gettext("action: To correct the issue "
-			    "backup existing encrypted datasets to new\n\t"
+			printf_color(ANSI_BOLD, gettext("action: "));
+			printf_color(ANSI_YELLOW, gettext("To correct the issue"
+			    " backup existing encrypted datasets to new\n\t"
 			    "encrypted datasets and destroy the old ones. "
 			    "'zfs mount -o ro' can\n\tbe used to temporarily "
 			    "mount existing encrypted datasets readonly.\n"));
@@ -7748,13 +7865,14 @@ status_callback(zpool_handle_t *zhp, void *data)
 			    "and bookmarks contain an on-disk\n\tincompat"
 			    "ibility. This may cause on-disk corruption if "
 			    "they are used\n\twith 'zfs recv'.\n"));
-			(void) printf(gettext("action: To correct the issue, "
-			    "enable the bookmark_v2 feature. No additional\n\t"
-			    "action is needed if there are no encrypted "
-			    "snapshots or bookmarks.\n\tIf preserving the "
-			    "encrypted snapshots and bookmarks is required, "
-			    "use\n\ta non-raw send to backup and restore them. "
-			    "Alternately, they may be\n\tremoved to resolve "
+			printf_color(ANSI_BOLD, gettext("action: "));
+			printf_color(ANSI_YELLOW, gettext("To correct the"
+			    "issue, enable the bookmark_v2 feature. No "
+			    "additional\n\taction is needed if there are no "
+			    "encrypted snapshots or bookmarks.\n\tIf preserving"
+			    "the encrypted snapshots and bookmarks is required,"
+			    " use\n\ta non-raw send to backup and restore them."
+			    " Alternately, they may be\n\tremoved to resolve "
 			    "the incompatibility.\n"));
 			break;
 
@@ -7774,9 +7892,11 @@ status_callback(zpool_handle_t *zhp, void *data)
 		assert(reason == ZPOOL_STATUS_OK);
 	}
 
-	if (msgid != NULL)
-		(void) printf(gettext("   see: http://zfsonlinux.org/msg/%s\n"),
-		    msgid);
+	if (msgid != NULL) {
+		printf("   ");
+		printf_color(ANSI_BOLD, gettext("see:"));
+		printf(gettext(" http://zfsonlinux.org/msg/%s\n"), msgid);
+	}
 
 	if (config != NULL) {
 		uint64_t nerr;
@@ -7792,7 +7912,6 @@ status_callback(zpool_handle_t *zhp, void *data)
 		    ZPOOL_CONFIG_SCAN_STATS, (uint64_t **)&ps, &c);
 		(void) nvlist_lookup_uint64_array(nvroot,
 		    ZPOOL_CONFIG_REMOVAL_STATS, (uint64_t **)&prs, &c);
-
 		print_scan_status(ps);
 		print_checkpoint_scan_warning(ps, pcs);
 		print_removal_status(zhp, prs);
@@ -7803,13 +7922,16 @@ status_callback(zpool_handle_t *zhp, void *data)
 		if (cbp->cb_namewidth < 10)
 			cbp->cb_namewidth = 10;
 
+		color_start(ANSI_BOLD);
 		(void) printf(gettext("config:\n\n"));
 		(void) printf(gettext("\t%-*s  %-8s %5s %5s %5s"),
 		    cbp->cb_namewidth, "NAME", "STATE", "READ", "WRITE",
 		    "CKSUM");
+		color_end();
 
-		if (cbp->cb_print_slow_ios)
-			(void) printf(" %5s", gettext("SLOW"));
+		if (cbp->cb_print_slow_ios) {
+			printf_color(ANSI_BOLD, " %5s", gettext("SLOW"));
+		}
 
 		if (cbp->vcdl != NULL)
 			print_cmd_columns(cbp->vcdl, 0);
