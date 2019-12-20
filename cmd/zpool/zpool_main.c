@@ -64,6 +64,7 @@
 #include <sys/zfs_ioctl.h>
 #include <sys/mount.h>
 #include <sys/sysmacros.h>
+#include <sys/range_tree.h>
 
 #include <math.h>
 
@@ -1852,8 +1853,8 @@ typedef struct status_cbdata {
 	int		cb_count;
 	int		cb_name_flags;
 	int		cb_namewidth;
+	unsigned int	cb_verbose;
 	boolean_t	cb_allpools;
-	boolean_t	cb_verbose;
 	boolean_t	cb_literal;
 	boolean_t	cb_explain;
 	boolean_t	cb_first;
@@ -7400,7 +7401,18 @@ print_checkpoint_status(pool_checkpoint_stat_t *pcs)
 }
 
 static void
-print_error_log(zpool_handle_t *zhp)
+print_error_log_range_tree_cb(void *arg, uint64_t start, uint64_t size)
+{
+	char str[32];
+
+	zfs_nicenum(size, str, sizeof (str));
+
+	printf("%11s[0x%llx-0x%llx] (%s)\n", "", (u_longlong_t)start,
+	    (u_longlong_t)(start + size - 1), str);
+}
+
+static void
+print_error_log(zpool_handle_t *zhp, unsigned int verbose)
 {
 	nvlist_t *nverrlist = NULL;
 	nvpair_t *elem;
@@ -7410,23 +7422,81 @@ print_error_log(zpool_handle_t *zhp)
 	if (zpool_get_errlog(zhp, &nverrlist) != 0)
 		return;
 
-	(void) printf("errors: Permanent errors have been "
-	    "detected in the following files:\n\n");
+	printf_color(ANSI_RED, "errors: Permanent errors have been "
+	    "detected in the following files:");
+	printf("\n\n");
 
 	pathname = safe_malloc(len);
 	elem = NULL;
 	while ((elem = nvlist_next_nvpair(nverrlist, elem)) != NULL) {
 		nvlist_t *nv;
-		uint64_t dsobj, obj;
+		uint64_t dsobj, obj, data_block_size, indirect_block_size;
+		uint64_t *block_ids;
+		int64_t *indrt_levels;
+		unsigned int error_count;
+		int rc = 0;
 
 		verify(nvpair_value_nvlist(elem, &nv) == 0);
 		verify(nvlist_lookup_uint64(nv, ZPOOL_ERR_DATASET,
 		    &dsobj) == 0);
 		verify(nvlist_lookup_uint64(nv, ZPOOL_ERR_OBJECT,
 		    &obj) == 0);
+		verify(nvlist_lookup_int64_array(nv, ZPOOL_ERR_LEVEL,
+		    &indrt_levels, &error_count) == 0);
+		verify(nvlist_lookup_uint64_array(nv, ZPOOL_ERR_BLOCKID,
+		    &block_ids, &error_count) == 0);
+
 		zpool_obj_to_path(zhp, dsobj, obj, pathname, len);
-		(void) printf("%7s %s\n", "", pathname);
+
+		if (error_count > 0) {
+			rc = zpool_get_block_size(zhp, dsobj, obj,
+			    &data_block_size, &indirect_block_size);
+		}
+		if (rc == 0) {
+			char str[32];
+			zfs_nicenum(data_block_size, str, sizeof (str));
+
+			(void) printf("%7s %s: found %u corrupted %s %s\n",
+			    "", pathname, error_count, str,
+			    error_count == 1 ? "block" : "blocks");
+
+			if (verbose > 1) {
+				range_tree_t *range_tree;
+				zfs_btree_init();
+				range_tree = range_tree_create(NULL,
+				    RANGE_SEG64, NULL, 0,  0);
+				if (!range_tree)
+					goto fail;
+
+				/* Add all our blocks to the range tree */
+				for (int i = 0; i < error_count; i++) {
+					uint8_t blkptr_size_shift = 0;
+					uint8_t indirect_block_shift = 0;
+					uint64_t offset_blks = block_ids[i] <<
+					    ((indirect_block_shift -
+					    blkptr_size_shift) *
+					    indrt_levels[i]);
+
+					range_tree_add(range_tree,
+					    offset_blks * data_block_size,
+					    data_block_size);
+				}
+
+				/* Print out our ranges */
+				range_tree_walk(range_tree,
+				    print_error_log_range_tree_cb, NULL);
+
+				printf("\n");
+				range_tree_vacate(range_tree, NULL, NULL);
+				range_tree_destroy(range_tree);
+				zfs_btree_fini();
+			}
+		} else {
+			(void) printf("%7s %s %s\n", "", pathname, " can not "
+			    "determine error offset");
+		}
 	}
+fail:
 	free(pathname);
 	nvlist_free(nverrlist);
 }
@@ -7975,7 +8045,7 @@ status_callback(zpool_handle_t *zhp, void *data)
 				    "errors, use '-v' for a list\n"),
 				    (u_longlong_t)nerr);
 			else
-				print_error_log(zhp);
+				print_error_log(zhp, cbp->cb_verbose);
 		}
 
 		if (cbp->cb_dedup_stats)
@@ -8063,7 +8133,7 @@ zpool_do_status(int argc, char **argv)
 			cb.cb_print_slow_ios = B_TRUE;
 			break;
 		case 'v':
-			cb.cb_verbose = B_TRUE;
+			cb.cb_verbose++;
 			break;
 		case 'x':
 			cb.cb_explain = B_TRUE;

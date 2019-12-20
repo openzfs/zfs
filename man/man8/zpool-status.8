@@ -121,7 +121,8 @@ See
 .Xr date 1 .
 .It Fl v
 Displays verbose data error information, printing out a complete list of all
-data errors since the last complete pool scrub.
+data errors since the last complete pool scrub.  Passing this flag twice ('-vv')
+will print out the byte ranges for the errors within the files.
 .It Fl x
 Only display status for pools that are exhibiting errors or are otherwise
 unavailable.

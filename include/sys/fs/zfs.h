@@ -1359,6 +1359,8 @@ typedef enum {
 #define	ZPOOL_ERR_LIST		"error list"
 #define	ZPOOL_ERR_DATASET	"dataset"
 #define	ZPOOL_ERR_OBJECT	"object"
+#define	ZPOOL_ERR_LEVEL		"level"
+#define	ZPOOL_ERR_BLOCKID	"block id"
 
 #define	HIS_MAX_RECORD_LEN	(MAXPATHLEN + MAXPATHLEN + 1)
 
