@@ -26,6 +26,7 @@
 .Op Fl AbcdDFGhikLMPsvXY
 .Op Fl e Oo Fl V Oc Op Fl p Ar path ...
 .Op Fl I Ar inflight I/Os
+.Op Fl n Ar start Ns Op : Ns Ar end
 .Oo Fl o Ar var Ns = Ns Ar value Oc Ns ...
 .Op Fl t Ar txg
 .Op Fl U Ar cache
@@ -134,8 +135,10 @@ size, and object count.
 .Pp
 If specified multiple times provides greater and greater verbosity.
 .Pp
-If object IDs are specified, display information about those specific objects
-only.
+If individual object IDs are specified as command line arguments
+following the dataset name, or if a range of object IDs is specified with the
+.Fl n
+option, display information about those specific objects only.
 .It Fl D
 Display deduplication statistics, including the deduplication ratio
 .Pq Sy dedup ,
@@ -227,6 +230,18 @@ must be relative to the root of
 This option can be combined with
 .Fl v
 for increasing verbosity.
+.It Fl n Ar start Ns Op : Ns Ar end
+When combined the
+.Fl d
+option, dump dataset objects with identifiers between
+.Ar start
+and
+.Ar end Ns ,
+inclusive. If
+.Ar end
+is not specified, dump all dataset objects with identifiers greater than
+or equal to
+.Ar start Ns .
 .It Xo
 .Fl R Ar poolname vdev Ns \&: Ns Ar offset Ns \&: Ns Ar [<lsize>/]<psize> Ns Op : Ns Ar flags
 .Xc

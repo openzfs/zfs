@@ -113,6 +113,8 @@ typedef void object_viewer_t(objset_t *, uint64_t, void *data, size_t size);
 uint64_t *zopt_object = NULL;
 static unsigned zopt_objects = 0;
 uint64_t max_inflight_bytes = 256 * 1024 * 1024; /* 256MB */
+uint64_t start_obj = 0;
+uint64_t end_obj = UINT64_MAX;
 static int leaked_objects = 0;
 static range_tree_t *mos_refd_objs;
 
@@ -2833,23 +2835,27 @@ dump_objset(objset_t *os)
 	if (BP_IS_HOLE(os->os_rootbp))
 		return;
 
-	dump_object(os, 0, verbosity, &print_header, NULL);
-	object_count = 0;
-	if (DMU_USERUSED_DNODE(os) != NULL &&
-	    DMU_USERUSED_DNODE(os)->dn_type != 0) {
-		dump_object(os, DMU_USERUSED_OBJECT, verbosity, &print_header,
-		    NULL);
-		dump_object(os, DMU_GROUPUSED_OBJECT, verbosity, &print_header,
-		    NULL);
+
+	if (start_obj == 0) {
+		dump_object(os, 0, verbosity, &print_header, NULL);
+		object_count = 0;
+		if (DMU_USERUSED_DNODE(os) != NULL &&
+		    DMU_USERUSED_DNODE(os)->dn_type != 0) {
+			dump_object(os, DMU_USERUSED_OBJECT, verbosity,
+			    &print_header, NULL);
+			dump_object(os, DMU_GROUPUSED_OBJECT, verbosity,
+			    &print_header, NULL);
+		}
+
+		if (DMU_PROJECTUSED_DNODE(os) != NULL &&
+		    DMU_PROJECTUSED_DNODE(os)->dn_type != 0)
+			dump_object(os, DMU_PROJECTUSED_OBJECT, verbosity,
+			    &print_header, NULL);
 	}
 
-	if (DMU_PROJECTUSED_DNODE(os) != NULL &&
-	    DMU_PROJECTUSED_DNODE(os)->dn_type != 0)
-		dump_object(os, DMU_PROJECTUSED_OBJECT, verbosity,
-		    &print_header, NULL);
-
-	object = 0;
-	while ((error = dmu_object_next(os, &object, B_FALSE, 0)) == 0) {
+	object = start_obj == 0 ? 0 : start_obj - 1;
+	while (((error = dmu_object_next(os, &object, B_FALSE, 0)) == 0) &&
+	    object <= end_obj) {
 		dump_object(os, object, verbosity, &print_header, &dnode_slots);
 		object_count++;
 		total_slots_used += dnode_slots;
@@ -2868,12 +2874,13 @@ dump_objset(objset_t *os)
 	    (double)max_slot_used);
 	(void) printf("\n");
 
-	if (error != ESRCH) {
+	if (end_obj == UINT64_MAX && error != ESRCH) {
 		(void) fprintf(stderr, "dmu_object_next() = %d\n", error);
 		abort();
 	}
 
-	ASSERT3U(object_count, ==, usedobjs);
+	if (start_obj == 0 && end_obj == UINT64_MAX)
+		ASSERT3U(object_count, ==, usedobjs);
 
 	if (leaked_objects != 0) {
 		(void) printf("%d potentially leaked objects detected\n",
@@ -6699,6 +6706,7 @@ int
 main(int argc, char **argv)
 {
 	int c;
+	char *p;
 	struct rlimit rl = { 1024, 1024 };
 	spa_t *spa = NULL;
 	objset_t *os = NULL;
@@ -6738,7 +6746,7 @@ main(int argc, char **argv)
 	zfs_btree_verify_intensity = 3;
 
 	while ((c = getopt(argc, argv,
-	    "AbcCdDeEFGhiI:klLmMo:Op:PqRsSt:uU:vVx:XY")) != -1) {
+	    "AbcCdDeEFGhiI:klLmMn:o:Op:PqRsSt:uU:vVx:XY")) != -1) {
 		switch (c) {
 		case 'b':
 		case 'c':
@@ -6782,6 +6790,18 @@ main(int argc, char **argv)
 				    "of inflight bytes must be greater "
 				    "than 0\n");
 				usage();
+			}
+			break;
+		case 'n':
+			start_obj = strtoull(optarg, &p, 0);
+			if (*p == ':') {
+				p++;
+				end_obj = strtoull(p, NULL, 0);
+				if (end_obj == 0 || end_obj < start_obj) {
+					(void) fprintf(stderr, "incorrect end "
+					"object number specified: %s\n", p);
+					usage();
+				}
 			}
 			break;
 		case 'o':
