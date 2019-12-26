@@ -34,7 +34,7 @@
 #include <stdarg.h>
 
 #ifndef _KERNEL
-int aok;
+extern int aok;
 #endif
 
 static inline int
