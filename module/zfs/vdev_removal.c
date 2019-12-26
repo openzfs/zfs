@@ -1871,6 +1871,13 @@ spa_vdev_remove_log(vdev_t *vd, uint64_t *txg)
 	    *txg + TXG_CONCURRENT_STATES + TXG_DEFER_SIZE, 0, FTAG);
 
 	/*
+	 * Cancel any initialize or TRIM which was in progress.
+	 */
+	vdev_initialize_stop_all(vd, VDEV_INITIALIZE_CANCELED);
+	vdev_trim_stop_all(vd, VDEV_TRIM_CANCELED);
+	vdev_autotrim_stop_wait(vd);
+
+	/*
 	 * Evacuate the device.  We don't hold the config lock as
 	 * writer since we need to do I/O but we do keep the
 	 * spa_namespace_lock held.  Once this completes the device
@@ -1921,12 +1928,6 @@ spa_vdev_remove_log(vdev_t *vd, uint64_t *txg)
 	spa_log_sm_set_blocklimit(spa);
 
 	spa_vdev_config_exit(spa, NULL, *txg, 0, FTAG);
-
-	/* Stop initializing and TRIM */
-	vdev_initialize_stop_all(vd, VDEV_INITIALIZE_CANCELED);
-	vdev_trim_stop_all(vd, VDEV_TRIM_CANCELED);
-	vdev_autotrim_stop_wait(vd);
-
 	*txg = spa_vdev_config_enter(spa);
 
 	sysevent_t *ev = spa_event_create(spa, vd, NULL,
