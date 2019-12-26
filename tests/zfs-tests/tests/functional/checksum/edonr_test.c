@@ -42,6 +42,8 @@
 typedef enum boolean { B_FALSE, B_TRUE } boolean_t;
 typedef	unsigned long long	u_longlong_t;
 
+int aok = 0;
+
 /*
  * Test messages from:
  * http://csrc.nist.gov/groups/ST/toolkit/documents/Examples/SHA_All.pdf
