@@ -282,10 +282,11 @@ vdev_mirror_map_init(zio_t *zio)
 		}
 
 		/*
-		 * If we do not trust the pool config, some DVAs might be
-		 * invalid or point to vdevs that do not exist. We skip them.
+		 * If the pool cannot be written to, then infer that some
+		 * DVAs might be invalid or point to vdevs that do not exist.
+		 * We skip them.
 		 */
-		if (!spa_trust_config(spa)) {
+		if (!spa_writeable(spa)) {
 			ASSERT3U(zio->io_type, ==, ZIO_TYPE_READ);
 			int j = 0;
 			for (int i = 0; i < c; i++) {
@@ -309,6 +310,13 @@ vdev_mirror_map_init(zio_t *zio)
 
 			mc->mc_vd = vdev_lookup_top(spa, DVA_GET_VDEV(&dva[c]));
 			mc->mc_offset = DVA_GET_OFFSET(&dva[c]);
+			if (mc->mc_vd == NULL) {
+				kmem_free(mm, vdev_mirror_map_size(
+				    mm->mm_children));
+				zio->io_vsd = NULL;
+				zio->io_error = ENXIO;
+				return (NULL);
+			}
 		}
 	} else {
 		/*

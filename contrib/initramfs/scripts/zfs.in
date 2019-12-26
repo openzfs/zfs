@@ -411,6 +411,7 @@ decrypt_fs()
 
 		# Determine dataset that holds key for root dataset
 		ENCRYPTIONROOT="$(get_fs_value "${fs}" encryptionroot)"
+		KEYLOCATION="$(get_fs_value "${ENCRYPTIONROOT}" keylocation)"
 
 		# If root dataset is encrypted...
 		if ! [ "${ENCRYPTIONROOT}" = "-" ]; then
@@ -418,8 +419,13 @@ decrypt_fs()
 			# Continue only if the key needs to be loaded
 			[ "$KEYSTATUS" = "unavailable" ] || return 0
 			TRY_COUNT=3
+
+			# If key is stored in a file, do not prompt
+			if ! [ "${KEYLOCATION}" = "prompt" ]; then
+				$ZFS load-key "${ENCRYPTIONROOT}"
+
 			# Prompt with plymouth, if active
-			if [ -e /bin/plymouth ] && /bin/plymouth --ping 2>/dev/null; then
+			elif [ -e /bin/plymouth ] && /bin/plymouth --ping 2>/dev/null; then
 				while [ $TRY_COUNT -gt 0 ]; do
 					plymouth ask-for-password --prompt "Encrypted ZFS password for ${ENCRYPTIONROOT}" | \
 						$ZFS load-key "${ENCRYPTIONROOT}" && break

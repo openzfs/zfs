@@ -121,6 +121,7 @@ for parity in 1 2 3; do
 			log_must test "$deltapct" -le $maxpct
 
 			log_must_busy zfs destroy "$vol"
+			block_device_wait
 		done
 
 		log_must_busy zpool destroy "$TESTPOOL"
