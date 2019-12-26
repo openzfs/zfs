@@ -36,192 +36,70 @@
 #
 # $1 device file type
 # $2 file name
+# $3 device path (used for 'b' device type)
 #
 function create_dev_file
 {
 	typeset filetype=$1
 	typeset filename=$2
-
-	case $(uname) in
-	FreeBSD)
-		create_dev_file_freebsd "$filetype" "$filename"
-		;;
-	Linux)
-		create_dev_file_linux "$filetype" "$filename"
-		;;
-	*)
-		create_dev_file_illumos "$filetype" "$filename"
-		;;
-	esac
-
-	return 0
-}
-
-function create_dev_file_freebsd
-{
-	typeset filetype=$1
-	typeset filename=$2
+	typeset devstr=$3
 
 	case $filetype in
 	b)
-		devtype=$(df -T / | grep -v "Type" | awk '{print $2}')
-		case $devtype in
-		zfs)
-			rootpool=$(df / | grep -v "Filesystem" | \
-				awk '{print $2}')
-			rootpool=${rootpool#\(}
-			rootpool=${rootpool%%/*}
-
-			devstr=$(get_disklist $rootpool)
-			devstr=$(echo "$devstr" | \
-				awk '{print $1}')
-			[[ -z $devstr ]] && \
-				log_fail "Can not get block device file."
-			devstr=/dev/${devstr}
-			;;
-		ufs)
-		#
-		# Get the existing block device file in current system.
-		# And bring out the first one.
-		#
-			devstr=$(df -t ufs | \
-				grep "^/dev/" | \
-				head -n 1 | \
-				awk '{print $1}')
-			devstr=$(echo "$devstr" | \
-				awk '{print $1}')
-			[[ -z $devstr ]] && \
-				log_fail "Can not get block device file."
+		case $(uname) in
+		Linux)
+			#
+			# stat(1) --format=FORMAT tokens
+			# %t - major device type in hex
+			# %T - minor device type in hex
+			#
+			major=$(stat --dereference --format="%t" "$devstr")
+			minor=$(stat --dereference --format="%T" "$devstr")
+			log_must mknod $filename b "0x${major}" "0x${minor}"
 			;;
 		*)
-			log_unsupported "Unsupported fstype " \
-				"for / ($devtype)," \
-				"only ufs|zfs is supported."
+			#
+			# Get the device file information. i.e:
+			# $devstr:      block special (28/768)
+			#
+			devstr=$(file $devstr)
+			major=${devstr##*\(}
+			major=${major%%/*}
+			minor=${devstr##*/}
+			minor=${minor%\)}
+			log_must mknod $filename b $major $minor
 			;;
 		esac
-
-		#
-		# Get the device file information. i.e:
-		# /dev/c0t0d0s0:      block special (28/768)
-		#
-		devstr=$(file $devstr)
-
-		#
-		# Bring out major and minor number.
-		#
-		major=${devstr##*\(}
-		major=${major%%/*}
-		minor=${devstr##*/}
-		minor=${minor%\)}
-
-		log_must mknod $filename b $major $minor
 		;;
 	c)
 		#
-		# Create device file '/dev/null'
+		# Create device file '/dev/null', $devstr is unused.
 		#
-		log_must mknod $filename c 13 2
-		;;
-	*)
-		log_fail "'$filetype' is wrong."
-		;;
-	esac
-
-	return 0
-}
-
-function create_dev_file_illumos
-{
-	typeset filetype=$1
-	typeset filename=$2
-
-	case $filetype in
-	b)
-		devtype=$(df -n / | awk '{print $3}')
-		case $devtype in
-		zfs)
-			rootpool=$(df / | \
-				awk '{print $2}')
-			rootpool=${rootpool#\(}
-			rootpool=${rootpool%%/*}
-
-			devstr=$(get_disklist $rootpool)
-			devstr=$(echo "$devstr" | \
-				awk '{print $1}')
-			[[ -z $devstr ]] && \
-				log_fail "Can not get block device file."
-			devstr=$DEV_DSKDIR/${devstr}
+		case $(uname) in
+		Linux)
+			#
+			# stat(1) --format=FORMAT tokens
+			# %t - major device type in hex
+			# %T - minor device type in hex
+			#
+			major=$(stat --format="%t" /dev/null)
+			minor=$(stat --format="%T" /dev/null)
+			log_must mknod $filename c "0x${major}" "0x${minor}"
 			;;
-		ufs)
-		#
-		# Get the existing block device file in current system.
-		# And bring out the first one.
-		#
-			devstr=$(df-lhF ufs | \
-				grep "^${DEV_DSKDIR}" | \
-				awk '{print $1}')
-			devstr=$(echo "$devstr" | \
-				awk '{print $1}')
-			[[ -z $devstr ]] && \
-				log_fail "Can not get block device file."
+		FreeBSD)
+			#
+			# Create device file '/dev/null'
+			#
+			major=13
+			minor=2
+			log_must mknod $filename b $major $minor
 			;;
 		*)
-			log_unsupported "Unsupported fstype " \
-				"for / ($devtype)," \
-				"only ufs|zfs is supported."
+			major=$(getmajor mm)
+			minor=2
+			log_must mknod $filename b $major $minor
 			;;
 		esac
-
-		#
-		# Get the device file information. i.e:
-		# $DEV_DSKDIR/c0t0d0s0:      block special (28/768)
-		#
-		devstr=$(file $devstr)
-
-		#
-		# Bring out major and minor number.
-		#
-		major=${devstr##*\(}
-		major=${major%%/*}
-		minor=${devstr##*/}
-		minor=${minor%\)}
-
-		log_must mknod $filename b $major $minor
-		;;
-	c)
-		#
-		# Create device file '/dev/null'
-		#
-		log_must mknod $filename c $(getmajor mm) 2
-		;;
-	*)
-		log_fail "'$filetype' is wrong."
-		;;
-	esac
-
-	return 0
-}
-
-function create_dev_file_linux
-{
-	typeset filetype=$1
-	typeset filename=$2
-
-	case $filetype in
-	b)
-		major=$(awk '/[hsv]d/ { print $1; exit }' \
-		    /proc/partitions)
-		minor=$(awk '/[hsv]d/ { print $2; exit }' \
-		    /proc/partitions)
-		log_must mknod $filename b $major $minor
-		;;
-	c)
-		#
-		# Create device file '/dev/null'
-		#
-		major=$(stat -c %t /dev/null)
-		minor=$(stat -c %T /dev/null)
-		log_must mknod $filename c $major $minor
 		;;
 	*)
 		log_fail "'$filetype' is wrong."
@@ -236,6 +114,6 @@ function cleanup
 	log_must zfs set devices=on $TESTPOOL/$TESTFS
 	log_must rm -f $TESTDIR/$TESTFILE1
 	log_must rm -f $TESTDIR/$TESTFILE2
-	log_must rm -f $TESTDIR/$TESTFILE1.out
-	log_must rm -f $TESTDIR/$TESTFILE2.out
+	log_must rm -f $TESTDIR/$TESTFILE1.out1
+	log_must rm -f $TESTDIR/$TESTFILE1.out2
 }
