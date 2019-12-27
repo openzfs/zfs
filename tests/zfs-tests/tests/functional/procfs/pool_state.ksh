@@ -105,8 +105,10 @@ check_all $TESTPOOL "ONLINE"
 
 # Fault one of the disks, and check that pool is degraded
 DISK1=$(echo "$DISKS" | awk '{print $2}')
-zpool offline -tf $TESTPOOL $DISK1
+log_must zpool offline -tf $TESTPOOL $DISK1
 check_all $TESTPOOL "DEGRADED"
+log_must zpool online $TESTPOOL $DISK1
+log_must zpool clear $TESTPOOL
 
 # Create a new pool out of a scsi_debug disk
 TESTPOOL2=testpool2
