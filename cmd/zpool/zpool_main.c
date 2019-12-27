@@ -7518,14 +7518,16 @@ print_l2cache(zpool_handle_t *zhp, status_cbdata_t *cb, nvlist_t **l2cache,
 }
 
 static void
-print_dedup_stats(zpool_handle_t *zhp, nvlist_t *config)
+print_dedup_stats(zpool_handle_t *zhp, nvlist_t *config, boolean_t literal)
 {
 	ddt_histogram_t *ddh;
 	ddt_stat_t *dds;
 	ddt_object_t *ddo;
 	uint_t c;
-	char dspace[6], mspace[6], cspace[6];
+	/* Extra space provided for literal display */
+	char dspace[32], mspace[32], cspace[32];
 	uint64_t cspace_prop;
+	enum zfs_nicenum_format format;
 
 	/*
 	 * If the pool was faulted then we may not have been able to
@@ -7536,9 +7538,6 @@ print_dedup_stats(zpool_handle_t *zhp, nvlist_t *config)
 	    (uint64_t **)&ddo, &c) != 0)
 		return;
 
-	cspace_prop = zpool_get_prop_int(zhp, ZPOOL_PROP_DEDUPCACHED, NULL);
-	zfs_nicebytes(cspace_prop, cspace, sizeof (cspace));
-
 	(void) printf("\n");
 	(void) printf(gettext(" dedup: "));
 	if (ddo->ddo_count == 0) {
@@ -7546,13 +7545,19 @@ print_dedup_stats(zpool_handle_t *zhp, nvlist_t *config)
 		return;
 	}
 
-	zfs_nicebytes(ddo->ddo_dspace, dspace, sizeof (dspace));
-	zfs_nicebytes(ddo->ddo_mspace, mspace, sizeof (mspace));
-	(void) printf("DDT entries %llu, size %s on disk, %s in core (%s cached)\n",
+	/* Squash cached size into in-core size to handle race. */
+	cspace_prop = MIN(zpool_get_prop_int(zhp, ZPOOL_PROP_DEDUPCACHED, NULL),
+	    ddo->ddo_mspace);
+	format = literal ? ZFS_NICENUM_RAW : ZFS_NICENUM_1024;
+	zfs_nicenum_format(cspace_prop, cspace, sizeof (cspace), format);
+	zfs_nicenum_format(ddo->ddo_dspace, dspace, sizeof (dspace), format);
+	zfs_nicenum_format(ddo->ddo_mspace, mspace, sizeof (mspace), format);
+	(void) printf("DDT entries %llu, size %s on disk, %s in core, %s cached (%.02f%%)\n",
 	    (u_longlong_t)ddo->ddo_count,
 	    dspace,
 	    mspace,
-	    cspace);
+	    cspace,
+	    (double)cspace_prop / (double)ddo->ddo_mspace * 100.0);
 
 	verify(nvlist_lookup_uint64_array(config, ZPOOL_CONFIG_DDT_STATS,
 	    (uint64_t **)&dds, &c) == 0);
@@ -8034,7 +8039,7 @@ status_callback(zpool_handle_t *zhp, void *data)
 		}
 
 		if (cbp->cb_dedup_stats)
-			print_dedup_stats(zhp, config);
+			print_dedup_stats(zhp, config, cbp->cb_literal);
 	} else {
 		(void) printf(gettext("config: The configuration cannot be "
 		    "determined.\n"));
