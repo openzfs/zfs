@@ -33,7 +33,8 @@ tests = ['alloc_class_001_pos', 'alloc_class_002_neg', 'alloc_class_003_pos',
 tags = ['functional', 'alloc_class']
 
 [tests/functional/arc]
-tests = ['dbufstats_001_pos', 'dbufstats_002_pos', 'dbufstats_003_pos']
+tests = ['dbufstats_001_pos', 'dbufstats_002_pos', 'dbufstats_003_pos',
+    'arcstats_runtime_tuning']
 tags = ['functional', 'arc']
 
 [tests/functional/atime]

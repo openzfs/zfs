@@ -296,6 +296,7 @@
 #include <sys/vmsystm.h>
 #include <sys/zpl.h>
 #include <linux/page_compat.h>
+#include <linux/mod_compat.h>
 #endif
 #include <sys/callb.h>
 #include <sys/kstat.h>
@@ -7554,8 +7555,10 @@ arc_state_multilist_index_func(multilist_t *ml, void *obj)
 
 /*
  * Called during module initialization and periodically thereafter to
- * apply reasonable changes to the exposed performance tunings.  Non-zero
- * zfs_* values which differ from the currently set values will be applied.
+ * apply reasonable changes to the exposed performance tunings.  Can also be
+ * called explicitly by param_set_arc_*() functions when ARC tunables are
+ * updated manually.  Non-zero zfs_* values which differ from the currently set
+ * values will be applied.
  */
 static void
 arc_tuning_update(void)
@@ -9389,6 +9392,35 @@ l2arc_stop(void)
 }
 
 #if defined(_KERNEL)
+static int
+param_set_arc_long(const char *buf, zfs_kernel_param_t *kp)
+{
+	int error;
+
+	error = param_set_long(buf, kp);
+	if (error < 0)
+		return (SET_ERROR(error));
+
+	arc_tuning_update();
+
+	return (0);
+}
+
+static int
+param_set_arc_int(const char *buf, zfs_kernel_param_t *kp)
+{
+	int error;
+
+	error = param_set_int(buf, kp);
+	if (error < 0)
+		return (SET_ERROR(error));
+
+	arc_tuning_update();
+
+	return (0);
+}
+
+
 EXPORT_SYMBOL(arc_buf_size);
 EXPORT_SYMBOL(arc_write);
 EXPORT_SYMBOL(arc_read);
@@ -9398,20 +9430,25 @@ EXPORT_SYMBOL(arc_add_prune_callback);
 EXPORT_SYMBOL(arc_remove_prune_callback);
 
 /* BEGIN CSTYLED */
-module_param(zfs_arc_min, ulong, 0644);
+module_param_call(zfs_arc_min, param_set_arc_long, param_get_long,
+	&zfs_arc_min, 0644);
 MODULE_PARM_DESC(zfs_arc_min, "Min arc size");
 
-module_param(zfs_arc_max, ulong, 0644);
+module_param_call(zfs_arc_max, param_set_arc_long, param_get_long,
+	&zfs_arc_max, 0644);
 MODULE_PARM_DESC(zfs_arc_max, "Max arc size");
 
-module_param(zfs_arc_meta_limit, ulong, 0644);
+module_param_call(zfs_arc_meta_limit, param_set_arc_long, param_get_long,
+	&zfs_arc_meta_limit, 0644);
 MODULE_PARM_DESC(zfs_arc_meta_limit, "Meta limit for arc size");
 
-module_param(zfs_arc_meta_limit_percent, ulong, 0644);
+module_param_call(zfs_arc_meta_limit_percent, param_set_arc_long,
+	param_get_long, &zfs_arc_meta_limit_percent, 0644);
 MODULE_PARM_DESC(zfs_arc_meta_limit_percent,
 	"Percent of arc size for arc meta limit");
 
-module_param(zfs_arc_meta_min, ulong, 0644);
+module_param_call(zfs_arc_meta_min, param_set_arc_long, param_get_long,
+	&zfs_arc_meta_min, 0644);
 MODULE_PARM_DESC(zfs_arc_meta_min, "Min arc metadata");
 
 module_param(zfs_arc_meta_prune, int, 0644);
@@ -9424,20 +9461,23 @@ MODULE_PARM_DESC(zfs_arc_meta_adjust_restarts,
 module_param(zfs_arc_meta_strategy, int, 0644);
 MODULE_PARM_DESC(zfs_arc_meta_strategy, "Meta reclaim strategy");
 
-module_param(zfs_arc_grow_retry, int, 0644);
+module_param_call(zfs_arc_grow_retry, param_set_arc_int, param_get_int,
+	&zfs_arc_grow_retry, 0644);
 MODULE_PARM_DESC(zfs_arc_grow_retry, "Seconds before growing arc size");
 
 module_param(zfs_arc_p_dampener_disable, int, 0644);
 MODULE_PARM_DESC(zfs_arc_p_dampener_disable, "disable arc_p adapt dampener");
 
-module_param(zfs_arc_shrink_shift, int, 0644);
+module_param_call(zfs_arc_shrink_shift, param_set_arc_int, param_get_int,
+	&zfs_arc_shrink_shift, 0644);
 MODULE_PARM_DESC(zfs_arc_shrink_shift, "log2(fraction of arc to reclaim)");
 
 module_param(zfs_arc_pc_percent, uint, 0644);
 MODULE_PARM_DESC(zfs_arc_pc_percent,
 	"Percent of pagecache to reclaim arc to");
 
-module_param(zfs_arc_p_min_shift, int, 0644);
+module_param_call(zfs_arc_p_min_shift, param_set_arc_int, param_get_int,
+	&zfs_arc_p_min_shift, 0644);
 MODULE_PARM_DESC(zfs_arc_p_min_shift, "arc_c shift to calc min/max arc_p");
 
 module_param(zfs_arc_average_blocksize, int, 0444);
@@ -9446,7 +9486,8 @@ MODULE_PARM_DESC(zfs_arc_average_blocksize, "Target average block size");
 module_param(zfs_compressed_arc_enabled, int, 0644);
 MODULE_PARM_DESC(zfs_compressed_arc_enabled, "Disable compressed arc buffers");
 
-module_param(zfs_arc_min_prefetch_ms, int, 0644);
+module_param_call(zfs_arc_min_prefetch_ms, param_set_arc_int, param_get_int,
+	&zfs_arc_min_prefetch_ms, 0644);
 MODULE_PARM_DESC(zfs_arc_min_prefetch_ms, "Min life of prefetch block in ms");
 
 module_param(zfs_arc_min_prescient_prefetch_ms, int, 0644);
@@ -9480,14 +9521,17 @@ MODULE_PARM_DESC(l2arc_feed_again, "Turbo L2ARC warmup");
 module_param(l2arc_norw, int, 0644);
 MODULE_PARM_DESC(l2arc_norw, "No reads during writes");
 
-module_param(zfs_arc_lotsfree_percent, int, 0644);
+module_param_call(zfs_arc_lotsfree_percent, param_set_arc_int, param_get_int,
+	&zfs_arc_lotsfree_percent, 0644);
 MODULE_PARM_DESC(zfs_arc_lotsfree_percent,
 	"System free memory I/O throttle in bytes");
 
-module_param(zfs_arc_sys_free, ulong, 0644);
+module_param_call(zfs_arc_sys_free, param_set_arc_long, param_get_long,
+	&zfs_arc_sys_free, 0644);
 MODULE_PARM_DESC(zfs_arc_sys_free, "System free memory target size in bytes");
 
-module_param(zfs_arc_dnode_limit, ulong, 0644);
+module_param_call(zfs_arc_dnode_limit, param_set_arc_long, param_get_long,
+	&zfs_arc_dnode_limit, 0644);
 MODULE_PARM_DESC(zfs_arc_dnode_limit, "Minimum bytes of dnodes in arc");
 
 module_param(zfs_arc_dnode_limit_percent, ulong, 0644);
