@@ -75,7 +75,7 @@ log_onexit cleanup
 init_snap=$TESTPOOL/$TESTFS@init_snap
 inc_snap=$TESTPOOL/$TESTFS@inc_snap
 full_bkup=$TEST_BASE_DIR/fullbkup.$$
-inc_bkup=/var/tmp/incbkup.$$
+inc_bkup=$TEST_BASE_DIR/incbkup.$$
 init_data=$TESTDIR/$TESTFILE1
 inc_data=$TESTDIR/$TESTFILE2
 orig_sum=""
