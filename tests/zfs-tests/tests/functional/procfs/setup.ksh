@@ -27,4 +27,3 @@
 . $STF_SUITE/include/libtest.shlib
 
 default_mirror_setup $DISKS
-log_pass
