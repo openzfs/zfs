@@ -31,4 +31,3 @@ if ! is_linux ; then
 fi
 
 default_mirror_setup $DISKS
-log_pass
