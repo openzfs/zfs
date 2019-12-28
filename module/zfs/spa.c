@@ -5690,7 +5690,7 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 			return (error);
 		}
 	}
-	if (!has_allocclass && zfs_special_devs(nvroot)) {
+	if (!has_allocclass && zfs_special_devs(nvroot, NULL)) {
 		spa_deactivate(spa);
 		spa_remove(spa);
 		mutex_exit(&spa_namespace_lock);
