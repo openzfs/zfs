@@ -38,7 +38,7 @@ if [ "$(zpool list -H -o feature@encryption $(echo "${BOOTFS}" | awk -F\/ '{prin
     # if the root dataset has encryption enabled
     ENCRYPTIONROOT=$(zfs get -H -o value encryptionroot "${BOOTFS}")
     # where the key is stored (in a file or loaded via prompt)
-    KEYLOCATION=$(${ZFS} get -H -o value keylocation "${ENCRYPTIONROOT}")
+    KEYLOCATION=$(zfs get -H -o value keylocation "${ENCRYPTIONROOT}")
     if ! [ "${ENCRYPTIONROOT}" = "-" ]; then
         KEYSTATUS="$(zfs get -H -o value keystatus "${ENCRYPTIONROOT}")"
         # continue only if the key needs to be loaded
