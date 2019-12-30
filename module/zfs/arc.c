@@ -301,6 +301,7 @@
 #include <sys/trace_zfs.h>
 #include <sys/aggsum.h>
 #include <cityhash.h>
+#include <sys/vdev_trim.h>
 
 #ifndef _KERNEL
 /* set with ZFS_DEBUG=watch, to enable watchpoints on frozen buffers */
@@ -854,7 +855,6 @@ static void arc_hdr_alloc_abd(arc_buf_hdr_t *, boolean_t);
 static void arc_access(arc_buf_hdr_t *, kmutex_t *);
 static boolean_t arc_is_overflowing(void);
 static void arc_buf_watch(arc_buf_t *);
-static l2arc_dev_t *l2arc_vdev_get(vdev_t *vd);
 
 static arc_buf_contents_t arc_buf_type(arc_buf_hdr_t *);
 static uint32_t arc_bufc_to_flags(arc_buf_contents_t);
@@ -863,6 +863,23 @@ static inline void arc_hdr_clear_flags(arc_buf_hdr_t *hdr, arc_flags_t flags);
 
 static boolean_t l2arc_write_eligible(uint64_t, arc_buf_hdr_t *);
 static void l2arc_read_done(zio_t *);
+
+/*
+ * L2ARC TRIM
+ * l2arc_trim_ahead : A ZFS module parameter that controls how much ahead of
+ * 		the current write size (l2arc_write_max) we should TRIM if we
+ * 		have filled the device. It is defined as a percentage of the
+ * 		write size. If set to 100 we trim twice the space required to
+ * 		accommodate upcoming writes. A minimum of 64MB will be trimmed.
+ * 		It also enables TRIM of the whole L2ARC device upon creation or
+ * 		addition to an existing pool or if the header of the device is
+ * 		invalid upon importing a pool or onlining a cache device. The
+ * 		default is 0, which disables TRIM on L2ARC altogether as it can
+ * 		put significant stress on the underlying storage devices. This
+ * 		will vary depending of how well the specific device handles
+ * 		these commands.
+ */
+unsigned long l2arc_trim_ahead = 0;
 
 /*
  * Performance tuning of L2ARC persistence:
@@ -902,7 +919,6 @@ static void l2arc_hdr_restore(const l2arc_log_ent_phys_t *le,
     l2arc_dev_t *dev);
 
 /* L2ARC persistence write I/O routines. */
-static void l2arc_dev_hdr_update(l2arc_dev_t *dev);
 static void l2arc_log_blk_commit(l2arc_dev_t *dev, zio_t *pio,
     l2arc_write_callback_t *cb);
 
@@ -7709,7 +7725,7 @@ l2arc_write_eligible(uint64_t spa_guid, arc_buf_hdr_t *hdr)
 static uint64_t
 l2arc_write_size(l2arc_dev_t *dev)
 {
-	uint64_t size, dev_size;
+	uint64_t size, dev_size, tsize;
 
 	/*
 	 * Make sure our globals have meaningful values in case the user
@@ -7732,7 +7748,12 @@ l2arc_write_size(l2arc_dev_t *dev)
 	 * iteration can occur.
 	 */
 	dev_size = dev->l2ad_end - dev->l2ad_start;
-	if ((size + l2arc_log_blk_overhead(size, dev)) >= dev_size) {
+	tsize = size + l2arc_log_blk_overhead(size, dev);
+	if (dev->l2ad_vdev->vdev_has_trim && l2arc_trim_ahead > 0)
+		tsize += MAX(64 * 1024 * 1024,
+		    (tsize * l2arc_trim_ahead) / 100);
+
+	if (tsize >= dev_size) {
 		cmn_err(CE_NOTE, "l2arc_write_max or l2arc_write_boost "
 		    "plus the overhead of log blocks (persistent L2ARC, "
 		    "%llu bytes) exceeds the size of the cache device "
@@ -7810,10 +7831,12 @@ l2arc_dev_get_next(void)
 		else if (next == first)
 			break;
 
-	} while (vdev_is_dead(next->l2ad_vdev) || next->l2ad_rebuild);
+	} while (vdev_is_dead(next->l2ad_vdev) || next->l2ad_rebuild ||
+	    next->l2ad_trim_all);
 
 	/* if we were unable to find any usable vdevs, return NULL */
-	if (vdev_is_dead(next->l2ad_vdev) || next->l2ad_rebuild)
+	if (vdev_is_dead(next->l2ad_vdev) || next->l2ad_rebuild ||
+	    next->l2ad_trim_all)
 		next = NULL;
 
 	l2arc_dev_last = next;
@@ -8336,8 +8359,9 @@ l2arc_evict(l2arc_dev_t *dev, uint64_t distance, boolean_t all)
 	arc_buf_hdr_t *hdr, *hdr_prev;
 	kmutex_t *hash_lock;
 	uint64_t taddr;
-	boolean_t rerun;
 	l2arc_lb_ptr_buf_t *lb_ptr_buf, *lb_ptr_buf_prev;
+	vdev_t *vd = dev->l2ad_vdev;
+	boolean_t rerun;
 
 	buflist = &dev->l2ad_buflist;
 
@@ -8345,6 +8369,14 @@ l2arc_evict(l2arc_dev_t *dev, uint64_t distance, boolean_t all)
 	 * We need to add in the worst case scenario of log block overhead.
 	 */
 	distance += l2arc_log_blk_overhead(distance, dev);
+	if (vd->vdev_has_trim && l2arc_trim_ahead > 0) {
+		/*
+		 * Trim ahead of the write size 64MB or (l2arc_trim_ahead/100)
+		 * times the write size, whichever is greater.
+		 */
+		distance += MAX(64 * 1024 * 1024,
+		    (distance * l2arc_trim_ahead) / 100);
+	}
 
 top:
 	rerun = B_FALSE;
@@ -8365,25 +8397,51 @@ top:
 	DTRACE_PROBE4(l2arc__evict, l2arc_dev_t *, dev, list_t *, buflist,
 	    uint64_t, taddr, boolean_t, all);
 
-	/*
-	 * This check has to be placed after deciding whether to iterate
-	 * (rerun).
-	 */
-	if (!all && dev->l2ad_first) {
+	if (!all) {
 		/*
-		 * This is the first sweep through the device. There is
-		 * nothing to evict.
+		 * This check has to be placed after deciding whether to
+		 * iterate (rerun).
 		 */
-		goto out;
-	}
+		if (dev->l2ad_first) {
+			/*
+			 * This is the first sweep through the device. There is
+			 * nothing to evict. We have already trimmmed the
+			 * whole device.
+			 */
+			goto out;
+		} else {
+			/*
+			 * Trim the space to be evicted.
+			 */
+			if (vd->vdev_has_trim && dev->l2ad_evict < taddr &&
+			    l2arc_trim_ahead > 0) {
+				/*
+				 * We have to drop the spa_config lock because
+				 * vdev_trim_range() will acquire it.
+				 * l2ad_evict already accounts for the label
+				 * size. To prevent vdev_trim_ranges() from
+				 * adding it again, we subtract it from
+				 * l2ad_evict.
+				 */
+				spa_config_exit(dev->l2ad_spa, SCL_L2ARC, dev);
+				vdev_trim_simple(vd,
+				    dev->l2ad_evict - VDEV_LABEL_START_SIZE,
+				    taddr - dev->l2ad_evict);
+				spa_config_enter(dev->l2ad_spa, SCL_L2ARC, dev,
+				    RW_READER);
+			}
 
-	/*
-	 * When rebuilding L2ARC we retrieve the evict hand from the header of
-	 * the device. Of note, l2arc_evict() does not actually delete buffers
-	 * from the cache device, but keeping track of the evict hand will be
-	 * useful when TRIM is implemented.
-	 */
-	dev->l2ad_evict = MAX(dev->l2ad_evict, taddr);
+			/*
+			 * When rebuilding L2ARC we retrieve the evict hand
+			 * from the header of the device. Of note, l2arc_evict()
+			 * does not actually delete buffers from the cache
+			 * device, but trimming may do so depending on the
+			 * hardware implementation. Thus keeping track of the
+			 * evict hand is useful.
+			 */
+			dev->l2ad_evict = MAX(dev->l2ad_evict, taddr);
+		}
+	}
 
 retry:
 	mutex_enter(&dev->l2ad_mtx);
@@ -8410,7 +8468,7 @@ retry:
 		if (!all && l2arc_log_blkptr_valid(dev, lb_ptr_buf->lb_ptr)) {
 			break;
 		} else {
-			vdev_space_update(dev->l2ad_vdev, -asize, 0, 0);
+			vdev_space_update(vd, -asize, 0, 0);
 			ARCSTAT_INCR(arcstat_l2_log_blk_asize, -asize);
 			ARCSTAT_BUMPDOWN(arcstat_l2_log_blk_count);
 			zfs_refcount_remove_many(&dev->l2ad_lb_asize, asize,
@@ -9015,7 +9073,7 @@ l2arc_vdev_present(vdev_t *vd)
  * Returns the l2arc_dev_t associated with a particular vdev_t or NULL if
  * the vdev_t isn't an L2ARC device.
  */
-static l2arc_dev_t *
+l2arc_dev_t *
 l2arc_vdev_get(vdev_t *vd)
 {
 	l2arc_dev_t	*dev;
@@ -9059,6 +9117,7 @@ l2arc_add_vdev(spa_t *spa, vdev_t *vd)
 	adddev->l2ad_evict = adddev->l2ad_start;
 	adddev->l2ad_first = B_TRUE;
 	adddev->l2ad_writing = B_FALSE;
+	adddev->l2ad_trim_all = B_FALSE;
 	list_link_init(&adddev->l2ad_node);
 	adddev->l2ad_dev_hdr = kmem_zalloc(l2dhdr_asize, KM_SLEEP);
 
@@ -9164,11 +9223,21 @@ l2arc_rebuild_vdev(vdev_t *vd, boolean_t reopen)
 		dev->l2ad_rebuild = B_TRUE;
 	} else if (spa_writeable(spa)) {
 		/*
-		 * In this case create a new header. We zero out the memory
-		 * holding the header to reset dh_start_lbps.
+		 * In this case TRIM the whole device if l2arc_trim_ahead > 0,
+		 * otherwise create a new header. We zero out the memory holding
+		 * the header to reset dh_start_lbps. If we TRIM the whole
+		 * device the new header will be written by
+		 * vdev_trim_l2arc_thread() at the end of the TRIM to update the
+		 * trim_state in the header too. When reading the header, if
+		 * trim_state is not VDEV_TRIM_COMPLETE and l2arc_trim_ahead > 0
+		 * we opt to TRIM the whole device again.
 		 */
-		bzero(l2dhdr, l2dhdr_asize);
-		l2arc_dev_hdr_update(dev);
+		if (l2arc_trim_ahead > 0) {
+			dev->l2ad_trim_all = B_TRUE;
+		} else {
+			bzero(l2dhdr, l2dhdr_asize);
+			l2arc_dev_hdr_update(dev);
+		}
 	}
 }
 
@@ -9385,6 +9454,9 @@ l2arc_rebuild(l2arc_dev_t *dev)
 	    dev->l2ad_start);
 	dev->l2ad_first = !!(l2dhdr->dh_flags & L2ARC_DEV_HDR_EVICT_FIRST);
 
+	vd->vdev_trim_action_time = l2dhdr->dh_trim_action_time;
+	vd->vdev_trim_state = l2dhdr->dh_trim_state;
+
 	/*
 	 * In case the zfs module parameter l2arc_rebuild_enabled is false
 	 * we do not start the rebuild process.
@@ -9594,7 +9666,9 @@ l2arc_dev_hdr_read(l2arc_dev_t *dev)
 	    l2dhdr->dh_log_entries != dev->l2ad_log_entries ||
 	    l2dhdr->dh_end != dev->l2ad_end ||
 	    !l2arc_range_check_overlap(dev->l2ad_start, dev->l2ad_end,
-	    l2dhdr->dh_evict)) {
+	    l2dhdr->dh_evict) ||
+	    (l2dhdr->dh_trim_state != VDEV_TRIM_COMPLETE &&
+	    l2arc_trim_ahead > 0)) {
 		/*
 		 * Attempt to rebuild a device containing no actual dev hdr
 		 * or containing a header from some other pool or from another
@@ -9903,7 +9977,7 @@ l2arc_log_blk_fetch_abort(zio_t *zio)
  * Creates a zio to update the device header on an l2arc device. The zio is
  * initiated as a child of `pio'.
  */
-static void
+void
 l2arc_dev_hdr_update(l2arc_dev_t *dev)
 {
 	l2arc_dev_hdr_phys_t	*l2dhdr = dev->l2ad_dev_hdr;
@@ -9924,6 +9998,8 @@ l2arc_dev_hdr_update(l2arc_dev_t *dev)
 	l2dhdr->dh_lb_asize = zfs_refcount_count(&dev->l2ad_lb_asize);
 	l2dhdr->dh_lb_count = zfs_refcount_count(&dev->l2ad_lb_count);
 	l2dhdr->dh_flags = 0;
+	l2dhdr->dh_trim_action_time = dev->l2ad_vdev->vdev_trim_action_time;
+	l2dhdr->dh_trim_state = dev->l2ad_vdev->vdev_trim_state;
 	if (dev->l2ad_first)
 		l2dhdr->dh_flags |= L2ARC_DEV_HDR_EVICT_FIRST;
 
@@ -10259,6 +10335,9 @@ ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, headroom, ULONG, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, headroom_boost, ULONG, ZMOD_RW,
 	"Compressed l2arc_headroom multiplier");
+
+ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, trim_ahead, ULONG, ZMOD_RW,
+	"TRIM ahead L2ARC write size multiplier");
 
 ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, feed_secs, ULONG, ZMOD_RW,
 	"Seconds between L2ARC writing");

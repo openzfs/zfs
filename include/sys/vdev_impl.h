@@ -301,7 +301,7 @@ struct vdev {
 	uint64_t	vdev_initialize_inflight;
 	kmutex_t	vdev_trim_io_lock;
 	kcondvar_t	vdev_trim_io_cv;
-	uint64_t	vdev_trim_inflight[2];
+	uint64_t	vdev_trim_inflight[3];
 
 	/*
 	 * Values stored in the config for an indirect or removing vdev.
