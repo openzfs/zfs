@@ -1450,6 +1450,12 @@ snprintf_blkptr_compact(char *blkbuf, size_t buflen, const blkptr_t *bp)
 		    (u_longlong_t)BP_GET_FILL(bp),
 		    (u_longlong_t)bp->blk_birth,
 		    (u_longlong_t)BP_PHYSICAL_BIRTH(bp));
+		(void) snprintf(blkbuf + strlen(blkbuf),
+		    buflen - strlen(blkbuf), " cksum=%llx:%llx:%llx:%llx",
+		    (u_longlong_t)bp->blk_cksum.zc_word[0],
+		    (u_longlong_t)bp->blk_cksum.zc_word[1],
+		    (u_longlong_t)bp->blk_cksum.zc_word[2],
+		    (u_longlong_t)bp->blk_cksum.zc_word[3]);
 	}
 }
 
