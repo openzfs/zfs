@@ -2380,12 +2380,11 @@ EOF
 # each case. limit the number to max_finddisksnum
 	count=0
 	for disk in $unused_candidates; do
-		if [ -b $DEV_DSKDIR/${disk}s0 ]; then
-		if [ $count -lt $max_finddisksnum ]; then
+		if is_disk_device $DEV_DSKDIR/${disk}s0 && \
+		    [ $count -lt $max_finddisksnum ]; then
 			unused="$unused $disk"
 			# do not impose limit if $@ is provided
 			[[ -z $@ ]] && ((count = count + 1))
-		fi
 		fi
 	done
 
