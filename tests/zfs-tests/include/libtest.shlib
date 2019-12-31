@@ -92,6 +92,18 @@ function is_linux
 	fi
 }
 
+# Determine if this is an illumos test system
+#
+# Return 0 if platform illumos, 1 if otherwise
+function is_illumos
+{
+	if [[ $(uname -o) == "illumos" ]]; then
+		return 0
+	else
+		return 1
+	fi
+}
+
 # Determine if this is a FreeBSD test system
 #
 # Return 0 if platform FreeBSD, 1 if otherwise

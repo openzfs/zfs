@@ -46,10 +46,6 @@
 
 verify_runnable "global"
 
-if is_linux; then
-	log_unsupported "Test case isn't useful under Linux."
-fi
-
 function cleanup
 {
 	if poolexists $TESTPOOL; then
