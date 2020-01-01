@@ -140,10 +140,6 @@ tests = ['zfs_create_001_pos', 'zfs_create_002_pos', 'zfs_create_003_pos',
     'zfs_create_crypt_combos', 'zfs_create_dryrun', 'zfs_create_verbose']
 tags = ['functional', 'cli_root', 'zfs_create']
 
-[tests/functional/cli_root/zpool_ddtload]
-tests = ['zpool_ddtload_001_pos']
-tags = ['functional', 'cli_root', 'zpool_ddtload']
-
 [tests/functional/cli_root/zfs_destroy]
 tests = ['zfs_clone_livelist_condense_and_disable',
     'zfs_clone_livelist_condense_races', 'zfs_destroy_001_pos',
@@ -384,6 +380,10 @@ tests = ['zpool_labelclear_active', 'zpool_labelclear_exported',
 pre =
 post =
 tags = ['functional', 'cli_root', 'zpool_labelclear']
+
+[tests/functional/cli_root/zpool_load]
+tests = ['zpool_load_001_pos']
+tags = ['functional', 'cli_root', 'zpool_load']
 
 [tests/functional/cli_root/zpool_initialize]
 tests = ['zpool_initialize_attach_detach_add_remove',

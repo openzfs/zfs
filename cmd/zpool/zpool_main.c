@@ -84,7 +84,7 @@ static int zpool_do_remove(int, char **);
 static int zpool_do_labelclear(int, char **);
 
 static int zpool_do_checkpoint(int, char **);
-static int zpool_do_ddtload(int, char **);
+static int zpool_do_load(int, char **);
 
 static int zpool_do_list(int, char **);
 static int zpool_do_iostat(int, char **);
@@ -149,7 +149,6 @@ typedef enum {
 	HELP_CLEAR,
 	HELP_CREATE,
 	HELP_CHECKPOINT,
-	HELP_DDTLOAD,
 	HELP_DESTROY,
 	HELP_DETACH,
 	HELP_EXPORT,
@@ -158,6 +157,7 @@ typedef enum {
 	HELP_IOSTAT,
 	HELP_LABELCLEAR,
 	HELP_LIST,
+	HELP_LOAD,
 	HELP_OFFLINE,
 	HELP_ONLINE,
 	HELP_REPLACE,
@@ -286,7 +286,7 @@ static zpool_command_t command_table[] = {
 	{ "labelclear",	zpool_do_labelclear,	HELP_LABELCLEAR		},
 	{ NULL },
 	{ "checkpoint",	zpool_do_checkpoint,	HELP_CHECKPOINT		},
-	{ "ddtload",	zpool_do_ddtload,	HELP_DDTLOAD		},
+	{ "load",	zpool_do_load,		HELP_LOAD		},
 	{ NULL },
 	{ "list",	zpool_do_list,		HELP_LIST		},
 	{ "iostat",	zpool_do_iostat,	HELP_IOSTAT		},
@@ -349,8 +349,6 @@ get_usage(zpool_help_t idx)
 		    "\t    [-m mountpoint] [-R root] <pool> <vdev> ...\n"));
 	case HELP_CHECKPOINT:
 		return (gettext("\tcheckpoint [-d [-w]] <pool> ...\n"));
-	case HELP_DDTLOAD:
-		return (gettext("\tddtload <pool>\n"));
 	case HELP_DESTROY:
 		return (gettext("\tdestroy [-f] <pool>\n"));
 	case HELP_DETACH:
@@ -379,6 +377,9 @@ get_usage(zpool_help_t idx)
 		return (gettext("\tlist [-gHLpPv] [-o property[,...]] "
 		    "[-T d|u] [pool] ... \n"
 		    "\t    [interval [count]]\n"));
+	case HELP_LOAD:
+		return (gettext("\tload <type> [<type opts>] <pool>\n"
+		    "\tload ddt <pool>\n"));
 	case HELP_OFFLINE:
 		return (gettext("\toffline [-f] [-t] <pool> <device> ...\n"));
 	case HELP_ONLINE:
@@ -3065,41 +3066,72 @@ zpool_do_checkpoint(int argc, char **argv)
 
 #define	CHECKPOINT_OPT	1024
 
+enum zpool_load_type {
+	ZPOOL_LOAD_TYPE_DDT,
+};
+
 /*
- * zpool ddtload <pool>
+ * zpool load <type> [<type opts> ...] <pool>
  *
  * Loads the DDT table of the specified pool.
  */
 int
-zpool_do_ddtload(int argc, char **argv)
+zpool_do_load(int argc, char **argv)
 {
 	char *pool;
+	char *typestr;
+	enum zpool_load_type type;
 	zpool_handle_t *zhp;
-	int err;
+	int err = 0;
 
 	argc--;
 	argv++;
 	if (argc < 1) {
+		(void) fprintf(stderr, gettext("missing type argument\n"));
+		usage(B_FALSE);
+	}
+	if (argc < 2) {
 		(void) fprintf(stderr, gettext("missing pool argument\n"));
 		usage(B_FALSE);
 	}
-	if (argc > 1) {
+	if (argc > 2) {
 		(void) fprintf(stderr, gettext("too many arguments\n"));
 		usage(B_FALSE);
 	}
 
-	pool = argv[0];
+	typestr = argv[0];
+	pool = argv[1];
+
+	if (strcmp(typestr, "ddt") == 0) {
+		type = ZPOOL_LOAD_TYPE_DDT;
+	} else {
+		(void) fprintf(stderr, gettext("unsupported load type\n"));
+		usage(B_FALSE);
+	}
 
 	if ((zhp = zpool_open(g_zfs, pool)) == NULL) {
 		/* As a special case, check for use of '/' in the name */
-		if (strchr(pool, '/') != NULL) {
-			(void) fprintf(stderr, gettext("'zpool ddtload' "
-			    "doesn't work on datasets.\n"));
+		switch (type) {
+		case ZPOOL_LOAD_TYPE_DDT:
+			if (strchr(pool, '/') != NULL) {
+				(void) fprintf(stderr, gettext("This load "
+				    "type doesn't work on datasets.\n"));
+			}
+			break;
+		default:
+			break;
 		}
 		return (1);
 	}
 
-	err = zpool_ddtload(zhp);
+	switch (type) {
+	case ZPOOL_LOAD_TYPE_DDT:
+		err = zpool_ddtload(zhp);
+		break;
+	default:
+		break;
+	}
+
 	zpool_close(zhp);
 
 	return (err);

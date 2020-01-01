@@ -268,7 +268,6 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/cli_root/zpool_attach/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zpool_clear/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zpool_create/Makefile
-	tests/zfs-tests/tests/functional/cli_root/zpool_ddtload/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zpool_destroy/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zpool_detach/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zpool_events/Makefile
@@ -280,6 +279,7 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/cli_root/zpool_import/blockfiles/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zpool_initialize/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zpool_labelclear/Makefile
+	tests/zfs-tests/tests/functional/cli_root/zpool_load/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zpool_offline/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zpool_online/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zpool_remove/Makefile

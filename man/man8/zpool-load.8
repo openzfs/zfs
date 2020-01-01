@@ -22,20 +22,22 @@
 .\" Copyright (c) 2019, Klara Inc. All Rights Reserved.
 .\"
 .Dd December 23, 2019
-.Dt ZPOOL-DDTLOAD 8
+.Dt ZPOOL-LOAD 8
 .Os Linux
 .Sh NAME
-.Nm zpool Ns Pf - Cm ddtload
-.Nd Loads the DDT for the given pool.
+.Nm zpool Ns Pf - Cm load
+.Nd Loads specific types of data for the given pool.
 .Sh SYNOPSIS
 .Nm
-.Cm destroy
+.Cm load
+.Ar type
 .Ar pool
 .Sh DESCRIPTION
 .Bl -tag -width Ds
 .It Xo
 .Nm
-.Cm destroy
+.Cm load
+.Cm ddt
 .Ar pool
 .Xc
 Loads the DDT for the given pool, enabling improved write I/O performance

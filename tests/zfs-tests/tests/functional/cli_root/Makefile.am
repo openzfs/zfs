@@ -37,7 +37,6 @@ SUBDIRS = \
 	zpool_attach \
 	zpool_clear \
 	zpool_create \
-	zpool_ddtload \
 	zpool_destroy \
 	zpool_detach \
 	zpool_events \
@@ -48,6 +47,7 @@ SUBDIRS = \
 	zpool_import \
 	zpool_initialize \
 	zpool_labelclear \
+	zpool_load \
 	zpool_offline \
 	zpool_online \
 	zpool_remove \

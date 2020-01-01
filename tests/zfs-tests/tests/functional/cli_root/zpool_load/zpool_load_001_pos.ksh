@@ -28,18 +28,18 @@
 
 #
 # DESCRIPTION:
-# 'zpool ddtload <pool>' can successfully load a pool's DDT on demand.
+# 'zpool load ddt <pool>' can successfully load a pool's DDT on demand.
 #
 # STRATEGY:
 # 1. Build up storage pool with deduplicated dataset.
 # 2. Export the pool.
-# 3. Import the pool, and use ddtload to load its table.
+# 3. Import the pool, and use `zpool load ddt` to load its table.
 # 4. Verify the DDT was loaded successfully
 #
 
 verify_runnable "both"
 
-log_assert "'zpool ddtload <pool>' can successfully load the DDT for a pool."
+log_assert "'zpool load ddt <pool>' can successfully load the DDT for a pool."
 
 function getddtstats
 {
@@ -69,7 +69,7 @@ log_note "before stats: ${before}"
 log_must test "${before.ondisk}" -eq "0"
 log_must test "${before.incore}" -eq "0"
 log_must test "${before.cached}" -eq "0"
-log_must zpool ddtload $TESTPOOL
+log_must zpool load ddt $TESTPOOL
 
 # Build up the deduplicated dataset.  This consists of creating enough files
 # to generate a reasonable size DDT for testing purposes.
@@ -103,7 +103,7 @@ log_note "generated stats: ${generated}"
 log_must test "${generated.ondisk}" -ge "1048576"
 log_must test "${generated.incore}" -ge "1048576"
 log_must test "${generated.cached}" -ge "1048576"
-log_must zpool ddtload $TESTPOOL
+log_must zpool load ddt $TESTPOOL
 
 # Do an export/import series to flush the DDT dataset cache.
 typeset -A reimport
@@ -118,11 +118,11 @@ log_must test "${reimport.cached}" -le "8192"
 
 # Finally, reload it and check again.
 typeset -A reloaded
-log_must zpool ddtload $TESTPOOL
+log_must zpool load ddt $TESTPOOL
 log_must getddtstats reloaded $TESTPOOL
 log_note "reloaded stats: ${reloaded}"
 log_must test "${reloaded.ondisk}" -ge "1048576"
 log_must test "${reloaded.incore}" -ge "1048576"
 log_must test "${reloaded.cached}" -eq "${reloaded.incore}"
 
-log_pass "'zpool ddtload <pool>' success."
+log_pass "'zpool load ddt <pool>' success."
