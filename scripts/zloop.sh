@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 #
 # CDDL HEADER START
@@ -70,16 +70,26 @@ function or_die
 	fi
 }
 
-# core file helpers
-origcorepattern="$(cat /proc/sys/kernel/core_pattern)"
-coreglob="$(grep -E -o '^([^|%[:space:]]*)' /proc/sys/kernel/core_pattern)*"
+case $(uname) in
+FreeBSD)
+	coreglob="z*.core"
+	;;
+Linux)
+	# core file helpers
+	origcorepattern="$(cat /proc/sys/kernel/core_pattern)"
+	coreglob="$(grep -E -o '^([^|%[:space:]]*)' /proc/sys/kernel/core_pattern)*"
 
-if [[ $coreglob = "*" ]]; then
-        echo "Setting core file pattern..."
-        echo "core" > /proc/sys/kernel/core_pattern
-        coreglob="$(grep -E -o '^([^|%[:space:]]*)' \
-            /proc/sys/kernel/core_pattern)*"
-fi
+	if [[ $coreglob = "*" ]]; then
+		echo "Setting core file pattern..."
+		echo "core" > /proc/sys/kernel/core_pattern
+		coreglob="$(grep -E -o '^([^|%[:space:]]*)' \
+		    /proc/sys/kernel/core_pattern)*"
+	fi
+	;;
+*)
+	exit 1
+	;;
+esac
 
 function core_file
 {
@@ -108,7 +118,7 @@ function store_core
 		foundcrashes=$((foundcrashes + 1))
 
 		# zdb debugging
-		zdbcmd="$ZDB -U "$workdir/zpool.cache" -dddMmDDG ztest"
+		zdbcmd="$ZDB -U "$workdir/zpool.cache" -dddMmDDG $ZTEST"
 		zdbdebug=$($zdbcmd 2>&1)
 		echo -e "$zdbcmd\n" >>ztest.zdb
 		echo "$zdbdebug" >>ztest.zdb
@@ -278,8 +288,14 @@ done
 
 echo "zloop finished, $foundcrashes crashes found"
 
-#restore core pattern
-echo "$origcorepattern" > /proc/sys/kernel/core_pattern
+# restore core pattern.
+case $(uname) in
+Linux)
+	echo "$origcorepattern" > /proc/sys/kernel/core_pattern
+	;;
+*)
+	;;
+esac
 
 uptime >>ztest.out
 
