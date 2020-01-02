@@ -25,7 +25,7 @@ define EXTRA_ENVIRONMENT
 
 # Only required for in-tree use
 export INTREE="yes"
-export GDB="/usr/bin/libtool --mode=execute gdb"
+export GDB="libtool --mode=execute gdb"
 export LDMOD=/sbin/insmod
 
 export CMD_DIR=@abs_top_builddir@/cmd
