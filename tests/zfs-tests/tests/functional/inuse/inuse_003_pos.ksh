@@ -50,10 +50,6 @@
 
 verify_runnable "global"
 
-if is_linux || is_freebsd; then
-	log_unsupported "Test case isn't applicable to Linux/FreeBSD"
-fi
-
 function cleanup
 {
 	poolexists $TESTPOOL1 && destroy_pool $TESTPOOL1

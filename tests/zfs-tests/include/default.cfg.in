@@ -143,7 +143,7 @@ export SPA_MINDEVSIZE=$((64 * 1024 * 1024))
 # For iscsi target support
 export ISCSITGTFILE=/tmp/iscsitgt_file
 export ISCSITGT_FMRI=svc:/system/iscsitgt:default
-if ! is_linux && ! is_freebsd; then
+if is_illumos; then
 export AUTO_SNAP=$(svcs -a | grep auto-snapshot | grep online | awk \
     '{print $3}')
 fi

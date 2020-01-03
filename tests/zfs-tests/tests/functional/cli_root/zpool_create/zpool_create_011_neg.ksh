@@ -55,11 +55,7 @@ function cleanup
 	done
 
 	if [[ -n $saved_dump_dev ]]; then
-		if is_freebsd; then
-			log_must dumpon $saved_dump_dev
-		else
-			log_must dumpadm -u -d $saved_dump_dev
-		fi
+		log_must dumpadm -u -d $saved_dump_dev
 	fi
 
 	partition_disk $SIZE $disk 7
@@ -82,16 +78,16 @@ raidz2=$mirror2
 diff_size_dev="${disk}${SLICE_PREFIX}${SLICE6} ${disk}${SLICE_PREFIX}${SLICE7}"
 vfstab_dev=$(find_vfstab_dev)
 
-if is_linux; then
-	partition_disk $SIZE $disk 7
-	cyl=$(get_endslice $disk $SLICE5)
-	log_must set_partition $SLICE6 "$cyl" $SIZE1 $disk
-else
+if is_illumos; then
 	specified_dump_dev=${disk}${SLICE_PREFIX}${SLICE0}
 	saved_dump_dev=$(save_dump_dev)
 
 	cyl=$(get_endslice $disk $SLICE6)
 	log_must set_partition $SLICE7 "$cyl" $SIZE1 $disk
+else
+	partition_disk $SIZE $disk 7
+	cyl=$(get_endslice $disk $SLICE5)
+	log_must set_partition $SLICE6 "$cyl" $SIZE1 $disk
 fi
 create_pool "$TESTPOOL" "$pooldev1"
 
@@ -126,17 +122,13 @@ done
 # now destroy the pool to be polite
 log_must zpool destroy -f $TESTPOOL
 
-if ! is_linux; then
+if is_illumos; then
 	# create/destroy a pool as a simple way to set the partitioning
 	# back to something normal so we can use this $disk as a dump device
 	log_must zpool create -f $TESTPOOL3 $disk
 	log_must zpool destroy -f $TESTPOOL3
 
-	if is_freebsd; then
-		log_must dumpon ${DEV_DSKDIR}/$specified_dump_dev
-	else
-		log_must dumpadm -d ${DEV_DSKDIR}/$specified_dump_dev
-	fi
+	log_must dumpadm -d ${DEV_DSKDIR}/$specified_dump_dev
 	log_mustnot zpool create -f $TESTPOOL1 "$specified_dump_dev"
 
 	# Also check to see that in-use checking prevents us from creating

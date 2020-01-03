@@ -40,12 +40,12 @@ function find_vfstab_dev
 	typeset vfstabdevs=""
 	typeset line
 
-	if is_freebsd || is_linux; then
-		vfstab="/etc/fstab"
-		tmpfile="$TEST_BASE_DIR/fstab.tmp"
-	else
+	if is_illumos; then
 		vfstab="/etc/vfstab"
 		tmpfile="$TEST_BASE_DIR/vfstab.tmp"
+	else
+		vfstab="/etc/fstab"
+		tmpfile="$TEST_BASE_DIR/fstab.tmp"
 	fi
 
 	cat $vfstab | grep "^${DEV_DSKDIR}" >$tmpfile
@@ -100,13 +100,9 @@ function find_mnttab_dev
 function save_dump_dev
 {
 
-	typeset dumpdev
+	typeset dumpdev=""
 
-	if is_freebsd; then
-		dumpdev=$(dumpon -l)
-	elif is_linux; then
-		dumpdev=""
-	else
+	if is_illumos; then
 		typeset fnd="Dump device"
 		dumpdev=`dumpadm | grep "$fnd" | cut -f2 -d : | \
 			awk '{print $1}'`
