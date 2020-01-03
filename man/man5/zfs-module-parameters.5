@@ -2580,6 +2580,18 @@ Default value: \fB16,777,216\fR (16MB).
 .sp
 .ne 2
 .na
+\fBzfs_resilver_disable_defer\fR (int)
+.ad
+.RS 12n
+Disables the \fBresilver_defer\fR feature, causing an operation that would
+start a resilver to restart one in progress immediately.
+.sp
+Default value: \fB0\fR (feature enabled).
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_resilver_min_time_ms\fR (int)
 .ad
 .RS 12n
