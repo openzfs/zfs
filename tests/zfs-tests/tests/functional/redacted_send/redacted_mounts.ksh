@@ -76,23 +76,23 @@ log_must diff <(echo ${contents//$recv_mnt/}) \
 log_must zfs redact $sendvol@snap book2 $clonevol@snap
 log_must eval "zfs send --redact book2 $sendvol@snap >$stream"
 log_must eval "zfs receive $recvvol <$stream"
-[[ -b $recv_vol_file ]] && log_fail "Volume device file should not exist."
+is_disk_device $recv_vol_file && log_fail "Volume device file should not exist."
 log_must set_tunable32 zfs_allow_redacted_dataset_mount 1
 log_must zpool export $POOL2
 log_must zpool import $POOL2
 udevadm settle
 
 # The device file isn't guaranteed to show up right away.
-if [[ ! -b $recv_vol_file ]]; then
+if ! is_disk_device $recv_vol_file; then
 	udevadm settle
 	for t in 10 5 3 2 1; do
 		log_note "Polling $t seconds for device file."
 		udevadm settle
 		sleep $t
-		[[ -b $recv_vol_file ]] && break
+		is_disk_device $recv_vol_file && break
 	done
 fi
-[[ -b $recv_vol_file ]] || log_fail "Volume device file should exist."
+is_disk_device $recv_vol_file || log_fail "Volume device file should exist."
 
 log_must dd if=/dev/urandom of=$send_mnt/dir1/contents1 bs=512 count=2
 log_must rm $send_mnt/dir1/dir2/empty

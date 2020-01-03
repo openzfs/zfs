@@ -44,13 +44,13 @@ sleep 10
 log_must zpool export $POOL
 log_must zpool import $POOL
 udevadm settle
-if [[ ! -b $send_file ]]; then
+if ! is_disk_device $send_file; then
 	udevadm settle
 	for t in 10 5 3 2 1; do
 		log_note "Polling $t seconds for device file."
 		udevadm settle
 		sleep $t
-		[[ -b $send_file ]] && break
+		is_disk_device $send_file && break
 	done
 fi
 log_must dd if=/dev/urandom of=$send_file bs=8k count=64
@@ -66,13 +66,13 @@ sleep 10
 log_must zpool export $POOL2
 log_must zpool import $POOL2
 udevadm settle
-if [[ ! -b $recv_file ]]; then
+if ! is_disk_device $recv_file; then
 	udevadm settle
 	for t in 10 5 3 2 1; do
 		log_note "Polling $t seconds for device file."
 		udevadm settle
 		sleep $t
-		[[ -b $recv_file ]] && break
+		is_disk_device $recv_file && break
 	done
 fi
 log_must dd if=$send_file of=$tmpdir/send.dd bs=8k count=64
@@ -89,13 +89,13 @@ sleep 10
 log_must zpool export $POOL2
 log_must zpool import $POOL2
 udevadm settle
-if  [[ ! -b $recv_file ]]; then
+if ! is_disk_device $recv_file; then
 	udevadm settle
 	for t in 10 5 3 2 1; do
 		log_note "Polling $t seconds for device file."
 		udevadm settle
 		sleep $t
-		[[ -b $recv_file ]] && break
+		is_disk_device $recv_file && break
 	done
 fi
 log_must dd if=$send_file of=$tmpdir/send.dd bs=8k count=32 skip=32

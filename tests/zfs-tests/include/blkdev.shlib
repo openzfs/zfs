@@ -93,11 +93,19 @@ function is_physical_device #device
 	device=${device#$DEV_RDSKDIR}
 
 	if is_linux; then
-		[[ -b "$DEV_DSKDIR/$device" ]] && \
+		is_disk_device "$DEV_DSKDIR/$device" && \
 		[[ -f /sys/module/loop/parameters/max_part ]]
 		return $?
 	elif is_freebsd; then
-		echo $device | grep -q -e '^a?da[0-9]*$' -e '^md[0-9]*$' > /dev/null 2>&1
+		is_disk_device "$DEV_DSKDIR/$device" && \
+		echo $device | grep -q \
+			-e '^a?da[0-9]+$' \
+			-e '^md[0-9]+$' \
+			-e '^mfid[0-9]+$' \
+			-e '^nda[0-9]+$' \
+			-e '^nvd[0-9]+$' \
+			-e '^vtbd[0-9]+$' \
+			> /dev/null 2>&1
 		return $?
 	else
 		echo $device | egrep "^c[0-F]+([td][0-F]+)+$" > /dev/null 2>&1
@@ -162,9 +170,24 @@ function is_mpath_device #disk
 			return $?
 		fi
 	elif is_freebsd; then
-		test -b $DEV_MPATHDIR/$disk
+		is_disk_device $DEV_MPATHDIR/$disk
 	else
 		false
+	fi
+}
+
+#
+# Check if the given path is the appropriate sort of device special node.
+#
+function is_disk_device #path
+{
+	typeset path=$1
+
+	if is_freebsd; then
+		# FreeBSD doesn't have block devices, only character devices.
+		test -c $path
+	else
+		test -b $path
 	fi
 }
 
@@ -241,7 +264,7 @@ function get_device_dir #device
 		if [[ $device != "/" ]]; then
 			device=${device%/*}
 		fi
-		if [[ -b "$DEV_DSKDIR/$device" ]]; then
+		if is_disk_device "$DEV_DSKDIR/$device"; then
 			device="$DEV_DSKDIR"
 		fi
 		echo $device

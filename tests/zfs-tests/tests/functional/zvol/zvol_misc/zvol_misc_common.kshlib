@@ -80,7 +80,7 @@ function blockdev_exists # device
 	# that can affect device nodes
 	for i in {1..3}; do
 		udev_wait
-		[[ -b "$device" ]] && return 0
+		is_disk_device "$device" && return 0
 	done
 	log_fail "$device does not exist as a block device"
 }
@@ -127,17 +127,17 @@ function verify_partition # device
 {
 	typeset device="$1"
 
-	if [[ ! -b "$device" ]]; then
+	if ! is_disk_device "$device"; then
 		log_fail "$device is not a block device"
 	fi
 	# create a small dummy partition
 	set_partition 0 1 1m $device
 	# verify we can access the partition on the device
 	devname="$(readlink -f "$device")"
-	if is_linux; then
-		[[ -b "$devname""p1" ]]
+	if is_linux || is_freebsd; then
+		is_disk_device "$devname""p1"
 	else
-		[[ -b "$devname""s0" ]]
+		is_disk_device "$devname""s0"
 	fi
 	return $?
 }
