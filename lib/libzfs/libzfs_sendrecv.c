@@ -3518,6 +3518,7 @@ recv_skip(libzfs_handle_t *hdl, int fd, boolean_t byteswap)
 			    P2ROUNDUP(drr->drr_u.drr_write_embedded.drr_psize,
 			    8), B_FALSE, NULL);
 			break;
+		case DRR_OBJECT_RANGE:
 		case DRR_WRITE_BYREF:
 		case DRR_FREEOBJECTS:
 		case DRR_FREE:
