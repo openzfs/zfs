@@ -92,6 +92,18 @@ function is_linux
 	fi
 }
 
+# Determine if this is an illumos test system
+#
+# Return 0 if platform illumos, 1 if otherwise
+function is_illumos
+{
+	if [[ $(uname -o) == "illumos" ]]; then
+		return 0
+	else
+		return 1
+	fi
+}
+
 # Determine if this is a FreeBSD test system
 #
 # Return 0 if platform FreeBSD, 1 if otherwise
@@ -2410,12 +2422,11 @@ EOF
 # each case. limit the number to max_finddisksnum
 	count=0
 	for disk in $unused_candidates; do
-		if [ -b $DEV_DSKDIR/${disk}s0 ]; then
-		if [ $count -lt $max_finddisksnum ]; then
+		if is_disk_device $DEV_DSKDIR/${disk}s0 && \
+		    [ $count -lt $max_finddisksnum ]; then
 			unused="$unused $disk"
 			# do not impose limit if $@ is provided
 			[[ -z $@ ]] && ((count = count + 1))
-		fi
 		fi
 	done
 

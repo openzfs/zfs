@@ -87,15 +87,13 @@ function set_dumpsize
 
 	log_must zfs set volsize=64m $volume
 
-	if ! is_linux; then
-		output=$(dumpadm -d /dev/zvol/dsk/$volume 2>&1 | \
-				tail -1 | awk '{print $3}')
+	output=$(dumpadm -d /dev/zvol/dsk/$volume 2>&1 | \
+			tail -1 | awk '{print $3}')
 
-		if [[ -n $output ]]; then
-			(( output = output / 1024 / 1024 ))
-			(( output = output + output / 5 ))
-			log_must zfs set volsize=${output}m $volume
-		fi
+	if [[ -n $output ]]; then
+		(( output = output / 1024 / 1024 ))
+		(( output = output + output / 5 ))
+		log_must zfs set volsize=${output}m $volume
 	fi
 
 	return 0
@@ -114,23 +112,11 @@ function safe_dumpadm
 		set_dumpsize $volume
 		log_must dumpadm -d $device
 	else
-		if is_freebsd; then
-			log_must swapon
-		else
-			log_must swapadd
-		fi
+		log_must swapadd
 		if ! is_swap_inuse $device ; then
-			if is_freebsd; then
-				log_must swapctl -a $device
-			else
-				log_must swap -a $device
-			fi
+			log_must swap -a $device
 		fi
-		if is_freebsd; then
-			log_must dumpon $device
-		else
-			log_must dumpadm -d swap
-		fi
+		log_must dumpadm -d swap
 	fi
 }
 

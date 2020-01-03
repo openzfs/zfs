@@ -26,7 +26,7 @@ verify_runnable "global"
 DISK1=${DISKS%% *}
 
 typeset -i max_discard=0
-if [[ -b $DEV_RDSKDIR/$DISK1 ]]; then
+if is_disk_device $DEV_RDSKDIR/$DISK1; then
 	max_discard=$(lsblk -Dbn $DEV_RDSKDIR/$DISK1 | awk '{ print $4; exit }')
 fi
 
