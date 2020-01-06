@@ -248,7 +248,7 @@ qat_compress_impl(qat_compress_dir_t dir, char *src, int src_len,
 	Cpa8U *buffer_meta_dst = NULL;
 	Cpa32U buffer_meta_size = 0;
 	CpaDcRqResults dc_results;
-	CpaStatus status = CPA_STATUS_SUCCESS;
+	CpaStatus status = CPA_STATUS_FAIL;
 	Cpa32U hdr_sz = 0;
 	Cpa32U compressed_sz;
 	Cpa32U num_src_buf = (src_len >> PAGE_SHIFT) + 2;
@@ -277,16 +277,19 @@ qat_compress_impl(qat_compress_dir_t dir, char *src, int src_len,
 	Cpa32U dst_buffer_list_mem_size = sizeof (CpaBufferList) +
 	    ((num_dst_buf + num_add_buf) * sizeof (CpaFlatBuffer));
 
-	if (QAT_PHYS_CONTIG_ALLOC(&in_pages,
-	    num_src_buf * sizeof (struct page *)) != CPA_STATUS_SUCCESS)
+	status = QAT_PHYS_CONTIG_ALLOC(&in_pages,
+	    num_src_buf * sizeof (struct page *));
+	if (status != CPA_STATUS_SUCCESS)
 		goto fail;
 
-	if (QAT_PHYS_CONTIG_ALLOC(&out_pages,
-	    num_dst_buf * sizeof (struct page *)) != CPA_STATUS_SUCCESS)
+	status = QAT_PHYS_CONTIG_ALLOC(&out_pages,
+	    num_dst_buf * sizeof (struct page *));
+	if (status != CPA_STATUS_SUCCESS)
 		goto fail;
 
-	if (QAT_PHYS_CONTIG_ALLOC(&add_pages,
-	    num_add_buf * sizeof (struct page *)) != CPA_STATUS_SUCCESS)
+	status = QAT_PHYS_CONTIG_ALLOC(&add_pages,
+	    num_add_buf * sizeof (struct page *));
+	if (status != CPA_STATUS_SUCCESS)
 		goto fail;
 
 	i = (Cpa32U)atomic_inc_32_nv(&inst_num) % num_inst;
@@ -295,19 +298,19 @@ qat_compress_impl(qat_compress_dir_t dir, char *src, int src_len,
 
 	cpaDcBufferListGetMetaSize(dc_inst_handle, num_src_buf,
 	    &buffer_meta_size);
-	if (QAT_PHYS_CONTIG_ALLOC(&buffer_meta_src, buffer_meta_size) !=
-	    CPA_STATUS_SUCCESS)
+	status = QAT_PHYS_CONTIG_ALLOC(&buffer_meta_src, buffer_meta_size);
+	if (status != CPA_STATUS_SUCCESS)
 		goto fail;
 
 	cpaDcBufferListGetMetaSize(dc_inst_handle, num_dst_buf + num_add_buf,
 	    &buffer_meta_size);
-	if (QAT_PHYS_CONTIG_ALLOC(&buffer_meta_dst, buffer_meta_size) !=
-	    CPA_STATUS_SUCCESS)
+	status = QAT_PHYS_CONTIG_ALLOC(&buffer_meta_dst, buffer_meta_size);
+	if (status != CPA_STATUS_SUCCESS)
 		goto fail;
 
 	/* build source buffer list */
-	if (QAT_PHYS_CONTIG_ALLOC(&buf_list_src, src_buffer_list_mem_size) !=
-	    CPA_STATUS_SUCCESS)
+	status = QAT_PHYS_CONTIG_ALLOC(&buf_list_src, src_buffer_list_mem_size);
+	if (status != CPA_STATUS_SUCCESS)
 		goto fail;
 
 	flat_buf_src = (CpaFlatBuffer *)(buf_list_src + 1);
@@ -315,8 +318,8 @@ qat_compress_impl(qat_compress_dir_t dir, char *src, int src_len,
 	buf_list_src->pBuffers = flat_buf_src; /* always point to first one */
 
 	/* build destination buffer list */
-	if (QAT_PHYS_CONTIG_ALLOC(&buf_list_dst, dst_buffer_list_mem_size) !=
-	    CPA_STATUS_SUCCESS)
+	status = QAT_PHYS_CONTIG_ALLOC(&buf_list_dst, dst_buffer_list_mem_size);
+	if (status != CPA_STATUS_SUCCESS)
 		goto fail;
 
 	flat_buf_dst = (CpaFlatBuffer *)(buf_list_dst + 1);
