@@ -34,26 +34,23 @@
 
 #
 # DESCRIPTION:
-#	'zpool add -n <pool> <vdev> ...' can display the configuration without
-# adding the specified devices to given pool
+# 'zpool add -n <pool> <vdev> ...' can display the configuration without adding
+# the specified devices to given pool
 #
 # STRATEGY:
-#	1. Create a storage pool
-#	2. Use -n to add a device to the pool
-#	3. Verify the device is not added actually
+# 1. Create a storage pool
+# 2. Use -n to add devices to the pool
+# 3. Verify the devices are not added actually
+# 4. Add devices to the pool for real this time, verify the vdev tree is the
+#    same printed by the dryrun iteration
 #
 
 verify_runnable "global"
 
 function cleanup
 {
-        poolexists $TESTPOOL && \
-                destroy_pool $TESTPOOL
-
-	partition_cleanup
-
-	[[ -e $tmpfile ]] && \
-		log_must rm -f $tmpfile
+	destroy_pool $TESTPOOL
+	rm -f $TMPFILE_PREFIX* $VDEV_PREFIX*
 }
 
 log_assert "'zpool add -n <pool> <vdev> ...' can display the configuration" \
@@ -61,18 +58,40 @@ log_assert "'zpool add -n <pool> <vdev> ...' can display the configuration" \
 
 log_onexit cleanup
 
-tmpfile="$TEST_BASE_DIR/zpool_add_003.tmp$$"
+typeset TMPFILE_PREFIX="$TEST_BASE_DIR/zpool_add_003"
+typeset STR_DRYRUN="would update '$TESTPOOL' to the following configuration:"
+typeset VDEV_PREFIX="$TEST_BASE_DIR/filedev"
+typeset -a VDEV_TYPES=("" "dedup" "special" "log" "cache")
 
-create_pool "$TESTPOOL" "${disk}${SLICE_PREFIX}${SLICE0}"
+vdevs=""
+config=""
+
+# 1. Create a storage pool
+log_must truncate -s $SPA_MINDEVSIZE "$VDEV_PREFIX-root"
+log_must zpool create "$TESTPOOL" "$VDEV_PREFIX-root"
 log_must poolexists "$TESTPOOL"
+for vdevtype in "${VDEV_TYPES[@]}"; do
+	log_must truncate -s $SPA_MINDEVSIZE "$VDEV_PREFIX-$vdevtype"
+	vdevs="$vdevs $VDEV_PREFIX-$vdevtype"
+	config="$config $vdevtype $VDEV_PREFIX-$vdevtype"
+done
 
-zpool add -n "$TESTPOOL" ${disk}${SLICE_PREFIX}${SLICE1} > $tmpfile
+# 2. Use -n to add devices to the pool
+log_must eval "zpool add -f -n $TESTPOOL $config > $TMPFILE_PREFIX-dryrun"
+log_must grep -q "$STR_DRYRUN" "$TMPFILE_PREFIX-dryrun"
 
-log_mustnot vdevs_in_pool "$TESTPOOL" "${disk}${SLICE_PREFIX}${SLICE1}"
+# 3. Verify the devices are not added actually
+for vdev in $vdevs; do
+	log_mustnot vdevs_in_pool "$TESTPOOL" "$vdev"
+done
 
-str="would update '$TESTPOOL' to the following configuration:"
-cat $tmpfile | grep "$str" >/dev/null 2>&1
-(( $? != 0 )) && \
-	 log_fail "'zpool add -n <pool> <vdev> ...' is executed as unexpected"
+# 4. Add devices to the pool for real this time, verify the vdev tree is the
+#    same printed by the dryrun iteration
+log_must zpool add -f $TESTPOOL $config
+zpool status $TESTPOOL | awk 'NR == 1, /NAME/ { next } /^$/ {exit}
+	{print $1}' > "$TMPFILE_PREFIX-vdevtree"
+cat "$TMPFILE_PREFIX-dryrun" | awk 'NR == 1, /would/ {next}
+	{print $1}' > "$TMPFILE_PREFIX-vdevtree-n"
+log_must eval "diff $TMPFILE_PREFIX-vdevtree-n $TMPFILE_PREFIX-vdevtree"
 
-log_pass "'zpool add -n <pool> <vdev> ...'executes successfully."
+log_pass "'zpool add -n <pool> <vdev> ...' executes successfully."

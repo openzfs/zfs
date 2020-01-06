@@ -936,20 +936,35 @@ zpool_do_add(int argc, char **argv)
 		print_vdev_tree(zhp, NULL, nvroot, 0, "", name_flags);
 
 		/* print other classes: 'dedup', 'special', and 'log' */
-		print_vdev_tree(zhp, "dedup", poolnvroot, 0,
-		    VDEV_ALLOC_BIAS_DEDUP, name_flags);
-		print_vdev_tree(zhp, NULL, nvroot, 0, VDEV_ALLOC_BIAS_DEDUP,
-		    name_flags);
+		if (zfs_special_devs(poolnvroot, VDEV_ALLOC_BIAS_DEDUP)) {
+			print_vdev_tree(zhp, "dedup", poolnvroot, 0,
+			    VDEV_ALLOC_BIAS_DEDUP, name_flags);
+			print_vdev_tree(zhp, NULL, nvroot, 0,
+			    VDEV_ALLOC_BIAS_DEDUP, name_flags);
+		} else if (zfs_special_devs(nvroot, VDEV_ALLOC_BIAS_DEDUP)) {
+			print_vdev_tree(zhp, "dedup", nvroot, 0,
+			    VDEV_ALLOC_BIAS_DEDUP, name_flags);
+		}
 
-		print_vdev_tree(zhp, "special", poolnvroot, 0,
-		    VDEV_ALLOC_BIAS_SPECIAL, name_flags);
-		print_vdev_tree(zhp, NULL, nvroot, 0, VDEV_ALLOC_BIAS_SPECIAL,
-		    name_flags);
+		if (zfs_special_devs(poolnvroot, VDEV_ALLOC_BIAS_SPECIAL)) {
+			print_vdev_tree(zhp, "special", poolnvroot, 0,
+			    VDEV_ALLOC_BIAS_SPECIAL, name_flags);
+			print_vdev_tree(zhp, NULL, nvroot, 0,
+			    VDEV_ALLOC_BIAS_SPECIAL, name_flags);
+		} else if (zfs_special_devs(nvroot, VDEV_ALLOC_BIAS_SPECIAL)) {
+			print_vdev_tree(zhp, "special", nvroot, 0,
+			    VDEV_ALLOC_BIAS_SPECIAL, name_flags);
+		}
 
-		print_vdev_tree(zhp, "logs", poolnvroot, 0, VDEV_ALLOC_BIAS_LOG,
-		    name_flags);
-		print_vdev_tree(zhp, NULL, nvroot, 0, VDEV_ALLOC_BIAS_LOG,
-		    name_flags);
+		if (num_logs(poolnvroot) > 0) {
+			print_vdev_tree(zhp, "logs", poolnvroot, 0,
+			    VDEV_ALLOC_BIAS_LOG, name_flags);
+			print_vdev_tree(zhp, NULL, nvroot, 0,
+			    VDEV_ALLOC_BIAS_LOG, name_flags);
+		} else if (num_logs(nvroot) > 0) {
+			print_vdev_tree(zhp, "logs", nvroot, 0,
+			    VDEV_ALLOC_BIAS_LOG, name_flags);
+		}
 
 		/* Do the same for the caches */
 		if (nvlist_lookup_nvlist_array(poolnvroot, ZPOOL_CONFIG_L2CACHE,
