@@ -107,7 +107,6 @@ while (( i < ${#vdevs[*]} )); do
 	create_pool $TESTPOOL1 ${vdevs[i]} $vslices spare $sslices
 	log_must zpool export $TESTPOOL1
 	verify_assertion "$rawtargets"
-	cleanup_devices $vslices $sslices
 
 	(( i = i + 1 ))
 done
