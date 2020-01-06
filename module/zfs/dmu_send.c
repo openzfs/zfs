@@ -2083,7 +2083,7 @@ setup_prefetch_thread(struct send_prefetch_thread_arg *spt_arg,
 	spt_arg->smta = smt_arg;
 	spt_arg->issue_prefetches = !dspp->dso->dso_dryrun;
 	(void) thread_create(NULL, 0, send_prefetch_thread, spt_arg, 0,
-	    curproc, TS_RUN, minclsyspri);
+	    curproc, TS_RUN, maxclsyspri);
 }
 
 static int
