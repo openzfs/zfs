@@ -68,7 +68,7 @@ zfs_allocatable_devs(nvlist_t *nv)
  * Are there special vdevs?
  */
 boolean_t
-zfs_special_devs(nvlist_t *nv)
+zfs_special_devs(nvlist_t *nv, char *type)
 {
 	char *bias;
 	uint_t c;
@@ -84,7 +84,11 @@ zfs_special_devs(nvlist_t *nv)
 		    &bias) == 0) {
 			if (strcmp(bias, VDEV_ALLOC_BIAS_SPECIAL) == 0 ||
 			    strcmp(bias, VDEV_ALLOC_BIAS_DEDUP) == 0) {
-				return (B_TRUE);
+				if (type != NULL && strcmp(bias, type) == 0) {
+					return (B_TRUE);
+				} else if (type == NULL) {
+					return (B_TRUE);
+				}
 			}
 		}
 	}
