@@ -2301,10 +2301,11 @@ function cleanup_devices #vdevs
 {
 	typeset pool="foopool$$"
 
-	if poolexists $pool ; then
-		destroy_pool $pool
-	fi
+	for vdev in $@; do
+		zero_partitions $vdev
+	done
 
+	poolexists $pool && destroy_pool $pool
 	create_pool $pool $@
 	destroy_pool $pool
 
