@@ -932,6 +932,12 @@ ksiddomain_rele(ksiddomain_t *ksid)
 	umem_free(ksid, sizeof (ksiddomain_t));
 }
 
+boolean_t
+zfs_reserved_obj(uint64_t obj)
+{
+	return (B_FALSE);
+}
+
 char *
 kmem_vasprintf(const char *fmt, va_list adx)
 {

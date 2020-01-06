@@ -36,7 +36,7 @@
  * Copyright (c) 2018, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
  * Copyright 2017 RackTop Systems.
  * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
- * Copyright (c) 2019 Datto Inc.
+ * Copyright (c) 2017, 2020, Datto Inc. All rights reserved.
  * Copyright (c) 2019, 2020 by Christian Schwarz. All rights reserved.
  */
 
@@ -1096,13 +1096,34 @@ zfs_secpolicy_config(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 static int
 zfs_secpolicy_diff(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 {
-	int error;
+	int err;
 
-	if ((error = secpolicy_sys_config(cr, B_FALSE)) == 0)
+	if ((err = secpolicy_sys_config(cr, B_FALSE)) == 0)
 		return (0);
 
-	error = zfs_secpolicy_write_perms(zc->zc_name, ZFS_DELEG_PERM_DIFF, cr);
-	return (error);
+	err = zfs_secpolicy_write_perms(zc->zc_name, ZFS_DELEG_PERM_DIFF, cr);
+	return (err);
+}
+
+/*
+ * Policy for object to name lookups (both from and to datasets).
+ */
+/* ARGSUSED */
+static int
+zfs_secpolicy_diff2(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
+{
+	int err;
+
+	if ((err = secpolicy_sys_config(cr, B_FALSE)) == 0)
+		return (0);
+
+	err = zfs_secpolicy_write_perms(zc->zc_name, ZFS_DELEG_PERM_DIFF, cr);
+	if (err == 0) {
+		char *fromname = fnvlist_lookup_string(innvl, "fromsnap");
+		err = zfs_secpolicy_write_perms(fromname,
+		    ZFS_DELEG_PERM_DIFF, cr);
+	}
+	return (err);
 }
 
 /*
@@ -6013,30 +6034,187 @@ zfs_ioc_tmp_snapshot(zfs_cmd_t *zc)
 }
 
 /*
- * inputs:
- * zc_name		name of "to" snapshot
- * zc_value		name of "from" snapshot
- * zc_cookie		file descriptor to write diff data on
+ * innvl: {
+ *     "fd" -> file descriptor to write diff stream to (int32)
+ *     "fromsnap" -> full snap name to diff against (string)
+ * }
  *
- * outputs:
- * dmu_diff_record_t's to the file descriptor
+ * outnvl is unused
  */
+static const zfs_ioc_key_t zfs_keys_diff[] = {
+	{"fd",			DATA_TYPE_INT32,	0},
+	{"fromsnap",		DATA_TYPE_STRING,	0},
+};
+
 static int
-zfs_ioc_diff(zfs_cmd_t *zc)
+zfs_ioc_diff(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 {
 	zfs_file_t *fp;
 	offset_t off;
 	int error;
+	int fd = fnvlist_lookup_int32(innvl, "fd");
+	char *fromname = fnvlist_lookup_string(innvl, "fromsnap");
 
-	if ((error = zfs_file_get(zc->zc_cookie, &fp)))
+	if ((error = zfs_file_get(fd, &fp)))
 		return (error);
 
 	off = zfs_file_off(fp);
-	error = dmu_diff(zc->zc_name, zc->zc_value, fp, &off);
+	error = dmu_diff(fsname, fromname, fp, &off);
 
-	zfs_file_put(zc->zc_cookie);
+	zfs_file_put(fd);
 
 	return (error);
+}
+
+static int
+dump_zap(objset_t *os, uint64_t obj, zfs_file_t *fp)
+{
+	dmu_buf_t *db;
+	dmu_object_info_t doi;
+	uint64_t count;
+	zap_cursor_t zc;
+	zap_attribute_t za;
+	int err;
+
+	/* ensure zap object */
+	err = dmu_buf_hold(os, obj, 0, FTAG, &db, DMU_READ_NO_PREFETCH);
+	if (err != 0)
+		return (err);
+	dmu_object_info_from_db(db, &doi);
+	dmu_buf_rele(db, FTAG);
+	if (DMU_OT_BYTESWAP(doi.doi_type) != DMU_BSWAP_ZAP)
+		return (SET_ERROR(EINVAL));
+
+	err = zap_count(os, obj, &count);
+	if (err != 0)
+		return (err);
+
+	err = zfs_file_write(fp, &count, sizeof (count), NULL);
+	if (err != 0)
+		return (err);
+
+	for (zap_cursor_init(&zc, os, obj);
+	    (err = zap_cursor_retrieve(&zc, &za)) == 0;
+	    zap_cursor_advance(&zc)) {
+		zap_pair_record_t zpr;
+		zpr.zpr_value = za.za_first_integer;
+		strcpy(zpr.zpr_key, za.za_name);
+		err = zfs_file_write(fp, &zpr, sizeof (zpr), NULL);
+		if (err != 0)
+			break;
+	}
+	zap_cursor_fini(&zc);
+
+	return ((err == ENOENT) ? 0 : err);
+}
+
+/*
+ * innvl: {
+ *     "fd" -> file descriptor to write stream to (int32)
+ *     "object" -> object id of zap (uint64)
+ * }
+ *
+ * outnvl is unused
+ * }
+ */
+static const zfs_ioc_key_t zfs_keys_dump_zap[] = {
+	{"fd",			DATA_TYPE_INT32,	0},
+	{"object",		DATA_TYPE_UINT64,	0},
+};
+
+static int
+zfs_ioc_dump_zap(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
+{
+	zfs_file_t *fp;
+	objset_t *os;
+	dsl_dataset_t *snap;
+	dsl_pool_t *dp;
+	int err;
+	int fd = fnvlist_lookup_int32(innvl, "fd");
+	uint64_t obj = fnvlist_lookup_uint64(innvl, "object");
+
+	/* can only dump zaps from snapshots */
+	if (strchr(fsname, '@') == NULL)
+		return (SET_ERROR(EINVAL));
+
+	err = zfs_file_get(fd, &fp);
+	if (err != 0)
+		return (err);
+
+	err = dsl_pool_hold(fsname, FTAG, &dp);
+	if (err != 0)
+		goto out;
+
+	err = dsl_dataset_hold_flags(dp, fsname, DS_HOLD_FLAG_DECRYPT, FTAG,
+	    &snap);
+	if (err != 0) {
+		dsl_pool_rele(dp, FTAG);
+		goto out;
+	}
+
+	dsl_dataset_long_hold(snap, FTAG);
+	err = dmu_objset_from_ds(snap, &os);
+	dsl_pool_rele(dp, FTAG);
+
+	if (err == 0)
+		err = dump_zap(os, obj, fp);
+
+	dsl_dataset_long_rele(snap, FTAG);
+	dsl_dataset_rele_flags(snap, DS_HOLD_FLAG_DECRYPT, FTAG);
+
+out:
+	zfs_file_put(fd);
+	return (err);
+}
+
+/*
+ * innvl: {
+ *     "object" -> object id of zap (uint64)
+ * }
+ *
+ * outnvl: {
+ *     "gen" -> zpl gen (uint64)
+ *     "mode" -> zpl mode (uint64)
+ *     "links" -> zpl links (uint64)
+ *     "ctime" -> zpl ctime (uint64 array)
+ *     "parent" -> objid of parent zfs dir (uint64)
+ *     "flags" -> zpl flags (uint64)
+ * }
+ */
+static const zfs_ioc_key_t zfs_keys_diff_stats[] = {
+	{"object",		DATA_TYPE_UINT64,	0},
+};
+
+static int
+zfs_ioc_diff_stats(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
+{
+	objset_t *os;
+	zfs_diff_stat_t zds;
+	int err;
+	uint64_t obj = fnvlist_lookup_uint64(innvl, "object");
+
+	err = dmu_objset_hold_flags(fsname, TRUE, FTAG, &os);
+	if (err != 0)
+		return (err);
+
+	if (dmu_objset_type(os) != DMU_OST_ZFS) {
+		dmu_objset_rele_flags(os, B_TRUE, FTAG);
+		return (SET_ERROR(EINVAL));
+	}
+
+	err = zfs_diff_stats(os, obj, &zds, NULL, 0);
+	dmu_objset_rele_flags(os, B_TRUE, FTAG);
+
+	if (err == 0) {
+		fnvlist_add_uint64(outnvl, "gen", zds.zs.zs_gen);
+		fnvlist_add_uint64(outnvl, "mode", zds.zs.zs_mode);
+		fnvlist_add_uint64(outnvl, "links", zds.zs.zs_links);
+		fnvlist_add_uint64_array(outnvl, "ctime", zds.zs.zs_ctime, 2);
+		fnvlist_add_uint64(outnvl, "parent", zds.zds_parent);
+		fnvlist_add_uint64(outnvl, "flags", zds.zds_flags);
+	}
+
+	return (err);
 }
 
 static int
@@ -7043,6 +7221,21 @@ zfs_ioctl_init(void)
 	    POOL_CHECK_SUSPENDED, B_FALSE, B_TRUE,
 	    zfs_keys_get_bootenv, ARRAY_SIZE(zfs_keys_get_bootenv));
 
+	zfs_ioctl_register("diff", ZFS_IOC_DIFF,
+	    zfs_ioc_diff, zfs_secpolicy_diff2, DATASET_NAME,
+	    POOL_CHECK_SUSPENDED, B_FALSE, B_FALSE,
+	    zfs_keys_diff, ARRAY_SIZE(zfs_keys_diff));
+
+	zfs_ioctl_register("dump_zap", ZFS_IOC_DUMP_ZAP,
+	    zfs_ioc_dump_zap, zfs_secpolicy_diff, DATASET_NAME,
+	    POOL_CHECK_SUSPENDED, B_FALSE, B_FALSE,
+	    zfs_keys_dump_zap, ARRAY_SIZE(zfs_keys_dump_zap));
+
+	zfs_ioctl_register("diff_stats", ZFS_IOC_DIFF_STATS,
+	    zfs_ioc_diff_stats, zfs_secpolicy_diff, DATASET_NAME,
+	    POOL_CHECK_SUSPENDED, B_FALSE, B_FALSE,
+	    zfs_keys_diff_stats, ARRAY_SIZE(zfs_keys_diff_stats));
+
 	/* IOCTLS that use the legacy function signature */
 
 	zfs_ioctl_register_legacy(ZFS_IOC_POOL_FREEZE, zfs_ioc_pool_freeze,
@@ -7135,8 +7328,6 @@ zfs_ioctl_init(void)
 	zfs_ioctl_register_dataset_read(ZFS_IOC_SEND_PROGRESS,
 	    zfs_ioc_send_progress);
 
-	zfs_ioctl_register_dataset_read_secpolicy(ZFS_IOC_DIFF,
-	    zfs_ioc_diff, zfs_secpolicy_diff);
 	zfs_ioctl_register_dataset_read_secpolicy(ZFS_IOC_OBJ_TO_STATS,
 	    zfs_ioc_obj_to_stats, zfs_secpolicy_diff);
 	zfs_ioctl_register_dataset_read_secpolicy(ZFS_IOC_OBJ_TO_PATH,

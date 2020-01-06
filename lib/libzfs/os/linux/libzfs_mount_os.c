@@ -46,6 +46,7 @@
 #include <sys/vfs.h>
 #include <sys/dsl_crypt.h>
 #include <libzfs.h>
+#include <libshare.h>
 
 #include "libzfs_impl.h"
 #include <thread_pool.h>

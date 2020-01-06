@@ -744,6 +744,8 @@ extern int kmem_cache_reap_active(void);
 
 #define	____cacheline_aligned
 
+extern boolean_t zfs_reserved_obj(uint64_t obj);
+
 #endif /* _KERNEL */
 
 #ifdef __cplusplus
