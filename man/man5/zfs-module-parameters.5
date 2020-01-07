@@ -107,6 +107,18 @@ Default value: \fB6\fR.
 .sp
 .ne 2
 .na
+\fBdmu_object_alloc_chunk_shift\fR (int)
+.ad
+.RS 12n
+dnode slots allocated in a single operation as a power of 2. The default value
+minimizes lock contention for the bulk operation performed.
+.sp
+Default value: \fB7\fR (128).
+.RE
+
+.sp
+.ne 2
+.na
 \fBdmu_prefetch_max\fR (int)
 .ad
 .RS 12n
@@ -437,7 +449,19 @@ Default value: \fB16\fR.
 .sp
 .ne 2
 .na
-\fBvdev_ms_count_limit\fR (int)
+\fBvdev_validate_skip\fR (int)
+.ad
+.RS 12n
+Skip label validation steps during pool import. Changing is not recommended
+unless you know what you are doing and are recovering a damaged label.
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_ms_count_limit\fR (int)
 .ad
 .RS 12n
 Practical upper limit of total metaslabs per top-level vdev.
@@ -684,6 +708,31 @@ Default value: \fB8\fR.
 Min time before an active prefetch stream can be reclaimed
 .sp
 Default value: \fB2\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_abd_scatter_enabled\fR (int)
+.ad
+.RS 12n
+Enables ARC from using scatter/gather lists and forces all allocations to be
+linear in kernel memory. Disabling can improve performance in some code paths
+at the expense of fragmented kernel memory.
+.sp
+Default value: \fB1\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_abd_scatter_max_order\fR (iunt)
+.ad
+.RS 12n
+Maximum number of consecutive memory pages allocated in a single block for
+scatter/gather lists. Default value is specified by the kernel itself.
+.sp
+Default value: \fB10\fR at the time of this writing.
 .RE
 
 .sp
@@ -1086,7 +1135,7 @@ Use \fB1\fR for yes (default) and \fB0\fR for no.
 .sp
 .ne 2
 .na
-\fBzfs_checksums_per_second\fR (int)
+\fBzfs_checksum_events_per_second\fR (uint)
 .ad
 .RS 12n
 Rate limit checksum events to this many per second.  Note that this should
@@ -1109,6 +1158,19 @@ latency to avoid significantly impacting the latency of each individual
 transaction record (itx).
 .sp
 Default value: \fB5\fR%.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_condense_indirect_commit_entry_delay_ms\fR (int)
+.ad
+.RS 12n
+Vdev indirection layer (used for device removal) sleeps for this many
+milliseconds during mapping generation. Intended for use with the test suite
+to throttle vdev removal speed.
+.sp
+Default value: \fB0\fR (no throttle).
 .RE
 
 .sp
@@ -1311,6 +1373,48 @@ See the section "ZFS TRANSACTION DELAY".
 Note: \fBzfs_delay_scale\fR * \fBzfs_dirty_data_max\fR must be < 2^64.
 .sp
 Default value: \fB500,000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_disable_ivset_guid_check\fR (int)
+.ad
+.RS 12n
+Disables requirement for IVset guids to be present and match when doing a raw
+receive of encrypted datasets. Intended for users whose pools were created with
+ZFS on Linux pre-release versions and now have compatibility issues.
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_key_max_salt_uses\fR (ulong)
+.ad
+.RS 12n
+Maximum number of uses of a single salt value before generating a new one for
+encrypted datasets. The default value is also the maximum that will be
+accepted.
+.sp
+Default value: \fB400,000,000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_object_mutex_size\fR (uint)
+.ad
+.RS 12n
+Size of the znode hashtable used for holds.
+
+Due to the need to hold locks on objects that may not exist yet, kernel mutexes
+are not created per-object and instead a hashtable is used where collisions
+will result in objects waiting when there is not actually contention on the
+same object.
+.sp
+Default value: \fB64\fR.
 .RE
 
 .sp
@@ -1962,6 +2066,18 @@ Default value: \fB1,000\fR.
 .sp
 .ne 2
 .na
+\fBzfs_obsolete_min_time_ms\fR (int)
+.ad
+.RS 12n
+Simlar to \fBzfs_free_min_time_ms\fR but for cleanup of old indirection records
+for removed vdevs.
+.sp
+Default value: \fB500\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_immediate_write_sz\fR (long)
 .ad
 .RS 12n
@@ -2594,6 +2710,18 @@ Default value: \fB16,777,216\fR (16MB).
 .sp
 .ne 2
 .na
+\fBzfs_resilver_disable_defer\fR (int)
+.ad
+.RS 12n
+Disables the \fBresilver_defer\fR feature, causing an operation that would
+start a resilver to restart one in progress immediately.
+.sp
+Default value: \fB0\fR (feature enabled).
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_resilver_min_time_ms\fR (int)
 .ad
 .RS 12n
@@ -2735,6 +2863,31 @@ hard limit.
 .sp
 Default value: \fB20\fR which is 5% of the hard limit (1/20).
 .RE
+
+.sp
+.ne 2
+.na
+\fBzfs_scan_strict_mem_lim\fR (int)
+.ad
+.RS 12n
+Enforces tight memory limits on pool scans when a sequential scan is in
+progress. When disabled the memory limit may be exceeded by fast disks.
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_scan_suspend_progress\fR (int)
+.ad
+.RS 12n
+Freezes a scrub/resilver in progress without actually pausing it. Intended for
+testing/debugging.
+.sp
+Default value: \fB0\fR.
+.RE
+
 
 .sp
 .ne 2
@@ -2946,7 +3099,7 @@ Default value: \fB75\fR%.
 .sp
 .ne 2
 .na
-\fBzfs_trim_extent_bytes_max\fR (unsigned int)
+\fBzfs_trim_extent_bytes_max\fR (uint)
 .ad
 .RS 12n
 Maximum size of TRIM command.  Ranges larger than this will be split in to
@@ -2959,7 +3112,7 @@ Default value: \fB134,217,728\fR.
 .sp
 .ne 2
 .na
-\fBzfs_trim_extent_bytes_min\fR (unsigned int)
+\fBzfs_trim_extent_bytes_min\fR (uint)
 .ad
 .RS 12n
 Minimum size of TRIM commands.  TRIM ranges smaller than this will be skipped
@@ -2973,7 +3126,7 @@ Default value: \fB32,768\fR.
 .sp
 .ne 2
 .na
-\fBzfs_trim_metaslab_skip\fR (unsigned int)
+\fBzfs_trim_metaslab_skip\fR (uint)
 .ad
 .RS 12n
 Skip uninitialized metaslabs during the TRIM process.  This option is useful
@@ -2989,7 +3142,7 @@ Default value: \fB0\fR.
 .sp
 .ne 2
 .na
-\fBzfs_trim_queue_limit\fR (unsigned int)
+\fBzfs_trim_queue_limit\fR (uint)
 .ad
 .RS 12n
 Maximum number of queued TRIMs outstanding per leaf vdev.  The number of
@@ -3003,7 +3156,7 @@ Default value: \fB10\fR.
 .sp
 .ne 2
 .na
-\fBzfs_trim_txg_batch\fR (unsigned int)
+\fBzfs_trim_txg_batch\fR (uint)
 .ad
 .RS 12n
 The number of transaction groups worth of frees which should be aggregated
@@ -3237,6 +3390,18 @@ Possible options are:
   aarch64_neonx2 - implementation using NEON with more unrolling (Aarch64/64 bit ARMv8 only)
 .sp
 Default value: \fBfastest\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_scheduler\fR (charp)
+.ad
+.RS 12n
+\fBDEPRECATED\fR: This option exists for compatibility with older user
+configurations. It does nothing except print a warning to the kernel log if
+set.
+.sp
 .RE
 
 .sp
