@@ -51,7 +51,7 @@ function get_rand_prop
 
 	typeset prop_max=$((${#prop_array[@]} - 1))
 	typeset -i i
-	for i in $(shuf -i $start-$prop_max -n $num_props); do
+	for i in $(range_shuffle $start $prop_max | head -n $num_props); do
 		retstr="${prop_array[$i]} $retstr"
 	done
 	echo $retstr
