@@ -489,7 +489,7 @@ EXPORT_SYMBOL(vn_space);
 static file_t *
 file_find(int fd, struct task_struct *task)
 {
-	file_t *fp;
+	file_t *fp = NULL;
 
 	list_for_each_entry(fp, &vn_file_list,  f_list) {
 		if (fd == fp->f_fd && fp->f_task == task) {
@@ -698,7 +698,7 @@ spl_vn_init(void)
 void
 spl_vn_fini(void)
 {
-	file_t *fp, *next_fp;
+	file_t *fp = NULL, *next_fp = NULL;
 	int leaked = 0;
 
 	spin_lock(&vn_file_lock);
