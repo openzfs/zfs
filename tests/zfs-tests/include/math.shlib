@@ -119,3 +119,25 @@ function verify_ne # <a> <b> <type>
 		log_fail "Compared $type should be not equal: $a == $b"
 	fi
 }
+
+# A simple function to get a random number between two bounds (inclusive)
+#
+# Probably not the most efficient for large ranges, but it's okay.
+#
+# Note since we're using $RANDOM, 32767 is the largest number we
+# can accept as the upper bound.
+#
+# $1 lower bound
+# $2 upper bound
+function random_int_between
+{
+	typeset -i min=$1
+	typeset -i max=$2
+	typeset -i rand=0
+
+	while [[ $rand -lt $min ]] ; do
+		rand=$(( $RANDOM % $max + 1))
+	done
+
+	echo $rand
+}

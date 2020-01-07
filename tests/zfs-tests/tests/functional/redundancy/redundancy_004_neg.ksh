@@ -29,6 +29,7 @@
 # Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
+. $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/redundancy/redundancy.kshlib
 
 #
@@ -50,7 +51,7 @@ verify_runnable "global"
 log_assert "Verify striped pool have no data redundancy."
 log_onexit cleanup
 
-typeset -i cnt=$(random 2 5)
+typeset -i cnt=$(random_int_between 2 5)
 setup_test_env $TESTPOOL "" $cnt
 
 damage_devs $TESTPOOL 1 "keep_label"

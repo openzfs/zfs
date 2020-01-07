@@ -100,7 +100,7 @@ function setup_holes
 	log_must zfs create $sendfs/manyrm
 	for i in {1..256}; do
 		log_must stride_dd -i /dev/urandom -o $mntpnt/manyrm/f$i -b 512 \
-		    -c $(random 100) -s $(random 4)
+		    -c $(random_int_between 1 100) -s $(random_int_between 1 4)
 	done
 
 	log_must zfs snapshot $sendfs/manyrm@snap
