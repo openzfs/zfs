@@ -202,9 +202,10 @@ kv_alloc(spl_kmem_cache_t *skc, int size, int flags)
 	if (skc->skc_flags & KMC_KMEM) {
 		ASSERT(ISP2(size));
 		ptr = (void *)__get_free_pages(lflags, get_order(size));
-	} else if (skc->skc_flags & KMC_KVMEM) {
-		ptr = spl_kvmalloc(size, lflags);
-	} else {
+		ASSERT(IS_P2ALIGNED(ptr, PAGE_SIZE));
+	} else if ((((lflags & GFP_KERNEL) == GFP_KERNEL) ||
+		    (skc->skc_flags & KMC_KVMEM)) &&
+		   (skc->skc_obj_align <= SPL_KMEM_CACHE_ALIGN)) {
 		/*
 		 * GFP_KERNEL allocations can safely use kvmalloc which may
 		 * improve performance by avoiding a) high latency caused by
@@ -215,17 +216,16 @@ kv_alloc(spl_kmem_cache_t *skc, int size, int flags)
 		 * purely cosmetic.
 		 *
 		 * For non-GFP_KERNEL allocations we stick to __vmalloc.
+		 *
+		 * For both KMC_KVMEM allocations and GFP_KERNEL allocations
+		 * we check if page alignment is required and fall back to
+		 * __vmalloc in this case.
 		 */
-		if ((lflags & GFP_KERNEL) == GFP_KERNEL) {
-			ptr = spl_kvmalloc(size, lflags);
-		} else {
-			ptr = __vmalloc(size, lflags | __GFP_HIGHMEM,
-			    PAGE_KERNEL);
-		}
+		ptr = spl_kvmalloc(size, lflags);
+	} else {
+		ptr = __vmalloc(size, lflags | __GFP_HIGHMEM, PAGE_KERNEL);
+		ASSERT(IS_P2ALIGNED(ptr, PAGE_SIZE));
 	}
-
-	/* Resulting allocated memory will be page aligned */
-	ASSERT(IS_P2ALIGNED(ptr, PAGE_SIZE));
 
 	return (ptr);
 }
@@ -233,8 +233,6 @@ kv_alloc(spl_kmem_cache_t *skc, int size, int flags)
 static void
 kv_free(spl_kmem_cache_t *skc, void *ptr, int size)
 {
-	ASSERT(IS_P2ALIGNED(ptr, PAGE_SIZE));
-
 	/*
 	 * The Linux direct reclaim path uses this out of band value to
 	 * determine if forward progress is being made.  Normally this is
