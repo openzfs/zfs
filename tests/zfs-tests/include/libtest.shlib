@@ -3349,15 +3349,6 @@ function get_min
 	echo $min
 }
 
-#
-# Generate a random number between 1 and the argument.
-#
-function random
-{
-        typeset max=$1
-        echo $(( ($RANDOM % $max) + 1 ))
-}
-
 # Write data that can be compressed into a directory
 function write_compressible
 {
