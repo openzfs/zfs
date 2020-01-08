@@ -50,7 +50,7 @@ function create_random # <fspath> <count>
 
 	while (( i < count )); do
 		log_must touch "$fspath/file$i"
-		sleep $(random 3)
+		sleep $(random_int_between 1 3)
 		(( i = i + 1 ))
 	done
 }
