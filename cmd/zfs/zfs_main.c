@@ -380,7 +380,8 @@ get_usage(zfs_help_t idx)
 	case HELP_HOLD:
 		return (gettext("\thold [-r] <tag> <snapshot> ...\n"));
 	case HELP_HOLDS:
-		return (gettext("\tholds [-rH] <snapshot> ...\n"));
+		return (gettext("\tholds [-Hp] [-r|-d depth] "
+		    "<filesystem|volume|snapshot> ...\n"));
 	case HELP_RELEASE:
 		return (gettext("\trelease [-r] <tag> <snapshot> ...\n"));
 	case HELP_DIFF:
@@ -6236,7 +6237,8 @@ typedef struct holds_cbdata {
  *
  */
 static void
-print_holds(boolean_t scripted, int nwidth, int tagwidth, nvlist_t *nvl)
+print_holds(boolean_t scripted, boolean_t literal, int nwidth,
+    int tagwidth, nvlist_t *nvl)
 {
 	int i;
 	nvpair_t *nvp = NULL;
@@ -6267,10 +6269,15 @@ print_holds(boolean_t scripted, int nwidth, int tagwidth, nvlist_t *nvl)
 			struct tm t;
 
 			(void) nvpair_value_uint64(nvp2, &val);
-			time = (time_t)val;
-			(void) localtime_r(&time, &t);
-			(void) strftime(tsbuf, DATETIME_BUF_LEN,
-			    gettext(STRFTIME_FMT_STR), &t);
+			if (literal)
+				snprintf(tsbuf, DATETIME_BUF_LEN, "%llu",
+				    (u_longlong_t)val);
+			else {
+				time = (time_t)val;
+				(void) localtime_r(&time, &t);
+				(void) strftime(tsbuf, DATETIME_BUF_LEN,
+				    gettext(STRFTIME_FMT_STR), &t);
+			}
 
 			if (scripted) {
 				(void) printf("%s\t%s\t%s\n", zname,
@@ -6296,7 +6303,7 @@ holds_callback(zfs_handle_t *zhp, void *data)
 	const char *zname = zfs_get_name(zhp);
 	size_t znamelen = strlen(zname);
 
-	if (cbp->cb_recursive) {
+	if (cbp->cb_recursive && cbp->cb_snapname != NULL) {
 		const char *snapname;
 		char *delim  = strchr(zname, '@');
 		if (delim == NULL)
@@ -6324,10 +6331,12 @@ holds_callback(zfs_handle_t *zhp, void *data)
 }
 
 /*
- * zfs holds [-rH] <snap> ...
+ * zfs holds [-Hp] [-r | -d max] <dataset|snap> ...
  *
- *	-r	Lists holds that are set on the named snapshots recursively.
- *	-H	Scripted mode; elide headers and separate columns by tabs.
+ *	-H	Suppress header output
+ *	-p	Output literal values
+ *	-r	Recursively search for holds
+ *	-d max	Limit depth of recursive search
  */
 static int
 zfs_do_holds(int argc, char **argv)
@@ -6336,8 +6345,9 @@ zfs_do_holds(int argc, char **argv)
 	int c;
 	int i;
 	boolean_t scripted = B_FALSE;
+	boolean_t literal = B_FALSE;
 	boolean_t recursive = B_FALSE;
-	const char *opts = "rH";
+	const char *opts = "d:rHp";
 	nvlist_t *nvl;
 
 	int types = ZFS_TYPE_SNAPSHOT;
@@ -6350,11 +6360,18 @@ zfs_do_holds(int argc, char **argv)
 	/* check options */
 	while ((c = getopt(argc, argv, opts)) != -1) {
 		switch (c) {
+		case 'd':
+			limit = parse_depth(optarg, &flags);
+			recursive = B_TRUE;
+			break;
 		case 'r':
 			recursive = B_TRUE;
 			break;
 		case 'H':
 			scripted = B_TRUE;
+			break;
+		case 'p':
+			literal = B_TRUE;
 			break;
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
@@ -6381,18 +6398,14 @@ zfs_do_holds(int argc, char **argv)
 	for (i = 0; i < argc; ++i) {
 		char *snapshot = argv[i];
 		const char *delim;
-		const char *snapname;
+		const char *snapname = NULL;
 
 		delim = strchr(snapshot, '@');
-		if (delim == NULL) {
-			(void) fprintf(stderr,
-			    gettext("'%s' is not a snapshot\n"), snapshot);
-			++errors;
-			continue;
+		if (delim != NULL) {
+			snapname = delim + 1;
+			if (recursive)
+				snapshot[delim - snapshot] = '\0';
 		}
-		snapname = delim + 1;
-		if (recursive)
-			snapshot[delim - snapshot] = '\0';
 
 		cb.cb_recursive = recursive;
 		cb.cb_snapname = snapname;
@@ -6410,7 +6423,8 @@ zfs_do_holds(int argc, char **argv)
 	/*
 	 *  2. print holds data
 	 */
-	print_holds(scripted, cb.cb_max_namelen, cb.cb_max_taglen, nvl);
+	print_holds(scripted, literal, cb.cb_max_namelen, cb.cb_max_taglen,
+	    nvl);
 
 	if (nvlist_empty(nvl))
 		(void) fprintf(stderr, gettext("no datasets available\n"));
