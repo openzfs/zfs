@@ -822,15 +822,15 @@ extern int zfs_nicestrtonum(libzfs_handle_t *, const char *, uint64_t *);
 #define	STDERR_VERBOSE	0x02
 #define	NO_DEFAULT_PATH	0x04 /* Don't use $PATH to lookup the command */
 
-int libzfs_run_process(const char *, char **, int flags);
-int libzfs_run_process_get_stdout(const char *path, char *argv[], char *env[],
-    char **lines[], int *lines_cnt);
-int libzfs_run_process_get_stdout_nopath(const char *path, char *argv[],
-    char *env[], char **lines[], int *lines_cnt);
+int libzfs_run_process(const char *, char **, int);
+int libzfs_run_process_get_stdout(const char *, char *[], char *[],
+    char **[], int *);
+int libzfs_run_process_get_stdout_nopath(const char *, char *[], char *[],
+    char **[], int *);
 
-void libzfs_free_str_array(char **strs, int count);
+void libzfs_free_str_array(char **, int);
 
-int libzfs_envvar_is_set(char *envvar);
+int libzfs_envvar_is_set(char *);
 
 /*
  * Utility functions for zfs version
