@@ -10,21 +10,27 @@
 #
 
 #
-# Copyright (c) 2016 by Delphix. All rights reserved.
+# Copyright (c) 2015, 2016, Delphix. All rights reserved.
 # Copyright (c) 2020, Kjeld Schouten-Lebbing. All rights reserved.
 #
 
 [global]
 filename_format=file$jobnum
+nrfiles=16
 group_reporting=1
 fallocate=0
-ioengine=psync
-bs=1024k
-rw=write
+overwrite=0
 thread=1
+rw=readwrite
+rwmixread=80
+time_based=1
 directory=${DIRECTORY}
+runtime=${RUNTIME}
+bssplit=4k/50:8k/30:128k/10:1m/10
+ioengine=psync
+sync=${SYNC_TYPE}
+direct=${DIRECT}
 numjobs=${NUMJOBS}
-filesize=${FILE_SIZE}
 randseed=${RANDSEED}
 buffer_compress_percentage=${COMPPERCENT}
 buffer_pattern=0xdeadbeef

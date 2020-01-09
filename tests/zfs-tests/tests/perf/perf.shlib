@@ -106,6 +106,9 @@ function do_fio_run_impl
 	log_note "DIRECTORY: " $DIRECTORY
 
 	export RUNTIME=$PERF_RUNTIME
+	export RANDSEED=$PERF_RANDSEED
+	export COMPPERCENT=$PERF_COMPPERCENT
+	export COMPCHUNK=$PERF_COMPCHUNK
 	export FILESIZE=$((TOTAL_SIZE / threads))
 	export NUMJOBS=$threads
 	export SYNC_TYPE=$sync
