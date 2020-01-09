@@ -1019,6 +1019,9 @@ dmu_recv_resume_begin_check(void *arg, dmu_tx_t *tx)
 		return (SET_ERROR(EINVAL));
 	}
 
+	if (ds->ds_prev != NULL)
+		drc->drc_fromsnapobj = ds->ds_prev->ds_object;
+
 	/*
 	 * If we're resuming, and the send is redacted, then the original send
 	 * must have been redacted, and must have been redacted with respect to
@@ -1093,6 +1096,7 @@ dmu_recv_resume_begin_sync(void *arg, dmu_tx_t *tx)
 	rrw_exit(&ds->ds_bp_rwlock, FTAG);
 
 	drba->drba_cookie->drc_ds = ds;
+	drba->drba_cookie->drc_should_save = B_TRUE;
 
 	spa_history_log_internal_ds(ds, "resume receive", tx, " ");
 }
@@ -2069,7 +2073,8 @@ dmu_recv_cleanup_ds(dmu_recv_cookie_t *drc)
 	ds->ds_objset->os_raw_receive = B_FALSE;
 
 	rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
-	if (drc->drc_resumable && !BP_IS_HOLE(dsl_dataset_get_blkptr(ds))) {
+	if (drc->drc_resumable && drc->drc_should_save &&
+	    !BP_IS_HOLE(dsl_dataset_get_blkptr(ds))) {
 		rrw_exit(&ds->ds_bp_rwlock, FTAG);
 		dsl_dataset_disown(ds, dsflags, dmu_recv_tag);
 	} else {
@@ -2738,6 +2743,13 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, int cleanup_fd,
 		if (err != 0)
 			goto out;
 	}
+
+	/*
+	 * If we failed before this point we will clean up any new resume
+	 * state that was created. Now that we've gotten past the initial
+	 * checks we are ok to retain that resume state.
+	 */
+	drc->drc_should_save = B_TRUE;
 
 	(void) bqueue_init(&rwa->q, zfs_recv_queue_ff,
 	    MAX(zfs_recv_queue_length, 2 * zfs_max_recordsize),
