@@ -102,7 +102,7 @@ if is_linux; then
 
 	# without the right flag, there should be no xattr
 	log_must cp $TESTDIR/myfile.$$ $TESTDIR/myfile2.$$
-	log_mustnot attr -q -g passwd $TESTDIR/myfile2.$$
+	log_mustnot get_xattr passwd $TESTDIR/myfile2.$$
 	log_must rm $TESTDIR/myfile2.$$
 else
 	log_must cp -@ $TESTDIR/myfile.$$ $TESTDIR/myfile2.$$
@@ -187,7 +187,7 @@ if is_linux; then
 
 	# we should have no xattr here
 	log_must tar --no-xattrs -xf xattr.tar
-	log_mustnot attr -q -g passwd $TESTDIR/tar.$$
+	log_mustnot get_xattr passwd $TESTDIR/tar.$$
 	log_must rm $TESTDIR/tar.$$
 
 	# we should have an xattr here
@@ -197,12 +197,12 @@ if is_linux; then
 
 	# we should have no xattr here
 	log_must tar --no-xattrs -xf $TESTDIR/noxattr.tar
-	log_mustnot attr -q -g passwd $TESTDIR/tar.$$
+	log_mustnot get_xattr passwd $TESTDIR/tar.$$
 	log_must rm $TESTDIR/tar.$$
 
 	# we should have no xattr here
 	log_must tar --xattrs -xf $TESTDIR/noxattr.tar
-	log_mustnot attr -q -g passwd $TESTDIR/tar.$$
+	log_mustnot get_xattr passwd $TESTDIR/tar.$$
 	log_must rm $TESTDIR/tar.$$ $TESTDIR/noxattr.tar $TESTDIR/xattr.tar
 else
 	log_must touch $TESTDIR/tar.$$

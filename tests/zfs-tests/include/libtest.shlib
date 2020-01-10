@@ -3979,3 +3979,82 @@ function range_shuffle # begin end
 		shuf -i ${begin}-${end}
 	fi
 }
+
+#
+# Cross-platform xattr helpers
+#
+
+function get_xattr # name path
+{
+	typeset name=$1
+	typeset path=$2
+
+	case $(uname) in
+	FreeBSD)
+		getextattr -qq user "${name}" "${path}"
+		;;
+	*)
+		attr -qg "${name}" "${path}"
+		;;
+	esac
+}
+
+function set_xattr # name value path
+{
+	typeset name=$1
+	typeset value=$2
+	typeset path=$3
+
+	case $(uname) in
+	FreeBSD)
+		setextattr user "${name}" "${value}" "${path}"
+		;;
+	*)
+		attr -qs "${name}" -V "${value}" "${path}"
+		;;
+	esac
+}
+
+function set_xattr_stdin # name value
+{
+	typeset name=$1
+	typeset path=$2
+
+	case $(uname) in
+	FreeBSD)
+		setextattr -i user "${name}" "${path}"
+		;;
+	*)
+		attr -qs "${name}" "${path}"
+		;;
+	esac
+}
+
+function rm_xattr # name path
+{
+	typeset name=$1
+	typeset path=$2
+
+	case $(uname) in
+	FreeBSD)
+		rmextattr -q user "${name}" "${path}"
+		;;
+	*)
+		attr -qr "${name}" "${path}"
+		;;
+	esac
+}
+
+function ls_xattr # path
+{
+	typeset path=$1
+
+	case $(uname) in
+	FreeBSD)
+		lsextattr -qq user "${path}"
+		;;
+	*)
+		attr -ql "${path}"
+		;;
+	esac
+}

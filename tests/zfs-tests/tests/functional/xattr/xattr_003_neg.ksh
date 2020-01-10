@@ -58,14 +58,14 @@ create_xattr $TESTDIR/myfile.$$ passwd /etc/passwd
 log_must chmod 000 $TESTDIR/myfile.$$
 if is_linux; then
 	user_run $ZFS_USER eval \
-	    "attr -q -g passwd $TESTDIR/myfile.$$ >/tmp/passwd.$$"
+	    "get_xattr passwd $TESTDIR/myfile.$$ >/tmp/passwd.$$"
 	log_mustnot diff /etc/passwd /tmp/passwd.$$
 	log_must rm /tmp/passwd.$$
 
 	user_run $ZFS_USER eval \
-	    "attr -q -s passwd $TESTDIR/myfile.$$ </etc/group"
+	    "set_xattr_stdin passwd $TESTDIR/myfile.$$ </etc/group"
 	log_must chmod 644 $TESTDIR/myfile.$$
-	attr -q -g passwd $TESTDIR/myfile.$$ >/tmp/passwd.$$
+	get_xattr passwd $TESTDIR/myfile.$$ >/tmp/passwd.$$
 	log_must diff /etc/passwd /tmp/passwd.$$
 	log_must rm /tmp/passwd.$$
 else
