@@ -675,6 +675,8 @@ lzc_send_resume_redacted(const char *snapname, const char *from, int fd,
 		fnvlist_add_boolean(args, "compressok");
 	if (flags & LZC_SEND_FLAG_RAW)
 		fnvlist_add_boolean(args, "rawok");
+	if (flags & LZC_SEND_FLAG_SAVED)
+		fnvlist_add_boolean(args, "savedok");
 	if (resumeobj != 0 || resumeoff != 0) {
 		fnvlist_add_uint64(args, "resume_object", resumeobj);
 		fnvlist_add_uint64(args, "resume_offset", resumeoff);

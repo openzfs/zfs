@@ -51,14 +51,16 @@ struct dmu_send_outparams;
 int
 dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
     boolean_t large_block_ok, boolean_t compressok, boolean_t rawok,
-    uint64_t resumeobj, uint64_t resumeoff, const char *redactbook, int outfd,
-    offset_t *off, struct dmu_send_outparams *dsop);
+    boolean_t savedok, uint64_t resumeobj, uint64_t resumeoff,
+    const char *redactbook, int outfd, offset_t *off,
+    struct dmu_send_outparams *dsop);
 int dmu_send_estimate_fast(struct dsl_dataset *ds, struct dsl_dataset *fromds,
     zfs_bookmark_phys_t *frombook, boolean_t stream_compressed,
-    uint64_t *sizep);
+    boolean_t saved, uint64_t *sizep);
 int dmu_send_obj(const char *pool, uint64_t tosnap, uint64_t fromsnap,
     boolean_t embedok, boolean_t large_block_ok, boolean_t compressok,
-    boolean_t rawok, int outfd, offset_t *off, struct dmu_send_outparams *dso);
+    boolean_t rawok, boolean_t savedok, int outfd, offset_t *off,
+    struct dmu_send_outparams *dso);
 
 typedef int (*dmu_send_outfunc_t)(objset_t *os, void *buf, int len, void *arg);
 typedef struct dmu_send_outparams {

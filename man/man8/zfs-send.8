@@ -60,6 +60,10 @@
 .Fl t
 .Ar receive_resume_token
 .Nm
+.Cm send
+.Op Fl Pnv
+.Fl S Ar filesystem
+.Nm
 .Cm redact
 .Ar snapshot redaction_bookmark
 .Ar redaction_snapshot Ns ...
@@ -501,6 +505,23 @@ received into.
 See the documentation for
 .Sy zfs receive -s
 for more details.
+.It Xo
+.Nm
+.Cm send
+.Op Fl Pnv
+.Op Fl i Ar snapshot Ns | Ns Ar bookmark
+.Fl S
+.Ar filesystem
+.Xc
+Generate a send stream from a dataset that has been partially received.
+.Bl -tag -width "-L"
+.It Fl S, -saved
+This flag requires that the specified filesystem previously received a resumable
+send that did not finish and was interrupted. In such scenarios this flag
+enables the user to send this partially received state. Using this flag will
+always use the last fully received snapshot as the incremental source if it
+exists.
+.El
 .It Xo
 .Nm
 .Cm redact
