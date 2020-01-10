@@ -59,7 +59,7 @@ for i in {1..40}; do
 
 	log_must mkfile 16384 $file
 	for j in {1..20}; do
-		log_must attr -qs "testattr$j" -V "$attrvalue" $file
+		log_must set_xattr "testattr$j" "$attrvalue" $file
 	done
 done
 
@@ -103,7 +103,7 @@ log_must truncate -s 1073741824 /$POOL/fs/file15
 log_must truncate -s 50 /$POOL/fs/file16
 
 for i in {11..20}; do
-	log_must attr -qr testattr1 /$POOL/fs/file$i
+	log_must rm_xattr testattr1 /$POOL/fs/file$i
 done
 
 #
@@ -125,7 +125,7 @@ log_must truncate -s 50 /$POOL/fs/file26
 
 for i in {21..30}; do
 	for j in {1..20}; do
-		log_must attr -qr testattr$j /$POOL/fs/file$i
+		log_must rm_xattr testattr$j /$POOL/fs/file$i
 	done
 done
 
@@ -134,8 +134,8 @@ done
 #
 for i in {31..40}; do
 	file="/$POOL/fs/file$i"
-	log_must attr -qr testattr$(((RANDOM % 20) + 1)) $file
-	log_must attr -qs testattr$(((RANDOM % 20) + 1)) -V "$attrvalue" $file
+	log_must rm_xattr testattr$(((RANDOM % 20) + 1)) $file
+	log_must set_xattr testattr$(((RANDOM % 20) + 1)) "$attrvalue" $file
 done
 
 # Calculate the expected recursive checksum for the source.

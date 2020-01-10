@@ -74,9 +74,9 @@ if is_linux; then
 	log_must touch /tmp/tmpfs-file.$$
 	echo "TEST XATTR" >/tmp/xattr1
 	echo "1234567890" >/tmp/xattr2
-	log_must attr -q -s xattr1 \
+	log_must set_xattr_stdin xattr1 \
 	    /tmp/$NEWFS_DEFAULT_FS.$$/$NEWFS_DEFAULT_FS-file.$$ </tmp/xattr1
-	log_must attr -q -s xattr2 /tmp/tmpfs-file.$$ </tmp/xattr2
+	log_must set_xattr_stdin xattr2 /tmp/tmpfs-file.$$ </tmp/xattr2
 
 	# copy those files to ZFS
 	log_must cp -a /tmp/$NEWFS_DEFAULT_FS.$$/$NEWFS_DEFAULT_FS-file.$$ \
@@ -84,11 +84,11 @@ if is_linux; then
 	log_must cp -a /tmp/tmpfs-file.$$ $TESTDIR
 
 	# ensure the xattr information has been copied correctly
-	log_must eval "attr -q -g xattr1 $TESTDIR/$NEWFS_DEFAULT_FS-file.$$ \
+	log_must eval "get_xattr xattr1 $TESTDIR/$NEWFS_DEFAULT_FS-file.$$ \
 	    >/tmp/xattr1.$$"
 
 	log_must diff /tmp/xattr1.$$ /tmp/xattr1
-	log_must eval "attr -q -g xattr2 $TESTDIR/tmpfs-file.$$ >/tmp/xattr2.$$"
+	log_must eval "get_xattr xattr2 $TESTDIR/tmpfs-file.$$ >/tmp/xattr2.$$"
 	log_must diff /tmp/xattr2.$$ /tmp/xattr2
 	log_must rm /tmp/xattr1 /tmp/xattr1.$$ /tmp/xattr2 /tmp/xattr2.$$
 

@@ -40,8 +40,8 @@ function create_xattr { # filename xattr_name xattr_contents
 	typeset XATTR_CONTENTS=$3
 
 	if is_linux; then
-		log_mustnot attr -q -g $XATTR_NAME $FILE
-		log_must attr -q -s $XATTR_NAME $FILE < $XATTR_CONTENTS
+		log_mustnot get_xattr $XATTR_NAME $FILE
+		log_must set_xattr_stdin $XATTR_NAME $FILE < $XATTR_CONTENTS
 	else
 		# read any empty xattr on that file
 		log_must runat $FILE ls
@@ -60,8 +60,8 @@ function compare_xattrs { # filename1 filename2 xattr_name
 	typeset XATTR_NAME=$3
 
 	if is_linux; then
-		attr -q -g $XATTR_NAME $FILE1 > $TEST_BASE_DIR/file1.$$
-		attr -q -g $XATTR_NAME $FILE2 > $TEST_BASE_DIR/file2.$$
+		get_xattr $XATTR_NAME $FILE1 > $TEST_BASE_DIR/file1.$$
+		get_xattr $XATTR_NAME $FILE2 > $TEST_BASE_DIR/file2.$$
 	else
 		runat $FILE1 cat $XATTR_NAME > $TEST_BASE_DIR/file1.$$
 		runat $FILE2 cat $XATTR_NAME > $TEST_BASE_DIR/file2.$$
@@ -79,7 +79,7 @@ function verify_xattr { # filename xattr_name xattr_contents
 	# read the xattr, writing it to a temp file
 	if is_linux; then
 		log_must eval \
-		    "attr -q -g $XATTR_NAME $FILE > $TEST_BASE_DIR/$XATTR_NAME.$$"
+		    "get_xattr $XATTR_NAME $FILE > $TEST_BASE_DIR/$XATTR_NAME.$$"
 	else
 		log_must eval \
 		    "runat $FILE cat $XATTR_NAME > $TEST_BASE_DIR/$XATTR_NAME.$$ 2>&1"
@@ -95,8 +95,8 @@ function delete_xattr { # filename xattr_name
 
         # delete the xattr
         if is_linux; then
-		log_must attr -r $XATTR_NAME $FILE
-		log_mustnot attr -q -g $XATTR_NAME $FILE
+		log_must rm_xattr $XATTR_NAME $FILE
+		log_mustnot get_xattr $XATTR_NAME $FILE
 	else
 	        log_must runat $FILE rm $XATTR_NAME
 	        log_mustnot eval "runat $FILE ls $XATTR_NAME > /dev/null 2>&1"
@@ -109,9 +109,9 @@ function verify_write_xattr { # filename xattr_name
         typeset XATTR_NAME=$2
 
 	if is_linux; then
-                log_must attr -q -s $XATTR_NAME $FILE < /etc/passwd
+                log_must set_xattr_stdin $XATTR_NAME $FILE < /etc/passwd
 		log_must eval \
-		    "attr -q -g $XATTR_NAME $FILE > $TEST_BASE_DIR/$XATTR_NAME.$$"
+		    "get_xattr $XATTR_NAME $FILE > $TEST_BASE_DIR/$XATTR_NAME.$$"
 	else
 	        log_must eval "runat $FILE dd if=/etc/passwd of=$XATTR_NAME"
 	        log_must eval \

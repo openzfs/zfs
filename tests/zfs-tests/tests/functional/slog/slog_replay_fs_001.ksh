@@ -151,23 +151,13 @@ log_must dd if=/dev/zero of=/$TESTPOOL/$TESTFS/holes.3 bs=128k count=2 \
 # TX_MKXATTR
 log_must mkdir /$TESTPOOL/$TESTFS/xattr.dir
 log_must touch /$TESTPOOL/$TESTFS/xattr.file
-if is_freebsd; then
-	log_must setextattr -q user fileattr HelloWorld /$TESTPOOL/$TESTFS/xattr.dir
-	log_must setextattr -q user tmpattr HelloWorld /$TESTPOOL/$TESTFS/xattr.dir
-	log_must rmextattr -q user fileattr /$TESTPOOL/$TESTFS/xattr.dir
+log_must set_xattr fileattr HelloWorld /$TESTPOOL/$TESTFS/xattr.dir
+log_must set_xattr tmpattr HelloWorld /$TESTPOOL/$TESTFS/xattr.dir
+log_must rm_xattr fileattr /$TESTPOOL/$TESTFS/xattr.dir
 
-	log_must setextattr -q user fileattr HelloWorld /$TESTPOOL/$TESTFS/xattr.file
-	log_must setextattr -q user tmpattr HelloWorld /$TESTPOOL/$TESTFS/xattr.file
-	log_must rmextattr -q user tmpattr /$TESTPOOL/$TESTFS/xattr.file
-elif is_linux; then
-	log_must attr -qs fileattr -V HelloWorld /$TESTPOOL/$TESTFS/xattr.dir
-	log_must attr -qs tmpattr -V HelloWorld /$TESTPOOL/$TESTFS/xattr.dir
-	log_must attr -qr tmpattr /$TESTPOOL/$TESTFS/xattr.dir
-
-	log_must attr -qs fileattr -V HelloWorld /$TESTPOOL/$TESTFS/xattr.file
-	log_must attr -qs tmpattr -V HelloWorld /$TESTPOOL/$TESTFS/xattr.file
-	log_must attr -qr tmpattr /$TESTPOOL/$TESTFS/xattr.file
-fi
+log_must set_xattr fileattr HelloWorld /$TESTPOOL/$TESTFS/xattr.file
+log_must set_xattr tmpattr HelloWorld /$TESTPOOL/$TESTFS/xattr.file
+log_must rm_xattr tmpattr /$TESTPOOL/$TESTFS/xattr.file
 
 # TX_WRITE, TX_LINK, TX_REMOVE
 # Make sure TX_REMOVE won't affect TX_WRITE if file is not destroyed
@@ -211,13 +201,8 @@ log_note "Verify current block usage:"
 log_must zdb -bcv $TESTPOOL
 
 log_note "Verify copy of xattrs:"
-if is_freebsd; then
-	log_must lsextattr -s /$TESTPOOL/$TESTFS/xattr.dir
-	log_must lsextattr -s /$TESTPOOL/$TESTFS/xattr.file
-elif is_linux; then
-	log_must attr -l /$TESTPOOL/$TESTFS/xattr.dir
-	log_must attr -l /$TESTPOOL/$TESTFS/xattr.file
-fi
+log_must ls_xattr /$TESTPOOL/$TESTFS/xattr.dir
+log_must ls_xattr /$TESTPOOL/$TESTFS/xattr.file
 
 log_note "Verify working set diff:"
 log_must diff -r /$TESTPOOL/$TESTFS $TESTDIR/copy

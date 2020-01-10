@@ -66,13 +66,13 @@ log_must zfs mount -o noxattr $TESTPOOL/$TESTFS
 
 # check that we can't perform xattr operations
 if is_linux; then
-	log_mustnot attr -q -g passwd $TESTDIR/myfile.$$
-	log_mustnot attr -q -r passwd $TESTDIR/myfile.$$
-	log_mustnot attr -q -s passwd $TESTDIR/myfile.$$ </etc/passwd
+	log_mustnot get_xattr passwd $TESTDIR/myfile.$$
+	log_mustnot rm_xattr passwd $TESTDIR/myfile.$$
+	log_mustnot set_xattr_stdin passwd $TESTDIR/myfile.$$ </etc/passwd
 
 	log_must touch $TESTDIR/new.$$
-	log_mustnot attr -q -s passwd $TESTDIR/new.$$ </etc/passwd
-	log_mustnot attr -q -r passwd $TESTDIR/new.$$
+	log_mustnot set_xattr_stdin passwd $TESTDIR/new.$$ </etc/passwd
+	log_mustnot rm_xattr passwd $TESTDIR/new.$$
 else
 	log_mustnot eval "runat $TESTDIR/myfile.$$ cat passwd > /dev/null 2>&1"
 	log_mustnot eval "runat $TESTDIR/myfile.$$ rm passwd > /dev/null 2>&1"
@@ -95,7 +95,7 @@ verify_xattr $TESTDIR/myfile.$$ passwd /etc/passwd
 # there should be no xattr on the file we created while the fs was mounted
 # -o noxattr
 if is_linux; then
-	log_mustnot attr -q -g passwd $TESTDIR/new.$$
+	log_mustnot get_xattr passwd $TESTDIR/new.$$
 else
 	log_mustnot eval "runat $TESTDIR/new.$$ cat passwd > /dev/null 2>&1"
 fi
