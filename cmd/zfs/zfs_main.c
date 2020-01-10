@@ -318,7 +318,8 @@ get_usage(zfs_help_t idx)
 		    "<filesystem|volume|snapshot>\n"
 		    "\tsend [-DnPpvLec] [-i bookmark|snapshot] "
 		    "--redact <bookmark> <snapshot>\n"
-		    "\tsend [-nvPe] -t <receive_resume_token>\n"));
+		    "\tsend [-nvPe] -t <receive_resume_token>\n"
+		    "\tsend [-Pnv] --saved filesystem\n"));
 	case HELP_SET:
 		return (gettext("\tset <property=value> ... "
 		    "<filesystem|volume|snapshot> ...\n"));
@@ -4221,11 +4222,12 @@ zfs_do_send(int argc, char **argv)
 		{"raw",		no_argument,		NULL, 'w'},
 		{"backup",	no_argument,		NULL, 'b'},
 		{"holds",	no_argument,		NULL, 'h'},
+		{"saved",	no_argument,		NULL, 'S'},
 		{0, 0, 0, 0}
 	};
 
 	/* check options */
-	while ((c = getopt_long(argc, argv, ":i:I:RDpvnPLeht:cwbd:",
+	while ((c = getopt_long(argc, argv, ":i:I:RDpvnPLeht:cwbd:S",
 	    long_options, NULL)) != -1) {
 		switch (c) {
 		case 'i':
@@ -4285,6 +4287,9 @@ zfs_do_send(int argc, char **argv)
 			flags.embed_data = B_TRUE;
 			flags.largeblock = B_TRUE;
 			break;
+		case 'S':
+			flags.saved = B_TRUE;
+			break;
 		case ':':
 			/*
 			 * If a parameter was not passed, optopt contains the
@@ -4335,7 +4340,7 @@ zfs_do_send(int argc, char **argv)
 	if (resume_token != NULL) {
 		if (fromname != NULL || flags.replicate || flags.props ||
 		    flags.backup || flags.dedup || flags.holds ||
-		    redactbook != NULL) {
+		    flags.saved || redactbook != NULL) {
 			(void) fprintf(stderr,
 			    gettext("invalid flags combined with -t\n"));
 			usage(B_FALSE);
@@ -4356,6 +4361,23 @@ zfs_do_send(int argc, char **argv)
 		}
 	}
 
+	if (flags.saved) {
+		if (fromname != NULL || flags.replicate || flags.props ||
+		    flags.doall || flags.backup || flags.dedup ||
+		    flags.holds || flags.largeblock || flags.embed_data ||
+		    flags.compress || flags.raw || redactbook != NULL) {
+			(void) fprintf(stderr, gettext("incompatible flags "
+			    "combined with saved send flag\n"));
+			usage(B_FALSE);
+		}
+		if (strchr(argv[0], '@') != NULL) {
+			(void) fprintf(stderr, gettext("saved send must "
+			    "specify the dataset with partially-received "
+			    "state\n"));
+			usage(B_FALSE);
+		}
+	}
+
 	if (flags.raw && redactbook != NULL) {
 		(void) fprintf(stderr,
 		    gettext("Error: raw sends may not be redacted.\n"));
@@ -4369,7 +4391,16 @@ zfs_do_send(int argc, char **argv)
 		return (1);
 	}
 
-	if (resume_token != NULL) {
+	if (flags.saved) {
+		zhp = zfs_open(g_zfs, argv[0], ZFS_TYPE_DATASET);
+		if (zhp == NULL)
+			return (1);
+
+		err = zfs_send_saved(zhp, &flags, STDOUT_FILENO,
+		    resume_token);
+		zfs_close(zhp);
+		return (err != 0);
+	} else if (resume_token != NULL) {
 		return (zfs_send_resume(g_zfs, &flags, STDOUT_FILENO,
 		    resume_token));
 	}

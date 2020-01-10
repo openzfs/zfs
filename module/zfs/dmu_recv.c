@@ -887,7 +887,6 @@ dmu_recv_begin_sync(void *arg, dmu_tx_t *tx)
 		drba->drba_cookie->drc_raw = B_TRUE;
 	}
 
-
 	if (featureflags & DMU_BACKUP_FEATURE_REDACTED) {
 		uint64_t *redact_snaps;
 		uint_t numredactsnaps;

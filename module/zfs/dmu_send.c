@@ -51,6 +51,7 @@
 #include <sys/ddt.h>
 #include <sys/zfs_onexit.h>
 #include <sys/dmu_send.h>
+#include <sys/dmu_recv.h>
 #include <sys/dsl_destroy.h>
 #include <sys/blkptr.h>
 #include <sys/dsl_bookmark.h>
@@ -1888,8 +1889,11 @@ struct dmu_send_params {
 	boolean_t embedok;
 	boolean_t large_block_ok;
 	boolean_t compressok;
+	boolean_t rawok;
+	boolean_t savedok;
 	uint64_t resumeobj;
 	uint64_t resumeoff;
+	uint64_t saved_guid;
 	zfs_bookmark_phys_t *redactbook;
 	/* Stream output params */
 	dmu_send_outparams_t *dso;
@@ -1897,7 +1901,7 @@ struct dmu_send_params {
 	/* Stream progress params */
 	offset_t *off;
 	int outfd;
-	boolean_t rawok;
+	char saved_toname[MAXNAMELEN];
 };
 
 static int
@@ -1984,10 +1988,15 @@ create_begin_record(struct dmu_send_params *dspp, objset_t *os,
 		drrb->drr_flags |= DRR_FLAG_FREERECORDS;
 	drr->drr_u.drr_begin.drr_flags |= DRR_FLAG_SPILL_BLOCK;
 
-	dsl_dataset_name(to_ds, drrb->drr_toname);
-	if (!to_ds->ds_is_snapshot) {
-		(void) strlcat(drrb->drr_toname, "@--head--",
-		    sizeof (drrb->drr_toname));
+	if (dspp->savedok) {
+		drrb->drr_toguid = dspp->saved_guid;
+		strcpy(drrb->drr_toname, dspp->saved_toname);
+	} else {
+		dsl_dataset_name(to_ds, drrb->drr_toname);
+		if (!to_ds->ds_is_snapshot) {
+			(void) strlcat(drrb->drr_toname, "@--head--",
+			    sizeof (drrb->drr_toname));
+		}
 	}
 	return (drr);
 }
@@ -2305,6 +2314,7 @@ dmu_send_impl(struct dmu_send_params *dspp)
 		dsl_pool_rele(dp, tag);
 		return (err);
 	}
+
 	/*
 	 * If this is a non-raw send of an encrypted ds, we can ensure that
 	 * the objset_phys_t is authenticated. This is safe because this is
@@ -2526,19 +2536,27 @@ dmu_send_impl(struct dmu_send_params *dspp)
 		goto out;
 	}
 
-	bzero(drr, sizeof (dmu_replay_record_t));
-	drr->drr_type = DRR_END;
-	drr->drr_u.drr_end.drr_checksum = dsc.dsc_zc;
-	drr->drr_u.drr_end.drr_toguid = dsc.dsc_toguid;
+	/*
+	 * Send the DRR_END record if this is not a saved stream.
+	 * Otherwise, the omitted DRR_END record will signal to
+	 * the receive side that the stream is incomplete.
+	 */
+	if (!dspp->savedok) {
+		bzero(drr, sizeof (dmu_replay_record_t));
+		drr->drr_type = DRR_END;
+		drr->drr_u.drr_end.drr_checksum = dsc.dsc_zc;
+		drr->drr_u.drr_end.drr_toguid = dsc.dsc_toguid;
 
-	if (dump_record(&dsc, NULL, 0) != 0)
-		err = dsc.dsc_err;
+		if (dump_record(&dsc, NULL, 0) != 0)
+			err = dsc.dsc_err;
+	}
 out:
 	mutex_enter(&to_ds->ds_sendstream_lock);
 	list_remove(&to_ds->ds_sendstreams, dssp);
 	mutex_exit(&to_ds->ds_sendstream_lock);
 
-	VERIFY(err != 0 || (dsc.dsc_sent_begin && dsc.dsc_sent_end));
+	VERIFY(err != 0 || (dsc.dsc_sent_begin &&
+	    (dsc.dsc_sent_end || dspp->savedok)));
 
 	kmem_free(drr, sizeof (dmu_replay_record_t));
 	kmem_free(dssp, sizeof (dmu_sendstatus_t));
@@ -2564,7 +2582,8 @@ out:
 int
 dmu_send_obj(const char *pool, uint64_t tosnap, uint64_t fromsnap,
     boolean_t embedok, boolean_t large_block_ok, boolean_t compressok,
-    boolean_t rawok, int outfd, offset_t *off, dmu_send_outparams_t *dsop)
+    boolean_t rawok, boolean_t savedok, int outfd, offset_t *off,
+    dmu_send_outparams_t *dsop)
 {
 	int err;
 	dsl_dataset_t *fromds;
@@ -2578,6 +2597,7 @@ dmu_send_obj(const char *pool, uint64_t tosnap, uint64_t fromsnap,
 	dspp.dso = dsop;
 	dspp.tag = FTAG;
 	dspp.rawok = rawok;
+	dspp.savedok = savedok;
 
 	err = dsl_pool_hold(pool, FTAG, &dspp.dp);
 	if (err != 0)
@@ -2644,8 +2664,9 @@ dmu_send_obj(const char *pool, uint64_t tosnap, uint64_t fromsnap,
 int
 dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
     boolean_t large_block_ok, boolean_t compressok, boolean_t rawok,
-    uint64_t resumeobj, uint64_t resumeoff, const char *redactbook, int outfd,
-    offset_t *off, dmu_send_outparams_t *dsop)
+    boolean_t savedok, uint64_t resumeobj, uint64_t resumeoff,
+    const char *redactbook, int outfd, offset_t *off,
+    dmu_send_outparams_t *dsop)
 {
 	int err = 0;
 	ds_hold_flags_t dsflags = (rawok) ? 0 : DS_HOLD_FLAG_DECRYPT;
@@ -2653,6 +2674,7 @@ dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
 	dsl_dataset_t *fromds = NULL;
 	zfs_bookmark_phys_t book = {0};
 	struct dmu_send_params dspp = {0};
+
 	dspp.tosnap = tosnap;
 	dspp.embedok = embedok;
 	dspp.large_block_ok = large_block_ok;
@@ -2664,6 +2686,7 @@ dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
 	dspp.resumeobj = resumeobj;
 	dspp.resumeoff = resumeoff;
 	dspp.rawok = rawok;
+	dspp.savedok = savedok;
 
 	if (fromsnap != NULL && strpbrk(fromsnap, "@#") == NULL)
 		return (SET_ERROR(EINVAL));
@@ -2671,13 +2694,57 @@ dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
 	err = dsl_pool_hold(tosnap, FTAG, &dspp.dp);
 	if (err != 0)
 		return (err);
+
 	if (strchr(tosnap, '@') == NULL && spa_writeable(dspp.dp->dp_spa)) {
 		/*
 		 * We are sending a filesystem or volume.  Ensure
 		 * that it doesn't change by owning the dataset.
 		 */
-		err = dsl_dataset_own(dspp.dp, tosnap, dsflags, FTAG,
-		    &dspp.to_ds);
+
+		if (savedok) {
+			/*
+			 * We are looking for the dataset that represents the
+			 * partially received send stream. If this stream was
+			 * received as a new snapshot of an existing dataset,
+			 * this will be saved in a hidden clone named
+			 * "<pool>/<dataset>/%recv". Otherwise, the stream
+			 * will be saved in the live dataset itself. In
+			 * either case we need to use dsl_dataset_own_force()
+			 * because the stream is marked as inconsistent,
+			 * which would normally make it unavailable to be
+			 * owned.
+			 */
+			char *name = kmem_asprintf("%s/%s", tosnap,
+			    recv_clone_name);
+			err = dsl_dataset_own_force(dspp.dp, name, dsflags,
+			    FTAG, &dspp.to_ds);
+			if (err == ENOENT) {
+				err = dsl_dataset_own_force(dspp.dp, tosnap,
+				    dsflags, FTAG, &dspp.to_ds);
+			}
+
+			if (err == 0) {
+				err = zap_lookup(dspp.dp->dp_meta_objset,
+				    dspp.to_ds->ds_object,
+				    DS_FIELD_RESUME_TOGUID, 8, 1,
+				    &dspp.saved_guid);
+			}
+
+			if (err == 0) {
+				err = zap_lookup(dspp.dp->dp_meta_objset,
+				    dspp.to_ds->ds_object,
+				    DS_FIELD_RESUME_TONAME, 1,
+				    sizeof (dspp.saved_toname),
+				    dspp.saved_toname);
+			}
+			if (err != 0)
+				dsl_dataset_disown(dspp.to_ds, dsflags, FTAG);
+
+			kmem_strfree(name);
+		} else {
+			err = dsl_dataset_own(dspp.dp, tosnap, dsflags,
+			    FTAG, &dspp.to_ds);
+		}
 		owned = B_TRUE;
 	} else {
 		err = dsl_dataset_hold_flags(dspp.dp, tosnap, dsflags, FTAG,
@@ -2763,9 +2830,6 @@ dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
 				    0)) {
 					err = SET_ERROR(EXDEV);
 				} else {
-					ASSERT3U(dspp.is_clone, ==,
-					    (dspp.to_ds->ds_dir !=
-					    fromds->ds_dir));
 					zb->zbm_creation_txg =
 					    dsl_dataset_phys(fromds)->
 					    ds_creation_txg;
@@ -2870,37 +2934,80 @@ dmu_adjust_send_estimate_for_indirects(dsl_dataset_t *ds, uint64_t uncompressed,
 }
 
 int
-dmu_send_estimate_fast(dsl_dataset_t *ds, dsl_dataset_t *fromds,
-    zfs_bookmark_phys_t *frombook, boolean_t stream_compressed, uint64_t *sizep)
+dmu_send_estimate_fast(dsl_dataset_t *origds, dsl_dataset_t *fromds,
+    zfs_bookmark_phys_t *frombook, boolean_t stream_compressed,
+    boolean_t saved, uint64_t *sizep)
 {
 	int err;
+	dsl_dataset_t *ds = origds;
 	uint64_t uncomp, comp;
 
-	ASSERT(dsl_pool_config_held(ds->ds_dir->dd_pool));
+	ASSERT(dsl_pool_config_held(origds->ds_dir->dd_pool));
 	ASSERT(fromds == NULL || frombook == NULL);
 
-	/* tosnap must be a snapshot */
-	if (!ds->ds_is_snapshot)
+	/*
+	 * If this is a saved send we may actually be sending
+	 * from the %recv clone used for resuming.
+	 */
+	if (saved) {
+		objset_t *mos = origds->ds_dir->dd_pool->dp_meta_objset;
+		uint64_t guid;
+		char dsname[ZFS_MAX_DATASET_NAME_LEN + 6];
+
+		dsl_dataset_name(origds, dsname);
+		(void) strcat(dsname, "/");
+		(void) strcat(dsname, recv_clone_name);
+
+		err = dsl_dataset_hold(origds->ds_dir->dd_pool,
+		    dsname, FTAG, &ds);
+		if (err != ENOENT && err != 0) {
+			return (err);
+		} else if (err == ENOENT) {
+			ds = origds;
+		}
+
+		/* check that this dataset has partially received data */
+		err = zap_lookup(mos, ds->ds_object,
+		    DS_FIELD_RESUME_TOGUID, 8, 1, &guid);
+		if (err != 0) {
+			err = SET_ERROR(err == ENOENT ? EINVAL : err);
+			goto out;
+		}
+
+		err = zap_lookup(mos, ds->ds_object,
+		    DS_FIELD_RESUME_TONAME, 1, sizeof (dsname), dsname);
+		if (err != 0) {
+			err = SET_ERROR(err == ENOENT ? EINVAL : err);
+			goto out;
+		}
+	}
+
+	/* tosnap must be a snapshot or the target of a saved send */
+	if (!ds->ds_is_snapshot && ds == origds)
 		return (SET_ERROR(EINVAL));
 
 	if (fromds != NULL) {
 		uint64_t used;
-		if (!fromds->ds_is_snapshot)
-			return (SET_ERROR(EINVAL));
+		if (!fromds->ds_is_snapshot) {
+			err = SET_ERROR(EINVAL);
+			goto out;
+		}
 
-		if (!dsl_dataset_is_before(ds, fromds, 0))
-			return (SET_ERROR(EXDEV));
+		if (!dsl_dataset_is_before(ds, fromds, 0)) {
+			err = SET_ERROR(EXDEV);
+			goto out;
+		}
 
 		err = dsl_dataset_space_written(fromds, ds, &used, &comp,
 		    &uncomp);
 		if (err != 0)
-			return (err);
+			goto out;
 	} else if (frombook != NULL) {
 		uint64_t used;
 		err = dsl_dataset_space_written_bookmark(frombook, ds, &used,
 		    &comp, &uncomp);
 		if (err != 0)
-			return (err);
+			goto out;
 	} else {
 		uncomp = dsl_dataset_phys(ds)->ds_uncompressed_bytes;
 		comp = dsl_dataset_phys(ds)->ds_compressed_bytes;
@@ -2912,6 +3019,10 @@ dmu_send_estimate_fast(dsl_dataset_t *ds, dsl_dataset_t *fromds,
 	 * Add the size of the BEGIN and END records to the estimate.
 	 */
 	*sizep += 2 * sizeof (dmu_replay_record_t);
+
+out:
+	if (ds != origds)
+		dsl_dataset_rele(ds, FTAG);
 	return (err);
 }
 

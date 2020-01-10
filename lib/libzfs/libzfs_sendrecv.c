@@ -1815,6 +1815,8 @@ lzc_flags_from_sendflags(const sendflags_t *flags)
 		lzc_flags |= LZC_SEND_FLAG_COMPRESS;
 	if (flags->raw)
 		lzc_flags |= LZC_SEND_FLAG_RAW;
+	if (flags->saved)
+		lzc_flags |= LZC_SEND_FLAG_SAVED;
 	return (lzc_flags);
 }
 
@@ -1981,9 +1983,9 @@ find_redact_book(libzfs_handle_t *hdl, const char *path,
 	return (0);
 }
 
-int
-zfs_send_resume(libzfs_handle_t *hdl, sendflags_t *flags, int outfd,
-    const char *resume_token)
+static int
+zfs_send_resume_impl(libzfs_handle_t *hdl, sendflags_t *flags, int outfd,
+    nvlist_t *resume_nvl)
 {
 	char errbuf[1024];
 	char *toname;
@@ -2001,15 +2003,6 @@ zfs_send_resume(libzfs_handle_t *hdl, sendflags_t *flags, int outfd,
 	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
 	    "cannot resume send"));
 
-	nvlist_t *resume_nvl =
-	    zfs_send_resume_token_to_nvlist(hdl, resume_token);
-	if (resume_nvl == NULL) {
-		/*
-		 * zfs_error_aux has already been set by
-		 * zfs_send_resume_token_to_nvlist
-		 */
-		return (zfs_error(hdl, EZFS_FAULT, errbuf));
-	}
 	if (flags->verbosity != 0) {
 		(void) fprintf(fout, dgettext(TEXT_DOMAIN,
 		    "resume token contents:\n"));
@@ -2036,19 +2029,27 @@ zfs_send_resume(libzfs_handle_t *hdl, sendflags_t *flags, int outfd,
 		lzc_flags |= LZC_SEND_FLAG_COMPRESS;
 	if (flags->raw || nvlist_exists(resume_nvl, "rawok"))
 		lzc_flags |= LZC_SEND_FLAG_RAW;
+	if (flags->saved || nvlist_exists(resume_nvl, "savedok"))
+		lzc_flags |= LZC_SEND_FLAG_SAVED;
 
-	if (guid_to_name(hdl, toname, toguid, B_FALSE, name) != 0) {
-		if (zfs_dataset_exists(hdl, toname, ZFS_TYPE_DATASET)) {
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "'%s' is no longer the same snapshot used in "
-			    "the initial send"), toname);
-		} else {
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "'%s' used in the initial send no longer exists"),
-			    toname);
+	if (flags->saved) {
+		(void) strcpy(name, toname);
+	} else {
+		error = guid_to_name(hdl, toname, toguid, B_FALSE, name);
+		if (error != 0) {
+			if (zfs_dataset_exists(hdl, toname, ZFS_TYPE_DATASET)) {
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "'%s' is no longer the same snapshot "
+				    "used in the initial send"), toname);
+			} else {
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "'%s' used in the initial send no "
+				    "longer exists"), toname);
+			}
+			return (zfs_error(hdl, EZFS_BADPATH, errbuf));
 		}
-		return (zfs_error(hdl, EZFS_BADPATH, errbuf));
 	}
+
 	zhp = zfs_open(hdl, name, ZFS_TYPE_DATASET);
 	if (zhp == NULL) {
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
@@ -2197,6 +2198,122 @@ zfs_send_resume(libzfs_handle_t *hdl, sendflags_t *flags, int outfd,
 	zfs_close(zhp);
 
 	return (error);
+}
+
+int
+zfs_send_resume(libzfs_handle_t *hdl, sendflags_t *flags, int outfd,
+    const char *resume_token)
+{
+	int ret;
+	char errbuf[1024];
+	nvlist_t *resume_nvl;
+
+	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
+	    "cannot resume send"));
+
+	resume_nvl = zfs_send_resume_token_to_nvlist(hdl, resume_token);
+	if (resume_nvl == NULL) {
+		/*
+		 * zfs_error_aux has already been set by
+		 * zfs_send_resume_token_to_nvlist()
+		 */
+		return (zfs_error(hdl, EZFS_FAULT, errbuf));
+	}
+
+	ret = zfs_send_resume_impl(hdl, flags, outfd, resume_nvl);
+	nvlist_free(resume_nvl);
+
+	return (ret);
+}
+
+int
+zfs_send_saved(zfs_handle_t *zhp, sendflags_t *flags, int outfd,
+    const char *resume_token)
+{
+	int ret;
+	libzfs_handle_t *hdl = zhp->zfs_hdl;
+	nvlist_t *saved_nvl = NULL, *resume_nvl = NULL;
+	uint64_t saved_guid = 0, resume_guid = 0;
+	uint64_t obj = 0, off = 0, bytes = 0;
+	char token_buf[ZFS_MAXPROPLEN];
+	char errbuf[1024];
+
+	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
+	    "saved send failed"));
+
+	ret = zfs_prop_get(zhp, ZFS_PROP_RECEIVE_RESUME_TOKEN,
+	    token_buf, sizeof (token_buf), NULL, NULL, 0, B_TRUE);
+	if (ret != 0)
+		goto out;
+
+	saved_nvl = zfs_send_resume_token_to_nvlist(hdl, token_buf);
+	if (saved_nvl == NULL) {
+		/*
+		 * zfs_error_aux has already been set by
+		 * zfs_send_resume_token_to_nvlist()
+		 */
+		ret = zfs_error(hdl, EZFS_FAULT, errbuf);
+		goto out;
+	}
+
+	/*
+	 * If a resume token is provided we use the object and offset
+	 * from that instead of the default, which starts from the
+	 * beginning.
+	 */
+	if (resume_token != NULL) {
+		resume_nvl = zfs_send_resume_token_to_nvlist(hdl,
+		    resume_token);
+		if (resume_nvl == NULL) {
+			ret = zfs_error(hdl, EZFS_FAULT, errbuf);
+			goto out;
+		}
+
+		if (nvlist_lookup_uint64(resume_nvl, "object", &obj) != 0 ||
+		    nvlist_lookup_uint64(resume_nvl, "offset", &off) != 0 ||
+		    nvlist_lookup_uint64(resume_nvl, "bytes", &bytes) != 0 ||
+		    nvlist_lookup_uint64(resume_nvl, "toguid",
+		    &resume_guid) != 0) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "provided resume token is corrupt"));
+			ret = zfs_error(hdl, EZFS_FAULT, errbuf);
+			goto out;
+		}
+
+		if (nvlist_lookup_uint64(saved_nvl, "toguid",
+		    &saved_guid)) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "dataset's resume token is corrupt"));
+			ret = zfs_error(hdl, EZFS_FAULT, errbuf);
+			goto out;
+		}
+
+		if (resume_guid != saved_guid) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "provided resume token does not match dataset"));
+			ret = zfs_error(hdl, EZFS_BADBACKUP, errbuf);
+			goto out;
+		}
+	}
+
+	(void) nvlist_remove_all(saved_nvl, "object");
+	fnvlist_add_uint64(saved_nvl, "object", obj);
+
+	(void) nvlist_remove_all(saved_nvl, "offset");
+	fnvlist_add_uint64(saved_nvl, "offset", off);
+
+	(void) nvlist_remove_all(saved_nvl, "bytes");
+	fnvlist_add_uint64(saved_nvl, "bytes", bytes);
+
+	(void) nvlist_remove_all(saved_nvl, "toname");
+	fnvlist_add_string(saved_nvl, "toname", zhp->zfs_name);
+
+	ret = zfs_send_resume_impl(hdl, flags, outfd, saved_nvl);
+
+out:
+	nvlist_free(saved_nvl);
+	nvlist_free(resume_nvl);
+	return (ret);
 }
 
 /*

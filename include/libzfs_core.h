@@ -79,6 +79,7 @@ enum lzc_send_flags {
 	LZC_SEND_FLAG_LARGE_BLOCK = 1 << 1,
 	LZC_SEND_FLAG_COMPRESS = 1 << 2,
 	LZC_SEND_FLAG_RAW = 1 << 3,
+	LZC_SEND_FLAG_SAVED = 1 << 4,
 };
 
 int lzc_send(const char *, const char *, int, enum lzc_send_flags);
