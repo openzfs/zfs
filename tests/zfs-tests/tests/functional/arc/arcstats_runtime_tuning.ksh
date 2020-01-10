@@ -21,25 +21,25 @@ function cleanup
 {
 	# Set tunables to their recorded actual size and then to their original
 	# value: this works for previously unconfigured tunables.
-	log_must set_tunable64 zfs_arc_min "$MINSIZE"
-	log_must set_tunable64 zfs_arc_min "$ZFS_ARC_MIN"
-	log_must set_tunable64 zfs_arc_max "$MAXSIZE"
-	log_must set_tunable64 zfs_arc_max "$ZFS_ARC_MAX"
+	log_must set_tunable64 ARC_MIN "$MINSIZE"
+	log_must set_tunable64 ARC_MIN "$ZFS_ARC_MIN"
+	log_must set_tunable64 ARC_MAX "$MAXSIZE"
+	log_must set_tunable64 ARC_MAX "$ZFS_ARC_MAX"
 }
 
 log_onexit cleanup
 
-ZFS_ARC_MAX="$(get_tunable zfs_arc_max)"
-ZFS_ARC_MIN="$(get_tunable zfs_arc_min)"
+ZFS_ARC_MAX="$(get_tunable ARC_MAX)"
+ZFS_ARC_MIN="$(get_tunable ARC_MIN)"
 MINSIZE="$(get_min_arc_size)"
 MAXSIZE="$(get_max_arc_size)"
 
 log_assert "ARC tunables should be updated dynamically"
 
 for size in $((MAXSIZE/4)) $((MAXSIZE/3)) $((MAXSIZE/2)) $MAXSIZE; do
-	log_must set_tunable64 zfs_arc_max "$size"
+	log_must set_tunable64 ARC_MAX "$size"
 	log_must test "$(get_max_arc_size)" == "$size"
-	log_must set_tunable64 zfs_arc_min "$size"
+	log_must set_tunable64 ARC_MIN "$size"
 	log_must test "$(get_min_arc_size)" == "$size"
 done
 

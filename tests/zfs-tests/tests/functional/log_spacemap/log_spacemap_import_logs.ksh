@@ -48,8 +48,8 @@ verify_runnable "global"
 
 function cleanup
 {
-	log_must set_tunable64 zfs_keep_log_spacemaps_at_export 0
-	log_must set_tunable64 metaslab_debug_load 0
+	log_must set_tunable64 KEEP_LOG_SPACEMAPS_AT_EXPORT 0
+	log_must set_tunable64 METASLAB_DEBUG_LOAD 0
 	if poolexists $LOGSM_POOL; then
 		log_must zpool destroy -f $LOGSM_POOL
 	fi
@@ -67,7 +67,7 @@ log_must sync
 log_must dd if=/dev/urandom of=/$LOGSM_POOL/fs/00 bs=128k count=10
 log_must sync
 
-log_must set_tunable64 zfs_keep_log_spacemaps_at_export 1
+log_must set_tunable64 KEEP_LOG_SPACEMAPS_AT_EXPORT 1
 log_must zpool export $LOGSM_POOL
 
 LOGSM_COUNT=$(zdb -m -e $LOGSM_POOL | grep "Log Spacemap object" | wc -l)
@@ -75,7 +75,7 @@ if (( LOGSM_COUNT == 0 )); then
 	log_fail "Pool does not have any log spacemaps after being exported"
 fi
 
-log_must set_tunable64 metaslab_debug_load 1
+log_must set_tunable64 METASLAB_DEBUG_LOAD 1
 log_must zpool import $LOGSM_POOL
 
 log_pass "Log spacemaps imported with no errors"

@@ -76,7 +76,7 @@ fi
 DISK=${DISKS%% *}
 
 if is_linux; then
-	log_must set_tunable64 zfs_admin_snapshot 1
+	log_must set_tunable64 ADMIN_SNAPSHOT 1
 fi
 
 default_volume_setup $DISK

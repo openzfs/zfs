@@ -68,8 +68,7 @@ function sysctl_inhibit_dev # value
 
 	if is_linux; then
 		log_note "Setting zvol_inhibit_dev tunable to $value"
-		log_must eval "echo $value > "\
-		    "/sys/module/zfs/parameters/zvol_inhibit_dev"
+		log_must set_tunable32 VOL_INHIBIT_DEV $value
 	fi
 }
 
@@ -81,14 +80,7 @@ function sysctl_volmode # value
 	typeset value="$1"
 
 	log_note "Setting volmode tunable to $value"
-	if is_linux; then
-		echo "$value" > '/sys/module/zfs/parameters/zvol_volmode'
-	else
-		sysctl 'vfs.zfs.vol.mode' "$value"
-	fi
-	if [[ $? -ne 0 ]]; then
-		log_fail "Unable to set volmode tunable to $value"
-	fi
+	log_must set_tunable32 VOL_MODE $value
 }
 
 log_assert "Verify that ZFS volume property 'volmode' works as intended"

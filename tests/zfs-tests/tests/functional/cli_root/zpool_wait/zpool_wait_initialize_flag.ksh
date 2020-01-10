@@ -42,7 +42,7 @@ function cleanup
 	poolexists $TESTPOOL && destroy_pool $TESTPOOL
 
 	[[ "$default_chunk_sz" ]] &&
-	    log_must set_tunable64 zfs_initialize_chunk_size $default_chunk_sz
+	    log_must set_tunable64 INITIALIZE_CHUNK_SIZE $default_chunk_sz
 }
 
 typeset init12_pid init3_pid default_chunk_sz
@@ -52,8 +52,8 @@ log_onexit cleanup
 log_must zpool create -f $TESTPOOL $DISK1 $DISK2 $DISK3
 
 # Make sure the initialization takes a while
-default_chunk_sz=$(get_tunable zfs_initialize_chunk_size)
-log_must set_tunable64 zfs_initialize_chunk_size 512
+default_chunk_sz=$(get_tunable INITIALIZE_CHUNK_SIZE)
+log_must set_tunable64 INITIALIZE_CHUNK_SIZE 512
 
 log_bkgrnd zpool initialize -w $TESTPOOL $DISK1 $DISK2
 init12_pid=$!

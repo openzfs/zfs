@@ -50,7 +50,7 @@ log_must zfs snapshot $clone@snap1
 log_must zfs redact $sendfs@snap book1 $clone@snap1
 resume_test "zfs send --redact book1 $sendfs@snap" $tmpdir $recvfs
 log_must mount_redacted -f $recvfs
-log_must set_tunable32 zfs_allow_redacted_dataset_mount 1
+log_must set_tunable32 ALLOW_REDACTED_DATASET_MOUNT 1
 log_must diff $send_mnt/f1 $recv_mnt/f1
 log_must eval "get_diff $send_mnt/f2 $recv_mnt/f2 >$tmpdir/get_diff.out"
 typeset range=$(cat $tmpdir/get_diff.out)

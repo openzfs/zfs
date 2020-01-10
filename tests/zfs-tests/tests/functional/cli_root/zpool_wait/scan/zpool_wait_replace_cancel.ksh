@@ -35,7 +35,7 @@
 
 function cleanup
 {
-	log_must set_tunable32 zfs_scan_suspend_progress 0
+	log_must set_tunable32 SCAN_SUSPEND_PROGRESS 0
 	kill_if_running $pid
 	get_disklist $TESTPOOL | grep $DISK2 >/dev/null && \
 	    log_must zpool detach $TESTPOOL $DISK2
@@ -49,7 +49,7 @@ log_onexit cleanup
 
 log_must zpool attach -w $TESTPOOL $DISK1 $DISK2
 
-log_must set_tunable32 zfs_scan_suspend_progress 1
+log_must set_tunable32 SCAN_SUSPEND_PROGRESS 1
 
 log_must zpool replace $TESTPOOL $DISK2 $DISK3
 log_bkgrnd zpool wait -t replace $TESTPOOL

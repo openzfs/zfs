@@ -39,7 +39,7 @@ function cleanup
 	kill_if_running $pid
 
 	[[ $default_mem_limit ]] && log_must set_tunable64 \
-	    zfs_spa_discard_memory_limit $default_mem_limit
+	    SPA_DISCARD_MEMORY_LIMIT $default_mem_limit
 }
 
 function do_test
@@ -76,8 +76,8 @@ typeset pid default_mem_limit
 
 log_onexit cleanup
 
-default_mem_limit=$(get_tunable zfs_spa_discard_memory_limit)
-log_must set_tunable64 zfs_spa_discard_memory_limit 32
+default_mem_limit=$(get_tunable SPA_DISCARD_MEMORY_LIMIT)
+log_must set_tunable64 SPA_DISCARD_MEMORY_LIMIT 32
 
 log_must zpool create $TESTPOOL $DISK1
 

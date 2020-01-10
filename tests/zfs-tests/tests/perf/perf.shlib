@@ -415,7 +415,7 @@ function get_max_dbuf_cache_size
 	typeset -l max_dbuf_cache_size
 
 	if is_linux; then
-		max_dbuf_cache_size=$(get_tunable dbuf_cache_max_bytes)
+		max_dbuf_cache_size=$(get_tunable DBUF_CACHE_MAX_BYTES)
 	else
 		max_dbuf_cache_size=$(dtrace -qn 'BEGIN {
 		    printf("%u\n", `dbuf_cache_max_bytes);
