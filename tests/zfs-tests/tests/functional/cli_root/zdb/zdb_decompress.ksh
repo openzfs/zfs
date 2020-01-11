@@ -74,11 +74,11 @@ log_note "file $init_data has object number $obj"
 
 output=$(zdb -ddddddbbbbbb $TESTPOOL/$TESTFS $obj 2> /dev/null \
     |grep -m 1 "L0 DVA" |head -n1)
-dva=$(grep -oP 'DVA\[0\]=<\K.*?(?=>)' <<< "$output")
+dva=$(sed -Ene 's/^.+DVA\[0\]=<(.+)>.*$/\1/p' <<< "$output")
 log_note "block 0 of $init_data has a DVA of $dva"
 
 # use the length reported by zdb -ddddddbbbbbb
-size_str=$(grep -oP 'size=\K.*?(?= )' <<< "$output")
+size_str=$(sed -Ene 's/^.+ size=([^ ]+) .*$/\1/p' <<< "$output")
 log_note "block size $size_str"
 
 vdev=$(echo "$dva" |awk '{split($0,array,":")} END{print array[1]}')
