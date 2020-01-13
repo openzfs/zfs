@@ -2791,9 +2791,10 @@ show_import(nvlist_t *config)
 			    "the '-f' flag.\n"));
 	}
 
-	if (msgid != NULL)
-		(void) printf(gettext("   see: http://zfsonlinux.org/msg/%s\n"),
-		    msgid);
+	if (msgid != NULL) {
+		(void) printf(gettext(
+		    "   see: https://zfsonlinux.org/msg/%s\n"), msgid);
+	}
 
 	(void) printf(gettext(" config:\n\n"));
 
@@ -7531,7 +7532,7 @@ print_dedup_stats(nvlist_t *config)
  *        pool: tank
  *	status: DEGRADED
  *	reason: One or more devices ...
- *         see: http://zfsonlinux.org/msg/ZFS-xxxx-01
+ *         see: https://zfsonlinux.org/msg/ZFS-xxxx-01
  *	config:
  *		mirror		DEGRADED
  *                c1t0d0	OK
@@ -7900,7 +7901,7 @@ status_callback(zpool_handle_t *zhp, void *data)
 	if (msgid != NULL) {
 		printf("   ");
 		printf_color(ANSI_BOLD, gettext("see:"));
-		printf(gettext(" http://zfsonlinux.org/msg/%s\n"), msgid);
+		printf(gettext(" https://zfsonlinux.org/msg/%s\n"), msgid);
 	}
 
 	if (config != NULL) {

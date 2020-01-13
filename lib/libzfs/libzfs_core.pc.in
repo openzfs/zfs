@@ -6,6 +6,6 @@ includedir=@includedir@
 Name: libzfs_core
 Description: LibZFS core library
 Version: @VERSION@
-URL: http://zfsonlinux.org
+URL: https://zfsonlinux.org
 Cflags: -I${includedir}/libzfs -I${includedir}/libspl
 Libs: -L${libdir} -lzfs_core
