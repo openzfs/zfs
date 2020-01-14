@@ -45,7 +45,7 @@ verify_runnable "global"
 
 function cleanup
 {
-	log_must set_tunable32 zfs_scan_suspend_progress 0
+	log_must set_tunable32 SCAN_SUSPEND_PROGRESS 0
 	log_must rm -f $mntpnt/biggerfile1
 	log_must rm -f $mntpnt/biggerfile2
 }
@@ -67,7 +67,7 @@ log_must sync
 log_must zpool detach $TESTPOOL $DISK3
 
 # 3. Reattach the drives, causing the second drive's resilver to be deferred
-log_must set_tunable32 zfs_scan_suspend_progress 1
+log_must set_tunable32 SCAN_SUSPEND_PROGRESS 1
 
 log_must zpool attach $TESTPOOL $DISK1 $DISK2
 log_must is_pool_resilvering $TESTPOOL true
@@ -78,7 +78,7 @@ log_must is_pool_resilvering $TESTPOOL true
 # 4. Manually restart the resilver with all drives
 log_must zpool resilver $TESTPOOL
 log_must is_deferred_scan_started $TESTPOOL
-log_must set_tunable32 zfs_scan_suspend_progress 0
+log_must set_tunable32 SCAN_SUSPEND_PROGRESS 0
 log_must wait_for_resilver_end $TESTPOOL $MAXTIMEOUT
 log_must check_state $TESTPOOL "$DISK2" "online"
 log_must check_state $TESTPOOL "$DISK3" "online"

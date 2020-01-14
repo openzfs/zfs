@@ -186,9 +186,9 @@ function mount_redacted
 	shift $(($OPTIND - 1))
 
 	typeset ds=$1
-	log_must set_tunable32 zfs_allow_redacted_dataset_mount 1
+	log_must set_tunable32 ALLOW_REDACTED_DATASET_MOUNT 1
 	zfs mount $flag -oro $ds || return 1
-	log_must set_tunable32 zfs_allow_redacted_dataset_mount 0
+	log_must set_tunable32 ALLOW_REDACTED_DATASET_MOUNT 0
 	return 0
 }
 
@@ -245,7 +245,7 @@ function redacted_cleanup
 		datasetexists $ds && log_must zfs destroy -R $ds
 	done
 
-	log_must set_tunable32 zfs_allow_redacted_dataset_mount 0
+	log_must set_tunable32 ALLOW_REDACTED_DATASET_MOUNT 0
 	rm -f $(get_prop mountpoint $POOL)/tmp/*
 }
 

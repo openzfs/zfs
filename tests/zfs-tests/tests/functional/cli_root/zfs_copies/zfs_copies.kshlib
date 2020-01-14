@@ -108,11 +108,11 @@ function do_vol_test
 		if is_freebsd; then
 			# Pool creation on zvols is forbidden by default.
 			# Save and restore the current setting.
-			typeset _saved=$(get_tunable vol.recursive)
-			log_must set_tunable64 vol.recursive 1 # Allow
+			typeset _saved=$(get_tunable VOL_RECURSIVE)
+			log_must set_tunable64 VOL_RECURSIVE 1 # Allow
 			zpool create $TESTPOOL1 $vol_b_path
 			typeset _zpool_create_result=$?
-			log_must set_tunable64 vol.recursive $_saved # Restore
+			log_must set_tunable64 VOL_RECURSIVE $_saved # Restore
 			log_must test $_zpool_create_result = 0
 		else
 			log_must zpool create $TESTPOOL1 $vol_b_path

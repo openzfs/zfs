@@ -34,7 +34,7 @@
 
 verify_runnable "global"
 
-log_must set_tunable32 zfs_scan_suspend_progress 0
+log_must set_tunable32 SCAN_SUSPEND_PROGRESS 0
 
 for pool in "$TESTPOOL" "$TESTPOOL1"; do
 	datasetexists $pool/$TESTFS && \

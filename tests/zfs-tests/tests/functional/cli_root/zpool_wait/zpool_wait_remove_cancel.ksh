@@ -34,7 +34,7 @@
 function cleanup
 {
 	kill_if_running $pid
-	log_must set_tunable32 zfs_removal_suspend_progress 0
+	log_must set_tunable32 REMOVAL_SUSPEND_PROGRESS 0
 	poolexists $TESTPOOL && destroy_pool $TESTPOOL
 }
 
@@ -47,7 +47,7 @@ log_must zpool create -f $TESTPOOL $DISK1 $DISK2
 log_must dd if=/dev/urandom of="/$TESTPOOL/testfile" bs=1k count=16k
 
 # Start removal, but don't allow it to make any progress
-log_must set_tunable32 zfs_removal_suspend_progress 1
+log_must set_tunable32 REMOVAL_SUSPEND_PROGRESS 1
 log_must zpool remove $TESTPOOL $DISK1
 
 log_bkgrnd zpool wait -t remove $TESTPOOL

@@ -58,7 +58,7 @@ log_must zfs snapshot $sendvol@snap
 log_must zfs clone $sendvol@snap $clone
 log_must zfs snapshot $clone@snap
 
-log_must set_tunable32 zfs_allow_redacted_dataset_mount 1
+log_must set_tunable32 ALLOW_REDACTED_DATASET_MOUNT 1
 log_must zfs redact $sendvol@snap book1 $clone@snap
 log_must eval "zfs send --redact book1 $sendvol@snap >$stream"
 log_must eval "zfs recv $recvvol <$stream"

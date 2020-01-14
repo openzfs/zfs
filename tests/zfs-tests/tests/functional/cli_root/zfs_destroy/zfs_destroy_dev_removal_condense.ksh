@@ -38,15 +38,15 @@ function cleanup
 {
 	poolexists $TESTPOOL2 && zpool destroy $TESTPOOL2
 	# reset livelist max size
-	set_tunable64 $LIVELIST_MAX_ENTRIES $ORIGINAL_MAX
+	set_tunable64 LIVELIST_MAX_ENTRIES $ORIGINAL_MAX
 	[[ -f $VIRTUAL_DISK1 ]] && log_must rm $VIRTUAL_DISK1
 	[[ -f $VIRTUAL_DISK2 ]] && log_must rm $VIRTUAL_DISK2
 }
 
 log_onexit cleanup
 
-ORIGINAL_MAX=$(get_tunable $LIVELIST_MAX_ENTRIES)
-set_tunable64 $LIVELIST_MAX_ENTRIES 20
+ORIGINAL_MAX=$(get_tunable LIVELIST_MAX_ENTRIES)
+set_tunable64 LIVELIST_MAX_ENTRIES 20
 
 VIRTUAL_DISK1=$TEST_BASE_DIR/disk1
 VIRTUAL_DISK2=$TEST_BASE_DIR/disk2
@@ -66,14 +66,14 @@ log_must zfs clone $TESTPOOL2/$TESTFS@snap $TESTPOOL2/$TESTCLONE
 log_must mkfile 10m /$TESTPOOL2/$TESTCLONE/A
 log_must mkfile 1m /$TESTPOOL2/$TESTCLONE/B
 log_must zpool sync $TESTPOOL2
-set_tunable32 $LIVELIST_CONDENSE_SYNC_PAUSE 1
+set_tunable32 LIVELIST_CONDENSE_SYNC_PAUSE 1
 
 # Add a new dev and remove the old one
 log_must zpool add $TESTPOOL2 $VIRTUAL_DISK2
 log_must zpool remove $TESTPOOL2 $VIRTUAL_DISK1
 wait_for_removal $TESTPOOL2
 
-set_tunable32 $LIVELIST_CONDENSE_NEW_ALLOC 0
+set_tunable32 LIVELIST_CONDENSE_NEW_ALLOC 0
 # Trigger a condense
 log_must mkfile 10m /$TESTPOOL2/$TESTCLONE/A
 log_must zpool sync $TESTPOOL2
@@ -83,10 +83,10 @@ log_must zpool sync $TESTPOOL2
 log_must mkfile 1m /$TESTPOOL2/$TESTCLONE/B
 
 # Resume condense thr
-set_tunable32 $LIVELIST_CONDENSE_SYNC_PAUSE 0
+set_tunable32 LIVELIST_CONDENSE_SYNC_PAUSE 0
 log_must zpool sync $TESTPOOL2
 # Check that we've added new ALLOC blkptrs during the condense
-[[ "0" < "$(get_tunable $LIVELIST_CONDENSE_NEW_ALLOC)" ]] || \
+[[ "0" < "$(get_tunable LIVELIST_CONDENSE_NEW_ALLOC)" ]] || \
     log_fail "removal/condense test failed"
 
 log_must zfs destroy $TESTPOOL2/$TESTCLONE

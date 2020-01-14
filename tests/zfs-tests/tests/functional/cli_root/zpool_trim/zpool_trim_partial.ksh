@@ -44,9 +44,9 @@ function cleanup
 		rm -rf "$TESTDIR"
 	fi
 
-	log_must set_tunable64 zfs_trim_metaslab_skip 0
-	log_must set_tunable64 zfs_trim_extent_bytes_min $trim_extent_bytes_min
-	log_must set_tunable64 zfs_vdev_min_ms_count $vdev_min_ms_count
+	log_must set_tunable64 TRIM_METASLAB_SKIP 0
+	log_must set_tunable64 TRIM_EXTENT_BYTES_MIN $trim_extent_bytes_min
+	log_must set_tunable64 VDEV_MIN_MS_COUNT $vdev_min_ms_count
 }
 log_onexit cleanup
 
@@ -55,12 +55,12 @@ LARGEFILE="$TESTDIR/largefile"
 
 # The minimum number of metaslabs is increased in order to simulate the
 # behavior of partial trimming on a more typically sized 1TB disk.
-typeset vdev_min_ms_count=$(get_tunable zfs_vdev_min_ms_count)
-log_must set_tunable64 zfs_vdev_min_ms_count 64
+typeset vdev_min_ms_count=$(get_tunable VDEV_MIN_MS_COUNT)
+log_must set_tunable64 VDEV_MIN_MS_COUNT 64
 
 # Minimum trim size is decreased to verify all trim sizes.
-typeset trim_extent_bytes_min=$(get_tunable zfs_trim_extent_bytes_min)
-log_must set_tunable64 zfs_trim_extent_bytes_min 4096
+typeset trim_extent_bytes_min=$(get_tunable TRIM_EXTENT_BYTES_MIN)
+log_must set_tunable64 TRIM_EXTENT_BYTES_MIN 4096
 
 log_must mkdir "$TESTDIR"
 log_must truncate -s $LARGESIZE "$LARGEFILE"
@@ -85,9 +85,9 @@ log_must test $new_size -gt $((4 * floor(LARGESIZE * 0.70) ))
 
 # Perform a partial trim, we expect it to skip most of the new metaslabs
 # which have never been used and therefore do not need be trimmed.
-log_must set_tunable64 zfs_trim_metaslab_skip 1
+log_must set_tunable64 TRIM_METASLAB_SKIP 1
 log_must zpool trim $TESTPOOL
-log_must set_tunable64 zfs_trim_metaslab_skip 0
+log_must set_tunable64 TRIM_METASLAB_SKIP 0
 
 log_must zpool sync
 while [[ "$(trim_progress $TESTPOOL $LARGEFILE)" -lt "100" ]]; do

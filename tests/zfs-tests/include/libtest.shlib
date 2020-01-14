@@ -34,6 +34,8 @@
 . ${STF_SUITE}/include/math.shlib
 . ${STF_SUITE}/include/blkdev.shlib
 
+. ${STF_SUITE}/include/tunables.cfg
+
 #
 # Apply constrained path when available.  This is required since the
 # PATH may have been modified by sudo's secure_path behavior.
@@ -3713,7 +3715,7 @@ function swap_cleanup
 #
 # Set a global system tunable (64-bit value)
 #
-# $1 tunable name
+# $1 tunable name (use a NAME defined in tunables.cfg)
 # $2 tunable values
 #
 function set_tunable64
@@ -3724,7 +3726,7 @@ function set_tunable64
 #
 # Set a global system tunable (32-bit value)
 #
-# $1 tunable name
+# $1 tunable name (use a NAME defined in tunables.cfg)
 # $2 tunable values
 #
 function set_tunable32
@@ -3734,12 +3736,23 @@ function set_tunable32
 
 function set_tunable_impl
 {
-	typeset tunable="$1"
+	typeset name="$1"
 	typeset value="$2"
 	typeset mdb_cmd="$3"
 	typeset module="${4:-zfs}"
 
-	[[ -z "$tunable" ]] && return 1
+	eval "typeset tunable=\$$name"
+	case "$tunable" in
+	UNSUPPORTED)
+		log_unsupported "Tunable '$name' is unsupported on $(uname)"
+		;;
+	"")
+		log_fail "Tunable '$name' must be added to tunables.cfg"
+		;;
+	*)
+		;;
+	esac
+
 	[[ -z "$value" ]] && return 1
 	[[ -z "$mdb_cmd" ]] && return 1
 
@@ -3765,7 +3778,7 @@ function set_tunable_impl
 #
 # Get a global system tunable
 #
-# $1 tunable name
+# $1 tunable name (use a NAME defined in tunables.cfg)
 #
 function get_tunable
 {
@@ -3774,10 +3787,20 @@ function get_tunable
 
 function get_tunable_impl
 {
-	typeset tunable="$1"
+	typeset name="$1"
 	typeset module="${2:-zfs}"
 
-	[[ -z "$tunable" ]] && return 1
+	eval "typeset tunable=\$$name"
+	case "$tunable" in
+	UNSUPPORTED)
+		log_unsupported "Tunable '$name' is unsupported on $(uname)"
+		;;
+	"")
+		log_fail "Tunable '$name' must be added to tunables.cfg"
+		;;
+	*)
+		;;
+	esac
 
 	case "$(uname)" in
 	Linux)
