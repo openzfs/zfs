@@ -38,10 +38,10 @@ function cleanup
 {
 	log_must zfs destroy -Rf $TESTPOOL/$TESTFS1
 	# reset the livelist sublist size to the original value
-	set_tunable64 $LIVELIST_MAX_ENTRIES $ORIGINAL_MAX
+	set_tunable64 LIVELIST_MAX_ENTRIES $ORIGINAL_MAX
 	# reset the condense tests to 0
-	set_tunable32 $LIVELIST_CONDENSE_ZTHR_PAUSE 0
-	set_tunable32 $LIVELIST_CONDENSE_SYNC_PAUSE 0
+	set_tunable32 LIVELIST_CONDENSE_ZTHR_PAUSE 0
+	set_tunable32 LIVELIST_CONDENSE_SYNC_PAUSE 0
 }
 
 function delete_race
@@ -89,7 +89,7 @@ function disable_race
 	log_must zfs destroy $TESTPOOL/$TESTCLONE
 }
 
-ORIGINAL_MAX=$(get_tunable $LIVELIST_MAX_ENTRIES)
+ORIGINAL_MAX=$(get_tunable LIVELIST_MAX_ENTRIES)
 
 log_onexit cleanup
 
@@ -99,19 +99,19 @@ log_must zpool sync $TESTPOOL
 log_must zfs snapshot $TESTPOOL/$TESTFS1@snap
 
 # Reduce livelist size to trigger condense more easily
-set_tunable64 $LIVELIST_MAX_ENTRIES 20
+set_tunable64 LIVELIST_MAX_ENTRIES 20
 
 # Test cancellation path in the zthr
-set_tunable32 $LIVELIST_CONDENSE_ZTHR_PAUSE 1
-set_tunable32 $LIVELIST_CONDENSE_SYNC_PAUSE 0
-disable_race $LIVELIST_CONDENSE_ZTHR_CANCEL
-delete_race $LIVELIST_CONDENSE_ZTHR_CANCEL
-export_race $LIVELIST_CONDENSE_ZTHR_CANCEL
+set_tunable32 LIVELIST_CONDENSE_ZTHR_PAUSE 1
+set_tunable32 LIVELIST_CONDENSE_SYNC_PAUSE 0
+disable_race LIVELIST_CONDENSE_ZTHR_CANCEL
+delete_race LIVELIST_CONDENSE_ZTHR_CANCEL
+export_race LIVELIST_CONDENSE_ZTHR_CANCEL
 
 # Test cancellation path in the synctask
-set_tunable32 $LIVELIST_CONDENSE_ZTHR_PAUSE 0
-set_tunable32 $LIVELIST_CONDENSE_SYNC_PAUSE 1
-disable_race $LIVELIST_CONDENSE_SYNC_CANCEL
-delete_race $LIVELIST_CONDENSE_SYNC_CANCEL
+set_tunable32 LIVELIST_CONDENSE_ZTHR_PAUSE 0
+set_tunable32 LIVELIST_CONDENSE_SYNC_PAUSE 1
+disable_race LIVELIST_CONDENSE_SYNC_CANCEL
+delete_race LIVELIST_CONDENSE_SYNC_CANCEL
 
 log_pass "Clone livelist condense race conditions passed."

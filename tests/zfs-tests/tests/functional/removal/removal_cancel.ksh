@@ -42,7 +42,7 @@ function cleanup
 	#
 	# Reset tunable.
 	#
-	log_must set_tunable32 zfs_removal_suspend_progress 0
+	log_must set_tunable32 REMOVAL_SUSPEND_PROGRESS 0
 }
 log_onexit cleanup
 
@@ -79,7 +79,7 @@ log_must sleep 1
 #
 # Block removal.
 #
-log_must set_tunable32 zfs_removal_suspend_progress 1
+log_must set_tunable32 REMOVAL_SUSPEND_PROGRESS 1
 
 #
 # Only for debugging purposes in test logs.

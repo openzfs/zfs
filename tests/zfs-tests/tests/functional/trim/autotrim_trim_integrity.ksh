@@ -48,18 +48,18 @@ function cleanup
 
 	log_must rm -f $TRIM_VDEVS
 
-	log_must set_tunable64 zfs_trim_extent_bytes_min $trim_extent_bytes_min
-	log_must set_tunable64 zfs_trim_txg_batch $trim_txg_batch
+	log_must set_tunable64 TRIM_EXTENT_BYTES_MIN $trim_extent_bytes_min
+	log_must set_tunable64 TRIM_TXG_BATCH $trim_txg_batch
 }
 log_onexit cleanup
 
 # Minimum trim size is decreased to verify all trim sizes.
-typeset trim_extent_bytes_min=$(get_tunable zfs_trim_extent_bytes_min)
-log_must set_tunable64 zfs_trim_extent_bytes_min 4096
+typeset trim_extent_bytes_min=$(get_tunable TRIM_EXTENT_BYTES_MIN)
+log_must set_tunable64 TRIM_EXTENT_BYTES_MIN 4096
 
-# Reduced zfs_trim_txg_batch to make trimming more frequent.
-typeset trim_txg_batch=$(get_tunable zfs_trim_txg_batch)
-log_must set_tunable64 zfs_trim_txg_batch 8
+# Reduced TRIM_TXG_BATCH to make trimming more frequent.
+typeset trim_txg_batch=$(get_tunable TRIM_TXG_BATCH)
+log_must set_tunable64 TRIM_TXG_BATCH 8
 
 for type in "" "mirror" "raidz" "raidz2" "raidz3"; do
 	log_must truncate -s 1G $TRIM_VDEVS

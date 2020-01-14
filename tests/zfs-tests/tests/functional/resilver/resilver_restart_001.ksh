@@ -45,10 +45,10 @@
 
 function cleanup
 {
-	log_must set_tunable32 zfs_resilver_min_time_ms $ORIG_RESILVER_MIN_TIME
-	log_must set_tunable32 zfs_scan_suspend_progress \
+	log_must set_tunable32 RESILVER_MIN_TIME_MS $ORIG_RESILVER_MIN_TIME
+	log_must set_tunable32 SCAN_SUSPEND_PROGRESS \
 	    $ORIG_SCAN_SUSPEND_PROGRESS
-	log_must set_tunable32 zfs_zevent_len_max $ORIG_ZFS_ZEVENT_LEN_MAX
+	log_must set_tunable32 ZEVENT_LEN_MAX $ORIG_ZFS_ZEVENT_LEN_MAX
 	log_must zinject -c all
 	destroy_pool $TESTPOOL
 	rm -f ${VDEV_FILES[@]} $SPARE_VDEV_FILE
@@ -87,9 +87,9 @@ function verify_restarts # <msg> <cnt> <defer>
 
 log_assert "Check for unnecessary resilver restarts"
 
-ORIG_RESILVER_MIN_TIME=$(get_tunable zfs_resilver_min_time_ms)
-ORIG_SCAN_SUSPEND_PROGRESS=$(get_tunable zfs_scan_suspend_progress)
-ORIG_ZFS_ZEVENT_LEN_MAX=$(get_tunable zfs_zevent_len_max)
+ORIG_RESILVER_MIN_TIME=$(get_tunable RESILVER_MIN_TIME_MS)
+ORIG_SCAN_SUSPEND_PROGRESS=$(get_tunable SCAN_SUSPEND_PROGRESS)
+ORIG_ZFS_ZEVENT_LEN_MAX=$(get_tunable ZEVENT_LEN_MAX)
 
 set -A RESTARTS -- '1' '2' '2' '2'
 set -A VDEVS -- '' '' '' ''
@@ -101,7 +101,7 @@ VDEV_REPLACE="${VDEV_FILES[1]} $SPARE_VDEV_FILE"
 log_onexit cleanup
 
 # ensure that enough events will be saved
-log_must set_tunable32 zfs_zevent_len_max 512
+log_must set_tunable32 ZEVENT_LEN_MAX 512
 
 log_must truncate -s $VDEV_FILE_SIZE ${VDEV_FILES[@]} $SPARE_VDEV_FILE
 
@@ -140,11 +140,11 @@ do
 	log_must zpool events -c
 
 	# limit scanning time
-	log_must set_tunable32 zfs_resilver_min_time_ms 50
+	log_must set_tunable32 RESILVER_MIN_TIME_MS 50
 
 	# initiate a resilver and suspend the scan as soon as possible
 	log_must zpool replace $TESTPOOL $VDEV_REPLACE
-	log_must set_tunable32 zfs_scan_suspend_progress 1
+	log_must set_tunable32 SCAN_SUSPEND_PROGRESS 1
 
 	# there should only be 1 resilver start
 	verify_restarts '' "${RESTARTS[0]}" "${VDEVS[0]}"
@@ -168,8 +168,8 @@ do
 	verify_restarts ' after zinject' "${RESTARTS[2]}" "${VDEVS[2]}"
 
 	# unsuspend resilver
-	log_must set_tunable32 zfs_scan_suspend_progress 0
-	log_must set_tunable32 zfs_resilver_min_time_ms 3000
+	log_must set_tunable32 SCAN_SUSPEND_PROGRESS 0
+	log_must set_tunable32 RESILVER_MIN_TIME_MS 3000
 
 	# wait for resilver to finish
 	for iter in {0..59}
