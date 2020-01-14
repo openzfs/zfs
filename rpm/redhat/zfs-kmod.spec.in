@@ -11,7 +11,7 @@ Release:        @RELEASE@%{?dist}
 Summary:        Kernel module(s)
 Group:          System Environment/Kernel
 License:        @ZFS_META_LICENSE@
-URL:            http://zfsonlinux.org/
+URL:            https://zfsonlinux.org/
 BuildRequires:  %kernel_module_package_buildreqs
 Source0:        @PACKAGE@-%{version}.tar.gz
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)

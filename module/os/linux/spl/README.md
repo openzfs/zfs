@@ -1,5 +1,5 @@
 The Solaris Porting Layer, SPL, is a Linux kernel module which provides a
-compatibility layer used by the [ZFS on Linux](http://zfsonlinux.org) project.
+compatibility layer used by the [ZFS on Linux](https://zfsonlinux.org) project.
 
 # Installation
 
