@@ -37,6 +37,7 @@
  *
  *	zfs_is_mounted()
  *	zfs_mount()
+ *	zfs_mount_at()
  *	zfs_unmount()
  *	zfs_unmountall()
  *
@@ -240,6 +241,23 @@ zfs_is_mounted(zfs_handle_t *zhp, char **where)
 }
 
 /*
+ * Checks any higher order concerns about whether the given dataset is
+ * mountable, false otherwise.  zfs_is_mountable_internal specifically assumes
+ * that the caller has verified the sanity of mounting the dataset at
+ * mountpoint to the extent the caller wants.
+ */
+static boolean_t
+zfs_is_mountable_internal(zfs_handle_t *zhp, const char *mountpoint)
+{
+
+	if (zfs_prop_get_int(zhp, ZFS_PROP_ZONED) &&
+	    getzoneid() == GLOBAL_ZONEID)
+		return (B_FALSE);
+
+	return (B_TRUE);
+}
+
+/*
  * Returns true if the given dataset is mountable, false otherwise.  Returns the
  * mountpoint in 'buf'.
  */
@@ -264,8 +282,7 @@ zfs_is_mountable(zfs_handle_t *zhp, char *buf, size_t buflen,
 	if (zfs_prop_get_int(zhp, ZFS_PROP_CANMOUNT) == ZFS_CANMOUNT_OFF)
 		return (B_FALSE);
 
-	if (zfs_prop_get_int(zhp, ZFS_PROP_ZONED) &&
-	    getzoneid() == GLOBAL_ZONEID)
+	if (!zfs_is_mountable_internal(zhp, buf))
 		return (B_FALSE);
 
 	if (zfs_prop_get_int(zhp, ZFS_PROP_REDACTED) && !(flags & MS_FORCE))
@@ -346,14 +363,26 @@ zfs_add_options(zfs_handle_t *zhp, char *options, int len)
 	return (error);
 }
 
+int
+zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
+{
+	char mountpoint[ZFS_MAXPROPLEN];
+
+	if (!zfs_is_mountable(zhp, mountpoint, sizeof (mountpoint), NULL,
+	    flags))
+		return (0);
+
+	return (zfs_mount_at(zhp, options, flags, mountpoint));
+}
+
 /*
  * Mount the given filesystem.
  */
 int
-zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
+zfs_mount_at(zfs_handle_t *zhp, const char *options, int flags,
+    const char *mountpoint)
 {
 	struct stat buf;
-	char mountpoint[ZFS_MAXPROPLEN];
 	char mntopts[MNT_LINE_MAX];
 	char overlay[ZFS_MAXPROPLEN];
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
@@ -369,15 +398,15 @@ zfs_mount(zfs_handle_t *zhp, const char *options, int flags)
 	if (strstr(mntopts, MNTOPT_REMOUNT) != NULL)
 		remount = 1;
 
+	/* Potentially duplicates some checks if invoked by zfs_mount(). */
+	if (!zfs_is_mountable_internal(zhp, mountpoint))
+		return (0);
+
 	/*
 	 * If the pool is imported read-only then all mounts must be read-only
 	 */
 	if (zpool_get_prop_int(zhp->zpool_hdl, ZPOOL_PROP_READONLY, NULL))
 		(void) strlcat(mntopts, "," MNTOPT_RO, sizeof (mntopts));
-
-	if (!zfs_is_mountable(zhp, mountpoint, sizeof (mountpoint), NULL,
-	    flags))
-		return (0);
 
 	/*
 	 * Append default mount options which apply to the mount point.
