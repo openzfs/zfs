@@ -58,7 +58,7 @@ config ZFS
 	help
 	  This is the ZFS filesystem from the ZFS On Linux project.
 
-	  See http://zfsonlinux.org/
+	  See https://zfsonlinux.org/
 
 	  To compile this file system support as a module, choose M here.
 

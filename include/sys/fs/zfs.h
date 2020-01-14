@@ -987,7 +987,7 @@ typedef enum dsl_scan_state {
 } dsl_scan_state_t;
 
 /*
- * Errata described by http://zfsonlinux.org/msg/ZFS-8000-ER.  The ordering
+ * Errata described by https://zfsonlinux.org/msg/ZFS-8000-ER.  The ordering
  * of this enum must be maintained to ensure the errata identifiers map to
  * the correct documentation.  New errata may only be appended to the list
  * and must contain corresponding documentation at the above link.
