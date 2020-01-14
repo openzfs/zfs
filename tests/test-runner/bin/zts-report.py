@@ -61,14 +61,6 @@ known_reason = 'Known issue'
 exec_reason = 'Test user execute permissions required for utilities'
 
 #
-# Some tests require that the DISKS provided can be partitioned.  This is
-# normally not an issue because loop back devices are used for DISKS and they
-# can be partition.  There is one notable exception, the CentOS 6.x kernel is
-# old enough that it does not support partitioning loop back devices.
-#
-disk_reason = 'Partitionable DISKS required'
-
-#
 # Some tests require a minimum python version of 3.5 and will be skipped when
 # the default system version is too old.  There may also be tests which require
 # additional python modules be installed, for example python-cffi is required
@@ -82,13 +74,6 @@ python_deps_reason = 'Python modules missing: python-cffi'
 # 3.11 kernel.
 #
 tmpfile_reason = 'Kernel O_TMPFILE support required'
-
-#
-# Some tests may depend on udev change events being generated when block
-# devices change capacity.  This functionality wasn't available until the
-# 2.6.38 kernel.
-#
-udev_reason = 'Kernel block device udev change events required'
 
 #
 # Some tests require that the NFS client and server utilities be installed.
@@ -197,7 +182,6 @@ known = {
 # reasons listed above can be used.
 #
 maybe = {
-    'cache/setup': ['SKIP', disk_reason],
     'cache/cache_010_neg': ['FAIL', known_reason],
     'chattr/setup': ['SKIP', exec_reason],
     'cli_root/zdb/zdb_006_pos': ['FAIL', known_reason],
@@ -206,34 +190,23 @@ maybe = {
     'cli_root/zfs_share/setup': ['SKIP', share_reason],
     'cli_root/zfs_snapshot/zfs_snapshot_002_neg': ['FAIL', known_reason],
     'cli_root/zfs_unshare/setup': ['SKIP', share_reason],
-    'cli_root/zpool_add/setup': ['SKIP', disk_reason],
     'cli_root/zpool_add/zpool_add_004_pos': ['FAIL', known_reason],
-    'cli_root/zpool_create/setup': ['SKIP', disk_reason],
     'cli_root/zpool_create/zpool_create_008_pos': ['FAIL', known_reason],
     'cli_root/zpool_destroy/zpool_destroy_001_pos': ['SKIP', '6145'],
-    'cli_root/zpool_expand/setup': ['SKIP', udev_reason],
-    'cli_root/zpool_export/setup': ['SKIP', disk_reason],
-    'cli_root/zpool_import/setup': ['SKIP', disk_reason],
     'cli_root/zpool_import/import_rewind_device_replaced':
         ['FAIL', rewind_reason],
     'cli_root/zpool_import/import_rewind_config_changed':
         ['FAIL', rewind_reason],
     'cli_root/zpool_import/zpool_import_missing_003_pos': ['SKIP', '6839'],
-    'cli_root/zpool_remove/setup': ['SKIP', disk_reason],
     'cli_root/zpool_trim/setup': ['SKIP', trim_reason],
     'cli_root/zpool_upgrade/zpool_upgrade_004_pos': ['FAIL', '6141'],
     'cli_user/misc/arc_summary3_001_pos': ['SKIP', python_reason],
     'delegate/setup': ['SKIP', exec_reason],
-    'fault/auto_online_001_pos': ['SKIP', disk_reason],
-    'fault/auto_replace_001_pos': ['SKIP', disk_reason],
     'history/history_004_pos': ['FAIL', '7026'],
     'history/history_005_neg': ['FAIL', '6680'],
     'history/history_006_neg': ['FAIL', '5657'],
     'history/history_008_pos': ['FAIL', known_reason],
     'history/history_010_pos': ['SKIP', exec_reason],
-    'inuse/inuse_005_pos': ['SKIP', disk_reason],
-    'inuse/inuse_008_pos': ['SKIP', disk_reason],
-    'inuse/inuse_009_pos': ['SKIP', disk_reason],
     'io/mmap': ['SKIP', fio_reason],
     'largest_pool/largest_pool_001_pos': ['FAIL', known_reason],
     'pyzfs/pyzfs_unittest': ['SKIP', python_deps_reason],
@@ -258,7 +231,6 @@ maybe = {
     'user_namespace/setup': ['SKIP', user_ns_reason],
     'userquota/setup': ['SKIP', exec_reason],
     'vdev_zaps/vdev_zaps_004_pos': ['FAIL', '6935'],
-    'write_dirs/setup': ['SKIP', disk_reason],
     'zvol/zvol_ENOSPC/zvol_ENOSPC_001_pos': ['FAIL', '5848'],
 }
 
