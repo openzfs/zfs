@@ -49,6 +49,7 @@ typedef struct dmu_recv_cookie {
 	uint64_t drc_featureflags;
 	boolean_t drc_force;
 	boolean_t drc_resumable;
+	boolean_t drc_should_save;
 	boolean_t drc_raw;
 	boolean_t drc_clone;
 	boolean_t drc_illumos;
