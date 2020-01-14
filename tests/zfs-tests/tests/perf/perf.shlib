@@ -23,6 +23,9 @@
 export PERF_RUNTIME_WEEKLY=$((30 * 60))
 export PERF_RUNTIME_NIGHTLY=$((10 * 60))
 
+# Default to JSON for fio output
+export PERF_FIO_FORMAT=${PERF_FIO_FORMAT:-'json'}
+
 # Default fs creation options
 export PERF_FS_OPTS=${PERF_FS_OPTS:-'-o recsize=8k -o compress=lz4' \
     ' -o checksum=sha256 -o redundant_metadata=most'}
@@ -139,11 +142,13 @@ function do_fio_run_impl
 	# Start the load
 	if [[ $NFS -eq 1 ]]; then
 		log_must ssh -t $NFS_USER@$NFS_CLIENT "
-			fio --output /tmp/fio.out /tmp/test.fio
+			fio --output-format=${PERF_FIO_FORMAT} \
+			    --output /tmp/fio.out /tmp/test.fio
 		"
 		log_must scp $NFS_USER@$NFS_CLIENT:/tmp/fio.out $outfile
 	else
-		log_must fio --output $outfile $FIO_SCRIPTS/$script
+		log_must fio --output-format=${PERF_FIO_FORMAT} \
+		    --output $outfile $FIO_SCRIPTS/$script
 	fi
 }
 
