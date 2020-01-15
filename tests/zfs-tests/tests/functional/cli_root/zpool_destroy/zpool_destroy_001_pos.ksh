@@ -61,7 +61,7 @@ function cleanup
 
 set -A datasets "$TESTPOOL" "$TESTPOOL2"
 
-if ! $(is_physical_device $DISKS) ; then
+if ! is_physical_device $DISKS; then
 	log_unsupported "This case cannot be run on raw files."
 fi
 

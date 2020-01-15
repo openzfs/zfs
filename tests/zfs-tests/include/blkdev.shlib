@@ -260,7 +260,7 @@ function get_device_dir #device
 {
 	typeset device=$1
 
-	if ! is_freebsd && ! $(is_physical_device $device) ; then
+	if ! is_freebsd && ! is_physical_device $device; then
 		if [[ $device != "/" ]]; then
 			device=${device%/*}
 		fi
