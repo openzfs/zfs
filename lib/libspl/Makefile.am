@@ -1,10 +1,20 @@
 include $(top_srcdir)/config/Rules.am
 
+if TARGET_CPU_I386
+TARGET_CPU_DIR = asm-i386
+else
+if TARGET_CPU_X86_64
+TARGET_CPU_DIR = asm-x86_64
+else
+TARGET_CPU_DIR = asm-generic
+endif
+endif
+
 VPATH = \
 	$(top_srcdir)/lib/libspl \
-	$(top_srcdir)/lib/libspl/$(TARGET_ASM_DIR)
+	$(top_srcdir)/lib/libspl/$(TARGET_CPU_DIR)
 
-SUBDIRS = include $(TARGET_ASM_DIR)
+SUBDIRS = include $(TARGET_CPU_DIR)
 DIST_SUBDIRS = include asm-generic asm-i386 asm-x86_64
 
 AM_CFLAGS += $(LIBTIRPC_CFLAGS)
