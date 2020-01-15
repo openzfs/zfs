@@ -98,14 +98,13 @@ function is_physical_device #device
 		return $?
 	elif is_freebsd; then
 		is_disk_device "$DEV_DSKDIR/$device" && \
-		echo $device | grep -q \
-			-e '^a?da[0-9]+$' \
-			-e '^md[0-9]+$' \
-			-e '^mfid[0-9]+$' \
-			-e '^nda[0-9]+$' \
-			-e '^nvd[0-9]+$' \
-			-e '^vtbd[0-9]+$' \
-			> /dev/null 2>&1
+		echo $device | egrep -q \
+		    -e '^a?da[0-9]+$' \
+		    -e '^md[0-9]+$' \
+		    -e '^mfid[0-9]+$' \
+		    -e '^nda[0-9]+$' \
+		    -e '^nvd[0-9]+$' \
+		    -e '^vtbd[0-9]+$'
 		return $?
 	else
 		echo $device | egrep "^c[0-F]+([td][0-F]+)+$" > /dev/null 2>&1
