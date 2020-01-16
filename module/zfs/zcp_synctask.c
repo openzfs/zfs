@@ -15,6 +15,7 @@
 
 /*
  * Copyright (c) 2016, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2019, 2020 by Christian Schwarz. All rights reserved.
  * Copyright 2020 Joyent, Inc.
  */
 
@@ -370,6 +371,49 @@ zcp_synctask_inherit_prop(lua_State *state, boolean_t sync,
 	return (err);
 }
 
+static int zcp_synctask_bookmark(lua_State *, boolean_t, nvlist_t *);
+static zcp_synctask_info_t zcp_synctask_bookmark_info = {
+	.name = "bookmark",
+	.func = zcp_synctask_bookmark,
+	.pargs = {
+	    {.za_name = "snapshot | bookmark", .za_lua_type = LUA_TSTRING},
+	    {.za_name = "bookmark", .za_lua_type = LUA_TSTRING},
+	    {NULL, 0}
+	},
+	.kwargs = {
+	    {NULL, 0}
+	},
+	.space_check = ZFS_SPACE_CHECK_NORMAL,
+	.blocks_modified = 1,
+};
+
+/* ARGSUSED */
+static int
+zcp_synctask_bookmark(lua_State *state, boolean_t sync, nvlist_t *err_details)
+{
+	int err;
+	const char *source = lua_tostring(state, 1);
+	const char *new = lua_tostring(state, 2);
+
+	nvlist_t *bmarks = fnvlist_alloc();
+	fnvlist_add_string(bmarks, new, source);
+
+	zcp_cleanup_handler_t *zch = zcp_register_cleanup(state,
+	    (zcp_cleanup_t *)&fnvlist_free, bmarks);
+
+	dsl_bookmark_create_arg_t dbca = {
+		.dbca_bmarks = bmarks,
+		.dbca_errors = NULL,
+	};
+	err = zcp_sync_task(state, dsl_bookmark_create_check,
+	    dsl_bookmark_create_sync, &dbca, sync, source);
+
+	zcp_deregister_cleanup(state, zch);
+	fnvlist_free(bmarks);
+
+	return (err);
+}
+
 static int
 zcp_synctask_wrapper(lua_State *state)
 {
@@ -439,6 +483,7 @@ zcp_load_synctask_lib(lua_State *state, boolean_t sync)
 		&zcp_synctask_rollback_info,
 		&zcp_synctask_snapshot_info,
 		&zcp_synctask_inherit_prop_info,
+		&zcp_synctask_bookmark_info,
 		NULL
 	};
 

@@ -205,20 +205,6 @@ dsl_bookmark_create_nvl_validate(nvlist_t *bmarks)
 	return (0);
 }
 
-typedef struct dsl_bookmark_create_redacted_arg {
-	const char	*dbcra_bmark;
-	const char	*dbcra_snap;
-	redaction_list_t **dbcra_rl;
-	uint64_t	dbcra_numsnaps;
-	uint64_t	*dbcra_snaps;
-	void		*dbcra_tag;
-} dsl_bookmark_create_redacted_arg_t;
-
-typedef struct dsl_bookmark_create_arg {
-	nvlist_t *dbca_bmarks;
-	nvlist_t *dbca_errors;
-} dsl_bookmark_create_arg_t;
-
 /*
  * expects that newbm and source have been validated using
  * dsl_bookmark_create_nvl_validate_pair
@@ -301,7 +287,7 @@ eholdnewbmds:
 	return (error);
 }
 
-static int
+int
 dsl_bookmark_create_check(void *arg, dmu_tx_t *tx)
 {
 	dsl_bookmark_create_arg_t *dbca = arg;
