@@ -40,14 +40,16 @@
 .Nm
 .Cm destroy
 .Op Fl Rfnprv
+.Op Fl t Ar type Ns Op Ar ,...
 .Ar filesystem Ns | Ns Ar volume
 .Nm
 .Cm destroy
 .Op Fl Rdnprv
+.Op Fl t Ar type Ns Op Ar ,...
 .Ar filesystem Ns | Ns Ar volume Ns @ Ns Ar snap Ns
 .Oo % Ns Ar snap Ns Oo , Ns Ar snap Ns Oo % Ns Ar snap Oc Oc Oc Ns ...
 .Nm
-.Cm destroy
+.Cm destroy Op Fl t Ar type Ns Op Ar ,...
 .Ar filesystem Ns | Ns Ar volume Ns # Ns Ar bookmark
 .Sh DESCRIPTION
 .Bl -tag -width ""
@@ -55,6 +57,7 @@
 .Nm
 .Cm destroy
 .Op Fl Rfnprv
+.Op Fl t Ar type Ns Op Ar ,...
 .Ar filesystem Ns | Ns Ar volume
 .Xc
 Destroys the given dataset.
@@ -62,6 +65,7 @@ By default, the command unshares any file systems that are currently shared,
 unmounts any file systems that are currently mounted, and refuses to destroy a
 dataset that has active dependents
 .Pq children or clones .
+.Pp
 .Bl -tag -width "-R"
 .It Fl R
 Recursively destroy all dependents, including cloned file systems outside the
@@ -85,6 +89,8 @@ flags to determine what data would be deleted.
 Print machine-parsable verbose information about the deleted data.
 .It Fl r
 Recursively destroy all children.
+.It Fl t Ar type Ns Op Ar ,...
+Restrict the types of objects which are allowed to be deleted.
 .It Fl v
 Print verbose information about the deleted data.
 .El
@@ -95,10 +101,17 @@ or the
 .Fl R
 options, as they can destroy large portions of a pool and cause unexpected
 behavior for mounted file systems in use.
+.Pp
+If you explicitly do not want a to destroy a filesystem or volume, the
+.Fl t
+option can restrict
+.Nm zfs destroy
+to only destroying snapshots or bookmarks.
 .It Xo
 .Nm
 .Cm destroy
 .Op Fl Rdnprv
+.Op Fl t Ar type Ns Op Ar ,...
 .Ar filesystem Ns | Ns Ar volume Ns @ Ns Ar snap Ns
 .Oo % Ns Ar snap Ns Oo , Ns Ar snap Ns Oo % Ns Ar snap Oc Oc Oc Ns ...
 .Xc
@@ -156,6 +169,8 @@ Print machine-parsable verbose information about the deleted data.
 Destroy
 .Pq or mark for deferred deletion
 all snapshots with this name in descendent file systems.
+.It Fl t Ar type Ns Op Ar ,...
+Restrict the types of objects which are allowed to be deleted.
 .It Fl v
 Print verbose information about the deleted data.
 .Pp
@@ -165,13 +180,22 @@ or the
 .Fl R
 options, as they can destroy large portions of a pool and cause unexpected
 behavior for mounted file systems in use.
+.Pp
+If you explicitly want to only destroy a snapshot or volume, the
+.Fl t
+option makes
+.Nm zfs destroy Fl r
+safer by only allowing the destruction of snapshots or bookmarks.
 .El
 .It Xo
 .Nm
-.Cm destroy
+.Cm destroy Op Fl t Ar type Ns Op Ar ,...
 .Ar filesystem Ns | Ns Ar volume Ns # Ns Ar bookmark
 .Xc
 The given bookmark is destroyed.
+.Bl -tag -width ""
+.It Fl t Ar type Ns Op Ar ,...
+Restrict the types of objects which are allowed to be deleted.
 .El
 .Sh SEE ALSO
 .Xr zfs-create 8 ,

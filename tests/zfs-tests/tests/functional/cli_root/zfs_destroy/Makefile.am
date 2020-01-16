@@ -20,6 +20,7 @@ dist_pkgdata_SCRIPTS = \
 	zfs_destroy_014_pos.ksh \
 	zfs_destroy_015_pos.ksh \
 	zfs_destroy_016_pos.ksh \
+	zfs_destroy_017_pos.ksh \
 	zfs_destroy_clone_livelist.ksh \
 	zfs_destroy_dev_removal.ksh \
 	zfs_destroy_dev_removal_condense.ksh
