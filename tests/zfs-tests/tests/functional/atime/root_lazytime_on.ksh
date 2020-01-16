@@ -26,33 +26,36 @@
 #
 
 #
-# Copyright (c) 2016 by Delphix. All rights reserved.
+# Copyright (c) 2019 by Tomohiro Kusumi. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/atime/atime_common.kshlib
 
 #
 # DESCRIPTION:
-# When atime=on, verify the access time for files is updated when read. It
-# is available to fs and clone. To snapshot, it is unavailable.
+# When lazytime=on, verify the access time for files is updated when first
+# read but not on second.
+# It is available to fs and clone. To snapshot, it is unavailable.
 #
 # STRATEGY:
 # 1. Create pool and fs.
 # 2. Create '$TESTFILE' for fs.
 # 3. Create snapshot and clone.
-# 4. Setting atime=on on datasets except snapshot, and read '$TESTFILE'.
-# 5. Expect the access time is updated on datasets except snapshot.
+# 4. Setting atime=on and lazytime=on on datasets.
+# 5. Expect the access time is updated for first read but not on second.
 #
 
 verify_runnable "both"
 
-log_assert "Setting atime=on, the access time for files is updated when read."
+log_assert "Setting lazytime=on, the access time for files is updated when read."
 log_onexit cleanup
 
 #
 # Create $TESTFILE, snapshot and clone.
+# Same as 003 except that atime/lazytime applies to root dataset (ZoL#8675).
 #
 setup_snap_clone
+reset_atime
 
 for dst in $TESTPOOL/$TESTFS $TESTPOOL/$TESTCLONE $TESTPOOL/$TESTFS@$TESTSNAP
 do
@@ -62,15 +65,11 @@ do
 		mtpt=$(snapshot_mountpoint $dst)
 		log_mustnot check_atime_updated $mtpt/$TESTFILE
 	else
-		if is_linux; then
-			log_must zfs set relatime=off $dst
-			log_must zfs set lazytime=off $dst
-		fi
-
-		log_must zfs set atime=on $dst
+		log_must zfs set atime=on $(dirname $dst)
+		log_must zfs set lazytime=on $(dirname $dst)
 		log_must check_atime_updated $mtpt/$TESTFILE
 		log_must check_atime_updated $mtpt/$TESTFILE
 	fi
 done
 
-log_pass "Verify the property atime=on passed."
+log_pass "Verify the property lazytime=on passed."

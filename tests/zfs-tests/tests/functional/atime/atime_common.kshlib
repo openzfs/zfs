@@ -93,6 +93,9 @@ function reset_atime
 	zfs inherit relatime $TESTPOOL
 	zfs inherit relatime $TESTPOOL/$TESTFS
 	zfs inherit relatime $TESTPOOL/$TESTCLONE
+	zfs inherit lazytime $TESTPOOL
+	zfs inherit lazytime $TESTPOOL/$TESTFS
+	zfs inherit lazytime $TESTPOOL/$TESTCLONE
 }
 
 function cleanup

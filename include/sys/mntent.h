@@ -73,6 +73,7 @@
 #define	MNTOPT_STRICTATIME "strictatime" /* strict access time updates */
 #define	MNTOPT_NOSTRICTATIME "nostrictatime" /* No strict access time updates */
 #define	MNTOPT_LAZYTIME "lazytime"	/* Defer access time writing */
+#define	MNTOPT_NOLAZYTIME "nolazytime"	/* No defer access time writing */
 #ifdef __linux__
 #define	MNTOPT_SETUID	"suid"		/* Both setuid and devices allowed */
 #define	MNTOPT_NOSETUID	"nosuid"	/* Neither setuid nor devices allowed */

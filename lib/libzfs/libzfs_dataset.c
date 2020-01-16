@@ -1832,6 +1832,7 @@ zfs_is_namespace_prop(zfs_prop_t prop)
 
 	case ZFS_PROP_ATIME:
 	case ZFS_PROP_RELATIME:
+	case ZFS_PROP_LAZYTIME:
 	case ZFS_PROP_DEVICES:
 	case ZFS_PROP_EXEC:
 	case ZFS_PROP_SETUID:
@@ -2277,6 +2278,11 @@ get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
 		mntopt_off = MNTOPT_NORELATIME;
 		break;
 
+	case ZFS_PROP_LAZYTIME:
+		mntopt_on = MNTOPT_LAZYTIME;
+		mntopt_off = MNTOPT_NOLAZYTIME;
+		break;
+
 	case ZFS_PROP_DEVICES:
 		mntopt_on = MNTOPT_DEVICES;
 		mntopt_off = MNTOPT_NODEVICES;
@@ -2340,6 +2346,7 @@ get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
 	switch (prop) {
 	case ZFS_PROP_ATIME:
 	case ZFS_PROP_RELATIME:
+	case ZFS_PROP_LAZYTIME:
 	case ZFS_PROP_DEVICES:
 	case ZFS_PROP_EXEC:
 	case ZFS_PROP_READONLY:

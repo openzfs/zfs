@@ -642,7 +642,7 @@ and
 mount options. The default value is
 .Sy on .
 See also
-.Sy relatime
+.Sy relatime/lazytime
 below.
 .It Sy canmount Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Sy noauto
 If this property is set to
@@ -1410,6 +1410,22 @@ are equivalent to the
 and
 .Sy norelatime
 mount options.
+.It Sy lazytime Ns = Ns Sy on Ns | Ns Sy off
+Controls the manner in which the access time is updated when
+.Sy atime=on
+is set. Turning this property on causes the access time to be updated in memory and
+flushed to disk only when the inode needs to be changed for other resons.
+The default value is
+.Sy off .
+The values
+.Sy on
+and
+.Sy off
+are equivalent to the
+.Sy lazytime
+and
+.Sy nolazytime
+mount options.
 .It Sy reservation Ns = Ns Em size Ns | Ns Sy none
 The minimum amount of space guaranteed to a dataset and its descendants.
 When the amount of space used is below this value, the dataset is treated as if
@@ -1831,6 +1847,7 @@ The correlation between properties and mount options is as follows:
     exec                    exec/noexec
     readonly                ro/rw
     relatime                relatime/norelatime
+    lazytime                lazytime/nolazytime
     setuid                  suid/nosuid
     xattr                   xattr/noxattr
 .Ed
