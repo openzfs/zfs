@@ -9,6 +9,7 @@
 .\"
 .\"
 .\" Copyright (c) 2016, 2019 by Delphix. All Rights Reserved.
+.\" Copyright (c) 2019, 2020 by Christian Schwarz. All Rights Reserved.
 .\" Copyright 2020 Joyent, Inc.
 .\"
 .Dd January 15, 2020
@@ -419,6 +420,21 @@ dataset (string)
 .Bd -ragged -compact -offset "xxxx"
 Name of snapshot to create.
 .Ed
+.It Em zfs.sync.bookmark(source, newbookmark)
+Create a bookmark of an existing source snapshot or bookmark.
+Returns 0 if the new bookmark was successfully created,
+and a nonzero error code otherwise.
+.Pp
+Note: Bookmarking requires the corresponding pool feature to be enabled.
+.Pp
+source (string)
+.Bd -ragged -compact -offset "xxxx"
+Full name of the existing snapshot or bookmark.
+.Ed
+.Pp
+newbookmark (string)
+.Bd -ragged -compact -offset "xxxx"
+Full name of the new bookmark.
 .El
 .It Sy zfs.check submodule
 For each function in the zfs.sync submodule, there is a corresponding zfs.check

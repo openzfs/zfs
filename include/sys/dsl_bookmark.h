@@ -102,8 +102,25 @@ typedef struct redact_block_phys {
 
 typedef int (*rl_traverse_callback_t)(redact_block_phys_t *, void *);
 
+
+typedef struct dsl_bookmark_create_arg {
+	nvlist_t *dbca_bmarks;
+	nvlist_t *dbca_errors;
+} dsl_bookmark_create_arg_t;
+
+typedef struct dsl_bookmark_create_redacted_arg {
+	const char	*dbcra_bmark;
+	const char	*dbcra_snap;
+	redaction_list_t **dbcra_rl;
+	uint64_t	dbcra_numsnaps;
+	uint64_t	*dbcra_snaps;
+	void		*dbcra_tag;
+} dsl_bookmark_create_redacted_arg_t;
+
 int dsl_bookmark_create(nvlist_t *, nvlist_t *);
 int dsl_bookmark_create_nvl_validate(nvlist_t *);
+int dsl_bookmark_create_check(void *arg, dmu_tx_t *tx);
+void dsl_bookmark_create_sync(void *arg, dmu_tx_t *tx);
 int dsl_bookmark_create_redacted(const char *, const char *, uint64_t,
     uint64_t *, void *, redaction_list_t **);
 int dsl_get_bookmarks(const char *, nvlist_t *, nvlist_t *);
