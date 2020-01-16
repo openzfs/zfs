@@ -35,7 +35,7 @@
 verify_runnable "global"
 verify_disk_count "$DISKS" 2
 
-if ! $(is_physical_device $ZFS_DISK1) ; then
+if ! is_physical_device $ZFS_DISK1; then
 	log_unsupported "Only partitionable physical disks can be used"
 fi
 
