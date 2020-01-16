@@ -191,7 +191,6 @@ maybe = {
     'cli_root/zfs_snapshot/zfs_snapshot_002_neg': ['FAIL', known_reason],
     'cli_root/zfs_unshare/setup': ['SKIP', share_reason],
     'cli_root/zpool_add/zpool_add_004_pos': ['FAIL', known_reason],
-    'cli_root/zpool_create/zpool_create_008_pos': ['FAIL', known_reason],
     'cli_root/zpool_destroy/zpool_destroy_001_pos': ['SKIP', '6145'],
     'cli_root/zpool_import/import_rewind_device_replaced':
         ['FAIL', rewind_reason],
