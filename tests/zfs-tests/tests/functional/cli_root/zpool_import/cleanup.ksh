@@ -47,20 +47,4 @@ for dir in "$TESTDIR" "$TESTDIR1" "$DEVICE_DIR" ; do
 		log_must rm -rf $dir
 done
 
-DISK=${DISKS%% *}
-if is_mpath_device $DISK; then
-	delete_partitions
-fi
-# recreate and destroy a zpool over the disks to restore the partitions to
-# normal
-case $DISK_COUNT in
-0|1)
-	log_note "No disk devices to restore"
-	;;
-*)
-	log_must cleanup_devices $ZFS_DISK1
-	log_must cleanup_devices $ZFS_DISK2
-	;;
-esac
-
 log_pass
