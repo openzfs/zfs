@@ -1863,7 +1863,7 @@ typedef struct status_cbdata {
 	boolean_t	cb_literal;
 	boolean_t	cb_explain;
 	boolean_t	cb_first;
-	boolean_t	cb_dedup_stats;
+	int		cb_dedup_stats;
 	boolean_t	cb_print_status;
 	boolean_t	cb_print_slow_ios;
 	boolean_t	cb_print_vdev_init;
@@ -7560,6 +7560,7 @@ print_dedup_stats(zpool_handle_t *zhp, nvlist_t *config, boolean_t literal)
 	char dspace[32], mspace[32], cspace[32];
 	uint64_t cspace_prop;
 	enum zfs_nicenum_format format;
+	zprop_source_t src;
 
 	/*
 	 * If the pool was faulted then we may not have been able to
@@ -7577,19 +7578,26 @@ print_dedup_stats(zpool_handle_t *zhp, nvlist_t *config, boolean_t literal)
 		return;
 	}
 
-	/* Squash cached size into in-core size to handle race. */
-	cspace_prop = MIN(zpool_get_prop_int(zhp, ZPOOL_PROP_DEDUPCACHED, NULL),
+	/*
+	 * Squash cached size into in-core size to handle race.
+	 * Only include cached size if it is available.
+	 */
+	cspace_prop = MIN(zpool_get_prop_int(zhp, ZPOOL_PROP_DEDUPCACHED, &src),
 	    ddo->ddo_mspace);
 	format = literal ? ZFS_NICENUM_RAW : ZFS_NICENUM_1024;
 	zfs_nicenum_format(cspace_prop, cspace, sizeof (cspace), format);
 	zfs_nicenum_format(ddo->ddo_dspace, dspace, sizeof (dspace), format);
 	zfs_nicenum_format(ddo->ddo_mspace, mspace, sizeof (mspace), format);
-	(void) printf("DDT entries %llu, size %s on disk, %s in core, %s cached (%.02f%%)\n",
+	(void) printf("DDT entries %llu, size %s on disk, %s in core",
 	    (u_longlong_t)ddo->ddo_count,
 	    dspace,
-	    mspace,
-	    cspace,
-	    (double)cspace_prop / (double)ddo->ddo_mspace * 100.0);
+	    mspace);
+	if (src != ZPROP_SRC_DEFAULT) {
+		(void) printf(", %s cached (%.02f%%)",
+		    cspace,
+		    (double)cspace_prop / (double)ddo->ddo_mspace * 100.0);
+	}
+	(void) printf("\n");
 
 	verify(nvlist_lookup_uint64_array(config, ZPOOL_CONFIG_DDT_STATS,
 	    (uint64_t **)&dds, &c) == 0);
@@ -7626,7 +7634,7 @@ status_callback(zpool_handle_t *zhp, void *data)
 	vdev_stat_t *vs;
 
 	/* If dedup stats were requested, also fetch dedupcached. */
-	if (cbp->cb_dedup_stats)
+	if (cbp->cb_dedup_stats > 1)
 		zpool_add_propname(zhp, "dedupcached");
 
 	config = zpool_get_config(zhp, NULL);
@@ -8161,7 +8169,7 @@ zpool_do_status(int argc, char **argv)
 			cb.cb_explain = B_TRUE;
 			break;
 		case 'D':
-			cb.cb_dedup_stats = B_TRUE;
+			cb.cb_dedup_stats++;
 			break;
 		case 't':
 			cb.cb_print_vdev_trim = B_TRUE;

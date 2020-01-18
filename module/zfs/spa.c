@@ -289,6 +289,10 @@ spa_prop_add(spa_t *spa, const char *propname, nvlist_t *outnvl)
 	zprop_source_t src = ZPROP_SRC_NONE;
 	uint64_t intval;
 
+	/*
+	 * NB: Not all special properties looked up via this API require
+	 *     the spa props lock, so they must explicitly grab here.
+	 */
 	switch (prop) {
 	case ZPOOL_PROP_DEDUPCACHED:
 		intval = ddt_get_pool_dedup_cached(spa);
@@ -317,13 +321,9 @@ spa_prop_get_nvlist(spa_t *spa, char **props, unsigned int n_props,
 			return (err);
 	}
 
-	mutex_enter(&spa->spa_props_lock);
-
 	for (unsigned int i = 0; i < n_props && err == 0; i++) {
 		err = spa_prop_add(spa, props[i], *outnvl);
 	}
-
-	mutex_exit(&spa->spa_props_lock);
 
 	return (err);
 }

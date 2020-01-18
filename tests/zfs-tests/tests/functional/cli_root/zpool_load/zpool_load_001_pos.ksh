@@ -46,8 +46,8 @@ function getddtstats
 	typeset -n gds=$1
 	typeset pool=$2
 
-	out=$(zpool status -Dp $pool | awk '/^ dedup: / {print $6 " " $9 " " $12}')
-	log_note "status -Dp output: ${out}"
+	out=$(zpool status -DDp $pool | awk '/^ dedup: / {print $6 " " $9 " " $12}')
+	log_note "status -DDp output: ${out}"
 
 	gds.ondisk=$(echo $out | cut -d" " -f1)
 	gds.incore=$(echo $out | cut -d" " -f2)
