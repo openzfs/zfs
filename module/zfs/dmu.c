@@ -1602,24 +1602,33 @@ dmu_object_cached_size(objset_t *os, uint64_t object,
     uint64_t *l1sz, uint64_t *l2sz)
 {
 	dnode_t *dn;
+	dmu_object_info_t doi;
+	int level = 1;
 
 	*l1sz = *l2sz = 0;
 
 	if (dnode_hold(os, object, FTAG, &dn) != 0)
 		return;
 
+	dmu_object_info_from_dnode(dn, &doi);
+
+	for (uint64_t off = 0; off < doi.doi_max_offset;
+	    off += dmu_prefetch_max) {
+		/* dbuf_read doesn't prefetch L1 blocks. */
+		dmu_prefetch(os, object, level, off,
+		    dmu_prefetch_max, ZIO_PRIORITY_NOW);
+	}
+
 	/*
 	 * Hold all valid L1 blocks, asking ARC the status of each BP
 	 * contained in each such L1 block.
 	 */
-	uint8_t nbps = bp_span_in_blocks(dn->dn_indblkshift, 1);
-	int epbs = dn->dn_indblkshift - SPA_BLKPTRSHIFT;
-	for (uint64_t indblkid = 0;
-	    indblkid <= (dn->dn_maxblkid >> epbs) + 1;
-	    indblkid++) {
+	uint8_t nbps = bp_span_in_blocks(dn->dn_indblkshift, level);
+	for (uint64_t off = 0; off < doi.doi_max_offset;
+	    off += doi.doi_metadata_block_size) {
 		dmu_buf_impl_t *db = NULL;
-		int err = dbuf_hold_impl(dn, 1, indblkid, B_TRUE, B_FALSE,
-		    FTAG, &db);
+		int err = dbuf_hold_impl(dn, level, off >> dn->dn_indblkshift,
+		    B_TRUE, B_FALSE, FTAG, &db);
 		if (err != 0)
 			continue;
 
@@ -1629,6 +1638,9 @@ dmu_object_cached_size(objset_t *os, uint64_t object,
 			    nbps, l1sz, l2sz);
 		}
 		dbuf_rele(db, FTAG);
+
+		if (issig(JUSTLOOKING) && issig(FORREAL))
+			break;
 	}
 
 	dnode_rele(dn, FTAG);
