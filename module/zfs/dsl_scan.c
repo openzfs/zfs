@@ -24,6 +24,7 @@
  * Copyright 2016 Gary Mills
  * Copyright (c) 2017, 2019, Datto Inc. All rights reserved.
  * Copyright 2019 Joyent, Inc.
+ * Copyright 2019 Nexenta by DDN, Inc. All rights reserved.
  */
 
 #include <sys/dsl_scan.h>
@@ -690,6 +691,16 @@ dsl_scan_setup_check(void *arg, dmu_tx_t *tx)
 	if (dsl_scan_is_running(scn))
 		return (SET_ERROR(EBUSY));
 
+	/*
+	 * We are here because a user has requested scrub.
+	 * 'scn_restart_txg != 0' means resilver has been
+	 * scheduled for the txg and in this case scrub
+	 * should not be issued
+	 */
+	if (dmu_tx_is_syncing(tx) && scn->scn_restart_txg != 0 &&
+	    scn->scn_restart_txg > tx->tx_txg)
+		return (SET_ERROR(EBUSY));
+
 	return (0);
 }
 
@@ -730,6 +741,7 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 		    &scn->scn_phys.scn_min_txg, &scn->scn_phys.scn_max_txg)) {
 			spa_event_notify(spa, NULL, NULL,
 			    ESC_ZFS_RESILVER_START);
+			scn->scn_phys.scn_func = POOL_SCAN_RESILVER;
 		} else {
 			spa_event_notify(spa, NULL, NULL, ESC_ZFS_SCRUB_START);
 		}
@@ -767,7 +779,8 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 
 	spa_history_log_internal(spa, "scan setup", tx,
 	    "func=%u mintxg=%llu maxtxg=%llu",
-	    *funcp, (u_longlong_t)scn->scn_phys.scn_min_txg,
+	    (int)scn->scn_phys.scn_func,
+	    (u_longlong_t)scn->scn_phys.scn_min_txg,
 	    (u_longlong_t)scn->scn_phys.scn_max_txg);
 }
 
@@ -3469,6 +3482,14 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 		zfs_dbgmsg("restarting scan func=%u txg=%llu",
 		    func, (longlong_t)tx->tx_txg);
 		dsl_scan_setup_sync(&func, tx);
+	} else if (dsl_scan_scrubbing(dp) &&
+	    vdev_resilver_needed(spa->spa_root_vdev, NULL, NULL)) {
+		/*
+		 * The active scrub needs to be canceled
+		 * if resilvering is required to avoid checksum errors
+		 */
+		dsl_scan_done(scn, B_FALSE, tx);
+		dsl_scan_sync_state(scn, tx, SYNC_MANDATORY);
 	}
 
 	/*
