@@ -71,6 +71,9 @@ zfs_init_vattr(vattr_t *vap, uint64_t mask, uint64_t mode,
 	bzero(vap, sizeof (*vap));
 	vap->va_mask = (uint_t)mask;
 	vap->va_mode = mode;
+#ifdef __FreeBSD__
+	vap->va_type = IFTOVT(mode);
+#endif
 	vap->va_uid = (uid_t)(IS_EPHEMERAL(uid)) ? -1 : uid;
 	vap->va_gid = (gid_t)(IS_EPHEMERAL(gid)) ? -1 : gid;
 	vap->va_rdev = zfs_cmpldev(rdev);
@@ -419,9 +422,12 @@ zfs_replay_create_acl(void *arg1, void *arg2, boolean_t byteswap)
 	}
 
 bail:
-	if (error == 0 && zp != NULL)
+	if (error == 0 && zp != NULL) {
+#ifdef __FreeBSD__
+		VOP_UNLOCK1(ZTOV(zp));
+#endif
 		zrele(zp);
-
+	}
 	zrele(dzp);
 
 	if (zfsvfs->z_fuid_replay)
@@ -503,9 +509,6 @@ zfs_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 		    lr->lr_uid, lr->lr_gid);
 	}
 
-#ifdef __FreeBSD__
-	vn_lock(ZTOV(dzp), LK_EXCLUSIVE | LK_RETRY);
-#endif
 	switch (txtype) {
 	case TX_CREATE_ATTR:
 		lrattr = (lr_attr_t *)(caddr_t)(lr + 1);
@@ -556,13 +559,13 @@ zfs_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 		error = SET_ERROR(ENOTSUP);
 	}
 
-#ifdef __FreeBSD__
-	VOP_UNLOCK(ZTOV(dzp), 0);
-#endif
 out:
-	if (error == 0 && zp != NULL)
+	if (error == 0 && zp != NULL) {
+#ifdef __FreeBSD__
+		VOP_UNLOCK1(ZTOV(zp));
+#endif
 		zrele(zp);
-
+	}
 	zrele(dzp);
 
 	if (zfsvfs->z_fuid_replay)
@@ -590,9 +593,6 @@ zfs_replay_remove(void *arg1, void *arg2, boolean_t byteswap)
 	if (lr->lr_common.lrc_txtype & TX_CI)
 		vflg |= FIGNORECASE;
 
-#ifdef __FreeBSD__
-	vn_lock(ZTOV(dzp), LK_EXCLUSIVE | LK_RETRY);
-#endif
 	switch ((int)lr->lr_common.lrc_txtype) {
 	case TX_REMOVE:
 		error = zfs_remove(dzp, name, kcred, vflg);
@@ -604,9 +604,6 @@ zfs_replay_remove(void *arg1, void *arg2, boolean_t byteswap)
 		error = SET_ERROR(ENOTSUP);
 	}
 
-#ifdef __FreeBSD__
-	VOP_UNLOCK(ZTOV(dzp), 0);
-#endif
 	zrele(dzp);
 
 	return (error);
@@ -636,15 +633,7 @@ zfs_replay_link(void *arg1, void *arg2, boolean_t byteswap)
 	if (lr->lr_common.lrc_txtype & TX_CI)
 		vflg |= FIGNORECASE;
 
-#ifdef __FreeBSD__
-	vn_lock(ZTOV(dzp), LK_EXCLUSIVE | LK_RETRY);
-	vn_lock(ZTOV(zp), LK_EXCLUSIVE | LK_RETRY);
-#endif
 	error = zfs_link(dzp, zp, name, kcred, vflg);
-#ifdef __FreeBSD__
-	VOP_UNLOCK(ZTOV(zp), 0);
-	VOP_UNLOCK(ZTOV(dzp), 0);
-#endif
 	zrele(zp);
 	zrele(dzp);
 
@@ -680,7 +669,6 @@ zfs_replay_rename(void *arg1, void *arg2, boolean_t byteswap)
 
 	zrele(tdzp);
 	zrele(sdzp);
-
 	return (error);
 }
 
