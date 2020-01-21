@@ -2344,7 +2344,9 @@ get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
 	case ZFS_PROP_EXEC:
 	case ZFS_PROP_READONLY:
 	case ZFS_PROP_SETUID:
+#ifndef __FreeBSD__
 	case ZFS_PROP_XATTR:
+#endif
 	case ZFS_PROP_NBMAND:
 		*val = getprop_uint64(zhp, prop, source);
 

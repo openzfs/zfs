@@ -2894,8 +2894,5 @@ error:
 	return (ret);
 }
 
-#if defined(_KERNEL)
-module_param(zfs_disable_ivset_guid_check, int, 0644);
-MODULE_PARM_DESC(zfs_disable_ivset_guid_check,
+ZFS_MODULE_PARAM(zfs, zfs_, disable_ivset_guid_check, INT, ZMOD_RW,
 	"Set to allow raw receives without IVset guids");
-#endif
