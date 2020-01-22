@@ -36,7 +36,7 @@
 #include <sys/zio_crypt.h>
 #include "lac/cpa_cy_im.h"
 #include "lac/cpa_cy_common.h"
-#include <sys/qat.h>
+#include "qat.h"
 
 /*
  * Max instances in a QAT device, each instance is a channel to submit

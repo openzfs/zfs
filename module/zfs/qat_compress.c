@@ -28,7 +28,7 @@
 #include <sys/zfs_context.h>
 #include <sys/byteorder.h>
 #include <sys/zio.h>
-#include <sys/qat.h>
+#include "qat.h"
 
 /*
  * Max instances in a QAT device, each instance is a channel to submit
