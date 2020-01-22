@@ -6,6 +6,7 @@ After=local-fs.target
 Requires=systemd-udev-settle.service
 After=systemd-udev-settle.service
 After=cryptsetup.target
+After=multipathd.target
 Before=zfs-import.target
 ConditionPathExists=!@sysconfdir@/zfs/zpool.cache
 
