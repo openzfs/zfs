@@ -3694,8 +3694,9 @@ Default value: \fB0\fR.
 .ad
 .RS 12n
 Max number of threads which can handle zvol I/O requests concurrently.
+The default value of 0 will create two threads per cpu, up to 8 threads.
 .sp
-Default value: \fB32\fR.
+Default value: \fB0\fR.
 .RE
 
 .sp

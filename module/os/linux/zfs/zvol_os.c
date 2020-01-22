@@ -42,7 +42,7 @@ unsigned int zvol_major = ZVOL_MAJOR;
 unsigned int zvol_request_sync = 0;
 unsigned int zvol_prefetch_bytes = (128 * 1024);
 unsigned long zvol_max_discard_blocks = 16384;
-unsigned int zvol_threads = 32;
+unsigned int zvol_threads = 0;
 
 struct zvol_state_os {
 	struct gendisk		*zvo_disk;	/* generic disk */
@@ -1025,8 +1025,11 @@ const static zvol_platform_ops_t zvol_linux_ops = {
 int
 zvol_init(void)
 {
+	int threads = MIN(2 * boot_ncpus, 8);
 	int error;
-	int threads = MIN(MAX(zvol_threads, 1), 1024);
+
+	if (zvol_threads != 0)
+		threads = MIN(MAX(zvol_threads, 1), 1024);
 
 	error = register_blkdev(zvol_major, ZVOL_DRIVER);
 	if (error) {
@@ -1034,7 +1037,7 @@ zvol_init(void)
 		return (error);
 	}
 	zvol_taskq = taskq_create(ZVOL_DRIVER, threads, maxclsyspri,
-	    threads * 2, INT_MAX, TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
+	    threads * 2, INT_MAX, TASKQ_PREPOPULATE);
 	if (zvol_taskq == NULL) {
 		unregister_blkdev(zvol_major, ZVOL_DRIVER);
 		return (-ENOMEM);
