@@ -47,6 +47,9 @@
 
 function cleanup {
 	log_must rm $TESTDIR/myfile.$$
+	if is_freebsd; then
+		log_must rm /tmp/xattr.$$
+	fi
 }
 
 function get_pool_size {
@@ -79,7 +82,17 @@ fi
 
 FS_SIZE=$(zfs get -p -H -o value used $TESTPOOL/$TESTFS)
 
-if is_linux; then
+if is_freebsd; then
+	# FreeBSD setextattr has awful scaling with respect to input size.
+	# It reallocs after every 1024 bytes. For now we'll just break up
+	# the 200MB into 10 20MB attributes, but this test could be revisited
+	# if someone cared about large extattrs and improves setextattr -i.
+	log_must mkfile 20m /tmp/xattr.$$
+	for i in {0..10}; do
+		log_must eval "set_xattr_stdin xattr$i $TESTDIR/myfile.$$ \
+		    < /tmp/xattr.$$"
+	done
+elif is_linux; then
 	# Linux setxattr() syscalls limits individual xattrs to 64k.  Create
 	# 100 files, with 128 xattrs each of size 16k.  100*128*16k=200m
 	log_must xattrtest -k -f 100 -x 128 -s 16384 -p $TESTDIR

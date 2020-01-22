@@ -130,10 +130,3 @@ tags = ['functional', 'upgrade']
 tests = ['groupspace_001_pos', 'groupspace_002_pos', 'groupspace_003_pos',
     'userquota_013_pos', 'userspace_003_pos']
 tags = ['functional', 'userquota']
-
-[tests/functional/xattr:Linux]
-tests = ['xattr_001_pos', 'xattr_002_neg', 'xattr_003_neg', 'xattr_004_pos',
-    'xattr_005_pos', 'xattr_006_pos', 'xattr_007_neg', 'xattr_008_pos',
-    'xattr_009_neg', 'xattr_010_neg', 'xattr_011_pos', 'xattr_012_pos',
-    'xattr_013_pos']
-tags = ['functional', 'xattr']
