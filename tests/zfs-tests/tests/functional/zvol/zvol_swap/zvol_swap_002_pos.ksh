@@ -56,6 +56,8 @@ function cleanup
 
 log_assert "Using a zvol as swap space, fill /var/tmp to 80%."
 
+log_onexit cleanup
+
 vol=$TESTPOOL/$TESTVOL
 swapdev=${ZVOL_DEVDIR}/$vol
 log_must swap_setup $swapdev

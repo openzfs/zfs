@@ -55,10 +55,25 @@ tests = ['zfeature_set_unsupported', 'zfs_get_unsupported',
     'zpool_set_unsupported']
 tags = ['functional', 'cli_root', 'zfs_sysfs']
 
+[tests/functional/cli_root/zpool_add:Linux]
+tests = ['add_nested_replacing_spare']
+tags = ['functional', 'cli_root', 'zpool_add']
+
 [tests/functional/cli_root/zpool_events:Linux]
 tests = ['zpool_events_clear', 'zpool_events_cliargs', 'zpool_events_follow',
     'zpool_events_poolname', 'zpool_events_errors']
 tags = ['functional', 'cli_root', 'zpool_events']
+
+[tests/functional/cli_root/zpool_expand:Linux]
+tests = ['zpool_expand_001_pos', 'zpool_expand_002_pos',
+    'zpool_expand_003_neg', 'zpool_expand_004_pos', 'zpool_expand_005_pos']
+tags = ['functional', 'cli_root', 'zpool_expand']
+
+[tests/functional/cli_root/zpool_reopen:Linux]
+tests = ['zpool_reopen_001_pos', 'zpool_reopen_002_pos',
+    'zpool_reopen_003_pos', 'zpool_reopen_004_pos', 'zpool_reopen_005_pos',
+    'zpool_reopen_006_neg', 'zpool_reopen_007_pos']
+tags = ['functional', 'cli_root', 'zpool_reopen']
 
 [tests/functional/compression:Linux]
 tests = ['compress_004_pos']
@@ -79,7 +94,10 @@ tests = ['events_001_pos', 'events_002_pos', 'zed_rc_filter']
 tags = ['functional', 'events']
 
 [tests/functional/fault:Linux]
-tests = ['auto_spare_ashift', 'scrub_after_resilver', 'zpool_status_-s']
+tests = ['auto_offline_001_pos', 'auto_online_001_pos', 'auto_replace_001_pos',
+    'auto_spare_001_pos', 'auto_spare_002_pos', 'auto_spare_multiple',
+    'auto_spare_ashift', 'auto_spare_shared', 'decrypt_fault',
+    'decompress_fault', 'scrub_after_resilver', 'zpool_status_-s']
 tags = ['functional', 'fault']
 
 [tests/functional/features/large_dnode:Linux]
@@ -93,6 +111,17 @@ tags = ['functional', 'io']
 [tests/functional/mmap:Linux]
 tests = ['mmap_libaio_001_pos']
 tags = ['functional', 'mmap']
+
+[tests/functional/mmp:Linux]
+tests = ['mmp_on_thread', 'mmp_on_uberblocks', 'mmp_on_off', 'mmp_interval',
+    'mmp_active_import', 'mmp_inactive_import', 'mmp_exported_import',
+    'mmp_write_uberblocks', 'mmp_reset_interval', 'multihost_history',
+    'mmp_on_zdb', 'mmp_write_distribution', 'mmp_hostid']
+tags = ['functional', 'mmp']
+
+[tests/functional/mount:Linux]
+tests = ['umount_unlinked_drain']
+tags = ['functional', 'mount']
 
 [tests/functional/procfs:Linux]
 tests = ['procfs_list_basic', 'procfs_list_concurrent_readers',
