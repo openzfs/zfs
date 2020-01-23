@@ -2342,12 +2342,6 @@ dmu_send_impl(struct dmu_send_params *dspp)
 		return (err);
 	}
 
-	from_arg = kmem_zalloc(sizeof (*from_arg), KM_SLEEP);
-	to_arg = kmem_zalloc(sizeof (*to_arg), KM_SLEEP);
-	rlt_arg = kmem_zalloc(sizeof (*rlt_arg), KM_SLEEP);
-	smt_arg = kmem_zalloc(sizeof (*smt_arg), KM_SLEEP);
-	spt_arg = kmem_zalloc(sizeof (*spt_arg), KM_SLEEP);
-
 	/*
 	 * If we're doing a redacted send, hold the bookmark's redaction list.
 	 */
@@ -2381,6 +2375,12 @@ dmu_send_impl(struct dmu_send_params *dspp)
 	}
 
 	dsl_dataset_long_hold(to_ds, FTAG);
+
+	from_arg = kmem_zalloc(sizeof (*from_arg), KM_SLEEP);
+	to_arg = kmem_zalloc(sizeof (*to_arg), KM_SLEEP);
+	rlt_arg = kmem_zalloc(sizeof (*rlt_arg), KM_SLEEP);
+	smt_arg = kmem_zalloc(sizeof (*smt_arg), KM_SLEEP);
+	spt_arg = kmem_zalloc(sizeof (*spt_arg), KM_SLEEP);
 
 	drr = create_begin_record(dspp, os, featureflags);
 	dssp = setup_send_progress(dspp);
