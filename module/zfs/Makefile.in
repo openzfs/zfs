@@ -143,4 +143,11 @@ $(MODULE)-$(CONFIG_X86) += vdev_raidz_math_avx512bw.o
 $(MODULE)-$(CONFIG_ARM64) += vdev_raidz_math_aarch64_neon.o
 $(MODULE)-$(CONFIG_ARM64) += vdev_raidz_math_aarch64_neonx2.o
 
+$(MODULE)-$(CONFIG_PPC) += vdev_raidz_math_powerpc_altivec.o
+$(MODULE)-$(CONFIG_PPC64) += vdev_raidz_math_powerpc_altivec.o
+
+ifeq ($(CONFIG_ALTIVEC),y)
+$(obj)/vdev_raidz_math_powerpc_altivec.o: c_flags += -maltivec
+endif
+
 -include @abs_top_builddir@/module/os/linux/zfs/Makefile

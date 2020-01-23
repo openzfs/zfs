@@ -30,6 +30,9 @@
 
 #elif defined(__aarch64__)
 #include <linux/simd_aarch64.h>
+
+#elif defined(__powerpc__)
+#include <linux/simd_powerpc.h>
 #else
 
 #define	kfpu_allowed()		0
