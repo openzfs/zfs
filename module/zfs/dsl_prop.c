@@ -22,7 +22,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
  * Copyright (c) 2013 Martin Matuska. All rights reserved.
- * Copyright 2015, Joyent, Inc.
+ * Copyright 2019 Joyent, Inc.
  */
 
 #include <sys/zfs_context.h>
@@ -856,13 +856,7 @@ dsl_prop_inherit(const char *dsname, const char *propname,
 	return (error);
 }
 
-typedef struct dsl_props_set_arg {
-	const char *dpsa_dsname;
-	zprop_source_t dpsa_source;
-	nvlist_t *dpsa_props;
-} dsl_props_set_arg_t;
-
-static int
+int
 dsl_props_set_check(void *arg, dmu_tx_t *tx)
 {
 	dsl_props_set_arg_t *dpsa = arg;
@@ -940,7 +934,7 @@ dsl_props_set_sync_impl(dsl_dataset_t *ds, zprop_source_t source,
 	}
 }
 
-static void
+void
 dsl_props_set_sync(void *arg, dmu_tx_t *tx)
 {
 	dsl_props_set_arg_t *dpsa = arg;

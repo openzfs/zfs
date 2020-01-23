@@ -9,8 +9,9 @@
 .\"
 .\"
 .\" Copyright (c) 2016, 2019 by Delphix. All Rights Reserved.
+.\" Copyright 2020 Joyent, Inc.
 .\"
-.Dd February 26, 2019
+.Dd January 15, 2020
 .Dt ZFS-PROGRAM 8
 .Os
 .Sh NAME
@@ -363,6 +364,27 @@ Filesystem or snapshot to be destroyed.
 Valid only for destroying snapshots.
 If set to true, and the snapshot has holds or clones, allows the snapshot to be
 marked for deferred deletion rather than failing.
+.Ed
+.It Em zfs.sync.inherit(dataset, property)
+Clears the specified property in the given dataset, causing it to be inherited
+from an ancestor, or restored to the default if no ancestor property is set.
+The
+.Ql zfs inherit -S
+option has not been implemented.
+Returns 0 on success, or a nonzero error code if the property could not be
+cleared.
+.Pp
+dataset (string)
+.Bd -ragged -compact -offset "xxxx"
+Filesystem or snapshot containing the property to clear.
+.Ed
+.Pp
+property (string)
+.Bd -ragged -compact -offset "xxxx"
+The property to clear.
+Allowed properties are the same as those for the
+.Nm zfs Cm inherit
+command.
 .Ed
 .It Em zfs.sync.promote(dataset)
 Promote the given clone to a filesystem.
