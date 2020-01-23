@@ -13,6 +13,7 @@ dist_pkgdata_SCRIPTS = \
 	tst.get_type.ksh \
 	tst.get_userquota.ksh \
 	tst.get_written.ksh \
+	tst.inherit.ksh \
 	tst.list_bookmarks.ksh \
 	tst.list_children.ksh \
 	tst.list_clones.ksh \

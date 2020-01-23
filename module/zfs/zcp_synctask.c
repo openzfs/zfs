@@ -15,6 +15,7 @@
 
 /*
  * Copyright (c) 2016, 2017 by Delphix. All rights reserved.
+ * Copyright 2020 Joyent, Inc.
  */
 
 #include <sys/lua/lua.h>
@@ -34,6 +35,12 @@
 #include <sys/metaslab.h>
 
 #define	DST_AVG_BLKSHIFT 14
+
+typedef struct zcp_inherit_prop_arg {
+	lua_State		*zipa_state;
+	const char		*zipa_prop;
+	dsl_props_set_arg_t	zipa_dpsa;
+} zcp_inherit_prop_arg_t;
 
 typedef int (zcp_synctask_func_t)(lua_State *, boolean_t, nvlist_t *);
 typedef struct zcp_synctask_info {
@@ -275,6 +282,84 @@ zcp_synctask_snapshot(lua_State *state, boolean_t sync, nvlist_t *err_details)
 	return (err);
 }
 
+static int zcp_synctask_inherit_prop(lua_State *, boolean_t,
+    nvlist_t *err_details);
+static zcp_synctask_info_t zcp_synctask_inherit_prop_info = {
+	.name = "inherit",
+	.func = zcp_synctask_inherit_prop,
+	.space_check = ZFS_SPACE_CHECK_RESERVED,
+	.blocks_modified = 2, /* 2 * numprops */
+	.pargs = {
+		{ .za_name = "dataset", .za_lua_type = LUA_TSTRING },
+		{ .za_name = "property", .za_lua_type = LUA_TSTRING },
+		{ NULL, 0 }
+	},
+	.kwargs = {
+		{ NULL, 0 }
+	},
+};
+
+static int
+zcp_synctask_inherit_prop_check(void *arg, dmu_tx_t *tx)
+{
+	zcp_inherit_prop_arg_t *args = arg;
+	zfs_prop_t prop = zfs_name_to_prop(args->zipa_prop);
+
+	if (prop == ZPROP_INVAL) {
+		if (zfs_prop_user(args->zipa_prop))
+			return (0);
+
+		return (EINVAL);
+	}
+
+	if (zfs_prop_readonly(prop))
+		return (EINVAL);
+
+	if (!zfs_prop_inheritable(prop))
+		return (EINVAL);
+
+	return (dsl_props_set_check(&args->zipa_dpsa, tx));
+}
+
+static void
+zcp_synctask_inherit_prop_sync(void *arg, dmu_tx_t *tx)
+{
+	zcp_inherit_prop_arg_t *args = arg;
+	dsl_props_set_arg_t *dpsa = &args->zipa_dpsa;
+
+	dsl_props_set_sync(dpsa, tx);
+}
+
+static int
+zcp_synctask_inherit_prop(lua_State *state, boolean_t sync,
+    nvlist_t *err_details)
+{
+	int err;
+	zcp_inherit_prop_arg_t zipa = { 0 };
+	dsl_props_set_arg_t *dpsa = &zipa.zipa_dpsa;
+
+	const char *dsname = lua_tostring(state, 1);
+	const char *prop = lua_tostring(state, 2);
+
+	zipa.zipa_state = state;
+	zipa.zipa_prop = prop;
+	dpsa->dpsa_dsname = dsname;
+	dpsa->dpsa_source = ZPROP_SRC_INHERITED;
+	dpsa->dpsa_props = fnvlist_alloc();
+	fnvlist_add_boolean(dpsa->dpsa_props, prop);
+
+	zcp_cleanup_handler_t *zch = zcp_register_cleanup(state,
+	    (zcp_cleanup_t *)&fnvlist_free, dpsa->dpsa_props);
+
+	err = zcp_sync_task(state, zcp_synctask_inherit_prop_check,
+	    zcp_synctask_inherit_prop_sync, &zipa, sync, dsname);
+
+	zcp_deregister_cleanup(state, zch);
+	fnvlist_free(dpsa->dpsa_props);
+
+	return (err);
+}
+
 static int
 zcp_synctask_wrapper(lua_State *state)
 {
@@ -343,6 +428,7 @@ zcp_load_synctask_lib(lua_State *state, boolean_t sync)
 		&zcp_synctask_promote_info,
 		&zcp_synctask_rollback_info,
 		&zcp_synctask_snapshot_info,
+		&zcp_synctask_inherit_prop_info,
 		NULL
 	};
 
