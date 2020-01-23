@@ -58,12 +58,20 @@
 #include <linux/version.h>
 
 #define	kfpu_allowed()		1
-#define	kfpu_begin()		enable_kernel_altivec()
+#define	kfpu_begin()					\
+	{						\
+		preempt_disable();			\
+		enable_kernel_altivec();		\
+	}
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
-#define	kfpu_end()		disable_kernel_altivec()
+#define	kfpu_end()				\
+	{					\
+		disable_kernel_altivec();	\
+		preempt_enable();		\
+	}
 #else
 /* seems that before 4.5 no-one bothered disabling ... */
-#define	kfpu_end()		((void) 0)
+#define	kfpu_end()		preempt_enable()
 #endif
 #define	kfpu_init()		0
 #define	kfpu_fini()		((void) 0)
