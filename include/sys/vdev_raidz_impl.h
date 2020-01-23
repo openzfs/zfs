@@ -90,7 +90,7 @@ typedef boolean_t	(*will_work_f)(void);
 typedef void		(*init_impl_f)(void);
 typedef void		(*fini_impl_f)(void);
 
-#define	RAIDZ_IMPL_NAME_MAX	(16)
+#define	RAIDZ_IMPL_NAME_MAX	(20)
 
 typedef struct raidz_impl_ops {
 	init_impl_f init;
