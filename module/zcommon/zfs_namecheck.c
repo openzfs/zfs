@@ -171,7 +171,7 @@ dataset_nestcheck(const char *path)
  * Where each component is made up of alphanumeric characters plus the following
  * characters:
  *
- *	[-_.:%]
+ *	[-_.: %]
  *
  * We allow '%' here as we use that character internally to create unique
  * names for temporary clones (for online recv).
