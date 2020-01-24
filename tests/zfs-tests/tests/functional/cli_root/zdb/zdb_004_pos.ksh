@@ -13,6 +13,7 @@
 
 #
 # Copyright (c) 2017 by Lawrence Livermore National Security, LLC.
+# Copyright (c) 2020 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -54,12 +55,13 @@ fi
 verify_runnable "global"
 verify_disk_count "$DISKS" 2
 set -A DISK $DISKS
+WHOLE_DISK=${DISK[0]}
 
 default_mirror_setup_noexit $DISKS
 DEVS=$(get_pool_devices ${TESTPOOL} ${DEV_RDSKDIR})
 [[ -n $DEVS ]] && set -A DISK $DEVS
 
-log_must zpool offline $TESTPOOL ${DISK[0]}
+log_must zpool offline $TESTPOOL $WHOLE_DISK
 log_must dd if=/dev/urandom of=$TESTDIR/testfile bs=1K count=2
 log_must zpool export $TESTPOOL
 
