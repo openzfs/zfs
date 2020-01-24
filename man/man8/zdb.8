@@ -31,12 +31,12 @@
 .Op Fl U Ar cache
 .Op Fl x Ar dumpdir
 .Op Ar poolname[/dataset | objset ID]
-.Op Ar object ...
+.Op Ar object | range ...
 .Nm
 .Op Fl AdiPv
 .Op Fl e Oo Fl V Oc Op Fl p Ar path ...
 .Op Fl U Ar cache
-.Ar poolname[/dataset | objset ID] Op Ar object ...
+.Ar poolname[/dataset | objset ID] Op Ar object | range ...
 .Nm
 .Fl C
 .Op Fl A
@@ -135,8 +135,45 @@ size, and object count.
 .Pp
 If specified multiple times provides greater and greater verbosity.
 .Pp
-If object IDs are specified, display information about those specific objects
-only.
+If object IDs or object ID ranges are specified, display information about
+those specific objects or ranges only.
+.Pp
+An object ID range is specified in terms of a colon-separated tuple of
+the form
+.Ao start Ac Ns : Ns Ao end Ac Ns Op Ns : Ns Ao flags Ac Ns .
+The fields
+.Ar start
+and
+.Ar end
+are integer object identfiers that denote the upper and lower bounds
+of the range. An
+.Ar end
+value of -1 specifies a range with no upper bound. The
+.Ar flags
+field optionally specifies a set of flags, described below, that control
+which object types are dumped. By default, all object types are dumped. A minus
+sign
+.Pq -
+negates the effect of the flag that follows it and has no effect unless
+preceded by the
+.Ar A
+flag. For example, the range 0:-1:A-d will dump all object types except
+for directories.
+.Pp
+.Bl -tag -compact
+.It Sy A
+Dump all objects (this is the default)
+.It Sy d
+Dump ZFS directory objects
+.It Sy f
+Dump ZFS plain file objects
+.It Sy m
+Dump SPA space map objects
+.It Sy z
+Dump ZAP objects
+.It Sy -
+Negate the effect of next flag
+.El
 .It Fl D
 Display deduplication statistics, including the deduplication ratio
 .Pq Sy dedup ,
