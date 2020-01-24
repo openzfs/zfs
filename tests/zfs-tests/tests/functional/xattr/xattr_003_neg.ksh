@@ -56,7 +56,10 @@ log_must touch $TESTDIR/myfile.$$
 create_xattr $TESTDIR/myfile.$$ passwd /etc/passwd
 
 log_must chmod 000 $TESTDIR/myfile.$$
-if is_linux; then
+if is_illumos; then
+	log_mustnot su $ZFS_USER -c "runat $TESTDIR/myfile.$$ cat passwd"
+	log_mustnot su $ZFS_USER -c "runat $TESTDIR/myfile.$$ cp /etc/passwd ."
+else
 	user_run $ZFS_USER eval \
 	    "get_xattr passwd $TESTDIR/myfile.$$ >/tmp/passwd.$$"
 	log_mustnot diff /etc/passwd /tmp/passwd.$$
@@ -68,9 +71,6 @@ if is_linux; then
 	get_xattr passwd $TESTDIR/myfile.$$ >/tmp/passwd.$$
 	log_must diff /etc/passwd /tmp/passwd.$$
 	log_must rm /tmp/passwd.$$
-else
-	log_mustnot su $ZFS_USER -c "runat $TESTDIR/myfile.$$ cat passwd"
-	log_mustnot su $ZFS_USER -c "runat $TESTDIR/myfile.$$ cp /etc/passwd ."
 fi
 
 log_pass "read/write xattr on a file with no permissions fails"

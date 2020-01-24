@@ -33,6 +33,10 @@ tags = ['functional', 'cli_root', 'zpool_add']
 tests = ['zpool_create_016_pos']
 tags = ['functional', 'cli_root', 'zpool_create']
 
+[tests/functional/xattr:illumos]
+tests = ['xattr_008_pos', 'xattr_009_neg', 'xattr_010_neg']
+tags = ['functional', 'xattr']
+
 [tests/functional/zvol/zvol_misc:illumos]
 tests = ['zvol_misc_001_neg', 'zvol_misc_003_neg', 'zvol_misc_004_pos',
     'zvol_misc_005_neg', 'zvol_misc_006_pos']
