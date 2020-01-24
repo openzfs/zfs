@@ -340,6 +340,9 @@ $0 -v
 # Run a smaller suite of tests designed to run more quickly.
 $0 -r linux-fast
 
+# Run a single test
+$0 -t tests/functional/cli_root/zfs_bookmark/zfs_bookmark_cliargs.ksh
+
 # Cleanup a previous run of the test suite prior to testing, run the
 # default (linux) suite of tests and perform no cleanup on exit.
 $0 -x
