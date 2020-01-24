@@ -25,9 +25,9 @@ thread=1
 directory=${DIRECTORY}
 numjobs=${NUMJOBS}
 filesize=${FILE_SIZE}
-randseed=${RANDSEED}
-buffer_compress_percentage=${COMPPERCENT}
+randseed=${PERF_RANDSEED}
+buffer_compress_percentage=${PERF_COMPPERCENT}
 buffer_pattern=0xdeadbeef
-buffer_compress_chunk=${COMPCHUNK}
+buffer_compress_chunk=${PERF_COMPCHUNK}
 
 [job]
