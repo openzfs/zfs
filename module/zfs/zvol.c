@@ -1126,7 +1126,7 @@ zvol_create_minors_recursive(const char *name)
 		    &snapdev, NULL);
 
 		if (error == 0 && snapdev == ZFS_SNAPDEV_VISIBLE)
-			error = ops->zv_create_minor(name);
+			(void) ops->zv_create_minor(name);
 	} else {
 		fstrans_cookie_t cookie = spl_fstrans_mark();
 		(void) dmu_objset_find(name, zvol_create_minors_cb,
@@ -1143,7 +1143,7 @@ zvol_create_minors_recursive(const char *name)
 	while ((job = list_head(&minors_list)) != NULL) {
 		list_remove(&minors_list, job);
 		if (!job->error)
-			ops->zv_create_minor(job->name);
+			(void) ops->zv_create_minor(job->name);
 		kmem_strfree(job->name);
 		kmem_free(job, sizeof (minors_job_t));
 	}
