@@ -33,4 +33,6 @@
 
 verify_runnable "global"
 
+verify_disk_count "$DISKS" 4
+
 log_pass

@@ -173,6 +173,7 @@ if is_linux; then
 
 	ZVOL_DEVDIR="/dev/zvol"
 	ZVOL_RDEVDIR="/dev/zvol"
+	DEV_DSKDIR="/dev"
 	DEV_RDSKDIR="/dev"
 	DEV_MPATHDIR="/dev/mapper"
 

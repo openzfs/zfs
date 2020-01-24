@@ -89,8 +89,8 @@ function block_device_wait
 #
 function is_physical_device #device
 {
-	typeset device=${1#$DEV_DSKDIR}
-	device=${device#$DEV_RDSKDIR}
+	typeset device=${1#$DEV_DSKDIR/}
+	device=${device#$DEV_RDSKDIR/}
 
 	if is_linux; then
 		is_disk_device "$DEV_DSKDIR/$device" && \

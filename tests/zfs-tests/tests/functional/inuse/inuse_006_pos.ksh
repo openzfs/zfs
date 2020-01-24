@@ -58,7 +58,7 @@ function cleanup
 	cleanup_devices $vdisks $sdisks
 }
 
-function verify_assertion #slices
+function verify_assertion # disks
 {
 	typeset targets=$1
 
@@ -86,32 +86,6 @@ while (( i < ${#vdevs[*]} )); do
 		eval typeset disk=\${FS_DISK$num}
 		zero_partitions $disk
 	done
-
-	for num in 0 1 2 3 ; do
-		eval typeset slice=\${FS_SIDE$num}
-		disk=${slice%${SLICE_PREFIX}*}
-		slice=${slice##*${SLICE_PREFIX}}
-		log_must set_partition $slice "" $FS_SIZE $disk
-	done
-
-	if [[ -n $SINGLE_DISK && -n ${vdevs[i]} ]]; then
-		(( i = i + 1 ))
-		continue
-	fi
-
-	create_pool $TESTPOOL1 ${vdevs[i]} $vslices spare $sslices
-	verify_assertion "$disktargets"
-	destroy_pool $TESTPOOL1
-
-	if [[ ( $FS_DISK0 == $FS_DISK2 ) && -n ${vdevs[i]} ]]; then
-		(( i = i + 1 ))
-		continue
-	fi
-
-	if [[ ( $FS_DISK0 == $FS_DISK3 ) && ( ${vdevs[i]} == "raidz2" ) ]]; then
-		(( i = i + 1 ))
-		continue
-	fi
 
 	create_pool $TESTPOOL1 ${vdevs[i]} $vdisks spare $sdisks
 	verify_assertion "$disktargets"

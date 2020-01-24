@@ -27,10 +27,10 @@ may be provided for your distribution.
 The pre-requisites for running the ZFS Test Suite are:
 
   * Three scratch disks
-    * Specify the disks you wish to use in the $DISKS variable, as a
-      space delimited list like this: DISKS='vdb vdc vdd'.  By default
-      the zfs-tests.sh sciprt will construct three loopback devices to
-      be used for testing: DISKS='loop0 loop1 loop2'.
+    * Specify the disks you wish to use in the $DISKS variable, as a space
+      delimited list like this: DISKS='vdb vdc vdd vde'.  By default the
+      zfs-tests.sh script will construct four loopback devices for testing:
+      DISKS='loop0 loop1 loop2 loop3'.
   * A non-root user with a full set of basic privileges and the ability
     to sudo(8) to root without a password to run the test.
   * Specify any pools you wish to preserve as a space delimited list in
@@ -127,10 +127,10 @@ with the `zfs-tests.sh` wrapper script will look something like this:
     STF_SUITE:       /usr/share/zfs/zfs-tests
     STF_PATH:        /var/tmp/constrained_path.G0Sf
     FILEDIR:         /tmp/test
-    FILES:           /tmp/test/file-vdev0 /tmp/test/file-vdev1 /tmp/test/file-vdev2
-    LOOPBACKS:       /dev/loop0 /dev/loop1 /dev/loop2 
-    DISKS:           loop0 loop1 loop2
-    NUM_DISKS:       3
+    FILES:           /tmp/test/file-vdev0 /tmp/test/file-vdev1 /tmp/test/file-vdev2 /tmp/test/file-vdev3
+    LOOPBACKS:       /dev/loop0 /dev/loop1 /dev/loop2 /dev/loop3
+    DISKS:           loop0 loop1 loop2 loop3
+    NUM_DISKS:       4
     FILESIZE:        4G
     ITERATIONS:      1
     TAGS:            functional
