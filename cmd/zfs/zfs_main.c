@@ -599,6 +599,48 @@ usage(boolean_t requested)
 	exit(requested ? 0 : 2);
 }
 
+static zfs_type_t
+getopt_object_types(void)
+{
+	char *value;
+	zfs_type_t types = 0;
+
+	while (*optarg != '\0') {
+		static char *type_subopts[] = { "filesystem",
+		    "volume", "snapshot", "snap", "bookmark",
+		    "all", NULL };
+		switch (getsubopt(&optarg, type_subopts,
+		    &value)) {
+
+		case 0:
+			types |= ZFS_TYPE_FILESYSTEM;
+			break;
+		case 1:
+			types |= ZFS_TYPE_VOLUME;
+			break;
+		case 2:
+		case 3:
+			types |= ZFS_TYPE_SNAPSHOT;
+			break;
+		case 4:
+			types |= ZFS_TYPE_BOOKMARK;
+			break;
+
+		case 5:
+			types = ZFS_TYPE_DATASET |
+			    ZFS_TYPE_BOOKMARK;
+			break;
+		default:
+			(void) fprintf(stderr,
+			    gettext("invalid type '%s'\n"),
+			    value);
+			usage(B_FALSE);
+		}
+	}
+
+	return (types);
+}
+
 /*
  * Take a property=value argument string and add it to the given nvlist.
  * Modifies the argument inplace.
@@ -1978,40 +2020,8 @@ zfs_do_get(int argc, char **argv)
 			break;
 
 		case 't':
-			types = 0;
+			types = getopt_object_types();
 			flags &= ~ZFS_ITER_PROP_LISTSNAPS;
-			while (*optarg != '\0') {
-				static char *type_subopts[] = { "filesystem",
-				    "volume", "snapshot", "snap", "bookmark",
-				    "all", NULL };
-
-				switch (getsubopt(&optarg, type_subopts,
-				    &value)) {
-				case 0:
-					types |= ZFS_TYPE_FILESYSTEM;
-					break;
-				case 1:
-					types |= ZFS_TYPE_VOLUME;
-					break;
-				case 2:
-				case 3:
-					types |= ZFS_TYPE_SNAPSHOT;
-					break;
-				case 4:
-					types |= ZFS_TYPE_BOOKMARK;
-					break;
-				case 5:
-					types = ZFS_TYPE_DATASET |
-					    ZFS_TYPE_BOOKMARK;
-					break;
-
-				default:
-					(void) fprintf(stderr,
-					    gettext("invalid type '%s'\n"),
-					    value);
-					usage(B_FALSE);
-				}
-			}
 			break;
 
 		case '?':
@@ -3428,7 +3438,6 @@ zfs_do_list(int argc, char **argv)
 	boolean_t types_specified = B_FALSE;
 	char *fields = NULL;
 	list_cbdata_t cb = { 0 };
-	char *value;
 	int limit = 0;
 	int ret = 0;
 	zfs_sort_column_t *sortcol = NULL;
@@ -3470,40 +3479,9 @@ zfs_do_list(int argc, char **argv)
 			}
 			break;
 		case 't':
-			types = 0;
+			types = getopt_object_types();
 			types_specified = B_TRUE;
 			flags &= ~ZFS_ITER_PROP_LISTSNAPS;
-			while (*optarg != '\0') {
-				static char *type_subopts[] = { "filesystem",
-				    "volume", "snapshot", "snap", "bookmark",
-				    "all", NULL };
-
-				switch (getsubopt(&optarg, type_subopts,
-				    &value)) {
-				case 0:
-					types |= ZFS_TYPE_FILESYSTEM;
-					break;
-				case 1:
-					types |= ZFS_TYPE_VOLUME;
-					break;
-				case 2:
-				case 3:
-					types |= ZFS_TYPE_SNAPSHOT;
-					break;
-				case 4:
-					types |= ZFS_TYPE_BOOKMARK;
-					break;
-				case 5:
-					types = ZFS_TYPE_DATASET |
-					    ZFS_TYPE_BOOKMARK;
-					break;
-				default:
-					(void) fprintf(stderr,
-					    gettext("invalid type '%s'\n"),
-					    value);
-					usage(B_FALSE);
-				}
-			}
 			break;
 		case ':':
 			(void) fprintf(stderr, gettext("missing argument for "
