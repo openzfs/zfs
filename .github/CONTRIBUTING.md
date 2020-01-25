@@ -137,8 +137,8 @@ changes easier to review and approve which speeds up the merging process.
 * Try to keep pull requests simple. Simple code with comments is much easier
 to review and approve.
 * All proposed changes must be approved by a ZFS on Linux organization member.
-* If you have an idea you'd like to discuss or which requires additional testing, consider opening it as a draft pull request. 
-Once everything is in good shape and the details have been worked out you can remove its draft status. 
+* If you have an idea you'd like to discuss or which requires additional testing, consider opening it as a draft pull request.
+Once everything is in good shape and the details have been worked out you can remove its draft status.
 Any required reviews can then be finalized and the pull request merged.
 
 #### Tests and Benchmarks
@@ -176,6 +176,16 @@ to verify ZFS is behaving as intended.
 We currently use [C  Style  and  Coding  Standards  for
 SunOS](http://www.cis.upenn.edu/%7Elee/06cse480/data/cstyle.ms.pdf) as our
 coding convention.
+
+This repository has an `.editorconfig` file. If your editor [supports
+editorconfig](https://editorconfig.org/#download), it will
+automatically respect most of this project's whitespace preferences.
+
+Additionally, Git can help warn on whitespace problems as well:
+
+```
+git config --local core.whitespace trailing-space,space-before-tab,indent-with-non-tab,-tab-in-indent
+```
 
 ### Commit Message Formats
 #### New Changes
@@ -315,4 +325,3 @@ but may be used in any situation where there are co-authors.
 The email address used here should be the same as on the GitHub profile of said user.
 If said user does not have their email address public, please use the following instead:
 `Co-authored-by: Name <[username]@users.noreply.github.com>`
-
