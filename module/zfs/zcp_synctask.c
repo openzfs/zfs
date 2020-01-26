@@ -394,7 +394,7 @@ zcp_synctask_wrapper(lua_State *state)
 		uint64_t used = dsl_dir_phys(dp->dp_root_dir)->dd_used_bytes +
 		    ri->zri_space_used;
 
-		if (used + funcspace > quota) {
+		if (funcspace > 0 && used + funcspace > quota) {
 			err = SET_ERROR(ENOSPC);
 		}
 	}

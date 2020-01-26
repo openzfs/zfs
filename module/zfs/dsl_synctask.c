@@ -235,7 +235,7 @@ dsl_sync_task_sync(dsl_sync_task_t *dst, dmu_tx_t *tx)
 		uint64_t used = dsl_dir_phys(dp->dp_root_dir)->dd_used_bytes;
 
 		/* MOS space is triple-dittoed, so we multiply by 3. */
-		if (used + dst->dst_space * 3 > quota) {
+		if (dst->dst_space > 0 && used + dst->dst_space * 3 > quota) {
 			dst->dst_error = SET_ERROR(ENOSPC);
 			if (dst->dst_nowaiter)
 				kmem_free(dst, sizeof (*dst));
