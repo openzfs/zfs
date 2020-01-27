@@ -4059,7 +4059,8 @@ zfs_receive_package(libzfs_handle_t *hdl, int fd, const char *destname,
 				    ZFS_TYPE_FILESYSTEM);
 				if (zhp != NULL) {
 					clp = changelist_gather(zhp,
-					    ZFS_PROP_MOUNTPOINT, 0, 0);
+					    ZFS_PROP_MOUNTPOINT, 0,
+					    flags->forceunmount ? MS_FORCE : 0);
 					zfs_close(zhp);
 					if (clp != NULL) {
 						softerr |=
@@ -4876,7 +4877,8 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		if (!flags->dryrun && zhp->zfs_type == ZFS_TYPE_FILESYSTEM &&
 		    stream_wantsnewfs) {
 			/* We can't do online recv in this case */
-			clp = changelist_gather(zhp, ZFS_PROP_NAME, 0, 0);
+			clp = changelist_gather(zhp, ZFS_PROP_NAME, 0,
+			    flags->forceunmount ? MS_FORCE : 0);
 			if (clp == NULL) {
 				zfs_close(zhp);
 				err = -1;
@@ -5556,7 +5558,8 @@ zfs_receive(libzfs_handle_t *hdl, const char *tosnap, nvlist_t *props,
 			}
 
 			clp = changelist_gather(zhp, ZFS_PROP_MOUNTPOINT,
-			    CL_GATHER_MOUNT_ALWAYS, 0);
+			    CL_GATHER_MOUNT_ALWAYS,
+			    flags->forceunmount ? MS_FORCE : 0);
 			zfs_close(zhp);
 			if (clp == NULL) {
 				err = -1;
