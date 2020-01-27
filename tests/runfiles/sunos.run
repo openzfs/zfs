@@ -41,3 +41,7 @@ tags = ['functional', 'xattr']
 tests = ['zvol_misc_001_neg', 'zvol_misc_003_neg', 'zvol_misc_004_pos',
     'zvol_misc_005_neg', 'zvol_misc_006_pos']
 tags = ['functional', 'zvol', 'zvol_misc']
+
+[tests/functional/zvol/zvol_swap:illumos]
+tests = ['zvol_swap_003_pos', 'zvol_swap_005_pos', 'zvol_swap_006_pos']
+tags = ['functional', 'zvol', 'zvol_swap']
