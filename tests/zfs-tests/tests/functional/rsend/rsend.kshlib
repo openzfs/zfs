@@ -217,15 +217,21 @@ function cmp_ds_prop
 {
 	typeset dtst1=$1
 	typeset dtst2=$2
-
-	for item in "type" "origin" "volblocksize" "acltype" "dnodesize" \
+	typeset -a props=("type" "origin" "volblocksize" "acltype" "dnodesize" \
 	    "atime" "canmount" "checksum" "compression" "copies" "devices" \
 	    "exec" "quota" "readonly" "recordsize" "reservation" "setuid" \
-	    "snapdir" "version" "volsize" "xattr" "zoned" "mountpoint";
+	    "snapdir" "version" "volsize" "xattr" "mountpoint");
+	if is_freebsd; then
+		props+=("jailed")
+	else
+		props+=("zoned")
+	fi
+
+	for prop in $props;
 	do
-		zfs get -H -o property,value,source $item $dtst1 >> \
+		zfs get -H -o property,value,source $prop $dtst1 >> \
 		    $BACKDIR/dtst1
-		zfs get -H -o property,value,source $item $dtst2 >> \
+		zfs get -H -o property,value,source $prop $dtst2 >> \
 		    $BACKDIR/dtst2
 	done
 
