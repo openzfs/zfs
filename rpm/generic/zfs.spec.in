@@ -52,6 +52,7 @@
 %bcond_with    debuginfo
 %bcond_with    asan
 %bcond_with    systemd
+%bcond_with    pam
 
 # Generic enable switch for systemd
 %if %{with systemd}
@@ -329,6 +330,12 @@ image which is ZFS aware.
     %define pyzfs --disable-pyzfs
 %endif
 
+%if %{with pam}
+    %define pam --enable-pam
+%else
+    %define pam --disable-pam
+%endif
+
 %setup -q
 
 %build
@@ -342,7 +349,8 @@ image which is ZFS aware.
     %{debug} \
     %{debuginfo} \
     %{asan} \
-    %{systemd}\
+    %{systemd} \
+    --with-pammoduledir=%{_libdir}/security %{pam} \
     %{pyzfs}
 make %{?_smp_mflags}
 
@@ -457,6 +465,10 @@ systemctl --system daemon-reload >/dev/null || true
 %config(noreplace) %{_sysconfdir}/%{name}/zpool.d/*
 %config(noreplace) %{_sysconfdir}/%{name}/vdev_id.conf.*.example
 %attr(440, root, root) %config(noreplace) %{_sysconfdir}/sudoers.d/*
+%if %{with pam}
+%{_libdir}/security/*
+%{_pamconfigsdir}/*
+%endif
 
 %files -n libzpool2
 %{_libdir}/libzpool.so.*

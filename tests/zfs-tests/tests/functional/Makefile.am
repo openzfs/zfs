@@ -46,6 +46,7 @@ SUBDIRS = \
 	no_space \
 	nopwrite \
 	online_offline \
+	pam \
 	persist_l2arc \
 	pool_checkpoint \
 	pool_names \
