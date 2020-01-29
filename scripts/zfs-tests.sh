@@ -239,8 +239,11 @@ create_links() {
 constrain_path() {
 	. "$STF_SUITE/include/commands.cfg"
 
-	SYSTEM_DIRS="/bin /sbin /usr/bin /usr/sbin"
-	SYSTEM_DIRS+=" /usr/local/bin /usr/local/sbin"
+	# On FreeBSD, base system zfs utils are in /sbin and OpenZFS utils
+	# install to /usr/local/sbin. To avoid testing the wrong utils we
+	# need /usr/local to come before / in the path search order.
+	SYSTEM_DIRS="/usr/local/bin /usr/local/sbin"
+	SYSTEM_DIRS+=" /usr/bin /usr/sbin /bin /sbin"
 
 	if [ "$INTREE" = "yes" ]; then
 		# Constrained path set to ./zfs/bin/
