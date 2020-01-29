@@ -3996,11 +3996,7 @@ function range_shuffle # begin end
 	typeset -i begin=$1
 	typeset -i end=$2
 
-	if is_freebsd; then
-		seq ${begin} ${end} | random -f -
-	else
-		shuf -i ${begin}-${end}
-	fi
+	seq ${begin} ${end} | sort -R
 }
 
 #
