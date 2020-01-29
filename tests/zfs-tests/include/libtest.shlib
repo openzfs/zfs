@@ -879,7 +879,9 @@ function zero_partitions #<whole_disk_name>
 	typeset diskname=$1
 	typeset i
 
-	if is_linux; then
+	if is_freebsd; then
+		gpart destroy -F $diskname
+	elif is_linux; then
 		DSK=$DEV_DSKDIR/$diskname
 		DSK=$(echo $DSK | sed -e "s|//|/|g")
 		log_must parted $DSK -s -- mklabel gpt
