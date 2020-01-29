@@ -37,7 +37,7 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd June 30, 2019
+.Dd January 30, 2020
 .Dt ZFSPROPS 8
 .Os Linux
 .Sh NAME
@@ -599,8 +599,58 @@ accordance to the requested mode from the application.
 The
 .Sy aclinherit
 property does not apply to POSIX ACLs.
+.It Sy aclmode Ns = Ns Sy discard Ns | Ns Sy groupmask Ns | Ns Sy passthrough
+.Ns Sy restricted
+Controls how an
+.Tn ACL
+is modified during
+.Xr chmod 2 .
+This property is not visible on Linux yet.
+.Bl -tag -width "passthrough"
+.It Sy discard
+default, deletes all
+.Tn ACL
+entries that do not represent the mode of the file.
+.It Sy groupmask
+reduces permissions granted in all
+.Em ALLOW
+entried found in the
+.Tn ACL
+such that they are no greater than the group permissions specified by
+.Xr chmod 2 .
+.It Sy passthrough
+indicates that no changes are made to the
+.Tn ACL
+other than creating or updating the necessary
+.Tn ACL
+entries to represent the new mode of the file or directory.
+.It Sy restricted
+will cause the
+.Xr chmod 2
+operation to return an error when used on any file or directory which has
+a non-trivial
+.Tn ACL
+whose entries can not be represented by a mode.
+.Xr chmod 2
+is required to change the set user ID, set group ID, or sticky bits on a file
+or directory, as they do not have equivalent
+.Tn ACL
+entries.
+In order to use
+.Xr chmod 2
+on a file or directory with a non-trivial
+.Tn ACL
+when
+.Sy aclmode
+is set to
+.Sy restricted ,
+you must first remove all
+.Tn ACL
+entries which do not represent the current mode.
+.El
 .It Sy acltype Ns = Ns Sy off Ns | Ns Sy noacl Ns | Ns Sy posixacl
 Controls whether ACLs are enabled and if so what type of ACL to use.
+This property is not visible on FreeBSD yet.
 .Bl -tag -width "posixacl"
 .It Sy off
 default, when a file system has the
