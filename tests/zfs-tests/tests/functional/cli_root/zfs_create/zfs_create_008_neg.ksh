@@ -74,7 +74,6 @@ set -A args "ab" "-?" "-cV" "-Vc" "-c -V" "c" "V" "--c" "-e" "-s" \
     "-o readonly=ON" "-o reADOnly=off" "-o rdonly=OFF" "-o rdonly=aaa" \
     "-o readonly=ON -V $VOLSIZE" "-o reADOnly=off -V $VOLSIZE" \
     "-o rdonly=OFF -V $VOLSIZE" "-o rdonly=aaa -V $VOLSIZE" \
-    "-o zoned=ON" "-o ZoNed=off" "-o zoned=aaa" \
     "-o snapdIR=hidden" "-o snapdir=VISible" "-o snapdir=aaa" \
     "-o aclmode=DIScard" "-o aclmODE=groupmask" "-o aclmode=aaa" \
     "-o aclinherit=deny" "-o aclinHerit=secure" "-o aclinherit=aaa" \
@@ -88,6 +87,11 @@ set -A args "ab" "-?" "-cV" "-Vc" "-c -V" "c" "V" "--c" "-e" "-s" \
     "-o compressratio=1.00x" "-o compressratio=1.00x -V $VOLSIZE" \
     "-o version=0" "-o version=1.234" "-o version=10K" "-o version=-1" \
     "-o version=aaa" "-o version=999"
+if is_freebsd; then
+	args+=("-o jailed=ON" "-o JaiLed=off" "-o jailed=aaa")
+else
+	args+=("-o zoned=ON" "-o ZoNed=off" "-o zoned=aaa")
+fi
 
 log_assert "'zfs create' should return an error with badly-formed parameters."
 

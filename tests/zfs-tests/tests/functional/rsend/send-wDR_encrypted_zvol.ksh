@@ -37,8 +37,8 @@ verify_runnable "both"
 
 function cleanup
 {
-	ismounted $recvmnt ext4 && log_must umount $recvmnt
-	ismounted $mntpnt ext4 && log_must umount $mntpnt
+	ismounted $recvmnt $fstype && log_must umount $recvmnt
+	ismounted $mntpnt $fstype && log_must umount $mntpnt
 	[[ -d $recvmnt ]] && log_must rm -rf $keyfile
 	[[ -d $mntpnt ]] && log_must rm -rf $keyfile
 	destroy_dataset $TESTPOOL/recv "-r"
@@ -57,6 +57,7 @@ typeset mntpnt=$TESTDIR/$TESTVOL
 typeset recvdev=$ZVOL_DEVDIR/$TESTPOOL/recv
 typeset recvmnt=$TESTDIR/recvmnt
 typeset sendfile=$TESTDIR/sendfile
+typeset fstype=none
 
 log_must eval "echo 'password' > $keyfile"
 
@@ -67,8 +68,14 @@ block_device_wait
 if is_linux; then
 	# ext4 only supported on Linux
 	log_must new_fs -t ext4 $zdev
+	fstype=ext4
+	typeset remount_ro="-o remount,ro"
+	typeset remount_rw="-o remount,rw"
 else
 	log_must new_fs $zdev
+	fstype=$NEWFS_DEFAULT_FS
+	typeset remount_ro="-ur"
+	typeset remount_rw="-uw"
 fi
 log_must mkdir -p $mntpnt
 log_must mkdir -p $recvmnt
@@ -81,7 +88,9 @@ for ((i = 1; i <= $snap_count; i++)); do
 	done
 
 	log_must sync
+	log_must mount $remount_ro $zdev $mntpnt
 	log_must zfs snap $TESTPOOL/$TESTVOL@snap$i
+	log_must mount $remount_rw $zdev $mntpnt
 done
 
 log_must eval "zfs send -wDR $TESTPOOL/$TESTVOL@snap$snap_count > $sendfile"

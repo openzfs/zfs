@@ -70,8 +70,12 @@ set -A RW_FS_PROP "quota=536870912" \
 		  "snapdir=visible" \
 		  "acltype=posixacl" \
 		  "aclinherit=discard" \
-		  "canmount=off" \
-		  "zoned=on"
+		  "canmount=off"
+if is_freebsd; then
+	RW_FS_PROP+=("jailed=on")
+else
+	RW_FS_PROP+=("zoned=on")
+fi
 
 typeset -i i=0
 while (( $i < ${#RW_FS_PROP[*]} )); do

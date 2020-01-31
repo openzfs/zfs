@@ -66,7 +66,7 @@ set -A perms	create snapshot mount send allow quota reservation \
 		recordsize mountpoint checksum compression canmount atime \
 		devices exec volsize setuid readonly snapdir userprop \
 		aclmode aclinherit rollback clone rename promote dnodesize \
-		zoned receive destroy
+		jailed receive destroy
 else
 set -A perms	create snapshot mount send allow quota reservation \
 		recordsize mountpoint checksum compression canmount atime \

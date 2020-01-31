@@ -105,7 +105,7 @@ props=(
 	exec		on		exec		off
 	setuid		on		setuid		off
 	readonly	on		readonly	off
-	zoned		on		zoned		off
+	jailed		on		jailed		off
 	snapdir		hidden		snapdir		visible
 	aclinherit	discard		aclinherit	noallow
 	aclinherit	secure		aclinherit	passthrough

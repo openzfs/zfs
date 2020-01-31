@@ -143,7 +143,7 @@ zprop_register_index(int prop, const char *name, uint64_t def,
     const char *colname, const zprop_index_t *idx_tbl)
 {
 	zprop_register_impl(prop, name, PROP_TYPE_INDEX, def, NULL, attr,
-	    objset_types, values, colname, B_TRUE, B_TRUE, idx_tbl);
+	    objset_types, values, colname, B_FALSE, B_TRUE, idx_tbl);
 }
 
 void
