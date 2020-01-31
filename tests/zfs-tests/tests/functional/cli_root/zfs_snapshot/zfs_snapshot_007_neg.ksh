@@ -74,7 +74,12 @@ typeset ro_props="type used available avail creation referenced refer compressra
 	mounted origin"
 typeset snap_ro_props="volsize recordsize recsize quota reservation reserv mountpoint \
 	sharenfs checksum compression compress atime devices exec readonly rdonly \
-	setuid zoned"
+	setuid"
+if is_freebsd; then
+	snap_ro_props+=" jailed"
+else
+	snap_ro_props+=" zoned"
+fi
 
 zfs upgrade -v > /dev/null 2>&1
 if [[ $? -eq 0 ]]; then
