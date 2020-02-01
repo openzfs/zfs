@@ -2419,6 +2419,23 @@ dump_znode_sa_xattr(sa_handle_t *hdl)
 	free(sa_xattr_packed);
 }
 
+static void
+dump_znode_symlink(sa_handle_t *hdl)
+{
+	int sa_symlink_size = 0;
+	char linktarget[MAXPATHLEN];
+	linktarget[0] = '\0';
+	int error;
+
+	error = sa_size(hdl, sa_attr_table[ZPL_SYMLINK], &sa_symlink_size);
+	if (error || sa_symlink_size == 0) {
+		return;
+	}
+	if (sa_lookup(hdl, sa_attr_table[ZPL_SYMLINK],
+	    &linktarget, sa_symlink_size) == 0)
+		(void) printf("\ttarget	%s\n", linktarget);
+}
+
 /*ARGSUSED*/
 static void
 dump_znode(objset_t *os, uint64_t object, void *data, size_t size)
@@ -2483,6 +2500,9 @@ dump_znode(objset_t *os, uint64_t object, void *data, size_t size)
 		}
 		(void) printf("\tpath	%s\n", path);
 	}
+
+	if (S_ISLNK(mode))
+		dump_znode_symlink(hdl);
 	dump_uidgid(os, uid, gid);
 	(void) printf("\tatime	%s", ctime(&z_atime));
 	(void) printf("\tmtime	%s", ctime(&z_mtime));
