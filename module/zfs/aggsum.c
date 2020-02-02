@@ -125,13 +125,11 @@ aggsum_flush_bucket(aggsum_t *as, struct aggsum_bucket *asb)
 	 * We use atomic instructions for this because we read the upper and
 	 * lower bounds without the lock, so we need stores to be atomic.
 	 */
-	atomic_add_64((volatile uint64_t *)&as->as_lower_bound, asb->asc_delta);
-	atomic_add_64((volatile uint64_t *)&as->as_upper_bound, asb->asc_delta);
-	asb->asc_delta = 0;
-	atomic_add_64((volatile uint64_t *)&as->as_upper_bound,
-	    -asb->asc_borrowed);
 	atomic_add_64((volatile uint64_t *)&as->as_lower_bound,
-	    asb->asc_borrowed);
+	    asb->asc_delta + asb->asc_borrowed);
+	atomic_add_64((volatile uint64_t *)&as->as_upper_bound,
+	    asb->asc_delta - asb->asc_borrowed);
+	asb->asc_delta = 0;
 	asb->asc_borrowed = 0;
 }
 
@@ -163,43 +161,46 @@ aggsum_value(aggsum_t *as)
 	return (rv);
 }
 
-static void
-aggsum_borrow(aggsum_t *as, int64_t delta, struct aggsum_bucket *asb)
-{
-	int64_t abs_delta = (delta < 0 ? -delta : delta);
-	mutex_enter(&as->as_lock);
-	mutex_enter(&asb->asc_lock);
-
-	aggsum_flush_bucket(as, asb);
-
-	atomic_add_64((volatile uint64_t *)&as->as_upper_bound, abs_delta);
-	atomic_add_64((volatile uint64_t *)&as->as_lower_bound, -abs_delta);
-	asb->asc_borrowed = abs_delta;
-
-	mutex_exit(&asb->asc_lock);
-	mutex_exit(&as->as_lock);
-}
-
 void
 aggsum_add(aggsum_t *as, int64_t delta)
 {
 	struct aggsum_bucket *asb;
+	int64_t borrow;
 
 	kpreempt_disable();
 	asb = &as->as_buckets[CPU_SEQID % as->as_numbuckets];
 	kpreempt_enable();
 
-	for (;;) {
-		mutex_enter(&asb->asc_lock);
-		if (asb->asc_delta + delta <= (int64_t)asb->asc_borrowed &&
-		    asb->asc_delta + delta >= -(int64_t)asb->asc_borrowed) {
-			asb->asc_delta += delta;
-			mutex_exit(&asb->asc_lock);
-			return;
-		}
+	/* Try fast path if we already borrowed enough before. */
+	mutex_enter(&asb->asc_lock);
+	if (asb->asc_delta + delta <= (int64_t)asb->asc_borrowed &&
+	    asb->asc_delta + delta >= -(int64_t)asb->asc_borrowed) {
+		asb->asc_delta += delta;
 		mutex_exit(&asb->asc_lock);
-		aggsum_borrow(as, delta * aggsum_borrow_multiplier, asb);
+		return;
 	}
+	mutex_exit(&asb->asc_lock);
+
+	/*
+	 * We haven't borrowed enough.  Take the global lock and borrow
+	 * considering what is requested now and what we borrowed before.
+	 */
+	borrow = (delta < 0 ? -delta : delta) * aggsum_borrow_multiplier;
+	mutex_enter(&as->as_lock);
+	mutex_enter(&asb->asc_lock);
+	delta += asb->asc_delta;
+	asb->asc_delta = 0;
+	if (borrow >= asb->asc_borrowed)
+		borrow -= asb->asc_borrowed;
+	else
+		borrow = (borrow - (int64_t)asb->asc_borrowed) / 4;
+	asb->asc_borrowed += borrow;
+	atomic_add_64((volatile uint64_t *)&as->as_lower_bound,
+	    delta - borrow);
+	atomic_add_64((volatile uint64_t *)&as->as_upper_bound,
+	    delta + borrow);
+	mutex_exit(&asb->asc_lock);
+	mutex_exit(&as->as_lock);
 }
 
 /*

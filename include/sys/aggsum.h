@@ -40,7 +40,7 @@ typedef struct aggsum {
 	kmutex_t as_lock;
 	int64_t as_lower_bound;
 	int64_t as_upper_bound;
-	uint64_t as_numbuckets;
+	uint_t as_numbuckets;
 	aggsum_bucket_t *as_buckets;
 } aggsum_t;
 
