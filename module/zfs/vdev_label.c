@@ -621,39 +621,43 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 	}
 
 	if (!vd->vdev_ops->vdev_op_leaf) {
-		nvlist_t **child;
-		int c, idx;
+		if (vd->vdev_children > 0) {
+			nvlist_t **child;
+			int c, idx;
 
-		ASSERT(!vd->vdev_ishole);
+			ASSERT(!vd->vdev_ishole);
 
-		child = kmem_alloc(vd->vdev_children * sizeof (nvlist_t *),
-		    KM_SLEEP);
+			child = kmem_alloc(
+			    vd->vdev_children * sizeof (nvlist_t *), KM_SLEEP);
 
-		for (c = 0, idx = 0; c < vd->vdev_children; c++) {
-			vdev_t *cvd = vd->vdev_child[c];
+			for (c = 0, idx = 0; c < vd->vdev_children; c++) {
+				vdev_t *cvd = vd->vdev_child[c];
 
-			/*
-			 * If we're generating an nvlist of removing
-			 * vdevs then skip over any device which is
-			 * not being removed.
-			 */
-			if ((flags & VDEV_CONFIG_REMOVING) &&
-			    !cvd->vdev_removing)
-				continue;
+				/*
+				 * If we're generating an nvlist of removing
+				 * vdevs then skip over any device which is
+				 * not being removed.
+				 */
+				if ((flags & VDEV_CONFIG_REMOVING) &&
+				    !cvd->vdev_removing)
+					continue;
 
-			child[idx++] = vdev_config_generate(spa, cvd,
-			    getstats, flags);
+				child[idx++] = vdev_config_generate(spa, cvd,
+				    getstats, flags);
+			}
+
+			if (idx) {
+				fnvlist_add_nvlist_array(nv,
+				    ZPOOL_CONFIG_CHILDREN,
+				    child, idx);
+			}
+
+			for (c = 0; c < idx; c++)
+				nvlist_free(child[c]);
+
+			kmem_free(child,
+			    vd->vdev_children * sizeof (nvlist_t *));
 		}
-
-		if (idx) {
-			fnvlist_add_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
-			    child, idx);
-		}
-
-		for (c = 0; c < idx; c++)
-			nvlist_free(child[c]);
-
-		kmem_free(child, vd->vdev_children * sizeof (nvlist_t *));
 
 	} else {
 		const char *aux = NULL;
