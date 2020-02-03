@@ -2859,6 +2859,12 @@ out:
 	if (drc->drc_next_rrd != NULL)
 		kmem_free(drc->drc_next_rrd, sizeof (*drc->drc_next_rrd));
 
+	/*
+	 * The objset will be invalidated by dmu_recv_end() when we do
+	 * dsl_dataset_clone_swap_sync_impl().
+	 */
+	drc->drc_os = NULL;
+
 	kmem_free(rwa, sizeof (*rwa));
 	nvlist_free(drc->drc_begin_nvl);
 	if ((drc->drc_featureflags & DMU_BACKUP_FEATURE_DEDUP) &&
@@ -3085,8 +3091,6 @@ dmu_recv_end_sync(void *arg, dmu_tx_t *tx)
 		    &drc->drc_ivset_guid, tx));
 	}
 
-	zvol_create_minors(dp->dp_spa, drc->drc_tofs, B_TRUE);
-
 	/*
 	 * Release the hold from dmu_recv_begin.  This must be done before
 	 * we return to open context, so that when we free the dataset's dnode
@@ -3195,9 +3199,20 @@ dmu_recv_end(dmu_recv_cookie_t *drc, void *owner)
 	if (error != 0) {
 		dmu_recv_cleanup_ds(drc);
 		nvlist_free(drc->drc_keynvl);
-	} else if (drc->drc_guid_to_ds_map != NULL) {
-		(void) add_ds_to_guidmap(drc->drc_tofs, drc->drc_guid_to_ds_map,
-		    drc->drc_newsnapobj, drc->drc_raw);
+	} else {
+		if (drc->drc_newfs) {
+			zvol_create_minor(drc->drc_tofs);
+		}
+		char *snapname = kmem_asprintf("%s@%s",
+		    drc->drc_tofs, drc->drc_tosnap);
+		zvol_create_minor(snapname);
+		kmem_strfree(snapname);
+
+		if (drc->drc_guid_to_ds_map != NULL) {
+			(void) add_ds_to_guidmap(drc->drc_tofs,
+			    drc->drc_guid_to_ds_map,
+			    drc->drc_newsnapobj, drc->drc_raw);
+		}
 	}
 	return (error);
 }
