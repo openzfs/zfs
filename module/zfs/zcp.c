@@ -100,6 +100,7 @@
 #include <sys/zcp_iter.h>
 #include <sys/zcp_prop.h>
 #include <sys/zcp_global.h>
+#include <sys/zvol.h>
 
 #ifndef KM_NORMALPRI
 #define	KM_NORMALPRI	0
@@ -1155,6 +1156,7 @@ zcp_eval(const char *poolname, const char *program, boolean_t sync,
 	runinfo.zri_space_used = 0;
 	runinfo.zri_curinstrs = 0;
 	runinfo.zri_maxinstrs = instrlimit;
+	runinfo.zri_new_zvols = fnvlist_alloc();
 
 	if (sync) {
 		err = dsl_sync_task_sig(poolname, NULL, zcp_eval_sync,
@@ -1165,6 +1167,16 @@ zcp_eval(const char *poolname, const char *program, boolean_t sync,
 		zcp_eval_open(&runinfo, poolname);
 	}
 	lua_close(state);
+
+	/*
+	 * Create device minor nodes for any new zvols.
+	 */
+	for (nvpair_t *pair = nvlist_next_nvpair(runinfo.zri_new_zvols, NULL);
+	    pair != NULL;
+	    pair = nvlist_next_nvpair(runinfo.zri_new_zvols, pair)) {
+		zvol_create_minor(nvpair_name(pair));
+	}
+	fnvlist_free(runinfo.zri_new_zvols);
 
 	return (runinfo.zri_result);
 }

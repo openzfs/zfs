@@ -1013,7 +1013,12 @@ kmem_cache_reap_active(void)
 void *zvol_tag = "zvol_tag";
 
 void
-zvol_create_minors(spa_t *spa, const char *name, boolean_t async)
+zvol_create_minor(spa_t *spa, const char *name, boolean_t async)
+{
+}
+
+void
+zvol_create_minors_recursive(spa_t *spa, const char *name, boolean_t async)
 {
 }
 

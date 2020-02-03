@@ -3311,8 +3311,9 @@ zfs_ioc_create(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 
 			/*
 			 * Volumes will return EBUSY and cannot be destroyed
-			 * until all asynchronous minor handling has completed.
-			 * Wait for the spa_zvol_taskq to drain then retry.
+			 * until all asynchronous minor handling (e.g. from
+			 * setting the volmode property) has completed. Wait for
+			 * the spa_zvol_taskq to drain then retry.
 			 */
 			error2 = dsl_destroy_head(fsname);
 			while ((error2 == EBUSY) && (type == DMU_OST_ZVOL)) {

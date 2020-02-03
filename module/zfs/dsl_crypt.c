@@ -854,7 +854,7 @@ spa_keystore_load_wkey(const char *dsname, dsl_crypto_params_t *dcp,
 	dsl_pool_rele(dp, FTAG);
 
 	/* create any zvols under this ds */
-	zvol_create_minors(dp->dp_spa, dsname, B_TRUE);
+	zvol_create_minors_recursive(dsname);
 
 	return (0);
 
