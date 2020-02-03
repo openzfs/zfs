@@ -1575,8 +1575,8 @@ dsl_scan_prefetch_dnode(dsl_scan_t *scn, dnode_phys_t *dnp,
 }
 
 void
-dsl_scan_prefetch_cb(zio_t *zio, const zbookmark_phys_t *zb, const blkptr_t *bp,
-    arc_buf_t *buf, void *private)
+dsl_scan_prefetch_cb(zio_t *zio, const zbookmark_phys_t *zb,
+    int err, const blkptr_t *bp, arc_buf_t *buf, void *private)
 {
 	scan_prefetch_ctx_t *spc = private;
 	dsl_scan_t *scn = spc->spc_scn;

@@ -541,6 +541,7 @@ dnode_undirty_dbufs(list_t *list)
 		ASSERT(list_head(&db->db_dirty_records) == dr);
 		list_remove_head(&db->db_dirty_records);
 		ASSERT(list_is_empty(&db->db_dirty_records));
+		dbuf_dirty_record_cleanup_ranges(dr);
 		db->db_dirtycnt -= 1;
 		if (db->db_level == 0) {
 			ASSERT(db->db_blkid == DMU_BONUS_BLKID ||

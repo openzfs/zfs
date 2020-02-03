@@ -70,7 +70,7 @@ typedef struct arc_prune arc_prune_t;
  * parameter will be NULL.
  */
 typedef void arc_read_done_func_t(zio_t *zio, const zbookmark_phys_t *zb,
-    const blkptr_t *bp, arc_buf_t *buf, void *private);
+    int err, const blkptr_t *bp, arc_buf_t *buf, void *private);
 typedef void arc_write_done_func_t(zio_t *zio, arc_buf_t *buf, void *private);
 typedef void arc_prune_func_t(int64_t bytes, void *private);
 
@@ -157,8 +157,12 @@ typedef enum arc_flags
 	ARC_FLAG_COMPRESS_3		= 1 << 27,
 	ARC_FLAG_COMPRESS_4		= 1 << 28,
 	ARC_FLAG_COMPRESS_5		= 1 << 29,
-	ARC_FLAG_COMPRESS_6		= 1 << 30
+	ARC_FLAG_COMPRESS_6		= 1 << 30,
 
+	/*
+	 * cache lookup only
+	 */
+	ARC_FLAG_CACHED_ONLY		= 1 << 31
 } arc_flags_t;
 
 typedef enum arc_buf_flags {
@@ -259,6 +263,7 @@ arc_buf_t *arc_loan_raw_buf(spa_t *spa, uint64_t dsobj, boolean_t byteorder,
     enum zio_compress compression_type);
 void arc_return_buf(arc_buf_t *buf, void *tag);
 void arc_loan_inuse_buf(arc_buf_t *buf, void *tag);
+void arc_transfer_cache_state(arc_buf_t *from, arc_buf_t *to);
 void arc_buf_destroy(arc_buf_t *buf, void *tag);
 void arc_buf_info(arc_buf_t *buf, arc_buf_info_t *abi, int state_index);
 uint64_t arc_buf_size(arc_buf_t *buf);
@@ -268,6 +273,7 @@ void arc_release(arc_buf_t *buf, void *tag);
 int arc_released(arc_buf_t *buf);
 void arc_buf_sigsegv(int sig, siginfo_t *si, void *unused);
 void arc_buf_freeze(arc_buf_t *buf);
+boolean_t arc_buf_frozen(arc_buf_t *buf);
 void arc_buf_thaw(arc_buf_t *buf);
 #ifdef ZFS_DEBUG
 int arc_referenced(arc_buf_t *buf);

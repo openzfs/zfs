@@ -565,8 +565,7 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 		for (i = 0; i < nblks; i++) {
 			dmu_buf_impl_t *db = (dmu_buf_impl_t *)dbp[i];
 			mutex_enter(&db->db_mtx);
-			while (db->db_state == DB_READ ||
-			    db->db_state == DB_FILL)
+			while (db->db_state & (DB_READ|DB_FILL))
 				cv_wait(&db->db_changed, &db->db_mtx);
 			if (db->db_state == DB_UNCACHED)
 				err = SET_ERROR(EIO);

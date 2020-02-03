@@ -116,6 +116,10 @@ extern "C" {
 #define	DNODES_PER_LEVEL_SHIFT	(DN_MAX_INDBLKSHIFT - SPA_BLKPTRSHIFT)
 #define	DNODES_PER_LEVEL	(1ULL << DNODES_PER_LEVEL_SHIFT)
 
+/* Next level for a given dnode and txg */
+#define	DN_NEXT_LEVEL(dn, txg) \
+	(dn)->dn_next_nlevels[(txg) & TXG_MASK]
+
 #define	DN_MAX_LEVELS	(DIV_ROUND_UP(DN_MAX_OFFSET_SHIFT - SPA_MINBLOCKSHIFT, \
 	DN_MIN_INDBLKSHIFT - SPA_BLKPTRSHIFT) + 1)
 
