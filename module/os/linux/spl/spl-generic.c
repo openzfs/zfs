@@ -92,7 +92,7 @@ EXPORT_SYMBOL(p0);
  * and use them when in_interrupt() from linux/preempt_mask.h evaluates to
  * true.
  */
-static DEFINE_PER_CPU(uint64_t[2], spl_pseudo_entropy);
+void __percpu *spl_pseudo_entropy;
 
 /*
  * spl_rand_next()/spl_rand_jump() are copied from the following CC-0 licensed
@@ -141,7 +141,7 @@ random_get_pseudo_bytes(uint8_t *ptr, size_t len)
 
 	ASSERT(ptr);
 
-	xp = get_cpu_var(spl_pseudo_entropy);
+	xp = get_cpu_ptr(spl_pseudo_entropy);
 
 	s[0] = xp[0];
 	s[1] = xp[1];
@@ -163,7 +163,7 @@ random_get_pseudo_bytes(uint8_t *ptr, size_t len)
 	xp[0] = s[0];
 	xp[1] = s[1];
 
-	put_cpu_var(spl_pseudo_entropy);
+	put_cpu_ptr(spl_pseudo_entropy);
 
 	return (0);
 }
@@ -701,6 +701,9 @@ spl_random_init(void)
 	uint64_t s[2];
 	int i = 0;
 
+	spl_pseudo_entropy = __alloc_percpu(2 * sizeof (uint64_t),
+	    sizeof (uint64_t));
+
 	get_random_bytes(s, sizeof (s));
 
 	if (s[0] == 0 && s[1] == 0) {
@@ -717,13 +720,19 @@ spl_random_init(void)
 	}
 
 	for_each_possible_cpu(i) {
-		uint64_t *wordp = per_cpu(spl_pseudo_entropy, i);
+		uint64_t *wordp = per_cpu_ptr(spl_pseudo_entropy, i);
 
 		spl_rand_jump(s);
 
 		wordp[0] = s[0];
 		wordp[1] = s[1];
 	}
+}
+
+static void
+spl_random_fini(void)
+{
+	free_percpu(spl_pseudo_entropy);
 }
 
 static void
@@ -790,6 +799,7 @@ spl_fini(void)
 	spl_taskq_fini();
 	spl_tsd_fini();
 	spl_kvmem_fini();
+	spl_random_fini();
 }
 
 module_init(spl_init);
