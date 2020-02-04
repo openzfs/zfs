@@ -218,7 +218,7 @@ typedef struct gcm_ctx {
 	size_t gcm_pt_buf_len;
 	uint32_t gcm_tmp[4];
 	/*
-	 * The relative positions of gcm_ghash,, gcm_H and pre-computed
+	 * The relative positions of gcm_ghash, gcm_H and pre-computed
 	 * gcm_Htable are hard coded in aesni-gcm-x86_64.S and ghash-x86_64.S,
 	 * so please don't change (or adjust accordingly).
 	 */

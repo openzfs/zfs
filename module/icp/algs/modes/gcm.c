@@ -909,7 +909,7 @@ gcm_impl_set(const char *val)
 	/* Check mandatory options */
 	for (i = 0; i < ARRAY_SIZE(gcm_impl_opts); i++) {
 #ifdef CAN_USE_GCM_ASM
-		/* Ignore avx implementation if it won't work */
+		/* Ignore avx implementation if it won't work. */
 		if (gcm_impl_opts[i].sel == IMPL_AVX && !gcm_avx_will_work()) {
 			continue;
 		}
@@ -975,7 +975,7 @@ icp_gcm_impl_get(char *buffer, zfs_kernel_param_t *kp)
 	/* list mandatory options */
 	for (i = 0; i < ARRAY_SIZE(gcm_impl_opts); i++) {
 #ifdef CAN_USE_GCM_ASM
-		/* Ignore avx implementation if it won't work */
+		/* Ignore avx implementation if it won't work. */
 		if (gcm_impl_opts[i].sel == IMPL_AVX && !gcm_avx_will_work()) {
 			continue;
 		}
@@ -1076,13 +1076,14 @@ gcm_toggle_avx(void)
 }
 
 /*
- * FIXME: Doesn't seem to be done on the aes side, do we need to do this?
- * ctx->gcm_remainder may contain a plain text remainder.
- * ctx->gcm_H, ctx->gcm_Htable, ctx->gcm_J0 and ctx->gcm_tmp maybe used for a
- * known plain text attack: H is the encrypted zero block, Htable is derived
- * from H and J0 and tmp are the encrypted initial counter block and the last
- * counter block respectively. The first 12 bytes of a counter block is the IV,
- * followed by a 4 byte counter which is either 1 or processed_data_len / 16.
+ * Clear senssitve data in the context.
+ *
+ * ctx->gcm_remainder may contain a plaintext remainder. ctx->gcm_H and
+ * ctx->gcm_Htable contain the hash sub key which protects authentication.
+ *
+ * Although extremely unlikely, ctx->gcm_J0 and ctx->gcm_tmp could be used for
+ * a known plaintext attack, they consists of the IV and the first and last
+ * counter respectively. If they should be cleared is debatable.
  */
 static inline void
 gcm_clear_ctx(gcm_ctx_t *ctx)
@@ -1094,7 +1095,7 @@ gcm_clear_ctx(gcm_ctx_t *ctx)
 	bzero(ctx->gcm_tmp, sizeof (ctx->gcm_tmp));
 }
 
-/* Increment the GCM counter block by n */
+/* Increment the GCM counter block by n. */
 static inline void
 gcm_incr_counter_block_by(gcm_ctx_t *ctx, int n)
 {
@@ -1135,7 +1136,7 @@ gcm_mode_encrypt_contiguous_blocks_avx(gcm_ctx_t *ctx, char *data,
 	if (ctx->gcm_remainder_len > 0) {
 		need = block_size - ctx->gcm_remainder_len;
 		if (length < need) {
-			/* accumulate bytes here and return */
+			/* Accumulate bytes here and return. */
 			bcopy(datap, (uint8_t *)ctx->gcm_remainder +
 			    ctx->gcm_remainder_len, length);
 
@@ -1271,7 +1272,7 @@ out_nofpu:
 
 /*
  * Finalize the encryption: Zero fill, encrypt, hash and write out an eventual
- * incomplete last block. Encrypt the ICB. calculate the tag and write it out.
+ * incomplete last block. Encrypt the ICB. Calculate the tag and write it out.
  */
 static int
 gcm_encrypt_final_avx(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size)
@@ -1291,7 +1292,7 @@ gcm_encrypt_final_avx(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size)
 	}
 
 	kfpu_begin();
-	/* Pad last incomplete block with zeros,encrypt and hash. */
+	/* Pad last incomplete block with zeros, encrypt and hash. */
 	if (rem_len > 0) {
 		uint8_t *tmp = (uint8_t *)ctx->gcm_tmp;
 		const uint32_t *cb = (uint32_t *)ctx->gcm_cb;
@@ -1303,7 +1304,7 @@ gcm_encrypt_final_avx(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size)
 		}
 		GHASH_AVX(ctx, remainder, block_size);
 		ctx->gcm_processed_data_len += rem_len;
-		/* No need to increment counter_block since it's the last one */
+		/* No need to increment counter_block, it's the last block. */
 	}
 	/* Finish tag. */
 	ctx->gcm_len_a_len_c[1] =
@@ -1328,7 +1329,7 @@ gcm_encrypt_final_avx(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size)
 		return (rv);
 
 	out->cd_offset += ctx->gcm_tag_len;
-	/* FIXME: Doesn't seem to be done on the AES side. */
+	/* Clear sensitive data in the context before returning. */
 	gcm_clear_ctx(ctx);
 	return (CRYPTO_SUCCESS);
 }
@@ -1386,16 +1387,16 @@ gcm_decrypt_final_avx(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size)
 
 	/*
 	 * Now less then GCM_AVX_MIN_DECRYPT_BYTES bytes remain,
-	 * decrypt them block by block
+	 * decrypt them block by block.
 	 */
 	while (bleft > 0) {
-		/* Incomplete last block */
+		/* Incomplete last block. */
 		if (bleft < block_size) {
 			uint8_t *lastb = (uint8_t *)ctx->gcm_remainder;
 
 			bzero(lastb, block_size);
 			bcopy(datap, lastb, bleft);
-			/* The GCM processing */
+			/* The GCM processing. */
 			GHASH_AVX(ctx, lastb, block_size);
 			aes_encrypt_intel(key->encr_ks.ks32, key->nr, cb, tmp);
 			for (size_t i = 0; i < bleft; i++) {
@@ -1403,7 +1404,7 @@ gcm_decrypt_final_avx(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size)
 			}
 			break;
 		}
-		/* The GCM processing */
+		/* The GCM processing. */
 		GHASH_AVX(ctx, datap, block_size);
 		aes_encrypt_intel(key->encr_ks.ks32, key->nr, cb, tmp);
 		gcm_xor_avx((uint8_t *)tmp, datap);
@@ -1425,13 +1426,13 @@ gcm_decrypt_final_avx(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size)
 
 	gcm_xor_avx((uint8_t *)ctx->gcm_J0, (uint8_t *)ghash);
 
-	/* We are done with the FPU, restore its state */
+	/* We are done with the FPU, restore its state. */
 	clear_fpu_regs();
 	kfpu_end();
 
-	/* compare the input authentication tag with what we calculated */
+	/* Compare the input authentication tag with what we calculated. */
 	if (bcmp(&ctx->gcm_pt_buf[pt_len], ghash, ctx->gcm_tag_len)) {
-		/* They don't match */
+		/* They don't match. */
 		return (CRYPTO_INVALID_MAC);
 	}
 	rv = crypto_put_output_data(ctx->gcm_pt_buf, out, pt_len);
@@ -1512,7 +1513,7 @@ gcm_init_avx(gcm_ctx_t *ctx, unsigned char *iv, size_t iv_len,
 			datap += bleft;
 		}
 		if (incomp > 0) {
-			/* Zero pad and hash incomplete last block */
+			/* Zero pad and hash incomplete last block. */
 			uint8_t *authp = (uint8_t *)ctx->gcm_tmp;
 
 			bzero(authp, block_size);
