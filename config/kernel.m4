@@ -461,15 +461,13 @@ AC_DEFUN([ZFS_AC_KERNEL_TEST_MODULE], [
 	ZFS_LINUX_TRY_COMPILE([], [], [
 		AC_MSG_RESULT([yes])
 	],[
-		AC_MSG_RESULT([no])
 		if test "x$enable_linux_builtin" != xyes; then
+			AC_MSG_RESULT([no])
 			AC_MSG_ERROR([
 	*** Unable to build an empty module.
 			])
 		else
-			AC_MSG_ERROR([
-	*** Unable to build an empty module.
-	*** Please run 'make scripts' inside the kernel source tree.])
+			AC_MSG_RESULT([unneeded, using --enable-linux-builtin])
 		fi
 	])
 ])
