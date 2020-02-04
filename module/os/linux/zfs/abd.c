@@ -573,15 +573,14 @@ abd_init(void)
 	abd_ksp = kstat_create("zfs", 0, "abdstats", "misc", KSTAT_TYPE_NAMED,
 	    sizeof (abd_stats) / sizeof (kstat_named_t), KSTAT_FLAG_VIRTUAL);
 	if (abd_ksp != NULL) {
-		abd_ksp->ks_data = &abd_stats;
-		kstat_install(abd_ksp);
-
 		for (i = 0; i < MAX_ORDER; i++) {
 			snprintf(abd_stats.abdstat_scatter_orders[i].name,
 			    KSTAT_STRLEN, "scatter_order_%d", i);
 			abd_stats.abdstat_scatter_orders[i].data_type =
 			    KSTAT_DATA_UINT64;
 		}
+		abd_ksp->ks_data = &abd_stats;
+		kstat_install(abd_ksp);
 	}
 }
 
