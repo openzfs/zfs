@@ -1004,7 +1004,7 @@ dnode_move(void *buf, void *newbuf, size_t size, void *arg)
 	 */
 	refcount = zfs_refcount_count(&odn->dn_holds);
 	ASSERT(refcount >= 0);
-	dbufs = odn->dn_dbufs_count;
+	dbufs = DN_DBUFS_COUNT(odn);
 
 	/* We can't have more dbufs than dnode holds. */
 	ASSERT3U(dbufs, <=, refcount);
@@ -1031,7 +1031,7 @@ dnode_move(void *buf, void *newbuf, size_t size, void *arg)
 	list_link_replace(&odn->dn_link, &ndn->dn_link);
 	/* If the dnode was safe to move, the refcount cannot have changed. */
 	ASSERT(refcount == zfs_refcount_count(&ndn->dn_holds));
-	ASSERT(dbufs == ndn->dn_dbufs_count);
+	ASSERT(dbufs == DN_DBUFS_COUNT(ndn));
 	zrl_exit(&ndn->dn_handle->dnh_zrlock); /* handle has moved */
 	mutex_exit(&os->os_lock);
 
