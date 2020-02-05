@@ -141,6 +141,7 @@ KERNEL_C = \
 	zcp_get.c \
 	zcp_global.c \
 	zcp_iter.c \
+	zcp_set.c \
 	zcp_synctask.c \
 	zfeature.c \
 	zfs_byteswap.c \
