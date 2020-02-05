@@ -2074,7 +2074,7 @@ dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 			db_lock_type_t dblt = dmu_buf_lock_parent(db, RW_READER,
 			    FTAG);
 			/* don't dirty if it isn't on disk and isn't dirty */
-			dirty = db->db_last_dirty ||
+			dirty = !list_is_empty(&db->db_dirty_records) ||
 			    (db->db_blkptr && !BP_IS_HOLE(db->db_blkptr));
 			dmu_buf_unlock_parent(db, dblt, FTAG);
 			if (dirty) {
@@ -2117,7 +2117,7 @@ dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 			/* don't dirty if not on disk and not dirty */
 			db_lock_type_t type = dmu_buf_lock_parent(db, RW_READER,
 			    FTAG);
-			dirty = db->db_last_dirty ||
+			dirty = !list_is_empty(&db->db_dirty_records) ||
 			    (db->db_blkptr && !BP_IS_HOLE(db->db_blkptr));
 			dmu_buf_unlock_parent(db, type, FTAG);
 			if (dirty) {
