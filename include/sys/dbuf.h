@@ -206,6 +206,13 @@ typedef struct dmu_buf_impl {
 	 */
 	struct dmu_buf_impl *db_hash_next;
 
+	/*
+	 * Our link on the owner dnodes's dn_dbufs list.
+	 * Protected by its dn_dbufs_mtx.  Should be on the same cache line
+	 * as db_level and db_blkid for the best avl_add() performance.
+	 */
+	avl_node_t db_link;
+
 	/* our block number */
 	uint64_t db_blkid;
 
@@ -259,12 +266,6 @@ typedef struct dmu_buf_impl {
 
 	/* List of dirty records for the buffer sorted newest to oldest. */
 	list_t db_dirty_records;
-
-	/*
-	 * Our link on the owner dnodes's dn_dbufs list.
-	 * Protected by its dn_dbufs_mtx.
-	 */
-	avl_node_t db_link;
 
 	/* Link in dbuf_cache or dbuf_metadata_cache */
 	multilist_node_t db_cache_link;
