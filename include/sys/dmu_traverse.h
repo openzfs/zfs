@@ -62,14 +62,14 @@ typedef int (blkptr_cb_t)(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 #define	TRAVERSE_VISIT_NO_CHILDREN	-1
 
 int traverse_dataset(struct dsl_dataset *ds,
-    uint64_t txg_start, int flags, blkptr_cb_t func, void *arg);
+    uint64_t txg_start, arc_flags_t flags, blkptr_cb_t func, void *arg);
 int traverse_dataset_resume(struct dsl_dataset *ds, uint64_t txg_start,
-    zbookmark_phys_t *resume, int flags, blkptr_cb_t func, void *arg);
+    zbookmark_phys_t *resume, arc_flags_t flags, blkptr_cb_t func, void *arg);
 int traverse_dataset_destroyed(spa_t *spa, blkptr_t *blkptr,
-    uint64_t txg_start, zbookmark_phys_t *resume, int flags,
+    uint64_t txg_start, zbookmark_phys_t *resume, arc_flags_t flags,
     blkptr_cb_t func, void *arg);
 int traverse_pool(spa_t *spa,
-    uint64_t txg_start, int flags, blkptr_cb_t func, void *arg);
+    uint64_t txg_start, arc_flags_t flags, blkptr_cb_t func, void *arg);
 
 /*
  * Note that this calculation cannot overflow with the current maximum indirect

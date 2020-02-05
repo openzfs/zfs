@@ -1460,6 +1460,38 @@ arc_bufc_to_flags(arc_buf_contents_t type)
 }
 
 void
+arc_transfer_cache_state(arc_buf_t *from, arc_buf_t *to)
+{
+	arc_buf_hdr_t *anon_hdr;
+	arc_buf_hdr_t *hdr;
+	kmutex_t *hash_lock;
+
+	mutex_enter(&to->b_evict_lock);
+	anon_hdr = to->b_hdr;
+	ASSERT(anon_hdr->b_l1hdr.b_state == arc_anon);
+
+	mutex_enter(&from->b_evict_lock);
+	ASSERT(from->b_hdr->b_l1hdr.b_state != arc_anon);
+	hash_lock = HDR_LOCK(from->b_hdr);
+	mutex_enter(hash_lock);
+	hdr = from->b_hdr;
+
+	ASSERT3U(hdr->b_l1hdr.b_refcnt.rc_count, ==,
+	    anon_hdr->b_l1hdr.b_refcnt.rc_count);
+	ASSERT3U(bcmp(from->b_data, to->b_data,
+	    hdr->b_l1hdr.b_refcnt.rc_count), ==, 0);
+
+	anon_hdr->b_l1hdr.b_buf = from;
+	from->b_hdr = anon_hdr;
+	hdr->b_l1hdr.b_buf = to;
+	to->b_hdr = hdr;
+
+	mutex_exit(hash_lock);
+	mutex_exit(&from->b_evict_lock);
+	mutex_exit(&to->b_evict_lock);
+}
+
+void
 arc_buf_thaw(arc_buf_t *buf)
 {
 	arc_buf_hdr_t *hdr = buf->b_hdr;
@@ -5526,6 +5558,7 @@ arc_read(zio_t *pio, spa_t *spa, const blkptr_t *bp,
 	kmutex_t *hash_lock = NULL;
 	zio_t *rzio;
 	uint64_t guid = spa_load_guid(spa);
+	boolean_t cached_only = (*arc_flags & ARC_FLAG_CACHED_ONLY) != 0;
 	boolean_t compressed_read = (zio_flags & ZIO_FLAG_RAW_COMPRESS) != 0;
 	boolean_t encrypted_read = BP_IS_ENCRYPTED(bp) &&
 	    (zio_flags & ZIO_FLAG_RAW_ENCRYPT) != 0;
@@ -5534,6 +5567,7 @@ arc_read(zio_t *pio, spa_t *spa, const blkptr_t *bp,
 	boolean_t embedded_bp = !!BP_IS_EMBEDDED(bp);
 	int rc = 0;
 
+	ASSERT(!cached_only || done != NULL);
 	ASSERT(!embedded_bp ||
 	    BPE_GET_ETYPE(bp) == BP_EMBEDDED_TYPE_DATA);
 	ASSERT(!BP_IS_HOLE(bp));
@@ -5575,6 +5609,21 @@ top:
 				DTRACE_PROBE1(arc__async__upgrade__sync,
 				    arc_buf_hdr_t *, hdr);
 				ARCSTAT_BUMP(arcstat_async_upgrade_sync);
+			}
+			/*
+			 * Cache-only lookups should only occur from consumers
+			 * that do not have any data yet.  However, prefetch
+			 * I/O of this block could be in progress.  Since
+			 * cache-only lookups must be synchronous, the done
+			 * callback chaining cannot occur here.  In that case,
+			 * simply return as a cache miss.
+			 */
+			if (cached_only) {
+				*arc_flags &= ~ARC_FLAG_CACHED;
+				mutex_exit(hash_lock);
+				done(NULL, zb, bp, NULL, private);
+				rc = SET_ERROR(ENOENT);
+				goto out;
 			}
 			if (hdr->b_flags & ARC_FLAG_PREDICTIVE_PREFETCH) {
 				arc_hdr_clear_flags(hdr,
@@ -5704,6 +5753,13 @@ top:
 		 */
 		if (lsize > spa_maxblocksize(spa)) {
 			rc = SET_ERROR(ECKSUM);
+			goto out;
+		}
+		if (cached_only) {
+			if (hdr)
+				mutex_exit(hash_lock);
+			done(NULL, zb, bp, NULL, private);
+			rc = SET_ERROR(ENOENT);
 			goto out;
 		}
 
