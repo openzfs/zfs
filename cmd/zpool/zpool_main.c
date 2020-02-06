@@ -73,6 +73,8 @@
 
 #include "statcommon.h"
 
+libzfs_handle_t *g_zfs;
+
 static int zpool_do_create(int, char **);
 static int zpool_do_destroy(int, char **);
 
