@@ -382,10 +382,8 @@ zpl_setattr(struct dentry *dentry, struct iattr *ia)
 	vap->va_mtime = ia->ia_mtime;
 	vap->va_ctime = ia->ia_ctime;
 
-	if (vap->va_mask & ATTR_ATIME) {
-		ip->i_atime = zpl_inode_timespec_trunc(ia->ia_atime,
-		    ip->i_sb->s_time_gran);
-	}
+	if (vap->va_mask & ATTR_ATIME)
+		ip->i_atime = zpl_inode_timestamp_truncate(ia->ia_atime, ip);
 
 	cookie = spl_fstrans_mark();
 	error = -zfs_setattr(ITOZ(ip), vap, 0, cr);
