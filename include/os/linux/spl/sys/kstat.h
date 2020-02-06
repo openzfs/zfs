@@ -152,6 +152,12 @@ typedef struct kstat_named_s {
 #define	KSTAT_NAMED_STR_PTR(knptr) ((knptr)->value.string.addr.ptr)
 #define	KSTAT_NAMED_STR_BUFLEN(knptr) ((knptr)->value.string.len)
 
+#ifdef HAVE_PROC_OPS_STRUCT
+typedef struct proc_ops kstat_proc_op_t;
+#else
+typedef struct file_operations kstat_proc_op_t;
+#endif
+
 typedef struct kstat_intr {
 	uint_t intrs[KSTAT_NUM_INTRS];
 } kstat_intr_t;
@@ -197,7 +203,7 @@ extern void kstat_proc_entry_init(kstat_proc_entry_t *kpep,
     const char *module, const char *name);
 extern void kstat_proc_entry_delete(kstat_proc_entry_t *kpep);
 extern void kstat_proc_entry_install(kstat_proc_entry_t *kpep, mode_t mode,
-    const struct file_operations *file_ops, void *data);
+    const kstat_proc_op_t *file_ops, void *data);
 
 extern void __kstat_install(kstat_t *ksp);
 extern void __kstat_delete(kstat_t *ksp);

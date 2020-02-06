@@ -185,13 +185,20 @@ procfs_list_write(struct file *filp, const char __user *buf, size_t len,
 	return (len);
 }
 
-static struct file_operations procfs_list_operations = {
-	.owner		= THIS_MODULE,
+static const kstat_proc_op_t procfs_list_operations = {
+#ifdef HAVE_PROC_OPS_STRUCT
+	.proc_open	= procfs_list_open,
+	.proc_write	= procfs_list_write,
+	.proc_read	= seq_read,
+	.proc_lseek	= seq_lseek,
+	.proc_release	= seq_release_private,
+#else
 	.open		= procfs_list_open,
 	.write		= procfs_list_write,
 	.read		= seq_read,
 	.llseek		= seq_lseek,
 	.release	= seq_release_private,
+#endif
 };
 
 /*
