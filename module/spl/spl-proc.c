@@ -532,11 +532,18 @@ proc_slab_open(struct inode *inode, struct file *filp)
 	return (seq_open(filp, &slab_seq_ops));
 }
 
-static struct file_operations proc_slab_operations = {
-	.open	   = proc_slab_open,
-	.read	   = seq_read,
-	.llseek	 = seq_lseek,
+static const kstat_proc_op_t proc_slab_operations = {
+#ifdef HAVE_PROC_OPS_STRUCT
+	.proc_open	= proc_slab_open,
+	.proc_read	= seq_read,
+	.proc_lseek	= seq_lseek,
+	.proc_release	= seq_release,
+#else
+	.open		= proc_slab_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
 	.release	= seq_release,
+#endif
 };
 
 static void
@@ -571,18 +578,32 @@ proc_taskq_open(struct inode *inode, struct file *filp)
 	return (seq_open(filp, &taskq_seq_ops));
 }
 
-static struct file_operations proc_taskq_all_operations = {
+static const kstat_proc_op_t proc_taskq_all_operations = {
+#ifdef HAVE_PROC_OPS_STRUCT
+	.proc_open	= proc_taskq_all_open,
+	.proc_read	= seq_read,
+	.proc_lseek	= seq_lseek,
+	.proc_release	= seq_release,
+#else
 	.open		= proc_taskq_all_open,
 	.read		= seq_read,
 	.llseek		= seq_lseek,
 	.release	= seq_release,
+#endif
 };
 
-static struct file_operations proc_taskq_operations = {
+static const kstat_proc_op_t proc_taskq_operations = {
+#ifdef HAVE_PROC_OPS_STRUCT
+	.proc_open	= proc_taskq_open,
+	.proc_read	= seq_read,
+	.proc_lseek	= seq_lseek,
+	.proc_release	= seq_release,
+#else
 	.open		= proc_taskq_open,
 	.read		= seq_read,
 	.llseek		= seq_lseek,
 	.release	= seq_release,
+#endif
 };
 
 static struct ctl_table spl_kmem_table[] = {
