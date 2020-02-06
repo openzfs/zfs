@@ -1,21 +1,15 @@
 initdir = $(DEFAULT_INIT_DIR)
 init_SCRIPTS = zfs-import zfs-mount zfs-share zfs-zed
 
-initcommondir = $(sysconfdir)/zfs
-initcommon_SCRIPTS = zfs-functions
-
 initconfdir = $(DEFAULT_INITCONF_DIR)
-initconf_SCRIPTS = zfs
 
 EXTRA_DIST = \
-	$(top_srcdir)/etc/init.d/zfs-functions.in \
 	$(top_srcdir)/etc/init.d/zfs-share.in \
 	$(top_srcdir)/etc/init.d/zfs-import.in \
 	$(top_srcdir)/etc/init.d/zfs-mount.in \
-	$(top_srcdir)/etc/init.d/zfs-zed.in \
-	$(top_srcdir)/etc/init.d/zfs.in
+	$(top_srcdir)/etc/init.d/zfs-zed.in
 
-$(init_SCRIPTS) $(initconf_SCRIPTS) $(initcommon_SCRIPTS):%:%.in Makefile
+$(init_SCRIPTS):%:%.in Makefile
 	-(if [ -e /etc/debian_version ]; then \
 		NFS_SRV=nfs-kernel-server; \
 	  else \
@@ -26,7 +20,8 @@ $(init_SCRIPTS) $(initconf_SCRIPTS) $(initcommon_SCRIPTS):%:%.in Makefile
 	  else \
 		SHELL=/bin/sh; \
 	  fi; \
-	  $(SED) -e 's,@bindir\@,$(bindir),g' \
+	  $(SED) \
+		 -e 's,@bindir\@,$(bindir),g' \
 		 -e 's,@sbindir\@,$(sbindir),g' \
 		 -e 's,@udevdir\@,$(udevdir),g' \
 		 -e 's,@udevruledir\@,$(udevruledir),g' \
@@ -37,7 +32,6 @@ $(init_SCRIPTS) $(initconf_SCRIPTS) $(initcommon_SCRIPTS):%:%.in Makefile
 		 -e "s,@SHELL\@,$$SHELL,g" \
 		 -e "s,@NFS_SRV\@,$$NFS_SRV,g" \
 		 $< >'$@'; \
-	  [ '$@' = 'zfs-functions' -o '$@' = 'zfs' ] || \
 		chmod +x '$@')
 
-CLEANFILES = $(init_SCRIPTS) $(initcommon_SCRIPTS) $(initconf_SCRIPTS)
+CLEANFILES = $(init_SCRIPTS)
