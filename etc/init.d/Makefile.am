@@ -40,6 +40,4 @@ $(init_SCRIPTS) $(initconf_SCRIPTS) $(initcommon_SCRIPTS):%:%.in Makefile
 	  [ '$@' = 'zfs-functions' -o '$@' = 'zfs' ] || \
 		chmod +x '$@')
 
-# Double-colon rules are allowed; there are multiple independent definitions.
-distclean-local::
-	-$(RM) $(init_SCRIPTS) $(initcommon_SCRIPTS) $(initconf_SCRIPTS)
+CLEANFILES = $(init_SCRIPTS) $(initcommon_SCRIPTS) $(initconf_SCRIPTS)
