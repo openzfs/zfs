@@ -6,16 +6,14 @@ initrd_SCRIPTS = \
 SUBDIRS = hooks scripts
 
 EXTRA_DIST = \
-	$(top_srcdir)/etc/init.d/zfs \
-	$(top_srcdir)/etc/init.d/zfs-functions \
+	$(top_srcdir)/etc/init.d/zfs.in \
+	$(top_srcdir)/etc/init.d/zfs-functions.in \
 	$(top_srcdir)/contrib/initramfs/conf.d/zfs \
 	$(top_srcdir)/contrib/initramfs/conf-hooks.d/zfs \
 	$(top_srcdir)/contrib/initramfs/README.initramfs.markdown
 
-$(top_srcdir)/etc/init.d/zfs $(top_srcdir)/etc/init.d/zfs-functions:
-	$(MAKE) -C $(top_srcdir)/etc/init.d zfs zfs-functions
 
-install-initrdSCRIPTS: $(EXTRA_DIST)
+install-initrdSCRIPTS: $(EXTRA_DIST) $(top_srcdir)/etc/init.d/zfs $(top_srcdir)/etc/init.d/zfs-functions
 	for d in conf.d conf-hooks.d scripts/local-top; do \
 		$(MKDIR_P) $(DESTDIR)$(initrddir)/$$d; \
 		cp $(top_srcdir)/contrib/initramfs/$$d/zfs \

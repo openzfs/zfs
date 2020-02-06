@@ -450,6 +450,9 @@ systemctl --system daemon-reload >/dev/null || true
 %{_presetdir}/*
 %{_modulesloaddir}/*
 %{_systemdgeneratordir}/*
+
+# We're using systemd, so don't include the init.d scripts that get built
+%exclude %{_sysconfdir}/init.d/*
 %else
 %config(noreplace) %{_sysconfdir}/init.d/*
 %endif
