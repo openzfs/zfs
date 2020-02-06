@@ -67,6 +67,7 @@ AC_CONFIG_FILES([
 	udev/Makefile
 	udev/rules.d/Makefile
 	etc/Makefile
+	etc/default/Makefile
 	etc/init.d/Makefile
 	etc/zfs/Makefile
 	etc/systemd/Makefile

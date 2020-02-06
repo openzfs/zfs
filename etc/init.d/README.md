@@ -35,7 +35,7 @@ SUPPORT
 
   If you're making your own distribution and you want the scripts to
   work on that, the biggest problem you'll (probably) have is the part
-  at the beginning of the "zfs-functions.in" file which sets up the
+  at the beginning of the "zfs-functions" file which sets up the
   logging output.
 
 INSTALLING INIT SCRIPT LINKS
