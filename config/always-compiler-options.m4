@@ -160,3 +160,24 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_NO_OMIT_FRAME_POINTER], [
 	CFLAGS="$saved_flags"
 	AC_SUBST([NO_OMIT_FRAME_POINTER])
 ])
+
+dnl #
+dnl # Check if cc supports -fno-ipa-sra option.
+dnl #
+AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_NO_IPA_SRA], [
+	AC_MSG_CHECKING([whether $CC supports -fno-ipa-sra])
+
+	saved_flags="$CFLAGS"
+	CFLAGS="$CFLAGS -Werror -fno-ipa-sra"
+
+	AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [])], [
+		NO_IPA_SRA=-fno-ipa-sra
+		AC_MSG_RESULT([yes])
+	], [
+		NO_IPA_SRA=
+		AC_MSG_RESULT([no])
+	])
+
+	CFLAGS="$saved_flags"
+	AC_SUBST([NO_IPA_SRA])
+])
