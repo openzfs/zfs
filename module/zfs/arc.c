@@ -548,7 +548,8 @@ arc_stats_t arc_stats = {
 	{ "demand_hit_prescient_prefetch", KSTAT_DATA_UINT64 },
 	{ "arc_need_free",		KSTAT_DATA_UINT64 },
 	{ "arc_sys_free",		KSTAT_DATA_UINT64 },
-	{ "arc_raw_size",		KSTAT_DATA_UINT64 }
+	{ "arc_raw_size",		KSTAT_DATA_UINT64 },
+	{ "cached_only_in_progress",	KSTAT_DATA_UINT64 },
 };
 
 #define	ARCSTAT_MAX(stat, val) {					\
@@ -5563,6 +5564,13 @@ top:
 		if (HDR_IO_IN_PROGRESS(hdr)) {
 			zio_t *head_zio = hdr->b_l1hdr.b_acb->acb_zio_head;
 
+			if (*arc_flags & ARC_FLAG_CACHED_ONLY) {
+				mutex_exit(hash_lock);
+				ARCSTAT_BUMP(arcstat_cached_only_in_progress);
+				rc = SET_ERROR(ENOENT);
+				goto out;
+			}
+
 			ASSERT3P(head_zio, !=, NULL);
 			if ((hdr->b_flags & ARC_FLAG_PRIO_ASYNC_READ) &&
 			    priority == ZIO_PRIORITY_SYNC_READ) {
@@ -5698,12 +5706,21 @@ top:
 		uint64_t size;
 		abd_t *hdr_abd;
 
+		if (*arc_flags & ARC_FLAG_CACHED_ONLY) {
+			rc = SET_ERROR(ENOENT);
+			if (hash_lock != NULL)
+				mutex_exit(hash_lock);
+			goto out;
+		}
+
 		/*
 		 * Gracefully handle a damaged logical block size as a
 		 * checksum error.
 		 */
 		if (lsize > spa_maxblocksize(spa)) {
 			rc = SET_ERROR(ECKSUM);
+			if (hash_lock != NULL)
+				mutex_exit(hash_lock);
 			goto out;
 		}
 
