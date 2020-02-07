@@ -295,7 +295,7 @@ unsigned long zfs_metaslab_max_size_cache_sec = 3600; /* 1 hour */
  * a metaslab would take it over this percentage, the oldest selected metaslab
  * is automatically unloaded.
  */
-int zfs_metaslab_mem_limit = 75;
+int zfs_metaslab_mem_limit = 25;
 
 /*
  * Force the per-metaslab range trees to use 64-bit integers to store
