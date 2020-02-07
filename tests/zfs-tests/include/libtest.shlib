@@ -119,6 +119,21 @@ function is_freebsd
 	fi
 }
 
+# Determine if this is a DilOS test system
+#
+# Return 0 if platform DilOS, 1 if otherwise
+
+function is_dilos
+{
+	typeset ID=""
+	[[ -f /etc/os-release ]] && . /etc/os-release
+	if [[ $ID == "dilos" ]]; then
+		return 0
+	else
+		return 1
+	fi
+}
+
 # Determine if this is a 32-bit system
 #
 # Return 0 if platform is 32-bit, 1 if otherwise
