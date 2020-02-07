@@ -4111,17 +4111,12 @@ zfs_ioc_wait_fs(const char *name, nvlist_t *innvl, nvlist_t *outnvl)
 	if ((error = dsl_pool_hold(name, FTAG, &dp)) != 0)
 		return (error);
 
-	if ((error = dsl_dir_hold(dp, name, FTAG, &dd, NULL)) != 0) {
+	if ((error = dsl_dataset_hold(dp, name, FTAG, &ds)) != 0) {
 		dsl_pool_rele(dp, FTAG);
 		return (error);
 	}
 
-	if ((error = dsl_dataset_hold_obj(dd->dd_pool,
-	    dsl_dir_phys(dd)->dd_head_dataset_obj, FTAG, &ds)) != 0) {
-		dsl_pool_rele(dp, FTAG);
-		dsl_dir_rele(dd, FTAG);
-		return (error);
-	}
+	dd = ds->ds_dir;
 	mutex_enter(&dd->dd_activity_lock);
 	dd->dd_activity_count++;
 

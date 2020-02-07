@@ -3241,8 +3241,6 @@ dsl_dataset_rollback_sync(void *arg, dmu_tx_t *tx)
 
 	VERIFY0(dsl_dataset_hold(dp, ddra->ddra_fsname, FTAG, &ds));
 
-	dsl_dir_cancel_waiters(ds->ds_dir);
-
 	dsl_dataset_name(ds->ds_prev, namebuf);
 	fnvlist_add_string(ddra->ddra_result, "target", namebuf);
 

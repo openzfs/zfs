@@ -2310,6 +2310,7 @@ dsl_dir_activity_in_progress(dsl_dir_t *dd, dsl_dataset_t *ds,
 			break;
 
 		if (dmu_objset_type(os) != DMU_OST_ZFS ||
+		    dmu_objset_get_user(os) == NULL || 
 		    zfs_get_vfs_flag_unmounted(os)) {
 			*in_progress = B_FALSE;
 			return (0);
@@ -2392,5 +2393,4 @@ dsl_dir_cancel_waiters(dsl_dir_t *dd)
 #if defined(_KERNEL)
 EXPORT_SYMBOL(dsl_dir_set_quota);
 EXPORT_SYMBOL(dsl_dir_set_reservation);
-EXPORT_SYMBOL(dsl_dir_cancel_waiters);
 #endif
