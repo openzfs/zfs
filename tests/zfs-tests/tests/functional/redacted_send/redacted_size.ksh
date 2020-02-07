@@ -45,7 +45,7 @@ log_must zfs snapshot $clone@snap
 log_must zfs redact $sendfs@snap book $clone@snap
 log_must eval "zfs send -nvP --redact book $sendfs@snap | \
     grep '^size' | awk '{print \$2}' >$size"
-log_must eval "zfs send --redact book $sendfs@snap | wc --bytes \
+log_must eval "zfs send --redact book $sendfs@snap | wc -c \
     >$size2"
 bytes1=$(cat $size | tr -d '[[:space:]]')
 bytes2=$(cat $size2 | tr -d '[[:space:]]')
@@ -55,7 +55,7 @@ bytes2=$(cat $size2 | tr -d '[[:space:]]')
 log_must zfs snapshot $sendfs@snap2
 log_must eval "zfs send -nvP -i $sendfs#book $sendfs@snap2 | \
     grep '^size' | awk '{print \$2}' >$size"
-log_must eval "zfs send -i $sendfs#book $sendfs@snap2 | wc --bytes >$size2"
+log_must eval "zfs send -i $sendfs#book $sendfs@snap2 | wc -c >$size2"
 bytes1=$(cat $size | tr -d '[[:space:]]')
 bytes2=$(cat $size2 | tr -d '[[:space:]]')
 [[ "$bytes1" -eq "$bytes2" ]] || \
