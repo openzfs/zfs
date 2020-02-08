@@ -381,9 +381,9 @@ pre =
 post =
 tags = ['functional', 'cli_root', 'zpool_labelclear']
 
-[tests/functional/cli_root/zpool_load]
-tests = ['zpool_load_001_pos']
-tags = ['functional', 'cli_root', 'zpool_load']
+[tests/functional/cli_root/zpool_prefetch]
+tests = ['zpool_prefetch_001_pos']
+tags = ['functional', 'cli_root', 'zpool_prefetch']
 
 [tests/functional/cli_root/zpool_initialize]
 tests = ['zpool_initialize_attach_detach_add_remove',
