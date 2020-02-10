@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # Verify that an assortment of known good reference pools can be imported
 # using different versions of the ZoL code.

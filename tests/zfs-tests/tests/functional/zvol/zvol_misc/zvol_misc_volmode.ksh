@@ -83,6 +83,17 @@ function sysctl_volmode # value
 	log_must set_tunable32 VOL_MODE $value
 }
 
+#
+# Exercise open and close, read and write operations
+#
+function test_io # dev
+{
+	typeset dev=$1
+
+	log_must dd if=/dev/zero of=$dev count=1
+	log_must dd if=$dev of=/dev/null count=1
+}
+
 log_assert "Verify that ZFS volume property 'volmode' works as intended"
 log_onexit cleanup
 
@@ -96,6 +107,8 @@ log_must zfs create -o mountpoint=none $VOLFS
 log_must zfs create -V $VOLSIZE -s $SUBZVOL
 log_must zfs create -V $VOLSIZE -s $ZVOL
 udev_wait
+test_io $ZDEV
+test_io $SUBZDEV
 
 # 1. Verify "volmode" property does not accept invalid values
 typeset badvals=("off" "on" "1" "nope" "-")
@@ -114,6 +127,7 @@ log_must zfs create -V $VOLSIZE -s $ZVOL
 udev_wait
 log_must zfs set volmode=full $ZVOL
 blockdev_exists $ZDEV
+test_io $ZDEV
 log_must verify_partition $ZDEV
 udev_wait
 # 3.1 Verify "volmode=geom" is an alias for "volmode=full"
@@ -130,6 +144,7 @@ log_must zfs create -V $VOLSIZE -s $ZVOL
 udev_wait
 log_must zfs set volmode=dev $ZVOL
 blockdev_exists $ZDEV
+test_io $ZDEV
 log_mustnot verify_partition $ZDEV
 udev_wait
 log_must_busy zfs destroy $ZVOL
