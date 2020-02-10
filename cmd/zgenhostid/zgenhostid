@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Emulate genhostid(1) available on RHEL/CENTOS, for use on distros
 # which do not provide that utility.
