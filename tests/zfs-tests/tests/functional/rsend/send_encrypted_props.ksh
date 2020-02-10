@@ -124,7 +124,7 @@ ds=$TESTPOOL/recv
 log_must eval "zfs send $snap > $sendfile"
 log_must eval "zfs recv -o encryption=on -o keyformat=passphrase" \
 	"-o keylocation=file://$keyfile $ds < $sendfile"
-log_must test "$(get_prop 'encryption' $ds)" == "aes-256-ccm"
+log_must test "$(get_prop 'encryption' $ds)" == "aes-256-gcm"
 log_must test "$(get_prop 'encryptionroot' $ds)" == "$ds"
 log_must test "$(get_prop 'keyformat' $ds)" == "passphrase"
 log_must test "$(get_prop 'keylocation' $ds)" == "file://$keyfile"
@@ -140,7 +140,7 @@ ds=$TESTPOOL/recv
 log_must eval "zfs send -p $snap > $sendfile"
 log_must eval "zfs recv -o encryption=on -o keyformat=passphrase" \
 	"-o keylocation=file://$keyfile $ds < $sendfile"
-log_must test "$(get_prop 'encryption' $ds)" == "aes-256-ccm"
+log_must test "$(get_prop 'encryption' $ds)" == "aes-256-gcm"
 log_must test "$(get_prop 'encryptionroot' $ds)" == "$ds"
 log_must test "$(get_prop 'keyformat' $ds)" == "passphrase"
 log_must test "$(get_prop 'keylocation' $ds)" == "file://$keyfile"
@@ -158,7 +158,7 @@ ds=$TESTPOOL/recv
 log_must eval "zfs send -R $snap > $sendfile"
 log_must eval "zfs recv -o encryption=on -o keyformat=passphrase" \
 	"-o keylocation=file://$keyfile $ds < $sendfile"
-log_must test "$(get_prop 'encryption' $ds)" == "aes-256-ccm"
+log_must test "$(get_prop 'encryption' $ds)" == "aes-256-gcm"
 log_must test "$(get_prop 'encryptionroot' $ds)" == "$ds"
 log_must test "$(get_prop 'keyformat' $ds)" == "passphrase"
 log_must test "$(get_prop 'keylocation' $ds)" == "file://$keyfile"
@@ -174,7 +174,7 @@ ds=$TESTPOOL/crypt/recv
 log_must eval "zfs send -p $snap > $sendfile"
 log_must eval "zfs recv -x encryption $ds < $sendfile"
 log_must test "$(get_prop 'encryptionroot' $ds)" == "$TESTPOOL/crypt"
-log_must test "$(get_prop 'encryption' $ds)" == "aes-256-ccm"
+log_must test "$(get_prop 'encryption' $ds)" == "aes-256-gcm"
 log_must test "$(get_prop 'keyformat' $ds)" == "passphrase"
 log_must test "$(get_prop 'mounted' $ds)" == "yes"
 recv_cksum=$(md5digest /$ds/$TESTFILE0)
@@ -188,7 +188,7 @@ ds=$TESTPOOL/crypt/recv
 log_must eval "zfs send -R $snap > $sendfile"
 log_must eval "zfs recv -x encryption $ds < $sendfile"
 log_must test "$(get_prop 'encryptionroot' $ds)" == "$TESTPOOL/crypt"
-log_must test "$(get_prop 'encryption' $ds)" == "aes-256-ccm"
+log_must test "$(get_prop 'encryption' $ds)" == "aes-256-gcm"
 log_must test "$(get_prop 'keyformat' $ds)" == "passphrase"
 log_must test "$(get_prop 'mounted' $ds)" == "yes"
 recv_cksum=$(md5digest /$ds/$TESTFILE0)
@@ -202,7 +202,7 @@ ds=$TESTPOOL/crypt/recv
 log_must eval "zfs send -R $snap2 > $sendfile"
 log_must eval "zfs recv -x encryption $ds < $sendfile"
 log_must test "$(get_prop 'encryptionroot' $ds)" == "$TESTPOOL/crypt"
-log_must test "$(get_prop 'encryption' $ds)" == "aes-256-ccm"
+log_must test "$(get_prop 'encryption' $ds)" == "aes-256-gcm"
 log_must test "$(get_prop 'keyformat' $ds)" == "passphrase"
 log_must test "$(get_prop 'mounted' $ds)" == "yes"
 recv_cksum=$(md5digest /$ds/$TESTFILE0)

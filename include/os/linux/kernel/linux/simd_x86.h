@@ -478,6 +478,19 @@ zfs_pclmulqdq_available(void)
 }
 
 /*
+ * Check if MOVBE instruction is available
+ */
+static inline boolean_t
+zfs_movbe_available(void)
+{
+#if defined(X86_FEATURE_MOVBE)
+	return (!!boot_cpu_has(X86_FEATURE_MOVBE));
+#else
+	return (B_FALSE);
+#endif
+}
+
+/*
  * AVX-512 family of instruction sets:
  *
  * AVX512F	Foundation
