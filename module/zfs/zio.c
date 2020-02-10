@@ -890,35 +890,82 @@ zio_root(spa_t *spa, zio_done_func_t *done, void *private, enum zio_flag flags)
 	return (zio_null(NULL, spa, NULL, done, private, flags));
 }
 
-static void
-zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp, boolean_t config_held)
+static int
+zfs_blkptr_verify_log(spa_t *spa, const blkptr_t *bp,
+    enum blk_verify_flag blk_verify, const char *fmt, ...)
 {
+	va_list adx;
+	char buf[256];
+
+	va_start(adx, fmt);
+	(void) vsnprintf(buf, sizeof (buf), fmt, adx);
+	va_end(adx);
+
+	switch (blk_verify) {
+	case BLK_VERIFY_HALT:
+		zfs_panic_recover("%s: %s", spa_name(spa), buf);
+		break;
+	case BLK_VERIFY_LOG:
+		zfs_dbgmsg("%s: %s", spa_name(spa), buf);
+		break;
+	case BLK_VERIFY_ONLY:
+		break;
+	}
+
+	return (1);
+}
+
+/*
+ * Verify the block pointer fields contain reasonable values.  This means
+ * it only contains known object types, checksum/compression identifiers,
+ * block sizes within the maximum allowed limits, valid DVAs, etc.
+ *
+ * If everything checks out B_TRUE is returned.  The zfs_blkptr_verify
+ * argument controls the behavior when an invalid field is detected.
+ *
+ * Modes for zfs_blkptr_verify:
+ *   1) BLK_VERIFY_ONLY (evaluate the block)
+ *   2) BLK_VERIFY_LOG (evaluate the block and log problems)
+ *   3) BLK_VERIFY_HALT (call zfs_panic_recover on error)
+ */
+boolean_t
+zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp, boolean_t config_held,
+    enum blk_verify_flag blk_verify)
+{
+	int errors = 0;
+
 	if (!DMU_OT_IS_VALID(BP_GET_TYPE(bp))) {
-		zfs_panic_recover("blkptr at %p has invalid TYPE %llu",
+		errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
+		    "blkptr at %p has invalid TYPE %llu",
 		    bp, (longlong_t)BP_GET_TYPE(bp));
 	}
 	if (BP_GET_CHECKSUM(bp) >= ZIO_CHECKSUM_FUNCTIONS ||
 	    BP_GET_CHECKSUM(bp) <= ZIO_CHECKSUM_ON) {
-		zfs_panic_recover("blkptr at %p has invalid CHECKSUM %llu",
+		errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
+		    "blkptr at %p has invalid CHECKSUM %llu",
 		    bp, (longlong_t)BP_GET_CHECKSUM(bp));
 	}
 	if (BP_GET_COMPRESS(bp) >= ZIO_COMPRESS_FUNCTIONS ||
 	    BP_GET_COMPRESS(bp) <= ZIO_COMPRESS_ON) {
-		zfs_panic_recover("blkptr at %p has invalid COMPRESS %llu",
+		errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
+		    "blkptr at %p has invalid COMPRESS %llu",
 		    bp, (longlong_t)BP_GET_COMPRESS(bp));
 	}
 	if (BP_GET_LSIZE(bp) > SPA_MAXBLOCKSIZE) {
-		zfs_panic_recover("blkptr at %p has invalid LSIZE %llu",
+		errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
+		    "blkptr at %p has invalid LSIZE %llu",
 		    bp, (longlong_t)BP_GET_LSIZE(bp));
 	}
 	if (BP_GET_PSIZE(bp) > SPA_MAXBLOCKSIZE) {
-		zfs_panic_recover("blkptr at %p has invalid PSIZE %llu",
+		errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
+		    "blkptr at %p has invalid PSIZE %llu",
 		    bp, (longlong_t)BP_GET_PSIZE(bp));
 	}
 
 	if (BP_IS_EMBEDDED(bp)) {
 		if (BPE_GET_ETYPE(bp) >= NUM_BP_EMBEDDED_TYPES) {
-			zfs_panic_recover("blkptr at %p has invalid ETYPE %llu",
+			errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
+			    "blkptr at %p has invalid ETYPE %llu",
 			    bp, (longlong_t)BPE_GET_ETYPE(bp));
 		}
 	}
@@ -928,7 +975,7 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp, boolean_t config_held)
 	 * will be done once the zio is executed in vdev_mirror_map_alloc.
 	 */
 	if (!spa->spa_trust_config)
-		return;
+		return (B_TRUE);
 
 	if (!config_held)
 		spa_config_enter(spa, SCL_VDEV, bp, RW_READER);
@@ -946,21 +993,21 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp, boolean_t config_held)
 		uint64_t vdevid = DVA_GET_VDEV(&bp->blk_dva[i]);
 
 		if (vdevid >= spa->spa_root_vdev->vdev_children) {
-			zfs_panic_recover("blkptr at %p DVA %u has invalid "
-			    "VDEV %llu",
+			errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
+			    "blkptr at %p DVA %u has invalid VDEV %llu",
 			    bp, i, (longlong_t)vdevid);
 			continue;
 		}
 		vdev_t *vd = spa->spa_root_vdev->vdev_child[vdevid];
 		if (vd == NULL) {
-			zfs_panic_recover("blkptr at %p DVA %u has invalid "
-			    "VDEV %llu",
+			errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
+			    "blkptr at %p DVA %u has invalid VDEV %llu",
 			    bp, i, (longlong_t)vdevid);
 			continue;
 		}
 		if (vd->vdev_ops == &vdev_hole_ops) {
-			zfs_panic_recover("blkptr at %p DVA %u has hole "
-			    "VDEV %llu",
+			errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
+			    "blkptr at %p DVA %u has hole VDEV %llu",
 			    bp, i, (longlong_t)vdevid);
 			continue;
 		}
@@ -977,13 +1024,15 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp, boolean_t config_held)
 		if (BP_IS_GANG(bp))
 			asize = vdev_psize_to_asize(vd, SPA_GANGBLOCKSIZE);
 		if (offset + asize > vd->vdev_asize) {
-			zfs_panic_recover("blkptr at %p DVA %u has invalid "
-			    "OFFSET %llu",
+			errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
+			    "blkptr at %p DVA %u has invalid OFFSET %llu",
 			    bp, i, (longlong_t)offset);
 		}
 	}
 	if (!config_held)
 		spa_config_exit(spa, SCL_VDEV, bp);
+
+	return (errors == 0);
 }
 
 boolean_t
@@ -1023,7 +1072,8 @@ zio_read(zio_t *pio, spa_t *spa, const blkptr_t *bp,
 {
 	zio_t *zio;
 
-	zfs_blkptr_verify(spa, bp, flags & ZIO_FLAG_CONFIG_WRITER);
+	(void) zfs_blkptr_verify(spa, bp, flags & ZIO_FLAG_CONFIG_WRITER,
+	    BLK_VERIFY_HALT);
 
 	zio = zio_create(pio, spa, BP_PHYSICAL_BIRTH(bp), bp,
 	    data, size, size, done, private,
@@ -1116,7 +1166,7 @@ void
 zio_free(spa_t *spa, uint64_t txg, const blkptr_t *bp)
 {
 
-	zfs_blkptr_verify(spa, bp, B_FALSE);
+	(void) zfs_blkptr_verify(spa, bp, B_FALSE, BLK_VERIFY_HALT);
 
 	/*
 	 * The check for EMBEDDED is a performance optimization.  We
@@ -1186,7 +1236,8 @@ zio_claim(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 {
 	zio_t *zio;
 
-	zfs_blkptr_verify(spa, bp, flags & ZIO_FLAG_CONFIG_WRITER);
+	(void) zfs_blkptr_verify(spa, bp, flags & ZIO_FLAG_CONFIG_WRITER,
+	    BLK_VERIFY_HALT);
 
 	if (BP_IS_EMBEDDED(bp))
 		return (zio_null(pio, spa, NULL, NULL, NULL, 0));
