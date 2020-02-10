@@ -303,20 +303,20 @@ int zfs_free_leak_on_eio = B_FALSE;
  * has not completed in zfs_deadman_synctime_ms is considered "hung" resulting
  * in one of three behaviors controlled by zfs_deadman_failmode.
  */
-unsigned long zfs_deadman_synctime_ms = 600000ULL;
+unsigned long zfs_deadman_synctime_ms = 600000UL;
 
 /*
  * This value controls the maximum amount of time zio_wait() will block for an
  * outstanding IO.  By default this is 300 seconds at which point the "hung"
  * behavior will be applied as described for zfs_deadman_synctime_ms.
  */
-unsigned long zfs_deadman_ziotime_ms = 300000ULL;
+unsigned long zfs_deadman_ziotime_ms = 300000UL;
 
 /*
  * Check time in milliseconds. This defines the frequency at which we check
  * for hung I/O.
  */
-unsigned long zfs_deadman_checktime_ms = 60000ULL;
+unsigned long zfs_deadman_checktime_ms = 60000UL;
 
 /*
  * By default the deadman is enabled.
@@ -1997,6 +1997,32 @@ spa_set_deadman_failmode(spa_t *spa, const char *failmode)
 		spa->spa_deadman_failmode = ZIO_FAILURE_MODE_PANIC;
 	else
 		spa->spa_deadman_failmode = ZIO_FAILURE_MODE_WAIT;
+}
+
+void
+spa_set_deadman_ziotime(hrtime_t ns)
+{
+	spa_t *spa = NULL;
+
+	if (spa_mode_global != SPA_MODE_UNINIT) {
+		mutex_enter(&spa_namespace_lock);
+		while ((spa = spa_next(spa)) != NULL)
+			spa->spa_deadman_ziotime = ns;
+		mutex_exit(&spa_namespace_lock);
+	}
+}
+
+void
+spa_set_deadman_synctime(hrtime_t ns)
+{
+	spa_t *spa = NULL;
+
+	if (spa_mode_global != SPA_MODE_UNINIT) {
+		mutex_enter(&spa_namespace_lock);
+		while ((spa = spa_next(spa)) != NULL)
+			spa->spa_deadman_synctime = ns;
+		mutex_exit(&spa_namespace_lock);
+	}
 }
 
 uint64_t
