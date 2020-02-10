@@ -1321,6 +1321,7 @@ dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags,
 		if (err != 0) {
 			DB_DNODE_EXIT(db);
 			mutex_exit(&db->db_mtx);
+			dmu_buf_unlock_parent(db, dblt, tag);
 			return (err);
 		}
 
@@ -1390,6 +1391,7 @@ dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags,
 		    SPA_FEATURE_REDACTED_DATASETS));
 		DB_DNODE_EXIT(db);
 		mutex_exit(&db->db_mtx);
+		dmu_buf_unlock_parent(db, dblt, tag);
 		return (SET_ERROR(EIO));
 	}
 
@@ -1414,8 +1416,8 @@ dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags,
 	err = dbuf_read_verify_dnode_crypt(db, flags);
 	if (err != 0) {
 		DB_DNODE_EXIT(db);
-		dmu_buf_unlock_parent(db, dblt, tag);
 		mutex_exit(&db->db_mtx);
+		dmu_buf_unlock_parent(db, dblt, tag);
 		return (err);
 	}
 
