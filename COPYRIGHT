@@ -20,6 +20,10 @@ notable exceptions and their respective licenses include:
   * AES Implementation: module/icp/asm-x86_64/aes/THIRDPARTYLICENSE.openssl
   * PBKDF2 Implementation: lib/libzfs/THIRDPARTYLICENSE.openssl
   * SPL Implementation: module/spl/THIRDPARTYLICENSE.gplv2
+  * GCM Implementaion: module/icp/asm-x86_64/modes/THIRDPARTYLICENSE.cryptogams
+  * GCM Implementaion: module/icp/asm-x86_64/modes/THIRDPARTYLICENSE.openssl
+  * GHASH Implementaion: module/icp/asm-x86_64/modes/THIRDPARTYLICENSE.cryptogams
+  * GHASH Implementaion: module/icp/asm-x86_64/modes/THIRDPARTYLICENSE.openssl
 
 This product includes software developed by the OpenSSL Project for use
 in the OpenSSL Toolkit (http://www.openssl.org/)
