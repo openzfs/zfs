@@ -6410,6 +6410,18 @@ dump_zpool(spa_t *spa)
 	}
 }
 
+#define	ZDB_FLAG_CHECKSUM	0x0001
+#define	ZDB_FLAG_DECOMPRESS	0x0002
+#define	ZDB_FLAG_BSWAP		0x0004
+#define	ZDB_FLAG_GBH		0x0008
+#define	ZDB_FLAG_INDIRECT	0x0010
+#define	ZDB_FLAG_RAW		0x0020
+#define	ZDB_FLAG_PRINT_BLKPTR	0x0040
+#define	ZDB_FLAG_VERBOSE	0x0080
+
+static int flagbits[256];
+static char flagbitstr[16];
+
 static void
 zdb_print_blkptr(blkptr_t *bp, int flags)
 {
@@ -6576,6 +6588,83 @@ zdb_parse_block_sizes(char *sizes, uint64_t *lsize, uint64_t *psize)
 
 #define	ZIO_COMPRESS_MASK(alg)	(1ULL << (ZIO_COMPRESS_##alg))
 
+static boolean_t
+zdb_decompress_block(abd_t *pabd, void *buf, void *lbuf, uint64_t lsize,
+    uint64_t psize, int flags)
+{
+	boolean_t exceeded = B_FALSE;
+	/*
+	 * We don't know how the data was compressed, so just try
+	 * every decompress function at every inflated blocksize.
+	 */
+	void *lbuf2 = umem_alloc(SPA_MAXBLOCKSIZE, UMEM_NOFAIL);
+	int cfuncs[ZIO_COMPRESS_FUNCTIONS] = { 0 };
+	int *cfuncp = cfuncs;
+	uint64_t maxlsize = SPA_MAXBLOCKSIZE;
+	uint64_t mask = ZIO_COMPRESS_MASK(ON) | ZIO_COMPRESS_MASK(OFF) |
+	    ZIO_COMPRESS_MASK(INHERIT) | ZIO_COMPRESS_MASK(EMPTY) |
+	    (getenv("ZDB_NO_ZLE") ? ZIO_COMPRESS_MASK(ZLE) : 0);
+	*cfuncp++ = ZIO_COMPRESS_LZ4;
+	*cfuncp++ = ZIO_COMPRESS_LZJB;
+	mask |= ZIO_COMPRESS_MASK(LZ4) | ZIO_COMPRESS_MASK(LZJB);
+	for (int c = 0; c < ZIO_COMPRESS_FUNCTIONS; c++)
+		if (((1ULL << c) & mask) == 0)
+			*cfuncp++ = c;
+
+	/*
+	 * On the one hand, with SPA_MAXBLOCKSIZE at 16MB, this
+	 * could take a while and we should let the user know
+	 * we are not stuck.  On the other hand, printing progress
+	 * info gets old after a while.  User can specify 'v' flag
+	 * to see the progression.
+	 */
+	if (lsize == psize)
+		lsize += SPA_MINBLOCKSIZE;
+	else
+		maxlsize = lsize;
+	for (; lsize <= maxlsize; lsize += SPA_MINBLOCKSIZE) {
+		for (cfuncp = cfuncs; *cfuncp; cfuncp++) {
+			if (flags & ZDB_FLAG_VERBOSE) {
+				(void) fprintf(stderr,
+				    "Trying %05llx -> %05llx (%s)\n",
+				    (u_longlong_t)psize,
+				    (u_longlong_t)lsize,
+				    zio_compress_table[*cfuncp].\
+				    ci_name);
+			}
+
+			/*
+			 * We randomize lbuf2, and decompress to both
+			 * lbuf and lbuf2. This way, we will know if
+			 * decompression fill exactly to lsize.
+			 */
+			VERIFY0(random_get_pseudo_bytes(lbuf2, lsize));
+
+			if (zio_decompress_data(*cfuncp, pabd,
+			    lbuf, psize, lsize) == 0 &&
+			    zio_decompress_data(*cfuncp, pabd,
+			    lbuf2, psize, lsize) == 0 &&
+			    bcmp(lbuf, lbuf2, lsize) == 0)
+				break;
+		}
+		if (*cfuncp != 0)
+			break;
+	}
+	umem_free(lbuf2, SPA_MAXBLOCKSIZE);
+
+	if (lsize > maxlsize) {
+		exceeded = B_TRUE;
+	}
+	buf = lbuf;
+	if (*cfuncp == ZIO_COMPRESS_ZLE) {
+		printf("\nZLE decompression was selected. If you "
+		    "suspect the results are wrong,\ntry avoiding ZLE "
+		    "by setting and exporting ZDB_NO_ZLE=\"true\"\n");
+	}
+
+	return (exceeded);
+}
+
 /*
  * Read a block from a pool and print it out.  The syntax of the
  * block descriptor is:
@@ -6610,7 +6699,7 @@ zdb_read_block(char *thing, spa_t *spa)
 	void *lbuf, *buf;
 	char *s, *p, *dup, *vdev, *flagstr, *sizes;
 	int i, error;
-	boolean_t borrowed = B_FALSE;
+	boolean_t borrowed = B_FALSE, found = B_FALSE;
 
 	dup = strdup(thing);
 	s = strtok(dup, ":");
@@ -6630,41 +6719,57 @@ zdb_read_block(char *thing, spa_t *spa)
 		s = "offset must be a multiple of sector size";
 	if (s) {
 		(void) printf("Invalid block specifier: %s  - %s\n", thing, s);
-		free(flagstr);
-		free(dup);
-		return;
+		goto done;
 	}
 
 	for (s = strtok(flagstr, ":"); s; s = strtok(NULL, ":")) {
-		for (i = 0; flagstr[i]; i++) {
+		for (i = 0; i < strlen(flagstr); i++) {
 			int bit = flagbits[(uchar_t)flagstr[i]];
 
 			if (bit == 0) {
-				(void) printf("***Invalid flag: %c\n",
-				    flagstr[i]);
+				(void) printf("***Ignoring flag: %c\n",
+				    (uchar_t)flagstr[i]);
 				continue;
 			}
+			found = B_TRUE;
 			flags |= bit;
 
-			/* If it's not something with an argument, keep going */
-			if ((bit & (ZDB_FLAG_CHECKSUM |
-			    ZDB_FLAG_PRINT_BLKPTR)) == 0)
-				continue;
-
 			p = &flagstr[i + 1];
-			if (bit == ZDB_FLAG_PRINT_BLKPTR) {
-				blkptr_offset = strtoull(p, &p, 16);
-				i = p - &flagstr[i + 1];
-			}
 			if (*p != ':' && *p != '\0') {
-				(void) printf("***Invalid flag arg: '%s'\n", s);
-				free(flagstr);
-				free(dup);
-				return;
+				int j = 0, nextbit = flagbits[(uchar_t)*p];
+				char *end, offstr[8] = { 0 };
+				if ((bit == ZDB_FLAG_PRINT_BLKPTR) &&
+				    (nextbit == 0)) {
+					/* look ahead to isolate the offset */
+					while (nextbit == 0 &&
+					    strchr(flagbitstr, *p) == NULL) {
+						offstr[j] = *p;
+						j++;
+						if (i + j > strlen(flagstr))
+							break;
+						p++;
+						nextbit = flagbits[(uchar_t)*p];
+					}
+					blkptr_offset = strtoull(offstr, &end,
+					    16);
+					i += j;
+				} else if (nextbit == 0) {
+					(void) printf("***Ignoring flag arg:"
+					    " '%c'\n", (uchar_t)*p);
+				}
 			}
 		}
 	}
-	free(flagstr);
+	if (blkptr_offset % sizeof (blkptr_t)) {
+		printf("Block pointer offset 0x%llx "
+		    "must be divisible by 0x%x\n",
+		    (longlong_t)blkptr_offset, (int)sizeof (blkptr_t));
+		goto done;
+	}
+	if (found == B_FALSE && strlen(flagstr) > 0) {
+		printf("Invalid flag arg: '%s'\n", flagstr);
+		goto done;
+	}
 
 	vd = zdb_vdev_lookup(spa->spa_root_vdev, vdev);
 	if (vd == NULL) {
@@ -6717,10 +6822,9 @@ zdb_read_block(char *thing, spa_t *spa)
 		 */
 		zio_nowait(zio_vdev_child_io(zio, bp, vd, offset, pabd,
 		    psize, ZIO_TYPE_READ, ZIO_PRIORITY_SYNC_READ,
-		    ZIO_FLAG_DONT_CACHE | ZIO_FLAG_DONT_QUEUE |
-		    ZIO_FLAG_DONT_PROPAGATE | ZIO_FLAG_DONT_RETRY |
-		    ZIO_FLAG_CANFAIL | ZIO_FLAG_RAW | ZIO_FLAG_OPTIONAL,
-		    NULL, NULL));
+		    ZIO_FLAG_DONT_CACHE | ZIO_FLAG_DONT_PROPAGATE |
+		    ZIO_FLAG_DONT_RETRY | ZIO_FLAG_CANFAIL | ZIO_FLAG_RAW |
+		    ZIO_FLAG_OPTIONAL, NULL, NULL));
 	}
 
 	error = zio_wait(zio);
@@ -6731,79 +6835,42 @@ zdb_read_block(char *thing, spa_t *spa)
 		goto out;
 	}
 
+	uint64_t orig_lsize = lsize;
+	buf = lbuf;
 	if (flags & ZDB_FLAG_DECOMPRESS) {
-		/*
-		 * We don't know how the data was compressed, so just try
-		 * every decompress function at every inflated blocksize.
-		 */
-		void *lbuf2 = umem_alloc(SPA_MAXBLOCKSIZE, UMEM_NOFAIL);
-		int cfuncs[ZIO_COMPRESS_FUNCTIONS] = { 0 };
-		int *cfuncp = cfuncs;
-		uint64_t maxlsize = SPA_MAXBLOCKSIZE;
-		uint64_t mask = ZIO_COMPRESS_MASK(ON) | ZIO_COMPRESS_MASK(OFF) |
-		    ZIO_COMPRESS_MASK(INHERIT) | ZIO_COMPRESS_MASK(EMPTY) |
-		    (getenv("ZDB_NO_ZLE") ? ZIO_COMPRESS_MASK(ZLE) : 0);
-		*cfuncp++ = ZIO_COMPRESS_LZ4;
-		*cfuncp++ = ZIO_COMPRESS_LZJB;
-		mask |= ZIO_COMPRESS_MASK(LZ4) | ZIO_COMPRESS_MASK(LZJB);
-		for (int c = 0; c < ZIO_COMPRESS_FUNCTIONS; c++)
-			if (((1ULL << c) & mask) == 0)
-				*cfuncp++ = c;
-
-		/*
-		 * On the one hand, with SPA_MAXBLOCKSIZE at 16MB, this
-		 * could take a while and we should let the user know
-		 * we are not stuck.  On the other hand, printing progress
-		 * info gets old after a while.  User can specify 'v' flag
-		 * to see the progression.
-		 */
-		if (lsize == psize)
-			lsize += SPA_MINBLOCKSIZE;
-		else
-			maxlsize = lsize;
-		for (; lsize <= maxlsize; lsize += SPA_MINBLOCKSIZE) {
-			for (cfuncp = cfuncs; *cfuncp; cfuncp++) {
-				if (flags & ZDB_FLAG_VERBOSE) {
-					(void) fprintf(stderr,
-					    "Trying %05llx -> %05llx (%s)\n",
-					    (u_longlong_t)psize,
-					    (u_longlong_t)lsize,
-					    zio_compress_table[*cfuncp].\
-					    ci_name);
-				}
-
-				/*
-				 * We randomize lbuf2, and decompress to both
-				 * lbuf and lbuf2. This way, we will know if
-				 * decompression fill exactly to lsize.
-				 */
-				VERIFY0(random_get_pseudo_bytes(lbuf2, lsize));
-
-				if (zio_decompress_data(*cfuncp, pabd,
-				    lbuf, psize, lsize) == 0 &&
-				    zio_decompress_data(*cfuncp, pabd,
-				    lbuf2, psize, lsize) == 0 &&
-				    bcmp(lbuf, lbuf2, lsize) == 0)
-					break;
-			}
-			if (*cfuncp != 0)
-				break;
-		}
-		umem_free(lbuf2, SPA_MAXBLOCKSIZE);
-
-		if (lsize > maxlsize) {
+		boolean_t failed = zdb_decompress_block(pabd, buf, lbuf,
+		    lsize, psize, flags);
+		if (failed) {
 			(void) printf("Decompress of %s failed\n", thing);
 			goto out;
-		}
-		buf = lbuf;
-		if (*cfuncp == ZIO_COMPRESS_ZLE) {
-			printf("\nZLE decompression was selected. If you "
-			    "suspect the results are wrong,\ntry avoiding ZLE "
-			    "by setting and exporting ZDB_NO_ZLE=\"true\"\n");
 		}
 	} else {
 		buf = abd_borrow_buf_copy(pabd, lsize);
 		borrowed = B_TRUE;
+	}
+	/*
+	 * Try to detect invalid block pointer.  If invalid, try
+	 * decompressing.
+	 */
+	if ((flags & ZDB_FLAG_PRINT_BLKPTR || flags & ZDB_FLAG_INDIRECT) &&
+	    !(flags & ZDB_FLAG_DECOMPRESS)) {
+		const blkptr_t *b = (const blkptr_t *)(void *)
+		    ((uintptr_t)buf + (uintptr_t)blkptr_offset);
+		if (zfs_blkptr_verify(spa, b, B_FALSE, BLK_VERIFY_ONLY) ==
+		    B_FALSE) {
+			abd_return_buf_copy(pabd, buf, lsize);
+			borrowed = B_FALSE;
+			buf = lbuf;
+			boolean_t failed = zdb_decompress_block(pabd, buf,
+			    lbuf, lsize, psize, flags);
+			b = (const blkptr_t *)(void *)
+			    ((uintptr_t)buf + (uintptr_t)blkptr_offset);
+			if (failed || zfs_blkptr_verify(spa, b, B_FALSE,
+			    BLK_VERIFY_LOG) == B_FALSE) {
+				printf("invalid block pointer at this DVA\n");
+				goto out;
+			}
+		}
 	}
 
 	if (flags & ZDB_FLAG_PRINT_BLKPTR)
@@ -6812,8 +6879,8 @@ zdb_read_block(char *thing, spa_t *spa)
 	else if (flags & ZDB_FLAG_RAW)
 		zdb_dump_block_raw(buf, lsize, flags);
 	else if (flags & ZDB_FLAG_INDIRECT)
-		zdb_dump_indirect((blkptr_t *)buf, lsize / sizeof (blkptr_t),
-		    flags);
+		zdb_dump_indirect((blkptr_t *)buf,
+		    orig_lsize / sizeof (blkptr_t), flags);
 	else if (flags & ZDB_FLAG_GBH)
 		zdb_dump_gbh(buf, flags);
 	else
@@ -6886,6 +6953,8 @@ zdb_read_block(char *thing, spa_t *spa)
 out:
 	abd_free(pabd);
 	umem_free(lbuf, SPA_MAXBLOCKSIZE);
+done:
+	free(flagstr);
 	free(dup);
 }
 
