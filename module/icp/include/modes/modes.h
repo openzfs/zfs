@@ -34,6 +34,16 @@ extern "C" {
 #include <sys/crypto/common.h>
 #include <sys/crypto/impl.h>
 
+/*
+ * Does the build chain support all instructions needed for the GCM assembler
+ * routines. AVX support should imply AES-NI and PCLMULQDQ, but make sure
+ * anyhow.
+ */
+#if defined(__x86_64__) && defined(HAVE_AVX) && \
+    defined(HAVE_AES) && defined(HAVE_PCLMULQDQ) && defined(HAVE_MOVBE)
+#define	CAN_USE_GCM_ASM
+#endif
+
 #define	ECB_MODE			0x00000002
 #define	CBC_MODE			0x00000004
 #define	CTR_MODE			0x00000008
@@ -189,13 +199,17 @@ typedef struct ccm_ctx {
  *
  * gcm_H:		Subkey.
  *
+ * gcm_Htable:		Pre-computed and pre-shifted H, H^2, ... H^6 for the
+ *			Karatsuba Algorithm in host byte order.
+ *
  * gcm_J0:		Pre-counter block generated from the IV.
  *
  * gcm_len_a_len_c:	64-bit representations of the bit lengths of
  *			AAD and ciphertext.
  *
- * gcm_kmflag:		Current value of kmflag. Used only for allocating
- *			the plaintext buffer during decryption.
+ * gcm_kmflag:		Current value of kmflag. Used for allocating
+ *			the plaintext buffer during decryption and a
+ *			gcm_avx_chunk_size'd buffer for avx enabled encryption.
  */
 typedef struct gcm_ctx {
 	struct common_ctx gcm_common;
@@ -203,12 +217,23 @@ typedef struct gcm_ctx {
 	size_t gcm_processed_data_len;
 	size_t gcm_pt_buf_len;
 	uint32_t gcm_tmp[4];
+	/*
+	 * The relative positions of gcm_ghash, gcm_H and pre-computed
+	 * gcm_Htable are hard coded in aesni-gcm-x86_64.S and ghash-x86_64.S,
+	 * so please don't change (or adjust accordingly).
+	 */
 	uint64_t gcm_ghash[2];
 	uint64_t gcm_H[2];
+#ifdef CAN_USE_GCM_ASM
+	uint64_t gcm_Htable[12][2];
+#endif
 	uint64_t gcm_J0[2];
 	uint64_t gcm_len_a_len_c[2];
 	uint8_t *gcm_pt_buf;
 	int gcm_kmflag;
+#ifdef CAN_USE_GCM_ASM
+	boolean_t gcm_use_avx;
+#endif
 } gcm_ctx_t;
 
 #define	gcm_keysched		gcm_common.cc_keysched

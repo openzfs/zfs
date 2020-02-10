@@ -382,7 +382,8 @@ typedef enum cpuid_inst_sets {
 	AVX512ER,
 	AVX512VL,
 	AES,
-	PCLMULQDQ
+	PCLMULQDQ,
+    MOVBE
 } cpuid_inst_sets_t;
 
 /*
@@ -406,6 +407,7 @@ typedef struct cpuid_feature_desc {
 #define	_AVX512VL_BIT		(1U << 31) /* if used also check other levels */
 #define	_AES_BIT		(1U << 25)
 #define	_PCLMULQDQ_BIT		(1U << 1)
+#define	_MOVBE_BIT		(1U << 22)
 
 /*
  * Descriptions of supported instruction sets
@@ -433,6 +435,7 @@ static const cpuid_feature_desc_t cpuid_features[] = {
 	[AVX512VL]	= {7U, 0U, _AVX512ER_BIT,	EBX	},
 	[AES]		= {1U, 0U, _AES_BIT,		ECX	},
 	[PCLMULQDQ]	= {1U, 0U, _PCLMULQDQ_BIT,	ECX	},
+	[MOVBE]		= {1U, 0U, _MOVBE_BIT,		ECX	},
 };
 
 /*
@@ -505,6 +508,7 @@ CPUID_FEATURE_CHECK(avx512er, AVX512ER);
 CPUID_FEATURE_CHECK(avx512vl, AVX512VL);
 CPUID_FEATURE_CHECK(aes, AES);
 CPUID_FEATURE_CHECK(pclmulqdq, PCLMULQDQ);
+CPUID_FEATURE_CHECK(movbe, MOVBE);
 
 #endif /* !defined(_KERNEL) */
 
@@ -716,6 +720,23 @@ zfs_pclmulqdq_available(void)
 #endif
 #elif !defined(_KERNEL)
 	return (__cpuid_has_pclmulqdq());
+#endif
+}
+
+/*
+ * Check if MOVBE instruction is available
+ */
+static inline boolean_t
+zfs_movbe_available(void)
+{
+#if defined(_KERNEL)
+#if defined(X86_FEATURE_MOVBE)
+	return (!!boot_cpu_has(X86_FEATURE_MOVBE));
+#else
+	return (B_FALSE);
+#endif
+#elif !defined(_KERNEL)
+	return (__cpuid_has_movbe());
 #endif
 }
 
