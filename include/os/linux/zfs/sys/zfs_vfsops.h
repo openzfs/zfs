@@ -67,6 +67,8 @@ typedef struct vfs {
 	boolean_t	vfs_do_atime;
 	boolean_t	vfs_relatime;
 	boolean_t	vfs_do_relatime;
+	boolean_t	vfs_lazytime;
+	boolean_t	vfs_do_lazytime;
 	boolean_t	vfs_nbmand;
 	boolean_t	vfs_do_nbmand;
 } vfs_t;
@@ -100,6 +102,7 @@ struct zfsvfs {
 	boolean_t	z_utf8;		/* utf8-only */
 	int		z_norm;		/* normalization flags */
 	boolean_t	z_relatime;	/* enable relatime mount option */
+	boolean_t	z_lazytime;	/* enable lazytime mount option */
 	boolean_t	z_unmounted;	/* unmounted */
 	rrmlock_t	z_teardown_lock;
 	krwlock_t	z_teardown_inactive_lock;

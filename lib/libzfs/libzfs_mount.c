@@ -349,6 +349,8 @@ zfs_add_options(zfs_handle_t *zhp, char *options, int len)
 		error = zfs_add_option(zhp, options, len,
 		    ZFS_PROP_RELATIME, MNTOPT_RELATIME, MNTOPT_STRICTATIME);
 	}
+	error = zfs_add_option(zhp, options, len,
+		ZFS_PROP_LAZYTIME, MNTOPT_LAZYTIME, MNTOPT_NOLAZYTIME);
 	error = error ? error : zfs_add_option(zhp, options, len,
 	    ZFS_PROP_DEVICES, MNTOPT_DEVICES, MNTOPT_NODEVICES);
 	error = error ? error : zfs_add_option(zhp, options, len,

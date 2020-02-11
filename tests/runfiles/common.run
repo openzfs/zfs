@@ -29,8 +29,8 @@ tests = ['alloc_class_001_pos', 'alloc_class_002_neg', 'alloc_class_003_pos',
 tags = ['functional', 'alloc_class']
 
 [tests/functional/atime]
-tests = ['atime_001_pos', 'atime_002_neg', 'atime_003_pos', 'root_atime_off',
-    'root_atime_on']
+tests = ['atime_001_pos', 'atime_002_neg', 'atime_003_pos', 'atime_004_pos',
+    'root_atime_off', 'root_atime_on']
 tags = ['functional', 'atime']
 
 [tests/functional/bootfs]

@@ -66,13 +66,14 @@ process_line() {
   p_canmount="${3}"
   p_atime="${4}"
   p_relatime="${5}"
-  p_devices="${6}"
-  p_exec="${7}"
-  p_readonly="${8}"
-  p_setuid="${9}"
-  p_nbmand="${10}"
-  p_encroot="${11}"
-  p_keyloc="${12}"
+  p_lazytime="${6}"
+  p_devices="${7}"
+  p_exec="${8}"
+  p_readonly="${9}"
+  p_setuid="${10}"
+  p_nbmand="${11}"
+  p_encroot="${12}"
+  p_keyloc="${13}"
 
   # Minimal pre-requisites to mount a ZFS dataset
   wants="zfs-import.target"
@@ -164,13 +165,17 @@ ExecStop=@sbindir@/zfs unload-key '${dataset}'"   > "${dest_norm}/${keyloadunit}
 
   # atime
   if [ "${p_atime}" = on ] ; then
-    # relatime
+    # relatime/lazytime
     if [ "${p_relatime}" = on ] ; then
       opts="${opts},atime,relatime"
+    elif [ "${p_lazytime}" = on ] ; then
+      opts="${opts},atime,lazytime"
     elif [ "${p_relatime}" = off ] ; then
       opts="${opts},atime,strictatime"
+    elif [ "${p_lazytime}" = off ] ; then
+      opts="${opts},atime,strictatime"
     else
-      printf 'zfs-mount-generator: (%s) invalid relatime\n' \
+      printf 'zfs-mount-generator: (%s) invalid relatime/lazytime\n' \
         "${dataset}" >/dev/kmsg
     fi
   elif [ "${p_atime}" = off ] ; then

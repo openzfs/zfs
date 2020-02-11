@@ -26,7 +26,7 @@ information on ZFS mountpoints must be stored separately. The output
 of the command
 .PP
 .RS 4
-zfs list -H -o name,mountpoint,canmount,atime,relatime,devices,exec,readonly,setuid,nbmand,encroot,keylocation
+zfs list -H -o name,mountpoint,canmount,atime,relatime,lazytime,devices,exec,readonly,setuid,nbmand,encroot,keylocation
 .RE
 .PP
 for datasets that should be mounted by systemd, should be kept

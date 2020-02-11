@@ -58,6 +58,7 @@ props['casesensitivity']    = {{'sensitive',       nil}, {'sensitive', nil}}
 props['utf8only']           = {{'off',             nil}, {'off',       nil}}
 props['dnodesize']          = {{'legacy',    'default'}, {nil,         nil}}
 props['relatime']           = {{'off',       'default'}, {nil,         nil}}
+props['lazytime']           = {{'off',       'default'}, {nil,         nil}}
 props['overlay']            = {{'off',       'default'}, {nil,         nil}}
 
 fs_fails = {}

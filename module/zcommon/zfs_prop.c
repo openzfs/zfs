@@ -382,6 +382,8 @@ zfs_prop_init(void)
 	    ZFS_TYPE_FILESYSTEM, "on | off", "ATIME", boolean_table);
 	zprop_register_index(ZFS_PROP_RELATIME, "relatime", 0, PROP_INHERIT,
 	    ZFS_TYPE_FILESYSTEM, "on | off", "RELATIME", boolean_table);
+	zprop_register_index(ZFS_PROP_LAZYTIME, "lazytime", 0, PROP_INHERIT,
+	    ZFS_TYPE_FILESYSTEM, "on | off", "LAZYTIME", boolean_table);
 	zprop_register_index(ZFS_PROP_DEVICES, "devices", 1, PROP_INHERIT,
 	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT, "on | off", "DEVICES",
 	    boolean_table);
