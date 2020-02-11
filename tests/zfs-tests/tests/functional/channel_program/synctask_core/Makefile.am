@@ -30,6 +30,8 @@ dist_pkgdata_SCRIPTS = \
 	tst.snapshot_destroy.ksh \
 	tst.snapshot_neg.ksh \
 	tst.snapshot_recursive.ksh \
+	tst.bookmark.create.ksh \
+	tst.bookmark.copy.ksh \
 	tst.snapshot_simple.ksh \
 	tst.terminate_by_signal.ksh
 
@@ -44,4 +46,6 @@ dist_pkgdata_DATA = \
 	tst.snapshot_destroy.zcp \
 	tst.snapshot_neg.zcp \
 	tst.snapshot_recursive.zcp \
-	tst.snapshot_simple.zcp
+	tst.snapshot_simple.zcp \
+	tst.bookmark.create.zcp \
+	tst.bookmark.copy.zcp
