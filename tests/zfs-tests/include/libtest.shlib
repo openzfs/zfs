@@ -3970,7 +3970,7 @@ function stat_size #<path>
 function faketty
 {
     if is_freebsd; then
-        script -q /dev/null "$@"
+        script -q /dev/null env "$@"
     else
         script --return --quiet -c "$*" /dev/null
     fi
