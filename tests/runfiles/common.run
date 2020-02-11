@@ -822,10 +822,6 @@ tags = ['functional', 'truncate']
 tests = ['upgrade_userobj_001_pos', 'upgrade_readonly_pool']
 tags = ['functional', 'upgrade']
 
-[tests/functional/user_namespace]
-tests = ['user_namespace_001']
-tags = ['functional', 'user_namespace']
-
 [tests/functional/userquota]
 tests = [
     'userquota_001_pos', 'userquota_002_pos', 'userquota_003_pos',

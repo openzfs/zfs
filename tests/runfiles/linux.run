@@ -155,6 +155,10 @@ tags = ['functional', 'tmpfile']
 tests = ['upgrade_projectquota_001_pos']
 tags = ['functional', 'upgrade']
 
+[tests/functional/user_namespace:Linux]
+tests = ['user_namespace_001']
+tags = ['functional', 'user_namespace']
+
 [tests/functional/userquota:Linux]
 tests = ['groupspace_001_pos', 'groupspace_002_pos', 'groupspace_003_pos',
     'userquota_013_pos', 'userspace_003_pos']
