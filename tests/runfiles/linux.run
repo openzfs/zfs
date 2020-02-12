@@ -75,6 +75,10 @@ tests = ['zpool_reopen_001_pos', 'zpool_reopen_002_pos',
     'zpool_reopen_006_neg', 'zpool_reopen_007_pos']
 tags = ['functional', 'cli_root', 'zpool_reopen']
 
+[tests/functional/cli_root/zpool_split:Linux]
+tests = ['zpool_split_wholedisk']
+tags = ['functional', 'cli_root', 'zpool_split']
+
 [tests/functional/compression:Linux]
 tests = ['compress_004_pos']
 tags = ['functional', 'compression']
