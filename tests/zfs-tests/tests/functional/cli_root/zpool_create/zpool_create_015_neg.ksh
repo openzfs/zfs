@@ -83,7 +83,12 @@ log_must zfs create -V 100m $vol_name
 block_device_wait
 swap_setup ${ZVOL_DEVDIR}/$vol_name
 
-for opt in "-n" "" "-f"; do
+if is_freebsd; then
+	typeset -a opts=("" "-f")
+else
+	typeset -a opts=("-n" "" "-f")
+fi
+for opt in "${opts[@]}"; do
 	log_mustnot zpool create $opt $TESTPOOL1 ${ZVOL_DEVDIR}/${vol_name}
 done
 
