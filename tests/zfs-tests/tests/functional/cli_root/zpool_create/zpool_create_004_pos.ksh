@@ -45,12 +45,10 @@ verify_runnable "global"
 
 function cleanup
 {
-	typeset pool=""
-
 	poolexists $TESTPOOL1 && destroy_pool $TESTPOOL1
 	poolexists $TESTPOOL && destroy_pool $TESTPOOL
 
-	[[ -d $TESTDIR ]] && log_must rm -rf $TESTDIR
+	rm -rf $TESTDIR
 	partition_disk $SIZE $disk 6
 }
 
