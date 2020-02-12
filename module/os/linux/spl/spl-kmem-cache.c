@@ -1185,7 +1185,6 @@ __spl_cache_grow(spl_kmem_cache_t *skc, int flags)
 		smp_mb__before_atomic();
 		clear_bit(KMC_BIT_DEADLOCKED, &skc->skc_flags);
 		smp_mb__after_atomic();
-		wake_up_all(&skc->skc_waitq);
 	}
 	spin_unlock(&skc->skc_lock);
 
@@ -1198,12 +1197,14 @@ spl_cache_grow_work(void *data)
 	spl_kmem_alloc_t *ska = (spl_kmem_alloc_t *)data;
 	spl_kmem_cache_t *skc = ska->ska_cache;
 
-	(void) __spl_cache_grow(skc, ska->ska_flags);
+	int error = __spl_cache_grow(skc, ska->ska_flags);
 
 	atomic_dec(&skc->skc_ref);
 	smp_mb__before_atomic();
 	clear_bit(KMC_BIT_GROWING, &skc->skc_flags);
 	smp_mb__after_atomic();
+	if (error == 0)
+		wake_up_all(&skc->skc_waitq);
 
 	kfree(ska);
 }
@@ -1254,8 +1255,10 @@ spl_cache_grow(spl_kmem_cache_t *skc, int flags, void **obj)
 	 */
 	if (!(skc->skc_flags & KMC_VMEM) && !(skc->skc_flags & KMC_KVMEM)) {
 		rc = __spl_cache_grow(skc, flags | KM_NOSLEEP);
-		if (rc == 0)
+		if (rc == 0) {
+			wake_up_all(&skc->skc_waitq);
 			return (0);
+		}
 	}
 
 	/*
