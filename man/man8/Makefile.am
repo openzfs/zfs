@@ -89,6 +89,7 @@ EXTRA_DIST = \
 
 $(nodist_man_MANS): %: %.in
 	-$(SED) -e 's,@zfsexecdir\@,$(zfsexecdir),g' \
+		-e 's,@systemdgeneratordir\@,$(systemdgeneratordir),g' \
 		-e 's,@runstatedir\@,$(runstatedir),g' \
 		-e 's,@sysconfdir\@,$(sysconfdir),g' \
 		$< >'$@'
