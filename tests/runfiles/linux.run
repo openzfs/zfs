@@ -75,6 +75,10 @@ tests = ['zpool_reopen_001_pos', 'zpool_reopen_002_pos',
     'zpool_reopen_006_neg', 'zpool_reopen_007_pos']
 tags = ['functional', 'cli_root', 'zpool_reopen']
 
+[tests/functional/cli_root/zpool_split:Linux]
+tests = ['zpool_split_wholedisk']
+tags = ['functional', 'cli_root', 'zpool_split']
+
 [tests/functional/compression:Linux]
 tests = ['compress_004_pos']
 tags = ['functional', 'compression']
@@ -154,6 +158,10 @@ tags = ['functional', 'tmpfile']
 [tests/functional/upgrade:Linux]
 tests = ['upgrade_projectquota_001_pos']
 tags = ['functional', 'upgrade']
+
+[tests/functional/user_namespace:Linux]
+tests = ['user_namespace_001']
+tags = ['functional', 'user_namespace']
 
 [tests/functional/userquota:Linux]
 tests = ['groupspace_001_pos', 'groupspace_002_pos', 'groupspace_003_pos',
