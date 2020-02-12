@@ -111,7 +111,7 @@ offset=$(echo "$dva" |awk '{split($0,array,":")} END{print array[2]}')
 output=$(export ZDB_NO_ZLE=\"true\";\
     zdb -R $TESTPOOL $vdev:$offset:$l1_read_size:id 2> /dev/null)
 block_cnt=$(echo "$output" | grep 'L0' | wc -l)
-if [ "$block_cnt" != "$write_count" ]; then
+if [ $block_cnt -ne $write_count ]; then
 	log_fail "zdb -R :id (indirect block display) failed"
 fi
 
@@ -121,7 +121,7 @@ log_note "Reading from DVA $vdev:$offset:$l1_read_size"
 output=$(export ZDB_NO_ZLE=\"true\";\
     zdb -R $TESTPOOL $vdev:$offset:$l1_read_size:id 2> /dev/null)
 block_cnt=$(echo "$output" | grep 'L0' | wc -l)
-if [ "$block_cnt" != "$write_count" ]; then
+if [ $block_cnt -ne $write_count ]; then
         log_fail "zdb -R 0.0:offset:length:id (indirect block display) failed"
 fi
 
