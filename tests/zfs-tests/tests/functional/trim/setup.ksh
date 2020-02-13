@@ -24,6 +24,7 @@
 verify_runnable "global"
 
 if is_freebsd; then
+	log_unsupported "FreeBSD has no hole punching mechanism for the time being."
 	diskinfo -v $DISKS | grep -qE 'No.*# TRIM/UNMAP support' &&
 	    log_unsupported "DISKS do not support discard (TRIM/UNMAP)"
 else
