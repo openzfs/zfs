@@ -25,7 +25,7 @@
 #
 
 . $STF_SUITE/include/libtest.shlib
-. $STF_SUITE/tests/functional/cli_root/zpool_create/zpool_create.shlib
+. $STF_SUITE/tests/functional/cli_root/zpool_add/zpool_add.kshlib
 
 #
 # DESCRIPTION:
@@ -49,8 +49,8 @@ function cleanup
 log_assert "zpool add -o ashift=<n>' works with different ashift values"
 log_onexit cleanup
 
-disk1=$TEST_BASE_DIR/$FILEDISK0
-disk2=$TEST_BASE_DIR/$FILEDISK1
+disk1=$TEST_BASE_DIR/disk1
+disk2=$TEST_BASE_DIR/disk2
 log_must mkfile $SIZE $disk1
 log_must mkfile $SIZE $disk2
 
