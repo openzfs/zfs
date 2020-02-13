@@ -373,6 +373,13 @@ struct dnode {
 };
 
 /*
+ * Since AVL already has embedded element counter, use dn_dbufs_count
+ * only for dbufs not counted there (bonus buffers) and just add them.
+ */
+#define	DN_DBUFS_COUNT(dn)	((dn)->dn_dbufs_count + \
+    avl_numnodes(&(dn)->dn_dbufs))
+
+/*
  * We use this (otherwise unused) bit to indicate if the value of
  * dn_next_maxblkid[txgoff] is valid to use in dnode_sync().
  */

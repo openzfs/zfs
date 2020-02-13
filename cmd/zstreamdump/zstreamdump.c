@@ -117,7 +117,8 @@ read_hdr(dmu_replay_record_t *drr, zio_cksum_t *cksum)
 	    sizeof (zio_cksum_t), cksum);
 	if (r == 0)
 		return (0);
-	if (!ZIO_CHECKSUM_IS_ZERO(&drr->drr_u.drr_checksum.drr_checksum) &&
+	if (do_cksum &&
+	    !ZIO_CHECKSUM_IS_ZERO(&drr->drr_u.drr_checksum.drr_checksum) &&
 	    !ZIO_CHECKSUM_EQUAL(saved_cksum,
 	    drr->drr_u.drr_checksum.drr_checksum)) {
 		fprintf(stderr, "invalid checksum\n");
