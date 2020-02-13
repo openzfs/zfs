@@ -43,7 +43,7 @@ verify_runnable "global"
 function cleanup
 {
 	poolexists $TESTPOOL && destroy_pool $TESTPOOL
-	log_must rm -f $disk1 $disk2
+	rm -f $disk1 $disk2
 }
 
 log_assert "zpool add -o ashift=<n>' works with different ashift values"

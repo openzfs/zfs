@@ -30,9 +30,11 @@ verify_runnable "global"
 
 function cleanup
 {
-	destroy_pool $TESTPOOL
-	destroy_pool $TEMPPOOL
+	typeset pool
 
+	for pool in $TESTPOOL $TEMPPOOL; do
+		poolexists $pool && destroy_pool $pool
+	done
 }
 
 log_assert "'zpool create -t <tempname>' can create a pool with the specified" \

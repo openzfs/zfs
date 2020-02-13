@@ -56,9 +56,7 @@ function cleanup
 	fi
 
 	for pool in $TESTPOOL1 $TESTPOOL; do
-		if poolexists $pool; then
-			destroy_pool $pool
-		fi
+		poolexists $pool && destroy_pool $pool
 	done
 }
 

@@ -54,9 +54,7 @@ function cleanup
 		zfs destroy $vol_name
 	fi
 
-	if poolexists $TESTPOOL; then
-		destroy_pool $TESTPOOL
-	fi
+	poolexists $TESTPOOL && destroy_pool $TESTPOOL
 }
 
 log_assert "'zpool create' should fail with regular file in swap."

@@ -47,13 +47,8 @@ verify_runnable "global"
 
 function cleanup
 {
-	if poolexists $TESTPOOL; then
-		destroy_pool $TESTPOOL
-	fi
-
-	if [[ -d $TESTDIR ]]; then
-		log_must rm -rf $TESTDIR
-	fi
+	poolexists $TESTPOOL && destroy_pool $TESTPOOL
+	rm -rf $TESTDIR
 }
 
 if [[ -n $DISK ]]; then
