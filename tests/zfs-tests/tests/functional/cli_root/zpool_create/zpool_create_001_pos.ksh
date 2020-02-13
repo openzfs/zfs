@@ -49,17 +49,7 @@ function cleanup
 {
 	poolexists $TESTPOOL && destroy_pool $TESTPOOL
 
-	clean_blockfile "$TESTDIR0 $TESTDIR1"
-
-	if [[ -n $DISK ]]; then
-		partition_disk $((($MINVDEVSIZE / (1024 * 1024)) * 2))m $DISK 7
-	else
-		typeset disk=""
-		for disk in $DISK0 $DISK1; do
-			partition_disk \
-			    $((($MINVDEVSIZE / (1024 * 1024)) * 2))m $disk 7
-		done
-	fi
+	rm -f $disk1 $disk2
 }
 
 log_assert "'zpool create <pool> <vspec> ...' can successfully create" \
@@ -67,80 +57,21 @@ log_assert "'zpool create <pool> <vspec> ...' can successfully create" \
 
 log_onexit cleanup
 
-set -A keywords "" "mirror" "raidz" "raidz1"
+typeset disk1=$(create_blockfile $FILESIZE)
+typeset disk2=$(create_blockfile $FILESIZE)
 
-case $DISK_ARRAY_NUM in
-0|1)
-	typeset disk=""
-	if (( $DISK_ARRAY_NUM == 0 )); then
-		disk=$DISK
-	else
-		disk=$DISK0
-	fi
-	create_blockfile $FILESIZE $TESTDIR0/$FILEDISK0 \
-		${disk}${SLICE_PREFIX}${SLICE5}
-	create_blockfile $FILESIZE $TESTDIR1/$FILEDISK1 \
-		${disk}${SLICE_PREFIX}${SLICE6}
+pooldevs="${DISK0} \
+	\"${DISK0} ${DISK1}\" \
+	\"${DISK0} ${DISK1} ${DISK2}\" \
+	\"$disk1 $disk2\""
+raidzdevs="\"${DISK0} ${DISK1} ${DISK2}\""
+mirrordevs="\"${DISK0} ${DISK1}\" \
+	$raidzdevs \
+	\"$disk1 $disk2\""
 
-	pooldevs="${disk}${SLICE_PREFIX}${SLICE0} \
-		${DEV_DSKDIR}/${disk}${SLICE_PREFIX}${SLICE0} \
-		\"${disk}${SLICE_PREFIX}${SLICE0} \
-		${disk}${SLICE_PREFIX}${SLICE1}\" \
-                  $TESTDIR0/$FILEDISK0"
-	raidzdevs="\"${DEV_DSKDIR}/${disk}${SLICE_PREFIX}${SLICE0} \
-		${disk}${SLICE_PREFIX}${SLICE1}\" \
-		\"${disk}${SLICE_PREFIX}${SLICE0} \
-		${disk}${SLICE_PREFIX}${SLICE1} \
-		${disk}${SLICE_PREFIX}${SLICE3}\" \
-		\"${disk}${SLICE_PREFIX}${SLICE0} \
-		${disk}${SLICE_PREFIX}${SLICE1} \
-		${disk}${SLICE_PREFIX}${SLICE3} \
-		${disk}${SLICE_PREFIX}${SLICE4}\"\
-		\"$TESTDIR0/$FILEDISK0 $TESTDIR1/$FILEDISK1\""
-	mirrordevs=$raidzdevs
-	;;
-2|*)
-	create_blockfile $FILESIZE $TESTDIR0/$FILEDISK0 \
-		${DISK0}${SLICE_PREFIX}${SLICE5}
-        create_blockfile $FILESIZE $TESTDIR1/$FILEDISK1 \
-		${DISK1}${SLICE_PREFIX}${SLICE5}
-
-	pooldevs="${DISK0}${SLICE_PREFIX}${SLICE0} \
-		\"${DEV_DSKDIR}/${DISK0}${SLICE_PREFIX}${SLICE0} \
-		${DISK1}${SLICE_PREFIX}${SLICE0}\" \
-		\"${DISK0}${SLICE_PREFIX}${SLICE0} \
-		${DISK0}${SLICE_PREFIX}${SLICE1} \
-		${DISK1}${SLICE_PREFIX}${SLICE1}\"\
-		\"${DISK0}${SLICE_PREFIX}${SLICE0} \
-		${DISK1}${SLICE_PREFIX}${SLICE0} \
-		${DISK0}${SLICE_PREFIX}${SLICE1}\
-		${DISK1}${SLICE_PREFIX}${SLICE1}\" \
-		\"$TESTDIR0/$FILEDISK0 $TESTDIR1/$FILEDISK1\""
-	raidzdevs="\"${DEV_DSKDIR}/${DISK0}${SLICE_PREFIX}${SLICE0} \
-		${DISK1}${SLICE_PREFIX}${SLICE0}\" \
-		\"${DISK0}${SLICE_PREFIX}${SLICE0} \
-		${DISK0}${SLICE_PREFIX}${SLICE1} \
-		${DISK1}${SLICE_PREFIX}${SLICE1}\" \
-		\"${DISK0}${SLICE_PREFIX}${SLICE0} \
-		${DISK1}${SLICE_PREFIX}${SLICE0} \
-		${DISK0}${SLICE_PREFIX}${SLICE1} \
-		${DISK1}${SLICE_PREFIX}${SLICE1}\" \
-		\"$TESTDIR0/$FILEDISK0 $TESTDIR1/$FILEDISK1\""
-	mirrordevs=$raidzdevs
-	;;
-esac
-
-typeset -i i=0
-while (( $i < ${#keywords[*]} )); do
-	case ${keywords[i]} in
-	"")
-		create_pool_test "$TESTPOOL" "${keywords[i]}" "$pooldevs";;
-	mirror)
-		create_pool_test "$TESTPOOL" "${keywords[i]}" "$mirrordevs";;
-	raidz|raidz1)
-		create_pool_test "$TESTPOOL" "${keywords[i]}" "$raidzdevs" ;;
-	esac
-	(( i = i+1 ))
-done
+create_pool_test "$TESTPOOL" "" "$pooldevs"
+create_pool_test "$TESTPOOL" "mirror" "$mirrordevs"
+create_pool_test "$TESTPOOL" "raidz" "$raidzdevs"
+create_pool_test "$TESTPOOL" "raidz1" "$raidzdevs"
 
 log_pass "'zpool create <pool> <vspec> ...' success."

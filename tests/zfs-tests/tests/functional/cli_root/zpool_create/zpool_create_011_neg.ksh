@@ -54,49 +54,40 @@ function cleanup
 		destroy_pool $pool
 	done
 
+	rm -rf $disk1 $disk2 $disk3
+
 	if [[ -n $saved_dump_dev ]]; then
 		log_must dumpadm -u -d $saved_dump_dev
 	fi
-
-	partition_disk $SIZE $disk 7
 }
 
 log_assert "'zpool create' should be failed with inapplicable scenarios."
 log_onexit cleanup
 
-if [[ -n $DISK ]]; then
-	disk=$DISK
-else
-	disk=$DISK0
-fi
-pooldev1=${disk}${SLICE_PREFIX}${SLICE0}
-pooldev2=${disk}${SLICE_PREFIX}${SLICE1}
-mirror1="${disk}${SLICE_PREFIX}${SLICE1} ${disk}${SLICE_PREFIX}${SLICE3}"
-mirror2="${disk}${SLICE_PREFIX}${SLICE4} ${disk}${SLICE_PREFIX}${SLICE5}"
+disk1=$(create_blockfile $FILESIZE)
+disk2=$(create_blockfile $FILESIZE)
+disk3=$(create_blockfile $FILESIZE1)
+mirror1="$DISK0 $DISK1"
+mirror2="$disk1 $disk2"
 raidz1=$mirror1
 raidz2=$mirror2
-diff_size_dev="${disk}${SLICE_PREFIX}${SLICE6} ${disk}${SLICE_PREFIX}${SLICE7}"
+diff_size_dev="$disk2 $disk3"
 vfstab_dev=$(find_vfstab_dev)
 
 if is_illumos; then
-	specified_dump_dev=${disk}${SLICE_PREFIX}${SLICE0}
+	specified_dump_dev=${DISK0}s0
 	saved_dump_dev=$(save_dump_dev)
 
-	cyl=$(get_endslice $disk $SLICE6)
-	log_must set_partition $SLICE7 "$cyl" $SIZE1 $disk
-else
-	partition_disk $SIZE $disk 7
-	cyl=$(get_endslice $disk $SLICE5)
-	log_must set_partition $SLICE6 "$cyl" $SIZE1 $disk
+	cyl=$(get_endslice $DISK0 6)
+	log_must set_partition 7 "$cyl" $SIZE1 $DISK0
 fi
-create_pool "$TESTPOOL" "$pooldev1"
+create_pool $TESTPOOL $DISK0
 
 #
 # Set up the testing scenarios parameters
 #
-set -A arg "$TESTPOOL $pooldev2" \
-	"$TESTPOOL1 $pooldev1" \
-	"$TESTPOOL1 $TESTDIR0/$FILEDISK0" \
+set -A arg \
+	"$TESTPOOL1 $DISK0" \
 	"$TESTPOOL1 mirror mirror $mirror1 mirror $mirror2" \
 	"$TESTPOOL1 raidz raidz $raidz1 raidz $raidz2" \
 	"$TESTPOOL1 raidz1 raidz1 $raidz1 raidz1 $raidz2" \
@@ -109,7 +100,7 @@ set -A arg "$TESTPOOL $pooldev2" \
 	"$TESTPOOL1 raidz1 $diff_size_dev" \
 	"$TESTPOOL1 mirror $mirror1 spare $mirror2 spare $diff_size_dev" \
 	"$TESTPOOL1 $vfstab_dev" \
-	"$TESTPOOL1 ${disk}s10" \
+	"$TESTPOOL1 ${DISK0}s10" \
 	"$TESTPOOL1 spare $pooldev2"
 
 unset NOINUSE_CHECK
@@ -125,7 +116,7 @@ log_must zpool destroy -f $TESTPOOL
 if is_illumos; then
 	# create/destroy a pool as a simple way to set the partitioning
 	# back to something normal so we can use this $disk as a dump device
-	log_must zpool create -f $TESTPOOL3 $disk
+	log_must zpool create -f $TESTPOOL3 $DISK1
 	log_must zpool destroy -f $TESTPOOL3
 
 	log_must dumpadm -d ${DEV_DSKDIR}/$specified_dump_dev
@@ -134,7 +125,7 @@ if is_illumos; then
 	# Also check to see that in-use checking prevents us from creating
 	# a zpool from just the first slice on the disk.
 	log_mustnot zpool create \
-		-f $TESTPOOL1 ${specified_dump_dev}${SLICE_PREFIX}${SLICE0}
+		-f $TESTPOOL1 ${specified_dump_dev}s0
 fi
 
 log_pass "'zpool create' is failed as expected with inapplicable scenarios."

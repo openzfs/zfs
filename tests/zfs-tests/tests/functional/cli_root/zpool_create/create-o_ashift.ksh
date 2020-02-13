@@ -90,8 +90,7 @@ function verify_device_uberblocks # <device> <count>
 log_assert "zpool create -o ashift=<n>' works with different ashift values"
 log_onexit cleanup
 
-disk=$TEST_BASE_DIR/$FILEDISK0
-log_must mkfile $SIZE $disk
+disk=$(create_blockfile $SIZE)
 
 typeset ashifts=("9" "10" "11" "12" "13" "14" "15" "16")
 # since Illumos 4958 the largest uberblock is 8K so we have at least of 16/label
@@ -117,7 +116,7 @@ do
 	# clean things for the next run
 	log_must zpool destroy $TESTPOOL
 	log_must zpool labelclear $disk
-	log_must eval "verify_device_uberblocks $disk 0"
+	log_must verify_device_uberblocks $disk 0
 	((i = i + 1))
 done
 

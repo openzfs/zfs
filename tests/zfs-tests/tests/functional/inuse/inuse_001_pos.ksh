@@ -60,27 +60,25 @@ log_assert "Ensure ZFS cannot use a device designated as a dump device"
 log_onexit cleanup
 
 typeset dumpdev=""
-typeset diskslice=""
 
 PREVDUMPDEV=`dumpadm | grep "Dump device" | awk '{print $3}'`
 
-log_note "Zero $FS_DISK0 and place free space in to slice 0"
+log_note "Zero $FS_DISK0"
 log_must cleanup_devices $FS_DISK0
 
-diskslice="${DEV_DSKDIR}/${FS_DISK0}${SLICE0}"
-log_note "Configuring $diskslice as dump device"
-log_must dumpadm -d $diskslice > /dev/null
+log_note "Configuring $rawdisk0 as dump device"
+log_must dumpadm -d $rawdisk0 > /dev/null
 
 log_note "Confirm that dump device has been setup"
 dumpdev=`dumpadm | grep "Dump device" | awk '{print $3}'`
 [[ -z "$dumpdev" ]] && log_untested "No dump device has been configured"
 
-[[ "$dumpdev" != "$diskslice" ]] && \
-    log_untested "Dump device has not been configured to $diskslice"
+[[ "$dumpdev" != "$rawdisk0" ]] && \
+    log_untested "Dump device has not been configured to $rawdisk0"
 
 log_note "Attempt to zpool the dump device"
 unset NOINUSE_CHECK
-log_mustnot zpool create $TESTPOOL "$diskslice"
+log_mustnot zpool create $TESTPOOL "$rawdisk0"
 log_mustnot poolexists $TESTPOOL
 
 log_pass "Unable to zpool a device in use by dumpadm"

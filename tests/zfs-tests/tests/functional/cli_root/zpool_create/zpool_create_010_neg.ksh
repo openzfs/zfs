@@ -55,18 +55,10 @@ function cleanup
 	done
 
 	rm -rf $TESTDIR
-
-	partition_disk $SIZE $disk 6
 }
 log_onexit cleanup
 
-if [[ -n $DISK ]]; then
-        disk=$DISK
-else
-        disk=$DISK0
-fi
-
-create_pool $TESTPOOL $disk
+create_pool $TESTPOOL $DISK0
 log_must zfs create $TESTPOOL/$TESTFS
 log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 
