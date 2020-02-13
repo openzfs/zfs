@@ -46,7 +46,7 @@
 function test_cleanup
 {
 	poolexists $NESTEDPOOL && destroy_pool $NESTEDPOOL
-	log_must set_tunable32 SPA_ASIZE_INFLATION 24
+	set_tunable32 SPA_ASIZE_INFLATION 24
 	cleanup_test_pool
 }
 

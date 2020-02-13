@@ -131,7 +131,7 @@ function verify_partition # device
 		log_fail "$device is not a block device"
 	fi
 	# create a small dummy partition
-	set_partition 0 1 1m $device
+	set_partition 0 "" 1m $device
 	# verify we can access the partition on the device
 	devname="$(readlink -f "$device")"
 	if is_linux || is_freebsd; then

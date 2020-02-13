@@ -59,9 +59,14 @@ log_must eval "zfs recv $POOL/newfs < $BACKDIR/fs@snap${last_snap}"
 # Set atime=off to prevent the recursive_cksum from modifying newfs.
 log_must zfs set atime=off $POOL/newfs
 
-# Due to reduced performance on debug kernels use fewer files by default.
 if is_kmemleak; then
+	# Use fewer files and passes on debug kernels
+	# to avoid timeout due to reduced performance.
 	nr_files=100
+	passes=2
+elif is_freebsd; then
+	# Use fewer passes and files on FreeBSD to avoid timeout.
+	nr_files=500
 	passes=2
 else
 	nr_files=1000

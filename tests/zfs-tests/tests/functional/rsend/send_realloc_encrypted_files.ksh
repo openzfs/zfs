@@ -16,8 +16,8 @@
 # Use is subject to license terms.
 #
 
-. $STF_SUITE/include/properties.shlib
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/include/properties.shlib
 . $STF_SUITE/tests/functional/rsend/rsend.kshlib
 
 #
@@ -67,9 +67,14 @@ log_must eval "zfs recv $POOL/newfs < $BACKDIR/fs@snap${last_snap}"
 # Set atime=off to prevent the recursive_cksum from modifying newfs.
 log_must zfs set atime=off $POOL/newfs
 
-# Due to reduced performance on debug kernels use fewer files by default.
 if is_kmemleak; then
+	# Use fewer files and passes on debug kernels
+	# to avoid timeout due to reduced performance.
 	nr_files=100
+	passes=2
+elif is_freebsd; then
+	# Use fewer files and passes on FreeBSD to avoid timeout.
+	nr_files=500
 	passes=2
 else
 	nr_files=1000
