@@ -156,7 +156,7 @@ ExecStop=@sbindir@/zfs unload-key '${dataset}'"   > "${dest_norm}/${keyloadunit}
   fi
 
   # Escape the mountpoint per systemd policy.
-  mountfile="$(systemd-escape "${p_mountpoint#?}").mount"
+  mountfile="$(systemd-escape --path --suffix=mount "${p_mountpoint}")"
 
   # Parse options
   # see lib/libzfs/libzfs_mount.c:zfs_add_options
