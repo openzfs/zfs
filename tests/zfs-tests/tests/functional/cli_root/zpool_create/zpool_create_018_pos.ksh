@@ -47,7 +47,7 @@
 function cleanup
 {
 	poolexists $TESTPOOL && destroy_pool $TESTPOOL
-	[[ -f $CPATH ]] && log_must rm $CPATH
+	rm -f $CPATH
 }
 
 log_onexit cleanup

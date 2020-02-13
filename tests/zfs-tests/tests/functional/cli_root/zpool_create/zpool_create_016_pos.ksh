@@ -48,9 +48,7 @@ verify_runnable "global"
 
 function cleanup
 {
-	if poolexists $TESTPOOL; then
-		destroy_pool $TESTPOOL
-	fi
+	poolexists $TESTPOOL && destroy_pool $TESTPOOL
 
 	#recover swap devices
 	FSTAB=$TEST_BASE_DIR/fstab_$$

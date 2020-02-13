@@ -44,7 +44,7 @@ verify_runnable "global"
 function cleanup
 {
 	poolexists $TESTPOOL1 && destroy_pool $TESTPOOL1
-	log_must rm -f $disk1 $disk2
+	rm -f $disk1 $disk2
 }
 
 log_assert "'zpool replace' uses the ashift pool property value as default."

@@ -44,8 +44,8 @@ verify_runnable "global"
 
 function cleanup
 {
-	destroy_pool $TESTPOOL
-	log_must rm -f $disk
+	poolexists $TESTPOOL && destroy_pool $TESTPOOL
+	rm -f $disk
 }
 
 #

@@ -47,7 +47,8 @@ verify_runnable "global"
 
 function cleanup
 {
-	[[ -e $tmpfile ]] && log_must rm -f $tmpfile
+	poolexists $TESTPOOL && destroy_pool $TESTPOOL
+	rm -f $tmpfile
 }
 
 tmpfile="$TEST_BASE_DIR/zpool_create_003.tmp$$"

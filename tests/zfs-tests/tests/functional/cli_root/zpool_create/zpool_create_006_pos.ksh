@@ -46,8 +46,8 @@ verify_runnable "global"
 
 function cleanup
 {
-	datasetexists $TESTPOOL1 && destroy_pool $TESTPOOL1
-	datasetexists $TESTPOOL && destroy_pool $TESTPOOL
+	poolexists $TESTPOOL1 && destroy_pool $TESTPOOL1
+	poolexists $TESTPOOL && destroy_pool $TESTPOOL
 }
 
 
