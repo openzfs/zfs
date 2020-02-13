@@ -8125,10 +8125,12 @@ bpobj_enqueue_free_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
 static int
 spa_free_sync_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
 {
-	zio_t *zio = arg;
+	zio_t *pio = arg;
 
-	zio_nowait(zio_free_sync(zio, zio->io_spa, dmu_tx_get_txg(tx), bp,
-	    zio->io_flags));
+	zio_t *zio = zio_free_sync(pio, pio->io_spa, dmu_tx_get_txg(tx), bp,
+	    pio->io_flags);
+	if (zio != NULL)
+		zio_nowait(zio);
 	return (0);
 }
 
