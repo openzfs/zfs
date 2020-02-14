@@ -99,6 +99,7 @@ COMMON_H = \
 	$(top_srcdir)/include/sys/zcp_global.h \
 	$(top_srcdir)/include/sys/zcp_iter.h \
 	$(top_srcdir)/include/sys/zcp_prop.h \
+	$(top_srcdir)/include/sys/zcp_set.h \
 	$(top_srcdir)/include/sys/zfeature.h \
 	$(top_srcdir)/include/sys/zfs_acl.h \
 	$(top_srcdir)/include/sys/zfs_context.h \

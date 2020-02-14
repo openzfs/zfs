@@ -12,7 +12,7 @@
 .\" Copyright (c) 2019, 2020 by Christian Schwarz. All Rights Reserved.
 .\" Copyright 2020 Joyent, Inc.
 .\"
-.Dd January 15, 2020
+.Dd February 3, 2020
 .Dt ZFS-PROGRAM 8
 .Os
 .Sh NAME
@@ -155,7 +155,7 @@ can guarantee that it will finish successfully against a similar size system.
 If a channel program attempts to return too large a value, the program will
 fully execute but exit with a nonzero status code and no return value.
 .Pp
-.Em Note:
+.Em Note :
 ZFS API functions do not generate Fatal Errors when correctly invoked, they
 return an error code and the channel program continues executing.
 See the
@@ -408,6 +408,26 @@ filesystem (string)
 .Bd -ragged -compact -offset "xxxx"
 Filesystem to rollback.
 .Ed
+.It Em zfs.sync.set_prop(dataset, property, value)
+Sets the given property on a dataset.
+Currently only user properties are supported.
+Returns 0 if the property was set, or a nonzero error code otherwise.
+.Pp
+dataset (string)
+.Bd -ragged -compact -offset "xxxx"
+The dataset where the property will be set.
+.Ed
+.Pp
+property (string)
+.Bd -ragged -compact -offset "xxxx"
+The property to set.
+Only user properties are supported.
+.Ed
+.Pp
+value (string)
+.Bd -ragged -compact -offset "xxxx"
+The value of the property to be set.
+.Ed
 .It Em zfs.sync.snapshot(dataset)
 Create a snapshot of a filesystem.
 Returns 0 if the snapshot was successfully created,
@@ -455,6 +475,7 @@ The available zfs.check functions are:
 .It Em zfs.check.destroy(dataset, [defer=true|false])
 .It Em zfs.check.promote(dataset)
 .It Em zfs.check.rollback(filesystem)
+.It Em zfs.check.set_property(dataset, property, value)
 .It Em zfs.check.snapshot(dataset)
 .El
 .It Sy zfs.list submodule

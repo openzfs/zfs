@@ -105,6 +105,7 @@ $(MODULE)-objs += zcp.o
 $(MODULE)-objs += zcp_get.o
 $(MODULE)-objs += zcp_global.o
 $(MODULE)-objs += zcp_iter.o
+$(MODULE)-objs += zcp_set.o
 $(MODULE)-objs += zcp_synctask.o
 $(MODULE)-objs += zfeature.o
 $(MODULE)-objs += zfs_byteswap.o

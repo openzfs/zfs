@@ -23,6 +23,7 @@
 #include <sys/lua/lauxlib.h>
 
 #include <sys/zcp.h>
+#include <sys/zcp_set.h>
 #include <sys/dsl_dir.h>
 #include <sys/dsl_pool.h>
 #include <sys/dsl_prop.h>
@@ -414,6 +415,44 @@ zcp_synctask_bookmark(lua_State *state, boolean_t sync, nvlist_t *err_details)
 	return (err);
 }
 
+static int zcp_synctask_set_prop(lua_State *, boolean_t, nvlist_t *err_details);
+static zcp_synctask_info_t zcp_synctask_set_prop_info = {
+	.name = "set_prop",
+	.func = zcp_synctask_set_prop,
+	.space_check = ZFS_SPACE_CHECK_RESERVED,
+	.blocks_modified = 2,
+	.pargs = {
+		{ .za_name = "dataset", .za_lua_type = LUA_TSTRING},
+		{ .za_name = "property", .za_lua_type =  LUA_TSTRING},
+		{ .za_name = "value", .za_lua_type =  LUA_TSTRING},
+		{ NULL, 0 }
+	},
+	.kwargs = {
+		{ NULL, 0 }
+	}
+};
+
+static int
+zcp_synctask_set_prop(lua_State *state, boolean_t sync, nvlist_t *err_details)
+{
+	int err;
+	zcp_set_prop_arg_t args = { 0 };
+
+	const char *dsname = lua_tostring(state, 1);
+	const char *prop = lua_tostring(state, 2);
+	const char *val = lua_tostring(state, 3);
+
+	args.state = state;
+	args.dsname = dsname;
+	args.prop = prop;
+	args.val = val;
+
+	err = zcp_sync_task(state, zcp_set_prop_check, zcp_set_prop_sync,
+	    &args, sync, dsname);
+
+	return (err);
+}
+
 static int
 zcp_synctask_wrapper(lua_State *state)
 {
@@ -484,6 +523,7 @@ zcp_load_synctask_lib(lua_State *state, boolean_t sync)
 		&zcp_synctask_snapshot_info,
 		&zcp_synctask_inherit_prop_info,
 		&zcp_synctask_bookmark_info,
+		&zcp_synctask_set_prop_info,
 		NULL
 	};
 
