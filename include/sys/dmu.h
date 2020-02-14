@@ -938,7 +938,7 @@ void dmu_object_info_from_dnode(dnode_t *dn, dmu_object_info_t *doi);
 void dmu_object_info_from_db(dmu_buf_t *db, dmu_object_info_t *doi);
 /*
  * Like dmu_object_info_from_db, but faster still when you only care about
- * the size.  This is specifically optimized for zfs_getattr().
+ * the size.
  */
 void dmu_object_size_from_db(dmu_buf_t *db, uint32_t *blksize,
     u_longlong_t *nblk512);

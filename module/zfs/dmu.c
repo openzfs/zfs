@@ -2365,7 +2365,6 @@ dmu_object_info_from_db(dmu_buf_t *db_fake, dmu_object_info_t *doi)
 
 /*
  * Faster still when you only care about the size.
- * This is specifically optimized for zfs_getattr().
  */
 void
 dmu_object_size_from_db(dmu_buf_t *db_fake, uint32_t *blksize,
