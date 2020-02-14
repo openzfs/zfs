@@ -17,14 +17,14 @@ fi
 
 if [ "$script" = "iostat-1s" ] ; then
 	# Do a single one-second sample
-	extra="1 1"
+	interval=1
 	# Don't show summary stats
-	y="-y"
+	brief="yes"
 elif [ "$script" = "iostat-10s" ] ; then
 	# Do a single ten-second sample
-	extra="10 1"
+	interval=10
 	# Don't show summary stats
-	y="-y"
+	brief="yes"
 fi
 
 if [ -f "$VDEV_UPATH" ] ; then
@@ -32,7 +32,19 @@ if [ -f "$VDEV_UPATH" ] ; then
 	exit
 fi
 
-out=$(eval "iostat $y -k -x $VDEV_UPATH $extra")
+if [ "$(uname)" = "FreeBSD" ]; then
+	out=$(iostat -dKx \
+		${interval:+"-w $interval"} \
+		${interval:+"-c 1"} \
+		"$VDEV_UPATH" | tail -n 2)
+else
+	out=$(iostat -kx \
+		${brief:+"-y"} \
+		${interval:+"$interval"} \
+		${interval:+"1"} \
+		"$VDEV_UPATH" | awk NF | tail -n 2)
+fi
+
 
 # Sample output (we want the last two lines):
 #
@@ -46,16 +58,16 @@ out=$(eval "iostat $y -k -x $VDEV_UPATH $extra")
 #
 
 # Get the column names
-cols=$(echo "$out" | grep Device)
+cols=$(echo "$out" | head -n 1)
 
 # Get the values and tab separate them to make them cut-able.
-vals="$(echo "$out" | grep -A1 Device | tail -n 1 | sed -r 's/[[:blank:]]+/\t/g')"
+vals=$(echo "$out" | tail -n 1 | sed -r 's/[[:blank:]]+/\t/g')
 
 i=0
 for col in $cols ; do
 	i=$((i+1))
 	# Skip the first column since it's just the device name
-	if [ "$col" = "Device:" ] ; then
+	if [ $i -eq 1 ]; then
 		continue
 	fi
 

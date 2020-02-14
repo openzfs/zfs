@@ -566,7 +566,7 @@ AC_DEFUN([ZFS_LINUX_COMPILE], [
 	AC_TRY_COMMAND([
 	    KBUILD_MODPOST_NOFINAL="$5" KBUILD_MODPOST_WARN="$6"
 	    make modules -k -j$TEST_JOBS -C $LINUX_OBJ $ARCH_UM
-	    M=$PWD/$1 &>$1/build.log])
+	    M=$PWD/$1 >$1/build.log 2>&1])
 	AS_IF([AC_TRY_COMMAND([$2])], [$3], [$4])
 ])
 
