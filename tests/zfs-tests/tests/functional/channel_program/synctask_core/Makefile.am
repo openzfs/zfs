@@ -27,6 +27,7 @@ dist_pkgdata_SCRIPTS = \
 	tst.promote_simple.ksh \
 	tst.rollback_mult.ksh \
 	tst.rollback_one.ksh \
+	tst.set_props.ksh \
 	tst.snapshot_destroy.ksh \
 	tst.snapshot_neg.ksh \
 	tst.snapshot_recursive.ksh \
@@ -43,6 +44,7 @@ dist_pkgdata_DATA = \
 	tst.get_string_props.out \
 	tst.get_string_props.zcp \
 	tst.promote_conflict.zcp \
+	tst.set_props.zcp \
 	tst.snapshot_destroy.zcp \
 	tst.snapshot_neg.zcp \
 	tst.snapshot_recursive.zcp \
